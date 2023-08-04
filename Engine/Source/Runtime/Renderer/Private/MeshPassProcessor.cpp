@@ -1699,7 +1699,7 @@ uint64 FMeshDrawCommand::GetPipelineStateSortingKey(const FGraphicsPipelineRende
 }
 
 #if MESH_DRAW_COMMAND_DEBUG_DATA
-void FMeshDrawCommand::SetDebugData(const FPrimitiveSceneProxy* PrimitiveSceneProxy, const FMaterial* Material, const FMaterialRenderProxy* MaterialRenderProxy, const FMeshProcessorShaders& UntypedShaders, const FVertexFactory* VertexFactory, uint32 MeshPassType)
+void FMeshDrawCommand::SetDebugData(const FPrimitiveSceneProxy* PrimitiveSceneProxy, const FMaterial* Material, const FMaterialRenderProxy* MaterialRenderProxy, const FMeshProcessorShaders& UntypedShaders, const FVertexFactory* VertexFactory, const FMeshBatch& MeshBatch, uint32 MeshPassType)
 {
 	DebugData.PrimitiveSceneProxyIfNotUsingStateBuckets = PrimitiveSceneProxy;
 	DebugData.MaterialRenderProxy = MaterialRenderProxy;
@@ -1707,18 +1707,18 @@ void FMeshDrawCommand::SetDebugData(const FPrimitiveSceneProxy* PrimitiveScenePr
 	DebugData.PixelShader = UntypedShaders.PixelShader;
 	DebugData.VertexFactory = VertexFactory;
 	DebugData.VertexFactoryType = VertexFactory->GetType();
+	DebugData.LODIndex = MeshBatch.LODIndex;
+	DebugData.SegmentIndex = MeshBatch.SegmentIndex;
 	DebugData.MeshPassType = MeshPassType;
 	DebugData.ResourceName =  PrimitiveSceneProxy ? PrimitiveSceneProxy->GetResourceName() : FName();
 	DebugData.MaterialName = MaterialRenderProxy->GetMaterialName();
 }
 #endif
 
-#if MESH_DRAW_COMMAND_STAT_COLLECTION
-void FMeshDrawCommand::SetStatsData(const FPrimitiveSceneProxy* PrimitiveSceneProxy, const FMeshBatch& MeshBatch, int32 BatchElementIndex)
+#if MESH_DRAW_COMMAND_STATS
+void FMeshDrawCommand::SetStatsData(const FPrimitiveSceneProxy* PrimitiveSceneProxy)
 {
-	StatsData.ComponentDataID = PrimitiveSceneProxy ? PrimitiveSceneProxy->GetMeshDrawCommandStatsComponentDataID() : INDEX_NONE;
-	StatsData.LODIndex = MeshBatch.LODIndex;
-	StatsData.SegmentIndex = MeshBatch.SegmentIndex;
+	StatsData.CategoryName = PrimitiveSceneProxy ? PrimitiveSceneProxy->GetMeshDrawCommandStatsCategory() : FName();
 }
 
 void FMeshDrawCommand::GetStatsData(FVisibleMeshDrawCommandStatsData& OutVisibleStatsData) const
@@ -1726,11 +1726,13 @@ void FMeshDrawCommand::GetStatsData(FVisibleMeshDrawCommandStatsData& OutVisible
 	OutVisibleStatsData.StatsData = StatsData;
 	OutVisibleStatsData.PrimitiveCount = NumPrimitives;
 #if MESH_DRAW_COMMAND_DEBUG_DATA
+	OutVisibleStatsData.LODIndex = DebugData.LODIndex;
+	OutVisibleStatsData.SegmentIndex = DebugData.SegmentIndex;
 	OutVisibleStatsData.ResourceName = DebugData.ResourceName;
 	OutVisibleStatsData.MaterialName = DebugData.MaterialName;
 #endif
 }
-#endif // MESH_DRAW_COMMAND_STAT_COLLECTION
+#endif // MESH_DRAW_COMMAND_STATS
 
 void SubmitMeshDrawCommands(
 	const FMeshCommandOneFrameArray& VisibleMeshDrawCommands,

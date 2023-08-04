@@ -19,7 +19,7 @@
 #include "DrawDebugHelpers.h"
 #include "Math/CapsuleShape.h"
 #include "SceneDefinitions.h"
-#include "MeshDrawCommandStatsComponentData.h"
+#include "MeshDrawCommandStatsDefines.h"
 
 class FLightSceneInfo;
 class FLightSceneProxy;
@@ -618,10 +618,6 @@ public:
 	inline int32 GetVirtualTextureCullMips() const { return VirtualTextureCullMips; }
 	inline int32 GetVirtualTextureMinCoverage() const {	return VirtualTextureMinCoverage; }
 
-#if MESH_DRAW_COMMAND_STAT_COLLECTION
-	inline FMeshDrawCommandStatsComponentDataID GetMeshDrawCommandStatsComponentDataID() const { return MeshDrawCommandStatsComponentDataID; }
-#endif
-
 	inline bool IsMovable() const 
 	{ 
 		// Note: primitives with EComponentMobility::Stationary can still move (as opposed to lights with EComponentMobility::Stationary)
@@ -1078,6 +1074,10 @@ public:
 
 	/** Sets the primitive proxy's mass space to component space. Useful for debugging physics center of mass and inertia tensor*/
 	ENGINE_API virtual void SetDebugMassData(const TArray<FDebugMassData>& InDebugMassData);
+#endif
+
+#if MESH_DRAW_COMMAND_STATS
+	inline FName GetMeshDrawCommandStatsCategory() const { return MeshDrawCommandStatsCategory; }
 #endif
 
 	/**
@@ -1570,6 +1570,11 @@ private:
 	/** The name of the level the primitive is in. */
 	FName LevelName;
 
+#if MESH_DRAW_COMMAND_STATS
+	/** Category name for this primitive in the mesh draw stat collection. */
+	FName MeshDrawCommandStatsCategory;
+#endif
+
 #if WITH_EDITOR
 	/** A copy of the actor's group membership for handling per-view group hiding */
 	uint64 HiddenEditorViews;
@@ -1627,11 +1632,6 @@ protected:
 
 	/** The primitive's minimum cull distance. */
 	float MinDrawDistance;
-
-#if MESH_DRAW_COMMAND_STAT_COLLECTION
-	/** Unique id use to retrieve the component data when building the mesh data draw stat information */
-	FMeshDrawCommandStatsComponentDataID MeshDrawCommandStatsComponentDataID = INDEX_NONE;
-#endif
 
 	/**
 	 * Updates the primitive proxy's cached transforms for all instances given a buffer of instance updates.

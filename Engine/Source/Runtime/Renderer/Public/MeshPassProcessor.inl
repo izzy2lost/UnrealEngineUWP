@@ -148,7 +148,8 @@ void FMeshPassProcessor::BuildMeshDrawCommands(
 		PassShaders.GeometryShader->GetShaderBindings(Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, MaterialResource, DrawRenderState, ShaderElementData, ShaderBindings);
 	}
 
-	SharedMeshDrawCommand.SetDebugData(PrimitiveSceneProxy, &MaterialResource, &MaterialRenderProxy, PassShaders.GetUntypedShaders(), VertexFactory, (uint32)MeshPassType);
+	SharedMeshDrawCommand.SetDebugData(PrimitiveSceneProxy, &MaterialResource, &MaterialRenderProxy, PassShaders.GetUntypedShaders(), VertexFactory, MeshBatch, (uint32)MeshPassType);
+	SharedMeshDrawCommand.SetStatsData(PrimitiveSceneProxy);
 
 	const int32 NumElements = ShouldSkipMeshDrawCommand(MeshBatch, PrimitiveSceneProxy) ? 0 : MeshBatch.Elements.Num();
 
@@ -158,8 +159,6 @@ void FMeshPassProcessor::BuildMeshDrawCommands(
 		{
 			const FMeshBatchElement& BatchElement = MeshBatch.Elements[BatchElementIndex];
 			FMeshDrawCommand& MeshDrawCommand = DrawListContext->AddCommand(SharedMeshDrawCommand, NumElements);
-			
-			MeshDrawCommand.SetStatsData(PrimitiveSceneProxy, MeshBatch, BatchElementIndex);
 			
 			EFVisibleMeshDrawCommandFlags Flags = SharedFlags;
 			if (BatchElement.bForceInstanceCulling)

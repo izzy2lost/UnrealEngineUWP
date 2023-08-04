@@ -10,7 +10,7 @@
 #include "RHI.h"
 #include "RHIGPUReadback.h"
 
-#if MESH_DRAW_COMMAND_STAT_COLLECTION
+#if MESH_DRAW_COMMAND_STATS
 
 FMeshDrawCommandStatsManager* FMeshDrawCommandStatsManager::Instance = nullptr;
 
@@ -32,9 +32,11 @@ DECLARE_DWORD_COUNTER_STAT(TEXT("Custom Indirect Rendered Instances"), STAT_Cull
 static TAutoConsoleVariable<int32> CVarShowMeshDrawCommandStats(
 	TEXT("r.MeshDrawCommands.Stats"),
 	0,
-	TEXT("Show on screen mesh draw command stats per stat category.\n")
-	TEXT("The stats are accumulated across passes and are post-culling.\n")
-	TEXT("Use stat culling to see global culling stats.\n"),
+	TEXT("Show on screen mesh draw command stats.\n")
+	TEXT("The stats for visible triangles are post GPU culling.\n")
+	TEXT(" 1 = Show stats per category. The stats are accumulated across passes.\n")
+	TEXT(" 2 = Show stats per pass.\n")
+	TEXT("You can also use 'stat culling' to see global culling stats.\n"),
 	ECVF_RenderThreadSafe
 );
 
@@ -137,33 +139,54 @@ FMeshDrawCommandStatsManager::FMeshDrawCommandStatsManager()
 			const bool bShowStats = CVarShowMeshDrawCommandStats->GetInt() == 0 ? false : true;
 			if (bShowStats)
 			{
-				const UMeshDrawCommandStatsSettings* Settings = GetDefault<UMeshDrawCommandStatsSettings>();
-
 				OutMessages.Add(FCoreDelegates::EOnScreenMessageSeverity::Info, FText::FromString(FString::Printf(TEXT("MeshDrawCommandStats (Triangles / Budget - Category):"), Stats.TotalPrimitives / 1000)));
-				for (FStats::FCategoryStats const& CategoryStat : Stats.CategoryStats)
+
+				TArray<FStats::FCategoryStats> CategoryStats = Stats.CategoryStats;
+
+				// Show budgeted stats first.
+				const UMeshDrawCommandStatsSettings* Settings = GetDefault<UMeshDrawCommandStatsSettings>();
+				for (FMeshDrawCommandStatsBudget const& CategoryBudget : Settings->Budgets)
 				{
-					int32 Budget = 0;
-					if (Settings != nullptr)
-					for (FMeshDrawCommandStatsBudget const& CategoryBudget : Settings->Budgets)
+					uint64 PrimitiveCount = 0;
+
+					for (FStats::FCategoryStats& CategoryStat : CategoryStats)
 					{
-						if (CategoryBudget.CategoryName == CategoryStat.Category)
+						if (CategoryBudget.CategoryName == CategoryStat.CategoryName)
 						{
-							Budget = CategoryBudget.PrimitiveBudget;
-							break;
+							PrimitiveCount += CategoryStat.PrimitiveCount;
+							CategoryStat.PrimitiveCount = 0;
+						}
+						else
+						{
+							for (FName Name : CategoryBudget.LinkedStatNames)
+							{
+								if (Name == CategoryStat.CategoryName)
+								{
+									PrimitiveCount += CategoryStat.PrimitiveCount;
+									CategoryStat.PrimitiveCount = 0;
+									break;
+								}
+							}
 						}
 					}
-					
-					if (Budget > 0)
+
+					if (PrimitiveCount > 0)
 					{
-						FCoreDelegates::EOnScreenMessageSeverity Severity = Budget < CategoryStat.PrimitiveCount ? FCoreDelegates::EOnScreenMessageSeverity::Warning : FCoreDelegates::EOnScreenMessageSeverity::Info;
-						OutMessages.Add(Severity, FText::FromString(FString::Printf(TEXT("%5dK / %5dK - %s"), CategoryStat.PrimitiveCount / 1000, Budget / 1000, *(CategoryStat.Category.ToString()))));
-					}
-					else
-					{
-						OutMessages.Add(FCoreDelegates::EOnScreenMessageSeverity::Info, FText::FromString(FString::Printf(TEXT("\t%5dK - %s"), CategoryStat.PrimitiveCount / 1000, *(CategoryStat.Category.ToString()))));
+						FCoreDelegates::EOnScreenMessageSeverity Severity = CategoryBudget.PrimitiveBudget < PrimitiveCount ? FCoreDelegates::EOnScreenMessageSeverity::Warning : FCoreDelegates::EOnScreenMessageSeverity::Info;
+						OutMessages.Add(Severity, FText::FromString(FString::Printf(TEXT("%5dK / %5dK - %s"), PrimitiveCount / 1000, CategoryBudget.PrimitiveBudget / 1000, *(CategoryBudget.CategoryName.ToString()))));
 					}
 				}
 
+				// Show remaining (non-zeroed) stats.
+				for (FStats::FCategoryStats const& CategoryStat : CategoryStats)
+				{
+					if (CategoryStat.PrimitiveCount > 0)
+					{
+						OutMessages.Add(FCoreDelegates::EOnScreenMessageSeverity::Info, FText::FromString(FString::Printf(TEXT("\t%5dK - %s"), CategoryStat.PrimitiveCount / 1000, *(CategoryStat.CategoryName.ToString()))));
+					}
+				}
+
+				// Show total budget.
 				const int32 TotalBudget = Settings != 0 ? Settings->TotalPrimitiveBudget : 0;
 				if (TotalBudget > 0)
 				{
@@ -241,11 +264,11 @@ void FMeshDrawCommandStatsManager::Update()
 
 	++CurrentFrameNumber;
 
+	const bool bShowPassNameStats = CVarShowMeshDrawCommandStats->GetInt() == 2 ? true : false;
+
 	FScopeLock ScopeLock(&FrameDataCS);
 
 	bool bHasProcessedFrame = false;
-
-	FMeshDrawCommandStatsComponentDataManager const* ComponentDataManager = FMeshDrawCommandStatsComponentDataManager::Get();
 
 	// TODO: might be more than one from a given frame. E.g., if it was using a scene capture, need to filter out those, or perhaps record them as a group actually.
 	for (int32 Index = Frames.Num() - 1; Index >= 0; --Index)
@@ -314,10 +337,8 @@ void FMeshDrawCommandStatsManager::Update()
 						Stats.TotalInstances += DrawData.VisibleInstanceCount;
 						Stats.TotalPrimitives += DrawData.VisibleInstanceCount * DrawData.PrimitiveCount;
 
-						FMeshDrawCommandStatsComponentData ComponentData = ComponentDataManager->GetComponentData(DrawData.StatsData.ComponentDataID);
-						static FName NAME_Unknown("Unknown Category");
-						FName StatsCategory = ComponentData.StatsCategory.IsNone() ? NAME_Unknown : ComponentData.StatsCategory;
-						uint64& TotalCount = CategoryStats.FindOrAdd(StatsCategory);
+						FName StatName = bShowPassNameStats ? PassStats->PassName : DrawData.StatsData.CategoryName;
+						uint64& TotalCount = CategoryStats.FindOrAdd(StatName);
 						TotalCount += DrawData.VisibleInstanceCount * DrawData.PrimitiveCount;
 					}
 
@@ -338,7 +359,7 @@ void FMeshDrawCommandStatsManager::Update()
 				{
 					Stats.CategoryStats.Add(FStats::FCategoryStats(Iter.Key(), Iter.Value()));
 				}
-				Algo::Sort(Stats.CategoryStats, [this](FStats::FCategoryStats& LHS, FStats::FCategoryStats& RHS) { return LHS.Category.ToString() < RHS.Category.ToString(); });
+				Algo::Sort(Stats.CategoryStats, [this](FStats::FCategoryStats& LHS, FStats::FCategoryStats& RHS) { return LHS.CategoryName.ToString() < RHS.CategoryName.ToString(); });
 
 				// Got new stats, so can dump them if requested
 				static bool bDumpStats = false;
@@ -373,8 +394,6 @@ void FMeshDrawCommandStatsManager::Update()
 	bCollectStats = bShowStats || bRequestDumpStats;
 }
 
-#if (!UE_BUILD_SHIPPING && !UE_BUILD_TEST)
-
 void FMeshDrawCommandStatsManager::DumpStats(FFrameData* FrameData)
 {
 	const FString Filename = FString::Printf(TEXT("%sMeshDrawCommandStats-%s.csv"), *FPaths::ProfilingDir(), *FDateTime::Now().ToString());
@@ -389,8 +408,7 @@ void FMeshDrawCommandStatsManager::DumpStats(FFrameData* FrameData)
 		FName PassName;
 		int32 VisibilePrimitiveCount;
 		int32 VisibleInstance;		
-		FName Category;
-		FName ComponentType;
+		FName CategoryName;
 		FName ResourceName;
 		int32 LODIndex;
 		int32 SegmentIndex;
@@ -401,7 +419,6 @@ void FMeshDrawCommandStatsManager::DumpStats(FFrameData* FrameData)
 	};
 	TArray<FStatEntry> StatEntries;
 
-	FMeshDrawCommandStatsComponentDataManager const* ComponentDataManager = FMeshDrawCommandStatsComponentDataManager::Get();
 	for (FMeshDrawCommandPassStats* PassStats : FrameData->PassData)
 	{
 		for (FVisibleMeshDrawCommandStatsData& DrawData : PassStats->DrawData)
@@ -412,17 +429,14 @@ void FMeshDrawCommandStatsManager::DumpStats(FFrameData* FrameData)
 				StatEntry.PassName = PassStats->PassName;
 				StatEntry.VisibilePrimitiveCount = DrawData.VisibleInstanceCount * DrawData.PrimitiveCount;
 				StatEntry.VisibleInstance = DrawData.VisibleInstanceCount;
-				StatEntry.LODIndex = DrawData.StatsData.LODIndex;
-				StatEntry.SegmentIndex = DrawData.StatsData.SegmentIndex;
+				StatEntry.LODIndex = DrawData.LODIndex;
+				StatEntry.SegmentIndex = DrawData.SegmentIndex;
 				StatEntry.PrimitiveCount = DrawData.PrimitiveCount;
 				StatEntry.TotalInstanceCount = DrawData.TotalInstanceCount;
 				StatEntry.TotalPrimitiveCount = DrawData.TotalInstanceCount * DrawData.PrimitiveCount;
 				StatEntry.ResourceName = DrawData.ResourceName;
 				StatEntry.MaterialName = DrawData.MaterialName;
-
-				FMeshDrawCommandStatsComponentData ComponentData = ComponentDataManager->GetComponentData(DrawData.StatsData.ComponentDataID);
-				StatEntry.Category = ComponentData.StatsCategory;
-				StatEntry.ComponentType = ComponentData.ComponentType;
+				StatEntry.CategoryName = DrawData.StatsData.CategoryName;
 			}
 		}
 	}
@@ -439,27 +453,24 @@ void FMeshDrawCommandStatsManager::DumpStats(FFrameData* FrameData)
 			return LHS.VisibilePrimitiveCount > RHS.VisibilePrimitiveCount;
 		});
 
-	const TCHAR* Header = TEXT("Pass,VisiblePrimitiveCount,VisibleInstances,Category,ComponentType,ResourceName,LODIndex,SegmentIndex,MaterialName,PrimitiveCount,TotalInstanceCount,TotalPrimitiveCount\n");
+	const TCHAR* Header = TEXT("Pass,VisiblePrimitiveCount,VisibleInstances,Category,ResourceName,LODIndex,SegmentIndex,MaterialName,PrimitiveCount,TotalInstanceCount,TotalPrimitiveCount\n");
 	CSVFile->Serialize(TCHAR_TO_ANSI(Header), FPlatformString::Strlen(Header));
 
 	TCHAR PassNameBuffer[FName::StringBufferSize];
 	TCHAR ResourceNameBuffer[FName::StringBufferSize];
-	TCHAR ComponentTypeNameBuffer[FName::StringBufferSize];
 	TCHAR CategoryBuffer[FName::StringBufferSize];	
 
 	for (FStatEntry& StatEntry : StatEntries)
 	{
 		StatEntry.PassName.ToString(PassNameBuffer);
-		StatEntry.Category.ToString(CategoryBuffer);
-		StatEntry.ComponentType.ToString(ComponentTypeNameBuffer);
+		StatEntry.CategoryName.ToString(CategoryBuffer);
 		StatEntry.ResourceName.ToString(ResourceNameBuffer);
 
-		FString Row = FString::Printf(TEXT("%s,%d,%d,%s,%s,%s,%d,%d,%s,%d,%d,%d\n"),
+		FString Row = FString::Printf(TEXT("%s,%d,%d,%s,%s,%d,%d,%s,%d,%d,%d\n"),
 			PassNameBuffer,
 			StatEntry.VisibilePrimitiveCount,
 			StatEntry.VisibleInstance,
 			CategoryBuffer,
-			ComponentTypeNameBuffer,
 			ResourceNameBuffer,
 			StatEntry.LODIndex,
 			StatEntry.SegmentIndex,
@@ -485,12 +496,4 @@ static FAutoConsoleCommand GDumpMeshDrawCommandStatsCmd(
 	}
 }));
 
-#else
-
-void FMeshDrawCommandStatsManager::DumpStats(FFrameData* FrameData)
-{
-}
-
-#endif // (!UE_BUILD_SHIPPING && !UE_BUILD_TEST)
-
-#endif  // MESH_DRAW_COMMAND_STAT_COLLECTION
+#endif  // MESH_DRAW_COMMAND_STATS

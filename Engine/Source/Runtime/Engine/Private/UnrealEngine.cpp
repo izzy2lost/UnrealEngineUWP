@@ -214,7 +214,6 @@ UnrealEngine.cpp: Implements the UEngine class and helpers.
 #include "IEyeTrackerModule.h"
 #include "Interfaces/IPluginManager.h"
 #include "Animation/SkeletonRemappingRegistry.h"
-#include "MeshDrawCommandStatsComponentData.h"
 
 #if !UE_BUILD_SHIPPING
 #include "GenericPlatform/GenericPlatformCrashContext.h"
@@ -266,10 +265,6 @@ void OnChangeEngineCVarRequiringRecreateRenderState(IConsoleVariable* Var)
 
 void FEngineModule::StartupModule()
 {
-#if MESH_DRAW_COMMAND_STAT_COLLECTION
-	FMeshDrawCommandStatsComponentDataManager::CreateInstance();
-#endif
-
 	// Setup delegate callback for ProfilingHelpers to access current map name
 	extern const FString GetMapNameStatic();
 	GGetMapNameDelegate.BindStatic(&GetMapNameStatic);

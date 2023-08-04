@@ -64,9 +64,6 @@ UWaterMeshComponent::UWaterMeshComponent()
 	bHasPerInstanceHitProxies = true;
 
 	SetMobility(EComponentMobility::Static);
-
-	static FName NAME_StatsCategoryWater("Water");
-	SetMeshDrawCommandStatsCategory(NAME_StatsCategoryWater);
 }
 
 void UWaterMeshComponent::PostLoad()

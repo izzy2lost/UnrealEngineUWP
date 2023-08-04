@@ -30,7 +30,7 @@
 #include "HLOD/HLODLevelExclusion.h"
 #include "Stats/Stats2.h"
 #include "PSOPrecache.h"
-#include "MeshDrawCommandStatsComponentData.h"
+#include "MeshDrawCommandStatsDefines.h"
 #include "PrimitiveComponent.generated.h"
 
 DECLARE_CYCLE_STAT_EXTERN(TEXT("BeginComponentOverlap"), STAT_BeginComponentOverlap, STATGROUP_Game, ENGINE_API);
@@ -691,18 +691,6 @@ public:
 	uint8 SelectionOutlineColorIndex;
 #endif
 
-#if !MESH_DRAW_COMMAND_STAT_COLLECTION
-public:
-	ENGINE_API void SetMeshDrawCommandStatsCategory(FName StatsCategory) {}
-#else
-private:
-	/** Unique id use to retrieve the component data when building the mesh data draw stat information */
-	FMeshDrawCommandStatsComponentDataID MeshDrawCommandStatsComponentDataID = INDEX_NONE;
-public:
-	ENGINE_API void SetMeshDrawCommandStatsCategory(FName StatsCategory);
-	FMeshDrawCommandStatsComponentDataID GetMeshDrawCommandStatsComponentDataID() const { return MeshDrawCommandStatsComponentDataID; }
-#endif //!MESH_DRAW_COMMAND_STAT_COLLECTION
-
 public:
 	/** If true then DoCustomNavigableGeometryExport will be called to collect navigable geometry of this component. */
 	UPROPERTY()
@@ -926,6 +914,11 @@ private:
 
 	float OcclusionBoundsSlack;
 
+#if MESH_DRAW_COMMAND_STATS
+	/** Optional category name for this component in the mesh draw stat collection. */
+	FName MeshDrawCommandStatsCategory;
+#endif
+
 	friend class FPrimitiveSceneInfo;
 
 public:
@@ -944,6 +937,13 @@ public:
 	ENGINE_API void SetLastRenderTime(float InLastRenderTime);
 	float GetLastRenderTime() const { return LastRenderTime; }
 	float GetLastRenderTimeOnScreen() const { return LastRenderTimeOnScreen; }
+
+#if MESH_DRAW_COMMAND_STATS
+	ENGINE_API void SetMeshDrawCommandStatsCategory(FName StatsCategory);
+	FName GetMeshDrawCommandStatsCategory() const;
+#else
+	void SetMeshDrawCommandStatsCategory(FName StatsCategory) {}
+#endif
 
 	/**
 	 * Setup the parameter struct used to precache the PSOs used by this component. 

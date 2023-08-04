@@ -4471,19 +4471,22 @@ void UPrimitiveComponent::SetLastRenderTime(float InLastRenderTime)
 	}
 }
 
-#if MESH_DRAW_COMMAND_STAT_COLLECTION
+#if MESH_DRAW_COMMAND_STATS
 void UPrimitiveComponent::SetMeshDrawCommandStatsCategory(FName StatsCategory)
 {
-	if (FMeshDrawCommandStatsComponentDataManager* Manager = FMeshDrawCommandStatsComponentDataManager::Get())
+	if (MeshDrawCommandStatsCategory != StatsCategory)
 	{
-		FMeshDrawCommandStatsComponentData ComponentData;
-		ComponentData.ComponentType = GetClass()->GetFName();
-		ComponentData.StatsCategory = StatsCategory;
-		MeshDrawCommandStatsComponentDataID = Manager->GetID(ComponentData);
+		MeshDrawCommandStatsCategory = StatsCategory;
 		MarkRenderStateDirty();
 	}
 }
-#endif // MESH_DRAW_COMMAND_STAT_COLLECTION
+
+FName UPrimitiveComponent::GetMeshDrawCommandStatsCategory() const
+{
+	// If a stats category isn't set on the component then use the component type.
+	return MeshDrawCommandStatsCategory.IsNone() ? GetClass()->GetFName() : MeshDrawCommandStatsCategory;
+}
+#endif
 
 void UPrimitiveComponent::SetupPrecachePSOParams(FPSOPrecacheParams& Params)
 {

@@ -3,9 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "MeshPassProcessor.h"
 #include "RHI.h"
 #include "RenderGraphResources.h"
-#include "MeshPassProcessor.h"
 
 struct FInstanceCullingResult;
 class FGPUScene;
@@ -350,11 +350,11 @@ public:
 	// Whether current platform uses Uniform Buffer View path
 	bool bUsesUniformBufferView;
 	
-#if MESH_DRAW_COMMAND_STAT_COLLECTION
+#if MESH_DRAW_COMMAND_STATS
 public:
 	// Optional pass stats
 	FMeshDrawCommandPassStats* MeshDrawCommandPassStats = nullptr;
-#endif // MESH_DRAW_COMMAND_STAT_COLLECTION
+#endif
 };
 
 ENUM_CLASS_FLAGS(FInstanceCullingContext::EInstanceFlags)

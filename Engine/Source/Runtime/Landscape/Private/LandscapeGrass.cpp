@@ -3769,9 +3769,6 @@ void ALandscapeProxy::UpdateGrass(const TArray<FVector>& Cameras, int32& InOutNu
 										GrassInstancedStaticMeshComponent->WorldPositionOffsetDisableDistance = GrassVariety.InstanceWorldPositionOffsetDisableDistance;
 										GrassInstancedStaticMeshComponent->ShadowCacheInvalidationBehavior = GrassVariety.ShadowCacheInvalidationBehavior;
 
-										static FName NAME_StatsCategoryGrass("Grass");
-										GrassInstancedStaticMeshComponent->SetMeshDrawCommandStatsCategory(NAME_StatsCategoryGrass);
-										
 										GrassInstancedStaticMeshComponent->PrecachePSOs();
 
 										const FMeshMapBuildData* MeshMapBuildData = Component->GetMeshMapBuildData();

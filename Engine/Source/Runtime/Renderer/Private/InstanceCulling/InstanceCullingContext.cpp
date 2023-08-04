@@ -175,7 +175,7 @@ FInstanceCullingContext::FInstanceCullingContext(
 	BatchedPrimitiveSlot(GetUniformBufferViewStaticSlot(InShaderPlatform)),
 	bUsesUniformBufferView(PlatformGPUSceneUsesUniformBufferView(InShaderPlatform))
 {
-#if MESH_DRAW_COMMAND_STAT_COLLECTION
+#if MESH_DRAW_COMMAND_STATS
 	if (FMeshDrawCommandStatsManager* Instance = FMeshDrawCommandStatsManager::Get())
 	{
 		MeshDrawCommandPassStats = Instance->CreatePassStats(PassName);
@@ -620,7 +620,7 @@ public:
 
 	void ProcessBatched(TStaticArray<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FParameters*, static_cast<uint32>(EBatchProcessingMode::Num)> PassParameters);
 
-#if MESH_DRAW_COMMAND_STAT_COLLECTION
+#if MESH_DRAW_COMMAND_STATS
 	FRHIGPUBufferReadback* MeshDrawCommandStatsIndirectArgsReadbackBuffer = nullptr;
 #endif
 };
@@ -685,7 +685,7 @@ void FInstanceCullingContext::BuildRenderingCommandsInternal(
 	EAsyncProcessingMode AsyncProcessingMode,
 	FInstanceCullingDrawParams* InstanceCullingDrawParams)
 {
-#if MESH_DRAW_COMMAND_STAT_COLLECTION
+#if MESH_DRAW_COMMAND_STATS
 	if (MeshDrawCommandPassStats)
 	{
 		check(!MeshDrawCommandPassStats->bBuildRenderingCommandsCalled);
@@ -968,7 +968,7 @@ void FInstanceCullingContext::BuildRenderingCommandsInternal(
 		InstanceCullingDrawParams->BatchedPrimitive = GraphBuilder.CreateUniformBuffer(BatchedPrimitiveParameters);
 	}
 
-#if MESH_DRAW_COMMAND_STAT_COLLECTION
+#if MESH_DRAW_COMMAND_STATS
 	if (MeshDrawCommandPassStats)
 	{
 		FRHIGPUBufferReadback* GPUBufferReadback = FMeshDrawCommandStatsManager::Get()->QueueDrawRDGIndirectArgsReadback(GraphBuilder, DrawIndirectArgsRDG);
@@ -986,7 +986,7 @@ void FInstanceCullingDeferredContext::ProcessBatched(TStaticArray<FBuildInstance
 
 	MergeBatches();
 
-#if MESH_DRAW_COMMAND_STAT_COLLECTION
+#if MESH_DRAW_COMMAND_STATS
 	// Setup the indirect buffer and correct offset for each pass in the merged buffer
 	if (MeshDrawCommandStatsIndirectArgsReadbackBuffer)
 	{
@@ -999,7 +999,7 @@ void FInstanceCullingDeferredContext::ProcessBatched(TStaticArray<FBuildInstance
 			}
 		}
 	}
-#endif // MESH_DRAW_COMMAND_STAT_COLLECTION
+#endif // MESH_DRAW_COMMAND_STATS
 
 	bProcessed = true;
 
@@ -1327,7 +1327,7 @@ FInstanceCullingDeferredContext *FInstanceCullingContext::CreateDeferredContext(
 #undef INST_CULL_CALLBACK_MODE
 #undef INST_CULL_CREATE_STRUCT_BUFF_ARGS_MODE
 
-#if MESH_DRAW_COMMAND_STAT_COLLECTION
+#if MESH_DRAW_COMMAND_STATS
 	if (FMeshDrawCommandStatsManager* Instance = FMeshDrawCommandStatsManager::Get())
 	{
 		if (Instance->CollectStats())
@@ -1335,7 +1335,7 @@ FInstanceCullingDeferredContext *FInstanceCullingContext::CreateDeferredContext(
 			DeferredContext->MeshDrawCommandStatsIndirectArgsReadbackBuffer = Instance->QueueDrawRDGIndirectArgsReadback(GraphBuilder, DeferredContext->DrawIndirectArgsBuffer);;
 		}
 	}
-#endif // MESH_DRAW_COMMAND_STAT_COLLECTION
+#endif // MESH_DRAW_COMMAND_STATS
 
 	return DeferredContext;
 }

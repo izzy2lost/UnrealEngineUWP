@@ -63,7 +63,7 @@ FAutoConsoleVariableRef CVarFlushRenderTargetsOnWorldCleanup(TEXT("r.bFlushRende
 
 void FRendererModule::StartupModule()
 {
-#if MESH_DRAW_COMMAND_STAT_COLLECTION
+#if MESH_DRAW_COMMAND_STATS
 	FMeshDrawCommandStatsManager::CreateInstance();
 #endif
 

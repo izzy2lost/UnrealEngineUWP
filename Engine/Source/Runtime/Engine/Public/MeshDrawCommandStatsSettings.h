@@ -16,6 +16,9 @@ struct FMeshDrawCommandStatsBudget
 	/** Category name. */
 	UPROPERTY(config, EditAnywhere, Category = Engine)
 	FName CategoryName;
+	/** Stat names that will match this category name. */
+	UPROPERTY(config, EditAnywhere, Category = Engine)
+	TArray<FName> LinkedStatNames;
 	/** The category primitive budget. This is the maximum triangles expected, post-culling, summed across all passes. */
 	UPROPERTY(config, EditAnywhere, Category = Engine)
 	int32 PrimitiveBudget = 0;

@@ -866,7 +866,7 @@ void CollectMeshDrawCommandPassStats(
 	FMeshCommandOneFrameArray& VisibleMeshDrawCommands,
 	FInstanceCullingContext& InstanceCullingContext)
 {	
-#if MESH_DRAW_COMMAND_STAT_COLLECTION
+#if MESH_DRAW_COMMAND_STATS
 	FMeshDrawCommandPassStats* PassStats = InstanceCullingContext.MeshDrawCommandPassStats;
 	if (PassStats == nullptr)
 	{
@@ -941,7 +941,7 @@ void CollectMeshDrawCommandPassStats(
 			DrawData.TotalInstanceCount = MeshDrawCommand->NumInstances * NumInstances;
 		}
 	}
-#endif // MESH_DRAW_COMMAND_STAT_COLLECTION
+#endif // MESH_DRAW_COMMAND_STATS
 }
 
 FAutoConsoleTaskPriority CPrio_FMeshDrawCommandPassSetupTask(

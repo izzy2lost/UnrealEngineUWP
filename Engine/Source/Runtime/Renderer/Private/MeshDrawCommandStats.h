@@ -2,12 +2,11 @@
 #pragma once
 
 #include "MeshPassProcessor.h"
-#include "Misc/ScopeRWLock.h"
 
 class FRDGBuilder;
 class FRHIGPUBufferReadback;
 
-#if MESH_DRAW_COMMAND_STAT_COLLECTION
+#if MESH_DRAW_COMMAND_STATS
 
 /**
  * Contains all the required data per mesh draw command which is needed for stat collection - cached locally because lifetime of MDC is unknown by the time indirect args are resolved
@@ -26,6 +25,8 @@ struct FVisibleMeshDrawCommandStatsData
 	FRHIBuffer* CustomIndirectArgsBuffer = nullptr;		//< Optional custom indirect arg buffer which was provided to the MDC at draw time
 
 #if MESH_DRAW_COMMAND_DEBUG_DATA
+	int32 LODIndex = 0;									//< LOD index in draw command.
+	int32 SegmentIndex = 0;								//< Segment index in draw command.
 	FName ResourceName;									//< Minimal resource name 
 	FString MaterialName;								//< Material name used during draw event
 #endif // MESH_DRAW_COMMAND_DEBUG_DATA
@@ -141,8 +142,8 @@ private:
 		 */
 		struct FCategoryStats
 		{
-			FCategoryStats(FName InCategory, uint64 InPrimitiveCount) : Category(InCategory), PrimitiveCount(InPrimitiveCount) {}
-			FName Category;
+			FCategoryStats(FName InCategoryName, uint64 InPrimitiveCount) : CategoryName(InCategoryName), PrimitiveCount(InPrimitiveCount) {}
+			FName CategoryName;
 			uint64 PrimitiveCount;
 		};
 		TArray<FCategoryStats> CategoryStats;
@@ -178,4 +179,4 @@ private:
 	static FMeshDrawCommandStatsManager* Instance;
 };
 
-#endif // MESH_DRAW_COMMAND_STAT_COLLECTION
+#endif // MESH_DRAW_COMMAND_STATS

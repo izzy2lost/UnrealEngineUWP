@@ -4556,7 +4556,7 @@ static void RenderViewFamilies_RenderThread(FRHICommandListImmediate& RHICmdList
 
 		GraphBuilder.Execute();
 
-#if MESH_DRAW_COMMAND_STAT_COLLECTION
+#if MESH_DRAW_COMMAND_STATS
 		// Needs to happen after graph builder execute to make sure all FMeshDrawCommandPassSetupTask are finished.
 		// Only during iteration of the visible MDCs we know the custom indirect args used in the frame
 		if (FMeshDrawCommandStatsManager* Instance = FMeshDrawCommandStatsManager::Get())
