@@ -147,7 +147,7 @@ void UPCGComponent::ForEachManagedResource(TFunctionRef<void(UPCGManagedResource
 {
 	FScopeLock ResourcesLock(&GeneratedResourcesLock);
 	check(!GeneratedResourcesInaccessible);
-	for (TObjectPtr<UPCGManagedResource> ManagedResource : GeneratedResources)
+	for (const TObjectPtr<UPCGManagedResource>& ManagedResource : GeneratedResources)
 	{
 		if (ManagedResource)
 		{
@@ -2354,7 +2354,7 @@ void FPCGComponentInstanceData::ApplyToComponent(UActorComponent* Component, con
 		
 		// Duplicate generated resources + retarget them
 		TArray<TObjectPtr<UPCGManagedResource>> DuplicatedResources;
-		for (TObjectPtr<UPCGManagedResource> Resource : GeneratedResources)
+		for (const TObjectPtr<UPCGManagedResource>& Resource : GeneratedResources)
 		{
 			if (Resource)
 			{

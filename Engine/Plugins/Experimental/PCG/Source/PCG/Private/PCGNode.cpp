@@ -74,7 +74,7 @@ void UPCGNode::ApplyDeprecationBeforeUpdatePins()
 void UPCGNode::ApplyDeprecation()
 {
 	UPCGPin* DefaultOutputPin = OutputPins.IsEmpty() ? nullptr : OutputPins[0];
-	for (TObjectPtr<UPCGNode> OutboundNode : OutboundNodes_DEPRECATED)
+	for (const TObjectPtr<UPCGNode>& OutboundNode : OutboundNodes_DEPRECATED)
 	{
 		UPCGPin* OtherNodeInputPin = OutboundNode->InputPins.IsEmpty() ? nullptr : OutboundNode->InputPins[0];
 

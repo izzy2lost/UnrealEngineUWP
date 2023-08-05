@@ -2573,7 +2573,7 @@ void FCustomizableObjectEditorViewportClient::BakeInstance(UCustomizableObjectIn
 								}
 
 								// Fix potential errors compiling materials due to Sampler Types
-								for (TObjectPtr<UMaterialExpression> Expression : DupMaterial->GetExpressions())
+								for (const TObjectPtr<UMaterialExpression>& Expression : DupMaterial->GetExpressions())
 								{
 									if (UMaterialExpressionTextureBase* MatExpressionTexBase = Cast<UMaterialExpressionTextureBase>(Expression))
 									{

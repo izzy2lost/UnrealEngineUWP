@@ -101,7 +101,7 @@ UTextureRenderTarget2D* ULandscapeTexturePatch::RenderLayer_Native(const FLandsc
 		// Try to find the weight patch
 		ULandscapeWeightPatchTextureInfo* WeightPatchInfo = nullptr;
 
-		for (TObjectPtr<ULandscapeWeightPatchTextureInfo> WeightPatchEntry : WeightPatches)
+		for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatchEntry : WeightPatches)
 		{
 			if ((bIsWeightmapTarget && (WeightPatchEntry->WeightmapLayerName == InParameters.WeightmapLayerName)) ||
 				(bIsVisibilityLayerTarget && WeightPatchEntry->bEditVisibilityLayer))
@@ -583,7 +583,7 @@ void ULandscapeTexturePatch::ReinitializeWeights()
 			}
 			else
 			{
-				for (TObjectPtr<ULandscapeWeightPatchTextureInfo> PatchInfo : FoundPatches)
+				for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& PatchInfo : FoundPatches)
 				{
 					PatchInfo->bReinitializeOnNextRender = true;
 				}
@@ -823,7 +823,7 @@ bool ULandscapeTexturePatch::AffectsWeightmapLayer(const FName& InLayerName) con
 		return false;
 	}
 
-	for (TObjectPtr<ULandscapeWeightPatchTextureInfo> WeightPatch : WeightPatches)
+	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
 		if (WeightPatch->WeightmapLayerName == InLayerName)
 		{
@@ -855,7 +855,7 @@ bool ULandscapeTexturePatch::IsEnabled() const
 	{
 		return true;
 	}
-	for (TObjectPtr<ULandscapeWeightPatchTextureInfo> WeightPatch : WeightPatches)
+	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
 		if (WeightPatch->SourceMode != ELandscapeTexturePatchSourceMode::None || WeightPatch->bReinitializeOnNextRender)
 		{
@@ -994,7 +994,7 @@ void ULandscapeTexturePatch::SetResolution(FVector2D ResolutionIn)
 	};
 
 	ResizePatch(HeightSourceMode, HeightInternalData);
-	for (TObjectPtr<ULandscapeWeightPatchTextureInfo> WeightPatch : WeightPatches)
+	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
 		if (ensure(IsValid(WeightPatch)))
 		{
@@ -1278,7 +1278,7 @@ void ULandscapeTexturePatch::AddWeightPatch(const FName& WeightmapLayerName, ELa
 	using namespace LandscapeTexturePatchLocals;
 
 	// Try to modify an existing entry instead if possible
-	for (TObjectPtr<ULandscapeWeightPatchTextureInfo> WeightPatch : WeightPatches)
+	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
 		if (WeightPatch->WeightmapLayerName == WeightmapLayerName)
 		{
@@ -1331,7 +1331,7 @@ void ULandscapeTexturePatch::RemoveAllWeightPatches()
 
 void ULandscapeTexturePatch::DisableAllWeightPatches()
 {
-	for (TObjectPtr<ULandscapeWeightPatchTextureInfo> WeightPatch : WeightPatches)
+	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
 		WeightPatch->SetSourceMode(ELandscapeTexturePatchSourceMode::None);
 	}
@@ -1340,7 +1340,7 @@ void ULandscapeTexturePatch::DisableAllWeightPatches()
 TArray<FName> ULandscapeTexturePatch::GetAllWeightPatchLayerNames()
 {
 	TArray<FName> Names;
-	for (TObjectPtr<ULandscapeWeightPatchTextureInfo> WeightPatch : WeightPatches)
+	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
 		if (WeightPatch->WeightmapLayerName != NAME_None)
 		{
@@ -1353,7 +1353,7 @@ TArray<FName> ULandscapeTexturePatch::GetAllWeightPatchLayerNames()
 
 void ULandscapeTexturePatch::SetUseAlphaChannelForWeightPatch(const FName& InWeightmapLayerName, bool bUseAlphaChannel)
 {
-	for (TObjectPtr<ULandscapeWeightPatchTextureInfo> WeightPatch : WeightPatches)
+	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
 		if (WeightPatch->WeightmapLayerName == InWeightmapLayerName)
 		{
@@ -1374,7 +1374,7 @@ void ULandscapeTexturePatch::SetWeightPatchSourceMode(const FName& InWeightmapLa
 #if WITH_EDITOR
 	using namespace LandscapeTexturePatchLocals;
 
-	for (TObjectPtr<ULandscapeWeightPatchTextureInfo> WeightPatch : WeightPatches)
+	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
 		if (WeightPatch->WeightmapLayerName == InWeightmapLayerName)
 		{
@@ -1392,7 +1392,7 @@ void ULandscapeTexturePatch::SetWeightPatchSourceMode(const FName& InWeightmapLa
 
 ELandscapeTexturePatchSourceMode ULandscapeTexturePatch::GetWeightPatchSourceMode(const FName& InWeightmapLayerName)
 {
-	for (TObjectPtr<ULandscapeWeightPatchTextureInfo> WeightPatch : WeightPatches)
+	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
 		if (WeightPatch->WeightmapLayerName == InWeightmapLayerName)
 		{
@@ -1404,7 +1404,7 @@ ELandscapeTexturePatchSourceMode ULandscapeTexturePatch::GetWeightPatchSourceMod
 
 UTextureRenderTarget2D* ULandscapeTexturePatch::GetWeightPatchRenderTarget(const FName& InWeightmapLayerName)
 {
-	for (TObjectPtr<ULandscapeWeightPatchTextureInfo> WeightPatch : WeightPatches)
+	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
 		if (WeightPatch->WeightmapLayerName == InWeightmapLayerName)
 		{
@@ -1416,7 +1416,7 @@ UTextureRenderTarget2D* ULandscapeTexturePatch::GetWeightPatchRenderTarget(const
 
 UTexture2D* ULandscapeTexturePatch::GetWeightPatchInternalTexture(const FName& InWeightmapLayerName)
 {
-	for (TObjectPtr<ULandscapeWeightPatchTextureInfo> WeightPatch : WeightPatches)
+	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
 		if (WeightPatch->WeightmapLayerName == InWeightmapLayerName)
 		{
@@ -1434,7 +1434,7 @@ void ULandscapeTexturePatch::SetWeightPatchTextureAsset(const FName& InWeightmap
 		return;
 	}
 
-	for (TObjectPtr<ULandscapeWeightPatchTextureInfo> WeightPatch : WeightPatches)
+	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
 		if (WeightPatch->WeightmapLayerName == InWeightmapLayerName)
 		{
@@ -1449,7 +1449,7 @@ void ULandscapeTexturePatch::SetWeightPatchTextureAsset(const FName& InWeightmap
 
 void ULandscapeTexturePatch::SetWeightPatchBlendModeOverride(const FName& InWeightmapLayerName, ELandscapeTexturePatchBlendMode BlendModeIn)
 {
-	for (TObjectPtr<ULandscapeWeightPatchTextureInfo> WeightPatch : WeightPatches)
+	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
 		if (WeightPatch->WeightmapLayerName == InWeightmapLayerName)
 		{
@@ -1462,7 +1462,7 @@ void ULandscapeTexturePatch::SetWeightPatchBlendModeOverride(const FName& InWeig
 
 void ULandscapeTexturePatch::ClearWeightPatchBlendModeOverride(const FName& InWeightmapLayerName)
 {
-	for (TObjectPtr<ULandscapeWeightPatchTextureInfo> WeightPatch : WeightPatches)
+	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
 		if (WeightPatch->WeightmapLayerName == InWeightmapLayerName)
 		{
@@ -1474,7 +1474,7 @@ void ULandscapeTexturePatch::ClearWeightPatchBlendModeOverride(const FName& InWe
 
 void ULandscapeTexturePatch::SetEditVisibilityLayer(const FName& InWeightmapLayerName, const bool bEditVisibilityLayer)
 {
-	for (TObjectPtr<ULandscapeWeightPatchTextureInfo> WeightPatch : WeightPatches)
+	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
 		if (WeightPatch->WeightmapLayerName == InWeightmapLayerName)
 		{

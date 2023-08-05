@@ -3056,7 +3056,7 @@ void ULandscapeSplineSegment::UpdateSplinePoints(bool bUpdateCollision, bool bUp
 	TMap<ULandscapeSplinesComponent*, TArray<USplineMeshComponent*>> ForeignMeshComponentsMap = GetForeignMeshComponents();
 	
 	// Unregister components, Remove Foreign/Local Associations
-	for (TObjectPtr<USplineMeshComponent> LocalMeshComponent : OldLocalMeshComponents)
+	for (TObjectPtr<USplineMeshComponent>& LocalMeshComponent : OldLocalMeshComponents)
 	{
 		USplineMeshComponent* Comp = LocalMeshComponent.Get();
 		checkSlow(OuterSplines->MeshComponentLocalOwnersMap.FindRef(Comp) == this);
@@ -3432,7 +3432,7 @@ void ULandscapeSplineSegment::UpdateSplinePoints(bool bUpdateCollision, bool bUp
 	}
 	
 	// Clean up unused components
-	for (TObjectPtr<USplineMeshComponent> LocalMeshComponent : OldLocalMeshComponents)
+	for (TObjectPtr<USplineMeshComponent>& LocalMeshComponent : OldLocalMeshComponents)
 	{
 		LocalMeshComponent->DestroyComponent();
 	}

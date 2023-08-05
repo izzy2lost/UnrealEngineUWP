@@ -2864,7 +2864,7 @@ void UWorld::TransferBlueprintDebugReferences(UWorld* NewWorld)
 						if (!NewTargetObject && NewWorld->GetWorldSettings()->IsPartitionedWorld())
 						{
 							const FString OldTargetPathName = OldTargetObject->GetPathName(PersistentLevel);
-							for (TObjectPtr<ULevelStreaming> StreamingLevel : NewWorld->StreamingLevels)
+							for (TObjectPtr<ULevelStreaming>& StreamingLevel : NewWorld->StreamingLevels)
 							{
 								if (StreamingLevel && StreamingLevel->GetLoadedLevel())
 								{

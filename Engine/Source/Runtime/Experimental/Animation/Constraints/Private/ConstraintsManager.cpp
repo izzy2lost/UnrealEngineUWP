@@ -147,7 +147,7 @@ UConstraintsManager::~UConstraintsManager()
 void UConstraintsManager::PostLoad()
 {
 	Super::PostLoad();
-	for (TObjectPtr<UTickableConstraint> ConstPtr : Constraints)
+	for (TObjectPtr<UTickableConstraint>& ConstPtr : Constraints)
 	{
 		if (ConstPtr)
 		{

@@ -884,7 +884,7 @@ void UMediaPlateComponent::UpdateLetterboxes()
 	float AspectRatio = GetAspectRatio();
 	if ((AspectRatio <= LetterboxAspectRatio) || (LetterboxAspectRatio <= 0.0f))
 	{
-		for (TObjectPtr<UStaticMeshComponent> Letterbox : Letterboxes)
+		for (const TObjectPtr<UStaticMeshComponent>& Letterbox : Letterboxes)
 		{
 			if (Letterbox != nullptr)
 			{
@@ -906,7 +906,7 @@ void UMediaPlateComponent::UpdateLetterboxes()
 
 		FVector Location(0.0f, 0.0f, VideoHeight + LetterboxHeight);
 
-		for (TObjectPtr<UStaticMeshComponent> Letterbox : Letterboxes)
+		for (const TObjectPtr<UStaticMeshComponent>& Letterbox : Letterboxes)
 		{
 			if (Letterbox != nullptr)
 			{
@@ -958,7 +958,7 @@ void UMediaPlateComponent::AddLetterboxes()
 
 void UMediaPlateComponent::RemoveLetterboxes()
 {
-	for (TObjectPtr<UStaticMeshComponent> Letterbox : Letterboxes)
+	for (const TObjectPtr<UStaticMeshComponent>& Letterbox : Letterboxes)
 	{
 		if (Letterbox != nullptr)
 		{	

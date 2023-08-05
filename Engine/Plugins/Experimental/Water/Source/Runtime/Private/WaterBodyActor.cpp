@@ -645,7 +645,7 @@ void AWaterBody::PopulatePIEDuplicationSeed(AActor::FDuplicationSeedInterface& D
 	TArray<TObjectPtr<UWaterBodyMeshComponent>> MeshComponents = { WaterInfoMeshComponent, DilatedWaterInfoMeshComponent };
 	MeshComponents.Append(WaterBodyStaticMeshComponents);
 
-	for (TObjectPtr<UWaterBodyMeshComponent> MeshComponent : MeshComponents)
+	for (const TObjectPtr<UWaterBodyMeshComponent>& MeshComponent : MeshComponents)
 	{
 		if (IsValid(MeshComponent) && IsValid(MeshComponent->GetStaticMesh()))
 		{

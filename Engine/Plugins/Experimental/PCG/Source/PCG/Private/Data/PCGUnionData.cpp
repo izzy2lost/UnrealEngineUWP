@@ -74,7 +74,7 @@ void UPCGUnionData::AddData(const UPCGSpatialData* InData)
 
 void UPCGUnionData::VisitDataNetwork(TFunctionRef<void(const UPCGData*)> Action) const
 {
-	for (TObjectPtr<const UPCGSpatialData> Datum : Data)
+	for (const TObjectPtr<const UPCGSpatialData>& Datum : Data)
 	{
 		if (Datum)
 		{
@@ -95,7 +95,7 @@ FPCGCrc UPCGUnionData::ComputeCrc(bool bFullDataCrc) const
 		int32 NumOperands = Data.Num();
 		Ar << NumOperands;
 
-		for (TObjectPtr<const UPCGSpatialData> Datum : Data)
+		for (const TObjectPtr<const UPCGSpatialData>& Datum : Data)
 		{
 			if (Datum)
 			{
@@ -221,7 +221,7 @@ bool UPCGUnionData::HasNonTrivialTransform() const
 const UPCGSpatialData* UPCGUnionData::FindFirstConcreteShapeFromNetwork() const
 {
 	// Return first concrete candidate data.
-	for (TObjectPtr<const UPCGSpatialData> Datum : Data)
+	for (const TObjectPtr<const UPCGSpatialData>& Datum : Data)
 	{
 		const UPCGSpatialData* Candidate = Datum ? Datum->FindFirstConcreteShapeFromNetwork() : nullptr;
 		if (Candidate)

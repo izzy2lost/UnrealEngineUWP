@@ -1487,7 +1487,7 @@ protected:
 				}));
 
 			// clear some cached cvars in other-platform expansions
-			for (TObjectPtr<UDeviceProfile> DeviceProfile : UDeviceProfileManager::Get().Profiles)
+			for (const TObjectPtr<UDeviceProfile>& DeviceProfile : UDeviceProfileManager::Get().Profiles)
 			{
 				DeviceProfile->ClearAllExpandedCVars();
 			}

@@ -765,7 +765,7 @@ void URemoteControlPreset::ResetControllers()
 #endif
 
 		// Broadcasting each removal.
-		for (TObjectPtr<URCVirtualPropertyBase> Controller : ControllerContainer->VirtualProperties)
+		for (const TObjectPtr<URCVirtualPropertyBase>& Controller : ControllerContainer->VirtualProperties)
 		{
 			OnControllerRemoved().Broadcast(this, Controller->Id);
 

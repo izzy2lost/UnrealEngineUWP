@@ -247,7 +247,7 @@ void SCustomizableObjectEditorTagExplorer::FillTagInformation(UCustomizableObjec
 {
 	if (Object->Source)
 	{
-		for (TObjectPtr<UEdGraphNode> Node : Object->Source->Nodes)
+		for (const TObjectPtr<UEdGraphNode>& Node : Object->Source->Nodes)
 		{
 			if (UCustomizableObjectNodeMaterial* TypedNodeMat = Cast<UCustomizableObjectNodeMaterial>(Node))
 			{

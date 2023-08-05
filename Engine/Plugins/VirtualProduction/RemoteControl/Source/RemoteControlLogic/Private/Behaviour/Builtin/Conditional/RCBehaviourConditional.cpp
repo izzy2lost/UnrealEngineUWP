@@ -56,7 +56,7 @@ void URCBehaviourConditional::Execute()
 
 	ERCBehaviourConditionType PreviousConditionType = ERCBehaviourConditionType::None;
 
-	for (TObjectPtr<URCAction> Action : ActionContainer->GetActions())
+	for (const TObjectPtr<URCAction>& Action : ActionContainer->GetActions())
 	{
 		FRCBehaviourCondition* Condition = Conditions.Find(Action);
 		if (!Condition)

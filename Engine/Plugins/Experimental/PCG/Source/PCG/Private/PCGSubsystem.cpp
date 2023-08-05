@@ -1170,7 +1170,7 @@ void UPCGSubsystem::DeletePartitionActors(bool bOnlyDeleteUnused)
 		else if (!ActorsNotSafeToBeDeleted.Contains(PartitionActor))
 		{
 			// Also reset the last generated bounds to indicate to the component to re-create its PartitionActors when it generates.
-			for (TObjectPtr<UPCGComponent> PCGComponent : PartitionActor->GetAllOriginalPCGComponents())
+			for (const TObjectPtr<UPCGComponent>& PCGComponent : PartitionActor->GetAllOriginalPCGComponents())
 			{
 				if (PCGComponent)
 				{

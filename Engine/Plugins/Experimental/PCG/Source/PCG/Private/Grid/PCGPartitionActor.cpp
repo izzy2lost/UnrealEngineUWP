@@ -454,7 +454,7 @@ void APCGPartitionActor::PostCreation(const FGuid& InGridGUID)
 bool APCGPartitionActor::IsSafeForDeletion() const
 {
 	ensure(IsInGameThread());
-	for (TObjectPtr<UPCGComponent> PCGComponent : GetAllOriginalPCGComponents())
+	for (const TObjectPtr<UPCGComponent>& PCGComponent : GetAllOriginalPCGComponents())
 	{
 		if (PCGComponent && (PCGComponent->IsGenerating() || PCGComponent->IsCleaningUp()))
 		{

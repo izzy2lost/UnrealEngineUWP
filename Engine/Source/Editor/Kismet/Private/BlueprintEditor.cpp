@@ -3635,7 +3635,7 @@ void FBlueprintEditor::NavigateToChildGraph()
 			TObjectPtr<UEdGraphNode> SingleNode;
 			int32 NumEntries = 0;
 
-			for (TObjectPtr<UEdGraphNode> Node : SortedGraphNodes)
+			for (const TObjectPtr<UEdGraphNode>& Node : SortedGraphNodes)
 			{
 				// Just calling CanJumpToDefinition isn't enough as it returns true for functions (resulting in a jump
 				// to code, which isn't desired).
@@ -3687,7 +3687,7 @@ bool FBlueprintEditor::CanNavigateToChildGraph() const
 	if (FocusedGraphEdPtr.IsValid())
 	{
 		UEdGraph* CurrentGraph = FocusedGraphEdPtr.Pin()->GetCurrentGraph();
-		for (TObjectPtr<UEdGraphNode> Node : CurrentGraph->Nodes)
+		for (const TObjectPtr<UEdGraphNode>& Node : CurrentGraph->Nodes)
 		{
 			UObject* TargetObject = Node->GetJumpTargetForDoubleClick();
 			if (TargetObject && Node->CanJumpToDefinition())

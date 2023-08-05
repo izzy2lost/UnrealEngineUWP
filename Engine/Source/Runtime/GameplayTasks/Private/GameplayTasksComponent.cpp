@@ -722,7 +722,7 @@ void UGameplayTasksComponent::DescribeSelfToVisLog(FVisualLogEntry* Snapshot) co
 		}
 	}
 
-	for (TObjectPtr<UGameplayTask> Task : SimulatedTasks)
+	for (const TObjectPtr<UGameplayTask>& Task : SimulatedTasks)
 	{
 		if (Task && !KnownTasks.Contains(Task))
 		{

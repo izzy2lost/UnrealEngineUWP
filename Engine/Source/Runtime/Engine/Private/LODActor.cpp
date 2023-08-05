@@ -531,7 +531,7 @@ void ALODActor::PostRegisterAllComponents()
 
 	if( UWorld* World = GetWorld(); World && World->IsGameWorld())
 	{
-		for (TObjectPtr<AActor> ActorPtr : SubActors)
+		for (TObjectPtr<AActor>& ActorPtr : SubActors)
 		{
 			if (AActor* Actor = ActorPtr.Get())
 			{

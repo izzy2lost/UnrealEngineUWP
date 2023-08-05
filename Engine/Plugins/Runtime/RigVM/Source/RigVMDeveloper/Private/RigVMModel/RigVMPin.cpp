@@ -1142,7 +1142,7 @@ FText URigVMPin::GetToolTipText() const
 
 URigVMVariableNode* URigVMPin::GetBoundVariableNode() const
 {
-	for (TObjectPtr<URigVMInjectionInfo> InjectionInfo : InjectionInfos)
+	for (const TObjectPtr<URigVMInjectionInfo>& InjectionInfo : InjectionInfos)
 	{
 		if (URigVMVariableNode* VariableNode = Cast<URigVMVariableNode>(InjectionInfo->Node))
 		{
@@ -1167,7 +1167,7 @@ const FString URigVMPin::GetBoundVariablePath(const URigVMPin::FPinOverride& InO
 		return OverrideValuePtr->BoundVariablePath;
 	}
 
-	for (TObjectPtr<URigVMInjectionInfo> InjectionInfo : InjectionInfos)
+	for (const TObjectPtr<URigVMInjectionInfo>& InjectionInfo : InjectionInfos)
 	{
 		if (URigVMVariableNode* VariableNode = Cast<URigVMVariableNode>(InjectionInfo->Node))
 		{

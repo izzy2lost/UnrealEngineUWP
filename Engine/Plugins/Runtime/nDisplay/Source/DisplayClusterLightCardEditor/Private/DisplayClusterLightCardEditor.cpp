@@ -145,7 +145,7 @@ TArray<AActor*> FDisplayClusterLightCardEditor::FindAllManagedActors() const
 			RootActorLightCardActors.Append(reinterpret_cast<TSet<ADisplayClusterLightCardActor*>&>(ChromakeyCardActors));
 		}
 		
-		for (TObjectPtr<ADisplayClusterLightCardActor> LightCardActor : RootActorLightCardActors)
+		for (const TObjectPtr<ADisplayClusterLightCardActor>& LightCardActor : RootActorLightCardActors)
 		{
 			ManagedActors.Add(LightCardActor);
 		}

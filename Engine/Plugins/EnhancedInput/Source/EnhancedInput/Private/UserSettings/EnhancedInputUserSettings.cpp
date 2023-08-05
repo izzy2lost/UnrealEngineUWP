@@ -805,7 +805,7 @@ void UEnhancedInputUserSettings::Serialize(FArchive& Ar)
 				}
 
 				// We need to populate this key profile with all the known key mappings so that it's up to date 
-				for (TObjectPtr<const UInputMappingContext> IMC : RegisteredMappingContexts)
+				for (const TObjectPtr<const UInputMappingContext>& IMC : RegisteredMappingContexts)
 				{
 					RegisterKeyMappingsToProfile(*NewProfile, IMC);
 				}
@@ -1218,7 +1218,7 @@ UEnhancedPlayerMappableKeyProfile* UEnhancedInputUserSettings::CreateNewKeyProfi
 		SavedKeyProfiles.Add(InArgs.ProfileIdentifier, OutProfile);
 		
 		// We need to populate this key profile with all the known key mappings so that it's up to date 
-		for (TObjectPtr<const UInputMappingContext> IMC : RegisteredMappingContexts)
+		for (const TObjectPtr<const UInputMappingContext>& IMC : RegisteredMappingContexts)
 		{
 			RegisterKeyMappingsToProfile(*OutProfile, IMC);
 		}

@@ -214,7 +214,7 @@ void FAnimationBlueprintEditor::NotifyAllNodesOnPoseWatchChanged(const bool IsPo
 	{
 		FEditorModeTools& ModeTools = GetEditorModeManager();
 
-		for (TObjectPtr<UPoseWatch> CurrentPoseWatch : AnimBP->PoseWatches)
+		for (const TObjectPtr<UPoseWatch>& CurrentPoseWatch : AnimBP->PoseWatches)
 		{
 			UAnimGraphNode_Base* const CurrentAnimGraphNodePtr = Cast<UAnimGraphNode_Base>(CurrentPoseWatch->Node.Get());
 			FAnimNode_Base* const PreviewNode = FindAnimNode(CurrentAnimGraphNodePtr);

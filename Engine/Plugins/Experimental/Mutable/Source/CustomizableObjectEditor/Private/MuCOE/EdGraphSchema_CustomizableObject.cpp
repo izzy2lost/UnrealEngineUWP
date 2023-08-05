@@ -405,7 +405,7 @@ void UEdGraphSchema_CustomizableObject::GetGraphContextActions(FGraphContextMenu
 			[&Filter](UCustomizableObjectNode* TemplateNode, FGraphContextMenuBuilder& ContextMenuBuilder) -> bool
 			{
 				// Only let user add a base node if there isn't one in the graph
-				for (TObjectPtr<UEdGraphNode> AuxNode : ContextMenuBuilder.CurrentGraph->Nodes)
+				for (const TObjectPtr<UEdGraphNode>& AuxNode : ContextMenuBuilder.CurrentGraph->Nodes)
 				{
 					UCustomizableObjectNodeObject* CustomizableObjectNodeObject = Cast<UCustomizableObjectNodeObject>(AuxNode);
 

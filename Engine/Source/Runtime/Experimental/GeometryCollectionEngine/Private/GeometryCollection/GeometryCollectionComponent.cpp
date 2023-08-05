@@ -1316,7 +1316,7 @@ void UGeometryCollectionComponent::RefreshEmbeddedGeometry()
 #if WITH_EDITOR
 void UGeometryCollectionComponent::SetEmbeddedGeometrySelectable(bool bSelectableIn)
 {
-	for (TObjectPtr<UInstancedStaticMeshComponent> EmbeddedGeometryComponent : EmbeddedGeometryComponents)
+	for (TObjectPtr<UInstancedStaticMeshComponent>& EmbeddedGeometryComponent : EmbeddedGeometryComponents)
 	{
 		if (EmbeddedGeometryComponent)
 		{
@@ -4688,7 +4688,7 @@ FMaterialRelevance UGeometryCollectionComponent::GetMaterialRelevance(ERHIFeatur
 void UGeometryCollectionComponent::SelectEmbeddedGeometry()
 {
 	// First reset the selections
-	for (TObjectPtr<UInstancedStaticMeshComponent> EmbeddedGeometryComponent : EmbeddedGeometryComponents)
+	for (TObjectPtr<UInstancedStaticMeshComponent>& EmbeddedGeometryComponent : EmbeddedGeometryComponents)
 	{
 		EmbeddedGeometryComponent->ClearInstanceSelection();
 	}

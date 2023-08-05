@@ -366,7 +366,7 @@ void UInputTriggerCombo::PostLoad()
 
 	if (!CancelActions.IsEmpty())
 	{
-		for (TObjectPtr<const UInputAction> InputAction : CancelActions)
+		for (const TObjectPtr<const UInputAction>& InputAction : CancelActions)
 		{
 			// use default settings but set cancel action
 			FInputCancelAction InputCancelAction;

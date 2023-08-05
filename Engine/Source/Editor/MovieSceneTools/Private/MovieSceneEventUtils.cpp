@@ -271,7 +271,7 @@ void FMovieSceneEventUtils::BindEventSectionToBlueprint(UMovieSceneEventSectionB
 {
 	check(EventSection && DirectorBP);
 
-	for (TObjectPtr<UBlueprintExtension> Extension : DirectorBP->GetExtensions())
+	for (const TObjectPtr<UBlueprintExtension>& Extension : DirectorBP->GetExtensions())
 	{
 		UMovieSceneEventBlueprintExtension* EventExtension = Cast<UMovieSceneEventBlueprintExtension>(Extension);
 		if (EventExtension)

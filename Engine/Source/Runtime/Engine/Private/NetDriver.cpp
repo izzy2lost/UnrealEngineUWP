@@ -1693,7 +1693,7 @@ void UNetDriver::Shutdown()
 	ReplicationChangeListMap.Empty();
 
 	// Clean up the actor channel pool
-	for (TObjectPtr<UChannel> Channel : ActorChannelPool)
+	for (TObjectPtr<UChannel>& Channel : ActorChannelPool)
 	{
 		Channel->MarkAsGarbage();
 	}

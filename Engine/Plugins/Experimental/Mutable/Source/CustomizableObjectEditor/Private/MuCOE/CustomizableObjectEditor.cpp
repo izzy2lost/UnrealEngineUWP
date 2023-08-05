@@ -572,7 +572,7 @@ void FCustomizableObjectEditor::CreateGraphEditorWidget(UEdGraph* InGraph)
 	// Check whether the graph has a base node and create one if it doesn't since it is required
 	bool bGraphHasBase = false;
 
-	for (TObjectPtr<UEdGraphNode> AuxNode : InGraph->Nodes)
+	for (const TObjectPtr<UEdGraphNode>& AuxNode : InGraph->Nodes)
 	{
 		UCustomizableObjectNodeObject* CustomizableObjectNodeObject = Cast<UCustomizableObjectNodeObject>(AuxNode);
 

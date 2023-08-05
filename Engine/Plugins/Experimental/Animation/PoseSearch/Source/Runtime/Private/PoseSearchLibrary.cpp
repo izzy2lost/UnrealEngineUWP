@@ -304,7 +304,7 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 		}
 
 		bool bJumpToPose = false;
-		for (TObjectPtr<const UPoseSearchDatabase> Database : Databases)
+		for (const TObjectPtr<const UPoseSearchDatabase>& Database : Databases)
 		{
 			if (ensure(Database))
 			{

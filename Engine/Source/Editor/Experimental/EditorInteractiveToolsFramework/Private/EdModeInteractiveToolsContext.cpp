@@ -874,7 +874,7 @@ void UEditorInteractiveToolsContext::OnEditorSelectionSetChanged(const UTypedEle
 void UModeManagerInteractiveToolsContext::Tick(FEditorViewportClient* ViewportClient, float DeltaTime)
 {
 	UEditorInteractiveToolsContext::Tick(ViewportClient, DeltaTime);
-	for (TObjectPtr<UEdModeInteractiveToolsContext> EdModeContext : EdModeToolsContexts)
+	for (const TObjectPtr<UEdModeInteractiveToolsContext>& EdModeContext : EdModeToolsContexts)
 	{
 		EdModeContext->Tick(ViewportClient, DeltaTime);
 	}
@@ -883,7 +883,7 @@ void UModeManagerInteractiveToolsContext::Tick(FEditorViewportClient* ViewportCl
 void UModeManagerInteractiveToolsContext::Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI)
 {
 	UEditorInteractiveToolsContext::Render(View, Viewport, PDI);
-	for (TObjectPtr<UEdModeInteractiveToolsContext> EdModeContext : EdModeToolsContexts)
+	for (const TObjectPtr<UEdModeInteractiveToolsContext>& EdModeContext : EdModeToolsContexts)
 	{
 		EdModeContext->Render(View, Viewport, PDI);
 	}
@@ -892,7 +892,7 @@ void UModeManagerInteractiveToolsContext::Render(const FSceneView* View, FViewpo
 void UModeManagerInteractiveToolsContext::DrawHUD(FViewportClient* ViewportClient, FViewport* Viewport, const FSceneView* View, FCanvas* Canvas)
 {
 	UEditorInteractiveToolsContext::DrawHUD(ViewportClient, Viewport, View, Canvas);
-	for (TObjectPtr<UEdModeInteractiveToolsContext> EdModeContext : EdModeToolsContexts)
+	for (const TObjectPtr<UEdModeInteractiveToolsContext>& EdModeContext : EdModeToolsContexts)
 	{
 		EdModeContext->DrawHUD(ViewportClient, Viewport, View, Canvas);
 	}
@@ -902,7 +902,7 @@ void UModeManagerInteractiveToolsContext::DrawHUD(FViewportClient* ViewportClien
 bool UModeManagerInteractiveToolsContext::ProcessEditDelete()
 {
 	bool bHandled = UEditorInteractiveToolsContext::ProcessEditDelete();
-	for (TObjectPtr<UEdModeInteractiveToolsContext> EdModeContext : EdModeToolsContexts)
+	for (const TObjectPtr<UEdModeInteractiveToolsContext>& EdModeContext : EdModeToolsContexts)
 	{
 		bHandled |= EdModeContext->ProcessEditDelete();
 	}

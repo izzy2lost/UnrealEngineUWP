@@ -78,7 +78,7 @@ void AConstraintsActor::RegisterConstraintsTickFunctions() const
 			});
 			
 			// ensure registration
-			for (TObjectPtr<UTickableConstraint> ConstPtr: ConstraintsManager->Constraints)
+			for (const TObjectPtr<UTickableConstraint>& ConstPtr: ConstraintsManager->Constraints)
 			{
 				ConstPtr->ConstraintTick.RegisterTickFunction(Level);
 				ConstPtr->ConstraintTick.Constraint = ConstPtr;

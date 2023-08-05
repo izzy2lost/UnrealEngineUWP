@@ -145,7 +145,7 @@ void UAnimBlueprintExtension::RefreshExtensions(UAnimBlueprint* InAnimBlueprint)
 
 void UAnimBlueprintExtension::ForEachExtension(UAnimBlueprint* InAnimBlueprint, TFunctionRef<void(UAnimBlueprintExtension*)> InFunction)
 {
-	for (TObjectPtr<UBlueprintExtension> BlueprintExtension : InAnimBlueprint->GetExtensions())
+	for (const TObjectPtr<UBlueprintExtension>& BlueprintExtension : InAnimBlueprint->GetExtensions())
 	{
 		if(UAnimBlueprintExtension* AnimBlueprintExtension = Cast<UAnimBlueprintExtension>(BlueprintExtension))
 		{

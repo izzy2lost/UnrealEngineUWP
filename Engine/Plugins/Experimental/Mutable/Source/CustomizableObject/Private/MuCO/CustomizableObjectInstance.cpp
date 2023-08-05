@@ -238,7 +238,7 @@ void UCustomizableObjectInstance::PreEditChange(FProperty* PropertyAboutToChange
 	{
 		UDefaultImageProvider& DefaultImageProvider = UCustomizableObjectSystem::GetInstance()->GetOrCreateDefaultImageProvider();
 		
-		for (TObjectPtr<UTexture2D> Texture : TextureParameterDeclarations)
+		for (const TObjectPtr<UTexture2D>& Texture : TextureParameterDeclarations)
 		{
 			DefaultImageProvider.Remove(Texture);
 		}
@@ -258,7 +258,7 @@ void UCustomizableObjectInstance::PostEditChangeProperty(FPropertyChangedEvent& 
 	{
 		UDefaultImageProvider& DefaultImageProvider = UCustomizableObjectSystem::GetInstance()->GetOrCreateDefaultImageProvider();
 		
-		for (TObjectPtr<UTexture2D> Texture : TextureParameterDeclarations)
+		for (const TObjectPtr<UTexture2D>& Texture : TextureParameterDeclarations)
 		{
 			DefaultImageProvider.Add(Texture);
 		}

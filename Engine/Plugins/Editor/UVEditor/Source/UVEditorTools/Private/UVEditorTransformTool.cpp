@@ -265,7 +265,7 @@ void UUVEditorTransformTool::Setup()
 void UUVEditorTransformTool::Shutdown(EToolShutdownType ShutdownType)
 {
 	Settings->SaveProperties(this);
-	for (TObjectPtr<UUVEditorToolMeshInput> Target : Targets)
+	for (const TObjectPtr<UUVEditorToolMeshInput>& Target : Targets)
 	{
 		Target->UnwrapPreview->OnMeshUpdated.RemoveAll(this);
 	}
@@ -276,7 +276,7 @@ void UUVEditorTransformTool::Shutdown(EToolShutdownType ShutdownType)
 		const FText TransactionName(TransformToolLocals::ToolTransaction(ToolMode.Get(EUVEditorUVTransformType::Transform)));
 		ChangeAPI->BeginUndoTransaction(TransactionName);
 
-		for (TObjectPtr<UUVEditorToolMeshInput> Target : Targets)
+		for (const TObjectPtr<UUVEditorToolMeshInput>& Target : Targets)
 		{
 			// Set things up for undo. 
 			// TODO: It's not entirely clear whether it would be safe to use a FMeshVertexChange instead... It seems like
@@ -305,14 +305,14 @@ void UUVEditorTransformTool::Shutdown(EToolShutdownType ShutdownType)
 	else
 	{
 		// Reset the inputs
-		for (TObjectPtr<UUVEditorToolMeshInput> Target : Targets)
+		for (const TObjectPtr<UUVEditorToolMeshInput>& Target : Targets)
 		{
 			Target->UpdatePreviewsFromCanonical();
 		}
 	}
 
 
-	for (TObjectPtr<UUVEditorToolMeshInput> Target : Targets)
+	for (const TObjectPtr<UUVEditorToolMeshInput>& Target : Targets)
 	{
 		Target->UnwrapPreview->ClearOpFactory();
 	}
@@ -329,7 +329,7 @@ void UUVEditorTransformTool::Shutdown(EToolShutdownType ShutdownType)
 
 void UUVEditorTransformTool::OnTick(float DeltaTime)
 {
-	for (TObjectPtr<UUVEditorToolMeshInput> Target : Targets)
+	for (const TObjectPtr<UUVEditorToolMeshInput>& Target : Targets)
 	{
 		Target->UnwrapPreview->Tick(DeltaTime);
 	}
@@ -342,7 +342,7 @@ void UUVEditorTransformTool::OnPropertyModified(UObject* PropertySet, FProperty*
 		return;
 	}
 
-	for (TObjectPtr<UUVEditorToolMeshInput> Target : Targets)
+	for (const TObjectPtr<UUVEditorToolMeshInput>& Target : Targets)
 	{
 		Target->UnwrapPreview->InvalidateResult();
 	}
@@ -350,7 +350,7 @@ void UUVEditorTransformTool::OnPropertyModified(UObject* PropertySet, FProperty*
 
 bool UUVEditorTransformTool::CanAccept() const
 {
-	for (TObjectPtr<UUVEditorToolMeshInput> Target : Targets)
+	for (const TObjectPtr<UUVEditorToolMeshInput>& Target : Targets)
 	{
 		if (!Target->UnwrapPreview->HaveValidResult())
 		{
@@ -425,7 +425,7 @@ void UUVEditorTransformTool::RecordAnalytics()
 	if (CanAccept())
 	{
 		TArray<double> PerAssetValidResultComputeTimes;
-		for (TObjectPtr<UUVEditorToolMeshInput> Target : Targets)
+		for (const TObjectPtr<UUVEditorToolMeshInput>& Target : Targets)
 		{
 			// Note: This would log -1 if the result was invalid, but checking CanAccept above ensures results are valid
 			PerAssetValidResultComputeTimes.Add(Target->UnwrapPreview->GetValidResultComputeTime());

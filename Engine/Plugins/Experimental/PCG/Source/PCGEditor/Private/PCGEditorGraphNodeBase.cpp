@@ -170,7 +170,7 @@ void UPCGEditorGraphNodeBase::AutowireNewNode(UEdGraphPin* FromPin)
 	const TArray<TObjectPtr<UPCGPin>>& OtherPinsList = bFromPinIsInput ? PCGNode->GetOutputPins() : PCGNode->GetInputPins();
 
 	// Try to connect to the first compatible pin
-	for (TObjectPtr<UPCGPin> OtherPin : OtherPinsList)
+	for (const TObjectPtr<UPCGPin>& OtherPin : OtherPinsList)
 	{
 		check(OtherPin);
 

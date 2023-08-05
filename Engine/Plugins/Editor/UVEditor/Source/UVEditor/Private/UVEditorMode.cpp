@@ -853,7 +853,7 @@ void UUVEditorMode::Exit()
 	}
 	RegisteredActions.Reset();
 
-	for (TObjectPtr<UUVEditorToolMeshInput> ToolInput : ToolInputObjects)
+	for (const TObjectPtr<UUVEditorToolMeshInput>& ToolInput : ToolInputObjects)
 	{
 		ToolInput->Shutdown();
 	}
@@ -861,7 +861,7 @@ void UUVEditorMode::Exit()
 	WireframesToTick.Reset();
 	OriginalObjectsToEdit.Reset();
 	
-	for (TObjectPtr<UMeshOpPreviewWithBackgroundCompute> Preview : AppliedPreviews)
+	for (const TObjectPtr<UMeshOpPreviewWithBackgroundCompute>& Preview : AppliedPreviews)
 	{
 		Preview->Shutdown();
 	}

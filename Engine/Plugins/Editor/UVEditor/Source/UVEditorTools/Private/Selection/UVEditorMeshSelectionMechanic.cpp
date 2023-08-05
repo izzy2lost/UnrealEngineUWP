@@ -795,7 +795,7 @@ void UUVEditorMeshSelectionMechanic::SetTargets(const TArray<TObjectPtr<UUVEdito
 	// Initialize the AABB trees from cached values, or make new ones
 	UnwrapMeshSpatials.Reset();
 	AppliedMeshSpatials.Reset();
-	for (TObjectPtr<UUVEditorToolMeshInput> Target : Targets)
+	for (const TObjectPtr<UUVEditorToolMeshInput>& Target : Targets)
 	{
 		TSharedPtr<FDynamicMeshAABBTree3> UnwrapTree = TreeStore->Get(Target->UnwrapCanonical.Get());
 		if (!UnwrapTree)
