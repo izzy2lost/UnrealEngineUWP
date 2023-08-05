@@ -16,6 +16,7 @@ struct CONTROLRIG_API FRigUnit_GetBoneTransform : public FRigUnit
 	FRigUnit_GetBoneTransform()
 		: Space(ERigVMTransformSpace::GlobalSpace)
 		, CachedBone()
+		, bFirstUpdate(true)
 	{}
 
 	RIGVM_METHOD()
@@ -41,6 +42,10 @@ struct CONTROLRIG_API FRigUnit_GetBoneTransform : public FRigUnit
 	// Used to cache the internally used bone index
 	UPROPERTY(transient)
 	FCachedRigElement CachedBone;
+
+	// Used to force first update to return initial pose
+	UPROPERTY(transient)
+	bool bFirstUpdate;
 
 	RIGVM_METHOD()
 	virtual FRigVMStructUpgradeInfo GetUpgradeInfo() const override;
