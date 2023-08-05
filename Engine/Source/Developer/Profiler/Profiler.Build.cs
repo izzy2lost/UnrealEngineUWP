@@ -10,6 +10,7 @@ public class Profiler : ModuleRules
 		(
 			new string[] {
 				"Core",
+				"CoreUObject",
 				"ApplicationCore",
                 "InputCore",
 				"RHI",
