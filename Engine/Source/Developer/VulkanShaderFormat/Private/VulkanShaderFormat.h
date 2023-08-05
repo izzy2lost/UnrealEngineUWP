@@ -12,18 +12,6 @@
 #define UE_VULKAN_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL 1
 #endif // UE_VULKAN_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
 
-// Hold information to be able to call the compilers
-struct FCompilerInfo
-{
-	const struct FShaderCompilerInput& Input;
-	FString WorkingDirectory;
-	FString Profile;
-	EHlslShaderFrequency Frequency;
-	FString BaseSourceFilename;
-
-	FCompilerInfo(const struct FShaderCompilerInput& InInput, const FString& InWorkingDirectory, EHlslShaderFrequency InFrequency);
-};
-
 
 struct FVulkanSpirv : FSpirv
 {
