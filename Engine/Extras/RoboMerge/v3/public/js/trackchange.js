@@ -1,6 +1,22 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 "use strict"
 
+function getMergeMethodString(mergeMethod) {
+	switch(mergeMethod) {
+		case "automerge":
+			return "Automerge"
+		case "initialSubmit":
+			return ""
+		case "merge_with_conflict":
+			return "Merge w/ conflict"
+		case "manual_merge":
+			return "Manual merge"
+		case "populate":
+			return "Populate"
+	}
+	return "UNKNOWN CASE: " + mergeMethod
+}
+
 function generateChangeList(data) {
 
 	let dataObj = data.data
@@ -10,6 +26,7 @@ function generateChangeList(data) {
 		html += '<tr>'
 		html += `<td><b>${dataObj.changes[cl].streamDisplayName}</b></td>`
 		html += `<td><a href="https://p4-swarm.epicgames.net/changes/${cl}" target="_blank">CL#${cl}</a></td>`
+		//html += `<td style="text-align:center;">${getMergeMethodString(dataObj.changes[cl].mergeMethod)}</td>`
 		html += '</tr>'
 	}
 	html += "</tbody></table></div>"
