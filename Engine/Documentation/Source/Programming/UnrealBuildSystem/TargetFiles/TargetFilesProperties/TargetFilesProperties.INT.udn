@@ -498,6 +498,8 @@ $ bAdaptiveUnityDisablesPCHForProject (Boolean): Whether to disable force-includ
 
 $ DefaultWarningLevel (WarningLevel): Default treatment of uncategorized warnings
 
+$ bRequireObjectPtrForAddReferencedObjects (Boolean): Require TObjectPtr for FReferenceCollector API's. (Needed for compatibility with incremental GC.)
+
 $ DeprecationWarningLevel (WarningLevel): Level to report deprecation warnings as errors
 
 $ bRetainFramePointers (Boolean): Forces frame pointers to be retained this is usually required when you want reliable callstacks e.g. mallocframeprofiler

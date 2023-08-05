@@ -196,6 +196,8 @@ $ CStandard : Which C standard to use for compiling this target
 
 $ MinCpuArchX64 : Direct the compiler to generate AVX instructions wherever SSE or AVX intrinsics are used, on the x64 platforms that support it. Note that by enabling this you are changing the minspec for the PC platform, and the resultant executable will crash on machines without AVX support.
 
+$ bRequireObjectPtrForAddReferencedObjects : Require TObjectPtr for FReferenceCollector API's. (Needed for compatibility with incremental GC.)
+
 $ bDeterministic : Set flags require for deterministic compiling and linking. Enabling deterministic mode for msvc disables codegen multithreading so compiling will be slower
 
 $ CppStandardEngine : Which C++ standard to use for compiling this target (for engine modules)
