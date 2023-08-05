@@ -309,7 +309,7 @@ async function _initWorkspacesForGraphBot(graphBot: GraphBot, existingWorkspaces
 		}
 	}
 
-	Promise.all(reloadedWorkspaces)
+	await Promise.all(reloadedWorkspaces)
 	if (workspacesToReset.length > 0) {
 		logger.info('The following workspaces already exist and will be reset: ' + workspacesToReset.join(', '))
 		await p4util.cleanWorkspaces(robo.p4, workspacesToReset)

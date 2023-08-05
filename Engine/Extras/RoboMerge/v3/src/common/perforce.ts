@@ -644,11 +644,11 @@ export class PerforceContext {
 		return null
 	}
 
-	async reloadWorkspace(workspaceName: string) {
+	reloadWorkspace(workspaceName: string) {
 		return this._execP4Ztag(null, ['reload', '-c', workspaceName]);
 	}
 
-	getEdgeServerAddress(serverId: string): Promise<string> {
+	getEdgeServerAddress(serverId: string) {
 		return this._execP4(null, ['-ztag', '-F', '%Address%', 'server', '-o', serverId])
 	}
 
