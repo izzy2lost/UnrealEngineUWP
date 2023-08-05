@@ -11,35 +11,17 @@
 #if PAS_ENABLE_VERSE
 
 pas_allocation_result verse_heap_runtime_config_allocate_chunks(verse_heap_runtime_config* config,
-                                                                size_t size)
+                                                                size_t size,
+																pas_physical_memory_transaction* transaction,
+																pas_primordial_page_state desired_state)
 {
-    pas_large_free_heap_config page_cache_config;
-    pas_simple_large_free_heap* page_cache;
     pas_allocation_result result;
 
     PAS_ASSERT(pas_is_aligned(size, VERSE_HEAP_CHUNK_SIZE));
 
-    if (config->heap_base) {
-        PAS_ASSERT(config->heap_size);
-        PAS_ASSERT(config->heap_alignment);
-        PAS_ASSERT(config->page_cache);
-        page_cache_config.type_size = 1;
-        page_cache_config.min_alignment = 1;
-        page_cache_config.aligned_allocator = NULL;
-        page_cache_config.aligned_allocator_arg = NULL;
-        page_cache_config.deallocator = NULL;
-        page_cache_config.deallocator_arg = NULL;
-        page_cache = config->page_cache;
-    } else {
-        PAS_ASSERT(!config->heap_size);
-        PAS_ASSERT(!config->heap_alignment);
-        PAS_ASSERT(!config->page_cache);
-        verse_heap_initialize_page_cache_config(&page_cache_config);
-        page_cache = &verse_heap_page_cache;
-    }
-
-    result = pas_simple_large_free_heap_try_allocate(
-        page_cache, size, pas_alignment_create_traditional(VERSE_HEAP_CHUNK_SIZE), &page_cache_config);
+    result = config->page_provider(
+		size, pas_alignment_create_traditional(VERSE_HEAP_CHUNK_SIZE), "verse_heap_chunk", NULL, transaction, desired_state,
+		config->page_provider_arg);
     
     if (result.did_succeed) {
         uintptr_t address;
@@ -49,6 +31,27 @@ pas_allocation_result verse_heap_runtime_config_allocate_chunks(verse_heap_runti
     }
     
     return result;
+}
+
+pas_allocation_result verse_heap_runtime_config_chunks_provider(size_t size,
+																pas_alignment alignment,
+																const char* name,
+																pas_heap* heap,
+																pas_physical_memory_transaction* transaction,
+																pas_primordial_page_state desired_state,
+																void* arg)
+{
+	verse_heap_runtime_config* config;
+
+    PAS_UNUSED_PARAM(heap);
+
+    PAS_ASSERT(pas_is_aligned(size, VERSE_HEAP_CHUNK_SIZE));
+    PAS_ASSERT(!alignment.alignment_begin);
+    PAS_ASSERT(alignment.alignment == VERSE_HEAP_CHUNK_SIZE);
+
+	config = (verse_heap_runtime_config*)arg;
+
+	return verse_heap_runtime_config_allocate_chunks(config, size, transaction, desired_state);
 }
 
 #endif /* PAS_ENABLE_VERSE */

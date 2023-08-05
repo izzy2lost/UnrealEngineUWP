@@ -12,6 +12,8 @@
 #include "pas_large_sharing_pool.h"
 #include "pas_local_allocator_inlines.h"
 #include "pas_reservation.h"
+#include "pas_reservation_free_heap.h"
+#include "pas_reserved_memory_provider.h"
 #include "pas_scavenger.h"
 #include "pas_try_allocate_common.h"
 #include "ue_include/verse_heap_config_ue.h"
@@ -108,32 +110,6 @@ void verse_heap_initialize_page_cache_config(pas_large_free_heap_config* config)
     config->deallocator_arg = NULL;
 }
 
-static pas_allocation_result heap_page_provider(size_t size,
-                                                pas_alignment alignment,
-                                                const char* name,
-                                                pas_heap* heap,
-                                                pas_physical_memory_transaction* transaction,
-												pas_primordial_page_state desired_state,
-                                                void* arg)
-{
-    verse_heap_runtime_config* config;
-	pas_allocation_result result;
-
-    PAS_UNUSED_PARAM(heap);
-    PAS_UNUSED_PARAM(transaction);
-
-    PAS_ASSERT(pas_is_aligned(size, VERSE_HEAP_CHUNK_SIZE));
-    PAS_ASSERT(!alignment.alignment_begin);
-    PAS_ASSERT(alignment.alignment == VERSE_HEAP_CHUNK_SIZE);
-
-    config = (verse_heap_runtime_config*)arg;
-
-    result = verse_heap_runtime_config_allocate_chunks(config, size);
-	if (result.did_succeed)
-		pas_reservation_convert_to_state((void*)result.begin, size, desired_state);
-	return result;
-}
-
 pas_heap* verse_heap_create(size_t min_align, size_t size, size_t alignment)
 {
     verse_heap_runtime_config* config;
@@ -175,33 +151,28 @@ pas_heap* verse_heap_create(size_t min_align, size_t size, size_t alignment)
         config->heap_base = 0;
         config->heap_size = 0;
         config->heap_alignment = 0;
-        config->page_cache = NULL;
+        config->page_provider = pas_global_physical_page_sharing_cache_provider;
+		config->page_provider_arg = NULL;
     } else {
-        pas_large_free_heap_config large_config;
         pas_allocation_result allocation_result;
 
         PAS_ASSERT(alignment);
-        
-        verse_heap_initialize_page_cache_config(&large_config);
-        allocation_result = pas_simple_large_free_heap_try_allocate(
-            &verse_heap_page_cache, size, pas_alignment_create_traditional(alignment), &large_config);
+
+		allocation_result = pas_reservation_free_heap_allocate_with_alignment(
+			size, pas_alignment_create_traditional(alignment), "verse_heap_reservation", pas_delegate_allocation);
+		
         PAS_ASSERT(allocation_result.did_succeed);
         PAS_ASSERT(allocation_result.begin);
         PAS_ASSERT(allocation_result.zero_mode == pas_zero_mode_is_all_zero);
 
-        config->page_cache = (pas_simple_large_free_heap*)pas_immortal_heap_allocate(
-            sizeof(pas_simple_large_free_heap), "verse_heap_runtime_config/page_cache", pas_object_allocation);
-        pas_simple_large_free_heap_construct(config->page_cache);
-        pas_simple_large_free_heap_deallocate(
-            config->page_cache, allocation_result.begin, allocation_result.begin + size, allocation_result.zero_mode,
-            &large_config);
-
         config->heap_base = allocation_result.begin;
         config->heap_size = size;
         config->heap_alignment = alignment;
+		config->page_provider = pas_reserved_memory_provider_try_allocate;
+		config->page_provider_arg = pas_reserved_memory_provider_create(allocation_result.begin, allocation_result.begin + size);
     }
 
-    pas_large_heap_physical_page_sharing_cache_construct(&config->large_cache, heap_page_provider, config);
+    pas_large_heap_physical_page_sharing_cache_construct(&config->large_cache, verse_heap_runtime_config_chunks_provider, config);
     pas_reserve_commit_cache_large_free_heap_construct(&config->small_cache);
 
     verse_heap_object_set_set_construct(&config->object_sets);

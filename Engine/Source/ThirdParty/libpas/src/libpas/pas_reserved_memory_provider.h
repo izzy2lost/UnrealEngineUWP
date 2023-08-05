@@ -38,6 +38,8 @@ struct pas_reserved_memory_provider {
     pas_simple_large_free_heap free_heap;
 };
 
+PAS_API pas_reserved_memory_provider* pas_reserved_memory_provider_create(uintptr_t begin, uintptr_t end);
+
 PAS_API void pas_reserved_memory_provider_construct(
     pas_reserved_memory_provider* provider,
     uintptr_t begin,

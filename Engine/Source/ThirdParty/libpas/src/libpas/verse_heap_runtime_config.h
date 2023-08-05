@@ -5,9 +5,9 @@
 
 #include "pas_heap_runtime_config.h"
 
+#include "pas_heap_page_provider.h"
 #include "pas_large_heap_physical_page_sharing_cache.h"
 #include "pas_reserve_commit_cache_large_free_heap.h"
-#include "pas_simple_large_free_heap.h"
 #include "verse_heap_object_set_set.h"
 
 #if PAS_ENABLE_VERSE
@@ -30,7 +30,9 @@ struct verse_heap_runtime_config {
     uintptr_t heap_base;
     size_t heap_size;
     size_t heap_alignment;
-    pas_simple_large_free_heap* page_cache;
+	
+	pas_heap_page_provider page_provider;
+	void* page_provider_arg;
     
     pas_large_heap_physical_page_sharing_cache large_cache;
     pas_reserve_commit_cache_large_free_heap small_cache;
@@ -45,7 +47,17 @@ struct verse_heap_runtime_config {
 
    Size must be a multiple of VERSE_HEAP_CHUNK_SIZE. */
 PAS_API pas_allocation_result verse_heap_runtime_config_allocate_chunks(verse_heap_runtime_config* config,
-                                                                        size_t size);
+                                                                        size_t size,
+																		pas_physical_memory_transaction* transaction,
+																		pas_primordial_page_state desired_state);
+
+PAS_API pas_allocation_result verse_heap_runtime_config_chunks_provider(size_t size,
+																		pas_alignment alignment,
+																		const char* name,
+																		pas_heap* heap,
+																		pas_physical_memory_transaction* transaction,
+																		pas_primordial_page_state desired_state,
+																		void* arg);
 
 PAS_END_EXTERN_C;
 

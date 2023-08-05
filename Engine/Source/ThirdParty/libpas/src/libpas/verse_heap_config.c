@@ -48,8 +48,14 @@ void verse_heap_destroy_page_base(pas_page_base* page, pas_lock_hold_mode heap_l
     PAS_UNUSED_PARAM(heap_lock_hold_mode);
 }
 
+typedef struct {
+	verse_heap_runtime_config* runtime_config;
+	pas_physical_memory_transaction* transaction;
+} small_segregated_page_allocate_aligned_data;
+
 static pas_aligned_allocation_result small_segregated_page_allocate_aligned(size_t size, pas_alignment alignment, void* arg)
 {
+	small_segregated_page_allocate_aligned_data* data;
     verse_heap_runtime_config* runtime_config;
     pas_allocation_result allocation_result;
     pas_aligned_allocation_result result;
@@ -59,13 +65,13 @@ static pas_aligned_allocation_result small_segregated_page_allocate_aligned(size
     PAS_ASSERT(alignment.alignment == VERSE_HEAP_SMALL_SEGREGATED_PAGE_SIZE);
     PAS_ASSERT(!alignment.alignment_begin);
 
-    runtime_config = (verse_heap_runtime_config*)arg;
+	data = (small_segregated_page_allocate_aligned_data*)arg;
+    runtime_config = data->runtime_config;
 
-    allocation_result = verse_heap_runtime_config_allocate_chunks(runtime_config, VERSE_HEAP_CHUNK_SIZE);
+    allocation_result = verse_heap_runtime_config_allocate_chunks(
+		runtime_config, VERSE_HEAP_CHUNK_SIZE, data->transaction, pas_primordial_page_is_committed);
     if (!allocation_result.did_succeed)
         return pas_aligned_allocation_result_create_empty();
-
-    pas_reservation_commit((void*)allocation_result.begin, VERSE_HEAP_CHUNK_SIZE);
 
     PAS_ASSERT(allocation_result.zero_mode == pas_zero_mode_is_all_zero);
 
@@ -90,14 +96,17 @@ void* verse_heap_allocate_small_segregated_page(
     void* result;
     pas_large_free_heap_config large_config;
     pas_allocation_result allocation_result;
+	small_segregated_page_allocate_aligned_data data;
     
     PAS_ASSERT(role == pas_segregated_page_exclusive_role);
     runtime_config = (verse_heap_runtime_config*)heap->runtime_config;
 
+	data.runtime_config = runtime_config;
+	data.transaction = transaction;
     large_config.type_size = 1;
     large_config.min_alignment = 1;
     large_config.aligned_allocator = small_segregated_page_allocate_aligned;
-    large_config.aligned_allocator_arg = runtime_config;
+    large_config.aligned_allocator_arg = &data;
     large_config.deallocator = NULL;
     large_config.deallocator_arg = NULL;
     allocation_result = pas_reserve_commit_cache_large_free_heap_try_allocate(
@@ -121,13 +130,11 @@ void* verse_heap_allocate_medium_segregated_page(
     pas_segregated_heap* heap, pas_physical_memory_transaction* transaction, pas_segregated_page_role role)
 {
     verse_heap_runtime_config* runtime_config;
-    void* result;
     PAS_ASSERT(role == pas_segregated_page_exclusive_role);
     runtime_config = (verse_heap_runtime_config*)heap->runtime_config;
     PAS_ASSERT(VERSE_HEAP_CHUNK_SIZE == VERSE_HEAP_MEDIUM_SEGREGATED_PAGE_SIZE);
-    result = (void*)verse_heap_runtime_config_allocate_chunks(runtime_config, VERSE_HEAP_CHUNK_SIZE).begin;
-    pas_reservation_commit(result, VERSE_HEAP_CHUNK_SIZE);
-    return result;
+    return (void*)verse_heap_runtime_config_allocate_chunks(
+		runtime_config, VERSE_HEAP_CHUNK_SIZE, transaction, pas_primordial_page_is_committed).begin;
 }
 
 pas_segregated_shared_page_directory* verse_heap_segregated_shared_page_directory_selector(

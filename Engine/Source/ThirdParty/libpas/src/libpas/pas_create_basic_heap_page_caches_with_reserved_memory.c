@@ -49,12 +49,7 @@ pas_basic_heap_page_caches* pas_create_basic_heap_page_caches_with_reserved_memo
 
     pas_heap_lock_lock();
 
-    provider = pas_immortal_heap_allocate(
-        sizeof(pas_reserved_memory_provider),
-        "pas_reserved_memory_provider",
-        pas_object_allocation);
-
-    pas_reserved_memory_provider_construct(provider, begin, end);
+    provider = pas_reserved_memory_provider_create(begin, end);
 
     caches = pas_immortal_heap_allocate(
         sizeof(pas_basic_heap_page_caches),

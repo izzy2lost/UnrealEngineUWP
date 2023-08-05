@@ -29,7 +29,19 @@
 
 #include "pas_reserved_memory_provider.h"
 
+#include "pas_immortal_heap.h"
 #include "pas_reservation.h"
+
+pas_reserved_memory_provider* pas_reserved_memory_provider_create(uintptr_t begin, uintptr_t end)
+{
+    pas_reserved_memory_provider* result;
+    result = pas_immortal_heap_allocate(
+        sizeof(pas_reserved_memory_provider),
+        "pas_reserved_memory_provider",
+        pas_object_allocation);
+	pas_reserved_memory_provider_construct(result, begin, end);
+	return result;
+}
 
 static pas_aligned_allocation_result null_aligned_allocator(size_t size,
                                                             pas_alignment alignment,
