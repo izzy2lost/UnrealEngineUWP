@@ -229,12 +229,12 @@ export class IPC {
 
 		let data: any = {originalCL: cl, changes: {}}
 
-		let gatherCLInfo = async (cl: number, lastCL?: number) => {
+		let gatherCLInfo = async (cl: number, opts?: any) => {
 			let desc = await this.robo.p4.describe(cl, 1)
 			const mergeMethod = cl != data.originalCL ? getMergeMethod(desc.description) : 'initialSubmit'
 			const clNode = getNode(desc)
 			if (clNode || mergeMethod in RobomergeMethodStrings) {
-				changes.set(cl, {desc, node: clNode, destCLs: (lastCL ? [lastCL] : []) })
+				changes.set(cl, {desc, node: clNode, sourceCL: opts ? opts.sourceCL : null, destCLs: (opts && opts.lastCL ? [opts.lastCL] : []) })
 				return true
 			}
 			return false
@@ -251,7 +251,7 @@ export class IPC {
 				if (i == 0) {
 					data.originalCL = sourceCL
 				}
-				await gatherCLInfo(sourceCL, lastCL)
+				await gatherCLInfo(sourceCL, {lastCL})
 				lastCL = sourceCL
 			}
 		}
@@ -316,13 +316,16 @@ export class IPC {
 				const integrated = await this.robo.p4.integrated(null, entry.depotFile, {intoOnly: true, startCL: clToConsider})
 				if (integrated.length > 0) {
 					for (let integ of integrated) {
-						const startToRev = parseInt(integ.startToRev.slice(1))
+						const startToRev = integ.startToRev == "#none" ? 0 : parseInt(integ.startToRev.slice(1))
 						const endToRev = parseInt(integ.endToRev.slice(1))
 						if (entry.rev <= endToRev && entry.rev > startToRev)
 						{
-							if (!changes.has(integ.change)) {
+							const destChange = changes.get(integ.change)
+							if (destChange) {
+								destChange.sourceCL = clToConsider
+							} else {
 								changeToConsider.destCLs.push(integ.change)
-								await gatherCLInfo(integ.change)
+								await gatherCLInfo(integ.change, {sourceCL: clToConsider})
 							}
 						}
 					}
@@ -338,7 +341,7 @@ export class IPC {
 			clsToConsider = clsToConsider.concat(changeToConsider.destCLs)
 
 			if (includeInResults) {
-				data.changes[`${clToConsider}`] = {streamDisplayName, mergeMethod}
+				data.changes[`${clToConsider}`] = {streamDisplayName, mergeMethod, sourceCL: changeToConsider.sourceCL}
 			}
 		}
 

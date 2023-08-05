@@ -39,8 +39,29 @@ Errors attempting to track change <a href="https://p4-swarm.epicgames.net/change
 			<pre></pre>
 		</div>
 		<div id="success-panel" style="display:none;">
-			<div id="graph"></div>
 			<div id="changes" style="display:none;"></div>
+			<div id="graph" style="display:none; margin: auto; text-align: center;"></div>
+
+			<div id="graph-key-template" class="graph-key initiallyHidden">Merge type
+				<table>
+					<tr title="Change was automatically merged">
+						<td class="arrow auto-merge-arrow"></td>
+						<td class="arrow-label">Auto merge</td>
+					</tr>
+					<tr title="Changes was manually merged to resolve a conflict">
+						<td class="arrow red-arrow"></td>
+						<td class="arrow-label">Merge w/ conflict</td>
+					</tr>
+					<tr title="Change was manually merged, likely as part of a bulk merge">
+						<td class="arrow on-request-arrow"></td>
+						<td class="arrow-label">Manual merge</td>
+					</tr>
+					<tr title="Change was part of a populate">
+						<td class="arrow default-flow-arrow"></td>
+						<td class="arrow-label">Populate</td>
+					</tr>
+				</table>
+
 		</div>
 
 		<div style="transform: scale(0.7);">
