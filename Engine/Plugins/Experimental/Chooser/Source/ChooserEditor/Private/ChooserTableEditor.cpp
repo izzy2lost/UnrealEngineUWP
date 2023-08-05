@@ -529,6 +529,7 @@ public:
 
 	FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override
 	{
+		ChooserEditor->SelectRow(RowIndex);
 		return FReply::Handled().DetectDrag(SharedThis(this), EKeys::LeftMouseButton);
 	};
 
@@ -758,6 +759,18 @@ void FChooserTableEditor::MoveRow(int SourceRowIndex, int TargetRowIndex)
 	Chooser->ResultsStructs.Insert(Result, TargetRowIndex);
 
 	UpdateTableRows();
+}
+	
+void FChooserTableEditor::SelectRow(int32 RowIndex) const
+{
+	if (TableRows.IsValidIndex(RowIndex))
+	{
+		if (!TableView->IsItemSelected(TableRows[RowIndex]))
+		{
+			TableView->ClearSelection();
+			TableView->SetItemSelection(TableRows[RowIndex], true, ESelectInfo::OnMouseClick);
+		}
+	}
 }
 
 void FChooserTableEditor::UpdateTableColumns()
