@@ -195,6 +195,10 @@ export class IPC {
 			const botsParam = queryObj.bots
 			return (botsParam ? botsParam.toUpperCase().split(',') : [])
 		})()
+		const depotFilter = (() => { 
+			const depotsParam: string = queryObj.depots
+			return (depotsParam ? depotsParam.toUpperCase().split(',').map(depot => `//${depot}`) : [])
+		})()
 
 		const graph = this.robo.graph.graph
 
@@ -303,8 +307,11 @@ export class IPC {
 				streamDisplayName = "//****/****"
 			}
 
-			if (includeInResults && streamFilter.length > 0) {
-				includeInResults = streamFilter.some(re => streamDisplayName.toUpperCase().match(re))
+			if (includeInResults)
+			{
+				const upperSteamDisplayName = streamDisplayName.toUpperCase()
+				includeInResults = depotFilter.length == 0 || depotFilter.some(depot => upperSteamDisplayName.startsWith(depot))
+				includeInResults = includeInResults && (streamFilter.length == 0 || streamFilter.some(re => upperSteamDisplayName.match(re)))
 			}
 
 			// Can't cache this because the passed in changelist is incorrectly labelled initialSubmit the first time
