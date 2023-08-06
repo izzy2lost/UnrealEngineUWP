@@ -276,7 +276,7 @@ export class IPC {
 			let hasAutomergeTarget = false
 			let streamDisplayName = ""
 			if (changeToConsider.node) {
-				let edges = graph.getEdgesBySource(changeToConsider.node)
+				let edges = graph.getEdgesForNode(changeToConsider.node)
 				for (let edge of edges) {
 					if (!includeInResults) {
 						const bot = edge.sourceAnnotation as NodeBotInterface

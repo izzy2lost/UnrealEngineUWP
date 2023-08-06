@@ -152,11 +152,7 @@ export class Graph {
 		return this.targetNames.get(name)
 	}
 
-	getEdgesBySource(src: Node, ...flags: EdgeFlag[]) {
-		const edges = this.edgesBySource.get(src)
-		if (!edges)
-			return new Set<Edge>()
-
+	private static filterEdgesByFlags(edges: Set<Edge>, flags: EdgeFlag[]) {
 		if (flags.length === 0)
 			return edges
 
@@ -167,6 +163,20 @@ export class Graph {
 			}
 			return true
 		}))
+	}
+
+	getEdgesBySource(src: Node, ...flags: EdgeFlag[]) {
+		return Graph.filterEdgesByFlags(this.edgesBySource.get(src) || new Set<Edge>, flags)
+	}
+
+	getEdgesByTarget(target: Node, ...flags: EdgeFlag[]) {
+		return Graph.filterEdgesByFlags(this.edgesByTarget.get(target) || new Set<Edge>, flags)
+	}
+
+	getEdgesForNode(node: Node, ...flags: EdgeFlag[]) {
+		const srcEdges = this.edgesBySource.get(node) || new Set<Edge>()
+		const targetEdges = this.edgesByTarget.get(node) || new Set<Edge>()
+		return Graph.filterEdgesByFlags(new Set([...srcEdges, ...targetEdges]), flags)
 	}
 
 	computeReachable(result: Set<Node>, src: Node, ...flags: EdgeFlag[]) {
