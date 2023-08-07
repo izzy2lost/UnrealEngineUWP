@@ -233,6 +233,9 @@ namespace Horde.Agent.Leases
 			Stopwatch updateTimer = Stopwatch.StartNew();
 			Queue<TimeSpan> updateTimes = new Queue<TimeSpan>();
 
+			// Whether there is an active user on this machine. For workstations, this determines whether the agent will take on work.
+			bool paused = false;
+
 			// Loop until we're ready to exit
 			Stopwatch updateCapabilitiesTimer = Stopwatch.StartNew();
 			for (; ; )
@@ -279,6 +282,10 @@ namespace Horde.Agent.Leases
 				else if (_unhealthy)
 				{
 					updateSessionRequest.Status = AgentStatus.Unhealthy;
+				}
+				else if (paused)
+				{
+					updateSessionRequest.Status = AgentStatus.Paused;
 				}
 				else
 				{
@@ -372,6 +379,10 @@ namespace Horde.Agent.Leases
 					if (!rpcCon.Healthy)
 					{
 						_statusService.Set(false, _activeLeases.Count, "Attempting to connect to server...");
+					}
+					else if (paused)
+					{
+						_statusService.Set(true, 0, "Paused");
 					}
 					else if (_activeLeases.Count == 0)
 					{

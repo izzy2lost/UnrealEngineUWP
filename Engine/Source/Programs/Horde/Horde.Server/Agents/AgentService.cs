@@ -378,6 +378,10 @@ namespace Horde.Server.Agents
 		bool CanUseTaskSource(IAgent agent, ITaskSource taskSource)
 		{
 			TaskSourceFlags flags = taskSource.Flags;
+			if ((flags & TaskSourceFlags.AllowWhenPaused) == 0 && agent.Status == AgentStatus.Paused)
+			{
+				return false;
+			}
 			if ((flags & TaskSourceFlags.AllowWhenDisabled) == 0 && !agent.Enabled)
 			{
 				return false;
@@ -703,7 +707,7 @@ namespace Horde.Server.Agents
 				}
 
 				// If the agent is stopping, cancel all the leases. Clear out the current session once it's complete.
-				if (status == AgentStatus.Stopping)
+				if (status == AgentStatus.Stopping || status == AgentStatus.Paused)
 				{
 					foreach (AgentLease lease in leases)
 					{
@@ -1048,6 +1052,7 @@ namespace Horde.Server.Agents
 			int numAgentsTotalOk = agentList.Count(a => a.Enabled && a.Status == AgentStatus.Ok);
 			int numAgentsTotalStopping = agentList.Count(a => a.Enabled && a.Status == AgentStatus.Stopping);
 			int numAgentsTotalUnhealthy = agentList.Count(a => a.Enabled && a.Status == AgentStatus.Unhealthy);
+			int numAgentsTotalPaused = agentList.Count(a => a.Enabled && a.Status == AgentStatus.Paused);
 			int numAgentsTotalUnspecified = agentList.Count(a => a.Enabled && a.Status == AgentStatus.Unspecified);
 			
 			_agentTotalCount.Record(numAgentsTotal);
@@ -1056,6 +1061,7 @@ namespace Horde.Server.Agents
 			_agentTotalCount.Record(numAgentsTotalOk, new KeyValuePair<string, object?>("status", "ok"));
 			_agentTotalCount.Record(numAgentsTotalStopping, new KeyValuePair<string, object?>("status", "stopping"));
 			_agentTotalCount.Record(numAgentsTotalUnhealthy, new KeyValuePair<string, object?>("status", "unhealthy"));
+			_agentTotalCount.Record(numAgentsTotalPaused, new KeyValuePair<string, object?>("status", "paused"));
 			_agentTotalCount.Record(numAgentsTotalUnspecified, new KeyValuePair<string, object?>("status", "unspecified"));
 		}
 

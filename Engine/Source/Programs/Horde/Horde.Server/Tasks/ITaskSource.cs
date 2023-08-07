@@ -14,7 +14,6 @@ using Google.Protobuf.Reflection;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Leases;
-using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.Extensions.Logging;
 
@@ -40,6 +39,11 @@ namespace Horde.Server.Tasks
 		/// Allows this source to schedule tasks when the agent is disabled
 		/// </summary>
 		AllowWhenDisabled = 2,
+
+		/// <summary>
+		/// Allows this source to schedule tasks when the agent is paused
+		/// </summary>
+		AllowWhenPaused = 4,
 	}
 
 	/// <summary>
