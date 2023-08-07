@@ -958,13 +958,11 @@ struct FSendAllEndOfFrameUpdates
 		if (InScene != nullptr)
 		{
 			GPUSkinCache = InScene->GetGPUSkinCache();
-			InScene->GetComputeTaskWorkers(ComputeTaskWorkers);
 			FeatureLevel = InScene->GetFeatureLevel();
 		}
 	}
 	
 	FGPUSkinCache* GPUSkinCache = nullptr;
-	TArray<IComputeTaskWorker*> ComputeTaskWorkers;
 	ERHIFeatureLevel::Type FeatureLevel = ERHIFeatureLevel::Num;
 
 #if WANTS_DRAW_MESH_EVENTS
@@ -977,11 +975,11 @@ void BeginSendEndOfFrameUpdatesDrawEvent(FSendAllEndOfFrameUpdates& SendAllEndOf
 	BEGIN_DRAW_EVENTF_GAMETHREAD(SendAllEndOfFrameUpdates, SendAllEndOfFrameUpdates.DrawEvent, TEXT("SendAllEndOfFrameUpdates"));
 	
 	ENQUEUE_RENDER_COMMAND(BeginDrawEventCommand)(
-		[GPUSkinCache = SendAllEndOfFrameUpdates.GPUSkinCache](FRHICommandListImmediate& RHICmdList)
+		[GPUSkinCache = SendAllEndOfFrameUpdates.GPUSkinCache](FRHICommandListImmediate&)
 		{
 			if (GPUSkinCache != nullptr)
 			{
-				GPUSkinCache->BeginBatchDispatch(RHICmdList);
+				GPUSkinCache->BeginBatchDispatch();
 			}
 		});
 }
@@ -991,28 +989,13 @@ DECLARE_GPU_STAT(GPUSkinCacheRayTracingGeometry);
 void EndSendEndOfFrameUpdatesDrawEvent(FSendAllEndOfFrameUpdates& SendAllEndOfFrameUpdates)
 {
 	ENQUEUE_RENDER_COMMAND(EndDrawEventCommand)(
-		[GPUSkinCache = SendAllEndOfFrameUpdates.GPUSkinCache, ComputeTaskWorkers = SendAllEndOfFrameUpdates.ComputeTaskWorkers, FeatureLevel = SendAllEndOfFrameUpdates.FeatureLevel](FRHICommandListImmediate& RHICmdList)
+		[GPUSkinCache = SendAllEndOfFrameUpdates.GPUSkinCache] (FRHICommandListImmediate&)
+	{
+		if (GPUSkinCache != nullptr)
 		{
-			SCOPED_GPU_STAT(RHICmdList, EndOfFrameUpdates);
-			TRACE_CPUPROFILER_EVENT_SCOPE(EndSendEndOfFrameUpdatesDrawEvent_RT);
-
-			if (GPUSkinCache != nullptr)
-			{
-				// Once all the individual components have received their DoDeferredRenderUpdates_Concurrent()
-				// allow the GPU Skin Cache system to update.
-				GPUSkinCache->EndBatchDispatch(RHICmdList);
-			}
-
-			for (IComputeTaskWorker* ComputeTaskWorker : ComputeTaskWorkers)
-			{
-				if (ComputeTaskWorker->HasWork(ComputeTaskExecutionGroup::EndOfFrameUpdate))
-				{
-					FRDGBuilder GraphBuilder(RHICmdList, RDG_EVENT_NAME("ComputeTaskWorker"));
-					ComputeTaskWorker->SubmitWork(GraphBuilder, ComputeTaskExecutionGroup::EndOfFrameUpdate, FeatureLevel);
-					GraphBuilder.Execute();
-				}
-			}
-		});
+			GPUSkinCache->EndBatchDispatch();
+		}
+	});
 
 	STOP_DRAW_EVENT_GAMETHREAD(SendAllEndOfFrameUpdates.DrawEvent);
 }

@@ -76,6 +76,7 @@
 #include "ProfilingDebugging/CountersTrace.h"
 #include "SceneCulling/SceneCulling.h"
 #include "InstanceCulling/InstanceCullingOcclusionQuery.h"
+#include "ComputeWorkerInterface.h"
 
 #if RHI_RAYTRACING
 #include "Nanite/NaniteRayTracing.h"
@@ -404,28 +405,6 @@ FSceneViewState::FSceneViewState(ERHIFeatureLevel::Type FeatureLevel, FSceneView
 			BeginInitResource(&OcclusionFeedback);
 		}
 	}
-}
-
-void DestroyRenderResource(FRenderResource* RenderResource)
-{
-	if (RenderResource) 
-	{
-		ENQUEUE_RENDER_COMMAND(DestroySceneViewStateRenderResource)(
-			[RenderResource](FRHICommandList&)
-			{
-				RenderResource->ReleaseResource();
-				delete RenderResource;
-			});
-	}
-}
-
-void DestroyRWBuffer(FRWBuffer* RWBuffer)
-{
-	ENQUEUE_RENDER_COMMAND(DestroyRWBuffer)(
-		[RWBuffer](FRHICommandList&)
-		{
-			delete RWBuffer;
-		});
 }
 
 FSceneViewState::~FSceneViewState()
@@ -5233,6 +5212,25 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 	SCOPE_CYCLE_COUNTER(STAT_UpdateScenePrimitiveRenderThreadTime);
 
 	check(IsInRenderingThread());
+
+	UE::Tasks::FTask GPUSkinCacheTask;
+
+	if (GPUSkinCache && GPUSkinCache->HasWork())
+	{
+		GPUSkinCacheTask = GraphBuilder.AddCommandListSetupTask([this] (FRHICommandList& RHICmdList)
+		{
+			GPUSkinCache->DoDispatch(RHICmdList);
+		});
+	}
+
+	for (IComputeTaskWorker* ComputeTaskWorker : ComputeTaskWorkers)
+	{
+		if (ComputeTaskWorker->HasWork(ComputeTaskExecutionGroup::EndOfFrameUpdate))
+		{
+			ComputeTaskWorker->SubmitWork(GraphBuilder, ComputeTaskExecutionGroup::EndOfFrameUpdate, FeatureLevel);
+		}
+	}
+
 	FSceneRenderer::WaitForCleanUpTasks(GraphBuilder.RHICmdList);
 	FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions();
 
@@ -6144,6 +6142,8 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 
 	UpdateCachedShadowState(SceneUpdateChangeSetStorage.GetPreUpdateSet(), SceneUpdateChangeSetStorage.GetPostUpdateSet());
 	ShadowScene->PostSceneUpdate(SceneUpdateChangeSetStorage.GetPreUpdateSet(), SceneUpdateChangeSetStorage.GetPostUpdateSet());
+
+	GPUSkinCacheTask.Wait();
 
 	// Must run prior to static mesh gathering as callbacks can evaluate uniform expression caches.
 	FVirtualTextureSystem::Get().CallPendingCallbacks();

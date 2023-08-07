@@ -604,6 +604,7 @@ protected:
 	int BoneInfluenceType;
 	bool bUse16BitBoneIndex;
 	bool bUse16BitBoneWeight;
+	bool bQueuedForDispatch = false;
 	uint32 InputWeightIndexSize;
 	uint32 InputWeightStride;
 	FShaderResourceViewRHIRef InputWeightStreamSRV;
@@ -1307,6 +1308,13 @@ void FGPUSkinCache::DoDispatch(FRHICommandList& RHICmdList)
 	int32 BatchCount = BatchDispatches.Num();
 	INC_DWORD_STAT_BY(STAT_GPUSkinCache_TotalNumChunks, BatchCount);
 
+	if (!BatchCount)
+	{
+		return;
+	}
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(FGPUSkinCache::DoDispatch);
+
 	bool bCapture = BatchCount > 0 && GNumDispatchesToCapture > 0;
 	RenderCaptureInterface::FScopedCapture RenderCapture(bCapture, &RHICmdList, TEXT("GPUSkinCache"));
 	GNumDispatchesToCapture -= bCapture ? 1 : 0;
@@ -1322,6 +1330,9 @@ void FGPUSkinCache::DoDispatch(FRHICommandList& RHICmdList)
 		{
 			FDispatchEntry& DispatchItem = BatchDispatches[i];
 			PrepareUpdateSkinning(DispatchItem.SkinCacheEntry, DispatchItem.Section, DispatchItem.RevisionNumber, &BuffersToTransitionForSkinning);
+
+			// Clear the flag that this is queued for dispatch.
+			DispatchItem.SkinCacheEntry->bQueuedForDispatch = false;
 		}
 
 		{
@@ -1570,6 +1581,20 @@ void FGPUSkinCache::DoDispatch(FRHICommandList& RHICmdList)
 		TRACE_CPUPROFILER_EVENT_SCOPE(TransitionAllToReadable);
 		TransitionAllToReadable(RHICmdList, BuffersToTransitionToRead);
 	}
+
+#if RHI_RAYTRACING
+	if (IsGPUSkinCacheRayTracingSupported())
+	{
+		for (FGPUSkinCacheEntry* SkinCacheEntry : PendingProcessRTGeometryEntries)
+		{
+			ProcessRayTracingGeometryToUpdate(RHICmdList, SkinCacheEntry);
+		}
+
+		PendingProcessRTGeometryEntries.Reset();
+	}
+#endif
+
+	BatchDispatches.Reset();
 }
 
 void FGPUSkinCache::DoDispatch(FRHICommandList& RHICmdList, FGPUSkinCacheEntry* SkinCacheEntry, int32 Section, int32 RevisionNumber)
@@ -1829,6 +1854,7 @@ bool FGPUSkinCache::ProcessEntry(
 
 	if (bShouldBatchDispatches)
 	{
+		InOutEntry->bQueuedForDispatch = true;
 		BatchDispatches.Add({ InOutEntry, RevisionNumber, uint32(Section) });
 	}
 	else
@@ -1878,32 +1904,14 @@ void FGPUSkinCache::ProcessRayTracingGeometryToUpdate(FRHICommandList& RHICmdLis
 
 #endif
 
-void FGPUSkinCache::BeginBatchDispatch(FRHICommandList& RHICmdList)
+void FGPUSkinCache::BeginBatchDispatch()
 {
-	check(BatchDispatches.Num() == 0);
 	bShouldBatchDispatches = true;
 	DispatchCounter = 0;
 }
 
-void FGPUSkinCache::EndBatchDispatch(FRHICommandList& RHICmdList)
+void FGPUSkinCache::EndBatchDispatch()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FGPUSkinCache::EndBatchDispatch);
-
-	DoDispatch(RHICmdList);
-
-#if RHI_RAYTRACING
-	if (IsGPUSkinCacheRayTracingSupported())
-	{
-		for (FGPUSkinCacheEntry* SkinCacheEntry : PendingProcessRTGeometryEntries)
-		{
-			ProcessRayTracingGeometryToUpdate(RHICmdList, SkinCacheEntry);
-		}
-
-		PendingProcessRTGeometryEntries.Reset();
-	}
-#endif
-
-	BatchDispatches.Reset();
 	bShouldBatchDispatches = false;
 }
 
@@ -1914,6 +1922,24 @@ void FGPUSkinCache::Release(FGPUSkinCacheEntry*& SkinCacheEntry)
 		FGPUSkinCache* SkinCache = SkinCacheEntry->SkinCache;
 		check(SkinCache);
 		SkinCache->PendingProcessRTGeometryEntries.Remove(SkinCacheEntry);
+
+		if (SkinCacheEntry->bQueuedForDispatch)
+		{
+			for (int32 Index = 0; Index < SkinCache->BatchDispatches.Num(); )
+			{
+				if (SkinCache->BatchDispatches[Index].SkinCacheEntry == SkinCacheEntry)
+				{
+					SkinCache->BatchDispatches.RemoveAtSwap(Index);
+
+					// Continue to search for other sections associated with this skin cache entry.
+				}
+				else
+				{
+					++Index;
+				}
+			}
+			SkinCacheEntry->bQueuedForDispatch = false;
+		}
 
 		ReleaseSkinCacheEntry(SkinCacheEntry);
 		SkinCacheEntry = nullptr;
