@@ -865,7 +865,7 @@ class BuildPhysX_Android : BuildPhysX.MakefileTargetPlatform
 
 			AndroidHomeDirectory = AndroidHomeDirectory.Replace("\"", "");
 
-			return new DirectoryReference(Path.Combine(AndroidHomeDirectory, "cmake", "3.10.2.4988404"));
+			return new DirectoryReference(Path.Combine(AndroidHomeDirectory, "cmake", "3.22.1"));
 		}
 	}
 

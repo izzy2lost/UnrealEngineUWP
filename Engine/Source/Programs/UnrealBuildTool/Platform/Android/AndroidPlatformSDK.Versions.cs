@@ -21,7 +21,7 @@ namespace UnrealBuildTool
 			{
 				case "platforms": return "android-33";
 				case "build-tools": return "33.0.1";
-				case "cmake": return "3.10.2.4988404";
+				case "cmake": return "3.22.1";
 				case "ndk": return "25.1.8937393";
 			}
 
