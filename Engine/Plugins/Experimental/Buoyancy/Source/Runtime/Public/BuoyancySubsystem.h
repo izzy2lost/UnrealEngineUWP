@@ -131,6 +131,19 @@ private:
 	};
 
 	// This sparse array of submersion events is indexed on particle unique indices.
-	// All buoyant forces due to submersions are applied at once.
+	// All buoyant forces due to submersions are applied at once. It's stored as
+	// a member variable and reset every frame, to avoid reallocation of similarly
+	// sized data.
 	TSparseArray<FSubmersion> Submersions;
+
+	// This is a sparse array of bit arrays representing which shapes in an object
+	// have already been accounted for when submerging an object. For example, if
+	// a massive BVH object has two leaf node shapes submerged in different pools
+	// of water and we've already detected that leaf A is submerged, we don't
+	// need to test A again. This helps to avoid double counting submerged shapes.
+	//
+	// Just like Submersions, we have this as a member variable only to keep the
+	// memory hot - the array is reset, repopulated and traversed, every frame,
+	// so we want to minimize allocations.
+	TSparseArray<TBitArray<>> SubmergedShapes;
 };

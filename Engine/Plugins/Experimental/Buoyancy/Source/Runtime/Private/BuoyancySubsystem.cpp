@@ -231,6 +231,22 @@ void FBuoyancySubsystemSimCallback::OnPreSimulate_Internal()
 		return;
 	}
 
+
+
+}
+
+void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidPhaseModifierAccessor& MidPhaseAccessor)
+{
+	using namespace Chaos;
+
+	SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_OnMidPhaseModification)
+
+	// If we don't have a valid buoyancy settings object, don't continue
+	if (BuoyancySettings.IsValid() == false)
+	{
+		return;
+	}
+
 	// Get the evolution
 	FPBDRigidsEvolution* Evolution = nullptr;
 	if (FPhysicsSolverBase* SolverBase = GetSolver())
@@ -255,67 +271,15 @@ void FBuoyancySubsystemSimCallback::OnPreSimulate_Internal()
 	// How much time has the sim ticked this frame
 	const FReal DeltaSeconds = GetDeltaTime_Internal();
 
-	// Apply all buoyant forces
-	for (const FSubmersion& Submersion : Submersions)
-	{
-		// Figure out the gravity level of the particle
-		const int32 GravityGroupIndex = Submersion.Particle->GravityGroupIndex();
-		const FVec3 GravityAccel
-			= PerParticleGravity != nullptr && GravityGroupIndex != INDEX_NONE
-			? (FVec3)PerParticleGravity->GetAcceleration(GravityGroupIndex)
-			: FVec3::DownVector * 980.f; // Default to "regular" gravity
-
-		// Compute delta linear and angular velocities due to buoyancy. If they're big enough to
-		// matter, apply them
-		FVec3 DeltaV, DeltaW;
-		if (BuoyancyAlgorithms::ComputeBuoyantForce(Submersion.Particle, DeltaSeconds, BuoyancySettings->WaterDensity, BuoyancySettings->WaterDrag, GravityAccel, Submersion.CoM, Submersion.Vol, DeltaV, DeltaW))
-		{
-			// Clamp delta velocities
-			DeltaV = DeltaV.GetClampedToSize(0.f, BuoyancySettings->MaxDeltaV);
-			DeltaW = DeltaW.GetClampedToSize(0.f, BuoyancySettings->MaxDeltaW);
-
-			// Apply the deltas
-			Submersion.Particle->SetV(Submersion.Particle->V() + DeltaV);
-			Submersion.Particle->SetW(Submersion.Particle->W() + DeltaW);
-
-			// Wake up the body??
-			if (Evolution && BuoyancySettings->bKeepAwake)
-			{
-				Evolution->SetParticleObjectState(Submersion.Particle, EObjectStateType::Dynamic);
-			}
-		}
-
-	}
-
-	// Clear submersions, but keep memory allocated
+	// Clear submersions and submerged shapes array, but keep their memory allocated
 	Submersions.Reset();
-}
-
-void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidPhaseModifierAccessor& MidPhaseAccessor)
-{
-	using namespace Chaos;
-
-	SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_OnMidPhaseModification)
-
-	// If we don't have a valid buoyancy settings object, don't continue
-	if (BuoyancySettings.IsValid() == false)
-	{
-		return;
-	}
-
-	// This 2d bit array is used to avoid double-counting buoyancy for any particular
-	// shape on a body. The outer TSparseArray is indexed by the unique idx on a particle,
-	// the inner bitarray is indexed by it's shape indices.
-	//
-	// If we have computed a buoyant force for a particular shape on an object already
-	// then skip it on the second time around.
-	TSparseArray< TBitArray<> > SubmergedShapes;
+	SubmergedShapes.Reset();
 
 	// NOTE: For now we visit _every_ midphase, and check for ones which involve
 	// our target collision channel. It would be nice if it were possible instead
 	// to get a list of water body particles and loop over only midphases which
 	// involve them.
-	MidPhaseAccessor.VisitMidPhases([this, &SubmergedShapes](Chaos::FMidPhaseModifier& MidPhase)
+	MidPhaseAccessor.VisitMidPhases([this](Chaos::FMidPhaseModifier& MidPhase)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_VisitMidphases)
 
@@ -399,4 +363,36 @@ void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidP
 			}
 		}
 	});
+
+	// Apply all buoyant forces
+	for (const FSubmersion& Submersion : Submersions)
+	{
+		// Figure out the gravity level of the particle
+		const int32 GravityGroupIndex = Submersion.Particle->GravityGroupIndex();
+		const FVec3 GravityAccel
+			= PerParticleGravity != nullptr && GravityGroupIndex != INDEX_NONE
+			? (FVec3)PerParticleGravity->GetAcceleration(GravityGroupIndex)
+			: FVec3::DownVector * 980.f; // Default to "regular" gravity
+
+		// Compute delta linear and angular velocities due to buoyancy. If they're big enough to
+		// matter, apply them
+		FVec3 DeltaV, DeltaW;
+		if (BuoyancyAlgorithms::ComputeBuoyantForce(Submersion.Particle, DeltaSeconds, BuoyancySettings->WaterDensity, BuoyancySettings->WaterDrag, GravityAccel, Submersion.CoM, Submersion.Vol, DeltaV, DeltaW))
+		{
+			// Clamp delta velocities
+			DeltaV = DeltaV.GetClampedToSize(0.f, BuoyancySettings->MaxDeltaV);
+			DeltaW = DeltaW.GetClampedToSize(0.f, BuoyancySettings->MaxDeltaW);
+
+			// Apply the deltas
+			Submersion.Particle->SetV(Submersion.Particle->V() + DeltaV);
+			Submersion.Particle->SetW(Submersion.Particle->W() + DeltaW);
+
+			// Wake up the body??
+			if (Evolution && BuoyancySettings->bKeepAwake)
+			{
+				Evolution->SetParticleObjectState(Submersion.Particle, EObjectStateType::Dynamic);
+			}
+		}
+
+	}
 }
