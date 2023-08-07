@@ -1628,7 +1628,6 @@ void UEdGraphPin::InitFromDeprecatedPin(class UEdGraphPin_Deprecated* Deprecated
 
 void UEdGraphPin::DestroyImpl(bool bClearLinks)
 {
-	FPinDeletionQueue::Add(this);
 	if (bClearLinks)
 	{
 		BreakAllPinLinks();
@@ -1663,6 +1662,7 @@ void UEdGraphPin::DestroyImpl(bool bClearLinks)
 	}
 
 	bWasTrashed = true;
+	FPinDeletionQueue::Add(this);
 }
 
 bool UEdGraphPin::Serialize(FArchive& Ar)
