@@ -12,9 +12,9 @@ class FComponentRecreateRenderStateContext
 {
 private:
 	/** Pointer to component we are recreating render state for */
-	UActorComponent* Component;
+	UActorComponent* Component = nullptr;
 
-	TSet<FSceneInterface*>* ScenesToUpdateAllPrimitiveSceneInfos;
+	TSet<FSceneInterface*>* ScenesToUpdateAllPrimitiveSceneInfos = nullptr;
 
 public:
 	FComponentRecreateRenderStateContext(UActorComponent* InComponent, TSet<FSceneInterface*>* InScenesToUpdateAllPrimitiveSceneInfos = nullptr)
@@ -34,6 +34,26 @@ public:
 		{
 			Component = nullptr;
 		}
+	}
+
+	FComponentRecreateRenderStateContext(const FComponentRecreateRenderStateContext&) = delete;
+	FComponentRecreateRenderStateContext& operator=(const FComponentRecreateRenderStateContext&) = delete;
+	
+	FComponentRecreateRenderStateContext(FComponentRecreateRenderStateContext&& Other)
+		: Component(Other.Component)
+		, ScenesToUpdateAllPrimitiveSceneInfos(Other.ScenesToUpdateAllPrimitiveSceneInfos)
+	{
+		Other.Component = nullptr;
+		Other.ScenesToUpdateAllPrimitiveSceneInfos = nullptr;
+	}
+
+	FComponentRecreateRenderStateContext& operator=(FComponentRecreateRenderStateContext&& Other)
+	{
+		Component = Other.Component;
+		ScenesToUpdateAllPrimitiveSceneInfos = Other.ScenesToUpdateAllPrimitiveSceneInfos;
+		Other.Component = nullptr;
+		Other.ScenesToUpdateAllPrimitiveSceneInfos = nullptr;
+		return *this;
 	}
 
 	~FComponentRecreateRenderStateContext()
