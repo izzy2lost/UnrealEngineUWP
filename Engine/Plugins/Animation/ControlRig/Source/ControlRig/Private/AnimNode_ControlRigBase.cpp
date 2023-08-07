@@ -75,19 +75,6 @@ void FAnimNode_ControlRigBase::Initialize_AnyThread(const FAnimationInitializeCo
 
 	FAnimNode_CustomProperty::Initialize_AnyThread(Context);
 	Source.Initialize(Context);
-
-	if (UControlRig* ControlRig = GetControlRig())
-	{
-		//Don't Inititialize the Control Rig here it may have the wrong VM on the CDO
-		SetTargetInstance(ControlRig);
-		ControlRig->RequestInit();
-		bControlRigRequiresInitialization = true;
-		LastBonesSerialNumberForCacheBones = 0;
-	}
-	else
-	{
-		SetTargetInstance(nullptr);
-	}
 }
 
 void FAnimNode_ControlRigBase::GatherDebugData(FNodeDebugData& DebugData)

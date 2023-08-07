@@ -4135,6 +4135,8 @@ TSharedPtr<FUICommandList> FControlRigEditor::HandleOnViewportContextMenuCommand
 void FControlRigEditor::OnPreConstruction_AnyThread(UControlRig* InRig, const FName& InEventName)
 {
 	bIsConstructionEventRunning = true;
+	const TArrayView<const FRigElementKey> Elements;
+	PreConstructionPose = InRig->GetHierarchy()->GetPose(false, ERigElementType::ToResetAfterConstructionEvent, Elements);
 }
 
 void FControlRigEditor::OnPostConstruction_AnyThread(UControlRig* InRig, const FName& InEventName)
@@ -4176,6 +4178,10 @@ void FControlRigEditor::OnPostConstruction_AnyThread(UControlRig* InRig, const F
 				Task();
 			}, TStatId(), NULL, ENamedThreads::GameThread);
 		}
+	}
+	else
+	{
+		InRig->GetHierarchy()->SetPose(PreConstructionPose, ERigTransformType::CurrentGlobal);
 	}
 }
 

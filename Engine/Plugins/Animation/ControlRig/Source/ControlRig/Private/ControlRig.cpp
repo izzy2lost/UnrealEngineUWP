@@ -751,24 +751,6 @@ bool UControlRig::Execute(const FName& InEventName)
 			// disable selection notifications from the hierarchy
 			TGuardValue<bool> DisableSelectionNotifications(GetHierarchy()->GetController(true)->bSuspendSelectionNotifications, true);
 			{
-				// save the current state of all pose elements to preserve user intention, since construction event can
-				// run in between forward events
-				// the saved pose is reapplied to the rig after construction event as the pose scope goes out of scope
-				TUniquePtr<FPoseScope> PoseScope;
-				if (!bConstructionModeEnabled)
-				{
-					// only do this in non-construction mode because 
-					// when construction mode is enabled, the control values are cleared before reaching here (too late to save them)
-					if (!bJustRanInit)
-					{
-						PoseScope = MakeUnique<FPoseScope>(this, ERigElementType::ToResetAfterConstructionEvent, TArray<FRigElementKey>(), ERigTransformType::CurrentGlobal);
-					}
-					else
-					{
-						PoseScope = MakeUnique<FPoseScope>(this, ERigElementType::ToResetAfterConstructionEvent);
-					}
-				}
-				
 				{
 					// Copy the hierarchy from the default object onto this one
 #if WITH_EDITOR

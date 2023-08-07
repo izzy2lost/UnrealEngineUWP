@@ -293,6 +293,7 @@ protected:
 
 	void OnPreConstruction_AnyThread(UControlRig* InRig, const FName& InEventName);
 	void OnPostConstruction_AnyThread(UControlRig* InRig, const FName& InEventName);
+	FRigPose PreConstructionPose;
 
 	bool bIsConstructionEventRunning;
 	uint32 LastHierarchyHash;

@@ -121,6 +121,19 @@ void FAnimNode_ControlRig::Initialize_AnyThread(const FAnimationInitializeContex
 
 	FAnimNode_ControlRigBase::Initialize_AnyThread(Context);
 
+	if (ControlRig)
+	{
+		//Don't Inititialize the Control Rig here it may have the wrong VM on the CDO
+		SetTargetInstance(ControlRig);
+		ControlRig->RequestInit();
+		bControlRigRequiresInitialization = true;
+		LastBonesSerialNumberForCacheBones = 0;
+	}
+	else
+	{
+		SetTargetInstance(nullptr);
+	}
+
 	AlphaBoolBlend.Reinitialize();
 	AlphaScaleBiasClamp.Reinitialize();
 }
