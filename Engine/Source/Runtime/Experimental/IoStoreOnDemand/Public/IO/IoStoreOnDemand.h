@@ -18,6 +18,7 @@
 
 #define UE_API IOSTOREONDEMAND_API
 
+class FArchive;
 class FCbWriter;
 class FCbFieldView;
 class IIoStoreWriter;
@@ -36,6 +37,7 @@ enum class EOnDemandTocVersion : uint32
 	Initial			= 1,
 	UTocHash		= 2,
 	BlockHash32		= 3,
+	NoRawHash		= 4,
 
 	LatestPlusOne,
 	Latest			= (LatestPlusOne - 1)
@@ -61,6 +63,7 @@ struct FOnDemandTocHeader
 	FString CompressionFormat;
 	FString ChunksDirectory;
 	
+	UE_API friend FArchive& operator<<(FArchive& Ar, FOnDemandTocHeader& Header);
 	UE_API friend FCbWriter& operator<<(FCbWriter& Writer, const FOnDemandTocHeader& Header);
 };
 
@@ -69,13 +72,13 @@ UE_API bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandTocHeader& OutToc
 struct FOnDemandTocEntry
 {
 	FIoHash Hash = FIoHash::Zero;
-	FIoHash RawHash = FIoHash::Zero;
 	FIoChunkId ChunkId = FIoChunkId::InvalidChunkId;
 	uint64 RawSize = 0;
 	uint64 EncodedSize = 0;
 	uint32 BlockOffset = ~uint32(0);
 	uint32 BlockCount = 0; 
 	
+	UE_API friend FArchive& operator<<(FArchive& Ar, FOnDemandTocEntry& Entry);
 	UE_API friend FCbWriter& operator<<(FCbWriter& Writer, const FOnDemandTocEntry& Entry);
 };
 
@@ -90,6 +93,7 @@ struct FOnDemandTocContainerEntry
 	TArray<uint32> BlockHashes;
 	FIoHash UTocHash;
 
+	UE_API friend FArchive& operator<<(FArchive& Ar, FOnDemandTocContainerEntry& ContainerEntry);
 	UE_API friend FCbWriter& operator<<(FCbWriter& Writer, const FOnDemandTocContainerEntry& ContainerEntry);
 };
 
@@ -99,10 +103,11 @@ struct FOnDemandToc
 {
 	FOnDemandTocHeader Header;
 	TArray<FOnDemandTocContainerEntry> Containers;
-	
-	UE_API friend FCbWriter& operator<<(FCbWriter& Writer, const FOnDemandToc& TocResource);
 
-	UE_NODISCARD UE_API static TIoStatusOr<FString> Save(const TCHAR* Directory, const FOnDemandToc& TocResource);
+	UE_API friend FArchive& operator<<(FArchive& Ar, FOnDemandToc& Toc);
+	UE_API friend FCbWriter& operator<<(FCbWriter& Writer, const FOnDemandToc& Toc);
+
+	static FGuid VersionGuid;
 };
 
 UE_API bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandToc& OutToc);

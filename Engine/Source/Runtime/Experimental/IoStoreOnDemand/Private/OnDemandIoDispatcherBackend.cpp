@@ -30,6 +30,7 @@
 #include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "Serialization/MemoryReader.h"
 #include "Tasks/Task.h"
 
 #include <atomic>
@@ -1319,9 +1320,13 @@ TIoStatusOr<FOnDemandToc> FOnDemandIoBackend::GetToc(FHttpClient& HttpClient, co
 		{
 			if (Response.IsOk())
 			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::SerializeToc);
 				FIoBuffer Buffer = Response.ConsumeValueOrDie();
 				FOnDemandToc NewToc;	
-				if (LoadFromCompactBinary(FCbFieldView(Buffer.GetData()), NewToc))
+
+				FMemoryReaderView Ar(Buffer.GetView());
+				Ar << NewToc;
+				if (!Ar.IsError())
 				{
 					Toc = TIoStatusOr<FOnDemandToc>(MoveTemp(NewToc));
 				}
