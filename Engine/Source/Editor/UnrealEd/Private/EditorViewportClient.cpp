@@ -6271,8 +6271,9 @@ void FEditorViewportClient::SetGameView(bool bGameViewEnable)
 	//reset game engine show flags that may have been turned on by making a selection in game view
 	if(bGameViewEnable)
 	{
-		EngineShowFlags.SetModeWidgets(false);
+		EngineShowFlags.SetModeWidgets(true); // Enable "Mode Widgets" by default when entering game mode
 		EngineShowFlags.SetSelection(false);
+		ShowWidget(false); // Hide the widget
 	}
 
 	EngineShowFlags.SetSelectionOutline(bGameViewEnable ? false : GetDefault<ULevelEditorViewportSettings>()->bUseSelectionOutline);

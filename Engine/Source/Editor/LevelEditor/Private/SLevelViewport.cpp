@@ -1992,6 +1992,13 @@ void SLevelViewport::ToggleGameView()
 		LevelViewportClient->bAlwaysShowModeWidgetAfterSelectionChanges = bGameViewEnable ? false : true;
 
 		LevelViewportClient->SetGameView(bGameViewEnable);
+
+		if (!bGameViewEnable)
+		{
+			// LevelViewportClient->bShowWidget is set to "false" when entering game mode
+			// Need to turn it back to "true" when exiting game mode
+			LevelViewportClient->ShowWidget(true);
+		}
 	}
 }
 
@@ -2763,6 +2770,9 @@ void SLevelViewport::OnActorSelectionChanged(const TArray<UObject*>& NewSelectio
 		{
 			LevelViewportClient->EngineShowFlags.SetModeWidgets(true);
 		}
+
+		// In game mode, selecting any actor should make LevelViewportClient->bShowWidget be "true"
+		LevelViewportClient->ShowWidget(true);
 		LevelViewportClient->EngineShowFlags.SetSelection(true);
 		LevelViewportClient->EngineShowFlags.SetSelectionOutline(GetDefault<ULevelEditorViewportSettings>()->bUseSelectionOutline);
 	}
