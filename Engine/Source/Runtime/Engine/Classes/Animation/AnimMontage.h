@@ -725,6 +725,8 @@ public:
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 
+	virtual FFrameRate GetSamplingFrameRate() const override;
+
 	// Gets the sequence length of the montage by calculating it from the lengths of the segments in the montage
 	ENGINE_API float CalculateSequenceLength();
 
@@ -913,7 +915,6 @@ private:
 	/** Cached list of Branching Point markers */
 	UPROPERTY()
 	TArray<FBranchingPointMarker> BranchingPointMarkers;
-
 public:
 
 	/** Keep track of which AnimNotify_State are marked as BranchingPoints, so we can update their state when the Montage is ticked */
@@ -966,5 +967,6 @@ private:
 #if WITH_EDITOR
 	void BakeTimeStretchCurve();
 	//~End Time Stretch Curve
+	virtual void UpdateCommonTargetFrameRate() override;
 #endif // WITH_EDITOR
 };
