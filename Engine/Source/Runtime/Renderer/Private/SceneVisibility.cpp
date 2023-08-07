@@ -310,7 +310,7 @@ static FAutoConsoleVariableRef CVarOcclusionCullEnable(
 
 bool FSceneRenderer::DoOcclusionQueries() const
 {
-	return GOcclusionCullEnabled;
+	return GOcclusionCullEnabled && !ViewFamily.EngineShowFlags.DisableOcclusionQueries;
 }
 
 static int32 GRelevanceNumPrimitivesPerPacket = 0;

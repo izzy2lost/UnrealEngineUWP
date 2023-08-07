@@ -784,6 +784,9 @@ static FSceneRenderer* CreateSceneRendererForSceneCapture(
 		ViewActor,
 		CubemapFaceIndex);
 
+	// Scene capture source is used to determine whether to disable occlusion queries inside FSceneRenderer constructor
+	ViewFamily.SceneCaptureSource = SceneCaptureComponent->CaptureSource;
+
 	// Screen percentage is still not supported in scene capture.
 	ViewFamily.EngineShowFlags.ScreenPercentage = false;
 	ViewFamily.SetScreenPercentageInterface(new FLegacyScreenPercentageDriver(
@@ -873,7 +876,6 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 
 		SceneRenderer->Views[0].bFogOnlyOnRenderedOpaque = CaptureComponent->bConsiderUnrenderedOpaquePixelAsFullyTranslucent;
 
-		SceneRenderer->ViewFamily.SceneCaptureSource = CaptureComponent->CaptureSource;
 		SceneRenderer->ViewFamily.SceneCaptureCompositeMode = CaptureComponent->CompositeMode;
 
 		// Need view state interface to be allocated for Lumen, as it requires persistent data.  This means
@@ -1149,8 +1151,6 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponentCube* CaptureCompo
 				TextureTarget->GameThread_GetRenderTargetResource(), CaptureSize, ViewRotationMatrix,
 				Location, ProjectionMatrix, false, CaptureComponent->MaxViewDistanceOverride,
 				bCaptureSceneColor, &PostProcessSettings, 0, CaptureComponent->GetViewOwner(), faceidx);
-
-			SceneRenderer->ViewFamily.SceneCaptureSource = CaptureComponent->CaptureSource;
 
 			for (const FSceneViewExtensionRef& Extension : SceneRenderer->ViewFamily.ViewExtensions)
 			{

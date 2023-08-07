@@ -2648,6 +2648,12 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 	ensureMsgf(!(ViewFamily.EngineShowFlags.ScreenPercentage && !ViewFamily.SupportsScreenPercentage()),
 		TEXT("Screen percentage is not supported, but show flag was incorectly set to true."));
 
+	// Disable occlusion queries for scene capture depth optimization mode
+	if (GetRendererOutput() == ERendererOutput::DepthPrepassOnly)
+	{
+		ViewFamily.EngineShowFlags.SetDisableOcclusionQueries(true);
+	}
+
 	// Fork the plugin interfaces of the view family.
 	{
 		{
