@@ -2896,6 +2896,9 @@ void FGeometryCollectionPhysicsProxy::PushToPhysicsState()
 
 							DeferredClusterUnionParticleUpdates.Add(Handle);
 							DeferredClusterUnionChildToParentUpdates.Add(RelativeTransform);
+
+							// Make sure the particle is mark dirty to make sure its proxy will properly update the transforms
+							RigidSolver->GetEvolution()->GetParticles().MarkTransientDirtyParticle(Handle);
 						}
 					}
 				}
