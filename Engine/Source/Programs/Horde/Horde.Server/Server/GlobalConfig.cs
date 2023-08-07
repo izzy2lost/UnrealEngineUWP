@@ -765,7 +765,12 @@ namespace Horde.Server.Server
 		/// <summary>
 		/// Password for the user
 		/// </summary>
-		public string Password { get; set; } = String.Empty;
+		public string? Password { get; set; } = String.Empty;
+
+		/// <summary>
+		/// Login ticket for the user (will be used instead of password if set)
+		/// </summary>
+		public string? Ticket { get; set; } = String.Empty;
 	}
 
 	/// <summary>
