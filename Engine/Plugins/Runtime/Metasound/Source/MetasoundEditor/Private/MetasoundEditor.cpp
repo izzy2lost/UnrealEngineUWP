@@ -1234,8 +1234,15 @@ namespace Metasound
 				OutputMeter->Teardown();
 			}
 
-			OutputOscilloscope->StopProcessing();
-			OutputVectorscope->StopProcessing();
+			if (OutputOscilloscope.IsValid())
+			{
+				OutputOscilloscope->StopProcessing();
+			}
+
+			if (OutputVectorscope.IsValid())
+			{
+				OutputVectorscope->StopProcessing();
+			}
 		}
 
 		void FEditor::ExtendToolbar()
