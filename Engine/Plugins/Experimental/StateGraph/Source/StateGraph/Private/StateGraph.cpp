@@ -23,12 +23,12 @@ namespace UE {
 FStateGraphNode::FStateGraphNode(FName InName) :
 	Name(InName)
 {
-	UE_LOG_STATEGRAPH(VeryVerbose, TEXT("[%s.%s] Created node"), *GetStateGraphName().ToString(), *Name.ToString());
+	UE_LOG_STATEGRAPH(VeryVerbose, TEXT("[%s] Created node"), *Name.ToString());
 }
 
 FStateGraphNode::~FStateGraphNode()
 {
-	UE_LOG_STATEGRAPH(VeryVerbose, TEXT("[%s.%s] Destroyed node"), *GetStateGraphName().ToString(), *Name.ToString());
+	UE_LOG_STATEGRAPH(VeryVerbose, TEXT("[%s] Destroyed node"), *Name.ToString());
 }
 
 const TCHAR* FStateGraphNode::GetStatusName(EStatus Status)

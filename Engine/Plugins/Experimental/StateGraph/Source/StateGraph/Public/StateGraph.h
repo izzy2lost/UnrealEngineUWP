@@ -19,9 +19,8 @@
 #include "Delegates/Delegate.h"
 #include "Logging/LogMacros.h"
 #include "Misc/CoreMisc.h"
-#include "Templates/Function.h"
+#include "StateGraphFwd.h"
 #include "Templates/IsClass.h"
-#include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
 #include "UObject/NameTypes.h"
 
@@ -29,21 +28,6 @@ STATEGRAPH_API DECLARE_LOG_CATEGORY_EXTERN(LogStateGraph, Log, All);
 #define UE_LOG_STATEGRAPH(Verbosity, Format, ...) UE_LOG(LogStateGraph, Verbosity, TEXT("[%s] ") Format, ANSI_TO_TCHAR(__FUNCTION__), ##__VA_ARGS__)
 
 namespace UE {
-
-class FStateGraph;
-using FStateGraphRef = TSharedRef<FStateGraph, ESPMode::ThreadSafe>;
-using FStateGraphPtr = TSharedPtr<FStateGraph, ESPMode::ThreadSafe>;
-using FStateGraphWeakPtr = TWeakPtr<FStateGraph, ESPMode::ThreadSafe>;
-
-class FStateGraphNode;
-using FStateGraphNodeRef = TSharedRef<FStateGraphNode, ESPMode::ThreadSafe>;
-using FStateGraphNodePtr = TSharedPtr<FStateGraphNode, ESPMode::ThreadSafe>;
-using FStateGraphNodeWeakPtr = TWeakPtr<FStateGraphNode, ESPMode::ThreadSafe>;
-
-class FStateGraphNodeFunction;
-using FStateGraphNodeFunctionRef = TSharedRef<FStateGraphNodeFunction, ESPMode::ThreadSafe>;
-using FStateGraphNodeFunctionPtr = TSharedPtr<FStateGraphNodeFunction, ESPMode::ThreadSafe>;
-using FStateGraphNodeFunctionWeakPtr = TWeakPtr<FStateGraphNodeFunction, ESPMode::ThreadSafe>;
 
 /**
  * Abstract base class for all nodes in the state graph.
@@ -172,9 +156,6 @@ private:
 
 	friend FStateGraph;
 };
-
-/** Complete function type passed into FStateGraphNodeFunction node start functions. */
-using FStateGraphNodeFunctionComplete = TFunction<void()>;
 
 /** Start function delegate type for FStateGraphNodeFunction nodes. */
 DECLARE_DELEGATE_OneParam(FStateGraphNodeFunctionStart, FStateGraphNodeFunctionComplete /*Complete*/);
