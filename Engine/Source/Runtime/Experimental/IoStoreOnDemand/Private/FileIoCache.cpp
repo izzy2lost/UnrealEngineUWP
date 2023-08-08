@@ -815,13 +815,6 @@ void FFileIoCache::FileWriterThreadInner()
 		Cursor += View.GetSize();
 	}
 
-	// Drop buffers.
-	for (FCacheEntry& Entry : Entries)
-	{
-		FIoBuffer& Data = Entry.Data;
-		Data = FIoBuffer();
-	}
-
 	// Open cache file and write the block to it.
 	UE_LOG(LogIasCache, VeryVerbose, TEXT("Write; cursor:%llu size:%d"), WriteCursorPos, PendingSize);
 	TRACE_CPUPROFILER_EVENT_SCOPE(FFileIoCache::WriteCacheEntry);
