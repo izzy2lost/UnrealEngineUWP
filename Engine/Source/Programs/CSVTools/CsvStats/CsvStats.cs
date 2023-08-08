@@ -1690,7 +1690,7 @@ namespace CSVStats
             }
 
 			// First line is headings, last line contains build info 
-			int numSamples = lines.Count - (bHasMetaData ? 2 : 1);
+			int numSamples = Math.Max(lines.Count - (bHasMetaData ? 2 : 1), 0);
 			if (fileInfo != null)
 			{
 				fileInfo.bIsCsvBin = false;
