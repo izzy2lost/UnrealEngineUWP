@@ -501,13 +501,17 @@ void FWorldPartitionClassDescRegistry::OnObjectPreSave(UObject* InObject, FObjec
 
 void FWorldPartitionClassDescRegistry::OnObjectPropertyChanged(UObject* InObject, FPropertyChangedEvent& InPropertyChangedEvent)
 {
-	if (UBlueprint* Blueprint = Cast<UBlueprint>(InObject))
+	// We only want to handle BP class compiles, not property changes.
+	if (!InPropertyChangedEvent.Property)
 	{
-		// The generated class is invalid in some situations, like renaming a blueprint, etc.
-		if (Blueprint->GeneratedClass && Blueprint->GeneratedClass->IsChildOf<AActor>())
+		if (UBlueprint* Blueprint = Cast<UBlueprint>(InObject))
 		{
-			PrefetchClassDesc(Blueprint->GeneratedClass);
-			UpdateClassDescriptor(InObject, true);
+			// The generated class is invalid in some situations, like renaming a blueprint, etc.
+			if (Blueprint->GeneratedClass && Blueprint->GeneratedClass->IsChildOf<AActor>())
+			{
+				PrefetchClassDesc(Blueprint->GeneratedClass);
+				UpdateClassDescriptor(InObject, true);
+			}
 		}
 	}
 }
