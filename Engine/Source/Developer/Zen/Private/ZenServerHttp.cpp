@@ -8,7 +8,6 @@
 #include "ZenSerialization.h"
 
 #if PLATFORM_MICROSOFT
-#	include "Microsoft/WindowsHWrapper.h"
 #	include "Microsoft/AllowMicrosoftPlatformTypes.h"
 #endif
 

@@ -33,7 +33,6 @@
 #include <atomic>
 #include <signal.h>
 
-#include "Windows/WindowsHWrapper.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 THIRD_PARTY_INCLUDES_START
 #include <strsafe.h>

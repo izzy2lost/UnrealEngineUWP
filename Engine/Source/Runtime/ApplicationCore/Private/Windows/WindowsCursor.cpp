@@ -8,7 +8,6 @@
 #include "Math/Vector2D.h"
 #include "Math/Color.h"
 #include "Windows/WindowsWindow.h"
-#include "Windows/WindowsHWrapper.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformProcess.h"
 #include "Misc/FileHelper.h"

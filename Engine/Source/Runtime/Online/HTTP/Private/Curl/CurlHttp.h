@@ -15,7 +15,6 @@ class FCurlHttpResponse;
 
 #if WITH_CURL
 #if PLATFORM_MICROSOFT
-#include "Microsoft/WindowsHWrapper.h"
 #include "Microsoft/AllowMicrosoftPlatformTypes.h"
 #endif
 

@@ -21,7 +21,6 @@
 #include "Misc/EngineVersion.h"
 #include "Misc/ScopeExit.h"
 #include "Windows/WindowsApplication.h"
-#include "Windows/WindowsHWrapper.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 #include "Misc/EngineBuildSettings.h"
 

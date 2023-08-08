@@ -11,7 +11,6 @@
 /*********************************************************************************************************************/
 
 #include "Windows/AllowWindowsPlatformTypes.h"
-#include "Windows/WindowsHWrapper.h"
 #include "HAL/LowLevelMemTracker.h"
 
 THIRD_PARTY_INCLUDES_START

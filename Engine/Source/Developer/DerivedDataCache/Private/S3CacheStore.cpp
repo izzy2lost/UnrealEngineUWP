@@ -6,7 +6,6 @@
 #if WITH_S3_DDC_BACKEND
 
 #if PLATFORM_MICROSOFT
-	#include "Microsoft/WindowsHWrapper.h"
 	#include "Microsoft/AllowMicrosoftPlatformTypes.h"
 #endif
 #if PLATFORM_MICROSOFT

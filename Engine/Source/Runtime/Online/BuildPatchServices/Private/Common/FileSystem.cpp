@@ -11,7 +11,6 @@
 
 #if PLATFORM_WINDOWS
 // Start of region that uses windows types.
-#include "Windows/WindowsHWrapper.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 THIRD_PARTY_INCLUDES_START
 #include <wtypes.h>

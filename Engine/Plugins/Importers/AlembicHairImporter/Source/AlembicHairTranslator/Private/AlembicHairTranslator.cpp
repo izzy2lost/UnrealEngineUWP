@@ -12,7 +12,6 @@
 
 #if PLATFORM_WINDOWS
 #include "HairAttributes.h"
-#include "Windows/WindowsHWrapper.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 #endif
 

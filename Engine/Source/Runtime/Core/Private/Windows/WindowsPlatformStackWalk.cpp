@@ -19,7 +19,6 @@
 #include "Misc/OutputDeviceRedirector.h"
 #include "Misc/ScopeLock.h"
 
-#include "Windows/WindowsHWrapper.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 THIRD_PARTY_INCLUDES_START
 	#include <DbgHelp.h>

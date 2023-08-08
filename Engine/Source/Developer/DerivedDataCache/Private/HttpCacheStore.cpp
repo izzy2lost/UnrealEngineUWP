@@ -48,7 +48,6 @@
 #include "String/Find.h"
 
 #if PLATFORM_MICROSOFT
-#include "Microsoft/WindowsHWrapper.h"
 #include "Microsoft/AllowMicrosoftPlatformTypes.h"
 #include <winsock2.h>
 #include <ws2tcpip.h>

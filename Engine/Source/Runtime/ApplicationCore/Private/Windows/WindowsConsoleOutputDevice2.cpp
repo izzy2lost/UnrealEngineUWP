@@ -25,7 +25,6 @@
 #include "Misc/TrackedActivity.h"
 #include "String/Find.h"
 #include "Templates/UnrealTemplate.h"
-#include "Windows/WindowsHWrapper.h"
 #include "Windows/WindowsPlatformApplicationMisc.h"
 
 #include "Windows/AllowWindowsPlatformTypes.h"

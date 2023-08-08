@@ -6,7 +6,6 @@
 #include "CoreMinimal.h"
 
 #include "Windows/AllowWindowsPlatformTypes.h"
-#include "Windows/WindowsHWrapper.h"
 
 THIRD_PARTY_INCLUDES_START
 #include <d3d11.h>

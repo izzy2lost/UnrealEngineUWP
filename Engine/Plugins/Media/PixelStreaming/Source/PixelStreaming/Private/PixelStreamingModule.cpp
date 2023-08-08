@@ -19,9 +19,7 @@
 #include "Utils.h"
 #include "UtilsRender.h"
 
-#if PLATFORM_WINDOWS
-	#include "Windows/WindowsHWrapper.h"
-#elif PLATFORM_LINUX
+#if PLATFORM_LINUX
 	#include "CudaModule.h"
 #endif
 

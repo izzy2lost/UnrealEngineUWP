@@ -6,7 +6,6 @@
 
 #if PLATFORM_WINDOWS
 #include "Math/Matrix.h"
-#include "Windows/WindowsHWrapper.h"
 #include "UObject/ObjectMacros.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 #endif

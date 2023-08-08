@@ -26,7 +26,6 @@ NNE_THIRD_PARTY_INCLUDES_START
 #include "core/providers/cpu/cpu_provider_factory.h"
 
 #if PLATFORM_WINDOWS
-#include "Windows/MinWindows.h"
 
 #ifdef USE_DML
 #include "core/providers/dml/dml_provider_factory.h"

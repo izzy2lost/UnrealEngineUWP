@@ -25,9 +25,9 @@
 #include "Misc/OutputDevice.h"
 #include "Misc/OutputDeviceRedirector.h"
 #include "Stats/Stats.h"
-#include "Windows/WindowsHWrapper.h"
+#include "Windows/AllowWindowsPlatformTypes.h"
 
-#include <MemoryApi.h> // Include after WindowsHWrapper.h
+#include <MemoryApi.h> // Include after AllowWindowsPlatformTypes.h
 
 #if ENABLE_LOW_LEVEL_MEM_TRACKER && MIMALLOC_ENABLED
 #include "ThirdParty/IncludeMimAlloc.h"
@@ -41,7 +41,6 @@
 #include <crtdbg.h>
 #endif // ENABLE_WIN_ALLOC_TRACKING
 
-#include "Windows/AllowWindowsPlatformTypes.h"
 #include <Psapi.h>
 #pragma comment(lib, "psapi.lib")
 

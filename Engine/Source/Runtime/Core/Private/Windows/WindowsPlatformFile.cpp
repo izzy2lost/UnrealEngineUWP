@@ -15,7 +15,6 @@
 #include "Templates/Function.h"
 #include "Misc/Paths.h"
 #include "CoreGlobals.h"
-#include "Windows/WindowsHWrapper.h"
 #include <sys/utime.h>
 #include "Containers/LockFreeList.h"
 #include "Async/AsyncFileHandle.h"

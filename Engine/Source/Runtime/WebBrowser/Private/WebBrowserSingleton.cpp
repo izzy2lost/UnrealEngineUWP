@@ -13,10 +13,6 @@
 #include "IWebBrowserCookieManager.h"
 #include "WebBrowserLog.h"
 
-#if PLATFORM_WINDOWS
-#include "Windows/WindowsHWrapper.h"
-#endif
-
 #if WITH_CEF3
 #include "Misc/ScopeLock.h"
 #include "Async/Async.h"

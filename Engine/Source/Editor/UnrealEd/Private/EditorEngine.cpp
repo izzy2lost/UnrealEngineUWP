@@ -162,7 +162,6 @@
 #include "EditorWorldExtension.h"
 
 #if PLATFORM_WINDOWS
-	#include "Windows/WindowsHWrapper.h"
 // For WAVEFORMATEXTENSIBLE
 	#include "Windows/AllowWindowsPlatformTypes.h"
 #include <mmreg.h>

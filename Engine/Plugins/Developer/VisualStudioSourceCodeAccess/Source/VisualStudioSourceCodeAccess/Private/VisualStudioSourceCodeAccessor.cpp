@@ -26,7 +26,6 @@
 #endif
 
 #include "VisualStudioDTE.h"
-#include "Windows/WindowsHWrapper.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 #include "Windows/AllowWindowsPlatformAtomics.h"
 	#include <unknwn.h>

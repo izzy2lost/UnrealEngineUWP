@@ -28,7 +28,6 @@
 
 #if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"
-#include "Windows/MinWindows.h"
 #include "Windows/HideWindowsPlatformTypes.h"
 #endif
 #if PLATFORM_UNIX

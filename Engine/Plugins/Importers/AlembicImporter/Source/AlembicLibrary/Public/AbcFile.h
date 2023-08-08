@@ -5,7 +5,6 @@
 #include "Math/BoxSphereBounds.h"
 
 #if PLATFORM_WINDOWS
-#include "Windows/WindowsHWrapper.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 #endif
 

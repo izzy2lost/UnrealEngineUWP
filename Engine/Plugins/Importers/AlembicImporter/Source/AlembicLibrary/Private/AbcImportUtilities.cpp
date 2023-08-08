@@ -19,10 +19,6 @@
 #include "UObject/Package.h"
 
 #if PLATFORM_WINDOWS
-#include "Windows/WindowsHWrapper.h"
-#endif
-
-#if PLATFORM_WINDOWS
 #include "RenderMath.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 #endif

@@ -22,7 +22,6 @@
 	#include <assert.h>
 	#include <stdio.h>
 	#include "Windows/PostWindowsApi.h"
-	#include "Windows/MinWindows.h"
 #include "Windows/HideWindowsPlatformTypes.h"
 #endif
 #include "ShaderCore.h"
