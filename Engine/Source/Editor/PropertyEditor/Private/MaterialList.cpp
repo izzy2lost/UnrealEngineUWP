@@ -38,11 +38,11 @@ public:
 	 * @param Material		The material being used
 	 * @param bCanBeReplced	Whether or not the material can be replaced by a user
 	 */
-	virtual void AddMaterial( uint32 SlotIndex, UMaterialInterface* Material, bool bCanBeReplaced, UActorComponent* InCurrentComponent ) override
+	virtual void AddMaterial( uint32 SlotIndex, UMaterialInterface* Material, bool bCanBeReplaced, UActorComponent* InCurrentComponent, FName SlotName ) override
 	{
 		int32 NumMaterials = MaterialSlots.Num();
 
-		FMaterialListItem MaterialItem( Material, SlotIndex, bCanBeReplaced, InCurrentComponent ); 
+		FMaterialListItem MaterialItem( Material, SlotIndex, bCanBeReplaced, InCurrentComponent, SlotName ); 
 		if( !UniqueMaterials.Contains( MaterialItem ) ) 
 		{
 			MaterialSlots.Add( MaterialItem );

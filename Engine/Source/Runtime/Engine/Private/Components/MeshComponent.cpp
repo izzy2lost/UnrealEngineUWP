@@ -49,6 +49,14 @@ UMaterialInterface* UMeshComponent::GetMaterial(int32 ElementIndex) const
 	return OutMaterial;
 }
 
+UMaterialInterface* UMeshComponent::GetMaterialByName(FName MaterialSlotName) const
+{
+	int32 MaterialIndex = GetMaterialIndex(MaterialSlotName);
+	if (MaterialIndex < 0)
+		return nullptr;
+	return GetMaterial(MaterialIndex);
+}
+
 void UMeshComponent::SetMaterial(int32 ElementIndex, UMaterialInterface* Material)
 {
 	if (ElementIndex >= 0)
@@ -339,24 +347,6 @@ TArray<class UMaterialInterface*> UMeshComponent::GetMaterials() const
 	}
 
 	return OutMaterials;
-}
-
-int32 UMeshComponent::GetMaterialIndex(FName MaterialSlotName) const
-{
-	// This function should be overridden
-	return INDEX_NONE;
-}
-
-TArray<FName> UMeshComponent::GetMaterialSlotNames() const
-{
-	// This function should be overridden
-	return TArray<FName>();
-}
-
-bool UMeshComponent::IsMaterialSlotNameValid(FName MaterialSlotName) const
-{
-	// This function should be overridden
-	return false;
 }
 
 void UMeshComponent::SetScalarParameterValueOnMaterials(const FName ParameterName, const float ParameterValue)

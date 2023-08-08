@@ -555,6 +555,7 @@ class SMaterialSlotWidget : public SCompoundWidget
 	SLATE_BEGIN_ARGS(SMaterialSlotWidget)
 	{}
 		SLATE_ATTRIBUTE(FText, MaterialName)
+		SLATE_ATTRIBUTE(bool, IsMaterialSlotNameReadOnly)
 		SLATE_EVENT(FOnTextChanged, OnMaterialNameChanged)
 		SLATE_EVENT(FOnTextCommitted, OnMaterialNameCommitted)
 		SLATE_ATTRIBUTE(bool, CanDeleteMaterialSlot)

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "KeyframeTrackEditor.h"
+#include "Tracks/MovieSceneMaterialTrack.h"
 #include "Tracks/MovieScenePrimitiveMaterialTrack.h"
 #include "Materials/MaterialInterface.h"
 
@@ -22,5 +23,5 @@ public:
 	virtual void ExtendObjectBindingTrackMenu(TSharedRef<FExtender> Extender, const TArray<FGuid>& ObjectBindings, const UClass* ObjectClass) override;
 
 	void ConstructObjectBindingTrackMenu(FMenuBuilder& MenuBuilder, TArray<FGuid> ObjectBindings);
-	void CreateTrackForElement(TArray<FGuid> ObjectBindingIDs, int32 MaterialIndex);
+	void CreateTrackForElement(TArray<FGuid> ObjectBindingIDs, FComponentMaterialInfo MaterialInfo);
 };

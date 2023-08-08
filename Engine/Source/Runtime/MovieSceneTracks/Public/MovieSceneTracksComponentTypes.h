@@ -15,6 +15,7 @@
 #include "Styling/SlateColor.h"
 #include "ConstraintChannel.h"
 #include "MaterialTypes.h"
+#include "Tracks/MovieSceneMaterialTrack.h"
 #include "MovieSceneTracksComponentTypes.generated.h"
 
 class UMaterialParameterCollection;
@@ -557,7 +558,7 @@ struct FMovieSceneTracksComponentTypes
 
 	TComponentTypeID<FMovieSceneSkeletalAnimationComponentData> SkeletalAnimation;
 
-	TComponentTypeID<int32> ComponentMaterialIndex;
+	TComponentTypeID<FComponentMaterialInfo> ComponentMaterialInfo;
 
 	TComponentTypeID<FName> BoolParameterName;
 	TComponentTypeID<FName> ScalarParameterName;

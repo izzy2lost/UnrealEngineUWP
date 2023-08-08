@@ -1476,6 +1476,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Rendering|Material")
 	ENGINE_API virtual class UMaterialInstanceDynamic* CreateNamedDynamicMaterialInstance(FName InName, class UMaterialInterface* SourceMaterial = NULL);
 
+	ENGINE_API virtual UMaterialInterface* GetMaterialByName(FName MaterialSlotName) const override;
 	ENGINE_API virtual void SetMaterialByName(FName MaterialSlotName, class UMaterialInterface* SourceMaterial) override;
 
 	/** Returns a named material. If this named material is not found, returns NULL. */

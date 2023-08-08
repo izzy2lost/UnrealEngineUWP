@@ -10,6 +10,70 @@
 #include "MaterialTypes.h"
 #include "MovieSceneMaterialTrack.generated.h"
 
+UENUM()
+enum class EComponentMaterialType
+{
+	/* Empty/Uninitialized*/
+	Empty,
+	/* A material in one of the indexed slots on a primitive component*/
+	IndexedMaterial,
+	/* An overlay material on a mesh component*/
+	OverlayMaterial,
+	/* A decal material*/
+	DecalMaterial
+};
+
+/**
+ * Contains what is necessary to uniquely identify a material on a component, whether that be an indexed material, one with a slot name, or an overlay material.
+ */
+USTRUCT(BlueprintType)
+struct FComponentMaterialInfo
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FName MaterialSlotName;
+
+	UPROPERTY()
+	int MaterialSlotIndex = 0;
+
+	UPROPERTY()
+	EComponentMaterialType MaterialType = EComponentMaterialType::Empty;
+
+	friend uint32 GetTypeHash(const FComponentMaterialInfo& In)
+	{
+		return GetTypeHash(In.MaterialSlotName) ^ ::GetTypeHash(In.MaterialSlotIndex) ^ ::GetTypeHash(In.MaterialType);
+	}
+	friend bool operator==(const FComponentMaterialInfo& A, const FComponentMaterialInfo& B)
+	{
+		return A.MaterialSlotName == B.MaterialSlotName && A.MaterialSlotIndex == B.MaterialSlotIndex && A.MaterialSlotName == B.MaterialSlotName && A.MaterialType == B.MaterialType;
+	}
+
+	FString ToString() const 
+	{
+		switch (MaterialType)
+		{
+		case EComponentMaterialType::IndexedMaterial:
+			if (!MaterialSlotName.IsNone())
+			{
+				return FString::Printf(TEXT("Material Slot: %s"), *MaterialSlotName.ToString());
+			}
+			else
+			{
+				return FString::Printf(TEXT("Material Element %i"), MaterialSlotIndex);
+			}
+			break;
+		case EComponentMaterialType::OverlayMaterial:
+			return TEXT("Overlay Material");
+			break;
+		case EComponentMaterialType::DecalMaterial:
+			return TEXT("Decal Material");
+			break;
+		}
+		return FString();
+	}
+};
+
 /**
  * Handles manipulation of material parameters in a movie scene.
  */
@@ -148,26 +212,44 @@ public:
 	/*~ IMovieSceneParameterSectionExtender */
 	virtual void ExtendEntityImpl(UMovieSceneParameterSection* Section, UMovieSceneEntitySystemLinker* EntityLinker, const UE::MovieScene::FEntityImportParams& Params, UE::MovieScene::FImportedEntity* OutImportedEntity) override;
 
-	virtual FName GetTrackName() const { return FName( *FString::FromInt(MaterialIndex) ); }
 
 #if WITH_EDITORONLY_DATA
 	virtual FText GetDefaultDisplayName() const override;
 #endif
-
 public:
 
 	/** Gets the index of the material in the component. */
-	int32 GetMaterialIndex() const { return MaterialIndex; }
+	const FComponentMaterialInfo& GetMaterialInfo() const { return MaterialInfo; }
 
 	/** Sets the index of the material in the component. */
-	void SetMaterialIndex(int32 InMaterialIndex) 
+	void SetMaterialInfo(const FComponentMaterialInfo& InMaterialInfo)
 	{
-		MaterialIndex = InMaterialIndex;
+		MaterialInfo = InMaterialInfo;
 	}
 
-private:
+#if WITH_EDITOR
+	virtual FText GetDisplayNameToolTipText() const override { return TooltipText; }
+	void SetDisplayNameTooltipText(FText InTooltipText) { TooltipText = InTooltipText; }
+#endif
 
-	/** The index of this material this track is animating. */
+
+#if WITH_EDITORONLY_DATA
+
+protected:
+	void PostLoad() override;
+
+private:
+	/** The index of this material this track is animating. Has been deprecated in favor of MaterialInfo*/
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use MaterialInfo instead."))
+	int32 MaterialIndex_DEPRECATED;
+
 	UPROPERTY()
-	int32 MaterialIndex;
+	FText TooltipText;
+
+#endif
+private:
+	/** The info on the material this track is animating.*/
+	UPROPERTY()
+	FComponentMaterialInfo MaterialInfo;
+
 };

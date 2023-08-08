@@ -35,15 +35,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Rendering|Material")
 	ENGINE_API virtual TArray<class UMaterialInterface*> GetMaterials() const;
 
-	UFUNCTION(BlueprintCallable, Category = "Rendering|Material")
-	ENGINE_API virtual int32 GetMaterialIndex(FName MaterialSlotName) const;
-
-	UFUNCTION(BlueprintCallable, Category = "Rendering|Material")
-	ENGINE_API virtual TArray<FName> GetMaterialSlotNames() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Rendering|Material")
-	ENGINE_API virtual bool IsMaterialSlotNameValid(FName MaterialSlotName) const;
-
 	/** Determines if we use the nanite overrides from any materials */
 	virtual bool UseNaniteOverrideMaterials() const { return false; }
 
@@ -100,6 +91,7 @@ public:
 	//~ Begin UPrimitiveComponent Interface
 	ENGINE_API virtual int32 GetNumMaterials() const override;
 	ENGINE_API virtual UMaterialInterface* GetMaterial(int32 ElementIndex) const override;
+	ENGINE_API virtual UMaterialInterface* GetMaterialByName(FName MaterialSlotName) const override;
 	ENGINE_API virtual void SetMaterial(int32 ElementIndex, UMaterialInterface* Material) override;
 	ENGINE_API virtual void SetMaterialByName(FName MaterialSlotName, class UMaterialInterface* Material) override;
 	ENGINE_API virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials = false) const override;	

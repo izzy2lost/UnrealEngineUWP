@@ -8280,6 +8280,13 @@ UMaterialInstanceDynamic* UParticleSystemComponent::CreateNamedDynamicMaterialIn
 	return MID;
 }
 
+
+UMaterialInterface* UParticleSystemComponent::GetMaterialByName(FName MaterialSlotName) const
+{
+	return GetNamedMaterial(MaterialSlotName);
+}
+
+
 void UParticleSystemComponent::SetMaterialByName(FName MaterialSlotName, class UMaterialInterface* SourceMaterial)
 {
 	int32 Index = GetNamedMaterialIndex(MaterialSlotName);

@@ -15,6 +15,7 @@
 #include "MaterialEditorModule.h"
 #include "Engine/Selection.h"
 #include "ISequencerModule.h"
+#include "Components/MeshComponent.h"
 
 
 #define LOCTEXT_NAMESPACE "MaterialTrackEditor"
@@ -317,15 +318,41 @@ UMaterialInterface* FComponentMaterialTrackEditor::GetMaterialInterfaceForTrack(
 		return nullptr;
 	}
 
-	if (UPrimitiveComponent* Component = Cast<UPrimitiveComponent>(Object))
+	const FComponentMaterialInfo& MaterialInfo = ComponentMaterialTrack->GetMaterialInfo();
+	switch (MaterialInfo.MaterialType)
 	{
-		return Component->GetMaterial( ComponentMaterialTrack->GetMaterialIndex() );
+	case EComponentMaterialType::Empty:
+		break;
+	case EComponentMaterialType::IndexedMaterial:
+		if (UPrimitiveComponent* Component = Cast<UPrimitiveComponent>(Object))
+		{
+			UMaterialInterface* Material = nullptr;
+			if (!MaterialInfo.MaterialSlotName.IsNone())
+			{
+				Material = Component->GetMaterialByName(MaterialInfo.MaterialSlotName);
+				if (!Material)
+				{
+					Material = Component->GetMaterial(MaterialInfo.MaterialSlotIndex);
+				}
+				return Material;
+			}
+		}
+		break;
+	case EComponentMaterialType::OverlayMaterial:
+		if (UMeshComponent* Component = Cast<UMeshComponent>(Object))
+		{
+			return Component->GetOverlayMaterial();
+		}
+		break;
+	case EComponentMaterialType::DecalMaterial:
+		if (UDecalComponent* DecalComponent = Cast<UDecalComponent>(Object))
+		{
+			return DecalComponent->GetDecalMaterial();
+		}
+		break;
+	default:
+		break;
 	}
-	else if (UDecalComponent* DecalComponent = Cast<UDecalComponent>(Object))
-	{
-		return DecalComponent->GetDecalMaterial();
-	}
-
 	return nullptr;
 }
 
@@ -339,6 +366,11 @@ void FComponentMaterialTrackEditor::ExtendObjectBindingTrackMenu(TSharedRef<FExt
 
 void FComponentMaterialTrackEditor::ConstructObjectBindingTrackMenu(FMenuBuilder& MenuBuilder, TArray<FGuid> ObjectBindings)
 {
+	auto GetMaterialInfoForTrack = [](UMovieSceneTrack* InTrack)
+	{
+		UMovieSceneComponentMaterialTrack* MaterialTrack = Cast<UMovieSceneComponentMaterialTrack>(InTrack);
+		return MaterialTrack ? MaterialTrack->GetMaterialInfo() : FComponentMaterialInfo();
+	};
 	UObject* Object = GetSequencer()->FindSpawnedObjectOrTemplate(ObjectBindings[0]);
 	if (!Object)
 	{
@@ -351,19 +383,50 @@ void FComponentMaterialTrackEditor::ConstructObjectBindingTrackMenu(FMenuBuilder
 		return;
 	}
 
+	const UMovieScene* MovieScene = GetFocusedMovieScene();
+	const FMovieSceneBinding* Binding = Algo::FindBy(MovieScene->GetBindings(), ObjectBindings[0], &FMovieSceneBinding::GetObjectGuid);
+
 	if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(SceneComponent))
 	{
 		int32 NumMaterials = PrimitiveComponent->GetNumMaterials();
-		if (NumMaterials > 0)
+		TArray<FName> MaterialSlotNames = PrimitiveComponent->GetMaterialSlotNames();
+		UMeshComponent* MeshComponent = Cast<UMeshComponent>(SceneComponent);
+		if (NumMaterials > 0 || MeshComponent)
 		{
 			MenuBuilder.BeginSection("Materials", LOCTEXT("MaterialSection", "Material Parameters"));
 			{
 				for (int32 MaterialIndex = 0; MaterialIndex < NumMaterials; MaterialIndex++)
 				{
-					FUIAction AddComponentMaterialAction(FExecuteAction::CreateRaw(this, &FComponentMaterialTrackEditor::HandleAddComponentMaterialActionExecute, SceneComponent, MaterialIndex));
-					FText AddComponentMaterialLabel = FText::Format(LOCTEXT("ComponentMaterialIndexLabelFormat", "Element {0}"), FText::AsNumber(MaterialIndex));
-					FText AddComponentMaterialToolTip = FText::Format(LOCTEXT("ComponentMaterialIndexToolTipFormat", "Add material element {0}"), FText::AsNumber(MaterialIndex));
+					FName MaterialSlotName = MaterialSlotNames.IsValidIndex(MaterialIndex) ? MaterialSlotNames[MaterialIndex] : FName();
+					FComponentMaterialInfo MaterialInfo{ MaterialSlotName, MaterialIndex, EComponentMaterialType::IndexedMaterial };
+					const bool bAlreadyExists = Algo::FindBy(Binding->GetTracks(), MaterialInfo, GetMaterialInfoForTrack) != nullptr;
+					if (bAlreadyExists)
+					{
+						continue;
+					}
+					FUIAction AddComponentMaterialAction(FExecuteAction::CreateRaw(this, &FComponentMaterialTrackEditor::HandleAddComponentMaterialActionExecute, SceneComponent, MaterialInfo));
+					FText AddComponentMaterialLabel = !MaterialSlotName.IsNone() ? 
+						FText::Format(LOCTEXT("ComponentMaterialSlotNameLabelFormat", "Slot: {0}"), FText::FromName(MaterialSlotName)) :
+						FText::Format(LOCTEXT("ComponentMaterialIndexLabelFormat", "Element {0}"), FText::AsNumber(MaterialIndex));
+					FText AddComponentMaterialToolTip = !MaterialSlotName.IsNone() ? 
+						FText::Format(LOCTEXT("ComponentMaterialSlotNameToolTipFormat", "Add material slot {0}, index {1}"), FText::FromName(MaterialSlotName), FText::AsNumber(MaterialIndex)) :
+						FText::Format(LOCTEXT("ComponentMaterialIndexToolTipFormat", "Add material element {0}"), FText::AsNumber(MaterialIndex));
 					MenuBuilder.AddMenuEntry(AddComponentMaterialLabel, AddComponentMaterialToolTip, FSlateIcon(), AddComponentMaterialAction);
+				}
+				if (MeshComponent)
+				{
+					if (UMaterialInterface* OverlayMaterial = MeshComponent->GetOverlayMaterial())
+					{
+						FComponentMaterialInfo MaterialInfo{ FName(), 0, EComponentMaterialType::OverlayMaterial };
+						const bool bAlreadyExists = Algo::FindBy(Binding->GetTracks(), MaterialInfo, GetMaterialInfoForTrack) != nullptr;
+						if (!bAlreadyExists)
+						{
+							FUIAction AddComponentMaterialAction(FExecuteAction::CreateRaw(this, &FComponentMaterialTrackEditor::HandleAddComponentMaterialActionExecute, SceneComponent, MaterialInfo));
+							FText AddOverlayMaterialLabel = FText::Format(LOCTEXT("AddOverlayMaterialLabelFormat", "Overlay: {0}"), FText::FromString(OverlayMaterial->GetName()));
+							FText AddOverlayMaterialToolTip = FText::Format(LOCTEXT("AddOverlayMaterialToolTipFormat", "Add overlay material {0}"), FText::FromString(OverlayMaterial->GetName()));
+							MenuBuilder.AddMenuEntry(AddOverlayMaterialLabel, AddOverlayMaterialToolTip, FSlateIcon(), AddComponentMaterialAction);
+						}
+					}
 				}
 			}
 			MenuBuilder.EndSection();
@@ -375,17 +438,28 @@ void FComponentMaterialTrackEditor::ConstructObjectBindingTrackMenu(FMenuBuilder
 		{
 			MenuBuilder.BeginSection("Materials", LOCTEXT("MaterialSection", "Material Parameters"));
 			{
-				FUIAction AddComponentMaterialAction(FExecuteAction::CreateRaw(this, &FComponentMaterialTrackEditor::HandleAddComponentMaterialActionExecute, SceneComponent, 0));
-				FText AddDecalMaterialToolTip = FText::Format(LOCTEXT("AddDecalMaterialToolTipFormat", "Add decal material {0}"), FText::FromString(DecalMaterial->GetName()));
-				MenuBuilder.AddMenuEntry(FText::FromString(DecalMaterial->GetName()), AddDecalMaterialToolTip, FSlateIcon(), AddComponentMaterialAction);
+				FComponentMaterialInfo MaterialInfo{ FName(), 0, EComponentMaterialType::DecalMaterial};
+				const bool bAlreadyExists = Algo::FindBy(Binding->GetTracks(), MaterialInfo, GetMaterialInfoForTrack) != nullptr;
+				if (!bAlreadyExists)
+				{
+					FUIAction AddComponentMaterialAction(FExecuteAction::CreateRaw(this, &FComponentMaterialTrackEditor::HandleAddComponentMaterialActionExecute, SceneComponent, MaterialInfo));
+					FText AddDecalMaterialLabel = FText::Format(LOCTEXT("AddDecalMaterialLabelFormat", "Decal: {0}"), FText::FromString(DecalMaterial->GetName()));
+					FText AddDecalMaterialToolTip = FText::Format(LOCTEXT("AddDecalMaterialToolTipFormat", "Add decal material {0}"), FText::FromString(DecalMaterial->GetName()));
+					MenuBuilder.AddMenuEntry(AddDecalMaterialLabel, AddDecalMaterialToolTip, FSlateIcon(), AddComponentMaterialAction);
+				}
 			}
 			MenuBuilder.EndSection();
 		}
 	}
 }
 
-void FComponentMaterialTrackEditor::HandleAddComponentMaterialActionExecute(USceneComponent* Component, int32 MaterialIndex)
+void FComponentMaterialTrackEditor::HandleAddComponentMaterialActionExecute(USceneComponent* Component, FComponentMaterialInfo MaterialInfo)
 {
+	auto GetMaterialInfoForTrack = [](UMovieSceneTrack* InTrack)
+	{
+		UMovieSceneComponentMaterialTrack* MaterialTrack = Cast<UMovieSceneComponentMaterialTrack>(InTrack);
+		return MaterialTrack ? MaterialTrack->GetMaterialInfo() : FComponentMaterialInfo();
+	};
 	TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
 	UMovieScene* MovieScene = SequencerPtr->GetFocusedMovieSceneSequence()->GetMovieScene();
 	if (MovieScene->IsReadOnly())
@@ -424,12 +498,48 @@ void FComponentMaterialTrackEditor::HandleAddComponentMaterialActionExecute(USce
 	for (UActorComponent* ActorComponent : ActorComponents)
 	{
 		FGuid ObjectHandle = SequencerPtr->GetHandleToObject(ActorComponent);
-		FName IndexName(*FString::FromInt(MaterialIndex));
-		if (MovieScene->FindTrack(UMovieSceneComponentMaterialTrack::StaticClass(), ObjectHandle, IndexName) == nullptr)
+		const FMovieSceneBinding* Binding = Algo::FindBy(MovieScene->GetBindings(), ObjectHandle, &FMovieSceneBinding::GetObjectGuid);
+
+		const bool bAlreadyExists = Algo::FindBy(Binding->GetTracks(), MaterialInfo, GetMaterialInfoForTrack) != nullptr;
+		if (!bAlreadyExists)
 		{
 			UMovieSceneComponentMaterialTrack* MaterialTrack = MovieScene->AddTrack<UMovieSceneComponentMaterialTrack>(ObjectHandle);
 			MaterialTrack->Modify();
-			MaterialTrack->SetMaterialIndex(MaterialIndex);
+			MaterialTrack->SetMaterialInfo(MaterialInfo);
+			// Construct display name from MaterialInfo
+			UMaterialInterface* MaterialInterface = GetMaterialInterfaceForTrack(ObjectHandle, MaterialTrack);
+			FText TrackDisplayName;
+			FText TrackTooltipText;
+			switch (MaterialInfo.MaterialType)
+			{
+			case EComponentMaterialType::Empty:
+				break;
+			case EComponentMaterialType::IndexedMaterial:
+				TrackDisplayName = !MaterialInfo.MaterialSlotName.IsNone() ? FText::Format(LOCTEXT("SlotMaterialTrackName", "Material Slot: {0}"), FText::FromName(MaterialInfo.MaterialSlotName))
+					: FText::Format(LOCTEXT("IndexedMaterialTrackName", "Material Element {0}"), FText::AsNumber(MaterialInfo.MaterialSlotIndex));
+				TrackTooltipText = !MaterialInfo.MaterialSlotName.IsNone() ? FText::Format(LOCTEXT("SlotMaterialTrackTooltip", "Material parameter track for slot {0} at index {1}, asset {2}"), FText::FromName(MaterialInfo.MaterialSlotName), FText::AsNumber(MaterialInfo.MaterialSlotIndex), MaterialInterface ? FText::FromString(MaterialInterface->GetName()) : FText())
+					: FText::Format(LOCTEXT("IndexedMaterialTrackTooltip", "Material parameter track for element at index {0}, asset {1}"), FText::AsNumber(MaterialInfo.MaterialSlotIndex), MaterialInterface ? FText::FromString(MaterialInterface->GetName()) : FText());
+				break;
+			case EComponentMaterialType::OverlayMaterial:
+				TrackDisplayName = FText::Format(LOCTEXT("OverlayMaterialTrackName", "Overlay Material {0}"), MaterialInterface ? FText::FromString(MaterialInterface->GetName()) : FText());
+				TrackTooltipText = FText::Format(LOCTEXT("OverlayMaterialTrackTooltip", "Material parameter track for overlay material {0}"), MaterialInterface ? FText::FromString(MaterialInterface->GetName()) : FText());
+				break;
+			case EComponentMaterialType::DecalMaterial:
+				TrackDisplayName = FText::Format(LOCTEXT("DecalMaterialTrackName", "Decal Material {0}"), MaterialInterface ? FText::FromString(MaterialInterface->GetName()) : FText());
+				TrackTooltipText = FText::Format(LOCTEXT("DecalMaterialTrackTooltip", "Material parameter track for decal material {0}"), MaterialInterface ? FText::FromString(MaterialInterface->GetName()) : FText());
+				break;
+			default:
+				break;
+
+			}
+			if (!TrackDisplayName.IsEmpty())
+			{
+				MaterialTrack->SetDisplayName(TrackDisplayName);
+			}
+			if (!TrackTooltipText.IsEmpty())
+			{
+				MaterialTrack->SetDisplayNameTooltipText(TrackTooltipText);
+			}
 		}
 	}
 

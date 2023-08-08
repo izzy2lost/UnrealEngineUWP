@@ -11,7 +11,6 @@
 UMovieScenePrimitiveMaterialTrack::UMovieScenePrimitiveMaterialTrack(const FObjectInitializer& ObjInit)
 	: Super(ObjInit)
 {
-	MaterialIndex = 0;
 	SupportedBlendTypes.Add(EMovieSceneBlendType::Absolute);
 	SupportedBlendTypes.Add(EMovieSceneBlendType::Additive);
 
@@ -30,12 +29,37 @@ bool UMovieScenePrimitiveMaterialTrack::SupportsType(TSubclassOf<UMovieSceneSect
 	return SectionClass == UMovieScenePrimitiveMaterialSection::StaticClass();
 }
 
+#if WITH_EDITORONLY_DATA
+void UMovieScenePrimitiveMaterialTrack::PostLoad()
+{
+	Super::PostLoad();
+	// Backwards compatibility with MaterialIndex alone as a way to reference materials.
+	if (MaterialInfo.MaterialType == EComponentMaterialType::Empty)
+	{
+		MaterialInfo.MaterialType = EComponentMaterialType::IndexedMaterial;
+		MaterialInfo.MaterialSlotIndex = MaterialIndex_DEPRECATED;
+	}
+}
+#endif
+
 int32 UMovieScenePrimitiveMaterialTrack::GetMaterialIndex() const
 {
-	return MaterialIndex;
+	return MaterialInfo.MaterialSlotIndex;
+}
+
+void UMovieScenePrimitiveMaterialTrack::SetMaterialInfo(const FComponentMaterialInfo& InMaterialInfo)
+{
+	MaterialInfo = InMaterialInfo;
+}
+
+const FComponentMaterialInfo& UMovieScenePrimitiveMaterialTrack::GetMaterialInfo() const
+{
+	return MaterialInfo;
 }
 
 void UMovieScenePrimitiveMaterialTrack::SetMaterialIndex(int32 InMaterialIndex)
 {
-	MaterialIndex = InMaterialIndex;
+	MaterialInfo.MaterialSlotIndex = InMaterialIndex;
+	// Assumption is if this is being called by old code, we should be indexed
+	MaterialInfo.MaterialType = EComponentMaterialType::IndexedMaterial;
 }

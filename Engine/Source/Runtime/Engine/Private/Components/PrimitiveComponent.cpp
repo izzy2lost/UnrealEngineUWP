@@ -1996,19 +1996,46 @@ void UPrimitiveComponent::SetBoundsScale(float NewBoundsScale)
 
 UMaterialInterface* UPrimitiveComponent::GetMaterial(int32 Index) const
 {
-	return NULL;
+	// This function should be overridden
+	return nullptr;
+}
+
+int32 UPrimitiveComponent::GetMaterialIndex(FName MaterialSlotName) const
+{
+	// This function should be overridden
+	return INDEX_NONE;
+}
+
+TArray<FName> UPrimitiveComponent::GetMaterialSlotNames() const
+{
+	// This function should be overridden
+	return TArray<FName>();
+}
+
+bool UPrimitiveComponent::IsMaterialSlotNameValid(FName MaterialSlotName) const
+{
+	// This function should be overridden
+	return false;
+}
+
+UMaterialInterface* UPrimitiveComponent::GetMaterialByName(FName MaterialSlotName) const
+{
+	return nullptr;
 }
 
 void UPrimitiveComponent::SetMaterial(int32 Index, UMaterialInterface* InMaterial)
 {
+	// This function should be overridden
 }
 
 void UPrimitiveComponent::SetMaterialByName(FName MaterialSlotName, class UMaterialInterface* Material)
 {
+	// This function should be overridden
 }
 
 int32 UPrimitiveComponent::GetNumMaterials() const
 {
+	// This function should be overridden
 	return 0;
 }
 

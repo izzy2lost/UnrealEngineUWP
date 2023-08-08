@@ -236,7 +236,7 @@ void UMovieSceneComponentMaterialTrack::ExtendEntityImpl(UMovieSceneParameterSec
 	// Material parameters are always absolute blends for the time being
 	OutImportedEntity->AddBuilder(
 		FEntityBuilder()
-		.Add(TracksComponents->ComponentMaterialIndex, MaterialIndex)
+		.Add(TracksComponents->ComponentMaterialInfo, MaterialInfo)
 		// If the section has no valid blend type (legacy data), make it use absolute blending.
 		// Otherwise, the base section class will add the appropriate blend type tag in BuildDefaultComponents.
 		.AddTagConditional(BuiltInComponents->Tags.AbsoluteBlend, !Section->GetBlendType().IsValid())
@@ -279,10 +279,24 @@ bool UMovieSceneComponentMaterialTrack::PopulateEvaluationFieldImpl(const TRange
 	return true;
 }
 
+
 #if WITH_EDITORONLY_DATA
+
 FText UMovieSceneComponentMaterialTrack::GetDefaultDisplayName() const
 {
-	return FText::FromString(FString::Printf(TEXT("Material Element %i"), MaterialIndex));
+	// Old track name before we started naming directly from editor
+	return FText::FromString(FString::Printf(TEXT("Material Element %i"), MaterialIndex_DEPRECATED));
+}
+
+void UMovieSceneComponentMaterialTrack::PostLoad()
+{
+	Super::PostLoad();
+	// Backwards compatibility with MaterialIndex alone as a way to reference materials.
+	if (MaterialInfo.MaterialType == EComponentMaterialType::Empty)
+	{
+		MaterialInfo.MaterialType = EComponentMaterialType::IndexedMaterial;
+		MaterialInfo.MaterialSlotIndex = MaterialIndex_DEPRECATED;
+	}
 }
 #endif
 

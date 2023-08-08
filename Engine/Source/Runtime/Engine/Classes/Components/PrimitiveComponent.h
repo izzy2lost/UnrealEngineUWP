@@ -1433,6 +1433,23 @@ public:
 		return GetMaterial(ElementIndex);
 	}
 
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Material")
+	ENGINE_API virtual int32 GetMaterialIndex(FName MaterialSlotName) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Material")
+	ENGINE_API virtual TArray<FName> GetMaterialSlotNames() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Material")
+	ENGINE_API virtual bool IsMaterialSlotNameValid(FName MaterialSlotName) const;
+
+	/**
+	* Returns the material used by the element in the slot with the specified name.
+	* @param MaterialSlotName - The slot name to access the material of.
+	* @return the material used in the slot specified, or null if none exists or the slot name is not found.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Material")
+	ENGINE_API virtual class UMaterialInterface* GetMaterialByName(FName MaterialSlotName) const;
+
 	/**
 	 * Changes the material applied to an element of the mesh.
 	 * @param ElementIndex - The element to access the material of.

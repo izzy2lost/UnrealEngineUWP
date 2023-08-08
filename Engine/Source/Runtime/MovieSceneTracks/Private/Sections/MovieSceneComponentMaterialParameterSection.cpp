@@ -323,11 +323,11 @@ void UMovieSceneComponentMaterialParameterSection::ImportEntityImpl(UMovieSceneE
 
 	FGuid ObjectBindingID = Params.GetObjectBindingID();
 	
-	// Find material index from the outer track
-	int32 MaterialIndex = 0;
+	// Find material info from the outer track
+	FComponentMaterialInfo MaterialInfo;
 	if (UMovieSceneComponentMaterialTrack* MaterialTrack = GetTypedOuter<UMovieSceneComponentMaterialTrack>())
 	{
-		MaterialIndex = MaterialTrack->GetMaterialIndex();
+		MaterialInfo = MaterialTrack->GetMaterialInfo();
 	}
 
 	TEntityBuilder<TAddConditional<FGuid>> BaseBuilder = FEntityBuilder()
@@ -345,7 +345,7 @@ void UMovieSceneComponentMaterialParameterSection::ImportEntityImpl(UMovieSceneE
 				BaseBuilder
 				.Add(TracksComponentTypes->ScalarMaterialParameterInfo, Scalar.ParameterInfo)
 				.Add(BuiltInComponentTypes->FloatChannel[0], &Scalar.ParameterCurve)
-				.Add(TracksComponentTypes->ComponentMaterialIndex, MaterialIndex)
+				.Add(TracksComponentTypes->ComponentMaterialInfo, MaterialInfo)
 				// If the section has no valid blend type (legacy data), make it use absolute blending.
 				// Otherwise, the base section class will add the appropriate blend type tag in BuildDefaultComponents.
 				.AddTagConditional(BuiltInComponentTypes->Tags.AbsoluteBlend, !GetBlendType().IsValid())
@@ -365,7 +365,7 @@ void UMovieSceneComponentMaterialParameterSection::ImportEntityImpl(UMovieSceneE
 				.AddConditional(BuiltInComponentTypes->FloatChannel[1], &Color.GreenCurve, Color.GreenCurve.HasAnyData())
 				.AddConditional(BuiltInComponentTypes->FloatChannel[2], &Color.BlueCurve, Color.BlueCurve.HasAnyData())
 				.AddConditional(BuiltInComponentTypes->FloatChannel[3], &Color.AlphaCurve, Color.AlphaCurve.HasAnyData())
-				.Add(TracksComponentTypes->ComponentMaterialIndex, MaterialIndex)
+				.Add(TracksComponentTypes->ComponentMaterialInfo, MaterialInfo)
 				// If the section has no valid blend type (legacy data), make it use absolute blending.
 				// Otherwise, the base section class will add the appropriate blend type tag in BuildDefaultComponents.
 				.AddTagConditional(BuiltInComponentTypes->Tags.AbsoluteBlend, !GetBlendType().IsValid())

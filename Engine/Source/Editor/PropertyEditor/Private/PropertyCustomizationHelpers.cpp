@@ -1473,6 +1473,7 @@ void SMaterialSlotWidget::Construct(const FArguments& InArgs, int32 SlotIndex, b
 			[
 				SNew(SEditableTextBox)
 				.Text(InArgs._MaterialName)
+				.IsReadOnly(InArgs._IsMaterialSlotNameReadOnly)
 				.OnTextChanged(InArgs._OnMaterialNameChanged)
 				.OnTextCommitted(InArgs._OnMaterialNameCommitted)
 				.Font(IDetailLayoutBuilder::GetDetailFont())
