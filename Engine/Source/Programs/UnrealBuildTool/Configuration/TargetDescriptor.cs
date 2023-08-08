@@ -26,7 +26,7 @@ namespace UnrealBuildTool
 		public CommandLineArguments AdditionalArguments;
 		public bool IsTestsTarget = false;
 
-		public static string GetTestedTargetName(string Name)
+		public static string GetTestedName(string Name)
 		{
 			if (Name.EndsWith(TEST_TARGETS_SUFFIX))
 			{

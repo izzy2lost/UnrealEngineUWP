@@ -412,7 +412,7 @@ namespace UnrealBuildTool
 		{
 			if (Target.IsTestTarget && !Target.ExplicitTestsTarget)
 			{
-				ModuleName = TargetDescriptor.GetTestedTargetName(ModuleName);
+				ModuleName = TargetDescriptor.GetTestedName(ModuleName);
 			}
 
 			// Currently, we expect the user's rules object type name to be the same as the module name
@@ -546,7 +546,7 @@ namespace UnrealBuildTool
 				{
 					if (!Target.ExplicitTestsTarget)
 					{
-						if (Target.LaunchModuleName != null && ModuleName == TargetDescriptor.GetTestedTargetName(Target.LaunchModuleName))
+						if (Target.LaunchModuleName != null && ModuleName == TargetDescriptor.GetTestedName(Target.LaunchModuleName))
 						{
 							RulesObject = new TestModuleRules(RulesObject);
 						}
@@ -777,7 +777,7 @@ namespace UnrealBuildTool
 		{
 			if (IsTestTarget)
 			{
-				TargetName = TargetDescriptor.GetTestedTargetName(TargetName);
+				TargetName = TargetDescriptor.GetTestedName(TargetName);
 			}
 
 			if (Architectures == null)

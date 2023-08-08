@@ -334,7 +334,8 @@ namespace UnrealBuildTool
 				}
 				if (RulesObject.Plugin != null)
 				{
-					ModuleDescriptor? Module = RulesObject.Plugin.Descriptor.Modules?.FirstOrDefault(x => x.Name == RulesObject.Name);
+					string PluginName = !RulesObject.IsTestModule ? RulesObject.Name : TargetDescriptor.GetTestedName(RulesObject.Name);
+					ModuleDescriptor? Module = RulesObject.Plugin.Descriptor.Modules?.FirstOrDefault(x => x.Name == PluginName);
 					if (Module != null)
 					{
 						return GetEngineModuleTypeFromDescriptor(Module);
