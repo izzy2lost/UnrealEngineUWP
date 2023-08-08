@@ -7,6 +7,7 @@
 #include "RigVMBlueprint.h"
 #include "RigVMModel/RigVMController.h"
 #include "Logging/LogScopedVerbosityOverride.h"
+#include "Widgets/Layout/SBox.h"
 
 void SRigVMGraphPinQuat::Construct(const FArguments& InArgs, UEdGraphPin* InGraphPinObj)
 {
