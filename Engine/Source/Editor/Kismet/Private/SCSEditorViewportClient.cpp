@@ -403,6 +403,10 @@ void FSCSEditorViewportClient::ProcessClick(class FSceneView& View, class HHitPr
 			Viewport->InvalidateHitProxy();
 			return;
 		}
+		else if(GUnrealEd->ComponentVisManager.HandleClick(this, HitProxy, Click))
+		{
+			// Component Vis Manager handled this click, no need to do anything
+		}
 		else if (HitProxy->IsA(HActor::StaticGetType()))
 		{
 			HActor* ActorProxy = (HActor*)HitProxy;
@@ -452,8 +456,6 @@ void FSCSEditorViewportClient::ProcessClick(class FSceneView& View, class HHitPr
 			return;
 		}
 	}
-	
-	GUnrealEd->ComponentVisManager.HandleClick(this, HitProxy, Click);
 }
 
 struct FTemplateComponentMoved
