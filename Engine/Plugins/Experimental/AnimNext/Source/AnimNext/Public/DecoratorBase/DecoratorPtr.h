@@ -100,12 +100,8 @@ namespace UE::AnimNext
 			, DecoratorIndex(DecoratorPtr.DecoratorIndex)
 		{}
 
-		FWeakDecoratorPtr(FNodeInstance* NodeInstance_, uint32 DecoratorIndex_)
-			: NodeInstance(NodeInstance_)
-			, DecoratorIndex(static_cast<uint8>(DecoratorIndex_))
-		{
-			check(DecoratorIndex == DecoratorIndex_);	// Make sure we didn't truncate
-		}
+		// Constructs a weak pointer handle to the provided instance
+		FWeakDecoratorPtr(FNodeInstance* NodeInstance_, uint32 DecoratorIndex_);
 
 		// Returns a pointer to the node instance
 		constexpr FNodeInstance* GetNodeInstance() const noexcept { return NodeInstance; }
@@ -127,7 +123,7 @@ namespace UE::AnimNext
 
 	private:
 		FNodeInstance*	NodeInstance = nullptr;
-		uint8			DecoratorIndex = 0;
+		uint32			DecoratorIndex = 0;			// Only need 8 bits, but use 32 since we have ample padding, avoids truncation
 	};
 
 	//////////////////////////////////////////////////////////////////////////

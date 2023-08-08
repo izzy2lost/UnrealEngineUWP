@@ -7,6 +7,11 @@
 
 namespace UE::AnimNext
 {
+	FUpdateTraversalContext::FUpdateTraversalContext(float InDeltaTime)
+		: DeltaTime(InDeltaTime)
+	{
+	}
+
 	void IUpdate::PreUpdate(FExecutionContext& Context, const TDecoratorBinding<IUpdate>& Binding) const
 	{
 		TDecoratorBinding<IUpdate> SuperBinding;
@@ -37,7 +42,7 @@ namespace UE::AnimNext
 		EUpdateStep			DesiredStep = EUpdateStep::PreUpdate;
 	};
 
-	void UpdateGraph(FExecutionContext& Context, FWeakDecoratorPtr GraphRootPtr)
+	void UpdateGraph(FExecutionContext& Context, FWeakDecoratorPtr GraphRootPtr, float DeltaTime)
 	{
 		if (!GraphRootPtr.IsValid())
 		{
@@ -52,7 +57,7 @@ namespace UE::AnimNext
 		FChildrenArray Children;
 		Children.Reserve(64);
 
-		FUpdateTraversalContext TraversalContext;
+		FUpdateTraversalContext TraversalContext(DeltaTime);
 
 		FScopedTraversalContext ScopedTraversalContext(Context, TraversalContext);
 

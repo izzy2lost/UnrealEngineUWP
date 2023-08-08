@@ -18,6 +18,10 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXT_API FNodeInstance
 	{
+		// Largest allowed size for a node instance and the instance data of its decorators
+		// We use unsigned 16 bit offsets within the NodeTemplate/DecoratorTemplate
+		static constexpr uint32 MAXIMUM_NODE_INSTANCE_DATA_SIZE = 64 * 1024;
+
 		FNodeInstance(const FNodeInstance&) = delete;
 		FNodeInstance& operator=(const FNodeInstance&) = delete;
 
@@ -37,7 +41,7 @@ namespace UE::AnimNext
 		void AddReference() { ReferenceCount++; }
 		void ReleaseReference();
 
-		uint32		ReferenceCount;		// how many non-weak FNodePtr and FDecoratorPtr handles point to us, not thread safe
+		uint32		ReferenceCount;		// how many non-weak FDecoratorPtr handles point to us, not thread safe
 		FNodeHandle	NodeHandle;			// relative to root of sub-graph, should this be a pointer?
 
 		// Followed by a list of [FDecoratorInstanceData] instances and optional padding

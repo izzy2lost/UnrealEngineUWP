@@ -18,7 +18,7 @@ namespace UE::AnimNext
 	}
 
 #if WITH_EDITOR
-	void FDecorator::SaveDecoratorSharedData(FDecoratorWriter& Writer, const TMap<FString, FString>& Properties, FAnimNextDecoratorSharedData& OutSharedData) const
+	void FDecorator::SaveDecoratorSharedData(FDecoratorWriter& Writer, const TFunction<FString(const FString& PropertyName)>& GetDecoratorProperty, FAnimNextDecoratorSharedData& OutSharedData) const
 	{
 		const UScriptStruct* SharedDataStruct = GetDecoratorSharedDataStruct();
 
@@ -31,9 +31,10 @@ namespace UE::AnimNext
 		// We convert every property from its string representation into its binary form
 		for (const FProperty* Property = SharedDataStruct->PropertyLink; Property != nullptr; Property = Property->PropertyLinkNext)
 		{
-			if (const FString* PropertyValue = Properties.Find(Property->GetName()))
+			const FString PropertyValue = GetDecoratorProperty(Property->GetName());
+			if (PropertyValue.Len() != 0)
 			{
-				const TCHAR* PropertyValuePtr = **PropertyValue;
+				const TCHAR* PropertyValuePtr = *PropertyValue;
 
 				// C-style array properties aren't handled by ExportText, we need to handle it manually
 				const bool bIsCArray = Property->ArrayDim > 1;

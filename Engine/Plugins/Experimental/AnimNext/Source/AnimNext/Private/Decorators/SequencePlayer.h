@@ -3,26 +3,34 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "UObject/ObjectPtr.h"
 #include "DecoratorBase/Decorator.h"
 #include "DecoratorInterfaces/IEvaluate.h"
 #include "DecoratorInterfaces/ITimeline.h"
 #include "DecoratorInterfaces/IUpdate.h"
+#include "Animation/AnimSequence.h"
 
 #include "SequencePlayer.generated.h"
-
-class UAnimSequence;
 
 USTRUCT()
 struct FAnimNextSequencePlayerDecoratorSharedData : public FAnimNextDecoratorSharedData
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
-	TObjectPtr<UAnimSequence> AnimSeq;
+	/** The sequence to play. */
+	UPROPERTY(meta = (Input))
+	TObjectPtr<UAnimSequence> AnimSequence;
 
-	UPROPERTY()
-	double PlayRate = 1.0;
+	/** The play rate multiplier at which this sequence plays. */
+	UPROPERTY(meta = (Input))
+	float PlayRate = 1.0f;
+
+	/** The time at which we should start playing this sequence. */
+	UPROPERTY(meta = (Input))
+	float StartPosition = 0.0f;
+
+	/** Whether or not this sequence playback will loop. */
+	UPROPERTY(meta = (Input))
+	bool bLoop = 0.0f;
 };
 
 namespace UE::AnimNext
@@ -40,7 +48,10 @@ namespace UE::AnimNext
 
 		struct FInstanceData : FDecorator::FInstanceData
 		{
-			double CurrentTime = 0.0;
+			float InternalTimeAccumulator = 0.0f;
+			float PrevInternalTimeAccumulator = 0.0f;
+
+			void Construct(FExecutionContext& Context, FWeakDecoratorPtr DecoratorPtr, const FAnimNextSequencePlayerDecoratorSharedData& SharedData);
 		};
 
 		// IEvaluate impl

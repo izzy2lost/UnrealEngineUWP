@@ -27,17 +27,31 @@ enum class EAnimNextGraphLoadType : uint8
 	CheckUserDefinedStructs
 };
 
+/**
+ * The Schema is used to determine which actions are allowed
+ * on a graph. This includes any topological change.
+ */
 UCLASS()
 class UAnimNextGraph_Schema : public URigVMSchema
 {
 	GENERATED_BODY()
 };
 
+/**
+  * Implements a RigVM client host and RigVM graph function store host
+  * 
+  * A RigVM client holds a graph schema, multiple graph models and controllers, as well as an action stack, undo/redo
+  * information, and a function library.
+  * 
+  * A RigVM function store holds various RigVM functions that can be called and linked against. Functions are created
+  * in the editor UI under the 'My Blueprint' tab.
+  */
 UCLASS(MinimalAPI)
 class UAnimNextGraph_EditorData : public UObject, public IRigVMClientHost, public IRigVMGraphFunctionHost
 {
 	GENERATED_BODY()
 
+public:
 	UAnimNextGraph_EditorData(const FObjectInitializer& ObjectInitializer);
 	
 	friend class UAnimNextGraphFactory;
@@ -72,14 +86,24 @@ class UAnimNextGraph_EditorData : public UObject, public IRigVMClientHost, publi
 	virtual const FRigVMGraphFunctionStore* GetRigVMGraphFunctionStore() const override;
 
 	ANIMNEXTUNCOOKEDONLY_API void Initialize(bool bRecompileVM);
+	ANIMNEXTUNCOOKEDONLY_API UAnimNextGraph_EdGraph* GetRootGraph() const;
 
+protected:
+#if WITH_EDITOR
 	void RefreshAllModels(EAnimNextGraphLoadType InLoadType);
+	ANIMNEXTUNCOOKEDONLY_API void RebuildEdGraphFromModel();
+	void GetAllGraphs(TArray<UEdGraph*>& Graphs) const;
+#endif
 
 	void RecompileVM();
 	
 	void RecompileVMIfRequired();
 
 	void RequestAutoVMRecompilation();
+
+	void IncrementVMRecompileBracket();
+
+	void DecrementVMRecompileBracket();
 	
 	void HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject);
 
@@ -121,6 +145,9 @@ class UAnimNextGraph_EditorData : public UObject, public IRigVMClientHost, publi
 
 	UPROPERTY(transient, DuplicateTransient)
 	TMap<FString, FRigVMOperand> PinToOperandMap;
+
+	UPROPERTY(transient, DuplicateTransient)
+	int32 VMRecompilationBracket = 0;
 
 	UPROPERTY(transient, DuplicateTransient)
 	bool bVMRecompilationRequired = false;
