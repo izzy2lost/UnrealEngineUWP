@@ -57,6 +57,9 @@ CSV_DEFINE_CATEGORY_MODULE(COREUOBJECT_API, GC, true);
 
 #define PERF_DETAILED_PER_CLASS_GC_STATS				(LOOKING_FOR_PERF_ISSUES || 0) 
 
+/** Allows release builds to override not verifying GC assumptions. Useful for profiling as it's hitchy. */
+extern COREUOBJECT_API bool GShouldVerifyGCAssumptionsOnFullPurge;
+
 /** Object count during last mark phase																				*/
 FThreadSafeCounter		GObjectCountDuringLastMarkPhase;
 /** Whether UObject hash tables are locked by GC */
@@ -4862,7 +4865,7 @@ void PreCollectGarbageImpl(EObjectFlags KeepFlags)
 
 #if VERIFY_DISREGARD_GC_ASSUMPTIONS
 			// Only verify assumptions if option is enabled. This avoids false positives in the Editor or commandlets.
-			if (GShouldVerifyGCAssumptions)
+			if (GShouldVerifyGCAssumptions || (bPerformFullPurge && GShouldVerifyGCAssumptionsOnFullPurge))
 			{
 				DECLARE_SCOPE_CYCLE_COUNTER(TEXT("CollectGarbageInternal.VerifyGCAssumptions"), STAT_CollectGarbageInternal_VerifyGCAssumptions, STATGROUP_GC);
 				const double StartTime = FPlatformTime::Seconds();

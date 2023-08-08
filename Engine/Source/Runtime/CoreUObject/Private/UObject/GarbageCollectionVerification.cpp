@@ -30,9 +30,11 @@
 -----------------------------------------------------------------------------*/
 
 /**
-* If set and VERIFY_DISREGARD_GC_ASSUMPTIONS is true, we verify GC assumptions about "Disregard For GC" objects.
+* If set and VERIFY_DISREGARD_GC_ASSUMPTIONS is true, we verify GC assumptions about "Disregard For GC" objects and clusters.
 */
-COREUOBJECT_API bool	GShouldVerifyGCAssumptions = !(UE_BUILD_SHIPPING != 0 && WITH_EDITOR != 0);
+COREUOBJECT_API bool	GShouldVerifyGCAssumptions = !UE_BUILD_SHIPPING && !UE_BUILD_TEST && !WITH_EDITOR;
+/** If set and VERIFY_DISREGARD_GC_ASSUMPTIONS is set, we verify GC assumptions when performing a full (blocking) purge */
+COREUOBJECT_API bool	GShouldVerifyGCAssumptionsOnFullPurge = !UE_BUILD_SHIPPING && !WITH_EDITOR;
 
 #if VERIFY_DISREGARD_GC_ASSUMPTIONS
 
@@ -320,9 +322,9 @@ void VerifyClustersAssumptions()
 				UE::GC::FWorkerContext Context;
 				Context.SetInitialObjectsUnpadded(ObjectsToSerialize);
 				CollectReferences(Processor, Context);
-				NumErrors.Add(Processor.GetErrorCount());
 			}			
 		}		
+		NumErrors.Add(Processor.GetErrorCount());
 	});
 
 
