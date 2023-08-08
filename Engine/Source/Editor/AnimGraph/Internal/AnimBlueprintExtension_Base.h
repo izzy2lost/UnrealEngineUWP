@@ -73,6 +73,7 @@ private:
 			, BindingContextId(NAME_None)
 			, Operation(EPostCopyOperation::None)
 			, bIsFastPath(true)
+			, bOnlyUpdateWhenActive(false)
 		{}
 
 		FPropertyCopyRecord(const TArray<FString>& InSourcePropertyPath, const TArray<FString>& InDestPropertyPath)
