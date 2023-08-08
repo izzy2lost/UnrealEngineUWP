@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO.Pipes;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
@@ -25,12 +26,18 @@ namespace Horde.Agent.Services
 		private AgentStatusMessage _current;
 
 		readonly BackgroundTask _task;
+		bool? _enabled;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// The current agent status
 		/// </summary>
 		public AgentStatusMessage Current => _current;
+
+		/// <summary>
+		/// Whether the agent is currently enabled.
+		/// </summary>
+		public bool IsEnabled => _enabled ?? true;
 
 		/// <summary>
 		/// Constructor
@@ -81,7 +88,7 @@ namespace Horde.Agent.Services
 		public void SetDescription(string description) => Update(status => new AgentStatusMessage(status.Healthy, status.NumLeases, description));
 
 		/// <summary>
-		/// Updates the status using a custom funciton
+		/// Updates the status using a custom function
 		/// </summary>
 		/// <param name="updateFunc">Function to take the existing status and create an updated version</param>
 		public void Update(Func<AgentStatusMessage, AgentStatusMessage> updateFunc)
@@ -152,14 +159,18 @@ namespace Horde.Agent.Services
 				{
 					switch (request.Type)
 					{
+						case AgentMessageType.SetEnabledRequest:
+							_enabled = request.Parse<AgentEnabledMessage>().IsEnabled;
+							break;
 						case AgentMessageType.GetStatusRequest:
 							response.Set(AgentMessageType.GetStatusResponse, Current);
+							await response.SendAsync(pipeServer, cancellationToken);
 							break;
 						default:
 							response.Set(AgentMessageType.InvalidResponse);
+							await response.SendAsync(pipeServer, cancellationToken);
 							break;
 					}
-					await response.SendAsync(pipeServer, cancellationToken);
 				}
 			}
 		}

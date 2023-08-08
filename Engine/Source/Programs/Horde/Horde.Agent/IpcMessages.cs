@@ -41,6 +41,11 @@ namespace Horde.Agent
 		/// Returns the current status, as a Json-encoded <see cref="AgentStatusMessage"/> message
 		/// </summary>
 		GetStatusResponse = 2,
+
+		/// <summary>
+		/// Sets the paused state
+		/// </summary>
+		SetEnabledRequest = 3,
 	}
 
 	/// <summary>
@@ -139,6 +144,12 @@ namespace Horde.Agent
 			return JsonSerializer.Deserialize<T>(ref reader, s_jsonOptions)!;
 		}
 	}
+
+	/// <summary>
+	/// Sets the enabled state for the agent
+	/// </summary>
+	/// <param name="IsEnabled">Whether the agent is enabled or not</param>
+	public record class AgentEnabledMessage(bool IsEnabled);
 
 	/// <summary>
 	/// Current status of the agent

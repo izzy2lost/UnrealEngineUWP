@@ -39,7 +39,7 @@ namespace Horde.Agent
 		public string Name { get; set; } = null!;
 
 		/// <summary>
-		/// Name of the environment (currrently just used for tracing)
+		/// Name of the environment (currently just used for tracing)
 		/// </summary>
 		[Required]
 		public string Environment { get; set; } = "prod";
@@ -101,7 +101,7 @@ namespace Horde.Agent
 	}
 
 	/// <summary>
-	/// Setttings for the perforce executor
+	/// Settings for the perforce executor
 	/// </summary>
 	public class PerforceExecutorSettings
 	{

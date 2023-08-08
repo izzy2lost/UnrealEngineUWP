@@ -216,14 +216,14 @@ namespace EpicGames.Core
 		}
 
 		/// <summary>
-		/// Waits for a native wait handle to be signalled
+		/// Waits for a native wait handle to be signaled
 		/// </summary>
 		/// <param name="handle">Handle to wait for</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public static Task WaitOneAsync(this WaitHandle handle, CancellationToken cancellationToken = default) => handle.WaitOneAsync(-1, cancellationToken);
 
 		/// <summary>
-		/// Waits for a native wait handle to be signalled
+		/// Waits for a native wait handle to be signaled
 		/// </summary>
 		/// <param name="handle">Handle to wait for</param>
 		/// <param name="timeoutMs">Timeout for the wait</param>

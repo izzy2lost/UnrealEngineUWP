@@ -233,9 +233,6 @@ namespace Horde.Agent.Leases
 			Stopwatch updateTimer = Stopwatch.StartNew();
 			Queue<TimeSpan> updateTimes = new Queue<TimeSpan>();
 
-			// Whether there is an active user on this machine. For workstations, this determines whether the agent will take on work.
-			bool paused = false;
-
 			// Loop until we're ready to exit
 			Stopwatch updateCapabilitiesTimer = Stopwatch.StartNew();
 			for (; ; )
@@ -275,6 +272,7 @@ namespace Horde.Agent.Leases
 				}
 
 				// Get the new agent status
+				bool paused = !_statusService.IsEnabled;
 				if (stopping)
 				{
 					updateSessionRequest.Status = AgentStatus.Stopping;
