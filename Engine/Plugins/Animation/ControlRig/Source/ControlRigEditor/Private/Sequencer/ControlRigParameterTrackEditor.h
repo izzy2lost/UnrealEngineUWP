@@ -284,6 +284,9 @@ private:
 	/** An index counter for the opened undo brackets */
 	int32 ControlUndoBracket;
 
+	/** A counter for occurred control changes during a control undo bracket */
+	int32 ControlChangedDuringUndoBracket;
+
 	/** Lock to avoid registering multiple transactions from different tracks at the same time */
 	static FCriticalSection ControlUndoTransactionMutex;
 
