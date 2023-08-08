@@ -1164,9 +1164,13 @@ bool UWorldPartition::IsServerStreamingEnabled() const
 				{
 					switch (UWorldPartition::GlobalEnableServerStreaming)
 					{
-					case 1:	bIsEnabled = true;
+					case 1:
+						bIsEnabled = true;
+						break;
 #if WITH_EDITOR
-					case 2: bIsEnabled = bIsPIE;
+					case 2:
+						bIsEnabled = bIsPIE;
+						break;
 #endif
 					}
 				}
