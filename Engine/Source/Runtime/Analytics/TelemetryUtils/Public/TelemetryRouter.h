@@ -5,6 +5,7 @@
 #include "Delegates/Delegate.h"
 #include "HAL/CriticalSection.h"
 #include "Templates/Models.h"
+#include "Memory/MemoryView.h"
 #include "Misc/Guid.h"
 
 #include <type_traits>
@@ -76,7 +77,7 @@ public:
     inline void ProvideTelemetry(const DATA_TYPE& Data)
     {
         check(ReentrancyGuard != FPlatformTLS::GetCurrentThreadId());
-        ProvideTelemetryInternal(UE::Telemetry::Private::GetDataKey<DATA_TYPE>(), reinterpret_cast<const void*>(&Data));
+        ProvideTelemetryInternal(UE::Telemetry::Private::GetDataKey<DATA_TYPE>(), MakeMemoryView(&Data, sizeof(DATA_TYPE)));
     }
     
     /** 
@@ -90,9 +91,9 @@ public:
         check(ReentrancyGuard != FPlatformTLS::GetCurrentThreadId());
         check(Sink.IsBound());
         FDelegateHandle Handle = Sink.GetHandle();
-        RegisterTelemetrySinkInternal(UE::Telemetry::Private::GetDataKey<DATA_TYPE>(), Handle,
-            [Sink=MoveTemp(Sink)](const void* Data) -> bool {
-                return Sink.ExecuteIfBound(*reinterpret_cast<const DATA_TYPE*>(Data));
+        RegisterTelemetrySinkInternal(UE::Telemetry::Private::GetDataKey<DATA_TYPE>(), sizeof(DATA_TYPE), Handle,
+            [Sink=MoveTemp(Sink)](FMemoryView Data) -> bool {
+                return Sink.ExecuteIfBound(*reinterpret_cast<const DATA_TYPE*>(Data.GetData()));
             });
         return Handle;
     }
@@ -109,9 +110,9 @@ public:
     {
         check(ReentrancyGuard != FPlatformTLS::GetCurrentThreadId());
         FDelegateHandle Handle{ FDelegateHandle::GenerateNewHandle };
-        RegisterTelemetrySinkInternal(UE::Telemetry::Private::GetDataKey<DATA_TYPE>(), Handle,
-            [Sink=MoveTemp(Sink)](const void* Data) -> bool {
-                Sink(*reinterpret_cast<const DATA_TYPE*>(Data));
+        RegisterTelemetrySinkInternal(UE::Telemetry::Private::GetDataKey<DATA_TYPE>(), sizeof(DATA_TYPE), Handle,
+            [Sink=MoveTemp(Sink)](FMemoryView Data) -> bool {
+                Sink(*reinterpret_cast<const DATA_TYPE*>(Data.GetData()));
                 return true;
             });
         return Handle;
@@ -131,11 +132,23 @@ private:
     /** 
      * Register a callback to receive telemetry. The callback should return false if the sink is stale and should be removed from future consideration.
      */
-    TELEMETRYUTILS_API void RegisterTelemetrySinkInternal(FGuid Key, FDelegateHandle InHandle, TFunction<bool(const void*)> Sink);
+    TELEMETRYUTILS_API void RegisterTelemetrySinkInternal(FGuid Key, SIZE_T ExpectedSize, FDelegateHandle InHandle, TFunction<bool(FMemoryView)> Sink);
     TELEMETRYUTILS_API void UnregisterTelemetrySinkInternal(FGuid Key, FDelegateHandle InHandle);
-    TELEMETRYUTILS_API void ProvideTelemetryInternal(FGuid Key, const void* Data);
+    TELEMETRYUTILS_API void ProvideTelemetryInternal(FGuid Key, FMemoryView Data);
     
     FRWLock SinkLock;
-    TMap<FGuid, TMap<FDelegateHandle, TFunction<bool(const void*)>>> KeyToSinks;
+    
+    struct FSinkSet
+    {
+        SIZE_T DataSize;
+        TMap<FDelegateHandle, TFunction<bool(FMemoryView)>> Delegates;
+        
+        FSinkSet(SIZE_T InDataSize)
+            : DataSize(InDataSize)
+        {
+        }
+    };
+
+    TMap<FGuid, FSinkSet> KeyToSinks;
     uint32 ReentrancyGuard = 0;
 };

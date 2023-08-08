@@ -17,14 +17,20 @@ FTelemetryRouter& FTelemetryRouter::Get()
     return FTelemetryUtils::GetRouter();
 }
 
-void FTelemetryRouter::ProvideTelemetryInternal(FGuid Key, const void* Data) 
+void FTelemetryRouter::ProvideTelemetryInternal(FGuid Key, FMemoryView Data) 
 {
     FReadScopeLock Lock(SinkLock);
     TGuardValue Guard(ReentrancyGuard, FPlatformTLS::GetCurrentThreadId());
-    TMap<FDelegateHandle, TFunction<bool(const void*)>>* Sinks = KeyToSinks.Find(Key);
+    FSinkSet* Sinks = KeyToSinks.Find(Key);
     if (Sinks)
     {
-        for (auto It = Sinks->CreateIterator(); It; ++It)
+        if (!ensureMsgf(Sinks->DataSize == Data.GetSize(), TEXT("Size mismatch mismatch with registered telemetry sink for guid %s. %" SIZE_T_X_FMT " vs %" SIZE_T_X_FMT), 
+            *Key.ToString(), Sinks->DataSize, Data.GetSize() ))
+        {
+            return;
+        }
+
+        for (auto It = Sinks->Delegates.CreateIterator(); It; ++It)
         {
             bool bStillBound = It->Value(Data);
             if (!bStillBound)
@@ -35,21 +41,30 @@ void FTelemetryRouter::ProvideTelemetryInternal(FGuid Key, const void* Data)
     }
 }
 
-void FTelemetryRouter::RegisterTelemetrySinkInternal(FGuid Key, FDelegateHandle InHandle, TFunction<bool(const void*)> Sink)
+void FTelemetryRouter::RegisterTelemetrySinkInternal(FGuid Key, SIZE_T Size, FDelegateHandle InHandle, TFunction<bool(FMemoryView)> Sink)
 {
     FWriteScopeLock Lock(SinkLock);
     TGuardValue Guard(ReentrancyGuard, FPlatformTLS::GetCurrentThreadId());
-    TMap<FDelegateHandle, TFunction<bool(const void*)>>& Sinks = KeyToSinks.FindOrAdd(Key);
-    Sinks.Add(InHandle, MoveTemp(Sink));
+    FTelemetryRouter::FSinkSet* Sinks = KeyToSinks.Find(Key);
+    if (!Sinks)
+    {
+        Sinks = &KeyToSinks.Add(Key, FSinkSet(Size));
+    }
+    if (!ensureMsgf(Sinks->DataSize == Size, TEXT("Size mismatch mismatch with registered telemetry sink for guid %s. %" SIZE_T_X_FMT " vs %" SIZE_T_X_FMT), 
+        *Key.ToString(), Sinks->DataSize, Size))
+    {
+        return;
+    }
+    Sinks->Delegates.Add(InHandle, MoveTemp(Sink));
 }
 
 void FTelemetryRouter::UnregisterTelemetrySinkInternal(FGuid Key, FDelegateHandle InHandle)
 {
     FWriteScopeLock Lock(SinkLock);
     TGuardValue Guard(ReentrancyGuard, FPlatformTLS::GetCurrentThreadId());
-    TMap<FDelegateHandle, TFunction<bool(const void*)>>* Sinks = KeyToSinks.Find(Key);
+    FTelemetryRouter::FSinkSet* Sinks = KeyToSinks.Find(Key);
     if (Sinks)
     {
-        Sinks->Remove(InHandle);
+        Sinks->Delegates.Remove(InHandle);
     }
 }
