@@ -29,6 +29,8 @@ public:
 	// Ignore the continuing pose on the next update and force a search.
 	void ForceInterruptNextUpdate();
 
+	const FMotionMatchingState& GetMotionMatchingState() const { return MotionMatchingState; }
+
 private:
 	// FAnimNode_Base interface
 	// @todo: implement CacheBones_AnyThread to rebind the schema bones

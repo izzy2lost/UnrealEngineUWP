@@ -23,11 +23,8 @@ namespace UE::PoseSearch
 struct FAnimationUpdateContext;
 struct FPoseSearchQueryTrajectory;
 
-USTRUCT(BlueprintType, Category="Animation|Pose Search")
-struct POSESEARCH_API FMotionMatchingState
+struct FMotionMatchingState
 {
-	GENERATED_BODY()
-
 	// Reset the state to a default state using the current Database
 	void Reset(const FTransform& ComponentTransform);
 
@@ -46,15 +43,12 @@ struct POSESEARCH_API FMotionMatchingState
 	UE::PoseSearch::FSearchResult CurrentSearchResult;
 
 	// Time since the last pose jump
-	UPROPERTY(Transient)
 	float ElapsedPoseSearchTime = 0.f;
 
 	// wanted PlayRate to have the selected animation playing at the estimated requested speed from the query.
-	UPROPERTY(Transient)
 	float WantedPlayRate = 1.f;
 
 	// true if a new animation has been selected
-	UPROPERTY(Transient, VisibleAnywhere, BlueprintReadOnly, Category=State)
 	bool bJumpedToPose = false;
 
 	UE::PoseSearch::FPoseIndicesHistory PoseIndicesHistory;
@@ -167,12 +161,7 @@ public:
 		const FPoseSearchQueryTrajectory Trajectory,
 		float TrajectorySpeedMultiplier,
 		const FName PoseHistoryName,
-		UAnimationAsset*& SelectedAnimation,
-		float& SelectedTime,
-		bool& bLoop,
-		bool& bIsMirrored,
-		FVector& BlendParameters,
-		float& SearchCost,
+		FPoseSearchBlueprintResult& Result,
 		const UAnimationAsset* FutureAnimation = nullptr,
 		float FutureAnimationStartTime = 0.f,
 		float TimeToFutureAnimationStart = 0.f,

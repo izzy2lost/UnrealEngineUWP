@@ -10,12 +10,11 @@ struct POSESEARCH_API FPoseSearchCost
 	GENERATED_BODY()
 public:
 	FPoseSearchCost() = default;
-	FPoseSearchCost(float InDissimilarityCost, float InNotifyCostAddend, float InContinuingPoseCostAddend)
-	: TotalCost(InDissimilarityCost + InNotifyCostAddend + InContinuingPoseCostAddend)
+	FPoseSearchCost(float DissimilarityCost, float NotifyCostAddend, float ContinuingPoseCostAddend)
+	: TotalCost(DissimilarityCost + NotifyCostAddend + ContinuingPoseCostAddend)
 	{
 #if WITH_EDITORONLY_DATA
-		NotifyCostAddend = InNotifyCostAddend;
-		ContinuingPoseCostAddend = InContinuingPoseCostAddend;
+		CostAddend = NotifyCostAddend + ContinuingPoseCostAddend;
 #endif // WITH_EDITORONLY_DATA
 	}
 
@@ -30,14 +29,11 @@ protected:
 #if WITH_EDITORONLY_DATA
 public:
 
-	float GetCostAddend() const { return NotifyCostAddend + ContinuingPoseCostAddend; }
+	float GetCostAddend() const { return CostAddend; }
 
-	// Contribution from ModifyCost anim notify
+	// Contribution from ModifyCost anim notify, and ContinuingPoseCostAddend
 	UPROPERTY()
-	float NotifyCostAddend = 0.f;
-
-	UPROPERTY()
-	float ContinuingPoseCostAddend = 0.f;
+	float CostAddend = 0.f;
 
 #endif // WITH_EDITORONLY_DATA
 };

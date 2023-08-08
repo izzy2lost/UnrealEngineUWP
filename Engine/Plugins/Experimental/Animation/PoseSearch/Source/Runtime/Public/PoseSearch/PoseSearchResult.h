@@ -4,6 +4,7 @@
 
 #include "PoseSearch/PoseSearchCost.h"
 #include "PoseSearch/PoseSearchDefines.h"
+#include "PoseSearchResult.generated.h"
 
 class UPoseSearchDatabase;
 class UPoseSearchSchema;
@@ -60,3 +61,32 @@ struct FSearchResult
 };
 
 } // namespace UE::PoseSearch
+
+USTRUCT(BlueprintType, Category="Animation|Pose Search")
+struct POSESEARCH_API FPoseSearchBlueprintResult
+{
+	GENERATED_BODY()
+public:
+
+	UPROPERTY(Transient, VisibleAnywhere, BlueprintReadOnly, Category=State)
+	TWeakObjectPtr<const UAnimationAsset> SelectedAnimation = nullptr;
+	
+	UPROPERTY(Transient, VisibleAnywhere, BlueprintReadOnly, Category=State)
+	float SelectedTime = 0.f;
+	
+	UPROPERTY(Transient, VisibleAnywhere, BlueprintReadOnly, Category=State)
+	bool bLoop = false;
+	
+	UPROPERTY(Transient, VisibleAnywhere, BlueprintReadOnly, Category=State)
+	bool bIsMirrored = false;
+	
+	UPROPERTY(Transient, VisibleAnywhere, BlueprintReadOnly, Category=State)
+	FVector BlendParameters = FVector::ZeroVector;
+
+	UPROPERTY(Transient, VisibleAnywhere, BlueprintReadOnly, Category=State)
+	TWeakObjectPtr<const UPoseSearchDatabase> SelectedDatabase = nullptr;
+
+	UPROPERTY(Transient, VisibleAnywhere, BlueprintReadOnly, Category=State)
+	float SearchCost = MAX_flt;
+};
+

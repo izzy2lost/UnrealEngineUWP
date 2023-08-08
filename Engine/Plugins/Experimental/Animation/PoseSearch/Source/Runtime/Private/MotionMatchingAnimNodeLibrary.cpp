@@ -1,60 +1,90 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PoseSearch/MotionMatchingAnimNodeLibrary.h"
-
 #include "PoseSearch/AnimNode_MotionMatching.h"
-#include "PoseSearch/PoseSearchDefines.h"
+#include "PoseSearch/PoseSearchDatabase.h"
 
 FMotionMatchingAnimNodeReference UMotionMatchingAnimNodeLibrary::ConvertToMotionMatchingNode(const FAnimNodeReference& Node, EAnimNodeReferenceConversionResult& Result)
 {
 	return FAnimNodeReference::ConvertToType<FMotionMatchingAnimNodeReference>(Node, Result);
 }
 
-void UMotionMatchingAnimNodeLibrary::SetDatabaseToSearch(const FMotionMatchingAnimNodeReference& MotionMatchingNode, UPoseSearchDatabase* Database, bool bForceInterruptIfNew)
+void UMotionMatchingAnimNodeLibrary::GetMotionMatchingSearchResult(const FMotionMatchingAnimNodeReference& MotionMatchingNode, FPoseSearchBlueprintResult& Result, bool& bIsResultValid)
 {
-	FAnimNode_MotionMatching* MotionMatchingNodePtr = MotionMatchingNode.GetAnimNodePtr<FAnimNode_MotionMatching>();
-	if (MotionMatchingNodePtr == nullptr)
+	using namespace UE::PoseSearch;
+
+	bIsResultValid = false;
+	if (FAnimNode_MotionMatching* MotionMatchingNodePtr = MotionMatchingNode.GetAnimNodePtr<FAnimNode_MotionMatching>())
+	{
+		const FMotionMatchingState& MotionMatchingState = MotionMatchingNodePtr->GetMotionMatchingState();
+		if (const FSearchIndexAsset* SearchIndexAsset = MotionMatchingState.CurrentSearchResult.GetSearchIndexAsset())
+		{
+			const UPoseSearchDatabase* CurrentResultDatabase = MotionMatchingState.CurrentSearchResult.Database.Get();
+			if (CurrentResultDatabase && CurrentResultDatabase->Schema)
+			{
+				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = CurrentResultDatabase->GetAnimationAssetBase(*SearchIndexAsset))
+				{
+					Result.SelectedAnimation = DatabaseAsset->GetAnimationAsset();
+					Result.SelectedTime = MotionMatchingState.CurrentSearchResult.AssetTime;
+					Result.bLoop = DatabaseAsset->IsLooping();
+					Result.bIsMirrored = SearchIndexAsset->bMirrored;
+					Result.BlendParameters = SearchIndexAsset->BlendParameters;
+					Result.SelectedDatabase = CurrentResultDatabase;
+					bIsResultValid = true;
+				}
+			}
+		}
+	}
+	else
 	{
 		UE_LOG(LogPoseSearch, Warning, TEXT("UMotionMatchingAnimNodeLibrary::SetDatabase called on an invalid context or with an invalid type"));
-		return;
 	}
+}
 
-	MotionMatchingNodePtr->SetDatabaseToSearch(Database, bForceInterruptIfNew);
+void UMotionMatchingAnimNodeLibrary::SetDatabaseToSearch(const FMotionMatchingAnimNodeReference& MotionMatchingNode, UPoseSearchDatabase* Database, bool bForceInterruptIfNew)
+{
+	if (FAnimNode_MotionMatching* MotionMatchingNodePtr = MotionMatchingNode.GetAnimNodePtr<FAnimNode_MotionMatching>())
+	{
+		MotionMatchingNodePtr->SetDatabaseToSearch(Database, bForceInterruptIfNew);
+	}
+	else
+	{
+		UE_LOG(LogPoseSearch, Warning, TEXT("UMotionMatchingAnimNodeLibrary::SetDatabase called on an invalid context or with an invalid type"));
+	}
 }
 
 void UMotionMatchingAnimNodeLibrary::SetDatabasesToSearch(const FMotionMatchingAnimNodeReference& MotionMatchingNode, const TArray<UPoseSearchDatabase*>& Databases, bool bForceInterruptIfNew)
 {
-	FAnimNode_MotionMatching* MotionMatchingNodePtr = MotionMatchingNode.GetAnimNodePtr<FAnimNode_MotionMatching>();
-	if (MotionMatchingNodePtr == nullptr)
+	if (FAnimNode_MotionMatching* MotionMatchingNodePtr = MotionMatchingNode.GetAnimNodePtr<FAnimNode_MotionMatching>())
+	{
+		MotionMatchingNodePtr->SetDatabasesToSearch(Databases, bForceInterruptIfNew);
+	}
+	else
 	{
 		UE_LOG(LogPoseSearch, Warning, TEXT("UMotionMatchingAnimNodeLibrary::SetDatabases called on an invalid context or with an invalid type"));
-		return;
 	}
-
-	MotionMatchingNodePtr->SetDatabasesToSearch(Databases, bForceInterruptIfNew);
 }
 
 void UMotionMatchingAnimNodeLibrary::ResetDatabasesToSearch(const FMotionMatchingAnimNodeReference& MotionMatchingNode, bool bForceInterrupt)
 {
-	FAnimNode_MotionMatching* MotionMatchingNodePtr = MotionMatchingNode.GetAnimNodePtr<FAnimNode_MotionMatching>();
-	if (MotionMatchingNodePtr == nullptr)
+	if (FAnimNode_MotionMatching* MotionMatchingNodePtr = MotionMatchingNode.GetAnimNodePtr<FAnimNode_MotionMatching>())
+	{
+		MotionMatchingNodePtr->ResetDatabasesToSearch(bForceInterrupt);
+	}
+	else
 	{
 		UE_LOG(LogPoseSearch, Warning, TEXT("UMotionMatchingAnimNodeLibrary::ResetDatabasesToSearch called on an invalid context or with an invalid type"));
-		return;
 	}
-
-	MotionMatchingNodePtr->ResetDatabasesToSearch(bForceInterrupt);
-
 }
 
 void UMotionMatchingAnimNodeLibrary::ForceInterruptNextUpdate(const FMotionMatchingAnimNodeReference& MotionMatchingNode)
 {
-	FAnimNode_MotionMatching* MotionMatchingNodePtr = MotionMatchingNode.GetAnimNodePtr<FAnimNode_MotionMatching>();
-	if (MotionMatchingNodePtr == nullptr)
+	if (FAnimNode_MotionMatching* MotionMatchingNodePtr = MotionMatchingNode.GetAnimNodePtr<FAnimNode_MotionMatching>())
+	{
+		MotionMatchingNodePtr->ForceInterruptNextUpdate();
+	}
+	else
 	{
 		UE_LOG(LogPoseSearch, Warning, TEXT("UMotionMatchingAnimNodeLibrary::ForceInterruptOneFrame called on an invalid context or with an invalid type"));
-		return;
 	}
-
-	MotionMatchingNodePtr->ForceInterruptNextUpdate();
 }

@@ -423,12 +423,7 @@ void UPoseSearchLibrary::MotionMatch(
 	const FPoseSearchQueryTrajectory Trajectory,
 	float TrajectorySpeedMultiplier,
 	const FName PoseHistoryName,
-	UAnimationAsset*& SelectedAnimation,
-	float& SelectedTime,
-	bool& bLoop,
-	bool& bIsMirrored,
-	FVector& BlendParameters,
-	float& SearchCost,
+	FPoseSearchBlueprintResult& Result,
 	const UAnimationAsset* FutureAnimation,
 	float FutureAnimationStartTime,
 	float TimeToFutureAnimationStart,
@@ -454,12 +449,13 @@ void UPoseSearchLibrary::MotionMatch(
 
 	static constexpr float FiniteDelta = 1 / 60.0f;
 
-	SelectedAnimation = nullptr;
-	SelectedTime = 0.f;
-	bLoop = false;
-	bIsMirrored = false;
-	BlendParameters = FVector::ZeroVector;
-	SearchCost = MAX_flt;
+	Result.SelectedAnimation = nullptr;
+	Result.SelectedTime = 0.f;
+	Result.bLoop = false;
+	Result.bIsMirrored = false;
+	Result.BlendParameters = FVector::ZeroVector;
+	Result.SelectedDatabase = nullptr;
+	Result.SearchCost = MAX_flt;
 
 	if (Database && AnimInstance)
 	{
@@ -548,12 +544,13 @@ void UPoseSearchLibrary::MotionMatch(
 			const FSearchIndexAsset* SearchIndexAsset = SearchResult.GetSearchIndexAsset();
 			if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = SearchResult.Database->GetAnimationAssetBase(*SearchIndexAsset))
 			{
-				SelectedAnimation = DatabaseAsset->GetAnimationAsset();
-				SelectedTime = SearchResult.AssetTime;
-				bLoop = DatabaseAsset->IsLooping();
-				bIsMirrored = SearchIndexAsset->bMirrored;
-				BlendParameters = SearchIndexAsset->BlendParameters;
-				SearchCost = SearchResult.PoseCost.GetTotalCost();
+				Result.SelectedAnimation = DatabaseAsset->GetAnimationAsset();
+				Result.SelectedTime = SearchResult.AssetTime;
+				Result.bLoop = DatabaseAsset->IsLooping();
+				Result.bIsMirrored = SearchIndexAsset->bMirrored;
+				Result.BlendParameters = SearchIndexAsset->BlendParameters;
+				Result.SelectedDatabase = Database;
+				Result.SearchCost = SearchResult.PoseCost.GetTotalCost();
 			}
 		}
 

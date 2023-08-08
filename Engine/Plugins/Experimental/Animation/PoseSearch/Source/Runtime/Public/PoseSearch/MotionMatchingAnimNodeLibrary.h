@@ -38,6 +38,9 @@ public:
 		Result = (ConversionResult == EAnimNodeReferenceConversionResult::Succeeded);
 	}
 
+	UFUNCTION(BlueprintPure, Category = "Animation|MotionMatching", meta = (BlueprintThreadSafe, DisplayName = "Get Motion Matching Search Result"))
+	static void GetMotionMatchingSearchResult(const FMotionMatchingAnimNodeReference& MotionMatchingNode, FPoseSearchBlueprintResult& Result, bool& bIsResultValid);
+
 	/**
 	 * Set the database to search on the motion matching node. This overrides the Database property on the motion matching node.
 	 * @param MotionMatchingNode - The motion matching node to operate on.
