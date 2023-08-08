@@ -191,6 +191,11 @@ void FGenericCrashContext::Initialize()
 	Symbols = FString::Printf(TEXT("%s-%s"), *Symbols, *FString(UE_BUILD_FLAVOR));
 #endif
 	NCached::Set(NCached::Session.SymbolsLabel, *Symbols);
+	if (Symbols.Len() >= UE_ARRAY_COUNT(NCached::Session.SymbolsLabel))
+	{
+		UE_LOG(LogInit, Error, TEXT("Symbols label too long (%d) for field size(%d), truncated. This may cause problems with crash report symbolication."),
+			Symbols.Len(), UE_ARRAY_COUNT(NCached::Session.SymbolsLabel));
+	}
 
 	FString OsVersion, OsSubVersion;
 	FPlatformMisc::GetOSVersions(OsVersion, OsSubVersion);
