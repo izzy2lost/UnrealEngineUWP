@@ -9,6 +9,7 @@
 
 class UBlueprint;
 class FKismetCompilerContext;
+class UEdGraph;
 
 /**
  * Per-instance extension object that can be added to UBlueprint::Extensions in order to augment built-in blueprint functionality
