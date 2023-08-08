@@ -741,7 +741,15 @@ void FFileIoCache::FileWriterThreadInner()
 
 } // namespace UE::IO::Private
 
+
+
 TUniquePtr<IIoCache> MakeFileIoCache(const FFileIoCacheConfig& Config)
 {
-	return MakeUnique<UE::IO::Private::FFileIoCache>(Config);
+	if (Config.UseLegacy)
+	{
+		return MakeUnique<UE::IO::Private::FFileIoCache>(Config);
+	}
+
+	extern TUniquePtr<IIoCache> MakeJournaledCache(const FFileIoCacheConfig&);
+	return MakeJournaledCache(Config);
 }

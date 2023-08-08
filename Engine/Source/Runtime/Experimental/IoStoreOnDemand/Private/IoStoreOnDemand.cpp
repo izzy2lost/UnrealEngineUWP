@@ -120,6 +120,8 @@ static FFileIoCacheConfig GetFileIoCacheConfig(const TCHAR* CommandLine)
 	GetConfigInt(TEXT("WriteBytesPerPeriod"),	Ret.WriteRate.Allowance);
 	GetConfigInt(TEXT("DiskQuota"),				Ret.DiskQuota);
 	GetConfigInt(TEXT("MemoryQuota"),			Ret.MemoryQuota);
+	GetConfigInt(TEXT("JournalQuota"),			Ret.JournalQuota);
+	GetConfigInt(TEXT("JournalFlushInterval"),	Ret.JournalFlushInterval);
 #undef GetConfigInt
 
 #if !UE_BUILD_SHIPPING

@@ -37,15 +37,18 @@ struct FFileIoCacheConfig
 {
 	struct FRate
 	{
-		uint32 Allowance = ~0u;
-		uint32 Ops = 256;
-		uint32 Seconds = 1;
+		uint32	Allowance = 16 << 20;
+		uint32	Ops = 32;
+		uint32	Seconds = 60;
 	};
 
-	uint64 DiskQuota = 1ull << 30;
-	uint32 MemoryQuota = 3 << 20;
-	FRate WriteRate;
-	bool DropCache = false;
+	uint64		DiskQuota = 512ull << 20;
+	uint32		MemoryQuota = 2 << 20;
+	uint32		JournalQuota = 4 << 20;
+	uint32		JournalFlushInterval = 4;
+	uint32		UseLegacy = 0;
+	FRate		WriteRate;
+	bool		DropCache = false;
 };
 
 TUniquePtr<IIoCache> MakeFileIoCache(const FFileIoCacheConfig& Config);
