@@ -1,6 +1,6 @@
 project(libpsoservice)
 
-cmake_minimum_required(VERSION 3.4.1)
+cmake_minimum_required(VERSION 3.13)
 
 add_definitions(-DHAVE_CONFIG_H -D_GNU_SOURCE -DANDROID_PLATFORM=android-26)
 
@@ -39,3 +39,6 @@ find_library(android android)
 		ENDIF()
 
 target_link_libraries(psoservice ${Vulkan_LIBRARY} ${log-lib})
+
+# Enable support for non-4k virtual page sizes
+target_link_options(psoservice PRIVATE -z max-page-size=65536)

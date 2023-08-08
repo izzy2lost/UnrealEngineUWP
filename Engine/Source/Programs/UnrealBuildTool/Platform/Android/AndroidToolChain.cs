@@ -822,6 +822,9 @@ namespace UnrealBuildTool
 				}
 			}
 
+			// Enable support for non-4k virtual page sizes
+			Result += " -z max-page-size=65536";
+
 			return Result;
 		}
 
