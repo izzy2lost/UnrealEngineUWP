@@ -1581,45 +1581,89 @@ void FOpenGLDynamicRHI::RHIUnlockTexture2DArray(FRHITexture2DArray* TextureRHI, 
 	ResourceCast(TextureRHI)->Unlock(MipIndex, TextureIndex);
 }
 
-void FOpenGLDynamicRHI::RHIUpdateTexture2D(FRHICommandListBase& RHICmdList, FRHITexture2D* TextureRHI, uint32 MipIndex, const FUpdateTextureRegion2D& UpdateRegionIn, uint32 SourcePitch, const uint8* SourceDataIn)
+void FOpenGLDynamicRHI::RHIUpdateTexture2D(FRHICommandListBase& RHICmdList, FRHITexture2D* TextureRHI, uint32 MipIndex, const FUpdateTextureRegion2D& UpdateRegion, uint32 SourcePitch, const uint8* SourceData)
 {
-	const FUpdateTextureRegion2D UpdateRegion = UpdateRegionIn;
+	const FPixelFormatInfo& FormatInfo = GPixelFormats[TextureRHI->GetFormat()];
 
-	uint8* RHITSourceData = nullptr;
-	if (!ShouldRunGLRenderContextOpOnThisThread(RHICmdList))
+	check(UpdateRegion.Width  % FormatInfo.BlockSizeX == 0);
+	check(UpdateRegion.Height % FormatInfo.BlockSizeY == 0);
+	check(UpdateRegion.DestX  % FormatInfo.BlockSizeX == 0);
+	check(UpdateRegion.DestY  % FormatInfo.BlockSizeY == 0);
+	check(UpdateRegion.SrcX   % FormatInfo.BlockSizeX == 0);
+	check(UpdateRegion.SrcY   % FormatInfo.BlockSizeY == 0);
+
+	const uint32 SrcXInBlocks   = FMath::DivideAndRoundUp<uint32>(UpdateRegion.SrcX,   FormatInfo.BlockSizeX);
+	const uint32 SrcYInBlocks   = FMath::DivideAndRoundUp<uint32>(UpdateRegion.SrcY,   FormatInfo.BlockSizeY);
+	const uint32 WidthInBlocks  = FMath::DivideAndRoundUp<uint32>(UpdateRegion.Width,  FormatInfo.BlockSizeX);
+	const uint32 HeightInBlocks = FMath::DivideAndRoundUp<uint32>(UpdateRegion.Height, FormatInfo.BlockSizeY);
+
+	const void* UpdateMemory = SourceData + FormatInfo.BlockBytes * SrcXInBlocks + SourcePitch * SrcYInBlocks * FormatInfo.BlockSizeY;
+	uint32 UpdatePitch = SourcePitch;
+
+	const bool bNeedStagingMemory = !ShouldRunGLRenderContextOpOnThisThread(RHICmdList);
+	if (bNeedStagingMemory)
 	{
-		const FPixelFormatInfo& FormatInfo = GPixelFormats[TextureRHI->GetFormat()];
-		const size_t UpdateHeightInTiles = FMath::DivideAndRoundUp(UpdateRegion.Height, (uint32)FormatInfo.BlockSizeY);
-		const size_t DataSize = static_cast<size_t>(SourcePitch) * UpdateHeightInTiles;
-		RHITSourceData = (uint8*)FMemory::Malloc(DataSize, 16);
-		FMemory::Memcpy(RHITSourceData, SourceDataIn, DataSize);
+		const size_t SourceDataSizeInBlocks = static_cast<size_t>(WidthInBlocks) * static_cast<size_t>(HeightInBlocks);
+		const size_t SourceDataSize = SourceDataSizeInBlocks * FormatInfo.BlockBytes;
+
+		uint8* const StagingMemory = (uint8*)FMemory::Malloc(SourceDataSize);
+		const size_t StagingPitch = static_cast<size_t>(WidthInBlocks) * FormatInfo.BlockBytes;
+
+		const uint8* CopySrc = (const uint8*)UpdateMemory;
+		uint8* CopyDst = (uint8*)StagingMemory;
+		for (uint32 BlockRow = 0; BlockRow < HeightInBlocks; BlockRow++)
+		{
+			FMemory::Memcpy(CopyDst, CopySrc, WidthInBlocks * FormatInfo.BlockBytes);
+			CopySrc += SourcePitch;
+			CopyDst += StagingPitch;
+		}
+
+		UpdateMemory = StagingMemory;
+		UpdatePitch = StagingPitch;
 	}
-	const uint8* SourceData = RHITSourceData ? RHITSourceData : SourceDataIn;
-	RHICmdList.EnqueueLambda([this, TextureRHI, MipIndex, UpdateRegion, SourcePitch, SourceData, RHITSourceData](FRHICommandListBase&)
+
+	RHICmdList.EnqueueLambda([this, TextureRHI, MipIndex, UpdateRegion, UpdatePitch, UpdateMemory, bNeedStagingMemory](FRHICommandListBase&)
 	{
 		VERIFY_GL_SCOPE();
 
 		FOpenGLTexture* Texture = ResourceCast(TextureRHI);
+		const EPixelFormat PixelFormat = TextureRHI->GetFormat();
+
+		const FPixelFormatInfo& FormatInfo = GPixelFormats[PixelFormat];
+		const FOpenGLTextureFormat& GLFormat = GOpenGLTextureFormats[PixelFormat];
 
 		// Use a texture stage that's not likely to be used for draws, to avoid waiting
 		FOpenGLContextState& ContextState = GetContextStateForCurrentContext();
 		CachedSetupTextureStage(ContextState, FOpenGL::GetMaxCombinedTextureImageUnits() - 1, Texture->Target, Texture->GetResource(), 0, Texture->GetNumMips());
 		CachedBindPixelUnpackBuffer(ContextState, 0);
 
-		EPixelFormat PixelFormat = Texture->GetFormat();
-		check(GPixelFormats[PixelFormat].BlockSizeX == 1);
-		check(GPixelFormats[PixelFormat].BlockSizeY == 1);
-		const FOpenGLTextureFormat& GLFormat = GOpenGLTextureFormats[PixelFormat];
-		const uint32 FormatBPP = GPixelFormats[PixelFormat].BlockBytes;
-		checkf(!GLFormat.bCompressed, TEXT("RHIUpdateTexture2D not currently supported for compressed (%s) textures by the OpenGL RHI"), GPixelFormats[PixelFormat].Name);
-
-		glPixelStorei(GL_UNPACK_ROW_LENGTH, SourcePitch / FormatBPP);
-
+		glPixelStorei(GL_UNPACK_ROW_LENGTH, UpdatePitch / FormatInfo.BlockBytes);
 		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-		glTexSubImage2D(Texture->Target, MipIndex, UpdateRegion.DestX, UpdateRegion.DestY, UpdateRegion.Width, UpdateRegion.Height,
-			GLFormat.Format, GLFormat.Type, SourceData);
-		glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 
+		if (GLFormat.bCompressed)
+		{
+			glCompressedTexSubImage2D(
+				Texture->Target,
+				MipIndex,
+				UpdateRegion.DestX, UpdateRegion.DestY,
+				UpdateRegion.Width, UpdateRegion.Height,
+				GLFormat.Format,
+				UpdatePitch * FMath::DivideAndRoundUp<uint32>(UpdateRegion.Height, FormatInfo.BlockSizeY),
+				UpdateMemory);
+		}
+		else
+		{
+			glTexSubImage2D(
+				Texture->Target,
+				MipIndex,
+				UpdateRegion.DestX, UpdateRegion.DestY,
+				UpdateRegion.Width, UpdateRegion.Height,
+				GLFormat.Format,
+				GLFormat.Type,
+				UpdateMemory);
+		}
+
+		glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 
 		// No need to restore texture stage; leave it like this,
@@ -1627,9 +1671,9 @@ void FOpenGLDynamicRHI::RHIUpdateTexture2D(FRHICommandListBase& RHICmdList, FRHI
 		// next operation that needs the stage will switch something else in on it.
 
 		// free source data if we're on RHIT
-		if (RHITSourceData)
+		if (bNeedStagingMemory)
 		{
-			FMemory::Free(RHITSourceData);
+			FMemory::Free(const_cast<void*>(UpdateMemory));
 		}
 	});
 }

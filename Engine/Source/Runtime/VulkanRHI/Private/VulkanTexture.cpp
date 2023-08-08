@@ -1270,59 +1270,52 @@ void FVulkanDynamicRHI::RHIUnlockTexture2DArray(FRHITexture2DArray* TextureRHI, 
 	}
 }
 
-void FVulkanDynamicRHI::InternalUpdateTexture2D(FRHICommandListBase& RHICmdList, FRHITexture2D* TextureRHI, uint32 MipIndex, const struct FUpdateTextureRegion2D& UpdateRegion, uint32 SourceRowPitch, const uint8* SourceData)
+void FVulkanDynamicRHI::InternalUpdateTexture2D(FRHICommandListBase& RHICmdList, FRHITexture2D* TextureRHI, uint32 MipIndex, const FUpdateTextureRegion2D& UpdateRegion, uint32 SourcePitch, const uint8* SourceData)
 {
 	LLM_SCOPE_VULKAN(ELLMTagVulkan::VulkanTextures);
-	FVulkanTexture* Texture = ResourceCast(TextureRHI);
 
-	const EPixelFormat PixelFormat = Texture->GetDesc().Format;
-	const int32 BlockSizeX = GPixelFormats[PixelFormat].BlockSizeX;
-	const int32 BlockSizeY = GPixelFormats[PixelFormat].BlockSizeY;
-	const int32 BlockSizeZ = GPixelFormats[PixelFormat].BlockSizeZ;
-	const int32 BlockBytes = GPixelFormats[PixelFormat].BlockBytes;
-	VkFormat Format = UEToVkTextureFormat(PixelFormat, false);
+	const FPixelFormatInfo& FormatInfo = GPixelFormats[TextureRHI->GetFormat()];
 
-	ensure(BlockSizeZ == 1);
+	check(UpdateRegion.Width  % FormatInfo.BlockSizeX == 0);
+	check(UpdateRegion.Height % FormatInfo.BlockSizeY == 0);
+	check(UpdateRegion.DestX  % FormatInfo.BlockSizeX == 0);
+	check(UpdateRegion.DestY  % FormatInfo.BlockSizeY == 0);
+	check(UpdateRegion.SrcX   % FormatInfo.BlockSizeX == 0);
+	check(UpdateRegion.SrcY   % FormatInfo.BlockSizeY == 0);
+
+	const uint32 SrcXInBlocks   = FMath::DivideAndRoundUp<uint32>(UpdateRegion.SrcX,   FormatInfo.BlockSizeX);
+	const uint32 SrcYInBlocks   = FMath::DivideAndRoundUp<uint32>(UpdateRegion.SrcY,   FormatInfo.BlockSizeY);
+	const uint32 WidthInBlocks  = FMath::DivideAndRoundUp<uint32>(UpdateRegion.Width,  FormatInfo.BlockSizeX);
+	const uint32 HeightInBlocks = FMath::DivideAndRoundUp<uint32>(UpdateRegion.Height, FormatInfo.BlockSizeY);
 
 	const VkPhysicalDeviceLimits& Limits = Device->GetLimits();
 
-	VkBufferImageCopy Region;
-	FMemory::Memzero(Region);
-	VulkanRHI::FStagingBuffer* StagingBuffer = nullptr;
-	const uint32 NumBlocksX = (uint32)FMath::DivideAndRoundUp<int32>(UpdateRegion.Width, (uint32)BlockSizeX);
-	const uint32 NumBlocksY = (uint32)FMath::DivideAndRoundUp<int32>(UpdateRegion.Height, (uint32)BlockSizeY);
-	ensure(NumBlocksX * BlockBytes <= SourceRowPitch);
+	const size_t StagingPitch = static_cast<size_t>(WidthInBlocks) * FormatInfo.BlockBytes;
+	const size_t StagingBufferSize = Align(StagingPitch * HeightInBlocks, Limits.minMemoryMapAlignment);
 
-	const uint32 DestRowPitch = NumBlocksX * BlockBytes;
-	const uint32 DestSlicePitch = DestRowPitch * NumBlocksY;
+	VulkanRHI::FStagingBuffer* StagingBuffer = Device->GetStagingManager().AcquireBuffer(StagingBufferSize);
+	void* RESTRICT StagingMemory = StagingBuffer->GetMappedPointer();
 
-	const uint32 BufferSize = Align(DestSlicePitch, Limits.minMemoryMapAlignment);
-	StagingBuffer = Device->GetStagingManager().AcquireBuffer(BufferSize);
-	void* RESTRICT Memory = StagingBuffer->GetMappedPointer();
-
-	uint8* RESTRICT DestData = (uint8*)Memory;
-	uint8* RESTRICT SourceRowData = (uint8*)SourceData;
-	for (uint32 Height = 0; Height < NumBlocksY; ++Height)
+	const uint8* CopySrc = SourceData + FormatInfo.BlockBytes * SrcXInBlocks + SourcePitch * SrcYInBlocks * FormatInfo.BlockSizeY;
+	uint8* CopyDst = (uint8*)StagingMemory;
+	for (uint32 BlockRow = 0; BlockRow < HeightInBlocks; BlockRow++)
 	{
-		FMemory::Memcpy(DestData, SourceRowData, NumBlocksX * BlockBytes);
-		DestData += DestRowPitch;
-		SourceRowData += SourceRowPitch;
+		FMemory::Memcpy(CopyDst, CopySrc, WidthInBlocks * FormatInfo.BlockBytes);
+		CopySrc += SourcePitch;
+		CopyDst += StagingPitch;
 	}
 
-	//Region.bufferOffset = 0;
-	// Set these to zero to assume tightly packed buffer
-	//Region.bufferRowLength = 0;
-	//Region.bufferImageHeight = 0;
+	VkBufferImageCopy Region{};
 	Region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	Region.imageSubresource.mipLevel = MipIndex;
-	//Region.imageSubresource.baseArrayLayer = 0;
 	Region.imageSubresource.layerCount = 1;
 	Region.imageOffset.x = UpdateRegion.DestX;
 	Region.imageOffset.y = UpdateRegion.DestY;
-	//Region.imageOffset.z = 0;
 	Region.imageExtent.width = UpdateRegion.Width;
 	Region.imageExtent.height = UpdateRegion.Height;
 	Region.imageExtent.depth = 1;
+
+	FVulkanTexture* Texture = ResourceCast(TextureRHI);
 
 	if (RHICmdList.IsBottomOfPipe())
 	{

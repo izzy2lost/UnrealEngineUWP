@@ -647,18 +647,22 @@ public:
 				}
 			}
 
-#if 0 // @todo enable when we want to support source offsets
-			// Test source offsets
-			for (uint32 SrcRow = 0; SrcRow < 3; SrcRow++)
+			// @todo enable for all types when they support source offsets
+			if (UpdateType == ETextureUpdateType::Texture2D)
 			{
-				Region.SrcY = AxisSlotToCoord(SrcRow, SrcDataHeight, UpdateHeight);
-				for (uint32 SrcColumn = 0; SrcColumn < 3; SrcColumn++)
+				Region = FUpdateTextureRegion2D(0, 0, 0, 0, UpdateWidth, UpdateHeight);
+
+				// Test source offsets
+				for (uint32 SrcRow = 0; SrcRow < 3; SrcRow++)
 				{
-					Region.SrcX = AxisSlotToCoord(SrcColumn, SrcDataWidth, UpdateWidth);
-					bResult &= Test_UpdateTexture_Impl<SourceType>(RHICmdList, TestName, Texture, Region, SrcDataSize, UpdateDataPitch, UpdateData, ZeroData, UpdateType);
+					Region.SrcY = AxisSlotToCoord(SrcRow, SrcDataHeight, UpdateHeight);
+					for (uint32 SrcColumn = 0; SrcColumn < 3; SrcColumn++)
+					{
+						Region.SrcX = AxisSlotToCoord(SrcColumn, SrcDataWidth, UpdateWidth);
+						bResult &= Test_UpdateTexture_Impl<SourceType>(RHICmdList, TestName, Texture, Region, SrcDataSize, UpdateDataPitch, UpdateData, ZeroData, UpdateType);
+					}
 				}
 			}
-#endif
 		}
 
 		return bResult;

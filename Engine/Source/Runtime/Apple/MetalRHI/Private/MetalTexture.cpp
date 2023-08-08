@@ -1566,42 +1566,59 @@ static void InternalExpandR8ToStandardRGBA(uint32* pDest, const struct FUpdateTe
 
 static FMetalBuffer Internal_CreateBufferAndCopyTexture2DUpdateRegionData(FRHITexture2D* TextureRHI, const struct FUpdateTextureRegion2D& UpdateRegion, uint32& InOutSourcePitch, const uint8* SourceData)
 {
+	const EPixelFormat PixelFormat = TextureRHI->GetFormat();
+	const FPixelFormatInfo& FormatInfo = GPixelFormats[PixelFormat];
+
+	check(UpdateRegion.Width  % FormatInfo.BlockSizeX == 0);
+	check(UpdateRegion.Height % FormatInfo.BlockSizeY == 0);
+	check(UpdateRegion.DestX  % FormatInfo.BlockSizeX == 0);
+	check(UpdateRegion.DestY  % FormatInfo.BlockSizeY == 0);
+	check(UpdateRegion.SrcX   % FormatInfo.BlockSizeX == 0);
+	check(UpdateRegion.SrcY   % FormatInfo.BlockSizeY == 0);
+
+	const uint32 SrcXInBlocks   = FMath::DivideAndRoundUp<uint32>(UpdateRegion.SrcX,   FormatInfo.BlockSizeX);
+	const uint32 SrcYInBlocks   = FMath::DivideAndRoundUp<uint32>(UpdateRegion.SrcY,   FormatInfo.BlockSizeY);
+	const uint32 WidthInBlocks  = FMath::DivideAndRoundUp<uint32>(UpdateRegion.Width,  FormatInfo.BlockSizeX);
+	const uint32 HeightInBlocks = FMath::DivideAndRoundUp<uint32>(UpdateRegion.Height, FormatInfo.BlockSizeY);
+
+	const uint8* OffsetSourceData = SourceData + FormatInfo.BlockBytes * SrcXInBlocks + InOutSourcePitch * SrcYInBlocks * FormatInfo.BlockSizeY;
+	uint32 UpdatePitch = InOutSourcePitch;
+
 	FMetalBuffer OutBuffer;
 
 	FMetalSurface* Texture = ResourceCast(TextureRHI);
 
 #if PLATFORM_MAC
 	// Expand R8_sRGB into RGBA8_sRGB for non Apple Silicon Mac.
-	if (   Texture->GetFormat() == PF_G8
+	if (   PixelFormat == PF_G8
 		&& EnumHasAnyFlags(Texture->GetFlags(), TexCreate_SRGB)
 		&& Texture->Texture.GetPixelFormat() == mtlpp::PixelFormat::RGBA8Unorm_sRGB)
 	{
 		const uint32 ExpandedBufferSize = UpdateRegion.Height * UpdateRegion.Width * sizeof(uint32);
 		OutBuffer = GetMetalDeviceContext().CreatePooledBuffer(FMetalPooledBufferArgs(GetMetalDeviceContext().GetDevice(), ExpandedBufferSize, BUF_Static, mtlpp::StorageMode::Shared));
-		InternalExpandR8ToStandardRGBA((uint32*)OutBuffer.GetContents(), UpdateRegion, InOutSourcePitch, SourceData);
+		InternalExpandR8ToStandardRGBA((uint32*)OutBuffer.GetContents(), UpdateRegion, InOutSourcePitch, OffsetSourceData);
 	}
 	else
 #endif
 	{
-		const FPixelFormatInfo& FormatInfo = GPixelFormats[TextureRHI->GetFormat()];
-		
+		const uint32 SourcePitch = InOutSourcePitch;
+		const uint32 StagingPitch = static_cast<size_t>(WidthInBlocks) * FormatInfo.BlockBytes;
+
 		const uint32 BufferSize = UpdateRegion.Height * InOutSourcePitch;
 		OutBuffer = GetMetalDeviceContext().CreatePooledBuffer(FMetalPooledBufferArgs(GetMetalDeviceContext().GetDevice(), BufferSize, BUF_Static, mtlpp::StorageMode::Shared));
 
-		uint32 CopyPitch = FMath::DivideAndRoundUp(UpdateRegion.Width, (uint32)FormatInfo.BlockSizeX) * FormatInfo.BlockBytes;
-		check(CopyPitch <= InOutSourcePitch);
-		
 		uint8* pDestRow = (uint8*)OutBuffer.GetContents();
-		uint8* pSourceRow = (uint8*)SourceData;
-		const uint32 NumRows = FMath::DivideAndRoundUp(UpdateRegion.Height, (uint32)FormatInfo.BlockSizeY);
+		const uint8* pSourceRow = OffsetSourceData;
 		
 		// Limit copy to line by line by update region pitch otherwise we can go off the end of source data on the last row
-		for (uint32 i = 0;i < NumRows;++i)
+		for (uint32 BlockRow = 0; BlockRow < HeightInBlocks; BlockRow++)
 		{
-			FMemory::Memcpy(pDestRow, pSourceRow, CopyPitch);
-			pSourceRow += InOutSourcePitch;
-			pDestRow += InOutSourcePitch;
+			FMemory::Memcpy(pDestRow, pSourceRow, StagingPitch);
+			pSourceRow += SourcePitch;
+			pDestRow += StagingPitch;
 		}
+
+		InOutSourcePitch = StagingPitch;
 	}
 
 	return OutBuffer;

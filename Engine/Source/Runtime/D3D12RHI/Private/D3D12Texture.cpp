@@ -2091,46 +2091,50 @@ void FD3D12Texture::UnlockInternal(class FRHICommandListImmediate* RHICmdList, F
 
 void FD3D12Texture::UpdateTexture2D(FRHICommandListBase& RHICmdList, uint32 MipIndex, const FUpdateTextureRegion2D& UpdateRegion, uint32 SourcePitch, const uint8* SourceData)
 {
-	const FPixelFormatInfo& FormatInfo = GPixelFormats[this->GetFormat()];
-	check(UpdateRegion.Width  %	FormatInfo.BlockSizeX == 0);
+	const FPixelFormatInfo& FormatInfo = GPixelFormats[GetFormat()];
+
+	check(UpdateRegion.Width  % FormatInfo.BlockSizeX == 0);
 	check(UpdateRegion.Height % FormatInfo.BlockSizeY == 0);
-	check(UpdateRegion.DestX  %	FormatInfo.BlockSizeX == 0);
-	check(UpdateRegion.DestY  %	FormatInfo.BlockSizeY == 0);
-	check(UpdateRegion.SrcX   %	FormatInfo.BlockSizeX == 0);
-	check(UpdateRegion.SrcY   %	FormatInfo.BlockSizeY == 0);
+	check(UpdateRegion.DestX  % FormatInfo.BlockSizeX == 0);
+	check(UpdateRegion.DestY  % FormatInfo.BlockSizeY == 0);
+	check(UpdateRegion.SrcX   % FormatInfo.BlockSizeX == 0);
+	check(UpdateRegion.SrcY   % FormatInfo.BlockSizeY == 0);
 
-	const uint32 WidthInBlocks = UpdateRegion.Width / FormatInfo.BlockSizeX;
-	const uint32 HeightInBlocks = UpdateRegion.Height / FormatInfo.BlockSizeY;
+	const uint32 SrcXInBlocks   = FMath::DivideAndRoundUp<uint32>(UpdateRegion.SrcX,   FormatInfo.BlockSizeX);
+	const uint32 SrcYInBlocks   = FMath::DivideAndRoundUp<uint32>(UpdateRegion.SrcY,   FormatInfo.BlockSizeY);
+	const uint32 WidthInBlocks  = FMath::DivideAndRoundUp<uint32>(UpdateRegion.Width,  FormatInfo.BlockSizeX);
+	const uint32 HeightInBlocks = FMath::DivideAndRoundUp<uint32>(UpdateRegion.Height, FormatInfo.BlockSizeY);
 
-	const uint32 AlignedSourcePitch = Align(SourcePitch, FD3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
-	const uint32 bufferSize = Align(HeightInBlocks*AlignedSourcePitch, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
+	// D3D12 requires specific alignments for pitch and size since we have to do the updates via buffers
+	const size_t StagingPitch = Align(static_cast<size_t>(WidthInBlocks) * FormatInfo.BlockBytes, FD3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
+	const size_t StagingBufferSize = Align(StagingPitch * HeightInBlocks, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
 
 	for (FD3D12Texture& Texture : *this)
 	{
-		FD3D12ResourceLocation UploadHeapResourceLocation(GetParentDevice());
-		void* pData = GetParentDevice()->GetDefaultFastAllocator().Allocate(bufferSize, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT, &UploadHeapResourceLocation);
-		check(nullptr != pData);
+		FD3D12Device* Device = Texture.GetParentDevice();
 
-		byte* pRowData = (byte*)pData;
-		const byte* pSourceRowData = (byte*)SourceData;
-		const uint32 CopyPitch = WidthInBlocks * FormatInfo.BlockBytes;
-		check(CopyPitch <= SourcePitch);
-		for (uint32 i = 0; i < HeightInBlocks; i++)
+		FD3D12ResourceLocation UploadHeapResourceLocation(Device);
+		void* const StagingMemory = Device->GetDefaultFastAllocator().Allocate(StagingBufferSize, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT, &UploadHeapResourceLocation);
+		check(StagingMemory);
+
+		const uint8* CopySrc = SourceData + FormatInfo.BlockBytes * SrcXInBlocks + SourcePitch * SrcYInBlocks * FormatInfo.BlockSizeY;
+		uint8* CopyDst = (uint8*)StagingMemory;
+		for (uint32 BlockRow = 0; BlockRow < HeightInBlocks; BlockRow++)
 		{
-			FMemory::Memcpy(pRowData, pSourceRowData, CopyPitch);
-			pSourceRowData += SourcePitch;
-			pRowData += AlignedSourcePitch;
+			FMemory::Memcpy(CopyDst, CopySrc, WidthInBlocks * FormatInfo.BlockBytes);
+			CopySrc += SourcePitch;
+			CopyDst += StagingPitch;
 		}
 
-		D3D12_SUBRESOURCE_FOOTPRINT SourceSubresource;
+		D3D12_SUBRESOURCE_FOOTPRINT SourceSubresource{};
 		SourceSubresource.Depth = 1;
 		SourceSubresource.Height = UpdateRegion.Height;
 		SourceSubresource.Width = UpdateRegion.Width;
 		SourceSubresource.Format = (DXGI_FORMAT)FormatInfo.PlatformFormat;
-		SourceSubresource.RowPitch = AlignedSourcePitch;
+		SourceSubresource.RowPitch = StagingPitch;
 		check(SourceSubresource.RowPitch % FD3D12_TEXTURE_DATA_PITCH_ALIGNMENT == 0);
 
-		D3D12_PLACED_SUBRESOURCE_FOOTPRINT PlacedTexture2D = { 0 };
+		D3D12_PLACED_SUBRESOURCE_FOOTPRINT PlacedTexture2D{};
 		PlacedTexture2D.Offset = UploadHeapResourceLocation.GetOffsetFromBaseOfResource();
 		PlacedTexture2D.Footprint = SourceSubresource;
 
