@@ -529,6 +529,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Damage", meta = (EditCondition = "DamageModel == EDamageModelTypeEnum::Chaos_Damage_Model_UserDefined_Damage_Threshold"))
 	bool bUseSizeSpecificDamageThreshold;
 
+	/** When on , use the modifiers on the material to adjust the user defined damage threshold values */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Damage", meta = (EditCondition = "DamageModel == EDamageModelTypeEnum::Chaos_Damage_Model_UserDefined_Damage_Threshold"))
+	bool bUseMaterialDamageModifiers;
+
 	/** compatibility check, when true, only cluster compute damage from parameters and propagate to direct children
 	 *  when false, each child will compute it's damage threshold allowing for more precise and intuitive destruction behavior
 	 */

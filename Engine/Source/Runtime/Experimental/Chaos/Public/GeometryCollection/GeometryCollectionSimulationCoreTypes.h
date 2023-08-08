@@ -181,6 +181,7 @@ struct FSimulationParameters
 		, MaxClusterLevel(100)
 		, MaxSimulatedLevel(100)
 		, bUseSizeSpecificDamageThresholds(false)
+		, bUseMaterialDamageModifiers(false)
 		, DamageModel(EDamageModelTypeEnum::Chaos_Damage_Model_UserDefined_Damage_Threshold)
 		, DamageEvaluationModel(Chaos::EDamageEvaluationModel::StrainFromDamageThreshold)
 		, DamageThreshold({500000.f, 50000.f, 5000.f})
@@ -237,6 +238,7 @@ struct FSimulationParameters
 		, MaxClusterLevel(Other.MaxClusterLevel)
 		, MaxSimulatedLevel(Other.MaxSimulatedLevel)
 		, bUseSizeSpecificDamageThresholds(Other.bUseSizeSpecificDamageThresholds)
+		, bUseMaterialDamageModifiers(Other.bUseMaterialDamageModifiers)
 		, DamageModel(Other.DamageModel)
 		, DamageEvaluationModel(Other.DamageEvaluationModel)
 		, DamageThreshold(Other.DamageThreshold)
@@ -310,6 +312,7 @@ struct FSimulationParameters
 	int32 MaxClusterLevel;
 	int32 MaxSimulatedLevel;
 	bool bUseSizeSpecificDamageThresholds;
+	bool bUseMaterialDamageModifiers;
 
 	/** this is the user expose damage model, used for creation of the particles */
 	EDamageModelTypeEnum DamageModel; 

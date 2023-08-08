@@ -33,24 +33,43 @@ struct FPhysicalMaterialStrength
 	* Tensile strength of the material in MegaPascal ( 10^6 N/m2 )
 	* This amount of tension force per area the material can withstand before it fractures
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "PhysicalMaterial", meta = (ClampMin = 0, ForceUnits = "MPa"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "PhysicalMaterial|Strength", meta = (ClampMin = 0, ForceUnits = "MPa"))
 	float TensileStrength;
 
 	/**
 	* Compression strength of the material in MegaPascal ( 10^6 N/m2 )
 	* This amount of compression force per area the material can withstand before it fractures, crumbles or buckles
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "PhysicalMaterial", meta = (ClampMin = 0, ForceUnits = "MPa"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "PhysicalMaterial|Strength", meta = (ClampMin = 0, ForceUnits = "MPa"))
 	float CompressionStrength;
 
 	/**
 	* Shear strength of the material in MegaPascal ( 10^6 N/m2 )
 	* This amount of shear force per area the material can withstand before it fractures
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "PhysicalMaterial", meta = (ClampMin = 0, ForceUnits = "MPa"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "PhysicalMaterial|Strength", meta = (ClampMin = 0, ForceUnits = "MPa"))
 	float ShearStrength;
 };
 
+
+/**
+ * Damage threshold modifiers, used by the Chaos destruction system
+ */
+USTRUCT(BlueprintType)
+struct FPhysicalMaterialDamageModifier
+{
+	GENERATED_USTRUCT_BODY()
+
+	FPhysicalMaterialDamageModifier();
+
+	/**
+	* Multiplier for the geometry collection damage thresholds/ internal strain
+	* this allows for setting up unit damage threshold and use the material to scale them to the desired range of values
+	* Note that the geometry collection asset needs to opt-in for the material modifer to be able to use it 
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "PhysicalMaterial|DamageModifier", meta = (ClampMin = 0))
+	float DamageThresholdMultiplier;
+};
 
 /**
  * Physical materials are used to define the response of a physical object when interacting dynamically with the world.
@@ -138,6 +157,9 @@ class UPhysicalMaterial : public UObject
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = PhysicalProperties)
 	FPhysicalMaterialStrength Strength;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = PhysicalProperties)
+	FPhysicalMaterialDamageModifier DamageModifier;
 
 public:
 

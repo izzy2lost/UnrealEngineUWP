@@ -63,6 +63,15 @@ namespace Chaos
 		float ShearStrength;
 	};
 
+	struct FChaosPhysicsMaterialDamageModifier
+	{
+		/** 
+		* multiplier for the geometry collection damage thresholds/ internal strain 
+		* this allows for setting up unit damage threshold and use the material to scale them to the desired range of values
+		*/
+		float DamageThresholdMultiplier = 1.0f;
+	};
+
 	class FChaosPhysicsMaterial
 	{
 	public:
@@ -95,6 +104,7 @@ namespace Chaos
 		ECombineMode RestitutionCombineMode;
 
 		FChaosPhysicsMaterialStrength Strength;
+		FChaosPhysicsMaterialDamageModifier DamageModifier;
 
 
 		FChaosPhysicsMaterial()

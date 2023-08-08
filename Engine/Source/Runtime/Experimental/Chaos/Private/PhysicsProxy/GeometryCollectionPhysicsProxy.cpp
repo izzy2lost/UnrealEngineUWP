@@ -1534,6 +1534,14 @@ float FGeometryCollectionPhysicsProxy::ComputeUserDefinedDamageThreshold_Interna
 			const float DefaultDamage = NumThresholds > 0 ? Parameters.DamageThreshold[NumThresholds - 1] : 0.f;
 			DamageThreshold = Level < NumThresholds ? Parameters.DamageThreshold[Level] : DefaultDamage;
 		}
+
+		if (Parameters.bUseMaterialDamageModifiers)
+		{
+			if (const Chaos::FChaosPhysicsMaterial* Material = Parameters.PhysicalMaterialHandle.Get())
+			{
+				DamageThreshold *= Material->DamageModifier.DamageThresholdMultiplier;
+			}
+		}
 	}
 
 	return DamageThreshold;

@@ -242,6 +242,7 @@ void FChaosEngineInterface::UpdateMaterial(FPhysicsMaterialHandle& InHandle,UPhy
 		Material->Strength.TensileStrength = Chaos::MegaPascalToKgPerCmS2(InMaterial->Strength.TensileStrength);
 		Material->Strength.CompressionStrength = Chaos::MegaPascalToKgPerCmS2(InMaterial->Strength.CompressionStrength);
 		Material->Strength.ShearStrength = Chaos::MegaPascalToKgPerCmS2(InMaterial->Strength.ShearStrength);
+		Material->DamageModifier.DamageThresholdMultiplier = InMaterial->DamageModifier.DamageThresholdMultiplier;
 	}
 
 	Chaos::FPhysicalMaterialManager::Get().UpdateMaterial(InHandle);

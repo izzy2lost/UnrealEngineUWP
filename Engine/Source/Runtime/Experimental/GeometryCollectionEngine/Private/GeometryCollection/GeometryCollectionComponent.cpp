@@ -3062,6 +3062,7 @@ void UGeometryCollectionComponent::RegisterAndInitializePhysicsProxy()
 #endif
 		EClusterConnectionTypeEnum ClusterCollectionType = ClusterConnectionType_DEPRECATED;
 		float ConnectionGraphBoundsFilteringMargin = 0;
+		bool bUseMaterialDamageModifiers = false;
 		if (RestCollection)
 		{
 			RestCollection->GetSharedSimulationParams(SimulationParameters.Shared);
@@ -3069,6 +3070,7 @@ void UGeometryCollectionComponent::RegisterAndInitializePhysicsProxy()
 			SimulationParameters.InitialRootIndex = RestCollection->GetRootIndex();
 			ClusterCollectionType = RestCollection->ClusterConnectionType;
 			ConnectionGraphBoundsFilteringMargin = RestCollection->ConnectionGraphBoundsFilteringMargin;
+			bUseMaterialDamageModifiers = RestCollection->bUseMaterialDamageModifiers;
 		}
 		SimulationParameters.Simulating = BodyInstance.bSimulatePhysics;
 		SimulationParameters.EnableClustering = EnableClustering;
@@ -3078,6 +3080,7 @@ void UGeometryCollectionComponent::RegisterAndInitializePhysicsProxy()
 		SimulationParameters.DamageModel = DamageModel;
 		SimulationParameters.DamageEvaluationModel = GetDamageEvaluationModel(DamageModel);
 		SimulationParameters.bUseSizeSpecificDamageThresholds = bUseSizeSpecificDamageThreshold;
+		SimulationParameters.bUseMaterialDamageModifiers = bUseMaterialDamageModifiers;
 		SimulationParameters.DamageThreshold = DamageThreshold;
 		SimulationParameters.bUsePerClusterOnlyDamageThreshold = RestCollection? RestCollection->PerClusterOnlyDamageThreshold: false; 
 		SimulationParameters.ClusterConnectionMethod = (Chaos::FClusterCreationParameters::EConnectionMethod)ClusterCollectionType;

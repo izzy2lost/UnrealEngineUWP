@@ -24,6 +24,11 @@ FPhysicalMaterialStrength::FPhysicalMaterialStrength()
 	ShearStrength = 6;
 }
 
+FPhysicalMaterialDamageModifier::FPhysicalMaterialDamageModifier()
+{
+	DamageThresholdMultiplier = 1.0;
+}
+
 UPhysicalMaterial::UPhysicalMaterial(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
