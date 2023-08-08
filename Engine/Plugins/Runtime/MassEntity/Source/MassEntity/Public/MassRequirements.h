@@ -58,8 +58,6 @@ public:
 		, Presence(InPresence)
 	{
 		check(InStruct);
-		checkf((Presence != EMassFragmentPresence::Any && Presence != EMassFragmentPresence::Optional)
-			|| AccessMode == EMassFragmentAccess::ReadOnly || AccessMode == EMassFragmentAccess::ReadWrite, TEXT("Only ReadOnly and ReadWrite modes are suppored for optional requirements"));
 	}
 
 	bool RequiresBinding() const { return (AccessMode != EMassFragmentAccess::None); }
