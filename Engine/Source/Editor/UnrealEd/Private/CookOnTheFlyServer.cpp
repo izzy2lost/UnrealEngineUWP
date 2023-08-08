@@ -9108,19 +9108,29 @@ void UCookOnTheFlyServer::RegisterShaderChunkDataGenerator()
 
 FString UCookOnTheFlyServer::GetProjectShaderLibraryName() const
 {
-	if (!IsCookingDLC())
+	static FString ShaderLibraryName = [this]()
 	{
-		FString Result = FApp::GetProjectName();
-		if (Result.IsEmpty())
+		FString OverrideShaderLibraryName;
+		if (FParse::Value(FCommandLine::Get(), TEXT("OverrideShaderLibraryName="), OverrideShaderLibraryName))
 		{
-			Result = TEXT("UnrealGame");
+			return OverrideShaderLibraryName;
 		}
-		return Result;
-	}
-	else
-	{
-		return CookByTheBookOptions->DlcName;
-	}
+
+		if (!IsCookingDLC())
+		{
+			FString Result = FApp::GetProjectName();
+			if (Result.IsEmpty())
+			{
+				Result = TEXT("UnrealGame");
+			}
+			return Result;
+		}
+		else
+		{
+			return CookByTheBookOptions->DlcName;
+		}
+	}();
+	return ShaderLibraryName;
 }
 
 static FString GenerateShaderCodeLibraryName(FString const& Name, bool bIsIterateSharedBuild)

@@ -327,6 +327,17 @@ struct FShaderLibraryCooker
 		FString const& SandboxMetadataPath);
 
 	/**
+	 * Given multiple Cooked Metadata directories will attempt to merge the ShaderByteCode and the ShaderStableInfo into the given OutputDir.
+	 * It would be expected that the OutputDir is another MetaData directory but this can be any dir.
+	 * Sub directories for ShaderLibrarySource and PipelineCaches will be automatically generated.
+	 * 
+	 * @param CookedMetadataDirs - the cooked metadata directories to merge the shader archives from
+	 * @param OutputDir - where to place the union of the shader archives
+	 * @param OutWrittenFiles - full path to all the files written
+	 */
+	static RENDERCORE_API bool MergeShaderCodeArchive(const TArray<FString>& CookedMetadataDirs, const FString& OutputDir, TArray<FString>& OutWrittenFiles);
+
+	/**
 	 * Saves collected shader code to a single file per shader platform
 	 * When chunking is enabled, this call will not write the shader code, only the SCL.CSV file with the stable shader info.
 	 * 
