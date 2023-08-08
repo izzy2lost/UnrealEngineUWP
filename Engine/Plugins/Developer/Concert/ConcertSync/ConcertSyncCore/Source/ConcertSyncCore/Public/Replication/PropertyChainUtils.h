@@ -12,6 +12,9 @@ struct FArchiveSerializedPropertyChain;
 
 namespace UE::ConcertSyncCore::PropertyChain
 {
+	/** Tries to find the property referenced by the Chain. */
+	CONCERTSYNCCORE_API FProperty* ResolveProperty(const UStruct& Class, const FConcertPropertyChain& ChainToResolve, bool bLogOnFail = true);
+
 	/**
 	 * Iterates all properties that are supported for replication.
 	 * 
@@ -23,8 +26,8 @@ namespace UE::ConcertSyncCore::PropertyChain
 	 * @param OnlyChildrenOf Instead of iterating all properties, you can restrict to only receive the child properties of OnlyChildrenOf.
 	 */
 	CONCERTSYNCCORE_API void ForEachReplicatableProperty(
-		UStruct& Class,
-		TFunctionRef<EBreakBehavior(const FArchiveSerializedPropertyChain& Chain, const FProperty& LeafProperty)> ProcessProperty
+		const UStruct& Class,
+		TFunctionRef<EBreakBehavior(const FArchiveSerializedPropertyChain& Chain, FProperty& LeafProperty)> ProcessProperty
 		);
 
 	/**
@@ -38,7 +41,7 @@ namespace UE::ConcertSyncCore::PropertyChain
 	 * @param OnlyChildrenOf Instead of iterating all properties, you can restrict to only receive the child properties of OnlyChildrenOf.
 	 */
 	CONCERTSYNCCORE_API void ForEachReplicatableConcertProperty(
-		UStruct& Class,
+		const UStruct& Class,
 		TFunctionRef<EBreakBehavior(FConcertPropertyChain&& PropertyChain)> ProcessProperty
 		);
 
@@ -51,9 +54,9 @@ namespace UE::ConcertSyncCore::PropertyChain
 	 * @param MatchesPath Determines whether you are interested in this path. If so, do something with it and return true.
 	 */
 	CONCERTSYNCCORE_API void BulkConstructConcertChainsFromPaths(
-		UStruct& Class,
+		const UStruct& Class,
 		uint32 NumPaths,
-		TFunctionRef<bool(const FArchiveSerializedPropertyChain& Chain, const FProperty& LeafProperty)> MatchesPath
+		TFunctionRef<bool(const FArchiveSerializedPropertyChain& Chain, FProperty& LeafProperty)> MatchesPath
 		);
 
 	/** Util that can be used with BulkConstructConcertChainsFromPaths. Checks whether Path coincides with Chain & LeafProperty.*/

@@ -23,6 +23,7 @@ namespace UE::MultiUserReplicationEditor
 	class FReplicatedObjectData;
 	class IEditableObjectToPropertiesModel;
 	class IObjectToPropertiesModel;
+	class SReplicatedPropertiesView;
 
 	DECLARE_DELEGATE(FOnPropertiesRefreshed);
 	DECLARE_DELEGATE_RetVal_TwoParams(bool, FSortPropertyPredicate, const TSharedPtr<FReplicatedPropertyData>& Left, const TSharedPtr<FReplicatedPropertyData>& Right);
@@ -99,7 +100,7 @@ namespace UE::MultiUserReplicationEditor
 		/** Tree view for replicated objects. */
 		TSharedPtr<SReplicationTreeView<TSharedPtr<FReplicatedObjectData>>> ReplicatedObjects;
 		/** Tree view for replicated properties. Content depends on the current object selected. */
-		TSharedPtr<SReplicationTreeView<TSharedPtr<FReplicatedPropertyData>>> ReplicatedProperties;
+		TSharedPtr<SReplicatedPropertiesView> ReplicatedProperties;
 
 		enum class EReplicatedPropertyContent
 		{

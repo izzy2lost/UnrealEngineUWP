@@ -178,6 +178,13 @@ bool FConcertPropertyChain::MatchesExactly(const FArchiveSerializedPropertyChain
 	return bArePathsEqual && bVisitedEveryProperty;
 }
 
+FProperty* FConcertPropertyChain::ResolveProperty(UStruct& Class, bool bLogOnFail)
+{
+	// FConcertPropertyChain::ResolveProperty exists only for visibility to developers since
+	// the class is the first place one would look and not in the utils namespace.
+	return UE::ConcertSyncCore::PropertyChain::ResolveProperty(Class, *this, bLogOnFail);
+}
+
 FString FConcertPropertyChain::ToString(EToStringMethod Method) const
 {
 	switch (Method)

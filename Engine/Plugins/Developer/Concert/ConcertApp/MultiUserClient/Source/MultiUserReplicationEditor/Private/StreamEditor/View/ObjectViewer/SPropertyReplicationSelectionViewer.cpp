@@ -3,10 +3,11 @@
 #include "SPropertyReplicationSelectionViewer.h"
 
 #include "ConcertFrontendUtils.h"
-#include "StreamEditor/Model/IObjectToPropertiesModel.h"
 #include "ReplicatedObjectData.h"
 #include "ReplicatedPropertyData.h"
 #include "SelectionViewerColumns.h"
+#include "StreamEditor/Model/IObjectToPropertiesModel.h"
+#include "StreamEditor/View/ObjectViewer/Property/SReplicatedPropertiesView.h"
 
 #include "Algo/AllOf.h"
 #include "Algo/ForEach.h"
@@ -230,7 +231,8 @@ namespace UE::MultiUserReplicationEditor
 	{
 		TArray<ReplicationPropertyColumns::FReplicationPropertyColumn> Columns
 		{
-			ReplicationPropertyColumns::LabelColumn()
+			ReplicationPropertyColumns::LabelColumn(),
+			ReplicationPropertyColumns::TypeColumn()
 		};
 		Columns.Append(InArgs._AdditionalPropertyColumns);
 		
@@ -262,7 +264,7 @@ namespace UE::MultiUserReplicationEditor
 					// EReplicatedPropertyContent::Properties
 					+SWidgetSwitcher::Slot()
 					[
-						SAssignNew(ReplicatedProperties, SReplicationTreeView<TSharedPtr<FReplicatedPropertyData>>)
+						SAssignNew(ReplicatedProperties, SReplicatedPropertiesView)
 						.RootItemsSource(&RootPropertyRowData)
 						.OnGetChildren(this, &SPropertyReplicationSelectionViewer::GetPropertyRowChildren)
 						.Columns(Columns)

@@ -56,6 +56,9 @@ struct CONCERTSYNCCORE_API FConcertPropertyChain
 	/** @return Whether OptionalChain and LeafProperty correspond to this path. */
 	bool MatchesExactly(const FArchiveSerializedPropertyChain* OptionalChain, const FProperty& LeafProperty) const;
 
+	/** @return Attempts to resolve this property given the class */
+	FProperty* ResolveProperty(UStruct& Class, bool bLogOnFail = true);
+
 	const TArray<FName>& GetPathToProperty() const { return PathToProperty; }
 
 	enum class EToStringMethod

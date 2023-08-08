@@ -19,7 +19,7 @@ namespace UE::MultiUserReplicationEditor
 {
 	/**
 	 * Shared code for the list view for replicated actors and properties.
-	 * It is a table view that is searchable with a search box.
+	 * It is a table view that is searchable with a search box and exposes slots to add more filter widgets, such as SBasicFilterBar.
 	 */
 	template<typename TItemType>
 	class SReplicationTreeView : public SCompoundWidget
@@ -29,6 +29,7 @@ namespace UE::MultiUserReplicationEditor
 		DECLARE_DELEGATE_OneParam(FDeleteItems, const TArray<TItemType>& SelectedItems);
 		DECLARE_DELEGATE_TwoParams(FGetItemChildren, TItemType Item, TFunctionRef<void(TItemType)> ProcessChild);
 		DECLARE_DELEGATE(FOnSelectionChanged);
+		DECLARE_DELEGATE_RetVal_OneParam(bool, FCustomFilter, const TItemType& Item);
 
 		SLATE_BEGIN_ARGS(SReplicationTreeView<TItemType>)
 			: _SelectionMode(ESelectionMode::Single)
@@ -47,6 +48,9 @@ namespace UE::MultiUserReplicationEditor
 
 			/** Called when the selection changes. Call GetSelectedItems to get the selected items. */
 			SLATE_EVENT(FOnSelectionChanged, OnSelectionChanged)
+
+			/** Optional callback to do even more filtering of items. */
+			SLATE_EVENT(FCustomFilter, FilterItem)
 			
 			/** The columns this list should have */
 			SLATE_ARGUMENT(TArray<TReplicationColumn<TItemType>>, Columns)
@@ -58,6 +62,8 @@ namespace UE::MultiUserReplicationEditor
 
 			/** Optional widget to add to the left of the search bar. */
 			SLATE_NAMED_SLOT(FArguments, LeftOfSearchBar)
+			/** Optional widget to add between the search bar and the table view (e.g. a SBasicFilterBar). */
+			SLATE_NAMED_SLOT(FArguments, RowBelowSearchBar)
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs)
@@ -67,6 +73,7 @@ namespace UE::MultiUserReplicationEditor
 
 			OnGetChildrenDelegate = InArgs._OnGetChildren;
 			OnDeleteItemsDelegate = InArgs._OnDeleteItems;
+			CustomFilterDelegate = InArgs._FilterItem;
 			ExpandableColumnId = InArgs._ExpandableColumnLabel;
 			
 			SearchText = MakeShared<FText>();
@@ -101,6 +108,14 @@ namespace UE::MultiUserReplicationEditor
 						.OnTextCommitted(this, &SReplicationTreeView::OnSearchTextCommitted)
 						.DelayChangeNotificationsWhileTyping(true)
 					]
+				]
+
+				// Optional slot between search bar and table, e.g. for an external SBasicFilterBar
+				+SVerticalBox::Slot()
+				.Padding(1.f)
+				.AutoHeight()
+				[
+					InArgs._RowBelowSearchBar.Widget
 				]
 
 				// Table row
@@ -163,6 +178,8 @@ namespace UE::MultiUserReplicationEditor
 		FGetItemChildren OnGetChildrenDelegate;
 		/** Optional delegate for responding to pressing the delete button */
 		FDeleteItems OnDeleteItemsDelegate;
+		/** Optional delegate for filtering the items even more. */
+		FCustomFilter CustomFilterDelegate;
 		
 
 		TSharedRef<SWidget> CreateTreeView(const FArguments& InArgs);
@@ -329,7 +346,8 @@ namespace UE::MultiUserReplicationEditor
 	template <typename TItemType>
 	bool SReplicationTreeView<TItemType>::PassesFilters(const TItemType& Item)
 	{
-		return SearchTextFilter->PassesFilter(Item);
+		return SearchTextFilter->PassesFilter(Item)
+			&& (!CustomFilterDelegate.IsBound() || CustomFilterDelegate.Execute(Item));
 	}
 }
 

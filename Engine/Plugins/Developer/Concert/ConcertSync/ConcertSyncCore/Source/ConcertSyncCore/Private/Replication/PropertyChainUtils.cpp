@@ -2,6 +2,7 @@
 
 #include "Replication/PropertyChainUtils.h"
 
+#include "ConcertLogGlobal.h"
 #include "Misc/ScopeExit.h"
 #include "Serialization/ArchiveSerializedPropertyChain.h"
 #include "UObject/UnrealType.h"
@@ -10,12 +11,12 @@ namespace UE::ConcertSyncCore::PropertyChain
 {
 	namespace Private
 	{
-		EBreakBehavior VisitPropertyRecursive(FArchiveSerializedPropertyChain& Chain, FProperty& Property, TFunctionRef<EBreakBehavior(const FArchiveSerializedPropertyChain& Chain, const FProperty&LeafProperty)> ProcessProperty);
+		EBreakBehavior VisitPropertyRecursive(FArchiveSerializedPropertyChain& Chain, FProperty& Property, TFunctionRef<EBreakBehavior(const FArchiveSerializedPropertyChain&, FProperty&)> ProcessProperty);
 		
 		EBreakBehavior VisitStructPropertyRecursive(
 			FArchiveSerializedPropertyChain& Chain,
 			FStructProperty& StructProperty,
-			TFunctionRef<EBreakBehavior(const FArchiveSerializedPropertyChain& Chain, const FProperty&LeafProperty)> ProcessProperty
+			TFunctionRef<EBreakBehavior(const FArchiveSerializedPropertyChain&, FProperty&)> ProcessProperty
 			)
 		{
 			// If the struct is in a container, then the container should be pushed, not the inner property.
@@ -39,7 +40,7 @@ namespace UE::ConcertSyncCore::PropertyChain
 		EBreakBehavior VisitPropertyRecursive(
 			FArchiveSerializedPropertyChain& Chain,
 			FProperty& Property,
-			TFunctionRef<EBreakBehavior(const FArchiveSerializedPropertyChain& Chain, const FProperty&LeafProperty)> ProcessProperty
+			TFunctionRef<EBreakBehavior(const FArchiveSerializedPropertyChain&, FProperty&)> ProcessProperty
 			)
 		{
 			if (!IsReplicatableProperty(Property))
@@ -102,9 +103,27 @@ namespace UE::ConcertSyncCore::PropertyChain
 		}
 	}
 	
+	FProperty* ResolveProperty(const UStruct& Class, const FConcertPropertyChain& ChainToResolve, bool bLogOnFail)
+	{
+		FProperty* Result = nullptr;
+		ForEachReplicatableProperty(
+			Class,
+			[&ChainToResolve, &Result](const FArchiveSerializedPropertyChain& Chain, FProperty& LeafProperty) mutable
+			{
+				if (ChainToResolve.MatchesExactly(&Chain, LeafProperty))
+				{
+					Result = &LeafProperty;
+					return EBreakBehavior::Break;
+				}
+				return EBreakBehavior::Continue;
+			});
+		UE_CLOG(bLogOnFail && Result == nullptr, LogConcert, Warning, TEXT("Property chain \"%s\" resolved to no property!"), *ChainToResolve.ToString());
+		return Result;
+	}
+	
 	void ForEachReplicatableProperty(
-		UStruct& Class,
-		TFunctionRef<EBreakBehavior(const FArchiveSerializedPropertyChain& Chain, const FProperty& LeafProperty)> ProcessProperty)
+		const UStruct& Class,
+		TFunctionRef<EBreakBehavior(const FArchiveSerializedPropertyChain& Chain, FProperty& LeafProperty)> ProcessProperty)
 	{
 		FArchiveSerializedPropertyChain Chain;
 		for (TFieldIterator<FProperty> FieldIt(&Class); FieldIt; ++FieldIt)
@@ -117,23 +136,23 @@ namespace UE::ConcertSyncCore::PropertyChain
 	}
 
 	void ForEachReplicatableConcertProperty(
-		UStruct& Class,
+		const UStruct& Class,
 		TFunctionRef<EBreakBehavior(FConcertPropertyChain&& PropertyChain)> ProcessProperty)
 	{
-		ForEachReplicatableProperty(Class, [&ProcessProperty](const FArchiveSerializedPropertyChain& Chain, const FProperty& LeafProperty)
+		ForEachReplicatableProperty(Class, [&ProcessProperty](const FArchiveSerializedPropertyChain& Chain, FProperty& LeafProperty)
 		{
 			return ProcessProperty(FConcertPropertyChain(&Chain, LeafProperty));
 		});
 	}
 
-	void BulkConstructConcertChainsFromPaths(UStruct& Class, uint32 NumPaths, TFunctionRef<bool(const FArchiveSerializedPropertyChain& Chain, const FProperty& LeafProperty)> MatchesPath)
+	void BulkConstructConcertChainsFromPaths(const UStruct& Class, uint32 NumPaths, TFunctionRef<bool(const FArchiveSerializedPropertyChain& Chain, FProperty& LeafProperty)> MatchesPath)
 	{
 		if (NumPaths == 0)
 		{
 			return;
 		}
 		
-		ForEachReplicatableProperty(Class, [&NumPaths, &MatchesPath](const FArchiveSerializedPropertyChain& Chain, const FProperty& LeafProperty) mutable
+		ForEachReplicatableProperty(Class, [&NumPaths, &MatchesPath](const FArchiveSerializedPropertyChain& Chain, FProperty& LeafProperty) mutable
 		{
 			if (MatchesPath(Chain, LeafProperty))
 			{
@@ -166,12 +185,16 @@ namespace UE::ConcertSyncCore::PropertyChain
 	
 	bool IsReplicatableProperty(const FProperty& LeafProperty)
 	{
-		return !LeafProperty.HasAnyPropertyFlags(
+		const bool bHasValidFlags = !LeafProperty.HasAnyPropertyFlags(
 			// Replicating delegates makes no sense
 			CPF_BlueprintAssignable
 			// It does not make sense to serialize the reference of an instanced subobject. Instead the subobject should be added to the list of replicated properties.
 			| CPF_InstancedReference /* for object ptrs */ | CPF_ContainsInstancedReference /* for containers of object ptrs */
 			);
+		const bool bIsAllowedObjectProperty = CastField<FObjectPropertyBase>(&LeafProperty) == nullptr
+			// Soft object properties are allowed because they are serialized as a string.
+			|| CastField<FSoftObjectProperty>(&LeafProperty) != nullptr;
+		return bHasValidFlags && bIsAllowedObjectProperty;
 	}
 
 	bool IsInnerContainerProperty(const FProperty& Property)

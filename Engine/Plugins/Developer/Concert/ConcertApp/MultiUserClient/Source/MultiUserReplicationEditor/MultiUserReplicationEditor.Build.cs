@@ -30,6 +30,7 @@ namespace UnrealBuildTool.Rules
 					"Projects",
 					"Slate",
 					"SlateCore",
+					"ToolMenus",
 					"ToolWidgets",
 					"UnrealEd", 
 					

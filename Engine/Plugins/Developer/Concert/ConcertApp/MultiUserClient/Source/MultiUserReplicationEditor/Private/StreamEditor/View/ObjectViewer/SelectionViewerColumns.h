@@ -47,15 +47,19 @@ namespace UE::MultiUserReplicationEditor::ReplicationPropertyColumns
 		/** The checkbox in SPropertyReplicationSelectionEditor determining whether the property is in the selection*/
 		ReplicatesCheckbox = 0,
 		/** Label of the property */
-		Label = 10
+		Label = 10,
+		/** Type of the property */
+		Type = 20
 	};
 	
 	/** The checkbox in SPropertyReplicationSelectionEditor determining whether the property is in the selection*/
 	extern const FName ReplicatesColumnId;
 	extern const FName LabelColumnId;
+	extern const FName TypeColumnId;
 
 	FReplicationPropertyColumn ReplicatesColumns(TSharedRef<SPropertyReplicationSelectionEditor> EditorWidget, TSharedRef<IEditableObjectToPropertiesModel> Model);
 	FReplicationPropertyColumn LabelColumn();
+	FReplicationPropertyColumn TypeColumn();
 
 	/**
 	 * Goes through all selected objects, checks whether the property is checked on it or not, and returns a checkbox state.

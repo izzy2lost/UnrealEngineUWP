@@ -2,11 +2,13 @@
 
 #include "SelectionViewerColumns.h"
 
+#include "LogMultiUserReplicationEditor.h"
 #include "ReplicatedPropertyData.h"
 #include "StreamEditor/View/ObjectViewer/ReplicatedObjectData.h"
 
 #include "StreamEditor/Model/DisplayUtils.h"
 #include "Internationalization/Internationalization.h"
+#include "Replication/PropertyChainUtils.h"
 #include "StreamEditor/Model/IEditableObjectToPropertiesModel.h"
 #include "StreamEditor/View/ObjectEditor/SPropertyReplicationSelectionEditor.h"
 #include "Textures/SlateIcon.h"
@@ -95,6 +97,7 @@ namespace UE::MultiUserReplicationEditor::ReplicationPropertyColumns
 {
 	const FName ReplicatesColumnId = TEXT("ReplicatesColumn");
 	const FName LabelColumnId = TEXT("LabelColumn");
+	const FName TypeColumnId = TEXT("TypeColumn");
 
 	FReplicationPropertyColumn ReplicatesColumns(TSharedRef<SPropertyReplicationSelectionEditor> EditorWidget, TSharedRef<IEditableObjectToPropertiesModel> Model)
 	{
@@ -148,6 +151,35 @@ namespace UE::MultiUserReplicationEditor::ReplicationPropertyColumns
 				.ColumnSortOrder(static_cast<int32>(EReplicationPropertyColumnOrder::Label)),
 			SHeaderRow::Column(LabelColumnId)
 				.DefaultLabel(LOCTEXT("LabelColumnLabel", "Label"))
+				.FillSized(500.f)
+			);
+	}
+	
+	FReplicationPropertyColumn TypeColumn()
+	{
+		static auto GetDisplayText = [](const TSharedPtr<FReplicatedPropertyData>& Args)
+		{
+			check(Args);
+			UClass* Class = Args->GetOwningClass().TryLoadClass<UObject>();
+			const FProperty* Property = Class ? ConcertSyncCore::PropertyChain::ResolveProperty(*Class, Args->GetProperty()) : nullptr;
+			return Property ? FText::FromString(Property->GetCPPType()) : LOCTEXT("Unknown", "Unknown");	
+		};
+		
+		return FReplicationPropertyColumn(
+			FReplicationPropertyColumn::FArguments()
+				.GenerateWidgetColumn_Lambda([](const FReplicationPropertyColumn::FBuildArgs& Args)
+				{
+					return SNew(STextBlock)
+						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = Args.HighlightText](){ return *HighlightText; }))
+						.Text(GetDisplayText(Args.RowData));
+				})
+				.PopulateSearchItems_Lambda([](const TSharedPtr<FReplicatedPropertyData>& ObjectData, TArray<FString>& InOutSearchStrings)
+				{
+					InOutSearchStrings.Add(GetDisplayText(ObjectData).ToString());
+				})
+				.ColumnSortOrder(static_cast<int32>(EReplicationPropertyColumnOrder::Type)),
+			SHeaderRow::Column(TypeColumnId)
+				.DefaultLabel(LOCTEXT("TypeColumnLabel", "Type"))
 				.FillWidth(1.f)
 			);
 	}
