@@ -1886,6 +1886,24 @@ void UBlueprint::GetAllGraphs(TArray<UEdGraph*>& Graphs) const
 			}
 		}
 	}
+
+	for (const UBlueprintExtension* Extension : GetExtensions())
+	{
+		if (Extension != nullptr)
+		{
+			TArray<UEdGraph*> ExtensionGraphs;
+			Extension->GetAllGraphs(ExtensionGraphs);
+			for (int32 i = 0; i < ExtensionGraphs.Num(); ++i)
+			{
+				UEdGraph* Graph = ExtensionGraphs[i];
+				if(Graph)
+				{
+					Graphs.Add(Graph);
+					Graph->GetAllChildrenGraphs(Graphs);
+				}
+			}
+		}
+	}
 #endif // WITH_EDITORONLY_DATA
 }
 

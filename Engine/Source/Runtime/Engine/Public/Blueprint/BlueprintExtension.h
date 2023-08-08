@@ -70,6 +70,11 @@ public:
 		return HandleGatherSearchData(OwningBlueprint);
 	}
 
+	/**
+	 * Override this function to inform editor tools of any graphs in this extension (eg. blueprint diff, asset search)
+	 */
+	virtual void GetAllGraphs(TArray<UEdGraph*>& Graphs) const {}
+
 private:
 
 	/**
