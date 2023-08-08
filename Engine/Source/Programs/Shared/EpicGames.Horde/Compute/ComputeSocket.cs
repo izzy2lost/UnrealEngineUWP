@@ -355,7 +355,7 @@ namespace EpicGames.Horde.Compute
 		{
 			if (!await TryReadPacketAsync(transport, id, size, cancellationToken))
 			{
-				_logger.LogWarning("Discarding {Size} bytes received on compute channel {Id}", size, id);
+				_logger.LogDebug("Discarding {Size} bytes received on compute channel {Id}", size, id);
 
 				int bufferSize = Math.Min(size, 65536);
 				using (IMemoryOwner<byte> buffer = MemoryPool<byte>.Shared.Rent(bufferSize))
