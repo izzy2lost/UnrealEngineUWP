@@ -17,6 +17,7 @@
 #include "GlobalShader.h"
 #include "VulkanLLM.h"
 #include "Misc/ScopeRWLock.h"
+#include "VulkanChunkedPipelineCache.h"
 
 #define LRU_DEBUG 0
 #if !UE_BUILD_SHIPPING
@@ -1399,6 +1400,19 @@ bool FVulkanPipelineStateCacheManager::CreateGfxPipelineFromEntry(FVulkanRHIGrap
 
 VkResult FVulkanPipelineStateCacheManager::CreateVKPipeline(FVulkanRHIGraphicsPipelineState* PSO, FVulkanShader* Shaders[ShaderStage::NumStages], const VkGraphicsPipelineCreateInfo& PipelineInfo, bool bIsPrecompileJob)
 {
+	if(FVulkanChunkedPipelineCacheManager::IsEnabled())
+	{
+		// Use chunk caching and bypass FVulkanPipelineStateCacheManager's PSO caching
+		// Placeholder PSO size - TODO: remove pipeline cache size stuff.	
+		PSO->PipelineCacheSize = 20 * 1024; // This is only required bUseLRU == true.
+		return FVulkanChunkedPipelineCacheManager::Get().CreatePSO(PSO, bIsPrecompileJob, TUniqueFunction< VkResult(FVulkanRHIGraphicsPipelineState*, VkPipelineCache)>(
+			[&](FVulkanRHIGraphicsPipelineState* PSO, VkPipelineCache PipelineCache)
+			{
+				QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_vkCreateGraphicsPipeline);
+				return VulkanRHI::vkCreateGraphicsPipelines(Device->GetInstanceHandle(), PipelineCache, 1, &PipelineInfo, VULKAN_CPU_ALLOCATOR, &PSO->VulkanPipeline);
+			}));
+	}
+
 	VkPipeline* Pipeline = &PSO->VulkanPipeline;
 
 	FPipelineCache& Cache = bIsPrecompileJob ? CurrentPrecompilingPSOCache : GlobalPSOCache;
@@ -1855,6 +1869,7 @@ FVulkanRHIGraphicsPipelineState::FVulkanRHIGraphicsPipelineState(FVulkanDevice* 
 
 	PSOInitializer = PSOInitializer_;
 #endif
+	PrecacheKey = RHIComputePrecachePSOHash(PSOInitializer_);
 	INC_DWORD_STAT(STAT_VulkanNumGraphicsPSOs);
 	INC_DWORD_STAT_BY(STAT_VulkanPSOKeyMemory, this->VulkanKey.GetDataRef().Num());
 }
@@ -2308,6 +2323,11 @@ void GetVulkanShaders(FVulkanDevice* Device, const FVulkanRHIGraphicsPipelineSta
 
 void FVulkanPipelineStateCacheManager::TickLRU()
 {
+	if(FVulkanChunkedPipelineCacheManager::IsEnabled())
+	{
+		FVulkanChunkedPipelineCacheManager::Get().Tick();
+	}
+
 	if (!bUseLRU || GVulkanPSOLRUEvictAfterUnusedFrames == 0)
 	{
 		return;

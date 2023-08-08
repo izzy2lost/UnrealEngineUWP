@@ -771,6 +771,7 @@ public:
 	FVulkanRHIGraphicsPipelineStateLRUNode* LRUNode = nullptr;
 	uint32 LRUFrame = UINT32_MAX;
 	uint32 PipelineCacheSize = UINT32_MAX;
+	uint64	PrecacheKey;// hash of elements relevant to the PSO cache
 	FVulkanPSOKey							VulkanKey;
 
 #if VULKAN_PSO_CACHE_DEBUG

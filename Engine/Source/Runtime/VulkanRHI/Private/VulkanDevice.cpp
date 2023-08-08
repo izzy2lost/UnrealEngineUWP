@@ -18,6 +18,7 @@
 #include "VulkanRenderpass.h"
 #include "VulkanRayTracing.h"
 #include "VulkanDescriptorSets.h"
+#include "VulkanChunkedPipelineCache.h"
 
 TAutoConsoleVariable<int32> GRHIAllowAsyncComputeCvar(
 	TEXT("r.Vulkan.AllowAsyncCompute"),
@@ -1254,6 +1255,8 @@ void FVulkanDevice::InitGPU()
 	}
 #endif
 
+	FVulkanChunkedPipelineCacheManager::Init();
+
 	PipelineStateCache->InitAndLoad(CacheFilenames);
 
 	// Setup default resource
@@ -1398,6 +1401,7 @@ void FVulkanDevice::Destroy()
 
 	FenceManager.Deinit();
 	DeviceMemoryManager.Deinit();
+	FVulkanChunkedPipelineCacheManager::Shutdown();
 
 	VulkanRHI::vkDestroyDevice(Device, VULKAN_CPU_ALLOCATOR);
 	Device = VK_NULL_HANDLE;
