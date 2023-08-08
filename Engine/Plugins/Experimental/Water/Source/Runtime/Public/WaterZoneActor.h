@@ -63,6 +63,8 @@ public:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void PostLoadSubobjects(FObjectInstancingGraph* OuterInstanceGraph) override;
 	virtual void PostLoad() override;
+	virtual void PostRegisterAllComponents() override;
+	virtual void PostUnregisterAllComponents() override;
 #if WITH_EDITORONLY_DATA
 	static void DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstructClasses, const UClass* SpecificSubclass);
 #endif
@@ -71,6 +73,8 @@ public:
 	float GetGroundZMin() const { return GroundZMin; }
 
 	int32 GetOverlapPriority() const { return OverlapPriority; }
+
+	int32 GetWaterZoneIndex() const { return WaterZoneIndex; }
 
 	UPROPERTY(Transient, DuplicateTransient, VisibleAnywhere, BlueprintReadOnly, Category = Water)
 	TObjectPtr<UTextureRenderTarget2D> WaterInfoTexture;
@@ -181,6 +185,10 @@ private:
 	float GroundZMin;
 
 	FVector LocalTessellationCenter;
+
+	/** Unique Id for accessing zone data (Location, extent, ,...) in GPU buffers */
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional, VisibleAnywhere, Category = Water)
+	int32 WaterZoneIndex = INDEX_NONE;
 
 #if WITH_EDITORONLY_DATA
 	/** A manipulatable box for visualizing/editing the water zone bounds */

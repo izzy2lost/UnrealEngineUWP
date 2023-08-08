@@ -6,18 +6,11 @@
 
 #pragma once
 
+#include "WaterDataFunctions.ush"
+
 #define Gravity 980
 #define SOLVE_NORMAL_Z 1
 #define SteepnessThreshold 50
-#define PER_WAVE_DATA_SIZE 2
-
-struct FWaveParams
-{
-	float2 Direction;
-	float Wavelength;
-	float Amplitude;
-	float Steepness;
-};
 
 struct WaveOutput
 {
@@ -283,52 +276,6 @@ float3 FinalizeNormalNew(float3 inNormal)
 	return normalize(float3(inNormal.xy, 1.0f - inNormal.z));
 }
 
-/** Struct containing the decoded water body header data  */	
-struct FWaterBodyHeader
-{
-	// Index into the actual wave data buffer
-	int DataIndex;
-
-	// Number of waves to be read from DataIndex
-	int NumWaves;
-	
-	// Target Wave Mask Depth
-	float TargetWaveMaskDepth;
-};
-
-/** Function to decode the raw data from the water indirection buffer */
-FWaterBodyHeader DecodeWaterBodyHeader(float4 InDataToDecode)
-{
-	FWaterBodyHeader OutWaterBodyHeader = (FWaterBodyHeader)0;
-	OutWaterBodyHeader.DataIndex = InDataToDecode.x; 
-	OutWaterBodyHeader.NumWaves = InDataToDecode.y; 
-	OutWaterBodyHeader.TargetWaveMaskDepth = InDataToDecode.z;
-	
-	return OutWaterBodyHeader;
-}
-
-/** Function to decode the data for an individual gerstner wave from the water data buffer */
-FWaveParams DecodeWaveParams(float4 InDataToDecode0, float4 InDataToDecode1)
-{
-	FWaveParams OutWaveParams = (FWaveParams)0;
-	OutWaveParams.Direction = InDataToDecode0.xy;
-	OutWaveParams.Wavelength = InDataToDecode0.z;
-	OutWaveParams.Amplitude = InDataToDecode0.w;
-	OutWaveParams.Steepness = InDataToDecode1.x;
-
-	return OutWaveParams;
-}
-
-FWaveParams GetWaveDataNew(int InWaveIndex, FWaterBodyHeader InWaterBodyHeader)
-{
-	const int AbsoluteWaveDataIndex = InWaterBodyHeader.DataIndex + (InWaveIndex * PER_WAVE_DATA_SIZE);
-
-	float4 Data0 = View.WaterData[AbsoluteWaveDataIndex];
-	float4 Data1 = View.WaterData[AbsoluteWaveDataIndex + 1];
-		
-	return DecodeWaveParams(Data0, Data1);
-}
-
 FWaveParams GetWaveDataByWaveIndexNew(int InWaterBodyIndex, int InWaveIndex)
 {
 	const FWaterBodyHeader WaterBodyHeader = DecodeWaterBodyHeader(View.WaterIndirection[InWaterBodyIndex]);
@@ -406,8 +353,9 @@ WaveOutput GetAllGerstnerWavesNew(int InWaterBodyIndex, float InTime, FLWCVector
 	WaveOutput CurrentWave = (WaveOutput)0;
 		
 	const FWaterBodyHeader WaterBodyHeader = DecodeWaterBodyHeader(View.WaterIndirection[InWaterBodyIndex]);
+	const int NumWaves = GetWaterBodyData(InWaterBodyIndex).NumWaves;
 
-	for (int i = 0; i < WaterBodyHeader.NumWaves; i++)
+	for (int i = 0; i < NumWaves; i++)
 	{
 		CurrentWave = GetSingleGerstnerWaveNew(i, WaterBodyHeader, InTime, InWorldPos);
 		OutWaves = AddWavesNew(OutWaves, CurrentWave);
@@ -424,8 +372,9 @@ WaveOutput GetRangeGerstnerWavesNew(int InMinWaveIndex, int InMaxWaveIndex, int 
 	WaveOutput CurrentWave = (WaveOutput)0;
 		
 	const FWaterBodyHeader WaterBodyHeader = DecodeWaterBodyHeader(View.WaterIndirection[InWaterBodyIndex]);
+	const int NumWaves = GetWaterBodyData(InWaterBodyIndex).NumWaves;
 
-	const int MaxWaveRange = min(InMaxWaveIndex + 1, WaterBodyHeader.NumWaves);
+	const int MaxWaveRange = min(InMaxWaveIndex + 1, NumWaves);
 	const int MinWaveRange = max(0, InMinWaveIndex);
 
 	for (int i = MinWaveRange; i < MaxWaveRange; i++)
@@ -443,11 +392,11 @@ WaveOutput GetRangeGerstnerWavesNew(int InMinWaveIndex, int InMaxWaveIndex, int 
 /** Returns the wave attenuation factor according to a given water body and a given water depth. Should match the CPU version (GetWaveAttenuationFactor) */
 float ComputeWaveDepthAttenuationFactorNew(int InWaterBodyIndex, float InWaterDepth)
 {
-	const FWaterBodyHeader WaterBodyHeader = DecodeWaterBodyHeader(View.WaterIndirection[InWaterBodyIndex]);
+	const FWaterBodyData WaterBodyData = GetWaterBodyData(InWaterBodyIndex);
 
 	// Completely erase waves when there are no waves at all (in case waves are computed on a water body with no waves, like a swimming pool) :
-	const float TotalErasureFactor = saturate((float) WaterBodyHeader.NumWaves);
-	const float StrengthCoefficient = exp(-max(InWaterDepth, 0.0f) / (WaterBodyHeader.TargetWaveMaskDepth / 2.0f));
+	const float TotalErasureFactor = saturate((float)WaterBodyData.NumWaves);
+	const float StrengthCoefficient = exp(-max(InWaterDepth, 0.0f) / (WaterBodyData.TargetWaveMaskDepth / 2.0f));
 	return saturate(1.0f - StrengthCoefficient) * TotalErasureFactor;
 }
 

@@ -1,0 +1,176 @@
+#pragma once
+
+#define PER_WAVE_DATA_SIZE 2
+#define PER_WATERZONE_DATA_SIZE 2
+#define PER_WATERBODY_DATA_SIZE 1
+
+/** Struct containing the decoded water body header data  */	
+struct FWaterBodyHeader
+{
+	// Index of the water zone which owns this body. Points to the position of the water zone in the zone sub-buffer.
+	int WaterZoneIndex;
+
+	// Index into the wave data sub-buffer.
+	int WaveDataIndex;
+
+	// Index into the water body data sub-buffer
+	int WaterBodyDataIndex;
+};
+
+/** Struct containing the decoded per-water zone data. */
+struct FWaterZoneData
+{
+	float2 Location;
+	float2 Extent;
+	float2 HeightExtent;
+	float GroundZMin;
+};
+
+/** Struct containing the decoded per-water body data. */
+struct FWaterBodyData
+{
+	// Number of waves to be read from the wave data buffer
+	int NumWaves;
+	
+	// Target Wave Mask Depth
+	float TargetWaveMaskDepth;
+};
+
+struct FWaveParams
+{
+	float2 Direction;
+	float Wavelength;
+	float Amplitude;
+	float Steepness;
+};
+
+int GetWaterZoneDataOffset()
+{
+	return (int)View.WaterData[0].x;
+}
+
+int GetWaveDataOffset()
+{
+	return (int)View.WaterData[0].y;
+}
+
+int GetWaterBodyDataOffset()
+{
+	return (int)View.WaterData[0].z;
+}
+
+/** Function to decode the raw data from the water indirection buffer */
+FWaterBodyHeader DecodeWaterBodyHeader(float4 InDataToDecode)
+{
+	FWaterBodyHeader OutWaterBodyHeader = (FWaterBodyHeader)0;
+	OutWaterBodyHeader.WaterZoneIndex = InDataToDecode.x;
+	OutWaterBodyHeader.WaveDataIndex = InDataToDecode.y;
+	OutWaterBodyHeader.WaterBodyDataIndex = InDataToDecode.z;
+	
+	return OutWaterBodyHeader;
+}
+
+/** Function to decode the data for an individual gerstner wave from the water data buffer */
+FWaveParams DecodeWaveParams(float4 InDataToDecode0, float4 InDataToDecode1)
+{
+	FWaveParams OutWaveParams = (FWaveParams)0;
+	OutWaveParams.Direction = InDataToDecode0.xy;
+	OutWaveParams.Wavelength = InDataToDecode0.z;
+	OutWaveParams.Amplitude = InDataToDecode0.w;
+	OutWaveParams.Steepness = InDataToDecode1.x;
+
+	return OutWaveParams;
+}
+
+FWaveParams GetWaveDataNew(int InWaveIndex, FWaterBodyHeader InWaterBodyHeader)
+{
+	const int WaveDataOffset = GetWaveDataOffset();
+	const int AbsoluteWaveDataIndex = WaveDataOffset + (InWaterBodyHeader.WaveDataIndex + InWaveIndex) * PER_WAVE_DATA_SIZE;
+
+	float4 Data0 = View.WaterData[AbsoluteWaveDataIndex];
+	float4 Data1 = View.WaterData[AbsoluteWaveDataIndex + 1];
+		
+	return DecodeWaveParams(Data0, Data1);
+}
+
+FWaterBodyData DecodeWaterBodyData(float4 Data)
+{
+	FWaterBodyData OutWaterBodyData = (FWaterBodyData)0;
+	OutWaterBodyData.NumWaves = Data.x;
+	OutWaterBodyData.TargetWaveMaskDepth = Data.y;
+
+	return OutWaterBodyData;
+}
+
+FWaterBodyData GetWaterBodyData(int InWaterBodyIndex)
+{
+	const int WaterBodyDataBufferOffset = GetWaterBodyDataOffset();
+	const FWaterBodyHeader WaterBodyHeader = DecodeWaterBodyHeader(View.WaterIndirection[InWaterBodyIndex]);
+
+	float4 Data = View.WaterData[WaterBodyDataBufferOffset + WaterBodyHeader.WaterBodyDataIndex];
+
+	return DecodeWaterBodyData(Data);
+}
+
+FWaterZoneData DecodeWaterZoneData(float4 Data0, float4 Data1)
+{
+	FWaterZoneData OutWaterZoneData = (FWaterZoneData)0;
+	OutWaterZoneData.Location = Data0.xy;
+	OutWaterZoneData.Extent = Data0.zw;
+	OutWaterZoneData.HeightExtent = Data1.xy;
+	OutWaterZoneData.GroundZMin = Data1.z;
+
+	return OutWaterZoneData;
+}
+
+FWaterZoneData GetWaterZoneData(int InWaterZoneIndex)
+{
+	const int WaterZoneDataBufferOffset = GetWaterZoneDataOffset();
+	const int WaterZoneOffset = WaterZoneDataBufferOffset + (InWaterZoneIndex * PER_WATERZONE_DATA_SIZE);
+
+	float4 Data0 = View.WaterData[WaterZoneOffset];
+	float4 Data1 = View.WaterData[WaterZoneOffset + 1];
+
+	return DecodeWaterZoneData(Data0, Data1);
+}
+
+FWaterZoneData GetWaterZoneDataForWaterBody(int InWaterBodyIndex)
+{
+	const int WaterZoneIndex = DecodeWaterBodyHeader(View.WaterIndirection[InWaterBodyIndex]).WaterZoneIndex;
+
+	return GetWaterZoneData(WaterZoneIndex);
+}
+
+float DecodeWaterInfoGroundHeight(float4 WaterInfoSample, int WaterZoneIndex)
+{
+	const float GroundZNormalized = WaterInfoSample.w;
+	const FWaterZoneData WaterZoneData = GetWaterZoneData(WaterZoneIndex);
+
+	const float GroundZScale = WaterZoneData.HeightExtent.y - WaterZoneData.GroundZMin;
+
+	return GroundZNormalized * GroundZScale + WaterZoneData.GroundZMin;
+}
+
+float DecodeWaterInfoZHeight(float4 WaterInfoSample, int WaterZoneIndex)
+{
+	const float WaterZNormalized = WaterInfoSample.z;
+	const FWaterZoneData WaterZoneData = GetWaterZoneData(WaterZoneIndex);
+
+	const float WaterZScale = WaterZoneData.HeightExtent.y - WaterZoneData.HeightExtent.x;
+	float WaterZ = WaterZNormalized * WaterZScale + WaterZoneData.HeightExtent.x;
+
+	// If below 0, we need to push the height below the height of the terrain
+	if (WaterZNormalized <= 0.0)
+	{
+		WaterZ = DecodeWaterInfoGroundHeight(WaterInfoSample, WaterZoneIndex) - 256.0;
+	}
+
+	return WaterZ;
+}
+
+float2 DecodeWaterInfoVelocity(float4 WaterInfoSample, float MaxVelocity)
+{
+	const float2 NormalizedFlow = WaterInfoSample.xy;
+	return (NormalizedFlow - 0.5) * 2.0 * MaxVelocity;
+}
+

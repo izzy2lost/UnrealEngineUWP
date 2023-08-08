@@ -184,11 +184,11 @@ FWaterBodyManager* UWaterSubsystem::GetWaterBodyManager(const UWorld* InWorld)
 	return nullptr;
 }
 
-TWeakPtr<FWaterViewExtension, ESPMode::ThreadSafe> UWaterSubsystem::GetWaterViewExtension(const UWorld* InWorld)
+FWaterViewExtension* UWaterSubsystem::GetWaterViewExtension(const UWorld* InWorld)
 {
-	if (UWaterSubsystem* Subsystem = GetWaterSubsystem(InWorld))
+	if (FWaterBodyManager* Manager = GetWaterBodyManager(InWorld))
 	{
-		return Subsystem->WaterViewExtension;
+		return Manager->GetWaterViewExtension();
 	}
 	return {};
 }
@@ -253,7 +253,6 @@ void UWaterSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	check(World != nullptr);
 
 	GetWaterBodyManagerInternal().Initialize(World);
-	WaterViewExtension = FSceneViewExtensions::NewExtension<FWaterViewExtension>(World);
 
 	bUsingSmoothedTime = false;
 	FConsoleVariableDelegate NotifyWaterScalabilityChanged = FConsoleVariableDelegate::CreateUObject(this, &UWaterSubsystem::NotifyWaterScalabilityChangedInternal);

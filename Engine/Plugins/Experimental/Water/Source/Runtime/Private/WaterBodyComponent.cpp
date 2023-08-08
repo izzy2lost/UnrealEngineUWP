@@ -66,6 +66,7 @@ TAutoConsoleVariable<float> CVarWaterOceanFallbackDepth(
 	ECVF_Default);
 
 const FName UWaterBodyComponent::WaterBodyIndexParamName(TEXT("WaterBodyIndex"));
+const FName UWaterBodyComponent::WaterZoneIndexParamName(TEXT("WaterZoneIndex"));
 const FName UWaterBodyComponent::WaterBodyZOffsetParamName(TEXT("WaterBodyZOffset"));
 const FName UWaterBodyComponent::WaterVelocityAndHeightName(TEXT("WaterVelocityAndHeight"));
 const FName UWaterBodyComponent::GlobalOceanHeightName(TEXT("GlobalOceanHeight"));
@@ -1726,31 +1727,8 @@ bool UWaterBodyComponent::SetDynamicParametersOnMID(UMaterialInstanceDynamic* In
 
 	if (const AWaterZone* WaterZone = GetWaterZone())
 	{
+		InMID->SetScalarParameterValue(WaterZoneIndexParamName, WaterZone->GetWaterZoneIndex());
 		InMID->SetTextureParameterValue(WaterVelocityAndHeightName, WaterZone->WaterInfoTexture);
-
-		const UWaterMeshComponent* WaterMeshComponent = WaterZone->GetWaterMeshComponent();
-		check(WaterMeshComponent);
-
-		// Location is the bottom left of the zone
-		const FVector2D WaterInfoExtent = FVector2D(WaterZone->GetDynamicWaterInfoExtent());
-		const FVector2D WaterInfoLocation = FVector2D(WaterZone->GetDynamicWaterInfoCenter()) - (WaterInfoExtent / 2.f);
-
-		FVector4 WaterArea;
-		WaterArea.X = WaterInfoLocation.X;
-		WaterArea.Y = WaterInfoLocation.Y;
-		WaterArea.Z = WaterInfoExtent.X;
-		WaterArea.W = WaterInfoExtent.Y;
-		InMID->SetDoubleVectorParameterValue(WaterAreaParamName, WaterArea);
-
-		const FVector2f WaterHeightExtents = WaterZone->GetWaterHeightExtents();
-		const float GroundZMin = WaterZone->GetGroundZMin();
-		InMID->SetScalarParameterValue(WaterZMinParamName, WaterHeightExtents.X);
-		InMID->SetScalarParameterValue(WaterZMaxParamName, WaterHeightExtents.Y);
-		InMID->SetScalarParameterValue(GroundZMinParamName, GroundZMin);
-	}
-	else
-	{
-		InMID->SetDoubleVectorParameterValue(WaterAreaParamName, FVector4::Zero());
 	}
 
 	return true;

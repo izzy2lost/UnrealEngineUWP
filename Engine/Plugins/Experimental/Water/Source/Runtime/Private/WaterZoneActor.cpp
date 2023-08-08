@@ -149,6 +149,32 @@ void AWaterZone::PostLoad()
 #endif // WITH_EDITORONLY_DATA
 }
 
+void AWaterZone::PostRegisterAllComponents()
+{
+	Super::PostRegisterAllComponents();
+
+	// PostRegisterAllComponents is called many times in a row during BP reinstancing, property changes, etc.
+	// Only register to the water body manager if we haven't already (don't have an index yet).
+	FWaterBodyManager* Manager = UWaterSubsystem::GetWaterBodyManager(GetWorld());
+	if (Manager && !IsTemplate() && (WaterZoneIndex == INDEX_NONE))
+	{
+		WaterZoneIndex = Manager->AddWaterZone(this);
+	}
+}
+
+void AWaterZone::PostUnregisterAllComponents()
+{
+	Super::PostUnregisterAllComponents();
+
+	// We must check for the index because UnregisterAllComponents can be called multiple times in a row by PostEditChangeProperty, etc.
+	FWaterBodyManager* Manager = UWaterSubsystem::GetWaterBodyManager(GetWorld());
+	if (Manager && !IsTemplate() && (WaterZoneIndex != INDEX_NONE))
+	{
+		Manager->RemoveWaterZone(this);
+	}
+	WaterZoneIndex = INDEX_NONE;
+}
+
 #if WITH_EDITORONLY_DATA
 void AWaterZone::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstructClasses, const UClass* SpecificSubclass)
 {
@@ -507,7 +533,18 @@ bool AWaterZone::UpdateWaterInfoTexture()
 #endif // WITH_EDITOR
 
 		const ETextureRenderTargetFormat Format = bHalfPrecisionTexture ? ETextureRenderTargetFormat::RTF_RGBA16f : RTF_RGBA32f;
-		WaterInfoTexture = FWaterUtils::GetOrCreateTransientRenderTarget2D(WaterInfoTexture, TEXT("WaterInfoTexture"), RenderTargetResolution, Format);
+		UTextureRenderTarget2D* OldTexture = WaterInfoTexture;
+		WaterInfoTexture = FWaterUtils::GetOrCreateTransientRenderTarget2D(OldTexture, TEXT("WaterInfoTexture"), RenderTargetResolution, Format);
+
+		// The water info texture is different, we need to bind the newly created texture to all registered water bodies
+		if (WaterInfoTexture != OldTexture)
+		{
+			ForEachWaterBodyComponent([WaterInfoTexture = WaterInfoTexture](UWaterBodyComponent* WaterBodyComponent)
+			{
+				WaterBodyComponent->UpdateMaterialInstances();
+				return true;
+			});
+		}
 
 		UE::WaterInfo::FRenderingContext Context;
 		Context.ZoneToRender = this;
@@ -516,9 +553,9 @@ bool AWaterZone::UpdateWaterInfoTexture()
 		Context.CaptureZ = FMath::Max(WaterZMax, GroundZMax) + CaptureZOffset;
 		Context.TextureRenderTarget = WaterInfoTexture;
 
-		if (TWeakPtr<FWaterViewExtension> WaterViewExtension = UWaterSubsystem::GetWaterViewExtension(World); WaterViewExtension.IsValid())
+		if (FWaterViewExtension* WaterViewExtension = UWaterSubsystem::GetWaterViewExtension(World))
 		{
-			WaterViewExtension.Pin()->MarkWaterInfoTextureForRebuild(Context);
+			WaterViewExtension->MarkWaterInfoTextureForRebuild(Context);
 		}
 
 		UE_LOG(LogWater, Verbose, TEXT("Queued Water Info texture update"));

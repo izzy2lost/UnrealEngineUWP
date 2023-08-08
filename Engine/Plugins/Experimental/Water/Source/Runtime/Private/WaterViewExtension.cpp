@@ -6,6 +6,9 @@
 #include "EngineUtils.h"
 #include "SceneView.h"
 #include "WaterMeshComponent.h"
+#include "GerstnerWaterWaveSubsystem.h"
+#include "WaterBodyManager.h"
+#include "WaterSubsystem.h"
 
 static TAutoConsoleVariable<bool> CVarLocalTessellationFreeze(
 	TEXT("r.Water.WaterMesh.LocalTessellation.Freeze"),
@@ -25,6 +28,7 @@ static TAutoConsoleVariable<float> CVarLocalTessellationUpdateMargin(
 
 FWaterViewExtension::FWaterViewExtension(const FAutoRegister& AutoReg, UWorld* InWorld)
 	: FWorldSceneViewExtension(AutoReg, InWorld)
+	, WaterGPUData(MakeShared<FWaterGPUResources, ESPMode::ThreadSafe>())
 {
 }
 
@@ -32,10 +36,246 @@ FWaterViewExtension::~FWaterViewExtension()
 {
 }
 
-void FWaterViewExtension::SetupViewFamily(FSceneViewFamily& InViewFamily)
+void FWaterViewExtension::Initialize()
 {
+	// Register the view extension to the Gerstner Wave subsystem so we can rebuild the water gpu data when waves change.
+	if (UGerstnerWaterWaveSubsystem* GerstnerWaterWaveSubsystem = GEngine->GetEngineSubsystem<UGerstnerWaterWaveSubsystem>())
+	{
+		GerstnerWaterWaveSubsystem->Register(this);
+	}
 }
 
+void FWaterViewExtension::Deinitialize()
+{
+	ENQUEUE_RENDER_COMMAND(DeallocateWaterInstanceDataBuffer)
+	(
+		// Copy the shared ptr into a local copy for this lambda, this will increase the ref count and keep it alive on the renderthread until this lambda is executed
+		[WaterGPUData=WaterGPUData](FRHICommandListImmediate& RHICmdList){}
+	);
+
+	if (UGerstnerWaterWaveSubsystem* GerstnerWaterWaveSubsystem = GEngine->GetEngineSubsystem<UGerstnerWaterWaveSubsystem>())
+	{
+		GerstnerWaterWaveSubsystem->Unregister(this);
+	}
+}
+
+void FWaterViewExtension::SetupViewFamily(FSceneViewFamily& InViewFamily)
+{
+	if (bRebuildGPUData)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(Water::RebuildWaterGPUData);
+
+		const UWorld* WorldPtr = GetWorld();
+		check(WorldPtr != nullptr);
+		const FWaterBodyManager* WaterBodyManager = UWaterSubsystem::GetWaterBodyManager(WorldPtr);
+		check(WaterBodyManager);
+
+
+		struct FWaterIndirection
+		{
+			float WaterZoneIndex;
+			float WaveDataIndex;
+			float WaterBodyDataIndex;
+
+			float _Padding; // Unused 
+		};
+		static_assert(sizeof(FWaterIndirection) == 1 * sizeof(FVector4f));
+
+		struct FWaterZoneData
+		{
+			FVector2f Location;
+			FVector2f Extent;
+			FVector2f HeightExtent;
+			float GroundZMin;
+
+			float _Padding; // Unused
+
+			FWaterZoneData(const FVector2f& InLocation, const FVector2f& InExtent, const FVector2f& InHeightExtent, float InGroundZMin)
+				: Location(InLocation), Extent(InExtent), HeightExtent(InHeightExtent), GroundZMin(InGroundZMin) {}
+		};
+		static_assert(sizeof(FWaterZoneData) == 2 * sizeof(FVector4f));
+
+		struct FGerstnerWaveData
+		{
+			FVector2f Direction;
+			float WaveLength;
+			float Amplitude;
+			float Steepness;
+
+			float _Padding[3]; // Unused
+
+			FGerstnerWaveData(const FGerstnerWave& Wave)
+				: Direction(FVector2D(Wave.Direction)), WaveLength(Wave.WaveLength), Amplitude(Wave.Amplitude), Steepness(Wave.Steepness) {}
+		};
+		static_assert(sizeof(FGerstnerWaveData) == 2 * sizeof(FVector4f));
+
+		struct FWaterBodyData
+		{
+			float NumWaves;
+			float TargetWaveMaskDepth;
+			
+			float _Padding[2]; // Unused;
+		};
+		static_assert(sizeof(FWaterBodyData) == sizeof(FVector4f));
+
+		// Water Indirection Buffer layout:
+		// -------------------------------------------------------------------------------
+		// || WaterZoneIndex | WaveDataIndex | WaterBodyDataIndex | *Unused* ||   ...   ||
+		// -------------------------------------------------------------------------------
+		//
+		// Water Data Buffer layout:
+		// -----------------------------------------------------------------------------
+		// ||| WaterZone Data | ..  || GerstnerWaveData | ... || WaterBodyData | ... |||
+		// -----------------------------------------------------------------------------
+		//
+
+		TArray<FWaterZoneData> WaterZoneData;
+
+		{
+			WaterBodyManager->ForEachWaterZone([&WaterZoneData](AWaterZone* WaterZone)
+			{
+				// #todo_water: LWC
+				const FVector2f ZoneLocation = FVector2f(FVector2D(WaterZone->GetDynamicWaterInfoCenter()));
+
+				const FVector2f ZoneExtent = FVector2f(FVector2D(WaterZone->GetDynamicWaterInfoExtent()));
+				const FVector2f WaterHeightExtents = WaterZone->GetWaterHeightExtents();
+				const float GroundZMin = WaterZone->GetGroundZMin();
+
+				WaterZoneData.Emplace(ZoneLocation, ZoneExtent, WaterHeightExtents, GroundZMin);
+
+				return true;
+			});
+		}
+
+
+		TArray<FWaterIndirection> WaterIndirection;
+		TArray<FGerstnerWaveData> WaveData;
+		TArray<FWaterBodyData> WaterBodyData;
+		{
+			const int32 NumWaterBodies =  WaterBodyManager->NumWaterBodies();
+			WaterIndirection.Reserve(NumWaterBodies);
+			WaterBodyData.Reserve(NumWaterBodies);
+
+			TArray<const UGerstnerWaterWaves*> AllGerstnerWaves;
+
+			WaterBodyManager->ForEachWaterBodyComponent([&WaterIndirection, &WaveData, &WaterBodyData, &AllGerstnerWaves](UWaterBodyComponent* WaterBodyComponent)
+			{
+				const int32 WaterZoneIndex = WaterBodyComponent->GetWaterZone() ? WaterBodyComponent->GetWaterZone()->GetWaterZoneIndex() : -1;
+
+				FWaterIndirection& WaterIndirectionEntry = WaterIndirection.AddZeroed_GetRef();
+				WaterIndirectionEntry.WaterZoneIndex = WaterZoneIndex;
+				WaterIndirectionEntry.WaterBodyDataIndex = WaterBodyData.Num();
+
+				FWaterBodyData& WaterBodyDataEntry = WaterBodyData.AddZeroed_GetRef();
+				WaterBodyDataEntry.TargetWaveMaskDepth = WaterBodyComponent->TargetWaveMaskDepth;
+
+				// #todo_water: reuse waves instead of duplicating.
+				if (WaterBodyComponent->HasWaves())
+				{
+					const UWaterWavesBase* WaterWavesBase = WaterBodyComponent->GetWaterWaves();
+					check(WaterWavesBase != nullptr);
+					if (const UGerstnerWaterWaves* GerstnerWaves = Cast<const UGerstnerWaterWaves>(WaterWavesBase->GetWaterWaves()))
+					{
+						int32 WaveDataIndex = AllGerstnerWaves.IndexOfByKey(GerstnerWaves);
+						if (WaveDataIndex == INDEX_NONE)
+						{
+							WaveDataIndex = AllGerstnerWaves.Num();
+							AllGerstnerWaves.Add(GerstnerWaves);
+						}
+
+						const TArray<FGerstnerWave>& Waves = GerstnerWaves->GetGerstnerWaves();
+
+						WaterIndirectionEntry.WaveDataIndex = WaveDataIndex;
+						WaterBodyDataEntry.NumWaves = Waves.Num();
+					}
+				}
+				return true;
+			});
+
+			for (int32 GerstnerWavesIndex = 0; GerstnerWavesIndex < AllGerstnerWaves.Num(); ++GerstnerWavesIndex)
+			{
+				// Some max value
+				constexpr int32 MaxWavesPerGerstnerWaves = 4096;
+
+				const TArray<FGerstnerWave>& Waves = AllGerstnerWaves[GerstnerWavesIndex]->GetGerstnerWaves();
+				
+				// Where the data for this set of waves starts
+				const int32 WaveDataBase = WaveData.Num();
+
+				// Allocate for the waves in this water body
+				const int32 NumWaves = FMath::Min(Waves.Num(), MaxWavesPerGerstnerWaves);
+				WaveData.AddZeroed(NumWaves);
+
+				for (int32 WaveIndex = 0; WaveIndex < NumWaves; WaveIndex++)
+				{
+					const uint32 WavesDataIndex = WaveDataBase + WaveIndex;
+					WaveData[WavesDataIndex] = FGerstnerWaveData(Waves[WaveIndex]);
+				}
+			}
+		}
+
+		TResourceArray<FVector4f> WaterIndirectionBuffer;
+		TResourceArray<FVector4f> WaterDataBuffer;
+
+		// The first element of the WaterDataBuffer contains the offsets to each of the sub-buffers.
+		// X = WaterZoneDataOffset
+		// Y = WaterWaveDataOffset
+		// Z = WaterBodyDataOffset
+		// W = Unused
+		WaterDataBuffer.AddZeroed();
+
+		// Transform the individual arrays into the single buffer:
+		{
+			/** Copy a buffer of arbitrary PoD into a float4 resource array. Returns the starting offset of the source buffer in the dest buffer. */
+			auto AppendDataToFloat4Buffer = []<typename T>(TResourceArray<FVector4f>& Dest, const TArray<T>& Source)
+			{
+				constexpr int32 NumFloat4PerElement = (sizeof(T) / sizeof(FVector4f));
+				const int32 StartOffset = Dest.Num();
+				Dest.AddUninitialized(Source.Num() * NumFloat4PerElement);
+				FMemory::Memcpy(
+					Dest.GetData() + StartOffset,
+					Source.GetData(),
+					Source.Num() * sizeof(T));
+				return StartOffset;
+			};
+
+			AppendDataToFloat4Buffer(WaterIndirectionBuffer, WaterIndirection);
+
+			const int32 ZoneDataOffset = AppendDataToFloat4Buffer(WaterDataBuffer, WaterZoneData);
+			const int32 WaveDataOffset = AppendDataToFloat4Buffer(WaterDataBuffer, WaveData);
+			const int32 WaterBodyDataOffset = AppendDataToFloat4Buffer(WaterDataBuffer, WaterBodyData);
+
+			// Store the offsets to each sub-buffer in the first entry.
+			// If this layout ever changes, corresponding decode functions must be updated in GerstnerWaveFunctions.ush!
+			FVector4f& OffsetData = WaterDataBuffer[0];
+			OffsetData.X = ZoneDataOffset;
+			OffsetData.Y = WaveDataOffset;
+			OffsetData.Z = WaterBodyDataOffset;
+			OffsetData.W = 0.f;
+		}
+
+		if (WaterIndirectionBuffer.Num() == 0)
+		{
+			WaterIndirectionBuffer.AddZeroed();
+		}
+
+		ENQUEUE_RENDER_COMMAND(AllocateWaterInstanceDataBuffer)
+		(
+			[WaterGPUData=WaterGPUData, WaterDataBuffer, WaterIndirectionBuffer](FRHICommandListImmediate& RHICmdList) mutable
+			{
+				FRHIResourceCreateInfo CreateInfoData(TEXT("WaterDataBuffer"), &WaterDataBuffer);
+				WaterGPUData->DataBuffer = RHICmdList.CreateBuffer(WaterDataBuffer.GetResourceDataSize(), BUF_VertexBuffer | BUF_ShaderResource | BUF_Static, sizeof(FVector4f), ERHIAccess::SRVMask, CreateInfoData);
+				WaterGPUData->DataSRV = RHICmdList.CreateShaderResourceView(WaterGPUData->DataBuffer, sizeof(FVector4f), PF_A32B32G32R32F);
+
+				FRHIResourceCreateInfo CreateInfoIndirection(TEXT("WaterIndirectionBuffer"), &WaterIndirectionBuffer);
+				WaterGPUData->IndirectionBuffer = RHICmdList.CreateBuffer(WaterIndirectionBuffer.GetResourceDataSize(), BUF_VertexBuffer | BUF_ShaderResource | BUF_Static, sizeof(FVector4f), ERHIAccess::SRVMask, CreateInfoIndirection);
+				WaterGPUData->IndirectionSRV = RHICmdList.CreateShaderResourceView(WaterGPUData->IndirectionBuffer, sizeof(FVector4f), PF_A32B32G32R32F);
+			}
+		);
+
+		bRebuildGPUData = false;
+	}
+}
 
 void FWaterViewExtension::SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView)
 {
@@ -96,14 +336,10 @@ void FWaterViewExtension::SetupView(FSceneViewFamily& InViewFamily, FSceneView& 
 			{
 				WaterMesh->SetDynamicWaterMeshCenter(FVector2D(WaterMeshCenter));
 			}
-		}
 
-		// Update the material instances now that the tessellated mesh bounds have changed.
-		WaterZone->ForEachWaterBodyComponent([](UWaterBodyComponent* WaterBodyComponent)
-		{
-			WaterBodyComponent->UpdateMaterialInstances();
-			return true;
-		});
+			// Mark GPU data dirty since we have a new WaterArea parameter and need to push this to water bodies.
+			MarkGPUDataDirty();
+		}
 
 		const UE::WaterInfo::FRenderingContext& Context(Pair.Value);
 		UE::WaterInfo::UpdateWaterInfoRendering(WorldPtr.Get()->Scene, Context);
@@ -129,8 +365,22 @@ void FWaterViewExtension::PreRenderViewFamily_RenderThread(FRDGBuilder& GraphBui
 {
 }
 
+void FWaterViewExtension::PreRenderView_RenderThread(FRDGBuilder& GraphBuilder, FSceneView& InView)
+{
+	if (WaterGPUData->DataSRV && WaterGPUData->IndirectionSRV)
+	{
+		InView.WaterDataBuffer = WaterGPUData->DataSRV;
+		InView.WaterIndirectionBuffer = WaterGPUData->IndirectionSRV;
+	}
+}
+
 void FWaterViewExtension::MarkWaterInfoTextureForRebuild(const UE::WaterInfo::FRenderingContext& RenderContext)
 {
 	WaterInfoContextsToRender.Emplace(RenderContext.ZoneToRender, RenderContext);
+	MarkGPUDataDirty();
 }
 
+void FWaterViewExtension::MarkGPUDataDirty()
+{
+	bRebuildGPUData = true;
+}

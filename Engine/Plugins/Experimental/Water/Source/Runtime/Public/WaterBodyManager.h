@@ -5,7 +5,8 @@
 #include "Templates/SharedPointer.h"
 
 class UWaterBodyComponent;
-class FGerstnerWaterWaveViewExtension;
+class AWaterZone;
+class FWaterViewExtension;
 
 class WATER_API FWaterBodyManager
 {
@@ -23,6 +24,12 @@ public:
 	/** Unregister any water body upon removal to the world */
 	void RemoveWaterBodyComponent(UWaterBodyComponent* InWaterBodyComponent);
 
+	int32 AddWaterZone(AWaterZone* InWaterZone);
+	void RemoveWaterZone(AWaterZone* InWaterZone);
+
+	/** Recomputes water gpu data whenever it changes on one of the managed water types. */
+	void RequestGPUDataRebuild();
+
 	/** Recomputes wave-related data whenever it changes on one of water bodies. */
 	void RequestWaveDataRebuild();
 
@@ -35,16 +42,80 @@ public:
 	/** Execute a predicate function on each valid water body. Predicate should return false for early exit. */
 	static void ForEachWaterBodyComponent (const UWorld* World, TFunctionRef<bool(UWaterBodyComponent*)> Pred);
 
-	bool HasAnyWaterBodies() const { return WaterBodyComponents.Num() > 0; }
+	void ForEachWaterZone(TFunctionRef<bool(AWaterZone*)> Pred) const;
+	static void ForEachWaterZone(const UWorld* World, TFunctionRef<bool(AWaterZone*)> Pred);
+
+	bool HasAnyWaterBodies() const { return WaterBodyComponents.Num > 0; }
+
+	int32 NumWaterBodies() const { return WaterBodyComponents.Num; }
+
+	int32 NumWaterZones() const { return WaterZones.Num; }
+
+	FWaterViewExtension* GetWaterViewExtension() { return WaterViewExtension.Get(); }
 
 private:
-	/** List of components registered to this manager. May contain nullptr indices (indicated by the UnusedWaterBodyIndices array). */
-	TArray<UWaterBodyComponent*> WaterBodyComponents;
-	TArray<int32> UnusedWaterBodyIndices;
+
+	/**
+	* TWaterContainer<T> wraps a TArray<T> to support reusing dead indices while always maintaining stability for existing indices.
+	*
+	* The Elements array may contain nullptr entries.
+	*/
+	template <typename T>
+	class TWaterContainer 
+	{
+	public:
+		int32 Register(T* InElement)
+		{
+			int32 Index = INDEX_NONE;
+			if (UnusedIndices.Num())
+			{
+				Index = UnusedIndices.Pop(/*bAllowShrinking = */false);
+				check(Elements[Index] == nullptr);
+				Elements[Index] = InElement;
+			}
+			else
+			{
+				Index = Elements.Add(InElement);
+			}
+
+			++Num;
+			check(Num <= Elements.Num());
+
+			check(Index != INDEX_NONE);
+			return Index;
+		}
+
+		void Unregister(const T* InElement, int32 OldIndex)
+		{
+			check(OldIndex != INDEX_NONE);
+			UnusedIndices.Add(OldIndex);
+			Elements[OldIndex] = nullptr;
+
+			--Num;
+			check(Num >= 0);
+
+			// Empty all arrays once there are no more elements
+			if (UnusedIndices.Num() == Elements.Num())
+			{
+				UnusedIndices.Empty();
+				Elements.Empty();
+			}
+		}
+
+		TArray<T*> Elements;
+		TArray<int32> UnusedIndices;
+		int32 Num = 0;
+	};
+
+	/** List of components registered to this manager. */
+	TWaterContainer<UWaterBodyComponent> WaterBodyComponents;
+
+	/** List of Water zones registered to this manager. */
+	TWaterContainer<AWaterZone> WaterZones;
 
 	float GlobalMaxWaveHeight = 0.0f;
 
-	TSharedPtr<FGerstnerWaterWaveViewExtension, ESPMode::ThreadSafe> GerstnerWaterWaveViewExtension;
+	TSharedPtr<FWaterViewExtension, ESPMode::ThreadSafe> WaterViewExtension;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
