@@ -9,6 +9,7 @@
 #include "GerstnerWaterWaveSubsystem.h"
 #include "WaterBodyManager.h"
 #include "WaterSubsystem.h"
+#include "Containers/DynamicRHIResourceArray.h"
 
 static TAutoConsoleVariable<bool> CVarLocalTessellationFreeze(
 	TEXT("r.Water.WaterMesh.LocalTessellation.Freeze"),
