@@ -654,10 +654,9 @@ bool FSkeletalAnimationTrackEditMode::InputDelta(FEditorViewportClient* InViewpo
 					CurrentRotation = (InRot.Quaternion() * CurrentRotation);
 					CurrentTransform.SetRotation(CurrentRotation);
 				}
-
 				if (bDoTranslation)
 				{
-					FVector CurrentLocation = GetWidgetLocation();
+					FVector CurrentLocation = CurrentTransform.GetLocation();
 					CurrentLocation = CurrentLocation + InDrag;
 					CurrentTransform.SetLocation(CurrentLocation);
 				}
@@ -722,3 +721,5 @@ bool FSkeletalAnimationTrackEditMode::IsCompatibleWith(FEditorModeID OtherModeID
 
 
 #undef LOCTEXT_NAMESPACE
+
+
