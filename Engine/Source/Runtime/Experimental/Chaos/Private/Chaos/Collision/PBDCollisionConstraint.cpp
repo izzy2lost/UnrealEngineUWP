@@ -181,19 +181,18 @@ namespace Chaos
 	}
 
 	FPBDCollisionConstraint::FPBDCollisionConstraint()
-		: ImplicitTransform{ FRigidTransform3(), FRigidTransform3() }
+		: CollisionMargins{ 0, 0 }
+		, ImplicitTransform{ FRigidTransform3(), FRigidTransform3() }
 		, Particle{ nullptr, nullptr }
 		, Implicit{ nullptr, nullptr }
 		, Shape{ nullptr, nullptr }
 		, Simplicial{ nullptr, nullptr }
 		, AccumulatedImpulse(0)
-		, ContainerCookie()
-		, ShapesType(EContactShapesType::Unknown)
-		, ShapeWorldTransforms{ FRigidTransform3(), FRigidTransform3() }
 		, CullDistance(TNumericLimits<FRealSingle>::Max())
-		, CollisionMargins{ 0, 0 }
+		, ContainerCookie()
 		, CollisionTolerance(0)
 		, ClosestManifoldPointIndex(INDEX_NONE)
+		, ShapeWorldTransforms{ FRigidTransform3(), FRigidTransform3() }
 		, ExpectedNumManifoldPoints(0)
 		, LastShapeWorldPositionDelta()
 		, LastShapeWorldRotationDelta()
@@ -201,10 +200,11 @@ namespace Chaos
 		, Material()
 		, Stiffness(1)
 		, Flags()
+		, ShapesType(EContactShapesType::Unknown)
 		, SavedManifoldPoints()
 		, ManifoldPoints()
-		, SolverBodies{ nullptr, nullptr }
 		, CCDTimeOfImpact(0)
+		, SolverBodies{ nullptr, nullptr }
 		, CCDEnablePenetration(0)
 		, CCDTargetPenetration(0)
 	{
@@ -219,19 +219,18 @@ namespace Chaos
 		const FImplicitObject* Implicit1,
 		const FPerShapeData* Shape1,
 		const FBVHParticles* Simplicial1)
-		: ImplicitTransform{ FRigidTransform3(), FRigidTransform3() }
+		: CollisionMargins{ 0, 0 }
+		, ImplicitTransform{ FRigidTransform3(), FRigidTransform3() }
 		, Particle{ Particle0, Particle1 }
 		, Implicit{ Implicit0, Implicit1 }
 		, Shape{ nullptr, nullptr }
 		, Simplicial{ Simplicial0, Simplicial1 }
 		, AccumulatedImpulse(0)
-		, ContainerCookie()
-		, ShapesType(EContactShapesType::Unknown)
-		, ShapeWorldTransforms{ FRigidTransform3(), FRigidTransform3() }
 		, CullDistance(TNumericLimits<FRealSingle>::Max())
-		, CollisionMargins{ 0, 0 }
+		, ContainerCookie()
 		, CollisionTolerance(0)
 		, ClosestManifoldPointIndex(INDEX_NONE)
+		, ShapeWorldTransforms{ FRigidTransform3(), FRigidTransform3() }
 		, ExpectedNumManifoldPoints(0)
 		, LastShapeWorldPositionDelta()
 		, LastShapeWorldRotationDelta()
@@ -239,10 +238,11 @@ namespace Chaos
 		, Material()
 		, Stiffness(1)
 		, Flags()
+		, ShapesType(EContactShapesType::Unknown)
 		, SavedManifoldPoints()
 		, ManifoldPoints()
-		, SolverBodies{ nullptr, nullptr }
 		, CCDTimeOfImpact(0)
+		, SolverBodies{ nullptr, nullptr }
 		, CCDEnablePenetration(0)
 		, CCDTargetPenetration(0)
 	{
