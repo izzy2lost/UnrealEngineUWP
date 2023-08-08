@@ -155,6 +155,11 @@ public:
 		int32 NumSimplifiedLODs = 3;
 		double SimplifyBaseTolerance = 1.0;
 		double SimplifyLODLevelToleranceScale = 2.0;
+		// if true, UVs will be preserved in Simplified LODs. This generally will result in lower-quality geometric shape approximation.
+		bool bSimplifyPreserveUVs = false;
+		// if true, vertex colors will be preserved in Simplified LODs. This generally will result in lower-quality geometric shape approximation.
+		bool bSimplifyPreserveVertexColors = false;
+		// if true, geometrically-detected "sharp" corners (eg like the corners of a box) will be preserved with hard constraints in Simplified LODs. This can be desirable on mechanical/geometric shapes.
 		bool bSimplifyPreserveCorners = true;
 		double SimplifySharpEdgeAngleDeg = 44.0;
 		double SimplifyMinSalientDimension = 1.0;
@@ -210,6 +215,12 @@ public:
 
 		// opening angle used to detect/assign sharp edges
 		double HardNormalAngleDeg = 15.0;
+
+		// UVs on input geometry will be preserved up to this LOD level (inclusive). 
+		// Note that this setting will severely constrain and/or fully disable many other optimizations. 
+		// In particular, Coplanar merging and retriangulation cannot be applied if UVs are to be preserved. 
+		// WARNING: this LOD level must be <= (NumCopiedLODs+NumSimplifiedLODs)
+		int PreserveUVLODLevel = -1;
 
 		// Attempt to merge/weld coplanar areas after hidden removal, and then further simplify those merged areas
 		// Coplanar merging is never applied between areas with different Materials. 
