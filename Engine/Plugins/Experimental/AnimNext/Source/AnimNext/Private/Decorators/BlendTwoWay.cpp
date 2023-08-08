@@ -6,12 +6,9 @@
 
 namespace UE::AnimNext
 {
-	AUTO_REGISTER_ANIM_DECORATOR(FBlendTwoWayDecorator)
-
 	DEFINE_ANIM_DECORATOR_BEGIN(FBlendTwoWayDecorator)
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IEvaluate)
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IUpdate)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IHierarchy)
 	DEFINE_ANIM_DECORATOR_END(FBlendTwoWayDecorator)
 
 	void FBlendTwoWayDecorator::PostEvaluate(FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
@@ -35,31 +32,31 @@ namespace UE::AnimNext
 
 		if (SharedData->BlendWeight < 1.0)
 		{
-			if (!InstanceData->ChildA.IsValid())
+			if (!InstanceData->Children[0].IsValid())
 			{
 				// We need to blend a child that isn't instanced yet, allocate it
-				InstanceData->ChildA = Context.AllocateNodeInstance(Binding, SharedData->ChildA);
+				InstanceData->Children[0] = Context.AllocateNodeInstance(Binding, SharedData->Children[0]);
 			}
 
 			if (SharedData->BlendWeight == 0.0)
 			{
 				// We no longer need this child, release it
-				InstanceData->ChildB.Reset();
+				InstanceData->Children[1].Reset();
 			}
 		}
 
 		if (SharedData->BlendWeight > 0.0)
 		{
-			if (!InstanceData->ChildB.IsValid())
+			if (!InstanceData->Children[1].IsValid())
 			{
 				// We need to blend a child that isn't instanced yet, allocate it
-				InstanceData->ChildB = Context.AllocateNodeInstance(Binding, SharedData->ChildB);
+				InstanceData->Children[1] = Context.AllocateNodeInstance(Binding, SharedData->Children[1]);
 			}
 
 			if (SharedData->BlendWeight == 1.0)
 			{
 				// We no longer need this child, release it
-				InstanceData->ChildA.Reset();
+				InstanceData->Children[0].Reset();
 			}
 		}
 	}
@@ -69,7 +66,7 @@ namespace UE::AnimNext
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
 		// Add the two child handles, even if they are empty
-		Children.Add(InstanceData->ChildA);
-		Children.Add(InstanceData->ChildB);
+		Children.Add(InstanceData->Children[0]);
+		Children.Add(InstanceData->Children[1]);
 	}
 }

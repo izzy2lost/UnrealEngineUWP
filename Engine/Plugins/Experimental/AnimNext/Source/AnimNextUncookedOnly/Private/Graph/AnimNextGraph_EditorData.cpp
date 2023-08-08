@@ -23,7 +23,6 @@ UAnimNextGraph_EditorData::UAnimNextGraph_EditorData(const FObjectInitializer& O
 	{
 		TGuardValue<bool> DisableClientNotifs(RigVMClient.bSuspendNotifications, true);
 		RigVMClient.AddModel(TEXT("RigVMGraph"), false, &ObjectInitializer);
-		RigVMClient.AddModel(TEXT("TempRigVMGraph"), false, &ObjectInitializer);	// Used during compilation, otherwise empty
 		RigVMClient.GetOrCreateFunctionLibrary(false, &ObjectInitializer);
 	}
 	RigVMClient.SetExecuteContextStruct(FAnimNextExecuteContext::StaticStruct());
@@ -63,7 +62,6 @@ void UAnimNextGraph_EditorData::Initialize(bool bRecompileVM)
 		
 		RigVMClient.GetOrCreateController(RigVMClient.GetDefaultModel());
 		RigVMClient.GetOrCreateController(RigVMClient.GetFunctionLibrary());
-		RigVMClient.GetOrCreateController(TEXT("TempRigVMGraph"));
 
 		// Init function library controllers
 		for(URigVMLibraryNode* LibraryNode : RigVMClient.GetFunctionLibrary()->GetFunctions())
@@ -83,11 +81,6 @@ void UAnimNextGraph_EditorData::Initialize(bool bRecompileVM)
 	{
 		EntryPointGraph->Initialize(this);
 	}
-}
-
-UAnimNextGraph_EdGraph* UAnimNextGraph_EditorData::GetRootGraph() const
-{
-	return RootGraph;
 }
 
 void UAnimNextGraph_EditorData::PostLoad()
@@ -240,57 +233,6 @@ void UAnimNextGraph_EditorData::RefreshAllModels(EAnimNextGraphLoadType InLoadTy
 	}
 }
 
-void UAnimNextGraph_EditorData::RebuildEdGraphFromModel()
-{
-	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
-
-	TGuardValue<bool> SelfGuard(bSuspendModelNotificationsForSelf, true);
-	TGuardValue<bool> ClientIgnoreModificationsGuard(RigVMClient.bIgnoreModelNotifications, true);
-
-	verify(RigVMClient.GetOrCreateController((URigVMGraph*)nullptr));
-
-	TArray<UEdGraph*> EdGraphs;
-	GetAllGraphs(EdGraphs);
-
-	for (UEdGraph* Graph : EdGraphs)
-	{
-		TArray<UEdGraphNode*> Nodes = Graph->Nodes;
-		for (UEdGraphNode* Node : Nodes)
-		{
-			Graph->RemoveNode(Node);
-		}
-	}
-
-	if (FunctionLibraryEdGraph && RigVMClient.GetFunctionLibrary())
-	{
-		FunctionLibraryEdGraph->ModelNodePath = RigVMClient.GetFunctionLibrary()->GetNodePath();
-	}
-
-	TArray<URigVMGraph*> RigGraphs = RigVMClient.GetAllModels(true, true);
-
-	for (int32 RigGraphIndex = 0; RigGraphIndex < RigGraphs.Num(); RigGraphIndex++)
-	{
-		RigVMClient.GetOrCreateController(RigGraphs[RigGraphIndex])->ResendAllNotifications();
-	}
-}
-
-void UAnimNextGraph_EditorData::GetAllGraphs(TArray<UEdGraph*>& Graphs) const
-{
-	Graphs.Reset();
-
-	Graphs.Add(RootGraph);
-
-	if (EntryPointGraph)
-	{
-		Graphs.Add(EntryPointGraph);
-	}
-
-	if (FunctionLibraryEdGraph)
-	{
-		Graphs.Add(FunctionLibraryEdGraph);
-	}
-}
-
 #endif // WITH_EDITOR
 
 FRigVMClient* UAnimNextGraph_EditorData::GetRigVMClient()
@@ -421,30 +363,9 @@ void UAnimNextGraph_EditorData::RecompileVMIfRequired()
 void UAnimNextGraph_EditorData::RequestAutoVMRecompilation()
 {
 	bVMRecompilationRequired = true;
-	if (bAutoRecompileVM && VMRecompilationBracket == 0)
+	if (bAutoRecompileVM)
 	{
 		RecompileVMIfRequired();
-	}
-}
-
-void UAnimNextGraph_EditorData::IncrementVMRecompileBracket()
-{
-	VMRecompilationBracket++;
-}
-
-void UAnimNextGraph_EditorData::DecrementVMRecompileBracket()
-{
-	if (VMRecompilationBracket == 1)
-	{
-		if (bAutoRecompileVM)
-		{
-			RecompileVMIfRequired();
-		}
-		VMRecompilationBracket = 0;
-	}
-	else if (VMRecompilationBracket > 0)
-	{
-		VMRecompilationBracket--;
 	}
 }
 
@@ -454,17 +375,6 @@ void UAnimNextGraph_EditorData::HandleModifiedEvent(ERigVMGraphNotifType InNotif
 
 	switch(InNotifType)
 	{
-	case ERigVMGraphNotifType::InteractionBracketOpened:
-		{
-			IncrementVMRecompileBracket();
-			break;
-		}
-	case ERigVMGraphNotifType::InteractionBracketClosed:
-	case ERigVMGraphNotifType::InteractionBracketCanceled:
-		{
-			DecrementVMRecompileBracket();
-			break;
-		}
 	case ERigVMGraphNotifType::NodeAdded:
 		{
 			if (URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(InSubject))
@@ -479,20 +389,10 @@ void UAnimNextGraph_EditorData::HandleModifiedEvent(ERigVMGraphNotifType InNotif
 	case ERigVMGraphNotifType::PinArraySizeChanged:
 	case ERigVMGraphNotifType::PinDirectionChanged:
 		{
-			RequestAutoVMRecompilation();
+			RecompileVM();
 			break;
 		}
-	case ERigVMGraphNotifType::PinAdded:
-		{
-			if (URigVMPin* Pin = Cast<URigVMPin>(InSubject))
-			{
-				if (Pin->IsDecoratorPin())
-				{
-					RequestAutoVMRecompilation();
-				}
-			}
-			break;
-		}
+
 	case ERigVMGraphNotifType::PinDefaultValueChanged:
 		{
 			if (InGraph->GetRuntimeAST().IsValid())
@@ -503,14 +403,14 @@ void UAnimNextGraph_EditorData::HandleModifiedEvent(ERigVMGraphNotifType InNotif
 				if (Expression == nullptr)
 				{
 					InGraph->ClearAST();
+					break;
 				}
 				else if (Expression->NumParents() > 1)
 				{
 					InGraph->ClearAST();
+					break;
 				}
 			}
-
-			RequestAutoVMRecompilation();	// We need to rebuild our metadata when a default value changes
 			break;
 		}
 	}

@@ -62,7 +62,7 @@ public:
 	/** Callback function executed when Add pin button is clicked */
 	virtual FReply OnAddPin() override;
 
-protected:
+private:
 
 	bool UseLowDetailNodeContent() const;
 
@@ -86,14 +86,14 @@ protected:
 	FText GetInstructionCountText() const;
 	FText GetInstructionDurationText() const;
 
-protected:
+private:
 
 	int32 GetNodeTopologyVersion() const;
 	EVisibility GetPinVisibility(int32 InPinInfoIndex, bool bAskingForSubPin) const;
 	const FSlateBrush * GetExpanderImage(int32 InPinInfoIndex, bool bLeft, bool bHovered) const;
 	FReply OnExpanderArrowClicked(int32 InPinInfoIndex);
 	void HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject);
-	virtual void UpdatePinTreeView();
+	void UpdatePinTreeView();
 
 	/** Cached widget title area */
 	TSharedPtr<SOverlay> TitleAreaWidget;

@@ -26,8 +26,17 @@ namespace UE::AnimNext
 	 */
 	struct FDecoratorTemplate
 	{
+		FDecoratorTemplate(FDecoratorUID UID_, FDecoratorRegistryHandle RegistryHandle_, EDecoratorMode Mode_, uint32 AdditiveIndexOrNumAdditive_, uint32 NodeSharedOffset_, uint32 NodeInstanceOffset_)
+			: UID(UID_.GetUID())
+			, RegistryHandle(RegistryHandle_)
+			, Mode(static_cast<uint8>(Mode_))
+			, AdditiveIndexOrNumAdditive(AdditiveIndexOrNumAdditive_)
+			, NodeSharedOffset(NodeSharedOffset_)
+			, NodeInstanceOffset(NodeInstanceOffset_)
+		{}
+
 		// Returns the globally unique identifier for the decorator
-		FDecoratorUID GetUID() const { return FDecoratorUID(UID); }
+		uint32 GetUID() const { return UID; }
 
 		// Returns the decorator registry handle
 		FDecoratorRegistryHandle GetRegistryHandle() const { return RegistryHandle; }
@@ -83,19 +92,7 @@ namespace UE::AnimNext
 		ANIMNEXT_API void Serialize(FArchive& Ar);
 
 	private:
-		friend struct FNodeTemplate;
-		friend struct FNodeTemplateBuilder;
-
-		FDecoratorTemplate(FDecoratorUID InUID, FDecoratorRegistryHandle InRegistryHandle, EDecoratorMode InMode, uint32 InAdditiveIndexOrNumAdditive)
-			: UID(InUID.GetUID())
-			, RegistryHandle(InRegistryHandle)
-			, Mode(static_cast<uint8>(InMode))
-			, AdditiveIndexOrNumAdditive(InAdditiveIndexOrNumAdditive)
-			, NodeSharedOffset(0)
-			, NodeInstanceOffset(0)				// For instance data, 0 is an invalid offset since the data follows an instance of FNodeInstance
-		{}
-
-		FDecoratorUIDRaw			UID;			// decorator globally unique identifier
+		uint32	UID;							// decorator globally unique identifier
 
 		FDecoratorRegistryHandle	RegistryHandle;	// decorator registry handle
 		uint8						Mode;			// the decorator mode (we only need 1 bit)
@@ -106,8 +103,8 @@ namespace UE::AnimNext
 		uint8	AdditiveIndexOrNumAdditive;
 
 		// Offsets into the shared read-only and instance data portions of a node
-		uint16	NodeSharedOffset;				// relative to root of node description data (max 64 KB per node) (not serialized, @see FNodeTemplate::Finalize)
-		uint16	NodeInstanceOffset;				// relative to root of node instance data (max 64 KB per node) (not serialized, @see FNodeTemplate::Finalize)
+		uint16	NodeSharedOffset;				// relative to root of node description data (max 64 KB per node)
+		uint16	NodeInstanceOffset;				// relative to root of node instance data (max 64 KB per node)
 
 		// TODO: We could cache which parent/base decorator handles which interface
 		// This would avoid the need to iterate on every decorator to look up a 'Super'. Perhaps only common interfaces could be cached.

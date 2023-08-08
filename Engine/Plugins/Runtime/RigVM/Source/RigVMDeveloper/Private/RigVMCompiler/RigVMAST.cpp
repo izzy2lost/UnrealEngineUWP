@@ -2519,7 +2519,7 @@ const FRigVMASTLinkDescription& FRigVMParserAST::GetLink(int32 InLinkIndex) cons
 	return Links[InLinkIndex];
 }
 
-void FRigVMParserAST::Inline(const TArray<URigVMGraph*>& InGraphs)
+void FRigVMParserAST::Inline(TArray<URigVMGraph*> InGraphs)
 {
 	TArray<FRigVMASTProxy> LocalNodeProxies;
 	for(URigVMGraph* Graph : InGraphs)
@@ -2532,7 +2532,7 @@ void FRigVMParserAST::Inline(const TArray<URigVMGraph*>& InGraphs)
 	Inline(InGraphs, LocalNodeProxies);
 }
 
-void FRigVMParserAST::Inline(const TArray<URigVMGraph*>& InGraphs, const TArray<FRigVMASTProxy>& InNodeProxies)
+void FRigVMParserAST::Inline(TArray<URigVMGraph*> InGraphs, const TArray<FRigVMASTProxy>& InNodeProxies)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 

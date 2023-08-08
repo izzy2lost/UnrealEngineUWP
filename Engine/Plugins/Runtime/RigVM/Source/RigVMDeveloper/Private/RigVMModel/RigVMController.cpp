@@ -351,7 +351,7 @@ void URigVMController::SetIsRunningUnitTest(bool bIsRunning)
 	}	
 }
 
-FRigVMPinInfo::FRigVMPinInfo()
+URigVMController::FPinInfo::FPinInfo()
 	: ParentIndex(INDEX_NONE)
 	, Name(NAME_None)
 	, Direction(ERigVMPinDirection::Invalid)
@@ -365,7 +365,7 @@ FRigVMPinInfo::FRigVMPinInfo()
 {
 }
 
-FRigVMPinInfo::FRigVMPinInfo(const URigVMPin* InPin, int32 InParentIndex, ERigVMPinDirection InDirection)
+URigVMController::FPinInfo::FPinInfo(const URigVMPin* InPin, int32 InParentIndex, ERigVMPinDirection InDirection)
 	: ParentIndex(InParentIndex)
 	, Name(InPin->GetName())
 	, Direction(InDirection == ERigVMPinDirection::Invalid ? InPin->GetDirection() : InDirection)
@@ -389,7 +389,7 @@ FRigVMPinInfo::FRigVMPinInfo(const URigVMPin* InPin, int32 InParentIndex, ERigVM
 	}
 }
 
-FRigVMPinInfo::FRigVMPinInfo(FProperty* InProperty, ERigVMPinDirection InDirection, int32 InParentIndex, const uint8* InDefaultValueMemory)
+URigVMController::FPinInfo::FPinInfo(FProperty* InProperty, ERigVMPinDirection InDirection, int32 InParentIndex, const uint8* InDefaultValueMemory)
 	: ParentIndex(InParentIndex)
 	, Name(InProperty->GetFName())
 	, Direction(InDirection)
@@ -496,7 +496,7 @@ FRigVMPinInfo::FRigVMPinInfo(FProperty* InProperty, ERigVMPinDirection InDirecti
 	CorrectExecuteTypeIndex();
 }
 
-void FRigVMPinInfo::CorrectExecuteTypeIndex()
+void URigVMController::FPinInfo::CorrectExecuteTypeIndex()
 {
 	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
 	if(Registry.IsExecuteType(TypeIndex))
@@ -510,7 +510,7 @@ void FRigVMPinInfo::CorrectExecuteTypeIndex()
 	}
 }
 
-uint32 GetTypeHash(const FRigVMPinInfo& InPin)
+uint32 GetTypeHash(const URigVMController::FPinInfo& InPin)
 {
 	uint32 Hash = 0; //GetTypeHash(InPin.ParentIndex);
 	Hash = HashCombine(Hash, GetTypeHash(InPin.Name));
@@ -523,7 +523,7 @@ uint32 GetTypeHash(const FRigVMPinInfo& InPin)
 	return Hash;
 }
 
-FRigVMPinInfoArray::FRigVMPinInfoArray(const URigVMNode* InNode)
+URigVMController::FPinInfoArray::FPinInfoArray(const URigVMNode* InNode)
 {
 	// this method adds all pins as currently represented in the model.
 	for(const URigVMPin* Pin : InNode->GetPins())
@@ -532,7 +532,7 @@ FRigVMPinInfoArray::FRigVMPinInfoArray(const URigVMNode* InNode)
 	}
 }
 
-int32 FRigVMPinInfoArray::AddPin(const URigVMPin* InPin, int32 InParentIndex, ERigVMPinDirection InDirection)
+int32 URigVMController::FPinInfoArray::AddPin(const URigVMPin* InPin, int32 InParentIndex, ERigVMPinDirection InDirection)
 {
 	// this method adds all pins as currently represented in the model.
 	const int32 Index = Pins.Emplace(InPin, InParentIndex, InDirection);
@@ -544,7 +544,7 @@ int32 FRigVMPinInfoArray::AddPin(const URigVMPin* InPin, int32 InParentIndex, ER
 	return Index;
 }
 
-FRigVMPinInfoArray::FRigVMPinInfoArray(const URigVMNode* InNode, URigVMController* InController, const FRigVMPinInfoArray* InPreviousPinInfos)
+URigVMController::FPinInfoArray::FPinInfoArray(const URigVMNode* InNode, URigVMController* InController, const FPinInfoArray* InPreviousPinInfos)
 {
 	const bool bAddSubPins = !InNode->IsA<URigVMRerouteNode>();
 	
@@ -557,8 +557,8 @@ FRigVMPinInfoArray::FRigVMPinInfoArray(const URigVMNode* InNode, URigVMControlle
 	}
 }
 
-FRigVMPinInfoArray::FRigVMPinInfoArray(const FRigVMGraphFunctionHeader& FunctionHeader,
-	URigVMController* InController, const FRigVMPinInfoArray* InPreviousPinInfos)
+URigVMController::FPinInfoArray::FPinInfoArray(const FRigVMGraphFunctionHeader& FunctionHeader,
+	URigVMController* InController, const FPinInfoArray* InPreviousPinInfos)
 {
 	// this method adds pins as needed based on the property structure
 	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
@@ -570,7 +570,7 @@ FRigVMPinInfoArray::FRigVMPinInfoArray(const FRigVMGraphFunctionHeader& Function
 	}
 }
 
-int32 FRigVMPinInfoArray::AddPin(FProperty* InProperty, URigVMController* InController,
+int32 URigVMController::FPinInfoArray::AddPin(FProperty* InProperty, URigVMController* InController,
                                               ERigVMPinDirection InDirection, int32 InParentIndex, const uint8* InDefaultValueMemory, bool bAddSubPins)
 {
 	// this method adds pins as needed based on the property structure
@@ -603,13 +603,13 @@ int32 FRigVMPinInfoArray::AddPin(FProperty* InProperty, URigVMController* InCont
 	return Index;
 }
 
-int32 FRigVMPinInfoArray::AddPin(URigVMController* InController, int32 InParentIndex, const FName& InName, ERigVMPinDirection InDirection,
-	TRigVMTypeIndex InTypeIndex, const FString& InDefaultValue, const uint8* InDefaultValueMemory, const FRigVMPinInfoArray* InPreviousPinInfos, bool bAddSubPins)
+int32 URigVMController::FPinInfoArray::AddPin(URigVMController* InController, int32 InParentIndex, const FName& InName, ERigVMPinDirection InDirection,
+	TRigVMTypeIndex InTypeIndex, const FString& InDefaultValue, const uint8* InDefaultValueMemory, const FPinInfoArray* InPreviousPinInfos, bool bAddSubPins)
 {
 	ensureMsgf(InTypeIndex != INDEX_NONE, TEXT("Invalid pin type for pin %s in %s"), *InName.ToString(), *InController->GetPackage()->GetPathName());
 	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
 		
-	FRigVMPinInfo Info;
+	FPinInfo Info;
 	Info.ParentIndex = InParentIndex;
 	Info.Name = InName;
 	Info.Direction = InDirection;
@@ -626,7 +626,7 @@ int32 FRigVMPinInfoArray::AddPin(URigVMController* InController, int32 InParentI
 		const int32 PreviousIndex = InPreviousPinInfos->GetIndexFromPinPath(PinPath);
 		if(PreviousIndex != INDEX_NONE)
 		{
-			const FRigVMPinInfo& PreviousPin = (*InPreviousPinInfos)[PreviousIndex];
+			const FPinInfo& PreviousPin = (*InPreviousPinInfos)[PreviousIndex];
 			if(PreviousPin.TypeIndex == InTypeIndex)
 			{
 				Pins[Index].DefaultValue = PreviousPin.DefaultValue;
@@ -684,7 +684,7 @@ int32 FRigVMPinInfoArray::AddPin(URigVMController* InController, int32 InParentI
 	return Index;
 }
 
-void FRigVMPinInfoArray::AddPins(UScriptStruct* InScriptStruct, URigVMController* InController,
+void URigVMController::FPinInfoArray::AddPins(UScriptStruct* InScriptStruct, URigVMController* InController,
 	ERigVMPinDirection InDirection, int32 InParentIndex, const uint8* InDefaultValueMemory, bool bAddSubPins)
 {
 	if (InController->GetSchema()->ShouldUnfoldStruct(InController, InScriptStruct))
@@ -718,7 +718,7 @@ void FRigVMPinInfoArray::AddPins(UScriptStruct* InScriptStruct, URigVMController
 	}
 }
 
-const FString& FRigVMPinInfoArray::GetPinPath(const int32 InIndex) const
+const FString& URigVMController::FPinInfoArray::GetPinPath(const int32 InIndex) const
 {
 	if(!Pins.IsValidIndex(InIndex))
 	{
@@ -741,7 +741,7 @@ const FString& FRigVMPinInfoArray::GetPinPath(const int32 InIndex) const
 	return Pins[InIndex].PinPath;
 }
 
-int32 FRigVMPinInfoArray::GetIndexFromPinPath(const FString& InPinPath) const
+int32 URigVMController::FPinInfoArray::GetIndexFromPinPath(const FString& InPinPath) const
 {
 	if(PinPathLookup.Num() != Num())
 	{
@@ -759,7 +759,7 @@ int32 FRigVMPinInfoArray::GetIndexFromPinPath(const FString& InPinPath) const
 	return INDEX_NONE;
 }
 
-const FRigVMPinInfo* FRigVMPinInfoArray::GetPinFromPinPath(const FString& InPinPath) const
+const URigVMController::FPinInfo* URigVMController::FPinInfoArray::GetPinFromPinPath(const FString& InPinPath) const
 {
 	const int32 Index = GetIndexFromPinPath(InPinPath);
 	if(Pins.IsValidIndex(Index))
@@ -769,7 +769,7 @@ const FRigVMPinInfo* FRigVMPinInfoArray::GetPinFromPinPath(const FString& InPinP
 	return nullptr;
 }
 
-int32 FRigVMPinInfoArray::GetRootIndex(const int32 InIndex) const
+int32 URigVMController::FPinInfoArray::GetRootIndex(const int32 InIndex) const
 {
 	if(Pins.IsValidIndex(InIndex))
 	{
@@ -782,13 +782,13 @@ int32 FRigVMPinInfoArray::GetRootIndex(const int32 InIndex) const
 	return INDEX_NONE;
 }
 
-uint32 GetTypeHash(const FRigVMPinInfoArray& InPins)
+uint32 GetTypeHash(const URigVMController::FPinInfoArray& InPins)
 {
 	TArray<uint32> Hashes;
 	Hashes.Reserve(InPins.Num());
 	
 	uint32 OverAllHash = GetTypeHash(InPins.Num());
-	for(const FRigVMPinInfo& Info : InPins)
+	for(const URigVMController::FPinInfo& Info : InPins)
 	{
 		uint32 PinHash = GetTypeHash(Info);
 		if(Info.ParentIndex != INDEX_NONE)
@@ -13758,73 +13758,6 @@ FName URigVMController::AddDecorator(URigVMNode* InNode, UScriptStruct* InDecora
 	
 	AddPinsForStruct(InDecoratorScriptStruct, InNode, DecoratorPin, DecoratorPin->GetDirection(), InDefaultValue, true);
 
-	FRigVMPinInfoArray ProgrammaticPins;
-	Decorator->GetProgrammaticPins(this, INDEX_NONE, ProgrammaticPins);
-
-	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
-	auto CreatePinFromPinInfo = [this, &Registry](const FRigVMPinInfo& InPinInfo, const FString& InPinPath, UObject* InOuter) -> URigVMPin*
-	{
-		check(InOuter);
-		URigVMPin* Pin = NewObject<URigVMPin>(InOuter, InPinInfo.Name);
-		if (InPinInfo.Property)
-		{
-			ConfigurePinFromProperty(InPinInfo.Property, Pin, InPinInfo.Direction);
-		}
-		else
-		{
-			const FRigVMTemplateArgumentType& Type = Registry.GetType(InPinInfo.TypeIndex);
-			Pin->CPPType = Type.CPPType.ToString();
-			Pin->CPPTypeObject = Type.CPPTypeObject;
-			if (Pin->CPPTypeObject)
-			{
-				Pin->CPPTypeObjectPath = *Pin->CPPTypeObject->GetPathName();
-			}
-			if (Registry.IsExecuteType(InPinInfo.TypeIndex))
-			{
-				MakeExecutePin(Pin);
-			}
-
-			Pin->Direction = InPinInfo.Direction;
-			Pin->DisplayName = InPinInfo.DisplayName.IsEmpty() ? NAME_None : FName(*InPinInfo.DisplayName);
-			Pin->bIsConstant = InPinInfo.bIsConstant;
-			Pin->bIsDynamicArray = InPinInfo.bIsDynamicArray;
-			Pin->CustomWidgetName = InPinInfo.CustomWidgetName.IsEmpty() ? NAME_None : FName(*InPinInfo.CustomWidgetName);
-		}
-
-		Pin->bIsExpanded = InPinInfo.bIsExpanded;
-		Pin->DefaultValue = InPinInfo.DefaultValue;
-
-		if (URigVMPin* ParentPin = Cast<URigVMPin>(InOuter))
-		{
-			AddSubPin(ParentPin, Pin);
-		}
-		else if (URigVMNode* OwnerNode = Cast<URigVMNode>(InOuter))
-		{
-			AddNodePin(OwnerNode, Pin);
-		}
-		else
-		{
-			ensureMsgf(false, TEXT("Outer %s of pin info %s is not a pin or a node"), *InOuter->GetPathName(), *InPinPath);
-		}
-
-		Notify(ERigVMGraphNotifType::PinAdded, Pin);
-
-		return Pin;
-	};
-
-	for (int32 PinIndex = 0; PinIndex < ProgrammaticPins.Num(); ++PinIndex)
-	{
-		const FString& PinPath = ProgrammaticPins.GetPinPath(PinIndex);
-		FString ParentPinPath, PinName;
-		UObject* OuterForPin = DecoratorPin;
-		if (URigVMPin::SplitPinPathAtEnd(PinPath, ParentPinPath, PinName))
-		{
-			OuterForPin = DecoratorPin->FindSubPin(ParentPinPath);
-		}
-
-		CreatePinFromPinInfo(ProgrammaticPins[PinIndex], PinPath, OuterForPin);
-	}
-
 	// move the the pin to the right index as required
 	if(DecoratorPin->GetPinIndex() != InPinIndex &&
 		InPinIndex >=0 && InPinIndex < InNode->GetPins().Num())
@@ -14111,7 +14044,7 @@ bool URigVMController::IsValidLinkForGraph(const URigVMLink* InLink)
 	return true;
 }
 
-void URigVMController::AddPinsForStruct(UStruct* InStruct, URigVMNode* InNode, URigVMPin* InParentPin, ERigVMPinDirection InPinDirection, const FString& InDefaultValue, bool bAutoExpandArrays, const FRigVMPinInfoArray* PreviousPins)
+void URigVMController::AddPinsForStruct(UStruct* InStruct, URigVMNode* InNode, URigVMPin* InParentPin, ERigVMPinDirection InPinDirection, const FString& InDefaultValue, bool bAutoExpandArrays, const FPinInfoArray* PreviousPins)
 {
 	if(!InStruct->IsChildOf(FRigVMStruct::StaticStruct()))
 	{
@@ -14424,15 +14357,13 @@ void URigVMController::AddPinsForTemplate(const FRigVMTemplate* InTemplate, cons
 
 void URigVMController::ConfigurePinFromProperty(FProperty* InProperty, URigVMPin* InOutPin, ERigVMPinDirection InPinDirection)
 {
-	const ERigVMPinDirection PropertyPinDirection = FRigVMStruct::GetPinDirectionFromProperty(InProperty);
 	if (InPinDirection == ERigVMPinDirection::Invalid)
 	{
-		InOutPin->Direction = PropertyPinDirection;
+		InOutPin->Direction = FRigVMStruct::GetPinDirectionFromProperty(InProperty);
 	}
 	else
 	{
-		// Keep the pin direction specified unless we wish to be hidden
-		InOutPin->Direction = PropertyPinDirection == ERigVMPinDirection::Hidden ? ERigVMPinDirection::Hidden : InPinDirection;
+		InOutPin->Direction = InPinDirection;
 	}
 
 #if WITH_EDITOR
@@ -14887,9 +14818,9 @@ void URigVMController::RepopulatePinsOnNode(URigVMNode* InNode, bool bFollowCore
 		}
 	}
 
-	const FRigVMPinInfoArray PreviousPinInfos(InNode);
+	const FPinInfoArray PreviousPinInfos(InNode);
 	const uint32 PreviousPinHash = GetTypeHash(PreviousPinInfos);
-	FRigVMPinInfoArray NewPinInfos;
+	FPinInfoArray NewPinInfos;
 
 	// step 2/3: clear pins on the node and repopulate the node with new pins
 	if (UnitNode != nullptr)
@@ -15103,7 +15034,7 @@ void URigVMController::RepopulatePinsOnNode(URigVMNode* InNode, bool bFollowCore
 			}
 		}
 
-		NewPinInfos = FRigVMPinInfoArray(InNode, this, &PreviousPinInfos);
+		NewPinInfos = FPinInfoArray(InNode, this, &PreviousPinInfos);
 	}
 	else if (EntryNode || ReturnNode)
 	{
@@ -15162,20 +15093,20 @@ void URigVMController::RepopulatePinsOnNode(URigVMNode* InNode, bool bFollowCore
 	}
 	else if (CollapseNode)
 	{
-		NewPinInfos = FRigVMPinInfoArray(InNode, this, &PreviousPinInfos);
+		NewPinInfos = FPinInfoArray(InNode, this, &PreviousPinInfos);
 	}
 	else if (FunctionRefNode)
 	{
 		const FRigVMGraphFunctionHeader& FunctionHeader = FunctionRefNode->GetReferencedFunctionHeader();
 		if(FunctionHeader.IsValid())
 		{
-			NewPinInfos = FRigVMPinInfoArray(FunctionHeader, this, &PreviousPinInfos);
+			NewPinInfos = FPinInfoArray(FunctionHeader, this, &PreviousPinInfos);
 		}
 		// if we can't find referenced node anymore
 		// let's keep all pins
 		else
 		{
-			NewPinInfos = FRigVMPinInfoArray(FunctionRefNode, this, &PreviousPinInfos);
+			NewPinInfos = FPinInfoArray(FunctionRefNode, this, &PreviousPinInfos);
 		}
 	}
 	else
@@ -15205,19 +15136,11 @@ void URigVMController::RepopulatePinsOnNode(URigVMNode* InNode, bool bFollowCore
 	// make sure the new pin infos contains the decorator pins from the last run
 	for(int32 Index = 0; Index < PreviousPinInfos.Num(); Index++)
 	{
-		const FRigVMPinInfo& PreviousPin = PreviousPinInfos[Index]; 
+		const FPinInfo& PreviousPin = PreviousPinInfos[Index]; 
 		if(PreviousPin.bIsDecorator)
 		{
 			const int32 NewPinIndex = NewPinInfos.AddPin(this, INDEX_NONE, PreviousPin.Name, PreviousPin.Direction, PreviousPin.TypeIndex, PreviousPin.DefaultValue, nullptr, &PreviousPinInfos, true);
 			NewPinInfos[NewPinIndex].bIsDecorator = true;
-
-			if (URigVMPin* Pin = InNode->FindPin(PreviousPin.PinPath))
-			{
-				TSharedPtr<FStructOnScope> DecoratorScope = Pin->GetDecoratorInstance();
-				FRigVMDecorator* VMDecorator = (FRigVMDecorator*)DecoratorScope->GetStructMemory();
-
-				VMDecorator->GetProgrammaticPins(this, NewPinIndex, NewPinInfos);
-			}
 		}
 	}
 
@@ -15353,7 +15276,7 @@ void URigVMController::RepopulatePinsOnNode(URigVMNode* InNode, bool bFollowCore
 		}
 	}
 
-	auto CreatePinFromPinInfo = [this, &Registry, &PreviousPinInfos](const FRigVMPinInfo& InPinInfo, const FString& InPinPath, UObject* InOuter) -> URigVMPin*
+	auto CreatePinFromPinInfo = [this, &Registry, &PreviousPinInfos](const FPinInfo& InPinInfo, const FString& InPinPath, UObject* InOuter) -> URigVMPin*
 	{
 		check(InOuter);
 		URigVMPin* Pin = NewObject<URigVMPin>(InOuter, InPinInfo.Name);
@@ -15386,7 +15309,7 @@ void URigVMController::RepopulatePinsOnNode(URigVMNode* InNode, bool bFollowCore
 		Pin->DefaultValue = InPinInfo.DefaultValue;
 
 		// reuse expansion state and default value
-		if(const FRigVMPinInfo* PreviousPin = PreviousPinInfos.GetPinFromPinPath(InPinPath))
+		if(const FPinInfo* PreviousPin = PreviousPinInfos.GetPinFromPinPath(InPinPath))
 		{
 			if(PreviousPin->TypeIndex == InPinInfo.TypeIndex)
 			{
@@ -15513,7 +15436,7 @@ void URigVMController::RepopulatePinsOnNode(URigVMNode* InNode, bool bFollowCore
 	for(int32 Index = 0; Index < PreviousPinsToUpdate.Num(); Index++)
 	{
 		const FString& PinPath = PreviousPinInfos.GetPinPath(PreviousPinsToUpdate[Index]);
-		const FRigVMPinInfo* NewPinInfo = NewPinInfos.GetPinFromPinPath(PinPath);
+		const FPinInfo* NewPinInfo = NewPinInfos.GetPinFromPinPath(PinPath);
 		check(NewPinInfo);
 		
 		if(URigVMPin* Pin = InNode->FindPin(PinPath))
@@ -15554,7 +15477,7 @@ void URigVMController::RepopulatePinsOnNode(URigVMNode* InNode, bool bFollowCore
 	TMap<FString, TArray<FName>> PinOrder;
 	for(int32 Index = 0; Index < NewPinInfos.Num(); Index++)
 	{
-		const FRigVMPinInfo& NewPin = NewPinInfos[Index];
+		const FPinInfo& NewPin = NewPinInfos[Index];
 		FString ParentPinPath;
 		if(NewPin.ParentIndex != INDEX_NONE)
 		{

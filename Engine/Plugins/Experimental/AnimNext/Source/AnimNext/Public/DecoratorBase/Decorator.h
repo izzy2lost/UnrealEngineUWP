@@ -19,7 +19,7 @@ class FArchive;
 #define DECLARE_ANIM_DECORATOR(DecoratorName, DecoratorNameHash, SuperDecoratorName) \
 	using DecoratorSuper = SuperDecoratorName; \
 	/* FDecorator impl */ \
-	static constexpr UE::AnimNext::FDecoratorUID DecoratorUID = UE::AnimNext::FDecoratorUID(DecoratorNameHash, TEXT(#DecoratorName)); \
+	static constexpr UE::AnimNext::FDecoratorUID DecoratorUID = UE::AnimNext::FDecoratorUID(TEXT(#DecoratorName), DecoratorNameHash); \
 	virtual UE::AnimNext::FDecoratorUID GetDecoratorUID() const override { return DecoratorUID; } \
 	static const UE::AnimNext::FDecoratorMemoryLayout DecoratorMemoryDescription; \
 	virtual UE::AnimNext::FDecoratorMemoryLayout GetDecoratorMemoryDescription() const override { return DecoratorMemoryDescription; } \
@@ -33,7 +33,7 @@ class FArchive;
 #define DECLARE_ABSTRACT_ANIM_DECORATOR(DecoratorName, DecoratorNameHash, SuperDecoratorName) \
 	using DecoratorSuper = SuperDecoratorName; \
 	/* FDecorator impl */ \
-	static constexpr UE::AnimNext::FDecoratorUID DecoratorUID = UE::AnimNext::FDecoratorUID(DecoratorNameHash, TEXT(#DecoratorName)); \
+	static constexpr UE::AnimNext::FDecoratorUID DecoratorUID = UE::AnimNext::FDecoratorUID(TEXT(#DecoratorName), DecoratorNameHash); \
 	virtual UE::AnimNext::FDecoratorUID GetDecoratorUID() const override { return DecoratorUID; }
 
 // In the decorator cpp, these three macros implement the base functionality
@@ -152,7 +152,7 @@ namespace UE::AnimNext
 		// The globally unique UID for this decorator
 		// Derived types will have their own DecoratorUID member that hides/aliases/shadows this one
 		// @see DECLARE_ANIM_DECORATOR
-		static constexpr FDecoratorUID DecoratorUID = FDecoratorUID(0x4fc735a2, TEXT("FDecorator"));
+		static constexpr FDecoratorUID DecoratorUID = FDecoratorUID(TEXT("FDecorator"), 0x4fc735a2);
 
 		// Returns the globally unique UID for this decorator
 		virtual FDecoratorUID GetDecoratorUID() const { return DecoratorUID; };
@@ -205,7 +205,7 @@ namespace UE::AnimNext
 		// derived type using UE reflection.
 		// Decorators can override this function to control how editor only properties are coerced into the runtime shared data
 		// instance.
-		virtual void SaveDecoratorSharedData(FDecoratorWriter& Writer, const TFunction<FString(const FString& PropertyName)>& GetDecoratorProperty, FAnimNextDecoratorSharedData& OutSharedData) const;
+		virtual void SaveDecoratorSharedData(FDecoratorWriter& Writer, const TMap<FString, FString>& Properties, FAnimNextDecoratorSharedData& OutSharedData) const;
 #endif
 	};
 

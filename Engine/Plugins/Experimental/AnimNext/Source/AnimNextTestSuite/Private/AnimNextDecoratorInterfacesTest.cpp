@@ -16,7 +16,6 @@
 #include "DecoratorBase/ExecutionContext.h"
 #include "DecoratorBase/IDecoratorInterface.h"
 #include "DecoratorBase/NodeInstance.h"
-#include "DecoratorBase/NodeTemplateBuilder.h"
 #include "DecoratorBase/NodeTemplateRegistry.h"
 #include "DecoratorInterfaces/IEvaluate.h"
 #include "DecoratorInterfaces/IHierarchy.h"
@@ -213,7 +212,6 @@ bool FAnimationAnimNextRuntimeTest_IHierarchy::RunTest(const FString& InParamete
 	AUTO_REGISTER_ANIM_DECORATOR(FDecoratorWithOneChild)
 	AUTO_REGISTER_ANIM_DECORATOR(FDecoratorWithChildren)
 
-	FScopedClearNodeTemplateRegistry ScopedClearNodeTemplateRegistry;
 	FNodeTemplateRegistry& Registry = FNodeTemplateRegistry::Get();
 
 	// We create a few node templates
@@ -236,10 +234,10 @@ bool FAnimationAnimNextRuntimeTest_IHierarchy::RunTest(const FString& InParamete
 
 	// Populate our node template registry
 	TArray<uint8> NodeTemplateBufferA, NodeTemplateBufferB, NodeTemplateBufferC, NodeTemplateBufferD;
-	const FNodeTemplate* NodeTemplateA = FNodeTemplateBuilder::BuildNodeTemplate(NodeTemplateDecoratorListA, NodeTemplateBufferA);
-	const FNodeTemplate* NodeTemplateB = FNodeTemplateBuilder::BuildNodeTemplate(NodeTemplateDecoratorListB, NodeTemplateBufferB);
-	const FNodeTemplate* NodeTemplateC = FNodeTemplateBuilder::BuildNodeTemplate(NodeTemplateDecoratorListC, NodeTemplateBufferC);
-	const FNodeTemplate* NodeTemplateD = FNodeTemplateBuilder::BuildNodeTemplate(NodeTemplateDecoratorListD, NodeTemplateBufferD);
+	const FNodeTemplate* NodeTemplateA = BuildNodeTemplate(NodeTemplateDecoratorListA, NodeTemplateBufferA);
+	const FNodeTemplate* NodeTemplateB = BuildNodeTemplate(NodeTemplateDecoratorListB, NodeTemplateBufferB);
+	const FNodeTemplate* NodeTemplateC = BuildNodeTemplate(NodeTemplateDecoratorListC, NodeTemplateBufferC);
+	const FNodeTemplate* NodeTemplateD = BuildNodeTemplate(NodeTemplateDecoratorListD, NodeTemplateBufferD);
 
 	// Build our graph, it as follow (each node template has a single node instance):
 	// NodeA has no children
@@ -282,24 +280,24 @@ bool FAnimationAnimNextRuntimeTest_IHierarchy::RunTest(const FString& InParamete
 
 		DecoratorWriter.BeginNodeWriting();
 		DecoratorWriter.WriteNode(NodeA,
-			[&DecoratorPropertiesA](uint32 DecoratorIndex, const FString& PropertyName)
+			[&DecoratorPropertiesA](uint32 DecoratorIndex) -> const TMap<FString, FString>&
 			{
-				return DecoratorPropertiesA[DecoratorIndex][PropertyName];
+				return DecoratorPropertiesA[DecoratorIndex];
 			});
 		DecoratorWriter.WriteNode(NodeB,
-			[&DecoratorPropertiesB](uint32 DecoratorIndex, const FString& PropertyName)
+			[&DecoratorPropertiesB](uint32 DecoratorIndex) -> const TMap<FString, FString>&
 			{
-				return DecoratorPropertiesB[DecoratorIndex][PropertyName];
+				return DecoratorPropertiesB[DecoratorIndex];
 			});
 		DecoratorWriter.WriteNode(NodeC,
-			[&DecoratorPropertiesC](uint32 DecoratorIndex, const FString& PropertyName)
+			[&DecoratorPropertiesC](uint32 DecoratorIndex) -> const TMap<FString, FString>&
 			{
-				return DecoratorPropertiesC[DecoratorIndex][PropertyName];
+				return DecoratorPropertiesC[DecoratorIndex];
 			});
 		DecoratorWriter.WriteNode(NodeD,
-			[&DecoratorPropertiesD](uint32 DecoratorIndex, const FString& PropertyName)
+			[&DecoratorPropertiesD](uint32 DecoratorIndex) -> const TMap<FString, FString>&
 			{
-				return DecoratorPropertiesD[DecoratorIndex][PropertyName];
+				return DecoratorPropertiesD[DecoratorIndex];
 			});
 		DecoratorWriter.EndNodeWriting();
 
@@ -309,18 +307,11 @@ bool FAnimationAnimNextRuntimeTest_IHierarchy::RunTest(const FString& InParamete
 
 	// Read our graph
 	TArray<uint8> GraphSharedDataBuffer;
-	TArray<TObjectPtr<UObject>> TrackedObjectsForGC;
 	{
 		FMemoryReader GraphSharedDataArchive(GraphSharedDataArchiveBuffer);
 		FDecoratorReader DecoratorReader(GraphSharedDataArchive);
 
-		FDecoratorReader::EErrorState ErrorState = DecoratorReader.ReadGraph(GraphSharedDataBuffer, TrackedObjectsForGC);
-		AddErrorIfFalse(ErrorState == FDecoratorReader::EErrorState::None, "FAnimationAnimNextRuntimeTest_IHierarchy -> Failed to read graph shared data");
-
-		NodeA = DecoratorReader.ResolveNodeHandle(NodeA);
-		NodeB = DecoratorReader.ResolveNodeHandle(NodeB);
-		NodeC = DecoratorReader.ResolveNodeHandle(NodeC);
-		NodeD = DecoratorReader.ResolveNodeHandle(NodeD);
+		DecoratorReader.ReadGraphSharedData(GraphSharedDataBuffer);
 	}
 
 	FExecutionContext Context(GraphSharedDataBuffer);
@@ -407,7 +398,6 @@ bool FAnimationAnimNextRuntimeTest_IUpdate::RunTest(const FString& InParameters)
 	AUTO_REGISTER_ANIM_DECORATOR(FDecoratorWithOneChild)
 	AUTO_REGISTER_ANIM_DECORATOR(FDecoratorWithChildren)
 
-	FScopedClearNodeTemplateRegistry ScopedClearNodeTemplateRegistry;
 	FNodeTemplateRegistry& Registry = FNodeTemplateRegistry::Get();
 
 	// We create a few node templates
@@ -425,9 +415,9 @@ bool FAnimationAnimNextRuntimeTest_IUpdate::RunTest(const FString& InParameters)
 
 	// Populate our node template registry
 	TArray<uint8> NodeTemplateBufferA, NodeTemplateBufferB, NodeTemplateBufferC;
-	const FNodeTemplate* NodeTemplateA = FNodeTemplateBuilder::BuildNodeTemplate(NodeTemplateDecoratorListA, NodeTemplateBufferA);
-	const FNodeTemplate* NodeTemplateB = FNodeTemplateBuilder::BuildNodeTemplate(NodeTemplateDecoratorListB, NodeTemplateBufferB);
-	const FNodeTemplate* NodeTemplateC = FNodeTemplateBuilder::BuildNodeTemplate(NodeTemplateDecoratorListC, NodeTemplateBufferC);
+	const FNodeTemplate* NodeTemplateA = BuildNodeTemplate(NodeTemplateDecoratorListA, NodeTemplateBufferA);
+	const FNodeTemplate* NodeTemplateB = BuildNodeTemplate(NodeTemplateDecoratorListB, NodeTemplateBufferB);
+	const FNodeTemplate* NodeTemplateC = BuildNodeTemplate(NodeTemplateDecoratorListC, NodeTemplateBufferC);
 
 	// Build our graph, it as follow (each node template has a single node instance):
 	// NodeA has no children
@@ -462,19 +452,19 @@ bool FAnimationAnimNextRuntimeTest_IUpdate::RunTest(const FString& InParameters)
 
 		DecoratorWriter.BeginNodeWriting();
 		DecoratorWriter.WriteNode(NodeA,
-			[&DecoratorPropertiesA](uint32 DecoratorIndex, const FString& PropertyName)
+			[&DecoratorPropertiesA](uint32 DecoratorIndex) -> const TMap<FString, FString>&
 			{
-				return DecoratorPropertiesA[DecoratorIndex][PropertyName];
+				return DecoratorPropertiesA[DecoratorIndex];
 			});
 		DecoratorWriter.WriteNode(NodeB,
-			[&DecoratorPropertiesB](uint32 DecoratorIndex, const FString& PropertyName)
+			[&DecoratorPropertiesB](uint32 DecoratorIndex) -> const TMap<FString, FString>&
 			{
-				return DecoratorPropertiesB[DecoratorIndex][PropertyName];
+				return DecoratorPropertiesB[DecoratorIndex];
 			});
 		DecoratorWriter.WriteNode(NodeC,
-			[&DecoratorPropertiesC](uint32 DecoratorIndex, const FString& PropertyName)
+			[&DecoratorPropertiesC](uint32 DecoratorIndex) -> const TMap<FString, FString>&
 			{
-				return DecoratorPropertiesC[DecoratorIndex][PropertyName];
+				return DecoratorPropertiesC[DecoratorIndex];
 			});
 		DecoratorWriter.EndNodeWriting();
 
@@ -484,17 +474,11 @@ bool FAnimationAnimNextRuntimeTest_IUpdate::RunTest(const FString& InParameters)
 
 	// Read our graph
 	TArray<uint8> GraphSharedDataBuffer;
-	TArray<TObjectPtr<UObject>> TrackedObjectsForGC;
 	{
 		FMemoryReader GraphSharedDataArchive(GraphSharedDataArchiveBuffer);
 		FDecoratorReader DecoratorReader(GraphSharedDataArchive);
 
-		FDecoratorReader::EErrorState ErrorState = DecoratorReader.ReadGraph(GraphSharedDataBuffer, TrackedObjectsForGC);
-		AddErrorIfFalse(ErrorState == FDecoratorReader::EErrorState::None, "FAnimationAnimNextRuntimeTest_IUpdate -> Failed to read graph shared data");
-
-		NodeA = DecoratorReader.ResolveNodeHandle(NodeA);
-		NodeB = DecoratorReader.ResolveNodeHandle(NodeB);
-		NodeC = DecoratorReader.ResolveNodeHandle(NodeC);
+		DecoratorReader.ReadGraphSharedData(GraphSharedDataBuffer);
 	}
 
 	FExecutionContext Context(GraphSharedDataBuffer);
@@ -511,7 +495,7 @@ bool FAnimationAnimNextRuntimeTest_IUpdate::RunTest(const FString& InParameters)
 		AddErrorIfFalse(NodeCPtr.IsValid(), "FAnimationAnimNextRuntimeTest_IUpdate -> Failed to allocate root node instance");
 
 		// Call pre/post update on our graph
-		UpdateGraph(Context, NodeCPtr, 0.0333f);
+		UpdateGraph(Context, NodeCPtr);
 
 		AddErrorIfFalse(UpdatedDecorators.Num() == 6, "FAnimationAnimNextRuntimeTest_IUpdate -> Expected 6 nodes to have been visited during the update traversal");
 		AddErrorIfFalse(UpdatedDecorators[0] == FDecoratorWithChildren::DecoratorUID, "FAnimationAnimNextRuntimeTest_IUpdate -> Unexpected update order");		// NodeC
@@ -543,7 +527,6 @@ bool FAnimationAnimNextRuntimeTest_IEvaluate::RunTest(const FString& InParameter
 	AUTO_REGISTER_ANIM_DECORATOR(FDecoratorWithOneChild)
 	AUTO_REGISTER_ANIM_DECORATOR(FDecoratorWithChildren)
 
-	FScopedClearNodeTemplateRegistry ScopedClearNodeTemplateRegistry;
 	FNodeTemplateRegistry& Registry = FNodeTemplateRegistry::Get();
 
 	// We create a few node templates
@@ -561,9 +544,9 @@ bool FAnimationAnimNextRuntimeTest_IEvaluate::RunTest(const FString& InParameter
 
 	// Populate our node template registry
 	TArray<uint8> NodeTemplateBufferA, NodeTemplateBufferB, NodeTemplateBufferC;
-	const FNodeTemplate* NodeTemplateA = FNodeTemplateBuilder::BuildNodeTemplate(NodeTemplateDecoratorListA, NodeTemplateBufferA);
-	const FNodeTemplate* NodeTemplateB = FNodeTemplateBuilder::BuildNodeTemplate(NodeTemplateDecoratorListB, NodeTemplateBufferB);
-	const FNodeTemplate* NodeTemplateC = FNodeTemplateBuilder::BuildNodeTemplate(NodeTemplateDecoratorListC, NodeTemplateBufferC);
+	const FNodeTemplate* NodeTemplateA = BuildNodeTemplate(NodeTemplateDecoratorListA, NodeTemplateBufferA);
+	const FNodeTemplate* NodeTemplateB = BuildNodeTemplate(NodeTemplateDecoratorListB, NodeTemplateBufferB);
+	const FNodeTemplate* NodeTemplateC = BuildNodeTemplate(NodeTemplateDecoratorListC, NodeTemplateBufferC);
 
 	// Build our graph, it as follow (each node template has a single node instance):
 	// NodeA has no children
@@ -599,19 +582,19 @@ bool FAnimationAnimNextRuntimeTest_IEvaluate::RunTest(const FString& InParameter
 
 		DecoratorWriter.BeginNodeWriting();
 		DecoratorWriter.WriteNode(NodeA,
-			[&DecoratorPropertiesA](uint32 DecoratorIndex, const FString& PropertyName)
+			[&DecoratorPropertiesA](uint32 DecoratorIndex) -> const TMap<FString, FString>&
 			{
-				return DecoratorPropertiesA[DecoratorIndex][PropertyName];
+				return DecoratorPropertiesA[DecoratorIndex];
 			});
 		DecoratorWriter.WriteNode(NodeB,
-			[&DecoratorPropertiesB](uint32 DecoratorIndex, const FString& PropertyName)
+			[&DecoratorPropertiesB](uint32 DecoratorIndex) -> const TMap<FString, FString>&
 			{
-				return DecoratorPropertiesB[DecoratorIndex][PropertyName];
+				return DecoratorPropertiesB[DecoratorIndex];
 			});
 		DecoratorWriter.WriteNode(NodeC,
-			[&DecoratorPropertiesC](uint32 DecoratorIndex, const FString& PropertyName)
+			[&DecoratorPropertiesC](uint32 DecoratorIndex) -> const TMap<FString, FString>&
 			{
-				return DecoratorPropertiesC[DecoratorIndex][PropertyName];
+				return DecoratorPropertiesC[DecoratorIndex];
 			});
 		DecoratorWriter.EndNodeWriting();
 
@@ -621,17 +604,11 @@ bool FAnimationAnimNextRuntimeTest_IEvaluate::RunTest(const FString& InParameter
 
 	// Read our graph
 	TArray<uint8> GraphSharedDataBuffer;
-	TArray<TObjectPtr<UObject>> TrackedObjectsForGC;
 	{
 		FMemoryReader GraphSharedDataArchive(GraphSharedDataArchiveBuffer);
 		FDecoratorReader DecoratorReader(GraphSharedDataArchive);
 
-		FDecoratorReader::EErrorState ErrorState = DecoratorReader.ReadGraph(GraphSharedDataBuffer, TrackedObjectsForGC);
-		AddErrorIfFalse(ErrorState == FDecoratorReader::EErrorState::None, "FAnimationAnimNextRuntimeTest_IEvaluate -> Failed to read graph shared data");
-
-		NodeA = DecoratorReader.ResolveNodeHandle(NodeA);
-		NodeB = DecoratorReader.ResolveNodeHandle(NodeB);
-		NodeC = DecoratorReader.ResolveNodeHandle(NodeC);
+		DecoratorReader.ReadGraphSharedData(GraphSharedDataBuffer);
 	}
 
 	FExecutionContext Context(GraphSharedDataBuffer);

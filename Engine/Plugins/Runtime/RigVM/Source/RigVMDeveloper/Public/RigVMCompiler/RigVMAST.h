@@ -1317,8 +1317,8 @@ private:
 	void FoldAssignments();
 
 	// helper function to inline all contributing nodes of the graph
-	void Inline(const TArray<URigVMGraph*>& InGraphs);
-	void Inline(const TArray<URigVMGraph*>& InGraphs, const TArray<FRigVMASTProxy>& InNodeProxies);
+	void Inline(TArray<URigVMGraph*> InGraphs);
+	void Inline(TArray<URigVMGraph*> InGraphs, const TArray<FRigVMASTProxy>& InNodeProxies);
 
 	// helper functions to retrieve links for a given pin
 	TArray<int32> GetSourceLinkIndices(const FRigVMASTProxy& InPinProxy, bool bRecursive = false) const;

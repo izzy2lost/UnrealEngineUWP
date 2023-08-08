@@ -3,16 +3,16 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "EdGraph/RigVMEdGraphSchema.h"
+#include "Graph/ControlRigGraphSchema.h"
 #include "AnimNextGraph_EdGraphNode.h"
 #include "AnimNextGraph_EdGraphSchema.generated.h"
 
 UCLASS(MinimalAPI)
-class UAnimNextGraph_EdGraphSchema : public URigVMEdGraphSchema
+class UAnimNextGraph_EdGraphSchema : public UControlRigGraphSchema
 {
 	GENERATED_BODY()
 
-	// URigVMEdGraphSchema interface
+	// UControlRigGraphSchema interface
 	virtual TSubclassOf<URigVMEdGraphNode> GetGraphNodeClass(const URigVMEdGraph* InGraph) const override { return UAnimNextGraph_EdGraphNode::StaticClass(); }
 
 	// UEdGraphSchema interface

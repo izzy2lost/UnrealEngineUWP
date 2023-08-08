@@ -12,59 +12,43 @@
  * Decorator Handle
  * A decorator handle represents a reference to a specific decorator instance in the shared/read-only portion
  * of a sub-graph. It points to a FNodeDescription when resolved.
- * 
- * Internally, it contains a node handle and a decorator index.
- * Decorator handles can only be used within an AnimNext graph serialized with FDecoratorWriter.
- * 
- * @see FNodeDescription, FNodeHandle
+ * @see FNodeDescription
  */
-USTRUCT(BlueprintType)
-struct FAnimNextDecoratorHandle final
+USTRUCT()
+struct FAnimNextDecoratorHandle
 {
 	GENERATED_BODY()
 
 	// Creates an invalid decorator handle
-	constexpr FAnimNextDecoratorHandle() noexcept
-		: PackedDecoratorIndexAndNodeHandle(UE::AnimNext::FNodeHandle::INVALID_NODE_HANDLE_RAW_VALUE)
+	FAnimNextDecoratorHandle()
+		: PackedDecoratorIndexAndNodeSharedOffset(INVALID_SHARED_OFFSET_VALUE)
 	{}
 
 	// Creates a decorator handle pointing to the first decorator of the specified node
-	explicit constexpr FAnimNextDecoratorHandle(UE::AnimNext::FNodeHandle NodeHandle) noexcept
-		: PackedDecoratorIndexAndNodeHandle(NodeHandle.GetPackedValue() & NODE_HANDLE_MASK)
+	explicit FAnimNextDecoratorHandle(UE::AnimNext::FNodeHandle NodeHandle)
+		: PackedDecoratorIndexAndNodeSharedOffset(NodeHandle.GetSharedOffset())
 	{}
 
 	// Creates a decorator handle pointing to the specified decorator on the specified node
-	FAnimNextDecoratorHandle(UE::AnimNext::FNodeHandle NodeHandle, uint32 DecoratorIndex)
-		: PackedDecoratorIndexAndNodeHandle((NodeHandle.GetPackedValue() & NODE_HANDLE_MASK) | (DecoratorIndex << 24))
-	{
-		check(DecoratorIndex <= MAX_uint8);	// Make sure we don't truncate
-	}
+	FAnimNextDecoratorHandle(UE::AnimNext::FNodeHandle NodeHandle, uint32 DecoratorIndex_)
+		: PackedDecoratorIndexAndNodeSharedOffset(NodeHandle.GetSharedOffset() | (DecoratorIndex_ << 24))
+	{}
 
 	// Returns true if this decorator handle is valid, false otherwise
-	constexpr bool IsValid() const noexcept { return GetNodeHandle().IsValid(); }
+	bool IsValid() const { return (PackedDecoratorIndexAndNodeSharedOffset & SHARED_OFFSET_MASK) != INVALID_SHARED_OFFSET_VALUE; }
 
 	// Returns the decorator index
-	constexpr uint32 GetDecoratorIndex() const noexcept { return PackedDecoratorIndexAndNodeHandle >> DECORATOR_SHIFT; }
+	uint32 GetDecoratorIndex() const { return PackedDecoratorIndexAndNodeSharedOffset >> DECORATOR_SHIFT; }
 
-	// Returns a handle to the node referenced
-	constexpr UE::AnimNext::FNodeHandle GetNodeHandle() const noexcept { return UE::AnimNext::FNodeHandle::FromPackedValue(PackedDecoratorIndexAndNodeHandle); }
-
-	ANIMNEXT_API bool Serialize(class FArchive& Ar);
+	// Returns a handle to the node in the shared data segment
+	UE::AnimNext::FNodeHandle GetNodeHandle() const { return UE::AnimNext::FNodeHandle(PackedDecoratorIndexAndNodeSharedOffset & SHARED_OFFSET_MASK); }
 
 private:
-	// Bottom 24 bits are used by the node handle while the top 8 bits by the decorator index
+	// Bottom 24 bits are used by the node shared offset while the top 8 bits by the decorator index
 	static constexpr uint32 DECORATOR_SHIFT = 24;
-	static constexpr uint32 NODE_HANDLE_MASK = ~0u >> (32 - DECORATOR_SHIFT);
+	static constexpr uint32 SHARED_OFFSET_MASK = ~0u >> (32 - DECORATOR_SHIFT);
+	static constexpr uint32 INVALID_SHARED_OFFSET_VALUE = SHARED_OFFSET_MASK;
 
 	UPROPERTY()
-	uint32		PackedDecoratorIndexAndNodeHandle;
-};
-
-template<>
-struct TStructOpsTypeTraits<FAnimNextDecoratorHandle> : public TStructOpsTypeTraitsBase2<FAnimNextDecoratorHandle>
-{
-	enum
-	{
-		WithSerializer = true,
-	};
+	uint32		PackedDecoratorIndexAndNodeSharedOffset;
 };

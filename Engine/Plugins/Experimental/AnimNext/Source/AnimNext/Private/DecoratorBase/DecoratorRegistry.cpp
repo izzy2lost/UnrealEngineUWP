@@ -206,20 +206,20 @@ namespace UE::AnimNext
 		}
 	}
 
-	FDecoratorRegistryHandle FDecoratorRegistry::FindHandle(FDecoratorUID DecoratorUID) const
+	FDecoratorRegistryHandle FDecoratorRegistry::FindHandle(uint32 DecoratorUID) const
 	{
-		if (!DecoratorUID.IsValid())
-		{
-			return FDecoratorRegistryHandle();
-		}
-
-		if (const FRegistryEntry* Entry = DecoratorUIDToEntryMap.Find(DecoratorUID.GetUID()))
+		if (const FRegistryEntry* Entry = DecoratorUIDToEntryMap.Find(DecoratorUID))
 		{
 			return Entry->DecoratorHandle;
 		}
 
 		// Decorator not found
 		return FDecoratorRegistryHandle();
+	}
+
+	FDecoratorRegistryHandle FDecoratorRegistry::FindHandle(FDecoratorUID DecoratorUID) const
+	{
+		return FindHandle(DecoratorUID.GetUID());
 	}
 
 	const FDecorator* FDecoratorRegistry::Find(FDecoratorRegistryHandle DecoratorHandle) const
@@ -245,25 +245,6 @@ namespace UE::AnimNext
 	{
 		const FDecoratorRegistryHandle DecoratorHandle = FindHandle(DecoratorUID);
 		return Find(DecoratorHandle);
-	}
-
-	const FDecorator* FDecoratorRegistry::Find(const UScriptStruct* DecoratorSharedDataStruct) const
-	{
-		if (DecoratorSharedDataStruct == nullptr)
-		{
-			return nullptr;
-		}
-
-		for (const auto& KeyValuePair : DecoratorUIDToEntryMap)
-		{
-			const FDecorator* Decorator = KeyValuePair.Value.Decorator;
-			if (Decorator->GetDecoratorSharedDataStruct() == DecoratorSharedDataStruct)
-			{
-				return Decorator;
-			}
-		}
-
-		return nullptr;
 	}
 
 	void FDecoratorRegistry::Register(FDecorator* Decorator)
@@ -339,19 +320,6 @@ namespace UE::AnimNext
 
 			DecoratorUIDToEntryMap.Remove(DecoratorUID.GetUID());
 		}
-	}
-
-	TArray<const FDecorator*> FDecoratorRegistry::GetDecorators() const
-	{
-		TArray<const FDecorator*> Decorators;
-		Decorators.Reserve(DecoratorUIDToEntryMap.Num());
-		
-		for (const auto& It : DecoratorUIDToEntryMap)
-		{
-			Decorators.Add(It.Value.Decorator);
-		}
-
-		return Decorators;
 	}
 
 	uint32 FDecoratorRegistry::GetNum() const

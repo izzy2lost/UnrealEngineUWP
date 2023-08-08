@@ -11,7 +11,8 @@
 #include "GenerationTools.h"
 #include "ReferencePose.h"
 #include "Graph/AnimNext_LODPose.h"
-#include "Graph/AnimNextExecuteContext.h"
+#include "Animation/AnimSequence.h" // TEST
+#include "Graph/RigUnit_AnimNextAnimSequence.h" // TEST
 #include "Engine/SkeletalMesh.h"
 #include "BoneContainer.h"
 #include "Param/ParamStack.h"
@@ -27,14 +28,7 @@ FAnimNode_AnimNextGraph::FAnimNode_AnimNextGraph()
 	, AnimNextGraph(nullptr)
 	, LODThreshold(INDEX_NONE)
 {
-}
 
-FAnimNode_AnimNextGraph::~FAnimNode_AnimNextGraph()
-{
-	if (GraphInstancePtr.IsValid())
-	{
-		AnimNextGraph->ReleaseInstance(GraphInstancePtr);
-	}
 }
 
 void FAnimNode_AnimNextGraph::OnInitializeAnimInstance(const FAnimInstanceProxy* InProxy, const UAnimInstance* InAnimInstance)
@@ -57,6 +51,8 @@ void FAnimNode_AnimNextGraph::Update_AnyThread(const FAnimationUpdateContext& Co
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
+	GraphDeltaTime += Context.GetDeltaTime();
+
 	SourceLink.Update(Context);
 
 	if (IsLODEnabled(Context.AnimInstanceProxy))
@@ -64,17 +60,6 @@ void FAnimNode_AnimNextGraph::Update_AnyThread(const FAnimationUpdateContext& Co
 		GetEvaluateGraphExposedInputs().Execute(Context);
 
 		PropagateInputProperties(Context.AnimInstanceProxy->GetAnimInstanceObject());
-
-		// Populate our param stack since our instance data might need it during construction
-		const int32 LODLevel = Context.AnimInstanceProxy->GetLODLevel();
-
-		UE::AnimNext::FParamStack::Get().PushValues(
-			"GraphLODLevel", LODLevel
-		);
-
-		UE::AnimNext::FContext AnimNextContext(Context.GetDeltaTime());
-
-		AnimNextGraph->Run(AnimNextContext, GraphInstancePtr, EAnimNextGraphSimulationSteps::Update);
 	}
 
 	FAnimNode_CustomProperty::Update_AnyThread(Context);
@@ -87,20 +72,6 @@ void FAnimNode_AnimNextGraph::Initialize_AnyThread(const FAnimationInitializeCon
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
 	SourceLink.Initialize(Context);
-
-	if (!GraphInstancePtr.IsValid() && AnimNextGraph)
-	{
-		// If we don't have an instance yet, create one
-
-		// Populate our param stack since our instance data might need it during construction
-		const int32 LODLevel = Context.AnimInstanceProxy->GetLODLevel();
-
-		UE::AnimNext::FParamStack::Get().PushValues(
-			"GraphLODLevel", LODLevel
-		);
-
-		GraphInstancePtr = AnimNextGraph->AllocateInstance();
-	}
 
 	FAnimNode_CustomProperty::Initialize_AnyThread(Context);
 }
@@ -139,23 +110,29 @@ void FAnimNode_AnimNextGraph::Evaluate_AnyThread(FPoseContext & Output)
 
 	const int32 LODLevel = Output.AnimInstanceProxy->GetLODLevel();
 	
-	UE::AnimNext::FContext Context(0.0f);
+	// TODO : Using AnimInstanceProxy->GetDeltaSeconds() makes the preview to advance  multiple times when debug options are activated (i.e. ShowUncompressedAnim)
+	// See where to get / how to calculate the correct delta value
+	UE::AnimNext::FContext Context(GraphDeltaTime);
+	GraphDeltaTime = 0.f; // Reset for the case that we receive multiple calls to Evaluate (debug options)
 
 	FAnimNextGraphReferencePose GraphReferencePose(&RefPose);
+	FAnimNextGraph_AnimSequence GraphTestSequence(TestSequence);  // TEST
 
 	FAnimNextGraphLODPose GraphSourceLODPose(FLODPose(RefPose, LODLevel, false, Output.ExpectsAdditivePose()));
 	FAnimNextGraphLODPose ResultPose(FLODPose(RefPose, LODLevel, true, Output.ExpectsAdditivePose()));
 	FGenerationTools::RemapPose(LODLevel, SourcePose, RefPose, GraphSourceLODPose.LODPose);
 
 	FParamStack::FPushedLayerHandle LayerHandle = Context.GetMutableParamStack().PushValues(
+		"AnimSequencePlayerState", SequencePlayerState,
 		"GraphReferencePose", GraphReferencePose,
 		"ResultPose", ResultPose,
 		"GraphLODLevel", LODLevel,
 		"GraphExpectsAdditive", Output.ExpectsAdditivePose(),
-		"SourcePose", GraphSourceLODPose						// TODO : Pass this as a external variable maybe ? When we have support for variables in the rigvm graph
+		"SourcePose", GraphSourceLODPose,						// TODO : Pass this as a external variable maybe ? When we have support for variables in the rigvm graph
+		"TestSequence", GraphTestSequence						// TEST anim decompression - Anim Sequence to decompress);
 	);
 
-	AnimNextGraph->Run(Context, GraphInstancePtr, EAnimNextGraphSimulationSteps::Evaluate);
+	AnimNextGraph->Run(Context);
 
 	FGenerationTools::RemapPose(LODLevel, RefPose, ResultPose.LODPose, Output);
 

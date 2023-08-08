@@ -29,8 +29,7 @@ namespace UnrealBuildTool.Rules
 					"Kismet",
 					"Slate",
 					"SlateCore",
-					"StructUtils",
-					"ToolMenus",
+					"StructUtils"
 				}
 			);
 

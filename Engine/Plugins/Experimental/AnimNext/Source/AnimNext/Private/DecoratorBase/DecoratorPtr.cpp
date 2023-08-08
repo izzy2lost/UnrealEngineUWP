@@ -7,10 +7,10 @@ namespace UE::AnimNext
 {
 	FDecoratorPtr::FDecoratorPtr(FNodeInstance* NodeInstance, uint32 DecoratorIndex_)
 		: PackedPointerAndFlags(NodeInstance != nullptr ? reinterpret_cast<uintptr_t>(NodeInstance) : 0)
-		, DecoratorIndex(DecoratorIndex_)
+		, DecoratorIndex(static_cast<uint8>(DecoratorIndex_))
 	{
 		check((reinterpret_cast<uintptr_t>(NodeInstance) & FLAGS_MASK) == 0);	// Make sure we have enough alignment
-		check(DecoratorIndex <= MAX_uint8);	// Make sure we don't truncate
+		check(DecoratorIndex == DecoratorIndex_);	// Make sure we didn't truncate
 
 		if (NodeInstance != nullptr)
 		{
@@ -43,10 +43,10 @@ namespace UE::AnimNext
 
 	FDecoratorPtr::FDecoratorPtr(FNodeInstance* NodeInstance, EFlags Flags, uint32 DecoratorIndex_)
 		: PackedPointerAndFlags(NodeInstance != nullptr ? (reinterpret_cast<uintptr_t>(NodeInstance) | Flags) : 0)
-		, DecoratorIndex(DecoratorIndex_)
+		, DecoratorIndex(static_cast<uint8>(DecoratorIndex_))
 	{
 		check((reinterpret_cast<uintptr_t>(NodeInstance) & FLAGS_MASK) == 0);	// Make sure we have enough alignment
-		check(DecoratorIndex <= MAX_uint8);	// Make sure we don't truncate
+		check(DecoratorIndex == DecoratorIndex_);	// Make sure we didn't truncate
 
 		// Only increment the reference count if we aren't a weak handle
 		if (NodeInstance != nullptr && (Flags & IS_WEAK_BIT) == 0)
@@ -110,13 +110,6 @@ namespace UE::AnimNext
 
 		PackedPointerAndFlags = 0;
 		DecoratorIndex = 0;
-	}
-
-	FWeakDecoratorPtr::FWeakDecoratorPtr(FNodeInstance* NodeInstance_, uint32 DecoratorIndex_)
-		: NodeInstance(NodeInstance_)
-		, DecoratorIndex(DecoratorIndex_)
-	{
-		check(DecoratorIndex <= MAX_uint8);	// Make sure we don't truncate
 	}
 
 	void FWeakDecoratorPtr::Reset()

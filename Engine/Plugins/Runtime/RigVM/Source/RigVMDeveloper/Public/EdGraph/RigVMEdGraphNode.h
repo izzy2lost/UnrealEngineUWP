@@ -147,9 +147,6 @@ public:
 	/** Get the VM node name this node is wrapping */
 	FName GetModelNodeName() const;
 
-	/** Get the VM node path this node is wrapping */
-	const FString& GetModelNodePath() const;
-
 	URigVMPin* GetModelPinFromPinPath(const FString& InPinPath) const;
 
 	/** Add a new element to the aggregate node referred to by the property path */

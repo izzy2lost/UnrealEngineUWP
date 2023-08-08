@@ -11,70 +11,64 @@
 
 #include "DecoratorBase/DecoratorUID.h"
 #include "DecoratorBase/NodeTemplate.h"
-#include "DecoratorBase/NodeTemplateRegistry.h"
 
 namespace UE::AnimNext
 {
+	// Builds a node template from a list of decorator UID
+	const FNodeTemplate* BuildNodeTemplate(const TArray<FDecoratorUID>& NodeTemplateDecoratorList, TArray<uint8>& NodeTemplateBuffer);
+
 	// Converts a property value into its string representation using UE reflection
 	template<class DecoratorSharedDataType, typename PropertyType>
 	static FString ToString(const FString& PropertyName, PropertyType PropertyValue)
 	{
 		const UScriptStruct* SharedDataStruct = DecoratorSharedDataType::StaticStruct();
-		if (const FProperty* Property = SharedDataStruct->FindPropertyByName(*PropertyName))
+
+		for (const FProperty* Property = SharedDataStruct->PropertyLink; Property != nullptr; Property = Property->PropertyLinkNext)
 		{
-			void* PropertyDefaults = Property->AllocateAndInitializeValue();
-
-			FString Result;
-
-			if constexpr (std::is_pointer_v<PropertyType>)
+			if (Property->GetName() == PropertyName)
 			{
-				// C-style array properties aren't handled by ExportText, we need to handle it manually
+				void* PropertyDefaults = Property->AllocateAndInitializeValue();
 
-				const bool bIsCArray = Property->ArrayDim > 1;
-				if (bIsCArray)
+				FString Result;
+
+				if constexpr (std::is_pointer_v<PropertyType>)
 				{
-					Result += TEXT("(");
-				}
+					// C-style array properties aren't handled by ExportText, we need to handle it manually
 
-				for (int32 Index = 0; Index < Property->ArrayDim; ++Index)
-				{
-					Property->ExportText_Direct(Result, PropertyValue + Index, (PropertyType)PropertyDefaults + Index, nullptr, PPF_None, nullptr);
-
-					if (Index + 1 < Property->ArrayDim)
+					const bool bIsCArray = Property->ArrayDim > 1;
+					if (bIsCArray)
 					{
-						Result += TEXT(",");
+						Result += TEXT("(");
+					}
+
+					for (int32 Index = 0; Index < Property->ArrayDim; ++Index)
+					{
+						Property->ExportText_Direct(Result, PropertyValue + Index, (PropertyType)PropertyDefaults + Index, nullptr, PPF_None, nullptr);
+
+						if (Index + 1 < Property->ArrayDim)
+						{
+							Result += TEXT(",");
+						}
+					}
+
+					if (bIsCArray)
+					{
+						Result += TEXT(")");
 					}
 				}
-
-				if (bIsCArray)
+				else
 				{
-					Result += TEXT(")");
+					Property->ExportText_Direct(Result, &PropertyValue, PropertyDefaults, nullptr, PPF_None);
 				}
-			}
-			else
-			{
-				Property->ExportText_Direct(Result, &PropertyValue, PropertyDefaults, nullptr, PPF_None);
-			}
 
-			Property->DestroyAndFreeValue(PropertyDefaults);
+				Property->DestroyAndFreeValue(PropertyDefaults);
 
-			return Result;
+				return Result;
+			}
 		}
 
 		return FString();
 	}
-
-	// Creates a temporary empty node template registry instance and swaps it for the current one
-	struct FScopedClearNodeTemplateRegistry final
-	{
-		FScopedClearNodeTemplateRegistry(const FScopedClearNodeTemplateRegistry&) = delete;
-		FScopedClearNodeTemplateRegistry& operator=(const FScopedClearNodeTemplateRegistry&) = delete;
-
-		FScopedClearNodeTemplateRegistry();
-		~FScopedClearNodeTemplateRegistry();
-
-		FNodeTemplateRegistry TmpRegistry;
-	};
 }
 
 #endif

@@ -5,7 +5,8 @@
 #include "Graph/AnimNextGraph_EditorData.h"
 #include "Graph/AnimNextGraph_EdGraph.h"
 #include "UncookedOnlyUtils.h"
-#include "Graph/RigUnit_AnimNextGraphRoot.h"
+#include "Graph/RigUnit_AnimNextBeginExecution.h"
+#include "Graph/RigUnit_AnimNextEndExecution.h"
 #include "RigVMModel/RigVMController.h"
 #include "Units/RigUnit.h"
 
@@ -34,10 +35,10 @@ UObject* UAnimNextGraphFactory::FactoryCreateNew(UClass* Class, UObject* InParen
 	// Add initial execution unit
 	URigVMController* Controller = EditorData->GetRigVMClient()->GetController(EditorData->RootGraph);
 
-	URigVMUnitNode* MainEntryPointNode = Controller->AddUnitNode(FRigUnit_AnimNextGraphRoot::StaticStruct(), FRigVMStruct::ExecuteName, FVector2D(-400.0f, 0.0f), FString(), false);
-	URigVMPin* BeginExecutePin = MainEntryPointNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextGraphRoot, Result));
+	URigVMUnitNode* MainEntryPointNode = Controller->AddUnitNode(FRigUnit_AnimNextBeginExecution::StaticStruct(), FRigUnit::GetMethodName(), FVector2D(-400.0f, 0.0f), FString(), false);
+	URigVMPin* BeginExecutePin = MainEntryPointNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextBeginExecution, ExecuteContext));
 	check(BeginExecutePin);
-	check(BeginExecutePin->GetDirection() == ERigVMPinDirection::Input);
+	check(BeginExecutePin->GetDirection() == ERigVMPinDirection::Output);
 
 	//// Add function to function lib
 	//{
@@ -73,7 +74,7 @@ UObject* UAnimNextGraphFactory::FactoryCreateNew(UClass* Class, UObject* InParen
 
 	//// Add end-execution unit of the correct type
 	//// TODO: using a float for now, but need to use a registry to determine correct type
-	//URigVMUnitNode* MainExitPointNode = Controller->AddUnitNode(FRigUnit_AnimNextEndExecution_Float::StaticStruct(), FRigVMStruct::ExecuteName, FVector2D(400.0f, 0.0f), FString(), false);
+	//URigVMUnitNode* MainExitPointNode = Controller->AddUnitNode(FRigUnit_AnimNextEndExecution_Float::StaticStruct(), FRigUnit::GetMethodName(), FVector2D(400.0f, 0.0f), FString(), false);
 	//URigVMPin* EndExecutePin = MainExitPointNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextEndExecution, ExecuteContext));
 	//check(EndExecutePin);
 	//check(EndExecutePin->GetDirection() == ERigVMPinDirection::Input);

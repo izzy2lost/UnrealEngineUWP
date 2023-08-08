@@ -3,7 +3,6 @@
 #include "AnimNextGraphEditor.h"
 #include "GraphEditorMode.h"
 #include "Graph/AnimNextGraph.h"
-#include "Graph/AnimNextGraph_EdGraphNode.h"
 #include "Graph/AnimNextGraph_EditorData.h"
 #include "EdGraphNode_Comment.h"
 #include "SActionMenu.h"
@@ -63,9 +62,6 @@ void FGraphEditor::InitEditor(const EToolkitMode::Type InMode, const TSharedPtr<
 
 	// Open initial document
 	DocumentManager->OpenDocument(FTabPayload_UObject::Make(AnimNextGraph_EditorData->RootGraph), FDocumentTracker::EOpenDocumentCause::OpenNewDocument);
-
-	// Make sure editor graph matches the model
-	AnimNextGraph_EditorData->RebuildEdGraphFromModel();
 }
 
 void FGraphEditor::BindCommands()
@@ -245,8 +241,6 @@ void FGraphEditor::DeleteSelectedNodes()
 		FocusedGraphEd->ClearSelectionSet();
 	}
 
-	TMap<UAnimNextGraph_EdGraphNode*, URigVMNode*> NodesToRemove;
-
 	// Some nodes have sub-objects that are represented as other tabs.
 	// Close them here as a pre-pass before we remove their nodes. If the documents are left open they
 	// may reference dangling data and function incorrectly in cases such as FindBlueprintforNodeChecked
@@ -274,35 +268,26 @@ void FGraphEditor::DeleteSelectedNodes()
 				{
 					CloseAllDocumentsTab(Node);
 				}
-
-				if (UAnimNextGraph_EdGraphNode* AnimNextNode = Cast<UAnimNextGraph_EdGraphNode>(Node))
-				{
-					if (URigVMNode* ModelNode = GetFocusedVMController()->GetGraph()->FindNodeByName(*AnimNextNode->GetModelNodePath()))
-					{
-						NodesToRemove.Add(AnimNextNode, ModelNode);
-					}
-				}
 			}
 		}
 	}
 
-	if (NodesToRemove.IsEmpty())
+	// Now remove the selected nodes
+	for (FGraphPanelSelectionSet::TConstIterator NodeIt( SelectedNodes ); NodeIt; ++NodeIt)
 	{
-		return;
+		if (UEdGraphNode* Node = Cast<UEdGraphNode>(*NodeIt))
+		{
+			if (Node->CanUserDeleteNode())
+			{
+				if (Node->GetSubGraphs().Num() > 0)
+				{
+					DocumentManager->CleanInvalidTabs();
+				}
+
+				FBlueprintEditorUtils::RemoveNode(nullptr, Node);
+			}
+		}
 	}
-
-	GetFocusedVMController()->OpenUndoBracket(TEXT("Delete selected nodes"));
-
-	TArray<URigVMNode*> ModelNodesToRemove;
-	for (auto& It : NodesToRemove)
-	{
-		URigVMNode* ModelNode = It.Value;
-
-		ModelNodesToRemove.Add(ModelNode);
-	}
-
-	GetFocusedVMController()->RemoveNodes(ModelNodesToRemove, true);
-	GetFocusedVMController()->CloseUndoBracket();
 }
 
 bool FGraphEditor::CanDeleteSelectedNodes()

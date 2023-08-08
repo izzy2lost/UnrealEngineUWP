@@ -1547,11 +1547,6 @@ FName URigVMEdGraphNode::GetModelNodeName() const
 	return NAME_None;
 }
 
-const FString& URigVMEdGraphNode::GetModelNodePath() const
-{
-	return ModelNodePath;
-}
-
 URigVMPin* URigVMEdGraphNode::GetModelPinFromPinPath(const FString& InPinPath) const
 {
 	if (TWeakObjectPtr<URigVMPin> const* CachedModelPinPtr = PinPathToModelPin.Find(InPinPath))
