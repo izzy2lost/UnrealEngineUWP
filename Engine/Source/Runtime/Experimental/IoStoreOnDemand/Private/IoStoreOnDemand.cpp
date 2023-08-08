@@ -1292,6 +1292,13 @@ void FIoStoreOnDemandModule::StartupModule()
 
 	const TCHAR* CommandLine = FCommandLine::Get();
 
+#if !UE_BUILD_SHIPPING
+	if (FParse::Param(CommandLine, TEXT("NoIas")))
+	{
+		return;
+	}
+#endif
+
 	UE::FOnDemandEndpoint Endpoint;
 	
 	FString UrlParam;
