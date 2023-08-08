@@ -886,7 +886,7 @@ void UMovieSceneSequencePlayer::Initialize(UMovieSceneSequence* InSequence)
 	// If we were already registered with a different Tick Interval we need to re-register with the new one, which involves tearing everything down and setting up a new instance
 	else if (RegisteredTickInterval.GetValue() != TickInterval)
 	{
-		RootTemplateInstance.BeginDestroy();
+		RootTemplateInstance.TearDown();
 		TickManager->UnregisterTickClient(this);
 
 		TickManager->RegisterTickClient(RegisteredTickInterval.GetValue(), this);
@@ -1249,6 +1249,8 @@ void UMovieSceneSequencePlayer::UpdateMovieSceneInstance(FMovieSceneEvaluationRa
 
 void UMovieSceneSequencePlayer::TearDown()
 {
+	RootTemplateInstance.TearDown();
+
 	if (TickManager)
 	{
 		TickManager->UnregisterTickClient(this);
@@ -1870,7 +1872,7 @@ float UMovieSceneSequencePlayer::GetPing() const
 
 void UMovieSceneSequencePlayer::BeginDestroy()
 {
-	RootTemplateInstance.BeginDestroy();
+	RootTemplateInstance.TearDown();
 
 	TearDown();
 

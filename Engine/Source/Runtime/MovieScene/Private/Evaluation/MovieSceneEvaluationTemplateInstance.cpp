@@ -30,8 +30,9 @@ FMovieSceneRootEvaluationTemplateInstance::FMovieSceneRootEvaluationTemplateInst
 #endif
 }
 
-void FMovieSceneRootEvaluationTemplateInstance::BeginDestroy()
+void FMovieSceneRootEvaluationTemplateInstance::TearDown()
 {
+	// Avoid redundant work if the linker is being destroyed anyway
 	if (EntitySystemLinker && IsValidChecked(EntitySystemLinker) && !EntitySystemLinker->IsUnreachable() && !EntitySystemLinker->HasAnyFlags(RF_BeginDestroyed))
 	{
 		if (TSharedPtr<FMovieSceneEntitySystemRunner> Runner = WeakRunner.Pin())
@@ -50,7 +51,7 @@ void FMovieSceneRootEvaluationTemplateInstance::BeginDestroy()
 
 FMovieSceneRootEvaluationTemplateInstance::~FMovieSceneRootEvaluationTemplateInstance()
 {
-	BeginDestroy();
+	TearDown();
 }
 
 UMovieSceneEntitySystemLinker* FMovieSceneRootEvaluationTemplateInstance::ConstructEntityLinker(IMovieScenePlayer& Player)

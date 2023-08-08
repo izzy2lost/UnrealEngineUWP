@@ -574,12 +574,12 @@ void UUMGSequencePlayer::RemoveEvaluationData()
 
 void UUMGSequencePlayer::TearDown()
 {
-	RootTemplateInstance.BeginDestroy();
+	RootTemplateInstance.TearDown();
 }
 
 void UUMGSequencePlayer::BeginDestroy()
 {
-	RootTemplateInstance.BeginDestroy();
+	RootTemplateInstance.TearDown();
 
 	// Remove any latent actions added by this player.
 	if (CVarUserWidgetUseParallelAnimation.GetValueOnGameThread())

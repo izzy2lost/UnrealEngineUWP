@@ -255,7 +255,7 @@ UCameraAnimationSequencePlayer::~UCameraAnimationSequencePlayer()
 
 void UCameraAnimationSequencePlayer::BeginDestroy()
 {
-	RootTemplateInstance.BeginDestroy();
+	RootTemplateInstance.TearDown();
 
 	Super::BeginDestroy();
 }

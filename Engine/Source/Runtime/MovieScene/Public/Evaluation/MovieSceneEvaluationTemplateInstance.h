@@ -123,7 +123,13 @@ public:
 
 	MOVIESCENE_API void CopyActuators(FMovieSceneBlendingAccumulator& Accumulator) const;
 
-	MOVIESCENE_API void BeginDestroy();
+	UE_DEPRECATED(5.3, "Please call TearDown instead.")
+	void BeginDestroy()
+	{
+		TearDown();
+	}
+
+	MOVIESCENE_API void TearDown();
 
 	MOVIESCENE_API void EnableGlobalPreAnimatedStateCapture();
 
