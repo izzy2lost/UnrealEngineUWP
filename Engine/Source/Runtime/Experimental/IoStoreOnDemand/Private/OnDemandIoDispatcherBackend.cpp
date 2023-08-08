@@ -323,9 +323,7 @@ public:
 	bool Tick();
 
 private:
-	void Issue(FAnsiStringView Url,
-		FIoReadCallback&& Callback,
-		FIoOffsetAndLength Range = FIoOffsetAndLength());
+	void Issue(FAnsiStringView Url, FIoReadCallback&& Callback, FIoOffsetAndLength Range = FIoOffsetAndLength());
 
 	FString SvcsUrl;
 	int32 MaxConnections;
@@ -635,6 +633,12 @@ public:
 		Tail = Request;
 	}
 
+	void EnqueueByPriority(T* Request)
+	{
+		FScopeLock _(&CriticalSection);
+		EnqueueByPriorityInternal(Request);
+	}
+
 	T* Dequeue()
 	{
 		FScopeLock _(&CriticalSection);
@@ -645,7 +649,93 @@ public:
 		return Requests;
 	}
 
+	void Reprioritize(T* Request)
+	{
+		// Switch to double linked list/array if this gets too expensive
+		FScopeLock _(&CriticalSection);
+		if (RemoveInternal(Request))
+		{
+			EnqueueByPriorityInternal(Request);
+		}
+	}
+
 private:
+	void EnqueueByPriorityInternal(T* Request)
+	{
+		check(Request->NextRequest == nullptr);
+
+		if (Head == nullptr || Request->Priority > Head->Priority)
+		{
+			if (Head == nullptr)
+			{
+				check(Tail == nullptr);
+				Tail = Request;
+			}
+
+			Request->NextRequest = Head;
+			Head = Request;
+		}
+		else if (Request->Priority <= Tail->Priority)
+		{
+			check(Tail != nullptr);
+			Tail->NextRequest = Request;
+			Tail = Request;
+		}
+		else
+		{
+			// NOTE: This can get expensive if the queue gets too long, might be better to have x number of bucket(s)
+			TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::EnqueueByPriority);
+			T* It = Head;
+			while (It->NextRequest != nullptr && Request->Priority <= It->NextRequest->Priority)
+			{
+				It = It->NextRequest;
+			}
+
+			Request->NextRequest = It->NextRequest;
+			It->NextRequest = Request;
+		}
+	}
+
+	bool RemoveInternal(T* Request)
+	{
+		check(Request != nullptr);
+		if (Head == nullptr)
+		{
+			check(Tail == nullptr);
+			return false;
+		}
+
+		if (Head == Request)
+		{
+			Head = Request->NextRequest; 
+			if (Tail == Request)
+			{
+				check(Head == nullptr);
+				Tail = nullptr;
+			}
+
+			Request->NextRequest = nullptr;
+			return true;
+		}
+		else
+		{
+			T* It = Head;
+			while (It->NextRequest && It->NextRequest != Request)
+			{
+				It = It->NextRequest;
+			}
+
+			if (It->NextRequest == Request)
+			{
+				It->NextRequest = It->NextRequest->NextRequest;
+				Request->NextRequest = nullptr;
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	FCriticalSection CriticalSection;
 	T* Head = nullptr;
 	T* Tail = nullptr;
@@ -710,6 +800,7 @@ struct FChunkRequest
 		, RequestHead(Request)
 		, RequestTail(Request)
 		, StartTime(FPlatformTime::Cycles64())
+		, Priority(Request->Priority)
 		, RequestCount(1)
 		, HttpRetryCount(0)
 		, bCached(false)
@@ -717,13 +808,32 @@ struct FChunkRequest
 		check(Request && NextRequest == nullptr);
 	}
 
-	void AddDispatcherRequest(FIoRequestImpl* Request)
+	bool AddDispatcherRequest(FIoRequestImpl* Request)
 	{
 		check(RequestHead && RequestTail);
 		check(Request && !Request->NextRequest);
-		RequestTail->NextRequest = Request;
-		RequestTail = Request;
+
+		const bool bPriorityChanged = Request->Priority > RequestHead->Priority;
+		if (bPriorityChanged)
+		{
+			Priority = Request->Priority;
+			Request->NextRequest = RequestHead;
+			RequestHead = Request;
+		}
+		else
+		{
+			FIoRequestImpl* It = RequestHead;
+			while (It->NextRequest != nullptr && Request->Priority <= It->NextRequest->Priority)
+			{
+				It = It->NextRequest;
+			}
+
+			Request->NextRequest = It->NextRequest;
+			It->NextRequest = Request;
+		}
+
 		RequestCount++;
+		return bPriorityChanged;
 	}
 
 	uint32 RemoveDispatcherRequest(FIoRequestImpl* Request)
@@ -780,6 +890,7 @@ struct FChunkRequest
 	FTask DecodeTask;
 	FIoCancellationToken CancellationToken;
 	uint64 StartTime;
+	int32 Priority;
 	uint16 RequestCount;
 	uint16 HttpRetryCount;
 	bool bCached;
@@ -850,7 +961,25 @@ class FOnDemandIoBackend final
 
 	struct FChunkRequests
 	{
-		FChunkRequest* Create(FIoRequestImpl* Request, const FChunkRequestParams& Params)
+		FChunkRequest* TryUpdatePriority(FIoRequestImpl* Request)
+		{
+			FScopeLock _(&Mutex);
+
+			const FBackendData& BackendData = FBackendData::Get(Request);
+			if (FChunkRequest** InflightRequest = Inflight.Find(BackendData.ChunkKey))
+			{
+				FChunkRequest* ChunkRequest = *InflightRequest;
+				if (Request->Priority > ChunkRequest->Priority)
+				{
+					ChunkRequest->Priority = Request->Priority;
+					return ChunkRequest;
+				}
+			}
+
+			return nullptr;
+		}
+
+		FChunkRequest* Create(FIoRequestImpl* Request, const FChunkRequestParams& Params, bool& bOutPending, bool& bOutUpdatePriority)
 		{
 			FScopeLock _(&Mutex);
 			
@@ -858,13 +987,15 @@ class FOnDemandIoBackend final
 
 			if (FChunkRequest** InflightRequest = Inflight.Find(Params.ChunkKey))
 			{
-				FChunkRequest& ChunkRequest = **InflightRequest;
-				check(!ChunkRequest.CancellationToken.IsCancelled());
-				ChunkRequest.AddDispatcherRequest(Request);
+				FChunkRequest* ChunkRequest = *InflightRequest;
+				check(!ChunkRequest->CancellationToken.IsCancelled());
+				bOutPending = true;
+				bOutUpdatePriority = ChunkRequest->AddDispatcherRequest(Request);
 
-				return nullptr;
+				return ChunkRequest;
 			}
 
+			bOutPending = bOutUpdatePriority = false;
 			FChunkRequest* ChunkRequest = Allocator.Construct(Request, Params);
 			Inflight.Add(Params.ChunkKey, ChunkRequest);
 
@@ -1114,17 +1245,32 @@ bool FOnDemandIoBackend::Resolve(FIoRequestImpl* Request)
 
 	Stats.OnIoRequestEnqueue();
 	FChunkRequestParams RequestParams = FChunkRequestParams::Create(Request, ChunkInfo);
-	FChunkRequest* ChunkRequest = ChunkRequests.Create(Request, RequestParams);
 
-	if (ChunkRequest == nullptr)
+	bool bPending = false;
+	bool bUpdatePriority = false;
+	FChunkRequest* ChunkRequest = ChunkRequests.Create(Request, RequestParams, bPending, bUpdatePriority);
+
+	if (bPending)
 	{
+		if (bUpdatePriority)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::UpdatePriorityForIoRequest);
+			HttpRequests.Reprioritize(ChunkRequest);
+		}
 		// The chunk for the request is already inflight 
 		return true;
 	}
 
 	Stats.OnChunkRequestCreate();
 		
-	auto CompleteOrEnqueueHttpRequest = [this, ChunkRequest]()
+	if (Cache.IsValid())
+	{
+		//TODO: Pass priority to cache
+		ChunkRequest->CacheTask = Cache->Get(ChunkRequest->Params.ChunkKey, FIoReadOptions(), &ChunkRequest->CancellationToken);
+	}
+
+	const ETaskPriority TaskPriority = ChunkRequest->Priority > IoDispatcherPriority_Medium ? ETaskPriority::High : ETaskPriority::Normal;
+	Launch(UE_SOURCE_LOCATION, [this, ChunkRequest]()
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::CompleteOrEnqueueHttpRequest);
 		if (ChunkRequest->CacheTask.IsValid())
@@ -1143,20 +1289,9 @@ bool FOnDemandIoBackend::Resolve(FIoRequestImpl* Request)
 		}
 
 		Stats.OnHttpEnqueue();
-		HttpRequests.Enqueue(ChunkRequest);
+		HttpRequests.EnqueueByPriority(ChunkRequest);
 		TickBackendEvent->Trigger();
-	};
-
-	//TODO: Remove if else once 25124120 is merged to FN/Main
-	if (Cache.IsValid())
-	{
-		ChunkRequest->CacheTask = Cache->Get(ChunkRequest->Params.ChunkKey, FIoReadOptions(), &ChunkRequest->CancellationToken);
-		Launch(UE_SOURCE_LOCATION, MoveTemp(CompleteOrEnqueueHttpRequest), ChunkRequest->CacheTask);
-	}
-	else
-	{
-		Launch(UE_SOURCE_LOCATION, MoveTemp(CompleteOrEnqueueHttpRequest));
-	}
+	}, ChunkRequest->CacheTask, TaskPriority);
 
 	return true;
 }
@@ -1172,7 +1307,11 @@ void FOnDemandIoBackend::CancelIoRequest(FIoRequestImpl* Request)
 
 void FOnDemandIoBackend::UpdatePriorityForIoRequest(FIoRequestImpl* Request)
 {
-	//TODO: Implement
+	TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::UpdatePriorityForIoRequest);
+	if (FChunkRequest* ChunkRequest = ChunkRequests.TryUpdatePriority(Request))
+	{
+		HttpRequests.Reprioritize(ChunkRequest);
+	}
 }
 
 bool FOnDemandIoBackend::DoesChunkExist(const FIoChunkId& ChunkId) const
@@ -1419,7 +1558,8 @@ uint32 FOnDemandIoBackend::Run()
 									Stats.OnHttpEnqueue();
 
 									// Note there is no need to trigger TickBackendEvent as this callback will occur within FOnDemandIoBackend::Run
-									return HttpRequests.Enqueue(ChunkRequest); 
+									ChunkRequest->Priority = IoDispatcherPriority_High;
+									return HttpRequests.EnqueueByPriority(ChunkRequest);
 								}
 							}
 
