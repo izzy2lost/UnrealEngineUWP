@@ -10,6 +10,7 @@
 #include "Widgets/SRigVMGraphPinVariableBinding.h"
 #include "Widgets/SRigVMGraphPinUserDataNameSpace.h"
 #include "Widgets/SRigVMGraphPinUserDataPath.h"
+#include "Widgets/SRigVMGraphPinQuat.h"
 #include "KismetPins/SGraphPinExec.h"
 #include "SGraphPinComboBox.h"
 #include "RigVMHost.h"
@@ -64,7 +65,8 @@ TSharedPtr<SGraphPin> FRigVMEdGraphPanelPinFactory::CreatePin_Internal(UEdGraphP
 		{
 			URigVMEdGraph* RigGraph = Cast<URigVMEdGraph>(RigNode->GetGraph());
 
-			if (URigVMPin* ModelPin = RigNode->GetModelPinFromPinPath(InPin->GetName()))
+			URigVMPin* ModelPin = RigNode->GetModelPinFromPinPath(InPin->GetName());
+			if (ModelPin)
 			{
 				if (ModelPin->IsBoundToVariable())
 				{
@@ -108,6 +110,10 @@ TSharedPtr<SGraphPin> FRigVMEdGraphPanelPinFactory::CreatePin_Internal(UEdGraphP
 				if (InPin->PinType.PinSubCategoryObject == FRuntimeFloatCurve::StaticStruct())
 				{
 					return SNew(SRigVMGraphPinCurveFloat, InPin);
+				}
+				if (ModelPin && (InPin->PinType.PinSubCategoryObject == TBaseStructure<FQuat>::Get()))
+				{
+					return SNew(SRigVMGraphPinQuat, InPin).ModelPin(ModelPin);
 				}
 			}
 		}

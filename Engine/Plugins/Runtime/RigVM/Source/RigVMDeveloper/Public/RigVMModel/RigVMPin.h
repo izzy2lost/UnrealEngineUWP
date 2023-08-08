@@ -294,7 +294,10 @@ public:
 	FString GetDefaultValue() const;
 
 	// Returns the default value with an additional override ma
-	FString GetDefaultValue(const FPinOverride& InOverride) const;
+	FString GetDefaultValue(const FPinOverride& InOverride, bool bAdaptValueForPinType = true) const;
+
+	// Returns the default value as stored by the user.
+	FString GetDefaultValueStoredByUserInterface() const;
 
 	// Returns true if the default value provided is valid
 	bool IsValidDefaultValue(const FString& InDefaultValue) const;

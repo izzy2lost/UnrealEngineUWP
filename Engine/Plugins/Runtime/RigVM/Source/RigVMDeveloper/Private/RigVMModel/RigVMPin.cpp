@@ -763,10 +763,10 @@ bool URigVMPin::ShouldHideSubPins() const
 
 FString URigVMPin::GetDefaultValue() const
 {
-	return GetDefaultValue(EmptyPinOverride);
+	return GetDefaultValue(EmptyPinOverride, true);
 }
 
-FString URigVMPin::GetDefaultValue(const URigVMPin::FPinOverride& InOverride) const
+FString URigVMPin::GetDefaultValue(const URigVMPin::FPinOverride& InOverride, bool bAdaptValueForPinType) const
 {
 	if (FPinOverrideValue const* OverrideValuePtr = InOverride.Value.Find(InOverride.Key.GetSibling((URigVMPin*)this)))
 	{
@@ -791,7 +791,7 @@ FString URigVMPin::GetDefaultValue(const URigVMPin::FPinOverride& InOverride) co
 				{
 					return TEXT("()");
 				}
-				FString ElementDefaultValue = SubPin->GetDefaultValue(InOverride);
+				FString ElementDefaultValue = SubPin->GetDefaultValue(InOverride, bAdaptValueForPinType);
 				if (SubPin->IsStringType())
 				{
 					ElementDefaultValue = TEXT("\"") + ElementDefaultValue + TEXT("\"");
@@ -820,7 +820,7 @@ FString URigVMPin::GetDefaultValue(const URigVMPin::FPinOverride& InOverride) co
 			TArray<FString> MemberDefaultValues;
 			for (const URigVMPin* SubPin : SubPins)
 			{
-				FString MemberDefaultValue = SubPin->GetDefaultValue(InOverride);
+				FString MemberDefaultValue = SubPin->GetDefaultValue(InOverride, bAdaptValueForPinType);
 				if (SubPin->IsStringType() && !MemberDefaultValue.IsEmpty())
 				{
 					MemberDefaultValue = TEXT("\"") + MemberDefaultValue + TEXT("\"");
@@ -838,7 +838,29 @@ FString URigVMPin::GetDefaultValue(const URigVMPin::FPinOverride& InOverride) co
 			return FString::Printf(TEXT("(%s)"), *FString::Join(MemberDefaultValues, TEXT(",")));
 		}
 
-		return DefaultValue.IsEmpty() ? TEXT("()") : DefaultValue;
+		// special case certain pin types to adapt their values from
+		// alternative representations.
+		static const FString EmptyStructDefaultValue = TEXT("()");
+		if(bAdaptValueForPinType && !DefaultValue.IsEmpty() && DefaultValue != EmptyStructDefaultValue)
+		{
+			if(GetScriptStruct() == TBaseStructure<FQuat>::Get())
+			{
+				// quaternions also allow default values stored as rotators
+				FRigVMPinDefaultValueImportErrorContext ErrorPipe;
+				FRotator Rotator = FRotator::ZeroRotator;
+				LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ELogVerbosity::Verbose); 
+				TBaseStructure<FRotator>::Get()->ImportText(*DefaultValue, &Rotator, nullptr, PPF_None, &ErrorPipe, TBaseStructure<FRotator>::Get()->GetName());
+				if(ErrorPipe.NumErrors == 0)
+				{
+					const FQuat Quat = FQuat::MakeFromRotator(Rotator);
+					FString AdaptedDefaultValue;	
+					TBaseStructure<FQuat>::Get()->ExportText(AdaptedDefaultValue, &Quat, &Quat, nullptr, PPF_None, nullptr);
+					return AdaptedDefaultValue;
+				}
+			}
+		}
+		
+		return DefaultValue.IsEmpty() ? EmptyStructDefaultValue : DefaultValue;
 	}
 	else if (IsArrayElement() && DefaultValue.IsEmpty())
 	{
@@ -854,6 +876,11 @@ FString URigVMPin::GetDefaultValue(const URigVMPin::FPinOverride& InOverride) co
 	}
 
 	return DefaultValue;
+}
+
+FString URigVMPin::GetDefaultValueStoredByUserInterface() const
+{
+	return GetDefaultValue(EmptyPinOverride, false);
 }
 
 template< typename Type>
@@ -941,11 +968,25 @@ bool URigVMPin::IsValidDefaultValue(const FString& InDefaultValue) const
 		} 
 		else if (UScriptStruct* ScriptStruct = Cast<UScriptStruct>(GetCPPTypeObject()))
 		{
-			FRigVMPinDefaultValueImportErrorContext ErrorPipe;
+			// special case alternative representations 
+			if(ScriptStruct == TBaseStructure<FQuat>::Get())
+			{
+				// quaternions also allow default values stored as rotators
+				FRigVMPinDefaultValueImportErrorContext ErrorPipe;
+				FRotator Rotator = FRotator::ZeroRotator;
+				LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ELogVerbosity::Verbose); 
+				TBaseStructure<FRotator>::Get()->ImportText(*Value, &Rotator, nullptr, PPF_None, &ErrorPipe, TBaseStructure<FRotator>::Get()->GetName());
+				if(ErrorPipe.NumErrors == 0)
+				{
+					return true;
+				}
+			}
+			
 			TArray<uint8> TempStructBuffer;
 			TempStructBuffer.AddUninitialized(ScriptStruct->GetStructureSize());
 			ScriptStruct->InitializeDefaultValue(TempStructBuffer.GetData());
 
+			FRigVMPinDefaultValueImportErrorContext ErrorPipe;
 			{
 				// force logging to the error pipe for error detection
 				LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ELogVerbosity::Verbose); 

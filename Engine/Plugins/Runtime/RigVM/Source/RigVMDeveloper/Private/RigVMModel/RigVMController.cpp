@@ -7937,12 +7937,20 @@ bool URigVMController::SetPinDefaultValue(URigVMPin* InPin, const FString& InDef
 			{
 				Graph->MarkPackageDirty();
 			}
+			bSetPinDefaultValueSucceeded = true;
 		}
 	}
 
 	if (bSetupUndoRedo)
 	{
-		GetActionStack()->EndAction(Action, bMergeUndoAction);
+		if(bSetPinDefaultValueSucceeded)
+		{
+			GetActionStack()->EndAction(Action, bMergeUndoAction);
+		}
+		else
+		{
+			GetActionStack()->CancelAction(Action);
+		}
 	}
 
 	return true;

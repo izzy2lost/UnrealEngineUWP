@@ -1324,6 +1324,10 @@ bool URigVMEdGraphSchema::MarkBlueprintDirtyFromNewNode(UBlueprint* InBlueprint,
 
 bool URigVMEdGraphSchema::IsStructEditable(UStruct* InStruct) const
 {
+	if (InStruct == TBaseStructure<FQuat>::Get())
+	{
+		return true;
+	}
 	if (InStruct == FRuntimeFloatCurve::StaticStruct())
 	{
 		return true;
