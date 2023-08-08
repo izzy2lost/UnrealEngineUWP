@@ -29,6 +29,7 @@
 #include "Serializable.h"
 
 #include "UObject/ExternalPhysicsCustomObjectVersion.h"
+#include "UObject/FortniteValkyrieBranchObjectVersion.h"
 #include "Chaos/Core.h"
 
 #if COMPILE_WITHOUT_UNREAL_SUPPORT
@@ -90,6 +91,7 @@ namespace Chaos
 		FReal Friction;
 		FReal StaticFriction;
 		FReal Restitution;
+		FReal Density;
 		FReal LinearEtherDrag;
 		FReal AngularEtherDrag;
 		FReal SleepingLinearThreshold;
@@ -111,6 +113,7 @@ namespace Chaos
 			: Friction(0.5)
 			, StaticFriction(0.0)
 			, Restitution(0.1f)
+			, Density(1.f)
 			, LinearEtherDrag(0.0)
 			, AngularEtherDrag(0.0)
 			, SleepingLinearThreshold(1)
@@ -168,6 +171,11 @@ namespace Chaos
 			if (Ar.CustomVer(FExternalPhysicsCustomObjectVersion::GUID) >= FExternalPhysicsCustomObjectVersion::PhysicsMaterialSleepCounterThreshold)
 			{
 				Ar << SleepCounterThreshold;
+			}
+
+			if (Ar.CustomVer(FFortniteValkyrieBranchObjectVersion::GUID) >= FFortniteValkyrieBranchObjectVersion::ChaosAddDensityToPhysicsMaterial)
+			{
+				Ar << Density;
 			}
 		}
 	};

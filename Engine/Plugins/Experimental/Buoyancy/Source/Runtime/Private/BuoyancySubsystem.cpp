@@ -8,7 +8,7 @@
 #include "Physics/Experimental/PhysScene_Chaos.h"
 #include "Physics/PhysicsFiltering.h"
 #include "Chaos/MidPhaseModification.h"
-#include "Math/UnitConversion.h"
+#include "Chaos/MassProperties.h"
 #include "PBDRigidsSolver.h"			// Only needed to get perparticlegravity :(
 #include "Chaos/PBDRigidsEvolutionGBF.h"// Only needed to get perparticlegravity :(
 #include "Chaos/PerParticleGravity.h"	// Needed in order to determine force of gravity on each particle
@@ -113,10 +113,7 @@ void UBuoyancySubsystem::ApplyRuntimeSettings(const UBuoyancyRuntimeSettings* In
 
 	// Runtime settings presents water density in g/cm^3, but we want it in kg/cm^3
 	// so introduce a factor of 10^-3 here.
-	//BuoyancySettings.WaterDensity = FNumericUnit<EUnit::KilogramsPerCubicCentimeter>::ConvertTo(InSettings->WaterDensity);
-	BuoyancySettings.WaterDensity = FUnitConversion::Convert(InSettings->WaterDensity,
-		EUnit::GramsPerCubicCentimeter,
-		EUnit::KilogramsPerCubicCentimeter);
+	BuoyancySettings.WaterDensity = Chaos::GCm3ToKgCm3(InSettings->WaterDensity);
 	BuoyancySettings.WaterCollisionChannel = InSettings->CollisionChannelForWaterObjects;
 	BuoyancySettings.bKeepAwake = InSettings->bKeepFloatingObjectsAwake;
 	BuoyancySettings.MaxNumBoundsSubdivisions = InSettings->MaxNumBoundsSubdivisions;
@@ -367,6 +364,31 @@ void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidP
 	// Apply all buoyant forces
 	for (const FSubmersion& Submersion : Submersions)
 	{
+		// Get the material density from the submerged particle's material and use that
+		// in conjunction with its mass to compute its effective total volume.
+		//
+		// Use this as the upper bound for submerged volume, since the voxelized
+		// submerged shape bounds will likely have overestimated the "true" volume
+		// of the object.
+		//
+		// NOTE: This is using the density of the material of the FIRST shape on the
+		// object, whatever it is. If for example the particle is a cluster union of
+		// GCs of totally different types, this might be an incorrect volume.
+		//
+		// However, the volumes or masses of each "true" shape are not accessible to
+		// us, so at the moment this is nearly the best estimate we'll be able to get.
+		FRealSingle SubmergedVol = Submersion.Vol;
+		if (const FChaosPhysicsMaterial* ParticleMaterial = Evolution->GetFirstPhysicsMaterial(Submersion.Particle))
+		{
+			const FRealSingle ParticleDensity = Chaos::GCm3ToKgCm3(ParticleMaterial->Density);
+			const FRealSingle ParticleMass = Submersion.Particle->M();
+			const FRealSingle ParticleVol
+				= ParticleDensity > UE_SMALL_NUMBER
+				? ParticleMass / ParticleDensity
+				: 0.f;
+			SubmergedVol = FMath::Min(ParticleVol, Submersion.Vol);
+		}
+
 		// Figure out the gravity level of the particle
 		const int32 GravityGroupIndex = Submersion.Particle->GravityGroupIndex();
 		const FVec3 GravityAccel
@@ -377,7 +399,7 @@ void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidP
 		// Compute delta linear and angular velocities due to buoyancy. If they're big enough to
 		// matter, apply them
 		FVec3 DeltaV, DeltaW;
-		if (BuoyancyAlgorithms::ComputeBuoyantForce(Submersion.Particle, DeltaSeconds, BuoyancySettings->WaterDensity, BuoyancySettings->WaterDrag, GravityAccel, Submersion.CoM, Submersion.Vol, DeltaV, DeltaW))
+		if (BuoyancyAlgorithms::ComputeBuoyantForce(Submersion.Particle, DeltaSeconds, BuoyancySettings->WaterDensity, BuoyancySettings->WaterDrag, GravityAccel, Submersion.CoM, SubmergedVol, DeltaV, DeltaW))
 		{
 			// Clamp delta velocities
 			DeltaV = DeltaV.GetClampedToSize(0.f, BuoyancySettings->MaxDeltaV);

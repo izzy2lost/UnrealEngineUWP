@@ -21,6 +21,9 @@ struct FFortniteValkyrieBranchObjectVersion
 		// switch the physics implicit objects unique/shared ptrs to be ref counted
 		RefCountedOImplicitObjects,
 
+		// Add density to FChaosPhysicsMaterial
+		ChaosAddDensityToPhysicsMaterial,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

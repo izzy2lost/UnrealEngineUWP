@@ -6,6 +6,7 @@
 #include "Chaos/PBDRigidsEvolutionGBF.h"
 #include "Chaos/ParticleHandle.h"
 #include "Chaos/SpatialAccelerationCollection.h"
+#include "Chaos/PhysicsMaterialUtilities.h"
 
 CSV_DECLARE_CATEGORY_EXTERN(ChaosPhysicsTimers);
 
@@ -1141,4 +1142,8 @@ namespace Chaos
 		DisableParticle(Particle);
 	}
 
+	const FChaosPhysicsMaterial* FPBDRigidsEvolutionBase::GetFirstPhysicsMaterial(const FGeometryParticleHandle* Particle) const
+	{
+		return Private::GetFirstPhysicsMaterial(Particle, &PhysicsMaterials, &PerParticlePhysicsMaterials, &SolverPhysicsMaterials);
+	}
 }
