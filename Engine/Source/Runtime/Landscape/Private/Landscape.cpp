@@ -5662,7 +5662,7 @@ ULandscapeMeshProxyComponent::ULandscapeMeshProxyComponent(const FObjectInitiali
 void ULandscapeMeshProxyComponent::InitializeForLandscape(ALandscapeProxy* Landscape, int8 InProxyLOD)
 {
 	LandscapeGuid = Landscape->GetLandscapeGuid();
-	LODGroupKey = Landscape->GetLandscapeActor()->GetLODGroupKey();
+	LODGroupKey = Landscape->LODGroupKey;
 
 	for (ULandscapeComponent* Component : Landscape->LandscapeComponents)
 	{
