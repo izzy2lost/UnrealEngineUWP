@@ -167,10 +167,6 @@ UNiagaraSystem::UNiagaraSystem(const FObjectInitializer& ObjectInitializer)
 , bIsolateEnabled(false)
 #endif
 , FixedBounds(FBox(FVector(-100), FVector(100)))
-, bAutoDeactivate(true)
-, WarmupTime(0.0f)
-, WarmupTickCount(0)
-, WarmupTickDelta(1.0f / 15.0f)
 , bNeedsGPUContextInitForDataInterfaces(false)
 , bNeedsAsyncOptimize(true)
 , CurrentScalabilitySettings(*new FNiagaraSystemScalabilitySettings())
@@ -822,6 +818,18 @@ void UNiagaraSystem::Serialize(FArchive& Ar)
 			NiagaraEmitterCompiledDataStruct->SerializeTaggedProperties(Ar, (uint8*)&ConstCastSharedRef<FNiagaraEmitterCompiledData>(EmitterCompiledData[EmitterIndex]).Get(), NiagaraEmitterCompiledDataStruct, nullptr);
 		}
 	}
+}
+
+void UNiagaraSystem::SetWarmupTime(float InWarmupTime)
+{
+	WarmupTime = InWarmupTime;
+	ResolveWarmupTickCount();
+}
+
+void UNiagaraSystem::SetWarmupTickDelta(float InWarmupTickDelta)
+{
+	WarmupTickDelta = InWarmupTickDelta;
+	ResolveWarmupTickCount();
 }
 
 void UNiagaraSystem::ResolveWarmupTickCount()
