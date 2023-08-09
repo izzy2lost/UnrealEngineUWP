@@ -66,9 +66,9 @@ public:
 	/** Which index of the Active Shot List are we currently on */
 	int32 GetCurrentShotIndex() const { return CurrentShotIndex; }
 	/** Called by the TimeStepInstance when it's time to set up for another shot. Don't call this unless you know what you're doing. */
-	void SetupShot(UMoviePipelineExecutorShot* InShot);
+	void SetupShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot);
 	/** Called by the TimeStepInstance when it's time to tear down the current shot. Don't call this unless you know what you're doing. */
-	void TeardownShot(UMoviePipelineExecutorShot* InShot);
+	void TeardownShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot);
 	/** Used occasionally to cross-reference other components. Don't call this unless you know what you're doing. */
 	UMovieGraphTimeStepBase* GetTimeStepInstance() const { return GraphTimeStepInstance; }
 	/** Used occasionally to cross-reference other components. Don't call this unless you know what you're doing. */
@@ -115,6 +115,15 @@ protected:
 	virtual void BeginFinalize();
 	virtual void LoadPreviewWidget();
 	virtual void SetPreviewWidgetVisibleImpl(bool bInIsVisible);
+
+	// Update our data source to isolate the shot we're currently working on, so that expanded shots don't interfere with each other.
+	virtual void SetSoloShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot);
+	/*
+	* Expand our data source (for a specific shot) for various rendering features (such as handle frames). Gets called twice, once where it 
+	* expands the ranges, and again later to actually expand the tracks. This is required due to wanting "Handle Frames" to get counted in total frame counts.
+	*/
+	virtual void ExpandShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot, const int32 InNumHandleFrames, const bool bInHasMultipleTemporalSamples, const bool bIsPrePass,
+		const FFrameRate& InDisplayRate, const FFrameRate& InTickResolution, const int32 InWarmUpFrames);
 
 	// UMoviePipelineBase Interface
 	virtual void RequestShutdownImpl(bool bIsError) override;

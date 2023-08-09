@@ -33,6 +33,7 @@ public:
 	virtual void TickProducingFrames() override;
 	virtual void Shutdown() override;
 	virtual FMovieGraphTimeStepData GetCalculatedTimeData() const override { return CurrentTimeStepData; }
+	virtual bool IsExpansionForTSRequired(const TObjectPtr<UMovieGraphEvaluatedConfig>& InConfig) const override;
 	// ~UMovieGraphTimeStepBase Interface
 
 protected:

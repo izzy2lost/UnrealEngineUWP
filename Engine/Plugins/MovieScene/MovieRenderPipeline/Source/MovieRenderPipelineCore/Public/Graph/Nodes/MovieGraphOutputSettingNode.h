@@ -46,6 +46,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_FrameNumberOffset : 1;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_HandleFrameCount : 1;
+
 	/** What directory should all of our output files be relative to. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "File Output", meta=(EditCondition="bOverride_OutputDirectory"))
 	FDirectoryPath OutputDirectory;
@@ -77,4 +80,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite,  Category = "File Output", meta = (EditCondition = "bOverride_FrameNumberOffset"))
 	int32 FrameNumberOffset;
 
+	/**
+	* Top level shot track sections will automatically be expanded by this many frames in both directions, and the resulting
+	* additional time will be rendered as part of that shot. The inner sequence should have sections long enough to cover
+	* this expanded range, otherwise these tracks will not evaluate during handle frames and may produce unexpected results.
+	* This can be used to generate handle frames for traditional non linear editing tools.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Frames", meta = (UIMin = 0, ClampMin = 0, EditCondition = "bOverride_HandleFrameCount"))
+	int32 HandleFrameCount;
 };

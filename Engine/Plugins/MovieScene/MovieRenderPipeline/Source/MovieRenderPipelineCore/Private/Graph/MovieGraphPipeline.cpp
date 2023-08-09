@@ -10,6 +10,7 @@
 #include "Graph/Nodes/MovieGraphFileOutputNode.h"
 #include "Graph/Nodes/MovieGraphModifierNode.h"
 #include "Graph/Nodes/MovieGraphOutputSettingNode.h"
+#include "Graph/Nodes/MovieGraphWarmUpSettingNode.h"
 #include "Graph/MovieGraphBlueprintLibrary.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "Misc/CoreDelegates.h"
@@ -245,9 +246,43 @@ void UMovieGraphPipeline::BuildShotListFromDataSource()
 	// Shots that are already in the list will be updated but their enable flag will be respected. 
 	GraphDataSourceInstance->UpdateShotList();
 
-	for (UMoviePipelineExecutorShot* Shot : GetCurrentJob()->ShotInfo)
+	for (int32 ShotIndex = 0; ShotIndex < GetCurrentJob()->ShotInfo.Num(); ShotIndex++)
 	{
-		Shot->ShotInfo.CurrentTimeInRoot = FFrameTime(Shot->ShotInfo.CurrentTickInRoot);
+		const TObjectPtr<UMoviePipelineExecutorShot>& Shot = GetCurrentJob()->ShotInfo[ShotIndex];
+
+		// Once the shot list is built, we now need to do some work to the calculated data. Handle Frames 
+		// should expand the range provided by the shot list, and we need to do this to all shots in advance.
+		// We do it in advance because to get the total number of frames we're going to render, we add up the
+		// range sizes for each shot, so handle frames need to be included in that range. Each shot can have
+		// different settings, so we build an evaluation context for each shot, flatten the graph and then
+		// read the handle frames config values.
+		// ToDo: This is being run on disabled shots as well, is that intended? The old system did this as well.
+
+		FMovieGraphTraversalContext CurrentContext;
+		CurrentContext.ShotIndex = ShotIndex;
+		CurrentContext.ShotCount = GetActiveShotList().Num();
+		CurrentContext.Job = GetCurrentJob();
+		CurrentContext.RootGraph = GetRootGraphForShot(Shot);
+
+		// Frame Rate, Handle Frames, Warm-up Frames are all global settings so we provide an empty time context.
+		FMovieGraphTimeStepData TimeContext;
+		CurrentContext.Time = TimeContext;
+
+		TObjectPtr<UMovieGraphEvaluatedConfig> EvaluatedConfig = CurrentContext.RootGraph->CreateFlattenedGraph(CurrentContext);
+		UMovieGraphOutputSettingNode* OutputNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphOutputSettingNode>(UMovieGraphSettingNode::GlobalsPinName);
+
+		const FFrameRate SourceFrameRate = GetDataSourceInstance()->GetDisplayRate();
+		const FFrameRate FinalFrameRate = UMovieGraphBlueprintLibrary::GetEffectiveFrameRate(OutputNode, SourceFrameRate);
+		const FFrameRate TickResolution = GetDataSourceInstance()->GetTickResolution();
+
+
+		UMovieGraphWarmUpSettingNode* WarmUpNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphWarmUpSettingNode>(UMovieGraphSettingNode::GlobalsPinName);
+		
+		const bool bPrePass = true;
+		const bool bExpandForTemporalSubSample = GetTimeStepInstance()->IsExpansionForTSRequired(EvaluatedConfig);
+		ExpandShot(Shot, OutputNode->HandleFrameCount, bExpandForTemporalSubSample, bPrePass, FinalFrameRate, TickResolution, WarmUpNode->NumWarmUpFrames);
+
+		Shot->ShotInfo.CurrentTimeInRoot = Shot->ShotInfo.TotalOutputRangeRoot.GetLowerBoundValue();
 		Shot->ShotInfo.CalculateWorkMetrics(GetDataSourceInstance());
 	}
 
@@ -436,10 +471,10 @@ void UMovieGraphPipeline::BeginFinalize()
 	}
 }
 
-void UMovieGraphPipeline::SetupShot(UMoviePipelineExecutorShot* InShot)
+void UMovieGraphPipeline::SetupShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot)
 {
 	// Set the new shot as the active shot. This enables the specified shot section and disables all other shot sections.
-	// SetSoloShot(InShot);
+	SetSoloShot(InShot);
 
 	// Loop through just our primary settings and let them know which shot we're about to start.
 	//TArray<UMoviePipelineSetting*> Settings = GetPipelinePrimaryConfig()->GetAllSettings();
@@ -471,10 +506,15 @@ void UMovieGraphPipeline::SetupShot(UMoviePipelineExecutorShot* InShot)
 	GraphRendererInstance->SetupRenderingPipelineForShot(InShot);
 }
 
-void UMovieGraphPipeline::TeardownShot(UMoviePipelineExecutorShot* InShot)
+void UMovieGraphPipeline::TeardownShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot)
 {
 	// Teardown any rendering architecture for this shot. This needs to happen first because it'll flush outstanding rendering commands
 	GraphRendererInstance->TeardownRenderingPipelineForShot(InShot);
+
+	for (const TObjectPtr<UMoviePipelineExecutorShot>& Shot : GetCurrentJob()->ShotInfo)
+	{
+		GetDataSourceInstance()->RestoreHierarchyForShot(Shot);
+	}
 
 	// some other stuff
 
@@ -489,6 +529,100 @@ void UMovieGraphPipeline::TeardownShot(UMoviePipelineExecutorShot* InShot)
 	{
 		UE_LOG(LogMovieRenderPipeline, Log, TEXT("MovieGraph Finished rendering last shot. Moving to Finalize to finish writing items to disk."));
 		TransitionToState(EMovieRenderPipelineState::Finalize);
+	}
+}
+
+void UMovieGraphPipeline::SetSoloShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot)
+{
+	// We need to 'solo' shots whichs means disabling any other sections that may overlap with the one currently being
+	// rendered. This is because temporal samples, handle frames, warmup frames, etc. all need to evaluate outside of
+	// their original bounds and we don't want to end up evaluating something that should have been clipped by the shot bounds.
+	for (const TObjectPtr<UMoviePipelineExecutorShot>& Shot : GetCurrentJob()->ShotInfo)
+	{
+		// Cache and mute all shots
+		GetDataSourceInstance()->CacheHierarchyForShot(Shot);
+		GetDataSourceInstance()->MuteShot(Shot);
+	}
+
+	// Historically shot expansion was done all at once up front, however this creates a lot of complications when a movie scene isn't filled with unique data
+	// such as re-using shots or using different parts of shots. To resolve this, we expand the entire tree needed for a given range, render it, and then restore the original
+	// values before moving onto the next shot so that each shot has no effect on the others.
+	{
+		UE_LOG(LogMovieRenderPipeline, Log, TEXT("Expanding Shot %d/%d (Shot: %s Camera: %s)"), CurrentShotIndex + 1, ActiveShotList.Num(), *InShot->OuterName, *InShot->InnerName);
+
+		// Enable the one hierarchy we do want for rendering. We will re-disable it later when we restore the current Sequence state.
+		GetDataSourceInstance()->UnmuteShot(InShot);
+
+		const FMovieGraphTimeStepData& TimeStepData = GetTimeStepInstance()->GetCalculatedTimeData();
+		TObjectPtr<UMovieGraphEvaluatedConfig> Config = TimeStepData.EvaluatedConfig;
+		UMovieGraphOutputSettingNode* OutputNode = Config->GetSettingForBranch<UMovieGraphOutputSettingNode>(UMovieGraphSettingNode::GlobalsPinName);
+
+		const FFrameRate SourceFrameRate = GetDataSourceInstance()->GetDisplayRate();
+		const FFrameRate FinalFrameRate = UMovieGraphBlueprintLibrary::GetEffectiveFrameRate(OutputNode, SourceFrameRate);
+		const FFrameRate TickResolution = GetDataSourceInstance()->GetTickResolution();
+
+		
+		UMovieGraphWarmUpSettingNode* WarmUpNode = Config->GetSettingForBranch<UMovieGraphWarmUpSettingNode>(UMovieGraphSettingNode::GlobalsPinName);
+
+		// Expand the shot to encompass handle frames (+warmup, etc.). This will modify the sections required for expansion, etc.
+		const bool bIsPrePass = false;
+		const bool bExpandForTemporalSubSample = GetTimeStepInstance()->IsExpansionForTSRequired(Config);
+		
+		ExpandShot(InShot, OutputNode->HandleFrameCount, bExpandForTemporalSubSample, bIsPrePass, FinalFrameRate, TickResolution, WarmUpNode->NumWarmUpFrames);
+	}
+}
+
+
+
+void UMovieGraphPipeline::ExpandShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot, const int32 InNumHandleFrames, const bool bInHasMultipleTemporalSamples, const bool bIsPrePass,
+	const FFrameRate& InDisplayRate, const FFrameRate& InTickResolution, const int32 InWarmUpFrames)
+{
+	int32 LeftDeltaFrames = 0;
+	int32 RightDeltaFrames = 0;
+
+	// Calculate the number of ticks added for warmup frames. These are added to both sides. The rendering
+	// code is unaware of handle frames, we just pretend the shot is bigger than it actually is.
+	LeftDeltaFrames += InNumHandleFrames;
+	RightDeltaFrames += InNumHandleFrames;
+
+	// We only expand the left side for temporal sub-sampling, as no camera timing allows you to beyond the end of frame.
+	if (bInHasMultipleTemporalSamples)
+	{
+		LeftDeltaFrames += 1;
+	}
+
+	// Check to see if the detected range was not aligned to a whole frame on the root. We produce a warning here because 
+	// if your shot starts on a sub-frame (say frame 3.5) the output frame will say "3", but when you go to look at frame 3
+	// in Sequencer, it will show different content than was actually evaluated. So we warn + round down to get them aligned
+	// on whole frames.
+	FFrameTime StartTimeInRoot = FFrameRate::TransformTime(InShot->ShotInfo.TotalOutputRangeRoot.GetLowerBoundValue(), InTickResolution, InDisplayRate);
+	if (bIsPrePass && StartTimeInRoot.GetSubFrame() != 0.f)
+	{
+		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Shot/Camera \"%s [%s]\" starts on a sub-frame. Rendered range has been rounded to the previous frame to make output numbers align with Sequencer."), 
+			*InShot->OuterName, *InShot->InnerName);
+		FFrameNumber NewStartFrame = FFrameRate::TransformTime(FFrameTime(StartTimeInRoot.GetFrame()), InDisplayRate, InTickResolution).FloorToFrame();
+		InShot->ShotInfo.TotalOutputRangeRoot.SetLowerBoundValue(NewStartFrame);
+	}
+
+	// We auto-expand into the warm-up ranges, but users are less concerned about 'early' data there. So we cache how many frames
+	// the user expects to check beforehand, so we can use this for a warning later.
+	const int32 LeftDeltaFramesUserPoV = LeftDeltaFrames;
+
+	// Warm Up frames are only on the left side. This comes after the above section so that we don't warn about partial data in the warm up section.
+	LeftDeltaFrames += InWarmUpFrames;
+
+	GetDataSourceInstance()->ExpandShot(InShot, LeftDeltaFrames, LeftDeltaFramesUserPoV, RightDeltaFrames, bIsPrePass);
+
+	// Expand the Total Output Range Root by Handle Frames. The expansion of TotalOutputRangeRoot has to come after we do partial evaluation checks,
+	// which is done by ExpandShot above, otherwise the expanded range makes it check the wrong area for partial evaluations.
+	if (bIsPrePass)
+	{
+		// We expand on the pre-pass so that we have the correct number of frames set up in our datastructures before we reach each shot so that metrics
+		// work as expected.
+		FFrameNumber LeftHandleTicks = FFrameRate::TransformTime(FFrameTime(InNumHandleFrames), InDisplayRate, InTickResolution).CeilToFrame().Value;
+		FFrameNumber RightHandleTicks = FFrameRate::TransformTime(FFrameTime(InNumHandleFrames), InDisplayRate, InTickResolution).CeilToFrame().Value;
+
+		InShot->ShotInfo.TotalOutputRangeRoot = UE::MovieScene::DilateRange(InShot->ShotInfo.TotalOutputRangeRoot, -LeftHandleTicks, RightHandleTicks);
 	}
 }
 

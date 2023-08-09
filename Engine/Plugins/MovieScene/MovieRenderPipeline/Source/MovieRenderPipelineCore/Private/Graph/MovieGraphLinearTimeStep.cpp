@@ -28,7 +28,7 @@ void UMovieGraphLinearTimeStep::TickProducingFrames()
 {
 	int32 CurrentShotIndex = GetOwningGraph()->GetCurrentShotIndex();
 	const TArray<TObjectPtr<UMoviePipelineExecutorShot>>& ActiveShotList = GetOwningGraph()->GetActiveShotList();
-	UMoviePipelineExecutorShot* CurrentCameraCut = ActiveShotList[CurrentShotIndex];
+	const TObjectPtr<UMoviePipelineExecutorShot>& CurrentCameraCut = ActiveShotList[CurrentShotIndex];
 
 	// When start up we want to override the engine's Custom Timestep with our own.
 	// This gives us the ability to completely control the engine tick/delta time before the frame
@@ -80,7 +80,6 @@ void UMovieGraphLinearTimeStep::TickProducingFrames()
 
 		// Ensure we've set it in the CurrentTimeStepData so things can fetch from it below.
 		CurrentTimeStepData.EvaluatedConfig = TObjectPtr<UMovieGraphEvaluatedConfig>(CurrentFrameData.EvaluatedConfig.Get());
-		CurrentTimeStepData.bExpandShotForTemporalSubSample = CurrentFrameData.TemporalSampleCount > 1;
 
 		// Sets up the render state, etc.
 		GetOwningGraph()->SetupShot(CurrentCameraCut);
@@ -339,6 +338,13 @@ void UMovieGraphLinearTimeStep::UpdateTemporalSampleCount()
 	// ToDo: This needs to come from the config.
 	CurrentFrameData.TemporalSampleCount = 1;
 }
+
+bool UMovieGraphLinearTimeStep::IsExpansionForTSRequired(const TObjectPtr<UMovieGraphEvaluatedConfig>& InConfig) const
+{
+	// ToDo: This needs to come from the config (once we have TemporalSampleCount there)
+	return false;
+}
+
 
 void UMovieGraphLinearTimeStep::Shutdown()
 {

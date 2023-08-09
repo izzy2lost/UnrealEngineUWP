@@ -110,6 +110,12 @@ public:
 	* needed to calculate the correct rendering timestep.
 	*/
 	virtual FMovieGraphTimeStepData GetCalculatedTimeData() const { return FMovieGraphTimeStepData(); }
+	
+	/**
+	* When expanding shots, do we need to expand the first frame by one extra to account for how
+	* temporal sub-sampling can sample outside the first frame (due to centered frame evals).
+	*/
+	virtual bool IsExpansionForTSRequired(const TObjectPtr<UMovieGraphEvaluatedConfig>& InConfig) const { return false; }
 
 	UMovieGraphPipeline* GetOwningGraph() const;
 };
@@ -161,7 +167,14 @@ public:
 	virtual void CacheDataPreJob(const FMovieGraphInitConfig& InInitConfig) {}
 	virtual void RestoreCachedDataPostJob() {}
 	virtual void UpdateShotList() {}
-	virtual void InitializeShot(UMoviePipelineExecutorShot* InShot) {}
+	virtual void InitializeShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot) {}
+	virtual void CacheHierarchyForShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot) {}
+	virtual void RestoreHierarchyForShot(const TObjectPtr<UMoviePipelineExecutorShot> &InShot) {}
+	virtual void MuteShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot) {}
+	virtual void UnmuteShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot) {}
+	virtual void ExpandShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot, const int32 InLeftDeltaFrames, const int32 InLeftDeltaFramesUserPoV,
+		const int32 InRightDeltaFrames, const bool bInPrepass) {}
+
 	UMovieGraphPipeline* GetOwningGraph() const;
 };
 

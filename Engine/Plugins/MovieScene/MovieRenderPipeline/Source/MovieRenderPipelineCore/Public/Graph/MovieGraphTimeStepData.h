@@ -26,7 +26,6 @@ public:
 		, MotionBlurFraction(0.f)
 		, bIsFirstTemporalSampleForFrame(false)
 		, bIsLastTemporalSampleForFrame(false)
-		, bExpandShotForTemporalSubSample(false)
 		, bRequiresAccumulator(false)
 	{}
 
@@ -60,13 +59,6 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	bool bIsLastTemporalSampleForFrame;
 
-	/**
-	* If this time struct is being used when setting up a shot, defines if the shot 
-	* should be expanded by 1 frame to account for temporal sub-sampling going 
-	* out of bounds on the first frame.
-	*/
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
-	bool bExpandShotForTemporalSubSample;
 
 	/**
 	* Should be set to true for every sample if there is more than one temporal sample
