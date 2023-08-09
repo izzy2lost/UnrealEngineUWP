@@ -527,7 +527,11 @@ void UMassVisualizationComponent::EndVisualChanges()
 	for (auto It = ISMCSharedData.CreateIterator(); It; ++It)
 	{
 		FMassISMCSharedData& SharedData = It.Value();
-		if (UInstancedStaticMeshComponent* InstancedStaticMeshComponent = SharedData.GetISMComponent())
+		UInstancedStaticMeshComponent* InstancedStaticMeshComponent = SharedData.GetISMComponent();
+		// @todo need to check validity this way since Mass used to rely on the assumption that all the ISM components used were
+		// under its control. That's no longer the case, but the system has not been updated to take that into consideration.
+		// This is a temporary fix. 
+		if (IsValid(InstancedStaticMeshComponent))
 		{
 			if (SharedData.RequiresExternalInstanceIDTracking())
 			{
