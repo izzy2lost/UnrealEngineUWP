@@ -524,7 +524,7 @@ public:
 	FOnIsCancelled IsCancelled;
 };
 
-static bool TestLoginConnection(FPerforceSourceControlProvider& SCCProvider, ClientApi& P4Client, bool bIsUnicodeServer, TArray<FText>& OutErrorMessages)
+static bool TestLoginConnection(ClientApi& P4Client, bool bIsUnicodeServer, TArray<FText>& OutErrorMessages)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPerforce::TestLoginConnection);
 
@@ -537,8 +537,6 @@ static bool TestLoginConnection(FPerforceSourceControlProvider& SCCProvider, Cli
 	P4Client.SetArgv(1, const_cast<char* const*>(ArgV));
 	P4Client.Run("login", &User);
 
-	SCCProvider.SetLastErrors(OutErrorMessages);
-
 	return OutErrorMessages.IsEmpty();
 }
 
@@ -546,7 +544,7 @@ static bool TestLoginConnection(FPerforceSourceControlProvider& SCCProvider, Cli
  * Runs "client" command to test if the connection is actually OK. ClientApi::Init() only checks
  * if it can connect to server, doesn't verify user name nor workspace name.
  */
-static bool TestClientConnection(FPerforceSourceControlProvider& SCCProvider, ClientApi& P4Client, const FString& ClientSpecName, bool bIsUnicodeServer, TArray<FText>& OutErrorMessages)
+static bool TestClientConnection(ClientApi& P4Client, const FString& ClientSpecName, bool bIsUnicodeServer, TArray<FText>& OutErrorMessages)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPerforce::TestClientConnection);
 
@@ -574,8 +572,6 @@ static bool TestClientConnection(FPerforceSourceControlProvider& SCCProvider, Cl
 
 	// clean up args
 	delete [] ClientSpecUTF8Name;
-
-	SCCProvider.SetLastErrors(OutErrorMessages);
 
 	// If there are error messages, user name is most likely invalid. Otherwise, make sure workspace actually
 	// exists on server by checking if we have it's update date.
@@ -607,6 +603,49 @@ static bool CheckUnicodeStatus(ClientApi& P4Client, bool& bIsUnicodeServer, TArr
 	return OutErrorMessages.Num() == 0;
 }
 
+static void FinalizeErrors(const FPerforceSourceControlProvider& SCCProvider, const FPerforceConnectionInfo& Settings, ISourceControlProvider::FInitResult::FConnectionErrors& OutConnectionErrors)
+{
+	if (OutConnectionErrors.AdditionalErrors.IsEmpty())
+	{
+		OutConnectionErrors.AdditionalErrors.Add(LOCTEXT("P4_UnknownError", "Unknown error"));
+	}
+	else
+	{
+		// Some perforce errors end with newline characters which can cause odd formatting
+		// when we display/log the errors, so take this opportunity to trim them if needed.
+		for (FText& MsgText : OutConnectionErrors.AdditionalErrors)
+		{
+			const FString Msg = MsgText.ToString();
+			if (!Msg.IsEmpty() && FChar::IsWhitespace(Msg[Msg.Len() - 1]))
+			{
+				MsgText = FText::FromString(Msg.TrimEnd());
+			}	
+		}
+	}
+
+	// Not really an error message but when we do have errors it is useful to print out a summary of the current settings.
+
+	TArray<FText> Components;
+	Components.Add(FText::Format(LOCTEXT("P4_OwningSystem", "OwningSystem={0}"), FText::FromString(SCCProvider.GetOwnerName())));
+
+	if (!Settings.Port.IsEmpty())
+	{
+		Components.Add(FText::Format(LOCTEXT("P4_Port", "Port={0}"), FText::FromString(Settings.Port)));
+	}
+
+	if (!Settings.UserName.IsEmpty())
+	{
+		Components.Add(FText::Format(LOCTEXT("P4_User", "User={0}"), FText::FromString(Settings.UserName)));
+	}
+
+	if (!Settings.Workspace.IsEmpty())
+	{
+		Components.Add(FText::Format(LOCTEXT("P4_ClientSpec", "ClientSpec={0}"), FText::FromString(Settings.Workspace)));
+	}
+
+	OutConnectionErrors.AdditionalErrors.Add(FText::Join(LOCTEXT("P4_Delim", ", "), Components));
+}
+
 FPerforceConnection::FPerforceConnection(const FPerforceConnectionInfo& InConnectionInfo, FPerforceSourceControlProvider& InSCCProvider)
 	: bEstablishedConnection(false)
 	, bIsUnicode(false)
@@ -621,28 +660,35 @@ FPerforceConnection::~FPerforceConnection()
 	Disconnect();
 }
 
-bool FPerforceConnection::AutoDetectWorkspace(const FPerforceConnectionInfo& InConnectionInfo, FPerforceSourceControlProvider& SCCProvider, FString& OutWorkspaceName)
+bool FPerforceConnection::AutoDetectWorkspace(const FPerforceConnectionInfo& InConnectionInfo, FPerforceSourceControlProvider& SCCProvider, FString& OutWorkspaceName, TArray<FText>& OutErrorMessages)
 {
-	bool Result = false;
-	FMessageLog SourceControlLog("SourceControl");
-
 	//before even trying to summon the window, try to "smart" connect with the default server/username
-	TArray<FText> ErrorMessages;
+
 	FPerforceConnection Connection(InConnectionInfo, SCCProvider);
 	TArray<FString> ClientSpecList;
-	Connection.GetWorkspaceList(InConnectionInfo, FOnIsCancelled(), ClientSpecList, ErrorMessages);
+	Connection.GetWorkspaceList(InConnectionInfo, FOnIsCancelled(), ClientSpecList, OutErrorMessages);
 
-	//if only one client spec matched (and default connection info was correct)
+	if (!OutErrorMessages.IsEmpty())
+	{
+		return false;
+	}
+
 	if (ClientSpecList.Num() == 1)
 	{
 		OutWorkspaceName = ClientSpecList[0];
+
+		FTSMessageLog SourceControlLog("SourceControl");
+
 		FFormatNamedArguments Arguments;
 		Arguments.Add( TEXT("WorkspaceName"), FText::FromString(OutWorkspaceName) );
+
 		SourceControlLog.Info(FText::Format(LOCTEXT("ClientSpecAutoDetect", "Auto-detected Perforce client spec: '{WorkspaceName}'"), Arguments));
-		Result = true;
+		
+		return true;
 	}
 	else if (ClientSpecList.Num() > 0)
 	{
+		FTSMessageLog SourceControlLog("SourceControl");
 		SourceControlLog.Warning(LOCTEXT("AmbiguousClientSpecLine1", "Revision Control unable to auto-login due to ambiguous client specs"));
 		SourceControlLog.Warning(LOCTEXT("AmbiguousClientSpecLine2", "  Please select a client spec in the Perforce settings dialog"));
 		SourceControlLog.Warning(LOCTEXT("AmbiguousClientSpecLine3", "  If you are unable to work with revision control, consider checking out the files by hand temporarily"));
@@ -655,9 +701,17 @@ bool FPerforceConnection::AutoDetectWorkspace(const FPerforceConnectionInfo& InC
 			Arguments.Add( TEXT("ClientSpecName"), FText::FromString(ClientSpecList[Index]) );
 			SourceControlLog.Info(FText::Format(LOCTEXT("AmbiguousClientSpecListItem", "...{ClientSpecName}"), Arguments));
 		}
-	}
 
-	return Result;
+		return false;
+	}
+	else
+	{
+		// No clients
+		FTSMessageLog SourceControlLog("SourceControl");
+		SourceControlLog.Warning(LOCTEXT("NoClientSpec", "Revision Control unable to auto-login as no client specs were found"));
+		
+		return false;
+	}
 }
 
 bool FPerforceConnection::Login(const FPerforceConnectionInfo& InConnectionInfo)
@@ -683,194 +737,157 @@ bool FPerforceConnection::Login(const FPerforceConnectionInfo& InConnectionInfo)
 	return ErrorMessages.Num() == 0;
 }
 
-bool FPerforceConnection::EnsureValidConnection(FString& InOutServerName, FString& InOutUserName, FString& InOutWorkspaceName,
-												const FPerforceConnectionInfo& InConnectionInfo, FPerforceSourceControlProvider& SCCProvider, 
-												EConnectionOptions Options)
+bool EnsureValidConnectionInternal(const FPerforceConnectionInfo& InSettings, FPerforceSourceControlProvider& SCCProvider, EConnectionOptions Options,
+	FPerforceConnectionInfo& OutSettings, ISourceControlProvider::FInitResult::FConnectionErrors& OutConnectionErrors)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPerforceConnection::EnsureValidConnection);
-
-	bool bIsUnicodeServer = false;
-	bool bConnectionOK = false;
-
-	FTSMessageLog SourceControlLog("SourceControl");
-
-	FString NewServerName = InOutServerName;
-	FString NewUserName = InOutUserName;
-	FString NewClientSpecName = InOutWorkspaceName;
+	const bool bRequireWorkspace = !EnumHasAllFlags(Options, EConnectionOptions::WorkspaceOptional);
 
 	ClientApi TestP4;
 	TestP4.SetProg("UE");
 	TestP4.SetProtocol("tag", "");
 	TestP4.SetProtocol("enableStreams", "");
 
-	if (!NewServerName.IsEmpty())
+	if (!InSettings.Port.IsEmpty())
 	{
-		TestP4.SetPort(TCHAR_TO_ANSI(*NewServerName));
-
-		if (!InConnectionInfo.HostOverride.IsEmpty())
-		{
-			TestP4.SetHost(TCHAR_TO_ANSI(*InConnectionInfo.HostOverride));
-		}
+		TestP4.SetPort(TCHAR_TO_ANSI(*InSettings.Port));
 	}
 
-	// Add easy access to the localized error message if needed
-	auto GetFailedToConnectMessage = []() -> FText
+	if (!InSettings.HostOverride.IsEmpty())
 	{
-		return LOCTEXT("P4ErrorConnection_FailedToConnect", "P4ERROR: Failed to connect to revision control provider.");
-	};
+		TestP4.SetHost(TCHAR_TO_ANSI(*InSettings.HostOverride));
+	}
 
 	Error P4Error;
 	TestP4.Init(&P4Error);
 
-	bConnectionOK = !P4Error.Test();
-	if (!bConnectionOK)
+	const bool bConnectionResult = !P4Error.Test();
+
+	// Assume UTF8 for the Port and potential errors as encoding of the port is not affected by the server settings
+	OutSettings.Port = UTF8_TO_TCHAR(TestP4.GetPort().Text()); // Record the PORT that we attempted to connect to
+
+	if (!bConnectionResult)
 	{
-		//Connection FAILED
+		OutConnectionErrors.ErrorMessage = LOCTEXT("P4_FailedToConnect", "P4ERROR: Failed to connect to revision control server.");
+
 		StrBuf ErrorMessage;
 		P4Error.Fmt(&ErrorMessage);
-		SourceControlLog.Error(GetFailedToConnectMessage());
-		SourceControlLog.Error(FText::FromString(ANSI_TO_TCHAR(ErrorMessage.Text())));
-		FFormatNamedArguments Arguments;
-		Arguments.Add(TEXT("OwningSystem"), FText::FromString(SCCProvider.GetOwnerName()));
-		Arguments.Add( TEXT("PortName"), FText::FromString(NewServerName) );
-		Arguments.Add( TEXT("Ticket"), FText::FromString(InConnectionInfo.Ticket) );
-		SourceControlLog.Error(FText::Format(LOCTEXT("P4ConnectErrorConnection_Details", "OwningSystem={OwningSystem}, Port={PortName}, Ticket={Ticket}"), Arguments));
+
+		OutConnectionErrors.AdditionalErrors.Add(FText::FromString(UTF8_TO_TCHAR(ErrorMessage.Text())));
+		return false;
 	}
 
-	// run an info command to determine unicode status
-	if(bConnectionOK)
+	bool bIsUnicodeServer = false;
+	if (!CheckUnicodeStatus(TestP4, bIsUnicodeServer, OutConnectionErrors.AdditionalErrors))
 	{
-		TArray<FText> ErrorMessages;
-
-		bConnectionOK = CheckUnicodeStatus(TestP4, bIsUnicodeServer, ErrorMessages);
-		if(!bConnectionOK)
-		{
-			SourceControlLog.Error(LOCTEXT("P4ErrorConnection_CouldNotDetermineUnicodeStatus", "P4ERROR: Could not determine server unicode status."));
-			SourceControlLog.Error(ErrorMessages.Num() > 0 ? ErrorMessages[0] : LOCTEXT("P4ErrorConnection_UnknownError", "Unknown error"));
-			FFormatNamedArguments Arguments;
-			Arguments.Add(TEXT("OwningSystem"), FText::FromString(SCCProvider.GetOwnerName()));
-			Arguments.Add( TEXT("PortName"), FText::FromString(NewServerName) );
-			Arguments.Add( TEXT("Ticket"), FText::FromString(InConnectionInfo.Ticket) );
-			SourceControlLog.Error(FText::Format(LOCTEXT("P4UnicodeErrorConnection_Details", "OwningSystem={OwningSystem}, Port={PortName}, Ticket={Ticket}"), Arguments));
-		}
-		else
-		{
-			if(bIsUnicodeServer)
-			{
-				// set translation mode. From here onwards we need to use UTF8 when using text args
-				TestP4.SetTrans(CharSetApi::UTF_8);
-			}
-
-			// now we have determined unicode status, we can set the values that can be specified in non-ansi characters
-			TestP4.SetCwd(FROM_TCHAR(*FPaths::RootDir(), bIsUnicodeServer));
-			TestP4.SetUser(FROM_TCHAR(*NewUserName, bIsUnicodeServer));
-			TestP4.SetClient(FROM_TCHAR(*NewClientSpecName, bIsUnicodeServer));
-			TestP4.SetPassword(FROM_TCHAR(*InConnectionInfo.Ticket, bIsUnicodeServer));
-
-		}
+		OutConnectionErrors.ErrorMessage = LOCTEXT("P4ErrorConnection_CouldNotDetermineUnicodeStatus", "P4ERROR: Could not determine server unicode status.");
+		return false;
 	}
 
-	// Test that we have a valid p4 ticket
-	if (bConnectionOK)
+	if (bIsUnicodeServer)
 	{
-		TArray<FText> ErrorMessages;
-		bConnectionOK = TestLoginConnection(SCCProvider, TestP4, bIsUnicodeServer, ErrorMessages);
-
-		if (!bConnectionOK)
-		{
-			FString ServerName = TO_TCHAR(TestP4.GetPort().Text(), bIsUnicodeServer);
-			FString UserName = TO_TCHAR(TestP4.GetUser().Text(), bIsUnicodeServer);
-
-			SourceControlLog.Error(GetFailedToConnectMessage());
-			SourceControlLog.Error(ErrorMessages.Num() > 0 ? ErrorMessages[0] : LOCTEXT("P4ErrorConnection_InvalidToken", "Unable to log in"));
-			FFormatNamedArguments Arguments;
-			Arguments.Add(TEXT("OwningSystem"), FText::FromString(SCCProvider.GetOwnerName()));
-			Arguments.Add(TEXT("PortName"), FText::FromString(MoveTemp(ServerName)));
-			Arguments.Add(TEXT("UserName"), FText::FromString(MoveTemp(UserName)));
-
-			SourceControlLog.Error(FText::Format(LOCTEXT("P4LoginErrorConnection_Details", "OwningSystem={OwningSystem}, Port={PortName}, User={UserName}"), Arguments));
-		}
+		// set translation mode. From here onwards we need to use UTF8 when using text args
+		TestP4.SetTrans(CharSetApi::UTF_8);
 	}
 
-	const bool bRequireWorkspace = !EnumHasAllFlags(Options, EConnectionOptions::WorkspaceOptional);
+	// now we have determined unicode status, we can set the values that can be specified in non-ansi characters
+	TestP4.SetCwd(FROM_TCHAR(*FPaths::RootDir(), bIsUnicodeServer));
+	TestP4.SetUser(FROM_TCHAR(*InSettings.UserName, bIsUnicodeServer));
+	TestP4.SetClient(FROM_TCHAR(*InSettings.Workspace, bIsUnicodeServer));
+	TestP4.SetPassword(FROM_TCHAR(*InSettings.Ticket, bIsUnicodeServer));
+
+	const bool LogInResult = TestLoginConnection(TestP4, bIsUnicodeServer, OutConnectionErrors.AdditionalErrors);
+
+	OutSettings.UserName = TO_TCHAR(TestP4.GetUser().Text(), bIsUnicodeServer);
+
+	if (!LogInResult)
+	{
+		OutConnectionErrors.ErrorMessage = LOCTEXT("P4_InvalidToken", "Unable to log into revision control server");
+		return false;
+	}
 
 	// Try to auto detect the client if none were specified and we require one
-	if (bConnectionOK && bRequireWorkspace && NewClientSpecName.IsEmpty())
+	if (bRequireWorkspace)
 	{
-		FPerforceConnectionInfo AutoCredentials = InConnectionInfo;
-		AutoCredentials.Port = TO_TCHAR(TestP4.GetPort().Text(), bIsUnicodeServer);
-		AutoCredentials.UserName = TO_TCHAR(TestP4.GetUser().Text(), bIsUnicodeServer);
-
-		bConnectionOK = FPerforceConnection::AutoDetectWorkspace(AutoCredentials, SCCProvider, NewClientSpecName);
-		if (bConnectionOK)
+		FString ClientSpecName = InSettings.Workspace;
+		if (ClientSpecName.IsEmpty())
 		{
-			TestP4.SetClient(FROM_TCHAR(*NewClientSpecName, bIsUnicodeServer));
+			FPerforceConnectionInfo AutoCredentials = InSettings;
+			AutoCredentials.Port = OutSettings.Port;
+			AutoCredentials.UserName = OutSettings.UserName;
+
+			// AutoDetectWorkspace takes care of the error reporting
+			if (!FPerforceConnection::AutoDetectWorkspace(AutoCredentials, SCCProvider, ClientSpecName, OutConnectionErrors.AdditionalErrors))
+			{
+				return false;
+			}
+
+			TestP4.SetClient(FROM_TCHAR(*ClientSpecName, bIsUnicodeServer));
 		}
-	}
 
-	// Test that we found a valid client if we require one
-	if (bConnectionOK && bRequireWorkspace)
-	{
-		TArray<FText> ErrorMessages;
-
-		bConnectionOK = TestClientConnection(SCCProvider, TestP4, NewClientSpecName, bIsUnicodeServer, ErrorMessages);
+		// Test that we found a valid client if we require one
 		
-		if (!bConnectionOK)
+		const bool bValidClientSpec = TestClientConnection(TestP4, ClientSpecName, bIsUnicodeServer, OutConnectionErrors.AdditionalErrors);
+
+		OutSettings.Workspace = TO_TCHAR(TestP4.GetClient().Text(), bIsUnicodeServer);
+		if (!bValidClientSpec)
 		{
-			SourceControlLog.Error(GetFailedToConnectMessage());
-			SourceControlLog.Error(ErrorMessages.Num() > 0 ? ErrorMessages[0] : LOCTEXT("P4ErrorConnection_InvalidWorkspace", "Invalid workspace"));
-			FFormatNamedArguments Arguments;
-			Arguments.Add(TEXT("OwningSystem"), FText::FromString(SCCProvider.GetOwnerName()));
-			Arguments.Add( TEXT("PortName"), FText::FromString(NewServerName) );
-			Arguments.Add( TEXT("UserName"), FText::FromString(NewUserName) );
-			Arguments.Add( TEXT("ClientSpecName"), FText::FromString(NewClientSpecName) );
-			Arguments.Add( TEXT("Ticket"), FText::FromString(InConnectionInfo.Ticket) );
-			SourceControlLog.Error(FText::Format(LOCTEXT("P4ClientErrorConnection_Details", "OwningSystem={OwningSystem}, Port={PortName}, User={UserName}, ClientSpec={ClientSpecName}, Ticket={Ticket}"), Arguments));
+			OutConnectionErrors.ErrorMessage = LOCTEXT("P4ErrorConnection_InvalidWorkspace", "Invalid workspace");
+			return false;
+		}
+
+		// If the workspace name autodetected and is the same as the host we should assume that no valid workspace was found.
+		// TODO: Note that in this case the above call to ::TestClientConnection should have already failed so we could consider removing this check
+		if (InSettings.Workspace.IsEmpty() && OutSettings.Workspace == TO_TCHAR(TestP4.GetHost().Text(), bIsUnicodeServer))
+		{
+			OutConnectionErrors.ErrorMessage = LOCTEXT("P4ErrorConnection_MissingWorkspace", "Missing workspace");
+			OutConnectionErrors.AdditionalErrors.Add(LOCTEXT("P4ErrorConnection_NoWorkspaceFound", "No workspace was found for the current user"));
+			return false;
 		}
 	}
 
 	//whether successful or not, disconnect to clean up
 	TestP4.Final(&P4Error);
-	if (bConnectionOK && P4Error.Test())
+	
+	if (P4Error.Test())
 	{
-		//Disconnect FAILED
-		bConnectionOK = false;
+		OutConnectionErrors.ErrorMessage = LOCTEXT("P4_FailedDisconnect", "P4ERROR: Failed to disconnect from revision control server.");
+
 		StrBuf ErrorMessage;
 		P4Error.Fmt(&ErrorMessage);
-		SourceControlLog.Error(LOCTEXT("P4ErrorFailedDisconnect", "P4ERROR: Failed to disconnect from Server."));
-		SourceControlLog.Error(FText::FromString(TO_TCHAR(ErrorMessage.Text(), bIsUnicodeServer)));
+
+		OutConnectionErrors.AdditionalErrors.Add(FText::FromString(TO_TCHAR(ErrorMessage.Text(), bIsUnicodeServer)));
+		return false;
 	}
 
-	//if never specified, take the default connection values
-	if (NewServerName.IsEmpty())
-	{
-		NewServerName = TO_TCHAR(TestP4.GetPort().Text(), bIsUnicodeServer);
-	}
+	return true;
+}
 
-	if (NewUserName.IsEmpty())
-	{
-		NewUserName = TO_TCHAR(TestP4.GetUser().Text(), bIsUnicodeServer);
-	}
+bool FPerforceConnection::EnsureValidConnection(const FPerforceConnectionInfo& InSettings, FPerforceSourceControlProvider& SCCProvider, EConnectionOptions Options,
+	FPerforceConnectionInfo& OutSettings, ISourceControlProvider::FInitResult::FConnectionErrors& OutConnectionErrors)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPerforceConnection::EnsureValidConnection);
 
-	if (NewClientSpecName.IsEmpty() && bRequireWorkspace)
+	bool bResult = EnsureValidConnectionInternal(InSettings, SCCProvider, Options, OutSettings, OutConnectionErrors);
+
+	if (!bResult)
 	{
-		NewClientSpecName = TO_TCHAR(TestP4.GetClient().Text(), bIsUnicodeServer);
-		if (NewClientSpecName == TO_TCHAR(TestP4.GetHost().Text(), bIsUnicodeServer))
+		FinalizeErrors(SCCProvider, OutSettings, OutConnectionErrors);
+
+		if (!EnumHasAllFlags(Options, EConnectionOptions::SupressErrorLogging))
 		{
-			// If the client spec name is the same as host name, assume P4 couldn't get the actual
-			// spec name for this host and let GetPerforceLogin() try to find a proper one.
-			bConnectionOK = false;
+			FTSMessageLog SourceControlLog("SourceControl");
+
+			SourceControlLog.Error(OutConnectionErrors.ErrorMessage);
+			for (const FText& ErrorMsg : OutConnectionErrors.AdditionalErrors)
+			{
+				SourceControlLog.Error(ErrorMsg);
+			}
 		}
+
+		SCCProvider.SetLastErrors(OutConnectionErrors.AdditionalErrors);
 	}
 
-	if (bConnectionOK)
-	{
-		InOutServerName = NewServerName;
-		InOutUserName = NewUserName;
-		InOutWorkspaceName = NewClientSpecName;
-	}
-
-	return bConnectionOK;
+	return bResult;
 }
 
 bool FPerforceConnection::GetWorkspaceList(const FPerforceConnectionInfo& InConnectionInfo, FOnIsCancelled InOnIsCanceled, TArray<FString>& OutWorkspaceList, TArray<FText>& OutErrorMessages)

@@ -44,8 +44,10 @@ enum class EConnectionOptions : uint8
 {
 	/** No options are applied */
 	None				= 0,
-	/** The connection does not require a workspace to be considered valid*/
+	/** The connection does not require a workspace to be considered valid */
 	WorkspaceOptional	= 1 << 0,
+	/** Errors will not be logged but will still be returned to the caller */
+	SupressErrorLogging	= 1 << 1
 };
 ENUM_CLASS_FLAGS(EConnectionOptions);
 
@@ -72,19 +74,23 @@ public:
 	/** 
 	 * Attempts to automatically detect the workspace to use based on the working directory
 	 */
-	static bool AutoDetectWorkspace(const FPerforceConnectionInfo& InConnectionInfo, FPerforceSourceControlProvider& SCCProvider, FString& OutWorkspaceName);
+	static bool AutoDetectWorkspace(const FPerforceConnectionInfo& InConnectionInfo, FPerforceSourceControlProvider& SCCProvider, FString& OutWorkspaceName, TArray<FText>& OutErrorMessages);
 
 	/**
-	 * Static function in charge of making sure the specified connection is valid or requests that data from the user via dialog
-	 * @param InOutPortName			Port name in the inifile.  Out value is the port name from the connection dialog
-	 * @param InOutUserName			User name in the inifile.  Out value is the user name from the connection dialog
-	 * @param InOutWorkspaceName	Workspace name in the inifile.  Out value is the client spec from the connection dialog
-	 * @param InConnectionInfo		Connection credentials
-	 * @return - true if the connection, whether via dialog or otherwise, is valid.  False if source control should be disabled
+	 * Set up a connection to the server with the given credentials. The function can attempt to autodetect missing credentials or fix incorrect ones with
+	 * the final credentials being returned to the caller.
+	 * 
+	 * @param InSettings			The initial connection credentials.
+	 * @param SCCProvider			The provider that is setting up the connection.
+	 * @param Options				Used to specialize initialization behavior, @see EConnectionOptions.
+	 * @param OutSettings			The finalized connection credentials. If the connection failed then this will contain the credentials that were 
+	 *								used for the step that failed.
+	 * @param OutConnectionErrors	A collection of errors encountered.
+	 * 
+	 * @return - True if a valid connection was established, otherwise false.
 	 */
-	static bool EnsureValidConnection(	FString& InOutServerName, FString& InOutUserName, FString& InOutWorkspaceName,
-										const FPerforceConnectionInfo& InConnectionInfo, FPerforceSourceControlProvider& SCCProvider, 
-										EConnectionOptions Options = EConnectionOptions::None);
+	static bool EnsureValidConnection(	const FPerforceConnectionInfo& InSettings, FPerforceSourceControlProvider& SCCProvider, EConnectionOptions Options,
+										FPerforceConnectionInfo& OutSettings, ISourceControlProvider::FInitResult::FConnectionErrors& OutConnectionErrors);
 
 	/**
 	 * Get List of ClientSpecs

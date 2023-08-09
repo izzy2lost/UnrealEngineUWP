@@ -24,6 +24,7 @@ public:
 
 	/* ISourceControlProvider implementation */
 	virtual void Init(bool bForceConnection = true) override;
+	virtual FInitResult Init(EInitFlags Flags) override;
 	virtual void Close() override;
 	virtual FText GetStatusText() const override;
 	virtual TMap<EStatus, FString> GetStatus() const override;
@@ -140,9 +141,10 @@ private:
 	void OutputCommandMessages(const class FPerforceSourceControlCommand& InCommand) const;
 
 	/**
-	 * Loads user/SCC information from the INI file.
+	 * Loads user/SCC information from the INI file and can attempt to make a connection to the server if requested by
+	 * the Flags parameter.
 	 */
-	void ParseCommandLineSettings(bool bForceConnection);
+	ISourceControlProvider::FInitResult ParseCommandLineSettings(EInitFlags Flags);
 
 	/**
 	 * Helper function for running command 'synchronously'.

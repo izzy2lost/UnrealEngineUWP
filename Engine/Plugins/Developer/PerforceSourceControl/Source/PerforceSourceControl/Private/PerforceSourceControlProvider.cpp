@@ -83,7 +83,17 @@ FPerforceSourceControlProvider::FPerforceSourceControlProvider(const FStringView
 
 void FPerforceSourceControlProvider::Init(bool bForceConnection)
 {
-	ParseCommandLineSettings(bForceConnection);
+	const EInitFlags Flags = bForceConnection ? EInitFlags::AttemptConnection : EInitFlags::None;
+
+	ParseCommandLineSettings(Flags);
+}
+
+ISourceControlProvider::FInitResult FPerforceSourceControlProvider::Init(EInitFlags Flags)
+{
+	FInitResult Result = ParseCommandLineSettings(Flags);
+	Result.bIsAvailable = IsAvailable();
+
+	return Result;
 }
 
 void FPerforceSourceControlProvider::Close()
@@ -205,8 +215,10 @@ bool FPerforceSourceControlProvider::EstablishPersistentConnection()
 	return bIsValidConnection;
 }
 
-void FPerforceSourceControlProvider::ParseCommandLineSettings(bool bForceConnection)
+ISourceControlProvider::FInitResult FPerforceSourceControlProvider::ParseCommandLineSettings(EInitFlags InitFlags)
 {
+	ISourceControlProvider::FInitResult Result;
+
 	FPerforceSourceControlSettings& P4Settings = AccessSettings();
 
 	// First we take a copy of the existing settings
@@ -216,7 +228,7 @@ void FPerforceSourceControlProvider::ParseCommandLineSettings(bool bForceConnect
 	FString HostOverrideName = P4Settings.GetHostOverride();
 	FString Changelist = P4Settings.GetChangelistNumber();
 
-	EConnectionOptions Options = EConnectionOptions::None;
+	EConnectionOptions ConnectionOptions = EConnectionOptions::None;
 
 	// Then we see if any of these settings are overridden by the initial settings
 	// Note that as long as one setting is overridden, we will reset all non-overridden 
@@ -234,7 +246,7 @@ void FPerforceSourceControlProvider::ParseCommandLineSettings(bool bForceConnect
 		// so don't need to automatically find a workspace when ensuring the connection.
 		if (InitialSettings.IsOverridden(TEXT("P4Client")))
 		{
-			Options |= EConnectionOptions::WorkspaceOptional;
+			ConnectionOptions |= EConnectionOptions::WorkspaceOptional;
 		}
 
 		P4Settings.SetPort(PortName);
@@ -244,22 +256,50 @@ void FPerforceSourceControlProvider::ParseCommandLineSettings(bool bForceConnect
 		P4Settings.SetChangelistNumber(Changelist);
 	}
 
-	if (bForceConnection)
+	if (EnumHasAnyFlags(InitFlags, EInitFlags::AttemptConnection))
 	{
 		bLoginError = false;
+
 		FPerforceConnectionInfo ConnectionInfo = P4Settings.GetConnectionInfo();
-		if(FPerforceConnection::EnsureValidConnection(PortName, UserName, ClientSpecName, ConnectionInfo, *this, Options))
+		FPerforceConnectionInfo OutputSettings;
+
+		if (EnumHasAnyFlags(InitFlags, EInitFlags::SupressErrorLogging))
 		{
-			P4Settings.SetPort(PortName);
-			P4Settings.SetUserName(UserName);
-			P4Settings.SetWorkspace(ClientSpecName);
-			P4Settings.SetHostOverride(HostOverrideName);
+			ConnectionOptions |= EConnectionOptions::SupressErrorLogging;
+		}
+
+		if(FPerforceConnection::EnsureValidConnection(ConnectionInfo, *this, ConnectionOptions, OutputSettings, Result.Errors))
+		{
+			// The connection was a success so we should store the values used by the successful connection
+			P4Settings.SetPort(OutputSettings.Port);
+			P4Settings.SetUserName(OutputSettings.UserName);
+			P4Settings.SetWorkspace(OutputSettings.Workspace);
+
 			bServerAvailable = true;
+		}
+
+		// Fill in FInitResult::ConnectionSettings with the actual settings that were used
+
+		if (!OutputSettings.Port.IsEmpty())
+		{
+			Result.ConnectionSettings.Add(ISourceControlProvider::EStatus::Port, OutputSettings.Port);
+		}
+
+		if (!OutputSettings.UserName.IsEmpty())
+		{
+			Result.ConnectionSettings.Add(ISourceControlProvider::EStatus::User, OutputSettings.UserName);
+		}
+
+		if (!OutputSettings.Workspace.IsEmpty())
+		{
+			Result.ConnectionSettings.Add(ISourceControlProvider::EStatus::Client, OutputSettings.Workspace);
 		}
 	}
 
 	//Save off settings so this doesn't happen every time
 	SaveConnectionSettings();
+
+	return Result;
 }
 
 void FPerforceSourceControlProvider::GetWorkspaceList(const FPerforceConnectionInfo& InConnectionInfo, TArray<FString>& OutWorkspaceList, TArray<FText>& OutErrorMessages)
@@ -829,14 +869,17 @@ ECommandResult::Type FPerforceSourceControlProvider::SwitchWorkspace(FStringView
 
 	if (!NewWorkspaceName.IsEmpty())
 	{
-		FString PortName = P4Settings.GetPort();
-		FString UserName = P4Settings.GetUserName();
-		
-		if (FPerforceConnection::EnsureValidConnection(PortName, UserName, WorkspaceName, P4Settings.GetConnectionInfo(), *this, EConnectionOptions::WorkspaceOptional))
+		FPerforceConnectionInfo NewWorkspaceSettings = P4Settings.GetConnectionInfo();
+		NewWorkspaceSettings.Workspace = WorkspaceName;
+
+		ISourceControlProvider::FInitResult Results;
+
+		FPerforceConnectionInfo OutputSettings;
+		if (FPerforceConnection::EnsureValidConnection(NewWorkspaceSettings, *this, EConnectionOptions::WorkspaceOptional, OutputSettings, Results.Errors))
 		{
-			P4Settings.SetPort(PortName);
-			P4Settings.SetUserName(UserName);
-			P4Settings.SetWorkspace(WorkspaceName);
+			P4Settings.SetPort(OutputSettings.Port);
+			P4Settings.SetUserName(OutputSettings.UserName);
+			P4Settings.SetWorkspace(OutputSettings.Workspace);
 
 			bServerAvailable = true;
 
