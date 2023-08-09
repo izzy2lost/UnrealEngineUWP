@@ -953,7 +953,7 @@ void FLevelSequenceEditorToolkit::HandleTrackMenuExtensionAddTrack(FMenuBuilder&
 					if (GlobalClassFilter.IsValid())
 					{
 						// Hack - forcibly allow USkeletalMeshComponentBudgeted until FORT-527888
-						static const FName SkeletalMeshComponentBudgetedClassName(TEXT("USkeletalMeshComponentBudgeted"));
+						static const FName SkeletalMeshComponentBudgetedClassName(TEXT("SkeletalMeshComponentBudgeted"));
 						if (Component->GetClass()->GetName() == SkeletalMeshComponentBudgetedClassName)
 						{
 							bValidComponent = true;
