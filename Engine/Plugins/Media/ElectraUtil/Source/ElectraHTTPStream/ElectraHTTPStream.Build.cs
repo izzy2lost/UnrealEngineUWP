@@ -125,6 +125,7 @@ public class ElectraHTTPStream : ModuleRules
 			{
 				PublicDefinitions.Add("ELECTRA_HTTPSTREAM_LIBCURL=1");
 				PublicDefinitions.Add("ELECTRA_HTTPSTREAM_XCURL=1");
+				PublicDependencyModuleNames.Add("XCurl");
 			}
 		}
 		else
