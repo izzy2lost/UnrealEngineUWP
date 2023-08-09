@@ -15,6 +15,10 @@ class MULTIUSERREPLICATION_API UMultiUserReplicationStreamAsset : public UObject
 	GENERATED_BODY()
 public:
 
+	/** Unique ID for this stream. CDO has value 0 to not cause issues with delta serialization. */
+	UPROPERTY()
+	FGuid StreamId;
+	
 	UPROPERTY(Instanced)
 	TObjectPtr<UMultiUserPropertyReplicationSelection> ReplicationList;
 

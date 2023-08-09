@@ -37,8 +37,7 @@ namespace UnrealBuildTool.Rules
 					// Concert
 					"Concert",
 					"ConcertClient",
-					"ConcertSharedSlate",
-					"MultiUserClient"
+					"ConcertSharedSlate"
 				}
 			);
 		}
