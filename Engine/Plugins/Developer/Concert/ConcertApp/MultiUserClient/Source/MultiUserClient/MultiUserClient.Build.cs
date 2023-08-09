@@ -29,9 +29,8 @@ namespace UnrealBuildTool.Rules
 					"DesktopPlatform",
 					"EditorStyle",
 					"InputCore",
-					"MessageLog",
-					"MultiUserReplication",
 					"Projects",
+					"MessageLog",
 					"Slate",
 					"SlateCore",
 					"SourceControl",
@@ -42,16 +41,13 @@ namespace UnrealBuildTool.Rules
 
 			if (Target.bBuildEditor)
 			{
-				PrivateDependencyModuleNames.AddRange( 
+				PrivateDependencyModuleNames.AddRange(
 					new string[]
-					{ 
+					{
 						"EditorFramework",
-						"MultiUserReplicationEditor",
-						"PropertyEditor",
-						"Settings",
+						"UnrealEd",
 						"Sequencer",
 						"ToolMenus",
-						"UnrealEd",
 						"WorkspaceMenuStructure",
 					}
 				);

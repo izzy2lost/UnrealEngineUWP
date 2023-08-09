@@ -6,7 +6,6 @@
 #include "Modules/ModuleManager.h"
 #include "UObject/NameTypes.h"
 
-class ISettingsSection;
 struct FAssetCategoryPath;
 
 namespace UE::MultiUserReplicationEditor
@@ -40,14 +39,5 @@ namespace UE::MultiUserReplicationEditor
 
 		/** Gets the category under which assets for Multi-User Replication are nested. */
 		virtual FAssetCategoryPath GetMultiUserReplicationCategory() const = 0;
-
-		struct FSettingPath
-		{
-			const FName ContainerName;
-			const FName CategoryName;
-			const FName SectionName;
-		};
-		/** Gets the sections the replication settings are stored under. */
-		virtual FSettingPath GetReplicationSettingsInfo() const = 0;
 	};
 }

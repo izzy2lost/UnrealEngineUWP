@@ -1041,9 +1041,8 @@ private:
 	 */
 	TSharedRef<SDockTab> SpawnConcertBrowserTab(const FSpawnTabArgs& SpawnTabArgs)
 	{
-		const TSharedRef<SDockTab> DockTab = SNew(SDockTab)
-			.TabRole(NomadTab);
-		DockTab->SetContent(SNew(SConcertBrowser, DockTab, MultiUserClient));
+		const TSharedRef<SDockTab> DockTab = SNew(SDockTab).TabRole(ETabRole::NomadTab);
+		DockTab->SetContent(SNew(SConcertBrowser, DockTab, SpawnTabArgs.GetOwnerWindow(), MultiUserClient));
 		return DockTab;
 	}
 

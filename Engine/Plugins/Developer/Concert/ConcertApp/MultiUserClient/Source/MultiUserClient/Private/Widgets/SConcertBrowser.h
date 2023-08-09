@@ -28,26 +28,22 @@ public:
 	* Constructs the Browser.
 	*
 	* @param InArgs The Slate argument list.
-	* @param InConstructUnderMajorTab The major tab which will contain the session front-end.
-	* @param InConstructUnderWindow The window in which this widget is being constructed.
+	* @param ConstructUnderMajorTab The major tab which will contain the session front-end.
+	* @param ConstructUnderWindow The window in which this widget is being constructed.
 	* @param InSyncClient The sync client.
 	*/
-	void Construct(const FArguments& InArgs, TSharedRef<SDockTab> InConstructUnderMajorTab, TWeakPtr<IConcertSyncClient> InSyncClient);
+	void Construct(const FArguments& InArgs, const TSharedRef<SDockTab>& ConstructUnderMajorTab, const TSharedPtr<SWindow>& ConstructUnderWindow, TWeakPtr<IConcertSyncClient> InSyncClient);
 
 private:
-
-	/** Keeps the sync client interface. */
-	TWeakPtr<IConcertSyncClient> WeakConcertSyncClient;
-
-	/** Kept so it can be passed on to SActiveSessionRoot. */
-	TSharedPtr<SDockTab> ConstructedUnderMajorTab;
-
-	/** Keeps the session browser searched text in memory to reapply it when a user leaves a session and goes back to the session browser. */
-	TSharedPtr<FText> SearchedText;
-	
 	/** Invoked when the session connection state is changed. */
 	void HandleSessionConnectionChanged(IConcertClientSession& InSession, EConcertConnectionStatus ConnectionStatus);
 
 	/** Attaches the child widgets according to the connection status. */
 	void AttachChildWidget(EConcertConnectionStatus ConnectionStatus);
+
+	/** Keeps the sync client interface. */
+	TWeakPtr<IConcertSyncClient> WeakConcertSyncClient;
+
+	/** Keeps the session browser searched text in memory to reapply it when a user leaves a session and goes back to the session browser. */
+	TSharedPtr<FText> SearchedText;
 };

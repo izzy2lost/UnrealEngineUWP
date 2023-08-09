@@ -2,12 +2,13 @@
 
 #pragma once
 
-#include "ConcertMessages.h"
-#include "Widgets/ClientSessionHistoryController.h"
+#include "CoreMinimal.h"
+#include "ClientSessionHistoryController.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Input/SComboBox.h"
+#include "ConcertMessages.h"
 
 class IConcertClientSession;
 class IConcertSyncClient;
@@ -22,13 +23,25 @@ class SExpandableArea;
 
 
 /**
- * Displays the multi-users active session's clients and activities.
+ * Displays the multi-users active session clients and activity, enables the client
+ * to leave the session, open the same level as another client or teleport to another
+ * client presence.
  */
-class SActiveSessionOverviewTab : public SCompoundWidget
+class SActiveSession : public SCompoundWidget
 {
 public:
-	
-	SLATE_BEGIN_ARGS(SActiveSessionOverviewTab) { }
+	/** Struct to store the current send / receive state. */
+	struct FSendReceiveComboItem
+	{
+		FSendReceiveComboItem(FText InName, FText InToolTip, EConcertSendReceiveState InState) :
+			Name(MoveTemp(InName)), ToolTip(MoveTemp(InToolTip)), State(InState) {};
+
+		FText Name;
+		FText ToolTip;
+		EConcertSendReceiveState State;
+	};
+
+	SLATE_BEGIN_ARGS(SActiveSession) { }
 	SLATE_END_ARGS();
 
 	/**
@@ -41,42 +54,6 @@ public:
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
 private:
-	
-	/** Pointer on the client sync. */
-	TWeakPtr<IConcertSyncClient> WeakConcertSyncClient;
-
-	/** Holds a concert client session. */
-	TWeakPtr<IConcertClientSession> WeakSessionPtr;
-
-	/** List view for AvailableClients. */
-	TSharedPtr<SListView<TSharedPtr<FConcertSessionClientInfo>>> ClientsListView;
-
-	/** List of clients for the current session. */
-	TArray<TSharedPtr<FConcertSessionClientInfo>> Clients;
-
-	/** Information about the machine's client. */
-	TSharedPtr<FConcertSessionClientInfo> ClientInfo;
-
-	/** Holds a concert activity log. */
-	TSharedPtr<FClientSessionHistoryController> SessionHistoryController;
-
-	/** The 'Clients' expandable area. */
-	TSharedPtr<SExpandableArea> ClientArea;
-
-	/** The 'History' expandable area. */
-	TSharedPtr<SExpandableArea> HistoryArea;
-
-	/** Notification handler for hot reload. */
-	TSharedPtr<SCustomDialog> CanReloadDialog;
-
-	/** Flag to indicate if it is OK to hotreload the packages. */
-	bool bCanHotReload = true;
-
-	/** Keeps the status of 'Clients' area expansion. */
-	bool bClientAreaExpanded = true;
-
-	/** Keep the status of 'History' area expansion. */
-	bool bHistoryAreaExpanded = true;
 
 	/** Generate a new client row */
 	TSharedRef<ITableRow> HandleGenerateRow(TSharedPtr<FConcertSessionClientInfo> InClientInfo, const TSharedRef<STableViewBase>& OwnerTable) const;
@@ -102,6 +79,16 @@ private:
 	/** Find a client with its endpoint id */
 	TSharedPtr<FConcertSessionClientInfo> FindAvailableClient(const FGuid& InClientEndpointId) const;
 
+	/** Handling for the status icon and text */
+	const FButtonStyle& GetConnectionIconStyle() const;
+	FSlateColor GetConnectionIconColor() const;
+	FSlateFontInfo GetConnectionIconFontInfo() const;
+	FText GetConnectionStatusText() const;
+
+	/** Handling for leave session button */
+	bool IsStatusBarLeaveSessionVisible() const;
+	FReply OnClickLeaveSession();
+
 	/** Handles how much space the 'Clients' area uses with respect to its expansion state. */
 	SSplitter::ESizeRule GetClientAreaSizeRule() const { return bClientAreaExpanded ? SSplitter::ESizeRule::FractionOfParent : SSplitter::ESizeRule::SizeToContent; }
 	void OnClientAreaExpansionChanged(bool bExpanded) { bClientAreaExpanded = bExpanded; }
@@ -121,4 +108,60 @@ private:
 
 	/** Delegate handler invoked when an activity has been received by multi-user. */
 	void ActivityUpdated(const FConcertClientInfo& InClientInfo, const FConcertSyncActivity& InActivity, const FStructOnScope& /*unused*/);
+
+private:
+
+	/** Get the text object for the send/receive combo box. */
+	FText GetRequestedSendReceiveComboText() const;
+
+	/** Generate the SWidget for the given item. */
+	TSharedRef<SWidget> GenerateSendReceiveComboItem(TSharedPtr<FSendReceiveComboItem> InItem);
+
+	/** Return the initially selected combo item. */
+	int32 GetInitialSendReceiveComboIndex();
+
+	/** Handle a send receiver state change from the combo box. */
+	void HandleSendReceiveChanged(TSharedPtr<FSendReceiveComboItem> Item, ESelectInfo::Type SelectInfo);
+
+	/** Pointer on the client sync. */
+	TWeakPtr<IConcertSyncClient> WeakConcertSyncClient;
+
+	/** Holds a concert client session. */
+	TWeakPtr<IConcertClientSession> WeakSessionPtr;
+
+	/** List view for AvailableClients. */
+	TSharedPtr<SListView<TSharedPtr<FConcertSessionClientInfo>>> ClientsListView;
+
+	/** List of clients for the current session. */
+	TArray<TSharedPtr<FConcertSessionClientInfo>> Clients;
+
+	/** Information about the machine's client. */
+	TSharedPtr<FConcertSessionClientInfo> ClientInfo;
+
+	/** Holds a concert activity log. */
+	TSharedPtr<FClientSessionHistoryController> SessionHistoryController;
+
+	/** The 'Clients' expandable area. */
+	TSharedPtr<SExpandableArea> ClientArea;
+
+	/** The 'History' expandable area. */
+	TSharedPtr<SExpandableArea> HistoryArea;
+
+	/** Holds a pointer to the preset combo box widget. */
+	TSharedPtr< SComboBox< TSharedPtr<FSendReceiveComboItem> > > SendReceiveComboBox;
+
+	/** Available states for the SendReceiveComboBox */
+	TArray< TSharedPtr< FSendReceiveComboItem > > SendReceiveComboList;
+
+	/** Notification handler for hot reload. */
+	TSharedPtr<SCustomDialog> CanReloadDialog;
+
+	/** Flag to indicate if it is OK to hotreload the packages. */
+	bool bCanHotReload = true;
+
+	/** Keeps the status of 'Clients' area expansion. */
+	bool bClientAreaExpanded = true;
+
+	/** Keep the status of 'History' area expansion. */
+	bool bHistoryAreaExpanded = true;
 };

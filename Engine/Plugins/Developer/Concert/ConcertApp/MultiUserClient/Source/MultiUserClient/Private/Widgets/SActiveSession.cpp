@@ -1,36 +1,44 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Widgets/ActiveSession/Overview/SActiveSessionOverviewTab.h"
+#include "SActiveSession.h"
 
 #include "ConcertActionDefinition.h"
 #include "ConcertClientFrontendUtils.h"
-#include "ConcertClientSettings.h"
 #include "ConcertFrontendUtils.h"
 #include "ConcertMessageData.h"
+#include "ClientSessionHistoryController.h"
 #include "ConcertMessages.h"
 #include "Dialog/SMessageDialog.h"
+#include "IConcertClientPackageBridge.h"
 #include "IConcertClientPresenceManager.h"
 #include "IConcertClient.h"
 #include "IConcertClientWorkspace.h"
 #include "IConcertSyncClient.h"
-#include "Widgets/ClientSessionHistoryController.h"
+#include "ConcertClientSettings.h"
+#include "IMultiUserClientModule.h"
 
 #include "Algo/Transform.h"
 #include "EditorFontGlyphs.h"
 #include "FileHelpers.h"
+#include "ISettingsModule.h"
 #include "Misc/AsyncTaskNotification.h"
 #include "Misc/PackageName.h"
-#include "Dialog/SCustomDialog.h"
 #include "Styling/AppStyle.h"
+#include "Dialog/SCustomDialog.h"
+#include "Session/History/SSessionHistory.h"
+#include "Session/History/SSessionHistoryWrapper.h"
+#include "Widgets/Notifications/SNotificationList.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SHyperlink.h"
 #include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/Views/STableViewBase.h"
 #include "Widgets/Views/STableRow.h"
+#include "Framework/Notifications/NotificationManager.h"
 #include "HAL/PlatformFileManager.h"
 
-#define LOCTEXT_NAMESPACE "SActiveSessionOverviewTab"
+
+#define LOCTEXT_NAMESPACE "SActiveSession"
 
 namespace ActiveSessionDetailsUI
 {
@@ -331,7 +339,51 @@ private:
 	TWeakPtr<FConcertSessionClientInfo> SessionClientInfo;
 };
 
-void SActiveSessionOverviewTab::Construct(const FArguments& InArgs, TSharedPtr<IConcertSyncClient> InConcertSyncClient)
+int32 SActiveSession::GetInitialSendReceiveComboIndex()
+{
+	if (!WeakSessionPtr.IsValid())
+	{
+		return 0;
+	}
+
+	TSharedPtr<IConcertClientSession> Session = WeakSessionPtr.Pin();
+	switch(Session->GetSendReceiveState())
+	{
+	case EConcertSendReceiveState::Default:
+		return 0;
+	case EConcertSendReceiveState::SendOnly:
+		return 1;
+	case EConcertSendReceiveState::ReceiveOnly:
+		return 2;
+	}
+
+	return 0;
+}
+
+TArray< TSharedPtr< SActiveSession::FSendReceiveComboItem > > ConstructSendReceiveComboList()
+{
+	TArray< TSharedPtr< SActiveSession::FSendReceiveComboItem > > ComboList;
+	ComboList.Add( MakeShared<SActiveSession::FSendReceiveComboItem>(
+			LOCTEXT("DefaultSendReceiveState", "Default"),
+			LOCTEXT("DefaultSendReceiveStateTooltip", "Full send/receive mode for multi-user events."),
+			EConcertSendReceiveState::Default)
+		);
+
+	ComboList.Add( MakeShared<SActiveSession::FSendReceiveComboItem>(
+			LOCTEXT("SendState", "Send only"),
+			LOCTEXT("SendStateTooltip", "Transactions received from clients will be suspended; however local transactions will be sent."),
+			EConcertSendReceiveState::SendOnly)
+		);
+
+	ComboList.Add( MakeShared<SActiveSession::FSendReceiveComboItem>(
+			LOCTEXT("ReceiveState", "Receive only"),
+			LOCTEXT("ReceiveStateTooltip", "Local changes will be queued for transmission but not sent. Updates from clients will be received."),
+			EConcertSendReceiveState::ReceiveOnly)
+		);
+	return ComboList;
+}
+
+void SActiveSession::Construct(const FArguments& InArgs, TSharedPtr<IConcertSyncClient> InConcertSyncClient)
 {
 	WeakConcertSyncClient = InConcertSyncClient;
 	SessionHistoryController = MakeShared<FClientSessionHistoryController>(InConcertSyncClient.ToSharedRef());
@@ -339,26 +391,124 @@ void SActiveSessionOverviewTab::Construct(const FArguments& InArgs, TSharedPtr<I
 	if (InConcertSyncClient.IsValid())
 	{
 		IConcertClientRef ConcertClient = InConcertSyncClient->GetConcertClient();
-		ConcertClient->OnSessionStartup().AddSP(this, &SActiveSessionOverviewTab::HandleSessionStartup);
-		ConcertClient->OnSessionShutdown().AddSP(this, &SActiveSessionOverviewTab::HandleSessionShutdown);
+		ConcertClient->OnSessionStartup().AddSP(this, &SActiveSession::HandleSessionStartup);
+		ConcertClient->OnSessionShutdown().AddSP(this, &SActiveSession::HandleSessionShutdown);
 
 		if (TSharedPtr<IConcertClientSession> ClientSession = ConcertClient->GetCurrentSession())
 		{
 			WeakSessionPtr = ClientSession;
 			ClientInfo = MakeShared<FConcertSessionClientInfo>(FConcertSessionClientInfo{ClientSession->GetSessionClientEndpointId(), ClientSession->GetLocalClientInfo()});
-			ClientSession->OnSessionClientChanged().AddSP(this, &SActiveSessionOverviewTab::HandleSessionClientChanged);
-			InConcertSyncClient->GetTransactionBridge()->OnConflictResolutionForPendingSend().AddSP(this, &SActiveSessionOverviewTab::OnSendConflict);
+			ClientSession->OnSessionClientChanged().AddSP(this, &SActiveSession::HandleSessionClientChanged);
+			InConcertSyncClient->GetTransactionBridge()->OnConflictResolutionForPendingSend().AddSP(this, &SActiveSession::OnSendConflict);
 		}
 
 		TSharedPtr<IConcertClientWorkspace> Workspace = InConcertSyncClient->GetWorkspace();
-		Workspace->OnActivityAddedOrUpdated().AddSP(this, &SActiveSessionOverviewTab::ActivityUpdated);
+		Workspace->OnActivityAddedOrUpdated().AddSP(this, &SActiveSession::ActivityUpdated);
 		Workspace->AddWorkspaceCanProcessPackagesDelegate(
-			TEXT("SActiveSession"), FCanProcessPendingPackages::CreateSP(this, &SActiveSessionOverviewTab::CanProcessPendingPackages));
+			TEXT("SActiveSession"), FCanProcessPendingPackages::CreateSP(this, &SActiveSession::CanProcessPendingPackages));
+	}
+
+	SendReceiveComboList = ConstructSendReceiveComboList();
+	int32 InitialIndex = GetInitialSendReceiveComboIndex();
+
+	TSharedRef<SHorizontalBox> StatusBar =
+		SNew(SHorizontalBox)
+
+		// Status Icon
+		+SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(FMargin(2.0f, 1.0f, 0.0f, 1.0f))
+		[
+			SNew(STextBlock)
+			.Font(this, &SActiveSession::GetConnectionIconFontInfo)
+			.ColorAndOpacity(this, &SActiveSession::GetConnectionIconColor)
+			.Text(FEditorFontGlyphs::Circle)
+		]
+
+		// Status Message
+		+SHorizontalBox::Slot()
+		.VAlign(VAlign_Center)
+		.Padding(FMargin(4.0f, 1.0f))
+		[
+			SNew(SBorder)
+			.BorderImage(FAppStyle::Get().GetBrush("NoBorder"))
+			.ColorAndOpacity(FLinearColor(0.75f, 0.75f, 0.75f))
+			.Padding(FMargin(0.0f, 4.0f, 6.0f, 4.0f))
+			[
+				SNew(STextBlock)
+				.Font(FAppStyle::Get().GetFontStyle("BoldFont"))
+				.Text(this, &SActiveSession::GetConnectionStatusText)
+			]
+		]
+		+SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(FMargin(1.0f))
+		[
+			SNew(SBox)
+			.MinDesiredWidth(130.0f)
+			[
+				SAssignNew(SendReceiveComboBox, SComboBox< TSharedPtr<FSendReceiveComboItem> >)
+				.OptionsSource(&SendReceiveComboList)
+				.InitiallySelectedItem(SendReceiveComboList[InitialIndex])
+				.ContentPadding(FMargin(4.0f,1.0f))
+				.OnGenerateWidget(this, &SActiveSession::GenerateSendReceiveComboItem)
+				.OnSelectionChanged(this, &SActiveSession::HandleSendReceiveChanged)
+				[
+					SNew(STextBlock)
+					.Text(this, &SActiveSession::GetRequestedSendReceiveComboText)
+				]
+			]
+		]
+		// The "Settings" icons.
+		+SHorizontalBox::Slot()
+		.VAlign(VAlign_Fill)
+		.AutoWidth()
+		[
+			SNew(SButton)
+			.ButtonStyle(FAppStyle::Get(), TEXT("SimpleButton"))
+			.OnClicked_Lambda([](){FModuleManager::GetModulePtr<ISettingsModule>("Settings")->ShowViewer("Project", "Plugins", "Concert"); return FReply::Handled(); })
+			.VAlign(VAlign_Center)
+			.HAlign(HAlign_Fill)
+			[
+				SNew(SImage)
+				.Image(FAppStyle::GetBrush("Icons.Settings"))
+			]
+		];
+
+	// Append the buttons to the status bar
+	{
+		TArray<FConcertActionDefinition> ButtonDefs;
+
+		// Leave Session
+		FConcertActionDefinition& LeaveSessionDef = ButtonDefs.AddDefaulted_GetRef();
+		LeaveSessionDef.Type = EConcertActionType::Normal;
+		LeaveSessionDef.IsVisible = MakeAttributeSP(this, &SActiveSession::IsStatusBarLeaveSessionVisible);
+		LeaveSessionDef.Text = FEditorFontGlyphs::Sign_Out;
+		LeaveSessionDef.ToolTipText = LOCTEXT("LeaveCurrentSessionToolTip", "Leave the current session");
+		LeaveSessionDef.OnExecute.BindLambda([this]() { OnClickLeaveSession(); });
+		LeaveSessionDef.IconStyle = TEXT("Concert.LeaveSession");
+
+		ConcertClientFrontendUtils::AppendButtons(StatusBar, ButtonDefs);
 	}
 
 	ChildSlot
 	[
 		SNew(SVerticalBox)
+
+		// Status bar.
+		+SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(0.0f, 0.0f, 0.0f, 4.0f) // Add space between the status bar and the clients list.
+		[
+			SNew(SBorder)
+			.BorderImage(FAppStyle::Get().GetBrush("ToolPanel.GroupBorder"))
+			.Padding(0.0f)
+			[
+				StatusBar
+			]
+		]
 
 		// Clients + History
 		+SVerticalBox::Slot()
@@ -369,7 +519,7 @@ void SActiveSessionOverviewTab::Construct(const FArguments& InArgs, TSharedPtr<I
 
 			// Clients.
 			+SSplitter::Slot()
-			.SizeRule(TAttribute<SSplitter::ESizeRule>(this, &SActiveSessionOverviewTab::GetClientAreaSizeRule))
+			.SizeRule(TAttribute<SSplitter::ESizeRule>(this, &SActiveSession::GetClientAreaSizeRule))
 			.Value(0.3)
 			[
 				SNew(SBorder)
@@ -381,7 +531,7 @@ void SActiveSessionOverviewTab::Construct(const FArguments& InArgs, TSharedPtr<I
 					.BorderImage_Lambda([this]() { return ConcertFrontendUtils::GetExpandableAreaBorderImage(*ClientArea); })
 					.BodyBorderImage(FAppStyle::Get().GetBrush("ToolPanel.GroupBorder"))
 					.BodyBorderBackgroundColor(FLinearColor::White)
-					.OnAreaExpansionChanged(this, &SActiveSessionOverviewTab::OnClientAreaExpansionChanged)
+					.OnAreaExpansionChanged(this, &SActiveSession::OnClientAreaExpansionChanged)
 					.Padding(0.0f)
 					.HeaderContent()
 					[
@@ -396,7 +546,7 @@ void SActiveSessionOverviewTab::Construct(const FArguments& InArgs, TSharedPtr<I
 						.ItemHeight(20.0f)
 						.SelectionMode(ESelectionMode::Single)
 						.ListItemsSource(&Clients)
-						.OnGenerateRow(this, &SActiveSessionOverviewTab::HandleGenerateRow)
+						.OnGenerateRow(this, &SActiveSession::HandleGenerateRow)
 						.HeaderRow
 						(
 							SNew(SHeaderRow)
@@ -413,7 +563,7 @@ void SActiveSessionOverviewTab::Construct(const FArguments& InArgs, TSharedPtr<I
 
 			// History (activity feed).
 			+SSplitter::Slot()
-			.SizeRule(TAttribute<SSplitter::ESizeRule>(this, &SActiveSessionOverviewTab::GetHistoryAreaSizeRule))
+			.SizeRule(TAttribute<SSplitter::ESizeRule>(this, &SActiveSession::GetHistoryAreaSizeRule))
 			.Value(0.7)
 			[
 				SNew(SBorder)
@@ -425,7 +575,7 @@ void SActiveSessionOverviewTab::Construct(const FArguments& InArgs, TSharedPtr<I
 					.BorderImage_Lambda([this]() { return ConcertFrontendUtils::GetExpandableAreaBorderImage(*HistoryArea); })
 					.BodyBorderImage(FAppStyle::Get().GetBrush("ToolPanel.GroupBorder"))
 					.BodyBorderBackgroundColor(FLinearColor::White)
-					.OnAreaExpansionChanged(this, &SActiveSessionOverviewTab::OnHistoryAreaExpansionChanged)
+					.OnAreaExpansionChanged(this, &SActiveSession::OnHistoryAreaExpansionChanged)
 					.Padding(0.0f)
 					.HeaderContent()
 					[
@@ -445,24 +595,52 @@ void SActiveSessionOverviewTab::Construct(const FArguments& InArgs, TSharedPtr<I
 
 	// Create a timer to periodically poll the this client(s) info to detect if it changed its display name or avatar color because
 	// IConcertClientsession::OnSessionClientChanged() doesn't trigger when the 'local' client changes. This needs to be polled.
-	RegisterActiveTimer(1.0f, FWidgetActiveTimerDelegate::CreateSP(this, &SActiveSessionOverviewTab::HandleLocalClientInfoChangePollingTimer));
+	RegisterActiveTimer(1.0f, FWidgetActiveTimerDelegate::CreateSP(this, &SActiveSession::HandleLocalClientInfoChangePollingTimer));
 
 	UpdateSessionClientListView();
 }
 
-TSharedRef<ITableRow> SActiveSessionOverviewTab::HandleGenerateRow(TSharedPtr<FConcertSessionClientInfo> InClientInfo, const TSharedRef<STableViewBase>& OwnerTable) const
+FText SActiveSession::GetRequestedSendReceiveComboText() const
+{
+	if (SendReceiveComboBox->GetSelectedItem().IsValid())
+	{
+		return SendReceiveComboBox->GetSelectedItem()->Name;
+	}
+	else
+	{
+		return LOCTEXT("ActiveSessionDefaultSendReceive", "Default");
+	}
+}
+
+TSharedRef<SWidget> SActiveSession::GenerateSendReceiveComboItem(TSharedPtr<SActiveSession::FSendReceiveComboItem> InItem)
+{
+	return SNew(STextBlock)
+		.Text(InItem->Name)
+		.ToolTipText(InItem->ToolTip);
+}
+
+void SActiveSession::HandleSendReceiveChanged(TSharedPtr<SActiveSession::FSendReceiveComboItem> Item, ESelectInfo::Type SelectInfo)
+{
+	check(Item.IsValid());
+	if (TSharedPtr<IConcertClientSession> Session = WeakSessionPtr.Pin())
+	{
+		Session->SetSendReceiveState(Item->State);
+	}
+}
+
+TSharedRef<ITableRow> SActiveSession::HandleGenerateRow(TSharedPtr<FConcertSessionClientInfo> InClientInfo, const TSharedRef<STableViewBase>& OwnerTable) const
 {
 	// Generate a row for the client corresponding to InClientInfo.
 	return SNew(SActiveSessionDetailsRow, WeakConcertSyncClient, WeakSessionPtr, InClientInfo, OwnerTable);
 }
 
-void SActiveSessionOverviewTab::HandleSessionStartup(TSharedRef<IConcertClientSession> InClientSession)
+void SActiveSession::HandleSessionStartup(TSharedRef<IConcertClientSession> InClientSession)
 {
 	WeakSessionPtr = InClientSession;
-	InClientSession->OnSessionClientChanged().AddSP(this, &SActiveSessionOverviewTab::HandleSessionClientChanged);
+	InClientSession->OnSessionClientChanged().AddSP(this, &SActiveSession::HandleSessionClientChanged);
 	if (TSharedPtr<IConcertSyncClient> SyncClient = WeakConcertSyncClient.Pin())
 	{
-		SyncClient->GetTransactionBridge()->OnConflictResolutionForPendingSend().AddSP(this, &SActiveSessionOverviewTab::OnSendConflict);
+		SyncClient->GetTransactionBridge()->OnConflictResolutionForPendingSend().AddSP(this, &SActiveSession::OnSendConflict);
 	}
 
 	ClientInfo = MakeShared<FConcertSessionClientInfo>(FConcertSessionClientInfo{InClientSession->GetSessionClientEndpointId(), InClientSession->GetLocalClientInfo()});
@@ -475,7 +653,7 @@ void SActiveSessionOverviewTab::HandleSessionStartup(TSharedRef<IConcertClientSe
 	}
 }
 
-void SActiveSessionOverviewTab::HandleSessionShutdown(TSharedRef<IConcertClientSession> InClientSession)
+void SActiveSession::HandleSessionShutdown(TSharedRef<IConcertClientSession> InClientSession)
 {
 	if (InClientSession == WeakSessionPtr)
 	{
@@ -499,13 +677,13 @@ void SActiveSessionOverviewTab::HandleSessionShutdown(TSharedRef<IConcertClientS
 	}
 }
 
-void SActiveSessionOverviewTab::HandleSessionClientChanged(IConcertClientSession&, EConcertClientStatus ClientStatus, const FConcertSessionClientInfo& InClientInfo)
+void SActiveSession::HandleSessionClientChanged(IConcertClientSession&, EConcertClientStatus ClientStatus, const FConcertSessionClientInfo& InClientInfo)
 {
 	// Update the view for a specific client.
 	UpdateSessionClientListView(&InClientInfo, ClientStatus);
 }
 
-EActiveTimerReturnType SActiveSessionOverviewTab::HandleLocalClientInfoChangePollingTimer(double InCurrentTime, float InDeltaTime)
+EActiveTimerReturnType SActiveSession::HandleLocalClientInfoChangePollingTimer(double InCurrentTime, float InDeltaTime)
 {
 // This switch is used to test if updating the session FConcertClientInfo dynamically correctly applies across the board. Don't
 // turn it on by default, it would overwrite runtime changes made to the info from some state/logic with the one from the settings.
@@ -549,7 +727,7 @@ EActiveTimerReturnType SActiveSessionOverviewTab::HandleLocalClientInfoChangePol
 	return EActiveTimerReturnType::Continue;
 }
 
-void SActiveSessionOverviewTab::UpdateSessionClientListView(const FConcertSessionClientInfo* InClientInfo, EConcertClientStatus ClientStatus)
+void SActiveSession::UpdateSessionClientListView(const FConcertSessionClientInfo* InClientInfo, EConcertClientStatus ClientStatus)
 {
 	// We expect the UI to be constructed in Construct() function, prior this function gets called.
 	check(ClientsListView.IsValid());
@@ -633,7 +811,45 @@ void SActiveSessionOverviewTab::UpdateSessionClientListView(const FConcertSessio
 	ClientsListView->RequestListRefresh();
 }
 
-void SActiveSessionOverviewTab::OnSendConflict(const FConcertConflictDescriptionBase& ConflictDescription)
+const FButtonStyle& SActiveSession::GetConnectionIconStyle() const
+{
+	EConcertActionType ButtonStyle = EConcertActionType::Danger;
+
+	TSharedPtr<IConcertClientSession> ClientSession = WeakSessionPtr.Pin();
+	if (ClientSession.IsValid())
+	{
+		if (ClientSession->GetConnectionStatus() == EConcertConnectionStatus::Connected)
+		{
+			const bool bIsDefault = ClientSession->GetSendReceiveState() == EConcertSendReceiveState::Default;
+			if (bIsDefault)
+			{
+				ButtonStyle = EConcertActionType::Success;
+			}
+			else
+			{
+				ButtonStyle = EConcertActionType::Warning;
+			}
+		}
+	}
+
+	return FAppStyle::Get().GetWidgetStyle<FButtonStyle>(ConcertClientFrontendUtils::ButtonStyleNames[(int32)ButtonStyle]);
+}
+
+FSlateColor SActiveSession::GetConnectionIconColor() const
+{
+	return GetConnectionIconStyle().Normal.TintColor;
+}
+
+FSlateFontInfo SActiveSession::GetConnectionIconFontInfo() const
+{
+	FSlateFontInfo ConnectionIconFontInfo = FAppStyle::Get().GetFontStyle(ConcertClientFrontendUtils::ButtonIconSyle);
+	ConnectionIconFontInfo.OutlineSettings.OutlineSize = 1;
+	ConnectionIconFontInfo.OutlineSettings.OutlineColor = GetConnectionIconStyle().Pressed.TintColor.GetSpecifiedColor();
+
+	return ConnectionIconFontInfo;
+}
+
+void SActiveSession::OnSendConflict(const FConcertConflictDescriptionBase& ConflictDescription)
 {
 	FAsyncTaskNotificationConfig Config;
 	Config.bKeepOpenOnFailure = true;
@@ -645,7 +861,48 @@ void SActiveSessionOverviewTab::OnSendConflict(const FConcertConflictDescription
 	Notification.SetComplete(Config.TitleText, ConflictDescription.GetConflictDetails(), false);
 }
 
-void SActiveSessionOverviewTab::SetSelectedClient(const FGuid& InClientEndpointId, ESelectInfo::Type SelectInfo)
+FText SActiveSession::GetConnectionStatusText() const
+{
+	FText StatusText = LOCTEXT("StatusDisconnected", "Disconnected");
+	TSharedPtr<IConcertClientSession> ClientSessionPtr = WeakSessionPtr.Pin();
+	if (ClientSessionPtr.IsValid() && ClientSessionPtr->GetConnectionStatus() == EConcertConnectionStatus::Connected)
+	{
+		const FText SessionDisplayName = FText::FromString(ClientSessionPtr->GetSessionInfo().SessionName);
+
+		switch (ClientSessionPtr->GetSendReceiveState())
+		{
+		case EConcertSendReceiveState::SendOnly:
+			StatusText = FText::Format(LOCTEXT("StatusSendOnlyFmt", "Send Only: {0}"), SessionDisplayName);
+			break;
+		case EConcertSendReceiveState::ReceiveOnly:
+			StatusText = FText::Format(LOCTEXT("StatusReceiveOnlyFmt", "Receive Only: {0}"), SessionDisplayName);
+			break;
+		case EConcertSendReceiveState::Default:
+			StatusText = FText::Format(LOCTEXT("StatusConnectedFmt", "Connected: {0}"), SessionDisplayName);
+			break;
+		};
+	}
+
+	return StatusText;
+}
+
+bool SActiveSession::IsStatusBarLeaveSessionVisible() const
+{
+	if (TSharedPtr<IConcertClientSession> ClientSession = WeakSessionPtr.Pin())
+	{
+		return ClientSession->GetConnectionStatus() == EConcertConnectionStatus::Connected;
+	}
+
+	return false;
+}
+
+FReply SActiveSession::OnClickLeaveSession()
+{
+	IMultiUserClientModule::Get().DisconnectSession();
+	return FReply::Handled();
+}
+
+void SActiveSession::SetSelectedClient(const FGuid& InClientEndpointId, ESelectInfo::Type SelectInfo)
 {
 	if (ClientsListView.IsValid())
 	{
@@ -662,7 +919,7 @@ void SActiveSessionOverviewTab::SetSelectedClient(const FGuid& InClientEndpointI
 	}
 }
 
-TSharedPtr<FConcertSessionClientInfo> SActiveSessionOverviewTab::FindAvailableClient(const FGuid& InClientEndpointId) const
+TSharedPtr<FConcertSessionClientInfo> SActiveSession::FindAvailableClient(const FGuid& InClientEndpointId) const
 {
 	const TSharedPtr<FConcertSessionClientInfo>* FoundClientPtr = Clients.FindByPredicate([&InClientEndpointId](const TSharedPtr<FConcertSessionClientInfo>& PotentialClient)
 	{
@@ -672,12 +929,12 @@ TSharedPtr<FConcertSessionClientInfo> SActiveSessionOverviewTab::FindAvailableCl
 	return FoundClientPtr ? *FoundClientPtr : nullptr;
 }
 
-bool SActiveSessionOverviewTab::CanProcessPendingPackages() const
+bool SActiveSession::CanProcessPendingPackages() const
 {
 	return bCanHotReload;
 }
 
-void SActiveSessionOverviewTab::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+void SActiveSession::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	if (bCanHotReload && CanReloadDialog)
 	{
@@ -719,7 +976,7 @@ static TSharedPtr<SMessageDialog> MakeReloadDialog(FName PackageName)
 }
 
 }
-void SActiveSessionOverviewTab::ActivityUpdated(const FConcertClientInfo& InClientInfo, const FConcertSyncActivity& InActivity, const FStructOnScope& ActivitySummary)
+void SActiveSession::ActivityUpdated(const FConcertClientInfo& InClientInfo, const FConcertSyncActivity& InActivity, const FStructOnScope& ActivitySummary)
 {
 	if (InActivity.EventType == EConcertSyncActivityEventType::Package)
 	{

@@ -20,14 +20,11 @@ namespace UE::MultiUserReplicationEditor
 
 		//~ Begin IMultiUserReplicationEditor Interface
 		virtual FAssetCategoryPath GetMultiUserReplicationCategory() const override { return MultiUserReplicationCategory; }
-		virtual FSettingPath GetReplicationSettingsInfo() const override;
 		//~ End IMultiUserReplicationEditor Interface
 
 	private:
 
 		FAssetCategoryPath MultiUserReplicationCategory;
-
-		TSharedPtr<ISettingsSection> SettingsSection;
 
 		void RegisterSettings();
 		void UnregisterSettings();

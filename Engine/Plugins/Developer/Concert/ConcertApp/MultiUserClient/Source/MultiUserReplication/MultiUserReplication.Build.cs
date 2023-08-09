@@ -20,8 +20,7 @@ namespace UnrealBuildTool.Rules
 				new string[]
 				{
 					"Concert",
-					"ConcertClient",
-					"ConcertSyncClient"
+					"ConcertClient"
 				}
 			);
 		}

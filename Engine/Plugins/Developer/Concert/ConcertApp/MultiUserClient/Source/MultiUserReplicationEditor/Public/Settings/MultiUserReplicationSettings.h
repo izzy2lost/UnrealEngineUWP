@@ -4,9 +4,11 @@
 
 #include "UObject/Object.h"
 #include "MultiUserReplicationClientProfileAsset.h"
+#if WITH_EDITORONLY_DATA
 #include "Settings/MultiUserDefaultPropertySelection.h"
 #include "Settings/MultiUserDefaultSubobjectSelection.h"
 #include "Templates/Function.h"
+#endif
 #include "MultiUserReplicationSettings.generated.h"
 
 // Architecturally speaking FDefaultReplicationSessionSettings should be in the MultiUserClient module.
@@ -37,6 +39,7 @@ public:
 	UPROPERTY(EditAnywhere, Config, Category = "Replication")
 	FDefaultReplicationSessionSettings DefaultSessionSettings;
 
+#if WITH_EDITORONLY_DATA
 	/** Properties you want selected by default when you add a new replicated object in the editor */
 	UPROPERTY(EditAnywhere, Config, Category = "Replication|Editor")
 	TMap<FSoftClassPath, FMultiUserDefaultPropertySelection> DefaultPropertySelection;
@@ -49,12 +52,15 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, Config, Category = "Replication|Editor")
 	TMap<FSoftClassPath, FMultiUserDefaultSubobjectSelection> DefaultSubobjectSelection;
+#endif
 
 	static UMultiUserReplicationSettings* Get() { return GetMutableDefault<UMultiUserReplicationSettings>(); }
 
+#if WITH_EDITORONLY_DATA
 	/** Reads DefaultPropertySelection and applies any default property selections to Info based on the Class just added. */
 	void AddDefaultPropertiesFromSettings(FReplicatedObjectInfo& Info, UClass& Class);
 
 	/** Reads DefaultComponentSelection and calls FurtherObjectsCallback on any further objects that should also be added. */
 	void AddAdditionalObjectsFromSettings(UObject& AddedObject, TFunctionRef<void(UObject&)> FurtherObjectsCallback);
+#endif
 };
