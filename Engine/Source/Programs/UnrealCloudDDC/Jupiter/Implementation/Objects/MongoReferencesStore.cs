@@ -47,7 +47,7 @@ namespace Jupiter.Implementation
 			AddIndexFor<MongoReferencesModelV0>().CreateOne(indexTTL);
 		}
 
-		public async Task<ObjectRecord> Get(NamespaceId ns, BucketId bucket, IoHashKey key, IReferencesStore.FieldFlags flags)
+		public async Task<ObjectRecord> Get(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
 		{
 			bool includePayload = (flags & IReferencesStore.FieldFlags.IncludePayload) != 0;
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
@@ -67,7 +67,7 @@ namespace Jupiter.Implementation
 			return model.ToObjectRecord();
 		}
 
-		public async Task Put(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobHash, byte[]? blob, bool isFinalized)
+		public async Task Put(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[]? blob, bool isFinalized)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 
@@ -97,7 +97,7 @@ namespace Jupiter.Implementation
 			await addNamespaceTask;
 		}
 
-		public async Task Finalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobIdentifier)
+		public async Task Finalize(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 
@@ -107,7 +107,7 @@ namespace Jupiter.Implementation
 			);
 		}
 
-		public async Task UpdateLastAccessTime(NamespaceId ns, BucketId bucket, IoHashKey key, DateTime newLastAccessTime)
+		public async Task UpdateLastAccessTime(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 
@@ -117,7 +117,7 @@ namespace Jupiter.Implementation
 			);
 		}
 
-		public async IAsyncEnumerable<(NamespaceId, BucketId, IoHashKey, DateTime)> GetRecords()
+		public async IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecords()
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 			IAsyncCursor<MongoReferencesModelV0>? cursor = await collection.FindAsync(FilterDefinition<MongoReferencesModelV0>.Empty);
@@ -126,7 +126,7 @@ namespace Jupiter.Implementation
 			{
 				foreach (MongoReferencesModelV0 model in cursor.Current)
 				{
-					yield return (new NamespaceId(model.Ns), new BucketId(model.Bucket), new IoHashKey(model.Key), model.LastAccessTime);
+					yield return (new NamespaceId(model.Ns), new BucketId(model.Bucket), new RefId(model.Key), model.LastAccessTime);
 				}
 			}
 		}
@@ -157,7 +157,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task<bool> Delete(NamespaceId ns, BucketId bucket, IoHashKey key)
+		public async Task<bool> Delete(NamespaceId ns, BucketId bucket, RefId key)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 
@@ -230,7 +230,7 @@ namespace Jupiter.Implementation
 			LastAccessTime = lastAccessTime;
 		}
 
-		public MongoReferencesModelV0(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobIdentifier, byte[]? blob, bool isFinalized, DateTime lastAccessTime)
+		public MongoReferencesModelV0(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier, byte[]? blob, bool isFinalized, DateTime lastAccessTime)
 		{
 			Ns = ns.ToString();
 			Bucket = bucket.ToString();
@@ -262,7 +262,7 @@ namespace Jupiter.Implementation
 
 		public ObjectRecord ToObjectRecord()
 		{
-			return new ObjectRecord(new NamespaceId(Ns), new BucketId(Bucket), new IoHashKey(Key), 
+			return new ObjectRecord(new NamespaceId(Ns), new BucketId(Bucket), new RefId(Key), 
 				LastAccessTime,
 				InlineBlob, new BlobId(BlobIdentifier), IsFinalized);
 		}

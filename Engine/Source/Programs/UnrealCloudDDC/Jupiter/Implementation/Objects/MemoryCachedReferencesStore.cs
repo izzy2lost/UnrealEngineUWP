@@ -22,7 +22,7 @@ namespace Jupiter.Implementation.Objects
 			_options = options;
 		}
 
-		private void AddCacheEntry(NamespaceId ns, BucketId bucket, IoHashKey key, ObjectRecord record)
+		private void AddCacheEntry(NamespaceId ns, BucketId bucket, RefId key, ObjectRecord record)
 		{
 			// we can not cache none finalized records as they will be mutated again when finalized
 			if (!record.IsFinalized)
@@ -49,7 +49,7 @@ namespace Jupiter.Implementation.Objects
 			return _referenceCaches.GetOrAdd(ns, id => new MemoryCache(_options.CurrentValue));
 		}
 
-		public async Task<ObjectRecord> Get(NamespaceId ns, BucketId bucket, IoHashKey key, IReferencesStore.FieldFlags flags)
+		public async Task<ObjectRecord> Get(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
 		{
 			MemoryCache cache = GetCacheForNamespace(ns);
 
@@ -64,7 +64,7 @@ namespace Jupiter.Implementation.Objects
 			return objectRecord;
 		}
 
-		public Task Put(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobHash, byte[] blob, bool isFinalized)
+		public Task Put(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized)
 		{
 			ObjectRecord objectRecord = new ObjectRecord(ns, bucket, key, DateTime.Now, blob, blobHash, isFinalized);
 			AddCacheEntry(ns, bucket, key, objectRecord);
@@ -72,17 +72,17 @@ namespace Jupiter.Implementation.Objects
 			return _actualStore.Put(ns, bucket, key, blobHash, blob, isFinalized);
 		}
 
-		public Task Finalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobIdentifier)
+		public Task Finalize(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier)
 		{
 			return _actualStore.Finalize(ns, bucket, key, blobIdentifier);
 		}
 
-		public Task UpdateLastAccessTime(NamespaceId ns, BucketId bucket, IoHashKey key, DateTime newLastAccessTime)
+		public Task UpdateLastAccessTime(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime)
 		{
 			return _actualStore.UpdateLastAccessTime(ns, bucket, key, newLastAccessTime);
 		}
 
-		public IAsyncEnumerable<(NamespaceId, BucketId, IoHashKey, DateTime)> GetRecords()
+		public IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecords()
 		{
 			return _actualStore.GetRecords();
 		}
@@ -92,7 +92,7 @@ namespace Jupiter.Implementation.Objects
 			return _actualStore.GetNamespaces();
 		}
 
-		public Task<bool> Delete(NamespaceId ns, BucketId bucket, IoHashKey key)
+		public Task<bool> Delete(NamespaceId ns, BucketId bucket, RefId key)
 		{
 			MemoryCache cache = GetCacheForNamespace(ns);
 			cache.Remove(new CachedReferenceKey(bucket, key));
@@ -127,9 +127,9 @@ namespace Jupiter.Implementation.Objects
 	class CachedReferenceKey : IEquatable<CachedReferenceKey>
 	{
 		private readonly BucketId _bucket;
-		private readonly IoHashKey _key;
+		private readonly RefId _key;
 
-		public CachedReferenceKey(BucketId bucket, IoHashKey key)
+		public CachedReferenceKey(BucketId bucket, RefId key)
 		{
 			_bucket = bucket;
 			_key = key;
@@ -195,7 +195,7 @@ namespace Jupiter.Implementation.Objects
 
 		public NamespaceId Namespace { get; }
 		public BucketId Bucket { get; }
-		public IoHashKey Name { get;}
+		public RefId Name { get;}
 		public byte[]? Blob { get; }
 		public BlobId BlobIdentifier { get; }
 		public int Size { get; }

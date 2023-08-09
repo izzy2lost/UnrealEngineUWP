@@ -16,9 +16,9 @@ namespace Jupiter.Implementation
 	[JsonConverter(typeof(IoHashKeyJsonConverter))]
 	[CbConverter(typeof(IoHashKeyCbConverter))]
 
-	public readonly struct IoHashKey: IEquatable<IoHashKey>
+	public readonly struct RefId: IEquatable<RefId>
 	{
-		public IoHashKey(string key)
+		public RefId(string key)
 		{
 			 _text = key.ToLower();
  
@@ -50,14 +50,14 @@ namespace Jupiter.Implementation
 		}
 		readonly string _text;
 
-		public bool Equals(IoHashKey other)
+		public bool Equals(RefId other)
 		{
 			return string.Equals(_text , other._text, StringComparison.Ordinal);
 		}
 
 		public override bool Equals(object? obj)
 		{
-			return obj is IoHashKey other && Equals(other);
+			return obj is RefId other && Equals(other);
 		}
 
 		public override int GetHashCode()
@@ -70,19 +70,19 @@ namespace Jupiter.Implementation
 			return _text;
 		}
 
-		public static bool operator ==(IoHashKey left, IoHashKey right)
+		public static bool operator ==(RefId left, RefId right)
 		{
 			return left.Equals(right);
 		}
  
-		public static bool operator !=(IoHashKey left, IoHashKey right)
+		public static bool operator !=(RefId left, RefId right)
 		{
 			return !left.Equals(right);
 		}
 
-		public static IoHashKey FromName(string s)
+		public static RefId FromName(string s)
 		{
-			return new IoHashKey(ContentHash.FromBlob(Encoding.UTF8.GetBytes(s)).ToString());
+			return new RefId(ContentHash.FromBlob(Encoding.UTF8.GetBytes(s)).ToString());
 		}
 	}
 
@@ -103,16 +103,16 @@ namespace Jupiter.Implementation
 		{
 			if (value is string s)
 			{
-				return new IoHashKey(s);
+				return new RefId(s);
 			}
 
 			return base.ConvertFrom(context, culture, value);  
 		}
 	}
 
-	public class IoHashKeyJsonConverter : JsonConverter<IoHashKey>
+	public class IoHashKeyJsonConverter : JsonConverter<RefId>
 	{
-		public override IoHashKey Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+		public override RefId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
 		{
 			string? str = reader.GetString();
 			if (str == null)
@@ -120,24 +120,24 @@ namespace Jupiter.Implementation
 				throw new InvalidDataException("Unable to parse io hash key");
 			}
 
-			return new IoHashKey(str);
+			return new RefId(str);
 		}
 
-		public override void Write(Utf8JsonWriter writer, IoHashKey value, JsonSerializerOptions options)
+		public override void Write(Utf8JsonWriter writer, RefId value, JsonSerializerOptions options)
 		{
 			writer.WriteStringValue(value.ToString());
 		}
 	}
 
-	sealed class IoHashKeyCbConverter : CbConverterBase<IoHashKey>
+	sealed class IoHashKeyCbConverter : CbConverterBase<RefId>
 	{
-		public override IoHashKey Read(CbField field) => new IoHashKey(field.AsString());
+		public override RefId Read(CbField field) => new RefId(field.AsString());
 
 		/// <inheritdoc/>
-		public override void Write(CbWriter writer, IoHashKey value) => writer.WriteStringValue(value.ToString());
+		public override void Write(CbWriter writer, RefId value) => writer.WriteStringValue(value.ToString());
 
 		/// <inheritdoc/>
-		public override void WriteNamed(CbWriter writer, Utf8String name, IoHashKey value) => writer.WriteString(name, value.ToString());
+		public override void WriteNamed(CbWriter writer, Utf8String name, RefId value) => writer.WriteString(name, value.ToString());
 	}
 }
 

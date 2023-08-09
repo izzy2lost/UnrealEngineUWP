@@ -15,7 +15,7 @@ namespace Jupiter.Implementation
 {
 	public class LastAccessRecord
 	{
-		public LastAccessRecord(NamespaceId ns, BucketId bucket, IoHashKey key)
+		public LastAccessRecord(NamespaceId ns, BucketId bucket, RefId key)
 		{
 			Namespace = ns;
 			Bucket = bucket;
@@ -24,7 +24,7 @@ namespace Jupiter.Implementation
 
 		public NamespaceId Namespace { get; set; }
 		public BucketId Bucket { get; set; }
-		public IoHashKey Key { get; set; }
+		public RefId Key { get; set; }
 	}
 
 	public class LastAccessTrackerReference : LastAccessTracker<LastAccessRecord>

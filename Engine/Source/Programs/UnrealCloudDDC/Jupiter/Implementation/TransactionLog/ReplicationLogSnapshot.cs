@@ -125,7 +125,7 @@ namespace Jupiter.Implementation.TransactionLog
 			for (ulong i = 0; i < countOfObjects; i++)
 			{
 				BucketId bucket = new BucketId(readerGzip.ReadString());
-				IoHashKey key = new IoHashKey(StringUtils.FormatAsHexString(readerGzip.ReadBytes(20)));
+				RefId key = new RefId(StringUtils.FormatAsHexString(readerGzip.ReadBytes(20)));
 				BlobId blobIdentifier = new BlobId(readerGzip.ReadBytes(20));
 
 				yield return new SnapshotLiveObject(bucket, key, blobIdentifier);
@@ -187,7 +187,7 @@ namespace Jupiter.Implementation.TransactionLog
 
 	public class SnapshotLiveObject
 	{
-		public SnapshotLiveObject(BucketId bucket, IoHashKey key, BlobId blob)
+		public SnapshotLiveObject(BucketId bucket, RefId key, BlobId blob)
 		{
 			Bucket = bucket;
 			Key = key;
@@ -195,14 +195,14 @@ namespace Jupiter.Implementation.TransactionLog
 		}
 
 		public BucketId Bucket { get; set; }
-		public IoHashKey Key { get; set; }
+		public RefId Key { get; set; }
 		public BlobId Blob { get; set; }
 	}
 
 	public abstract class ReplicationLogSnapshot
 	{
 		private readonly List<SnapshotLiveObject> _addedObjects = new List<SnapshotLiveObject>();
-		private readonly HashSet<(BucketId, IoHashKey)> _removedObjects = new HashSet<(BucketId, IoHashKey)>();
+		private readonly HashSet<(BucketId, RefId)> _removedObjects = new HashSet<(BucketId, RefId)>();
 
 		protected ReplicationLogSnapshot(NamespaceId ns)
 		{
@@ -309,11 +309,11 @@ namespace Jupiter.Implementation.TransactionLog
 			}
 		}
 
-		private void ProcessAddEvent(BucketId bucket, IoHashKey key, BlobId blob)
+		private void ProcessAddEvent(BucketId bucket, RefId key, BlobId blob)
 		{
 			_addedObjects.Add(new SnapshotLiveObject(bucket, key, blob));
 		}
-		private void ProcessDeleteEvent(BucketId bucket, IoHashKey key)
+		private void ProcessDeleteEvent(BucketId bucket, RefId key)
 		{
 			_removedObjects.Add((bucket, key));
 		}

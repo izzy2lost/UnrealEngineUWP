@@ -84,13 +84,13 @@ namespace Jupiter.FunctionalTests.GC
         private readonly BlobId object5id = BlobId.FromBlob(s_objectContents5);
         private readonly BlobId object6id = BlobId.FromBlob(s_objectContents6);
 
-        private readonly IoHashKey object0Name = IoHashKey.FromName("object0");
-        private readonly IoHashKey object1Name = IoHashKey.FromName("object1");
-        private readonly IoHashKey object2Name = IoHashKey.FromName("object2");
-        private readonly IoHashKey object3Name = IoHashKey.FromName("object3");
-        private readonly IoHashKey object4Name = IoHashKey.FromName("object4");
-        private readonly IoHashKey object5Name = IoHashKey.FromName("object5");
-        private readonly IoHashKey object6Name = IoHashKey.FromName("object6");
+        private readonly RefId object0Name = RefId.FromName("object0");
+        private readonly RefId object1Name = RefId.FromName("object1");
+        private readonly RefId object2Name = RefId.FromName("object2");
+        private readonly RefId object3Name = RefId.FromName("object3");
+        private readonly RefId object4Name = RefId.FromName("object4");
+        private readonly RefId object5Name = RefId.FromName("object5");
+        private readonly RefId object6Name = RefId.FromName("object6");
         private TestServer? _server;
 
         [TestInitialize]

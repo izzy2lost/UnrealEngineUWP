@@ -87,7 +87,7 @@ namespace Jupiter.Implementation
 			_getObjectsLastAccessForPartitionRangeStatement = _session.Prepare($"SELECT namespace, bucket, name, last_access_time FROM object_last_access_v2 WHERE token(namespace, bucket, name) >= ? AND token(namespace, bucket, name) <= ? {cqlOptions}");
 		}
 
-		public async Task<ObjectRecord> Get(NamespaceId ns, BucketId bucket, IoHashKey name, IReferencesStore.FieldFlags flags)
+		public async Task<ObjectRecord> Get(NamespaceId ns, BucketId bucket, RefId name, IReferencesStore.FieldFlags flags)
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.get").SetAttribute("resource.name", $"{ns}.{bucket}.{name}");
 
@@ -118,10 +118,10 @@ namespace Jupiter.Implementation
 				throw new ObjectNotFoundException(ns, bucket, name);
 			}
 
-			return new ObjectRecord(new NamespaceId(o.Namespace!), new BucketId(o.Bucket!), new IoHashKey(o.Name!), o.LastAccessTime, o.InlinePayload, o.PayloadHash!.AsBlobIdentifier(), o.IsFinalized!.Value);
+			return new ObjectRecord(new NamespaceId(o.Namespace!), new BucketId(o.Bucket!), new RefId(o.Name!), o.LastAccessTime, o.InlinePayload, o.PayloadHash!.AsBlobIdentifier(), o.IsFinalized!.Value);
 		}
 
-		public async Task Put(NamespaceId ns, BucketId bucket, IoHashKey name, BlobId blobHash, byte[] blob, bool isFinalized)
+		public async Task Put(NamespaceId ns, BucketId bucket, RefId name, BlobId blobHash, byte[] blob, bool isFinalized)
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.put").SetAttribute("resource.name", $"{ns}.{bucket}.{name}");
 
@@ -153,14 +153,14 @@ namespace Jupiter.Implementation
 			await addBucketTask;
 		}
 
-		public async Task Finalize(NamespaceId ns, BucketId bucket, IoHashKey name, BlobId blobIdentifier)
+		public async Task Finalize(NamespaceId ns, BucketId bucket, RefId name, BlobId blobIdentifier)
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.finalize").SetAttribute("resource.name", $"{ns}.{bucket}.{name}");
 
 			await _mapper.UpdateAsync<ScyllaObject>("SET is_finalized=true WHERE namespace=? AND bucket=? AND name=?", ns.ToString(), bucket.ToString(), name.ToString());
 		}
 
-		public async Task UpdateLastAccessTime(NamespaceId ns, BucketId bucket, IoHashKey name, DateTime lastAccessTime)
+		public async Task UpdateLastAccessTime(NamespaceId ns, BucketId bucket, RefId name, DateTime lastAccessTime)
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.update_last_access_time");
 
@@ -175,15 +175,15 @@ namespace Jupiter.Implementation
 			await updateObjectLastAccessTask;
 		}
 
-		public async IAsyncEnumerable<(NamespaceId, BucketId, IoHashKey, DateTime)> GetRecords()
+		public async IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecords()
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.get_records");
 
 			if (_settings.CurrentValue.UsePerShardScanning)
 			{
-				IAsyncEnumerable<(NamespaceId, BucketId, IoHashKey, DateTime)> enumerable = GetRecordsPerShard();
+				IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> enumerable = GetRecordsPerShard();
 
-				await foreach ((NamespaceId, BucketId, IoHashKey, DateTime) record in enumerable)
+				await foreach ((NamespaceId, BucketId, RefId, DateTime) record in enumerable)
 				{
 					yield return (record.Item1, record.Item2, record.Item3, record.Item4);
 				}
@@ -217,7 +217,7 @@ namespace Jupiter.Implementation
 
 						// if last access time is missing we treat it as being very old
 						lastAccessTime ??= DateTime.MinValue;
-						yield return (new NamespaceId(ns), new BucketId(bucket), new IoHashKey(name), lastAccessTime.Value);
+						yield return (new NamespaceId(ns), new BucketId(bucket), new RefId(name), lastAccessTime.Value);
 					}
 
 					int retryAttempts = 0;
@@ -258,7 +258,7 @@ namespace Jupiter.Implementation
 		/// See https://www.scylladb.com/2017/03/28/parallel-efficient-full-table-scan-scylla/
 		/// </summary>
 		/// <returns></returns>
-		private async IAsyncEnumerable<(NamespaceId, BucketId, IoHashKey, DateTime)> GetRecordsPerShard()
+		private async IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecordsPerShard()
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.get_records_per_shard");
 			PreparedStatement getObjectStatement = _settings.CurrentValue.ListObjectsFromLastAccessTable
@@ -283,7 +283,7 @@ namespace Jupiter.Implementation
 
 					// if last access time is missing we treat it as being very old
 					lastAccessTime ??= DateTime.MinValue;
-					yield return (new NamespaceId(ns), new BucketId(bucket), new IoHashKey(name), lastAccessTime.Value);
+					yield return (new NamespaceId(ns), new BucketId(bucket), new RefId(name), lastAccessTime.Value);
 				}
 			}
 		}
@@ -325,7 +325,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task<bool> Delete(NamespaceId ns, BucketId bucket, IoHashKey key)
+		public async Task<bool> Delete(NamespaceId ns, BucketId bucket, RefId key)
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.delete_record").SetAttribute("resource.name", $"{ns}.{bucket}.{key}");
 
@@ -349,7 +349,7 @@ namespace Jupiter.Implementation
 				string bucket = row.GetValue<string>("bucket");
 				string name = row.GetValue<string>("name");
 
-				await Delete(ns, new BucketId(bucket), new IoHashKey(name));
+				await Delete(ns, new BucketId(bucket), new RefId(name));
 
 				deletedCount++;
 			}
@@ -370,7 +370,7 @@ namespace Jupiter.Implementation
 			{
 				string name = row.GetValue<string>("name");
 
-				await Delete(ns, bucket, new IoHashKey(name));
+				await Delete(ns, bucket, new RefId(name));
 				deletedCount++;
 			}
 
@@ -425,7 +425,7 @@ namespace Jupiter.Implementation
 			Key = null!;
 		}
 
-		public ScyllaObjectReference(BucketId bucket, IoHashKey key)
+		public ScyllaObjectReference(BucketId bucket, RefId key)
 		{
 			Bucket = bucket.ToString();
 			Key = key.ToString();
@@ -434,9 +434,9 @@ namespace Jupiter.Implementation
 		public string Bucket { get;set; }
 		public string Key { get; set; }
 
-		public (BucketId, IoHashKey) AsTuple()
+		public (BucketId, RefId) AsTuple()
 		{
-			return (new BucketId(Bucket), new IoHashKey(Key));
+			return (new BucketId(Bucket), new RefId(Key));
 		}
 	}
 
@@ -448,7 +448,7 @@ namespace Jupiter.Implementation
 
 		}
 
-		public ScyllaObject(NamespaceId ns, BucketId bucket, IoHashKey name, byte[] payload, BlobId payloadHash, bool isFinalized)
+		public ScyllaObject(NamespaceId ns, BucketId bucket, RefId name, byte[] payload, BlobId payloadHash, bool isFinalized)
 		{
 			Namespace = ns.ToString();
 			Bucket = bucket.ToString();
@@ -535,7 +535,7 @@ namespace Jupiter.Implementation
 
 		}
 
-		public ScyllaObjectLastAccess(NamespaceId ns, BucketId bucket, IoHashKey name, DateTime lastAccessTime)
+		public ScyllaObjectLastAccess(NamespaceId ns, BucketId bucket, RefId name, DateTime lastAccessTime)
 		{
 			Namespace = ns.ToString();
 			Bucket = bucket.ToString();

@@ -17,7 +17,7 @@ namespace Jupiter.Implementation.Blob
 		IAsyncEnumerable<(NamespaceId, BlobId)> GetAllBlobs();
 
 		IAsyncEnumerable<BaseBlobReference> GetBlobReferences(NamespaceId ns, BlobId id);
-		Task AddRefToBlobs(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId[] blobs);
+		Task AddRefToBlobs(NamespaceId ns, BucketId bucket, RefId key, BlobId[] blobs);
 
 		Task RemoveReferences(NamespaceId ns, BlobId id, List<BaseBlobReference> referencesToRemove);
 		Task<List<string>> GetBlobRegions(NamespaceId ns, BlobId blob);
@@ -31,14 +31,14 @@ namespace Jupiter.Implementation.Blob
 
 	public class RefBlobReference : BaseBlobReference
 	{
-		public RefBlobReference(BucketId bucket, IoHashKey key)
+		public RefBlobReference(BucketId bucket, RefId key)
 		{
 			Bucket = bucket;
 			Key = key;
 		}
 
 		public BucketId Bucket { get; set; }
-		public IoHashKey Key { get; set;}
+		public RefId Key { get; set;}
 	}
 
 	public class BlobToBlobReference : BaseBlobReference

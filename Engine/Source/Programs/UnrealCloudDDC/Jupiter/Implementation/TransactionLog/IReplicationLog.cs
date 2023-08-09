@@ -13,8 +13,8 @@ namespace Jupiter.Implementation
 	{
 		IAsyncEnumerable<NamespaceId> GetNamespaces();
 
-		Task<(string, Guid)> InsertAddEvent(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId objectBlob, DateTime? timeBucket = null);
-		Task<(string, Guid)> InsertDeleteEvent(NamespaceId ns, BucketId bucket, IoHashKey key, DateTime? timeBucket = null);
+		Task<(string, Guid)> InsertAddEvent(NamespaceId ns, BucketId bucket, RefId key, BlobId objectBlob, DateTime? timeBucket = null);
+		Task<(string, Guid)> InsertDeleteEvent(NamespaceId ns, BucketId bucket, RefId key, DateTime? timeBucket = null);
 		IAsyncEnumerable<ReplicationLogEvent> Get(NamespaceId ns, string? lastBucket, Guid? lastEvent);
 
 		Task AddSnapshot(SnapshotInfo snapshotHeader);
@@ -45,7 +45,7 @@ namespace Jupiter.Implementation
 	public class ReplicationLogEvent
 	{
 		[JsonConstructor]
-		public ReplicationLogEvent(NamespaceId @namespace, BucketId bucket, IoHashKey key, BlobId? blob, Guid eventId, string timeBucket, DateTime timestamp, OpType op)
+		public ReplicationLogEvent(NamespaceId @namespace, BucketId bucket, RefId key, BlobId? blob, Guid eventId, string timeBucket, DateTime timestamp, OpType op)
 		{
 			Namespace = @namespace;
 			Bucket = bucket;
@@ -68,7 +68,7 @@ namespace Jupiter.Implementation
 
 		public BucketId Bucket { get; }
 
-		public IoHashKey Key { get; }
+		public RefId Key { get; }
 
 		public OpType Op { get; }
 

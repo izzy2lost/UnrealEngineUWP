@@ -117,7 +117,7 @@ namespace Jupiter.Implementation.TransactionLog
 				// upload the attachment first so we are not missing any references when we go to create the ref
 				await _blobService.PutObject(storeInNamespace, payload, blobIdentifier);
 			
-				(ContentId[] missingContentIds, BlobId[] missingBlobs) = await _objectService.Put(storeInNamespace, new BucketId("snapshot"), new IoHashKey(blobIdentifier.ToString()), cbBlobId, new CbObject(cbObjectBytes));
+				(ContentId[] missingContentIds, BlobId[] missingBlobs) = await _objectService.Put(storeInNamespace, new BucketId("snapshot"), new RefId(blobIdentifier.ToString()), cbBlobId, new CbObject(cbObjectBytes));
 				List<ContentHash> missingHashes = new List<ContentHash>(missingContentIds);
 				missingHashes.AddRange(missingBlobs);
 				if (missingHashes.Count != 0)

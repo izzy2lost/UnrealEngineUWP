@@ -76,7 +76,7 @@ namespace Jupiter.FunctionalTests.References
             {
                 using HttpClient httpClient = new HttpClient();
                 httpClient.BaseAddress = new Uri("http://localhost:8080");
-                HttpResponseMessage result = await httpClient!.PutAsync(new Uri($"api/v1/refs/{TestNamespace}/{TestBucket}/{IoHashKey.FromName("newReferenceObject")}.uecb", UriKind.Relative), requestContent);
+                HttpResponseMessage result = await httpClient!.PutAsync(new Uri($"api/v1/refs/{TestNamespace}/{TestBucket}/{RefId.FromName("newReferenceObject")}.uecb", UriKind.Relative), requestContent);
                 result.EnsureSuccessStatusCode();
             }
             // access the replication-log using a public endpoint and a internal endpoint, only the internal endpoint should return results

@@ -99,7 +99,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 			{
 				string bucket = reference["bucket"];
 				string key = reference["key"];
-				yield return new RefBlobReference(new BucketId(bucket), new IoHashKey(key));
+				yield return new RefBlobReference(new BucketId(bucket), new RefId(key));
 			} 
 			else if (reference.ContainsKey("blob_id"))
 			{
@@ -119,7 +119,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 		return blobInfo?.Regions.Contains(_jupiterSettings.CurrentValue.CurrentSite) ?? false;
 	}
 
-	public async Task AddRefToBlobs(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId[] blobs)
+	public async Task AddRefToBlobs(NamespaceId ns, BucketId bucket, RefId key, BlobId[] blobs)
 	{
 		IMongoCollection<MongoBlobIndexModelV0> collection = GetCollection<MongoBlobIndexModelV0>();
 

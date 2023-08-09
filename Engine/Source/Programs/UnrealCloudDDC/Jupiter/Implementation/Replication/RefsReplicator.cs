@@ -721,7 +721,7 @@ namespace Jupiter.Implementation
 			_logger.LogDebug("{Name} starting replication. Last transaction was {TransactionId} {Generation}. Count Of running replications: {CurrentReplications}", _name, State.ReplicatorOffset.GetValueOrDefault(0L), State.ReplicatingGeneration.GetValueOrDefault(Guid.Empty), countOfCurrentReplications);
 		}
 
-		private async Task AddToReplicationLog(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blob)
+		private async Task AddToReplicationLog(NamespaceId ns, BucketId bucket, RefId key, BlobId blob)
 		{
 			await _replicationLog.InsertAddEvent(ns, bucket, key, blob);
 		}

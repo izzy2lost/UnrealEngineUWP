@@ -19,7 +19,7 @@ namespace Jupiter.Implementation
 
 		}
 
-		public Task<ObjectRecord> Get(NamespaceId ns, BucketId bucket, IoHashKey key, IReferencesStore.FieldFlags flags)
+		public Task<ObjectRecord> Get(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
 		{
 			if (_objects.TryGetValue(BuildKey(ns, bucket, key), out MemoryStoreObject? o))
 			{
@@ -29,7 +29,7 @@ namespace Jupiter.Implementation
 			throw new ObjectNotFoundException(ns, bucket, key);
 		}
 
-		public Task Put(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobHash, byte[] blob, bool isFinalized)
+		public Task Put(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized)
 		{
 			lock (_namespaces)
 			{
@@ -43,7 +43,7 @@ namespace Jupiter.Implementation
 			return Task.FromResult(o);
 		}
 
-		public Task Finalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobIdentifier)
+		public Task Finalize(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier)
 		{
 			if (!_objects.TryGetValue(BuildKey(ns, bucket, key), out MemoryStoreObject? o))
 			{
@@ -54,7 +54,7 @@ namespace Jupiter.Implementation
 			return Task.CompletedTask;
 		}
 
-		public Task UpdateLastAccessTime(NamespaceId ns, BucketId bucket, IoHashKey key, DateTime lastAccessTime)
+		public Task UpdateLastAccessTime(NamespaceId ns, BucketId bucket, RefId key, DateTime lastAccessTime)
 		{
 			if (!_objects.TryGetValue(BuildKey(ns, bucket, key), out MemoryStoreObject? o))
 			{
@@ -65,7 +65,7 @@ namespace Jupiter.Implementation
 			return Task.CompletedTask;
 		}
 
-		public async IAsyncEnumerable<(NamespaceId, BucketId, IoHashKey, DateTime)> GetRecords()
+		public async IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecords()
 		{
 			foreach (MemoryStoreObject o in _objects.Values.OrderBy(o => o.LastAccessTime))
 			{
@@ -79,7 +79,7 @@ namespace Jupiter.Implementation
 			return _namespaces.ToAsyncEnumerable();
 		}
 
-		public Task<bool> Delete(NamespaceId ns, BucketId bucket, IoHashKey key)
+		public Task<bool> Delete(NamespaceId ns, BucketId bucket, RefId key)
 		{
 			if (!_objects.TryRemove(BuildKey(ns, bucket, key), out MemoryStoreObject? _))
 			{
@@ -142,7 +142,7 @@ namespace Jupiter.Implementation
 			return Task.FromResult(removedCount);
 		}
 
-		private static string BuildKey(NamespaceId ns, BucketId bucket, IoHashKey name)
+		private static string BuildKey(NamespaceId ns, BucketId bucket, RefId name)
 		{
 			return $"{ns}.{bucket}.{name}";
 		}
@@ -150,7 +150,7 @@ namespace Jupiter.Implementation
 
 	public class MemoryStoreObject
 	{
-		public MemoryStoreObject(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobHash, byte[] blob, bool isFinalized)
+		public MemoryStoreObject(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized)
 		{
 			Namespace = ns;
 			Bucket = bucket;
@@ -163,7 +163,7 @@ namespace Jupiter.Implementation
 
 		public NamespaceId Namespace { get; }
 		public BucketId Bucket { get; }
-		public IoHashKey Name { get; }
+		public RefId Name { get; }
 		public byte[] Blob { get; }
 		public BlobId BlobHash { get; }
 

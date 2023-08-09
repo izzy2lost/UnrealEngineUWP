@@ -44,7 +44,7 @@ namespace Jupiter.Implementation
 			_logger = logger;
 		}
 
-		public async Task<(ObjectRecord, BlobContents?)> Get(NamespaceId ns, BucketId bucket, IoHashKey key, string[]? fields = null, bool doLastAccessTracking = true)
+		public async Task<(ObjectRecord, BlobContents?)> Get(NamespaceId ns, BucketId bucket, RefId key, string[]? fields = null, bool doLastAccessTracking = true)
 		{
 			// if no field filtering is being used we assume everything is needed
 			IReferencesStore.FieldFlags flags = IReferencesStore.FieldFlags.All;
@@ -107,7 +107,7 @@ namespace Jupiter.Implementation
 			return (o, blobContents);
 		}
 
-		public async Task<(ContentId[], BlobId[])> Put(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobHash, CbObject payload)
+		public async Task<(ContentId[], BlobId[])> Put(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload)
 		{
 			IServerTiming? serverTiming = _httpContextAccessor.HttpContext?.RequestServices.GetService<IServerTiming>();
 			using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope("ref.put", "Inserting ref");
@@ -157,7 +157,7 @@ namespace Jupiter.Implementation
 			return payload.Any(FieldHasAttachments);
 		}
 
-		public async Task<(ContentId[], BlobId[])> Finalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobHash)
+		public async Task<(ContentId[], BlobId[])> Finalize(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash)
 		{
 			(ObjectRecord o, BlobContents? blob) = await Get(ns, bucket, key);
 			if (blob == null)
@@ -177,7 +177,7 @@ namespace Jupiter.Implementation
 		}
 
 		
-		private async Task<(ContentId[], BlobId[])> DoFinalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobHash, CbObject payload)
+		private async Task<(ContentId[], BlobId[])> DoFinalize(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload)
 		{
 			IServerTiming? serverTiming = _httpContextAccessor.HttpContext?.RequestServices.GetService<IServerTiming>();
 			using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope("ref.finalize", "Finalizing the ref");
@@ -223,7 +223,7 @@ namespace Jupiter.Implementation
 			return _referencesStore.GetNamespaces();
 		}
 
-		public Task<bool> Delete(NamespaceId ns, BucketId bucket, IoHashKey key)
+		public Task<bool> Delete(NamespaceId ns, BucketId bucket, RefId key)
 		{
 			return _referencesStore.Delete(ns, bucket, key);
 		}
@@ -238,7 +238,7 @@ namespace Jupiter.Implementation
 			return _referencesStore.DeleteBucket(ns, bucket);
 		}
 
-		public async Task<bool> Exists(NamespaceId ns, BucketId bucket, IoHashKey key)
+		public async Task<bool> Exists(NamespaceId ns, BucketId bucket, RefId key)
 		{
 			try
 			{
@@ -268,7 +268,7 @@ namespace Jupiter.Implementation
 			return true;
 		}
 
-		public async Task<List<BlobId>> GetReferencedBlobs(NamespaceId ns, BucketId bucket, IoHashKey name)
+		public async Task<List<BlobId>> GetReferencedBlobs(NamespaceId ns, BucketId bucket, RefId name)
 		{
 			byte[] blob;
 			ObjectRecord o = await _referencesStore.Get(ns, bucket, name, IReferencesStore.FieldFlags.IncludePayload);

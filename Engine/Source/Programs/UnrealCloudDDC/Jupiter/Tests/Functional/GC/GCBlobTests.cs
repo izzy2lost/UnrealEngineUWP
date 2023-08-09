@@ -106,33 +106,33 @@ namespace Jupiter.FunctionalTests.GC
             IObjectService? objectService = server.Services.GetService<IObjectService>()!;
             Assert.IsNotNull(objectService);
             (BlobId ob0_hash, CbObject ob0_cb) = GetCBWithAttachment(object0id);
-            await objectService.Put(TestNamespace, testBucket, IoHashKey.FromName("object0"), ob0_hash, ob0_cb);
+            await objectService.Put(TestNamespace, testBucket, RefId.FromName("object0"), ob0_hash, ob0_cb);
            
             (BlobId ob2_hash, CbObject ob2_cb) = GetCBWithAttachment(object2id);
-            await objectService.Put(TestNamespace, testBucket, IoHashKey.FromName("object2"), ob2_hash, ob2_cb);
+            await objectService.Put(TestNamespace, testBucket, RefId.FromName("object2"), ob2_hash, ob2_cb);
 
             (BlobId ob3_hash, CbObject ob3_cb) = GetCBWithAttachment(object3id);
-            await objectService.Put(TestNamespace, testBucket, IoHashKey.FromName("object3"), ob3_hash, ob3_cb);
+            await objectService.Put(TestNamespace, testBucket, RefId.FromName("object3"), ob3_hash, ob3_cb);
 
             (BlobId ob6_hash, CbObject ob6_cb) = GetCBWithAttachment(object6id);
-            await objectService.Put(TestNamespace, testBucket, IoHashKey.FromName("object6"), ob6_hash, ob6_cb);
+            await objectService.Put(TestNamespace, testBucket, RefId.FromName("object6"), ob6_hash, ob6_cb);
 
             IReferencesStore referenceStore = server.Services.GetService<IReferencesStore>()!;
-            await referenceStore.UpdateLastAccessTime(TestNamespace, testBucket, IoHashKey.FromName("object0"), DateTime.Now.AddDays(-2));
-            await referenceStore.UpdateLastAccessTime(TestNamespace, testBucket, IoHashKey.FromName("object2"), DateTime.Now.AddDays(-2));
-            await referenceStore.UpdateLastAccessTime(TestNamespace, testBucket, IoHashKey.FromName("object3"), DateTime.Now.AddDays(-2));
-            await referenceStore.UpdateLastAccessTime(TestNamespace, testBucket, IoHashKey.FromName("object6"), DateTime.Now.AddDays(-2));
+            await referenceStore.UpdateLastAccessTime(TestNamespace, testBucket, RefId.FromName("object0"), DateTime.Now.AddDays(-2));
+            await referenceStore.UpdateLastAccessTime(TestNamespace, testBucket, RefId.FromName("object2"), DateTime.Now.AddDays(-2));
+            await referenceStore.UpdateLastAccessTime(TestNamespace, testBucket, RefId.FromName("object3"), DateTime.Now.AddDays(-2));
+            await referenceStore.UpdateLastAccessTime(TestNamespace, testBucket, RefId.FromName("object6"), DateTime.Now.AddDays(-2));
 
             IBlobIndex? blobIndex = server.Services.GetService<IBlobIndex>()!;
             Assert.IsNotNull(blobIndex);
             await blobIndex.AddBlobToIndex(TestNamespace, object0id);
-            await blobIndex.AddRefToBlobs(TestNamespace, testBucket, IoHashKey.FromName("object0"), new [] {object0id });
+            await blobIndex.AddRefToBlobs(TestNamespace, testBucket, RefId.FromName("object0"), new [] {object0id });
             await blobIndex.AddBlobToIndex(TestNamespace, object2id);
-            await blobIndex.AddRefToBlobs(TestNamespace, testBucket, IoHashKey.FromName("object2"), new [] {object2id });
+            await blobIndex.AddRefToBlobs(TestNamespace, testBucket, RefId.FromName("object2"), new [] {object2id });
             await blobIndex.AddBlobToIndex(TestNamespace, object3id);
-            await blobIndex.AddRefToBlobs(TestNamespace, testBucket, IoHashKey.FromName("object3"), new [] {object3id });
+            await blobIndex.AddRefToBlobs(TestNamespace, testBucket, RefId.FromName("object3"), new [] {object3id });
             await blobIndex.AddBlobToIndex(TestNamespace, object6id);
-            await blobIndex.AddRefToBlobs(TestNamespace, testBucket, IoHashKey.FromName("object6"), new [] {object6id });
+            await blobIndex.AddRefToBlobs(TestNamespace, testBucket, RefId.FromName("object6"), new [] {object6id });
         }
 
         protected abstract string GetImplementation();

@@ -74,7 +74,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task<(string, Guid)> InsertAddEvent(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId objectBlob, DateTime? timestamp)
+		public async Task<(string, Guid)> InsertAddEvent(NamespaceId ns, BucketId bucket, RefId key, BlobId objectBlob, DateTime? timestamp)
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.insert_add_event");
 
@@ -87,7 +87,7 @@ namespace Jupiter.Implementation
 			return (log.GetReplicationBucketIdentifier(), log.ReplicationId);
 		}
 
-		public async Task<(string, Guid)> InsertDeleteEvent(NamespaceId ns, BucketId bucket, IoHashKey key, DateTime? timestamp)
+		public async Task<(string, Guid)> InsertDeleteEvent(NamespaceId ns, BucketId bucket, RefId key, DateTime? timestamp)
 		{
 			using TelemetrySpan scope =  _tracer.BuildScyllaSpan("scylla.insert_delete_event");
 
@@ -154,7 +154,7 @@ namespace Jupiter.Implementation
 					yield return new ReplicationLogEvent(
 						new NamespaceId(scyllaReplicationLog.Namespace),
 						new BucketId(scyllaReplicationLog.Bucket),
-						new IoHashKey(scyllaReplicationLog.Key),
+						new RefId(scyllaReplicationLog.Key),
 						scyllaReplicationLog.ObjectIdentifier?.AsBlobIdentifier(),
 						scyllaReplicationLog.ReplicationId,
 						scyllaReplicationLog.GetReplicationBucketIdentifier(),

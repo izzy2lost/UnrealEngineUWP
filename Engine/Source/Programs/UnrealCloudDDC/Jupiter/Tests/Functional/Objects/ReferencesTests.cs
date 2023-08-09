@@ -318,7 +318,7 @@ namespace Jupiter.FunctionalTests.References
             const string objectContents = "This is treated as a opaque blob";
             byte[] data = Encoding.ASCII.GetBytes(objectContents);
             BlobId objectHash = BlobId.FromBlob(data);
-            IoHashKey key = IoHashKey.FromName("newBlobObject");
+            RefId key = RefId.FromName("newBlobObject");
             using HttpContent requestContent = new ByteArrayContent(data);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
             requestContent.Headers.Add(CommonHeaders.HashHeaderName, objectHash.ToString());
@@ -432,7 +432,7 @@ namespace Jupiter.FunctionalTests.References
 
             byte[] objectData = writer.ToByteArray();
             BlobId objectHash = BlobId.FromBlob(objectData);
-            IoHashKey key = IoHashKey.FromName("newReferenceObject");
+            RefId key = RefId.FromName("newReferenceObject");
 
             using HttpContent requestContent = new ByteArrayContent(objectData);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompactBinary);
@@ -519,7 +519,7 @@ namespace Jupiter.FunctionalTests.References
 
             byte[] objectData = writer.ToByteArray();
             BlobId objectHash = BlobId.FromBlob(objectData);
-            IoHashKey key = IoHashKey.FromName("newReferenceObject");
+            RefId key = RefId.FromName("newReferenceObject");
 
             using HttpContent requestContent = new ByteArrayContent(objectData);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompactBinary);
@@ -577,7 +577,7 @@ namespace Jupiter.FunctionalTests.References
 
             byte[] data = await File.ReadAllBytesAsync($"Objects/Payloads/lyra.cb");
             BlobId objectHash = BlobId.FromBlob(data);
-            IoHashKey key = IoHashKey.FromName("largeCompactBinary");
+            RefId key = RefId.FromName("largeCompactBinary");
             using HttpContent requestContent = new ByteArrayContent(data);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompactBinary);
             requestContent.Headers.Add(CommonHeaders.HashHeaderName, objectHash.ToString());
@@ -608,7 +608,7 @@ namespace Jupiter.FunctionalTests.References
             byte[] parentObjectData = parentObjectWriter.ToByteArray();
             BlobId parentObjectHash = BlobId.FromBlob(parentObjectData);
 
-            IoHashKey key = IoHashKey.FromName("newHierarchyObject");
+            RefId key = RefId.FromName("newHierarchyObject");
             // this first upload should fail with the child object missing
             {
                 using HttpContent requestContent = new ByteArrayContent(parentObjectData);
@@ -747,7 +747,7 @@ namespace Jupiter.FunctionalTests.References
             const string objectContents = "This is treated as a opaque blob";
             byte[] data = Encoding.ASCII.GetBytes(objectContents);
             BlobId objectHash = BlobId.FromBlob(data);
-            IoHashKey key = IoHashKey.FromName("newObject");
+            RefId key = RefId.FromName("newObject");
             using HttpContent requestContent = new ByteArrayContent(data);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
             requestContent.Headers.Add(CommonHeaders.HashHeaderName, objectHash.ToString());
@@ -764,7 +764,7 @@ namespace Jupiter.FunctionalTests.References
             }
 
             {
-                using HttpRequestMessage message = new(HttpMethod.Head, new Uri($"api/v1/refs/{TestNamespace}/bucket/{IoHashKey.FromName("missingObject")}", UriKind.Relative));
+                using HttpRequestMessage message = new(HttpMethod.Head, new Uri($"api/v1/refs/{TestNamespace}/bucket/{RefId.FromName("missingObject")}", UriKind.Relative));
                 HttpResponseMessage result = await _httpClient!.SendAsync(message);
                 Assert.AreEqual(HttpStatusCode.NotFound, result.StatusCode);
             }
@@ -774,7 +774,7 @@ namespace Jupiter.FunctionalTests.References
         public async Task ExistsChecksMultiple()
         {
             BucketId bucket = new BucketId("bucket");
-            IoHashKey existingObject = IoHashKey.FromName("existingObject");
+            RefId existingObject = RefId.FromName("existingObject");
 
             const string objectContents = "This is treated as a opaque blob";
             byte[] data = Encoding.ASCII.GetBytes(objectContents);
@@ -788,7 +788,7 @@ namespace Jupiter.FunctionalTests.References
                 result.EnsureSuccessStatusCode();
             }
 
-            IoHashKey missingObject = IoHashKey.FromName("missingObject");
+            RefId missingObject = RefId.FromName("missingObject");
 
             string queryString = $"?names={bucket}.{existingObject}&names={bucket}.{missingObject}";
 
@@ -836,7 +836,7 @@ namespace Jupiter.FunctionalTests.References
             byte[] objectData = writerParent.ToByteArray();
             BlobId objectHash = BlobId.FromBlob(objectData);
 
-            IoHashKey key = IoHashKey.FromName("newHierarchyObject");
+            RefId key = RefId.FromName("newHierarchyObject");
 
             using HttpContent requestContent = new ByteArrayContent(objectData);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompactBinary);
@@ -994,7 +994,7 @@ namespace Jupiter.FunctionalTests.References
             byte[] objectData = writerParent.ToByteArray();
             BlobId objectHash = BlobId.FromBlob(objectData);
             
-            IoHashKey key = IoHashKey.FromName("newHierarchyObject");
+            RefId key = RefId.FromName("newHierarchyObject");
 
             {
                 using HttpContent requestContent = new ByteArrayContent(objectData);
@@ -1069,7 +1069,7 @@ namespace Jupiter.FunctionalTests.References
             byte[] objectData = writer.ToByteArray();
             BlobId objectHash = BlobId.FromBlob(objectData);
             
-            IoHashKey key = IoHashKey.FromName("putContentIdMissingBlob");
+            RefId key = RefId.FromName("putContentIdMissingBlob");
 
             {
                 using HttpContent requestContent = new ByteArrayContent(objectData);
@@ -1142,7 +1142,7 @@ namespace Jupiter.FunctionalTests.References
             byte[] objectData = writer.ToByteArray();
             BlobId objectHash = BlobId.FromBlob(objectData);
 
-            IoHashKey key = IoHashKey.FromName("putContentIdMissingBlobComplex");
+            RefId key = RefId.FromName("putContentIdMissingBlobComplex");
 
             {
                 using HttpContent requestContent = new ByteArrayContent(objectData);
@@ -1172,7 +1172,7 @@ namespace Jupiter.FunctionalTests.References
         public async Task PutAndFinalize()
         {
             BucketId bucket = new BucketId("bucket");
-            IoHashKey key = IoHashKey.FromName("willFinalizeObject");
+            RefId key = RefId.FromName("willFinalizeObject");
 
             // do not submit the content of the blobs, which should be reported in the response of the put
             string blobContents = "This is a string that is referenced as a blob";
@@ -1276,7 +1276,7 @@ namespace Jupiter.FunctionalTests.References
             string blobContents = "This is a blob";
             byte[] blobData = Encoding.ASCII.GetBytes(blobContents);
             BlobId uncompressedHash = BlobId.FromBlob(blobData);
-            IoHashKey key = IoHashKey.FromName("compressedObject");
+            RefId key = RefId.FromName("compressedObject");
 
             CompressedBufferUtils bufferUtils = _server!.Services.GetService<CompressedBufferUtils>()!;
             using MemoryStream compressedStream = new MemoryStream();
@@ -1386,7 +1386,7 @@ namespace Jupiter.FunctionalTests.References
             CbObject cbObjectAttachment = CbObject.Build(writer => writer.WriteString("ValueField", "This field has a value"));
             byte[] cbAttachmentData = cbObjectAttachment.GetView().ToArray();
             BlobId cbAttachmentHash = BlobId.FromBlob(cbAttachmentData);
-            IoHashKey key = IoHashKey.FromName("compressedAttachedObject");
+            RefId key = RefId.FromName("compressedAttachedObject");
 
             CbObject cbObject = CbObject.Build(writer => writer.WriteObjectAttachment("Attachment", cbAttachmentHash.AsIoHash()));
             byte[] cbObjectData = cbObject.GetView().ToArray();
@@ -1490,7 +1490,7 @@ namespace Jupiter.FunctionalTests.References
             string blobContents = "This is a blob";
             byte[] blobData = Encoding.ASCII.GetBytes(blobContents);
             BlobId blobHash = BlobId.FromBlob(blobData);
-            IoHashKey key = IoHashKey.FromName("newReferenceObject");
+            RefId key = RefId.FromName("newReferenceObject");
 
             using HttpContent requestContent = new ByteArrayContent(blobData);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
@@ -1600,7 +1600,7 @@ namespace Jupiter.FunctionalTests.References
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
             requestContent.Headers.Add(CommonHeaders.HashHeaderName, objectHash.ToString());
 
-            IoHashKey key = IoHashKey.FromName("deletableObject");
+            RefId key = RefId.FromName("deletableObject");
             // submit the object
             {
                 HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}", UriKind.Relative), requestContent);
@@ -1646,7 +1646,7 @@ namespace Jupiter.FunctionalTests.References
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
             requestContent.Headers.Add(CommonHeaders.HashHeaderName, objectHash.ToString());
 
-            IoHashKey key = IoHashKey.FromName("deletableObject");
+            RefId key = RefId.FromName("deletableObject");
 
             // submit the object into multiple buckets
             {
@@ -1704,7 +1704,7 @@ namespace Jupiter.FunctionalTests.References
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
             requestContent.Headers.Add(CommonHeaders.HashHeaderName, objectHash.ToString());
 
-            IoHashKey key = IoHashKey.FromName("deletableObject");
+            RefId key = RefId.FromName("deletableObject");
             // submit the object into multiple namespaces
             {
                 HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}", UriKind.Relative), requestContent);
@@ -1764,7 +1764,7 @@ namespace Jupiter.FunctionalTests.References
             const string objectContents = "This is treated as a opaque blob";
             byte[] data = Encoding.ASCII.GetBytes(objectContents);
             BlobId objectHash = BlobId.FromBlob(data);
-            IoHashKey key = IoHashKey.FromName("notUsedObject");
+            RefId key = RefId.FromName("notUsedObject");
 
             using HttpContent requestContent = new ByteArrayContent(data);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
@@ -1797,16 +1797,16 @@ namespace Jupiter.FunctionalTests.References
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
             requestContent.Headers.Add(CommonHeaders.HashHeaderName, objectHash.ToString());
 
-            IoHashKey key = IoHashKey.FromName("oldRecord");
+            RefId key = RefId.FromName("oldRecord");
             // submit some contents
             {
                 HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}", UriKind.Relative), requestContent);
                 result.EnsureSuccessStatusCode();
             }
 
-            List<(NamespaceId, BucketId, IoHashKey, DateTime)> records = await ReferencesStore.GetRecords().ToListAsync();
+            List<(NamespaceId, BucketId, RefId, DateTime)> records = await ReferencesStore.GetRecords().ToListAsync();
 
-            (NamespaceId oldNs, BucketId oldBucket, IoHashKey oldName, DateTime oldDate) = records.Where(tuple => tuple.Item1 == TestNamespace).First(record => record.Item3 == key);
+            (NamespaceId oldNs, BucketId oldBucket, RefId oldName, DateTime oldDate) = records.Where(tuple => tuple.Item1 == TestNamespace).First(record => record.Item3 == key);
             Assert.AreEqual(key, oldName);
             Assert.AreEqual("bucket", oldBucket.ToString());
         }
@@ -1830,9 +1830,9 @@ namespace Jupiter.FunctionalTests.References
         {
             // seed some data
             BucketId bucket = new BucketId("bucket");
-            IoHashKey newBlobObjectKey = IoHashKey.FromName("thisObjectDoesNotExist");
+            RefId newBlobObjectKey = RefId.FromName("thisObjectDoesNotExist");
 
-            IoHashKey putObjectKey = IoHashKey.FromName("putObjectFail");
+            RefId putObjectKey = RefId.FromName("putObjectFail");
             CbObject ref1 = CbObject.Empty;
 
             CbWriter getObjectOp = new CbWriter();
@@ -1903,7 +1903,7 @@ namespace Jupiter.FunctionalTests.References
         {
             // seed some data
             BucketId bucket = new BucketId("bucket");
-            IoHashKey newBlobObjectKey = IoHashKey.FromName("newBlobObject");
+            RefId newBlobObjectKey = RefId.FromName("newBlobObject");
             CbObject newBlobObject = CbObject.Build(writer => writer.WriteString("String", "this-has-contents"));
 
             {
@@ -1924,7 +1924,7 @@ namespace Jupiter.FunctionalTests.References
 
             byte[] blobContents = Encoding.ASCII.GetBytes("This is a attached blob");
             CbObject newReferenceObject = CbObject.Build(writer => writer.WriteBinaryAttachment("Attachment", IoHash.Compute(blobContents)));
-            IoHashKey newReferenceObjectKey = IoHashKey.FromName("newReferenceObject");
+            RefId newReferenceObjectKey = RefId.FromName("newReferenceObject");
 
             {
                 BlobId blobHash = BlobId.FromBlob(blobContents);
@@ -1939,7 +1939,7 @@ namespace Jupiter.FunctionalTests.References
 
             byte[] blobContentsMissing = Encoding.ASCII.GetBytes("This contents will not be submitted");
             CbObject missingAttachmentObject = CbObject.Build(writer => writer.WriteBinaryAttachment("Attachment", IoHash.Compute(blobContentsMissing)));
-            IoHashKey missingAttachmentKey = IoHashKey.FromName("blobMissingAttachment");
+            RefId missingAttachmentKey = RefId.FromName("blobMissingAttachment");
 
             {
                 BlobId blobHash = BlobId.FromBlob(blobContents);
@@ -2048,7 +2048,7 @@ namespace Jupiter.FunctionalTests.References
         {
             // seed some data
             BucketId bucket = new BucketId("bucket");
-            IoHashKey newBlobObjectKey = IoHashKey.FromName("newBlobObject");
+            RefId newBlobObjectKey = RefId.FromName("newBlobObject");
             CbObject newBlobObject = CbObject.Build(writer => writer.WriteString("String", "this-has-contents"));
 
             {
@@ -2069,7 +2069,7 @@ namespace Jupiter.FunctionalTests.References
 
             byte[] blobContents = Encoding.ASCII.GetBytes("This is a attached blob");
             CbObject newReferenceObject = CbObject.Build(writer => writer.WriteBinaryAttachment("Attachment", IoHash.Compute(blobContents)));
-            IoHashKey newReferenceObjectKey = IoHashKey.FromName("newReferenceObject");
+            RefId newReferenceObjectKey = RefId.FromName("newReferenceObject");
 
             {
                 BlobId blobHash = BlobId.FromBlob(blobContents);
@@ -2163,10 +2163,10 @@ namespace Jupiter.FunctionalTests.References
         public async Task BatchPutOperations()
         {
             BucketId bucket = new BucketId("bucket");
-            IoHashKey ref0name = IoHashKey.FromName("putRef0");
+            RefId ref0name = RefId.FromName("putRef0");
             CbObject ref0 = CbObject.Build(writer => writer.WriteString("foo", "bar"));
 
-            IoHashKey ref1name = IoHashKey.FromName("putRef1");
+            RefId ref1name = RefId.FromName("putRef1");
             CbObject ref1 = CbObject.Build(writer => writer.WriteInteger("baz", 1337));
 
             CbWriter object0 = new CbWriter();
@@ -2239,13 +2239,13 @@ namespace Jupiter.FunctionalTests.References
         {
             // seed some data
             BucketId bucket = new BucketId("bucket");
-            IoHashKey getObjectKey = IoHashKey.FromName("getBlobObject");
+            RefId getObjectKey = RefId.FromName("getBlobObject");
             CbObject getObject = CbObject.Build(writer => writer.WriteString("String", "this-has-contents"));
 
-            IoHashKey putObjectKey = IoHashKey.FromName("putBlobObject");
+            RefId putObjectKey = RefId.FromName("putBlobObject");
             CbObject putObject = CbObject.Build(writer => writer.WriteString("String", "this-has-contents"));
 
-            IoHashKey missingObjectKey = IoHashKey.FromName("thisKeyDoesNotExist");
+            RefId missingObjectKey = RefId.FromName("thisKeyDoesNotExist");
 
             {
                 byte[] cbObjectBytes = getObject.GetView().ToArray();

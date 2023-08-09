@@ -108,7 +108,7 @@ namespace Jupiter.Controllers
 		public async Task<IActionResult> Get(
 			[FromRoute] [Required] NamespaceId ns,
 			[FromRoute] [Required] BucketId bucket,
-			[FromRoute] [Required] IoHashKey key,
+			[FromRoute] [Required] RefId key,
 			[FromRoute] string? format = null)
 		{
 			ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
@@ -439,7 +439,7 @@ namespace Jupiter.Controllers
 	public async Task<IActionResult> GetMetadata(
 		[FromRoute] [Required] NamespaceId ns,
 		[FromRoute] [Required] BucketId bucket,
-		[FromRoute] [Required] IoHashKey key,
+		[FromRoute] [Required] RefId key,
 		[FromQuery] string[] fields)
 	{
 		ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
@@ -481,7 +481,7 @@ namespace Jupiter.Controllers
 		public async Task<IActionResult> Head(
 			[FromRoute] [Required] NamespaceId ns,
 			[FromRoute] [Required] BucketId bucket,
-			[FromRoute] [Required] IoHashKey key)
+			[FromRoute] [Required] RefId key)
 		{
 			ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
 			if (accessResult != null)
@@ -553,9 +553,9 @@ namespace Jupiter.Controllers
 				return accessResult;
 			}
 
-			ConcurrentBag<(BucketId, IoHashKey)> missingObject = new ();
+			ConcurrentBag<(BucketId, RefId)> missingObject = new ();
 
-			List<(BucketId, IoHashKey)> requestedNames = new List<(BucketId, IoHashKey)>();
+			List<(BucketId, RefId)> requestedNames = new List<(BucketId, RefId)>();
 			foreach (string name in names)
 			{
 				int separatorIndex = name.IndexOf(".", StringComparison.Ordinal);
@@ -565,13 +565,13 @@ namespace Jupiter.Controllers
 				}
 
 				BucketId bucket = new BucketId(name.Substring(0, separatorIndex));
-				IoHashKey key = new IoHashKey(name.Substring(separatorIndex + 1));
+				RefId key = new RefId(name.Substring(separatorIndex + 1));
 				requestedNames.Add((bucket, key));
 			}
 
 			IEnumerable<Task> tasks = requestedNames.Select(async pair =>
 			{
-				(BucketId bucket, IoHashKey key) = pair;
+				(BucketId bucket, RefId key) = pair;
 				try
 				{
 					(ObjectRecord record, BlobContents? blob) =
@@ -614,7 +614,7 @@ namespace Jupiter.Controllers
 		public async Task<IActionResult> PutObject(
 			[FromRoute] [Required] NamespaceId ns,
 			[FromRoute] [Required] BucketId bucket,
-			[FromRoute] [Required] IoHashKey key)
+			[FromRoute] [Required] RefId key)
 		{
 			ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteObject });
 			if (accessResult != null)
@@ -717,7 +717,7 @@ namespace Jupiter.Controllers
 		public async Task<IActionResult> PutPackage(
 			[FromRoute][Required] NamespaceId ns,
 			[FromRoute][Required] BucketId bucket,
-			[FromRoute][Required] IoHashKey key)
+			[FromRoute][Required] RefId key)
 		{
 			ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteObject });
 			if (accessResult != null)
@@ -776,7 +776,7 @@ namespace Jupiter.Controllers
 		public async Task<IActionResult> FinalizeObject(
 			[FromRoute] [Required] NamespaceId ns,
 			[FromRoute] [Required] BucketId bucket,
-			[FromRoute] [Required] IoHashKey key,
+			[FromRoute] [Required] RefId key,
 			[FromRoute] [Required] BlobId hash)
 		{
 			ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteObject });
@@ -1071,7 +1071,7 @@ namespace Jupiter.Controllers
 		public async Task<IActionResult> Delete(
 			[FromRoute] [Required] NamespaceId ns,
 			[FromRoute] [Required] BucketId bucket,
-			[FromRoute] [Required] IoHashKey key)
+			[FromRoute] [Required] RefId key)
 		{
 			ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.DeleteObject });
 			if (accessResult != null)
@@ -1177,7 +1177,7 @@ namespace Jupiter.Controllers
 
 			[Required]
 			[CbField("key")]
-			public IoHashKey Key { get; set; }
+			public RefId Key { get; set; }
 
 			[CbField("resolveAttachments")]
 			public bool? ResolveAttachments { get; set; } = null;
@@ -1231,7 +1231,7 @@ namespace Jupiter.Controllers
 		}
 
 		[JsonConstructor]
-		public RefMetadataResponse(NamespaceId ns, BucketId bucket, IoHashKey name, BlobId payloadIdentifier, DateTime lastAccess, bool isFinalized, byte[]? inlinePayload)
+		public RefMetadataResponse(NamespaceId ns, BucketId bucket, RefId name, BlobId payloadIdentifier, DateTime lastAccess, bool isFinalized, byte[]? inlinePayload)
 		{
 			Ns = ns;
 			Bucket = bucket;
@@ -1260,7 +1260,7 @@ namespace Jupiter.Controllers
 		public BucketId Bucket { get; set; }
 
 		[CbField("name")]
-		public IoHashKey Name { get; set; }
+		public RefId Name { get; set; }
 
 		[CbField("payloadIdentifier")]
 		public BlobId PayloadIdentifier { get; set; }
@@ -1293,11 +1293,11 @@ namespace Jupiter.Controllers
 
 	public class ExistCheckMultipleRefsResponse
 	{
-		public ExistCheckMultipleRefsResponse(List<(BucketId,IoHashKey)> missing)
+		public ExistCheckMultipleRefsResponse(List<(BucketId,RefId)> missing)
 		{
 			Missing = missing.Select(pair =>
 			{
-				(BucketId bucketId, IoHashKey ioHashKey) = pair;
+				(BucketId bucketId, RefId ioHashKey) = pair;
 				return new MissingReference()
 				{
 					Bucket = bucketId,
@@ -1323,7 +1323,7 @@ namespace Jupiter.Controllers
 			public BucketId Bucket { get; set; }
 
 			[CbField("key")]
-			public IoHashKey Key { get; set; }
+			public RefId Key { get; set; }
 		}
 	}
 

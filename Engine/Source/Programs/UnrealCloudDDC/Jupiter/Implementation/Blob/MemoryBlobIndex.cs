@@ -89,7 +89,7 @@ public class MemoryBlobIndex : IBlobIndex
 		}
 	}
 
-	public Task AddRefToBlobs(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId[] blobs)
+	public Task AddRefToBlobs(NamespaceId ns, BucketId bucket, RefId key, BlobId[] blobs)
 	{
 		foreach (BlobId id in blobs)
 		{

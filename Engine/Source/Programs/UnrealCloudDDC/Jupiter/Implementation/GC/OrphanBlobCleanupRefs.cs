@@ -156,7 +156,7 @@ namespace Jupiter.Implementation
 					if (baseBlobReference is RefBlobReference refBlobReference)
 					{
 						BucketId bucket = refBlobReference.Bucket;
-						IoHashKey key = refBlobReference.Key;
+						RefId key = refBlobReference.Key;
 
 						try
 						{

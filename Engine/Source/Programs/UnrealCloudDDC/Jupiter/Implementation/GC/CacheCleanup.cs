@@ -83,7 +83,7 @@ namespace Jupiter.Implementation
 					CancellationToken = cancellationToken
 				}, async (tuple, token) =>
 				{
-					(NamespaceId ns, BucketId bucket, IoHashKey name, DateTime lastAccessTime) = tuple;
+					(NamespaceId ns, BucketId bucket, RefId name, DateTime lastAccessTime) = tuple;
 
 					if (!ShouldGCNamespace(ns))
 					{

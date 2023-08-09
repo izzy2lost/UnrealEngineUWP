@@ -205,7 +205,7 @@ public class ScyllaBlobIndex : IBlobIndex
 				{
 					continue;
 				}
-				yield return new RefBlobReference(new BucketId(incomingReference.BucketId), new IoHashKey(StringUtils.FormatAsHexString(incomingReference.ReferenceId)));
+				yield return new RefBlobReference(new BucketId(incomingReference.BucketId), new RefId(StringUtils.FormatAsHexString(incomingReference.ReferenceId)));
 			}
 			else if (referenceType == ScyllaBlobIncomingReference.BlobReferenceType.Blob)
 			{
@@ -225,7 +225,7 @@ public class ScyllaBlobIndex : IBlobIndex
 				foreach (ScyllaObjectReference scyllaObjectReference in oldReferences)
 				{
 					BucketId bucket = new BucketId(scyllaObjectReference.Bucket);
-					IoHashKey key = new IoHashKey(scyllaObjectReference.Key);
+					RefId key = new RefId(scyllaObjectReference.Key);
 					await AddRefToBlobs(ns, bucket, key, new []{id});
 					yield return new RefBlobReference(bucket, key);
 				}
@@ -233,7 +233,7 @@ public class ScyllaBlobIndex : IBlobIndex
 		}
 	}
 
-	public async Task AddRefToBlobs(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId[] blobs)
+	public async Task AddRefToBlobs(NamespaceId ns, BucketId bucket, RefId key, BlobId[] blobs)
 	{
 		using TelemetrySpan scope =  _tracer.BuildScyllaSpan("scylla.add_ref_blobs");
 
@@ -400,7 +400,7 @@ class ScyllaBlobIncomingReference
 		ReferenceType = (int)BlobReferenceType.Blob;
 	}
 
-	public ScyllaBlobIncomingReference(string @namespace, BlobId blobId, IoHashKey referenceId, BucketId bucketId)
+	public ScyllaBlobIncomingReference(string @namespace, BlobId blobId, RefId referenceId, BucketId bucketId)
 	{
 		Namespace = @namespace;
 		BlobId = blobId.HashData;

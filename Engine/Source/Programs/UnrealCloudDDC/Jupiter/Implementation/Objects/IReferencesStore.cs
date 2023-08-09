@@ -9,7 +9,7 @@ namespace Jupiter.Implementation
 {
 	public interface IReferencesStore
 	{
-		Task<ObjectRecord> Get(NamespaceId ns, BucketId bucket, IoHashKey key, FieldFlags flags);
+		Task<ObjectRecord> Get(NamespaceId ns, BucketId bucket, RefId key, FieldFlags flags);
 
 		[Flags]
 		public enum FieldFlags
@@ -19,21 +19,21 @@ namespace Jupiter.Implementation
 			All = IncludePayload
 		}
 
-		Task Put(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobHash, byte[] blob, bool isFinalized);
-		Task Finalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobIdentifier);
+		Task Put(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized);
+		Task Finalize(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier);
 
-		Task UpdateLastAccessTime(NamespaceId ns, BucketId bucket, IoHashKey key, DateTime newLastAccessTime);
-		IAsyncEnumerable<(NamespaceId, BucketId, IoHashKey, DateTime)> GetRecords();
+		Task UpdateLastAccessTime(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime);
+		IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecords();
 
 		IAsyncEnumerable<NamespaceId> GetNamespaces();
-		Task<bool> Delete(NamespaceId ns, BucketId bucket, IoHashKey key);
+		Task<bool> Delete(NamespaceId ns, BucketId bucket, RefId key);
 		Task<long> DropNamespace(NamespaceId ns);
 		Task<long> DeleteBucket(NamespaceId ns, BucketId bucket);
 	}
 
 	public class ObjectRecord
 	{
-		public ObjectRecord(NamespaceId ns, BucketId bucket, IoHashKey name, DateTime lastAccess, byte[]? inlinePayload, BlobId blobIdentifier, bool isFinalized)
+		public ObjectRecord(NamespaceId ns, BucketId bucket, RefId name, DateTime lastAccess, byte[]? inlinePayload, BlobId blobIdentifier, bool isFinalized)
 		{
 			Namespace = ns;
 			Bucket = bucket;
@@ -46,7 +46,7 @@ namespace Jupiter.Implementation
 
 		public NamespaceId Namespace { get; }
 		public BucketId Bucket { get; }
-		public IoHashKey Name { get; }
+		public RefId Name { get; }
 		public DateTime LastAccess { get; }
 		public byte[]? InlinePayload { get; set; }
 		public BlobId BlobIdentifier { get; set; }
@@ -55,7 +55,7 @@ namespace Jupiter.Implementation
 
 	public class ObjectNotFoundException : Exception
 	{
-		public ObjectNotFoundException(NamespaceId ns, BucketId bucket, IoHashKey key) : base($"Object not found {key} in bucket {bucket} namespace {ns}")
+		public ObjectNotFoundException(NamespaceId ns, BucketId bucket, RefId key) : base($"Object not found {key} in bucket {bucket} namespace {ns}")
 		{
 			Namespace = ns;
 			Bucket = bucket;
@@ -64,6 +64,6 @@ namespace Jupiter.Implementation
 
 		public NamespaceId Namespace { get; }
 		public BucketId Bucket { get; }
-		public IoHashKey Key { get; }
+		public RefId Key { get; }
 	}
 }

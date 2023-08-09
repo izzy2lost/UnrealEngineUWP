@@ -103,7 +103,7 @@ namespace Jupiter.FunctionalTests.Storage
             using HttpContent requestContent = new ByteArrayContent(objectData);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompactBinary);
             requestContent.Headers.Add(CommonHeaders.HashHeaderName, objectHash.ToString());
-            IoHashKey putKey = IoHashKey.FromName("newReferenceUploadObject");
+            RefId putKey = RefId.FromName("newReferenceUploadObject");
             HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{_testNamespaceName}/bucket/{putKey}.uecb", UriKind.Relative), requestContent);
             result.EnsureSuccessStatusCode();
 

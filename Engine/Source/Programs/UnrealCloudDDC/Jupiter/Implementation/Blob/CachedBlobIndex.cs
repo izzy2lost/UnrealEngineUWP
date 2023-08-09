@@ -41,7 +41,7 @@ public class CachedBlobIndex : IBlobIndex
 		return await _fileSystemStore.Exists(ns, blobIdentifier, forceCheck: false);
 	}
 
-	public async Task AddRefToBlobs(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId[] blobs)
+	public async Task AddRefToBlobs(NamespaceId ns, BucketId bucket, RefId key, BlobId[] blobs)
 	{
 		// We do not actually track any blob information when running in cached mode
 		await Task.CompletedTask;

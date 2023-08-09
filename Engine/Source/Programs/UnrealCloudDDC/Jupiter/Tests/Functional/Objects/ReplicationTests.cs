@@ -189,17 +189,17 @@ namespace Jupiter.FunctionalTests.References
             requestContent.Headers.Add(CommonHeaders.HashHeaderName, objectHash.ToString());
 
             {
-                HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{TestNamespace}/{TestBucket}/{IoHashKey.FromName("newReferenceObject")}.uecb", UriKind.Relative), requestContent);
+                HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{TestNamespace}/{TestBucket}/{RefId.FromName("newReferenceObject")}.uecb", UriKind.Relative), requestContent);
                 result.EnsureSuccessStatusCode();
             }
 
             {
-                HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{TestNamespace}/{TestBucket}/{IoHashKey.FromName("secondObject")}.uecb", UriKind.Relative), requestContent);
+                HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{TestNamespace}/{TestBucket}/{RefId.FromName("secondObject")}.uecb", UriKind.Relative), requestContent);
                 result.EnsureSuccessStatusCode();
             }
 
             {
-                HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{TestNamespace}/{TestBucket}/{IoHashKey.FromName("thirdObject")}.uecb", UriKind.Relative), requestContent);
+                HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{TestNamespace}/{TestBucket}/{RefId.FromName("thirdObject")}.uecb", UriKind.Relative), requestContent);
                 result.EnsureSuccessStatusCode();
             }
             
@@ -219,7 +219,7 @@ namespace Jupiter.FunctionalTests.References
                     ReplicationLogEvent e = events.Events[0];
                     Assert.AreEqual(TestNamespace, e.Namespace);
                     Assert.AreEqual(TestBucket, e.Bucket);
-                    Assert.AreEqual(IoHashKey.FromName("newReferenceObject"), e.Key);
+                    Assert.AreEqual(RefId.FromName("newReferenceObject"), e.Key);
                     Assert.AreEqual(objectHash, e.Blob);
                 }
 
@@ -227,7 +227,7 @@ namespace Jupiter.FunctionalTests.References
                     ReplicationLogEvent e = events.Events[1];
                     Assert.AreEqual(TestNamespace, e.Namespace);
                     Assert.AreEqual(TestBucket, e.Bucket);
-                    Assert.AreEqual(IoHashKey.FromName("secondObject"), e.Key);
+                    Assert.AreEqual(RefId.FromName("secondObject"), e.Key);
                     Assert.AreEqual(objectHash, e.Blob);
                 }
 
@@ -235,7 +235,7 @@ namespace Jupiter.FunctionalTests.References
                     ReplicationLogEvent e = events.Events[2];
                     Assert.AreEqual(TestNamespace, e.Namespace);
                     Assert.AreEqual(TestBucket, e.Bucket);
-                    Assert.AreEqual(IoHashKey.FromName("thirdObject"), e.Key);
+                    Assert.AreEqual(RefId.FromName("thirdObject"), e.Key);
                     Assert.AreEqual(objectHash, e.Blob);
                 }
             }
@@ -255,10 +255,10 @@ namespace Jupiter.FunctionalTests.References
             BlobId objectHash = BlobId.FromBlob(objectData);
 
             DateTime oldestTimestamp = DateTime.Now.AddDays(-1);
-            (string eventBucket, Guid eventId) = await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("firstObject"), objectHash, oldestTimestamp);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(2.0));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(3.0));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
+            (string eventBucket, Guid eventId) = await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, oldestTimestamp);
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(2.0));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(3.0));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
 
             {
                 HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/replication-log/incremental/{TestNamespace}?lastBucket={eventBucket}&lastEvent={eventId}", UriKind.Relative));
@@ -277,7 +277,7 @@ namespace Jupiter.FunctionalTests.References
                     ReplicationLogEvent e = events.Events[0];
                     Assert.AreEqual(TestNamespace, e.Namespace);
                     Assert.AreEqual(TestBucket, e.Bucket);
-                    Assert.AreEqual(IoHashKey.FromName("secondObject"), e.Key);
+                    Assert.AreEqual(RefId.FromName("secondObject"), e.Key);
                     Assert.AreEqual(objectHash, e.Blob);
                 }
 
@@ -285,7 +285,7 @@ namespace Jupiter.FunctionalTests.References
                     ReplicationLogEvent e = events.Events[1];
                     Assert.AreEqual(TestNamespace, e.Namespace);
                     Assert.AreEqual(TestBucket, e.Bucket);
-                    Assert.AreEqual(IoHashKey.FromName("thirdObject"), e.Key);
+                    Assert.AreEqual(RefId.FromName("thirdObject"), e.Key);
                     Assert.AreEqual(objectHash, e.Blob);
                 }
 
@@ -293,7 +293,7 @@ namespace Jupiter.FunctionalTests.References
                     ReplicationLogEvent e = events.Events[2];
                     Assert.AreEqual(TestNamespace, e.Namespace);
                     Assert.AreEqual(TestBucket, e.Bucket);
-                    Assert.AreEqual(IoHashKey.FromName("fourthObject"), e.Key);
+                    Assert.AreEqual(RefId.FromName("fourthObject"), e.Key);
                     Assert.AreEqual(objectHash, e.Blob);
                 }
             }
@@ -314,12 +314,12 @@ namespace Jupiter.FunctionalTests.References
 
             DateTime oldestTimestamp = DateTime.Now.AddDays(-3);
             // insert multiple objects in the same time bucket, verifying that we correctly get only the objects after this
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("firstObject"), objectHash, oldestTimestamp);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(2.0));
-            (string eventBucket, Guid eventId) = await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(2.1));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("fourthObject"), objectHash, oldestTimestamp.AddHours(2.11));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("fifthObject"), objectHash, oldestTimestamp.AddHours(2.12));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("sixthObject"), objectHash, oldestTimestamp.AddDays(2.13));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, oldestTimestamp);
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(2.0));
+            (string eventBucket, Guid eventId) = await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(2.1));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddHours(2.11));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("fifthObject"), objectHash, oldestTimestamp.AddHours(2.12));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("sixthObject"), objectHash, oldestTimestamp.AddDays(2.13));
 
             {
                 HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/replication-log/incremental/{TestNamespace}?lastBucket={eventBucket}&lastEvent={eventId}", UriKind.Relative));
@@ -338,7 +338,7 @@ namespace Jupiter.FunctionalTests.References
                     ReplicationLogEvent e = events.Events[0];
                     Assert.AreEqual(TestNamespace, e.Namespace);
                     Assert.AreEqual(TestBucket, e.Bucket);
-                    Assert.AreEqual(IoHashKey.FromName("fourthObject"), e.Key);
+                    Assert.AreEqual(RefId.FromName("fourthObject"), e.Key);
                     Assert.AreEqual(objectHash, e.Blob);
                 }
 
@@ -346,7 +346,7 @@ namespace Jupiter.FunctionalTests.References
                     ReplicationLogEvent e = events.Events[1];
                     Assert.AreEqual(TestNamespace, e.Namespace);
                     Assert.AreEqual(TestBucket, e.Bucket);
-                    Assert.AreEqual(IoHashKey.FromName("fifthObject"), e.Key);
+                    Assert.AreEqual(RefId.FromName("fifthObject"), e.Key);
                     Assert.AreEqual(objectHash, e.Blob);
                 }
 
@@ -354,7 +354,7 @@ namespace Jupiter.FunctionalTests.References
                     ReplicationLogEvent e = events.Events[2];
                     Assert.AreEqual(TestNamespace, e.Namespace);
                     Assert.AreEqual(TestBucket, e.Bucket);
-                    Assert.AreEqual(IoHashKey.FromName("sixthObject"), e.Key);
+                    Assert.AreEqual(RefId.FromName("sixthObject"), e.Key);
                     Assert.AreEqual(objectHash, e.Blob);
                 }
             }
@@ -374,10 +374,10 @@ namespace Jupiter.FunctionalTests.References
             BlobId objectHash = BlobId.FromBlob(objectData);
 
             DateTime oldestTimestamp = DateTime.Now.AddDays(-1);
-            (string eventBucket, Guid eventId) = await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("firstObject"), objectHash, oldestTimestamp);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(1));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(1.5));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
+            (string eventBucket, Guid eventId) = await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, oldestTimestamp);
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(1));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(1.5));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
 
             // start from the second event
             const int EventsToFetch = 2;
@@ -396,7 +396,7 @@ namespace Jupiter.FunctionalTests.References
                     ReplicationLogEvent e = events.Events[0];
                     Assert.AreEqual(TestNamespace, e.Namespace);
                     Assert.AreEqual(TestBucket, e.Bucket);
-                    Assert.AreEqual(IoHashKey.FromName("secondObject"), e.Key);
+                    Assert.AreEqual(RefId.FromName("secondObject"), e.Key);
                     Assert.AreEqual(objectHash, e.Blob);
                 }
 
@@ -404,7 +404,7 @@ namespace Jupiter.FunctionalTests.References
                     ReplicationLogEvent e = events.Events[1];
                     Assert.AreEqual(TestNamespace, e.Namespace);
                     Assert.AreEqual(TestBucket, e.Bucket);
-                    Assert.AreEqual(IoHashKey.FromName("thirdObject"), e.Key);
+                    Assert.AreEqual(RefId.FromName("thirdObject"), e.Key);
                     Assert.AreEqual(objectHash, e.Blob);
                 }
             }
@@ -424,7 +424,7 @@ namespace Jupiter.FunctionalTests.References
             byte[] objectData = writer.ToByteArray();
             BlobId objectHash = BlobId.FromBlob(objectData);
 
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("firstObject"), objectHash, DateTime.Now.AddDays(-1));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, DateTime.Now.AddDays(-1));
 
             string eventBucket = "rep-00000000";
             Guid eventId = Guid.NewGuid();
@@ -452,7 +452,7 @@ namespace Jupiter.FunctionalTests.References
             byte[] objectData = writer.ToByteArray();
             BlobId objectHash = BlobId.FromBlob(objectData);
 
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("firstObject"), objectHash, DateTime.Now.AddDays(-1));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, DateTime.Now.AddDays(-1));
 
             string eventBucket = DateTime.Now.AddDays(-60).ToReplicationBucketIdentifier();
             Guid eventId = Guid.NewGuid();
@@ -494,10 +494,10 @@ namespace Jupiter.FunctionalTests.References
             BlobId objectHash = BlobId.FromBlob(objectData);
 
             DateTime oldestTimestamp = DateTime.Now.AddDays(-1);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("firstObject"), objectHash, oldestTimestamp);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(1));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(1.5));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, oldestTimestamp);
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(1));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(1.5));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
 
             // create a snapshot
             ReplicationLogSnapshotBuilder snapshotBuilder = ActivatorUtilities.CreateInstance<ReplicationLogSnapshotBuilder>(_server!.Services);
@@ -531,10 +531,10 @@ namespace Jupiter.FunctionalTests.References
             BlobId objectHash = BlobId.FromBlob(objectData);
 
             DateTime oldestTimestamp = DateTime.Now.AddDays(-1);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("firstObject"), objectHash, oldestTimestamp);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(1));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(1.5));
-            (string lastEventBucket, Guid lastEventId) = await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.7));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, oldestTimestamp);
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(1));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(1.5));
+            (string lastEventBucket, Guid lastEventId) = await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.7));
 
             // verify the objects were added
             {
@@ -546,7 +546,7 @@ namespace Jupiter.FunctionalTests.References
                     ReplicationLogEvent e = logEvents[0];
                     Assert.AreEqual(TestNamespace, e.Namespace);
                     Assert.AreEqual(TestBucket, e.Bucket);
-                    Assert.AreEqual(IoHashKey.FromName("firstObject"), e.Key);
+                    Assert.AreEqual(RefId.FromName("firstObject"), e.Key);
                     Assert.AreEqual(objectHash, e.Blob);
                 }
 
@@ -554,7 +554,7 @@ namespace Jupiter.FunctionalTests.References
                     ReplicationLogEvent e = logEvents[1];
                     Assert.AreEqual(TestNamespace, e.Namespace);
                     Assert.AreEqual(TestBucket, e.Bucket);
-                    Assert.AreEqual(IoHashKey.FromName("secondObject"), e.Key);
+                    Assert.AreEqual(RefId.FromName("secondObject"), e.Key);
                     Assert.AreEqual(objectHash, e.Blob);
                 }
 
@@ -562,7 +562,7 @@ namespace Jupiter.FunctionalTests.References
                     ReplicationLogEvent e = logEvents[2];
                     Assert.AreEqual(TestNamespace, e.Namespace);
                     Assert.AreEqual(TestBucket, e.Bucket);
-                    Assert.AreEqual(IoHashKey.FromName("thirdObject"), e.Key);
+                    Assert.AreEqual(RefId.FromName("thirdObject"), e.Key);
                     Assert.AreEqual(objectHash, e.Blob);
                 }
 
@@ -570,7 +570,7 @@ namespace Jupiter.FunctionalTests.References
                     ReplicationLogEvent e = logEvents[3];
                     Assert.AreEqual(TestNamespace, e.Namespace);
                     Assert.AreEqual(TestBucket, e.Bucket);
-                    Assert.AreEqual(IoHashKey.FromName("fourthObject"), e.Key);
+                    Assert.AreEqual(RefId.FromName("fourthObject"), e.Key);
                     Assert.AreEqual(objectHash, e.Blob);
                 }
             }
@@ -597,10 +597,10 @@ namespace Jupiter.FunctionalTests.References
             Assert.AreEqual(lastEventBucket, snapshot.LastBucket);
 
             List<SnapshotLiveObject> liveObjects = snapshot.GetLiveObjects().ToList();
-            Assert.IsTrue(liveObjects.Any(o => o.Bucket == TestBucket && o.Key == IoHashKey.FromName("firstObject")));
-            Assert.IsTrue(liveObjects.Any(o => o.Bucket == TestBucket && o.Key == IoHashKey.FromName("secondObject")));
-            Assert.IsTrue(liveObjects.Any(o => o.Bucket == TestBucket && o.Key == IoHashKey.FromName("thirdObject")));
-            Assert.IsTrue(liveObjects.Any(o => o.Bucket == TestBucket && o.Key == IoHashKey.FromName("fourthObject")));
+            Assert.IsTrue(liveObjects.Any(o => o.Bucket == TestBucket && o.Key == RefId.FromName("firstObject")));
+            Assert.IsTrue(liveObjects.Any(o => o.Bucket == TestBucket && o.Key == RefId.FromName("secondObject")));
+            Assert.IsTrue(liveObjects.Any(o => o.Bucket == TestBucket && o.Key == RefId.FromName("thirdObject")));
+            Assert.IsTrue(liveObjects.Any(o => o.Bucket == TestBucket && o.Key == RefId.FromName("fourthObject")));
         }
 
         [TestMethod]
@@ -615,10 +615,10 @@ namespace Jupiter.FunctionalTests.References
             BlobId objectHash = BlobId.FromBlob(objectData);
 
             DateTime oldestTimestamp = DateTime.Now.AddDays(-1);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("firstObject"), objectHash, oldestTimestamp);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(1));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(1.5));
-            (string lastEventBucket, Guid lastEventId) = await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, oldestTimestamp);
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(1));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(1.5));
+            (string lastEventBucket, Guid lastEventId) = await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
 
             // verify the objects were added
             List<ReplicationLogEvent> logEvents = await _replicationLog.Get(TestNamespace, null, null).ToListAsync();
@@ -671,10 +671,10 @@ namespace Jupiter.FunctionalTests.References
             BlobId objectHash = BlobId.FromBlob(objectData);
 
             DateTime oldestTimestamp = DateTime.Now.AddDays(-1);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("firstObject"), objectHash, oldestTimestamp);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(1));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(1.5));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, oldestTimestamp);
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(1));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(1.5));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
 
             // verify the objects were added
             List<ReplicationLogEvent> logEvents = await _replicationLog.Get(TestNamespace, null, null).ToListAsync();
@@ -697,8 +697,8 @@ namespace Jupiter.FunctionalTests.References
             ReplicationLogSnapshot snapshot = replicationLogFactory.DeserializeSnapshotFromStream(blobContents.Stream);
 
             // insert more events
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("fifthObject"), objectHash, oldestTimestamp.AddDays(0.91));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("sixthObject"), objectHash, oldestTimestamp.AddDays(0.92));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("fifthObject"), objectHash, oldestTimestamp.AddDays(0.91));
+            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("sixthObject"), objectHash, oldestTimestamp.AddDays(0.92));
 
             // verify the new events can be found when resuming from the snapshot
             {
@@ -716,7 +716,7 @@ namespace Jupiter.FunctionalTests.References
                     ReplicationLogEvent e = events.Events[0];
                     Assert.AreEqual(TestNamespace, e.Namespace);
                     Assert.AreEqual(TestBucket, e.Bucket);
-                    Assert.AreEqual(IoHashKey.FromName("fifthObject"), e.Key);
+                    Assert.AreEqual(RefId.FromName("fifthObject"), e.Key);
                     Assert.AreEqual(objectHash, e.Blob);
                 }
 
@@ -724,7 +724,7 @@ namespace Jupiter.FunctionalTests.References
                     ReplicationLogEvent e = events.Events[1];
                     Assert.AreEqual(TestNamespace, e.Namespace);
                     Assert.AreEqual(TestBucket, e.Bucket);
-                    Assert.AreEqual(IoHashKey.FromName("sixthObject"), e.Key);
+                    Assert.AreEqual(RefId.FromName("sixthObject"), e.Key);
                     Assert.AreEqual(objectHash, e.Blob);
                 }
             }
@@ -747,7 +747,7 @@ namespace Jupiter.FunctionalTests.References
             List<BlobId> createdSnapshots = new List<BlobId>();
             for (int i = 0; i < countOfSnapshotsToCreate ; i++)
             {
-                await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName($"object {i}"), objectHash);
+                await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName($"object {i}"), objectHash);
 
                 ReplicationLogSnapshotBuilder snapshotBuilder = ActivatorUtilities.CreateInstance<ReplicationLogSnapshotBuilder>(_server!.Services);
                 Assert.IsNotNull(snapshotBuilder);
