@@ -109,14 +109,19 @@ namespace ChaosInterface
 			NewShape->UpdateShapeBounds(InParams.WorldTransform);
 			NewShape->SetUserData(UserData);
 
-			// The following does nearly the same thing that happens in UpdatePhysicsFilterData.
-			// TODO: Refactor so that this code is not duplicated
-			const bool bBodyEnableSim = InParams.CollisionData.CollisionFlags.bEnableSimCollisionSimple || InParams.CollisionData.CollisionFlags.bEnableSimCollisionComplex;
-			const bool bBodyEnableQuery = InParams.CollisionData.CollisionFlags.bEnableQueryCollision;
-			const bool bShapeEnableSim = ShapeCollisionEnabled == ECollisionEnabled::QueryAndPhysics || ShapeCollisionEnabled == ECollisionEnabled::PhysicsOnly;
-			const bool bShapeEnableQuery = ShapeCollisionEnabled == ECollisionEnabled::QueryAndPhysics || ShapeCollisionEnabled == ECollisionEnabled::QueryOnly;
-			NewShape->SetSimEnabled(bBodyEnableSim && bShapeEnableSim);
-			NewShape->SetQueryEnabled(bBodyEnableQuery && bShapeEnableQuery);
+			// Combine shape and body collision-enabled using the same method as UpdatePhysicsFilterData,
+			// but with the added nastiness of needing collision mode represented as bool flags.
+			bool bEnableSim = InParams.CollisionData.CollisionFlags.bEnableSimCollisionSimple || InParams.CollisionData.CollisionFlags.bEnableSimCollisionComplex;
+			bool bEnableQuery = InParams.CollisionData.CollisionFlags.bEnableQueryCollision;
+			bool bEnableProbe = InParams.CollisionData.CollisionFlags.bEnableProbeCollision;
+			const ECollisionEnabled::Type BodyCollisionEnabled = CollisionEnabledFromFlags(bEnableQuery, bEnableSim, bEnableProbe);
+			const ECollisionEnabled::Type CombinedCollisionEnabled = CollisionEnabledIntersection(BodyCollisionEnabled, ShapeCollisionEnabled);
+			CollisionEnabledToFlags(CombinedCollisionEnabled, bEnableQuery, bEnableSim, bEnableProbe);
+
+			// Set the parameters on the shape
+			NewShape->SetSimEnabled(bEnableSim);
+			NewShape->SetQueryEnabled(bEnableQuery);
+			NewShape->SetIsProbe(bEnableProbe);
 
 			return NewShape;
 		};
