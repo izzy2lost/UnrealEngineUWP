@@ -183,7 +183,7 @@ namespace Horde.Server.Agents.Fleet
 						: ((lease.FinishTime.Value - minTime).TotalSeconds / Settings.SampleTimeSec);
 
 					Any payload = Any.Parser.ParseFrom(lease.Payload.ToArray());
-					if (payload.Is(ExecuteJobTask.Descriptor))
+					if (payload.Is(ExecuteJobTask.Descriptor) || payload.Is(ComputeTask.Descriptor))
 					{
 						agentData.Add(minT, maxT, 1.0, 0.0);
 					}
