@@ -67,7 +67,7 @@ namespace Jupiter.Implementation
 			return model.ToObjectRecord();
 		}
 
-		public async Task Put(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier blobHash, byte[]? blob, bool isFinalized)
+		public async Task Put(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobHash, byte[]? blob, bool isFinalized)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 
@@ -97,7 +97,7 @@ namespace Jupiter.Implementation
 			await addNamespaceTask;
 		}
 
-		public async Task Finalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier blobIdentifier)
+		public async Task Finalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobIdentifier)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 
@@ -230,7 +230,7 @@ namespace Jupiter.Implementation
 			LastAccessTime = lastAccessTime;
 		}
 
-		public MongoReferencesModelV0(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier blobIdentifier, byte[]? blob, bool isFinalized, DateTime lastAccessTime)
+		public MongoReferencesModelV0(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobIdentifier, byte[]? blob, bool isFinalized, DateTime lastAccessTime)
 		{
 			Ns = ns.ToString();
 			Bucket = bucket.ToString();
@@ -264,7 +264,7 @@ namespace Jupiter.Implementation
 		{
 			return new ObjectRecord(new NamespaceId(Ns), new BucketId(Bucket), new IoHashKey(Key), 
 				LastAccessTime,
-				InlineBlob, new BlobIdentifier(BlobIdentifier), IsFinalized);
+				InlineBlob, new BlobId(BlobIdentifier), IsFinalized);
 		}
 	}
 

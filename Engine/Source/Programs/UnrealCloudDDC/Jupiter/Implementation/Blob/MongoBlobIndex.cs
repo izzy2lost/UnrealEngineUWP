@@ -39,7 +39,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 		});
 	}
 
-	private async Task<MongoBlobIndexModelV0?> GetBlobInfo(NamespaceId ns, BlobIdentifier id)
+	private async Task<MongoBlobIndexModelV0?> GetBlobInfo(NamespaceId ns, BlobId id)
 	{
 		IMongoCollection<MongoBlobIndexModelV0> collection = GetCollection<MongoBlobIndexModelV0>();
 		IAsyncCursor<MongoBlobIndexModelV0>? cursor = await collection.FindAsync(m => m.Ns == ns.ToString() && m.BlobId == id.ToString());
@@ -52,7 +52,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 		return model;
 	}
 
-	public async Task AddBlobToIndex(NamespaceId ns, BlobIdentifier id, string? region = null)
+	public async Task AddBlobToIndex(NamespaceId ns, BlobId id, string? region = null)
 	{
 		region ??= _jupiterSettings.CurrentValue.CurrentSite;
 		IMongoCollection<MongoBlobIndexModelV0> collection = GetCollection<MongoBlobIndexModelV0>();
@@ -66,7 +66,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 		});
 	}
 
-	public async Task RemoveBlobFromRegion(NamespaceId ns, BlobIdentifier id, string? region = null)
+	public async Task RemoveBlobFromRegion(NamespaceId ns, BlobId id, string? region = null)
 	{
 		region ??= _jupiterSettings.CurrentValue.CurrentSite;
 
@@ -85,7 +85,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 
 	}
 
-	public async IAsyncEnumerable<BaseBlobReference> GetBlobReferences(NamespaceId ns, BlobIdentifier id)
+	public async IAsyncEnumerable<BaseBlobReference> GetBlobReferences(NamespaceId ns, BlobId id)
 	{
 		MongoBlobIndexModelV0? blobInfo = await GetBlobInfo(ns, id);
 		if (blobInfo == null)
@@ -104,7 +104,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 			else if (reference.ContainsKey("blob_id"))
 			{
 				string blobId = reference["blob_id"];
-				yield return new BlobToBlobReference(new BlobIdentifier(blobId));
+				yield return new BlobToBlobReference(new BlobId(blobId));
 			}
 			else
 			{
@@ -113,13 +113,13 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 		}
 	}
 
-	public async Task<bool> BlobExistsInRegion(NamespaceId ns, BlobIdentifier blobIdentifier, string? region = null)
+	public async Task<bool> BlobExistsInRegion(NamespaceId ns, BlobId blobIdentifier, string? region = null)
 	{
 		MongoBlobIndexModelV0? blobInfo = await GetBlobInfo(ns, blobIdentifier);
 		return blobInfo?.Regions.Contains(_jupiterSettings.CurrentValue.CurrentSite) ?? false;
 	}
 
-	public async Task AddRefToBlobs(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier[] blobs)
+	public async Task AddRefToBlobs(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId[] blobs)
 	{
 		IMongoCollection<MongoBlobIndexModelV0> collection = GetCollection<MongoBlobIndexModelV0>();
 
@@ -127,7 +127,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 		Task[] refUpdateTasks = new Task[blobs.Length];
 		for (int i = 0; i < blobs.Length; i++)
 		{
-			BlobIdentifier id = blobs[i];
+			BlobId id = blobs[i];
 			refUpdateTasks[i] = Task.Run(async () =>
 			{
 				UpdateDefinition<MongoBlobIndexModelV0> update = Builders<MongoBlobIndexModelV0>.Update.AddToSet(m => m.References, new Dictionary<string, string> { {"bucket", bucket.ToString()}, {"key", key.ToString()}});
@@ -140,7 +140,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 		await Task.WhenAll(refUpdateTasks);
 	}
 
-	public async IAsyncEnumerable<(NamespaceId, BlobIdentifier)> GetAllBlobs()
+	public async IAsyncEnumerable<(NamespaceId, BlobId)> GetAllBlobs()
 	{
 		IMongoCollection<MongoBlobIndexModelV0> collection = GetCollection<MongoBlobIndexModelV0>();
 		IAsyncCursor<MongoBlobIndexModelV0>? cursor = await collection.FindAsync(FilterDefinition<MongoBlobIndexModelV0>.Empty);
@@ -149,12 +149,12 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 		{
 			foreach (MongoBlobIndexModelV0 model in cursor.Current)
 			{
-				yield return (new NamespaceId(model.Ns), new BlobIdentifier(model.BlobId));
+				yield return (new NamespaceId(model.Ns), new BlobId(model.BlobId));
 			}
 		}
 	}
 
-	public async Task RemoveReferences(NamespaceId ns, BlobIdentifier id, List<BaseBlobReference> referencesToRemove)
+	public async Task RemoveReferences(NamespaceId ns, BlobId id, List<BaseBlobReference> referencesToRemove)
 	{
 		IMongoCollection<MongoBlobIndexModelV0> collection = GetCollection<MongoBlobIndexModelV0>();
 
@@ -186,7 +186,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 		await collection.FindOneAndUpdateAsync(filter, update);
 	}
 
-	public async Task<List<string>> GetBlobRegions(NamespaceId ns, BlobIdentifier blob)
+	public async Task<List<string>> GetBlobRegions(NamespaceId ns, BlobId blob)
 	{
 		MongoBlobIndexModelV0? blobInfo = await GetBlobInfo(ns, blob);
 		if (blobInfo == null)
@@ -196,7 +196,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 		return blobInfo.Regions.ToList();
 	}
 
-	public async Task AddBlobReferences(NamespaceId ns, BlobIdentifier sourceBlob, BlobIdentifier targetBlob)
+	public async Task AddBlobReferences(NamespaceId ns, BlobId sourceBlob, BlobId targetBlob)
 	{
 		IMongoCollection<MongoBlobIndexModelV0> collection = GetCollection<MongoBlobIndexModelV0>();
 
@@ -223,7 +223,7 @@ class MongoBlobIndexModelV0
 		References = references;
 	}
 
-	public MongoBlobIndexModelV0(NamespaceId ns, BlobIdentifier blobId)
+	public MongoBlobIndexModelV0(NamespaceId ns, BlobId blobId)
 	{
 		Ns = ns.ToString();
 		BlobId = blobId.ToString();

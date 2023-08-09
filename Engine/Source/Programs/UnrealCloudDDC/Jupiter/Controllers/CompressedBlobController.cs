@@ -103,7 +103,7 @@ namespace Jupiter.Controllers
 				return result;
 			}
 
-			BlobIdentifier[]? chunks = await _contentIdStore.Resolve(ns, id, mustBeContentId: false);
+			BlobId[]? chunks = await _contentIdStore.Resolve(ns, id, mustBeContentId: false);
 			if (chunks == null || chunks.Length == 0)
 			{
 				return NotFound();
@@ -144,7 +144,7 @@ namespace Jupiter.Controllers
 
 			IEnumerable<Task> tasks = id.Select(async blob =>
 			{
-				BlobIdentifier[]? chunks = await _contentIdStore.Resolve(ns, blob, mustBeContentId: false);
+				BlobId[]? chunks = await _contentIdStore.Resolve(ns, blob, mustBeContentId: false);
 
 				if (chunks == null)
 				{
@@ -152,7 +152,7 @@ namespace Jupiter.Controllers
 					return;
 				}
 
-				foreach (BlobIdentifier chunk in chunks)
+				foreach (BlobId chunk in chunks)
 				{
 					if (!await _storage.Exists(ns, chunk))
 					{
@@ -186,7 +186,7 @@ namespace Jupiter.Controllers
 
 			IEnumerable<Task> tasks = bodyIds.Select(async blob =>
 			{
-				BlobIdentifier[]? chunks = await _contentIdStore.Resolve(ns, blob, mustBeContentId: false);
+				BlobId[]? chunks = await _contentIdStore.Resolve(ns, blob, mustBeContentId: false);
 
 				if (chunks == null)
 				{
@@ -194,7 +194,7 @@ namespace Jupiter.Controllers
 					return;
 				}
 
-				foreach (BlobIdentifier chunk in chunks)
+				foreach (BlobId chunk in chunks)
 				{
 					if (!await _storage.Exists(ns, chunk))
 					{

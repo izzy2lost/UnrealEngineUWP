@@ -135,8 +135,8 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
         public async Task PutPayloads(string payloadFilename, string uncompressedHash)
         {
             byte[] texturePayload = await File.ReadAllBytesAsync($"ContentId/Payloads/{payloadFilename}");
-            BlobIdentifier compressedPayloadIdentifier = BlobIdentifier.FromBlob(texturePayload);
-            BlobIdentifier uncompressedPayloadIdentifier = new BlobIdentifier(uncompressedHash);
+            BlobId compressedPayloadIdentifier = BlobId.FromBlob(texturePayload);
+            BlobId uncompressedPayloadIdentifier = new BlobId(uncompressedHash);
 
             using ByteArrayContent content = new(texturePayload);
             content.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompressedBuffer);
@@ -153,7 +153,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
         public async Task PutGetComplexTexture()
         {
             byte[] texturePayload = await File.ReadAllBytesAsync("ContentId/Payloads/UncompressedTexture_CAS_dea81b6c3b565bb5089695377c98ce0f1c13b0c3.udd");
-            BlobIdentifier compressedPayloadIdentifier = BlobIdentifier.FromBlob(texturePayload);
+            BlobId compressedPayloadIdentifier = BlobId.FromBlob(texturePayload);
             ContentId uncompressedPayloadIdentifier = new ContentId("DEA81B6C3B565BB5089695377C98CE0F1C13B0C3");
 
             {
@@ -246,11 +246,11 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
                 }
 
                 logger.Information("Hashing generated file");
-                BlobIdentifier blobIdentifier = BlobIdentifier.FromIoHash(uncompressedContentHash);
-                BlobIdentifier compressedContentHash;
+                BlobId blobIdentifier = BlobId.FromIoHash(uncompressedContentHash);
+                BlobId compressedContentHash;
                 {
                     await using FileStream fs = tempCompressedFile.OpenRead();
-                    compressedContentHash = await BlobIdentifier.FromStream(fs);
+                    compressedContentHash = await BlobId.FromStream(fs);
                 }
 
                 logger.Information("Uploading large file");
@@ -287,7 +287,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
 
                     await using FileStream downloadedFile = tempOutputFile.OpenRead();
 
-                    BlobIdentifier downloadedBlobIdentifier = await BlobIdentifier.FromStream(downloadedFile);
+                    BlobId downloadedBlobIdentifier = await BlobId.FromStream(downloadedFile);
                     Assert.AreEqual(compressedContentHash, downloadedBlobIdentifier);
                 }
 
@@ -311,7 +311,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
         {
             ContentId uncompressedPayloadIdentifier = new ContentId("A2AC0ECED768698F7413F131D064D36B7EC6F7DA");
             byte[] texturePayloadSmaller = await File.ReadAllBytesAsync("ContentId/Payloads/smallerfile");
-            BlobIdentifier compressedPayloadIdentifierSmaller = BlobIdentifier.FromBlob(texturePayloadSmaller);
+            BlobId compressedPayloadIdentifierSmaller = BlobId.FromBlob(texturePayloadSmaller);
            
             {
                 using ByteArrayContent content = new(texturePayloadSmaller);
@@ -326,7 +326,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
             }
 
             byte[] texturePayloadLarger = await File.ReadAllBytesAsync("ContentId/Payloads/largerfile");
-            BlobIdentifier compressedPayloadIdentifierLarger = BlobIdentifier.FromBlob(texturePayloadLarger);
+            BlobId compressedPayloadIdentifierLarger = BlobId.FromBlob(texturePayloadLarger);
 
             {
                 using ByteArrayContent content = new(texturePayloadLarger);
@@ -347,7 +347,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
                 Assert.AreEqual(CustomMediaTypeNames.UnrealCompressedBuffer, result.Content.Headers.ContentType!.MediaType);
 
                 byte[] blobContent = await result.Content.ReadAsByteArrayAsync();
-                Assert.AreEqual(compressedPayloadIdentifierSmaller, BlobIdentifier.FromBlob(blobContent));
+                Assert.AreEqual(compressedPayloadIdentifierSmaller, BlobId.FromBlob(blobContent));
                 CollectionAssert.AreEqual(texturePayloadSmaller, blobContent);
             }
         }
@@ -356,7 +356,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
         public async Task PutWrongIdentifier()
         {
             byte[] texturePayload = await File.ReadAllBytesAsync("ContentId/Payloads/UncompressedTexture_CAS_dea81b6c3b565bb5089695377c98ce0f1c13b0c3.udd");
-            BlobIdentifier compressedPayloadIdentifier = BlobIdentifier.FromBlob(texturePayload);
+            BlobId compressedPayloadIdentifier = BlobId.FromBlob(texturePayload);
 
             {
                 using ByteArrayContent content = new(texturePayload);
@@ -372,8 +372,8 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
         public async Task PostNoIdentifier()
         {
             byte[] texturePayload = await File.ReadAllBytesAsync("ContentId/Payloads/UncompressedTexture_CAS_dea81b6c3b565bb5089695377c98ce0f1c13b0c3.udd");
-            BlobIdentifier compressedPayloadIdentifier = BlobIdentifier.FromBlob(texturePayload);
-            BlobIdentifier uncompressedPayloadIdentifier = new BlobIdentifier("DEA81B6C3B565BB5089695377C98CE0F1C13B0C3");
+            BlobId compressedPayloadIdentifier = BlobId.FromBlob(texturePayload);
+            BlobId uncompressedPayloadIdentifier = new BlobId("DEA81B6C3B565BB5089695377C98CE0F1C13B0C3");
             {
                 using ByteArrayContent content = new(texturePayload);
                 content.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompressedBuffer);
@@ -395,7 +395,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
         {
             string stringContent = "this is just a random string";
             byte[] payload = Encoding.ASCII.GetBytes(stringContent);
-            BlobIdentifier blobIdentifier = BlobIdentifier.FromBlob(payload);
+            BlobId blobIdentifier = BlobId.FromBlob(payload);
 
             // upload a uncompressed blob
             {
@@ -422,7 +422,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
         {
             string stringContent = "this is just a random string";
             byte[] payload = Encoding.ASCII.GetBytes(stringContent);
-            BlobIdentifier blobIdentifier = BlobIdentifier.FromBlob(payload);
+            BlobId blobIdentifier = BlobId.FromBlob(payload);
 
             // upload a uncompressed blob
             {

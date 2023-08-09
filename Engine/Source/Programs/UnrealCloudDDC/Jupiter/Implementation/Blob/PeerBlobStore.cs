@@ -46,7 +46,7 @@ namespace Jupiter.Implementation
 			return request;
 		}
 
-		private async Task<BlobContents?> DoGetObject(string instance, NamespaceId ns, BlobIdentifier blob)
+		private async Task<BlobContents?> DoGetObject(string instance, NamespaceId ns, BlobId blob)
 		{
 			try
 			{
@@ -80,7 +80,7 @@ namespace Jupiter.Implementation
 			return null;
 		}
 
-		public async Task<BlobContents> GetObject(NamespaceId ns, BlobIdentifier blob, LastAccessTrackingFlags flags = LastAccessTrackingFlags.DoTracking, bool supportsRedirectUri = false)
+		public async Task<BlobContents> GetObject(NamespaceId ns, BlobId blob, LastAccessTrackingFlags flags = LastAccessTrackingFlags.DoTracking, bool supportsRedirectUri = false)
 		{
 			List<Task<BlobContents?>> tasks = new();
 
@@ -105,7 +105,7 @@ namespace Jupiter.Implementation
 			throw new BlobNotFoundException(ns, blob);
 		}
 
-		private async Task<bool?> DoExists(string instance, NamespaceId ns, BlobIdentifier blob)
+		private async Task<bool?> DoExists(string instance, NamespaceId ns, BlobId blob)
 		{
 			try
 			{
@@ -131,7 +131,7 @@ namespace Jupiter.Implementation
 			return null;
 		}
 
-		public async Task<bool> Exists(NamespaceId ns, BlobIdentifier blob, bool forceCheck = false)
+		public async Task<bool> Exists(NamespaceId ns, BlobId blob, bool forceCheck = false)
 		{
 			List<Task<bool?>> tasks = new();
 
@@ -166,37 +166,37 @@ namespace Jupiter.Implementation
 			return httpClient;
 		}
 
-		public Task<Uri?> GetObjectByRedirect(NamespaceId ns, BlobIdentifier identifier)
+		public Task<Uri?> GetObjectByRedirect(NamespaceId ns, BlobId identifier)
 		{
 			// not supported
 			return Task.FromResult<Uri?>(null);
 		}
 
-		public Task<Uri?> PutObjectWithRedirect(NamespaceId ns, BlobIdentifier identifier)
+		public Task<Uri?> PutObjectWithRedirect(NamespaceId ns, BlobId identifier)
 		{
 			// not supported
 			return Task.FromResult<Uri?>(null);
 		}
 
-		public Task<BlobIdentifier> PutObject(NamespaceId ns, byte[] blob, BlobIdentifier identifier)
+		public Task<BlobId> PutObject(NamespaceId ns, byte[] blob, BlobId identifier)
 		{
 			// not applicable
 			return Task.FromResult(identifier);
 		}
 
-		public Task<BlobIdentifier> PutObject(NamespaceId ns, ReadOnlyMemory<byte> blob, BlobIdentifier identifier)
+		public Task<BlobId> PutObject(NamespaceId ns, ReadOnlyMemory<byte> blob, BlobId identifier)
 		{
 			// not applicable
 			return Task.FromResult(identifier);
 		}
 
-		public Task<BlobIdentifier> PutObject(NamespaceId ns, Stream content, BlobIdentifier identifier)
+		public Task<BlobId> PutObject(NamespaceId ns, Stream content, BlobId identifier)
 		{
 			// not applicable
 			return Task.FromResult(identifier);
 		}
 
-		public Task DeleteObject(NamespaceId ns, BlobIdentifier blob)
+		public Task DeleteObject(NamespaceId ns, BlobId blob)
 		{
 			// not applicable
 			return Task.CompletedTask;
@@ -208,10 +208,10 @@ namespace Jupiter.Implementation
 			return Task.CompletedTask;
 		}
 
-		public IAsyncEnumerable<(BlobIdentifier, DateTime)> ListObjects(NamespaceId ns)
+		public IAsyncEnumerable<(BlobId, DateTime)> ListObjects(NamespaceId ns)
 		{
 			// not applicable
-			return AsyncEnumerable.Empty<(BlobIdentifier, DateTime)>();
+			return AsyncEnumerable.Empty<(BlobId, DateTime)>();
 		}
 	}
 

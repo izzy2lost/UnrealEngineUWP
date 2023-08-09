@@ -78,7 +78,7 @@ namespace Jupiter.FunctionalTests.Storage
             byte[] payload = Encoding.ASCII.GetBytes("I am a blob with contents");
             using ByteArrayContent requestContent = new ByteArrayContent(payload);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
-            BlobIdentifier contentHash = BlobIdentifier.FromBlob(payload);
+            BlobId contentHash = BlobId.FromBlob(payload);
             HttpResponseMessage response = await _httpClient!.PutAsync(new Uri($"api/v1/s/{_testNamespaceName}/{contentHash}", UriKind.Relative), requestContent);
             response.EnsureSuccessStatusCode();
 
@@ -98,7 +98,7 @@ namespace Jupiter.FunctionalTests.Storage
             writer.EndObject();
 
             byte[] objectData = writer.ToByteArray();
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(objectData);
+            BlobId objectHash = BlobId.FromBlob(objectData);
 
             using HttpContent requestContent = new ByteArrayContent(objectData);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompactBinary);
@@ -126,7 +126,7 @@ namespace Jupiter.FunctionalTests.Storage
         {
             // upload a blob
             byte[] payload = Encoding.ASCII.GetBytes("I am a blob with contents");
-            BlobIdentifier contentHash = BlobIdentifier.FromBlob(payload);
+            BlobId contentHash = BlobId.FromBlob(payload);
 
             {
                 using ByteArrayContent requestContent = new ByteArrayContent(payload);
@@ -164,10 +164,10 @@ namespace Jupiter.FunctionalTests.Storage
             }
 
             // upload a blob
-            BlobIdentifier contentHash;
+            BlobId contentHash;
             {
                 byte[] payload = Encoding.ASCII.GetBytes("I am a blob with contents");
-                contentHash = BlobIdentifier.FromBlob(payload);
+                contentHash = BlobId.FromBlob(payload);
 
                 {
                     using ByteArrayContent requestContent = new ByteArrayContent(payload);
@@ -178,11 +178,11 @@ namespace Jupiter.FunctionalTests.Storage
             }
 
             // upload a compressed blob
-            BlobIdentifier compressedPayloadIdentifier;
+            BlobId compressedPayloadIdentifier;
             {
                 byte[] texturePayload = await File.ReadAllBytesAsync($"ContentId/Payloads/UncompressedTexture_CAS_dea81b6c3b565bb5089695377c98ce0f1c13b0c3.udd");
-                compressedPayloadIdentifier = BlobIdentifier.FromBlob(texturePayload);
-                BlobIdentifier uncompressedPayloadIdentifier = new BlobIdentifier("DEA81B6C3B565BB5089695377C98CE0F1C13B0C3");
+                compressedPayloadIdentifier = BlobId.FromBlob(texturePayload);
+                BlobId uncompressedPayloadIdentifier = new BlobId("DEA81B6C3B565BB5089695377C98CE0F1C13B0C3");
 
                 using ByteArrayContent content = new ByteArrayContent(texturePayload);
                 content.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompressedBuffer);
@@ -191,7 +191,7 @@ namespace Jupiter.FunctionalTests.Storage
             }
 
             {
-                (NamespaceId, BlobIdentifier)[] blobInfos =  await index.GetAllBlobs().ToArrayAsync();
+                (NamespaceId, BlobId)[] blobInfos =  await index.GetAllBlobs().ToArrayAsync();
                 Assert.AreEqual(2, blobInfos.Length);
 
                 Assert.IsNotNull(blobInfos.FirstOrDefault(info => info.Item2.Equals(compressedPayloadIdentifier)));

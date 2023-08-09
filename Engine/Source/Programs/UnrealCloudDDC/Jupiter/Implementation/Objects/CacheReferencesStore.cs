@@ -48,7 +48,7 @@ namespace Jupiter.Implementation
 			return record;
 		}
 
-		public async Task Put(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier blobHash, byte[] blob, bool isFinalized)
+		public async Task Put(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobHash, byte[] blob, bool isFinalized)
 		{
 			Task cachePut = _mongoReferenceStore.Put(ns, bucket, key, blobHash, blob, isFinalized);
 			Task upstreamPut = _upstreamReferenceStore.Put(ns, bucket, key, blobHash, blob, isFinalized);
@@ -56,7 +56,7 @@ namespace Jupiter.Implementation
 			await Task.WhenAll(cachePut, upstreamPut);
 		}
 
-		public async Task Finalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier blobIdentifier)
+		public async Task Finalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobIdentifier)
 		{
 			Task cacheFinalize = _mongoReferenceStore.Finalize(ns, bucket, key, blobIdentifier);
 			Task upstreamFinalize = _upstreamReferenceStore.Finalize(ns, bucket, key, blobIdentifier);
@@ -125,7 +125,7 @@ namespace Jupiter.Implementation
 			return new ObjectRecord(metadataResponse.Ns, metadataResponse.Bucket, metadataResponse.Name, metadataResponse.LastAccess, metadataResponse.InlinePayload, metadataResponse.PayloadIdentifier, metadataResponse.IsFinalized);
 		}
 
-		public async Task Put(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier blobHash, byte[] blob, bool isFinalized)
+		public async Task Put(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobHash, byte[] blob, bool isFinalized)
 		{
 			using HttpRequestMessage putObjectRequest = await BuildHttpRequest(HttpMethod.Put, new Uri($"api/v1/refs/{ns}/{bucket}/{key}", UriKind.Relative));
 			putObjectRequest.Headers.Add("Accept", MediaTypeNames.Application.Json);
@@ -149,7 +149,7 @@ namespace Jupiter.Implementation
 			// if this put returns needs, we cant really do anything about it. we should be calling put in the upstream blob store as the operation continues and we should be able to catch the missing blobs during the finalize call
 		}
 
-		public async Task Finalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier blobIdentifier)
+		public async Task Finalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobIdentifier)
 		{
 			using HttpRequestMessage putObjectRequest = await BuildHttpRequest(HttpMethod.Post, new Uri($"api/v1/refs/{ns}/{bucket}/{key}/finalize/{blobIdentifier}", UriKind.Relative));
 			putObjectRequest.Headers.Add("Accept", MediaTypeNames.Application.Json);

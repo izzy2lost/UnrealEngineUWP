@@ -37,11 +37,11 @@ namespace Jupiter.Implementation
 			));
 		}
 
-		public async Task<BlobIdentifier[]?> Resolve(NamespaceId ns, ContentId contentId, bool mustBeContentId)
+		public async Task<BlobId[]?> Resolve(NamespaceId ns, ContentId contentId, bool mustBeContentId)
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("ScyllaContentIdStore.ResolveContentId").SetAttribute("resource.name", contentId.ToString());
 
-			BlobIdentifier contentIdBlob = contentId.AsBlobIdentifier();
+			BlobId contentIdBlob = contentId.AsBlobIdentifier();
 			Task<bool>? blobStoreExistsTask = null;
 			if (!mustBeContentId)
 			{
@@ -61,12 +61,12 @@ namespace Jupiter.Implementation
 							throw new InvalidContentIdException(contentId);
 						}
 
-						BlobIdentifier[] blobs = resolvedContentId.Chunks.Select(b => b.AsBlobIdentifier()).ToArray();
+						BlobId[] blobs = resolvedContentId.Chunks.Select(b => b.AsBlobIdentifier()).ToArray();
 
 						{
 							using TelemetrySpan _ = _tracer.StartActiveSpan("ScyllaContentIdStore.FindMissingBlobs").SetAttribute("operation.name", "ScyllaContentIdStore.FindMissingBlobs");
 
-							BlobIdentifier[] missingBlobs = await _blobStore.FilterOutKnownBlobs(ns, blobs);
+							BlobId[] missingBlobs = await _blobStore.FilterOutKnownBlobs(ns, blobs);
 							if (missingBlobs.Length == 0)
 							{
 								return blobs;
@@ -85,12 +85,12 @@ namespace Jupiter.Implementation
 							throw new InvalidContentIdException(contentId);
 						}
 
-						BlobIdentifier[] blobs = resolvedContentId.Chunks.Select(b => new BlobIdentifier(b!)).ToArray();
+						BlobId[] blobs = resolvedContentId.Chunks.Select(b => new BlobId(b!)).ToArray();
 
 						{
 							using TelemetrySpan _ = _tracer.StartActiveSpan("ScyllaContentIdStore.FindMissingBlobs").SetAttribute("operation.name", "ScyllaContentIdStore.FindMissingBlobs");
 
-							BlobIdentifier[] missingBlobs = await _blobStore.FilterOutKnownBlobs(ns, blobs);
+							BlobId[] missingBlobs = await _blobStore.FilterOutKnownBlobs(ns, blobs);
 							if (missingBlobs.Length == 0)
 							{
 								return blobs;
@@ -117,7 +117,7 @@ namespace Jupiter.Implementation
 			return null;
 		}
 
-		public async Task Put(NamespaceId ns, ContentId contentId, BlobIdentifier blobIdentifier, int contentWeight)
+		public async Task Put(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("ScyllaContentIdStore.PutContentId");
 			if (_scyllaSessionManager.IsScylla)
@@ -140,7 +140,7 @@ namespace Jupiter.Implementation
 
 		}
 
-		public ScyllaContentId(BlobIdentifier contentId, BlobIdentifier[] chunks, int contentWeight)
+		public ScyllaContentId(BlobId contentId, BlobId[] chunks, int contentWeight)
 		{
 			ContentId = new ScyllaBlobIdentifier(contentId);
 			ContentWeight = contentWeight;
@@ -167,7 +167,7 @@ namespace Jupiter.Implementation
 
 		}
 
-		public CassandraContentId(BlobIdentifier contentId, BlobIdentifier[] chunks, int contentWeight)
+		public CassandraContentId(BlobId contentId, BlobId[] chunks, int contentWeight)
 		{
 			ContentId = contentId.HashData;
 			ContentWeight = contentWeight;

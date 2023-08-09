@@ -139,9 +139,9 @@ namespace Jupiter.Controllers
 
 	public class RemovedBlobRecords
 	{
-		public BlobIdentifier[] Blobs { get; }
+		public BlobId[] Blobs { get; }
 
-		public RemovedBlobRecords(IEnumerable<BlobIdentifier> blobs)
+		public RemovedBlobRecords(IEnumerable<BlobId> blobs)
 		{
 			Blobs = blobs.ToArray();
 		}

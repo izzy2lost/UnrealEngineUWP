@@ -92,7 +92,7 @@ namespace Jupiter.Implementation
 					new ParallelOptions { MaxDegreeOfParallelism = _gcSettings.CurrentValue.OrphanGCMaxParallelOperations, CancellationToken = cancellationToken },
 					async (tuple, ctx) =>
 					{
-						(BlobIdentifier blob, DateTime lastModified) = tuple;
+						(BlobId blob, DateTime lastModified) = tuple;
 
 						if (lastModified > cutoff)
 						{
@@ -120,7 +120,7 @@ namespace Jupiter.Implementation
 			return countOfBlobsRemoved;
 		}
 
-		private async Task<bool> GCBlob(string storagePool, List<NamespaceId> namespacesThatSharePool, BlobIdentifier blob, DateTime lastModifiedTime, CancellationToken cancellationToken)
+		private async Task<bool> GCBlob(string storagePool, List<NamespaceId> namespacesThatSharePool, BlobId blob, DateTime lastModifiedTime, CancellationToken cancellationToken)
 		{
 			string storagePoolName = string.IsNullOrEmpty(storagePool) ? "default" : storagePool; 
 			using TelemetrySpan removeBlobScope = _tracer.StartActiveSpan("gc.blob")
@@ -172,7 +172,7 @@ namespace Jupiter.Implementation
 					}
 					else if (baseBlobReference is BlobToBlobReference blobReference)
 					{
-						BlobIdentifier referringBlob = blobReference.Blob;
+						BlobId referringBlob = blobReference.Blob;
 						bool blobFound = await _blobService.Exists(blobNamespace, referringBlob);
 						if (blobFound)
 						{
@@ -224,7 +224,7 @@ namespace Jupiter.Implementation
 
 		}
 
-		private async Task RemoveBlob(NamespaceId ns, BlobIdentifier blob)
+		private async Task RemoveBlob(NamespaceId ns, BlobId blob)
 		{
 			try
 			{

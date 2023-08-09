@@ -31,7 +31,7 @@ namespace Jupiter.Implementation
 			_contentIdCaches.Clear();
 		}
 
-		public async Task<BlobIdentifier[]?> Resolve(NamespaceId ns, ContentId contentId, bool mustBeContentId)
+		public async Task<BlobId[]?> Resolve(NamespaceId ns, ContentId contentId, bool mustBeContentId)
 		{
 			MemoryCache cache = GetCacheForNamespace(ns);
 			if (cache.TryGetValue(contentId, out CachedContentIdEntry cachedResult))
@@ -39,7 +39,7 @@ namespace Jupiter.Implementation
 				return cachedResult.ReferencedBlobs;
 			}
 
-			BlobIdentifier[]? referencedBlobs = await _actualContentIdStore.Resolve(ns, contentId, mustBeContentId);
+			BlobId[]? referencedBlobs = await _actualContentIdStore.Resolve(ns, contentId, mustBeContentId);
 			// we do not cache unresolvable content ids
 			if (referencedBlobs == null)
 			{
@@ -51,14 +51,14 @@ namespace Jupiter.Implementation
 			return referencedBlobs;
 		}
 
-		public Task Put(NamespaceId ns, ContentId contentId, BlobIdentifier blobIdentifier, int contentWeight)
+		public Task Put(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
 		{
 			Task actualPutTask = _actualContentIdStore.Put(ns, contentId, blobIdentifier, contentWeight);
-			AddCacheEntry(ns, contentId, new BlobIdentifier[] {blobIdentifier});
+			AddCacheEntry(ns, contentId, new BlobId[] {blobIdentifier});
 			return actualPutTask;
 		}
 
-		private void AddCacheEntry(NamespaceId ns, ContentId contentId, BlobIdentifier[] blobs)
+		private void AddCacheEntry(NamespaceId ns, ContentId contentId, BlobId[] blobs)
 		{
 			MemoryCache cache = GetCacheForNamespace(ns);
 
@@ -86,6 +86,6 @@ namespace Jupiter.Implementation
 	{
 		public int GetSize() { return ReferencedBlobs.Length * 20; }
 
-		public BlobIdentifier[] ReferencedBlobs { get; set; } = Array.Empty<BlobIdentifier>();
+		public BlobId[] ReferencedBlobs { get; set; } = Array.Empty<BlobId>();
 	}
 }

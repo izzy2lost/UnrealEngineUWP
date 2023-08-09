@@ -76,13 +76,13 @@ namespace Jupiter.FunctionalTests.GC
         private static readonly byte[] s_objectContents5 = Encoding.ASCII.GetBytes("blob_55");
         private static readonly byte[] s_objectContents6 = Encoding.ASCII.GetBytes("blob_66");
 
-        private readonly BlobIdentifier object0id = BlobIdentifier.FromBlob(s_objectContents0);
-        private readonly BlobIdentifier object1id = BlobIdentifier.FromBlob(s_objectContents1);
-        private readonly BlobIdentifier object2id = BlobIdentifier.FromBlob(s_objectContents2);
-        private readonly BlobIdentifier object3id = BlobIdentifier.FromBlob(s_objectContents3);
-        private readonly BlobIdentifier object4id = BlobIdentifier.FromBlob(s_objectContents4);
-        private readonly BlobIdentifier object5id = BlobIdentifier.FromBlob(s_objectContents5);
-        private readonly BlobIdentifier object6id = BlobIdentifier.FromBlob(s_objectContents6);
+        private readonly BlobId object0id = BlobId.FromBlob(s_objectContents0);
+        private readonly BlobId object1id = BlobId.FromBlob(s_objectContents1);
+        private readonly BlobId object2id = BlobId.FromBlob(s_objectContents2);
+        private readonly BlobId object3id = BlobId.FromBlob(s_objectContents3);
+        private readonly BlobId object4id = BlobId.FromBlob(s_objectContents4);
+        private readonly BlobId object5id = BlobId.FromBlob(s_objectContents5);
+        private readonly BlobId object6id = BlobId.FromBlob(s_objectContents6);
 
         private readonly IoHashKey object0Name = IoHashKey.FromName("object0");
         private readonly IoHashKey object1Name = IoHashKey.FromName("object1");
@@ -125,25 +125,25 @@ namespace Jupiter.FunctionalTests.GC
 
             IObjectService? objectService = _server.Services.GetService<IObjectService>()!;
             Assert.IsNotNull(objectService);
-            (BlobIdentifier ob0_hash, CbObject ob0_cb) = GetCBWithAttachment(object0id);
+            (BlobId ob0_hash, CbObject ob0_cb) = GetCBWithAttachment(object0id);
             await objectService.Put(TestNamespace, DefaultBucket, object0Name, ob0_hash, ob0_cb);
            
-            (BlobIdentifier ob1_hash, CbObject ob1_cb) = GetCBWithAttachment(object1id);
+            (BlobId ob1_hash, CbObject ob1_cb) = GetCBWithAttachment(object1id);
             await objectService.Put(TestNamespace, DefaultBucket, object1Name, ob1_hash, ob1_cb);
 
-            (BlobIdentifier ob2_hash, CbObject ob2_cb) = GetCBWithAttachment(object2id);
+            (BlobId ob2_hash, CbObject ob2_cb) = GetCBWithAttachment(object2id);
             await objectService.Put(TestNamespace, DefaultBucket, object2Name, ob2_hash, ob2_cb);
 
-            (BlobIdentifier ob3_hash, CbObject ob3_cb) = GetCBWithAttachment(object3id);
+            (BlobId ob3_hash, CbObject ob3_cb) = GetCBWithAttachment(object3id);
             await objectService.Put(TestNamespace, DefaultBucket, object3Name, ob3_hash, ob3_cb);
 
-            (BlobIdentifier ob4_hash, CbObject ob4_cb) = GetCBWithAttachment(object4id);
+            (BlobId ob4_hash, CbObject ob4_cb) = GetCBWithAttachment(object4id);
             await objectService.Put(TestNamespace, DefaultBucket, object4Name, ob4_hash, ob4_cb);
 
-            (BlobIdentifier ob5_hash, CbObject ob5_cb) = GetCBWithAttachment(object5id);
+            (BlobId ob5_hash, CbObject ob5_cb) = GetCBWithAttachment(object5id);
             await objectService.Put(TestNamespace, DefaultBucket, object5Name, ob5_hash, ob5_cb);
 
-            (BlobIdentifier ob6_hash, CbObject ob6_cb) = GetCBWithAttachment(object6id);
+            (BlobId ob6_hash, CbObject ob6_cb) = GetCBWithAttachment(object6id);
             await objectService.Put(TestNamespace, DefaultBucket, object6Name, ob6_hash, ob6_cb);
 
             IReferencesStore referenceStore = _server.Services.GetService<IReferencesStore>()!;
@@ -192,7 +192,7 @@ namespace Jupiter.FunctionalTests.GC
             Assert.IsFalse(await objectService.Exists(TestNamespace, DefaultBucket, object6Name), $"{object6Name} should have been deleted");
         }
 
-        private static (BlobIdentifier, CbObject) GetCBWithAttachment(BlobIdentifier blobIdentifier)
+        private static (BlobId, CbObject) GetCBWithAttachment(BlobId blobIdentifier)
         {
             CbWriter writer = new CbWriter();
             writer.BeginObject();
@@ -200,7 +200,7 @@ namespace Jupiter.FunctionalTests.GC
             writer.EndObject();
 
             byte[] b = writer.ToByteArray();
-            return (BlobIdentifier.FromBlob(b), new CbObject(b));
+            return (BlobId.FromBlob(b), new CbObject(b));
         }
 
         protected virtual void Dispose(bool disposing)

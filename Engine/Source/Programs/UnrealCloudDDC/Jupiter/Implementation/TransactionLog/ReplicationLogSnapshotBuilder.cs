@@ -29,7 +29,7 @@ namespace Jupiter.Implementation.TransactionLog
 			_replicationLogFactory = replicationLogFactory;
 		}
 
-		public async Task<BlobIdentifier> BuildSnapshot(NamespaceId ns, NamespaceId storeInNamespace, CancellationToken cancellationToken = default(CancellationToken))
+		public async Task<BlobId> BuildSnapshot(NamespaceId ns, NamespaceId storeInNamespace, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			// builds a snapshot and commits it to the blob store with the identifier specified
 
@@ -94,10 +94,10 @@ namespace Jupiter.Implementation.TransactionLog
 			tempFile.Delete();
 
 			{
-				BlobIdentifier blobIdentifier;
+				BlobId blobIdentifier;
 				{
 					await using Stream stream = payload.GetStream();
-					blobIdentifier = await BlobIdentifier.FromStream(stream);
+					blobIdentifier = await BlobId.FromStream(stream);
 				}
 
 				CbWriter writer = new CbWriter();
@@ -107,7 +107,7 @@ namespace Jupiter.Implementation.TransactionLog
 				writer.EndObject();
 
 				byte[] cbObjectBytes = writer.ToByteArray();
-				BlobIdentifier cbBlobId = BlobIdentifier.FromBlob(cbObjectBytes);
+				BlobId cbBlobId = BlobId.FromBlob(cbObjectBytes);
 
 				if (cancellationToken.IsCancellationRequested)
 				{
@@ -117,7 +117,7 @@ namespace Jupiter.Implementation.TransactionLog
 				// upload the attachment first so we are not missing any references when we go to create the ref
 				await _blobService.PutObject(storeInNamespace, payload, blobIdentifier);
 			
-				(ContentId[] missingContentIds, BlobIdentifier[] missingBlobs) = await _objectService.Put(storeInNamespace, new BucketId("snapshot"), new IoHashKey(blobIdentifier.ToString()), cbBlobId, new CbObject(cbObjectBytes));
+				(ContentId[] missingContentIds, BlobId[] missingBlobs) = await _objectService.Put(storeInNamespace, new BucketId("snapshot"), new IoHashKey(blobIdentifier.ToString()), cbBlobId, new CbObject(cbObjectBytes));
 				List<ContentHash> missingHashes = new List<ContentHash>(missingContentIds);
 				missingHashes.AddRange(missingBlobs);
 				if (missingHashes.Count != 0)

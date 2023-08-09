@@ -317,7 +317,7 @@ namespace Jupiter.FunctionalTests.References
         {
             const string objectContents = "This is treated as a opaque blob";
             byte[] data = Encoding.ASCII.GetBytes(objectContents);
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(data);
+            BlobId objectHash = BlobId.FromBlob(data);
             IoHashKey key = IoHashKey.FromName("newBlobObject");
             using HttpContent requestContent = new ByteArrayContent(data);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
@@ -337,11 +337,11 @@ namespace Jupiter.FunctionalTests.References
 
                 Assert.AreEqual(objectContents, roundTrippedPayload);
                 CollectionAssert.AreEqual(data, roundTrippedBuffer);
-                Assert.AreEqual(objectHash, BlobIdentifier.FromBlob(roundTrippedBuffer));
+                Assert.AreEqual(objectHash, BlobId.FromBlob(roundTrippedBuffer));
             }
 
             {
-                BlobIdentifier attachment;
+                BlobId attachment;
                 {
                     HttpResponseMessage getResponse = await _httpClient.GetAsync(new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}.uecb", UriKind.Relative));
                     getResponse.EnsureSuccessStatusCode();
@@ -356,7 +356,7 @@ namespace Jupiter.FunctionalTests.References
                     CbField payloadField = fields[0];
                     Assert.IsNotNull(payloadField);
                     Assert.IsTrue(payloadField.IsBinaryAttachment());
-                    attachment = BlobIdentifier.FromIoHash(payloadField.AsBinaryAttachment());
+                    attachment = BlobId.FromIoHash(payloadField.AsBinaryAttachment());
                 }
 
                 {
@@ -368,7 +368,7 @@ namespace Jupiter.FunctionalTests.References
                     string roundTrippedString = Encoding.ASCII.GetString(roundTrippedBuffer);
 
                     Assert.AreEqual(objectContents, roundTrippedString);
-                    Assert.AreEqual(objectHash, BlobIdentifier.FromBlob(roundTrippedBuffer));
+                    Assert.AreEqual(objectHash, BlobId.FromBlob(roundTrippedBuffer));
                 }
             }
 
@@ -382,7 +382,7 @@ namespace Jupiter.FunctionalTests.References
                 string s = Encoding.ASCII.GetString(roundTrippedBuffer);
                 JsonNode? jsonNode = JsonNode.Parse(s);
                 Assert.IsNotNull(jsonNode);
-                Assert.AreEqual(objectHash, new BlobIdentifier(jsonNode["RawHash"]!.GetValue<string>()));
+                Assert.AreEqual(objectHash, new BlobId(jsonNode["RawHash"]!.GetValue<string>()));
             }
 
             {
@@ -400,7 +400,7 @@ namespace Jupiter.FunctionalTests.References
                 string s = Encoding.ASCII.GetString(roundTrippedBuffer);
                 JsonNode? node = JsonNode.Parse(s);
                 Assert.IsNotNull(node);
-                Assert.AreEqual(objectHash, new BlobIdentifier(node["RawHash"]!.ToString()));
+                Assert.AreEqual(objectHash, new BlobId(node["RawHash"]!.ToString()));
             }
 
             {
@@ -418,7 +418,7 @@ namespace Jupiter.FunctionalTests.References
                 string roundTrippedString = Encoding.ASCII.GetString(roundTrippedBuffer);
 
                 Assert.AreEqual(objectContents, roundTrippedString);
-                Assert.AreEqual(objectHash, BlobIdentifier.FromBlob(roundTrippedBuffer));
+                Assert.AreEqual(objectHash, BlobId.FromBlob(roundTrippedBuffer));
             }
         }
 
@@ -431,7 +431,7 @@ namespace Jupiter.FunctionalTests.References
             writer.EndObject();
 
             byte[] objectData = writer.ToByteArray();
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(objectData);
+            BlobId objectHash = BlobId.FromBlob(objectData);
             IoHashKey key = IoHashKey.FromName("newReferenceObject");
 
             using HttpContent requestContent = new ByteArrayContent(objectData);
@@ -450,7 +450,7 @@ namespace Jupiter.FunctionalTests.References
                 CbObject cb = new CbObject(roundTrippedBuffer);
                 CbField needsField = cb["needs"];
                 Assert.AreNotEqual(CbField.Empty, needsField);
-                List<BlobIdentifier> missingBlobs = needsField.AsArray().Select(field => BlobIdentifier.FromIoHash(field.AsHash())).ToList();
+                List<BlobId> missingBlobs = needsField.AsArray().Select(field => BlobId.FromIoHash(field.AsHash())).ToList();
                 Assert.AreEqual(0, missingBlobs.Count);
             }
 
@@ -474,7 +474,7 @@ namespace Jupiter.FunctionalTests.References
                 byte[] roundTrippedBuffer = ms.ToArray();
 
                 CollectionAssert.AreEqual(objectData, roundTrippedBuffer);
-                Assert.AreEqual(objectHash, BlobIdentifier.FromBlob(roundTrippedBuffer));
+                Assert.AreEqual(objectHash, BlobId.FromBlob(roundTrippedBuffer));
             }
 
             {
@@ -518,7 +518,7 @@ namespace Jupiter.FunctionalTests.References
             writer.EndObject();
 
             byte[] objectData = writer.ToByteArray();
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(objectData);
+            BlobId objectHash = BlobId.FromBlob(objectData);
             IoHashKey key = IoHashKey.FromName("newReferenceObject");
 
             using HttpContent requestContent = new ByteArrayContent(objectData);
@@ -537,7 +537,7 @@ namespace Jupiter.FunctionalTests.References
                 CbObject cb = new CbObject(roundTrippedBuffer);
                 CbField needsField = cb["needs"];
                 Assert.AreNotEqual(CbField.Empty, needsField);
-                List<BlobIdentifier> missingBlobs = needsField.AsArray().Select(field => BlobIdentifier.FromIoHash(field.AsHash())).ToList();
+                List<BlobId> missingBlobs = needsField.AsArray().Select(field => BlobId.FromIoHash(field.AsHash())).ToList();
                 Assert.AreEqual(0, missingBlobs.Count);
             }
 
@@ -576,7 +576,7 @@ namespace Jupiter.FunctionalTests.References
             }
 
             byte[] data = await File.ReadAllBytesAsync($"Objects/Payloads/lyra.cb");
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(data);
+            BlobId objectHash = BlobId.FromBlob(data);
             IoHashKey key = IoHashKey.FromName("largeCompactBinary");
             using HttpContent requestContent = new ByteArrayContent(data);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompactBinary);
@@ -599,14 +599,14 @@ namespace Jupiter.FunctionalTests.References
             childObjectWriter.WriteString("stringField", "thisIsAField");
             childObjectWriter.EndObject();
             byte[] childObjectData = childObjectWriter.ToByteArray();
-            BlobIdentifier childObjectHash = BlobIdentifier.FromBlob(childObjectData);
+            BlobId childObjectHash = BlobId.FromBlob(childObjectData);
 
             CbWriter parentObjectWriter = new CbWriter();
             parentObjectWriter.BeginObject();
             parentObjectWriter.WriteObjectAttachment("childObject", childObjectHash.AsIoHash());
             parentObjectWriter.EndObject();
             byte[] parentObjectData = parentObjectWriter.ToByteArray();
-            BlobIdentifier parentObjectHash = BlobIdentifier.FromBlob(parentObjectData);
+            BlobId parentObjectHash = BlobId.FromBlob(parentObjectData);
 
             IoHashKey key = IoHashKey.FromName("newHierarchyObject");
             // this first upload should fail with the child object missing
@@ -626,7 +626,7 @@ namespace Jupiter.FunctionalTests.References
                 CbObject cb = new CbObject(roundTrippedBuffer);
                 CbField needsField = cb["needs"];
                 Assert.AreNotEqual(CbField.Empty, needsField);
-                List<BlobIdentifier> missingBlobs = needsField.AsArray().Select(field => BlobIdentifier.FromIoHash(field.AsHash())).ToList();
+                List<BlobId> missingBlobs = needsField.AsArray().Select(field => BlobId.FromIoHash(field.AsHash())).ToList();
                 Assert.AreEqual(1, missingBlobs.Count);
                 Assert.AreEqual(childObjectHash, missingBlobs[0]);
             }
@@ -652,7 +652,7 @@ namespace Jupiter.FunctionalTests.References
                 CbObject cb = new CbObject(roundTrippedBuffer);
                 CbField value = cb["identifier"];
                 Assert.AreNotEqual(CbField.Empty, value);
-                Assert.AreEqual(childObjectHash, BlobIdentifier.FromIoHash(value.AsHash()));
+                Assert.AreEqual(childObjectHash, BlobId.FromIoHash(value.AsHash()));
             }
 
             // since we have now uploaded the child object putting the object again should result in no missing references
@@ -671,7 +671,7 @@ namespace Jupiter.FunctionalTests.References
                 byte[] roundTrippedBuffer = ms.ToArray();
                 CbObject cb = new CbObject(roundTrippedBuffer);
                 CbField needsField = cb["needs"];
-                List<BlobIdentifier> missingBlobs = needsField.AsArray().Select(field => BlobIdentifier.FromIoHash(field.AsHash())).ToList();
+                List<BlobId> missingBlobs = needsField.AsArray().Select(field => BlobId.FromIoHash(field.AsHash())).ToList();
                 Assert.AreEqual(0, missingBlobs.Count);
             }
 
@@ -695,7 +695,7 @@ namespace Jupiter.FunctionalTests.References
                 byte[] roundTrippedBuffer = ms.ToArray();
 
                 CollectionAssert.AreEqual(parentObjectData, roundTrippedBuffer);
-                Assert.AreEqual(parentObjectHash, BlobIdentifier.FromBlob(roundTrippedBuffer));
+                Assert.AreEqual(parentObjectHash, BlobId.FromBlob(roundTrippedBuffer));
             }
 
             {
@@ -711,7 +711,7 @@ namespace Jupiter.FunctionalTests.References
                 Assert.AreEqual(1, fields.Count);
                 CbField childObjectField = fields[0];
                 Assert.AreEqual("childObject", childObjectField.Name);
-                Assert.AreEqual(childObjectHash, BlobIdentifier.FromIoHash(childObjectField.AsHash()));
+                Assert.AreEqual(childObjectHash, BlobId.FromIoHash(childObjectField.AsHash()));
             }
 
             {
@@ -737,7 +737,7 @@ namespace Jupiter.FunctionalTests.References
                 byte[] roundTrippedBuffer = ms.ToArray();
 
                 CollectionAssert.AreEqual(childObjectData, roundTrippedBuffer);
-                Assert.AreEqual(childObjectHash, BlobIdentifier.FromBlob(roundTrippedBuffer));
+                Assert.AreEqual(childObjectHash, BlobId.FromBlob(roundTrippedBuffer));
             }
         }
 
@@ -746,7 +746,7 @@ namespace Jupiter.FunctionalTests.References
         {
             const string objectContents = "This is treated as a opaque blob";
             byte[] data = Encoding.ASCII.GetBytes(objectContents);
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(data);
+            BlobId objectHash = BlobId.FromBlob(data);
             IoHashKey key = IoHashKey.FromName("newObject");
             using HttpContent requestContent = new ByteArrayContent(data);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
@@ -778,7 +778,7 @@ namespace Jupiter.FunctionalTests.References
 
             const string objectContents = "This is treated as a opaque blob";
             byte[] data = Encoding.ASCII.GetBytes(objectContents);
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(data);
+            BlobId objectHash = BlobId.FromBlob(data);
             using HttpContent requestContent = new ByteArrayContent(data);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
             requestContent.Headers.Add(CommonHeaders.HashHeaderName, objectHash.ToString());
@@ -809,12 +809,12 @@ namespace Jupiter.FunctionalTests.References
         {
             string blobContents = "This is a string that is referenced as a blob";
             byte[] blobData = Encoding.ASCII.GetBytes(blobContents);
-            BlobIdentifier blobHash = BlobIdentifier.FromBlob(blobData);
+            BlobId blobHash = BlobId.FromBlob(blobData);
             await Service.PutObject(TestNamespace, blobData, blobHash);
 
             string blobContentsChild = "This string is also referenced as a blob but from a child object";
             byte[] dataChild = Encoding.ASCII.GetBytes(blobContentsChild);
-            BlobIdentifier blobHashChild = BlobIdentifier.FromBlob(dataChild);
+            BlobId blobHashChild = BlobId.FromBlob(dataChild);
             await Service.PutObject(TestNamespace, dataChild, blobHashChild);
 
             CbWriter writerChild = new CbWriter();
@@ -823,7 +823,7 @@ namespace Jupiter.FunctionalTests.References
             writerChild.EndObject();
 
             byte[] childDataObject = writerChild.ToByteArray();
-            BlobIdentifier childDataObjectHash = BlobIdentifier.FromBlob(childDataObject);
+            BlobId childDataObjectHash = BlobId.FromBlob(childDataObject);
             await Service.PutObject(TestNamespace, childDataObject, childDataObjectHash);
 
             CbWriter writerParent = new CbWriter();
@@ -834,7 +834,7 @@ namespace Jupiter.FunctionalTests.References
             writerParent.EndObject();
 
             byte[] objectData = writerParent.ToByteArray();
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(objectData);
+            BlobId objectHash = BlobId.FromBlob(objectData);
 
             IoHashKey key = IoHashKey.FromName("newHierarchyObject");
 
@@ -854,7 +854,7 @@ namespace Jupiter.FunctionalTests.References
                 byte[] roundTrippedBuffer = ms.ToArray();
                 CbObject cb = new CbObject(roundTrippedBuffer);
                 CbField needsField = cb["needs"];
-                List<BlobIdentifier> missingBlobs = needsField.AsArray().Select(field => BlobIdentifier.FromIoHash(field.AsHash())).ToList();
+                List<BlobId> missingBlobs = needsField.AsArray().Select(field => BlobId.FromIoHash(field.AsHash())).ToList();
                 Assert.AreEqual(0, missingBlobs.Count);
             }
 
@@ -880,12 +880,12 @@ namespace Jupiter.FunctionalTests.References
                 byte[] roundTrippedBuffer = ms.ToArray();
 
                 CollectionAssert.AreEqual(objectData, roundTrippedBuffer);
-                Assert.AreEqual(objectHash, BlobIdentifier.FromBlob(roundTrippedBuffer));
+                Assert.AreEqual(objectHash, BlobId.FromBlob(roundTrippedBuffer));
             }
 
             {
-                BlobIdentifier blobAttachment;
-                BlobIdentifier objectAttachment;
+                BlobId blobAttachment;
+                BlobId objectAttachment;
                 {
                     HttpResponseMessage getResponse = await _httpClient.GetAsync(new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}.uecb", UriKind.Relative));
                     getResponse.EnsureSuccessStatusCode();
@@ -899,10 +899,10 @@ namespace Jupiter.FunctionalTests.References
 
                     CbField blobAttachmentField = cb["blobAttachment"];
                     Assert.AreNotEqual(CbField.Empty, blobAttachmentField);
-                    blobAttachment = BlobIdentifier.FromIoHash(blobAttachmentField.AsBinaryAttachment());
+                    blobAttachment = BlobId.FromIoHash(blobAttachmentField.AsBinaryAttachment());
                     CbField objectAttachmentField = cb["objectAttachment"];
                     Assert.AreNotEqual(CbField.Empty, objectAttachmentField);
-                    objectAttachment = BlobIdentifier.FromIoHash(objectAttachmentField.AsObjectAttachment().Hash);
+                    objectAttachment = BlobId.FromIoHash(objectAttachmentField.AsObjectAttachment().Hash);
                 }
 
                 {
@@ -914,10 +914,10 @@ namespace Jupiter.FunctionalTests.References
                     string roundTrippedString = Encoding.ASCII.GetString(roundTrippedBuffer);
 
                     Assert.AreEqual(blobContents, roundTrippedString);
-                    Assert.AreEqual(blobHash, BlobIdentifier.FromBlob(roundTrippedBuffer));
+                    Assert.AreEqual(blobHash, BlobId.FromBlob(roundTrippedBuffer));
                 }
 
-                BlobIdentifier attachedBlobIdentifier;
+                BlobId attachedBlobIdentifier;
                 {
                     HttpResponseMessage getAttachment = await _httpClient.GetAsync(new Uri($"api/v1/blobs/{TestNamespace}/{objectAttachment}", UriKind.Relative));
                     getAttachment.EnsureSuccessStatusCode();
@@ -931,7 +931,7 @@ namespace Jupiter.FunctionalTests.References
                     CbField blobField = cb["blob"];
                     Assert.AreNotEqual(CbField.Empty, blobField);
 
-                    attachedBlobIdentifier = BlobIdentifier.FromIoHash(blobField!.AsBinaryAttachment());
+                    attachedBlobIdentifier = BlobId.FromIoHash(blobField!.AsBinaryAttachment());
                 }
 
                 {
@@ -943,7 +943,7 @@ namespace Jupiter.FunctionalTests.References
                     string roundTrippedString = Encoding.ASCII.GetString(roundTrippedBuffer);
 
                     Assert.AreEqual(blobContentsChild, roundTrippedString);
-                    Assert.AreEqual(blobHashChild, BlobIdentifier.FromBlob(roundTrippedBuffer));
+                    Assert.AreEqual(blobHashChild, BlobId.FromBlob(roundTrippedBuffer));
                 }
             }
 
@@ -958,8 +958,8 @@ namespace Jupiter.FunctionalTests.References
                 string s = Encoding.ASCII.GetString(roundTrippedBuffer);
                 JsonNode? node = JsonNode.Parse(s);
                 Assert.IsNotNull(node);
-                Assert.AreEqual(blobHash, new BlobIdentifier(node["blobAttachment"]!.GetValue<string>()));
-                Assert.AreEqual(childDataObjectHash, new BlobIdentifier(node["objectAttachment"]!.GetValue<string>()));
+                Assert.AreEqual(blobHash, new BlobId(node["blobAttachment"]!.GetValue<string>()));
+                Assert.AreEqual(childDataObjectHash, new BlobId(node["objectAttachment"]!.GetValue<string>()));
             }
         }
         
@@ -969,11 +969,11 @@ namespace Jupiter.FunctionalTests.References
             // do not submit the content of the blobs, which should be reported in the response of the put
             string blobContents = "This is a string that is referenced as a blob";
             byte[] blobData = Encoding.ASCII.GetBytes(blobContents);
-            BlobIdentifier blobHash = BlobIdentifier.FromBlob(blobData);
+            BlobId blobHash = BlobId.FromBlob(blobData);
 
             string blobContentsChild = "This string is also referenced as a blob but from a child object";
             byte[] dataChild = Encoding.ASCII.GetBytes(blobContentsChild);
-            BlobIdentifier blobHashChild = BlobIdentifier.FromBlob(dataChild);
+            BlobId blobHashChild = BlobId.FromBlob(dataChild);
 
             CbWriter writerChild = new CbWriter();
             writerChild.BeginObject();
@@ -981,7 +981,7 @@ namespace Jupiter.FunctionalTests.References
             writerChild.EndObject();
 
             byte[] childDataObject = writerChild.ToByteArray();
-            BlobIdentifier childDataObjectHash = BlobIdentifier.FromBlob(childDataObject);
+            BlobId childDataObjectHash = BlobId.FromBlob(childDataObject);
             await Service.PutObject(TestNamespace, childDataObject, childDataObjectHash);
 
             CbWriter writerParent = new CbWriter();
@@ -992,7 +992,7 @@ namespace Jupiter.FunctionalTests.References
             writerParent.EndObject();
 
             byte[] objectData = writerParent.ToByteArray();
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(objectData);
+            BlobId objectHash = BlobId.FromBlob(objectData);
             
             IoHashKey key = IoHashKey.FromName("newHierarchyObject");
 
@@ -1012,7 +1012,7 @@ namespace Jupiter.FunctionalTests.References
                     ReadOnlyMemory<byte> localMemory = new ReadOnlyMemory<byte>(roundTrippedBuffer);
                     CbObject cb = new CbObject(roundTrippedBuffer);
                     CbField needsField = cb["needs"];
-                    List<BlobIdentifier> missingBlobs = needsField.AsArray().Select(field => BlobIdentifier.FromIoHash(field.AsHash())).ToList();
+                    List<BlobId> missingBlobs = needsField.AsArray().Select(field => BlobId.FromIoHash(field.AsHash())).ToList();
                     Assert.AreEqual(2, missingBlobs.Count);
                     Assert.IsTrue(missingBlobs.Contains(blobHash));
                     Assert.IsTrue(missingBlobs.Contains(blobHashChild));
@@ -1037,7 +1037,7 @@ namespace Jupiter.FunctionalTests.References
                     PutObjectResponse? response = JsonSerializer.Deserialize<PutObjectResponse>(s, JsonTestUtils.DefaultJsonSerializerSettings);
                     Assert.IsNotNull(response);
 
-                    BlobIdentifier[] missingBlobs = response.Needs.Select(hash => new BlobIdentifier(hash.HashData)).ToArray();
+                    BlobId[] missingBlobs = response.Needs.Select(hash => new BlobId(hash.HashData)).ToArray();
 
                     Assert.AreEqual(2, missingBlobs.Length);
                     Assert.IsTrue(missingBlobs.Contains(blobHash));
@@ -1056,7 +1056,7 @@ namespace Jupiter.FunctionalTests.References
             // submit a object which contains a content id, which exists but points to a blob that does not exist
             string blobContents = "This is a string that is referenced as a blob";
             byte[] blobData = Encoding.ASCII.GetBytes(blobContents);
-            BlobIdentifier blobHash = BlobIdentifier.FromBlob(blobData);
+            BlobId blobHash = BlobId.FromBlob(blobData);
             ContentId contentId = new ContentId("0000000000000000000000000000000000000000");
 
             await contentIdStore.Put(TestNamespace, contentId, blobHash, blobData.Length);
@@ -1067,7 +1067,7 @@ namespace Jupiter.FunctionalTests.References
             writer.EndObject();
 
             byte[] objectData = writer.ToByteArray();
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(objectData);
+            BlobId objectHash = BlobId.FromBlob(objectData);
             
             IoHashKey key = IoHashKey.FromName("putContentIdMissingBlob");
 
@@ -1091,7 +1091,7 @@ namespace Jupiter.FunctionalTests.References
                     Assert.AreEqual(1, missingBlobs.Count);
 
                     Assert.AreNotEqual(blobHash, missingBlobs[0], "Refs should not be returning the mapped blob identifiers as this is unknown to the client attempting to put a new ref");
-                    Assert.AreEqual(contentId.AsBlobIdentifier(), BlobIdentifier.FromIoHash(missingBlobs[0]));
+                    Assert.AreEqual(contentId.AsBlobIdentifier(), BlobId.FromIoHash(missingBlobs[0]));
                 }
             }
 
@@ -1112,7 +1112,7 @@ namespace Jupiter.FunctionalTests.References
                     PutObjectResponse? response = JsonSerializer.Deserialize<PutObjectResponse>(s, JsonTestUtils.DefaultJsonSerializerSettings);
                     Assert.IsNotNull(response);
 
-                    BlobIdentifier[] missingBlobs = response.Needs.Select(field => new BlobIdentifier(field.HashData)).ToArray();
+                    BlobId[] missingBlobs = response.Needs.Select(field => new BlobId(field.HashData)).ToArray();
 
                     Assert.AreEqual(1, missingBlobs.Length);
                     Assert.AreEqual(contentId.AsBlobIdentifier(), missingBlobs[0]);
@@ -1126,7 +1126,7 @@ namespace Jupiter.FunctionalTests.References
         {
             string blobContents = "This is a string that is referenced as a blob but will not be uploaded";
             byte[] blobData = Encoding.ASCII.GetBytes(blobContents);
-            BlobIdentifier blobHash = BlobIdentifier.FromBlob(blobData);
+            BlobId blobHash = BlobId.FromBlob(blobData);
 
             CbWriter writer = new CbWriter();
             writer.BeginObject();
@@ -1140,7 +1140,7 @@ namespace Jupiter.FunctionalTests.References
             writer.EndObject();
 
             byte[] objectData = writer.ToByteArray();
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(objectData);
+            BlobId objectHash = BlobId.FromBlob(objectData);
 
             IoHashKey key = IoHashKey.FromName("putContentIdMissingBlobComplex");
 
@@ -1177,11 +1177,11 @@ namespace Jupiter.FunctionalTests.References
             // do not submit the content of the blobs, which should be reported in the response of the put
             string blobContents = "This is a string that is referenced as a blob";
             byte[] blobData = Encoding.ASCII.GetBytes(blobContents);
-            BlobIdentifier blobHash = BlobIdentifier.FromBlob(blobData);
+            BlobId blobHash = BlobId.FromBlob(blobData);
 
             string blobContentsChild = "This string is also referenced as a blob but from a child object";
             byte[] dataChild = Encoding.ASCII.GetBytes(blobContentsChild);
-            BlobIdentifier blobHashChild = BlobIdentifier.FromBlob(dataChild);
+            BlobId blobHashChild = BlobId.FromBlob(dataChild);
 
             CbWriter writerChild = new CbWriter();
             writerChild.BeginObject();
@@ -1189,7 +1189,7 @@ namespace Jupiter.FunctionalTests.References
             writerChild.EndObject();
 
             byte[] childDataObject = writerChild.ToByteArray();
-            BlobIdentifier childDataObjectHash = BlobIdentifier.FromBlob(childDataObject);
+            BlobId childDataObjectHash = BlobId.FromBlob(childDataObject);
             await Service.PutObject(TestNamespace, childDataObject, childDataObjectHash);
 
             CbWriter writerParent = new CbWriter();
@@ -1200,7 +1200,7 @@ namespace Jupiter.FunctionalTests.References
             writerParent.EndObject();
 
             byte[] objectData = writerParent.ToByteArray();
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(objectData);
+            BlobId objectHash = BlobId.FromBlob(objectData);
 
             {
                 using HttpContent requestContent = new ByteArrayContent(objectData);
@@ -1217,7 +1217,7 @@ namespace Jupiter.FunctionalTests.References
                     byte[] roundTrippedBuffer = ms.ToArray();
                     CbObject cb = new CbObject(roundTrippedBuffer);
                     CbField needsField = cb["needs"];
-                    List<BlobIdentifier> missingBlobs = needsField.AsArray().Select(field => BlobIdentifier.FromIoHash(field.AsHash())).ToList();
+                    List<BlobId> missingBlobs = needsField.AsArray().Select(field => BlobId.FromIoHash(field.AsHash())).ToList();
                     Assert.AreEqual(2, missingBlobs.Count);
                     Assert.IsTrue(missingBlobs.Contains(blobHash));
                     Assert.IsTrue(missingBlobs.Contains(blobHashChild));
@@ -1255,7 +1255,7 @@ namespace Jupiter.FunctionalTests.References
                     ReadOnlyMemory<byte> localMemory = new ReadOnlyMemory<byte>(roundTrippedBuffer);
                     CbObject cb = new CbObject(roundTrippedBuffer);
                     CbField? needsField = cb["needs"];
-                    List<BlobIdentifier> missingBlobs = needsField.AsArray().Select(field => BlobIdentifier.FromIoHash(field.AsHash())).ToList();
+                    List<BlobId> missingBlobs = needsField.AsArray().Select(field => BlobId.FromIoHash(field.AsHash())).ToList();
                     Assert.AreEqual(0, missingBlobs.Count);
                 }
             }
@@ -1275,18 +1275,18 @@ namespace Jupiter.FunctionalTests.References
         {
             string blobContents = "This is a blob";
             byte[] blobData = Encoding.ASCII.GetBytes(blobContents);
-            BlobIdentifier uncompressedHash = BlobIdentifier.FromBlob(blobData);
+            BlobId uncompressedHash = BlobId.FromBlob(blobData);
             IoHashKey key = IoHashKey.FromName("compressedObject");
 
             CompressedBufferUtils bufferUtils = _server!.Services.GetService<CompressedBufferUtils>()!;
             using MemoryStream compressedStream = new MemoryStream();
             bufferUtils.CompressContent(compressedStream, OoodleCompressorMethod.Mermaid, OoodleCompressionLevel.VeryFast, blobData);
             byte[] compressedBuffer = compressedStream.ToArray();
-            BlobIdentifier compressedHash = BlobIdentifier.FromBlob(compressedBuffer);
+            BlobId compressedHash = BlobId.FromBlob(compressedBuffer);
 
             CbObject cbObject = CbObject.Build(writer => writer.WriteBinaryAttachment("Attachment", uncompressedHash.AsIoHash()));
             byte[] cbObjectData = cbObject.GetView().ToArray();
-            BlobIdentifier cbObjectHash = BlobIdentifier.FromBlob(cbObjectData);
+            BlobId cbObjectHash = BlobId.FromBlob(cbObjectData);
 
             {
                 // upload compressed blob
@@ -1314,7 +1314,7 @@ namespace Jupiter.FunctionalTests.References
                     byte[] roundTrippedBuffer = ms.ToArray();
                     CbObject cb = new CbObject(roundTrippedBuffer);
                     CbField needsField = cb["needs"];
-                    List<BlobIdentifier> missingBlobs = needsField.AsArray().Select(field => BlobIdentifier.FromIoHash(field.AsHash())).ToList();
+                    List<BlobId> missingBlobs = needsField.AsArray().Select(field => BlobId.FromIoHash(field.AsHash())).ToList();
                     Assert.AreEqual(0, missingBlobs.Count);
                 }
             }
@@ -1329,7 +1329,7 @@ namespace Jupiter.FunctionalTests.References
                 byte[] roundTrippedBuffer = ms.ToArray();
 
                 CollectionAssert.AreEqual(cbObjectData, roundTrippedBuffer);
-                Assert.AreEqual(cbObjectHash, BlobIdentifier.FromBlob(roundTrippedBuffer));
+                Assert.AreEqual(cbObjectHash, BlobId.FromBlob(roundTrippedBuffer));
             }
 
             {
@@ -1385,12 +1385,12 @@ namespace Jupiter.FunctionalTests.References
         {
             CbObject cbObjectAttachment = CbObject.Build(writer => writer.WriteString("ValueField", "This field has a value"));
             byte[] cbAttachmentData = cbObjectAttachment.GetView().ToArray();
-            BlobIdentifier cbAttachmentHash = BlobIdentifier.FromBlob(cbAttachmentData);
+            BlobId cbAttachmentHash = BlobId.FromBlob(cbAttachmentData);
             IoHashKey key = IoHashKey.FromName("compressedAttachedObject");
 
             CbObject cbObject = CbObject.Build(writer => writer.WriteObjectAttachment("Attachment", cbAttachmentHash.AsIoHash()));
             byte[] cbObjectData = cbObject.GetView().ToArray();
-            BlobIdentifier cbObjectHash = BlobIdentifier.FromBlob(cbObjectData);
+            BlobId cbObjectHash = BlobId.FromBlob(cbObjectData);
 
             {
                 // upload compressed blob
@@ -1418,7 +1418,7 @@ namespace Jupiter.FunctionalTests.References
                     byte[] roundTrippedBuffer = ms.ToArray();
                     CbObject cb = new CbObject(roundTrippedBuffer);
                     CbField needsField = cb["needs"];
-                    List<BlobIdentifier> missingBlobs = needsField.AsArray().Select(field => BlobIdentifier.FromIoHash(field.AsHash())).ToList();
+                    List<BlobId> missingBlobs = needsField.AsArray().Select(field => BlobId.FromIoHash(field.AsHash())).ToList();
                     Assert.AreEqual(0, missingBlobs.Count);
                 }
             }
@@ -1433,7 +1433,7 @@ namespace Jupiter.FunctionalTests.References
                 byte[] roundTrippedBuffer = ms.ToArray();
 
                 CollectionAssert.AreEqual(cbObjectData, roundTrippedBuffer);
-                Assert.AreEqual(cbObjectHash, BlobIdentifier.FromBlob(roundTrippedBuffer));
+                Assert.AreEqual(cbObjectHash, BlobId.FromBlob(roundTrippedBuffer));
             }
 
             {
@@ -1489,7 +1489,7 @@ namespace Jupiter.FunctionalTests.References
         {
             string blobContents = "This is a blob";
             byte[] blobData = Encoding.ASCII.GetBytes(blobContents);
-            BlobIdentifier blobHash = BlobIdentifier.FromBlob(blobData);
+            BlobId blobHash = BlobId.FromBlob(blobData);
             IoHashKey key = IoHashKey.FromName("newReferenceObject");
 
             using HttpContent requestContent = new ByteArrayContent(blobData);
@@ -1507,7 +1507,7 @@ namespace Jupiter.FunctionalTests.References
                 byte[] roundTrippedBuffer = ms.ToArray();
                 CbObject cb = new CbObject(roundTrippedBuffer);
                 CbField needsField = cb["needs"];
-                List<BlobIdentifier> missingBlobs = needsField.AsArray().Select(field => BlobIdentifier.FromIoHash(field.AsHash())).ToList();
+                List<BlobId> missingBlobs = needsField.AsArray().Select(field => BlobId.FromIoHash(field.AsHash())).ToList();
                 Assert.AreEqual(0, missingBlobs.Count);
             }
 
@@ -1521,7 +1521,7 @@ namespace Jupiter.FunctionalTests.References
                 byte[] roundTrippedBuffer = ms.ToArray();
 
                 CollectionAssert.AreEqual(blobData, roundTrippedBuffer);
-                Assert.AreEqual(blobHash, BlobIdentifier.FromBlob(roundTrippedBuffer));
+                Assert.AreEqual(blobHash, BlobId.FromBlob(roundTrippedBuffer));
             }
 
             {
@@ -1594,7 +1594,7 @@ namespace Jupiter.FunctionalTests.References
         {
             const string objectContents = "This is treated as a opaque blob";
             byte[] data = Encoding.ASCII.GetBytes(objectContents);
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(data);
+            BlobId objectHash = BlobId.FromBlob(data);
 
             using HttpContent requestContent = new ByteArrayContent(data);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
@@ -1640,7 +1640,7 @@ namespace Jupiter.FunctionalTests.References
 
             const string objectContents = "This is treated as a opaque blob";
             byte[] data = Encoding.ASCII.GetBytes(objectContents);
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(data);
+            BlobId objectHash = BlobId.FromBlob(data);
 
             using HttpContent requestContent = new ByteArrayContent(data);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
@@ -1698,7 +1698,7 @@ namespace Jupiter.FunctionalTests.References
 
             const string objectContents = "This is treated as a opaque blob";
             byte[] data = Encoding.ASCII.GetBytes(objectContents);
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(data);
+            BlobId objectHash = BlobId.FromBlob(data);
 
             using HttpContent requestContent = new ByteArrayContent(data);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
@@ -1763,7 +1763,7 @@ namespace Jupiter.FunctionalTests.References
         {
             const string objectContents = "This is treated as a opaque blob";
             byte[] data = Encoding.ASCII.GetBytes(objectContents);
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(data);
+            BlobId objectHash = BlobId.FromBlob(data);
             IoHashKey key = IoHashKey.FromName("notUsedObject");
 
             using HttpContent requestContent = new ByteArrayContent(data);
@@ -1791,7 +1791,7 @@ namespace Jupiter.FunctionalTests.References
         {
             const string objectContents = "This is treated as a opaque blob";
             byte[] data = Encoding.ASCII.GetBytes(objectContents);
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(data);
+            BlobId objectHash = BlobId.FromBlob(data);
 
             using HttpContent requestContent = new ByteArrayContent(data);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
@@ -1908,7 +1908,7 @@ namespace Jupiter.FunctionalTests.References
 
             {
                 byte[] cbObjectBytes = newBlobObject.GetView().ToArray();
-                BlobIdentifier blobHash = BlobIdentifier.FromBlob(cbObjectBytes);
+                BlobId blobHash = BlobId.FromBlob(cbObjectBytes);
 
                 using HttpContent requestContent = new ByteArrayContent(cbObjectBytes);
                 requestContent.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompactBinary);
@@ -1927,7 +1927,7 @@ namespace Jupiter.FunctionalTests.References
             IoHashKey newReferenceObjectKey = IoHashKey.FromName("newReferenceObject");
 
             {
-                BlobIdentifier blobHash = BlobIdentifier.FromBlob(blobContents);
+                BlobId blobHash = BlobId.FromBlob(blobContents);
 
                 using HttpContent requestContent = new ByteArrayContent(blobContents);
                 requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
@@ -1942,7 +1942,7 @@ namespace Jupiter.FunctionalTests.References
             IoHashKey missingAttachmentKey = IoHashKey.FromName("blobMissingAttachment");
 
             {
-                BlobIdentifier blobHash = BlobIdentifier.FromBlob(blobContents);
+                BlobId blobHash = BlobId.FromBlob(blobContents);
 
                 using HttpContent requestContent = new ByteArrayContent(blobContents);
                 requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
@@ -1954,7 +1954,7 @@ namespace Jupiter.FunctionalTests.References
 
             {
                 byte[] cbObjectBytes = newReferenceObject.GetView().ToArray();
-                BlobIdentifier blobHash = BlobIdentifier.FromBlob(cbObjectBytes);
+                BlobId blobHash = BlobId.FromBlob(cbObjectBytes);
 
                 using HttpContent requestContent = new ByteArrayContent(cbObjectBytes);
                 requestContent.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompactBinary);
@@ -2053,7 +2053,7 @@ namespace Jupiter.FunctionalTests.References
 
             {
                 byte[] cbObjectBytes = newBlobObject.GetView().ToArray();
-                BlobIdentifier blobHash = BlobIdentifier.FromBlob(cbObjectBytes);
+                BlobId blobHash = BlobId.FromBlob(cbObjectBytes);
 
                 using HttpContent requestContent = new ByteArrayContent(cbObjectBytes);
                 requestContent.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompactBinary);
@@ -2072,7 +2072,7 @@ namespace Jupiter.FunctionalTests.References
             IoHashKey newReferenceObjectKey = IoHashKey.FromName("newReferenceObject");
 
             {
-                BlobIdentifier blobHash = BlobIdentifier.FromBlob(blobContents);
+                BlobId blobHash = BlobId.FromBlob(blobContents);
 
                 using HttpContent requestContent = new ByteArrayContent(blobContents);
                 requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
@@ -2084,7 +2084,7 @@ namespace Jupiter.FunctionalTests.References
 
             {
                 byte[] cbObjectBytes = newReferenceObject.GetView().ToArray();
-                BlobIdentifier blobHash = BlobIdentifier.FromBlob(cbObjectBytes);
+                BlobId blobHash = BlobId.FromBlob(cbObjectBytes);
 
                 using HttpContent requestContent = new ByteArrayContent(cbObjectBytes);
                 requestContent.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompactBinary);
@@ -2249,7 +2249,7 @@ namespace Jupiter.FunctionalTests.References
 
             {
                 byte[] cbObjectBytes = getObject.GetView().ToArray();
-                BlobIdentifier blobHash = BlobIdentifier.FromBlob(cbObjectBytes);
+                BlobId blobHash = BlobId.FromBlob(cbObjectBytes);
 
                 using HttpContent requestContent = new ByteArrayContent(cbObjectBytes);
                 requestContent.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompactBinary);

@@ -38,13 +38,13 @@ namespace Jupiter.UnitTests
         private readonly MemoryBlobStore _third = new MemoryBlobStore(throwOnOverwrite: false);
         private BlobService _chained = null!;
         
-        private readonly BlobIdentifier _onlyFirstId = new BlobIdentifier(new string('1', 40));
-        private readonly BlobIdentifier _onlySecondId = new BlobIdentifier(new string('2', 40));
-        private readonly BlobIdentifier _onlyThirdId = new BlobIdentifier(new string('3', 40));
-        private readonly BlobIdentifier _allId = new BlobIdentifier(new string('4', 40));
-        private readonly BlobIdentifier _onlyFirstUniqueNsId = new BlobIdentifier(new string('5', 40));
-        private readonly BlobIdentifier _onlySecondUniqueNsId = new BlobIdentifier(new string('6', 40));
-        private readonly BlobIdentifier _nonExisting = new BlobIdentifier(new string('0', 40));
+        private readonly BlobId _onlyFirstId = new BlobId(new string('1', 40));
+        private readonly BlobId _onlySecondId = new BlobId(new string('2', 40));
+        private readonly BlobId _onlyThirdId = new BlobId(new string('3', 40));
+        private readonly BlobId _allId = new BlobId(new string('4', 40));
+        private readonly BlobId _onlyFirstUniqueNsId = new BlobId(new string('5', 40));
+        private readonly BlobId _onlySecondUniqueNsId = new BlobId(new string('6', 40));
+        private readonly BlobId _nonExisting = new BlobId(new string('0', 40));
 
         public HierarchicalBlobStorageTest()
         {
@@ -82,7 +82,7 @@ namespace Jupiter.UnitTests
         [TestMethod]
         public async Task PutObject()
         {
-            BlobIdentifier new1 = new BlobIdentifier("A418A2821A76B110092C9745151E112253F7999B");
+            BlobId new1 = new BlobId("A418A2821A76B110092C9745151E112253F7999B");
             Assert.IsFalse(await _chained.Exists(Ns, new1));
             await _chained.PutObject(Ns, Encoding.ASCII.GetBytes("new1"), new1);
             Assert.IsTrue(await _chained.Exists(Ns, new1));

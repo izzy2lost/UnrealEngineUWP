@@ -69,7 +69,7 @@ namespace Jupiter.Controllers
 			}
 
 			ReplicationLogSnapshotBuilder builder = ActivatorUtilities.CreateInstance<ReplicationLogSnapshotBuilder>(_provider);
-			BlobIdentifier snapshotBlob = await builder.BuildSnapshot(ns, _snapshotSettings.CurrentValue.SnapshotStorageNamespace, CancellationToken.None);
+			BlobId snapshotBlob = await builder.BuildSnapshot(ns, _snapshotSettings.CurrentValue.SnapshotStorageNamespace, CancellationToken.None);
 			return Ok(new SnapshotCreatedResponse(snapshotBlob));
 		}
 
@@ -143,13 +143,13 @@ namespace Jupiter.Controllers
 			SnapshotBlobId = null!;
 		}
 
-		public SnapshotCreatedResponse(BlobIdentifier snapshotBlob)
+		public SnapshotCreatedResponse(BlobId snapshotBlob)
 		{
 			SnapshotBlobId = snapshotBlob;
 		}
 
 		[CbField("snapshotBlobId")]
-		public BlobIdentifier SnapshotBlobId { get; set; }
+		public BlobId SnapshotBlobId { get; set; }
 	}
 
 	public class ReplicationLogSnapshots

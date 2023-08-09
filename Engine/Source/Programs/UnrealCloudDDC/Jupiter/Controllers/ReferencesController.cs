@@ -203,7 +203,7 @@ namespace Jupiter.Controllers
 
 							IoHash hash = binaryAttachmentField.AsBinaryAttachment();
 
-							BlobContents referencedBlobContents = await _blobStore.GetObject(ns, BlobIdentifier.FromIoHash(hash));
+							BlobContents referencedBlobContents = await _blobStore.GetObject(ns, BlobId.FromIoHash(hash));
 
 							if (_nginxRedirectHelper.CanRedirect(Request, referencedBlobContents))
 							{
@@ -253,13 +253,13 @@ namespace Jupiter.Controllers
 								BlobContents attachmentContents;
 								if (attachment is BlobAttachment blobAttachment)
 								{
-									BlobIdentifier referencedBlob = blobAttachment.Identifier;
+									BlobId referencedBlob = blobAttachment.Identifier;
 									attachmentContents = await _blobStore.GetObject(ns, referencedBlob);
 								}
 								else if (attachment is ObjectAttachment objectAttachment)
 								{
 									flags |= CbPackageAttachmentFlags.IsObject;
-									BlobIdentifier referencedBlob = objectAttachment.Identifier;
+									BlobId referencedBlob = objectAttachment.Identifier;
 									attachmentContents = await _blobStore.GetObject(ns, referencedBlob);
 								}
 								else if (attachment is ContentIdAttachment contentIdAttachment)
@@ -335,10 +335,10 @@ namespace Jupiter.Controllers
 						if (countOfBinaryAttachmentFields == 1 && countOfAttachmentFields == 1)
 						{
 							// fetch the blob so we can resolve any content ids in it
-							List<BlobIdentifier> referencedBlobs;
+							List<BlobId> referencedBlobs;
 							try
 							{
-								IAsyncEnumerable<BlobIdentifier> referencedBlobsEnumerable = _referenceResolver.GetReferencedBlobs(ns, cb);
+								IAsyncEnumerable<BlobId> referencedBlobsEnumerable = _referenceResolver.GetReferencedBlobs(ns, cb);
 								referencedBlobs = await referencedBlobsEnumerable.ToListAsync();
 							}
 							catch (PartialReferenceResolveException)
@@ -352,7 +352,7 @@ namespace Jupiter.Controllers
 
 							if (referencedBlobs.Count == 1)
 							{
-								BlobIdentifier attachmentToSend = referencedBlobs.First();
+								BlobId attachmentToSend = referencedBlobs.First();
 								try
 								{
 									BlobContents referencedBlobContents = await _blobStore.GetObject(ns, attachmentToSend);
@@ -506,12 +506,12 @@ namespace Jupiter.Controllers
 				byte[] blobContents = await blob.Stream.ToByteArray();
 				CbObject compactBinaryObject = new CbObject(blobContents);
 				// the reference resolver will throw if any blob is missing, so no need to do anything other then process each reference
-				IAsyncEnumerable<BlobIdentifier> references = _referenceResolver.GetReferencedBlobs(ns, compactBinaryObject);
-				List<BlobIdentifier>? _ = await references.ToListAsync();
+				IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobs(ns, compactBinaryObject);
+				List<BlobId>? _ = await references.ToListAsync();
 
 				// we have to verify the blobs are available locally, as the record of the key is replicated a head of the content
 				// TODO: Once we support inline replication this step is not needed as at least one region as this blob, just maybe not this current one
-				BlobIdentifier[] unknownBlobs = await _blobStore.FilterOutKnownBlobs(ns, new BlobIdentifier[] { record.BlobIdentifier });
+				BlobId[] unknownBlobs = await _blobStore.FilterOutKnownBlobs(ns, new BlobId[] { record.BlobIdentifier });
 				if (unknownBlobs.Length != 0)
 				{
 					return NotFound(new ProblemDetails {Title = $"Object {bucket} {key} in namespace {ns} had at least one missing blob."});
@@ -584,8 +584,8 @@ namespace Jupiter.Controllers
 					byte[] blobContents = await blob.Stream.ToByteArray();
 					CbObject cb = new CbObject(blobContents);
 					// the reference resolver will throw if any blob is missing, so no need to do anything other then process each reference
-					IAsyncEnumerable<BlobIdentifier> references = _referenceResolver.GetReferencedBlobs(ns, cb);
-					List<BlobIdentifier>? _ = await references.ToListAsync();
+					IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobs(ns, cb);
+					List<BlobId>? _ = await references.ToListAsync();
 				}
 				catch (ObjectNotFoundException)
 				{
@@ -625,16 +625,16 @@ namespace Jupiter.Controllers
 			_diagnosticContext.Set("Content-Length", Request.ContentLength ?? -1);
 
 			CbObject payloadObject;
-			BlobIdentifier blobHeader;
+			BlobId blobHeader;
 
 			try
 			{
 				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
 
-				BlobIdentifier headerHash;
+				BlobId headerHash;
 				if (Request.Headers.ContainsKey(CommonHeaders.HashHeaderName))
 				{
-					headerHash = new BlobIdentifier(Request.Headers[CommonHeaders.HashHeaderName]);
+					headerHash = new BlobId(Request.Headers[CommonHeaders.HashHeaderName]);
 				}
 				else
 				{
@@ -662,7 +662,7 @@ namespace Jupiter.Controllers
 
 						byte[] blob = writer.ToByteArray();
 						payloadObject = new CbObject(blob);
-						blobHeader = BlobIdentifier.FromBlob(blob);
+						blobHeader = BlobId.FromBlob(blob);
 						break;
 					}
 					case CustomMediaTypeNames.UnrealCompactBinary:
@@ -685,7 +685,7 @@ namespace Jupiter.Controllers
 
 						byte[] blob = writer.ToByteArray();
 						payloadObject = new CbObject(blob);
-						blobHeader = BlobIdentifier.FromBlob(blob);
+						blobHeader = BlobId.FromBlob(blob);
 						break;
 					}
 					default:
@@ -704,7 +704,7 @@ namespace Jupiter.Controllers
 				return Problem(e.Message, null, (int)HttpStatusCode.RequestTimeout);
 			}
 
-			(ContentId[] missingReferences, BlobIdentifier[] missingBlobs) = await _objectService.Put(ns, bucket, key, blobHeader, payloadObject);
+			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _objectService.Put(ns, bucket, key, blobHeader, payloadObject);
 
 			List<ContentHash> missingHashes = new List<ContentHash>(missingReferences);
 			missingHashes.AddRange(missingBlobs);
@@ -750,7 +750,7 @@ namespace Jupiter.Controllers
 					}
 					else
 					{
-						await _blobStore.PutObject(ns, blob, BlobIdentifier.FromIoHash(entry.AttachmentHash));
+						await _blobStore.PutObject(ns, blob, BlobId.FromIoHash(entry.AttachmentHash));
 					}
 				}
 			}
@@ -763,9 +763,9 @@ namespace Jupiter.Controllers
 			}
 			
 			CbObject rootObject = packageReader.RootObject;
-			BlobIdentifier rootObjectHash = BlobIdentifier.FromIoHash(packageReader.RootHash);
+			BlobId rootObjectHash = BlobId.FromIoHash(packageReader.RootHash);
 
-			(ContentId[] missingReferences, BlobIdentifier[] missingBlobs) = await _objectService.Put(ns, bucket, key, rootObjectHash, rootObject);
+			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _objectService.Put(ns, bucket, key, rootObjectHash, rootObject);
 
 			List<ContentHash> missingHashes = new List<ContentHash>(missingReferences);
 			missingHashes.AddRange(missingBlobs);
@@ -777,7 +777,7 @@ namespace Jupiter.Controllers
 			[FromRoute] [Required] NamespaceId ns,
 			[FromRoute] [Required] BucketId bucket,
 			[FromRoute] [Required] IoHashKey key,
-			[FromRoute] [Required] BlobIdentifier hash)
+			[FromRoute] [Required] BlobId hash)
 		{
 			ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteObject });
 			if (accessResult != null)
@@ -787,7 +787,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				(ContentId[] missingReferences, BlobIdentifier[] missingBlobs) = await _objectService.Finalize(ns, bucket, key, hash);
+				(ContentId[] missingReferences, BlobId[] missingBlobs) = await _objectService.Finalize(ns, bucket, key, hash);
 				List<ContentHash> missingHashes = new List<ContentHash>(missingReferences);
 				missingHashes.AddRange(missingBlobs);
 
@@ -864,8 +864,8 @@ namespace Jupiter.Controllers
 
 					if (op.ResolveAttachments ?? false)
 					{
-						IAsyncEnumerable<BlobIdentifier> references = _referenceResolver.GetReferencedBlobs(ns, cb);
-						List<BlobIdentifier>? _ = await references.ToListAsync();
+						IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobs(ns, cb);
+						List<BlobId>? _ = await references.ToListAsync();
 					}
 
 					return (cb, HttpStatusCode.OK);
@@ -898,8 +898,8 @@ namespace Jupiter.Controllers
 						byte[] blobContents = await blob.Stream.ToByteArray();
 						CbObject cb = new CbObject(blobContents);
 						// the reference resolver will throw if any blob is missing, so no need to do anything other then process each reference
-						IAsyncEnumerable<BlobIdentifier> references = _referenceResolver.GetReferencedBlobs(ns, cb);
-						List<BlobIdentifier>? _ = await references.ToListAsync();
+						IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobs(ns, cb);
+						List<BlobId>? _ = await references.ToListAsync();
 					}
 
 					if (blob == null)
@@ -932,15 +932,15 @@ namespace Jupiter.Controllers
 					{
 						throw new Exception($"Missing payload hash for operation: {op.OpId}");
 					}
-					BlobIdentifier headerHash = BlobIdentifier.FromContentHash(op.PayloadHash);
-					BlobIdentifier objectHash = BlobIdentifier.FromBlob(op.Payload.GetView().ToArray());
+					BlobId headerHash = BlobId.FromContentHash(op.PayloadHash);
+					BlobId objectHash = BlobId.FromBlob(op.Payload.GetView().ToArray());
 
 					if (!headerHash.Equals(objectHash))
 					{
 						throw new HashMismatchException(headerHash, objectHash);
 					}
 
-					(ContentId[] missingReferences, BlobIdentifier[] missingBlobs) = await _objectService.Put(ns, op.Bucket, op.Key, objectHash, op.Payload);
+					(ContentId[] missingReferences, BlobId[] missingBlobs) = await _objectService.Put(ns, op.Bucket, op.Key, objectHash, op.Payload);
 					List<ContentHash> missingHashes = new List<ContentHash>(missingReferences);
 
 					return (CbSerializer.Serialize(new PutObjectResponse(missingHashes.ToArray())), HttpStatusCode.OK);
@@ -1231,7 +1231,7 @@ namespace Jupiter.Controllers
 		}
 
 		[JsonConstructor]
-		public RefMetadataResponse(NamespaceId ns, BucketId bucket, IoHashKey name, BlobIdentifier payloadIdentifier, DateTime lastAccess, bool isFinalized, byte[]? inlinePayload)
+		public RefMetadataResponse(NamespaceId ns, BucketId bucket, IoHashKey name, BlobId payloadIdentifier, DateTime lastAccess, bool isFinalized, byte[]? inlinePayload)
 		{
 			Ns = ns;
 			Bucket = bucket;
@@ -1263,7 +1263,7 @@ namespace Jupiter.Controllers
 		public IoHashKey Name { get; set; }
 
 		[CbField("payloadIdentifier")]
-		public BlobIdentifier PayloadIdentifier { get; set; }
+		public BlobId PayloadIdentifier { get; set; }
 
 		[CbField("lastAccess")]
 		public DateTime LastAccess { get; set; }

@@ -26,7 +26,7 @@ namespace Jupiter.FunctionalTests.Storage
     {
         protected const string FileContents = "This is some random contents";
 
-        protected BlobIdentifier FileContentsHash { get; } = BlobIdentifier.FromBlob(Encoding.ASCII.GetBytes(FileContents));
+        protected BlobId FileContentsHash { get; } = BlobId.FromBlob(Encoding.ASCII.GetBytes(FileContents));
 
         protected NamespaceId TestNamespaceName { get; } = new NamespaceId("testbucket");
         protected TestServer? Server { get; set; }

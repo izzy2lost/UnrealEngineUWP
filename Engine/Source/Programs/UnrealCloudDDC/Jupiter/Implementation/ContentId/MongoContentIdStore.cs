@@ -35,7 +35,7 @@ namespace Jupiter.Implementation
 			AddIndexFor<MongoContentIdModelV0>().CreateOne(indexModel);
 		}
 
-		public async Task<BlobIdentifier[]?> Resolve(NamespaceId ns, ContentId contentId, bool mustBeContentId)
+		public async Task<BlobId[]?> Resolve(NamespaceId ns, ContentId contentId, bool mustBeContentId)
 		{
 			IMongoCollection<MongoContentIdModelV0> collection = GetCollection<MongoContentIdModelV0>();
 
@@ -47,10 +47,10 @@ namespace Jupiter.Implementation
 			{
 				foreach (int weight in model.ContentWeightToBlobsMap.Keys.OrderBy(contentWeight => contentWeight))
 				{
-					BlobIdentifier[] blobs = model.ContentWeightToBlobsMap[weight].Select(s => new BlobIdentifier(s)).ToArray();
+					BlobId[] blobs = model.ContentWeightToBlobsMap[weight].Select(s => new BlobId(s)).ToArray();
 
 					{
-						BlobIdentifier[] missingBlobs = await _blobStore.FilterOutKnownBlobs(ns, blobs);
+						BlobId[] missingBlobs = await _blobStore.FilterOutKnownBlobs(ns, blobs);
 						if (missingBlobs.Length == 0)
 						{
 							return blobs;
@@ -61,7 +61,7 @@ namespace Jupiter.Implementation
 				}
 			}
 
-			BlobIdentifier contentIdAsBlobIdentifier = contentId.AsBlobIdentifier();
+			BlobId contentIdAsBlobIdentifier = contentId.AsBlobIdentifier();
 			// no content id where all blobs are present, check if its present in the blob store as a uncompressed version of the blob
 			if (!mustBeContentId && await _blobStore.Exists(ns, contentIdAsBlobIdentifier))
 			{
@@ -71,7 +71,7 @@ namespace Jupiter.Implementation
 			return null;
 		}
 
-		public async Task Put(NamespaceId ns, ContentId contentId, BlobIdentifier blobIdentifier, int contentWeight)
+		public async Task Put(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
 		{
 			IMongoCollection<MongoContentIdModelV0> collection = GetCollection<MongoContentIdModelV0>();
 
@@ -98,7 +98,7 @@ namespace Jupiter.Implementation
 			ContentWeightToBlobsMap = contentWeightToBlobsMap;
 		}
 
-		public MongoContentIdModelV0(NamespaceId ns, ContentId contentId, int contentWeight, BlobIdentifier[] blobs)
+		public MongoContentIdModelV0(NamespaceId ns, ContentId contentId, int contentWeight, BlobId[] blobs)
 		{
 			Ns = ns.ToString();
 			ContentId = contentId.ToString();

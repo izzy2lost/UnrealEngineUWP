@@ -41,13 +41,13 @@ namespace Jupiter.FunctionalTests.GC
     {
         private TestServer? _server;
 
-        private readonly BlobIdentifier object0id = new BlobIdentifier("0000000000000000000000000000000000000000");
-        private readonly BlobIdentifier object1id = new BlobIdentifier("1111111111111111111111111111111111111111");
-        private readonly BlobIdentifier object2id = new BlobIdentifier("2222222222222222222222222222222222222222");
-        private readonly BlobIdentifier object3id = new BlobIdentifier("3333333333333333333333333333333333333333");
-        private readonly BlobIdentifier object4id = new BlobIdentifier("4444444444444444444444444444444444444444");
-        private readonly BlobIdentifier object5id = new BlobIdentifier("5555555555555555555555555555555555555555");
-        private readonly BlobIdentifier object6id = new BlobIdentifier("6666666666666666666666666666666666666666");
+        private readonly BlobId object0id = new BlobId("0000000000000000000000000000000000000000");
+        private readonly BlobId object1id = new BlobId("1111111111111111111111111111111111111111");
+        private readonly BlobId object2id = new BlobId("2222222222222222222222222222222222222222");
+        private readonly BlobId object3id = new BlobId("3333333333333333333333333333333333333333");
+        private readonly BlobId object4id = new BlobId("4444444444444444444444444444444444444444");
+        private readonly BlobId object5id = new BlobId("5555555555555555555555555555555555555555");
+        private readonly BlobId object6id = new BlobId("6666666666666666666666666666666666666666");
         private IBlobService? _blobService;
 
         private readonly NamespaceId TestNamespace = new NamespaceId("test-namespace");
@@ -105,16 +105,16 @@ namespace Jupiter.FunctionalTests.GC
             BucketId testBucket = new BucketId("test");
             IObjectService? objectService = server.Services.GetService<IObjectService>()!;
             Assert.IsNotNull(objectService);
-            (BlobIdentifier ob0_hash, CbObject ob0_cb) = GetCBWithAttachment(object0id);
+            (BlobId ob0_hash, CbObject ob0_cb) = GetCBWithAttachment(object0id);
             await objectService.Put(TestNamespace, testBucket, IoHashKey.FromName("object0"), ob0_hash, ob0_cb);
            
-            (BlobIdentifier ob2_hash, CbObject ob2_cb) = GetCBWithAttachment(object2id);
+            (BlobId ob2_hash, CbObject ob2_cb) = GetCBWithAttachment(object2id);
             await objectService.Put(TestNamespace, testBucket, IoHashKey.FromName("object2"), ob2_hash, ob2_cb);
 
-            (BlobIdentifier ob3_hash, CbObject ob3_cb) = GetCBWithAttachment(object3id);
+            (BlobId ob3_hash, CbObject ob3_cb) = GetCBWithAttachment(object3id);
             await objectService.Put(TestNamespace, testBucket, IoHashKey.FromName("object3"), ob3_hash, ob3_cb);
 
-            (BlobIdentifier ob6_hash, CbObject ob6_cb) = GetCBWithAttachment(object6id);
+            (BlobId ob6_hash, CbObject ob6_cb) = GetCBWithAttachment(object6id);
             await objectService.Put(TestNamespace, testBucket, IoHashKey.FromName("object6"), ob6_hash, ob6_cb);
 
             IReferencesStore referenceStore = server.Services.GetService<IReferencesStore>()!;
@@ -137,7 +137,7 @@ namespace Jupiter.FunctionalTests.GC
 
         protected abstract string GetImplementation();
 
-        private static (BlobIdentifier, CbObject) GetCBWithAttachment(BlobIdentifier blobIdentifier)
+        private static (BlobId, CbObject) GetCBWithAttachment(BlobId blobIdentifier)
         {
             CbWriter writer = new CbWriter();
             writer.BeginObject();
@@ -145,7 +145,7 @@ namespace Jupiter.FunctionalTests.GC
             writer.EndObject();
 
             byte[] b = writer.ToByteArray();
-            return (BlobIdentifier.FromBlob(b), new CbObject(b));
+            return (BlobId.FromBlob(b), new CbObject(b));
         }
 
         [TestMethod]
@@ -158,12 +158,12 @@ namespace Jupiter.FunctionalTests.GC
             ulong countOfRemovedBlobs = await cleanup.Cleanup(cts.Token);
             Assert.AreEqual(3u, countOfRemovedBlobs);
 
-            foreach (BlobIdentifier blob in new BlobIdentifier[] {object1id, object4id, object5id})
+            foreach (BlobId blob in new BlobId[] {object1id, object4id, object5id})
             {
                 Assert.IsFalse(await _blobService!.Exists(TestNamespace, blob));
             }
 
-            foreach (BlobIdentifier blob in new BlobIdentifier[] {object2id, object3id, object6id})
+            foreach (BlobId blob in new BlobId[] {object2id, object3id, object6id})
             {
                 Assert.IsTrue(await _blobService!.Exists(TestNamespace, blob));
             }

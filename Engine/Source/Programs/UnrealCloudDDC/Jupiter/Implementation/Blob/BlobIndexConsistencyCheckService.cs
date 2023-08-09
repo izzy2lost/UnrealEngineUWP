@@ -76,7 +76,7 @@ namespace Jupiter.Implementation
 				},
 				async (tuple, token) =>
 				{
-					(NamespaceId ns, BlobIdentifier blobIdentifier) = tuple;
+					(NamespaceId ns, BlobId blobIdentifier) = tuple;
 					Interlocked.Increment(ref countOfBlobsChecked);
 
 					if (countOfBlobsChecked % 100 == 0)

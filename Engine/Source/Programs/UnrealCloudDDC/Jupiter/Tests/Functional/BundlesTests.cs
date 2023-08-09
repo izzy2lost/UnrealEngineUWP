@@ -58,7 +58,7 @@ public class MemoryBundlesTests : BundlesTests
         }
 
         await _s3.PutBucketAsync(s3BucketName);
-        await _s3.PutObjectAsync(new PutObjectRequest { BucketName = s3BucketName, Key = BlobIdentifier.FromBlobLocator(SmallFileLocator).AsS3Key(), ContentBody = SmallFileContents });
+        await _s3.PutObjectAsync(new PutObjectRequest { BucketName = s3BucketName, Key = BlobId.FromBlobLocator(SmallFileLocator).AsS3Key(), ContentBody = SmallFileContents });
     }
 
     protected override async Task Teardown(IServiceProvider provider)
@@ -100,7 +100,7 @@ public class ScyllaBundlesTests : BundlesTests
         }
 
         await _s3.PutBucketAsync(s3BucketName);
-        await _s3.PutObjectAsync(new PutObjectRequest { BucketName = s3BucketName, Key = BlobIdentifier.FromBlobLocator(SmallFileLocator).AsS3Key(), ContentBody = SmallFileContents });
+        await _s3.PutObjectAsync(new PutObjectRequest { BucketName = s3BucketName, Key = BlobId.FromBlobLocator(SmallFileLocator).AsS3Key(), ContentBody = SmallFileContents });
     }
 
     protected override async Task Teardown(IServiceProvider provider)
@@ -142,7 +142,7 @@ public class MongoBundlesTests : BundlesTests
         }
 
         await _s3.PutBucketAsync(s3BucketName);
-        await _s3.PutObjectAsync(new PutObjectRequest { BucketName = s3BucketName, Key = BlobIdentifier.FromBlobLocator(SmallFileLocator).AsS3Key(), ContentBody = SmallFileContents });
+        await _s3.PutObjectAsync(new PutObjectRequest { BucketName = s3BucketName, Key = BlobId.FromBlobLocator(SmallFileLocator).AsS3Key(), ContentBody = SmallFileContents });
     }
 
     protected override async Task Teardown(IServiceProvider provider)
@@ -320,7 +320,7 @@ public abstract class BundlesTests
         getResultRoot.EnsureSuccessStatusCode();
         ReadRefResponse? getResponseRoot = await getResultRoot.Content.ReadFromJsonAsync<ReadRefResponse>();
         Assert.IsNotNull(getResponseRoot);
-        BlobIdentifier rootBlob = BlobIdentifier.FromBlobLocator(getResponseRoot.Blob);
+        BlobId rootBlob = BlobId.FromBlobLocator(getResponseRoot.Blob);
 
         IAsyncEnumerable<BaseBlobReference> referencesEnumerable = blobIndex.GetBlobReferences(TestNamespaceName, rootBlob);
         BaseBlobReference[] references = await referencesEnumerable.ToArrayAsync();
@@ -330,23 +330,23 @@ public abstract class BundlesTests
         getResultLeaf.EnsureSuccessStatusCode();
         ReadRefResponse? getResponseLeaf = await getResultLeaf.Content.ReadFromJsonAsync<ReadRefResponse>();
         Assert.IsNotNull(getResponseLeaf);
-        BlobIdentifier node1Blob = BlobIdentifier.FromBlobLocator(getResponseLeaf.Blob);
+        BlobId node1Blob = BlobId.FromBlobLocator(getResponseLeaf.Blob);
 
         // node 1
         BaseBlobReference[] node1References = await blobIndex.GetBlobReferences(TestNamespaceName, node1Blob).ToArrayAsync();
         Assert.AreEqual(2, node1References.Length); // this has 2 incoming references, one from its import and one from the leafRef
 
-        BlobIdentifier node2Blob = ((BlobToBlobReference)node1References.First()).Blob;
+        BlobId node2Blob = ((BlobToBlobReference)node1References.First()).Blob;
         // node 2
         BaseBlobReference[] node2References = await blobIndex.GetBlobReferences(TestNamespaceName, node2Blob).ToArrayAsync();
         Assert.AreEqual(1, node2References.Length);
 
-        BlobIdentifier node3Blob = ((BlobToBlobReference)node2References.First()).Blob;
+        BlobId node3Blob = ((BlobToBlobReference)node2References.First()).Blob;
         // node 3
         BaseBlobReference[] node3References = await blobIndex.GetBlobReferences(TestNamespaceName, node3Blob).ToArrayAsync();
         Assert.AreEqual(1, node3References.Length);
 
-        BlobIdentifier expectedRootNode = ((BlobToBlobReference)node3References.First()).Blob;
+        BlobId expectedRootNode = ((BlobToBlobReference)node3References.First()).Blob;
         Assert.AreEqual(rootBlob, expectedRootNode);
     }
 

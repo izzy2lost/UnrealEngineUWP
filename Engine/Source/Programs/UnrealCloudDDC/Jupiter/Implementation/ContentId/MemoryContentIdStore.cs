@@ -10,22 +10,22 @@ namespace Jupiter.Implementation
 	public class MemoryContentIdStore : IContentIdStore
 	{
 		private readonly IBlobService _blobStore;
-		private readonly ConcurrentDictionary<NamespaceId, ConcurrentDictionary<ContentId, SortedList<int, BlobIdentifier[]>>> _contentIds = new ConcurrentDictionary<NamespaceId, ConcurrentDictionary<ContentId, SortedList<int, BlobIdentifier[]>>>();
+		private readonly ConcurrentDictionary<NamespaceId, ConcurrentDictionary<ContentId, SortedList<int, BlobId[]>>> _contentIds = new ConcurrentDictionary<NamespaceId, ConcurrentDictionary<ContentId, SortedList<int, BlobId[]>>>();
 		
 		public MemoryContentIdStore(IBlobService blobStore)
 		{
 			_blobStore = blobStore;
 		}
 
-		public async Task<BlobIdentifier[]?> Resolve(NamespaceId ns, ContentId contentId, bool mustBeContentId)
+		public async Task<BlobId[]?> Resolve(NamespaceId ns, ContentId contentId, bool mustBeContentId)
 		{
-			if (_contentIds.TryGetValue(ns, out ConcurrentDictionary<ContentId, SortedList<int, BlobIdentifier[]>>? contentIdsForNamespace))
+			if (_contentIds.TryGetValue(ns, out ConcurrentDictionary<ContentId, SortedList<int, BlobId[]>>? contentIdsForNamespace))
 			{
-				if (contentIdsForNamespace.TryGetValue(contentId, out SortedList<int, BlobIdentifier[]>? contentIdMappings))
+				if (contentIdsForNamespace.TryGetValue(contentId, out SortedList<int, BlobId[]>? contentIdMappings))
 				{
-					foreach ((int _, BlobIdentifier[] blobs) in contentIdMappings)
+					foreach ((int _, BlobId[] blobs) in contentIdMappings)
 					{
-						BlobIdentifier[] missingBlobs = await _blobStore.FilterOutKnownBlobs(ns, blobs);
+						BlobId[] missingBlobs = await _blobStore.FilterOutKnownBlobs(ns, blobs);
 						if (missingBlobs.Length == 0)
 						{
 							return blobs;
@@ -35,7 +35,7 @@ namespace Jupiter.Implementation
 				}
 			}
 
-			BlobIdentifier uncompressedBlobIdentifier = contentId.AsBlobIdentifier();
+			BlobId uncompressedBlobIdentifier = contentId.AsBlobIdentifier();
 			// if no content id is found, but we have a blob that matches the content id (so a unchunked and uncompressed version of the data) we use that instead
 			if (!mustBeContentId && await _blobStore.Exists(ns, uncompressedBlobIdentifier))
 			{
@@ -45,15 +45,15 @@ namespace Jupiter.Implementation
 			return null;
 		}
 
-		public Task Put(NamespaceId ns, ContentId contentId, BlobIdentifier blobIdentifier, int contentWeight)
+		public Task Put(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
 		{
 			_contentIds.AddOrUpdate(ns, (_) =>
 			{
-				ConcurrentDictionary<ContentId, SortedList<int, BlobIdentifier[]>> dict = new()
+				ConcurrentDictionary<ContentId, SortedList<int, BlobId[]>> dict = new()
 				{
-					[contentId] = new SortedList<int, BlobIdentifier[]>
+					[contentId] = new SortedList<int, BlobId[]>
 					{
-						{contentWeight, new BlobIdentifier[] { blobIdentifier } }
+						{contentWeight, new BlobId[] { blobIdentifier } }
 					}
 				};
 
@@ -62,9 +62,9 @@ namespace Jupiter.Implementation
 			{
 				dict.AddOrUpdate(contentId, (_) =>
 				{
-					return new SortedList<int, BlobIdentifier[]>
+					return new SortedList<int, BlobId[]>
 					{
-						{ contentWeight, new BlobIdentifier[] { blobIdentifier } }
+						{ contentWeight, new BlobId[] { blobIdentifier } }
 					};
 				}, (_, mappings) =>
 				{

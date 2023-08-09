@@ -99,7 +99,7 @@ public class BlobService : IBlobService
 		ContentHash blobHash;
 		{
 			using TelemetrySpan _ = _tracer.StartActiveSpan("web.hash").SetAttribute("operation.name", "web.hash");
-			blobHash = await BlobIdentifier.FromStream(content);
+			blobHash = await BlobId.FromStream(content);
 		}
 
 		if (!identifier.Equals(blobHash))
@@ -110,7 +110,7 @@ public class BlobService : IBlobService
 		return identifier;
 	}
 
-	public async Task<BlobIdentifier> PutObject(NamespaceId ns, IBufferedPayload payload, BlobIdentifier identifier)
+	public async Task<BlobId> PutObject(NamespaceId ns, IBufferedPayload payload, BlobId identifier)
 	{
 		bool useContentAddressedStorage = _namespacePolicyResolver.GetPoliciesForNs(ns).UseContentAddressedStorage;
 		using TelemetrySpan scope = _tracer.StartActiveSpan("put_blob")
@@ -119,16 +119,16 @@ public class BlobService : IBlobService
 			.SetAttribute("Content-Length", payload.Length.ToString());
 
 		await using Stream hashStream = payload.GetStream();
-		BlobIdentifier id = useContentAddressedStorage ? BlobIdentifier.FromContentHash(await VerifyContentMatchesHash(hashStream, identifier)) : identifier;
+		BlobId id = useContentAddressedStorage ? BlobId.FromContentHash(await VerifyContentMatchesHash(hashStream, identifier)) : identifier;
 
-		BlobIdentifier objectStoreIdentifier = await PutObjectToStores(ns, payload, id);
+		BlobId objectStoreIdentifier = await PutObjectToStores(ns, payload, id);
 		await _blobIndex.AddBlobToIndex(ns, id);
 
 		return objectStoreIdentifier;
 
 	}
 
-	public async Task<BlobIdentifier> PutObject(NamespaceId ns, byte[] payload, BlobIdentifier identifier)
+	public async Task<BlobId> PutObject(NamespaceId ns, byte[] payload, BlobId identifier)
 	{
 		bool useContentAddressedStorage = _namespacePolicyResolver.GetPoliciesForNs(ns).UseContentAddressedStorage;
 		using TelemetrySpan scope = _tracer.StartActiveSpan("put_blob")
@@ -138,15 +138,15 @@ public class BlobService : IBlobService
 			;
 
 		await using Stream hashStream = new MemoryStream(payload);
-		BlobIdentifier id = useContentAddressedStorage ? BlobIdentifier.FromContentHash(await VerifyContentMatchesHash(hashStream, identifier)) : identifier;
+		BlobId id = useContentAddressedStorage ? BlobId.FromContentHash(await VerifyContentMatchesHash(hashStream, identifier)) : identifier;
 
-		BlobIdentifier objectStoreIdentifier = await PutObjectToStores(ns, payload, id);
+		BlobId objectStoreIdentifier = await PutObjectToStores(ns, payload, id);
 		await _blobIndex.AddBlobToIndex(ns, id);
 
 		return objectStoreIdentifier;
 	}
 
-	public async Task<Uri?> MaybePutObjectWithRedirect(NamespaceId ns, BlobIdentifier identifier)
+	public async Task<Uri?> MaybePutObjectWithRedirect(NamespaceId ns, BlobId identifier)
 	{
 		bool allowRedirectUris = _namespacePolicyResolver.GetPoliciesForNs(ns).AllowRedirectUris;
 		if (!allowRedirectUris)
@@ -180,7 +180,7 @@ public class BlobService : IBlobService
 		return null;
 	}
 
-	public async Task<BlobIdentifier> PutObjectKnownHash(NamespaceId ns, IBufferedPayload content, BlobIdentifier identifier)
+	public async Task<BlobId> PutObjectKnownHash(NamespaceId ns, IBufferedPayload content, BlobId identifier)
 	{
 		using TelemetrySpan scope = _tracer.StartActiveSpan("put_blob")
 			.SetAttribute("operation.name", "put_blob")
@@ -188,13 +188,13 @@ public class BlobService : IBlobService
 			.SetAttribute("Content-Length", content.Length.ToString())
 			;
 
-		BlobIdentifier objectStoreIdentifier = await PutObjectToStores(ns, content, identifier);
+		BlobId objectStoreIdentifier = await PutObjectToStores(ns, content, identifier);
 		await _blobIndex.AddBlobToIndex(ns, identifier);
 
 		return objectStoreIdentifier;
 	}
 
-	private async Task<BlobIdentifier> PutObjectToStores(NamespaceId ns, IBufferedPayload bufferedPayload, BlobIdentifier identifier)
+	private async Task<BlobId> PutObjectToStores(NamespaceId ns, IBufferedPayload bufferedPayload, BlobId identifier)
 	{
 		IServerTiming? serverTiming = _httpContextAccessor.HttpContext?.RequestServices.GetService<IServerTiming>();
 
@@ -221,7 +221,7 @@ public class BlobService : IBlobService
 		return identifier;
 	}
 
-	private async Task<BlobIdentifier> PutObjectToStores(NamespaceId ns, byte[] payload, BlobIdentifier identifier)
+	private async Task<BlobId> PutObjectToStores(NamespaceId ns, byte[] payload, BlobId identifier)
 	{
 		foreach (IBlobStore store in _blobStores)
 		{
@@ -237,7 +237,7 @@ public class BlobService : IBlobService
 		return identifier;
 	}
 
-	public async Task<BlobContents> GetObject(NamespaceId ns, BlobIdentifier blob, List<string>? storageLayers = null, bool supportsRedirectUri = false)
+	public async Task<BlobContents> GetObject(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false)
 	{
 		try
 		{
@@ -325,7 +325,7 @@ public class BlobService : IBlobService
 		}
 	}
 
-	private async Task<BlobContents> GetObjectFromStores(NamespaceId ns, BlobIdentifier blob, List<string>? storageLayers = null, bool supportsRedirectUri = false)
+	private async Task<BlobContents> GetObjectFromStores(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false)
 	{
 		bool seenBlobNotFound = false;
 		bool seenNamespaceNotFound = false;
@@ -434,7 +434,7 @@ public class BlobService : IBlobService
 		return blobContents;
 	}
 
-	public async Task<Uri?> GetObjectWithRedirect(NamespaceId ns, BlobIdentifier blob, List<string>? storageLayers = null)
+	public async Task<Uri?> GetObjectWithRedirect(NamespaceId ns, BlobId blob, List<string>? storageLayers = null)
 	{
 		bool seenBlobNotFound = false;
 		bool seenNamespaceNotFound = false;
@@ -511,7 +511,7 @@ public class BlobService : IBlobService
 		return redirectUri;
 	}
 
-	public async Task<BlobContents> ReplicateObject(NamespaceId ns, BlobIdentifier blob, bool force = false)
+	public async Task<BlobContents> ReplicateObject(NamespaceId ns, BlobId blob, bool force = false)
 	{
 		if (!force && !ShouldFetchBlobOnDemand(ns))
 		{
@@ -596,7 +596,7 @@ public class BlobService : IBlobService
 		return request;
 	}
 
-	public async Task<bool> Exists(NamespaceId ns, BlobIdentifier blob, List<string>? storageLayers = null)
+	public async Task<bool> Exists(NamespaceId ns, BlobId blob, List<string>? storageLayers = null)
 	{
 		bool exists = await ExistsInStores(ns, blob, storageLayers);
 		if (exists)
@@ -618,7 +618,7 @@ public class BlobService : IBlobService
 		return false;
 	}
 
-	private async Task<bool> ExistsInStores(NamespaceId ns, BlobIdentifier blob, List<string>? storageLayers = null)
+	private async Task<bool> ExistsInStores(NamespaceId ns, BlobId blob, List<string>? storageLayers = null)
 	{
 		bool useBlobIndex = _namespacePolicyResolver.GetPoliciesForNs(ns).UseBlobIndexForExists;
 		if (useBlobIndex)
@@ -679,7 +679,7 @@ public class BlobService : IBlobService
 		}
 	}
 
-	public async Task<bool> ExistsInRemote(NamespaceId ns, BlobIdentifier blob)
+	public async Task<bool> ExistsInRemote(NamespaceId ns, BlobId blob)
 	{
         IServerTiming? serverTiming = _httpContextAccessor.HttpContext?.RequestServices.GetService<IServerTiming>();
         using TelemetrySpan scope = _tracer.StartActiveSpan("HierarchicalStore.ExistsRemote").SetAttribute("operation.name", "HierarchicalStore.ExistsRemote");
@@ -699,7 +699,7 @@ public class BlobService : IBlobService
 		return false;
 	}
 
-    public async Task<bool> ExistsInRootStore(NamespaceId ns, BlobIdentifier blob)
+    public async Task<bool> ExistsInRootStore(NamespaceId ns, BlobId blob)
 	{
 		IBlobStore store = _blobStores.Last();
 
@@ -717,7 +717,7 @@ public class BlobService : IBlobService
 		return false;
 	}
 
-	public async Task DeleteObject(NamespaceId ns, BlobIdentifier blob)
+	public async Task DeleteObject(NamespaceId ns, BlobId blob)
 	{
 		bool blobNotFound = false;
 		bool deletedAtLeastOnce = false;
@@ -792,22 +792,22 @@ public class BlobService : IBlobService
 		throw new NamespaceNotFoundException(ns);
 	}
 
-	public IAsyncEnumerable<(BlobIdentifier,DateTime)> ListObjects(NamespaceId ns)
+	public IAsyncEnumerable<(BlobId,DateTime)> ListObjects(NamespaceId ns)
 	{
 		// as this is a hierarchy of blob stores the last blob store should contain the superset of all stores
 		return _blobStores.Last().ListObjects(ns);
 	}
 
-	public async Task<BlobIdentifier[]> FilterOutKnownBlobs(NamespaceId ns, IEnumerable<BlobIdentifier> blobs)
+	public async Task<BlobId[]> FilterOutKnownBlobs(NamespaceId ns, IEnumerable<BlobId> blobs)
 	{
-		List<(BlobIdentifier, Task<bool>)> existTasks = new();
-		foreach (BlobIdentifier blob in blobs)
+		List<(BlobId, Task<bool>)> existTasks = new();
+		foreach (BlobId blob in blobs)
 		{
 			existTasks.Add((blob, Exists(ns, blob)));
 		}
 
-		List<BlobIdentifier> missingBlobs = new();
-		foreach ((BlobIdentifier blob, Task<bool> existsTask) in existTasks)
+		List<BlobId> missingBlobs = new();
+		foreach ((BlobId blob, Task<bool> existsTask) in existTasks)
 		{
 			bool exists = await existsTask;
 
@@ -820,9 +820,9 @@ public class BlobService : IBlobService
 		return missingBlobs.ToArray();
 	}
 
-	public async Task<BlobIdentifier[]> FilterOutKnownBlobs(NamespaceId ns, IAsyncEnumerable<BlobIdentifier> blobs)
+	public async Task<BlobId[]> FilterOutKnownBlobs(NamespaceId ns, IAsyncEnumerable<BlobId> blobs)
 	{
-		ConcurrentBag<BlobIdentifier> missingBlobs = new ConcurrentBag<BlobIdentifier>();
+		ConcurrentBag<BlobId> missingBlobs = new ConcurrentBag<BlobId>();
 
 		try
 		{
@@ -849,7 +849,7 @@ public class BlobService : IBlobService
 		return missingBlobs.ToArray();
 	}
 
-	public async Task<BlobContents> GetObjects(NamespaceId ns, BlobIdentifier[] blobs)
+	public async Task<BlobContents> GetObjects(NamespaceId ns, BlobId[] blobs)
 	{
 		using TelemetrySpan _ = _tracer.StartActiveSpan("blob.combine").SetAttribute("operation.name", "blob.combine");
 		Task<BlobContents>[] tasks = new Task<BlobContents>[blobs.Length];

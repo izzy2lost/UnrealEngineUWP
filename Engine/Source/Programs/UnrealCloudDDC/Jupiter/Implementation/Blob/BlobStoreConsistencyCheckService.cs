@@ -97,7 +97,7 @@ namespace Jupiter.Implementation
 						continue;
 					}
 
-					await foreach ((BlobIdentifier blob, DateTime lastModified) in blobStore.ListObjects(ns))
+					await foreach ((BlobId blob, DateTime lastModified) in blobStore.ListObjects(ns))
 					{
 						using TelemetrySpan scope = _tracer.StartActiveSpan("consistency_check.blob_store")
 							.SetAttribute("operation.name", "consistency_check.blob_store")
@@ -115,7 +115,7 @@ namespace Jupiter.Implementation
 						await using Stream s = contents.Stream;
 
 						bool inconsistencyFound = false;
-						BlobIdentifier newHash = await BlobIdentifier.FromStream(s);
+						BlobId newHash = await BlobId.FromStream(s);
 						if (!blob.Equals(newHash))
 						{
 							_logger.LogError("Mismatching hash for {Blob} in {Namespace} stored in {BlobStore}, new hash has {NewHash}. Deleting incorrect blob.", blob, ns, blobStoreName,newHash);

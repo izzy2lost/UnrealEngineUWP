@@ -108,13 +108,13 @@ namespace Jupiter.FunctionalTests.Replication
             };
 
             List<ReplicationLogEvent> replicationEvents = new();
-            Dictionary<BlobIdentifier, byte[]> blobs = new();
+            Dictionary<BlobId, byte[]> blobs = new();
 
             const int countOfTestEvents = 100;
             for (int i = 0; i < countOfTestEvents; i++)
             {
                 byte[] blobContents = Encoding.UTF8.GetBytes($"random content {i}");
-                BlobIdentifier blob = BlobIdentifier.FromBlob(blobContents);
+                BlobId blob = BlobId.FromBlob(blobContents);
                 blobs.Add(blob, blobContents);
                 replicationEvents.Add(new ReplicationLogEvent(TestNamespace, TestBucket, IoHashKey.FromName($"event-{i}"), blob, Guid.NewGuid(), "refs-000", DateTime.Now, ReplicationLogEvent.OpType.Added));
             }
@@ -127,12 +127,12 @@ namespace Jupiter.FunctionalTests.Replication
             // this will get called again with the last event in replication events list as the lastEvent, at which point we should return a empty list as there are no more objects available
             handler.SetupRequest($"http://localhost/api/v1/replication-log/incremental/{TestNamespace}?lastBucket={replicationEvents.Last().TimeBucket}&lastEvent={replicationEvents.Last().EventId}").ReturnsResponse(JsonSerializer.Serialize(new ReplicationLogEvents(new List<ReplicationLogEvent>())), "application/json");
 
-            foreach (BlobIdentifier blob in blobs.Keys)
+            foreach (BlobId blob in blobs.Keys)
             {
-                handler.SetupRequest($"http://localhost/api/v1/objects/{TestNamespace}/{blob}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(Array.Empty<BlobIdentifier>())), "application/json").Verifiable();
+                handler.SetupRequest($"http://localhost/api/v1/objects/{TestNamespace}/{blob}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(Array.Empty<BlobId>())), "application/json").Verifiable();
             }
 
-            foreach ((BlobIdentifier key, byte[] blobContent) in blobs)
+            foreach ((BlobId key, byte[] blobContent) in blobs)
             {
                 handler.SetupRequest($"http://localhost/api/v1/blobs/{TestNamespace}/{key}").ReturnsResponse(blobContent, "application/octet-stream").Verifiable();
             }
@@ -148,7 +148,7 @@ namespace Jupiter.FunctionalTests.Replication
             handler.Verify();
 
             // Verify that the objects are present
-            BlobIdentifier[] missingBlobs = await BlobStore.FilterOutKnownBlobs(TestNamespace, blobs.Keys.ToArray());
+            BlobId[] missingBlobs = await BlobStore.FilterOutKnownBlobs(TestNamespace, blobs.Keys.ToArray());
             Assert.IsFalse(missingBlobs.Any());
         }
 
@@ -165,13 +165,13 @@ namespace Jupiter.FunctionalTests.Replication
             };
 
             List<ReplicationLogEvent> replicationEvents = new();
-            Dictionary<BlobIdentifier, byte[]> blobs = new();
+            Dictionary<BlobId, byte[]> blobs = new();
 
             const int countOfTestEvents = 100;
             for (int i = 0; i < countOfTestEvents; i++)
             {
                 byte[] blobContents = Encoding.UTF8.GetBytes($"random content {i}");
-                BlobIdentifier blob = BlobIdentifier.FromBlob(blobContents);
+                BlobId blob = BlobId.FromBlob(blobContents);
                 blobs.Add(blob, blobContents);
                 replicationEvents.Add(new ReplicationLogEvent(TestNamespace, TestBucket, IoHashKey.FromName($"event-{i}"), blob, Guid.NewGuid(), "refs-000", DateTime.Now, ReplicationLogEvent.OpType.Added));
             }
@@ -190,7 +190,7 @@ namespace Jupiter.FunctionalTests.Replication
                 snapshotContent = ms.ToArray();
             }
 
-            BlobIdentifier snapshotBlob = BlobIdentifier.FromBlob(snapshotContent);
+            BlobId snapshotBlob = BlobId.FromBlob(snapshotContent);
 
             Mock<HttpMessageHandler> handler = new Mock<HttpMessageHandler>();
             string s = JsonSerializer.Serialize(new ReplicationLogSnapshots(new List<SnapshotInfo>{new SnapshotInfo(TestNamespace, SnapshotNamespace, snapshotBlob, DateTime.Now)}));
@@ -201,12 +201,12 @@ namespace Jupiter.FunctionalTests.Replication
 
             handler.SetupRequest($"http://localhost/api/v1/blobs/{SnapshotNamespace}/{snapshotBlob}").ReturnsResponse(snapshotContent, "application/octet-stream").Verifiable();
 
-            foreach (BlobIdentifier blob in blobs.Keys)
+            foreach (BlobId blob in blobs.Keys)
             {
-                handler.SetupRequest($"http://localhost/api/v1/objects/{TestNamespace}/{blob}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(Array.Empty<BlobIdentifier>())), "application/json").Verifiable();
+                handler.SetupRequest($"http://localhost/api/v1/objects/{TestNamespace}/{blob}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(Array.Empty<BlobId>())), "application/json").Verifiable();
             }
 
-            foreach ((BlobIdentifier key, byte[] blobContent) in blobs)
+            foreach ((BlobId key, byte[] blobContent) in blobs)
             {
                 handler.SetupRequest($"http://localhost/api/v1/blobs/{TestNamespace}/{key}").ReturnsResponse(blobContent, "application/octet-stream").Verifiable();
             }
@@ -223,7 +223,7 @@ namespace Jupiter.FunctionalTests.Replication
             handler.Verify();
 
             // Verify that the objects are present
-            BlobIdentifier[] missingBlobs = await BlobStore.FilterOutKnownBlobs(TestNamespace, blobs.Keys.ToArray());
+            BlobId[] missingBlobs = await BlobStore.FilterOutKnownBlobs(TestNamespace, blobs.Keys.ToArray());
             Assert.IsFalse(missingBlobs.Any());
         }
 
@@ -241,13 +241,13 @@ namespace Jupiter.FunctionalTests.Replication
 
             List<ReplicationLogEvent> snapshotEvents = new();
             List<ReplicationLogEvent> incrementalEvents = new();
-            Dictionary<BlobIdentifier, byte[]> blobs = new();
+            Dictionary<BlobId, byte[]> blobs = new();
 
             const int CountOfTestEvents = 100;
             for (int i = 0; i < CountOfTestEvents; i++)
             {
                 byte[] blobContents = Encoding.UTF8.GetBytes($"random content in snapshot {i}");
-                BlobIdentifier blob = BlobIdentifier.FromBlob(blobContents);
+                BlobId blob = BlobId.FromBlob(blobContents);
                 blobs.Add(blob, blobContents);
                 snapshotEvents.Add(new ReplicationLogEvent(TestNamespace, TestBucket,IoHashKey.FromName($"event-{i}"), blob, Guid.NewGuid(), "refs-000", DateTime.Now, ReplicationLogEvent.OpType.Added));
             }
@@ -255,7 +255,7 @@ namespace Jupiter.FunctionalTests.Replication
             for (int i = 0; i < CountOfTestEvents; i++)
             {
                 byte[] blobContents = Encoding.UTF8.GetBytes($"random content {i}");
-                BlobIdentifier blob = BlobIdentifier.FromBlob(blobContents);
+                BlobId blob = BlobId.FromBlob(blobContents);
                 blobs.Add(blob, blobContents);
                 incrementalEvents.Add(new ReplicationLogEvent(TestNamespace, TestBucket, IoHashKey.FromName($"incremental-event-{i}"), blob, Guid.NewGuid(), "refs-000", DateTime.Now, ReplicationLogEvent.OpType.Added));
             }
@@ -274,7 +274,7 @@ namespace Jupiter.FunctionalTests.Replication
                 snapshotContent = ms.ToArray();
             }
 
-            BlobIdentifier snapshotBlob = BlobIdentifier.FromBlob(snapshotContent);
+            BlobId snapshotBlob = BlobId.FromBlob(snapshotContent);
 
             Mock<HttpMessageHandler> handler = new Mock<HttpMessageHandler>();
             string s = JsonSerializer.Serialize(new ReplicationLogSnapshots(new List<SnapshotInfo>{new SnapshotInfo(TestNamespace, SnapshotNamespace, snapshotBlob, DateTime.Now)}));
@@ -288,12 +288,12 @@ namespace Jupiter.FunctionalTests.Replication
 
             handler.SetupRequest($"http://localhost/api/v1/blobs/{SnapshotNamespace}/{snapshotBlob}").ReturnsResponse(snapshotContent, "application/octet-stream").Verifiable();
 
-            foreach (BlobIdentifier blob in blobs.Keys)
+            foreach (BlobId blob in blobs.Keys)
             {
-                handler.SetupRequest($"http://localhost/api/v1/objects/{TestNamespace}/{blob}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(Array.Empty<BlobIdentifier>())), "application/json").Verifiable();
+                handler.SetupRequest($"http://localhost/api/v1/objects/{TestNamespace}/{blob}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(Array.Empty<BlobId>())), "application/json").Verifiable();
             }
 
-            foreach ((BlobIdentifier key, byte[] blobContent) in blobs)
+            foreach ((BlobId key, byte[] blobContent) in blobs)
             {
                 handler.SetupRequest($"http://localhost/api/v1/blobs/{TestNamespace}/{key}").ReturnsResponse(blobContent, "application/octet-stream").Verifiable();
             }
@@ -310,7 +310,7 @@ namespace Jupiter.FunctionalTests.Replication
             handler.Verify();
 
             // Verify that the objects are present
-            BlobIdentifier[] missingBlobs = await BlobStore.FilterOutKnownBlobs(TestNamespace, blobs.Keys.ToArray());
+            BlobId[] missingBlobs = await BlobStore.FilterOutKnownBlobs(TestNamespace, blobs.Keys.ToArray());
             Assert.IsFalse(missingBlobs.Any());
         }
         
@@ -327,13 +327,13 @@ namespace Jupiter.FunctionalTests.Replication
             };
 
             List<ReplicationLogEvent> snapshotEvents = new();
-            Dictionary<BlobIdentifier, byte[]> blobs = new();
+            Dictionary<BlobId, byte[]> blobs = new();
 
             const int CountOfTestEvents = 100;
             for (int i = 0; i < CountOfTestEvents; i++)
             {
                 byte[] blobContents = Encoding.UTF8.GetBytes($"random content in snapshot {i}");
-                BlobIdentifier blob = BlobIdentifier.FromBlob(blobContents);
+                BlobId blob = BlobId.FromBlob(blobContents);
                 blobs.Add(blob, blobContents);
                 snapshotEvents.Add(new ReplicationLogEvent(TestNamespace, TestBucket, IoHashKey.FromName($"event-{i}"), blob, Guid.NewGuid(), "refs-000", DateTime.Now, ReplicationLogEvent.OpType.Added));
             }
@@ -352,7 +352,7 @@ namespace Jupiter.FunctionalTests.Replication
                 snapshotContent = ms.ToArray();
             }
 
-            BlobIdentifier snapshotBlob = BlobIdentifier.FromBlob(snapshotContent);
+            BlobId snapshotBlob = BlobId.FromBlob(snapshotContent);
 
             string missingBucket = "this-does-not-exist";
             Guid missingId = Guid.NewGuid();
@@ -374,12 +374,12 @@ namespace Jupiter.FunctionalTests.Replication
 
             handler.SetupRequest($"http://localhost/api/v1/blobs/{SnapshotNamespace}/{snapshotBlob}").ReturnsResponse(snapshotContent, "application/octet-stream").Verifiable();
 
-            foreach (BlobIdentifier blob in blobs.Keys)
+            foreach (BlobId blob in blobs.Keys)
             {
-                handler.SetupRequest($"http://localhost/api/v1/objects/{TestNamespace}/{blob}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(Array.Empty<BlobIdentifier>())), "application/json").Verifiable();
+                handler.SetupRequest($"http://localhost/api/v1/objects/{TestNamespace}/{blob}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(Array.Empty<BlobId>())), "application/json").Verifiable();
             }
 
-            foreach ((BlobIdentifier key, byte[] blobContent) in blobs)
+            foreach ((BlobId key, byte[] blobContent) in blobs)
             {
                 handler.SetupRequest($"http://localhost/api/v1/blobs/{TestNamespace}/{key}").ReturnsResponse(blobContent, "application/octet-stream").Verifiable();
             }
@@ -396,7 +396,7 @@ namespace Jupiter.FunctionalTests.Replication
             handler.Verify();
 
             // Verify that the objects are present
-            BlobIdentifier[] missingBlobs = await BlobStore.FilterOutKnownBlobs(TestNamespace, blobs.Keys.ToArray());
+            BlobId[] missingBlobs = await BlobStore.FilterOutKnownBlobs(TestNamespace, blobs.Keys.ToArray());
             Assert.IsFalse(missingBlobs.Any());
         }
     }

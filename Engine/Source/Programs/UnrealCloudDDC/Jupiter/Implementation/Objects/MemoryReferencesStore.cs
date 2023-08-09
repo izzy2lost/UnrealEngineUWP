@@ -29,7 +29,7 @@ namespace Jupiter.Implementation
 			throw new ObjectNotFoundException(ns, bucket, key);
 		}
 
-		public Task Put(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier blobHash, byte[] blob, bool isFinalized)
+		public Task Put(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobHash, byte[] blob, bool isFinalized)
 		{
 			lock (_namespaces)
 			{
@@ -43,7 +43,7 @@ namespace Jupiter.Implementation
 			return Task.FromResult(o);
 		}
 
-		public Task Finalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier blobIdentifier)
+		public Task Finalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobIdentifier)
 		{
 			if (!_objects.TryGetValue(BuildKey(ns, bucket, key), out MemoryStoreObject? o))
 			{
@@ -150,7 +150,7 @@ namespace Jupiter.Implementation
 
 	public class MemoryStoreObject
 	{
-		public MemoryStoreObject(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier blobHash, byte[] blob, bool isFinalized)
+		public MemoryStoreObject(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobHash, byte[] blob, bool isFinalized)
 		{
 			Namespace = ns;
 			Bucket = bucket;
@@ -165,7 +165,7 @@ namespace Jupiter.Implementation
 		public BucketId Bucket { get; }
 		public IoHashKey Name { get; }
 		public byte[] Blob { get; }
-		public BlobIdentifier BlobHash { get; }
+		public BlobId BlobHash { get; }
 
 		public DateTime LastAccessTime { get; private set; }
 		public bool IsFinalized { get; private set;}

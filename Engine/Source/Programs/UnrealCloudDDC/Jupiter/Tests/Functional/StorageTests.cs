@@ -228,7 +228,7 @@ namespace Jupiter.FunctionalTests.Storage
             // as the old blob is set to be a week old this should be the only object returned
             DateTime cutoff = DateTime.Now.AddDays(-1);
             {
-                BlobIdentifier[] blobs = await fsStore.ListObjects(TestNamespaceName).Where(tuple => tuple.Item2 < cutoff).Select(tuple => tuple.Item1).ToArrayAsync();
+                BlobId[] blobs = await fsStore.ListObjects(TestNamespaceName).Where(tuple => tuple.Item2 < cutoff).Select(tuple => tuple.Item1).ToArrayAsync();
                 Assert.AreEqual(OldBlobFileHash, blobs[0]);
             }
         }
@@ -319,7 +319,7 @@ namespace Jupiter.FunctionalTests.Storage
             for (int i = 0; i < numFiles; i++)
             {
                 byte[] content = Encoding.ASCII.GetBytes(i + 1000 + new string('j', 96));
-                BlobIdentifier bi = BlobIdentifier.FromBlob(content);
+                BlobId bi = BlobId.FromBlob(content);
                 FileInfo fi = FileSystemStore.GetFilesystemPath(_localTestDir, ns, bi);
                 fi.Directory?.Create();
                 File.WriteAllBytes(fi.FullName, content);
@@ -346,10 +346,10 @@ namespace Jupiter.FunctionalTests.Storage
         protected const string DeletableFileContents = "Delete Me";
         protected const string OldFileContents = "a old blob used for testing cutoff filtering";
 
-        protected BlobIdentifier SmallFileHash { get; } = BlobIdentifier.FromBlob(Encoding.ASCII.GetBytes(SmallFileContents));
-        protected BlobIdentifier AnotherFileHash { get; } = BlobIdentifier.FromBlob(Encoding.ASCII.GetBytes(AnotherFileContents));
-        protected BlobIdentifier DeleteFileHash { get; } = BlobIdentifier.FromBlob(Encoding.ASCII.GetBytes(DeletableFileContents));
-        protected BlobIdentifier OldBlobFileHash { get; } = BlobIdentifier.FromBlob(Encoding.ASCII.GetBytes(OldFileContents));
+        protected BlobId SmallFileHash { get; } = BlobId.FromBlob(Encoding.ASCII.GetBytes(SmallFileContents));
+        protected BlobId AnotherFileHash { get; } = BlobId.FromBlob(Encoding.ASCII.GetBytes(AnotherFileContents));
+        protected BlobId DeleteFileHash { get; } = BlobId.FromBlob(Encoding.ASCII.GetBytes(DeletableFileContents));
+        protected BlobId OldBlobFileHash { get; } = BlobId.FromBlob(Encoding.ASCII.GetBytes(OldFileContents));
 
         protected HttpClient? HttpClient => _httpClient;
 
@@ -425,7 +425,7 @@ namespace Jupiter.FunctionalTests.Storage
             using ByteArrayContent requestContent = new ByteArrayContent(payload);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
             requestContent.Headers.ContentLength = payload.Length;
-            BlobIdentifier contentHash = BlobIdentifier.FromBlob(payload);
+            BlobId contentHash = BlobId.FromBlob(payload);
             HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/s/{TestNamespaceName}/{contentHash}", UriKind.Relative), requestContent);
 
             result.EnsureSuccessStatusCode();
@@ -441,7 +441,7 @@ namespace Jupiter.FunctionalTests.Storage
             using ByteArrayContent requestContent = new ByteArrayContent(payload);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
             requestContent.Headers.ContentLength = payload.Length;
-            BlobIdentifier contentHash = BlobIdentifier.FromBlob(payload);
+            BlobId contentHash = BlobId.FromBlob(payload);
             HttpResponseMessage result = await _httpClient!.PostAsync(new Uri($"api/v1/s/{TestNamespaceName}", UriKind.Relative), requestContent);
 
             result.EnsureSuccessStatusCode();
@@ -458,7 +458,7 @@ namespace Jupiter.FunctionalTests.Storage
             using ByteArrayContent requestContent = new ByteArrayContent(payload);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
             requestContent.Headers.ContentLength = payload.Length;
-            BlobIdentifier id = BlobIdentifier.FromBlobLocator(new BundleLocator("locator"));
+            BlobId id = BlobId.FromBlobLocator(new BundleLocator("locator"));
             HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/blobs/{TestBundleNamespaceName}/{id}", UriKind.Relative), requestContent);
 
             result.EnsureSuccessStatusCode();
@@ -475,7 +475,7 @@ namespace Jupiter.FunctionalTests.Storage
             using ByteArrayContent requestContent = new ByteArrayContent(payload);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
             requestContent.Headers.ContentLength = payload.Length;
-            BlobIdentifier id = BlobIdentifier.FromBlobLocator(new BundleLocator("locator"));
+            BlobId id = BlobId.FromBlobLocator(new BundleLocator("locator"));
             HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/blobs/{TestNamespaceName}/{id}", UriKind.Relative), requestContent);
 
             Assert.AreEqual(HttpStatusCode.InternalServerError, result.StatusCode);
@@ -504,7 +504,7 @@ namespace Jupiter.FunctionalTests.Storage
         [TestMethod]
         public async Task ListBlobs()
         {
-            List<BlobIdentifier> validBlobHashes = new List<BlobIdentifier>
+            List<BlobId> validBlobHashes = new List<BlobId>
             {
                 SmallFileHash,
                 AnotherFileHash,
@@ -514,7 +514,7 @@ namespace Jupiter.FunctionalTests.Storage
 
             IBlobService blobService = Server!.Services.GetService<IBlobService>()!;
 
-            BlobIdentifier[] oldObjects = await blobService.ListObjects(TestNamespaceName).Select(tuple => tuple.Item1).ToArrayAsync();
+            BlobId[] oldObjects = await blobService.ListObjects(TestNamespaceName).Select(tuple => tuple.Item1).ToArrayAsync();
 
             Assert.AreEqual(4, oldObjects.Length);
             Assert.IsTrue(validBlobHashes.Contains(oldObjects[0]));
@@ -546,7 +546,7 @@ namespace Jupiter.FunctionalTests.Storage
         [TestMethod]
         public async Task BlobExistsBatch()
         {
-            BlobIdentifier newContent = BlobIdentifier.FromBlob(Encoding.ASCII.GetBytes("this content has never been submitted"));
+            BlobId newContent = BlobId.FromBlob(Encoding.ASCII.GetBytes("this content has never been submitted"));
 
             var ops = new
             {
@@ -577,7 +577,7 @@ namespace Jupiter.FunctionalTests.Storage
             Assert.IsNotNull(array);
             Assert.AreEqual(2, array!.Count);
             Assert.IsNull(array[0]);
-            BlobIdentifier id = new BlobIdentifier(array[1]!.AsValue().ToString()!);
+            BlobId id = new BlobId(array[1]!.AsValue().ToString()!);
             Assert.AreEqual(newContent, id);
         }
 
@@ -614,7 +614,7 @@ namespace Jupiter.FunctionalTests.Storage
             string base64Content = array[0]!.AsValue().ToString()!;
             string convertedContent = Encoding.ASCII.GetString(Convert.FromBase64String(base64Content));
             Assert.AreEqual(SmallFileContents, convertedContent);
-            BlobIdentifier identifier = new BlobIdentifier(array[1]!.AsValue().ToString()!);
+            BlobId identifier = new BlobId(array[1]!.AsValue().ToString()!);
             Assert.AreEqual(DeleteFileHash, identifier);
         }
 
@@ -629,7 +629,7 @@ namespace Jupiter.FunctionalTests.Storage
                     {
                         Op = "GET",
                         Namespace = TestNamespaceName,
-                        Id =  BlobIdentifier.FromBlob(Encoding.ASCII.GetBytes("foo"))
+                        Id =  BlobId.FromBlob(Encoding.ASCII.GetBytes("foo"))
                     },
                     new
                     {
@@ -684,7 +684,7 @@ namespace Jupiter.FunctionalTests.Storage
         [TestMethod]
         public async Task MultipleBlobChecks()
         {
-            BlobIdentifier newContent = BlobIdentifier.FromBlob(Encoding.ASCII.GetBytes("this content has never been submitted"));
+            BlobId newContent = BlobId.FromBlob(Encoding.ASCII.GetBytes("this content has never been submitted"));
             using HttpRequestMessage message = new(HttpMethod.Post, new Uri($"api/v1/s/{TestNamespaceName}/exists?id={SmallFileHash}&id={newContent}", UriKind.Relative));
             HttpResponseMessage response = await _httpClient!.SendAsync(message);
             Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
@@ -701,7 +701,7 @@ namespace Jupiter.FunctionalTests.Storage
         [TestMethod]
         public async Task MultipleBlobChecksBodyCB()
         {
-            BlobIdentifier newContent = BlobIdentifier.FromBlob(Encoding.ASCII.GetBytes("this content has never been submitted"));
+            BlobId newContent = BlobId.FromBlob(Encoding.ASCII.GetBytes("this content has never been submitted"));
             using HttpRequestMessage request = new(HttpMethod.Post, new Uri($"api/v1/s/{TestNamespaceName}/exist", UriKind.Relative));
             CbWriter writer = new CbWriter();
             writer.BeginUniformArray(CbFieldType.Hash);
@@ -727,9 +727,9 @@ namespace Jupiter.FunctionalTests.Storage
         [TestMethod]
         public async Task MultipleBlobChecksBodyJson()
         {
-            BlobIdentifier newContent = BlobIdentifier.FromBlob(Encoding.ASCII.GetBytes("this content has never been submitted"));
+            BlobId newContent = BlobId.FromBlob(Encoding.ASCII.GetBytes("this content has never been submitted"));
             using HttpRequestMessage request = new(HttpMethod.Post, new Uri($"api/v1/s/{TestNamespaceName}/exist", UriKind.Relative));
-            string jsonBody = JsonSerializer.Serialize(new BlobIdentifier[] { SmallFileHash, newContent });
+            string jsonBody = JsonSerializer.Serialize(new BlobId[] { SmallFileHash, newContent });
             request.Content = new StringContent(jsonBody, Encoding.UTF8, MediaTypeNames.Application.Json);
 
             HttpResponseMessage response = await _httpClient!.SendAsync(request);
@@ -747,7 +747,7 @@ namespace Jupiter.FunctionalTests.Storage
         [TestMethod]
         public async Task MultipleBlobCompactBinaryResponse()
         {
-            BlobIdentifier newContent = BlobIdentifier.FromBlob(Encoding.ASCII.GetBytes("this content has never been submitted"));
+            BlobId newContent = BlobId.FromBlob(Encoding.ASCII.GetBytes("this content has never been submitted"));
             using HttpRequestMessage request = new(HttpMethod.Post, new Uri($"api/v1/s/{TestNamespaceName}/exists?id={SmallFileHash}&id={newContent}", UriKind.Relative));
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(CustomMediaTypeNames.UnrealCompactBinary));
             HttpResponseMessage response = await _httpClient!.SendAsync(request);
@@ -762,7 +762,7 @@ namespace Jupiter.FunctionalTests.Storage
             IoHash[] neededBlobs = needs!.AsArray().Select(field => field.AsHash()).ToArray();
 
             Assert.AreEqual(1, neededBlobs.Length);
-            Assert.AreEqual(newContent, BlobIdentifier.FromIoHash(neededBlobs[0]));
+            Assert.AreEqual(newContent, BlobId.FromIoHash(neededBlobs[0]));
         }
 
         [TestMethod]
@@ -772,7 +772,7 @@ namespace Jupiter.FunctionalTests.Storage
             using ByteArrayContent requestContent = new ByteArrayContent(payload);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
             requestContent.Headers.ContentLength = payload.Length;
-            BlobIdentifier contentHash = BlobIdentifier.FromBlob(payload);
+            BlobId contentHash = BlobId.FromBlob(payload);
             HttpResponseMessage putResponse = await _httpClient!.PutAsync(new Uri($"api/v1/s/{TestNamespaceName}/{contentHash}", UriKind.Relative), requestContent);
             putResponse.EnsureSuccessStatusCode();
             InsertResponse? response = await putResponse.Content.ReadFromJsonAsync<InsertResponse>();
@@ -824,10 +824,10 @@ namespace Jupiter.FunctionalTests.Storage
                     }
                 }
 
-                BlobIdentifier blobIdentifier;
+                BlobId blobIdentifier;
                 {
                     await using FileStream fs = fi.OpenRead();
-                    blobIdentifier = await BlobIdentifier.FromStream(fs);
+                    blobIdentifier = await BlobId.FromStream(fs);
                 }
 
                 {
@@ -858,7 +858,7 @@ namespace Jupiter.FunctionalTests.Storage
                         s = tempOutputFile.OpenRead();
                     }
 
-                    BlobIdentifier downloadedBlobIdentifier = await BlobIdentifier.FromStream(s);
+                    BlobId downloadedBlobIdentifier = await BlobId.FromStream(s);
                     Assert.AreEqual(blobIdentifier, downloadedBlobIdentifier);
                     s.Close();
                 }
@@ -880,7 +880,7 @@ namespace Jupiter.FunctionalTests.Storage
 
     public class InsertResponse
     {
-        public BlobIdentifier? Identifier { get; set; }
+        public BlobId? Identifier { get; set; }
     }
 
     [NodeType("{F63606D4-5DBB-4061-A655-6F444F65229E}")]

@@ -74,7 +74,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task<(string, Guid)> InsertAddEvent(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier objectBlob, DateTime? timestamp)
+		public async Task<(string, Guid)> InsertAddEvent(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId objectBlob, DateTime? timestamp)
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.insert_add_event");
 
@@ -310,7 +310,7 @@ namespace Jupiter.Implementation
 			Key = null!;
 		}
 
-		public ScyllaReplicationLogEvent(string @namespace, string bucket, string key, DateTime lastTimestamp, OpType opType, BlobIdentifier? objectIdentifier)
+		public ScyllaReplicationLogEvent(string @namespace, string bucket, string key, DateTime lastTimestamp, OpType opType, BlobId? objectIdentifier)
 		{
 			Namespace = @namespace;
 			Bucket = bucket;
@@ -366,7 +366,7 @@ namespace Jupiter.Implementation
 			BlobNamespace = null!;
 		}
 
-		public ScyllaSnapshot(string @namespace, string blobNamespace, TimeUuid id, BlobIdentifier objectIdentifier)
+		public ScyllaSnapshot(string @namespace, string blobNamespace, TimeUuid id, BlobId objectIdentifier)
 		{
 			Namespace = @namespace;
 			BlobNamespace = blobNamespace;

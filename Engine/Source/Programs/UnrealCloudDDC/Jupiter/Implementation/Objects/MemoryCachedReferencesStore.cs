@@ -64,7 +64,7 @@ namespace Jupiter.Implementation.Objects
 			return objectRecord;
 		}
 
-		public Task Put(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier blobHash, byte[] blob, bool isFinalized)
+		public Task Put(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobHash, byte[] blob, bool isFinalized)
 		{
 			ObjectRecord objectRecord = new ObjectRecord(ns, bucket, key, DateTime.Now, blob, blobHash, isFinalized);
 			AddCacheEntry(ns, bucket, key, objectRecord);
@@ -72,7 +72,7 @@ namespace Jupiter.Implementation.Objects
 			return _actualStore.Put(ns, bucket, key, blobHash, blob, isFinalized);
 		}
 
-		public Task Finalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier blobIdentifier)
+		public Task Finalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobIdentifier)
 		{
 			return _actualStore.Finalize(ns, bucket, key, blobIdentifier);
 		}
@@ -197,7 +197,7 @@ namespace Jupiter.Implementation.Objects
 		public BucketId Bucket { get; }
 		public IoHashKey Name { get;}
 		public byte[]? Blob { get; }
-		public BlobIdentifier BlobIdentifier { get; }
+		public BlobId BlobIdentifier { get; }
 		public int Size { get; }
 
 		public ObjectRecord ToObjectRecord(IReferencesStore.FieldFlags fieldFlags)

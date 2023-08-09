@@ -35,38 +35,38 @@ namespace Jupiter.Implementation
 			return _backends.GetOrAdd(ns, x => new MemoryStorageBackend(_throwOnOverwrite));
 		}
 
-		private static string GetPath(BlobIdentifier blob) => blob.ToString();
+		private static string GetPath(BlobId blob) => blob.ToString();
 
-		public Task<BlobIdentifier> PutObject(NamespaceId ns, byte[] blob, BlobIdentifier identifier)
+		public Task<BlobId> PutObject(NamespaceId ns, byte[] blob, BlobId identifier)
 		{
 			using MemoryStream stream = new MemoryStream(blob);
 			return PutObject(ns, stream, identifier);
 		}
-		public Task<Uri?> GetObjectByRedirect(NamespaceId ns, BlobIdentifier identifier)
+		public Task<Uri?> GetObjectByRedirect(NamespaceId ns, BlobId identifier)
 		{
 			// not supported
 			return Task.FromResult<Uri?>(null);
 		}
 
-		public Task<Uri?> PutObjectWithRedirect(NamespaceId ns, BlobIdentifier identifier)
+		public Task<Uri?> PutObjectWithRedirect(NamespaceId ns, BlobId identifier)
 		{
 			// not supported
 			return Task.FromResult<Uri?>(null);
 		}
 
-		public async Task<BlobIdentifier> PutObject(NamespaceId ns, ReadOnlyMemory<byte> blob, BlobIdentifier identifier)
+		public async Task<BlobId> PutObject(NamespaceId ns, ReadOnlyMemory<byte> blob, BlobId identifier)
 		{
 			return await PutObject(ns, blob: blob.ToArray(), identifier);
 		}
 
-		public async Task<BlobIdentifier> PutObject(NamespaceId ns, Stream blob, BlobIdentifier identifier)
+		public async Task<BlobId> PutObject(NamespaceId ns, Stream blob, BlobId identifier)
 		{
 			IStorageBackend backend = GetBackend(ns);
 			await backend.WriteAsync(GetPath(identifier), blob);
 			return identifier;
 		}
 
-		public async Task<BlobContents> GetObject(NamespaceId ns, BlobIdentifier blob, LastAccessTrackingFlags flags = LastAccessTrackingFlags.DoTracking, bool supportsRedirectUri = false)
+		public async Task<BlobContents> GetObject(NamespaceId ns, BlobId blob, LastAccessTrackingFlags flags = LastAccessTrackingFlags.DoTracking, bool supportsRedirectUri = false)
 		{
 			BlobContents? contents = await GetBackend(ns).TryReadAsync(GetPath(blob), flags);
 			if(contents == null)
@@ -76,9 +76,9 @@ namespace Jupiter.Implementation
 			return contents;
 		}
 
-		public Task DeleteObject(NamespaceId ns, BlobIdentifier blob) => GetBackend(ns).DeleteAsync(GetPath(blob));
+		public Task DeleteObject(NamespaceId ns, BlobId blob) => GetBackend(ns).DeleteAsync(GetPath(blob));
 
-		public Task<bool> Exists(NamespaceId ns, BlobIdentifier blob, bool forceCheck = false) => GetBackend(ns).ExistsAsync(GetPath(blob));
+		public Task<bool> Exists(NamespaceId ns, BlobId blob, bool forceCheck = false) => GetBackend(ns).ExistsAsync(GetPath(blob));
 
 		public Task DeleteNamespace(NamespaceId ns)
 		{
@@ -89,22 +89,22 @@ namespace Jupiter.Implementation
 			return Task.CompletedTask;
 		}
 
-		public async IAsyncEnumerable<(BlobIdentifier,DateTime)> ListObjects(NamespaceId ns)
+		public async IAsyncEnumerable<(BlobId,DateTime)> ListObjects(NamespaceId ns)
 		{
 			IStorageBackend backend = GetBackend(ns);
 			await foreach ((string path, DateTime time) in backend.ListAsync())
 			{
-				yield return (new BlobIdentifier(path), time);
+				yield return (new BlobId(path), time);
 			}
 		}
 
-		internal IEnumerable<BlobIdentifier> GetIdentifiers(NamespaceId ns)
+		internal IEnumerable<BlobId> GetIdentifiers(NamespaceId ns)
 		{
-			return GetBackend(ns).GetIdentifiers().Select(x => new BlobIdentifier(x));
+			return GetBackend(ns).GetIdentifiers().Select(x => new BlobId(x));
 		}
 
 		// only for unit tests to update the last modified time
-		internal void SetLastModifiedTime(NamespaceId ns, BlobIdentifier blob, DateTime modifiedTime)
+		internal void SetLastModifiedTime(NamespaceId ns, BlobId blob, DateTime modifiedTime)
 		{
 			GetBackend(ns).SetLastModifiedTime(GetPath(blob), modifiedTime);
 		}

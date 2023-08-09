@@ -13,7 +13,7 @@ namespace Jupiter.Implementation
 	{
 		IAsyncEnumerable<NamespaceId> GetNamespaces();
 
-		Task<(string, Guid)> InsertAddEvent(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier objectBlob, DateTime? timeBucket = null);
+		Task<(string, Guid)> InsertAddEvent(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId objectBlob, DateTime? timeBucket = null);
 		Task<(string, Guid)> InsertDeleteEvent(NamespaceId ns, BucketId bucket, IoHashKey key, DateTime? timeBucket = null);
 		IAsyncEnumerable<ReplicationLogEvent> Get(NamespaceId ns, string? lastBucket, Guid? lastEvent);
 
@@ -28,7 +28,7 @@ namespace Jupiter.Implementation
 	public class SnapshotInfo
 	{
 		[JsonConstructor]
-		public SnapshotInfo(NamespaceId snapshottedNamespace, NamespaceId blobNamespace, BlobIdentifier snapshotBlob, DateTime timestamp)
+		public SnapshotInfo(NamespaceId snapshottedNamespace, NamespaceId blobNamespace, BlobId snapshotBlob, DateTime timestamp)
 		{
 			SnapshottedNamespace = snapshottedNamespace;
 			BlobNamespace = blobNamespace;
@@ -38,14 +38,14 @@ namespace Jupiter.Implementation
 
 		public NamespaceId SnapshottedNamespace { get; set; }
 		public NamespaceId BlobNamespace { get; set; }
-		public BlobIdentifier SnapshotBlob { get; set; }
+		public BlobId SnapshotBlob { get; set; }
 		public DateTime Timestamp { get; set; }
 	}
 
 	public class ReplicationLogEvent
 	{
 		[JsonConstructor]
-		public ReplicationLogEvent(NamespaceId @namespace, BucketId bucket, IoHashKey key, BlobIdentifier? blob, Guid eventId, string timeBucket, DateTime timestamp, OpType op)
+		public ReplicationLogEvent(NamespaceId @namespace, BucketId bucket, IoHashKey key, BlobId? blob, Guid eventId, string timeBucket, DateTime timestamp, OpType op)
 		{
 			Namespace = @namespace;
 			Bucket = bucket;
@@ -78,7 +78,7 @@ namespace Jupiter.Implementation
 
 		public Guid EventId { get; }
 
-		public BlobIdentifier? Blob { get; }
+		public BlobId? Blob { get; }
 	}
 
 	public class IncrementalLogNotAvailableException : Exception

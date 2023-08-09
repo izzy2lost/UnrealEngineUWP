@@ -245,9 +245,9 @@ namespace Jupiter.Implementation
 				byte[] slicedHash = new byte[20];
 				Array.Copy(header.RawHash, 0, slicedHash, 0, 20);
 
-				BlobIdentifier headerIdentifier = new BlobIdentifier(slicedHash);
+				BlobId headerIdentifier = new BlobId(slicedHash);
 				await using Stream hashStream = finalizedBufferedPayload.GetStream();
-				BlobIdentifier contentHash = await BlobIdentifier.FromStream(hashStream);
+				BlobId contentHash = await BlobId.FromStream(hashStream);
 
 				if (!headerIdentifier.Equals(contentHash))
 				{

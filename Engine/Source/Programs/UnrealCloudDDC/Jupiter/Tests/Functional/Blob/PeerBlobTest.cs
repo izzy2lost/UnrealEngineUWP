@@ -31,8 +31,8 @@ namespace Jupiter.FunctionalTests.Storage
         protected const string S3FileContent = "Foo bar content that goes into s3";
         protected const string OtherPeerContent = "This content will be faked from another instance";
 
-        protected BlobIdentifier S3FileContentHash { get; } = BlobIdentifier.FromBlob(Encoding.ASCII.GetBytes(S3FileContent));
-        protected BlobIdentifier OtherPeerContentHash { get; } = BlobIdentifier.FromBlob(Encoding.ASCII.GetBytes(OtherPeerContent));
+        protected BlobId S3FileContentHash { get; } = BlobId.FromBlob(Encoding.ASCII.GetBytes(S3FileContent));
+        protected BlobId OtherPeerContentHash { get; } = BlobId.FromBlob(Encoding.ASCII.GetBytes(OtherPeerContent));
 
         private IAmazonS3? _s3;
         protected NamespaceId TestNamespaceName { get; } = new NamespaceId("testbucket");

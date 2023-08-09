@@ -48,33 +48,33 @@ namespace Jupiter.Implementation
 			return _backends.GetOrAdd(ns, x => ActivatorUtilities.CreateInstance<AmazonStorageBackend>(_provider, GetBucketName(x)));
 		}
 
-		public async Task<Uri?> GetObjectByRedirect(NamespaceId ns, BlobIdentifier identifier)
+		public async Task<Uri?> GetObjectByRedirect(NamespaceId ns, BlobId identifier)
 		{
 			Uri? uri = await GetBackend(ns).GetReadRedirectAsync(identifier.AsS3Key());
 
 			return uri;
 		}
 
-		public async Task<Uri?> PutObjectWithRedirect(NamespaceId ns, BlobIdentifier identifier)
+		public async Task<Uri?> PutObjectWithRedirect(NamespaceId ns, BlobId identifier)
 		{
 			Uri? uri = await GetBackend(ns).GetWriteRedirectAsync(identifier.AsS3Key());
 
 			return uri;
 		}
 
-		public async Task<BlobIdentifier> PutObject(NamespaceId ns, ReadOnlyMemory<byte> content, BlobIdentifier objectName)
+		public async Task<BlobId> PutObject(NamespaceId ns, ReadOnlyMemory<byte> content, BlobId objectName)
 		{
 			await using MemoryStream stream = new MemoryStream(content.ToArray());
 			return await PutObject(ns, stream, objectName);
 		}
 
-		public async Task<BlobIdentifier> PutObject(NamespaceId ns, Stream stream, BlobIdentifier objectName)
+		public async Task<BlobId> PutObject(NamespaceId ns, Stream stream, BlobId objectName)
 		{
 			await GetBackend(ns).WriteAsync(objectName.AsS3Key(), stream, CancellationToken.None);
 			return objectName;
 		}
 
-		public async Task<BlobIdentifier> PutObject(NamespaceId ns, byte[] content, BlobIdentifier objectName)
+		public async Task<BlobId> PutObject(NamespaceId ns, byte[] content, BlobId objectName)
 		{
 			await using MemoryStream stream = new MemoryStream(content);
 			return await PutObject(ns, stream, objectName);
@@ -101,7 +101,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task<BlobContents> GetObject(NamespaceId ns, BlobIdentifier blob, LastAccessTrackingFlags flags = LastAccessTrackingFlags.DoTracking, bool supportsRedirectUri = false)
+		public async Task<BlobContents> GetObject(NamespaceId ns, BlobId blob, LastAccessTrackingFlags flags = LastAccessTrackingFlags.DoTracking, bool supportsRedirectUri = false)
 		{
 			NamespacePolicy policies = _namespacePolicyResolver.GetPoliciesForNs(ns);
 			try
@@ -135,7 +135,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task<bool> Exists(NamespaceId ns, BlobIdentifier blobIdentifier, bool forceCheck)
+		public async Task<bool> Exists(NamespaceId ns, BlobId blobIdentifier, bool forceCheck)
 		{
 			NamespacePolicy policies = _namespacePolicyResolver.GetPoliciesForNs(ns);
 			if (_settings.UseBlobIndexForExistsCheck && policies.UseBlobIndexForSlowExists && !forceCheck)
@@ -168,17 +168,17 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async IAsyncEnumerable<(BlobIdentifier, DateTime)> ListObjects(NamespaceId ns)
+		public async IAsyncEnumerable<(BlobId, DateTime)> ListObjects(NamespaceId ns)
 		{
 			IStorageBackend backend = GetBackend(ns);
 			await foreach ((string path, DateTime time) in backend.ListAsync())
 			{
 				string identifierString = path.Substring(path.LastIndexOf("/", StringComparison.Ordinal) + 1);
-				yield return (new BlobIdentifier(identifierString), time);
+				yield return (new BlobId(identifierString), time);
 			}
 		}
 
-		public async Task DeleteObject(NamespaceId ns, BlobIdentifier blobIdentifier)
+		public async Task DeleteObject(NamespaceId ns, BlobId blobIdentifier)
 		{
 			IStorageBackend backend = GetBackend(ns);
 			await backend.DeleteAsync(blobIdentifier.AsS3Key());
@@ -461,7 +461,7 @@ namespace Jupiter.Implementation
 
 	public static class BlobIdentifierExtensions
 	{
-		public static string AsS3Key(this BlobIdentifier blobIdentifier)
+		public static string AsS3Key(this BlobId blobIdentifier)
 		{
 			string s = blobIdentifier.ToString();
 			string prefix = s.Substring(0, 4);

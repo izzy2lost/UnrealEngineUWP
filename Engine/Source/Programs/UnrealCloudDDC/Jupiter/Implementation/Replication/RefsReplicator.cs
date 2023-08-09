@@ -270,7 +270,7 @@ namespace Jupiter.Implementation
 			return hasRun;
 		}
 
-		private async Task<(string, Guid, int)> ReplicateFromSnapshot(NamespaceId ns, CancellationToken cancellationToken, BlobIdentifier? snapshotBlob = null, NamespaceId? blobNamespace = null)
+		private async Task<(string, Guid, int)> ReplicateFromSnapshot(NamespaceId ns, CancellationToken cancellationToken, BlobId? snapshotBlob = null, NamespaceId? blobNamespace = null)
 		{
 			// determine latest snapshot if no specific blob was specified
 			if (snapshotBlob == null)
@@ -472,7 +472,7 @@ namespace Jupiter.Implementation
 			return countOfReplicationsDone;
 		}
 
-		private async Task<bool> ReplicateOp(NamespaceId ns, BlobIdentifier objectToReplicate, CancellationToken cancellationToken)
+		private async Task<bool> ReplicateOp(NamespaceId ns, BlobId objectToReplicate, CancellationToken cancellationToken)
 		{
 			using TelemetrySpan scope = _tracer.StartActiveSpan("replicator.replicate_op")
 				.SetAttribute("operation.name", "replicator.replicate_op")
@@ -536,15 +536,15 @@ namespace Jupiter.Implementation
 				throw new Exception($"Unable to resolve references for object {objectToReplicate} in namespace {ns}");
 			}
 
-			BlobIdentifier[] potentialBlobs = new BlobIdentifier[refs.References.Length + 1];
+			BlobId[] potentialBlobs = new BlobId[refs.References.Length + 1];
 			Array.Copy(refs.References, potentialBlobs, refs.References.Length);
 			potentialBlobs[^1] = objectToReplicate;
 
-			BlobIdentifier[] missingBlobs = await _blobService.FilterOutKnownBlobs(ns, potentialBlobs);
+			BlobId[] missingBlobs = await _blobService.FilterOutKnownBlobs(ns, potentialBlobs);
 			Task[] blobReplicationTasks = new Task[missingBlobs.Length];
 			for (int i = 0; i < missingBlobs.Length; i++)
 			{
-				BlobIdentifier blobToReplicate = missingBlobs[i];
+				BlobId blobToReplicate = missingBlobs[i];
 				blobReplicationTasks[i] = Task.Run(async () =>
 				{
 					_logger.LogInformation("Attempting to replicate blob {Blob} in {Namespace}.", blobToReplicate, ns);
@@ -684,7 +684,7 @@ namespace Jupiter.Implementation
 							throw new Exception($"Unable to cast the problem details to a snapshot version. Body: {body}");
 						}
 
-						BlobIdentifier snapshotBlob = problemDetailsWithSnapshots.SnapshotId;
+						BlobId snapshotBlob = problemDetailsWithSnapshots.SnapshotId;
 						NamespaceId? blobNamespace = problemDetailsWithSnapshots.BlobNamespace;
 						throw new UseSnapshotException(snapshotBlob, blobNamespace!.Value);
 					}
@@ -721,7 +721,7 @@ namespace Jupiter.Implementation
 			_logger.LogDebug("{Name} starting replication. Last transaction was {TransactionId} {Generation}. Count Of running replications: {CurrentReplications}", _name, State.ReplicatorOffset.GetValueOrDefault(0L), State.ReplicatingGeneration.GetValueOrDefault(Guid.Empty), countOfCurrentReplications);
 		}
 
-		private async Task AddToReplicationLog(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier blob)
+		private async Task AddToReplicationLog(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blob)
 		{
 			await _replicationLog.InsertAddEvent(ns, bucket, key, blob);
 		}
@@ -764,10 +764,10 @@ namespace Jupiter.Implementation
 
 	public class UseSnapshotException : Exception
 	{
-		public BlobIdentifier SnapshotBlob { get; }
+		public BlobId SnapshotBlob { get; }
 		public NamespaceId BlobNamespace { get; }
 
-		public UseSnapshotException(BlobIdentifier snapshotBlob, NamespaceId blobNamespace)
+		public UseSnapshotException(BlobId snapshotBlob, NamespaceId blobNamespace)
 		{
 			SnapshotBlob = snapshotBlob;
 			BlobNamespace = blobNamespace;
@@ -795,7 +795,7 @@ namespace Jupiter.Implementation
 
 	public class ProblemDetailsWithSnapshots : ProblemDetails
 	{
-		public BlobIdentifier SnapshotId { get; set; } = null!;
+		public BlobId SnapshotId { get; set; } = null!;
 		public NamespaceId? BlobNamespace { get; set; } = null;
 	}
 }

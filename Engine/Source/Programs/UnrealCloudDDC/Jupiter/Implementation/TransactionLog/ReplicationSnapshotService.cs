@@ -75,7 +75,7 @@ namespace Jupiter.Implementation
 					try
 					{
 						_logger.LogInformation("Building snapshot for {Namespace}", ns);
-						BlobIdentifier snapshotBlob = await builder.BuildSnapshot(ns, _settings.CurrentValue.SnapshotStorageNamespace, _cancellationTokenSource.Token);
+						BlobId snapshotBlob = await builder.BuildSnapshot(ns, _settings.CurrentValue.SnapshotStorageNamespace, _cancellationTokenSource.Token);
 						_logger.LogInformation("Snapshot built for {Namespace} with id {Id}", ns, snapshotBlob);
 
 					}

@@ -51,7 +51,7 @@ namespace Jupiter.Controllers
 		[ProducesDefaultResponseType]
 		public async Task<IActionResult> Get(
 			[Required] NamespaceId ns,
-			[Required] BlobIdentifier id)
+			[Required] BlobId id)
 		{
 			ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
 			if (result != null)
@@ -75,7 +75,7 @@ namespace Jupiter.Controllers
 		[ProducesDefaultResponseType]
 		public async Task<IActionResult> Head(
 			[Required] NamespaceId ns,
-			[Required] BlobIdentifier id)
+			[Required] BlobId id)
 		{
 			ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
 			if (result != null)
@@ -97,7 +97,7 @@ namespace Jupiter.Controllers
 		[ProducesDefaultResponseType]
 		public async Task<IActionResult> ExistsMultiple(
 			[Required] NamespaceId ns,
-			[Required] [FromQuery] List<BlobIdentifier> id)
+			[Required] [FromQuery] List<BlobId> id)
 		{
 			ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
 			if (result != null)
@@ -105,7 +105,7 @@ namespace Jupiter.Controllers
 				return result;
 			}
 
-			ConcurrentBag<BlobIdentifier> missingBlobs = new ConcurrentBag<BlobIdentifier>();
+			ConcurrentBag<BlobId> missingBlobs = new ConcurrentBag<BlobId>();
 
 			IEnumerable<Task> tasks = id.Select(async blob =>
 			{
@@ -123,7 +123,7 @@ namespace Jupiter.Controllers
 		[ProducesDefaultResponseType]
 		public async Task<IActionResult> ExistsBody(
 			[Required] NamespaceId ns,
-			[FromBody] BlobIdentifier[] bodyIds)
+			[FromBody] BlobId[] bodyIds)
 		{
 			ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
 			if (result != null)
@@ -131,7 +131,7 @@ namespace Jupiter.Controllers
 				return result;
 			}
 
-			ConcurrentBag<BlobIdentifier> missingBlobs = new ConcurrentBag<BlobIdentifier>();
+			ConcurrentBag<BlobId> missingBlobs = new ConcurrentBag<BlobId>();
 
 			IEnumerable<Task> tasks = bodyIds.Select(async blob =>
 			{
@@ -149,7 +149,7 @@ namespace Jupiter.Controllers
 		[RequiredContentType(CustomMediaTypeNames.UnrealCompactBinary)]
 		public async Task<IActionResult> Put(
 			[Required] NamespaceId ns,
-			[Required] BlobIdentifier id)
+			[Required] BlobId id)
 		{
 			ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteObject });
 			if (result != null)
@@ -162,7 +162,7 @@ namespace Jupiter.Controllers
 			{
 				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
 
-				BlobIdentifier identifier = await _storage.PutObject(ns, payload, id);
+				BlobId identifier = await _storage.PutObject(ns, payload, id);
 				return Ok(new PutBlobResponse(identifier));
 			}
 			catch (ClientSendSlowException e)
@@ -174,7 +174,7 @@ namespace Jupiter.Controllers
 		[HttpGet("{ns}/{id}/references")]
 		public async Task<IActionResult> ResolveReferences(
 			[Required] NamespaceId ns,
-			[Required] BlobIdentifier id)
+			[Required] BlobId id)
 		{
 			ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
 			if (result != null)
@@ -210,7 +210,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				BlobIdentifier[] references = await _referenceResolver.GetReferencedBlobs(ns, compactBinaryObject).ToArrayAsync();
+				BlobId[] references = await _referenceResolver.GetReferencedBlobs(ns, compactBinaryObject).ToArrayAsync();
 				return Ok(new ResolvedReferencesResult(references));
 			}
 			catch (PartialReferenceResolveException e)
@@ -226,7 +226,7 @@ namespace Jupiter.Controllers
 		[HttpDelete("{ns}/{id}")]
 		public async Task<IActionResult> Delete(
 			[Required] NamespaceId ns,
-			[Required] BlobIdentifier id)
+			[Required] BlobId id)
 		{
 			ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.DeleteObject });
 			if (result != null)
@@ -265,13 +265,13 @@ namespace Jupiter.Controllers
 			Identifier = null!;
 		}
 
-		public PutBlobResponse(BlobIdentifier identifier)
+		public PutBlobResponse(BlobId identifier)
 		{
 			Identifier = identifier;
 		}
 
 		[CbField("identifier")]
-		public BlobIdentifier Identifier { get; set; }
+		public BlobId Identifier { get; set; }
 	}
 
 	public class DeletedResponse
@@ -286,12 +286,12 @@ namespace Jupiter.Controllers
 			References = null!;
 		}
 
-		public ResolvedReferencesResult(BlobIdentifier[] references)
+		public ResolvedReferencesResult(BlobId[] references)
 		{
 			References = references;
 		}
 
 		[CbField("references")]
-		public BlobIdentifier[] References { get; set; }
+		public BlobId[] References { get; set; }
 	}
 }

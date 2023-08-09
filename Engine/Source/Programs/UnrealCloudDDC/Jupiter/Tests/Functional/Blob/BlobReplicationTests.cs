@@ -37,7 +37,7 @@ namespace Jupiter.FunctionalTests.Storage
 
             string contents = "This is a random string of content";
             byte[] bytes = Encoding.ASCII.GetBytes(contents);
-            BlobIdentifier blobIdentifier = BlobIdentifier.FromBlob(bytes);
+            BlobId blobIdentifier = BlobId.FromBlob(bytes);
             
             Mock<HttpMessageHandler> handler = new Mock<HttpMessageHandler>();
 
@@ -169,7 +169,7 @@ namespace Jupiter.FunctionalTests.Storage
 
             string contents = "This is a random string of content";
             byte[] bytes = Encoding.ASCII.GetBytes(contents);
-            BlobIdentifier blobIdentifier = BlobIdentifier.FromBlob(bytes);
+            BlobId blobIdentifier = BlobId.FromBlob(bytes);
             
             Mock<HttpMessageHandler> handler = new Mock<HttpMessageHandler>();
 

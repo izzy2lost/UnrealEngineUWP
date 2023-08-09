@@ -29,7 +29,7 @@ namespace Jupiter.FunctionalTests.Storage
 
         protected const string FileContents = "This is some test contents for fallback namespaces";
         protected static readonly byte[] FileContentsBytes = Encoding.ASCII.GetBytes(FileContents);
-        protected BlobIdentifier FileHash { get; } = BlobIdentifier.FromBlob(FileContentsBytes);
+        protected BlobId FileHash { get; } = BlobId.FromBlob(FileContentsBytes);
 
         [TestInitialize]
         public async Task Setup()

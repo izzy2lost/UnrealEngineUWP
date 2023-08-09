@@ -121,7 +121,7 @@ namespace Jupiter.Implementation
 			return new ObjectRecord(new NamespaceId(o.Namespace!), new BucketId(o.Bucket!), new IoHashKey(o.Name!), o.LastAccessTime, o.InlinePayload, o.PayloadHash!.AsBlobIdentifier(), o.IsFinalized!.Value);
 		}
 
-		public async Task Put(NamespaceId ns, BucketId bucket, IoHashKey name, BlobIdentifier blobHash, byte[] blob, bool isFinalized)
+		public async Task Put(NamespaceId ns, BucketId bucket, IoHashKey name, BlobId blobHash, byte[] blob, bool isFinalized)
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.put").SetAttribute("resource.name", $"{ns}.{bucket}.{name}");
 
@@ -153,7 +153,7 @@ namespace Jupiter.Implementation
 			await addBucketTask;
 		}
 
-		public async Task Finalize(NamespaceId ns, BucketId bucket, IoHashKey name, BlobIdentifier blobIdentifier)
+		public async Task Finalize(NamespaceId ns, BucketId bucket, IoHashKey name, BlobId blobIdentifier)
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.finalize").SetAttribute("resource.name", $"{ns}.{bucket}.{name}");
 
@@ -410,9 +410,9 @@ namespace Jupiter.Implementation
 
 		public byte[]? Hash { get;set; }
 
-		public BlobIdentifier AsBlobIdentifier()
+		public BlobId AsBlobIdentifier()
 		{
-			return new BlobIdentifier(Hash!); 
+			return new BlobId(Hash!); 
 		}
 	}
 
@@ -448,7 +448,7 @@ namespace Jupiter.Implementation
 
 		}
 
-		public ScyllaObject(NamespaceId ns, BucketId bucket, IoHashKey name, byte[] payload, BlobIdentifier payloadHash, bool isFinalized)
+		public ScyllaObject(NamespaceId ns, BucketId bucket, IoHashKey name, byte[] payload, BlobId payloadHash, bool isFinalized)
 		{
 			Namespace = ns.ToString();
 			Bucket = bucket.ToString();

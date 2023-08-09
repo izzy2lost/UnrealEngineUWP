@@ -19,8 +19,8 @@ namespace Jupiter.Implementation
 			All = IncludePayload
 		}
 
-		Task Put(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier blobHash, byte[] blob, bool isFinalized);
-		Task Finalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier blobIdentifier);
+		Task Put(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobHash, byte[] blob, bool isFinalized);
+		Task Finalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobIdentifier);
 
 		Task UpdateLastAccessTime(NamespaceId ns, BucketId bucket, IoHashKey key, DateTime newLastAccessTime);
 		IAsyncEnumerable<(NamespaceId, BucketId, IoHashKey, DateTime)> GetRecords();
@@ -33,7 +33,7 @@ namespace Jupiter.Implementation
 
 	public class ObjectRecord
 	{
-		public ObjectRecord(NamespaceId ns, BucketId bucket, IoHashKey name, DateTime lastAccess, byte[]? inlinePayload, BlobIdentifier blobIdentifier, bool isFinalized)
+		public ObjectRecord(NamespaceId ns, BucketId bucket, IoHashKey name, DateTime lastAccess, byte[]? inlinePayload, BlobId blobIdentifier, bool isFinalized)
 		{
 			Namespace = ns;
 			Bucket = bucket;
@@ -49,7 +49,7 @@ namespace Jupiter.Implementation
 		public IoHashKey Name { get; }
 		public DateTime LastAccess { get; }
 		public byte[]? InlinePayload { get; set; }
-		public BlobIdentifier BlobIdentifier { get; set; }
+		public BlobId BlobIdentifier { get; set; }
 		public bool IsFinalized {get;}
 	}
 

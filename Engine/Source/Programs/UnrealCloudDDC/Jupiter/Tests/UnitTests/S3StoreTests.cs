@@ -57,7 +57,7 @@ namespace Jupiter.UnitTests
             ServiceProvider provider = SetupProvider(s3Mock);
             AmazonS3Store store = ActivatorUtilities.CreateInstance<AmazonS3Store>(provider);
             byte[] content = Encoding.ASCII.GetBytes("test content");
-            BlobIdentifier blobIdentifier = BlobIdentifier.FromBlob(content);
+            BlobId blobIdentifier = BlobId.FromBlob(content);
             Task task = store.PutObject(Namespace, content.AsMemory(), blobIdentifier);
             await task;
 
@@ -77,7 +77,7 @@ namespace Jupiter.UnitTests
             ServiceProvider provider = SetupProvider(s3Mock, "storagepool");
             AmazonS3Store store = ActivatorUtilities.CreateInstance<AmazonS3Store>(provider);
             byte[] content = Encoding.ASCII.GetBytes("test content");
-            BlobIdentifier blobIdentifier = BlobIdentifier.FromBlob(content);
+            BlobId blobIdentifier = BlobId.FromBlob(content);
             Task task = store.PutObject(Namespace, content.AsMemory(), blobIdentifier);
             await task;
 
@@ -95,7 +95,7 @@ namespace Jupiter.UnitTests
         public async Task PutBufferError()
         {
             byte[] content = Encoding.ASCII.GetBytes("test content");
-            BlobIdentifier blob = BlobIdentifier.FromBlob(content);
+            BlobId blob = BlobId.FromBlob(content);
 
             Mock<IAmazonS3> s3Mock = new Mock<IAmazonS3>();
             s3Mock.Setup(s3 => s3.PutObjectAsync(It.IsAny<PutObjectRequest>(), default)).Throws<Exception>();
@@ -114,7 +114,7 @@ namespace Jupiter.UnitTests
         public async Task GetSuccess()
         {
             byte[] content = Encoding.ASCII.GetBytes("test content");
-            BlobIdentifier blob = BlobIdentifier.FromBlob(content);
+            BlobId blob = BlobId.FromBlob(content);
             Mock<IAmazonS3> s3Mock = new Mock<IAmazonS3>();
             s3Mock.Setup(s3 => s3.GetObjectAsync("tests-foo", blob.AsS3Key(), default)).ReturnsAsync(Mock.Of<GetObjectResponse>());
             ServiceProvider provider = SetupProvider(s3Mock);
@@ -128,7 +128,7 @@ namespace Jupiter.UnitTests
         public async Task DeleteSuccess()
         {
             byte[] content = Encoding.ASCII.GetBytes("test content");
-            BlobIdentifier blob = BlobIdentifier.FromBlob(content);
+            BlobId blob = BlobId.FromBlob(content);
             
             Mock<IAmazonS3> s3Mock = new Mock<IAmazonS3>();
             ServiceProvider provider = SetupProvider(s3Mock);

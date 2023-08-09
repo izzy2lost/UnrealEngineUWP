@@ -107,7 +107,7 @@ namespace Jupiter.Implementation
 			return (o, blobContents);
 		}
 
-		public async Task<(ContentId[], BlobIdentifier[])> Put(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier blobHash, CbObject payload)
+		public async Task<(ContentId[], BlobId[])> Put(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobHash, CbObject payload)
 		{
 			IServerTiming? serverTiming = _httpContextAccessor.HttpContext?.RequestServices.GetService<IServerTiming>();
 			using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope("ref.put", "Inserting ref");
@@ -119,7 +119,7 @@ namespace Jupiter.Implementation
 
 			Task objectStorePut = _referencesStore.Put(ns, bucket, key, blobHash, payload.GetView().ToArray(), isFinalized);
 
-			Task<BlobIdentifier> blobStorePut = _blobService.PutObject(ns, payload.GetView().ToArray(), blobHash);
+			Task<BlobId> blobStorePut = _blobService.PutObject(ns, payload.GetView().ToArray(), blobHash);
 			
 			await Task.WhenAll(objectStorePut, blobStorePut);
 
@@ -157,7 +157,7 @@ namespace Jupiter.Implementation
 			return payload.Any(FieldHasAttachments);
 		}
 
-		public async Task<(ContentId[], BlobIdentifier[])> Finalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier blobHash)
+		public async Task<(ContentId[], BlobId[])> Finalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobHash)
 		{
 			(ObjectRecord o, BlobContents? blob) = await Get(ns, bucket, key);
 			if (blob == null)
@@ -177,7 +177,7 @@ namespace Jupiter.Implementation
 		}
 
 		
-		private async Task<(ContentId[], BlobIdentifier[])> DoFinalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier blobHash, CbObject payload)
+		private async Task<(ContentId[], BlobId[])> DoFinalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId blobHash, CbObject payload)
 		{
 			IServerTiming? serverTiming = _httpContextAccessor.HttpContext?.RequestServices.GetService<IServerTiming>();
 			using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope("ref.finalize", "Finalizing the ref");
@@ -185,15 +185,15 @@ namespace Jupiter.Implementation
 			Task addRefToBlobsTask = _blobIndex.AddRefToBlobs(ns, bucket, key, new [] {blobHash});
 
 			ContentId[] missingReferences = Array.Empty<ContentId>();
-			BlobIdentifier[] missingBlobs = Array.Empty<BlobIdentifier>();
+			BlobId[] missingBlobs = Array.Empty<BlobId>();
 			bool hasReferences = HasAttachments(payload);
 			if (hasReferences)
 			{
 				using TelemetrySpan _ = _tracer.StartActiveSpan("ObjectService.ResolveReferences").SetAttribute("operation.name", "ObjectService.ResolveReferences");
 				try
 				{
-					IAsyncEnumerable<BlobIdentifier> references = _referenceResolver.GetReferencedBlobs(ns, payload);
-					BlobIdentifier[] referencesArray = await references.ToArrayAsync();
+					IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobs(ns, payload);
+					BlobId[] referencesArray = await references.ToArrayAsync();
 					// TODO: Blobs could be added to the blob index as we find them in the async enumerable
 					await _blobIndex.AddRefToBlobs(ns, bucket, key, referencesArray);
 				}
@@ -268,7 +268,7 @@ namespace Jupiter.Implementation
 			return true;
 		}
 
-		public async Task<List<BlobIdentifier>> GetReferencedBlobs(NamespaceId ns, BucketId bucket, IoHashKey name)
+		public async Task<List<BlobId>> GetReferencedBlobs(NamespaceId ns, BucketId bucket, IoHashKey name)
 		{
 			byte[] blob;
 			ObjectRecord o = await _referencesStore.Get(ns, bucket, name, IReferencesStore.FieldFlags.IncludePayload);
@@ -284,7 +284,7 @@ namespace Jupiter.Implementation
 
 			CbObject cbObject = new CbObject(blob);
 
-			List<BlobIdentifier> referencedBlobs = await _referenceResolver.GetReferencedBlobs(ns, cbObject).ToListAsync();
+			List<BlobId> referencedBlobs = await _referenceResolver.GetReferencedBlobs(ns, cbObject).ToListAsync();
 			return referencedBlobs;
 		}
 	}

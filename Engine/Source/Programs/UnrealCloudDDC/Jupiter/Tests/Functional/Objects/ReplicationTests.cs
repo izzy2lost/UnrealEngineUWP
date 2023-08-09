@@ -182,7 +182,7 @@ namespace Jupiter.FunctionalTests.References
             writer.EndObject();
 
             byte[] objectData = writer.ToByteArray();
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(objectData);
+            BlobId objectHash = BlobId.FromBlob(objectData);
 
             using HttpContent requestContent = new ByteArrayContent(objectData);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompactBinary);
@@ -252,7 +252,7 @@ namespace Jupiter.FunctionalTests.References
             writer.EndObject();
 
             byte[] objectData = writer.ToByteArray();
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(objectData);
+            BlobId objectHash = BlobId.FromBlob(objectData);
 
             DateTime oldestTimestamp = DateTime.Now.AddDays(-1);
             (string eventBucket, Guid eventId) = await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("firstObject"), objectHash, oldestTimestamp);
@@ -310,7 +310,7 @@ namespace Jupiter.FunctionalTests.References
             writer.EndObject();
 
             byte[] objectData = writer.ToByteArray();
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(objectData);
+            BlobId objectHash = BlobId.FromBlob(objectData);
 
             DateTime oldestTimestamp = DateTime.Now.AddDays(-3);
             // insert multiple objects in the same time bucket, verifying that we correctly get only the objects after this
@@ -371,7 +371,7 @@ namespace Jupiter.FunctionalTests.References
             writer.EndObject();
 
             byte[] objectData = writer.ToByteArray();
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(objectData);
+            BlobId objectHash = BlobId.FromBlob(objectData);
 
             DateTime oldestTimestamp = DateTime.Now.AddDays(-1);
             (string eventBucket, Guid eventId) = await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("firstObject"), objectHash, oldestTimestamp);
@@ -422,7 +422,7 @@ namespace Jupiter.FunctionalTests.References
             writer.EndObject();
 
             byte[] objectData = writer.ToByteArray();
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(objectData);
+            BlobId objectHash = BlobId.FromBlob(objectData);
 
             await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("firstObject"), objectHash, DateTime.Now.AddDays(-1));
 
@@ -450,7 +450,7 @@ namespace Jupiter.FunctionalTests.References
             writer.EndObject();
 
             byte[] objectData = writer.ToByteArray();
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(objectData);
+            BlobId objectHash = BlobId.FromBlob(objectData);
 
             await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("firstObject"), objectHash, DateTime.Now.AddDays(-1));
 
@@ -491,7 +491,7 @@ namespace Jupiter.FunctionalTests.References
             writer.EndObject();
 
             byte[] objectData = writer.ToByteArray();
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(objectData);
+            BlobId objectHash = BlobId.FromBlob(objectData);
 
             DateTime oldestTimestamp = DateTime.Now.AddDays(-1);
             await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("firstObject"), objectHash, oldestTimestamp);
@@ -502,7 +502,7 @@ namespace Jupiter.FunctionalTests.References
             // create a snapshot
             ReplicationLogSnapshotBuilder snapshotBuilder = ActivatorUtilities.CreateInstance<ReplicationLogSnapshotBuilder>(_server!.Services);
             Assert.IsNotNull(snapshotBuilder);
-            BlobIdentifier snapshotBlobId = await snapshotBuilder.BuildSnapshot(TestNamespace, SnapshotNamespace);
+            BlobId snapshotBlobId = await snapshotBuilder.BuildSnapshot(TestNamespace, SnapshotNamespace);
             Assert.IsTrue(await _blobStore.Exists(SnapshotNamespace, snapshotBlobId));
 
             // use a bucket that does not exist, should raise a message to use a snapshot instead
@@ -514,7 +514,7 @@ namespace Jupiter.FunctionalTests.References
                 Assert.IsNotNull(problem);
                 Assert.AreEqual("http://jupiter.epicgames.com/replication/useSnapshot", problem!.Type);
                 Assert.IsTrue(problem.Extensions.ContainsKey("SnapshotId"));
-                Assert.AreEqual(snapshotBlobId, new BlobIdentifier(problem.Extensions["SnapshotId"]!.ToString()!));
+                Assert.AreEqual(snapshotBlobId, new BlobId(problem.Extensions["SnapshotId"]!.ToString()!));
                 Assert.AreEqual(SnapshotNamespace, new NamespaceId(problem.Extensions["BlobNamespace"]!.ToString()!));
             }
         }
@@ -528,7 +528,7 @@ namespace Jupiter.FunctionalTests.References
             writer.EndObject();
 
             byte[] objectData = writer.ToByteArray();
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(objectData);
+            BlobId objectHash = BlobId.FromBlob(objectData);
 
             DateTime oldestTimestamp = DateTime.Now.AddDays(-1);
             await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("firstObject"), objectHash, oldestTimestamp);
@@ -583,7 +583,7 @@ namespace Jupiter.FunctionalTests.References
             // create a snapshot
             ReplicationLogSnapshotBuilder snapshotBuilder = ActivatorUtilities.CreateInstance<ReplicationLogSnapshotBuilder>(_server!.Services);
             Assert.IsNotNull(snapshotBuilder);
-            BlobIdentifier snapshotBlobId = await snapshotBuilder.BuildSnapshot(TestNamespace, SnapshotNamespace);
+            BlobId snapshotBlobId = await snapshotBuilder.BuildSnapshot(TestNamespace, SnapshotNamespace);
             Assert.IsTrue(await _blobStore.Exists(SnapshotNamespace, snapshotBlobId));
 
             SnapshotInfo? snapshotInfo = await _replicationLog.GetSnapshots(TestNamespace).FirstAsync();
@@ -612,7 +612,7 @@ namespace Jupiter.FunctionalTests.References
             writer.EndObject();
 
             byte[] objectData = writer.ToByteArray();
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(objectData);
+            BlobId objectHash = BlobId.FromBlob(objectData);
 
             DateTime oldestTimestamp = DateTime.Now.AddDays(-1);
             await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("firstObject"), objectHash, oldestTimestamp);
@@ -631,7 +631,7 @@ namespace Jupiter.FunctionalTests.References
             ReplicationLogFactory replicationLogFactory = ActivatorUtilities.CreateInstance<ReplicationLogFactory>(_server!.Services);
             ReplicationLogSnapshotBuilder snapshotBuilder = ActivatorUtilities.CreateInstance<ReplicationLogSnapshotBuilder>(_server!.Services);
             Assert.IsNotNull(snapshotBuilder);
-            BlobIdentifier snapshotBlobId = await snapshotBuilder.BuildSnapshot(TestNamespace, SnapshotNamespace);
+            BlobId snapshotBlobId = await snapshotBuilder.BuildSnapshot(TestNamespace, SnapshotNamespace);
             Assert.IsTrue(await _blobStore.Exists(SnapshotNamespace, snapshotBlobId));
 
             SnapshotInfo? snapshotInfo = await _replicationLog.GetSnapshots(TestNamespace).FirstAsync();
@@ -668,7 +668,7 @@ namespace Jupiter.FunctionalTests.References
             writer.EndObject();
 
             byte[] objectData = writer.ToByteArray();
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(objectData);
+            BlobId objectHash = BlobId.FromBlob(objectData);
 
             DateTime oldestTimestamp = DateTime.Now.AddDays(-1);
             await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName("firstObject"), objectHash, oldestTimestamp);
@@ -687,7 +687,7 @@ namespace Jupiter.FunctionalTests.References
             ReplicationLogFactory replicationLogFactory = ActivatorUtilities.CreateInstance<ReplicationLogFactory>(_server!.Services);
             ReplicationLogSnapshotBuilder snapshotBuilder = ActivatorUtilities.CreateInstance<ReplicationLogSnapshotBuilder>(_server!.Services);
             Assert.IsNotNull(snapshotBuilder);
-            BlobIdentifier snapshotBlobId = await snapshotBuilder.BuildSnapshot(TestNamespace, SnapshotNamespace);
+            BlobId snapshotBlobId = await snapshotBuilder.BuildSnapshot(TestNamespace, SnapshotNamespace);
             Assert.IsTrue(await _blobStore.Exists(SnapshotNamespace, snapshotBlobId));
 
             SnapshotInfo? snapshotInfo = await _replicationLog.GetSnapshots(TestNamespace).FirstAsync();
@@ -742,21 +742,21 @@ namespace Jupiter.FunctionalTests.References
             writer.EndObject();
 
             byte[] objectData = writer.ToByteArray();
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(objectData);
+            BlobId objectHash = BlobId.FromBlob(objectData);
 
-            List<BlobIdentifier> createdSnapshots = new List<BlobIdentifier>();
+            List<BlobId> createdSnapshots = new List<BlobId>();
             for (int i = 0; i < countOfSnapshotsToCreate ; i++)
             {
                 await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, IoHashKey.FromName($"object {i}"), objectHash);
 
                 ReplicationLogSnapshotBuilder snapshotBuilder = ActivatorUtilities.CreateInstance<ReplicationLogSnapshotBuilder>(_server!.Services);
                 Assert.IsNotNull(snapshotBuilder);
-                BlobIdentifier snapshotBlobId = await snapshotBuilder.BuildSnapshot(TestNamespace, SnapshotNamespace);
+                BlobId snapshotBlobId = await snapshotBuilder.BuildSnapshot(TestNamespace, SnapshotNamespace);
                 Assert.IsTrue(await _blobStore.Exists(SnapshotNamespace, snapshotBlobId));
                 createdSnapshots.Add(snapshotBlobId);
             }
 
-            List<BlobIdentifier> snapshots = await _replicationLog.GetSnapshots(TestNamespace).Select(info => info.SnapshotBlob).ToListAsync();
+            List<BlobId> snapshots = await _replicationLog.GetSnapshots(TestNamespace).Select(info => info.SnapshotBlob).ToListAsync();
             // snapshots are returned newest first so we inverse this order
             snapshots.Reverse();
 

@@ -17,22 +17,22 @@ namespace Jupiter.Implementation
 
 	public interface IBlobStore
 	{
-		Task<BlobIdentifier> PutObject(NamespaceId ns, byte[] blob, BlobIdentifier identifier);
-		Task<BlobIdentifier> PutObject(NamespaceId ns, ReadOnlyMemory<byte> blob, BlobIdentifier identifier);
-		Task<BlobIdentifier> PutObject(NamespaceId ns, Stream content, BlobIdentifier identifier);
+		Task<BlobId> PutObject(NamespaceId ns, byte[] blob, BlobId identifier);
+		Task<BlobId> PutObject(NamespaceId ns, ReadOnlyMemory<byte> blob, BlobId identifier);
+		Task<BlobId> PutObject(NamespaceId ns, Stream content, BlobId identifier);
 
-		Task<BlobContents> GetObject(NamespaceId ns, BlobIdentifier blob, LastAccessTrackingFlags flags = LastAccessTrackingFlags.DoTracking, bool supportsRedirectUri = false);
-		Task<bool> Exists(NamespaceId ns, BlobIdentifier blob, bool forceCheck = false);
+		Task<BlobContents> GetObject(NamespaceId ns, BlobId blob, LastAccessTrackingFlags flags = LastAccessTrackingFlags.DoTracking, bool supportsRedirectUri = false);
+		Task<bool> Exists(NamespaceId ns, BlobId blob, bool forceCheck = false);
 
 		// Delete a object
-		Task DeleteObject(NamespaceId ns, BlobIdentifier blob);
+		Task DeleteObject(NamespaceId ns, BlobId blob);
 
 		// delete the whole namespace
 		Task DeleteNamespace(NamespaceId ns);
 
-		IAsyncEnumerable<(BlobIdentifier,DateTime)> ListObjects(NamespaceId ns);
-		Task<Uri?> PutObjectWithRedirect(NamespaceId ns, BlobIdentifier identifier);
-		Task<Uri?> GetObjectByRedirect(NamespaceId ns, BlobIdentifier blob);
+		IAsyncEnumerable<(BlobId,DateTime)> ListObjects(NamespaceId ns);
+		Task<Uri?> PutObjectWithRedirect(NamespaceId ns, BlobId identifier);
+		Task<Uri?> GetObjectByRedirect(NamespaceId ns, BlobId blob);
 	}
 
 	public interface IStorageBackend
@@ -47,15 +47,15 @@ namespace Jupiter.Implementation
 	public class BlobNotFoundException : Exception
 	{
 		public NamespaceId Ns { get; }
-		public BlobIdentifier Blob { get; }
+		public BlobId Blob { get; }
 
-		public BlobNotFoundException(NamespaceId ns, BlobIdentifier blob) : base($"No Blob in Namespace {ns} with id {blob}")
+		public BlobNotFoundException(NamespaceId ns, BlobId blob) : base($"No Blob in Namespace {ns} with id {blob}")
 		{
 			Ns = ns;
 			Blob = blob;
 		}
 
-		public BlobNotFoundException(NamespaceId ns, BlobIdentifier blob, string message) : base(message)
+		public BlobNotFoundException(NamespaceId ns, BlobId blob, string message) : base(message)
 		{
 			Ns = ns;
 			Blob = blob;
@@ -64,16 +64,16 @@ namespace Jupiter.Implementation
 
 	public class BlobReplicationException : BlobNotFoundException
 	{
-		public BlobReplicationException(NamespaceId ns, BlobIdentifier blob, string message) : base(ns, blob, message)
+		public BlobReplicationException(NamespaceId ns, BlobId blob, string message) : base(ns, blob, message)
 		{
 		}
 	}
 
 	public class BlobToLargeException : Exception
 	{
-		public BlobIdentifier Blob { get; }
+		public BlobId Blob { get; }
 
-		public BlobToLargeException(BlobIdentifier blob) : base($"Blob {blob} was to large to cache")
+		public BlobToLargeException(BlobId blob) : base($"Blob {blob} was to large to cache")
 		{
 			Blob = blob;
 		}

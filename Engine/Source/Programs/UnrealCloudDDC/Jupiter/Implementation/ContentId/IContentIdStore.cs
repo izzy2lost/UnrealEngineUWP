@@ -15,7 +15,7 @@ namespace Jupiter.Implementation
 		/// <param name="contentId">The identifier for the content id</param>
 		/// <param name="mustBeContentId"></param>
 		/// <returns></returns>
-		Task<BlobIdentifier[]?> Resolve(NamespaceId ns, ContentId contentId, bool mustBeContentId = false);
+		Task<BlobId[]?> Resolve(NamespaceId ns, ContentId contentId, bool mustBeContentId = false);
 
 		/// <summary>
 		/// Add a mapping from contentId to blobIdentifier
@@ -25,7 +25,7 @@ namespace Jupiter.Implementation
 		/// <param name="blobIdentifier">The blob the content id maps to</param>
 		/// <param name="contentWeight">Weight of this identifier compared to previous mappings, used to determine which is more important, lower weight is considered a better fit</param>
 		/// <returns></returns>
-		Task Put(NamespaceId ns, ContentId contentId, BlobIdentifier blobIdentifier, int contentWeight);
+		Task Put(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight);
 	}
 
 	public class InvalidContentIdException : Exception

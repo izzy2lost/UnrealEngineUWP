@@ -67,7 +67,7 @@ namespace Jupiter.FunctionalTests.References
             writer.EndObject();
 
             byte[] objectData = writer.ToByteArray();
-            BlobIdentifier objectHash = BlobIdentifier.FromBlob(objectData);
+            BlobId objectHash = BlobId.FromBlob(objectData);
 
             using HttpContent requestContent = new ByteArrayContent(objectData);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompactBinary);

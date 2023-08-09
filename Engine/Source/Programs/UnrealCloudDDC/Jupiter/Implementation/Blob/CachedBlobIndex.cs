@@ -19,51 +19,51 @@ public class CachedBlobIndex : IBlobIndex
 		_fileSystemStore = fileSystemStore;
 	}
 
-	public async Task AddBlobToIndex(NamespaceId ns, BlobIdentifier id, string? region = null)
+	public async Task AddBlobToIndex(NamespaceId ns, BlobId id, string? region = null)
 	{
 		// We do not actually track any blob information when running in cached mode
 		await Task.CompletedTask;
 	}
 
-	public async Task RemoveBlobFromRegion(NamespaceId ns, BlobIdentifier id, string? region = null)
+	public async Task RemoveBlobFromRegion(NamespaceId ns, BlobId id, string? region = null)
 	{
 		// We do not actually track any blob information when running in cached mode
 		await Task.CompletedTask;
 	}
 
-	public IAsyncEnumerable<BaseBlobReference> GetBlobReferences(NamespaceId ns, BlobIdentifier id)
+	public IAsyncEnumerable<BaseBlobReference> GetBlobReferences(NamespaceId ns, BlobId id)
 	{
 		throw new NotImplementedException();
 	}
 
-	public async Task<bool> BlobExistsInRegion(NamespaceId ns, BlobIdentifier blobIdentifier, string? region = null)
+	public async Task<bool> BlobExistsInRegion(NamespaceId ns, BlobId blobIdentifier, string? region = null)
 	{
 		return await _fileSystemStore.Exists(ns, blobIdentifier, forceCheck: false);
 	}
 
-	public async Task AddRefToBlobs(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier[] blobs)
+	public async Task AddRefToBlobs(NamespaceId ns, BucketId bucket, IoHashKey key, BlobId[] blobs)
 	{
 		// We do not actually track any blob information when running in cached mode
 		await Task.CompletedTask;
 	}
 
-	public IAsyncEnumerable<(NamespaceId, BlobIdentifier)> GetAllBlobs()
+	public IAsyncEnumerable<(NamespaceId, BlobId)> GetAllBlobs()
 	{
 		throw new NotImplementedException();
 	}
 
-	public Task RemoveReferences(NamespaceId ns, BlobIdentifier id, List<BaseBlobReference> referencesToRemove)
+	public Task RemoveReferences(NamespaceId ns, BlobId id, List<BaseBlobReference> referencesToRemove)
 	{
 		// We do not actually track any blob information when running in cached mode
 		return Task.CompletedTask;
 	}
 
-	public Task<List<string>> GetBlobRegions(NamespaceId ns, BlobIdentifier blob)
+	public Task<List<string>> GetBlobRegions(NamespaceId ns, BlobId blob)
 	{
 		throw new NotImplementedException();
 	}
 
-	public Task AddBlobReferences(NamespaceId ns, BlobIdentifier sourceBlob, BlobIdentifier targetBlob)
+	public Task AddBlobReferences(NamespaceId ns, BlobId sourceBlob, BlobId targetBlob)
 	{
 		throw new NotImplementedException();
 	}
