@@ -24,7 +24,7 @@ void MainCS(uint3 ThreadID : SV_DispatchThreadID)
 	{
 		PageFaultUAV[index1] = what;
 	}
-
+#if  HANG_REQUESTED
 	// Try to trigger a crash (timeout) using a deliberate infinite loop
 	for (;;)
 	{
@@ -34,5 +34,5 @@ void MainCS(uint3 ThreadID : SV_DispatchThreadID)
 			break;
 		}
 	}
-	
+#endif
 }

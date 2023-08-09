@@ -5,8 +5,8 @@
 	=============================================================================*/
 
 #include "GPUDebugCrashUtils.h"
-#include "RenderResource.h"
 #include "RenderGraphUtils.h"
+#include "RenderResource.h"
 #include "GlobalShader.h"
 #include "RHIStaticStates.h"
 #include "DataDrivenShaderPlatformInfo.h"
@@ -18,7 +18,8 @@ public:
 	SHADER_USE_PARAMETER_STRUCT(FGPUDebugCrashUtilsCS, FGlobalShader)
 
 	class FPlatformBreakRequested : SHADER_PERMUTATION_BOOL("PLATFORM_BREAK_REQUESTED");
-	using FPermutationDomain = TShaderPermutationDomain<FPlatformBreakRequested>;
+	class FHangRequested : SHADER_PERMUTATION_BOOL("HANG_REQUESTED");
+	using FPermutationDomain = TShaderPermutationDomain<FPlatformBreakRequested, FHangRequested>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, PageFaultUAV)
@@ -38,12 +39,13 @@ void ScheduleGPUDebugCrash(FRDGBuilder& GraphBuilder)
 {
 	FGPUDebugCrashUtilsCS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FGPUDebugCrashUtilsCS::FPlatformBreakRequested>(EnumHasAnyFlags(GRHIGlobals.TriggerGPUCrash, ERequestedGPUCrash::Type_PlatformBreak));
+	PermutationVector.Set<FGPUDebugCrashUtilsCS::FHangRequested>(EnumHasAnyFlags(GRHIGlobals.TriggerGPUCrash, ERequestedGPUCrash::Type_Hang));
 
 	auto ComputeShader = GetGlobalShaderMap(GMaxRHIFeatureLevel)->GetShader<FGPUDebugCrashUtilsCS>(PermutationVector);
 	FGPUDebugCrashUtilsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FGPUDebugCrashUtilsCS::FParameters>();
 	ETextureCreateFlags TexFlags = TexCreate_UAV | TexCreate_ShaderResource | TexCreate_NoFastClear | TexCreate_RenderTargetable;
 	FRDGTextureDesc CreateInfo = FRDGTextureDesc::Create2D(
-		FIntPoint(16, 16),
+		FIntPoint(64, 64),
 		EPixelFormat::PF_R32_UINT,
 		FClearValueBinding::None,
 		TexFlags);
