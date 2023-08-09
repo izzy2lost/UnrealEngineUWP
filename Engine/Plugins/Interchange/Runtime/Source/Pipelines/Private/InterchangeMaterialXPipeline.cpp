@@ -1,28 +1,221 @@
 // Copyright Epic Games, Inc. All Rights Reserved. 
 
 #include "InterchangeMaterialXPipeline.h"
-
-#include "InterchangePipelineLog.h"
-
 #include "InterchangeManager.h"
 #include "InterchangeMaterialDefinitions.h"
 #include "InterchangeMaterialFactoryNode.h"
+#include "InterchangePipelineLog.h"
 
+#include "Engine/RendererSettings.h"
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Materials/MaterialFunction.h"
 #include "Misc/PackageName.h"
 
-TMap<FString, EInterchangeMaterialXShaders> UInterchangeMaterialXPipeline::PathToEnumMapping
+#if WITH_EDITOR
+TSet<FName> UMaterialXPipelineSettings::StandardSurfaceInputs;
+TSet<FName> UMaterialXPipelineSettings::StandardSurfaceOutputs;
+TSet<FName> UMaterialXPipelineSettings::TransmissionSurfaceInputs;
+TSet<FName> UMaterialXPipelineSettings::TransmissionSurfaceOutputs;
+TSet<FName> UMaterialXPipelineSettings::SurfaceUnlitInputs;
+TSet<FName> UMaterialXPipelineSettings::SurfaceUnlitOutputs;
+TSet<FName> UMaterialXPipelineSettings::UsdPreviewSurfaceInputs;
+TSet<FName> UMaterialXPipelineSettings::UsdPreviewSurfaceOutputs;
+#endif
+TMap<FString, EInterchangeMaterialXShaders> UInterchangeMaterialXPipeline::PathToEnumMapping;
+
+UMaterialXPipelineSettings::UMaterialXPipelineSettings()
 {
-	{TEXT("/Interchange/Functions/MX_StandardSurface.MX_StandardSurface"),EInterchangeMaterialXShaders::StandardSurface},
-	{TEXT("/Interchange/Functions/MX_TransmissionSurface.MX_TransmissionSurface"),EInterchangeMaterialXShaders::StandardSurfaceTransmission},
-	{TEXT("/Interchange/Functions/MX_SurfaceUnlit.MX_SurfaceUnlit"),EInterchangeMaterialXShaders::SurfaceUnlit},
-	{TEXT("/Interchange/Functions/MX_UsdPreviewSurface.MX_UsdPreviewSurface"),EInterchangeMaterialXShaders::UsdPreviewSurface},
-};
+	if(HasAnyFlags(EObjectFlags::RF_ClassDefaultObject))
+	{
+		bIsSubstrateEnabled = GetDefault<URendererSettings>() ? GetDefault<URendererSettings>()->bEnableStrata : false;
+#if WITH_EDITOR
+		StandardSurfaceInputs =	{
+			UE::Interchange::Materials::StandardSurface::Parameters::Base,
+			UE::Interchange::Materials::StandardSurface::Parameters::BaseColor,
+			UE::Interchange::Materials::StandardSurface::Parameters::DiffuseRoughness,
+			UE::Interchange::Materials::StandardSurface::Parameters::Metalness,
+			UE::Interchange::Materials::StandardSurface::Parameters::Specular,
+			UE::Interchange::Materials::StandardSurface::Parameters::SpecularRoughness,
+			UE::Interchange::Materials::StandardSurface::Parameters::SpecularIOR,
+			UE::Interchange::Materials::StandardSurface::Parameters::SpecularAnisotropy,
+			UE::Interchange::Materials::StandardSurface::Parameters::SpecularRotation,
+			UE::Interchange::Materials::StandardSurface::Parameters::Subsurface,
+			UE::Interchange::Materials::StandardSurface::Parameters::SubsurfaceColor,
+			UE::Interchange::Materials::StandardSurface::Parameters::SubsurfaceRadius,
+			UE::Interchange::Materials::StandardSurface::Parameters::SubsurfaceScale,
+			UE::Interchange::Materials::StandardSurface::Parameters::Sheen,
+			UE::Interchange::Materials::StandardSurface::Parameters::SheenColor,
+			UE::Interchange::Materials::StandardSurface::Parameters::SheenRoughness,
+			UE::Interchange::Materials::StandardSurface::Parameters::Coat,
+			UE::Interchange::Materials::StandardSurface::Parameters::CoatColor,
+			UE::Interchange::Materials::StandardSurface::Parameters::CoatRoughness,
+			UE::Interchange::Materials::StandardSurface::Parameters::CoatNormal,
+			UE::Interchange::Materials::StandardSurface::Parameters::ThinFilmThickness,
+			UE::Interchange::Materials::StandardSurface::Parameters::Emission,
+			UE::Interchange::Materials::StandardSurface::Parameters::EmissionColor,
+			UE::Interchange::Materials::StandardSurface::Parameters::Normal,
+			UE::Interchange::Materials::StandardSurface::Parameters::Tangent,
+			bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::SpecularColor : FName{},
+			bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::CoatIOR : FName{},
+			bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::CoatAnisotropy : FName{},
+			bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::CoatRotation : FName{},
+			bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::ThinFilmIOR : FName{},
+			bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::Opacity : FName{},
+			bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::SubsurfaceAnisotropy : FName{}
+		};
+		StandardSurfaceOutputs = {
+			!bIsSubstrateEnabled ?
+			TSet<FName>{
+				TEXT("Base Color"), // MX_StandardSurface has BaseColor with a whitespace, this should be fixed in further release
+				UE::Interchange::Materials::PBRMR::Parameters::Metallic,
+				UE::Interchange::Materials::PBRMR::Parameters::Specular,
+				UE::Interchange::Materials::PBRMR::Parameters::Roughness,
+				UE::Interchange::Materials::PBRMR::Parameters::Anisotropy,
+				UE::Interchange::Materials::PBRMR::Parameters::EmissiveColor,
+				UE::Interchange::Materials::PBRMR::Parameters::Opacity,
+				UE::Interchange::Materials::PBRMR::Parameters::Normal,
+				UE::Interchange::Materials::PBRMR::Parameters::Tangent,
+				UE::Interchange::Materials::Sheen::Parameters::SheenRoughness,
+				UE::Interchange::Materials::Sheen::Parameters::SheenColor,
+				UE::Interchange::Materials::Subsurface::Parameters::SubsurfaceColor,
+				UE::Interchange::Materials::ClearCoat::Parameters::ClearCoat,
+				UE::Interchange::Materials::ClearCoat::Parameters::ClearCoatRoughness,
+				UE::Interchange::Materials::ClearCoat::Parameters::ClearCoatNormal
+			}	:
+			TSet<FName>{
+				UE::Interchange::Materials::StandardSurface::Substrate::Outputs::Opaque,
+				UE::Interchange::Materials::StandardSurface::Substrate::Outputs::Opacity
+			}
+		};
+		TransmissionSurfaceInputs = {
+			UE::Interchange::Materials::StandardSurface::Parameters::Base,
+			UE::Interchange::Materials::StandardSurface::Parameters::BaseColor,
+			UE::Interchange::Materials::StandardSurface::Parameters::DiffuseRoughness,
+			UE::Interchange::Materials::StandardSurface::Parameters::Metalness,
+			UE::Interchange::Materials::StandardSurface::Parameters::Specular,
+			bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::SpecularColor : FName{},
+			UE::Interchange::Materials::StandardSurface::Parameters::SpecularRoughness,
+			UE::Interchange::Materials::StandardSurface::Parameters::SpecularIOR,
+			UE::Interchange::Materials::StandardSurface::Parameters::SpecularAnisotropy,
+			UE::Interchange::Materials::StandardSurface::Parameters::SpecularRotation,
+			UE::Interchange::Materials::StandardSurface::Parameters::Transmission,
+			UE::Interchange::Materials::StandardSurface::Parameters::TransmissionColor,
+			UE::Interchange::Materials::StandardSurface::Parameters::TransmissionDepth,
+			UE::Interchange::Materials::StandardSurface::Parameters::TransmissionScatter,
+			UE::Interchange::Materials::StandardSurface::Parameters::TransmissionScatterAnisotropy,
+			UE::Interchange::Materials::StandardSurface::Parameters::TransmissionDispersion,
+			UE::Interchange::Materials::StandardSurface::Parameters::TransmissionExtraRoughness,
+			UE::Interchange::Materials::StandardSurface::Parameters::Subsurface,
+			UE::Interchange::Materials::StandardSurface::Parameters::SubsurfaceColor,
+			UE::Interchange::Materials::StandardSurface::Parameters::SubsurfaceRadius,
+			UE::Interchange::Materials::StandardSurface::Parameters::SubsurfaceScale,
+			UE::Interchange::Materials::StandardSurface::Parameters::Sheen,
+			UE::Interchange::Materials::StandardSurface::Parameters::SheenColor,
+			UE::Interchange::Materials::StandardSurface::Parameters::SheenRoughness,
+			UE::Interchange::Materials::StandardSurface::Parameters::Coat,
+			UE::Interchange::Materials::StandardSurface::Parameters::CoatColor,
+			UE::Interchange::Materials::StandardSurface::Parameters::CoatRoughness,
+			bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::CoatAnisotropy : FName{},
+			bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::CoatRotation : FName{},
+			bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::CoatIOR : FName{},
+			UE::Interchange::Materials::StandardSurface::Parameters::CoatNormal,
+			UE::Interchange::Materials::StandardSurface::Parameters::ThinFilmThickness,
+			bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::ThinFilmIOR : FName{},
+			UE::Interchange::Materials::StandardSurface::Parameters::Emission,
+			UE::Interchange::Materials::StandardSurface::Parameters::EmissionColor,
+			bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::Opacity : FName{},
+			UE::Interchange::Materials::StandardSurface::Parameters::Normal,
+			UE::Interchange::Materials::StandardSurface::Parameters::Tangent
+		};
+		TransmissionSurfaceOutputs = {
+			!bIsSubstrateEnabled ?
+			TSet<FName>{
+				UE::Interchange::Materials::PBRMR::Parameters::BaseColor,
+				UE::Interchange::Materials::PBRMR::Parameters::Metallic,
+				UE::Interchange::Materials::PBRMR::Parameters::Specular,
+				UE::Interchange::Materials::PBRMR::Parameters::Roughness,
+				UE::Interchange::Materials::PBRMR::Parameters::Anisotropy,
+				UE::Interchange::Materials::PBRMR::Parameters::EmissiveColor,
+				UE::Interchange::Materials::PBRMR::Parameters::Opacity,
+				UE::Interchange::Materials::PBRMR::Parameters::Normal,
+				UE::Interchange::Materials::PBRMR::Parameters::Tangent,
+				UE::Interchange::Materials::PBRMR::Parameters::Refraction,
+				UE::Interchange::Materials::ThinTranslucent::Parameters::TransmissionColor
+			}	:
+			TSet<FName>{UE::Interchange::Materials::StandardSurface::Substrate::Outputs::Translucent}
+		};
+		SurfaceUnlitInputs = {
+			UE::Interchange::Materials::SurfaceUnlit::Parameters::Emission,
+			UE::Interchange::Materials::SurfaceUnlit::Parameters::EmissionColor,
+			UE::Interchange::Materials::SurfaceUnlit::Parameters::Transmission,
+			UE::Interchange::Materials::SurfaceUnlit::Parameters::TransmissionColor,
+			UE::Interchange::Materials::SurfaceUnlit::Parameters::Opacity
+		};
+		SurfaceUnlitOutputs = {
+			UE::Interchange::Materials::Common::Parameters::EmissiveColor,
+			UE::Interchange::Materials::Common::Parameters::Opacity,
+			TEXT("OpacityMask")
+		};
+		UsdPreviewSurfaceInputs = {
+			UE::Interchange::Materials::UsdPreviewSurface::Parameters::DiffuseColor,
+			UE::Interchange::Materials::UsdPreviewSurface::Parameters::EmissiveColor,
+			UE::Interchange::Materials::UsdPreviewSurface::Parameters::SpecularColor,
+			UE::Interchange::Materials::UsdPreviewSurface::Parameters::Metallic,
+			UE::Interchange::Materials::UsdPreviewSurface::Parameters::Roughness,
+			UE::Interchange::Materials::UsdPreviewSurface::Parameters::Clearcoat,
+			UE::Interchange::Materials::UsdPreviewSurface::Parameters::ClearcoatRoughness,
+			UE::Interchange::Materials::UsdPreviewSurface::Parameters::Opacity,
+			UE::Interchange::Materials::UsdPreviewSurface::Parameters::OpacityThreshold,
+			UE::Interchange::Materials::UsdPreviewSurface::Parameters::IOR,
+			UE::Interchange::Materials::UsdPreviewSurface::Parameters::Normal,
+			UE::Interchange::Materials::UsdPreviewSurface::Parameters::Displacement,
+			UE::Interchange::Materials::UsdPreviewSurface::Parameters::Occlusion
+		};
+		UsdPreviewSurfaceOutputs = {
+			UE::Interchange::Materials::PBRMR::Parameters::BaseColor,
+			UE::Interchange::Materials::PBRMR::Parameters::Metallic,
+			UE::Interchange::Materials::PBRMR::Parameters::Specular,
+			UE::Interchange::Materials::PBRMR::Parameters::Roughness,
+			UE::Interchange::Materials::PBRMR::Parameters::EmissiveColor,
+			UE::Interchange::Materials::PBRMR::Parameters::Opacity,
+			UE::Interchange::Materials::PBRMR::Parameters::Normal,
+			UE::Interchange::Materials::Common::Parameters::Refraction,
+			UE::Interchange::Materials::Common::Parameters::Occlusion,
+			UE::Interchange::Materials::ClearCoat::Parameters::ClearCoat,
+			UE::Interchange::Materials::ClearCoat::Parameters::ClearCoatRoughness,
+		};
+#endif
+	}
+}
 
 UInterchangeMaterialXPipeline::UInterchangeMaterialXPipeline()
 	: MaterialXSettings(UMaterialXPipelineSettings::StaticClass()->GetDefaultObject< UMaterialXPipelineSettings>())
 {
+	if(HasAnyFlags(EObjectFlags::RF_ClassDefaultObject))
+	{
+		// Init the PredefinedSurfaceShaders with Substrate assets, since the default value is set in BaseInterchange.ini and we have no way in the config file to conditionally init a property
+		if(MaterialXSettings->bIsSubstrateEnabled)
+		{
+			if(FString StandardSurfacePath = MaterialXSettings->GetAssetPathString(EInterchangeMaterialXShaders::StandardSurface); StandardSurfacePath == TEXT("/Interchange/Functions/MX_StandardSurface.MX_StandardSurface"))
+			{
+				MaterialXSettings->PredefinedSurfaceShaders.Add(EInterchangeMaterialXShaders::StandardSurface, FSoftObjectPath{ TEXT("/Interchange/Substrate/MX_StandardSurface.MX_StandardSurface") });
+			}
+
+			if(FString TransmissionSurfacePath = MaterialXSettings->GetAssetPathString(EInterchangeMaterialXShaders::StandardSurfaceTransmission); TransmissionSurfacePath == TEXT("/Interchange/Functions/MX_TransmissionSurface.MX_TransmissionSurface"))
+			{
+				MaterialXSettings->PredefinedSurfaceShaders.Add(EInterchangeMaterialXShaders::StandardSurfaceTransmission, FSoftObjectPath{ TEXT("/Interchange/Substrate/MX_TransmissionSurface.MX_TransmissionSurface") });
+			}
+		}
+
+		PathToEnumMapping =
+		{
+			{MaterialXSettings->bIsSubstrateEnabled ? TEXT("/Interchange/Substrate/MX_StandardSurface.MX_StandardSurface") : TEXT("/Interchange/Functions/MX_StandardSurface.MX_StandardSurface"), EInterchangeMaterialXShaders::StandardSurface},
+			{MaterialXSettings->bIsSubstrateEnabled ? TEXT("/Interchange/Substrate/MX_TransmissionSurface.MX_TransmissionSurface") : TEXT("/Interchange/Functions/MX_TransmissionSurface.MX_TransmissionSurface"), EInterchangeMaterialXShaders::StandardSurfaceTransmission},
+			{TEXT("/Interchange/Functions/MX_SurfaceUnlit.MX_SurfaceUnlit"),EInterchangeMaterialXShaders::SurfaceUnlit},
+			{TEXT("/Interchange/Functions/MX_UsdPreviewSurface.MX_UsdPreviewSurface"),EInterchangeMaterialXShaders::UsdPreviewSurface},
+		};
+	}
+
 	for (const TPair<EInterchangeMaterialXShaders, FSoftObjectPath>& Entry : MaterialXSettings->PredefinedSurfaceShaders)
 	{
 		PathToEnumMapping.FindOrAdd(Entry.Value.GetAssetPathString(), Entry.Key);
@@ -131,152 +324,6 @@ FString UMaterialXPipelineSettings::GetAssetPathString(EInterchangeMaterialXShad
 }
 
 #if WITH_EDITOR
-TSet<FName> UMaterialXPipelineSettings::StandardSurfaceInputs
-{
-	UE::Interchange::Materials::StandardSurface::Parameters::Base,
-	UE::Interchange::Materials::StandardSurface::Parameters::BaseColor,
-	UE::Interchange::Materials::StandardSurface::Parameters::DiffuseRoughness,
-	UE::Interchange::Materials::StandardSurface::Parameters::Metalness,
-	UE::Interchange::Materials::StandardSurface::Parameters::Specular,
-	UE::Interchange::Materials::StandardSurface::Parameters::SpecularRoughness,
-	UE::Interchange::Materials::StandardSurface::Parameters::SpecularIOR,
-	UE::Interchange::Materials::StandardSurface::Parameters::SpecularAnisotropy,
-	UE::Interchange::Materials::StandardSurface::Parameters::SpecularRotation,
-	UE::Interchange::Materials::StandardSurface::Parameters::Subsurface,
-	UE::Interchange::Materials::StandardSurface::Parameters::SubsurfaceColor,
-	UE::Interchange::Materials::StandardSurface::Parameters::SubsurfaceRadius,
-	UE::Interchange::Materials::StandardSurface::Parameters::SubsurfaceScale,
-	UE::Interchange::Materials::StandardSurface::Parameters::Sheen,
-	UE::Interchange::Materials::StandardSurface::Parameters::SheenColor,
-	UE::Interchange::Materials::StandardSurface::Parameters::SheenRoughness,
-	UE::Interchange::Materials::StandardSurface::Parameters::Coat,
-	UE::Interchange::Materials::StandardSurface::Parameters::CoatColor,
-	UE::Interchange::Materials::StandardSurface::Parameters::CoatRoughness,
-	UE::Interchange::Materials::StandardSurface::Parameters::CoatNormal,
-	UE::Interchange::Materials::StandardSurface::Parameters::ThinFilmThickness,
-	UE::Interchange::Materials::StandardSurface::Parameters::Emission,
-	UE::Interchange::Materials::StandardSurface::Parameters::EmissionColor,
-	UE::Interchange::Materials::StandardSurface::Parameters::Normal,
-	UE::Interchange::Materials::StandardSurface::Parameters::Tangent
-};
-
-TSet<FName> UMaterialXPipelineSettings::StandardSurfaceOutputs
-{
-	TEXT("Base Color"), // MX_StandardSurface has BaseColor with a whitespace, this should be fixed in further release
-	UE::Interchange::Materials::PBRMR::Parameters::Metallic,
-	UE::Interchange::Materials::PBRMR::Parameters::Specular,
-	UE::Interchange::Materials::PBRMR::Parameters::Roughness,
-	UE::Interchange::Materials::PBRMR::Parameters::Anisotropy,
-	UE::Interchange::Materials::PBRMR::Parameters::EmissiveColor,
-	UE::Interchange::Materials::PBRMR::Parameters::Opacity,
-	UE::Interchange::Materials::PBRMR::Parameters::Normal,
-	UE::Interchange::Materials::PBRMR::Parameters::Tangent,
-	UE::Interchange::Materials::Sheen::Parameters::SheenRoughness,
-	UE::Interchange::Materials::Sheen::Parameters::SheenColor,
-	UE::Interchange::Materials::Subsurface::Parameters::SubsurfaceColor,
-	UE::Interchange::Materials::ClearCoat::Parameters::ClearCoat,
-	UE::Interchange::Materials::ClearCoat::Parameters::ClearCoatRoughness,
-	UE::Interchange::Materials::ClearCoat::Parameters::ClearCoatNormal
-};
-
-TSet<FName> UMaterialXPipelineSettings::TransmissionSurfaceInputs
-{
-	UE::Interchange::Materials::StandardSurface::Parameters::Base,
-	UE::Interchange::Materials::StandardSurface::Parameters::BaseColor,
-	UE::Interchange::Materials::StandardSurface::Parameters::DiffuseRoughness,
-	UE::Interchange::Materials::StandardSurface::Parameters::Metalness,
-	UE::Interchange::Materials::StandardSurface::Parameters::Specular,
-	UE::Interchange::Materials::StandardSurface::Parameters::SpecularRoughness,
-	UE::Interchange::Materials::StandardSurface::Parameters::SpecularIOR,
-	UE::Interchange::Materials::StandardSurface::Parameters::SpecularAnisotropy,
-	UE::Interchange::Materials::StandardSurface::Parameters::SpecularRotation,
-	UE::Interchange::Materials::StandardSurface::Parameters::Transmission,
-	UE::Interchange::Materials::StandardSurface::Parameters::TransmissionColor,
-	UE::Interchange::Materials::StandardSurface::Parameters::TransmissionDepth,
-	UE::Interchange::Materials::StandardSurface::Parameters::TransmissionScatter,
-	UE::Interchange::Materials::StandardSurface::Parameters::TransmissionScatterAnisotropy,
-	UE::Interchange::Materials::StandardSurface::Parameters::TransmissionDispersion,
-	UE::Interchange::Materials::StandardSurface::Parameters::TransmissionExtraRoughness,
-	UE::Interchange::Materials::StandardSurface::Parameters::Subsurface,
-	UE::Interchange::Materials::StandardSurface::Parameters::SubsurfaceColor,
-	UE::Interchange::Materials::StandardSurface::Parameters::SubsurfaceRadius,
-	UE::Interchange::Materials::StandardSurface::Parameters::SubsurfaceScale,
-	UE::Interchange::Materials::StandardSurface::Parameters::Sheen,
-	UE::Interchange::Materials::StandardSurface::Parameters::SheenColor,
-	UE::Interchange::Materials::StandardSurface::Parameters::SheenRoughness,
-	UE::Interchange::Materials::StandardSurface::Parameters::Coat,
-	UE::Interchange::Materials::StandardSurface::Parameters::CoatColor,
-	UE::Interchange::Materials::StandardSurface::Parameters::CoatRoughness,
-	UE::Interchange::Materials::StandardSurface::Parameters::CoatNormal,
-	UE::Interchange::Materials::StandardSurface::Parameters::ThinFilmThickness,
-	UE::Interchange::Materials::StandardSurface::Parameters::Emission,
-	UE::Interchange::Materials::StandardSurface::Parameters::EmissionColor,
-	UE::Interchange::Materials::StandardSurface::Parameters::Normal,
-};
-
-TSet<FName> UMaterialXPipelineSettings::TransmissionSurfaceOutputs
-{
-	UE::Interchange::Materials::PBRMR::Parameters::BaseColor,
-	UE::Interchange::Materials::PBRMR::Parameters::Metallic,
-	UE::Interchange::Materials::PBRMR::Parameters::Specular,
-	UE::Interchange::Materials::PBRMR::Parameters::Roughness,
-	UE::Interchange::Materials::PBRMR::Parameters::Anisotropy,
-	UE::Interchange::Materials::PBRMR::Parameters::EmissiveColor,
-	UE::Interchange::Materials::PBRMR::Parameters::Opacity,
-	UE::Interchange::Materials::PBRMR::Parameters::Normal,
-	UE::Interchange::Materials::PBRMR::Parameters::Tangent,
-	UE::Interchange::Materials::PBRMR::Parameters::Refraction,
-	UE::Interchange::Materials::ThinTranslucent::Parameters::TransmissionColor
-};
-
-TSet<FName> UMaterialXPipelineSettings::SurfaceUnlitInputs
-{
-	UE::Interchange::Materials::SurfaceUnlit::Parameters::Emission,
-	UE::Interchange::Materials::SurfaceUnlit::Parameters::EmissionColor,
-	UE::Interchange::Materials::SurfaceUnlit::Parameters::Transmission,
-	UE::Interchange::Materials::SurfaceUnlit::Parameters::TransmissionColor,
-	UE::Interchange::Materials::SurfaceUnlit::Parameters::Opacity
-};
-
-TSet<FName> UMaterialXPipelineSettings::SurfaceUnlitOutputs
-{
-	UE::Interchange::Materials::Common::Parameters::EmissiveColor,
-	UE::Interchange::Materials::Common::Parameters::Opacity,
-	TEXT("OpacityMask")
-};
-
-TSet<FName> UMaterialXPipelineSettings::UsdPreviewSurfaceInputs
-{
-	UE::Interchange::Materials::UsdPreviewSurface::Parameters::DiffuseColor,
-	UE::Interchange::Materials::UsdPreviewSurface::Parameters::EmissiveColor,
-	UE::Interchange::Materials::UsdPreviewSurface::Parameters::SpecularColor,
-	UE::Interchange::Materials::UsdPreviewSurface::Parameters::Metallic,
-	UE::Interchange::Materials::UsdPreviewSurface::Parameters::Roughness,
-	UE::Interchange::Materials::UsdPreviewSurface::Parameters::Clearcoat,
-	UE::Interchange::Materials::UsdPreviewSurface::Parameters::ClearcoatRoughness,
-	UE::Interchange::Materials::UsdPreviewSurface::Parameters::Opacity,
-	UE::Interchange::Materials::UsdPreviewSurface::Parameters::OpacityThreshold,
-	UE::Interchange::Materials::UsdPreviewSurface::Parameters::IOR,
-	UE::Interchange::Materials::UsdPreviewSurface::Parameters::Normal,
-	UE::Interchange::Materials::UsdPreviewSurface::Parameters::Displacement,
-	UE::Interchange::Materials::UsdPreviewSurface::Parameters::Occlusion
-};
-
-TSet<FName> UMaterialXPipelineSettings::UsdPreviewSurfaceOutputs
-{
-	UE::Interchange::Materials::PBRMR::Parameters::BaseColor,
-	UE::Interchange::Materials::PBRMR::Parameters::Metallic,
-	UE::Interchange::Materials::PBRMR::Parameters::Specular,
-	UE::Interchange::Materials::PBRMR::Parameters::Roughness,
-	UE::Interchange::Materials::PBRMR::Parameters::EmissiveColor,
-	UE::Interchange::Materials::PBRMR::Parameters::Opacity,
-	UE::Interchange::Materials::PBRMR::Parameters::Normal,
-	UE::Interchange::Materials::Common::Parameters::Refraction,
-	UE::Interchange::Materials::Common::Parameters::Occlusion,
-	UE::Interchange::Materials::ClearCoat::Parameters::ClearCoat,
-	UE::Interchange::Materials::ClearCoat::Parameters::ClearCoatRoughness,
-};
-
 bool UMaterialXPipelineSettings::ShouldFilterAssets(UMaterialFunction* Asset, const TSet<FName>& Inputs, const TSet<FName>& Outputs)
 {
 	int32 InputMatches = 0;

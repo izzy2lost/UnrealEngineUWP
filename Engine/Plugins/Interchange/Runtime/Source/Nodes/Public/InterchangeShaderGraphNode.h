@@ -244,10 +244,20 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
 	bool SetCustomScreenSpaceReflections(const bool& AttributeValue);
 
+	/**
+	 * Set the Blend Mode using EBlendMode, avoid a dependency on the Engine
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
+	bool GetCustomBlendMode(int& AttributeValue) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
+	bool SetCustomBlendMode(int AttributeValue);
+
 private:
-	const UE::Interchange::FAttributeKey Macro_CustomTwoSidedKey = UE::Interchange::FAttributeKey(TEXT("TwoSided"));
-	const UE::Interchange::FAttributeKey Macro_CustomTwoSidedTransmissionKey = UE::Interchange::FAttributeKey(TEXT("TwoSidedTransmission"));
-	const UE::Interchange::FAttributeKey Macro_CustomOpacityMaskClipValueKey = UE::Interchange::FAttributeKey(TEXT("OpacityMaskClipValue"));
-	const UE::Interchange::FAttributeKey Macro_CustomIsAShaderFunctionKey = UE::Interchange::FAttributeKey(TEXT("IsAShaderFunction"));
-	const UE::Interchange::FAttributeKey Macro_CustomScreenSpaceReflectionsKey = UE::Interchange::FAttributeKey(TEXT("ScreenSpaceReflections"));
+	IMPLEMENT_NODE_ATTRIBUTE_KEY(TwoSided)
+	IMPLEMENT_NODE_ATTRIBUTE_KEY(TwoSidedTransmission)
+	IMPLEMENT_NODE_ATTRIBUTE_KEY(OpacityMaskClipValue)
+	IMPLEMENT_NODE_ATTRIBUTE_KEY(IsAShaderFunction)
+	IMPLEMENT_NODE_ATTRIBUTE_KEY(ScreenSpaceReflections)
+	IMPLEMENT_NODE_ATTRIBUTE_KEY(BlendMode)
 };

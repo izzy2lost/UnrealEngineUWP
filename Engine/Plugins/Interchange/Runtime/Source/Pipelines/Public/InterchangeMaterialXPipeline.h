@@ -50,6 +50,8 @@ class INTERCHANGEPIPELINES_API UMaterialXPipelineSettings : public UDeveloperSet
 	GENERATED_BODY()
 
 public:
+	UMaterialXPipelineSettings();
+
 	UPROPERTY(EditAnywhere, config, Category = "MaterialXPredefined", meta = (DisplayName = "MaterialX Predefined Surface Shaders"))
 	TMap<EInterchangeMaterialXShaders, FSoftObjectPath> PredefinedSurfaceShaders;
 
@@ -59,9 +61,12 @@ public:
 
 private:
 
-#if WITH_EDITOR
 	friend class FInterchangeMaterialXPipelineSettingsCustomization;
+	friend class UInterchangeMaterialXPipeline;
 
+	bool bIsSubstrateEnabled{ false };
+
+#if WITH_EDITOR
 	static bool ShouldFilterAssets(UMaterialFunction* Asset, const TSet<FName>& Inputs, const TSet<FName>& Outputs);
 
 	static TSet<FName> StandardSurfaceInputs;

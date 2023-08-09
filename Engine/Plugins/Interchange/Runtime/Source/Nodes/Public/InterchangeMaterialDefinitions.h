@@ -432,6 +432,17 @@ namespace Interchange
 				const FName Normal = TEXT("normal");
 				const FName Tangent = TEXT("tangent");
 			}
+
+			// These outputs are only used for Substrate
+			namespace Substrate
+			{
+				namespace Outputs
+				{
+					const FName Opaque = TEXT("Substrate StandardSurface Opaque");
+					const FName Translucent = TEXT("Substrate StandardSurface Translucent");
+					const FName Opacity = TEXT("Geometry Opacity");
+				}
+			}
 		}
 
 		namespace SurfaceUnlit
@@ -476,6 +487,16 @@ namespace Interchange
 			{
 				const FName UnlitColor = TEXT("UnlitColor"); // Type: linear color
 			}
+		}
+
+		namespace Substrate
+		{
+			namespace Parameters
+			{
+				const FName FrontMaterial = TEXT("Front Material");
+				const FName OpacityMask = TEXT("Opacity Mask");
+			}
+			
 		}
 	}
 }
