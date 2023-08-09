@@ -712,7 +712,7 @@ void URigHierarchy::CopyPose(URigHierarchy* InHierarchy, bool bCurrent, bool bIn
 								ControlElementA->Offset.MarkDirty(ERigTransformType::CurrentLocal);
 								ControlElementA->Pose.MarkDirty(ERigTransformType::CurrentGlobal);
 								ControlElementA->Shape.MarkDirty(ERigTransformType::CurrentGlobal);
-								ControlElementA->PoseVersion++;
+								//ControlElementA->PoseVersion++;
 							}
 							if(bInitial)
 							{
@@ -720,7 +720,7 @@ void URigHierarchy::CopyPose(URigHierarchy* InHierarchy, bool bCurrent, bool bIn
 								ControlElementA->Offset.MarkDirty(ERigTransformType::InitialLocal);
 								ControlElementA->Pose.MarkDirty(ERigTransformType::InitialGlobal);
 								ControlElementA->Shape.MarkDirty(ERigTransformType::InitialGlobal);
-								ControlElementA->PoseVersion++;
+								//ControlElementA->PoseVersion++;
 							}
 						}
 						else
@@ -729,13 +729,13 @@ void URigHierarchy::CopyPose(URigHierarchy* InHierarchy, bool bCurrent, bool bIn
 							{
 								MultiParentElementA->Pose.Set(ERigTransformType::CurrentGlobal, InHierarchy->GetTransform(MultiParentElementB, ERigTransformType::CurrentGlobal));
 								MultiParentElementA->Pose.MarkDirty(ERigTransformType::CurrentLocal);
-								MultiParentElementA->PoseVersion++;
+								//MultiParentElementA->PoseVersion++;
 							}
 							if(bInitial)
 							{
 								MultiParentElementA->Pose.Set(ERigTransformType::InitialGlobal, InHierarchy->GetTransform(MultiParentElementB, ERigTransformType::InitialGlobal));
 								MultiParentElementA->Pose.MarkDirty(ERigTransformType::InitialLocal);
-								MultiParentElementA->PoseVersion++;
+								//MultiParentElementA->PoseVersion++;
 							}
 						}
 					}
@@ -1276,10 +1276,12 @@ FName URigHierarchy::GetSafeNewDisplayName(const FRigElementKey& InParentElement
 
 int32 URigHierarchy::GetPoseVersion(const FRigElementKey& InKey) const
 {
+	/*
 	if(const FRigTransformElement* TransformElement = Find<FRigTransformElement>(InKey))
 	{
 		return TransformElement->PoseVersion;
 	}
+	*/
 	return INDEX_NONE;
 }
 
@@ -3052,7 +3054,7 @@ void URigHierarchy::SetTransform(FRigTransformElement* InTransformElement, const
 	const ERigTransformType::Type OpposedType = SwapLocalAndGlobal(InTransformType);
 	InTransformElement->Pose.Set(InTransformType, InTransform);
 	InTransformElement->Pose.MarkDirty(OpposedType);
-	InTransformElement->PoseVersion++;
+	//InTransformElement->PoseVersion++;
 
 	if(FRigControlElement* ControlElement = Cast<FRigControlElement>(InTransformElement))
 	{

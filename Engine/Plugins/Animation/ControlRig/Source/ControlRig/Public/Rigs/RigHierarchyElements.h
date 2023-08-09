@@ -748,7 +748,6 @@ public:
 
 	FRigTransformElement()
 		: FRigBaseElement()
-		, PoseVersion(0)
 	{}
 
 	virtual ~FRigTransformElement(){}
@@ -758,9 +757,6 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = RigElement, meta = (DisplayAfter = "Index"))
 	FRigCurrentAndInitialTransform Pose;
-
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = RigElement)
-	int32 PoseVersion;
 	
 protected:
 

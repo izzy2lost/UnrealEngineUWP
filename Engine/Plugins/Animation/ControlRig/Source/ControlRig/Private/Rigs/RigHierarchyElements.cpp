@@ -498,7 +498,7 @@ void FRigTransformElement::Load(FArchive& Ar, URigHierarchy* Hierarchy, ESeriali
 	if(SerializationPhase == ESerializationPhase::StaticData)
 	{
 		Pose.Load(Ar);
-		PoseVersion = 0;
+		//PoseVersion = 0;
 	}
 }
 
@@ -516,7 +516,7 @@ void FRigTransformElement::CopyPose(FRigBaseElement* InOther, bool bCurrent, boo
 		{
 			Pose.Initial = Other->Pose.Initial;
 		}
-		PoseVersion++;
+		//PoseVersion++;
 	}
 }
 
@@ -527,7 +527,7 @@ void FRigTransformElement::CopyFrom(URigHierarchy* InHierarchy, FRigBaseElement*
 	
 	const FRigTransformElement* SourceTransform = CastChecked<FRigTransformElement>(InOther);
 	Pose = SourceTransform->Pose;
-	PoseVersion++;
+	//PoseVersion++;
 
 	ElementsToDirty.Reset();
 	ElementsToDirty.Reserve(SourceTransform->ElementsToDirty.Num());
