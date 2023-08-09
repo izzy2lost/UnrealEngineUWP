@@ -169,11 +169,13 @@ ULandscapeMeshCollisionComponent::FTriMeshGeometryRef::FTriMeshGeometryRef(FGuid
 	: Guid(InGuid)
 {}
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 ULandscapeMeshCollisionComponent::FTriMeshGeometryRef::~FTriMeshGeometryRef()
 {
 	// Remove ourselves from the shared map.
 	GSharedMeshRefs.Remove(Guid);
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void ULandscapeMeshCollisionComponent::FTriMeshGeometryRef::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
 {
