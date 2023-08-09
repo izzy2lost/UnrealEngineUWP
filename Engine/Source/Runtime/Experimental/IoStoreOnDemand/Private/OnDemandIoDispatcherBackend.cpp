@@ -828,6 +828,12 @@ struct FChunkRequest
 				It = It->NextRequest;
 			}
 
+			if (RequestTail == It)
+			{
+				check(It->NextRequest == nullptr);
+				RequestTail = Request;
+			}
+
 			Request->NextRequest = It->NextRequest;
 			It->NextRequest = Request;
 		}
