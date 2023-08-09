@@ -78,6 +78,7 @@ void MainVS(
 	}
 }
 
+int bHasLinkedListCullEnabled;
 void Main(float4 SvPosition : SV_POSITION
 	, out float3 OutColorA : SV_Target0
 #if POST_PROCESS_LOCAL_LIGHTS == 0
@@ -98,7 +99,11 @@ void Main(float4 SvPosition : SV_POSITION
 	uint GridIndex = ComputeLightGridCellIndex(uint2(PixelPos.x, PixelPos.y), SceneDepth);
 	const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridIndex, EyeIndex);
 
-	const uint NumLocalLights = min(CulledLightGridData.NumLocalLights, GetNumLocalLights(EyeIndex));
+	uint NumLocalLights = min(CulledLightGridData.NumLocalLights, GetNumLocalLights(EyeIndex));
+	if(bHasLinkedListCullEnabled == 0)
+	{
+		NumLocalLights = min(NumLocalLights, ForwardLightData.MaxCulledLightsPerCell - 1);
+	}
 
 	float3 Color = uint3(0.f, 0.f , 0.f);
 	float3 SavedL = float3(0,0,0);
