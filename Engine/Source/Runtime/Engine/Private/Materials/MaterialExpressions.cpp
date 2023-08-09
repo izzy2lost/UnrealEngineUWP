@@ -19291,7 +19291,7 @@ int32 UMaterialExpressionNaniteReplace::Compile(class FMaterialCompiler* Compile
 	else
 	{
 		const int32 Arg1 = Default.Compile(Compiler);
-		const int32 Arg2 = Nanite.Compile(Compiler);
+		const int32 Arg2 = FDataDrivenShaderPlatformInfo::GetSupportsNanite(Compiler->GetShaderPlatform()) ? Nanite.Compile(Compiler) : Arg1;
 		return Compiler->NaniteReplace(Arg1, Arg2);
 	}
 }
