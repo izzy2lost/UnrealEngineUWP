@@ -22,6 +22,8 @@ public:
 	}
 
 	bool HasEdgeTo(const FGraphVertexHandle& Other) const;
+	const FGraphEdgeHandle* FindEdgeTo(const FGraphVertexHandle& Other) const;
+
 	const FGraphIslandHandle& GetParentIsland() const { return ParentIsland; }
 
 	template<typename TLambda>

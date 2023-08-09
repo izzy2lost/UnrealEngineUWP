@@ -15,6 +15,11 @@ bool UGraphVertex::HasEdgeTo(const FGraphVertexHandle& Other) const
 	return Edges.Contains(Other);
 }
 
+const FGraphEdgeHandle* UGraphVertex::FindEdgeTo(const FGraphVertexHandle& Other) const
+{
+	return Edges.Find(Other);
+}
+
 void UGraphVertex::AddEdgeTo(const FGraphVertexHandle& Node, const FGraphEdgeHandle& Edge)
 {
 	Edges.Add(Node, Edge);
