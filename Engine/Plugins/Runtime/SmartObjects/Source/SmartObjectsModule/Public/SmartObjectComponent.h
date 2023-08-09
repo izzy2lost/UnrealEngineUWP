@@ -59,6 +59,14 @@ public:
 	void OnRuntimeInstanceBound(FSmartObjectRuntime& RuntimeInstance);
 	void OnRuntimeInstanceUnbound(FSmartObjectRuntime& RuntimeInstance);
 
+	/** Enables or disables the smart object. Returns false if it was not possible to enable it (ie. if it's not registered or there is no smart object subsystem). */
+	UFUNCTION(BlueprintCallable, Category = "SmartObject")
+	bool SetSmartObjectEnabled(const bool bEnable) const;
+	
+	/** Returns the enabled state of the smart object. */
+	UFUNCTION(BlueprintCallable, Category = "SmartObject")
+	bool IsSmartObjectEnabled() const;
+
 	FSmartObjectComponentEventNativeSignature& GetOnSmartObjectEventNative() { return OnSmartObjectEventNative; }
 	bool IsBoundToSimulation() const { return EventDelegateHandle.IsValid(); }
 

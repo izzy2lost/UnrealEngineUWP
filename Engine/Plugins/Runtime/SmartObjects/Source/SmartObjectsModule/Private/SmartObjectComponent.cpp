@@ -199,6 +199,34 @@ void USmartObjectComponent::OnRuntimeInstanceUnbound(FSmartObjectRuntime& Runtim
 	}
 }
 
+bool USmartObjectComponent::SetSmartObjectEnabled(const bool bEnable) const
+{
+	if (GetRegisteredHandle().IsValid())
+	{
+		if (USmartObjectSubsystem* const Subsystem = USmartObjectSubsystem::GetCurrent(GetWorld()))
+		{
+			Subsystem->SetEnabled(GetRegisteredHandle(), bEnable);
+
+			return true;
+		}
+	}
+	
+	return false;
+}
+
+bool USmartObjectComponent::IsSmartObjectEnabled() const
+{
+	if (GetRegisteredHandle().IsValid())
+	{
+		if (const USmartObjectSubsystem* const Subsystem = USmartObjectSubsystem::GetCurrent(GetWorld()))
+		{
+			return Subsystem->IsEnabled(GetRegisteredHandle());
+		}
+	}
+	
+	return false;
+}
+
 TStructOnScope<FActorComponentInstanceData> USmartObjectComponent::GetComponentInstanceData() const
 {
 	return MakeStructOnScope<FActorComponentInstanceData, FSmartObjectComponentInstanceData>(this, DefinitionAsset);
