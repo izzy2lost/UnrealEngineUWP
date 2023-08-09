@@ -3348,7 +3348,8 @@ TSharedRef<ITableRow> SSourceControlChangelistsWidget::OnGenerateRow(TSharedPtr<
 		bUpdateMonitoredFileStatusList = true;
 		return SNew(SOfflineFileTableRow, OwnerTable)
 			.TreeItemToVisualize(InTreeItem)
-			.HighlightText_Lambda([this]() { return FileSearchBox->GetText(); });
+			.HighlightText_Lambda([this]() { return FileSearchBox->GetText(); })
+			.OnDragDetected(this, &SSourceControlChangelistsWidget::OnUnsavedAssetsDragged);
 
 	case IChangelistTreeItem::ShelvedChangelist:
 		return SNew(SShelvedFilesTableRow, OwnerTable)
@@ -3398,6 +3399,30 @@ FReply SSourceControlChangelistsWidget::OnFilesDragged(const FGeometry& InGeomet
 		Operation->Construct();
 
  		return FReply::Handled().BeginDragDrop(Operation);
+	}
+
+	return FReply::Unhandled();
+}
+
+FReply SSourceControlChangelistsWidget::OnUnsavedAssetsDragged(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+	if (InMouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton) && !UnsavedAssetsFileListView->GetSelectedItems().IsEmpty())
+	{
+		TSharedRef<FSCCFileDragDropOp> Operation = MakeShared<FSCCFileDragDropOp>();
+
+		for (const FChangelistTreeItemPtr& InTreeItem : UnsavedAssetsFileListView->GetSelectedItems())
+		{
+			if (InTreeItem->GetTreeItemType() == IChangelistTreeItem::OfflineFile)
+			{
+				TSharedRef<FOfflineFileTreeItem> FileTreeItem = StaticCastSharedRef<FOfflineFileTreeItem>(InTreeItem.ToSharedRef());
+				Operation->OfflineFiles.Emplace(FileTreeItem->GetFilename());
+			}
+		}
+
+		Operation->Construct();
+
+		// Initiates drag-drop operation.
+		return FReply::Handled().BeginDragDrop(Operation);
 	}
 
 	return FReply::Unhandled();

@@ -364,6 +364,33 @@ TSharedRef<SWidget> GetSCCFileWidget(FSourceControlStateRef InFileState, bool bI
 		];
 }
 
+TSharedRef<SWidget> GetSCCFileWidget()
+{
+	const FSlateBrush* IconBrush = FAppStyle::GetBrush("ContentBrowser.ColumnViewAssetIcon");
+
+	// Make icon overlays (eg, SCC and dirty status) a reasonable size in relation to the icon size (note: it is assumed this icon is square)
+	const float ICON_SCALING_FACTOR = 0.7f;
+	const float IconOverlaySize = IconBrush->ImageSize.X * ICON_SCALING_FACTOR;
+
+	return SNew(SOverlay)
+		// The actual icon
+		+ SOverlay::Slot()
+		[
+			SNew(SImage)
+			.Image(IconBrush)
+		.ColorAndOpacity(FSlateColor(FColor::White))
+		]
+	// Source control state
+	+ SOverlay::Slot()
+		.HAlign(HAlign_Left)
+		.VAlign(VAlign_Top)
+		[
+			SNew(SBox)
+			.WidthOverride(IconOverlaySize)
+		.HeightOverride(IconOverlaySize)
+		];
+}
+
 FText GetDefaultAssetName()
 {
 	return LOCTEXT("SourceControl_DefaultAssetName", "Unavailable");

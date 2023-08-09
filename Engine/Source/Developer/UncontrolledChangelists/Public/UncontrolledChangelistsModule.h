@@ -142,9 +142,16 @@ public:
 	 * Moves files to an Uncontrolled Changelist.
 	 * @param 	InControlledFileStates 		The Controlled files to move.
 	 * @param 	InUncontrolledFileStates 	The Uncontrolled files to move.
-	 * @param 	InChangelist 				The Uncontrolled Changelist where to move the files.
+	 * @param 	InUncontrolledChangelist 	The Uncontrolled Changelist where to move the files.
 	 */
 	void MoveFilesToUncontrolledChangelist(const TArray<FSourceControlStateRef>& InControlledFileStates, const TArray<FSourceControlStateRef>& InUncontrolledFileStates, const FUncontrolledChangelist& InUncontrolledChangelist);
+
+	/**
+	* Moves files to an Uncontrolled Changelist.
+	* @param 	InControlledFileStates 		The Controlled files to move.
+	* @param 	InUncontrolledChangelist 	The Uncontrolled Changelist where to move the files.
+	*/
+	void MoveFilesToUncontrolledChangelist(const TArray<FString>& InControlledFiles, const FUncontrolledChangelist& InUncontrolledChangelist);
 
 	/**
 	 * Moves files to a Controlled Changelist.

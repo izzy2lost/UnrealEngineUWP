@@ -422,7 +422,7 @@ void FUncontrolledChangelistsModule::MoveFilesToUncontrolledChangelist(const TAr
 	Algo::Transform(InControlledFileStates, Filenames, [](const FSourceControlStateRef& State) { return State->GetFilename(); });
 
 	ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
-	auto RevertOperation = ISourceControlOperation::Create<FRevert>();
+	TSharedRef<FRevert, ESPMode::ThreadSafe> RevertOperation = ISourceControlOperation::Create<FRevert>();
 
 	// Revert controlled files
 	RevertOperation->SetSoftRevert(true);
@@ -436,6 +436,40 @@ void FUncontrolledChangelistsModule::MoveFilesToUncontrolledChangelist(const TAr
 	}
 
 	Algo::Transform(InUncontrolledFileStates, Filenames, [](const FSourceControlStateRef& State) { return State->GetFilename(); });
+
+	// Add all files to their UncontrolledChangelist
+	bHasStateChanged = (*ChangelistState)->AddFiles(Filenames, FUncontrolledChangelistState::ECheckFlags::None);
+
+	if (bHasStateChanged)
+	{
+		OnStateChanged();
+	}
+}
+
+void FUncontrolledChangelistsModule::MoveFilesToUncontrolledChangelist(const TArray<FString>& InControlledFiles, const FUncontrolledChangelist& InUncontrolledChangelist)
+{
+	bool bHasStateChanged = false;
+
+	if (!IsEnabled())
+	{
+		return;
+	}
+
+	FUncontrolledChangelistsStateCache::ValueType* ChangelistState = UncontrolledChangelistsStateCache.Find(InUncontrolledChangelist);
+
+	if (ChangelistState == nullptr)
+	{
+		return;
+	}
+
+	const TArray<FString>& Filenames = InControlledFiles;
+
+	ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
+	TSharedRef<FRevert, ESPMode::ThreadSafe> RevertOperation = ISourceControlOperation::Create<FRevert>();
+
+	// Revert controlled files
+	RevertOperation->SetSoftRevert(true);
+	SourceControlProvider.Execute(RevertOperation, Filenames);
 
 	// Add all files to their UncontrolledChangelist
 	bHasStateChanged = (*ChangelistState)->AddFiles(Filenames, FUncontrolledChangelistState::ECheckFlags::None);

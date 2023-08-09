@@ -377,6 +377,7 @@ private:
 namespace SSourceControlCommon
 {
 	TSharedRef<SWidget> GetSCCFileWidget(FSourceControlStateRef InFileState, bool bIsShelvedFile = false);
+	TSharedRef<SWidget> GetSCCFileWidget();
 	FText GetDefaultAssetName();
 	FText GetDefaultAssetType();
 	FText GetDefaultUnknownAssetType();
@@ -403,12 +404,19 @@ struct FSCCFileDragDropOp : public FDragDropOperation
 
 	virtual TSharedPtr<SWidget> GetDefaultDecorator() const override
 	{
+		// Offline files won't coexist with Files
+		if (!OfflineFiles.IsEmpty())
+		{
+			return SSourceControlCommon::GetSCCFileWidget();
+		}
+
 		FSourceControlStateRef FileState = Files.IsEmpty() ? UncontrolledFiles[0] : Files[0];
 		return SSourceControlCommon::GetSCCFileWidget(MoveTemp(FileState));
 	}
 
 	TArray<FSourceControlStateRef> Files;
 	TArray<FSourceControlStateRef> UncontrolledFiles;
+	TArray<FString> OfflineFiles;
 };
 
 
