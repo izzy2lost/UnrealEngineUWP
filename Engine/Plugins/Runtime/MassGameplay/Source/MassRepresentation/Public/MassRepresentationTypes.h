@@ -158,6 +158,7 @@ struct MASSREPRESENTATION_API FMassISMCSharedData
 	}
 
 	UInstancedStaticMeshComponent* GetISMComponent() { return ISMC; }
+	UInstancedStaticMeshComponent& GetISMComponentChecked() { check(ISMC); return *ISMC; }
 	int32 StoreReference() { return ++RefCount; }
 	int32 ReleaseReference() { ensure(RefCount >= 0); return --RefCount; }
 
@@ -390,14 +391,26 @@ public:
 		}
 	}
 
-	void AddISMComponent(FMassISMCSharedData& SharedData)
+	/** 
+	 * Stores the ISM component tied to SharedData
+	 * @param PathHash is used to quickly and uniquely identify the relevant ISM component. Note that we're using object's
+	 *	path rather than a pointer to make up for objects reloaded with streaming having the same path but different pointers. 
+	 */
+	void AddISMComponent(const uint32 PathHash, FMassISMCSharedData& SharedData)
 	{
-		if (ensure(SharedData.GetISMComponent()))
-		{
-			InstancedStaticMeshComponents.Add(SharedData.GetISMComponent());
-			SharedData.StoreReference();
-		}
+		ensureMsgf(PathHashes.Find(PathHash) == INDEX_NONE, TEXT("Given PathHash has already been added. Consider using ReplaceISMComponent instead"));
+		PathHashes.Add(PathHash);
+		InstancedStaticMeshComponents.Add(&SharedData.GetISMComponentChecked());
+		SharedData.StoreReference();
 	}
+
+	void AddISMComponent(FMassISMCSharedData& SharedData);
+
+	/** 
+	 * Looks for the previous instance of the given component (that has been potentially unloaded), as indicated 
+	 * by path hash, and replaces it with the given instance
+	 */
+	void ReplaceISMComponent(const uint32 PathHash, UInstancedStaticMeshComponent& ISMComponent);
 
 	int32 GetLODSignificanceRangesNum() const { return LODSignificanceRanges.Num(); }
 
@@ -413,6 +426,9 @@ protected:
 	/** The component handling these instances */
 	UPROPERTY(VisibleAnywhere, Category = "Mass/Debug")
 	TArray<TObjectPtr<UInstancedStaticMeshComponent>> InstancedStaticMeshComponents;
+
+	/** Hashes of object paths for ISMComponents stored in InstancedStaticMeshComponents*/
+	TArray<uint32> PathHashes;
 
 	UPROPERTY(VisibleAnywhere, Category = "Mass/Debug")
 	TArray<FMassLODSignificanceRange> LODSignificanceRanges;

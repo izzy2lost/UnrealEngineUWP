@@ -55,7 +55,7 @@ int16 UMassVisualizationComponent::FindOrAddVisualDesc(const FStaticMeshInstance
 			VisualIndex = InstancedStaticMeshInfos.Emplace(Desc);
 			BuildLODSignificanceForInfo(InstancedStaticMeshInfos[VisualIndex]);
 
-			bNeedStaticMeshComponentConstruction = true;
+			InstancedSMComponentsRequiringConstructing.Add(VisualIndex);
 		}
 	}
 	checkf(VisualIndex < INT16_MAX, TEXT("%hs resulting VisualIndex is out of expected bounds"), __FUNCTION__);
@@ -76,13 +76,27 @@ int16 UMassVisualizationComponent::AddVisualDescWithISMComponent(const FStaticMe
 	
 	UE_MT_SCOPED_WRITE_ACCESS(InstancedStaticMeshInfosDetector);
 
-	const int32 VisualIndex = InstancedStaticMeshInfos.Emplace(Desc);
-	const uint32 MeshDescHash = GetTypeHash(MeshDesc);
-	const uint32 CombinedHash = PointerHash(&ISMComponent, MeshDescHash);
-	FMassISMCSharedData& NewData = ISMCSharedData.FindOrAdd(CombinedHash, FMassISMCSharedData(&ISMComponent, 1));
-	InstancedStaticMeshInfos[VisualIndex].AddISMComponent(NewData);
+	int32 VisualIndex = INDEX_NONE;
 
-	BuildLODSignificanceForInfo(InstancedStaticMeshInfos[VisualIndex], CombinedHash);
+	const uint32 ISMComponentPathHash = GetTypeHash(ISMComponent.GetPathName());
+	if (const int32* ExistingVisualIndex = ISMComponentMap.Find(ISMComponentPathHash))
+	{
+		VisualIndex = *ExistingVisualIndex;
+		// we need to update the ISM component - it's possible the previous instance got unloaded and that's why we use 
+		// path-hash rather than a pointer hash
+		InstancedStaticMeshInfos[VisualIndex].ReplaceISMComponent(ISMComponentPathHash, ISMComponent);
+	}
+	else
+	{
+		VisualIndex = InstancedStaticMeshInfos.Emplace(Desc);
+		const uint32 MeshDescHash = GetTypeHash(MeshDesc);
+		const uint32 CombinedHash = HashCombine(ISMComponentPathHash, MeshDescHash);
+		FMassISMCSharedData& NewData = ISMCSharedData.FindOrAdd(CombinedHash, FMassISMCSharedData(&ISMComponent, 1));
+		InstancedStaticMeshInfos[VisualIndex].AddISMComponent(ISMComponentPathHash, NewData);
+		BuildLODSignificanceForInfo(InstancedStaticMeshInfos[VisualIndex], CombinedHash);
+
+		ISMComponentMap.Add(ISMComponentPathHash, VisualIndex);
+	}
 
 	checkf(VisualIndex < INT16_MAX, TEXT("%hs resulting VisualIndex is out of expected bounds"), __FUNCTION__);
 	return (int16)VisualIndex;
@@ -94,8 +108,17 @@ void UMassVisualizationComponent::ConstructStaticMeshComponents()
 	check(ActorOwner);
 	
 	UE_MT_SCOPED_WRITE_ACCESS(InstancedStaticMeshInfosDetector);
-	for (FMassInstancedStaticMeshInfo& Info : InstancedStaticMeshInfos)
+	for (const int32 VisualIndex : InstancedSMComponentsRequiringConstructing)
 	{
+		if (!ensureMsgf(InstancedStaticMeshInfos.IsValidIndex(VisualIndex)
+			, TEXT("InstancedStaticMeshInfos (size: %d) is never expected to shrink, so VisualIndex (value: %d) being invalid indicates it was wrong from the start.")
+			, InstancedStaticMeshInfos.Num(), VisualIndex))
+		{
+			continue;
+		}
+
+		FMassInstancedStaticMeshInfo& Info = InstancedStaticMeshInfos[VisualIndex];
+
 		// Check if it is already created
 		if (!Info.InstancedStaticMeshComponents.IsEmpty())
 		{
@@ -145,6 +168,11 @@ void UMassVisualizationComponent::ConstructStaticMeshComponents()
 					SharedData->SetISMComponent(*ISMC);
 				}
 			}
+
+			check(ISMC);
+			const uint32 ISMComponentPathHash = GetTypeHash(ISMC->GetPathName());
+			ensureMsgf(ISMComponentMap.Find(ISMComponentPathHash) == nullptr, TEXT("We've just created the ISMC that's being used here, so this check failing indicates hash-clash."));
+			ISMComponentMap.Add(ISMComponentPathHash, VisualIndex); 
 
 			check(SharedData);
 			Info.AddISMComponent(*SharedData);
@@ -246,10 +274,10 @@ void UMassVisualizationComponent::BeginVisualChanges()
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("MassVisualizationComponent BeginVisualChanges")
 
 	// Conditionally construct static mesh components
-	if (bNeedStaticMeshComponentConstruction)
+	if (InstancedSMComponentsRequiringConstructing.Num())
 	{
 		ConstructStaticMeshComponents();
-		bNeedStaticMeshComponentConstruction = false;
+		InstancedSMComponentsRequiringConstructing.Reset();
 	}
 }
 

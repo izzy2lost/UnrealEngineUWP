@@ -81,8 +81,11 @@ protected:
 	TArray<FMassInstancedStaticMeshInfo> InstancedStaticMeshInfos;
 	UE_MT_DECLARE_RW_RECURSIVE_ACCESS_DETECTOR(InstancedStaticMeshInfosDetector);
 
+	/** Mapping from ISMComponent object path to corresponding VisualIndex */
+	TMap<uint32, int32> ISMComponentMap;
+
 	FMassISMCSharedDataMap ISMCSharedData;
 
-	/** Whether there is a need to create a StaticMeshComponent */
-	bool bNeedStaticMeshComponentConstruction = false;
+	/** Indicies to InstancedStaticMeshInfos that need their SMComponent constructed */
+	TArray<int32> InstancedSMComponentsRequiringConstructing;
 };
