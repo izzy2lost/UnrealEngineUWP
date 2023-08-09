@@ -105,7 +105,7 @@ public:
 private:
 	
 	static bool AddDirectManipulationTarget_Internal(TArray<FRigDirectManipulationTarget>& InOutTargets, const URigVMPin* InPin, const UScriptStruct* InScriptStruct);
-	static TTuple<const FProperty*, FRigVMPropertyPath> FindPropertyFromPinPath(const UScriptStruct* InStruct, const FString& InPinPath);
+	static TTuple<const FStructProperty*, uint8*> FindStructPropertyAndTargetMemory(TSharedPtr<FStructOnScope> InInstance, const UScriptStruct* InStruct, const FString& InPinPath); 
 #endif
 };
 
