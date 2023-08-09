@@ -89,6 +89,11 @@ bool FComponentVisualizerManager::HandleProxyForComponentVis(FEditorViewportClie
 	return false;
 }
 
+TSharedPtr<FComponentVisualizer> FComponentVisualizerManager::GetActiveComponentVis()
+{
+	return EditedVisualizerPtr.Pin();
+}
+
 bool FComponentVisualizerManager::SetActiveComponentVis(FEditorViewportClient* InViewportClient, TSharedPtr<FComponentVisualizer>& InVisualizer)
 {
 	if (InViewportClient && InVisualizer.IsValid())

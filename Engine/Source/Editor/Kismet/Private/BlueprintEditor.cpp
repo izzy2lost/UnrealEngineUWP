@@ -1195,6 +1195,28 @@ UObject* FBlueprintEditor::GetSubobjectEditorObjectContext() const
 
 void FBlueprintEditor::OnSelectionUpdated(const TArray<TSharedPtr<FSubobjectEditorTreeNode>>& SelectedNodes)
 {
+	// Check whether the active component visualizer is relevant for the selected components ...
+	if (const TSharedPtr<FComponentVisualizer> ComponentVisualizer = GUnrealEd->ComponentVisManager.GetActiveComponentVis())
+	{
+		bool bClearActiveVisualizer = true;
+		for (const FSubobjectEditorTreeNodePtrType SelectedNode : SelectedNodes)
+		{
+			const FSubobjectData* const Data = SelectedNode->GetDataSource();
+			const UActorComponent* const Component = Data ? Data->FindComponentInstanceInActor(GetPreviewActor()) : nullptr;
+			if (Component != nullptr && Component->IsRegistered() && Component == ComponentVisualizer->GetEditedComponent())
+			{
+				bClearActiveVisualizer = false;
+				break;
+			}
+		}
+
+		// If the relevant component for the active visualizer is no longer selected, clear the active visualizer.
+		if (bClearActiveVisualizer)
+		{
+			GUnrealEd->ComponentVisManager.ClearActiveComponentVis();
+		}
+	}
+
 	if (SubobjectViewport.IsValid())
 	{
 		SubobjectViewport->OnComponentSelectionChanged();
