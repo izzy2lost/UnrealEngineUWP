@@ -1099,6 +1099,21 @@ bool AActor::CanTriggerResimulation() const
 void AActor::SetPhysicsReplicationMode(const EPhysicsReplicationMode ReplicationMode)
 {
 	PhysicsReplicationMode = ReplicationMode;
+
+	// When switching replication mode, also clear the current replication target.
+	if (UPrimitiveComponent* RootPrimComp = Cast<UPrimitiveComponent>(RootComponent))
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (FPhysScene* PhysScene = World->GetPhysicsScene())
+			{
+				if (IPhysicsReplication* PhysicsReplication = PhysScene->GetPhysicsReplication())
+				{
+					PhysicsReplication->RemoveReplicatedTarget(RootPrimComp);
+				}
+			}
+		}
+	}
 }
 
 EPhysicsReplicationMode AActor::GetPhysicsReplicationMode()
