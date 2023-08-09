@@ -511,6 +511,17 @@ void UWaterBodyOceanComponent::OnPostActorCreated()
 #if WITH_EDITOR
 	if (UWorld* World = GetWorld(); World && World->IsGameWorld() == false)
 	{
+	}
+	return FBoxSphereBounds(EForceInit::ForceInit).TransformBy(LocalToWorld);
+}
+
+void UWaterBodyOceanComponent::OnPostActorCreated()
+{
+	Super::OnPostActorCreated();
+
+#if WITH_EDITOR
+	if (UWorld* World = GetWorld(); World && World->IsGameWorld() == false)
+	{
 		UpdateWaterZones();
 		FillWaterZoneWithOcean();
 	}
