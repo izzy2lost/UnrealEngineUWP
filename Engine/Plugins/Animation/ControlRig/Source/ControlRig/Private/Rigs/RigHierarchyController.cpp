@@ -550,6 +550,68 @@ FRigElementKey URigHierarchyController::AddReference(FName InName, FRigElementKe
 	return NewElement->Key;
 }
 
+FRigElementKey URigHierarchyController::AddConnector(FName InName, FRigElementKey InParent, FTransform InTransform,
+	bool bTransformInGlobal, FRigConnectorSettings InSettings, bool bSetupUndo, bool bPrintPythonCommand)
+{
+	if(!IsValid())
+	{
+		return FRigElementKey();
+	}
+
+#if WITH_EDITOR
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if(bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("RigHierarchyController", "Add Connector", "Add Connector"));
+		Hierarchy->Modify();
+	}
+#endif
+
+	FRigConnectorElement* NewElement = MakeElement<FRigConnectorElement>();
+	{
+		TGuardValue<bool> DisableCacheValidityChecks(Hierarchy->bEnableCacheValidityCheck, false);
+		NewElement->Key.Type = ERigElementType::Connector;
+		NewElement->Key.Name = Hierarchy->GetSafeNewName(InName.ToString(), NewElement->Key.Type);
+		NewElement->Settings = InSettings;
+		AddElement(NewElement, Hierarchy->Get(Hierarchy->GetIndex(InParent)), true);
+
+		if(bTransformInGlobal)
+		{
+			Hierarchy->SetTransform(NewElement, InTransform, ERigTransformType::InitialGlobal, true, false);
+			Hierarchy->SetTransform(NewElement, InTransform, ERigTransformType::CurrentGlobal, true, false);
+		}
+		else
+		{
+			Hierarchy->SetTransform(NewElement, InTransform, ERigTransformType::InitialLocal, true, false);
+			Hierarchy->SetTransform(NewElement, InTransform, ERigTransformType::CurrentLocal, true, false);
+		}
+
+		NewElement->Pose.Current = NewElement->Pose.Initial;
+	}
+
+#if WITH_EDITOR
+	TransactionPtr.Reset();
+
+	if (bPrintPythonCommand && !bSuspendPythonPrinting)
+	{
+		UBlueprint* Blueprint = GetTypedOuter<UBlueprint>();
+		if (Blueprint)
+		{
+			TArray<FString> Commands = GetAddConnectorPythonCommands(NewElement);
+			for (const FString& Command : Commands)
+			{			
+				RigVMPythonUtils::Print(Blueprint->GetFName().ToString(),
+					FString::Printf(TEXT("%s"), *Command));
+			}
+		}
+	}
+#endif
+
+	Hierarchy->EnsureCacheValidity();
+		
+	return NewElement->Key;
+}
+
 FRigControlSettings URigHierarchyController::GetControlSettings(FRigElementKey InKey) const
 {
 	if(!IsValid())
@@ -1016,6 +1078,12 @@ FString URigHierarchyController::ExportToText(TArray<FRigElementKey> InKeys) con
 				FRigReferenceElement::StaticStruct()->ExportText(PerElementData.Content, Element, &DefaultElement, nullptr, PPF_None, nullptr);
 				break;
 			}
+			case ERigElementType::Connector:
+			{
+				FRigConnectorElement DefaultElement;
+				FRigConnectorElement::StaticStruct()->ExportText(PerElementData.Content, Element, &DefaultElement, nullptr, PPF_None, nullptr);
+				break;
+			}
 			default:
 			{
 				ensure(false);
@@ -1142,6 +1210,12 @@ TArray<FRigElementKey> URigHierarchyController::ImportFromText(FString InContent
 			{
 				NewElement = MakeElement<FRigReferenceElement>();
 				FRigReferenceElement::StaticStruct()->ImportText(*PerElementData.Content, NewElement, nullptr, EPropertyPortFlags::PPF_None, &ErrorPipe, FRigReferenceElement::StaticStruct()->GetName(), true);
+				break;
+			}
+			case ERigElementType::Connector:
+					{
+				NewElement = MakeElement<FRigConnectorElement>();
+				FRigConnectorElement::StaticStruct()->ImportText(*PerElementData.Content, NewElement, nullptr, EPropertyPortFlags::PPF_None, &ErrorPipe, FRigConnectorElement::StaticStruct()->GetName(), true);
 				break;
 			}
 			default:
@@ -1450,6 +1524,10 @@ TArray<FString> URigHierarchyController::GetAddElementPythonCommands(FRigBaseEle
 	{
 		ensure(false);
 	}
+	else if(FRigConnectorElement* ConnectorElement = Cast<FRigConnectorElement>(Element))
+	{
+		return GetAddConnectorPythonCommands(ConnectorElement);
+	}
 	return TArray<FString>();
 }
 
@@ -1576,6 +1654,38 @@ TArray<FString> URigHierarchyController::GetAddRigidBodyPythonCommands(FRigRigid
 		*ParentKeyStr,
 		*SettingsStr,
 		*TransformStr));
+
+	return Commands;
+}
+
+TArray<FString> URigHierarchyController::GetAddConnectorPythonCommands(FRigConnectorElement* Connector) const
+{
+	TArray<FString> Commands;
+	FString TransformStr = RigVMPythonUtils::TransformToPythonString(Connector->Pose.Initial.Local.Transform);
+
+	FString ParentKeyStr = "''";
+	if (Connector->ParentElement)
+	{
+		ParentKeyStr = Connector->ParentElement->GetKey().ToPythonString();
+	}
+
+	FRigConnectorSettings& Settings = Connector->Settings;
+	FString SettingsStr;
+	{
+		FString ConnectorNamePythonized = RigVMPythonUtils::PythonizeName(Connector->GetName().ToString());
+		SettingsStr = FString::Printf(TEXT("connector_settings_%s"),
+			*ConnectorNamePythonized);
+			
+		Commands.Append(URigHierarchy::ConnectorSettingsToPythonCommands(Settings, SettingsStr));	
+	}
+
+	// AddConnector(FName InName, FRigElementKey InParent, FTransform InTransform, bool bTransformInGlobal = true, FRigConnectorSettings InSettings = FRigConnectorSettings(), bool bSetupUndo = false);
+	Commands.Add(FString::Printf(TEXT("hierarchy_controller.add_connector('%s', %s, %s, False, %s)"),
+		*Connector->GetName().ToString(),
+		*ParentKeyStr,
+		*TransformStr,
+		*SettingsStr
+	));
 
 	return Commands;
 }

@@ -182,6 +182,15 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 						.OnGetSelectedClicked_UObject(RigGraph, &UControlRigGraph::HandleGetSelectedClicked)
 						.OnBrowseClicked_UObject(RigGraph, &UControlRigGraph::HandleBrowseClicked);
 				}
+				else if (CustomWidgetName == TEXT("ConnectorName"))
+				{
+					return SNew(SRigVMGraphPinNameList, InPin)
+						.ModelPin(ModelPin)
+						.OnGetNameFromSelection_UObject(RigGraph, &UControlRigGraph::GetSelectedElementsNameList)
+						.OnGetNameListContent_UObject(RigGraph, &UControlRigGraph::GetConnectorNameList)
+						.OnGetSelectedClicked_UObject(RigGraph, &UControlRigGraph::HandleGetSelectedClicked)
+						.OnBrowseClicked_UObject(RigGraph, &UControlRigGraph::HandleBrowseClicked);
+				}
 				else if (CustomWidgetName == TEXT("DrawingName"))
 				{
 					return SNew(SRigVMGraphPinNameList, InPin)

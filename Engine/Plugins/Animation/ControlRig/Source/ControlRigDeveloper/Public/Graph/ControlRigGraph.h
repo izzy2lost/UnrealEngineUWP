@@ -53,6 +53,10 @@ public:
 	{
 		return GetElementNameList(ERigElementType::Curve);
 	}
+	const TArray<TSharedPtr<FString>>* GetConnectorNameList(URigVMPin* InPin = nullptr) const
+	{
+		return GetElementNameList(ERigElementType::Connector);
+	}
 
 	virtual const TArray<TSharedPtr<FString>>* GetNameListForWidget(const FString& InWidgetName) const override;
 

@@ -26,6 +26,7 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FRigHierarchyMetadataChangedDelegate, const
 DECLARE_MULTICAST_DELEGATE_ThreeParams(FRigHierarchyMetadataTagChangedDelegate, const FRigElementKey& /* Key */, const FName& /* Tag */, bool /* AddedOrRemoved */);
 
 extern CONTROLRIG_API TAutoConsoleVariable<bool> CVarControlRigHierarchyEnableRotationOrder;
+extern CONTROLRIG_API TAutoConsoleVariable<bool> CVarControlRigHierarchyEnableModules;
 
 UENUM()
 enum ERigTransformStackEntryType : int
@@ -1777,6 +1778,14 @@ public:
 	}
 
 	/**
+	 * Returns the version of the transform / pose on the element given its key.
+	 * Versions are incremented with every change occured to the transform. You
+	 * can use this to compare your previous "knowledge" of the pose - and see
+	 * if anybody has changed it during your last access.
+	 */
+	int32 GetPoseVersion(const FRigElementKey& InKey) const;
+
+	/**
 	 * Returns the global offset transform for a given control element.
 	 * @param InKey The key of the control to retrieve the transform for
 	 * @param bInitial If true the initial transform will be used
@@ -2701,6 +2710,36 @@ public:
 			if(FRigControlElement* ControlElement = Cast<FRigControlElement>(Elements[InElementIndex]))
 			{
 				SetControlSettings(ControlElement, InSettings, bSetupUndo, bForce, bPrintPythonCommands);
+			}
+		}
+	}
+
+	/**
+	 * Sets the connector settings for a given connector element by key
+	 * @param InKey The key of the connector element to set the settings for
+	 * @param InSettings The new connector settings value to set
+	 * @param bSetupUndo If true the transform stack will be setup for undo / redo
+	 */
+	UFUNCTION(BlueprintCallable, Category = URigHierarchy)
+	void SetConnectorSettings(FRigElementKey InKey, FRigConnectorSettings InSettings, bool bSetupUndo = false, bool bForce = false, bool bPrintPythonCommands = false)
+	{
+		return SetConnectorSettingsByIndex(GetIndex(InKey), InSettings, bSetupUndo, bForce, bPrintPythonCommands);
+	}
+
+	/**
+	 * Sets the connector settings for a given connector element by index
+	 * @param InElementIndex The index of the connector element to set the settings for
+	 * @param InSettings The new connector settings value to set
+	 * @param bSetupUndo If true the transform stack will be setup for undo / redo
+	 */
+	UFUNCTION(BlueprintCallable, Category = URigHierarchy)
+	void SetConnectorSettingsByIndex(int32 InElementIndex, FRigConnectorSettings InSettings, bool bSetupUndo = false, bool bForce = false, bool bPrintPythonCommands = false)
+	{
+		if(Elements.IsValidIndex(InElementIndex))
+		{
+			if(FRigConnectorElement* ConnectorElement = Cast<FRigConnectorElement>(Elements[InElementIndex]))
+			{
+				SetConnectorSettings(ConnectorElement, InSettings, bSetupUndo, bForce, bPrintPythonCommands);
 			}
 		}
 	}
@@ -3660,6 +3699,14 @@ public:
 	void SetControlVisibility(FRigControlElement* InControlElement, bool bVisibility);
 
 	/**
+	 * Sets the connector settings for a given connector element
+	 * @param InConnectorElement The element to set the settings for
+	 * @param InSettings The new connector settings value to set
+	 * @param bSetupUndo If true the transform stack will be setup for undo / redo
+	 */
+	void SetConnectorSettings(FRigConnectorElement* InConnectorElement, FRigConnectorSettings InSettings, bool bSetupUndo = false, bool bForce = false, bool bPrintPythonCommands = false);
+
+	/**
 	 * Returns a curve's value. If the curve value is not set, returns 
 	 * @param InCurveElement The element to retrieve the value for
 	 * @return Returns the value of the curve
@@ -4105,9 +4152,13 @@ protected:
 			{
 				return 5;
 			}
-			case ERigElementType::Last:
+			case ERigElementType::Connector:
 			{
 				return 6;
+			}
+			case ERigElementType::Last:
+			{
+				return 7;
 			}
 			case ERigElementType::All:
 			default:
@@ -4149,6 +4200,10 @@ protected:
 				return ERigElementType::Reference;
 			}
 			case 6:
+			{
+				return ERigElementType::Connector;
+			}
+			case 7:
 			{
 				return ERigElementType::Last;
 			}
@@ -4258,6 +4313,7 @@ private:
 
 #if WITH_EDITOR
 	static TArray<FString> ControlSettingsToPythonCommands(const FRigControlSettings& Settings, const FString& NameSettings);
+	static TArray<FString> ConnectorSettingsToPythonCommands(const FRigConnectorSettings& Settings, const FString& NameSettings);
 #endif
 
 	template<typename T>

@@ -28,8 +28,9 @@ enum class ERigElementType : uint8
 	Curve = 0x008,
 	RigidBody = 0x010 UMETA(Hidden), 
 	Reference = 0x020,
-	Last = 0x040 UMETA(Hidden),
-	All = Bone | Null | Control | Curve | RigidBody | Reference,
+	Connector = 0x040,
+	Last = 0x080 UMETA(Hidden),
+	All = Bone | Null | Control | Curve | RigidBody | Reference | Connector,
 	ToResetAfterConstructionEvent = Bone | Control | Curve UMETA(Hidden),
 };
 
@@ -89,6 +90,7 @@ enum class ERigHierarchyNotification : uint8
 	InteractionBracketOpened,
 	InteractionBracketClosed,
 	ElementReordered,
+	ConnectorSettingChanged,
 
 	/** MAX - invalid */
 	Max UMETA(Hidden),

@@ -2171,6 +2171,7 @@ void FControlRigEditor::SetRigElementTransform(const FRigElementKey& InElement, 
 	switch (InElement.Type)
 	{
 		case ERigElementType::Bone:
+		case ERigElementType::Connector:
 		{
 			FTransform Transform = InTransform;
 			if (bLocal)
@@ -2402,15 +2403,30 @@ void FControlRigEditor::OnWrappedPropertyChangedChainEvent(URigVMDetailsViewWrap
 			}
 			else if(PropertyPath.RemoveFromStart(SettingsString))
 			{
-				const FRigControlSettings Settings  = InWrapperObject->GetContent<FRigControlElement>().Settings;
-
-				FRigControlElement* ControlElement = ControlRigBP->Hierarchy->Find<FRigControlElement>(WrappedElement.GetKey());
-				if(ControlElement == nullptr)
+				if(Key.Type == ERigElementType::Control)
 				{
-					return;
-				}
+					const FRigControlSettings Settings  = InWrapperObject->GetContent<FRigControlElement>().Settings;
 
-				ControlRigBP->Hierarchy->SetControlSettings(ControlElement, Settings, true, false, true);
+					FRigControlElement* ControlElement = ControlRigBP->Hierarchy->Find<FRigControlElement>(WrappedElement.GetKey());
+					if(ControlElement == nullptr)
+					{
+						return;
+					}
+
+					ControlRigBP->Hierarchy->SetControlSettings(ControlElement, Settings, true, false, true);
+				}
+				else if(Key.Type == ERigElementType::Connector)
+				{
+					const FRigConnectorSettings Settings  = InWrapperObject->GetContent<FRigConnectorElement>().Settings;
+
+					FRigConnectorElement* ConnectorElement = ControlRigBP->Hierarchy->Find<FRigConnectorElement>(WrappedElement.GetKey());
+					if(ConnectorElement == nullptr)
+					{
+						return;
+					}
+
+					ControlRigBP->Hierarchy->SetConnectorSettings(ConnectorElement, Settings, true, false, true);
+				}
 			}
 
 			if(IsConstructionModeEnabled() || bIsInitial)
@@ -2735,7 +2751,8 @@ void FControlRigEditor::OnHierarchyModified(ERigHierarchyNotification InNotif, U
 								if ((ModelPin->GetCPPType() == TEXT("FName") && ModelPin->GetCustomWidgetName() == TEXT("BoneName") && RemovedElementType == ERigElementType::Bone) ||
 									(ModelPin->GetCPPType() == TEXT("FName") && ModelPin->GetCustomWidgetName() == TEXT("ControlName") && RemovedElementType == ERigElementType::Control) ||
 									(ModelPin->GetCPPType() == TEXT("FName") && ModelPin->GetCustomWidgetName() == TEXT("SpaceName") && RemovedElementType == ERigElementType::Null) ||
-									(ModelPin->GetCPPType() == TEXT("FName") && ModelPin->GetCustomWidgetName() == TEXT("CurveName") && RemovedElementType == ERigElementType::Curve))
+									(ModelPin->GetCPPType() == TEXT("FName") && ModelPin->GetCustomWidgetName() == TEXT("CurveName") && RemovedElementType == ERigElementType::Curve) ||
+									(ModelPin->GetCPPType() == TEXT("FName") && ModelPin->GetCustomWidgetName() == TEXT("ConnectorName") && RemovedElementType == ERigElementType::Connector))
 								{
 									if (ModelPin->GetDefaultValue() == RemovedElementName)
 									{
@@ -2815,7 +2832,8 @@ void FControlRigEditor::OnHierarchyModified(ERigHierarchyNotification InNotif, U
 									if ((ModelPin->GetCPPType() == TEXT("FName") && ModelPin->GetCustomWidgetName() == TEXT("BoneName") && ElementType == ERigElementType::Bone) ||
 										(ModelPin->GetCPPType() == TEXT("FName") && ModelPin->GetCustomWidgetName() == TEXT("ControlName") && ElementType == ERigElementType::Control) ||
 										(ModelPin->GetCPPType() == TEXT("FName") && ModelPin->GetCustomWidgetName() == TEXT("SpaceName") && ElementType == ERigElementType::Null) ||
-										(ModelPin->GetCPPType() == TEXT("FName") && ModelPin->GetCustomWidgetName() == TEXT("CurveName") && ElementType == ERigElementType::Curve))
+										(ModelPin->GetCPPType() == TEXT("FName") && ModelPin->GetCustomWidgetName() == TEXT("CurveName") && ElementType == ERigElementType::Curve) ||
+										(ModelPin->GetCPPType() == TEXT("FName") && ModelPin->GetCustomWidgetName() == TEXT("ConnectorName") && ElementType == ERigElementType::Connector))
 									{
 										if (ModelPin->GetDefaultValue() == OldNameStr)
 										{
@@ -3228,7 +3246,7 @@ void FControlRigEditor::CreateRigHierarchyToGraphDragAndDropMenu() const
 							GetterLabel = LOCTEXT("GetNull","Get Null");
 							GetterTooltip = LOCTEXT("GetNull_ToolTip", "Getter For Null");
 							SetterLabel = LOCTEXT("SetNull","Set Null");
-							SetterTooltip = LOCTEXT("SetNull_eoolTip", "Setter For Null");
+							SetterTooltip = LOCTEXT("SetNull_ToolTip", "Setter For Null");
 						}
 						else if ((DraggedTypes & (uint8)ERigElementType::Control) != 0)
 						{
@@ -3246,6 +3264,13 @@ void FControlRigEditor::CreateRigHierarchyToGraphDragAndDropMenu() const
 								SetterLabel = LOCTEXT("SetAnimationChannel","Set Animation Channel");
 								SetterTooltip = LOCTEXT("SetAnimationChannel_ToolTip", "Setter For Animation Channel");
 							}
+						}
+						else if ((DraggedTypes & (uint8)ERigElementType::Connector) != 0)
+						{
+							GetterLabel = LOCTEXT("GetConnector","Get Connector");
+							GetterTooltip = LOCTEXT("GetConnector_ToolTip", "Getter For Connector");
+							SetterLabel = LOCTEXT("SetConnector","Set Connector");
+							SetterTooltip = LOCTEXT("SetConnector_ToolTip", "Setter For Connector");
 						}
 					}
 
@@ -3282,7 +3307,8 @@ void FControlRigEditor::CreateRigHierarchyToGraphDragAndDropMenu() const
 
 					if (((DraggedTypes & (uint8)ERigElementType::Bone) != 0) ||
 						((DraggedTypes & (uint8)ERigElementType::Control) != 0) ||
-						((DraggedTypes & (uint8)ERigElementType::Null) != 0))
+						((DraggedTypes & (uint8)ERigElementType::Null) != 0) ||
+						((DraggedTypes & (uint8)ERigElementType::Connector) != 0))
 					{
 						FToolMenuEntry& RotationTranslationSeparator = Section.AddSeparator(TEXT("RotationTranslationSeparator"));
 						RotationTranslationSeparator.InsertPosition.Name = SetElementsEntry.Name;

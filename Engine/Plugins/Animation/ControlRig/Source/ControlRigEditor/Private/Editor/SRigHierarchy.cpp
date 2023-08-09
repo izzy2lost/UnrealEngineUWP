@@ -313,6 +313,10 @@ void SRigHierarchy::BindCommands()
 		FExecuteAction::CreateSP(this, &SRigHierarchy::HandleNewItem, ERigElementType::Null, false),
 		FCanExecuteAction::CreateSP(this, &SRigHierarchy::IsNonProceduralElementSelected));
 
+	CommandList->MapAction(Commands.AddConnectorItem,
+		FExecuteAction::CreateSP(this, &SRigHierarchy::HandleNewItem, ERigElementType::Connector, false),
+		FCanExecuteAction::CreateSP(this, &SRigHierarchy::IsNonProceduralElementSelected));
+
 	CommandList->MapAction(Commands.DuplicateItem,
 		FExecuteAction::CreateSP(this, &SRigHierarchy::HandleDuplicateItem),
 		FCanExecuteAction::CreateSP(this, &SRigHierarchy::CanDuplicateItem));
@@ -481,7 +485,8 @@ EVisibility SRigHierarchy::IsSearchbarVisible() const
 	{
 		if ((Hierarchy->Num(ERigElementType::Bone) +
 			Hierarchy->Num(ERigElementType::Null) +
-			Hierarchy->Num(ERigElementType::Control)) > 0)
+			Hierarchy->Num(ERigElementType::Control) +
+			Hierarchy->Num(ERigElementType::Connector)) > 0)
 		{
 			return EVisibility::Visible;
 		}
@@ -745,9 +750,10 @@ void SRigHierarchy::OnHierarchyModified(ERigHierarchyNotification InNotif, URigH
 			break;
 		}
 		case ERigHierarchyNotification::ControlSettingChanged:
+		case ERigHierarchyNotification::ConnectorSettingChanged:
 		{
 			// update color and other settings of the item
-			if(InElement && InElement->GetType() == ERigElementType::Control)
+			if(InElement && ((InElement->GetType() == ERigElementType::Control) || (InElement->GetType() == ERigElementType::Connector)))
 			{
 				for (int32 RootIndex = 0; RootIndex < TreeView->RootElements.Num(); ++RootIndex)
 				{
@@ -1172,6 +1178,11 @@ void SRigHierarchy::CreateContextMenu() const
 								DefaultSection.AddMenuEntry(Commands.AddAnimationChannelItem);
 							}
 							DefaultSection.AddMenuEntry(Commands.AddNullItem);
+
+							if(CVarControlRigHierarchyEnableModules.GetValueOnAnyThread())
+							{
+								DefaultSection.AddMenuEntry(Commands.AddConnectorItem);
+							}
 						})
 					);
 					
@@ -1880,6 +1891,11 @@ void SRigHierarchy::HandleNewItem(ERigElementType InElementType, bool bIsAnimati
 					NewItemKey = Controller->AddNull(NewElementName, ParentKey, ParentTransform, true, true, true);
 					break;
 				}
+				case ERigElementType::Connector:
+				{
+					NewItemKey = Controller->AddConnector(NewElementName, ParentKey, ParentTransform, true, FRigConnectorSettings(), true);
+					break;
+				}
 				default:
 				{
 					return;
@@ -2339,6 +2355,7 @@ TOptional<EItemDropZone> SRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& Dr
 			case ERigElementType::Null:
 			case ERigElementType::RigidBody:
 			case ERigElementType::Reference:
+			case ERigElementType::Connector:
 			{
 				for (const FRigElementKey& DraggedKey : RigDragDropOp->GetElements())
 				{
@@ -2348,6 +2365,7 @@ TOptional<EItemDropZone> SRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& Dr
 						case ERigElementType::Null:
 						case ERigElementType::RigidBody:
 						case ERigElementType::Reference:
+						case ERigElementType::Connector:
 						{
 							break;
 						}
@@ -2641,7 +2659,8 @@ void SRigHierarchy::HandleSetInitialTransformFromCurrentTransform()
 						}
 					}
 					else if (SelectedKey.Type == ERigElementType::Null ||
-						SelectedKey.Type == ERigElementType::Bone)
+						SelectedKey.Type == ERigElementType::Bone ||
+						SelectedKey.Type == ERigElementType::Connector)
 					{
 						FTransform InitialTransform = LocalTransform;
 						if (ControlRigEditor.Pin()->PreviewInstance)
@@ -2707,7 +2726,8 @@ void SRigHierarchy::HandleControlBoneOrSpaceTransform()
 	if (SelectedKeys.Num() == 1)
 	{
 		if (SelectedKeys[0].Type == ERigElementType::Bone ||
-			SelectedKeys[0].Type == ERigElementType::Null)
+			SelectedKeys[0].Type == ERigElementType::Null ||
+			SelectedKeys[0].Type == ERigElementType::Connector)
 		{
 			if(!DebuggedControlRig->GetHierarchy()->IsProcedural(SelectedKeys[0]))
 			{
@@ -2787,6 +2807,7 @@ void SRigHierarchy::HandleUnparent()
 			}
 			case ERigElementType::Null:
 			case ERigElementType::Control:
+			case ERigElementType::Connector:
 			{
 				Controller->RemoveAllParents(SelectedKey, true, true, true);
 				break;

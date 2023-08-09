@@ -30,6 +30,9 @@ public:
 	/** Add Item at origin */
 	TSharedPtr< FUICommandInfo > AddNullItem;
 
+	/** Add Item at origin */
+	TSharedPtr< FUICommandInfo > AddConnectorItem;
+
 	/** Duplicate currently selected items */
 	TSharedPtr< FUICommandInfo > DuplicateItem;
 

@@ -118,6 +118,7 @@ public:
 			Set("ControlRig.Tree.Null", new IMAGE_BRUSH("Slate/Null_16x", Icon16x16));
 			Set("ControlRig.Tree.RigidBody", new IMAGE_BRUSH("Slate/RigidBody_16x", Icon16x16));
 			Set("ControlRig.Tree.Socket", new IMAGE_BRUSH("Slate/Socket_16x", Icon16x16));
+			Set("ControlRig.Tree.Connector", new IMAGE_BRUSH("Slate/Socket_16x", Icon16x16));
 		}
 
 		// Font?

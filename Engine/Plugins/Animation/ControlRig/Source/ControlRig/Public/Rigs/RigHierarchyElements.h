@@ -746,6 +746,11 @@ public:
 	GENERATED_BODY()
 	DECLARE_RIG_ELEMENT_METHODS(FRigTransformElement)
 
+	FRigTransformElement()
+		: FRigBaseElement()
+		, PoseVersion(0)
+	{}
+
 	virtual ~FRigTransformElement(){}
 
 	virtual void Save(FArchive& A, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase) override;
@@ -754,6 +759,9 @@ public:
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = RigElement, meta = (DisplayAfter = "Index"))
 	FRigCurrentAndInitialTransform Pose;
 
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = RigElement)
+	int32 PoseVersion;
+	
 protected:
 
 	struct FElementToDirty
@@ -792,7 +800,8 @@ protected:
 			InElement->GetType() == ERigElementType::Null ||
 			InElement->GetType() == ERigElementType::Control ||
 			InElement->GetType() == ERigElementType::RigidBody ||
-			InElement->GetType() == ERigElementType::Reference;
+			InElement->GetType() == ERigElementType::Reference ||
+			InElement->GetType() == ERigElementType::Connector;
 	}
 
 public:
@@ -838,7 +847,8 @@ protected:
 	{
 		return InElement->GetType() == ERigElementType::Bone ||
 			InElement->GetType() == ERigElementType::RigidBody ||
-			InElement->GetType() == ERigElementType::Reference;
+			InElement->GetType() == ERigElementType::Reference ||
+			InElement->GetType() == ERigElementType::Connector;
 	}
 
 	friend struct FRigBaseElement;
@@ -1549,6 +1559,71 @@ protected:
 	}
 
 	friend struct FRigBaseElement;
+	friend class URigHierarchyController;
+};
+
+USTRUCT(BlueprintType)
+struct CONTROLRIG_API FRigConnectorSettings
+{
+	GENERATED_BODY()
+
+	FRigConnectorSettings();
+
+	void Save(FArchive& Ar);
+	void Load(FArchive& Ar);
+
+	friend uint32 GetTypeHash(const FRigConnectorSettings& Settings);
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Control)
+	FRigElementKey ResolvedItem;
+
+	bool operator == (const FRigConnectorSettings& InOther) const;
+
+	bool operator != (const FRigConnectorSettings& InOther) const
+	{
+		return !(*this == InOther);
+	}
+};
+
+USTRUCT(BlueprintType)
+struct CONTROLRIG_API FRigConnectorElement : public FRigSingleParentElement
+{
+public:
+	
+	GENERATED_BODY()
+	DECLARE_RIG_ELEMENT_METHODS(FRigConnectorElement)
+
+	FRigConnectorElement()
+		: FRigSingleParentElement()
+	{
+		Key.Type = ERigElementType::Connector; 
+	}
+
+	virtual ~FRigConnectorElement(){}
+	
+	virtual void Save(FArchive& A, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase) override;
+	virtual void Load(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase) override;
+
+private:
+
+	virtual void CopyFrom(URigHierarchy* InHierarchy, FRigBaseElement* InOther, URigHierarchy* InOtherHierarchy) override;
+
+public:
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Control)
+	FRigConnectorSettings Settings;
+
+protected:
+
+	static bool IsClassOf(const FRigBaseElement* InElement)
+	{
+		return InElement->GetType() == ERigElementType::Connector;
+	}
+
+protected:
+
+	friend struct FRigBaseElement;
+	friend class URigHierarchy;
 	friend class URigHierarchyController;
 };
 

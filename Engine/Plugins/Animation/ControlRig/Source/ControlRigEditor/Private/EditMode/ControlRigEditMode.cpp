@@ -3670,6 +3670,7 @@ void FControlRigEditMode::OnHierarchyModified(ERigHierarchyNotification InNotif,
             	case ERigElementType::Control:
             	case ERigElementType::RigidBody:
             	case ERigElementType::Reference:
+            	case ERigElementType::Connector:
 				{
 					const bool bSelected = InNotif == ERigHierarchyNotification::ElementSelected;
 					// users may select gizmo and control rig units, so we have to let them go through both of them if they do

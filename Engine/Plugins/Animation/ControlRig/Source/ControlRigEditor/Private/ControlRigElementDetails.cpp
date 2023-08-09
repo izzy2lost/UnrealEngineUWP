@@ -780,7 +780,8 @@ void FRigBaseElementDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 	// if we are not a bone, control or null
 	if(!IsAnyElementOfType(ERigElementType::Bone) &&
 		!IsAnyElementOfType(ERigElementType::Control) &&
-		!IsAnyElementOfType(ERigElementType::Null))
+		!IsAnyElementOfType(ERigElementType::Null) &&
+		!IsAnyElementOfType(ERigElementType::Connector))
 	{
 		CustomizeMetadata(DetailBuilder);
 	}
@@ -5037,6 +5038,34 @@ void FRigNullElementDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 	FRigTransformElementDetails::CustomizeDetails(DetailBuilder);
 	CustomizeTransform(DetailBuilder);
 	CustomizeMetadata(DetailBuilder);
+}
+
+void FRigConnectorElementDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
+{
+	FRigTransformElementDetails::CustomizeDetails(DetailBuilder);
+	CustomizeTransform(DetailBuilder);
+	CustomizeSettings(DetailBuilder);
+	CustomizeMetadata(DetailBuilder);
+}
+
+void FRigConnectorElementDetails::CustomizeSettings(IDetailLayoutBuilder& DetailBuilder)
+{
+	if(PerElementInfos.IsEmpty())
+	{
+		return;
+	}
+
+	if(IsAnyElementNotOfType(ERigElementType::Connector))
+	{
+		return;
+	}
+
+	const TSharedPtr<IPropertyHandle> SettingsHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FRigConnectorElement, Settings));
+	DetailBuilder.HideProperty(SettingsHandle);
+
+	IDetailCategoryBuilder& SettingsCategory = DetailBuilder.EditCategory(TEXT("Settings"), LOCTEXT("Settings", "Settings"));
+
+	SettingsCategory.AddProperty(SettingsHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FRigConnectorSettings, ResolvedItem))).IsEnabled(false);
 }
 
 #undef LOCTEXT_NAMESPACE

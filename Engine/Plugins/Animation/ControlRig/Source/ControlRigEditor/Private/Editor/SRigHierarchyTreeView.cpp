@@ -869,6 +869,11 @@ TPair<const FSlateBrush*, FSlateColor> SRigHierarchyItem::GetBrushForElementType
 			Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.Socket");
 			break;
 		}
+		case ERigElementType::Connector:
+		{
+			Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.Connector");
+			break;
+		}
 		default:
 		{
 			break;

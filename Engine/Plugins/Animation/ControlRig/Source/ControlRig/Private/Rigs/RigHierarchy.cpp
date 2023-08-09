@@ -45,6 +45,7 @@ static TAutoConsoleVariable<int32> CVarControlRigHierarchyTraceCallstack(TEXT("C
 static TAutoConsoleVariable<int32> CVarControlRigHierarchyTracePrecision(TEXT("ControlRig.Hierarchy.TracePrecision"), 3, TEXT("sets the number digits in a float when tracing hierarchies."));
 static TAutoConsoleVariable<int32> CVarControlRigHierarchyTraceOnSpawn(TEXT("ControlRig.Hierarchy.TraceOnSpawn"), 0, TEXT("sets the number of frames to trace when a new hierarchy is spawned"));
 TAutoConsoleVariable<bool> CVarControlRigHierarchyEnableRotationOrder(TEXT("ControlRig.Hierarchy.EnableRotationOrder"), false, TEXT("enables the rotation order for controls"));
+TAutoConsoleVariable<bool> CVarControlRigHierarchyEnableModules(TEXT("ControlRig.Hierarchy.Modules"), false, TEXT("enables the modular rigging functionality"));
 static int32 sRigHierarchyLastTrace = INDEX_NONE;
 static TCHAR sRigHierarchyTraceFormat[16];
 
@@ -373,21 +374,7 @@ void URigHierarchy::ResetToDefault()
 	{
 		if(URigHierarchy* DefaultHierarchy = DefaultHierarchyPtr.Get())
 		{
-			const TArray<FRigElementKey> PreviousSelection = OrderedSelection;
 			CopyHierarchy(DefaultHierarchy);
-
-			// reestablish the selection
-			check(OrderedSelection.IsEmpty());
-			for(const FRigElementKey& Key : PreviousSelection)
-			{
-				if(FRigBaseElement* Element = Find(Key))
-				{
-					check(!Element->bSelected);
-					Element->bSelected = true;
-					OrderedSelection.Add(Element->GetKey());
-					Notify(ERigHierarchyNotification::ElementSelected, Element);
-				}
-			}
 			return;
 		}
 	}
@@ -449,6 +436,7 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 		sizeof(FRigCurveElement),
 		sizeof(FRigRigidBodyElement),
 		sizeof(FRigReferenceElement),
+		sizeof(FRigConnectorElement),
 	}; 
 
 	if(bReallocateElements)
@@ -724,6 +712,7 @@ void URigHierarchy::CopyPose(URigHierarchy* InHierarchy, bool bCurrent, bool bIn
 								ControlElementA->Offset.MarkDirty(ERigTransformType::CurrentLocal);
 								ControlElementA->Pose.MarkDirty(ERigTransformType::CurrentGlobal);
 								ControlElementA->Shape.MarkDirty(ERigTransformType::CurrentGlobal);
+								ControlElementA->PoseVersion++;
 							}
 							if(bInitial)
 							{
@@ -731,6 +720,7 @@ void URigHierarchy::CopyPose(URigHierarchy* InHierarchy, bool bCurrent, bool bIn
 								ControlElementA->Offset.MarkDirty(ERigTransformType::InitialLocal);
 								ControlElementA->Pose.MarkDirty(ERigTransformType::InitialGlobal);
 								ControlElementA->Shape.MarkDirty(ERigTransformType::InitialGlobal);
+								ControlElementA->PoseVersion++;
 							}
 						}
 						else
@@ -739,11 +729,13 @@ void URigHierarchy::CopyPose(URigHierarchy* InHierarchy, bool bCurrent, bool bIn
 							{
 								MultiParentElementA->Pose.Set(ERigTransformType::CurrentGlobal, InHierarchy->GetTransform(MultiParentElementB, ERigTransformType::CurrentGlobal));
 								MultiParentElementA->Pose.MarkDirty(ERigTransformType::CurrentLocal);
+								MultiParentElementA->PoseVersion++;
 							}
 							if(bInitial)
 							{
 								MultiParentElementA->Pose.Set(ERigTransformType::InitialGlobal, InHierarchy->GetTransform(MultiParentElementB, ERigTransformType::InitialGlobal));
 								MultiParentElementA->Pose.MarkDirty(ERigTransformType::InitialLocal);
+								MultiParentElementA->PoseVersion++;
 							}
 						}
 					}
@@ -1280,6 +1272,15 @@ FName URigHierarchy::GetSafeNewDisplayName(const FRigElementKey& InParentElement
 	}
 
 	return *Name;
+}
+
+int32 URigHierarchy::GetPoseVersion(const FRigElementKey& InKey) const
+{
+	if(const FRigTransformElement* TransformElement = Find<FRigTransformElement>(InKey))
+	{
+		return TransformElement->PoseVersion;
+	}
+	return INDEX_NONE;
 }
 
 FEdGraphPinType URigHierarchy::GetControlPinType(FRigControlElement* InControlElement) const
@@ -3051,6 +3052,7 @@ void URigHierarchy::SetTransform(FRigTransformElement* InTransformElement, const
 	const ERigTransformType::Type OpposedType = SwapLocalAndGlobal(InTransformType);
 	InTransformElement->Pose.Set(InTransformType, InTransform);
 	InTransformElement->Pose.MarkDirty(OpposedType);
+	InTransformElement->PoseVersion++;
 
 	if(FRigControlElement* ControlElement = Cast<FRigControlElement>(InTransformElement))
 	{
@@ -3865,6 +3867,83 @@ void URigHierarchy::SetControlVisibility(FRigControlElement* InControlElement, b
 #endif
 }
 
+void URigHierarchy::SetConnectorSettings(FRigConnectorElement* InConnectorElement, FRigConnectorSettings InSettings,
+	bool bSetupUndo, bool bForce, bool bPrintPythonCommands)
+{
+	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));
+	if(InConnectorElement == nullptr)
+	{
+		return;
+	}
+
+	const FRigConnectorSettings PreviousSettings = InConnectorElement->Settings;
+	if(!bForce && PreviousSettings == InSettings)
+	{
+		return;
+	}
+
+	if(bSetupUndo && !HasAnyFlags(RF_Transient))
+	{
+		Modify();
+	}
+
+	InConnectorElement->Settings = InSettings;
+	Notify(ERigHierarchyNotification::ConnectorSettingChanged, InConnectorElement);
+	
+#if WITH_EDITOR
+	if (!bPropagatingChange)
+	{
+		TGuardValue<bool> bPropagatingChangeGuardValue(bPropagatingChange, true);
+			
+		for(FRigHierarchyListener& Listener : ListeningHierarchies)
+		{
+			URigHierarchy* ListeningHierarchy = Listener.Hierarchy.Get();
+			if (ListeningHierarchy)
+			{	
+				if(FRigConnectorElement* ListeningElement = Cast<FRigConnectorElement>(ListeningHierarchy->Find(InConnectorElement->GetKey())))
+				{
+					// bSetupUndo = false such that all listening hierarchies performs undo at the same time the root hierachy undos
+					ListeningHierarchy->SetConnectorSettings(ListeningElement, InSettings, false, bForce);
+				}
+			}
+		}
+	}
+
+	if (bPrintPythonCommands)
+	{
+		FString BlueprintName;
+		if (UBlueprint* Blueprint = GetTypedOuter<UBlueprint>())
+		{
+			BlueprintName = Blueprint->GetFName().ToString();
+		}
+		else if (UControlRig* Rig = Cast<UControlRig>(GetOuter()))
+		{
+			if (UBlueprint* BlueprintCR = Cast<UBlueprint>(Rig->GetClass()->ClassGeneratedBy))
+			{
+				BlueprintName = BlueprintCR->GetFName().ToString();
+			}
+		}
+		if (!BlueprintName.IsEmpty())
+		{
+			FString ControlNamePythonized = RigVMPythonUtils::PythonizeName(InConnectorElement->GetName().ToString());
+			FString SettingsName = FString::Printf(TEXT("connector_settings_%s"),
+				*ControlNamePythonized);
+			TArray<FString> Commands = ConnectorSettingsToPythonCommands(InConnectorElement->Settings, SettingsName);
+
+			for (const FString& Command : Commands)
+			{
+				RigVMPythonUtils::Print(BlueprintName, Command);
+			}
+			
+			RigVMPythonUtils::Print(BlueprintName,
+				FString::Printf(TEXT("hierarchy.set_connector_settings(%s, %s)"),
+				*InConnectorElement->GetKey().ToPythonString(),
+				*SettingsName));
+		}
+	}
+#endif
+}
+
 
 float URigHierarchy::GetCurveValue(FRigCurveElement* InCurveElement) const
 {
@@ -4412,6 +4491,15 @@ FRigBaseElement* URigHierarchy::MakeElement(ERigElementType InElementType, int32
 			Element = NewElement<FRigReferenceElement>(InCount);
 			break;
 		}
+		case ERigElementType::Connector:
+		{
+			if(OutStructureSize)
+			{
+				*OutStructureSize = sizeof(FRigConnectorElement);
+			}
+			Element = NewElement<FRigConnectorElement>(InCount);
+			break;
+		}
 		default:
 		{
 			ensure(false);
@@ -4488,6 +4576,15 @@ void URigHierarchy::DestroyElement(FRigBaseElement*& InElement)
 			for(int32 Index=0;Index<Count;Index++)
 			{
 				ExistingElements[Index].~FRigReferenceElement(); 
+			}
+			break;
+		}
+		case ERigElementType::Connector:
+		{
+			FRigConnectorElement* ExistingElements = Cast<FRigConnectorElement>(InElement);
+			for(int32 Index=0;Index<Count;Index++)
+			{
+				ExistingElements[Index].~FRigConnectorElement(); 
 			}
 			break;
 		}
@@ -6212,6 +6309,18 @@ TArray<FString> URigHierarchy::ControlSettingsToPythonCommands(const FRigControl
 	Commands.Add(FString::Printf(TEXT("%s.primary_axis = %s"),
 		*NameSettings,
 		*RigVMPythonUtils::EnumValueToPythonString<ERigControlAxis>((int64)Settings.PrimaryAxis)));
+
+	return Commands;
+}
+
+TArray<FString> URigHierarchy::ConnectorSettingsToPythonCommands(const FRigConnectorSettings& Settings, const FString& NameSettings)
+{
+	TArray<FString> Commands;
+	Commands.Add(FString::Printf(TEXT("%s = unreal.RigConnectorSettings()"),
+			*NameSettings));
+
+	// no content values just yet - we are skipping the ResolvedItem here since
+	// we don't assume it is going to be resolved initially.
 
 	return Commands;
 }

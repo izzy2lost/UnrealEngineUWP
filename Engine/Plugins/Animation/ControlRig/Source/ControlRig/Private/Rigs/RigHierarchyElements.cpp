@@ -74,9 +74,13 @@ UScriptStruct* FRigBaseElement::GetElementStruct() const
 		{
 			return FRigRigidBodyElement::StaticStruct();
 		}
+		case ERigElementType::Connector:
+		{
+			return FRigConnectorElement::StaticStruct();
+		}
 		default:
 		{
-				break;
+			break;
 		}
 	}
 	return FRigBaseElement::StaticStruct();
@@ -494,6 +498,7 @@ void FRigTransformElement::Load(FArchive& Ar, URigHierarchy* Hierarchy, ESeriali
 	if(SerializationPhase == ESerializationPhase::StaticData)
 	{
 		Pose.Load(Ar);
+		PoseVersion = 0;
 	}
 }
 
@@ -511,6 +516,7 @@ void FRigTransformElement::CopyPose(FRigBaseElement* InOther, bool bCurrent, boo
 		{
 			Pose.Initial = Other->Pose.Initial;
 		}
+		PoseVersion++;
 	}
 }
 
@@ -521,6 +527,7 @@ void FRigTransformElement::CopyFrom(URigHierarchy* InHierarchy, FRigBaseElement*
 	
 	const FRigTransformElement* SourceTransform = CastChecked<FRigTransformElement>(InOther);
 	Pose = SourceTransform->Pose;
+	PoseVersion++;
 
 	ElementsToDirty.Reset();
 	ElementsToDirty.Reserve(SourceTransform->ElementsToDirty.Num());
@@ -1035,10 +1042,6 @@ uint32 GetTypeHash(const FRigControlSettings& Settings)
 	return Hash;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// FRigControlElement
-////////////////////////////////////////////////////////////////////////////////
-
 bool FRigControlSettings::operator==(const FRigControlSettings& InOther) const
 {
 	if(AnimationType != InOther.AnimationType)
@@ -1199,6 +1202,10 @@ void FRigControlSettings::SetupLimitArrayForType(bool bLimitTranslation, bool bL
 		}
 	}
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// FRigControlElement
+////////////////////////////////////////////////////////////////////////////////
 
 void FRigControlElement::Save(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase)
 {
@@ -1416,4 +1423,73 @@ void FRigReferenceElement::CopyPose(FRigBaseElement* InOther, bool bCurrent, boo
 			GetWorldTransformDelegate = Other->GetWorldTransformDelegate;
 		}
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FRigConnectorSettings
+////////////////////////////////////////////////////////////////////////////////
+
+FRigConnectorSettings::FRigConnectorSettings()
+{
+}
+
+void FRigConnectorSettings::Save(FArchive& Ar)
+{
+	Ar.UsingCustomVersion(FControlRigObjectVersion::GUID);
+
+	Ar << ResolvedItem;
+}
+
+void FRigConnectorSettings::Load(FArchive& Ar)
+{
+	Ar.UsingCustomVersion(FControlRigObjectVersion::GUID);
+
+	Ar << ResolvedItem;
+}
+
+uint32 GetTypeHash(const FRigConnectorSettings& Settings)
+{
+	uint32 Hash = GetTypeHash(Settings.ResolvedItem);
+	return Hash;
+}
+
+bool FRigConnectorSettings::operator==(const FRigConnectorSettings& InOther) const
+{
+	if(ResolvedItem != InOther.ResolvedItem)
+	{
+		return false;
+	}
+	return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FRigConnectorElement
+////////////////////////////////////////////////////////////////////////////////
+
+void FRigConnectorElement::Save(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase)
+{
+	Super::Save(Ar, Hierarchy, SerializationPhase);
+
+	if(SerializationPhase == ESerializationPhase::StaticData)
+	{
+		Settings.Save(Ar);
+	}
+}
+
+void FRigConnectorElement::Load(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase)
+{
+	Super::Load(Ar, Hierarchy, SerializationPhase);
+
+	if(SerializationPhase == ESerializationPhase::StaticData)
+	{
+		Settings.Load(Ar);
+	}
+}
+
+void FRigConnectorElement::CopyFrom(URigHierarchy* InHierarchy, FRigBaseElement* InOther, URigHierarchy* InOtherHierarchy)
+{
+	Super::CopyFrom(InHierarchy, InOther, InOtherHierarchy);
+	
+	const FRigConnectorElement* Source = CastChecked<FRigConnectorElement>(InOther);
+	Settings = Source->Settings;
 }
