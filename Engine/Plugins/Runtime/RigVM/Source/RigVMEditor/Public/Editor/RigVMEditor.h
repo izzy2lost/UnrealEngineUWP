@@ -57,6 +57,7 @@ public:
 	// FBlueprintEditor interface
 	virtual UBlueprint* GetBlueprintObj() const override;
 	virtual TSubclassOf<UEdGraphSchema> GetDefaultSchemaClass() const override;
+	virtual bool InEditingMode() const override;
 
 	//  FTickableEditorObject Interface
 	virtual void Tick(float DeltaTime) override;

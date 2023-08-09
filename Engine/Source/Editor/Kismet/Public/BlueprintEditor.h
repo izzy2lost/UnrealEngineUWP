@@ -429,7 +429,7 @@ public:
 	float GetInstructionTextOpacity(UEdGraph* InGraph) const;
 
 	/** Returns true if in editing mode */
-	bool InEditingMode() const;
+	virtual bool InEditingMode() const;
 
 	/** Returns true if able to compile */
 	virtual bool IsCompilingEnabled() const;

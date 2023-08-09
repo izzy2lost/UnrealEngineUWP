@@ -398,6 +398,12 @@ TSubclassOf<UEdGraphSchema> FRigVMEditor::GetDefaultSchemaClass() const
 	return URigVMEdGraphSchema::StaticClass();
 }
 
+bool FRigVMEditor::InEditingMode() const
+{
+	// always allow editing - also during PIE.
+	return true;
+}
+
 void FRigVMEditor::Tick(float DeltaTime)
 {
 	FBlueprintEditor::Tick(DeltaTime);
