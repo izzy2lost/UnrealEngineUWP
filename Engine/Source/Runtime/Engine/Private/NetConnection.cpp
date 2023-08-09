@@ -3302,8 +3302,10 @@ void UNetConnection::DispatchPacket( FBitReader& Reader, int32 PacketId, bool& b
 			// Trace bunch read
 			UE_NET_TRACE_BUNCH_SCOPE(InTraceCollector, Bunch, StartPos, HeaderPos - StartPos);
 
-			Bunch.SetData( Reader, BunchDataBits );
-			if( Reader.IsError() )
+			// Iris requires bitstream data allocations to be a multiple of four bytes.
+			const int64 BunchDataBits32BitAligned = (BunchDataBits + 31) & ~31;
+			Bunch.ResetData(Reader, BunchDataBits, BunchDataBits32BitAligned);
+			if (Reader.IsError())
 			{
 				// Bunch claims it's larger than the enclosing packet.
 				UE_LOG(LogNet, Warning, TEXT("Bunch data overflowed (%i %i+%i/%i)"), IncomingStartPos, HeaderPos, BunchDataBits,
