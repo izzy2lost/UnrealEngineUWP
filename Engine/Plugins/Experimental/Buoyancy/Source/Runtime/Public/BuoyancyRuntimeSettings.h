@@ -8,7 +8,7 @@
 
 enum ECollisionChannel : int;
 
-UCLASS(config = Engine, defaultconfig, meta = (DisplayName = "Buoyancy"))
+UCLASS(Config = Engine, DefaultConfig, Meta = (DisplayName = "Buoyancy"))
 class BUOYANCY_API UBuoyancyRuntimeSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
@@ -51,7 +51,6 @@ public:
 #endif // WITH_EDITOR
 
 #if WITH_EDITORONLY_DATA
-	// Delegate called whenever the curve data is updated
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnUpdateSettings, const UBuoyancyRuntimeSettings* /*Settings*/, EPropertyChangeType::Type /*ChangeType*/);
 	static FOnUpdateSettings OnSettingsChange;
 #endif

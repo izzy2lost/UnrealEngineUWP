@@ -89,8 +89,6 @@ void UBuoyancySubsystem::PostInitialize()
 {
 	Super::PostInitialize();
 
-	CreateSimCallback();
-
 	// Apply initial runtime settings
 	ApplyRuntimeSettings(GetDefault<UBuoyancyRuntimeSettings>(), EPropertyChangeType::ValueSet);
 
