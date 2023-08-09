@@ -117,9 +117,12 @@ TSharedRef<SDockTab> FSmartObjectAssetToolkit::SpawnTab_SceneViewport(const FSpa
 {
 	check(Args.GetTabId() == FSmartObjectAssetToolkit::SceneViewportTabID);
 
-	TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab).Label(LOCTEXT("ViewportTab_Title", "Viewport"));
+	const TSharedRef<SSmartObjectViewport> ViewportWidget = SNew(SSmartObjectViewport)
+		.EditorViewportClient(StaticCastSharedPtr<FSmartObjectAssetEditorViewportClient>(ViewportClient))
+		.AssetEditorToolkit(StaticCastSharedRef<FSmartObjectAssetToolkit>(AsShared()))
+		.PreviewScene(AdvancedPreviewScene.Get());
 
-	TSharedRef<SSmartObjectViewport> ViewportWidget = SNew(SSmartObjectViewport, StaticCastSharedRef<FSmartObjectAssetToolkit>(AsShared()), AdvancedPreviewScene.Get());
+	TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab).Label(LOCTEXT("ViewportTab_Title", "Viewport"));
 	SpawnedTab->SetContent(ViewportWidget);
 
 	return SpawnedTab;
