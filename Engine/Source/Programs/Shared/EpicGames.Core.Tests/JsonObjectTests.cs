@@ -2,14 +2,12 @@
 
 using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using NuGet.Frameworks;
 
 namespace EpicGames.Core.Tests
 {
@@ -308,7 +306,7 @@ namespace EpicGames.Core.Tests
 		public void GetBoolValidField()
 		{
 			string fieldName = "bIsAlive";
-			bool correctValue = _validJsonDataSource.bIsAlive;
+			bool correctValue = _validJsonDataSource.IsAlive;
 			Assert.AreEqual(correctValue, _validTestObject.GetBoolField(fieldName));
 			bool outValue;
 			Assert.IsTrue(_validTestObject.TryGetBoolField(fieldName, out outValue));
@@ -614,7 +612,7 @@ namespace EpicGames.Core.Tests
 			enemy1.ImmuneStatusEffects.Add(StatusEffect.Frozen);
 			enemy1.ImmuneStatusEffects.Add(StatusEffect.Sleep);
 
-			enemy1.bIsAlive = true;
+			enemy1.IsAlive = true;
 			enemy1.CurrentStatusEffect = StatusEffect.Poison;
 
 			return enemy1;
@@ -666,7 +664,7 @@ namespace EpicGames.Core.Tests
 		public List<StatusEffect> ImmuneStatusEffects { get; set; } = new List<StatusEffect>();
 		public StatusEffect CurrentStatusEffect { get; set; } = StatusEffect.None;
 		public List<string> Skills { get; set; } = new List<string>();
-		public bool bIsAlive { get; set; } = false;
+		public bool IsAlive { get; set; } = false;
 	}
 
 	class EnemyAttack
