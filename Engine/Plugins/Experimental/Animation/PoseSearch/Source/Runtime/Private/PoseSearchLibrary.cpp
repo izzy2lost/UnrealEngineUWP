@@ -244,7 +244,7 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 	float TrajectorySpeedMultiplier,
 	float BlendTime,
 	int32 MaxActiveBlends,
-	float PoseJumpThresholdTime,
+	const FFloatInterval& PoseJumpThresholdTime,
 	float PoseReselectHistory,
 	float SearchThrottleTime,
 	const FFloatInterval& PlayRate,

@@ -39,31 +39,23 @@ static void PopulateNonSelectableIdx(FNonSelectableIdx& NonSelectableIdx, FSearc
 
 	NonSelectableIdx.Reset();
 	const FSearchIndexAsset* CurrentIndexAsset = SearchContext.GetCurrentResult().GetSearchIndexAsset();
-	if (CurrentIndexAsset && SearchContext.IsCurrentResultFromDatabase(Database) && SearchContext.GetPoseJumpThresholdTime() > 0.f)
+	if (CurrentIndexAsset && SearchContext.IsCurrentResultFromDatabase(Database) && !FMath::IsNearlyEqual(SearchContext.GetPoseJumpThresholdTime().Min, SearchContext.GetPoseJumpThresholdTime().Max))
 	{
-		const int32 PoseJumpIndexThreshold = FMath::FloorToInt(SearchContext.GetPoseJumpThresholdTime() * Database->Schema->SampleRate);
+		const int32 CurrentResultPoseIdx = SearchContext.GetCurrentResult().PoseIdx;
+		const int32 UnboundMinPoseIdx = CurrentResultPoseIdx + FMath::FloorToInt(SearchContext.GetPoseJumpThresholdTime().Min * Database->Schema->SampleRate);
+		const int32 UnboundMaxPoseIdx = CurrentResultPoseIdx + FMath::CeilToInt(SearchContext.GetPoseJumpThresholdTime().Max * Database->Schema->SampleRate);
+		const int32 CurrentIndexAssetFirstPoseIdx = CurrentIndexAsset->FirstPoseIdx;
+		const int32 CurrentIndexAssetNumPoses = CurrentIndexAsset->GetNumPoses();
 		const bool IsLooping = Database->IsSourceAssetLooping(*CurrentIndexAsset);
 
-		for (int32 i = -PoseJumpIndexThreshold; i <= -1; ++i)
+		if (IsLooping)
 		{
-			int32 PoseIdx = SearchContext.GetCurrentResult().PoseIdx + i;
-			bool bIsPoseInRange = false;
-			if (IsLooping)
+			for (int32 UnboundPoseIdx = UnboundMinPoseIdx; UnboundPoseIdx < UnboundMaxPoseIdx; ++UnboundPoseIdx)
 			{
-				bIsPoseInRange = true;
+				const int32 Modulo = (UnboundPoseIdx - CurrentIndexAssetFirstPoseIdx) % CurrentIndexAssetNumPoses;
+				const int32 CurrentIndexAssetFirstPoseIdxPlusModulo = CurrentIndexAssetFirstPoseIdx + Modulo;
+				const int32 PoseIdx = Modulo >= 0 ? CurrentIndexAssetFirstPoseIdxPlusModulo : CurrentIndexAssetFirstPoseIdxPlusModulo + CurrentIndexAssetNumPoses;
 
-				while (PoseIdx < CurrentIndexAsset->FirstPoseIdx)
-				{
-					PoseIdx += CurrentIndexAsset->GetNumPoses();
-				}
-			}
-			else if (CurrentIndexAsset->IsPoseInRange(PoseIdx))
-			{
-				bIsPoseInRange = true;
-			}
-
-			if (bIsPoseInRange)
-			{
 				NonSelectableIdx.AddUnique(PoseIdx);
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
@@ -72,42 +64,21 @@ static void PopulateNonSelectableIdx(FNonSelectableIdx& NonSelectableIdx, FSearc
 				SearchContext.BestCandidates.Add(PoseCost, PoseIdx, Database, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime);
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 			}
-			else
-			{
-				break;
-			}
 		}
-
-		for (int32 i = 0; i <= PoseJumpIndexThreshold; ++i)
+		else
 		{
-			int32 PoseIdx = SearchContext.GetCurrentResult().PoseIdx + i;
-			bool bIsPoseInRange = false;
-			if (IsLooping)
-			{
-				bIsPoseInRange = true;
+			const int32 MinPoseIdx = FMath::Max(CurrentIndexAssetFirstPoseIdx, UnboundMinPoseIdx);
+			const int32 MaxPoseIdx = FMath::Min(CurrentIndexAssetFirstPoseIdx + CurrentIndexAssetNumPoses, UnboundMaxPoseIdx);
 
-				while (PoseIdx >= CurrentIndexAsset->FirstPoseIdx + CurrentIndexAsset->GetNumPoses())
-				{
-					PoseIdx -= CurrentIndexAsset->GetNumPoses();
-				}
-			}
-			else if (CurrentIndexAsset->IsPoseInRange(PoseIdx))
-			{
-				bIsPoseInRange = true;
-			}
-
-			if (bIsPoseInRange)
+			for (int32 PoseIdx = MinPoseIdx; PoseIdx < MaxPoseIdx; ++PoseIdx)
 			{
 				NonSelectableIdx.AddUnique(PoseIdx);
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
-				const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, SearchIndex.GetPoseValuesSafe(PoseIdx), QueryValues);
+				const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
+				const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
 				SearchContext.BestCandidates.Add(PoseCost, PoseIdx, Database, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime);
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
-			}
-			else
-			{
-				break;
 			}
 		}
 	}

@@ -106,7 +106,7 @@ public:
 	* @param Trajectory						Input motion trajectory samples for pose search queries. Expected to be in the space of the SkeletalMeshComponent. This is provided with the CharacterMovementTrajectory Component output.
 	* @param BlendTime						Input time in seconds to blend out to the new pose. Uses either inertial blending, requiring an Inertialization node after this node, or the internal blend stack, if MaxActiveBlends is greater than zero.
 	* @param MaxActiveBlends				Input number of max active animation segments being blended together in the blend stack. If MaxActiveBlends is zero then the blend stack is disabled.
-	* @param PoseJumpThresholdTime			Input don't jump to poses of the same segment that are less than this many seconds away.
+	* @param PoseJumpThresholdTime			Input don't jump to poses of the same segment that are within the interval this many seconds away from the continuing pose.
 	* @param PoseReselectHistory			Input prevent re-selection of poses that have been selected previously within this much time (in seconds) in the past. This is across all animation segments that have been selected within this time range.
 	* @param SearchThrottleTime				Input minimum amount of time to wait between searching for a new pose segment. It allows users to define how often the system searches, default for locomotion is searching every update, but you may only want to search once for other situations, like jump.
 	* @param PlayRate						Input effective range of play rate that can be applied to the animations to account for discrepancies in estimated velocity between the movement modeland the animation.
@@ -123,7 +123,7 @@ public:
 		float TrajectorySpeedMultiplier,
 		float BlendTime,
 		int32 MaxActiveBlends,
-		float PoseJumpThresholdTime,
+		const FFloatInterval& PoseJumpThresholdTime,
 		float PoseReselectHistory,
 		float SearchThrottleTime,
 		const FFloatInterval& PlayRate,

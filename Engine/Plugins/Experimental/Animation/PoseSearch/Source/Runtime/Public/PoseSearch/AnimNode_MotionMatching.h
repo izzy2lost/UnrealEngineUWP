@@ -68,9 +68,9 @@ private:
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault))
 	EAlphaBlendOption BlendOption = EAlphaBlendOption::Linear;
 
-	// Don't jump to poses of the same segment that are less than this many seconds away.
-	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault, ClampMin="0"))
-	float PoseJumpThresholdTime = 0.f;
+	// Don't jump to poses of the same segment that are within the interval this many seconds away from the continuing pose.
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault))
+	FFloatInterval PoseJumpThresholdTime = FFloatInterval(0.f, 0.f);
 
 	// Prevent re-selection of poses that have been selected previously within this much time (in seconds) in the past. This is across all animation segments that have been selected within this time range.
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault, ClampMin = "0"))

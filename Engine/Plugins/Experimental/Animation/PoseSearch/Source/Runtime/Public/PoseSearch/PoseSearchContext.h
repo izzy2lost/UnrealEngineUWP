@@ -143,7 +143,7 @@ private:
 struct POSESEARCH_API FSearchContext
 {
 	FSearchContext(const UAnimInstance* InAnimInstance, const FPoseSearchQueryTrajectory* InTrajectory, const IPoseHistory* InHistory, float InDesiredPermutationTimeOffset, const FPoseIndicesHistory* InPoseIndicesHistory = nullptr,
-		const FSearchResult& InCurrentResult = FSearchResult(), float InPoseJumpThresholdTime = 0.f, bool bInForceInterrupt = false);
+		const FSearchResult& InCurrentResult = FSearchResult(), const FFloatInterval& InPoseJumpThresholdTime = FFloatInterval(0.f, 0.f), bool bInForceInterrupt = false);
 
 	// Returns the rotation of the bone Schema.BoneReferences[SchemaSampleBoneIdx] at an offset time of SampleTimeOffset relative to the
 	// transform of the bone Schema.BoneReferences[SchemaOriginBoneIdx] at an offset time of time OriginTimeOffset 
@@ -178,7 +178,7 @@ struct POSESEARCH_API FSearchContext
 	TConstArrayView<float> GetCurrentResultPoseVector() const { return CurrentResultPoseVector; }
 
 	const FSearchResult& GetCurrentResult() const { return CurrentResult; }
-	float GetPoseJumpThresholdTime() const { return PoseJumpThresholdTime; }
+	const FFloatInterval& GetPoseJumpThresholdTime() const { return PoseJumpThresholdTime; }
 	const FPoseIndicesHistory* GetPoseIndicesHistory() const { return PoseIndicesHistory; }
 	bool IsHistoryValid() const { return History != nullptr; }
 	float GetDesiredPermutationTimeOffset() const { return DesiredPermutationTimeOffset; }
@@ -199,7 +199,7 @@ private:
 	float DesiredPermutationTimeOffset = 0.f;
 	const FPoseIndicesHistory* PoseIndicesHistory = nullptr;
 	FSearchResult CurrentResult;
-	float PoseJumpThresholdTime = 0.f;
+	FFloatInterval PoseJumpThresholdTime = FFloatInterval(0.f, 0.f);
 	bool bForceInterrupt = false;
 
 	TConstArrayView<float> CurrentResultPoseVector;

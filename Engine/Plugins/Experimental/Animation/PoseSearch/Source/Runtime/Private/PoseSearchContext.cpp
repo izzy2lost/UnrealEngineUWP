@@ -352,7 +352,7 @@ void FDebugDrawParams::DrawFeatureVector(int32 PoseIdx)
 //////////////////////////////////////////////////////////////////////////
 // FSearchContext
 FSearchContext::FSearchContext(const UAnimInstance* InAnimInstance, const FPoseSearchQueryTrajectory* InTrajectory, const IPoseHistory* InHistory, float InDesiredPermutationTimeOffset,
-	const FPoseIndicesHistory* InPoseIndicesHistory, const FSearchResult& InCurrentResult, float InPoseJumpThresholdTime, bool bInForceInterrupt)
+	const FPoseIndicesHistory* InPoseIndicesHistory, const FSearchResult& InCurrentResult, const FFloatInterval& InPoseJumpThresholdTime, bool bInForceInterrupt)
 : AnimInstance(InAnimInstance)
 , Trajectory(InTrajectory)
 , History(InHistory)
