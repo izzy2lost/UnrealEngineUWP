@@ -123,19 +123,18 @@ protected:
 	bool FilterPackageName(const FString& InWildcard);
 	void ConditionallyDumpObjList();
 	void ConditionallyDumpObjects();
-	UE::DiffWriterArchive::FMessageCallback GetDiffWriterMessageCallback();
+	UE::DiffWriter::FMessageCallback GetDiffWriterMessageCallback();
 	virtual void OnDiffWriterMessage(ELogVerbosity::Type Verbosity, FStringView Message);
 	FString ResolveText(FStringView Message);
+	UE::DiffWriter::FAccumulator& ConstructAccumulator(FName PackageName, UObject* Asset, uint16 MultiOutputIndex);
 
-	FDiffWriterDiffMap DiffMap[2];
-	TUniquePtr<FDiffWriterCallstacks> ExportsCallstacks;
+	TRefCountPtr<UE::DiffWriter::FAccumulator> Accumulators[2];
 	FBeginPackageInfo BeginInfo;
 	TUniquePtr<ICookedPackageWriter> Inner;
 	const TCHAR* Indent = nullptr;
 	const TCHAR* NewLine = nullptr;
 	FString DumpObjListParams;
 	FString PackageFilter;
-	int64 ExportsDiffMapOffset[2] = {0, 0};
 	int32 MaxDiffsToLog = 5;
 	bool bSaveForDiff = false;
 	bool bDiffOptional = false;

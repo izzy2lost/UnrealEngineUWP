@@ -10,7 +10,7 @@
 #include "Serialization/LargeMemoryWriter.h"
 #include "Serialization/MemoryReader.h"
 
-namespace UE::DiffWriterArchive::Tests
+namespace UE::DiffWriter::Tests
 {
 
 struct FBasicDiffState
@@ -27,34 +27,37 @@ struct FBasicDiffState
 	}
 };
 
-FDiffWriterArchiveWriter::FPackageData ToPackageData(FLargeMemoryWriter& Ar)
+ICookedPackageWriter::FPreviousCookedBytesData ToPackageData(FLargeMemoryWriter& Ar)
 {
-	return FDiffWriterArchiveWriter::FPackageData
+	int64 Size = Ar.TotalSize(); // Cache this before calling ReleaseOwnership
+	return ICookedPackageWriter::FPreviousCookedBytesData
 	{
-		Ar.GetData(),
-		Ar.TotalSize()
+		TUniquePtr<uint8>(Ar.ReleaseOwnership()), Size, 0 /* HeaderSize */, 0 /* StartOffset */
 	};
 }
 
-} // namespace UE::DiffWriterArchive::Tests
+} // namespace UE::DiffWriter::Tests
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDiffWriterArchiveTestsCallstacks, "System.Core.Cooker.DiffWriterArchive.Callstacks",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FDiffWriterArchiveTestsCallstacks::RunTest(const FString& Parameters)
 {
-	using namespace UE::DiffWriterArchive::Tests;
+	using namespace UE::DiffWriter;
+	using namespace UE::DiffWriter::Tests;
 
 	const int32 MaxDiffsToLog = 1000;
-	FDiffWriterCallstacks Callstacks(nullptr);
+	FName PackageName(TEXT("PackageName"));
+	TRefCountPtr<FAccumulator> Accumulator = new FAccumulator(nullptr, PackageName, MaxDiffsToLog,
+		[](ELogVerbosity::Type Verbosity, FStringView Message) {});
+	FBasicDiffState State = FBasicDiffState{ 1,2,3 };
+	FDiffArchiveForLinker Ar(*Accumulator);
 
-	FLargeMemoryWriter Memory;
-	FBasicDiffState State = FBasicDiffState {1,2,3};
-	FDiffWriterArchiveWriter StackTraceWriter(Memory, Callstacks, 0);
-	State.Serialize(StackTraceWriter);
+	State.Serialize(Ar);
 
+	FCallstacks& Callstacks = Accumulator->LinkerCallstacks;
 	TestTrueExpr(Callstacks.Num() == 3);
-	TestTrueExpr(Callstacks.TotalCapturedSize() == sizeof(FBasicDiffState));
+	TestTrueExpr(Callstacks.GetEndOffset() == sizeof(FBasicDiffState));
 	TestTrueExpr(Callstacks.GetCallstack(0).Offset == 0);
 	TestTrueExpr(Callstacks.GetCallstack(0).Callstack == 0);
 	TestTrueExpr(Callstacks.GetCallstack(0).bIgnore == false);
@@ -72,14 +75,17 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDiffWriterArchiveTestsBasic, "System.Core.Cook
 
 bool FDiffWriterArchiveTestsBasic::RunTest(const FString& Parameters)
 {
-	using namespace UE::DiffWriterArchive::Tests;
+	using namespace UE::DiffWriter;
+	using namespace UE::DiffWriter::Tests;
 
 	const int32 MaxDiffsToLog = 1000;
+	FName PackageName(TEXT("PackageName"));
+	FString Filename(TEXT("Filename"));
 
 	// SECTION("DiffMap - identical")
 	{
-		FDiffWriterCallstacks Callstacks(nullptr);
-		FDiffWriterDiffMap DiffMap;
+		TRefCountPtr<FAccumulator> Accumulator = new FAccumulator(nullptr, PackageName, MaxDiffsToLog,
+			[](ELogVerbosity::Type Verbosity, FStringView Message) {});
 
 		FLargeMemoryWriter InitialState;
 		{
@@ -87,23 +93,22 @@ bool FDiffWriterArchiveTestsBasic::RunTest(const FString& Parameters)
 			State.Serialize(InitialState);
 		}
 
-		FLargeMemoryWriter NewState;
+		FDiffArchiveForLinker NewState(*Accumulator);
 		{
 			FBasicDiffState State = FBasicDiffState {1,2,3};
-			FDiffWriterArchiveWriter StackTraceWriter(NewState, Callstacks);
-			State.Serialize(StackTraceWriter);
+			State.Serialize(NewState);
 		}
 
-		FDiffWriterArchiveWriter::FPackageData InitialData = ToPackageData(InitialState);
-		FDiffWriterArchiveWriter::FPackageData NewData = ToPackageData(NewState);
-		const bool bIsIdentical = FDiffWriterArchiveWriter::GenerateDiffMap(InitialData, NewData, Callstacks, MaxDiffsToLog, DiffMap);
-		TestTrueExpr(bIsIdentical);
+		ICookedPackageWriter::FPreviousCookedBytesData InitialData = ToPackageData(InitialState);
+		Accumulator->OnFirstSaveComplete(Filename, 0, MoveTemp(InitialData));
+
+		TestTrueExpr(!Accumulator->HasDifferences());
 	}
 
 	// SECTION("DiffMap - mismatch")
 	{
-		FDiffWriterCallstacks Callstacks(nullptr);
-		FDiffWriterDiffMap DiffMap;
+		TRefCountPtr<FAccumulator> Accumulator = new FAccumulator(nullptr, PackageName, MaxDiffsToLog,
+			[](ELogVerbosity::Type Verbosity, FStringView Message) {});
 
 		FLargeMemoryWriter InitialState;
 		{
@@ -111,76 +116,50 @@ bool FDiffWriterArchiveTestsBasic::RunTest(const FString& Parameters)
 			State.Serialize(InitialState);
 		}
 
-		FLargeMemoryWriter NewState;
+		FDiffArchiveForLinker NewState(*Accumulator);
 		{
 			FBasicDiffState State = FBasicDiffState {1,2,4};
-			FDiffWriterArchiveWriter StackTraceWriter(NewState, Callstacks);
-			State.Serialize(StackTraceWriter);
+			State.Serialize(NewState);
 		}
 
-		FDiffWriterArchiveWriter::FPackageData InitialData = ToPackageData(InitialState);
-		FDiffWriterArchiveWriter::FPackageData NewData = ToPackageData(NewState);
-		const bool bIsIdentical = FDiffWriterArchiveWriter::GenerateDiffMap(InitialData, NewData, Callstacks, MaxDiffsToLog, DiffMap);
-		TestTrueExpr(bIsIdentical == false);
+		ICookedPackageWriter::FPreviousCookedBytesData InitialData = ToPackageData(InitialState);
+		Accumulator->OnFirstSaveComplete(Filename, 0, MoveTemp(InitialData));
+
+		TestTrueExpr(Accumulator->HasDifferences());
 	}
 
 	// SECTION("Compare - mismatch")
 	{
-		FDiffWriterCallstacks Callstacks(nullptr);
-		FDiffWriterCallstacks CallstacksWithStackTrace(nullptr);
-		FDiffWriterDiffMap DiffMap;
+		TRefCountPtr<FAccumulator> Accumulator = new FAccumulator(nullptr, PackageName, MaxDiffsToLog,
+			[](ELogVerbosity::Type Verbosity, FStringView Message) {});
 
 		FBasicDiffState InitialState = FBasicDiffState {1,2,3};
 		FLargeMemoryWriter InitialMemory;
 		InitialMemory.SetByteSwapping(false);
-
 		InitialState.Serialize(InitialMemory);
+		ICookedPackageWriter::FPreviousCookedBytesData InitialData = ToPackageData(InitialMemory);
 
 		FBasicDiffState NewState = FBasicDiffState {1,22,33};
-		TUniquePtr<FLargeMemoryWriter> NewMemory = MakeUnique<FLargeMemoryWriter>();
+		TUniquePtr<FDiffArchiveForLinker> NewMemory = MakeUnique<FDiffArchiveForLinker>(*Accumulator);
 		NewMemory->SetByteSwapping(false);
-
-		{
-			FDiffWriterArchiveWriter StackTraceWriter(*NewMemory, Callstacks);
-			NewState.Serialize(StackTraceWriter);
-		}
+		NewState.Serialize(*NewMemory);
 
 		// Generate diff map
 		{
-			FDiffWriterArchiveWriter::FPackageData InitialData = ToPackageData(InitialMemory);
-			FDiffWriterArchiveWriter::FPackageData NewData = ToPackageData(*NewMemory);
-			const bool bIsIdentical = FDiffWriterArchiveWriter::GenerateDiffMap(InitialData, NewData, Callstacks, MaxDiffsToLog, DiffMap);
-			TestTrueExpr(bIsIdentical == false);
+			Accumulator->OnFirstSaveComplete(Filename, 0, MoveTemp(InitialData));
+			TestTrueExpr(Accumulator->HasDifferences());
 		}
 		
-		NewMemory = MakeUnique<FLargeMemoryWriter>();
+		NewMemory.Reset();
+		NewMemory = MakeUnique<FDiffArchiveForLinker>(*Accumulator);
 		NewMemory->SetByteSwapping(false);
-		{
-			FDiffWriterArchiveWriter StackTraceWriter(*NewMemory, CallstacksWithStackTrace, &DiffMap);
-			NewState.Serialize(StackTraceWriter);
-		}
+		NewState.Serialize(*NewMemory);
+		Accumulator->OnSecondSaveComplete(0);
 
 		// Compare using callstacks and diffmap
 		{
-			FDiffWriterArchiveWriter::FPackageData InitialData = ToPackageData(InitialMemory);
-			FDiffWriterArchiveWriter::FPackageData NewData = ToPackageData(*NewMemory);
-			int32 DiffsLogged = 0;
 			TMap<FName, FArchiveDiffStats> DiffStats;
-			UE::DiffWriterArchive::FMessageCallback MessageCallback =
-				[](ELogVerbosity::Type Verbosity, FStringView Message)
-			{};
-			FDiffWriterArchiveWriter::Compare(
-				InitialData,
-				NewData,
-				CallstacksWithStackTrace,
-				DiffMap,
-				TEXT("BasicDiffTest"),
-				nullptr,
-				MaxDiffsToLog,
-				DiffsLogged,
-				DiffStats,
-				MessageCallback);
-
+			Accumulator->CompareWithPrevious(TEXT("BasicDiffTest"), DiffStats, EPackageHeaderFormat::PackageFileSummary);
 			TestTrueExpr(DiffStats[NAME_None].NumDiffs == 2);
 		}
 	}

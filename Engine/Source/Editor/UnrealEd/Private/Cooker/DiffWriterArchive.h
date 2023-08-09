@@ -18,6 +18,7 @@
 #include "Templates/UniquePtr.h"
 #include "UObject/NameTypes.h"
 
+class FDiffWriterArchiveTestsCallstacks;
 class FLinkerLoad;
 class FProperty;
 class FUObjectThreadContext;
@@ -25,38 +26,49 @@ class UObject;
 struct FUObjectSerializeContext;
 
 
-namespace UE::DiffWriterArchive
+namespace UE::DiffWriter
 {
+
+class FAccumulator;
+class FDiffArchive;
+
+typedef TUniqueFunction<void(ELogVerbosity::Type, FStringView)> FMessageCallback;
+using EPackageHeaderFormat = ICookedPackageWriter::EPackageHeaderFormat;
+using FPackageData = UE::ArchiveStackTrace::FPackageData;
 
 extern const TCHAR* const IndentToken;
 extern const TCHAR* const NewLineToken;
-typedef TUniqueFunction<void(ELogVerbosity::Type, FStringView)> FMessageCallback;
 
-}
+enum class EOffsetFrame
+{
+	Linker,
+	Exports,
+};
 
-struct FDiffWriterDiffInfo
+struct FDiffInfo
 {
 	int64 Offset;
 	int64 Size;
-	FDiffWriterDiffInfo()
+
+	FDiffInfo()
 		: Offset(0)
 		, Size(0)
 	{
 	}
-	FDiffWriterDiffInfo(int64 InOffset, int64 InSize)
+	FDiffInfo(int64 InOffset, int64 InSize)
 		: Offset(InOffset)
 		, Size(InSize)
 	{
 	}
-	bool operator==(const FDiffWriterDiffInfo& InOther) const
+	bool operator==(const FDiffInfo& InOther) const
 	{
 		return Offset == InOther.Offset;
 	}
-	bool operator<(const FDiffWriterDiffInfo& InOther) const
+	bool operator<(const FDiffInfo& InOther) const
 	{
 		return Offset < InOther.Offset;
 	}
-	friend FArchive& operator << (FArchive& Ar, FDiffWriterDiffInfo& InDiffInfo)
+	friend FArchive& operator << (FArchive& Ar, FDiffInfo& InDiffInfo)
 	{
 		Ar << InDiffInfo.Offset;
 		Ar << InDiffInfo.Size;
@@ -64,12 +76,12 @@ struct FDiffWriterDiffInfo
 	}
 };
 
-class FDiffWriterDiffMap : public TArray<FDiffWriterDiffInfo>
+class FDiffMap : public TArray<FDiffInfo>
 {
 public:
 	bool ContainsOffset(int64 Offset) const
 	{
-		for (const FDiffWriterDiffInfo& Diff : *this)
+		for (const FDiffInfo& Diff : *this)
 		{
 			if (Diff.Offset <= Offset && Offset < (Diff.Offset + Diff.Size))
 			{
@@ -82,7 +94,7 @@ public:
 };
 
 /** Holds offsets to captured callstacks. */
-class FDiffWriterCallstacks
+class FCallstacks
 {
 public:
 	/** Offset and callstack pair */
@@ -123,16 +135,17 @@ public:
 		FCallstackData Clone() const;
 	};
 	
-	explicit FDiffWriterCallstacks(UObject* InAsset);
-
-	/** Returns the asset class name. */
-	FName GetAssetClass() const;
+	FCallstacks();
 
 	/** Returns the total number of callstacks. */
 	int32 Num() const
 	{
 		return CallstackAtOffsetMap.Num();
 	}
+	void Reset();
+
+	FORCENOINLINE void RecordSerialize(EOffsetFrame OffsetFrame, int64 CurrentOffset, int64 Length,
+		const FAccumulator& Accumulator, FDiffArchive& Ar, int32 StackIgnoreCount);
 
 	/** Capture and append the current callstack. */
 	void Add(
@@ -146,7 +159,7 @@ public:
 		int32 StackIgnoreCount);
 
 	/** Append other callstacks. */
-	void Append(const FDiffWriterCallstacks& Other, int64 Offset = 0);
+	void Append(const FCallstacks& Other, int64 OtherStartOffset);
 
 	/** Finds a callstack associated with data at the specified offset */
 	int32 GetCallstackIndexAtOffset(int64 Offset, int32 MinOffsetIndex = 0) const;
@@ -171,22 +184,19 @@ public:
 		}
 		else
 		{
-			return TotalSize - CallstackAtOffsetMap[InOffsetIndex].Offset;
+			return EndOffset - CallstackAtOffsetMap[InOffsetIndex].Offset;
 		}
 	}
 
-	/** Returns total serialized bytes. */
-	int64 TotalCapturedSize() const
+	int64 GetEndOffset() const
 	{
-		return TotalSize;
+		return EndOffset;
 	}
 
 private:
 	/** Adds a unique callstack to UniqueCallstacks map */
 	ANSICHAR* AddUniqueCallstack(bool bIsCollectingCallstacks, UObject* SerializedObject, FProperty* SerializedProperty, uint32& OutCallstackCRC);
 
-	/** The asset being serialized */
-	UObject* Asset;
 	/** List of offsets and their respective callstacks */
 	TArray<FCallstackAtOffset> CallstackAtOffsetMap;
 	/** Contains all unique callstacks for all Serialize calls */
@@ -200,170 +210,115 @@ private:
 	/** Callstack associated with the previous Serialize call */
 	ANSICHAR* LastSerializeCallstack;
 	/** Total serialized bytes */
-	int64 TotalSize;
+	int64 EndOffset;
 };
 
-/** Archive proxy that captures callstacks for each serialize call. */
-class FDiffWriterArchiveWriter
-	: public FArchiveProxy
+/**
+ * Collects the memory version of a saved package, compares it with an existing package on disk, and reports callstack
+ * for the Serialize call at each offset where they differ.
+ * 
+ * It works by saving a package twice. The first pass collects the serialization offsets without the stack traces and
+ * creates a FDiffMap, and records sizes necessary to remap offsets during Serialize to the final offset in the package
+ * on disk. In the second pass, the diff map is read during each call to Serialize to decide whether we need to collect
+ * the stack trace for that call.
+ */
+class FAccumulator : public FRefCountBase
 {
 public:
-	FDiffWriterArchiveWriter(
-		FArchive& InInner,
-		FDiffWriterCallstacks& InCallstacks,
-		const FDiffWriterDiffMap* InDiffMap = nullptr,
-		int64 InDiffMapStartOffset = 0);
+	FAccumulator(UObject* InAsset, FName InPackageName, int32 InMaxDiffsToLog,
+		FMessageCallback&& InMessageCallback);
+	virtual ~FAccumulator();
 
-	virtual ~FDiffWriterArchiveWriter() override;
+	void OnFirstSaveComplete(FStringView InLooseFilePath, int64 InHeaderSize,
+		ICookedPackageWriter::FPreviousCookedBytesData&& InPreviousPackageData);
+	void OnSecondSaveComplete(int64 InHeaderSize);
+	bool HasDifferences() const;
 
-	FORCENOINLINE virtual void Serialize(void* Data, int64 Length) override; // FORCENOINLINE so it can be counted during StackTrace
-	virtual void SetSerializeContext(FUObjectSerializeContext* Context) override;
-	virtual FUObjectSerializeContext* GetSerializeContext() override;
-	
-	virtual void PushDebugDataString(const FName& DebugData) override
-	{
-		DebugDataStack.Push(DebugData);
-	}
+	/** Compares results from the second save with the previous cook results in PreviousPackagedata.  */
+	void CompareWithPrevious(const TCHAR* CallstackCutoffText, TMap<FName,FArchiveDiffStats>& OutStats,
+		const EPackageHeaderFormat PackageHeaderFormat);
 
-	virtual void PopDebugDataString() override
-	{
-		DebugDataStack.Pop();
-	}
+	void SetHeaderSize(int64 InHeaderSize);
+	void SetCollectingCallstacks(bool bInCollectingCallstacks);
+	FName GetAssetClass() const;
 
-	const FDiffWriterDiffMap& GetDiffMap() const
-	{
-		static FDiffWriterDiffMap Empty;
-		return DiffMap != nullptr ? *DiffMap : Empty;
-	}
 
-	void SetDisableInnerArchive(bool bDisable)
-	{
-		bInnerArchiveDisabled = bDisable;
-	}
-
-	int32 GetStackIgnoreCount() const { return StackIgnoreCount; }
-	void SetStackIgnoreCount(const int32 IgnoreCount) { StackIgnoreCount = IgnoreCount; }
-
-	using FPackageData = UE::ArchiveStackTrace::FPackageData;
-
-	using EPackageHeaderFormat = ICookedPackageWriter::EPackageHeaderFormat;
-
+private:
+	void GenerateDiffMapForSection(const FPackageData& SourcePackage, const FPackageData& DestPackage, bool& bOutSectionIdentical);
+	void GenerateDiffMap();
 	/** Compares two packages and logs the differences and calltacks. */
-	static void Compare(
-		const FPackageData& SourcePackage,
-		const FPackageData& DestPackage,
-		const FDiffWriterCallstacks& Callstacks,
-		const FDiffWriterDiffMap& DiffMap,
-		const TCHAR* AssetFilename,
-		const TCHAR* CallstackCutoffText,
-		const int64 MaxDiffsToLog,
-		int32& InOutDiffsLogged,
-		TMap<FName, FArchiveDiffStats>& OutStats,
-		const UE::DiffWriterArchive::FMessageCallback& MessageCallback);
-
-	/** Creates map with mismatching callstacks. */
-	static bool GenerateDiffMap(
-		const FPackageData& SourcePackage,
-		const FPackageData& DestPackage,
-		const FDiffWriterCallstacks& Callstacks,
-		int32 MaxDiffsToFind,
-		FDiffWriterDiffMap& OutDiffMap);
-
-	/** Logs any mismatching header data. */
-	static void DumpPackageHeaderDiffs(
-		const FPackageData& SourcePackage,
-		const FPackageData& DestPackage,
-		const FString& AssetFilename,
-		const int32 MaxDiffsToLog,
-		const EPackageHeaderFormat PackageHeaderFormat,
-		const UE::DiffWriterArchive::FMessageCallback& MessageCallback);
-
-	/** Returns a new linker for loading the specified package. */
-	static FLinkerLoad* CreateLinkerForPackage(
-		FUObjectSerializeContext* LoadContext,
-		const FString& InPackageName,
-		const FString& InFilename,
-		const FPackageData& PackageData);
+	void CompareWithPreviousForSection(const FPackageData& SourcePackage, const FPackageData& DestPackage,
+		const TCHAR* CallstackCutoffText, int32& InOutLoggedDiffs,TMap<FName, FArchiveDiffStats>& OutStats,
+		const FString& SectionFilename);
 
 private:
-	FDiffWriterCallstacks& Callstacks;
-	const FDiffWriterDiffMap* DiffMap;
-	TRefCountPtr<FUObjectSerializeContext> SerializeContext;
+	FCallstacks LinkerCallstacks;
+	FCallstacks ExportsCallstacks;
+	ICookedPackageWriter::FPreviousCookedBytesData PreviousPackageData;
+	FDiffArchive* LinkerArchive = nullptr;
+	FDiffArchive* ExportsArchive = nullptr;
+
+	FDiffMap DiffMap;
+	FMessageCallback MessageCallback;
+	FName PackageName;
+	FString Filename;
+	UObject* Asset = nullptr;
+	int64 HeaderSize = 0;
+	int32 MaxDiffsToLog = 5;
+	bool bFirstSaveComplete = false;
+	bool bHasDifferences = false;
+
+	friend class FCallstacks;
+	friend class FDiffArchive;
+	friend class FDiffArchiveForLinker;
+	friend class FDiffArchiveForExports;
+	friend class ::FDiffWriterArchiveTestsCallstacks;
+};
+
+class FDiffArchive : public FLargeMemoryWriter
+{
+public:
+	FDiffArchive(FAccumulator& InAccumulator);
+
+	// FLargeMemoryWriterBase interface
+	virtual FString GetArchiveName() const override;
+	virtual void PushDebugDataString(const FName& DebugData) override;
+	virtual void PopDebugDataString() override;
+
+	// FDiffArchive interface
+	FAccumulator& GetAccumulator() { return *Accumulator; }
+	TArray<FName>& GetDebugDataStack();
+
+
+protected:
 	TArray<FName> DebugDataStack;
-	int64 DiffMapOffset;
-	int32 StackIgnoreCount = 2;
-	bool bInnerArchiveDisabled;
+	TRefCountPtr<FAccumulator> Accumulator;
 };
 
 /**
- * Memory backed stack trace writer.
+ * The archive written to when SavePackage is writing the Serialize blobs for exports.
+ * When cooking, exports are serialized into a separate archive. We collect the serialization
+ * callstack offsets and stack traces are into a separate callstack collection and append it
+ * at the proper offset to the overall callstacks for the entire linker archive.
  */
-class FDiffWriterArchiveMemoryWriter final
-	: public FLargeMemoryWriter
+class FDiffArchiveForLinker : public FDiffArchive
 {
 public:
-	FDiffWriterArchiveMemoryWriter(
-		FDiffWriterCallstacks& Callstacks,
-		const FDiffWriterDiffMap* DiffMap = nullptr,
-		const int64 DiffMapOffset = 0,
-		const int64 PreAllocateBytes = 0,
-		bool bIsPersistent = false,
-		const TCHAR* Filename = nullptr);
+	FDiffArchiveForLinker(FAccumulator& InAccumulator);
+	~FDiffArchiveForLinker();
 
-	FORCENOINLINE virtual void Serialize(void* Memory, int64 Length) override; // FORCENOINLINE so it can be counted during StackTrace
-	virtual void SetSerializeContext(FUObjectSerializeContext* Context) override;
-	virtual FUObjectSerializeContext* GetSerializeContext() override;
-
-private:
-	FDiffWriterArchiveWriter StackTraceWriter;
+	// FLargeMemoryWriter interface
+	FORCENOINLINE virtual void Serialize(void* InData, int64 Num) override; // FORCENOINLINE so it can be counted during StackTrace
 };
 
-/**
- * Archive that stores a callstack for each of the Serialize calls and has the ability to compare itself to an existing
- * package on disk and dump all the differences to log.
- */
-class FDiffWriterArchive
-	: public FLargeMemoryWriter
+class FDiffArchiveForExports : public FDiffArchive
 {
 public:
-	using FPackageData = FDiffWriterArchiveWriter::FPackageData;
+	FDiffArchiveForExports(FAccumulator& InAccumulator);
+	~FDiffArchiveForExports();
 
-	FDiffWriterArchive(UObject* InAsset, const TCHAR* InFilename, UE::DiffWriterArchive::FMessageCallback&& InMessageCallback,
-		bool bInCollectCallstacks = true, const FDiffWriterDiffMap* InDiffMap = nullptr);
-	virtual ~FDiffWriterArchive();
-
-	FDiffWriterCallstacks& GetCallstacks()
-	{
-		return Callstacks;
-	}
-
-	const FDiffWriterCallstacks& GetCallstacks() const
-	{
-		return Callstacks;
-	}
-
-	FORCENOINLINE virtual void Serialize(void* Memory, int64 Length) override; // FORCENOINLINE so it can be counted during StackTrace
-	virtual void SetSerializeContext(FUObjectSerializeContext* Context) override;
-	virtual FUObjectSerializeContext* GetSerializeContext() override;
-
-	/** Compares this archive with the given bytes from disk or FPackageData. Dumps all differences to log. */
-	void CompareWith(const TCHAR* InFilename, const int64 TotalHeaderSize, const TCHAR* CallstackCutoffText,
-		const int32 MaxDiffsToLog, TMap<FName, FArchiveDiffStats>& OutStats);
-	void CompareWith(const FPackageData& SourcePackage, const TCHAR* FileDisplayName, const int64 TotalHeaderSize,
-		const TCHAR* CallstackCutoffText, const int32 MaxDiffsToLog, TMap<FName, FArchiveDiffStats>& OutStats,
-		const FDiffWriterArchiveWriter::EPackageHeaderFormat PackageHeaderFormat = FDiffWriterArchiveWriter::EPackageHeaderFormat::PackageFileSummary);
-
-	/** Generates a map of all differences between this archive and the given bytes from disk or FPackageData. */
-	bool GenerateDiffMap(const TCHAR* InFilename, int64 TotalHeaderSize, int32 MaxDiffsToFind, FDiffWriterDiffMap& OutDiffMap);
-	bool GenerateDiffMap(const FPackageData& SourcePackage, int64 TotalHeaderSize, int32 MaxDiffsToFind,
-		FDiffWriterDiffMap& OutDiffMap);
-
-	/** Compares the provided buffer with the given bytes from disk or FPackageData. */
-	static bool IsIdentical(const TCHAR* InFilename, int64 BufferSize, const uint8* BufferData);
-	static bool IsIdentical(const FPackageData& SourcePackage, int64 BufferSize, const uint8* BufferData);
-
-private:
-	FDiffWriterCallstacks Callstacks;
-	FDiffWriterArchiveWriter StackTraceWriter;
-	UE::DiffWriterArchive::FMessageCallback MessageCallback;
+	// FLargeMemoryWriter interface
+	FORCENOINLINE virtual void Serialize(void* InData, int64 Num) override; // FORCENOINLINE so it can be counted during StackTrace
 };
+
+} // namespace UE::DiffWriter
