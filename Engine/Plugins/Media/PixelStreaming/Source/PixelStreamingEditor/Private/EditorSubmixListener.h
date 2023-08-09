@@ -12,7 +12,7 @@ namespace UE::EditorPixelStreaming
 	{
 	public:
 		FEditorSubmixListener(FAudioDeviceHandle AudioDevice);
-		virtual ~FEditorSubmixListener() = default;
+		virtual ~FEditorSubmixListener();
 
 		// ISubmixBufferListener interface
 		void OnNewSubmixBuffer(const USoundSubmix* OwningSubmix, float* AudioData,
@@ -20,6 +20,7 @@ namespace UE::EditorPixelStreaming
 			const int32 SampleRate, double AudioClock) override;
 
 	private:
+		Audio::FDeviceId AudioDeviceId;
 		TSharedPtr<IPixelStreamingAudioInput> AudioInput;
 	};
 } // namespace UE::EditorPixelStreaming
