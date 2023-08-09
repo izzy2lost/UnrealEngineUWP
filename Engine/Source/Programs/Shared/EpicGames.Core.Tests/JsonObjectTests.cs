@@ -537,7 +537,7 @@ namespace EpicGames.Core.Tests
 		public void Constructor()
 		{
 			JsonObject obj= new JsonObject();
-			Assert.IsTrue(obj.KeyNames.Count() == 0);
+			Assert.AreEqual(0, obj.KeyNames.Count());
 		}
 
 		[TestMethod]
