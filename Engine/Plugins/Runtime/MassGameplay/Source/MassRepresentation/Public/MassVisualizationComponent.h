@@ -61,7 +61,7 @@ protected:
 	 * Applies changes accumulated in SharedData while manually updating the Instance ID mapping. This approach is done in preparation 
 	 * to upcoming ISM changes to keep the mapping management more secure (by making mapping private and fully component-owned).
 	 */
-	void HandleChangesWithExternalIDTracking(UInstancedStaticMeshComponent& ISMComponent, const FMassISMCSharedData& SharedData);
+	void HandleChangesWithExternalIDTracking(UInstancedStaticMeshComponent& ISMComponent, FMassISMCSharedData& SharedData);
 
 	/** Recreate all the static mesh components from the InstancedStaticMeshInfos */
 	void ConstructStaticMeshComponents();

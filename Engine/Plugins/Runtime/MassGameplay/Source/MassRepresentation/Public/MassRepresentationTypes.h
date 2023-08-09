@@ -171,6 +171,17 @@ struct MASSREPRESENTATION_API FMassISMCSharedData
 		WriteIterator = 0;
 	}
 
+	void RemoveUpdatedInstanceIdsAtSwap(const int32 InstanceIDIndex)
+	{
+		UpdateInstanceIds.RemoveAtSwap(InstanceIDIndex);
+		StaticMeshInstanceTransforms.RemoveAtSwap(InstanceIDIndex);
+		StaticMeshInstancePrevTransforms.RemoveAtSwap(InstanceIDIndex);
+		if (StaticMeshInstanceCustomFloats.Num())
+		{
+			StaticMeshInstanceCustomFloats.RemoveAtSwap(InstanceIDIndex);
+		}
+	}
+
 	bool HasUpdatesToApply() const { return UpdateInstanceIds.Num() || RemoveInstanceIds.Num(); }
 	TConstArrayView<int32> GetUpdateInstanceIds() const { return UpdateInstanceIds; }
 	TConstArrayView<FTransform> GetStaticMeshInstanceTransforms() const { return StaticMeshInstanceTransforms; }
