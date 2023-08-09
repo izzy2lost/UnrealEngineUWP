@@ -1487,17 +1487,17 @@ void UWorld::PreSaveRoot(FObjectPreSaveRootContext ObjectSaveContext)
 	}
 
 #if WITH_EDITOR
-	// if we are cooking this world, convert its persistent level to internal actors before doing so
-	if (ObjectSaveContext.IsCooking())
-	{
-		PersistentLevel->DetachAttachAllActorsPackages(/*bReattach*/false);
-	}
-
 	// Flush outstanding static mesh compilation to ensure that construction scripts are properly ran and not deferred prior to saving
 	FStaticMeshCompilingManager::Get().FinishAllCompilation();
 
 	// Execute all pending actor construction scripts
 	FActorDeferredScriptManager::Get().FinishAllCompilation();
+
+	// if we are cooking this world, convert its persistent level to internal actors before doing so
+	if (ObjectSaveContext.IsCooking())
+	{
+		PersistentLevel->DetachAttachAllActorsPackages(/*bReattach*/false);
+	}
 #endif
 
 	// Update components and keep track off whether we need to clean them up afterwards.
