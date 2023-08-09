@@ -1078,7 +1078,7 @@ UObject* ULevelFactory::FactoryCreateText
 								{
 									ExistingToNewMap.Add(Found, NewActor);
 								}
-								else if (!ExportedActorFullName.IsEmpty())
+								if (!ExportedActorFullName.IsEmpty())
 								{
 									ExistingToNewMap.Add(ExportedActorFullName, NewActor);
 								}
