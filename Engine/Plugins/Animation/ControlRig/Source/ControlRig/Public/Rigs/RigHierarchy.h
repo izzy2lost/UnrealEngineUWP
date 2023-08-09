@@ -4424,8 +4424,27 @@ public:
 	TElementDependencyMap GetDependenciesForVM(const URigVM* InVM, FName InEventName = NAME_None) const;
 
 private:
-	
+
 #endif
+
+	mutable TArray<int32> PoseVersionPerElement;
+	FORCEINLINE int32& GetPoseVersion(int32 InIndex) const
+	{
+		if(!PoseVersionPerElement.IsValidIndex(InIndex))
+		{
+			PoseVersionPerElement.SetNumZeroed(InIndex + 1);
+		}
+		return PoseVersionPerElement[InIndex];
+	}
+	FORCEINLINE void IncrementPoseVersion(int32 InIndex) const
+	{
+		// don't do anything if the pose version array is empty
+		// or the element has not been requested yet.
+		if(PoseVersionPerElement.IsValidIndex(InIndex))
+		{
+			PoseVersionPerElement[InIndex]++;
+		}
+	}
 
 	void UpdateVisibilityOnProxyControls();
 
