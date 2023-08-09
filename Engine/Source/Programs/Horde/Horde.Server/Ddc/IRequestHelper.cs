@@ -13,17 +13,17 @@ using Microsoft.AspNetCore.Mvc;
 namespace Horde.Server.Ddc
 {
 	public interface IRequestHelper
-    {
-        public Task<ActionResult?> HasAccessToNamespaceAsync(ClaimsPrincipal user, HttpRequest request, NamespaceId ns, AclAction[] aclActions);
-    }
+	{
+		public Task<ActionResult?> HasAccessToNamespaceAsync(ClaimsPrincipal user, HttpRequest request, NamespaceId ns, AclAction[] aclActions);
+	}
 
-    public class AuthorizationException : Exception
-    {
-        public ActionResult Result { get; }
+	public class AuthorizationException : Exception
+	{
+		public ActionResult Result { get; }
 
-        public AuthorizationException(ActionResult result, string errorMessage) : base(errorMessage)
-        {
-            Result = result;
-        }
-    }
+		public AuthorizationException(ActionResult result, string errorMessage) : base(errorMessage)
+		{
+			Result = result;
+		}
+	}
 }

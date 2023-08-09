@@ -24,242 +24,242 @@ namespace Horde.Server.Ddc
 {
 	using IDiagnosticContext = Serilog.IDiagnosticContext;
 
-    [ApiController]
-    [Route("api/v1/objects", Order = 0)]
-    [Authorize]
-    [Produces(CustomMediaTypeNames.UnrealCompactBinary, MediaTypeNames.Application.Json)]
-    public class ObjectsController : ControllerBase
-    {
-        private readonly IBlobService _storage;
-        private readonly IDiagnosticContext _diagnosticContext;
-        private readonly IRequestHelper _requestHelper;
-        private readonly IReferenceResolver _referenceResolver;
-        private readonly BufferedPayloadFactory _bufferedPayloadFactory;
+	[ApiController]
+	[Route("api/v1/objects", Order = 0)]
+	[Authorize]
+	[Produces(CustomMediaTypeNames.UnrealCompactBinary, MediaTypeNames.Application.Json)]
+	public class ObjectsController : ControllerBase
+	{
+		private readonly IBlobService _storage;
+		private readonly IDiagnosticContext _diagnosticContext;
+		private readonly IRequestHelper _requestHelper;
+		private readonly IReferenceResolver _referenceResolver;
+		private readonly BufferedPayloadFactory _bufferedPayloadFactory;
 		private readonly Tracer _tracer;
-        private readonly ILogger _logger;
+		private readonly ILogger _logger;
 
-        public ObjectsController(IBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, IReferenceResolver referenceResolver, BufferedPayloadFactory bufferedPayloadFactory, Tracer tracer, ILogger<ObjectsController> logger)
-        {
-            _storage = storage;
-            _diagnosticContext = diagnosticContext;
-            _requestHelper = requestHelper;
-            _referenceResolver = referenceResolver;
-            _bufferedPayloadFactory = bufferedPayloadFactory;
+		public ObjectsController(IBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, IReferenceResolver referenceResolver, BufferedPayloadFactory bufferedPayloadFactory, Tracer tracer, ILogger<ObjectsController> logger)
+		{
+			_storage = storage;
+			_diagnosticContext = diagnosticContext;
+			_requestHelper = requestHelper;
+			_referenceResolver = referenceResolver;
+			_bufferedPayloadFactory = bufferedPayloadFactory;
 			_tracer = tracer;
-            _logger = logger;
-        }
+			_logger = logger;
+		}
 
-        [HttpGet("{ns}/{id}")]
-        [ProducesDefaultResponseType]
-        public async Task<IActionResult> Get(
-            [Required] NamespaceId ns,
-            [Required] BlobId id)
-        {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadBlobs });
-            if (result != null)
-            {
-                return result;
-            }
+		[HttpGet("{ns}/{id}")]
+		[ProducesDefaultResponseType]
+		public async Task<IActionResult> Get(
+			[Required] NamespaceId ns,
+			[Required] BlobId id)
+		{
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
+			if (result != null)
+			{
+				return result;
+			}
 
-            try
-            {
-                BlobContents blobContents = await _storage.GetObjectAsync(ns, id);
+			try
+			{
+				BlobContents blobContents = await _storage.GetObjectAsync(ns, id);
 
-                return File(blobContents.Stream, CustomMediaTypeNames.UnrealCompactBinary);
-            }
-            catch (BlobNotFoundException e)
-            {
-                return NotFound(new ValidationProblemDetails {Title = $"Object {e.Blob} not found"});
-            }
-        }
+				return File(blobContents.Stream, CustomMediaTypeNames.UnrealCompactBinary);
+			}
+			catch (BlobNotFoundException e)
+			{
+				return NotFound(new ValidationProblemDetails { Title = $"Object {e.Blob} not found" });
+			}
+		}
 
-        [HttpHead("{ns}/{id}")]
-        [ProducesDefaultResponseType]
-        public async Task<IActionResult> Head(
-            [Required] NamespaceId ns,
-            [Required] BlobId id)
-        {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadBlobs });
-            if (result != null)
-            {
-                return result;
-            }
+		[HttpHead("{ns}/{id}")]
+		[ProducesDefaultResponseType]
+		public async Task<IActionResult> Head(
+			[Required] NamespaceId ns,
+			[Required] BlobId id)
+		{
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
+			if (result != null)
+			{
+				return result;
+			}
 
-            bool exists = await _storage.ExistsAsync(ns, id);
+			bool exists = await _storage.ExistsAsync(ns, id);
 
-            if (!exists)
-            {
-                return NotFound(new ValidationProblemDetails {Title = $"Object {id} not found"});
-            }
+			if (!exists)
+			{
+				return NotFound(new ValidationProblemDetails { Title = $"Object {id} not found" });
+			}
 
-            return Ok();
-        }
+			return Ok();
+		}
 
-        [HttpPost("{ns}/exists")]
-        [ProducesDefaultResponseType]
-        public async Task<IActionResult> ExistsMultiple(
-            [Required] NamespaceId ns,
-            [Required] [FromQuery] List<BlobId> id)
-        {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadBlobs });
-            if (result != null)
-            {
-                return result;
-            }
+		[HttpPost("{ns}/exists")]
+		[ProducesDefaultResponseType]
+		public async Task<IActionResult> ExistsMultiple(
+			[Required] NamespaceId ns,
+			[Required][FromQuery] List<BlobId> id)
+		{
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
+			if (result != null)
+			{
+				return result;
+			}
 
-            ConcurrentBag<BlobId> missingBlobs = new ConcurrentBag<BlobId>();
+			ConcurrentBag<BlobId> missingBlobs = new ConcurrentBag<BlobId>();
 
-            IEnumerable<Task> tasks = id.Select(async blob =>
-            {
-                if (!await _storage.ExistsAsync(ns, blob))
-                {
-                    missingBlobs.Add(blob);
-                }
-            });
-            await Task.WhenAll(tasks);
+			IEnumerable<Task> tasks = id.Select(async blob =>
+			{
+				if (!await _storage.ExistsAsync(ns, blob))
+				{
+					missingBlobs.Add(blob);
+				}
+			});
+			await Task.WhenAll(tasks);
 
-            return Ok(new HeadMultipleResponse {Needs = missingBlobs.ToArray()});
-        }
+			return Ok(new HeadMultipleResponse { Needs = missingBlobs.ToArray() });
+		}
 
-        [HttpPost("{ns}/exist")]
-        [ProducesDefaultResponseType]
-        public async Task<IActionResult> ExistsBody(
-            [Required] NamespaceId ns,
-            [FromBody] BlobId[] bodyIds)
-        {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadBlobs });
-            if (result != null)
-            {
-                return result;
-            }
+		[HttpPost("{ns}/exist")]
+		[ProducesDefaultResponseType]
+		public async Task<IActionResult> ExistsBody(
+			[Required] NamespaceId ns,
+			[FromBody] BlobId[] bodyIds)
+		{
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
+			if (result != null)
+			{
+				return result;
+			}
 
-            ConcurrentBag<BlobId> missingBlobs = new ConcurrentBag<BlobId>();
+			ConcurrentBag<BlobId> missingBlobs = new ConcurrentBag<BlobId>();
 
-            IEnumerable<Task> tasks = bodyIds.Select(async blob =>
-            {
-                if (!await _storage.ExistsAsync(ns, blob))
-                {
-                    missingBlobs.Add(blob);
-                }
-            });
-            await Task.WhenAll(tasks);
+			IEnumerable<Task> tasks = bodyIds.Select(async blob =>
+			{
+				if (!await _storage.ExistsAsync(ns, blob))
+				{
+					missingBlobs.Add(blob);
+				}
+			});
+			await Task.WhenAll(tasks);
 
-            return Ok(new HeadMultipleResponse { Needs = missingBlobs.ToArray() });
-        }
+			return Ok(new HeadMultipleResponse { Needs = missingBlobs.ToArray() });
+		}
 
-        [HttpPut("{ns}/{id}")]
-        [RequiredContentType(CustomMediaTypeNames.UnrealCompactBinary)]
-        public async Task<IActionResult> Put(
-            [Required] NamespaceId ns,
-            [Required] BlobId id,
+		[HttpPut("{ns}/{id}")]
+		[RequiredContentType(CustomMediaTypeNames.UnrealCompactBinary)]
+		public async Task<IActionResult> Put(
+			[Required] NamespaceId ns,
+			[Required] BlobId id,
 			CancellationToken cancellationToken)
-        {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.WriteBlobs });
-            if (result != null)
-            {
-                return result;
-            }
+		{
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.WriteBlobs });
+			if (result != null)
+			{
+				return result;
+			}
 
-            _diagnosticContext.Set("Content-Length", Request.ContentLength ?? -1);
-            try
-            {
-                using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
+			_diagnosticContext.Set("Content-Length", Request.ContentLength ?? -1);
+			try
+			{
+				using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
 
-                BlobId identifier = await _storage.PutObjectAsync(ns, payload, id, cancellationToken);
-                return Ok(new PutBlobResponse(identifier));
-            }
-            catch (ClientSendSlowException e)
-            {
-                return Problem(e.Message, null, (int)HttpStatusCode.RequestTimeout);
-            }
-        }
+				BlobId identifier = await _storage.PutObjectAsync(ns, payload, id, cancellationToken);
+				return Ok(new PutBlobResponse(identifier));
+			}
+			catch (ClientSendSlowException e)
+			{
+				return Problem(e.Message, null, (int)HttpStatusCode.RequestTimeout);
+			}
+		}
 
-        [HttpGet("{ns}/{id}/references")]
-        public async Task<IActionResult> ResolveReferences(
-            [Required] NamespaceId ns,
-            [Required] BlobId id)
-        {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadBlobs });
-            if (result != null)
-            {
-                return result;
-            }
+		[HttpGet("{ns}/{id}/references")]
+		public async Task<IActionResult> ResolveReferences(
+			[Required] NamespaceId ns,
+			[Required] BlobId id)
+		{
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
+			if (result != null)
+			{
+				return result;
+			}
 
-            BlobContents blob;
-            try
-            {
-                blob = await _storage.GetObjectAsync(ns, id);
-            }
-            catch (BlobNotFoundException e)
-            {
-                return NotFound(new ValidationProblemDetails {Title = $"Object {e.Blob} not found"});
-            }
-           
-            byte[] blobContents = await blob.Stream.ToByteArray();
-            if (blobContents.Length == 0)
-            {
-                _logger.LogWarning("0 byte object found for {Id} {Namespace}", id, ns);
-            }
+			BlobContents blob;
+			try
+			{
+				blob = await _storage.GetObjectAsync(ns, id);
+			}
+			catch (BlobNotFoundException e)
+			{
+				return NotFound(new ValidationProblemDetails { Title = $"Object {e.Blob} not found" });
+			}
 
-            CbObject compactBinaryObject;
-            try
-            {
-                compactBinaryObject = new CbObject(blobContents);
-            }
-            catch (IndexOutOfRangeException)
-            {
-                return Problem(title: $"{id} was not a proper compact binary object.", detail: "Index out of range");
-            }
+			byte[] blobContents = await blob.Stream.ToByteArray();
+			if (blobContents.Length == 0)
+			{
+				_logger.LogWarning("0 byte object found for {Id} {Namespace}", id, ns);
+			}
 
-            try
-            {
-                BlobId[] references = await _referenceResolver.GetReferencedBlobsAsync(ns, compactBinaryObject).ToArrayAsync();
-                return Ok(new ResolvedReferencesResult(references));
-            }
-            catch (PartialReferenceResolveException e)
-            {
-                return BadRequest(new ValidationProblemDetails {Title = $"Object {id} is missing content ids", Detail = $"Following content ids are invalid: {string.Join(",", e.UnresolvedReferences)}"});
-            }
-            catch (ReferenceIsMissingBlobsException e)
-            {
-                return BadRequest(new ValidationProblemDetails {Title = $"Object {id} is missing blobs", Detail = $"Following blobs are missing: {string.Join(",", e.MissingBlobs)}"});
-            }
-        }
-    }
+			CbObject compactBinaryObject;
+			try
+			{
+				compactBinaryObject = new CbObject(blobContents);
+			}
+			catch (IndexOutOfRangeException)
+			{
+				return Problem(title: $"{id} was not a proper compact binary object.", detail: "Index out of range");
+			}
 
-    public class PutBlobResponse
-    {
-        public PutBlobResponse()
-        {
-        }
+			try
+			{
+				BlobId[] references = await _referenceResolver.GetReferencedBlobsAsync(ns, compactBinaryObject).ToArrayAsync();
+				return Ok(new ResolvedReferencesResult(references));
+			}
+			catch (PartialReferenceResolveException e)
+			{
+				return BadRequest(new ValidationProblemDetails { Title = $"Object {id} is missing content ids", Detail = $"Following content ids are invalid: {string.Join(",", e.UnresolvedReferences)}" });
+			}
+			catch (ReferenceIsMissingBlobsException e)
+			{
+				return BadRequest(new ValidationProblemDetails { Title = $"Object {id} is missing blobs", Detail = $"Following blobs are missing: {string.Join(",", e.MissingBlobs)}" });
+			}
+		}
+	}
 
-        public PutBlobResponse(BlobId identifier)
-        {
-            Identifier = identifier;
-        }
+	public class PutBlobResponse
+	{
+		public PutBlobResponse()
+		{
+		}
 
-        [CbField("identifier")]
-        public BlobId Identifier { get; set; }
-    }
+		public PutBlobResponse(BlobId identifier)
+		{
+			Identifier = identifier;
+		}
 
-    public class DeletedResponse
-    {
-        public int DeletedCount { get; set; }
-    }
+		[CbField("identifier")]
+		public BlobId Identifier { get; set; }
+	}
 
-    public class ResolvedReferencesResult
-    {
-        public ResolvedReferencesResult()
-        {
-            References = null!;
-        }
+	public class DeletedResponse
+	{
+		public int DeletedCount { get; set; }
+	}
 
-        public ResolvedReferencesResult(BlobId[] references)
-        {
-            References = references;
-        }
+	public class ResolvedReferencesResult
+	{
+		public ResolvedReferencesResult()
+		{
+			References = null!;
+		}
 
-        [CbField("references")]
-        public BlobId[] References { get; set; }
-    }
+		public ResolvedReferencesResult(BlobId[] references)
+		{
+			References = references;
+		}
+
+		[CbField("references")]
+		public BlobId[] References { get; set; }
+	}
 }

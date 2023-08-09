@@ -34,6 +34,11 @@ namespace Horde.Server.Ddc
 		/// </summary>
 		public static BlobId Parse(string text) => new BlobId(IoHash.Parse(text));
 
+		/// <summary>
+		/// Creates a BlobId from a block of data
+		/// </summary>
+		public static BlobId FromBlob(ReadOnlySpan<byte> span) => new BlobId(IoHash.Compute(span));
+
 		/// <inheritdoc/>
 		public override readonly int GetHashCode() => Hash.GetHashCode();
 

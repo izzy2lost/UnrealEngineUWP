@@ -14,7 +14,7 @@ namespace Horde.Server.Ddc
 	/// Base class for a payload stream that supports seeking
 	/// </summary>
 	public abstract class BufferedPayload : IDisposable
-    {
+	{
 		/// <summary>
 		/// Length of the payload
 		/// </summary>
@@ -46,143 +46,143 @@ namespace Horde.Server.Ddc
 		/// Opens a stream to the payload
 		/// </summary>
 		public abstract Stream GetStream();
-    }
+	}
 
-    /// <summary>
-    /// Streaming request that is streamed into memory
-    /// </summary>
-    public sealed class MemoryBufferedPayload : BufferedPayload
-    {
-        private readonly ReadOnlyMemory<byte> _buffer;
+	/// <summary>
+	/// Streaming request that is streamed into memory
+	/// </summary>
+	public sealed class MemoryBufferedPayload : BufferedPayload
+	{
+		private readonly ReadOnlyMemory<byte> _buffer;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-        public MemoryBufferedPayload(ReadOnlyMemory<byte> source)
+		public MemoryBufferedPayload(ReadOnlyMemory<byte> source)
 			: base(source.Length)
-        {
-            _buffer = source;
-        }
+		{
+			_buffer = source;
+		}
 
 		/// <summary>
 		/// Create a buffered payload from a stream
 		/// </summary>
 		public static async Task<MemoryBufferedPayload> Create(Tracer tracer, Stream s)
-        {
-            using TelemetrySpan scope = tracer.StartActiveSpan("payload.buffer")
-                .SetAttribute("operation.name", "payload.buffer")
-                .SetAttribute("bufferType", "Memory");
-            MemoryBufferedPayload payload = new MemoryBufferedPayload(await s.ToByteArray());
-            return payload;
-        }
+		{
+			using TelemetrySpan scope = tracer.StartActiveSpan("payload.buffer")
+				.SetAttribute("operation.name", "payload.buffer")
+				.SetAttribute("bufferType", "Memory");
+			MemoryBufferedPayload payload = new MemoryBufferedPayload(await s.ToByteArray());
+			return payload;
+		}
 
 		/// <inheritdoc/>
 		public override Stream GetStream() => new ReadOnlyMemoryStream(_buffer);
-    }
+	}
 
-    /// <summary>
-    /// A streaming request backed by a temporary file on disk
-    /// </summary>
-    public sealed class FilesystemBufferedPayload : BufferedPayload
-    {
-        private readonly FileInfo _tempFile;
+	/// <summary>
+	/// A streaming request backed by a temporary file on disk
+	/// </summary>
+	public sealed class FilesystemBufferedPayload : BufferedPayload
+	{
+		private readonly FileInfo _tempFile;
 
 		private FilesystemBufferedPayload(FileInfo tempFile)
 			: base(tempFile.Length)
-        {
+		{
 			_tempFile = tempFile;
-        }
+		}
 
 		/// <summary>
 		/// Create a new payload instance backed by the filesystem
 		/// </summary>
-        public static async Task<FilesystemBufferedPayload> Create(Tracer tracer, Stream s)
-        {
+		public static async Task<FilesystemBufferedPayload> Create(Tracer tracer, Stream s)
+		{
 			FileInfo tempFile = new FileInfo(Path.GetTempFileName());
 
 			{
 				using TelemetrySpan? scope = tracer.StartActiveSpan("payload.buffer")
-                    .SetAttribute("operation.name", "payload.buffer")
-                    .SetAttribute("bufferType", "Filesystem");
-                await using FileStream fs = tempFile.OpenWrite();
-                await s.CopyToAsync(fs);
-            }
+					.SetAttribute("operation.name", "payload.buffer")
+					.SetAttribute("bufferType", "Filesystem");
+				await using FileStream fs = tempFile.OpenWrite();
+				await s.CopyToAsync(fs);
+			}
 
 			tempFile.Refresh();
 
 			return new FilesystemBufferedPayload(tempFile);
-        }
+		}
 
 		/// <inheritdoc/>
 		protected override void Dispose(bool disposing)
-        {
+		{
 			base.Dispose(disposing);
 
-            if (_tempFile.Exists)
-            {
-                _tempFile.Delete();
-            }
-        }
+			if (_tempFile.Exists)
+			{
+				_tempFile.Delete();
+			}
+		}
 
 		/// <inheritdoc/>
 		public override Stream GetStream() => _tempFile.OpenRead();
-    }
+	}
 
 	/// <summary>
 	/// Options for creating <see cref="BufferedPayload"/> instances
 	/// </summary>
-    public class BufferedPayloadOptions
-    {
+	public class BufferedPayloadOptions
+	{
 		/// <summary>
 		/// If the request is smaller then MemoryBufferSize we buffer it in memory rather then as a file
 		/// </summary>
 		public long MemoryBufferSize { get; set; } = 128 * 1024 * 1024;
-    }
+	}
 
 	/// <summary>
 	/// Factory for creating <see cref="BufferedPayload"/> instances
 	/// </summary>
-    public class BufferedPayloadFactory
-    {
-        private readonly IOptionsMonitor<BufferedPayloadOptions> _options;
-        private readonly Tracer _tracer;
+	public class BufferedPayloadFactory
+	{
+		private readonly IOptionsMonitor<BufferedPayloadOptions> _options;
+		private readonly Tracer _tracer;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-        public BufferedPayloadFactory(IOptionsMonitor<BufferedPayloadOptions> options, Tracer tracer)
-        {
-            _options = options;
-            _tracer = tracer;
-        }
+		public BufferedPayloadFactory(IOptionsMonitor<BufferedPayloadOptions> options, Tracer tracer)
+		{
+			_options = options;
+			_tracer = tracer;
+		}
 
 		/// <summary>
 		/// Create a new buffered payload from an HTTP request
 		/// </summary>
-        public Task<BufferedPayload> CreateFromRequest(HttpRequest request)
-        {
-            long? contentLength = request.ContentLength;
+		public Task<BufferedPayload> CreateFromRequest(HttpRequest request)
+		{
+			long? contentLength = request.ContentLength;
 
-            if (contentLength == null)
-            {
-                throw new Exception("Expected content-length on all requests");
-            }
+			if (contentLength == null)
+			{
+				throw new Exception("Expected content-length on all requests");
+			}
 
-            return CreateFromStream(request.Body, contentLength.Value);
-        }
+			return CreateFromStream(request.Body, contentLength.Value);
+		}
 
 		/// <summary>
 		/// Create a new buffered payload instance from a stream
 		/// </summary>
-        public async Task<BufferedPayload> CreateFromStream(Stream s, long contentLength)
-        {
-            // blob is small enough to fit into memory we just read it as is
-            if (contentLength < _options.CurrentValue.MemoryBufferSize)
-            {
-                return await MemoryBufferedPayload.Create(_tracer, s);
-            }
+		public async Task<BufferedPayload> CreateFromStream(Stream s, long contentLength)
+		{
+			// blob is small enough to fit into memory we just read it as is
+			if (contentLength < _options.CurrentValue.MemoryBufferSize)
+			{
+				return await MemoryBufferedPayload.Create(_tracer, s);
+			}
 
-            return await FilesystemBufferedPayload.Create(_tracer, s);
-        }
-    }
+			return await FilesystemBufferedPayload.Create(_tracer, s);
+		}
+	}
 }

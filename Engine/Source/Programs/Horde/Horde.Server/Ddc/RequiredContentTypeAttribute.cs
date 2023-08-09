@@ -10,25 +10,25 @@ using Microsoft.Extensions.Primitives;
 namespace Horde.Server.Ddc
 {
 	[AttributeUsage(AttributeTargets.Method)]
-    public sealed class RequiredContentTypeAttribute : Attribute, IActionConstraint
-    {
-        private readonly string _mediaTypeName;
+	public sealed class RequiredContentTypeAttribute : Attribute, IActionConstraint
+	{
+		private readonly string _mediaTypeName;
 
-        public RequiredContentTypeAttribute(string mediaTypeName)
-        {
-            _mediaTypeName = mediaTypeName;
-        }
+		public RequiredContentTypeAttribute(string mediaTypeName)
+		{
+			_mediaTypeName = mediaTypeName;
+		}
 
-        public string MediaTypeName => _mediaTypeName;
+		public string MediaTypeName => _mediaTypeName;
 
-        public int Order => 0;
+		public int Order => 0;
 
-        public bool Accept(ActionConstraintContext context)
-        {
-            StringValues contentTypeHeader = context.RouteContext.HttpContext.Request.Headers["Content-Type"];
+		public bool Accept(ActionConstraintContext context)
+		{
+			StringValues contentTypeHeader = context.RouteContext.HttpContext.Request.Headers["Content-Type"];
 
-            bool valid = contentTypeHeader.ToList().Contains(_mediaTypeName, StringComparer.InvariantCultureIgnoreCase);
-            return valid;
-        }
-    }
+			bool valid = contentTypeHeader.ToList().Contains(_mediaTypeName, StringComparer.InvariantCultureIgnoreCase);
+			return valid;
+		}
+	}
 }
