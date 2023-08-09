@@ -113,6 +113,8 @@ class UMoviePipelineVisibilityModifier : public UMoviePipelineCollectionModifier
 	GENERATED_BODY()
 
 public:
+	UMoviePipelineVisibilityModifier();
+	
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void SetHidden(const bool bInIsHidden) { bIsHidden = bInIsHidden; }
 
@@ -126,16 +128,45 @@ public:
 	virtual void UndoModifier() override;
 
 private:
-	void SetActorHiddenState(AActor* Actor, const bool bInIsHidden) const;
+	/** Various visibility properties for an actor. */
+	struct FActorVisibilityState
+	{
+		TSoftObjectPtr<AActor> Actor = nullptr;
+		uint8 bIsHidden : 1 = false;
+		uint8 bCastShadowWhileHidden : 1 = false;
+		uint8 bAffectIndirectLightingWhileHidden : 1 = false;
+		uint8 bHoldout : 1 = false;
+	};
+
+	/** Updates an actor's visibility state to the state contained in NewVisibilityState. */
+	void SetActorVisibilityState(const FActorVisibilityState& NewVisibilityState);
 
 private:
-	/** Maps an actor to its original hidden state. */
-	UPROPERTY(Transient)
-	TMap<TSoftObjectPtr<AActor>, bool> ModifiedActors;
+	/** Tracks actor visibility state prior to having the modifier applied. */
+	TArray<FActorVisibilityState> ModifiedActors;
 
 public:
+	/**
+	 * If true, the actor will not be visible and will not contribute to any secondary effects (shadows, indirect
+	 * lighting) unless their respective flags are set below.
+	 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
-	bool bIsHidden = false;
+	uint8 bIsHidden : 1;
+
+	/** If true, the primitive will cast shadows even if it is hidden. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Primitive")
+	uint8 bCastShadowWhileHidden : 1;
+
+	/** Controls whether the primitive should affect indirect lighting when hidden. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Primitive")
+	uint8 bAffectIndirectLightingWhileHidden : 1;
+
+	/**
+	 * If true, the primitive will render black with an alpha of 0, but all secondary effects (shadows, reflections,
+	 * indirect lighting) remain. This feature is currently only implemented in the Path Tracer.
+	 */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Primitive|Path Tracing")
+	uint8 bHoldout : 1;
 };
 
 /**

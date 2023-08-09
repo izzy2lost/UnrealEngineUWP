@@ -1,58 +1,55 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Graph/Nodes/MovieGraphDeferredRenderPassNode.h"
+#include "Graph/Nodes/MovieGraphCoreRenderPassNode.h"
+
 #include "Graph/Nodes/MovieGraphOutputSettingNode.h"
 #include "Graph/MovieGraphDataTypes.h"
 #include "Graph/MovieGraphDefaultRenderer.h"
 #include "Graph/MovieGraphPipeline.h"
 #include "Graph/MoviePipelineRenderLayerSubsystem.h"
-#include "MovieRenderPipelineCoreModule.h"
 #include "MovieRenderOverlappedImage.h"
 #include "MoviePipelineSurfaceReader.h"
-
 #include "EngineModule.h"
 #include "SceneManagement.h"
 #include "CanvasTypes.h"
+#include "Engine/EngineBaseTypes.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "LegacyScreenPercentageDriver.h"
-#include "SceneViewExtensionContext.h"
 #include "OpenColorIODisplayExtension.h"
 #include "TextureResource.h"
-#include "MovieRenderOverlappedImage.h"
-#include "MoviePipelineSurfaceReader.h"
 #include "Tasks/Task.h"
 
 // For the 1D Weight table for accumulation
 #include "MovieRenderPipelineDataTypes.h"
 
-void UMovieGraphDeferredRenderPassNode::SetupImpl(const FMovieGraphRenderPassSetupData& InSetupData)
+void UMovieGraphCoreRenderPassNode::SetupImpl(const FMovieGraphRenderPassSetupData& InSetupData)
 {
 	// To make the implementation simpler, we make one instance of FMovieGraphDeferredRenderPas
 	// per camera, and per render layer. These objects can pull from common pools to share state,
 	// which gives us a better overview of how many resources are being used by MRQ.
 	for (const FMovieGraphRenderPassLayerData& LayerData : InSetupData.Layers)
 	{
-		TUniquePtr<FMovieGraphDeferredRenderPass> RendererInstance = MakeUnique<FMovieGraphDeferredRenderPass>();
+		TUniquePtr<FMovieGraphRenderPass> RendererInstance = MakeUnique<FMovieGraphRenderPass>();
 		RendererInstance->Setup(InSetupData.Renderer, this, LayerData);
 		CurrentInstances.Add(MoveTemp(RendererInstance));
 	}
 }
 
-void UMovieGraphDeferredRenderPassNode::TeardownImpl()
+void UMovieGraphCoreRenderPassNode::TeardownImpl()
 {
 	// We don't need to flush the rendering commands as we assume the MovieGraph
 	// Renderer has already done that once, so all data for all passes should
 	// have been submitted to the GPU (and subsequently read back) by now.
-	for (TUniquePtr<FMovieGraphDeferredRenderPass>& Instance : CurrentInstances)
+	for (TUniquePtr<FMovieGraphRenderPass>& Instance : CurrentInstances)
 	{
 		Instance->Teardown();
 	}
 	CurrentInstances.Reset();
 }
 
-void UMovieGraphDeferredRenderPassNode::RenderImpl(const FMovieGraphTraversalContext& InFrameTraversalContext, const FMovieGraphTimeStepData& InTimeData)
+void UMovieGraphCoreRenderPassNode::RenderImpl(const FMovieGraphTraversalContext& InFrameTraversalContext, const FMovieGraphTimeStepData& InTimeData)
 {
-	for (const TUniquePtr<FMovieGraphDeferredRenderPass>& Instance : CurrentInstances)
+	for (const TUniquePtr<FMovieGraphRenderPass>& Instance : CurrentInstances)
 	{
 		UMoviePipelineRenderLayerSubsystem* LayerSubsystem =
 			Instance->GetRenderer()->GetWorld()->GetSubsystem<UMoviePipelineRenderLayerSubsystem>();
@@ -75,25 +72,36 @@ void UMovieGraphDeferredRenderPassNode::RenderImpl(const FMovieGraphTraversalCon
 	}
 }
 
-void UMovieGraphDeferredRenderPassNode::GatherOutputPassesImpl(TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const
+void UMovieGraphCoreRenderPassNode::GatherOutputPassesImpl(TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const
 {
-	for (const TUniquePtr<FMovieGraphDeferredRenderPass>& Instance : CurrentInstances)
+	for (const TUniquePtr<FMovieGraphRenderPass>& Instance : CurrentInstances)
 	{
 		Instance->GatherOutputPassesImpl(OutExpectedPasses);
 	}
 }
 
-void UMovieGraphDeferredRenderPassNode::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
+EViewModeIndex UMovieGraphCoreRenderPassNode::GetViewModeIndex() const
+{
+	return VMI_Lit;
+}
+
+FEngineShowFlags UMovieGraphCoreRenderPassNode::GetShowFlags() const
+{
+	return FEngineShowFlags(EShowFlagInitMode::ESFIM_Game);
+}
+
+void UMovieGraphCoreRenderPassNode::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
 	Super::AddReferencedObjects(InThis, Collector);
-	UMovieGraphDeferredRenderPassNode* This = CastChecked<UMovieGraphDeferredRenderPassNode>(InThis);
-	for (TUniquePtr<FMovieGraphDeferredRenderPass>& Instance : This->CurrentInstances)
+	
+	UMovieGraphCoreRenderPassNode* This = CastChecked<UMovieGraphCoreRenderPassNode>(InThis);
+	for (TUniquePtr<FMovieGraphRenderPass>& Instance : This->CurrentInstances)
 	{
 		Instance->AddReferencedObjects(Collector);
 	}
 }
 
-void UMovieGraphDeferredRenderPassNode::FMovieGraphDeferredRenderPass::Setup(TWeakObjectPtr<UMovieGraphDefaultRenderer> InRenderer, TWeakObjectPtr<UMovieGraphDeferredRenderPassNode> InRenderPassNode, const FMovieGraphRenderPassLayerData& InLayer)
+void UMovieGraphCoreRenderPassNode::FMovieGraphRenderPass::Setup(TWeakObjectPtr<UMovieGraphDefaultRenderer> InRenderer, TWeakObjectPtr<UMovieGraphCoreRenderPassNode> InRenderPassNode, const FMovieGraphRenderPassLayerData& InLayer)
 {
 	LayerData = InLayer;
 	Renderer = InRenderer;
@@ -123,11 +131,11 @@ void UMovieGraphDeferredRenderPassNode::FMovieGraphDeferredRenderPass::Setup(TWe
 
 }
 
-void UMovieGraphDeferredRenderPassNode::FMovieGraphDeferredRenderPass::GatherOutputPassesImpl(TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const
+void UMovieGraphCoreRenderPassNode::FMovieGraphRenderPass::GatherOutputPassesImpl(TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const
 {
 	OutExpectedPasses.Add(RenderDataIdentifier);
 }
-void UMovieGraphDeferredRenderPassNode::FMovieGraphDeferredRenderPass::Teardown()
+void UMovieGraphCoreRenderPassNode::FMovieGraphRenderPass::Teardown()
 {
 	FSceneViewStateInterface* Ref = SceneViewState.GetReference();
 	if (Ref)
@@ -137,7 +145,7 @@ void UMovieGraphDeferredRenderPassNode::FMovieGraphDeferredRenderPass::Teardown(
 	SceneViewState.Destroy();
 }
 
-void UMovieGraphDeferredRenderPassNode::FMovieGraphDeferredRenderPass::AddReferencedObjects(FReferenceCollector& Collector)
+void UMovieGraphCoreRenderPassNode::FMovieGraphRenderPass::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	FSceneViewStateInterface* Ref = SceneViewState.GetReference();
 	if (Ref)
@@ -146,17 +154,17 @@ void UMovieGraphDeferredRenderPassNode::FMovieGraphDeferredRenderPass::AddRefere
 	}
 }
 
-FName UMovieGraphDeferredRenderPassNode::FMovieGraphDeferredRenderPass::GetBranchName() const
+FName UMovieGraphCoreRenderPassNode::FMovieGraphRenderPass::GetBranchName() const
 {
 	return LayerData.BranchName;
 }
 
-TWeakObjectPtr<UMovieGraphDefaultRenderer> UMovieGraphDeferredRenderPassNode::FMovieGraphDeferredRenderPass::GetRenderer() const
+TWeakObjectPtr<UMovieGraphDefaultRenderer> UMovieGraphCoreRenderPassNode::FMovieGraphRenderPass::GetRenderer() const
 {
 	return Renderer;
 }
 
-void UMovieGraphDeferredRenderPassNode::FMovieGraphDeferredRenderPass::Render(const FMovieGraphTraversalContext& InFrameTraversalContext, const FMovieGraphTimeStepData& InTimeData)
+void UMovieGraphCoreRenderPassNode::FMovieGraphRenderPass::Render(const FMovieGraphTraversalContext& InFrameTraversalContext, const FMovieGraphTimeStepData& InTimeData)
 {
 	const bool bIncludeCDOs = true;
 	UMovieGraphOutputSettingNode* OutputSetting = InTimeData.EvaluatedConfig->GetSettingForBranch<UMovieGraphOutputSettingNode>(LayerData.BranchName, bIncludeCDOs);
@@ -236,7 +244,7 @@ void UMovieGraphDeferredRenderPassNode::FMovieGraphDeferredRenderPass::Render(co
 	PostRendererSubmission(SampleState, RenderTargetInitParams, Canvas);
 }
 
-void UMovieGraphDeferredRenderPassNode::FMovieGraphDeferredRenderPass::PostRendererSubmission(
+void UMovieGraphCoreRenderPassNode::FMovieGraphRenderPass::PostRendererSubmission(
 	const UE::MovieGraph::FMovieGraphSampleState& InSampleState,
 	const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InRenderTargetInitParams, FCanvas& InCanvas)
 {
@@ -307,13 +315,12 @@ void UMovieGraphDeferredRenderPassNode::FMovieGraphDeferredRenderPass::PostRende
 			TSharedRef<FImagePixelDataPayload, ESPMode::ThreadSafe> FramePayload = MakeShared<FImagePixelDataPayload, ESPMode::ThreadSafe>();
 			LocalSurfaceQueue->OnRenderTargetReady_RenderThread(RenderTarget->GetRenderTargetTexture(), FramePayload, MoveTemp(OnSurfaceReadbackFinished));
 		});
-		
 }
 
-TSharedRef<FSceneViewFamilyContext> UMovieGraphDeferredRenderPassNode::FMovieGraphDeferredRenderPass::AllocateSceneViewFamilyContext(const FViewFamilyContextInitData& InInitData)
+TSharedRef<FSceneViewFamilyContext> UMovieGraphCoreRenderPassNode::FMovieGraphRenderPass::AllocateSceneViewFamilyContext(const FViewFamilyContextInitData& InInitData)
 {
-	FEngineShowFlags ShowFlags = FEngineShowFlags(EShowFlagInitMode::ESFIM_Game);
-	EViewModeIndex ViewModeIndex = EViewModeIndex::VMI_Lit;
+	FEngineShowFlags ShowFlags = RenderPassNode->GetShowFlags();
+	const EViewModeIndex ViewModeIndex = RenderPassNode->GetViewModeIndex();
 
 	const bool bIsPerspective = InInitData.CameraInfo.ViewInfo.ProjectionMode == ECameraProjectionMode::Type::Perspective;
 
@@ -349,7 +356,7 @@ TSharedRef<FSceneViewFamilyContext> UMovieGraphDeferredRenderPassNode::FMovieGra
 }
 
 
-FSceneView* UMovieGraphDeferredRenderPassNode::FMovieGraphDeferredRenderPass::AllocateSceneView(TSharedPtr<FSceneViewFamilyContext> InViewFamilyContext, FViewFamilyContextInitData& InInitData) const
+FSceneView* UMovieGraphCoreRenderPassNode::FMovieGraphRenderPass::AllocateSceneView(TSharedPtr<FSceneViewFamilyContext> InViewFamilyContext, FViewFamilyContextInitData& InInitData) const
 {
 	FSceneViewInitOptions ViewInitOptions;
 	ViewInitOptions.ViewFamily = InViewFamilyContext.Get();
@@ -396,7 +403,7 @@ FSceneView* UMovieGraphDeferredRenderPassNode::FMovieGraphDeferredRenderPass::Al
 }
 
 
-void UMovieGraphDeferredRenderPassNode::FMovieGraphDeferredRenderPass::ApplyMoviePipelineOverridesToViewFamily(TSharedRef<FSceneViewFamilyContext> InOutFamily, const FViewFamilyContextInitData& InInitData)
+void UMovieGraphCoreRenderPassNode::FMovieGraphRenderPass::ApplyMoviePipelineOverridesToViewFamily(TSharedRef<FSceneViewFamilyContext> InOutFamily, const FViewFamilyContextInitData& InInitData)
 {
 	/*// A third set of overrides required to properly configure views to match the given showflags/etc.
 	// ToDo: There's now five(!) identical implementations of this, we should unify them.

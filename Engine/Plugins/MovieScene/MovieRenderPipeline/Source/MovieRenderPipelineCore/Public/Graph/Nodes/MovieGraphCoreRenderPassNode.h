@@ -1,17 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+
 #include "Graph/Nodes/MovieGraphRenderPassNode.h"
 #include "Graph/MovieGraphDefaultRenderer.h" // For CameraInfo
 #include "Graph/MovieGraphDataTypes.h"
 #include "SceneTypes.h"
 #include "Camera/CameraTypes.h"
-#include "MovieRenderPipelineDataTypes.h"
 #include "Engine/EngineTypes.h"
 #include "Async/TaskGraphFwd.h"
 #include "Styling/AppStyle.h"
-#include "Tasks/Task.h"
-#include "MovieGraphDeferredRenderPassNode.generated.h"
+
+#include "MovieGraphCoreRenderPassNode.generated.h"
 
 // Forward Declares
 class UMovieGraphDefaultRenderer;
@@ -23,6 +23,8 @@ namespace UE::MovieGraph::DefaultRenderer
 struct FMovieGraphRenderPassSetupData;
 struct FMovieGraphRenderPassLayerData;
 struct FImageOverlappedAccumulator;
+struct FEngineShowFlags;
+enum EViewModeIndex : int;
 
 // For FViewFamilyContextInitData
 class FRenderTarget;
@@ -49,23 +51,20 @@ namespace UE::MovieGraph
 	void AccumulateSample_TaskThread(TUniquePtr<FImagePixelData>&& InPixelData, const UE::MovieGraph::FMovieGraphSampleState InSampleState, const UE::MovieGraph::FMovieGraphRenderDataAccumulationArgs& InAccumulationParams);
 }
 
-UCLASS()
-class MOVIERENDERPIPELINECORE_API UMovieGraphDeferredRenderPassNode : public UMovieGraphRenderPassNode
+/** Core functionality for a typical render pass node. */
+UCLASS(Abstract)
+class MOVIERENDERPIPELINECORE_API UMovieGraphCoreRenderPassNode : public UMovieGraphRenderPassNode
 {
 	GENERATED_BODY()
+
 public:
 #if WITH_EDITOR
-	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const override
-	{
-		return NSLOCTEXT("MovieGraphNodes", "DeferredRenderPassGraphNode_Description", "Deferred Renderer");
-	}
-	
-	FLinearColor GetNodeTitleColor() const
+	virtual FLinearColor GetNodeTitleColor() const override
 	{
 		return FLinearColor(0.572f, 0.274f, 1.f);
 	}
 
-	FSlateIcon GetIconAndTint(FLinearColor& OutColor) const
+	virtual FSlateIcon GetIconAndTint(FLinearColor& OutColor) const override
 	{
 		static const FSlateIcon DeferredRendererIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "SequenceRecorder.TabIcon");
 
@@ -73,14 +72,20 @@ public:
 		return DeferredRendererIcon;
 	}
 #endif
+
 protected:
 	// UMovieGraphRenderPassNode Interface
-	virtual FString GetRendererNameImpl() const override { return TEXT("Deferred"); }
 	virtual void SetupImpl(const FMovieGraphRenderPassSetupData& InSetupData) override;
 	virtual void TeardownImpl() override;
 	virtual void RenderImpl(const FMovieGraphTraversalContext& InFrameTraversalContext, const FMovieGraphTimeStepData& InTimeData) override;
 	virtual void GatherOutputPassesImpl(TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const override;
 	// ~UMovieGraphRenderPassNode Interface
+
+	/** Gets the view mode index that should be active for this renderer. */
+	virtual EViewModeIndex GetViewModeIndex() const;
+
+	/** Gets the show flags that should be active for this renderer. */
+	virtual FEngineShowFlags GetShowFlags() const;
 
 	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 
@@ -119,13 +124,11 @@ protected:
 
 		// Camera Setup
 		UE::MovieGraph::DefaultRenderer::FCameraInfo CameraInfo;
-
 	};
 
-	struct FMovieGraphDeferredRenderPass
+	struct FMovieGraphRenderPass
 	{
-	public:
-		void Setup(TWeakObjectPtr<UMovieGraphDefaultRenderer> InRenderer, TWeakObjectPtr<UMovieGraphDeferredRenderPassNode> InRenderPassNode, const FMovieGraphRenderPassLayerData& InLayer);
+		void Setup(TWeakObjectPtr<UMovieGraphDefaultRenderer> InRenderer, TWeakObjectPtr<UMovieGraphCoreRenderPassNode> InRenderPassNode, const FMovieGraphRenderPassLayerData& InLayer);
 		void Teardown();
 		void Render(const FMovieGraphTraversalContext& InFrameTraversalContext, const FMovieGraphTimeStepData& InTimeData);
 		void GatherOutputPassesImpl(TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const;
@@ -139,7 +142,6 @@ protected:
 		void ApplyMoviePipelineOverridesToViewFamily(TSharedRef<FSceneViewFamilyContext> InOutFamily, const FViewFamilyContextInitData& InInitData);
 		void PostRendererSubmission(const UE::MovieGraph::FMovieGraphSampleState& InSampleState, const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InRenderTargetInitParams, FCanvas& InCanvas);
 
-
 	protected:
 		FMovieGraphRenderPassLayerData LayerData;
 
@@ -150,8 +152,8 @@ protected:
 		FSceneViewStateReference SceneViewState;
 
 		TWeakObjectPtr<class UMovieGraphDefaultRenderer> Renderer;
-		TWeakObjectPtr<class UMovieGraphDeferredRenderPassNode> RenderPassNode;
+		TWeakObjectPtr<class UMovieGraphCoreRenderPassNode> RenderPassNode;
 	};
 
-	TArray<TUniquePtr<FMovieGraphDeferredRenderPass>> CurrentInstances;
+	TArray<TUniquePtr<FMovieGraphRenderPass>> CurrentInstances;
 };

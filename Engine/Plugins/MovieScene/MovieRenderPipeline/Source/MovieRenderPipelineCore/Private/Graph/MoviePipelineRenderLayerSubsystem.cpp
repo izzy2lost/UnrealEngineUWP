@@ -77,9 +77,26 @@ void UMoviePipelineMaterialModifier::UndoModifier()
 	ModifiedComponents.Empty();
 }
 
+UMoviePipelineVisibilityModifier::UMoviePipelineVisibilityModifier()
+	: bIsHidden(false)
+	, bCastShadowWhileHidden(false)
+	, bAffectIndirectLightingWhileHidden(false)
+	, bHoldout(false)
+{
+	
+}
+
 void UMoviePipelineVisibilityModifier::ApplyModifier(const UWorld* World)
 {
 	ModifiedActors.Empty();
+
+	// SetActorVisibilityState() takes a FActorVisibilityState, but all calls here will contain the same settings (with
+	// a differing actor), so create one copy to prevent constantly re-creating structs.
+	FActorVisibilityState NewVisibilityState;
+	NewVisibilityState.bIsHidden = bIsHidden;
+	NewVisibilityState.bCastShadowWhileHidden = bCastShadowWhileHidden;
+	NewVisibilityState.bAffectIndirectLightingWhileHidden = bAffectIndirectLightingWhileHidden;
+	NewVisibilityState.bHoldout = bHoldout;
 	
 	for (const UMoviePipelineCollection* Collection : Collections)
 	{
@@ -88,31 +105,63 @@ void UMoviePipelineVisibilityModifier::ApplyModifier(const UWorld* World)
 			continue;
 		}
 
-		for (AActor* Actor : Collection->GetMatchingActors(World, bUseInvertedActors))
+		const TArray<AActor*> MatchingActors = Collection->GetMatchingActors(World, bUseInvertedActors);
+		ModifiedActors.Reserve(MatchingActors.Num());
+
+		for (int32 Index = 0; Index < MatchingActors.Num(); ++Index)
 		{
-			ModifiedActors.Add(Actor, Actor->IsHidden());
-			SetActorHiddenState(Actor, bIsHidden);
+			const AActor* Actor = MatchingActors[Index];
+
+			// Save out visibility state before the modifier is applied
+			FActorVisibilityState OriginalVisibilityState;
+			OriginalVisibilityState.Actor = Actor;
+			OriginalVisibilityState.bIsHidden = Actor->IsHidden();
+			if (const UPrimitiveComponent* PrimitiveComponent = Actor->GetComponentByClass<UPrimitiveComponent>())
+			{
+				OriginalVisibilityState.bCastShadowWhileHidden = PrimitiveComponent->bCastHiddenShadow;
+				OriginalVisibilityState.bAffectIndirectLightingWhileHidden = PrimitiveComponent->bAffectIndirectLightingWhileHidden;
+				OriginalVisibilityState.bHoldout = PrimitiveComponent->bHoldout;
+			}
+			
+			ModifiedActors.Add(OriginalVisibilityState);
+
+			// Set new visibility state
+			NewVisibilityState.Actor = Actor;
+			SetActorVisibilityState(NewVisibilityState);
 		}
 	}
 }
 
 void UMoviePipelineVisibilityModifier::UndoModifier()
 {
-	for (const TTuple<TSoftObjectPtr<AActor>, bool>& Pair : ModifiedActors)
+	for (const FActorVisibilityState& PrevVisibilityState : ModifiedActors)
 	{
-		SetActorHiddenState(Pair.Key.LoadSynchronous(), Pair.Value);
+		SetActorVisibilityState(PrevVisibilityState);
 	}
 
 	ModifiedActors.Empty();
 }
 
-void UMoviePipelineVisibilityModifier::SetActorHiddenState(AActor* Actor, const bool bInIsHidden) const
+void UMoviePipelineVisibilityModifier::SetActorVisibilityState(const FActorVisibilityState& NewVisibilityState)
 {
-	Actor->SetActorHiddenInGame(bInIsHidden);
+	const TSoftObjectPtr<AActor> Actor = NewVisibilityState.Actor.LoadSynchronous();
+	if (!Actor)
+	{
+		return;
+	}
+	
+	Actor->SetActorHiddenInGame(NewVisibilityState.bIsHidden);
 
 #if WITH_EDITOR
-	Actor->SetIsTemporarilyHiddenInEditor(bInIsHidden);
+	Actor->SetIsTemporarilyHiddenInEditor(NewVisibilityState.bIsHidden);
 #endif
+
+	if (UPrimitiveComponent* PrimitiveComponent = Actor->GetComponentByClass<UPrimitiveComponent>())
+	{
+		PrimitiveComponent->bCastHiddenShadow = NewVisibilityState.bCastShadowWhileHidden;
+		PrimitiveComponent->bAffectIndirectLightingWhileHidden = NewVisibilityState.bAffectIndirectLightingWhileHidden;
+		PrimitiveComponent->bHoldout = NewVisibilityState.bHoldout;
+	}
 }
 
 // TODO: This really should be "DoesComponentMatchQuery()"
