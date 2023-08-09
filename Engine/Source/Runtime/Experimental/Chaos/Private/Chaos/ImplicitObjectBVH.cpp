@@ -12,8 +12,6 @@ namespace Chaos
 
 	namespace Private
 	{
-		static_assert(sizeof(FImplicitBVHObject) == 72, "FImplicitBVHObject was packed to avoid any padding in it");
-
 		FImplicitBVHObject::FImplicitBVHObject()
 		{
 		}
@@ -25,11 +23,11 @@ namespace Chaos
 			const FAABB3& InBounds,
 			const int32 InRootObjectIndex,
 			const int32 InObjectIndex)
-			: R{ (float)InR.X, (float)InR.Y, (float)InR.Z, (float)InR.W }
+			: R(FRotation3f(InR))
 			, X(FVec3f(InX))
 			, Bounds(FAABB3f(InBounds))
-			, RootObjectIndex(InRootObjectIndex)
 			, Geometry(InGeometry)
+			, RootObjectIndex(InRootObjectIndex)
 			, ObjectIndex(InObjectIndex)
 		{
 		}
@@ -321,7 +319,7 @@ namespace Chaos
 		{
 			Ar << Geometry;
 			Ar << X;
-			Ar << R[0]; Ar << R[1]; Ar << R[2]; Ar << R[3];
+			Ar << R;
 			Ar << RootObjectIndex;
 			return Ar;
 		}
