@@ -51,7 +51,7 @@ namespace Horde.Server.Ddc
 
 		[HttpGet("{ns}/{id}")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> Get(
+		public async Task<IActionResult> GetAsync(
 			[Required] NamespaceId ns,
 			[Required] BlobId id)
 		{
@@ -75,7 +75,7 @@ namespace Horde.Server.Ddc
 
 		[HttpHead("{ns}/{id}")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> Head(
+		public async Task<IActionResult> HeadAsync(
 			[Required] NamespaceId ns,
 			[Required] BlobId id)
 		{
@@ -97,7 +97,7 @@ namespace Horde.Server.Ddc
 
 		[HttpPost("{ns}/exists")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> ExistsMultiple(
+		public async Task<IActionResult> ExistsMultipleAsync(
 			[Required] NamespaceId ns,
 			[Required][FromQuery] List<BlobId> id)
 		{
@@ -123,7 +123,7 @@ namespace Horde.Server.Ddc
 
 		[HttpPost("{ns}/exist")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> ExistsBody(
+		public async Task<IActionResult> ExistsBodyAsync(
 			[Required] NamespaceId ns,
 			[FromBody] BlobId[] bodyIds)
 		{
@@ -149,7 +149,7 @@ namespace Horde.Server.Ddc
 
 		[HttpPut("{ns}/{id}")]
 		[RequiredContentType(CustomMediaTypeNames.UnrealCompactBinary)]
-		public async Task<IActionResult> Put(
+		public async Task<IActionResult> PutAsync(
 			[Required] NamespaceId ns,
 			[Required] BlobId id,
 			CancellationToken cancellationToken)
@@ -175,7 +175,7 @@ namespace Horde.Server.Ddc
 		}
 
 		[HttpGet("{ns}/{id}/references")]
-		public async Task<IActionResult> ResolveReferences(
+		public async Task<IActionResult> ResolveReferencesAsync(
 			[Required] NamespaceId ns,
 			[Required] BlobId id)
 		{
@@ -195,7 +195,7 @@ namespace Horde.Server.Ddc
 				return NotFound(new ValidationProblemDetails { Title = $"Object {e.Blob} not found" });
 			}
 
-			byte[] blobContents = await blob.Stream.ToByteArray();
+			byte[] blobContents = await blob.Stream.ToByteArrayAsync();
 			if (blobContents.Length == 0)
 			{
 				_logger.LogWarning("0 byte object found for {Id} {Namespace}", id, ns);
@@ -218,11 +218,11 @@ namespace Horde.Server.Ddc
 			}
 			catch (PartialReferenceResolveException e)
 			{
-				return BadRequest(new ValidationProblemDetails { Title = $"Object {id} is missing content ids", Detail = $"Following content ids are invalid: {string.Join(",", e.UnresolvedReferences)}" });
+				return BadRequest(new ValidationProblemDetails { Title = $"Object {id} is missing content ids", Detail = $"Following content ids are invalid: {String.Join(",", e.UnresolvedReferences)}" });
 			}
 			catch (ReferenceIsMissingBlobsException e)
 			{
-				return BadRequest(new ValidationProblemDetails { Title = $"Object {id} is missing blobs", Detail = $"Following blobs are missing: {string.Join(",", e.MissingBlobs)}" });
+				return BadRequest(new ValidationProblemDetails { Title = $"Object {id} is missing blobs", Detail = $"Following blobs are missing: {String.Join(",", e.MissingBlobs)}" });
 			}
 		}
 	}

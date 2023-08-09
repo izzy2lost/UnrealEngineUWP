@@ -106,7 +106,7 @@ namespace Horde.Server.Ddc
 			// decompress the content and generate a identifier from it to verify the identifier we got
 			await using Stream decompressStream = payload.GetStream();
 			// TODO: we should add a overload for decompress content that can work on streams, otherwise we are still limited to 2GB compressed blobs
-			byte[] decompressedContent = compressedBufferUtils.DecompressContent(await decompressStream.ToByteArray());
+			byte[] decompressedContent = compressedBufferUtils.DecompressContent(await decompressStream.ToByteArrayAsync());
 
 			IoHash decompressedHash;
 			using (TelemetrySpan _ = tracer.StartActiveSpan("web.hash").SetAttribute("operation.name", "web.hash"))

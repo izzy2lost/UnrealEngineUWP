@@ -74,7 +74,7 @@ namespace Horde.Server.Ddc
 			List<BlobId> unknownBlobIds = new List<BlobId>();
 			foreach (BlobId blobId in blobIds)
 			{
-				if (!await storageClient.FindAliasAsync(GetAlias(blobId), cancellationToken).AnyAsync())
+				if (!await storageClient.FindAliasAsync(GetAlias(blobId), cancellationToken).AnyAsync(cancellationToken))
 				{
 					unknownBlobIds.Add(blobId);
 				}

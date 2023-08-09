@@ -67,12 +67,12 @@ namespace Horde.Server.Ddc
 		/// <summary>
 		/// Create a buffered payload from a stream
 		/// </summary>
-		public static async Task<MemoryBufferedPayload> Create(Tracer tracer, Stream s)
+		public static async Task<MemoryBufferedPayload> CreateAsync(Tracer tracer, Stream s)
 		{
 			using TelemetrySpan scope = tracer.StartActiveSpan("payload.buffer")
 				.SetAttribute("operation.name", "payload.buffer")
 				.SetAttribute("bufferType", "Memory");
-			MemoryBufferedPayload payload = new MemoryBufferedPayload(await s.ToByteArray());
+			MemoryBufferedPayload payload = new MemoryBufferedPayload(await s.ToByteArrayAsync());
 			return payload;
 		}
 
@@ -96,7 +96,7 @@ namespace Horde.Server.Ddc
 		/// <summary>
 		/// Create a new payload instance backed by the filesystem
 		/// </summary>
-		public static async Task<FilesystemBufferedPayload> Create(Tracer tracer, Stream s)
+		public static async Task<FilesystemBufferedPayload> CreateAsync(Tracer tracer, Stream s)
 		{
 			FileInfo tempFile = new FileInfo(Path.GetTempFileName());
 
@@ -168,21 +168,21 @@ namespace Horde.Server.Ddc
 				throw new Exception("Expected content-length on all requests");
 			}
 
-			return CreateFromStream(request.Body, contentLength.Value);
+			return CreateFromStreamAsync(request.Body, contentLength.Value);
 		}
 
 		/// <summary>
 		/// Create a new buffered payload instance from a stream
 		/// </summary>
-		public async Task<BufferedPayload> CreateFromStream(Stream s, long contentLength)
+		public async Task<BufferedPayload> CreateFromStreamAsync(Stream s, long contentLength)
 		{
 			// blob is small enough to fit into memory we just read it as is
 			if (contentLength < _options.CurrentValue.MemoryBufferSize)
 			{
-				return await MemoryBufferedPayload.Create(_tracer, s);
+				return await MemoryBufferedPayload.CreateAsync(_tracer, s);
 			}
 
-			return await FilesystemBufferedPayload.Create(_tracer, s);
+			return await FilesystemBufferedPayload.CreateAsync(_tracer, s);
 		}
 	}
 }

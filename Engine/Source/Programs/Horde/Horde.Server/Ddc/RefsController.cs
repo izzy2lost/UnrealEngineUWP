@@ -76,7 +76,7 @@ namespace Horde.Server.Ddc
 		/// <param name="format">Optional specifier to set which output format is used json/raw/cb</param>
 		[HttpGet("{ns}/{bucket}/{key}.{format?}", Order = 500)]
 		[Produces(MediaTypeNames.Application.Json, MediaTypeNames.Application.Octet, CustomMediaTypeNames.UnrealCompactBinary, CustomMediaTypeNames.JupiterInlinedPayload, CustomMediaTypeNames.UnrealCompactBinaryPackage)]
-		public async Task<IActionResult> Get(
+		public async Task<IActionResult> GetAsync(
 			[FromRoute][Required] NamespaceId ns,
 			[FromRoute][Required] BucketId bucket,
 			[FromRoute][Required] RefId key,
@@ -145,7 +145,7 @@ namespace Horde.Server.Ddc
 						}
 					case MediaTypeNames.Application.Octet:
 						{
-							byte[] blobMemory = await blob.Stream.ToByteArray();
+							byte[] blobMemory = await blob.Stream.ToByteArrayAsync();
 							CbObject cb = new CbObject(blobMemory);
 
 							(int, CbField?) CountFields(CbObject o)
@@ -194,7 +194,7 @@ namespace Horde.Server.Ddc
 							byte[] blobMemory;
 							{
 								using TelemetrySpan scope = _tracer.StartActiveSpan("json.readblob").SetAttribute("operation.name", "json.readblob");
-								blobMemory = await blob.Stream.ToByteArray();
+								blobMemory = await blob.Stream.ToByteArrayAsync();
 							}
 							CbObject cb = new CbObject(blobMemory);
 							string s = cb.ToJson();
@@ -206,7 +206,7 @@ namespace Horde.Server.Ddc
 					case CustomMediaTypeNames.UnrealCompactBinaryPackage:
 						{
 							using TelemetrySpan packageScope = _tracer.StartActiveSpan("cbpackage.fetch").SetAttribute("operation.name", "cbpackage.fetch");
-							byte[] blobMemory = await blob.Stream.ToByteArray();
+							byte[] blobMemory = await blob.Stream.ToByteArrayAsync();
 							CbObject cb = new CbObject(blobMemory);
 
 							IAsyncEnumerable<Attachment> attachments = _referenceResolver.GetAttachmentsAsync(ns, cb);
@@ -225,13 +225,13 @@ namespace Horde.Server.Ddc
 									if (attachment is BlobAttachment blobAttachment)
 									{
 										BlobId referencedBlob = blobAttachment.Identifier;
-										attachmentContents = await _blobStore.GetObjectAsync(ns, referencedBlob);
+										attachmentContents = await _blobStore.GetObjectAsync(ns, referencedBlob, cancellationToken: token);
 									}
 									else if (attachment is ObjectAttachment objectAttachment)
 									{
 										flags |= CbPackageAttachmentFlags.IsObject;
 										BlobId referencedBlob = objectAttachment.Identifier;
-										attachmentContents = await _blobStore.GetObjectAsync(ns, referencedBlob);
+										attachmentContents = await _blobStore.GetObjectAsync(ns, referencedBlob, cancellationToken: token);
 									}
 									else if (attachment is ContentIdAttachment contentIdAttachment)
 									{
@@ -276,7 +276,7 @@ namespace Horde.Server.Ddc
 						}
 					case CustomMediaTypeNames.JupiterInlinedPayload:
 						{
-							byte[] blobMemory = await blob.Stream.ToByteArray();
+							byte[] blobMemory = await blob.Stream.ToByteArrayAsync();
 							CbObject cb = new CbObject(blobMemory);
 
 							static (int, int) CountFields(CbObject o)
@@ -397,8 +397,6 @@ namespace Horde.Server.Ddc
 			}
 		}
 
-
-
 		/// <summary>
 		/// Returns the metadata about a ref key
 		/// </summary>
@@ -407,7 +405,7 @@ namespace Horde.Server.Ddc
 		/// <param name="key">The unique name of this particular key. `iAmAVeryValidKey`</param>
 		/// <param name="fields">The fields to include in the response, omit this to include everything.</param>
 		[HttpGet("{ns}/{bucket}/{key}/metadata", Order = 500)]
-		public async Task<IActionResult> GetMetadata(
+		public async Task<IActionResult> GetMetadataAsync(
 			[FromRoute][Required] NamespaceId ns,
 			[FromRoute][Required] BucketId bucket,
 			[FromRoute][Required] RefId key,
@@ -449,7 +447,7 @@ namespace Horde.Server.Ddc
 		[HttpHead("{ns}/{bucket}/{key}", Order = 500)]
 		[ProducesResponseType(type: typeof(OkResult), 200)]
 		[ProducesResponseType(type: typeof(ValidationProblemDetails), 400)]
-		public async Task<IActionResult> Head(
+		public async Task<IActionResult> HeadAsync(
 			[FromRoute][Required] NamespaceId ns,
 			[FromRoute][Required] BucketId bucket,
 			[FromRoute][Required] RefId key)
@@ -474,7 +472,7 @@ namespace Horde.Server.Ddc
 
 				// we have to verify the blobs are available locally, as the record of the key is replicated a head of the content
 				// TODO: Once we support inline replication this step is not needed as at least one region as this blob, just maybe not this current one
-				byte[] blobContents = await blob.Stream.ToByteArray();
+				byte[] blobContents = await blob.Stream.ToByteArrayAsync();
 				CbObject compactBinaryObject = new CbObject(blobContents);
 				// the reference resolver will throw if any blob is missing, so no need to do anything other then process each reference
 				IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobsAsync(ns, compactBinaryObject);
@@ -514,7 +512,7 @@ namespace Horde.Server.Ddc
 
 		[HttpGet("{ns}/exists")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> ExistsMultiple(
+		public async Task<IActionResult> ExistsMultipleAsync(
 			[FromRoute][Required] NamespaceId ns,
 			[FromQuery][Required] List<string> names)
 		{
@@ -552,7 +550,7 @@ namespace Horde.Server.Ddc
 
 					// we have to verify the blobs are available locally, as the record of the key is replicated a head of the content
 					// TODO: Once we support inline replication this step is not needed as at least one region as this blob, just maybe not this current one
-					byte[] blobContents = await blob.Stream.ToByteArray();
+					byte[] blobContents = await blob.Stream.ToByteArrayAsync();
 					CbObject cb = new CbObject(blobContents);
 					// the reference resolver will throw if any blob is missing, so no need to do anything other then process each reference
 					IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobsAsync(ns, cb);
@@ -582,7 +580,7 @@ namespace Horde.Server.Ddc
 
 		[HttpPut("{ns}/{bucket}/{key}.{format?}", Order = 500)]
 		[DisableRequestSizeLimit]
-		public async Task<IActionResult> PutObject(
+		public async Task<IActionResult> PutObjectAsync(
 			[FromRoute][Required] NamespaceId ns,
 			[FromRoute][Required] BucketId bucket,
 			[FromRoute][Required] RefId key,
@@ -676,7 +674,7 @@ namespace Horde.Server.Ddc
 				return Problem(e.Message, null, (int)HttpStatusCode.RequestTimeout);
 			}
 
-			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, bucket, key, blobHeader, payloadObject);
+			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, bucket, key, blobHeader, payloadObject, cancellationToken);
 
 			List<IoHash> missingHashes = new List<IoHash>();
 			missingHashes.AddRange(missingReferences.Select(x => x.Hash));
@@ -687,7 +685,7 @@ namespace Horde.Server.Ddc
 		[HttpPut("{ns}/{bucket}/{key}", Order = 300)]
 		[DisableRequestSizeLimit]
 		[RequiredContentType(CustomMediaTypeNames.UnrealCompactBinaryPackage)]
-		public async Task<IActionResult> PutPackage(
+		public async Task<IActionResult> PutPackageAsync(
 			[FromRoute][Required] NamespaceId ns,
 			[FromRoute][Required] BucketId bucket,
 			[FromRoute][Required] RefId key,
@@ -737,7 +735,7 @@ namespace Horde.Server.Ddc
 			CbObject rootObject = packageReader.RootObject;
 			BlobId rootObjectHash = new BlobId(packageReader.RootHash);
 
-			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, bucket, key, rootObjectHash, rootObject);
+			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, bucket, key, rootObjectHash, rootObject, cancellationToken);
 			return Ok(new PutObjectResponse(missingReferences, missingBlobs));
 		}
 
@@ -768,7 +766,7 @@ namespace Horde.Server.Ddc
 		}
 
 		[HttpPost("{ns}/{bucket}/{key}/finalize/{hash}.{format?}")]
-		public async Task<IActionResult> FinalizeObject(
+		public async Task<IActionResult> FinalizeObjectAsync(
 			[FromRoute][Required] NamespaceId ns,
 			[FromRoute][Required] BucketId bucket,
 			[FromRoute][Required] RefId key,
@@ -798,7 +796,7 @@ namespace Horde.Server.Ddc
 		[HttpPost("{ns}")]
 		[Consumes(CustomMediaTypeNames.UnrealCompactBinary)]
 		[Produces(CustomMediaTypeNames.UnrealCompactBinary)]
-		public async Task<IActionResult> Batch(
+		public async Task<IActionResult> BatchAsync(
 			[FromRoute][Required] NamespaceId ns,
 			[FromBody][Required] RefBatchOps ops)
 		{
@@ -852,7 +850,7 @@ namespace Horde.Server.Ddc
 						throw new Exception();
 					}
 
-					CbObject cb = new CbObject(await blob.Stream.ToByteArray());
+					CbObject cb = new CbObject(await blob.Stream.ToByteArrayAsync());
 
 					if (op.ResolveAttachments ?? false)
 					{
@@ -887,7 +885,7 @@ namespace Horde.Server.Ddc
 
 					if (op.ResolveAttachments ?? false)
 					{
-						byte[] blobContents = await blob.Stream.ToByteArray();
+						byte[] blobContents = await blob.Stream.ToByteArrayAsync();
 						CbObject cb = new CbObject(blobContents);
 						// the reference resolver will throw if any blob is missing, so no need to do anything other then process each reference
 						IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobsAsync(ns, cb);
@@ -1001,7 +999,7 @@ namespace Horde.Server.Ddc
 		[HttpDelete("{ns}/{bucket}/{key}", Order = 500)]
 		[ProducesResponseType(200)]
 		[ProducesResponseType(404)]
-		public async Task<IActionResult> Delete(
+		public async Task<IActionResult> DeleteAsync(
 			[FromRoute][Required] NamespaceId ns,
 			[FromRoute][Required] BucketId bucket,
 			[FromRoute][Required] RefId key)

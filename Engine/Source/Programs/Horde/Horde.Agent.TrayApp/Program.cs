@@ -145,7 +145,7 @@ namespace Horde.Agent.TrayApp
 			};
 			_trayIcon.Click += TrayIcon_Click;
 
-			_clientTask = BackgroundTask.StartNew(StatusTask);
+			_clientTask = BackgroundTask.StartNew(StatusTaskAsync);
 			_tickPauseStateTask = BackgroundTask.StartNew(ctx => TickPauseStateAsync(ctx));
 			_waitForExitTask = BackgroundTask.StartNew(ctx => WaitForExitAsync(eventHandle, ctx));
 		}
@@ -272,7 +272,7 @@ namespace Horde.Agent.TrayApp
 			}
 		}
 
-		async Task StatusTask(CancellationToken cancellationToken)
+		async Task StatusTaskAsync(CancellationToken cancellationToken)
 		{
 			SetStatus(AgentStatusMessage.Starting);
 			for (; ; )

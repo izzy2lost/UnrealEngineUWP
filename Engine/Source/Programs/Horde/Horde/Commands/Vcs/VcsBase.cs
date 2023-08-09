@@ -212,9 +212,9 @@ namespace Horde.Commands.Vcs
 			throw new InvalidDataException($"No root directory found under {startDir}");
 		}
 
-		protected Task<DirectoryState> GetCurrentDirectoryState(DirectoryReference rootDir, DirectoryState? oldState) => GetCurrentDirectoryState(rootDir.ToDirectoryInfo(), oldState);
+		protected Task<DirectoryState> GetCurrentDirectoryState(DirectoryReference rootDir, DirectoryState? oldState) => GetCurrentDirectoryStateAsync(rootDir.ToDirectoryInfo(), oldState);
 
-		protected async Task<DirectoryState> GetCurrentDirectoryState(DirectoryInfo directoryInfo, DirectoryState? oldState)
+		protected async Task<DirectoryState> GetCurrentDirectoryStateAsync(DirectoryInfo directoryInfo, DirectoryState? oldState)
 		{
 			List<DirectoryInfo> subDirectoryInfos = new List<DirectoryInfo>();
 			foreach (DirectoryInfo subDirectoryInfo in directoryInfo.EnumerateDirectories().Where(x => !x.Name.StartsWith(".", StringComparison.Ordinal)))
@@ -233,7 +233,7 @@ namespace Horde.Commands.Vcs
 					oldState.Directories.TryGetValue(subDirectoryInfo.Name, out prevSubDirectoryState);
 				}
 
-				tasks[idx] = Task.Run(() => GetCurrentDirectoryState(subDirectoryInfo, prevSubDirectoryState));
+				tasks[idx] = Task.Run(() => GetCurrentDirectoryStateAsync(subDirectoryInfo, prevSubDirectoryState));
 			}
 
 			DirectoryState newState = new DirectoryState();

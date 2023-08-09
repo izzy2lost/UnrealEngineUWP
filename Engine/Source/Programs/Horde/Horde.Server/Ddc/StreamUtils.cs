@@ -11,7 +11,7 @@ namespace Horde.Server.Ddc
 {
 	public static class StreamUtils
 	{
-		public static async Task<byte[]> ToByteArray(this Stream s)
+		public static async Task<byte[]> ToByteArrayAsync(this Stream s)
 		{
 			try
 			{
