@@ -147,12 +147,12 @@ bool FNDIDataChannelReadInstanceData::Init(UNiagaraDataInterfaceDataChannelRead*
 {
 	EmitterInstance = Interface->EmitterBinding.Resolve(Instance, Interface);
 
-	bool bSuccess = Tick(Interface, Instance);
+	bool bSuccess = Tick(Interface, Instance, true);
 	bSuccess &= PostTick(Interface, Instance);
 	return bSuccess;
 }
 
-bool FNDIDataChannelReadInstanceData::Tick(UNiagaraDataInterfaceDataChannelRead* Interface, FNiagaraSystemInstance* Instance)
+bool FNDIDataChannelReadInstanceData::Tick(UNiagaraDataInterfaceDataChannelRead* Interface, FNiagaraSystemInstance* Instance, bool bIsInit)
 {
 	ConsumeIndex = 0;
 	ConditionalSpawns.Reset();
@@ -256,6 +256,22 @@ bool FNDIDataChannelReadInstanceData::Tick(UNiagaraDataInterfaceDataChannelRead*
 				FNiagaraDataChannelSearchParameters SearchParams;
 				SearchParams.OwningComponent = Instance->GetAttachComponent();
 				DataChannelData = DataChannelPtr->FindData(SearchParams, ENiagaraResourceAccess::ReadOnly);//TODO: Maybe should have two paths, one for system instances and another for SceneComponents...
+			}	
+
+			if(const UNiagaraDataChannel* ChannelPtr = DataChannelPtr->GetDataChannel())
+			{
+				if(!bIsInit && ChannelPtr->ShouldEnforceTickGroupReadWriteOrder() && Interface->bReadCurrentFrame)
+				{
+					ETickingGroup CurrTG = DataChannelPtr->GetCurrentTickGroup();
+					ETickingGroup MinTickGroup = Interface->CalculateTickGroup(nullptr);//We don't use the per instance data...
+					if(CurrTG < MinTickGroup)
+					{
+						static UEnum* TGEnum = StaticEnum<ETickingGroup>();
+						UE_LOG(LogNiagara, Warning, TEXT("NDC Read DI is required to tick on or after %s but is reading in %s. This may cause us to have incorrectly ordered reads and writes to this NDC and thereform miss data.")
+						, *TGEnum->GetDisplayNameTextByValue((int32)MinTickGroup).ToString()
+						, *TGEnum->GetDisplayNameTextByValue((int32)CurrTG).ToString());
+					}
+				}
 			}
 
 			const FNiagaraDataSetCompiledData& CPUSourceDataCompiledData = DataChannelPtr->GetDataChannel()->GetCompiledData(ENiagaraSimTarget::CPUSim);
@@ -556,6 +572,10 @@ bool UNiagaraDataInterfaceDataChannelRead::HasTickGroupPrereqs() const
 	{
 		return true;
 	}
+	else if (Channel && Channel->Get())
+	{
+		return Channel->Get()->ShouldEnforceTickGroupReadWriteOrder();
+	}
 	return false;
 }
 
@@ -565,6 +585,11 @@ ETickingGroup UNiagaraDataInterfaceDataChannelRead::CalculateTickGroup(const voi
 	{
 		return (ETickingGroup)GNDCReadForceTG;
 	}
+	else if(Channel && Channel->Get() && Channel->Get()->ShouldEnforceTickGroupReadWriteOrder())
+	{
+		return (ETickingGroup)((int32)Channel->Get()->GetFinalWriteTickGroup() + 1);
+	}
+
 	return NiagaraFirstTickGroup; 
 }
 

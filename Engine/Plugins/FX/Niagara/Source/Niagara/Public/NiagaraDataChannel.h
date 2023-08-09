@@ -123,6 +123,11 @@ public:
 	template<typename TFunc>
 	static void ForEachDataChannel(TFunc Func);
 
+	bool ShouldEnforceTickGroupReadWriteOrder()const {return bEnforceTickGroupReadWriteOrder;}
+	
+	/** If we are enforcing tick group read/write ordering the this returns the final tick group that this NDC can be written to. All reads must happen in Tick groups after this or next frame. */
+	ETickingGroup GetFinalWriteTickGroup()const { return FinalWriteTickGroup; }
+
 private:
 
 	/** The variables that define the data contained in this Data Channel. */
@@ -132,7 +137,15 @@ private:
 	/** If true, we keep our previous frame's data. This comes at a memory and performance cost but allows users to avoid tick order dependency by reading last frame's data. Some users will prefer a frame of latency to tick order dependency. */
 	UPROPERTY(EditAnywhere, Category = "Data Channel")
 	bool bKeepPreviousFrameData = true;
-		
+
+	/** If true we ensure that all writes happen in or before the Tick Group specified in EndWriteTickGroup and that all reads happen in tick groups after this. */
+	UPROPERTY(EditAnywhere, Category = "Data Channel")
+	bool bEnforceTickGroupReadWriteOrder = false;
+
+	/** The final tick group that this data channel can be written to. */
+	UPROPERTY(EditAnywhere, Category = "Data Channel", meta=(EditCondition="bEnforceTickGroupReadWriteOrder"))
+	TEnumAsByte<ETickingGroup> FinalWriteTickGroup = ETickingGroup::TG_EndPhysics;
+
 	/**
 	Data layout for payloads in Niagara datasets.
 	*/

@@ -112,6 +112,9 @@ public:
 	NIAGARA_API virtual void PostStageTick(FNDICpuPostStageContext& Context) override;
 	NIAGARA_API virtual void ProvidePerInstanceDataForRenderThread(void* DataForRenderThread, void* PerInstanceData, const FNiagaraSystemInstanceID& SystemInstance) override;
 
+	virtual bool HasTickGroupPostreqs() const override;
+	virtual ETickingGroup CalculateFinalTickGroup(const void* PerInstanceData) const override;
+
 	//We cannot overlap frames as we must correctly sync up with the data channel manager on Begin/End frame etc.
 	virtual bool PostSimulateCanOverlapFrames() const { return false; }
 	//We cannot have post stage overlap tick groups so that the write DI can publish it's contents to the data channel at the correct time to allow same frame reads.

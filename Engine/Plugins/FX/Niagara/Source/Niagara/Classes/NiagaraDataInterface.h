@@ -680,6 +680,8 @@ public:
 
 	virtual bool HasTickGroupPrereqs() const { return false; }
 	virtual ETickingGroup CalculateTickGroup(const void* PerInstanceData) const { return NiagaraFirstTickGroup; }
+	virtual bool HasTickGroupPostreqs() const { return false; }
+	virtual ETickingGroup CalculateFinalTickGroup(const void* PerInstanceData) const { return NiagaraLastTickGroup; }
 
 	/** Determines if this type definition matches to a known data interface type.*/
 	static NIAGARA_API bool IsDataInterfaceType(const FNiagaraTypeDefinition& TypeDef);

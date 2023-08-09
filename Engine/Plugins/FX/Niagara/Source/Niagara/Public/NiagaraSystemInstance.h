@@ -570,6 +570,8 @@ private:
 	uint32 bHasGPUEmitters : 1;
 	/** The system contains data interfaces that can have tick group prerequisites. */
 	uint32 bDataInterfacesHaveTickPrereqs : 1;
+	/** The system contains data interfaces that can have tick group post requisites. */
+	uint32 bDataInterfacesHaveTickPostreqs : 1;
 
 	uint32 bDataInterfacesInitialized : 1;
 

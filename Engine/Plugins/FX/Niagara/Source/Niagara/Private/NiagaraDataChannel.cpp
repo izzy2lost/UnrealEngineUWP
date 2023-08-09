@@ -17,6 +17,12 @@
 
 #define LOCTEXT_NAMESPACE "NiagaraDataChannels"
 
+namespace NDCCVars
+{
+	bool bEmitWarningsOnLateNDCWrites = !UE_BUILD_SHIPPING;
+	static FAutoConsoleVariableRef CVarEmitWarningsOnLateNDCWrites(TEXT("fx.Niagara.DataChannels.DebugDumpWriterDI"), bEmitWarningsOnLateNDCWrites, TEXT("If true, late writes to NDCs will generate warnings. Late meaning after their final allowed tick group."), ECVF_Default);
+};
+
 //////////////////////////////////////////////////////////////////////////
 
 void FNiagaraDataChannelGameDataLayout::Init(const TArray<FNiagaraVariable>& Variables)
@@ -580,9 +586,26 @@ void FNiagaraDataChannelData::ConsumePublishRequests(UNiagaraDataChannelHandler*
 	//There should be no access on other threads at this point anyway but lock just to be safe.
 	FScopeLock Lock(&PublishCritSec);
 
-	if(PublishRequests.Num() == 0)
+	const UNiagaraDataChannel* DataChannel = Owner->GetDataChannel();
+	if(PublishRequests.Num() == 0 || DataChannel == nullptr)
 	{
 		return;
+	}
+	
+	if(NDCCVars::bEmitWarningsOnLateNDCWrites && DataChannel->ShouldEnforceTickGroupReadWriteOrder())
+	{
+		ETickingGroup PublishSourceTG = (ETickingGroup)(FMath::Clamp((int32)Owner->GetCurrentTickGroup() - 1, 0, (int32)ETickingGroup::TG_MAX-1));//We're consuming from the previous TG.
+		ETickingGroup FinalWriteTG = DataChannel->GetFinalWriteTickGroup();
+
+		//TODO: Possibly allow late writes to be deferred to the next frame?
+		if(PublishSourceTG > FinalWriteTG)
+		{
+			static UEnum* TGEnum = StaticEnum<ETickingGroup>();
+			UE_LOG(LogNiagara, Warning, TEXT("Data Channel %s is being written to in Tick Group %s which is after it's final write tick group %s. This may cause incorrect read / write ordering and missed data.")
+			, *DataChannel->GetAsset()->GetName()
+			, *TGEnum->GetDisplayNameTextByValue((int32)PublishSourceTG).ToString()
+			, *TGEnum->GetDisplayNameTextByValue((int32)FinalWriteTG).ToString());
+		}
 	}
 
 	UWorld* World = Owner->GetWorld();

@@ -422,6 +422,24 @@ void UNiagaraDataInterfaceDataChannelWrite::ProvidePerInstanceDataForRenderThrea
 	//FNDIDataChannelProxy::ProvidePerInstanceDataForRenderThread(DataForRenderThread, PerInstanceData, SystemInstance);
 }
 
+bool UNiagaraDataInterfaceDataChannelWrite::HasTickGroupPostreqs() const
+{
+	if (Channel && Channel->Get())
+	{
+		return Channel->Get()->ShouldEnforceTickGroupReadWriteOrder();
+	}
+	return false;
+}
+
+ETickingGroup UNiagaraDataInterfaceDataChannelWrite::CalculateFinalTickGroup(const void* PerInstanceData) const
+{
+	if(Channel && Channel->Get() && Channel->Get()->ShouldEnforceTickGroupReadWriteOrder())
+	{
+		return Channel->Get()->GetFinalWriteTickGroup();
+	}
+	return NiagaraLastTickGroup;
+}
+
 #if WITH_EDITORONLY_DATA
 
 void UNiagaraDataInterfaceDataChannelWrite::PostCompile()

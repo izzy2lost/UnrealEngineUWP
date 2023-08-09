@@ -125,7 +125,7 @@ FNiagaraSystemInstance::FNiagaraSystemInstance(UWorld& InWorld, UNiagaraSystem& 
 	  , ParametersValid(false)
 	  , bSolo(false)
 	  , bForceSolo(false)
-	  , bNotifyOnCompletion(false), bHasGPUEmitters(false), bDataInterfacesHaveTickPrereqs(false)
+	  , bNotifyOnCompletion(false), bHasGPUEmitters(false), bDataInterfacesHaveTickPrereqs(false), bDataInterfacesHaveTickPostreqs(false)
 	  , bDataInterfacesInitialized(false)
 	  , bAlreadyBound(false)
 	  , bLODDistanceIsValid(false)
@@ -319,14 +319,15 @@ void FNiagaraSystemInstance::DumpTickInfo(FOutputDevice& Ar)
 		PrereqInfo.Appendf(TEXT(" PreReq(%s = %s)"), *PrereqComponent->GetFullName(), *TickingGroupEnum->GetNameStringByIndex(PrereqTG));
 	}
 
-	if (bDataInterfacesHaveTickPrereqs)
+	if (bDataInterfacesHaveTickPrereqs || bDataInterfacesHaveTickPostreqs)
 	{
 		for (TPair<TWeakObjectPtr<UNiagaraDataInterface>, int32>& Pair : DataInterfaceInstanceDataOffsets)
 		{
 			if (UNiagaraDataInterface* Interface = Pair.Key.Get())
 			{
 				ETickingGroup PrereqTG = Interface->CalculateTickGroup(&DataInterfaceInstanceData[Pair.Value]);
-				PrereqInfo.Appendf(TEXT(" DataInterface(%s = %s)"), *Interface->GetFullName(), *TickingGroupEnum->GetNameStringByIndex(PrereqTG));
+				ETickingGroup PostreqTG = Interface->CalculateFinalTickGroup(&DataInterfaceInstanceData[Pair.Value]);
+				PrereqInfo.Appendf(TEXT(" DataInterface(%s = %s - %s)"), *Interface->GetFullName(), *TickingGroupEnum->GetNameStringByIndex(PrereqTG), *TickingGroupEnum->GetNameStringByIndex(PostreqTG));
 			}
 		}
 	}
@@ -1399,6 +1400,7 @@ FNDIStageTickHandler* FNiagaraSystemInstance::GetSystemDIStageTickHandler(ENiaga
 void FNiagaraSystemInstance::InitDataInterfaces()
 {
 	bDataInterfacesHaveTickPrereqs = false;
+	bDataInterfacesHaveTickPostreqs = false;
 
 	// If the System is invalid, it is possible that our cached data interfaces are now bogus and could point to invalid memory.
 	// Only the UNiagaraComponent or UNiagaraSystem can hold onto GC references to the DataInterfaces.
@@ -1476,6 +1478,11 @@ void FNiagaraSystemInstance::InitDataInterfaces()
 					if (bDataInterfacesHaveTickPrereqs == false)
 					{
 						bDataInterfacesHaveTickPrereqs = Interface->HasTickGroupPrereqs();
+					}
+					
+					if( bDataInterfacesHaveTickPostreqs == false)
+					{
+						bDataInterfacesHaveTickPostreqs = Interface->HasTickGroupPostreqs();
 					}
 
 					if (bIsGPUScript)
@@ -1784,7 +1791,8 @@ float FNiagaraSystemInstance::GetLODDistance()
 
 ETickingGroup FNiagaraSystemInstance::CalculateTickGroup() const
 {
-	ETickingGroup NewTickGroup = (ETickingGroup)0;
+	ETickingGroup NewMinTickGroup = (ETickingGroup)0;
+	ETickingGroup NewMaxTickGroup = ETickingGroup::TG_MAX;
 
 	// Debugging feature to force last tick group
 	if (GNiagaraForceLastTickGroup)
@@ -1810,7 +1818,7 @@ ETickingGroup FNiagaraSystemInstance::CalculateTickGroup() const
 					PrereqTG = PrereqSMC->bBlendPhysics ? FMath::Max(PrereqTG, ETickingGroup(TG_EndPhysics + 1)) : PrereqTG;
 				}
 
-				NewTickGroup = FMath::Max(NewTickGroup, PrereqTG);
+				NewMinTickGroup = FMath::Max(NewMinTickGroup, PrereqTG);
 			}
 
 			// Handle data interfaces that have tick dependencies
@@ -1821,39 +1829,59 @@ ETickingGroup FNiagaraSystemInstance::CalculateTickGroup() const
 					if (UNiagaraDataInterface* Interface = Pair.Key.Get())
 					{
 						ETickingGroup PrereqTG = Interface->CalculateTickGroup(&DataInterfaceInstanceData[Pair.Value]);
-						NewTickGroup = FMath::Max(NewTickGroup, PrereqTG);
+						NewMinTickGroup = FMath::Max(NewMinTickGroup, PrereqTG);
 					}
 				}
 			}
+			if ( bDataInterfacesHaveTickPostreqs )
+			{
+				for (const TPair<TWeakObjectPtr<UNiagaraDataInterface>, int32>& Pair : DataInterfaceInstanceDataOffsets)
+				{
+					if (UNiagaraDataInterface* Interface = Pair.Key.Get())
+					{
+						ETickingGroup PostReq = Interface->CalculateFinalTickGroup(&DataInterfaceInstanceData[Pair.Value]);
+						NewMaxTickGroup = FMath::Min(NewMaxTickGroup, PostReq);
+					}
+				}
+			}
+			
+			if(NewMinTickGroup > NewMaxTickGroup)
+			{
+				static UEnum* TGEnum = StaticEnum<ETickingGroup>();
+				UE_LOG(LogNiagara, Warning, TEXT("Niagara Component has DIs with conflicting Tick Group Dependencies. This may lead to some incorrect behavior.\nSystem:%s\nMinTickGroup:%s\nMaxTickGroup:%s")
+				, *System->GetName()
+				, *TGEnum->GetDisplayNameTextByValue((int32)NewMinTickGroup).ToString()
+				, *TGEnum->GetDisplayNameTextByValue((int32)NewMaxTickGroup).ToString());
+			}
 
 			// Clamp tick group to our range
-			NewTickGroup = FMath::Clamp(NewTickGroup, NiagaraFirstTickGroup, NiagaraLastTickGroup);
+			NewMinTickGroup = FMath::Clamp(NewMinTickGroup, NiagaraFirstTickGroup, NiagaraLastTickGroup);
 			break;
 
 		case ENiagaraTickBehavior::UseComponentTickGroup:
 			if (USceneComponent* Component = AttachComponent.Get())
 			{
-				NewTickGroup = FMath::Clamp((ETickingGroup)Component->PrimaryComponentTick.TickGroup, NiagaraFirstTickGroup, NiagaraLastTickGroup);
+				NewMinTickGroup = FMath::Clamp((ETickingGroup)Component->PrimaryComponentTick.TickGroup, NiagaraFirstTickGroup, NiagaraLastTickGroup);
 			}
 			else
 			{
-				NewTickGroup = NiagaraFirstTickGroup;
+				NewMinTickGroup = NiagaraFirstTickGroup;
 			}
 			break;
 
 		case ENiagaraTickBehavior::ForceTickFirst:
-			NewTickGroup = NiagaraFirstTickGroup;
+			NewMinTickGroup = NiagaraFirstTickGroup;
 			break;
 
 		case ENiagaraTickBehavior::ForceTickLast:
-			NewTickGroup = NiagaraLastTickGroup;
+			NewMinTickGroup = NiagaraLastTickGroup;
 			break;
 	}
 
 
 	//UE_LOG(LogNiagara, Log, TEXT("TickGroup: %s %d %d"), *Component->GetPathName(), (int32)TickBehavior, (int32)NewTickGroup);
 
-	return NewTickGroup;
+	return NewMinTickGroup;
 }
 
 void FNiagaraSystemInstance::SetTickBehavior(ENiagaraTickBehavior NewTickBehavior)
