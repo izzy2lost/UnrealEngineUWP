@@ -427,7 +427,7 @@ void FControlRigParameterTrackEditor::BindControlRig(UControlRig* ControlRig)
 	if (ControlRig && BoundControlRigs.Contains(ControlRig) == false)
 	{
 		ControlRig->ControlModified().AddRaw(this, &FControlRigParameterTrackEditor::HandleControlModified);
-		ControlRig->OnInitialized_AnyThread().AddRaw(this, &FControlRigParameterTrackEditor::HandleOnInitialized);
+		ControlRig->OnPostConstruction_AnyThread().AddRaw(this, &FControlRigParameterTrackEditor::HandleOnPostConstructed);
 		ControlRig->ControlSelected().AddRaw(this, &FControlRigParameterTrackEditor::HandleControlSelected);
 		ControlRig->ControlUndoBracket().AddRaw(this, &FControlRigParameterTrackEditor::HandleControlUndoBracket);
 		ControlRig->ControlRigBound().AddRaw(this, &FControlRigParameterTrackEditor::HandleOnControlRigBound);
@@ -472,7 +472,7 @@ void FControlRigParameterTrackEditor::UnbindControlRig(UControlRig* ControlRig)
 			Track->ConstraintChannelAdded().RemoveAll(this);
 		}
 		ControlRig->ControlModified().RemoveAll(this);
-		ControlRig->OnInitialized_AnyThread().RemoveAll(this);
+		ControlRig->OnPostConstruction_AnyThread().RemoveAll(this);
 		ControlRig->ControlSelected().RemoveAll(this);
 		if (const TSharedPtr<IControlRigObjectBinding> Binding = ControlRig->GetObjectBinding())
 		{
@@ -3438,7 +3438,7 @@ void FControlRigParameterTrackEditor::HandleControlSelected(UControlRig* Subject
 
 
 
-void FControlRigParameterTrackEditor::HandleOnInitialized(URigVMHost* Subject, const FName& InEventName)
+void FControlRigParameterTrackEditor::HandleOnPostConstructed(UControlRig* Subject, const FName& InEventName)
 {
 	if (IsInGameThread())
 	{

@@ -76,8 +76,8 @@ public:
 #endif // WITH_EDITOR
 
 	//UControlRig Delegates
-	void HandleOnInitialized_GameThread();
-	void HandleOnInitialized(URigVMHost* Subject, const FName& InEventName);
+	void HandleOnPostConstructed_GameThread();
+	void HandleOnPostConstructed(UControlRig* Subject, const FName& InEventName);
 
 #if WITH_EDITOR
 	void HandlePackageDone(const FEndLoadPackageContext& Context);

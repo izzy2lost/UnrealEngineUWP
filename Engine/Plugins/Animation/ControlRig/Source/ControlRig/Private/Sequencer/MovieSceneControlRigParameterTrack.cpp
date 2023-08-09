@@ -44,7 +44,7 @@ void UMovieSceneControlRigParameterTrack::BeginDestroy()
 	Super::BeginDestroy();
 	if (IsValid(ControlRig))
 	{
-		ControlRig->OnInitialized_AnyThread().RemoveAll(this);
+		ControlRig->OnPostConstruction_AnyThread().RemoveAll(this);
 	}
 }
 
@@ -215,12 +215,12 @@ UMovieSceneSection* UMovieSceneControlRigParameterTrack::CreateControlRigSection
 
 	if (IsValid(ControlRig))
 	{
-		ControlRig->OnInitialized_AnyThread().RemoveAll(this);
+		ControlRig->OnPostConstruction_AnyThread().RemoveAll(this);
 	}
 
 	ControlRig = InControlRig;
 
-	ControlRig->OnInitialized_AnyThread().AddUObject(this, &UMovieSceneControlRigParameterTrack::HandleOnInitialized);
+	ControlRig->OnPostConstruction_AnyThread().AddUObject(this, &UMovieSceneControlRigParameterTrack::HandleOnPostConstructed);
 
 	UMovieSceneControlRigParameterSection* NewSection = Cast<UMovieSceneControlRigParameterSection>(CreateNewSection());
 
@@ -463,7 +463,7 @@ void UMovieSceneControlRigParameterTrack::PostLoad()
 
 	if (IsValid(ControlRig))
 	{
-		ControlRig->OnInitialized_AnyThread().AddUObject(this, &UMovieSceneControlRigParameterTrack::HandleOnInitialized);
+		ControlRig->OnPostConstruction_AnyThread().AddUObject(this, &UMovieSceneControlRigParameterTrack::HandleOnPostConstructed);
 	}
 }
 
@@ -530,7 +530,7 @@ namespace MovieSceneControlRigTrack
 	}
 }
 
-void UMovieSceneControlRigParameterTrack::HandleOnInitialized_GameThread()
+void UMovieSceneControlRigParameterTrack::HandleOnPostConstructed_GameThread()
 {
 	if (IsValid(ControlRig))
 	{
@@ -554,11 +554,11 @@ void UMovieSceneControlRigParameterTrack::HandleOnInitialized_GameThread()
 	}
 }
 
-void UMovieSceneControlRigParameterTrack::HandleOnInitialized(URigVMHost* Subject, const FName& InEventName)
+void UMovieSceneControlRigParameterTrack::HandleOnPostConstructed(UControlRig* Subject, const FName& InEventName)
 {
 	MovieSceneControlRigTrack::AsyncHelpers::ExecuteOnGameThread<void>([this]()
 	{
-		HandleOnInitialized_GameThread();
+		HandleOnPostConstructed_GameThread();
 
 	}).Wait();
 }
@@ -616,7 +616,7 @@ void UMovieSceneControlRigParameterTrack::PostEditImport()
 	{
 		if (ControlRig->OnInitialized_AnyThread().IsBoundToObject(this) == false)
 		{
-			ControlRig->OnInitialized_AnyThread().AddUObject(this, &UMovieSceneControlRigParameterTrack::HandleOnInitialized);
+			ControlRig->OnPostConstruction_AnyThread().AddUObject(this, &UMovieSceneControlRigParameterTrack::HandleOnPostConstructed);
 		}
 		ControlRig->ClearFlags(RF_Transient); //when copied make sure it's no longer transient, sequencer does this for tracks/sections 
 											  //but not for all objects in them since the control rig itself has transient objects.
@@ -648,14 +648,14 @@ void UMovieSceneControlRigParameterTrack::ReplaceControlRig(UControlRig* NewCont
 {
 	if (IsValid(ControlRig))
 	{
-		ControlRig->OnInitialized_AnyThread().RemoveAll(this);
+		ControlRig->OnPostConstruction_AnyThread().RemoveAll(this);
 	}
 
 	ControlRig = NewControlRig;
 
 	if (IsValid(ControlRig))
 	{
-		ControlRig->OnInitialized_AnyThread().AddUObject(this, &UMovieSceneControlRigParameterTrack::HandleOnInitialized);
+		ControlRig->OnPostConstruction_AnyThread().AddUObject(this, &UMovieSceneControlRigParameterTrack::HandleOnPostConstructed);
 
 		if (ControlRig->GetOuter() != this)
 		{
