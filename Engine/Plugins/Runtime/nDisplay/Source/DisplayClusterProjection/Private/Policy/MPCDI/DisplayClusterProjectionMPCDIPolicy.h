@@ -74,7 +74,7 @@ protected:
 	TArray<FDisplayClusterWarpContext> WarpBlendContexts;
 	TArray<FDisplayClusterWarpContext> WarpBlendContexts_Proxy;
 
-private:
+protected:
 	bool bInvalidConfiguration = false;
 	bool bIsPreviewMeshEnabled = false;
 

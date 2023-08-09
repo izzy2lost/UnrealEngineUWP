@@ -59,6 +59,9 @@ bool FDisplayClusterProjectionMeshPolicy::CreateWarpMeshInterface(IDisplayCluste
 			return false;
 		}
 
+		// Mesh poolicy always shows a preview on an existing mesh
+		bIsPreviewMeshEnabled = true;
+
 		// The mesh always uses DCRootActor as its origin because all geometry is in UE space.
 		InitializeOriginComponent(InViewport, TEXT(""));
 
