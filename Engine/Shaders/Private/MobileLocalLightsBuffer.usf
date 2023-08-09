@@ -102,7 +102,7 @@ void Main(float4 SvPosition : SV_POSITION
 	uint NumLocalLights = min(CulledLightGridData.NumLocalLights, GetNumLocalLights(EyeIndex));
 	if(bHasLinkedListCullEnabled == 0)
 	{
-		NumLocalLights = min(NumLocalLights, ForwardLightData.MaxCulledLightsPerCell - 1);
+		NumLocalLights = min(NumLocalLights, ForwardLightData.MaxCulledLightsPerCell);
 	}
 
 	float3 Color = uint3(0.f, 0.f , 0.f);
