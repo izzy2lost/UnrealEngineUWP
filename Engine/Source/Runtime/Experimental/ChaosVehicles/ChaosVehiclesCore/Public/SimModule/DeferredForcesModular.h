@@ -70,11 +70,12 @@ public:
 
 	struct FAddTorqueInRadiansData
 	{
-		FAddTorqueInRadiansData(const FTransform& OffsetTransformIn, int TransformIndexIn, const FVector& TorqueIn, bool bAllowSubsteppingIn, bool bAccelChangeIn)
+		FAddTorqueInRadiansData(const FTransform& OffsetTransformIn, int TransformIndexIn, const FVector& TorqueIn, bool bAllowSubsteppingIn, bool bAccelChangeIn, const FColor& ColorIn)
 			: OffsetTransform(OffsetTransformIn)
 			, TransformIndex(TransformIndexIn)
 			, Torque(TorqueIn)
 			, Flags(EForceFlags::None)
+			, DebugColor(ColorIn)
 		{
 			Flags |= bAllowSubsteppingIn ? EForceFlags::AllowSubstepping : EForceFlags::None;
 			Flags |= bAccelChangeIn ? EForceFlags::AccelChange : EForceFlags::None;
@@ -84,6 +85,7 @@ public:
 		int TransformIndex;
 		FVector Torque;
 		EForceFlags Flags;
+		FColor DebugColor;
 	};
 
 	struct FAddImpulseData
@@ -148,6 +150,7 @@ public:
 	Chaos::FPBDRigidParticleHandle* GetParticle(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles
 			, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
 			, int TransformIndex
+			, const FVector& PositionalOffset
 			, const TManagedArray<FTransform>& Transforms
 			, const TManagedArray<FTransform>& CollectionMassToLocal
 			, const TManagedArray<int32>& Parent
@@ -157,6 +160,7 @@ public:
 		, TArray<Chaos::FPBDRigidParticleHandle*>& Particles
 		, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
 		, int TransformIndex
+		, const FVector& PositionalOffset
 		, FTransform& TransformOut);
 
 	void Apply(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles
@@ -182,3 +186,4 @@ private:
 
 	FTransform ParticleOffsetTransform; // Odd rotation coming through from CU physics bodies
 };
+

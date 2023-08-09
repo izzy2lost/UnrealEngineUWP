@@ -3,6 +3,7 @@
 #include "SimModule/SimulationModuleBase.h"
 #include "SimModule/SimModuleTree.h"
 #include "SimModule/DeferredForcesModular.h"
+#include "PhysicsProxy/ClusterUnionPhysicsProxy.h"
 
 DEFINE_LOG_CATEGORY(LogSimulationModule);
 
@@ -23,11 +24,15 @@ void ISimulationModuleBase::AddLocalForce(const FVector& Force, bool bAllowSubst
 	AppliedForce = Force;
 	if (SimModuleTree)
 	{
-		//FString DebugString;
-		//GetDebugString(DebugString);
-		//UE_LOG(LogInit, Warning, TEXT("AddLocalForce To %s"), *DebugString);
-
 		SimModuleTree->AccessDeferredForces().Add(FDeferredForcesModular::FApplyForceData(ComponentTransform, TransformIndex, Force, bAllowSubstepping, bIsLocalForce, bLevelSlope, DebugColorIn));
+	}
+}
+
+void ISimulationModuleBase::AddLocalTorque(const FVector& Torque, bool bAllowSubstepping, bool bAccelChangeIn, const FColor& DebugColorIn)
+{
+	if (SimModuleTree)
+	{
+		SimModuleTree->AccessDeferredForces().Add(FDeferredForcesModular::FAddTorqueInRadiansData(ComponentTransform, TransformIndex, Torque, bAllowSubstepping, bAccelChangeIn, DebugColorIn));
 	}
 }
 
@@ -47,6 +52,29 @@ ISimulationModuleBase* ISimulationModuleBase::GetFirstChild()
 		}
 	}
 	return nullptr;
+}
+
+FPBDRigidClusteredParticleHandle* ISimulationModuleBase::GetClusterParticle(Chaos::FClusterUnionPhysicsProxy* Proxy)
+{ 
+	// TODO: should store what we need rather than search for it all the time
+	FPBDRigidClusteredParticleHandle* ClusterChild = nullptr;
+
+	FPBDRigidsEvolutionGBF& Evolution = *static_cast<FPBDRigidsSolver*>(Proxy->GetSolver<FPBDRigidsSolver>())->GetEvolution();
+	FClusterUnionManager& ClusterUnionManager = Evolution.GetRigidClustering().GetClusterUnionManager();
+	const FClusterUnionIndex& CUI = Proxy->GetClusterUnionIndex();
+
+	if (FClusterUnion* ClusterUnion = ClusterUnionManager.FindClusterUnion(CUI))
+	{
+		FPBDRigidClusteredParticleHandle* ClusterHandle = ClusterUnion->InternalCluster;
+		TArray<FPBDRigidParticleHandle*> Particles = ClusterUnion->ChildParticles;
+
+		if (TransformIndex < Particles.Num())
+		{
+			ClusterChild = Particles[TransformIndex]->CastToClustered();
+		}
+	}
+
+	return ClusterChild;
 }
 
 bool ISimulationModuleBase::GetDebugString(FString& StringOut) const 

@@ -8,6 +8,7 @@ namespace Chaos
 {
 	struct FAllInputs;
 	class FSimModuleTree;
+	class FClusterUnionPhysicsProxy;
 
 	struct CHAOSVEHICLESCORE_API FSuspensionSimModuleDatas : public FModuleNetData
 	{
@@ -122,6 +123,8 @@ namespace Chaos
 		void GetWorldRaycastLocation(const FTransform& BodyTransform, float WheelRadius, FSpringTrace& OutTrace);
 
 		virtual void Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem) override;
+
+		virtual void Animate(Chaos::FClusterUnionPhysicsProxy* Proxy) override;
 
 		const FVector& GetRestLocation() const { return Setup().RestOffset; }
 

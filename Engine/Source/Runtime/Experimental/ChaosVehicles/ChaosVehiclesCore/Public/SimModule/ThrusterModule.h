@@ -18,14 +18,22 @@ namespace Chaos
 		FThrusterSettings()
 			: MaxThrustForce(0)
 			, ForceAxis(FVector(1.0f, 0.0f, 0.0f))
+			, SteeringAxis(FVector(0.0f, 0.0f, 1.0f))
 			, ForceOffset(FVector::ZeroVector)
+			, MaxSteeringAngle(0)
+			, SteeringForceEffect(1.0f)
+			, SteeringEnabled(false)
 		{
 
 		}
 
 		float MaxThrustForce;
 		FVector ForceAxis;
+		FVector SteeringAxis;
 		FVector ForceOffset;
+		float MaxSteeringAngle;
+		float SteeringForceEffect;
+		bool SteeringEnabled;
 	};
 
 	/// <summary>
@@ -47,7 +55,12 @@ namespace Chaos
 
 		virtual void Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem) override;
 
+		virtual void Animate(Chaos::FClusterUnionPhysicsProxy* Proxy) override;
+
+		float GetSteerAngleDegrees() const { return SteerAngleDegrees; }
+
 	private:
+		float SteerAngleDegrees;
 	};
 
 

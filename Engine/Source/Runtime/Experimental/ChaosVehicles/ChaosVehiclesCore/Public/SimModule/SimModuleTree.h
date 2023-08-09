@@ -90,6 +90,7 @@ namespace Chaos
 
 		FSimModuleTree()
 		{
+			bAnimationEnabled = false;
 		}
 
 		~FSimModuleTree()
@@ -132,6 +133,9 @@ namespace Chaos
 		const FDeferredForcesModular& GetDeferredForces() const { return DeferredForces; }
 		const TArray<FSimModuleNode>& GetSimulationModuleTree() { return SimulationModuleTree; }
 
+		void SetAnimationEnabled(bool bInEnabled) { bAnimationEnabled = bInEnabled; }
+		bool IsAnimationEnabled() { return bAnimationEnabled; }
+
 		FControlInputs& GetControlInputs()
 		{
 			return AllInputs.ControlInputs;
@@ -172,7 +176,7 @@ namespace Chaos
 		void InterpolateState(const float LerpFactor, Chaos::FModuleNetDataArray& LerpDatas, const Chaos::FModuleNetDataArray& MinDatas, const Chaos::FModuleNetDataArray& MaxDatas);
 
 	protected:
-		void SimulateNode(float DeltaTime, FAllInputs& Inputs, int NodeIdx);
+		void SimulateNode(float DeltaTime, FAllInputs& Inputs, int NodeIdx, FClusterUnionPhysicsProxy* PhysicsProxy);
 
 		void DeleteNodesBelow(int NodeIdx);
 
@@ -187,6 +191,8 @@ namespace Chaos
 		FDeferredForcesModular DeferredForces;
 
 		Chaos::FAllInputs AllInputs;
+
+		bool bAnimationEnabled;
 	};
 
 

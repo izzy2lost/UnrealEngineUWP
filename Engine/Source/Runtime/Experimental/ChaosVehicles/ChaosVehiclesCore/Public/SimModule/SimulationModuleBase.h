@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Logging/LogMacros.h"
+#include "Chaos/ParticleHandleFwd.h"
 
 
 DECLARE_LOG_CATEGORY_EXTERN(LogSimulationModule, Warning, All);
@@ -21,6 +22,7 @@ namespace Chaos
 {
 	class FSimModuleTree;
 	struct FModuleNetData;
+	class FClusterUnionPhysicsProxy;
 
 	struct CHAOSVEHICLESCORE_API FControlInputs
 	{
@@ -35,6 +37,7 @@ namespace Chaos
 			, Roll(0)
 			, Pitch(0)
 			, Yaw(0)
+			, Boost(0)
 			, ChangeUp(false)
 			, ChangeDown(false)
 			, GearNumber(0)
@@ -51,12 +54,11 @@ namespace Chaos
 		float Roll;
 		float Pitch;
 		float Yaw;
+		float Boost;
 		bool ChangeUp;
 		bool ChangeDown;
 		int GearNumber;
 		int InputDebugIndex;
-
-		int GetChecksum() { return (int)((Throttle+Brake+Steering)*100000.0f);}
 	};
 
 	struct CHAOSVEHICLESCORE_API FModuleHitResults
@@ -110,8 +112,8 @@ namespace Chaos
 
 	enum eSimModuleTypeFlags
 	{
-		NonFunctional	= (1<<0),	// bitmask 1,2,4,8
-		Raycast			= (1<<1),	// requires raycast data
+		NonFunctional	= (1 << 0),	// bitmask 1,2,4,8
+		Raycast			= (1 << 1),	// requires raycast data
 		TorqueBased		= (1 << 2),	// performs torque calculations
 		Velocity		= (1 << 3),	// requires velocity data
 	};
@@ -119,8 +121,8 @@ namespace Chaos
 	enum eSimType
 	{
 		Undefined = 0,
-		Chassis,		// no simulation effect
-		Thruster,		// applies force
+		Chassis,		// linear/angular damping can be applied here
+		Thruster,		// applies force (can be steerable)
 		Aerofoil,		// applied drag and lift forces
 		Wheel,			// a wheel will simply roll if it has no power source
 		Suspension,		// associated with a wheel
@@ -149,8 +151,10 @@ namespace Chaos
 			, SimTreeIndex(INVALID_IDX)
 			, StateFlags(Enabled)
 			, TransformIndex(INVALID_IDX)
-			, ModuleLocalVelocity(FVector::ZeroVector)
+			, LocalLinearVelocity(FVector::ZeroVector)
+			, LocalAngularVelocity(FVector::ZeroVector)
 			, bClustered(true)
+			, bAnimationEnabled(true)
 			, AppliedForce(FVector::ZeroVector)
 			, Guid(INDEX_NONE)
 		{}
@@ -187,7 +191,15 @@ namespace Chaos
 		/**
 		 * The main Simulation function that is called from the physics async callback thread
 		 */
-		virtual void Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem) {};
+		virtual void Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem) {}
+
+		/**
+		 * Animate/modify the childToParent transforms, to say rotate a wheel, or rudder, etc
+		 */
+		virtual void Animate(Chaos::FClusterUnionPhysicsProxy* Proxy) {}
+
+		void SetAnimationEnabled(bool bInEnabled) { bAnimationEnabled = bInEnabled; }
+		bool IsAnimationEnabled() { return bAnimationEnabled; }
 
 		/**
 		 * Option to draw debug for this module requires CVar p.Chaos.DebugDraw.Enabled 1
@@ -228,6 +240,12 @@ namespace Chaos
 		 */
 		void AddLocalForce(const FVector& Force, bool bAllowSubstepping = true, bool bIsLocalForce = false, bool bLevelSlope = false, const FColor& DebugColorIn = FColor::Blue);
 
+		/**
+		 * Torque application function
+		 * Note: forces are applied in local coordinates of the module
+		 */
+		void AddLocalTorque(const FVector& Torque, bool bAllowSubstepping = true, bool bAccelChangeIn = true, const FColor& DebugColorIn = FColor::Magenta);
+
 		//---
 
 		/**
@@ -263,8 +281,10 @@ namespace Chaos
 		/**
 		 * Update the module with its current velocity
 		 */
-		void SetLocalVelocity(const FVector& VelocityIn) { ModuleLocalVelocity = VelocityIn; }
-		const FVector& GetLocalVelocity() const { return ModuleLocalVelocity; }
+		void SetLocalLinearVelocity(const FVector& VelocityIn) { LocalLinearVelocity = VelocityIn; }
+		const FVector& GetLocalLinearVelocity() const { return LocalLinearVelocity; }
+		void SetLocalAngularVelocity(const FVector& VelocityIn) { LocalAngularVelocity = VelocityIn; }
+		const FVector& GetLocalAngularVelocity() const { return LocalAngularVelocity; }
 
 		ISimulationModuleBase* GetParent();
 		ISimulationModuleBase* GetFirstChild();
@@ -274,6 +294,9 @@ namespace Chaos
 
 		// this is the replication datas
 		virtual TSharedPtr<FModuleNetData> GenerateNetData(int NodeArrayIndex) const = 0;
+
+		//void SetClusterParticle(FPBDRigidClusteredParticleHandle* ParticleIn) { ClusterParticle = ParticleIn; }
+		Chaos::FPBDRigidClusteredParticleHandle* GetClusterParticle(Chaos::FClusterUnionPhysicsProxy* Proxy);
 
 	protected:
 
@@ -288,13 +311,16 @@ namespace Chaos
 
 		FTransform ClusteredCOMRelativeTransform;
 		FTransform IntactCOMRelativeTransform;
-		FVector ModuleLocalVelocity;
+		FVector LocalLinearVelocity;
+		FVector LocalAngularVelocity;
 		bool bClustered;
+		bool bAnimationEnabled;
 
 		// for headless chaos testing
 		FVector AppliedForce;
 		int Guid; // needed a way of associating internal module with game thread.
 
+		//FPBDRigidClusteredParticleHandle* ClusterParticle;
 	};
 
 	/**

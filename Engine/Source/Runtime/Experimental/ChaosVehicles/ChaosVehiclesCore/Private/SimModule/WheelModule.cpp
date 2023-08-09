@@ -27,7 +27,7 @@ namespace Chaos
 	void FWheelSimModule::Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem)
 	{	
 		float Re = Setup().Radius;
-		float K = 0.4f; // #TODO: 0.4 * number of wheels - fix the amount of ForceRequiredToStop wrt number of active contact points
+		float K = 0.4f;
 		float TorqueScaling = 1.0f;
 		float TractionControlAndABSScaling = 0.98f;	// how close to perfection is the system working
 
@@ -38,7 +38,7 @@ namespace Chaos
 
 		// TODO: think about doing this properly, stops vehicles rolling around on their own too much
 		// i.e. an auto handbrake feature
-		if (Inputs.ControlInputs.Brake < SMALL_NUMBER && Inputs.ControlInputs.Throttle < SMALL_NUMBER && ModuleLocalVelocity.X < 10.0f)
+		if (Inputs.ControlInputs.Brake < SMALL_NUMBER && Inputs.ControlInputs.Throttle < SMALL_NUMBER && LocalLinearVelocity.X < 10.0f)
 		{
 			BrakeTorque = Setup().HandbrakeTorque;
 		}
@@ -48,7 +48,7 @@ namespace Chaos
 		if (bTouchingGround)
 		{
 			FRotator SteeringRotator(0.f, SteerAngleDegrees, 0.f);
-			FVector Vel = SteeringRotator.UnrotateVector(ModuleLocalVelocity);
+			FVector Vel = SteeringRotator.UnrotateVector(LocalLinearVelocity);
 			FVector LocalWheelVelocity = (Setup().Axis == EWheelAxis::X) ? FVector(Vel.X, Vel.Y, Vel.Z) : FVector(Vel.Y, Vel.X, Vel.Z); // Potential Axis Swap
 			LocalWheelVelocity = Setup().ReverseDirection ? -LocalWheelVelocity : LocalWheelVelocity;
 
@@ -204,6 +204,18 @@ namespace Chaos
 		IntegrateAngularVelocity(DeltaTime, Setup().WheelInertia, Setup().MaxRotationVel);
 	}
 
+	void FWheelSimModule::Animate(Chaos::FClusterUnionPhysicsProxy* Proxy)
+	{
+		if (FPBDRigidClusteredParticleHandle* ClusterChild = GetClusterParticle(Proxy))
+		{
+			float Direction = Setup().ReverseDirection ? -1.0f : 1.0f;
+			FQuat Rot = (Setup().Axis == Chaos::EWheelAxis::Y) ? FQuat(FVector(1, 0, 0), -GetAngularPosition() * Direction) : FQuat(FVector(1, 0, 0), GetAngularPosition() * Direction);
+			FQuat Steer = FQuat(FVector(0, 0, 1), FMath::DegreesToRadians(GetSteerAngleDegrees()));
+
+			FTransform InitialTransform = GetInitialParticleTransform();
+			ClusterChild->ChildToParent().SetRotation(InitialTransform.GetRotation() * Steer * Rot);
+		}
+	}
 
 	bool FWheelSimModule::GetDebugString(FString& StringOut) const
 	{

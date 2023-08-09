@@ -66,7 +66,7 @@ namespace Chaos
 		}
 
 		// tell wheels how much they are being pressed into the ground
-		if (SimModuleTree)
+		if (SimModuleTree && WheelSimTreeIndex != INVALID_IDX)
 		{
 			if (Chaos::ISimulationModuleBase* Module = SimModuleTree->AccessSimModule(WheelSimTreeIndex))
 			{
@@ -75,8 +75,22 @@ namespace Chaos
 
 				Wheel->SetForceIntoSurface(ForceIntoSurface);
 			}
-			
+		
+		}
+	}
 
+	void FSuspensionSimModule::Animate(Chaos::FClusterUnionPhysicsProxy* Proxy)
+	{
+		if (FPBDRigidClusteredParticleHandle* ClusterChild = GetClusterParticle(Proxy))
+		{
+			float CurrentSpringLength = GetSpringLength();
+
+			FVector RestPos = GetInitialParticleTransform().GetTranslation();
+
+			FVector Movement = Setup().SuspensionAxis * (Setup().MaxRaise + CurrentSpringLength);
+			Movement = GetComponentTransform().TransformVector(Movement);
+			FVector NewPos = RestPos - Movement;
+			ClusterChild->ChildToParent().SetTranslation(NewPos); // local frame for module
 		}
 	}
 

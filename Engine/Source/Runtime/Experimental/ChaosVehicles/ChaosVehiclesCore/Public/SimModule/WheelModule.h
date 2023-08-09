@@ -8,6 +8,7 @@ namespace Chaos
 {
 	struct FAllInputs;
 	class FSimModuleTree;
+	class FClusterUnionPhysicsProxy;
 
 	enum CHAOSVEHICLESCORE_API EWheelAxis
 	{
@@ -37,7 +38,6 @@ namespace Chaos
 			, MaxRotationVel(100.0f)
 			, Axis(EWheelAxis::X)
 			, ReverseDirection(false)
-
 		{
 
 		}
@@ -79,6 +79,8 @@ namespace Chaos
 		virtual bool GetDebugString(FString& StringOut) const override;
 
 		virtual void Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem) override;
+
+		virtual void Animate(Chaos::FClusterUnionPhysicsProxy* Proxy) override;
 
 		virtual bool IsBehaviourType(eSimModuleTypeFlags InType) const override { return (InType & TorqueBased)||(InType & Velocity); }
 

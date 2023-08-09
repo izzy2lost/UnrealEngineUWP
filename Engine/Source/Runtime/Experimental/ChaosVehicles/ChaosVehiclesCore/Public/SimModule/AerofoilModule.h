@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "SimModule/TorqueSimModule.h"
-
+#include "VehicleUtility.h"
+#include "SimModule/SimulationModuleBase.h"
 
 namespace Chaos
 {
@@ -22,13 +22,12 @@ namespace Chaos
 	{
 		FAerofoilSettings()
 			: Offset(FVector::ZeroVector)
-			, UpAxis(FVector(0.f, 0.f, 1.f))
+			, ForceAxis(FVector(0.f, 0.f, 1.f))
+			, ControlRotationAxis(FVector(0.f, 1.f, 0.f))
 			, Area(5.0f)
 			, Camber(3.0f)
 			, MaxControlAngle(1.f)
 			, StallAngle(16.0f)
-			, MaxCeiling(1E30)
-			, MinCeiling(-1E30)
 			, Type(EAerofoil::Fixed)
 			, LiftMultiplier(1.0f)
 			, DragMultiplier(1.0f)
@@ -36,14 +35,12 @@ namespace Chaos
 		}
 
 		FVector Offset;
-		FVector UpAxis;
+		FVector ForceAxis;
+		FVector ControlRotationAxis;
 		float Area;
 		float Camber;
 		float MaxControlAngle;
 		float StallAngle;
-
-		float MaxCeiling;
-		float MinCeiling;
 
 		EAerofoil Type;
 		float LiftMultiplier;
@@ -76,6 +73,8 @@ namespace Chaos
 		virtual bool IsBehaviourType(eSimModuleTypeFlags InType) const override { return (InType & Velocity); }
 
 		virtual void Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem) override;
+
+		virtual void Animate(Chaos::FClusterUnionPhysicsProxy* Proxy) override;
 
 		void SetDensityOfMedium(float InDensity)
 		{

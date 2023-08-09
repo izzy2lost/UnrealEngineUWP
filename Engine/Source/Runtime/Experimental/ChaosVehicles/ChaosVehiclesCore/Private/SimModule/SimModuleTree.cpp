@@ -243,7 +243,7 @@ void FSimModuleTree::Simulate(float DeltaTime, FAllInputs& Inputs, FClusterUnion
 
 	for (int RootIndex : RootNodes)
 	{
-		SimulateNode(DeltaTime, Inputs, RootIndex);
+		SimulateNode(DeltaTime, Inputs, RootIndex, PhysicsProxy);
 	}
 }
 
@@ -260,23 +260,28 @@ void FSimModuleTree::Simulate(float DeltaTime, FAllInputs& Inputs, FGeometryColl
 
 	for (int RootIndex : RootNodes)
 	{
-		SimulateNode(DeltaTime, Inputs, RootIndex);
+		SimulateNode(DeltaTime, Inputs, RootIndex, nullptr);
 	}
 
 }
 
-void FSimModuleTree::SimulateNode(float DeltaTime, FAllInputs& Inputs, int NodeIndex)
+void FSimModuleTree::SimulateNode(float DeltaTime, FAllInputs& Inputs, int NodeIndex, FClusterUnionPhysicsProxy* PhysicsProxy)
 {
 	if (ISimulationModuleBase* Module = AccessSimModule(NodeIndex))
 	{
 		if (Module->IsEnabled())
 		{
 			Module->Simulate(DeltaTime, Inputs, *this);
+
+			if (IsAnimationEnabled() && Module->IsAnimationEnabled())
+			{
+				Module->Animate(PhysicsProxy);
+			}
 		}
 
 		for (int ChildIdx : GetChildren(NodeIndex))
 		{
-			SimulateNode(DeltaTime, Inputs, ChildIdx);
+			SimulateNode(DeltaTime, Inputs, ChildIdx, PhysicsProxy);
 		}
 	}
 }
@@ -350,10 +355,14 @@ void FSimModuleTree::UpdateModuleVelocites(FGeometryCollectionPhysicsProxy* Phys
 						const Chaos::FVec3 Arm = WorldLocation - Particle->X();
 
 						FVector WorldVelocity = Particle->V() - Chaos::FVec3::CrossProduct(Arm, Particle->W());
-						FVector LocalVelocity = BodyTransform.InverseTransformVector(WorldVelocity);
-						LocalVelocity = Module->GetClusteredTransform().InverseTransformVector(LocalVelocity);
+						FVector LocalLinearVelocity = BodyTransform.InverseTransformVector(WorldVelocity);
+						LocalLinearVelocity = Module->GetClusteredTransform().InverseTransformVector(LocalLinearVelocity);
 
-						Module->SetLocalVelocity(LocalVelocity);
+						FVector LocalAngular = BodyTransform.InverseTransformVector(Particle->W());
+						LocalAngular = Module->GetClusteredTransform().InverseTransformVector(LocalAngular);
+
+						Module->SetLocalLinearVelocity(LocalLinearVelocity);
+						Module->SetLocalAngularVelocity(LocalAngular);
 					}
 			
 				}
@@ -399,7 +408,12 @@ void FSimModuleTree::UpdateModuleVelocites(FClusterUnionPhysicsProxy* PhysicsPro
 
 						FVector WorldVelocity = Particle->V() - Chaos::FVec3::CrossProduct(Arm, Particle->W());
 						FVector LocalVelocity = OffsetTransform.InverseTransformVector(BodyTransform.InverseTransformVector(WorldVelocity));
-						Module->SetLocalVelocity(LocalVelocity);
+
+						FVector LocalAngular = BodyTransform.InverseTransformVector(Particle->W());
+						LocalAngular = Module->GetClusteredTransform().InverseTransformVector(LocalAngular);
+
+						Module->SetLocalLinearVelocity(LocalVelocity);
+						Module->SetLocalAngularVelocity(LocalAngular);
 
 						//Chaos::FDebugDrawQueue::GetInstance().DrawDebugLine(WorldLocation, WorldLocation + WorldVelocity, FColor::White, false, -1.f, 0, 5.f);
 
@@ -447,7 +461,7 @@ void FSimModuleTree::SetSimState(const Chaos::FModuleNetDataArray& ModuleDatas)
 {
 	for (const TSharedPtr<FModuleNetData>& DataElement : ModuleDatas)
 	{
-		if (!SimulationModuleTree.IsEmpty() && SimulationModuleTree[DataElement->SimArrayIndex].SimModule)
+		if (!SimulationModuleTree.IsEmpty() && DataElement->SimArrayIndex < SimulationModuleTree.Num() && SimulationModuleTree[DataElement->SimArrayIndex].SimModule)
 		{
 			DataElement->FillSimState(SimulationModuleTree[DataElement->SimArrayIndex].SimModule);
 		}
@@ -466,3 +480,4 @@ void FSimModuleTree::InterpolateState(const float LerpFactor, Chaos::FModuleNetD
 #if VEHICLE_DEBUGGING_ENABLED
 UE_ENABLE_OPTIMIZATION
 #endif
+
