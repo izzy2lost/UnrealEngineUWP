@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { CommandBar, CommandBarButton, ICommandBarItemProps, IContextualMenuItem, Stack } from '@fluentui/react';
+import { CommandBar, CommandBarButton, ICommandBarItemProps, IContextualMenuItem, NavBase, Stack } from '@fluentui/react';
 import { observer } from 'mobx-react-lite';
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArtifactContextType, JobState, JobStepOutcome, JobStepState, StepData } from '../../backend/Api';
 import dashboard from '../../backend/Dashboard';
 import { hordeClasses } from '../../styles/Styles';
@@ -208,7 +208,12 @@ export const JobOperations: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({
 
 const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: string }> = observer(({ jobDetails, stepId }) => {
 
-   const [artifactsShown, setArtifactsShown] = useState<ArtifactContextType | undefined>(undefined);
+   
+   const navigate = useNavigate();
+
+   const query = useQuery();
+   const artifactContext = !!query.get("artifactContext") ? query.get("artifactContext")! as ArtifactContextType : undefined;
+   const artifactPath = !!query.get("artifactPath") ? query.get("artifactPath")! : undefined;
 
    const jobData = jobDetails.jobData;
 
@@ -237,12 +242,14 @@ const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: stri
 
    const opsList: IContextualMenuItem[] = [];
 
+   const baseUrl = window.location.pathname + window.location.search;
+
    opsList.push({
       key: 'stepops_artifacts_step',
       text: "Logs",
       iconProps: { iconName: "Folder" },
       disabled: !atypes.get("step-saved"),
-      onClick: () => { setArtifactsShown("step-saved") }
+      onClick: () => { navigate(`${baseUrl}&artifactContext=step-saved`, { replace: true }) }
    });
 
    opsList.push({
@@ -250,7 +257,7 @@ const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: stri
       text: "Temp Storage",
       iconProps: { iconName: "MenuOpen" },
       disabled: !atypes.get("step-output"),
-      onClick: () => { setArtifactsShown("step-output") }
+      onClick: () => { navigate(`${baseUrl}&artifactContext=step-output`, { replace: true }) }
    });
 
    opsList.push({
@@ -258,7 +265,7 @@ const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: stri
       text: "Traces",
       iconProps: { iconName: "SearchTemplate" },
       disabled: !atypes.get("step-trace"),
-      onClick: () => { setArtifactsShown("step-trace") }
+      onClick: () => { navigate(`${baseUrl}&artifactContext=step-trace`, { replace: true }) }
    });
 
    const opsItems: ICommandBarItemProps[] = [
@@ -274,7 +281,7 @@ const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: stri
    ];
 
    return <Stack>
-      {!!artifactsShown && <JobArtifactsModal stepId={step.id} jobId={jobDetails.jobId!} contextType={artifactsShown} artifacts={stepArtifacts} onClose={() => { setArtifactsShown(undefined); }} />}
+      {!!artifactContext && <JobArtifactsModal stepId={step.id} jobId={jobDetails.jobId!} contextType={artifactContext} artifactPath={artifactPath}  artifacts={stepArtifacts} onClose={() => { navigate(window.location.pathname + `?step=${stepId}`, { replace: true }) }} />}
       <Stack horizontal styles={{ root: { paddingLeft: 0 } }}>
          <Stack grow />
          <Stack horizontal>
