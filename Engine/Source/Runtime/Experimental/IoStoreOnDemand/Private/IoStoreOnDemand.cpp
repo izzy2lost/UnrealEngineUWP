@@ -1282,24 +1282,7 @@ void FIoStoreOnDemandModule::StartupModule()
 {
 	using namespace UE::IO::Private;
 
-#if WITH_EDITOR
-	bool bEnabledInEditor = false;
-	GConfig->GetBool(TEXT("Ias"), TEXT("EnableInEditor"), bEnabledInEditor, GEngineIni);
-
-	if (!bEnabledInEditor)
-	{
-		return;
-	}
-#endif //WITH_EDITOR
-
 	const TCHAR* CommandLine = FCommandLine::Get();
-
-#if !UE_BUILD_SHIPPING
-	if (FParse::Param(CommandLine, TEXT("NoIas")))
-	{
-		return;
-	}
-#endif
 
 	UE::FOnDemandEndpoint Endpoint;
 	
@@ -1383,6 +1366,23 @@ void FIoStoreOnDemandModule::StartupModule()
 	{
 		return;
 	}
+
+#if WITH_EDITOR
+	bool bEnabledInEditor = false;
+	GConfig->GetBool(TEXT("Ias"), TEXT("EnableInEditor"), bEnabledInEditor, GEngineIni);
+
+	if (!bEnabledInEditor)
+	{
+		return;
+	}
+#endif //WITH_EDITOR
+
+#if !UE_BUILD_SHIPPING
+	if (FParse::Param(CommandLine, TEXT("NoIas")))
+	{
+		return;
+	}
+#endif
 
 	FLatencyInjector::Initialize(CommandLine);
 
