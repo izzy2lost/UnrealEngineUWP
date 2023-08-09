@@ -4,6 +4,7 @@
 
 #include "PCGSettings.h"
 
+#include "PCGPin.h"
 #include "Elements/PCGPointProcessingElementBase.h"
 
 #include "UObject/NameTypes.h"
