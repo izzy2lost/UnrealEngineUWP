@@ -529,6 +529,17 @@ namespace Chaos
 	}
 
 	template<EThreadContext Id>
+	bool FReadPhysicsObjectInterface<Id>::AreAllDynamicOrSleeping(TArrayView<const FConstPhysicsObjectHandle> InObjects)
+	{
+		bool bCheck = !InObjects.IsEmpty();
+		for (const FConstPhysicsObjectHandle Object : InObjects)
+		{
+			bCheck &= (Object && Object->IsValid() && (Object->ObjectState<Id>() == EObjectStateType::Dynamic || Object->ObjectState<Id>() == EObjectStateType::Sleeping));
+		}
+		return bCheck;
+	}
+
+	template<EThreadContext Id>
 	bool FReadPhysicsObjectInterface<Id>::AreAllDisabled(TArrayView<const FConstPhysicsObjectHandle> InObjects)
 	{
 		bool bDisabled = !InObjects.IsEmpty();

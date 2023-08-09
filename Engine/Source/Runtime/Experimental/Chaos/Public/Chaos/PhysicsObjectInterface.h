@@ -95,6 +95,7 @@ namespace Chaos
 		CHAOS_API bool AreAllSleeping(TArrayView<const FConstPhysicsObjectHandle> InObjects);
 		CHAOS_API bool AreAllRigidBody(TArrayView<const FConstPhysicsObjectHandle> InObjects);
 		CHAOS_API bool AreAllDynamic(TArrayView<const FConstPhysicsObjectHandle> InObjects);
+		CHAOS_API bool AreAllDynamicOrSleeping(TArrayView<const FConstPhysicsObjectHandle> InObjects);
 		CHAOS_API bool AreAllDisabled(TArrayView<const FConstPhysicsObjectHandle> InObjects);
 		CHAOS_API bool AreAllShapesQueryEnabled(TArrayView<const FConstPhysicsObjectHandle> InObjects);
 		CHAOS_API float GetMass(TArrayView<const FConstPhysicsObjectHandle> InObjects);

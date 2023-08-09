@@ -964,7 +964,7 @@ bool UPrimitiveComponent::IsSimulatingPhysics(FName BoneName) const
 			}
 		);
 
-		return Interface->AreAllDynamic(PhysicsObjects);
+		return Interface->AreAllDynamicOrSleeping(PhysicsObjects);
 	}
 
 	return false;
