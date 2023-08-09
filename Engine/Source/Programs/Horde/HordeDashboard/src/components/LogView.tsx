@@ -879,7 +879,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
 
          opsList.push({
             key: 'stepops_artifacts_step',
-            text: "Step Artifacts",
+            text: "Logs",
             iconProps: { iconName: "Folder" },
             disabled: !atypes.get("step-saved"),
             onClick: () => { setLogArtifacts("step-saved") }
@@ -887,7 +887,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
 
          opsList.push({
             key: 'stepops_artifacts_output',
-            text: "Output Artifacts",
+            text: "Temp Storage",
             iconProps: { iconName: "MenuOpen" },
             disabled: !atypes.get("step-output"),
             onClick: () => { setLogArtifacts("step-output") }
@@ -895,7 +895,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
 
          opsList.push({
             key: 'stepops_artifacts_trace',
-            text: "Trace Artifacts",
+            text: "Traces",
             iconProps: { iconName: "SearchTemplate" },
             disabled: !atypes.get("step-trace"),
             onClick: () => { setLogArtifacts("step-trace") }

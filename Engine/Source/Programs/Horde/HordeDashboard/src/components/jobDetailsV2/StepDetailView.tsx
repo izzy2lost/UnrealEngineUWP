@@ -163,7 +163,7 @@ const StepDetailViewInner: React.FC<{ jobDetails: JobDetailsV2, stepId: string }
       {<Stack>
          <StepHistoryPanel jobDetails={jobDetails} stepId={stepId} />
       </Stack>}
-      {!jobData.useArtifactsV2 && <Stack>
+      {<Stack>
          <JobDetailArtifactsV2 jobDetails={jobDetails} stepId={stepId} />
       </Stack>}
       {!!step && <Stack>

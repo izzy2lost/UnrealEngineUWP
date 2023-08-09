@@ -239,7 +239,7 @@ const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: stri
 
    opsList.push({
       key: 'stepops_artifacts_step',
-      text: "Step Artifacts",
+      text: "Logs",
       iconProps: { iconName: "Folder" },
       disabled: !atypes.get("step-saved"),
       onClick: () => { setArtifactsShown("step-saved") }
@@ -247,7 +247,7 @@ const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: stri
 
    opsList.push({
       key: 'stepops_artifacts_output',
-      text: "Output Artifacts",
+      text: "Temp Storage",
       iconProps: { iconName: "MenuOpen" },
       disabled: !atypes.get("step-output"),
       onClick: () => { setArtifactsShown("step-output") }
@@ -255,7 +255,7 @@ const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: stri
 
    opsList.push({
       key: 'stepops_artifacts_trace',
-      text: "Trace Artifacts",
+      text: "Traces",
       iconProps: { iconName: "SearchTemplate" },
       disabled: !atypes.get("step-trace"),
       onClick: () => { setArtifactsShown("step-trace") }
