@@ -148,7 +148,7 @@ namespace EpicGames.AspNet
 			context.Response.OnStarting(() => {
 				if (serverTiming.Metrics.Any())
 				{
-					string serverTimingValue = String.Join(",", serverTiming.Metrics);
+					string serverTimingValue = String.Join(",", serverTiming.Metrics.Take(10));
 					context.Response.Headers.Append("Server-Timing", serverTimingValue);
 				}
 
