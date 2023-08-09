@@ -714,11 +714,14 @@ void PurgePackages(TArrayView<const FName> InPackageNames)
 UWorld* GetCurrentWorld()
 {
 	UWorld* CurrentWorld = nullptr;
+#if WITH_EDITOR
 	if (GIsEditor)
 	{
 		CurrentWorld = GEditor->GetEditorWorldContext().World();
 	}
-	else if (UGameEngine* GameEngine = Cast<UGameEngine>(GEngine))
+	else
+#endif
+	if (UGameEngine* GameEngine = Cast<UGameEngine>(GEngine))
 	{
 		CurrentWorld = GameEngine->GetGameWorld();
 	}
@@ -727,6 +730,7 @@ UWorld* GetCurrentWorld()
 
 ULevel* GetExternalPersistentWorld()
 {
+#if WITH_EDITOR
 	UWorld* CurrentWorld = ConcertSyncClientUtil::GetCurrentWorld();
 	if (CurrentWorld)
 	{
@@ -736,6 +740,7 @@ ULevel* GetExternalPersistentWorld()
 			return PersistentLevel;
 		}
 	}
+#endif
 	return nullptr;
 }
 

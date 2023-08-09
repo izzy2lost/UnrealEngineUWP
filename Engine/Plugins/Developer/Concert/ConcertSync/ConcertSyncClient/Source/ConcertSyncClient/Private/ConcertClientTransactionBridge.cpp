@@ -4,14 +4,16 @@
 #include "ConcertLogGlobal.h"
 #include "ConcertSyncSettings.h"
 #include "ConcertSyncClientUtil.h"
-
 #include "ConcertTransactionEvents.h"
 #include "IConcertClientTransactionBridge.h"
-#include "TransactionCommon.h"
+
+#include "GameFramework/Actor.h"
+#include "HAL/IConsoleManager.h"
 #include "Misc/ITransactionObjectAnnotation.h"
 #include "Misc/PackageName.h"
 #include "Misc/CoreDelegates.h"
-#include "HAL/IConsoleManager.h"
+#include "TransactionCommon.h"
+#include "UObject/Package.h"
 
 #if WITH_EDITOR
 	#include "Editor.h"
@@ -59,6 +61,7 @@ bool RunTransactionFilters(const TArray<FTransactionClassFilter>& InFilters, UOb
 	return bMatchFilter;
 }
 
+#if WITH_EDITOR
 template <typename TUObjectType>
 FTypedElementHandle AcquireTypedElementHandle(const TUObjectType* InObject)
 {
@@ -92,6 +95,7 @@ void DeselectElements(UTypedElementSelectionSet* InSelectionSet, const TUObjectA
 	}
 	InSelectionSet->DeselectElements(HandlesToRemoveFromSelection, SelectionOptions);
 }
+#endif
 
 void DeselectActorsAndActorComponents(const TArray<AActor*>& DeletedActors, const TArray<UActorComponent*>& DeletedActorComponents)
 {
@@ -298,7 +302,9 @@ void ProcessTransactionEvent(const FConcertTransactionEventBase& InEvent, const 
 	// Phase 1
 	// --------------------------------------------------------------------------------------------------------------------
 	bool bObjectsDeleted = false;
+#if WITH_EDITOR
 	TArray<AActor*> ResurrectedActors;
+#endif
 	TArray<ConcertSyncClientUtil::FGetObjectResult, TInlineAllocator<32>> TransactionObjects;
 	{
 		TSet<const UObject*> NewlyCreatedObjects;
@@ -360,7 +366,11 @@ void ProcessTransactionEvent(const FConcertTransactionEventBase& InEvent, const 
 					ConcertSyncUtil::ResetObjectPropertiesToArchetypeValues(TransactionObjectRef.Obj, bIncludeEditorOnlyProperties);
 				}
 
-				if (!TransactionObjectRef.NewlyCreated() && !ObjectUpdate.ObjectData.bIsPendingKill && bWasPendingKill)
+#if WITH_EDITOR
+				// We do not need to handle the resurrection case outside the editor as it involves objects being partially active due to the transaction buffer, a feature exclusive to the editor.
+				// Remember: This case would happen if you undo the deletion of an actor... that does not happen in games!
+				const bool bWasResurrected = !TransactionObjectRef.NewlyCreated() && !ObjectUpdate.ObjectData.bIsPendingKill && bWasPendingKill;
+				if (bWasResurrected)
 				{
 					// If we're bringing this actor back to life, then make sure any SCS/UCS components exist in a clean state
 					// We have to do this as some of the actor components may have been GC'd when using "AllowEliminatingReferences(false)" (eg, within the transaction buffer)
@@ -386,6 +396,7 @@ void ProcessTransactionEvent(const FConcertTransactionEventBase& InEvent, const 
 						});
 					}
 				}
+#endif
 			}
 		}
 	}
@@ -571,13 +582,13 @@ void ProcessTransactionEvent(const FConcertTransactionEventBase& InEvent, const 
 	{
 		EditorTransactionNotification.PostUndo();
 	}
-#endif
-
+	
 	// Ensure that any actors we restored from the dead are added back to the actors array of their owner level
 	for (AActor* Actor : ResurrectedActors)
 	{
 		ConcertSyncClientUtil::AddActorToOwnerLevel(Actor);
 	}
+#endif
 
 	DeselectActorsAndActorComponents(DeletedActorsForSelectionUpdate, DeletedActorComponentForSelectionUpdate);
 
