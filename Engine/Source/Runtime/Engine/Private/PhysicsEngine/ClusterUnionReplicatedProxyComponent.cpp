@@ -123,10 +123,8 @@ void UClusterUnionReplicatedProxyComponent::PostRepNotifies()
 	const bool bIsInitialReplication = bNetUpdateParentClusterUnion || bNetUpdateChildClusteredComponent || bNetUpdateParticleBoneIds;
 	if (bIsInitialReplication)
 	{
-		if (!DeferAddComponentToClusterHandle.IsValid())
-		{
-			DeferAddComponentToClusterHandleUntilInitialTransformUpdate();
-		}
+		AddComponentToCluster();
+
 		bNetUpdateParentClusterUnion = false;
 		bNetUpdateChildClusteredComponent = false;
 		bNetUpdateParticleBoneIds = false;
@@ -144,58 +142,49 @@ void UClusterUnionReplicatedProxyComponent::PostRepNotifies()
 	}
 }
 
-void UClusterUnionReplicatedProxyComponent::DeferAddComponentToClusterHandleUntilInitialTransformUpdate()
+void UClusterUnionReplicatedProxyComponent::AddComponentToCluster()
 {
 	if (!ParentClusterUnion.IsValid() || !ChildClusteredComponent.IsValid() || IsPendingDeletion())
 	{
 		return;
 	}
 
-	DeferAddComponentToClusterHandle.Invalidate();
+	// Need to check if we're *losing* bones instead and handle that situation as well as adding new bones into the cluster union.
+	// This extra check also does a bit of prevention on the client side from adding duplicate particles into the cluster union.
+	TSet<int32> NewBoneIdSet{ ParticleBoneIds };
 
-	if (ParentClusterUnion->HasReceivedTransform())
+	TArray<int32> ToAdd;
+	ToAdd.Reserve(NewBoneIdSet.Num());
+
+	for (int32 BoneId : NewBoneIdSet)
 	{
-		// Need to check if we're *losing* bones instead and handle that situation as well as adding new bones into the cluster union.
-		// This extra check also does a bit of prevention on the client side from adding duplicate particles into the cluster union.
-		TSet<int32> NewBoneIdSet{ ParticleBoneIds };
-
-		TArray<int32> ToAdd;
-		ToAdd.Reserve(NewBoneIdSet.Num());
-
-		for (int32 BoneId : NewBoneIdSet)
+		if (!LastSyncedBoneIds.Contains(BoneId))
 		{
-			if (!LastSyncedBoneIds.Contains(BoneId))
-			{
-				ToAdd.Add(BoneId);
-			}
+			ToAdd.Add(BoneId);
 		}
-
-		if (!ToAdd.IsEmpty())
-		{
-			ParentClusterUnion->AddComponentToCluster(ChildClusteredComponent.Get(), ToAdd);
-		}
-
-		TArray<int32> ToRemove;
-		ToRemove.Reserve(LastSyncedBoneIds.Num());
-		for (int32 BoneId : LastSyncedBoneIds)
-		{
-			if (!NewBoneIdSet.Contains(BoneId))
-			{
-				ToRemove.Add(BoneId);
-			}
-		}
-
-		if (!ToRemove.IsEmpty())
-		{
-			ParentClusterUnion->RemoveComponentBonesFromCluster(ChildClusteredComponent.Get(), ToRemove);
-		}
-
-		LastSyncedBoneIds = NewBoneIdSet;
 	}
-	else if (AActor* Owner = GetOwner())
+
+	if (!ToAdd.IsEmpty())
 	{
-		DeferAddComponentToClusterHandle = Owner->GetWorldTimerManager().SetTimerForNextTick(this, &UClusterUnionReplicatedProxyComponent::DeferAddComponentToClusterHandleUntilInitialTransformUpdate);
+		ParentClusterUnion->AddComponentToCluster(ChildClusteredComponent.Get(), ToAdd);
 	}
+
+	TArray<int32> ToRemove;
+	ToRemove.Reserve(LastSyncedBoneIds.Num());
+	for (int32 BoneId : LastSyncedBoneIds)
+	{
+		if (!NewBoneIdSet.Contains(BoneId))
+		{
+			ToRemove.Add(BoneId);
+		}
+	}
+
+	if (!ToRemove.IsEmpty())
+	{
+		ParentClusterUnion->RemoveComponentBonesFromCluster(ChildClusteredComponent.Get(), ToRemove);
+	}
+
+	LastSyncedBoneIds = NewBoneIdSet;
 }
 
 void UClusterUnionReplicatedProxyComponent::DeferSetChildToParentChildUntilClusteredComponentInParentUnion()

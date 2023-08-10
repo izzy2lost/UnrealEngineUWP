@@ -54,7 +54,6 @@ UClusterUnionComponent::UClusterUnionComponent(const FObjectInitializer& ObjectI
 	PhysicsProxy = nullptr;
 	SetIsReplicatedByDefault(true);
 	bComputeBoundsOnceForGame = false;
-	bHasReceivedTransform = false;
 	bHasCachedLocalBounds = false;
 #if WITH_EDITORONLY_DATA
 	bVisualizeComponent = true;
@@ -131,18 +130,32 @@ void UClusterUnionComponent::AddComponentToCluster(UPrimitiveComponent* InCompon
 	PendingData.BoneIds.Empty(Objects.Num());
 	PendingData.AccelerationPayloads.Empty(Objects.Num());
 
+	// We want to fix the ChildToParent relationship between the particles we're adding and the cluster union
+	// based on the current game-thread state, not the future physics-thread state as the two may diverge
+	// which could cause the alignment between the particle and the cluster union to be different from what
+	// would be expected.
+	TArray<FTransform> ChildToParents;
+	ChildToParents.Reserve(Objects.Num());
+
+	const FTransform CurrentComponentTransform = GetComponentTransform();
 	for (Chaos::FPhysicsObjectHandle Object : Objects)
 	{
-		const int32 BoneId = Chaos::FPhysicsObjectInterface::GetId(Object);
-		PendingData.BoneIds.Add(BoneId);
-
-		if (AccelerationStructure && Object)
+		if (Object)
 		{
-			const FBox HandleBounds = Interface->GetWorldBounds({ &Object, 1 });
-			FExternalSpatialAccelerationPayload Handle;
-			Handle.Initialize(InComponent, BoneId);
-			AccelerationStructure->UpdateElement(Handle, Chaos::TAABB<Chaos::FReal, 3>{HandleBounds.Min, HandleBounds.Max}, HandleBounds.IsValid != 0);
-			PendingData.AccelerationPayloads.Add(Handle);
+			const int32 BoneId = Chaos::FPhysicsObjectInterface::GetId(Object);
+			PendingData.BoneIds.Add(BoneId);
+
+			if (AccelerationStructure)
+			{
+				const FBox HandleBounds = Interface->GetWorldBounds({ &Object, 1 });
+				FExternalSpatialAccelerationPayload Handle;
+				Handle.Initialize(InComponent, BoneId);
+				AccelerationStructure->UpdateElement(Handle, Chaos::TAABB<Chaos::FReal, 3>{HandleBounds.Min, HandleBounds.Max}, HandleBounds.IsValid != 0);
+				PendingData.AccelerationPayloads.Add(Handle);
+			}
+
+			const FTransform CurrentParticleTransform = Interface->GetTransform(Object);
+			ChildToParents.Add(CurrentParticleTransform.GetRelativeTransform(CurrentComponentTransform));
 		}
 	}
 
@@ -153,6 +166,8 @@ void UClusterUnionComponent::AddComponentToCluster(UPrimitiveComponent* InCompon
 	PendingComponentSync.Add(InComponent, PendingData);
 
 	PhysicsProxy->AddPhysicsObjects_External(Objects);
+	ForceSetChildToParent(InComponent, PendingData.BoneIds, ChildToParents);
+
 	if (bRebuildGeometry)
 	{
 		if(!bIncrementalUnionBuild)
@@ -551,7 +566,7 @@ void UClusterUnionComponent::OnCreatePhysicsState()
 	InitData.UserData = static_cast<void*>(&PhysicsUserData);
 	InitData.ActorId = GetOwner()->GetUniqueID();
 	InitData.ComponentId = GetUniqueID();
-	InitData.bNeedsClusterXRInitialization = bHasAuthority;
+	InitData.InitialTransform = GetComponentTransform();
 
 	// Client needs to be set to unbreakable so the server is authoritative.
 	InitData.bUnbreakable = !bHasAuthority;
@@ -559,7 +574,6 @@ void UClusterUnionComponent::OnCreatePhysicsState()
 	// Only need to check connectivity on the server and have the client rely on replication to get the memo on when to release from cluster union.
 	InitData.bCheckConnectivity = bHasAuthority;
 
-	bHasReceivedTransform = false;
 	PhysicsProxy = new Chaos::FClusterUnionPhysicsProxy{ this, Parameters, InitData };
 	PhysicsProxy->Initialize_External();
 	if (FPhysScene_Chaos* Scene = GetChaosScene())
@@ -625,24 +639,11 @@ void UClusterUnionComponent::OnDestroyPhysicsState()
 
 void UClusterUnionComponent::OnReceiveReplicatedState(const FVector X, const FQuat R, const FVector V, const FVector W)
 {
-	if (!bHasReceivedTransform)
-	{
-		// First time, we just directly set component state
-		//
-		// NOTE: This is only needed because ClusterUnion has a flag bHasReceivedTransform
-		// which does not get updated until the component's transform is directly set.
-		// Until that flag is set, it's root particle will be in a disabled state and not
-		// have any children, therefore replication will be dead in the water.
-		SetWorldTransform(FTransform(R, X, GetRelativeScale3D()), false, nullptr, ETeleportType::TeleportPhysics);
-		SetPhysicsLinearVelocity(V);
-		SetAllPhysicsAngularVelocityInDegrees(W);
-	}
 }
 
 void UClusterUnionComponent::OnUpdateTransform(EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport)
 {
 	USceneComponent::OnUpdateTransform(UpdateTransformFlags, Teleport);
-	bHasReceivedTransform = true;
 
 	if (PhysicsProxy && !(UpdateTransformFlags & EUpdateTransformFlags::SkipPhysicsUpdate))
 	{
