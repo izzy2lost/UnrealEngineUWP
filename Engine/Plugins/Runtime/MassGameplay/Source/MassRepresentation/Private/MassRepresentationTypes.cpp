@@ -75,32 +75,6 @@ default: \
 }
 } // UE::Mass::Representation
 
-//-----------------------------------------------------------------------------
-// FMassInstancedStaticMeshInfo
-//-----------------------------------------------------------------------------
-void FMassInstancedStaticMeshInfo::AddISMComponent(FMassISMCSharedData& SharedData)
-{
-	if (ensure(SharedData.GetISMComponent()))
-	{
-		const uint32 ISMComponentPathHash = GetTypeHash(SharedData.GetISMComponentChecked().GetPathName());
-		AddISMComponent(ISMComponentPathHash, SharedData);
-	}
-}
-
-void FMassInstancedStaticMeshInfo::ReplaceISMComponent(const uint32 PathHash, UInstancedStaticMeshComponent& ISMComponent)
-{
-	const int32 EntryIndex = PathHashes.Find(PathHash);
-	if (EntryIndex != INDEX_NONE)
-	{
-		// using GetValid rather than TObjectPtr.Get since the latter won't fail if the object in question is marked as Garbage
-		const UInstancedStaticMeshComponent* PrevInstance = GetValid(InstancedStaticMeshComponents[EntryIndex]);
-		ensure(PrevInstance == nullptr || PrevInstance == &ISMComponent);
-		if (PrevInstance != &ISMComponent)
-		{
-			InstancedStaticMeshComponents[EntryIndex] = &ISMComponent;
-		}
-	}
-}
 
 //-----------------------------------------------------------------------------
 // FMassStaticMeshInstanceVisualizationMeshDesc
