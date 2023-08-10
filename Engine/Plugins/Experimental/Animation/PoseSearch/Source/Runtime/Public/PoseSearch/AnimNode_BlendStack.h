@@ -198,5 +198,13 @@ struct POSESEARCH_API FAnimNode_BlendStack : public FAnimNode_BlendStack_Standal
 	// FAnimNode_Base interface
 	virtual void UpdateAssetPlayer(const FAnimationUpdateContext& Context) override;
 	// End of FAnimNode_Base interface
+
+	// Force a blend on the next update, even if the anim sequence has not changed.
+	void ForceBlendNextUpdate();
+
+private:
+
+	bool bForceBlendNextUpdate = false;
+
 };
 

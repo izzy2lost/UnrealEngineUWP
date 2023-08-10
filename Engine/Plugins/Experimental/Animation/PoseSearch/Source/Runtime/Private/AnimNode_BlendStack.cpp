@@ -727,7 +727,12 @@ void FAnimNode_BlendStack::UpdateAssetPlayer(const FAnimationUpdateContext& Cont
 			const UAnimationAsset* PlayingAnimationAsset = MainAnimPlayer.GetAnimationAsset();
 			check(PlayingAnimationAsset);
 
-			if (AnimationAsset != PlayingAnimationAsset)
+			if (bForceBlendNextUpdate)
+			{
+				bForceBlendNextUpdate = false;
+				bExecuteBlendTo = true;
+			}
+			else if (AnimationAsset != PlayingAnimationAsset)
 			{
 				bExecuteBlendTo = true;
 			}
@@ -754,6 +759,11 @@ void FAnimNode_BlendStack::UpdateAssetPlayer(const FAnimationUpdateContext& Cont
 	UpdatePlayRate(WantedPlayRate);
 
 	Super::UpdateAssetPlayer(Context);
+}
+
+void FAnimNode_BlendStack::ForceBlendNextUpdate()
+{
+	bForceBlendNextUpdate = true;
 }
 
 void FBlendStack_SampleGraphPoseLink::SetInputPosePlayer(FPoseSearchAnimPlayer& InPlayer)
