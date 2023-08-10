@@ -1554,9 +1554,9 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePlugins(FBuiltInPluginAdditio
 		{
 			LoadContext->Results.Add(Plugin->GetName(), Result);
 			++LoadContext->NumPluginsLoaded;
-			UE_LOG(LogGameFeatures, VeryVerbose, TEXT("Finished Loading %i builtins"), LoadContext->NumPluginsLoaded);
 		}));
 	}
+	UE_LOG(LogGameFeatures, VeryVerbose, TEXT("Finished Loading %i builtins"), LoadContext->NumPluginsLoaded);
 }
 
 bool UGameFeaturesSubsystem::GetPluginURLByName(const FString& PluginName, FString& OutPluginURL) const
@@ -1757,28 +1757,49 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginDetails(const FString& PluginUR
 				if (ElementObjectPtr && ElementObjectPtr->IsValid())
 				{
 					const TSharedPtr<FJsonObject>& ElementObject = *ElementObjectPtr;
-					bool bElementEnabled = false;
-					ElementObject->TryGetBoolField(EnabledField, bElementEnabled);
 
-					bool bElementActivate = false;
-					ElementObject->TryGetBoolField(ActivateField, bElementActivate);
-
-					if (bElementEnabled)
+					FString DependencyName;
+					ElementObject->TryGetStringField(NameField, DependencyName);
+					if (!DependencyName.IsEmpty())
 					{
-						FString DependencyName;
-						ElementObject->TryGetStringField(NameField, DependencyName);
-						if (!DependencyName.IsEmpty())
+						//parse enabled element from IPlugin data and use that to filter if further parsing is needed
+						bool bElementEnabled = false;
+						if (TSharedPtr<IPlugin> DependencyPlugin = IPluginManager::Get().FindPlugin(DependencyName))
 						{
-							TValueOrError<FString, FString> ResolvedDepResult = GameSpecificPolicies->ReslovePluginDependency(PluginURL, DependencyName);
-							if (ResolvedDepResult.HasError())
+							if (DependencyPlugin->GetType() == EPluginType::Engine)
 							{
-								UE_LOG(LogGameFeatures, Error, TEXT("Game feature plugin '%s' has unknown dependency '%s' [%s]."), *PluginDescriptorFilename, *DependencyName, *ResolvedDepResult.GetError());
+								UE_LOG(LogGameFeatures, VeryVerbose, TEXT("Skipping Dependency %s in %s because it is an engine plugin and thus can not be a GFP"), *DependencyName, *PluginDescriptorFilename);
+								continue;
 							}
-							else if (ResolvedDepResult.HasValue() && !ResolvedDepResult.GetValue().IsEmpty()) // Dependency may not be a GFP
+
+							bElementEnabled = DependencyPlugin->IsEnabled();							
+						}
+						// Plugin is not yet in PluginManager, so need to just go off JSon enabled value
+						else
+						{
+							ElementObject->TryGetBoolField(EnabledField, bElementEnabled);
+							if (bElementEnabled)
 							{
-								OutPluginDetails.PluginDependencies.Emplace(FGameFeaturePluginReferenceDetails(ResolvedDepResult.StealValue(), bElementActivate));
+								UE_LOG(LogGameFeatures, Display, TEXT("Plugin dependency %s marked enabled in %s but not found in PluginManager."), *DependencyName, *PluginDescriptorFilename);
 							}
 						}
+
+						if (bElementEnabled)
+						{
+							//Have to get Activate from JSON as it's unique to GFP and not in the PluginManager
+							bool bElementActivate = false;
+							ElementObject->TryGetBoolField(ActivateField, bElementActivate);
+
+							OutPluginDetails.PluginDependencies.Emplace(FGameFeaturePluginReferenceDetails(DependencyName, bElementActivate));
+						}
+						else
+						{
+							UE_LOG(LogGameFeatures, VeryVerbose, TEXT("Skipping adding dependency %s in %s. Plugin is disabled."), *DependencyName, *PluginDescriptorFilename);
+						}
+					}
+					else
+					{
+						UE_LOG(LogGameFeatures, Error, TEXT("Error parsing dependency name in %s! Invalid JSON data!"), *PluginDescriptorFilename);
 					}
 				}
 			}
@@ -1987,17 +2008,33 @@ bool UGameFeaturesSubsystem::FindOrCreatePluginDependencyStateMachines(const FSt
 	{
 		for (const FGameFeaturePluginReferenceDetails& PluginDependency : Details.PluginDependencies)
 		{
+			const FString& DependencyName = PluginDependency.PluginName;
+			TValueOrError<FString, FString> DependencyURLInfo = GameSpecificPolicies->ResolvePluginDependency(PluginURL, DependencyName);
+			if (DependencyURLInfo.HasError())
+			{
+				UE_LOG(LogGameFeatures, Error, TEXT("Failure to resolve dependency %s [%s] for parent plugin url: %s"), *DependencyName, *DependencyURLInfo.GetError(), *PluginURL);
+				return false;
+			}
+
+			const FString& DependencyURL = DependencyURLInfo.GetValue();
+
+			// Dependency may not be a GFP and so will have an empty URL but not have an error
+			if (DependencyURL.IsEmpty())
+			{
+				continue;
+			}
+
 			// Inherit dep protocol options if possible
 			FGameFeatureProtocolOptions DepProtocolOptions;
-			EGameFeaturePluginProtocol DepProtocol = UGameFeaturesSubsystem::GetPluginURLProtocol(PluginDependency.URL);
+			EGameFeaturePluginProtocol DepProtocol = UGameFeaturesSubsystem::GetPluginURLProtocol(DependencyURL);
 			if (DepProtocol == EGameFeaturePluginProtocol::InstallBundle && InDepProtocolOptions.HasSubtype<FInstallBundlePluginProtocolOptions>())
 			{
 				DepProtocolOptions = InDepProtocolOptions;
 			}
 
-			UGameFeaturePluginStateMachine* Dependency = FindOrCreateGameFeaturePluginStateMachine(PluginDependency.URL, DepProtocolOptions);
-			check(Dependency);
-			OutDependencyMachines.Add(Dependency);
+			UGameFeaturePluginStateMachine* ResolvedDependency = FindOrCreateGameFeaturePluginStateMachine(DependencyURL, DepProtocolOptions);
+			check(ResolvedDependency);
+			OutDependencyMachines.Add(ResolvedDependency);
 		}
 
 		return true;
@@ -2006,7 +2043,7 @@ bool UGameFeaturesSubsystem::FindOrCreatePluginDependencyStateMachines(const FSt
 	return false;
 }
 
-bool UGameFeaturesSubsystem::FindPluginDependencyStateMachinesToActivate(const FString& PluginURL, const FString& PluginFilename, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines)
+bool UGameFeaturesSubsystem::FindPluginDependencyStateMachinesToActivate(const FString& PluginURL, const FString& PluginFilename, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines) const
 {
 	FGameFeaturePluginDetails Details;
 	if (GetGameFeaturePluginDetails(PluginURL, PluginFilename, Details))
@@ -2015,9 +2052,33 @@ bool UGameFeaturesSubsystem::FindPluginDependencyStateMachinesToActivate(const F
 		{
 			if (PluginDependency.bShouldActivate)
 			{
-				UGameFeaturePluginStateMachine* Dependency = FindGameFeaturePluginStateMachine(PluginDependency.URL);
-				check(Dependency);
-				OutDependencyMachines.Add(Dependency);
+				const FString& DependencyName = PluginDependency.PluginName;
+				TValueOrError<FString, FString> DependencyURLInfo = GameSpecificPolicies->ResolvePluginDependency(PluginURL, DependencyName);
+				if (DependencyURLInfo.HasError())
+				{
+					UE_LOG(LogGameFeatures, Error, TEXT("Failure to resolve dependency %s [%s] for parent plugin url: %s"), *DependencyName, *DependencyURLInfo.GetError(), *PluginURL);
+					return false;
+				}
+
+				const FString& DependencyURL = DependencyURLInfo.GetValue();
+				
+				// Dependency may not be a GFP and so will have an empty URL but not have an error
+				if (DependencyURL.IsEmpty())
+				{
+					continue;
+				}
+
+				UGameFeaturePluginStateMachine* Dependency = FindGameFeaturePluginStateMachine(DependencyURL);
+				if (Dependency)
+				{
+					OutDependencyMachines.Add(Dependency);
+				}
+				//Expect to find all valid dependencies and activate them, so error if not found
+				else
+				{
+					UE_LOG(LogGameFeatures, Error, TEXT("FindPluginDependencyStateMachinesToActivate failed to find plugin state machine for %s using URL %s"), *DependencyName, *DependencyURL);
+					return false;
+				}
 			}
 		}
 

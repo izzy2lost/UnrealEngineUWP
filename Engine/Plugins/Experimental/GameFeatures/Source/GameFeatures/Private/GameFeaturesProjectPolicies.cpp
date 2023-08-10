@@ -49,25 +49,25 @@ bool UGameFeaturesProjectPolicies::WillPluginBeCooked(const FString& PluginFilen
 	return true;
 }
 
-TValueOrError<FString, FString> UGameFeaturesProjectPolicies::ReslovePluginDependency(const FString& PluginURL, const FString& DependencyName) const
+TValueOrError<FString, FString> UGameFeaturesProjectPolicies::ResolvePluginDependency(const FString& PluginURL, const FString& DependencyName) const
 {
 	FString DependencyURL;
 	bool bResolvedDependency = false;
 
-	// Check if the dependency plugin exists yet (should be true for all built-in plugins)
-	if (TSharedPtr<IPlugin> DependencyPlugin = IPluginManager::Get().FindPlugin(DependencyName))
+	// Check if UGameFeaturesSubsystem is already aware of it
+	if (UGameFeaturesSubsystem::Get().GetPluginURLByName(DependencyName, DependencyURL))
 	{
-		// Check if UGameFeaturesSubsystem is already aware of it
-		if (!UGameFeaturesSubsystem::Get().GetPluginURLByName(DependencyPlugin->GetName(), DependencyURL))
+		bResolvedDependency = true;
+	}
+	// Check if the dependency plugin exists yet (should be true for all built-in plugins)
+	else if (TSharedPtr<IPlugin> DependencyPlugin = IPluginManager::Get().FindPlugin(DependencyName))
+	{
+		// It could still be a GFP, but state machine may not have been created for it yet
+		// Check if it is a built-in GFP
+		if (!DependencyPlugin->GetDescriptorFileName().IsEmpty() &&
+			GetDefault<UGameFeaturesSubsystemSettings>()->IsValidGameFeaturePlugin(FPaths::ConvertRelativePathToFull(DependencyPlugin->GetDescriptorFileName())))
 		{
-			// It could still be a GFP, but state machine may not have been created for it yet
-			// Check if it is a built-in GFP
-			if (!DependencyPlugin->GetDescriptorFileName().IsEmpty() &&
-				GetDefault<UGameFeaturesSubsystemSettings>()->IsValidGameFeaturePlugin(FPaths::ConvertRelativePathToFull(DependencyPlugin->GetDescriptorFileName())) &&
-				FPaths::FileExists(DependencyPlugin->GetDescriptorFileName()))
-			{
-				DependencyURL = UGameFeaturesSubsystem::GetPluginURL_FileProtocol(DependencyPlugin->GetDescriptorFileName());
-			}
+			DependencyURL = UGameFeaturesSubsystem::GetPluginURL_FileProtocol(DependencyPlugin->GetDescriptorFileName());
 		}
 
 		bResolvedDependency = true;

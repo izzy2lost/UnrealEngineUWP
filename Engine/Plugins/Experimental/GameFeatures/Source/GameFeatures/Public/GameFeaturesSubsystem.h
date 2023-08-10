@@ -195,11 +195,11 @@ void GAMEFEATURES_API LexFromString(EGameFeatureTargetState& Value, const TCHAR*
 
 struct FGameFeaturePluginReferenceDetails
 {
-	FString URL;
+	FString PluginName;
 	bool bShouldActivate;
 
-	FGameFeaturePluginReferenceDetails(const FString& InURL, bool bInShouldActivate)
-		: URL(InURL)
+	FGameFeaturePluginReferenceDetails(FString InPluginName, bool bInShouldActivate)
+		: PluginName(MoveTemp(InPluginName))
 		, bShouldActivate(bInShouldActivate)
 	{
 	}
@@ -611,7 +611,7 @@ private:
 	template <typename> friend struct FTransitionDependenciesGameFeaturePluginState;
 	friend struct FWaitingForDependenciesTransitionPolicy;
 
-	bool FindPluginDependencyStateMachinesToActivate(const FString& PluginURL, const FString& PluginFilename, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines);
+	bool FindPluginDependencyStateMachinesToActivate(const FString& PluginURL, const FString& PluginFilename, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines) const;
 	friend struct FActivatingDependenciesTransitionPolicy;
 
 	/** Handle 'ListGameFeaturePlugins' console command */
