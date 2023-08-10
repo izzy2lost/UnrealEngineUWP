@@ -83,6 +83,8 @@ namespace Chaos
 
 		Particle_External->SetProxy(this);
 		Particle_External->SetUserData(InitData.UserData);
+		Particle_External->SetX(InitData.InitialTransform.GetTranslation());
+		Particle_External->SetR(InitData.InitialTransform.GetRotation());
 
 		// NO DIRTY FLAGS ALLOWED. We must strictly manage the dirty flags on the particle.
 		// Setting the particle's XR on the particle will set the XR dirty flag but that isn't
@@ -123,13 +125,23 @@ namespace Chaos
 			Particle_Internal->SetPhysicsProxy(this);
 			Particle_Internal->GTGeometryParticle() = Particle_External.Get();
 			Particle_Internal->SetUnbreakable(InitData.bUnbreakable);
+			Particle_Internal->SetX(InitData.InitialTransform.GetTranslation());
+			Particle_Internal->SetR(InitData.InitialTransform.GetRotation());
+			Particle_Internal->SetV(Chaos::FVec3(0.f));
+			Particle_Internal->SetW(Chaos::FVec3(0.f));
+			Particle_Internal->SetP(Particle_Internal->X());
+			Particle_Internal->SetQ(Particle_Internal->R());
+			Particle_Internal->SetCenterOfMass(FVector3f::ZeroVector);
+			Particle_Internal->SetRotationOfMass(FQuat::Identity);
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 			Particle_Internal->SetDebugName(MakeShared<FString, ESPMode::ThreadSafe>(FString::Printf(TEXT("%s"), *GetOwner()->GetName())));
 #endif
 
-			// On the client, we'd rather wait for the server to initialize the particle properly.
-			ClusterUnion->bNeedsXRInitialization = InitData.bNeedsClusterXRInitialization;
+			// For explicit cluster unions (i.e. cluster unions created via a cluster union component rather than the cluster group index), the cluster union itself is responsible for initializing
+			// the particle's XR from the component's transform. Therefore, we never want the PT to try and initialize the XR of the cluster union - the only changes to XR from the PT should
+			// be a result of physical simulation.
+			ClusterUnion->bNeedsXRInitialization = false;
 			ClusterUnion->bCheckConnectivity = InitData.bCheckConnectivity;
 		}
 	}
