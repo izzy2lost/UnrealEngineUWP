@@ -330,12 +330,12 @@ UMaterialInterface* FComponentMaterialTrackEditor::GetMaterialInterfaceForTrack(
 			if (!MaterialInfo.MaterialSlotName.IsNone())
 			{
 				Material = Component->GetMaterialByName(MaterialInfo.MaterialSlotName);
-				if (!Material)
-				{
-					Material = Component->GetMaterial(MaterialInfo.MaterialSlotIndex);
-				}
-				return Material;
 			}
+			if (!Material)
+			{
+				Material = Component->GetMaterial(MaterialInfo.MaterialSlotIndex);
+			}
+			return Material;
 		}
 		break;
 	case EComponentMaterialType::OverlayMaterial:
