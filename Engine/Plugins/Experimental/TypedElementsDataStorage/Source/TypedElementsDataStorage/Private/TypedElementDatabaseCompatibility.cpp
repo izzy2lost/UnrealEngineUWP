@@ -35,6 +35,11 @@ void UTypedElementDatabaseCompatibility::Deinitialize()
 	Reset();
 }
 
+void UTypedElementDatabaseCompatibility::RegisterRegistrationFilter(ObjectRegistrationFilter Filter)
+{
+	ObjectRegistrationFilters.Add(MoveTemp(Filter));
+}
+
 void UTypedElementDatabaseCompatibility::RegisterDealiaserCallback(ObjectToRowDealiaser Dealiaser)
 {
 	ObjectToRowDialiasers.Add(MoveTemp(Dealiaser));
@@ -53,7 +58,8 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExp
 	}
 	else
 	{
-		if (ensureMsgf(Storage, TEXT("Trying to add a UObject to Typed Element's Data Storage before the storage is available.")))
+		if (ensureMsgf(Storage, TEXT("Trying to add a UObject to Typed Element's Data Storage before the storage is available.")) && 
+			ShouldAddObject(Object))
 		{
 			TypedElementRowHandle ReservedRow = Storage->ReserveRow();
 			ReverseObjectLookup.Add(Object, ReservedRow);
@@ -77,7 +83,8 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExp
 
 TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExplicit(AActor* Actor, TypedElementTableHandle Table)
 {
-	if (ensureMsgf(Storage, TEXT("Trying to add an actor to Typed Element's Data Storage before the storage is available.")))
+	if (ensureMsgf(Storage, TEXT("Trying to add an actor to Typed Element's Data Storage before the storage is available.")) &&
+		ShouldAddObject(Actor))
 	{
 		// Registration is delayed for two reasons:
 		//	1. Allows entity creation in a single batch rather than multiple individual additions.
@@ -244,6 +251,18 @@ void UTypedElementDatabaseCompatibility::CreateStandardArchetypes()
 			FTypedElementExternalObjectColumn, FTypedElementScriptStructTypeInfoColumn,
 			FTypedElementSyncFromWorldTag>(), 
 		FName("Editor_StandardExternalObjectTable"));
+}
+
+bool UTypedElementDatabaseCompatibility::ShouldAddObject(const UObject* Object) const
+{
+	bool Include = true;
+	const ObjectRegistrationFilter* Filter = ObjectRegistrationFilters.GetData();
+	const ObjectRegistrationFilter* FilterEnd = Filter + ObjectRegistrationFilters.Num();
+	for (; Include && Filter != FilterEnd; ++Filter)
+	{
+		Include = (*Filter)(*this, Object);
+	}
+	return Include;
 }
 
 TypedElementRowHandle UTypedElementDatabaseCompatibility::DealiasObject(const UObject* Object) const

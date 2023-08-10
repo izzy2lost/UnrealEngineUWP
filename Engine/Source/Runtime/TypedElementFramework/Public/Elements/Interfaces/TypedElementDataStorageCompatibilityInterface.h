@@ -30,6 +30,7 @@ class ITypedElementDataStorageCompatibilityInterface
 	GENERATED_BODY()
 
 public:
+	using ObjectRegistrationFilter = TFunction<bool(const ITypedElementDataStorageCompatibilityInterface&, const UObject*)>;
 	using ObjectToRowDealiaser = TFunction<TypedElementRowHandle(const ITypedElementDataStorageCompatibilityInterface&, const UObject*)>;
 
 	/**
@@ -57,7 +58,17 @@ public:
 	TypedElementRowHandle FindRowWithCompatibleObject(ObjectType&& Object) const;
 
 	/**
-	 * @section Alias functions
+	 * @section Callback registration
+	 * Functions to register callbacks with the compatibility layer to help refine its operations.
+	 */
+	 
+	/**
+	 * Objects like actors are registered through the compatibility layer in bulk. This can lead to objects being added that cause
+	 * conflicts with other data in the data storage. This callback offers the opportunity to inspect the objects that are being
+	 * added and if they include an object that shouldn't be store it can filter them out.
+	 */
+	virtual void RegisterRegistrationFilter(ObjectRegistrationFilter Filter) = 0;
+	/**
 	 * Notifications and request can be made to the compatibility layer for objects that are stored but don't directly map to a row.
 	 * An example is a UObject represented by a column. If the UObject gets updated there's no direct mapping to the row the column is
 	 * stored in but the row still needs to be updated. For cases like this it's possible to store information to find the row that's

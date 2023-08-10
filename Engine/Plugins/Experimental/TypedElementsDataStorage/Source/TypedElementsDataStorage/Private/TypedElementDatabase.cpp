@@ -273,7 +273,7 @@ bool UTypedElementDatabase::HasRowBeenAssigned(TypedElementRowHandle Row) const
 bool UTypedElementDatabase::AddColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType)
 {
 	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
-	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityValid(Entity))
+	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityActive(Entity))
 	{
 		if (ColumnType->IsChildOf(FMassTag::StaticStruct()))
 		{
@@ -303,7 +303,7 @@ bool UTypedElementDatabase::AddColumn(TypedElementRowHandle Row, FTopLevelAssetP
 void UTypedElementDatabase::RemoveColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType)
 {
 	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
-	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityValid(Entity))
+	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityActive(Entity))
 	{
 		if (ColumnType->IsChildOf(FMassTag::StaticStruct()))
 		{
@@ -328,7 +328,7 @@ void UTypedElementDatabase::RemoveColumn(TypedElementRowHandle Row, FTopLevelAss
 void* UTypedElementDatabase::AddOrGetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType)
 {
 	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
-	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityValid(Entity) &&
+	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityActive(Entity) &&
 		ColumnType && ColumnType->IsChildOf(FMassFragment::StaticStruct()))
 	{
 		FStructView Column = ActiveEditorEntityManager->GetFragmentDataStruct(Entity, ColumnType);
@@ -371,7 +371,7 @@ ColumnDataResult UTypedElementDatabase::AddOrGetColumnData(TypedElementRowHandle
 void* UTypedElementDatabase::GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType)
 {
 	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
-	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityValid(Entity) &&
+	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityActive(Entity) &&
 		ColumnType && ColumnType->IsChildOf(FMassFragment::StaticStruct()))
 	{
 		FStructView Column = ActiveEditorEntityManager->GetFragmentDataStruct(Entity, ColumnType);
@@ -386,7 +386,7 @@ void* UTypedElementDatabase::GetColumnData(TypedElementRowHandle Row, const UScr
 ColumnDataResult UTypedElementDatabase::GetColumnData(TypedElementRowHandle Row, FTopLevelAssetPath ColumnName)
 {
 	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
-	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityValid(Entity))
+	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityActive(Entity))
 	{
 		const UScriptStruct* FragmentType = nullptr;
 		FMassArchetypeHandle Archetype = ActiveEditorEntityManager->GetArchetypeForEntityUnsafe(Entity);
@@ -414,7 +414,7 @@ ColumnDataResult UTypedElementDatabase::GetColumnData(TypedElementRowHandle Row,
 bool UTypedElementDatabase::AddColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns)
 {
 	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
-	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityValid(Entity))
+	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityActive(Entity))
 	{
 		FMassArchetypeHandle Archetype = ActiveEditorEntityManager->GetArchetypeForEntity(Entity);
 
@@ -434,7 +434,7 @@ bool UTypedElementDatabase::AddColumns(TypedElementRowHandle Row, TConstArrayVie
 void UTypedElementDatabase::RemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns)
 {
 	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
-	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityValid(Entity))
+	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityActive(Entity))
 	{
 		FMassArchetypeHandle Archetype = ActiveEditorEntityManager->GetArchetypeForEntity(Entity);
 
@@ -454,7 +454,7 @@ bool UTypedElementDatabase::AddRemoveColumns(TypedElementRowHandle Row,
 {
 	bool bResult = false;
 	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
-	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityValid(Entity))
+	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityActive(Entity))
 	{
 		FMassArchetypeHandle Archetype = ActiveEditorEntityManager->GetArchetypeForEntity(Entity);
 
@@ -506,7 +506,7 @@ bool UTypedElementDatabase::BatchAddRemoveColumns(TConstArrayView<TypedElementRo
 			for (TypedElementRowHandle EntityId : Rows)
 			{
 				FMassEntityHandle Entity = FMassEntityHandle::FromNumber(EntityId);
-				if (ActiveEditorEntityManager->IsEntityValid(Entity))
+				if (ActiveEditorEntityManager->IsEntityActive(Entity))
 				{
 					FMassArchetypeHandle Archetype = ActiveEditorEntityManager->GetArchetypeForEntity(Entity);
 					EntityHandleArray& EntityCollection = LookupTable.FindOrAdd(Archetype);
@@ -540,7 +540,7 @@ bool UTypedElementDatabase::BatchAddRemoveColumns(TConstArrayView<TypedElementRo
 bool UTypedElementDatabase::HasColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) const
 {
 	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
-	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityValid(Entity))
+	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityActive(Entity))
 	{
 		FMassArchetypeHandle Archetype = ActiveEditorEntityManager->GetArchetypeForEntity(Entity);
 		const FMassArchetypeCompositionDescriptor& Composition = ActiveEditorEntityManager->GetArchetypeComposition(Archetype);
@@ -571,7 +571,7 @@ bool UTypedElementDatabase::HasColumns(TypedElementRowHandle Row, TConstArrayVie
 bool UTypedElementDatabase::HasColumns(TypedElementRowHandle Row, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes) const
 {
 	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
-	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityValid(Entity))
+	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityActive(Entity))
 	{
 		FMassArchetypeHandle Archetype = ActiveEditorEntityManager->GetArchetypeForEntity(Entity);
 		const FMassArchetypeCompositionDescriptor& Composition = ActiveEditorEntityManager->GetArchetypeComposition(Archetype);

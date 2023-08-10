@@ -97,6 +97,7 @@ void FTypedElementsDataStorageModule::StartupModule()
 				{
 					Factory->RegisterTables(*Database);
 					Factory->RegisterTickGroups(*Database);
+					Factory->RegisterRegistrationFilters(*DatabaseCompatibility);
 					Factory->RegisterDealiaser(*DatabaseCompatibility);
 					Factory->RegisterWidgetPurposes(*DatabaseUi);
 				}
