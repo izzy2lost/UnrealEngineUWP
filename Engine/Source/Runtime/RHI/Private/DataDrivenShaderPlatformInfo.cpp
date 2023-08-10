@@ -288,6 +288,7 @@ void FGenericDataDrivenShaderPlatformInfo::ParseDataDrivenShaderInfo(const FConf
 	GET_SECTION_BOOL_HELPER(bSupportsNNEShaders);
 	GET_SECTION_BOOL_HELPER(bSupportsShaderPipelines);
 	GET_SECTION_BOOL_HELPER(bSupportsUniformBufferObjects);
+	GET_SECTION_BOOL_HELPER(bRequiresBindfulUtilityShaders);
 #undef GET_SECTION_BOOL_HELPER
 #undef GET_SECTION_INT_HELPER
 #undef GET_SECTION_SUPPORT_HELPER

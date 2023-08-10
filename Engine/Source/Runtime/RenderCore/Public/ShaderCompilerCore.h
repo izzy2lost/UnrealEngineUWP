@@ -136,6 +136,8 @@ enum ECompilerFlags
 	CFLAG_BindlessResources,
 	// Enabled if bindless samplers are enabled for the platform
 	CFLAG_BindlessSamplers,
+	// Force disable bindless resources and samplers on a shader
+	CFLAG_ForceBindful,
 	// EXPERIMENTAL: Run the shader re-writer that removes any unused functions/resources/types from source code before compilation.
 	CFLAG_RemoveDeadCode,
 	CFLAG_UseLegacyPreprocessor UE_DEPRECATED(5.3, "Legacy preprocessor has been removed as of UE 5.3; please report any issues with the new preprocessor to the UE rendering team."),
