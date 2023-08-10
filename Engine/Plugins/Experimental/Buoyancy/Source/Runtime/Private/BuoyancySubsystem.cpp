@@ -112,6 +112,7 @@ void UBuoyancySubsystem::ApplyRuntimeSettings(const UBuoyancyRuntimeSettings* In
 	// Runtime settings presents water density in g/cm^3, but we want it in kg/cm^3
 	// so introduce a factor of 10^-3 here.
 	BuoyancySettings.WaterDensity = Chaos::GCm3ToKgCm3(InSettings->WaterDensity);
+	BuoyancySettings.WaterDrag = InSettings->WaterDrag;
 	BuoyancySettings.WaterCollisionChannel = InSettings->CollisionChannelForWaterObjects;
 	BuoyancySettings.bKeepAwake = InSettings->bKeepFloatingObjectsAwake;
 	BuoyancySettings.MaxNumBoundsSubdivisions = InSettings->MaxNumBoundsSubdivisions;

@@ -32,6 +32,11 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = Buoyancy, Meta = (ClampMin = 0, ForceUnits = "g/cm3"))
 	float WaterDensity = 1.f;
 
+	/** Drag factor for submerged objects. This unitless number approximates the idea of viscosity,
+	    but internally functions identically to the "ether drag" concept. */
+	UPROPERTY(EditAnywhere, config, Category = Buoyancy, Meta = (ClampMin = 0))
+	float WaterDrag = 1.f;
+
 	/** Maximum number of times that a buoyancy bounds can be split into 8 */
 	UPROPERTY(EditAnywhere, config, Category = Buoyancy, Meta = (ClampMin = 0))
 	int32 MaxNumBoundsSubdivisions = 2;
