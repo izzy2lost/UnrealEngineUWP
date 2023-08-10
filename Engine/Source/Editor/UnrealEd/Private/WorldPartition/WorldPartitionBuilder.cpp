@@ -81,6 +81,12 @@ bool UWorldPartitionBuilder::RunBuilder(UWorld* World)
 		return false;
 	}
 
+	// Verify if the builder want to skip processing the given world.
+	if (!ShouldProcessWorld(World))
+	{
+		return true;
+	}
+
 	FPackageSourceControlHelper SCCHelper;
 
 	// Perform builder pre world initialisation

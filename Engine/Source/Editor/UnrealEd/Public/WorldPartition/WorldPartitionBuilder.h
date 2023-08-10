@@ -94,6 +94,11 @@ protected:
 	 */
 	virtual bool CanProcessNonPartitionedWorlds() const { return false; }
 
+	/**
+	 * Some builders may decide to skip processing some worlds before initializing them.
+	 */
+	virtual bool ShouldProcessWorld(UWorld* World) const { return true; }
+
 	UNREALED_API bool OnFilesModified(const TArray<FString>& InModifiedFiles, const FString& InChangelistDescription) const;
 	UNREALED_API bool OnPackagesModified(const TArray<UPackage*>& InModifiedPackages, const FString& InChangelistDescription) const;
 
