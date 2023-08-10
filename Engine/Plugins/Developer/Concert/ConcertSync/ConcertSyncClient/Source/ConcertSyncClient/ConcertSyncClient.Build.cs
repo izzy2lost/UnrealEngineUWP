@@ -21,14 +21,13 @@ namespace UnrealBuildTool.Rules
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
-					"ConcertTransport",
 					"AssetRegistry",
+					"ConcertTransport",
 					"HeadMountedDisplay",
 					"InputCore",
-					"MovieScene",
 					"LevelSequence",
+					"MovieScene",
 					"RenderCore",
-					"TargetPlatform",
 					"TimeManagement",
 					"SlateCore",
 					"Slate",
@@ -55,16 +54,16 @@ namespace UnrealBuildTool.Rules
 
 				PrivateDependencyModuleNames.AddRange(
 					new string[] {
-						"EngineSettings",
-						"Sequencer",
 						"EditorFramework",
-						"UnrealEd",
-						"ViewportInteraction",
-						"LevelEditor",
-						"VREditor",
 						"EditorStyle",
+						"EngineSettings",
+						"LevelEditor",
+						"Sequencer",
+						"UnrealEd",
 						"TypedElementRuntime",
-						"TypedElementFramework"
+						"TypedElementFramework",
+						"ViewportInteraction",
+						"VREditor",
 					}
 				);
 			}
