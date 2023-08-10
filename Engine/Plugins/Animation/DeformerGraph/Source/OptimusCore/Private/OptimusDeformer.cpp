@@ -1331,17 +1331,18 @@ static void CollectNodes(
 	TArray<FOptimusRoutedConstNode>& OutCollectedNodes
 	)
 {
-	TSet<const UOptimusNode*> VisitedNodes;
+	TSet<FOptimusRoutedConstNode> VisitedNodes;
+	TSet<FOptimusRoutedConstNode> UniqueNeighborNodes;
 	TQueue<FOptimusRoutedConstNode> WorkingSet;
 
 	for (const UOptimusNode* Node: InSeedNodes)
 	{
 		WorkingSet.Enqueue({Node, FOptimusPinTraversalContext{}});
-		VisitedNodes.Add(Node);
+		VisitedNodes.Add({Node, FOptimusPinTraversalContext{}});
 		OutCollectedNodes.Add({Node, FOptimusPinTraversalContext{}});
 	}
 
-	auto CollectFromInputPins = [&WorkingSet, &VisitedNodes, &OutCollectedNodes](const FOptimusRoutedConstNode& InWorkItem, const UOptimusNodePin* InPin)
+	auto CollectFromInputPins = [&WorkingSet, &VisitedNodes, &UniqueNeighborNodes, &OutCollectedNodes](const FOptimusRoutedConstNode& InWorkItem, const UOptimusNodePin* InPin)
 	{
 		for (const FOptimusRoutedNodePin& ConnectedPin: InPin->GetConnectedPinsWithRouting(InWorkItem.TraversalContext))
 		{
@@ -1349,17 +1350,23 @@ static void CollectNodes(
 			{
 				const UOptimusNode *NextNode = ConnectedPin.NodePin->GetOwningNode();
 				FOptimusRoutedConstNode CollectedNode{NextNode, ConnectedPin.TraversalContext};
-				WorkingSet.Enqueue(CollectedNode);
-				if (!VisitedNodes.Contains(NextNode))
+				if (!UniqueNeighborNodes.Contains(CollectedNode))
 				{
-					VisitedNodes.Add(NextNode);
-					OutCollectedNodes.Add(CollectedNode);
-				}
-				else
-				{
-					// Push the node to the back because to ensure that it is scheduled  earlier then it's referencing node.
-					OutCollectedNodes.RemoveSingle(CollectedNode);
-					OutCollectedNodes.Add(CollectedNode);
+					UniqueNeighborNodes.Add(CollectedNode);
+					
+					WorkingSet.Enqueue(CollectedNode);
+					
+					if (!VisitedNodes.Contains(CollectedNode))
+					{
+						VisitedNodes.Add(CollectedNode);
+						OutCollectedNodes.Add(CollectedNode);
+					}
+					else
+					{
+						// Push the node to the back because to ensure that it is scheduled  earlier then it's referencing node.
+						OutCollectedNodes.RemoveSingle(CollectedNode);
+						OutCollectedNodes.Add(CollectedNode);
+					}
 				}
 			}
 		}
@@ -1368,6 +1375,8 @@ static void CollectNodes(
 	FOptimusRoutedConstNode WorkItem;
 	while (WorkingSet.Dequeue(WorkItem))
 	{
+		UniqueNeighborNodes.Reset();
+		
 		// Traverse in the direction of input pins (up the graph).
 		for (const UOptimusNodePin* Pin: WorkItem.Node->GetPins())
 		{

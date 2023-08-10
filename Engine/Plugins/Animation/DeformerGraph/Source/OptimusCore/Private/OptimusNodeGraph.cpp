@@ -1406,7 +1406,7 @@ TSet<UOptimusComponentSourceBinding*> UOptimusNodeGraph::GetComponentSourceBindi
 	const UOptimusNodePin* InNodePin
 	) const
 {
-	TSet<const UOptimusNode*> VisitedNodes;
+	TSet<FOptimusRoutedConstNode> VisitedNodes;
 	TSet<UOptimusComponentSourceBinding*> Bindings;
 	
 	TQueue<FOptimusRoutedConstNode> WorkingSet;
@@ -1478,10 +1478,11 @@ TSet<UOptimusComponentSourceBinding*> UOptimusNodeGraph::GetComponentSourceBindi
 				{
 					const UOptimusNode *NextNode = ConnectedPin.NodePin->GetOwningNode();
 					FOptimusRoutedConstNode CollectedNode{NextNode, ConnectedPin.TraversalContext};
-					WorkingSet.Enqueue(CollectedNode);
-					if (!VisitedNodes.Contains(NextNode))
+					
+					if (!VisitedNodes.Contains(CollectedNode))
 					{
-						VisitedNodes.Add(NextNode);
+						VisitedNodes.Add(CollectedNode);
+						WorkingSet.Enqueue(CollectedNode);
 					}
 				}
 			}
