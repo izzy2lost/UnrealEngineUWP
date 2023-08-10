@@ -199,6 +199,8 @@ FDetailCategoryImpl::FDetailCategoryImpl(FName InCategoryName, TSharedRef<FDetai
 	, bFavoriteCategory(false)
 	, bShowOnlyChildren(false)
 	, bHasVisibleAdvanced(false)
+	, bPendingRefresh(false)
+	, bPendingRefreshNeedsRefilter(false)
 {
 	const UStruct* BaseStruct = InDetailLayout->GetRootNode()->GetBaseStructure();
 
@@ -657,7 +659,22 @@ void FDetailCategoryImpl::RequestItemExpanded(TSharedRef<FDetailTreeNode> TreeNo
 	}
 }
 
+void FDetailCategoryImpl::Tick(float DeltaTime)
+{
+	ensure(bPendingRefresh);
+	RefreshTreeInternal(bPendingRefreshNeedsRefilter);
+	bPendingRefresh = false;
+	RemoveTickableNode(*this);
+}
+
 void FDetailCategoryImpl::RefreshTree(bool bRefilterCategory)
+{
+	bPendingRefresh = true;
+	bPendingRefreshNeedsRefilter = bRefilterCategory;
+	AddTickableNode(*this);
+}
+
+void FDetailCategoryImpl::RefreshTreeInternal(bool bRefilterCategory)
 {
 	if (bRefilterCategory)
 	{

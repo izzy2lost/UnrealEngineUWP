@@ -208,7 +208,7 @@ public:
 	virtual bool ShouldBeExpanded() const override;
 	virtual ENodeVisibility GetVisibility() const override;
 	virtual void FilterNode(const FDetailFilter& DetailFilter) override;
-	virtual void Tick(float DeltaTime) override {}
+	virtual void Tick(float DeltaTime) override;
 	virtual bool ShouldShowOnlyChildren() const override { return bShowOnlyChildren; }
 	virtual FName GetNodeName() const override { return GetCategoryName(); }
 
@@ -392,6 +392,13 @@ private:
 	 */
 	bool IsParentEnabled() const;
 
+	/**
+	 * Does the work of refreshing the tree (this is triggered from RefreshTree)
+	 *
+	 * @param bRefilterCategory True if the category should be refiltered
+	 */
+	void RefreshTreeInternal(bool bRefilterCategory);
+
 private:
 	/** Layouts that appear in this category category */
 	FDetailLayoutMap LayoutMap;
@@ -438,4 +445,6 @@ private:
 	bool bFavoriteCategory : 1;
 	bool bShowOnlyChildren : 1;
 	bool bHasVisibleAdvanced : 1;
+	bool bPendingRefresh : 1;
+	bool bPendingRefreshNeedsRefilter : 1;
 };
