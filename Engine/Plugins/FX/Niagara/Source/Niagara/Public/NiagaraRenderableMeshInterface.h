@@ -37,10 +37,12 @@ public:
 
 	virtual ~INiagaraRenderableMesh() {}
 
+	// Set the Min LOD Bias
+	virtual void SetMinLODBias(int32 MinLODBias) {}
 	// Get the local bounds for the mesh
 	virtual FBox GetLocalBounds() const = 0;
 	// Gather all the relevant mesh data to render the mesh
-	virtual void GetLODModelData(FLODModelData& OutLODModelData) const = 0;
+	virtual void GetLODModelData(FLODModelData& OutLODModelData, int32 LODLevel) const = 0;
 	// Setup the vertex factory for the mesh
 	virtual void SetupVertexFactory(class FNiagaraMeshVertexFactory& InVertexFactory, const FLODModelData& LODModelData) const = 0;
 	// Gather a list of used materials

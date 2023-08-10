@@ -54,6 +54,37 @@ enum class ENiagaraMeshLockedAxisSpace : uint8
 	Local
 };
 
+UENUM()
+enum class ENiagaraMeshLODMode : uint8
+{
+	/*
+	* Uses the provided LOD level to render all mesh particles.
+	* If the LOD is not streamed in or available on the platform the next available lower LOD level will be used.
+	* For example, LOD Level is set to 1 but the first available is LOD 3 then LOD 3 will be used.
+	*/
+	LODLevel,
+
+	/**
+	* Takes the highest available LOD for the platform + LOD bias to render all mesh particles
+	* If the LOD is not streamed in or available on the platform the next available lower LOD level will be used.
+	* For example, LOD bias is set to 1, the current platform has Min LOD of 2 then 3 will be the used LOD.
+	*/
+	LODBias,
+
+	/*
+	* Calculates the LOD level for the instance based on screen space size and renders all particles with this LOD.
+	* LOD bias is applied to the calculation.
+	*/
+	//PerInstance,
+
+	/*
+	* Calculates and renders each particle with it's calcualted LOD level.
+	* LOD bias is applied to the calculation.
+	* Note: This is the most expensive option as we need to bucket the particles into each LOD and dispatch draws per bucket.
+	*/
+	//PerParticle,
+};
+
 USTRUCT()
 struct FNiagaraMeshMICOverride
 {
@@ -151,6 +182,25 @@ struct FNiagaraMeshRendererMeshProperties
 	/** Binding to supported mesh types. */
 	UPROPERTY(EditAnywhere, Category = "Mesh")
 	FNiagaraParameterBinding MeshParameterBinding;
+
+	UPROPERTY(EditAnywhere, Category = "Mesh")
+	ENiagaraMeshLODMode LODMode = ENiagaraMeshLODMode::LODLevel;
+
+#if WITH_EDITORONLY_DATA
+	/** Absolute LOD level to use */
+	UPROPERTY(EditAnywhere, Category = "Mesh", meta = (UIMin = "0", DisplayName="LOD Level", EditCondition = "LODMode == ENiagaraMeshLODMode::LODLevel", EditConditionHides))
+	FNiagaraParameterBindingWithValue LODLevelBinding;
+
+	/* LOD bias to apply to the LOD calculation. */
+	UPROPERTY(EditAnywhere, Category = "Mesh", meta = (UIMin = "0", DisplayName = "LOD Bias", EditCondition = "LODMode != ENiagaraMeshLODMode::LODLevel", EditConditionHides))
+	FNiagaraParameterBindingWithValue LODBiasBinding;
+#endif
+
+	UPROPERTY()
+	int32 LODLevel = 0;
+
+	UPROPERTY()
+	int32 LODBias = 0;
 
 	/** Scale of the mesh */
 	UPROPERTY(EditAnywhere, Category = "Mesh")

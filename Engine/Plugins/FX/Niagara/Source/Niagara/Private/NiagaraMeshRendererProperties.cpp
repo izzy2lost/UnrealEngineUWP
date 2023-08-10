@@ -9,6 +9,7 @@
 #include "NiagaraEmitterInstance.h"
 #include "NiagaraGPUSortInfo.h"
 #include "NiagaraSystem.h"
+#include "NiagaraSystemImpl.h"
 
 #include "MaterialDomain.h"
 #include "Materials/MaterialRenderProxy.h"
@@ -45,8 +46,14 @@ public:
 	{
 		WeakStaticMesh	= StaticMesh;
 		RenderData		= StaticMesh->GetRenderData();
+		MeshMinLOD		= StaticMesh->GetMinLODIdx();
 		MinLOD			= StaticMesh->GetMinLODIdx();
 		LocalBounds		= StaticMesh->GetExtendedBounds().GetBox();
+	}
+
+	void SetMinLODBias(int32 MinLODBias) override
+	{
+		MinLOD = FMath::Max(MeshMinLOD + MinLODBias, 0);
 	}
 
 	FBox GetLocalBounds() const override
@@ -54,9 +61,10 @@ public:
 		return LocalBounds;
 	}
 
-	void GetLODModelData(FLODModelData& OutLODModelData) const override
+	void GetLODModelData(FLODModelData& OutLODModelData, int32 LODLevel) const override
 	{
-		OutLODModelData.LODIndex = RenderData->GetCurrentFirstLODIdx(MinLOD);
+		LODLevel = FMath::Max(MinLOD, LODLevel);
+		OutLODModelData.LODIndex = RenderData->GetCurrentFirstLODIdx(LODLevel);
 		if (!RenderData->LODResources.IsValidIndex(OutLODModelData.LODIndex))
 		{
 			OutLODModelData.LODIndex = INDEX_NONE;
@@ -135,6 +143,7 @@ public:
 
 	TWeakObjectPtr<const UStaticMesh>	WeakStaticMesh;
 	const class FStaticMeshRenderData*	RenderData = nullptr;
+	int32								MeshMinLOD = 0;
 	int32								MinLOD = 0;
 	FBox								LocalBounds = FBox(ForceInitToZero);
 };
@@ -212,6 +221,14 @@ FNiagaraMeshRendererMeshProperties::FNiagaraMeshRendererMeshProperties()
 	MeshParameterBinding.SetUsage(ENiagaraParameterBindingUsage::NotParticle);
 	MeshParameterBinding.SetAllowedInterfaces({UNiagaraRenderableMeshInterface::StaticClass()});
 	MeshParameterBinding.SetAllowedObjects({UStaticMesh::StaticClass()});
+
+	LODLevelBinding.SetUsage(ENiagaraParameterBindingUsage::System | ENiagaraParameterBindingUsage::Emitter | ENiagaraParameterBindingUsage::StaticVariable);
+	LODLevelBinding.SetAllowedTypeDefinitions({ FNiagaraTypeDefinition::GetIntDef().ToStaticDef() });
+	LODLevelBinding.SetDefaultParameter(FNiagaraTypeDefinition::GetIntDef().ToStaticDef(), 0);
+
+	LODBiasBinding.SetUsage(ENiagaraParameterBindingUsage::System | ENiagaraParameterBindingUsage::Emitter | ENiagaraParameterBindingUsage::StaticVariable);
+	LODBiasBinding.SetAllowedTypeDefinitions({ FNiagaraTypeDefinition::GetIntDef().ToStaticDef() });
+	LODBiasBinding.SetDefaultParameter(FNiagaraTypeDefinition::GetIntDef().ToStaticDef(), 0);
 #endif
 }
 
@@ -248,9 +265,6 @@ UNiagaraMeshRendererProperties::UNiagaraMeshRendererProperties()
 	, bSubImageBlend(true)
 	, bLockedAxisEnable(false)
 {
-	// Initialize the array with a single, defaulted entry
-	Meshes.AddDefaulted();
-
 #if WITH_EDITORONLY_DATA
 	FlipbookSuffixFormat = TEXT("_{frame_number}");
 	FlipbookSuffixNumDigits = 1;
@@ -451,6 +465,9 @@ void UNiagaraMeshRendererProperties::InitBindings()
 
 		//Default custom sorting to age
 		CustomSortingBinding = FNiagaraConstants::GetAttributeDefaultBinding(SYS_PARAM_PARTICLES_NORMALIZED_AGE);
+
+		// Initialize the array with a single, defaulted entry
+		Meshes.AddDefaulted();
 	}
 
 	SetPreviousBindings(FVersionedNiagaraEmitter(), SourceMode);
@@ -483,6 +500,8 @@ void UNiagaraMeshRendererProperties::UpdateSourceModeDerivates(ENiagaraRendererS
 		for (FNiagaraMeshRendererMeshProperties& Mesh : Meshes)
 		{
 			Mesh.MeshParameterBinding.OnRenameEmitter(SrcEmitter.Emitter->GetUniqueEmitterName());
+			Mesh.LODLevelBinding.OnRenameEmitter(SrcEmitter.Emitter->GetUniqueEmitterName());
+			Mesh.LODBiasBinding.OnRenameEmitter(SrcEmitter.Emitter->GetUniqueEmitterName());
 		}
 #endif
 	}
@@ -552,6 +571,39 @@ void UNiagaraMeshRendererProperties::CacheFromCompiledData(const FNiagaraDataSet
 	MaterialParamValidMask |= bDynamicParam1Valid ? GetDynamicParameterChannelMask(EmitterData, DynamicMaterial1Binding.GetName(), 0xf) << 4 : 0;
 	MaterialParamValidMask |= bDynamicParam2Valid ? GetDynamicParameterChannelMask(EmitterData, DynamicMaterial2Binding.GetName(), 0xf) << 8 : 0;
 	MaterialParamValidMask |= bDynamicParam3Valid ? GetDynamicParameterChannelMask(EmitterData, DynamicMaterial3Binding.GetName(), 0xf) << 12 : 0;
+
+	// Gather LOD information per mesh
+	UNiagaraSystem* OwnerSystem = GetTypedOuter<UNiagaraSystem>();
+	for (FNiagaraMeshRendererMeshProperties& Mesh : Meshes)
+	{
+		Mesh.LODLevel = Mesh.LODLevelBinding.GetDefaultValue<int32>();
+		Mesh.LODBias = Mesh.LODBiasBinding.GetDefaultValue<int32>();
+
+		if (OwnerSystem && (Mesh.LODLevelBinding.AliasedParameter.IsValid() || Mesh.LODBiasBinding.AliasedParameter.IsValid()))
+		{
+			OwnerSystem->ForEachScript(
+				[&Mesh](const UNiagaraScript* NiagaraScript)
+				{
+					if (Mesh.LODLevelBinding.AliasedParameter.IsValid())
+					{
+						TOptional<int32> VariableValue = NiagaraScript->GetStaticVariableValue<int32>(Mesh.LODLevelBinding.ResolvedParameter);
+						if (VariableValue.IsSet())
+						{
+							Mesh.LODLevel = VariableValue.GetValue();
+						}
+					}
+					if (Mesh.LODBiasBinding.AliasedParameter.IsValid())
+					{
+						TOptional<int32> VariableValue = NiagaraScript->GetStaticVariableValue<int32>(Mesh.LODBiasBinding.ResolvedParameter);
+						if (VariableValue.IsSet())
+						{
+							Mesh.LODBias = VariableValue.GetValue();
+						}
+					}
+				}
+			);
+		}
+	}
 #endif
 }
 
@@ -1141,6 +1193,8 @@ void UNiagaraMeshRendererProperties::RenameVariable(const FNiagaraVariableBase& 
 	for (FNiagaraMeshRendererMeshProperties& Mesh : Meshes)
 	{
 		Mesh.MeshParameterBinding.OnRenameVariable(OldVariable, NewVariable, InEmitter.Emitter->GetUniqueEmitterName());
+		Mesh.LODLevelBinding.OnRenameVariable(OldVariable, NewVariable, InEmitter.Emitter->GetUniqueEmitterName());
+		Mesh.LODBiasBinding.OnRenameVariable(OldVariable, NewVariable, InEmitter.Emitter->GetUniqueEmitterName());
 	}
 #endif
 }
@@ -1153,6 +1207,8 @@ void UNiagaraMeshRendererProperties::RemoveVariable(const FNiagaraVariableBase& 
 	for (FNiagaraMeshRendererMeshProperties& Mesh : Meshes)
 	{
 		Mesh.MeshParameterBinding.OnRemoveVariable(OldVariable, InEmitter.Emitter->GetUniqueEmitterName());
+		Mesh.LODLevelBinding.OnRemoveVariable(OldVariable, InEmitter.Emitter->GetUniqueEmitterName());
+		Mesh.LODBiasBinding.OnRemoveVariable(OldVariable, InEmitter.Emitter->GetUniqueEmitterName());
 	}
 #endif
 }

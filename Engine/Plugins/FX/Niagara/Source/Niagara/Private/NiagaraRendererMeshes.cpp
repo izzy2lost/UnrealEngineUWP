@@ -222,14 +222,30 @@ void FNiagaraRendererMeshes::Initialize(const UNiagaraRendererProperties* InProp
 			continue;
 		}
 
+
 		// We have a valid mesh fill in the details
 		FMeshData& MeshData = Meshes.AddDefaulted_GetRef();
 		MeshData.RenderableMesh = RenderableMesh;
 		MeshData.SourceMeshIndex = SourceMeshIndex;
+		MeshData.LODLevel = 0;
+		MeshData.LODBias = 0;
 		MeshData.PivotOffset = FVector3f(MeshProperties.PivotOffset);
 		MeshData.PivotOffsetSpace = MeshProperties.PivotOffsetSpace;
 		MeshData.Scale = FVector3f(MeshProperties.Scale);
 		MeshData.Rotation = FQuat4f(MeshProperties.Rotation.Quaternion());
+
+		if (MeshProperties.LODMode == ENiagaraMeshLODMode::LODLevel)
+		{
+			MeshData.LODLevel = MeshProperties.LODLevel;
+		}
+		else if (MeshProperties.LODMode == ENiagaraMeshLODMode::LODBias)
+		{
+			RenderableMesh->SetMinLODBias(MeshProperties.LODBias);
+		}
+		else		
+		{
+			MeshData.LODBias = MeshProperties.LODBias;
+		}
 
 		// Get materials and remap them into the base material list
 		TArray<UMaterialInterface*> UsedMaterials;
@@ -1291,7 +1307,7 @@ void FNiagaraRendererMeshes::GetDynamicMeshElements(const TArray<const FSceneVie
 				const FMeshData& MeshData = Meshes[MeshIndex];
 
 				INiagaraRenderableMesh::FLODModelData LODModel;
-				MeshData.RenderableMesh->GetLODModelData(LODModel);
+				MeshData.RenderableMesh->GetLODModelData(LODModel, MeshData.LODLevel);
 				if (LODModel.LODIndex == INDEX_NONE)
 				{
 					continue;
@@ -1463,7 +1479,7 @@ void FNiagaraRendererMeshes::GetDynamicRayTracingInstances(FRayTracingMaterialGa
 		const FMeshData& MeshData = Meshes[MeshIndex];
 
 		INiagaraRenderableMesh::FLODModelData LODModel;
-		MeshData.RenderableMesh->GetLODModelData(LODModel);
+		MeshData.RenderableMesh->GetLODModelData(LODModel, MeshData.LODLevel);
 		if (LODModel.LODIndex == INDEX_NONE || LODModel.RayTracingGeometry == nullptr)
 		{
 			continue;

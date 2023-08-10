@@ -606,7 +606,7 @@ namespace NDIDynamicMeshLocal
 			return FBox(FVector(-100.0f), FVector(100.0f));
 		}
 
-		virtual void GetLODModelData(FLODModelData& OutLODModelData) const
+		virtual void GetLODModelData(FLODModelData& OutLODModelData, int32 LODLevel) const
 		{
 			const FNDIInstanceData_RenderThread* InstanceData = OwnerProxy->InstanceData_RT.Find(SystemInstanceID);
 			if (InstanceData && InstanceData->NumTriangles > 0 && InstanceData->NumVertices > 0)
