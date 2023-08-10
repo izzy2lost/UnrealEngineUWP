@@ -2226,7 +2226,7 @@ void FControlRigParameterTrackEditor::OnChannelChanged(const FMovieSceneChannelM
 							GEditor->GetTimerManager()->ClearTimer(ChannelChanged.TimerHandle);
 							ChannelChanged.TimerHandle.Invalidate();
 							ChannelChanged.bWasSetAlready = false;
-							TOptional<FFrameNumber> Optional;
+							TOptional<FFrameNumber> Optional;	
 							ISequencer* SequencerRaw = SequencerPtr.Get();
 							for (TPair <UMovieSceneControlRigParameterSection*, TSet<FName>>& Pair : ChannelChanged.SectionControlNames)
 							{
@@ -2243,8 +2243,6 @@ void FControlRigParameterTrackEditor::OnChannelChanged(const FMovieSceneChannelM
 											EvaluateThisControl(Pair.Key, ControlName, Time);
 										}
 									}
-									FControlRigSpaceChannelHelpers::CompensateIfNeeded(Pair.Key->GetControlRig(), SequencerRaw, Pair.Key,
-										ControlName, Optional);
 									Pair.Key->ControlsToSet.Empty();
 								}
 							}
