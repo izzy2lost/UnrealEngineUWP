@@ -389,6 +389,16 @@ IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(const FString& PlatformConf
 		return IEOSPlatformHandlePtr();
 	}
 
+	if (PlatformConfig->ProductId.IsEmpty() ||
+		PlatformConfig->SandboxId.IsEmpty() ||
+		PlatformConfig->DeploymentId.IsEmpty() ||
+		PlatformConfig->ClientId.IsEmpty() ||
+		PlatformConfig->ClientSecret.IsEmpty())
+	{
+		UE_LOG(LogEOSSDK, Warning, TEXT("Platform config missing required options"));
+		return IEOSPlatformHandlePtr();
+	}
+
 	TMap<FName, IEOSPlatformHandleWeakPtr>* PlatformMap = PlatformHandles.Find(PlatformConfigName);
 	if (PlatformMap)
 	{

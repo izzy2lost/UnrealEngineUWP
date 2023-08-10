@@ -37,7 +37,7 @@ void FOnlineServicesEOSGS::Init()
 	}
 	else
 	{
-		EOSPlatformHandle = PlatformFactory.CreatePlatform();
+		EOSPlatformHandle = PlatformFactory.CreatePlatform(InstanceName);
 	}
 	if (EOSPlatformHandle)
 	{
