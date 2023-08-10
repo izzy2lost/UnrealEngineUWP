@@ -1807,9 +1807,7 @@ UE::LLMPrivate::FTagData& FLowLevelMemTracker::RegisterTagData(FName Name, FName
 		// by another thread in between FindOrAddTagData's check of TagDataNameMap->Find and now. Note that it is not
 		// valid for an LLM_SCOPE to be called before a formal registration (e.g. LLM_DECLARE_TAG). If a formal
 		// registration exists for a tag, it must precede its use in any LLM_SCOPE calls.
-		if ((ParentName.IsNone() && TagDataForName->GetParent() != nullptr) ||
-			(!ParentName.IsNone() &&
-				(TagDataForName->GetParent() == nullptr || TagDataForName->GetParent()->GetName() != ParentName)) ||
+		if (ParentName != TagDataForName->GetParentNameSafeBeforeFinishConstruct() ||
 			StatName != TagDataForName->GetStatName() ||
 			SummaryStatName != TagDataForName->GetSummaryStatName() ||
 			bHasEnumTag != TagDataForName->HasEnumTag() ||
@@ -3372,6 +3370,18 @@ FName FTagData::GetParentName() const
 	LLMCheckf(bParentIsName, TEXT("GetParentName called on TagData %s after SetParent was called"),
 		*WriteToString<FName::StringBufferSize>(Name));
 	return ParentName;
+}
+
+FName FTagData::GetParentNameSafeBeforeFinishConstruct() const
+{
+	if (bParentIsName)
+	{
+		return ParentName;
+	}
+	else
+	{
+		return Parent ? Parent->GetName() : NAME_None;
+	}
 }
 
 FName FTagData::GetStatName() const

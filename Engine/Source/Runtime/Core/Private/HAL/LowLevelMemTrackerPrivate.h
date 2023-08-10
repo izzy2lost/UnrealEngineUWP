@@ -99,6 +99,7 @@ namespace LLMPrivate
 		void AppendDisplayPath(FStringBuilderBase& Result) const;
 		const FTagData* GetParent() const;
 		FName GetParentName() const;
+		FName GetParentNameSafeBeforeFinishConstruct() const;
 		FName GetStatName() const;
 		FName GetSummaryStatName() const;
 		ELLMTag GetEnumTag() const;
