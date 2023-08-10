@@ -213,6 +213,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Visibility")
 	uint8 bEnableCameraDistanceCulling : 1;
 
+	/**
+	When disabled the renderer will not cast shadows.
+	The component controls if shadows are enabled, this flag allows you to disable the renderer casting shadows.
+	*/
+	UPROPERTY(EditAnywhere, Category = "Rendering")
+	uint8 bCastShadows : 1 = 1;
+
 	/** Sort precision to use when sorting is active. */
 	UPROPERTY(EditAnywhere, Category = "Sorting", meta = (EditCondition = "SortMode != ENiagaraSortMode::None", EditConditionHides))
 	ENiagaraRendererSortPrecision SortPrecision = ENiagaraRendererSortPrecision::Default;

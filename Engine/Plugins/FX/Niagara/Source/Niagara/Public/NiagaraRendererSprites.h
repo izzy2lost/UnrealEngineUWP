@@ -108,6 +108,7 @@ private:
 	uint32 bEnableCulling : 1;
 	uint32 bEnableDistanceCulling : 1;
 	uint32 bAccurateMotionVectors : 1;
+	uint32 bCastShadows : 1;
 	uint32 bSetAnyBoundVars : 1;
 	uint32 bVisTagInParamStore : 1;
 

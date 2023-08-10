@@ -102,6 +102,7 @@ FNiagaraRendererSprites::FNiagaraRendererSprites(ERHIFeatureLevel::Type FeatureL
 	MaxFacingCameraBlendDistance = Properties->MaxFacingCameraBlendDistance;
 	RendererVisibility = Properties->RendererVisibility;
 	bAccurateMotionVectors = Properties->NeedsPreciseMotionVectors();
+	bCastShadows = Properties->bCastShadows;
 
 	PixelCoverageMode = Properties->PixelCoverageMode;
 	if (PixelCoverageMode == ENiagaraRendererPixelCoverageMode::Automatic)
@@ -901,9 +902,9 @@ void FNiagaraRendererSprites::CreateMeshBatchForView(
 	VertexFactory.LooseParameterUniformBuffer = FNiagaraSpriteVFLooseParametersRef::CreateUniformBufferImmediate(VFLooseParams, UniformBuffer_SingleFrame);
 
 	MeshBatch.VertexFactory = &VertexFactory;
-	MeshBatch.CastShadow = SceneProxy.CastsDynamicShadow();
+	MeshBatch.CastShadow = SceneProxy.CastsDynamicShadow() && bCastShadows;
 #if RHI_RAYTRACING
-	MeshBatch.CastRayTracedShadow = SceneProxy.CastsDynamicShadow();
+	MeshBatch.CastRayTracedShadow = SceneProxy.CastsDynamicShadow() && bCastShadows;
 #endif
 	MeshBatch.bUseAsOccluder = false;
 	MeshBatch.ReverseCulling = SceneProxy.IsLocalToWorldDeterminantNegative();

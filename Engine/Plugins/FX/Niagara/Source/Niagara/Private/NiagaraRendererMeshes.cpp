@@ -112,6 +112,7 @@ FNiagaraRendererMeshes::FNiagaraRendererMeshes(ERHIFeatureLevel::Type FeatureLev
 	RendererVisibility = Properties->RendererVisibility;
 	bAccurateMotionVectors = Properties->NeedsPreciseMotionVectors();
 	bIsHeterogeneousVolume = Properties->UseHeterogeneousVolumes();
+	bCastShadows = Properties->bCastShadows;
 
 	if (Properties->UseHeterogeneousVolumes())
 	{
@@ -1108,9 +1109,9 @@ void FNiagaraRendererMeshes::CreateMeshBatchForSection(
 	MeshBatch.VertexFactory = &VertexFactory;
 	MeshBatch.LCI = NULL;
 	MeshBatch.ReverseCulling = SceneProxy.IsLocalToWorldDeterminantNegative();
-	MeshBatch.CastShadow = SceneProxy.CastsDynamicShadow();
+	MeshBatch.CastShadow = SceneProxy.CastsDynamicShadow() && bCastShadows;
 #if RHI_RAYTRACING
-	MeshBatch.CastRayTracedShadow = SceneProxy.CastsDynamicShadow();
+	MeshBatch.CastRayTracedShadow = SceneProxy.CastsDynamicShadow() && bCastShadows;
 #endif
 	MeshBatch.DepthPriorityGroup = (ESceneDepthPriorityGroup)SceneProxy.GetDepthPriorityGroup(&View);
 

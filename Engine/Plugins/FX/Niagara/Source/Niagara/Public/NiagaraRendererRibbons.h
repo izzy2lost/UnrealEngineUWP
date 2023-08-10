@@ -391,6 +391,7 @@ protected:
 	ENiagaraRibbonDrawDirection DrawDirection;
 	
 	const FNiagaraRendererLayout* RendererLayout;
+	bool bCastShadows = true;
 	bool bGpuRibbonLinkIsFloat = false;
 	uint32 GpuRibbonLinkOrderOffset = INDEX_NONE;
 

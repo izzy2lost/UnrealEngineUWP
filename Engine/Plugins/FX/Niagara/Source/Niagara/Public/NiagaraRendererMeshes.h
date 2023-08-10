@@ -173,6 +173,7 @@ private:
 	uint32 bEnableFrustumCulling : 1;
 	uint32 bAccurateMotionVectors : 1;
 	uint32 bIsHeterogeneousVolume : 1;
+	uint32 bCastShadows : 1;
 
 	uint32 bSubImageBlend : 1;
 	FVector2f SubImageSize = FVector2f::ZeroVector;

@@ -709,6 +709,7 @@ FNiagaraRendererRibbons::FNiagaraRendererRibbons(ERHIFeatureLevel::Type FeatureL
 	FacingMode = Properties->FacingMode;
 	DrawDirection = Properties->DrawDirection;
 	RendererLayout = &Properties->RendererLayout;
+	bCastShadows = Properties->bCastShadows;
 	bGpuRibbonLinkIsFloat = Properties->bGpuRibbonLinkIsFloat;
 	GpuRibbonLinkOrderOffset = Properties->GpuRibbonLinkOrderOffset;
 
@@ -2077,11 +2078,10 @@ inline void FNiagaraRendererRibbons::SetupMeshBatchAndCollectorResourceForView(F
 	RenderingViewResources->VertexFactory.InitResource(RHICmdList);
 	RenderingViewResources->VertexFactory.SetRibbonUniformBuffer(RenderingViewResources->UniformBuffer);
 
-
 	OutMeshBatch.VertexFactory = &RenderingViewResources->VertexFactory;
-	OutMeshBatch.CastShadow = SceneProxy->CastsDynamicShadow();
+	OutMeshBatch.CastShadow = SceneProxy->CastsDynamicShadow() && bCastShadows;
 #if RHI_RAYTRACING
-	OutMeshBatch.CastRayTracedShadow = SceneProxy->CastsDynamicShadow();
+	OutMeshBatch.CastRayTracedShadow = SceneProxy->CastsDynamicShadow() && bCastShadows;
 #endif
 	OutMeshBatch.bUseAsOccluder = false;
 	OutMeshBatch.ReverseCulling = SceneProxy->IsLocalToWorldDeterminantNegative();
