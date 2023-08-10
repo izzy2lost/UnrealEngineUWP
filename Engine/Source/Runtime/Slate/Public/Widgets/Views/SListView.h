@@ -966,15 +966,16 @@ public:
 			RangeStartIndex = FMath::Clamp(RangeStartIndex, 0, ItemsSourceRef.Num()-1);
 			RangeEndIndex = FMath::Clamp(RangeEndIndex, 0, ItemsSourceRef.Num()-1);
 
-			if (RangeEndIndex < RangeStartIndex)
-			{
-				Swap( RangeStartIndex, RangeEndIndex );
-			}
+			// Respect the direction of selection when ordering, ie if selecting upwards then make sure the top element is last-selected
+			const int32 Direction = (RangeEndIndex > RangeStartIndex) ? 1 : -1;
 
-			for (int32 ItemIndex = RangeStartIndex; ItemIndex <= RangeEndIndex; ++ItemIndex)
+			int32 ItemIndex = RangeStartIndex;
+			for (; ItemIndex != RangeEndIndex; ItemIndex += Direction)
 			{
 				SelectedItems.Add(ItemsSourceRef[ItemIndex]);
 			}
+			// The above loop won't add the last item, so manually add it here
+			SelectedItems.Add(ItemsSourceRef[ItemIndex]);
 		}
 
 		this->InertialScrollManager.ClearScrollVelocity();

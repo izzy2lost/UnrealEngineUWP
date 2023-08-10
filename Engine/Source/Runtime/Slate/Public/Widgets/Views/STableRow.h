@@ -457,18 +457,18 @@ public:
 
 					if (SelectionMode == ESelectionMode::Multi)
 					{
-						if (MouseEvent.IsControlDown())
+						if (MouseEvent.IsShiftDown())
 						{
-							OwnerTable->Private_SetItemSelection(MyItem, !bIsSelected, true);
+							OwnerTable->Private_SelectRangeFromCurrentTo(MyItem);
 							bChangedSelectionOnMouseDown = true;
 							if (SignalSelectionMode == ETableRowSignalSelectionMode::Instantaneous)
 							{
 								OwnerTable->Private_SignalSelectionChanged(ESelectInfo::OnMouseClick);
 							}
 						}
-						else if (MouseEvent.IsShiftDown())
+						else if (MouseEvent.IsControlDown())
 						{
-							OwnerTable->Private_SelectRangeFromCurrentTo(MyItem);
+							OwnerTable->Private_SetItemSelection(MyItem, !bIsSelected, true);
 							bChangedSelectionOnMouseDown = true;
 							if (SignalSelectionMode == ETableRowSignalSelectionMode::Instantaneous)
 							{
