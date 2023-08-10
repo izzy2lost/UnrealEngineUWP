@@ -159,8 +159,10 @@ namespace Chaos
 		// Access the cluster union externally.
 		CHAOS_API FClusterUnion* FindClusterUnionFromExplicitIndex(FClusterUnionExplicitIndex Index);
 		CHAOS_API FClusterUnion* FindClusterUnion(FClusterUnionIndex Index);
+		CHAOS_API const FClusterUnion* FindClusterUnion(FClusterUnionIndex Index) const;
 		CHAOS_API FClusterUnion* FindClusterUnionFromParticle(FPBDRigidParticleHandle* Particle);
-		CHAOS_API FClusterUnionIndex FindClusterUnionIndexFromParticle(FPBDRigidParticleHandle* Particle);
+		CHAOS_API const FClusterUnion* FindClusterUnionFromParticle(const FPBDRigidParticleHandle* Particle) const;
+		CHAOS_API FClusterUnionIndex FindClusterUnionIndexFromParticle(const FPBDRigidParticleHandle* Particle) const;
 
 		// An extension to FindClusterUnionIndexFromParticle to check whether or not the given particle is the cluster union particle itself.
 		CHAOS_API bool IsClusterUnionParticle(FPBDRigidClusteredParticleHandle* Particle);

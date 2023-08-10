@@ -181,6 +181,8 @@ namespace Chaos
 		// Called when a the material changes one or more shapes on a particle. Required because collisions cache material properties
 		void ParticleMaterialChanged(FGeometryParticleHandle* Particle);
 
+		CHAOS_API const FChaosPhysicsMaterial* GetFirstClusteredPhysicsMaterial(const FGeometryParticleHandle* Particle) const;
+
 		template<typename TParticleView>
 		void Integrate(const TParticleView& InParticles, FReal Dt)
 		{

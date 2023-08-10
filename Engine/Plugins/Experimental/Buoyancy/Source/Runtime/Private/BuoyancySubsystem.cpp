@@ -225,9 +225,6 @@ void FBuoyancySubsystemSimCallback::OnPreSimulate_Internal()
 	{
 		return;
 	}
-
-
-
 }
 
 void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidPhaseModifierAccessor& MidPhaseAccessor)
@@ -310,17 +307,6 @@ void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidP
 			return;
 		}
 
-		// If the particle is in a cluster, get the actual root particle that we can apply forces to
-		FPBDRigidClusteredParticleHandle* RigidCluster = RigidParticle->CastToClustered();
-		if (RigidCluster)
-		{
-			while (FPBDRigidClusteredParticleHandle* ParentCluster = RigidCluster->Parent())
-			{
-				RigidCluster = ParentCluster;
-			}
-		}
-		FPBDRigidParticleHandle* RigidRoot = RigidCluster ? RigidCluster->CastToRigidParticle() : RigidParticle;
-
 		// Compute submerged volume and CoM
 		float SubmergedVol;
 		FVec3 SubmergedCoM;
@@ -376,7 +362,7 @@ void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidP
 		// However, the volumes or masses of each "true" shape are not accessible to
 		// us, so at the moment this is nearly the best estimate we'll be able to get.
 		FRealSingle SubmergedVol = Submersion.Vol;
-		if (const FChaosPhysicsMaterial* ParticleMaterial = Evolution->GetFirstPhysicsMaterial(Submersion.Particle))
+		if (const FChaosPhysicsMaterial* ParticleMaterial = Evolution->GetFirstClusteredPhysicsMaterial(Submersion.Particle))
 		{
 			const FRealSingle ParticleDensity = Chaos::GCm3ToKgCm3(ParticleMaterial->Density);
 			const FRealSingle ParticleMass = Submersion.Particle->M();

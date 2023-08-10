@@ -364,7 +364,18 @@ namespace Chaos
 		return ClusterUnions.Find(Index);
 	}
 
+	const FClusterUnion* FClusterUnionManager::FindClusterUnion(FClusterUnionIndex Index) const
+	{
+		return ClusterUnions.Find(Index);
+	}
+
 	FClusterUnion* FClusterUnionManager::FindClusterUnionFromParticle(FPBDRigidParticleHandle* Particle)
+	{
+		FClusterUnionIndex ClusterUnionIndex = FindClusterUnionIndexFromParticle(Particle);
+		return FindClusterUnion(ClusterUnionIndex);
+	}
+
+	const FClusterUnion* FClusterUnionManager::FindClusterUnionFromParticle(const FPBDRigidParticleHandle* Particle) const
 	{
 		FClusterUnionIndex ClusterUnionIndex = FindClusterUnionIndexFromParticle(Particle);
 		return FindClusterUnion(ClusterUnionIndex);
@@ -777,7 +788,7 @@ namespace Chaos
 	}
 
 	DECLARE_CYCLE_STAT(TEXT("FClusterUnionManager::FindClusterUnionIndexFromParticle"), STAT_FindClusterUnionIndexFromParticle, STATGROUP_Chaos);
-	FClusterUnionIndex FClusterUnionManager::FindClusterUnionIndexFromParticle(FPBDRigidParticleHandle* ChildParticle)
+	FClusterUnionIndex FClusterUnionManager::FindClusterUnionIndexFromParticle(const FPBDRigidParticleHandle* ChildParticle) const
 	{
 		SCOPE_CYCLE_COUNTER(STAT_FindClusterUnionIndexFromParticle);
 		if (!ChildParticle)
@@ -785,9 +796,9 @@ namespace Chaos
 			return INDEX_NONE;
 		}
 
-		if (FPBDRigidClusteredParticleHandle* ChildClustered = ChildParticle->CastToClustered())
+		if (const FPBDRigidClusteredParticleHandle* ChildClustered = ChildParticle->CastToClustered())
 		{
-			if (FPBDRigidClusteredParticleHandle* Parent = ChildClustered->Parent())
+			if (const FPBDRigidClusteredParticleHandle* Parent = ChildClustered->Parent())
 			{
 				// Recursion should be fine here since the hierarchy should be fairly shallow.
 				return FindClusterUnionIndexFromParticle(Parent);
@@ -795,7 +806,7 @@ namespace Chaos
 
 			// The only other check to do here is to see if this is the cluster union particle itself.
 			const int32 ClusterGroupIndex = ChildClustered->ClusterGroupIndex();
-			if (FClusterUnion* ClusterUnion = FindClusterUnion(FMath::Abs(ClusterGroupIndex)))
+			if (const FClusterUnion* ClusterUnion = FindClusterUnion(FMath::Abs(ClusterGroupIndex)))
 			{
 				// This is a sanity check which may or may not be necessary.
 				// TODO: Can probably be safely removed once we deprecate cluster group indices on GCs.

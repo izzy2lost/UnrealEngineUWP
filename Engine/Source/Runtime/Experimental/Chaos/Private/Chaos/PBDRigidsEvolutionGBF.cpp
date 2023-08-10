@@ -1094,6 +1094,38 @@ void FPBDRigidsEvolutionGBF::ParticleMaterialChanged(FGeometryParticleHandle* Pa
 	GetIslandManager().UpdateParticleMaterial(Particle);
 }
 
+const FChaosPhysicsMaterial* FPBDRigidsEvolutionGBF::GetFirstClusteredPhysicsMaterial(const FGeometryParticleHandle* Particle) const
+{
+	if (const FChaosPhysicsMaterial* PhysicsMaterial = GetFirstPhysicsMaterial(Particle))
+	{
+		return PhysicsMaterial;
+	}
+	else if (const FPBDRigidClusteredParticleHandle* Cluster = Particle->CastToClustered())
+	{
+		if (const FClusterUnion* ClusterUnion = Clustering.GetClusterUnionManager().FindClusterUnionFromParticle(Cluster))
+		{
+			if (ClusterUnion->InternalCluster == Cluster)
+			{
+				for (const FPBDRigidParticleHandle* ChildParticle : ClusterUnion->ChildParticles)
+				{
+					// I'm not sure how a cluster might end up containing itself, but
+					// in order to avoid this at all costs we just add a check here to make
+					// sure the particle isn't it's own child before trying to get its
+					// material
+					if (ChildParticle && ensureMsgf(ChildParticle != Particle, TEXT("Clustered particle found which has itself as a child")))
+					{
+						if (const FChaosPhysicsMaterial* ChildPhysicalMaterial = GetFirstClusteredPhysicsMaterial(ChildParticle))
+						{
+							return ChildPhysicalMaterial;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return nullptr;
+}
 
 void FPBDRigidsEvolutionGBF::UpdateInertiaConditioning()
 {
