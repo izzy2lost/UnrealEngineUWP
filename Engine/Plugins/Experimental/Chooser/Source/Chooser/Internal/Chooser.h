@@ -19,6 +19,7 @@ class CHOOSER_API UChooserTable : public UObject, public IHasContextClass
 	GENERATED_UCLASS_BODY()
 public:
 	UChooserTable() {}
+	virtual void BeginDestroy() override;
 
 	virtual void PostLoad() override;
 	virtual void Compile(bool bForce = false) override;

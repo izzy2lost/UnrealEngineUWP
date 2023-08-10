@@ -163,6 +163,15 @@ void UProxyTable::PostTransacted(const FTransactionObjectEvent& TransactionEvent
 
 #endif
 
+void UProxyTable::BeginDestroy()
+{
+	RuntimeValues.Empty();
+#if WITH_EDITORONLY_DATA
+	Entries.Empty();
+#endif
+	Super::BeginDestroy();
+}
+
 static void OutputStructData(const FRuntimeProxyValue& EntryValueData, FChooserEvaluationContext& Context)
 {
 	for (const FProxyStructOutput& StructOutput : EntryValueData.OutputStructData)

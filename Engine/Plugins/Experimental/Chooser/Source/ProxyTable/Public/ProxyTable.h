@@ -69,6 +69,7 @@ class UProxyTable : public UObject
 	GENERATED_UCLASS_BODY()
 public:
 	UProxyTable() {}
+	virtual void BeginDestroy() override;
 
 	UPROPERTY()
 	TArray<FGuid> Keys;

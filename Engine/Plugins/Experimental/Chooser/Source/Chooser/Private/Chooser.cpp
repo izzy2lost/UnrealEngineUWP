@@ -69,6 +69,13 @@ void UChooserTable::PostLoad()
 	Compile();
 }
 
+void UChooserTable::BeginDestroy()
+{
+	ColumnsStructs.Empty();
+	ResultsStructs.Empty();
+	Super::BeginDestroy();
+}
+
 #if WITH_EDITOR
 
 void UChooserTable::AddCompileDependency(const UStruct* InStructType)
