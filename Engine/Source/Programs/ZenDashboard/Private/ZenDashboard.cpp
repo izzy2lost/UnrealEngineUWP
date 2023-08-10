@@ -29,13 +29,11 @@
 #include "ZenDashboardStyle.h"
 
 #if PLATFORM_WINDOWS
-#include "Windows/WindowsHWrapper.h"
 #include "Runtime/Launch/Resources/Windows/Resource.h"
 #include "Windows/WindowsApplication.h"
-#include "Windows/WindowsHWrapper.h"
-#include "Windows/PreWindowsApi.h"
+#include "Windows/AllowWindowsPlatformTypes.h"
 #include <shellapi.h>
-#include "Windows/PostWindowsApi.h"
+#include "Windows/HideWindowsPlatformTypes.h"
 #elif PLATFORM_LINUX
 #include "UnixCommonStartup.h"
 #elif PLATFORM_MAC

@@ -12,7 +12,6 @@
 
 THIRD_PARTY_INCLUDES_START
 #include "Windows/AllowWindowsPlatformTypes.h"
-#include "Windows/PreWindowsApi.h"
 #include <d3d11.h>
 #include <mfobjects.h>
 #include <mftransform.h>
@@ -25,7 +24,6 @@ THIRD_PARTY_INCLUDES_START
 #include <d3d11_1.h>
 #include <d3d12.h>
 #include <dxgi1_4.h>
-#include "Windows/PostWindowsApi.h"
 #include "Windows/HideWindowsPlatformTypes.h"
 THIRD_PARTY_INCLUDES_END
 

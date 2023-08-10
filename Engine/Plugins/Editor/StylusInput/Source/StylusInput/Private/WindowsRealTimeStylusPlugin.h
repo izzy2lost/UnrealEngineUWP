@@ -6,11 +6,9 @@
 
 #if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"
-#include "Windows/PreWindowsApi.h"
 #include "Microsoft/COMPointer.h"
 	#include <guiddef.h>
 	#include <RTSCom.h>
-#include "Windows/PostWindowsApi.h"
 #include "Windows/HideWindowsPlatformTypes.h"
 
 #include "IStylusState.h"
