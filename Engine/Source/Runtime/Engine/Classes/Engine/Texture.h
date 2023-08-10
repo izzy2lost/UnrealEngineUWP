@@ -21,20 +21,11 @@
 #endif
 #include "Engine/StreamableRenderAsset.h"
 #include "PerPlatformProperties.h"
-#include "Misc/FieldAccessor.h"
 #include "ImageCore.h"
 #if WITH_EDITORONLY_DATA
 #include "Misc/TVariant.h"
 #include "ObjectCacheEventSink.h"
 #include "DerivedDataCacheKeyProxy.h"
-#endif
-
-#ifndef WITH_TEXTURE_RESOURCE_DEPRECATIONS
-#define WITH_TEXTURE_RESOURCE_DEPRECATIONS 1
-#endif
-
-#ifndef WITH_TEXTURE_PLATFORMDATA_DEPRECATIONS
-#define WITH_TEXTURE_PLATFORMDATA_DEPRECATIONS 1
 #endif
 
 #if WITH_EDITOR
@@ -1476,11 +1467,6 @@ private:
 	class FTextureResource* PrivateResourceRenderThread;
 
 public:
-#if WITH_TEXTURE_RESOURCE_DEPRECATIONS
-	UE_DEPRECATED(5.0, "Use GetResource() / SetResource() accessors instead.")
-	TFieldPtrAccessor<FTextureResource> Resource;
-#endif
-
 	ENGINE_API UTexture(FVTableHelper& Helper);
 	ENGINE_API virtual ~UTexture();
 	

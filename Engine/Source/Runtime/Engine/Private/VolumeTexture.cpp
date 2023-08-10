@@ -103,9 +103,6 @@ static UVolumeTexture* GetDefaultVolumeTexture(const UVolumeTexture* Texture)
 UVolumeTexture::UVolumeTexture(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, PrivatePlatformData(nullptr)
-	, PlatformData(
-		[this]()-> FTexturePlatformData* { return GetPlatformData(); },
-		[this](FTexturePlatformData* InPlatformData) { SetPlatformData(InPlatformData); })
 {
 	SRGB = true;
 }

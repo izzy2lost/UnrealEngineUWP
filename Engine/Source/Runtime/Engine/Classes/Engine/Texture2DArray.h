@@ -20,9 +20,6 @@ class UTexture2DArray : public UTexture
 	FTexturePlatformData* PrivatePlatformData;
 
 public:
-	UE_DEPRECATED(5.1, "Use GetPlatformData() / SetPlatformData() accessors instead.")
-	TFieldPtrAccessor<FTexturePlatformData> PlatformData;
-
 	/** Set the derived data for this texture on this platform. */
 	ENGINE_API void SetPlatformData(FTexturePlatformData* PlatformData);
 	/** Get the derived data for this texture on this platform. */

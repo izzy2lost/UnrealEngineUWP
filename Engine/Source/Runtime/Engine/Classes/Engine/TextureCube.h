@@ -6,7 +6,6 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "Engine/Texture.h"
-#include "Misc/FieldAccessor.h"
 #include "TextureCube.generated.h"
 
 class FTextureResource;
@@ -20,11 +19,6 @@ class UTextureCube : public UTexture
 	FTexturePlatformData* PrivatePlatformData;
 
 public:
-#if WITH_TEXTURE_PLATFORMDATA_DEPRECATIONS
-	UE_DEPRECATED(5.0, "Use GetPlatformData() / SetPlatformData() accessors instead.")
-	TFieldPtrAccessor<FTexturePlatformData> PlatformData;
-#endif
-
 	/** Set the derived data for this texture on this platform. */
 	ENGINE_API void SetPlatformData(FTexturePlatformData* PlatformData);
 	/** Get the derived data for this texture on this platform. */

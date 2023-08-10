@@ -79,11 +79,6 @@ static UTextureCube* GetDefaultTextureCube(const UTextureCube* Texture)
 UTextureCube::UTextureCube(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, PrivatePlatformData(nullptr)
-#if WITH_TEXTURE_PLATFORMDATA_DEPRECATIONS
-	, PlatformData(
-		[this]()-> FTexturePlatformData* { return GetPlatformData(); },
-		[this](FTexturePlatformData* InPlatformData) { SetPlatformData(InPlatformData); })
-#endif
 {
 	SRGB = true;
 }

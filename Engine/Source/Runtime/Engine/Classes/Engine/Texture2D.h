@@ -12,7 +12,6 @@
 #include "TextureResource.h"
 #endif
 #include "Engine/TextureAllMipDataProviderFactory.h"
-#include "Misc/FieldAccessor.h"
 #include "Serialization/BulkData.h"
 #include "Texture2D.generated.h"
 
@@ -78,10 +77,6 @@ private:
 	FTexturePlatformData* PrivatePlatformData;
 
 public:
-#if WITH_TEXTURE_PLATFORMDATA_DEPRECATIONS
-	UE_DEPRECATED(5.0, "Use GetPlatformData() / SetPlatformData() accessors instead.")
-	TFieldPtrAccessor<FTexturePlatformData> PlatformData;
-#endif
 
 	/** Set the derived data for this texture on this platform. */
 	ENGINE_API void SetPlatformData(FTexturePlatformData* PlatformData);

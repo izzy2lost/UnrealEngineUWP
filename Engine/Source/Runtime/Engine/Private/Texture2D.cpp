@@ -55,11 +55,6 @@
 UTexture2D::UTexture2D(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, PrivatePlatformData(nullptr)
-#if WITH_TEXTURE_PLATFORMDATA_DEPRECATIONS
-	, PlatformData(
-		[this]()-> FTexturePlatformData* { return GetPlatformData(); },
-		[this](FTexturePlatformData* InPlatformData) { SetPlatformData(InPlatformData); })
-#endif
 	, ResourceMem(nullptr)
 {
 	PendingUpdate = nullptr;

@@ -358,9 +358,6 @@ static UTextureCubeArray* GetDefaultTextureCubeArray(const UTextureCubeArray* Te
 UTextureCubeArray::UTextureCubeArray(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, PrivatePlatformData(nullptr)
-	, PlatformData(
-		[this]()-> FTexturePlatformData* { return GetPlatformData(); },
-		[this](FTexturePlatformData* InPlatformData) { SetPlatformData(InPlatformData); })
 {
 #if WITH_EDITORONLY_DATA
 	SRGB = true;
