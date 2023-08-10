@@ -3,7 +3,6 @@
 #include "MultiUserReplicationEditorModule.h"
 
 #include "ConcertSyncSessionFlags.h"
-#include "IMultiUserClientModule.h"
 
 #include "ISettingsModule.h"
 #include "MultiUserReplicationEditorStyle.h"
@@ -30,12 +29,18 @@ namespace UE::MultiUserReplicationEditor
 		UnregisterSettings();
 	}
 
+	IMultiUserReplicationEditorModule::FSettingPath FMultiUserReplicationEditorModule::GetReplicationSettingsInfo() const
+	{
+		return { "Project", "Plugins", "Multi-User Replication" };
+	}
+
 	void FMultiUserReplicationEditorModule::RegisterSettings()
 	{
 		ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
 		if (ensure(SettingsModule))
 		{
-			SettingsModule->RegisterSettings("Project", "Plugins", "Multi-User Replication",
+			const FSettingPath Path = GetReplicationSettingsInfo();
+			SettingsSection = SettingsModule->RegisterSettings(Path.ContainerName, Path.CategoryName, Path.SectionName,
 				LOCTEXT("MultiUserReplicationSettingsName", "Multi-User Replication"),
 				LOCTEXT("MultiUserReplicationSettingsDescription", "Configure the Multi-User Replication settings."),
 				UMultiUserReplicationSettings::Get()
@@ -48,8 +53,11 @@ namespace UE::MultiUserReplicationEditor
 		ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
 		if (SettingsModule)
 		{
-			SettingsModule->UnregisterSettings("Project", "Plugins", "Multi-User Replication");
+			const FSettingPath Path = GetReplicationSettingsInfo();
+			SettingsModule->UnregisterSettings(Path.ContainerName, Path.CategoryName, Path.SectionName);
 		}
+
+		SettingsSection = nullptr;
 	}
 };
 

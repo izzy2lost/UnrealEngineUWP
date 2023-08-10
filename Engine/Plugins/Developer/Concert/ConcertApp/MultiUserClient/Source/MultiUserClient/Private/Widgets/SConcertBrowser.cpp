@@ -5,7 +5,8 @@
 #include "IConcertClient.h"
 #include "IConcertSyncClient.h"
 #include "MultiUserClientUtils.h"
-#include "SActiveSession.h"
+#include "ActiveSession/SActiveSessionRoot.h"
+#include "Widgets/ActiveSession/Overview/SActiveSessionOverviewTab.h"
 #include "Widgets/Disconnected/SConcertClientSessionBrowser.h"
 #include "Widgets/Disconnected/SConcertNoAvailability.h"
 
@@ -17,7 +18,7 @@
 
 #define LOCTEXT_NAMESPACE "SConcertBrowser"
 
-void SConcertBrowser::Construct(const FArguments& InArgs, const TSharedRef<SDockTab>& ConstructUnderMajorTab, const TSharedPtr<SWindow>& ConstructUnderWindow, TWeakPtr<IConcertSyncClient> InSyncClient)
+void SConcertBrowser::Construct(const FArguments& InArgs, TSharedRef<SDockTab> InConstructUnderMajorTab, TWeakPtr<IConcertSyncClient> InSyncClient)
 {
 	if (!MultiUserClientUtils::HasServerCompatibleCommunicationPluginEnabled())
 	{
@@ -32,6 +33,7 @@ void SConcertBrowser::Construct(const FArguments& InArgs, const TSharedRef<SDock
 	}
 
 	WeakConcertSyncClient = InSyncClient;
+	ConstructedUnderMajorTab = MoveTemp(InConstructUnderMajorTab);
 	if (TSharedPtr<IConcertSyncClient> ConcertSyncClient = WeakConcertSyncClient.Pin())
 	{
 		SearchedText = MakeShared<FText>(); // Will keep in memory the session browser search text between join/leave UI transitions.
@@ -57,7 +59,7 @@ void SConcertBrowser::AttachChildWidget(EConcertConnectionStatus ConnectionStatu
 	{
 		if (ConnectionStatus == EConcertConnectionStatus::Connected)
 		{
-			ChildSlot.AttachWidget(SNew(SActiveSession, ConcertSyncClient));
+			ChildSlot.AttachWidget(SNew(UE::MultiUserClient::SActiveSessionRoot, ConstructedUnderMajorTab.ToSharedRef(), ConcertSyncClient));
 		}
 		else if (ConnectionStatus == EConcertConnectionStatus::Disconnected)
 		{

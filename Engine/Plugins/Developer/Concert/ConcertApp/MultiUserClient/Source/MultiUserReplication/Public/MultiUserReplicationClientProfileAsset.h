@@ -7,6 +7,13 @@
 #include "MultiUserReplicationStreamAsset.h"
 #include "MultiUserReplicationClientProfileAsset.generated.h"
 
+namespace UE::ConcertSyncClient::Replication
+{
+	struct FJoinReplicatedSessionArgs;
+}
+
+enum class EJoinReplicationErrorCode : uint8;
+
 /** Asset for users to describe a client to the server. */
 UCLASS()
 class MULTIUSERREPLICATION_API UMultiUserReplicationClientProfileAsset : public UObject
@@ -21,4 +28,7 @@ public:
 	/** The streams this client will send to the server. It takes authority over the listed properties. */
 	UPROPERTY(EditAnywhere, Category = "Replication")
 	TArray<TObjectPtr<UMultiUserReplicationStreamAsset>> Streams;
+
+	/** Converts this asset's data to the args expected by IConcertClientReplicationManager for joining. */
+	UE::ConcertSyncClient::Replication::FJoinReplicatedSessionArgs ToJoinArgs() const;
 };
