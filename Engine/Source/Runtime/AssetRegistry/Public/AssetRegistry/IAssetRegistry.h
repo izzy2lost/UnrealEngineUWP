@@ -58,6 +58,7 @@ namespace EAssetAvailabilityProgressReportingType
 namespace UE::AssetRegistry
 {
 
+	// Please update LexToString when modifying this enum
 enum class EScanFlags : uint32
 {
 	None = 0,
@@ -66,6 +67,8 @@ enum class EScanFlags : uint32
 	WaitForInMemoryObjects = 1 << 2,	// update the tags of all assets that have loaded into memory before returning from the scan
 };
 ENUM_CLASS_FLAGS(EScanFlags);
+
+ASSETREGISTRY_API FString LexToString(EScanFlags Flags);
 
 } // namespace UE::AssetRegistry
 

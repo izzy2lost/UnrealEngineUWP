@@ -46,7 +46,7 @@ namespace UE::Telemetry::AssetRegistry
     // This is also a good time to gather information about the contents of the asset registry.
     struct FGatherTelemetry
     {
-        static constexpr inline FGuid TelemetryID = FGuid(0x2b4b9f1a, 0xdcfd4958, 0xbe43ba9d, 0xae309392);
+        static constexpr inline FGuid TelemetryID = FGuid(0xafcec052, 0x5d2c4850, 0xbfc6d11d, 0x3163ccd5);
         
         // Total wall clock time between start of search and completion.
         double TotalSearchDurationSeconds = 0.0;

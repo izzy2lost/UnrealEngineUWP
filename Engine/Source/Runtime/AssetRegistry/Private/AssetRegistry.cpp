@@ -116,6 +116,38 @@ namespace UE::AssetRegistry
 	const FName Stage_ChunkInstalledSizeFName(TEXT("Stage_ChunkInstalledSize"));
 	const FName Stage_ChunkStreamingSizeFName(TEXT("Stage_ChunkStreamingSize"));
 	const FName Stage_ChunkOptionalSizeFName(TEXT("Stage_ChunkOptionalSize"));
+	
+	FString LexToString(EScanFlags Flags)
+	{
+		const TCHAR* Names[] = {
+			TEXT("ForceRescan"),
+			TEXT("IgnoreDenyListScanFilters"),
+			TEXT("WaitForInMemoryObjects")
+		};
+		
+		if (Flags == EScanFlags::None)
+		{
+			return TEXT("None");
+		}
+		
+		uint32 AllKnownFlags = (1 << (UE_ARRAY_COUNT(Names)+1)) - 1;
+		ensureMsgf(EnumHasAllFlags((EScanFlags)AllKnownFlags, Flags), TEXT("LexToString(UE::AssetRegistry::EScanFlags) is missing some cases"));
+
+		TStringBuilder<256> Builder;
+		for (uint32 i=0; i < UE_ARRAY_COUNT(Names); ++i)
+		{
+			if (EnumHasAllFlags(Flags, (EScanFlags)(1 << i)))
+			{
+				if (Builder.Len() != 0)
+				{
+					Builder << TEXT("|");
+				}
+				Builder << Names[i];	
+			}
+		}
+		
+		return Builder.ToString();
+	}
 }
 
 namespace UE::AssetRegistry::Impl
