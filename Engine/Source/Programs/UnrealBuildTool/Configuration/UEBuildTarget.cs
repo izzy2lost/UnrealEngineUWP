@@ -4906,6 +4906,15 @@ namespace UnrealBuildTool
 			{
 				GlobalCompileEnvironment.Definitions.Add("WITH_COREUOBJECT=0");
 			}
+			
+			if (Rules.bEnableTrace)
+			{
+				GlobalCompileEnvironment.Definitions.Add("UE_TRACE_ENABLED=1");
+			}
+			else
+			{
+				GlobalCompileEnvironment.Definitions.Add("UE_TRACE_ENABLED=0");
+			}
 
 			if (Rules.bUseVerse)
 			{

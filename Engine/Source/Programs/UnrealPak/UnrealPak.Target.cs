@@ -38,7 +38,7 @@ public class UnrealPakTarget : TargetRules
 		WindowsPlatform.bMergeIdenticalCOMDATs = true;
 		WindowsPlatform.bStripUnreferencedSymbols = true;
 
-		GlobalDefinitions.Add("UE_TRACE_ENABLED=1");
+		bEnableTrace = true;
 		GlobalDefinitions.Add("UE_EXTERNAL_PROFILING_ENABLED=0");
 	}
 }

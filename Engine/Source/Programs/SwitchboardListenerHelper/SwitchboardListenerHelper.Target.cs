@@ -26,7 +26,7 @@ public class SwitchboardListenerHelperTarget : TargetRules
 		// The listener is meant to be a console application (no window), but on MacOS, to get a proper log console, a full application must be built.
 		bIsBuildingConsoleApplication = Target.Platform != UnrealTargetPlatform.Mac;
 
-		GlobalDefinitions.Add("UE_TRACE_ENABLED=1");
+		bEnableTrace = true;
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{

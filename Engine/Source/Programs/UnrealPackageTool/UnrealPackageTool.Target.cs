@@ -22,6 +22,6 @@ public class UnrealPackageToolTarget : TargetRules
 
 		bIsBuildingConsoleApplication = true;
 
-		GlobalDefinitions.Add("UE_TRACE_ENABLED=1");
+		bEnableTrace = true;
 	}
 }

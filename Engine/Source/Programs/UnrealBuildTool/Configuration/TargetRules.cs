@@ -1095,6 +1095,35 @@ namespace UnrealBuildTool
 		private bool bCompileAgainstApplicationCorePrivate = true;
 
 		/// <summary>
+		/// Enabled for builds that want to use against the Trace module for profiling and diagnostics.
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		public virtual bool bEnableTrace
+		{
+			get 
+			{
+				if (bEnableTracePrivate.HasValue)
+				{
+					return bEnableTracePrivate.Value;
+				}
+				if (Configuration == UnrealTargetConfiguration.Shipping || Type == TargetType.Program)
+				{
+					return false;
+				}
+				if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Apple) 
+				|| UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Unix)
+				|| UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Android)
+				|| UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Windows))
+				{
+					return true;
+				}
+				return false;
+			}  
+			set => bEnableTracePrivate = value;
+		}
+		private bool? bEnableTracePrivate;
+
+		/// <summary>
 		/// Manually specified value for bCompileAgainstEditor.
 		/// </summary>
 		bool? bCompileAgainstEditorOverride;
@@ -3102,6 +3131,8 @@ namespace UnrealBuildTool
 		public bool bCompileAgainstCoreUObject => Inner.bCompileAgainstCoreUObject;
 
 		public bool bCompileAgainstApplicationCore => Inner.bCompileAgainstApplicationCore;
+
+		public bool bEnableTrace => Inner.bEnableTrace;
 
 		public bool bCompileAgainstEditor => Inner.bCompileAgainstEditor;
 
