@@ -181,7 +181,7 @@ struct FUnversionedPropertyTest : public FUnversionedPropertyTestInput
 	// FProperty::Identical() flavor suited to comparing loaded instances
 	static bool Equals(const FProperty* Property, const void* A, const void* B, FPropertyDiff& OutDiff)
 	{
-		if (Property->GetPropertyFlags() & (CPF_EditorOnly | CPF_Transient))
+		if (Property->GetPropertyFlags() & (CPF_EditorOnly | CPF_Transient | CPF_NonNullable))
 		{
 			return true;
 		}
