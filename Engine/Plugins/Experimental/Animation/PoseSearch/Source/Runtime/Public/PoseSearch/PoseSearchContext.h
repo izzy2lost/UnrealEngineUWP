@@ -231,6 +231,14 @@ public:
 
 	struct FBestPoseCandidates
 	{
+		FBestPoseCandidates()
+		{
+			// preallocating memory to avoid multiple reallocations / rehashing
+			SearchedDatabases.Empty(8);
+			PoseCandidateHeap.Reserve(MaxPoseCandidates);
+			PoseIdxToFlags.Empty(MaxPoseCandidates);
+		}
+
 		void Add(const UPoseSearchDatabase* Database)
 		{
 			SearchedDatabases.Add(Database);
