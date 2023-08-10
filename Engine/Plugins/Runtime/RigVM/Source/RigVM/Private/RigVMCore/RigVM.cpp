@@ -161,6 +161,7 @@ void URigVM::Save(FArchive& Ar)
 
 		Ar << OperandToDebugRegisters;
 		Ar << UserDefinedStructGuidToPathName;
+		Ar << UserDefinedEnumToPathName;
 	}
 
 	// advertise dependencies on user defined structs and user defined enums
@@ -238,6 +239,14 @@ void URigVM::Load(FArchive& Ar)
 			{
 				UserDefinedStructGuidToPathName.Reset();
 			}
+			if (Ar.CustomVer(FRigVMObjectVersion::GUID) >= FRigVMObjectVersion::VMStoringUserDefinedEnumMap)
+			{
+				Ar << UserDefinedEnumToPathName;
+			}
+			else
+			{
+				UserDefinedEnumToPathName.Reset();
+			}
 		}
 
 		// we only deal with virtual machines now that use the new memory infrastructure.
@@ -281,6 +290,14 @@ void URigVM::Load(FArchive& Ar)
 		else
 		{
 			UserDefinedStructGuidToPathName.Reset();
+		}
+		if (Ar.CustomVer(FRigVMObjectVersion::GUID) >= FRigVMObjectVersion::VMStoringUserDefinedEnumMap)
+		{
+			Ar << UserDefinedEnumToPathName;
+		}
+		else
+		{
+			UserDefinedEnumToPathName.Reset();
 		}
 	}
 
@@ -349,6 +366,7 @@ void URigVM::PreSave(FObjectPreSaveContext SaveContext)
 
 	const TArray<const UObject*> UserDefinedDependencies = GetUserDefinedDependencies();
 	UserDefinedStructGuidToPathName.Reset();
+	UserDefinedEnumToPathName.Reset();
 
 	for(const UObject* UserDefinedDependency : UserDefinedDependencies)
 	{
@@ -356,6 +374,11 @@ void URigVM::PreSave(FObjectPreSaveContext SaveContext)
 		{
 			const FString GuidBasedName = RigVMTypeUtils::GetUniqueStructTypeName(UserDefinedStruct);
 			UserDefinedStructGuidToPathName.Add(GuidBasedName, UserDefinedStruct);
+		}
+		else if (const UUserDefinedEnum* UserDefinedEnum = Cast<UUserDefinedEnum>(UserDefinedDependency))
+		{
+			const FString EnumName = RigVMTypeUtils::CPPTypeFromEnum(UserDefinedEnum);
+			UserDefinedEnumToPathName.Add(EnumName, UserDefinedEnum);
 		}
 	}
 }
@@ -583,6 +606,7 @@ void URigVM::Reset(bool IsIgnoringArchetypeRef)
 		ParametersNameMap.Reset();
 		OperandToDebugRegisters.Reset();
 		UserDefinedStructGuidToPathName.Reset();
+		UserDefinedEnumToPathName.Reset();
 	}
 
 	if(!IsIgnoringArchetypeRef)
@@ -612,6 +636,7 @@ void URigVM::Empty(FRigVMExtendedExecuteContext& Context)
 	Parameters.Empty();
 	ParametersNameMap.Empty();
 	UserDefinedStructGuidToPathName.Empty();
+	UserDefinedEnumToPathName.Reset();
 	ExternalVariables.Empty();
 
 	InvalidateCachedMemory();
@@ -720,6 +745,7 @@ void URigVM::CopyFrom(URigVM* InVM, bool bDeferCopy, bool bReferenceLiteralMemor
 	
 	OperandToDebugRegisters = InVM->OperandToDebugRegisters;
 	UserDefinedStructGuidToPathName = InVM->UserDefinedStructGuidToPathName;
+	UserDefinedEnumToPathName = InVM->UserDefinedEnumToPathName;
 
 	if (bCopyExternalVariables)
 	{
@@ -1036,6 +1062,7 @@ bool URigVM::ResolveFunctionsIfRequired()
 
 		FRigVMTypeResolvalInfo ResolvalInfo;
 		ResolvalInfo.CPPTypeToObjectPath = UserDefinedStructGuidToPathName;
+		ResolvalInfo.CPPTypeToObjectPath.Append(UserDefinedEnumToPathName);
 
 		TArray<FName>& FunctionNames = GetFunctionNames();
 		for (int32 FunctionIndex = 0; FunctionIndex < FunctionNames.Num(); FunctionIndex++)

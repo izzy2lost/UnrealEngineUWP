@@ -6,6 +6,7 @@
 #include "RigVMCore/RigVMTypeIndex.h"
 #include "RigVMCore/RigVMUnknownType.h"
 #include "UObject/Interface.h"
+#include "Engine/UserDefinedEnum.h"
 #include "Engine/UserDefinedStruct.h"
 #include "UObject/CoreRedirects.h"
 #include "UObject/Package.h"
@@ -117,12 +118,10 @@ namespace RigVMTypeUtils
 
 	inline FString CPPTypeFromEnum(const UEnum* InEnum)
 	{
-		check(InEnum);
-
 		FString CPPType = InEnum->CppType;
 		if(CPPType.IsEmpty()) // this might be a user defined enum
 		{
-			CPPType = InEnum->GetName();
+			CPPType = FString::Printf(TEXT("EUserDefinedEnum_%s_%08x"), *InEnum->GetName(), GetTypeHash(InEnum->GetPathName()));
 		}
 		return CPPType;
 	}

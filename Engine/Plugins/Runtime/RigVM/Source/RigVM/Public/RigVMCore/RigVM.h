@@ -868,6 +868,7 @@ private:
 	TArray<FRigVMExternalVariableDef> ExternalVariables;
 	TArray<FRigVMLazyBranch> LazyBranches;
 	TMap<FString, FSoftObjectPath> UserDefinedStructGuidToPathName;
+	TMap<FString, FSoftObjectPath> UserDefinedEnumToPathName;
 
 	// this function should be kept in sync with FRigVMOperand::GetContainerIndex()
 	static int32 GetContainerIndex(ERigVMMemoryType InType)
