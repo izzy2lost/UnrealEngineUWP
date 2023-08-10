@@ -6,6 +6,16 @@
 #include "GeometryCollection/GeometryCollectionSimulationCoreTypes.h"
 #include "GeometryCollection/GeometryCollection.h"
 
+namespace
+{
+	float GetMaxAppliedStrain(const Chaos::FPBDRigidClusteredParticleHandle* Handle, const uint8 StrainTypes)
+	{
+		const float CollisionImpulses = (StrainTypes & Chaos::EStrainTypes::CollisionStrain) ? Handle->CollisionImpulses() : 0.f;
+		const float ExternalStrain = (StrainTypes & Chaos::EStrainTypes::ExternalStrain) ? Handle->GetExternalStrain() : 0.f;
+		return FMath::Max(CollisionImpulses, ExternalStrain);
+	}
+}
+
 const FGeometryCollectionPhysicsProxy* Chaos::FStrainedProxyModifier::GetProxy() const
 {
 	return Proxy;
@@ -40,19 +50,8 @@ int32 Chaos::FStrainedProxyModifier::GetNumBreakingStrains(const bool bDoubleCou
 		if (ChildHandle->Parent() == nullptr) { continue; }
 
 		// Get the applied and internal strain
-		//
-		// TODO: Make this a computation internal to the strain, or the connection
-		// graph or something... this logic is currently copied from
-		// FRigidClustering::ReleaseClusterParticlesImpl, but should be tucked behind
-		// an interface somewhere.
-		const Chaos::FReal CollisionImpulses
-			= (StrainTypes & Chaos::EStrainTypes::CollisionStrain)
-			? ChildHandle->CollisionImpulses() : FReal(0);
-		const Chaos::FReal ExternalStrain
-			= (StrainTypes & Chaos::EStrainTypes::ExternalStrain)
-			? ChildHandle->GetExternalStrain() : FReal(0);
-		const Chaos::FReal InternalStrain = ChildHandle->GetInternalStrains();
-		Chaos::FReal MaxAppliedStrain = FMath::Max(CollisionImpulses, ExternalStrain);
+		const float InternalStrain = ChildHandle->GetInternalStrains();
+		const float MaxAppliedStrain = GetMaxAppliedStrain(ChildHandle, StrainTypes);
 
 		if (bDoubleCount && InternalStrain > SMALL_NUMBER)
 		{
@@ -66,6 +65,56 @@ int32 Chaos::FStrainedProxyModifier::GetNumBreakingStrains(const bool bDoubleCou
 
 	// Return the number of breaking strains
 	return NumBreakingStrains;
+}
+
+float Chaos::FStrainedProxyModifier::GetMaxBreakStrainRatio(const float FatigueThreshold, const uint8 StrainTypes) const
+{
+	// Make sure we have a proxy and rest-children
+	if (Proxy == nullptr) { return 0; }
+	if (RestChildren == nullptr) { return 0; }
+
+	// Loop over each child, checking whether or not it will have been freed
+	// by the strain that it has accumulated
+	float MaxBreakStrainRatio = 0.f;
+	for (int32 RestChildIdx : *RestChildren)
+	{
+		Chaos::FPBDRigidClusteredParticleHandle* ChildHandle = Proxy->GetSolverParticleHandles()[RestChildIdx];
+		if (ChildHandle->Parent() == nullptr) { continue; }
+
+		// compute the strain ratio
+		const float InternalStrain = ChildHandle->GetInternalStrains();
+		const float MaxAppliedStrain = GetMaxAppliedStrain(ChildHandle, StrainTypes);
+		const float AdjustedAppliedStrain = (MaxAppliedStrain >= FatigueThreshold) ? MaxAppliedStrain : 0.f;
+		const float StrainRatio = (InternalStrain > SMALL_NUMBER)? (MaxAppliedStrain / InternalStrain) : 1.0f;
+
+		MaxBreakStrainRatio = FMath::Max(MaxBreakStrainRatio, StrainRatio);
+	}
+
+	return MaxBreakStrainRatio;
+}
+
+void Chaos::FStrainedProxyModifier::AdjustStrainForBreak(const float FatigueThreshold, const uint8 StrainTypes)
+{
+	// Make sure we have a proxy and rest-children
+	if (Proxy == nullptr) { return; }
+	if (RestChildren == nullptr) { return; }
+
+	// Loop over each child, checking whether or not it will have been freed
+	// by the strain that it has accumulated
+	float MaxBreakStrainRatio = 0.f;
+	for (int32 RestChildIdx : *RestChildren)
+	{
+		Chaos::FPBDRigidClusteredParticleHandle* ChildHandle = Proxy->GetSolverParticleHandles()[RestChildIdx];
+		if (ChildHandle->Parent() == nullptr) { continue; }
+
+		// compute the strain ratio
+		const float InternalStrain = ChildHandle->GetInternalStrains();
+		const float MaxAppliedStrain = GetMaxAppliedStrain(ChildHandle, StrainTypes);
+		if (MaxAppliedStrain >= FatigueThreshold)
+		{
+			RigidClustering.SetExternalStrain(ChildHandle, InternalStrain);
+		}
+	}
 }
 
 void Chaos::FStrainedProxyModifier::ClearStrains()
