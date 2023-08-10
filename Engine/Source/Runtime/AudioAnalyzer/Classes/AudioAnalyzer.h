@@ -32,6 +32,9 @@ class FAudioAnalyzeTask : public FNonAbandonableTask
 public:
 	FAudioAnalyzeTask(TUniquePtr<Audio::FAnalyzerFacade>& InAnalyzerFacade, int32 InSampleRate, int32 InNumChannels);
 	
+	// Set in the task the current state of the analyzer controls
+	void SetAnalyzerControls(TSharedPtr<Audio::IAnalyzerControls> InControls);
+
 	// Give the task the audio data to analyze
 	void SetAudioBuffer(TArray<float>&& InAudioData);
 
@@ -52,6 +55,7 @@ private:
 	int32 NumChannels = 0;
 	TArray<float> AudioData;
 	TUniquePtr<Audio::IAnalyzerResult> Results;
+	TSharedPtr<Audio::IAnalyzerControls> AnalyzerControls;
 };
 
 /** UAudioAnalyzer
@@ -102,6 +106,12 @@ public:
 	 */
 	AUDIOANALYZER_API virtual TUniquePtr<Audio::IAnalyzerSettings> GetSettings(const int32 InSampleRate, const int32 InNumChannels) const;
 
+	/**
+	 * Implementations can override this method to create controls objects
+	 * specific for their analyzer.
+	 */
+	AUDIOANALYZER_API virtual TSharedPtr<Audio::IAnalyzerControls> GetAnalyzerControls() const;
+
 	/** Function to broadcast results. */
 	virtual void BroadcastResults() {}
 
@@ -150,6 +160,9 @@ private:
 
 	// Cached results of previous analysis task. Can be invalid.
 	TUniquePtr<Audio::IAnalyzerResult> ResultsInternal;
+
+	// The analyzer controls that can be modified real-time
+	TSharedPtr<Audio::IAnalyzerControls> AnalyzerControls;
 
 	// Scratch buffer used for copying data from patch output and fed to analysis task
 	TArray<float> AnalysisBuffer;

@@ -26,10 +26,15 @@ void FAudioAnalyzeTask::SetAudioBuffer(TArray<float>&& InAudioData)
 	AudioData = MoveTemp(InAudioData);
 }
 
+void FAudioAnalyzeTask::SetAnalyzerControls(TSharedPtr<Audio::IAnalyzerControls> InControls)
+{
+	AnalyzerControls = InControls;
+}
+
 void FAudioAnalyzeTask::DoWork()
 {
 	check(AnalyzerFacade);
-	Results = AnalyzerFacade->AnalyzeAudioBuffer(AudioData, NumChannels, SampleRate);
+	Results = AnalyzerFacade->AnalyzeAudioBuffer(AudioData, NumChannels, SampleRate, AnalyzerControls);
 }
 
 void UAudioAnalyzer::StartAnalyzing(UWorld* InWorld, UAudioBus* AudioBusToAnalyze)
@@ -193,6 +198,7 @@ bool UAudioAnalyzer::DoAnalysis()
 	check(NumBusChannels != 0);
 
 	FAudioAnalyzeTask& Task = AnalysisTask->GetTask();
+	Task.SetAnalyzerControls(GetAnalyzerControls());
 	Task.SetAudioBuffer(MoveTemp(AnalysisBuffer));
 
  	AnalysisTask->StartBackgroundTask();
@@ -247,4 +253,7 @@ TUniquePtr<Audio::IAnalyzerSettings> UAudioAnalyzer::GetSettings(const int32 InS
 	return MakeUnique<Audio::IAnalyzerSettings>();
 }
 
-
+TSharedPtr<Audio::IAnalyzerControls> UAudioAnalyzer::GetAnalyzerControls() const
+{
+	return AnalyzerControls;
+}
