@@ -361,7 +361,7 @@ FMassDebugger::FOnEntitySelected FMassDebugger::OnEntitySelectedDelegate;
 
 FMassDebugger::FOnMassEntityManagerEvent FMassDebugger::OnEntityManagerInitialized;
 FMassDebugger::FOnMassEntityManagerEvent FMassDebugger::OnEntityManagerDeinitialized;
-TArray<TWeakPtr<const FMassEntityManager>> FMassDebugger::ActiveEntityManagers;
+TArray<FMassDebugger::FEnvironment> FMassDebugger::ActiveEnvironments;
 UE::FSpinLock FMassDebugger::EntityManagerRegistrationLock;
 
 TConstArrayView<FMassEntityQuery*> FMassDebugger::GetProcessorQueries(const UMassProcessor& Processor)
@@ -589,14 +589,34 @@ void FMassDebugger::OutputEntityDescription(FOutputDevice& Ar, const FMassEntity
 void FMassDebugger::SelectEntity(const FMassEntityManager& EntityManager, const FMassEntityHandle EntityHandle)
 {
 	UE::Mass::Debug::SetDebugEntityRange(EntityHandle.Index, EntityHandle.Index);
+
+	const int32 Index = ActiveEnvironments.IndexOfByPredicate([WeakManager = EntityManager.AsWeak()](const FEnvironment& Element)
+		{
+			return Element.EntityManager == WeakManager;
+		});
+	if (ensure(Index != INDEX_NONE))
+	{
+		ActiveEnvironments[Index].SelectedEntity = EntityHandle;
+	}
+
 	OnEntitySelectedDelegate.Broadcast(EntityManager, EntityHandle);
+}
+
+FMassEntityHandle FMassDebugger::GetSelectedEntity(const FMassEntityManager& EntityManager)
+{
+	const int32 Index = ActiveEnvironments.IndexOfByPredicate([WeakManager = EntityManager.AsWeak()](const FEnvironment& Element)
+		{
+			return Element.EntityManager == WeakManager;
+		});
+
+	return Index != INDEX_NONE ? ActiveEnvironments[Index].SelectedEntity : FMassEntityHandle();
 }
 
 void FMassDebugger::RegisterEntityManager(FMassEntityManager& EntityManager)
 {
 	UE::TScopeLock<UE::FSpinLock> ScopeLock(EntityManagerRegistrationLock);
 
-	ActiveEntityManagers.Add(EntityManager.AsShared());
+	ActiveEnvironments.Emplace(EntityManager);
 	OnEntityManagerInitialized.Broadcast(EntityManager);
 }
 
@@ -606,13 +626,20 @@ void FMassDebugger::UnregisterEntityManager(FMassEntityManager& EntityManager)
 
 	if (EntityManager.DoesSharedInstanceExist())
 	{
-		ActiveEntityManagers.Remove(EntityManager.AsWeak());
+		const int32 Index = ActiveEnvironments.IndexOfByPredicate([WeakManager = EntityManager.AsWeak()](const FEnvironment& Element) 
+		{
+			return Element.EntityManager == WeakManager;
+		});
+		if (Index != INDEX_NONE)
+		{
+			ActiveEnvironments.RemoveAt(Index, 1, /*bAllowShrinking=*/false);
+		}
 	}
 	else
 	{
-		ActiveEntityManagers.RemoveAll([](const TWeakPtr<const FMassEntityManager>& Item)
+		ActiveEnvironments.RemoveAll([](const FEnvironment& Item)
 			{
-				return Item.IsValid();
+				return Item.IsValid() == false;
 			});
 	}
 	OnEntityManagerDeinitialized.Broadcast(EntityManager);

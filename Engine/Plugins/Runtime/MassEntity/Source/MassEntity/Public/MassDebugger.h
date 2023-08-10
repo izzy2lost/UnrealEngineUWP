@@ -76,6 +76,17 @@ struct MASSENTITY_API FMassDebugger
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnEntitySelected, const FMassEntityManager&, const FMassEntityHandle);
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnMassEntityManagerEvent, const FMassEntityManager&);
 
+	struct FEnvironment
+	{
+		TWeakPtr<const FMassEntityManager> EntityManager;
+		FMassEntityHandle SelectedEntity;
+
+		explicit FEnvironment(const FMassEntityManager& InEntityManager)
+			: EntityManager(InEntityManager.AsWeak())
+		{}
+
+		bool IsValid() const { return EntityManager.IsValid(); }
+	};
 
 	static TConstArrayView<FMassEntityQuery*> GetProcessorQueries(const UMassProcessor& Processor);
 	/** fetches all queries registered for given Processor. Note that in order to get up to date information
@@ -103,6 +114,7 @@ struct MASSENTITY_API FMassDebugger
 	static void OutputEntityDescription(FOutputDevice& Ar, const FMassEntityManager& EntityManager, const FMassEntityHandle Entity, const TCHAR* InPrefix = TEXT(""));
 
 	static void SelectEntity(const FMassEntityManager& EntityManager, const FMassEntityHandle EntityHandle);
+	static FMassEntityHandle GetSelectedEntity(const FMassEntityManager& EntityManager);
 
 	static FOnEntitySelected OnEntitySelectedDelegate;
 
@@ -111,10 +123,10 @@ struct MASSENTITY_API FMassDebugger
 
 	static void RegisterEntityManager(FMassEntityManager& EntityManager);
 	static void UnregisterEntityManager(FMassEntityManager& EntityManager);
-	static TConstArrayView<TWeakPtr<const FMassEntityManager>> GetEntityManagers() { return ActiveEntityManagers; }
+	static TConstArrayView<FEnvironment> GetEnvironments() { return ActiveEnvironments; }
 
 private:
-	static TArray<TWeakPtr<const FMassEntityManager>> ActiveEntityManagers;
+	static TArray<FEnvironment> ActiveEnvironments;
 	static UE::FSpinLock EntityManagerRegistrationLock;
 };
 
