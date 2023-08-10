@@ -1314,13 +1314,13 @@ void UDeviceProfileManager::SetActiveDeviceProfile( UDeviceProfile* DeviceProfil
 {
 	ActiveDeviceProfile = DeviceProfile;
 
-	UE_LOG(LogDeviceProfileManager, Log, TEXT("Available device profiles:"));
+	UE_LOG(LogDeviceProfileManager, Verbose, TEXT("Available device profiles:"));
 	for (int32 Idx = 0; Idx < Profiles.Num(); ++Idx)
 	{
 		UDeviceProfile* Profile = Cast<UDeviceProfile>(Profiles[Idx]);
 		const void* TextureLODGroupsAddr = Profile ? Profile->TextureLODGroups.GetData() : nullptr;
 		const int32 NumTextureLODGroups = Profile ? Profile->TextureLODGroups.Num() : 0;
-		UE_LOG(LogDeviceProfileManager, Log, TEXT("\t[%p][%p %d] %s, "), Profile, TextureLODGroupsAddr, NumTextureLODGroups, Profile ? *Profile->GetName() : TEXT("None"));
+		UE_LOG(LogDeviceProfileManager, Verbose, TEXT("\t[%p][%p %d] %s, "), Profile, TextureLODGroupsAddr, NumTextureLODGroups, Profile ? *Profile->GetName() : TEXT("None"));
 	}
 
 	const void* TextureLODGroupsAddr = ActiveDeviceProfile ? ActiveDeviceProfile->TextureLODGroups.GetData() : nullptr;
