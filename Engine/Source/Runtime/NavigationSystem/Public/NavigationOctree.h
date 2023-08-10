@@ -142,8 +142,15 @@ struct FNavigationOctreeSemantics
 class FNavigationOctree : public TOctree2<FNavigationOctreeElement, FNavigationOctreeSemantics>, public TSharedFromThis<FNavigationOctree, ESPMode::ThreadSafe>
 {
 public:
+	UE_DEPRECATED(5.4, "Use FNavRelevantGeometryExportDelegate.")
 	DECLARE_DELEGATE_TwoParams(FNavigableGeometryComponentExportDelegate, UActorComponent*, FNavigationRelevantData&);
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FNavigableGeometryComponentExportDelegate ComponentExportDelegate;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	DECLARE_DELEGATE_TwoParams(FNavRelevantGeometryExportDelegate, INavRelevantInterface&, FNavigationRelevantData&);
+	FNavRelevantGeometryExportDelegate NavRelevantGeometryExportDelegate;
 
 	enum ENavGeometryStoringMode {
 		SkipNavGeometry,

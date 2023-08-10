@@ -92,26 +92,22 @@ void FNavigationDirtyAreasController::AddArea(const FBox& NewArea, const int32 F
 
 #if !UE_BUILD_SHIPPING
 	auto DumpExtraInfo = [ObjectProviderFunc, DebugReason, BoundsSize, NewArea]() {
-		const UObject* ObjectProvider = nullptr;
+		FString ObjectInfo;
+		const UObject* Object = nullptr;
 		if (ObjectProviderFunc)
 		{
-			ObjectProvider = ObjectProviderFunc();
-		}
-
-		FString ComponentInfo;
-		if (const UActorComponent* ObjectAsComponent = Cast<UActorComponent>(ObjectProvider))
-		{
-			if (const AActor* ComponentOwner = ObjectAsComponent->GetOwner())
+			Object = ObjectProviderFunc();
+			if (const UObject* ObjectOwner = (Object != nullptr ? Object->GetOuter() : nullptr))
 			{
-				UE_VLOG_BOX(ComponentOwner, LogNavigationDirtyArea, Log, NewArea, FColor::Red, TEXT(""));
-				ComponentInfo = FString::Printf(TEXT(" | Component's owner: %s"), *GetFullNameSafe(ComponentOwner));
+				UE_VLOG_BOX(ObjectOwner, LogNavigationDirtyArea, Log, NewArea, FColor::Red, TEXT(""));
+				ObjectInfo = FString::Printf(TEXT(" | Element's owner: %s"), *GetFullNameSafe(ObjectOwner));
 			}
 		}
 
 		return FString::Printf(TEXT("Object: %s (from: %s)%s | Bounds: %s"),
-			*GetFullNameSafe(ObjectProvider),
+			*GetFullNameSafe(Object),
 			*DebugReason.ToString(),
-			*ComponentInfo,
+			*ObjectInfo,
 			*BoundsSize.ToString());
 	};
 

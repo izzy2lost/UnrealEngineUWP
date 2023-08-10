@@ -127,6 +127,10 @@ namespace FNavigationSystem
 	class FDelegates
 	{
 	public:
+		FObjectBasedSignature RegisterNavRelevantObject;
+		FObjectBasedSignature UpdateNavRelevantObject;
+		FObjectBasedSignature UnregisterNavRelevantObject;
+		
 		FActorBasedSignature UpdateActorData;
 		FActorComponentBasedSignature UpdateComponentData;
 		FSceneComponentBasedSignature UpdateComponentDataAfterMove;
@@ -167,6 +171,10 @@ namespace FNavigationSystem
 
 		FDelegates()
 		{
+			RegisterNavRelevantObject.BindLambda([](UObject&) {});
+			UpdateNavRelevantObject.BindLambda([](UObject&) {});
+			UnregisterNavRelevantObject.BindLambda([](UObject&) {});
+
 			UpdateActorData.BindLambda([](AActor&) {});
 			UpdateComponentData.BindLambda([](UActorComponent&) {});
 			UpdateComponentDataAfterMove.BindLambda([](UActorComponent&) {});
@@ -206,6 +214,10 @@ namespace FNavigationSystem
 	FDelegates Delegates;
 
 	void ResetDelegates() { new(&Delegates)FDelegates(); }
+
+	void RegisterNavRelevantObject(UObject& Object) { Delegates.RegisterNavRelevantObject.Execute(Object); }
+	void UpdateNavRelevantObject(UObject& Object) { Delegates.UpdateNavRelevantObject.Execute(Object); }
+	void UnregisterNavRelevantObject(UObject& Object) { Delegates.UnregisterNavRelevantObject.Execute(Object); }
 
 	void UpdateActorData(AActor& Actor) { Delegates.UpdateActorData.Execute(Actor); }
 	void UpdateComponentData(UActorComponent& Comp) { Delegates.UpdateComponentData.Execute(Comp); }
@@ -387,6 +399,11 @@ void UNavigationSystemBase::SetDefaultObstacleArea(TSubclassOf<UNavAreaBase> InA
 
 
 void UNavigationSystemBase::ResetEventDelegates() { FNavigationSystem::ResetDelegates(); }
+
+FNavigationSystem::FObjectBasedSignature& UNavigationSystemBase::RegisterNavRelevantObjectDelegate() { return FNavigationSystem::Delegates.RegisterNavRelevantObject; }
+FNavigationSystem::FObjectBasedSignature& UNavigationSystemBase::UpdateNavRelevantObjectDelegate() { return FNavigationSystem::Delegates.UpdateNavRelevantObject; }
+FNavigationSystem::FObjectBasedSignature& UNavigationSystemBase::UnregisterNavRelevantObjectDelegate() { return FNavigationSystem::Delegates.UnregisterNavRelevantObject; }
+
 FNavigationSystem::FActorBasedSignature& UNavigationSystemBase::UpdateActorDataDelegate() { return FNavigationSystem::Delegates.UpdateActorData; }
 FNavigationSystem::FActorComponentBasedSignature& UNavigationSystemBase::UpdateComponentDataDelegate() { return FNavigationSystem::Delegates.UpdateComponentData; }
 FNavigationSystem::FSceneComponentBasedSignature& UNavigationSystemBase::UpdateComponentDataAfterMoveDelegate() { return FNavigationSystem::Delegates.UpdateComponentDataAfterMove; }

@@ -148,7 +148,11 @@ namespace FNavigationSystem
 	
 	ENGINE_API void RegisterComponent(UActorComponent& Comp);
 	ENGINE_API void UnregisterComponent(UActorComponent& Comp);
-	
+
+	ENGINE_API void RegisterNavRelevantObject(UObject& Object);
+	ENGINE_API void UpdateNavRelevantObject(UObject& Object);
+	ENGINE_API void UnregisterNavRelevantObject(UObject& Object);
+
 	ENGINE_API void RemoveActorData(AActor& Actor);
 
 	ENGINE_API bool HasComponentData(UActorComponent& Comp);
@@ -190,6 +194,7 @@ namespace FNavigationSystem
 	ENGINE_API void StopMovement(const AController& Controller);
 	ENGINE_API IPathFollowingAgentInterface* FindPathFollowingAgentForActor(const AActor& Actor);
 
+	DECLARE_DELEGATE_OneParam(FObjectBasedSignature, UObject& /*Object*/);
 	DECLARE_DELEGATE_OneParam(FActorBasedSignature, AActor& /*Actor*/);
 	DECLARE_DELEGATE_OneParam(FActorComponentBasedSignature, UActorComponent& /*Comp*/);
 	DECLARE_DELEGATE_OneParam(FSceneComponentBasedSignature, USceneComponent& /*Comp*/);
@@ -276,6 +281,11 @@ protected:
 	static ENGINE_API void SetDefaultObstacleArea(TSubclassOf<UNavAreaBase> InAreaClass);
 
 	static ENGINE_API void ResetEventDelegates();
+
+	static ENGINE_API FNavigationSystem::FObjectBasedSignature& RegisterNavRelevantObjectDelegate();
+	static ENGINE_API FNavigationSystem::FObjectBasedSignature& UpdateNavRelevantObjectDelegate();
+	static ENGINE_API FNavigationSystem::FObjectBasedSignature& UnregisterNavRelevantObjectDelegate();
+	
 	static ENGINE_API FNavigationSystem::FActorBasedSignature& UpdateActorDataDelegate();
 	static ENGINE_API FNavigationSystem::FActorComponentBasedSignature& UpdateComponentDataDelegate();
 	static ENGINE_API FNavigationSystem::FSceneComponentBasedSignature& UpdateComponentDataAfterMoveDelegate();

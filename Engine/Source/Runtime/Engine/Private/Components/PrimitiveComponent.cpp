@@ -2964,6 +2964,26 @@ bool UPrimitiveComponent::IsNavigationRelevant() const
 		(ResponseToChannels.GetResponse(ECC_Pawn) == ECR_Block || ResponseToChannels.GetResponse(ECC_Vehicle) == ECR_Block);
 }
 
+UBodySetup* UPrimitiveComponent::GetNavigableGeometryBodySetup()
+{
+	return GetBodySetup();
+}
+
+FTransform UPrimitiveComponent::GetNavigableGeometryTransform() const
+{
+	return GetComponentTransform();
+}
+
+EHasCustomNavigableGeometry::Type UPrimitiveComponent::HasCustomNavigableGeometry() const
+{
+	return bHasCustomNavigableGeometry;
+}
+
+bool UPrimitiveComponent::DoCustomNavigableGeometryExport(FNavigableGeometryExport& GeomExport) const
+{
+	return true;
+}
+
 FBox UPrimitiveComponent::GetNavigationBounds() const
 {
 	// Return invalid box when retrieving NavigationBounds before they are being computed at component registration

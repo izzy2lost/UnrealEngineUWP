@@ -571,6 +571,10 @@ UNavigationSystemV1::UNavigationSystemV1(const FObjectInitializer& ObjectInitial
 	{
 		FDelegatesInitializer()
 		{
+			UNavigationSystemBase::RegisterNavRelevantObjectDelegate().BindLambda([](UObject& Object) { UNavigationSystemV1::OnNavRelevantObjectRegistered(Object); });
+			UNavigationSystemBase::UpdateNavRelevantObjectDelegate().BindStatic(&UNavigationSystemV1::UpdateNavRelevantObjectInNavOctree);
+			UNavigationSystemBase::UnregisterNavRelevantObjectDelegate().BindLambda([](UObject& Object) { UNavigationSystemV1::OnNavRelevantObjectUnregistered(Object); });
+
 			UNavigationSystemBase::UpdateActorDataDelegate().BindStatic(&UNavigationSystemV1::UpdateActorInNavOctree);
 			UNavigationSystemBase::UpdateComponentDataDelegate().BindStatic(&UNavigationSystemV1::UpdateComponentInNavOctree);
 			UNavigationSystemBase::UpdateComponentDataAfterMoveDelegate().BindLambda([](USceneComponent& Comp) { UNavigationSystemV1::UpdateNavOctreeAfterMove(&Comp); });
@@ -627,7 +631,7 @@ UNavigationSystemV1::UNavigationSystemV1(const FObjectInitializer& ObjectInitial
 				UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(Comp.GetWorld());
 				if (NavSys)
 				{
-					NavSys->UpdateNavOctreeElementBounds(&Comp, NewBounds, DirtyArea);
+					NavSys->UpdateNavOctreeElementBounds(Comp, NewBounds, DirtyArea);
 				}
 			});
 			//UNavigationSystemBase::GetNavDataForPropsDelegate();
@@ -926,7 +930,7 @@ bool UNavigationSystemV1::ConditionalPopulateNavOctree()
 			if (bStoreNavGeometry)
 			{
 #if WITH_RECAST
-				DefaultOctreeController.NavOctree->ComponentExportDelegate = FNavigationOctree::FNavigableGeometryComponentExportDelegate::CreateStatic(&FRecastNavMeshGenerator::ExportComponentGeometry);
+				DefaultOctreeController.NavOctree->NavRelevantGeometryExportDelegate = FNavigationOctree::FNavRelevantGeometryExportDelegate::CreateStatic(&FRecastNavMeshGenerator::ExportNavRelevantObjectGeometry);
 #endif // WITH_RECAST
 			}
 
@@ -3074,6 +3078,24 @@ ANavigationData* UNavigationSystemV1::GetNavDataWithID(const uint16 NavDataID) c
 	return NULL;
 }
 
+void UNavigationSystemV1::OnNavRelevantObjectRegistered(UObject& Object)
+{
+	if (IsNavigationSystemStatic())
+	{
+		return;
+	}
+
+	SCOPE_CYCLE_COUNTER(STAT_DebugNavOctree);
+	if (INavRelevantInterface* NavInterface = Cast<INavRelevantInterface>(&Object))
+	{
+		UWorld* World = Object.GetTypedOuter<UWorld>();
+		if (UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World))
+		{
+			NavSys->RegisterNavOctreeElement(&Object, NavInterface, FNavigationOctreeController::OctreeUpdate_Default);
+		}
+	}
+}
+
 void UNavigationSystemV1::RegisterComponentToNavOctree(UActorComponent* Comp)
 {
 	if ((Comp == nullptr) || IsNavigationSystemStatic())
@@ -3093,6 +3115,24 @@ void UNavigationSystemV1::RegisterComponentToNavOctree(UActorComponent* Comp)
 			{
 				NavSys->RegisterNavOctreeElement(Comp, NavInterface, FNavigationOctreeController::OctreeUpdate_Default);
 			}
+		}
+	}
+}
+
+void UNavigationSystemV1::OnNavRelevantObjectUnregistered(UObject& Object)
+{
+	if (IsNavigationSystemStatic())
+	{
+		return;
+	}
+
+	SCOPE_CYCLE_COUNTER(STAT_DebugNavOctree);
+	if (INavRelevantInterface* NavInterface = Cast<INavRelevantInterface>(&Object))
+	{
+		UWorld* World = Object.GetTypedOuter<UWorld>();
+		if (UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World))
+		{
+			NavSys->UnregisterNavOctreeElement(&Object, NavInterface, FNavigationOctreeController::OctreeUpdate_Default);
 		}
 	}
 }
@@ -3198,6 +3238,26 @@ const FNavigationRelevantData* UNavigationSystemV1::GetDataForObject(const UObje
 FNavigationRelevantData* UNavigationSystemV1::GetMutableDataForObject(const UObject& Object)
 {
 	return DefaultOctreeController.GetMutableDataForObject(Object);
+}
+
+void UNavigationSystemV1::UpdateNavRelevantObjectInNavOctree(UObject& Object)
+{
+	SCOPE_CYCLE_COUNTER(STAT_DebugNavOctree);
+
+	if (INavRelevantInterface* NavElement = Cast<INavRelevantInterface>(&Object))
+	{
+		if (UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(Object.GetTypedOuter<UWorld>()))
+		{
+			if (NavElement->IsNavigationRelevant())
+			{
+				NavSys->UpdateNavOctreeElement(&Object, NavElement, FNavigationOctreeController::OctreeUpdate_Default);	
+			}
+			else
+			{
+				NavSys->UnregisterNavOctreeElement(&Object, NavElement, FNavigationOctreeController::OctreeUpdate_Default);
+			}
+		}
+	}
 }
 
 void UNavigationSystemV1::UpdateActorInNavOctree(AActor& Actor)
@@ -3404,6 +3464,11 @@ bool UNavigationSystemV1::UpdateNavOctreeElementBounds(UActorComponent* Comp, co
 	return Comp
 		? FNavigationDataHandler(DefaultOctreeController, DefaultDirtyAreasController).UpdateNavOctreeElementBounds(*Comp, NewBounds, DirtyArea)
 		: false;
+}
+
+bool UNavigationSystemV1::UpdateNavOctreeElementBounds(UObject& Object, const FBox& NewBounds, const FBox& DirtyArea)
+{
+	return FNavigationDataHandler(DefaultOctreeController, DefaultDirtyAreasController).UpdateNavOctreeElementBounds(Object, NewBounds, DirtyArea);
 }
 
 bool UNavigationSystemV1::ReplaceAreaInOctreeData(const UObject& Object, TSubclassOf<UNavArea> OldArea, TSubclassOf<UNavArea> NewArea, bool bReplaceChildClasses)

@@ -880,6 +880,10 @@ public:
 	//----------------------------------------------------------------------//
 	// navigation octree related functions
 	//----------------------------------------------------------------------//
+	static NAVIGATIONSYSTEM_API void OnNavRelevantObjectRegistered(UObject& Object);
+	static NAVIGATIONSYSTEM_API void UpdateNavRelevantObjectInNavOctree(UObject& Object);
+	static NAVIGATIONSYSTEM_API void OnNavRelevantObjectUnregistered(UObject& Object);
+
 	static NAVIGATIONSYSTEM_API void OnComponentRegistered(UActorComponent* Comp);
 	static NAVIGATIONSYSTEM_API void OnComponentUnregistered(UActorComponent* Comp);
 	static NAVIGATIONSYSTEM_API void RegisterComponent(UActorComponent* Comp);
@@ -945,8 +949,12 @@ public:
 	/** force updating parent node and all its children */
 	NAVIGATIONSYSTEM_API void UpdateNavOctreeParentChain(UObject* ElementOwner, bool bSkipElementOwnerUpdate = false);
 
+	UE_DEPRECATED(5.4, "Use UpdateNavOctreeElementBounds with object reference.")
 	/** update component bounds in navigation octree and mark only specified area as dirty, doesn't re-export component geometry */
 	NAVIGATIONSYSTEM_API bool UpdateNavOctreeElementBounds(UActorComponent* Comp, const FBox& NewBounds, const FBox& DirtyArea);
+
+	/** update object bounds in navigation octree and mark only specified area as dirty, doesn't re-export geometry */
+	NAVIGATIONSYSTEM_API bool UpdateNavOctreeElementBounds(UObject& Object, const FBox& NewBounds, const FBox& DirtyArea);
 
 	/** fetched Object's data from the octree and replaces occurences of OldArea with NewArea */
 	NAVIGATIONSYSTEM_API bool ReplaceAreaInOctreeData(const UObject& Object, TSubclassOf<UNavArea> OldArea, TSubclassOf<UNavArea> NewArea, bool bReplaceChildClasses = false);
@@ -1245,7 +1253,7 @@ protected:
 
 	FDelegateHandle ReloadCompleteDelegateHandle;
 
-	/** called to notify NavigaitonSystem about finished reload */
+	/** called to notify NavigationSystem about finished reload */
 	NAVIGATIONSYSTEM_API virtual void OnReloadComplete(EReloadCompleteReason Reason);
 
 	/** Registers given navigation data with this Navigation System.

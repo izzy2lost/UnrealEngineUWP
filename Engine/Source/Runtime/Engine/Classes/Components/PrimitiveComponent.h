@@ -73,26 +73,6 @@ enum ECanBeCharacterBase : int
 	ECB_MAX,
 };
 
-/** Determines if a primitive component contains custom collision for navigation/AI */
-UENUM()
-namespace EHasCustomNavigableGeometry
-{
-	enum Type : int
-	{
-		/** Primitive doesn't have custom navigation geometry, if collision is enabled then its convex/trimesh collision will be used for generating the navmesh */
-		No,
-
-		/** If primitive would normally affect navmesh, DoCustomNavigableGeometryExport() should be called to export this primitive's navigable geometry */
-		Yes,
-
-		/** DoCustomNavigableGeometryExport() should be called even if the mesh is non-collidable and wouldn't normally affect the navmesh */
-		EvenIfNotCollidable,
-
-		/** Don't export navigable geometry even if primitive is relevant for navigation (can still add modifiers) */
-		DontExport,
-	};
-}
-
 /** Information about the sprite category, used for visualization in the editor */
 USTRUCT()
 struct FSpriteCategoryInfo
@@ -2941,20 +2921,23 @@ public:
 	ENGINE_API virtual void GetNavigationData(FNavigationRelevantData& OutData) const override;
 	ENGINE_API virtual FBox GetNavigationBounds() const override;
 	ENGINE_API virtual bool IsNavigationRelevant() const override;
-	//~ End INavRelevantInterface Interface
+	ENGINE_API virtual UBodySetup* GetNavigableGeometryBodySetup() override final; // marked as final since PrimitiveComponent derived classes relies on GetBodySetup()
+	ENGINE_API virtual FTransform GetNavigableGeometryTransform() const override final; // marked as final since PrimitiveComponent derived classes relies on GetComponentTransform()
 
 	/** If true then DoCustomNavigableGeometryExport will be called to collect navigable geometry of this component. */
-	FORCEINLINE EHasCustomNavigableGeometry::Type HasCustomNavigableGeometry() const { return bHasCustomNavigableGeometry; }
+	ENGINE_API virtual EHasCustomNavigableGeometry::Type HasCustomNavigableGeometry() const override;
+
+	/** Collects custom navigable geometry of component.
+	 *	@return true if regular navigable geometry exporting should be run as well
+	 */
+	ENGINE_API virtual bool DoCustomNavigableGeometryExport(FNavigableGeometryExport& GeomExport) const override;
+	//~ End INavRelevantInterface Interface
 
 	// Returns true if we should check the GetGenerateOverlapEvents() flag when gathering overlaps, otherwise we'll always just do it.
 	ENGINE_API FORCEINLINE_DEBUGGABLE bool ShouldCheckOverlapFlagToQueueOverlaps(const UPrimitiveComponent& ThisComponent) const;
 
 	/** Set value of HasCustomNavigableGeometry */
 	ENGINE_API void SetCustomNavigableGeometry(const EHasCustomNavigableGeometry::Type InType);
-
-	/** Collects custom navigable geometry of component.
-	*	@return true if regular navigable geometry exporting should be run as well */
-	virtual bool DoCustomNavigableGeometryExport(FNavigableGeometryExport& GeomExport) const { return true; }
 
 	static ENGINE_API void DispatchMouseOverEvents(UPrimitiveComponent* CurrentComponent, UPrimitiveComponent* NewComponent);
 	static ENGINE_API void DispatchTouchOverEvents(ETouchIndex::Type FingerIndex, UPrimitiveComponent* CurrentComponent, UPrimitiveComponent* NewComponent);
