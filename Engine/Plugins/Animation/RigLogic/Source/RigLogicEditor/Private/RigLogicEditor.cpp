@@ -53,8 +53,9 @@ TSharedRef<FExtender> FRigLogicEditor::OnExtendSkelMeshWithDNASelectionMenu(cons
 void FRigLogicEditor::CreateDnaActionsSubMenu(FMenuBuilder& MenuBuilder, const TArray<FAssetData> SelectedAssets)
 {
 	const FAssetData& Asset = SelectedAssets[0];
+	const UClass* AssetClass = Asset.GetClass(EResolveClass::Yes);
 
-	if (Asset.GetClass()->IsChildOf(USkeletalMesh::StaticClass()))
+	if (AssetClass != nullptr && AssetClass->IsChildOf(USkeletalMesh::StaticClass()))
 	{
 		MenuBuilder.AddSubMenu(
 			LOCTEXT("DNASkeletalMeshSubmenu", "MetaHuman DNA"),
