@@ -34,7 +34,7 @@ namespace Jupiter.Implementation
 
 		public async Task<BlobId> PutObjectAsync(NamespaceId ns, byte[] blob, BlobId identifier)
 		{
-			using HttpRequestMessage putObjectRequest = await BuildHttpRequest(HttpMethod.Put, new Uri($"api/v1/blobs/{ns}/{identifier}", UriKind.Relative));
+			using HttpRequestMessage putObjectRequest = await BuildHttpRequestAsync(HttpMethod.Put, new Uri($"api/v1/blobs/{ns}/{identifier}", UriKind.Relative));
 
 			putObjectRequest.Content = new ByteArrayContent(blob);
 			putObjectRequest.Content.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
@@ -54,7 +54,7 @@ namespace Jupiter.Implementation
 
 		public async Task<BlobId> PutObjectAsync(NamespaceId ns, Stream content, BlobId identifier)
 		{
-			using HttpRequestMessage putObjectRequest = await BuildHttpRequest(HttpMethod.Put, new Uri($"api/v1/blobs/{ns}/{identifier}", UriKind.Relative));
+			using HttpRequestMessage putObjectRequest = await BuildHttpRequestAsync(HttpMethod.Put, new Uri($"api/v1/blobs/{ns}/{identifier}", UriKind.Relative));
 			putObjectRequest.Content = new StreamContent(content);
 			putObjectRequest.Content.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
 			putObjectRequest.Content.Headers.Add(CommonHeaders.HashHeaderName, identifier.ToString());
@@ -67,7 +67,7 @@ namespace Jupiter.Implementation
 
 		public async Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, LastAccessTrackingFlags flags, bool supportsRedirectUri = false)
 		{
-			using HttpRequestMessage getObjectRequest = await BuildHttpRequest(HttpMethod.Get, new Uri($"api/v1/blobs/{ns}/{blob}", UriKind.Relative));
+			using HttpRequestMessage getObjectRequest = await BuildHttpRequestAsync(HttpMethod.Get, new Uri($"api/v1/blobs/{ns}/{blob}", UriKind.Relative));
 			getObjectRequest.Headers.Add("Accept", MediaTypeNames.Application.Octet);
 			HttpResponseMessage response = await HttpClient.SendAsync(getObjectRequest);
 			if (response.StatusCode == HttpStatusCode.NotFound)
@@ -88,7 +88,7 @@ namespace Jupiter.Implementation
 
 		public async Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, bool forceCheck)
 		{
-			using HttpRequestMessage headObjectRequest = await BuildHttpRequest(HttpMethod.Head, new Uri($"api/v1/blobs/{ns}/{blob}", UriKind.Relative));
+			using HttpRequestMessage headObjectRequest = await BuildHttpRequestAsync(HttpMethod.Head, new Uri($"api/v1/blobs/{ns}/{blob}", UriKind.Relative));
 			HttpResponseMessage response = await HttpClient.SendAsync(headObjectRequest);
 			if (response.StatusCode == HttpStatusCode.NotFound)
 			{

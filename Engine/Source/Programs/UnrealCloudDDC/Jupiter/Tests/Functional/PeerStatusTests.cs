@@ -21,7 +21,7 @@ namespace Jupiter.FunctionalTests.Status
     public class PeerStatusTests
     {
         [TestMethod]
-        public async Task GetPeerConnection()
+        public async Task GetPeerConnectionAsync()
         {
             ClusterSettings settings = new ClusterSettings
             {
@@ -97,7 +97,7 @@ namespace Jupiter.FunctionalTests.Status
         }
 
         [TestMethod]
-        public async Task PeerUnreachable()
+        public async Task PeerUnreachableAsync()
         {
             ClusterSettings settings = new ClusterSettings
             {

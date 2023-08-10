@@ -34,8 +34,8 @@ namespace Jupiter.UnitTests
             using CancellationTokenSource tokenSource = new CancellationTokenSource();
             await blobCleanupService.OnPollAsync(blobCleanupService.State, tokenSource.Token);
             
-            store1.Verify(m => m.Cleanup(It.IsAny<CancellationToken>()), Times.Once);
-            store2.Verify(m => m.Cleanup(It.IsAny<CancellationToken>()), Times.Once);
+            store1.Verify(m => m.CleanupAsync(It.IsAny<CancellationToken>()), Times.Once);
+            store2.Verify(m => m.CleanupAsync(It.IsAny<CancellationToken>()), Times.Once);
         }
     }
 }

@@ -24,7 +24,7 @@ namespace Jupiter.Implementation
 			_httpClient.BaseAddress = new Uri(_settings.CurrentValue.ConnectionString);
 		}
 
-		protected async Task<HttpRequestMessage> BuildHttpRequest(HttpMethod method, Uri uri)
+		protected async Task<HttpRequestMessage> BuildHttpRequestAsync(HttpMethod method, Uri uri)
 		{
 			string? token = await _serviceCredentials.GetTokenAsync();
 			HttpRequestMessage request = new HttpRequestMessage(method, uri);

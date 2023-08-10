@@ -49,7 +49,7 @@ namespace Jupiter.Controllers
 				return result;
 			}
 
-			Task<List<(LastAccessRecord, DateTime)>>? updateRecordsTask = _lastAccessService.ProcessLastAccessRecords();
+			Task<List<(LastAccessRecord, DateTime)>>? updateRecordsTask = _lastAccessService.ProcessLastAccessRecordsAsync();
 			List<(LastAccessRecord, DateTime)>? updatedRecords = null;
 			if (updateRecordsTask != null)
 			{

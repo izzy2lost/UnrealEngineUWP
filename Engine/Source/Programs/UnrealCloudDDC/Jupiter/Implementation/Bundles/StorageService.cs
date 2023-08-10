@@ -144,7 +144,7 @@ public class StorageClient : BundleStorageClient
 		// TODO: Cache time is ignored
 		try
 		{
-			ObjectRecord record = await _refStore.Get(_namespaceId, _defaultBucket,  RefId.FromName(name.ToString()), IReferencesStore.FieldFlags.IncludePayload);
+			ObjectRecord record = await _refStore.GetAsync(_namespaceId, _defaultBucket,  RefId.FromName(name.ToString()), IReferencesStore.FieldFlags.IncludePayload);
 			if (record.InlinePayload == null)
 			{
 				// if there is no inline payload this is not a bundle ref
@@ -191,12 +191,12 @@ public class StorageClient : BundleStorageClient
 		await _blobIndex.AddRefToBlobsAsync(_namespaceId, _defaultBucket, refKey, new BlobId[] { bundleBlob });
 
 		// TODO: Calculate isFinalized which requires us to be able to resovle references
-		await _refStore.Put(_namespaceId, _defaultBucket, refKey, blobIdentifier, payload, isFinalized: true); 
+		await _refStore.PutAsync(_namespaceId, _defaultBucket, refKey, blobIdentifier, payload, isFinalized: true); 
 	}
 
 	public override async Task DeleteRefAsync(RefName name, CancellationToken cancellationToken = default)
 	{
-		await _refStore.Delete(_namespaceId, _defaultBucket, RefId.FromName(name.ToString()));
+		await _refStore.DeleteAsync(_namespaceId, _defaultBucket, RefId.FromName(name.ToString()));
 	}
 }
 

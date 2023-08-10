@@ -39,14 +39,14 @@ namespace Jupiter.Implementation
 		/// Attempt to run a new replication, if a replication is already in flight for this replicator this will early exist.
 		/// </summary>
 		/// <returns>True if the replication actually attempted to run</returns>
-		Task<bool> TriggerNewReplications();
+		Task<bool> TriggerNewReplicationsAsync();
 
 		/// <summary>
 		/// Forcefully set the replication offset to a new value, should only be used to recover a replicator stuck in a bad state
 		/// </summary>
 		void SetReplicationOffset(long? state);
 
-		Task StopReplicating();
+		Task StopReplicatingAsync();
 
 		public ReplicatorState State
 		{
@@ -58,6 +58,6 @@ namespace Jupiter.Implementation
 			get;
 		}
 
-		Task DeleteState();
+		Task DeleteStateAsync();
 	}
 }

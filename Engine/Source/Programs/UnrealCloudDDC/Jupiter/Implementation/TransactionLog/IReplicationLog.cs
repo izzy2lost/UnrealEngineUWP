@@ -11,18 +11,18 @@ namespace Jupiter.Implementation
 {
 	public interface IReplicationLog
 	{
-		IAsyncEnumerable<NamespaceId> GetNamespaces();
+		IAsyncEnumerable<NamespaceId> GetNamespacesAsync();
 
-		Task<(string, Guid)> InsertAddEvent(NamespaceId ns, BucketId bucket, RefId key, BlobId objectBlob, DateTime? timeBucket = null);
-		Task<(string, Guid)> InsertDeleteEvent(NamespaceId ns, BucketId bucket, RefId key, DateTime? timeBucket = null);
+		Task<(string, Guid)> InsertAddEventAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId objectBlob, DateTime? timeBucket = null);
+		Task<(string, Guid)> InsertDeleteEventAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime? timeBucket = null);
 		IAsyncEnumerable<ReplicationLogEvent> GetAsync(NamespaceId ns, string? lastBucket, Guid? lastEvent);
 
-		Task AddSnapshot(SnapshotInfo snapshotHeader);
-		Task<SnapshotInfo?> GetLatestSnapshot(NamespaceId ns);
-		IAsyncEnumerable<SnapshotInfo> GetSnapshots(NamespaceId ns);
+		Task AddSnapshotAsync(SnapshotInfo snapshotHeader);
+		Task<SnapshotInfo?> GetLatestSnapshotAsync(NamespaceId ns);
+		IAsyncEnumerable<SnapshotInfo> GetSnapshotsAsync(NamespaceId ns);
 
-		Task UpdateReplicatorState(NamespaceId ns, string replicatorName, ReplicatorState newState);
-		Task<ReplicatorState?> GetReplicatorState(NamespaceId ns, string replicatorName);
+		Task UpdateReplicatorStateAsync(NamespaceId ns, string replicatorName, ReplicatorState newState);
+		Task<ReplicatorState?> GetReplicatorStateAsync(NamespaceId ns, string replicatorName);
 	}
 
 	public class SnapshotInfo

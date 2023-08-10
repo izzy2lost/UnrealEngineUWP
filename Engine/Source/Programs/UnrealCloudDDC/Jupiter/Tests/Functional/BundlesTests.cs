@@ -168,7 +168,7 @@ public abstract class BundlesTests
     protected BundleLocator SmallFileLocator { get; } = BundleLocator.CreateUnique(String.Empty);
 
     [TestInitialize]
-    public async Task Setup()
+    public async Task SetupAsync()
     {
         IConfigurationRoot configuration = new ConfigurationBuilder()
             // we are not reading the base appSettings here as we want exact control over what runs in the tests
@@ -200,13 +200,13 @@ public abstract class BundlesTests
     protected abstract Task Teardown(IServiceProvider serverServices);
 
     [TestCleanup]
-    public async Task MyTeardown()
+    public async Task MyTeardownAsync()
     {
         await Teardown(Server!.Services);
     }
 
     [TestMethod]
-    public async Task GetFile()
+    public async Task GetFileAsync()
     {
         HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/storage/{TestNamespaceName}/blobs/{SmallFileLocator.ToString().ToLower()}", UriKind.Relative));
         Assert.AreEqual(HttpStatusCode.Redirect, result.StatusCode);
@@ -219,7 +219,7 @@ public abstract class BundlesTests
     }
 
     [TestMethod]
-    public async Task PutSmallBlobDirectly()
+    public async Task PutSmallBlobDirectlyAsync()
     {
         Assert.Inconclusive("Disabled as there are some issues with uploading raw files to the bundle endpoints right now");
         byte[] payload = Encoding.ASCII.GetBytes("I am a small blob");
@@ -236,7 +236,7 @@ public abstract class BundlesTests
     }
 
     [TestMethod]
-    public async Task PutSmallBlobRedirect()
+    public async Task PutSmallBlobRedirectAsync()
     {
         Assert.Inconclusive("Disabled as redirect uploads is currently disabled");
         byte[] payload = Encoding.ASCII.GetBytes("I am also a small blob");
@@ -260,7 +260,7 @@ public abstract class BundlesTests
     }
 
     [TestMethod]
-    public async Task PutGetRef()
+    public async Task PutGetRefAsync()
     {
         IoHash targetHash = IoHash.Compute(Encoding.ASCII.GetBytes(SmallFileContents));
         RefName refName = new RefName("this-is-a-ref");
@@ -281,7 +281,7 @@ public abstract class BundlesTests
     }
 
     [TestMethod]
-    public async Task PutGetBundle()
+    public async Task PutGetBundleAsync()
     {
         Bundle manualBundle = CreateBundleManually();
         byte[] payload = manualBundle.AsSequence().ToArray();

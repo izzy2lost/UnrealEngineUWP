@@ -31,11 +31,11 @@ namespace Jupiter.Implementation
 			_upstreamReferenceStore = ActivatorUtilities.CreateInstance<UpstreamReferenceStore>(provider);
 		}
 
-		public async Task<ObjectRecord> Get(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
+		public async Task<ObjectRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
 		{
 			try
 			{
-				ObjectRecord cachedRecord = await _mongoReferenceStore.Get(ns, bucket, key, flags);
+				ObjectRecord cachedRecord = await _mongoReferenceStore.GetAsync(ns, bucket, key, flags);
 				return cachedRecord;
 			}
 			catch (ObjectNotFoundException)
@@ -43,57 +43,57 @@ namespace Jupiter.Implementation
 				// not cached, we check the upstream for it
 			}
  
-			ObjectRecord record = await _upstreamReferenceStore.Get(ns, bucket, key, flags);
-			await _mongoReferenceStore.Put(record.Namespace, record.Bucket, record.Name, record.BlobIdentifier, record.InlinePayload, record.IsFinalized);
+			ObjectRecord record = await _upstreamReferenceStore.GetAsync(ns, bucket, key, flags);
+			await _mongoReferenceStore.PutAsync(record.Namespace, record.Bucket, record.Name, record.BlobIdentifier, record.InlinePayload, record.IsFinalized);
 			return record;
 		}
 
-		public async Task Put(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized)
+		public async Task PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized)
 		{
-			Task cachePut = _mongoReferenceStore.Put(ns, bucket, key, blobHash, blob, isFinalized);
-			Task upstreamPut = _upstreamReferenceStore.Put(ns, bucket, key, blobHash, blob, isFinalized);
+			Task cachePut = _mongoReferenceStore.PutAsync(ns, bucket, key, blobHash, blob, isFinalized);
+			Task upstreamPut = _upstreamReferenceStore.PutAsync(ns, bucket, key, blobHash, blob, isFinalized);
 
 			await Task.WhenAll(cachePut, upstreamPut);
 		}
 
-		public async Task Finalize(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier)
+		public async Task FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier)
 		{
-			Task cacheFinalize = _mongoReferenceStore.Finalize(ns, bucket, key, blobIdentifier);
-			Task upstreamFinalize = _upstreamReferenceStore.Finalize(ns, bucket, key, blobIdentifier);
+			Task cacheFinalize = _mongoReferenceStore.FinalizeAsync(ns, bucket, key, blobIdentifier);
+			Task upstreamFinalize = _upstreamReferenceStore.FinalizeAsync(ns, bucket, key, blobIdentifier);
 
 			await Task.WhenAll(cacheFinalize, upstreamFinalize);
 		}
 
-		public async Task UpdateLastAccessTime(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime)
+		public async Task UpdateLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime)
 		{
-			Task cacheUpdateLastAccess = _mongoReferenceStore.UpdateLastAccessTime(ns, bucket, key, newLastAccessTime);
-			Task upstreamUpdateLastAccess = _upstreamReferenceStore.UpdateLastAccessTime(ns, bucket, key, newLastAccessTime);
+			Task cacheUpdateLastAccess = _mongoReferenceStore.UpdateLastAccessTimeAsync(ns, bucket, key, newLastAccessTime);
+			Task upstreamUpdateLastAccess = _upstreamReferenceStore.UpdateLastAccessTimeAsync(ns, bucket, key, newLastAccessTime);
 
 			await Task.WhenAll(cacheUpdateLastAccess, upstreamUpdateLastAccess);
 		}
 
-		public IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecords()
+		public IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecordsAsync()
 		{
 			throw new NotImplementedException("GetRecords not supported on a cached reference store");
 		}
 
-		public IAsyncEnumerable<NamespaceId> GetNamespaces()
+		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync()
 		{
 			throw new NotImplementedException("GetNamespaces not supported on a cached reference store");
 		}
 
-		public Task<bool> Delete(NamespaceId ns, BucketId bucket, RefId key)
+		public Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key)
 		{
 			throw new NotImplementedException("Deletes are not supported on a cached reference store");
 		}
 
-		public Task<long> DropNamespace(NamespaceId ns)
+		public Task<long> DropNamespaceAsync(NamespaceId ns)
 		{
 			throw new NotImplementedException("DropNamespace is not supported on a cached reference store");
 
 		}
 
-		public Task<long> DeleteBucket(NamespaceId ns, BucketId bucket)
+		public Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket)
 		{
 			throw new NotImplementedException("DeleteBucket is not supported on a cached reference store");
 		}
@@ -105,9 +105,9 @@ namespace Jupiter.Implementation
 		{
 		}
 
-		public async Task<ObjectRecord> Get(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
+		public async Task<ObjectRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
 		{
-			using HttpRequestMessage getObjectRequest = await BuildHttpRequest(HttpMethod.Get, new Uri($"api/v1/refs/{ns}/{bucket}/{key}/metadata", UriKind.Relative));
+			using HttpRequestMessage getObjectRequest = await BuildHttpRequestAsync(HttpMethod.Get, new Uri($"api/v1/refs/{ns}/{bucket}/{key}/metadata", UriKind.Relative));
 			getObjectRequest.Headers.Add("Accept", MediaTypeNames.Application.Json);
 			HttpResponseMessage response = await HttpClient.SendAsync(getObjectRequest);
 			if (response.StatusCode == HttpStatusCode.NotFound)
@@ -125,9 +125,9 @@ namespace Jupiter.Implementation
 			return new ObjectRecord(metadataResponse.Ns, metadataResponse.Bucket, metadataResponse.Name, metadataResponse.LastAccess, metadataResponse.InlinePayload, metadataResponse.PayloadIdentifier, metadataResponse.IsFinalized);
 		}
 
-		public async Task Put(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized)
+		public async Task PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized)
 		{
-			using HttpRequestMessage putObjectRequest = await BuildHttpRequest(HttpMethod.Put, new Uri($"api/v1/refs/{ns}/{bucket}/{key}", UriKind.Relative));
+			using HttpRequestMessage putObjectRequest = await BuildHttpRequestAsync(HttpMethod.Put, new Uri($"api/v1/refs/{ns}/{bucket}/{key}", UriKind.Relative));
 			putObjectRequest.Headers.Add("Accept", MediaTypeNames.Application.Json);
 			putObjectRequest.Headers.Add(CommonHeaders.HashHeaderName, blobHash.ToString());
 			putObjectRequest.Content = new ByteArrayContent(blob);
@@ -149,9 +149,9 @@ namespace Jupiter.Implementation
 			// if this put returns needs, we cant really do anything about it. we should be calling put in the upstream blob store as the operation continues and we should be able to catch the missing blobs during the finalize call
 		}
 
-		public async Task Finalize(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier)
+		public async Task FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier)
 		{
-			using HttpRequestMessage putObjectRequest = await BuildHttpRequest(HttpMethod.Post, new Uri($"api/v1/refs/{ns}/{bucket}/{key}/finalize/{blobIdentifier}", UriKind.Relative));
+			using HttpRequestMessage putObjectRequest = await BuildHttpRequestAsync(HttpMethod.Post, new Uri($"api/v1/refs/{ns}/{bucket}/{key}/finalize/{blobIdentifier}", UriKind.Relative));
 			putObjectRequest.Headers.Add("Accept", MediaTypeNames.Application.Json);
 
 			HttpResponseMessage response = await HttpClient.SendAsync(putObjectRequest);
@@ -180,33 +180,33 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task UpdateLastAccessTime(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime)
+		public async Task UpdateLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime)
 		{
 			// there is no endpoint to update last access time externally, but fetching a object will in turn update its last access time, though to a different time then newLastAccessTime
-			await Get(ns, bucket, key, IReferencesStore.FieldFlags.None);
+			await GetAsync(ns, bucket, key, IReferencesStore.FieldFlags.None);
 		}
 
-		public IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecords()
+		public IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecordsAsync()
 		{
 			throw new NotImplementedException("GetRecords is not supported on a upstream reference store");
 		}
 
-		public IAsyncEnumerable<NamespaceId> GetNamespaces()
+		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync()
 		{
 			throw new NotImplementedException("GetNamespaces is not supported on a upstream reference store");
 		}
 
-		public Task<bool> Delete(NamespaceId ns, BucketId bucket, RefId key)
+		public Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key)
 		{
 			throw new NotImplementedException("Delete is not supported on a upstream reference store");
 		}
 
-		public Task<long> DropNamespace(NamespaceId ns)
+		public Task<long> DropNamespaceAsync(NamespaceId ns)
 		{
 			throw new NotImplementedException("DropNamespace is not supported on a upstream reference store");
 		}
 
-		public Task<long> DeleteBucket(NamespaceId ns, BucketId bucket)
+		public Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket)
 		{
 			throw new NotImplementedException("DeleteBucket is not supported on a upstream reference store");
 		}

@@ -19,17 +19,17 @@ namespace Jupiter.Implementation
 
 		private readonly ConcurrentDictionary<NamespaceId, ConcurrentDictionary<string, ReplicatorState>>  _replicatorState = new();
 
-		public IAsyncEnumerable<NamespaceId> GetNamespaces()
+		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync()
 		{
 			return _replicationEvents.Keys.ToAsyncEnumerable();
 		}
 
-		public Task<(string, Guid)> InsertAddEvent(NamespaceId ns, BucketId bucket, RefId key, BlobId objectBlob, DateTime? timestamp)
+		public Task<(string, Guid)> InsertAddEventAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId objectBlob, DateTime? timestamp)
 		{
-			return DoInsert(ns, bucket, key, objectBlob, ReplicationLogEvent.OpType.Added, timestamp);
+			return DoInsertAsync(ns, bucket, key, objectBlob, ReplicationLogEvent.OpType.Added, timestamp);
 		}
 
-		private async Task<(string, Guid)> DoInsert(NamespaceId ns, BucketId bucket, RefId key, BlobId? hash, ReplicationLogEvent.OpType op, DateTime? lastTimestamp)
+		private async Task<(string, Guid)> DoInsertAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId? hash, ReplicationLogEvent.OpType op, DateTime? lastTimestamp)
 		{
 			DateTime timestamp = lastTimestamp.GetValueOrDefault(DateTime.Now);
 
@@ -68,9 +68,9 @@ namespace Jupiter.Implementation
 			});
 		}
 
-		public Task<(string, Guid)> InsertDeleteEvent(NamespaceId ns, BucketId bucket, RefId key, DateTime? timestamp)
+		public Task<(string, Guid)> InsertDeleteEventAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime? timestamp)
 		{
-			return DoInsert(ns, bucket, key, null, ReplicationLogEvent.OpType.Deleted, timestamp); 
+			return DoInsertAsync(ns, bucket, key, null, ReplicationLogEvent.OpType.Deleted, timestamp); 
 		}
 
 		public async IAsyncEnumerable<ReplicationLogEvent> GetAsync(NamespaceId ns, string? lastBucket, Guid? lastEvent)
@@ -141,7 +141,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public Task AddSnapshot(SnapshotInfo snapshotHeader)
+		public Task AddSnapshotAsync(SnapshotInfo snapshotHeader)
 		{
 			_snapshots.AddOrUpdate(snapshotHeader.SnapshottedNamespace, _ => new List<SnapshotInfo> { snapshotHeader }, (_, list) =>
 			{
@@ -159,7 +159,7 @@ namespace Jupiter.Implementation
 			return Task.CompletedTask;
 		}
 
-		public Task<SnapshotInfo?> GetLatestSnapshot(NamespaceId ns)
+		public Task<SnapshotInfo?> GetLatestSnapshotAsync(NamespaceId ns)
 		{
 			if (!_snapshots.TryGetValue(ns, out List<SnapshotInfo>? snapshots))
 			{
@@ -169,7 +169,7 @@ namespace Jupiter.Implementation
 			return Task.FromResult<SnapshotInfo?>(snapshots.Last());
 		}
 
-		public async IAsyncEnumerable<SnapshotInfo> GetSnapshots(NamespaceId ns)
+		public async IAsyncEnumerable<SnapshotInfo> GetSnapshotsAsync(NamespaceId ns)
 		{
 			await Task.CompletedTask;
 
@@ -184,7 +184,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public Task UpdateReplicatorState(NamespaceId ns, string replicatorName,
+		public Task UpdateReplicatorStateAsync(NamespaceId ns, string replicatorName,
 			ReplicatorState newState)
 		{
 			_replicatorState.AddOrUpdate(ns,
@@ -202,7 +202,7 @@ namespace Jupiter.Implementation
 			return Task.CompletedTask;
 		}
 
-		public Task<ReplicatorState?> GetReplicatorState(NamespaceId ns, string replicatorName)
+		public Task<ReplicatorState?> GetReplicatorStateAsync(NamespaceId ns, string replicatorName)
 		{
 			if (_replicatorState.TryGetValue(ns, out ConcurrentDictionary<string, ReplicatorState>? replicationState))
 			{

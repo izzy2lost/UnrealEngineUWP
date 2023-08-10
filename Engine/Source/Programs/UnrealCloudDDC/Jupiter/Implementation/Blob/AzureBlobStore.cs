@@ -202,12 +202,12 @@ namespace Jupiter.Implementation
 			{
 				// we touch the blob so that the last access time is always refreshed even if we didnt actually mutate it to make sure the gc knows this is a active blob
 				// see delete operation in Leda blob store cleanup
-				await TouchBlob(_blobContainer.GetBlobClient(path));
+				await TouchBlobAsync(_blobContainer.GetBlobClient(path));
 				_logger.LogDebug("Upload of blob {ObjectName} completed", path);
 			}
 		}
 
-		private static async Task TouchBlob(BlobClient blob)
+		private static async Task TouchBlobAsync(BlobClient blob)
 		{
 			Dictionary<string, string> metadata = new Dictionary<string, string>
 			{

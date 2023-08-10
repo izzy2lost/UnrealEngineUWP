@@ -240,7 +240,7 @@ namespace Jupiter.FunctionalTests.References
                 }
             }
 
-            CollectionAssert.AreEqual(new [] {TestNamespace}, await _replicationLog.GetNamespaces().ToArrayAsync());
+            CollectionAssert.AreEqual(new [] {TestNamespace}, await _replicationLog.GetNamespacesAsync().ToArrayAsync());
         }
 
         [TestMethod]
@@ -255,10 +255,10 @@ namespace Jupiter.FunctionalTests.References
             BlobId objectHash = BlobId.FromBlob(objectData);
 
             DateTime oldestTimestamp = DateTime.Now.AddDays(-1);
-            (string eventBucket, Guid eventId) = await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, oldestTimestamp);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(2.0));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(3.0));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
+            (string eventBucket, Guid eventId) = await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, oldestTimestamp);
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(2.0));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(3.0));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
 
             {
                 HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/replication-log/incremental/{TestNamespace}?lastBucket={eventBucket}&lastEvent={eventId}", UriKind.Relative));
@@ -298,7 +298,7 @@ namespace Jupiter.FunctionalTests.References
                 }
             }
          
-            CollectionAssert.AreEqual(new [] {TestNamespace}, await _replicationLog.GetNamespaces().ToArrayAsync());
+            CollectionAssert.AreEqual(new [] {TestNamespace}, await _replicationLog.GetNamespacesAsync().ToArrayAsync());
         }
 
         [TestMethod]
@@ -314,12 +314,12 @@ namespace Jupiter.FunctionalTests.References
 
             DateTime oldestTimestamp = DateTime.Now.AddDays(-3);
             // insert multiple objects in the same time bucket, verifying that we correctly get only the objects after this
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, oldestTimestamp);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(2.0));
-            (string eventBucket, Guid eventId) = await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(2.1));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddHours(2.11));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("fifthObject"), objectHash, oldestTimestamp.AddHours(2.12));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("sixthObject"), objectHash, oldestTimestamp.AddDays(2.13));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, oldestTimestamp);
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(2.0));
+            (string eventBucket, Guid eventId) = await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(2.1));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddHours(2.11));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("fifthObject"), objectHash, oldestTimestamp.AddHours(2.12));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("sixthObject"), objectHash, oldestTimestamp.AddDays(2.13));
 
             {
                 HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/replication-log/incremental/{TestNamespace}?lastBucket={eventBucket}&lastEvent={eventId}", UriKind.Relative));
@@ -359,7 +359,7 @@ namespace Jupiter.FunctionalTests.References
                 }
             }
          
-            CollectionAssert.AreEqual(new [] {TestNamespace}, await _replicationLog.GetNamespaces().ToArrayAsync());
+            CollectionAssert.AreEqual(new [] {TestNamespace}, await _replicationLog.GetNamespacesAsync().ToArrayAsync());
         }
 
         [TestMethod]
@@ -374,10 +374,10 @@ namespace Jupiter.FunctionalTests.References
             BlobId objectHash = BlobId.FromBlob(objectData);
 
             DateTime oldestTimestamp = DateTime.Now.AddDays(-1);
-            (string eventBucket, Guid eventId) = await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, oldestTimestamp);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(1));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(1.5));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
+            (string eventBucket, Guid eventId) = await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, oldestTimestamp);
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(1));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(1.5));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
 
             // start from the second event
             const int EventsToFetch = 2;
@@ -409,7 +409,7 @@ namespace Jupiter.FunctionalTests.References
                 }
             }
             
-            CollectionAssert.AreEqual(new [] {TestNamespace}, await _replicationLog.GetNamespaces().ToArrayAsync());
+            CollectionAssert.AreEqual(new [] {TestNamespace}, await _replicationLog.GetNamespacesAsync().ToArrayAsync());
         }
 
         [TestMethod]
@@ -424,7 +424,7 @@ namespace Jupiter.FunctionalTests.References
             byte[] objectData = writer.ToByteArray();
             BlobId objectHash = BlobId.FromBlob(objectData);
 
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, DateTime.Now.AddDays(-1));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, DateTime.Now.AddDays(-1));
 
             string eventBucket = "rep-00000000";
             Guid eventId = Guid.NewGuid();
@@ -437,7 +437,7 @@ namespace Jupiter.FunctionalTests.References
                 Assert.IsNotNull(problem);
             }
 
-            CollectionAssert.AreEqual(new [] {TestNamespace}, await _replicationLog.GetNamespaces().ToArrayAsync());
+            CollectionAssert.AreEqual(new [] {TestNamespace}, await _replicationLog.GetNamespacesAsync().ToArrayAsync());
         }
 
         [TestMethod]
@@ -452,7 +452,7 @@ namespace Jupiter.FunctionalTests.References
             byte[] objectData = writer.ToByteArray();
             BlobId objectHash = BlobId.FromBlob(objectData);
 
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, DateTime.Now.AddDays(-1));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, DateTime.Now.AddDays(-1));
 
             string eventBucket = DateTime.Now.AddDays(-60).ToReplicationBucketIdentifier();
             Guid eventId = Guid.NewGuid();
@@ -465,7 +465,7 @@ namespace Jupiter.FunctionalTests.References
                 Assert.IsNotNull(problem);
             }
 
-            CollectionAssert.AreEqual(new [] {TestNamespace}, await _replicationLog.GetNamespaces().ToArrayAsync());
+            CollectionAssert.AreEqual(new [] {TestNamespace}, await _replicationLog.GetNamespacesAsync().ToArrayAsync());
         }
 
         [TestMethod]
@@ -479,7 +479,7 @@ namespace Jupiter.FunctionalTests.References
                 Assert.IsNotNull(problem);
             }
 
-            CollectionAssert.AreEqual(Array.Empty<NamespaceId>(), await _replicationLog.GetNamespaces().ToArrayAsync());
+            CollectionAssert.AreEqual(Array.Empty<NamespaceId>(), await _replicationLog.GetNamespacesAsync().ToArrayAsync());
         }
 
         [TestMethod]
@@ -494,10 +494,10 @@ namespace Jupiter.FunctionalTests.References
             BlobId objectHash = BlobId.FromBlob(objectData);
 
             DateTime oldestTimestamp = DateTime.Now.AddDays(-1);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, oldestTimestamp);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(1));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(1.5));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, oldestTimestamp);
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(1));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(1.5));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
 
             // create a snapshot
             ReplicationLogSnapshotBuilder snapshotBuilder = ActivatorUtilities.CreateInstance<ReplicationLogSnapshotBuilder>(_server!.Services);
@@ -531,10 +531,10 @@ namespace Jupiter.FunctionalTests.References
             BlobId objectHash = BlobId.FromBlob(objectData);
 
             DateTime oldestTimestamp = DateTime.Now.AddDays(-1);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, oldestTimestamp);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(1));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(1.5));
-            (string lastEventBucket, Guid lastEventId) = await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.7));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, oldestTimestamp);
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(1));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(1.5));
+            (string lastEventBucket, Guid lastEventId) = await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.7));
 
             // verify the objects were added
             {
@@ -576,7 +576,7 @@ namespace Jupiter.FunctionalTests.References
             }
 
             // verify there are no previous snapshots
-            Assert.AreEqual(0, (await _replicationLog.GetSnapshots(TestNamespace).ToListAsync()).Count);
+            Assert.AreEqual(0, (await _replicationLog.GetSnapshotsAsync(TestNamespace).ToListAsync()).Count);
 
             ReplicationLogFactory replicationLogFactory = ActivatorUtilities.CreateInstance<ReplicationLogFactory>(_server!.Services);
 
@@ -586,7 +586,7 @@ namespace Jupiter.FunctionalTests.References
             BlobId snapshotBlobId = await snapshotBuilder.BuildSnapshotAsync(TestNamespace, SnapshotNamespace);
             Assert.IsTrue(await _blobStore.ExistsAsync(SnapshotNamespace, snapshotBlobId));
 
-            SnapshotInfo? snapshotInfo = await _replicationLog.GetSnapshots(TestNamespace).FirstAsync();
+            SnapshotInfo? snapshotInfo = await _replicationLog.GetSnapshotsAsync(TestNamespace).FirstAsync();
             Assert.IsNotNull(snapshotInfo);
             Assert.AreEqual(snapshotBlobId, snapshotInfo.SnapshotBlob);
 
@@ -615,17 +615,17 @@ namespace Jupiter.FunctionalTests.References
             BlobId objectHash = BlobId.FromBlob(objectData);
 
             DateTime oldestTimestamp = DateTime.Now.AddDays(-1);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, oldestTimestamp);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(1));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(1.5));
-            (string lastEventBucket, Guid lastEventId) = await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, oldestTimestamp);
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(1));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(1.5));
+            (string lastEventBucket, Guid lastEventId) = await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
 
             // verify the objects were added
             List<ReplicationLogEvent> logEvents = await _replicationLog.GetAsync(TestNamespace, null, null).ToListAsync();
             Assert.AreEqual(4, logEvents.Count);
 
             // verify there are no previous snapshots
-            Assert.AreEqual(0, (await _replicationLog.GetSnapshots(TestNamespace).ToListAsync()).Count);
+            Assert.AreEqual(0, (await _replicationLog.GetSnapshotsAsync(TestNamespace).ToListAsync()).Count);
 
             // create a snapshot
             ReplicationLogFactory replicationLogFactory = ActivatorUtilities.CreateInstance<ReplicationLogFactory>(_server!.Services);
@@ -634,7 +634,7 @@ namespace Jupiter.FunctionalTests.References
             BlobId snapshotBlobId = await snapshotBuilder.BuildSnapshotAsync(TestNamespace, SnapshotNamespace);
             Assert.IsTrue(await _blobStore.ExistsAsync(SnapshotNamespace, snapshotBlobId));
 
-            SnapshotInfo? snapshotInfo = await _replicationLog.GetSnapshots(TestNamespace).FirstAsync();
+            SnapshotInfo? snapshotInfo = await _replicationLog.GetSnapshotsAsync(TestNamespace).FirstAsync();
             Assert.AreEqual(snapshotBlobId, snapshotInfo.SnapshotBlob);
 
             // make sure the snapshot is returned by the rest api
@@ -671,17 +671,17 @@ namespace Jupiter.FunctionalTests.References
             BlobId objectHash = BlobId.FromBlob(objectData);
 
             DateTime oldestTimestamp = DateTime.Now.AddDays(-1);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, oldestTimestamp);
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(1));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(1.5));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("firstObject"), objectHash, oldestTimestamp);
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("secondObject"), objectHash, oldestTimestamp.AddHours(1));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("thirdObject"), objectHash, oldestTimestamp.AddHours(1.5));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
 
             // verify the objects were added
             List<ReplicationLogEvent> logEvents = await _replicationLog.GetAsync(TestNamespace, null, null).ToListAsync();
             Assert.AreEqual(4, logEvents.Count);
 
             // verify there are no previous snapshots
-            Assert.AreEqual(0, (await _replicationLog.GetSnapshots(TestNamespace).ToListAsync()).Count);
+            Assert.AreEqual(0, (await _replicationLog.GetSnapshotsAsync(TestNamespace).ToListAsync()).Count);
 
             // create a snapshot
             ReplicationLogFactory replicationLogFactory = ActivatorUtilities.CreateInstance<ReplicationLogFactory>(_server!.Services);
@@ -690,15 +690,15 @@ namespace Jupiter.FunctionalTests.References
             BlobId snapshotBlobId = await snapshotBuilder.BuildSnapshotAsync(TestNamespace, SnapshotNamespace);
             Assert.IsTrue(await _blobStore.ExistsAsync(SnapshotNamespace, snapshotBlobId));
 
-            SnapshotInfo? snapshotInfo = await _replicationLog.GetSnapshots(TestNamespace).FirstAsync();
+            SnapshotInfo? snapshotInfo = await _replicationLog.GetSnapshotsAsync(TestNamespace).FirstAsync();
             Assert.AreEqual(snapshotBlobId, snapshotInfo.SnapshotBlob);
 
             BlobContents blobContents = await _blobStore.GetObjectAsync(SnapshotNamespace, snapshotBlobId);
             ReplicationLogSnapshot snapshot = replicationLogFactory.DeserializeSnapshotFromStream(blobContents.Stream);
 
             // insert more events
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("fifthObject"), objectHash, oldestTimestamp.AddDays(0.91));
-            await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("sixthObject"), objectHash, oldestTimestamp.AddDays(0.92));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("fifthObject"), objectHash, oldestTimestamp.AddDays(0.91));
+            await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName("sixthObject"), objectHash, oldestTimestamp.AddDays(0.92));
 
             // verify the new events can be found when resuming from the snapshot
             {
@@ -747,7 +747,7 @@ namespace Jupiter.FunctionalTests.References
             List<BlobId> createdSnapshots = new List<BlobId>();
             for (int i = 0; i < countOfSnapshotsToCreate ; i++)
             {
-                await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName($"object {i}"), objectHash);
+                await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName($"object {i}"), objectHash);
 
                 ReplicationLogSnapshotBuilder snapshotBuilder = ActivatorUtilities.CreateInstance<ReplicationLogSnapshotBuilder>(_server!.Services);
                 Assert.IsNotNull(snapshotBuilder);
@@ -756,7 +756,7 @@ namespace Jupiter.FunctionalTests.References
                 createdSnapshots.Add(snapshotBlobId);
             }
 
-            List<BlobId> snapshots = await _replicationLog.GetSnapshots(TestNamespace).Select(info => info.SnapshotBlob).ToListAsync();
+            List<BlobId> snapshots = await _replicationLog.GetSnapshotsAsync(TestNamespace).Select(info => info.SnapshotBlob).ToListAsync();
             // snapshots are returned newest first so we inverse this order
             snapshots.Reverse();
 

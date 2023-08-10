@@ -76,7 +76,7 @@ namespace Jupiter.Implementation
 			ulong consideredCount = 0;
 			DateTime cleanupStart = DateTime.Now;
 
-			await Parallel.ForEachAsync(_referencesStore.GetRecords(),
+			await Parallel.ForEachAsync(_referencesStore.GetRecordsAsync(),
 				new ParallelOptions
 				{
 					MaxDegreeOfParallelism = _settings.CurrentValue.OrphanRefMaxParallelOperations,
@@ -112,11 +112,11 @@ namespace Jupiter.Implementation
 					bool storeDelete = false;
 					try
 					{
-						storeDelete = await _referencesStore.Delete(ns, bucket, name);
+						storeDelete = await _referencesStore.DeleteAsync(ns, bucket, name);
 						if (storeDelete && _settings.CurrentValue.WriteDeleteToReplicationLog)
 						{
 							// insert a delete event into the transaction log
-							await _replicationLog.InsertDeleteEvent(ns, bucket, name, null);
+							await _replicationLog.InsertDeleteEventAsync(ns, bucket, name, null);
 						}
 					}
 					catch (Exception e)

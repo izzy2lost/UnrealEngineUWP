@@ -19,7 +19,7 @@ namespace Jupiter.Implementation
 
 		}
 
-		public Task<ObjectRecord> Get(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
+		public Task<ObjectRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
 		{
 			if (_objects.TryGetValue(BuildKey(ns, bucket, key), out MemoryStoreObject? o))
 			{
@@ -29,7 +29,7 @@ namespace Jupiter.Implementation
 			throw new ObjectNotFoundException(ns, bucket, key);
 		}
 
-		public Task Put(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized)
+		public Task PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized)
 		{
 			lock (_namespaces)
 			{
@@ -43,7 +43,7 @@ namespace Jupiter.Implementation
 			return Task.FromResult(o);
 		}
 
-		public Task Finalize(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier)
+		public Task FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier)
 		{
 			if (!_objects.TryGetValue(BuildKey(ns, bucket, key), out MemoryStoreObject? o))
 			{
@@ -54,7 +54,7 @@ namespace Jupiter.Implementation
 			return Task.CompletedTask;
 		}
 
-		public Task UpdateLastAccessTime(NamespaceId ns, BucketId bucket, RefId key, DateTime lastAccessTime)
+		public Task UpdateLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime lastAccessTime)
 		{
 			if (!_objects.TryGetValue(BuildKey(ns, bucket, key), out MemoryStoreObject? o))
 			{
@@ -65,7 +65,7 @@ namespace Jupiter.Implementation
 			return Task.CompletedTask;
 		}
 
-		public async IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecords()
+		public async IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecordsAsync()
 		{
 			foreach (MemoryStoreObject o in _objects.Values.OrderBy(o => o.LastAccessTime))
 			{
@@ -74,12 +74,12 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public IAsyncEnumerable<NamespaceId> GetNamespaces()
+		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync()
 		{
 			return _namespaces.ToAsyncEnumerable();
 		}
 
-		public Task<bool> Delete(NamespaceId ns, BucketId bucket, RefId key)
+		public Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key)
 		{
 			if (!_objects.TryRemove(BuildKey(ns, bucket, key), out MemoryStoreObject? _))
 			{
@@ -89,7 +89,7 @@ namespace Jupiter.Implementation
 			return Task.FromResult(true);
 		}
 
-		public Task<long> DropNamespace(NamespaceId ns)
+		public Task<long> DropNamespaceAsync(NamespaceId ns)
 		{
 			lock (_namespaces)
 			{
@@ -118,7 +118,7 @@ namespace Jupiter.Implementation
 			return Task.FromResult(removedCount);
 		}
 
-		public Task<long> DeleteBucket(NamespaceId ns, BucketId bucket)
+		public Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket)
 		{
 			List<string> objectToRemove = new List<string>();
 

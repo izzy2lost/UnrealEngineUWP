@@ -33,7 +33,7 @@ namespace Jupiter.Implementation.TransactionLog
 		{
 			// builds a snapshot and commits it to the blob store with the identifier specified
 
-			SnapshotInfo? snapshotInfo = await _replicationLog.GetLatestSnapshot(ns);
+			SnapshotInfo? snapshotInfo = await _replicationLog.GetLatestSnapshotAsync(ns);
 
 			if (cancellationToken.IsCancellationRequested)
 			{
@@ -117,7 +117,7 @@ namespace Jupiter.Implementation.TransactionLog
 				// upload the attachment first so we are not missing any references when we go to create the ref
 				await _blobService.PutObjectAsync(storeInNamespace, payload, blobIdentifier);
 			
-				(ContentId[] missingContentIds, BlobId[] missingBlobs) = await _objectService.Put(storeInNamespace, new BucketId("snapshot"), new RefId(blobIdentifier.ToString()), cbBlobId, new CbObject(cbObjectBytes));
+				(ContentId[] missingContentIds, BlobId[] missingBlobs) = await _objectService.PutAsync(storeInNamespace, new BucketId("snapshot"), new RefId(blobIdentifier.ToString()), cbBlobId, new CbObject(cbObjectBytes));
 				List<ContentHash> missingHashes = new List<ContentHash>(missingContentIds);
 				missingHashes.AddRange(missingBlobs);
 				if (missingHashes.Count != 0)
@@ -131,7 +131,7 @@ namespace Jupiter.Implementation.TransactionLog
 				}
 
 				// update the replication log with the new snapshot
-				await _replicationLog.AddSnapshot(new SnapshotInfo(ns, storeInNamespace, blobIdentifier, DateTime.Now));
+				await _replicationLog.AddSnapshotAsync(new SnapshotInfo(ns, storeInNamespace, blobIdentifier, DateTime.Now));
 
 				return blobIdentifier;
 

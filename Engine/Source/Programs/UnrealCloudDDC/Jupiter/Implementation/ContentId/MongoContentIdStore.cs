@@ -19,7 +19,7 @@ namespace Jupiter.Implementation
 		{
 			_blobStore = blobStore;
 
-			CreateCollectionIfNotExists<MongoContentIdModelV0>().Wait();
+			CreateCollectionIfNotExistsAsync<MongoContentIdModelV0>().Wait();
 
 			IndexKeysDefinitionBuilder<MongoContentIdModelV0> indexKeysDefinitionBuilder = Builders<MongoContentIdModelV0>.IndexKeys;
 			CreateIndexModel<MongoContentIdModelV0> indexModel = new CreateIndexModel<MongoContentIdModelV0>(

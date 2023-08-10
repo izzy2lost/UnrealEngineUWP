@@ -60,7 +60,7 @@ namespace Jupiter.Implementation
 			_httpClient = httpClientFactory.CreateClient();
 			_httpClient.BaseAddress = new Uri(replicatorSettings.ConnectionString);
 
-			ReplicatorState? replicatorState = _replicationLog.GetReplicatorState(_namespace, _name).Result;
+			ReplicatorState? replicatorState = _replicationLog.GetReplicatorStateAsync(_namespace, _name).Result;
 			if (replicatorState == null)
 			{
 				_refsState = new RefsState();
@@ -116,10 +116,10 @@ namespace Jupiter.Implementation
 
 		private async Task SaveStateAsync(RefsState newState)
 		{
-			await _replicationLog.UpdateReplicatorState(Info.NamespaceToReplicate, _name, new ReplicatorState { LastBucket = newState.LastBucket, LastEvent = newState.LastEvent });
+			await _replicationLog.UpdateReplicatorStateAsync(Info.NamespaceToReplicate, _name, new ReplicatorState { LastBucket = newState.LastBucket, LastEvent = newState.LastEvent });
 		}
 
-		public async Task<bool> TriggerNewReplications()
+		public async Task<bool> TriggerNewReplicationsAsync()
 		{
 			if (_replicationRunning)
 			{
@@ -128,7 +128,7 @@ namespace Jupiter.Implementation
 			}
 
 			// read the state again to allow it to be modified by the admin controller / other instances of jupiter connected to the same filesystem
-			ReplicatorState? replicatorState = await _replicationLog.GetReplicatorState(_namespace, _name);
+			ReplicatorState? replicatorState = await _replicationLog.GetReplicatorStateAsync(_namespace, _name);
 			if (replicatorState == null)
 			{
 				_refsState = new RefsState();
@@ -723,7 +723,7 @@ namespace Jupiter.Implementation
 
 		private async Task AddToReplicationLogAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blob)
 		{
-			await _replicationLog.InsertAddEvent(ns, bucket, key, blob);
+			await _replicationLog.InsertAddEventAsync(ns, bucket, key, blob);
 		}
 
 		public void SetReplicationOffset(long? state)
@@ -731,7 +731,7 @@ namespace Jupiter.Implementation
 			throw new NotImplementedException();
 		}
 
-		public Task StopReplicating()
+		public Task StopReplicatingAsync()
 		{
 			if (_disposed)
 			{
@@ -748,7 +748,7 @@ namespace Jupiter.Implementation
 
 		public ReplicatorInfo Info { get; private set; }
 
-		public Task DeleteState()
+		public Task DeleteStateAsync()
 		{
 			_refsState = new RefsState();
 			return SaveStateAsync(_refsState);

@@ -53,7 +53,7 @@ namespace Jupiter.FunctionalTests.GC
         private readonly NamespaceId TestNamespace = new NamespaceId("test-namespace");
 
         [TestInitialize]
-        public async Task Setup()
+        public async Task SetupAsync()
         {
             IConfigurationRoot configuration = new ConfigurationBuilder()
                 // we are not reading the base appSettings here as we want exact control over what runs in the tests
@@ -106,22 +106,22 @@ namespace Jupiter.FunctionalTests.GC
             IObjectService? objectService = server.Services.GetService<IObjectService>()!;
             Assert.IsNotNull(objectService);
             (BlobId ob0_hash, CbObject ob0_cb) = GetCBWithAttachment(object0id);
-            await objectService.Put(TestNamespace, testBucket, RefId.FromName("object0"), ob0_hash, ob0_cb);
+            await objectService.PutAsync(TestNamespace, testBucket, RefId.FromName("object0"), ob0_hash, ob0_cb);
            
             (BlobId ob2_hash, CbObject ob2_cb) = GetCBWithAttachment(object2id);
-            await objectService.Put(TestNamespace, testBucket, RefId.FromName("object2"), ob2_hash, ob2_cb);
+            await objectService.PutAsync(TestNamespace, testBucket, RefId.FromName("object2"), ob2_hash, ob2_cb);
 
             (BlobId ob3_hash, CbObject ob3_cb) = GetCBWithAttachment(object3id);
-            await objectService.Put(TestNamespace, testBucket, RefId.FromName("object3"), ob3_hash, ob3_cb);
+            await objectService.PutAsync(TestNamespace, testBucket, RefId.FromName("object3"), ob3_hash, ob3_cb);
 
             (BlobId ob6_hash, CbObject ob6_cb) = GetCBWithAttachment(object6id);
-            await objectService.Put(TestNamespace, testBucket, RefId.FromName("object6"), ob6_hash, ob6_cb);
+            await objectService.PutAsync(TestNamespace, testBucket, RefId.FromName("object6"), ob6_hash, ob6_cb);
 
             IReferencesStore referenceStore = server.Services.GetService<IReferencesStore>()!;
-            await referenceStore.UpdateLastAccessTime(TestNamespace, testBucket, RefId.FromName("object0"), DateTime.Now.AddDays(-2));
-            await referenceStore.UpdateLastAccessTime(TestNamespace, testBucket, RefId.FromName("object2"), DateTime.Now.AddDays(-2));
-            await referenceStore.UpdateLastAccessTime(TestNamespace, testBucket, RefId.FromName("object3"), DateTime.Now.AddDays(-2));
-            await referenceStore.UpdateLastAccessTime(TestNamespace, testBucket, RefId.FromName("object6"), DateTime.Now.AddDays(-2));
+            await referenceStore.UpdateLastAccessTimeAsync(TestNamespace, testBucket, RefId.FromName("object0"), DateTime.Now.AddDays(-2));
+            await referenceStore.UpdateLastAccessTimeAsync(TestNamespace, testBucket, RefId.FromName("object2"), DateTime.Now.AddDays(-2));
+            await referenceStore.UpdateLastAccessTimeAsync(TestNamespace, testBucket, RefId.FromName("object3"), DateTime.Now.AddDays(-2));
+            await referenceStore.UpdateLastAccessTimeAsync(TestNamespace, testBucket, RefId.FromName("object6"), DateTime.Now.AddDays(-2));
 
             IBlobIndex? blobIndex = server.Services.GetService<IBlobIndex>()!;
             Assert.IsNotNull(blobIndex);
@@ -149,13 +149,13 @@ namespace Jupiter.FunctionalTests.GC
         }
 
         [TestMethod]
-        public async Task RunBlobCleanupRefs()
+        public async Task RunBlobCleanupRefsAsync()
         {
             OrphanBlobCleanupRefs? cleanup = _server!.Services.GetService<OrphanBlobCleanupRefs>();
             Assert.IsNotNull(cleanup);
 
             using CancellationTokenSource cts = new();
-            ulong countOfRemovedBlobs = await cleanup.Cleanup(cts.Token);
+            ulong countOfRemovedBlobs = await cleanup.CleanupAsync(cts.Token);
             Assert.AreEqual(3u, countOfRemovedBlobs);
 
             foreach (BlobId blob in new BlobId[] {object1id, object4id, object5id})

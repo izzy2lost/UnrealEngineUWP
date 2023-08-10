@@ -176,7 +176,7 @@ namespace Jupiter.Controllers
 
 			foreach (IReplicator replicator in replicators)
 			{
-				await replicator.DeleteState();
+				await replicator.DeleteStateAsync();
 			}
 
 			return Ok();

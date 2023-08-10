@@ -20,7 +20,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 	{
 		_jupiterSettings = jupiterSettings;
 
-		CreateCollectionIfNotExists<MongoBlobIndexModelV0>().Wait();
+		CreateCollectionIfNotExistsAsync<MongoBlobIndexModelV0>().Wait();
 
 		IndexKeysDefinitionBuilder<MongoBlobIndexModelV0> indexKeysDefinitionBuilder = Builders<MongoBlobIndexModelV0>.IndexKeys;
 		CreateIndexModel<MongoBlobIndexModelV0> indexModel = new CreateIndexModel<MongoBlobIndexModelV0>(
@@ -39,7 +39,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 		});
 	}
 
-	private async Task<MongoBlobIndexModelV0?> GetBlobInfo(NamespaceId ns, BlobId id)
+	private async Task<MongoBlobIndexModelV0?> GetBlobInfoAsync(NamespaceId ns, BlobId id)
 	{
 		IMongoCollection<MongoBlobIndexModelV0> collection = GetCollection<MongoBlobIndexModelV0>();
 		IAsyncCursor<MongoBlobIndexModelV0>? cursor = await collection.FindAsync(m => m.Ns == ns.ToString() && m.BlobId == id.ToString());
@@ -70,7 +70,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 	{
 		region ??= _jupiterSettings.CurrentValue.CurrentSite;
 
-		MongoBlobIndexModelV0? model = await GetBlobInfo(ns, id);
+		MongoBlobIndexModelV0? model = await GetBlobInfoAsync(ns, id);
 		if (model == null)
 		{
 			throw new BlobNotFoundException(ns, id);
@@ -87,7 +87,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 
 	public async IAsyncEnumerable<BaseBlobReference> GetBlobReferencesAsync(NamespaceId ns, BlobId id)
 	{
-		MongoBlobIndexModelV0? blobInfo = await GetBlobInfo(ns, id);
+		MongoBlobIndexModelV0? blobInfo = await GetBlobInfoAsync(ns, id);
 		if (blobInfo == null)
 		{
 			yield break;
@@ -115,7 +115,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 
 	public async Task<bool> BlobExistsInRegionAsync(NamespaceId ns, BlobId blobIdentifier, string? region = null)
 	{
-		MongoBlobIndexModelV0? blobInfo = await GetBlobInfo(ns, blobIdentifier);
+		MongoBlobIndexModelV0? blobInfo = await GetBlobInfoAsync(ns, blobIdentifier);
 		return blobInfo?.Regions.Contains(_jupiterSettings.CurrentValue.CurrentSite) ?? false;
 	}
 
@@ -188,7 +188,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 
 	public async Task<List<string>> GetBlobRegionsAsync(NamespaceId ns, BlobId blob)
 	{
-		MongoBlobIndexModelV0? blobInfo = await GetBlobInfo(ns, blob);
+		MongoBlobIndexModelV0? blobInfo = await GetBlobInfoAsync(ns, blob);
 		if (blobInfo == null)
 		{
 			throw new BlobNotFoundException(ns, blob);

@@ -44,7 +44,7 @@ namespace Jupiter.Implementation
 			_logger = logger;
 		}
 
-		public async Task<(ObjectRecord, BlobContents?)> Get(NamespaceId ns, BucketId bucket, RefId key, string[]? fields = null, bool doLastAccessTracking = true)
+		public async Task<(ObjectRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[]? fields = null, bool doLastAccessTracking = true)
 		{
 			// if no field filtering is being used we assume everything is needed
 			IReferencesStore.FieldFlags flags = IReferencesStore.FieldFlags.All;
@@ -69,7 +69,7 @@ namespace Jupiter.Implementation
 			{
 				using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope("ref.get", "Fetching Ref from DB");
 
-				o = await _referencesStore.Get(ns, bucket, key, flags);
+				o = await _referencesStore.GetAsync(ns, bucket, key, flags);
 			}
 
 			if (doLastAccessTracking)
@@ -107,7 +107,7 @@ namespace Jupiter.Implementation
 			return (o, blobContents);
 		}
 
-		public async Task<(ContentId[], BlobId[])> Put(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload)
+		public async Task<(ContentId[], BlobId[])> PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload)
 		{
 			IServerTiming? serverTiming = _httpContextAccessor.HttpContext?.RequestServices.GetService<IServerTiming>();
 			using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope("ref.put", "Inserting ref");
@@ -117,7 +117,7 @@ namespace Jupiter.Implementation
 			// if we have no references we are always finalized, e.g. there are no referenced blobs to upload
 			bool isFinalized = !hasReferences;
 
-			Task objectStorePut = _referencesStore.Put(ns, bucket, key, blobHash, payload.GetView().ToArray(), isFinalized);
+			Task objectStorePut = _referencesStore.PutAsync(ns, bucket, key, blobHash, payload.GetView().ToArray(), isFinalized);
 
 			Task<BlobId> blobStorePut = _blobService.PutObjectAsync(ns, payload.GetView().ToArray(), blobHash);
 			
@@ -157,9 +157,9 @@ namespace Jupiter.Implementation
 			return payload.Any(FieldHasAttachments);
 		}
 
-		public async Task<(ContentId[], BlobId[])> Finalize(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash)
+		public async Task<(ContentId[], BlobId[])> FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash)
 		{
-			(ObjectRecord o, BlobContents? blob) = await Get(ns, bucket, key);
+			(ObjectRecord o, BlobContents? blob) = await GetAsync(ns, bucket, key);
 			if (blob == null)
 			{
 				throw new InvalidOperationException("No blob when attempting to finalize");
@@ -211,38 +211,38 @@ namespace Jupiter.Implementation
 
 			if (missingReferences.Length == 0 && missingBlobs.Length == 0)
 			{
-				await _referencesStore.Finalize(ns, bucket, key, blobHash);
-				await _replicationLog.InsertAddEvent(ns, bucket, key, blobHash);
+				await _referencesStore.FinalizeAsync(ns, bucket, key, blobHash);
+				await _replicationLog.InsertAddEventAsync(ns, bucket, key, blobHash);
 			}
 
 			return (missingReferences, missingBlobs);
 		}
 
-		public IAsyncEnumerable<NamespaceId> GetNamespaces()
+		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync()
 		{
-			return _referencesStore.GetNamespaces();
+			return _referencesStore.GetNamespacesAsync();
 		}
 
-		public Task<bool> Delete(NamespaceId ns, BucketId bucket, RefId key)
+		public Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key)
 		{
-			return _referencesStore.Delete(ns, bucket, key);
+			return _referencesStore.DeleteAsync(ns, bucket, key);
 		}
 
-		public Task<long> DropNamespace(NamespaceId ns)
+		public Task<long> DropNamespaceAsync(NamespaceId ns)
 		{
-			return _referencesStore.DropNamespace(ns);
+			return _referencesStore.DropNamespaceAsync(ns);
 		}
 
-		public Task<long> DeleteBucket(NamespaceId ns, BucketId bucket)
+		public Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket)
 		{
-			return _referencesStore.DeleteBucket(ns, bucket);
+			return _referencesStore.DeleteBucketAsync(ns, bucket);
 		}
 
-		public async Task<bool> Exists(NamespaceId ns, BucketId bucket, RefId key)
+		public async Task<bool> ExistsAsync(NamespaceId ns, BucketId bucket, RefId key)
 		{
 			try
 			{
-				(ObjectRecord, BlobContents?) _ = await Get(ns, bucket, key, new string[] {"name"});
+				(ObjectRecord, BlobContents?) _ = await GetAsync(ns, bucket, key, new string[] {"name"});
 			}
 			catch (NamespaceNotFoundException)
 			{
@@ -268,10 +268,10 @@ namespace Jupiter.Implementation
 			return true;
 		}
 
-		public async Task<List<BlobId>> GetReferencedBlobs(NamespaceId ns, BucketId bucket, RefId name)
+		public async Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId name)
 		{
 			byte[] blob;
-			ObjectRecord o = await _referencesStore.Get(ns, bucket, name, IReferencesStore.FieldFlags.IncludePayload);
+			ObjectRecord o = await _referencesStore.GetAsync(ns, bucket, name, IReferencesStore.FieldFlags.IncludePayload);
 			if (o.InlinePayload != null && o.InlinePayload.Length != 0)
 			{
 				blob = o.InlinePayload;

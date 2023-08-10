@@ -54,7 +54,7 @@ namespace Jupiter.Implementation
 			return true;
 		}
 
-		public async Task<ulong> Cleanup(CancellationToken cancellationToken)
+		public async Task<ulong> CleanupAsync(CancellationToken cancellationToken)
 		{
 			if (!_leaderElection.IsThisInstanceLeader())
 			{
@@ -104,7 +104,7 @@ namespace Jupiter.Implementation
 							return;
 						}
 
-						bool removed = await GCBlob(policy.StoragePool, namespacesThatSharePool, blob, lastModified, cancellationToken);
+						bool removed = await GCBlobAsync(policy.StoragePool, namespacesThatSharePool, blob, lastModified, cancellationToken);
 
 						if (removed)
 						{
@@ -120,7 +120,7 @@ namespace Jupiter.Implementation
 			return countOfBlobsRemoved;
 		}
 
-		private async Task<bool> GCBlob(string storagePool, List<NamespaceId> namespacesThatSharePool, BlobId blob, DateTime lastModifiedTime, CancellationToken cancellationToken)
+		private async Task<bool> GCBlobAsync(string storagePool, List<NamespaceId> namespacesThatSharePool, BlobId blob, DateTime lastModifiedTime, CancellationToken cancellationToken)
 		{
 			string storagePoolName = string.IsNullOrEmpty(storagePool) ? "default" : storagePool; 
 			using TelemetrySpan removeBlobScope = _tracer.StartActiveSpan("gc.blob")
@@ -160,7 +160,7 @@ namespace Jupiter.Implementation
 
 						try
 						{
-							(ObjectRecord, BlobContents?) _ = await _objectService.Get(blobNamespace, bucket, key, new string[] { "name" }, doLastAccessTracking: false);
+							(ObjectRecord, BlobContents?) _ = await _objectService.GetAsync(blobNamespace, bucket, key, new string[] { "name" }, doLastAccessTracking: false);
 							found = true;
 							break;
 						}
@@ -218,13 +218,13 @@ namespace Jupiter.Implementation
 			// if the blob was not found to have a reference in any of the namespace that share a storage pool then the blob is not used anymore and should be deleted from all the namespaces
 			await Parallel.ForEachAsync(namespacesThatSharePool, cancellationToken, async (ns, _) =>
 			{
-				await RemoveBlob(ns, blob);
+				await RemoveBlobAsync(ns, blob);
 			});
 			return true;
 
 		}
 
-		private async Task RemoveBlob(NamespaceId ns, BlobId blob)
+		private async Task RemoveBlobAsync(NamespaceId ns, BlobId blob)
 		{
 			try
 			{
@@ -242,7 +242,7 @@ namespace Jupiter.Implementation
 
 		private IAsyncEnumerable<NamespaceId> ListNamespaces()
 		{
-			return _objectService.GetNamespaces();
+			return _objectService.GetNamespacesAsync();
 		}
 	}
 }

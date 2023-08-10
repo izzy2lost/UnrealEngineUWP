@@ -23,7 +23,7 @@ namespace Jupiter.FunctionalTests.Status
         private TestServer? _server;
 
         [TestInitialize]
-        public async Task Setup()
+        public async Task SetupAsync()
         {
             IConfigurationRoot configuration = new ConfigurationBuilder()
                 // we are not reading the base appSettings here as we want exact control over what runs in the tests
@@ -66,7 +66,7 @@ namespace Jupiter.FunctionalTests.Status
         }
 
         [TestMethod]
-        public async Task GetPeerConnection()
+        public async Task GetPeerConnectionAsync()
         {
             HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/status/peers", UriKind.Relative));
             result.EnsureSuccessStatusCode();
@@ -84,7 +84,7 @@ namespace Jupiter.FunctionalTests.Status
 
         
         [TestMethod]
-        public async Task GetPeerConnectionInternal()
+        public async Task GetPeerConnectionInternalAsync()
         {
             HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/status/peers?includeInternalEndpoints=true", UriKind.Relative));
             result.EnsureSuccessStatusCode();

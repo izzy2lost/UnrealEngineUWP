@@ -18,8 +18,8 @@ namespace Jupiter.Implementation
 		public MongoReferencesStore(IOptionsMonitor<MongoSettings> settings, INamespacePolicyResolver namespacePolicyResolver, string? overrideDatabaseName = null) : base(settings, overrideDatabaseName)
 		{
 			_namespacePolicyResolver = namespacePolicyResolver;
-			CreateCollectionIfNotExists<MongoReferencesModelV0>().Wait();
-			CreateCollectionIfNotExists<MongoNamespacesModelV0>().Wait();
+			CreateCollectionIfNotExistsAsync<MongoReferencesModelV0>().Wait();
+			CreateCollectionIfNotExistsAsync<MongoNamespacesModelV0>().Wait();
 
 			IndexKeysDefinitionBuilder<MongoReferencesModelV0> indexKeysDefinitionBuilder = Builders<MongoReferencesModelV0>.IndexKeys;
 			CreateIndexModel<MongoReferencesModelV0> indexModelClusteredKey = new CreateIndexModel<MongoReferencesModelV0>(
@@ -47,7 +47,7 @@ namespace Jupiter.Implementation
 			AddIndexFor<MongoReferencesModelV0>().CreateOne(indexTTL);
 		}
 
-		public async Task<ObjectRecord> Get(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
+		public async Task<ObjectRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
 		{
 			bool includePayload = (flags & IReferencesStore.FieldFlags.IncludePayload) != 0;
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
@@ -67,7 +67,7 @@ namespace Jupiter.Implementation
 			return model.ToObjectRecord();
 		}
 
-		public async Task Put(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[]? blob, bool isFinalized)
+		public async Task PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[]? blob, bool isFinalized)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 
@@ -78,7 +78,7 @@ namespace Jupiter.Implementation
 				blob = Array.Empty<byte>();
 			}
 
-			Task addNamespaceTask = AddNamespaceIfNotExist(ns);
+			Task addNamespaceTask = AddNamespaceIfNotExistAsync(ns);
 			MongoReferencesModelV0 model = new MongoReferencesModelV0(ns, bucket, key, blobHash, blob, isFinalized, DateTime.Now);
 			
 			NamespacePolicy policy = _namespacePolicyResolver.GetPoliciesForNs(ns);
@@ -97,7 +97,7 @@ namespace Jupiter.Implementation
 			await addNamespaceTask;
 		}
 
-		public async Task Finalize(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier)
+		public async Task FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 
@@ -107,7 +107,7 @@ namespace Jupiter.Implementation
 			);
 		}
 
-		public async Task UpdateLastAccessTime(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime)
+		public async Task UpdateLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 
@@ -117,7 +117,7 @@ namespace Jupiter.Implementation
 			);
 		}
 
-		public async IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecords()
+		public async IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecordsAsync()
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 			IAsyncCursor<MongoReferencesModelV0>? cursor = await collection.FindAsync(FilterDefinition<MongoReferencesModelV0>.Empty);
@@ -131,7 +131,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task AddNamespaceIfNotExist(NamespaceId ns)
+		public async Task AddNamespaceIfNotExistAsync(NamespaceId ns)
 		{
 			FilterDefinition<MongoNamespacesModelV0> filter = Builders<MongoNamespacesModelV0>.Filter.Where(m => m.Ns == ns.ToString());
 			FindOneAndReplaceOptions<MongoNamespacesModelV0, MongoNamespacesModelV0> options = new FindOneAndReplaceOptions<MongoNamespacesModelV0, MongoNamespacesModelV0>
@@ -143,7 +143,7 @@ namespace Jupiter.Implementation
 			await collection.FindOneAndReplaceAsync(filter, new MongoNamespacesModelV0(ns), options);
 		}
 
-		public async IAsyncEnumerable<NamespaceId> GetNamespaces()
+		public async IAsyncEnumerable<NamespaceId> GetNamespacesAsync()
 		{
 			IMongoCollection<MongoNamespacesModelV0> collection = GetCollection<MongoNamespacesModelV0>();
 
@@ -157,7 +157,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task<bool> Delete(NamespaceId ns, BucketId bucket, RefId key)
+		public async Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 
@@ -167,7 +167,7 @@ namespace Jupiter.Implementation
 			return result.DeletedCount != 0;
 		}
 
-		public async Task<long> DropNamespace(NamespaceId ns)
+		public async Task<long> DropNamespaceAsync(NamespaceId ns)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 
@@ -184,7 +184,7 @@ namespace Jupiter.Implementation
 
 		}
 
-		public async Task<long> DeleteBucket(NamespaceId ns, BucketId bucket)
+		public async Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 

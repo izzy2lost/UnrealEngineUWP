@@ -28,7 +28,7 @@ public class MongoStore
 		_client = new MongoClient(mongoClientSettings);
 	}
 
-	protected async Task CreateCollectionIfNotExists<T>()
+	protected async Task CreateCollectionIfNotExistsAsync<T>()
 	{
 		string collectionName = GetCollectionName<T>();
 

@@ -10,18 +10,18 @@ namespace Jupiter.Implementation
 {
 	public interface IObjectService
 	{
-		Task<(ObjectRecord, BlobContents?)> Get(NamespaceId ns, BucketId bucket, RefId key, string[] fields, bool doLastAccessTracking = true);
-		Task<(ContentId[], BlobId[])> Put(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload);
-		Task<(ContentId[], BlobId[])> Finalize(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash);
+		Task<(ObjectRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[] fields, bool doLastAccessTracking = true);
+		Task<(ContentId[], BlobId[])> PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload);
+		Task<(ContentId[], BlobId[])> FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash);
 
-		IAsyncEnumerable<NamespaceId> GetNamespaces();
+		IAsyncEnumerable<NamespaceId> GetNamespacesAsync();
 
-		Task<bool> Delete(NamespaceId ns, BucketId bucket, RefId key);
-		Task<long> DropNamespace(NamespaceId ns);
-		Task<long> DeleteBucket(NamespaceId ns, BucketId bucket);
+		Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key);
+		Task<long> DropNamespaceAsync(NamespaceId ns);
+		Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket);
 
-		Task<bool> Exists(NamespaceId ns, BucketId bucket, RefId key);
-		Task<List<BlobId>> GetReferencedBlobs(NamespaceId ns, BucketId bucket, RefId key);
+		Task<bool> ExistsAsync(NamespaceId ns, BucketId bucket, RefId key);
+		Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId key);
 	}
 
 	public class ObjectHashMismatchException : Exception

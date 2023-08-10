@@ -49,7 +49,7 @@ namespace Jupiter.Implementation.Objects
 			return _referenceCaches.GetOrAdd(ns, id => new MemoryCache(_options.CurrentValue));
 		}
 
-		public async Task<ObjectRecord> Get(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
+		public async Task<ObjectRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
 		{
 			MemoryCache cache = GetCacheForNamespace(ns);
 
@@ -58,59 +58,59 @@ namespace Jupiter.Implementation.Objects
 				return cachedResult.ToObjectRecord(flags);
 			}
 
-			ObjectRecord objectRecord = await _actualStore.Get(ns, bucket, key, IReferencesStore.FieldFlags.All);
+			ObjectRecord objectRecord = await _actualStore.GetAsync(ns, bucket, key, IReferencesStore.FieldFlags.All);
 			AddCacheEntry(ns, bucket, key, objectRecord);
 
 			return objectRecord;
 		}
 
-		public Task Put(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized)
+		public Task PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized)
 		{
 			ObjectRecord objectRecord = new ObjectRecord(ns, bucket, key, DateTime.Now, blob, blobHash, isFinalized);
 			AddCacheEntry(ns, bucket, key, objectRecord);
 			
-			return _actualStore.Put(ns, bucket, key, blobHash, blob, isFinalized);
+			return _actualStore.PutAsync(ns, bucket, key, blobHash, blob, isFinalized);
 		}
 
-		public Task Finalize(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier)
+		public Task FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier)
 		{
-			return _actualStore.Finalize(ns, bucket, key, blobIdentifier);
+			return _actualStore.FinalizeAsync(ns, bucket, key, blobIdentifier);
 		}
 
-		public Task UpdateLastAccessTime(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime)
+		public Task UpdateLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime)
 		{
-			return _actualStore.UpdateLastAccessTime(ns, bucket, key, newLastAccessTime);
+			return _actualStore.UpdateLastAccessTimeAsync(ns, bucket, key, newLastAccessTime);
 		}
 
-		public IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecords()
+		public IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecordsAsync()
 		{
-			return _actualStore.GetRecords();
+			return _actualStore.GetRecordsAsync();
 		}
 
-		public IAsyncEnumerable<NamespaceId> GetNamespaces()
+		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync()
 		{
-			return _actualStore.GetNamespaces();
+			return _actualStore.GetNamespacesAsync();
 		}
 
-		public Task<bool> Delete(NamespaceId ns, BucketId bucket, RefId key)
+		public Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key)
 		{
 			MemoryCache cache = GetCacheForNamespace(ns);
 			cache.Remove(new CachedReferenceKey(bucket, key));
-			return _actualStore.Delete(ns, bucket, key);
+			return _actualStore.DeleteAsync(ns, bucket, key);
 		}
 
-		public Task<long> DropNamespace(NamespaceId ns)
+		public Task<long> DropNamespaceAsync(NamespaceId ns)
 		{
 			_referenceCaches.TryRemove(ns, out _);
-			return _actualStore.DropNamespace(ns);
+			return _actualStore.DropNamespaceAsync(ns);
 		}
 
-		public Task<long> DeleteBucket(NamespaceId ns, BucketId bucket)
+		public Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket)
 		{
 			// we do not track enough information to be able to drop a bucket, so we have to drop the entire namespace cache to remove the bucket
 			// this should be okay as deleting buckets is a extremely uncommon operation
 			_referenceCaches.TryRemove(ns, out _);
-			return _actualStore.DeleteBucket(ns, bucket);
+			return _actualStore.DeleteBucketAsync(ns, bucket);
 		}
 
 		public void Clear()

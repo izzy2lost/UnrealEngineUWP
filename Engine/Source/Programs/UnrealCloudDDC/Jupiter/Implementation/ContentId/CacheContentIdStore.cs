@@ -20,7 +20,7 @@ namespace Jupiter.Implementation
 
 		public async Task<BlobId[]?> Resolve(NamespaceId ns, ContentId contentId, bool mustBeContentId)
 		{
-			using HttpRequestMessage getContentIdRequest = await BuildHttpRequest(HttpMethod.Get, new Uri($"api/v1/content-id/{ns}/{contentId}", UriKind.Relative));
+			using HttpRequestMessage getContentIdRequest = await BuildHttpRequestAsync(HttpMethod.Get, new Uri($"api/v1/content-id/{ns}/{contentId}", UriKind.Relative));
 			HttpResponseMessage response = await HttpClient.SendAsync(getContentIdRequest);
 
 			if (response.StatusCode == HttpStatusCode.NotFound)
@@ -40,7 +40,7 @@ namespace Jupiter.Implementation
 
 		public async Task Put(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
 		{
-			using HttpRequestMessage putContentIdRequest = await BuildHttpRequest(HttpMethod.Put, new Uri($"api/v1/content-id/{ns}/{contentId}/update/{blobIdentifier}/{contentWeight}", UriKind.Relative));
+			using HttpRequestMessage putContentIdRequest = await BuildHttpRequestAsync(HttpMethod.Put, new Uri($"api/v1/content-id/{ns}/{contentId}/update/{blobIdentifier}/{contentWeight}", UriKind.Relative));
 			HttpResponseMessage response = await HttpClient.SendAsync(putContentIdRequest);
 
 			response.EnsureSuccessStatusCode();

@@ -78,7 +78,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task FetchBlobWithNginxRedirect()
+        public async Task FetchBlobWithNginxRedirectAsync()
         {
             byte[] s3ContentBytes = Encoding.ASCII.GetBytes(FileContents);
             using ByteArrayContent requestContent = new ByteArrayContent(s3ContentBytes);

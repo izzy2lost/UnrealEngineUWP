@@ -94,7 +94,7 @@ namespace Jupiter.FunctionalTests.GC
         private TestServer? _server;
 
         [TestInitialize]
-        public async Task Setup()
+        public async Task SetupAsync()
         {
             IConfigurationRoot configuration = new ConfigurationBuilder()
                 // we are not reading the base appSettings here as we want exact control over what runs in the tests
@@ -126,36 +126,36 @@ namespace Jupiter.FunctionalTests.GC
             IObjectService? objectService = _server.Services.GetService<IObjectService>()!;
             Assert.IsNotNull(objectService);
             (BlobId ob0_hash, CbObject ob0_cb) = GetCBWithAttachment(object0id);
-            await objectService.Put(TestNamespace, DefaultBucket, object0Name, ob0_hash, ob0_cb);
+            await objectService.PutAsync(TestNamespace, DefaultBucket, object0Name, ob0_hash, ob0_cb);
            
             (BlobId ob1_hash, CbObject ob1_cb) = GetCBWithAttachment(object1id);
-            await objectService.Put(TestNamespace, DefaultBucket, object1Name, ob1_hash, ob1_cb);
+            await objectService.PutAsync(TestNamespace, DefaultBucket, object1Name, ob1_hash, ob1_cb);
 
             (BlobId ob2_hash, CbObject ob2_cb) = GetCBWithAttachment(object2id);
-            await objectService.Put(TestNamespace, DefaultBucket, object2Name, ob2_hash, ob2_cb);
+            await objectService.PutAsync(TestNamespace, DefaultBucket, object2Name, ob2_hash, ob2_cb);
 
             (BlobId ob3_hash, CbObject ob3_cb) = GetCBWithAttachment(object3id);
-            await objectService.Put(TestNamespace, DefaultBucket, object3Name, ob3_hash, ob3_cb);
+            await objectService.PutAsync(TestNamespace, DefaultBucket, object3Name, ob3_hash, ob3_cb);
 
             (BlobId ob4_hash, CbObject ob4_cb) = GetCBWithAttachment(object4id);
-            await objectService.Put(TestNamespace, DefaultBucket, object4Name, ob4_hash, ob4_cb);
+            await objectService.PutAsync(TestNamespace, DefaultBucket, object4Name, ob4_hash, ob4_cb);
 
             (BlobId ob5_hash, CbObject ob5_cb) = GetCBWithAttachment(object5id);
-            await objectService.Put(TestNamespace, DefaultBucket, object5Name, ob5_hash, ob5_cb);
+            await objectService.PutAsync(TestNamespace, DefaultBucket, object5Name, ob5_hash, ob5_cb);
 
             (BlobId ob6_hash, CbObject ob6_cb) = GetCBWithAttachment(object6id);
-            await objectService.Put(TestNamespace, DefaultBucket, object6Name, ob6_hash, ob6_cb);
+            await objectService.PutAsync(TestNamespace, DefaultBucket, object6Name, ob6_hash, ob6_cb);
 
             IReferencesStore referenceStore = _server.Services.GetService<IReferencesStore>()!;
             DateTime oldTimestamp = DateTime.Now.AddDays(-30);
             DateTime newTimestamp = DateTime.Now;
-            await referenceStore.UpdateLastAccessTime(TestNamespace, DefaultBucket, object0Name, oldTimestamp);
-            await referenceStore.UpdateLastAccessTime(TestNamespace, DefaultBucket, object1Name, newTimestamp);
-            await referenceStore.UpdateLastAccessTime(TestNamespace, DefaultBucket, object2Name, oldTimestamp);
-            await referenceStore.UpdateLastAccessTime(TestNamespace, DefaultBucket, object3Name, oldTimestamp);
-            await referenceStore.UpdateLastAccessTime(TestNamespace, DefaultBucket, object4Name, newTimestamp);
-            await referenceStore.UpdateLastAccessTime(TestNamespace, DefaultBucket, object5Name, newTimestamp);
-            await referenceStore.UpdateLastAccessTime(TestNamespace, DefaultBucket, object6Name, oldTimestamp);
+            await referenceStore.UpdateLastAccessTimeAsync(TestNamespace, DefaultBucket, object0Name, oldTimestamp);
+            await referenceStore.UpdateLastAccessTimeAsync(TestNamespace, DefaultBucket, object1Name, newTimestamp);
+            await referenceStore.UpdateLastAccessTimeAsync(TestNamespace, DefaultBucket, object2Name, oldTimestamp);
+            await referenceStore.UpdateLastAccessTimeAsync(TestNamespace, DefaultBucket, object3Name, oldTimestamp);
+            await referenceStore.UpdateLastAccessTimeAsync(TestNamespace, DefaultBucket, object4Name, newTimestamp);
+            await referenceStore.UpdateLastAccessTimeAsync(TestNamespace, DefaultBucket, object5Name, newTimestamp);
+            await referenceStore.UpdateLastAccessTimeAsync(TestNamespace, DefaultBucket, object6Name, oldTimestamp);
         }
 
         protected virtual IEnumerable<KeyValuePair<string, string>> GetSettings()
@@ -171,7 +171,7 @@ namespace Jupiter.FunctionalTests.GC
         protected abstract string GetImplementation();
 
         [TestMethod]
-        public async Task RunRefCleanup()
+        public async Task RunRefCleanupAsync()
         {
             // trigger the cleanup
             using StringContent content = new StringContent(string.Empty);
@@ -183,13 +183,13 @@ namespace Jupiter.FunctionalTests.GC
 
             IObjectService objectService = _server!.Services.GetService<IObjectService>()!;
             // some object should have been deleted while others remain
-            Assert.IsFalse(await objectService.Exists(TestNamespace, DefaultBucket, object0Name), $"{object0Name} should have been deleted");
-            Assert.IsTrue(await objectService.Exists(TestNamespace, DefaultBucket, object1Name), $"{object1Name} should still be found");
-            Assert.IsFalse(await objectService.Exists(TestNamespace, DefaultBucket, object2Name), $"{object2Name} should have been deleted");
-            Assert.IsFalse(await objectService.Exists(TestNamespace, DefaultBucket, object3Name), $"{object3Name} should have been deleted");
-            Assert.IsTrue(await objectService.Exists(TestNamespace, DefaultBucket, object4Name), $"{object4Name} should still be found");
-            Assert.IsTrue(await objectService.Exists(TestNamespace, DefaultBucket, object5Name), $"{object5Name} should still be found");
-            Assert.IsFalse(await objectService.Exists(TestNamespace, DefaultBucket, object6Name), $"{object6Name} should have been deleted");
+            Assert.IsFalse(await objectService.ExistsAsync(TestNamespace, DefaultBucket, object0Name), $"{object0Name} should have been deleted");
+            Assert.IsTrue(await objectService.ExistsAsync(TestNamespace, DefaultBucket, object1Name), $"{object1Name} should still be found");
+            Assert.IsFalse(await objectService.ExistsAsync(TestNamespace, DefaultBucket, object2Name), $"{object2Name} should have been deleted");
+            Assert.IsFalse(await objectService.ExistsAsync(TestNamespace, DefaultBucket, object3Name), $"{object3Name} should have been deleted");
+            Assert.IsTrue(await objectService.ExistsAsync(TestNamespace, DefaultBucket, object4Name), $"{object4Name} should still be found");
+            Assert.IsTrue(await objectService.ExistsAsync(TestNamespace, DefaultBucket, object5Name), $"{object5Name} should still be found");
+            Assert.IsFalse(await objectService.ExistsAsync(TestNamespace, DefaultBucket, object6Name), $"{object6Name} should have been deleted");
         }
 
         private static (BlobId, CbObject) GetCBWithAttachment(BlobId blobIdentifier)

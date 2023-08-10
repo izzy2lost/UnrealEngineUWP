@@ -141,7 +141,7 @@ namespace Jupiter.FunctionalTests.Replication
             using RefsReplicator replicator = ActivatorUtilities.CreateInstance<RefsReplicator>(_server!.Services, replicatorSettings, httpClientFactory);
             replicator.SetRefState(lastBucket, lastEvent);
 
-            bool didRun = await replicator.TriggerNewReplications();
+            bool didRun = await replicator.TriggerNewReplicationsAsync();
 
             Assert.IsTrue(didRun);
 
@@ -216,7 +216,7 @@ namespace Jupiter.FunctionalTests.Replication
             // no previous state, will download it from a snapshot
             replicator.SetRefState(null, null);
 
-            bool didRun = await replicator.TriggerNewReplications();
+            bool didRun = await replicator.TriggerNewReplicationsAsync();
 
             Assert.IsTrue(didRun);
 
@@ -303,7 +303,7 @@ namespace Jupiter.FunctionalTests.Replication
             // no previous state, will download it from a snapshot
             replicator.SetRefState(null, null);
 
-            bool didRun = await replicator.TriggerNewReplications();
+            bool didRun = await replicator.TriggerNewReplicationsAsync();
 
             Assert.IsTrue(didRun);
 
@@ -389,7 +389,7 @@ namespace Jupiter.FunctionalTests.Replication
             // specify a bucket that does not exist, we should fallback to replicating a snapshot
             replicator.SetRefState(missingBucket, missingId);
 
-            bool didRun = await replicator.TriggerNewReplications();
+            bool didRun = await replicator.TriggerNewReplicationsAsync();
 
             Assert.IsTrue(didRun);
 

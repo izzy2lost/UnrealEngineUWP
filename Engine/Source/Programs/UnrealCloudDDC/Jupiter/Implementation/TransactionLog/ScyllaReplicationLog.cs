@@ -64,7 +64,7 @@ namespace Jupiter.Implementation
 			));
 		}
 
-		public async IAsyncEnumerable<NamespaceId> GetNamespaces()
+		public async IAsyncEnumerable<NamespaceId> GetNamespacesAsync()
 		{
 			IEnumerable<ScyllaNamespace> namespaces = await _mapper.FetchAsync<ScyllaNamespace>("");
 
@@ -74,7 +74,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task<(string, Guid)> InsertAddEvent(NamespaceId ns, BucketId bucket, RefId key, BlobId objectBlob, DateTime? timestamp)
+		public async Task<(string, Guid)> InsertAddEventAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId objectBlob, DateTime? timestamp)
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.insert_add_event");
 
@@ -87,7 +87,7 @@ namespace Jupiter.Implementation
 			return (log.GetReplicationBucketIdentifier(), log.ReplicationId);
 		}
 
-		public async Task<(string, Guid)> InsertDeleteEvent(NamespaceId ns, BucketId bucket, RefId key, DateTime? timestamp)
+		public async Task<(string, Guid)> InsertDeleteEventAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime? timestamp)
 		{
 			using TelemetrySpan scope =  _tracer.BuildScyllaSpan("scylla.insert_delete_event");
 
@@ -235,7 +235,7 @@ namespace Jupiter.Implementation
 			return filetime;
 		}
 
-		public async Task AddSnapshot(SnapshotInfo snapshotHeader)
+		public async Task AddSnapshotAsync(SnapshotInfo snapshotHeader)
 		{
 			await _mapper.InsertAsync<ScyllaSnapshot>(new ScyllaSnapshot(snapshotHeader.SnapshottedNamespace.ToString(), snapshotHeader.BlobNamespace.ToString(), TimeUuid.NewId(), snapshotHeader.SnapshotBlob));
 			await CleanupSnapshotsAsync(snapshotHeader.SnapshottedNamespace);
@@ -261,14 +261,14 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task<SnapshotInfo?> GetLatestSnapshot(NamespaceId ns)
+		public async Task<SnapshotInfo?> GetLatestSnapshotAsync(NamespaceId ns)
 		{
-			SnapshotInfo? s = await GetSnapshots(ns).FirstOrDefaultAsync();
+			SnapshotInfo? s = await GetSnapshotsAsync(ns).FirstOrDefaultAsync();
 
 			return s;
 		}
 
-		public async IAsyncEnumerable<SnapshotInfo> GetSnapshots(NamespaceId ns)
+		public async IAsyncEnumerable<SnapshotInfo> GetSnapshotsAsync(NamespaceId ns)
 		{
 			IEnumerable<ScyllaSnapshot> snapshots = await _mapper.FetchAsync<ScyllaSnapshot>("WHERE namespace = ?", ns.ToString());
 
@@ -278,12 +278,12 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task UpdateReplicatorState(NamespaceId ns, string replicatorName, ReplicatorState newState)
+		public async Task UpdateReplicatorStateAsync(NamespaceId ns, string replicatorName, ReplicatorState newState)
 		{
 			await _mapper.UpdateAsync<ScyllaReplicationState>(new ScyllaReplicationState(ns, replicatorName, newState.LastBucket, newState.LastEvent));
 		}
 
-		public async Task<ReplicatorState?> GetReplicatorState(NamespaceId ns, string name)
+		public async Task<ReplicatorState?> GetReplicatorStateAsync(NamespaceId ns, string name)
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.get_replicator_state");
 

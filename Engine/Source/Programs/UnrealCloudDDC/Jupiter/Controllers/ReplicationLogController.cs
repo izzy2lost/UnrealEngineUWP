@@ -51,7 +51,7 @@ namespace Jupiter.Controllers
 				return result;
 			}
 
-			return Ok(new ReplicationLogSnapshots(await _replicationLog.GetSnapshots(ns).ToListAsync()));
+			return Ok(new ReplicationLogSnapshots(await _replicationLog.GetSnapshotsAsync(ns).ToListAsync()));
 		}
 
 		
@@ -107,7 +107,7 @@ namespace Jupiter.Controllers
 			catch (IncrementalLogNotAvailableException)
 			{
 				// failed to resume from the incremental log, check for a snapshot instead
-				SnapshotInfo? snapshot = await _replicationLog.GetLatestSnapshot(ns);
+				SnapshotInfo? snapshot = await _replicationLog.GetLatestSnapshotAsync(ns);
 				if (snapshot != null)
 				{
 					// no log file is available

@@ -67,7 +67,7 @@ public class ScyllaBlobIndex : IBlobIndex
 		await _mapper.InsertAsync<ScyllaBlobIndexEntry>(new ScyllaBlobIndexEntry(ns.ToString(), id, region));
 	}
 
-	private async Task<List<string>?> GetOldBlobRegions(NamespaceId ns, BlobId id)
+	private async Task<List<string>?> GetOldBlobRegionsAsync(NamespaceId ns, BlobId id)
 	{
 		using TelemetrySpan scope =  _tracer.BuildScyllaSpan("scylla.fetch_old_blob_index").SetAttribute("resource.name", $"{ns}.{id}");
 
@@ -85,7 +85,7 @@ public class ScyllaBlobIndex : IBlobIndex
 		}
 	}
 
-	private async Task<List<ScyllaObjectReference>?> GetOldBlobReferences(NamespaceId ns, BlobId id)
+	private async Task<List<ScyllaObjectReference>?> GetOldBlobReferencesAsync(NamespaceId ns, BlobId id)
 	{
 		using TelemetrySpan scope =  _tracer.BuildScyllaSpan("scylla.fetch_old_blob_index_references").SetAttribute("resource.name", $"{ns}.{id}");
 
@@ -119,7 +119,7 @@ public class ScyllaBlobIndex : IBlobIndex
 		bool blobMissing = entry == null;
 		if (blobMissing && _scyllaSettings.CurrentValue.MigrateFromOldBlobIndex)
 		{
-			List<string>? regions = await GetOldBlobRegions(ns, blobIdentifier);
+			List<string>? regions = await GetOldBlobRegionsAsync(ns, blobIdentifier);
 			if (regions == null)
 			{
 				// blob didn't exist in the old table either
@@ -159,7 +159,7 @@ public class ScyllaBlobIndex : IBlobIndex
 		
 		if (regions.Any() && _scyllaSettings.CurrentValue.MigrateFromOldBlobIndex)
 		{
-			List<string>? oldRegions = await GetOldBlobRegions(ns, blob);
+			List<string>? oldRegions = await GetOldBlobRegionsAsync(ns, blob);
 			if (oldRegions == null)
 			{
 				// regions didn't exist in the old table either
@@ -219,7 +219,7 @@ public class ScyllaBlobIndex : IBlobIndex
 
 		if (noReferencesFound && _scyllaSettings.CurrentValue.MigrateFromOldBlobIndex)
 		{
-			List<ScyllaObjectReference>? oldReferences = await GetOldBlobReferences(ns, id);
+			List<ScyllaObjectReference>? oldReferences = await GetOldBlobReferencesAsync(ns, id);
 			if (oldReferences != null)
 			{
 				foreach (ScyllaObjectReference scyllaObjectReference in oldReferences)

@@ -11,7 +11,7 @@ namespace Jupiter
 {
 	public static class RequestUtil
 	{
-		public static async Task<byte[]> ReadRawBody(HttpRequest request)
+		public static async Task<byte[]> ReadRawBodyAsync(HttpRequest request)
 		{
 			long? contentLength = request.GetTypedHeaders().ContentLength;
 

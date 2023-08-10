@@ -83,7 +83,7 @@ namespace Jupiter.Implementation
 					continue;
 				}
 
-				List<NamespaceId> namespaces = await _referencesStore.GetNamespaces().ToListAsync();
+				List<NamespaceId> namespaces = await _referencesStore.GetNamespacesAsync().ToListAsync();
 
 				// technically this does not need to be run per namespace but per storage pool
 				foreach (NamespaceId ns in namespaces)

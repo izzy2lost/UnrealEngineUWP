@@ -9,7 +9,7 @@ namespace Jupiter.Implementation
 {
 	public interface IReferencesStore
 	{
-		Task<ObjectRecord> Get(NamespaceId ns, BucketId bucket, RefId key, FieldFlags flags);
+		Task<ObjectRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, FieldFlags flags);
 
 		[Flags]
 		public enum FieldFlags
@@ -19,16 +19,16 @@ namespace Jupiter.Implementation
 			All = IncludePayload
 		}
 
-		Task Put(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized);
-		Task Finalize(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier);
+		Task PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized);
+		Task FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier);
 
-		Task UpdateLastAccessTime(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime);
-		IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecords();
+		Task UpdateLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime);
+		IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecordsAsync();
 
-		IAsyncEnumerable<NamespaceId> GetNamespaces();
-		Task<bool> Delete(NamespaceId ns, BucketId bucket, RefId key);
-		Task<long> DropNamespace(NamespaceId ns);
-		Task<long> DeleteBucket(NamespaceId ns, BucketId bucket);
+		IAsyncEnumerable<NamespaceId> GetNamespacesAsync();
+		Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key);
+		Task<long> DropNamespaceAsync(NamespaceId ns);
+		Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket);
 	}
 
 	public class ObjectRecord

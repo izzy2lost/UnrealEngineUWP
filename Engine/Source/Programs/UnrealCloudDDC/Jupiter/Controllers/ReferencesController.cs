@@ -80,7 +80,7 @@ namespace Jupiter.Controllers
 		[ProducesResponseType(type: typeof(ProblemDetails), 400)]
 		public async Task<IActionResult> GetNamespacesAsync()
 		{
-			NamespaceId[] namespaces = await _objectService.GetNamespaces().ToArrayAsync();
+			NamespaceId[] namespaces = await _objectService.GetNamespacesAsync().ToArrayAsync();
 
 			// filter namespaces down to only the namespaces the user has access to
 			List<NamespaceId> namespacesWithAccess = new();
@@ -119,7 +119,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				(ObjectRecord objectRecord, BlobContents? blob) = await _objectService.Get(ns, bucket, key, Array.Empty<string>());
+				(ObjectRecord objectRecord, BlobContents? blob) = await _objectService.GetAsync(ns, bucket, key, Array.Empty<string>());
 
 				if (blob == null)
 				{
@@ -450,7 +450,7 @@ namespace Jupiter.Controllers
 
 		try
 		{
-			(ObjectRecord objectRecord, BlobContents? _) = await _objectService.Get(ns, bucket, key, fields);
+			(ObjectRecord objectRecord, BlobContents? _) = await _objectService.GetAsync(ns, bucket, key, fields);
 
 			return Ok(new RefMetadataResponse(objectRecord));
 		}
@@ -491,7 +491,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				(ObjectRecord record, BlobContents? blob) = await _objectService.Get(ns, bucket, key, new string[] {"blobIdentifier", "IsFinalized"});
+				(ObjectRecord record, BlobContents? blob) = await _objectService.GetAsync(ns, bucket, key, new string[] {"blobIdentifier", "IsFinalized"});
 				Response.Headers[CommonHeaders.HashHeaderName] = record.BlobIdentifier.ToString();
 
 				if (!record.IsFinalized)
@@ -575,7 +575,7 @@ namespace Jupiter.Controllers
 				try
 				{
 					(ObjectRecord record, BlobContents? blob) =
-						await _objectService.Get(ns, bucket, key, new string[] { "blobIdentifier" });
+						await _objectService.GetAsync(ns, bucket, key, new string[] { "blobIdentifier" });
 
 					blob ??= await _blobStore.GetObjectAsync(ns, record.BlobIdentifier);
 
@@ -704,7 +704,7 @@ namespace Jupiter.Controllers
 				return Problem(e.Message, null, (int)HttpStatusCode.RequestTimeout);
 			}
 
-			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _objectService.Put(ns, bucket, key, blobHeader, payloadObject);
+			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _objectService.PutAsync(ns, bucket, key, blobHeader, payloadObject);
 
 			List<ContentHash> missingHashes = new List<ContentHash>(missingReferences);
 			missingHashes.AddRange(missingBlobs);
@@ -727,7 +727,7 @@ namespace Jupiter.Controllers
 
 			_diagnosticContext.Set("Content-Length", Request.ContentLength ?? -1);
 
-			byte[] b = await RequestUtil.ReadRawBody(Request);
+			byte[] b = await RequestUtil.ReadRawBodyAsync(Request);
 			CbPackageReader packageReader = await CbPackageReader.Create(new MemoryStream(b));
 
 			try
@@ -765,7 +765,7 @@ namespace Jupiter.Controllers
 			CbObject rootObject = packageReader.RootObject;
 			BlobId rootObjectHash = BlobId.FromIoHash(packageReader.RootHash);
 
-			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _objectService.Put(ns, bucket, key, rootObjectHash, rootObject);
+			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _objectService.PutAsync(ns, bucket, key, rootObjectHash, rootObject);
 
 			List<ContentHash> missingHashes = new List<ContentHash>(missingReferences);
 			missingHashes.AddRange(missingBlobs);
@@ -787,7 +787,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				(ContentId[] missingReferences, BlobId[] missingBlobs) = await _objectService.Finalize(ns, bucket, key, hash);
+				(ContentId[] missingReferences, BlobId[] missingBlobs) = await _objectService.FinalizeAsync(ns, bucket, key, hash);
 				List<ContentHash> missingHashes = new List<ContentHash>(missingReferences);
 				missingHashes.AddRange(missingBlobs);
 
@@ -848,7 +848,7 @@ namespace Jupiter.Controllers
 			{
 				try
 				{
-					(ObjectRecord objectRecord, BlobContents? blob) = await _objectService.Get(ns, op.Bucket, op.Key, Array.Empty<string>());
+					(ObjectRecord objectRecord, BlobContents? blob) = await _objectService.GetAsync(ns, op.Bucket, op.Key, Array.Empty<string>());
 
 					if (!objectRecord.IsFinalized)
 					{
@@ -884,7 +884,7 @@ namespace Jupiter.Controllers
 			{
 				try
 				{
-					(ObjectRecord record, BlobContents? blob) = await _objectService.Get(ns, op.Bucket, op.Key, new string[] { "blobIdentifier" });
+					(ObjectRecord record, BlobContents? blob) = await _objectService.GetAsync(ns, op.Bucket, op.Key, new string[] { "blobIdentifier" });
 
 					if (!record.IsFinalized)
 					{
@@ -940,7 +940,7 @@ namespace Jupiter.Controllers
 						throw new HashMismatchException(headerHash, objectHash);
 					}
 
-					(ContentId[] missingReferences, BlobId[] missingBlobs) = await _objectService.Put(ns, op.Bucket, op.Key, objectHash, op.Payload);
+					(ContentId[] missingReferences, BlobId[] missingBlobs) = await _objectService.PutAsync(ns, op.Bucket, op.Key, objectHash, op.Payload);
 					List<ContentHash> missingHashes = new List<ContentHash>(missingReferences);
 
 					return (CbSerializer.Serialize(new PutObjectResponse(missingHashes.ToArray())), HttpStatusCode.OK);
@@ -1019,7 +1019,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				await _objectService.DropNamespace(ns);
+				await _objectService.DropNamespaceAsync(ns);
 			}
 			catch (NamespaceNotFoundException e)
 			{
@@ -1049,7 +1049,7 @@ namespace Jupiter.Controllers
 			long countOfDeletedRecords;
 			try
 			{
-				countOfDeletedRecords = await _objectService.DeleteBucket(ns, bucket);
+				countOfDeletedRecords = await _objectService.DeleteBucketAsync(ns, bucket);
 			}
 			catch (NamespaceNotFoundException e)
 			{
@@ -1081,7 +1081,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				bool deleted = await _objectService.Delete(ns, bucket, key);
+				bool deleted = await _objectService.DeleteAsync(ns, bucket, key);
 				if (!deleted)
 				{
 					return NotFound(new ProblemDetails { Title = $"Object {key} in bucket {bucket} and namespace {ns} did not exist" });

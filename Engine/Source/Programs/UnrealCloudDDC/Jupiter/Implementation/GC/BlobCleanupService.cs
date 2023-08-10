@@ -13,7 +13,7 @@ namespace Jupiter.Implementation
 	public interface IBlobCleanup
 	{
 		bool ShouldRun();
-		Task<ulong> Cleanup(CancellationToken none);
+		Task<ulong> CleanupAsync(CancellationToken none);
 	}
 
 	public class BlobCleanupState
@@ -92,7 +92,7 @@ namespace Jupiter.Implementation
 				_logger.LogInformation("Attempting to run Blob Cleanup {BlobCleanup}. ", type);
 				try
 				{
-					ulong countOfBlobsCleaned = await blobCleanup.Cleanup(cancellationToken);
+					ulong countOfBlobsCleaned = await blobCleanup.CleanupAsync(cancellationToken);
 					_logger.LogInformation("Ran blob cleanup {BlobCleanup}. Deleted {CountBlobRecords}", type, countOfBlobsCleaned);
 				}
 				catch (Exception e)

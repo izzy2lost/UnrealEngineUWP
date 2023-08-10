@@ -142,9 +142,9 @@ namespace Jupiter.Implementation
 			return true;
 		}
 
-		public async Task<ulong> Cleanup(CancellationToken cancellationToken)
+		public async Task<ulong> CleanupAsync(CancellationToken cancellationToken)
 		{
-			return await CleanupInternal(cancellationToken);
+			return await CleanupInternalAsync(cancellationToken);
 		}
 
 		/// <summary>
@@ -155,7 +155,7 @@ namespace Jupiter.Implementation
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <param name="batchSize">Number of files to scan for clean up. A higher number is recommended since blob store can contain many small blobs</param>
 		/// <returns></returns>
-		public async Task<ulong> CleanupInternal(CancellationToken cancellationToken, int batchSize = 100000)
+		public async Task<ulong> CleanupInternalAsync(CancellationToken cancellationToken, int batchSize = 100000)
 		{
 			using TelemetrySpan scope = _tracer.StartActiveSpan("gc.filesystem")
 				.SetAttribute("operation.name", "gc.filesystem");
@@ -168,7 +168,7 @@ namespace Jupiter.Implementation
 			// Perform a maximum of 5 clean up runs
 			for (int i = 0; i < 5; i++)
 			{
-				long size = await CalculateDiskSpaceUsed();
+				long size = await CalculateDiskSpaceUsedAsync();
 
 				// first check to see if we should trigger at all, this happens for each run but only really matters for the first attempt
 				if (size < triggerSize)
@@ -242,7 +242,7 @@ namespace Jupiter.Implementation
 		/// </summary>
 		/// <param name="ns">Namespace, if set to null the total size of all namespaces will be returned</param>
 		/// <returns>Total size of blobs in bytes</returns>
-		public async Task<long> CalculateDiskSpaceUsed(NamespaceId? ns = null)
+		public async Task<long> CalculateDiskSpaceUsedAsync(NamespaceId? ns = null)
 		{
 			string path = ns != null ? Path.Combine(GetRootDir(), ns.ToString()!) : GetRootDir();
 			DirectoryInfo di = new DirectoryInfo(path);

@@ -261,15 +261,15 @@ namespace Jupiter.FunctionalTests.Storage
             Assert.IsNotNull(fsStore);
 
             using CancellationTokenSource cts = new CancellationTokenSource();
-            Assert.IsTrue(await fsStore.CleanupInternal(cts.Token, batchSize: 2) == 0); // No garbage to collect, should return false
+            Assert.IsTrue(await fsStore.CleanupInternalAsync(cts.Token, batchSize: 2) == 0); // No garbage to collect, should return false
             
             FileInfo[] fooFiles = CreateFilesInNamespace(_fooNamespace, 10);
 
-            Assert.AreEqual(10 * 100, await fsStore.CalculateDiskSpaceUsed());
+            Assert.AreEqual(10 * 100, await fsStore.CalculateDiskSpaceUsedAsync());
 
-            Assert.IsTrue(await fsStore.CleanupInternal(cts.Token, batchSize: 2) > 0);
+            Assert.IsTrue(await fsStore.CleanupInternalAsync(cts.Token, batchSize: 2) > 0);
 
-            Assert.AreEqual(5 * 100, await fsStore.CalculateDiskSpaceUsed());
+            Assert.AreEqual(5 * 100, await fsStore.CalculateDiskSpaceUsedAsync());
 
             fooFiles.ToList().ForEach(x => x.Refresh());
             Assert.IsTrue(fooFiles[0].Exists); // Most recently accessed/modified
@@ -310,7 +310,7 @@ namespace Jupiter.FunctionalTests.Storage
             await fsStore.PutObjectAsync(_fooNamespace, Encoding.ASCII.GetBytes(SmallFileContents), SmallFileHash);
             await fsStore.PutObjectAsync(_fooNamespace, Encoding.ASCII.GetBytes(AnotherFileContents), AnotherFileHash);
             
-            Assert.AreEqual(SmallFileContents.Length + AnotherFileContents.Length, await fsStore.CalculateDiskSpaceUsed(_fooNamespace));
+            Assert.AreEqual(SmallFileContents.Length + AnotherFileContents.Length, await fsStore.CalculateDiskSpaceUsedAsync(_fooNamespace));
         }
         
         private FileInfo[] CreateFilesInNamespace(NamespaceId ns, int numFiles)

@@ -34,7 +34,7 @@ namespace Jupiter.Implementation
 			_logger = logger;
 		}
 
-		private async Task<HttpRequestMessage> BuildHttpRequest(HttpMethod method, Uri uri)
+		private async Task<HttpRequestMessage> BuildHttpRequestAsync(HttpMethod method, Uri uri)
 		{
 			string? token = await _serviceCredentials.GetTokenAsync();
 			HttpRequestMessage request = new HttpRequestMessage(method, uri);
@@ -46,12 +46,12 @@ namespace Jupiter.Implementation
 			return request;
 		}
 
-		private async Task<BlobContents?> DoGetObject(string instance, NamespaceId ns, BlobId blob)
+		private async Task<BlobContents?> DoGetObjectAsync(string instance, NamespaceId ns, BlobId blob)
 		{
 			try
 			{
 				string filesystemLayerName = nameof(FileSystemStore);
-				using HttpRequestMessage getObjectRequest = await BuildHttpRequest(HttpMethod.Get, new Uri($"api/v1/blobs/{ns}/{blob}?storageLayers={filesystemLayerName}", UriKind.Relative));
+				using HttpRequestMessage getObjectRequest = await BuildHttpRequestAsync(HttpMethod.Get, new Uri($"api/v1/blobs/{ns}/{blob}?storageLayers={filesystemLayerName}", UriKind.Relative));
 				getObjectRequest.Headers.Add("Accept", MediaTypeNames.Application.Octet);
 				HttpResponseMessage response = await GetHttpClient(instance).SendAsync(getObjectRequest);
 				if (response.StatusCode == HttpStatusCode.NotFound)
@@ -86,7 +86,7 @@ namespace Jupiter.Implementation
 
 			await foreach (string instance in _serviceDiscovery.FindOtherInstances())
 			{
-				Task<BlobContents?> task = DoGetObject(instance, ns, blob);
+				Task<BlobContents?> task = DoGetObjectAsync(instance, ns, blob);
 				tasks.Add(task);
 			}
 
@@ -105,12 +105,12 @@ namespace Jupiter.Implementation
 			throw new BlobNotFoundException(ns, blob);
 		}
 
-		private async Task<bool?> DoExists(string instance, NamespaceId ns, BlobId blob)
+		private async Task<bool?> DoExistsAsync(string instance, NamespaceId ns, BlobId blob)
 		{
 			try
 			{
 				string filesystemLayerName = nameof(FileSystemStore);
-				using HttpRequestMessage headObjectRequest = await BuildHttpRequest(HttpMethod.Head, new Uri($"api/v1/blobs/{ns}/{blob}?storageLayers={filesystemLayerName}", UriKind.Relative));
+				using HttpRequestMessage headObjectRequest = await BuildHttpRequestAsync(HttpMethod.Head, new Uri($"api/v1/blobs/{ns}/{blob}?storageLayers={filesystemLayerName}", UriKind.Relative));
 				HttpResponseMessage response = await GetHttpClient(instance).SendAsync(headObjectRequest, CancellationToken.None);
 				if (response.StatusCode == HttpStatusCode.NotFound)
 				{
@@ -137,7 +137,7 @@ namespace Jupiter.Implementation
 
 			await foreach (string instance in _serviceDiscovery.FindOtherInstances())
 			{
-				Task<bool?> task = DoExists(instance, ns, blob);
+				Task<bool?> task = DoExistsAsync(instance, ns, blob);
 				tasks.Add(task);
 			}
 
@@ -270,7 +270,7 @@ namespace Jupiter.Implementation
 				yield break;
 			}
 
-			_lastPodEnumeration = await EnumeratePods().ToListAsync();
+			_lastPodEnumeration = await EnumeratePodsAsync().ToListAsync();
 			_podEnumerationValidUntil = DateTime.Now.AddMinutes(5);
 
 			foreach (string pod in _lastPodEnumeration)
@@ -279,7 +279,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		private async IAsyncEnumerable<string> EnumeratePods()
+		private async IAsyncEnumerable<string> EnumeratePodsAsync()
 		{
 			V1PodList podList = await _client.ListNamespacedPodAsync(_leaderSettings.CurrentValue.Namespace, labelSelector: _leaderSettings.CurrentValue.PeerPodLabelSelector);
 

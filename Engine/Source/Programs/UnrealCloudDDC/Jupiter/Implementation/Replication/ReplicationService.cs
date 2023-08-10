@@ -122,7 +122,7 @@ namespace Jupiter.Implementation
 
 				// start a new run of the replication
 				_logger.LogDebug("Triggering new replication of replicator: {Name}", replicator.Info.ReplicatorName);
-				Task<bool> newReplication = replicator.TriggerNewReplications();
+				Task<bool> newReplication = replicator.TriggerNewReplicationsAsync();
 				_currentReplications[replicator.Info.ReplicatorName] = newReplication;
 			}
 
@@ -137,7 +137,7 @@ namespace Jupiter.Implementation
 
 		protected override async Task OnStopping(ReplicationState state)
 		{
-			await Task.WhenAll(state.Replicators.Select(replicator => replicator.StopReplicating()).ToArray());
+			await Task.WhenAll(state.Replicators.Select(replicator => replicator.StopReplicatingAsync()).ToArray());
 
 			// we should have been stopped first so this should not be needed, but to make sure state is stored we dispose of it again
 			foreach (IReplicator replicator in State.Replicators)

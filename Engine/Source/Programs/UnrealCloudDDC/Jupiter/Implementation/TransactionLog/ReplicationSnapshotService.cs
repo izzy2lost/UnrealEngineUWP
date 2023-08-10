@@ -56,11 +56,11 @@ namespace Jupiter.Implementation
 			}
 
 			bool ran = false;
-			_snapshotBuildTask = Parallel.ForEachAsync(_replicationLog.GetNamespaces(),
+			_snapshotBuildTask = Parallel.ForEachAsync(_replicationLog.GetNamespacesAsync(),
 				new ParallelOptions { MaxDegreeOfParallelism = _settings.CurrentValue.MaxCountOfNamespacesToSnapshotInParallel, CancellationToken = _cancellationTokenSource.Token },
 				async (ns, ctx) =>
 				{
-					SnapshotInfo? latestSnapshot = await _replicationLog.GetLatestSnapshot(ns);
+					SnapshotInfo? latestSnapshot = await _replicationLog.GetLatestSnapshotAsync(ns);
 					if (latestSnapshot != null)
 					{
 						DateTime lastSnapshot = latestSnapshot.Timestamp;
