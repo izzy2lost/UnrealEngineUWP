@@ -153,8 +153,16 @@ namespace UE::AssetRegistry
 namespace UE::AssetRegistry::Impl
 {
 	/** The max time to spend in UAssetRegistryImpl::Tick */
-	const float MaxSecondsPerFrame = 0.04f;
+	float MaxSecondsPerFrame = 0.04f;
+
+	/** Name of UObjectRedirector property */
+	const FName DestinationObjectFName(TEXT("DestinationObject"));
 }
+
+static FAutoConsoleVariableRef CVarAssetRegistryMaxSecondsPerFrame(
+	TEXT("AssetRegistry.MaxSecondsPerFrame"),
+	UE::AssetRegistry::Impl::MaxSecondsPerFrame,
+	TEXT("Maximum amount of time allowed for Asset Registry processing, in seconds"));
 
 /**
  * Implementation of IAssetRegistryInterface; forwards calls from the CoreUObject-accessible IAssetRegistryInterface into the AssetRegistry-accessible IAssetRegistry
@@ -2760,26 +2768,29 @@ FSoftObjectPath FAssetRegistryImpl::GetRedirectedObjectPath(const FSoftObjectPat
 	}
 	const FAssetData* AssetData = State.GetAssetByObjectPath(RedirectedPath);
 
-	TSet<FSoftObjectPath> SeenPaths;
-	SeenPaths.Add(RedirectedPath);
+	// Most of the time this will either not be a redirector or only have one redirect, so optimize for that case
+	TArray<FSoftObjectPath, TInlineAllocator<2>> SeenPaths = { RedirectedPath };
 
 	// Need to follow chain of redirectors
 	while (AssetData && AssetData->IsRedirector())
 	{
 		FString Dest;
-		if (!AssetData->GetTagValue("DestinationObject", Dest))
+
+		if (!AssetData->GetTagValue(UE::AssetRegistry::Impl::DestinationObjectFName, Dest))
 		{
 			break;
 		}
-		ConstructorHelpers::StripObjectClass(Dest);
+		
+		// The FSoftObjectPath functions handle stripping class name if necessary
 		RedirectedPath = Dest;
-		bool bAlreadyExists;
-		SeenPaths.Add(RedirectedPath, &bAlreadyExists);
-		if (bAlreadyExists)
+
+		if (SeenPaths.Contains(RedirectedPath))
 		{
 			// Recursive, bail
 			break;
 		}
+
+		SeenPaths.Add(RedirectedPath);
 		AssetData = State.GetAssetByObjectPath(RedirectedPath);
 	}
 
@@ -6048,11 +6059,12 @@ void FAssetRegistryImpl::UpdateRedirectCollector()
 
 	for (const FAssetData* AssetData : RedirectorAssets)
 	{
-		FSoftObjectPath Destination = GetRedirectedObjectPath(AssetData->GetSoftObjectPath());
+		FSoftObjectPath Source = AssetData->GetSoftObjectPath();
+		FSoftObjectPath Destination = GetRedirectedObjectPath(Source);
 
-		if (Destination != AssetData->GetSoftObjectPath())
+		if (Destination != Source)
 		{
-			GRedirectCollector.AddAssetPathRedirection(AssetData->GetSoftObjectPath(), Destination);
+			GRedirectCollector.AddAssetPathRedirection(Source, Destination);
 		}
 	}
 }

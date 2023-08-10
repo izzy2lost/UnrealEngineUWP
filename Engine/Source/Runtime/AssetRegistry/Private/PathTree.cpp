@@ -64,25 +64,21 @@ bool FPathTree::CachePath(FName Path, TFunctionRef<void(FName)> OnPathAdded)
 			check(!CurrentPath.IsNone());	// Path parts cannot be empty
 			check(*(PathCharPtr-1) != '/'); // The previous character cannot be a /, as that would suggest a malformed path such as "/Game//MyAsset"
 
-			bool bAddedPath = false;
 			if (!ParentPathToChildPaths.Contains(CurrentPath))
 			{
 				ParentPathToChildPaths.Add(CurrentPath);
-				bAddedPath = true;
-			}
 
-			if (!LastPath.IsNone())
-			{
-				// Add us as a known child of our parent path
-				TSet<FName>& ChildPaths = ParentPathToChildPaths.FindChecked(LastPath);
-				ChildPaths.Add(CurrentPath);
+				// Only update the parent maps when this child is first added
+				if (!LastPath.IsNone())
+				{
+					// Add us as a known child of our parent path
+					TSet<FName>& ChildPaths = ParentPathToChildPaths.FindChecked(LastPath);
+					ChildPaths.Add(CurrentPath);
 
-				// Make sure we know how to find our parent again later on
-				ChildPathToParentPath.Add(CurrentPath, LastPath);
-			}
+					// Make sure we know how to find our parent again later on
+					ChildPathToParentPath.Add(CurrentPath, LastPath);
+				}
 
-			if (bAddedPath)
-			{
 				OnPathAdded(CurrentPath);
 			}
 
