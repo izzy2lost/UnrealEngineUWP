@@ -95,7 +95,8 @@ private:
 	FTimerHandle DeferSetChildToParentHandle;
 	ENGINE_API void DeferSetChildToParentChildUntilClusteredComponentInParentUnion();
 
-	ENGINE_API void AddComponentToCluster();
+	FTimerHandle DeferAddComponentToClusterHandle;
+	ENGINE_API void DeferAddComponentToClusterHandleUntilInitialTransformUpdate();
 
 	//~ Begin UActorComponent Interface
 public:

@@ -123,17 +123,13 @@ namespace Chaos
 			Particle_Internal->SetPhysicsProxy(this);
 			Particle_Internal->GTGeometryParticle() = Particle_External.Get();
 			Particle_Internal->SetUnbreakable(InitData.bUnbreakable);
-			Particle_Internal->SetX(InitData.InitialTransform.GetTranslation());
-			Particle_Internal->SetR(InitData.InitialTransform.GetRotation());
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 			Particle_Internal->SetDebugName(MakeShared<FString, ESPMode::ThreadSafe>(FString::Printf(TEXT("%s"), *GetOwner()->GetName())));
 #endif
 
-			// For explicit cluster unions (i.e. cluster unions created via a cluster union component rather than the cluster group index), the cluster union itself is responsible for initializing
-			// the particle's XR from the component's transform. Therefore, we never want the PT to try and initialize the XR of the cluster union - the only changes to XR from the PT should
-			// be a result of physical simulation.
-			ClusterUnion->bNeedsXRInitialization = false;
+			// On the client, we'd rather wait for the server to initialize the particle properly.
+			ClusterUnion->bNeedsXRInitialization = InitData.bNeedsClusterXRInitialization;
 			ClusterUnion->bCheckConnectivity = InitData.bCheckConnectivity;
 		}
 	}
