@@ -896,6 +896,13 @@ private:
 	UNREALED_API void BeginCookEditorSystems();
 	UNREALED_API void BeginCookPackageWriters(FBeginCookContext& BeginContext);
 	UNREALED_API void BeginCookDirector(FBeginCookContext& BeginContext);
+	/**
+	 * Initialization for systems that persist across CookSessions but that are not available during Initialize(which
+	 * can occur during EngineStartup if !bDisableCookInEditor). We initialize these as late as possible: at the
+	 * beginning of the first session, or for CookOnTheFly at the first cook request.
+	 */
+	UNREALED_API void InitializeAtFirstSession();
+	/** Initialize steps that are reexecuted at the beginning of every cook session. */
 	UNREALED_API void InitializeSession();
 
 	//////////////////////////////////////////////////////////////////////////

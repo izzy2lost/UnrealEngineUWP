@@ -6533,10 +6533,12 @@ void UCookOnTheFlyServer::Initialize( ECookMode::Type DesiredCookMode, ECookInit
 #if WITH_ADDITIONAL_CRASH_CONTEXTS
 	FGenericCrashContext::OnAdditionalCrashContextDelegate().AddUObject(this, &UCookOnTheFlyServer::DumpCrashContext);
 #endif
-
-	UE::EditorDomain::UtilsTargetDomainInit();
 }
 
+void UCookOnTheFlyServer::InitializeAtFirstSession()
+{
+	UE::EditorDomain::UtilsCookInitialize();
+}
 
 void UCookOnTheFlyServer::LoadInitializeConfigSettings(const FString& InOutputDirectoryOverride)
 {
@@ -6886,6 +6888,23 @@ bool UCookOnTheFlyServer::TryInitializeCookWorker()
 
 void UCookOnTheFlyServer::InitializeSession()
 {
+	if (!bFirstCookInThisProcessInitialized)
+	{
+		// This is the first cook; set bFirstCookInThisProcess=true for the entire cook until SetBeginCookConfigSettings is called to mark the second cook
+		bFirstCookInThisProcessInitialized = true;
+		bFirstCookInThisProcess = true;
+	}
+	else
+	{
+		// We have cooked before; set bFirstCookInThisProcess=false
+		bFirstCookInThisProcess = false;
+	}
+
+	if (bFirstCookInThisProcess)
+	{
+		InitializeAtFirstSession();
+	}
+
 	NumObjectsHistory.Initialize(GUObjectArray.GetObjectArrayNumMinusAvailable());
 	VirtualMemoryHistory.Initialize(FPlatformMemory::GetStats().UsedVirtual);
 }
@@ -10293,17 +10312,6 @@ void UCookOnTheFlyServer::SetBeginCookConfigSettings(FBeginCookContext& BeginCon
 	bHybridIterativeAllowAllClasses = Settings.bHybridIterativeAllowAllClasses;
 	PackageDatas->SetBeginCookConfigSettings(Settings.CookShowInstigator);
 	SetNeverCookPackageConfigSettings(BeginContext, Settings);
-	if (!bFirstCookInThisProcessInitialized)
-	{
-		// This is the first cook; set bFirstCookInThisProcess=true for the entire cook until SetBeginCookConfigSettings is called to mark the second cook
-		bFirstCookInThisProcessInitialized = true;
-		bFirstCookInThisProcess = true;
-	}
-	else
-	{
-		// We have cooked before; set bFirstCookInThisProcess=false
-		bFirstCookInThisProcess = false;
-	}
 }
 
 namespace UE::Cook
@@ -10737,6 +10745,7 @@ void UCookOnTheFlyServer::StartCookByTheBook( const FCookByTheBookStartupOptions
 
 	// Initialize systems and settings that the rest of StartCookByTheBook depends on
 	// Functions in this section are ordered and can depend on the functions before them
+	InitializeSession();
 	FBeginCookContext BeginContext = CreateBeginCookByTheBookContext(EffectiveStartupOptions);
 	BlockOnAssetRegistry();
 	CreateSandboxFile(BeginContext);
@@ -10913,6 +10922,7 @@ void UCookOnTheFlyServer::StartCookAsCookWorker()
 
 	// Initialize systems and settings that the rest of StartCookAsCookWorker depends on
 	// Functions in this section are ordered and can depend on the functions before them
+	InitializeSession();
 	FBeginCookContext BeginContext = CreateCookWorkerContext();
 	// MPCOOKTODO: Load serialized AssetRegistry from Director
 	BlockOnAssetRegistry();
@@ -11438,7 +11448,6 @@ void UCookOnTheFlyServer::BeginCookPackageWriters(FBeginCookContext& BeginContex
 
 void UCookOnTheFlyServer::SelectSessionPlatforms(FBeginCookContext& BeginContext)
 {
-	InitializeSession();
 	PlatformManager->SelectSessionPlatforms(*this, BeginContext.TargetPlatforms);
 
 	FindOrCreateSaveContexts(BeginContext.TargetPlatforms);

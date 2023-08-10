@@ -80,7 +80,6 @@ public:
 		if ((uint32)Enabled >= (uint32)EEditorDomainEnabled::Utilities)
 		{
 			UE::EditorDomain::UtilsInitialize();
-			UE::TargetDomain::UtilsInitialize();
 			FEditorDomain::SingletonEditorDomain = new FEditorDomain(Enabled);
 			UE::EditorDomain::IPackageDigestCache::Set(FEditorDomain::SingletonEditorDomain);
 		}

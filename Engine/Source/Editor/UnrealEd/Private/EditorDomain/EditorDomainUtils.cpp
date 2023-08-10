@@ -199,7 +199,7 @@ TMultiMap<FTopLevelAssetPath, FTopLevelAssetPath> GConstructClasses;
 TSet<FTopLevelAssetPath> GTargetDomainClassBlockList;
 TArray<FTopLevelAssetPath> GGlobalConstructClasses;
 bool bGGlobalConstructClassesInitialized = false;
-bool bGUtilsTargetDomainInitialized = false;
+bool bGUtilsCookInitialized = false;
 FBlake3Hash GGlobalConstructClassesHash;
 int64 GMaxBulkDataSize = -1;
 
@@ -1212,14 +1212,15 @@ void UtilsInitialize()
 	COOK_STAT(UE::EditorDomain::CookStats::Register());
 }
 
-void UtilsTargetDomainInit()
+void UtilsCookInitialize()
 {
-	if (bGUtilsTargetDomainInitialized)
+	if (bGUtilsCookInitialized)
 	{
 		return;
 	}
-	bGUtilsTargetDomainInitialized = true;
+	bGUtilsCookInitialized = true;
 	ConstructTargetIterativeClassAllowList();
+	UE::TargetDomain::CookInitialize();
 }
 
 UE::DerivedData::FCacheKey GetEditorDomainPackageKey(const FIoHash& EditorDomainHash)

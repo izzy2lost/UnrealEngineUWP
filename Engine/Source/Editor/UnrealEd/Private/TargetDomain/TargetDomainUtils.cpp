@@ -669,7 +669,7 @@ void CommitEditorDomainCookAttachments(FName PackageName, TArrayView<IPackageWri
 	GEditorDomainOplog->CommitPackage(PackageName, Attachments);
 }
 
-void UtilsInitialize()
+void CookInitialize()
 {
 	bool bCookAttachmentsEnabled = true;
 	GConfig->GetBool(TEXT("EditorDomain"), TEXT("CookAttachmentsEnabled"), bCookAttachmentsEnabled, GEditorIni);
