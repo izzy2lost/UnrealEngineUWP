@@ -18931,11 +18931,15 @@ int32 UMaterialExpressionNamedRerouteUsage::CompilePreview(FMaterialCompiler* Co
 {
 	int32 ResultCodeChunk = Compile(Compiler, OutputIndex);
 
-	FExpressionInput Input = Declaration->TraceInputsToRealInput();
-	if (Input.Expression && Input.Expression->IsResultStrataMaterial(Input.OutputIndex))
+	if (IsDeclarationValid())
 	{
-		ResultCodeChunk = Compiler->StrataCompilePreview(ResultCodeChunk);
+		FExpressionInput Input = Declaration->TraceInputsToRealInput();
+		if (Input.Expression && Input.Expression->IsResultStrataMaterial(Input.OutputIndex))
+		{
+			ResultCodeChunk = Compiler->StrataCompilePreview(ResultCodeChunk);
+		}
 	}
+
 	return ResultCodeChunk;
 }
 
