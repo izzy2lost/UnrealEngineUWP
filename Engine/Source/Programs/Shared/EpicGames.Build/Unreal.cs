@@ -186,6 +186,11 @@ namespace UnrealBuildBase
 		static public readonly FileReference DotnetPath = FileReference.Combine(DotnetDirectory, "dotnet" + RuntimePlatform.ExeExtension);
 
 		/// <summary>
+		/// Whether we're running on a build machine
+		/// </summary>
+		static private bool? bIsBuildMachine;
+
+		/// <summary>
 		/// Whether we're running with engine installed
 		/// </summary>
 		static private bool? bIsEngineInstalled;
@@ -198,6 +203,19 @@ namespace UnrealBuildBase
 		static public DirectoryReference FindDotnetDirectoryForPlatform(RuntimePlatform.Type HostPlatform)
 		{
 			return DirectoryReference.Combine(EngineDirectory, FindRelativeDotnetDirectory(HostPlatform));
+		}
+
+		/// <summary>
+		/// Returns true of UnrealBuildTool is running on a build machine
+		/// </summary>
+		/// <returns>True if running on a build machine</returns>
+		static public bool IsBuildMachine()
+		{
+			if (!bIsBuildMachine.HasValue)
+			{
+				bIsBuildMachine = Environment.GetEnvironmentVariable("IsBuildMachine") == "1";
+			}
+			return bIsBuildMachine.Value;
 		}
 
 		/// <summary>

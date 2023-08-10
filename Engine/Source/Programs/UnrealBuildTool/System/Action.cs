@@ -679,7 +679,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// If set, will be output whenever the group differs to the last executed action. Set when executing multiple targets at once.
 		/// </summary>
-		public List<string> GroupNames = new List<string>();
+		public SortedSet<string> GroupNames = new SortedSet<string>();
 
 		#region Wrapper implementation of IAction
 

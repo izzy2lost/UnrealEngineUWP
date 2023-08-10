@@ -1241,6 +1241,7 @@ namespace UnrealBuildTool
 					if (TargetAction.IgnoreConflicts())
 					{
 						IgnoreConflictActions.Add(TargetAction);
+						TargetAction.GroupNames.Add(GroupPrefix);
 						continue;
 					}
 

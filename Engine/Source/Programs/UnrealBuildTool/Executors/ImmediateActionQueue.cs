@@ -338,6 +338,11 @@ namespace UnrealBuildTool
 		private readonly TaskCompletionSource _doneTaskSource = new();
 
 		/// <summary>
+		/// The last action group printed in multi-target builds
+		/// </summary>
+		private string? LastGroupPrefix = null;
+
+		/// <summary>
 		/// If set, artifact cache used to retrieve previously compiled results and save new results
 		/// </summary>
 		private IActionArtifactCache? _actionArtifactCache;
@@ -1067,6 +1072,19 @@ namespace UnrealBuildTool
 						Console.Write("".PadRight(s_previousLineLength));
 						// move the cursor back to the left, so output is written to the desired location
 						Console.CursorLeft = 0;
+					}
+				}
+				else
+				{
+					// If the action group has changed for a multi target build, write it to the log
+					if (action.GroupNames.Count > 0)
+					{
+						string ActionGroup = $"** For {String.Join(" + ", action.GroupNames)} **";
+						if (!ActionGroup.Equals(LastGroupPrefix, StringComparison.Ordinal))
+						{
+							LastGroupPrefix = ActionGroup;
+							_writeToolOutput(ActionGroup);
+						}
 					}
 				}
 
