@@ -39,7 +39,7 @@ namespace Jupiter.FunctionalTests.Replication
         private BucketId TestBucket { get; } = new BucketId("test");
 
         [TestInitialize]
-        public async Task Setup()
+        public async Task SetupAsync()
         {
             IConfigurationRoot configuration = new ConfigurationBuilder()
                 // we are not reading the base appSettings here as we want exact control over what runs in the tests
@@ -74,7 +74,7 @@ namespace Jupiter.FunctionalTests.Replication
                 new KeyValuePair<string, string>("UnrealCloudDDC:ReplicationLogWriterImplementation", UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Scylla.ToString()),
             };
         }
-        private static async Task TeardownDb(IServiceProvider provider)
+        private static async Task TeardownDbAsync(IServiceProvider provider)
         {
             IScyllaSessionManager scyllaSessionManager = provider.GetService<IScyllaSessionManager>()!;
             ISession session = scyllaSessionManager.GetSessionForLocalKeyspace();
@@ -87,16 +87,16 @@ namespace Jupiter.FunctionalTests.Replication
         }
 
         [TestCleanup]
-        public async Task Teardown()
+        public async Task TeardownAsync()
         {
             if (_server != null)
             {
-                await TeardownDb(_server.Services);
+                await TeardownDbAsync(_server.Services);
             }
         }
         
         [TestMethod]
-        public async Task ReplicationIncrementalState()
+        public async Task ReplicationIncrementalStateAsync()
         {
             ReplicatorSettings replicatorSettings = new()
             {
@@ -148,12 +148,12 @@ namespace Jupiter.FunctionalTests.Replication
             handler.Verify();
 
             // Verify that the objects are present
-            BlobId[] missingBlobs = await BlobStore.FilterOutKnownBlobs(TestNamespace, blobs.Keys.ToArray());
+            BlobId[] missingBlobs = await BlobStore.FilterOutKnownBlobsAsync(TestNamespace, blobs.Keys.ToArray());
             Assert.IsFalse(missingBlobs.Any());
         }
 
         [TestMethod]
-        public async Task ReplicationSnapshotState()
+        public async Task ReplicationSnapshotStateAsync()
         {
             ReplicatorSettings replicatorSettings = new()
             {
@@ -223,12 +223,12 @@ namespace Jupiter.FunctionalTests.Replication
             handler.Verify();
 
             // Verify that the objects are present
-            BlobId[] missingBlobs = await BlobStore.FilterOutKnownBlobs(TestNamespace, blobs.Keys.ToArray());
+            BlobId[] missingBlobs = await BlobStore.FilterOutKnownBlobsAsync(TestNamespace, blobs.Keys.ToArray());
             Assert.IsFalse(missingBlobs.Any());
         }
 
         [TestMethod]
-        public async Task ReplicationStateBoth()
+        public async Task ReplicationStateBothAsync()
         {
             ReplicatorSettings replicatorSettings = new()
             {
@@ -310,12 +310,12 @@ namespace Jupiter.FunctionalTests.Replication
             handler.Verify();
 
             // Verify that the objects are present
-            BlobId[] missingBlobs = await BlobStore.FilterOutKnownBlobs(TestNamespace, blobs.Keys.ToArray());
+            BlobId[] missingBlobs = await BlobStore.FilterOutKnownBlobsAsync(TestNamespace, blobs.Keys.ToArray());
             Assert.IsFalse(missingBlobs.Any());
         }
         
         [TestMethod]
-        public async Task ReplicationStateSnapshotFallback()
+        public async Task ReplicationStateSnapshotFallbackAsync()
         {
             ReplicatorSettings replicatorSettings = new()
             {
@@ -396,7 +396,7 @@ namespace Jupiter.FunctionalTests.Replication
             handler.Verify();
 
             // Verify that the objects are present
-            BlobId[] missingBlobs = await BlobStore.FilterOutKnownBlobs(TestNamespace, blobs.Keys.ToArray());
+            BlobId[] missingBlobs = await BlobStore.FilterOutKnownBlobsAsync(TestNamespace, blobs.Keys.ToArray());
             Assert.IsFalse(missingBlobs.Any());
         }
     }

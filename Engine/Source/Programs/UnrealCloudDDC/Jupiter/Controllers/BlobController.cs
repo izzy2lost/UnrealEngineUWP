@@ -47,7 +47,7 @@ namespace Jupiter.Controllers
 
 		[HttpGet("{ns}/{id}")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> Get(
+		public async Task<IActionResult> GetAsync(
 			[Required] NamespaceId ns,
 			[Required] BlobId id,
 			[FromQuery] List<string>? storageLayers = null)
@@ -60,7 +60,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				BlobContents blobContents = await GetImpl(ns, id, storageLayers, supportsRedirectUri: true);
+				BlobContents blobContents = await GetImplAsync(ns, id, storageLayers, supportsRedirectUri: true);
 
 				if (blobContents.RedirectUri != null)
 				{
@@ -84,7 +84,7 @@ namespace Jupiter.Controllers
 		
 		[HttpHead("{ns}/{id}")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> Head(
+		public async Task<IActionResult> HeadAsync(
 			[Required] NamespaceId ns,
 			[Required] BlobId id,
 			[FromQuery] List<string>? storageLayers = null)
@@ -94,7 +94,7 @@ namespace Jupiter.Controllers
 			{
 				return result;
 			}
-			bool exists = await _storage.Exists(ns, id, storageLayers);
+			bool exists = await _storage.ExistsAsync(ns, id, storageLayers);
 
 			if (!exists)
 			{
@@ -106,7 +106,7 @@ namespace Jupiter.Controllers
 
 		[HttpPost("{ns}/exists")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> ExistsMultiple(
+		public async Task<IActionResult> ExistsMultipleAsync(
 			[Required] NamespaceId ns,
 			[Required] [FromQuery] List<BlobId> id)
 		{
@@ -120,7 +120,7 @@ namespace Jupiter.Controllers
 
 			IEnumerable<Task> tasks = id.Select(async blob =>
 			{
-				if (!await _storage.Exists(ns, blob))
+				if (!await _storage.ExistsAsync(ns, blob))
 				{
 					missingBlobs.Add(blob);
 				}
@@ -132,7 +132,7 @@ namespace Jupiter.Controllers
 
 		[HttpPost("{ns}/exist")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> ExistsBody(
+		public async Task<IActionResult> ExistsBodyAsync(
 			[Required] NamespaceId ns,
 			[FromBody] BlobId[] bodyIds)
 		{
@@ -146,7 +146,7 @@ namespace Jupiter.Controllers
 
 			IEnumerable<Task> tasks = bodyIds.Select(async blob =>
 			{
-				if (!await _storage.Exists(ns, blob))
+				if (!await _storage.ExistsAsync(ns, blob))
 				{
 					missingBlobs.Add(blob);
 				}
@@ -156,11 +156,11 @@ namespace Jupiter.Controllers
 			return Ok(new HeadMultipleResponse { Needs = missingBlobs.ToArray()});
 		}
 
-		private async Task<BlobContents> GetImpl(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false)
+		private async Task<BlobContents> GetImplAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false)
 		{
 			try
 			{
-				return await _storage.GetObject(ns, blob, storageLayers, supportsRedirectUri);
+				return await _storage.GetObjectAsync(ns, blob, storageLayers, supportsRedirectUri);
 			}
 			catch (BlobNotFoundException)
 			{
@@ -169,14 +169,14 @@ namespace Jupiter.Controllers
 					throw;
 				}
 
-				return await _storage.ReplicateObject(ns, blob);
+				return await _storage.ReplicateObjectAsync(ns, blob);
 			}
 		}
 
 		[HttpPut("{ns}/{id}")]
 		[RequiredContentType(MediaTypeNames.Application.Octet)]
 		[DisableRequestSizeLimit]
-		public async Task<IActionResult> Put(
+		public async Task<IActionResult> PutAsync(
 			[Required] NamespaceId ns,
 			[Required] BlobId id)
 		{
@@ -190,7 +190,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				Uri? uri = await _storage.MaybePutObjectWithRedirect(ns, id);
+				Uri? uri = await _storage.MaybePutObjectWithRedirectAsync(ns, id);
 				if (uri != null)
 				{
 					return Ok(new
@@ -201,7 +201,7 @@ namespace Jupiter.Controllers
 				}
 				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
 
-				BlobId identifier = await _storage.PutObject(ns, payload, id);
+				BlobId identifier = await _storage.PutObjectAsync(ns, payload, id);
 				return Ok(new
 				{
 					Identifier = identifier.ToString()
@@ -220,7 +220,7 @@ namespace Jupiter.Controllers
 		[HttpPost("{ns}")]
 		[RequiredContentType(MediaTypeNames.Application.Octet)]
 		[DisableRequestSizeLimit]
-		public async Task<IActionResult> Post(
+		public async Task<IActionResult> PostAsync(
 			[Required] NamespaceId ns)
 		{
 			ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteObject });
@@ -236,8 +236,8 @@ namespace Jupiter.Controllers
 
 				await using Stream stream = payload.GetStream();
 
-				BlobId id = await BlobId.FromStream(stream);
-				await _storage.PutObjectKnownHash(ns, payload, id);
+				BlobId id = await BlobId.FromStreamAsync(stream);
+				await _storage.PutObjectKnownHashAsync(ns, payload, id);
 				
 				return Ok(new
 				{
@@ -251,7 +251,7 @@ namespace Jupiter.Controllers
 		}
 
 		[HttpDelete("{ns}/{id}")]
-		public async Task<IActionResult> Delete(
+		public async Task<IActionResult> DeleteAsync(
 			[Required] NamespaceId ns,
 			[Required] BlobId id)
 		{
@@ -261,14 +261,14 @@ namespace Jupiter.Controllers
 				return result;
 			}
 
-			await DeleteImpl(ns, id);
+			await DeleteImplAsync(ns, id);
 
 			return NoContent();
 		}
 
 		
 		[HttpDelete("{ns}")]
-		public async Task<IActionResult> DeleteNamespace(
+		public async Task<IActionResult> DeleteNamespaceAsync(
 			[Required] NamespaceId ns)
 		{
 			ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.DeleteNamespace });
@@ -277,14 +277,14 @@ namespace Jupiter.Controllers
 				return result;
 			}
 
-			await  _storage.DeleteNamespace(ns);
+			await  _storage.DeleteNamespaceAsync(ns);
 
 			return NoContent();
 		}
 
-		private async Task DeleteImpl(NamespaceId ns, BlobId id)
+		private async Task DeleteImplAsync(NamespaceId ns, BlobId id)
 		{
-			await _storage.DeleteObject(ns, id);
+			await _storage.DeleteObjectAsync(ns, id);
 		}
 
 		// ReSharper disable UnusedAutoPropertyAccessor.Global
@@ -319,7 +319,7 @@ namespace Jupiter.Controllers
 		// ReSharper restore UnusedAutoPropertyAccessor.Global
 
 		[HttpPost("")]
-		public async Task<IActionResult> Post([FromBody] BatchCall batch)
+		public async Task<IActionResult> PostAsync([FromBody] BatchCall batch)
 		{
 			JupiterAclAction MapToAclAction(BatchOp.Operation op)
 			{
@@ -368,7 +368,7 @@ namespace Jupiter.Controllers
 							return BadRequest();
 						}
 
-						tasks[index] = GetImpl(op.Namespace.Value, op.Id).ContinueWith((t, _) =>
+						tasks[index] = GetImplAsync(op.Namespace.Value, op.Id).ContinueWith((t, _) =>
 						{
 							// TODO: This is very allocation heavy but given that the end result is a json object we can not really stream this anyway
 							using BlobContents blobContents = t.Result;
@@ -386,7 +386,7 @@ namespace Jupiter.Controllers
 							return BadRequest();
 						}
 
-						tasks[index] = _storage.Exists(op.Namespace.Value, op.Id)
+						tasks[index] = _storage.ExistsAsync(op.Namespace.Value, op.Id)
 							.ContinueWith((t,_) => t.Result ? (object?) null : op.Id, null, TaskScheduler.Current);
 						break;
 					case BatchOp.Operation.PUT:
@@ -402,7 +402,7 @@ namespace Jupiter.Controllers
 							}
 
 							using MemoryBufferedPayload payload = new MemoryBufferedPayload(op.Content);
-							tasks[index] = _storage.PutObject(op.Namespace.Value, payload, op.Id).ContinueWith((t, _) => (object?) t.Result, null, TaskScheduler.Current);
+							tasks[index] = _storage.PutObjectAsync(op.Namespace.Value, payload, op.Id).ContinueWith((t, _) => (object?) t.Result, null, TaskScheduler.Current);
 							break;
 						}
 					case BatchOp.Operation.DELETE:
@@ -411,7 +411,7 @@ namespace Jupiter.Controllers
 							return BadRequest();
 						}
 
-						tasks[index] = DeleteImpl(op.Namespace.Value, op.Id).ContinueWith((t, _) => (object?) null, null, TaskScheduler.Current);
+						tasks[index] = DeleteImplAsync(op.Namespace.Value, op.Id).ContinueWith((t, _) => (object?) null, null, TaskScheduler.Current);
 						break;
 					default:
 						throw new NotImplementedException($"{op.Op} is not a support op type");

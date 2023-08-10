@@ -15,7 +15,7 @@ namespace Jupiter.UnitTests
     public class BlobCleanupServiceTest
     {
         [TestMethod]
-        public async Task CleanupOnPoll()
+        public async Task CleanupOnPollAsync()
         {
             GCSettings gcSettings = new GCSettings()
             {
@@ -32,7 +32,7 @@ namespace Jupiter.UnitTests
             blobCleanupService.RegisterCleanup(store2.Object);
 
             using CancellationTokenSource tokenSource = new CancellationTokenSource();
-            await blobCleanupService.OnPoll(blobCleanupService.State, tokenSource.Token);
+            await blobCleanupService.OnPollAsync(blobCleanupService.State, tokenSource.Token);
             
             store1.Verify(m => m.Cleanup(It.IsAny<CancellationToken>()), Times.Once);
             store2.Verify(m => m.Cleanup(It.IsAny<CancellationToken>()), Times.Once);

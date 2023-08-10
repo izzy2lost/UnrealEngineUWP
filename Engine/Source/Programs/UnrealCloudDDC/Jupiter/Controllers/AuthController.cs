@@ -28,7 +28,7 @@ namespace Jupiter.Controllers
 		}
 
 		[HttpGet("{ns}")]
-		public async Task<IActionResult> Verify(
+		public async Task<IActionResult> VerifyAsync(
 			[FromRoute][Required] NamespaceId ns
 			)
 		{

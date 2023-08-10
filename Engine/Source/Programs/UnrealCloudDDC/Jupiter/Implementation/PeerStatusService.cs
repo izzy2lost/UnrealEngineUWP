@@ -104,7 +104,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public override async Task<bool> OnPoll(PeerStatusServiceState state, CancellationToken cancellationToken)
+		public override async Task<bool> OnPollAsync(PeerStatusServiceState state, CancellationToken cancellationToken)
 		{
 			if (_alreadyPolling)
 			{
@@ -113,11 +113,11 @@ namespace Jupiter.Implementation
 
 			_alreadyPolling = true;
 
-			await UpdatePeerStatus(cancellationToken);
+			await UpdatePeerStatusAsync(cancellationToken);
 			return true;
 		}
 
-		public async Task UpdatePeerStatus(CancellationToken cancellationToken)
+		public async Task UpdatePeerStatusAsync(CancellationToken cancellationToken)
 		{
 			foreach (PeerSettings peerSettings in _clusterSettings.CurrentValue.Peers)
 			{
@@ -134,7 +134,7 @@ namespace Jupiter.Implementation
 
 				await Parallel.ForEachAsync(peerSettings.Endpoints, cancellationToken, async (endpoint, token) =>
 				{
-					int latency = await MeasureLatency(endpoint);
+					int latency = await MeasureLatencyAsync(endpoint);
 					bestLatency = Math.Min(latency, bestLatency);
 
 					if (latency != int.MaxValue)
@@ -148,7 +148,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		private async Task<int> MeasureLatency(PeerEndpoints endpoint)
+		private async Task<int> MeasureLatencyAsync(PeerEndpoints endpoint)
 		{
 			Stopwatch stopwatch = Stopwatch.StartNew();
 			using HttpClient client = _clientFactory.CreateClient();

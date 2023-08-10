@@ -322,7 +322,7 @@ public abstract class BundlesTests
         Assert.IsNotNull(getResponseRoot);
         BlobId rootBlob = BlobId.FromBlobLocator(getResponseRoot.Blob);
 
-        IAsyncEnumerable<BaseBlobReference> referencesEnumerable = blobIndex.GetBlobReferences(TestNamespaceName, rootBlob);
+        IAsyncEnumerable<BaseBlobReference> referencesEnumerable = blobIndex.GetBlobReferencesAsync(TestNamespaceName, rootBlob);
         BaseBlobReference[] references = await referencesEnumerable.ToArrayAsync();
         Assert.AreEqual(1, references.Length); // only the ref depends on the root node
 
@@ -333,17 +333,17 @@ public abstract class BundlesTests
         BlobId node1Blob = BlobId.FromBlobLocator(getResponseLeaf.Blob);
 
         // node 1
-        BaseBlobReference[] node1References = await blobIndex.GetBlobReferences(TestNamespaceName, node1Blob).ToArrayAsync();
+        BaseBlobReference[] node1References = await blobIndex.GetBlobReferencesAsync(TestNamespaceName, node1Blob).ToArrayAsync();
         Assert.AreEqual(2, node1References.Length); // this has 2 incoming references, one from its import and one from the leafRef
 
         BlobId node2Blob = ((BlobToBlobReference)node1References.First()).Blob;
         // node 2
-        BaseBlobReference[] node2References = await blobIndex.GetBlobReferences(TestNamespaceName, node2Blob).ToArrayAsync();
+        BaseBlobReference[] node2References = await blobIndex.GetBlobReferencesAsync(TestNamespaceName, node2Blob).ToArrayAsync();
         Assert.AreEqual(1, node2References.Length);
 
         BlobId node3Blob = ((BlobToBlobReference)node2References.First()).Blob;
         // node 3
-        BaseBlobReference[] node3References = await blobIndex.GetBlobReferences(TestNamespaceName, node3Blob).ToArrayAsync();
+        BaseBlobReference[] node3References = await blobIndex.GetBlobReferencesAsync(TestNamespaceName, node3Blob).ToArrayAsync();
         Assert.AreEqual(1, node3References.Length);
 
         BlobId expectedRootNode = ((BlobToBlobReference)node3References.First()).Blob;

@@ -17,22 +17,22 @@ namespace Jupiter.Implementation
 
 	public interface IBlobStore
 	{
-		Task<BlobId> PutObject(NamespaceId ns, byte[] blob, BlobId identifier);
-		Task<BlobId> PutObject(NamespaceId ns, ReadOnlyMemory<byte> blob, BlobId identifier);
-		Task<BlobId> PutObject(NamespaceId ns, Stream content, BlobId identifier);
+		Task<BlobId> PutObjectAsync(NamespaceId ns, byte[] blob, BlobId identifier);
+		Task<BlobId> PutObjectAsync(NamespaceId ns, ReadOnlyMemory<byte> blob, BlobId identifier);
+		Task<BlobId> PutObjectAsync(NamespaceId ns, Stream content, BlobId identifier);
 
-		Task<BlobContents> GetObject(NamespaceId ns, BlobId blob, LastAccessTrackingFlags flags = LastAccessTrackingFlags.DoTracking, bool supportsRedirectUri = false);
-		Task<bool> Exists(NamespaceId ns, BlobId blob, bool forceCheck = false);
+		Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, LastAccessTrackingFlags flags = LastAccessTrackingFlags.DoTracking, bool supportsRedirectUri = false);
+		Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, bool forceCheck = false);
 
 		// Delete a object
-		Task DeleteObject(NamespaceId ns, BlobId blob);
+		Task DeleteObjectAsync(NamespaceId ns, BlobId blob);
 
 		// delete the whole namespace
-		Task DeleteNamespace(NamespaceId ns);
+		Task DeleteNamespaceAsync(NamespaceId ns);
 
-		IAsyncEnumerable<(BlobId,DateTime)> ListObjects(NamespaceId ns);
-		Task<Uri?> PutObjectWithRedirect(NamespaceId ns, BlobId identifier);
-		Task<Uri?> GetObjectByRedirect(NamespaceId ns, BlobId blob);
+		IAsyncEnumerable<(BlobId,DateTime)> ListObjectsAsync(NamespaceId ns);
+		Task<Uri?> PutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier);
+		Task<Uri?> GetObjectByRedirectAsync(NamespaceId ns, BlobId blob);
 	}
 
 	public interface IStorageBackend

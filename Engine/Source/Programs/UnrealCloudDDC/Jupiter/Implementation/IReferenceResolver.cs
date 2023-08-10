@@ -123,13 +123,13 @@ namespace Jupiter.Implementation
 
 						if (field.IsBinaryAttachment())
 						{
-							Task<(ContentId, BlobId[]?)> resolveContentId = ResolveContentId(ns, contentId);
+							Task<(ContentId, BlobId[]?)> resolveContentId = ResolveContentIdAsync(ns, contentId);
 							pendingContentIdResolves.Add(resolveContentId);
 						}
 						else if (field.IsObjectAttachment())
 						{
 							attachments.Add(new ObjectAttachment(blobIdentifier));
-							pendingCompactBinaryAttachments.Add(ParseCompactBinaryAttachment(ns, blobIdentifier));
+							pendingCompactBinaryAttachments.Add(ParseCompactBinaryAttachmentAsync(ns, blobIdentifier));
 						}
 						else
 						{
@@ -245,17 +245,17 @@ namespace Jupiter.Implementation
 			{
 				if (attachment is BlobAttachment blobAttachment)
 				{
-					pendingBlobExistsChecks.Add(CheckBlobExists(ns, blobAttachment.Identifier));
+					pendingBlobExistsChecks.Add(CheckBlobExistsAsync(ns, blobAttachment.Identifier));
 				}
 				else if (attachment is ContentIdAttachment contentIdAttachment)
 				{
 					// If we find a content id we resolve that into the actual blobs it references
-					pendingContentIdChecks.Add(CheckContentIdExists(ns, contentIdAttachment));
+					pendingContentIdChecks.Add(CheckContentIdExistsAsync(ns, contentIdAttachment));
 				}
 				else if (attachment is ObjectAttachment objectAttachment)
 				{
 					// a object just references the same blob, traversing the object attachment is done in GetAttachments
-					pendingBlobExistsChecks.Add(CheckBlobExists(ns, objectAttachment.Identifier));
+					pendingBlobExistsChecks.Add(CheckBlobExistsAsync(ns, objectAttachment.Identifier));
 				}
 				else
 				{
@@ -305,12 +305,12 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		private async Task<(ContentIdAttachment, bool)> CheckContentIdExists(NamespaceId ns, ContentIdAttachment contentIdAttachment)
+		private async Task<(ContentIdAttachment, bool)> CheckContentIdExistsAsync(NamespaceId ns, ContentIdAttachment contentIdAttachment)
 		{
 			bool allBlobsExist = true;
 			foreach (BlobId b in contentIdAttachment.ReferencedBlobs)
 			{
-				(BlobId _, bool exists) = await CheckBlobExists(ns, b);
+				(BlobId _, bool exists) = await CheckBlobExistsAsync(ns, b);
 
 				if (!exists)
 				{
@@ -322,16 +322,16 @@ namespace Jupiter.Implementation
 			return (contentIdAttachment, allBlobsExist);
 		}
 
-		private async Task<CbObject> ParseCompactBinaryAttachment(NamespaceId ns, BlobId blobIdentifier)
+		private async Task<CbObject> ParseCompactBinaryAttachmentAsync(NamespaceId ns, BlobId blobIdentifier)
 		{
-			BlobContents contents = await _blobStore.GetObject(ns, blobIdentifier);
-			byte[] data = await contents.Stream.ToByteArray();
+			BlobContents contents = await _blobStore.GetObjectAsync(ns, blobIdentifier);
+			byte[] data = await contents.Stream.ToByteArrayAsync();
 			CbObject childBinaryObject = new CbObject(data);
 
 			return childBinaryObject;
 		}
 
-		private async Task<(ContentId, BlobId[]?)> ResolveContentId(NamespaceId ns, ContentId contentId)
+		private async Task<(ContentId, BlobId[]?)> ResolveContentIdAsync(NamespaceId ns, ContentId contentId)
 		{
 			using TelemetrySpan scope = _tracer.StartActiveSpan("ReferenceResolver.ResolveContentId")
 				.SetAttribute("operation.name", "ReferenceResolver.ResolveContentId")
@@ -340,9 +340,9 @@ namespace Jupiter.Implementation
 			return (contentId, resolvedBlobs);
 		}
 
-		private async Task<(BlobId, bool)> CheckBlobExists(NamespaceId ns, BlobId blob)
+		private async Task<(BlobId, bool)> CheckBlobExistsAsync(NamespaceId ns, BlobId blob)
 		{
-			return (blob, await _blobStore.Exists(ns, blob));
+			return (blob, await _blobStore.ExistsAsync(ns, blob));
 		}
 	}
 

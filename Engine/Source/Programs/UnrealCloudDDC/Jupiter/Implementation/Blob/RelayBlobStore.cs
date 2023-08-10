@@ -19,20 +19,20 @@ namespace Jupiter.Implementation
 		{
 		}
 
-		public Task<Uri?> GetObjectByRedirect(NamespaceId ns, BlobId identifier)
+		public Task<Uri?> GetObjectByRedirectAsync(NamespaceId ns, BlobId identifier)
 		{
 			// not supported
 			return Task.FromResult<Uri?>(null);
 		}
 
-		public Task<Uri?> PutObjectWithRedirect(NamespaceId ns, BlobId identifier)
+		public Task<Uri?> PutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier)
 		{
 			// TODO: It could be useful to support relaying the presigned url
 			// not supported
 			return Task.FromResult<Uri?>(null);
 		}
 
-		public async Task<BlobId> PutObject(NamespaceId ns, byte[] blob, BlobId identifier)
+		public async Task<BlobId> PutObjectAsync(NamespaceId ns, byte[] blob, BlobId identifier)
 		{
 			using HttpRequestMessage putObjectRequest = await BuildHttpRequest(HttpMethod.Put, new Uri($"api/v1/blobs/{ns}/{identifier}", UriKind.Relative));
 
@@ -47,12 +47,12 @@ namespace Jupiter.Implementation
 			return identifier;
 		}
 
-		public Task<BlobId> PutObject(NamespaceId ns, ReadOnlyMemory<byte> blob, BlobId identifier)
+		public Task<BlobId> PutObjectAsync(NamespaceId ns, ReadOnlyMemory<byte> blob, BlobId identifier)
 		{
-			return PutObject(ns, blob.ToArray(), identifier);
+			return PutObjectAsync(ns, blob.ToArray(), identifier);
 		}
 
-		public async Task<BlobId> PutObject(NamespaceId ns, Stream content, BlobId identifier)
+		public async Task<BlobId> PutObjectAsync(NamespaceId ns, Stream content, BlobId identifier)
 		{
 			using HttpRequestMessage putObjectRequest = await BuildHttpRequest(HttpMethod.Put, new Uri($"api/v1/blobs/{ns}/{identifier}", UriKind.Relative));
 			putObjectRequest.Content = new StreamContent(content);
@@ -65,7 +65,7 @@ namespace Jupiter.Implementation
 			return identifier;
 		}
 
-		public async Task<BlobContents> GetObject(NamespaceId ns, BlobId blob, LastAccessTrackingFlags flags, bool supportsRedirectUri = false)
+		public async Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, LastAccessTrackingFlags flags, bool supportsRedirectUri = false)
 		{
 			using HttpRequestMessage getObjectRequest = await BuildHttpRequest(HttpMethod.Get, new Uri($"api/v1/blobs/{ns}/{blob}", UriKind.Relative));
 			getObjectRequest.Headers.Add("Accept", MediaTypeNames.Application.Octet);
@@ -86,7 +86,7 @@ namespace Jupiter.Implementation
 			return new BlobContents(await response.Content.ReadAsStreamAsync(), contentLength.Value);
 		}
 
-		public async Task<bool> Exists(NamespaceId ns, BlobId blob, bool forceCheck)
+		public async Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, bool forceCheck)
 		{
 			using HttpRequestMessage headObjectRequest = await BuildHttpRequest(HttpMethod.Head, new Uri($"api/v1/blobs/{ns}/{blob}", UriKind.Relative));
 			HttpResponseMessage response = await HttpClient.SendAsync(headObjectRequest);
@@ -100,17 +100,17 @@ namespace Jupiter.Implementation
 			return true;
 		}
 
-		public Task DeleteObject(NamespaceId ns, BlobId blob)
+		public Task DeleteObjectAsync(NamespaceId ns, BlobId blob)
 		{
 			throw new NotImplementedException("DeleteObjects is not supported on the relay blob store");
 		}
 
-		public Task DeleteNamespace(NamespaceId ns)
+		public Task DeleteNamespaceAsync(NamespaceId ns)
 		{
 			throw new NotImplementedException("DeleteNamespace is not supported on the relay blob store");
 		}
 
-		public IAsyncEnumerable<(BlobId, DateTime)> ListObjects(NamespaceId ns)
+		public IAsyncEnumerable<(BlobId, DateTime)> ListObjectsAsync(NamespaceId ns)
 		{
 			throw new NotImplementedException("ListObjects is not supported on the relay blob store");
 		}

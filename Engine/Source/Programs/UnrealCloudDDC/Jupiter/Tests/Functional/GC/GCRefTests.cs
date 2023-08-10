@@ -115,13 +115,13 @@ namespace Jupiter.FunctionalTests.GC
             _httpClient = _server.CreateClient();
 
             IBlobService blobService = _server.Services.GetService<IBlobService>()!;
-            await blobService.PutObject(TestNamespace, s_objectContents0, object0id);
-            await blobService.PutObject(TestNamespace, s_objectContents1, object1id);
-            await blobService.PutObject(TestNamespace, s_objectContents2, object2id);
-            await blobService.PutObject(TestNamespace, s_objectContents3, object3id);
-            await blobService.PutObject(TestNamespace, s_objectContents4, object4id);
-            await blobService.PutObject(TestNamespace, s_objectContents5, object5id);
-            await blobService.PutObject(TestNamespace, s_objectContents6, object6id);
+            await blobService.PutObjectAsync(TestNamespace, s_objectContents0, object0id);
+            await blobService.PutObjectAsync(TestNamespace, s_objectContents1, object1id);
+            await blobService.PutObjectAsync(TestNamespace, s_objectContents2, object2id);
+            await blobService.PutObjectAsync(TestNamespace, s_objectContents3, object3id);
+            await blobService.PutObjectAsync(TestNamespace, s_objectContents4, object4id);
+            await blobService.PutObjectAsync(TestNamespace, s_objectContents5, object5id);
+            await blobService.PutObjectAsync(TestNamespace, s_objectContents6, object6id);
 
             IObjectService? objectService = _server.Services.GetService<IObjectService>()!;
             Assert.IsNotNull(objectService);

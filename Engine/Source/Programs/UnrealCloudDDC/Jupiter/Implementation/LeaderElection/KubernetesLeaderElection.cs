@@ -92,7 +92,7 @@ namespace Jupiter.Implementation.LeaderElection
 			return Task.CompletedTask;
 		}
 
-		public override async Task<bool> OnPoll(KubernetesLeaderElectionState state, CancellationToken cancellationToken)
+		public override async Task<bool> OnPollAsync(KubernetesLeaderElectionState state, CancellationToken cancellationToken)
 		{
 			_logger.LogInformation("Polling kubernetes to determine leadership status");
 

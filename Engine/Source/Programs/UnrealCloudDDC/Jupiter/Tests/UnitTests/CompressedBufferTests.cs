@@ -17,7 +17,7 @@ namespace Jupiter.Tests.Unit
     {
 
         [TestMethod]
-        public async Task CompressAndDecompress()
+        public async Task CompressAndDecompressAsync()
         {
             byte[] bytes = Encoding.UTF8.GetBytes("this is a test string");
 
@@ -27,7 +27,7 @@ namespace Jupiter.Tests.Unit
             IoHash uncompressedHash = bufferUtils.CompressContent(ms, OoodleCompressorMethod.Mermaid, OoodleCompressionLevel.VeryFast, bytes);
             ms.Position = 0;
 
-            IBufferedPayload bufferedPayload = await bufferUtils.DecompressContent(ms, (ulong)ms.Length);
+            IBufferedPayload bufferedPayload = await bufferUtils.DecompressContentAsync(ms, (ulong)ms.Length);
 
             byte[] roundTrippedBytes = await bufferedPayload.GetStream().ReadAllBytesAsync();
             CollectionAssert.AreEqual(bytes, roundTrippedBytes);

@@ -49,7 +49,7 @@ namespace Jupiter.Controllers
 		[ProducesResponseType(type: typeof(ValidationProblemDetails), 400)]
 		[Produces(CustomMediaTypeNames.UnrealCompressedBuffer, MediaTypeNames.Application.Octet)]
 
-		public async Task<IActionResult> Get(
+		public async Task<IActionResult> GetAsync(
 			[Required] NamespaceId ns,
 			[Required] ContentId id)
 		{
@@ -61,7 +61,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				(BlobContents blobContents, string mediaType) = await _storage.GetCompressedObject(ns, id, HttpContext.RequestServices, supportsRedirectUri: true);
+				(BlobContents blobContents, string mediaType) = await _storage.GetCompressedObjectAsync(ns, id, HttpContext.RequestServices, supportsRedirectUri: true);
 
 				StringValues acceptHeader = Request.Headers["Accept"];
 				if (!acceptHeader.Contains("*/*") && acceptHeader.Count != 0 && !acceptHeader.Contains(mediaType))
@@ -93,7 +93,7 @@ namespace Jupiter.Controllers
 		
 		[HttpHead("{ns}/{id}")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> Head(
+		public async Task<IActionResult> HeadAsync(
 			[Required] NamespaceId ns,
 			[Required] ContentId id)
 		{
@@ -112,7 +112,7 @@ namespace Jupiter.Controllers
 			Task<bool>[] tasks = new Task<bool>[chunks.Length];
 			for (int i = 0; i < chunks.Length; i++)
 			{
-				tasks[i] = _storage.Exists(ns, chunks[i]);
+				tasks[i] = _storage.ExistsAsync(ns, chunks[i]);
 			}
 
 			await Task.WhenAll(tasks);
@@ -129,7 +129,7 @@ namespace Jupiter.Controllers
 
 		[HttpPost("{ns}/exists")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> ExistsMultiple(
+		public async Task<IActionResult> ExistsMultipleAsync(
 			[Required] NamespaceId ns,
 			[Required] [FromQuery] List<ContentId> id)
 		{
@@ -154,7 +154,7 @@ namespace Jupiter.Controllers
 
 				foreach (BlobId chunk in chunks)
 				{
-					if (!await _storage.Exists(ns, chunk))
+					if (!await _storage.ExistsAsync(ns, chunk))
 					{
 						partialContentIds.Add(blob);
 						break;
@@ -171,7 +171,7 @@ namespace Jupiter.Controllers
 
 		[HttpPost("{ns}/exist")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> ExistsBody(
+		public async Task<IActionResult> ExistsBodyAsync(
 			[Required] NamespaceId ns,
 			[FromBody] ContentId[] bodyIds)
 		{
@@ -196,7 +196,7 @@ namespace Jupiter.Controllers
 
 				foreach (BlobId chunk in chunks)
 				{
-					if (!await _storage.Exists(ns, chunk))
+					if (!await _storage.ExistsAsync(ns, chunk))
 					{
 						partialContentIds.Add(blob);
 						break;
@@ -214,7 +214,7 @@ namespace Jupiter.Controllers
 		[HttpPut("{ns}/{id}")]
 		[DisableRequestSizeLimit]
 		[RequiredContentType(CustomMediaTypeNames.UnrealCompressedBuffer)]
-		public async Task<IActionResult> Put(
+		public async Task<IActionResult> PutAsync(
 			[Required] NamespaceId ns,
 			[Required] ContentId id)
 		{
@@ -230,7 +230,7 @@ namespace Jupiter.Controllers
 			{
 				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
 
-				ContentId identifier = await _storage.PutCompressedObject(ns, payload, id, HttpContext.RequestServices);
+				ContentId identifier = await _storage.PutCompressedObjectAsync(ns, payload, id, HttpContext.RequestServices);
 
 				return Ok(new { Identifier = identifier.ToString() });
 			}
@@ -251,7 +251,7 @@ namespace Jupiter.Controllers
 		[HttpPost("{ns}")]
 		[DisableRequestSizeLimit]
 		[RequiredContentType(CustomMediaTypeNames.UnrealCompressedBuffer)]
-		public async Task<IActionResult> Post(
+		public async Task<IActionResult> PostAsync(
 			[Required] NamespaceId ns)
 		{
 			ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteObject });
@@ -266,7 +266,7 @@ namespace Jupiter.Controllers
 			{
 				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
 
-				ContentId identifier = await _storage.PutCompressedObject(ns, payload, null, HttpContext.RequestServices);
+				ContentId identifier = await _storage.PutCompressedObjectAsync(ns, payload, null, HttpContext.RequestServices);
 
 				return Ok(new
 				{

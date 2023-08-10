@@ -37,36 +37,36 @@ namespace Jupiter.Implementation
 
 		private static string GetPath(BlobId blob) => blob.ToString();
 
-		public Task<BlobId> PutObject(NamespaceId ns, byte[] blob, BlobId identifier)
+		public Task<BlobId> PutObjectAsync(NamespaceId ns, byte[] blob, BlobId identifier)
 		{
 			using MemoryStream stream = new MemoryStream(blob);
-			return PutObject(ns, stream, identifier);
+			return PutObjectAsync(ns, stream, identifier);
 		}
-		public Task<Uri?> GetObjectByRedirect(NamespaceId ns, BlobId identifier)
+		public Task<Uri?> GetObjectByRedirectAsync(NamespaceId ns, BlobId identifier)
 		{
 			// not supported
 			return Task.FromResult<Uri?>(null);
 		}
 
-		public Task<Uri?> PutObjectWithRedirect(NamespaceId ns, BlobId identifier)
+		public Task<Uri?> PutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier)
 		{
 			// not supported
 			return Task.FromResult<Uri?>(null);
 		}
 
-		public async Task<BlobId> PutObject(NamespaceId ns, ReadOnlyMemory<byte> blob, BlobId identifier)
+		public async Task<BlobId> PutObjectAsync(NamespaceId ns, ReadOnlyMemory<byte> blob, BlobId identifier)
 		{
-			return await PutObject(ns, blob: blob.ToArray(), identifier);
+			return await PutObjectAsync(ns, blob: blob.ToArray(), identifier);
 		}
 
-		public async Task<BlobId> PutObject(NamespaceId ns, Stream blob, BlobId identifier)
+		public async Task<BlobId> PutObjectAsync(NamespaceId ns, Stream blob, BlobId identifier)
 		{
 			IStorageBackend backend = GetBackend(ns);
 			await backend.WriteAsync(GetPath(identifier), blob);
 			return identifier;
 		}
 
-		public async Task<BlobContents> GetObject(NamespaceId ns, BlobId blob, LastAccessTrackingFlags flags = LastAccessTrackingFlags.DoTracking, bool supportsRedirectUri = false)
+		public async Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, LastAccessTrackingFlags flags = LastAccessTrackingFlags.DoTracking, bool supportsRedirectUri = false)
 		{
 			BlobContents? contents = await GetBackend(ns).TryReadAsync(GetPath(blob), flags);
 			if(contents == null)
@@ -76,11 +76,11 @@ namespace Jupiter.Implementation
 			return contents;
 		}
 
-		public Task DeleteObject(NamespaceId ns, BlobId blob) => GetBackend(ns).DeleteAsync(GetPath(blob));
+		public Task DeleteObjectAsync(NamespaceId ns, BlobId blob) => GetBackend(ns).DeleteAsync(GetPath(blob));
 
-		public Task<bool> Exists(NamespaceId ns, BlobId blob, bool forceCheck = false) => GetBackend(ns).ExistsAsync(GetPath(blob));
+		public Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, bool forceCheck = false) => GetBackend(ns).ExistsAsync(GetPath(blob));
 
-		public Task DeleteNamespace(NamespaceId ns)
+		public Task DeleteNamespaceAsync(NamespaceId ns)
 		{
 			if (!_backends.TryRemove(ns, out _))
 			{
@@ -89,7 +89,7 @@ namespace Jupiter.Implementation
 			return Task.CompletedTask;
 		}
 
-		public async IAsyncEnumerable<(BlobId,DateTime)> ListObjects(NamespaceId ns)
+		public async IAsyncEnumerable<(BlobId,DateTime)> ListObjectsAsync(NamespaceId ns)
 		{
 			IStorageBackend backend = GetBackend(ns);
 			await foreach ((string path, DateTime time) in backend.ListAsync())
@@ -142,7 +142,7 @@ namespace Jupiter.Implementation
 
 		public async Task WriteAsync(string path, Stream stream, CancellationToken cancellationToken)
 		{
-			byte[] blob = await stream.ToByteArray();
+			byte[] blob = await stream.ToByteArrayAsync();
 
 			// we do not split the blob into smaller parts when storing in memory, this is only for test purposes
 			// so there is no need to add that complexity

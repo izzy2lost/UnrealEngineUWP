@@ -76,7 +76,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public override async Task<bool> OnPoll(ReplicationState state, CancellationToken cancellationToken)
+		public override async Task<bool> OnPollAsync(ReplicationState state, CancellationToken cancellationToken)
 		{
 			if (!_settings.CurrentValue.Enabled)
 			{

@@ -25,7 +25,7 @@ namespace Jupiter.Implementation
 				{
 					foreach ((int _, BlobId[] blobs) in contentIdMappings)
 					{
-						BlobId[] missingBlobs = await _blobStore.FilterOutKnownBlobs(ns, blobs);
+						BlobId[] missingBlobs = await _blobStore.FilterOutKnownBlobsAsync(ns, blobs);
 						if (missingBlobs.Length == 0)
 						{
 							return blobs;
@@ -37,7 +37,7 @@ namespace Jupiter.Implementation
 
 			BlobId uncompressedBlobIdentifier = contentId.AsBlobIdentifier();
 			// if no content id is found, but we have a blob that matches the content id (so a unchunked and uncompressed version of the data) we use that instead
-			if (!mustBeContentId && await _blobStore.Exists(ns, uncompressedBlobIdentifier))
+			if (!mustBeContentId && await _blobStore.ExistsAsync(ns, uncompressedBlobIdentifier))
 			{
 				return new[] { uncompressedBlobIdentifier };
 			}

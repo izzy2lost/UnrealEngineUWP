@@ -45,7 +45,7 @@ namespace Jupiter.Implementation
 			Task<bool>? blobStoreExistsTask = null;
 			if (!mustBeContentId)
 			{
-				blobStoreExistsTask = _blobStore.Exists(ns, contentIdBlob);
+				blobStoreExistsTask = _blobStore.ExistsAsync(ns, contentIdBlob);
 			}
 
 			{
@@ -66,7 +66,7 @@ namespace Jupiter.Implementation
 						{
 							using TelemetrySpan _ = _tracer.StartActiveSpan("ScyllaContentIdStore.FindMissingBlobs").SetAttribute("operation.name", "ScyllaContentIdStore.FindMissingBlobs");
 
-							BlobId[] missingBlobs = await _blobStore.FilterOutKnownBlobs(ns, blobs);
+							BlobId[] missingBlobs = await _blobStore.FilterOutKnownBlobsAsync(ns, blobs);
 							if (missingBlobs.Length == 0)
 							{
 								return blobs;
@@ -90,7 +90,7 @@ namespace Jupiter.Implementation
 						{
 							using TelemetrySpan _ = _tracer.StartActiveSpan("ScyllaContentIdStore.FindMissingBlobs").SetAttribute("operation.name", "ScyllaContentIdStore.FindMissingBlobs");
 
-							BlobId[] missingBlobs = await _blobStore.FilterOutKnownBlobs(ns, blobs);
+							BlobId[] missingBlobs = await _blobStore.FilterOutKnownBlobsAsync(ns, blobs);
 							if (missingBlobs.Length == 0)
 							{
 								return blobs;

@@ -74,7 +74,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task GetBlobRedirect()
+        public async Task GetBlobRedirectAsync()
         {
             HttpResponseMessage result = await HttpClient!.GetAsync(new Uri($"api/v1/s/{TestRedirectNamespaceName}/{SmallFileHash}", UriKind.Relative));
             Assert.AreEqual(HttpStatusCode.Redirect, result.StatusCode);
@@ -140,7 +140,7 @@ namespace Jupiter.FunctionalTests.Storage
         private const string DefaultContainerName = "jupiter";
 
         [TestMethod]
-        public async Task GetBlobRedirect()
+        public async Task GetBlobRedirectAsync()
         {
             HttpResponseMessage result = await HttpClient!.GetAsync(new Uri($"api/v1/s/{TestRedirectNamespaceName}/{SmallFileHash}", UriKind.Relative));
             Assert.AreEqual(HttpStatusCode.Redirect, result.StatusCode);
@@ -219,7 +219,7 @@ namespace Jupiter.FunctionalTests.Storage
 
         // only a file system allows us to update the last modified time of the object to actually execute this test
         [TestMethod]
-        public async Task ListOldBlobs()
+        public async Task ListOldBlobsAsync()
         {
             FileSystemStore? fsStore = Server!.Services.GetService<FileSystemStore>();
             Assert.IsNotNull(fsStore);
@@ -228,13 +228,13 @@ namespace Jupiter.FunctionalTests.Storage
             // as the old blob is set to be a week old this should be the only object returned
             DateTime cutoff = DateTime.Now.AddDays(-1);
             {
-                BlobId[] blobs = await fsStore.ListObjects(TestNamespaceName).Where(tuple => tuple.Item2 < cutoff).Select(tuple => tuple.Item1).ToArrayAsync();
+                BlobId[] blobs = await fsStore.ListObjectsAsync(TestNamespaceName).Where(tuple => tuple.Item2 < cutoff).Select(tuple => tuple.Item1).ToArrayAsync();
                 Assert.AreEqual(OldBlobFileHash, blobs[0]);
             }
         }
 
         [TestMethod]
-        public async Task ListNamespaces()
+        public async Task ListNamespacesAsync()
         {
             FileSystemStore? fsStore = Server!.Services.GetService<FileSystemStore>();
             Assert.IsNotNull(fsStore);
@@ -242,14 +242,14 @@ namespace Jupiter.FunctionalTests.Storage
             List<NamespaceId> namespaces = await fsStore.ListNamespaces().ToListAsync();
             Assert.AreEqual(1, namespaces.Count);
             
-            await fsStore.PutObject(_fooNamespace, Encoding.ASCII.GetBytes(SmallFileContents), SmallFileHash);
+            await fsStore.PutObjectAsync(_fooNamespace, Encoding.ASCII.GetBytes(SmallFileContents), SmallFileHash);
             
             namespaces = await fsStore.ListNamespaces().ToListAsync();
             Assert.AreEqual(2, namespaces.Count);
         }
 
         [TestMethod]
-        public async Task GarbageCollect()
+        public async Task GarbageCollectAsync()
         {
             // Remove data added from test seeding
             Directory.Delete(_localTestDir, true);
@@ -303,12 +303,12 @@ namespace Jupiter.FunctionalTests.Storage
         }
         
         [TestMethod]
-        public async Task CalculateUsedDiskSpace()
+        public async Task CalculateUsedDiskSpaceAsync()
         {
             FileSystemStore? fsStore = Server!.Services.GetService<FileSystemStore>();
             Assert.IsNotNull(fsStore);
-            await fsStore.PutObject(_fooNamespace, Encoding.ASCII.GetBytes(SmallFileContents), SmallFileHash);
-            await fsStore.PutObject(_fooNamespace, Encoding.ASCII.GetBytes(AnotherFileContents), AnotherFileHash);
+            await fsStore.PutObjectAsync(_fooNamespace, Encoding.ASCII.GetBytes(SmallFileContents), SmallFileHash);
+            await fsStore.PutObjectAsync(_fooNamespace, Encoding.ASCII.GetBytes(AnotherFileContents), AnotherFileHash);
             
             Assert.AreEqual(SmallFileContents.Length + AnotherFileContents.Length, await fsStore.CalculateDiskSpaceUsed(_fooNamespace));
         }
@@ -354,7 +354,7 @@ namespace Jupiter.FunctionalTests.Storage
         protected HttpClient? HttpClient => _httpClient;
 
         [TestInitialize]
-        public async Task Setup()
+        public async Task SetupAsync()
         {
             IConfigurationRoot configuration = new ConfigurationBuilder()
                 // we are not reading the base appSettings here as we want exact control over what runs in the tests
@@ -386,13 +386,13 @@ namespace Jupiter.FunctionalTests.Storage
         protected abstract Task Teardown(IServiceProvider serverServices);
 
         [TestCleanup]
-        public async Task MyTeardown()
+        public async Task MyTeardownAsync()
         {
             await Teardown(Server!.Services);
         }
 
         [TestMethod]
-        public async Task GetSmallFile()
+        public async Task GetSmallFileAsync()
         {
             HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/s/{TestNamespaceName}/{SmallFileHash}", UriKind.Relative));
             result.EnsureSuccessStatusCode();
@@ -401,7 +401,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task GetNotExistentFile()
+        public async Task GetNotExistentFileAsync()
         {
             byte[] payload = Encoding.ASCII.GetBytes("This content does not exist");
             ContentHash contentHash = ContentHash.FromBlob(payload);
@@ -411,7 +411,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task GetInvalidHash()
+        public async Task GetInvalidHashAsync()
         {
             HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/s/{TestNamespaceName}/smallFile", UriKind.Relative));
 
@@ -419,7 +419,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task PutSmallBlob()
+        public async Task PutSmallBlobAsync()
         {
             byte[] payload = Encoding.ASCII.GetBytes("I am a small blob");
             using ByteArrayContent requestContent = new ByteArrayContent(payload);
@@ -435,7 +435,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task PostSmallBlob()
+        public async Task PostSmallBlobAsync()
         {
             byte[] payload = Encoding.ASCII.GetBytes("I am a small blob");
             using ByteArrayContent requestContent = new ByteArrayContent(payload);
@@ -451,9 +451,9 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task PostBundle()
+        public async Task PostBundleAsync()
         {
-            Bundle bundle = await CreateBundle("test string");
+            Bundle bundle = await CreateBundleAsync("test string");
             byte[] payload = bundle.AsSequence().ToArray();
             using ByteArrayContent requestContent = new ByteArrayContent(payload);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
@@ -468,9 +468,9 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task PostBundleToCASNamespace()
+        public async Task PostBundleToCASNamespaceAsync()
         {
-            Bundle bundle = await CreateBundle("test string");
+            Bundle bundle = await CreateBundleAsync("test string");
             byte[] payload = bundle.AsSequence().ToArray();
             using ByteArrayContent requestContent = new ByteArrayContent(payload);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
@@ -481,7 +481,7 @@ namespace Jupiter.FunctionalTests.Storage
             Assert.AreEqual(HttpStatusCode.InternalServerError, result.StatusCode);
         }
 
-        private static async Task<Bundle> CreateBundle(string contents)
+        private static async Task<Bundle> CreateBundleAsync(string contents)
         {
             MemoryStorageClient store = new MemoryStorageClient();
             await using BundleWriter writer = store.CreateWriter(options: new BundleOptions { CompressionFormat = BundleCompressionFormat.None });
@@ -493,7 +493,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task DeleteBlob()
+        public async Task DeleteBlobAsync()
         {
             HttpResponseMessage result = await  _httpClient!.DeleteAsync(new Uri($"api/v1/s/{TestNamespaceName}/{DeleteFileHash}", UriKind.Relative));
             result.EnsureSuccessStatusCode();
@@ -502,7 +502,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task ListBlobs()
+        public async Task ListBlobsAsync()
         {
             List<BlobId> validBlobHashes = new List<BlobId>
             {
@@ -514,7 +514,7 @@ namespace Jupiter.FunctionalTests.Storage
 
             IBlobService blobService = Server!.Services.GetService<IBlobService>()!;
 
-            BlobId[] oldObjects = await blobService.ListObjects(TestNamespaceName).Select(tuple => tuple.Item1).ToArrayAsync();
+            BlobId[] oldObjects = await blobService.ListObjectsAsync(TestNamespaceName).Select(tuple => tuple.Item1).ToArrayAsync();
 
             Assert.AreEqual(4, oldObjects.Length);
             Assert.IsTrue(validBlobHashes.Contains(oldObjects[0]));
@@ -524,7 +524,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
         
         [TestMethod]
-        public async Task BlobExists()
+        public async Task BlobExistsAsync()
         {
             {
                 using HttpRequestMessage message = new(HttpMethod.Head, new Uri($"api/v1/s/{TestNamespaceName}/{SmallFileHash}", UriKind.Relative));
@@ -544,7 +544,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task BlobExistsBatch()
+        public async Task BlobExistsBatchAsync()
         {
             BlobId newContent = BlobId.FromBlob(Encoding.ASCII.GetBytes("this content has never been submitted"));
 
@@ -582,7 +582,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task BatchOp()
+        public async Task BatchOpAsync()
         {
             var ops = new
             {
@@ -619,7 +619,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task BatchOpBadRequest()
+        public async Task BatchOpBadRequestAsync()
         {
             var ops = new
             {
@@ -655,7 +655,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task BatchOpBlobNotPresent()
+        public async Task BatchOpBlobNotPresentAsync()
         {
             var ops = new
             {
@@ -682,7 +682,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task MultipleBlobChecks()
+        public async Task MultipleBlobChecksAsync()
         {
             BlobId newContent = BlobId.FromBlob(Encoding.ASCII.GetBytes("this content has never been submitted"));
             using HttpRequestMessage message = new(HttpMethod.Post, new Uri($"api/v1/s/{TestNamespaceName}/exists?id={SmallFileHash}&id={newContent}", UriKind.Relative));
@@ -699,7 +699,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task MultipleBlobChecksBodyCB()
+        public async Task MultipleBlobChecksBodyCBAsync()
         {
             BlobId newContent = BlobId.FromBlob(Encoding.ASCII.GetBytes("this content has never been submitted"));
             using HttpRequestMessage request = new(HttpMethod.Post, new Uri($"api/v1/s/{TestNamespaceName}/exist", UriKind.Relative));
@@ -725,7 +725,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task MultipleBlobChecksBodyJson()
+        public async Task MultipleBlobChecksBodyJsonAsync()
         {
             BlobId newContent = BlobId.FromBlob(Encoding.ASCII.GetBytes("this content has never been submitted"));
             using HttpRequestMessage request = new(HttpMethod.Post, new Uri($"api/v1/s/{TestNamespaceName}/exist", UriKind.Relative));
@@ -745,7 +745,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task MultipleBlobCompactBinaryResponse()
+        public async Task MultipleBlobCompactBinaryResponseAsync()
         {
             BlobId newContent = BlobId.FromBlob(Encoding.ASCII.GetBytes("this content has never been submitted"));
             using HttpRequestMessage request = new(HttpMethod.Post, new Uri($"api/v1/s/{TestNamespaceName}/exists?id={SmallFileHash}&id={newContent}", UriKind.Relative));
@@ -766,7 +766,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task FullFlow()
+        public async Task FullFlowAsync()
         {
             byte[] payload = Encoding.ASCII.GetBytes("Foo bar");
             using ByteArrayContent requestContent = new ByteArrayContent(payload);
@@ -794,7 +794,7 @@ namespace Jupiter.FunctionalTests.Storage
         
         [TestMethod]
         [TestCategory("SlowTests")]
-        public async Task PutGetLargePayload()
+        public async Task PutGetLargePayloadAsync()
         {
             // we submit a blob so large that it can not fit using the memory blob store
             IBlobStore? blobStore = Server?.Services.GetService<IBlobStore>();
@@ -827,7 +827,7 @@ namespace Jupiter.FunctionalTests.Storage
                 BlobId blobIdentifier;
                 {
                     await using FileStream fs = fi.OpenRead();
-                    blobIdentifier = await BlobId.FromStream(fs);
+                    blobIdentifier = await BlobId.FromStreamAsync(fs);
                 }
 
                 {
@@ -858,7 +858,7 @@ namespace Jupiter.FunctionalTests.Storage
                         s = tempOutputFile.OpenRead();
                     }
 
-                    BlobId downloadedBlobIdentifier = await BlobId.FromStream(s);
+                    BlobId downloadedBlobIdentifier = await BlobId.FromStreamAsync(s);
                     Assert.AreEqual(blobIdentifier, downloadedBlobIdentifier);
                     s.Close();
                 }

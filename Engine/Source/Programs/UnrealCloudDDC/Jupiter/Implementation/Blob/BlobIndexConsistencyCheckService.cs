@@ -46,7 +46,7 @@ namespace Jupiter.Implementation
 			_logger = logger;
 		}
 
-		public override async Task<bool> OnPoll(BlobIndexConsistencyState state, CancellationToken cancellationToken)
+		public override async Task<bool> OnPollAsync(BlobIndexConsistencyState state, CancellationToken cancellationToken)
 		{
 			if (!_settings.CurrentValue.EnableBlobIndexChecks)
 			{
@@ -60,17 +60,17 @@ namespace Jupiter.Implementation
 				return false;
 			}
 
-			await RunConsistencyCheck();
+			await RunConsistencyCheckAsync();
 
 			return true;
 		}
 
-		private async Task RunConsistencyCheck()
+		private async Task RunConsistencyCheckAsync()
 		{
 			ulong countOfBlobsChecked = 0;
 			ulong countOfIncorrectBlobsFound = 0;
 			string currentRegion = _jupiterSettings.CurrentValue.CurrentSite;
-			await Parallel.ForEachAsync(_blobIndex.GetAllBlobs(), new ParallelOptions
+			await Parallel.ForEachAsync(_blobIndex.GetAllBlobsAsync(), new ParallelOptions
 				{
 					MaxDegreeOfParallelism = _settings.CurrentValue.BlobIndexMaxParallelOperations,
 				},
@@ -88,12 +88,12 @@ namespace Jupiter.Implementation
 
 					bool issueFound = false;
 					bool deleted = false;
-					List<string> regions = await _blobIndex.GetBlobRegions(ns, blobIdentifier);
+					List<string> regions = await _blobIndex.GetBlobRegionsAsync(ns, blobIdentifier);
 					try
 					{
 						if (regions.Contains(currentRegion))
 						{
-							if (!await _blobService.ExistsInRootStore(ns, blobIdentifier))
+							if (!await _blobService.ExistsInRootStoreAsync(ns, blobIdentifier))
 							{
 								Interlocked.Increment(ref countOfIncorrectBlobsFound);
 								issueFound = true;
@@ -104,7 +104,7 @@ namespace Jupiter.Implementation
 
 									try
 									{
-										BlobContents _ = await _blobService.ReplicateObject(ns, blobIdentifier, force: true);
+										BlobContents _ = await _blobService.ReplicateObjectAsync(ns, blobIdentifier, force: true);
 									}
 									catch (BlobReplicationException e)
 									{
@@ -112,7 +112,7 @@ namespace Jupiter.Implementation
 										if (_settings.CurrentValue.AllowDeletesInBlobIndex)
 										{
 											_logger.LogWarning("Updating blob index to remove Blob {Blob} in namespace {Namespace} as we failed to repair it.", blobIdentifier, ns);
-											await _blobIndex.RemoveBlobFromRegion(ns, blobIdentifier);
+											await _blobIndex.RemoveBlobFromRegionAsync(ns, blobIdentifier);
 											deleted = true;
 										}
 										else
@@ -135,7 +135,7 @@ namespace Jupiter.Implementation
 										// this blob can not be repaired so we just delete it from the blob index
 										_logger.LogWarning("Blob {Blob} in namespace {Namespace} can not be repaired so removing existence from current region.", blobIdentifier, ns);
 
-										await _blobIndex.RemoveBlobFromRegion(ns, blobIdentifier);
+										await _blobIndex.RemoveBlobFromRegionAsync(ns, blobIdentifier);
 										deleted = true;
 									}
 								}
@@ -149,7 +149,7 @@ namespace Jupiter.Implementation
 							_logger.LogWarning("Blob {Blob} in namespace {Namespace} is of a unknown namespace, removing.", blobIdentifier, ns);
 
 							// for entries that are of a unknown namespace we simply remove them
-							await _blobIndex.RemoveBlobFromRegion(ns, blobIdentifier);
+							await _blobIndex.RemoveBlobFromRegionAsync(ns, blobIdentifier);
 							deleted = true;
 						}
 					}

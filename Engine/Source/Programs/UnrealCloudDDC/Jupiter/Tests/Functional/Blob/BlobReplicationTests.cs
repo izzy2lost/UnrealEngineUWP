@@ -29,7 +29,7 @@ namespace Jupiter.FunctionalTests.Storage
         protected NamespaceId TestNamespaceName { get; } = new NamespaceId("test-namespace");
 
         [TestMethod]
-        public async Task ReplicateBlobFromRegion()
+        public async Task ReplicateBlobFromRegionAsync()
         {
             // 2 regions with data 
             // region A - will not have data
@@ -148,7 +148,7 @@ namespace Jupiter.FunctionalTests.Storage
             IBlobIndex? blobIndex = server.Services.GetService<IBlobIndex>();
             Assert.IsNotNull(blobIndex);
 
-            await blobIndex.AddBlobToIndex(TestNamespaceName, blobIdentifier, "siteB");
+            await blobIndex.AddBlobToIndexAsync(TestNamespaceName, blobIdentifier, "siteB");
 
             HttpClient httpClient = server.CreateClient();
 
@@ -163,7 +163,7 @@ namespace Jupiter.FunctionalTests.Storage
 
                 
         [TestMethod]
-        public async Task ReplicateBlobNotPresent()
+        public async Task ReplicateBlobNotPresentAsync()
         {
             // verify calling the blob endpoint when the blob is missing still returns a 404
 

@@ -61,37 +61,37 @@ namespace Jupiter.Implementation
 			return DirectoryReference.Combine(new DirectoryReference(GetRootDir()), ns.ToString());
 		}
 
-		public Task<Uri?> GetObjectByRedirect(NamespaceId ns, BlobId identifier)
+		public Task<Uri?> GetObjectByRedirectAsync(NamespaceId ns, BlobId identifier)
 		{
 			// not supported
 			return Task.FromResult<Uri?>(null);
 		}
 
-		public Task<Uri?> PutObjectWithRedirect(NamespaceId ns, BlobId identifier)
+		public Task<Uri?> PutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier)
 		{
 			// not supported
 			return Task.FromResult<Uri?>(null);
 		}
-		public async Task<BlobId> PutObject(NamespaceId ns, ReadOnlyMemory<byte> content, BlobId blobIdentifier)
+		public async Task<BlobId> PutObjectAsync(NamespaceId ns, ReadOnlyMemory<byte> content, BlobId blobIdentifier)
 		{
 			using EpicGames.Core.ReadOnlyMemoryStream stream = new EpicGames.Core.ReadOnlyMemoryStream(content);
-			return await PutObject(ns, stream, blobIdentifier);
+			return await PutObjectAsync(ns, stream, blobIdentifier);
 		}
 
-		public async Task<BlobId> PutObject(NamespaceId ns, Stream content, BlobId blobIdentifier)
+		public async Task<BlobId> PutObjectAsync(NamespaceId ns, Stream content, BlobId blobIdentifier)
 		{
 			string path = GetFilesystemPath(blobIdentifier);
 			await GetBackend(ns).WriteAsync(path, content, CancellationToken.None);
 			return blobIdentifier;
 		}
 
-		public async Task<BlobId> PutObject(NamespaceId ns, byte[] content, BlobId blobIdentifier)
+		public async Task<BlobId> PutObjectAsync(NamespaceId ns, byte[] content, BlobId blobIdentifier)
 		{
 			using MemoryStream stream = new MemoryStream(content);
-			return await PutObject(ns, stream, blobIdentifier);
+			return await PutObjectAsync(ns, stream, blobIdentifier);
 		}
 
-		public async Task<BlobContents> GetObject(NamespaceId ns, BlobId blob, LastAccessTrackingFlags flags, bool supportsRedirectUri = false)
+		public async Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, LastAccessTrackingFlags flags, bool supportsRedirectUri = false)
 		{
 			string path = GetFilesystemPath(blob);
 
@@ -104,19 +104,19 @@ namespace Jupiter.Implementation
 			return contents;
 		}
 
-		public async Task<bool> Exists(NamespaceId ns, BlobId blob, bool forceCheck)
+		public async Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, bool forceCheck)
 		{
 			string path = GetFilesystemPath(blob);
 			return await GetBackend(ns).ExistsAsync(path, CancellationToken.None);
 		}
 
-		public async Task DeleteObject(NamespaceId ns, BlobId objectName)
+		public async Task DeleteObjectAsync(NamespaceId ns, BlobId objectName)
 		{
 			string path = GetFilesystemPath(objectName);
 			await GetBackend(ns).DeleteAsync(path, CancellationToken.None);
 		}
 
-		public Task DeleteNamespace(NamespaceId ns)
+		public Task DeleteNamespaceAsync(NamespaceId ns)
 		{
 			DirectoryInfo namespaceDirectory = GetFilesystemPath(ns).ToDirectoryInfo();
 			if (namespaceDirectory.Exists)
@@ -127,7 +127,7 @@ namespace Jupiter.Implementation
 			return Task.CompletedTask;
 		}
 
-		public async IAsyncEnumerable<(BlobId,DateTime)> ListObjects(NamespaceId ns)
+		public async IAsyncEnumerable<(BlobId,DateTime)> ListObjectsAsync(NamespaceId ns)
 		{
 			IStorageBackend backend = GetBackend(ns);
 			await foreach ((string path, DateTime time) in backend.ListAsync())

@@ -28,12 +28,12 @@ namespace Jupiter.Common.Implementation
 			_buffer = source;
 		}
 
-		public static async Task<MemoryBufferedPayload> Create(Tracer tracer, Stream s)
+		public static async Task<MemoryBufferedPayload> CreateAsync(Tracer tracer, Stream s)
 		{
 			using TelemetrySpan scope = tracer.StartActiveSpan("payload.buffer")
 				.SetAttribute("operation.name", "payload.buffer")
 				.SetAttribute("bufferType", "Memory");
-			MemoryBufferedPayload payload = new MemoryBufferedPayload(await s.ToByteArray());
+			MemoryBufferedPayload payload = new MemoryBufferedPayload(await s.ToByteArrayAsync());
 
 			return payload;
 		}
@@ -117,7 +117,7 @@ namespace Jupiter.Common.Implementation
 			_length = _tempFile.Length;
 		}
 
-		public static async Task<FilesystemBufferedPayload> Create(Tracer tracer, Stream s)
+		public static async Task<FilesystemBufferedPayload> CreateAsync(Tracer tracer, Stream s)
 		{
 			FilesystemBufferedPayload payload = new FilesystemBufferedPayload();
 
@@ -179,23 +179,23 @@ namespace Jupiter.Common.Implementation
 				throw new Exception("Expected content-length on all requests");
 			}
 
-			return CreateFromStream(request.Body, contentLength.Value);
+			return CreateFromStreamAsync(request.Body, contentLength.Value);
 		}
 
-		public async Task<IBufferedPayload> CreateFromStream(Stream s, long contentLength)
+		public async Task<IBufferedPayload> CreateFromStreamAsync(Stream s, long contentLength)
 		{
 			// blob is small enough to fit into memory we just read it as is
 			if (contentLength < _options.CurrentValue.MemoryBufferSize)
 			{
-				return await MemoryBufferedPayload.Create(_tracer, s);
+				return await MemoryBufferedPayload.CreateAsync(_tracer, s);
 			}
 
-			return await FilesystemBufferedPayload.Create(_tracer, s);
+			return await FilesystemBufferedPayload.CreateAsync(_tracer, s);
 		}
 
-		public async Task<IBufferedPayload> CreateFilesystemBufferedPayload(Stream s)
+		public async Task<IBufferedPayload> CreateFilesystemBufferedPayloadAsync(Stream s)
 		{
-			return await FilesystemBufferedPayload.Create(_tracer, s);
+			return await FilesystemBufferedPayload.CreateAsync(_tracer, s);
 		}
 	}
 }

@@ -50,7 +50,7 @@ namespace Jupiter.Implementation
 			_policyResolver = policyResolver;
 		}
 
-		public override async Task<bool> OnPoll(ConsistencyState state, CancellationToken cancellationToken)
+		public override async Task<bool> OnPollAsync(ConsistencyState state, CancellationToken cancellationToken)
 		{
 			if (!_settings.CurrentValue.EnableBlobStoreChecks)
 			{
@@ -58,12 +58,12 @@ namespace Jupiter.Implementation
 				return false;
 			}
 
-			await RunConsistencyCheck();
+			await RunConsistencyCheckAsync();
 
 			return true;
 		}
 
-		private async Task RunConsistencyCheck()
+		private async Task RunConsistencyCheckAsync()
 		{
 			foreach (IBlobStore blobStore in BlobService.GetBlobStores(_provider, _unrealCloudDDCSettings).Where(RunConsistencyCheckOnBlobStore))
 			{
@@ -97,7 +97,7 @@ namespace Jupiter.Implementation
 						continue;
 					}
 
-					await foreach ((BlobId blob, DateTime lastModified) in blobStore.ListObjects(ns))
+					await foreach ((BlobId blob, DateTime lastModified) in blobStore.ListObjectsAsync(ns))
 					{
 						using TelemetrySpan scope = _tracer.StartActiveSpan("consistency_check.blob_store")
 							.SetAttribute("operation.name", "consistency_check.blob_store")
@@ -111,22 +111,22 @@ namespace Jupiter.Implementation
 
 						Interlocked.Increment(ref countOfBlobsChecked);
 						
-						BlobContents contents = await blobStore.GetObject(ns, blob, LastAccessTrackingFlags.SkipTracking);
+						BlobContents contents = await blobStore.GetObjectAsync(ns, blob, LastAccessTrackingFlags.SkipTracking);
 						await using Stream s = contents.Stream;
 
 						bool inconsistencyFound = false;
-						BlobId newHash = await BlobId.FromStream(s);
+						BlobId newHash = await BlobId.FromStreamAsync(s);
 						if (!blob.Equals(newHash))
 						{
 							_logger.LogError("Mismatching hash for {Blob} in {Namespace} stored in {BlobStore}, new hash has {NewHash}. Deleting incorrect blob.", blob, ns, blobStoreName,newHash);
 
 							Interlocked.Increment(ref countOfIncorrectBlobsFound);
-							await blobStore.DeleteObject(ns, blob);
+							await blobStore.DeleteObjectAsync(ns, blob);
 
 							if (isRootStore)
 							{
 								// update blob index tracking to indicate that we no longer have this blob in this region
-								await _blobIndex.RemoveBlobFromRegion(ns, blob);
+								await _blobIndex.RemoveBlobFromRegionAsync(ns, blob);
 							}
 						}
 

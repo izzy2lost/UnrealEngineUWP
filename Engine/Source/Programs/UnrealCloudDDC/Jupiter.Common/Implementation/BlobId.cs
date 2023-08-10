@@ -127,7 +127,7 @@ namespace Jupiter.Implementation
 			return new BlobId(testObjectHash.HashData);
 		}
 
-		public static async Task<BlobId> FromStream(Stream stream)
+		public static async Task<BlobId> FromStreamAsync(Stream stream)
 		{
 			using Hasher hasher = Hasher.New();
 			const int bufferSize = 1024 * 1024 * 5;

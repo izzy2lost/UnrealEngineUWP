@@ -34,7 +34,7 @@ namespace Jupiter.FunctionalTests.Storage
         private readonly NamespaceId _testNamespaceName = new NamespaceId("testbucket");
 
         [TestInitialize]
-        public async Task Setup()
+        public async Task SetupAsync()
         {
             IConfigurationRoot configuration = new ConfigurationBuilder()
                 // we are not reading the base appSettings here as we want exact control over what runs in the tests
@@ -66,14 +66,14 @@ namespace Jupiter.FunctionalTests.Storage
         protected abstract Task Teardown(IServiceProvider serverServices);
 
         [TestCleanup]
-        public async Task MyTeardown()
+        public async Task MyTeardownAsync()
         {
             await Teardown(_server!.Services);
         }
 
         
         [TestMethod]
-        public async Task PutBlobToIndex()
+        public async Task PutBlobToIndexAsync()
         {
             byte[] payload = Encoding.ASCII.GetBytes("I am a blob with contents");
             using ByteArrayContent requestContent = new ByteArrayContent(payload);
@@ -84,13 +84,13 @@ namespace Jupiter.FunctionalTests.Storage
 
             IBlobIndex? index = _server!.Services.GetService<IBlobIndex>();
             Assert.IsNotNull(index);
-            List<string> regions = await index.GetBlobRegions(_testNamespaceName, contentHash);
+            List<string> regions = await index.GetBlobRegionsAsync(_testNamespaceName, contentHash);
 
             Assert.IsTrue(regions.Contains("test"));
         }
 
         [TestMethod]
-        public async Task UploadRef()
+        public async Task UploadRefAsync()
         {
             CbWriter writer = new CbWriter();
             writer.BeginObject();
@@ -109,9 +109,9 @@ namespace Jupiter.FunctionalTests.Storage
 
             IBlobIndex? index = _server!.Services.GetService<IBlobIndex>();
             Assert.IsNotNull(index);
-            Assert.IsTrue(await index.BlobExistsInRegion(_testNamespaceName, objectHash, "test"));
+            Assert.IsTrue(await index.BlobExistsInRegionAsync(_testNamespaceName, objectHash, "test"));
 
-            IAsyncEnumerable<BaseBlobReference> blobReferences = index.GetBlobReferences(_testNamespaceName, objectHash);
+            IAsyncEnumerable<BaseBlobReference> blobReferences = index.GetBlobReferencesAsync(_testNamespaceName, objectHash);
             List<BaseBlobReference> references = await blobReferences.ToListAsync();
             Assert.AreEqual(1, references.Count);
 
@@ -122,7 +122,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task DeleteBlob()
+        public async Task DeleteBlobAsync()
         {
             // upload a blob
             byte[] payload = Encoding.ASCII.GetBytes("I am a blob with contents");
@@ -137,7 +137,7 @@ namespace Jupiter.FunctionalTests.Storage
             // verify its present in the blob index
             IBlobIndex? index = _server!.Services.GetService<IBlobIndex>();
             Assert.IsNotNull(index);
-            Assert.IsTrue(await index.BlobExistsInRegion(_testNamespaceName, contentHash));
+            Assert.IsTrue(await index.BlobExistsInRegionAsync(_testNamespaceName, contentHash));
 
             // delete the blob
             {
@@ -145,7 +145,7 @@ namespace Jupiter.FunctionalTests.Storage
                 response.EnsureSuccessStatusCode();
             }
 
-            List<string> regions = await index.GetBlobRegions(_testNamespaceName, contentHash);
+            List<string> regions = await index.GetBlobRegionsAsync(_testNamespaceName, contentHash);
 
             bool hasRegions = regions.Any();
             // but the blob info will not contain the current region
@@ -153,13 +153,13 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task EnumerateAllBlobs()
+        public async Task EnumerateAllBlobsAsync()
         {
             IBlobIndex? index = _server!.Services.GetService<IBlobIndex>();
             Assert.IsNotNull(index);
             {
                 // verify the blob info list is empty at the start
-                int count =  await index.GetAllBlobs().CountAsync();
+                int count =  await index.GetAllBlobsAsync().CountAsync();
                 Assert.AreEqual(0, count);
             }
 
@@ -191,7 +191,7 @@ namespace Jupiter.FunctionalTests.Storage
             }
 
             {
-                (NamespaceId, BlobId)[] blobInfos =  await index.GetAllBlobs().ToArrayAsync();
+                (NamespaceId, BlobId)[] blobInfos =  await index.GetAllBlobsAsync().ToArrayAsync();
                 Assert.AreEqual(2, blobInfos.Length);
 
                 Assert.IsNotNull(blobInfos.FirstOrDefault(info => info.Item2.Equals(compressedPayloadIdentifier)));

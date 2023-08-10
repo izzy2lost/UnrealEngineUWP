@@ -48,36 +48,36 @@ namespace Jupiter.Implementation
 			return _backends.GetOrAdd(ns, x => ActivatorUtilities.CreateInstance<AmazonStorageBackend>(_provider, GetBucketName(x)));
 		}
 
-		public async Task<Uri?> GetObjectByRedirect(NamespaceId ns, BlobId identifier)
+		public async Task<Uri?> GetObjectByRedirectAsync(NamespaceId ns, BlobId identifier)
 		{
 			Uri? uri = await GetBackend(ns).GetReadRedirectAsync(identifier.AsS3Key());
 
 			return uri;
 		}
 
-		public async Task<Uri?> PutObjectWithRedirect(NamespaceId ns, BlobId identifier)
+		public async Task<Uri?> PutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier)
 		{
 			Uri? uri = await GetBackend(ns).GetWriteRedirectAsync(identifier.AsS3Key());
 
 			return uri;
 		}
 
-		public async Task<BlobId> PutObject(NamespaceId ns, ReadOnlyMemory<byte> content, BlobId objectName)
+		public async Task<BlobId> PutObjectAsync(NamespaceId ns, ReadOnlyMemory<byte> content, BlobId objectName)
 		{
 			await using MemoryStream stream = new MemoryStream(content.ToArray());
-			return await PutObject(ns, stream, objectName);
+			return await PutObjectAsync(ns, stream, objectName);
 		}
 
-		public async Task<BlobId> PutObject(NamespaceId ns, Stream stream, BlobId objectName)
+		public async Task<BlobId> PutObjectAsync(NamespaceId ns, Stream stream, BlobId objectName)
 		{
 			await GetBackend(ns).WriteAsync(objectName.AsS3Key(), stream, CancellationToken.None);
 			return objectName;
 		}
 
-		public async Task<BlobId> PutObject(NamespaceId ns, byte[] content, BlobId objectName)
+		public async Task<BlobId> PutObjectAsync(NamespaceId ns, byte[] content, BlobId objectName)
 		{
 			await using MemoryStream stream = new MemoryStream(content);
-			return await PutObject(ns, stream, objectName);
+			return await PutObjectAsync(ns, stream, objectName);
 		}
 
 		private string GetBucketName(NamespaceId ns)
@@ -101,7 +101,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task<BlobContents> GetObject(NamespaceId ns, BlobId blob, LastAccessTrackingFlags flags = LastAccessTrackingFlags.DoTracking, bool supportsRedirectUri = false)
+		public async Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, LastAccessTrackingFlags flags = LastAccessTrackingFlags.DoTracking, bool supportsRedirectUri = false)
 		{
 			NamespacePolicy policies = _namespacePolicyResolver.GetPoliciesForNs(ns);
 			try
@@ -135,12 +135,12 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task<bool> Exists(NamespaceId ns, BlobId blobIdentifier, bool forceCheck)
+		public async Task<bool> ExistsAsync(NamespaceId ns, BlobId blobIdentifier, bool forceCheck)
 		{
 			NamespacePolicy policies = _namespacePolicyResolver.GetPoliciesForNs(ns);
 			if (_settings.UseBlobIndexForExistsCheck && policies.UseBlobIndexForSlowExists && !forceCheck)
 			{
-				return await _blobIndex.BlobExistsInRegion(ns, blobIdentifier);
+				return await _blobIndex.BlobExistsInRegionAsync(ns, blobIdentifier);
 			}
 			else
 			{
@@ -148,7 +148,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task DeleteNamespace(NamespaceId ns)
+		public async Task DeleteNamespaceAsync(NamespaceId ns)
 		{
 			string bucketName = GetBucketName(ns);
 			try
@@ -168,7 +168,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async IAsyncEnumerable<(BlobId, DateTime)> ListObjects(NamespaceId ns)
+		public async IAsyncEnumerable<(BlobId, DateTime)> ListObjectsAsync(NamespaceId ns)
 		{
 			IStorageBackend backend = GetBackend(ns);
 			await foreach ((string path, DateTime time) in backend.ListAsync())
@@ -178,7 +178,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task DeleteObject(NamespaceId ns, BlobId blobIdentifier)
+		public async Task DeleteObjectAsync(NamespaceId ns, BlobId blobIdentifier)
 		{
 			IStorageBackend backend = GetBackend(ns);
 			await backend.DeleteAsync(blobIdentifier.AsS3Key());
@@ -256,7 +256,7 @@ namespace Jupiter.Implementation
 
 			if (_settings.CurrentValue.UseMultiPartUpload)
 			{
-				await WriteMultipart(path, stream, cancellationToken);
+				await WriteMultipartAsync(path, stream, cancellationToken);
 			}
 			else
 			{
@@ -289,7 +289,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		private async Task WriteMultipart(string path, Stream stream, CancellationToken cancellationToken)
+		private async Task WriteMultipartAsync(string path, Stream stream, CancellationToken cancellationToken)
 		{
 			FilesystemBufferedPayload? payload = null;
 			try

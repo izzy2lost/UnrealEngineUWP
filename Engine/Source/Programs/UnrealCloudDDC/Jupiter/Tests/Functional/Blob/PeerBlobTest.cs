@@ -42,7 +42,7 @@ namespace Jupiter.FunctionalTests.Storage
         private Mock<HttpMessageHandler>? _otherPeerMock;
 
         [TestInitialize]
-        public async Task Setup()
+        public async Task SetupAsync()
         {
             IConfigurationRoot configuration = new ConfigurationBuilder()
                 // we are not reading the base appSettings here as we want exact control over what runs in the tests
@@ -87,13 +87,13 @@ namespace Jupiter.FunctionalTests.Storage
             Server = server;
 
             // Seed storage
-            await Seed(Server.Services);
+            await SeedAsync(Server.Services);
         }
 
         [TestCleanup]
-        public async Task MyTeardown()
+        public async Task MyTeardownAsync()
         {
-            await Teardown(Server!.Services);
+            await TeardownAsync(Server!.Services);
         }
         protected IEnumerable<KeyValuePair<string, string>> GetSettings()
         {
@@ -106,7 +106,7 @@ namespace Jupiter.FunctionalTests.Storage
             };
         }
 
-        protected async Task Seed(IServiceProvider provider)
+        protected async Task SeedAsync(IServiceProvider provider)
         {
             string S3BucketName = $"tests-{TestNamespaceName}";
 
@@ -115,11 +115,11 @@ namespace Jupiter.FunctionalTests.Storage
             if (await _s3!.DoesS3BucketExistAsync(S3BucketName))
             {
                 // if we have failed to run the cleanup for some reason we run it now
-                await Teardown(provider);
+                await TeardownAsync(provider);
             }
         }
 
-        protected async Task Teardown(IServiceProvider provider)
+        protected async Task TeardownAsync(IServiceProvider provider)
         {
             _s3 = provider.GetService<IAmazonS3>();
             Assert.IsNotNull(_s3);
@@ -133,7 +133,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task ForceFetchBlobFromS3()
+        public async Task ForceFetchBlobFromS3Async()
         {
             byte[] s3ContentBytes = Encoding.ASCII.GetBytes(S3FileContent);
             using ByteArrayContent requestContent = new ByteArrayContent(s3ContentBytes);
@@ -155,7 +155,7 @@ namespace Jupiter.FunctionalTests.Storage
 
         
         [TestMethod]
-        public async Task ForceFetchBlobFromNoneExistentLayer()
+        public async Task ForceFetchBlobFromNoneExistentLayerAsync()
         {
             byte[] s3ContentBytes = Encoding.ASCII.GetBytes(S3FileContent);
             using ByteArrayContent requestContent = new ByteArrayContent(s3ContentBytes);
@@ -172,7 +172,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task FetchBlobFromOtherInstance()
+        public async Task FetchBlobFromOtherInstanceAsync()
         {
             byte[] payload = Encoding.ASCII.GetBytes(OtherPeerContent);
             using ByteArrayContent requestContent = new ByteArrayContent(payload);

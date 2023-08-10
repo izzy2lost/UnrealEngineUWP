@@ -9,19 +9,19 @@ namespace Jupiter.Implementation.Blob
 
 	public interface IBlobIndex
 	{
-		Task AddBlobToIndex(NamespaceId ns, BlobId id, string? region = null);
+		Task AddBlobToIndexAsync(NamespaceId ns, BlobId id, string? region = null);
 
-		Task RemoveBlobFromRegion(NamespaceId ns, BlobId id, string? region = null);
+		Task RemoveBlobFromRegionAsync(NamespaceId ns, BlobId id, string? region = null);
 
-		Task<bool> BlobExistsInRegion(NamespaceId ns, BlobId blobIdentifier, string? region = null);
-		IAsyncEnumerable<(NamespaceId, BlobId)> GetAllBlobs();
+		Task<bool> BlobExistsInRegionAsync(NamespaceId ns, BlobId blobIdentifier, string? region = null);
+		IAsyncEnumerable<(NamespaceId, BlobId)> GetAllBlobsAsync();
 
-		IAsyncEnumerable<BaseBlobReference> GetBlobReferences(NamespaceId ns, BlobId id);
-		Task AddRefToBlobs(NamespaceId ns, BucketId bucket, RefId key, BlobId[] blobs);
+		IAsyncEnumerable<BaseBlobReference> GetBlobReferencesAsync(NamespaceId ns, BlobId id);
+		Task AddRefToBlobsAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId[] blobs);
 
-		Task RemoveReferences(NamespaceId ns, BlobId id, List<BaseBlobReference> referencesToRemove);
-		Task<List<string>> GetBlobRegions(NamespaceId ns, BlobId blob);
-		Task AddBlobReferences(NamespaceId ns, BlobId sourceBlob, BlobId targetBlob);
+		Task RemoveReferencesAsync(NamespaceId ns, BlobId id, List<BaseBlobReference> referencesToRemove);
+		Task<List<string>> GetBlobRegionsAsync(NamespaceId ns, BlobId blob);
+		Task AddBlobReferencesAsync(NamespaceId ns, BlobId sourceBlob, BlobId targetBlob);
 	}
 
 	public abstract class BaseBlobReference

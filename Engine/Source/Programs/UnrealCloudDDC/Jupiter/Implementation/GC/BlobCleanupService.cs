@@ -58,7 +58,7 @@ namespace Jupiter.Implementation
 			State.BlobCleanups.Add(cleanup);
 		}
 
-		public override async Task<bool> OnPoll(BlobCleanupState state, CancellationToken cancellationToken)
+		public override async Task<bool> OnPollAsync(BlobCleanupState state, CancellationToken cancellationToken)
 		{
 			if (_alreadyPolling)
 			{
@@ -68,7 +68,7 @@ namespace Jupiter.Implementation
 			_alreadyPolling = true;
 			try
 			{
-				await Cleanup(state, cancellationToken);
+				await CleanupAsync(state, cancellationToken);
 				return true;
 			}
 			finally
@@ -77,7 +77,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task Cleanup(BlobCleanupState state, CancellationToken cancellationToken)
+		public async Task CleanupAsync(BlobCleanupState state, CancellationToken cancellationToken)
 		{
 			foreach (IBlobCleanup blobCleanup in state.BlobCleanups)
 			{

@@ -88,7 +88,7 @@ namespace Jupiter.Implementation
 				// only consider blobs that have been around for 60 minutes
 				// this due to cases were blobs are uploaded first
 				DateTime cutoff = DateTime.Now.AddMinutes(-60);
-				await Parallel.ForEachAsync(_blobService.ListObjects(@namespace),
+				await Parallel.ForEachAsync(_blobService.ListObjectsAsync(@namespace),
 					new ParallelOptions { MaxDegreeOfParallelism = _gcSettings.CurrentValue.OrphanGCMaxParallelOperations, CancellationToken = cancellationToken },
 					async (tuple, ctx) =>
 					{
@@ -142,7 +142,7 @@ namespace Jupiter.Implementation
 					break;
 				}
 
-				IAsyncEnumerable<BaseBlobReference> references = _blobIndex.GetBlobReferences(blobNamespace, blob);
+				IAsyncEnumerable<BaseBlobReference> references = _blobIndex.GetBlobReferencesAsync(blobNamespace, blob);
 
 				List<BaseBlobReference> oldReferences = new List<BaseBlobReference>();
 
@@ -173,7 +173,7 @@ namespace Jupiter.Implementation
 					else if (baseBlobReference is BlobToBlobReference blobReference)
 					{
 						BlobId referringBlob = blobReference.Blob;
-						bool blobFound = await _blobService.Exists(blobNamespace, referringBlob);
+						bool blobFound = await _blobService.ExistsAsync(blobNamespace, referringBlob);
 						if (blobFound)
 						{
 							found = true;
@@ -193,7 +193,7 @@ namespace Jupiter.Implementation
 				if (found)
 				{
 					// if the object is still alive but had old references we remove the old references to keep the size of the references array more reasonable
-					await _blobIndex.RemoveReferences(blobNamespace, blob, oldReferences);
+					await _blobIndex.RemoveReferencesAsync(blobNamespace, blob, oldReferences);
 				}
 			}
 
@@ -228,7 +228,7 @@ namespace Jupiter.Implementation
 		{
 			try
 			{
-				await _blobService.DeleteObject(ns, blob);
+				await _blobService.DeleteObjectAsync(ns, blob);
 			}
 			catch (BlobNotFoundException)
 			{

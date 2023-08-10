@@ -16,19 +16,19 @@ namespace Jupiter.Implementation;
 
 public interface IBlobService
 {
-	Task<ContentHash> VerifyContentMatchesHash(Stream content, ContentHash identifier);
-	Task<BlobId> PutObjectKnownHash(NamespaceId ns, IBufferedPayload content, BlobId identifier);
-	Task<BlobId> PutObject(NamespaceId ns, IBufferedPayload payload, BlobId identifier);
-	Task<BlobId> PutObject(NamespaceId ns, byte[] payload, BlobId identifier);
-	Task<Uri?> MaybePutObjectWithRedirect(NamespaceId ns, BlobId identifier);
+	Task<ContentHash> VerifyContentMatchesHashAsync(Stream content, ContentHash identifier);
+	Task<BlobId> PutObjectKnownHashAsync(NamespaceId ns, IBufferedPayload content, BlobId identifier);
+	Task<BlobId> PutObjectAsync(NamespaceId ns, IBufferedPayload payload, BlobId identifier);
+	Task<BlobId> PutObjectAsync(NamespaceId ns, byte[] payload, BlobId identifier);
+	Task<Uri?> MaybePutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier);
 
-	Task<BlobContents> GetObject(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false);
+	Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false);
 	
-	Task<Uri?> GetObjectWithRedirect(NamespaceId ns, BlobId blobIdentifier, List<string>? storageLayers = null);
+	Task<Uri?> GetObjectWithRedirectAsync(NamespaceId ns, BlobId blobIdentifier, List<string>? storageLayers = null);
 
-	Task<BlobContents> ReplicateObject(NamespaceId ns, BlobId blob, bool force = false);
+	Task<BlobContents> ReplicateObjectAsync(NamespaceId ns, BlobId blob, bool force = false);
 
-	Task<bool> Exists(NamespaceId ns, BlobId blob, List<string>? storageLayers = null);
+	Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null);
 
 	/// <summary>
 	/// Checks that the blob exists in the root store, the store which is last in the list and thus is intended to have every blob in it
@@ -36,25 +36,25 @@ public interface IBlobService
 	/// <param name="ns">The namespace</param>
 	/// <param name="blob">The identifier of the blob</param>
 	/// <returns></returns>
-	Task<bool> ExistsInRootStore(NamespaceId ns, BlobId blob);
+	Task<bool> ExistsInRootStoreAsync(NamespaceId ns, BlobId blob);
 
 	// Delete a object
-	Task DeleteObject(NamespaceId ns, BlobId blob);
+	Task DeleteObjectAsync(NamespaceId ns, BlobId blob);
 
 	// delete the whole namespace
-	Task DeleteNamespace(NamespaceId ns);
+	Task DeleteNamespaceAsync(NamespaceId ns);
 
-	IAsyncEnumerable<(BlobId,DateTime)> ListObjects(NamespaceId ns);
-	Task<BlobId[]> FilterOutKnownBlobs(NamespaceId ns, IEnumerable<BlobId> blobs);
-	Task<BlobId[]> FilterOutKnownBlobs(NamespaceId ns, IAsyncEnumerable<BlobId> blobs);
-	Task<BlobContents> GetObjects(NamespaceId ns, BlobId[] refRequestBlobReferences);
+	IAsyncEnumerable<(BlobId,DateTime)> ListObjectsAsync(NamespaceId ns);
+	Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IEnumerable<BlobId> blobs);
+	Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IAsyncEnumerable<BlobId> blobs);
+	Task<BlobContents> GetObjectsAsync(NamespaceId ns, BlobId[] refRequestBlobReferences);
 
 	bool ShouldFetchBlobOnDemand(NamespaceId ns);
 }
 
 public static class BlobServiceExtensions
 {
-	public static async Task<ContentId> PutCompressedObject(this IBlobService blobService, NamespaceId ns, IBufferedPayload payload, ContentId? id, IServiceProvider provider)
+	public static async Task<ContentId> PutCompressedObjectAsync(this IBlobService blobService, NamespaceId ns, IBufferedPayload payload, ContentId? id, IServiceProvider provider)
 	{
 		IContentIdStore contentIdStore = provider.GetService<IContentIdStore>()!;
 		CompressedBufferUtils compressedBufferUtils = provider.GetService<CompressedBufferUtils>()!;
@@ -63,20 +63,20 @@ public static class BlobServiceExtensions
 		// decompress the content and generate a identifier from it to verify the identifier we got
 		await using Stream decompressStream = payload.GetStream();
 
-		using IBufferedPayload bufferedPayload = await compressedBufferUtils.DecompressContent(decompressStream, (ulong)payload.Length);
+		using IBufferedPayload bufferedPayload = await compressedBufferUtils.DecompressContentAsync(decompressStream, (ulong)payload.Length);
 		await using Stream decompressedStream = bufferedPayload.GetStream();
 
 		ContentId identifierDecompressedPayload;
 		if (id != null)
 		{
-			identifierDecompressedPayload = ContentId.FromContentHash(await blobService.VerifyContentMatchesHash(decompressedStream, id));
+			identifierDecompressedPayload = ContentId.FromContentHash(await blobService.VerifyContentMatchesHashAsync(decompressedStream, id));
 		}
 		else
 		{
 			ContentHash blobHash;
 			{
 				using TelemetrySpan _ = tracer.StartActiveSpan("web.hash").SetAttribute("operation.name", "web.hash");
-				blobHash = await BlobId.FromStream(decompressedStream);
+				blobHash = await BlobId.FromStreamAsync(decompressedStream);
 			}
 
 			identifierDecompressedPayload = ContentId.FromContentHash(blobHash);
@@ -86,7 +86,7 @@ public static class BlobServiceExtensions
 		{
 			using TelemetrySpan _ = tracer.StartActiveSpan("web.hash").SetAttribute("operation.name", "web.hash");
 			await using Stream hashStream = payload.GetStream();
-			identifierCompressedPayload = await BlobId.FromStream(hashStream);
+			identifierCompressedPayload = await BlobId.FromStreamAsync(hashStream);
 		}
 
 		// commit the mapping from the decompressed hash to the compressed hash, we run this in parallel with the blob store submit
@@ -96,7 +96,7 @@ public static class BlobServiceExtensions
 
 		// we still commit the compressed buffer to the object store using the hash of the compressed content
 		{
-			await blobService.PutObjectKnownHash(ns, payload, identifierCompressedPayload);
+			await blobService.PutObjectKnownHashAsync(ns, payload, identifierCompressedPayload);
 		}
 
 		await contentIdStoreTask;
@@ -104,7 +104,7 @@ public static class BlobServiceExtensions
 		return identifierDecompressedPayload;
 	}
 
-	public static async Task<(BlobContents, string)> GetCompressedObject(this IBlobService blobService, NamespaceId ns, ContentId contentId, IServiceProvider provider, bool supportsRedirectUri = false)
+	public static async Task<(BlobContents, string)> GetCompressedObjectAsync(this IBlobService blobService, NamespaceId ns, ContentId contentId, IServiceProvider provider, bool supportsRedirectUri = false)
 	{
 		IContentIdStore contentIdStore = provider.GetService<IContentIdStore>()!;
 		Tracer tracer = provider.GetService<Tracer>()!;
@@ -126,7 +126,7 @@ public static class BlobServiceExtensions
 				mimeType = MediaTypeNames.Application.Octet;
 			}
 
-			return (await blobService.GetObject(ns, blobToReturn, supportsRedirectUri: supportsRedirectUri), mimeType);
+			return (await blobService.GetObjectAsync(ns, blobToReturn, supportsRedirectUri: supportsRedirectUri), mimeType);
 		}
 
 		// chunked content, combine the chunks into a single stream
@@ -135,7 +135,7 @@ public static class BlobServiceExtensions
 		for (int i = 0; i < chunks.Length; i++)
 		{
 			// even if it was requested to support redirect, since we need to combine the chunks using redirects is not possible
-			tasks[i] = blobService.GetObject(ns, chunks[i], supportsRedirectUri: false);
+			tasks[i] = blobService.GetObjectAsync(ns, chunks[i], supportsRedirectUri: false);
 		}
 
 		MemoryStream ms = new MemoryStream();

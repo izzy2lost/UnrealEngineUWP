@@ -41,7 +41,7 @@ namespace Jupiter.Implementation
 			_logger = logger;
 		}
 
-		public override async Task<bool> OnPoll(SnapshotState state, CancellationToken cancellationToken)
+		public override async Task<bool> OnPollAsync(SnapshotState state, CancellationToken cancellationToken)
 		{
 			if (!_settings.CurrentValue.Enabled)
 			{
@@ -75,7 +75,7 @@ namespace Jupiter.Implementation
 					try
 					{
 						_logger.LogInformation("Building snapshot for {Namespace}", ns);
-						BlobId snapshotBlob = await builder.BuildSnapshot(ns, _settings.CurrentValue.SnapshotStorageNamespace, _cancellationTokenSource.Token);
+						BlobId snapshotBlob = await builder.BuildSnapshotAsync(ns, _settings.CurrentValue.SnapshotStorageNamespace, _cancellationTokenSource.Token);
 						_logger.LogInformation("Snapshot built for {Namespace} with id {Id}", ns, snapshotBlob);
 
 					}

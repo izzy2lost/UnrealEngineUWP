@@ -85,13 +85,13 @@ namespace Jupiter.FunctionalTests.GC
 
             MemoryBlobStore memoryBlobStore = (MemoryBlobStore) ((BlobService)_blobService).BlobStore.First();
             byte[] emptyContents = Array.Empty<byte>();
-            await memoryBlobStore.PutObject(TestNamespace, emptyContents, object0id);
-            await memoryBlobStore.PutObject(TestNamespace, emptyContents, object1id);// this is not in the index
-            await memoryBlobStore.PutObject(TestNamespace, emptyContents, object2id);
-            await memoryBlobStore.PutObject(TestNamespace, emptyContents, object3id);
-            await memoryBlobStore.PutObject(TestNamespace, emptyContents, object4id); // this is not in the index
-            await memoryBlobStore.PutObject(TestNamespace, emptyContents, object5id); // this is not in the index
-            await memoryBlobStore.PutObject(TestNamespace, emptyContents, object6id);
+            await memoryBlobStore.PutObjectAsync(TestNamespace, emptyContents, object0id);
+            await memoryBlobStore.PutObjectAsync(TestNamespace, emptyContents, object1id);// this is not in the index
+            await memoryBlobStore.PutObjectAsync(TestNamespace, emptyContents, object2id);
+            await memoryBlobStore.PutObjectAsync(TestNamespace, emptyContents, object3id);
+            await memoryBlobStore.PutObjectAsync(TestNamespace, emptyContents, object4id); // this is not in the index
+            await memoryBlobStore.PutObjectAsync(TestNamespace, emptyContents, object5id); // this is not in the index
+            await memoryBlobStore.PutObjectAsync(TestNamespace, emptyContents, object6id);
 
             // set all objects to be old, only the orphaned blobs should be deleted
             memoryBlobStore.SetLastModifiedTime(TestNamespace, object0id, DateTime.Now.AddDays(-2));
@@ -125,14 +125,14 @@ namespace Jupiter.FunctionalTests.GC
 
             IBlobIndex? blobIndex = server.Services.GetService<IBlobIndex>()!;
             Assert.IsNotNull(blobIndex);
-            await blobIndex.AddBlobToIndex(TestNamespace, object0id);
-            await blobIndex.AddRefToBlobs(TestNamespace, testBucket, RefId.FromName("object0"), new [] {object0id });
-            await blobIndex.AddBlobToIndex(TestNamespace, object2id);
-            await blobIndex.AddRefToBlobs(TestNamespace, testBucket, RefId.FromName("object2"), new [] {object2id });
-            await blobIndex.AddBlobToIndex(TestNamespace, object3id);
-            await blobIndex.AddRefToBlobs(TestNamespace, testBucket, RefId.FromName("object3"), new [] {object3id });
-            await blobIndex.AddBlobToIndex(TestNamespace, object6id);
-            await blobIndex.AddRefToBlobs(TestNamespace, testBucket, RefId.FromName("object6"), new [] {object6id });
+            await blobIndex.AddBlobToIndexAsync(TestNamespace, object0id);
+            await blobIndex.AddRefToBlobsAsync(TestNamespace, testBucket, RefId.FromName("object0"), new [] {object0id });
+            await blobIndex.AddBlobToIndexAsync(TestNamespace, object2id);
+            await blobIndex.AddRefToBlobsAsync(TestNamespace, testBucket, RefId.FromName("object2"), new [] {object2id });
+            await blobIndex.AddBlobToIndexAsync(TestNamespace, object3id);
+            await blobIndex.AddRefToBlobsAsync(TestNamespace, testBucket, RefId.FromName("object3"), new [] {object3id });
+            await blobIndex.AddBlobToIndexAsync(TestNamespace, object6id);
+            await blobIndex.AddRefToBlobsAsync(TestNamespace, testBucket, RefId.FromName("object6"), new [] {object6id });
         }
 
         protected abstract string GetImplementation();
@@ -160,12 +160,12 @@ namespace Jupiter.FunctionalTests.GC
 
             foreach (BlobId blob in new BlobId[] {object1id, object4id, object5id})
             {
-                Assert.IsFalse(await _blobService!.Exists(TestNamespace, blob));
+                Assert.IsFalse(await _blobService!.ExistsAsync(TestNamespace, blob));
             }
 
             foreach (BlobId blob in new BlobId[] {object2id, object3id, object6id})
             {
-                Assert.IsTrue(await _blobService!.Exists(TestNamespace, blob));
+                Assert.IsTrue(await _blobService!.ExistsAsync(TestNamespace, blob));
             }
         }
     }

@@ -52,7 +52,7 @@ namespace Jupiter.UnitTests
         }
 
         [TestInitialize]
-        public async Task Setup()
+        public async Task SetupAsync()
         {
             Mock<IServiceProvider> serviceProviderMock = new Mock<IServiceProvider>();
             MemoryBlobStore blobStore =  new MemoryBlobStore();
@@ -68,38 +68,38 @@ namespace Jupiter.UnitTests
             _chained = new BlobService(serviceProviderMock.Object, settingsMonitor, Mock.Of<IBlobIndex>(), Mock.Of<IPeerStatusService>(), Mock.Of<IHttpClientFactory>(), Mock.Of<IServiceCredentials>(), mockPolicyResolver.Object, Mock.Of<IHttpContextAccessor>(), null, tracer, bufferedPayloadFactory, NullLogger<BlobService>.Instance, null);
             _chained.BlobStore = new List<IBlobStore> { _first, _second, _third };
 
-            await _first.PutObject(Ns, Encoding.ASCII.GetBytes("onlyFirstContent"), _onlyFirstId);
-            await _second.PutObject(Ns, Encoding.ASCII.GetBytes("onlySecondContent"), _onlySecondId);
-            await _third.PutObject(Ns, Encoding.ASCII.GetBytes("onlyThirdContent"), _onlyThirdId);
+            await _first.PutObjectAsync(Ns, Encoding.ASCII.GetBytes("onlyFirstContent"), _onlyFirstId);
+            await _second.PutObjectAsync(Ns, Encoding.ASCII.GetBytes("onlySecondContent"), _onlySecondId);
+            await _third.PutObjectAsync(Ns, Encoding.ASCII.GetBytes("onlyThirdContent"), _onlyThirdId);
             
-            await _first.PutObject(Ns, Encoding.ASCII.GetBytes("allContent"), _allId);
-            await _second.PutObject(Ns, Encoding.ASCII.GetBytes("allContent"), _allId);
-            await _third.PutObject(Ns, Encoding.ASCII.GetBytes("allContent"), _allId);
-            await _first.PutObject(NsOnlyFirst, Encoding.ASCII.GetBytes("onlyFirstUniqueNs"), _onlyFirstUniqueNsId);
-            await _second.PutObject(NsOnlySecond, Encoding.ASCII.GetBytes("onlySecondUniqueNs"), _onlySecondUniqueNsId);
+            await _first.PutObjectAsync(Ns, Encoding.ASCII.GetBytes("allContent"), _allId);
+            await _second.PutObjectAsync(Ns, Encoding.ASCII.GetBytes("allContent"), _allId);
+            await _third.PutObjectAsync(Ns, Encoding.ASCII.GetBytes("allContent"), _allId);
+            await _first.PutObjectAsync(NsOnlyFirst, Encoding.ASCII.GetBytes("onlyFirstUniqueNs"), _onlyFirstUniqueNsId);
+            await _second.PutObjectAsync(NsOnlySecond, Encoding.ASCII.GetBytes("onlySecondUniqueNs"), _onlySecondUniqueNsId);
         }
         
         [TestMethod]
-        public async Task PutObject()
+        public async Task PutObjectAsync()
         {
             BlobId new1 = new BlobId("A418A2821A76B110092C9745151E112253F7999B");
-            Assert.IsFalse(await _chained.Exists(Ns, new1));
-            await _chained.PutObject(Ns, Encoding.ASCII.GetBytes("new1"), new1);
-            Assert.IsTrue(await _chained.Exists(Ns, new1));
-            Assert.IsTrue(await _first.Exists(Ns, new1));
-            Assert.IsTrue(await _second.Exists(Ns, new1));
+            Assert.IsFalse(await _chained.ExistsAsync(Ns, new1));
+            await _chained.PutObjectAsync(Ns, Encoding.ASCII.GetBytes("new1"), new1);
+            Assert.IsTrue(await _chained.ExistsAsync(Ns, new1));
+            Assert.IsTrue(await _first.ExistsAsync(Ns, new1));
+            Assert.IsTrue(await _second.ExistsAsync(Ns, new1));
         }
         
         [TestMethod]
-        public async Task GetObject()
+        public async Task GetObjectAsync()
         {
-            Assert.AreEqual("onlyFirstContent", BlobToString(await _chained.GetObject(Ns, _onlyFirstId)));
-            Assert.AreEqual("onlySecondContent", BlobToString(await _chained.GetObject(Ns, _onlySecondId)));
-            Assert.AreEqual("onlyFirstUniqueNs", BlobToString(await _chained.GetObject(NsOnlyFirst, _onlyFirstUniqueNsId)));
-            Assert.AreEqual("onlySecondUniqueNs", BlobToString(await _chained.GetObject(NsOnlySecond, _onlySecondUniqueNsId)));
-            Assert.AreEqual("allContent", BlobToString(await _chained.GetObject(Ns, _allId)));
-            await Assert.ThrowsExceptionAsync<BlobNotFoundException>(() => _chained.GetObject(Ns, _nonExisting));
-            await Assert.ThrowsExceptionAsync<BlobNotFoundException>(() => _chained.GetObject(new NamespaceId("non-existing-ns"), _nonExisting));
+            Assert.AreEqual("onlyFirstContent", BlobToString(await _chained.GetObjectAsync(Ns, _onlyFirstId)));
+            Assert.AreEqual("onlySecondContent", BlobToString(await _chained.GetObjectAsync(Ns, _onlySecondId)));
+            Assert.AreEqual("onlyFirstUniqueNs", BlobToString(await _chained.GetObjectAsync(NsOnlyFirst, _onlyFirstUniqueNsId)));
+            Assert.AreEqual("onlySecondUniqueNs", BlobToString(await _chained.GetObjectAsync(NsOnlySecond, _onlySecondUniqueNsId)));
+            Assert.AreEqual("allContent", BlobToString(await _chained.GetObjectAsync(Ns, _allId)));
+            await Assert.ThrowsExceptionAsync<BlobNotFoundException>(() => _chained.GetObjectAsync(Ns, _nonExisting));
+            await Assert.ThrowsExceptionAsync<BlobNotFoundException>(() => _chained.GetObjectAsync(new NamespaceId("non-existing-ns"), _nonExisting));
 
             // verify that the objects have propagated
             Assert.AreEqual(3, _first.GetIdentifiers(Ns).Count());
@@ -108,61 +108,61 @@ namespace Jupiter.UnitTests
         }
         
         [TestMethod]
-        public async Task PopulateHierarchy()
+        public async Task PopulateHierarchyAsync()
         {
-            Assert.IsFalse(await _first.Exists(Ns, _onlyThirdId));
-            Assert.IsFalse(await _second.Exists(Ns, _onlyThirdId));
-            Assert.IsTrue(await _third.Exists(Ns, _onlyThirdId));
+            Assert.IsFalse(await _first.ExistsAsync(Ns, _onlyThirdId));
+            Assert.IsFalse(await _second.ExistsAsync(Ns, _onlyThirdId));
+            Assert.IsTrue(await _third.ExistsAsync(Ns, _onlyThirdId));
             
             // Should populate 'first' and 'second' as they are higher up in the hierarchy
-            Assert.AreEqual("onlyThirdContent", BlobToString(await _chained.GetObject(Ns, _onlyThirdId)));
+            Assert.AreEqual("onlyThirdContent", BlobToString(await _chained.GetObjectAsync(Ns, _onlyThirdId)));
             
-            Assert.AreEqual("onlyThirdContent", BlobToString(await _first.GetObject(Ns, _onlyThirdId)));
-            Assert.AreEqual("onlyThirdContent", BlobToString(await _second.GetObject(Ns, _onlyThirdId)));
-            Assert.AreEqual("onlyThirdContent", BlobToString(await _third.GetObject(Ns, _onlyThirdId)));
+            Assert.AreEqual("onlyThirdContent", BlobToString(await _first.GetObjectAsync(Ns, _onlyThirdId)));
+            Assert.AreEqual("onlyThirdContent", BlobToString(await _second.GetObjectAsync(Ns, _onlyThirdId)));
+            Assert.AreEqual("onlyThirdContent", BlobToString(await _third.GetObjectAsync(Ns, _onlyThirdId)));
         }
         
         [TestMethod]
-        public async Task Exists()
+        public async Task ExistsAsync()
         {
-            Assert.IsTrue(await _chained.Exists(Ns, _onlyFirstId));
-            Assert.IsTrue(await _chained.Exists(Ns, _onlySecondId));
-            Assert.IsTrue(await _chained.Exists(Ns, _allId));
-            Assert.IsFalse(await _chained.Exists(Ns, _nonExisting));
+            Assert.IsTrue(await _chained.ExistsAsync(Ns, _onlyFirstId));
+            Assert.IsTrue(await _chained.ExistsAsync(Ns, _onlySecondId));
+            Assert.IsTrue(await _chained.ExistsAsync(Ns, _allId));
+            Assert.IsFalse(await _chained.ExistsAsync(Ns, _nonExisting));
         }
         
         [TestMethod]
-        public async Task DeleteObject()
+        public async Task DeleteObjectAsync()
         {
-            Assert.IsFalse(await _chained.Exists(NsnonExistingNs, _nonExisting));
-            Assert.IsFalse(await _chained.Exists(NsOnlyFirst, _nonExisting));
-            Assert.IsFalse(await _chained.Exists(NsOnlySecond, _nonExisting));
+            Assert.IsFalse(await _chained.ExistsAsync(NsnonExistingNs, _nonExisting));
+            Assert.IsFalse(await _chained.ExistsAsync(NsOnlyFirst, _nonExisting));
+            Assert.IsFalse(await _chained.ExistsAsync(NsOnlySecond, _nonExisting));
             
-            Assert.IsTrue(await _first.Exists(Ns, _onlyFirstId));
-            await _chained.DeleteObject(Ns, _onlyFirstId);
-            Assert.IsFalse(await _first.Exists(Ns, _onlyFirstId));
+            Assert.IsTrue(await _first.ExistsAsync(Ns, _onlyFirstId));
+            await _chained.DeleteObjectAsync(Ns, _onlyFirstId);
+            Assert.IsFalse(await _first.ExistsAsync(Ns, _onlyFirstId));
             
-            Assert.IsTrue(await _second.Exists(NsOnlySecond, _onlySecondUniqueNsId));
-            await _chained.DeleteObject(NsOnlySecond, _onlySecondUniqueNsId);
-            Assert.IsFalse(await _second.Exists(NsOnlySecond, _onlySecondUniqueNsId));
+            Assert.IsTrue(await _second.ExistsAsync(NsOnlySecond, _onlySecondUniqueNsId));
+            await _chained.DeleteObjectAsync(NsOnlySecond, _onlySecondUniqueNsId);
+            Assert.IsFalse(await _second.ExistsAsync(NsOnlySecond, _onlySecondUniqueNsId));
             
-            Assert.IsTrue(await _first.Exists(Ns, _allId));
-            Assert.IsTrue(await _second.Exists(Ns, _allId));
-            await _chained.DeleteObject(Ns, _allId);
-            Assert.IsFalse(await _first.Exists(Ns, _allId));
-            Assert.IsFalse(await _second.Exists(Ns, _allId));
+            Assert.IsTrue(await _first.ExistsAsync(Ns, _allId));
+            Assert.IsTrue(await _second.ExistsAsync(Ns, _allId));
+            await _chained.DeleteObjectAsync(Ns, _allId);
+            Assert.IsFalse(await _first.ExistsAsync(Ns, _allId));
+            Assert.IsFalse(await _second.ExistsAsync(Ns, _allId));
         }
         
         [TestMethod]
-        public async Task DeleteNamespace()
+        public async Task DeleteNamespaceAsync()
         {
-            await Assert.ThrowsExceptionAsync<NamespaceNotFoundException>(() => _chained.DeleteNamespace(NsnonExistingNs));
+            await Assert.ThrowsExceptionAsync<NamespaceNotFoundException>(() => _chained.DeleteNamespaceAsync(NsnonExistingNs));
 
-            Assert.IsTrue(await _first.Exists(Ns, _allId));
-            Assert.IsTrue(await _second.Exists(Ns, _allId));
-            await _chained.DeleteNamespace(Ns);
-            await Assert.ThrowsExceptionAsync<NamespaceNotFoundException>(() => _first.DeleteNamespace(Ns));
-            await Assert.ThrowsExceptionAsync<NamespaceNotFoundException>(() => _second.DeleteNamespace(Ns));
+            Assert.IsTrue(await _first.ExistsAsync(Ns, _allId));
+            Assert.IsTrue(await _second.ExistsAsync(Ns, _allId));
+            await _chained.DeleteNamespaceAsync(Ns);
+            await Assert.ThrowsExceptionAsync<NamespaceNotFoundException>(() => _first.DeleteNamespaceAsync(Ns));
+            await Assert.ThrowsExceptionAsync<NamespaceNotFoundException>(() => _second.DeleteNamespaceAsync(Ns));
         }
 
         private static string BlobToString(BlobContents contents)

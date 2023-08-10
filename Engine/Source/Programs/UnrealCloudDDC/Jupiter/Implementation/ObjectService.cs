@@ -100,7 +100,7 @@ namespace Jupiter.Implementation
 				{
 					using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope("blob.get", "Downloading blob from store");
 
-					blobContents = await _blobService.GetObject(ns, o.BlobIdentifier);
+					blobContents = await _blobService.GetObjectAsync(ns, o.BlobIdentifier);
 				}
 			}
 
@@ -119,11 +119,11 @@ namespace Jupiter.Implementation
 
 			Task objectStorePut = _referencesStore.Put(ns, bucket, key, blobHash, payload.GetView().ToArray(), isFinalized);
 
-			Task<BlobId> blobStorePut = _blobService.PutObject(ns, payload.GetView().ToArray(), blobHash);
+			Task<BlobId> blobStorePut = _blobService.PutObjectAsync(ns, payload.GetView().ToArray(), blobHash);
 			
 			await Task.WhenAll(objectStorePut, blobStorePut);
 
-			return await DoFinalize(ns, bucket, key, blobHash, payload);
+			return await DoFinalizeAsync(ns, bucket, key, blobHash, payload);
 		}
 
 		private bool HasAttachments(CbObject payload)
@@ -165,7 +165,7 @@ namespace Jupiter.Implementation
 				throw new InvalidOperationException("No blob when attempting to finalize");
 			}
 
-			byte[] blobContents = await blob.Stream.ToByteArray();
+			byte[] blobContents = await blob.Stream.ToByteArrayAsync();
 			CbObject payload = new CbObject(blobContents);
 
 			if (!o.BlobIdentifier.Equals(blobHash))
@@ -173,16 +173,16 @@ namespace Jupiter.Implementation
 				throw new ObjectHashMismatchException(ns, bucket, key, blobHash, o.BlobIdentifier);
 			}
 
-			return await DoFinalize(ns, bucket, key, blobHash, payload);
+			return await DoFinalizeAsync(ns, bucket, key, blobHash, payload);
 		}
 
 		
-		private async Task<(ContentId[], BlobId[])> DoFinalize(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload)
+		private async Task<(ContentId[], BlobId[])> DoFinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload)
 		{
 			IServerTiming? serverTiming = _httpContextAccessor.HttpContext?.RequestServices.GetService<IServerTiming>();
 			using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope("ref.finalize", "Finalizing the ref");
 
-			Task addRefToBlobsTask = _blobIndex.AddRefToBlobs(ns, bucket, key, new [] {blobHash});
+			Task addRefToBlobsTask = _blobIndex.AddRefToBlobsAsync(ns, bucket, key, new [] {blobHash});
 
 			ContentId[] missingReferences = Array.Empty<ContentId>();
 			BlobId[] missingBlobs = Array.Empty<BlobId>();
@@ -195,7 +195,7 @@ namespace Jupiter.Implementation
 					IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobs(ns, payload);
 					BlobId[] referencesArray = await references.ToArrayAsync();
 					// TODO: Blobs could be added to the blob index as we find them in the async enumerable
-					await _blobIndex.AddRefToBlobs(ns, bucket, key, referencesArray);
+					await _blobIndex.AddRefToBlobsAsync(ns, bucket, key, referencesArray);
 				}
 				catch (PartialReferenceResolveException e)
 				{
@@ -278,8 +278,8 @@ namespace Jupiter.Implementation
 			}
 			else
 			{
-				BlobContents blobContents = await _blobService.GetObject(ns, o.BlobIdentifier);
-				blob = await blobContents.Stream.ToByteArray();
+				BlobContents blobContents = await _blobService.GetObjectAsync(ns, o.BlobIdentifier);
+				blob = await blobContents.Stream.ToByteArrayAsync();
 			}
 
 			CbObject cbObject = new CbObject(blob);

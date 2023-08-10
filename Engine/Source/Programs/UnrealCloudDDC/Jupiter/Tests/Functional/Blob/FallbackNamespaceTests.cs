@@ -32,7 +32,7 @@ namespace Jupiter.FunctionalTests.Storage
         protected BlobId FileHash { get; } = BlobId.FromBlob(FileContentsBytes);
 
         [TestInitialize]
-        public async Task Setup()
+        public async Task SetupAsync()
 
         {
             IConfigurationRoot configuration = new ConfigurationBuilder()
@@ -54,18 +54,18 @@ namespace Jupiter.FunctionalTests.Storage
             _server = server;
             _httpClient = server.CreateClient();
 
-            await SeedDb(server.Services);
+            await SeedDbAsync(server.Services);
         }
 
-        private async Task SeedDb(IServiceProvider provider)
+        private async Task SeedDbAsync(IServiceProvider provider)
         {
             IBlobService blobStore = provider.GetService<IBlobService>()!;
 
-            await blobStore.PutObject(FallbackNamespace, FileContentsBytes, FileHash);
+            await blobStore.PutObjectAsync(FallbackNamespace, FileContentsBytes, FileHash);
         }
 
         [TestMethod]
-        public async Task GetBlobFromFallbackNamespace()
+        public async Task GetBlobFromFallbackNamespaceAsync()
         {
             // we request the data from the first namespace but it only exists in the fallback namespace
             HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/blobs/{TestNamespace}/{FileHash}", UriKind.Relative));
@@ -75,7 +75,7 @@ namespace Jupiter.FunctionalTests.Storage
         }
 
         [TestMethod]
-        public async Task GetBlobFromFallbackNamespaceWithoutAccess()
+        public async Task GetBlobFromFallbackNamespaceWithoutAccessAsync()
         {
             // the second namespace is configured to fallback to a namespace we lack access to
             NamespaceId TestNamespace2 = new NamespaceId("second-namespace");

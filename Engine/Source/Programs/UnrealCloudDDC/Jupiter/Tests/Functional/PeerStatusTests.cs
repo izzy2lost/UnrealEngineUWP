@@ -80,7 +80,7 @@ namespace Jupiter.FunctionalTests.Status
             IHttpClientFactory httpClientFactory = handler.CreateClientFactory();
             await using PeerStatusService statusService = new(settingsMock, jupiterSettingsMock, httpClientFactory, NullLogger<PeerStatusService>.Instance);
 
-            await statusService.UpdatePeerStatus(CancellationToken.None);
+            await statusService.UpdatePeerStatusAsync(CancellationToken.None);
 
             handler.Verify();
 
@@ -156,7 +156,7 @@ namespace Jupiter.FunctionalTests.Status
             IHttpClientFactory httpClientFactory = handler.CreateClientFactory();
             await using PeerStatusService statusService = new(settingsMock, jupiterSettingsMock, httpClientFactory, NullLogger<PeerStatusService>.Instance);
 
-            await statusService.UpdatePeerStatus(CancellationToken.None);
+            await statusService.UpdatePeerStatusAsync(CancellationToken.None);
 
             handler.Verify();
 

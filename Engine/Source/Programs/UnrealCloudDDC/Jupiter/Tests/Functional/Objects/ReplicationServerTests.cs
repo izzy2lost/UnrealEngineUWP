@@ -28,7 +28,7 @@ namespace Jupiter.FunctionalTests.References
         private readonly BucketId TestBucket = new BucketId("default");
 
         [TestInitialize]
-        public async Task Setup()
+        public async Task SetupAsync()
 
         {
             IConfigurationRoot configuration = new ConfigurationBuilder()
@@ -58,7 +58,7 @@ namespace Jupiter.FunctionalTests.References
 
         [TestMethod]
         [Ignore("Needs to be run manually as it starts up proper http servers and that can cause port conflicts")]
-        public async Task ReplicationPublicEndpoint()
+        public async Task ReplicationPublicEndpointAsync()
         {
             // insert a random object
             CbWriter writer = new CbWriter();

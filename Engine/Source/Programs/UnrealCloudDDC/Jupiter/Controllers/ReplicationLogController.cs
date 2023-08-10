@@ -41,7 +41,7 @@ namespace Jupiter.Controllers
 		[HttpGet("snapshots/{ns}")]
 		[ProducesDefaultResponseType]
 		[ProducesResponseType(type: typeof(ProblemDetails), 400)]
-		public async Task<IActionResult> GetSnapshots(
+		public async Task<IActionResult> GetSnapshotsAsync(
 			[Required] NamespaceId ns
 		)
 		{
@@ -58,7 +58,7 @@ namespace Jupiter.Controllers
 		[HttpPost("snapshots/{ns}/create")]
 		[ProducesDefaultResponseType]
 		[ProducesResponseType(type: typeof(ProblemDetails), 400)]
-		public async Task<IActionResult> CreateSnapshot(
+		public async Task<IActionResult> CreateSnapshotAsync(
 			[Required] NamespaceId ns
 		)
 		{
@@ -69,14 +69,14 @@ namespace Jupiter.Controllers
 			}
 
 			ReplicationLogSnapshotBuilder builder = ActivatorUtilities.CreateInstance<ReplicationLogSnapshotBuilder>(_provider);
-			BlobId snapshotBlob = await builder.BuildSnapshot(ns, _snapshotSettings.CurrentValue.SnapshotStorageNamespace, CancellationToken.None);
+			BlobId snapshotBlob = await builder.BuildSnapshotAsync(ns, _snapshotSettings.CurrentValue.SnapshotStorageNamespace, CancellationToken.None);
 			return Ok(new SnapshotCreatedResponse(snapshotBlob));
 		}
 
 		[HttpGet("incremental/{ns}")]
 		[ProducesDefaultResponseType]
 		[ProducesResponseType(type: typeof(ProblemDetails), 400)]
-		public async Task<IActionResult> GetIncrementalEvents(
+		public async Task<IActionResult> GetIncrementalEventsAsync(
 			[Required] NamespaceId ns,
 			[FromQuery] string? lastBucket,
 			[FromQuery] Guid? lastEvent,
@@ -99,7 +99,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				IAsyncEnumerable<ReplicationLogEvent> events = _replicationLog.Get(ns, lastBucket, lastEvent);
+				IAsyncEnumerable<ReplicationLogEvent> events = _replicationLog.GetAsync(ns, lastBucket, lastEvent);
 
 				List<ReplicationLogEvent> l = await events.Take(count).ToListAsync();
 				return Ok(new ReplicationLogEvents(l));

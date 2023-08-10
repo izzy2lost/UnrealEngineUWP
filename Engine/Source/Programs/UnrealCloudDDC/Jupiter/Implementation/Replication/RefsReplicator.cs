@@ -114,7 +114,7 @@ namespace Jupiter.Implementation
 			_disposed = true;
 		}
 
-		private async Task SaveState(RefsState newState)
+		private async Task SaveStateAsync(RefsState newState)
 		{
 			await _replicationLog.UpdateReplicatorState(Info.NamespaceToReplicate, _name, new ReplicatorState { LastBucket = newState.LastBucket, LastEvent = newState.LastEvent });
 		}
@@ -175,13 +175,13 @@ namespace Jupiter.Implementation
 					_logger.LogInformation("{Name} Have not run replication before, attempting to use snapshot. State: {@State}", _name, _refsState);
 					try
 					{
-						(string eventBucket, Guid eventId, int countOfEventsReplicated) = await ReplicateFromSnapshot(ns, replicationToken);
+						(string eventBucket, Guid eventId, int countOfEventsReplicated) = await ReplicateFromSnapshotAsync(ns, replicationToken);
 						countOfReplicationsDone += countOfEventsReplicated;
 
 						// finished replicating the snapshot, persist the state
 						_refsState.LastBucket = eventBucket;
 						_refsState.LastEvent = eventId;
-						await SaveState(_refsState);
+						await SaveStateAsync(_refsState);
 						hasRun = true;
 					}
 					catch (NoSnapshotAvailableException)
@@ -203,7 +203,7 @@ namespace Jupiter.Implementation
 					UseSnapshotException? useSnapshotException = null;
 					try
 					{
-						countOfReplicationsDone += await ReplicateIncrementally(ns, lastBucket, lastEvent, replicationToken);
+						countOfReplicationsDone += await ReplicateIncrementallyAsync(ns, lastBucket, lastEvent, replicationToken);
 					}
 					catch (AggregateException ae)
 					{
@@ -244,7 +244,7 @@ namespace Jupiter.Implementation
 							continue;
 						}
 
-						(string eventBucket, Guid eventId, int countOfEventsReplicated) = await ReplicateFromSnapshot(ns, replicationToken, useSnapshotException.SnapshotBlob, useSnapshotException.BlobNamespace);
+						(string eventBucket, Guid eventId, int countOfEventsReplicated) = await ReplicateFromSnapshotAsync(ns, replicationToken, useSnapshotException.SnapshotBlob, useSnapshotException.BlobNamespace);
 						countOfReplicationsDone += countOfEventsReplicated;
 
 						// resume from these new events instead
@@ -253,7 +253,7 @@ namespace Jupiter.Implementation
 
 						_refsState.LastBucket = eventBucket;
 						_refsState.LastEvent = eventId;
-						await SaveState(_refsState);
+						await SaveStateAsync(_refsState);
 						retry = true;
 					}
 				} while (retry);
@@ -270,12 +270,12 @@ namespace Jupiter.Implementation
 			return hasRun;
 		}
 
-		private async Task<(string, Guid, int)> ReplicateFromSnapshot(NamespaceId ns, CancellationToken cancellationToken, BlobId? snapshotBlob = null, NamespaceId? blobNamespace = null)
+		private async Task<(string, Guid, int)> ReplicateFromSnapshotAsync(NamespaceId ns, CancellationToken cancellationToken, BlobId? snapshotBlob = null, NamespaceId? blobNamespace = null)
 		{
 			// determine latest snapshot if no specific blob was specified
 			if (snapshotBlob == null)
 			{
-				using HttpRequestMessage snapshotRequest = await BuildHttpRequest(HttpMethod.Get, new Uri($"api/v1/replication-log/snapshots/{ns}", UriKind.Relative));
+				using HttpRequestMessage snapshotRequest = await BuildHttpRequestAsync(HttpMethod.Get, new Uri($"api/v1/replication-log/snapshots/{ns}", UriKind.Relative));
 				HttpResponseMessage snapshotResponse = await _httpClient.SendAsync(snapshotRequest, cancellationToken);
 				snapshotResponse.EnsureSuccessStatusCode();
 
@@ -300,7 +300,7 @@ namespace Jupiter.Implementation
 			// fetch the snapshot from the remote blob store
 			ReplicationLogSnapshot snapshot;
 			{
-				using HttpRequestMessage request = await BuildHttpRequest(HttpMethod.Get, new Uri($"api/v1/blobs/{blobNamespace}/{snapshotBlob}", UriKind.Relative));
+				using HttpRequestMessage request = await BuildHttpRequestAsync(HttpMethod.Get, new Uri($"api/v1/blobs/{blobNamespace}/{snapshotBlob}", UriKind.Relative));
 				HttpResponseMessage response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 				response.EnsureSuccessStatusCode();
 				await using Stream blobStream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -339,10 +339,10 @@ namespace Jupiter.Implementation
 						Info.CountOfRunningReplications = countOfObjectsCurrentlyReplicating;
 						Info.LastRun = DateTime.Now;
 
-						bool blobWasReplicated = await ReplicateOp(ns, snapshotLiveObject.Blob, cancellationToken);
+						bool blobWasReplicated = await ReplicateOpAsync(ns, snapshotLiveObject.Blob, cancellationToken);
 						if (blobWasReplicated)
 						{
-							await AddToReplicationLog(ns, snapshotLiveObject.Bucket, snapshotLiveObject.Key, snapshotLiveObject.Blob);
+							await AddToReplicationLogAsync(ns, snapshotLiveObject.Bucket, snapshotLiveObject.Key, snapshotLiveObject.Blob);
 						}
 					}
 					finally
@@ -358,7 +358,7 @@ namespace Jupiter.Implementation
 			return (snapshotBucket, snapshotEvent, countOfObjectsReplicated);
 		}
 
-		private async Task<HttpRequestMessage> BuildHttpRequest(HttpMethod httpMethod, Uri uri)
+		private async Task<HttpRequestMessage> BuildHttpRequestAsync(HttpMethod httpMethod, Uri uri)
 		{
 			string? token = await _serviceCredentials.GetTokenAsync();
 			HttpRequestMessage request = new HttpRequestMessage(httpMethod, uri);
@@ -370,7 +370,7 @@ namespace Jupiter.Implementation
 			return request;
 		}
 
-		private async Task<int> ReplicateIncrementally(NamespaceId ns, string? lastBucket, Guid? lastEvent, CancellationToken replicationToken)
+		private async Task<int> ReplicateIncrementallyAsync(NamespaceId ns, string? lastBucket, Guid? lastEvent, CancellationToken replicationToken)
 		{
 			int countOfReplicationsDone = 0;
 			_logger.LogInformation("{Name} Looking for new transaction. Previous state: {@State}", _name, _refsState);
@@ -390,7 +390,7 @@ namespace Jupiter.Implementation
 				return countOfReplicationsDone;
 			}
 
-			await Parallel.ForEachAsync(GetRefEvents(ns, lastBucket, lastEvent, replicationToken),
+			await Parallel.ForEachAsync(GetRefEventsAsync(ns, lastBucket, lastEvent, replicationToken),
 				new ParallelOptions { MaxDegreeOfParallelism = maxParallelism, CancellationToken = linkedTokenSource.Token },
 				async (ReplicationLogEvent @event, CancellationToken ctx) =>
 				{
@@ -424,7 +424,7 @@ namespace Jupiter.Implementation
 								throw new Exception($"Event: {@event.Bucket} {@event.Key} in namespace {@event.Namespace} was missing a blob, unable to replicate it");
 							}
 
-							blobWasReplicated = await ReplicateOp(@event.Namespace, @event.Blob, replicationToken);
+							blobWasReplicated = await ReplicateOpAsync(@event.Namespace, @event.Blob, replicationToken);
 						}
 
 						if (blobWasReplicated)
@@ -432,7 +432,7 @@ namespace Jupiter.Implementation
 							// add events should all have blobs, and blobs are only replicated for adds events so this should always be true
 							if (@event.Blob != null)
 							{
-								await AddToReplicationLog(@event.Namespace, @event.Bucket, @event.Key, @event.Blob);
+								await AddToReplicationLogAsync(@event.Namespace, @event.Bucket, @event.Key, @event.Blob);
 							}
 						}
 
@@ -448,7 +448,7 @@ namespace Jupiter.Implementation
 							// we have replicated everything up to a point and can persist this in the state
 							_refsState.LastBucket = eventBucket;
 							_refsState.LastEvent = eventId;
-							await SaveState(_refsState);
+							await SaveStateAsync(_refsState);
 
 							_logger.LogInformation("{Name} replicated all events up to {Time} . Bucket: {EventBucket} Id: {EventId}", _name, @event.Timestamp, eventBucket, eventId);
 						}
@@ -472,7 +472,7 @@ namespace Jupiter.Implementation
 			return countOfReplicationsDone;
 		}
 
-		private async Task<bool> ReplicateOp(NamespaceId ns, BlobId objectToReplicate, CancellationToken cancellationToken)
+		private async Task<bool> ReplicateOpAsync(NamespaceId ns, BlobId objectToReplicate, CancellationToken cancellationToken)
 		{
 			using TelemetrySpan scope = _tracer.StartActiveSpan("replicator.replicate_op")
 				.SetAttribute("operation.name", "replicator.replicate_op")
@@ -490,7 +490,7 @@ namespace Jupiter.Implementation
 			const int RetryAttempts = 3;
 			for (int i = 0; i < RetryAttempts; i++)
 			{
-				using HttpRequestMessage referencesRequest = await BuildHttpRequest(HttpMethod.Get, new Uri($"api/v1/objects/{ns}/{objectToReplicate}/references", UriKind.Relative));
+				using HttpRequestMessage referencesRequest = await BuildHttpRequestAsync(HttpMethod.Get, new Uri($"api/v1/objects/{ns}/{objectToReplicate}/references", UriKind.Relative));
 
 				try
 				{
@@ -540,7 +540,7 @@ namespace Jupiter.Implementation
 			Array.Copy(refs.References, potentialBlobs, refs.References.Length);
 			potentialBlobs[^1] = objectToReplicate;
 
-			BlobId[] missingBlobs = await _blobService.FilterOutKnownBlobs(ns, potentialBlobs);
+			BlobId[] missingBlobs = await _blobService.FilterOutKnownBlobsAsync(ns, potentialBlobs);
 			Task[] blobReplicationTasks = new Task[missingBlobs.Length];
 			for (int i = 0; i < missingBlobs.Length; i++)
 			{
@@ -552,7 +552,7 @@ namespace Jupiter.Implementation
 					HttpResponseMessage? blobResponse = null;
 					for (int i = 0; i < RetryAttempts; i++)
 					{
-						using HttpRequestMessage blobRequest = await BuildHttpRequest(HttpMethod.Get, new Uri($"api/v1/blobs/{ns}/{blobToReplicate}", UriKind.Relative));
+						using HttpRequestMessage blobRequest = await BuildHttpRequestAsync(HttpMethod.Get, new Uri($"api/v1/blobs/{ns}/{blobToReplicate}", UriKind.Relative));
 						try
 						{
 							blobResponse = await _httpClient.SendAsync(blobRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
@@ -597,9 +597,9 @@ namespace Jupiter.Implementation
 						throw new Exception("Expected content-length on blob response");
 					}
 
-					using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromStream(s, contentLength.Value);
+					using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromStreamAsync(s, contentLength.Value);
 
-					await _blobService.PutObject(ns, payload, blobToReplicate);
+					await _blobService.PutObjectAsync(ns, payload, blobToReplicate);
 				}, cancellationToken);
 			}
 
@@ -607,7 +607,7 @@ namespace Jupiter.Implementation
 			return missingBlobs.Length != 0;
 		}
 
-		private async IAsyncEnumerable<ReplicationLogEvent> GetRefEvents(NamespaceId ns, string? lastBucket, Guid? lastEvent, [EnumeratorCancellation] CancellationToken cancellationToken)
+		private async IAsyncEnumerable<ReplicationLogEvent> GetRefEventsAsync(NamespaceId ns, string? lastBucket, Guid? lastEvent, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
 			bool hasRunOnce = false;
 			ReplicationLogEvents logEvents;
@@ -641,7 +641,7 @@ namespace Jupiter.Implementation
 				const int RetryAttempts = 3;
 				for (int i = 0; i < RetryAttempts; i++)
 				{
-					using HttpRequestMessage request = await BuildHttpRequest(HttpMethod.Get, new Uri(url.ToString(), UriKind.Relative));
+					using HttpRequestMessage request = await BuildHttpRequestAsync(HttpMethod.Get, new Uri(url.ToString(), UriKind.Relative));
 
 					try
 					{
@@ -721,7 +721,7 @@ namespace Jupiter.Implementation
 			_logger.LogDebug("{Name} starting replication. Last transaction was {TransactionId} {Generation}. Count Of running replications: {CurrentReplications}", _name, State.ReplicatorOffset.GetValueOrDefault(0L), State.ReplicatingGeneration.GetValueOrDefault(Guid.Empty), countOfCurrentReplications);
 		}
 
-		private async Task AddToReplicationLog(NamespaceId ns, BucketId bucket, RefId key, BlobId blob)
+		private async Task AddToReplicationLogAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blob)
 		{
 			await _replicationLog.InsertAddEvent(ns, bucket, key, blob);
 		}
@@ -751,14 +751,14 @@ namespace Jupiter.Implementation
 		public Task DeleteState()
 		{
 			_refsState = new RefsState();
-			return SaveState(_refsState);
+			return SaveStateAsync(_refsState);
 		}
 
 		public void SetRefState(string? lastBucket, Guid? lastEvent)
 		{
 			_refsState.LastBucket = lastBucket;
 			_refsState.LastEvent = lastEvent;
-			SaveState(_refsState).Wait();
+			SaveStateAsync(_refsState).Wait();
 		}
 	}
 

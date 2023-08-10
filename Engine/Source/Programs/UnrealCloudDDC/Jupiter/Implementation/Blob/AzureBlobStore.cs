@@ -71,40 +71,40 @@ namespace Jupiter.Implementation
 
 		private static string GetPath(BlobId blobIdentifier) => blobIdentifier.ToString();
 
-		public async Task<Uri?> GetObjectByRedirect(NamespaceId ns, BlobId identifier)
+		public async Task<Uri?> GetObjectByRedirectAsync(NamespaceId ns, BlobId identifier)
 		{
 			Uri? redirectUri = await GetBackend(ns).GetReadRedirectAsync(GetPath(identifier));
 
 			return redirectUri;
 		}
 
-		public async Task<Uri?> PutObjectWithRedirect(NamespaceId ns, BlobId identifier)
+		public async Task<Uri?> PutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier)
 		{
 			Uri? redirectUri = await GetBackend(ns).GetWriteRedirectAsync(GetPath(identifier));
 
 			return redirectUri;
 		}
 
-		public async Task<BlobId> PutObject(NamespaceId ns, ReadOnlyMemory<byte> content, BlobId blobIdentifier)
+		public async Task<BlobId> PutObjectAsync(NamespaceId ns, ReadOnlyMemory<byte> content, BlobId blobIdentifier)
 		{
 			// TODO: this is not ideal as we copy the buffer, but there is no upload from memory available so we would need this copy anyway
 			await using MemoryStream stream = new MemoryStream(content.ToArray());
-			return await PutObject(ns, stream, blobIdentifier);
+			return await PutObjectAsync(ns, stream, blobIdentifier);
 		}
 
-		public async Task<BlobId> PutObject(NamespaceId ns, Stream content, BlobId blobIdentifier)
+		public async Task<BlobId> PutObjectAsync(NamespaceId ns, Stream content, BlobId blobIdentifier)
 		{
 			await GetBackend(ns).WriteAsync(GetPath(blobIdentifier), content, CancellationToken.None);
 			return blobIdentifier;
 		}
 
-		public async Task<BlobId> PutObject(NamespaceId ns, byte[] content, BlobId blobIdentifier)
+		public async Task<BlobId> PutObjectAsync(NamespaceId ns, byte[] content, BlobId blobIdentifier)
 		{
 			await using MemoryStream stream = new MemoryStream(content);
-			return await PutObject(ns, stream, blobIdentifier);
+			return await PutObjectAsync(ns, stream, blobIdentifier);
 		}
 
-		public async Task<BlobContents> GetObject(NamespaceId ns, BlobId blobIdentifier, LastAccessTrackingFlags flags, bool supportsRedirectUri = false)
+		public async Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blobIdentifier, LastAccessTrackingFlags flags, bool supportsRedirectUri = false)
 		{
 			NamespacePolicy policies = _namespacePolicyResolver.GetPoliciesForNs(ns);
 			if (supportsRedirectUri && policies.AllowRedirectUris)
@@ -124,17 +124,17 @@ namespace Jupiter.Implementation
 			return contents;
 		}
 
-		public async Task<bool> Exists(NamespaceId ns, BlobId blobIdentifier, bool forceCheck)
+		public async Task<bool> ExistsAsync(NamespaceId ns, BlobId blobIdentifier, bool forceCheck)
 		{
 			return await GetBackend(ns).ExistsAsync(GetPath(blobIdentifier), CancellationToken.None);
 		}
 
-		public async Task DeleteObject(NamespaceId ns, BlobId blobIdentifier)
+		public async Task DeleteObjectAsync(NamespaceId ns, BlobId blobIdentifier)
 		{
 			await GetBackend(ns).DeleteAsync(GetPath(blobIdentifier), CancellationToken.None);
 		}
 
-		public async Task DeleteNamespace(NamespaceId ns)
+		public async Task DeleteNamespaceAsync(NamespaceId ns)
 		{
 			string fixedNamespace = GetContainerName(ns);
 			BlobContainerClient container = new BlobContainerClient(GetConnectionString(ns), fixedNamespace);
@@ -145,7 +145,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async IAsyncEnumerable<(BlobId, DateTime)> ListObjects(NamespaceId ns)
+		public async IAsyncEnumerable<(BlobId, DateTime)> ListObjectsAsync(NamespaceId ns)
 		{
 			await foreach ((string path, DateTime time) in GetBackend(ns).ListAsync(CancellationToken.None))
 			{

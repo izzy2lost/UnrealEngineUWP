@@ -15,7 +15,7 @@ namespace Jupiter.Implementation
 
 		Task<(string, Guid)> InsertAddEvent(NamespaceId ns, BucketId bucket, RefId key, BlobId objectBlob, DateTime? timeBucket = null);
 		Task<(string, Guid)> InsertDeleteEvent(NamespaceId ns, BucketId bucket, RefId key, DateTime? timeBucket = null);
-		IAsyncEnumerable<ReplicationLogEvent> Get(NamespaceId ns, string? lastBucket, Guid? lastEvent);
+		IAsyncEnumerable<ReplicationLogEvent> GetAsync(NamespaceId ns, string? lastBucket, Guid? lastEvent);
 
 		Task AddSnapshot(SnapshotInfo snapshotHeader);
 		Task<SnapshotInfo?> GetLatestSnapshot(NamespaceId ns);

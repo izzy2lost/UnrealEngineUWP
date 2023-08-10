@@ -73,7 +73,7 @@ namespace Jupiter.FunctionalTests.References
             //verify we are using the replication log writer
             Assert.IsTrue(replicationLog.GetType() == typeof(ScyllaReplicationLog));
 
-            await SeedTestData();
+            await SeedTestDataAsync();
         }
 
         protected override async Task TeardownDb(IServiceProvider provider)
@@ -137,7 +137,7 @@ namespace Jupiter.FunctionalTests.References
             //verify we are using the replication log writer
             Assert.IsTrue(replicationLog.GetType() == typeof(ScyllaReplicationLog));
 
-            await SeedTestData();
+            await SeedTestDataAsync();
         }
 
         protected override async Task TeardownDb(IServiceProvider provider)
@@ -200,7 +200,7 @@ namespace Jupiter.FunctionalTests.References
             //verify we are using the replication log writer
             Assert.IsTrue(replicationLog.GetType() == typeof(MemoryReplicationLog));
 
-            await SeedTestData();
+            await SeedTestDataAsync();
         }
 
         protected override async Task TeardownDb(IServiceProvider provider)
@@ -246,7 +246,7 @@ namespace Jupiter.FunctionalTests.References
             //verify we are using the replication log writer
             Assert.IsTrue(replicationLog.GetType() == typeof(MemoryReplicationLog));
 
-            await SeedTestData();
+            await SeedTestDataAsync();
         }
 
         protected override Task TeardownDb(IServiceProvider provider)
@@ -265,7 +265,7 @@ namespace Jupiter.FunctionalTests.References
         protected NamespaceId TestNamespace { get; } = new NamespaceId("test-namespace");
 
         [TestInitialize]
-        public async Task Setup()
+        public async Task SetupAsync()
 
         {
             IConfigurationRoot configuration = new ConfigurationBuilder()
@@ -293,13 +293,13 @@ namespace Jupiter.FunctionalTests.References
             await SeedDb(server.Services);
         }
 
-        protected virtual async Task SeedTestData()
+        protected virtual async Task SeedTestDataAsync()
         {
             await Task.CompletedTask;
         }
 
         [TestCleanup]
-        public async Task Teardown()
+        public async Task TeardownAsync()
         {
             if (_server != null)
             {
@@ -313,7 +313,7 @@ namespace Jupiter.FunctionalTests.References
         protected abstract Task TeardownDb(IServiceProvider provider);
 
         [TestMethod]
-        public async Task PutGetBlob()
+        public async Task PutGetBlobAsync()
         {
             const string objectContents = "This is treated as a opaque blob";
             byte[] data = Encoding.ASCII.GetBytes(objectContents);
@@ -423,7 +423,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task PutGetCompactBinary()
+        public async Task PutGetCompactBinaryAsync()
         {
             CbWriter writer = new CbWriter();
             writer.BeginObject();
@@ -510,7 +510,7 @@ namespace Jupiter.FunctionalTests.References
 
         
         [TestMethod]
-        public async Task PutGetCompactBinaryFiltering()
+        public async Task PutGetCompactBinaryFilteringAsync()
         {
             CbWriter writer = new CbWriter();
             writer.BeginObject();
@@ -568,7 +568,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task PutLargeCompactBinary()
+        public async Task PutLargeCompactBinaryAsync()
         {
             if (this is MongoReferencesTests)
             {
@@ -592,7 +592,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task PutGetCompactBinaryHierarchy()
+        public async Task PutGetCompactBinaryHierarchyAsync()
         {
             CbWriter childObjectWriter = new CbWriter();
             childObjectWriter.BeginObject();
@@ -742,7 +742,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task ExistsChecks()
+        public async Task ExistsChecksAsync()
         {
             const string objectContents = "This is treated as a opaque blob";
             byte[] data = Encoding.ASCII.GetBytes(objectContents);
@@ -771,7 +771,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task ExistsChecksMultiple()
+        public async Task ExistsChecksMultipleAsync()
         {
             BucketId bucket = new BucketId("bucket");
             RefId existingObject = RefId.FromName("existingObject");
@@ -805,17 +805,17 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task PutGetObjectHierarchy()
+        public async Task PutGetObjectHierarchyAsync()
         {
             string blobContents = "This is a string that is referenced as a blob";
             byte[] blobData = Encoding.ASCII.GetBytes(blobContents);
             BlobId blobHash = BlobId.FromBlob(blobData);
-            await Service.PutObject(TestNamespace, blobData, blobHash);
+            await Service.PutObjectAsync(TestNamespace, blobData, blobHash);
 
             string blobContentsChild = "This string is also referenced as a blob but from a child object";
             byte[] dataChild = Encoding.ASCII.GetBytes(blobContentsChild);
             BlobId blobHashChild = BlobId.FromBlob(dataChild);
-            await Service.PutObject(TestNamespace, dataChild, blobHashChild);
+            await Service.PutObjectAsync(TestNamespace, dataChild, blobHashChild);
 
             CbWriter writerChild = new CbWriter();
             writerChild.BeginObject();
@@ -824,7 +824,7 @@ namespace Jupiter.FunctionalTests.References
 
             byte[] childDataObject = writerChild.ToByteArray();
             BlobId childDataObjectHash = BlobId.FromBlob(childDataObject);
-            await Service.PutObject(TestNamespace, childDataObject, childDataObjectHash);
+            await Service.PutObjectAsync(TestNamespace, childDataObject, childDataObjectHash);
 
             CbWriter writerParent = new CbWriter();
             writerParent.BeginObject();
@@ -964,7 +964,7 @@ namespace Jupiter.FunctionalTests.References
         }
         
         [TestMethod]
-        public async Task PutPartialHierarchy()
+        public async Task PutPartialHierarchyAsync()
         {
             // do not submit the content of the blobs, which should be reported in the response of the put
             string blobContents = "This is a string that is referenced as a blob";
@@ -982,7 +982,7 @@ namespace Jupiter.FunctionalTests.References
 
             byte[] childDataObject = writerChild.ToByteArray();
             BlobId childDataObjectHash = BlobId.FromBlob(childDataObject);
-            await Service.PutObject(TestNamespace, childDataObject, childDataObjectHash);
+            await Service.PutObjectAsync(TestNamespace, childDataObject, childDataObjectHash);
 
             CbWriter writerParent = new CbWriter();
             writerParent.BeginObject();
@@ -1048,7 +1048,7 @@ namespace Jupiter.FunctionalTests.References
 
         
         [TestMethod]
-        public async Task PutContentIdMissingBlob()
+        public async Task PutContentIdMissingBlobAsync()
         {
             IContentIdStore? contentIdStore = _server!.Services.GetService<IContentIdStore>();
             Assert.IsNotNull(contentIdStore);
@@ -1122,7 +1122,7 @@ namespace Jupiter.FunctionalTests.References
 
         
         [TestMethod]
-        public async Task PutMissingAttachmentComplex()
+        public async Task PutMissingAttachmentComplexAsync()
         {
             string blobContents = "This is a string that is referenced as a blob but will not be uploaded";
             byte[] blobData = Encoding.ASCII.GetBytes(blobContents);
@@ -1169,7 +1169,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task PutAndFinalize()
+        public async Task PutAndFinalizeAsync()
         {
             BucketId bucket = new BucketId("bucket");
             RefId key = RefId.FromName("willFinalizeObject");
@@ -1190,7 +1190,7 @@ namespace Jupiter.FunctionalTests.References
 
             byte[] childDataObject = writerChild.ToByteArray();
             BlobId childDataObjectHash = BlobId.FromBlob(childDataObject);
-            await Service.PutObject(TestNamespace, childDataObject, childDataObjectHash);
+            await Service.PutObjectAsync(TestNamespace, childDataObject, childDataObjectHash);
 
             CbWriter writerParent = new CbWriter();
             writerParent.BeginObject();
@@ -1236,8 +1236,8 @@ namespace Jupiter.FunctionalTests.References
 
             // upload missing pieces
             {
-                await Service.PutObject(TestNamespace, blobData, blobHash);
-                await Service.PutObject(TestNamespace, dataChild, blobHashChild);
+                await Service.PutObjectAsync(TestNamespace, blobData, blobHash);
+                await Service.PutObjectAsync(TestNamespace, dataChild, blobHashChild);
             }
 
             // finalize the object as no pieces is now missing
@@ -1271,7 +1271,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task GetMissingContentIdRecord()
+        public async Task GetMissingContentIdRecordAsync()
         {
             string blobContents = "This is a blob";
             byte[] blobData = Encoding.ASCII.GetBytes(blobContents);
@@ -1351,7 +1351,7 @@ namespace Jupiter.FunctionalTests.References
 
             {
                 // delete the blob referenced by the compressed buffer
-                await Service.DeleteObject(TestNamespace, compressedHash);
+                await Service.DeleteObjectAsync(TestNamespace, compressedHash);
             }
 
             {
@@ -1381,7 +1381,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task GetMissingCompressedBufferAttachment()
+        public async Task GetMissingCompressedBufferAttachmentAsync()
         {
             CbObject cbObjectAttachment = CbObject.Build(writer => writer.WriteString("ValueField", "This field has a value"));
             byte[] cbAttachmentData = cbObjectAttachment.GetView().ToArray();
@@ -1455,7 +1455,7 @@ namespace Jupiter.FunctionalTests.References
 
             {
                 // delete the blob referenced by the compressed buffer
-                await Service.DeleteObject(TestNamespace, cbAttachmentHash);
+                await Service.DeleteObjectAsync(TestNamespace, cbAttachmentHash);
             }
 
             {
@@ -1485,7 +1485,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task GetMissingBlobRecord()
+        public async Task GetMissingBlobRecordAsync()
         {
             string blobContents = "This is a blob";
             byte[] blobData = Encoding.ASCII.GetBytes(blobContents);
@@ -1543,7 +1543,7 @@ namespace Jupiter.FunctionalTests.References
 
             {
                 // delete the blob 
-                await Service.DeleteObject(TestNamespace, blobHash);
+                await Service.DeleteObjectAsync(TestNamespace, blobHash);
             }
 
             {
@@ -1590,7 +1590,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task DeleteObject()
+        public async Task DeleteObjectAsync()
         {
             const string objectContents = "This is treated as a opaque blob";
             byte[] data = Encoding.ASCII.GetBytes(objectContents);
@@ -1634,7 +1634,7 @@ namespace Jupiter.FunctionalTests.References
 
         
         [TestMethod]
-        public async Task DropBucket()
+        public async Task DropBucketAsync()
         {
             const string BucketToDelete = "delete-bucket";
 
@@ -1692,7 +1692,7 @@ namespace Jupiter.FunctionalTests.References
 
         
         [TestMethod]
-        public async Task DeleteNamespace()
+        public async Task DeleteNamespaceAsync()
         {
             const string NamespaceToBeDeleted = "test-delete-namespace";
 
@@ -1759,7 +1759,7 @@ namespace Jupiter.FunctionalTests.References
 
         
         [TestMethod]
-        public async Task ListNamespaces()
+        public async Task ListNamespacesAsync()
         {
             const string objectContents = "This is treated as a opaque blob";
             byte[] data = Encoding.ASCII.GetBytes(objectContents);
@@ -1787,7 +1787,7 @@ namespace Jupiter.FunctionalTests.References
         }
         
         [TestMethod]
-        public async Task GetOldRecords()
+        public async Task GetOldRecordsAsync()
         {
             const string objectContents = "This is treated as a opaque blob";
             byte[] data = Encoding.ASCII.GetBytes(objectContents);
@@ -1812,7 +1812,7 @@ namespace Jupiter.FunctionalTests.References
         }
         
         [TestMethod]
-        public async Task BatchJsonRequest()
+        public async Task BatchJsonRequestAsync()
         {
             // verifies that json request against the batch endpoint will fail
             {
@@ -1826,7 +1826,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task BatchErrorOperations()
+        public async Task BatchErrorOperationsAsync()
         {
             // seed some data
             BucketId bucket = new BucketId("bucket");
@@ -1899,7 +1899,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task BatchGetOperations()
+        public async Task BatchGetOperationsAsync()
         {
             // seed some data
             BucketId bucket = new BucketId("bucket");
@@ -2044,7 +2044,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task BatchHeadOperations()
+        public async Task BatchHeadOperationsAsync()
         {
             // seed some data
             BucketId bucket = new BucketId("bucket");
@@ -2160,7 +2160,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task BatchPutOperations()
+        public async Task BatchPutOperationsAsync()
         {
             BucketId bucket = new BucketId("bucket");
             RefId ref0name = RefId.FromName("putRef0");
@@ -2235,7 +2235,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task BatchMixedOperations()
+        public async Task BatchMixedOperationsAsync()
         {
             // seed some data
             BucketId bucket = new BucketId("bucket");

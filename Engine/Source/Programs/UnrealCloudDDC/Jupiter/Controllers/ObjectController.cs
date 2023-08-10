@@ -49,7 +49,7 @@ namespace Jupiter.Controllers
 
 		[HttpGet("{ns}/{id}")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> Get(
+		public async Task<IActionResult> GetAsync(
 			[Required] NamespaceId ns,
 			[Required] BlobId id)
 		{
@@ -61,7 +61,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				BlobContents blobContents = await _storage.GetObject(ns, id);
+				BlobContents blobContents = await _storage.GetObjectAsync(ns, id);
 
 				return File(blobContents.Stream, CustomMediaTypeNames.UnrealCompactBinary);
 			}
@@ -73,7 +73,7 @@ namespace Jupiter.Controllers
 
 		[HttpHead("{ns}/{id}")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> Head(
+		public async Task<IActionResult> HeadAsync(
 			[Required] NamespaceId ns,
 			[Required] BlobId id)
 		{
@@ -83,7 +83,7 @@ namespace Jupiter.Controllers
 				return result;
 			}
 
-			bool exists = await _storage.Exists(ns, id);
+			bool exists = await _storage.ExistsAsync(ns, id);
 
 			if (!exists)
 			{
@@ -95,7 +95,7 @@ namespace Jupiter.Controllers
 
 		[HttpPost("{ns}/exists")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> ExistsMultiple(
+		public async Task<IActionResult> ExistsMultipleAsync(
 			[Required] NamespaceId ns,
 			[Required] [FromQuery] List<BlobId> id)
 		{
@@ -109,7 +109,7 @@ namespace Jupiter.Controllers
 
 			IEnumerable<Task> tasks = id.Select(async blob =>
 			{
-				if (!await _storage.Exists(ns, blob))
+				if (!await _storage.ExistsAsync(ns, blob))
 				{
 					missingBlobs.Add(blob);
 				}
@@ -121,7 +121,7 @@ namespace Jupiter.Controllers
 
 		[HttpPost("{ns}/exist")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> ExistsBody(
+		public async Task<IActionResult> ExistsBodyAsync(
 			[Required] NamespaceId ns,
 			[FromBody] BlobId[] bodyIds)
 		{
@@ -135,7 +135,7 @@ namespace Jupiter.Controllers
 
 			IEnumerable<Task> tasks = bodyIds.Select(async blob =>
 			{
-				if (!await _storage.Exists(ns, blob))
+				if (!await _storage.ExistsAsync(ns, blob))
 				{
 					missingBlobs.Add(blob);
 				}
@@ -147,7 +147,7 @@ namespace Jupiter.Controllers
 
 		[HttpPut("{ns}/{id}")]
 		[RequiredContentType(CustomMediaTypeNames.UnrealCompactBinary)]
-		public async Task<IActionResult> Put(
+		public async Task<IActionResult> PutAsync(
 			[Required] NamespaceId ns,
 			[Required] BlobId id)
 		{
@@ -162,7 +162,7 @@ namespace Jupiter.Controllers
 			{
 				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
 
-				BlobId identifier = await _storage.PutObject(ns, payload, id);
+				BlobId identifier = await _storage.PutObjectAsync(ns, payload, id);
 				return Ok(new PutBlobResponse(identifier));
 			}
 			catch (ClientSendSlowException e)
@@ -172,7 +172,7 @@ namespace Jupiter.Controllers
 		}
 
 		[HttpGet("{ns}/{id}/references")]
-		public async Task<IActionResult> ResolveReferences(
+		public async Task<IActionResult> ResolveReferencesAsync(
 			[Required] NamespaceId ns,
 			[Required] BlobId id)
 		{
@@ -185,14 +185,14 @@ namespace Jupiter.Controllers
 			BlobContents blob;
 			try
 			{
-				blob = await _storage.GetObject(ns, id);
+				blob = await _storage.GetObjectAsync(ns, id);
 			}
 			catch (BlobNotFoundException e)
 			{
 				return NotFound(new ValidationProblemDetails {Title = $"Object {e.Blob} not found"});
 			}
 		   
-			byte[] blobContents = await blob.Stream.ToByteArray();
+			byte[] blobContents = await blob.Stream.ToByteArrayAsync();
 			if (blobContents.Length == 0)
 			{
 				_logger.LogWarning("0 byte object found for {Id} {Namespace}", id, ns);
@@ -224,7 +224,7 @@ namespace Jupiter.Controllers
 		}
 
 		[HttpDelete("{ns}/{id}")]
-		public async Task<IActionResult> Delete(
+		public async Task<IActionResult> DeleteAsync(
 			[Required] NamespaceId ns,
 			[Required] BlobId id)
 		{
@@ -234,7 +234,7 @@ namespace Jupiter.Controllers
 				return result;
 			}
 
-			await _storage.DeleteObject(ns, id);
+			await _storage.DeleteObjectAsync(ns, id);
 
 			return Ok( new DeletedResponse
 			{
@@ -243,7 +243,7 @@ namespace Jupiter.Controllers
 		}
 
 		[HttpDelete("{ns}")]
-		public async Task<IActionResult> DeleteNamespace(
+		public async Task<IActionResult> DeleteNamespaceAsync(
 			[Required] NamespaceId ns)
 		{
 			ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.DeleteNamespace });
@@ -252,7 +252,7 @@ namespace Jupiter.Controllers
 				return result;
 			}
 
-			await _storage.DeleteNamespace(ns);
+			await _storage.DeleteNamespaceAsync(ns);
 
 			return Ok();
 		}

@@ -106,7 +106,7 @@ namespace Jupiter
 					return;
 				}
 
-				bool _ = instance.OnPoll(threadState.ServiceState, stopPollingToken).Result;
+				bool _ = instance.OnPollAsync(threadState.ServiceState, stopPollingToken).Result;
 			}
 			catch (AggregateException e)
 			{
@@ -142,7 +142,7 @@ namespace Jupiter
 			}
 		}
 
-		public abstract Task<bool> OnPoll(T state, CancellationToken cancellationToken);
+		public abstract Task<bool> OnPollAsync(T state, CancellationToken cancellationToken);
 
 		protected virtual Task OnStopping(T state)
 		{

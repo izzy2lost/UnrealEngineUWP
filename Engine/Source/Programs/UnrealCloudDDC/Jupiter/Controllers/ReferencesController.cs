@@ -78,7 +78,7 @@ namespace Jupiter.Controllers
 		[HttpGet("")]
 		[ProducesDefaultResponseType]
 		[ProducesResponseType(type: typeof(ProblemDetails), 400)]
-		public async Task<IActionResult> GetNamespaces()
+		public async Task<IActionResult> GetNamespacesAsync()
 		{
 			NamespaceId[] namespaces = await _objectService.GetNamespaces().ToArrayAsync();
 
@@ -105,7 +105,7 @@ namespace Jupiter.Controllers
 		/// <param name="format">Optional specifier to set which output format is used json/raw/cb</param>
 		[HttpGet("{ns}/{bucket}/{key}.{format?}", Order = 500)]
 		[Produces(MediaTypeNames.Application.Json, MediaTypeNames.Application.Octet, CustomMediaTypeNames.UnrealCompactBinary, CustomMediaTypeNames.JupiterInlinedPayload, CustomMediaTypeNames.UnrealCompactBinaryPackage)]
-		public async Task<IActionResult> Get(
+		public async Task<IActionResult> GetAsync(
 			[FromRoute] [Required] NamespaceId ns,
 			[FromRoute] [Required] BucketId bucket,
 			[FromRoute] [Required] RefId key,
@@ -174,7 +174,7 @@ namespace Jupiter.Controllers
 					}
 					case MediaTypeNames.Application.Octet:
 					{
-						byte[] blobMemory = await blob.Stream.ToByteArray();
+						byte[] blobMemory = await blob.Stream.ToByteArrayAsync();
 						CbObject cb = new CbObject(blobMemory);
 
 						(int,CbField?) CountFields(CbObject o)
@@ -203,7 +203,7 @@ namespace Jupiter.Controllers
 
 							IoHash hash = binaryAttachmentField.AsBinaryAttachment();
 
-							BlobContents referencedBlobContents = await _blobStore.GetObject(ns, BlobId.FromIoHash(hash));
+							BlobContents referencedBlobContents = await _blobStore.GetObjectAsync(ns, BlobId.FromIoHash(hash));
 
 							if (_nginxRedirectHelper.CanRedirect(Request, referencedBlobContents))
 							{
@@ -223,7 +223,7 @@ namespace Jupiter.Controllers
 						byte[] blobMemory;
 						{
 							using TelemetrySpan scope = _tracer.StartActiveSpan("json.readblob").SetAttribute("operation.name", "json.readblob");
-							blobMemory = await blob.Stream.ToByteArray();
+							blobMemory = await blob.Stream.ToByteArrayAsync();
 						}
 						CbObject cb = new CbObject(blobMemory);
 						string s = cb.ToJson();
@@ -235,7 +235,7 @@ namespace Jupiter.Controllers
 					case CustomMediaTypeNames.UnrealCompactBinaryPackage:
 					{
 						using TelemetrySpan packageScope = _tracer.StartActiveSpan("cbpackage.fetch").SetAttribute("operation.name", "cbpackage.fetch");
-						byte[] blobMemory = await blob.Stream.ToByteArray();
+						byte[] blobMemory = await blob.Stream.ToByteArrayAsync();
 						CbObject cb = new CbObject(blobMemory);
 
 						IAsyncEnumerable<Attachment> attachments = _referenceResolver.GetAttachments(ns, cb);
@@ -254,19 +254,19 @@ namespace Jupiter.Controllers
 								if (attachment is BlobAttachment blobAttachment)
 								{
 									BlobId referencedBlob = blobAttachment.Identifier;
-									attachmentContents = await _blobStore.GetObject(ns, referencedBlob);
+									attachmentContents = await _blobStore.GetObjectAsync(ns, referencedBlob);
 								}
 								else if (attachment is ObjectAttachment objectAttachment)
 								{
 									flags |= CbPackageAttachmentFlags.IsObject;
 									BlobId referencedBlob = objectAttachment.Identifier;
-									attachmentContents = await _blobStore.GetObject(ns, referencedBlob);
+									attachmentContents = await _blobStore.GetObjectAsync(ns, referencedBlob);
 								}
 								else if (attachment is ContentIdAttachment contentIdAttachment)
 								{
 
 									ContentId contentId = contentIdAttachment.Identifier;
-									(attachmentContents, string mime) = await _blobStore.GetCompressedObject(ns, contentId, HttpContext.RequestServices);
+									(attachmentContents, string mime) = await _blobStore.GetCompressedObjectAsync(ns, contentId, HttpContext.RequestServices);
 									if (mime == CustomMediaTypeNames.UnrealCompressedBuffer)
 									{
 										flags |= CbPackageAttachmentFlags.IsCompressed;
@@ -305,7 +305,7 @@ namespace Jupiter.Controllers
 					}
 					case CustomMediaTypeNames.JupiterInlinedPayload:
 					{
-						byte[] blobMemory = await blob.Stream.ToByteArray();
+						byte[] blobMemory = await blob.Stream.ToByteArrayAsync();
 						CbObject cb = new CbObject(blobMemory);
 
 						static (int, int) CountFields(CbObject o)
@@ -355,7 +355,7 @@ namespace Jupiter.Controllers
 								BlobId attachmentToSend = referencedBlobs.First();
 								try
 								{
-									BlobContents referencedBlobContents = await _blobStore.GetObject(ns, attachmentToSend);
+									BlobContents referencedBlobContents = await _blobStore.GetObjectAsync(ns, attachmentToSend);
 									Response.Headers[CommonHeaders.InlinePayloadHash] = attachmentToSend.ToString();
 
 									if (_nginxRedirectHelper.CanRedirect(Request, referencedBlobContents))
@@ -436,7 +436,7 @@ namespace Jupiter.Controllers
 	/// <param name="key">The unique name of this particular key. `iAmAVeryValidKey`</param>
 	/// <param name="fields">The fields to include in the response, omit this to include everything.</param>
 	[HttpGet("{ns}/{bucket}/{key}/metadata", Order = 500)]
-	public async Task<IActionResult> GetMetadata(
+	public async Task<IActionResult> GetMetadataAsync(
 		[FromRoute] [Required] NamespaceId ns,
 		[FromRoute] [Required] BucketId bucket,
 		[FromRoute] [Required] RefId key,
@@ -478,7 +478,7 @@ namespace Jupiter.Controllers
 		[HttpHead("{ns}/{bucket}/{key}", Order = 500)]
 		[ProducesResponseType(type: typeof(OkResult), 200)]
 		[ProducesResponseType(type: typeof(ValidationProblemDetails), 400)]
-		public async Task<IActionResult> Head(
+		public async Task<IActionResult> HeadAsync(
 			[FromRoute] [Required] NamespaceId ns,
 			[FromRoute] [Required] BucketId bucket,
 			[FromRoute] [Required] RefId key)
@@ -499,11 +499,11 @@ namespace Jupiter.Controllers
 					return NotFound(new ProblemDetails {Title = $"Object {bucket} {key} in namespace {ns} is not finalized."});
 				}
 
-				blob ??= await _blobStore.GetObject(ns, record.BlobIdentifier);
+				blob ??= await _blobStore.GetObjectAsync(ns, record.BlobIdentifier);
 
 				// we have to verify the blobs are available locally, as the record of the key is replicated a head of the content
 				// TODO: Once we support inline replication this step is not needed as at least one region as this blob, just maybe not this current one
-				byte[] blobContents = await blob.Stream.ToByteArray();
+				byte[] blobContents = await blob.Stream.ToByteArrayAsync();
 				CbObject compactBinaryObject = new CbObject(blobContents);
 				// the reference resolver will throw if any blob is missing, so no need to do anything other then process each reference
 				IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobs(ns, compactBinaryObject);
@@ -511,7 +511,7 @@ namespace Jupiter.Controllers
 
 				// we have to verify the blobs are available locally, as the record of the key is replicated a head of the content
 				// TODO: Once we support inline replication this step is not needed as at least one region as this blob, just maybe not this current one
-				BlobId[] unknownBlobs = await _blobStore.FilterOutKnownBlobs(ns, new BlobId[] { record.BlobIdentifier });
+				BlobId[] unknownBlobs = await _blobStore.FilterOutKnownBlobsAsync(ns, new BlobId[] { record.BlobIdentifier });
 				if (unknownBlobs.Length != 0)
 				{
 					return NotFound(new ProblemDetails {Title = $"Object {bucket} {key} in namespace {ns} had at least one missing blob."});
@@ -543,7 +543,7 @@ namespace Jupiter.Controllers
 
 		[HttpGet("{ns}/exists")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> ExistsMultiple(
+		public async Task<IActionResult> ExistsMultipleAsync(
 			[FromRoute] [Required] NamespaceId ns,
 			[FromQuery] [Required] List<string> names)
 		{
@@ -577,11 +577,11 @@ namespace Jupiter.Controllers
 					(ObjectRecord record, BlobContents? blob) =
 						await _objectService.Get(ns, bucket, key, new string[] { "blobIdentifier" });
 
-					blob ??= await _blobStore.GetObject(ns, record.BlobIdentifier);
+					blob ??= await _blobStore.GetObjectAsync(ns, record.BlobIdentifier);
 
 					// we have to verify the blobs are available locally, as the record of the key is replicated a head of the content
 					// TODO: Once we support inline replication this step is not needed as at least one region as this blob, just maybe not this current one
-					byte[] blobContents = await blob.Stream.ToByteArray();
+					byte[] blobContents = await blob.Stream.ToByteArrayAsync();
 					CbObject cb = new CbObject(blobContents);
 					// the reference resolver will throw if any blob is missing, so no need to do anything other then process each reference
 					IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobs(ns, cb);
@@ -611,7 +611,7 @@ namespace Jupiter.Controllers
 
 		[HttpPut("{ns}/{bucket}/{key}.{format?}", Order = 500)]
 		[DisableRequestSizeLimit]
-		public async Task<IActionResult> PutObject(
+		public async Task<IActionResult> PutObjectAsync(
 			[FromRoute] [Required] NamespaceId ns,
 			[FromRoute] [Required] BucketId bucket,
 			[FromRoute] [Required] RefId key)
@@ -652,7 +652,7 @@ namespace Jupiter.Controllers
 					{
 						// TODO: define a scheme for how a json object specifies references
 
-						blobHeader = await _blobStore.PutObject(ns, payload, headerHash);
+						blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash);
 
 						// TODO: convert the json object into a compact binary instead
 						CbWriter writer = new CbWriter();
@@ -675,7 +675,7 @@ namespace Jupiter.Controllers
 					}
 					case MediaTypeNames.Application.Octet:
 					{
-						blobHeader = await _blobStore.PutObject(ns, payload, headerHash);
+						blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash);
 
 						CbWriter writer = new CbWriter();
 						writer.BeginObject();
@@ -714,7 +714,7 @@ namespace Jupiter.Controllers
 		[HttpPut("{ns}/{bucket}/{key}", Order = 300)]
 		[DisableRequestSizeLimit]
 		[RequiredContentType(CustomMediaTypeNames.UnrealCompactBinaryPackage)]
-		public async Task<IActionResult> PutPackage(
+		public async Task<IActionResult> PutPackageAsync(
 			[FromRoute][Required] NamespaceId ns,
 			[FromRoute][Required] BucketId bucket,
 			[FromRoute][Required] RefId key)
@@ -746,11 +746,11 @@ namespace Jupiter.Controllers
 #pragma warning disable CA2000 // Dispose objects before losing scope
 						using MemoryBufferedPayload payload = new MemoryBufferedPayload(blob);
 #pragma warning restore CA2000 // Dispose objects before losing scope
-						await _blobStore.PutCompressedObject(ns, payload, ContentId.FromIoHash(entry.AttachmentHash), HttpContext.RequestServices);
+						await _blobStore.PutCompressedObjectAsync(ns, payload, ContentId.FromIoHash(entry.AttachmentHash), HttpContext.RequestServices);
 					}
 					else
 					{
-						await _blobStore.PutObject(ns, blob, BlobId.FromIoHash(entry.AttachmentHash));
+						await _blobStore.PutObjectAsync(ns, blob, BlobId.FromIoHash(entry.AttachmentHash));
 					}
 				}
 			}
@@ -773,7 +773,7 @@ namespace Jupiter.Controllers
 		}
 
 		[HttpPost("{ns}/{bucket}/{key}/finalize/{hash}.{format?}")]
-		public async Task<IActionResult> FinalizeObject(
+		public async Task<IActionResult> FinalizeObjectAsync(
 			[FromRoute] [Required] NamespaceId ns,
 			[FromRoute] [Required] BucketId bucket,
 			[FromRoute] [Required] RefId key,
@@ -806,7 +806,7 @@ namespace Jupiter.Controllers
 		[HttpPost("{ns}")]
 		[Consumes(CustomMediaTypeNames.UnrealCompactBinary)]
 		[Produces(CustomMediaTypeNames.UnrealCompactBinary)]
-		public async Task<IActionResult> Batch(
+		public async Task<IActionResult> BatchAsync(
 			[FromRoute] [Required] NamespaceId ns,
 			[FromBody] [Required] BatchOps ops)
 		{
@@ -860,7 +860,7 @@ namespace Jupiter.Controllers
 						throw new Exception();
 					}
 
-					CbObject cb = new CbObject(await blob.Stream.ToByteArray());
+					CbObject cb = new CbObject(await blob.Stream.ToByteArrayAsync());
 
 					if (op.ResolveAttachments ?? false)
 					{
@@ -891,11 +891,11 @@ namespace Jupiter.Controllers
 						return (CbObject.Build(writer => writer.WriteBool("exists", false)), HttpStatusCode.NotFound);
 					}
 
-					blob ??= await _blobStore.GetObject(ns, record.BlobIdentifier);
+					blob ??= await _blobStore.GetObjectAsync(ns, record.BlobIdentifier);
 
 					if (op.ResolveAttachments ?? false)
 					{
-						byte[] blobContents = await blob.Stream.ToByteArray();
+						byte[] blobContents = await blob.Stream.ToByteArrayAsync();
 						CbObject cb = new CbObject(blobContents);
 						// the reference resolver will throw if any blob is missing, so no need to do anything other then process each reference
 						IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobs(ns, cb);
@@ -1007,7 +1007,7 @@ namespace Jupiter.Controllers
 		/// <param name="ns">Namespace. Each namespace is completely separated from each other. Use for different types of data that is never expected to be similar (between two different games for instance)</param>
 		[HttpDelete("{ns}", Order = 500)]
 		[ProducesResponseType(204)]
-		public async Task<IActionResult> DeleteNamespace(
+		public async Task<IActionResult> DeleteNamespaceAsync(
 			[FromRoute] [Required] NamespaceId ns
 		)
 		{
@@ -1036,7 +1036,7 @@ namespace Jupiter.Controllers
 		/// <param name="bucket">The category/type of record you are caching. Is a clustered key together with the actual key, but all records in the same bucket can be dropped easily.</param>
 		[HttpDelete("{ns}/{bucket}", Order = 500)]
 		[ProducesResponseType(200)]
-		public async Task<IActionResult> DeleteBucket(
+		public async Task<IActionResult> DeleteBucketAsync(
 			[FromRoute] [Required] NamespaceId ns,
 			[FromRoute] [Required] BucketId bucket)
 		{
@@ -1068,7 +1068,7 @@ namespace Jupiter.Controllers
 		[HttpDelete("{ns}/{bucket}/{key}", Order = 500)]
 		[ProducesResponseType(200)]
 		[ProducesResponseType(404)]
-		public async Task<IActionResult> Delete(
+		public async Task<IActionResult> DeleteAsync(
 			[FromRoute] [Required] NamespaceId ns,
 			[FromRoute] [Required] BucketId bucket,
 			[FromRoute] [Required] RefId key)

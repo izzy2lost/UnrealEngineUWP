@@ -73,7 +73,7 @@ namespace Jupiter.Implementation
 			return DoInsert(ns, bucket, key, null, ReplicationLogEvent.OpType.Deleted, timestamp); 
 		}
 
-		public async IAsyncEnumerable<ReplicationLogEvent> Get(NamespaceId ns, string? lastBucket, Guid? lastEvent)
+		public async IAsyncEnumerable<ReplicationLogEvent> GetAsync(NamespaceId ns, string? lastBucket, Guid? lastEvent)
 		{
 			await Task.CompletedTask;
 			if (!_replicationEvents.TryGetValue(ns, out SortedList<string, List<(TimeUuid, ReplicationLogEvent)>>? buckets))

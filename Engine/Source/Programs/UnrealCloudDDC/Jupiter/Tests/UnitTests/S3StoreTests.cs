@@ -50,7 +50,7 @@ namespace Jupiter.UnitTests
         }
 
         [TestMethod]
-        public async Task PutBufferSuccess()
+        public async Task PutBufferSuccessAsync()
         {
             Mock<IAmazonS3> s3Mock = new Mock<IAmazonS3>();
 
@@ -58,7 +58,7 @@ namespace Jupiter.UnitTests
             AmazonS3Store store = ActivatorUtilities.CreateInstance<AmazonS3Store>(provider);
             byte[] content = Encoding.ASCII.GetBytes("test content");
             BlobId blobIdentifier = BlobId.FromBlob(content);
-            Task task = store.PutObject(Namespace, content.AsMemory(), blobIdentifier);
+            Task task = store.PutObjectAsync(Namespace, content.AsMemory(), blobIdentifier);
             await task;
 
             s3Mock.Verify( s3 => s3.DoesS3BucketExistAsync("tests-foo"));
@@ -71,14 +71,14 @@ namespace Jupiter.UnitTests
         }
 
         [TestMethod]
-        public async Task PutBufferSuccessStoragePool()
+        public async Task PutBufferSuccessStoragePoolAsync()
         {
             Mock<IAmazonS3> s3Mock = new Mock<IAmazonS3>();
             ServiceProvider provider = SetupProvider(s3Mock, "storagepool");
             AmazonS3Store store = ActivatorUtilities.CreateInstance<AmazonS3Store>(provider);
             byte[] content = Encoding.ASCII.GetBytes("test content");
             BlobId blobIdentifier = BlobId.FromBlob(content);
-            Task task = store.PutObject(Namespace, content.AsMemory(), blobIdentifier);
+            Task task = store.PutObjectAsync(Namespace, content.AsMemory(), blobIdentifier);
             await task;
 
             s3Mock.Verify( s3 => s3.DoesS3BucketExistAsync("tests-foo-storagepool"));
@@ -92,7 +92,7 @@ namespace Jupiter.UnitTests
 
         [TestMethod]
         [ExpectedException(typeof(Exception))]
-        public async Task PutBufferError()
+        public async Task PutBufferErrorAsync()
         {
             byte[] content = Encoding.ASCII.GetBytes("test content");
             BlobId blob = BlobId.FromBlob(content);
@@ -101,7 +101,7 @@ namespace Jupiter.UnitTests
             s3Mock.Setup(s3 => s3.PutObjectAsync(It.IsAny<PutObjectRequest>(), default)).Throws<Exception>();
             ServiceProvider provider = SetupProvider(s3Mock);
             AmazonS3Store store = ActivatorUtilities.CreateInstance<AmazonS3Store>(provider);
-            Task task = store.PutObject(Namespace, content, blob);
+            Task task = store.PutObjectAsync(Namespace, content, blob);
             await task;
 
             s3Mock.Verify(s3 =>
@@ -111,7 +111,7 @@ namespace Jupiter.UnitTests
         }
 
         [TestMethod]
-        public async Task GetSuccess()
+        public async Task GetSuccessAsync()
         {
             byte[] content = Encoding.ASCII.GetBytes("test content");
             BlobId blob = BlobId.FromBlob(content);
@@ -119,13 +119,13 @@ namespace Jupiter.UnitTests
             s3Mock.Setup(s3 => s3.GetObjectAsync("tests-foo", blob.AsS3Key(), default)).ReturnsAsync(Mock.Of<GetObjectResponse>());
             ServiceProvider provider = SetupProvider(s3Mock);
             AmazonS3Store store = ActivatorUtilities.CreateInstance<AmazonS3Store>(provider);
-            await using BlobContents blobContents = await store.GetObject(Namespace, blob);
+            await using BlobContents blobContents = await store.GetObjectAsync(Namespace, blob);
 
             s3Mock.Verify(s3 => s3.GetObjectAsync("tests-foo", blob.AsS3Key(), default));
         }
 
         [TestMethod]
-        public async Task DeleteSuccess()
+        public async Task DeleteSuccessAsync()
         {
             byte[] content = Encoding.ASCII.GetBytes("test content");
             BlobId blob = BlobId.FromBlob(content);
@@ -133,7 +133,7 @@ namespace Jupiter.UnitTests
             Mock<IAmazonS3> s3Mock = new Mock<IAmazonS3>();
             ServiceProvider provider = SetupProvider(s3Mock);
             AmazonS3Store store = ActivatorUtilities.CreateInstance<AmazonS3Store>(provider);
-            Task task = store.DeleteObject(Namespace, blob);
+            Task task = store.DeleteObjectAsync(Namespace, blob);
             await task;
 
             s3Mock.Verify(s3 => s3.DeleteObjectAsync("tests-foo", blob.AsS3Key(), default));

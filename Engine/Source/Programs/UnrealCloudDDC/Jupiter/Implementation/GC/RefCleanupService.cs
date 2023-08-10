@@ -40,7 +40,7 @@ namespace Jupiter.Implementation
 			return _settings.CurrentValue.CleanOldRefRecords;
 		}
 
-		public override async Task<bool> OnPoll(RefCleanupState state, CancellationToken cancellationToken)
+		public override async Task<bool> OnPollAsync(RefCleanupState state, CancellationToken cancellationToken)
 		{
 			if (_alreadyPolling)
 			{
@@ -65,7 +65,7 @@ namespace Jupiter.Implementation
 				{
 					await state.RunningCleanupTask;
 				}
-				state.RunningCleanupTask = DoCleanup(state, cancellationToken);
+				state.RunningCleanupTask = DoCleanupAsync(state, cancellationToken);
 
 				return true;
 
@@ -76,7 +76,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		private async Task DoCleanup(RefCleanupState state, CancellationToken cancellationToken)
+		private async Task DoCleanupAsync(RefCleanupState state, CancellationToken cancellationToken)
 		{
 			_logger.LogInformation("Attempting to run Refs Cleanup. ");
 			try

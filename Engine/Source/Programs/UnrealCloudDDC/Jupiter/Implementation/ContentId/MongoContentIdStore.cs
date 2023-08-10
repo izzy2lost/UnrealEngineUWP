@@ -50,7 +50,7 @@ namespace Jupiter.Implementation
 					BlobId[] blobs = model.ContentWeightToBlobsMap[weight].Select(s => new BlobId(s)).ToArray();
 
 					{
-						BlobId[] missingBlobs = await _blobStore.FilterOutKnownBlobs(ns, blobs);
+						BlobId[] missingBlobs = await _blobStore.FilterOutKnownBlobsAsync(ns, blobs);
 						if (missingBlobs.Length == 0)
 						{
 							return blobs;
@@ -63,7 +63,7 @@ namespace Jupiter.Implementation
 
 			BlobId contentIdAsBlobIdentifier = contentId.AsBlobIdentifier();
 			// no content id where all blobs are present, check if its present in the blob store as a uncompressed version of the blob
-			if (!mustBeContentId && await _blobStore.Exists(ns, contentIdAsBlobIdentifier))
+			if (!mustBeContentId && await _blobStore.ExistsAsync(ns, contentIdAsBlobIdentifier))
 			{
 				return new[] { contentIdAsBlobIdentifier };
 			}

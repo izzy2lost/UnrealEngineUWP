@@ -78,7 +78,7 @@ namespace Jupiter.Implementation
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.insert_add_event");
 
-			Task addNamespaceTask = PotentiallyAddNamespace(ns);
+			Task addNamespaceTask = PotentiallyAddNamespaceAsync(ns);
 			DateTime timeBucket = timestamp.GetValueOrDefault(DateTime.UtcNow);
 			ScyllaReplicationLogEvent log = new ScyllaReplicationLogEvent(ns.ToString(), bucket.ToString(), key.ToString(), timeBucket, ScyllaReplicationLogEvent.OpType.Added, objectBlob);
 			await _mapper.InsertAsync<ScyllaReplicationLogEvent>(log, insertNulls: false,  ttl: (int)_settings.CurrentValue.ReplicationLogTimeToLive.TotalSeconds);
@@ -91,7 +91,7 @@ namespace Jupiter.Implementation
 		{
 			using TelemetrySpan scope =  _tracer.BuildScyllaSpan("scylla.insert_delete_event");
 
-			Task addNamespaceTask = PotentiallyAddNamespace(ns);
+			Task addNamespaceTask = PotentiallyAddNamespaceAsync(ns);
 			DateTime timeBucket = timestamp.GetValueOrDefault(DateTime.UtcNow);
 			ScyllaReplicationLogEvent log = new ScyllaReplicationLogEvent(ns.ToString(), bucket.ToString(), key.ToString(), timeBucket, ScyllaReplicationLogEvent.OpType.Deleted, null);
 			await _mapper.InsertAsync<ScyllaReplicationLogEvent>(log, insertNulls: false,  ttl: (int)_settings.CurrentValue.ReplicationLogTimeToLive.TotalSeconds);
@@ -100,12 +100,12 @@ namespace Jupiter.Implementation
 			return (log.GetReplicationBucketIdentifier(), log.ReplicationId);
 		}
 
-		private async Task PotentiallyAddNamespace(NamespaceId ns)
+		private async Task PotentiallyAddNamespaceAsync(NamespaceId ns)
 		{
 			await _mapper.InsertAsync(new ScyllaNamespace(ns.ToString()));
 		}
 
-		public async IAsyncEnumerable<ReplicationLogEvent> Get(NamespaceId ns, string? lastBucket, Guid? lastEvent)
+		public async IAsyncEnumerable<ReplicationLogEvent> GetAsync(NamespaceId ns, string? lastBucket, Guid? lastEvent)
 		{
 			using TelemetrySpan getReplicationLogScope = _tracer.BuildScyllaSpan("scylla.get_replication_log");
 			if (lastBucket == "now")
@@ -114,7 +114,7 @@ namespace Jupiter.Implementation
 				lastBucket = DateTime.UtcNow.ToHourlyBucket().ToReplicationBucketIdentifier();
 			}
 
-			IAsyncEnumerable<long> buckets = FindReplicationBuckets(ns, lastBucket);
+			IAsyncEnumerable<long> buckets = FindReplicationBucketsAsync(ns, lastBucket);
 
 			// loop thru the buckets starting with the oldest to try and find were lastBucket refers to
 			bool bucketFound = false;
@@ -178,7 +178,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		private async IAsyncEnumerable<long> FindReplicationBuckets(NamespaceId ns, string? lastBucket)
+		private async IAsyncEnumerable<long> FindReplicationBucketsAsync(NamespaceId ns, string? lastBucket)
 		{
 			using TelemetrySpan findReplicationBucketScope = _tracer.BuildScyllaSpan("scylla.find_replication_buckets");
 			// ignore any bucket that is older then a cutoff, as that can cause us to end up scanning thru a lot of hours that will never exist (incremental logs are deleted after 7 days)
@@ -238,10 +238,10 @@ namespace Jupiter.Implementation
 		public async Task AddSnapshot(SnapshotInfo snapshotHeader)
 		{
 			await _mapper.InsertAsync<ScyllaSnapshot>(new ScyllaSnapshot(snapshotHeader.SnapshottedNamespace.ToString(), snapshotHeader.BlobNamespace.ToString(), TimeUuid.NewId(), snapshotHeader.SnapshotBlob));
-			await CleanupSnapshots(snapshotHeader.SnapshottedNamespace);
+			await CleanupSnapshotsAsync(snapshotHeader.SnapshottedNamespace);
 		}
 
-		public async Task CleanupSnapshots(NamespaceId ns)
+		public async Task CleanupSnapshotsAsync(NamespaceId ns)
 		{
 			// determine if we have to many snapshots and remove the oldest ones if we do
 			RowSet rowSet = await _session.ExecuteAsync(new SimpleStatement("SELECT Count(*) FROM replication_snapshot WHERE namespace = ?", ns.ToString()));

@@ -64,7 +64,7 @@ public class StorageClient : BundleStorageClient
 	{
 		BundleLocator locator = BundleLocator.CreateUnique(prefix);
 		BlobId blobIdentifier = BlobId.FromBlobLocator(locator);
-		Uri? redirectUri = await _blobService.MaybePutObjectWithRedirect(_namespaceId, blobIdentifier);
+		Uri? redirectUri = await _blobService.MaybePutObjectWithRedirectAsync(_namespaceId, blobIdentifier);
 		if (redirectUri == null)
 		{
 			return null;
@@ -76,7 +76,7 @@ public class StorageClient : BundleStorageClient
 	{
 		BundleLocator locator = BundleLocator.CreateUnique(prefix);
 		BlobId blobIdentifier = BlobId.FromBlobLocator(locator);
-		await _blobService.PutObject(_namespaceId, bundle.AsSequence().ToArray(), blobIdentifier);
+		await _blobService.PutObjectAsync(_namespaceId, bundle.AsSequence().ToArray(), blobIdentifier);
 
 		await using ReadOnlySequenceStream bundleStream = new ReadOnlySequenceStream(bundle.AsSequence());
 		BundleHeader bundleHeader = await BundleHeader.FromStreamAsync(bundleStream, cancellationToken);
@@ -84,7 +84,7 @@ public class StorageClient : BundleStorageClient
 		foreach (BundleLocator import in bundleHeader.Imports)
 		{
 			BlobId dependentBlob = BlobId.FromBlobLocator(import);
-			addReferencesTasks.Add(_blobIndex.AddBlobReferences(_namespaceId, dependentBlob, blobIdentifier));
+			addReferencesTasks.Add(_blobIndex.AddBlobReferencesAsync(_namespaceId, dependentBlob, blobIdentifier));
 		}
 
 		await Task.WhenAll(addReferencesTasks);
@@ -114,14 +114,14 @@ public class StorageClient : BundleStorageClient
 	public async Task<Uri?> GetReadRedirectAsync(BundleLocator locator, CancellationToken cancellationToken)
 	{
 		BlobId blobIdentifier = BlobId.FromBlobLocator(locator);
-		Uri? redirectUri = await _blobService.GetObjectWithRedirect(_namespaceId, blobIdentifier);
+		Uri? redirectUri = await _blobService.GetObjectWithRedirectAsync(_namespaceId, blobIdentifier);
 		return redirectUri;
 	}
 
 	public override async Task<Bundle> ReadBundleAsync(BundleLocator locator, CancellationToken cancellationToken)
 	{
 		BlobId blobIdentifier = BlobId.FromBlobLocator(locator);
-		BlobContents blobContents = await _blobService.GetObject(_namespaceId, blobIdentifier);
+		BlobContents blobContents = await _blobService.GetObjectAsync(_namespaceId, blobIdentifier);
 		return await Bundle.FromStreamAsync(blobContents.Stream, cancellationToken);
 	}
 
@@ -188,7 +188,7 @@ public class StorageClient : BundleStorageClient
 		};
 		byte[] payload = CbSerializer.SerializeToByteArray(inlinePayload);
 		BlobId blobIdentifier = BlobId.FromBlob(payload);
-		await _blobIndex.AddRefToBlobs(_namespaceId, _defaultBucket, refKey, new BlobId[] { bundleBlob });
+		await _blobIndex.AddRefToBlobsAsync(_namespaceId, _defaultBucket, refKey, new BlobId[] { bundleBlob });
 
 		// TODO: Calculate isFinalized which requires us to be able to resovle references
 		await _refStore.Put(_namespaceId, _defaultBucket, refKey, blobIdentifier, payload, isFinalized: true); 

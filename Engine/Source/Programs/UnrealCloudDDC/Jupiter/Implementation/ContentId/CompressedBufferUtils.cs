@@ -183,7 +183,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task<IBufferedPayload> DecompressContent(Stream sourceStream, ulong streamSize)
+		public async Task<IBufferedPayload> DecompressContentAsync(Stream sourceStream, ulong streamSize)
 		{
 			using BinaryReader br = new BinaryReader(sourceStream);
 			(CompressedBufferHeader header, uint[] compressedBlockSizes) = ExtractHeader(br);
@@ -247,7 +247,7 @@ namespace Jupiter.Implementation
 
 				BlobId headerIdentifier = new BlobId(slicedHash);
 				await using Stream hashStream = finalizedBufferedPayload.GetStream();
-				BlobId contentHash = await BlobId.FromStream(hashStream);
+				BlobId contentHash = await BlobId.FromStreamAsync(hashStream);
 
 				if (!headerIdentifier.Equals(contentHash))
 				{

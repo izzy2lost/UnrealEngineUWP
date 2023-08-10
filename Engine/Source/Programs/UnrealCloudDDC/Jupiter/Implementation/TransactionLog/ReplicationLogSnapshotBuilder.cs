@@ -29,7 +29,7 @@ namespace Jupiter.Implementation.TransactionLog
 			_replicationLogFactory = replicationLogFactory;
 		}
 
-		public async Task<BlobId> BuildSnapshot(NamespaceId ns, NamespaceId storeInNamespace, CancellationToken cancellationToken = default(CancellationToken))
+		public async Task<BlobId> BuildSnapshotAsync(NamespaceId ns, NamespaceId storeInNamespace, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			// builds a snapshot and commits it to the blob store with the identifier specified
 
@@ -46,13 +46,13 @@ namespace Jupiter.Implementation.TransactionLog
 			if (snapshotInfo != null)
 			{
 				// append to the previous snapshot if one is available
-				await using BlobContents blobContents = await _blobService.GetObject(snapshotInfo.BlobNamespace, snapshotInfo.SnapshotBlob);
+				await using BlobContents blobContents = await _blobService.GetObjectAsync(snapshotInfo.BlobNamespace, snapshotInfo.SnapshotBlob);
 				if (cancellationToken.IsCancellationRequested)
 				{
 					throw new TaskCanceledException();
 				}
 
-				using IBufferedPayload snapshotPayload = await _bufferedPayloadFactory.CreateFilesystemBufferedPayload(blobContents.Stream);
+				using IBufferedPayload snapshotPayload = await _bufferedPayloadFactory.CreateFilesystemBufferedPayloadAsync(blobContents.Stream);
 				await using Stream s = snapshotPayload.GetStream();
 				snapshot = _replicationLogFactory.DeserializeSnapshotFromStream(s);
 				lastBucket = snapshot.LastBucket;
@@ -71,7 +71,7 @@ namespace Jupiter.Implementation.TransactionLog
 				throw new TaskCanceledException();
 			}
 
-			await foreach (ReplicationLogEvent entry in _replicationLog.Get(ns, lastBucket, lastEvent))
+			await foreach (ReplicationLogEvent entry in _replicationLog.GetAsync(ns, lastBucket, lastEvent))
 			{
 				if (cancellationToken.IsCancellationRequested)
 				{
@@ -89,7 +89,7 @@ namespace Jupiter.Implementation.TransactionLog
 			}
 
 			Stream tempFileStream = tempFile.OpenRead();
-			using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromStream(tempFileStream, tempFile.Length);
+			using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromStreamAsync(tempFileStream, tempFile.Length);
 			tempFileStream.Close();
 			tempFile.Delete();
 
@@ -97,7 +97,7 @@ namespace Jupiter.Implementation.TransactionLog
 				BlobId blobIdentifier;
 				{
 					await using Stream stream = payload.GetStream();
-					blobIdentifier = await BlobId.FromStream(stream);
+					blobIdentifier = await BlobId.FromStreamAsync(stream);
 				}
 
 				CbWriter writer = new CbWriter();
@@ -115,7 +115,7 @@ namespace Jupiter.Implementation.TransactionLog
 				}
 
 				// upload the attachment first so we are not missing any references when we go to create the ref
-				await _blobService.PutObject(storeInNamespace, payload, blobIdentifier);
+				await _blobService.PutObjectAsync(storeInNamespace, payload, blobIdentifier);
 			
 				(ContentId[] missingContentIds, BlobId[] missingBlobs) = await _objectService.Put(storeInNamespace, new BucketId("snapshot"), new RefId(blobIdentifier.ToString()), cbBlobId, new CbObject(cbObjectBytes));
 				List<ContentHash> missingHashes = new List<ContentHash>(missingContentIds);

@@ -43,7 +43,7 @@ namespace Jupiter.Implementation
 
 		public string? GetToken()
 		{
-			return _authenticator?.Authenticate().Result;
+			return _authenticator?.AuthenticateAsync().Result;
 		}
 
 		public async Task<string?> GetTokenAsync()
@@ -52,7 +52,7 @@ namespace Jupiter.Implementation
 			{
 				return null;
 			}
-			return await _authenticator.Authenticate();
+			return await _authenticator.AuthenticateAsync();
 		}
 
 		public string GetAuthenticationScheme()

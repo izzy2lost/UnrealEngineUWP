@@ -30,7 +30,7 @@ namespace Jupiter.Controllers
 
 		[HttpGet("{ns}")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> Get(
+		public async Task<IActionResult> GetAsync(
 			[Required] NamespaceId ns
 		)
 		{
@@ -71,7 +71,7 @@ namespace Jupiter.Controllers
 
 		[HttpPost("{ns}/{replicatorName}/{offset}")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> SetReplicationOffset(
+		public async Task<IActionResult> SetReplicationOffsetAsync(
 			[Required] NamespaceId ns,
 			[Required] string replicatorName,
 			[Required] long offset
@@ -109,7 +109,7 @@ namespace Jupiter.Controllers
 
 		[HttpPost("refs/{ns}/{replicatorName}")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> SetReplicationState(
+		public async Task<IActionResult> SetReplicationStateAsync(
 			[Required] NamespaceId ns,
 			[Required] string replicatorName,
 			[Required] [FromBody] NewReplicationState replicationState
@@ -154,7 +154,7 @@ namespace Jupiter.Controllers
 
 		[HttpDelete("{ns}")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> Delete(
+		public async Task<IActionResult> DeleteAsync(
 			[Required] NamespaceId ns
 		)
 		{

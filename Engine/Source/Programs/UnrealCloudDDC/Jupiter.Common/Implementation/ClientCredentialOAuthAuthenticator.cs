@@ -10,7 +10,7 @@ namespace Jupiter.Implementation
 {
 	public interface IAuthenticator
 	{
-		public Task<string?> Authenticate();
+		public Task<string?> AuthenticateAsync();
 	}
 
 	public class ClientCredentialOAuthAuthenticator: IAuthenticator
@@ -33,19 +33,19 @@ namespace Jupiter.Implementation
 		private readonly string _scope;
 		private DateTime _expiresAt;
 
-		public async Task<string?> Authenticate()
+		public async Task<string?> AuthenticateAsync()
 		{
 			if (string.IsNullOrEmpty(_accessToken) || DateTime.Now > _expiresAt)
 			{
-				await PreAuthenticate();
+				await PreAuthenticateAsync();
 			}
 
 			return _accessToken;
 		}
 
-		private async Task PreAuthenticate()
+		private async Task PreAuthenticateAsync()
 		{
-			(ClientCredentialsResponse result, string body) = await DoAuthenticationRequest();
+			(ClientCredentialsResponse result, string body) = await DoAuthenticationRequestAsync();
 			string? accessToken = result.access_token;
 			if (string.IsNullOrEmpty(accessToken))
 			{
@@ -57,7 +57,7 @@ namespace Jupiter.Implementation
 
 		}
 
-		private async Task<(ClientCredentialsResponse, string)> DoAuthenticationRequest()
+		private async Task<(ClientCredentialsResponse, string)> DoAuthenticationRequestAsync()
 		{
 			using HttpClient client = _httpClientFactory.CreateClient();
 			using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, _authUrl);

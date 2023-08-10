@@ -57,7 +57,7 @@ namespace Jupiter.FunctionalTests.References
             IReplicationLog replicationLog = provider.GetService<IReplicationLog>()!;
             Assert.IsTrue(replicationLog.GetType() == typeof(ScyllaReplicationLog));
 
-            await SeedTestData();
+            await SeedTestDataAsync();
         }
 
         protected override async Task TeardownDb(IServiceProvider provider)
@@ -103,7 +103,7 @@ namespace Jupiter.FunctionalTests.References
             IReplicationLog replicationLog = provider.GetService<IReplicationLog>()!;
             Assert.IsTrue(replicationLog.GetType() == typeof(MemoryReplicationLog));
 
-            await SeedTestData();
+            await SeedTestDataAsync();
         }
 
         protected override Task TeardownDb(IServiceProvider provider)
@@ -124,7 +124,7 @@ namespace Jupiter.FunctionalTests.References
         private readonly BucketId TestBucket = new BucketId("default");
 
         [TestInitialize]
-        public async Task Setup()
+        public async Task SetupAsync()
 
         {
             IConfigurationRoot configuration = new ConfigurationBuilder()
@@ -153,13 +153,13 @@ namespace Jupiter.FunctionalTests.References
             await SeedDb(server.Services);
         }
 
-        protected virtual async Task SeedTestData()
+        protected virtual async Task SeedTestDataAsync()
         {
             await Task.CompletedTask;
         }
 
         [TestCleanup]
-        public async Task Teardown()
+        public async Task TeardownAsync()
         {
             if (_server != null)
             {
@@ -174,7 +174,7 @@ namespace Jupiter.FunctionalTests.References
         
         
         [TestMethod]
-        public async Task ReplicationLogCreation()
+        public async Task ReplicationLogCreationAsync()
         {
             CbWriter writer = new CbWriter();
             writer.BeginObject();
@@ -244,7 +244,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task ReplicationLogReading()
+        public async Task ReplicationLogReadingAsync()
         {
             CbWriter writer = new CbWriter();
             writer.BeginObject();
@@ -302,7 +302,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task ReplicationLogResume()
+        public async Task ReplicationLogResumeAsync()
         {
             CbWriter writer = new CbWriter();
             writer.BeginObject();
@@ -363,7 +363,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task ReplicationLogReadingLimit()
+        public async Task ReplicationLogReadingLimitAsync()
         {
             CbWriter writer = new CbWriter();
             writer.BeginObject();
@@ -413,7 +413,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task ReplicationLogInvalidBucket()
+        public async Task ReplicationLogInvalidBucketAsync()
         {
             // the namespace exists but the bucket does not
             CbWriter writer = new CbWriter();
@@ -441,7 +441,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task ReplicationLogOldBucket()
+        public async Task ReplicationLogOldBucketAsync()
         {
             // the namespace exists but the bucket id is from a old bucket that does not exist anymore
             CbWriter writer = new CbWriter();
@@ -469,7 +469,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task ReplicationLogEmptyLog()
+        public async Task ReplicationLogEmptyLogAsync()
         {
             // the namespace does not exist
             {
@@ -483,7 +483,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task ReplicationLogNoIncrementalLogAvailable()
+        public async Task ReplicationLogNoIncrementalLogAvailableAsync()
         {
             CbWriter writer = new CbWriter();
             writer.BeginObject();
@@ -502,8 +502,8 @@ namespace Jupiter.FunctionalTests.References
             // create a snapshot
             ReplicationLogSnapshotBuilder snapshotBuilder = ActivatorUtilities.CreateInstance<ReplicationLogSnapshotBuilder>(_server!.Services);
             Assert.IsNotNull(snapshotBuilder);
-            BlobId snapshotBlobId = await snapshotBuilder.BuildSnapshot(TestNamespace, SnapshotNamespace);
-            Assert.IsTrue(await _blobStore.Exists(SnapshotNamespace, snapshotBlobId));
+            BlobId snapshotBlobId = await snapshotBuilder.BuildSnapshotAsync(TestNamespace, SnapshotNamespace);
+            Assert.IsTrue(await _blobStore.ExistsAsync(SnapshotNamespace, snapshotBlobId));
 
             // use a bucket that does not exist, should raise a message to use a snapshot instead
             string bucketThatDoesNotExist = "rep-0000";
@@ -520,7 +520,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task ReplicationLogSnapshotCreation()
+        public async Task ReplicationLogSnapshotCreationAsync()
         {
             CbWriter writer = new CbWriter();
             writer.BeginObject();
@@ -538,7 +538,7 @@ namespace Jupiter.FunctionalTests.References
 
             // verify the objects were added
             {
-                List<ReplicationLogEvent> logEvents = await _replicationLog.Get(TestNamespace, null, null).ToListAsync();
+                List<ReplicationLogEvent> logEvents = await _replicationLog.GetAsync(TestNamespace, null, null).ToListAsync();
                 Assert.AreEqual(4, logEvents.Count);
 
                 // parse the events returned, make sure they are in the right order
@@ -583,14 +583,14 @@ namespace Jupiter.FunctionalTests.References
             // create a snapshot
             ReplicationLogSnapshotBuilder snapshotBuilder = ActivatorUtilities.CreateInstance<ReplicationLogSnapshotBuilder>(_server!.Services);
             Assert.IsNotNull(snapshotBuilder);
-            BlobId snapshotBlobId = await snapshotBuilder.BuildSnapshot(TestNamespace, SnapshotNamespace);
-            Assert.IsTrue(await _blobStore.Exists(SnapshotNamespace, snapshotBlobId));
+            BlobId snapshotBlobId = await snapshotBuilder.BuildSnapshotAsync(TestNamespace, SnapshotNamespace);
+            Assert.IsTrue(await _blobStore.ExistsAsync(SnapshotNamespace, snapshotBlobId));
 
             SnapshotInfo? snapshotInfo = await _replicationLog.GetSnapshots(TestNamespace).FirstAsync();
             Assert.IsNotNull(snapshotInfo);
             Assert.AreEqual(snapshotBlobId, snapshotInfo.SnapshotBlob);
 
-            BlobContents blobContents = await _blobStore.GetObject(SnapshotNamespace, snapshotBlobId);
+            BlobContents blobContents = await _blobStore.GetObjectAsync(SnapshotNamespace, snapshotBlobId);
             ReplicationLogSnapshot snapshot = replicationLogFactory.DeserializeSnapshotFromStream(blobContents.Stream);
 
             Assert.AreEqual(lastEventId, snapshot.LastEvent);
@@ -604,7 +604,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task ReplicationLogSnapshotQuerying()
+        public async Task ReplicationLogSnapshotQueryingAsync()
         {
             CbWriter writer = new CbWriter();
             writer.BeginObject();
@@ -621,7 +621,7 @@ namespace Jupiter.FunctionalTests.References
             (string lastEventBucket, Guid lastEventId) = await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
 
             // verify the objects were added
-            List<ReplicationLogEvent> logEvents = await _replicationLog.Get(TestNamespace, null, null).ToListAsync();
+            List<ReplicationLogEvent> logEvents = await _replicationLog.GetAsync(TestNamespace, null, null).ToListAsync();
             Assert.AreEqual(4, logEvents.Count);
 
             // verify there are no previous snapshots
@@ -631,8 +631,8 @@ namespace Jupiter.FunctionalTests.References
             ReplicationLogFactory replicationLogFactory = ActivatorUtilities.CreateInstance<ReplicationLogFactory>(_server!.Services);
             ReplicationLogSnapshotBuilder snapshotBuilder = ActivatorUtilities.CreateInstance<ReplicationLogSnapshotBuilder>(_server!.Services);
             Assert.IsNotNull(snapshotBuilder);
-            BlobId snapshotBlobId = await snapshotBuilder.BuildSnapshot(TestNamespace, SnapshotNamespace);
-            Assert.IsTrue(await _blobStore.Exists(SnapshotNamespace, snapshotBlobId));
+            BlobId snapshotBlobId = await snapshotBuilder.BuildSnapshotAsync(TestNamespace, SnapshotNamespace);
+            Assert.IsTrue(await _blobStore.ExistsAsync(SnapshotNamespace, snapshotBlobId));
 
             SnapshotInfo? snapshotInfo = await _replicationLog.GetSnapshots(TestNamespace).FirstAsync();
             Assert.AreEqual(snapshotBlobId, snapshotInfo.SnapshotBlob);
@@ -650,7 +650,7 @@ namespace Jupiter.FunctionalTests.References
                 SnapshotInfo foundSnapshot = snapshots.Snapshots[0];
 
                 Assert.AreEqual(snapshotBlobId, foundSnapshot.SnapshotBlob);
-                BlobContents blobContents = await _blobStore.GetObject(SnapshotNamespace, snapshotBlobId);
+                BlobContents blobContents = await _blobStore.GetObjectAsync(SnapshotNamespace, snapshotBlobId);
                 ReplicationLogSnapshot snapshot = replicationLogFactory.DeserializeSnapshotFromStream(blobContents.Stream);
 
                 Assert.AreEqual(lastEventBucket, snapshot.LastBucket);
@@ -660,7 +660,7 @@ namespace Jupiter.FunctionalTests.References
 
         // builds a snapshot and make sure we can resume iterating after it
         [TestMethod]
-        public async Task ReplicationLogSnapshotResume()
+        public async Task ReplicationLogSnapshotResumeAsync()
         {
             CbWriter writer = new CbWriter();
             writer.BeginObject();
@@ -677,7 +677,7 @@ namespace Jupiter.FunctionalTests.References
             await _replicationLog.InsertAddEvent(TestNamespace, TestBucket, RefId.FromName("fourthObject"), objectHash, oldestTimestamp.AddDays(0.9));
 
             // verify the objects were added
-            List<ReplicationLogEvent> logEvents = await _replicationLog.Get(TestNamespace, null, null).ToListAsync();
+            List<ReplicationLogEvent> logEvents = await _replicationLog.GetAsync(TestNamespace, null, null).ToListAsync();
             Assert.AreEqual(4, logEvents.Count);
 
             // verify there are no previous snapshots
@@ -687,13 +687,13 @@ namespace Jupiter.FunctionalTests.References
             ReplicationLogFactory replicationLogFactory = ActivatorUtilities.CreateInstance<ReplicationLogFactory>(_server!.Services);
             ReplicationLogSnapshotBuilder snapshotBuilder = ActivatorUtilities.CreateInstance<ReplicationLogSnapshotBuilder>(_server!.Services);
             Assert.IsNotNull(snapshotBuilder);
-            BlobId snapshotBlobId = await snapshotBuilder.BuildSnapshot(TestNamespace, SnapshotNamespace);
-            Assert.IsTrue(await _blobStore.Exists(SnapshotNamespace, snapshotBlobId));
+            BlobId snapshotBlobId = await snapshotBuilder.BuildSnapshotAsync(TestNamespace, SnapshotNamespace);
+            Assert.IsTrue(await _blobStore.ExistsAsync(SnapshotNamespace, snapshotBlobId));
 
             SnapshotInfo? snapshotInfo = await _replicationLog.GetSnapshots(TestNamespace).FirstAsync();
             Assert.AreEqual(snapshotBlobId, snapshotInfo.SnapshotBlob);
 
-            BlobContents blobContents = await _blobStore.GetObject(SnapshotNamespace, snapshotBlobId);
+            BlobContents blobContents = await _blobStore.GetObjectAsync(SnapshotNamespace, snapshotBlobId);
             ReplicationLogSnapshot snapshot = replicationLogFactory.DeserializeSnapshotFromStream(blobContents.Stream);
 
             // insert more events
@@ -731,7 +731,7 @@ namespace Jupiter.FunctionalTests.References
         }
 
         [TestMethod]
-        public async Task ReplicationLogSnapshotCleanup()
+        public async Task ReplicationLogSnapshotCleanupAsync()
         {
             const int maxCountOfSnapshots = 10;
             int countOfSnapshotsToCreate = maxCountOfSnapshots + 2;
@@ -751,8 +751,8 @@ namespace Jupiter.FunctionalTests.References
 
                 ReplicationLogSnapshotBuilder snapshotBuilder = ActivatorUtilities.CreateInstance<ReplicationLogSnapshotBuilder>(_server!.Services);
                 Assert.IsNotNull(snapshotBuilder);
-                BlobId snapshotBlobId = await snapshotBuilder.BuildSnapshot(TestNamespace, SnapshotNamespace);
-                Assert.IsTrue(await _blobStore.Exists(SnapshotNamespace, snapshotBlobId));
+                BlobId snapshotBlobId = await snapshotBuilder.BuildSnapshotAsync(TestNamespace, SnapshotNamespace);
+                Assert.IsTrue(await _blobStore.ExistsAsync(SnapshotNamespace, snapshotBlobId));
                 createdSnapshots.Add(snapshotBlobId);
             }
 

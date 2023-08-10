@@ -80,7 +80,7 @@ namespace Jupiter.Implementation
 			return null;
 		}
 
-		public async Task<BlobContents> GetObject(NamespaceId ns, BlobId blob, LastAccessTrackingFlags flags = LastAccessTrackingFlags.DoTracking, bool supportsRedirectUri = false)
+		public async Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, LastAccessTrackingFlags flags = LastAccessTrackingFlags.DoTracking, bool supportsRedirectUri = false)
 		{
 			List<Task<BlobContents?>> tasks = new();
 
@@ -131,7 +131,7 @@ namespace Jupiter.Implementation
 			return null;
 		}
 
-		public async Task<bool> Exists(NamespaceId ns, BlobId blob, bool forceCheck = false)
+		public async Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, bool forceCheck = false)
 		{
 			List<Task<bool?>> tasks = new();
 
@@ -166,49 +166,49 @@ namespace Jupiter.Implementation
 			return httpClient;
 		}
 
-		public Task<Uri?> GetObjectByRedirect(NamespaceId ns, BlobId identifier)
+		public Task<Uri?> GetObjectByRedirectAsync(NamespaceId ns, BlobId identifier)
 		{
 			// not supported
 			return Task.FromResult<Uri?>(null);
 		}
 
-		public Task<Uri?> PutObjectWithRedirect(NamespaceId ns, BlobId identifier)
+		public Task<Uri?> PutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier)
 		{
 			// not supported
 			return Task.FromResult<Uri?>(null);
 		}
 
-		public Task<BlobId> PutObject(NamespaceId ns, byte[] blob, BlobId identifier)
+		public Task<BlobId> PutObjectAsync(NamespaceId ns, byte[] blob, BlobId identifier)
 		{
 			// not applicable
 			return Task.FromResult(identifier);
 		}
 
-		public Task<BlobId> PutObject(NamespaceId ns, ReadOnlyMemory<byte> blob, BlobId identifier)
+		public Task<BlobId> PutObjectAsync(NamespaceId ns, ReadOnlyMemory<byte> blob, BlobId identifier)
 		{
 			// not applicable
 			return Task.FromResult(identifier);
 		}
 
-		public Task<BlobId> PutObject(NamespaceId ns, Stream content, BlobId identifier)
+		public Task<BlobId> PutObjectAsync(NamespaceId ns, Stream content, BlobId identifier)
 		{
 			// not applicable
 			return Task.FromResult(identifier);
 		}
 
-		public Task DeleteObject(NamespaceId ns, BlobId blob)
+		public Task DeleteObjectAsync(NamespaceId ns, BlobId blob)
 		{
 			// not applicable
 			return Task.CompletedTask;
 		}
 
-		public Task DeleteNamespace(NamespaceId ns)
+		public Task DeleteNamespaceAsync(NamespaceId ns)
 		{
 			// not applicable
 			return Task.CompletedTask;
 		}
 
-		public IAsyncEnumerable<(BlobId, DateTime)> ListObjects(NamespaceId ns)
+		public IAsyncEnumerable<(BlobId, DateTime)> ListObjectsAsync(NamespaceId ns)
 		{
 			// not applicable
 			return AsyncEnumerable.Empty<(BlobId, DateTime)>();

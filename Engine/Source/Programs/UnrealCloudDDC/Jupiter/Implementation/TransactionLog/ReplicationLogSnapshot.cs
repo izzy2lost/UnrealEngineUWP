@@ -77,7 +77,7 @@ namespace Jupiter.Implementation.TransactionLog
 
 		public static ReplicationLogSnapshot FromStream(Tracer tracer, Stream stream)
 		{
-			FilesystemBufferedPayload payload = FilesystemBufferedPayload.Create(tracer, stream).Result;
+			FilesystemBufferedPayload payload = FilesystemBufferedPayload.CreateAsync(tracer, stream).Result;
 
 			using Stream payloadStream = payload.GetStream();
 			(NamespaceId ns, string lastBucket, Guid lastEvent, ulong countOfObjects) = ReadHeader(payloadStream);

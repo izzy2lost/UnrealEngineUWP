@@ -28,7 +28,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
     [TestClass]
     public class ScyllaCompressedBlobTests : CompressedBlobTests
     {
-        protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+        protected override IEnumerable<KeyValuePair<string, string>> GetSettingsAsync()
         {
             // Use the S3 storage backend so we can handle large blobs
             return new[]
@@ -40,12 +40,12 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
             };
         }
 
-        protected override async Task Seed(IServiceProvider provider)
+        protected override async Task SeedAsync(IServiceProvider provider)
         {
             await Task.CompletedTask;
         }
 
-        protected override async Task Teardown()
+        protected override async Task TeardownAsync()
         {
             await Task.CompletedTask;
         }
@@ -54,7 +54,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
     [TestClass]
     public class MongoCompressedBlobTests : CompressedBlobTests
     {
-        protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+        protected override IEnumerable<KeyValuePair<string, string>> GetSettingsAsync()
         {
             // Use the S3 storage backend so we can handle large blobs
             return new[]
@@ -66,12 +66,12 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
             };
         }
 
-        protected override async Task Seed(IServiceProvider provider)
+        protected override async Task SeedAsync(IServiceProvider provider)
         {
             await Task.CompletedTask;
         }
 
-        protected override async Task Teardown()
+        protected override async Task TeardownAsync()
         {
             await Task.CompletedTask;
         }
@@ -85,12 +85,12 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
         protected const string TestNamespace = "test-namespace";
 
         [TestInitialize]
-        public async Task Setup()
+        public async Task SetupAsync()
         {
             IConfigurationRoot configuration = new ConfigurationBuilder()
                 // we are not reading the base appSettings here as we want exact control over what runs in the tests
                 .AddJsonFile("appsettings.Testing.json", true)
-                .AddInMemoryCollection(GetSettings())
+                .AddInMemoryCollection(GetSettingsAsync())
                 .AddEnvironmentVariables()
                 .Build();
 
@@ -108,17 +108,17 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
             Server = server;
 
             // Seed storage
-            await Seed(Server.Services);
+            await SeedAsync(Server.Services);
         }
 
-        protected abstract IEnumerable<KeyValuePair<string, string>> GetSettings();
-        protected abstract Task Seed(IServiceProvider serverServices);
-        protected abstract Task Teardown();
+        protected abstract IEnumerable<KeyValuePair<string, string>> GetSettingsAsync();
+        protected abstract Task SeedAsync(IServiceProvider serverServices);
+        protected abstract Task TeardownAsync();
 
         [TestCleanup]
-        public async Task MyTeardown()
+        public async Task MyTeardownAsync()
         {
-            await Teardown();
+            await TeardownAsync();
         }
 
         [TestMethod]
@@ -132,7 +132,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
         [DataRow("Oodle-f895ea954b37217270e88d8b728bd3c09152689c", "F895EA954B37217270E88D8B728BD3C09152689C")]
         [DataRow("Oodle-f0b9c675fe21951ca27699f9baab9f9f5040b202", "F0B9C675FE21951CA27699F9BAAB9F9F5040B202")]
         [DataRow("OodleTexture_CAS_dbda9040e75c4674fcec173f982fddf12b021e24.udd", "DBDA9040E75C4674FCEC173F982FDDF12B021E24")]
-        public async Task PutPayloads(string payloadFilename, string uncompressedHash)
+        public async Task PutPayloadsAsync(string payloadFilename, string uncompressedHash)
         {
             byte[] texturePayload = await File.ReadAllBytesAsync($"ContentId/Payloads/{payloadFilename}");
             BlobId compressedPayloadIdentifier = BlobId.FromBlob(texturePayload);
@@ -150,7 +150,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
         }
 
         [TestMethod]
-        public async Task PutGetComplexTexture()
+        public async Task PutGetComplexTextureAsync()
         {
             byte[] texturePayload = await File.ReadAllBytesAsync("ContentId/Payloads/UncompressedTexture_CAS_dea81b6c3b565bb5089695377c98ce0f1c13b0c3.udd");
             BlobId compressedPayloadIdentifier = BlobId.FromBlob(texturePayload);
@@ -201,7 +201,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
 
         [TestMethod]
         [TestCategory("SlowTests")]
-        public async Task PutGetLargeCompressedPayload()
+        public async Task PutGetLargeCompressedPayloadAsync()
         {
             // we submit a blob so large that it can not fit using the memory blob store
             IBlobStore? blobStore = Server?.Services.GetService<IBlobStore>();
@@ -250,7 +250,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
                 BlobId compressedContentHash;
                 {
                     await using FileStream fs = tempCompressedFile.OpenRead();
-                    compressedContentHash = await BlobId.FromStream(fs);
+                    compressedContentHash = await BlobId.FromStreamAsync(fs);
                 }
 
                 logger.Information("Uploading large file");
@@ -287,7 +287,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
 
                     await using FileStream downloadedFile = tempOutputFile.OpenRead();
 
-                    BlobId downloadedBlobIdentifier = await BlobId.FromStream(downloadedFile);
+                    BlobId downloadedBlobIdentifier = await BlobId.FromStreamAsync(downloadedFile);
                     Assert.AreEqual(compressedContentHash, downloadedBlobIdentifier);
                 }
 
@@ -307,7 +307,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
             }
         }
         [TestMethod]
-        public async Task RecompressionTest()
+        public async Task RecompressionTestAsync()
         {
             ContentId uncompressedPayloadIdentifier = new ContentId("A2AC0ECED768698F7413F131D064D36B7EC6F7DA");
             byte[] texturePayloadSmaller = await File.ReadAllBytesAsync("ContentId/Payloads/smallerfile");
@@ -353,7 +353,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
         }
 
         [TestMethod]
-        public async Task PutWrongIdentifier()
+        public async Task PutWrongIdentifierAsync()
         {
             byte[] texturePayload = await File.ReadAllBytesAsync("ContentId/Payloads/UncompressedTexture_CAS_dea81b6c3b565bb5089695377c98ce0f1c13b0c3.udd");
             BlobId compressedPayloadIdentifier = BlobId.FromBlob(texturePayload);
@@ -369,7 +369,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
         }
 
         [TestMethod]
-        public async Task PostNoIdentifier()
+        public async Task PostNoIdentifierAsync()
         {
             byte[] texturePayload = await File.ReadAllBytesAsync("ContentId/Payloads/UncompressedTexture_CAS_dea81b6c3b565bb5089695377c98ce0f1c13b0c3.udd");
             BlobId compressedPayloadIdentifier = BlobId.FromBlob(texturePayload);
@@ -391,7 +391,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
         }
 
         [TestMethod]
-        public async Task GetUncompressedContent()
+        public async Task GetUncompressedContentAsync()
         {
             string stringContent = "this is just a random string";
             byte[] payload = Encoding.ASCII.GetBytes(stringContent);
@@ -418,7 +418,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
 
         
         [TestMethod]
-        public async Task GetUncompressedContentAsCompressedBuffer()
+        public async Task GetUncompressedContentAsCompressedBufferAsync()
         {
             string stringContent = "this is just a random string";
             byte[] payload = Encoding.ASCII.GetBytes(stringContent);
