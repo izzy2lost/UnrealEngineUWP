@@ -35,7 +35,11 @@ public:
 	 */
 	int16 AddVisualDescWithISMComponent(const FStaticMeshInstanceVisualizationDesc& Desc, UInstancedStaticMeshComponent& ISMComponent);
 
-	/** @todo: need to add removal API at some point for visual types */
+	/** 
+	 * Removes the visualization data associated with the given ISM component. Note that this is safe to do only when
+	 * there are no entities relying on this data. No entity data patching will take place. 
+	 */
+	void RemoveISMComponent(UInstancedStaticMeshComponent& ISMComponent);
 
 	/** Get the array of all visual instance informations */
 	FMassInstancedStaticMeshInfoArrayView GetMutableVisualInfos()
@@ -76,10 +80,19 @@ protected:
 	 */
 	void BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info, const uint32 ForcedStaticMeshRefKey = 0);
 
-	/** The information of all the instanced static meshes */
+	/** Either adds an element to InstancedStaticMeshInfos or reuses an existing entry based on InstancedStaticMeshInfosFreeIndices*/
+	int32 AddInstancedStaticMeshInfo(const FStaticMeshInstanceVisualizationDesc& Desc);
+
+	/** The information of all the instanced static meshes. Make sure to use AddInstancedStaticMeshInfo to add elements to it */
 	UPROPERTY(Transient)
 	TArray<FMassInstancedStaticMeshInfo> InstancedStaticMeshInfos;
 	UE_MT_DECLARE_RW_RECURSIVE_ACCESS_DETECTOR(InstancedStaticMeshInfosDetector);
+
+	/** Indices to InstancedStaticMeshInfos that have been released and can be reused */
+	TArray<int32> InstancedStaticMeshInfosFreeIndices;
+
+	/** Mapping from ISMComponent object path to corresponding VisualIndex */
+	TMap<uint32, int32> ISMComponentMap;
 
 	FMassISMCSharedDataMap ISMCSharedData;
 

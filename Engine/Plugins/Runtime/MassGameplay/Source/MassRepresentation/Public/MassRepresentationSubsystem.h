@@ -43,7 +43,11 @@ public:
 	 */
 	int16 AddVisualDescWithISMComponent(const FStaticMeshInstanceVisualizationDesc& Desc, UInstancedStaticMeshComponent& ISMComponent);
 
-	/** @todo: need to add a release API at some point for static mesh types */
+	/**
+	 * Removes the visualization data associated with the given ISM component. Note that this is safe to do only when
+	 * there are no entities relying on this data. No entity data patching will take place.
+	 */
+	void RemoveISMComponent(UInstancedStaticMeshComponent& ISMComponent);
 
 	/** 
 	 * @return the array of all the static mesh instance component information

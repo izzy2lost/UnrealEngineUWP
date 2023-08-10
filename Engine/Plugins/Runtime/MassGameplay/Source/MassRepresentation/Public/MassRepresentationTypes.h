@@ -134,6 +134,11 @@ struct FStaticMeshInstanceVisualizationDesc : public FTableRowBase
 	{
 		return Meshes == Other.Meshes;
 	}
+
+	void Reset()
+	{
+		new(this)FStaticMeshInstanceVisualizationDesc();
+	}
 };
 
 class UInstancedStaticMeshComponent;
@@ -285,10 +290,13 @@ public:
 
 	FMassInstancedStaticMeshInfo() = default;
 
-	FMassInstancedStaticMeshInfo(const FStaticMeshInstanceVisualizationDesc& InDesc)
+	explicit FMassInstancedStaticMeshInfo(const FStaticMeshInstanceVisualizationDesc& InDesc)
 		: Desc(InDesc)
 	{
 	}
+
+	/** Clears out contents so that a given FMassInstancedStaticMeshInfo instance can be reused */
+	void Reset();
 
 	const FStaticMeshInstanceVisualizationDesc& GetDesc() const
 	{

@@ -75,6 +75,15 @@ default: \
 }
 } // UE::Mass::Representation
 
+//-----------------------------------------------------------------------------
+// FMassInstancedStaticMeshInfo
+//-----------------------------------------------------------------------------
+void FMassInstancedStaticMeshInfo::Reset()
+{
+	Desc.Reset();
+	InstancedStaticMeshComponents.Reset();
+	LODSignificanceRanges.Reset();
+}
 
 //-----------------------------------------------------------------------------
 // FMassStaticMeshInstanceVisualizationMeshDesc

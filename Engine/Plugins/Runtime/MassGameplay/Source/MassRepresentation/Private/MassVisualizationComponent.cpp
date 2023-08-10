@@ -33,6 +33,22 @@ void UMassVisualizationComponent::PostInitProperties()
 	}
 }
 
+int32 UMassVisualizationComponent::AddInstancedStaticMeshInfo(const FStaticMeshInstanceVisualizationDesc& Desc)
+{
+	int32 Index = INDEX_NONE;
+	if (InstancedStaticMeshInfosFreeIndices.Num() > 0)
+	{
+		Index = InstancedStaticMeshInfosFreeIndices.Pop(/*bAllowShrinking=*/false);
+		new(&InstancedStaticMeshInfos[Index]) FMassInstancedStaticMeshInfo(Desc);
+	}
+	else
+	{
+		Index = InstancedStaticMeshInfos.Emplace(Desc);
+	}
+
+	return Index;
+}
+
 int16 UMassVisualizationComponent::FindOrAddVisualDesc(const FStaticMeshInstanceVisualizationDesc& Desc)
 {
 	UE_MT_SCOPED_WRITE_ACCESS(InstancedStaticMeshInfosDetector);
@@ -52,7 +68,7 @@ int16 UMassVisualizationComponent::FindOrAddVisualDesc(const FStaticMeshInstance
 
 		if (bValidDescription)
 		{
-			VisualIndex = InstancedStaticMeshInfos.Emplace(Desc);
+			VisualIndex = AddInstancedStaticMeshInfo(Desc);
 			BuildLODSignificanceForInfo(InstancedStaticMeshInfos[VisualIndex]);
 
 			InstancedSMComponentsRequiringConstructing.Add(VisualIndex);
@@ -76,16 +92,31 @@ int16 UMassVisualizationComponent::AddVisualDescWithISMComponent(const FStaticMe
 	
 	UE_MT_SCOPED_WRITE_ACCESS(InstancedStaticMeshInfosDetector);
 
-	const int32 VisualIndex = InstancedStaticMeshInfos.Emplace(Desc);
-	const uint32 MeshDescHash = GetTypeHash(MeshDesc);
-	const uint32 CombinedHash = PointerHash(&ISMComponent, MeshDescHash);
-	FMassISMCSharedData& NewData = ISMCSharedData.FindOrAdd(CombinedHash, FMassISMCSharedData(&ISMComponent, 1));
+	const int32 VisualIndex = AddInstancedStaticMeshInfo(Desc);
+
+	const uint32 ISMComponentPathHash = GetTypeHash(ISMComponent.GetPathName()); 
+	FMassISMCSharedData& NewData = ISMCSharedData.FindOrAdd(ISMComponentPathHash, FMassISMCSharedData(&ISMComponent, /*bInRequiresExternalInstanceIDTracking=*/true));
 	InstancedStaticMeshInfos[VisualIndex].AddISMComponent(NewData);
 
-	BuildLODSignificanceForInfo(InstancedStaticMeshInfos[VisualIndex], CombinedHash);
+	BuildLODSignificanceForInfo(InstancedStaticMeshInfos[VisualIndex], ISMComponentPathHash);
+	
+	ISMComponentMap.Add(ISMComponentPathHash, VisualIndex);
 
 	checkf(VisualIndex < INT16_MAX, TEXT("%hs resulting VisualIndex is out of expected bounds"), __FUNCTION__);
 	return (int16)VisualIndex;
+}
+
+void UMassVisualizationComponent::RemoveISMComponent(UInstancedStaticMeshComponent& ISMComponent)
+{
+	const uint32 ISMComponentPathHash = GetTypeHash(ISMComponent.GetPathName());
+	const int32* VisualIndexPtr = ISMComponentMap.Find(ISMComponentPathHash);
+	if (ensure(VisualIndexPtr))
+	{
+		ISMCSharedData.Remove(ISMComponentPathHash);
+
+		InstancedStaticMeshInfos[*VisualIndexPtr].Reset();
+		InstancedStaticMeshInfosFreeIndices.Add(*VisualIndexPtr);
+	}
 }
 
 void UMassVisualizationComponent::ConstructStaticMeshComponents()
@@ -154,6 +185,11 @@ void UMassVisualizationComponent::ConstructStaticMeshComponents()
 					SharedData->SetISMComponent(*ISMC);
 				}
 			}
+
+			check(ISMC);
+			const uint32 ISMComponentPathHash = GetTypeHash(ISMC->GetPathName());
+			ensureMsgf(ISMComponentMap.Find(ISMComponentPathHash) == nullptr, TEXT("We've just created the ISMC that's being used here, so this check failing indicates hash-clash."));
+			ISMComponentMap.Add(ISMComponentPathHash, VisualIndex); 
 
 			check(SharedData);
 			Info.AddISMComponent(*SharedData);
