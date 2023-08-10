@@ -168,7 +168,7 @@ TMap<FName, FString> UDeviceProfileManager::GatherDeviceProfileCVars(const FStri
 
 
 	EPlatformMemorySizeBucket MemBucket = FPlatformMemory::GetMemorySizeBucket();
-	// if caching (for another platfomr), then we use the DP's PreviewMemoryBucket, instead of querying for it
+	// if caching (for another platform), then we use the DP's PreviewMemoryBucket, instead of querying for it
 	if (GatherMode == EDeviceProfileMode::DPM_CacheValues || GatherMode == EDeviceProfileMode::DPM_CacheValuesIgnoreMatchingRules )
 	{
 #if ALLOW_OTHER_PLATFORM_CONFIG
@@ -180,8 +180,15 @@ TMap<FName, FString> UDeviceProfileManager::GatherDeviceProfileCVars(const FStri
 			check(Profile);
 			return DeviceProfileCVars;
 		}
-		// use the DP's platform's configs, NOT the running platform
-		ConfigSystem = FConfigCacheIni::ForPlatform(*Profile->DeviceType);
+
+		// use the DP's platform's configs, NOT the running platform, unless the profile is not there
+		FConfigCacheIni* PlatformConfigSystem = FConfigCacheIni::ForPlatform(*Profile->DeviceType);
+		FConfigFile* PlatformConfigFile = PlatformConfigSystem->FindConfigFile(GDeviceProfilesIni);
+		if (PlatformConfigFile && PlatformConfigFile->Contains(DeviceProfileName))
+		{
+			ConfigSystem = PlatformConfigSystem;
+		}
+
 		MemBucket = Profile->GetPreviewMemorySizeBucket();
 		if(GatherMode == EDeviceProfileMode::DPM_CacheValues)
 		{
