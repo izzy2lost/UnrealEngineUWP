@@ -67,6 +67,7 @@ float2 Circle(float Start, float Points, float Point)
 	return float2(sin(Rad), cos(Rad));
 }
 
+float BloomMaxBrightness;
 float BloomThreshold;
 
 half FocusDistFar()
@@ -163,6 +164,11 @@ void SunMaskPS_Mobile(
 		half2 DepthMaskScaleBias = SunConstDepthMaskScaleBias();
 		half FarAmount = saturate(InDepth * DepthMaskScaleBias.x + DepthMaskScaleBias.y);
 		half3 SunAmount = SceneColor.rgb * SunColorApertureDiv2.rgb;
+
+		float SunLuminance = max(Luminance(SunAmount), 6.10352e-5);
+		float AdjustedLuminance = clamp(SunLuminance - BloomThreshold, 0.0f, BloomMaxBrightness);
+		SunAmount = SunAmount / SunLuminance * AdjustedLuminance * 2.0f;
+
 	
 		half2 Pos = InUVPos.zw * 0.5 + 0.5;
 		half EdgeMask = 1.0f - Pos.x * (1.0f - Pos.x) * Pos.y * (1.0f - Pos.y) * 8.0f;
@@ -369,10 +375,17 @@ void BloomPS_Mobile(
 #endif
 
 #if MOBILE_USESUN
+#if MOBILE_USEDOF
 	half Sun0 = max(0.0, A0-1.0);
 	half Sun1 = max(0.0, A1-1.0);
 	half Sun2 = max(0.0, A2-1.0);
 	half Sun3 = max(0.0, A3-1.0);
+#else
+	half Sun0 = A0;
+	half Sun1 = A1;
+	half Sun2 = A2;
+	half Sun3 = A3;
+#endif
 
 	// Take average of sun intensity and adjust by bloom threshold.
 	Amount *= 0.25;
