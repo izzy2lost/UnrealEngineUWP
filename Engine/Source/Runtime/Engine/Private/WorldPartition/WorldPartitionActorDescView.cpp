@@ -77,12 +77,13 @@ bool FWorldPartitionActorDescView::GetIsSpatiallyLoaded() const
 		return false;
 	}
 
-	if (ParentView)
+	bool bIsSpatiallyLoaded = ActorDesc->GetIsSpatiallyLoaded();
+	if (bIsSpatiallyLoaded && ParentView)
 	{
-		return ParentView->GetIsSpatiallyLoaded();
+		bIsSpatiallyLoaded = ParentView->GetIsSpatiallyLoaded();
 	}
 	
-	return ActorDesc->GetIsSpatiallyLoaded();
+	return bIsSpatiallyLoaded;
 }
 
 bool FWorldPartitionActorDescView::GetActorIsHLODRelevant() const
