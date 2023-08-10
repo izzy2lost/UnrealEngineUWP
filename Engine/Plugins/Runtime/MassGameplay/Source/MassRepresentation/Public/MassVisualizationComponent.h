@@ -83,6 +83,6 @@ protected:
 
 	FMassISMCSharedDataMap ISMCSharedData;
 
-	/** Whether there is a need to create a StaticMeshComponent */
-	bool bNeedStaticMeshComponentConstruction = false;
+	/** Indicies to InstancedStaticMeshInfos that need their SMComponent constructed */
+	TArray<int32> InstancedSMComponentsRequiringConstructing;
 };
