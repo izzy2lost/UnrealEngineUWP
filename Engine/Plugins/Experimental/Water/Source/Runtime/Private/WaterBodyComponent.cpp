@@ -353,11 +353,17 @@ void UWaterBodyComponent::UpdateIslands()
 void UWaterBodyComponent::AddExclusionVolume(AWaterBodyExclusionVolume* InExclusionVolume)
 {
 	WaterBodyExclusionVolumes.AddUnique(InExclusionVolume);
+
+	// Update only the collision meshes for the water body
+	UpdateWaterBody(/*bWithExclusionVolumes=*/true);
 }
 
 void UWaterBodyComponent::RemoveExclusionVolume(AWaterBodyExclusionVolume* InExclusionVolume)
 {
 	WaterBodyExclusionVolumes.RemoveSwap(InExclusionVolume);
+
+	// Update only the collision meshes for the water body
+	UpdateWaterBody(/*bWithExclusionVolumes=*/true);
 }
 
 void UWaterBodyComponent::UpdateExclusionVolumes()
@@ -367,7 +373,9 @@ void UWaterBodyComponent::UpdateExclusionVolumes()
 	{
 		for (AWaterBodyExclusionVolume* ExclusionVolume : TActorRange<AWaterBodyExclusionVolume>(GetWorld()))
 		{
-			ExclusionVolume->UpdateOverlappingWaterBodies();
+			FWaterExclusionVolumeChangedParams Params;
+			Params.bUserTriggered = false;
+			ExclusionVolume->UpdateOverlappingWaterBodies(Params);
 		}
 	}
 }

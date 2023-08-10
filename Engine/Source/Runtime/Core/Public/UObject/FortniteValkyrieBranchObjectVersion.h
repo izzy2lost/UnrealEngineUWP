@@ -24,6 +24,9 @@ struct FFortniteValkyrieBranchObjectVersion
 		// Add density to FChaosPhysicsMaterial
 		ChaosAddDensityToPhysicsMaterial,
 
+		// improved UX of the exclusion volumes by adding a new mode enum
+		WaterBodyExclusionVolumeMode,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
