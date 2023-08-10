@@ -109,11 +109,22 @@
 		<Label Category="After" Name="$($(TestName)Short) After $(Platform)" Requires="$(TestName) AfterStep $(Platform)"/>
 		<Property Name="AfterTestNodes" Value="$(AfterTestNodes);$(TestName) AfterStep $(Platform)" If="$(RunAllTests) Or $(Run$(TestName)Tests)"/>
 	</Macro>
-
+	
+	<Macro Name="BuildAndStageTest" Arguments="Platform;TestName">
+		<Property Name="LocalAchiveDirectory" Value="$(RootDir)/$($(TestName)Target)"/>
+		<Do If="'$($(TestName)StagesWithProjectFile)' == 'True'">
+			<Command Name="BuildCookRun" Arguments="-Build -NoBootstrapExe -NoCodeSign -SkipCook -Stage -NoSubmit -Archive -ArchiveDirectory=$(LocalAchiveDirectory) -project=$($(TestName)Target) -configuration=$(Configuration) -platform=$(Platform) $($(Platform)$(TestName)ExtraCompilationArgs)"/>
+		</Do>
+		<Do If="'$($(TestName)StagesWithProjectFile)' != 'True'">
+			<Compile Target="$($(TestName)Target)" Configuration="$(Configuration)" Platform="$(Platform)" AllowXGE="false" Arguments="$($(Platform)$(TestName)ExtraCompilationArgs)"/>
+		</Do>
+	</Macro>
 	<Macro Name="DeployAndTest" Arguments="TestName;Platform">
+		<Property Name="PlatformStageDirName" Value="$(Platform)"/>
+		<Property Name="PlatformStageDirName" Value="Windows" If="'$(Platform)' == 'Win64'"/>
 		<Property Name="DevicePool" Value="$(GauntletDevicePool)" />
 		<Property Name="DevicePool" Value="$(AlternateGauntletDevicePool)" If="ContainsItem('$(AlternateDevicePoolPlatforms)', '$(Platform)', ';')" />
-		<Property Name="TestArgsExt" Value="$(TestArgs) $($(TestName)InitialExtraArgs) -deviceurl=$(GauntletDeviceService) -devicepool=$(DevicePool)"/>
+		<Property Name="TestArgsExt" Value="$(TestArgs) -deviceurl=$(GauntletDeviceService) -devicepool=$(DevicePool)"/>
 		<Property Name="TestModeSuffix" Value=""/>
 		<Property Name="TestTags" Value=""/>
 		<Property Name="TestTags" Value="$($(Platform)$(TestName)Tags)" If="'$($(Platform)$(TestName)Tags)' != ''"/>
@@ -121,6 +132,8 @@
 		<Property Name="TestArgsExt" Value="$(TestArgsExt) -tags=&quot;$(TestTags)&quot;"/>
 		<Property Name="TestArgsExt" Value="$(TestArgsExt) --buildmachine" If="$(IsBuildMachine)"/>
 		<Property Name="TestArgsExt" Value="$(TestArgsExt) -timeout=$(PerTestTimeout)"/>
+		<Property Name="TestArgsExt" Value="$(TestArgsExt) $($(TestName)GauntletArgs)"/>
+		<Property Name="TestArgsExt" Value="$(TestArgsExt) -extra-args=&quot;$($(TestName)ExtraArgs)&quot;"/>
 		<Property Name="TestArgsExt" Value="$(TestArgsExt) $($(Platform)ExtraArgs)"/>
 		<Do If="'$(Device)' != ''">
 			<Property Name="TestArgsExt" Value="$(TestArgsExt) -device=$(Device) "/>
@@ -134,8 +147,12 @@
 		<Do If="'$($(TestName)UsesCatch2)' != 'True'">
 			<Property Name="TestArgsExt" Value=""/>
 		</Do>
+
+		<Property Name="TestArgsExt" Value="$(TestArgsExt) -SkipStage -Build=&quot;$(RootDir)\$($(TestName)Target)\$(PlatformStageDirName)&quot;" If="'$($(TestName)StagesWithProjectFile)' == 'True'"/>
+		<Property Name="TestArgsExt" Value="$(TestArgsExt) -build=&quot;$($(TestName)BinariesRelative)\$(Platform)\$($(TestName)Target)$(TestModeSuffix)&quot;" If="'$($(TestName)StagesWithProjectFile)' != 'True'"/>
+		
 		<Command Name="RunLowLevelTests"
-				Arguments="-test=LowLevelTests -testapp=$($(TestName)Target)$(TestModeSuffix) -platform=$(Platform) -configuration=$(Configuration) $(TestArgsExt) -build=&quot;$($(TestName)BinariesRelative)\$(Platform)\$($(TestName)Target)$(TestModeSuffix)&quot; -VeryVerbose"/>
+				Arguments="-test=LowLevelTests -testapp=$($(TestName)Target)$(TestModeSuffix) -platform=$(Platform) -configuration=$(Configuration) $(TestArgsExt) -VeryVerbose"/>
 	</Macro>
 
 	<ForEach Name="BuildPlatform" Values="$(BuildPlatforms)">
@@ -197,10 +214,9 @@
 						<Do If="$(BuildCatch2Libs)">
 							<Property Name="TestRequirements" Value="$(TestRequirements);Catch2 Build Library $(Platform)"/>
 						</Do>
-						
 						<Node Name="$($(TestName)Short) Tests $(Platform)" Requires="$(TestRequirements)">
-							<Compile Target="$($(TestName)Target)" Configuration="$(Configuration)" Platform="$(Platform)" AllowXGE="false" Arguments="$($(Platform)$(TestName)ExtraCompilationArgs)"/>
 							<Do If="'$($(Platform)$(TestName)RunSupported)' == 'True'">
+								<Expand Name="BuildAndStageTest" TestName="$(TestName)" Platform="$(Platform)"/>
 								<Expand Name="DeployAndTest" TestName="$(TestName)" Platform="$(Platform)"/>
 							</Do>
 						</Node>

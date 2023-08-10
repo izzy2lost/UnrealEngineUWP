@@ -172,6 +172,9 @@ namespace LowLevelTests
 		public string Build;
 
 		[AutoParam("")]
+		public string TestExtraArgs;
+
+		[AutoParam("")]
 		public string LogDir;
 
 		public string ReportType;
@@ -231,6 +234,8 @@ namespace LowLevelTests
 			Tags = Params.ParseValue("tags=", null);
 			AttachToDebugger = Params.ParseParam("attachtodebugger");
 
+			TestExtraArgs = Params.ParseValue("extra-args=", null);
+
 			SkipStage = Params.ParseParam("skipstage");
 
 			ReportType = Params.ParseValue("reporttype=", null);
@@ -246,6 +251,7 @@ namespace LowLevelTests
 					&& !Arg.StartsWith("platform=", StringComparison.OrdinalIgnoreCase)
 					&& !Arg.StartsWith("device=", StringComparison.OrdinalIgnoreCase))
 				.ToArray();
+
 			Params = new Params(CleanArgs);
 		}
 	}
@@ -262,10 +268,11 @@ namespace LowLevelTests
 		private bool AttachToDebugger { get; set; }
 		private string ReportType { get; set; }
 		private int PerTestTimeout { get; set; }
+		private string TestExtraArgs { get; set; }
 
 		public UnrealDeviceReservation UnrealDeviceReservation { get; private set; }
 
-		public LowLevelTestsSession(LowLevelTestsBuildSource InBuildSource, string InTags, int InSleep, bool InAttachToDebugger, string InReportType, int InPerTestTimeout = 0)
+		public LowLevelTestsSession(LowLevelTestsBuildSource InBuildSource, string InTags, int InSleep, bool InAttachToDebugger, string InReportType, int InPerTestTimeout = 0, string InTestExtraArgs = null)
 		{
 			BuildSource = InBuildSource;
 			Tags = InTags;
@@ -274,6 +281,7 @@ namespace LowLevelTests
 			ReportType = InReportType;
 			PerTestTimeout = InPerTestTimeout;
 			UnrealDeviceReservation = new UnrealDeviceReservation();
+			TestExtraArgs = InTestExtraArgs;
 		}
 
 		public bool TryReserveDevices()
@@ -296,7 +304,7 @@ namespace LowLevelTests
 
 			// TargetDevice<Platform> classes have a hard dependency on UnrealAppConfig instead of IAppConfig.
 			// More refactoring needed to support non-packaged applications that can be run natively from a path on the device.
-			UnrealAppConfig AppConfig = BuildSource.GetUnrealAppConfig(Tags, Sleep, AttachToDebugger, ReportType, PerTestTimeout);
+			UnrealAppConfig AppConfig = BuildSource.GetUnrealAppConfig(Tags, Sleep, AttachToDebugger, ReportType, PerTestTimeout, TestExtraArgs);
 
 			IEnumerable<ITargetDevice> DevicesToInstallOn = UnrealDeviceReservation.ReservedDevices.ToArray();
 			ITargetDevice Device = DevicesToInstallOn.Where(D => D.IsConnected && D.Platform == BuildSource.Platform).First();
@@ -676,7 +684,7 @@ namespace LowLevelTests
 				.ToArray();
 		}
 
-		public UnrealAppConfig GetUnrealAppConfig(string InTags, int InSleep, bool InAttachToDebugger, string InReportType, int InPerTestTimeout = 0)
+		public UnrealAppConfig GetUnrealAppConfig(string InTags, int InSleep, bool InAttachToDebugger, string InReportType, int InPerTestTimeout = 0, string TestExtraArgs = null)
 		{
 			if (CachedConfig == null)
 			{
@@ -689,6 +697,13 @@ namespace LowLevelTests
 				CachedConfig.Build = DiscoveredBuild;
 				CachedConfig.Sandbox = "LowLevelTests";
 				CachedConfig.FilesToCopy = new List<UnrealFileToCopy>();
+
+				//Tags needs to be the first argument, if any are provided via --tags=
+				if (!string.IsNullOrEmpty(InTags))
+				{
+					CachedConfig.CommandLineParams.Add(InTags, null, true);
+				}
+
 				// Set reporting options, filters etc
 				CachedConfig.CommandLineParams.AddRawCommandline("--durations=no");
 				if (!string.IsNullOrEmpty(InReportType))
@@ -697,10 +712,6 @@ namespace LowLevelTests
 					CachedConfig.CommandLineParams.AddRawCommandline(string.Format("--out={0}", LowLevelTestsReporting.GetTargetReportPath(Platform, TestApp, BuildPath)));
 				}
 				CachedConfig.CommandLineParams.AddRawCommandline("--filenames-as-tags");
-				if (!string.IsNullOrEmpty(InTags))
-				{
-					CachedConfig.CommandLineParams.Add(InTags, null, true);
-				}
 				if (InSleep > 0)
 				{
 					CachedConfig.CommandLineParams.AddRawCommandline(String.Format("--sleep={0}", InSleep));
@@ -732,10 +743,16 @@ namespace LowLevelTests
 					}
 				}
 
+				if (TestExtraArgs != null)
+				{
+					ExtraCmd += string.Format(" {0}", TestExtraArgs);
+				}
+
 				if (!string.IsNullOrEmpty(ExtraCmd))
 				{
 					CachedConfig.CommandLineParams.AddRawCommandline("--extra-args" + ExtraCmd);
-				}
+				}				
+
 
 				CachedConfig.CanAlterCommandArgs = false; // No further changes by IAppInstall instances etc.
 			}

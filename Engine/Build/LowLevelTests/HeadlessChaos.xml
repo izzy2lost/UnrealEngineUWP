@@ -8,6 +8,8 @@
   <Property Name="HeadlessChaosTarget" Value="HeadlessChaos" />
   <Property Name="HeadlessChaosBinariesRelative" Value="Engine\Binaries" />
   <Property Name="HeadlessChaosReportType" Value="console" />
+  <Property Name="HeadlessChaosGauntletArgs" Value="" />
+  <Property Name="HeadlessChaosExtraArgs" />
   <Property Name="HeadlessChaosInitialExtraArgs" />
   <Property Name="HeadlessChaosHasAfterSteps" Value="False" />
   <Property Name="HeadlessChaosUsesCatch2" Value="False" />
@@ -34,4 +36,7 @@
   <Property Name="LinuxHeadlessChaosRunSupported" Value="True" />
   <Property Name="LinuxArm64HeadlessChaosRunSupported" Value="True" />
   <Property Name="TVOSHeadlessChaosRunSupported" Value="True" />
+  <Property Name="VisionOSHeadlessChaosTags" Value="" />
+  <Property Name="VisionOSHeadlessChaosExtraCompilationArgs" Value="" />
+  <Property Name="VisionOSHeadlessChaosRunSupported" Value="True" />
 </BuildGraph>

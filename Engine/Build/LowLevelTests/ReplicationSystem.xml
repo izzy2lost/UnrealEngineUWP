@@ -8,6 +8,8 @@
   <Property Name="ReplicationSystemTarget" Value="ReplicationSystemLowLevelTests" />
   <Property Name="ReplicationSystemBinariesRelative" Value="Engine\Binaries" />
   <Property Name="ReplicationSystemReportType" Value="console" />
+  <Property Name="ReplicationSystemGauntletArgs" Value="" />
+  <Property Name="ReplicationSystemExtraArgs" />
   <Property Name="ReplicationSystemInitialExtraArgs" />
   <Property Name="ReplicationSystemHasAfterSteps" Value="False" />
   <Property Name="ReplicationSystemUsesCatch2" Value="True" />
@@ -34,4 +36,7 @@
   <Property Name="LinuxReplicationSystemRunSupported" Value="True" />
   <Property Name="LinuxArm64ReplicationSystemRunSupported" Value="True" />
   <Property Name="TVOSReplicationSystemRunSupported" Value="True" />
+  <Property Name="VisionOSReplicationSystemTags" Value="" />
+  <Property Name="VisionOSReplicationSystemExtraCompilationArgs" Value="" />
+  <Property Name="VisionOSReplicationSystemRunSupported" Value="True" />
 </BuildGraph>

@@ -8,6 +8,8 @@
   <Property Name="FoundationTarget" Value="FoundationTests" />
   <Property Name="FoundationBinariesRelative" Value="Engine\Binaries" />
   <Property Name="FoundationReportType" Value="xml" />
+  <Property Name="FoundationGauntletArgs" Value="" />
+  <Property Name="FoundationExtraArgs" />
   <Property Name="FoundationInitialExtraArgs" />
   <Property Name="FoundationHasAfterSteps" Value="False" />
   <Property Name="FoundationUsesCatch2" Value="True" />
@@ -34,4 +36,7 @@
   <Property Name="LinuxFoundationRunSupported" Value="True" />
   <Property Name="LinuxArm64FoundationRunSupported" Value="True" />
   <Property Name="TVOSFoundationRunSupported" Value="True" />
+  <Property Name="VisionOSFoundationTags" Value="" />
+  <Property Name="VisionOSFoundationExtraCompilationArgs" Value="-allmodules" />
+  <Property Name="VisionOSFoundationRunSupported" Value="True" />
 </BuildGraph>

@@ -238,15 +238,8 @@ namespace UnrealBuildTool
 					InsertOrUpdateTestFlagProperty(ref lastUpdatedNode, TestMetadata.TestName, "Target", Convert.ToString(TestTargetName));
 					InsertOrUpdateTestFlagProperty(ref lastUpdatedNode, TestMetadata.TestName, "BinariesRelative", Convert.ToString(TestBinariesPath));
 					InsertOrUpdateTestFlagProperty(ref lastUpdatedNode, TestMetadata.TestName, "ReportType", Convert.ToString(TestMetadata.ReportType));
-
-					string ExtraArguments = Convert.ToString(TestMetadata.InitialExtraArgs);
-					if(TestMetadata.StagesWithProjectFile)
-					{
-						//  -BaseFromWorkingDir Is needed here for Programs to properly detect .ini files from its irregular platform path.
-						ExtraArguments += $"--extra-args -BaseFromWorkingDir";
-					}
-
-					InsertOrUpdateTestFlagProperty(ref lastUpdatedNode, TestMetadata.TestName, "InitialExtraArgs", ExtraArguments);
+					InsertOrUpdateTestFlagProperty(ref lastUpdatedNode, TestMetadata.TestName, "GauntletArgs", Convert.ToString(TestMetadata.InitialExtraArgs) + Convert.ToString(TestMetadata.GauntletArgs));
+					InsertOrUpdateTestFlagProperty(ref lastUpdatedNode, TestMetadata.TestName, "ExtraArgs", Convert.ToString(TestMetadata.ExtraArgs));
 					InsertOrUpdateTestFlagProperty(ref lastUpdatedNode, TestMetadata.TestName, "HasAfterSteps", Convert.ToString(TestMetadata.HasAfterSteps));
 					InsertOrUpdateTestFlagProperty(ref lastUpdatedNode, TestMetadata.TestName, "UsesCatch2", Convert.ToString(TestMetadata.UsesCatch2));
 
@@ -380,7 +373,6 @@ namespace UnrealBuildTool
 				Document.Root!.Add(ElementAppend);
 			}
 		}
-
 		private void InsertOrUpdateTestFlagProperty(ref XElement ElementUpsertAfter, string TestName, string FlagSuffix, string FlagValue)
 		{
 			IEnumerable<XElement> NextChunk = ElementUpsertAfter.ElementsAfterSelf(BuildGraphNamespace + "Property")
@@ -453,8 +445,7 @@ namespace UnrealBuildTool
 			}
 
 			/// <summary>
-			/// Does this test use project files for staging additional files?
-			/// This will append `-SkipStage -Build=$(RootDir)/$($(TestName)Target)` to InitialExtraArgs
+			/// Does this test use project files for staging additional files
 			/// and cause the build to use BuildCookRun instead of a Compile step
 			/// </summary>
 			public bool StagesWithProjectFile { get; set; }
@@ -465,9 +456,24 @@ namespace UnrealBuildTool
 			public bool Disabled { get; set; }
 
 			/// <summary>
+			/// Depercated, use GauntletArgs or ExtraArgs instead to help indicate arguments to launch the test under.
+			/// </summary>
+			public string InitialExtraArgs
+			{ 
+				get;
+				[Obsolete]
+				set; 
+			}
+
+			/// <summary>
 			/// Any initial extra args to be passed to the test executable
 			/// </summary>
-			public string InitialExtraArgs { get; set; }
+			public string GauntletArgs { get; set; }
+
+			/// <summary>
+			/// Any extra args to be passed to the test executable as --extra-args
+			/// </summary>
+			public string ExtraArgs { get; set; }
 
 			/// <summary>
 			/// Whether there's a step that gets executed after the tests have finished.
