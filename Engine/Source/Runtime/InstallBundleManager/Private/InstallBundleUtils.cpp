@@ -115,7 +115,7 @@ namespace InstallBundleUtil
 			BundleRegexList.Emplace(TPair<FString, TArray<FRegexPattern>>(BundleName, MoveTemp(SearchRegexPatterns)));
 		}
 
-		BundleRegexList.StableSort([InstallBundleConfig](const TPair<FString, TArray<FRegexPattern>>& PairA, const TPair<FString, TArray<FRegexPattern>>& PairB) -> bool
+		BundleRegexList.StableSort([&InstallBundleConfig](const TPair<FString, TArray<FRegexPattern>>& PairA, const TPair<FString, TArray<FRegexPattern>>& PairB) -> bool
 		{
 			int32 BundleAOrder = INT_MAX;
 			int32 BundleBOrder = INT_MAX;
