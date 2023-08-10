@@ -2522,6 +2522,9 @@ namespace UnrealBuildTool
 					}
 				}
 
+				// Copy Verse BPVM usage flag
+				Makefile.bUseVerseBPVM = Rules.bUseVerseBPVM;
+
 				// NOTE: Even in Gather mode, we need to run VNI to make sure the files exist for the static action graph to be setup correctly.  This is because VNI generates .cpp
 				// files that are injected as top level prerequisites.  If VNI only emitted included header files, we wouldn't need to run it during the Gather phase at all.
 				if (Makefile.VNIModules.Count > 0)
@@ -4913,6 +4916,15 @@ namespace UnrealBuildTool
 			{
 				GlobalCompileEnvironment.Definitions.Add("WITH_VERSE=0");
 				GlobalCompileEnvironment.Definitions.Add("UE_USE_VERSE_PATHS=0");
+			}
+
+			if (Rules.bUseVerseBPVM)
+			{
+				GlobalCompileEnvironment.Definitions.Add("WITH_VERSE_BPVM=1");
+			}
+			else
+			{
+				GlobalCompileEnvironment.Definitions.Add("WITH_VERSE_BPVM=0");
 			}
 
 			if (Rules.bCompileWithStatsWithoutEngine)

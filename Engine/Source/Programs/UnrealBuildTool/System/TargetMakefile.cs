@@ -178,7 +178,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// The version number to write
 		/// </summary>
-		public const int CurrentVersion = 35;
+		public const int CurrentVersion = 36;
 
 		/// <summary>
 		/// The time at which the makefile was created
@@ -341,6 +341,11 @@ namespace UnrealBuildTool
 		/// All build modules containing Verse code
 		/// </summary>
 		public List<VNIModuleInfo> VNIModules;
+
+		/// <summary>
+		/// If Verse should use the BPVM backend
+		/// </summary>
+		public bool bUseVerseBPVM = true;
 #endif
 
 		/// <summary>
@@ -482,6 +487,7 @@ namespace UnrealBuildTool
 			UObjectModuleHeaders = Reader.ReadList(() => new UHTModuleHeaderInfo(Reader))!;
 #if __VPROJECT_AVAILABLE__
 			VNIModules = Reader.ReadList(() => new VNIModuleInfo(Reader))!;
+			bUseVerseBPVM = Reader.ReadBool();
 #endif
 			PluginFiles = Reader.ReadHashSet(() => Reader.ReadFileItem())!;
 			ExternalDependencies = Reader.ReadHashSet(() => Reader.ReadFileItem())!;
@@ -527,6 +533,7 @@ namespace UnrealBuildTool
 			Writer.WriteList(UObjectModuleHeaders, x => x.Write(Writer));
 #if __VPROJECT_AVAILABLE__
 			Writer.WriteList(VNIModules, e => e.Write(Writer));
+			Writer.WriteBool(bUseVerseBPVM);
 #endif
 			Writer.WriteHashSet(PluginFiles, x => Writer.WriteFileItem(x));
 			Writer.WriteHashSet(ExternalDependencies, x => Writer.WriteFileItem(x));

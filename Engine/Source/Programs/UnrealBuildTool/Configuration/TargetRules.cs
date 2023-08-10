@@ -782,6 +782,15 @@ namespace UnrealBuildTool
 		public bool bUseVerse = true;
 
 		/// <summary>
+		/// Whether to use the BPVM to run Verse.
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		[CommandLine("-NoUseVerseBPVM", Value = "false")]
+		[CommandLine("-UseVerseBPVM", Value = "true")]
+		[XmlConfigFile(Category = "BuildConfiguration")]
+		public bool bUseVerseBPVM = true;
+
+		/// <summary>
 		/// Whether to use the AutoRTFM Clang compiler.
 		/// </summary>
 		[RequiresUniqueBuildEnvironment]
@@ -3023,6 +3032,8 @@ namespace UnrealBuildTool
 		public bool bEnableMeshEditor => Inner.bEnableMeshEditor;
 
 		public bool bUseVerse => Inner.bUseVerse;
+
+		public bool bUseVerseBPVM => Inner.bUseVerseBPVM;
 
 		public bool bUseAutoRTFMCompiler => Inner.bUseAutoRTFMCompiler;
 
