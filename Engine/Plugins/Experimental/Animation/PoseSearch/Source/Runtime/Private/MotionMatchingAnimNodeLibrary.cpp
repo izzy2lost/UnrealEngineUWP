@@ -30,6 +30,7 @@ void UMotionMatchingAnimNodeLibrary::GetMotionMatchingSearchResult(const FMotion
 					Result.bIsMirrored = SearchIndexAsset->bMirrored;
 					Result.BlendParameters = SearchIndexAsset->BlendParameters;
 					Result.SelectedDatabase = CurrentResultDatabase;
+					Result.WantedPlayRate = MotionMatchingState.WantedPlayRate;
 					bIsResultValid = true;
 				}
 			}
