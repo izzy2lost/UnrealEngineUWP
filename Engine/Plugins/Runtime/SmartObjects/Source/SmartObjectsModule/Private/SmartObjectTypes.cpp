@@ -16,6 +16,9 @@ const FSmartObjectHandle FSmartObjectHandle::Invalid;
 //----------------------------------------------------------------------//
 // FSmartObjectUserCapsuleParams
 //----------------------------------------------------------------------//
+
+const FSmartObjectUserCapsuleParams FSmartObjectUserCapsuleParams::Invalid(0.f, 0.f, 0.f);
+
 FSmartObjectAnnotationCollider FSmartObjectUserCapsuleParams::GetAsCollider(const FVector& Location, const FQuat& Rotation) const
 {
 	const float ConstrainedRadius = Radius;

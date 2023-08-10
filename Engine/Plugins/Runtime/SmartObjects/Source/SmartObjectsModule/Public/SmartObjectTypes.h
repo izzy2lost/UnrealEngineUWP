@@ -407,11 +407,27 @@ struct SMARTOBJECTSMODULE_API FSmartObjectAnnotationCollider
 };
 
 /** Struct defining Smart Object user capsule size. */
-USTRUCT()
+USTRUCT(BlueprintType)
 struct SMARTOBJECTSMODULE_API FSmartObjectUserCapsuleParams
 {
 	GENERATED_BODY()
 
+	FSmartObjectUserCapsuleParams() = default;
+	FSmartObjectUserCapsuleParams(const float InRadius, const float InHeight, const float InStepHeight)
+		: Radius(InRadius)
+		, Height(InHeight)
+		, StepHeight(InStepHeight)
+	{
+	}
+
+	/** Invalid capsule. */
+	static const FSmartObjectUserCapsuleParams Invalid;
+	
+	bool IsValid() const
+	{
+		return Radius > 0.f && Height > 0.f && StepHeight > 0.f;
+	}
+	
 	/**
 	 * Returns the capsule as an annotation collider at specified world location and rotation.
 	 * The capsule is placed so that Z-axis of the rotation is considered up.
@@ -422,15 +438,15 @@ struct SMARTOBJECTSMODULE_API FSmartObjectUserCapsuleParams
 	FSmartObjectAnnotationCollider GetAsCollider(const FVector& Location, const FQuat& Rotation) const;
 	
 	/** Radius of the capsule */
-	UPROPERTY(EditAnywhere, Category = "Default", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default", meta = (ClampMin = "0.0"))
 	float Radius = 35.0f;
 
 	/** Full height of the capsule */
-	UPROPERTY(EditAnywhere, Category = "Default", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default", meta = (ClampMin = "0.0"))
 	float Height = 180.0f;
 
 	/** Step up height. This space is ignored when testing collisions. */
-	UPROPERTY(EditAnywhere, Category = "Default", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default", meta = (ClampMin = "0.0"))
 	float StepHeight = 50.0f;
 };
 
@@ -454,6 +470,9 @@ public:
 
 	/** @return trace parameters for testing if there are collision transitioning from navigation location to slot location. */
 	const FSmartObjectTraceParams& GetTransitionTraceParameters() const { return TransitionTraceParameters; }
+
+	/** @return reference to user capsule parameters. */
+	const FSmartObjectUserCapsuleParams& GetUserCapsule() const { return UserCapsule; }
 
 	/**
 	 * Selects between specified NavigationCapsule size and capsule size defined in the params based on bUseNavigationCapsuleSize.
@@ -498,8 +517,11 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Default")
 	bool bUseNavigationCapsuleSize = false;
 
-	/** Dimensions of the capsule used for testing if user can fit into a specific location. */
-	UPROPERTY(EditAnywhere, Category = "Default", meta = (EditCondition = "bTestUserOverlapOnEntrance == true && bUseNavigationCapsuleSize == false", EditConditionHides))
+	/**
+	 * Dimensions of the capsule used for testing if user can fit into a specific location.
+	 * If bUseNavigationCapsuleSize is set, the capsule size from the Actor navigation settings is used if the actor is present (otherwise we fallback to the UserCapsule). 
+	 */
+	UPROPERTY(EditAnywhere, Category = "Default")
 	FSmartObjectUserCapsuleParams UserCapsule;
 };
 

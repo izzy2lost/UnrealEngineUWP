@@ -21,6 +21,7 @@ class FDebugRenderSceneProxy;
 class ADEPRECATED_SmartObjectCollection;
 class UNavigationQueryFilter;
 class ANavigationData;
+struct FSmartObjectValidationContext;
 
 #if WITH_EDITOR
 /** Called when an event related to the main collection occured. */
@@ -228,49 +229,74 @@ private:
  *  - trace ground location (uses altered location from navigation test if applicable)
  *  - check transition trajectory (test between unmodified navigation location and slow location)
  */
-USTRUCT()
+USTRUCT(BlueprintType)
 struct SMARTOBJECTSMODULE_API FSmartObjectSlotEntranceLocationRequest
 {
 	GENERATED_BODY()
 
+	// Macro needed to avoid deprecation errors with "UserCapsule" being copied or created in the default methods
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FSmartObjectSlotEntranceLocationRequest() = default;
+	FSmartObjectSlotEntranceLocationRequest(const FSmartObjectSlotEntranceLocationRequest&) = default;
+	FSmartObjectSlotEntranceLocationRequest(FSmartObjectSlotEntranceLocationRequest&&) = default;
+	FSmartObjectSlotEntranceLocationRequest& operator=(const FSmartObjectSlotEntranceLocationRequest&) = default;
+	FSmartObjectSlotEntranceLocationRequest& operator=(FSmartObjectSlotEntranceLocationRequest&&) = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	/** Actor that is using the smart object slot. (Optional) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SmartObject")
 	TObjectPtr<const AActor> UserActor = nullptr;
 
 	/** Filter to use for the validation. If not set and UserActor is valid, the filter is queried via USmartObjectUserComponent. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SmartObject")
 	TSubclassOf<USmartObjectSlotValidationFilter> ValidationFilter = nullptr;
 
 	/** Navigation data to use for the navigation queries. If not set and UserActor is valid, the navigation data is queried via INavAgentInterface. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SmartObject")
 	TObjectPtr<const ANavigationData> NavigationData = nullptr;
 	
 	/** Size of the user of the smart object. If not set and UserActor is valid, the dimensions are queried via INavAgentInterface. */
-	TOptional<FSmartObjectUserCapsuleParams> UserCapsule;
-	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SmartObject")
+	FSmartObjectUserCapsuleParams UserCapsuleParams = FSmartObjectUserCapsuleParams::Invalid;
+
 	/** Search location that may be used to select an entry from multiple candidates. (e.g. user actor location). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SmartObject")
 	FVector SearchLocation = FVector::ZeroVector;
 
 	/** How to select an entry when a slot has multiple entries. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SmartObject")
 	FSmartObjectSlotEntrySelectionMethod SelectMethod = FSmartObjectSlotEntrySelectionMethod::First;
 
 	/** Enum indicating if we're looking for a location to enter or exit the Smart Object slot. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SmartObject")
 	ESmartObjectSlotNavigationLocationType LocationType = ESmartObjectSlotNavigationLocationType::Entry;
 
 	/** If true, try to project the location on navigable area. If projection fails, an entry is discarded. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SmartObject")
 	bool bProjectNavigationLocation = true;
 
 	/** If true, try to trace the location on ground. If trace fails, an entry is discarded. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SmartObject")
 	bool bTraceGroundLocation = true;
 
 	/** If true, check collisions between navigation location and slot location. If collisions are found, an entry is discarded. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SmartObject")
 	bool bCheckTransitionTrajectory = true;
 
 	/** If true, check user capsule collisions at the entrance location. Uses capsule dimensions set in the validation filter. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SmartObject")
 	bool bCheckEntranceLocationOverlap = true;
 
 	/** If true, check user capsule collisions at the slot location. Uses capsule dimensions set in an annotation on the slot. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SmartObject")
 	bool bCheckSlotLocationOverlap = true;
 
 	/** If true, include slot location as a candidate if no navigation annotation is present. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SmartObject")
 	bool bUseSlotLocationAsFallback = false;
+
+	UE_DEPRECATED(5.4, "Use UserCapsuleParams instead.")
+	TOptional<FSmartObjectUserCapsuleParams> UserCapsule;
 };
 
 /**
@@ -309,7 +335,7 @@ struct SMARTOBJECTSMODULE_API FSmartObjectSlotEntranceLocationResult
 
 	/** Gameplay tag associated with the entrance. */
 	UE_DEPRECATED(5.3, "Use Tags instead.")
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SmartObject")
+	UPROPERTY()
 	FGameplayTag Tag;
 
 	/** Gameplay tags associated with the entrance. */
@@ -319,6 +345,10 @@ struct SMARTOBJECTSMODULE_API FSmartObjectSlotEntranceLocationResult
 	/** Handle identifying the entrance that was found. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SmartObject")
 	FSmartObjectSlotEntranceHandle EntranceHandle;
+
+	/** True if the result has passed validation tests. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SmartObject")
+	bool bIsValid = true;
 };
 
 using FSmartObjectSlotNavigationLocationResult = FSmartObjectSlotEntranceLocationResult; 
@@ -588,6 +618,24 @@ public:
 	 */
 	bool UpdateEntranceLocation(const FSmartObjectSlotEntranceHandle EntranceHandle, const FSmartObjectSlotEntranceLocationRequest& Request, FSmartObjectSlotEntranceLocationResult& Result) const;
 
+	/**
+	 * Runs the entrance validation logic for all the slots in the Smart Object definition and returns all validated locations.
+	 * This method can be used to a Smart Object definition before it is added to the simulation, for example to show some UI visualization while placing an actor with Smart Object.
+	 * @param SmartObjectDefinition Smart Object definition to validate.
+	 * @param SmartObjectTransform World transform of the Smart Object definition (e.g. Smart Object Component transform). 
+	 * @param SkipActor An actor to skip during validation (this could be an actor representing the Smart Object during placement).
+	 * @param Request Request describing how to validate the entries.
+	 * @param Results All entrance locations, FSmartObjectSlotEntranceLocationResult::bIsValid can be used to check if a specific result is valid.
+	 * @return True if any entrances were found.
+	 */
+	bool QueryAllValidatedEntranceLocations(
+		const USmartObjectDefinition& SmartObjectDefinition,
+		const FTransform& SmartObjectTransform,
+		const AActor* SkipActor,
+		const FSmartObjectSlotEntranceLocationRequest& Request,
+		TArray<FSmartObjectSlotEntranceLocationResult>& Results
+	) const;
+	
 	/**
 	 * Checks whether given slot is free and can be claimed (i.e. slot and its parent are both enabled)
 	 * @note This methods doesn't evaluate the selection conditions. EvaluateSelectionConditions must be called separately.
@@ -1322,6 +1370,27 @@ protected:
 		const FSmartObjectSlotEntranceHandle SlotEntranceHandle,
 		const FSmartObjectSlotEntranceLocationRequest& Request,
 		FSmartObjectSlotEntranceLocationResult& Result
+		) const;
+
+	/**
+	 * Validates entrance locations for a specific slot. Each slot can be annotated with multiple entrance locations, and the request can be configured to also consider the slot location as one entry.
+	 * Additionally the entrance locations can be checked to be on navigable surface (does not check that the point is reachable, though), traced on ground, and without of collisions.
+	 * @param ValidationContext Valid validation context.
+	 * @param Request Request describing how to validate the entries.
+	 * @param SlotHandle Handle to the smart object slot (will be passed into the result).
+	 * @param SlotDefinition Smart Object slot definition to use for validation.
+	 * @param SlotTransform Transform of the slot.
+	 * @param SlotEntranceHandle Handle to specific entrance if just one entrance should be checked. (Optional)
+	 * @param ResultFunc Callback called on each result
+	 */
+	void QueryValidatedSlotEntranceLocationsInternal(
+		FSmartObjectValidationContext& ValidationContext,
+		const FSmartObjectSlotEntranceLocationRequest& Request,
+		const FSmartObjectSlotHandle SlotHandle,
+		const FSmartObjectSlotDefinition& SlotDefinition,
+		const FTransform& SlotTransform,
+		const FSmartObjectSlotEntranceHandle SlotEntranceHandle,
+		TFunctionRef<bool(const FSmartObjectSlotEntranceLocationResult&)> ResultFunc
 		) const;
 
 	/**
