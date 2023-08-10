@@ -3,6 +3,7 @@
 #pragma once
 #include "LevelEditorViewport.h"
 
+struct FChaosVDGameFrameData;
 class FChaosVDScene;
 enum class EChaosVDActorTrackingMode;
 
@@ -12,7 +13,8 @@ enum class EChaosVDActorTrackingMode;
 class FChaosVDPlaybackViewportClient : public FEditorViewportClient
 {
 public:
-	FChaosVDPlaybackViewportClient();
+
+	FChaosVDPlaybackViewportClient(const TSharedPtr<FEditorModeTools>& InModeTools);
 	virtual ~FChaosVDPlaybackViewportClient() override;
 
 	virtual void ProcessClick(FSceneView& View, HHitProxy* HitProxy, FKey Key, EInputEvent Event, uint32 HitX, uint32 HitY) override;
@@ -26,9 +28,12 @@ public:
 	
 	void TrackActor(AActor* ActorToTrack, EChaosVDActorTrackingMode TrackingMode);
 	void TrackTransform(const FTransform& TransformToTrack, EChaosVDActorTrackingMode TrackingMode);
+	
+	void PerformSelectedTrackingForFrame(FChaosVDGameFrameData* FrameData);
 
 private:
 	void HandleObjectFocused(UObject* FocusedObject);
+	void HandleActorMoving(AActor* MovedActor) const;
 	
 	FDelegateHandle ObjectFocusedDelegateHandle;
 	UWorld* CVDWorld;

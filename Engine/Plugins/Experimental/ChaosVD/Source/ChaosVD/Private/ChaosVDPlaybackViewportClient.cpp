@@ -2,18 +2,28 @@
 
 #include "ChaosVDPlaybackViewportClient.h"
 
-#include "CameraController.h"
 #include "ChaosVDEditorSettings.h"
 #include "ChaosVDParticleActor.h"
+#include "ChaosVDPlaybackController.h"
 #include "ChaosVDScene.h"
-#include "EngineUtils.h"
+#include "ChaosVDSkySphereInterface.h"
+#include "EditorModeManager.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
-#include "Visualizers/ChaosVDDebugDrawUtils.h"
+#include "Engine/DirectionalLight.h"
+#include "EngineUtils.h"
 #include "SEditorViewport.h"
+#include "Selection.h"
+#include "UnrealWidget.h"
+#include "Visualizers/ChaosVDDebugDrawUtils.h"
 
-
-FChaosVDPlaybackViewportClient::FChaosVDPlaybackViewportClient() : FEditorViewportClient(nullptr), CVDWorld(nullptr)
+FChaosVDPlaybackViewportClient::FChaosVDPlaybackViewportClient(const TSharedPtr<FEditorModeTools>& InModeTools) : FEditorViewportClient(InModeTools.Get()), CVDWorld(nullptr)
 {
+	Widget->SetUsesEditorModeTools(InModeTools.Get());
+
+	if (GEngine)
+	{
+		GEngine->OnActorMoving().AddRaw(this, &FChaosVDPlaybackViewportClient::HandleActorMoving);
+	}
 }
 
 FChaosVDPlaybackViewportClient::~FChaosVDPlaybackViewportClient()
@@ -25,10 +35,17 @@ FChaosVDPlaybackViewportClient::~FChaosVDPlaybackViewportClient()
 			ScenePtr->OnObjectFocused().Remove(ObjectFocusedDelegateHandle);
 		}
 	}
+
+	if (GEngine)
+	{
+		GEngine->OnActorMoving().RemoveAll(this);
+	}
 }
 
 void FChaosVDPlaybackViewportClient::ProcessClick(FSceneView& View, HHitProxy* HitProxy, FKey Key, EInputEvent Event, uint32 HitX, uint32 HitY)
 {
+	FEditorViewportClient::ProcessClick(View, HitProxy, Key, Event, HitX, HitY);
+	
 	if (HitProxy == nullptr)
 	{
 		return;
@@ -63,6 +80,20 @@ void FChaosVDPlaybackViewportClient::HandleObjectFocused(UObject* FocusedObject)
 	if (AActor* FocusedActor = Cast<AActor>(FocusedObject))
 	{
 		FocusViewportOnBox(FocusedActor->GetComponentsBoundingBox(false));
+	}
+}
+
+void FChaosVDPlaybackViewportClient::HandleActorMoving(AActor* MovedActor) const
+{
+	if (Cast<ADirectionalLight>(MovedActor))
+	{
+		if (const TSharedPtr<FChaosVDScene> SceneSharedPtr = CVDScene.Pin())
+		{
+			if (SceneSharedPtr->GetSkySphereActor()->Implements<UChaosVDSkySphereInterface>())
+			{
+				IChaosVDSkySphereInterface::Execute_Refresh(SceneSharedPtr->GetSkySphereActor());
+			}
+		}
 	}
 }
 
@@ -150,6 +181,63 @@ void FChaosVDPlaybackViewportClient::TrackTransform(const FTransform& TransformT
 				break;
 			}
 		}	
+	}
+}
+
+void FChaosVDPlaybackViewportClient::PerformSelectedTrackingForFrame(FChaosVDGameFrameData* FrameData)
+{
+	if (const TSharedPtr<FChaosVDScene> CVDSceneSharedPtr = CVDScene.Pin())
+	{
+		if (const UChaosVDEditorSettings* CVDEditorSettings = GetDefault<UChaosVDEditorSettings>())
+		{
+			switch (CVDEditorSettings->TrackingTarget)
+			{
+			case EChaosVDActorTrackingTarget::SelectedObject:
+				{
+					if (ModeTools.IsValid())
+					{
+						USelection* CurrentSelection = ModeTools->GetSelectedActors();
+		
+						//TODO: Update this if we add multi selection support
+						if (AActor* SelectedActor = CurrentSelection ? CurrentSelection->GetTop<AActor>() : nullptr)
+						{
+							TrackActor(SelectedActor, CVDEditorSettings->TrackingOptions);
+						}
+					}
+					break;
+				}
+			case EChaosVDActorTrackingTarget::RecordedTransform:
+				{
+					// TODO: Find a better place to store the current selected Transform name, it should not be the editor settings object
+					if (const TSharedPtr<FName>& TransformName = CVDEditorSettings->SelectedTrackedTransformName)
+					{
+						if (const FChaosVDTrackedTransform* TrackedTransform = FrameData->RecordedNonSolverTransformsByID.Find(*TransformName))
+						{
+							TrackTransform(TrackedTransform->Transform, CVDEditorSettings->TrackingOptions);
+						}
+					}
+								
+					break;
+				}
+			case EChaosVDActorTrackingTarget::RecordedLocation:
+				{
+					// TODO: Find a better place to store the current selected Location name, it should not be the editor settings object
+					if (const TSharedPtr<FName>& LocationName = CVDEditorSettings->SelectedTrackedLocationName)
+					{
+						if (const FChaosVDTrackedLocation* TrackedTransform = FrameData->RecordedNonSolverLocationsByID.Find(*LocationName))
+						{
+							FTransform LocationTransform;
+							LocationTransform.SetLocation(TrackedTransform->Location);
+							TrackTransform(LocationTransform, CVDEditorSettings->TrackingOptions);
+						}
+					}
+								
+					break;
+				}
+			default:
+				break;
+			}			
+		}
 	}
 }
 

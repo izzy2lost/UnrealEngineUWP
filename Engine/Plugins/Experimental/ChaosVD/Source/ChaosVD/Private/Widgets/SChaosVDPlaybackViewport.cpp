@@ -2,16 +2,17 @@
 
 #include "Widgets/SChaosVDPlaybackViewport.h"
 
+#include "ChaosVDEditorMode.h"
+#include "ChaosVDEditorModeTools.h"
 #include "ChaosVDEditorSettings.h"
 #include "ChaosVDPlaybackController.h"
 #include "ChaosVDPlaybackViewportClient.h"
 #include "ChaosVDScene.h"
+#include "EditorModeManager.h"
 #include "Framework/Application/SlateApplication.h"
-#include "LevelEditorViewport.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
-#include "Slate/SceneViewport.h"
 #include "Widgets/SChaosVDTimelineWidget.h"
-#include "Widgets/SViewport.h"
+#include "Widgets/SChaosVDViewportToolbar.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
@@ -22,47 +23,36 @@ SChaosVDPlaybackViewport::~SChaosVDPlaybackViewport()
 	PlaybackViewportClient.Reset();
 }
 
-TSharedPtr<FChaosVDPlaybackViewportClient> SChaosVDPlaybackViewport::CreateViewportClient() const
-{
-	TSharedPtr<FChaosVDPlaybackViewportClient> NewViewport = MakeShared<FChaosVDPlaybackViewportClient>();
-
-	NewViewport->SetAllowCinematicControl(false);
-	
-	NewViewport->bSetListenerPosition = false;
-	NewViewport->EngineShowFlags = FEngineShowFlags(ESFIM_Editor);
-	NewViewport->LastEngineShowFlags = FEngineShowFlags(ESFIM_Editor);
-	NewViewport->ViewportType = LVT_Perspective;
-	NewViewport->bDrawAxes = true;
-	NewViewport->bDisableInput = false;
-	NewViewport->VisibilityDelegate.BindLambda([] {return true; });
-	NewViewport->EngineShowFlags.SetSelectionOutline(true);
-
-	return NewViewport;
-}
-
 void SChaosVDPlaybackViewport::Construct(const FArguments& InArgs, TWeakPtr<FChaosVDScene> InScene, TWeakPtr<FChaosVDPlaybackController> InPlaybackController)
 {
+	Extender = MakeShared<FExtender>();
+
+	EditorModeTools = MakeShared<FChaosVDEditorModeTools>(InScene);
+	EditorModeTools->SetWidgetMode(UE::Widget::WM_Translate);
+	EditorModeTools->SetDefaultMode(UChaosVDEditorMode::EM_ChaosVisualDebugger);
+	EditorModeTools->ActivateDefaultMode();
+
+	SEditorViewport::Construct(SEditorViewport::FArguments());
+
 	CVDSceneWeakPtr = InScene;
 	TSharedPtr<FChaosVDScene> ScenePtr = InScene.Pin();
 	ensure(ScenePtr.IsValid());
 	ensure(InPlaybackController.IsValid());
 
-	PlaybackViewportClient = CreateViewportClient();
+	PlaybackViewportClient = StaticCastSharedPtr<FChaosVDPlaybackViewportClient>(GetViewportClient());
 
-	ViewportWidget = SNew(SViewport)
-		.RenderDirectlyToWindow(false)
-		.IsEnabled(FSlateApplication::Get().GetNormalExecutionAttribute())
-		.EnableGammaCorrection(false)
-		.EnableBlending(false);
-
-	SceneViewport = MakeShareable(new FSceneViewport(PlaybackViewportClient.Get(), ViewportWidget));
-
-	PlaybackViewportClient->Viewport = SceneViewport.Get();
-
-	ViewportWidget->SetViewportInterface(SceneViewport.ToSharedRef());
+	// TODO: Add a way to gracefully shutdown (close) the tool when a no recoverable situation like this happens (UE-191876)
+	check(PlaybackViewportClient.IsValid());
 	
-	// Default to the base map
 	PlaybackViewportClient->SetScene(InScene);
+	
+	if (UChaosVDEditorMode* CVDEdMode = Cast<UChaosVDEditorMode>(EditorModeTools->GetActiveScriptableMode(UChaosVDEditorMode::EM_ChaosVisualDebugger)))
+	{
+		if (ScenePtr.IsValid())
+		{
+			CVDEdMode->SetWorld(ScenePtr->GetUnderlyingWorld());
+		}
+	}
 
 	ChildSlot
 	[
@@ -103,21 +93,53 @@ void SChaosVDPlaybackViewport::Construct(const FArguments& InArgs, TWeakPtr<FCha
 	RegisterNewController(InPlaybackController);
 }
 
-
-void SChaosVDPlaybackViewport::TrackActor(AActor* ActorToTrack, EChaosVDActorTrackingMode TrackingMode)
+TSharedRef<SEditorViewport> SChaosVDPlaybackViewport::GetViewportWidget()
 {
-	if (ensure(PlaybackViewportClient.IsValid()))
-	{
-		PlaybackViewportClient->TrackActor(ActorToTrack, TrackingMode);
-	}	
+	return StaticCastSharedRef<SEditorViewport>(AsShared());
 }
 
-void SChaosVDPlaybackViewport::TrackTransform(const FTransform& TransformToTrack, EChaosVDActorTrackingMode TrackingMode)
+TSharedPtr<FExtender> SChaosVDPlaybackViewport::GetExtenders() const
 {
-	if (ensure(PlaybackViewportClient.IsValid()))
-	{
-		PlaybackViewportClient->TrackTransform(TransformToTrack, TrackingMode);
-	}
+	return Extender;
+}
+
+TSharedRef<FEditorViewportClient> SChaosVDPlaybackViewport::MakeEditorViewportClient()
+{
+	TSharedPtr<FChaosVDPlaybackViewportClient> NewViewport = MakeShared<FChaosVDPlaybackViewportClient>(EditorModeTools);
+
+	NewViewport->SetAllowCinematicControl(false);
+	
+	NewViewport->bSetListenerPosition = false;
+	NewViewport->EngineShowFlags = FEngineShowFlags(ESFIM_Editor);
+	NewViewport->LastEngineShowFlags = FEngineShowFlags(ESFIM_Editor);
+	NewViewport->ViewportType = LVT_Perspective;
+	NewViewport->bDrawAxes = true;
+	NewViewport->bDisableInput = false;
+	NewViewport->VisibilityDelegate.BindLambda([] {return true; });
+
+	NewViewport->EngineShowFlags.DisableAdvancedFeatures();
+	NewViewport->EngineShowFlags.SetSelectionOutline(true);
+	NewViewport->EngineShowFlags.SetSnap(false);
+	NewViewport->EngineShowFlags.SetBillboardSprites(true);
+
+	return StaticCastSharedRef<FEditorViewportClient>(NewViewport.ToSharedRef());
+}
+
+TSharedPtr<SWidget> SChaosVDPlaybackViewport::MakeViewportToolbar()
+{
+	// Build our toolbar level toolbar
+	TSharedRef< SChaosVDViewportToolbar > ToolBar = SNew(SChaosVDViewportToolbar, SharedThis(this));
+
+	return 
+		SNew(SVerticalBox)
+		.Visibility( EVisibility::SelfHitTestInvisible )
+		+SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(0, 1.0f, 0, 0)
+		.VAlign(VAlign_Top)
+		[
+			ToolBar
+		];
 }
 
 void SChaosVDPlaybackViewport::HandlePlaybackControllerDataUpdated(TWeakPtr<FChaosVDPlaybackController> InController)
@@ -148,17 +170,24 @@ void SChaosVDPlaybackViewport::HandlePlaybackControllerDataUpdated(TWeakPtr<FCha
 
 void SChaosVDPlaybackViewport::HandleControllerTrackFrameUpdated(TWeakPtr<FChaosVDPlaybackController> InController, const FChaosVDTrackInfo* UpdatedTrackInfo, FGuid InstigatorGuid)
 {
-	if (InstigatorGuid == GetInstigatorID())
-	{
-		// Ignore the update if we initiated it
-		return;
-	}
-
 	if (TSharedPtr<FChaosVDPlaybackController> ControllerSharedPtr = InController.Pin())
 	{
 		// The frame number we receive could be from a Solver track, so make sure it is converted to the correct game track frame number 
 		int32 GameTrackFrame = ControllerSharedPtr->ConvertCurrentFrameToOtherTrackFrame(UpdatedTrackInfo, ControllerSharedPtr->GetTrackInfo(EChaosVDTrackType::Game, FChaosVDPlaybackController::GameTrackID));
-		GameFramesTimelineWidget->SetCurrentTimelineFrame(GameTrackFrame, EChaosVDSetTimelineFrameFlags::None);
+
+		// Something other than us advanced the game track, so make sure the timeline widget is updated
+		if (InstigatorGuid != GetInstigatorID())
+		{
+			GameFramesTimelineWidget->SetCurrentTimelineFrame(GameTrackFrame, EChaosVDSetTimelineFrameFlags::None);
+		}
+
+		if (TSharedPtr<FChaosVDRecording> RecordingData = ControllerSharedPtr->GetCurrentRecording().Pin())
+		{
+			if (FChaosVDGameFrameData* FrameData = RecordingData->GetGameFrameData_AssumesLocked(GameTrackFrame))
+			{
+				PlaybackViewportClient->PerformSelectedTrackingForFrame(FrameData);
+			}	
+		}
 	}
 }
 

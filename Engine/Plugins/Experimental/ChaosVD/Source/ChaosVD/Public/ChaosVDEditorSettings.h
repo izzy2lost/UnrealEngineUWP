@@ -69,18 +69,21 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Viewport Tracking", meta=(EditCondition = "TrackingOptions == EChaosVDActorTrackingMode::ByBoundingBox && TrackingTarget != EChaosVDActorTrackingTarget::Disabled", EditConditionHides))
 	float ExpandViewTrackingBy = 60.0f;
 
-	UPROPERTY(Config)
-	TSoftObjectPtr<UWorld> BasePhysicsVDWorld;
-
 	UPROPERTY(EditAnywhere, Category = "Geometry Visibility", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDGeometryVisibilityFlags"))
 	uint8 GeometryVisibilityFlags = static_cast<uint8>(EChaosVDGeometryVisibilityFlags::Simulated | EChaosVDGeometryVisibilityFlags::Simple);
 
 	UPROPERTY(Config)
 	TSoftObjectPtr<UMaterial> QueryOnlyMeshesMaterial;
 
+	UPROPERTY(Config)
+	FSoftClassPath SkySphereActorClass;
+
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 
-	FChaosVDVisibilitySettingsChaged& OnVisibilitySettingsChanged() { return VisibilitySettingsChangedDelegate; };
+	FChaosVDVisibilitySettingsChaged& OnVisibilitySettingsChanged() { return VisibilitySettingsChangedDelegate; }
+
+	TSharedPtr<FName> SelectedTrackedTransformName;
+	TSharedPtr<FName> SelectedTrackedLocationName;
 
 protected:
 	FChaosVDVisibilitySettingsChaged VisibilitySettingsChangedDelegate;

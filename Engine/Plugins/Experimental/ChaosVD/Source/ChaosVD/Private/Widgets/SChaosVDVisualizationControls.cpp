@@ -139,69 +139,24 @@ void SChaosVDVisualizationControls::HandleControllerTrackFrameUpdated(TWeakPtr<F
 		{
 			UpdateNameListFromKeys(FrameData->RecordedNonSolverTransformsByID, *TransformNamePickerWidget.Get());
 			UpdateNameListFromKeys(FrameData->RecordedNonSolverLocationsByID, *LocationsNamePickerWidget.Get());
-
-			if (const TSharedPtr<FChaosVDScene> CVDSceneSharedPtr = ControllerSharedPtr->GetControllerScene().Pin())
-			{
-				if (const UChaosVDEditorSettings* CVDEditorSettings = GetDefault<UChaosVDEditorSettings>())
-				{
-					switch (CVDEditorSettings->TrackingTarget)
-					{
-						case EChaosVDActorTrackingTarget::SelectedObject:
-							{
-								TArray<AActor*> SelectedActors = CVDSceneSharedPtr->GetElementSelectionSet()->GetSelectedObjects<AActor>();
-								if (SelectedActors.Num() > 0)
-								{
-									//TODO: Update this if we add multi selection support
-									if (AActor* SelectedActor = SelectedActors[0])
-									{
-										PlaybackViewportSharedPtr->TrackActor(SelectedActor, CVDEditorSettings->TrackingOptions);
-									}
-								}
-								break;
-							}
-						case EChaosVDActorTrackingTarget::RecordedTransform:
-							{
-								if (SelectedTrackedTransformName.IsValid())
-								{
-									if (const FChaosVDTrackedTransform* TrackedTransform = FrameData->RecordedNonSolverTransformsByID.Find(*SelectedTrackedTransformName))
-									{
-										PlaybackViewportSharedPtr->TrackTransform(TrackedTransform->Transform, CVDEditorSettings->TrackingOptions);
-									}
-								}
-								
-								break;
-							}
-						case EChaosVDActorTrackingTarget::RecordedLocation:
-							{
-								if (SelectedTrackedLocationName.IsValid())
-								{
-									if (const FChaosVDTrackedLocation* TrackedTransform = FrameData->RecordedNonSolverLocationsByID.Find(*SelectedTrackedLocationName))
-									{
-										FTransform LocationTransform;
-										LocationTransform.SetLocation(TrackedTransform->Location);
-										PlaybackViewportSharedPtr->TrackTransform(LocationTransform, CVDEditorSettings->TrackingOptions);
-									}
-								}
-								
-								break;
-							}
-						default:
-							break;
-						}			
-				}
-			}
 		}
 	}
 }
 
 void SChaosVDVisualizationControls::HandleLocationNameSelected(TSharedPtr<FName> SelectedName)
 {
-	SelectedTrackedLocationName = SelectedName;
+	if (UChaosVDEditorSettings* Settings = GetMutableDefault<UChaosVDEditorSettings>())
+	{
+		Settings->SelectedTrackedLocationName = SelectedName;
+	}
 }
 
 void SChaosVDVisualizationControls::HandleTransformNameSelected(TSharedPtr<FName> SelectedName)
 {
-	SelectedTrackedTransformName = SelectedName;
+	if (UChaosVDEditorSettings* Settings = GetMutableDefault<UChaosVDEditorSettings>())
+	{
+		Settings->SelectedTrackedTransformName = SelectedName;
+	}
 }
 
 EVisibility SChaosVDVisualizationControls::GetLocationsPickerVisibility() const

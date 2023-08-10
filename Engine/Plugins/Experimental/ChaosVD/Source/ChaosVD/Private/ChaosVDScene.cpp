@@ -7,21 +7,21 @@
 #include "ChaosVDParticleActor.h"
 #include "Chaos/ImplicitObject.h"
 #include "ChaosVDRecording.h"
-#include "EditorActorFolders.h"
-#include "WorldPersistentFolders.h"
-#include "Elements/Framework/EngineElementsLibrary.h"
-#include "Elements/Framework/TypedElementSelectionSet.h"
-#include "EditorActorFolders.h"
-#include "WorldPersistentFolders.h"
+#include "ChaosVDSkySphereInterface.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
+#include "EditorActorFolders.h"
+#include "EditorLevelUtils.h"
+#include "Engine/DirectionalLight.h"
 #include "Engine/Engine.h"
-#include "Engine/LevelStreamingDynamic.h"
 #include "Engine/StreamableManager.h"
 #include "Engine/World.h"
+#include "Elements/Framework/EngineElementsLibrary.h"
+#include "Elements/Framework/TypedElementSelectionSet.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Materials/Material.h"
-
+#include "Selection.h"
 #include "UObject/Package.h"
+#include "WorldPersistentFolders.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
@@ -43,10 +43,7 @@ void FChaosVDScene::Initialize()
 		return;
 	}
 
-	SelectionSet = NewObject<UTypedElementSelectionSet>();
-
-	SelectionSet->OnPreChange().AddRaw(this, &FChaosVDScene::HandlePreSelectionChange);
-	SelectionSet->OnChanged().AddRaw(this, &FChaosVDScene::HandlePostSelectionChange);
+	InitializeSelectionSets();
 	
 	PhysicsVDWorld = CreatePhysicsVDWorld();
 
@@ -78,8 +75,7 @@ void FChaosVDScene::DeInitialize()
 		Settings->OnVisibilitySettingsChanged().RemoveAll(this);
 	}
 
-	SelectionSet->OnPreChange().RemoveAll(this);
-	SelectionSet->OnChanged().RemoveAll(this);
+	DeInitializeSelectionSets();
 
 	GeometryGenerator.Reset();
 
@@ -103,6 +99,9 @@ void FChaosVDScene::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	Collector.AddReferencedObject(PhysicsVDWorld);
 	Collector.AddReferencedObject(SelectionSet);
+	Collector.AddReferencedObject(ObjectSelection);
+	Collector.AddReferencedObject(ActorSelection);
+	Collector.AddReferencedObject(ComponentSelection);
 }
 
 void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FString& SolverName, const FChaosVDStepData& InRecordedStepData, const FChaosVDSolverFrameData& InFrameData)
@@ -367,6 +366,42 @@ int32 FChaosVDScene::GetIDForRecordedParticleData(const FChaosVDParticleDataWrap
 	return InParticleData.ParticleIndex;
 }
 
+void FChaosVDScene::CreateBaseLights(UWorld* TargetWorld) const
+{
+	if (!TargetWorld)
+	{
+		return;
+	}
+
+	const FName LightingFolderPath("ChaosVisualDebugger/Lighting");
+
+	const FVector SpawnPosition(0.0, 0.0, 2000.0);
+	
+	if (const UChaosVDEditorSettings* Settings = GetDefault<UChaosVDEditorSettings>())
+	{
+		if (ADirectionalLight* DirectionalLightActor = TargetWorld->SpawnActor<ADirectionalLight>())
+		{
+			DirectionalLightActor->SetCastShadows(false);
+			DirectionalLightActor->SetMobility(EComponentMobility::Movable);
+			DirectionalLightActor->SetActorLocation(SpawnPosition);
+
+			DirectionalLightActor->SetFolderPath(LightingFolderPath);
+
+			TSubclassOf<AActor> SkySphereClass = Settings->SkySphereActorClass.TryLoadClass<AActor>();
+			SkySphere = TargetWorld->SpawnActor(SkySphereClass.Get());
+			if (SkySphere)
+			{
+				SkySphere->SetActorLocation(SpawnPosition);
+				SkySphere->SetFolderPath(LightingFolderPath);
+				if (SkySphere->Implements<UChaosVDSkySphereInterface>())
+				{
+					IChaosVDSkySphereInterface::Execute_SetDirectionalLightSource(SkySphere, DirectionalLightActor);
+				}
+			}
+		}
+	}
+}
+
 UWorld* FChaosVDScene::CreatePhysicsVDWorld() const
 {
 	const FName UniqueWorldName = FName(FGuid::NewGuid().ToString());
@@ -387,26 +422,7 @@ UWorld* FChaosVDScene::CreatePhysicsVDWorld() const
 										  .SetTransactional( false )
 	);
 
-	// Add the base content as a sublevel
-	const UChaosVDEditorSettings* Settings = GetDefault<UChaosVDEditorSettings>();
-
-	ULevelStreamingDynamic* StreamedInLevel = NewObject<ULevelStreamingDynamic>(NewWorld);
-	StreamedInLevel->SetWorldAssetByPackageName(FName(Settings->BasePhysicsVDWorld.GetLongPackageName()));
-
-	StreamedInLevel->PackageNameToLoad = FName(Settings->BasePhysicsVDWorld.GetLongPackageName());
-
-	StreamedInLevel->SetShouldBeLoaded(true);
-	StreamedInLevel->bShouldBlockOnLoad = true;
-	StreamedInLevel->bInitiallyLoaded = true;
-
-	StreamedInLevel->SetShouldBeVisible(true);
-	StreamedInLevel->bInitiallyVisible = true;
-	StreamedInLevel->bLocked = true;
-
-	NewWorld->AddStreamingLevel(StreamedInLevel);
-
-	NewWorld->FlushLevelStreaming(EFlushLevelStreamingType::Full);
-
+	CreateBaseLights(NewWorld);
 	return NewWorld;
 }
 
@@ -475,6 +491,34 @@ void FChaosVDScene::HandleVisibilitySettingsChanged(UChaosVDEditorSettings* Sett
 			ParticleWithIDPair.Value->UpdateGeometryComponentsVisibility();
 		}
 	}
+}
+
+void FChaosVDScene::InitializeSelectionSets()
+{
+	SelectionSet = NewObject<UTypedElementSelectionSet>(GetTransientPackage(), NAME_None, RF_Transactional);
+	SelectionSet->AddToRoot();
+
+	ActorSelection = USelection::CreateActorSelection(GetTransientPackage(), TEXT("CVDSelectedActors"), RF_Transactional);
+	ActorSelection->SetElementSelectionSet(SelectionSet);
+
+	ComponentSelection = USelection::CreateComponentSelection(GetTransientPackage(), TEXT("CVDSelectedComponents"), RF_Transactional);
+	ComponentSelection->SetElementSelectionSet(SelectionSet);
+
+	ObjectSelection = USelection::CreateObjectSelection(GetTransientPackage(), TEXT("CVDSelectedObjects"), RF_Transactional);
+	ObjectSelection->SetElementSelectionSet(SelectionSet);
+
+	SelectionSet->OnPreChange().AddRaw(this, &FChaosVDScene::HandlePreSelectionChange);
+	SelectionSet->OnChanged().AddRaw(this, &FChaosVDScene::HandlePostSelectionChange);
+}
+
+void FChaosVDScene::DeInitializeSelectionSets()
+{
+	ActorSelection->SetElementSelectionSet(nullptr);
+	ComponentSelection->SetElementSelectionSet(nullptr);
+	ObjectSelection->SetElementSelectionSet(nullptr);
+
+	SelectionSet->OnPreChange().RemoveAll(this);
+	SelectionSet->OnChanged().RemoveAll(this);
 }
 
 void FChaosVDScene::SetSelectedObject(UObject* SelectedObject)

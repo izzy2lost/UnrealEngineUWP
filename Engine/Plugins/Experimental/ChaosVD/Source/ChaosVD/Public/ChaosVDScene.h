@@ -15,6 +15,7 @@ class AChaosVDParticleActor;
 class FReferenceCollector;
 class UObject;
 class UMaterial;
+class USelection;
 class UTypedElementSelectionSet;
 class UWorld;
 
@@ -78,6 +79,10 @@ public:
 	/** Returns a ptr to the current selection set object */
 	UTypedElementSelectionSet* GetElementSelectionSet() const { return SelectionSet; }
 	
+	USelection* GetActorSelectionObject() const { return ActorSelection; }
+	USelection* GetComponentsSelectionObject() const { return ComponentSelection; }
+	USelection* GetObjectsSelectionObject() const { return ObjectSelection; }
+	
 	/** Event triggered when an object is focused in the scene (double click in the scene outliner)*/
 	FChaosVDOnObjectSelectedDelegate& OnObjectFocused() { return ObjectFocusedDelegate; }
 
@@ -86,6 +91,8 @@ public:
 	 * @param ParticleID ID of the particle
 	 */
 	AChaosVDParticleActor* GetParticleActor(int32 SolverID, int32 ParticleID);
+
+	AActor* GetSkySphereActor() const { return SkySphere; }
 
 	TSharedPtr<FChaosVDRecording> LoadedRecording;
 
@@ -96,6 +103,7 @@ private:
 
 	/** Returns the ID used to track this recorded particle data */
 	int32 GetIDForRecordedParticleData(const FChaosVDParticleDataWrapper& InParticleData) const;
+	void CreateBaseLights(UWorld* TargetWorld) const;
 
 	/** Creates the instance of the World which will be used the recorded data*/
 	UWorld* CreatePhysicsVDWorld() const;
@@ -116,6 +124,9 @@ private:
 
 	void HandleVisibilitySettingsChanged(UChaosVDEditorSettings* SettingsObject);
 
+	void InitializeSelectionSets();
+	void DeInitializeSelectionSets();
+
 	/** UWorld instance used to represent the recorded debug data */
 	TObjectPtr<UWorld> PhysicsVDWorld = nullptr;
 
@@ -130,11 +141,17 @@ private:
 	/** Selection set object holding the current selection state */
 	TObjectPtr<UTypedElementSelectionSet> SelectionSet;
 
+	TObjectPtr<USelection> ActorSelection = nullptr;
+	TObjectPtr<USelection> ComponentSelection = nullptr;
+	TObjectPtr<USelection> ObjectSelection = nullptr;
+
 	/** Array of actors with hit proxies that need to be updated */
 	TArray<AActor*> PendingActorsToUpdateSelectionProxy;
 
 	/** Scene Streamable manager that we'll use to async load any assets we depend on */
 	TSharedPtr<struct FStreamableManager> StreamableManager;
+
+	mutable AActor* SkySphere = nullptr;
 
 	bool bIsInitialized = false;
 };

@@ -14,6 +14,11 @@ FChaosVDPlaybackControllerObserver::~FChaosVDPlaybackControllerObserver()
 	}
 }
 
+TWeakPtr<FChaosVDPlaybackController> FChaosVDPlaybackControllerObserver::GetObservedController()
+{
+	return PlaybackController;
+}
+
 void FChaosVDPlaybackControllerObserver::RegisterNewController(TWeakPtr<FChaosVDPlaybackController> NewController)
 {
 	if (PlaybackController != NewController)

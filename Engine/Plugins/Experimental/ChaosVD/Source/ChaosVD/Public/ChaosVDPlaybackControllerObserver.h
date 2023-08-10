@@ -20,6 +20,9 @@ public:
 
 	virtual ~FChaosVDPlaybackControllerObserver() override;
 
+	/** Returns a Weak Ptr to the Playback Controller we are currently observing */
+	TWeakPtr<FChaosVDPlaybackController> GetObservedController();
+
 protected:
 	virtual void RegisterNewController(TWeakPtr<FChaosVDPlaybackController> NewController);
 	virtual void HandlePlaybackControllerDataUpdated(TWeakPtr<FChaosVDPlaybackController> InController) {};

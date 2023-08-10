@@ -4,9 +4,12 @@
 
 #include "ChaosVDPlaybackControllerInstigator.h"
 #include "ChaosVDPlaybackControllerObserver.h"
+#include "SCommonEditorViewportToolbarBase.h"
+#include "SEditorViewport.h"
 #include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
 
+class FChaosVDEditorModeTools;
 enum class EChaosVDActorTrackingMode;
 class FChaosVDPlaybackViewportClient;
 class SChaosVDSolverPlaybackControls;
@@ -19,23 +22,28 @@ class FSceneViewport;
 class SViewport;
 
 /* Widget that contains the 3D viewport and playback controls */
-class SChaosVDPlaybackViewport : public SCompoundWidget, public FChaosVDPlaybackControllerObserver, public IChaosVDPlaybackControllerInstigator
+class SChaosVDPlaybackViewport : public SEditorViewport, public FChaosVDPlaybackControllerObserver, public IChaosVDPlaybackControllerInstigator, public ICommonEditorViewportToolbarInfoProvider
 {
 public:
 
-	SLATE_BEGIN_ARGS( SChaosVDPlaybackViewport ){}
+	SLATE_BEGIN_ARGS(SChaosVDPlaybackViewport) {}
 	SLATE_END_ARGS()
 
 	virtual ~SChaosVDPlaybackViewport() override;
 
 	void Construct(const FArguments& InArgs, TWeakPtr<FChaosVDScene> InScene, TWeakPtr<FChaosVDPlaybackController> InPlaybackController);
 
-	void TrackActor(AActor* ActorToTrack, EChaosVDActorTrackingMode TrackingMode);
-	void TrackTransform(const FTransform& TransformToTrack, EChaosVDActorTrackingMode TrackingMode);
+	// BEING ICommonEditorViewportToolbarInfoProvider interface
+	virtual TSharedRef<SEditorViewport> GetViewportWidget() override;
+	virtual TSharedPtr<FExtender> GetExtenders() const override;
+	virtual void OnFloatingButtonClicked() override {};
+	// END ICommonEditorViewportToolbarInfoProvider interface
 
 protected:
 
-	TSharedPtr<FChaosVDPlaybackViewportClient> CreateViewportClient() const;
+	virtual TSharedRef<FEditorViewportClient> MakeEditorViewportClient() override;
+	
+	virtual TSharedPtr<SWidget> MakeViewportToolbar() override;
 
 	virtual void RegisterNewController(TWeakPtr<FChaosVDPlaybackController> NewController )override;
 	virtual void HandlePlaybackControllerDataUpdated(TWeakPtr<FChaosVDPlaybackController> InController) override;
@@ -49,8 +57,10 @@ protected:
 	TSharedPtr<SChaosVDTimelineWidget> GameFramesTimelineWidget;
 
 	TSharedPtr<FChaosVDPlaybackViewportClient> PlaybackViewportClient;
-	TSharedPtr<SViewport> ViewportWidget;
-	TSharedPtr<FSceneViewport> SceneViewport;
 	
 	TWeakPtr<FChaosVDScene> CVDSceneWeakPtr;
+
+	TSharedPtr<FExtender> Extender;
+
+	TSharedPtr<FChaosVDEditorModeTools> EditorModeTools;
 };
