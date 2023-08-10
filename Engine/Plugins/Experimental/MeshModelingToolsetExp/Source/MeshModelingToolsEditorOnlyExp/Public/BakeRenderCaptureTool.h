@@ -346,9 +346,8 @@ protected:
 	/**
 	 * Create texture and material assets from our result map of Texture2D
 	 * @param SourceWorld the source world to define where the assets will be stored.
-	 * @param SourceAsset if not null, result textures/material will be stored adjacent to this asset.
 	 */
-	void CreateAssets(UWorld* SourceWorld, UObject* SourceAsset);
+	void CreateAssets(UWorld* SourceWorld);
 
 	// The baking background compute operation
 	TUniquePtr<TGenericDataBackgroundCompute<UE::Geometry::FMeshMapBaker>> Compute = nullptr;
