@@ -15,8 +15,12 @@ namespace UE::AnimNext
 	 */
 	struct FUpdateTraversalContext : ITraversalContext
 	{
-		double GetDeltaTime() const { return 1.0 / 30.0; }
-		double GetPlayRate() const { return 1.0; }
+		explicit FUpdateTraversalContext(float InDeltaTime);
+
+		float GetDeltaTime() const { return DeltaTime; }
+
+	private:
+		float DeltaTime;
 	};
 
 	/**
@@ -75,5 +79,5 @@ namespace UE::AnimNext
 	 *
 	 * @see IUpdate::PreUpdate, IUpdate::PostUpdate, IHierarchy::GetChildren
 	 */
-	ANIMNEXT_API void UpdateGraph(FExecutionContext& Context, FWeakDecoratorPtr GraphRootPtr);
+	ANIMNEXT_API void UpdateGraph(FExecutionContext& Context, FWeakDecoratorPtr GraphRootPtr, float DeltaTime);
 }

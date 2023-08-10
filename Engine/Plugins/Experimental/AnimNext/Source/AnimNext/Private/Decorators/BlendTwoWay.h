@@ -16,10 +16,16 @@ struct FAnimNextBlendTwoWayDecoratorSharedData : public FAnimNextDecoratorShared
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
-	FAnimNextDecoratorHandle Children[2];
+	/** First output to be blended (full weight is 0.0). */
+	UPROPERTY(meta = (Input))
+	FAnimNextDecoratorHandle ChildA;
 
-	UPROPERTY()
+	/** Second output to be blended (full weight is 1.0). */
+	UPROPERTY(meta = (Input))
+	FAnimNextDecoratorHandle ChildB;
+
+	/** How much to blend our two children: 0.0 is fully child A while 1.0 is fully child B. */
+	UPROPERTY(meta = (Input))
 	double BlendWeight = 0.0;
 };
 
@@ -38,7 +44,8 @@ namespace UE::AnimNext
 
 		struct FInstanceData : FDecorator::FInstanceData
 		{
-			FDecoratorPtr Children[2];
+			FDecoratorPtr ChildA;
+			FDecoratorPtr ChildB;
 		};
 
 		// IEvaluate impl

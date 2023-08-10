@@ -72,7 +72,7 @@ namespace UE::AnimNext
 		// We need to allocate a new node instance
 		const FDecoratorTemplate* DecoratorDescs = NodeTemplate->GetDecorators();
 
-		const uint32 InstanceSize = NodeTemplate->GetInstanceSize();
+		const uint32 InstanceSize = NodeTemplate->GetNodeInstanceDataSize();
 		uint8* NodeInstanceBuffer = reinterpret_cast<uint8*>(FMemory::Malloc(InstanceSize, 16));
 		FNodeInstance* NodeInstance = new(NodeInstanceBuffer) FNodeInstance(ChildNodeHandle);
 
@@ -80,16 +80,12 @@ namespace UE::AnimNext
 		const FDecoratorTemplate* StartDesc = DecoratorDescs;
 		const FDecoratorTemplate* EndDesc = DecoratorDescs + NodeTemplate->GetNumDecorators();
 
-		const FDecoratorTemplate* FailedDecoratorDesc = nullptr;
 		for (const FDecoratorTemplate* DecoratorDesc = StartDesc; DecoratorDesc != EndDesc; ++DecoratorDesc)
 		{
 			const FDecorator* Decorator = GetDecorator(*DecoratorDesc);
-			ensure(Decorator != nullptr);
 			if (Decorator == nullptr)
 			{
-				// Failed to find the matching decorator, did it get unregistered or is the decorator descriptor corrupted?
-				FailedDecoratorDesc = DecoratorDesc;
-				break;
+				continue;	// Decorator hasn't been loaded or registered, skip it
 			}
 
 			const uint32 DecoratorIndex = DecoratorDesc - DecoratorDescs;
@@ -100,30 +96,6 @@ namespace UE::AnimNext
 			FDecoratorInstanceData* InstanceData = DecoratorDesc->GetDecoratorInstance(*NodeInstance);
 
 			Decorator->ConstructDecoratorInstance(*this, DecoratorPtr, *SharedData, *InstanceData);
-		}
-
-		if (FailedDecoratorDesc != nullptr)
-		{
-			// We failed to construct our node instance, destroy it
-			// Start destruction with the decorator prior to the one that failed
-			StartDesc = FailedDecoratorDesc - 1;
-			EndDesc = DecoratorDescs - 1;
-			for (const FDecoratorTemplate* DecoratorDesc = StartDesc; DecoratorDesc != EndDesc; --DecoratorDesc)
-			{
-				const FDecorator* Decorator = GetDecorator(*DecoratorDesc);
-				const uint32 DecoratorIndex = DecoratorDesc - DecoratorDescs;
-
-				FWeakDecoratorPtr DecoratorPtr(NodeInstance, DecoratorIndex);
-
-				const FAnimNextDecoratorSharedData* SharedData = DecoratorDesc->GetDecoratorDescription(NodeDesc);
-				FDecoratorInstanceData* InstanceData = DecoratorDesc->GetDecoratorInstance(*NodeInstance);
-
-				Decorator->DestructDecoratorInstance(*this, DecoratorPtr, *SharedData, *InstanceData);
-			}
-
-			FMemory::Free(NodeInstance);
-
-			return FDecoratorPtr();
 		}
 
 		return FDecoratorPtr(NodeInstance, ChildDecoratorIndex);
@@ -159,8 +131,7 @@ namespace UE::AnimNext
 		const FDecoratorTemplate* EndDesc = DecoratorDescs - 1;
 		for (const FDecoratorTemplate* DecoratorDesc = StartDesc; DecoratorDesc != EndDesc; --DecoratorDesc)
 		{
-			const FDecorator* Decorator = GetDecorator(*DecoratorDesc);
-			if (ensure(Decorator != nullptr))
+			if (const FDecorator* Decorator = GetDecorator(*DecoratorDesc))
 			{
 				const uint32 DecoratorIndex = DecoratorDesc - DecoratorDescs;
 
@@ -207,10 +178,9 @@ namespace UE::AnimNext
 		for (const FDecoratorTemplate* DecoratorDesc = StartDesc; DecoratorDesc != EndDesc; --DecoratorDesc)
 		{
 			const FDecorator* Decorator = GetDecorator(*DecoratorDesc);
-			ensure(Decorator != nullptr);
 			if (Decorator == nullptr)
 			{
-				return false;	// Failed to find the matching decorator, did it get unregistered or is the decorator descriptor corrupted?
+				continue;	// Decorator hasn't been loaded or registered, skip it
 			}
 
 			if (const IDecoratorInterface* Interface = Decorator->GetDecoratorInterface(InterfaceUID))
@@ -265,10 +235,9 @@ namespace UE::AnimNext
 		for (const FDecoratorTemplate* DecoratorDesc = StartDesc; DecoratorDesc != EndDesc; --DecoratorDesc)
 		{
 			const FDecorator* Decorator = GetDecorator(*DecoratorDesc);
-			ensure(Decorator != nullptr);
 			if (Decorator == nullptr)
 			{
-				return false;	// Failed to find the matching decorator, did it get unregistered or is the decorator descriptor corrupted?
+				continue;	// Decorator hasn't been loaded or registered, skip it
 			}
 
 			if (const IDecoratorInterface* Interface = Decorator->GetDecoratorInterface(InterfaceUID))
@@ -297,13 +266,17 @@ namespace UE::AnimNext
 	const FNodeTemplate* FExecutionContext::GetNodeTemplate(const FNodeDescription& NodeDesc) const
 	{
 		check(NodeDesc.GetTemplateHandle().IsValid());
-		return FNodeTemplateRegistry::Get().Find(NodeDesc.GetTemplateHandle());
+
+		const FNodeTemplateRegistry& NodeTemplateRegistry = FNodeTemplateRegistry::Get();
+		return NodeTemplateRegistry.Find(NodeDesc.GetTemplateHandle());
 	}
 
 	const FDecorator* FExecutionContext::GetDecorator(const FDecoratorTemplate& Template) const
 	{
 		check(Template.GetRegistryHandle().IsValid());
-		return FDecoratorRegistry::Get().Find(Template.GetRegistryHandle());
+
+		const FDecoratorRegistry& DecoratorRegistry = FDecoratorRegistry::Get();
+		return DecoratorRegistry.Find(Template.GetRegistryHandle());
 	}
 
 	FExecutionContext* GetThreadExecutionContext()

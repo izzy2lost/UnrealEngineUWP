@@ -20,7 +20,8 @@ public:
 	{
 		static UClass* const AllowedAssetTypes[] =
 		{
-			UAnimSequence::StaticClass()
+			UAnimSequence::StaticClass(),
+			UScriptStruct::StaticClass(),
 		};
 
 		FRigVMRegistry::Get().RegisterObjectTypes(AllowedAssetTypes);
@@ -28,21 +29,14 @@ public:
 		FDataRegistry::Init();
 		FDecoratorRegistry::Init();
 		FNodeTemplateRegistry::Init();
-
-		EnginePreExitHandle = FCoreDelegates::OnEnginePreExit.AddLambda([]()
-		{
-			FDataRegistry::Destroy();
-			FDecoratorRegistry::Destroy();
-			FNodeTemplateRegistry::Destroy();
-		});
 	}
 
 	virtual void ShutdownModule() override
 	{
-		FCoreDelegates::OnEnginePreExit.Remove(EnginePreExitHandle);
+		FNodeTemplateRegistry::Destroy();
+		FDecoratorRegistry::Destroy();
+		FDataRegistry::Destroy();
 	}
-
-	FDelegateHandle EnginePreExitHandle;
 };
 
 }

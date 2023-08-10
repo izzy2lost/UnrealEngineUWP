@@ -282,7 +282,10 @@ bool URigVMNode::IsMutable() const
 	{
 		if(const UScriptStruct* ScriptStruct = Pin->GetScriptStruct())
 		{
-			return ScriptStruct->IsChildOf(FRigVMExecuteContext::StaticStruct());
+			if (ScriptStruct->IsChildOf(FRigVMExecuteContext::StaticStruct()))
+			{
+				return true;
+			}
 		}
 	}
 	return false;

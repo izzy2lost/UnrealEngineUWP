@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Graph/ControlRigGraph.h"
+#include "EdGraph/RigVMEdGraph.h"
 #include "AnimNextGraph_EdGraph.generated.h"
 
 class UAnimNextGraph_EditorData;
@@ -13,14 +13,17 @@ namespace UE::AnimNext::UncookedOnly
 	struct FUtils;
 }
 
+/**
+  * Wraps UEdGraph which represents the node graph
+  */
 UCLASS(MinimalAPI)
-class UAnimNextGraph_EdGraph : public UControlRigGraph
+class UAnimNextGraph_EdGraph : public URigVMEdGraph
 {
 	GENERATED_BODY()
 
 	friend class UAnimNextGraph_EditorData;
 
-	// UControlRigGraph interface
+	// URigVMEdGraph interface
 	virtual FRigVMClient* GetRigVMClient() const override;
 	
 	void Initialize(UAnimNextGraph_EditorData* InEditorData);

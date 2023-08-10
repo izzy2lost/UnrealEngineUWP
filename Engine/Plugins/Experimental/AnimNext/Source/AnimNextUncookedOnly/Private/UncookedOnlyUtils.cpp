@@ -3,20 +3,240 @@
 #include "UncookedOnlyUtils.h"
 #include "Graph/AnimNextGraph.h"
 #include "Graph/AnimNextGraph_EditorData.h"
-#include "RigVMCompiler/RigVMCompiler.h"
-#include "RigVMCore/RigVM.h"
+#include "Graph/RigUnit_AnimNextGraphRoot.h"
+#include "Graph/RigUnit_AnimNextDecoratorStack.h"
 #include "Graph/AnimNextExecuteContext.h"
 #include "Param/AnimNextParameter.h"
 #include "Param/AnimNextParameterBlock.h"
 #include "Param/AnimNextParameterBlock_EditorData.h"
 #include "Param/AnimNextParameterBlock_EdGraph.h"
+#include "Graph/RigDecorator_AnimNextCppDecorator.h"
 #include "Graph/RigUnit_AnimNextBeginExecution.h"
 #include "Param/RigVMDispatch_SetParameter.h"
 #include "Param/AnimNextParameterBlockEntry.h"
 #include "Param/IAnimNextParameterBlockBindingInterface.h"
+#include "DecoratorBase/DecoratorReader.h"
+#include "DecoratorBase/DecoratorWriter.h"
+#include "DecoratorBase/NodeTemplate.h"
+#include "DecoratorBase/NodeTemplateBuilder.h"
+#include "DecoratorBase/NodeTemplateRegistry.h"
+#include "DecoratorBase/NodeDescription.h"
+#include "DecoratorBase/NodeInstance.h"
+#include "DecoratorBase/DecoratorRegistry.h"
+#include "DecoratorBase/Decorator.h"
+#include "Serialization/MemoryReader.h"
+
+#include "RigVMCompiler/RigVMCompiler.h"
+#include "RigVMCore/RigVM.h"
 
 namespace UE::AnimNext::UncookedOnly
 {
+namespace Private
+{
+	struct FDecoratorEntryMapping
+	{
+		const URigVMNode* DecoratorStackNode;
+		const URigVMPin* DecoratorEntryPin;
+		const FDecorator* Decorator;
+
+		FDecoratorEntryMapping(const URigVMNode* InDecoratorStackNode, const URigVMPin* InDecoratorEntryPin, const FDecorator* InDecorator)
+			: DecoratorStackNode(InDecoratorStackNode)
+			, DecoratorEntryPin(InDecoratorEntryPin)
+			, Decorator(InDecorator)
+		{}
+	};
+
+	struct FDecoratorStackMapping
+	{
+		const URigVMNode* DecoratorStackNode;
+		TArray<FDecoratorEntryMapping> DecoratorEntries;
+
+		FNodeHandle DecoratorStackNodeHandle;
+
+		explicit FDecoratorStackMapping(const URigVMNode* InDecoratorStackNode)
+			: DecoratorStackNode(InDecoratorStackNode)
+		{}
+	};
+
+	template<typename DecoratorAction>
+	void ForEachDecoratorInStack(const URigVMNode* DecoratorStackNode, const DecoratorAction& Action)
+	{
+		const TArray<URigVMPin*>& Pins = DecoratorStackNode->GetPins();
+		for (URigVMPin* Pin : Pins)
+		{
+			if (!Pin->IsDecoratorPin())
+			{
+				continue;	// Not a decorator pin
+			}
+
+			if (Pin->GetScriptStruct() == FRigDecorator_AnimNextCppDecorator::StaticStruct())
+			{
+				TSharedPtr<FStructOnScope> DecoratorScope = Pin->GetDecoratorInstance();
+				FRigDecorator_AnimNextCppDecorator* VMDecorator = (FRigDecorator_AnimNextCppDecorator*)DecoratorScope->GetStructMemory();
+
+				if (const FDecorator* Decorator = VMDecorator->GetDecorator())
+				{
+					Action(DecoratorStackNode, Pin, Decorator);
+				}
+			}
+		}
+	}
+
+	TArray<FDecoratorUID> GetDecoratorUIDs(const URigVMNode* DecoratorStackNode)
+	{
+		TArray<FDecoratorUID> Decorators;
+
+		ForEachDecoratorInStack(DecoratorStackNode,
+			[&Decorators](const URigVMNode* DecoratorStackNode, const URigVMPin* DecoratorPin, const FDecorator* Decorator)
+			{
+				Decorators.Add(Decorator->GetDecoratorUID());
+			});
+
+		return Decorators;
+	}
+
+	FNodeHandle RegisterDecoratorNodeTemplate(FDecoratorWriter& DecoratorWriter, const URigVMNode* DecoratorStackNode)
+	{
+		const TArray<FDecoratorUID> DecoratorUIDs = GetDecoratorUIDs(DecoratorStackNode);
+
+		TArray<uint8> NodeTemplateBuffer;
+		const FNodeTemplate* NodeTemplate = FNodeTemplateBuilder::BuildNodeTemplate(DecoratorUIDs, NodeTemplateBuffer);
+
+		return DecoratorWriter.RegisterNode(*NodeTemplate);
+	}
+
+	FString GetDecoratorProperty(const FDecoratorStackMapping& DecoratorStack, uint32 DecoratorIndex, const FString& PropertyName, const TArray<FDecoratorStackMapping>& DecoratorStackNodes)
+	{
+		const TArray<URigVMPin*>& Pins = DecoratorStack.DecoratorEntries[DecoratorIndex].DecoratorEntryPin->GetSubPins();
+		for (URigVMPin* Pin : Pins)
+		{
+			if (Pin->GetDirection() != ERigVMPinDirection::Input)
+			{
+				continue;	// We only look for input pins
+			}
+
+			if (Pin->GetName() == PropertyName)
+			{
+				if (Pin->GetCPPTypeObject() == FAnimNextDecoratorHandle::StaticStruct())
+				{
+					// Decorator handle pins don't have a value, just an optional link
+					const TArray<URigVMLink*>& PinLinks = Pin->GetLinks();
+					if (PinLinks.Num() != 0)
+					{
+						// Something is connected to us, find the corresponding node handle so that we can encode it as our property value
+						check(PinLinks.Num() == 1);
+
+						const URigVMNode* SourceNode = PinLinks[0]->GetSourceNode();
+
+						FNodeHandle SourceNodeHandle;
+						int32 SourceDecoratorIndex = INDEX_NONE;
+
+						const FDecoratorStackMapping* SourceDecoratorStack = DecoratorStackNodes.FindByPredicate([SourceNode](const FDecoratorStackMapping& Mapping) { return Mapping.DecoratorStackNode == SourceNode; });
+						if (SourceDecoratorStack != nullptr)
+						{
+							SourceNodeHandle = SourceDecoratorStack->DecoratorStackNodeHandle;
+							SourceDecoratorIndex = 0;	// We always bind to the first decorator index since we only allow one base decorator per stack for now
+						}
+
+						if (SourceNodeHandle.IsValid())
+						{
+							check(SourceDecoratorIndex != INDEX_NONE);
+
+							const FAnimNextDecoratorHandle DecoratorHandle(SourceNodeHandle, SourceDecoratorIndex);
+							const FAnimNextDecoratorHandle DefaultDecoratorHandle;
+
+							// We need an instance of a decorator handle property to be able to serialize it into text, grab it from the root
+							const FProperty* Property = FRigUnit_AnimNextGraphRoot::StaticStruct()->FindPropertyByName(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextGraphRoot, Result));
+
+							FString PropertyValue;
+							Property->ExportText_Direct(PropertyValue, &DecoratorHandle, &DefaultDecoratorHandle, nullptr, PPF_None);
+
+							return PropertyValue;
+						}
+					}
+
+					// This handle pin isn't connected
+					return FString();
+				}
+
+				// A regular property pin
+				return Pin->GetDefaultValue();
+			}
+		}
+
+		// Unknown property
+		return FString();
+	}
+
+	void WriteDecoratorProperties(FDecoratorWriter& DecoratorWriter, const FDecoratorStackMapping& Mapping, const TArray<FDecoratorStackMapping>& DecoratorStackNodes)
+	{
+		DecoratorWriter.WriteNode(Mapping.DecoratorStackNodeHandle,
+			[&Mapping, &DecoratorStackNodes](uint32 DecoratorIndex, const FString& PropertyName)
+			{
+				return GetDecoratorProperty(Mapping, DecoratorIndex, PropertyName, DecoratorStackNodes);
+			});
+	}
+
+	const URigVMUnitNode* FindRootNode(const TArray<URigVMNode*>& VMNodes)
+	{
+		for (const URigVMNode* VMNode : VMNodes)
+		{
+			if (const URigVMUnitNode* VMUnitNode = Cast<URigVMUnitNode>(VMNode))
+			{
+				const UScriptStruct* ScriptStruct = VMUnitNode->GetScriptStruct();
+				if (ScriptStruct == FRigUnit_AnimNextGraphRoot::StaticStruct())
+				{
+					return VMUnitNode;
+				}
+			}
+		}
+
+		return nullptr;
+	}
+
+	TArray<FDecoratorStackMapping> CollectDecoratorStacks(const URigVMGraph* VMGraph)
+	{
+		const TArray<URigVMNode*>& VMNodes = VMGraph->GetNodes();
+		const URigVMUnitNode* VMRootNode = FindRootNode(VMNodes);
+
+		TArray<FDecoratorStackMapping> DecoratorStackNodes;
+
+		if (VMRootNode == nullptr)
+		{
+			return DecoratorStackNodes;
+		}
+
+		TArray<const URigVMNode*> NodesToVisit;
+		NodesToVisit.Add(VMRootNode);
+
+		while (NodesToVisit.Num() != 0)
+		{
+			const URigVMNode* VMNode = NodesToVisit[0];
+			NodesToVisit.RemoveAt(0);
+
+			if (const URigVMUnitNode* VMUnitNode = Cast<URigVMUnitNode>(VMNode))
+			{
+				const UScriptStruct* ScriptStruct = VMUnitNode->GetScriptStruct();
+				if (ScriptStruct == FRigUnit_AnimNextDecoratorStack::StaticStruct())
+				{
+					FDecoratorStackMapping Mapping(VMNode);
+					ForEachDecoratorInStack(VMNode,
+						[&Mapping](const URigVMNode* DecoratorStackNode, const URigVMPin* DecoratorPin, const FDecorator* Decorator)
+						{
+							Mapping.DecoratorEntries.Add(FDecoratorEntryMapping(DecoratorStackNode, DecoratorPin, Decorator));
+						});
+
+					DecoratorStackNodes.Add(MoveTemp(Mapping));
+				}
+			}
+
+			const TArray<URigVMNode*> SourceNodes = VMNode->GetLinkedSourceNodes();
+			NodesToVisit.Append(SourceNodes);
+		}
+
+		return DecoratorStackNodes;
+	}
+}
 
 void FUtils::Compile(UAnimNextGraph* InGraph)
 {
@@ -46,11 +266,76 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 	EditorData->CompileLog.Messages.Reset();
 	EditorData->CompileLog.NumErrors = EditorData->CompileLog.NumWarnings = 0;
 
+	// We use a temporary graph model to build our final graph that we'll compile
+	URigVMGraph* VMTempGraph = EditorData->GetRigVMClient()->GetModel(TEXT("TempRigVMGraph"));
+	URigVMController* TempController = nullptr;
+
+	TArray<URigVMGraph*> GraphModelsToCompile;
+
+	if (VMTempGraph != nullptr)
+	{
+		TempController = EditorData->GetRigVMClient()->GetOrCreateController(VMTempGraph);
+
+		// Clear our temporary model
+		TempController->RemoveNodes(VMTempGraph->GetNodes());
+
+		URigVMGraph* VMRootGraph = EditorData->GetRigVMClient()->GetDefaultModel();
+
+		// Add our root node, it's always there
+		URigVMUnitNode* TempRootNode = TempController->AddUnitNode(FRigUnit_AnimNextGraphRoot::StaticStruct(), FRigVMStruct::ExecuteName, FVector2D(0.0f, 0.0f), FString(), false);
+
+		// Gather our decorator stacks
+		TArray<Private::FDecoratorStackMapping> DecoratorStackNodes = Private::CollectDecoratorStacks(VMRootGraph);
+
+		FDecoratorWriter DecoratorWriter;
+
+		// Iterate over every decorator stack and register our node templates
+		for (Private::FDecoratorStackMapping& NodeMapping : DecoratorStackNodes)
+		{
+			NodeMapping.DecoratorStackNodeHandle = Private::RegisterDecoratorNodeTemplate(DecoratorWriter, NodeMapping.DecoratorStackNode);
+		}
+
+		// Write our node shared data
+		DecoratorWriter.BeginNodeWriting();
+
+		for (const Private::FDecoratorStackMapping& NodeMapping : DecoratorStackNodes)
+		{
+			Private::WriteDecoratorProperties(DecoratorWriter, NodeMapping, DecoratorStackNodes);
+		}
+
+		DecoratorWriter.EndNodeWriting();
+
+		// Find our root node handle, if we have any stack nodes, the first one is our root stack
+		FAnimNextEntryPointHandle RootDecoratorHandle;
+		if (DecoratorStackNodes.Num() != 0)
+		{
+			RootDecoratorHandle = FAnimNextEntryPointHandle(DecoratorStackNodes[0].DecoratorStackNodeHandle);
+		}
+
+		// Cache our compiled metadata
+		InGraph->SharedDataArchiveBuffer = DecoratorWriter.GetGraphSharedData();
+		InGraph->RootDecoratorHandle = RootDecoratorHandle;
+
+		// Populate our runtime metadata
+		InGraph->LoadFromArchiveBuffer(InGraph->SharedDataArchiveBuffer);
+
+		// Compile our new graph
+		GraphModelsToCompile.Add(VMTempGraph);
+	}
+
+	if (VMTempGraph == nullptr)
+	{
+		// This is an old graph that was saved before the introduction of the temporary graph, use the root graph instead
+		URigVMGraph* VMRootGraph = EditorData->GetRigVMClient()->GetDefaultModel();
+
+		GraphModelsToCompile.Add(VMRootGraph);
+		TempController = EditorData->GetRigVMClient()->GetOrCreateController(VMRootGraph);
+	}
+
 	URigVMCompiler* Compiler = URigVMCompiler::StaticClass()->GetDefaultObject<URigVMCompiler>();
 	EditorData->VMCompileSettings.SetExecuteContextStruct(EditorData->RigVMClient.GetExecuteContextStruct());
 	Compiler->Settings = (EditorData->bCompileInDebugMode) ? FRigVMCompileSettings::Fast(EditorData->VMCompileSettings.GetExecuteContextStruct()) : EditorData->VMCompileSettings;
-	URigVMController* RootController = EditorData->GetRigVMClient()->GetOrCreateController(EditorData->GetRigVMClient()->GetDefaultModel());
-	Compiler->Compile(EditorData->GetRigVMClient()->GetAllModels(false, false), RootController, InGraph->RigVM, InGraph->ExtendedExecuteContext, InGraph->GetRigVMExternalVariables(), &EditorData->PinToOperandMap);
+	Compiler->Compile(GraphModelsToCompile, TempController, InGraph->RigVM, InGraph->ExtendedExecuteContext, InGraph->GetRigVMExternalVariables(), &EditorData->PinToOperandMap);
 
 	if (EditorData->bErrorsDuringCompilation)
 	{
@@ -615,7 +900,7 @@ void FUtils::SetupBindingGraphForLiteral(URigVMController* InController, FName I
 	InController->RemoveNodes(InController->GetGraph()->GetNodes());
 
 	// Add new nodes for a simple literal binding
-	URigVMUnitNode* EntryPointNode = InController->AddUnitNode(FRigUnit_AnimNextBeginExecution::StaticStruct(), FRigUnit::GetMethodName(), FVector2D(-200.0f, 0.0f), FString(), false);
+	URigVMUnitNode* EntryPointNode = InController->AddUnitNode(FRigUnit_AnimNextBeginExecution::StaticStruct(), FRigVMStruct::ExecuteName, FVector2D(-200.0f, 0.0f), FString(), false);
 
 	const FName FactoryName = FRigVMDispatch_SetParameter().GetFactoryName();
 	FRigVMDispatch_SetParameter* Factory = static_cast<FRigVMDispatch_SetParameter*>(FRigVMRegistry::Get().FindDispatchFactory(FactoryName));

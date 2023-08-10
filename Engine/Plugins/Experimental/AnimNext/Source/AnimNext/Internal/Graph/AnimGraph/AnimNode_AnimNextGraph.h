@@ -4,23 +4,9 @@
 
 #include "Animation/AnimNode_CustomProperty.h"
 #include "Graph/AnimNextGraph.h"
+#include "DecoratorBase/DecoratorPtr.h"
 #include "Context.h"
 #include "AnimNode_AnimNextGraph.generated.h"
-
-class UNodeMappingContainer;
-
-// TEST - until we can allocate per-node state again
-USTRUCT()
-struct FAnimSequencePlayerState
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	float InternalTimeAccumulator = 0.0f;
-
-	UPROPERTY()
-	float PrevInternalTimeAccumulator = 0.0f;
-};
 
 /**
  * Animation node that allows a AnimNextGraph output to be used in an animation graph
@@ -31,6 +17,7 @@ struct ANIMNEXT_API FAnimNode_AnimNextGraph : public FAnimNode_CustomProperty
 	GENERATED_BODY()
 
 	FAnimNode_AnimNextGraph();
+	~FAnimNode_AnimNextGraph();
 
 	// FAnimNode_Base interface
 	virtual void OnInitializeAnimInstance(const FAnimInstanceProxy* InProxy, const UAnimInstance* InAnimInstance) override;
@@ -57,10 +44,8 @@ private:
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault))
 	TObjectPtr<UAnimNextGraph> AnimNextGraph;
 
-	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault, DisallowedClasses = "/Script/Engine.AnimMontage"))
-	TObjectPtr<UAnimSequence> TestSequence = nullptr;
-
-	FAnimSequencePlayerState SequencePlayerState;	// TEST - until we can allocate per-node state again
+	// Shared pointer to our graph instance, we own it
+	UE::AnimNext::FDecoratorPtr GraphInstancePtr;
 
 	/*
 	 * Max LOD that this node is allowed to run
@@ -70,9 +55,6 @@ private:
 	 */
 	UPROPERTY(EditAnywhere, Category = Performance, meta = (DisplayName = "LOD Threshold"))
 	int32 LODThreshold;
-
-	// Delta time received accumulated in update and used at Evaluate (so we can receive multiple calls to Evaluate)
-	float GraphDeltaTime = 0.f;
 
 protected:
 	virtual UClass* GetTargetClass() const override { return AnimNextGraph ? AnimNextGraph->StaticClass() : nullptr; }

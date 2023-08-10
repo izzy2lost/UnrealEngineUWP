@@ -22,6 +22,7 @@ namespace UnrealBuildTool.Rules
 					"InputCore",
 					"PropertyEditor",
 					"RigVM",
+					"RigVMEditor",
 					"RigVMDeveloper",
 					"ControlRig",
 					"ControlRigDeveloper",

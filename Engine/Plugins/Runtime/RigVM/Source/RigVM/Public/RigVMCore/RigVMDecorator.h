@@ -62,6 +62,9 @@ public:
 	// allows the decorator to react when added to a node
 	virtual void OnDecoratorAdded(URigVMController* InController, URigVMNode* InNode) {}
 
+	// allows the decorator to return dynamic pins (parent pin index must be INDEX_NONE or point to a valid index of the parent pin in the OutPinArray)
+	virtual void GetProgrammaticPins(URigVMController* InController, int32 InParentPinIndex, struct FRigVMPinInfoArray& OutPinArray) const {}
+
 #endif
 
 private:

@@ -3,9 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "DecoratorBase/NodeID.h"
 #include "DecoratorBase/NodeTemplateRegistryHandle.h"
-
-#include <limits>
 
 class FArchive;
 
@@ -26,22 +25,17 @@ namespace UE::AnimNext
 	 */
 	struct alignas(alignof(uint32)) FNodeDescription
 	{
-		// Largest allowed size for a node description
-		// Graphs are currently limited to 64 KB because we use 16 bit offsets within our node/decorator handles
-		// We have no particular limit on the node size besides the graph limit (for now)
-		static constexpr uint32 MAXIMUM_SIZE = 64 * 1024;
+		// Largest allowed size for a node description and the shared data of its decorators
+		// We use unsigned 16 bit offsets within the NodeTemplate/DecoratorTemplate
+		static constexpr uint32 MAXIMUM_NODE_SHARED_DATA_SIZE = 64 * 1024;
 
-		// The maximum number of nodes allowed within a single graph
-		// We use 16 bits to represent node UIDs
-		static constexpr uint32 MAXIMUM_COUNT = std::numeric_limits<uint16>::max();
-
-		FNodeDescription(uint16 UID_, FNodeTemplateRegistryHandle TemplateHandle_)
-			: UID(UID_)
-			, TemplateHandle(TemplateHandle_)
+		FNodeDescription(FNodeID InNodeID, FNodeTemplateRegistryHandle InTemplateHandle)
+			: NodeID(InNodeID)
+			, TemplateHandle(InTemplateHandle)
 		{}
 
 		// Returns the node UID, unique to the owning sub-graph
-		uint32 GetUID() const { return UID; }
+		FNodeID GetUID() const { return NodeID; }
 
 		// Returns the handle of the node's template in the node template registry
 		FNodeTemplateRegistryHandle GetTemplateHandle() const { return TemplateHandle; }
@@ -50,7 +44,7 @@ namespace UE::AnimNext
 		ANIMNEXT_API void Serialize(FArchive& Ar);
 
 	private:
-		uint16							UID;				// assigned during export/cook, unique to current sub-graph
+		FNodeID							NodeID;				// assigned during export/cook, unique to current sub-graph
 		FNodeTemplateRegistryHandle		TemplateHandle;		// offset of the node template within the global list
 
 		// Followed by a list of [FAnimNextDecoratorSharedData] instances and optional padding
