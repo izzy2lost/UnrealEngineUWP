@@ -495,7 +495,7 @@ float UAISense_Sight::Update()
 			for (const auto& TargetId : InvalidTargets)
 			{
 				// remove affected queries
-				RemoveAllQueriesToTarget(TargetId);
+				RemoveAllQueriesToTarget_Internal(TargetId);
 				// remove target itself
 				ObservedTargets.Remove(TargetId);
 			}
@@ -1036,8 +1036,13 @@ void UAISense_Sight::RemoveAllQueriesByListener(const FPerceptionListener& Liste
 
 void UAISense_Sight::RemoveAllQueriesToTarget(const FAISightTarget::FTargetId& TargetId, const TFunction<void(const FAISightQuery&)>& OnRemoveFunc/*= nullptr */)
 {
-	SCOPE_CYCLE_COUNTER(STAT_AI_Sense_Sight_RemoveToTarget);
 	UE_MT_SCOPED_WRITE_ACCESS(QueriesListAccessDetector);
+	RemoveAllQueriesToTarget_Internal(TargetId, OnRemoveFunc);
+}
+
+void UAISense_Sight::RemoveAllQueriesToTarget_Internal(const FAISightTarget::FTargetId& TargetId, const TFunction<void(const FAISightQuery&)>& OnRemoveFunc/*= nullptr */)
+{
+	SCOPE_CYCLE_COUNTER(STAT_AI_Sense_Sight_RemoveToTarget);
 
 	auto RemoveQuery = [&TargetId, &OnRemoveFunc](TArray<FAISightQuery>& SightQueries, const int32 QueryIndex)->EReverseForEachResult
 	{
