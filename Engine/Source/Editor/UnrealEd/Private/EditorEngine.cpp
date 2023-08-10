@@ -162,6 +162,7 @@
 #include "EditorWorldExtension.h"
 
 #if PLATFORM_WINDOWS
+	#include "Windows/WindowsHWrapper.h"
 // For WAVEFORMATEXTENSIBLE
 	#include "Windows/AllowWindowsPlatformTypes.h"
 #include <mmreg.h>
@@ -1108,120 +1109,7 @@ void UEditorEngine::Init(IEngineLoop* InEngineLoop)
 	SlowTask.EnterProgressFrame(50);
 
 	// Load all editor modules here
-	{
-		static const TCHAR* ModuleNames[] =
-		{
-			TEXT("Documentation"),
-			TEXT("WorkspaceMenuStructure"),
-			TEXT("MainFrame"),
-			TEXT("OutputLog"),
-			TEXT("SourceControl"),
-			TEXT("SourceControlWindows"),
-			TEXT("SourceControlWindowExtender"),
-			TEXT("UncontrolledChangelists"),
-			TEXT("TextureCompressor"),
-			TEXT("MeshUtilities"),
-			TEXT("MovieSceneTools"),
-			TEXT("ClassViewer"),
-			TEXT("StructViewer"),
-			TEXT("ContentBrowser"),
-			TEXT("AssetTools"),
-			TEXT("GraphEditor"),
-			TEXT("KismetCompiler"),
-			TEXT("Kismet"),
-			TEXT("Persona"),
-			TEXT("AnimationBlueprintEditor"),
-			TEXT("LevelEditor"),
-			TEXT("MainFrame"),
-			TEXT("PropertyEditor"),
-			TEXT("PackagesDialog"),
-			// TEXT("AssetRegistry"), // Loaded in constructor
-			TEXT("DetailCustomizations"),
-			TEXT("ComponentVisualizers"),
-			TEXT("Layers"),
-			TEXT("AutomationWindow"),
-			TEXT("AutomationController"),
-			TEXT("DeviceManager"),
-			TEXT("ProfilerClient"),
-			TEXT("SessionFrontend"),
-			TEXT("ProjectLauncher"),
-			TEXT("SettingsEditor"),
-			TEXT("EditorSettingsViewer"),
-			TEXT("ProjectSettingsViewer"),
-			TEXT("Blutility"),
-			TEXT("ScriptableEditorWidgets"),
-			TEXT("XmlParser"),
-			TEXT("UndoHistory"),
-			TEXT("DeviceProfileEditor"),
-			TEXT("SourceCodeAccess"),
-			TEXT("BehaviorTreeEditor"),
-			TEXT("HardwareTargeting"),
-			TEXT("LocalizationDashboard"),
-			TEXT("MergeActors"),
-			TEXT("InputBindingEditor"),
-			TEXT("AudioEditor"),
-			TEXT("EditorInteractiveToolsFramework"),
-			TEXT("TraceInsights"),
-			TEXT("StaticMeshEditor"),
-			TEXT("EditorFramework"),
-			TEXT("WorldPartitionEditor"),
-			TEXT("EditorConfig"),
-			TEXT("DerivedDataEditor"),
-			TEXT("CSVtoSVG"),
-			TEXT("GeometryFramework"),
-			TEXT("VirtualizationEditor"),
-			TEXT("AnimationSettings"),
-			TEXT("GameplayDebuggerEditor"),
-			TEXT("RenderResourceViewer"),
-		};
-
-		FScopedSlowTask ModuleSlowTask((float)UE_ARRAY_COUNT(ModuleNames));
-		for (const TCHAR* ModuleName : ModuleNames)
-		{
-			ModuleSlowTask.EnterProgressFrame(1);
-			FModuleManager::Get().LoadModule(ModuleName);
-		}
-
-		{
-			// Load platform runtime settings modules
-			TArray<FName> Modules;
-			FModuleManager::Get().FindModules( TEXT( "*RuntimeSettings" ), Modules );
-
-			for( int32 Index = 0; Index < Modules.Num(); Index++ )
-			{
-				FModuleManager::Get().LoadModule( Modules[Index] );
-			}
-		}
-
-		{
-			// Load platform editor modules
-			TArray<FName> Modules;
-			FModuleManager::Get().FindModules( TEXT( "*PlatformEditor" ), Modules );
-
-			for( int32 Index = 0; Index < Modules.Num(); Index++ )
-			{
-				if( Modules[Index] != TEXT("ProjectTargetPlatformEditor") )
-				{
-					FModuleManager::Get().LoadModule( Modules[Index] );
-				}
-			}
-		}
-
-		if( FParse::Param( FCommandLine::Get(),TEXT( "PListEditor" ) ) )
-		{
-			FModuleManager::Get().LoadModule(TEXT("PListEditor"));
-		}
-
-		FModuleManager::Get().LoadModule(TEXT("LogVisualizer"));
-		FModuleManager::Get().LoadModule(TEXT("WidgetRegistration"));
-		FModuleManager::Get().LoadModule(TEXT("HotReload"));
-
-		FModuleManager::Get().LoadModuleChecked(TEXT("ClothPainter"));
-
-		// Load VR Editor support
-		FModuleManager::Get().LoadModuleChecked( TEXT( "ViewportInteraction" ) );
-		FModuleManager::Get().LoadModuleChecked( TEXT( "VREditor" ) );
-	}
+	LoadDefaultEditorModules();
 
 	SlowTask.EnterProgressFrame(10);
 
@@ -1348,6 +1236,122 @@ void UEditorEngine::BroadcastObjectReimported(UObject* InObject)
 {
 	ObjectReimportedEvent.Broadcast(InObject);
 	GetEditorSubsystem<UImportSubsystem>()->BroadcastAssetReimport(InObject);
+}
+
+void UEditorEngine::LoadDefaultEditorModules()
+{
+	static const TCHAR* ModuleNames[] =
+		{
+			TEXT("Documentation"),
+			TEXT("WorkspaceMenuStructure"),
+			TEXT("MainFrame"),
+			TEXT("OutputLog"),
+			TEXT("SourceControl"),
+			TEXT("SourceControlWindows"),
+			TEXT("SourceControlWindowExtender"),
+			TEXT("UncontrolledChangelists"),
+			TEXT("TextureCompressor"),
+			TEXT("MeshUtilities"),
+			TEXT("MovieSceneTools"),
+			TEXT("ClassViewer"),
+			TEXT("StructViewer"),
+			TEXT("ContentBrowser"),
+			TEXT("AssetTools"),
+			TEXT("GraphEditor"),
+			TEXT("KismetCompiler"),
+			TEXT("Kismet"),
+			TEXT("Persona"),
+			TEXT("AnimationBlueprintEditor"),
+			TEXT("LevelEditor"),
+			TEXT("MainFrame"),
+			TEXT("PropertyEditor"),
+			TEXT("PackagesDialog"),
+			// TEXT("AssetRegistry"), // Loaded in constructor
+			TEXT("DetailCustomizations"),
+			TEXT("ComponentVisualizers"),
+			TEXT("Layers"),
+			TEXT("AutomationWindow"),
+			TEXT("AutomationController"),
+			TEXT("DeviceManager"),
+			TEXT("ProfilerClient"),
+			TEXT("SessionFrontend"),
+			TEXT("ProjectLauncher"),
+			TEXT("SettingsEditor"),
+			TEXT("EditorSettingsViewer"),
+			TEXT("ProjectSettingsViewer"),
+			TEXT("Blutility"),
+			TEXT("ScriptableEditorWidgets"),
+			TEXT("XmlParser"),
+			TEXT("UndoHistory"),
+			TEXT("DeviceProfileEditor"),
+			TEXT("SourceCodeAccess"),
+			TEXT("BehaviorTreeEditor"),
+			TEXT("HardwareTargeting"),
+			TEXT("LocalizationDashboard"),
+			TEXT("MergeActors"),
+			TEXT("InputBindingEditor"),
+			TEXT("AudioEditor"),
+			TEXT("EditorInteractiveToolsFramework"),
+			TEXT("TraceInsights"),
+			TEXT("StaticMeshEditor"),
+			TEXT("EditorFramework"),
+			TEXT("WorldPartitionEditor"),
+			TEXT("EditorConfig"),
+			TEXT("DerivedDataEditor"),
+			TEXT("CSVtoSVG"),
+			TEXT("GeometryFramework"),
+			TEXT("VirtualizationEditor"),
+			TEXT("AnimationSettings"),
+			TEXT("GameplayDebuggerEditor"),
+			TEXT("RenderResourceViewer"),
+		};
+
+	FScopedSlowTask ModuleSlowTask((float)UE_ARRAY_COUNT(ModuleNames));
+	for (const TCHAR* ModuleName : ModuleNames)
+	{
+		ModuleSlowTask.EnterProgressFrame(1);
+		FModuleManager::Get().LoadModule(ModuleName);
+	}
+
+	{
+		// Load platform runtime settings modules
+		TArray<FName> Modules;
+		FModuleManager::Get().FindModules( TEXT( "*RuntimeSettings" ), Modules );
+
+		for( int32 Index = 0; Index < Modules.Num(); Index++ )
+		{
+			FModuleManager::Get().LoadModule( Modules[Index] );
+		}
+	}
+
+	{
+		// Load platform editor modules
+		TArray<FName> Modules;
+		FModuleManager::Get().FindModules( TEXT( "*PlatformEditor" ), Modules );
+
+		for( int32 Index = 0; Index < Modules.Num(); Index++ )
+		{
+			if( Modules[Index] != TEXT("ProjectTargetPlatformEditor") )
+			{
+				FModuleManager::Get().LoadModule( Modules[Index] );
+			}
+		}
+	}
+
+	if( FParse::Param( FCommandLine::Get(),TEXT( "PListEditor" ) ) )
+	{
+		FModuleManager::Get().LoadModule(TEXT("PListEditor"));
+	}
+
+	FModuleManager::Get().LoadModule(TEXT("LogVisualizer"));
+	FModuleManager::Get().LoadModule(TEXT("WidgetRegistration"));
+	FModuleManager::Get().LoadModule(TEXT("HotReload"));
+
+	FModuleManager::Get().LoadModuleChecked(TEXT("ClothPainter"));
+
+	// Load VR Editor support
+	FModuleManager::Get().LoadModuleChecked( TEXT( "ViewportInteraction" ) );
+	FModuleManager::Get().LoadModuleChecked( TEXT( "VREditor" ) );
 }
 
 void UEditorEngine::PreExit()

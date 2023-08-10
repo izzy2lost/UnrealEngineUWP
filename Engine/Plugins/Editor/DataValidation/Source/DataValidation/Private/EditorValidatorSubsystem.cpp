@@ -3,22 +3,23 @@
 #include "EditorValidatorSubsystem.h"
 
 #include "AssetRegistry/ARFilter.h"
-#include "Editor.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Blueprint/BlueprintSupport.h"
-#include "IDirectoryWatcher.h"
+#include "DataValidationChangelist.h"
 #include "DirectoryWatcherModule.h"
+#include "Editor.h"
 #include "EditorUtilityBlueprint.h"
 #include "EditorValidatorBase.h"
+#include "Engine/BlueprintGeneratedClass.h"
+#include "Engine/Level.h"
+#include "IDirectoryWatcher.h"
+#include "ISourceControlModule.h"
 #include "Logging/MessageLog.h"
 #include "Misc/App.h"
-#include "Misc/ScopedSlowTask.h"
 #include "Misc/DataValidation.h"
-#include "ISourceControlModule.h"
-#include "DataValidationChangelist.h"
-#include "Engine/Level.h"
-#include "Editor.h"
 #include "Misc/PackageName.h"
+#include "Misc/ScopedSlowTask.h"
+#include "UObject/TopLevelAssetPath.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(EditorValidatorSubsystem)
 
@@ -109,19 +110,7 @@ void UEditorValidatorSubsystem::RegisterBlueprintValidators()
 				}
 			}
 
-			// If this object isn't currently loaded, load it
-			UObject* ValidatorObject = BPAssetData.ToSoftObjectPath().ResolveObject();
-			if (ValidatorObject == nullptr)
-			{
-				FSoftObjectPathSerializationScope SerializationScope(NAME_None, NAME_None, ESoftObjectPathCollectType::EditorOnlyCollect, ESoftObjectPathSerializeType::AlwaysSerialize);
-				ValidatorObject = BPAssetData.ToSoftObjectPath().TryLoad();
-			}
-			if (ValidatorObject)
-			{
-				UEditorUtilityBlueprint* ValidatorBlueprint = Cast<UEditorUtilityBlueprint>(ValidatorObject);
-				UEditorValidatorBase* Validator = NewObject<UEditorValidatorBase>(GetTransientPackage(), ValidatorBlueprint->GeneratedClass);
-				AddValidator(Validator);
-			}
+			AddValidator(BPAssetData);
 		}
 	}
 }
@@ -140,7 +129,27 @@ void UEditorValidatorSubsystem::AddValidator(UEditorValidatorBase* InValidator)
 {
 	if (InValidator)
 	{
-		Validators.Add(InValidator->GetClass()->GetPathName(), InValidator);
+		UClass* Class = InValidator->GetClass();
+		if (Cast<UBlueprintGeneratedClass>(Class))
+		{
+			if(UObject* ClassGenerator = Class->ClassGeneratedBy)
+			{
+				Validators.Add(FTopLevelAssetPath(ClassGenerator), InValidator);
+			}
+		}
+		else
+		{ 
+			Validators.Add(InValidator->GetClass()->GetClassPathName(), InValidator);
+		}
+	}
+}
+
+void UEditorValidatorSubsystem::AddValidator(const FAssetData& InValidatorAssetData)
+{
+	if (InValidatorAssetData.IsValid())
+	{
+		Validators.Add(FTopLevelAssetPath(InValidatorAssetData.PackageName, InValidatorAssetData.AssetName), nullptr);
+		bNeedLoadingOfValidators = true;
 	}
 }
 
@@ -163,7 +172,10 @@ EDataValidationResult UEditorValidatorSubsystem::IsObjectValid(UObject* InObject
 		// If the asset is still valid or there wasn't a class-level validation, keep validating with custom validators
 		if (Result != EDataValidationResult::Invalid)
 		{
-			for (auto ValidatorPair : Validators)
+			// This doesn't change the logical view of the subsystem
+			const_cast<UEditorValidatorSubsystem&>(*this).LoadValidators();
+
+			for (const TPair<FTopLevelAssetPath, TObjectPtr<UEditorValidatorBase>>& ValidatorPair : Validators)
 			{
 				if (ValidatorPair.Value && ValidatorPair.Value->IsEnabled() && ValidatorPair.Value->CanValidate(InValidationUsecase) && ValidatorPair.Value->CanValidateAsset(InObject))
 				{
@@ -507,6 +519,39 @@ void UEditorValidatorSubsystem::ValidateChangelistPreSubmit(FSourceControlChange
 	OutResult = IsObjectValid(Changelist, OutValidationErrors, OutValidationWarnings, EDataValidationUsecase::PreSubmit);
 
 	Changelist->RemoveFromRoot();
+}
+
+void UEditorValidatorSubsystem::LoadValidators()
+{
+	if (bNeedLoadingOfValidators)
+	{
+		for (TPair<FTopLevelAssetPath, TObjectPtr<UEditorValidatorBase>>& ValidatorPair : Validators)
+		{
+			if (!ValidatorPair.Value)
+			{
+				FSoftObjectPath ValidatorObjectSoftPath(ValidatorPair.Key);
+				UObject* ValidatorObject = ValidatorObjectSoftPath.ResolveObject();
+
+				// If this object isn't currently loaded, load it
+				if (ValidatorObject == nullptr)
+				{
+					FSoftObjectPathSerializationScope SerializationScope(NAME_None, NAME_None, ESoftObjectPathCollectType::EditorOnlyCollect, ESoftObjectPathSerializeType::AlwaysSerialize);
+					ValidatorObject = ValidatorObjectSoftPath.TryLoad();
+				}
+
+				if (ValidatorObject)
+				{
+					if (UEditorUtilityBlueprint* ValidatorBlueprint = Cast<UEditorUtilityBlueprint>(ValidatorObject))
+					{
+						UEditorValidatorBase* Validator = NewObject<UEditorValidatorBase>(GetTransientPackage(), ValidatorBlueprint->GeneratedClass);
+						ValidatorPair.Value = Validator;
+					}
+				}
+			}
+		}
+
+		bNeedLoadingOfValidators = false;
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

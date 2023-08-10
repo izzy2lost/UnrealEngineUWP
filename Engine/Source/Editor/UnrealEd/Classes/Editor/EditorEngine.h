@@ -759,6 +759,12 @@ public:
 	/**	Broadcasts that an object has been reimported. THIS SHOULD NOT BE PUBLIC */
 	UNREALED_API void BroadcastObjectReimported(UObject* InObject);
 
+	/**
+	 * Load the editor module that are loaded by default in the editor even when the target doesn't have an dependency on those 
+	 * Note: This is useful for the commandlets that may depend on those modules.
+	 */
+	UNREALED_API void LoadDefaultEditorModules();
+
 	//~ Begin UObject Interface.
 	UNREALED_API virtual void FinishDestroy() override;
 	UNREALED_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

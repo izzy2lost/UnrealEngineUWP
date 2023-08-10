@@ -217,6 +217,13 @@ protected:
 	 */
 	void ValidateChangelistPreSubmit(FSourceControlChangelistPtr Changelist, EDataValidationResult& OutResult, TArray<FText>& ValidationErrors, TArray<FText>& ValidationWarnings) const;
 
+	void LoadValidators();
+
+	/*
+	* Adds a validator to the list making sure it is a unique instance, but wait for the first use to load the assets.
+	*/
+	void AddValidator(const FAssetData&	InValidatorAssetData);
+
 protected:
 	/**
 	 * Directories to ignore for data validation. Useful for test assets
@@ -234,7 +241,7 @@ protected:
 	TArray<FName> SavedPackagesToValidate;
 
 	UPROPERTY(Transient)
-	TMap<FString, TObjectPtr<UEditorValidatorBase>> Validators;
+	TMap<FTopLevelAssetPath, TObjectPtr<UEditorValidatorBase>> Validators;
 
 	/** Specifies whether or not to validate assets on save when saving for a cook */
 	UPROPERTY(config)
@@ -244,6 +251,7 @@ protected:
 	UPROPERTY(config)
 	bool bAllowBlueprintValidators;
 
+	bool bNeedLoadingOfValidators = false;
 };
 
 
