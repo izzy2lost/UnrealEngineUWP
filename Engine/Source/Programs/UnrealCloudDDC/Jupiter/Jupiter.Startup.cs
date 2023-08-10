@@ -127,7 +127,7 @@ namespace Jupiter
 			services.AddSingleton<BlobCleanupService>();
 			services.AddHostedService<BlobCleanupService>(p => p.GetService<BlobCleanupService>()!);
 
-			services.AddSingleton(serviceType: typeof(IObjectService), typeof(ObjectService));
+			services.AddSingleton(serviceType: typeof(IRefService), typeof(ObjectService));
 			services.AddSingleton(serviceType: typeof(IReferencesStore), ObjectStoreFactory);
 			services.AddSingleton(serviceType: typeof(IReferenceResolver), typeof(ReferenceResolver));
 			services.AddSingleton(serviceType: typeof(IContentIdStore), ContentIdStoreFactory);

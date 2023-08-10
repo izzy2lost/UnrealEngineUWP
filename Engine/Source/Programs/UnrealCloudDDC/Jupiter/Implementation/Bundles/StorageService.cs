@@ -144,7 +144,7 @@ public class StorageClient : BundleStorageClient
 		// TODO: Cache time is ignored
 		try
 		{
-			ObjectRecord record = await _refStore.GetAsync(_namespaceId, _defaultBucket,  RefId.FromName(name.ToString()), IReferencesStore.FieldFlags.IncludePayload);
+			RefRecord record = await _refStore.GetAsync(_namespaceId, _defaultBucket,  RefId.FromName(name.ToString()), IReferencesStore.FieldFlags.IncludePayload);
 			if (record.InlinePayload == null)
 			{
 				// if there is no inline payload this is not a bundle ref
@@ -158,7 +158,7 @@ public class StorageClient : BundleStorageClient
 
 			return new FlushedNodeHandle(_treeReader, new BundleNodeLocator(nodeHash, blobLocator, exportId));
 		}
-		catch (ObjectNotFoundException )
+		catch (RefNotFoundException )
 		{
 			return null;
 		}

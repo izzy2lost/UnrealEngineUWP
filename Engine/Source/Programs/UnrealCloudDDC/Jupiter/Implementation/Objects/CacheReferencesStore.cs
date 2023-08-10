@@ -31,19 +31,19 @@ namespace Jupiter.Implementation
 			_upstreamReferenceStore = ActivatorUtilities.CreateInstance<UpstreamReferenceStore>(provider);
 		}
 
-		public async Task<ObjectRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
+		public async Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
 		{
 			try
 			{
-				ObjectRecord cachedRecord = await _mongoReferenceStore.GetAsync(ns, bucket, key, flags);
+				RefRecord cachedRecord = await _mongoReferenceStore.GetAsync(ns, bucket, key, flags);
 				return cachedRecord;
 			}
-			catch (ObjectNotFoundException)
+			catch (RefNotFoundException)
 			{
 				// not cached, we check the upstream for it
 			}
  
-			ObjectRecord record = await _upstreamReferenceStore.GetAsync(ns, bucket, key, flags);
+			RefRecord record = await _upstreamReferenceStore.GetAsync(ns, bucket, key, flags);
 			await _mongoReferenceStore.PutAsync(record.Namespace, record.Bucket, record.Name, record.BlobIdentifier, record.InlinePayload, record.IsFinalized);
 			return record;
 		}
@@ -105,14 +105,14 @@ namespace Jupiter.Implementation
 		{
 		}
 
-		public async Task<ObjectRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
+		public async Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
 		{
 			using HttpRequestMessage getObjectRequest = await BuildHttpRequestAsync(HttpMethod.Get, new Uri($"api/v1/refs/{ns}/{bucket}/{key}/metadata", UriKind.Relative));
 			getObjectRequest.Headers.Add("Accept", MediaTypeNames.Application.Json);
 			HttpResponseMessage response = await HttpClient.SendAsync(getObjectRequest);
 			if (response.StatusCode == HttpStatusCode.NotFound)
 			{
-				throw new ObjectNotFoundException(ns, bucket, key);
+				throw new RefNotFoundException(ns, bucket, key);
 			}
 
 			response.EnsureSuccessStatusCode();
@@ -122,7 +122,7 @@ namespace Jupiter.Implementation
 			{
 				throw new Exception("Unable to deserialize metadata response");
 			}
-			return new ObjectRecord(metadataResponse.Ns, metadataResponse.Bucket, metadataResponse.Name, metadataResponse.LastAccess, metadataResponse.InlinePayload, metadataResponse.PayloadIdentifier, metadataResponse.IsFinalized);
+			return new RefRecord(metadataResponse.Ns, metadataResponse.Bucket, metadataResponse.Name, metadataResponse.LastAccess, metadataResponse.InlinePayload, metadataResponse.PayloadIdentifier, metadataResponse.IsFinalized);
 		}
 
 		public async Task PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized)

@@ -16,15 +16,15 @@ namespace Jupiter.Implementation.TransactionLog
 	{
 		private readonly IReplicationLog _replicationLog;
 		private readonly IBlobService _blobService;
-		private readonly IObjectService _objectService;
+		private readonly IRefService _refService;
 		private readonly BufferedPayloadFactory _bufferedPayloadFactory;
 		private readonly ReplicationLogFactory _replicationLogFactory;
 
-		public ReplicationLogSnapshotBuilder(IReplicationLog replicationLog, IBlobService blobService, IObjectService objectService, BufferedPayloadFactory bufferedPayloadFactory, ReplicationLogFactory replicationLogFactory)
+		public ReplicationLogSnapshotBuilder(IReplicationLog replicationLog, IBlobService blobService, IRefService refService, BufferedPayloadFactory bufferedPayloadFactory, ReplicationLogFactory replicationLogFactory)
 		{
 			_replicationLog = replicationLog;
 			_blobService = blobService;
-			_objectService = objectService;
+			_refService = refService;
 			_bufferedPayloadFactory = bufferedPayloadFactory;
 			_replicationLogFactory = replicationLogFactory;
 		}
@@ -117,7 +117,7 @@ namespace Jupiter.Implementation.TransactionLog
 				// upload the attachment first so we are not missing any references when we go to create the ref
 				await _blobService.PutObjectAsync(storeInNamespace, payload, blobIdentifier);
 			
-				(ContentId[] missingContentIds, BlobId[] missingBlobs) = await _objectService.PutAsync(storeInNamespace, new BucketId("snapshot"), new RefId(blobIdentifier.ToString()), cbBlobId, new CbObject(cbObjectBytes));
+				(ContentId[] missingContentIds, BlobId[] missingBlobs) = await _refService.PutAsync(storeInNamespace, new BucketId("snapshot"), new RefId(blobIdentifier.ToString()), cbBlobId, new CbObject(cbObjectBytes));
 				List<ContentHash> missingHashes = new List<ContentHash>(missingContentIds);
 				missingHashes.AddRange(missingBlobs);
 				if (missingHashes.Count != 0)

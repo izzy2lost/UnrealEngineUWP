@@ -17,7 +17,7 @@ using OpenTelemetry.Trace;
 
 namespace Jupiter.Implementation
 {
-	public class ObjectService : IObjectService
+	public class ObjectService : IRefService
 	{
 		private readonly IHttpContextAccessor _httpContextAccessor;
 		private readonly IReferencesStore _referencesStore;
@@ -44,7 +44,7 @@ namespace Jupiter.Implementation
 			_logger = logger;
 		}
 
-		public async Task<(ObjectRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[]? fields = null, bool doLastAccessTracking = true)
+		public async Task<(RefRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[]? fields = null, bool doLastAccessTracking = true)
 		{
 			// if no field filtering is being used we assume everything is needed
 			IReferencesStore.FieldFlags flags = IReferencesStore.FieldFlags.All;
@@ -65,7 +65,7 @@ namespace Jupiter.Implementation
 
 			IServerTiming? serverTiming = _httpContextAccessor.HttpContext?.RequestServices.GetService<IServerTiming>();
 
-			ObjectRecord o;
+			RefRecord o;
 			{
 				using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope("ref.get", "Fetching Ref from DB");
 
@@ -159,7 +159,7 @@ namespace Jupiter.Implementation
 
 		public async Task<(ContentId[], BlobId[])> FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash)
 		{
-			(ObjectRecord o, BlobContents? blob) = await GetAsync(ns, bucket, key);
+			(RefRecord o, BlobContents? blob) = await GetAsync(ns, bucket, key);
 			if (blob == null)
 			{
 				throw new InvalidOperationException("No blob when attempting to finalize");
@@ -242,7 +242,7 @@ namespace Jupiter.Implementation
 		{
 			try
 			{
-				(ObjectRecord, BlobContents?) _ = await GetAsync(ns, bucket, key, new string[] {"name"});
+				(RefRecord, BlobContents?) _ = await GetAsync(ns, bucket, key, new string[] {"name"});
 			}
 			catch (NamespaceNotFoundException)
 			{
@@ -252,7 +252,7 @@ namespace Jupiter.Implementation
 			{
 				return false;
 			}
-			catch (ObjectNotFoundException)
+			catch (RefNotFoundException)
 			{
 				return false;
 			}
@@ -271,7 +271,7 @@ namespace Jupiter.Implementation
 		public async Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId name)
 		{
 			byte[] blob;
-			ObjectRecord o = await _referencesStore.GetAsync(ns, bucket, name, IReferencesStore.FieldFlags.IncludePayload);
+			RefRecord o = await _referencesStore.GetAsync(ns, bucket, name, IReferencesStore.FieldFlags.IncludePayload);
 			if (o.InlinePayload != null && o.InlinePayload.Length != 0)
 			{
 				blob = o.InlinePayload;

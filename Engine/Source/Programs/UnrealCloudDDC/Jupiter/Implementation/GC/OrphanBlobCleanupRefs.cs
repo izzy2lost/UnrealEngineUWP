@@ -19,7 +19,7 @@ namespace Jupiter.Implementation
 	{
 		private readonly IOptionsMonitor<GCSettings> _gcSettings;
 		private readonly IBlobService _blobService;
-		private readonly IObjectService _objectService;
+		private readonly IRefService _refService;
 		private readonly IBlobIndex _blobIndex;
 		private readonly ILeaderElection _leaderElection;
 		private readonly INamespacePolicyResolver _namespacePolicyResolver;
@@ -30,11 +30,11 @@ namespace Jupiter.Implementation
 		private readonly Counter<long> _deletedBlobCounter;
 
 		// ReSharper disable once UnusedMember.Global
-		public OrphanBlobCleanupRefs(IOptionsMonitor<GCSettings> gcSettings, IBlobService blobService, IObjectService objectService, IBlobIndex blobIndex, ILeaderElection leaderElection, INamespacePolicyResolver namespacePolicyResolver, Tracer tracer, ILogger<OrphanBlobCleanupRefs> logger, Meter meter)
+		public OrphanBlobCleanupRefs(IOptionsMonitor<GCSettings> gcSettings, IBlobService blobService, IRefService refService, IBlobIndex blobIndex, ILeaderElection leaderElection, INamespacePolicyResolver namespacePolicyResolver, Tracer tracer, ILogger<OrphanBlobCleanupRefs> logger, Meter meter)
 		{
 			_gcSettings = gcSettings;
 			_blobService = blobService;
-			_objectService = objectService;
+			_refService = refService;
 			_blobIndex = blobIndex;
 			_leaderElection = leaderElection;
 			_namespacePolicyResolver = namespacePolicyResolver;
@@ -160,11 +160,11 @@ namespace Jupiter.Implementation
 
 						try
 						{
-							(ObjectRecord, BlobContents?) _ = await _objectService.GetAsync(blobNamespace, bucket, key, new string[] { "name" }, doLastAccessTracking: false);
+							(RefRecord, BlobContents?) _ = await _refService.GetAsync(blobNamespace, bucket, key, new string[] { "name" }, doLastAccessTracking: false);
 							found = true;
 							break;
 						}
-						catch (ObjectNotFoundException)
+						catch (RefNotFoundException)
 						{
 							// this is not a valid reference so we should delete
 							oldReferences.Add(refBlobReference);
@@ -242,7 +242,7 @@ namespace Jupiter.Implementation
 
 		private IAsyncEnumerable<NamespaceId> ListNamespaces()
 		{
-			return _objectService.GetNamespacesAsync();
+			return _refService.GetNamespacesAsync();
 		}
 	}
 }

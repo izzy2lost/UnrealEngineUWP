@@ -54,12 +54,12 @@ namespace Jupiter.Controllers
 		private readonly Tracer _tracer;
 
 		private readonly ILogger _logger;
-		private readonly IObjectService _objectService;
+		private readonly IRefService _refService;
 		private readonly IBlobService _blobStore;
 
-		public ReferencesController(IObjectService objectService, IBlobService blobStore, IDiagnosticContext diagnosticContext, FormatResolver formatResolver, BufferedPayloadFactory bufferedPayloadFactory, IReferenceResolver referenceResolver, NginxRedirectHelper nginxRedirectHelper, IRequestHelper requestHelper, Tracer tracer, ILogger<ReferencesController> logger)
+		public ReferencesController(IRefService refService, IBlobService blobStore, IDiagnosticContext diagnosticContext, FormatResolver formatResolver, BufferedPayloadFactory bufferedPayloadFactory, IReferenceResolver referenceResolver, NginxRedirectHelper nginxRedirectHelper, IRequestHelper requestHelper, Tracer tracer, ILogger<ReferencesController> logger)
 		{
-			_objectService = objectService;
+			_refService = refService;
 			_blobStore = blobStore;
 			_diagnosticContext = diagnosticContext;
 			_formatResolver = formatResolver;
@@ -80,7 +80,7 @@ namespace Jupiter.Controllers
 		[ProducesResponseType(type: typeof(ProblemDetails), 400)]
 		public async Task<IActionResult> GetNamespacesAsync()
 		{
-			NamespaceId[] namespaces = await _objectService.GetNamespacesAsync().ToArrayAsync();
+			NamespaceId[] namespaces = await _refService.GetNamespacesAsync().ToArrayAsync();
 
 			// filter namespaces down to only the namespaces the user has access to
 			List<NamespaceId> namespacesWithAccess = new();
@@ -119,7 +119,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				(ObjectRecord objectRecord, BlobContents? blob) = await _objectService.GetAsync(ns, bucket, key, Array.Empty<string>());
+				(RefRecord objectRecord, BlobContents? blob) = await _refService.GetAsync(ns, bucket, key, Array.Empty<string>());
 
 				if (blob == null)
 				{
@@ -416,7 +416,7 @@ namespace Jupiter.Controllers
 			{
 				return NotFound(new ProblemDetails {Title = $"Namespace {e.Namespace} did not exist"});
 			}
-			catch (ObjectNotFoundException e)
+			catch (RefNotFoundException e)
 			{
 				return NotFound(new ProblemDetails { Title = $"Object {e.Bucket} {e.Key} did not exist" });
 			}
@@ -450,7 +450,7 @@ namespace Jupiter.Controllers
 
 		try
 		{
-			(ObjectRecord objectRecord, BlobContents? _) = await _objectService.GetAsync(ns, bucket, key, fields);
+			(RefRecord objectRecord, BlobContents? _) = await _refService.GetAsync(ns, bucket, key, fields);
 
 			return Ok(new RefMetadataResponse(objectRecord));
 		}
@@ -458,7 +458,7 @@ namespace Jupiter.Controllers
 		{
 			return NotFound(new ProblemDetails {Title = $"Namespace {e.Namespace} did not exist"});
 		}
-		catch (ObjectNotFoundException e)
+		catch (RefNotFoundException e)
 		{
 			return NotFound(new ProblemDetails { Title = $"Object {e.Bucket} {e.Key} did not exist" });
 		}
@@ -491,7 +491,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				(ObjectRecord record, BlobContents? blob) = await _objectService.GetAsync(ns, bucket, key, new string[] {"blobIdentifier", "IsFinalized"});
+				(RefRecord record, BlobContents? blob) = await _refService.GetAsync(ns, bucket, key, new string[] {"blobIdentifier", "IsFinalized"});
 				Response.Headers[CommonHeaders.HashHeaderName] = record.BlobIdentifier.ToString();
 
 				if (!record.IsFinalized)
@@ -525,7 +525,7 @@ namespace Jupiter.Controllers
 			{
 				return NotFound(new ProblemDetails { Title = $"Blob {e.Blob} in namespace {ns} did not exist" });
 			}
-			catch (ObjectNotFoundException e)
+			catch (RefNotFoundException e)
 			{
 				return NotFound(new ProblemDetails {Title = $"Object {e.Bucket} {e.Key} in namespace {e.Namespace} did not exist"});
 			}
@@ -574,8 +574,8 @@ namespace Jupiter.Controllers
 				(BucketId bucket, RefId key) = pair;
 				try
 				{
-					(ObjectRecord record, BlobContents? blob) =
-						await _objectService.GetAsync(ns, bucket, key, new string[] { "blobIdentifier" });
+					(RefRecord record, BlobContents? blob) =
+						await _refService.GetAsync(ns, bucket, key, new string[] { "blobIdentifier" });
 
 					blob ??= await _blobStore.GetObjectAsync(ns, record.BlobIdentifier);
 
@@ -587,7 +587,7 @@ namespace Jupiter.Controllers
 					IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobs(ns, cb);
 					List<BlobId>? _ = await references.ToListAsync();
 				}
-				catch (ObjectNotFoundException)
+				catch (RefNotFoundException)
 				{
 					missingObject.Add((bucket, key));
 				}
@@ -704,7 +704,7 @@ namespace Jupiter.Controllers
 				return Problem(e.Message, null, (int)HttpStatusCode.RequestTimeout);
 			}
 
-			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _objectService.PutAsync(ns, bucket, key, blobHeader, payloadObject);
+			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, bucket, key, blobHeader, payloadObject);
 
 			List<ContentHash> missingHashes = new List<ContentHash>(missingReferences);
 			missingHashes.AddRange(missingBlobs);
@@ -765,7 +765,7 @@ namespace Jupiter.Controllers
 			CbObject rootObject = packageReader.RootObject;
 			BlobId rootObjectHash = BlobId.FromIoHash(packageReader.RootHash);
 
-			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _objectService.PutAsync(ns, bucket, key, rootObjectHash, rootObject);
+			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, bucket, key, rootObjectHash, rootObject);
 
 			List<ContentHash> missingHashes = new List<ContentHash>(missingReferences);
 			missingHashes.AddRange(missingBlobs);
@@ -787,7 +787,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				(ContentId[] missingReferences, BlobId[] missingBlobs) = await _objectService.FinalizeAsync(ns, bucket, key, hash);
+				(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.FinalizeAsync(ns, bucket, key, hash);
 				List<ContentHash> missingHashes = new List<ContentHash>(missingReferences);
 				missingHashes.AddRange(missingBlobs);
 
@@ -797,7 +797,7 @@ namespace Jupiter.Controllers
 			{
 				return BadRequest(e.Message);
 			}
-			catch (ObjectNotFoundException e)
+			catch (RefNotFoundException e)
 			{
 				return NotFound(e.Message);
 			}
@@ -848,7 +848,7 @@ namespace Jupiter.Controllers
 			{
 				try
 				{
-					(ObjectRecord objectRecord, BlobContents? blob) = await _objectService.GetAsync(ns, op.Bucket, op.Key, Array.Empty<string>());
+					(RefRecord objectRecord, BlobContents? blob) = await _refService.GetAsync(ns, op.Bucket, op.Key, Array.Empty<string>());
 
 					if (!objectRecord.IsFinalized)
 					{
@@ -870,7 +870,7 @@ namespace Jupiter.Controllers
 
 					return (cb, HttpStatusCode.OK);
 				}
-				catch (Exception ex) when( ex is ObjectNotFoundException or PartialReferenceResolveException or ReferenceIsMissingBlobsException)
+				catch (Exception ex) when( ex is RefNotFoundException or PartialReferenceResolveException or ReferenceIsMissingBlobsException)
 				{
 					return ToErrorResult(ex, HttpStatusCode.NotFound);
 				}
@@ -884,7 +884,7 @@ namespace Jupiter.Controllers
 			{
 				try
 				{
-					(ObjectRecord record, BlobContents? blob) = await _objectService.GetAsync(ns, op.Bucket, op.Key, new string[] { "blobIdentifier" });
+					(RefRecord record, BlobContents? blob) = await _refService.GetAsync(ns, op.Bucket, op.Key, new string[] { "blobIdentifier" });
 
 					if (!record.IsFinalized)
 					{
@@ -909,7 +909,7 @@ namespace Jupiter.Controllers
 
 					return (CbObject.Build(writer => writer.WriteBool("exists", true)), HttpStatusCode.OK);
 				}
-				catch (Exception ex) when( ex is ObjectNotFoundException or PartialReferenceResolveException or ReferenceIsMissingBlobsException)
+				catch (Exception ex) when( ex is RefNotFoundException or PartialReferenceResolveException or ReferenceIsMissingBlobsException)
 				{
 					return (CbObject.Build(writer => writer.WriteBool("exists", false)), HttpStatusCode.NotFound);
 				}
@@ -940,7 +940,7 @@ namespace Jupiter.Controllers
 						throw new HashMismatchException(headerHash, objectHash);
 					}
 
-					(ContentId[] missingReferences, BlobId[] missingBlobs) = await _objectService.PutAsync(ns, op.Bucket, op.Key, objectHash, op.Payload);
+					(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, op.Bucket, op.Key, objectHash, op.Payload);
 					List<ContentHash> missingHashes = new List<ContentHash>(missingReferences);
 
 					return (CbSerializer.Serialize(new PutObjectResponse(missingHashes.ToArray())), HttpStatusCode.OK);
@@ -1019,7 +1019,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				await _objectService.DropNamespaceAsync(ns);
+				await _refService.DropNamespaceAsync(ns);
 			}
 			catch (NamespaceNotFoundException e)
 			{
@@ -1049,7 +1049,7 @@ namespace Jupiter.Controllers
 			long countOfDeletedRecords;
 			try
 			{
-				countOfDeletedRecords = await _objectService.DeleteBucketAsync(ns, bucket);
+				countOfDeletedRecords = await _refService.DeleteBucketAsync(ns, bucket);
 			}
 			catch (NamespaceNotFoundException e)
 			{
@@ -1081,7 +1081,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				bool deleted = await _objectService.DeleteAsync(ns, bucket, key);
+				bool deleted = await _refService.DeleteAsync(ns, bucket, key);
 				if (!deleted)
 				{
 					return NotFound(new ProblemDetails { Title = $"Object {key} in bucket {bucket} and namespace {ns} did not exist" });
@@ -1092,7 +1092,7 @@ namespace Jupiter.Controllers
 			{
 				return NotFound(new ProblemDetails { Title = $"Namespace {e.Namespace} did not exist" });
 			}
-			catch (ObjectNotFoundException)
+			catch (RefNotFoundException)
 			{
 				return NotFound(new ProblemDetails { Title = $"Object {key} in bucket {bucket} and namespace {ns} did not exist" });
 			}
@@ -1242,7 +1242,7 @@ namespace Jupiter.Controllers
 			InlinePayload = inlinePayload;
 		}
 
-		public RefMetadataResponse(ObjectRecord objectRecord)
+		public RefMetadataResponse(RefRecord objectRecord)
 		{
 			Ns = objectRecord.Namespace;
 			Bucket = objectRecord.Bucket;

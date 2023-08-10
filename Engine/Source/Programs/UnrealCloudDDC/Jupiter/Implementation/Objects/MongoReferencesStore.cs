@@ -47,7 +47,7 @@ namespace Jupiter.Implementation
 			AddIndexFor<MongoReferencesModelV0>().CreateOne(indexTTL);
 		}
 
-		public async Task<ObjectRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
+		public async Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
 		{
 			bool includePayload = (flags & IReferencesStore.FieldFlags.IncludePayload) != 0;
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
@@ -55,7 +55,7 @@ namespace Jupiter.Implementation
 			MongoReferencesModelV0? model = await cursor.FirstOrDefaultAsync();
 			if (model == null)
 			{
-				throw new ObjectNotFoundException(ns, bucket, key);
+				throw new RefNotFoundException(ns, bucket, key);
 			}
 
 			if (!includePayload)
@@ -64,7 +64,7 @@ namespace Jupiter.Implementation
 				model.InlineBlob = null;
 			}
 
-			return model.ToObjectRecord();
+			return model.ToRefRecord();
 		}
 
 		public async Task PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[]? blob, bool isFinalized)
@@ -260,9 +260,9 @@ namespace Jupiter.Implementation
 		public byte[]? InlineBlob { get; set; }
 		public DateTime ExpireAt { get; set; } = DateTime.MaxValue;
 
-		public ObjectRecord ToObjectRecord()
+		public RefRecord ToRefRecord()
 		{
-			return new ObjectRecord(new NamespaceId(Ns), new BucketId(Bucket), new RefId(Key), 
+			return new RefRecord(new NamespaceId(Ns), new BucketId(Bucket), new RefId(Key), 
 				LastAccessTime,
 				InlineBlob, new BlobId(BlobIdentifier), IsFinalized);
 		}

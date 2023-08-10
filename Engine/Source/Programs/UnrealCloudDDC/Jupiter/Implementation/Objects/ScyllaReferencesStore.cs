@@ -87,7 +87,7 @@ namespace Jupiter.Implementation
 			_getObjectsLastAccessForPartitionRangeStatement = _session.Prepare($"SELECT namespace, bucket, name, last_access_time FROM object_last_access_v2 WHERE token(namespace, bucket, name) >= ? AND token(namespace, bucket, name) <= ? {cqlOptions}");
 		}
 
-		public async Task<ObjectRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId name, IReferencesStore.FieldFlags flags)
+		public async Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId name, IReferencesStore.FieldFlags flags)
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.get").SetAttribute("resource.name", $"{ns}.{bucket}.{name}");
 
@@ -105,7 +105,7 @@ namespace Jupiter.Implementation
 
 			if (o == null)
 			{
-				throw new ObjectNotFoundException(ns, bucket, name);
+				throw new RefNotFoundException(ns, bucket, name);
 			}
 
 			try
@@ -115,10 +115,10 @@ namespace Jupiter.Implementation
 			catch (Exception e)
 			{
 				_logger.LogWarning(e, "Partial object found {Namespace} {Bucket} {Name} ignoring object", ns, bucket, name);
-				throw new ObjectNotFoundException(ns, bucket, name);
+				throw new RefNotFoundException(ns, bucket, name);
 			}
 
-			return new ObjectRecord(new NamespaceId(o.Namespace!), new BucketId(o.Bucket!), new RefId(o.Name!), o.LastAccessTime, o.InlinePayload, o.PayloadHash!.AsBlobIdentifier(), o.IsFinalized!.Value);
+			return new RefRecord(new NamespaceId(o.Namespace!), new BucketId(o.Bucket!), new RefId(o.Name!), o.LastAccessTime, o.InlinePayload, o.PayloadHash!.AsBlobIdentifier(), o.IsFinalized!.Value);
 		}
 
 		public async Task PutAsync(NamespaceId ns, BucketId bucket, RefId name, BlobId blobHash, byte[] blob, bool isFinalized)

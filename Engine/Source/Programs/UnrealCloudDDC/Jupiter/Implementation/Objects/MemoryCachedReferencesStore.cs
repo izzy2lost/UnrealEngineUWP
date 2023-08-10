@@ -22,7 +22,7 @@ namespace Jupiter.Implementation.Objects
 			_options = options;
 		}
 
-		private void AddCacheEntry(NamespaceId ns, BucketId bucket, RefId key, ObjectRecord record)
+		private void AddCacheEntry(NamespaceId ns, BucketId bucket, RefId key, RefRecord record)
 		{
 			// we can not cache none finalized records as they will be mutated again when finalized
 			if (!record.IsFinalized)
@@ -49,16 +49,16 @@ namespace Jupiter.Implementation.Objects
 			return _referenceCaches.GetOrAdd(ns, id => new MemoryCache(_options.CurrentValue));
 		}
 
-		public async Task<ObjectRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
+		public async Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
 		{
 			MemoryCache cache = GetCacheForNamespace(ns);
 
 			if (cache.TryGetValue(new CachedReferenceKey(bucket, key), out CachedReferenceEntry cachedResult))
 			{
-				return cachedResult.ToObjectRecord(flags);
+				return cachedResult.ToRefRecord(flags);
 			}
 
-			ObjectRecord objectRecord = await _actualStore.GetAsync(ns, bucket, key, IReferencesStore.FieldFlags.All);
+			RefRecord objectRecord = await _actualStore.GetAsync(ns, bucket, key, IReferencesStore.FieldFlags.All);
 			AddCacheEntry(ns, bucket, key, objectRecord);
 
 			return objectRecord;
@@ -66,7 +66,7 @@ namespace Jupiter.Implementation.Objects
 
 		public Task PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized)
 		{
-			ObjectRecord objectRecord = new ObjectRecord(ns, bucket, key, DateTime.Now, blob, blobHash, isFinalized);
+			RefRecord objectRecord = new RefRecord(ns, bucket, key, DateTime.Now, blob, blobHash, isFinalized);
 			AddCacheEntry(ns, bucket, key, objectRecord);
 			
 			return _actualStore.PutAsync(ns, bucket, key, blobHash, blob, isFinalized);
@@ -183,7 +183,7 @@ namespace Jupiter.Implementation.Objects
 			return Namespace.Text.Text.Length + Bucket.ToString().Length + 20 + Blob?.Length ?? 0 + 20;
 		}
 
-		public CachedReferenceEntry(ObjectRecord record)
+		public CachedReferenceEntry(RefRecord record)
 		{
 			Namespace = record.Namespace;
 			Bucket = record.Bucket;
@@ -200,9 +200,9 @@ namespace Jupiter.Implementation.Objects
 		public BlobId BlobIdentifier { get; }
 		public int Size { get; }
 
-		public ObjectRecord ToObjectRecord(IReferencesStore.FieldFlags fieldFlags)
+		public RefRecord ToRefRecord(IReferencesStore.FieldFlags fieldFlags)
 		{
-			return new ObjectRecord(Namespace, Bucket, Name, DateTime.Now, (fieldFlags & IReferencesStore.FieldFlags.IncludePayload) != 0 ? Blob : null, BlobIdentifier, true);
+			return new RefRecord(Namespace, Bucket, Name, DateTime.Now, (fieldFlags & IReferencesStore.FieldFlags.IncludePayload) != 0 ? Blob : null, BlobIdentifier, true);
 		}
 	}
 }

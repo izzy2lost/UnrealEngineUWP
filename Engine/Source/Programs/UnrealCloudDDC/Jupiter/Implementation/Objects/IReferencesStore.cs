@@ -9,7 +9,7 @@ namespace Jupiter.Implementation
 {
 	public interface IReferencesStore
 	{
-		Task<ObjectRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, FieldFlags flags);
+		Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, FieldFlags flags);
 
 		[Flags]
 		public enum FieldFlags
@@ -31,9 +31,9 @@ namespace Jupiter.Implementation
 		Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket);
 	}
 
-	public class ObjectRecord
+	public class RefRecord
 	{
-		public ObjectRecord(NamespaceId ns, BucketId bucket, RefId name, DateTime lastAccess, byte[]? inlinePayload, BlobId blobIdentifier, bool isFinalized)
+		public RefRecord(NamespaceId ns, BucketId bucket, RefId name, DateTime lastAccess, byte[]? inlinePayload, BlobId blobIdentifier, bool isFinalized)
 		{
 			Namespace = ns;
 			Bucket = bucket;
@@ -53,9 +53,9 @@ namespace Jupiter.Implementation
 		public bool IsFinalized {get;}
 	}
 
-	public class ObjectNotFoundException : Exception
+	public class RefNotFoundException : Exception
 	{
-		public ObjectNotFoundException(NamespaceId ns, BucketId bucket, RefId key) : base($"Object not found {key} in bucket {bucket} namespace {ns}")
+		public RefNotFoundException(NamespaceId ns, BucketId bucket, RefId key) : base($"Object not found {key} in bucket {bucket} namespace {ns}")
 		{
 			Namespace = ns;
 			Bucket = bucket;

@@ -19,14 +19,14 @@ namespace Jupiter.Implementation
 
 		}
 
-		public Task<ObjectRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
+		public Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
 		{
 			if (_objects.TryGetValue(BuildKey(ns, bucket, key), out MemoryStoreObject? o))
 			{
-				return Task.FromResult(o.ToObjectRecord(flags));
+				return Task.FromResult(o.ToRefRecord(flags));
 			}
 
-			throw new ObjectNotFoundException(ns, bucket, key);
+			throw new RefNotFoundException(ns, bucket, key);
 		}
 
 		public Task PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized)
@@ -47,7 +47,7 @@ namespace Jupiter.Implementation
 		{
 			if (!_objects.TryGetValue(BuildKey(ns, bucket, key), out MemoryStoreObject? o))
 			{
-				throw new ObjectNotFoundException(ns, bucket, key);
+				throw new RefNotFoundException(ns, bucket, key);
 			}
 
 			o.FinalizeObject();
@@ -58,7 +58,7 @@ namespace Jupiter.Implementation
 		{
 			if (!_objects.TryGetValue(BuildKey(ns, bucket, key), out MemoryStoreObject? o))
 			{
-				throw new ObjectNotFoundException(ns, bucket, key);
+				throw new RefNotFoundException(ns, bucket, key);
 			}
 
 			o.SetLastAccessTime(lastAccessTime);
@@ -83,7 +83,7 @@ namespace Jupiter.Implementation
 		{
 			if (!_objects.TryRemove(BuildKey(ns, bucket, key), out MemoryStoreObject? _))
 			{
-				throw new ObjectNotFoundException(ns, bucket, key);
+				throw new RefNotFoundException(ns, bucket, key);
 			}
 
 			return Task.FromResult(true);
@@ -179,10 +179,10 @@ namespace Jupiter.Implementation
 			LastAccessTime = lastAccessTime;
 		}
 
-		public ObjectRecord ToObjectRecord(IReferencesStore.FieldFlags fieldFlags)
+		public RefRecord ToRefRecord(IReferencesStore.FieldFlags fieldFlags)
 		{
 			bool includePayload = (fieldFlags & IReferencesStore.FieldFlags.IncludePayload) != 0;
-			return new ObjectRecord(Namespace, Bucket, Name, LastAccessTime, includePayload ? Blob : null, BlobHash, IsFinalized);
+			return new RefRecord(Namespace, Bucket, Name, LastAccessTime, includePayload ? Blob : null, BlobHash, IsFinalized);
 		}
 	}
 }

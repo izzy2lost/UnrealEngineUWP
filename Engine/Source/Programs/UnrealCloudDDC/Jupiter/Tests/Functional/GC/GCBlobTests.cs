@@ -103,19 +103,19 @@ namespace Jupiter.FunctionalTests.GC
             memoryBlobStore.SetLastModifiedTime(TestNamespace, object6id, DateTime.Now.AddDays(-2));
 
             BucketId testBucket = new BucketId("test");
-            IObjectService? objectService = server.Services.GetService<IObjectService>()!;
-            Assert.IsNotNull(objectService);
+            IRefService? refService = server.Services.GetService<IRefService>()!;
+            Assert.IsNotNull(refService);
             (BlobId ob0_hash, CbObject ob0_cb) = GetCBWithAttachment(object0id);
-            await objectService.PutAsync(TestNamespace, testBucket, RefId.FromName("object0"), ob0_hash, ob0_cb);
+            await refService.PutAsync(TestNamespace, testBucket, RefId.FromName("object0"), ob0_hash, ob0_cb);
            
             (BlobId ob2_hash, CbObject ob2_cb) = GetCBWithAttachment(object2id);
-            await objectService.PutAsync(TestNamespace, testBucket, RefId.FromName("object2"), ob2_hash, ob2_cb);
+            await refService.PutAsync(TestNamespace, testBucket, RefId.FromName("object2"), ob2_hash, ob2_cb);
 
             (BlobId ob3_hash, CbObject ob3_cb) = GetCBWithAttachment(object3id);
-            await objectService.PutAsync(TestNamespace, testBucket, RefId.FromName("object3"), ob3_hash, ob3_cb);
+            await refService.PutAsync(TestNamespace, testBucket, RefId.FromName("object3"), ob3_hash, ob3_cb);
 
             (BlobId ob6_hash, CbObject ob6_cb) = GetCBWithAttachment(object6id);
-            await objectService.PutAsync(TestNamespace, testBucket, RefId.FromName("object6"), ob6_hash, ob6_cb);
+            await refService.PutAsync(TestNamespace, testBucket, RefId.FromName("object6"), ob6_hash, ob6_cb);
 
             IReferencesStore referenceStore = server.Services.GetService<IReferencesStore>()!;
             await referenceStore.UpdateLastAccessTimeAsync(TestNamespace, testBucket, RefId.FromName("object0"), DateTime.Now.AddDays(-2));
