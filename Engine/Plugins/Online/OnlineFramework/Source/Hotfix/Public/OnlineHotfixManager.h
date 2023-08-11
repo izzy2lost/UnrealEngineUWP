@@ -405,6 +405,8 @@ public:
 
 	/** Factory method that returns the configured hotfix manager */
 	static UOnlineHotfixManager* Get(UWorld* World);
+
+	static void ReloadObjectsAffectedByConfigFile(const FString& IniDataFileName, const FString& IniData, const FString& ConfigFilename, TArray<FString>& ReloadedClassesPathNames, bool bUseLoadConfig);
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
