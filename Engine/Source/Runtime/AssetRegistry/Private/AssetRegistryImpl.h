@@ -188,7 +188,7 @@ public:
 	/** Send a log message with the search statistics. 
 	 *  StartTime is used to report wall clock search time in the case of background scan
 	 */
-	void LogSearchDiagnostics(double StartTime) const;
+	void LogSearchDiagnostics(double StartTime);
 	/** Look for and load a single AssetData result from the gatherer. */
 	void TickGatherPackage(Impl::FEventContext& EventContext, const FString& PackageName, const FString& LocalPath);
 	void ClearGathererCache();
@@ -387,6 +387,9 @@ private:
 
 	/** Lists of results from the background thread that are waiting to get processed by the main thread */
 	FAssetDataGatherer::FResults BackgroundResults;
+
+	/** Memory profiling information: How much memory is being used by the tags for each class. */
+	TMap<FTopLevelAssetPath, int64> TagSizeByClass;
 
 	/** Time spent processing Gather results */
 	float StoreGatherResultsTimeSeconds;

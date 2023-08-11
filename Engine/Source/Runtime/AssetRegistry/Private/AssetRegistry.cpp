@@ -4129,7 +4129,7 @@ Impl::EGatherStatus FAssetRegistryImpl::TickGatherer(Impl::FEventContext& EventC
 	return OutStatus;
 }
 
-void FAssetRegistryImpl::LogSearchDiagnostics(double StartTime) const
+void FAssetRegistryImpl::LogSearchDiagnostics(double StartTime)
 {
 	FAssetGatherDiagnostics Diagnostics = GlobalGatherer->GetDiagnostics();
 	float Total = Diagnostics.DiscoveryTimeSeconds + Diagnostics.GatherTimeSeconds + StoreGatherResultsTimeSeconds;
@@ -4144,6 +4144,24 @@ void FAssetRegistryImpl::LogSearchDiagnostics(double StartTime) const
 	FTelemetryRouter::Get().ProvideTelemetry(Telemetry);
 	UE_LOG(LogAssetRegistry, Log, TEXT("AssetRegistryGather time %.4fs: AssetDataDiscovery %0.4fs, AssetDataGather %0.4fs, StoreResults %0.4fs."),
 		Total, Diagnostics.DiscoveryTimeSeconds, Diagnostics.GatherTimeSeconds, StoreGatherResultsTimeSeconds);
+
+#if !NO_LOGGING
+	if (LogAssetRegistry.GetVerbosity() >= ELogVerbosity::Verbose)
+	{
+		UE_LOG(LogAssetRegistry, Verbose, TEXT("TagMemoryUse:"));
+		TagSizeByClass.ValueSort([](int64 A, int64 B) { return A > B; });
+		constexpr int64 MinSizeToLog = 1000 * 1000;
+		for (const TPair<FTopLevelAssetPath, int64>& Pair : TagSizeByClass)
+		{
+			if (Pair.Value < MinSizeToLog)
+			{
+				break;
+			}
+			UE_LOG(LogAssetRegistry, Verbose, TEXT("%s: %.1f MB"),
+				*Pair.Key.ToString(), (float)Pair.Value / (1000.f * 1000.f));
+		}
+	}
+#endif
 }
 
 void FAssetRegistryImpl::TickGatherPackage(Impl::FEventContext& EventContext, const FString& PackageName, const FString& LocalPath)
@@ -5062,6 +5080,12 @@ void FAssetRegistryImpl::AssetSearchDataGathered(Impl::FEventContext& EventConte
 			// The asset isn't in the cache yet, add it and notify subscribers
 			if (bPathIsMounted)
 			{
+				int64& ClassTagSizes = TagSizeByClass.FindOrAdd(BackgroundResult->AssetClassPath);
+				BackgroundResult->TagsAndValues.ForEach([&ClassTagSizes](const TPair<FName, FAssetTagValueRef>& Pair)
+					{
+						ClassTagSizes += Pair.Value.GetResourceSize();
+					});
+
 #if WITH_EDITOR
 				PostLoadAssetRegistryTags(BackgroundResult.Get());
 #endif
