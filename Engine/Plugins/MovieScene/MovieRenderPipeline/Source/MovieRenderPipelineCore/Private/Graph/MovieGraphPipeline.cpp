@@ -4,11 +4,13 @@
 
 #include "Graph/MovieGraphCVarManager.h"
 #include "Graph/MovieGraphDataTypes.h"
+#include "Graph/MovieGraphLinTimeStep.h"
 #include "Graph/MovieGraphOutputMerger.h"
 #include "Graph/MoviePipelineRenderLayerSubsystem.h"
 #include "Graph/Nodes/MovieGraphCollectionNode.h"
 #include "Graph/Nodes/MovieGraphFileOutputNode.h"
 #include "Graph/Nodes/MovieGraphModifierNode.h"
+#include "Graph/Nodes/MovieGraphSamplingMethodNode.h"
 #include "Graph/Nodes/MovieGraphOutputSettingNode.h"
 #include "Graph/Nodes/MovieGraphWarmUpSettingNode.h"
 #include "Graph/MovieGraphBlueprintLibrary.h"
@@ -79,7 +81,6 @@ void UMovieGraphPipeline::Initialize(UMoviePipelineExecutorJob* InJob, const FMo
 	}
 
 	// Create instances of our different classes from the InitConfig
-	GraphTimeStepInstance = NewObject<UMovieGraphTimeStepBase>(this, InitConfig.TimeStepClass);
 	GraphRendererInstance = NewObject<UMovieGraphRendererBase>(this, InitConfig.RendererClass);
 	GraphDataSourceInstance = NewObject<UMovieGraphDataSourceBase>(this, InitConfig.DataSourceClass);
 	
@@ -246,6 +247,9 @@ void UMovieGraphPipeline::BuildShotListFromDataSource()
 	// Shots that are already in the list will be updated but their enable flag will be respected. 
 	GraphDataSourceInstance->UpdateShotList();
 
+	GraphTimeStepInstances.Reset();
+	GraphTimeStepInstances.Reserve(GetCurrentJob()->ShotInfo.Num());
+
 	for (int32 ShotIndex = 0; ShotIndex < GetCurrentJob()->ShotInfo.Num(); ShotIndex++)
 	{
 		const TObjectPtr<UMoviePipelineExecutorShot>& Shot = GetCurrentJob()->ShotInfo[ShotIndex];
@@ -269,6 +273,25 @@ void UMovieGraphPipeline::BuildShotListFromDataSource()
 		CurrentContext.Time = TimeContext;
 
 		TObjectPtr<UMovieGraphEvaluatedConfig> EvaluatedConfig = CurrentContext.RootGraph->CreateFlattenedGraph(CurrentContext);
+		
+		// Create the time step instance for this shot. The time step method cannot vary per branch or per frame, so it
+		// is fetched from the Globals branch. This is the earliest point in the pipeline where the evaluated graph is
+		// available, hence why the instances are generated all at once. Doing it at this point also prevents a circular
+		// dependency between the graph and the time step node. Generally the time step class generates the evaluated
+		// graph, but the evaluated graph also specifies the time step class to use. Therefore, we need to determine the
+		// time step class to use by evaluating the graph outside of the time step class.
+		UMovieGraphSamplingMethodNode* SamplingMethodNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphSamplingMethodNode>(UMovieGraphSettingNode::GlobalsPinName);
+		if (UClass* SamplingMethodClass = SamplingMethodNode->SamplingMethodClass.TryLoadClass<UMovieGraphTimeStepBase>())
+		{
+			GraphTimeStepInstances.Add(NewObject<UMovieGraphTimeStepBase>(this, SamplingMethodClass));
+		}
+		else
+		{
+			GraphTimeStepInstances.Add(NewObject<UMovieGraphLinearTimeStep>(this));
+			UE_LOG(LogMovieRenderPipeline, Warning, TEXT("The shot '%s' specified a time step of type '%s', but it could not be loaded. Defaulting to linear."),
+				*Shot->OuterName, *SamplingMethodNode->SamplingMethodClass.GetAssetName());
+		}
+		
 		UMovieGraphOutputSettingNode* OutputNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphOutputSettingNode>(UMovieGraphSettingNode::GlobalsPinName);
 
 		const FFrameRate SourceFrameRate = GetDataSourceInstance()->GetDisplayRate();
@@ -279,12 +302,16 @@ void UMovieGraphPipeline::BuildShotListFromDataSource()
 		UMovieGraphWarmUpSettingNode* WarmUpNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphWarmUpSettingNode>(UMovieGraphSettingNode::GlobalsPinName);
 		
 		const bool bPrePass = true;
-		const bool bExpandForTemporalSubSample = GetTimeStepInstance()->IsExpansionForTSRequired(EvaluatedConfig);
+		const bool bExpandForTemporalSubSample = GraphTimeStepInstances.Last()->IsExpansionForTSRequired(EvaluatedConfig);
 		ExpandShot(Shot, OutputNode->HandleFrameCount, bExpandForTemporalSubSample, bPrePass, FinalFrameRate, TickResolution, WarmUpNode->NumWarmUpFrames);
 
 		Shot->ShotInfo.CurrentTimeInRoot = Shot->ShotInfo.TotalOutputRangeRoot.GetLowerBoundValue();
 		Shot->ShotInfo.CalculateWorkMetrics(GetDataSourceInstance());
 	}
+
+	// Initialize the time step instance to be the first one. This is usually set up by the shot, but some logic may attempt
+	// to access the time step instance before the shot has a chance to initialize.
+	GraphTimeStepInstance = GraphTimeStepInstances[0];
 
 	// The active shot-list is a subset of the whole shot-list; The ShotInfo contains information about every range it detected to render
 	// but if the user has turned the shot off in the UI then we don't want to render it.
@@ -326,8 +353,6 @@ void UMovieGraphPipeline::OnEngineTickBeginFrame()
 
 void UMovieGraphPipeline::TickProducingFrames()
 {
-	check(GraphTimeStepInstance);
-
 	// Move any output frames that have been finished from the Output Merger
 	// into the actual outputs. This will generate new futures (for actual 
 	// disk writes) which we keep track of below.
@@ -366,7 +391,7 @@ void UMovieGraphPipeline::TickProducingFrames()
 	//}
 
 
-	GraphTimeStepInstance->TickProducingFrames();
+	GetTimeStepInstance()->TickProducingFrames();
 }
 
 void UMovieGraphPipeline::TickFinalizeOutputContainers(const bool bInForceFinish)
@@ -494,6 +519,8 @@ void UMovieGraphPipeline::SetupShot(const TObjectPtr<UMoviePipelineExecutorShot>
 	//		Setting->OnMoviePipelineInitialized(this);
 	//	}
 	//}
+
+	GraphTimeStepInstance = GraphTimeStepInstances[CurrentShotIndex];
 
 	const FMovieGraphTimeStepData& TimeStepData = GetTimeStepInstance()->GetCalculatedTimeData();
 	const UMovieGraphEvaluatedConfig* EvaluatedConfig = TimeStepData.EvaluatedConfig;
@@ -626,6 +653,13 @@ void UMovieGraphPipeline::ExpandShot(const TObjectPtr<UMoviePipelineExecutorShot
 	}
 }
 
+UMovieGraphTimeStepBase* UMovieGraphPipeline::GetTimeStepInstance() const
+{
+	check(GraphTimeStepInstance);
+
+	return GraphTimeStepInstance;
+}
+
 void UMovieGraphPipeline::OnEngineTickEndFrame()
 {
 	LLM_SCOPE_BYNAME(TEXT("MovieGraphEndFrame"));
@@ -650,7 +684,8 @@ void UMovieGraphPipeline::OnEngineTickEndFrame()
 void UMovieGraphPipeline::RenderFrame()
 {
 	check(GraphRendererInstance);
-	const FMovieGraphTimeStepData& TimeStepData = GraphTimeStepInstance->GetCalculatedTimeData();
+
+	const FMovieGraphTimeStepData& TimeStepData = GetTimeStepInstance()->GetCalculatedTimeData();
 
 	GraphRendererInstance->Render(TimeStepData);
 }

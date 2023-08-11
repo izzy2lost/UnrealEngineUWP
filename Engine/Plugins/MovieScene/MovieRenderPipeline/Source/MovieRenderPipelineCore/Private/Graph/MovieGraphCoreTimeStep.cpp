@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Graph/MovieGraphLinearTimeStep.h"
+#include "Graph/MovieGraphCoreTimeStep.h"
+
 #include "Graph/MovieGraphPipeline.h"
 #include "Graph/MovieGraphBlueprintLibrary.h"
 #include "Graph/Nodes/MovieGraphOutputSettingNode.h"
@@ -15,7 +16,7 @@
 #include "GameFramework/WorldSettings.h"
 #include "ProfilingDebugging/MiscTrace.h"
 
-UMovieGraphLinearTimeStep::UMovieGraphLinearTimeStep()
+UMovieGraphCoreTimeStep::UMovieGraphCoreTimeStep()
 {
 	CustomTimeStep = CreateDefaultSubobject<UMovieGraphEngineTimeStep>("MovieGraphEngineTimeStep");
 
@@ -24,7 +25,7 @@ UMovieGraphLinearTimeStep::UMovieGraphLinearTimeStep()
 	CurrentTimeStepData.OutputFrameNumber = 0;
 }
 
-void UMovieGraphLinearTimeStep::TickProducingFrames()
+void UMovieGraphCoreTimeStep::TickProducingFrames()
 {
 	int32 CurrentShotIndex = GetOwningGraph()->GetCurrentShotIndex();
 	const TArray<TObjectPtr<UMoviePipelineExecutorShot>>& ActiveShotList = GetOwningGraph()->GetActiveShotList();
@@ -130,7 +131,7 @@ void UMovieGraphLinearTimeStep::TickProducingFrames()
 
 			// The temporal sample count can change every frame due to graph evaluations, so when we're on our first temporal
 			// sub-sample of the new frame, we need to re-fetch the value.
-			UpdateTemporalSampleCount();
+			CurrentFrameData.TemporalSampleCount = GetTemporalSampleCount();
 
 			// Re-calculate some timing statistics about the given TS count
 			UpdateFrameMetrics();
@@ -213,9 +214,13 @@ void UMovieGraphLinearTimeStep::TickProducingFrames()
 		
 		// The delta time for this frame is the difference between the current range index, and the last range index.
 		const TRange<FFrameTime>& PreviousRange = CurrentFrameData.LastSampleRange;
-		const TRange<FFrameTime>& NextRange = CurrentFrameData.TemporalRanges[CurrentFrameData.TemporalSampleIndex];
+		const TRange<FFrameTime>& NextRange = CurrentFrameData.TemporalRanges[GetNextTemporalRangeIndex()];
 
-		FFrameTime FrameDeltaTime = NextRange.GetLowerBoundValue() - PreviousRange.GetLowerBoundValue();
+		// Because some time-steps may not advance linearly through time, the abs value of the ranges needs to be taken
+		// to avoid negative delta times.
+		FFrameTime FrameDeltaTime = NextRange.GetLowerBoundValue() > PreviousRange.GetLowerBoundValue()
+			? NextRange.GetLowerBoundValue() - PreviousRange.GetLowerBoundValue()
+			: PreviousRange.GetLowerBoundValue() - NextRange.GetLowerBoundValue();
 
 		// ToDo: Propagate delta time multipliers to cloth
 
@@ -288,17 +293,14 @@ void UMovieGraphLinearTimeStep::TickProducingFrames()
 		// reflects which frame we're on.
 		{
 			// Update the last sample range to the one we just rendered.
-			CurrentFrameData.LastSampleRange = CurrentFrameData.TemporalRanges[CurrentFrameData.TemporalSampleIndex];
+			CurrentFrameData.LastSampleRange = NextRange;
 			if (IsLastTemporalSample())
 			{
 				CurrentFrameData.LastOutputFrameRange = CurrentFrameData.CurrentOutputFrameRange;
 				
-				// Increment the output frame number only on the first temporal sample.
+				// Increment the output frame number only on the last temporal sample.
 				CurrentFrameData.OutputFrameNumber++;
-			}
-
-			if (CurrentFrameData.TemporalSampleIndex >= CurrentFrameData.TemporalSampleCount - 1)
-			{
+				
 				// If we've rendered the last temporal sub-sample, we've started a new output frame
 				// and we need to reset our temporal sample index.
 				CurrentFrameData.TemporalSampleIndex = 0;
@@ -318,35 +320,29 @@ void UMovieGraphLinearTimeStep::TickProducingFrames()
 
 }
 
-bool UMovieGraphLinearTimeStep::IsFirstTemporalSample() const
+bool UMovieGraphCoreTimeStep::IsFirstTemporalSample() const
 {
 	return CurrentFrameData.TemporalSampleIndex == 0;
 }
 
-bool UMovieGraphLinearTimeStep::IsLastTemporalSample() const
+bool UMovieGraphCoreTimeStep::IsLastTemporalSample() const
 {
 	return CurrentFrameData.TemporalSampleIndex == CurrentFrameData.TemporalSampleCount - 1;
 }
 
-void UMovieGraphLinearTimeStep::ResetForEndOfOutputFrame()
+void UMovieGraphCoreTimeStep::ResetForEndOfOutputFrame()
 {
 	CurrentFrameData.TemporalSampleIndex = 0;
 }
 
-void UMovieGraphLinearTimeStep::UpdateTemporalSampleCount()
-{
-	// ToDo: This needs to come from the config.
-	CurrentFrameData.TemporalSampleCount = 1;
-}
-
-bool UMovieGraphLinearTimeStep::IsExpansionForTSRequired(const TObjectPtr<UMovieGraphEvaluatedConfig>& InConfig) const
+bool UMovieGraphCoreTimeStep::IsExpansionForTSRequired(const TObjectPtr<UMovieGraphEvaluatedConfig>& InConfig) const
 {
 	// ToDo: This needs to come from the config (once we have TemporalSampleCount there)
 	return false;
 }
 
 
-void UMovieGraphLinearTimeStep::Shutdown()
+void UMovieGraphCoreTimeStep::Shutdown()
 {
 	// Shut down our custom timestep which reqstores some world settings we modified.
 
@@ -355,7 +351,7 @@ void UMovieGraphLinearTimeStep::Shutdown()
 	GEngine->SetCustomTimeStep(PrevCustomTimeStep);
 }
 
-void UMovieGraphLinearTimeStep::UpdateFrameMetrics()
+void UMovieGraphCoreTimeStep::UpdateFrameMetrics()
 {
 	FOutputFrameMetrics FrameData;
 
@@ -414,7 +410,7 @@ void UMovieGraphLinearTimeStep::UpdateFrameMetrics()
 	CurrentFrameMetrics = FrameData;
 }
 
-float UMovieGraphLinearTimeStep::GetBlendedMotionBlurAmount()
+float UMovieGraphCoreTimeStep::GetBlendedMotionBlurAmount()
 {
 	// 0.5f is the default engine motion blur in the event no Post Process/Camera overrides it.
 	float FinalMotionBlurAmount = 0.5f;

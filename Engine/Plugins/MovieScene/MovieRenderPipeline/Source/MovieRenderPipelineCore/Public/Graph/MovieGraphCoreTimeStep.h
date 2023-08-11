@@ -7,27 +7,25 @@
 #include "Misc/FrameTime.h"
 #include "Engine/EngineCustomTimeStep.h"
 #include "UObject/StrongObjectPtr.h"
-#include "MovieGraphLinearTimeStep.generated.h"
+
+#include "MovieGraphCoreTimeStep.generated.h"
 
 // Forward Declares
 class UMovieGraphEngineTimeStep;
 
 /**
-* This class is responsible for calculating the time step of each tick of the engine during a
-* Movie Render Queue render using a linear strategy - the number of temporal sub-samples is
-* read from the graph for each output frame, and we then take the time the shutter is open
-* and break it into that many sub-samples. Time always advances forward until we reach the
-* end of the range of time we wish to render. This is useful for deferred rendering (where 
-* we have a small number of temporal sub-samples and no feedback mechanism for measuring
-* noise in the final image) but is less useful for Path Traced images which have a varying
-* amount of noise (and thus want a varying amount of samples) based on their content.
-*/
-UCLASS(BlueprintType)
-class MOVIERENDERPIPELINECORE_API UMovieGraphLinearTimeStep : public UMovieGraphTimeStepBase
+ * Provides common logic for typical time-step functionality.
+ * 
+ * The number of temporal sub-samples is read from the graph for each output frame, and we then take the time the
+ * shutter is open and break it into that many sub-samples. Subclasses must implement GetNextTemporalRangeIndex() to
+ * indicate the index of the next temporal sub-sample. 
+ */
+UCLASS(Abstract)
+class MOVIERENDERPIPELINECORE_API UMovieGraphCoreTimeStep : public UMovieGraphTimeStepBase
 {
 	GENERATED_BODY()
 public:
-	UMovieGraphLinearTimeStep();
+	UMovieGraphCoreTimeStep();
 
 	// UMovieGraphTimeStepBase Interface
 	virtual void TickProducingFrames() override;
@@ -37,10 +35,20 @@ public:
 	// ~UMovieGraphTimeStepBase Interface
 
 protected:
+	/**
+	 * Gets the index of the next temporal range. The index returned should not be the index returned by the prior call
+	 * (this would result in a frame delta time of zero, causing the engine to crash).
+	 */
+	virtual int32 GetNextTemporalRangeIndex() const PURE_VIRTUAL(UMovieGraphCoreTimeStep::GetNextTemporalRangeIndex, return 0; );
+
+	/** Determines if the current sample being rendered is the last. */
+	virtual bool IsLastTemporalSample() const;
+
+	/** Gets the number of samples that should be used in each frame. */
+	virtual int32 GetTemporalSampleCount() const PURE_VIRTUAL(UMovieGraphCoreTimeStep::UpdateTemporalSampleCount, return 0; ); 
+	
 	virtual void UpdateFrameMetrics();
 	virtual bool IsFirstTemporalSample() const;
-	virtual bool IsLastTemporalSample() const;
-	virtual void UpdateTemporalSampleCount();
 	virtual void ResetForEndOfOutputFrame();
 	virtual float GetBlendedMotionBlurAmount();
 

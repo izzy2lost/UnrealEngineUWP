@@ -70,7 +70,7 @@ public:
 	/** Called by the TimeStepInstance when it's time to tear down the current shot. Don't call this unless you know what you're doing. */
 	void TeardownShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot);
 	/** Used occasionally to cross-reference other components. Don't call this unless you know what you're doing. */
-	UMovieGraphTimeStepBase* GetTimeStepInstance() const { return GraphTimeStepInstance; }
+	UMovieGraphTimeStepBase* GetTimeStepInstance() const;
 	/** Used occasionally to cross-reference other components. Don't call this unless you know what you're doing. */
 	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	UMovieGraphRendererBase* GetRendererInstance() const { return GraphRendererInstance; }
@@ -134,6 +134,15 @@ protected:
 
 
 protected:
+	/** Time step instances for each shot, where the index into the array corresponds to the shot index. */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMovieGraphTimeStepBase>> GraphTimeStepInstances;
+
+	/**
+	 * Sometimes the shot index can be incremented before the time step instance should be changed, so the current time
+	 * step instance is tracked. This should generally be used to access the current time step instance, rather than
+	 * indexing into GraphTimeStepInstances with the shot index.
+	 */
 	UPROPERTY(Transient)
 	TObjectPtr<UMovieGraphTimeStepBase> GraphTimeStepInstance;
 

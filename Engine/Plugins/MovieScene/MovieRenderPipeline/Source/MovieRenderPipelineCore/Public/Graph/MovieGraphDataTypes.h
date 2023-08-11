@@ -34,13 +34,6 @@ struct MOVIERENDERPIPELINECORE_API FMovieGraphInitConfig
 	
 	FMovieGraphInitConfig();
 	
-	/** 
-	* Which class should the UMovieGraphPipeline use to handle calculating per frame 
-	* timesteps? Defaults to UMovieGraphLinearTimeStep.
-	*/
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
-	TSubclassOf<UMovieGraphTimeStepBase> TimeStepClass;
-	
 	/**
 	* Which class should the UMovieGraphPipeline use to look for render layers and
 	* request renders from. Defaults to UMovieGraphDefaultRenderer.
