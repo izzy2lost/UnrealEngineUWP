@@ -16,6 +16,7 @@
 #include "RigVMModel/RigVMClient.h"
 #include "ControlRigValidationPass.h"
 #include "RigVMBlueprint.h"
+#include "Rigs/RigModuleDefines.h"
 
 #if WITH_EDITOR
 #include "Kismet2/CompilerResultsLog.h"
@@ -86,10 +87,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Control Rig Blueprint")
 	virtual USkeletalMesh* GetPreviewMesh() const override;
 
+	UFUNCTION(BlueprintPure, Category = "Control Rig Blueprint")
+	bool IsControlRigModule() const;
+
 	UPROPERTY(EditAnywhere, Category = "Hierarchy")
 	FRigHierarchySettings HierarchySettings;
 
+	UPROPERTY(EditAnywhere, Category = "Hierarchy", AssetRegistrySearchable)
+	FRigModuleSettings ModuleSettings;
+
 protected:
+
+	void UpdateExposedModuleConnectors();
 
 	/** Asset searchable information about exposed public functions on this rig */
 	UPROPERTY(AssetRegistrySearchable)
@@ -269,4 +278,5 @@ private:
 	friend class UControlRigComponent;
 	friend struct FControlRigGraphSchemaAction_PromoteToVariable;
 	friend class UControlRigGraphSchema;
+	friend class FControlRigBlueprintDetails;
 };

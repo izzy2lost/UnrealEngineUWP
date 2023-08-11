@@ -71,5 +71,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintCallable, Category = "Control Rig Blueprint")
 	static void SetupAllEditorMenus();
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Control Rig Blueprint")
+	static TArray<FRigModuleDescription> GetAvailableRigModules();
 };
 

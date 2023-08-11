@@ -136,6 +136,15 @@ USkeletalMesh* UControlRigBlueprint::GetPreviewMesh() const
 #endif
 }
 
+bool UControlRigBlueprint::IsControlRigModule() const
+{
+	if(Hierarchy)
+	{
+		return Hierarchy->Num(ERigElementType::Connector) > 0;
+	}
+	return false;
+}
+
 void UControlRigBlueprint::SetPreviewMesh(USkeletalMesh* PreviewMesh, bool bMarkAsDirty/*=true*/)
 {
 #if WITH_EDITORONLY_DATA
@@ -219,6 +228,22 @@ void UControlRigBlueprint::PreSave(FObjectPreSaveContext ObjectSaveContext)
 			bExposesAnimatableControls = true;
 			return false;
 		}
+		return true;
+	});
+
+	UpdateExposedModuleConnectors();
+}
+
+void UControlRigBlueprint::UpdateExposedModuleConnectors()
+{
+	ModuleSettings.ExposedConnectors.Reset();
+	Hierarchy->ForEach<FRigConnectorElement>([this](const FRigConnectorElement* ConnectorElement) -> bool
+	{
+		FRigModuleConnector ExposedConnector;
+		ExposedConnector.Name = ConnectorElement->GetNameString();
+		ExposedConnector.bIsRoot = Hierarchy->GetNumberOfParents(ConnectorElement) == 0;
+		ExposedConnector.Settings = ConnectorElement->Settings;
+		ModuleSettings.ExposedConnectors.Add(ExposedConnector);
 		return true;
 	});
 }
