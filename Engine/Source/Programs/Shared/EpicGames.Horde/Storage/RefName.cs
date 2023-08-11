@@ -5,7 +5,6 @@ using EpicGames.Serialization;
 using System;
 using System.ComponentModel;
 using System.Globalization;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -14,6 +13,7 @@ namespace EpicGames.Horde.Storage
 	/// <summary>
 	/// Identifier for a storage namespace
 	/// </summary>
+	[JsonSchemaString]
 	[JsonConverter(typeof(RefNameJsonConverter))]
 	[TypeConverter(typeof(RefNameTypeConverter))]
 	[CbConverter(typeof(RefNameCbConverter))]
