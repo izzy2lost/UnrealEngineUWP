@@ -34,6 +34,7 @@
 #include "Misc/CoreDelegates.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Misc/FeedbackContext.h"
+#include "Serialization/MemoryReader.h"
 #include "StructDeserializer.h"
 #include "StructSerializer.h"
 #include "Backends/JsonStructDeserializerBackend.h"
