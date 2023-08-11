@@ -66,6 +66,7 @@ UNiagaraRibbonRendererProperties::UNiagaraRibbonRendererProperties()
 	, Shape(ENiagaraRibbonShapeMode::Plane)
 	, bEnableAccurateGeometry(false)
 	, bUseMaterialBackfaceCulling(false)
+	, bUseGeometryNormals(true)
 	, bUseGPUInit(false)
 	, bUseConstantFactor(false)
 	, bScreenSpaceTessellation(true)
@@ -157,6 +158,11 @@ void UNiagaraRibbonRendererProperties::PostLoad()
 	if (NiagaraVer < FNiagaraCustomVersion::RibbonRendererLinkOrderDefaultIsUniqueID)
 	{
 		bLinkOrderUseUniqueID = false;
+	}
+
+	if (NiagaraVer < FNiagaraCustomVersion::RibbonPlaneUseGeometryNormals)
+	{
+		bUseGeometryNormals = false;
 	}
 
 	ChangeToPositionBinding(PositionBinding);

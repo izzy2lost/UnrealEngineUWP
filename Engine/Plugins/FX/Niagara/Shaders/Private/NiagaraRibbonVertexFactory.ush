@@ -588,9 +588,9 @@ FRibbonPositionIntermediates GetRibbonPositionIntermediates(
 	
 	Intermediates.GeoUp = cross(Intermediates.TangentY, Intermediates.TangentX);
 	Intermediates.GeoRight = Intermediates.TangentX;
-	
-	Intermediates.TangentZ = NiagaraRibbonVFLooseParameters.Shape >= 1 ? Intermediates.GeoUp : Facing; // Intermediates.GeoUp;
-	
+
+	Intermediates.TangentZ = NiagaraRibbonVFLooseParameters.UseGeometryNormals ? Intermediates.GeoUp : Facing;
+
 	Intermediates.TangentZ = SafeNormalize(Intermediates.TangentZ * SliceVertexNormals.y + Intermediates.TangentX * SliceVertexNormals.x, float3(0, 0, 1));
 	
 	// Flip the normal only for multiplane shape if the normal is looking away from the camera.
@@ -604,6 +604,7 @@ FRibbonPositionIntermediates GetRibbonPositionIntermediates(
 	float3 t = Intermediates.TangentX;
 	Intermediates.TangentX = Intermediates.TangentY;
 	Intermediates.TangentY = t;
+
 
 	// Overrides (FVertexFactoryIntermediates)0; 
 	Intermediates.RibbonWidth = 1.0f;

@@ -392,6 +392,7 @@ protected:
 	
 	const FNiagaraRendererLayout* RendererLayout;
 	bool bCastShadows = true;
+	bool bUseGeometryNormals = false;
 	bool bGpuRibbonLinkIsFloat = false;
 	uint32 GpuRibbonLinkOrderOffset = INDEX_NONE;
 

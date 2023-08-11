@@ -309,6 +309,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Ribbon Shape")
 	uint8 bUseMaterialBackfaceCulling : 1;
 
+	/** When enabled the ribbons normals will follow the shape of the geometry rather than being aligned to screen / custom facing. */
+	UPROPERTY(EditAnywhere, Category = "Ribbon Shape", meta = (EditCondition = "Shape == ENiagaraRibbonShapeMode::Plane", EditConditionHides))
+	uint8 bUseGeometryNormals : 1;
+
 	/**
 	*	Whether we use the CPU or GPU to generate ribbon geometry for CPU systems.
 	*	GPU systems will always use a fully GPU initialization pipeline,
