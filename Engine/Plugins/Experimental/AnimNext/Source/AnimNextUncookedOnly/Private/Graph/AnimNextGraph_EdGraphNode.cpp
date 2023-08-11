@@ -72,12 +72,12 @@ void UAnimNextGraph_EdGraphNode::BuildAddDecoratorContextMenu(UToolMenu* SubMenu
 
 		FString DisplayNameMetadata;
 		ScriptStruct->GetStringMetaDataHierarchical(FRigVMStruct::DisplayNameMetaName, &DisplayNameMetadata);
-		const FString DisplayName = DisplayNameMetadata.IsEmpty() ? Decorator->GetDecoratorUID().GetDecoratorName() : DisplayNameMetadata;
+		const FString DisplayName = DisplayNameMetadata.IsEmpty() ? Decorator->GetDecoratorName() : DisplayNameMetadata;
 
 		const FText ToolTip = ScriptStruct->GetToolTipText();
 
 		FToolMenuEntry DecoratorEntry = FToolMenuEntry::InitMenuEntry(
-			Decorator->GetDecoratorUID().GetDecoratorName(),
+			*Decorator->GetDecoratorName(),
 			FText::FromString(DisplayName),
 			ToolTip,
 			FSlateIcon(),
