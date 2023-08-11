@@ -1,6 +1,7 @@
 <?xml version='1.0' ?>
 <BuildGraph xmlns="http://www.epicgames.com/BuildGraph" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.epicgames.com/BuildGraph ../Schema.xsd" >
 
+	<Option Name="EditorCompileArgs" DefaultValue="" Description="Arguments to be used for EditorTarget Compile"/>
 	<Option Name="TargetPlatforms" Restrict="[^ ]*" DefaultValue="Win64" Description="List of the target platforms to build for, separated by semicolons, eg. Win64;Win32;Android"/>
 	<Option Name="OutputDir" DefaultValue="$(RootDir)\LocalBuilds\LyraBinaries" Description ="Output directory for compiled binaries"/>
 	<Option Name="Versioned" Restrict="true|false" DefaultValue="$(IsBuildMachine)" Description="Whether to embed changelist number into binaries"/>
@@ -36,7 +37,7 @@
 		
 		<!-- Compile the editor executable -->
 		<Node Name="Compile LyraEditor Win64" Requires="Compile Tools Win64" Produces="#EditorBinaries">
-			<Compile Target="LyraEditor" Platform="Win64" Configuration="Development" Tag="#EditorBinaries"/>
+			<Compile Target="LyraEditor" Platform="Win64" Configuration="Development" Tag="#EditorBinaries" Arguments="$(EditorCompileArgs)"/>
 		</Node>
 		
 		<!-- Compile the game targets -->
