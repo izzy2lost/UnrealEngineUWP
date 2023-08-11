@@ -115,9 +115,9 @@ void FOnDemandIoBackendStats::OnIoRequestEnqueue()
 void FOnDemandIoBackendStats::OnIoRequestComplete(uint64 RequestSize)
 {
 	GIoRequestsCompleted.Add(1);
-	CSV_CUSTOM_STAT_DEFINED(FrameIoRequestsCompleted, int32(GIoRequestsCompleted.Get()), ECsvCustomStatOp::Set);
-
 	GIoRequestsCompletedSize.Add(RequestSize);
+
+	CSV_CUSTOM_STAT_DEFINED(FrameIoRequestsCompleted, int32(GIoRequestsCompleted.Get()), ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT_DEFINED(FrameIoRequestsCompletedSize, BytesToApproxKB(GIoRequestsCompletedSize.Get()), ECsvCustomStatOp::Set);
 }
 
@@ -145,7 +145,6 @@ void FOnDemandIoBackendStats::OnChunkRequestRelease()
 	CSV_CUSTOM_STAT_DEFINED(FrameReadRequestsRemoved, int32(GReadRequestsRemoved.Get()), ECsvCustomStatOp::Set);
 }
 
-
 void FOnDemandIoBackendStats::OnCacheError()
 {
 	GCacheErrorCount.Add(1);
@@ -155,8 +154,9 @@ void FOnDemandIoBackendStats::OnCacheError()
 void FOnDemandIoBackendStats::OnCacheGet(uint64 DataSize)
 {
 	GCacheGetCount.Add(1);
-	CSV_CUSTOM_STAT_DEFINED(FrameCacheGetCount, int32(GCacheGetCount.Get()), ECsvCustomStatOp::Set);
 	GCacheReadBytes.Add(DataSize);
+
+	CSV_CUSTOM_STAT_DEFINED(FrameCacheGetCount, int32(GCacheGetCount.Get()), ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT_DEFINED(FrameCacheReadBytes, BytesToApproxKB(GCacheReadBytes.Get()), ECsvCustomStatOp::Set);
 }
 
@@ -175,8 +175,9 @@ void FOnDemandIoBackendStats::OnCachePutExisting(uint64 /*DataSize*/)
 void FOnDemandIoBackendStats::OnCachePutReject(uint64 DataSize)
 {
 	GCachePutRejectCount.Add(1);
-	CSV_CUSTOM_STAT_DEFINED(FrameCachePutRejectCount, int32(GCachePutRejectCount.Get()), ECsvCustomStatOp::Set);
 	GCacheRejectBytes.Add(DataSize);
+
+	CSV_CUSTOM_STAT_DEFINED(FrameCachePutRejectCount, int32(GCachePutRejectCount.Get()), ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT_DEFINED(FrameCacheRejectBytes, BytesToApproxKB(GCacheRejectBytes.Get()), ECsvCustomStatOp::Set);
 }
 
@@ -207,39 +208,35 @@ void FOnDemandIoBackendStats::OnHttpDequeue()
 void FOnDemandIoBackendStats::OnHttpGet(uint64 InSize)
 {
 	GHttpPendingCount.Add(-1);
-	CSV_CUSTOM_STAT_DEFINED(HttpPendingCount, int32(GHttpPendingCount.Get()), ECsvCustomStatOp::Set);
-
 	GHttpInflightCount.Add(-1);
-	CSV_CUSTOM_STAT_DEFINED(HttpInflightCount, int32(GHttpInflightCount.Get()), ECsvCustomStatOp::Set);
-
 	GHttpGetCount.Add(1);
-	CSV_CUSTOM_STAT_DEFINED(HttpGetCount, int32(GHttpGetCount.Get()), ECsvCustomStatOp::Set);
-
 	GHttpDownloadedBytes.Add(InSize);
+
+	CSV_CUSTOM_STAT_DEFINED(HttpPendingCount, int32(GHttpPendingCount.Get()), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(HttpInflightCount, int32(GHttpInflightCount.Get()), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(HttpGetCount, int32(GHttpGetCount.Get()), ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT_DEFINED(HttpDownloadKB, BytesToApproxKB(GHttpDownloadedBytes.Get()), ECsvCustomStatOp::Set);
 }
 
 void FOnDemandIoBackendStats::OnHttpRetry()
 {
 	GHttpPendingCount.Add(-1);
-	CSV_CUSTOM_STAT_DEFINED(HttpPendingCount, int32(GHttpPendingCount.Get()), ECsvCustomStatOp::Set);
-
 	GHttpInflightCount.Add(-1);
-	CSV_CUSTOM_STAT_DEFINED(HttpInflightCount, int32(GHttpInflightCount.Get()), ECsvCustomStatOp::Set);
-
 	GHttpRetryCount.Add(1);
+
+	CSV_CUSTOM_STAT_DEFINED(HttpPendingCount, int32(GHttpPendingCount.Get()), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(HttpInflightCount, int32(GHttpInflightCount.Get()), ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT_DEFINED(HttpRetryCount, int32(GHttpRetryCount.Get()), ECsvCustomStatOp::Set);
 }
 
 void FOnDemandIoBackendStats::OnHttpError()
 {
 	GHttpPendingCount.Add(-1);
-	CSV_CUSTOM_STAT_DEFINED(HttpPendingCount, int32(GHttpPendingCount.Get()), ECsvCustomStatOp::Set);
-
 	GHttpInflightCount.Add(-1);
-	CSV_CUSTOM_STAT_DEFINED(HttpInflightCount, int32(GHttpInflightCount.Get()), ECsvCustomStatOp::Set);
-
 	GHttpErrorCount.Add(1);
+
+	CSV_CUSTOM_STAT_DEFINED(HttpPendingCount, int32(GHttpPendingCount.Get()), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(HttpInflightCount, int32(GHttpInflightCount.Get()), ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT_DEFINED(HttpErrorCount, int32(GHttpErrorCount.Get()), ECsvCustomStatOp::Set);
 }
 
