@@ -1689,7 +1689,7 @@ void UCommonUIActionRouterBase::FActionDomainSortedRootList::Add(FActivatableTre
 {
 	auto SortFunc = [](const FActivatableTreeRootRef& A, const FActivatableTreeRootRef& B) 
 		{
-			return A->GetLastPaintLayer() < B->GetLastPaintLayer();
+			return A->GetLastPaintLayer() > B->GetLastPaintLayer();
 		};
 
 	RootList.Add(RootNode);
