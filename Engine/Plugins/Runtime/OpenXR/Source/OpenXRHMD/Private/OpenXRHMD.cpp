@@ -654,6 +654,15 @@ bool FOpenXRHMD::GetPoseForTime(int32 DeviceId, FTimespan Timespan, bool& OutTim
 	{
 		OutTimeWasUsed = false;
 		TargetTime = GetDisplayTime();
+
+		
+		if (TargetTime == 0)
+		{
+			// We might still get an out-of-sync query after the session has ended.
+			// We could return the last known location via PipelineState.DeviceLocations
+			// but UpdateDeviceLocations doesn't do that right now. We'll just fail for now.
+			return false;
+		}
 	}
 	else
 	{
