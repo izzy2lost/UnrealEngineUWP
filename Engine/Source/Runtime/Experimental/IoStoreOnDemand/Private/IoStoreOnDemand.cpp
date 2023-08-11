@@ -6,6 +6,7 @@
 #include "LatencyInjector.h"
 
 #include "FileIoCache.h"
+#include "HAL/LowLevelMemTracker.h"
 #include "HAL/PlatformMisc.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/FileManager.h"
@@ -1280,6 +1281,7 @@ void FIoStoreOnDemandModule::SetEnabled(bool bInEnabled)
 
 void FIoStoreOnDemandModule::StartupModule()
 {
+	LLM_SCOPE(ELLMTag::FileSystem);
 	using namespace UE::IO::Private;
 
 #if WITH_EDITOR
