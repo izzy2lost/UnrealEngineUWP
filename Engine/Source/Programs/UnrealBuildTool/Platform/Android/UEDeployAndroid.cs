@@ -935,7 +935,7 @@ namespace UnrealBuildTool
 				bool bUseChangeListAsStoreVersion = false;
 				Ini.GetBool("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "bUseChangeListAsStoreVersion", out bUseChangeListAsStoreVersion);
 
-				bool IsBuildMachine = Environment.GetEnvironmentVariable("IsBuildMachine") == "1";
+				bool IsBuildMachine = Unreal.IsBuildMachine();
 				// override store version with changelist if enabled and is build machine
 				if (bUseChangeListAsStoreVersion && IsBuildMachine)
 				{
@@ -986,7 +986,7 @@ namespace UnrealBuildTool
 				string VersionDisplayName = "";
 				Ini.GetString("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "VersionDisplayName", out VersionDisplayName);
 
-				if (Environment.GetEnvironmentVariable("IsBuildMachine") == "1")
+				if (Unreal.IsBuildMachine())
 				{
 					bool bAppendChangeListToVersionDisplayName = false;
 					Ini.GetBool("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "bAppendChangeListToVersionDisplayName", out bAppendChangeListToVersionDisplayName);
@@ -4021,7 +4021,7 @@ namespace UnrealBuildTool
 			// bundles disabled for launch-on
 			bool bEnableBundle = BundleEnabled() && !bDisallowPackagingDataInApk;
 
-			bool bIsBuildMachine = Environment.GetEnvironmentVariable("IsBuildMachine") == "1";
+			bool bIsBuildMachine = Unreal.IsBuildMachine();
 
 			// do this here so we'll stop early if there is a problem with the SDK API level (cached so later calls will return the same)
 			string SDKAPILevel = GetSdkApiLevel(ToolChain);

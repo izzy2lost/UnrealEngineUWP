@@ -158,7 +158,7 @@ namespace UnrealBuildTool
 			}
 
 			bool bIsEditor = false;
-			bool bIsBuildMachine = Environment.GetEnvironmentVariable("IsBuildMachine") == "1";
+			bool bIsBuildMachine = Unreal.IsBuildMachine();
 
 			// get project ini from ProjetFile, or if null, then try to get it from the target rules
 			if (TargetName != null)
@@ -553,7 +553,7 @@ namespace UnrealBuildTool
 		public override bool ShouldCreateDebugInfo(ReadOnlyTargetRules Target)
 		{
 			// Always generate debug symbols on the build machines.
-			bool IsBuildMachine = Environment.GetEnvironmentVariable("IsBuildMachine") == "1";
+			bool IsBuildMachine = Unreal.IsBuildMachine();
 
 			switch (Target.Configuration)
 			{

@@ -213,7 +213,7 @@ namespace UnrealBuildBase
 		{
 			if (!bIsBuildMachine.HasValue)
 			{
-				bIsBuildMachine = Environment.GetEnvironmentVariable("IsBuildMachine") == "1";
+				bIsBuildMachine = Environment.GetEnvironmentVariable("IsBuildMachine")?.Trim() == "1";
 			}
 			return bIsBuildMachine.Value;
 		}

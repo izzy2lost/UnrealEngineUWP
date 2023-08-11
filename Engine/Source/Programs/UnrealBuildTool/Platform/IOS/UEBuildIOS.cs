@@ -9,6 +9,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
+using UnrealBuildBase;
 
 namespace UnrealBuildTool
 {
@@ -699,7 +700,7 @@ namespace UnrealBuildTool
 				}
 
 				// if we are stripping the executable, or if the project requested it, or if it's a buildmachine, generate the dsym
-				if (Target.IOSPlatform.bStripSymbols || Target.IOSPlatform.ProjectSettings.bGeneratedSYMFile || Environment.GetEnvironmentVariable("IsBuildMachine") == "1")
+				if (Target.IOSPlatform.bStripSymbols || Target.IOSPlatform.ProjectSettings.bGeneratedSYMFile || Unreal.IsBuildMachine())
 				{
 					Target.IOSPlatform.bGeneratedSYM = true;
 				}

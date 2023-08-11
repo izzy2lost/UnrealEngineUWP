@@ -170,8 +170,7 @@ namespace UnrealBuildTool
 				bUpdateBuildGraphPropertiesFile = TestTargetRules.bUpdateBuildGraphPropertiesFile;
 			}
 
-			string? bIsBuildMachineEnv = Environment.GetEnvironmentVariable("IsBuildMachine");
-			bool bIsBuildMachine = bIsBuildMachineEnv != null && bIsBuildMachineEnv.Trim().Equals(1.ToString());
+			bool bIsBuildMachine = Unreal.IsBuildMachine();
 			if (bIsBuildMachine || !bUpdateBuildGraphPropertiesFile || TestMetadata == null)
 			{
 				return;

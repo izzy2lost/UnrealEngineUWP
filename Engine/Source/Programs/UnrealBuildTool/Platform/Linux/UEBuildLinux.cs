@@ -669,7 +669,7 @@ namespace UnrealBuildTool
 			}
 
 			// Disable color logging if we are on a build machine
-			if (Environment.GetEnvironmentVariable("IsBuildMachine") == "1")
+			if (Unreal.IsBuildMachine())
 			{
 				Log.ColorConsoleOutput = false;
 			}
