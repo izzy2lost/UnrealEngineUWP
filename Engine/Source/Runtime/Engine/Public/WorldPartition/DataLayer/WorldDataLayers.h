@@ -101,8 +101,15 @@ public:
 	ENGINE_API const UDataLayerInstance* GetDataLayerInstance(const FName& InDataLayerInstanceName) const;
 	ENGINE_API const UDataLayerInstance* GetDataLayerInstance(const UDataLayerAsset* InDataLayerAsset) const;
 	ENGINE_API const UDataLayerInstance* GetDataLayerInstanceFromAssetName(const FName& InDataLayerAssetFullName) const;
-	ENGINE_API void ForEachDataLayer(TFunctionRef<bool(UDataLayerInstance*)> Func);
-	ENGINE_API void ForEachDataLayer(TFunctionRef<bool(UDataLayerInstance*)> Func) const;
+
+	UE_DEPRECATED(5.4, "Use ForEachDataLayerInstance() instead.")
+	ENGINE_API void ForEachDataLayer(TFunctionRef<bool(UDataLayerInstance*)> Func) { return ForEachDataLayerInstance(Func); }
+
+	UE_DEPRECATED(5.4, "Use ForEachDataLayerInstance() instead.")
+	ENGINE_API void ForEachDataLayer(TFunctionRef<bool(UDataLayerInstance*)> Func) const { return ForEachDataLayerInstance(Func); }
+
+	ENGINE_API void ForEachDataLayerInstance(TFunctionRef<bool(UDataLayerInstance*)> Func);
+	ENGINE_API void ForEachDataLayerInstance(TFunctionRef<bool(UDataLayerInstance*)> Func) const;
 
 	ENGINE_API TArray<const UDataLayerInstance*> GetDataLayerInstances(const TArray<FName>& InDataLayerInstanceNames) const;
 
@@ -110,8 +117,8 @@ public:
 	ENGINE_API void SetDataLayerRuntimeState(const UDataLayerInstance* InDataLayerInstance, EDataLayerRuntimeState InState, bool bIsRecursive = false);
 	ENGINE_API EDataLayerRuntimeState GetDataLayerRuntimeStateByName(FName InDataLayerName) const;
 	ENGINE_API EDataLayerRuntimeState GetDataLayerEffectiveRuntimeStateByName(FName InDataLAyerName) const;
-	const TSet<FName>& GetEffectiveActiveDataLayerNames() const { return EffectiveActiveDataLayerNames; }
-	const TSet<FName>& GetEffectiveLoadedDataLayerNames() const { return EffectiveLoadedDataLayerNames; }
+	const TSet<FName>& GetEffectiveActiveDataLayerNames() const;
+	const TSet<FName>& GetEffectiveLoadedDataLayerNames() const;
 	UFUNCTION(NetMulticast, Reliable)
 	ENGINE_API void OnDataLayerRuntimeStateChanged(const UDataLayerInstance* InDataLayer, EDataLayerRuntimeState InState);
 	static int32 GetDataLayersStateEpoch() { return DataLayersStateEpoch; }
@@ -229,6 +236,9 @@ private:
 	TSet<FName> ActiveDataLayerNames;
 	TSet<FName> LoadedDataLayerNames;
 
+	TSet<FName> LocalActiveDataLayerNames;
+	TSet<FName> LocalLoadedDataLayerNames;
+
 	UPROPERTY(Transient, Replicated, ReplicatedUsing=OnRep_EffectiveActiveDataLayerNames)
 	TArray<FName> RepEffectiveActiveDataLayerNames;
 		
@@ -238,6 +248,12 @@ private:
 	// TSet do not support replication so we replicate an array and update the set in the OnRep_EffectiveActiveDataLayerNames/OnRep_EffectiveLoadedDataLayerNames
 	TSet<FName> EffectiveActiveDataLayerNames;
 	TSet<FName> EffectiveLoadedDataLayerNames;
+
+	TSet<FName> LocalEffectiveActiveDataLayerNames;
+	TSet<FName> LocalEffectiveLoadedDataLayerNames;
+
+	mutable TSet<FName> AllEffectiveActiveDataLayerNames;
+	mutable TSet<FName> AllEffectiveLoadedDataLayerNames;
 
 	static ENGINE_API int32 DataLayersStateEpoch;
 
@@ -321,11 +337,11 @@ void AWorldDataLayers::OverwriteDataLayerRuntimeStates(const TArray<IdentifierTy
 			RepLoadedDataLayerNames = LoadedDataLayerNames.Array();
 		}
 
-		ForEachDataLayer([this](class UDataLayerInstance* DataLayer)
+		ForEachDataLayerInstance([this](class UDataLayerInstance* DataLayerInstance)
 		{
-			if (DataLayer && DataLayer->IsRuntime())
+			if (DataLayerInstance->IsRuntime())
 			{
-				ResolveEffectiveRuntimeState(DataLayer, /*bNotifyChange*/false);
+				ResolveEffectiveRuntimeState(DataLayerInstance, /*bNotifyChange*/false);
 			}
 			return true;
 		});

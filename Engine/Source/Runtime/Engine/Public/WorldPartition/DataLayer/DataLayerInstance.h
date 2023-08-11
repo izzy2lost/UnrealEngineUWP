@@ -142,10 +142,16 @@ public:
 	virtual bool IsRuntime() const { return false; }
 
 	UFUNCTION(Category = "Data Layer|Runtime", BlueprintCallable)
+	virtual bool IsClientOnly() const { return false; }
+
+	UFUNCTION(Category = "Data Layer|Runtime", BlueprintCallable)
+	virtual bool IsServerOnly() const { return false; }
+
+	UFUNCTION(Category = "Data Layer|Runtime", BlueprintCallable)
 	virtual FColor GetDebugColor() const { return FColor::Black; }
 
 	UFUNCTION(Category = "Data Layer|Runtime", BlueprintCallable)
-	EDataLayerRuntimeState GetInitialRuntimeState() const { return IsRuntime() ? InitialRuntimeState : EDataLayerRuntimeState::Unloaded; }
+	EDataLayerRuntimeState GetInitialRuntimeState() const { return IsRuntime() && !IsClientOnly() && !IsServerOnly() ? InitialRuntimeState : EDataLayerRuntimeState::Unloaded; }
 
 	virtual FString GetDataLayerShortName() const { return TEXT("Invalid Data Layer"); }
 	virtual FString GetDataLayerFullName() const { return TEXT("Invalid Data Layer"); }
@@ -219,6 +225,7 @@ protected:
 	uint32 bIsLocked : 1;
 #endif
 
+	/** Initial runtime state of this data layer instance. Only supported if it's runtime and not client/server only. */
 	UPROPERTY(Category = "Runtime", EditAnywhere)
 	EDataLayerRuntimeState InitialRuntimeState;
 

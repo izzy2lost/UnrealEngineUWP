@@ -250,7 +250,7 @@ void FDataLayerHierarchy::CreateItems(TArray<FSceneOutlinerTreeItemPtr>& OutItem
 					if (OwningWorldWorldDataLayers && CurrentLevelWorldDataLayers)
 					{
 						check(OwningWorldWorldDataLayers != CurrentLevelWorldDataLayers);
-						OwningWorldWorldDataLayers->ForEachDataLayer([&WorldToLevelDataLayerMap, CurrentLevelWorldDataLayers](UDataLayerInstance* DataLayerInstance)
+						OwningWorldWorldDataLayers->ForEachDataLayerInstance([&WorldToLevelDataLayerMap, CurrentLevelWorldDataLayers](UDataLayerInstance* DataLayerInstance)
 						{
 							if (UDataLayerInstanceWithAsset* DataLayerInstanceWithAsset = Cast<UDataLayerInstanceWithAsset>(DataLayerInstance))
 							{

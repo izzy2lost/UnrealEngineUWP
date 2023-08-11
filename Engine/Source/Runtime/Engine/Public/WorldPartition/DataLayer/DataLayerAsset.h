@@ -13,6 +13,14 @@
 
 class AActor;
 
+UENUM(BlueprintType)
+enum class EDataLayerLoadFilter : uint8
+{
+	None,
+	ClientOnly,
+	ServerOnly
+};
+
 UCLASS(BlueprintType, editinlinenew, MinimalAPI)
 class UDataLayerAsset : public UObject
 {
@@ -36,6 +44,7 @@ public:
 	ENGINE_API bool CanBeReferencedByActor(AActor* InActor) const;
 	static ENGINE_API bool CanBeReferencedByActor(const TSoftObjectPtr<UDataLayerAsset>& InDataLayerAsset, AActor* InActor);
 #endif
+
 	ENGINE_API bool IsPrivate() const;
 
 	UFUNCTION(Category = "Data Layer", BlueprintCallable)
@@ -48,6 +57,13 @@ public:
 	FColor GetDebugColor() const { return DebugColor; }
 
 	bool SupportsActorFilters() const { return bSupportsActorFilters; }
+
+	UFUNCTION(Category = "Data Layer|Runtime", BlueprintCallable)
+	bool IsClientOnly() const { return IsRuntime() && LoadFilter == EDataLayerLoadFilter::ClientOnly; }
+
+	UFUNCTION(Category = "Data Layer|Runtime", BlueprintCallable)
+	bool IsServerOnly() const { return IsRuntime() && LoadFilter == EDataLayerLoadFilter::ServerOnly; }
+
 private:
 	/** Whether the Data Layer affects actor runtime loading */
 	UPROPERTY(Category = "Data Layer", EditAnywhere)
@@ -58,4 +74,7 @@ private:
 		
 	UPROPERTY(Category = "Runtime", EditAnywhere)
 	FColor DebugColor;
+
+	UPROPERTY(Category = "Runtime", EditAnywhere)
+	EDataLayerLoadFilter LoadFilter;
 };

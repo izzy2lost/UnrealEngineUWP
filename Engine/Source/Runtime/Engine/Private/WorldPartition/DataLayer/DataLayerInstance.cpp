@@ -24,9 +24,7 @@ UDataLayerInstance::UDataLayerInstance(const FObjectInitializer& ObjectInitializ
 	, bIsLocked(false)
 #endif
 	, InitialRuntimeState(EDataLayerRuntimeState::Unloaded)
-{
-
-}
+{}
 
 void UDataLayerInstance::PostLoad()
 {
@@ -122,9 +120,12 @@ bool UDataLayerInstance::CanEditChange(const FProperty* InProperty) const
 		return false;
 	}
 
-	if (!IsRuntime() && (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UDataLayerInstance, InitialRuntimeState)))
+	if (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UDataLayerInstance, InitialRuntimeState))
 	{
-		return false;
+		if (!IsRuntime() || IsClientOnly() || IsServerOnly())
+		{
+			return false;
+		}
 	}
 
 	return true;
@@ -242,6 +243,11 @@ bool UDataLayerInstance::CanBeChildOf(const UDataLayerInstance* InParent, FText*
 bool UDataLayerInstance::IsParentDataLayerTypeCompatible(const UDataLayerInstance* InParent) const
 {
 	if (InParent == nullptr)
+	{
+		return false;
+	}
+
+	if (IsClientOnly() || IsServerOnly())
 	{
 		return false;
 	}
@@ -413,17 +419,6 @@ EDataLayerRuntimeState UDataLayerInstance::GetRuntimeState() const
 EDataLayerRuntimeState UDataLayerInstance::GetEffectiveRuntimeState() const
 {
 	return GetOuterWorldDataLayers()->GetDataLayerEffectiveRuntimeStateByName(GetDataLayerFName());
-}
-
-bool UDataLayerInstance::SetRuntimeState(EDataLayerRuntimeState InState, bool bInIsRecursive) const
-{
-	if (GetOuterWorldDataLayers()->HasAuthority())
-	{
-		GetOuterWorldDataLayers()->SetDataLayerRuntimeState(this, InState, bInIsRecursive);
-		return true;
-	}
-	UE_LOG(LogWorldPartition, Error, TEXT("SetDataLayerRuntimeState can only execute on authority"));
-	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

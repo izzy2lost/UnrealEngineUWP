@@ -206,7 +206,7 @@ void FWorldDataLayersActorDesc::Init(const AActor* InActor)
 	FWorldPartitionActorDesc::Init(InActor);
 
 	const AWorldDataLayers* WorldDataLayers = CastChecked<AWorldDataLayers>(InActor);
-	WorldDataLayers->ForEachDataLayer([this](UDataLayerInstance* DataLayerInstance)
+	WorldDataLayers->ForEachDataLayerInstance([this](UDataLayerInstance* DataLayerInstance)
 	{
 		FDataLayerInstanceDesc& DataLayerInstanceDesc = DataLayerInstances.Emplace_GetRef();
 		DataLayerInstanceDesc.Init(DataLayerInstance);
