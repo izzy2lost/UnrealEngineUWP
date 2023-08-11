@@ -2596,9 +2596,9 @@ TStructOnScope<FActorComponentInstanceData> UInstancedStaticMeshComponent::GetCo
 		StaticMeshInstanceData->CachedStaticLighting.MapBuildDataIds.Add(LODDataEntry.MapBuildDataId);
 	}
 
-	// Back up per-instance info
+	// Back up per-instance info (this is strictly for Comparison in UInstancedStaticMeshComponent::ApplyComponentInstanceData 
+	// as this Property will get serialized by base class FActorComponentInstanceData through FComponentPropertyWriter which uses the PPF_ForceTaggedSerialization to backup all properties even the custom serialized ones
 	StaticMeshInstanceData->PerInstanceSMData = PerInstanceSMData;
-	StaticMeshInstanceData->PerInstanceSMCustomData = PerInstanceSMCustomData;
 
 	// Back up instance selection
 	StaticMeshInstanceData->SelectedInstances = SelectedInstances;
@@ -2664,8 +2664,6 @@ void UInstancedStaticMeshComponent::ApplyComponentInstanceData(FInstancedStaticM
 		{
 			LODData[i].MapBuildDataId = InstancedMeshData->CachedStaticLighting.MapBuildDataIds[i];
 		}
-
-		PerInstanceSMData = InstancedMeshData->PerInstanceSMData;
 	}
 
 	SelectedInstances = InstancedMeshData->SelectedInstances;
@@ -3476,6 +3474,31 @@ void UInstancedStaticMeshComponent::Serialize(FArchive& Ar)
 		Ar << bCooked;
 	}
 
+	// Inherit properties when bEditableWhenInherited == true (when the component isn't a template and we are persisting data)
+	const UInstancedStaticMeshComponent* Archetype = Cast<UInstancedStaticMeshComponent>(GetArchetype());
+	const bool bInheritSkipSerializationProperties = !bEditableWhenInherited && Archetype && Ar.IsPersistent() && !IsTemplate();
+	
+
+	// Check if we need have SkipSerialization property data to load/save
+	bool bHasSkipSerializationPropertiesData = !bInheritSkipSerializationProperties;
+	if (Ar.IsLoading())
+	{
+#if WITH_EDITOR
+		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::ISMComponentEditableWhenInheritedSkipSerialization)
+		{
+			bHasSkipSerializationPropertiesData = true;
+		}
+		else
+#endif
+		{
+			Ar << bHasSkipSerializationPropertiesData;
+		}
+	}
+	else
+	{
+		Ar << bHasSkipSerializationPropertiesData;
+	}
+			
 #if WITH_EDITOR
 	if (Ar.IsLoading() && Ar.CustomVer(FMobileObjectVersion::GUID) < FMobileObjectVersion::InstancedStaticMeshLightmapSerialization)
 	{
@@ -3488,12 +3511,39 @@ void UInstancedStaticMeshComponent::Serialize(FArchive& Ar)
 	}
 	else
 #endif //WITH_EDITOR
+	if (Ar.IsLoading())
 	{
-		PerInstanceSMData.BulkSerialize(Ar, Ar.UEVer() < EUnrealEngineObjectUE5Version::LARGE_WORLD_COORDINATES); 
-	}
+		// Read existing data if it was serialized
+		TArray<FInstancedStaticMeshInstanceData> TempPerInstanceSMData;
+		TArray<float> TempPerInstanceSMCustomData;
+		if (bHasSkipSerializationPropertiesData)
+		{
+			TempPerInstanceSMData.BulkSerialize(Ar, Ar.UEVer() < EUnrealEngineObjectUE5Version::LARGE_WORLD_COORDINATES);
+			if(Ar.CustomVer(FRenderingObjectVersion::GUID) >= FRenderingObjectVersion::PerInstanceCustomData)
+			{
+				TempPerInstanceSMCustomData.BulkSerialize(Ar);
+			}
+		}
+						
+		// If we should inherit use Archetype Data
+		if (bInheritSkipSerializationProperties)
+		{
+			PerInstanceSMData = Archetype->PerInstanceSMData;
+			PerInstanceSMCustomData = Archetype->PerInstanceSMCustomData;
 
-	if (!Ar.IsLoading() || Ar.CustomVer(FRenderingObjectVersion::GUID) >= FRenderingObjectVersion::PerInstanceCustomData)
+			// Make sure that if we inherit the PerInstanceSMCustomData we also do inherit this value
+			NumCustomDataFloats = Archetype->NumCustomDataFloats;
+		}
+		else
+		{
+			check(bHasSkipSerializationPropertiesData);
+			PerInstanceSMData = MoveTemp(TempPerInstanceSMData);
+			PerInstanceSMCustomData = MoveTemp(TempPerInstanceSMCustomData);
+		}
+	}
+	else if(bHasSkipSerializationPropertiesData)
 	{
+		PerInstanceSMData.BulkSerialize(Ar, Ar.UEVer() < EUnrealEngineObjectUE5Version::LARGE_WORLD_COORDINATES);
 		PerInstanceSMCustomData.BulkSerialize(Ar);
 	}
 

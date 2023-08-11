@@ -357,6 +357,9 @@ struct FFortniteMainBranchObjectVersion
 		// Fix missing binding extensions for some anim graph nodes
 		FixMissingAnimGraphNodeBindingExtensions,
 
+		// EditableWhenInherited: Skip custom serialization on non Archetypes
+		ISMComponentEditableWhenInheritedSkipSerialization,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

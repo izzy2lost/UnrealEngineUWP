@@ -645,9 +645,6 @@ public:
 	UPROPERTY()
 	TArray<FInstancedStaticMeshInstanceData> PerInstanceSMData;
 
-	UPROPERTY()
-	TArray<float> PerInstanceSMCustomData;
-
 	/** The cached selected instances */
 	TBitArray<> SelectedInstances;
 
