@@ -691,6 +691,11 @@ public:
 
 	void SetClusteredParticleSOA(FPBDRigidClusteredParticleHandle* ClusteredParticle)
 	{
+		if (ClusteredParticle->ObjectState() != EObjectStateType::Kinematic)
+		{
+			MovingKinematicsMapArray.Remove(ClusteredParticle);
+		}
+
 		if (TPBDGeometryCollectionParticleHandle<FReal, 3>* GCParticle = ClusteredParticle->CastToGeometryCollection())
 		{
 			// Geometry collection particles have their own arrays which are also included in the active view
