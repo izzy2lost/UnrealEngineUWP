@@ -701,6 +701,8 @@ namespace Metasound
 
 		bool FRebuildPresetRootGraph::Transform(FDocumentHandle InDocument) const
 		{
+			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::FRebuildPresetRootGraph::Transform);
+
 			FGraphHandle PresetGraphHandle = InDocument->GetRootGraph();
 			if (!ensure(PresetGraphHandle->IsValid()))
 			{
