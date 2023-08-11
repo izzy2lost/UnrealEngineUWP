@@ -26,6 +26,7 @@
 #include "Materials/MaterialInstanceConstant.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/PackageName.h"
+#include "UObject/ObjectRedirector.h"
 
 DEFINE_LOG_CATEGORY(LogInterchangeMaterialPipeline);
 
