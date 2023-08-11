@@ -816,6 +816,21 @@ public:
 		, Texture(InTexture)
 	{}
 
+	/** Create UAV that access one specific slice. */
+	static FRDGTextureUAVDesc CreateForSlice(FRDGTextureRef Texture, int32 SliceIndex)
+	{
+		check(Texture);
+		check(Texture->Desc.Dimension == ETextureDimension::Texture2DArray);
+		check(SliceIndex >= 0 && SliceIndex < Texture->Desc.ArraySize);
+
+		FRDGTextureUAVDesc Desc = FRDGTextureUAVDesc(Texture);
+		Desc.FirstArraySlice = (uint16)SliceIndex;
+		Desc.NumArraySlices = 1;
+		Desc.DimensionOverride = ETextureDimension::Texture2D;
+
+		return Desc;
+	}
+
 	/** Create UAV with access to a specific meta data plane */
 	static FRDGTextureUAVDesc CreateForMetaData(FRDGTextureRef Texture, ERDGTextureMetaDataAccess MetaData)
 	{
