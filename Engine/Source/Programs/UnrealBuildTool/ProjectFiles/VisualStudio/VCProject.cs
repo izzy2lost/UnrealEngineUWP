@@ -682,14 +682,14 @@ namespace UnrealBuildTool
 										continue;
 									}
 
-									foreach (UnrealArch? Architecture in VCProjectFileGenerator.GetPlatformArchitectures(BuildPlatform))
+									var AddProjectAndTargetCombination = (UnrealArch? Arch) =>
 									{
 										PlatformProjectGenerator? PlatformProjectGenerator = PlatformProjectGenerators.GetPlatformProjectGenerator(Platform, bInAllowFailure: true);
 										string ProjectPlatformName;
 										string ProjectConfigurationName = Configuration.ToString();
 										bool CreateDistinctConfigName = false;
 
-										VSSettings VSSettings = new(Platform, Configuration, ProjectFileFormat, Architecture);
+										VSSettings VSSettings = new(Platform, Configuration, ProjectFileFormat, Arch);
 
 										// Check to see if this platform is supported directly by Visual Studio projects.
 										if (PlatformProjectGenerator != null && PlatformProjectGenerator.HasVisualStudioSupport(VSSettings))
@@ -716,7 +716,7 @@ namespace UnrealBuildTool
 
 										if (CreateDistinctConfigName)
 										{
-											ProjectConfigurationName = string.Format("{0}{1}_{2}", Platform.ToString(), Architecture != null ? "_" + Architecture.ToString() : string.Empty, Configuration.ToString());
+											ProjectConfigurationName = string.Format("{0}{1}_{2}", Platform.ToString(), Arch != null ? "_" + Arch.ToString() : string.Empty, Configuration.ToString());
 										}
 
 										TargetType TargetConfigurationType = ProjectTarget.TargetRules!.Type;
@@ -730,7 +730,20 @@ namespace UnrealBuildTool
 											throw new BuildException("'{0}' '{1} is already in the platform/config list. This means a platform generator is not marking that the config needs to be distinct.", ProjectPlatformName, ProjectConfigurationName);
 										}
 
-										ProjectConfigAndTargetCombinations.Add(new ProjectConfigAndTargetCombination(Platform, Configuration, ProjectPlatformName, ProjectConfigurationName, ProjectTarget, Architecture));
+										ProjectConfigAndTargetCombinations.Add(new ProjectConfigAndTargetCombination(Platform, Configuration, ProjectPlatformName, ProjectConfigurationName, ProjectTarget, Arch));
+									};
+
+									UnrealArchitectures? Architectures = VCProjectFileGenerator.GetPlatformArchitecturesToGenerate(BuildPlatform);
+									if (Architectures == null)
+									{
+										AddProjectAndTargetCombination(null);
+									}
+									else
+									{
+										foreach (UnrealArch Arch in Architectures.Architectures)
+										{
+											AddProjectAndTargetCombination(Arch);
+										}
 									}
 								}
 							}

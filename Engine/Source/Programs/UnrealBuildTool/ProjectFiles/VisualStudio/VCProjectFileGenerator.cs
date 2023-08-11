@@ -265,18 +265,10 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Returns a list of architectures to generate unique VS platforms for.
 		/// </summary>
-		public static IList<UnrealArch?> GetPlatformArchitectures(UEBuildPlatform BuildPlatform)
+		public static UnrealArchitectures? GetPlatformArchitecturesToGenerate(UEBuildPlatform BuildPlatform)
 		{
-			List<UnrealArch?> Architectures = new();
-			//if (BuildPlatform.ArchitectureConfig.Mode == UnrealArchitectureMode.OneTargetPerArchitecture)
-			//{
-			//	Architectures.AddRange(BuildPlatform.ArchitectureConfig.AllSupportedArchitectures.Architectures.Cast<UnrealArch?>());
-			//}
-			//else
-			{
-				Architectures.Add(null);
-			}
-			return Architectures;
+			return BuildPlatform.ArchitectureConfig.Mode == UnrealArchitectureMode.OneTargetPerArchitecture ?
+				BuildPlatform.ArchitectureConfig.AllSupportedArchitectures : null;
 		}
 
 		/// <inheritdoc/>
@@ -957,6 +949,7 @@ namespace UnrealBuildTool
 					VCSolutionConfigCombination? DefaultConfig = SolutionConfigCombinations.Find(x =>
 						x.Configuration == UnrealTargetConfiguration.Development &&
 						x.Platform == UnrealTargetPlatform.Win64 &&
+						(x.Architecture == null || x.Architecture == UnrealArch.X64) &&
 						(bMakeProjectPerTarget || x.TargetConfigurationName == TargetType.Editor));
 					if (DefaultConfig != null)
 					{
@@ -1069,9 +1062,7 @@ namespace UnrealBuildTool
 					{
 						ProjectTarget ProjectTarget = SolutionConfigKeyValue.Value.Item2.Item1;
 
-						IList<UnrealArch?> Architectures = GetPlatformArchitectures(BuildPlatform);
-						bool SingleArchitecture = Architectures.Count == 1;
-						foreach (UnrealArch? Arch in Architectures)
+						var AddSolutionConfig = (UnrealArch? Arch, List<VCSolutionConfigCombination> OutSolutionConfigs) =>
 						{
 							// e.g.  "Development|Win64 = Development|Win64"
 							string SolutionConfigName = SolutionConfigKeyValue.Key;
@@ -1079,7 +1070,9 @@ namespace UnrealBuildTool
 							TargetType TargetType = SolutionConfigKeyValue.Value.Item2.Item2;
 
 							string SolutionPlatformName = CurPlatform.ToString();
-							if (!SingleArchitecture)
+							// We use RequiresArchitectureFilenames to determine whether the architecture suffix should be added.
+							// This is used to tell us what the "default" architecture is.
+							if (Arch != null && BuildPlatform.ArchitectureConfig.RequiresArchitectureFilenames(new UnrealArchitectures(Arch.Value)))
 							{
 								SolutionPlatformName += $"-{Arch}";
 							}
@@ -1094,6 +1087,19 @@ namespace UnrealBuildTool
 									Architecture = Arch
 								}
 							);
+						};
+
+						UnrealArchitectures? Architectures = GetPlatformArchitecturesToGenerate(BuildPlatform);
+						if (Architectures == null)
+						{
+							AddSolutionConfig(null, OutSolutionConfigs);
+						}
+						else
+						{
+							foreach (UnrealArch Arch in Architectures.Architectures)
+							{
+								AddSolutionConfig(Arch, OutSolutionConfigs);
+							}
 						}
 					}
 				}
