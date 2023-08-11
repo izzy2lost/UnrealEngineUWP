@@ -261,7 +261,7 @@ void BuildMetalShaderOutput(
 	const EShaderFrequency Frequency = ShaderOutput.Target.GetFrequency();
 
 	//TODO read from toolchain
-	const bool bIsMobile = (ShaderInput.Target.Platform == SP_METAL || ShaderInput.Target.Platform == SP_METAL_MRT || ShaderInput.Target.Platform == SP_METAL_TVOS || ShaderInput.Target.Platform == SP_METAL_MRT_TVOS);
+	const bool bIsMobile = (ShaderInput.Target.Platform == SP_METAL || ShaderInput.Target.Platform == SP_METAL_MRT || ShaderInput.Target.Platform == SP_METAL_TVOS || ShaderInput.Target.Platform == SP_METAL_MRT_TVOS || ShaderInput.Target.Platform == SP_METAL_SIM);
 	bool bNoFastMath = ShaderInput.Environment.CompilerFlags.Contains(CFLAG_NoFastMath);
 	const bool bUsingWPO = ShaderInput.Environment.GetCompileArgument(TEXT("USES_WORLD_POSITION_OFFSET"), false);
 	if (bUsingWPO && (ShaderInput.Target.Platform == SP_METAL_MRT || ShaderInput.Target.Platform == SP_METAL_MRT_TVOS) && Frequency == SF_Vertex)
@@ -794,9 +794,15 @@ void CompileShader_Metal(const FShaderCompilerInput& _Input,FShaderCompilerOutpu
 
 	// TODO read from toolchain
 	bool bAppleTV = (Input.ShaderFormat == NAME_SF_METAL_TVOS || Input.ShaderFormat == NAME_SF_METAL_MRT_TVOS);
+	bool bIsSimulator = false;
 	if (Input.ShaderFormat == NAME_SF_METAL || Input.ShaderFormat == NAME_SF_METAL_TVOS)
 	{
 		AdditionalDefines.SetDefine(TEXT("METAL_PROFILE"), 1);
+	}
+	else if (Input.ShaderFormat == NAME_SF_METAL_SIM)
+	{
+		AdditionalDefines.SetDefine(TEXT("METAL_PROFILE"), 1);
+		bIsSimulator = true;
 	}
 	else if (Input.ShaderFormat == NAME_SF_METAL_MRT || Input.ShaderFormat == NAME_SF_METAL_MRT_TVOS)
 	{
@@ -847,7 +853,14 @@ void CompileShader_Metal(const FShaderCompilerInput& _Input,FShaderCompilerOutpu
         }
         else if (bIsMobile)
         {
-            MinOSVersion = TEXT("-mios-version-min=17.0");
+			if (bIsSimulator)
+			{
+				MinOSVersion = TEXT("-miphonesimulator-version-min=17.0");
+			}
+			else
+			{
+				MinOSVersion = TEXT("-mios-version-min=17.0");
+			}
         }
         else
         {
@@ -862,7 +875,14 @@ void CompileShader_Metal(const FShaderCompilerInput& _Input,FShaderCompilerOutpu
         }
         else if (bIsMobile)
         {
-            MinOSVersion = TEXT("-mios-version-min=16.0");
+			if (bIsSimulator)
+			{
+				MinOSVersion = TEXT("-miphonesimulator-version-min=16.0");
+			}
+			else
+			{
+				MinOSVersion = TEXT("-mios-version-min=16.0");
+			}
         }
         else
         {
@@ -878,7 +898,14 @@ void CompileShader_Metal(const FShaderCompilerInput& _Input,FShaderCompilerOutpu
 		}
 		else if (bIsMobile)
 		{
-			MinOSVersion = TEXT("-mios-version-min=15.0");
+			if (bIsSimulator)
+			{
+				MinOSVersion = TEXT("-miphonesimulator-version-min=15.0");
+			}
+			else
+			{
+				MinOSVersion = TEXT("-mios-version-min=15.0");
+			}
 		}
 		else
 		{
@@ -893,7 +920,14 @@ void CompileShader_Metal(const FShaderCompilerInput& _Input,FShaderCompilerOutpu
 		}
 		else if (bIsMobile)
 		{
-			MinOSVersion = TEXT("-mios-version-min=15.0");
+			if (bIsSimulator)
+			{
+				MinOSVersion = TEXT("-miphonesimulator-version-min=15.0");
+			}
+			else
+			{
+				MinOSVersion = TEXT("-mios-version-min=15.0");
+			}
 		}
 		else
 		{
@@ -914,7 +948,14 @@ void CompileShader_Metal(const FShaderCompilerInput& _Input,FShaderCompilerOutpu
 		}
 		else if (bIsMobile)
 		{
-			MinOSVersion = TEXT("-mios-version-min=15.0");
+			if (bIsSimulator)
+			{
+				MinOSVersion = TEXT("-miphonesimulator-version-min=15.0");
+			}
+			else
+			{
+				MinOSVersion = TEXT("-mios-version-min=15.0");
+			}
 		}
 		else
 		{
