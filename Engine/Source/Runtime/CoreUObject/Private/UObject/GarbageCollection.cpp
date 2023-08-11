@@ -59,6 +59,7 @@ CSV_DEFINE_CATEGORY_MODULE(COREUOBJECT_API, GC, true);
 
 /** Allows release builds to override not verifying GC assumptions. Useful for profiling as it's hitchy. */
 extern COREUOBJECT_API bool GShouldVerifyGCAssumptionsOnFullPurge;
+extern COREUOBJECT_API float GVerifyGCAssumptionsChance;
 
 /** Object count during last mark phase																				*/
 FThreadSafeCounter		GObjectCountDuringLastMarkPhase;
@@ -259,6 +260,14 @@ static FAutoConsoleVariableRef CVarVerifyNoUnreachableObjects(
 	ECVF_Default
 );
 #endif // VERIFY_DISREGARD_GC_ASSUMPTIONS
+
+static bool GForceEnableDebugGCProcessor = 0;
+static FAutoConsoleVariableRef CVarForceEnableDebugGCProcessor(
+	TEXT("gc.ForceEnableGCProcessor"),
+	GForceEnableDebugGCProcessor,
+	TEXT("Force garbage collection to use the debug processor which may provide additional information during GC crashes."),
+	ECVF_Default
+);
 
 namespace UE::GC
 {
@@ -3211,10 +3220,12 @@ public:
 	TDebugReachabilityProcessor()
 	: bTrackGarbage(GGarbageReferenceTrackingEnabled != 0)
 	, bTrackHistory(FGCHistory::Get().IsActive())
+	, bForceEnable(GForceEnableDebugGCProcessor  != 0)
 	{}
 	
 	bool TracksHistory() const { return bTrackHistory; }
 	bool TracksGarbage() const { return bTrackGarbage; }
+	bool IsForceEnabled() const { return bForceEnable; }
 
 	FORCENOINLINE void HandleTokenStreamObjectReference(FWorkerContext& Context, const UObject* ReferencingObject, UObject*& Object, FMemberId MemberId, EOrigin Origin, bool bAllowReferenceElimination)
 	{
@@ -3251,6 +3262,7 @@ private:
 	const FPermanentObjectPoolExtents PermanentPool;
 	const bool bTrackGarbage;
 	const bool bTrackHistory;
+	const bool bForceEnable;
 
 	FORCENOINLINE static void HandleGarbageReference(FWorkerContext& Context, const UObject* ReferencingObject, UObject*& Object, FMemberId MemberId)
 	{
@@ -3621,7 +3633,8 @@ class FRealtimeGC : public FGarbageCollectionTracer
 
 #if !UE_BUILD_SHIPPING
 		TDebugReachabilityProcessor<Options> DebugProcessor;
-		if (DebugProcessor.TracksHistory() | 
+		if (DebugProcessor.IsForceEnabled() |
+			DebugProcessor.TracksHistory() | 
 			DebugProcessor.TracksGarbage() & Stats.bFoundGarbageRef)
 		{
 			CollectReferencesForGC<TDebugReachabilityCollector<Options>>(DebugProcessor, Context);
@@ -4865,7 +4878,8 @@ void PreCollectGarbageImpl(EObjectFlags KeepFlags)
 
 #if VERIFY_DISREGARD_GC_ASSUMPTIONS
 			// Only verify assumptions if option is enabled. This avoids false positives in the Editor or commandlets.
-			if (GShouldVerifyGCAssumptions || (bPerformFullPurge && GShouldVerifyGCAssumptionsOnFullPurge))
+			bool bShouldRandomlyVerifyGCAssumptions = GVerifyGCAssumptionsChance != 0.0 && FMath::FRand() < GVerifyGCAssumptionsChance;
+			if (GShouldVerifyGCAssumptions || (bPerformFullPurge && GShouldVerifyGCAssumptionsOnFullPurge) || bShouldRandomlyVerifyGCAssumptions)
 			{
 				DECLARE_SCOPE_CYCLE_COUNTER(TEXT("CollectGarbageInternal.VerifyGCAssumptions"), STAT_CollectGarbageInternal_VerifyGCAssumptions, STATGROUP_GC);
 				const double StartTime = FPlatformTime::Seconds();
