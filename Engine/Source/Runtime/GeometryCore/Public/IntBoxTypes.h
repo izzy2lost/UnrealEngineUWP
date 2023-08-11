@@ -102,6 +102,15 @@ struct FAxisAlignedBox2i
 			FVector2i(-TNumericLimits<int32>::Max(), -TNumericLimits<int32>::Max()));
 	}
 
+	bool operator==(const FAxisAlignedBox2i& Other) const
+	{
+		return Max == Other.Max && Min == Other.Min;
+	}
+	bool operator!=(const FAxisAlignedBox2i& Other) const
+	{
+		return Max != Other.Max || Min != Other.Min;
+	}
+
 	/**
 	 * Corners are ordered to follow the perimeter of the bounding rectangle, starting from the (Min.X, Min.Y) corner and ending at (Min.X, Max.Y)
 	 * @param Index which corner to return, must be in range [0,3]
