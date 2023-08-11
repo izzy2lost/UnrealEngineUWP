@@ -64,7 +64,12 @@ namespace EpicGames.Horde.Compute
 		/// <summary>
 		/// Execute a process in a sandbox (Initiator -> Remote)
 		/// </summary>
-		Execute = 0x16,
+		ExecuteV1 = 0x16,
+		
+		/// <summary>
+		/// Execute a process in a sandbox (Initiator -> Remote)
+		/// </summary>
+		ExecuteV2 = 0x22,
 
 		/// <summary>
 		/// Returns output from the child process to the caller (Remote -> Initiator)
@@ -105,6 +110,24 @@ namespace EpicGames.Horde.Compute
 		XorResponse = 0xf1,
 
 		#endregion
+	}
+	
+	/// <summary>
+	/// Flags describing how to execute a compute task process on the agent
+	/// </summary>
+	[Flags]
+	public enum ExecuteProcessFlags
+	{
+		/// <summary>
+		/// No execute flags set
+		/// </summary>
+		None = 0,
+		
+		/// <summary>
+		/// Request execution to be wrapped under Wine when running on Linux.
+		/// Agent still reserves the right to refuse it (e.g no Wine executable configured, mismatching OS etc)
+		/// </summary>
+		UseWine = 1,
 	}
 
 	/// <summary>
@@ -207,7 +230,8 @@ namespace EpicGames.Horde.Compute
 	/// <param name="Arguments">Arguments for the executable</param>
 	/// <param name="WorkingDir">Working directory to execute in</param>
 	/// <param name="EnvVars">Environment variables for the child process. Null values unset variables.</param>
-	public record struct ExecuteProcessMessage(string Executable, IReadOnlyList<string> Arguments, string? WorkingDir, IReadOnlyDictionary<string, string?> EnvVars);
+	/// <param name="Flags">Additional execution flags</param>
+	public record struct ExecuteProcessMessage(string Executable, IReadOnlyList<string> Arguments, string? WorkingDir, IReadOnlyDictionary<string, string?> EnvVars, ExecuteProcessFlags Flags);
 
 	/// <summary>
 	/// Response from executing a child process
@@ -402,7 +426,7 @@ namespace EpicGames.Horde.Compute
 		}
 
 		/// <summary>
-		/// Executes a remote process
+		/// Executes a remote process (using ExecuteV1)
 		/// </summary>
 		/// <param name="channel">Current channel</param>
 		/// <param name="executable">Executable to run, relative to the sandbox root</param>
@@ -412,7 +436,7 @@ namespace EpicGames.Horde.Compute
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public static async Task<AgentManagedProcess> ExecuteAsync(this AgentMessageChannel channel, string executable, IReadOnlyList<string> arguments, string? workingDir, IReadOnlyDictionary<string, string?>? envVars, CancellationToken cancellationToken = default)
 		{
-			using (IAgentMessageBuilder request = await channel.CreateMessageAsync(AgentMessageType.Execute, cancellationToken))
+			using (IAgentMessageBuilder request = await channel.CreateMessageAsync(AgentMessageType.ExecuteV1, cancellationToken))
 			{
 				request.WriteString(executable);
 				request.WriteList(arguments, MemoryWriterExtensions.WriteString);
@@ -422,17 +446,54 @@ namespace EpicGames.Horde.Compute
 			}
 			return new AgentManagedProcess(channel);
 		}
+		
+		/// <summary>
+		/// Executes a remote process (using ExecuteV2)
+		/// </summary>
+		/// <param name="channel">Current channel</param>
+		/// <param name="executable">Executable to run, relative to the sandbox root</param>
+		/// <param name="arguments">Arguments for the child process</param>
+		/// <param name="workingDir">Working directory for the process</param>
+		/// <param name="envVars">Environment variables for the child process</param>
+		/// <param name="flags">Additional execution flags</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public static async Task<AgentManagedProcess> ExecuteAsync(this AgentMessageChannel channel, string executable, IReadOnlyList<string> arguments, string? workingDir, IReadOnlyDictionary<string, string?>? envVars, ExecuteProcessFlags flags = ExecuteProcessFlags.None, CancellationToken cancellationToken = default)
+		{
+			using (IAgentMessageBuilder request = await channel.CreateMessageAsync(AgentMessageType.ExecuteV2, cancellationToken))
+			{
+				request.WriteString(executable);
+				request.WriteList(arguments, MemoryWriterExtensions.WriteString);
+				request.WriteOptionalString(workingDir);
+				request.WriteDictionary(envVars ?? new Dictionary<string, string?>(), MemoryWriterExtensions.WriteString, MemoryWriterExtensions.WriteOptionalString);
+				request.WriteInt32((int)flags);
+				request.Send();
+			}
+			return new AgentManagedProcess(channel);
+		}
 
 		/// <summary>
 		/// Parses a message as a <see cref="ExecuteProcessMessage"/>
 		/// </summary>
-		public static ExecuteProcessMessage ParseExecuteProcessMessage(this AgentMessage message)
+		public static ExecuteProcessMessage ParseExecuteProcessV1Message(this AgentMessage message)
 		{
 			string executable = message.ReadString();
 			List<string> arguments = message.ReadList(MemoryReaderExtensions.ReadString);
 			string? workingDir = message.ReadOptionalString();
 			Dictionary<string, string?> envVars = message.ReadDictionary(MemoryReaderExtensions.ReadString, MemoryReaderExtensions.ReadOptionalString);
-			return new ExecuteProcessMessage(executable, arguments, workingDir, envVars);
+			return new ExecuteProcessMessage(executable, arguments, workingDir, envVars, ExecuteProcessFlags.None);
+		}
+		
+		/// <summary>
+		/// Parses a message as a <see cref="ExecuteProcessMessage"/>
+		/// </summary>
+		public static ExecuteProcessMessage ParseExecuteProcessV2Message(this AgentMessage message)
+		{
+			string executable = message.ReadString();
+			List<string> arguments = message.ReadList(MemoryReaderExtensions.ReadString);
+			string? workingDir = message.ReadOptionalString();
+			Dictionary<string, string?> envVars = message.ReadDictionary(MemoryReaderExtensions.ReadString, MemoryReaderExtensions.ReadOptionalString);
+			ExecuteProcessFlags flags = (ExecuteProcessFlags)message.ReadInt32();
+			return new ExecuteProcessMessage(executable, arguments, workingDir, envVars, flags);
 		}
 
 		/// <summary>

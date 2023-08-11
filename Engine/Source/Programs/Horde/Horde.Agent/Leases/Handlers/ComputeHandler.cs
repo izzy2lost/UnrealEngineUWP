@@ -14,6 +14,7 @@ using Horde.Agent.Services;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Horde.Agent.Leases.Handlers
 {
@@ -60,15 +61,17 @@ namespace Horde.Agent.Leases.Handlers
 
 		readonly ComputeListenerService _listenerService;
 		readonly IMemoryCache _memoryCache;
+		readonly AgentSettings _settings;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ComputeHandler(ComputeListenerService listenerService, IMemoryCache memoryCache, ILogger<ComputeHandler> logger)
+		public ComputeHandler(ComputeListenerService listenerService, IMemoryCache memoryCache, IOptions<AgentSettings> settings, ILogger<ComputeHandler> logger)
 		{
 			_listenerService = listenerService;
 			_memoryCache = memoryCache;
+			_settings = settings.Value;
 			_logger = logger;
 		}
 
@@ -110,7 +113,7 @@ namespace Horde.Agent.Leases.Handlers
 								Dictionary<string, string?> newEnvVars = new Dictionary<string, string?>();
 								newEnvVars["UE_HORDE_SHARED_DIR"] = sharedDir.FullName;
 
-								AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, _memoryCache, newEnvVars, false, _logger);
+								AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, _memoryCache, newEnvVars, false, _settings.WineExecutablePath, _logger);
 								await worker.RunAsync(socket, cts.Token);
 								await socket.CloseAsync(cts.Token);
 								return LeaseResult.Success;

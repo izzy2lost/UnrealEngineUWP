@@ -110,7 +110,7 @@ namespace RemoteClient
 				using ComputeChannel childProcessChannel = lease.Socket.CreateChannel(ChildProcessChannelId);
 				await using BackgroundTask tickTask = BackgroundTask.StartNew(ctx => WriteNumbersAsync(childProcessChannel, logger, ctx));
 
-				await using (AgentManagedProcess process = await channel.ExecuteAsync(executable, arguments, null, null))
+				await using (AgentManagedProcess process = await channel.ExecuteAsync(executable, arguments, null, null, ExecuteProcessFlags.None))
 				{
 					string? line;
 					while ((line = await process.ReadLineAsync()) != null)

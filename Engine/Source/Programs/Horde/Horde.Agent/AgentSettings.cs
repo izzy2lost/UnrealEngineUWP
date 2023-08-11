@@ -230,6 +230,11 @@ namespace Horde.Agent
 		/// List of process names to terminate after a lease completes, but not after a job step
 		/// </summary>
 		public List<ProcessToTerminate> ProcessesToTerminate { get; } = new List<ProcessToTerminate>();
+		
+		/// <summary>
+		/// Path to Wine executable. Set to null to disable.
+		/// </summary>
+		public string? WineExecutablePath { get; set; }
 
 		/// <summary>
 		/// Whether to write step output to the logging device

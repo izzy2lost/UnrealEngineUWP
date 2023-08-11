@@ -26,6 +26,7 @@ namespace EpicGames.Horde.Compute
 		readonly IMemoryCache _memoryCache;
 		readonly Dictionary<string, string?> _envVars;
 		readonly bool _executeInProcess;
+		readonly string? _wineExecutablePath;
 		readonly ILogger _logger;
 
 		/// <summary>
@@ -35,13 +36,15 @@ namespace EpicGames.Horde.Compute
 		/// <param name="memoryCache">Cache for nodes read from storage</param>
 		/// <param name="envVars">Environment variables to set for any child processes</param>
 		/// <param name="executeInProcess">Whether to execute any external assemblies in the current process</param>
+		/// <param name="wineExecutablePath">Path to Wine executable. If null, execution under Wine is disabled</param>
 		/// <param name="logger">Logger for diagnostics</param>
-		public AgentMessageHandler(DirectoryReference sandboxDir, IMemoryCache memoryCache, Dictionary<string, string?>? envVars, bool executeInProcess, ILogger logger)
+		public AgentMessageHandler(DirectoryReference sandboxDir, IMemoryCache memoryCache, Dictionary<string, string?>? envVars, bool executeInProcess, string? wineExecutablePath, ILogger logger)
 		{
 			_sandboxDir = sandboxDir;
 			_memoryCache = memoryCache;
 			_envVars = envVars ?? new Dictionary<string, string?>();
 			_executeInProcess = executeInProcess;
+			_wineExecutablePath = wineExecutablePath;
 			_logger = logger;
 		}
 
@@ -93,10 +96,16 @@ namespace EpicGames.Horde.Compute
 								DeleteFiles(deleteFiles.Filter);
 							}
 							break;
-						case AgentMessageType.Execute:
+						case AgentMessageType.ExecuteV1:
 							{
-								ExecuteProcessMessage executeProcess = message.ParseExecuteProcessMessage();
-								await ExecuteProcessAsync(socket, channel, executeProcess.Executable, executeProcess.Arguments, executeProcess.WorkingDir, executeProcess.EnvVars, cancellationToken);
+								ExecuteProcessMessage executeProcess = message.ParseExecuteProcessV1Message();
+								await ExecuteProcessAsync(socket, channel, executeProcess.Executable, executeProcess.Arguments, executeProcess.WorkingDir, executeProcess.EnvVars, executeProcess.Flags, cancellationToken);
+							}
+							break;
+						case AgentMessageType.ExecuteV2:
+							{
+								ExecuteProcessMessage executeProcess = message.ParseExecuteProcessV2Message();
+								await ExecuteProcessAsync(socket, channel, executeProcess.Executable, executeProcess.Arguments, executeProcess.WorkingDir, executeProcess.EnvVars, executeProcess.Flags, cancellationToken);
 							}
 							break;
 						case AgentMessageType.XorRequest:
@@ -159,17 +168,17 @@ namespace EpicGames.Horde.Compute
 			}
 		}
 
-		async Task ExecuteProcessAsync(ComputeSocket socket, AgentMessageChannel channel, string executable, IReadOnlyList<string> arguments, string? workingDir, IReadOnlyDictionary<string, string?>? envVars, CancellationToken cancellationToken)
+		async Task ExecuteProcessAsync(ComputeSocket socket, AgentMessageChannel channel, string executable, IReadOnlyList<string> arguments, string? workingDir, IReadOnlyDictionary<string, string?>? envVars, ExecuteProcessFlags flags, CancellationToken cancellationToken)
 		{
 			try
 			{
 				if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 				{
-					await ExecuteProcessWindowsAsync(socket, channel, executable, arguments, workingDir, envVars, cancellationToken);
+					await ExecuteProcessWindowsAsync(socket, channel, executable, arguments, workingDir, envVars, flags, cancellationToken);
 				}
 				else
 				{
-					await ExecuteProcessInternalAsync(channel, executable, arguments, workingDir, envVars, cancellationToken);
+					await ExecuteProcessInternalAsync(channel, executable, arguments, workingDir, envVars, flags, cancellationToken);
 				}
 			}
 			catch (Exception ex)
@@ -178,7 +187,7 @@ namespace EpicGames.Horde.Compute
 			}
 		}
 
-		async Task ExecuteProcessWindowsAsync(ComputeSocket socket, AgentMessageChannel channel, string executable, IReadOnlyList<string> arguments, string? workingDir, IReadOnlyDictionary<string, string?>? envVars, CancellationToken cancellationToken)
+		async Task ExecuteProcessWindowsAsync(ComputeSocket socket, AgentMessageChannel channel, string executable, IReadOnlyList<string> arguments, string? workingDir, IReadOnlyDictionary<string, string?>? envVars, ExecuteProcessFlags flags, CancellationToken cancellationToken)
 		{
 			Dictionary<string, string?> newEnvVars = new Dictionary<string, string?>(_envVars);
 			if (envVars != null)
@@ -199,7 +208,7 @@ namespace EpicGames.Horde.Compute
 					_logger.LogInformation("Launching {Executable} {Arguments}", CommandLineArguments.Quote(executable), CommandLineArguments.Join(arguments));
 					try
 					{
-						await ExecuteProcessInternalAsync(channel, executable, arguments, workingDir, newEnvVars, cancellationToken);
+						await ExecuteProcessInternalAsync(channel, executable, arguments, workingDir, newEnvVars, flags, cancellationToken);
 					}
 					finally
 					{
@@ -282,7 +291,7 @@ namespace EpicGames.Horde.Compute
 			}
 		}
 
-		async Task ExecuteProcessInternalAsync(AgentMessageChannel channel, string executable, IReadOnlyList<string> arguments, string? workingDir, IReadOnlyDictionary<string, string?>? envVars, CancellationToken cancellationToken)
+		async Task ExecuteProcessInternalAsync(AgentMessageChannel channel, string executable, IReadOnlyList<string> arguments, string? workingDir, IReadOnlyDictionary<string, string?>? envVars, ExecuteProcessFlags flags, CancellationToken cancellationToken)
 		{
 			string resolvedExecutable = FileReference.Combine(_sandboxDir, executable).FullName;
 			string resolvedWorkingDir = DirectoryReference.Combine(_sandboxDir, workingDir ?? String.Empty).FullName;
@@ -328,6 +337,13 @@ namespace EpicGames.Horde.Compute
 			else
 			{
 				string resolvedCommandLine = CommandLineArguments.Join(arguments);
+
+				if (flags.HasFlag(ExecuteProcessFlags.UseWine) && _wineExecutablePath != null)
+				{
+					// Path to the original Windows executable is prepended to the argument list so Wine can run it
+					resolvedCommandLine = CommandLineArguments.Join(new[] { resolvedExecutable }.Concat(arguments).ToList());
+					resolvedExecutable = _wineExecutablePath;
+				}
 
 				Dictionary<string, string> resolvedEnvVars = ManagedProcess.GetCurrentEnvVars();
 				if (envVars != null)
