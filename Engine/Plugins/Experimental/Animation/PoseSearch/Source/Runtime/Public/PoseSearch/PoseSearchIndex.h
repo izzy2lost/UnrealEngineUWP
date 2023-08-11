@@ -36,7 +36,7 @@ public:
 	{
 		// checking for overflowing inputs
 		check(InValueOffset < (1 << ValueOffsetNumBits));
-		check(InValueOffset < (1 << AssetIndexNumBits));
+		check(InAssetIndex < (1 << AssetIndexNumBits));
 	}
 
 	bool IsBlockTransition() const
