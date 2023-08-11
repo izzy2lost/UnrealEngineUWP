@@ -178,12 +178,12 @@ struct MASSREPRESENTATION_API FMassISMCSharedData
 
 	void RemoveUpdatedInstanceIdsAtSwap(const int32 InstanceIDIndex)
 	{
-		UpdateInstanceIds.RemoveAtSwap(InstanceIDIndex);
-		StaticMeshInstanceTransforms.RemoveAtSwap(InstanceIDIndex);
-		StaticMeshInstancePrevTransforms.RemoveAtSwap(InstanceIDIndex);
+		UpdateInstanceIds.RemoveAtSwap(InstanceIDIndex, 1, /*bAllowShrinking=*/false);
+		StaticMeshInstanceTransforms.RemoveAtSwap(InstanceIDIndex, 1, /*bAllowShrinking=*/false);
+		StaticMeshInstancePrevTransforms.RemoveAtSwap(InstanceIDIndex, 1, /*bAllowShrinking=*/false);
 		if (StaticMeshInstanceCustomFloats.Num())
 		{
-			StaticMeshInstanceCustomFloats.RemoveAtSwap(InstanceIDIndex);
+			StaticMeshInstanceCustomFloats.RemoveAtSwap(InstanceIDIndex, 1, /*bAllowShrinking=*/false);
 		}
 	}
 

@@ -472,8 +472,10 @@ void UMassVisualizationComponent::HandleChangesWithExternalIDTracking(UInstanced
 			{
 				for (int32 IDIndex = InstanceIds.Num() - 1; IDIndex >= 0; --IDIndex)
 				{
-					if (!ensure(!ISMComponent.InstanceIdToInstanceIndexMap.Find(InstanceIds[IDIndex])))
+					if (ISMComponent.InstanceIdToInstanceIndexMap.Find(InstanceIds[IDIndex]))
 					{
+						// note that it's safe to remove elements, even though we iterate over and array view 
+						// because RemoveUpdatedInstanceIdsAtSwap makes sure no memory is reallocated (using bAllowShrinking = false)
 						SharedData.RemoveUpdatedInstanceIdsAtSwap(IDIndex);
 						bDataRemoved = true;
 					}
