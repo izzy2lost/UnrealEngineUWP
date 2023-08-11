@@ -6,6 +6,8 @@ using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
+using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Serialization;
 
@@ -56,6 +58,21 @@ namespace Horde.Server.Ddc
 
 		/// <inheritdoc cref="IoHash.op_Inequality"/>
 		public static bool operator !=(BlobId left, BlobId right) => !(left == right);
+
+		/// <summary>
+		/// Constructs a BlobId from a hash
+		/// </summary>
+		public static BlobId FromIoHash(IoHash hash) => new BlobId(hash);
+
+		/// <summary>
+		/// Creates a BlobId from a data stream
+		/// </summary>
+		public static async Task<BlobId> FromStreamAsync(Stream stream, CancellationToken cancellationToken) => FromIoHash(await IoHash.ComputeAsync(stream, cancellationToken));
+
+		/// <summary>
+		/// Converts a BlobId to an IoHash
+		/// </summary>
+		public IoHash AsIoHash() => Hash;
 	}
 
 	/// <summary>

@@ -216,7 +216,8 @@ namespace Horde.Server.Ddc
 		[RequiredContentType(MediaTypeNames.Application.Octet)]
 		[DisableRequestSizeLimit]
 		public async Task<IActionResult> PostAsync(
-			[Required] NamespaceId ns)
+			[Required] NamespaceId ns,
+			CancellationToken cancellationToken)
 		{
 			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.WriteBlobs });
 			if (result != null)
@@ -231,7 +232,7 @@ namespace Horde.Server.Ddc
 
 				await using Stream stream = payload.GetStream();
 
-				BlobId id = new BlobId(await IoHash.ComputeAsync(stream));
+				BlobId id = await BlobId.FromStreamAsync(stream, cancellationToken);
 				await _storage.PutObjectKnownHashAsync(ns, payload, id);
 
 				return Ok(new

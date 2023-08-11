@@ -29,7 +29,7 @@ namespace Horde.Server.Ddc
 
 		public override IoHash AsIoHash()
 		{
-			return Identifier.Hash;
+			return Identifier.AsIoHash();
 		}
 	}
 
@@ -44,7 +44,7 @@ namespace Horde.Server.Ddc
 
 		public override IoHash AsIoHash()
 		{
-			return Identifier.Hash;
+			return Identifier.AsIoHash();
 		}
 	}
 
@@ -61,7 +61,7 @@ namespace Horde.Server.Ddc
 
 		public override IoHash AsIoHash()
 		{
-			return Identifier.Hash;
+			return Identifier.AsIoHash();
 		}
 	}
 
@@ -119,8 +119,8 @@ namespace Horde.Server.Ddc
 					{
 						IoHash attachmentHash = field.AsAttachment();
 
-						BlobId blobIdentifier = new BlobId(attachmentHash);
-						ContentId contentId = new ContentId(attachmentHash);
+						BlobId blobIdentifier = BlobId.FromIoHash(attachmentHash);
+						ContentId contentId = ContentId.FromIoHash(attachmentHash);
 
 						if (field.IsBinaryAttachment())
 						{
@@ -152,7 +152,7 @@ namespace Horde.Server.Ddc
 						try
 						{
 							(contentId, resolvedBlobs) = await pendingContentIdResolve;
-							blobIdentifier = new BlobId(contentId.Hash);
+							blobIdentifier = contentId.AsBlobIdentifier();
 							wasContentId = !(resolvedBlobs is { Length: 1 } && resolvedBlobs[0].Equals(blobIdentifier));
 						}
 						catch (InvalidContentIdException)

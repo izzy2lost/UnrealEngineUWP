@@ -81,13 +81,57 @@ namespace Horde.Server.Ddc
 	}
 
 	/// <summary>
+	/// Helper to generate a filesystem buffered payload from a stream 
+	/// </summary>
+	sealed class FilesystemBufferedPayloadWriter : IDisposable
+	{
+		private FileInfo? _tempFile;
+
+		public FilesystemBufferedPayloadWriter()
+		{
+			_tempFile = new FileInfo(Path.GetTempFileName());
+		}
+
+		public void Dispose()
+		{
+			if (_tempFile is { Exists: true })
+			{
+				_tempFile.Delete();
+			}
+		}
+
+		public FilesystemBufferedPayload Done()
+		{
+			if (_tempFile == null)
+			{
+				throw new Exception("Writable buffer already closed once");
+			}
+
+			FilesystemBufferedPayload payload = new FilesystemBufferedPayload(_tempFile);
+			// transfer ownership of the temp file to the filesystem buffered payload
+			_tempFile = null;
+			return payload;
+		}
+
+		public Stream GetWritableStream()
+		{
+			if (_tempFile == null)
+			{
+				throw new Exception("Writable buffer was closed when fetching writable stream");
+			}
+
+			return _tempFile.OpenWrite();
+		}
+	}
+
+	/// <summary>
 	/// A streaming request backed by a temporary file on disk
 	/// </summary>
 	public sealed class FilesystemBufferedPayload : BufferedPayload
 	{
 		private readonly FileInfo _tempFile;
 
-		private FilesystemBufferedPayload(FileInfo tempFile)
+		internal FilesystemBufferedPayload(FileInfo tempFile)
 			: base(tempFile.Length)
 		{
 			_tempFile = tempFile;

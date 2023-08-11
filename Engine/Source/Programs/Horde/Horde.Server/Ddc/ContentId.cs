@@ -53,6 +53,26 @@ namespace Horde.Server.Ddc
 
 		/// <inheritdoc cref="IoHash.op_Inequality"/>
 		public static bool operator !=(ContentId left, ContentId right) => !(left == right);
+
+		/// <summary>
+		/// Constructs a ContentId from an IoHash
+		/// </summary>
+		public static ContentId FromIoHash(IoHash hash) => new ContentId(hash);
+
+		/// <summary>
+		/// Constructs a ContentId from an IoHash
+		/// </summary>
+		public static ContentId FromBlobId(BlobId blobId) => FromIoHash(blobId.AsIoHash());
+
+		/// <summary>
+		/// Converts a ContentId to IoHash
+		/// </summary>
+		public IoHash AsIoHash() => Hash;
+
+		/// <summary>
+		/// Converts a ContentId to BlobId
+		/// </summary>
+		public BlobId AsBlobIdentifier() => BlobId.FromIoHash(Hash);
 	}
 
 	/// <summary>

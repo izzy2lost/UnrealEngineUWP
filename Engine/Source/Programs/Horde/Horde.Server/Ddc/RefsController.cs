@@ -174,7 +174,7 @@ namespace Horde.Server.Ddc
 
 								IoHash hash = binaryAttachmentField.AsBinaryAttachment();
 
-								BlobContents referencedBlobContents = await _blobStore.GetObjectAsync(ns, new BlobId(hash));
+								BlobContents referencedBlobContents = await _blobStore.GetObjectAsync(ns, BlobId.FromIoHash(hash));
 
 								if (_nginxRedirectHelper.CanRedirect(Request, referencedBlobContents))
 								{
@@ -212,7 +212,7 @@ namespace Horde.Server.Ddc
 							IAsyncEnumerable<Attachment> attachments = _referenceResolver.GetAttachmentsAsync(ns, cb);
 
 							using CbPackageBuilder writer = new CbPackageBuilder();
-							writer.AddAttachment(objectRecord.BlobIdentifier.Hash, CbPackageAttachmentFlags.IsObject, blobMemory);
+							writer.AddAttachment(objectRecord.BlobIdentifier.AsIoHash(), CbPackageAttachmentFlags.IsObject, blobMemory);
 
 							await Parallel.ForEachAsync(attachments, async (attachment, token) =>
 							{
@@ -627,12 +627,12 @@ namespace Horde.Server.Ddc
 							// TODO: convert the json object into a compact binary instead
 							CbWriter writer = new CbWriter();
 							writer.BeginObject();
-							writer.WriteBinaryAttachmentValue(blobHeader.Hash);
+							writer.WriteBinaryAttachmentValue(blobHeader.AsIoHash());
 							writer.EndObject();
 
 							byte[] blob = writer.ToByteArray();
 							payloadObject = new CbObject(blob);
-							blobHeader = new BlobId(IoHash.Compute(blob));
+							blobHeader = BlobId.FromBlob(blob);
 							break;
 						}
 					case CustomMediaTypeNames.UnrealCompactBinary:
@@ -649,13 +649,13 @@ namespace Horde.Server.Ddc
 
 							CbWriter writer = new CbWriter();
 							writer.BeginObject();
-							writer.WriteBinaryAttachment("RawHash", blobHeader.Hash);
+							writer.WriteBinaryAttachment("RawHash", blobHeader.AsIoHash());
 							writer.WriteInteger("RawSize", payload.Length);
 							writer.EndObject();
 
 							byte[] blob = writer.ToByteArray();
 							payloadObject = new CbObject(blob);
-							blobHeader = new BlobId(IoHash.Compute(blob));
+							blobHeader = BlobId.FromBlob(blob);
 							break;
 						}
 					default:
@@ -716,11 +716,11 @@ namespace Horde.Server.Ddc
 					if (entry.Flags.HasFlag(CbPackageAttachmentFlags.IsCompressed))
 					{
 						using MemoryBufferedPayload payload = new MemoryBufferedPayload(blob);
-						await _blobStore.PutCompressedObjectAsync(ns, payload, new ContentId(entry.AttachmentHash), HttpContext.RequestServices);
+						await _blobStore.PutCompressedObjectAsync(ns, payload, ContentId.FromIoHash(entry.AttachmentHash), HttpContext.RequestServices, cancellationToken);
 					}
 					else
 					{
-						await _blobStore.PutObjectAsync(ns, blob, new BlobId(entry.AttachmentHash), cancellationToken);
+						await _blobStore.PutObjectAsync(ns, blob, BlobId.FromIoHash(entry.AttachmentHash), cancellationToken);
 					}
 				}
 			}
@@ -733,7 +733,7 @@ namespace Horde.Server.Ddc
 			}
 
 			CbObject rootObject = packageReader.RootObject;
-			BlobId rootObjectHash = new BlobId(packageReader.RootHash);
+			BlobId rootObjectHash = BlobId.FromIoHash(packageReader.RootHash);
 
 			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, bucket, key, rootObjectHash, rootObject, cancellationToken);
 			return Ok(new PutObjectResponse(missingReferences, missingBlobs));

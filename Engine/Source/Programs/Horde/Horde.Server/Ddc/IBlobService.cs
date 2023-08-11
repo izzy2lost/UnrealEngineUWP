@@ -97,7 +97,7 @@ namespace Horde.Server.Ddc
 
 	public static class BlobServiceExtensions
 	{
-		public static async Task<ContentId> PutCompressedObjectAsync(this IBlobService blobService, NamespaceId ns, BufferedPayload payload, ContentId? id, IServiceProvider provider)
+		public static async Task<ContentId> PutCompressedObjectAsync(this IBlobService blobService, NamespaceId ns, BufferedPayload payload, ContentId? id, IServiceProvider provider, CancellationToken cancellationToken)
 		{
 			IContentIdService contentIdStore = provider.GetService<IContentIdService>()!;
 			CompressedBufferUtils compressedBufferUtils = provider.GetService<CompressedBufferUtils>()!;
@@ -105,26 +105,32 @@ namespace Horde.Server.Ddc
 
 			// decompress the content and generate a identifier from it to verify the identifier we got
 			await using Stream decompressStream = payload.GetStream();
-			// TODO: we should add a overload for decompress content that can work on streams, otherwise we are still limited to 2GB compressed blobs
-			byte[] decompressedContent = compressedBufferUtils.DecompressContent(await decompressStream.ToByteArrayAsync());
 
-			IoHash decompressedHash;
-			using (TelemetrySpan _ = tracer.StartActiveSpan("web.hash").SetAttribute("operation.name", "web.hash"))
-			{
-				decompressedHash = IoHash.Compute(decompressedContent);
-			}
-			if (id != null && id.Value.Hash != decompressedHash)
-			{
-				throw new HashMismatchException(decompressedHash, id.Value.Hash);
-			}
+			using BufferedPayload bufferedPayload = await compressedBufferUtils.DecompressContentAsync(decompressStream, (ulong)payload.Length, cancellationToken);
+			await using Stream decompressedStream = bufferedPayload.GetStream();
 
-			ContentId identifierDecompressedPayload = new ContentId(decompressedHash);
+			ContentId identifierDecompressedPayload;
+			if (id != null)
+			{
+				await blobService.VerifyContentMatchesHashAsync(decompressedStream, id.Value.AsIoHash(), cancellationToken);
+				identifierDecompressedPayload = id.Value;
+			}
+			else
+			{
+				BlobId blobHash;
+				{
+					using TelemetrySpan _ = tracer.StartActiveSpan("web.hash").SetAttribute("operation.name", "web.hash");
+					blobHash = await BlobId.FromStreamAsync(decompressedStream, cancellationToken);
+				}
+
+				identifierDecompressedPayload = ContentId.FromBlobId(blobHash);
+			}
 
 			BlobId identifierCompressedPayload;
 			{
 				using TelemetrySpan _ = tracer.StartActiveSpan("web.hash").SetAttribute("operation.name", "web.hash");
 				await using Stream hashStream = payload.GetStream();
-				identifierCompressedPayload = new BlobId(await IoHash.ComputeAsync(hashStream));
+				identifierCompressedPayload = await BlobId.FromStreamAsync(hashStream, cancellationToken);
 			}
 
 			// commit the mapping from the decompressed hash to the compressed hash, we run this in parallel with the blob store submit
@@ -134,7 +140,7 @@ namespace Horde.Server.Ddc
 
 			// we still commit the compressed buffer to the object store using the hash of the compressed content
 			{
-				await blobService.PutObjectKnownHashAsync(ns, payload, identifierCompressedPayload);
+				await blobService.PutObjectKnownHashAsync(ns, payload, identifierCompressedPayload, cancellationToken);
 			}
 
 			await contentIdStoreTask;
