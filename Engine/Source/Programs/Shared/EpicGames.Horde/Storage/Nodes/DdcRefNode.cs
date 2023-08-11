@@ -10,18 +10,31 @@ namespace Horde.Server.Ddc
 	/// A node containing ref data
 	/// </summary>
 	[NodeType("{0C7E5F25-454B-4B55-9B4A-F4635106D074}", 1)]
-	class RefNode : Node
+	public class DdcRefNode : Node
 	{
+		/// <summary>
+		/// Hash of the root node
+		/// </summary>
 		public IoHash RootHash { get; }
+
+		/// <summary>
+		/// References to attachments
+		/// </summary>
 		public List<(IoHash Hash, BlobHandle Handle)> References { get; }
 
-		public RefNode(IoHash rootHash)
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public DdcRefNode(IoHash rootHash)
 		{
 			RootHash = rootHash;
 			References = new List<(IoHash, BlobHandle)>();
 		}
 
-		public RefNode(NodeReader reader)
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public DdcRefNode(NodeReader reader)
 		{
 			RootHash = reader.ReadIoHash();
 			References = reader.ReadList(x => (reader.ReadIoHash(), reader.ReadNodeHandle()));

@@ -81,7 +81,10 @@ namespace Horde.Server.Ddc
 					throw new BlobNotFoundException(ns, blobHash);
 				}
 
-				await storageClient.WriteRefTargetAsync(GetRefName(bucket, key), handle, cancellationToken: cancellationToken);
+				DdcRefNode refNode = new DdcRefNode(blobHash.Hash);
+				refNode.References.Add((blobHash.Hash, handle));
+
+				await storageClient.WriteNodeAsync(GetRefName(bucket, key), refNode, cancellationToken: cancellationToken);
 			}
 
 			return (Array.Empty<ContentId>(), missingBlobIds.ToArray());
@@ -91,21 +94,24 @@ namespace Horde.Server.Ddc
 		{
 			IStorageClient storageClient = await _storageService.GetClientAsync(ns, cancellationToken);
 
-			RefNode? node = await storageClient.TryReadNodeAsync<RefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
+			DdcRefNode? node = await storageClient.TryReadNodeAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
 			if (node == null)
 			{
 				throw new RefNotFoundException(ns, bucket, key);
 			}
 
-			RefRecord record = new RefRecord(ns, bucket, key, DateTime.UtcNow, null, new BlobId(node.RootHash), false);
-			return (record, null);
+			BlobData data = await node.References.First(x => x.Hash == node.RootHash).Handle.ReadAsync(cancellationToken);
+			BlobContents contents = new BlobContents(data.Data.ToArray());
+
+			RefRecord record = new RefRecord(ns, bucket, key, DateTime.UtcNow, null, new BlobId(node.RootHash), true);
+			return (record, contents);
 		}
 
 		public async Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
 			IStorageClient storageClient = await _storageService.GetClientAsync(ns, cancellationToken);
 
-			RefNode? node = await storageClient.TryReadNodeAsync<RefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
+			DdcRefNode? node = await storageClient.TryReadNodeAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
 			if (node == null)
 			{
 				throw new RefNotFoundException(ns, bucket, key);

@@ -60,7 +60,6 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 		}
 	}
 
-	[Ignore]
 	[TestClass]
     public class ReferencesTests : ControllerIntegrationTest
     {
@@ -86,7 +85,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 			ConfigService configService = ServiceProvider.GetRequiredService<ConfigService>();
 			configService.Set(IoHash.Zero, globalConfig);
 
-			Service = ServiceProvider.GetRequiredService<IBlobService>();
+//			Service = ServiceProvider.GetRequiredService<IBlobService>();
 //			ReferencesStore = ServiceProvider.GetRequiredService<IRefService>();
 		}
 
@@ -200,7 +199,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-        [TestMethod]
+		[Ignore]
+		[TestMethod]
         public async Task PutGetCompactBinaryAsync()
         {
             CbWriter writer = new CbWriter();
@@ -286,8 +286,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-        
-        [TestMethod]
+		[Ignore]
+		[TestMethod]
         public async Task PutGetCompactBinaryFilteringAsync()
         {
             CbWriter writer = new CbWriter();
@@ -345,7 +345,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-        [TestMethod]
+		[Ignore]
+		[TestMethod]
         public async Task PutLargeCompactBinaryAsync()
         {
             byte[] data = await File.ReadAllBytesAsync($"Objects/Payloads/lyra.cb");
@@ -364,7 +365,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             Assert.AreEqual(4924, needsField.Count);
         }
 
-        [TestMethod]
+		[Ignore]
+		[TestMethod]
         public async Task PutGetCompactBinaryHierarchyAsync()
         {
             CbWriter childObjectWriter = new CbWriter();
@@ -514,7 +516,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-        [TestMethod]
+		[TestMethod]
         public async Task ExistsChecksAsync()
         {
             const string objectContents = "This is treated as a opaque blob";
@@ -543,7 +545,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-        [TestMethod]
+		[TestMethod]
         public async Task ExistsChecksMultipleAsync()
         {
             BucketId bucket = new BucketId("bucket");
@@ -577,7 +579,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-        [TestMethod]
+		[Ignore]
+		[TestMethod]
         public async Task PutGetObjectHierarchyAsync()
         {
             string blobContents = "This is a string that is referenced as a blob";
@@ -735,8 +738,9 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
                 Assert.AreEqual(childDataObjectHash, BlobId.Parse(node["objectAttachment"]!.GetValue<string>()));
             }
         }
-        
-        [TestMethod]
+
+		[Ignore]
+		[TestMethod]
         public async Task PutPartialHierarchyAsync()
         {
             // do not submit the content of the blobs, which should be reported in the response of the put
@@ -822,8 +826,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-        
-        [TestMethod]
+		[Ignore]
+		[TestMethod]
         public async Task PutContentIdMissingBlobAsync()
         {
             IContentIdService? contentIdStore = ServiceProvider.GetService<IContentIdService>();
@@ -900,8 +904,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-        
-        [TestMethod]
+		[Ignore]
+		[TestMethod]
         public async Task PutMissingAttachmentComplexAsync()
         {
             string blobContents = "This is a string that is referenced as a blob but will not be uploaded";
@@ -948,7 +952,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-        [TestMethod]
+		[Ignore]
+		[TestMethod]
         public async Task PutAndFinalizeAsync()
         {
             BucketId bucket = new BucketId("bucket");
@@ -1050,7 +1055,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-        [TestMethod]
+		[Ignore]
+		[TestMethod]
         public async Task GetMissingContentIdRecordAsync()
         {
             string blobContents = "This is a blob";
@@ -1160,7 +1166,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-        [TestMethod]
+		[Ignore]
+		[TestMethod]
         public async Task GetMissingCompressedBufferAttachmentAsync()
         {
             CbObject cbObjectAttachment = CbObject.Build(writer => writer.WriteString("ValueField", "This field has a value"));
@@ -1264,7 +1271,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-        [TestMethod]
+		[Ignore]
+		[TestMethod]
         public async Task GetMissingBlobRecordAsync()
         {
             string blobContents = "This is a blob";
@@ -1369,7 +1377,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-        [TestMethod]
+		[Ignore]
+		[TestMethod]
         public async Task DeleteObjectAsync()
         {
             const string objectContents = "This is treated as a opaque blob";
@@ -1412,8 +1421,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-        
-        [TestMethod]
+		[Ignore]
+		[TestMethod]
         public async Task DropBucketAsync()
         {
             const string BucketToDelete = "delete-bucket";
@@ -1470,8 +1479,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-        
-        [TestMethod]
+		[Ignore]
+		[TestMethod]
         public async Task DeleteNamespaceAsync()
         {
             const string NamespaceToBeDeleted = "test-delete-namespace";
@@ -1537,8 +1546,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-        
-        [TestMethod]
+		[Ignore]
+		[TestMethod]
         public async Task ListNamespacesAsync()
         {
             const string objectContents = "This is treated as a opaque blob";
@@ -1565,8 +1574,9 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
                 Assert.IsTrue(response.Namespaces.Contains(TestNamespace));
             }
         }
-        
-        [TestMethod]
+
+		[Ignore]
+		[TestMethod]
         public async Task GetOldRecordsAsync()
         {
             const string objectContents = "This is treated as a opaque blob";
@@ -1590,8 +1600,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             Assert.AreEqual(key, oldName);
             Assert.AreEqual("bucket", oldBucket.ToString());
         }
-        
-        [TestMethod]
+
+		[TestMethod]
         public async Task BatchJsonRequestAsync()
         {
             // verifies that json request against the batch endpoint will fail
@@ -1605,7 +1615,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-        [TestMethod]
+		[TestMethod]
         public async Task BatchErrorOperationsAsync()
         {
             // seed some data
@@ -1678,7 +1688,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-        [TestMethod]
+		[TestMethod]
         public async Task BatchGetOperationsAsync()
         {
             // seed some data
@@ -1823,7 +1833,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-        [TestMethod]
+		[TestMethod]
         public async Task BatchHeadOperationsAsync()
         {
             // seed some data
@@ -1939,7 +1949,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-        [TestMethod]
+		[TestMethod]
         public async Task BatchPutOperationsAsync()
         {
             BucketId bucket = new BucketId("bucket");
@@ -2014,7 +2024,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-        [TestMethod]
+		[TestMethod]
         public async Task BatchMixedOperationsAsync()
         {
             // seed some data

@@ -105,6 +105,8 @@ using EpicGames.Horde;
 using EpicGames.Horde.Api;
 using EpicGames.Horde.Storage.Bundles;
 using Horde.Server.Ddc;
+using System.Net.Mime;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Horde.Server
 {
@@ -789,7 +791,21 @@ namespace Horde.Server
 				options.InputFormatters.Add(new CbInputFormatter());
 				options.OutputFormatters.Add(new CbOutputFormatter());
 				options.OutputFormatters.Insert(0, new CbPreferredOutputFormatter());
+				options.OutputFormatters.Add(new RawOutputFormatter(NullLogger.Instance));
+				options.FormatterMappings.SetMediaTypeMappingForFormat("raw", MediaTypeNames.Application.Octet);
 				options.FormatterMappings.SetMediaTypeMappingForFormat("uecb", CustomMediaTypeNames.UnrealCompactBinary);
+				options.FormatterMappings.SetMediaTypeMappingForFormat("uecbpkg", CustomMediaTypeNames.UnrealCompactBinaryPackage);
+			}).ConfigureApiBehaviorOptions(options =>
+			{
+				options.InvalidModelStateResponseFactory = context =>
+				{
+					BadRequestObjectResult result = new BadRequestObjectResult(context.ModelState);
+					// always return errors as json objects
+					// we could allow more types here, but we do not want raw for instance
+					result.ContentTypes.Add(MediaTypeNames.Application.Json);
+
+					return result;
+				};
 			});
 
 			services.AddSwaggerGen(config =>
