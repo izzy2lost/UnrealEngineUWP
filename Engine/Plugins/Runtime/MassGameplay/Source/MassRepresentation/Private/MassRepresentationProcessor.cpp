@@ -43,7 +43,7 @@ void UMassRepresentationProcessor::ConfigureQueries()
 	EntityQuery.AddSubsystemRequirement<UMassActorSubsystem>(EMassFragmentAccess::ReadWrite);
 }
 
-void UMassRepresentationProcessor::UpdateRepresentation(FMassExecutionContext& Context)
+void UMassRepresentationProcessor::UpdateRepresentation(FMassExecutionContext& Context, const FMassRepresentationUpdateParams& Params)
 {
 	UMassRepresentationSubsystem* RepresentationSubsystem = Context.GetMutableSharedFragment<FMassRepresentationSubsystemSharedFragment>().RepresentationSubsystem;
 	check(RepresentationSubsystem);
@@ -78,8 +78,9 @@ void UMassRepresentationProcessor::UpdateRepresentation(FMassExecutionContext& C
 		EMassRepresentationType WantedRepresentationType = RepresentationParams.LODRepresentation[FMath::Min((int32)RepresentationLOD.LOD, (int32)EMassLOD::Off)];
 
 		// Make sure we do not have actor spawned in areas not fully loaded
-		if ((WantedRepresentationType == EMassRepresentationType::HighResSpawnedActor || WantedRepresentationType == EMassRepresentationType::LowResSpawnedActor) &&
-			!RepresentationSubsystem->IsCollisionLoaded(RepresentationParams.WorldPartitionGridNameContainingCollision, TransformFragment.GetTransform()))
+		if (Params.bTestCollisionAvailibilityForActorVisualization
+			&& (WantedRepresentationType == EMassRepresentationType::HighResSpawnedActor || WantedRepresentationType == EMassRepresentationType::LowResSpawnedActor) 
+			&& !RepresentationSubsystem->IsCollisionLoaded(RepresentationParams.WorldPartitionGridNameContainingCollision, TransformFragment.GetTransform()))
 		{
 			WantedRepresentationType = RepresentationParams.CachedDefaultRepresentationType;
 		}
@@ -241,7 +242,7 @@ void UMassRepresentationProcessor::Execute(FMassEntityManager& InEntityManager, 
 	// Update entities representation
 	EntityQuery.ForEachEntityChunk(InEntityManager, Context, [this](FMassExecutionContext& Context)
 	{
-		UpdateRepresentation(Context);
+		UpdateRepresentation(Context, UpdateParams);
 	});
 }
 
@@ -293,7 +294,7 @@ void UMassVisualizationProcessor::UpdateVisualization(FMassExecutionContext& Con
 		return;
 	}
 
-	UpdateRepresentation(Context);
+	UpdateRepresentation(Context, UpdateParams);
 
 	// Update entity visibility
 	const TArrayView<FMassRepresentationFragment> RepresentationList = Context.GetMutableFragmentView<FMassRepresentationFragment>();
@@ -374,11 +375,15 @@ void UMassVisualizationProcessor::UpdateEntityVisibility(const FMassEntityHandle
 
 void UMassVisualizationProcessor::Execute(FMassEntityManager& InEntityManager, FMassExecutionContext& Context)
 {
+	int32 TotalEntitiesProcessed = 0;
 	// Update entities visualization
-	EntityQuery.ForEachEntityChunk(InEntityManager, Context, [this](FMassExecutionContext& Context)
+	EntityQuery.ForEachEntityChunk(InEntityManager, Context, [this, &TotalEntitiesProcessed](FMassExecutionContext& Context)
 	{
+		TotalEntitiesProcessed += Context.GetNumEntities();
 		UpdateVisualization(Context);
 	});
+
+	UE_VLOG(this, LogMassRepresentation, Verbose, TEXT("UMassVisualizationProcessor::Execute processed %d entites"), TotalEntitiesProcessed);
 }
 
 //----------------------------------------------------------------------//

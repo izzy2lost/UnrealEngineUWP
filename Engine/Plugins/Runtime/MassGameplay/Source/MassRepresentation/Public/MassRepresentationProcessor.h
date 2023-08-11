@@ -19,6 +19,20 @@ namespace UE::Mass::Representation
 	extern MASSREPRESENTATION_API int32 bAllowKeepActorExtraFrame;
 }
 
+USTRUCT()
+struct FMassRepresentationUpdateParams
+{
+	GENERATED_BODY()
+
+	/** 
+	 * Controls whether UpdateRepresentation run will ask the RepresentationSubsystem whether the relevant world 
+	 * collision has been already loaded while considering switching an entity to a actor-level representation. Note that
+	 * the test is unnecessary for static nor stationary entities.
+	 */
+	UPROPERTY(config, EditDefaultsOnly, Category = "Mass")
+	bool bTestCollisionAvailibilityForActorVisualization = true;
+};
+
 UCLASS()
 class MASSREPRESENTATION_API UMassRepresentationProcessor : public UMassProcessor
 {
@@ -31,7 +45,7 @@ public:
 	 * Update representation type for each entity, must be called within a ForEachEntityChunk
 	 * @param Context of the execution from the entity sub system
 	 */
-	static void UpdateRepresentation(FMassExecutionContext& Context);
+	static void UpdateRepresentation(FMassExecutionContext& Context, const FMassRepresentationUpdateParams& Params);
 
 protected:
 
@@ -61,6 +75,9 @@ protected:
 		, FMassCommandBuffer& CommandBuffer, const bool bCancelSpawningOnly = false);
 
 	FMassEntityQuery EntityQuery;
+
+	UPROPERTY(config, EditDefaultsOnly, Category = "Mass")
+	FMassRepresentationUpdateParams UpdateParams;
 };
 
 	
