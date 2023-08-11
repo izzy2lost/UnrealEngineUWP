@@ -55,6 +55,7 @@ public:
 	ENGINE_API void OnPackageDeleted(UPackage* Package);
 	ENGINE_API void OnObjectsReplaced(const TMap<UObject*, UObject*>& OldToNewObjectMap);
 	ENGINE_API void OnClassDescriptorUpdated(const FWorldPartitionActorDesc* InClassDesc);
+	ENGINE_API void OnActorDestroyed(AActor* Actor);
 
 	FName GetContainerPackage() const { return ContainerPackageName; }
 	void SetContainerPackage(const FName& InContainerPackageName) { ContainerPackageName = InContainerPackageName; }
@@ -110,6 +111,8 @@ public:
 	FGuid ContentBundleGuid;
 
 	TArray<FAssetData> InvalidActors;
+
+	FDelegateHandle OnActorDestroyedHandle;
 
 protected:
 	FNameActorDescMap ActorsByName;
