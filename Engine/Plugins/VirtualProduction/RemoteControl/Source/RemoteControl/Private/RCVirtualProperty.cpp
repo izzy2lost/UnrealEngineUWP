@@ -88,7 +88,7 @@ const FPropertyBagPropertyDesc* URCVirtualPropertyBase::GetBagPropertyDesc() con
 const FInstancedPropertyBag* URCVirtualPropertyBase::GetPropertyBagInstance() const
 {
 	// That is should be implemented in child classes
-	check(nullptr);
+	check(false);
 	return nullptr;
 }
 
