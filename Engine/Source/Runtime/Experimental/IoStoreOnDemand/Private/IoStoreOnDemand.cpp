@@ -14,6 +14,7 @@
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CoreDelegates.h"
+#include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Modules/ModuleManager.h"
 #include "Serialization/Archive.h"
@@ -27,7 +28,6 @@
 #include "Async/Async.h"
 #include "HAL/PlatformFileManager.h"
 #include "IO/IoStore.h"
-#include "Misc/FileHelper.h"
 #include "S3/S3Client.h"
 #endif // (PLATFORM_DESKTOP && (IS_PROGRAM || WITH_EDITOR))
 
@@ -84,6 +84,71 @@ static bool ParseEncryptionKeyParam(const FString& Param, FGuid& OutKeyGuid, FAE
 	}
 	
 	return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+static bool ApplyEncryptionKeyFromString(const FString& GuidKeyPair)
+{
+	FGuid KeyGuid;
+	FAES::FAESKey Key;
+
+	if (ParseEncryptionKeyParam(GuidKeyPair, KeyGuid, Key))
+	{
+		// TODO: PAK and I/O store should share key manager
+		UE::FEncryptionKeyManager::Get().AddKey(KeyGuid, Key);
+		FCoreDelegates::GetRegisterEncryptionKeyMulticastDelegate().Broadcast(KeyGuid, Key);
+
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+static bool ParseConfigFile(const FString& ConfigPath, UE::FOnDemandEndpoint& OutEndpoint)
+{
+	FString ConfigContent;
+	if (!FFileHelper::LoadFileToString(ConfigContent, &IPlatformFile::GetPlatformPhysical(), *ConfigPath))
+	{
+		return false;
+	}
+
+	if (!ConfigContent.IsEmpty())
+	{
+		const FString ConfigFileName = FPaths::GetCleanFilename(ConfigPath);
+
+		FConfigFile Config;
+		Config.ProcessInputFileContents(ConfigContent, ConfigFileName);
+
+		Config.GetString(TEXT("Endpoint"), TEXT("DistributionUrl"), OutEndpoint.DistributionUrl);
+		Config.GetString(TEXT("Endpoint"), TEXT("ServiceUrl"), OutEndpoint.ServiceUrl);
+		Config.GetString(TEXT("Endpoint"), TEXT("TocPath"), OutEndpoint.TocPath);
+
+		if (OutEndpoint.DistributionUrl.EndsWith(TEXT("/")))
+		{
+			OutEndpoint.DistributionUrl = OutEndpoint.DistributionUrl.Left(OutEndpoint.DistributionUrl.Len() - 1);
+		}
+
+		if (OutEndpoint.ServiceUrl.EndsWith(TEXT("/")))
+		{
+			OutEndpoint.ServiceUrl = OutEndpoint.DistributionUrl.Left(OutEndpoint.ServiceUrl.Len() - 1);
+		}
+
+		if (OutEndpoint.TocPath.StartsWith(TEXT("/")))
+		{
+			OutEndpoint.TocPath.RightChopInline(1);
+		}
+
+		FString ContentKey;
+		if (Config.GetString(TEXT("Endpoint"), TEXT("ContentKey"), ContentKey))
+		{
+			ApplyEncryptionKeyFromString(ContentKey);
+		}
+	}
+
+	return OutEndpoint.IsValid();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1255,6 +1320,81 @@ FIoStatus DownloadContainerFiles(const FIoStoreDownloadParams& DownloadParams, c
 
 	return FIoStatus::Ok;
 }
+
+class FMyRequest : public FIoRequestImpl
+{
+public:
+
+	static FMyRequest* CreateRequest(const FIoChunkId& ChunkId)
+	{
+		return nullptr;
+	}
+};
+
+FIoStatus PrimeEndPoint(FStringView IoStoreOnDemandIniPath)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(PrimeEndPoint);
+
+	using namespace UE::IO::Private;
+
+	UE::FOnDemandEndpoint EndPoint;
+	if (!ParseConfigFile(FString(IoStoreOnDemandIniPath), EndPoint))
+	{
+		return FIoStatus(EIoErrorCode::Unknown, TEXT("Failed to parse config file"));
+	}
+
+	EndPoint.EndpointType = UE::EOnDemandEndpointType::CDN;
+
+	TSharedPtr <UE::IOnDemandIoDispatcherBackend> Backend = UE::MakeOnDemandIoDispatcherBackend(nullptr);
+	Backend->Mount(EndPoint);
+
+	check(!FIoDispatcher::IsInitialized()); // Assume this is only run in standalone programs that have not
+											// yet setup the IoDispatcher
+	FIoDispatcher::Initialize();
+	FIoDispatcher::InitializePostSettings();
+	ON_SCOPE_EXIT
+	{
+		FIoDispatcher::Shutdown();
+	};
+
+	FIoDispatcher::Get().Mount(Backend.ToSharedRef(), MAX_int32);
+
+	if (!Backend->FlushDeferedEndPoints(30.0))
+	{
+		// TODO: Real error value
+		return FIoStatus(EIoErrorCode::Unknown, TEXT("Unable to connect to endpoint"));
+	}
+
+	UE_LOG(LogIas, Display, TEXT("Finding on demand chunks..."));
+	TArray<FIoChunkId> Chunks = Backend->GetAllChunkIds();
+	
+	UE_LOG(LogIas, Display, TEXT("Found %d chunks"), Chunks.Num());
+
+	std::atomic<int32> CompletedRequests = 0;
+	FIoBatch Batch;
+	for (const FIoChunkId& ChunkId : Chunks)
+	{
+		Batch.ReadWithCallback(ChunkId, FIoReadOptions(), IoDispatcherPriority_Medium,
+			[&](TIoStatusOr<FIoBuffer> Result)
+			{
+				CompletedRequests++;
+			});
+	}
+
+	UE_LOG(LogIas, Display, TEXT("Priming all chunks for endpoint..."));
+
+	FEventRef BatchCompleted;
+	Batch.IssueAndTriggerEvent(BatchCompleted.Get());
+	
+	while (!BatchCompleted->Wait(FTimespan::FromSeconds(5.0)))
+	{
+		UE_LOG(LogIas, Display, TEXT("Completed %d/%d"), CompletedRequests.load(), Chunks.Num());
+	}
+
+	UE_LOG(LogIas, Display, TEXT("All chunks primed!"));
+
+	return FIoStatus::Ok;
+}
 #endif // (PLATFORM_DESKTOP && (IS_PROGRAM || WITH_EDITOR))
 
 } // namespace UE
@@ -1317,14 +1457,7 @@ void FIoStoreOnDemandModule::StartupModule()
 		FString EncryptionKey;
 		if (FParse::Value(CommandLine, TEXT("Ias.EncryptionKey="), EncryptionKey))
 		{
-			FGuid KeyGuid;
-			FAES::FAESKey Key;
-			if (ParseEncryptionKeyParam(EncryptionKey, KeyGuid, Key))
-			{
-				// TODO: PAK and I/O store should share key manager
-				UE::FEncryptionKeyManager::Get().AddKey(KeyGuid, Key);
-				FCoreDelegates::GetRegisterEncryptionKeyMulticastDelegate().Broadcast(KeyGuid, Key);
-			}
+			ApplyEncryptionKeyFromString(EncryptionKey);
 		}
 	}
 
@@ -1332,46 +1465,9 @@ void FIoStoreOnDemandModule::StartupModule()
 	{
 		Endpoint = UE::FOnDemandEndpoint();
 		FString ConfigFileName = TEXT("IoStoreOnDemand.ini");
-		FString ConfigPath = FPaths::Combine(TEXT("Cloud"), ConfigFileName);
-		FString ConfigContent = FPlatformMisc::LoadTextFileFromPlatformPackage(ConfigPath);
+		FString ConfigPath = FPaths::Combine(FPaths::RootDir(), TEXT("Cloud"), ConfigFileName);
 
-		if (ConfigContent.Len())
-		{
-			FConfigFile Config;
-			Config.ProcessInputFileContents(ConfigContent, ConfigFileName);
-
-			Config.GetString(TEXT("Endpoint"), TEXT("DistributionUrl"), Endpoint.DistributionUrl);
-			Config.GetString(TEXT("Endpoint"), TEXT("ServiceUrl"), Endpoint.ServiceUrl);
-			Config.GetString(TEXT("Endpoint"), TEXT("TocPath"), Endpoint.TocPath);
-			
-			if (Endpoint.DistributionUrl.EndsWith(TEXT("/")))
-			{
-				Endpoint.DistributionUrl = Endpoint.DistributionUrl.Left(Endpoint.DistributionUrl.Len() - 1);
-			}
-			
-			if (Endpoint.ServiceUrl.EndsWith(TEXT("/")))
-			{
-				Endpoint.ServiceUrl = Endpoint.DistributionUrl.Left(Endpoint.ServiceUrl.Len() - 1);
-			}
-
-			if (Endpoint.TocPath.StartsWith(TEXT("/")))
-			{
-				Endpoint.TocPath.RightChopInline(1);
-			}
-
-			FString ContentKey;
-			if (Config.GetString(TEXT("Endpoint"), TEXT("ContentKey"), ContentKey))
-			{
-				FGuid KeyGuid;
-				FAES::FAESKey Key;
-				if (ParseEncryptionKeyParam(ContentKey, KeyGuid, Key))
-				{
-					// TODO: PAK and I/O store should share key manager
-					UE::FEncryptionKeyManager::Get().AddKey(KeyGuid, Key);
-					FCoreDelegates::GetRegisterEncryptionKeyMulticastDelegate().Broadcast(KeyGuid, Key);
-				}
-			}
-		}
+		ParseConfigFile(ConfigPath, Endpoint);
 	}
 
 	if (!Endpoint.IsValid())

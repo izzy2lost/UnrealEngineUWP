@@ -177,7 +177,7 @@ void FDistributionEndpoints::ResolveDeferredEndpoints()
 void FDistributionEndpoints::IssueEndpointRequests()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::IssueEndpointRequests);
-	// Currenlty we need to use the HTTP module in order to resolve service endpoints due to HTTPS
+	// Currently we need to use the HTTP module in order to resolve service endpoints due to HTTPS
 	FHttpModule& HttpModule = FModuleManager::LoadModuleChecked<FHttpModule>("HTTP");
 	const int32 MaxAttempts = GIoDispatcherMaxHttpRetryCount;
 
@@ -475,6 +475,8 @@ public:
 	TIoStatusOr<uint64> GetChunkSize(const FIoChunkId& ChunkId);
 	FChunkInfo GetChunkInfo(const FIoChunkId& ChunkId);
 
+	TArray<FIoChunkId> GetAllChunkIds(bool bIncludeOptionalChunks);
+
 private:
 	void AddDeferredContainers();
 	void OnEncryptionKeyAdded(const FGuid& Id, const FAES::FAESKey& Key);
@@ -576,6 +578,33 @@ FOnDemandIoStore::FChunkInfo FOnDemandIoStore::GetChunkInfo(const FIoChunkId& Ch
 	}
 
 	return {};
+}
+
+TArray<FIoChunkId> FOnDemandIoStore::GetAllChunkIds(bool bIncludeOptionalChunks)
+{
+	FReadScopeLock _(Lock);
+
+	TArray<FIoChunkId> ChunkIds;
+	int32 NumChunks = 0;
+	for (const FContainer* Container : RegisteredContainers)
+	{
+		NumChunks += Container->TocEntries.Num();
+	}
+
+	ChunkIds.Reserve(NumChunks);
+
+	for (const FContainer* Container : RegisteredContainers)
+	{
+		for (const TPair<FIoChunkId, FTocEntry>& Entry : Container->TocEntries)
+		{
+			if (bIncludeOptionalChunks || Entry.Key.GetChunkType() != EIoChunkType::OptionalBulkData)
+			{
+				ChunkIds.Add(Entry.Key);
+			}
+		}
+	}
+
+	return ChunkIds;
 }
 
 void FOnDemandIoStore::AddDeferredContainers()
@@ -1104,6 +1133,11 @@ public:
 	virtual void SetBulkOptionalEnabled(bool bInEnabled) override;
 	virtual void SetEnabled(bool bInEnabled) override;
 
+#if IS_PROGRAM || WITH_EDITOR
+	virtual bool FlushDeferedEndPoints(double TimeOut = 0.0) override;
+	virtual TArray<FIoChunkId> GetAllChunkIds() override;
+#endif // IS_PROGRAM || WITH_EDITOR
+
 	// Runnable
 	virtual bool Init() override { return true; }
 	virtual void Stop() override { bStopRequested = true; }
@@ -1464,6 +1498,45 @@ void FOnDemandIoBackend::SetEnabled(bool bInEnabled)
 {
 	bEnabled = bInEnabled;
 }
+
+#if IS_PROGRAM || WITH_EDITOR
+bool FOnDemandIoBackend::FlushDeferedEndPoints(double TimeOut)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::FlushDeferedEndPoints);
+
+	FHttpManager& HttpManager = FHttpModule::Get().GetHttpManager();
+
+	const double StartTime = FPlatformTime::Seconds();
+
+	while (!DeferredEndpoints.IsEmpty())
+	{
+		HttpManager.Tick(0.0);
+		FPlatformProcess::SleepNoStats(0.0f);
+
+		if (TimeOut > 0.0 && (FPlatformTime::Seconds() - StartTime) > TimeOut)
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+TArray<FIoChunkId> FOnDemandIoBackend::GetAllChunkIds()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::GetAllChunkIds);
+
+	if (!IoStore.IsValid() || !bEnabled)
+	{
+		return TArray<FIoChunkId>();
+	}
+
+	const bool bAllowOptional = GIoDispatcherBulkOptionalEnabled && bEnableBulkOptional;
+
+	return IoStore->GetAllChunkIds(bAllowOptional);
+}
+
+#endif // IS_PROGRAM || WITH_EDITOR
 
 TIoStatusOr<FOnDemandToc> FOnDemandIoBackend::GetToc(FHttpClient& HttpClient, const FString& TocPath)
 {

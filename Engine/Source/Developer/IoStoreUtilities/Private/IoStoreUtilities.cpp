@@ -8599,3 +8599,14 @@ bool DownloadIoStoreContainerFiles(const TCHAR* TocPath)
 
 	return Status.IsOk();
 }
+
+bool PrimeEndPoint(FStringView IoStoreOnDemandIniPath)
+{
+	FIoStatus Status = UE::PrimeEndPoint(IoStoreOnDemandIniPath);
+	if (Status.IsOk() == false)
+	{
+		UE_LOG(LogIoStore, Error, TEXT("Failed to prime end points, reason '%s'"), *Status.ToString());
+	}
+
+	return Status.IsOk();
+}

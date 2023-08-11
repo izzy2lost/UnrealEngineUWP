@@ -5467,6 +5467,11 @@ bool ExecuteUnrealPak(const TCHAR* CmdLine)
 		{
 			return DownloadIoStoreContainerFiles(*IoStoreArg) == 0;
 		}
+
+		if (FParse::Value(CmdLine, TEXT("-PrimeEndPoint="), IoStoreArg))
+		{
+			return PrimeEndPoint(*IoStoreArg) == 0;
+		}
 	}
 
 	// Parse all the non-option arguments from the command line

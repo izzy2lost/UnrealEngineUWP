@@ -56,3 +56,10 @@ IOSTOREUTILITIES_API bool SignIoStoreContainer(const TCHAR* InContainerFilename,
 IOSTOREUTILITIES_API bool UploadIoStoreContainerFiles(const TCHAR* ContainerPathOrWildcard); 
 
 IOSTOREUTILITIES_API bool DownloadIoStoreContainerFiles(const TCHAR* TocPath);
+
+/**
+ * Attempts to connect to the endpoint in the provided ini file, download all
+ * available tocs and then download all chunks in those tocs. This will
+ * pre-warm the CDN and allow testing closer to the end users experience.
+ */
+IOSTOREUTILITIES_API bool PrimeEndPoint(FStringView IoStoreOnDemandIniPath);

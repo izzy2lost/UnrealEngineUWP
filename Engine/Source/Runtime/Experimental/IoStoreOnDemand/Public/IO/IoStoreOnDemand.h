@@ -164,6 +164,8 @@ struct FIoStoreDownloadParams
 
 UE_API FIoStatus DownloadContainerFiles(const FIoStoreDownloadParams& DownloadParams, const FString& TocPath);
 
+UE_API FIoStatus PrimeEndPoint(FStringView IoStoreOnDemandIniPath);
+
 #endif // (IS_PROGRAM || WITH_EDITOR)
 
 } // namespace UE
