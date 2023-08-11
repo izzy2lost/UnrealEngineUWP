@@ -492,6 +492,7 @@ struct FLandscapeLayersHeightmapShaderParameters
 		, LayerVisible(true)
 		, LayerBlendMode(LSBM_AdditiveBlend)
 		, GenerateNormals(false)
+		, OverrideBoundaryNormals(false) // HACK [chris.tchou] remove once we have a better boundary normal solution
 		, GridSize(0.0f, 0.0f, 0.0f)
 		, CurrentMipSize(0, 0)
 		, ParentMipSize(0, 0)
@@ -507,6 +508,7 @@ struct FLandscapeLayersHeightmapShaderParameters
 	bool LayerVisible;
 	ELandscapeBlendMode LayerBlendMode;
 	bool GenerateNormals;
+	bool OverrideBoundaryNormals; // HACK [chris.tchou] remove once we have a better boundary normal solution
 	FVector GridSize;
 	FIntPoint CurrentMipSize;
 	FIntPoint ParentMipSize;
@@ -548,10 +550,16 @@ public:
 	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FLandscapeLayersHeightmapShaderParameters& InParams)
 	{
 		SetTextureParameter(BatchedParameters, ReadTexture1Param, ReadTexture1SamplerParam, TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI(), InParams.ReadHeightmap1->GetResource()->TextureRHI);
-		SetTextureParameter(BatchedParameters, ReadTexture2Param, ReadTexture2SamplerParam, TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI(), InParams.ReadHeightmap2 != nullptr ? InParams.ReadHeightmap2->GetResource()->TextureRHI : GWhiteTexture->TextureRHI);
+		SetTextureParameter(BatchedParameters, ReadTexture2Param, ReadTexture2SamplerParam, 
+			(InParams.GenerateNormals && InParams.OverrideBoundaryNormals) 					// HACK [chris.tchou] remove once we have a better boundary normal solution
+				? TStaticSamplerState<SF_Point, AM_Wrap, AM_Wrap, AM_Wrap>::GetRHI()		// override boundary normals requires wrap mode
+				: TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI(),
+			InParams.ReadHeightmap2 != nullptr ? InParams.ReadHeightmap2->GetResource()->TextureRHI : GWhiteTexture->TextureRHI);
 
 		FVector4f LayerInfo(InParams.LayerAlpha, InParams.LayerVisible ? 1.0f : 0.0f, InParams.LayerBlendMode == LSBM_AlphaBlend ? 1.0f : 0.f, 0.f);
-		FVector4f OutputConfig(InParams.ApplyLayerModifiers ? 1.0f : 0.0f, InParams.SetAlphaOne ? 1.0f : 0.0f, InParams.ReadHeightmap2 ? 1.0f : 0.0f, InParams.GenerateNormals ? 1.0f : 0.0f);
+		FVector4f OutputConfig(InParams.ApplyLayerModifiers ? 1.0f : 0.0f, InParams.SetAlphaOne ? 1.0f : 0.0f,
+			(InParams.ReadHeightmap2 && !InParams.OverrideBoundaryNormals) ? 1.0f : 0.0f,			// HACK [chris.tchou] remove once we have a better boundary normal solution
+			InParams.GenerateNormals ? (InParams.OverrideBoundaryNormals ? 2.0f : 1.0f) : 0.0f);	// HACK [chris.tchou] remove once we have a better boundary normal solution
 		FVector2f TextureSize(static_cast<float>(InParams.HeightmapSize.X), static_cast<float>(InParams.HeightmapSize.Y));
 
 		SetShaderValue(BatchedParameters, LayerInfoParam, LayerInfo);
@@ -4796,6 +4804,7 @@ int32 ALandscape::PerformLayersHeightmapsGlobalMerge(const FUpdateLayersContentC
 	FLandscapeLayersHeightmapShaderParameters ShaderParams;
 
 	bool FirstLayer = true;
+	bool bHasBoundaryNormalCopy = false;	// HACK [chris.tchou] remove once we have a better boundary normal solution
 	UTextureRenderTarget2D* CombinedHeightmapAtlasRT = HeightmapRTList[(int32)EHeightmapRTType::HeightmapRT_CombinedAtlas];
 	UTextureRenderTarget2D* CombinedHeightmapNonAtlasRT = HeightmapRTList[(int32)EHeightmapRTType::HeightmapRT_CombinedNonAtlas];
 	UTextureRenderTarget2D* LandscapeScratchRT1 = HeightmapRTList[(int32)EHeightmapRTType::HeightmapRT_Scratch1];
@@ -4864,7 +4873,7 @@ int32 ALandscape::PerformLayersHeightmapsGlobalMerge(const FUpdateLayersContentC
 				FLandscapeBrushParameters BrushParameters(ELandscapeToolTargetType::Heightmap, CombinedHeightmapNonAtlasRT);
 
 				UTextureRenderTarget2D* BrushOutputNonAtlasRT = Brush.RenderLayer(LandscapeExtent, BrushParameters);
-				if ((BrushOutputNonAtlasRT == nullptr) 
+				if ((BrushOutputNonAtlasRT == nullptr)
 					|| (BrushOutputNonAtlasRT->SizeX != CombinedHeightmapNonAtlasRT->SizeX)
 					|| (BrushOutputNonAtlasRT->SizeY != CombinedHeightmapNonAtlasRT->SizeY))
 				{
@@ -4877,6 +4886,20 @@ int32 ALandscape::PerformLayersHeightmapsGlobalMerge(const FUpdateLayersContentC
 				INC_DWORD_STAT(STAT_LandscapeLayersRegenerateDrawCalls); // Brush Render
 
 				PrintLayersDebugRT(FString::Printf(TEXT("LS Height: %s %s -> BrushNonAtlas %s"), *Layer.Name.ToString(), *LandscapeBrush->GetName(), *BrushOutputNonAtlasRT->GetName()), BrushOutputNonAtlasRT);
+
+				// HACK [chris.tchou] remove once we have a better boundary normal solution
+				if (LandscapeBrush->GetCaptureBoundaryNormals())
+				{
+					if (bHasBoundaryNormalCopy)
+					{
+						UE_LOG(LogLandscape, Warning, TEXT("Multiple Landscape Blueprint Brush Layers are invoking Boundary Normal Capture!  Only the most recent one will be used."));
+					}
+
+					// GPU copy to another RT (we copy the entire thing... easier than picking out just the boundaries)
+					UTextureRenderTarget2D* BoundaryNormalRT = HeightmapRTList[(int32)EHeightmapRTType::HeightmapRT_BoundaryNormal];
+					ExecuteCopyLayersTexture({ FLandscapeLayersCopyTextureParams(BrushOutputNonAtlasRT, BoundaryNormalRT) });
+					bHasBoundaryNormalCopy = true;
+				}
 
 				// Resolve back to Combined heightmap (it's unlikely, but possible that the brush returns the same RT as input and output, if it did various operations on it, in which case the copy is useless) :
 				if (BrushOutputNonAtlasRT != CombinedHeightmapNonAtlasRT)
@@ -4909,11 +4932,16 @@ int32 ALandscape::PerformLayersHeightmapsGlobalMerge(const FUpdateLayersContentC
 
 	// compute Normals into LandscapeScratchRT1
 	ShaderParams.GenerateNormals = true;
+	ShaderParams.OverrideBoundaryNormals = bHasBoundaryNormalCopy;	// HACK [chris.tchou] remove once we have a better boundary normal solution
 	ShaderParams.GridSize = GetRootComponent()->GetRelativeScale3D();
+	UTextureRenderTarget2D* BoundaryNormalRT = HeightmapRTList[(int32)EHeightmapRTType::HeightmapRT_BoundaryNormal];	// HACK [chris.tchou] remove once we have a better boundary normal solution
 	DrawHeightmapComponentsToRenderTarget(FString::Printf(TEXT("LS Height: %s = -> CombinedNonAtlasNormals : %s"), *LandscapeScratchRT2->GetName(), *LandscapeScratchRT1->GetName()),
-		InUpdateLayersContentContext.LandscapeComponentsHeightmapsToRender, LandscapeExtent.Min, LandscapeScratchRT2, nullptr, LandscapeScratchRT1, ERTDrawingType::RTNonAtlas, true, ShaderParams);
+		InUpdateLayersContentContext.LandscapeComponentsHeightmapsToRender, LandscapeExtent.Min, LandscapeScratchRT2,
+		bHasBoundaryNormalCopy ? BoundaryNormalRT : nullptr,	// HACK [chris.tchou] remove once we have a better boundary normal solution
+		LandscapeScratchRT1, ERTDrawingType::RTNonAtlas, true, ShaderParams);
 
 	ShaderParams.GenerateNormals = false;
+	ShaderParams.OverrideBoundaryNormals = false;	// HACK [chris.tchou] remove once we have a better boundary normal solution
 
 	// convert back to atlas (TODO: we could do this on the first mip downsample instead...)
 	DrawHeightmapComponentsToRenderTarget(FString::Printf(TEXT("LS Height: %s = -> CombinedAtlasFinal : %s"), *LandscapeScratchRT1->GetName(), *CombinedHeightmapAtlasRT->GetName()),

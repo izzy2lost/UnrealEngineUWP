@@ -70,6 +70,7 @@ enum class EHeightmapRTType : uint8
 	HeightmapRT_Scratch1,
 	HeightmapRT_Scratch2,
 	HeightmapRT_Scratch3,
+	HeightmapRT_BoundaryNormal, // HACK [chris.tchou] remove once we have a better boundary normal solution
 	// Mips RT
 	HeightmapRT_Mip1,
 	HeightmapRT_Mip2,
