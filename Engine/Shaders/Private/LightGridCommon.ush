@@ -117,6 +117,15 @@ uint GetNumLocalLights(uint EyeIndex)
 #endif
 }
 
+uint GetMaxLightsPerCell(uint EyeIndex)
+{
+#if (INSTANCED_STEREO || MOBILE_MULTI_VIEW)
+	return (EyeIndex == 0) ? ForwardLightData.MaxCulledLightsPerCell  : ForwardLightDataISR.MaxCulledLightsPerCell ;
+#else
+	return ForwardLightData.MaxCulledLightsPerCell ;
+#endif
+}
+
 struct FCulledLightsGridData
 {
 	uint NumLocalLights;

@@ -267,7 +267,7 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 	
 	// Limit max to ForwardLightData.NumLocalLights.
 	// This prevents GPU hangs when the PS tries to read from uninitialized NumCulledLightsGrid buffer
-	const uint NumLocalLights = min(CulledLightsGrid.NumLocalLights, GetNumLocalLights(EyeIndex));
+	const uint NumLocalLights = min(CulledLightsGrid.NumLocalLights, GetMaxLightsPerCell(EyeIndex));
 
 	LOOP
 	for (uint LocalLightListIndex = 0; LocalLightListIndex < NumLocalLights; LocalLightListIndex++)
@@ -348,7 +348,7 @@ float3 GetForwardDirectLightingForVertexLighting(uint GridIndex, float3 Translat
 
 	// Limit max to ForwardLightData.NumLocalLights.
 	// This prevents GPU hangs when the PS tries to read from uninitialized NumCulledLightsGrid buffer
-	const uint NumLocalLights = min(CulledLightsGrid.NumLocalLights, GetNumLocalLights(EyeIndex));
+	const uint NumLocalLights = min(CulledLightsGrid.NumLocalLights, GetMaxLightsPerCell(EyeIndex));
 
 	LOOP
 	for (uint LocalLightListIndex = 0; LocalLightListIndex < NumLocalLights; LocalLightListIndex++)

@@ -71,7 +71,6 @@ class FLocalLightBufferPS : public FGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FForwardLightData, ForwardLightData)
-		SHADER_PARAMETER(int32, bHasLinkedListCullEnabled)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -174,11 +173,6 @@ void FMobileSceneRenderer::RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuild
 			PassParameters->VS.LightGridPixelSize = LightGridPixelSize;
 			PassParameters->PS.ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
 			PassParameters->PS.View = GetShaderBinding(View.ViewUniformBuffer);
-
-			static const auto LightLinkedListCullingCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Forward.LightLinkedListCulling"));
-			check(LightLinkedListCullingCVar != nullptr);
-			int32 LightLinkedListCullingEnabled = LightLinkedListCullingCVar->GetInt();
-			PassParameters->PS.bHasLinkedListCullEnabled = LightLinkedListCullingEnabled;
 
 			auto VertexShader = View.ShaderMap->GetShader<FLocalLightBufferVS>();
 			auto PixelShader = View.ShaderMap->GetShader<FLocalLightBufferPS>();

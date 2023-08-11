@@ -275,7 +275,7 @@ float3 StrataMobileForwardLighting(
 
 					// Limit max to ForwardLightData.NumLocalLights.
 					// This prevents GPU hangs when the PS tries to read from uninitialized NumCulledLightsGrid buffer
-					const uint NumLocalLights = min(CulledLightsGrid.NumLocalLights, GetNumLocalLights(EyeIndex));
+					const uint NumLocalLights = min(CulledLightsGrid.NumLocalLights, GetMaxLightsPerCell(EyeIndex));
 
 				#if STRATA_FORCE_SINGLE_LOCAL_LIGHT
 					#define LOCAL_LIGHT_EARLY_OUT return Color;

@@ -95,7 +95,7 @@ void ScreenProbeGenerateLightSamplesCS(
 			const uint EyeIndex = 0;
 			const uint GridIndex = ComputeLightGridCellIndex(uint2(ScreenProbeScreenPosition), SceneDepth);
 			const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridIndex, EyeIndex);
-			const uint NumLocalLights = min(CulledLightGridData.NumLocalLights, GetNumLocalLights(EyeIndex));
+			const uint NumLocalLights = min(CulledLightGridData.NumLocalLights, GetMaxLightsPerCell(EyeIndex));
 
 			uint LumenLightStartIndex = NumLocalLights;
 

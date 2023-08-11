@@ -136,7 +136,7 @@ float4 GetSimpleLightLighting(
 
 	// Limit max to ForwardLightData.NumLocalLights.
 	// This prevents GPU hangs when the PS tries to read from uninitialized NumCulledLightsGrid buffer
-	const uint NumLocalLights = min(CulledLightGridData.NumLocalLights, GetNumLocalLights(EyeIndex));
+	const uint NumLocalLights = min(CulledLightGridData.NumLocalLights, GetMaxLightsPerCell(EyeIndex));
 
 	uint LocalLightListIndex = 0;
 	LOOP
@@ -232,7 +232,7 @@ float4 GetLightGridLocalLighting(
 
 	// Limit max to ForwardLightData.NumLocalLights.
 	// This prevents GPU hangs when the PS tries to read from uninitialized NumCulledLightsGrid buffer
-	const uint NumLocalLights = min(InLightGridData.NumLocalLights, GetNumLocalLights(EyeIndex));
+	const uint NumLocalLights = min(InLightGridData.NumLocalLights, GetMaxLightsPerCell(EyeIndex));
 
 	int2 PixelPos = int2( ScreenUV.xy * View.BufferSizeAndInvSize.xy );
 	uint4 ShadowMask = ~ShadowMaskBits[ PixelPos ];

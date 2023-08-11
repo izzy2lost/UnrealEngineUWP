@@ -730,7 +730,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 		ForwardLightData->NumReflectionCaptures = View.NumBoxReflectionCaptures + View.NumSphereReflectionCaptures;
 		ForwardLightData->NumGridCells = LightGridSizeXY.X * LightGridSizeXY.Y * GLightGridSizeZ;
 		ForwardLightData->CulledGridSize = FIntVector(LightGridSizeXY.X, LightGridSizeXY.Y, GLightGridSizeZ);
-		ForwardLightData->MaxCulledLightsPerCell = GMaxCulledLightsPerCell;
+		ForwardLightData->MaxCulledLightsPerCell = GLightLinkedListCulling ? NumLocalLightsFinal: GMaxCulledLightsPerCell;
 		ForwardLightData->LightGridPixelSizeShift = FMath::FloorLog2(GLightGridPixelSize);
 		ForwardLightData->SimpleLightsEndIndex = SimpleLightsEnd;
 		ForwardLightData->ClusteredDeferredSupportedEndIndex = ClusteredSupportedEnd;
@@ -843,7 +843,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 			PassParameters->LightGridZParams        = ForwardLightData->LightGridZParams;
 			PassParameters->NumReflectionCaptures   = ForwardLightData->NumReflectionCaptures;
 			PassParameters->NumLocalLights          = ForwardLightData->NumLocalLights;
-			PassParameters->MaxCulledLightsPerCell  = ForwardLightData->MaxCulledLightsPerCell;
+			PassParameters->MaxCulledLightsPerCell  = GMaxCulledLightsPerCell;
 			PassParameters->NumGridCells            = ForwardLightData->NumGridCells;
 			PassParameters->LightGridPixelSizeShift = ForwardLightData->LightGridPixelSizeShift;
 
