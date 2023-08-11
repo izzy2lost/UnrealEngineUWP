@@ -86,7 +86,7 @@ namespace Jupiter.Controllers
 			List<NamespaceId> namespacesWithAccess = new();
 			foreach (NamespaceId ns in namespaces)
 			{
-				ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+				ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
 				if (accessResult == null)
 				{
 					namespacesWithAccess.Add(ns);
@@ -111,7 +111,7 @@ namespace Jupiter.Controllers
 			[FromRoute] [Required] RefId key,
 			[FromRoute] string? format = null)
 		{
-			ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
 			if (accessResult != null)
 			{
 				return accessResult;
@@ -442,7 +442,7 @@ namespace Jupiter.Controllers
 		[FromRoute] [Required] RefId key,
 		[FromQuery] string[] fields)
 	{
-		ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+		ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
 		if (accessResult != null)
 		{
 			return accessResult;
@@ -483,7 +483,7 @@ namespace Jupiter.Controllers
 			[FromRoute] [Required] BucketId bucket,
 			[FromRoute] [Required] RefId key)
 		{
-			ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
 			if (accessResult != null)
 			{
 				return accessResult;
@@ -547,7 +547,7 @@ namespace Jupiter.Controllers
 			[FromRoute] [Required] NamespaceId ns,
 			[FromQuery] [Required] List<string> names)
 		{
-			ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
 			if (accessResult != null)
 			{
 				return accessResult;
@@ -616,7 +616,7 @@ namespace Jupiter.Controllers
 			[FromRoute] [Required] BucketId bucket,
 			[FromRoute] [Required] RefId key)
 		{
-			ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteObject });
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.WriteObject });
 			if (accessResult != null)
 			{
 				return accessResult;
@@ -719,7 +719,7 @@ namespace Jupiter.Controllers
 			[FromRoute][Required] BucketId bucket,
 			[FromRoute][Required] RefId key)
 		{
-			ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteObject });
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.WriteObject });
 			if (accessResult != null)
 			{
 				return accessResult;
@@ -779,7 +779,7 @@ namespace Jupiter.Controllers
 			[FromRoute] [Required] RefId key,
 			[FromRoute] [Required] BlobId hash)
 		{
-			ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteObject });
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.WriteObject });
 			if (accessResult != null)
 			{
 				return accessResult;
@@ -827,7 +827,7 @@ namespace Jupiter.Controllers
 
 			JupiterAclAction[] requiredActions = ops.Ops.Select(op => ActionForOp(op.Op)).ToArray();
 
-			ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, requiredActions);
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, requiredActions);
 			if (accessResult != null)
 			{
 				return accessResult;
@@ -1011,7 +1011,7 @@ namespace Jupiter.Controllers
 			[FromRoute] [Required] NamespaceId ns
 		)
 		{
-			ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.DeleteNamespace });
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.DeleteNamespace });
 			if (accessResult != null)
 			{
 				return accessResult;
@@ -1040,7 +1040,7 @@ namespace Jupiter.Controllers
 			[FromRoute] [Required] NamespaceId ns,
 			[FromRoute] [Required] BucketId bucket)
 		{
-			ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.DeleteBucket });
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.DeleteBucket });
 			if (accessResult != null)
 			{
 				return accessResult;
@@ -1073,7 +1073,7 @@ namespace Jupiter.Controllers
 			[FromRoute] [Required] BucketId bucket,
 			[FromRoute] [Required] RefId key)
 		{
-			ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.DeleteObject });
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.DeleteObject });
 			if (accessResult != null)
 			{
 				return accessResult;

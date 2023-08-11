@@ -336,7 +336,7 @@ namespace Jupiter.Implementation
 			using TelemetrySpan scope = _tracer.StartActiveSpan("ReferenceResolver.ResolveContentId")
 				.SetAttribute("operation.name", "ReferenceResolver.ResolveContentId")
 				.SetAttribute("resource.name", contentId.ToString());
-			BlobId[]? resolvedBlobs = await _contentIdStore.Resolve(ns, contentId);
+			BlobId[]? resolvedBlobs = await _contentIdStore.ResolveAsync(ns, contentId);
 			return (contentId, resolvedBlobs);
 		}
 

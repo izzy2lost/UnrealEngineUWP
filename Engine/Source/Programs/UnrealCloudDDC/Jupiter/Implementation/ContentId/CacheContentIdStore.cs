@@ -18,7 +18,7 @@ namespace Jupiter.Implementation
 		{
 		}
 
-		public async Task<BlobId[]?> Resolve(NamespaceId ns, ContentId contentId, bool mustBeContentId)
+		public async Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId)
 		{
 			using HttpRequestMessage getContentIdRequest = await BuildHttpRequestAsync(HttpMethod.Get, new Uri($"api/v1/content-id/{ns}/{contentId}", UriKind.Relative));
 			HttpResponseMessage response = await HttpClient.SendAsync(getContentIdRequest);
@@ -38,7 +38,7 @@ namespace Jupiter.Implementation
 			return resolvedContentId.Blobs;
 		}
 
-		public async Task Put(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
+		public async Task PutAsync(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
 		{
 			using HttpRequestMessage putContentIdRequest = await BuildHttpRequestAsync(HttpMethod.Put, new Uri($"api/v1/content-id/{ns}/{contentId}/update/{blobIdentifier}/{contentWeight}", UriKind.Relative));
 			HttpResponseMessage response = await HttpClient.SendAsync(putContentIdRequest);

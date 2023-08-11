@@ -37,7 +37,7 @@ namespace Jupiter.Implementation
 			));
 		}
 
-		public async Task<BlobId[]?> Resolve(NamespaceId ns, ContentId contentId, bool mustBeContentId)
+		public async Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId)
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("ScyllaContentIdStore.ResolveContentId").SetAttribute("resource.name", contentId.ToString());
 
@@ -117,7 +117,7 @@ namespace Jupiter.Implementation
 			return null;
 		}
 
-		public async Task Put(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
+		public async Task PutAsync(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("ScyllaContentIdStore.PutContentId");
 			if (_scyllaSessionManager.IsScylla)

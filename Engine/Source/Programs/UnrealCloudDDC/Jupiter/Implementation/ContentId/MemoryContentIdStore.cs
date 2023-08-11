@@ -17,7 +17,7 @@ namespace Jupiter.Implementation
 			_blobStore = blobStore;
 		}
 
-		public async Task<BlobId[]?> Resolve(NamespaceId ns, ContentId contentId, bool mustBeContentId)
+		public async Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId)
 		{
 			if (_contentIds.TryGetValue(ns, out ConcurrentDictionary<ContentId, SortedList<int, BlobId[]>>? contentIdsForNamespace))
 			{
@@ -45,7 +45,7 @@ namespace Jupiter.Implementation
 			return null;
 		}
 
-		public Task Put(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
+		public Task PutAsync(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
 		{
 			_contentIds.AddOrUpdate(ns, (_) =>
 			{

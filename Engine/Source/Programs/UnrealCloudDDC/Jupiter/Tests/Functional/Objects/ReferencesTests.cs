@@ -1059,7 +1059,7 @@ namespace Jupiter.FunctionalTests.References
             BlobId blobHash = BlobId.FromBlob(blobData);
             ContentId contentId = new ContentId("0000000000000000000000000000000000000000");
 
-            await contentIdStore.Put(TestNamespace, contentId, blobHash, blobData.Length);
+            await contentIdStore.PutAsync(TestNamespace, contentId, blobHash, blobData.Length);
 
             CbWriter writer = new CbWriter();
             writer.BeginObject();

@@ -53,7 +53,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns,
 			[Required] ContentId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -97,13 +97,13 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns,
 			[Required] ContentId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
 			}
 
-			BlobId[]? chunks = await _contentIdStore.Resolve(ns, id, mustBeContentId: false);
+			BlobId[]? chunks = await _contentIdStore.ResolveAsync(ns, id, mustBeContentId: false);
 			if (chunks == null || chunks.Length == 0)
 			{
 				return NotFound();
@@ -133,7 +133,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns,
 			[Required] [FromQuery] List<ContentId> id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -144,7 +144,7 @@ namespace Jupiter.Controllers
 
 			IEnumerable<Task> tasks = id.Select(async blob =>
 			{
-				BlobId[]? chunks = await _contentIdStore.Resolve(ns, blob, mustBeContentId: false);
+				BlobId[]? chunks = await _contentIdStore.ResolveAsync(ns, blob, mustBeContentId: false);
 
 				if (chunks == null)
 				{
@@ -175,7 +175,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns,
 			[FromBody] ContentId[] bodyIds)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -186,7 +186,7 @@ namespace Jupiter.Controllers
 
 			IEnumerable<Task> tasks = bodyIds.Select(async blob =>
 			{
-				BlobId[]? chunks = await _contentIdStore.Resolve(ns, blob, mustBeContentId: false);
+				BlobId[]? chunks = await _contentIdStore.ResolveAsync(ns, blob, mustBeContentId: false);
 
 				if (chunks == null)
 				{
@@ -218,7 +218,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns,
 			[Required] ContentId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.WriteObject });
 			if (result != null)
 			{
 				return result;
@@ -254,7 +254,7 @@ namespace Jupiter.Controllers
 		public async Task<IActionResult> PostAsync(
 			[Required] NamespaceId ns)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.WriteObject });
 			if (result != null)
 			{
 				return result;

@@ -32,7 +32,7 @@ namespace Jupiter.Controllers
 			[FromRoute][Required] NamespaceId ns
 			)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new[] { JupiterAclAction.ReadObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;

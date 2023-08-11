@@ -37,12 +37,12 @@ namespace Jupiter.Controllers
 		[ProducesResponseType(type: typeof(ProblemDetails), 400)]
 		public async Task<IActionResult> ResolveAsync(NamespaceId ns, ContentId contentId)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
 			}
-			BlobId[]? blobs = await _contentIdStore.Resolve(ns, contentId, mustBeContentId: true);
+			BlobId[]? blobs = await _contentIdStore.ResolveAsync(ns, contentId, mustBeContentId: true);
 
 			if (blobs == null)
 			{
@@ -64,12 +64,12 @@ namespace Jupiter.Controllers
 		[ProducesResponseType(type: typeof(ProblemDetails), 400)]
 		public async Task<IActionResult> UpdateContentIdMappingAsync(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.WriteObject });
 			if (result != null)
 			{
 				return result;
 			}
-			await _contentIdStore.Put(ns, contentId, blobIdentifier, contentWeight);
+			await _contentIdStore.PutAsync(ns, contentId, blobIdentifier, contentWeight);
 
 			return Ok();
 		}

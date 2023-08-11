@@ -92,7 +92,7 @@ public static class BlobServiceExtensions
 		// commit the mapping from the decompressed hash to the compressed hash, we run this in parallel with the blob store submit
 		// TODO: let users specify weight of the blob compared to previously submitted content ids
 		int contentIdWeight = (int)payload.Length;
-		Task contentIdStoreTask = contentIdStore.Put(ns, identifierDecompressedPayload, identifierCompressedPayload, contentIdWeight);
+		Task contentIdStoreTask = contentIdStore.PutAsync(ns, identifierDecompressedPayload, identifierCompressedPayload, contentIdWeight);
 
 		// we still commit the compressed buffer to the object store using the hash of the compressed content
 		{
@@ -109,7 +109,7 @@ public static class BlobServiceExtensions
 		IContentIdStore contentIdStore = provider.GetService<IContentIdStore>()!;
 		Tracer tracer = provider.GetService<Tracer>()!;
 
-		BlobId[]? chunks = await contentIdStore.Resolve(ns, contentId, mustBeContentId: false);
+		BlobId[]? chunks = await contentIdStore.ResolveAsync(ns, contentId, mustBeContentId: false);
 		if (chunks == null || chunks.Length == 0)
 		{
 			throw new ContentIdResolveException(contentId);

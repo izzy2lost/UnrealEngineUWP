@@ -43,7 +43,7 @@ namespace Jupiter.Controllers
 		[ProducesResponseType(type: typeof(UpdatedRecordsResponse), 200)]
 		public async Task<IActionResult> StartLastAccessRollupAsync()
 		{
-			ActionResult? result = await _requestHelper.HasAccessForGlobalOperations(User, new [] { JupiterAclAction.AdminAction });
+			ActionResult? result = await _requestHelper.HasAccessForGlobalOperationsAsync(User, new [] { JupiterAclAction.AdminAction });
 			if (result != null)
 			{
 				return result;
@@ -72,7 +72,7 @@ namespace Jupiter.Controllers
 		[HttpPost("refCleanup")]
 		public async Task<IActionResult> RefCleanupAsync()
 		{
-			ActionResult? result = await _requestHelper.HasAccessForGlobalOperations(User, new [] { JupiterAclAction.AdminAction });
+			ActionResult? result = await _requestHelper.HasAccessForGlobalOperationsAsync(User, new [] { JupiterAclAction.AdminAction });
 			if (result != null)
 			{
 				return result;
@@ -89,7 +89,7 @@ namespace Jupiter.Controllers
 		[HttpGet("settings")]
 		public async Task<IActionResult> SettingsAsync()
 		{
-			ActionResult? result = await _requestHelper.HasAccessForGlobalOperations(User, new [] { JupiterAclAction.AdminAction });
+			ActionResult? result = await _requestHelper.HasAccessForGlobalOperationsAsync(User, new [] { JupiterAclAction.AdminAction });
 			if (result != null)
 			{
 				return result;
