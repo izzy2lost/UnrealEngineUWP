@@ -453,12 +453,12 @@ const FText& FTypePromotion::GetUserFacingOperatorName(const FName Operator)
 		{ OperatorNames::Multiply,  LOCTEXT("MultiplyDisplayName",		"Multiply") },
 		{ OperatorNames::Subtract,  LOCTEXT("SubtractDisplayName",		"Subtract") },
 		{ OperatorNames::Divide,	LOCTEXT("DivideDisplayName",		"Divide") },
-		{ OperatorNames::Greater,	LOCTEXT("GreaterDisplayName",		"Greater") },
-		{ OperatorNames::GreaterEq, LOCTEXT("GreaterEqDisplayName",		"Greater Equal") },
-		{ OperatorNames::Less,		LOCTEXT("LessDisplayName",			"Less") },
-		{ OperatorNames::LessEq,	LOCTEXT("LessEqDisplayName",		"Less Equal") },
-		{ OperatorNames::NotEq,		LOCTEXT("NotEqDisplayName",			"Not Equal") },
-		{ OperatorNames::Equal,		LOCTEXT("EqualDisplayName",			"Equal") },
+		{ OperatorNames::Greater,	LOCTEXT("GreaterDisplayName",		"Greater ( > )") },
+		{ OperatorNames::GreaterEq, LOCTEXT("GreaterEqDisplayName",		"Greater Equal ( >= )") },
+		{ OperatorNames::Less,		LOCTEXT("LessDisplayName",			"Less ( < )") },
+		{ OperatorNames::LessEq,	LOCTEXT("LessEqDisplayName",		"Less Equal ( <= )") },
+		{ OperatorNames::NotEq,		LOCTEXT("NotEqDisplayName",			"Not Equal ( != )") },
+		{ OperatorNames::Equal,		LOCTEXT("EqualDisplayName",			"Equal ( == )") },
 		{ OperatorNames::NoOp,		LOCTEXT("NoOpDisplayName",			"") },
 	};
 
