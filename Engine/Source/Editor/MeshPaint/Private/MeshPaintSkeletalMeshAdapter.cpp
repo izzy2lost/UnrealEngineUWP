@@ -10,6 +10,7 @@
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "Rendering/SkeletalMeshModel.h"
 #include "Factories/FbxSkeletalMeshImportData.h"
+#include "Rendering/RenderCommandPipes.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMeshPaintSkeletalMeshAdapter, Log, All);
 
@@ -455,7 +456,7 @@ void FMeshPaintGeometryAdapterForSkeletalMeshes::PreEdit()
 		LODData->StaticVertexBuffers.ColorVertexBuffer.InitFromSingleColor(FColor(255, 255, 255, 255), LODData->GetNumVertices());
 		ReferencedSkeletalMesh->SetHasVertexColors(true);
 		ReferencedSkeletalMesh->SetVertexColorGuid(FGuid::NewGuid());
-		BeginInitResource(&LODData->StaticVertexBuffers.ColorVertexBuffer);
+		BeginInitResource(&LODData->StaticVertexBuffers.ColorVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
 	}
 	//Make sure we change the import data so the re-import do not replace the new data
 	if (ReferencedSkeletalMesh->GetAssetImportData())

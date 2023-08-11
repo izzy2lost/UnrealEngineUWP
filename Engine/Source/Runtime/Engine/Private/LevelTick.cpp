@@ -24,6 +24,7 @@
 #include "Camera/CameraPhotography.h"
 #include "UObject/Stack.h"
 #include "PhysicsEngine/CollisionAnalyzerCapture.h"
+#include "Rendering/RenderCommandPipes.h"
 
 #if !UE_SERVER
 #include "IMediaModule.h"
@@ -973,23 +974,23 @@ struct FSendAllEndOfFrameUpdates
 void BeginSendEndOfFrameUpdatesDrawEvent(FSendAllEndOfFrameUpdates& SendAllEndOfFrameUpdates)
 {
 	BEGIN_DRAW_EVENTF_GAMETHREAD(SendAllEndOfFrameUpdates, SendAllEndOfFrameUpdates.DrawEvent, TEXT("SendAllEndOfFrameUpdates"));
-	
-	ENQUEUE_RENDER_COMMAND(BeginDrawEventCommand)(
-		[GPUSkinCache = SendAllEndOfFrameUpdates.GPUSkinCache](FRHICommandListImmediate&)
+
+	ENQUEUE_RENDER_COMMAND(BeginDrawEventCommand)(UE::RenderCommandPipe::SkeletalMesh,
+		[GPUSkinCache = SendAllEndOfFrameUpdates.GPUSkinCache]
+	{
+		if (GPUSkinCache != nullptr)
 		{
-			if (GPUSkinCache != nullptr)
-			{
-				GPUSkinCache->BeginBatchDispatch();
-			}
-		});
+			GPUSkinCache->BeginBatchDispatch();
+		}
+	});
 }
 
 DECLARE_GPU_STAT(EndOfFrameUpdates);
 DECLARE_GPU_STAT(GPUSkinCacheRayTracingGeometry);
 void EndSendEndOfFrameUpdatesDrawEvent(FSendAllEndOfFrameUpdates& SendAllEndOfFrameUpdates)
 {
-	ENQUEUE_RENDER_COMMAND(EndDrawEventCommand)(
-		[GPUSkinCache = SendAllEndOfFrameUpdates.GPUSkinCache] (FRHICommandListImmediate&)
+	ENQUEUE_RENDER_COMMAND(EndDrawEventCommand)(UE::RenderCommandPipe::SkeletalMesh,
+		[GPUSkinCache = SendAllEndOfFrameUpdates.GPUSkinCache]
 	{
 		if (GPUSkinCache != nullptr)
 		{

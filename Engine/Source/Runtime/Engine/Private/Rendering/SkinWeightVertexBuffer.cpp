@@ -8,6 +8,7 @@
 #include "RHIResourceUpdates.h"
 #include "SkeletalMeshLegacyCustomVersions.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
+#include "Rendering/RenderCommandPipes.h"
 
 /*-----------------------------------------------------------------------------
 FSkinWeightLookupVertexBuffer
@@ -806,14 +807,14 @@ void FSkinWeightVertexBuffer::SetOwnerName(const FName& OwnerName)
 
 void FSkinWeightVertexBuffer::BeginInitResources()
 {
-	BeginInitResource(&LookupVertexBuffer);
-	BeginInitResource(&DataVertexBuffer);
+	BeginInitResource(&LookupVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
+	BeginInitResource(&DataVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
 }
 
 void FSkinWeightVertexBuffer::BeginReleaseResources()
 {
-	BeginReleaseResource(&LookupVertexBuffer);
-	BeginReleaseResource(&DataVertexBuffer);
+	BeginReleaseResource(&LookupVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
+	BeginReleaseResource(&DataVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
 }
 
 void FSkinWeightVertexBuffer::ReleaseResources()

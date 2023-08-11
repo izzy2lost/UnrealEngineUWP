@@ -44,6 +44,7 @@
 #include "Engine/AssetUserData.h"
 #include "Animation/NodeMappingContainer.h"
 #include "Rendering/SkeletalMeshRenderData.h"
+#include "Rendering/RenderCommandPipes.h"
 #include "AnimationRuntime.h"
 #include "Animation/AnimSequence.h"
 #include "Streaming/SkeletalMeshUpdate.h"
@@ -6807,8 +6808,8 @@ void FSkeletalMeshSceneProxy::UpdateMorphMaterialUsage_GameThread(TArray<UMateri
 			ERHIFeatureLevel::Type InFeatureLevel = GetScene().GetFeatureLevel();
 			FSkeletalMeshSceneProxy* SkelMeshSceneProxy = this;
 			FMaterialRelevance DefaultRelevance = DefaultMaterial->GetRelevance(InFeatureLevel);
-			ENQUEUE_RENDER_COMMAND(UpdateSkelProxyLODSectionElementsCmd)(
-				[InMaterialsToSwap, DefaultMaterial, DefaultRelevance, InFeatureLevel, SkelMeshSceneProxy](FRHICommandList& RHICmdList)
+			ENQUEUE_RENDER_COMMAND(UpdateSkelProxyLODSectionElementsCmd)(UE::RenderCommandPipe::SkeletalMesh,
+				[InMaterialsToSwap, DefaultMaterial, DefaultRelevance, InFeatureLevel, SkelMeshSceneProxy]
 				{
 					for( int32 LodIdx=0; LodIdx < SkelMeshSceneProxy->LODSections.Num(); LodIdx++ )
 					{
