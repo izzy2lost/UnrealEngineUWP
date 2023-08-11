@@ -504,6 +504,9 @@ bool FIOSTargetPlatform::SupportsFeature( ETargetPlatformFeatures Feature ) cons
 		case ETargetPlatformFeatures::ShowAsPlatformGroup:
 			return false;
 
+		case ETargetPlatformFeatures::SupportsMultipleConnectionTypes:
+			return true;
+
 		default:
 			break;
 	}
