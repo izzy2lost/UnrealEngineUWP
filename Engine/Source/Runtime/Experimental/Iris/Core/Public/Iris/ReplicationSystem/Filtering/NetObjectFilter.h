@@ -12,7 +12,6 @@ class UReplicationSystem;
 namespace UE::Net
 {
 	typedef uint32 FNetObjectFilterHandle;
-	typedef uint16 FNetObjectGroupHandle;
 	struct FReplicationInstanceProtocol;
 	struct FReplicationProtocol;
 }
@@ -24,21 +23,6 @@ constexpr FNetObjectFilterHandle InvalidNetObjectFilterHandle = FNetObjectFilter
 constexpr FNetObjectFilterHandle ToOwnerFilterHandle = FNetObjectFilterHandle(1);
 /** ConnectionFilterHandle is for internal use only. */
 constexpr FNetObjectFilterHandle ConnectionFilterHandle = FNetObjectFilterHandle(2);
-
-/** Invalid group handle */
-constexpr FNetObjectGroupHandle InvalidNetObjectGroupHandle = FNetObjectGroupHandle(0);
-
-/** Special group, NetHandles assigned to this group will be filtered out for all connections */
-constexpr FNetObjectGroupHandle NotReplicatedNetObjectGroupHandle = FNetObjectGroupHandle(1);
-
-/** Special group, SubObjects assigned to this group will replicate to owner of RootParent */
-constexpr FNetObjectGroupHandle NetGroupOwnerNetObjectGroupHandle = FNetObjectGroupHandle(2);
-
-/** Special group, NetHandles assigned to this group will Replicate if replay netconditions is met  */
-constexpr FNetObjectGroupHandle NetGroupReplayNetObjectGroupHandle = FNetObjectGroupHandle(3);
-
-/** Returns true of the provided GroupHandle is a reserved NetObjectGroupHandle */
-static constexpr bool IsReservedNetObjectGroupHandle(FNetObjectGroupHandle GroupHandle) { return GroupHandle >= NotReplicatedNetObjectGroupHandle && GroupHandle <= NetGroupReplayNetObjectGroupHandle; }
 
 /** Used to control whether an object is allowed to be replicated or not. */
 enum class ENetFilterStatus : uint32

@@ -8,6 +8,7 @@
 #include "Templates/RefCounting.h"
 #include "Iris/IrisConfig.h"
 #include "Iris/ReplicationSystem/NetRefHandle.h"
+#include "Iris/ReplicationSystem/NetObjectGroupHandle.h"
 #include "Net/Core/NetHandle/NetHandle.h"
 
 #include "ReplicationSystem.generated.h"
@@ -28,7 +29,6 @@ namespace UE::Net
 	class FNetObjectAttachment;
 	enum class ENetObjectDeltaCompressionStatus : unsigned;
 	typedef uint32 FNetObjectFilterHandle;
-	typedef uint16 FNetObjectGroupHandle;
 	typedef uint32 FNetObjectPrioritizerHandle;
 	class FNetObjectReference;
 	enum class EReplicationCondition : uint32;
@@ -305,6 +305,15 @@ public:
 	 * @return true if the group is valid, false if not.
 	 */
 	IRISCORE_API bool IsValidGroup(FNetObjectGroupHandle GroupHandle) const;
+
+	/** Special group, NetHandles assigned to this group will be filtered out for all connections */
+	IRISCORE_API FNetObjectGroupHandle GetNotReplicatedNetObjectGroup() const;
+
+	/** Special group, SubObjects assigned to this group will replicate to owner of RootParent */
+	IRISCORE_API FNetObjectGroupHandle GetNetGroupOwnerNetObjectGroup() const;
+
+	/** Special group, SubObjects assigned to this group will replicate if replay netconditions is met  */
+	IRISCORE_API FNetObjectGroupHandle GetNetGroupReplayNetObjectGroup() const;
 
 	// Filtering
 

@@ -8,10 +8,10 @@
 #include "Containers/SparseArray.h"
 #include "UObject/NameTypes.h"
 #include "Net/Core/NetBitArray.h"
+#include "Iris/ReplicationSystem/NetObjectGroupHandle.h"
 
 namespace UE::Net
 {
-	typedef uint16 FNetObjectGroupHandle;
 	namespace Private
 	{
 		typedef uint32 FInternalNetRefIndex;
@@ -61,9 +61,14 @@ public:
 	
 	const FNetObjectGroup* GetGroup(FNetObjectGroupHandle GroupHandle) const;
 	FNetObjectGroup* GetGroup(FNetObjectGroupHandle GroupHandle);
+	
+	FNetObjectGroupHandle MakeNetObjectGroupHandle(FNetObjectGroupHandle::FGroupIndexType GroupIndex) const { return FNetObjectGroupHandle(GroupIndex, CurrentEpoch); }
+	const FNetObjectGroup* GetGroupByIndex(FNetObjectGroupHandle::FGroupIndexType GroupIndex) const;
+	FNetObjectGroup* GetGroupByIndex(FNetObjectGroupHandle::FGroupIndexType GroupIndex);
+
 	void SetGroupName(FNetObjectGroupHandle GroupHandle, FName GroupName);
 
-	inline bool IsValidGroup(FNetObjectGroupHandle GroupHandle) const { return GroupHandle && Groups.IsValidIndex(GroupHandle); }
+	inline bool IsValidGroup(FNetObjectGroupHandle GroupHandle) const { return GroupHandle.IsValid() && GroupHandle.Epoch == CurrentEpoch && Groups.IsValidIndex(GroupHandle.GetGroupIndex()); }
 
 	bool Contains(FNetObjectGroupHandle GroupHandle, FInternalNetRefIndex InternalIndex) const;
 	void AddToGroup(FNetObjectGroupHandle GroupHandle, FInternalNetRefIndex InternalIndex);
@@ -125,6 +130,10 @@ private:
 	FNetBitArray GroupFilteredObjects;
 
 	TMap<FName, FNetObjectGroupHandle> NamedGroups;
+
+	uint32 CurrentEpoch = 0U;
+
+	inline static uint32 NextEpoch = 1U;
 };
 
 inline bool FNetObjectGroups::IsFilterGroup(const FNetObjectGroup& Group) const

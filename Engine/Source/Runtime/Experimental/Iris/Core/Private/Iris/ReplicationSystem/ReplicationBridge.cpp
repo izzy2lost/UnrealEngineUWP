@@ -550,9 +550,9 @@ void UReplicationBridge::RemoveDestructionInfosForGroup(UE::Net::FNetObjectGroup
 
 	FWorldLocations& WorldLocations = GetReplicationSystem()->GetReplicationSystemInternal()->GetWorldLocations();
 
-	if (GroupHandle)
+	if (GroupHandle.IsValid())
 	{
-		UE_LOG_REPLICATIONBRIDGE(Verbose, TEXT("RemoveDestructionInfosForGroup GroupIndex: %u"), GroupHandle);
+		UE_LOG_REPLICATIONBRIDGE(Verbose, TEXT("RemoveDestructionInfosForGroup GroupIndex: %u"), GroupHandle.GetGroupIndex());
 
 		FNetObjectGroup* Group = Groups->GetGroup(GroupHandle);
 		check(Group);
@@ -924,7 +924,7 @@ UE::Net::FNetObjectGroupHandle UReplicationBridge::CreateLevelGroup(const UObjec
 	using namespace UE::Net;
 
 	FNetObjectGroupHandle LevelGroupHandle = ReplicationSystem->CreateGroup();
-	if (ensure(LevelGroupHandle != InvalidNetObjectGroupHandle))
+	if (ensure(LevelGroupHandle.IsValid()))
 	{
 		ReplicationSystem->AddGroupFilter(LevelGroupHandle);
 		LevelGroups.Emplace(FObjectKey(Level), LevelGroupHandle);
@@ -936,7 +936,7 @@ UE::Net::FNetObjectGroupHandle UReplicationBridge::CreateLevelGroup(const UObjec
 UE::Net::FNetObjectGroupHandle UReplicationBridge::GetLevelGroup(const UObject* Level) const
 {
 	const UE::Net::FNetObjectGroupHandle* LevelGroupHandle = LevelGroups.Find(FObjectKey(Level));
-	return (LevelGroupHandle != nullptr ? *LevelGroupHandle : UE::Net::InvalidNetObjectGroupHandle);
+	return (LevelGroupHandle != nullptr ? *LevelGroupHandle : UE::Net::FNetObjectGroupHandle());
 }
 
 void UReplicationBridge::DestroyGlobalNetHandle(UE::Net::Private::FInternalNetRefIndex InternalReplicationIndex)

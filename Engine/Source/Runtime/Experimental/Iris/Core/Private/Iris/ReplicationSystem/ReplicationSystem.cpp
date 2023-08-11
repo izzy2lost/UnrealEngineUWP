@@ -43,6 +43,9 @@ public:
 	UReplicationSystem* ReplicationSystem;
 	FReplicationSystemInternal ReplicationSystemInternal;
 	uint64 IrisDebugHelperDummy = 0U;
+	FNetObjectGroupHandle NotReplicatedNetObjectGroupHandle;
+	FNetObjectGroupHandle NetGroupOwnerNetObjectGroupHandle;
+	FNetObjectGroupHandle NetGroupReplayNetObjectGroupHandle;
 
 	explicit FReplicationSystemImpl(UReplicationSystem* InReplicationSystem, const UReplicationSystem::FReplicationSystemParams& Params)
 	: ReplicationSystem(InReplicationSystem)
@@ -56,16 +59,16 @@ public:
 
 	void InitDefaultFilteringGroups()
 	{
-		FNetObjectGroupHandle LocalNotReplicatedGroupHande = ReplicationSystem->CreateGroup();
-		check(LocalNotReplicatedGroupHande == NotReplicatedNetObjectGroupHandle);
+		NotReplicatedNetObjectGroupHandle = ReplicationSystem->CreateGroup();
+		check(NotReplicatedNetObjectGroupHandle.IsNotReplicatedNetObjectGroup());
 		ReplicationSystem->AddGroupFilter(NotReplicatedNetObjectGroupHandle);
 		
 		// Setup SubObjectFiltering groups
-		FNetObjectGroupHandle LocalNetGroupOwnerNetObjectGroupHandle = ReplicationSystem->GetOrCreateSubObjectFilter(UE::Net::NetGroupOwner);
-		check(LocalNetGroupOwnerNetObjectGroupHandle == NetGroupOwnerNetObjectGroupHandle);
+		NetGroupOwnerNetObjectGroupHandle = ReplicationSystem->GetOrCreateSubObjectFilter(UE::Net::NetGroupOwner);
+		check(NetGroupOwnerNetObjectGroupHandle.IsNetGroupOwnerNetObjectGroup());
 
-		FNetObjectGroupHandle LocalNetGroupReplayNetObjectGroupHandle = ReplicationSystem->GetOrCreateSubObjectFilter(UE::Net::NetGroupReplay);
-		check(LocalNetGroupReplayNetObjectGroupHandle == NetGroupReplayNetObjectGroupHandle);
+		NetGroupReplayNetObjectGroupHandle = ReplicationSystem->GetOrCreateSubObjectFilter(UE::Net::NetGroupReplay);
+		check(NetGroupReplayNetObjectGroupHandle.IsNetGroupReplayNetObjectGroup());
 	}
 
 	void Init(const UReplicationSystem::FReplicationSystemParams& Params)
@@ -699,7 +702,7 @@ void UReplicationSystem::CollectGarbage()
 
 void UReplicationSystem::ResetGameWorldState()
 {
-	Impl->ReplicationSystemInternal.GetReplicationBridge()->RemoveDestructionInfosForGroup(UE::Net::InvalidNetObjectGroupHandle);
+	Impl->ReplicationSystemInternal.GetReplicationBridge()->RemoveDestructionInfosForGroup(UE::Net::FNetObjectGroupHandle());
 }
 
 void UReplicationSystem::NotifyStreamingLevelUnload(const UObject* Level)
@@ -954,14 +957,14 @@ UE::Net::FNetObjectGroupHandle UReplicationSystem::GetOrCreateSubObjectFilter(FN
 	FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();
 
 	FNetObjectGroupHandle GroupHandle = Groups.GetNamedGroupHandle(GroupName);
-	if (GroupHandle != InvalidNetObjectGroupHandle)
+	if (GroupHandle.IsValid())
 	{
 		check(Filtering.IsSubObjectFilterGroup(GroupHandle));
 		return GroupHandle;
 	}
 
 	GroupHandle = Groups.CreateNamedGroup(GroupName);
-	if (GroupHandle != InvalidNetObjectGroupHandle)
+	if (GroupHandle.IsValid())
 	{
 		Filtering.AddSubObjectFilter(GroupHandle);
 	}
@@ -977,14 +980,14 @@ UE::Net::FNetObjectGroupHandle UReplicationSystem::GetSubObjectFilterGroupHandle
 	FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();
 
 	FNetObjectGroupHandle GroupHandle = Groups.GetNamedGroupHandle(GroupName);
-	if (GroupHandle != InvalidNetObjectGroupHandle)
+	if (GroupHandle.IsValid())
 	{
 		if (ensureAlwaysMsgf(Filtering.IsSubObjectFilterGroup(GroupHandle), TEXT("UReplicationSystem::GetSubObjectFilterGroupHandle Trying to lookup NetObjectGroupHandle for NetGroup %s that is not a subobject filter"), *GroupName.ToString()))
 		{
 			return GroupHandle;
 		}
 	}
-	return InvalidNetObjectGroupHandle;
+	return FNetObjectGroupHandle();
 }
 
 void UReplicationSystem::SetSubObjectFilterStatus(FName GroupName, uint32 ConnectionId, UE::Net::ENetFilterStatus ReplicationStatus)
@@ -999,7 +1002,7 @@ void UReplicationSystem::SetSubObjectFilterStatus(FName GroupName, uint32 Connec
 	}
 
 	FNetObjectGroupHandle GroupHandle = GetSubObjectFilterGroupHandle(GroupName);
-	if (GroupHandle != InvalidNetObjectGroupHandle)
+	if (GroupHandle.IsValid())
 	{
 		FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();
 		Filtering.SetSubObjectFilterStatus(GroupHandle, ConnectionId, ReplicationStatus);
@@ -1015,7 +1018,7 @@ void UReplicationSystem::RemoveSubObjectFilter(FName GroupName)
 	FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();
 
 	FNetObjectGroupHandle GroupHandle = GetSubObjectFilterGroupHandle(GroupName);
-	if (GroupHandle != InvalidNetObjectGroupHandle)
+	if (GroupHandle.IsValid())
 	{
 		Filtering.RemoveSubObjectFilter(GroupHandle);
 		Groups.DestroyGroup(GroupHandle);
@@ -1031,6 +1034,12 @@ UE::Net::FNetObjectGroupHandle UReplicationSystem::CreateGroup()
 
 void UReplicationSystem::AddToGroup(FNetObjectGroupHandle GroupHandle, FNetRefHandle Handle)
 {
+	// Early out if this is invalid group
+	if (!ensure(IsValidGroup(GroupHandle)))
+	{
+		return;
+	}
+
 	LLM_SCOPE_BYTAG(Iris);
 
 	using namespace UE::Net::Private;
@@ -1041,7 +1050,7 @@ void UReplicationSystem::AddToGroup(FNetObjectGroupHandle GroupHandle, FNetRefHa
 
 	const FInternalNetRefIndex ObjectInternalIndex = NetRefHandleManager.GetInternalIndex(Handle);
 
-	if (GroupHandle && ObjectInternalIndex)
+	if (ObjectInternalIndex)
 	{
 		Groups.AddToGroup(GroupHandle, ObjectInternalIndex);
 		Filtering.NotifyObjectAddedToGroup(GroupHandle, ObjectInternalIndex);
@@ -1049,13 +1058,19 @@ void UReplicationSystem::AddToGroup(FNetObjectGroupHandle GroupHandle, FNetRefHa
 }
 
 void UReplicationSystem::RemoveFromGroup(FNetObjectGroupHandle GroupHandle, FNetRefHandle Handle)
-{	
+{
+	// Early out if this is invalid group
+	if (!ensure(IsValidGroup(GroupHandle)))
+	{
+		return;
+	}
+
 	using namespace UE::Net::Private;
 
 	FNetRefHandleManager& NetRefHandleManager = Impl->ReplicationSystemInternal.GetNetRefHandleManager();
 
 	const FInternalNetRefIndex ObjectInternalIndex = NetRefHandleManager.GetInternalIndex(Handle);
-	if (GroupHandle && ObjectInternalIndex)
+	if (ObjectInternalIndex)
 	{
 		FNetObjectGroups& Groups = Impl->ReplicationSystemInternal.GetGroups();
 		FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();	
@@ -1089,6 +1104,12 @@ void UReplicationSystem::RemoveFromAllGroups(FNetRefHandle Handle)
 
 bool UReplicationSystem::IsInGroup(FNetObjectGroupHandle GroupHandle, FNetRefHandle Handle) const
 {
+	// Early out if this is invalid group
+	if (!IsValidGroup(GroupHandle))
+	{
+		return false;
+	}
+
 	using namespace UE::Net::Private;
 
 	const FNetObjectGroups& Groups = Impl->ReplicationSystemInternal.GetGroups();
@@ -1103,20 +1124,19 @@ bool UReplicationSystem::IsValidGroup(FNetObjectGroupHandle GroupHandle) const
 {
 	const UE::Net::Private::FNetObjectGroups& Groups = Impl->ReplicationSystemInternal.GetGroups();
 
-	return GroupHandle && Groups.IsValidGroup(GroupHandle);
+	return GroupHandle.IsValid() && Groups.IsValidGroup(GroupHandle);
 }
 
 void UReplicationSystem::DestroyGroup(FNetObjectGroupHandle GroupHandle)
 {
-	using namespace UE::Net;
-	using namespace UE::Net::Private;
-
-	// We do not allow client code to remove reserved groups
-	if (IsReservedNetObjectGroupHandle(GroupHandle))
+	// Early out if this is invalid or reserved group
+	if (!ensure(IsValidGroup(GroupHandle) || GroupHandle.IsReservedNetObjectGroup()))
 	{
-		check(false);
 		return;
 	}
+
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
 
 	FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();	
 	FNetObjectGroups& Groups = Impl->ReplicationSystemInternal.GetGroups();
@@ -1127,32 +1147,77 @@ void UReplicationSystem::DestroyGroup(FNetObjectGroupHandle GroupHandle)
 	Groups.DestroyGroup(GroupHandle);
 }
 
+UE::Net::FNetObjectGroupHandle UReplicationSystem::GetNotReplicatedNetObjectGroup() const
+{
+	return Impl->NotReplicatedNetObjectGroupHandle;
+}
+
+UE::Net::FNetObjectGroupHandle UReplicationSystem::GetNetGroupOwnerNetObjectGroup() const
+{
+	return Impl->NetGroupOwnerNetObjectGroupHandle;
+}
+
+UE::Net::FNetObjectGroupHandle UReplicationSystem::GetNetGroupReplayNetObjectGroup() const
+{
+	return Impl->NetGroupReplayNetObjectGroupHandle;
+}
+
 void UReplicationSystem::AddGroupFilter(FNetObjectGroupHandle GroupHandle)
 {
+	// Early out if this is invalid group
+	if (!ensure(IsValidGroup(GroupHandle)))
+	{
+		return;
+	}
+
 	UE::Net::Private::FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();	
 	Filtering.AddGroupFilter(GroupHandle);
 }
 
 void UReplicationSystem::RemoveGroupFilter(FNetObjectGroupHandle GroupHandle)
 {
+	// Early out if this is invalid group
+	if (!ensure(IsValidGroup(GroupHandle)))
+	{
+		return;
+	}
+
 	UE::Net::Private::FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();	
 	Filtering.RemoveGroupFilter(GroupHandle);
 }
 
 void UReplicationSystem::SetGroupFilterStatus(FNetObjectGroupHandle GroupHandle, uint32 ConnectionId, UE::Net::ENetFilterStatus ReplicationStatus)
 {
+	// Early out if this is invalid group
+	if (!ensure(IsValidGroup(GroupHandle)))
+	{
+		return;
+	}
+
 	UE::Net::Private::FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();	
 	Filtering.SetGroupFilterStatus(GroupHandle, ConnectionId, ReplicationStatus);
 }
 
 void UReplicationSystem::SetGroupFilterStatus(FNetObjectGroupHandle GroupHandle, const UE::Net::FNetBitArray& Connections, UE::Net::ENetFilterStatus ReplicationStatus)
 {
+	// Early out if this is invalid group
+	if (!ensure(IsValidGroup(GroupHandle)))
+	{
+		return;
+	}
+
 	UE::Net::Private::FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();	
 	Filtering.SetGroupFilterStatus(GroupHandle, UE::Net::MakeNetBitArrayView(Connections), ReplicationStatus);
 }
 
 void UReplicationSystem::SetGroupFilterStatus(FNetObjectGroupHandle GroupHandle, UE::Net::ENetFilterStatus ReplicationStatus)
 {
+	// Early out if this is invalid group
+	if (!ensure(IsValidGroup(GroupHandle)))
+	{
+		return;
+	}
+
 	UE::Net::Private::FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();	
 	Filtering.SetGroupFilterStatus(GroupHandle, ReplicationStatus);
 }

@@ -1450,7 +1450,7 @@ FNetLevelVisibilityTransactionId UNetConnection::UpdateLevelStreamStatusChangedT
 			if (const ULevel* Level = LevelObject->GetLoadedLevel())
 			{
 				const UReplicationBridge* ReplicationBridge = ReplicationSystem->GetReplicationBridge();
-				if (UE::Net::FNetObjectGroupHandle GroupHandle = ReplicationBridge->GetLevelGroup(Level); GroupHandle != UE::Net::InvalidNetObjectGroupHandle)
+				if (UE::Net::FNetObjectGroupHandle GroupHandle = ReplicationBridge->GetLevelGroup(Level); GroupHandle.IsValid())
 				{
 					ReplicationSystem->SetGroupFilterStatus(GroupHandle, GetConnectionId(), UE::Net::ENetFilterStatus::Disallow);
 				}
@@ -1601,7 +1601,7 @@ void UNetConnection::UpdateLevelVisibilityInternal(const FUpdateLevelVisibilityL
 				if (Level)
 				{
 					const UReplicationBridge* ReplicationBridge = ReplicationSystem->GetReplicationBridge();
-					if (UE::Net::FNetObjectGroupHandle GroupHandle = ReplicationBridge->GetLevelGroup(Level); GroupHandle != UE::Net::InvalidNetObjectGroupHandle)
+					if (UE::Net::FNetObjectGroupHandle GroupHandle = ReplicationBridge->GetLevelGroup(Level); GroupHandle.IsValid())
 					{
 						ReplicationSystem->SetGroupFilterStatus(GroupHandle, GetConnectionId(), UE::Net::ENetFilterStatus::Allow);
 					}
@@ -1698,7 +1698,7 @@ void UNetConnection::UpdateLevelVisibilityInternal(const FUpdateLevelVisibilityL
 					// The reason for this is that the client currently destroys the instances rather then managing this through the replication system
 					// If we implement a way to re-instantiate instances on the client we might be able to persist the state
 					const UReplicationBridge* ReplicationBridge = ReplicationSystem->GetReplicationBridge();
-					if (UE::Net::FNetObjectGroupHandle GroupHandle = ReplicationBridge->GetLevelGroup(Level); GroupHandle != UE::Net::InvalidNetObjectGroupHandle)
+					if (UE::Net::FNetObjectGroupHandle GroupHandle = ReplicationBridge->GetLevelGroup(Level); GroupHandle.IsValid())
 					{
 						ReplicationSystem->SetGroupFilterStatus(GroupHandle, GetConnectionId(), UE::Net::ENetFilterStatus::Disallow);
 					}

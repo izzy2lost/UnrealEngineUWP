@@ -5,6 +5,7 @@
 #include "CoreTypes.h"
 #include "Net/Core/NetBitArray.h"
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilter.h"
+#include "Iris/ReplicationSystem/NetObjectGroupHandle.h"
 #include "Containers/Array.h"
 #include "UObject/StrongObjectPtr.h"
 
@@ -12,7 +13,6 @@ class UReplicationSystem;
 namespace UE::Net
 {
 	typedef uint32 FNetObjectFilterHandle;
-	typedef uint16 FNetObjectGroupHandle;
 	namespace Private
 	{
 		class FDeltaCompressionBaselineInvalidationTracker;
@@ -107,7 +107,7 @@ public:
 	// Group based filtering
 	void AddGroupFilter(FNetObjectGroupHandle GroupHandle);
 	void RemoveGroupFilter(FNetObjectGroupHandle GroupHandle);
-	bool IsGroupFilterGroup(FNetObjectGroupHandle GroupHandle) const { return GroupHandle && FilterGroups.GetBit(GroupHandle); }
+	bool IsGroupFilterGroup(FNetObjectGroupHandle GroupHandle) const { return GroupHandle.IsValid() && FilterGroups.GetBit(GroupHandle.GetGroupIndex()); }
 
 	void SetGroupFilterStatus(FNetObjectGroupHandle GroupHandle, ENetFilterStatus ReplicationStatus);
 	void SetGroupFilterStatus(FNetObjectGroupHandle GroupHandle, const FNetBitArrayView& ConnectionsBitArray, ENetFilterStatus);
@@ -123,7 +123,7 @@ public:
 	// SubObjectFilter status
 	void AddSubObjectFilter(FNetObjectGroupHandle GroupHandle);
 	void RemoveSubObjectFilter(FNetObjectGroupHandle GroupHandle);
-	bool IsSubObjectFilterGroup(FNetObjectGroupHandle GroupHandle) const { return GroupHandle && SubObjectFilterGroups.GetBit(GroupHandle); }
+	bool IsSubObjectFilterGroup(FNetObjectGroupHandle GroupHandle) const { return GroupHandle.IsValid() && SubObjectFilterGroups.GetBit(GroupHandle.GetGroupIndex()); }
 
 	void SetSubObjectFilterStatus(FNetObjectGroupHandle GroupHandle, ENetFilterStatus ReplicationStatus);
 	void SetSubObjectFilterStatus(FNetObjectGroupHandle GroupHandle, const FNetBitArrayView& ConnectionsBitArray, ENetFilterStatus);

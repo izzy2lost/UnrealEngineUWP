@@ -7,6 +7,7 @@
 #include "Containers/Map.h"
 #include "Iris/Core/NetObjectReference.h"
 #include "Iris/ReplicationSystem/NetRefHandle.h"
+#include "Iris/ReplicationSystem/NetObjectGroupHandle.h"
 #include "Misc/EnumClassFlags.h"
 #include "Net/Core/NetHandle/NetHandle.h"
 #include "UObject/ObjectKey.h"
@@ -21,7 +22,6 @@ class UNetDriver;
 namespace UE::Net
 {
 	struct FNetDependencyInfo;
-	typedef uint16 FNetObjectGroupHandle;
 	class FNetTokenStoreState;
 	class FReplicationFragment;
 	struct FReplicationInstanceProtocol;

@@ -352,7 +352,7 @@ class UReplicationSystem;
 class UReplicationBridge;
 namespace UE::Net
 {
-	typedef uint16 FNetObjectGroupHandle;
+	class FNetObjectGroupHandle;
 }
 #endif // UE_WITH_IRIS
 

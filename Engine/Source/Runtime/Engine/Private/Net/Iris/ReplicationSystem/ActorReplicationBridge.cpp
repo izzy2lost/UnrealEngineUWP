@@ -291,7 +291,7 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(AActor* Actor, 
 			const FName PackageName = LevelPackage->GetFName();
 
 			FNetObjectGroupHandle LevelGroup = GetLevelGroup(Level);
-			if (!LevelGroup)
+			if (!LevelGroup.IsValid())
 			{
 				LevelGroup = CreateLevelGroup(Level);
 

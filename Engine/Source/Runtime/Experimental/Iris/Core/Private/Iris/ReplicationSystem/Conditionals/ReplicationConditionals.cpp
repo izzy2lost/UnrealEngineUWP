@@ -474,18 +474,18 @@ void FReplicationConditionals::GetChildSubObjectsToReplicate(uint32 ReplicatingC
 						for (uint32 GroupIt = 0U; GroupIt < GroupCount; ++GroupIt)
 						{
 							const FNetObjectGroupHandle NetGroup = GroupMemberships[GroupIt];
-							if (NetGroup == NetGroupOwnerNetObjectGroupHandle)
+							if (NetGroup.IsNetGroupOwnerNetObjectGroup())
 							{
 								bShouldReplicateSubObject = LifetimeConditionals.IsConditionEnabled(COND_OwnerOnly);
 							}
-							else if (NetGroup == NetGroupReplayNetObjectGroupHandle)
+							else if (NetGroup.IsNetGroupReplayNetObjectGroup())
 							{
 								bShouldReplicateSubObject = LifetimeConditionals.IsConditionEnabled(COND_ReplayOnly);
 							}
 							else
 							{
 								ENetFilterStatus ReplicationStatus = ENetFilterStatus::Disallow;
-								ensureAlwaysMsgf(ReplicationFiltering->GetSubObjectFilterStatus(NetGroup, ReplicatingConnectionId, ReplicationStatus), TEXT("FReplicationConditionals::GetChildSubObjectsToReplicat Trying to filter with group %u that is not a SubObjectFilterGroup"), NetGroup);
+								ensureAlwaysMsgf(ReplicationFiltering->GetSubObjectFilterStatus(NetGroup, ReplicatingConnectionId, ReplicationStatus), TEXT("FReplicationConditionals::GetChildSubObjectsToReplicat Trying to filter with group %u that is not a SubObjectFilterGroup"), NetGroup.GetGroupIndex());
 								bShouldReplicateSubObject = ReplicationStatus != ENetFilterStatus::Disallow;
 							}
 						

@@ -15,7 +15,6 @@ namespace UE::Net
 {
 	struct FNetObjectResolveContext;
 	typedef uint32 FNetObjectFilterHandle;
-	typedef uint16 FNetObjectGroupHandle;
 	typedef uint32 FNetObjectPrioritizerHandle;
 	class FNetObjectReference;
 	namespace Private

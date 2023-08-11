@@ -6232,7 +6232,7 @@ void UNetDriver::UpdateGroupFilterStatusForLevel(const ULevel* Level, UE::Net::F
 {
 	using namespace UE::Net;
 
-	if (ReplicationSystem == nullptr || LevelGroupHandle == InvalidNetObjectGroupHandle)
+	if (ReplicationSystem == nullptr || !ensure(ReplicationSystem->IsValidGroup(LevelGroupHandle)))
 	{
 		return;
 	}
