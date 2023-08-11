@@ -737,9 +737,9 @@ void FTextRenderSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHI
 		VertexBuffers.SetOwnerName(Name);
 		IndexBuffer.SetOwnerName(Name);
 #endif
-		VertexBuffers.InitFromDynamicVertex(&VertexFactory, OutVertices);
+		VertexBuffers.InitFromDynamicVertex(RHICmdList, &VertexFactory, OutVertices);
 		// Enqueue initialization of render resources
-		BeginInitResource(&IndexBuffer);
+		IndexBuffer.InitResource(RHICmdList);
 
 #if RHI_RAYTRACING
 		if (bSupportRayTracing)
