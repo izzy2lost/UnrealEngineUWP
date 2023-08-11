@@ -21,13 +21,13 @@ namespace Horde.Server.Tests
 			request.Summary = "This is a test preview item";
 
 			// create a reservation
-			GetDashboardPreviewResponse result =  (await DashboardController!.CreateDashbordPreview(request)).Value!;
+			GetDashboardPreviewResponse result =  (await DashboardController!.CreateDashbordPreviewAsync(request)).Value!;
 
 			Assert.AreEqual(1, result.Id);
 			Assert.AreEqual("This is a test preview item", result.Summary);
 
 			request.Summary = "This is another test preview item";
-			result = (await DashboardController!.CreateDashbordPreview(request)).Value!;
+			result = (await DashboardController!.CreateDashbordPreviewAsync(request)).Value!;
 
 			Assert.AreEqual(2, result.Id);
 			Assert.AreEqual("This is another test preview item", result.Summary);
@@ -40,7 +40,7 @@ namespace Horde.Server.Tests
 			updateRequest.DiscussionLink = "http://testdiscussion";
 			updateRequest.DeployedCL = 123;
 
-			result = (await DashboardController!.UpdateDashbordPreview(updateRequest)).Value!;
+			result = (await DashboardController!.UpdateDashbordPreviewAsync(updateRequest)).Value!;
 
 			Assert.AreEqual(2, result.Id);
 			Assert.AreEqual("http://testexample", result.ExampleLink);
@@ -48,7 +48,7 @@ namespace Horde.Server.Tests
 			Assert.AreEqual("http://testdiscussion", result.DiscussionLink);
 			Assert.AreEqual(123, result.DeployedCL);
 
-			List<GetDashboardPreviewResponse> results = (await DashboardController!.GetDashbordPreviews(true)).Value!;
+			List<GetDashboardPreviewResponse> results = (await DashboardController!.GetDashbordPreviewsAsync(true)).Value!;
 			results = results.OrderBy(r => r.Id).ToList();
 			Assert.AreEqual(2, results.Count);
 			Assert.AreEqual(1, results[0].Id);
@@ -57,15 +57,15 @@ namespace Horde.Server.Tests
 			UpdateDashboardPreviewRequest updateRequest2 = new UpdateDashboardPreviewRequest();
 			updateRequest2.Id = 1;
 			updateRequest2.Open = false;
-			result = (await DashboardController!.UpdateDashbordPreview(updateRequest2)).Value!;
+			result = (await DashboardController!.UpdateDashbordPreviewAsync(updateRequest2)).Value!;
 			Assert.AreEqual(false, result.Open);
 
-			results = (await DashboardController!.GetDashbordPreviews(true)).Value!;
+			results = (await DashboardController!.GetDashbordPreviewsAsync(true)).Value!;
 			Assert.AreEqual(1, results.Count);
 			Assert.AreEqual(2, results[0].Id);
 			Assert.AreEqual("Updated test summary", results[0].Summary);
 
-			results = (await DashboardController!.GetDashbordPreviews(false)).Value!;
+			results = (await DashboardController!.GetDashbordPreviewsAsync(false)).Value!;
 			Assert.AreEqual(1, results.Count);
 			Assert.AreEqual(1, results[0].Id);
 		}

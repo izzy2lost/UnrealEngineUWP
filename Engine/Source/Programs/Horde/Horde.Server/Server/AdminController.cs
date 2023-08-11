@@ -172,7 +172,7 @@ namespace Horde.Server.Server
 		/// <returns>Administrative settings for the server</returns>
 		[HttpGet]
 		[Route("/api/v1/admin/configtoken")]
-		public async Task<ActionResult<string>> GetConfigToken()
+		public async Task<ActionResult<string>> GetConfigTokenAsync()
 		{
 			if (!_globalConfig.Value.Authorize(AdminAclAction.AdminRead, User))
 			{
@@ -192,7 +192,7 @@ namespace Horde.Server.Server
 		/// <returns>Administrative settings for the server</returns>
 		[HttpGet]
 		[Route("/api/v1/admin/chainedjobtoken")]
-		public async Task<ActionResult<string>> GetChainedJobToken()
+		public async Task<ActionResult<string>> GetChainedJobTokenAsync()
 		{
 			if (!_globalConfig.Value.Authorize(AdminAclAction.AdminRead, User))
 			{

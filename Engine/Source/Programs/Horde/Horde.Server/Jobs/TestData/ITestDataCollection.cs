@@ -48,14 +48,14 @@ namespace Horde.Server.Jobs.TestData
 		/// </summary>
 		/// <param name="testIds"></param>
 		/// <returns></returns>
-		Task<List<ITest>> FindTests(TestId[] testIds);
+		Task<List<ITest>> FindTestsAsync(TestId[] testIds);
 
 		/// <summary>
 		/// Find test suites
 		/// </summary>
 		/// <param name="suiteIds"></param>
 		/// <returns></returns>
-		Task<List<ITestSuite>> FindTestSuites(TestSuiteId[] suiteIds);
+		Task<List<ITestSuite>> FindTestSuitesAsync(TestSuiteId[] suiteIds);
 
 		/// <summary>
 		/// Creates a new test data document

@@ -589,10 +589,10 @@ namespace Horde.Server.Jobs
 
 			IJobTiming jobTiming = await _jobService.GetJobTimingAsync(job);
 			IGraph graph = await _jobService.GetGraphAsync(job);
-			return PropertyFilter.Apply(await CreateJobTimingResponse(job, graph, jobTiming), filter);
+			return PropertyFilter.Apply(await CreateJobTimingResponseAsync(job, graph, jobTiming), filter);
 		}
 
-		private async Task<GetJobTimingResponse> CreateJobTimingResponse(IJob job, IGraph graph, IJobTiming jobTiming, bool includeJobResponse = false)
+		private async Task<GetJobTimingResponse> CreateJobTimingResponseAsync(IJob job, IGraph graph, IJobTiming jobTiming, bool includeJobResponse = false)
 		{
 			Dictionary<INode, TimingInfo> nodeToTimingInfo = job.GetTimingInfo(graph, jobTiming);
 
@@ -658,7 +658,7 @@ namespace Horde.Server.Jobs
 				{
 					IJobTiming jobTiming = await _jobService.GetJobTimingAsync(job);
 					IGraph graph = await _jobService.GetGraphAsync(job);
-					return await CreateJobTimingResponse(job, graph, jobTiming, true);
+					return await CreateJobTimingResponseAsync(job, graph, jobTiming, true);
 				});
 			
 			return PropertyFilter.Apply(new FindJobTimingsResponse(jobTimings), filter);

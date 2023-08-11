@@ -837,7 +837,7 @@ namespace Horde.Server.Agents
 		/// <param name="loadBalancer">The Perforce load balancer</param>
 		/// <param name="workspaceMessages">List of messages</param>
 		/// <returns>The RPC message</returns>
-		public static async Task<bool> TryAddWorkspaceMessage(this IAgent agent, AgentWorkspace workspace, PerforceCluster cluster, PerforceLoadBalancer loadBalancer, IList<HordeCommon.Rpc.Messages.AgentWorkspace> workspaceMessages)
+		public static async Task<bool> TryAddWorkspaceMessageAsync(this IAgent agent, AgentWorkspace workspace, PerforceCluster cluster, PerforceLoadBalancer loadBalancer, IList<HordeCommon.Rpc.Messages.AgentWorkspace> workspaceMessages)
 		{
 			// Find a matching server, trying to use a previously selected one if possible
 			string? baseServerAndPort;

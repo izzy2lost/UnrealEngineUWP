@@ -501,9 +501,9 @@ namespace Horde.Server.Issues
 		/// <param name="batchId">Unique id of the batch</param>
 		/// <param name="stepId">Unique id of the step</param>
 		/// <returns>Async task</returns>
-		public async Task UpdateCompleteStep(IJob job, IGraph graph, SubResourceId batchId, SubResourceId stepId)
+		public async Task UpdateCompleteStepAsync(IJob job, IGraph graph, SubResourceId batchId, SubResourceId stepId)
 		{
-			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(IssueService)}.{nameof(UpdateCompleteStep)}");
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(IssueService)}.{nameof(UpdateCompleteStepAsync)}");
 			span.SetAttribute("jobId", job.Id.ToString());
 			span.SetAttribute("batchId", batchId.ToString());
 			span.SetAttribute("stepId", stepId.ToString());
@@ -582,11 +582,11 @@ namespace Horde.Server.Issues
 					// Add the events to existing issues, and create new issues for everything else
 					if (eventGroups.Count > 0)
 					{
-						if (!await AddEventsToExistingSpans(job, batch, step, eventGroups, openSpans, checkedSpanIds, annotations, job.PromoteIssuesByDefault))
+						if (!await AddEventsToExistingSpansAsync(job, batch, step, eventGroups, openSpans, checkedSpanIds, annotations, job.PromoteIssuesByDefault))
 						{
 							continue;
 						}
-						if (!await AddEventsToNewSpans(streamConfig, job, batch, step, node, openSpans, eventGroups, annotations, job.PromoteIssuesByDefault))
+						if (!await AddEventsToNewSpansAsync(streamConfig, job, batch, step, node, openSpans, eventGroups, annotations, job.PromoteIssuesByDefault))
 						{
 							continue;
 						}
@@ -710,7 +710,7 @@ namespace Horde.Server.Issues
 		/// <param name="annotations">Annotations for this step</param>
 		/// <param name="promoteByDefault"></param>
 		/// <returns>True if the adding completed</returns>
-		async Task<bool> AddEventsToExistingSpans(IJob job, IJobStepBatch batch, IJobStep step, HashSet<IssueEventGroup> newEventGroups, List<IIssueSpan> openSpans, HashSet<ObjectId> checkedSpanIds, IReadOnlyNodeAnnotations? annotations, bool promoteByDefault)
+		async Task<bool> AddEventsToExistingSpansAsync(IJob job, IJobStepBatch batch, IJobStep step, HashSet<IssueEventGroup> newEventGroups, List<IIssueSpan> openSpans, HashSet<ObjectId> checkedSpanIds, IReadOnlyNodeAnnotations? annotations, bool promoteByDefault)
 		{
 			for(int spanIdx = 0; spanIdx < openSpans.Count; spanIdx++)
 			{
@@ -793,7 +793,7 @@ namespace Horde.Server.Issues
 		/// <param name="annotations"></param>
 		/// <param name="promoteByDefault"></param>
 		/// <returns>True if all events were added</returns>
-		async Task<bool> AddEventsToNewSpans(StreamConfig streamConfig, IJob job, IJobStepBatch batch, IJobStep step, INode node, List<IIssueSpan> openSpans, HashSet<IssueEventGroup> newEventGroups, IReadOnlyNodeAnnotations? annotations, bool promoteByDefault)
+		async Task<bool> AddEventsToNewSpansAsync(StreamConfig streamConfig, IJob job, IJobStepBatch batch, IJobStep step, INode node, List<IIssueSpan> openSpans, HashSet<IssueEventGroup> newEventGroups, IReadOnlyNodeAnnotations? annotations, bool promoteByDefault)
 		{
 			while (newEventGroups.Count > 0)
 			{
@@ -1042,7 +1042,7 @@ namespace Horde.Server.Issues
 							newStream.ContainsFix = stream.ContainsFix;
 						}
 
-						newStream.ContainsFix ??= await ContainsFixChange(globalConfig, newStream.StreamId, issue.FixChange.Value, fixChangeCache);
+						newStream.ContainsFix ??= await ContainsFixChangeAsync(globalConfig, newStream.StreamId, issue.FixChange.Value, fixChangeCache);
 
 						if (spans.Any(x => x.StreamId == newStream.StreamId && x.LastFailure.Change > issue.FixChange.Value))
 						{
@@ -1119,7 +1119,7 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// Figure out if a stream contains a fix changelist
 		/// </summary>
-		async ValueTask<bool> ContainsFixChange(GlobalConfig globalConfig, StreamId streamId, int fixChange, Dictionary<(StreamId, int), bool> cachedContainsFixChange)
+		async ValueTask<bool> ContainsFixChangeAsync(GlobalConfig globalConfig, StreamId streamId, int fixChange, Dictionary<(StreamId, int), bool> cachedContainsFixChange)
 		{
 			bool containsFixChange;
 			if (!cachedContainsFixChange.TryGetValue((streamId, fixChange), out containsFixChange) && fixChange > 0)

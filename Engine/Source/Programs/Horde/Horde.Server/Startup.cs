@@ -131,32 +131,32 @@ namespace Horde.Server
 
 			public override Task<TResponse> UnaryServerHandler<TRequest, TResponse>(TRequest request, ServerCallContext context, UnaryServerMethod<TRequest, TResponse> continuation)
 			{
-				return Guard(context, () => base.UnaryServerHandler(request, context, continuation));
+				return GuardAsync(context, () => base.UnaryServerHandler(request, context, continuation));
 			}
 
 			public override Task<TResponse> ClientStreamingServerHandler<TRequest, TResponse>(IAsyncStreamReader<TRequest> requestStream, ServerCallContext context, ClientStreamingServerMethod<TRequest, TResponse> continuation) where TRequest : class where TResponse : class
 			{
-				return Guard(context, () => base.ClientStreamingServerHandler(requestStream, context, continuation));
+				return GuardAsync(context, () => base.ClientStreamingServerHandler(requestStream, context, continuation));
 			}
 
 			public override Task ServerStreamingServerHandler<TRequest, TResponse>(TRequest request, IServerStreamWriter<TResponse> responseStream, ServerCallContext context, ServerStreamingServerMethod<TRequest, TResponse> continuation) where TRequest : class where TResponse : class
 			{
-				return Guard(context, () => base.ServerStreamingServerHandler(request, responseStream, context, continuation));
+				return GuardAsync(context, () => base.ServerStreamingServerHandler(request, responseStream, context, continuation));
 			}
 
 			public override Task DuplexStreamingServerHandler<TRequest, TResponse>(IAsyncStreamReader<TRequest> requestStream, IServerStreamWriter<TResponse> responseStream, ServerCallContext context, DuplexStreamingServerMethod<TRequest, TResponse> continuation) where TRequest : class where TResponse : class
 			{
-				return Guard(context, () => base.DuplexStreamingServerHandler(requestStream, responseStream, context, continuation));
+				return GuardAsync(context, () => base.DuplexStreamingServerHandler(requestStream, responseStream, context, continuation));
 			}
 
-			async Task<T> Guard<T>(ServerCallContext context, Func<Task<T>> callFunc) where T : class
+			async Task<T> GuardAsync<T>(ServerCallContext context, Func<Task<T>> callFunc) where T : class
 			{
 				T result = null!;
-				await Guard(context, async () => { result = await callFunc(); });
+				await GuardAsync(context, async () => { result = await callFunc(); });
 				return result;
 			}
 
-			async Task Guard(ServerCallContext context, Func<Task> callFunc)
+			async Task GuardAsync(ServerCallContext context, Func<Task> callFunc)
 			{
 				HttpContext httpContext = context.GetHttpContext();
 
@@ -164,16 +164,16 @@ namespace Horde.Server
 				if (agentId != null)
 				{
 					using IDisposable scope = _logger.BeginScope("Agent: {AgentId}, RemoteIP: {RemoteIP}, Method: {Method}", agentId.Value, httpContext.Connection.RemoteIpAddress, context.Method);
-					await GuardInner(context, callFunc);
+					await GuardInnerAsync(context, callFunc);
 				}
 				else
 				{
 					using IDisposable scope = _logger.BeginScope("RemoteIP: {RemoteIP}, Method: {Method}", httpContext.Connection.RemoteIpAddress, context.Method);
-					await GuardInner(context, callFunc);
+					await GuardInnerAsync(context, callFunc);
 				}
 			}
 
-			async Task GuardInner(ServerCallContext context, Func<Task> callFunc)
+			async Task GuardInnerAsync(ServerCallContext context, Func<Task> callFunc)
 			{
 				try
 				{

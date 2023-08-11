@@ -221,12 +221,12 @@ namespace Horde.Agent.Tests
 			using CancellationTokenSource stepCancelSource = new CancellationTokenSource();
 			TaskCompletionSource<bool> stepFinishedSource = new TaskCompletionSource<bool>();
 
-			await jobHandler.PollForStepAbort(rpcConnection, "jobId1", "batchId1", "logId1", stepCancelSource, stepFinishedSource.Task, stepPollCancelSource.Token);
+			await jobHandler.PollForStepAbortAsync(rpcConnection, "jobId1", "batchId1", "logId1", stepCancelSource, stepFinishedSource.Task, stepPollCancelSource.Token);
 			Assert.IsTrue(stepCancelSource.IsCancellationRequested);
 		}
 
 		[TestMethod]
-		public async Task Shutdown()
+		public async Task ShutdownAsync()
 		{
 			IJobExecutor executor = new SimpleTestExecutor(async (step, logger, cancellationToken) =>
 			{

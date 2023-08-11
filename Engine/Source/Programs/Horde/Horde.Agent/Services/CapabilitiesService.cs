@@ -178,7 +178,7 @@ namespace Horde.Agent.Services
 				// Add EC2 properties if needed
 				if (_settings.EnableAwsEc2Support)
 				{
-					await AddAwsProperties(primaryDevice.Properties, logger);
+					await AddAwsPropertiesAsync(primaryDevice.Properties, logger);
 				}
 
 				// Add session information
@@ -200,7 +200,7 @@ namespace Horde.Agent.Services
 				// Add EC2 properties if needed
 				if (_settings.EnableAwsEc2Support)
 				{
-					await AddAwsProperties(primaryDevice.Properties, logger);
+					await AddAwsPropertiesAsync(primaryDevice.Properties, logger);
 				}
 
 				// Parse the CPU info
@@ -484,7 +484,7 @@ namespace Horde.Agent.Services
 			return records;
 		}
 
-		static async Task AddAwsProperties(IList<string> properties, ILogger logger)
+		static async Task AddAwsPropertiesAsync(IList<string> properties, ILogger logger)
 		{
 			if (EC2InstanceMetadata.IdentityDocument != null)
 			{

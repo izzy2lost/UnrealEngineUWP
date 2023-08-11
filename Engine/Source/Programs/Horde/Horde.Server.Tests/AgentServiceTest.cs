@@ -46,7 +46,7 @@ public class AgentServiceTest : TestSetup
 	}
 
 	[TestMethod]
-	public async Task CreateSessionTest()
+	public async Task CreateSessionTestAsync()
 	{
 		Fixture fixture = await CreateFixtureAsync();
 
@@ -87,7 +87,7 @@ public class AgentServiceTest : TestSetup
 	}
 
 	private static int s_agentId = 1;
-	private async Task<IAgent> CreateAgentSession(bool enabled = true)
+	private async Task<IAgent> CreateAgentSessionAsync(bool enabled = true)
 	{
 		IAgent agent = await AgentService.CreateAgentAsync("agentServiceTest-" + s_agentId++, true, null);
 		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new List<string>(), new Dictionary<string, int>(), "v1");
@@ -114,7 +114,7 @@ public class AgentServiceTest : TestSetup
 	[DataRow(AgentStatus.Unspecified, true)]
 	public async Task LastStatusChange(AgentStatus status, bool expectTimestampUpdate)
 	{
-		IAgent agent = await CreateAgentSession();
+		IAgent agent = await CreateAgentSessionAsync();
 		DateTime lastStatusChange = agent.LastStatusChange!.Value;
 		await Clock.AdvanceAsync(TimeSpan.FromMinutes(1));
 

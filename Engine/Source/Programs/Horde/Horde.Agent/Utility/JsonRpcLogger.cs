@@ -74,7 +74,7 @@ namespace Horde.Agent.Utility
 			_warnings = warnings ?? true;
 			_inner = inner;
 			_dataChannel = Channel.CreateUnbounded<JsonLogEvent>();
-			_dataWriter = Task.Run(() => RunDataWriter());
+			_dataWriter = Task.Run(() => RunDataWriterAsync());
 
 			Outcome = JobStepOutcome.Success;
 		}
@@ -145,7 +145,7 @@ namespace Horde.Agent.Utility
 		/// Upload the log data to the server in the background
 		/// </summary>
 		/// <returns>Async task</returns>
-		async Task RunDataWriter()
+		async Task RunDataWriterAsync()
 		{
 			// Current position and line number in the log file
 			long packetOffset = 0;

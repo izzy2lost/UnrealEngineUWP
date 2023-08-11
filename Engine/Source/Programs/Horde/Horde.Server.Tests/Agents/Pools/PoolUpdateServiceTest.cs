@@ -81,7 +81,7 @@ namespace Horde.Server.Tests.Agents.Pools
 		}
 		
 		[TestMethod]
-		public async Task ShutdownDisabledAgents_WithAutoScalingOff_DoesNotRequestShutdown()
+		public async Task ShutdownDisabledAgents_WithAutoScalingOff_DoesNotRequestShutdownAsync()
 		{
 			// Arrange
 			await PoolCollection.TryUpdateAsync(_pool, new UpdatePoolOptions { EnableAutoscaling = false });

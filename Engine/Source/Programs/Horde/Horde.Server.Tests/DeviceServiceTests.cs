@@ -164,7 +164,7 @@ namespace Horde.Server.Tests
 			Assert.IsNotNull(deleted);
 
 			// check that telemetry was created
-			List<GetDeviceTelemetryResponse> telemetry = (await DeviceController!.GetDeviceTelemetry()).Value!;
+			List<GetDeviceTelemetryResponse> telemetry = (await DeviceController!.GetDeviceTelemetryAsync()).Value!;
 			Assert.AreEqual(telemetry.Count, 1);
 			Assert.AreEqual(telemetry[0].Telemetry.Count, 1);
 			Assert.AreEqual(telemetry[0].Telemetry[0].StreamId, "ue5-main");
@@ -197,7 +197,7 @@ namespace Horde.Server.Tests
 			Assert.IsNotNull(deleted);
 
 			// check that telemetry was created
-			List<GetDeviceTelemetryResponse> telemetry = (await DeviceController!.GetDeviceTelemetry()).Value!;
+			List<GetDeviceTelemetryResponse> telemetry = (await DeviceController!.GetDeviceTelemetryAsync()).Value!;
 			Assert.AreEqual(telemetry.Count, 1);
 			Assert.AreEqual(telemetry[0].Telemetry.Count, 1);
 			Assert.AreEqual(telemetry[0].Telemetry[0].StreamId, "ue5-main");
@@ -259,7 +259,7 @@ namespace Horde.Server.Tests
 			Assert.IsNotNull(deleted);
 
 			// check that telemetry was created
-			List<GetDeviceTelemetryResponse> telemetry = (await DeviceController!.GetDeviceTelemetry()).Value!;
+			List<GetDeviceTelemetryResponse> telemetry = (await DeviceController!.GetDeviceTelemetryAsync()).Value!;
 			Assert.AreEqual(telemetry.Count, 1);
 			// check that problem was recorded
 			Assert.IsNotNull(telemetry[0].Telemetry[0].ProblemTimeUtc);
@@ -297,7 +297,7 @@ namespace Horde.Server.Tests
 
 			await DeviceService.TickForTestingAsync();
 
-			List<GetDevicePoolTelemetryResponse> telemetry = (await DeviceController!.GetDevicePoolTelemetry()).Value!;
+			List<GetDevicePoolTelemetryResponse> telemetry = (await DeviceController!.GetDevicePoolTelemetryAsync()).Value!;
 
 			// 2, as generate an initial telemetry tick in setup
 			Assert.AreEqual(2, telemetry.Count);

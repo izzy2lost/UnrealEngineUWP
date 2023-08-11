@@ -328,7 +328,7 @@ class TelemetryService : BackgroundService
 	/// </summary>
 	/// <param name="logger">Logger to use</param>
 	/// <param name="cancellationToken">Cancellation token for the call</param>
-	public static async Task<List<string>> GetProblematicFilterDrivers(ILogger logger, CancellationToken cancellationToken)
+	public static async Task<List<string>> GetProblematicFilterDriversAsync(ILogger logger, CancellationToken cancellationToken)
 	{
 		try
 		{
@@ -384,9 +384,9 @@ class TelemetryService : BackgroundService
 	/// </summary>
 	/// <param name="logger">Logger to use</param>
 	/// <param name="cancellationToken">Cancellation token for the call</param>
-	public static async Task LogProblematicFilterDrivers(ILogger logger, CancellationToken cancellationToken)
+	public static async Task LogProblematicFilterDriversAsync(ILogger logger, CancellationToken cancellationToken)
 	{
-		List<string> loadedDrivers = await GetProblematicFilterDrivers(logger, cancellationToken);
+		List<string> loadedDrivers = await GetProblematicFilterDriversAsync(logger, cancellationToken);
 		if (loadedDrivers.Count > 0)
 		{
 			logger.LogWarning("Agent has problematic filter drivers loaded: {FilterDrivers}", String.Join(',', loadedDrivers));

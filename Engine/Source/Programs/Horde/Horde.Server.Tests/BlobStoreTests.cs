@@ -81,7 +81,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task LeafTest()
+		public async Task LeafTestAsync()
 		{
 			StorageClient store = await CreateStorageClientAsync();
 
@@ -93,7 +93,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task ReferenceTest()
+		public async Task ReferenceTestAsync()
 		{
 			StorageClient store = await CreateStorageClientAsync();
 
@@ -128,7 +128,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task RefExpiryTest()
+		public async Task RefExpiryTestAsync()
 		{
 			StorageClient store = await CreateStorageClientAsync();
 

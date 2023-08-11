@@ -303,7 +303,7 @@ namespace Horde.Agent.Leases.Handlers
 							using CancellationTokenSource stepPollCancelSource = new CancellationTokenSource();
 							using CancellationTokenSource stepAbortSource = new CancellationTokenSource();
 							TaskCompletionSource<bool> stepFinishedSource = new TaskCompletionSource<bool>();
-							Task stepPollTask = Task.Run(() => PollForStepAbort(rpcClient, options.JobId, options.BatchId, step.StepId, stepAbortSource, stepFinishedSource.Task, stepPollCancelSource.Token), cancellationToken);
+							Task stepPollTask = Task.Run(() => PollForStepAbortAsync(rpcClient, options.JobId, options.BatchId, step.StepId, stepAbortSource, stepFinishedSource.Task, stepPollCancelSource.Token), cancellationToken);
 
 							try
 							{
@@ -414,7 +414,7 @@ namespace Horde.Agent.Leases.Handlers
 			}
 		}
 
-		internal async Task PollForStepAbort(IRpcConnection rpcClient, string jobId, string batchId, string stepId, CancellationTokenSource stepCancelSource, Task finishedTask, CancellationToken cancellationToken)
+		internal async Task PollForStepAbortAsync(IRpcConnection rpcClient, string jobId, string batchId, string stepId, CancellationTokenSource stepCancelSource, Task finishedTask, CancellationToken cancellationToken)
 		{
 			Stopwatch timer = Stopwatch.StartNew();
 			while (!finishedTask.IsCompleted)

@@ -140,7 +140,7 @@ namespace Horde.Server.Server
 		/// Check if MongoDB can be reached
 		/// </summary>
 		/// <returns>True if communication works</returns>
-		public async Task<bool> IsMongoDbConnectionHealthy()
+		public async Task<bool> IsMongoDbConnectionHealthyAsync()
 		{
 			using CancellationTokenSource cancelSource = new CancellationTokenSource(10000);
 			bool isHealthy = false;
@@ -161,7 +161,7 @@ namespace Horde.Server.Server
 		/// Check if Redis can be reached
 		/// </summary>
 		/// <returns>True if communication works</returns>
-		public async Task<bool> IsRedisConnectionHealthy()
+		public async Task<bool> IsRedisConnectionHealthyAsync()
 		{
 			using CancellationTokenSource cancelSource = new CancellationTokenSource(10000);
 			bool isHealthy = false;

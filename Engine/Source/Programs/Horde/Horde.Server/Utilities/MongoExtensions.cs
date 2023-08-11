@@ -59,7 +59,7 @@ namespace Horde.Server.Utilities
 		/// <param name="indexHint"></param>
 		/// <param name="processAsync"></param>
 		/// <returns></returns>
-		public static async Task<TResult> FindWithHint<TDoc, TResult>(this IMongoCollection<TDoc> collection, FilterDefinition<TDoc> filter, string? indexHint, Func<IFindFluent<TDoc, TDoc>, Task<TResult>> processAsync)
+		public static async Task<TResult> FindWithHintAsync<TDoc, TResult>(this IMongoCollection<TDoc> collection, FilterDefinition<TDoc> filter, string? indexHint, Func<IFindFluent<TDoc, TDoc>, Task<TResult>> processAsync)
 		{
 			FindOptions? findOptions = null;
 			if (indexHint != null)

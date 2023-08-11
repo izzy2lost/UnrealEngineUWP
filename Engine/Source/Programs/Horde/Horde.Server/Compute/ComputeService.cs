@@ -38,7 +38,7 @@ namespace Horde.Server.Compute
 		/// <summary>
 		/// Allocates a compute resource
 		/// </summary>
-		public async Task<ComputeResource?> TryAllocateResource(Requirements requirements, LeaseId? parentLeaseId)
+		public async Task<ComputeResource?> TryAllocateResourceAsync(Requirements requirements, LeaseId? parentLeaseId)
 		{
 			List<IAgent> agents = await _agentCollection.FindAsync();
 			foreach (IAgent agent in agents)

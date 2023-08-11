@@ -259,11 +259,11 @@ namespace Horde.Server.Agents.Fleet.Providers
 
 			foreach (IAgent agent in agentsLimitedByCount)
 			{
-				await TryRequestShutdown(agentCollection, pool, agent);
+				await TryRequestShutdownAsync(agentCollection, pool, agent);
 			}
 		}
 
-		private static async Task<bool> TryRequestShutdown(IAgentCollection agentCollection, IPool pool, IAgent agent)
+		private static async Task<bool> TryRequestShutdownAsync(IAgentCollection agentCollection, IPool pool, IAgent agent)
 		{
 			IAuditLogChannel<AgentId> agentLogger = agentCollection.GetLogger(agent.Id);
 

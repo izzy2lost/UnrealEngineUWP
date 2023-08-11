@@ -33,7 +33,7 @@ namespace Horde.Server.Agents.Telemetry
 		/// </summary>
 		[HttpGet]
 		[Route("/api/v1/reports/utilization/{endDate}")]
-		public async Task<ActionResult<List<UtilizationTelemetryResponse>>> GetStreamUtilizationData(DateTime endDate, [FromQuery(Name = "Range")] int range, [FromQuery(Name = "TzOffset")] int? tzOffset)
+		public async Task<ActionResult<List<UtilizationTelemetryResponse>>> GetStreamUtilizationDataAsync(DateTime endDate, [FromQuery(Name = "Range")] int range, [FromQuery(Name = "TzOffset")] int? tzOffset)
 		{
 			// Logic here is a bit messy. The client is always passing in a date at midnight
 			// If user passes in 12/1/2020 into the date with range of 1, the range should be 12/1/2020:00:00:00 to 12/1/2020:23:59:59

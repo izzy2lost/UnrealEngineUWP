@@ -185,7 +185,7 @@ namespace Horde.Server.Logs.Builder
 					_logger.LogDebug("Completed sub-chunk for log {LogId} chunk offset {Offset} -> sub-chunk size {SubChunkSize}, chunk size {ChunkSize}", logId, offset, subChunkDataBytes.Length, await newLength);
 					return;
 				}
-				await writeTransaction.WaitAndIgnoreCancellations(newLength);
+				await writeTransaction.WaitAndIgnoreCancellationsAsync(newLength);
 
 				// Cool down before retrying
 				await Task.Delay(100);
@@ -295,7 +295,7 @@ namespace Horde.Server.Logs.Builder
 					return new LogChunkData(offset, lineIndex, subChunks);
 				}
 
-				await transaction.WaitAndIgnoreCancellations(typeTask, lastSubChunkDataTask);
+				await transaction.WaitAndIgnoreCancellationsAsync(typeTask, lastSubChunkDataTask);
 
 				// Cool down before retrying
 				await Task.Delay(100);

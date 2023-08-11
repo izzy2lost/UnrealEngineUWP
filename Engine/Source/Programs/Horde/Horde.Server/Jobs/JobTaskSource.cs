@@ -518,7 +518,7 @@ namespace Horde.Server.Jobs
 			if(newJob != null)
 			{
 				IReadOnlyList<(LabelState, LabelOutcome)> newLabelStates = newJob.GetLabelStates(graph);
-				await UpdateUgsBadges(newJob, graph, oldLabelStates, newLabelStates);
+				await UpdateUgsBadgesAsync(newJob, graph, oldLabelStates, newLabelStates);
 			}
 			return newJob;
 		}
@@ -871,7 +871,7 @@ namespace Horde.Server.Jobs
 			{
 				autoSdkWorkspace.Method = workspace.Method;
 				
-				if (!await agent.TryAddWorkspaceMessage(autoSdkWorkspace, cluster, _perforceLoadBalancer, workspaces))
+				if (!await agent.TryAddWorkspaceMessageAsync(autoSdkWorkspace, cluster, _perforceLoadBalancer, workspaces))
 				{
 					return null;
 				}
@@ -879,7 +879,7 @@ namespace Horde.Server.Jobs
 				task.AutoSdkWorkspace = workspaces.Last();
 			}
 
-			if (!await agent.TryAddWorkspaceMessage(workspace, cluster, _perforceLoadBalancer, workspaces))
+			if (!await agent.TryAddWorkspaceMessageAsync(workspace, cluster, _perforceLoadBalancer, workspaces))
 			{
 				return null;
 			}
@@ -896,9 +896,9 @@ namespace Horde.Server.Jobs
 		/// <param name="graph">Graph for the job</param>
 		/// <param name="oldLabelStates">Previous badge states for the job</param>
 		/// <returns>Async task</returns>
-		public async Task UpdateUgsBadges(IJob job, IGraph graph, IReadOnlyList<(LabelState, LabelOutcome)> oldLabelStates)
+		public async Task UpdateUgsBadgesAsync(IJob job, IGraph graph, IReadOnlyList<(LabelState, LabelOutcome)> oldLabelStates)
 		{
-			await UpdateUgsBadges(job, graph, oldLabelStates, job.GetLabelStates(graph));
+			await UpdateUgsBadgesAsync(job, graph, oldLabelStates, job.GetLabelStates(graph));
 		}
 
 		/// <summary>
@@ -909,7 +909,7 @@ namespace Horde.Server.Jobs
 		/// <param name="oldLabelStates">Previous badge states for the job</param>
 		/// <param name="newLabelStates">The new badge states for the job</param>
 		/// <returns>Async task</returns>
-		public async Task UpdateUgsBadges(IJob job, IGraph graph, IReadOnlyList<(LabelState, LabelOutcome)> oldLabelStates, IReadOnlyList<(LabelState, LabelOutcome)> newLabelStates)
+		public async Task UpdateUgsBadgesAsync(IJob job, IGraph graph, IReadOnlyList<(LabelState, LabelOutcome)> oldLabelStates, IReadOnlyList<(LabelState, LabelOutcome)> newLabelStates)
 		{
 			if (!job.ShowUgsBadges || job.PreflightChange != 0)
 			{

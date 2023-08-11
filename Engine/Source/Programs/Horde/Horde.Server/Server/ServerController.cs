@@ -59,7 +59,7 @@ namespace Horde.Server.Server
 		[AllowAnonymous]
 		[Route("/api/v1/server/info")]
 		[ProducesResponseType(typeof(GetServerInfoResponse), 200)]
-		public async Task<ActionResult<GetServerInfoResponse>> GetServerInfo()
+		public async Task<ActionResult<GetServerInfoResponse>> GetServerInfoAsync()
 		{
 			string? agentVersion = null;
 

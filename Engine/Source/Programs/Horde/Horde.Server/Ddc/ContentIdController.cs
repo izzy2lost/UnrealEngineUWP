@@ -36,7 +36,7 @@ namespace Horde.Server.Ddc
 		[HttpGet("{ns}/{contentId}.{format?}", Order = 500)]
 		[ProducesDefaultResponseType]
 		[ProducesResponseType(type: typeof(ProblemDetails), 400)]
-		public async Task<IActionResult> Resolve(NamespaceId ns, ContentId contentId)
+		public async Task<IActionResult> ResolveAsync(NamespaceId ns, ContentId contentId)
 		{
 			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
 			if (result != null)
@@ -63,7 +63,7 @@ namespace Horde.Server.Ddc
 		[HttpPut("{ns}/{contentId}/update/{blobIdentifier}/{contentWeight}", Order = 500)]
 		[ProducesDefaultResponseType]
 		[ProducesResponseType(type: typeof(ProblemDetails), 400)]
-		public async Task<IActionResult> UpdateContentIdMapping(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
+		public async Task<IActionResult> UpdateContentIdMappingAsync(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
 		{
 			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.WriteBlobs });
 			if (result != null)

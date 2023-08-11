@@ -440,7 +440,7 @@ namespace Horde.Server.Server
 			{
 				_mongoProcess = new ManagedProcess(_mongoProcessGroup, mongoExe.FullName, $"--config \"{configFile}\"", null, null, ProcessPriorityClass.Normal);
 				_mongoProcess.StdIn.Close();
-				_mongoOutputTask = Task.Run(() => RelayMongoOutput());
+				_mongoOutputTask = Task.Run(() => RelayMongoOutputAsync());
 				return true;
 			}
 			catch (Exception ex)
@@ -454,7 +454,7 @@ namespace Horde.Server.Server
 		/// Copies output from the mongo process to the logger
 		/// </summary>
 		/// <returns></returns>
-		async Task RelayMongoOutput()
+		async Task RelayMongoOutputAsync()
 		{
 			ILogger mongoLogger = _loggerFactory.CreateLogger("MongoDB");
 

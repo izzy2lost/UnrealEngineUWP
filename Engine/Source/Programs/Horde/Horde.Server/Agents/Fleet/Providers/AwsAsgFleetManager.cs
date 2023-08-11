@@ -69,7 +69,7 @@ namespace Horde.Server.Agents.Fleet.Providers
 			span.SetAttribute("count", count);
 			span.SetAttribute("desiredCapacity", desiredCapacity);
 			
-			await UpdateAsg(pool.Id, desiredCapacity, span, cancellationToken);
+			await UpdateAsgAsync(pool.Id, desiredCapacity, span, cancellationToken);
 			return new ScaleResult(FleetManagerOutcome.Success, count, 0);
 		}
 
@@ -85,11 +85,11 @@ namespace Horde.Server.Agents.Fleet.Providers
 			span.SetAttribute("count", count);
 			span.SetAttribute("desiredCapacity", desiredCapacity);
 			
-			await UpdateAsg(pool.Id, desiredCapacity, span, cancellationToken);
+			await UpdateAsgAsync(pool.Id, desiredCapacity, span, cancellationToken);
 			return new ScaleResult(FleetManagerOutcome.Success, 0, count);
 		}
 		
-		private async Task UpdateAsg(PoolId poolId, int desiredCapacity, TelemetrySpan span, CancellationToken cancellationToken)
+		private async Task UpdateAsgAsync(PoolId poolId, int desiredCapacity, TelemetrySpan span, CancellationToken cancellationToken)
 		{
 			UpdateAutoScalingGroupRequest request = new () { AutoScalingGroupName = Settings.Name, DesiredCapacity = desiredCapacity };
 			UpdateAutoScalingGroupResponse response = await _awsAutoScaling.UpdateAutoScalingGroupAsync(request, cancellationToken);

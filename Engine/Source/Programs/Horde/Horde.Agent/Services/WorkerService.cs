@@ -82,7 +82,7 @@ namespace Horde.Agent.Services
 			// Print the server info
 			_logger.LogInformation("Arguments: {Arguments}", Environment.CommandLine);
 
-			await TelemetryService.LogProblematicFilterDrivers(_logger, stoppingToken);
+			await TelemetryService.LogProblematicFilterDriversAsync(_logger, stoppingToken);
 
 			// Keep trying to start an agent session with the server
 			int failureCount = 0;

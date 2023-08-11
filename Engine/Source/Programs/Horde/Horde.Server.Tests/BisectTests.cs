@@ -30,7 +30,7 @@ namespace Horde.Server.Tests
 	public class BisectTests : TestSetup
 	{
 		[TestMethod]
-		public async Task TestStates()
+		public async Task TestStatesAsync()
 		{
 			(IJob failedJob, IGraph graph) = await SetupBisectionTest();
 
@@ -63,7 +63,7 @@ namespace Horde.Server.Tests
 			jobs = await JobCollection.FindBisectTaskJobsAsync(bisectTask.Id, running: true).ToListAsync();
 			Assert.AreEqual(1, jobs.Count);
 			Assert.AreEqual(14, jobs[0].Change);
-			await SetJobOutcome(jobs[0], graph, JobStepOutcome.Failure);
+			await SetJobOutcomeAsync(jobs[0], graph, JobStepOutcome.Failure);
 
 			List<GetBisectTaskResponse> bisectTasks = Deref(await BisectTasksController!.FindBisectTasksAsync(bisectTask.Owner.Id));
 			Assert.AreEqual(1, bisectTasks.Count);
@@ -76,7 +76,7 @@ namespace Horde.Server.Tests
 			jobs = await JobCollection.FindBisectTaskJobsAsync(bisectTask.Id, running: true).ToListAsync();
 			Assert.AreEqual(1, jobs.Count);
 			Assert.AreEqual(12, jobs[0].Change);
-			await SetJobOutcome(jobs[0], graph, JobStepOutcome.Success);
+			await SetJobOutcomeAsync(jobs[0], graph, JobStepOutcome.Success);
 
 			await Clock.AdvanceAsync(TimeSpan.FromMinutes(30));
 
@@ -85,7 +85,7 @@ namespace Horde.Server.Tests
 			jobs = await JobCollection.FindBisectTaskJobsAsync(bisectTask.Id, running: true).ToListAsync();
 			Assert.AreEqual(1, jobs.Count);
 			Assert.AreEqual(13, jobs[0].Change);
-			await SetJobOutcome(jobs[0], graph, JobStepOutcome.Success);
+			await SetJobOutcomeAsync(jobs[0], graph, JobStepOutcome.Success);
 
 			await Clock.AdvanceAsync(TimeSpan.FromMinutes(30));
 
@@ -147,21 +147,21 @@ namespace Horde.Server.Tests
 			CreateJobOptions options = new CreateJobOptions();
 			options.Arguments.Add($"{IJob.TargetArgumentPrefix}CompileEditor");
 
-			IJob succeededJob = await CreateJob(10, graph, JobStepOutcome.Success, options);
+			IJob succeededJob = await CreateJobAsync(10, graph, JobStepOutcome.Success, options);
 			// create an interim job at the same change as the one that will be bisected
-			await CreateJob(20, graph, JobStepOutcome.Failure, options);
-			IJob failedJob = await CreateJob(20, graph, JobStepOutcome.Failure, options);
+			await CreateJobAsync(20, graph, JobStepOutcome.Failure, options);
+			IJob failedJob = await CreateJobAsync(20, graph, JobStepOutcome.Failure, options);
 
 			return (failedJob, graph);
 		}
 
-		async Task<IJob> CreateJob(int change, IGraph graph, JobStepOutcome outcome, CreateJobOptions options)
+		async Task<IJob> CreateJobAsync(int change, IGraph graph, JobStepOutcome outcome, CreateJobOptions options)
 		{
 			IJob job = await JobCollection.AddAsync(JobId.GenerateNewId(), StreamId, TemplateId, ContentHash.SHA1("hello"), graph, "Test job", change, change, options);
-			return await SetJobOutcome(job, graph, outcome);
+			return await SetJobOutcomeAsync(job, graph, outcome);
 		}
 
-		async Task<IJob> SetJobOutcome(IJob job, IGraph graph, JobStepOutcome outcome)
+		async Task<IJob> SetJobOutcomeAsync(IJob job, IGraph graph, JobStepOutcome outcome)
 		{
 			job = Deref(await JobCollection.TryUpdateGraphAsync(job, graph));
 

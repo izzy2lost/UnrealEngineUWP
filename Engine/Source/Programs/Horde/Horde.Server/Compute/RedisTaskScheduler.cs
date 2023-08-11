@@ -285,7 +285,7 @@ namespace Horde.Server.Compute
 		/// <returns>The dequeued item, or null if the queue is empty</returns>
 		public async Task<TTask?> DequeueAsync(TQueueId queueId)
 		{
-			await AddActiveQueue(queueId);
+			await AddActiveQueueAsync(queueId);
 
 			IDatabase database = _redisConnectionPool.GetDatabase();
 
@@ -310,7 +310,7 @@ namespace Horde.Server.Compute
 		/// </summary>
 		/// <param name="queueId">The queue key</param>
 		/// <returns></returns>
-		async ValueTask AddActiveQueue(TQueueId queueId)
+		async ValueTask AddActiveQueueAsync(TQueueId queueId)
 		{
 			// Periodically clear out the set of active keys
 			TimeSpan resetTime = TimeSpan.FromSeconds(10.0);

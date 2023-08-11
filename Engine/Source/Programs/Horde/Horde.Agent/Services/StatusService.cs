@@ -45,7 +45,7 @@ namespace Horde.Agent.Services
 		public StatusService(ILogger<StatusService> logger)
 		{
 			_current = AgentStatusMessage.Starting;
-			_task = new BackgroundTask(RunPipeServer);
+			_task = new BackgroundTask(RunPipeServerAsync);
 			_logger = logger;
 		}
 
@@ -103,21 +103,21 @@ namespace Horde.Agent.Services
 			}
 		}
 
-		private async Task RunPipeServer(CancellationToken cancellationToken)
+		private async Task RunPipeServerAsync(CancellationToken cancellationToken)
 		{
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
 				List<Task> tasks = new List<Task>();
 				for (int idx = 0; idx < NumPipes; idx++)
 				{
-					tasks.Add(RunSinglePipeServer(cancellationToken));
+					tasks.Add(RunSinglePipeServerAsync(cancellationToken));
 				}
 				await Task.WhenAll(tasks);
 			}
 		}
 
 		[SupportedOSPlatform("windows")]
-		private async Task RunSinglePipeServer(CancellationToken cancellationToken)
+		private async Task RunSinglePipeServerAsync(CancellationToken cancellationToken)
 		{
 			while (!cancellationToken.IsCancellationRequested)
 			{

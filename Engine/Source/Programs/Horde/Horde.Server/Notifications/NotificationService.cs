@@ -254,7 +254,7 @@ namespace Horde.Server.Notifications
 		{
 			if (pool.EnableAutoscaling && !poolHasAgentsOnline)
 			{
-				EnqueueTasks(sink => EnqueueNotificationForBatchSending(new JobScheduledNotification(job.Id.ToString(), job.Name, pool.Name)));
+				EnqueueTasks(sink => EnqueueNotificationForBatchSendingAsync(new JobScheduledNotification(job.Id.ToString(), job.Name, pool.Name)));
 			}
 		}
 
@@ -342,7 +342,7 @@ namespace Horde.Server.Notifications
 		/// <param name="notification">Notification to enqueue</param>
 		/// <param name="deduplicate">True if notification should be deduplicated</param>
 		/// <typeparam name="T">Any INotification type</typeparam>
-		private async Task EnqueueNotificationForBatchSending<T>(T notification, bool deduplicate = true) where T : INotification<T>
+		private async Task EnqueueNotificationForBatchSendingAsync<T>(T notification, bool deduplicate = true) where T : INotification<T>
 		{
 			lock (_cacheLock)
 			{
@@ -486,7 +486,7 @@ namespace Horde.Server.Notifications
 		/// <param name="triggerId"></param>
 		/// <param name="fireTrigger">If true, the trigger is fired and cannot be reused</param>
 		/// <returns></returns>
-		private async Task<INotificationTrigger?> GetNotificationTrigger(ObjectId? triggerId, bool fireTrigger)
+		private async Task<INotificationTrigger?> GetNotificationTriggerAsync(ObjectId? triggerId, bool fireTrigger)
 		{
 			if (triggerId == null)
 			{
@@ -509,7 +509,7 @@ namespace Horde.Server.Notifications
 			job.GetJobState(job.GetStepForNodeMap(), out _, out LabelOutcome outcome);
 			JobCompleteEventRecord jobCompleteEvent = new JobCompleteEventRecord(job.StreamId, job.TemplateId, outcome);
 
-			List<IUser> usersToNotify = await GetUsersToNotify(jobCompleteEvent, job.NotificationTriggerId, true);
+			List<IUser> usersToNotify = await GetUsersToNotifyAsync(jobCompleteEvent, job.NotificationTriggerId, true);
 			foreach (IUser userToNotify in usersToNotify)
 			{
 				if(job.PreflightChange != 0)
@@ -579,7 +579,7 @@ namespace Horde.Server.Notifications
 			return Task.CompletedTask;
 		}
 
-		private async Task<List<IUser>> GetUsersToNotify(EventRecord? eventRecord, ObjectId? notificationTriggerId, bool fireTrigger)
+		private async Task<List<IUser>> GetUsersToNotifyAsync(EventRecord? eventRecord, ObjectId? notificationTriggerId, bool fireTrigger)
 		{
 			List<UserId> userIds = new List<UserId>();
 
@@ -599,7 +599,7 @@ namespace Horde.Server.Notifications
 			// Find the notifications for this particular step
 			if (notificationTriggerId != null)
 			{
-				INotificationTrigger? trigger = await GetNotificationTrigger(notificationTriggerId, fireTrigger);
+				INotificationTrigger? trigger = await GetNotificationTriggerAsync(notificationTriggerId, fireTrigger);
 				if (trigger != null)
 				{
 					foreach (INotificationSubscription subscription in trigger.Subscriptions)
@@ -642,7 +642,7 @@ namespace Horde.Server.Notifications
 			// Find the notifications for this particular step
 			EventRecord eventRecord = new StepCompleteEventRecord(job.StreamId, job.TemplateId, node.Name, step.Outcome);
 
-			List<IUser> usersToNotify = await GetUsersToNotify(eventRecord, step.NotificationTriggerId, true);
+			List<IUser> usersToNotify = await GetUsersToNotifyAsync(eventRecord, step.NotificationTriggerId, true);
 
 			// If this is not a success notification and the author isn't in the list to notify, add them manually if this is the outcome has gotten worse.
 			int failures = job.Batches.Sum(x => x.Steps.Count(y => y.Outcome == JobStepOutcome.Failure));
@@ -751,7 +751,7 @@ namespace Horde.Server.Notifications
 
 					bool fireTrigger = newLabel.State == LabelState.Complete;
 
-					List<IUser> usersToNotify = await GetUsersToNotify(eventId, triggerId, fireTrigger);
+					List<IUser> usersToNotify = await GetUsersToNotifyAsync(eventId, triggerId, fireTrigger);
 
 					// filter preflight label notifications to only include initiator
 					if (usersToNotify.Count > 0 && job.PreflightChange != 0 && job.StartedByUserId != null)

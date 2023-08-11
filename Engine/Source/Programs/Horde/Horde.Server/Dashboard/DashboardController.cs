@@ -101,7 +101,7 @@ namespace Horde.Server.Dashboard
 		/// <returns></returns>
 		[HttpGet]
 		[Route("/api/v1/dashboard/logout")]
-		public async Task<StatusCodeResult> Logout()
+		public async Task<StatusCodeResult> LogoutAsync()
 		{
 			await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 			try
@@ -152,7 +152,7 @@ namespace Horde.Server.Dashboard
 		[HttpPost]
 		[Authorize]
 		[Route("/api/v1/dashboard/preview")]
-		public async Task<ActionResult<GetDashboardPreviewResponse>> CreateDashbordPreview([FromBody] CreateDashboardPreviewRequest request)
+		public async Task<ActionResult<GetDashboardPreviewResponse>> CreateDashbordPreviewAsync([FromBody] CreateDashboardPreviewRequest request)
 		{
 			if (!_globalConfig.Value.Authorize(AdminAclAction.AdminWrite, User))
 			{
@@ -182,7 +182,7 @@ namespace Horde.Server.Dashboard
 		[HttpPut]
 		[Authorize]
 		[Route("/api/v1/dashboard/preview")]
-		public async Task<ActionResult<GetDashboardPreviewResponse>> UpdateDashbordPreview([FromBody] UpdateDashboardPreviewRequest request)
+		public async Task<ActionResult<GetDashboardPreviewResponse>> UpdateDashbordPreviewAsync([FromBody] UpdateDashboardPreviewRequest request)
 		{
 			if (!_globalConfig.Value.Authorize(AdminAclAction.AdminWrite, User))
 			{
@@ -206,7 +206,7 @@ namespace Horde.Server.Dashboard
 		[HttpGet]
 		[Authorize]
 		[Route("/api/v1/dashboard/previews")]
-		public async Task<ActionResult<List<GetDashboardPreviewResponse>>> GetDashbordPreviews([FromQuery] bool open = true)
+		public async Task<ActionResult<List<GetDashboardPreviewResponse>>> GetDashbordPreviewsAsync([FromQuery] bool open = true)
 		{			
 			List <IDashboardPreview> previews = await _previewCollection.FindPreviewsAsync(open);			
 			return previews.Select(p => new GetDashboardPreviewResponse(p)).ToList();

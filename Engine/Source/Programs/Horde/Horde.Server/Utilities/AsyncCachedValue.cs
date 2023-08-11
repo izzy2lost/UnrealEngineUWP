@@ -94,12 +94,12 @@ namespace Horde.Server.Utilities
 			if (cancellationToken.CanBeCanceled)
 			{
 				// The returned task object is shared, so we don't want to cancel computation of it; just the wait for a result.
-				task = WrapCancellation(task, cancellationToken);
+				task = WrapCancellationAsync(task, cancellationToken);
 			}
 			return task;
 		}
 
-		static async Task<T> WrapCancellation(Task<T> task, CancellationToken cancellationToken)
+		static async Task<T> WrapCancellationAsync(Task<T> task, CancellationToken cancellationToken)
 		{
 			await Task.WhenAny(task, Task.Delay(-1, cancellationToken));
 			cancellationToken.ThrowIfCancellationRequested();

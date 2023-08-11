@@ -97,7 +97,7 @@ namespace Horde.Server.Ddc
 
 	public static class BlobServiceExtensions
 	{
-		public static async Task<ContentId> PutCompressedObject(this IBlobService blobService, NamespaceId ns, BufferedPayload payload, ContentId? id, IServiceProvider provider)
+		public static async Task<ContentId> PutCompressedObjectAsync(this IBlobService blobService, NamespaceId ns, BufferedPayload payload, ContentId? id, IServiceProvider provider)
 		{
 			IContentIdService contentIdStore = provider.GetService<IContentIdService>()!;
 			CompressedBufferUtils compressedBufferUtils = provider.GetService<CompressedBufferUtils>()!;
@@ -142,7 +142,7 @@ namespace Horde.Server.Ddc
 			return identifierDecompressedPayload;
 		}
 
-		public static async Task<(BlobContents, string)> GetCompressedObject(this IBlobService blobService, NamespaceId ns, ContentId contentId, IServiceProvider provider, bool supportsRedirectUri = false)
+		public static async Task<(BlobContents, string)> GetCompressedObjectAsync(this IBlobService blobService, NamespaceId ns, ContentId contentId, IServiceProvider provider, bool supportsRedirectUri = false)
 		{
 			IContentIdService contentIdStore = provider.GetService<IContentIdService>()!;
 			Tracer tracer = provider.GetService<Tracer>()!;

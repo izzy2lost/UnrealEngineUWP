@@ -53,7 +53,7 @@ namespace Horde.Server.Ddc
 
 		[HttpGet("{ns}/{id}")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> Get(
+		public async Task<IActionResult> GetAsync(
 			[Required] NamespaceId ns,
 			[Required] BlobId id,
 			[FromQuery] List<string>? storageLayers = null)
@@ -66,7 +66,7 @@ namespace Horde.Server.Ddc
 
 			try
 			{
-				BlobContents blobContents = await GetImpl(ns, id, storageLayers, supportsRedirectUri: true);
+				BlobContents blobContents = await GetImplAsync(ns, id, storageLayers, supportsRedirectUri: true);
 
 				if (blobContents.RedirectUri != null)
 				{
@@ -90,7 +90,7 @@ namespace Horde.Server.Ddc
 
 		[HttpHead("{ns}/{id}")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> Head(
+		public async Task<IActionResult> HeadAsync(
 			[Required] NamespaceId ns,
 			[Required] BlobId id,
 			[FromQuery] List<string>? storageLayers = null)
@@ -112,7 +112,7 @@ namespace Horde.Server.Ddc
 
 		[HttpPost("{ns}/exists")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> ExistsMultiple(
+		public async Task<IActionResult> ExistsMultipleAsync(
 			[Required] NamespaceId ns,
 			[Required][FromQuery] List<BlobId> id)
 		{
@@ -138,7 +138,7 @@ namespace Horde.Server.Ddc
 
 		[HttpPost("{ns}/exist")]
 		[ProducesDefaultResponseType]
-		public async Task<IActionResult> ExistsBody(
+		public async Task<IActionResult> ExistsBodyAsync(
 			[Required] NamespaceId ns,
 			[FromBody] BlobId[] bodyIds)
 		{
@@ -162,7 +162,7 @@ namespace Horde.Server.Ddc
 			return Ok(new HeadMultipleResponse { Needs = missingBlobs.ToArray() });
 		}
 
-		private async Task<BlobContents> GetImpl(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false)
+		private async Task<BlobContents> GetImplAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false)
 		{
 			return await _storage.GetObjectAsync(ns, blob, storageLayers, supportsRedirectUri);
 		}
@@ -170,7 +170,7 @@ namespace Horde.Server.Ddc
 		[HttpPut("{ns}/{id}")]
 		[RequiredContentType(MediaTypeNames.Application.Octet)]
 		[DisableRequestSizeLimit]
-		public async Task<IActionResult> Put(
+		public async Task<IActionResult> PutAsync(
 			[Required] NamespaceId ns,
 			[Required] BlobId id,
 			CancellationToken cancellationToken)
@@ -215,7 +215,7 @@ namespace Horde.Server.Ddc
 		[HttpPost("{ns}")]
 		[RequiredContentType(MediaTypeNames.Application.Octet)]
 		[DisableRequestSizeLimit]
-		public async Task<IActionResult> Post(
+		public async Task<IActionResult> PostAsync(
 			[Required] NamespaceId ns)
 		{
 			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.WriteBlobs });
@@ -276,7 +276,7 @@ namespace Horde.Server.Ddc
 		// ReSharper restore UnusedAutoPropertyAccessor.Global
 
 		[HttpPost("")]
-		public async Task<IActionResult> Post([FromBody] BatchCall batch, CancellationToken cancellationToken)
+		public async Task<IActionResult> PostAsync([FromBody] BatchCall batch, CancellationToken cancellationToken)
 		{
 			static AclAction MapToAclAction(BatchOp.Operation op)
 			{
@@ -323,7 +323,7 @@ namespace Horde.Server.Ddc
 							return BadRequest();
 						}
 
-						tasks[index] = GetImpl(op.Namespace.Value, op.Id.Value).ContinueWith((t, _) =>
+						tasks[index] = GetImplAsync(op.Namespace.Value, op.Id.Value).ContinueWith((t, _) =>
 						{
 							// TODO: This is very allocation heavy but given that the end result is a json object we can not really stream this anyway
 							using BlobContents blobContents = t.Result;

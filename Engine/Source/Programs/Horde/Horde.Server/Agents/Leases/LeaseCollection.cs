@@ -138,7 +138,7 @@ namespace Horde.Server.Agents.Leases
 				filter &= filterBuilder.Lt(x => x.StartTime, maxTime.Value);
 			}
 
-			List<LeaseDocument> results = await collection.FindWithHint(filter, indexHint, x => x.SortByDescending(x => x.StartTime).Range(index, count).ToListAsync());
+			List<LeaseDocument> results = await collection.FindWithHintAsync(filter, indexHint, x => x.SortByDescending(x => x.StartTime).Range(index, count).ToListAsync());
 			return results.ConvertAll<ILease>(x => x);
 		}
 		
@@ -163,7 +163,7 @@ namespace Horde.Server.Agents.Leases
 				filter &= filterBuilder.Lt(x => x.FinishTime, maxFinishTime.Value);
 			}
 
-			List<LeaseDocument> results = await collection.FindWithHint(filter, indexHint, x => x.SortByDescending(x => x.FinishTime).Range(index, count).ToListAsync());
+			List<LeaseDocument> results = await collection.FindWithHintAsync(filter, indexHint, x => x.SortByDescending(x => x.FinishTime).Range(index, count).ToListAsync());
 			return results.ConvertAll<ILease>(x => x);
 		}
 

@@ -931,7 +931,7 @@ namespace Horde.Server.Logs
 				}
 				else
 				{
-					metadata.MaxLineIndex = await _logTailService.GetFullLineCount(logFile.Id, logFile.LineCount);
+					metadata.MaxLineIndex = await _logTailService.GetFullLineCountAsync(logFile.Id, logFile.LineCount);
 				}
 			}
 			else

@@ -200,7 +200,7 @@ namespace Horde.Server.Issues.External
 			return Task.FromResult(result);
 		}
 
-		async Task UpdateJiraProjects(string[] jiraProjectKeys)
+		async Task UpdateJiraProjectsAsync(string[] jiraProjectKeys)
 		{
 			if (jiraProjectKeys.Length == 0)
 			{
@@ -318,7 +318,7 @@ namespace Horde.Server.Issues.External
 			}
 
 			// update projects
-			await UpdateJiraProjects(jiraProjectKeys.ToArray());
+			await UpdateJiraProjectsAsync(jiraProjectKeys.ToArray());
 
 			HashSet<string> jiraKeys = new HashSet<string>();
 

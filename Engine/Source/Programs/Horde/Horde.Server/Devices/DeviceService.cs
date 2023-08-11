@@ -685,7 +685,7 @@ namespace Horde.Server.Devices
 		/// <summary>
 		/// Get Platform mappings for V1 API
 		/// </summary>		
-		public async Task<DevicePlatformMapV1> GetPlatformMapV1()
+		public async Task<DevicePlatformMapV1> GetPlatformMapV1Async()
 		{
 			return await _platformMapSingleton.GetAsync();
 		}

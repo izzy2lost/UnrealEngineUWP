@@ -260,7 +260,7 @@ namespace Horde.Server.Tests
 
 			if (job.UpdateIssues)
 			{
-				await IssueService.UpdateCompleteStep(job, _graph, batch.Id, step.Id);
+				await IssueService.UpdateCompleteStepAsync(job, _graph, batch.Id, step.Id);
 			}			
 		}
 

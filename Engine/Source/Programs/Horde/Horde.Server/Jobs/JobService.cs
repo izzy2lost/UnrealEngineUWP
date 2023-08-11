@@ -218,21 +218,21 @@ namespace Horde.Server.Jobs
 			IJob newJob = await _jobs.AddAsync(jobIdValue, streamConfig.Id, templateRefId, templateHash, graph, name, change, codeChange, options);
 			_jobTaskSource.UpdateQueuedJob(newJob, graph);
 
-			await _jobTaskSource.UpdateUgsBadges(newJob, graph, new List<(LabelState, LabelOutcome)>());
+			await _jobTaskSource.UpdateUgsBadgesAsync(newJob, graph, new List<(LabelState, LabelOutcome)>());
 
 			if (options.StartedByUserId != null)
 			{
 				await _userCollection.UpdateSettingsAsync(options.StartedByUserId.Value, addPinnedJobIds: new[] { newJob.Id }, templateOptions: new UpdateUserJobTemplateOptions { StreamId = streamConfig.Id, TemplateId = templateRefId, TemplateHash = templateHash.ToString(), Arguments = options.Arguments });
 			}
 
-			await AbortAnyDuplicateJobs(newJob);
+			await AbortAnyDuplicateJobsAsync(newJob);
 
 			return newJob;
 		}
 
-		private async Task AbortAnyDuplicateJobs(IJob newJob)
+		private async Task AbortAnyDuplicateJobsAsync(IJob newJob)
 		{
-			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(AbortAnyDuplicateJobs)}");
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(AbortAnyDuplicateJobsAsync)}");
 			span.SetAttribute("JobId", newJob.Id.ToString());
 			span.SetAttribute("JobName", newJob.Name);
 			
@@ -365,7 +365,7 @@ namespace Horde.Server.Jobs
 				if (newJob != null)
 				{
 					// Update any badges that have been modified
-					await _jobTaskSource.UpdateUgsBadges(newJob, graph, oldLabelStates);
+					await _jobTaskSource.UpdateUgsBadgesAsync(newJob, graph, oldLabelStates);
 
 					// Cancel any leases which are no longer required
 					foreach (IJobStepBatch batch in newJob.Batches)
@@ -658,7 +658,7 @@ namespace Horde.Server.Jobs
 			IJob? newJob = await _jobs.TryUpdateGraphAsync(job, newGraph);
 			if(newJob != null)
 			{
-				await _jobTaskSource.UpdateUgsBadges(newJob, newGraph, oldLabelStates);
+				await _jobTaskSource.UpdateUgsBadgesAsync(newJob, newGraph, oldLabelStates);
 				_jobTaskSource.UpdateQueuedJob(newJob, newGraph);
 			}
 			return newJob;
@@ -697,7 +697,7 @@ namespace Horde.Server.Jobs
 							JobStepTimingData? stepTimingData;
 							if (!cachedNewSteps.TryGetValue(node.Name, out stepTimingData))
 							{
-								stepTimingData = await GetStepTimingInfo(job.StreamId, job.TemplateId, node.Name, job.Change);
+								stepTimingData = await GetStepTimingInfoAsync(job.StreamId, job.TemplateId, node.Name, job.Change);
 							}
 							newSteps.Add(stepTimingData);
 						}
@@ -742,9 +742,9 @@ namespace Horde.Server.Jobs
 		/// <param name="nodeName">Name of the node</param>
 		/// <param name="change">Maximum changelist to consider</param>
 		/// <returns>Expected duration for the given step</returns>
-		async Task<JobStepTimingData> GetStepTimingInfo(StreamId streamId, TemplateId templateId, string nodeName, int? change)
+		async Task<JobStepTimingData> GetStepTimingInfoAsync(StreamId streamId, TemplateId templateId, string nodeName, int? change)
 		{
-			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(GetStepTimingInfo)}");
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(GetStepTimingInfoAsync)}");
 			span.SetAttribute("StreamId", streamId);
 			span.SetAttribute("TemplateId", templateId);
 			span.SetAttribute("NodeName", nodeName);
@@ -1022,7 +1022,7 @@ namespace Horde.Server.Jobs
 						using TelemetrySpan _ = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(TryUpdateStepAsync)}.SendBadgeUpdates");
 						IReadOnlyList<(LabelState, LabelOutcome)> newLabelStates = job.GetLabelStates(graph);
 						OnLabelUpdate?.Invoke(job, oldLabelStates, newLabelStates);
-						await _jobTaskSource.UpdateUgsBadges(job, graph, oldLabelStates, newLabelStates);
+						await _jobTaskSource.UpdateUgsBadgesAsync(job, graph, oldLabelStates, newLabelStates);
 					}
 
 					// Submit the change if auto-submit is enabled
@@ -1085,7 +1085,7 @@ namespace Horde.Server.Jobs
 							using TelemetrySpan _ = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(TryUpdateStepAsync)}.UpdateIssuesV2");
 							try
 							{
-								await _issueService.UpdateCompleteStep(job, graph, batchId, stepId);
+								await _issueService.UpdateCompleteStepAsync(job, graph, batchId, stepId);
 							}
 							catch(Exception ex)
 							{

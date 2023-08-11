@@ -19,8 +19,14 @@ public class FakeWorkspaceMaterializer : IWorkspaceMaterializer
 
 	public void SetFile(int changeNum, string path, string content)
 	{
-		if (path.Contains("..", StringComparison.Ordinal)) throw new ArgumentException("Cannot contain '..'");
-		if (path.Contains(':', StringComparison.Ordinal)) throw new ArgumentException("Cannot contain ':'");
+		if (path.Contains("..", StringComparison.Ordinal))
+		{
+			throw new ArgumentException("Cannot contain '..'");
+		}
+		if (path.Contains(':', StringComparison.Ordinal))
+		{
+			throw new ArgumentException("Cannot contain ':'");
+		}
 		path = path.Replace("\\", "/", StringComparison.Ordinal);
 
 		if (!_changeToFiles.TryGetValue(changeNum, out Dictionary<string, string>? pathToContent))

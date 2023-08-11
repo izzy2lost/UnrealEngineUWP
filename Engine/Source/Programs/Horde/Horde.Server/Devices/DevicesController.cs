@@ -6,11 +6,8 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using EpicGames.Horde.Api;
-using Horde.Server.Acls;
-using Horde.Server.Projects;
 using Horde.Server.Server;
 using Horde.Server.Users;
-using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -489,7 +486,7 @@ namespace Horde.Server.Devices
 		[Authorize]
 		[Route("/api/v2/devices/pools/telemetry")]
 		[ProducesResponseType(typeof(List<GetDevicePoolTelemetryResponse>), 200)]
-		public async Task<ActionResult<List<GetDevicePoolTelemetryResponse>>> GetDevicePoolTelemetry(
+		public async Task<ActionResult<List<GetDevicePoolTelemetryResponse>>> GetDevicePoolTelemetryAsync(
 			[FromQuery] DateTimeOffset? minCreateTime = null,
 			[FromQuery] DateTimeOffset? maxCreateTime = null,
 			[FromQuery] int index = 0,
@@ -541,7 +538,7 @@ namespace Horde.Server.Devices
 		[Authorize]
 		[Route("/api/v2/devices/reservations")]
 		[ProducesResponseType(typeof(CreateDeviceReservationResponse), 200)]
-		public async Task<ActionResult<CreateDeviceReservationResponse>> CreateDeviceReservation([FromBody] CreateDeviceReservationRequest request)
+		public async Task<ActionResult<CreateDeviceReservationResponse>> CreateDeviceReservationAsync([FromBody] CreateDeviceReservationRequest request)
 		{
 			if (!DeviceService.Authorize(DeviceAclAction.DeviceWrite, User, _globalConfig.Value))
 			{
@@ -623,7 +620,7 @@ namespace Horde.Server.Devices
 		[Authorize]
 		[Route("/api/v2/devices/reservations")]
 		[ProducesResponseType(typeof(List<GetDeviceReservationResponse>), 200)]
-		public async Task<ActionResult<List<GetDeviceReservationResponse>>> GetDeviceReservations()
+		public async Task<ActionResult<List<GetDeviceReservationResponse>>> GetDeviceReservationsAsync()
 		{
 			if (!DeviceService.Authorize(DeviceAclAction.DeviceRead, User, _globalConfig.Value))
 			{
@@ -718,7 +715,7 @@ namespace Horde.Server.Devices
 		[Authorize]
 		[Route("/api/v2/devices/telemetry")]
 		[ProducesResponseType(typeof(List<GetDeviceTelemetryResponse>), 200)]
-		public async Task<ActionResult<List<GetDeviceTelemetryResponse>>> GetDeviceTelemetry(
+		public async Task<ActionResult<List<GetDeviceTelemetryResponse>>> GetDeviceTelemetryAsync(
 			[FromQuery(Name = "Id")] string[]? deviceIds = null,
 			[FromQuery] string? poolId = null,
 			[FromQuery] string? platformId = null,
@@ -858,7 +855,7 @@ namespace Horde.Server.Devices
 					constraint = tokens[1];
 				}
 
-				DevicePlatformMapV1 mapV1 = await _deviceService.GetPlatformMapV1();
+				DevicePlatformMapV1 mapV1 = await _deviceService.GetPlatformMapV1Async();
 
 				DevicePlatformId platformId = DevicePlatformId.Sanitize(platformName);
 
@@ -1043,7 +1040,7 @@ namespace Horde.Server.Devices
 				}
 			}
 
-			DevicePlatformMapV1 mapV1 = await _deviceService.GetPlatformMapV1();
+			DevicePlatformMapV1 mapV1 = await _deviceService.GetPlatformMapV1Async();
 
 			if (String.IsNullOrEmpty(platformName))
 			{				

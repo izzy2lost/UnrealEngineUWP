@@ -61,7 +61,7 @@ public sealed class WorkspaceExecutorTest : IDisposable
 	}
 	
 	[TestMethod]
-	public async Task RegularWorkspace()
+	public async Task RegularWorkspaceAsync()
 	{
 		await _executor.InitializeAsync(_logger, CancellationToken.None);
 		AssertWorkspaceFile(_workspace, "main.cpp", "main");
@@ -70,7 +70,7 @@ public sealed class WorkspaceExecutorTest : IDisposable
 	}
 	
 	[TestMethod]
-	public async Task RegularAndAutoSdkWorkspace()
+	public async Task RegularAndAutoSdkWorkspaceAsync()
 	{
 		BeginBatchResponse batch = new BeginBatchResponse { Change = 1 };
 		JobExecutorOptions executorOptions = new JobExecutorOptions(_session, null!, JobId, "batch1", batch, default, "", null!, new JobOptions());
@@ -84,7 +84,7 @@ public sealed class WorkspaceExecutorTest : IDisposable
 	}
 	
 	[TestMethod]
-	public async Task EnvVars()
+	public async Task EnvVarsAsync()
 	{
 		BeginBatchResponse batch = new BeginBatchResponse { Change = 1 };
 		JobExecutorOptions executorOptions = new JobExecutorOptions(_session, null!, JobId, "batch1", batch, default, "", null!, new JobOptions());

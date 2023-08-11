@@ -130,7 +130,7 @@ namespace Horde.Server.Agents.Fleet
 		/// <param name="job">Job to extract from</param>
 		/// <param name="streams">Cached lookup table of streams</param>
 		/// <returns></returns>
-		private async Task<List<(IJob Job, IJobStepBatch Batch, PoolId PoolId)>> GetJobBatchesWithPools(IJob job, Dictionary<StreamId, StreamConfig> streams)
+		private async Task<List<(IJob Job, IJobStepBatch Batch, PoolId PoolId)>> GetJobBatchesWithPoolsAsync(IJob job, Dictionary<StreamId, StreamConfig> streams)
 		{
 			IGraph graph = await _graphs.GetAsync(job.GraphHash);
 
@@ -182,7 +182,7 @@ namespace Horde.Server.Agents.Fleet
 			List<(IJob Job, IJobStepBatch Batch, PoolId PoolId)> jobBatches = new();
 			foreach (IJob job in recentJobs)
 			{
-				jobBatches.AddRange(await GetJobBatchesWithPools(job, streams));
+				jobBatches.AddRange(await GetJobBatchesWithPoolsAsync(job, streams));
 			}
 
 			List<(PoolId PoolId, int QueueSize)> poolsWithQueueSize = jobBatches.GroupBy(t => t.PoolId).Select(t => (t.Key, t.Count())).ToList();

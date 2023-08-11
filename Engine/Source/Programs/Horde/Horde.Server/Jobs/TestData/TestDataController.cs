@@ -74,7 +74,7 @@ namespace Horde.Server.Jobs.TestData
 			[FromQuery(Name = "configuration")] string[]? configurations = null)
 		{
 			List<GetTestMetaResponse> responses = new List<GetTestMetaResponse>();
-			List<ITestMeta> metaData = await _testDataService.FindTestMeta(projects, platforms, configurations, targets);
+			List<ITestMeta> metaData = await _testDataService.FindTestMetaAsync(projects, platforms, configurations, targets);
 			metaData.ForEach(m => responses.Add(new GetTestMetaResponse(m)));
 			return responses;
 		}
@@ -90,7 +90,7 @@ namespace Horde.Server.Jobs.TestData
 		public async Task<ActionResult<List<GetTestDataDetailsResponse>>> GetTestDetailsAsync([FromQuery(Name = "id")] string[] ids)
 		{
 			TestRefId[] idValues = Array.ConvertAll(ids, x => TestRefId.Parse(x));
-			List<ITestDataDetails> details = await _testDataService.FindTestDetails(idValues);
+			List<ITestDataDetails> details = await _testDataService.FindTestDetailsAsync(idValues);
 			return details.Select(d => new GetTestDataDetailsResponse(d)).ToList();
 		}
 
@@ -106,7 +106,7 @@ namespace Horde.Server.Jobs.TestData
 		{
 			HashSet<string> testIds = new HashSet<string>(request.testIds);
 
-			List<ITest> testValues = await _testDataService.FindTests(testIds.Select(x => TestId.Parse(x)).ToArray());			
+			List<ITest> testValues = await _testDataService.FindTestsAsync(testIds.Select(x => TestId.Parse(x)).ToArray());			
 
 			return testValues.Select(x => new GetTestResponse(x)).ToList();
 		}
@@ -143,7 +143,7 @@ namespace Horde.Server.Jobs.TestData
 			HashSet<TestId> testIds = new HashSet<TestId>();
 			HashSet<TestMetaId> metaIds = new HashSet<TestMetaId>();
 
-			List<ITestStream> streams = await _testDataService.FindTestStreams(queryStreams.ToArray());
+			List<ITestStream> streams = await _testDataService.FindTestStreamsAsync(queryStreams.ToArray());
 
 			// flatten requested streams to single service queries		
 			HashSet<TestSuiteId> suiteIds = new HashSet<TestSuiteId>();
@@ -163,13 +163,13 @@ namespace Horde.Server.Jobs.TestData
 			List<ITestSuite> suites = new List<ITestSuite>();
 			if (suiteIds.Count > 0)
 			{
-				suites = await _testDataService.FindTestSuites(suiteIds.ToArray());
+				suites = await _testDataService.FindTestSuitesAsync(suiteIds.ToArray());
 			}
 
 			List<ITest> tests = new List<ITest>();
 			if (testIds.Count > 0)
 			{
-				tests = await _testDataService.FindTests(testIds.ToArray());
+				tests = await _testDataService.FindTestsAsync(testIds.ToArray());
 			}
 
 			// gather all meta data
@@ -192,7 +192,7 @@ namespace Horde.Server.Jobs.TestData
 
 			if (metaIds.Count > 0)
 			{
-				metaData = await _testDataService.FindTestMeta(metaIds: metaIds.ToArray());
+				metaData = await _testDataService.FindTestMetaAsync(metaIds: metaIds.ToArray());
 			}
 
 			// generate individual stream responses
@@ -280,7 +280,7 @@ namespace Horde.Server.Jobs.TestData
 				return responses;
 			}
 
-			List<ITestDataRef> dataRefs = await _testDataService.FindTestRefs(queryStreams.ToArray(), metaIds.ConvertAll(x => TestMetaId.Parse(x)).ToArray(), testIds, suiteIds, minCreateTime?.UtcDateTime, maxCreateTime?.UtcDateTime, minChange, maxChange);
+			List<ITestDataRef> dataRefs = await _testDataService.FindTestRefsAsync(queryStreams.ToArray(), metaIds.ConvertAll(x => TestMetaId.Parse(x)).ToArray(), testIds, suiteIds, minCreateTime?.UtcDateTime, maxCreateTime?.UtcDateTime, minChange, maxChange);
 
 			dataRefs.ForEach(d => responses.Add(new GetTestDataRefResponse(d)));
 

@@ -59,7 +59,7 @@ namespace Horde.Server
 
 	class Program
 	{
-		public static SemVer Version => s_version;
+		public static SemVer Version { get; } = GetVersion();
 
 		public static string DeploymentEnvironment { get; } = GetEnvironment();
 
@@ -70,8 +70,6 @@ namespace Horde.Server
 		public static FileReference UserConfigFile { get; } = FileReference.Combine(DataDir, "Horde.json");
 
 		public static Type[] ConfigSchemas = FindSchemaTypes();
-
-		static SemVer s_version;
 
 		static Type[] FindSchemaTypes()
 		{
@@ -86,18 +84,21 @@ namespace Horde.Server
 			return schemaTypes.ToArray();
 		}
 
-		public static async Task<int> Main(string[] args)
+		static SemVer GetVersion()
 		{
 			FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
 			if (String.IsNullOrEmpty(versionInfo.ProductVersion))
 			{
-				s_version = SemVer.Parse("0.0.0");
+				return SemVer.Parse("0.0.0");
 			}
 			else
 			{
-				s_version = SemVer.Parse(versionInfo.ProductVersion);
+				return SemVer.Parse(versionInfo.ProductVersion);
 			}
+		}
 
+		public static async Task<int> Main(string[] args)
+		{
 			CommandLineArguments arguments = new CommandLineArguments(args);
 
 			IConfiguration config = CreateConfig(UserConfigFile);

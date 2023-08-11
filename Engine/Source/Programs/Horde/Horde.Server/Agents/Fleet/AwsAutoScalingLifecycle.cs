@@ -262,9 +262,9 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IDisposable
 	/// <param name="e">Event as received from AWS API</param>
 	/// <param name="cancellationToken">Cancellation token</param>
 	/// <returns>A list of instance IDs that can be terminated</returns>
-	public async Task<List<string>> GetInstancesAvailableForTermination(TerminationPolicyEvent e, CancellationToken cancellationToken)
+	public async Task<List<string>> GetInstancesAvailableForTerminationAsync(TerminationPolicyEvent e, CancellationToken cancellationToken)
 	{
-		using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AwsAutoScalingLifecycleService)}.{nameof(GetInstancesAvailableForTermination)}");
+		using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AwsAutoScalingLifecycleService)}.{nameof(GetInstancesAvailableForTerminationAsync)}");
 		span.SetAttribute("asgName", e.AutoScalingGroupName);
 		span.SetAttribute("instancesCount", e.Instances.Count);
 		span.SetAttribute("capacityCount", e.CapacityToTerminate.Count);
@@ -436,7 +436,7 @@ public class AwsAutoScalingLifecycleController : HordeControllerBase
 	
 	/// <summary>
 	/// Called by AWS auto-scaling group to get which instance IDs are valid for termination
-	/// <see cref="AwsAutoScalingLifecycleService.GetInstancesAvailableForTermination" />
+	/// <see cref="AwsAutoScalingLifecycleService.GetInstancesAvailableForTerminationAsync" />
 	/// </summary>
 	/// <param name="tpe">Event</param>
 	/// <param name="cancellationToken">Cancellation token</param>
@@ -446,7 +446,7 @@ public class AwsAutoScalingLifecycleController : HordeControllerBase
 	[ProducesResponseType(StatusCodes.Status200OK)]
 	public async Task<ActionResult> TerminationPolicyAsync([FromBody] TerminationPolicyEvent tpe, CancellationToken cancellationToken)
 	{
-		List<string> instanceIds = await _lifecycleService.GetInstancesAvailableForTermination(tpe, cancellationToken);
+		List<string> instanceIds = await _lifecycleService.GetInstancesAvailableForTerminationAsync(tpe, cancellationToken);
 		return new JsonResult(instanceIds);
 	}
 }

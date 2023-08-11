@@ -411,7 +411,7 @@ namespace Horde.Agent.Execution
 			}
 		}
 
-		private async Task StorePreprocessedFile(FileReference? localFile, string stepId, DirectoryReference? sharedStorageDir, ILogger logger, CancellationToken cancellationToken)
+		private async Task StorePreprocessedFileAsync(FileReference? localFile, string stepId, DirectoryReference? sharedStorageDir, ILogger logger, CancellationToken cancellationToken)
 		{
 			if (localFile != null)
 			{
@@ -487,8 +487,8 @@ namespace Horde.Agent.Execution
 			}
 			
 			await ArtifactUploader.UploadAsync(RpcConnection, _jobId, _batchId, step.StepId, definitionFile.GetFileName(), definitionFile, logger, cancellationToken);
-			await StorePreprocessedFile(preprocessedScriptFile, step.StepId, sharedStorageDir, logger, cancellationToken);
-			await StorePreprocessedFile(preprocessedSchemaFile, step.StepId, sharedStorageDir, logger, cancellationToken);
+			await StorePreprocessedFileAsync(preprocessedScriptFile, step.StepId, sharedStorageDir, logger, cancellationToken);
+			await StorePreprocessedFileAsync(preprocessedSchemaFile, step.StepId, sharedStorageDir, logger, cancellationToken);
 
 			JsonSerializerOptions options = new JsonSerializerOptions();
 			options.PropertyNameCaseInsensitive = true;

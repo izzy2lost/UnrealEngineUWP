@@ -145,7 +145,7 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 		TerminationPolicyEvent e = CreateTerminationPolicyEvent("i-1000");
 
 		// Act
-		List<string> instanceIds = await _asgLifecycleService.GetInstancesAvailableForTermination(e, CancellationToken.None);
+		List<string> instanceIds = await _asgLifecycleService.GetInstancesAvailableForTerminationAsync(e, CancellationToken.None);
 
 		// Assert
 		CollectionAssert.AreEqual(new List<string> () { "i-1000"}, instanceIds);
@@ -160,7 +160,7 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 		TerminationPolicyEvent e = CreateTerminationPolicyEvent("i-1000");
 
 		// Act
-		List<string> instanceIds = await _asgLifecycleService.GetInstancesAvailableForTermination(e, CancellationToken.None);
+		List<string> instanceIds = await _asgLifecycleService.GetInstancesAvailableForTerminationAsync(e, CancellationToken.None);
 
 		// Assert
 		CollectionAssert.AreEqual(new List<string> () { "i-1000"}, instanceIds);
@@ -175,7 +175,7 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 		TerminationPolicyEvent e = CreateTerminationPolicyEvent("i-1000");
 
 		// Act
-		List<string> instanceIds = await _asgLifecycleService.GetInstancesAvailableForTermination(e, CancellationToken.None);
+		List<string> instanceIds = await _asgLifecycleService.GetInstancesAvailableForTerminationAsync(e, CancellationToken.None);
 
 		// Assert
 		Assert.AreEqual(0, instanceIds.Count);

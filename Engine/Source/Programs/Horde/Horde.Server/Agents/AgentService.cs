@@ -1040,10 +1040,10 @@ namespace Horde.Server.Agents
 				}
 			}
 
-			await CollectMetrics();
+			await CollectMetricsAsync();
 		}
 
-		private async Task CollectMetrics()
+		private async Task CollectMetricsAsync()
 		{
 			List<IAgent> agentList = await Agents.FindAsync();
 			int numAgentsTotal = agentList.Count;

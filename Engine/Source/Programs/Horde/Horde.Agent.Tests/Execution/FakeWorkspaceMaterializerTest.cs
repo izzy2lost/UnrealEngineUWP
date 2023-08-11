@@ -21,13 +21,13 @@ public class FakeWorkspaceMaterializerTest
 	}
 
 	[TestCleanup]
-	public async Task TestCleanup()
+	public async Task TestCleanupAsync()
 	{
 		await _wm.FinalizeAsync(CancellationToken.None);
 	}
 
 	[TestMethod]
-	public async Task SingleFile()
+	public async Task SingleFileAsync()
 	{
 		_wm.SetFile(1, "readme.txt", "hello");
 		await _wm.SyncAsync(1, -1, new SyncOptions(), CancellationToken.None);
@@ -35,7 +35,7 @@ public class FakeWorkspaceMaterializerTest
 	}
 	
 	[TestMethod]
-	public async Task SubDir()
+	public async Task SubDirAsync()
 	{
 		_wm.SetFile(1, "foo/bar/baz.txt", "fortnite");
 		await _wm.SyncAsync(1, -1, new SyncOptions(), CancellationToken.None);
@@ -43,7 +43,7 @@ public class FakeWorkspaceMaterializerTest
 	}
 	
 	[TestMethod]
-	public async Task FilesAreKeptBetweenChangelists()
+	public async Task FilesAreKeptBetweenChangelistsAsync()
 	{
 		_wm.SetFile(1, "foo/bar/baz.txt", "fortnite");
 		_wm.SetFile(2, "foo/main.cpp", "main");
@@ -58,11 +58,11 @@ public class FakeWorkspaceMaterializerTest
 	}
 	
 	[TestMethod]
-	public async Task RemoveUntrackedFiles()
+	public async Task RemoveUntrackedFilesAsync()
 	{
 		_wm.SetFile(1, "foo/bar/baz.txt", "fortnite");
 		_wm.SetFile(2, "foo/main.cpp", "main");
-		File.WriteAllText(Path.Join(_settings.DirectoryPath.FullName, "external.txt"), "external");
+		await File.WriteAllTextAsync(Path.Join(_settings.DirectoryPath.FullName, "external.txt"), "external");
 		
 		await _wm.SyncAsync(1, -1, new SyncOptions(), CancellationToken.None);
 		AssertFile("foo/bar/baz.txt", "fortnite");
@@ -76,7 +76,6 @@ public class FakeWorkspaceMaterializerTest
 	}
 
 	private void AssertFile(string relativePath, string expectedContent) { Assert.AreEqual(expectedContent, File.ReadAllText(GetAbsPath(relativePath))); }
-	private void AssertFileExists(string relativePath) { Assert.IsTrue(File.Exists(GetAbsPath(relativePath))); }
 
 	private void AssertFileDoesNotExist(string relativePath)
 	{

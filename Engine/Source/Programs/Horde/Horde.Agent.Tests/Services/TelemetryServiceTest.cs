@@ -33,7 +33,7 @@ public sealed class TelemetryServiceTest : IDisposable
 	}
 
 	[TestMethod]
-	public async Task NormalEventLoopTiming()
+	public async Task NormalEventLoopTimingAsync()
 	{
 		DateTime now = DateTime.UtcNow;
 		_telemetryService.GetUtcNow = () => now;
@@ -44,7 +44,7 @@ public sealed class TelemetryServiceTest : IDisposable
 	}
 	
 	[TestMethod]
-	public async Task SlowEventLoopTooEarly()
+	public async Task SlowEventLoopTooEarlyAsync()
 	{
 		DateTime now = DateTime.UtcNow;
 		_telemetryService.GetUtcNow = () => now;
@@ -55,7 +55,7 @@ public sealed class TelemetryServiceTest : IDisposable
 	}
 	
 	[TestMethod]
-	public async Task SlowEventLoopTooLate()
+	public async Task SlowEventLoopTooLateAsync()
 	{
 		DateTime now = DateTime.UtcNow;
 		_telemetryService.GetUtcNow = () => now;		

@@ -120,7 +120,7 @@ namespace Horde.Server.Server
 		/// <returns>Http result</returns>
 		[HttpGet]
 		[Route("/account/logout")]
-		public async Task<IActionResult> Logout()
+		public async Task<IActionResult> LogoutAsync()
 		{
 			await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 			try

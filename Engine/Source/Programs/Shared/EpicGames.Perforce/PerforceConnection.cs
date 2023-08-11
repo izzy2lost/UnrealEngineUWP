@@ -449,6 +449,7 @@ namespace EpicGames.Perforce
 		/// <returns>List of objects returned by the server</returns>
 		public static async IAsyncEnumerable<PerforceResponse> StreamCommandAsync(this IPerforceConnection perforce, string command, IReadOnlyList<string> arguments, IReadOnlyList<string>? fileArguments, byte[]? inputData, Type? statRecordType, bool interceptIo, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
+#pragma warning disable CA1849 // Call async methods when in an async method
 			await using (IPerforceOutput output = perforce.Command(command, arguments, fileArguments, inputData, null, interceptIo))
 			{
 				await foreach (PerforceResponse response in output.ReadStreamingResponsesAsync(statRecordType, cancellationToken))
@@ -456,6 +457,7 @@ namespace EpicGames.Perforce
 					yield return response;
 				}
 			}
+#pragma warning restore CA1849 // Call async methods when in an async method
 		}
 
 		/// <summary>
@@ -470,6 +472,7 @@ namespace EpicGames.Perforce
 		/// <returns>List of objects returned by the server</returns>
 		public static async IAsyncEnumerable<PerforceResponse<T>> StreamCommandAsync<T>(this IPerforceConnection perforce, string command, IReadOnlyList<string> arguments, IReadOnlyList<string>? fileArguments = null, byte[]? inputData = null, [EnumeratorCancellation] CancellationToken cancellationToken = default) where T : class
 		{
+#pragma warning disable CA1849 // Call async methods when in an async method
 			await using (IPerforceOutput output = perforce.Command(command, arguments, fileArguments, inputData, null, false))
 			{
 				Type statRecordType = typeof(T);
@@ -478,6 +481,7 @@ namespace EpicGames.Perforce
 					yield return new PerforceResponse<T>(response);
 				}
 			}
+#pragma warning restore CA1849 // Call async methods when in an async method
 		}
 
 		/// <summary>
@@ -492,10 +496,12 @@ namespace EpicGames.Perforce
 		/// <returns>List of objects returned by the server</returns>
 		public static async Task RecordCommandAsync(this IPerforceConnection perforce, string command, IReadOnlyList<string> arguments, byte[]? inputData, Action<PerforceRecord> handleRecord, CancellationToken cancellationToken = default)
 		{
+#pragma warning disable CA1849 // Call async methods when in an async method
 			await using (IPerforceOutput response = perforce.Command(command, arguments, null, inputData, null, false))
 			{
 				await response.ReadRecordsAsync(handleRecord, cancellationToken);
 			}
+#pragma warning restore CA1849 // Call async methods when in an async method
 		}
 
 		/// <summary>
@@ -2400,6 +2406,7 @@ namespace EpicGames.Perforce
 			}
 
 			List<PerforceResponse> parsedResponses;
+#pragma warning disable CA1849 // Call async methods when in an async method
 			await using (IPerforceOutput response = connection.Command("login", arguments, null, null, password, false))
 			{
 				for (; ; )
@@ -2418,6 +2425,7 @@ namespace EpicGames.Perforce
 				// this prevents a deadlock in case `connection` is a `NativePerforceConnection` and `response` is a `NativePerforceConnection.Response`
 				// not DisposeAsync()ing here will cause a deadlock when calling `TryGetLoginStateAsync()` below
 			}
+#pragma warning restore CA1849 // Call async methods when in an async method
 
 			PerforceResponse? error = parsedResponses.FirstOrDefault(x => !x.Succeeded);
 			if (error != null)

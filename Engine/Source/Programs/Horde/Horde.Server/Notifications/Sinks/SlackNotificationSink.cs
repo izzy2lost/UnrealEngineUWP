@@ -314,7 +314,7 @@ namespace Horde.Server.Notifications.Sinks
 		/// <inheritdoc/>
 		public async Task<IAvatar?> GetAvatarAsync(IUser user)
 		{
-			return await GetSlackUser(user);
+			return await GetSlackUserAsync(user);
 		}
 
 		#endregion
@@ -484,7 +484,7 @@ namespace Horde.Server.Notifications.Sinks
 				return;
 			}
 
-			string? slackUserId = await GetSlackUserId(slackUser);
+			string? slackUserId = await GetSlackUserIdAsync(slackUser);
 			if (slackUserId != null)
 			{
 				await SendJobCompleteMessageAsync(slackUserId, streamConfig, job, graph);
@@ -587,7 +587,7 @@ namespace Horde.Server.Notifications.Sinks
 		{
 			_logger.LogInformation("Sending Slack notification for job {JobId}, batch {BatchId}, step {StepId}, outcome {Outcome} to {SlackUser} ({UserId})", job.Id, batch.Id, step.Id, step.Outcome, slackUser.Name, slackUser.Id);
 
-			string? slackUserId = await GetSlackUserId(slackUser);
+			string? slackUserId = await GetSlackUserIdAsync(slackUser);
 			if (slackUserId != null)
 			{
 				await SendJobStepCompleteMessageAsync(slackUserId, job, step, node, jobStepEventData);
@@ -667,7 +667,7 @@ namespace Horde.Server.Notifications.Sinks
 
 			_logger.LogInformation("Sending Slack notification for job {JobId} outcome {Outcome} to {Name} ({UserId})", job.Id, outcome, user.Name, user.Id);
 
-			string? slackUserId = await GetSlackUserId(user);
+			string? slackUserId = await GetSlackUserIdAsync(user);
 			if (slackUserId != null)
 			{
 				await SendLabelUpdateMessageAsync(slackUserId, streamConfig, job, label, labelIdx, outcome, stepData);
@@ -910,7 +910,7 @@ namespace Horde.Server.Notifications.Sinks
 				IUser? user = await _userCollection.GetUserAsync(userId);
 				if (user != null)
 				{
-					string? slackUserId = await GetSlackUserId(user);
+					string? slackUserId = await GetSlackUserIdAsync(user);
 					if (slackUserId != null)
 					{
 						slackUserIds.Add(slackUserId);
@@ -1259,7 +1259,7 @@ namespace Horde.Server.Notifications.Sinks
 
 		async Task NotifyIssueUpdatedAsync(GlobalConfig globalConfig, IUser user, IIssue issue, IIssueDetails details)
 		{
-			string? slackUserId = await GetSlackUserId(user);
+			string? slackUserId = await GetSlackUserIdAsync(user);
 			if (slackUserId == null)
 			{
 				return;
@@ -1535,7 +1535,7 @@ namespace Horde.Server.Notifications.Sinks
 				return $"User {userId}";
 			}
 
-			string? slackUserId = await GetSlackUserId(user);
+			string? slackUserId = await GetSlackUserIdAsync(user);
 			if (slackUserId == null)
 			{
 				return user.Login;
@@ -2063,7 +2063,7 @@ namespace Horde.Server.Notifications.Sinks
 			string? slackUserId = null;
 			if (author != null)
 			{
-				slackUserId = await GetSlackUserId(author);
+				slackUserId = await GetSlackUserIdAsync(author);
 				if (slackUserId == null)
 				{
 					_logger.LogWarning("Unable to identify Slack user id for {UserId}", author.Id);
@@ -2229,7 +2229,7 @@ namespace Horde.Server.Notifications.Sinks
 
 			if (user != null)
 			{
-				string? slackRecipient = await GetSlackUserId(user);
+				string? slackRecipient = await GetSlackUserIdAsync(user);
 
 				if (slackRecipient == null)
 				{
@@ -2355,12 +2355,12 @@ namespace Horde.Server.Notifications.Sinks
 			return document.Time + expiryTime < DateTime.UtcNow;
 		}
 
-		private async Task<string?> GetSlackUserId(IUser user)
+		private async Task<string?> GetSlackUserIdAsync(IUser user)
 		{
-			return (await GetSlackUser(user))?.SlackUserId;
+			return (await GetSlackUserAsync(user))?.SlackUserId;
 		}
 
-		private async Task<SlackUserDocument?> GetSlackUser(IUser user)
+		private async Task<SlackUserDocument?> GetSlackUserAsync(IUser user)
 		{
 			string? email = user.Email;
 			if (email == null)
@@ -2857,7 +2857,7 @@ namespace Horde.Server.Notifications.Sinks
 				IUser? user = await _userCollection.GetUserAsync(userId);
 				if (user != null)
 				{
-					string? recipient = await GetSlackUserId(user);
+					string? recipient = await GetSlackUserIdAsync(user);
 					if (recipient != null)
 					{
 						IIssueDetails details = await _issueService.GetIssueDetailsAsync(newIssue);

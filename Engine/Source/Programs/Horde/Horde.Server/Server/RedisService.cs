@@ -207,7 +207,7 @@ namespace Horde.Server.Server
 			{
 				_redisProcess = new ManagedProcess(_redisProcessGroup, redisExe.FullName, "", null, null, ProcessPriorityClass.Normal);
 				_redisProcess.StdIn.Close();
-				Task.Run(() => RelayRedisOutput());
+				Task.Run(() => RelayRedisOutputAsync());
 				return true;
 			}
 			catch (Exception ex)
@@ -221,7 +221,7 @@ namespace Horde.Server.Server
 		/// Copies output from the redis process to the logger
 		/// </summary>
 		/// <returns></returns>
-		async Task RelayRedisOutput()
+		async Task RelayRedisOutputAsync()
 		{
 			ILogger redisLogger = _loggerFactory.CreateLogger("Redis");
 			for (; ; )

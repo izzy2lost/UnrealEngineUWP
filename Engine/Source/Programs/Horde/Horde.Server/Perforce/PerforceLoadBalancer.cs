@@ -215,7 +215,7 @@ namespace Horde.Server.Perforce
 		/// Allocates a server for use by a lease
 		/// </summary>
 		/// <returns>The server to use. Null if there is no healthy server available.</returns>
-		public async Task<IPerforceServer?> GetServer(string cluster)
+		public async Task<IPerforceServer?> GetServerAsync(string cluster)
 		{
 			PerforceServerList serverList = await GetServerListAsync();
 

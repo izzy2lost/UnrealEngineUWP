@@ -237,7 +237,7 @@ namespace Horde.Server.Ddc
 									{
 
 										ContentId contentId = contentIdAttachment.Identifier;
-										(attachmentContents, string mime) = await _blobStore.GetCompressedObject(ns, contentId, HttpContext.RequestServices);
+										(attachmentContents, string mime) = await _blobStore.GetCompressedObjectAsync(ns, contentId, HttpContext.RequestServices);
 										if (mime == CustomMediaTypeNames.UnrealCompressedBuffer)
 										{
 											flags |= CbPackageAttachmentFlags.IsCompressed;
@@ -716,7 +716,7 @@ namespace Horde.Server.Ddc
 					if (entry.Flags.HasFlag(CbPackageAttachmentFlags.IsCompressed))
 					{
 						using MemoryBufferedPayload payload = new MemoryBufferedPayload(blob);
-						await _blobStore.PutCompressedObject(ns, payload, new ContentId(entry.AttachmentHash), HttpContext.RequestServices);
+						await _blobStore.PutCompressedObjectAsync(ns, payload, new ContentId(entry.AttachmentHash), HttpContext.RequestServices);
 					}
 					else
 					{

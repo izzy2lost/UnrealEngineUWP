@@ -71,7 +71,7 @@ public class HordeJwtBearerHandler
 	/// If user is not cached, it will look up additional info via /userinfo and cache it
 	/// </summary>
 	/// <param name="context">Token validation context</param>
-	private async Task OnTokenValidated(TokenValidatedContext context)
+	private async Task OnTokenValidatedAsync(TokenValidatedContext context)
 	{
 		ILogger<HordeJwtBearerHandler> logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<HordeJwtBearerHandler>>();
 		
@@ -193,7 +193,7 @@ public class HordeJwtBearerHandler
 		{
 			options.Authority = _settings.OidcAuthority;
 			options.Audience = _settings.OidcAudience;
-			options.Events = new JwtBearerEvents() { OnMessageReceived = OnMessageReceived, OnTokenValidated = OnTokenValidated };
+			options.Events = new JwtBearerEvents() { OnMessageReceived = OnMessageReceived, OnTokenValidated = OnTokenValidatedAsync };
 
 			options.TokenValidationParameters.ValidAudience = _settings.OidcAudience;
 			options.TokenValidationParameters.RequireExpirationTime = true;

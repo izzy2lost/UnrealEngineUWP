@@ -212,7 +212,7 @@ namespace Horde.Server.Tasks
 			foreach (AgentWorkspace conformWorkspace in conformWorkspaces)
 			{
 				PerforceCluster? cluster = globalConfig.FindPerforceCluster(conformWorkspace.Cluster);
-				if (cluster == null || !await agent.TryAddWorkspaceMessage(conformWorkspace, cluster, _perforceLoadBalancer, workspaces))
+				if (cluster == null || !await agent.TryAddWorkspaceMessageAsync(conformWorkspace, cluster, _perforceLoadBalancer, workspaces))
 				{
 					return false;
 				}

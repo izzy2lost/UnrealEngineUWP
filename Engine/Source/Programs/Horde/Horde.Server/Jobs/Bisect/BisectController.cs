@@ -283,7 +283,7 @@ namespace Horde.Server.Jobs.Bisect
 				return Forbid(BisectTaskAclAction.ViewBisectTask, streamConfig.Id);
 			}
 
-			return await CreateBisectTaskResponse(initialJob, bisectTask, cancellationToken);
+			return await CreateBisectTaskResponseAsync(initialJob, bisectTask, cancellationToken);
 		}
 
 		/// <summary>
@@ -339,7 +339,7 @@ namespace Horde.Server.Jobs.Bisect
 			}
 		}
 
-		async Task<GetBisectTaskResponse> CreateBisectTaskResponse(IJob initialJob, IBisectTask task, CancellationToken cancellationToken = default)
+		async Task<GetBisectTaskResponse> CreateBisectTaskResponseAsync(IJob initialJob, IBisectTask task, CancellationToken cancellationToken = default)
 		{
 			IUser? user = await _userCollection.GetCachedUserAsync(task.OwnerId);
 			List<IJobStepRef> steps = await _jobStepRefs.GetStepsForNodeAsync(initialJob.StreamId, initialJob.TemplateId, task.NodeName, null, true, 1024, task.Id, cancellationToken);
@@ -379,7 +379,7 @@ namespace Horde.Server.Jobs.Bisect
 					return Forbid(BisectTaskAclAction.ViewBisectTask, streamConfig.Id);
 				}
 
-				response.Add(await CreateBisectTaskResponse(job, bisectTask, cancellationToken));
+				response.Add(await CreateBisectTaskResponseAsync(job, bisectTask, cancellationToken));
 			}
 
 			return response;
@@ -421,7 +421,7 @@ namespace Horde.Server.Jobs.Bisect
 				IJob? job = jobs.FirstOrDefault(x => x.Id == task.InitialJobId);
 				if (job != null)
 				{
-					responses.Add(await CreateBisectTaskResponse(job, task, cancellationToken));				
+					responses.Add(await CreateBisectTaskResponseAsync(job, task, cancellationToken));				
 				}
 			}
 

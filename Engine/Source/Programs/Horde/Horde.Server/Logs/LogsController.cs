@@ -79,7 +79,7 @@ namespace Horde.Server.Logs
 		[HttpGet]
 		[Route("/api/v1/logs/{logFileId}")]
 		[ProducesResponseType(typeof(GetLogFileResponse), 200)]
-		public async Task<ActionResult<object>> GetLog(LogId logFileId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<object>> GetLogAsync(LogId logFileId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			ILogFile? logFile = await _logFileService.GetLogFileAsync(logFileId, cancellationToken);
 			if (logFile == null)
@@ -105,7 +105,7 @@ namespace Horde.Server.Logs
 		[HttpPost]
 		[Route("/api/v1/logs/{logFileId}/blobs")]
 		[ProducesResponseType(typeof(WriteBlobResponse), 200)]
-		public async Task<ActionResult<WriteBlobResponse>> WriteLogBlob(LogId logFileId, IFormFile? file, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<WriteBlobResponse>> WriteLogBlobAsync(LogId logFileId, IFormFile? file, CancellationToken cancellationToken = default)
 		{
 			ILogFile? logFile = await _logFileService.GetLogFileAsync(logFileId, cancellationToken);
 			if (logFile == null)
@@ -132,7 +132,7 @@ namespace Horde.Server.Logs
 		/// <returns>Raw log data for the requested range</returns>
 		[HttpGet]
 		[Route("/api/v1/logs/{logFileId}/data")]
-		public async Task<ActionResult> GetLogData(
+		public async Task<ActionResult> GetLogDataAsync(
 			LogId logFileId,
 			[FromQuery] LogOutputFormat format = LogOutputFormat.Raw,
 			[FromQuery] string? fileName = null,
@@ -172,7 +172,7 @@ namespace Horde.Server.Logs
 		/// <returns>Information about the requested project</returns>
 		[HttpGet]
 		[Route("/api/v1/logs/{logFileId}/lines")]
-		public async Task<ActionResult> GetLogLines(LogId logFileId, [FromQuery] int index = 0, [FromQuery] int count = 100, CancellationToken cancellationToken = default)
+		public async Task<ActionResult> GetLogLinesAsync(LogId logFileId, [FromQuery] int index = 0, [FromQuery] int count = 100, CancellationToken cancellationToken = default)
 		{
 			ILogFile? logFile = await _logFileService.GetLogFileAsync(logFileId, cancellationToken);
 			if (logFile == null)
@@ -340,7 +340,7 @@ namespace Horde.Server.Logs
 		/// <returns>Http result code</returns>
 		[HttpPost]
 		[Route("/api/v1/logs/{logFileId}")]
-		public async Task<ActionResult> WriteData(LogId logFileId, [FromQuery] long offset, [FromQuery] int lineIndex, CancellationToken cancellationToken)
+		public async Task<ActionResult> WriteDataAsync(LogId logFileId, [FromQuery] long offset, [FromQuery] int lineIndex, CancellationToken cancellationToken)
 		{
 			ILogFile? logFile = await _logFileService.GetLogFileAsync(logFileId, cancellationToken);
 			if (logFile == null)

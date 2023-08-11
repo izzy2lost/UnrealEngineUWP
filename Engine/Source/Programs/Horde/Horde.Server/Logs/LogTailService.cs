@@ -21,7 +21,7 @@ namespace Horde.Server.Logs
 	/// <summary>
 	/// Stores data for logs which has not yet been flushed to persistent storage.
 	/// 
-	/// * Once a log is retrieved, server adds an entry with this log id to a sorted set in Redis (see <see cref="_expireQueue"/>, scored by 
+	/// * Once a log is retrieved, server adds an entry with this log id to a sorted set in Redis (see <see cref="s_expireQueue"/>, scored by 
 	///   expiry time (defaulting to <see cref="ExpireAfter"/> from present) and broadcasts it to any other server instances.
 	/// * If a log is being tailed, server keeps the total number of lines in a Redis key (<see cref="TailNextKey"/>, and appends chunks of log 
 	///   data to a sorted set for that log scored by index of the first line (see <see cref="TailDataKey"/>).
@@ -30,7 +30,7 @@ namespace Horde.Server.Logs
 	/// * Agent polls for requests to provide tail data via <see cref="LogRpcService.UpdateLogTail"/>, which calls <see cref="WaitForTailNextAsync"/>.
 	///   <see cref="WaitForTailNextAsync"/> returns the index of the total line count for this log if it is being tailed (indicating the index of
 	///   the next line that the agent should send to the server), or blocks until the log is being tailed.
-	/// * Once data is flushed to persistent storage, the number of flushed lines is added to <see cref="_trimQueue"/> and the line data is removed
+	/// * Once data is flushed to persistent storage, the number of flushed lines is added to <see cref="s_trimQueue"/> and the line data is removed
 	///   from Redis after <see cref="TrimAfter"/>.
 	/// * <see cref="EpicGames.Horde.Logs.LogNode"/> contains a "complete" flag indicating whether it is necessary to check for tail data.
 	///   
@@ -51,8 +51,8 @@ namespace Horde.Server.Logs
 
 		readonly ConcurrentDictionary<LogId, AsyncEvent> _notifyLogEvents = new ConcurrentDictionary<LogId, AsyncEvent>();
 		readonly RedisChannel<LogId> _tailStartChannel;
-		static readonly RedisSortedSetKey<string> _trimQueue = "logs:trim";
-		static readonly RedisSortedSetKey<LogId> _expireQueue = "logs:expire";
+		static readonly RedisSortedSetKey<string> s_trimQueue = "logs:trim";
+		static readonly RedisSortedSetKey<LogId> s_expireQueue = "logs:expire";
 
 		readonly IClock _clock;
 		readonly ITicker _expireTailsTicker;
@@ -126,7 +126,7 @@ namespace Horde.Server.Logs
 		{
 			double maxScore = (_clock.UtcNow - DateTime.UnixEpoch).TotalSeconds;
 
-			SortedSetEntry<string>[] trimEntries = await _redisService.GetDatabase().SortedSetRangeByScoreWithScoresAsync(_trimQueue, stop: maxScore);
+			SortedSetEntry<string>[] trimEntries = await _redisService.GetDatabase().SortedSetRangeByScoreWithScoresAsync(s_trimQueue, stop: maxScore);
 			if (trimEntries.Length > 0)
 			{
 				foreach (SortedSetEntry<string> trimEntry in trimEntries)
@@ -141,10 +141,10 @@ namespace Horde.Server.Logs
 
 					_logger.LogDebug("Removed tail data for log {LogId} at line {LineCount}", logId, lineCount);
 				}
-				_ = await _redisService.GetDatabase().SortedSetRemoveRangeByScoreAsync(_trimQueue, Double.NegativeInfinity, maxScore, flags: CommandFlags.FireAndForget);
+				_ = await _redisService.GetDatabase().SortedSetRemoveRangeByScoreAsync(s_trimQueue, Double.NegativeInfinity, maxScore, flags: CommandFlags.FireAndForget);
 			}
 
-			SortedSetEntry<LogId>[] expireEntries = await _redisService.GetDatabase().SortedSetRangeByScoreWithScoresAsync(_expireQueue, stop: maxScore);
+			SortedSetEntry<LogId>[] expireEntries = await _redisService.GetDatabase().SortedSetRangeByScoreWithScoresAsync(s_expireQueue, stop: maxScore);
 			if (expireEntries.Length > 0)
 			{
 				foreach (SortedSetEntry<LogId> expireEntry in expireEntries)
@@ -152,16 +152,16 @@ namespace Horde.Server.Logs
 					LogId logId = expireEntry.Element;
 
 					ITransaction transaction = _redisService.GetDatabase().CreateTransaction();
-					transaction.AddCondition(Condition.SortedSetEqual(_expireQueue.Inner, expireEntry.ElementValue, expireEntry.Score));
+					transaction.AddCondition(Condition.SortedSetEqual(s_expireQueue.Inner, expireEntry.ElementValue, expireEntry.Score));
 					_ = transaction.KeyDeleteAsync(TailNextKey(logId), CommandFlags.FireAndForget);
 					_ = transaction.KeyDeleteAsync(TailDataKey(logId), CommandFlags.FireAndForget);
 					await transaction.ExecuteAsync();
 
 					_logger.LogDebug("Expired tailing request for log {LogId}", logId);
 				}
-				await _redisService.GetDatabase().SortedSetRemoveRangeByScoreAsync(_expireQueue, Double.NegativeInfinity, maxScore);
+				await _redisService.GetDatabase().SortedSetRemoveRangeByScoreAsync(s_expireQueue, Double.NegativeInfinity, maxScore);
 
-				long tailCount = await _redisService.GetDatabase().SortedSetLengthAsync(_expireQueue);
+				long tailCount = await _redisService.GetDatabase().SortedSetLengthAsync(s_expireQueue);
 				_logger.LogDebug("Currently tailing {NumLogs} logs", tailCount);
 			}
 		}
@@ -192,7 +192,7 @@ namespace Horde.Server.Logs
 			await _redisService.GetDatabase().PublishAsync(_tailStartChannel, logId);
 
 			double score = (_clock.UtcNow + ExpireAfter - DateTime.UnixEpoch).TotalSeconds;
-			_ = _redisService.GetDatabase().SortedSetAddAsync(_expireQueue, logId, score, flags: CommandFlags.FireAndForget);
+			_ = _redisService.GetDatabase().SortedSetAddAsync(s_expireQueue, logId, score, flags: CommandFlags.FireAndForget);
 
 			if (waitForTailData)
 			{
@@ -315,7 +315,7 @@ namespace Horde.Server.Logs
 
 			ITransaction transaction = _redisService.GetDatabase().CreateTransaction();
 			transaction.AddCondition(Condition.KeyExists(TailDataKey(logId).Inner));
-			_ = transaction.SortedSetAddAsync(_trimQueue, trimEntry, trimTime, flags: CommandFlags.FireAndForget);
+			_ = transaction.SortedSetAddAsync(s_trimQueue, trimEntry, trimTime, flags: CommandFlags.FireAndForget);
 			await transaction.ExecuteAsync(CommandFlags.FireAndForget);
 		}
 
@@ -325,7 +325,7 @@ namespace Horde.Server.Logs
 		/// <param name="logId">Log to query</param>
 		/// <param name="flushedLineCount">Number of flushed lines</param>
 		/// <returns>Total number of lines in the file</returns>
-		public async Task<int> GetFullLineCount(LogId logId, int flushedLineCount)
+		public async Task<int> GetFullLineCountAsync(LogId logId, int flushedLineCount)
 		{
 			RedisStringKey<int> tailNextKey = TailNextKey(logId);
 

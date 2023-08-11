@@ -171,7 +171,7 @@ namespace HordeCommon
 			{
 				_name = name;
 				_cancellationSource = new CancellationTokenSource();
-				_tickFunc = () => Run(delay, triggerAsync, logger);
+				_tickFunc = () => RunAsync(delay, triggerAsync, logger);
 			}
 
 			public async Task StartAsync()
@@ -195,7 +195,7 @@ namespace HordeCommon
 				_cancellationSource.Dispose();
 			}
 
-			public async Task Run(TimeSpan delay, Func<CancellationToken, ValueTask<TimeSpan?>> triggerAsync, ILogger logger)
+			public async Task RunAsync(TimeSpan delay, Func<CancellationToken, ValueTask<TimeSpan?>> triggerAsync, ILogger logger)
 			{
 				while (!_cancellationSource!.IsCancellationRequested)
 				{
