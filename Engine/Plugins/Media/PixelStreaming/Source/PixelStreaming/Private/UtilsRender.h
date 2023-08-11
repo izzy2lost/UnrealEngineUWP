@@ -35,7 +35,7 @@ namespace UE::PixelStreaming
 			TextureDesc.AddFlags(ETextureCreateFlags::Shared);
 		}
 
-		return GDynamicRHI->RHICreateTexture(TextureDesc);
+		return RHICreateTexture(TextureDesc);
 	}
 
 	/*

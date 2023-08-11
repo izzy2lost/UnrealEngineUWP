@@ -74,7 +74,7 @@ public:
 #endif // #if PLATFORM_REQUIRES_TYPELESS_RESOURCE_DISCARD_WORKAROUND
 		
 	// Setup functionality
-	void InitializeTextureData(class FRHICommandListImmediate* RHICmdList, const FRHITextureCreateDesc& CreateDesc, D3D12_RESOURCE_STATES DestinationState);
+	void InitializeTextureData(FRHICommandListBase& RHICmdList, const FRHITextureCreateDesc& CreateDesc, D3D12_RESOURCE_STATES DestinationState);
 	void CreateViews();
 	void SetCreatedRTVsPerSlice(bool Value, int32 InRTVArraySize)
 	{

@@ -1450,13 +1450,6 @@ void FRHIComputeCommandList::BuildAccelerationStructures(const TArrayView<const 
 }
 #endif
 
-FBufferRHIRef FDynamicRHI::CreateBuffer_RenderThread(class FRHICommandListBase& RHICmdList, uint32 Size, EBufferUsageFlags Usage, uint32 Stride, ERHIAccess ResourceState, FRHIResourceCreateInfo& CreateInfo)
-{
-	CSV_SCOPED_TIMING_STAT(RHITStalls, CreateBuffer_RenderThread);
-	FScopedRHIThreadStaller StallRHIThread(RHICmdList.GetAsImmediate());
-	return GDynamicRHI->RHICreateBuffer(RHICmdList, FRHIBufferDesc(Size, Stride, Usage), ResourceState, CreateInfo);
-}
-
 static FLockTracker GLockTracker;
 
 void* FDynamicRHI::RHILockBuffer(class FRHICommandListBase& RHICmdList, FRHIBuffer* Buffer, uint32 Offset, uint32 SizeRHI, EResourceLockMode LockMode)
@@ -1726,13 +1719,6 @@ FRHIShaderLibraryRef FDynamicRHI::RHICreateShaderLibrary_RenderThread(class FRHI
 {
 	FScopedRHIThreadStaller StallRHIThread(RHICmdList);
 	return GDynamicRHI->RHICreateShaderLibrary(Platform, FilePath, Name);
-}
-
-FTextureRHIRef FDynamicRHI::RHICreateTexture_RenderThread(class FRHICommandListImmediate& RHICmdList, const FRHITextureCreateDesc& CreateDesc)
-{
-	CSV_SCOPED_TIMING_STAT(RHITStalls, RHICreateTexture_RenderThread);
-	FScopedRHIThreadStaller StallRHIThread(RHICmdList);
-	return GDynamicRHI->RHICreateTexture(CreateDesc);
 }
 
 void* FDynamicRHI::RHILockTextureCubeFace_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITextureCube* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail)

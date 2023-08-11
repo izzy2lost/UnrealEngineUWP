@@ -56,7 +56,7 @@ extern int32 GD3D12BindResourceLabels;
 // Texture Commands
 ///////////////////////////////////////////////////////////////////////////////////////////
 
-static bool ShouldDeferCmdListOperation(FRHICommandList* RHICmdList)
+static bool ShouldDeferCmdListOperation(FRHICommandListBase* RHICmdList)
 {
 	if (RHICmdList == nullptr)
 	{
@@ -132,12 +132,7 @@ struct FD3D12RHICommandInitializeTexture final : public FRHICommand<FD3D12RHICom
 		FD3D12ResourceLocation::TransferOwnership(SrcResourceLoc, InSrcResourceLoc);
 	}
 
-	void Execute(FRHICommandListBase& /* unused */)
-	{
-		ExecuteNoCmdList();
-	}
-
-	void ExecuteNoCmdList()
+	void Execute(FRHICommandListBase& RHICmdList)
 	{
 		size_t MemSize = NumSubresources * (sizeof(D3D12_PLACED_SUBRESOURCE_FOOTPRINT) + sizeof(UINT) + sizeof(UINT64));
 		const bool bAllocateOnStack = (MemSize < 4096);
@@ -161,8 +156,7 @@ struct FD3D12RHICommandInitializeTexture final : public FRHICommand<FD3D12RHICom
 		{
 			FD3D12Device* Device = CurrentTexture.GetParentDevice();
 			FD3D12Resource* Resource = CurrentTexture.GetResource();
-
-			FD3D12CommandContext& Context = Device->GetDefaultCommandContext();
+			FD3D12CommandContext& Context = FD3D12CommandContext::Get(RHICmdList, Device->GetGPUIndex());
 
 			// resource should be in copy dest already, because it's created like that, so no transition required here
 
@@ -813,7 +807,7 @@ FD3D12Texture* FD3D12DynamicRHI::CreateNewD3D12Texture(const FRHITextureCreateDe
 	return new FD3D12Texture(CreateDesc, Device);
 }
 
-FD3D12Texture* FD3D12DynamicRHI::CreateD3D12Texture(const FRHITextureCreateDesc& InCreateDesc, class FRHICommandListImmediate* RHICmdList, ID3D12ResourceAllocator* ResourceAllocator)
+FD3D12Texture* FD3D12DynamicRHI::CreateD3D12Texture(const FRHITextureCreateDesc& InCreateDesc, class FRHICommandListBase* RHICmdList, ID3D12ResourceAllocator* ResourceAllocator)
 {
 #if PLATFORM_WINDOWS
 	TRACE_CPUPROFILER_EVENT_SCOPE(D3D12RHI::CreateD3D12Texture);
@@ -938,7 +932,8 @@ FD3D12Texture* FD3D12DynamicRHI::CreateD3D12Texture(const FRHITextureCreateDesc&
 	// Initialize if data is given
 	if (CreateDesc.BulkData != nullptr)
 	{
-		D3D12TextureOut->InitializeTextureData(RHICmdList, CreateDesc, InitialState);
+		check(RHICmdList);
+		D3D12TextureOut->InitializeTextureData(*RHICmdList, CreateDesc, InitialState);
 		CreateDesc.BulkData->Discard();
 	}
 	return D3D12TextureOut;
@@ -949,19 +944,10 @@ FD3D12Texture* FD3D12DynamicRHI::CreateD3D12Texture(const FRHITextureCreateDesc&
 }
 
 
-FTextureRHIRef FD3D12DynamicRHI::RHICreateTexture(const FRHITextureCreateDesc& CreateDesc)
+FTextureRHIRef FD3D12DynamicRHI::RHICreateTexture(FRHICommandListBase& RHICmdList, const FRHITextureCreateDesc& CreateDesc)
 {
-	FRHICommandListImmediate* RHIImmediateCmdList = nullptr;
 	ID3D12ResourceAllocator* ResourceAllocator = nullptr;
-	return CreateD3D12Texture(CreateDesc, RHIImmediateCmdList, ResourceAllocator);
-}
-
-
-FTextureRHIRef FD3D12DynamicRHI::RHICreateTexture_RenderThread(class FRHICommandListImmediate& RHICmdList, const FRHITextureCreateDesc& CreateDesc)
-{
-	FRHICommandListImmediate* RHIImmediateCmdList = &RHICmdList;
-	ID3D12ResourceAllocator* ResourceAllocator = nullptr;
-	return CreateD3D12Texture(CreateDesc, RHIImmediateCmdList, ResourceAllocator);
+	return CreateD3D12Texture(CreateDesc, &RHICmdList, ResourceAllocator);
 }
 
 void FD3D12DynamicRHI::RHIUpdateTextureReference(FRHICommandListBase& RHICmdList, FRHITextureReference* TextureRef, FRHITexture* InNewTexture)
@@ -1932,7 +1918,7 @@ void FD3D12Texture::CopyTextureRegion(uint32 DestX, uint32 DestY, uint32 DestZ, 
 	DefaultContext.UpdateResidency(GetResource());
 }
 
-void FD3D12Texture::InitializeTextureData(FRHICommandListImmediate* RHICmdList, const FRHITextureCreateDesc& CreateDesc, D3D12_RESOURCE_STATES DestinationState)
+void FD3D12Texture::InitializeTextureData(FRHICommandListBase& RHICmdList, const FRHITextureCreateDesc& CreateDesc, D3D12_RESOURCE_STATES DestinationState)
 {
 	// each mip of each array slice counts as a subresource
 	uint16 ArraySize = CreateDesc.IsTextureArray() ? CreateDesc.ArraySize : 1;
@@ -1991,14 +1977,14 @@ void FD3D12Texture::InitializeTextureData(FRHICommandListImmediate* RHICmdList, 
 
 	check(SrcData == (uint8*)CreateDesc.BulkData->GetResourceBulkData() + CreateDesc.BulkData->GetResourceBulkDataSize());
 
-	if (ShouldDeferCmdListOperation(RHICmdList))
+	if (RHICmdList.IsTopOfPipe())
 	{
-		ALLOC_COMMAND_CL(*RHICmdList, FD3D12RHICommandInitializeTexture)(this, SrcResourceLoc, NumSubresources, DestinationState);
+		ALLOC_COMMAND_CL(RHICmdList, FD3D12RHICommandInitializeTexture)(this, SrcResourceLoc, NumSubresources, DestinationState);
 	}
 	else
 	{
 		FD3D12RHICommandInitializeTexture Command(this, SrcResourceLoc, NumSubresources, DestinationState);
-		Command.ExecuteNoCmdList();
+		Command.Execute(RHICmdList);
 	}
 
 	if (!bAllocateOnStack)

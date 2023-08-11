@@ -177,7 +177,7 @@ public:
 	/** 
 	 * Constructor that will create Texture and Color/DepthBuffers as needed
 	 */
-	FMetalSurface(FMetalTextureCreateDesc const& CreateDesc);
+	FMetalSurface(FRHICommandListBase* RHICmdList, FMetalTextureCreateDesc const& CreateDesc);
 	
 	/**
 	 * Destructor

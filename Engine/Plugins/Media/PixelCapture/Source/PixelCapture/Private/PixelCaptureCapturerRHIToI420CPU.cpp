@@ -44,7 +44,7 @@ void FPixelCaptureCapturerRHIToI420CPU::Initialize(int32 InputWidth, int32 Input
 		TextureDesc.AddFlags(ETextureCreateFlags::Shared);
 	}
 
-	StagingTexture = GDynamicRHI->RHICreateTexture(TextureDesc);
+	StagingTexture = RHICreateTexture(TextureDesc);
 
 	FRHITextureCreateDesc ReadbackDesc =
 		FRHITextureCreateDesc::Create2D(TEXT("FPixelCaptureCapturerRHIToI420CPU ReadbackTexture"), Width, Height, EPixelFormat::PF_B8G8R8A8)
@@ -53,7 +53,7 @@ void FPixelCaptureCapturerRHIToI420CPU::Initialize(int32 InputWidth, int32 Input
 			.SetInitialState(ERHIAccess::CPURead)
 			.DetermineInititialState();
 
-	ReadbackTexture = GDynamicRHI->RHICreateTexture(ReadbackDesc);
+	ReadbackTexture = RHICreateTexture(ReadbackDesc);
 
 	int32 BufferWidth = 0, BufferHeight = 0;
 	GDynamicRHI->RHIMapStagingSurface(ReadbackTexture, nullptr, ResultsBuffer, BufferWidth, BufferHeight);

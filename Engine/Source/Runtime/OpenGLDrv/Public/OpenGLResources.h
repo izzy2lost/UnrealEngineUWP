@@ -961,7 +961,7 @@ class OPENGLDRV_API FOpenGLTexture : public FRHITexture, public FOpenGLViewableR
 
 public:
 	// Standard constructor.
-	explicit FOpenGLTexture(FOpenGLTextureCreateDesc const& CreateDesc);
+	explicit FOpenGLTexture(FRHICommandListBase& RHICmdList, FOpenGLTextureCreateDesc const& CreateDesc);
 
 	// Constructor for external resources (RHICreateTexture2DFromResource etc).
 	explicit FOpenGLTexture(FOpenGLTextureCreateDesc const& CreateDesc, GLuint Resource);

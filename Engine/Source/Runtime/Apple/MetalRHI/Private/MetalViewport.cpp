@@ -260,12 +260,12 @@ void FMetalViewport::Resize(uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen
 		
 		CreateDesc.SetInitialState(RHIGetDefaultResourceState(CreateDesc.Flags, false));
 
-		NewBackBuffer = new FMetalSurface(CreateDesc);
+		NewBackBuffer = new FMetalSurface(nullptr, CreateDesc);
 		NewBackBuffer->Viewport = this;
 
         if (GMetalSupportsIntermediateBackBuffer && GMetalSeparatePresentThread)
         {
-            DoubleBuffer = new FMetalSurface(CreateDesc);
+            DoubleBuffer = new FMetalSurface(nullptr, CreateDesc);
             DoubleBuffer->Viewport = this;
         }
 

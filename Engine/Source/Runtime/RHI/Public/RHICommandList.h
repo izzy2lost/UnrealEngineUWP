@@ -762,6 +762,22 @@ public:
 		GDynamicRHI->RHIUpdateTexture2D(*this, Texture, MipIndex, UpdateRegion, SourcePitch, SourceData);
 	}
 
+	FORCEINLINE FTextureRHIRef CreateTexture(const FRHITextureCreateDesc& CreateDesc)
+	{
+		LLM_SCOPE(EnumHasAnyFlags(CreateDesc.Flags, TexCreate_RenderTargetable | TexCreate_DepthStencilTargetable) ? ELLMTag::RenderTargets : ELLMTag::Textures);
+
+		if (CreateDesc.InitialState == ERHIAccess::Unknown)
+		{
+			// Need to copy the incoming descriptor since we need to override the initial state.
+			FRHITextureCreateDesc NewCreateDesc(CreateDesc);
+			NewCreateDesc.SetInitialState(RHIGetDefaultResourceState(CreateDesc.Flags, CreateDesc.BulkData != nullptr));
+
+			return GDynamicRHI->RHICreateTexture(*this, NewCreateDesc);
+		}
+
+		return GDynamicRHI->RHICreateTexture(*this, CreateDesc);
+	}
+
 	FORCEINLINE void UpdateFromBufferTexture2D(FRHITexture2D* Texture, uint32 MipIndex, const struct FUpdateTextureRegion2D& UpdateRegion, uint32 SourcePitch, FRHIBuffer* Buffer, uint32 BufferOffset)
 	{
 		checkf(UpdateRegion.DestX + UpdateRegion.Width <= Texture->GetSizeX(), TEXT("UpdateFromBufferTexture2D out of bounds on X. Texture: %s, %i, %i, %i"), *Texture->GetName().ToString(), UpdateRegion.DestX, UpdateRegion.Width, Texture->GetSizeX());
@@ -5077,21 +5093,7 @@ FORCEINLINE void RHIUpdateTextureReference(FRHITextureReference* TextureRef, FRH
 
 FORCEINLINE FTextureRHIRef RHICreateTexture(const FRHITextureCreateDesc& CreateDesc)
 {
-	//check(IsInRenderingThread()); // @todo: texture type unification Some passes call this function on parallel rendering threads (e.g. FRHIGPUTextureReadback::EnqueueCopyInternal)
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-
-	LLM_SCOPE(EnumHasAnyFlags(CreateDesc.Flags, TexCreate_RenderTargetable | TexCreate_DepthStencilTargetable) ? ELLMTag::RenderTargets : ELLMTag::Textures);
-
-	if (CreateDesc.InitialState == ERHIAccess::Unknown)
-	{
-		// Need to copy the incoming descriptor since we need to override the initial state.
-		FRHITextureCreateDesc NewCreateDesc(CreateDesc);
-		NewCreateDesc.SetInitialState(RHIGetDefaultResourceState(CreateDesc.Flags, CreateDesc.BulkData != nullptr));
-
-		return GDynamicRHI->RHICreateTexture_RenderThread(RHICmdList, NewCreateDesc);
-	}
-
-	return GDynamicRHI->RHICreateTexture_RenderThread(RHICmdList, CreateDesc);
+	return FRHICommandListImmediate::Get().CreateTexture(CreateDesc);
 }
 
 //UE_DEPRECATED(5.1, "FRHITexture2D is deprecated, please use RHICreateTexture(const FRHITextureCreateDesc&).")

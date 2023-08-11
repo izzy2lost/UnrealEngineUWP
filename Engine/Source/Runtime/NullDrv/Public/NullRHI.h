@@ -177,7 +177,7 @@ public:
 		{}
 	};
 
-	virtual FTextureRHIRef RHICreateTexture(const FRHITextureCreateDesc& CreateDesc) final override
+	virtual FTextureRHIRef RHICreateTexture(FRHICommandListBase&, const FRHITextureCreateDesc& CreateDesc) final override
 	{
 		return new FNullTexture(CreateDesc);
 	}
@@ -191,7 +191,7 @@ public:
 			.SetNumMips(NumMips)
 			.SetInitialState(InResourceState);
 		OutCompletionEvent = nullptr;
-		return this->RHICreateTexture(Desc);
+		return new FNullTexture(Desc);
 	}
 
 	virtual FShaderResourceViewRHIRef RHICreateShaderResourceView(class FRHICommandListBase& RHICmdList, FRHIViewableResource* Resource, FRHIViewDesc const& ViewDesc)
@@ -221,7 +221,7 @@ public:
 			.SetNumMips(NewMipCount)
 			.SetNumSamples(Texture2D->GetNumSamples());
 
-		return this->RHICreateTexture(Desc);
+		return new FNullTexture(Desc);
 	}
 	virtual ETextureReallocationStatus RHIFinalizeAsyncReallocateTexture2D(FRHITexture2D* Texture2D, bool bBlockUntilCompleted) final override
 	{ 
@@ -345,7 +345,7 @@ public:
 			FRHITextureCreateDesc::Create2D(TEXT("FNullDynamicRHI::RHIGetViewportBackBuffer"), 1, 1, PF_B8G8R8A8)
 			.SetFlags(ETextureCreateFlags::RenderTargetable);
 
-		return this->RHICreateTexture(Desc);
+		return new FNullTexture(Desc);
 	}
 
 	virtual void RHIBeginFrame() final override

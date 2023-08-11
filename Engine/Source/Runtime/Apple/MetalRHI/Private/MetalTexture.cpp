@@ -473,7 +473,7 @@ FMetalTextureCreateDesc::FMetalTextureCreateDesc(FRHITextureCreateDesc const& In
 	}
 }
 
-FMetalSurface::FMetalSurface(FMetalTextureCreateDesc const& CreateDesc)
+FMetalSurface::FMetalSurface(FRHICommandListBase* RHICmdList, FMetalTextureCreateDesc const& CreateDesc)
 	: FRHITexture       (CreateDesc)
 	, FormatKey         (CreateDesc.FormatKey)
 	, Texture           (nil)
@@ -617,16 +617,16 @@ FMetalSurface::FMetalSurface(FMetalTextureCreateDesc const& CreateDesc)
 		// Regular texture has some bulk data to handle
 		UE_LOG(LogMetal, Display, TEXT("Got a bulk data texture, with %d mips"), CreateDesc.NumMips);
 		checkf(CreateDesc.NumMips == 1, TEXT("Only handling bulk data with 1 mip and 1 array length"));
+		check(RHICmdList);
 
-		check(IsInRenderingThread());
-		FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
+		FRHICommandListImmediate& RHICmdListImmediate = RHICmdList->GetAsImmediate();
 
 		// lock, copy, unlock
 		uint32 Stride;
-		void* LockedData = FMetalDynamicRHI::Get().LockTexture2D_RenderThread(RHICmdList, this, 0, RLM_WriteOnly, Stride, false);
+		void* LockedData = FMetalDynamicRHI::Get().LockTexture2D_RenderThread(RHICmdListImmediate, this, 0, RLM_WriteOnly, Stride, false);
 		check(LockedData);
 		FMemory::Memcpy(LockedData, BulkData->GetResourceBulkData(), BulkData->GetResourceBulkDataSize());
-		FMetalDynamicRHI::Get().UnlockTexture2D_RenderThread(RHICmdList, this, 0, false);
+		FMetalDynamicRHI::Get().UnlockTexture2D_RenderThread(RHICmdListImmediate, this, 0, false);
 
 		// bulk data can be unloaded now
 		BulkData->Discard();
@@ -1350,17 +1350,10 @@ uint32 FMetalDynamicRHI::RHIComputeMemorySize(FRHITexture* TextureRHI)
  2D texture support.
  -----------------------------------------------------------------------------*/
 
-FTextureRHIRef FMetalDynamicRHI::RHICreateTexture_RenderThread(class FRHICommandListImmediate& RHICmdList, const FRHITextureCreateDesc& CreateDesc)
+FTextureRHIRef FMetalDynamicRHI::RHICreateTexture(FRHICommandListBase& RHICmdList, const FRHITextureCreateDesc& CreateDesc)
 {
 	@autoreleasepool{
-		return this->RHICreateTexture(CreateDesc);
-	}
-}
-
-FTextureRHIRef FMetalDynamicRHI::RHICreateTexture(const FRHITextureCreateDesc& CreateDesc)
-{
-	@autoreleasepool{
-		return new FMetalSurface(CreateDesc);
+		return new FMetalSurface(&RHICmdList, CreateDesc);
 	}
 }
 
@@ -1417,7 +1410,7 @@ FTexture2DRHIRef FMetalDynamicRHI::RHIAsyncReallocateTexture2D(FRHITexture2D* Ol
 			TEXT("RHIAsyncReallocateTexture2D")
 		);
 		
-		FMetalSurface* NewTexture = new FMetalSurface(CreateDesc);
+		FMetalSurface* NewTexture = new FMetalSurface(&RHICmdList, CreateDesc);
 
 		// Copy shared mips
 		RHICmdList.EnqueueLambda([this, OldTexture, NewSizeX, NewSizeY, NewTexture, RequestStatus](FRHICommandListImmediate& RHICmdList)

@@ -162,7 +162,7 @@ TSharedPtr<FVideoResourceRHI> FVideoResourceRHI::Create(TSharedPtr<FAVDevice> co
 		}
 
 //TODO-TE THIS IS THE REAL DEAL?
-		return MakeShareable(new FVideoResourceRHI(Device.ToSharedRef(), { GDynamicRHI->RHICreateTexture(TextureDesc), nullptr, 0 }, Descriptor));
+		return MakeShareable(new FVideoResourceRHI(Device.ToSharedRef(), { RHICreateTexture(TextureDesc), nullptr, 0 }, Descriptor));
 	}
 
 	return nullptr;

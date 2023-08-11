@@ -1010,7 +1010,7 @@ FOpenGLTexture* PlatformCreateBuiltinBackBuffer(FOpenGLDynamicRHI* OpenGLRHI, ui
 			.SetFlags(ETextureCreateFlags::RenderTargetable | ETextureCreateFlags::Presentable | ETextureCreateFlags::ResolveTargetable)
 			.DetermineInititialState();
 
-		return new FOpenGLTexture(Desc);
+		return new FOpenGLTexture(FRHICommandListImmediate::Get(), Desc);
 	}
 
 	return nullptr;

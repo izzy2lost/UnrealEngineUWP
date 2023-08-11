@@ -493,10 +493,10 @@ public:
 	/**
 	* Creates an RHI texture resource.
 	*/
-	virtual FTextureRHIRef RHICreateTexture(const FRHITextureCreateDesc& CreateDesc) override final
+	virtual FTextureRHIRef RHICreateTexture(FRHICommandListBase& RHICmdList, const FRHITextureCreateDesc& CreateDesc) override final
 	{
 		CreateDesc.CheckValidity();
-		FTextureRHIRef Texture = RHI->RHICreateTexture(CreateDesc);
+		FTextureRHIRef Texture = RHI->RHICreateTexture(RHICmdList, CreateDesc);
 		ensure(Texture->IsBarrierTrackingInitialized());
 		return Texture;
 	}
@@ -1186,14 +1186,6 @@ public:
 	virtual FRHIShaderLibraryRef RHICreateShaderLibrary_RenderThread(class FRHICommandListImmediate& RHICmdList, EShaderPlatform Platform, FString FilePath, FString Name) override final
 	{
 		return RHI->RHICreateShaderLibrary_RenderThread(RHICmdList, Platform, FilePath, Name);
-	}
-
-	virtual FTextureRHIRef RHICreateTexture_RenderThread(class FRHICommandListImmediate& RHICmdList, const FRHITextureCreateDesc& CreateDesc) override final
-	{
-		CreateDesc.CheckValidity();
-		FTextureRHIRef Texture = RHI->RHICreateTexture_RenderThread(RHICmdList, CreateDesc);
-		ensure(Texture->IsBarrierTrackingInitialized());
-		return Texture;
 	}
 
 	virtual void* RHILockTextureCubeFace_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITextureCube* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail) override final

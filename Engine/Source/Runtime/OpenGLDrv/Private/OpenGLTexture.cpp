@@ -328,7 +328,7 @@ FOpenGLTexture::FOpenGLTexture(FOpenGLTextureCreateDesc const& CreateDesc, GLuin
 {}
 
 // Standard constructor.
-FOpenGLTexture::FOpenGLTexture(FOpenGLTextureCreateDesc const& CreateDesc)
+FOpenGLTexture::FOpenGLTexture(FRHICommandListBase& RHICmdList, FOpenGLTextureCreateDesc const& CreateDesc)
 	: FRHITexture        (CreateDesc)
 	, Target             (CreateDesc.Target)
 	, Attachment         (CreateDesc.Attachment)
@@ -342,9 +342,6 @@ FOpenGLTexture::FOpenGLTexture(FOpenGLTextureCreateDesc const& CreateDesc)
 	, bAlias             (false)
 	, bMultisampleRenderbuffer(CreateDesc.bMultisampleRenderbuffer)
 {
-	check(IsInRenderingThread());
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-
 	SCOPE_CYCLE_COUNTER(STAT_OpenGLCreateTextureTime);
 
 	if (bCanCreateAsEvicted)
@@ -358,7 +355,7 @@ FOpenGLTexture::FOpenGLTexture(FOpenGLTextureCreateDesc const& CreateDesc)
 
 	if (CreateDesc.BulkData)
 	{
-		if (!ShouldRunGLRenderContextOpOnThisThread(RHICmdList))
+		if (RHICmdList.IsTopOfPipe())
 		{
 			// If bulk data is provided, and texture initialization is done by the RHI thread, it needs to be copied out of the FResourceBulkDataInterface.
 			// It is not safe to pass this pointer to the RHI thread, as the interface may have been stack allocated in the renderer.
@@ -378,7 +375,7 @@ FOpenGLTexture::FOpenGLTexture(FOpenGLTextureCreateDesc const& CreateDesc)
 		}
 	}
 
-	RunOnGLRenderContextThread([this, BulkDataPtr, BulkDataSize, bFreeBulkData]()
+	RHICmdList.EnqueueLambda([this, BulkDataPtr, BulkDataSize, bFreeBulkData](FRHICommandListBase&)
 	{
 		FOpenGLDynamicRHI::Get().InitializeGLTexture(this, BulkDataPtr, BulkDataSize);
 		if (bFreeBulkData)
@@ -1431,9 +1428,9 @@ void FOpenGLTexture::CloneViaCopyImage(FOpenGLTexture* Src, uint32 InNumMips, in
 	2D texture support.
 -----------------------------------------------------------------------------*/
 
-FTextureRHIRef FOpenGLDynamicRHI::RHICreateTexture(const FRHITextureCreateDesc& CreateDesc)
+FTextureRHIRef FOpenGLDynamicRHI::RHICreateTexture(FRHICommandListBase& RHICmdList, const FRHITextureCreateDesc& CreateDesc)
 {
-	return new FOpenGLTexture(CreateDesc);
+	return new FOpenGLTexture(RHICmdList, CreateDesc);
 }
 
 FTextureRHIRef FOpenGLDynamicRHI::RHIAsyncCreateTexture2D(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, ETextureCreateFlags Flags, ERHIAccess InResourceState, void** InitialMipData, uint32 NumInitialMips, FGraphEventRef& OutCompletionEvent)
@@ -1509,7 +1506,7 @@ FTexture2DRHIRef FOpenGLDynamicRHI::RHIAsyncReallocateTexture2D(FRHITexture2D* T
 		TEXT("RHIAsyncReallocateTexture2D")
 	);
 
-	FOpenGLTexture* NewTexture = new FOpenGLTexture(CreateDesc);
+	FOpenGLTexture* NewTexture = new FOpenGLTexture(RHICmdList, CreateDesc);
 
 	RHICmdList.EnqueueLambda([OldTexture, NewTexture, SourceMipCount, NewMipCount, RequestStatus](FRHICommandListImmediate& RHICmdList)
 	{

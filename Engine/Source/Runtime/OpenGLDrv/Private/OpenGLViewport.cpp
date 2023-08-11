@@ -305,7 +305,7 @@ void FOpenGLViewport::Resize(uint32 InSizeX,uint32 InSizeY,bool bInIsFullscreen)
 				.SetFlags(ETextureCreateFlags::RenderTargetable | ETextureCreateFlags::ResolveTargetable)
 				.DetermineInititialState();
 
-			BackBuffer = new FOpenGLTexture(Desc);
+			BackBuffer = new FOpenGLTexture(RHICmdList, Desc);
 		}
 
 		RHICmdList.EnqueueLambda([this, InSizeX, InSizeY, bInIsFullscreen, bWasFullscreen](FRHICommandListImmediate&)
