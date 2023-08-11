@@ -726,9 +726,14 @@ IAdaptiveStreamSelector::ESegmentAction FABROnDemandPlus::EvaluateForError(TArra
 										CurrentStreamInfo->Health.BecomesAvailableAgainAtUTC = TimeNow + FTimeValue().SetFromMilliseconds(1000);
 									}
 								}
+								else if (IsAudioOnly() && Stats.RetryNumber < 2)
+								{
+									OutDelay.SetFromMilliseconds(400);
+									bRetryIfPossible = true;
+								}
 								else
 								{
-									// Need to insert filler data instead.
+									// Insert filler data instead.
 									bRetryIfPossible = false;
 								}
 							}
