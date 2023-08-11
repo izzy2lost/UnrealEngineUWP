@@ -82,11 +82,18 @@ public sealed class FleetManagerFactory : IFleetManagerFactory
 	
 	private static T DeserializeSettings<T>(string config)
 	{
-		if (String.IsNullOrEmpty(config)) { config = "{}"; }
+		if (String.IsNullOrEmpty(config))
+		{ 
+			config = "{}"; 
+		}
+
 		try
 		{
 			T? settings = JsonSerializer.Deserialize<T>(config);
-			if (settings == null) throw new NullReferenceException($"Unable to deserialize");
+			if (settings == null)
+			{
+				throw new NullReferenceException($"Unable to deserialize");
+			}
 			return settings;
 		}
 		catch (ArgumentException e)
@@ -97,7 +104,10 @@ public sealed class FleetManagerFactory : IFleetManagerFactory
 
 	private IAmazonEC2 GetAwsEc2(FleetManagerType type)
 	{
-		if (_awsEc2 != null) return _awsEc2;
+		if (_awsEc2 != null)
+		{
+			return _awsEc2;
+		}
 		
 		_awsEc2 = _provider.GetService<IAmazonEC2>();
 		if (_settings.CurrentValue.WithAws == false || _awsEc2 == null)
@@ -110,7 +120,10 @@ public sealed class FleetManagerFactory : IFleetManagerFactory
 	
 	private IAmazonAutoScaling GetAwsAutoScaling(FleetManagerType type)
 	{
-		if (_awsAutoScaling != null) return _awsAutoScaling;
+		if (_awsAutoScaling != null)
+		{
+			return _awsAutoScaling;
+		}
 		
 		_awsAutoScaling = _provider.GetService<IAmazonAutoScaling>();
 		if (_settings.CurrentValue.WithAws == false || _awsAutoScaling == null)

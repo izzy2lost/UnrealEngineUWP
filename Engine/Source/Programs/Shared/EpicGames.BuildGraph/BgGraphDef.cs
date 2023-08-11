@@ -697,7 +697,6 @@ namespace EpicGames.BuildGraph
 		}
 	}
 
-
 	/// <summary>
 	/// Definition of a graph from bytecode. Can be converted to regular graph definition.
 	/// </summary>

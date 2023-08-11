@@ -149,7 +149,7 @@ namespace EpicGames.Core
 	/// </summary>
 	public class PooledMemoryWriter : IMemoryWriter, IDisposable
 	{
-		MemoryPool<byte> _pool;
+		readonly MemoryPool<byte> _pool;
 		IMemoryOwner<byte> _owner;
 		Memory<byte> _memory;
 		int _length;

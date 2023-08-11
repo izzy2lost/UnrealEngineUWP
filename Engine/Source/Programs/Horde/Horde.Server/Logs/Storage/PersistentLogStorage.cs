@@ -47,12 +47,8 @@ namespace Horde.Server.Logs.Storage
 			_logger.LogDebug("Reading log {LogId} index length {Length} from persistent storage", logId, length);
 
 			string path = $"{logId}/index_{length}";
-			ReadOnlyMemory<byte>? data = await _storageProvider.ReadBytesAsync(path);
-			if (data == null)
-			{
-				return null;
-			}
-			return LogIndexData.FromMemory(data.Value);
+			ReadOnlyMemory<byte> data = await _storageProvider.ReadBytesAsync(path);
+			return LogIndexData.FromMemory(data);
 		}
 
 		/// <inheritdoc/>
@@ -71,13 +67,9 @@ namespace Horde.Server.Logs.Storage
 			_logger.LogDebug("Reading log {LogId} chunk offset {Offset} from persistent storage", logId, offset);
 
 			string path = $"{logId}/offset_{offset}";
-			ReadOnlyMemory<byte>? data = await _storageProvider.ReadBytesAsync(path);
-			if(data == null)
-			{
-				return null;
-			}
+			ReadOnlyMemory<byte> data = await _storageProvider.ReadBytesAsync(path);
 
-			MemoryReader reader = new MemoryReader(data.Value);
+			MemoryReader reader = new MemoryReader(data);
 			LogChunkData chunkData = reader.ReadLogChunkData(offset, lineIndex);
 
 			if (reader.RemainingMemory.Length > 0)

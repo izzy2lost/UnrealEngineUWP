@@ -275,7 +275,10 @@ public class XgeMetadataExtractor
 		Dictionary<string, XgeTaskMetadataSummary> result = new();
 		foreach (XgeTaskMetadataSummary? s in GetLocalIbMonFilePaths().Select(GetSummaryFromIbMonFile))
 		{
-			if (s.LocalTaskCount == 0 && s.RemoteTaskCount == 0) continue;
+			if (s.LocalTaskCount == 0 && s.RemoteTaskCount == 0)
+			{
+				continue;
+			}
 			
 			if (!result.TryGetValue(s.Title, out XgeTaskMetadataSummary? aggregatedSummary))
 			{
@@ -298,7 +301,10 @@ public class XgeMetadataExtractor
 		Dictionary<string, XgeTaskMetadataSummary> result = new();
 		foreach (XgeTaskMetadataSummary? s in summaries)
 		{
-			if (s.LocalTaskCount == 0 && s.RemoteTaskCount == 0) continue;
+			if (s.LocalTaskCount == 0 && s.RemoteTaskCount == 0)
+			{
+				continue;
+			}
 			
 			if (!result.TryGetValue(s.Title, out XgeTaskMetadataSummary? aggregatedSummary))
 			{
@@ -442,7 +448,10 @@ public class XgeMetadataExtractor
 
 		public override bool Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
 		{
-			if (Boolean.TryParse(reader.GetString(), out bool value)) { return value; }
+			if (Boolean.TryParse(reader.GetString(), out bool value))
+			{
+				return value; 
+			}
 			throw new Exception("Cannot unmarshal type bool");
 		}
 

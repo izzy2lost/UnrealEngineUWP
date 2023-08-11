@@ -412,8 +412,14 @@ namespace Horde.Server.Agents.Fleet
 					return new JobQueueStrategy(_jobCollection, _graphCollection, _streamCollection, _clock, _cache, _globalConfig, pool.JobQueueSettings);
 				case PoolSizeStrategy.LeaseUtilization:
 					LeaseUtilizationSettings luSettings = new();
-					if (pool.MinAgents != null) luSettings.MinAgents = pool.MinAgents.Value;
-					if (pool.NumReserveAgents != null) luSettings.NumReserveAgents = pool.NumReserveAgents.Value;
+					if (pool.MinAgents != null)
+					{
+						luSettings.MinAgents = pool.MinAgents.Value;
+					}
+					if (pool.NumReserveAgents != null)
+					{
+						luSettings.NumReserveAgents = pool.NumReserveAgents.Value;
+					}
 					return new LeaseUtilizationStrategy(_agentCollection, _poolCollection, _leaseCollection, _clock, _cache, luSettings);
 				case PoolSizeStrategy.NoOp:
 					return new NoOpPoolSizeStrategy();
@@ -471,7 +477,10 @@ namespace Horde.Server.Agents.Fleet
 		{
 			json = String.IsNullOrEmpty(json) ? "{}" : json;
 			T? config = JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-			if (config == null) throw new ArgumentException("Unable to deserialize config: " + json);
+			if (config == null)
+			{
+				throw new ArgumentException("Unable to deserialize config: " + json);
+			}
 			return config;
 		}
 	}

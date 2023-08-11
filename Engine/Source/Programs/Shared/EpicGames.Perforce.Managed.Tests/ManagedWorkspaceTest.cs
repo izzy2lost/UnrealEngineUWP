@@ -250,7 +250,10 @@ public class ManagedWorkspaceTest : BasePerforceFixtureTest
 			
 			HashSet<(string clientFile, int rev, long size, string digest)> fixtureFiles = new();
 			ChangelistFixture changelist = Stream.GetChangelist(cr.Number);
-			if (changelist.IsShelved) continue;
+			if (changelist.IsShelved)
+			{
+				continue;
+			}
 			
 			foreach (DepotFileFixture depotFile in changelist.StreamFiles)
 			{

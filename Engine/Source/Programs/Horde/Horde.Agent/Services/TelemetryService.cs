@@ -428,9 +428,18 @@ class TelemetryService : BackgroundService
 		
 		foreach (string line in lines)
 		{
-			if (line.Length < 5) continue;
-			if (line.StartsWith("---", StringComparison.Ordinal)) continue;
-			if (line.StartsWith("Filter", StringComparison.Ordinal)) continue;
+			if (line.Length < 5)
+			{
+				continue;
+			}
+			if (line.StartsWith("---", StringComparison.Ordinal))
+			{
+				continue;
+			}
+			if (line.StartsWith("Filter", StringComparison.Ordinal))
+			{
+				continue;
+			}
 				
 			string[] parts = line.Split("   ", StringSplitOptions.RemoveEmptyEntries);
 			string filterName = parts[0];

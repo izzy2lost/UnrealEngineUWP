@@ -1600,7 +1600,10 @@ namespace EpicGames.Perforce.Managed
 				{
 					// Copy into the values array
 					rawRecord.CopyInto(FStatRecordWithoutHaveTable.Utf8FieldNames, record.Values);
-					if (record.Digest.IsEmpty) { return; }
+					if (record.Digest.IsEmpty)
+					{
+						return; 
+					}
 
 					if (viewMap.TryMapFile(record.DepotFile.ToString(), StringComparison.OrdinalIgnoreCase, out string clientFile))
 					{

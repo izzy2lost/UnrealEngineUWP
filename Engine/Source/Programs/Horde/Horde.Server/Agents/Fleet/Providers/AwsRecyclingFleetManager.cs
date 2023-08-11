@@ -244,8 +244,11 @@ public sealed class AwsRecyclingFleetManager : IFleetManager
 		using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AwsRecyclingFleetManager)}.{nameof(StartInstancesWithRetriesAsync)}");
 		span.SetAttribute("instances", String.Join(',', instanceIds));
 		span.SetAttribute("instanceTypePriority", instanceTypePriorityString);
-		
-		if (instances.Count == 0) return;
+
+		if (instances.Count == 0)
+		{
+			return;
+		}
 		
 		List<InstanceType?> instanceTypes = new();
 		if (instanceTypePriority == null || instanceTypePriority.Count == 0)
@@ -304,8 +307,11 @@ public sealed class AwsRecyclingFleetManager : IFleetManager
 		using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AwsRecyclingFleetManager)}.{nameof(StartInstancesAsync)}");
 		span.SetAttribute("instances", String.Join(',', instanceIds));
 		span.SetAttribute("instanceType", instanceType);
-		
-		if (instances.Count == 0) return;
+
+		if (instances.Count == 0)
+		{
+			return;
+		}
 		if (instanceType != null)
 		{
 			await ChangeInstanceTypeAsync(instances, instanceType, cancellationToken);
@@ -365,7 +371,10 @@ public sealed class AwsRecyclingFleetManager : IFleetManager
 			span.SetAttribute("fromInstanceType", instance.InstanceType);
 			span.SetAttribute("toInstanceType", newInstanceType);
 			
-			if (instance.InstanceType == newInstanceType) { continue; }
+			if (instance.InstanceType == newInstanceType)
+			{
+				continue; 
+			}
 
 			ModifyInstanceAttributeRequest request = new () { InstanceId = instance.InstanceId, InstanceType = newInstanceType };
 			ModifyInstanceAttributeResponse response = await _ec2.ModifyInstanceAttributeAsync(request, cancellationToken);

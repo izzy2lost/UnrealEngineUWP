@@ -1,9 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.IO;
 using System.IO.Compression;
-using System.Reflection;
 using System.Runtime.InteropServices;
 
 #pragma warning disable CA1707 // Identifiers should not contain underscores
