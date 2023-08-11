@@ -113,6 +113,7 @@ struct FISMComponentDescription
 
 	uint32 Flags = WorldPositionOffsetWritesVelocity|AffectShadow;
 	int32 NumCustomDataFloats = 0;
+	FVector Position = FVector::ZeroVector;
 	int32 StartCullDistance = 0;
 	int32 EndCullDistance = 0;
 	int32 MinLod = 0;
@@ -124,7 +125,8 @@ struct FISMComponentDescription
 	{
 		return Flags == Other.Flags &&
 			NumCustomDataFloats == Other.NumCustomDataFloats &&
-			StartCullDistance == Other.StartCullDistance && 
+			Position == Other.Position &&
+			StartCullDistance == Other.StartCullDistance &&
 			EndCullDistance == Other.EndCullDistance &&
 			MinLod == Other.MinLod &&
 			LodScale == Other.LodScale &&
@@ -136,6 +138,7 @@ struct FISMComponentDescription
 FORCEINLINE uint32 GetTypeHash(const FISMComponentDescription& Desc)
 {
 	uint32 Hash = HashCombineFast(GetTypeHash(Desc.Flags), GetTypeHash(Desc.NumCustomDataFloats));
+	Hash = HashCombineFast(Hash, GetTypeHash(Desc.Position));
 	Hash = HashCombineFast(Hash, GetTypeHash(Desc.StartCullDistance));
 	Hash = HashCombineFast(Hash, GetTypeHash(Desc.EndCullDistance));
 	Hash = HashCombineFast(Hash, GetTypeHash(Desc.MinLod));
@@ -241,8 +244,10 @@ struct FGeometryCollectionMeshGroup
 /** Structure containting all info for a single ISM. */
 struct FGeometryCollectionISM
 {
-	FGeometryCollectionISM(AActor* OwmingActor, const FGeometryCollectionStaticMeshInstance& InMeshInstance);
+	FGeometryCollectionISM(AActor* InOwningActor);
 
+	/** Initialize the ISMComponent according to settings on the mesh instance. */
+	void InitISM(const FGeometryCollectionStaticMeshInstance& InMeshInstance);
 	/** Add a group to the ISM. Returns the group index. */
 	FInstanceGroups::FInstanceGroupId AddInstanceGroup(int32 InstanceCount, TArrayView<const float> CustomDataFloats);
 
@@ -277,7 +282,8 @@ struct FGeometryCollectionISMPool
 
 	TMap<FGeometryCollectionStaticMeshInstance, FISMIndex> MeshToISMIndex;
 	TArray<FGeometryCollectionISM> ISMs;
-	TArray<int32> FreeList;
+	TArray<int32> FreeListISM;
+	TArray<int32> FreeListHISM;
 };
 
 
