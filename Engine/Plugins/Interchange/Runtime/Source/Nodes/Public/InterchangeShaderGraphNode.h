@@ -30,7 +30,14 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
 	static FString MakeInputValueKey(const FString& InputName);
- 
+
+	/**
+	 * Makes an attribute key to represent a parameter being given to an input (ie: Inputs:InputName:Parameter).
+	 * This is more relevant to Materials, but could be used to differentiate between constant values and parameters.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
+	static FString MakeInputParameterKey(const FString& InputName);
+
 	/**
 	 * From an attribute key associated with an input (ie: Inputs:InputName:Value), retrieves the input name from it.
 	 */
@@ -42,6 +49,12 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
 	static bool IsAnInput(const FString& AttributeKey);
+
+	/**
+	 * Returns true if the attribute key is an input that represents parameters(ends with ":Parameter").
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
+	static bool IsAParameter(const FString& AttributeKey);
  
 	/**
 	 * Checks if a particular input exists on a given node.
@@ -49,6 +62,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
 	static bool HasInput(const UInterchangeBaseNode* InterchangeNode, const FName& InInputName);
  
+	/**
+	 * Checks if a particular input exists as a parameter on a given node.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
+	static bool HasParameter(const UInterchangeBaseNode* InterchangeNode, const FName& InInputName);
+
 	/**
 	 * Retrieves the names of all the inputs for a given node.
 	 */
@@ -103,7 +122,7 @@ public:
 	/**
 	 * For an input with a value, returns the type of the stored value.
 	 */
-	static UE::Interchange::EAttributeTypes GetInputType(const UInterchangeBaseNode* InterchangeNode, const FString& InputName);
+	static UE::Interchange::EAttributeTypes GetInputType(const UInterchangeBaseNode* InterchangeNode, const FString& InputName, bool bIsAParameter = false);
 
 	/**
 	 * Returns INDEX_NONE if OutputName is not an index.
@@ -114,6 +133,8 @@ private:
 	static const TCHAR* InputPrefix;
 	static const TCHAR* InputSeparator;
 	static const TCHAR* OutputByIndex;
+
+	static const TCHAR* ParameterSuffix;
 };
 
 /**
@@ -138,6 +159,32 @@ public:
 	virtual FString GetTypeName() const override;
  
 public:
+
+	/**
+	 * Sets the Float Attribute on the Shader Node. If bIsAParameter is set to true, it would be treated as a ScalarParameter
+	 * when the Material Pipeline creates the materials. Otherwise it would be a constant expression in the shader graph.
+	 * Note: It is assumed that the input name would be the parameter name when bIsAParameter is true.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
+	bool AddFloatInput(const FString& InputName, const float& AttributeValue, bool bIsAParameter = false);
+
+	/**
+	 * Sets the Linear Color Attribute on the Shader Node. If bIsAParameter is set to true, it would be treated as a VectorParameter
+	 * when the Material Pipeline creates the materials. Otherwise it would be a constant 3 vector expression in the shader graph.
+	 * Note: It is assumed that the input name would be the parameter name when bIsAParameter is true.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
+	bool AddLinearColorInput(const FString& InputName, const FLinearColor& AttributeValue, bool bIsAParameter = false);
+
+	/**
+	 * Sets the String Attribute on the Shader Node. If bIsAParameter is set to true, it would be treated as a overridable Texture
+	 * or else it should be treated as a LUT Texture.
+	 * Note: It is assumed that the input name would be the parameter name when bIsAParameter is true.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
+	bool AddStringInput(const FString& InputName, const FString& AttributeValue, bool bIsAParameter = false);
+
+
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
 	bool GetCustomShaderType(FString& AttributeValue) const;
  

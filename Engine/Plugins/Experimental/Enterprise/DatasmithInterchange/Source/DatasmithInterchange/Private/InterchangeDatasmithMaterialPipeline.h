@@ -16,6 +16,8 @@ class UInterchangeMaterialInstanceFactoryNode;
 class UInterchangeShaderGraphNode;
 class UInterchangeMaterialInstanceNode;
 
+DECLARE_LOG_CATEGORY_EXTERN(LogInterchangeMaterialPipeline, Log, All);
+
 UCLASS(BlueprintType, Experimental)
 class DATASMITHINTERCHANGE_API UInterchangeDatasmithMaterialPipeline : public UInterchangeGenericMaterialPipeline
 {

@@ -15,15 +15,42 @@
 #include "InterchangeManager.h"
 #include "InterchangeMaterialDefinitions.h"
 #include "InterchangeMaterialFactoryNode.h"
+
 #include "InterchangeTexture2DNode.h"
 #include "InterchangeTexture2DFactoryNode.h"
 #include "InterchangeMaterialInstanceNode.h"
+#include "Nodes/InterchangeUserDefinedAttribute.h"
 
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Materials/MaterialFunction.h"
 #include "Materials/MaterialInstanceConstant.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/PackageName.h"
+
+DEFINE_LOG_CATEGORY(LogInterchangeMaterialPipeline);
+
+namespace UE::Interchange::MaterialUtils
+{
+	UClass* FindMaterialExpressionClass(const TCHAR* ClassName)
+	{
+		if (!ensure(ClassName))
+		{
+			return nullptr;
+		}
+
+		if (UClass* Result = FindFirstObject<UClass>(ClassName, EFindFirstObjectOptions::None, ELogVerbosity::Warning, TEXT("Datasmith FindClass")))
+		{
+			return Result;
+		}
+
+		if (UObjectRedirector* RenamedClassRedirector = FindFirstObject<UObjectRedirector>(ClassName, EFindFirstObjectOptions::None, ELogVerbosity::Warning, TEXT("Datasmith FindClass")))
+		{
+			return CastChecked<UClass>(RenamedClassRedirector->DestinationObject);
+		}
+
+		return nullptr;
+	}
+}
 
 UInterchangeDatasmithMaterialPipeline::UInterchangeDatasmithMaterialPipeline()
 	: Super()
@@ -294,7 +321,26 @@ void UInterchangeDatasmithMaterialPipeline::UpdateMaterialFactoryNodes(const TAr
 		{
 			continue;
 		}
-
+		
+		
+		if (UInterchangeMaterialExpressionFactoryNode* MaterialExpressionFactoryNode = Cast<UInterchangeMaterialExpressionFactoryNode>(FactoryNode))
+		{
+			FString ExpressionClassName;
+			MaterialExpressionFactoryNode->GetCustomExpressionClassName(ExpressionClassName);
+			
+			UClass* MaterialExpressionClass = UE::Interchange::MaterialUtils::FindMaterialExpressionClass(*ExpressionClassName);
+			if (!MaterialExpressionClass)
+			{
+				UE_LOG(LogInterchangeMaterialPipeline, Warning, TEXT("Invalid Material Expression Class."));
+			}
+			else
+			{
+				// This will transfer both porperties with delegates and transferable properties to the Factory Node.
+				UInterchangeUserDefinedAttributesAPI::DuplicateAllUserDefinedAttribute(ShaderNode, MaterialExpressionFactoryNode, false);
+				UInterchangeUserDefinedAttributesAPI::AddApplyAndFillDelegatesToFactory(MaterialExpressionFactoryNode, MaterialExpressionClass);
+			}
+		}
+		
 		if (UInterchangeDatasmithPbrMaterialNode* PbrMaterialNode = Cast<UInterchangeDatasmithPbrMaterialNode>(ShaderNode))
 		{
 			UInterchangeBaseMaterialFactoryNode* BaseMaterialFactoryNode = Cast<UInterchangeBaseMaterialFactoryNode>(FactoryNode);
@@ -339,5 +385,7 @@ void UInterchangeDatasmithMaterialPipeline::UpdateMaterialFactoryNodes(const TAr
 				//}
 			}
 		}
+
+
 	}
 }

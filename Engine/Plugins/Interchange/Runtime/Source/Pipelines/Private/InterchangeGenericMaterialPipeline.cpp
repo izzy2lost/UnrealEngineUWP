@@ -19,6 +19,7 @@
 #include "Materials/Material.h"
 #include "Misc/PackageName.h"
 #include "Nodes/InterchangeBaseNode.h"
+#include "Nodes/InterchangeUserDefinedAttribute.h"
 #include "InterchangeMaterialInstanceNode.h"
 
 #include "Materials/MaterialExpressionAdd.h"
@@ -31,6 +32,9 @@
 #include "Materials/MaterialExpressionNoise.h"
 #include "Materials/MaterialExpressionOneMinus.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
+#include "Materials/MaterialExpressionStaticBoolParameter.h"
+#include "Materials/MaterialExpressionConstant.h"
+#include "Materials/MaterialExpressionConstant3Vector.h"
 #include "Materials/MaterialExpressionTextureCoordinate.h"
 #include "Materials/MaterialExpressionTextureObject.h"
 #include "Materials/MaterialExpressionTextureSample.h"
@@ -56,6 +60,9 @@
 #include "Templates/SubclassOf.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
+
+// Material Hash Utils
+#include "Material/InterchangeMaterialFactory.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeGenericMaterialPipeline)
 
@@ -193,6 +200,260 @@ namespace UE::Interchange::InterchangeGenericMaterialPipeline::Private
 	}
 }
 
+namespace UE::Interchange::Materials::HashUtils
+{
+#if UE_BUILD_DEBUG
+	class FMaterialHashDebugData
+	{
+	public:
+		FMaterialHashDebugData(const FString& InLogDirectoryPath)
+			:LogDirectoryPath(InLogDirectoryPath) {}
+		
+		void Reset();
+
+		void SaveLogsToFile(const FString& FileName);
+
+		template<typename...TArgs>
+		void LogMessage(const FString& Format, TArgs ...Args)
+		{
+			TArray<FStringFormatArg> FormattedArgs;
+			AddFormattedArg(FormattedArgs, Args...);
+			FString Message = FString::Format(*Format, FormattedArgs);
+			UE_LOG(LogInterchangePipeline, Log, TEXT("%s"), *Message);
+			LogMessageContainer.Add(Message);
+		}
+
+		void LogCurrentNodeAddress()
+		{
+			FString NodeAddress = FString::Printf(TEXT("Current Node Address: %s\n"), *GetCurrentNodeAddress());
+			UE_LOG(LogInterchangePipeline, Log, TEXT("%s"), *NodeAddress);
+			LogMessageContainer.Add(NodeAddress);
+		}
+
+		FString GetCurrentNodeAddress();
+		void AddNodeAddress(const FString& NodeAddress, bool bCreatePopCheckPoint = true);
+		void PopNodeAddressesToLastPopIndex();
+
+	private:
+		template<typename TArg>
+		void AddFormattedArg(TArray<FStringFormatArg>& FormattedArgs, TArg Arg)
+		{
+			FormattedArgs.Add(Arg);
+		}
+
+		template<typename TArg, typename ...TArgs>
+		void AddFormattedArg(TArray<FStringFormatArg>& FormattedArgs, TArg Arg, TArgs ...Args)
+		{
+			FormattedArgs.Add(Arg);
+			AddFormattedArg(FormattedArgs, Args...);
+		}
+
+	private:
+		FString LogDirectoryPath;
+		TArray<FString> LogMessageContainer;
+
+		TArray<FString> NodeAddressStack;
+		TArray<int32> NodeAddressPopCheckPoints;
+	};
+
+	FString FMaterialHashDebugData::GetCurrentNodeAddress()
+	{
+		TStringBuilder<512> StringBuilder;
+		for (int32 i = 0; i < NodeAddressStack.Num(); ++i)
+		{
+			StringBuilder.Append(NodeAddressStack[i]);
+			if (i < NodeAddressStack.Num() - 1)
+			{
+				StringBuilder.Append(TEXT("/"));
+			}
+		}
+
+		return StringBuilder.ToString();
+	}
+
+	void FMaterialHashDebugData::SaveLogsToFile(const FString& FileName)
+	{
+		const FString LogFileExtension = TEXT(".txt");
+
+		if (LogMessageContainer.Num())
+		{
+			static FString FileDirectory = FPaths::ProjectSavedDir() + LogDirectoryPath;
+
+			IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+			if (PlatformFile.CreateDirectoryTree(*FileDirectory))
+			{
+				FString AbsolutePath = FileDirectory + FileName + LogFileExtension;
+				FFileHelper::SaveStringArrayToFile(LogMessageContainer, *AbsolutePath);
+			}
+		}
+	}
+
+	void FMaterialHashDebugData::Reset()
+	{
+		NodeAddressStack.Empty();
+		LogMessageContainer.Empty();
+	}
+
+	void FMaterialHashDebugData::AddNodeAddress(const FString& NodeAddress, bool bCreatePopCheckPoint /*= true*/)
+	{
+		if (bCreatePopCheckPoint)
+		{
+			NodeAddressPopCheckPoints.Add(NodeAddressStack.Num());
+		}
+
+		NodeAddressStack.Add(NodeAddress);
+	}
+
+	void FMaterialHashDebugData::PopNodeAddressesToLastPopIndex()
+	{
+		int32 TargetStackSize = 0;
+		if (NodeAddressPopCheckPoints.Num())
+		{
+			TargetStackSize = NodeAddressPopCheckPoints.Last();
+		}
+
+		if (!TargetStackSize)
+		{
+			NodeAddressStack.Empty();
+			NodeAddressPopCheckPoints.Empty();
+		}
+		else
+		{
+			while (NodeAddressStack.Num() && NodeAddressStack.Num() > TargetStackSize)
+			{
+				NodeAddressStack.Pop();
+			}
+
+			NodeAddressPopCheckPoints.Pop();
+		}
+	}
+#endif
+
+	class FDuplicateMaterialHelper
+	{
+	public:
+#if UE_BUILD_DEBUG
+		FDuplicateMaterialHelper(UInterchangeGenericMaterialPipeline& InGenericMaterialPipeline, FMaterialHashDebugData* InHashDebugData)
+			:GenericMaterialPipeline(InGenericMaterialPipeline),
+			HashDebugData(InHashDebugData)
+		{}
+#else
+		FDuplicateMaterialHelper(UInterchangeGenericMaterialPipeline& InGenericMaterialPipeline)
+			:GenericMaterialPipeline(InGenericMaterialPipeline)
+		{}
+#endif
+		void CopyLeafInputsToFactoryNode(UInterchangeBaseMaterialFactoryNode* FactoryNode);
+
+		void ComputMaterialHash(const UInterchangeShaderGraphNode* ShaderGraphNode);
+		
+		void SetupOverridableScalarParameter(const UInterchangeShaderNode* ShaderNode, const FString& ParameterKey, const FString& OverridableParameterNameKey);
+		void SetupOverridableVectorParameter(const UInterchangeShaderNode* ShaderNode, const FString& ParameterKey, const FString& OverridableParameterNameKey);
+		void SetupOverridableStaticBoolParameter(const UInterchangeShaderNode* ShaderNode, const FString& ParameterKey, const FString& OverridableParameterNameKey);
+		void SetupOverridableTextureParameter(const UInterchangeShaderNode* ShaderNode, const FString& InputKey, const FString& OverridableParameterNameKey);
+		
+		/**
+		 * Creates a Base Material Factory Node based on if the material is a duplicate material or if it is found for the first time.
+		 * If the option to create a material instance for the parent is enabled, then additional material instance factory for parent would also be created.
+		 */
+		UInterchangeBaseMaterialFactoryNode* CreateFactoryForDuplicateMaterials(const UInterchangeShaderGraphNode* ShaderGraphNode, bool bImportUnusedMaterial, bool bCreateInstanceForParent);
+
+		void ResetHashData();
+
+		bool IsDuplicate()const { return bIsDuplicate; }
+		const UInterchangeBaseNode* const GetAttributeStorageNode() const { return AttributeStorageNode; }
+
+		template<class TInterchangeResultType>
+		void PostMessage(FText&& MessageText)
+		{
+			if (GenericMaterialPipeline.Results)
+			{
+				TInterchangeResultType* Result = GenericMaterialPipeline.Results->Add<TInterchangeResultType>();
+				Result->Text = MoveTemp(MessageText);
+			}
+		}
+
+	private:
+		UInterchangeBaseMaterialFactoryNode* CreateMaterialFactory(const UInterchangeShaderGraphNode* ShaderGraphNode);
+		UInterchangeMaterialInstanceFactoryNode* CreateMaterialInstanceFactoryFromReference(const UInterchangeShaderGraphNode* ShaderGraphNode);
+		UInterchangeMaterialInstanceFactoryNode* CreateMaterialInstanceFactoryForParent(const UInterchangeShaderGraphNode* ShaderGraphNode);
+
+		TEnumAsByte<EBlendMode> GetShaderGraphNodeBlendMode(const UInterchangeShaderGraphNode* ShaderGraphNode) const;
+		uint8 GetShaderGraphNodeShadingModel(const UInterchangeShaderGraphNode* ShaderGraphNode) const;
+
+		int32 ComputeShaderGraphNodeHash(const UInterchangeShaderGraphNode* ShaderGraphNode);
+		int32 ComputeShaderNodeHash(const  UInterchangeShaderNode* ShaderNode);
+		int32 ComputeShaderInputHash(const UInterchangeShaderNode* ShaderNode, const FString& InputName);
+		int32 HashCombineCustom(int32 Hash, int32 CombineWith);
+
+	private:
+		UInterchangeGenericMaterialPipeline& GenericMaterialPipeline;
+
+		TMap<int32, UInterchangeBaseMaterialFactoryNode*> ParentMaterialFactoryMap;
+
+		UInterchangeBaseNode* AttributeStorageNode = nullptr;
+
+#if UE_BUILD_DEBUG
+		FMaterialHashDebugData* HashDebugData = nullptr;
+#endif
+
+		TArray<UE::Interchange::FAttributeKey> LeafInputAttributeKeys;
+		TSet<const UInterchangeShaderNode*> LeafInputShaderNodes;
+
+		int32 AccumulatedHash = 0;
+		int32 MaterialHash = 0;
+
+		bool bIsDuplicate = false;
+	};
+
+	FString GetDefaultValueStringForShaderType(FString ShaderType)
+	{
+		if (*ShaderType == Standard::Nodes::ScalarParameter::Name)
+		{
+			return Standard::Nodes::ScalarParameter::Attributes::DefaultValue.ToString();
+		}
+		else if (*ShaderType == Standard::Nodes::VectorParameter::Name)
+		{
+			return Standard::Nodes::VectorParameter::Attributes::DefaultValue.ToString();
+		}
+		else if (*ShaderType == Standard::Nodes::StaticBoolParameter::Name)
+		{
+			return Standard::Nodes::StaticBoolParameter::Attributes::DefaultValue.ToString();
+		}
+
+		return FString();
+	}
+}
+
+#if UE_BUILD_DEBUG
+#define ADD_LOG_MESSAGE(...) if(HashDebugData){\
+HashDebugData->LogMessage(__VA_ARGS__);\
+}
+
+#define ADD_NODE_ADDRESS_MESSAGE() if(HashDebugData){\
+HashDebugData->LogCurrentNodeAddress();\
+}
+
+#define PUSH_NODE_ADDRESS(Node) if(HashDebugData){\
+HashDebugData->AddNodeAddress(Node);\
+}
+
+#define PUSH_NODE_ADDRESS_WITHOUT_CHECKPOINT(Node) if(HashDebugData){\
+HashDebugData->AddNodeAddress(Node, false);\
+}
+
+#define POP_NODE_ADDRESSES() if(HashDebugData){\
+HashDebugData->PopNodeAddressesToLastPopIndex();\
+}
+#else
+
+#define ADD_LOG_MESSAGE(...)
+#define ADD_NODE_ADDRESS_MESSAGE() 
+#define PUSH_NODE_ADDRESS(Node) 
+#define PUSH_NODE_ADDRESS_WITHOUT_CHECKPOINT(Node)
+#define POP_NODE_ADDRESSES()
+
+#endif
+
 UInterchangeGenericMaterialPipeline::UInterchangeGenericMaterialPipeline()
 {
 	TexturePipeline = CreateDefaultSubobject<UInterchangeGenericTexturePipeline>("TexturePipeline");
@@ -257,6 +518,13 @@ void UInterchangeGenericMaterialPipeline::AdjustSettingsForContext(EInterchangeP
 
 void UInterchangeGenericMaterialPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas)
 {
+#if UE_BUILD_DEBUG
+	UE::Interchange::Materials::HashUtils::FMaterialHashDebugData HashDebugData(TEXT("InterchangeDebug/MaterialHashLogs/"));
+	UE::Interchange::Materials::HashUtils::FDuplicateMaterialHelper HashHelper(*this, &HashDebugData);
+#else
+	UE::Interchange::Materials::HashUtils::FDuplicateMaterialHelper HashHelper(*this);
+#endif
+
 	if (!InBaseNodeContainer)
 	{
 		UE_LOG(LogInterchangePipeline, Warning, TEXT("UInterchangeGenericMaterialPipeline: Cannot execute pre-import pipeline because InBaseNodeContrainer is null"));
@@ -316,7 +584,7 @@ void UInterchangeGenericMaterialPipeline::ExecutePipeline(UInterchangeBaseNodeCo
 		bImportUnusedMaterial |= bImportMaterials ;
 	}
 
-	// Can't import materials at runtime, fallback to instances
+	// Can't import materials at runtime, fall back to instances
 	if (FApp::IsGame() && MaterialImport == EInterchangeMaterialImportOption::ImportAsMaterials)
 	{
 		MaterialImport = EInterchangeMaterialImportOption::ImportAsMaterialInstances;
@@ -327,15 +595,30 @@ void UInterchangeGenericMaterialPipeline::ExecutePipeline(UInterchangeBaseNodeCo
 		for (const UInterchangeShaderGraphNode* ShaderGraphNode : MaterialNodes)
 		{
 			UInterchangeBaseMaterialFactoryNode* MaterialBaseFactoryNode = nullptr;
-
+			
 			bool bIsAShaderFunction;
 			if (ShaderGraphNode->GetCustomIsAShaderFunction(bIsAShaderFunction) && bIsAShaderFunction)
 			{
 				MaterialBaseFactoryNode = CreateMaterialFunctionFactoryNode(ShaderGraphNode);
 			}
-			else
+			else if (!bIdentifyDuplicateMaterials)
 			{
 				MaterialBaseFactoryNode = CreateMaterialFactoryNode(ShaderGraphNode);
+			}
+			else
+			{
+				HashHelper.ResetHashData();
+				HashHelper.ComputMaterialHash(ShaderGraphNode);
+				AttributeStorageNode = HashHelper.GetAttributeStorageNode();
+
+				/* Creates Material Instance Factory if duplicate material is found. */
+				MaterialBaseFactoryNode = HashHelper.CreateFactoryForDuplicateMaterials(ShaderGraphNode, bImportUnusedMaterial, bCreateMaterialInstanceForParent);
+
+#if UE_BUILD_DEBUG
+				HashDebugData.SaveLogsToFile(ShaderGraphNode->GetUniqueID());
+#endif
+				/* Clearing the AttributeStorageNode as it might affect how the MaterialFunctionsFactories are created. */
+				AttributeStorageNode = nullptr;
 			}
 
 			if (MaterialBaseFactoryNode)
@@ -364,12 +647,10 @@ void UInterchangeGenericMaterialPipeline::ExecutePipeline(UInterchangeBaseNodeCo
 	for (UInterchangeMaterialInstanceNode* MaterialNode : MaterialInstanceNodes)
 	{
 		FString ParentPath;
-
 		if (!MaterialNode->GetCustomParent(ParentPath) || ParentPath.IsEmpty())
 		{
 			continue;
 		}
-
 
 		UInterchangeMaterialInstanceFactoryNode* MaterialFactoryNode = nullptr;
 		FString DisplayLabel = MaterialNode->GetDisplayLabel();
@@ -413,9 +694,10 @@ void UInterchangeGenericMaterialPipeline::ExecutePipeline(UInterchangeBaseNodeCo
 
 		for (const FString& InputName : Inputs)
 		{
-			FString InputValueKey = UInterchangeShaderPortsAPI::MakeInputValueKey(InputName);
+			const bool bIsAParameter = UInterchangeShaderPortsAPI::HasParameter(MaterialNode, FName(InputName));
+			FString InputValueKey = CreateInputKey(InputName,bIsAParameter);
 
-			switch (UInterchangeShaderPortsAPI::GetInputType(MaterialNode, InputName))
+			switch (UInterchangeShaderPortsAPI::GetInputType(MaterialNode, InputName, bIsAParameter))
 			{
 			case UE::Interchange::EAttributeTypes::Bool:
 			{
@@ -500,10 +782,17 @@ void UInterchangeGenericMaterialPipeline::SetReimportSourceIndex(UClass* Reimpor
 	}
 }
 
-UInterchangeBaseMaterialFactoryNode* UInterchangeGenericMaterialPipeline::CreateBaseMaterialFactoryNode(const UInterchangeBaseNode* MaterialNode, TSubclassOf<UInterchangeBaseMaterialFactoryNode> NodeType)
+UInterchangeBaseMaterialFactoryNode* UInterchangeGenericMaterialPipeline::CreateBaseMaterialFactoryNode(const UInterchangeBaseNode* MaterialNode, TSubclassOf<UInterchangeBaseMaterialFactoryNode> NodeType, bool bAddMaterialInstanceSuffix /*= false*/)
 {
+	const FString MaterialInstanceSuffix = TEXT("_MI");
+
 	FString DisplayLabel = MaterialNode->GetDisplayLabel();
-	const FString NodeUid = UInterchangeFactoryBaseNode::BuildFactoryNodeUid(MaterialNode->GetUniqueID());
+	FString NodeUid = UInterchangeFactoryBaseNode::BuildFactoryNodeUid(MaterialNode->GetUniqueID());
+	if (bAddMaterialInstanceSuffix)
+	{
+		NodeUid += MaterialInstanceSuffix;
+	}
+
 	UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode = nullptr;
 	if (BaseNodeContainer->IsNodeUidValid(NodeUid))
 	{
@@ -1394,7 +1683,12 @@ void UInterchangeGenericMaterialPipeline::HandleMakeFloat3Node(const UInterchang
 	}
 }
 
-void UInterchangeGenericMaterialPipeline::HandleTextureNode(const UInterchangeTextureNode* TextureNode, UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode, UInterchangeMaterialExpressionFactoryNode* TextureBaseFactoryNode, const FString & ExpressionClassName)
+void UInterchangeGenericMaterialPipeline::HandleTextureNode(
+	const UInterchangeTextureNode* TextureNode, 
+	UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode, 
+	UInterchangeMaterialExpressionFactoryNode* TextureBaseFactoryNode, 
+	const FString & ExpressionClassName,
+	bool bIsAParameter)
 {
 	using namespace UE::Interchange::Materials::Standard::Nodes::TextureSample;
 
@@ -1408,7 +1702,7 @@ void UInterchangeGenericMaterialPipeline::HandleTextureNode(const UInterchangeTe
 	}
 
 	TextureBaseFactoryNode->SetCustomExpressionClassName(ExpressionClassName);
-	TextureBaseFactoryNode->AddStringAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(Inputs::Texture.ToString()), TextureFactoryUid);
+	TextureBaseFactoryNode->AddStringAttribute(CreateInputKey(Inputs::Texture.ToString(), bIsAParameter), TextureFactoryUid);
 
 	if(UInterchangeTextureFactoryNode* TextureFactoryNode = Cast<UInterchangeTextureFactoryNode>(BaseNodeContainer->GetFactoryNode(TextureFactoryUid)))
 	{
@@ -1462,19 +1756,19 @@ void UInterchangeGenericMaterialPipeline::HandleTextureObjectNode(const UInterch
 {
 	using namespace UE::Interchange::Materials::Standard::Nodes::TextureObject;
 
-	FString TextureUid;
-	ShaderNode->GetStringAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(Inputs::Texture.ToString()), TextureUid);
+	bool bIsAParameter;
+	FString TextureUid = GetTextureUidAttributeFromShaderNode(ShaderNode, Inputs::Texture, bIsAParameter);
 	FString ExpressionClassName;
 	FString TextureFactoryUid;
 
 	if(const UInterchangeTextureNode* TextureNode = Cast<const UInterchangeTextureNode>(BaseNodeContainer->GetNode(TextureUid)))
 	{
-		HandleTextureNode(TextureNode, MaterialFactoryNode, TextureObjectFactoryNode, UMaterialExpressionTextureObject::StaticClass()->GetName());
+		HandleTextureNode(TextureNode, MaterialFactoryNode, TextureObjectFactoryNode, UMaterialExpressionTextureObject::StaticClass()->GetName(), bIsAParameter);
 	}
 	else
 	{
 		TextureObjectFactoryNode->SetCustomExpressionClassName(UMaterialExpressionTextureObject::StaticClass()->GetName());
-		TextureObjectFactoryNode->AddStringAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(Inputs::Texture.ToString()), TextureFactoryUid);
+		TextureObjectFactoryNode->AddStringAttribute(CreateInputKey(Inputs::Texture.ToString(), bIsAParameter), TextureFactoryUid);
 	}
 }
 
@@ -1482,9 +1776,8 @@ void UInterchangeGenericMaterialPipeline::HandleTextureSampleNode(const UInterch
 {
 	using namespace UE::Interchange::Materials::Standard::Nodes::TextureSample;
 
-	FString TextureUid;
-	ShaderNode->GetStringAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(Inputs::Texture.ToString()), TextureUid);
-
+	bool bIsAParameter;
+	FString TextureUid = GetTextureUidAttributeFromShaderNode(ShaderNode, Inputs::Texture, bIsAParameter);
 	FString ExpressionClassName;
 	FString TextureFactoryUid;
 
@@ -1511,12 +1804,12 @@ void UInterchangeGenericMaterialPipeline::HandleTextureSampleNode(const UInterch
 			ExpressionClassName = UMaterialExpressionTextureSampleParameter2D::StaticClass()->GetName();
 		}
 
-		HandleTextureNode(TextureNode, MaterialFactoryNode, TextureSampleFactoryNode, ExpressionClassName);
+		HandleTextureNode(TextureNode, MaterialFactoryNode, TextureSampleFactoryNode, ExpressionClassName, bIsAParameter);
 	}
 	else
 	{
 		TextureSampleFactoryNode->SetCustomExpressionClassName(UMaterialExpressionTextureSampleParameter2D::StaticClass()->GetName());
-		TextureSampleFactoryNode->AddStringAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(Inputs::Texture.ToString()), TextureFactoryUid);
+		TextureSampleFactoryNode->AddStringAttribute(CreateInputKey(Inputs::Texture.ToString(), bIsAParameter), TextureFactoryUid);
 	}
 
 	// Coordinates
@@ -2073,6 +2366,53 @@ void UInterchangeGenericMaterialPipeline::HandleSwizzleNode(const UInterchangeSh
 	}
 }
 
+void UInterchangeGenericMaterialPipeline::HandleScalarParameterNode(const UInterchangeShaderNode* ShaderNode, UInterchangeMaterialExpressionFactoryNode* ScalarParameterFactoryNode)
+{
+	using namespace UE::Interchange::Materials::Standard::Nodes;
+	const FString ParameterKey = UInterchangeShaderPortsAPI::MakeInputParameterKey(ScalarParameter::Attributes::DefaultValue.ToString());
+	float InputValue;
+	if (ShaderNode->GetFloatAttribute(ParameterKey, InputValue))
+	{
+		ScalarParameterFactoryNode->SetCustomExpressionClassName(UMaterialExpressionScalarParameter::StaticClass()->GetName());
+		const FName DefaultValueMemberName = GET_MEMBER_NAME_CHECKED(UMaterialExpressionScalarParameter, DefaultValue);
+		ScalarParameterFactoryNode->AddFloatAttribute(DefaultValueMemberName.ToString(), InputValue);
+		ScalarParameterFactoryNode->AddApplyAndFillDelegates<float>(DefaultValueMemberName.ToString(), UMaterialExpressionScalarParameter::StaticClass(), DefaultValueMemberName);
+	}
+
+	ScalarParameterFactoryNode->SetDisplayLabel(ShaderNode->GetDisplayLabel());
+}
+void UInterchangeGenericMaterialPipeline::HandleVectorParameterNode(const UInterchangeShaderNode* ShaderNode, UInterchangeMaterialExpressionFactoryNode* VectorParameterFactoryNode)
+{
+	using namespace UE::Interchange::Materials::Standard::Nodes;
+	const FString ParameterKey = UInterchangeShaderPortsAPI::MakeInputParameterKey(VectorParameter::Attributes::DefaultValue.ToString());
+	FLinearColor InputValue;
+	if (ShaderNode->GetLinearColorAttribute(ParameterKey, InputValue))
+	{
+		VectorParameterFactoryNode->SetCustomExpressionClassName(UMaterialExpressionVectorParameter::StaticClass()->GetName());
+		const FName DefaultValueMemberName = GET_MEMBER_NAME_CHECKED(UMaterialExpressionVectorParameter, DefaultValue);
+		VectorParameterFactoryNode->AddLinearColorAttribute(DefaultValueMemberName.ToString(), InputValue);
+		VectorParameterFactoryNode->AddApplyAndFillDelegates<FLinearColor>(DefaultValueMemberName.ToString(), UMaterialExpressionVectorParameter::StaticClass(), DefaultValueMemberName);
+	}
+
+	VectorParameterFactoryNode->SetDisplayLabel(ShaderNode->GetDisplayLabel());
+}
+void UInterchangeGenericMaterialPipeline::HandleStaticBooleanParameterNode(const UInterchangeShaderNode* ShaderNode, UInterchangeMaterialExpressionFactoryNode* StaticBoolParameterFactoryNode)
+{
+	using namespace UE::Interchange::Materials::Standard::Nodes;
+	const FString ParameterKey = UInterchangeShaderPortsAPI::MakeInputParameterKey(StaticBoolParameter::Attributes::DefaultValue.ToString());
+	bool InputValue;
+	if (ShaderNode->GetBooleanAttribute(ParameterKey, InputValue))
+	{
+		StaticBoolParameterFactoryNode->SetCustomExpressionClassName(UMaterialExpressionStaticBoolParameter::StaticClass()->GetName());
+		const FName DefaultValueMemberName = GET_MEMBER_NAME_CHECKED(UMaterialExpressionStaticBoolParameter, DefaultValue);
+		StaticBoolParameterFactoryNode->AddBooleanAttribute(DefaultValueMemberName.ToString(), InputValue);
+		StaticBoolParameterFactoryNode->AddApplyAndFillDelegates<bool>(DefaultValueMemberName.ToString(), UMaterialExpressionStaticBoolParameter::StaticClass(), DefaultValueMemberName);
+	}
+
+	StaticBoolParameterFactoryNode->SetDisplayLabel(ShaderNode->GetDisplayLabel());
+}
+
+
 UInterchangeMaterialExpressionFactoryNode* UInterchangeGenericMaterialPipeline::CreateMaterialExpressionForShaderNode(UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode,
 	const UInterchangeShaderNode* ShaderNode, const FString& ParentUid)
 {
@@ -2167,6 +2507,18 @@ UInterchangeMaterialExpressionFactoryNode* UInterchangeGenericMaterialPipeline::
 	{
 		HandleVectorNoiseNode(ShaderNode, MaterialFactoryNode, MaterialExpression);
 	}
+	else if (*ShaderType == Nodes::ScalarParameter::Name)
+	{
+		HandleScalarParameterNode(ShaderNode, MaterialExpression);
+	}
+	else if (*ShaderType == Nodes::VectorParameter::Name)
+	{
+		HandleVectorParameterNode(ShaderNode, MaterialExpression);
+	}
+	else if (*ShaderType == Nodes::StaticBoolParameter::Name)
+	{
+		HandleStaticBooleanParameterNode(ShaderNode, MaterialExpression);
+	}
 	else if (ensure(!ShaderType.IsEmpty()))
 	{
 		const FString ExpressionClassName = TEXT("MaterialExpression") + ShaderType;
@@ -2201,11 +2553,13 @@ UInterchangeMaterialExpressionFactoryNode* UInterchangeGenericMaterialPipeline::
 		
 		if (*ShaderType == Nodes::TextureSample::Name)
 		{
-			ShaderNode->GetStringAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(Nodes::TextureSample::Inputs::Texture.ToString()), TextureUid);
+			const bool bIsAParameter = UInterchangeShaderPortsAPI::HasParameter(ShaderNode, Nodes::TextureSample::Inputs::Texture);
+			ShaderNode->GetStringAttribute(CreateInputKey(Nodes::TextureSample::Inputs::Texture.ToString(), bIsAParameter), TextureUid);
 		}
 		else if (*ShaderType == Nodes::TextureObject::Name)
 		{
-			ShaderNode->GetStringAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(Nodes::TextureObject::Inputs::Texture.ToString()), TextureUid);
+			const bool bIsAParameter = UInterchangeShaderPortsAPI::HasParameter(ShaderNode, Nodes::TextureObject::Inputs::Texture);
+			ShaderNode->GetStringAttribute(CreateInputKey(Nodes::TextureObject::Inputs::Texture.ToString(),bIsAParameter), TextureUid);
 		}
 
 		// Make the material factory node have a dependency on the texture factory node so that the texture asset gets created first
@@ -2247,16 +2601,74 @@ UInterchangeMaterialExpressionFactoryNode* UInterchangeGenericMaterialPipeline::
 	return MaterialExpressionFactoryNode;
 }
 
-UInterchangeMaterialExpressionFactoryNode* UInterchangeGenericMaterialPipeline::CreateScalarParameterExpression(const UInterchangeShaderNode* ShaderNode, const FString& InputName, const FString& ParentUid)
+UInterchangeMaterialExpressionFactoryNode* UInterchangeGenericMaterialPipeline::HandleFloatInput(const UInterchangeShaderNode* ShaderNode, const FString& InputName, const FString& ParentUid, bool bIsAParameter)
 {
-	UInterchangeMaterialExpressionFactoryNode* MaterialExpressionFactoryNode = CreateExpressionNode(InputName, ParentUid, UMaterialExpressionScalarParameter::StaticClass());
+	if (bIsAParameter)
+	{
+		return CreateScalarParameterExpression(ShaderNode, InputName, ParentUid);
+	}
+	else
+	{
+		return CreateConstantExpression(ShaderNode, InputName, ParentUid);
+	}
+}
+
+UInterchangeMaterialExpressionFactoryNode* UInterchangeGenericMaterialPipeline::CreateConstantExpression(const UInterchangeShaderNode* ShaderNode, const FString& InputName, const FString& ParentUid)
+{
+	UInterchangeMaterialExpressionFactoryNode* MaterialExpressionFactoryNode = CreateExpressionNode(InputName, ParentUid, UMaterialExpressionConstant::StaticClass());
 
 	float InputValue;
 	if (ShaderNode->GetFloatAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputName), InputValue))
 	{
+		const FName RMemberName = GET_MEMBER_NAME_CHECKED(UMaterialExpressionConstant, R);
+		MaterialExpressionFactoryNode->AddFloatAttribute(RMemberName.ToString(), InputValue);
+		MaterialExpressionFactoryNode->AddApplyAndFillDelegates<float>(RMemberName.ToString(), UMaterialExpressionConstant::StaticClass(), RMemberName);
+	}
+
+	return MaterialExpressionFactoryNode;
+}
+
+UInterchangeMaterialExpressionFactoryNode* UInterchangeGenericMaterialPipeline::CreateScalarParameterExpression(const UInterchangeShaderNode* ShaderNode, const FString& InputName, const FString& ParentUid)
+{
+	using namespace UE::Interchange::Materials::Standard;
+
+	UInterchangeMaterialExpressionFactoryNode* MaterialExpressionFactoryNode = CreateExpressionNode(InputName, ParentUid, UMaterialExpressionScalarParameter::StaticClass());
+
+	float InputValue;
+	if (ShaderNode->GetFloatAttribute(UInterchangeShaderPortsAPI::MakeInputParameterKey(InputName), InputValue))
+	{
 		const FName DefaultValueMemberName = GET_MEMBER_NAME_CHECKED(UMaterialExpressionScalarParameter, DefaultValue);
 		MaterialExpressionFactoryNode->AddFloatAttribute(DefaultValueMemberName.ToString(), InputValue);
 		MaterialExpressionFactoryNode->AddApplyAndFillDelegates<float>(DefaultValueMemberName.ToString(), UMaterialExpressionScalarParameter::StaticClass(), DefaultValueMemberName);
+	}
+
+	MaterialExpressionFactoryNode->SetDisplayLabel(InputName);
+
+	return MaterialExpressionFactoryNode;
+}
+
+UInterchangeMaterialExpressionFactoryNode* UInterchangeGenericMaterialPipeline::HandleLinearColorInput(const UInterchangeShaderNode* ShaderNode, const FString& InputName, const FString& ParentUid, bool bIsAParameter)
+{
+	if (bIsAParameter)
+	{
+		return CreateVectorParameterExpression(ShaderNode, InputName, ParentUid);
+	}
+	else
+	{
+		return CreateConstant3VectorExpression(ShaderNode, InputName, ParentUid);
+	}
+}
+
+UInterchangeMaterialExpressionFactoryNode* UInterchangeGenericMaterialPipeline::CreateConstant3VectorExpression(const UInterchangeShaderNode* ShaderNode, const FString& InputName, const FString& ParentUid)
+{
+	UInterchangeMaterialExpressionFactoryNode* MaterialExpressionFactoryNode = CreateExpressionNode(InputName, ParentUid, UMaterialExpressionConstant3Vector::StaticClass());
+
+	FLinearColor InputValue;
+	if (ShaderNode->GetLinearColorAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputName), InputValue))
+	{
+		const FName ConstantMemberName = GET_MEMBER_NAME_CHECKED(UMaterialExpressionConstant3Vector, Constant);
+		MaterialExpressionFactoryNode->AddLinearColorAttribute(ConstantMemberName.ToString(), InputValue);
+		MaterialExpressionFactoryNode->AddApplyAndFillDelegates<FLinearColor>(ConstantMemberName.ToString(), UMaterialExpressionConstant3Vector::StaticClass(), ConstantMemberName);
 	}
 
 	return MaterialExpressionFactoryNode;
@@ -2267,12 +2679,31 @@ UInterchangeMaterialExpressionFactoryNode* UInterchangeGenericMaterialPipeline::
 	UInterchangeMaterialExpressionFactoryNode* MaterialExpressionFactoryNode = CreateExpressionNode(InputName, ParentUid, UMaterialExpressionVectorParameter::StaticClass());
 
 	FLinearColor InputValue;
-	if (ShaderNode->GetLinearColorAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputName), InputValue))
+	if (ShaderNode->GetLinearColorAttribute(UInterchangeShaderPortsAPI::MakeInputParameterKey(InputName), InputValue))
 	{
-		const FName DefaultValueMemberName = GET_MEMBER_NAME_CHECKED(UMaterialExpressionVectorParameter, DefaultValue);
-		MaterialExpressionFactoryNode->AddLinearColorAttribute(DefaultValueMemberName.ToString(), InputValue);
-		MaterialExpressionFactoryNode->AddApplyAndFillDelegates<FLinearColor>(DefaultValueMemberName.ToString(), UMaterialExpressionVectorParameter::StaticClass(), DefaultValueMemberName);
+		const FName DefaultValueName = GET_MEMBER_NAME_CHECKED(UMaterialExpressionVectorParameter, DefaultValue);
+		MaterialExpressionFactoryNode->AddLinearColorAttribute(DefaultValueName.ToString(), InputValue);
+		MaterialExpressionFactoryNode->AddApplyAndFillDelegates<FLinearColor>(DefaultValueName.ToString(), UMaterialExpressionVectorParameter::StaticClass(), DefaultValueName);
 	}
+
+	MaterialExpressionFactoryNode->SetDisplayLabel(InputName);
+
+	return MaterialExpressionFactoryNode;
+}
+
+UInterchangeMaterialExpressionFactoryNode* UInterchangeGenericMaterialPipeline::CreateStaticBooleanParameterExpression(const UInterchangeShaderNode* ShaderNode, const FString& InputName, const FString& ParentUid)
+{
+	UInterchangeMaterialExpressionFactoryNode* MaterialExpressionFactoryNode = CreateExpressionNode(InputName, ParentUid, UMaterialExpressionStaticBoolParameter::StaticClass());
+
+	bool InputValue;
+	if (ShaderNode->GetBooleanAttribute(InputName, InputValue))
+	{
+		const FName DefaultValueMemberName = GET_MEMBER_NAME_CHECKED(UMaterialExpressionStaticBoolParameter, DefaultValue);
+		MaterialExpressionFactoryNode->AddBooleanAttribute(DefaultValueMemberName.ToString(), InputValue);
+		MaterialExpressionFactoryNode->AddApplyAndFillDelegates<bool>(DefaultValueMemberName.ToString(), UMaterialExpressionStaticBoolParameter::StaticClass(), DefaultValueMemberName);
+	}
+
+	MaterialExpressionFactoryNode->SetDisplayLabel(InputName);
 
 	return MaterialExpressionFactoryNode;
 }
@@ -2328,19 +2759,33 @@ TTuple<UInterchangeMaterialExpressionFactoryNode*, FString> UInterchangeGenericM
 	}
 	else
 	{
-		switch(UInterchangeShaderPortsAPI::GetInputType(ShaderNode, InputName))
+		const bool bIsAParameter = UInterchangeShaderPortsAPI::HasParameter(ShaderNode, FName(InputName));
+		switch(UInterchangeShaderPortsAPI::GetInputType(ShaderNode, InputName, bIsAParameter))
 		{
 		case UE::Interchange::EAttributeTypes::Float:
-			MaterialExpressionFactoryNode = CreateScalarParameterExpression(ShaderNode, InputName, ParentUid);
+			MaterialExpressionFactoryNode = HandleFloatInput(ShaderNode, InputName, ParentUid, bIsAParameter);
 			break;
 		case UE::Interchange::EAttributeTypes::LinearColor:
-			MaterialExpressionFactoryNode = CreateVectorParameterExpression(ShaderNode, InputName, ParentUid);
+			MaterialExpressionFactoryNode = HandleLinearColorInput(ShaderNode, InputName, ParentUid, bIsAParameter);
 			break;
 		case UE::Interchange::EAttributeTypes::Vector2f:
 			MaterialExpressionFactoryNode = CreateVector2ParameterExpression(ShaderNode, InputName, ParentUid);
 			break;
+		case UE::Interchange::EAttributeTypes::Bool:
+			MaterialExpressionFactoryNode = CreateStaticBooleanParameterExpression(ShaderNode, InputName, ParentUid);
+			break;
+		}
+
+		if (MaterialExpressionFactoryNode)
+		{
+			FString MaterialExpressionName;
+			if (AttributeStorageNode && AttributeStorageNode->GetStringAttribute(ShaderNode->GetUniqueID(), MaterialExpressionName))
+			{
+				MaterialExpressionFactoryNode->SetDisplayLabel(MaterialExpressionName);
+			}
 		}
 	}
+
 
 	TTuple<UInterchangeMaterialExpressionFactoryNode*, FString> Result {MaterialExpressionFactoryNode, MaterialExpressionCreationContextStack[ExpressionContextIndex].OutputName};
 	MaterialExpressionCreationContextStack.Pop();
@@ -2475,8 +2920,9 @@ UInterchangeMaterialInstanceFactoryNode* UInterchangeGenericMaterialPipeline::Cr
 
 	for (const FString& InputName : Inputs)
 	{
-		TVariant<FString, FLinearColor, float> InputValue;
+		const bool bIsAParameter = UInterchangeShaderPortsAPI::HasParameter(ShaderGraphNode, FName(InputName));
 
+		TVariant<FString, FLinearColor, float> InputValue;
 		FString ConnectedShaderNodeUid;
 		FString OutputName;
 		if (UInterchangeShaderPortsAPI::GetInputConnection(ShaderGraphNode, InputName, ConnectedShaderNodeUid, OutputName))
@@ -2488,19 +2934,19 @@ UInterchangeMaterialInstanceFactoryNode* UInterchangeGenericMaterialPipeline::Cr
 		}
 		else
 		{
-			switch(UInterchangeShaderPortsAPI::GetInputType(ShaderGraphNode, InputName))
+			switch(UInterchangeShaderPortsAPI::GetInputType(ShaderGraphNode, InputName,bIsAParameter))
 			{
 			case UE::Interchange::EAttributeTypes::Float:
 				{
 					float AttributeValue = 0.f;
-					ShaderGraphNode->GetFloatAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputName), AttributeValue);
+					ShaderGraphNode->GetFloatAttribute(CreateInputKey(InputName, bIsAParameter), AttributeValue);
 					InputValue.Set<float>(AttributeValue);
 				}
 				break;
 			case UE::Interchange::EAttributeTypes::LinearColor:
 				{
 					FLinearColor AttributeValue = FLinearColor::White;
-					ShaderGraphNode->GetLinearColorAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputName), AttributeValue);
+					ShaderGraphNode->GetLinearColorAttribute(CreateInputKey(InputName,bIsAParameter), AttributeValue);
 					InputValue.Set<FLinearColor>(AttributeValue);
 				}
 				break;
@@ -2509,19 +2955,19 @@ UInterchangeMaterialInstanceFactoryNode* UInterchangeGenericMaterialPipeline::Cr
 
 		if (InputValue.IsType<float>())
 		{
-			MaterialInstanceFactoryNode->AddFloatAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputName), InputValue.Get<float>());
+			MaterialInstanceFactoryNode->AddFloatAttribute(CreateInputKey(InputName, bIsAParameter), InputValue.Get<float>());
 		}
 		else if (InputValue.IsType<FLinearColor>())
 		{
-			MaterialInstanceFactoryNode->AddLinearColorAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputName), InputValue.Get<FLinearColor>());
+			MaterialInstanceFactoryNode->AddLinearColorAttribute(CreateInputKey(InputName, bIsAParameter), InputValue.Get<FLinearColor>());
 		}
 		else if (InputValue.IsType<FString>())
 		{
 			const FString MapName(InputName + TEXT("Map"));
-			MaterialInstanceFactoryNode->AddStringAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(MapName), InputValue.Get<FString>());
+			MaterialInstanceFactoryNode->AddStringAttribute(CreateInputKey(MapName, bIsAParameter), InputValue.Get<FString>());
 
 			const FString MapWeightName(MapName + TEXT("Weight"));
-			MaterialInstanceFactoryNode->AddFloatAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(MapWeightName), 1.f);
+			MaterialInstanceFactoryNode->AddFloatAttribute(CreateInputKey(MapWeightName, bIsAParameter), 1.f);
 
 			MaterialInstanceFactoryNode->AddFactoryDependencyUid(InputValue.Get<FString>());
 		}
@@ -2574,6 +3020,8 @@ TVariant<FString, FLinearColor, float> UInterchangeGenericMaterialPipeline::Visi
 TVariant<FString, FLinearColor, float> UInterchangeGenericMaterialPipeline::VisitShaderInput(const UInterchangeShaderNode* ShaderNode, const FString& InputName) const
 {
 	TVariant<FString, FLinearColor, float> Result;
+	
+	const bool bIsAParameter = UInterchangeShaderPortsAPI::HasParameter(ShaderNode, FName(InputName));
 
 	FString ConnectedShaderNodeUid;
 	FString OutputName;
@@ -2591,14 +3039,14 @@ TVariant<FString, FLinearColor, float> UInterchangeGenericMaterialPipeline::Visi
 		case UE::Interchange::EAttributeTypes::Float:
 			{
 				float InputValue = 0.f;
-				ShaderNode->GetFloatAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputName), InputValue);
+				ShaderNode->GetFloatAttribute(CreateInputKey(InputName, bIsAParameter), InputValue);
 				Result.Set<float>(InputValue);
 			}
 			break;
 		case UE::Interchange::EAttributeTypes::LinearColor:
 			{
 				FLinearColor InputValue = FLinearColor::White;
-				ShaderNode->GetLinearColorAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputName), InputValue);
+				ShaderNode->GetLinearColorAttribute(CreateInputKey(InputName, bIsAParameter), InputValue);
 				Result.Set<FLinearColor>(InputValue);
 			}
 			break;
@@ -2741,8 +3189,10 @@ TVariant<FString, FLinearColor, float> UInterchangeGenericMaterialPipeline::Visi
 
 	TVariant<FString, FLinearColor, float> Result;
 
+	const bool bIsAParameter = UInterchangeShaderPortsAPI::HasParameter(ShaderNode, TextureSample::Inputs::Texture);
+
 	FString TextureUid;
-	if (ShaderNode->GetStringAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(TextureSample::Inputs::Texture.ToString()), TextureUid))
+	if (ShaderNode->GetStringAttribute(CreateInputKey(TextureSample::Inputs::Texture.ToString(),bIsAParameter), TextureUid))
 	{
 		if (!TextureUid.IsEmpty())
 		{
@@ -2763,6 +3213,26 @@ TVariant<FString, FLinearColor, float> UInterchangeGenericMaterialPipeline::Visi
 	}
 
 	return Result;
+}
+
+FString UInterchangeGenericMaterialPipeline::GetTextureUidAttributeFromShaderNode(const UInterchangeShaderNode* ShaderNode, FName ParameterName, bool& OutIsAParameter) const
+{
+	OutIsAParameter = UInterchangeShaderPortsAPI::HasParameter(ShaderNode, ParameterName);
+	FString TextureUid;
+	ShaderNode->GetStringAttribute(CreateInputKey(ParameterName.ToString(), OutIsAParameter), TextureUid);
+	return TextureUid;
+}
+
+FString UInterchangeGenericMaterialPipeline::CreateInputKey(const FString& InputName, bool bIsAParameter) const
+{
+	if (bIsAParameter)
+	{
+		return UInterchangeShaderPortsAPI::MakeInputParameterKey(InputName);
+	}
+	else
+	{
+		return UInterchangeShaderPortsAPI::MakeInputValueKey(InputName);
+	}
 }
 
 bool UInterchangeGenericMaterialPipeline::HandleBxDFInput(const UInterchangeShaderGraphNode* ShaderGraphNode, UInterchangeMaterialFactoryNode* MaterialFactoryNode)
@@ -2961,7 +3431,9 @@ UInterchangeMaterialExpressionFactoryNode* UInterchangeGenericMaterialPipeline::
 	{
 		const FString MaterialFunctionFactoryNodeUid = UInterchangeFactoryBaseNode::BuildFactoryNodeUid(MaterialFunctionAttribute);
 		FunctionCallFactoryNode->SetCustomMaterialFunctionDependency(MaterialFunctionFactoryNodeUid);
-		FunctionCallFactoryNode->AddFactoryDependencyUid(MaterialFunctionFactoryNodeUid);
+
+		UClass* CustomExpressionClass = UMaterialExpressionMaterialFunctionCall::StaticClass();
+		FunctionCallFactoryNode->SetCustomExpressionClassName(CustomExpressionClass->GetName());
 	}
 	else if (FPackageName::IsValidObjectPath(MaterialFunctionAttribute))
 	{
@@ -2985,5 +3457,529 @@ UInterchangeMaterialExpressionFactoryNode* UInterchangeGenericMaterialPipeline::
 
 	return FunctionCallFactoryNode;
 }
+
+namespace UE::Interchange::Materials::HashUtils
+{
+	void FDuplicateMaterialHelper::ResetHashData()
+	{
+		AccumulatedHash = 0;
+		MaterialHash = 0;
+		bIsDuplicate = false;
+
+		if (AttributeStorageNode)
+		{
+			AttributeStorageNode->MarkAsGarbage();
+			AttributeStorageNode = nullptr;
+		}
+		AttributeStorageNode = NewObject<UInterchangeBaseNode>();
+
+		LeafInputAttributeKeys.Empty();
+		LeafInputShaderNodes.Empty();
+
+#if UE_BUILD_DEBUG
+		if (HashDebugData)
+		{
+			HashDebugData->Reset();
+		}
+#endif
+	}
+
+	void FDuplicateMaterialHelper::ComputMaterialHash(const UInterchangeShaderGraphNode* ShaderGraphNode)
+	{
+		MaterialHash = ComputeShaderGraphNodeHash(ShaderGraphNode);
+		if (ParentMaterialFactoryMap.Contains(MaterialHash))
+		{
+			bIsDuplicate = true;
+		}
+	}
+
+	int32 FDuplicateMaterialHelper::ComputeShaderGraphNodeHash(const UInterchangeShaderGraphNode* ShaderGraphNode)
+	{
+		using namespace UE::Interchange::Materials::HashUtils;
+
+		/* Two Sided*/
+		bool bTwoSided;
+		ShaderGraphNode->GetCustomTwoSided(bTwoSided);
+		int32 Hash = GetTypeHash(bTwoSided);
+		ADD_LOG_MESSAGE(TEXT("TwoSided: {0}, Hash: {1}"), bTwoSided, Hash);
+
+		/* Use Material Attributes*/
+		bool bUseMaterialAttributes = UInterchangeShaderPortsAPI::HasInput(ShaderGraphNode, UE::Interchange::Materials::Common::Parameters::BxDF);
+		Hash = HashCombine(Hash, GetTypeHash(bUseMaterialAttributes));
+		ADD_LOG_MESSAGE(TEXT("Use Material Attributes: {0}, Hash: {1}"), bUseMaterialAttributes, Hash);
+
+		/* Blend Mode */
+		TEnumAsByte<EBlendMode> BlendMode = GetShaderGraphNodeBlendMode(ShaderGraphNode);
+		Hash = HashCombine(Hash, GetTypeHash(BlendMode));
+		ADD_LOG_MESSAGE(TEXT("Blend Mode: {0}, Hash: {1}"), (uint8)BlendMode, Hash);
+
+		/* Is Thin Surface */
+		Hash = HashCombine(Hash, GetTypeHash(BlendMode == EBlendMode::BLEND_Translucent));
+		ADD_LOG_MESSAGE(TEXT("Is Thin Surface: {0}, Hash: {1}"), (BlendMode == EBlendMode::BLEND_Translucent), Hash);
+
+		/* EDatasmithShadingModel: uint8 */
+		Hash = HashCombine(Hash, GetTypeHash(GetShaderGraphNodeShadingModel(ShaderGraphNode)));
+		ADD_LOG_MESSAGE(TEXT("Shading Model: {0}, Hash: {1}"), GetShaderGraphNodeShadingModel(ShaderGraphNode), Hash);
+
+		Hash = HashCombine(Hash, ComputeShaderNodeHash(ShaderGraphNode));
+		ADD_LOG_MESSAGE(TEXT("ShaderHash: {0}"), Hash);
+		return Hash;
+	}
+
+	uint8 FDuplicateMaterialHelper::GetShaderGraphNodeShadingModel(const UInterchangeShaderGraphNode* ShaderGraphNode) const
+	{
+		if (GenericMaterialPipeline.HasThinTranslucency(ShaderGraphNode))
+		{
+			return 1;
+		}
+		else if (GenericMaterialPipeline.HasSubsurface(ShaderGraphNode))
+		{
+			return 2;
+		}
+		else if (GenericMaterialPipeline.HasClearCoat(ShaderGraphNode))
+		{
+			return 3;
+		}
+		else if (GenericMaterialPipeline.IsUnlitModel(ShaderGraphNode))
+		{
+			return 4;
+		}
+
+		return 0;
+	}
+
+	TEnumAsByte<EBlendMode> FDuplicateMaterialHelper::GetShaderGraphNodeBlendMode(const UInterchangeShaderGraphNode* ShaderGraphNode) const
+	{
+		using namespace UE::Interchange::Materials;
+
+		TEnumAsByte<EBlendMode> BlendMode = EBlendMode::BLEND_Opaque;
+
+		if (GenericMaterialPipeline.HasThinTranslucency(ShaderGraphNode))
+		{
+			BlendMode = EBlendMode::BLEND_Translucent;
+
+		}
+		else if (GenericMaterialPipeline.HasSubsurface(ShaderGraphNode))
+		{
+			BlendMode = EBlendMode::BLEND_Opaque;
+		}
+		else
+		{
+			const bool bHasOpacityInput = UInterchangeShaderPortsAPI::HasInput(ShaderGraphNode, UE::Interchange::Materials::Common::Parameters::Opacity);
+			if (bHasOpacityInput && GenericMaterialPipeline.IsUnlitModel(ShaderGraphNode))
+			{
+				float OpacityClipValue;
+				if (ShaderGraphNode->GetCustomOpacityMaskClipValue(OpacityClipValue))
+				{
+					BlendMode = EBlendMode::BLEND_Masked;
+				}
+				else
+				{
+					BlendMode = EBlendMode::BLEND_Translucent;
+				}
+			}
+		}
+
+		return BlendMode;
+	}
+
+	int32 FDuplicateMaterialHelper::ComputeShaderNodeHash(const UInterchangeShaderNode* ShaderNode)
+	{
+		int32 Hash = 0;
+
+		FString ShaderTypeName;
+		ShaderNode->GetCustomShaderType(ShaderTypeName);
+
+		TArray<FString> Inputs;
+		UInterchangeShaderPortsAPI::GatherInputs(ShaderNode, Inputs);
+
+		if (!ShaderTypeName.IsEmpty())
+		{
+			using namespace UE::Interchange::Materials;
+
+			PUSH_NODE_ADDRESS_WITHOUT_CHECKPOINT(ShaderTypeName)
+
+			Hash = HashCombineCustom(Hash, GetTypeHash(ShaderTypeName));
+			ADD_LOG_MESSAGE(TEXT("{0}, Accumulated Hash: {1}"), ShaderTypeName, AccumulatedHash)
+			TArray<FInterchangeUserDefinedAttributeInfo> UserDefinedAttributes = UInterchangeUserDefinedAttributesAPI::GetUserDefinedAttributeInfos(ShaderNode);
+			if (UserDefinedAttributes.Num())
+			{
+				for (const auto& UserDefinedAttribute : UserDefinedAttributes)
+				{
+					Hash = HashCombineCustom(Hash, GetTypeHash(UserDefinedAttribute.Type));
+					Hash = HashCombineCustom(Hash, GetTypeHash(UserDefinedAttribute.Name));
+
+					ADD_LOG_MESSAGE(TEXT("UDA[Type: {0}, Name: {1}], Accumulated Hash: {2}"), (int32)UserDefinedAttribute.Type, UserDefinedAttribute.Name, AccumulatedHash)
+
+					const FString UserDefinedAttributeType = AttributeTypeToString(UserDefinedAttribute.Type);
+
+					if (UserDefinedAttribute.Type == UE::Interchange::EAttributeTypes::String)
+					{
+						const FString InputValueKey = (UInterchangeUserDefinedAttributesAPI::MakeUserDefinedPropertyValueKey(UserDefinedAttribute.Name, UserDefinedAttribute.RequiresDelegate)).Key;
+						const FString OverrideParameterNameAttributeKey = FInterchangeMaterialInstanceOverridesAPI::MakeOverrideParameterName(ShaderNode->GetDisplayLabel());
+						SetupOverridableTextureParameter(ShaderNode, InputValueKey, OverrideParameterNameAttributeKey);
+					}
+				}
+			}
+		}
+		else
+		{
+			if (const UInterchangeFunctionCallShaderNode* FunctionCallNode = Cast<UInterchangeFunctionCallShaderNode>(ShaderNode))
+			{
+				FString MaterialFunction;
+				if (FunctionCallNode->GetCustomMaterialFunction(MaterialFunction) && !MaterialFunction.IsEmpty())
+				{
+					Hash = HashCombineCustom(Hash, GetTypeHash(MaterialFunction));
+					ADD_LOG_MESSAGE(TEXT("MF[{0}], Accumulate Hash: {1}"), MaterialFunction, AccumulatedHash);
+#if UE_BUILD_DEBUG
+					FString MaterialFunctionName;
+					FString Discard;
+					if (MaterialFunction.Split(TEXT("."), &Discard, &MaterialFunctionName))
+					{
+						PUSH_NODE_ADDRESS_WITHOUT_CHECKPOINT(FString::Printf(TEXT("MaterialFunction[%s]"), *MaterialFunctionName));
+					}
+					else
+					{
+						PUSH_NODE_ADDRESS_WITHOUT_CHECKPOINT(TEXT("MaterialFunction"));
+					}
+#endif
+				}
+			}
+		}
+
+		if (!Inputs.IsEmpty())
+		{
+			for (const FString& InputName : Inputs)
+			{
+				PUSH_NODE_ADDRESS(FString::Printf(TEXT("[%s]"), *InputName))
+				ADD_NODE_ADDRESS_MESSAGE();
+				Hash = HashCombineCustom(Hash, ComputeShaderInputHash(ShaderNode, InputName));
+				POP_NODE_ADDRESSES()
+			}
+		}
+
+		return Hash;
+	}
+
+	int32 FDuplicateMaterialHelper::ComputeShaderInputHash(const UInterchangeShaderNode* ShaderNode, const FString& InputName)
+	{
+		int32 Hash = 0;
+		FString ConnectedShaderNodeUid;
+		FString OutputName;
+		if (UInterchangeShaderPortsAPI::GetInputConnection(ShaderNode, InputName, ConnectedShaderNodeUid, OutputName))
+		{
+			if (const UInterchangeShaderNode* ConnectedShaderNode = Cast<const UInterchangeShaderNode>(GenericMaterialPipeline.BaseNodeContainer->GetNode(ConnectedShaderNodeUid)))
+			{
+				Hash = HashCombineCustom(Hash, ComputeShaderNodeHash(ConnectedShaderNode));
+			}
+
+			if (!OutputName.IsEmpty())
+			{
+				Hash = HashCombineCustom(Hash, GetTypeHash(OutputName));
+			}
+		}
+		else
+		{
+			const bool bIsAParameter = UInterchangeShaderPortsAPI::HasParameter(ShaderNode, FName(InputName));
+			const UE::Interchange::EAttributeTypes InputType = UInterchangeShaderPortsAPI::GetInputType(ShaderNode, InputName, bIsAParameter);
+			Hash = HashCombineCustom(Hash, GetTypeHash(InputType));
+			ADD_LOG_MESSAGE(TEXT("{0}, Accumulated Hash: {1}"), AttributeTypeToString(InputType), AccumulatedHash);
+
+			// Just setup all the Parameters as overridable parameters. Do not include the values in the Hash
+			if (bIsAParameter)
+			{				
+				using namespace UE::Interchange::Materials::HashUtils;
+				const FString ParameterKey = UInterchangeShaderPortsAPI::MakeInputParameterKey(InputName);
+				const FString OverridableParameterNameKey = FInterchangeMaterialInstanceOverridesAPI::MakeOverrideParameterName(ShaderNode->GetDisplayLabel());
+
+				switch (InputType)
+				{
+				case UE::Interchange::EAttributeTypes::Float:
+				{
+					SetupOverridableScalarParameter(ShaderNode, ParameterKey, OverridableParameterNameKey);
+					break;
+				}
+				case UE::Interchange::EAttributeTypes::LinearColor:
+				{
+					SetupOverridableVectorParameter(ShaderNode, ParameterKey, OverridableParameterNameKey);
+					break;
+				}
+				case UE::Interchange::EAttributeTypes::Bool:
+				{
+					SetupOverridableStaticBoolParameter(ShaderNode, ParameterKey, OverridableParameterNameKey);
+					break;
+				}
+				case UE::Interchange::EAttributeTypes::String:
+				{
+					SetupOverridableTextureParameter(ShaderNode, ParameterKey, OverridableParameterNameKey);
+					break;
+				}
+				}
+			}
+			else
+			{
+				const FString InputValueKey = UInterchangeShaderPortsAPI::MakeInputValueKey(InputName);
+				switch (InputType)
+				{
+				case UE::Interchange::EAttributeTypes::Float:
+				{
+					float InputValue;
+					if (ShaderNode->GetFloatAttribute(InputValueKey, InputValue))
+					{
+						Hash = HashCombineCustom(Hash, GetTypeHash(InputValue));
+						ADD_LOG_MESSAGE(TEXT("Unnamed Float({0}), Accumulated Hash: {1}"), FString::SanitizeFloat(InputValue), AccumulatedHash);
+					}
+					break;
+				}
+				case UE::Interchange::EAttributeTypes::LinearColor:
+				{
+					FLinearColor InputValue;
+					if (ShaderNode->GetLinearColorAttribute(InputValueKey, InputValue))
+					{
+						Hash = HashCombineCustom(Hash, GetTypeHash(InputValue));
+						ADD_LOG_MESSAGE(TEXT("Unnamed LinearColor({0}), Accumulated Hash: {1}"), InputValue.ToString(), AccumulatedHash)
+					}
+					break;
+				}
+				case UE::Interchange::EAttributeTypes::String:
+				{
+					FString InputValue;
+					if (ShaderNode->GetStringAttribute(InputValueKey, InputValue))
+					{
+						Hash = HashCombineCustom(Hash, GetTypeHash(InputValue));
+						ADD_LOG_MESSAGE(TEXT("Unnamed String({0}), Accumulated Hash: {1}"), InputValue, AccumulatedHash)
+					}
+					break;
+				}
+				}
+			}
+		}
+		return Hash;
+	}
+
+	void FDuplicateMaterialHelper::SetupOverridableScalarParameter(const UInterchangeShaderNode* ShaderNode, const FString& ParameterKey, const FString& OverridableParameterNameKey)
+	{
+		float InputValue;
+		if (ShaderNode->GetFloatAttribute(ParameterKey, InputValue))
+		{
+			const UE::Interchange::FAttributeKey AttributeKey(OverridableParameterNameKey);
+			if (!AttributeStorageNode->HasAttribute(AttributeKey))
+			{
+				AttributeStorageNode->AddFloatAttribute(OverridableParameterNameKey, InputValue);
+				LeafInputAttributeKeys.Add(AttributeKey);
+				LeafInputShaderNodes.Emplace(ShaderNode);
+				ADD_LOG_MESSAGE(TEXT("Scalar Parameter: {0}({1})"), ShaderNode->GetDisplayLabel(), FString::SanitizeFloat(InputValue));
+			}
+		}
+	}
+
+	void FDuplicateMaterialHelper::SetupOverridableVectorParameter(const UInterchangeShaderNode* ShaderNode, const FString& ParameterKey, const FString& OverridableParameterNameKey)
+	{		
+		FLinearColor InputValue;
+		if (ShaderNode->GetLinearColorAttribute(ParameterKey, InputValue))
+		{
+			const UE::Interchange::FAttributeKey AttributeKey(OverridableParameterNameKey);
+			if (!AttributeStorageNode->HasAttribute(AttributeKey))
+			{
+				AttributeStorageNode->AddLinearColorAttribute(OverridableParameterNameKey, InputValue);
+				LeafInputAttributeKeys.Add(AttributeKey);
+				LeafInputShaderNodes.Emplace(ShaderNode);
+				ADD_LOG_MESSAGE(TEXT("Vector Parameter: {0}({1})"), ShaderNode->GetDisplayLabel(), InputValue.ToString());
+			}
+		}
+	}
+
+	void FDuplicateMaterialHelper::SetupOverridableStaticBoolParameter(const UInterchangeShaderNode* ShaderNode, const FString& ParameterKey, const FString& OverridableParameterNameKey)
+	{
+		bool InputValue;
+		if (ShaderNode->GetBooleanAttribute(ParameterKey, InputValue))
+		{
+			const UE::Interchange::FAttributeKey AttributeKey(OverridableParameterNameKey);
+			if (!AttributeStorageNode->HasAttribute(AttributeKey))
+			{
+				AttributeStorageNode->AddBooleanAttribute(OverridableParameterNameKey, InputValue);
+				LeafInputAttributeKeys.Add(AttributeKey);
+				LeafInputShaderNodes.Emplace(ShaderNode);
+				ADD_LOG_MESSAGE(TEXT("Bool Parameter: {0}({1})"), ShaderNode->GetDisplayLabel(), InputValue);
+			}
+		}
+	}
+
+	void FDuplicateMaterialHelper::SetupOverridableTextureParameter(const UInterchangeShaderNode* ShaderNode, const FString& InputKey, const FString& OverridableParameterNameKey)
+	{
+		FString InputValue;
+		if (ShaderNode->GetStringAttribute(InputKey, InputValue))
+		{
+			const UE::Interchange::FAttributeKey AttributeKey(OverridableParameterNameKey);
+			if (!AttributeStorageNode->HasAttribute(AttributeKey))
+			{
+				if (!FPackageName::IsValidObjectPath(InputValue))
+				{
+					// Material Factory expects Texture Factory Uid as opposed to Texture Uid
+					const FString TextureFactoryUid = UInterchangeFactoryBaseNode::BuildFactoryNodeUid(InputValue);
+					AttributeStorageNode->AddStringAttribute(OverridableParameterNameKey, TextureFactoryUid);
+				}
+				else
+				{
+					AttributeStorageNode->AddStringAttribute(OverridableParameterNameKey, InputValue);
+				}
+
+				LeafInputAttributeKeys.Add(AttributeKey);
+				LeafInputShaderNodes.Emplace(ShaderNode);
+
+				ADD_LOG_MESSAGE(TEXT("Texture Parameter: {0}({1})"), ShaderNode->GetDisplayLabel(), InputValue);
+			}
+		}
+	}
+
+	int32 FDuplicateMaterialHelper::HashCombineCustom(int32 Hash, int32 CombineWith)
+	{
+		Hash = HashCombine(Hash, CombineWith);
+		AccumulatedHash = HashCombine(AccumulatedHash, CombineWith);
+		return Hash;
+	}
+
+	void FDuplicateMaterialHelper::CopyLeafInputsToFactoryNode(UInterchangeBaseMaterialFactoryNode* FactoryNode)
+	{
+		UInterchangeBaseNode::CopyStorageAttributes(AttributeStorageNode, FactoryNode, LeafInputAttributeKeys);
+	}
+	
+	UInterchangeBaseMaterialFactoryNode* FDuplicateMaterialHelper::CreateFactoryForDuplicateMaterials(const UInterchangeShaderGraphNode* ShaderGraphNode, bool bImportUnusedMaterial, bool bCreateMaterialInstanceForParent)
+	{
+		UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode = nullptr;
+		if (IsDuplicate())
+		{
+			MaterialFactoryNode = CreateMaterialInstanceFactoryFromReference(ShaderGraphNode);
+		}
+		else
+		{
+			MaterialFactoryNode = CreateMaterialFactory(ShaderGraphNode);
+			MaterialFactoryNode->SetEnabled(bImportUnusedMaterial);
+
+			if (bCreateMaterialInstanceForParent)
+			{
+				MaterialFactoryNode = CreateMaterialInstanceFactoryForParent(ShaderGraphNode);
+			}
+		}
+
+		return MaterialFactoryNode;
+	}
+
+	UInterchangeBaseMaterialFactoryNode* FDuplicateMaterialHelper::CreateMaterialFactory(const UInterchangeShaderGraphNode* ShaderGraphNode)
+	{
+		UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode = GenericMaterialPipeline.CreateMaterialFactoryNode(ShaderGraphNode);
+		ParentMaterialFactoryMap.Emplace(MaterialHash, MaterialFactoryNode);
+		CopyLeafInputsToFactoryNode(MaterialFactoryNode);
+		return MaterialFactoryNode;
+	}
+
+	UInterchangeMaterialInstanceFactoryNode* FDuplicateMaterialHelper::CreateMaterialInstanceFactoryFromReference(const UInterchangeShaderGraphNode* ShaderGraphNode)
+	{
+		const UInterchangeBaseMaterialFactoryNode* ParentMaterialFactory = ParentMaterialFactoryMap[MaterialHash];
+
+		UInterchangeMaterialInstanceFactoryNode* MaterialInstanceFactoryNode =
+			Cast<UInterchangeMaterialInstanceFactoryNode>(GenericMaterialPipeline.CreateBaseMaterialFactoryNode(ShaderGraphNode, UInterchangeMaterialInstanceFactoryNode::StaticClass()));
+
+		ensure(MaterialInstanceFactoryNode);
+
+		if (ParentMaterialFactory)
+		{
+			MaterialInstanceFactoryNode->SetCustomParent(ParentMaterialFactory->GetUniqueID());
+			MaterialInstanceFactoryNode->AddFactoryDependencyUid(ParentMaterialFactory->GetUniqueID());
+		}
+
+		for (const auto& LeafInputKey : LeafInputAttributeKeys)
+		{
+			UE::Interchange::EAttributeTypes AttributeType = AttributeStorageNode->GetAttributeType(LeafInputKey);
+			switch (AttributeType)
+			{
+			case UE::Interchange::EAttributeTypes::Float:
+			{
+				float ParentValue;
+				float CurrentValue;
+				if (!AttributeStorageNode->GetFloatAttribute(LeafInputKey.Key, CurrentValue))
+				{
+					continue;
+				}
+
+				if (!ParentMaterialFactory->GetFloatAttribute(LeafInputKey.Key, ParentValue))
+				{
+					continue;
+				}
+
+				if (ParentValue != CurrentValue)
+				{
+					MaterialInstanceFactoryNode->AddFloatAttribute(LeafInputKey.Key, CurrentValue);
+				}
+			}
+			break;
+			case UE::Interchange::EAttributeTypes::LinearColor:
+			{
+				FLinearColor ParentValue;
+				FLinearColor CurrentValue;
+				if (!AttributeStorageNode->GetLinearColorAttribute(LeafInputKey.Key, CurrentValue))
+				{
+					continue;
+				}
+
+				if (!ParentMaterialFactory->GetLinearColorAttribute(LeafInputKey.Key, ParentValue))
+				{
+					continue;
+				}
+
+				if (ParentValue != CurrentValue)
+				{
+					MaterialInstanceFactoryNode->AddLinearColorAttribute(LeafInputKey.Key, CurrentValue);
+				}
+			}
+			break;
+			case UE::Interchange::EAttributeTypes::String:
+			{
+				FString ParentValue;
+				FString CurrentValue;
+				if (!AttributeStorageNode->GetStringAttribute(LeafInputKey.Key, CurrentValue))
+				{
+					continue;
+				}
+
+				if (!ParentMaterialFactory->GetStringAttribute(LeafInputKey.Key, ParentValue))
+				{
+					continue;
+				}
+
+				if (ParentValue != CurrentValue)
+				{
+					MaterialInstanceFactoryNode->AddStringAttribute(LeafInputKey.Key, CurrentValue);
+				}
+			}
+			break;
+			}
+		}
+
+		return MaterialInstanceFactoryNode;
+	}
+
+	UInterchangeMaterialInstanceFactoryNode* FDuplicateMaterialHelper::CreateMaterialInstanceFactoryForParent(const UInterchangeShaderGraphNode* ShaderGraphNode)
+	{
+		const UInterchangeBaseMaterialFactoryNode* ParentMaterialFactory = ParentMaterialFactoryMap[MaterialHash];
+
+		UInterchangeMaterialInstanceFactoryNode* MaterialInstanceFactoryNode =
+			Cast<UInterchangeMaterialInstanceFactoryNode>(GenericMaterialPipeline.CreateBaseMaterialFactoryNode(ShaderGraphNode, UInterchangeMaterialInstanceFactoryNode::StaticClass(), true));
+
+		if (ParentMaterialFactory)
+		{
+			MaterialInstanceFactoryNode->SetCustomParent(ParentMaterialFactory->GetUniqueID());
+			MaterialInstanceFactoryNode->AddFactoryDependencyUid(ParentMaterialFactory->GetUniqueID());
+		}
+
+		return MaterialInstanceFactoryNode;
+	}
+}
+
+#undef ADD_LOG_MESSAGE
+#undef ADD_NODE_ADDRESS_MESSAGE
+#undef PUSH_NODE_ADDRESS
+#undef PUSH_NODE_ADDRESS_WITHOUT_CHECKPOINT
+#undef POP_NODE_ADDRESSES
 
 #undef LOCTEXT_NAMESPACE

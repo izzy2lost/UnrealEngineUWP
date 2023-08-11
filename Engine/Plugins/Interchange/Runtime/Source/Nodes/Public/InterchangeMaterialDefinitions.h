@@ -279,6 +279,33 @@ namespace Interchange
 				{
 					const FName Name = TEXT("VertexColor");
 				}
+
+				namespace ScalarParameter
+				{
+					const FName Name = TEXT("ScalarParameter");
+					namespace Attributes
+					{
+						const FName DefaultValue = TEXT("DefaultValue");
+					}
+				}
+
+				namespace VectorParameter
+				{
+					const FName Name = TEXT("VectorParameter");
+					namespace Attributes
+					{
+						const FName DefaultValue = TEXT("DefaultValue");
+					}
+				}
+
+				namespace StaticBoolParameter
+				{
+					const FName Name = TEXT("StaticBoolParameter");
+					namespace Attributes
+					{
+						const FName DefaultValue = TEXT("DefaultValue");
+					}
+				}
 			}
 		}
 

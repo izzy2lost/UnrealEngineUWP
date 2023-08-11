@@ -27,6 +27,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Nodes/InterchangeBaseNode.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
+#include "Nodes/InterchangeUserDefinedAttribute.h"
 #include "UObject/ObjectRedirector.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeMaterialFactory)
@@ -42,423 +43,614 @@
 
 #define LOCTEXT_NAMESPACE "InterchangeMaterialFactory"
 
-namespace UE
+namespace UE::Interchange::MaterialFactory::Internal
 {
-	namespace Interchange
-	{
-		namespace MaterialFactory
-		{
-			namespace Internal
-			{
+
 #if WITH_EDITOR
-				/**
-				 * Finds a UMaterialExpression class by name.
-				 * @param ClassName		The name of the class to look for (ie:UClass*->GetName()).
-				 * @return				A sub class of UMaterialExpression or nullptr.
-				 */
-				TSubclassOf<UMaterialExpression> FindExpressionClass(const TCHAR* ClassName)
+	/**
+	 * Finds a UMaterialExpression class by name.
+	 * @param ClassName		The name of the class to look for (ie:UClass*->GetName()).
+	 * @return				A sub class of UMaterialExpression or nullptr.
+	 */
+	TSubclassOf<UMaterialExpression> FindExpressionClass(const TCHAR* ClassName)
+	{
+		check(ClassName);
+
+		UClass* MaterialExpressionClass = FindFirstObject<UClass>(ClassName, EFindFirstObjectOptions::EnsureIfAmbiguous);
+
+		if (!MaterialExpressionClass)
+		{
+			if (UObjectRedirector* RenamedClassRedirector = FindFirstObject<UObjectRedirector>(ClassName, EFindFirstObjectOptions::EnsureIfAmbiguous))
+			{
+				MaterialExpressionClass = CastChecked<UClass>(RenamedClassRedirector->DestinationObject);
+			}
+		}
+
+		if (MaterialExpressionClass && MaterialExpressionClass->IsChildOf<UMaterialExpression>())
+		{
+			return MaterialExpressionClass;
+		}
+		else
+		{
+			return nullptr;
+		}
+	}
+
+	int32 GetInputIndex(UMaterialExpression& MaterialExpression, const FString& InputName)
+	{
+		int32 ExpressionInputIndex = 0;
+
+		for (const FExpressionInput* ExpressionInput : MaterialExpression.GetInputsView())
+		{
+			// MaterialFuncCall appends the type to the input name when calling GetInputName
+			// and the InputName in FExpressionInput is optional so we'll check both here to be safe
+			if (MaterialExpression.GetInputName(ExpressionInputIndex) == *InputName ||
+				(ExpressionInput && ExpressionInput->InputName == *InputName))
+			{
+				return ExpressionInputIndex;
+			}
+
+			++ExpressionInputIndex;
+		}
+
+		return INDEX_NONE;
+	}
+
+	int32 GetOutputIndex(UMaterialExpression& MaterialExpression, const FString& OutputName)
+	{
+		// Check whether OutputName stores an index
+		int32 ExpressionOutputIndex = UInterchangeShaderPortsAPI::GetOutputIndexFromName(OutputName);
+		if (ExpressionOutputIndex != INDEX_NONE)
+		{
+			if (MaterialExpression.GetOutputs().IsValidIndex(ExpressionOutputIndex))
+			{
+				return ExpressionOutputIndex;
+			}
+		}
+
+		ExpressionOutputIndex = 0;
+
+		for (const FExpressionOutput& ExpressionOutput : MaterialExpression.GetOutputs())
+		{
+			if (ExpressionOutput.OutputName == *OutputName)
+			{
+				return ExpressionOutputIndex;
+			}
+
+			++ExpressionOutputIndex;
+		}
+
+		return 0; // Consider 0 as the default output to connect to since most expressions have a single output
+	}
+
+	void SetupFunctionCallExpression(const UInterchangeFactoryBase::FImportAssetObjectParams& Arguments, const UInterchangeMaterialExpressionFactoryNode& ExpressionNode, UMaterialExpressionMaterialFunctionCall* FunctionCallExpression)
+	{
+		FInterchangeImportMaterialAsyncHelper& AsyncHelper = FInterchangeImportMaterialAsyncHelper::GetInstance();
+		if (const UInterchangeMaterialFunctionCallExpressionFactoryNode* FunctionCallFactoryNode = Cast<UInterchangeMaterialFunctionCallExpressionFactoryNode>(&ExpressionNode))
+		{
+			FString MaterialFactoryNodeUid;
+			FunctionCallFactoryNode->GetCustomMaterialFunctionDependency(MaterialFactoryNodeUid);
+
+			if (const UInterchangeMaterialFunctionFactoryNode* MaterialFactoryNode = Cast<UInterchangeMaterialFunctionFactoryNode>(Arguments.NodeContainer->GetNode(MaterialFactoryNodeUid)))
+			{
+				FSoftObjectPath ReferenceObject;
+				MaterialFactoryNode->GetCustomReferenceObject(ReferenceObject);
+				if (UMaterialFunctionInterface* MaterialFunction = Cast<UMaterialFunctionInterface>(ReferenceObject.TryLoad()))
 				{
-					check(ClassName);
+					AsyncHelper.UpdateFromFunctionResource(MaterialFunction);
+					FunctionCallExpression->SetMaterialFunction(MaterialFunction);
+				}
+			}
+		}
 
-					UClass* MaterialExpressionClass = FindFirstObject<UClass>(ClassName, EFindFirstObjectOptions::EnsureIfAmbiguous);
+		AsyncHelper.UpdateFromFunctionResource(FunctionCallExpression);
+	}
 
-					if (!MaterialExpressionClass)
+	void SetupTextureExpression(const UInterchangeFactoryBase::FImportAssetObjectParams& Arguments, const UInterchangeMaterialExpressionFactoryNode* ExpressionNode, UMaterialExpressionTextureBase* TextureExpression)
+	{
+		using namespace UE::Interchange::Materials::Standard::Nodes::TextureSample;
+
+		const bool bIsAParameter = UInterchangeShaderPortsAPI::HasParameter(ExpressionNode, Inputs::Texture);
+		const FString InputKey = bIsAParameter
+			? UInterchangeShaderPortsAPI::MakeInputParameterKey(Inputs::Texture.ToString())
+			: UInterchangeShaderPortsAPI::MakeInputValueKey(Inputs::Texture.ToString());
+
+		FString TextureFactoryNodeUid;
+		ExpressionNode->GetStringAttribute(InputKey, TextureFactoryNodeUid);
+
+
+		// It is possible that the Texture Object Parameter was used that uses KeyValueProperty to reference the texture instead of extra texture input connection.
+		if (TextureFactoryNodeUid.IsEmpty())
+		{
+			FString PayloadKey;
+			UInterchangeUserDefinedAttributesAPI::GetUserDefinedAttribute_FString(ExpressionNode, Inputs::Texture.ToString(), TextureFactoryNodeUid, PayloadKey);
+		}
+
+		if (const UInterchangeTextureFactoryNode* TextureFactoryNode = Cast<UInterchangeTextureFactoryNode>(Arguments.NodeContainer->GetNode(TextureFactoryNodeUid)))
+		{
+			FSoftObjectPath ReferenceObject;
+			TextureFactoryNode->GetCustomReferenceObject(ReferenceObject);
+			if (UTexture* Texture = Cast<UTexture>(ReferenceObject.TryLoad()))
+			{
+				TextureExpression->Texture = Texture;
+			}
+		}
+
+		TextureExpression->AutoSetSampleType();
+	}
+
+	UMaterialExpression* CreateMaterialExpression(UMaterial* Material, UMaterialFunction* MaterialFunction, const TSubclassOf<UMaterialExpression>& ExpressionClass)
+	{
+		UObject* const SelectedAsset = nullptr;
+		const int32 NodePosX = 0;
+		const int32 NodePosY = 0;
+		const bool bAllowMarkingPackageDirty = false;
+
+		return UMaterialEditingLibrary::CreateMaterialExpressionEx(Material, MaterialFunction, ExpressionClass, SelectedAsset, NodePosX, NodePosY, bAllowMarkingPackageDirty);
+	}
+
+	template<class T>
+	T* CreateMaterialExpression(UMaterial* Material, UMaterialFunction* MaterialFunction)
+	{
+		return Cast<T>(CreateMaterialExpression(Material, MaterialFunction, T::StaticClass()));
+	}
+
+
+	class FMaterialExpressionBuilder
+	{
+	public:
+		FMaterialExpressionBuilder(UMaterial* InMaterial, UMaterialFunction* InMaterialFunction, const UInterchangeFactoryBase::FImportAssetObjectParams& InArguments, TObjectPtr<UInterchangeResultsContainer> InResultsContainer)
+			: Material(InMaterial)
+			, MaterialFunction(InMaterialFunction)
+			, Arguments(InArguments)
+			, ResultsContainer(InResultsContainer)
+		{
+			check((Material || MaterialFunction) && !(Material && MaterialFunction));
+
+			//We need to put in place a better mechanism for the reimport, for the moment let's delete all material expressions to avoid duplicates	
+			DeleteAllMaterialExpressions();
+		}
+		UMaterialExpression* CreateExpressionsForNode(const UInterchangeMaterialExpressionFactoryNode& ExpressionNode)
+		{
+			UMaterialExpression* MaterialExpression = Expressions.FindRef(ExpressionNode.GetUniqueID());
+
+			if (MaterialExpression)
+			{
+				return MaterialExpression;
+			}
+
+			MaterialExpression = CreateExpression(ExpressionNode);
+			if (!MaterialExpression)
+			{
+				return nullptr;
+			}
+
+			Expressions.Add(ExpressionNode.GetUniqueID()) = MaterialExpression;
+
+			TArray<FString> Inputs;
+			UInterchangeShaderPortsAPI::GatherInputs(&ExpressionNode, Inputs);
+
+			for (const FString& InputName : Inputs)
+			{
+				FString ConnectedExpressionUid;
+				FString OutputName;
+				if (UInterchangeShaderPortsAPI::GetInputConnection(&ExpressionNode, InputName, ConnectedExpressionUid, OutputName))
+				{
+					const UInterchangeMaterialExpressionFactoryNode* ConnectedExpressionNode = Cast<UInterchangeMaterialExpressionFactoryNode>(Arguments.NodeContainer->GetNode(ConnectedExpressionUid));
+					if (ConnectedExpressionNode)
 					{
-						if (UObjectRedirector* RenamedClassRedirector = FindFirstObject<UObjectRedirector>(ClassName, EFindFirstObjectOptions::EnsureIfAmbiguous))
+						UMaterialExpression* ConnectedExpression = Expressions.FindRef(ConnectedExpressionUid);
+						if (!ConnectedExpression)
 						{
-							MaterialExpressionClass = CastChecked<UClass>(RenamedClassRedirector->DestinationObject);
+							ConnectedExpression = CreateExpressionsForNode(*ConnectedExpressionNode);
+							// This case is particularly observed when there are broken function references and there are Empty Material Function Names.
+							if (!ConnectedExpression)
+							{
+								continue;
+							}
+						}
+
+						const int32 InputIndex = GetInputIndex(*MaterialExpression, InputName);
+						const int32 OutputIndex = GetOutputIndex(*ConnectedExpression, OutputName);
+
+						if (InputIndex != INDEX_NONE)
+						{
+							FExpressionInput* ExpressionInput = MaterialExpression->GetInput(InputIndex);
+							if (ExpressionInput)
+							{
+								ConnectedExpression->ConnectExpression(ExpressionInput, OutputIndex);
+							}
+						}
+						else
+						{
+							PostMessage<UInterchangeResultError_Generic>(FText::Format(
+								LOCTEXT("InputNotFound", "Invalid input {0} for material expression node {1}."),
+								FText::FromString(InputName),
+								FText::FromString(ExpressionNode.GetDisplayLabel())
+							));
 						}
 					}
+				}
+			}
 
-					if (MaterialExpressionClass && MaterialExpressionClass->IsChildOf<UMaterialExpression>())
+			return MaterialExpression;
+		}
+
+	private:
+		UMaterialExpression* CreateExpression(const UInterchangeMaterialExpressionFactoryNode& ExpressionNode)
+		{
+			FString ExpressionClassName;
+			ExpressionNode.GetCustomExpressionClassName(ExpressionClassName);
+
+			TSubclassOf<UMaterialExpression> ExpressionClass = FindExpressionClass(*ExpressionClassName);
+
+			if (!ExpressionClass.Get())
+			{
+				PostMessage<UInterchangeResultError_Generic>(FText::Format(
+					LOCTEXT("ExpressionClassNotFound", "Invalid class {0} for material expression node {1}."),
+					FText::FromString(ExpressionClassName),
+					FText::FromString(ExpressionNode.GetDisplayLabel())
+				));
+				return nullptr;
+			}
+
+			UMaterialExpression* MaterialExpression = CreateMaterialExpression(Material, MaterialFunction, ExpressionClass);
+
+			if (!MaterialExpression)
+			{
+				PostMessage<UInterchangeResultError_Generic>(FText::Format(
+					LOCTEXT("MaterialExpressionCreationFailed", "Failed to create {0} object for material expression node {1}."),
+					FText::FromString(ExpressionClassName),
+					FText::FromString(ExpressionNode.GetDisplayLabel())
+				));
+				return nullptr;
+			}
+
+			if (Material)
+			{
+				if (FNameProperty* Property = FindFProperty<FNameProperty>(MaterialExpression->GetClass(), GET_MEMBER_NAME_CHECKED(UMaterialExpressionParameter, ParameterName)))
+				{
+					const FString MaterialExpressionName = ExpressionNode.GetDisplayLabel();
+					FName ParameterName;
+					if (MaterialExpressionName == TEXT("Null"))
 					{
-						return MaterialExpressionClass;
+						const int32 RightChopIndex = FString(TEXT("MaterialExpression")).Len();
+						FString ExpressionName = ExpressionClassName.RightChop(RightChopIndex);
+						ParameterName = FName(*(ExpressionName + TEXT("_(") + LexToString(Material->GetExpressions().Num()) + TEXT(")")));
 					}
 					else
 					{
-						return nullptr;
+						ParameterName = FName(*MaterialExpressionName);
 					}
+
+					// Set the parameter name if the material expression has one (some material expressions don't inherit from UMaterialExpressionParameter, ie: UMaterialExpressionTextureSampleParameter
+					*(Property->ContainerPtrToValuePtr<FName>(MaterialExpression)) = ParameterName;
 				}
+			}
 
-				int32 GetInputIndex(UMaterialExpression& MaterialExpression, const FString& InputName)
+			ExpressionNode.ApplyAllCustomAttributeToObject(MaterialExpression);
+
+			if (UMaterialExpressionTextureBase* TextureExpression = Cast<UMaterialExpressionTextureBase>(MaterialExpression))
+			{
+				SetupTextureExpression(Arguments, &ExpressionNode, TextureExpression);
+			}
+			else if (UMaterialExpressionMaterialFunctionCall* FunctionCallExpression = Cast<UMaterialExpressionMaterialFunctionCall>(MaterialExpression))
+			{
+				SetupFunctionCallExpression(Arguments, ExpressionNode, FunctionCallExpression);
+			}
+
+			return MaterialExpression;
+		}
+
+		void DeleteAllMaterialExpressions()
+		{
+			if (Material)
+			{
+				// Copy the Material Expressions in a TArray, otherwise working directly on the TArrayView messes up with the expressions
+				// and doesn't make a full clean up, especially when we're not in the Game Thread
+				if (TArray<UMaterialExpression*> MaterialExpressions(Material->GetExpressions()); !MaterialExpressions.IsEmpty())
 				{
-					int32 ExpressionInputIndex = 0;
-
-					for (const FExpressionInput* ExpressionInput : MaterialExpression.GetInputsView())
+					Material->Modify();
+					for (UMaterialExpression* MaterialExpression : MaterialExpressions)
 					{
-						// MaterialFuncCall appends the type to the input name when calling GetInputName
-						// and the InputName in FExpressionInput is optional so we'll check both here to be safe
-						if (MaterialExpression.GetInputName(ExpressionInputIndex) == *InputName ||
-							(ExpressionInput && ExpressionInput->InputName == *InputName))
-						{
-							return ExpressionInputIndex;
-						}
-
-						++ExpressionInputIndex;
+						MaterialExpression->Modify();
+						Material->GetExpressionCollection().RemoveExpression(MaterialExpression);
+						Material->RemoveExpressionParameter(MaterialExpression);
+						// Make sure the deleted expression is caught by gc
+						MaterialExpression->MarkAsGarbage();
 					}
 
-					return INDEX_NONE;
+					Material->MarkPackageDirty();
 				}
+			}
+		}
 
-				int32 GetOutputIndex(UMaterialExpression& MaterialExpression, const FString& OutputName)
-				{
-					// Check whether OutputName stores an index
-					int32 ExpressionOutputIndex = UInterchangeShaderPortsAPI::GetOutputIndexFromName(OutputName);
-					if (ExpressionOutputIndex != INDEX_NONE)
-					{
-						if (MaterialExpression.GetOutputs().IsValidIndex(ExpressionOutputIndex))
-						{
-							return ExpressionOutputIndex;
-						}
-					}
+		template<class TInterchangeResultType>
+		void PostMessage(FText&& MessageText)
+		{
+			if (ResultsContainer)
+			{
+				TInterchangeResultType* Result = ResultsContainer->Add<TInterchangeResultType>();
+				Result->Text = MoveTemp(MessageText);
+			}
+		}
 
-					ExpressionOutputIndex = 0;
-
-					for (const FExpressionOutput& ExpressionOutput : MaterialExpression.GetOutputs())
-					{
-						if (ExpressionOutput.OutputName == *OutputName)
-						{
-							return ExpressionOutputIndex;
-						}
-
-						++ExpressionOutputIndex;
-					}
-
-					return 0; // Consider 0 as the default output to connect to since most expressions have a single output
-				}
-
-				void SetupFunctionCallExpression(const UInterchangeFactoryBase::FImportAssetObjectParams& Arguments, const UInterchangeMaterialExpressionFactoryNode& ExpressionNode, UMaterialExpressionMaterialFunctionCall* FunctionCallExpression)
-				{
-					FInterchangeImportMaterialAsyncHelper& AsyncHelper = FInterchangeImportMaterialAsyncHelper::GetInstance();
-					if (const UInterchangeMaterialFunctionCallExpressionFactoryNode* FunctionCallFactoryNode = Cast<UInterchangeMaterialFunctionCallExpressionFactoryNode>(&ExpressionNode))
-					{
-						FString MaterialFactoryNodeUid;
-						FunctionCallFactoryNode->GetCustomMaterialFunctionDependency(MaterialFactoryNodeUid);
-
-						if (const UInterchangeMaterialFunctionFactoryNode* MaterialFactoryNode = Cast<UInterchangeMaterialFunctionFactoryNode>(Arguments.NodeContainer->GetNode(MaterialFactoryNodeUid)))
-						{
-							FSoftObjectPath ReferenceObject;
-							MaterialFactoryNode->GetCustomReferenceObject(ReferenceObject);
-							if (UMaterialFunctionInterface* MaterialFunction = Cast<UMaterialFunctionInterface>(ReferenceObject.TryLoad()))
-							{
-								AsyncHelper.UpdateFromFunctionResource(MaterialFunction);
-								FunctionCallExpression->SetMaterialFunction(MaterialFunction);
-							}
-						}
-					}
-
-					AsyncHelper.UpdateFromFunctionResource(FunctionCallExpression);
-				}
-
-				void SetupTextureExpression(const UInterchangeFactoryBase::FImportAssetObjectParams& Arguments, const UInterchangeMaterialExpressionFactoryNode* ExpressionNode, UMaterialExpressionTextureBase* TextureExpression)
-				{
-					using namespace UE::Interchange::Materials::Standard::Nodes::TextureSample;
-
-					FString TextureFactoryNodeUid;
-					ExpressionNode->GetStringAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(Inputs::Texture.ToString()), TextureFactoryNodeUid);
-
-					if (const UInterchangeTextureFactoryNode* TextureFactoryNode = Cast<UInterchangeTextureFactoryNode>(Arguments.NodeContainer->GetNode(TextureFactoryNodeUid)))
-					{
-						FSoftObjectPath ReferenceObject;
-						TextureFactoryNode->GetCustomReferenceObject(ReferenceObject);
-						if (UTexture* Texture = Cast<UTexture>(ReferenceObject.TryLoad()))
-						{
-							TextureExpression->Texture = Texture;
-						}
-					}
-
-					TextureExpression->AutoSetSampleType();
-				}
-
-				UMaterialExpression* CreateMaterialExpression(UMaterial* Material, UMaterialFunction* MaterialFunction, const TSubclassOf<UMaterialExpression>& ExpressionClass)
-				{
-					UObject* const SelectedAsset = nullptr;
-					const int32 NodePosX = 0;
-					const int32 NodePosY = 0;
-					const bool bAllowMarkingPackageDirty = false;
-
-					return UMaterialEditingLibrary::CreateMaterialExpressionEx(Material, MaterialFunction, ExpressionClass, SelectedAsset, NodePosX, NodePosY, bAllowMarkingPackageDirty);
-				}
-
-				template<class T>
-				T* CreateMaterialExpression(UMaterial* Material, UMaterialFunction* MaterialFunction)
-				{
-					return Cast<T>(CreateMaterialExpression(Material, MaterialFunction, T::StaticClass()));
-				}
-
-
-				class FMaterialExpressionBuilder
-				{
-				public:
-					FMaterialExpressionBuilder(UMaterial* InMaterial, UMaterialFunction* InMaterialFunction, const UInterchangeFactoryBase::FImportAssetObjectParams& InArguments)
-						: Material(InMaterial)
-						, MaterialFunction(InMaterialFunction)
-						, Arguments(InArguments)
-					{
-						check((Material || MaterialFunction) && !(Material && MaterialFunction));
-
-						//We need to put in place a better mechanism for the reimport, for the moment let's delete all material expressions to avoid duplicates	
-						DeleteAllMaterialExpressions();
-					}
-
-					UMaterialExpression* CreateExpressionsForNode(const UInterchangeMaterialExpressionFactoryNode& ExpressionNode)
-					{
-						UMaterialExpression* MaterialExpression = Expressions.FindRef(ExpressionNode.GetUniqueID());
-
-						if (MaterialExpression)
-						{
-							return MaterialExpression;
-						}
-
-						MaterialExpression = CreateExpression(ExpressionNode);
-						if (!MaterialExpression)
-						{
-							return nullptr;
-						}
-
-						Expressions.Add(ExpressionNode.GetUniqueID()) = MaterialExpression;
-
-						TArray<FString> Inputs;
-						UInterchangeShaderPortsAPI::GatherInputs(&ExpressionNode, Inputs);
-
-						for (const FString& InputName : Inputs)
-						{
-							FString ConnectedExpressionUid;
-							FString OutputName;
-							if (UInterchangeShaderPortsAPI::GetInputConnection(&ExpressionNode, InputName, ConnectedExpressionUid, OutputName))
-							{
-								const UInterchangeMaterialExpressionFactoryNode* ConnectedExpressionNode = Cast<UInterchangeMaterialExpressionFactoryNode>(Arguments.NodeContainer->GetNode(ConnectedExpressionUid));
-								if (ConnectedExpressionNode)
-								{
-									UMaterialExpression* ConnectedExpression = Expressions.FindRef(ConnectedExpressionUid);
-									if (!ConnectedExpression)
-									{
-										ConnectedExpression = CreateExpressionsForNode(*ConnectedExpressionNode);
-									}
-
-									const int32 InputIndex = GetInputIndex(*MaterialExpression, InputName);
-									const int32 OutputIndex = GetOutputIndex(*ConnectedExpression, OutputName);
-
-									if (InputIndex != INDEX_NONE)
-									{
-										FExpressionInput* ExpressionInput = MaterialExpression->GetInput(InputIndex);
-										if (ExpressionInput)
-										{
-											ConnectedExpression->ConnectExpression(ExpressionInput, OutputIndex);
-										}
-									}
-									else
-									{
-										Messages.Add(FText::Format(LOCTEXT("InputNotFound", "Invalid input {0} for material expression node {1}."),
-											FText::FromString(InputName),
-											FText::FromString(ExpressionNode.GetDisplayLabel())));
-									}
-								}
-							}
-						}
-
-						return MaterialExpression;
-					}
-
-					TArray<FText> Messages;
-
-				private:
-					UMaterialExpression* CreateExpression(const UInterchangeMaterialExpressionFactoryNode& ExpressionNode)
-					{
-						FString ExpressionClassName;
-						ExpressionNode.GetCustomExpressionClassName(ExpressionClassName);
-
-						TSubclassOf<UMaterialExpression> ExpressionClass = FindExpressionClass(*ExpressionClassName);
-
-						if (!ExpressionClass.Get())
-						{
-							Messages.Add(FText::Format(LOCTEXT("ExpressionClassNotFound", "Invalid class {0} for material expression node {1}."),
-								FText::FromString(ExpressionClassName),
-								FText::FromString(ExpressionNode.GetDisplayLabel())));
-
-							return nullptr;
-						}
-
-						UMaterialExpression* MaterialExpression = CreateMaterialExpression(Material, MaterialFunction, ExpressionClass);
-
-						if (!MaterialExpression)
-						{
-							Messages.Add(FText::Format(LOCTEXT("MaterialExpressionCreationFailed", "Failed to create {0} object for material expression node {1}."),
-								FText::FromString(ExpressionClassName),
-								FText::FromString(ExpressionNode.GetDisplayLabel())));
-
-							return nullptr;
-						}
-
-						if (Material)
-						{
-							// Set the parameter name if the material expression has one (some material expressions don't inherit from UMaterialExpressionParameter, ie: UMaterialExpressionTextureSampleParameter
-							if (FNameProperty* Property = FindFProperty<FNameProperty>(MaterialExpression->GetClass(), GET_MEMBER_NAME_CHECKED(UMaterialExpressionParameter, ParameterName)))
-							{
-								*(Property->ContainerPtrToValuePtr<FName>(MaterialExpression)) = FName(*(ExpressionNode.GetDisplayLabel() + LexToString(Material->GetExpressions().Num())));
-							}
-						}
-
-						ExpressionNode.ApplyAllCustomAttributeToObject(MaterialExpression);
-
-						if (UMaterialExpressionTextureBase* TextureExpression = Cast<UMaterialExpressionTextureBase>(MaterialExpression))
-						{
-							SetupTextureExpression(Arguments, &ExpressionNode, TextureExpression);
-						}
-						else if (UMaterialExpressionMaterialFunctionCall* FunctionCallExpression = Cast<UMaterialExpressionMaterialFunctionCall>(MaterialExpression))
-						{
-							SetupFunctionCallExpression(Arguments, ExpressionNode, FunctionCallExpression);
-						}
-
-						return MaterialExpression;
-					}
-
-					void DeleteAllMaterialExpressions()
-					{
-						if(Material)
-						{
-							// Copy the Material Expressions in a TArray, otherwise working directly on the TArrayView messes up with the expressions
-							// and doesn't make a full clean up, especially when we're not in the Game Thread
-							if(TArray<UMaterialExpression*> MaterialExpressions(Material->GetExpressions()); !MaterialExpressions.IsEmpty())
-							{
-								Material->Modify();
-								for(UMaterialExpression* MaterialExpression : MaterialExpressions)
-								{
-									MaterialExpression->Modify();
-									Material->GetExpressionCollection().RemoveExpression(MaterialExpression);
-									Material->RemoveExpressionParameter(MaterialExpression);
-									// Make sure the deleted expression is caught by gc
-									MaterialExpression->MarkAsGarbage();
-								}
-
-								Material->MarkPackageDirty();
-							}
-						}
-					}
-
-					UMaterial* Material = nullptr;
-					UMaterialFunction* MaterialFunction = nullptr;
-					const UInterchangeFactoryBase::FImportAssetObjectParams& Arguments;
-					TMap<FString, UMaterialExpression*> Expressions;
-				};
+	private:
+		UMaterial* Material = nullptr;
+		UMaterialFunction* MaterialFunction = nullptr;
+		const UInterchangeFactoryBase::FImportAssetObjectParams& Arguments;
+		TMap<FString, UMaterialExpression*> Expressions;
+		TObjectPtr<UInterchangeResultsContainer> ResultsContainer;
+	};
 #endif // #if WITH_EDITOR
 
-				void UpdateParameterBool(UMaterialInstance& MaterialInstance, const FString& InputName, const UInterchangeMaterialInstanceFactoryNode& FactoryNode)
-				{
+	void UpdateParameterBool(UMaterialInstance& MaterialInstance, const FString& InputName, const UInterchangeMaterialInstanceFactoryNode& FactoryNode)
+	{
 #if WITH_EDITORONLY_DATA
-					const FName ParameterName = *InputName;
-					bool bInstanceValue;
-					FGuid Uid;
-					if (MaterialInstance.GetStaticSwitchParameterValue(ParameterName, bInstanceValue, Uid))
-					{
-						bool bInputValue = false;
-						FactoryNode.GetBooleanAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputName), bInputValue);
+		const FName ParameterName = *InputName;
+		bool bInstanceValue;
+		FGuid Uid;
+		if (MaterialInstance.GetStaticSwitchParameterValue(ParameterName, bInstanceValue, Uid))
+		{
+			bool bInputValue = false;
+			FactoryNode.GetBooleanAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputName), bInputValue);
 
-						if (bInputValue != bInstanceValue)
-						{
-							if (UMaterialInstanceConstant* MaterialInstanceConstant = Cast<UMaterialInstanceConstant>(&MaterialInstance))
-							{
-								MaterialInstanceConstant->SetStaticSwitchParameterValueEditorOnly(ParameterName, bInputValue);
-							}
-						}
-					}
-#endif // #if WITH_EDITORONLY_DATA
-				}
-
-				void UpdateParameterFloat(UMaterialInstance& MaterialInstance, const FString& InputName, const UInterchangeMaterialInstanceFactoryNode& FactoryNode)
+			if (bInputValue != bInstanceValue)
+			{
+				if (UMaterialInstanceConstant* MaterialInstanceConstant = Cast<UMaterialInstanceConstant>(&MaterialInstance))
 				{
-					const FName ParameterName = *InputName;
-					float InstanceValue;
+					MaterialInstanceConstant->SetStaticSwitchParameterValueEditorOnly(ParameterName, bInputValue);
+				}
+			}
+		}
+#endif // #if WITH_EDITORONLY_DATA
+	}
 
-					if (MaterialInstance.GetScalarParameterValue(ParameterName, InstanceValue))
+	void UpdateParameterFloat(UMaterialInstance& MaterialInstance, const FString& InputName, const UInterchangeMaterialInstanceFactoryNode& FactoryNode)
+	{
+		const FName ParameterName = *InputName;
+		float InstanceValue;
+
+		if (MaterialInstance.GetScalarParameterValue(ParameterName, InstanceValue))
+		{
+			float InputValue = 0.f;
+			FactoryNode.GetFloatAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputName), InputValue);
+
+			if (!FMath::IsNearlyEqual(InputValue, InstanceValue))
+			{
+#if WITH_EDITOR
+				if (UMaterialInstanceConstant* MaterialInstanceConstant = Cast<UMaterialInstanceConstant>(&MaterialInstance))
+				{
+					MaterialInstanceConstant->SetScalarParameterValueEditorOnly(ParameterName, InputValue);
+				}
+				else
+#endif // #if WITH_EDITOR
+					if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
 					{
-						float InputValue = 0.f;
-						FactoryNode.GetFloatAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputName), InputValue);
+						MaterialInstanceDynamic->SetScalarParameterValue(ParameterName, InputValue);
+					}
+			}
+		}
+	}
 
-						if (!FMath::IsNearlyEqual(InputValue, InstanceValue))
+	void UpdateParameterLinearColor(UMaterialInstance& MaterialInstance, const FString& InputName, const UInterchangeMaterialInstanceFactoryNode& FactoryNode)
+	{
+		const FName ParameterName = *InputName;
+		FLinearColor InstanceValue;
+
+		if (MaterialInstance.GetVectorParameterValue(ParameterName, InstanceValue))
+		{
+			FLinearColor InputValue;
+			if (FactoryNode.GetLinearColorAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputName), InputValue))
+			{
+				if (!InputValue.Equals(InstanceValue))
+				{
+#if WITH_EDITOR
+					if (UMaterialInstanceConstant* MaterialInstanceConstant = Cast<UMaterialInstanceConstant>(&MaterialInstance))
+					{
+						MaterialInstanceConstant->SetVectorParameterValueEditorOnly(ParameterName, InputValue);
+					}
+					else
+#endif // #if WITH_EDITOR
+						if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
+						{
+							MaterialInstanceDynamic->SetVectorParameterValue(ParameterName, InputValue);
+						}
+				}
+			}
+		}
+	}
+
+	void UpdateParameterTexture(UMaterialInstance& MaterialInstance, const FString& InputName, const UInterchangeMaterialInstanceFactoryNode& FactoryNode, const UInterchangeBaseNodeContainer& NodeContainer)
+	{
+		const FName ParameterName = *InputName;
+		UTexture* InstanceValue;
+
+		if (MaterialInstance.GetTextureParameterValue(ParameterName, InstanceValue))
+		{
+			FString InputValue;
+			if (FactoryNode.GetStringAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputName), InputValue))
+			{
+				if (const UInterchangeTextureFactoryNode* TextureFactoryNode = Cast<UInterchangeTextureFactoryNode>(NodeContainer.GetNode(InputValue)))
+				{
+					FSoftObjectPath ReferenceObject;
+					TextureFactoryNode->GetCustomReferenceObject(ReferenceObject);
+					if (UTexture* InputTexture = Cast<UTexture>(ReferenceObject.TryLoad()))
+					{
+						if (InputTexture != InstanceValue)
 						{
 #if WITH_EDITOR
 							if (UMaterialInstanceConstant* MaterialInstanceConstant = Cast<UMaterialInstanceConstant>(&MaterialInstance))
 							{
-								MaterialInstanceConstant->SetScalarParameterValueEditorOnly(ParameterName, InputValue);
+								MaterialInstanceConstant->SetTextureParameterValueEditorOnly(ParameterName, InputTexture);
 							}
 							else
 #endif // #if WITH_EDITOR
-							if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
-							{
-								MaterialInstanceDynamic->SetScalarParameterValue(ParameterName, InputValue);
-							}
-						}
-					}
-				}
-
-				void UpdateParameterLinearColor(UMaterialInstance& MaterialInstance, const FString& InputName, const UInterchangeMaterialInstanceFactoryNode& FactoryNode)
-				{
-					const FName ParameterName = *InputName;
-					FLinearColor InstanceValue;
-
-					if (MaterialInstance.GetVectorParameterValue(ParameterName, InstanceValue))
-					{
-						FLinearColor InputValue;
-						if (FactoryNode.GetLinearColorAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputName), InputValue))
-						{
-							if (!InputValue.Equals(InstanceValue))
-							{
-#if WITH_EDITOR
-								if (UMaterialInstanceConstant* MaterialInstanceConstant = Cast<UMaterialInstanceConstant>(&MaterialInstance))
-								{
-									MaterialInstanceConstant->SetVectorParameterValueEditorOnly(ParameterName, InputValue);
-								}
-								else
-#endif // #if WITH_EDITOR
 								if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
 								{
-									MaterialInstanceDynamic->SetVectorParameterValue(ParameterName, InputValue);
+									MaterialInstanceDynamic->SetTextureParameterValue(ParameterName, InputTexture);
 								}
-							}
-						}
-					}
-				}
-
-				void UpdateParameterTexture(UMaterialInstance& MaterialInstance, const FString& InputName, const UInterchangeMaterialInstanceFactoryNode& FactoryNode, const UInterchangeBaseNodeContainer& NodeContainer)
-				{
-					const FName ParameterName = *InputName;
-					UTexture* InstanceValue;
-
-					if (MaterialInstance.GetTextureParameterValue(ParameterName, InstanceValue))
-					{
-						FString InputValue;
-						if (FactoryNode.GetStringAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputName), InputValue))
-						{
-							if (const UInterchangeTextureFactoryNode* TextureFactoryNode = Cast<UInterchangeTextureFactoryNode>(NodeContainer.GetNode(InputValue)))
-							{
-								FSoftObjectPath ReferenceObject;
-								TextureFactoryNode->GetCustomReferenceObject(ReferenceObject);
-								if (UTexture* InputTexture = Cast<UTexture>(ReferenceObject.TryLoad()))
-								{
-									if (InputTexture != InstanceValue)
-									{
-#if WITH_EDITOR
-										if (UMaterialInstanceConstant* MaterialInstanceConstant = Cast<UMaterialInstanceConstant>(&MaterialInstance))
-										{
-											MaterialInstanceConstant->SetTextureParameterValueEditorOnly(ParameterName, InputTexture);
-										}
-										else
-#endif // #if WITH_EDITOR
-										if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
-										{
-											MaterialInstanceDynamic->SetTextureParameterValue(ParameterName, InputTexture);
-										}
-									}
-								}
-							}
 						}
 					}
 				}
 			}
 		}
 	}
+
+	void OverrideBoolParameter(const UInterchangeMaterialInstanceFactoryNode& FactoryNode, const FString& AttributeKey, UMaterialInstance& MaterialInstance, const FName& ParameterName)
+	{
+		bool AttributeValue;
+		if (FactoryNode.GetBooleanAttribute(AttributeKey, AttributeValue))
+		{
+#if WITH_EDITOR
+			if (UMaterialInstanceConstant* MaterialInstanceConstant = Cast<UMaterialInstanceConstant>(&MaterialInstance))
+			{
+				MaterialInstanceConstant->SetStaticSwitchParameterValueEditorOnly(ParameterName, AttributeValue);
+			}
+			else
+#endif // #if WITH_EDITOR
+				if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
+				{
+					//TODO: Log Error
+					ensure(false);
+				}
+		}
+	}
+
+	void OverrideScalarParameter(const UInterchangeMaterialInstanceFactoryNode& FactoryNode, const FString& AttributeKey, UMaterialInstance& MaterialInstance, const FName& ParameterName)
+	{
+		float AttributeValue;
+		if (FactoryNode.GetFloatAttribute(AttributeKey, AttributeValue))
+		{
+#if WITH_EDITOR
+			if (UMaterialInstanceConstant* MaterialInstanceConstant = Cast<UMaterialInstanceConstant>(&MaterialInstance))
+			{
+				MaterialInstanceConstant->SetScalarParameterValueEditorOnly(ParameterName, AttributeValue);
+			}
+			else
+#endif // #if WITH_EDITOR
+				if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
+				{
+					MaterialInstanceDynamic->SetScalarParameterValue(ParameterName, AttributeValue);
+				}
+		}
+	}
+
+	void OverrideVectorParameter(const UInterchangeMaterialInstanceFactoryNode& FactoryNode, const FString& AttributeKey, UMaterialInstance& MaterialInstance, const FName& ParameterName)
+	{
+		FLinearColor AttributeValue;
+		if (FactoryNode.GetLinearColorAttribute(AttributeKey, AttributeValue))
+		{
+#if WITH_EDITOR
+			if (UMaterialInstanceConstant* MaterialInstanceConstant = Cast<UMaterialInstanceConstant>(&MaterialInstance))
+			{
+				MaterialInstanceConstant->SetVectorParameterValueEditorOnly(ParameterName, AttributeValue);
+			}
+			else
+#endif // #if WITH_EDITOR
+				if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
+				{
+					MaterialInstanceDynamic->SetVectorParameterValue(ParameterName, AttributeValue);
+				}
+		}
+	}
+
+	void OverrideTextureParameter(const UInterchangeMaterialInstanceFactoryNode& FactoryNode, const FString& AttributeKey, const UInterchangeBaseNodeContainer& NodeContainer, UMaterialInstance& MaterialInstance, const FName& ParameterName)
+	{
+		// The String Attribute is required to be a TextureFactoryUid as opposed to a TextureUid to correctly override.
+		FString TextureFactoryUid;
+		if (FactoryNode.GetStringAttribute(AttributeKey, TextureFactoryUid))
+		{
+			if (const UInterchangeTextureFactoryNode* TextureFactoryNode = Cast<UInterchangeTextureFactoryNode>(NodeContainer.GetNode(TextureFactoryUid)))
+			{
+				FSoftObjectPath ReferenceObject;
+				TextureFactoryNode->GetCustomReferenceObject(ReferenceObject);
+				if (UTexture* InputTexture = Cast<UTexture>(ReferenceObject.TryLoad()))
+				{
+#if WITH_EDITOR
+					if (UMaterialInstanceConstant* MaterialInstanceConstant = Cast<UMaterialInstanceConstant>(&MaterialInstance))
+					{
+						MaterialInstanceConstant->SetTextureParameterValueEditorOnly(ParameterName, InputTexture);
+					}
+					else
+#endif // #if WITH_EDITOR
+						if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
+						{
+							MaterialInstanceDynamic->SetTextureParameterValue(ParameterName, InputTexture);
+						}
+				}
+			}
+		}
+	}
 }
+
+namespace UE::Interchange::Materials::HashUtils
+{
+
+	const TCHAR* FInterchangeMaterialInstanceOverridesAPI::ExpressionNameAttributeKey = TEXT("MaterialExpressionNameOverride");
+	const TCHAR* FInterchangeMaterialInstanceOverridesAPI::OverrideParameterPrefix = TEXT("LeafInput");
+	const TCHAR* FInterchangeMaterialInstanceOverridesAPI::OverrideParameterSeparator = TEXT(":");
+	const TCHAR* FInterchangeMaterialInstanceOverridesAPI::OverrideHashSeparator = TEXT("_");
+
+	FString FInterchangeMaterialInstanceOverridesAPI::MakeOverrideParameterName(UE::Interchange::EAttributeTypes AttributeType, int32 Hash, bool Prefix /*= true*/)
+	{
+		TStringBuilder<128> StringBuilder;
+		if (Prefix)
+		{
+			StringBuilder.Append(OverrideParameterPrefix);
+			StringBuilder.Append(OverrideParameterSeparator);
+		}
+		StringBuilder.Append(AttributeTypeToString(AttributeType));
+		StringBuilder.Append(OverrideHashSeparator);
+		StringBuilder.Append(FString::FromInt(Hash));
+		return StringBuilder.ToString();
+	}
+
+	FString FInterchangeMaterialInstanceOverridesAPI::MakeOverrideParameterName(const FString& DisplayLabel)
+	{
+		TStringBuilder<128> StringBuilder;
+		StringBuilder.Append(OverrideParameterPrefix);
+		StringBuilder.Append(OverrideParameterSeparator);
+		StringBuilder.Append(DisplayLabel);
+		return StringBuilder.ToString();
+	}
+
+	FString FInterchangeMaterialInstanceOverridesAPI::MakeExpressionNameString()
+	{
+		return ExpressionNameAttributeKey;
+	}
+
+	bool FInterchangeMaterialInstanceOverridesAPI::GetOverrideParameterName(const UE::Interchange::FAttributeKey& AttributeKey, FString& OverrideParameterName)
+	{
+		FString Prefix;
+		if (AttributeKey.Key.Split(OverrideParameterSeparator, &Prefix, &OverrideParameterName))
+		{
+			return true;
+		}
+		return false;
+	}
+
+	bool FInterchangeMaterialInstanceOverridesAPI::HasMaterialExpressionNameOverride(const UInterchangeBaseNode* BaseNode)
+	{
+		return BaseNode->HasAttribute(UE::Interchange::FAttributeKey(MakeExpressionNameString()));
+	}
+
+	void FInterchangeMaterialInstanceOverridesAPI::GatherLeafInputs(const UInterchangeBaseNode* BaseNode, TArray<UE::Interchange::FAttributeKey>& OutLeafInputAttributeKeys)
+	{
+		TArray<UE::Interchange::FAttributeKey> AttributeKeys;
+		BaseNode->GetAttributeKeys(AttributeKeys);
+
+		OutLeafInputAttributeKeys.Empty();
+		for (const UE::Interchange::FAttributeKey& AttributeKey : AttributeKeys)
+		{
+			if (AttributeKey.Key.StartsWith(OverrideParameterPrefix))
+			{
+				OutLeafInputAttributeKeys.Add(AttributeKey);
+			}
+		}
+	}
+}
+
 
 UClass* UInterchangeMaterialFactory::GetFactoryClass() const
 {
@@ -604,22 +796,38 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeMaterialFactory::BeginIm
 				if (UMaterialInstanceConstant* MaterialInstanceConstant = Cast<UMaterialInstanceConstant>(MaterialInstance))
 				{
 					FString ParentPath;
+					FSoftObjectPath ParentMaterialPath;
 					if (MaterialInstanceFactoryNode->GetCustomParent(ParentPath))
 					{
-						UMaterialInterface* ParentMaterial = Cast<UMaterialInterface>(FSoftObjectPath(ParentPath).TryLoad());
-						MaterialInstanceConstant->SetParentEditorOnly(ParentMaterial);
+						if (FPackageName::IsValidObjectPath(ParentPath))
+						{
+							ParentMaterialPath = FSoftObjectPath(ParentPath);
+						}
+						else if (UInterchangeFactoryBaseNode* ParentFactory = Arguments.NodeContainer->GetFactoryNode(ParentPath))
+						{
+							ParentFactory->GetCustomReferenceObject(ParentMaterialPath);
+						}
+
+						if (ParentMaterialPath.IsValid())
+						{
+							if (UMaterialInterface* ParentMaterialAsset = Cast<UMaterialInterface>(ParentMaterialPath.TryLoad()))
+							{
+								MaterialInstanceConstant->SetParentEditorOnly(ParentMaterialAsset);
+								MaterialInstanceConstant->PostEditChange();
+							}
+						}
 					}
 				}
 #endif
-
 				SetupMaterialInstance(*MaterialInstance, *Arguments.NodeContainer, *MaterialInstanceFactoryNode, !Arguments.ReimportObject);
 			}
 		}
 	}
-
+	
 	ImportAssetResult.ImportedObject = Material;
 	return ImportAssetResult;
 }
+
 
 UInterchangeFactoryBase::FImportAssetResult UInterchangeMaterialFactory::ImportAsset_Async(const FImportAssetObjectParams& Arguments)
 {
@@ -781,7 +989,7 @@ void UInterchangeMaterialFactory::SetupMaterial(UMaterial* Material, const FImpo
 		}
 	}
 
-	FMaterialExpressionBuilder Builder(Material, nullptr, Arguments);
+	FMaterialExpressionBuilder Builder(Material, nullptr, Arguments, *Results.Get());
 
 	// Substrate
 	if(UInterchangeShaderPortsAPI::HasInput(MaterialFactoryNode, Substrate::Parameters::FrontMaterial))
@@ -1296,11 +1504,11 @@ void UInterchangeMaterialFactory::SetupMaterialInstance(UMaterialInstance& Mater
 	{
 		const FName ParameterName = *InputName;
 
-		switch(UInterchangeShaderPortsAPI::GetInputType(&FactoryNode, InputName))
+		switch (UInterchangeShaderPortsAPI::GetInputType(&FactoryNode, InputName))
 		{
 		case UE::Interchange::EAttributeTypes::Bool:
 			UpdateParameterBool(MaterialInstance, InputName, FactoryNode);
-		    break;
+			break;
 		case UE::Interchange::EAttributeTypes::Float:
 			UpdateParameterFloat(MaterialInstance, InputName, FactoryNode);
 			break;
@@ -1310,6 +1518,42 @@ void UInterchangeMaterialFactory::SetupMaterialInstance(UMaterialInstance& Mater
 		case UE::Interchange::EAttributeTypes::String:
 			UpdateParameterTexture(MaterialInstance, InputName, FactoryNode, NodeContainer);
 			break;
+		}
+	}
+
+	TArray<UE::Interchange::FAttributeKey> LeafInputAttributeKeys;
+	UE::Interchange::Materials::HashUtils::FInterchangeMaterialInstanceOverridesAPI::GatherLeafInputs(&FactoryNode, LeafInputAttributeKeys);
+
+	for (const UE::Interchange::FAttributeKey& AttributeKey : LeafInputAttributeKeys)
+	{
+		FString OverrideParameterName;
+		if (UE::Interchange::Materials::HashUtils::FInterchangeMaterialInstanceOverridesAPI::GetOverrideParameterName(AttributeKey, OverrideParameterName))
+		{
+			const FName ParameterName(OverrideParameterName);
+			switch (FactoryNode.GetAttributeType(AttributeKey))
+			{
+			case UE::Interchange::EAttributeTypes::Bool:
+			{
+				// #todo_Vedang_Javdekar: WIP
+				OverrideBoolParameter(FactoryNode, AttributeKey.Key, MaterialInstance, ParameterName);
+			}
+			break;
+			case UE::Interchange::EAttributeTypes::Float:
+			{
+				OverrideScalarParameter(FactoryNode, AttributeKey.Key, MaterialInstance, ParameterName);
+			}
+			break;
+			case UE::Interchange::EAttributeTypes::LinearColor:
+			{
+				OverrideVectorParameter(FactoryNode, AttributeKey.Key, MaterialInstance, ParameterName);
+			}
+			break;
+			case UE::Interchange::EAttributeTypes::String:
+			{
+				OverrideTextureParameter(FactoryNode, AttributeKey.Key, NodeContainer, MaterialInstance, ParameterName);
+			}
+			break;
+			}
 		}
 	}
 }
@@ -1600,7 +1844,7 @@ void UInterchangeMaterialFunctionFactory::SetupMaterial(UMaterialFunction* Mater
 	using namespace UE::Interchange::MaterialFactory::Internal;
 	using namespace UE::Interchange::Materials;
 
-	FMaterialExpressionBuilder Builder(nullptr, MaterialFunction, Arguments);
+	FMaterialExpressionBuilder Builder(nullptr, MaterialFunction, Arguments, *Results.Get());
 
 	UMaterialExpressionFunctionOutput* Output = CreateMaterialExpression<UMaterialExpressionFunctionOutput>(nullptr, MaterialFunction);
 
@@ -1677,4 +1921,3 @@ FInterchangeImportMaterialAsyncHelper& FInterchangeImportMaterialAsyncHelper::Ge
 }
 
 #undef LOCTEXT_NAMESPACE
-
