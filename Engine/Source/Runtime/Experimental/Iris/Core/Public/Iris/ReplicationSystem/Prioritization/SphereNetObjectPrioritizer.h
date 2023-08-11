@@ -50,9 +50,14 @@ protected:
 	{
 		VectorRegister InnerRadius;
 		VectorRegister OuterRadius;
+		// OuterRadius - InnerRadius
+		VectorRegister RadiusDiff;
+		VectorRegister InvRadiusDiff;
+		VectorRegister InnerPriority;
 		VectorRegister OuterPriority;
 		VectorRegister OutsidePriority;
-		VectorRegister PriorityFactor;
+		// OuterPriority - InnerPriority 
+		VectorRegister PriorityDiff;
 	};
 
 	struct FBatchParams
