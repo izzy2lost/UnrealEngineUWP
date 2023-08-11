@@ -32,6 +32,8 @@ class LEVELEDITOR_API ULevelEditorMenuContext : public UObject
 {
 	GENERATED_BODY()
 public:
+	TWeakPtr<ILevelEditor> GetLevelEditor() const;
+
 	TWeakPtr<SLevelEditor> LevelEditor;
 };
 
