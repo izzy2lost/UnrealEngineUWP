@@ -90,7 +90,7 @@ public:
 protected:
 	virtual bool QueryPersistentBundleInfo(FInstallBundleSourcePersistentBundleInfo& SourceBundleInfo) const override;
 
-	void OnNamedChunkInstall(FName NamedChunk, bool bInstalled);
+	void OnNamedChunkInstall(const FNamedChunkCompleteCallbackParam& Param);
 
 	FName GetNamedChunkForBundle(FName BundleName) const;
 

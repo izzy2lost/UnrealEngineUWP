@@ -25,7 +25,7 @@ FInstallBundleSourcePlatformChunkInstall::FInstallBundleSourcePlatformChunkInsta
 {
 	TickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateRaw(this, &FInstallBundleSourcePlatformChunkInstall::Tick));
 
-	NamedChunkInstallDelegateHandle = PlatformChunkInstall->AddNamedChunkInstallDelegate( FPlatformNamedChunkInstallDelegate::CreateRaw(this, &FInstallBundleSourcePlatformChunkInstall::OnNamedChunkInstall));
+	NamedChunkInstallDelegateHandle = PlatformChunkInstall->AddNamedChunkCompleteDelegate( FPlatformNamedChunkCompleteDelegate::CreateRaw(this, &FInstallBundleSourcePlatformChunkInstall::OnNamedChunkInstall));
 
 	InPlatformChunkInstall->SetAutoPakMountingEnabled(false);
 }
@@ -33,7 +33,7 @@ FInstallBundleSourcePlatformChunkInstall::FInstallBundleSourcePlatformChunkInsta
 
 FInstallBundleSourcePlatformChunkInstall::~FInstallBundleSourcePlatformChunkInstall()
 {
-	PlatformChunkInstall->RemoveNamedChunkInstallDelegate(NamedChunkInstallDelegateHandle);
+	PlatformChunkInstall->RemoveNamedChunkCompleteDelegate(NamedChunkInstallDelegateHandle);
 	NamedChunkInstallDelegateHandle.Reset();
 
 	FTSTicker::GetCoreTicker().RemoveTicker(TickHandle);
@@ -587,12 +587,12 @@ TOptional<FInstallBundleSourceProgress> FInstallBundleSourcePlatformChunkInstall
 	return Status;
 }
 
-void FInstallBundleSourcePlatformChunkInstall::OnNamedChunkInstall(FName NamedChunk, bool bInstalled)
+void FInstallBundleSourcePlatformChunkInstall::OnNamedChunkInstall( const FNamedChunkCompleteCallbackParam& Param )
 {
 	// see if this named chunk was being installed by any active requests
 	for ( FContentRequestRef Request : ContentRequests)
 	{
-		if (GetNamedChunkForBundle(Request->BundleName) != NamedChunk)
+		if (GetNamedChunkForBundle(Request->BundleName) != Param.NamedChunk)
 		{
 			continue;
 		}
@@ -609,20 +609,13 @@ void FInstallBundleSourcePlatformChunkInstall::OnNamedChunkInstall(FName NamedCh
 		}
 		else
 		{
-			if (bInstalled)
-			{
-				LOG_SOURCE_CHUNKINSTALL_OVERRIDE(Request->LogVerbosityOverride, Display, TEXT("Bundle %s finished successfull"), *Request->BundleName.ToString());
-			}
-			else
-			{
-				LOG_SOURCE_CHUNKINSTALL_OVERRIDE(Request->LogVerbosityOverride, Display, TEXT("Bundle %s finished but nothing was installed"), *Request->BundleName.ToString());
-			}
+			LOG_SOURCE_CHUNKINSTALL_OVERRIDE(Request->LogVerbosityOverride, Display, TEXT("Bundle request %s finished. IsInstalled: %s, Succeeded: %s"), *Request->BundleName.ToString(), *LexToString(Param.bIsInstalled), *LexToString(Param.bHasSucceeded) );
 
 			// send the completion callback
 			FInstallBundleSourceUpdateContentResultInfo ResultInfo;
 			ResultInfo.BundleName = Request->BundleName;
 			ResultInfo.Result = EInstallBundleResult::OK;
-			if (bInstalled && Request->ContentPaths.Num() > 0)
+			if (Param.bIsInstalled && Param.bHasSucceeded && Request->ContentPaths.Num() > 0)
 			{
 				ResultInfo.ContentPaths = Request->ContentPaths;
 				ResultInfo.bContentWasInstalled = true;
@@ -638,18 +631,18 @@ void FInstallBundleSourcePlatformChunkInstall::OnNamedChunkInstall(FName NamedCh
 	// see if this named chunk was being released by any active requests
 	for (FContentReleaseRequestRef Request : ContentReleaseRequests)
 	{
-		if (GetNamedChunkForBundle(Request->BundleName) != NamedChunk)
+		if (GetNamedChunkForBundle(Request->BundleName) != Param.NamedChunk)
 		{
 			continue;
 		}
 
-		LOG_SOURCE_CHUNKINSTALL_OVERRIDE(Request->LogVerbosityOverride, Display, TEXT("Bundle %s removed"), *Request->BundleName.ToString());
+		LOG_SOURCE_CHUNKINSTALL_OVERRIDE(Request->LogVerbosityOverride, Display, TEXT("Bundle remove request %s finished. IsInstalled: %s, Succeeded: %s"), *Request->BundleName.ToString(), *LexToString(Param.bIsInstalled), *LexToString(Param.bHasSucceeded) );
 
 		// send the completion callback
 		FInstallBundleSourceReleaseContentResultInfo ResultInfo;
 		ResultInfo.BundleName = Request->BundleName;
 		ResultInfo.Result = EInstallBundleReleaseResult::OK;
-		ResultInfo.bContentWasRemoved = !bInstalled;
+		ResultInfo.bContentWasRemoved = !Param.bIsInstalled && Param.bHasSucceeded;
 		Request->CompleteCallback.ExecuteIfBound(AsShared(), MoveTemp(ResultInfo));
 
 		// mark the request for removal next tick

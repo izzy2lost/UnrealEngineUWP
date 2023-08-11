@@ -65,6 +65,14 @@ namespace EChunkProgressReportingType
 	};
 }
 
+struct FNamedChunkCompleteCallbackParam
+{
+	FName NamedChunk;
+	EChunkLocation::Type Location;
+	bool bIsInstalled;
+	bool bHasSucceeded;
+};
+
 /**
  * Platform Chunk Install Module Interface
  */
@@ -82,10 +90,13 @@ DECLARE_DELEGATE_OneParam(FPlatformChunkInstallCompleteDelegate, uint32);
 DECLARE_DELEGATE_TwoParams(FPlatformChunkInstallDelegate, uint32, bool);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FPlatformChunkInstallMultiDelegate, uint32, bool);
 
-/** Delegate called when a Named Chunk either successfully installs or fails to install, bool is success */
+/** Deprecated delegate called when a Named Chunk either successfully installs or fails to install, bool is success */
 DECLARE_DELEGATE_TwoParams(FPlatformNamedChunkInstallDelegate, FName, bool);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FPlatformNamedChunkInstallMultiDelegate, FName, bool);
 
+/** Delegate called when a Named Chunk either successfully installs or fails to install */
+DECLARE_DELEGATE_OneParam(FPlatformNamedChunkCompleteDelegate, const FNamedChunkCompleteCallbackParam&);
+DECLARE_MULTICAST_DELEGATE_OneParam(FPlatformNamedChunkCompleteMultiDelegate, const FNamedChunkCompleteCallbackParam&);
 
 enum class ECustomChunkType : uint8
 {
@@ -305,13 +316,28 @@ public:
 	 * @param Delegate		The delegate to call when any named chunk is installed or fails to install
 	 * @return				Handle to the bound delegate
 	 */
+	UE_DEPRECATED(5.4, "use AddNamedChunkCompleteDelegate instead")
 	virtual FDelegateHandle AddNamedChunkInstallDelegate( FPlatformNamedChunkInstallDelegate Delegate ) = 0;
 
 	/**
 	 * Remove a delegate callback on named chunk install completion.
 	 * @param Delegate		The delegate to remove.
 	 */
+	UE_DEPRECATED(5.4, "use RemoveNamedChunkCompleteDelegate instead")
 	virtual void RemoveNamedChunkInstallDelegate( FDelegateHandle Delegate ) = 0;
+	
+	/** 
+	 * Request a delegate callback on named chunk install completion or failure. Request may not be respected.
+	 * @param Delegate		The delegate to call when any named chunk is installed or fails to install
+	 * @return				Handle to the bound delegate
+	 */
+	virtual FDelegateHandle AddNamedChunkCompleteDelegate( FPlatformNamedChunkCompleteDelegate Delegate ) = 0;
+
+	/**
+	 * Remove a delegate callback on named chunk install completion.
+	 * @param Delegate		The delegate to remove.
+	 */
+	virtual void RemoveNamedChunkCompleteDelegate( FDelegateHandle Delegate ) = 0;
 
 
 
@@ -511,6 +537,17 @@ public:
 		NamedChunkInstallDelegate.Remove(Delegate);
 	}
 
+	virtual void RemoveNamedChunkCompleteDelegate(FDelegateHandle Delegate) override
+	{
+		NamedChunkCompleteDelegate.Remove(Delegate);
+	}
+
+	virtual FDelegateHandle AddNamedChunkCompleteDelegate(FPlatformNamedChunkCompleteDelegate Delegate) override
+	{
+		return NamedChunkCompleteDelegate.Add(Delegate);
+	}
+
+
 	virtual bool SupportsBundleSource() const override 
 	{ 
 		return false; 
@@ -538,9 +575,12 @@ public:
 
 protected:
 
+	void DoNamedChunkCompleteCallbacks( const FName NamedChunk, EChunkLocation::Type Location, bool bHasSucceeded );
+
 	/** Delegates called when installation succeeds or fails */
 	FPlatformChunkInstallMultiDelegate InstallDelegate;
 	FPlatformNamedChunkInstallMultiDelegate NamedChunkInstallDelegate;
+	FPlatformNamedChunkCompleteMultiDelegate NamedChunkCompleteDelegate;
 
 	virtual EChunkLocation::Type GetChunkLocation(uint32 ChunkID) override
 	{
