@@ -439,4 +439,17 @@ namespace UE::PixelStreamingServers
 		UE_LOG(LogPixelStreamingServers, Log, TEXT("Player %d stats = \n %s"), ConnectionId, *Utils::ToString(JSONObj.ToSharedRef()));
 	}
 
+	void FSignallingServer::GetNumStreamers(TFunction<void(uint16)> OnNumStreamersReceived)
+	{
+		if(StreamersWS)
+		{
+			OnNumStreamersReceived(StreamersWS->Count());
+		}
+		else
+		{
+			// Streamers websocket server went out of scope, so we can assume no streamers are connected.
+			OnNumStreamersReceived(0);
+		}
+	}
+
 } // namespace UE::PixelStreamingServers

@@ -29,10 +29,6 @@ public:
 	void StopSignallingServer();
 	
 private:
-
-	// Signalling/webserver
-	TSharedPtr<UE::PixelStreamingServers::IServer> Server;
-
 	// An associated Live Link Source shared by all output providers
 	TSharedPtr<FPixelStreamingLiveLinkSource> LiveLinkSource;
 };

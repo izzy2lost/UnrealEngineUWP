@@ -185,12 +185,40 @@ namespace UE::PixelStreamingVCam::Private
 
 	void FVCamPixelStreamingSessionLogic::StopSignallingServer()
 	{
-		// Only stop the signalling server if we've been the ones to start it
-		UVCamPixelStreamingSubsystem* PixelStreamingSubsystem = UVCamPixelStreamingSubsystem::Get();
-		if (PixelStreamingSubsystem && !IPixelStreamingEditorModule::Get().UseExternalSignallingServer())
+		IPixelStreamingEditorModule& PSEditorModule = IPixelStreamingEditorModule::Get();
+
+		if(PSEditorModule.UseExternalSignallingServer())
 		{
-			PixelStreamingSubsystem->StopSignallingServer();
+			UE_LOG(LogPixelStreamingVCam, Log, TEXT("VCam cannot stop an `external` signalling server from UE - skipping stopping signalling server."));
+			return;
 		}
+
+		TSharedPtr<UE::PixelStreamingServers::IServer> SignallingServer = PSEditorModule.GetSignallingServer();
+
+		if(!SignallingServer)
+		{
+			UE_LOG(LogPixelStreamingVCam, Log, TEXT("VCam cannot stop internal signalling server because it is already null - skipping stopping signalling server."));
+			return;
+		}
+
+		// Asynchronously get the number of streamers and if it we have more than just this connect do not shut down the SS it might be used by something else
+		SignallingServer->GetNumStreamers([](uint16 NumStreamers){
+			if(NumStreamers > 1)
+			{
+				UE_LOG(LogPixelStreamingVCam, Log, TEXT("VCam cannot shutdown internal signalling server because there are still multiple streamers connected."));
+				return;
+			}
+
+			// Only stop the signalling server if we've been the ones to start it
+			UVCamPixelStreamingSubsystem* PixelStreamingSubsystem = UVCamPixelStreamingSubsystem::Get();
+
+			if(!PixelStreamingSubsystem)
+			{
+				return;
+			}
+
+			PixelStreamingSubsystem->StopSignallingServer();
+		});
 	}
 
 	void FVCamPixelStreamingSessionLogic::SetupCapture(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr)
