@@ -7,6 +7,11 @@
 #include "Chaos/ParticleHandleFwd.h"
 #include "Chaos/AABB.h"
 
+namespace Chaos
+{
+	class FPBDRigidsEvolutionGBF;
+}
+
 namespace BuoyancyAlgorithms
 {
 	using namespace Chaos;
@@ -23,6 +28,18 @@ namespace BuoyancyAlgorithms
 		// Effective submerged center of mass
 		FVec3 SubmergedCoM;
 	};
+
+	// Compute the effective volume of an entire particle based on its material
+	// density and mass.
+	FRealSingle ComputeParticleVolume(const FPBDRigidsEvolutionGBF* Evolution, const FGeometryParticleHandle* Particle);
+
+	// Compute the effective volume of a shape. This method must reflect the
+	// maximum possible output value of the non-scaled ComputeSubmergedVolume.
+	FRealSingle ComputeShapeVolume(const FGeometryParticleHandle* Particle);
+
+	// Compute an approximate volume and center of mass of particle B submerged in particle A,
+	// adjusting for the volume of the object based on the material density and mass of the object
+	bool ComputeSubmergedVolume(const FPBDRigidsEvolutionGBF* Evolution, const FGeometryParticleHandle* ParticleA, const FGeometryParticleHandle* ParticleB, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM);
 
 	// Compute an approximate volume and center of mass of particle B submerged in particle A
 	bool ComputeSubmergedVolume(const FGeometryParticleHandle* ParticleA, const FGeometryParticleHandle* ParticleB, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM);
