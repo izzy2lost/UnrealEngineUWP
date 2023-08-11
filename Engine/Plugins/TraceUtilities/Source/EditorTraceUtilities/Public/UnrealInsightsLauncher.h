@@ -11,6 +11,15 @@ class EDITORTRACEUTILITIES_API FUnrealInsightsLauncher : public TSharedFromThis<
 	friend class FLogMessageOnGameThreadTask;
 
 public:
+	enum class EStartInsightsResult : uint32
+	{
+		Completed = 0,
+		BuildFailed = 1,
+		LaunchFailed = 2,
+	};
+
+	typedef TFunction<void(const EStartInsightsResult /*Result*/)> StartUnrealInsightsCallback;
+
 	FUnrealInsightsLauncher();
 	~FUnrealInsightsLauncher();
 
@@ -31,11 +40,21 @@ public:
 	FString GetInsightsApplicationPath();
 
 	/**
-	 * Launches UnrealInsights.exe from the given Path, displays a editor message if it fails.
+	 * Launches the UnrealInsights executable from the given Path, displays an editor message if it fails.
+	 * If the executable is not found, a build process is started.
 	 * @param Path The full filename of UnrealInsights.exe to launch
 	 * @param Parameters The command line parameters to use when launching the exe
 	 */	
 	void StartUnrealInsights(const FString& Path, const FString& Parameters = TEXT(""));
+
+	/**
+	* Launches the UnrealInsights executable from the given Path, displays an editor message if it fails.
+	* If the executable is not found, a build process is started.
+	* @param Path The full filename of UnrealInsights.exe to launch
+	* @param Parameters The command line parameters to use when launching the exe
+	* @param Callback A Callback that will be called when the launch process is completed.
+	*/
+	void StartUnrealInsights(const FString& Path, const FString& Parameters, StartUnrealInsightsCallback Callback);
 
 	/**
 	* Closes UnrealInsights.exe.
@@ -74,10 +93,10 @@ public:
 
 private:
 	/*
-	 * Tries to build UnrealInsights via UAT, will launch with forwarded parameters if successful.
+	 * Attempts building UnrealInsights via UAT, will launch with forwarded parameters if successful.
 	 * Assumes that the Insights Executable in path belongs to this engine.
 	 */
-	void TryBuildUnrealInsightsExe(const FString& Path, const FString& LaunchParameters = TEXT(""));
+	void BuildUnrealInsights(const FString& Path, const FString& LaunchParameters, StartUnrealInsightsCallback Callback);
 
 	/// Logs an error message to the MessageLog window
 	void LogMessage(const FText& Message);
