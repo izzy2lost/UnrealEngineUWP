@@ -1125,11 +1125,11 @@ void FStaticMeshVertexBuffers::InitModelBuffers(TArray<FModelVertex>& Vertices)
 	}
 }
 
-void FStaticMeshVertexBuffers::InitModelVF(FLocalVertexFactory* VertexFactory)
+void FStaticMeshVertexBuffers::InitModelVF(FRenderCommandPipe* RenderCommandPipe, FLocalVertexFactory* VertexFactory)
 {
 	FStaticMeshVertexBuffers* Self = this;
-	ENQUEUE_RENDER_COMMAND(StaticMeshVertexBuffersLegacyBspInit)(
-		[VertexFactory, Self](FRHICommandListImmediate& RHICmdList)
+	ENQUEUE_RENDER_COMMAND(StaticMeshVertexBuffersLegacyBspInit)(RenderCommandPipe,
+		[VertexFactory, Self](FRHICommandListBase& RHICmdList)
 	{
 		check(Self->PositionVertexBuffer.IsInitialized());
 		check(Self->StaticMeshVertexBuffer.IsInitialized());
@@ -1146,7 +1146,7 @@ void FStaticMeshVertexBuffers::InitModelVF(FLocalVertexFactory* VertexFactory)
 	});
 }
 
-void FStaticMeshVertexBuffers::InitWithDummyData(FLocalVertexFactory* VertexFactory, uint32 NumVerticies, uint32 NumTexCoords, uint32 LightMapIndex)
+void FStaticMeshVertexBuffers::InitWithDummyData(FRenderCommandPipe* RenderCommandPipe, FLocalVertexFactory* VertexFactory, uint32 NumVerticies, uint32 NumTexCoords, uint32 LightMapIndex)
 {
 	check(NumVerticies);
 	check(NumTexCoords < MAX_STATIC_TEXCOORDS && NumTexCoords > 0);
@@ -1157,8 +1157,8 @@ void FStaticMeshVertexBuffers::InitWithDummyData(FLocalVertexFactory* VertexFact
 	ColorVertexBuffer.Init(NumVerticies);
 
 	FStaticMeshVertexBuffers* Self = this;
-	ENQUEUE_RENDER_COMMAND(StaticMeshVertexBuffersLegacyInit)(
-		[VertexFactory, Self, LightMapIndex](FRHICommandListImmediate& RHICmdList)
+	ENQUEUE_RENDER_COMMAND(StaticMeshVertexBuffersLegacyInit)(RenderCommandPipe,
+		[VertexFactory, Self, LightMapIndex](FRHICommandListBase& RHICmdList)
 	{
 		InitOrUpdateResource(RHICmdList, &Self->PositionVertexBuffer);
 		InitOrUpdateResource(RHICmdList, &Self->StaticMeshVertexBuffer);
@@ -1176,7 +1176,7 @@ void FStaticMeshVertexBuffers::InitWithDummyData(FLocalVertexFactory* VertexFact
 	});
 }
 
-void FStaticMeshVertexBuffers::InitFromDynamicVertex(FLocalVertexFactory* VertexFactory, TArray<FDynamicMeshVertex>& Vertices, uint32 NumTexCoords, uint32 LightMapIndex)
+void FStaticMeshVertexBuffers::InitFromDynamicVertex(FRenderCommandPipe* RenderCommandPipe, FLocalVertexFactory* VertexFactory, TArray<FDynamicMeshVertex>& Vertices, uint32 NumTexCoords, uint32 LightMapIndex)
 {
 	check(NumTexCoords < MAX_STATIC_TEXCOORDS && NumTexCoords > 0);
 	check(LightMapIndex < NumTexCoords);
@@ -1215,8 +1215,8 @@ void FStaticMeshVertexBuffers::InitFromDynamicVertex(FLocalVertexFactory* Vertex
 	}
 
 	FStaticMeshVertexBuffers* Self = this;
-	ENQUEUE_RENDER_COMMAND(StaticMeshVertexBuffersLegacyInit)(
-		[VertexFactory, Self, LightMapIndex](FRHICommandListImmediate& RHICmdList)
+	ENQUEUE_RENDER_COMMAND(StaticMeshVertexBuffersLegacyInit)(RenderCommandPipe,
+		[VertexFactory, Self, LightMapIndex](FRHICommandListBase& RHICmdList)
 		{
 			InitOrUpdateResource(RHICmdList, &Self->PositionVertexBuffer);
 			InitOrUpdateResource(RHICmdList, &Self->StaticMeshVertexBuffer);

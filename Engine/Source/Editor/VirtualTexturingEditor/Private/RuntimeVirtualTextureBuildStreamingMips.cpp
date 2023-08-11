@@ -213,6 +213,8 @@ namespace RuntimeVirtualTexture
 		TArray64<uint8> FinalPixels;
 		FinalPixels.SetNumUninitialized(RenderTileResourcesBytes);
 
+		UE::RenderCommandPipe::FSyncScope SyncScope;
+
 		// Iterate over all tiles and render/store each one to the final image
 		for (int32 TileY = 0; TileY < NumTilesY && !Task.ShouldCancel(); TileY++)
 		{

@@ -29,7 +29,7 @@
 #include "ProfilingDebugging/MiscTrace.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "Async/TaskTrace.h"
-
+#include "DataDrivenShaderPlatformInfo.h"
 
 //
 // Globals
@@ -1276,6 +1276,8 @@ void FlushRenderingCommands()
 		FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread_Local);
 	}
 
+	UE::RenderCommandPipe::FSyncScope SyncScope;
+
 	ENQUEUE_RENDER_COMMAND(FlushPendingDeleteRHIResourcesCmd)([](FRHICommandListImmediate& RHICmdList)
 	{
 		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
@@ -1487,4 +1489,304 @@ static FAutoConsoleCommand CVarRHIThreadEnable(
 	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleRHIThreadEnableChanged)
 	);
 
+ERenderCommandPipeMode GRenderCommandPipeMode = ERenderCommandPipeMode::All;
+FAutoConsoleVariable CVarRenderCommandPipeMode(
+	TEXT("r.RenderCommandPipeMode"),
+	(int32)GRenderCommandPipeMode,
+	TEXT("Controls behavior of the main render thread command pipe.")
+	TEXT(" 0: Render commands are launched individually as tasks;\n")
+	TEXT(" 1: Render commands are enqueued into a render command pipe for the render thread only.;\n")
+	TEXT(" 2: Render commands are enqueued into a render command pipe for all declared pipes.;\n"),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* Variable)
+	{
+		switch (Variable->GetInt())
+		{
+		case 1:
+			GRenderCommandPipeMode = ERenderCommandPipeMode::RenderThread;
+			break;
+		case 2:
+			GRenderCommandPipeMode = ERenderCommandPipeMode::All;
+			break;
+		default:
+			GRenderCommandPipeMode = ERenderCommandPipeMode::None;
+			break;
+		}
 
+		const bool bAllowThreading = !GRHICommandList.Bypass() && FApp::ShouldUseThreadingForPerformance() && GIsThreadedRendering;
+
+		if (GRenderCommandPipeMode == ERenderCommandPipeMode::All && !bAllowThreading)
+		{
+			GRenderCommandPipeMode = ERenderCommandPipeMode::RenderThread;
+		}
+
+		if (GRenderCommandPipeMode == ERenderCommandPipeMode::RenderThread && IsMobilePlatform(GMaxRHIShaderPlatform))
+		{
+			GRenderCommandPipeMode = ERenderCommandPipeMode::None;
+		}
+	}));
+
+FRenderThreadCommandPipe FRenderThreadCommandPipe::Instance;
+
+void FRenderThreadCommandPipe::EnqueueAndLaunch(const TCHAR* Name, uint32& SpecId, TStatId StatId, TUniqueFunction<void(FRHICommandListImmediate&)>&& Function)
+{
+	ensureMsgf(!FTaskTagScope::IsCurrentTag(ETaskTag::EParallelRenderingThread) && !FTaskTagScope::IsCurrentTag(ETaskTag::ERenderingThread),
+		TEXT("Attempted to enqueue a render command from the rendering thread timeline which a pipeline violation. Render commands can only be enqueued from the game thread timeline."));
+
+	Mutex.Lock();
+	bool bWasEmpty = Queues[ProduceIndex].IsEmpty();
+	Queues[ProduceIndex].Emplace(Name, SpecId, StatId, MoveTemp(Function));
+	Mutex.Unlock();
+
+	if (bWasEmpty)
+	{
+		TGraphTask<TFunctionGraphTaskImpl<void(), ESubsequentsMode::FireAndForget>>::CreateTask().ConstructAndDispatchWhenReady([this]
+		{
+			FRHICommandListImmediate& RHICmdList = GetImmediateCommandList_ForRenderCommand();
+
+			Mutex.Lock();
+			TArray<FCommand>& ConsumeCommands = Queues[ProduceIndex];
+			ProduceIndex ^= 1;
+			Mutex.Unlock();
+
+			for (const FCommand& Command : ConsumeCommands)
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE_USE_ON_CHANNEL(*Command.SpecId, Command.Name, EventScope, RenderCommandsChannel, true);
+				FScopeCycleCounter Scope(Command.StatId, true);
+				Command.Function(RHICmdList);
+			}
+			ConsumeCommands.Reset();
+
+		}, TStatId(), ENamedThreads::GetRenderThread());
+	}
+}
+
+class FRenderCommandPipeRegistry
+{
+public:
+	TLinkedList<FRenderCommandPipe*>* GlobalList = nullptr;
+
+	void Initialize()
+	{
+		Pipes.Reset();
+
+		for (TLinkedList<FRenderCommandPipe*>::TIterator PipeIt(GlobalList); PipeIt; PipeIt.Next())
+		{
+			Pipes.Emplace(*PipeIt);
+		}
+	}
+
+	void StartRecording()
+	{
+		check(IsInGameThread());
+		SCOPED_NAMED_EVENT(FRenderCommandPipe_StartRecording, FColor::Magenta);
+
+		if (bRecording || UE::RenderCommandPipe::GetMode() != ERenderCommandPipeMode::All || Pipes.IsEmpty() || !ShouldExecuteOnRenderThread())
+		{
+			return;
+		}
+
+		UE::Tasks::FTaskEvent TaskEvent{ UE_SOURCE_LOCATION };
+		TArray<FRenderCommandPipe::FFrame*> NextFrames;
+		NextFrames.SetNumZeroed(Pipes.Num());
+		bool bHasNextFrames = false;
+
+		for (int32 PipeIndex = 0; PipeIndex < Pipes.Num(); ++PipeIndex)
+		{
+			FRenderCommandPipe& Pipe = *Pipes[PipeIndex];
+
+			if (Pipe.bEnabled)
+			{
+				Pipe.Frame_GameThread = new FRenderCommandPipe::FFrame(Pipe.Name, TaskEvent);
+				NextFrames[PipeIndex] = Pipe.Frame_GameThread;
+				bHasNextFrames = true;
+			}
+		}
+
+		if (bHasNextFrames)
+		{
+			ENQUEUE_RENDER_COMMAND(RenderCommandPipe_Start)([this, TaskEvent, NextFrames = MoveTemp(NextFrames)](FRHICommandListImmediate&) mutable
+			{
+				RHIResourceLifetimeAddRef();
+
+				for (int32 PipeIndex = 0; PipeIndex < Pipes.Num(); ++PipeIndex)
+				{
+					Pipes[PipeIndex]->Frame_RenderThread = NextFrames[PipeIndex];
+				}
+
+				bReplaying = true;
+				TaskEvent.Trigger();
+			});
+
+			bRecording = true;
+		}
+		else
+		{
+			TaskEvent.Trigger();
+		}
+	}
+
+	void StopRecording()
+	{
+		check(IsInGameThread());
+		SCOPED_NAMED_EVENT(FRenderCommandPipe_StopRecording, FColor::Magenta);
+
+		if (!bRecording)
+		{
+			return;
+		}
+
+		for (FRenderCommandPipe* Pipe : Pipes)
+		{
+			Pipe->Frame_GameThread = nullptr;
+		}
+
+		ENQUEUE_RENDER_COMMAND(RenderCommandPipe_Stop)([this](FRHICommandListImmediate& RHICmdList)
+		{
+			TArray<FRHICommandListImmediate::FQueuedCommandList> QueuedCommandLists;
+			QueuedCommandLists.Reserve(Pipes.Num());
+
+			for (FRenderCommandPipe* Pipe : Pipes)
+			{
+				FRenderCommandPipe::FFrame*& Frame_RenderThread = Pipe->Frame_RenderThread;
+
+				if (Frame_RenderThread)
+				{
+					Frame_RenderThread->Pipe.WaitUntilEmpty();
+
+					if (Frame_RenderThread->RHICmdList)
+					{
+						Frame_RenderThread->RHICmdList->FinishRecording();
+						QueuedCommandLists.Emplace(Frame_RenderThread->RHICmdList);
+					}
+
+					delete Frame_RenderThread;
+					Frame_RenderThread = nullptr;
+				}
+			}
+
+			RHICmdList.QueueAsyncCommandListSubmit(QueuedCommandLists);
+			RHIResourceLifetimeReleaseRef(RHICmdList);
+			bReplaying = false;
+		});
+
+		bRecording = false;
+	}
+
+	bool IsRecording() const
+	{
+		ensureMsgf(!FTaskTagScope::IsCurrentTag(ETaskTag::EParallelRenderingThread) && !FTaskTagScope::IsCurrentTag(ETaskTag::ERenderingThread),
+			TEXT("IsRecording() is not valid from the render thread timeline."));
+
+		return bRecording;
+	}
+
+	bool IsReplaying() const
+	{
+		ensureMsgf(IsInParallelRenderingThread(), TEXT("IsReplaying() is only valid from the render thread timeline."));
+		return bReplaying;
+	}
+
+private:
+	TArray<FRenderCommandPipe*> Pipes;
+	bool bRecording = false;
+	bool bReplaying = false;
+};
+
+static FRenderCommandPipeRegistry GRenderCommandPipeRegistry;
+
+namespace UE::RenderCommandPipe
+{
+	void Initialize()
+	{
+		GRenderCommandPipeRegistry.Initialize();
+	}
+
+	ERenderCommandPipeMode GetMode()
+	{
+		return GRenderCommandPipeMode;
+	}
+
+	bool IsRecording()
+	{
+		return GRenderCommandPipeRegistry.IsRecording();
+	}
+
+	bool IsReplaying()
+	{
+		return GRenderCommandPipeRegistry.IsReplaying();
+	}
+
+	void StartRecording()
+	{
+		GRenderCommandPipeRegistry.StartRecording();
+	}
+
+	void StopRecording()
+	{
+		GRenderCommandPipeRegistry.StopRecording();
+	}
+}
+
+FRenderCommandPipe::FRenderCommandPipe(const TCHAR* InName)
+	: Name(InName)
+	, GlobalListLink(this)
+{
+	GlobalListLink.LinkHead(GRenderCommandPipeRegistry.GlobalList);
+}
+
+FRenderCommandPipe::~FRenderCommandPipe()
+{
+	delete Frame_GameThread;
+	Frame_GameThread = nullptr;
+	delete Frame_RenderThread;
+	Frame_RenderThread = nullptr;
+}
+
+void FRenderCommandPipe::EnqueueAndLaunch(FFunctionVariant&& FunctionVariant, const TCHAR* CommandName, uint32& CommandSpecId)
+{
+	Frame_GameThread->QueueMutex.Lock();
+	bool bWasEmpty = Frame_GameThread->Queue.IsEmpty();
+	Frame_GameThread->Queue.Emplace(MoveTemp(FunctionVariant), CommandName, CommandSpecId);
+	Frame_GameThread->QueueMutex.Unlock();
+
+	if (!bWasEmpty)
+	{
+		return;
+	}
+
+	Frame_GameThread->Pipe.Launch(Name, [this]
+	{
+		check(Frame_RenderThread);
+		SCOPED_NAMED_EVENT_TCHAR(Name, FColor::Magenta);
+		FOptionalTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
+
+		TArray<FCommand> PoppedQueue;
+
+		Frame_RenderThread->QueueMutex.Lock();
+		PoppedQueue = MoveTemp(Frame_RenderThread->Queue);
+		Frame_RenderThread->Queue.Reserve(128);
+		Frame_RenderThread->QueueMutex.Unlock();
+
+		for (FCommand& Command : PoppedQueue)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE_USE_ON_CHANNEL(*Command.SpecId, Command.Name, EventScope, RenderCommandsChannel, true);
+
+			if (FCommandListFunction* Function = Command.Function.TryGet<FCommandListFunction>())
+			{
+				if (!Frame_RenderThread->RHICmdList)
+				{
+					FRHICommandList* RHICmdList = new FRHICommandList(FRHIGPUMask::All());
+					RHICmdList->SwitchPipeline(ERHIPipeline::Graphics);
+					Frame_RenderThread->RHICmdList = RHICmdList;
+				}
+
+				(*Function)(*Frame_RenderThread->RHICmdList);
+			}
+			else
+			{
+				Command.Function.Get<FEmptyFunction>()();
+			}
+		}
+
+	}, Frame_GameThread->TaskEvent);
+}

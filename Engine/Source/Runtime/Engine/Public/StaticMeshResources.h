@@ -316,16 +316,31 @@ struct FStaticMeshVertexBuffers
 	FColorVertexBuffer ColorVertexBuffer;
 
 	/* This is a temporary function to refactor and convert old code, do not copy this as is and try to build your data as SoA from the beginning.*/
-	void ENGINE_API InitWithDummyData(FLocalVertexFactory* VertexFactory, uint32 NumVerticies, uint32 NumTexCoords = 1, uint32 LightMapIndex = 0);
+	void ENGINE_API InitWithDummyData(FRenderCommandPipe* RenderCommandPipe, FLocalVertexFactory* VertexFactory, uint32 NumVertices, uint32 NumTexCoords = 1, uint32 LightMapIndex = 0);
+
+	void inline InitWithDummyData(FLocalVertexFactory* VertexFactory, uint32 NumVertices, uint32 NumTexCoords = 1, uint32 LightMapIndex = 0)
+	{
+		InitWithDummyData(nullptr, VertexFactory, NumVertices, NumTexCoords, LightMapIndex);
+	}
 
 	/* This is a temporary function to refactor and convert old code, do not copy this as is and try to build your data as SoA from the beginning.*/
-	void ENGINE_API InitFromDynamicVertex(FLocalVertexFactory* VertexFactory, TArray<FDynamicMeshVertex>& Vertices, uint32 NumTexCoords = 1, uint32 LightMapIndex = 0);
+	void ENGINE_API InitFromDynamicVertex(FRenderCommandPipe* RenderCommandPipe, FLocalVertexFactory* VertexFactory, TArray<FDynamicMeshVertex>& Vertices, uint32 NumTexCoords = 1, uint32 LightMapIndex = 0);
+
+	inline void InitFromDynamicVertex(FLocalVertexFactory* VertexFactory, TArray<FDynamicMeshVertex>& Vertices, uint32 NumTexCoords = 1, uint32 LightMapIndex = 0)
+	{
+		InitFromDynamicVertex(nullptr, VertexFactory, Vertices, NumTexCoords, LightMapIndex);
+	}
 
 	/* This is a temporary function to refactor and convert old code, do not copy this as is and try to build your data as SoA from the beginning.*/
 	void ENGINE_API InitModelBuffers(TArray<FModelVertex>& Vertices);
 
 	/* This is a temporary function to refactor and convert old code, do not copy this as is and try to build your data as SoA from the beginning.*/
-	void ENGINE_API InitModelVF(FLocalVertexFactory* VertexFactory);
+	void ENGINE_API InitModelVF(FRenderCommandPipe* RenderCommandPipe, FLocalVertexFactory* VertexFactory);
+
+	inline void ENGINE_API InitModelVF(FLocalVertexFactory* VertexFactory)
+	{
+		InitModelVF(nullptr, VertexFactory);
+	}
 
 	void ENGINE_API SetOwnerName(const FName& OwnerName);
 };

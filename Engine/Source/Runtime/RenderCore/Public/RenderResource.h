@@ -36,6 +36,7 @@
 #include "DataDrivenShaderPlatformInfo.h"
 #endif
 
+class FRenderCommandPipe;
 class FRDGPooledBuffer;
 class FResourceArrayInterface;
 
@@ -225,19 +226,19 @@ public:
  * Sends a message to the rendering thread to initialize a resource.
  * This is called in the game thread.
  */
-extern RENDERCORE_API void BeginInitResource(FRenderResource* Resource);
+extern RENDERCORE_API void BeginInitResource(FRenderResource* Resource, FRenderCommandPipe* RenderCommandPipe = nullptr);
 
 /**
  * Sends a message to the rendering thread to update a resource.
  * This is called in the game thread.
  */
-extern RENDERCORE_API void BeginUpdateResourceRHI(FRenderResource* Resource);
+extern RENDERCORE_API void BeginUpdateResourceRHI(FRenderResource* Resource, FRenderCommandPipe* RenderCommandPipe = nullptr);
 
 /**
  * Sends a message to the rendering thread to release a resource.
  * This is called in the game thread.
  */
-extern RENDERCORE_API void BeginReleaseResource(FRenderResource* Resource);
+extern RENDERCORE_API void BeginReleaseResource(FRenderResource* Resource, FRenderCommandPipe* RenderCommandPipe = nullptr);
 
 /**
 * Enables the batching of calls to BeginReleaseResource
