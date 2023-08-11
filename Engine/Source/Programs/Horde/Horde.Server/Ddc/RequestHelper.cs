@@ -29,7 +29,7 @@ namespace Horde.Server.Ddc
 			{
 				return new ForbidResult();
 			}
-			if (!aclActions.Any(x => !storageClient.Config.Authorize(x, user)))
+			if (aclActions.Any(x => !storageClient.Config.Authorize(x, user)))
 			{
 				return new ForbidResult();
 			}

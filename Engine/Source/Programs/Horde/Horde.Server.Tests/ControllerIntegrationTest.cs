@@ -15,15 +15,23 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Horde.Server.Agents;
-using Horde.Server.Streams;
 using Horde.Server.Jobs.Templates;
 using Horde.Server.Configuration;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Jobs.Artifacts;
 using Moq;
 using Microsoft.Extensions.Options;
+using Serilog;
 
 namespace Horde.Server.Tests;
+
+static class SerilogExtensions
+{
+	public static LoggerConfiguration Override<T>(this Serilog.Configuration.LoggerMinimumLevelConfiguration configuration, Serilog.Events.LogEventLevel minimumLevel) where T : class
+	{
+		return configuration.Override(typeof(T).FullName!, minimumLevel);
+	}
+}
 
 public class TestWebApplicationFactory<TStartup> : WebApplicationFactory<TStartup> where TStartup : class
 {
@@ -32,6 +40,14 @@ public class TestWebApplicationFactory<TStartup> : WebApplicationFactory<TStartu
 	public TestWebApplicationFactory(MongoDbInstance mongoDbInstance)
 	{
 		_mongoDbInstance = mongoDbInstance;
+
+		Serilog.Log.Logger = new LoggerConfiguration()
+			.Enrich.FromLogContext()
+			.WriteTo.Console()
+			.MinimumLevel.Information()
+			.MinimumLevel.Override<MongoService>(Serilog.Events.LogEventLevel.Warning)
+			.MinimumLevel.Override("Redis", Serilog.Events.LogEventLevel.Warning)
+			.CreateLogger();
 	}
 
 	protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -66,12 +82,14 @@ public class ControllerIntegrationTest : IDisposable
 		Factory = new TestWebApplicationFactory<Startup>(MongoDbInstance);
 		Client = Factory.CreateClient();
 
-		_fixture = new Lazy<Task<Fixture>>(Task.Run(() => CreateFixture()));
+		_fixture = new Lazy<Task<Fixture>>(CreateFixtureTask);
 	}
 
 	protected MongoDbInstance MongoDbInstance { get; }
 	private TestWebApplicationFactory<Startup> Factory { get; }
 	protected HttpClient Client { get; }
+
+	protected IServiceProvider ServiceProvider => Factory.Services;
 
 	public void Dispose()
 	{
@@ -87,6 +105,11 @@ public class ControllerIntegrationTest : IDisposable
 	public Task<Fixture> GetFixture()
 	{
 		return _fixture.Value;
+	}
+
+	private Task<Fixture> CreateFixtureTask()
+	{
+		return Task.Run(() => CreateFixture());
 	}
 
 	private async Task<Fixture> CreateFixture()
