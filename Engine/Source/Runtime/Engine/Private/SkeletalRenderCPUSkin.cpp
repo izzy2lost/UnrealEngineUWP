@@ -15,7 +15,6 @@
 #include "RenderCore.h"
 #include "SceneInterface.h"
 #include "Stats/StatsTrace.h"
-#include "Rendering/RenderCommandPipes.h"
 
 #if RHI_RAYTRACING
 #include "Engine/SkinnedAssetCommon.h"
@@ -155,8 +154,8 @@ void FSkeletalMeshObjectCPUSkin::Update(
 		// queue a call to update this data
 		{
 			FSkeletalMeshObjectCPUSkin* MeshObject = this;
-			ENQUEUE_RENDER_COMMAND(SkelMeshObjectUpdateDataCommand)(UE::RenderCommandPipe::SkeletalMesh,
-				[MeshObject, FrameNumberToPrepare, RevisionNumber, NewDynamicData](FRHICommandList& RHICmdList)
+			ENQUEUE_RENDER_COMMAND(SkelMeshObjectUpdateDataCommand)(
+				[MeshObject, FrameNumberToPrepare, RevisionNumber, NewDynamicData](FRHICommandListImmediate& RHICmdList)
 				{
 					FScopeCycleCounter Context(MeshObject->GetStatId());
 					MeshObject->UpdateDynamicData_RenderThread(RHICmdList, NewDynamicData, FrameNumberToPrepare, RevisionNumber);
@@ -297,13 +296,13 @@ void FSkeletalMeshObjectCPUSkin::CacheVertices(int32 LODIndex, bool bForce) cons
 			}
 		}
 
-		BeginUpdateResourceRHI(&MeshLOD.PositionVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
-		BeginUpdateResourceRHI(&MeshLOD.StaticMeshVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
+		BeginUpdateResourceRHI(&MeshLOD.PositionVertexBuffer);
+		BeginUpdateResourceRHI(&MeshLOD.StaticMeshVertexBuffer);
 
 		const FSkeletalMeshObjectCPUSkin::FSkeletalMeshObjectLOD* MeshLODptr = &MeshLOD;
 		FLocalVertexFactory* VertexFactoryPtr = &MeshLOD.VertexFactory;
-		ENQUEUE_RENDER_COMMAND(UpdateSkeletalMeshCPUSkinVertexFactory)(UE::RenderCommandPipe::SkeletalMesh,
-			[VertexFactoryPtr, MeshLODptr](FRHICommandList& RHICmdList)
+		ENQUEUE_RENDER_COMMAND(UpdateSkeletalMeshCPUSkinVertexFactory)(
+			[VertexFactoryPtr, MeshLODptr](FRHICommandListImmediate& RHICmdList)
 		{
 			FLocalVertexFactory::FDataType Data;
 
@@ -348,8 +347,8 @@ void FSkeletalMeshObjectCPUSkin::FSkeletalMeshObjectLOD::InitResources(FSkelMesh
 		StaticMeshVertexBuffer.SetVertexUV(i, 0, SrcVertexBuf.GetVertexUV(i, 0));
 	}
 
-	BeginInitResource(&PositionVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
-	BeginInitResource(&StaticMeshVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
+	BeginInitResource(&PositionVertexBuffer);
+	BeginInitResource(&StaticMeshVertexBuffer);
 
 	FSkeletalMeshObjectCPUSkin::FSkeletalMeshObjectLOD* Self = this;
 	FLocalVertexFactory* VertexFactoryPtr = &VertexFactory;
@@ -450,12 +449,12 @@ void FSkeletalMeshObjectCPUSkin::FSkeletalMeshObjectLOD::UpdateSkinWeights(FSkel
  */
 void FSkeletalMeshObjectCPUSkin::FSkeletalMeshObjectLOD::ReleaseResources()
 {	
-	BeginReleaseResource(&VertexFactory, &UE::RenderCommandPipe::SkeletalMesh);
-	BeginReleaseResource(&PositionVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
-	BeginReleaseResource(&StaticMeshVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
+	BeginReleaseResource(&VertexFactory);
+	BeginReleaseResource(&PositionVertexBuffer);
+	BeginReleaseResource(&StaticMeshVertexBuffer);
 
 #if RHI_RAYTRACING
-	BeginReleaseResource(&RayTracingGeometry, &UE::RenderCommandPipe::SkeletalMesh);
+	BeginReleaseResource(&RayTracingGeometry);
 #endif // RHI_RAYTRACING
 
 	bResourcesInitialized = false;

@@ -10,7 +10,7 @@
 #include "SkeletalRender.h"
 #include "GPUSkinCache.h"
 #include "RayTracingSkinnedGeometry.h"
-#include "Rendering/RenderCommandPipes.h"
+#include "RenderingThread.h"
 #include "ShaderParameterUtils.h"
 #include "SceneInterface.h"
 #include "SkeletalMeshSceneProxy.h"
@@ -143,17 +143,17 @@ void FMorphVertexBufferPool::InitResources(const FName& OwnerName)
 
 	check(!MorphVertexBuffers[0].VertexBufferRHI.IsValid());
 	check(!MorphVertexBuffers[1].VertexBufferRHI.IsValid());
-	BeginInitResource(&MorphVertexBuffers[0], &UE::RenderCommandPipe::SkeletalMesh);
+	BeginInitResource(&MorphVertexBuffers[0]);
 	if (bDoubleBuffer)
 	{
-		BeginInitResource(&MorphVertexBuffers[1], &UE::RenderCommandPipe::SkeletalMesh);
+		BeginInitResource(&MorphVertexBuffers[1]);
 	}
 }
 
 void FMorphVertexBufferPool::ReleaseResources()
 {
-	BeginReleaseResource(&MorphVertexBuffers[0], &UE::RenderCommandPipe::SkeletalMesh);
-	BeginReleaseResource(&MorphVertexBuffers[1], &UE::RenderCommandPipe::SkeletalMesh);
+	BeginReleaseResource(&MorphVertexBuffers[0]);
+	BeginReleaseResource(&MorphVertexBuffers[1]);
 }
 
 SIZE_T FMorphVertexBufferPool::GetResourceSize() const
@@ -281,7 +281,7 @@ void FSkeletalMeshObjectGPUSkin::InitResources(USkinnedMeshComponent* InMeshComp
 #if RHI_RAYTRACING
 	if (bSupportRayTracing)
 	{
-		BeginInitResource(&RayTracingGeometry, &UE::RenderCommandPipe::SkeletalMesh);
+		BeginInitResource(&RayTracingGeometry);
 	}
 #endif
 }
@@ -296,7 +296,7 @@ void FSkeletalMeshObjectGPUSkin::ReleaseResources()
 	ReleaseMorphResources();
 	FSkeletalMeshObjectGPUSkin* MeshObject = this;
 	FGPUSkinCacheEntry** PtrSkinCacheEntry = &SkinCacheEntry;
-	ENQUEUE_RENDER_COMMAND(WaitRHIThreadFenceForDynamicData)(UE::RenderCommandPipe::SkeletalMesh,
+	ENQUEUE_RENDER_COMMAND(WaitRHIThreadFenceForDynamicData)(
 		[MeshObject, PtrSkinCacheEntry, &SkinCacheEntryForRayTracing = SkinCacheEntryForRayTracing](FRHICommandList& RHICmdList)
 		{
 			FGPUSkinCacheEntry*& LocalSkinCacheEntry = *PtrSkinCacheEntry;
@@ -313,14 +313,14 @@ void FSkeletalMeshObjectGPUSkin::ReleaseResources()
 #if RHI_RAYTRACING
 	if (bSupportRayTracing)
 	{
-		BeginReleaseResource(&RayTracingGeometry, &UE::RenderCommandPipe::SkeletalMesh);
+		BeginReleaseResource(&RayTracingGeometry);
 	}
 
 	// Only enqueue when intialized
 	if (RayTracingUpdateQueue != nullptr || RayTracingDynamicVertexBuffer.NumBytes > 0)
 	{
-		ENQUEUE_RENDER_COMMAND(ReleaseRayTracingDynamicVertexBuffer)(UE::RenderCommandPipe::SkeletalMesh,
-			[RayTracingUpdateQueue = RayTracingUpdateQueue, RayTracingGeometryPtr = &RayTracingGeometry, &RayTracingDynamicVertexBuffer = RayTracingDynamicVertexBuffer](FRHICommandList& RHICmdList) mutable
+		ENQUEUE_RENDER_COMMAND(ReleaseRayTracingDynamicVertexBuffer)(
+			[RayTracingUpdateQueue = RayTracingUpdateQueue, RayTracingGeometryPtr = &RayTracingGeometry, &RayTracingDynamicVertexBuffer = RayTracingDynamicVertexBuffer](FRHICommandListImmediate& RHICmdList) mutable
 			{
 				if (RayTracingUpdateQueue != nullptr)
 				{
@@ -419,8 +419,8 @@ void FSkeletalMeshObjectGPUSkin::Update(
 
 	// queue a call to update this data
 	FSkeletalMeshObjectGPUSkin* MeshObject = this;
-	ENQUEUE_RENDER_COMMAND(SkelMeshObjectUpdateDataCommand)(UE::RenderCommandPipe::SkeletalMesh,
-		[MeshObject, FrameNumberToPrepare, RevisionNumber, NewDynamicData, GPUSkinCache, Scene](FRHICommandList& RHICmdList)
+	ENQUEUE_RENDER_COMMAND(SkelMeshObjectUpdateDataCommand)(
+		[MeshObject, FrameNumberToPrepare, RevisionNumber, NewDynamicData, GPUSkinCache, Scene](FRHICommandListImmediate& RHICmdList)
 		{
 			FScopeCycleCounter Context(MeshObject->GetStatId());
 			MeshObject->UpdateDynamicData_RenderThread(GPUSkinCache, RHICmdList, NewDynamicData, Scene, FrameNumberToPrepare, RevisionNumber);
@@ -450,8 +450,8 @@ void FSkeletalMeshObjectGPUSkin::UpdateSkinWeightBuffer(USkinnedMeshComponent* I
 				FGPUSkinCacheEntry* SkinCacheEntryToUpdate = SkinCacheEntry;
 				if (SkinCacheEntryToUpdate)
 				{
-					ENQUEUE_RENDER_COMMAND(UpdateSkinCacheSkinWeightBuffer)(UE::RenderCommandPipe::SkeletalMesh,
-						[SkinCacheEntryToUpdate](FRHICommandList& RHICmdList)
+					ENQUEUE_RENDER_COMMAND(UpdateSkinCacheSkinWeightBuffer)(
+						[SkinCacheEntryToUpdate](FRHICommandListImmediate& RHICmdList)
 					{
 						FGPUSkinCache::UpdateSkinWeightBuffer(SkinCacheEntryToUpdate);
 					});
@@ -459,8 +459,8 @@ void FSkeletalMeshObjectGPUSkin::UpdateSkinWeightBuffer(USkinnedMeshComponent* I
 
 				if (SkinCacheEntryForRayTracing)
 				{
-					ENQUEUE_RENDER_COMMAND(UpdateSkinCacheSkinWeightBuffer)(UE::RenderCommandPipe::SkeletalMesh,
-						[SkinCacheEntryForRayTracing = SkinCacheEntryForRayTracing](FRHICommandList& RHICmdList)
+					ENQUEUE_RENDER_COMMAND(UpdateSkinCacheSkinWeightBuffer)(
+						[SkinCacheEntryForRayTracing = SkinCacheEntryForRayTracing](FRHICommandListImmediate& RHICmdList)
 					{
 						FGPUSkinCache::UpdateSkinWeightBuffer(SkinCacheEntryForRayTracing);
 					});
@@ -1352,8 +1352,8 @@ void FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectLOD::UpdateSkinWeights(FSkel
 			GetVertexBuffers(VertexBuffers, LODData);
 
 			FSkeletalMeshObjectLOD* Self = this;
-			ENQUEUE_RENDER_COMMAND(UpdateSkinWeightsGPUSkin)(UE::RenderCommandPipe::SkeletalMesh,
-				[NewMeshObjectWeightBuffer, VertexBuffers, Self](FRHICommandList& RHICmdList)
+			ENQUEUE_RENDER_COMMAND(UpdateSkinWeightsGPUSkin)(
+				[NewMeshObjectWeightBuffer, VertexBuffers, Self](FRHICommandListImmediate& RHICmdList)
 			{
 				Self->GPUSkinVertexFactories.UpdateVertexFactoryData(VertexBuffers);
 			});
@@ -1810,7 +1810,7 @@ static FGPUBaseSkinVertexFactory* CreateVertexFactory(TArray<TUniquePtr<FGPUBase
 	FDynamicUpdateVertexFactoryData VertexUpdateData(VertexFactory, InVertexBuffers);
 
 	// update vertex factory components and sync it
-	ENQUEUE_RENDER_COMMAND(InitGPUSkinVertexFactory)(UE::RenderCommandPipe::SkeletalMesh,
+	ENQUEUE_RENDER_COMMAND(InitGPUSkinVertexFactory)(
 		[VertexUpdateData](FRHICommandList& RHICmdList)
 		{
 			FGPUSkinDataType Data;
@@ -1836,7 +1836,7 @@ void UpdateVertexFactory(TArray<TUniquePtr<FGPUBaseSkinVertexFactory>>& VertexFa
 			FDynamicUpdateVertexFactoryData VertexUpdateData(VertexFactory, InVertexBuffers);
 
 			// update vertex factory components and sync it
-			ENQUEUE_RENDER_COMMAND(UpdateGPUSkinVertexFactory)(UE::RenderCommandPipe::SkeletalMesh,
+			ENQUEUE_RENDER_COMMAND(UpdateGPUSkinVertexFactory)(
 				[VertexUpdateData](FRHICommandList& RHICmdList)
 			{
 				FGPUSkinDataType Data;
@@ -1854,7 +1854,7 @@ static void CreatePassthroughVertexFactory(ERHIFeatureLevel::Type InFeatureLevel
 	PassthroughVertexFactories.Add(TUniquePtr<FGPUSkinPassthroughVertexFactory>(NewPassthroughVertexFactory));
 
 	// update vertex factory components and sync it
-	ENQUEUE_RENDER_COMMAND(InitPassthroughGPUSkinVertexFactory)(UE::RenderCommandPipe::SkeletalMesh,
+	ENQUEUE_RENDER_COMMAND(InitPassthroughGPUSkinVertexFactory)(
 		[NewPassthroughVertexFactory, SourceVertexFactory](FRHICommandList& RHICmdList)
 		{
 			FLocalVertexFactory::FDataType Data;
@@ -1889,7 +1889,7 @@ static void CreateVertexFactoryMorph(TArray<TUniquePtr<FGPUBaseSkinVertexFactory
 	FDynamicUpdateVertexFactoryData VertexUpdateData(VertexFactory, InVertexBuffers);
 
 	// update vertex factory components and sync it
-	ENQUEUE_RENDER_COMMAND(InitGPUSkinVertexFactoryMorph)(UE::RenderCommandPipe::SkeletalMesh,
+	ENQUEUE_RENDER_COMMAND(InitGPUSkinVertexFactoryMorph)(
 		[VertexUpdateData](FRHICommandList& RHICmdList)
 		{
 			FGPUSkinDataType Data;
@@ -1914,7 +1914,7 @@ static void UpdateVertexFactoryMorph(TArray<TUniquePtr<FGPUBaseSkinVertexFactory
 			FDynamicUpdateVertexFactoryData VertexUpdateData(VertexFactory, InVertexBuffers);
 
 			// update vertex factory components and sync it
-			ENQUEUE_RENDER_COMMAND(InitGPUSkinVertexFactoryMorph)(UE::RenderCommandPipe::SkeletalMesh,
+			ENQUEUE_RENDER_COMMAND(InitGPUSkinVertexFactoryMorph)(
 				[VertexUpdateData](FRHICommandList& RHICmdList)
 			{
 				FGPUSkinDataType Data;
@@ -1968,7 +1968,7 @@ static void CreateVertexFactoryCloth(TArray<TUniquePtr<FGPUBaseSkinAPEXClothVert
 	FDynamicUpdateVertexFactoryData VertexUpdateData(VertexFactory, InVertexBuffers);
 
 	// update vertex factory components and sync it
-	ENQUEUE_RENDER_COMMAND(InitGPUSkinAPEXClothVertexFactory)(UE::RenderCommandPipe::SkeletalMesh,
+	ENQUEUE_RENDER_COMMAND(InitGPUSkinAPEXClothVertexFactory)(
 		[VertexUpdateData](FRHICommandList& RHICmdList)
 		{
 			FGPUSkinAPEXClothDataType Data;
@@ -1993,7 +1993,7 @@ static void UpdateVertexFactoryCloth(TArray<TUniquePtr<FGPUBaseSkinAPEXClothVert
 			FDynamicUpdateVertexFactoryData VertexUpdateData(VertexFactory, InVertexBuffers);
 
 			// update vertex factory components and sync it
-			ENQUEUE_RENDER_COMMAND(InitGPUSkinAPEXClothVertexFactory)(UE::RenderCommandPipe::SkeletalMesh,
+			ENQUEUE_RENDER_COMMAND(InitGPUSkinAPEXClothVertexFactory)(
 				[VertexUpdateData](FRHICommandList& RHICmdList)
 			{
 				FGPUSkinAPEXClothDataType Data;
@@ -2112,12 +2112,12 @@ void FSkeletalMeshObjectGPUSkin::FVertexFactoryData::ReleaseVertexFactories()
 	// Default factories
 	for( int32 FactoryIdx=0; FactoryIdx < VertexFactories.Num(); FactoryIdx++)
 	{
-		BeginReleaseResource(VertexFactories[FactoryIdx].Get(), &UE::RenderCommandPipe::SkeletalMesh);
+		BeginReleaseResource(VertexFactories[FactoryIdx].Get());
 	}
 
 	for (int32 FactoryIdx = 0; FactoryIdx < PassthroughVertexFactories.Num(); FactoryIdx++)
 	{
-		BeginReleaseResource(PassthroughVertexFactories[FactoryIdx].Get(), &UE::RenderCommandPipe::SkeletalMesh);
+		BeginReleaseResource(PassthroughVertexFactories[FactoryIdx].Get());
 	}
 }
 
@@ -2143,7 +2143,7 @@ void FSkeletalMeshObjectGPUSkin::FVertexFactoryData::ReleaseMorphVertexFactories
 	// Default morph factories
 	for( int32 FactoryIdx=0; FactoryIdx < MorphVertexFactories.Num(); FactoryIdx++ )
 	{
-		BeginReleaseResource(MorphVertexFactories[FactoryIdx].Get(), &UE::RenderCommandPipe::SkeletalMesh);
+		BeginReleaseResource(MorphVertexFactories[FactoryIdx].Get());
 	}
 }
 
@@ -2188,7 +2188,7 @@ void FSkeletalMeshObjectGPUSkin::FVertexFactoryData::ReleaseAPEXClothVertexFacto
 		TUniquePtr<FGPUBaseSkinAPEXClothVertexFactory>& ClothVertexFactory = ClothVertexFactories[FactoryIdx];
 		if (ClothVertexFactory)
 		{
-			BeginReleaseResource(ClothVertexFactory->GetVertexFactory(), &UE::RenderCommandPipe::SkeletalMesh);
+			BeginReleaseResource(ClothVertexFactory->GetVertexFactory());
 		}
 	}
 }

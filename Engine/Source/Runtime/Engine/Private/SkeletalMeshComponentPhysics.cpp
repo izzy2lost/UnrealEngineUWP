@@ -14,7 +14,6 @@
 #include "AnimationRuntime.h"
 #include "ClothCollisionData.h"
 #include "ClothingSimulationInteractor.h"
-#include "Rendering/RenderCommandPipes.h"
 
 #include "Logging/MessageLog.h"
 #include "CollisionDebugDrawingPublic.h"
@@ -1660,8 +1659,8 @@ void USkeletalMeshComponent::SendRenderDebugPhysics(FPrimitiveSceneProxy* Overri
 			}
 		}
 
-		ENQUEUE_RENDER_COMMAND(SkeletalMesh_SendRenderDebugPhysics)(UE::RenderCommandPipe::SkeletalMesh,
-			[UseSceneProxy, DebugMassData]
+		ENQUEUE_RENDER_COMMAND(SkeletalMesh_SendRenderDebugPhysics)(
+			[UseSceneProxy, DebugMassData](FRHICommandListImmediate& RHICmdList)
 			{
 				UseSceneProxy->SetDebugMassData(DebugMassData);
 			}

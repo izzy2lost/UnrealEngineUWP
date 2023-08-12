@@ -242,7 +242,7 @@ static TAutoConsoleVariable<int32> CVarRHICmdDeferSkeletalLockAndFillToRHIThread
 
 static bool DeferSkeletalLockAndFillToRHIThread()
 {
-	return IsRunningRHIInSeparateThread() && CVarRHICmdDeferSkeletalLockAndFillToRHIThread.GetValueOnRenderThread() > 0 && !UE::RenderCommandPipe::IsReplaying();
+	return IsRunningRHIInSeparateThread() && CVarRHICmdDeferSkeletalLockAndFillToRHIThread.GetValueOnRenderThread() > 0;
 }
 
 bool FGPUBaseSkinVertexFactory::FShaderDataType::UpdateBoneData(FRHICommandList& RHICmdList, const TArray<FMatrix44f>& ReferenceToLocalMatrices,

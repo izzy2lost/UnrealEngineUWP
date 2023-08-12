@@ -98,6 +98,8 @@ public:
 
 	virtual ~FMeshRenderBufferSet()
 	{
+		check(IsInRenderingThread());
+
 		if (TriangleCount > 0)
 		{
 			PositionVertexBuffer.ReleaseResource();
@@ -391,7 +393,11 @@ protected:
 			return;
 		}
 
-		delete BufferSet;
+		ENQUEUE_RENDER_COMMAND(FMeshRenderBufferSetDestroy)(
+			[BufferSet](FRHICommandListImmediate& RHICmdList)
+		{
+			delete BufferSet;
+		});
 	}
 
 

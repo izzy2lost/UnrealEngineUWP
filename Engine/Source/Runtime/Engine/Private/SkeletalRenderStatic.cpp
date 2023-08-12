@@ -7,7 +7,7 @@
 #include "SkeletalRenderStatic.h"
 #include "RenderUtils.h"
 #include "Rendering/SkeletalMeshRenderData.h"
-#include "Rendering/RenderCommandPipes.h"
+#include "RenderingThread.h"
 
 #if RHI_RAYTRACING
 #include "Engine/SkinnedAssetCommon.h"
@@ -67,7 +67,7 @@ void FSkeletalMeshObjectStatic::InitResources(USkinnedMeshComponent* InMeshCompo
 					}
 
 					TArray<FSkelMeshRenderSection>* RenderSections = &LODModel.RenderSections;
-					ENQUEUE_RENDER_COMMAND(InitSkeletalRenderStaticRayTracingGeometry)(UE::RenderCommandPipe::SkeletalMesh,
+					ENQUEUE_RENDER_COMMAND(InitSkeletalRenderStaticRayTracingGeometry)(
 						[this, VertexBufferRHI, IndexBufferRHI, VertexBufferStride, TrianglesCount, RenderSections, 
 						LODIndex = LODIndex, 
 						SkelMeshRenderData = SkelLOD.SkelMeshRenderData, 
@@ -144,13 +144,14 @@ void FSkeletalMeshObjectStatic::ReleaseResources()
 
 					if (SkelLOD.SkelMeshRenderData->LODRenderData[LODIndex].NumReferencingStaticSkeletalMeshObjects == 0)
 					{
-						ENQUEUE_RENDER_COMMAND(ResetStaticRayTracingGeometryFlag)(UE::RenderCommandPipe::SkeletalMesh,
-							[&bReferencedByStaticSkeletalMeshObjects_RenderThread = SkelLOD.SkelMeshRenderData->LODRenderData[LODIndex].bReferencedByStaticSkeletalMeshObjects_RenderThread]
+						ENQUEUE_RENDER_COMMAND(ResetStaticRayTracingGeometryFlag)(
+							[&bReferencedByStaticSkeletalMeshObjects_RenderThread = SkelLOD.SkelMeshRenderData->LODRenderData[LODIndex].bReferencedByStaticSkeletalMeshObjects_RenderThread](FRHICommandListImmediate& RHICmdList)
 						{
 							bReferencedByStaticSkeletalMeshObjects_RenderThread = false;
-						});
+						}
+						);
 
-						BeginReleaseResource(&SkelLOD.SkelMeshRenderData->LODRenderData[LODIndex].StaticRayTracingGeometry, &UE::RenderCommandPipe::SkeletalMesh);
+						BeginReleaseResource(&SkelLOD.SkelMeshRenderData->LODRenderData[LODIndex].StaticRayTracingGeometry);
 					}
 				}
 			}
@@ -203,7 +204,7 @@ void FSkeletalMeshObjectStatic::FSkeletalMeshObjectLOD::InitResources(FSkelMeshC
 	FLocalVertexFactory* VertexFactoryPtr = &VertexFactory;
 	FColorVertexBuffer* ColorVertexBufferPtr = ColorVertexBuffer;
 
-	ENQUEUE_RENDER_COMMAND(InitSkeletalMeshStaticSkinVertexFactory)(UE::RenderCommandPipe::SkeletalMesh,
+	ENQUEUE_RENDER_COMMAND(InitSkeletalMeshStaticSkinVertexFactory)(
 		[VertexFactoryPtr, PositionVertexBufferPtr, StaticMeshVertexBufferPtr, ColorVertexBufferPtr](FRHICommandList& RHICmdList)
 		{
 			FLocalVertexFactory::FDataType Data;
@@ -229,10 +230,10 @@ void FSkeletalMeshObjectStatic::FSkeletalMeshObjectLOD::InitResources(FSkelMeshC
  */
 void FSkeletalMeshObjectStatic::FSkeletalMeshObjectLOD::ReleaseResources()
 {	
-	BeginReleaseResource(&VertexFactory, &UE::RenderCommandPipe::SkeletalMesh);
+	BeginReleaseResource(&VertexFactory);
 
 #if RHI_RAYTRACING
-	BeginReleaseResource(&RayTracingGeometry, &UE::RenderCommandPipe::SkeletalMesh);
+	BeginReleaseResource(&RayTracingGeometry);
 #endif // RHI_RAYTRACING
 
 	bResourcesInitialized = false;

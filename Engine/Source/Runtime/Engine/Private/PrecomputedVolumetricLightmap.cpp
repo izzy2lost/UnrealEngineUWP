@@ -699,9 +699,9 @@ void FPrecomputedVolumetricLightmap::AddToScene(FSceneInterface* Scene, UMapBuil
 		FPrecomputedVolumetricLightmap* Volume = this;
 
 		ENQUEUE_RENDER_COMMAND(SetVolumeDataCommand)
-			([Volume, NewData, Scene] (FRHICommandListBase& RHICmdList)
+			([Volume, NewData, Scene](FRHICommandListImmediate& RHICmdList) 
 			{
-				Volume->SetData(RHICmdList, NewData, Scene);
+				Volume->SetData(NewData, Scene);
 			});
 		Scene->AddPrecomputedVolumetricLightmap(this, bIsPersistentLevel);
 	}
@@ -741,7 +741,7 @@ void FPrecomputedVolumetricLightmap::RemoveFromScene(FSceneInterface* Scene)
 	WorldOriginOffset = FVector::ZeroVector;
 }
 
-void FPrecomputedVolumetricLightmap::SetData(FRHICommandListBase& RHICmdList, FPrecomputedVolumetricLightmapData* NewData, FSceneInterface* Scene)
+void FPrecomputedVolumetricLightmap::SetData(FPrecomputedVolumetricLightmapData* NewData, FSceneInterface* Scene)
 {
 	Data = NewData;
 
@@ -753,7 +753,7 @@ void FPrecomputedVolumetricLightmap::SetData(FRHICommandListBase& RHICmdList, FP
 
 		if (Scene->GetFeatureLevel() >= ERHIFeatureLevel::SM5)
 		{
-			Data->InitResource(RHICmdList);
+			Data->InitResource(FRHICommandListImmediate::Get());
 		}
 	}
 }

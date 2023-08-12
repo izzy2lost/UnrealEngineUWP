@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Rendering/MultiSizeIndexContainer.h"
-#include "Rendering/RenderCommandPipes.h"
 #include "EngineLogs.h"
 #include "RawIndexBuffer.h"
 #include "Stats/Stats.h"
+#include "RenderingThread.h"
 
 FMultiSizeIndexContainer::~FMultiSizeIndexContainer()
 {
@@ -31,7 +31,7 @@ void FMultiSizeIndexContainer::InitResources()
 	check(IsInGameThread());
 	if (IndexBuffer)
 	{
-		BeginInitResource(IndexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
+		BeginInitResource(IndexBuffer);
 	}
 }
 
@@ -43,7 +43,7 @@ void FMultiSizeIndexContainer::ReleaseResources()
 	check(IsInGameThread());
 	if (IndexBuffer)
 	{
-		BeginReleaseResource(IndexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
+		BeginReleaseResource(IndexBuffer);
 	}
 }
 

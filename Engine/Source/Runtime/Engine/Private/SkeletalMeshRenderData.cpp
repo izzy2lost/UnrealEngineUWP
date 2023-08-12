@@ -8,7 +8,6 @@
 #include "Engine/SkinnedAssetCommon.h"
 #include "EngineLogs.h"
 #include "UObject/Package.h"
-#include "Rendering/RenderCommandPipes.h"
 
 #if WITH_EDITOR
 #include "ProfilingDebugging/CookStats.h"
@@ -455,7 +454,7 @@ void FSkeletalMeshRenderData::SyncUVChannelData(const TArray<FSkeletalMaterial>&
 	// to the render thread.
 	if (bInitialized)
 	{
-		ENQUEUE_RENDER_COMMAND(SyncUVChannelData)(UE::RenderCommandPipe::SkeletalMesh, [this, UpdateData = MoveTemp(UpdateData)]
+		ENQUEUE_RENDER_COMMAND(SyncUVChannelData)([this, UpdateData = MoveTemp(UpdateData)](FRHICommandListImmediate& RHICmdList)
 		{
 			Swap(UVChannelDataPerMaterial, *UpdateData.Get());
 		});
@@ -642,8 +641,8 @@ void FSkeletalMeshRenderData::InitResources(bool bNeedsVertexColors, TArray<UMor
 			}
 		}
 
-		ENQUEUE_RENDER_COMMAND(CmdSetSkeletalMeshReadyForStreaming)(UE::RenderCommandPipe::SkeletalMesh,
-			[this, Owner]
+		ENQUEUE_RENDER_COMMAND(CmdSetSkeletalMeshReadyForStreaming)(
+			[this, Owner](FRHICommandListImmediate&)
 		{
 			bReadyForStreaming = true;
 		});

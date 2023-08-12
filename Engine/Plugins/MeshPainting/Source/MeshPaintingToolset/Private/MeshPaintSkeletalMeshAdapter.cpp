@@ -11,7 +11,7 @@
 #include "InterchangeAssetImportData.h"
 #include "InterchangeGenericAssetsPipeline.h"
 #include "InterchangePythonPipelineBase.h"
-#include "Rendering/RenderCommandPipes.h"
+#include "RenderingThread.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMeshPaintSkeletalMeshAdapter, Log, All);
 //////////////////////////////////////////////////////////////////////////
@@ -382,7 +382,7 @@ void FMeshPaintSkeletalMeshComponentAdapter::PreEdit()
 		LODData->StaticVertexBuffers.ColorVertexBuffer.InitFromSingleColor(FColor(255, 255, 255, 255), LODData->GetNumVertices());
 		ReferencedSkeletalMesh->SetHasVertexColors(true);
 		ReferencedSkeletalMesh->SetVertexColorGuid(FGuid::NewGuid());
-		BeginInitResource(&LODData->StaticVertexBuffers.ColorVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
+		BeginInitResource(&LODData->StaticVertexBuffers.ColorVertexBuffer);
 	}
 	//Make sure we change the import data so the re-import do not replace the new data
 	if (ReferencedSkeletalMesh->GetAssetImportData())

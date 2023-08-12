@@ -14,7 +14,6 @@
 #include "StaticMeshResources.h"
 #include "SceneInterface.h"
 
-DEFINE_RENDER_COMMAND_PIPE(Cable);
 
 static TAutoConsoleVariable<int32> CVarRayTracingCableMeshes(
 	TEXT("r.RayTracing.Geometry.Cable"),
@@ -93,12 +92,12 @@ public:
 		, NumSides(Component->NumSides)
 		, TileMaterial(Component->TileMaterial)
 	{
-		VertexBuffers.InitWithDummyData(&UE::RenderCommandPipe::Cable, &VertexFactory, GetRequiredVertexCount());
+		VertexBuffers.InitWithDummyData(&VertexFactory, GetRequiredVertexCount());
 
 		IndexBuffer.NumIndices = GetRequiredIndexCount();
 
 		// Enqueue initialization of render resource
-		BeginInitResource(&IndexBuffer, &UE::RenderCommandPipe::Cable);
+		BeginInitResource(&IndexBuffer);
 
 		// Grab material
 		Material = Component->GetMaterial(0);
@@ -1044,8 +1043,8 @@ void UCableComponent::SendRenderDynamicData_Concurrent()
 
 		// Enqueue command to send to render thread
 		FCableSceneProxy* CableSceneProxy = (FCableSceneProxy*)SceneProxy;
-		ENQUEUE_RENDER_COMMAND(FSendCableDynamicData)(UE::RenderCommandPipe::Cable,
-			[CableSceneProxy, DynamicData](FRHICommandListBase& RHICmdList)
+		ENQUEUE_RENDER_COMMAND(FSendCableDynamicData)(
+			[CableSceneProxy, DynamicData](FRHICommandListImmediate& RHICmdList)
 		{
 			CableSceneProxy->SetDynamicData_RenderThread(RHICmdList, DynamicData);
 		});
