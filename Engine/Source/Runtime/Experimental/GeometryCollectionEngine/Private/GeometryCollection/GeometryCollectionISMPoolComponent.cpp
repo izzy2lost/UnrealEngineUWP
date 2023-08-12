@@ -16,8 +16,13 @@ static bool GUseComponentFreeList = true;
 FAutoConsoleVariableRef CVarISMPoolUseComponentFreeList(
 	TEXT("r.ISMPool.UseComponentFreeList"),
 	GUseComponentFreeList,
-	TEXT("Recycle ISM components in the Pool."));
+	TEXT("Recycle ISM components in the ISMPool."));
 
+static int32 GComponentFreeListTargetSize = 50;
+FAutoConsoleVariableRef CVarISMPoolComponentFreeListTargetSize(
+	TEXT("r.ISMPool.ComponentFreeListTargetSize"),
+	GComponentFreeListTargetSize,
+	TEXT("Target size for number of ISM components in the ISMPool."));
 
 FGeometryCollectionMeshGroup::FMeshId FGeometryCollectionMeshGroup::AddMesh(const FGeometryCollectionStaticMeshInstance& MeshInstance, int32 InstanceCount, const FGeometryCollectionMeshInfo& ISMInstanceInfo)
 {
@@ -57,11 +62,11 @@ void FGeometryCollectionMeshGroup::RemoveAllMeshes(FGeometryCollectionISMPool& I
 	Meshes.Empty();
 }
 
-FGeometryCollectionISM::FGeometryCollectionISM(AActor* InOwningActor)
+void FGeometryCollectionISM::CreateISM(AActor* InOwningActor, bool bInUseHISM)
 {
 	check(InOwningActor);
 
-	if ((MeshInstance.Desc.Flags & FISMComponentDescription::UseHISM) != 0)
+	if (bInUseHISM)
 	{
 		ISMComponent = NewObject<UHierarchicalInstancedStaticMeshComponent>(InOwningActor, NAME_None, RF_Transient | RF_DuplicateTransient);
 	}
@@ -187,12 +192,20 @@ FGeometryCollectionISMPool::FISMIndex FGeometryCollectionISMPool::AddISM(UGeomet
 		ISMIndex = FreeListISM.Last();
 		FreeListISM.RemoveAt(FreeListISM.Num() - 1);
 	}
+	else if (FreeList.Num())
+	{
+		ISMIndex = FreeList.Last();
+		FreeList.RemoveAt(FreeList.Num() - 1);
+		ISMs[ISMIndex].CreateISM(OwningComponent->GetOwner(), bIsHISM);
+	}
 	else
 	{
-		ISMIndex = ISMs.Emplace(OwningComponent->GetOwner());
+		ISMIndex = ISMs.AddDefaulted();
+		ISMs[ISMIndex].CreateISM(OwningComponent->GetOwner(), bIsHISM);
 	}
 	
 	ISMs[ISMIndex].InitISM(MeshInstance);
+	
 	MeshToISMIndex.Add(MeshInstance, ISMIndex);
 	return ISMIndex;
 }
@@ -317,6 +330,7 @@ void FGeometryCollectionISMPool::RemoveISM(const FGeometryCollectionMeshInfo& Me
 void FGeometryCollectionISMPool::Clear()
 {
 	MeshToISMIndex.Reset();
+	FreeList.Reset();
 	FreeListISM.Reset();
 	FreeListHISM.Reset();
 	if (ISMs.Num() > 0)
@@ -334,9 +348,50 @@ void FGeometryCollectionISMPool::Clear()
 	}
 }
 
+void FGeometryCollectionISMPool::GarbageCollect()
+{
+	// Release one component per call until we reach minimum pool size.
+	const int32 NumFreeISMSlots = FreeListISM.Num();
+	const int32 NumFreeHISMSlots = FreeListHISM.Num();
+
+	if (NumFreeISMSlots + NumFreeHISMSlots > GComponentFreeListTargetSize)
+	{
+		int32 ISMIndex = INDEX_NONE;
+		if (NumFreeHISMSlots >= NumFreeISMSlots)
+		{
+			ISMIndex = FreeListHISM.Last();
+			FreeListHISM.RemoveAt(FreeListHISM.Num() - 1);
+		}
+		else
+		{
+			ISMIndex = FreeListISM.Last();
+			FreeListISM.RemoveAt(FreeListISM.Num() - 1);
+		}
+		
+		UInstancedStaticMeshComponent* ISM = ISMs[ISMIndex].ISMComponent;
+		ISM->UnregisterComponent();
+		ISM->DestroyComponent();
+		ISM->GetOwner()->RemoveInstanceComponent(ISM);
+		ISMs[ISMIndex].ISMComponent = nullptr;
+
+		FreeList.Add(ISMIndex);
+	}
+}
+
+
 UGeometryCollectionISMPoolComponent::UGeometryCollectionISMPoolComponent(const FObjectInitializer& ObjectInitializer)
 	: NextMeshGroupId(0)
 {
+	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bStartWithTickEnabled = true;
+	PrimaryComponentTick.bAllowTickOnDedicatedServer = false;
+	PrimaryComponentTick.TickInterval = 0.25f;
+}
+
+void UGeometryCollectionISMPoolComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	Pool.GarbageCollect();
 }
 
 UGeometryCollectionISMPoolComponent::FMeshGroupId  UGeometryCollectionISMPoolComponent::CreateMeshGroup()
@@ -398,6 +453,7 @@ void UGeometryCollectionISMPoolComponent::GetResourceSizeEx(FResourceSizeEx& Cum
 		MeshGroups.GetAllocatedSize()
 		+ Pool.MeshToISMIndex.GetAllocatedSize()
 		+ Pool.ISMs.GetAllocatedSize()
+		+ Pool.FreeList.GetAllocatedSize()
 		+ Pool.FreeListISM.GetAllocatedSize()
 		+ Pool.FreeListHISM.GetAllocatedSize();
 	

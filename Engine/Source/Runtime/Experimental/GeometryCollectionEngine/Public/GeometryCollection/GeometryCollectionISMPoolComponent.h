@@ -244,8 +244,8 @@ struct FGeometryCollectionMeshGroup
 /** Structure containting all info for a single ISM. */
 struct FGeometryCollectionISM
 {
-	FGeometryCollectionISM(AActor* InOwningActor);
-
+	/** Create the ISMComponent according to settings on the mesh instance. */
+	void CreateISM(AActor* InOwningActor, bool bInUseHISM);
 	/** Initialize the ISMComponent according to settings on the mesh instance. */
 	void InitISM(const FGeometryCollectionStaticMeshInstance& InMeshInstance);
 	/** Add a group to the ISM. Returns the group index. */
@@ -268,21 +268,30 @@ struct FGeometryCollectionISMPool
 {
 	using FISMIndex = int32;
 
+	/** Add ISM contents. */
 	FISMIndex AddISM(UGeometryCollectionISMPoolComponent* OwningComponent, const FGeometryCollectionStaticMeshInstance& MeshInstance);
 	FGeometryCollectionMeshInfo AddISM(UGeometryCollectionISMPoolComponent* OwningComponent, const FGeometryCollectionStaticMeshInstance& MeshInstance, int32 InstanceCount, TArrayView<const float> CustomDataFloats);
-
+	/** Remove ISM contents. */
+	void RemoveISM(const FGeometryCollectionMeshInfo& MeshInfo);
+	/** Update ISM contents. */
 	bool BatchUpdateInstancesTransforms(FGeometryCollectionMeshInfo& MeshInfo, int32 StartInstanceIndex, const TArray<FTransform>& NewInstancesTransforms, bool bWorldSpace, bool bMarkRenderStateDirty, bool bTeleport);
-
 	bool BatchUpdateInstancesTransforms(FGeometryCollectionMeshInfo& MeshInfo, int32 StartInstanceIndex, TArrayView<const FTransform> NewInstancesTransforms, bool bWorldSpace, bool bMarkRenderStateDirty, bool bTeleport);
 
-	void RemoveISM(const FGeometryCollectionMeshInfo& MeshInfo);
-	
-	/** Clear all ISM components and associated data */
+	/** Clear all ISM components and associated data. */
 	void Clear();
+	/** Garbage collect free lists. */
+	void GarbageCollect();
 
-	TMap<FGeometryCollectionStaticMeshInstance, FISMIndex> MeshToISMIndex;
+	/** Array of ISM objects. */
 	TArray<FGeometryCollectionISM> ISMs;
+	/** Mapping from mesh description to ISMs array slot. */
+	TMap<FGeometryCollectionStaticMeshInstance, FISMIndex> MeshToISMIndex;
+	
+	/** Free list of indices in ISMs that are empty. */
+	TArray<int32> FreeList;
+	/** Free list of indices in ISMs that have registered ISM components. */
 	TArray<int32> FreeListISM;
+	/** Free list of indices in ISMs that have registered HISM components. */
 	TArray<int32> FreeListHISM;
 };
 
@@ -301,7 +310,8 @@ public:
 	using FMeshId = int32;
 
 	//~ Begin UActorComponent Interface
-	GEOMETRYCOLLECTIONENGINE_API virtual void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) override;
+	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	virtual void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) override;
 	//~ End UActorComponent Interface
 
 	/** 
@@ -311,7 +321,7 @@ public:
 	*/
 	GEOMETRYCOLLECTIONENGINE_API FMeshGroupId CreateMeshGroup();
 
-	/** destroy  a mesh group and its associated resources */
+	/** Destroy  a mesh group and its associated resources */
 	GEOMETRYCOLLECTIONENGINE_API void DestroyMeshGroup(FMeshGroupId MeshGroupId);
 
 	/** Add a static mesh for a mesh group */
