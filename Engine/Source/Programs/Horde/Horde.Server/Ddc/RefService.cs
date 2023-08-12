@@ -40,13 +40,12 @@ namespace Horde.Server.Ddc
 
 		public async Task<(ContentId[], BlobId[])> FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CancellationToken cancellationToken)
 		{
-			HashSet<BlobId> missingBlobIds = new HashSet<BlobId>();
+			List<BlobId> missingBlobIds = new List<BlobId>();
 
 			// Read all the blobs back in
 			List<BlobId> blobIds = new List<BlobId>();
 			blobIds.Add(blobHash);
 
-			HashSet<BlobId> addedBlobIds = new HashSet<BlobId>();
 			for (int idx = 0; idx < blobIds.Count; idx++)
 			{
 				try
@@ -55,14 +54,7 @@ namespace Horde.Server.Ddc
 					byte[] data = await contents.Stream.ReadAllBytesAsync(cancellationToken);
 
 					CbObject obj = new CbObject(data);
-					obj.IterateAttachments(x =>
-					{
-						BlobId blobId = new BlobId(x.AsAttachment());
-						if (addedBlobIds.Add(blobId))
-						{
-							blobIds.Add(blobId);
-						}
-					});
+					obj.IterateAttachments(x => blobIds.Add(new BlobId(x.AsAttachment())));
 				}
 				catch (BlobNotFoundException)
 				{

@@ -58,6 +58,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="Ddc\Functional\Objects\Payloads\lyra.cb">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="Ddc\UnitTests\CompactBinaryObjects\build">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
