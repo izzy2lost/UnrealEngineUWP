@@ -10,12 +10,12 @@ namespace Horde.Server.Ddc
 	{
 		public Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId = false)
 		{
-			throw new NotImplementedException();
+			return Task.FromResult<BlobId[]?>(null);
 		}
 
 		public Task PutAsync(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
 		{
-			throw new NotImplementedException();
+			return Task.CompletedTask;
 		}
 	}
 }

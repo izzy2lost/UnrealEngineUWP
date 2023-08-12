@@ -18,7 +18,7 @@ namespace Horde.Server.Ddc
 		public IoHash RootHash { get; }
 
 		/// <summary>
-		/// References to attachments
+		/// References to attachments. We embed this in the ref node to ensure any aliased blobs have a hard reference from the root.
 		/// </summary>
 		public List<(IoHash Hash, BlobHandle Handle)> References { get; }
 

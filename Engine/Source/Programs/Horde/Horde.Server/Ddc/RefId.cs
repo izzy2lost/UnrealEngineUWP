@@ -3,6 +3,7 @@
 using System;
 using System.ComponentModel;
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
@@ -50,6 +51,11 @@ namespace Horde.Server.Ddc
 
 		/// <inheritdoc cref="IoHash.op_Inequality"/>
 		public static bool operator !=(RefId left, RefId right) => left.Hash != right.Hash;
+
+		/// <summary>
+		/// Creates a RefId by hashing a string
+		/// </summary>
+		public static RefId FromName(string name) => new RefId(IoHash.Compute(Encoding.UTF8.GetBytes(name)));
 	}
 
 	/// <summary>

@@ -244,16 +244,16 @@ namespace EpicGames.Serialization.Tests
 
 			// Test CbField(Object, Empty)
 			{
-				CbObject @object = CbObject.Empty;
-				TestIntObject(@object, 0, 1);
+				CbObject obj = CbObject.Empty;
+				TestIntObject(obj, 0, 1);
 
 				// Find fields that do not exist.
-				Assert.IsFalse(@object.Find("Field").HasValue());
-				Assert.IsFalse(@object.FindIgnoreCase("Field").HasValue());
-				Assert.IsFalse(@object["Field"].HasValue());
+				Assert.IsFalse(obj.Find("Field").HasValue());
+				Assert.IsFalse(obj.FindIgnoreCase("Field").HasValue());
+				Assert.IsFalse(obj["Field"].HasValue());
 
 				// Advance an iterator past the last field.
-				CbFieldIterator it = @object.CreateIterator();
+				CbFieldIterator it = obj.CreateIterator();
 				Assert.IsFalse((bool)it);
 				Assert.IsTrue(!it);
 				for (int count = 16; count > 0; --count)
