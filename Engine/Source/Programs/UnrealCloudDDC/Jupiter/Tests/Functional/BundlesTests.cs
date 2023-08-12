@@ -407,8 +407,8 @@ public abstract class BundlesTests
 
             SimpleNode root = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 5 }), new[] { new NodeRef<SimpleNode>(await writer.WriteNodeAsync(node4)), new NodeRef<SimpleNode>(await writer.WriteNodeAsync(node3)) });
 
-            await store.WriteNodeAsync(rootRefName, root);
-            await store.WriteNodeAsync(leafRefName, node1);
+            await store.WriteRefAsync(rootRefName, root);
+            await store.WriteRefAsync(leafRefName, node1);
         }
     }
 }

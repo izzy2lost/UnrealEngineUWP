@@ -75,7 +75,7 @@ namespace Horde.Server.Ddc
 				DdcRefNode refNode = new DdcRefNode(blobHash.Hash);
 				refNode.References.Add((blobHash.Hash, handle));
 
-				await storageClient.WriteNodeAsync(GetRefName(bucket, key), refNode, cancellationToken: cancellationToken);
+				await storageClient.WriteRefAsync(GetRefName(bucket, key), refNode, cancellationToken: cancellationToken);
 			}
 
 			return (Array.Empty<ContentId>(), missingBlobIds.ToArray());
@@ -85,7 +85,7 @@ namespace Horde.Server.Ddc
 		{
 			IStorageClient storageClient = await _storageService.GetClientAsync(ns, cancellationToken);
 
-			DdcRefNode? node = await storageClient.TryReadNodeAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
+			DdcRefNode? node = await storageClient.TryReadRefAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
 			if (node == null)
 			{
 				throw new RefNotFoundException(ns, bucket, key);
@@ -102,7 +102,7 @@ namespace Horde.Server.Ddc
 		{
 			IStorageClient storageClient = await _storageService.GetClientAsync(ns, cancellationToken);
 
-			DdcRefNode? node = await storageClient.TryReadNodeAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
+			DdcRefNode? node = await storageClient.TryReadRefAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
 			if (node == null)
 			{
 				throw new RefNotFoundException(ns, bucket, key);

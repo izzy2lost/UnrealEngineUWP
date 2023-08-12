@@ -2,7 +2,7 @@
   "profiles": {
     "HordeServer": {
       "commandName": "Project",
-      "commandLineArgs": "",
+      "commandLineArgs": "config docs -outputdir=\u0022C:\\P4 Horde\\Engine\\Restricted\\NotForLicensees\\Source\\Programs\\Horde\\Docs\u0022",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Local",
         "AWS_DEFAULT_PROFILE": "okta-team-devtools-dev_team-devtools-developer",

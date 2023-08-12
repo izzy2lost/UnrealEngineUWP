@@ -271,7 +271,7 @@ namespace Horde.Server.Perforce
 
 			// Read the current incremental state or create a new node to track the incremental state
 			RefName incRefName = GetIncrementalRefName(streamConfig.Id);
-			SyncNode? syncNode = await store.TryReadNodeAsync<SyncNode>(incRefName, cancellationToken: cancellationToken);
+			SyncNode? syncNode = await store.TryReadRefAsync<SyncNode>(incRefName, cancellationToken: cancellationToken);
 			if (syncNode == null || syncNode.Change != change || syncNode.ParentChange != parentChange)
 			{
 				if (parent == null)
@@ -543,7 +543,7 @@ namespace Horde.Server.Perforce
 			ChangeRecord changeRecord = await perforce.GetChangeAsync(GetChangeOptions.None, change, cancellationToken);
 			DirectoryNodeRef rootRef = new DirectoryNodeRef(root.Length, await writer.WriteNodeAsync(root, cancellationToken));
 			CommitNode commitNode = new CommitNode(change, parentRef, changeRecord.User ?? "Unknown", changeRecord.Description ?? String.Empty, changeRecord.Date, rootRef);
-			await store.WriteNodeAsync(refName, commitNode, refOptions: options.RefOptions, cancellationToken: cancellationToken); 
+			await store.WriteRefAsync(refName, commitNode, refOptions: options.RefOptions, cancellationToken: cancellationToken); 
 		}
 
 		static int GetFileOffset(Utf8String path)

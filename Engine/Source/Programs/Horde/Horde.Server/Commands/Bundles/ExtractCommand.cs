@@ -43,7 +43,7 @@ namespace Horde.Server.Commands.Bundles
 
 			IStorageClient store = await storageService.GetClientAsync(NamespaceId, default);
 
-			CommitNode commit = await store.ReadNodeAsync<CommitNode>(RefName);
+			CommitNode commit = await store.ReadRefAsync<CommitNode>(RefName);
 			logger.LogInformation("Extracting {Number}: {Description} to {OutputDir}", commit.Number, (commit.Message ?? String.Empty).Replace("\n", "\\n", StringComparison.Ordinal), OutputDir);
 
 			DirectoryNode contents = await commit.Contents.ExpandAsync();

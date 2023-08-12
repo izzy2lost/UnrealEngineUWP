@@ -510,7 +510,7 @@ namespace Horde.Server.Tools
 
 			IStorageClient client = await _toolCollection.GetStorageClientAsync(tool, cancellationToken);
 
-			DirectoryNode node = await client.ReadNodeAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken);
+			DirectoryNode node = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken);
 
 			if (node.Directories.Count == 0 && node.Files.Count == 1 && action != GetToolAction.Zip)
 			{

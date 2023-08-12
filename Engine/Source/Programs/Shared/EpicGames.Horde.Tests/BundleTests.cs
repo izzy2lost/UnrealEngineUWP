@@ -223,7 +223,7 @@ namespace EpicGames.Horde.Tests
 			Assert.AreEqual(3, bundle.Header.Exports.Count);
 
 			// Create a new bundle and read it back in again
-			DirectoryNode newRoot = await store.ReadNodeAsync<DirectoryNode>(refName);
+			DirectoryNode newRoot = await store.ReadRefAsync<DirectoryNode>(refName);
 
 			Assert.AreEqual(0, newRoot.Files.Count);
 			Assert.AreEqual(1, newRoot.Directories.Count);
@@ -293,7 +293,7 @@ namespace EpicGames.Horde.Tests
 			}
 
 			{
-				DirectoryNode root = await _storage.ReadNodeAsync<DirectoryNode>(refName);
+				DirectoryNode root = await _storage.ReadRefAsync<DirectoryNode>(refName);
 
 				DirectoryNode? newNode1 = await root.FindDirectoryAsync("node1", CancellationToken.None);
 				Assert.IsNotNull(newNode1);

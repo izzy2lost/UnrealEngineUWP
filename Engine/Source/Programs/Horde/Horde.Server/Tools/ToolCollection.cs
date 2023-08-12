@@ -437,7 +437,7 @@ namespace Horde.Server.Tools
 		{
 			IStorageClient client = await GetStorageClientAsync(tool, cancellationToken);
 
-			DirectoryNode node = await client.ReadNodeAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken);
+			DirectoryNode node = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken);
 
 			return node.AsZipStream();
 		}

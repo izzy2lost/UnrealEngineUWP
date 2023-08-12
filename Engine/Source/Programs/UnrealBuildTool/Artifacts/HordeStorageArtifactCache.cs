@@ -284,7 +284,7 @@ namespace UnrealBuildTool.Artifacts
 					{
 						artifactActions.AddRange(_pendingWrites.Where(x => x.Key == key));
 					}
-					ArtifactActionCollectionNode? node = await _store.TryReadNodeAsync<ArtifactActionCollectionNode>(GetRefName(key), default, cancellationToken);
+					ArtifactActionCollectionNode? node = await _store.TryReadRefAsync<ArtifactActionCollectionNode>(GetRefName(key), default, cancellationToken);
 					if (node != null)
 					{
 						foreach (HordeArtifactAction artifactAction in node.ArtifactActions.Values)
@@ -316,7 +316,7 @@ namespace UnrealBuildTool.Artifacts
 			{
 				output[index] = false;
 				ArtifactAction artifactAction = artifactActions[index];
-				ArtifactActionCollectionNode? node = await _store.TryReadNodeAsync<ArtifactActionCollectionNode>(GetRefName(artifactAction.Key), default, cancellationToken);
+				ArtifactActionCollectionNode? node = await _store.TryReadRefAsync<ArtifactActionCollectionNode>(GetRefName(artifactAction.Key), default, cancellationToken);
 				if (node != null)
 				{
 					if (node.ArtifactActions.TryGetValue(artifactAction.ActionKey, out HordeArtifactAction hordeArtifactAction))
@@ -483,7 +483,7 @@ namespace UnrealBuildTool.Artifacts
 					RefName refName = GetRefName(artifactAction.Key);
 
 					// Locate the destination collection for this key
-					ArtifactActionCollectionNode? node = _store!.TryReadNodeAsync<ArtifactActionCollectionNode>(refName, default, cancellationToken).Result;
+					ArtifactActionCollectionNode? node = _store!.TryReadRefAsync<ArtifactActionCollectionNode>(refName, default, cancellationToken).Result;
 					node ??= new ArtifactActionCollectionNode();
 
 					// Update the artifact action collection
@@ -496,7 +496,7 @@ namespace UnrealBuildTool.Artifacts
 					await hordeArtifactAction.WriteFilesAsync(writer, cancellationToken);
 
 					// Save the collection
-					BlobHandle _ = await _store.WriteNodeAsync(refName, node, cancellationToken: cancellationToken);
+					BlobHandle _ = await _store.WriteRefAsync(refName, node, cancellationToken: cancellationToken);
 				}, cancellationToken));
 			}
 			return tasks;

@@ -194,9 +194,9 @@ public class StorageClient : BundleStorageClient
 		await _refStore.PutAsync(_namespaceId, _defaultBucket, refKey, blobIdentifier, payload, isFinalized: true); 
 	}
 
-	public override async Task DeleteRefAsync(RefName name, CancellationToken cancellationToken = default)
+	public override async Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default)
 	{
-		await _refStore.DeleteAsync(_namespaceId, _defaultBucket, RefId.FromName(name.ToString()));
+		return await _refStore.DeleteAsync(_namespaceId, _defaultBucket, RefId.FromName(name.ToString()));
 	}
 }
 

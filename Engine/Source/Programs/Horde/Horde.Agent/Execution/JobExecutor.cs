@@ -778,7 +778,7 @@ namespace Horde.Agent.Execution
 				DirectoryNode dir = new DirectoryNode();
 				await dir.AddFilesAsync(baseDir, files, new ChunkingOptions(), writer, new CopyStatsLogger(logger), cancellationToken);
 
-				await storage.WriteNodeAsync(new RefName(artifact.RefName), dir, cancellationToken: cancellationToken);
+				await storage.WriteRefAsync(new RefName(artifact.RefName), dir, cancellationToken: cancellationToken);
 			}
 			catch (Exception ex)
 			{
@@ -990,7 +990,7 @@ namespace Horde.Agent.Execution
 				}
 
 				// Write the final node
-				await storage.WriteNodeAsync(refName, outputNode, refOptions: new RefOptions(), cancellationToken: cancellationToken);
+				await storage.WriteRefAsync(refName, outputNode, refOptions: new RefOptions(), cancellationToken: cancellationToken);
 				logger.LogInformation("Upload took {Time:n1}s", timer.Elapsed.TotalSeconds);
 
 				// Create the artifact
