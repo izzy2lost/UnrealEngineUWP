@@ -2322,7 +2322,8 @@ void FScene::RemovePrimitiveSceneInfo_RenderThread(FPrimitiveSceneInfo* Primitiv
 			};
 
 			BeginCleanup(new DeferDeleteHitProxies(MoveTemp(PrimitiveSceneInfo->HitProxies)));
-			PrimitiveSceneInfosToDelete.Emplace(PrimitiveSceneInfo);
+			delete PrimitiveSceneInfo->Proxy;
+			delete PrimitiveSceneInfo;
 		}
 	}
 	else
@@ -6353,14 +6354,6 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 			delete PrimitiveSceneInfo->Proxy;
 			delete PrimitiveSceneInfo;
 		}
-
-		// Delete scene primitives that were removed without ever being added.
-		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : PrimitiveSceneInfosToDelete)
-		{
-			delete PrimitiveSceneInfo->Proxy;
-			delete PrimitiveSceneInfo;
-		}
-		PrimitiveSceneInfosToDelete.Empty();
 	});
 
 	if (bNeedPathTracedInvalidation)
