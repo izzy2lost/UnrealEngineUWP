@@ -136,14 +136,13 @@ namespace Horde.Server.Ddc
 			// commit the mapping from the decompressed hash to the compressed hash, we run this in parallel with the blob store submit
 			// TODO: let users specify weight of the blob compared to previously submitted content ids
 			int contentIdWeight = (int)payload.Length;
-			Task contentIdStoreTask = contentIdStore.PutAsync(ns, identifierDecompressedPayload, identifierCompressedPayload, contentIdWeight);
 
 			// we still commit the compressed buffer to the object store using the hash of the compressed content
 			{
 				await blobService.PutObjectKnownHashAsync(ns, payload, identifierCompressedPayload, cancellationToken);
 			}
 
-			await contentIdStoreTask;
+			await contentIdStore.PutAsync(ns, identifierDecompressedPayload, identifierCompressedPayload, contentIdWeight);
 
 			return identifierDecompressedPayload;
 		}
@@ -164,7 +163,7 @@ namespace Horde.Server.Ddc
 			{
 				BlobId blobToReturn = chunks[0];
 				string mimeType = CustomMediaTypeNames.UnrealCompressedBuffer;
-				if (contentId.Equals(blobToReturn))
+				if (contentId.Hash == blobToReturn.Hash)
 				{
 					// this was actually the unmapped blob, meaning its not a compressed buffer
 					mimeType = MediaTypeNames.Application.Octet;

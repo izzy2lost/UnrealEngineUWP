@@ -531,6 +531,7 @@ namespace Horde.Server
 			services.AddSingleton<BufferedPayloadFactory>();
 			services.AddSingleton<NginxRedirectHelper>();
 			services.AddSingleton<FormatResolver>();
+			services.AddSingleton<CompressedBufferUtils>();
 
 			// Secret providers
 			services.AddSingleton<SecretService>();
