@@ -559,8 +559,6 @@ FCanvasRenderThreadScope::~FCanvasRenderThreadScope()
 {
 	RenderCommandFunctionArray* RenderCommandArray = RenderCommands;
 
-	UE::RenderCommandPipe::FSyncScope SyncScope;
-
 	ENQUEUE_RENDER_COMMAND(DispatchCanvasRenderCommands)(
 		[RenderCommandArray, RenderTarget = Canvas.RenderTarget, ViewRect = Canvas.ViewRect, ScissorRect = Canvas.ScissorRect, bScaledToRenderTarget = Canvas.bScaledToRenderTarget](FRHICommandListImmediate& RHICmdList) mutable
 	{

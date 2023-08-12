@@ -4321,8 +4321,6 @@ void FScene::UpdateStaticDrawLists_RenderThread(FRHICommandListImmediate& RHICmd
 
 void FScene::UpdateStaticDrawLists()
 {
-	UE::RenderCommandPipe::FSyncScope SyncScope;
-
 	FScene* Scene = this;
 	ENQUEUE_RENDER_COMMAND(FUpdateDrawLists)(
 		[Scene](FRHICommandListImmediate& RHICmdList)
@@ -4392,8 +4390,6 @@ void FScene::Release()
 #endif
 
 	GetRendererModule().RemoveScene(this);
-
-	UE::RenderCommandPipe::FSyncScope SyncScope;
 
 	// Send a command to the rendering thread to release the scene.
 	FScene* Scene = this;
@@ -4547,8 +4543,6 @@ void FScene::Export( FArchive& Ar ) const
 
 void FScene::ApplyWorldOffset(const FVector& InOffset)
 {
-	UE::RenderCommandPipe::FSyncScope SyncScope;
-
 	// Send a command to the rendering thread to shift scene data
 	FScene* Scene = this;
 	FVector Offset = InOffset;
@@ -5218,7 +5212,6 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 	SCOPE_CYCLE_COUNTER(STAT_UpdateScenePrimitiveRenderThreadTime);
 
 	check(IsInRenderingThread());
-	check(!UE::RenderCommandPipe::IsReplaying());
 
 	UE::Tasks::FTask GPUSkinCacheTask;
 
@@ -6734,9 +6727,6 @@ void UpdateStaticMeshesForMaterials(const TArray<const FMaterial*>& MaterialReso
 			}
 		}
 	}
-
-	UE::RenderCommandPipe::FSyncScope SyncScope;
-
 	ENQUEUE_RENDER_COMMAND(FUpdateStaticMeshesForMaterials)(
 		[UsedPrimitives = MoveTemp(UsedPrimitives)](FRHICommandListImmediate& RHICmdList) mutable
 		{

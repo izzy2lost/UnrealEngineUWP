@@ -818,8 +818,6 @@ void UpdateWaterInfoRendering(
 	Params.VelocityBlurRadius = Context.ZoneToRender->GetVelocityBlurRadius();
 	Params.WaterZoneExtents = ZoneExtent;
 
-	UE::RenderCommandPipe::FSyncScope SyncScope;
-
 	ENQUEUE_RENDER_COMMAND(WaterInfoCommand)(
 	[Params, ZoneName = Context.ZoneToRender->GetActorNameOrLabel()](FRHICommandListImmediate& RHICmdList)
 		{

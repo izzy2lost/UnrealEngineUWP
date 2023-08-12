@@ -774,8 +774,6 @@ void AActor::PostEditUndo()
 	UWorld* World = GetWorld();
 	if (World && World->Scene && !FActorEditorUtils::IsABrush(this))
 	{
-		UE::RenderCommandPipe::FSyncScope SyncScope;
-
 		ENQUEUE_RENDER_COMMAND(UpdateAllPrimitiveSceneInfosCmd)([Scene = World->Scene](FRHICommandListImmediate& RHICmdList) {
 			Scene->UpdateAllPrimitiveSceneInfos(RHICmdList);
 		});

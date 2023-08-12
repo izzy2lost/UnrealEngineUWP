@@ -1343,8 +1343,6 @@ void CaptureSceneIntoScratchCubemap(
 
 		FSceneRenderer* SceneRenderer = FSceneRenderer::CreateSceneRenderer(&ViewFamily, nullptr);
 
-		UE::RenderCommandPipe::FSyncScope SyncScope;
-
 		ENQUEUE_RENDER_COMMAND(CaptureCommand)(
 			[SceneRenderer, &ReflectionCubemapTexture, CubeFace, CubemapSize, bCapturingForSkyLight, bLowerHemisphereIsBlack, LowerHemisphereColor, bCapturingForMobile, bInsideTick](FRHICommandListImmediate& RHICmdList)
 		{

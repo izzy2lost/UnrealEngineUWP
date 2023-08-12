@@ -1125,35 +1125,28 @@ void FStaticMeshVertexBuffers::InitModelBuffers(TArray<FModelVertex>& Vertices)
 	}
 }
 
-void FStaticMeshVertexBuffers::InitModelVF(FRHICommandListBase* RHICmdList, FRenderCommandPipe* RenderCommandPipe, FLocalVertexFactory* VertexFactory)
+void FStaticMeshVertexBuffers::InitModelVF(FLocalVertexFactory* VertexFactory)
 {
-	auto Lambda = [this, VertexFactory](FRHICommandListBase& RHICmdList)
+	FStaticMeshVertexBuffers* Self = this;
+	ENQUEUE_RENDER_COMMAND(StaticMeshVertexBuffersLegacyBspInit)(
+		[VertexFactory, Self](FRHICommandListImmediate& RHICmdList)
 	{
-		check(PositionVertexBuffer.IsInitialized());
-		check(StaticMeshVertexBuffer.IsInitialized());
+		check(Self->PositionVertexBuffer.IsInitialized());
+		check(Self->StaticMeshVertexBuffer.IsInitialized());
 
 		FLocalVertexFactory::FDataType Data;
-		PositionVertexBuffer.BindPositionVertexBuffer(VertexFactory, Data);
-		StaticMeshVertexBuffer.BindTangentVertexBuffer(VertexFactory, Data);
-		StaticMeshVertexBuffer.BindPackedTexCoordVertexBuffer(VertexFactory, Data);
-		StaticMeshVertexBuffer.BindLightMapVertexBuffer(VertexFactory, Data, 1);
+		Self->PositionVertexBuffer.BindPositionVertexBuffer(VertexFactory, Data);
+		Self->StaticMeshVertexBuffer.BindTangentVertexBuffer(VertexFactory, Data);
+		Self->StaticMeshVertexBuffer.BindPackedTexCoordVertexBuffer(VertexFactory, Data);
+		Self->StaticMeshVertexBuffer.BindLightMapVertexBuffer(VertexFactory, Data, 1);
 		FColorVertexBuffer::BindDefaultColorVertexBuffer(VertexFactory, Data, FColorVertexBuffer::NullBindStride::ZeroForDefaultBufferBind);
 		VertexFactory->SetData(RHICmdList, Data);
 
 		InitOrUpdateResource(RHICmdList, VertexFactory);
-	};
-
-	if (RHICmdList)
-	{
-		Lambda(*RHICmdList);
-	}
-	else
-	{
-		ENQUEUE_RENDER_COMMAND(StaticMeshVertexBuffersInitModelVF)(RenderCommandPipe, MoveTemp(Lambda));
-	}
+	});
 }
 
-void FStaticMeshVertexBuffers::InitWithDummyData(FRHICommandListBase* RHICmdList, FRenderCommandPipe* RenderCommandPipe, FLocalVertexFactory* VertexFactory, uint32 NumVerticies, uint32 NumTexCoords, uint32 LightMapIndex)
+void FStaticMeshVertexBuffers::InitWithDummyData(FLocalVertexFactory* VertexFactory, uint32 NumVerticies, uint32 NumTexCoords, uint32 LightMapIndex)
 {
 	check(NumVerticies);
 	check(NumTexCoords < MAX_STATIC_TEXCOORDS && NumTexCoords > 0);
@@ -1163,34 +1156,27 @@ void FStaticMeshVertexBuffers::InitWithDummyData(FRHICommandListBase* RHICmdList
 	StaticMeshVertexBuffer.Init(NumVerticies, NumTexCoords);
 	ColorVertexBuffer.Init(NumVerticies);
 
-	auto Lambda = [this, VertexFactory, LightMapIndex](FRHICommandListBase& RHICmdList)
+	FStaticMeshVertexBuffers* Self = this;
+	ENQUEUE_RENDER_COMMAND(StaticMeshVertexBuffersLegacyInit)(
+		[VertexFactory, Self, LightMapIndex](FRHICommandListImmediate& RHICmdList)
 	{
-		InitOrUpdateResource(RHICmdList, &PositionVertexBuffer);
-		InitOrUpdateResource(RHICmdList, &StaticMeshVertexBuffer);
-		InitOrUpdateResource(RHICmdList, &ColorVertexBuffer);
+		InitOrUpdateResource(RHICmdList, &Self->PositionVertexBuffer);
+		InitOrUpdateResource(RHICmdList, &Self->StaticMeshVertexBuffer);
+		InitOrUpdateResource(RHICmdList, &Self->ColorVertexBuffer);
 
 		FLocalVertexFactory::FDataType Data;
-		PositionVertexBuffer.BindPositionVertexBuffer(VertexFactory, Data);
-		StaticMeshVertexBuffer.BindTangentVertexBuffer(VertexFactory, Data);
-		StaticMeshVertexBuffer.BindPackedTexCoordVertexBuffer(VertexFactory, Data);
-		StaticMeshVertexBuffer.BindLightMapVertexBuffer(VertexFactory, Data, LightMapIndex);
-		ColorVertexBuffer.BindColorVertexBuffer(VertexFactory, Data);
+		Self->PositionVertexBuffer.BindPositionVertexBuffer(VertexFactory, Data);
+		Self->StaticMeshVertexBuffer.BindTangentVertexBuffer(VertexFactory, Data);
+		Self->StaticMeshVertexBuffer.BindPackedTexCoordVertexBuffer(VertexFactory, Data);
+		Self->StaticMeshVertexBuffer.BindLightMapVertexBuffer(VertexFactory, Data, LightMapIndex);
+		Self->ColorVertexBuffer.BindColorVertexBuffer(VertexFactory, Data);
 		VertexFactory->SetData(RHICmdList, Data);
 
 		InitOrUpdateResource(RHICmdList, VertexFactory);
-	};
-
-	if (RHICmdList)
-	{
-		Lambda(*RHICmdList);
-	}
-	else
-	{
-		ENQUEUE_RENDER_COMMAND(StaticMeshVertexBuffersInitWithDummyData)(RenderCommandPipe, MoveTemp(Lambda));
-	}
+	});
 }
 
-void FStaticMeshVertexBuffers::InitFromDynamicVertex(FRHICommandListBase* RHICmdList, FRenderCommandPipe* RenderCommandPipe, FLocalVertexFactory* VertexFactory, TArray<FDynamicMeshVertex>& Vertices, uint32 NumTexCoords, uint32 LightMapIndex)
+void FStaticMeshVertexBuffers::InitFromDynamicVertex(FLocalVertexFactory* VertexFactory, TArray<FDynamicMeshVertex>& Vertices, uint32 NumTexCoords, uint32 LightMapIndex)
 {
 	check(NumTexCoords < MAX_STATIC_TEXCOORDS && NumTexCoords > 0);
 	check(LightMapIndex < NumTexCoords);
@@ -1228,31 +1214,24 @@ void FStaticMeshVertexBuffers::InitFromDynamicVertex(FRHICommandListBase* RHICmd
 		LightMapIndex = 0;
 	}
 
-	auto Lambda = [this, VertexFactory, LightMapIndex](FRHICommandListBase& RHICmdList)
-	{
-		InitOrUpdateResource(RHICmdList, &PositionVertexBuffer);
-		InitOrUpdateResource(RHICmdList, &StaticMeshVertexBuffer);
-		InitOrUpdateResource(RHICmdList, &ColorVertexBuffer);
+	FStaticMeshVertexBuffers* Self = this;
+	ENQUEUE_RENDER_COMMAND(StaticMeshVertexBuffersLegacyInit)(
+		[VertexFactory, Self, LightMapIndex](FRHICommandListImmediate& RHICmdList)
+		{
+			InitOrUpdateResource(RHICmdList, &Self->PositionVertexBuffer);
+			InitOrUpdateResource(RHICmdList, &Self->StaticMeshVertexBuffer);
+			InitOrUpdateResource(RHICmdList, &Self->ColorVertexBuffer);
 
-		FLocalVertexFactory::FDataType Data;
-		PositionVertexBuffer.BindPositionVertexBuffer(VertexFactory, Data);
-		StaticMeshVertexBuffer.BindTangentVertexBuffer(VertexFactory, Data);
-		StaticMeshVertexBuffer.BindPackedTexCoordVertexBuffer(VertexFactory, Data);
-		StaticMeshVertexBuffer.BindLightMapVertexBuffer(VertexFactory, Data, LightMapIndex);
-		ColorVertexBuffer.BindColorVertexBuffer(VertexFactory, Data);
-		VertexFactory->SetData(RHICmdList, Data);
+			FLocalVertexFactory::FDataType Data;
+			Self->PositionVertexBuffer.BindPositionVertexBuffer(VertexFactory, Data);
+			Self->StaticMeshVertexBuffer.BindTangentVertexBuffer(VertexFactory, Data);
+			Self->StaticMeshVertexBuffer.BindPackedTexCoordVertexBuffer(VertexFactory, Data);
+			Self->StaticMeshVertexBuffer.BindLightMapVertexBuffer(VertexFactory, Data, LightMapIndex);
+			Self->ColorVertexBuffer.BindColorVertexBuffer(VertexFactory, Data);
+			VertexFactory->SetData(RHICmdList, Data);
 
-		InitOrUpdateResource(RHICmdList, VertexFactory);
-	};
-
-	if (RHICmdList)
-	{
-		Lambda(*RHICmdList);
-	}
-	else
-	{
-		ENQUEUE_RENDER_COMMAND(StaticMeshVertexBuffersInitFromDynamicVertex)(RenderCommandPipe, MoveTemp(Lambda));
-	}
+			InitOrUpdateResource(RHICmdList, VertexFactory);
+		});
 };
 
 void FStaticMeshVertexBuffers::SetOwnerName(const FName& OwnerName)
