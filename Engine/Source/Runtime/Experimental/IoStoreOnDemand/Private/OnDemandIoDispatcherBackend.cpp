@@ -69,10 +69,10 @@ namespace UE::IO::Private
 {
 
 ///////////////////////////////////////////////////////////////////////////////
-static void LogHttpResult(const TCHAR* Url, uint32 StatusCode, uint32 Duration, uint32 Size, uint32 Offset, const char* Memo="ok")
+static void LogHttpResult(const TCHAR* Url, uint32 StatusCode, uint32 DurationMs, uint32 Size, uint32 Offset, const char* Memo="ok")
 {
 	Size >>= 10;
-	UE_LOG(LogIas, VeryVerbose, TEXT("http-%3u: %5ums %5uKiB [%7u] '%S' %s"), StatusCode, Duration, Size, Offset, Memo, Url);
+	UE_LOG(LogIas, VeryVerbose, TEXT("http-%3u: %5ums %5uKiB [%7u] '%S' %s"), StatusCode, DurationMs, Size, Offset, Memo, Url);
 };
 
 using namespace UE::Tasks;
@@ -316,19 +316,21 @@ void FDistributionEndpoints::CompleteEndpointRequest(FResolveRequest& ResolveReq
 class FHttpClient
 {
 public:
+	using FGetCallback = TFunction<void(TIoStatusOr<FIoBuffer>, uint64 DurationMs)>;
+
 	FHttpClient(const FString& ServiceUrl, int32 MaxConnectionCount = 8);
 	~FHttpClient() = default;
 
 	const FString& ServiceUrl() const { return SvcsUrl; }
 	int32 MaxConnectionCount() const { return MaxConnections;}
-	void Get(FAnsiStringView Url, FIoReadCallback&& Callback);
-	void Get(FAnsiStringView Url, const FIoOffsetAndLength& Range, FIoReadCallback&& Callback);
+	void Get(FAnsiStringView Url, FGetCallback&& Callback);
+	void Get(FAnsiStringView Url, const FIoOffsetAndLength& Range, FGetCallback&& Callback);
 
 	/** @return True if the client has pending work otherwise false. */
 	bool Tick();
 
 private:
-	void Issue(FAnsiStringView Url, FIoReadCallback&& Callback, FIoOffsetAndLength Range = FIoOffsetAndLength());
+	void Issue(FAnsiStringView Url, FGetCallback&& Callback, FIoOffsetAndLength Range = FIoOffsetAndLength());
 
 	FString SvcsUrl;
 	int32 MaxConnections;
@@ -346,17 +348,17 @@ FHttpClient::FHttpClient(const FString& ServiceUrl, int32 MaxConnectionCount)
 	ConnectionPool = MakeUnique<HTTP::FConnectionPool>(Params);
 }
 
-void FHttpClient::Get(FAnsiStringView Url, const FIoOffsetAndLength& Range, FIoReadCallback&& Callback)
+void FHttpClient::Get(FAnsiStringView Url, const FIoOffsetAndLength& Range, FGetCallback&& Callback)
 {
 	Issue(Url, MoveTemp(Callback), Range);
 }
 
-void FHttpClient::Get(FAnsiStringView Url, FIoReadCallback&& Callback)
+void FHttpClient::Get(FAnsiStringView Url, FGetCallback&& Callback)
 {
 	Issue(Url, MoveTemp(Callback));
 }
 
-void FHttpClient::Issue(FAnsiStringView Url, FIoReadCallback&& Callback, FIoOffsetAndLength Range)
+void FHttpClient::Issue(FAnsiStringView Url, FGetCallback&& Callback, FIoOffsetAndLength Range)
 {
 	using namespace UE::HTTP;
 
@@ -377,26 +379,26 @@ void FHttpClient::Issue(FAnsiStringView Url, FIoReadCallback&& Callback, FIoOffs
 			}
 			else if (FTicketStatus::EId::Content == Status.GetId())
 			{
-				const uint64 Duration = (uint64)FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - StartTime);
+				const uint64 DurationMs = (uint64)FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - StartTime);
 				const FIoBuffer& Content = Status.GetContent(); 
 
-				LogHttpResult(*Url, StatusCode, Duration, Content.GetSize(), Offset);
+				LogHttpResult(*Url, StatusCode, DurationMs, Content.GetSize(), Offset);
 
 				const bool bSuccessful = StatusCode > 199 && StatusCode < 300;
 				if (bSuccessful && Content.GetSize() > 0)
 				{
-					Callback(Content);
+					Callback(Content, DurationMs);
 				}
 				else
 				{
-					Callback(FIoStatus(EIoErrorCode::NotFound, TEXTVIEW("Invalid Content")));
+					Callback(FIoStatus(EIoErrorCode::NotFound, TEXTVIEW("Invalid Content")), DurationMs);
 				}
 			}
 			else if (FTicketStatus::EId::Error == Status.GetId())
 			{
-				const uint64 Duration = (uint64)FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - StartTime);
-				LogHttpResult(*Url, StatusCode, Duration, 0, Offset, Status.GetErrorReason());
-				Callback(FIoStatus(EIoErrorCode::ReadError, FString(Status.GetErrorReason())));
+				const uint64 DurationMs = (uint64)FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - StartTime);
+				LogHttpResult(*Url, StatusCode, DurationMs, 0, Offset, Status.GetErrorReason());
+				Callback(FIoStatus(EIoErrorCode::ReadError, FString(Status.GetErrorReason())), DurationMs);
 			}
 		};
 
@@ -942,7 +944,7 @@ struct FChunkRequest
 static void LogIoResult(
 	const FIoChunkId& ChunkId,
 	const FIoHash& UrlHash,
-	uint32 Duration,
+	uint32 DurationMs,
 	uint32 UncompressedSize,
 	uint32 UncompressedOffset,
 	uint32 CompressedOffset,
@@ -959,7 +961,7 @@ static void LogIoResult(
 	}();
 	UE_LOG(LogIas, VeryVerbose, TEXT("%s: %5ums %5uKiB [%7u] %s:%s|%u (%d)"),
 		Prefix,
-		Duration,
+		DurationMs,
 		UncompressedSize >> 10,
 		UncompressedOffset,
 		*LexToString(ChunkId),
@@ -1238,13 +1240,13 @@ void FOnDemandIoBackend::CompleteRequest(FChunkRequest* ChunkRequest)
 			bDecoded = FIoChunkEncoding::Decode(DecodingParams, Chunk.GetView(), Request->GetBuffer().GetMutableView());
 		}
 		
-		const uint64 Duration = Request->GetStartTime() > 0 ?
+		const uint64 DurationMs = Request->GetStartTime() > 0 ?
 			(uint64)FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - Request->GetStartTime()) : 0;
 
 		if (bDecoded)
 		{
-			Stats.OnIoRequestComplete(Request->GetBuffer().GetSize());
-			LogIoResult(Request->ChunkId, ChunkRequest->Params.GetUrlHash(), Duration,
+			Stats.OnIoRequestComplete(Request->GetBuffer().GetSize(), DurationMs);
+			LogIoResult(Request->ChunkId, ChunkRequest->Params.GetUrlHash(), DurationMs,
 				Request->GetBuffer().DataSize(), Request->Options.GetOffset(),
 				ChunkRequest->Params.ChunkRange.GetOffset(), ChunkRequest->Priority, ChunkRequest->bCached);
 				
@@ -1254,8 +1256,8 @@ void FOnDemandIoBackend::CompleteRequest(FChunkRequest* ChunkRequest)
 			bCanCache = false;
 			Request->SetFailed();
 
-			Stats.OnIoRequestFail();
-			LogIoResult(Request->ChunkId, ChunkRequest->Params.GetUrlHash(), Duration,
+			Stats.OnIoRequestError();
+			LogIoResult(Request->ChunkId, ChunkRequest->Params.GetUrlHash(), DurationMs,
 				0, Request->Options.GetOffset(),
 				ChunkRequest->Params.ChunkRange.GetOffset(), ChunkRequest->Priority, ChunkRequest->bCached);
 		}
@@ -1269,7 +1271,6 @@ void FOnDemandIoBackend::CompleteRequest(FChunkRequest* ChunkRequest)
 		Cache->Put(ChunkRequest->Params.ChunkKey, Chunk);
 	}
 
-	Stats.OnChunkRequestRelease();
 	ChunkRequests.Release(ChunkRequest);
 }
 
@@ -1311,8 +1312,6 @@ bool FOnDemandIoBackend::Resolve(FIoRequestImpl* Request)
 		return true;
 	}
 
-	Stats.OnChunkRequestCreate();
-		
 	if (Cache.IsValid())
 	{
 		//TODO: Pass priority to cache
@@ -1548,7 +1547,7 @@ TIoStatusOr<FOnDemandToc> FOnDemandIoBackend::GetToc(FHttpClient& HttpClient, co
 		UE_LOG(LogIas, Log, TEXT("Fetching TOC '%s/%s' (#%d/%d)"), *HttpClient.ServiceUrl(), *TocPath, Attempt + 1, MaxAttempts);
 		
 		TIoStatusOr<FOnDemandToc> Toc;
-		HttpClient.Get(Url.ToView(), [&Toc](TIoStatusOr<FIoBuffer> Response)
+		HttpClient.Get(Url.ToView(), [&Toc](TIoStatusOr<FIoBuffer> Response, uint64 DurationMs)
 		{
 			if (Response.IsOk())
 			{
@@ -1639,7 +1638,7 @@ uint32 FOnDemandIoBackend::Run()
 
 					NumConcurrentRequests++;
 					HttpClient->Get(Url.ToView(), ChunkRequest->Params.ChunkRange,
-						[this, ChunkRequest, &NumConcurrentRequests](TIoStatusOr<FIoBuffer> Status)
+						[this, ChunkRequest, &NumConcurrentRequests](TIoStatusOr<FIoBuffer> Status, uint64 DurationMs)
 						{
 							NumConcurrentRequests--;
 
@@ -1659,13 +1658,10 @@ uint32 FOnDemandIoBackend::Run()
 							if (Status.IsOk())
 							{
 								ChunkRequest->Chunk = Status.ConsumeValueOrDie();
-								Stats.OnHttpGet(ChunkRequest->Chunk.DataSize());
+								Stats.OnHttpGet(ChunkRequest->Chunk.DataSize(), DurationMs);
 							}
 							else
 							{
-								TAnsiStringBuilder<256> Url;
-								ChunkRequest->Params.GetUrl(Url);
-								LogHttpResult(StringCast<TCHAR>(*Url).Get(), -1, 0, 0, ChunkRequest->Params.ChunkRange.GetOffset(), "HTTP FAILED");
 								Stats.OnHttpError();
 							}
 

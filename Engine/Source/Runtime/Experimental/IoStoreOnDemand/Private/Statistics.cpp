@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Statistics.h"
+#include "Misc/CoreDelegates.h"
 
 #if IAS_WITH_STATISTICS
 
@@ -32,14 +33,11 @@ static int32 BytesToApproxKB(uint64 Bytes) { return int32(Bytes >> 10); }
 #endif 
 
 // iorequest stats
-FCounterInt			GIoRequestsMade(TEXT("Ias/IoRequestsMade"), TraceCounterDisplayHint_None);
-FCounterAtomicInt	GIoRequestsCompleted(TEXT("Ias/IoRequestsCompleted"), TraceCounterDisplayHint_None);
-FCounterAtomicInt	GIoRequestsCompletedSize(TEXT("Ias/IoRequestsCompletedSize"), TraceCounterDisplayHint_Memory);
-FCounterInt			GIoRequestsCancelled(TEXT("Ias/IoRequestsCancelled"), TraceCounterDisplayHint_None);
-FCounterAtomicInt	GIoRequestsFailed(TEXT("Ias/IoRequestsFailed"), TraceCounterDisplayHint_None);
-// chunkrequest stats
-FCounterInt			GReadRequestsCreated(TEXT("Ias/ReadRequestsCreated"), TraceCounterDisplayHint_None);
-FCounterAtomicInt	GReadRequestsRemoved(TEXT("Ias/ReadRequestsRemoved"), TraceCounterDisplayHint_None);
+FCounterInt			GIoRequestCount(TEXT("Ias/IoRequestCount"), TraceCounterDisplayHint_None);
+FCounterAtomicInt	GIoRequestReadCount(TEXT("Ias/IoRequestReadCount"), TraceCounterDisplayHint_None);
+FCounterAtomicInt	GIoRequestReadBytes(TEXT("Ias/IoRequestReadBytes"), TraceCounterDisplayHint_Memory);
+FCounterInt			GIoRequestCancelCount(TEXT("Ias/IoRequestCancelCount"), TraceCounterDisplayHint_None);
+FCounterAtomicInt	GIoRequestErrorCount(TEXT("Ias/IoRequestErrorCount"), TraceCounterDisplayHint_None);
 // cache stats
 FCounterAtomicInt	GCacheErrorCount(TEXT("Ias/CacheErrorCount"), TraceCounterDisplayHint_None);
 FCounterAtomicInt	GCacheGetCount(TEXT("Ias/CacheGetCount"), TraceCounterDisplayHint_None);
@@ -57,47 +55,74 @@ FCounterInt			GHttpRetryCount(TEXT("Ias/HttpRetryCount"), TraceCounterDisplayHin
 FCounterAtomicInt	GHttpPendingCount(TEXT("Ias/HttpPendingCount"), TraceCounterDisplayHint_None);
 FCounterInt			GHttpInflightCount(TEXT("Ias/HttpInflightCount"), TraceCounterDisplayHint_None);
 FCounterInt			GHttpDownloadedBytes(TEXT("Ias/HttpDownloadedBytes"), TraceCounterDisplayHint_Memory);
+FCounterInt			GHttpBandwidthMpbs(TEXT("Ias/HttpBandwidthMbps"), TraceCounterDisplayHint_None);
+FCounterInt			GHttpDurationMs(TEXT("Ias/HttpDurationMs"), TraceCounterDisplayHint_None);
+FCounterInt			GHttpDurationMsAvg(TEXT("Ias/HttpDurationMsAvg"), TraceCounterDisplayHint_None);
+FCounterInt			GHttpDurationMsMax(TEXT("Ias/HttpDurationMsMax"), TraceCounterDisplayHint_None);
+int64				GHttpDurationMsSum = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 // CSV STATS
 CSV_DEFINE_CATEGORY(Ias, true);
-// iorequest stats
-CSV_DEFINE_STAT(Ias, FrameIoRequestsMade);
-CSV_DEFINE_STAT(Ias, FrameIoRequestsCompleted);
-CSV_DEFINE_STAT(Ias, FrameIoRequestsCompletedSize);
-CSV_DEFINE_STAT(Ias, FrameIoRequestsCancelled);
-CSV_DEFINE_STAT(Ias, FrameIoRequestsFailed);
-// chunkrequest stats
-CSV_DEFINE_STAT(Ias, FrameReadRequestsCreated);
-CSV_DEFINE_STAT(Ias, FrameReadRequestsRemoved);
-// cache stats
-CSV_DEFINE_STAT(Ias, FrameCacheErrorCount);
-CSV_DEFINE_STAT(Ias, FrameCacheGetCount);
-CSV_DEFINE_STAT(Ias, FrameCachePutCount);
-CSV_DEFINE_STAT(Ias, FrameCachePutExistingCount);
-CSV_DEFINE_STAT(Ias, FrameCachePutRejectCount);
-CSV_DEFINE_STAT(Ias, FrameCacheCachedBytes);
-CSV_DEFINE_STAT(Ias, FrameCachePendingBytes);
-CSV_DEFINE_STAT(Ias, FrameCacheReadBytes);
-CSV_DEFINE_STAT(Ias, FrameCacheRejectBytes);
-// http stats
+// iorequest per frame stats
+CSV_DEFINE_STAT(Ias, FrameIoRequestCount);
+CSV_DEFINE_STAT(Ias, FrameIoRequestReadCount);
+CSV_DEFINE_STAT(Ias, FrameIoRequestReadMB);
+CSV_DEFINE_STAT(Ias, FrameIoRequestCancelCount);
+CSV_DEFINE_STAT(Ias, FrameIoRequestErrorCount);
+// cache stat totals
+CSV_DEFINE_STAT(Ias, CacheGetCount);
+CSV_DEFINE_STAT(Ias, CacheErrorCount);
+CSV_DEFINE_STAT(Ias, CachePutCount);
+CSV_DEFINE_STAT(Ias, CachePutExistingCount);
+CSV_DEFINE_STAT(Ias, CachePutRejectCount);
+CSV_DEFINE_STAT(Ias, CacheCachedMB);
+CSV_DEFINE_STAT(Ias, CacheReadMB);
+CSV_DEFINE_STAT(Ias, CacheRejectedMB);
+// http stat totals
 CSV_DEFINE_STAT(Ias, HttpGetCount);
 CSV_DEFINE_STAT(Ias, HttpRetryCount);
 CSV_DEFINE_STAT(Ias, HttpErrorCount);
 CSV_DEFINE_STAT(Ias, HttpPendingCount);
-CSV_DEFINE_STAT(Ias, HttpInflightCount);
-CSV_DEFINE_STAT(Ias, HttpDownloadKB);
+CSV_DEFINE_STAT(Ias, HttpDownloadedMB);
+CSV_DEFINE_STAT(Ias, HttpBandwidthMpbs);
+CSV_DEFINE_STAT(Ias, HttpDurationMsAvg);
+CSV_DEFINE_STAT(Ias, HttpDurationMsMax);
 
 static FOnDemandIoBackendStats* GStatistics = nullptr;
+static FDelegateHandle GStatisticsEndFrameDelegateHandle;
 
 FOnDemandIoBackendStats::FOnDemandIoBackendStats()
 {
 	check(GStatistics == nullptr);
 	GStatistics = this;
+	GStatisticsEndFrameDelegateHandle = FCoreDelegates::OnEndFrame.AddLambda([this]()
+	{
+		// cache stat totals
+		CSV_CUSTOM_STAT_DEFINED(CacheGetCount, int32(GCacheGetCount.Get()), ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_DEFINED(CacheErrorCount, int32(GCacheErrorCount.Get()), ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_DEFINED(CachePutCount, int32(GCachePutCount.Get()), ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_DEFINED(CachePutExistingCount, int32(GCachePutExistingCount.Get()), ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_DEFINED(CachePutRejectCount, int32(GCachePutRejectCount.Get()), ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_DEFINED(CacheCachedMB, BytesToApproxMB(GCacheCachedBytes.Get()), ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_DEFINED(CacheReadMB, BytesToApproxMB(GCacheReadBytes.Get()), ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_DEFINED(CacheRejectedMB, BytesToApproxMB(GCacheRejectBytes.Get()), ECsvCustomStatOp::Set);
+
+		// http stat totals
+		CSV_CUSTOM_STAT_DEFINED(HttpGetCount, int32(GHttpGetCount.Get()), ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_DEFINED(HttpRetryCount, int32(GHttpRetryCount.Get()), ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_DEFINED(HttpErrorCount, int32(GHttpErrorCount.Get()), ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_DEFINED(HttpPendingCount, int32(GHttpPendingCount.Get()), ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_DEFINED(HttpDownloadedMB, BytesToApproxMB(GHttpDownloadedBytes.Get()), ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_DEFINED(HttpBandwidthMpbs, int32(GHttpBandwidthMpbs.Get()), ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_DEFINED(HttpDurationMsAvg, int32(GHttpDurationMsAvg.Get()), ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_DEFINED(HttpDurationMsMax, int32(GHttpDurationMsMax.Get()), ECsvCustomStatOp::Set);
+	});
 }
 
 FOnDemandIoBackendStats::~FOnDemandIoBackendStats()
 {
+	FCoreDelegates::OnEndFrame.Remove(GStatisticsEndFrameDelegateHandle);
 	GStatistics = nullptr;
 }
 
@@ -108,114 +133,93 @@ FOnDemandIoBackendStats* FOnDemandIoBackendStats::Get()
 
 void FOnDemandIoBackendStats::OnIoRequestEnqueue()
 {
-	GIoRequestsMade.Add(1);
-	CSV_CUSTOM_STAT_DEFINED(FrameIoRequestsMade, int32(GIoRequestsMade.Get()), ECsvCustomStatOp::Set);
+	GIoRequestCount.Add(1);
+	CSV_CUSTOM_STAT_DEFINED(FrameIoRequestCount, int32(GIoRequestCount.Get()), ECsvCustomStatOp::Set);
 }
 
-void FOnDemandIoBackendStats::OnIoRequestComplete(uint64 RequestSize)
+void FOnDemandIoBackendStats::OnIoRequestComplete(uint64 Size, uint64 Duration)
 {
-	GIoRequestsCompleted.Add(1);
-	GIoRequestsCompletedSize.Add(RequestSize);
+	GIoRequestReadCount.Add(1);
+	GIoRequestReadBytes.Add(Size);
 
-	CSV_CUSTOM_STAT_DEFINED(FrameIoRequestsCompleted, int32(GIoRequestsCompleted.Get()), ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT_DEFINED(FrameIoRequestsCompletedSize, BytesToApproxKB(GIoRequestsCompletedSize.Get()), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(FrameIoRequestReadCount, int32(GIoRequestReadCount.Get()), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(FrameIoRequestReadMB, BytesToApproxMB(GIoRequestReadBytes.Get()), ECsvCustomStatOp::Set);
 }
 
 void FOnDemandIoBackendStats::OnIoRequestCancel()
 {
-	GIoRequestsCancelled.Add(1);
-	CSV_CUSTOM_STAT_DEFINED(FrameIoRequestsCancelled, int32(GIoRequestsCancelled.Get()), ECsvCustomStatOp::Set);
+	GIoRequestCancelCount.Add(1);
+	CSV_CUSTOM_STAT_DEFINED(FrameIoRequestCancelCount, int32(GIoRequestCancelCount.Get()), ECsvCustomStatOp::Set);
 }
 
-void FOnDemandIoBackendStats::OnIoRequestFail()
+void FOnDemandIoBackendStats::OnIoRequestError()
 {
-	GIoRequestsFailed.Add(1);
-	CSV_CUSTOM_STAT_DEFINED(FrameIoRequestsFailed, int32(GIoRequestsFailed.Get()), ECsvCustomStatOp::Set);
-}
-
-void FOnDemandIoBackendStats::OnChunkRequestCreate()
-{
-	GReadRequestsCreated.Add(1);
-	CSV_CUSTOM_STAT_DEFINED(FrameReadRequestsCreated, int32(GReadRequestsCreated.Get()), ECsvCustomStatOp::Set);
-}
-
-void FOnDemandIoBackendStats::OnChunkRequestRelease()
-{
-	GReadRequestsRemoved.Add(1);
-	CSV_CUSTOM_STAT_DEFINED(FrameReadRequestsRemoved, int32(GReadRequestsRemoved.Get()), ECsvCustomStatOp::Set);
+	GIoRequestErrorCount.Add(1);
+	CSV_CUSTOM_STAT_DEFINED(FrameIoRequestErrorCount, int32(GIoRequestErrorCount.Get()), ECsvCustomStatOp::Set);
 }
 
 void FOnDemandIoBackendStats::OnCacheError()
 {
 	GCacheErrorCount.Add(1);
-	CSV_CUSTOM_STAT_DEFINED(FrameCacheErrorCount, int32(GCacheErrorCount.Get()), ECsvCustomStatOp::Set);
 }
 
 void FOnDemandIoBackendStats::OnCacheGet(uint64 DataSize)
 {
 	GCacheGetCount.Add(1);
 	GCacheReadBytes.Add(DataSize);
-
-	CSV_CUSTOM_STAT_DEFINED(FrameCacheGetCount, int32(GCacheGetCount.Get()), ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT_DEFINED(FrameCacheReadBytes, BytesToApproxKB(GCacheReadBytes.Get()), ECsvCustomStatOp::Set);
 }
 
 void FOnDemandIoBackendStats::OnCachePut()
 {
 	GCachePutCount.Add(1);
-	CSV_CUSTOM_STAT_DEFINED(FrameCachePutCount, int32(GCachePutCount.Get()), ECsvCustomStatOp::Set);
 }
 
 void FOnDemandIoBackendStats::OnCachePutExisting(uint64 /*DataSize*/)
 {
 	GCachePutExistingCount.Add(1);
-	CSV_CUSTOM_STAT_DEFINED(FrameCachePutExistingCount, int32(GCachePutExistingCount.Get()), ECsvCustomStatOp::Set);
 }
 
 void FOnDemandIoBackendStats::OnCachePutReject(uint64 DataSize)
 {
 	GCachePutRejectCount.Add(1);
 	GCacheRejectBytes.Add(DataSize);
-
-	CSV_CUSTOM_STAT_DEFINED(FrameCachePutRejectCount, int32(GCachePutRejectCount.Get()), ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT_DEFINED(FrameCacheRejectBytes, BytesToApproxKB(GCacheRejectBytes.Get()), ECsvCustomStatOp::Set);
 }
 
 void FOnDemandIoBackendStats::OnCachePendingBytes(uint64 TotalSize)
 {
 	GCachePendingBytes.Set(TotalSize);
-	CSV_CUSTOM_STAT_DEFINED(FrameCachePendingBytes, BytesToApproxKB(GCachePendingBytes.Get()), ECsvCustomStatOp::Set);
 }
 
 void FOnDemandIoBackendStats::OnCachePersistedBytes(uint64 TotalSize)
 {
 	GCacheCachedBytes.Set(TotalSize);
-	CSV_CUSTOM_STAT_DEFINED(FrameCacheCachedBytes, BytesToApproxKB(GCacheCachedBytes.Get()), ECsvCustomStatOp::Set);
 }
 
 void FOnDemandIoBackendStats::OnHttpEnqueue()
 {
 	GHttpPendingCount.Add(1);
-	CSV_CUSTOM_STAT_DEFINED(HttpPendingCount, int32(GHttpPendingCount.Get()), ECsvCustomStatOp::Set);
 }
 
 void FOnDemandIoBackendStats::OnHttpDequeue()
 {
 	GHttpInflightCount.Add(1);
-	CSV_CUSTOM_STAT_DEFINED(HttpInflightCount, int32(GHttpInflightCount.Get()), ECsvCustomStatOp::Set);
 }
 
-void FOnDemandIoBackendStats::OnHttpGet(uint64 InSize)
+void FOnDemandIoBackendStats::OnHttpGet(uint64 Size, uint64 DurationMs)
 {
 	GHttpPendingCount.Add(-1);
 	GHttpInflightCount.Add(-1);
 	GHttpGetCount.Add(1);
-	GHttpDownloadedBytes.Add(InSize);
+	GHttpDownloadedBytes.Add(Size);
+	GHttpDurationMsSum += DurationMs;
+	GHttpDurationMs.Set(DurationMs);
 
-	CSV_CUSTOM_STAT_DEFINED(HttpPendingCount, int32(GHttpPendingCount.Get()), ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT_DEFINED(HttpInflightCount, int32(GHttpInflightCount.Get()), ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT_DEFINED(HttpGetCount, int32(GHttpGetCount.Get()), ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT_DEFINED(HttpDownloadKB, BytesToApproxKB(GHttpDownloadedBytes.Get()), ECsvCustomStatOp::Set);
+	GHttpBandwidthMpbs.Set((GHttpDownloadedBytes.Get()*8)/(GHttpDurationMsSum+1)/1000);
+	GHttpDurationMsAvg.Set(GHttpDurationMsSum/GHttpGetCount.Get());
+	if (GHttpDurationMsMax.Get() < (int64)DurationMs)
+	{
+		GHttpDurationMsMax.Set((int64)DurationMs);
+	}
 }
 
 void FOnDemandIoBackendStats::OnHttpRetry()
@@ -223,10 +227,6 @@ void FOnDemandIoBackendStats::OnHttpRetry()
 	GHttpPendingCount.Add(-1);
 	GHttpInflightCount.Add(-1);
 	GHttpRetryCount.Add(1);
-
-	CSV_CUSTOM_STAT_DEFINED(HttpPendingCount, int32(GHttpPendingCount.Get()), ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT_DEFINED(HttpInflightCount, int32(GHttpInflightCount.Get()), ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT_DEFINED(HttpRetryCount, int32(GHttpRetryCount.Get()), ECsvCustomStatOp::Set);
 }
 
 void FOnDemandIoBackendStats::OnHttpError()
@@ -234,10 +234,6 @@ void FOnDemandIoBackendStats::OnHttpError()
 	GHttpPendingCount.Add(-1);
 	GHttpInflightCount.Add(-1);
 	GHttpErrorCount.Add(1);
-
-	CSV_CUSTOM_STAT_DEFINED(HttpPendingCount, int32(GHttpPendingCount.Get()), ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT_DEFINED(HttpInflightCount, int32(GHttpInflightCount.Get()), ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT_DEFINED(HttpErrorCount, int32(GHttpErrorCount.Get()), ECsvCustomStatOp::Set);
 }
 
 } // namespace UE::IO::Private

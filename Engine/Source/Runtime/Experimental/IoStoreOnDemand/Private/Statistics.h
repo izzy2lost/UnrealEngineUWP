@@ -29,11 +29,9 @@ public:
 	FOnDemandIoBackendStats() IAS_STATISTICS_IMPL()
 	~FOnDemandIoBackendStats() IAS_STATISTICS_IMPL()
 	void OnIoRequestEnqueue() IAS_STATISTICS_IMPL()
-	void OnIoRequestComplete(uint64 RequestSize) IAS_STATISTICS_IMPL()
+	void OnIoRequestComplete(uint64 Size, uint64 DurationMs) IAS_STATISTICS_IMPL()
 	void OnIoRequestCancel() IAS_STATISTICS_IMPL()
-	void OnIoRequestFail() IAS_STATISTICS_IMPL()
-	void OnChunkRequestCreate() IAS_STATISTICS_IMPL()
-	void OnChunkRequestRelease() IAS_STATISTICS_IMPL()
+	void OnIoRequestError() IAS_STATISTICS_IMPL()
 
 	void OnCacheError() IAS_STATISTICS_IMPL()
 	void OnCacheGet(uint64 DataSize) IAS_STATISTICS_IMPL()
@@ -45,7 +43,7 @@ public:
 
 	void OnHttpEnqueue() IAS_STATISTICS_IMPL()
 	void OnHttpDequeue() IAS_STATISTICS_IMPL()
-	void OnHttpGet(uint64 InSize) IAS_STATISTICS_IMPL()
+	void OnHttpGet(uint64 Size, uint64 DurationMs) IAS_STATISTICS_IMPL()
 	void OnHttpRetry() IAS_STATISTICS_IMPL()
 	void OnHttpError() IAS_STATISTICS_IMPL()
 };
