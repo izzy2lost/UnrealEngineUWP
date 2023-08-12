@@ -91,8 +91,9 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="name">Alias for the node</param>
 		/// <param name="handle">Locator for the node</param>
+		/// <param name="rank">Rank for this alias. In situations where an alias has multiple mappings, the alias with the highest rank will be returned by default.</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task AddAliasAsync(Utf8String name, BlobHandle handle, CancellationToken cancellationToken = default);
+		Task AddAliasAsync(Utf8String name, BlobHandle handle, int rank = 0, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Removes an alias from a node

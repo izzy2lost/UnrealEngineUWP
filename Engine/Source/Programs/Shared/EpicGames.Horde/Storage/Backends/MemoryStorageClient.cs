@@ -21,7 +21,7 @@ namespace EpicGames.Horde.Storage.Backends
 	/// </summary>
 	public class MemoryStorageClient : BundleStorageClient
 	{
-		record class ExportEntry(BundleNodeHandle Handle, ExportEntry? Next);
+		record class ExportEntry(BundleNodeHandle Handle, int Rank, ExportEntry? Next);
 
 		/// <summary>
 		/// Map of blob id to blob data
@@ -85,9 +85,9 @@ namespace EpicGames.Horde.Storage.Backends
 		#region Aliases
 
 		/// <inheritdoc/>
-		public override Task AddAliasAsync(Utf8String name, BundleNodeHandle handle, CancellationToken cancellationToken = default)
+		public override Task AddAliasAsync(Utf8String name, BundleNodeHandle handle, int rank = 0, CancellationToken cancellationToken = default)
 		{
-			_exports.AddOrUpdate(name, _ => new ExportEntry(handle, null), (_, entry) => new ExportEntry(handle, entry));
+			_exports.AddOrUpdate(name, _ => new ExportEntry(handle, rank, null), (_, entry) => new ExportEntry(handle, rank, entry));
 			return Task.CompletedTask;
 		}
 

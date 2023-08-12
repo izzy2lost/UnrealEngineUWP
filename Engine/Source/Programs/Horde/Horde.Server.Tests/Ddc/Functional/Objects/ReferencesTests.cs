@@ -823,6 +823,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
+		[Ignore("Horde does not allow submitting content ids before blobs")]
 		[TestMethod]
         public async Task PutContentIdMissingBlobAsync()
         {

@@ -145,7 +145,7 @@ namespace Horde.Server.Ddc
 				await writer.FlushAsync(cancellationToken);
 			}
 
-			await storageClient.AddAliasAsync(GetAlias(identifier), blobHandle, cancellationToken);
+			await storageClient.AddAliasAsync(GetAlias(identifier), blobHandle, cancellationToken: cancellationToken);
 			return identifier;
 		}
 	}
