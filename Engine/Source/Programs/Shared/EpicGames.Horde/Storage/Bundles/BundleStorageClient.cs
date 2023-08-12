@@ -102,7 +102,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		#region Refs
 
 		/// <inheritdoc/>
-		public abstract Task DeleteRefAsync(RefName name, CancellationToken cancellationToken = default);
+		public abstract Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default);
 
 		/// <inheritdoc cref="StorageClientExtensions.ReadRefTargetAsync(IStorageClient, RefName, RefCacheTime, CancellationToken)"/>
 		public async Task<BundleNodeHandle> ReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)

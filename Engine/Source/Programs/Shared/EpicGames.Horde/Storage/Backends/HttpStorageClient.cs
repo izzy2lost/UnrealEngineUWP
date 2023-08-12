@@ -235,7 +235,7 @@ namespace EpicGames.Horde.Storage.Backends
 		#region Refs
 
 		/// <inheritdoc/>
-		public override async Task DeleteRefAsync(RefName name, CancellationToken cancellationToken)
+		public override async Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken)
 		{
 			_logger.LogDebug("Deleting ref {RefName}", name);
 			using (HttpClient httpClient = _createClient())
@@ -244,7 +244,17 @@ namespace EpicGames.Horde.Storage.Backends
 				{
 					using (HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken))
 					{
+						if (response.IsSuccessStatusCode)
+						{
+							return true;
+						}
+						if (response.StatusCode == HttpStatusCode.NotFound)
+						{
+							return false;
+						}
+
 						response.EnsureSuccessStatusCode();
+						return false;
 					}
 				}
 			}

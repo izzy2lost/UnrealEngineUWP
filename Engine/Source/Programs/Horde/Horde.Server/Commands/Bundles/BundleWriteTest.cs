@@ -25,7 +25,7 @@ namespace Horde.Server.Commands.Bundles
 			{
 			}
 
-			public Task DeleteRefAsync(RefName name, CancellationToken cancellationToken = default) => Task.CompletedTask;
+			public Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default) => Task.FromResult(true);
 			public Task<Bundle> ReadBundleAsync(BundleLocator locator, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 			public Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BundleLocator locator, int offset, int length, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 			public Task AddAliasAsync(Utf8String name, BlobHandle handle, CancellationToken cancellationToken = default) => throw new NotImplementedException();

@@ -28,8 +28,7 @@ namespace Horde.Server.Ddc
 		public async Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
 			IStorageClient storageClient = await _storageService.GetClientAsync(ns, cancellationToken);
-			await storageClient.DeleteRefAsync(GetRefName(bucket, key), cancellationToken);
-			return true;
+			return await storageClient.DeleteRefAsync(GetRefName(bucket, key), cancellationToken);
 		}
 
 		public async Task<bool> ExistsAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)

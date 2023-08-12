@@ -199,7 +199,6 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-		[Ignore]
 		[TestMethod]
         public async Task PutGetCompactBinaryAsync()
         {
@@ -235,12 +234,14 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             {
                 BucketId bucket = new BucketId("bucket");
 
-                RefRecord objectRecord = await ReferencesStore.GetAsync(TestNamespace, bucket, key, IReferencesStore.FieldFlags.IncludePayload);
+				IRefService refService = ServiceProvider.GetRequiredService<IRefService>();
+				(RefRecord objectRecord, BlobContents? contents) = await refService.GetAsync(TestNamespace, bucket, key, Array.Empty<string>());
 
                 Assert.IsTrue(objectRecord.IsFinalized);
                 Assert.AreEqual(key, objectRecord.Name);
                 Assert.AreEqual(objectHash, objectRecord.BlobIdentifier);
-                Assert.IsNotNull(objectRecord.InlinePayload);
+				// Note: Horde does not use the InlinePayload field
+				// Assert.IsNotNull(objectRecord.InlinePayload);
             }
 
             {
@@ -286,7 +287,6 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-		[Ignore]
 		[TestMethod]
         public async Task PutGetCompactBinaryFilteringAsync()
         {
@@ -322,7 +322,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             {
                 BucketId bucket = new BucketId("bucket");
 
-                RefRecord objectRecord = await ReferencesStore.GetAsync(TestNamespace, bucket, key, IReferencesStore.FieldFlags.None);
+				IRefService refService = ServiceProvider.GetRequiredService<IRefService>();
+				(RefRecord objectRecord, _) = await refService.GetAsync(TestNamespace, bucket, key, Array.Empty<string>());
 
                 Assert.IsTrue(objectRecord.IsFinalized);
                 Assert.AreEqual(key, objectRecord.Name);
@@ -365,7 +366,6 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             Assert.AreEqual(4924, needsField.Count);
         }
 
-		[Ignore]
 		[TestMethod]
         public async Task PutGetCompactBinaryHierarchyAsync()
         {
@@ -453,12 +453,13 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             {
                 BucketId bucket = new BucketId("bucket");
 
-                RefRecord objectRecord = await ReferencesStore.GetAsync(TestNamespace, bucket, key, IReferencesStore.FieldFlags.IncludePayload);
+				IRefService refService = ServiceProvider.GetRequiredService<IRefService>();
+				(RefRecord objectRecord, _) = await refService.GetAsync(TestNamespace, bucket, key, Array.Empty<string>());
 
                 Assert.IsTrue(objectRecord.IsFinalized);
                 Assert.AreEqual(key, objectRecord.Name);
                 Assert.AreEqual(parentObjectHash, objectRecord.BlobIdentifier);
-                Assert.IsNotNull(objectRecord.InlinePayload);
+//                Assert.IsNotNull(objectRecord.InlinePayload);
             }
 
             {
@@ -1377,7 +1378,6 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-		[Ignore]
 		[TestMethod]
         public async Task DeleteObjectAsync()
         {

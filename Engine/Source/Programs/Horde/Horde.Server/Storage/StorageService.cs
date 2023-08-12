@@ -260,7 +260,7 @@ namespace Horde.Server.Storage
 			public override Task WriteRefTargetAsync(RefName name, BundleNodeLocator target, RefOptions? options = null, CancellationToken cancellationToken = default) => _outer.WriteRefTargetAsync(NamespaceId, name, target, options, cancellationToken);
 
 			/// <inheritdoc/>
-			public override Task DeleteRefAsync(RefName name, CancellationToken cancellationToken = default) => _outer.DeleteRefAsync(NamespaceId, name, cancellationToken);
+			public override Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default) => _outer.DeleteRefAsync(NamespaceId, name, cancellationToken);
 
 			#endregion
 		}
@@ -819,10 +819,10 @@ namespace Horde.Server.Storage
 		}
 
 		/// <inheritdoc/>
-		async Task DeleteRefAsync(NamespaceId namespaceId, RefName name, CancellationToken cancellationToken = default)
+		async Task<bool> DeleteRefAsync(NamespaceId namespaceId, RefName name, CancellationToken cancellationToken = default)
 		{
 			FilterDefinition<RefInfo> filter = Builders<RefInfo>.Filter.Expr(x => x.NamespaceId == namespaceId && x.Name == name);
-			await DeleteRefInternalAsync(namespaceId, name, filter, cancellationToken);
+			return await DeleteRefInternalAsync(namespaceId, name, filter, cancellationToken);
 		}
 
 		/// <summary>
@@ -834,15 +834,19 @@ namespace Horde.Server.Storage
 			await DeleteRefInternalAsync(refDocument.NamespaceId, refDocument.Name, filter, cancellationToken);
 		}
 
-		async Task DeleteRefInternalAsync(NamespaceId namespaceId, RefName name, FilterDefinition<RefInfo> filter, CancellationToken cancellationToken = default)
+		async Task<bool> DeleteRefInternalAsync(NamespaceId namespaceId, RefName name, FilterDefinition<RefInfo> filter, CancellationToken cancellationToken = default)
 		{
 			RefInfo? oldRefInfo = await _refCollection.FindOneAndDeleteAsync<RefInfo>(filter, cancellationToken: cancellationToken);
+			AddRefToCache(namespaceId, name, default);
+
 			if (oldRefInfo != null)
 			{
 				_logger.LogInformation("Deleted ref {NamespaceId}:{RefName}", namespaceId, name);
 				AddGcCheckRecord(namespaceId, oldRefInfo.BlobInfoId);
+				return true;
 			}
-			AddRefToCache(namespaceId, name, default);
+
+			return false;
 		}
 
 		/// <inheritdoc/>

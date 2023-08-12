@@ -138,7 +138,7 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="name">The ref identifier</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task DeleteRefAsync(RefName name, CancellationToken cancellationToken = default);
+		Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default);
 
 		#endregion
 	}

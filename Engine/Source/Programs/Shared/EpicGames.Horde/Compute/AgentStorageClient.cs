@@ -93,7 +93,7 @@ namespace EpicGames.Horde.Compute
 		#region Refs
 
 		/// <inheritdoc/>
-		public override Task DeleteRefAsync(RefName name, CancellationToken cancellationToken = default)
+		public override Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException();
 		}

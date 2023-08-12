@@ -14,6 +14,7 @@ using EpicGames.Core;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using EpicGames.Horde.Storage.Bundles;
+using Microsoft.CodeAnalysis.FlowAnalysis;
 
 namespace EpicGames.Horde.Storage.Backends
 {
@@ -123,11 +124,15 @@ namespace EpicGames.Horde.Storage.Backends
 		#region Refs
 
 		/// <inheritdoc/>
-		public override Task DeleteRefAsync(RefName name, CancellationToken cancellationToken = default)
+		public override Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default)
 		{
-			FileReference file = GetRefFile(name);
-			FileReference.Delete(file);
-			return Task.CompletedTask;
+			FileInfo file = GetRefFile(name).ToFileInfo();
+			if (file.Exists)
+			{
+				file.Delete();
+				return Task.FromResult(true);
+			}
+			return Task.FromResult(false);
 		}
 
 		/// <inheritdoc/>
