@@ -163,6 +163,11 @@ UOnlineHotfixManager::UOnlineHotfixManager() :
 	bLogMountedPakContents = FParse::Param(FCommandLine::Get(), TEXT("LogHotfixPakContents"));
 #endif
 	GameContentPath = FString() / FApp::GetProjectName() / TEXT("Content");
+
+	if (!UObject::IsPendingKillEnabled())
+	{
+		FCoreUObjectDelegates::GetPreGarbageCollectDelegate().AddUObject(this, &UOnlineHotfixManager::StopTrackingInvalidHotfixedAssets);
+	}
 }
 
 UOnlineHotfixManager::UOnlineHotfixManager(FVTableHelper& Helper)
@@ -172,6 +177,10 @@ UOnlineHotfixManager::UOnlineHotfixManager(FVTableHelper& Helper)
 
 UOnlineHotfixManager::~UOnlineHotfixManager()
 {
+	if (!UObject::IsPendingKillEnabled())
+	{
+		FCoreUObjectDelegates::GetPreGarbageCollectDelegate().RemoveAll(this);
+	}
 }
 
 UOnlineHotfixManager* UOnlineHotfixManager::Get(UWorld* World)
@@ -1889,6 +1898,11 @@ FString UOnlineHotfixManager::GetDedicatedServerPrefix() const
 UWorld* UOnlineHotfixManager::GetWorld() const
 {
 	return OwnerWorld.IsValid() ? OwnerWorld.Get() : nullptr;
+}
+
+void UOnlineHotfixManager::StopTrackingInvalidHotfixedAssets()
+{
+	AssetsHotfixedFromIniFiles.RemoveAllSwap([](const UObject* Obj) { return !IsValid(Obj); });
 }
 
 struct FHotfixManagerExec :
