@@ -3,6 +3,7 @@
 using System;
 using System.IO;
 using System.IO.Pipelines;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -155,6 +156,18 @@ namespace EpicGames.Horde.Storage.Nodes
 		{
 			ChunkedDataNode node = await ExpandAsync(cancellationToken);
 			await node.CopyToFileAsync(file, cancellationToken);
+
+			if ((Flags & FileEntryFlags.Executable) != 0)
+			{
+				if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+				{
+					FileUtils.SetFileMode_Linux(file.FullName, 0b_111_111_111);
+				}
+				else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+				{
+					FileUtils.SetFileMode_Mac(file.FullName, 0b_111_111_111);
+				}
+			}
 		}
 
 		/// <inheritdoc/>
