@@ -12,6 +12,7 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Collections.Generic;
 
 namespace EpicGames.Horde.Tests
 {
@@ -44,6 +45,29 @@ namespace EpicGames.Horde.Tests
 				{
 					rollingHash = BuzHash.Sub(rollingHash, data[minIdx], length);
 				}
+			}
+		}
+
+		[TestMethod]
+		public async Task EmptyNodeTest()
+		{
+			MemoryStorageClient store = new MemoryStorageClient();
+
+			await using (IStorageWriter writer = store.CreateWriter(new RefName("hello")))
+			{
+				ChunkingOptions options = new ChunkingOptions();
+				options.LeafOptions = new LeafChunkedDataNodeOptions(64, 64, 64);
+				options.InteriorOptions = new InteriorChunkedDataNodeOptions(4, 4, 4);
+
+				using MemoryStream emptyStream = new MemoryStream();
+				List<NodeRef<ChunkedDataNode>> leafNodes = await LeafChunkedDataNode.CreateFromStreamAsync(writer, emptyStream, new LeafChunkedDataNodeOptions(64, 64, 64), CancellationToken.None);
+				NodeRef<ChunkedDataNode> dataNode = await InteriorChunkedDataNode.CreateTreeAsync(leafNodes, new InteriorChunkedDataNodeOptions(4, 4, 4), writer, CancellationToken.None); 
+
+				DirectoryNode directory = new DirectoryNode();
+				directory.AddFile("test.foo", FileEntryFlags.None, 0, dataNode);
+
+				NodeRef<DirectoryNode> directoryRef = await writer.WriteNodeAsync(directory);
+				await writer.WriteRefAsync(directoryRef.Handle);
 			}
 		}
 

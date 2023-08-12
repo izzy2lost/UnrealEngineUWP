@@ -187,7 +187,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			for (; ; )
 			{
 				size += await stream.ReadGreedyAsync(readBuffer.Memory.Slice(size), cancellationToken);
-				if (size == 0)
+				if (size == 0 && handles.Count > 0)
 				{
 					break;
 				}
