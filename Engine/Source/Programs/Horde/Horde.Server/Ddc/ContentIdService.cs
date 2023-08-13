@@ -52,7 +52,7 @@ namespace Horde.Server.Ddc
 				throw new BlobNotFoundException(ns, blobId);
 			}
 
-			await storageClient.AddAliasAsync(GetAlias(contentId), blobHandle, cancellationToken);
+			await storageClient.AddAliasAsync(GetAlias(contentId), blobHandle, -contentWeight, cancellationToken);
 		}
 	}
 }

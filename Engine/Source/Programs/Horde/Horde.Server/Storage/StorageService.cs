@@ -341,7 +341,7 @@ namespace Horde.Server.Storage
 			public List<ObjectId>? Imports { get; set; }
 
 			[BsonElement("exp"), BsonIgnoreIfNull]
-			public List<AliasInfo>? Exports { get; set; }
+			public List<AliasInfo>? Aliases { get; set; }
 
 			[BsonIgnore]
 			public BundleLocator Locator => new BundleLocator(Path);
@@ -475,7 +475,7 @@ namespace Horde.Server.Storage
 			List<MongoIndex<BlobInfo>> blobIndexes = new List<MongoIndex<BlobInfo>>();
 			blobIndexes.Add(keys => keys.Ascending(x => x.Imports));
 			blobIndexes.Add(keys => keys.Ascending(x => x.NamespaceId).Ascending(x => x.Path), unique: true);
-			blobIndexes.Add(keys => keys.Ascending(x => x.NamespaceId).Ascending($"{nameof(BlobInfo.Exports)}.{nameof(AliasInfo.Alias)}"));
+			blobIndexes.Add(keys => keys.Ascending(x => x.NamespaceId).Ascending($"{nameof(BlobInfo.Aliases)}.{nameof(AliasInfo.Alias)}"));
 			_blobCollection = mongoService.GetCollection<BlobInfo>("Storage.Blobs", blobIndexes);
 
 			List<MongoIndex<RefInfo>> refIndexes = new List<MongoIndex<RefInfo>>();
@@ -620,7 +620,7 @@ namespace Horde.Server.Storage
 			BundleLocator blobId = (prefix.Length > 0) ? new BundleLocator($"{prefix}/{id}") : new BundleLocator(id.ToString());
 
 			BlobInfo blobInfo = new BlobInfo(id, namespaceId, blobId);
-			blobInfo.Exports = exports;
+			blobInfo.Aliases = exports;
 			await _blobCollection.InsertOneAsync(blobInfo, new InsertOneOptions { }, cancellationToken);
 
 			return blobId;
@@ -719,13 +719,13 @@ namespace Horde.Server.Storage
 				throw new KeyNotFoundException($"Missing blob {target.Blob}");
 			}
 
-			if (blobInfo.Exports != null && blobInfo.Exports.Any(x => x.Alias == alias && x.Index == target.ExportIdx))
+			if (blobInfo.Aliases != null && blobInfo.Aliases.Any(x => x.Alias == alias && x.Index == target.ExportIdx))
 			{
 				return;
 			}
 
 			FilterDefinition<BlobInfo> filter = Builders<BlobInfo>.Filter.Expr(x => x.NamespaceId == blobInfo.NamespaceId && x.Path == target.Blob.Path);
-			UpdateDefinition<BlobInfo> update = Builders<BlobInfo>.Update.Push(x => x.Exports, new AliasInfo(alias.ToString(), target.Hash, target.ExportIdx, rank));
+			UpdateDefinition<BlobInfo> update = Builders<BlobInfo>.Update.Push(x => x.Aliases, new AliasInfo(alias.ToString(), target.Hash, target.ExportIdx, rank));
 			await _blobCollection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken);
 		}
 
@@ -737,9 +737,11 @@ namespace Horde.Server.Storage
 		/// <param name="target">Target node for the alias</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Sequence of thandles</returns>
-		Task RemoveAliasAsync(NamespaceId namespaceId, Utf8String alias, BundleNodeLocator target, CancellationToken cancellationToken = default)
+		async Task RemoveAliasAsync(NamespaceId namespaceId, Utf8String alias, BundleNodeLocator target, CancellationToken cancellationToken = default)
 		{
-			throw new NotSupportedException();
+			FilterDefinition<BlobInfo> filter = Builders<BlobInfo>.Filter.Expr(x => x.NamespaceId == namespaceId && x.Path == target.Blob.Path);
+			UpdateDefinition<BlobInfo> update = Builders<BlobInfo>.Update.PullFilter(x => x.Aliases, Builders<AliasInfo>.Filter.Expr(x => x.Alias == alias));
+			await _blobCollection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken);
 		}
 
 		/// <summary>
@@ -753,11 +755,11 @@ namespace Horde.Server.Storage
 		{
 			List<(BundleNodeLocator Locator, int Rank)> locators = new List<(BundleNodeLocator, int)>();
 
-			await foreach (BlobInfo blobInfo in _blobCollection.Find(x => x.NamespaceId == namespaceId && x.Exports!.Any(y => y.Alias == alias)).ToAsyncEnumerable(cancellationToken))
+			await foreach (BlobInfo blobInfo in _blobCollection.Find(x => x.NamespaceId == namespaceId && x.Aliases!.Any(y => y.Alias == alias)).ToAsyncEnumerable(cancellationToken))
 			{
-				if (blobInfo.Exports != null)
+				if (blobInfo.Aliases != null)
 				{
-					foreach (AliasInfo aliasInfo in blobInfo.Exports)
+					foreach (AliasInfo aliasInfo in blobInfo.Aliases)
 					{
 						if (aliasInfo.Alias == alias)
 						{

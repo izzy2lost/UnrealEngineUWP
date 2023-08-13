@@ -52,14 +52,6 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 		Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket);
 	}
 
-	static class CompileHacks
-	{
-		public static Task DeleteObjectAsync(this IBlobService blobService, NamespaceId namespaceId, BlobId blobId)
-		{
-			throw new NotImplementedException();
-		}
-	}
-
 	[TestClass]
     public class ReferencesTests : ControllerIntegrationTest
     {
@@ -1045,7 +1037,6 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-		[Ignore("Horde does not support deleting objects manually (ie. BlobService.DeleteObjectAsync)")]
 		[TestMethod]
         public async Task GetMissingContentIdRecordAsync()
         {
@@ -1156,7 +1147,6 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-		[Ignore("Horde does not support deleting objects manually (ie. BlobService.DeleteObjectAsync)")]
 		[TestMethod]
         public async Task GetMissingCompressedBufferAttachmentAsync()
         {
@@ -1261,7 +1251,6 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             }
         }
 
-		[Ignore("Horde does not support deleting objects manually (ie. BlobService.DeleteObjectAsync)")]
 		[TestMethod]
         public async Task GetMissingBlobRecordAsync()
         {

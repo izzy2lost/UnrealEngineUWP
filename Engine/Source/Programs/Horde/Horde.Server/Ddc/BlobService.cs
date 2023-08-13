@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Amazon.S3.Model;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using Horde.Server.Storage;
@@ -65,6 +66,18 @@ namespace Horde.Server.Ddc
 		{
 			IStorageClient storageClient = await _storageService.GetClientAsync(ns, cancellationToken);
 			return await storageClient.FindAliasAsync(GetAlias(blob), cancellationToken).AnyAsync(cancellationToken);
+		}
+
+		public async Task DeleteObjectAsync(NamespaceId ns, BlobId blob, CancellationToken cancellationToken)
+		{
+			IStorageClient storageClient = await _storageService.GetClientAsync(ns, cancellationToken);
+			Utf8String alias = GetAlias(blob);
+
+			List<BlobHandle> handles = await storageClient.FindAliasAsync(alias, cancellationToken).ToListAsync(cancellationToken);
+			foreach (BlobHandle handle in handles)
+			{
+				await storageClient.RemoveAliasAsync(alias, handle);
+			}
 		}
 
 		public async Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IEnumerable<BlobId> blobIds, CancellationToken cancellationToken)
