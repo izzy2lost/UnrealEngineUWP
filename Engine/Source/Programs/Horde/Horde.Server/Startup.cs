@@ -1034,6 +1034,7 @@ namespace Horde.Server
 				BsonSerializer.RegisterSerializer(new ConditionSerializer());
 				BsonSerializer.RegisterSerializationProvider(new BsonSerializationProvider());
 				BsonSerializer.RegisterSerializationProvider(new StringIdBsonSerializationProvider());
+				BsonSerializer.RegisterSerializationProvider(new BinaryIdBsonSerializationProvider());
 				BsonSerializer.RegisterSerializationProvider(new ObjectIdBsonSerializationProvider());
 			}
 		}

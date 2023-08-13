@@ -365,24 +365,42 @@ namespace EpicGames.Core
 		/// <returns></returns>
 		public static bool TryParseHexString(ReadOnlySpan<char> text, [NotNullWhen(true)] out byte[]? outBytes)
 		{
-			if((text.Length & 1) != 0)
+			byte[] bytes = new byte[text.Length / 2];
+			if (TryParseHexString(text, bytes))
+			{
+				outBytes = bytes;
+				return true;
+			}
+			else
 			{
 				outBytes = null;
 				return false;
 			}
+		}
 
-			byte[] bytes = new byte[text.Length / 2];
+		/// <summary>
+		/// Parses a hexadecimal string into an array of bytes
+		/// </summary>
+		/// <param name="text">Text to parse</param>
+		/// <param name="bytes">Receives the parsed string</param>
+		/// <returns></returns>
+		public static bool TryParseHexString(ReadOnlySpan<char> text, Span<byte> bytes)
+		{
+			if((text.Length & 1) != 0)
+			{
+				return false;
+			}
+
 			for(int idx = 0; idx < text.Length; idx += 2)
 			{
 				int value = (GetHexDigit(text[idx]) << 4) | GetHexDigit(text[idx + 1]);
 				if(value < 0)
 				{
-					outBytes = null;
 					return false;
 				}
 				bytes[idx / 2] = (byte)value;
 			}
-			outBytes = bytes;
+
 			return true;
 		}
 
@@ -394,24 +412,42 @@ namespace EpicGames.Core
 		/// <returns></returns>
 		public static bool TryParseHexString(ReadOnlySpan<byte> text, [NotNullWhen(true)] out byte[]? outBytes)
 		{
-			if ((text.Length & 1) != 0)
+			byte[] bytes = new byte[text.Length / 2];
+			if (TryParseHexString(text, bytes))
+			{
+				outBytes = bytes;
+				return true;
+			}
+			else
 			{
 				outBytes = null;
 				return false;
 			}
+		}
 
-			byte[] bytes = new byte[text.Length / 2];
+		/// <summary>
+		/// Parses a hexadecimal string into an array of bytes
+		/// </summary>
+		/// <param name="text">Text to parse</param>
+		/// <param name="bytes">Receives the parsed string</param>
+		/// <returns></returns>
+		public static bool TryParseHexString(ReadOnlySpan<byte> text, Span<byte> bytes)
+		{
+			if ((text.Length & 1) != 0)
+			{
+				return false;
+			}
+
 			for (int idx = 0; idx < text.Length; idx += 2)
 			{
 				int value = ParseHexByte(text, idx);
 				if (value < 0)
 				{
-					outBytes = null;
 					return false;
 				}
 				bytes[idx / 2] = (byte)value;
 			}
-			outBytes = bytes;
+
 			return true;
 		}
 
