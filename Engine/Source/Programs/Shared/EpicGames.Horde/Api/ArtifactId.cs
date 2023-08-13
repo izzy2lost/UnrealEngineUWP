@@ -1,11 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.ComponentModel;
-using EpicGames.Horde;
-using Horde.Server.Utilities;
-using MongoDB.Bson;
+using System.Text.Json.Serialization;
 
-namespace Horde.Server.Artifacts
+namespace EpicGames.Horde.Api
 {
 	/// <summary>
 	/// Unique id for an artifact
@@ -15,13 +13,7 @@ namespace Horde.Server.Artifacts
 	[BinaryIdConverter(typeof(ArtifactIdConverter))]
 	public record struct ArtifactId(BinaryId Id)
 	{
-		/// <summary>
-		/// Creates a new random artifact id
-		/// </summary>
-		/// <returns>New artifact id</returns>
-		public static ArtifactId GenerateNewId() => new ArtifactId(BinaryIdUtils.CreateNew());
-
-		/// <inheritdoc cref="ObjectId.Parse(System.String)"/>
+		/// <inheritdoc cref="BinaryId.Parse(System.String)"/>
 		public static ArtifactId Parse(string text) => new ArtifactId(BinaryId.Parse(text));
 
 		/// <inheritdoc/>

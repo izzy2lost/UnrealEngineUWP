@@ -2,10 +2,8 @@
 
 using System.ComponentModel;
 using EpicGames.Core;
-using EpicGames.Horde;
-using Horde.Server.Utilities;
 
-namespace Horde.Server.Artifacts
+namespace EpicGames.Horde.Api
 {
 	/// <summary>
 	/// Type of an artifact

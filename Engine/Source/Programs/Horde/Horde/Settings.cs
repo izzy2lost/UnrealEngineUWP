@@ -2,6 +2,7 @@
 
 using System.Text.Json;
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.OIDC;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -137,6 +138,23 @@ namespace Horde
 
 			logger.LogInformation("Received bearer token for {Server}", settings.Server);
 			return result.AccessToken;
+		}
+
+		public static async Task<HordeHttpClient> GetHttpCientAsync(ILogger logger, CancellationToken cancellationToken = default)
+		{
+			Uri? server = await GetServerAsync(cancellationToken);
+			if (server == null)
+			{
+				throw new Exception("No server is configured. Run 'horde login -server=...' to set up.");
+			}
+
+			string? token = await GetAccessTokenAsync(logger, cancellationToken);
+			if (token == null)
+			{
+				throw new Exception("Unable to log in to server.");
+			}
+
+			return new HordeHttpClient(server, token);
 		}
 	}
 }

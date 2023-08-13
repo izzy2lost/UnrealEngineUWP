@@ -8,6 +8,7 @@ using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Api;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
@@ -23,101 +24,6 @@ using Microsoft.Extensions.Options;
 
 namespace Horde.Server.Artifacts
 {
-	/// <summary>
-	/// Describes an artifact
-	/// </summary>
-	public class GetArtifactResponse
-	{
-		readonly IArtifact _artifact;
-
-		/// <inheritdoc cref="IArtifact.Id"/>
-		public string Id => _artifact.Id.ToString();
-
-		/// <inheritdoc cref="IArtifact.Type"/>
-		public ArtifactType Type => _artifact.Type;
-
-		/// <inheritdoc cref="IArtifact.Keys"/>
-		public IReadOnlyList<string> Keys => _artifact.Keys;
-
-		internal GetArtifactResponse(IArtifact artifact) => _artifact = artifact;
-	}
-
-	/// <summary>
-	/// Result of an artifact search
-	/// </summary>
-	public class FindArtifactsResponse
-	{
-		/// <summary>
-		/// List of artifacts matching the search criteria
-		/// </summary>
-		public List<GetArtifactResponse> Artifacts { get; } = new List<GetArtifactResponse>();
-	}
-
-	/// <summary>
-	/// Describes a file within an artifact
-	/// </summary>
-	public class GetArtifactFileEntryResponse
-	{
-		readonly FileEntry _entry;
-
-		/// <inheritdoc cref="FileEntry.Name"/>
-		public string Name => _entry.Name.ToString();
-
-		/// <inheritdoc cref="FileEntry.Length"/>
-		public long Length => _entry.Length;
-
-		/// <inheritdoc cref="FileEntry.Hash"/>
-		public IoHash Hash => _entry.Hash;
-
-		internal GetArtifactFileEntryResponse(FileEntry entry) => _entry = entry;
-	}
-
-	/// <summary>
-	/// Describes a file within an artifact
-	/// </summary>
-	public class GetArtifactDirectoryEntryResponse : GetArtifactDirectoryResponse
-	{
-		readonly DirectoryEntry _entry;
-
-		/// <inheritdoc cref="FileEntry.Name"/>
-		public string Name => _entry.Name.ToString();
-
-		/// <inheritdoc cref="FileEntry.Length"/>
-		public long Length => _entry.Length;
-
-		/// <inheritdoc cref="FileEntry.Hash"/>
-		public IoHash Hash => _entry.Handle.Hash;
-
-		internal GetArtifactDirectoryEntryResponse(DirectoryEntry entry) => _entry = entry;
-	}
-
-	/// <summary>
-	/// Describes a directory within an artifact
-	/// </summary>
-	public class GetArtifactDirectoryResponse
-	{
-		/// <summary>
-		/// Names of sub-directories
-		/// </summary>
-		public List<GetArtifactDirectoryEntryResponse>? Directories { get; internal set; }
-			
-		/// <summary>
-		/// Files within the directory
-		/// </summary>
-		public List<GetArtifactFileEntryResponse>? Files { get; internal set; }
-	}
-
-	/// <summary>
-	/// Request to create a zip file with artifact data
-	/// </summary>
-	public class CreateZipRequest
-	{
-		/// <summary>
-		/// Filter lines for the zip. Uses standard <see cref="FileFilter"/> syntax.
-		/// </summary>
-		public List<string> Filter { get; set; } = new List<string>();
-	}
-
 	/// <summary>
 	/// Public interface for artifacts
 	/// </summary>
@@ -160,7 +66,7 @@ namespace Horde.Server.Artifacts
 				return Forbid(ArtifactAclAction.ReadArtifact, artifact.AclScope);
 			}
 
-			return PropertyFilter.Apply(new GetArtifactResponse(artifact), filter);
+			return PropertyFilter.Apply(new GetArtifactResponse(artifact.Id, artifact.Type, artifact.Keys), filter);
 		}
 
 		/// <summary>
@@ -280,7 +186,7 @@ namespace Horde.Server.Artifacts
 				{
 					DirectoryNode subDirectoryNode = await subDirectoryEntry.ExpandAsync(cancellationToken);
 
-					GetArtifactDirectoryEntryResponse subDirectoryEntryResponse = new GetArtifactDirectoryEntryResponse(subDirectoryEntry);
+					GetArtifactDirectoryEntryResponse subDirectoryEntryResponse = new GetArtifactDirectoryEntryResponse(subDirectoryEntry.Name.ToString(), subDirectoryEntry.Length, subDirectoryEntry.Handle.Hash);
 					if (depth == 0)
 					{
 						if (subDirectoryNode.Directories.Count + subDirectoryNode.Files.Count < 16)
@@ -308,7 +214,7 @@ namespace Horde.Server.Artifacts
 
 			if (directoryNode.Files.Count > 0)
 			{
-				response.Files = directoryNode.Files.Select(x => new GetArtifactFileEntryResponse(x)).ToList();
+				response.Files = directoryNode.Files.Select(x => new GetArtifactFileEntryResponse(x.Name.ToString(), x.Length, x.Handle.Hash)).ToList();
 			}
 		}
 
@@ -435,7 +341,7 @@ namespace Horde.Server.Artifacts
 			{
 				if (_globalConfig.Authorize(artifact.AclScope, ArtifactAclAction.ReadArtifact, User))
 				{
-					response.Artifacts.Add(new GetArtifactResponse(artifact));
+					response.Artifacts.Add(new GetArtifactResponse(artifact.Id, artifact.Type, artifact.Keys));
 				}
 			}
 

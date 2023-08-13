@@ -65,6 +65,7 @@ namespace EpicGames.Horde
 			options.PropertyNameCaseInsensitive = true;
 			options.Converters.Add(new JsonStringEnumConverter());
 			options.Converters.Add(new StringIdJsonConverterFactory());
+			options.Converters.Add(new BinaryIdJsonConverterFactory());
 		}
 
 		/// <summary>
@@ -81,7 +82,8 @@ namespace EpicGames.Horde
 				response.EnsureSuccessStatusCode();
 
 				byte[] bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-				return JsonSerializer.Deserialize<TResponse>(bytes, _jsonSerializerOptions)!;
+				TResponse result = JsonSerializer.Deserialize<TResponse>(bytes, _jsonSerializerOptions)!;
+				return result;
 			}
 		}
 	}
