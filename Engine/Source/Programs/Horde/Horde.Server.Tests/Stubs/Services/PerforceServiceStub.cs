@@ -11,6 +11,7 @@ using EpicGames.Perforce;
 using Horde.Server.Perforce;
 using Horde.Server.Streams;
 using Horde.Server.Users;
+using Horde.Server.Utilities;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Horde.Server.Tests.Stubs.Services
@@ -26,7 +27,7 @@ namespace Horde.Server.Tests.Stubs.Services
 
 			public User(string login)
 			{
-				Id = UserId.GenerateNewId();
+				Id = new UserId(BinaryIdUtils.CreateNew());
 				Name = login.ToUpperInvariant();
 				Email = $"{login}@server";
 				Login = login;

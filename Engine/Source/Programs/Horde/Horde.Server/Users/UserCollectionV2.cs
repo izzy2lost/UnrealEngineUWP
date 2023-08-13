@@ -299,7 +299,7 @@ namespace Horde.Server.Users
 		/// <inheritdoc/>
 		public async Task<IUser> FindOrAddUserByLoginAsync(string login, string? name, string? email)
 		{
-			UserId newUserId = UserId.GenerateNewId();
+			UserId newUserId = new UserId(BinaryIdUtils.CreateNew());
 			UpdateDefinition<UserDocument> update = Builders<UserDocument>.Update.SetOnInsert(x => x.Id, newUserId).SetOnInsert(x => x.Login, login).Unset(x => x.Hidden);
 
 			if (name == null)

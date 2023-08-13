@@ -2,6 +2,7 @@
 
 using System.ComponentModel;
 using EpicGames.Core;
+using EpicGames.Horde;
 using Horde.Server.Utilities;
 using MongoDB.Bson;
 
@@ -12,32 +13,27 @@ namespace Horde.Server.Users
 	/// </summary>
 	/// <param name="Id">Id to construct from</param>
 	[JsonSchemaString]
-	[TypeConverter(typeof(ObjectIdTypeConverter<UserId, UserIdConverter>))]
+	[TypeConverter(typeof(BinaryIdTypeConverter<UserId, UserIdConverter>))]
 	[ObjectIdConverter(typeof(UserIdConverter))]
-	public record struct UserId(ObjectId Id)
+	public record struct UserId(BinaryId Id)
 	{
 		/// <summary>
 		/// Constant value for empty user id
 		/// </summary>
-		public static UserId Empty { get; } = new UserId(ObjectId.Empty);
+		public static UserId Empty { get; } = default;
 
 		/// <summary>
 		/// Special user id for an anonymous administrator
 		/// </summary>
 		public static UserId Anonymous { get; } = UserId.Parse("63f7d3525119b9aa4c0f035a");
 
-		/// <summary>
-		/// Creates a new <see cref="UserId"/>
-		/// </summary>
-		public static UserId GenerateNewId() => new UserId(ObjectId.GenerateNewId());
-
 		/// <inheritdoc cref="ObjectId.Parse(System.String)"/>
-		public static UserId Parse(string text) => new UserId(ObjectId.Parse(text));
+		public static UserId Parse(string text) => new UserId(BinaryId.Parse(text));
 
 		/// <inheritdoc cref="ObjectId.TryParse(System.String, out ObjectId)"/>
 		public static bool TryParse(string text, out UserId id)
 		{
-			if (ObjectId.TryParse(text, out ObjectId objectId))
+			if (BinaryId.TryParse(text, out BinaryId objectId))
 			{
 				id = new UserId(objectId);
 				return true;
@@ -54,14 +50,14 @@ namespace Horde.Server.Users
 	}
 
 	/// <summary>
-	/// Converter to and from <see cref="ObjectId"/> instances.
+	/// Converter to and from <see cref="BinaryId"/> instances.
 	/// </summary>
-	class UserIdConverter : ObjectIdConverter<UserId>
+	class UserIdConverter : BinaryIdConverter<UserId>
 	{
 		/// <inheritdoc/>
-		public override UserId FromObjectId(ObjectId id) => new UserId(id);
+		public override UserId FromBinaryId(BinaryId id) => new UserId(id);
 
 		/// <inheritdoc/>
-		public override ObjectId ToObjectId(UserId value) => value.Id;
+		public override BinaryId ToBinaryId(UserId value) => value.Id;
 	}
 }

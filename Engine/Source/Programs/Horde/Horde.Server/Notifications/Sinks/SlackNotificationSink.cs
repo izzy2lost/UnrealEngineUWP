@@ -41,6 +41,7 @@ using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
+using EpicGames.Horde;
 
 namespace Horde.Server.Notifications.Sinks
 {
@@ -2766,7 +2767,7 @@ namespace Horde.Server.Notifications.Sinks
 							{
 								int issueId = Int32.Parse(match.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture);
 								string verb = match.Groups[2].Value;
-								UserId userId = new UserId(ObjectId.Parse(match.Groups[3].Value));
+								UserId userId = new UserId(BinaryId.Parse(match.Groups[3].Value));
 								await HandleIssueDmResponseAsync(issueId, verb, userId, payload.User.Id);
 							}
 							else if (TryMatch(action.Value, @"^issue_(\d+)_([a-zA-Z]+)$", out match) && payload.TriggerId != null)

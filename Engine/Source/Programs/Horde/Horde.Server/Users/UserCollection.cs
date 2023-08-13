@@ -133,7 +133,7 @@ namespace Horde.Server.Users
 		public async Task<IUser> FindOrAddUserByLoginAsync(string login, string? name, string? email)
 		{
 			ClaimDocument newPrimaryClaim = new ClaimDocument(ClaimTypes.Name, login);
-			UpdateDefinition<UserDocument> update = Builders<UserDocument>.Update.SetOnInsert(x => x.Id, UserId.GenerateNewId());
+			UpdateDefinition<UserDocument> update = Builders<UserDocument>.Update.SetOnInsert(x => x.Id, new UserId(BinaryIdUtils.CreateNew()));
 			return await _users.FindOneAndUpdateAsync<UserDocument>(x => x.PrimaryClaim == newPrimaryClaim, update, new FindOneAndUpdateOptions<UserDocument> { IsUpsert = true, ReturnDocument = ReturnDocument.After });
 		}
 

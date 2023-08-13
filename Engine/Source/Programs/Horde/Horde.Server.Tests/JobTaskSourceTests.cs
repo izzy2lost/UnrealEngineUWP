@@ -106,7 +106,7 @@ namespace Horde.Server.Tests
 
 			// update template with some step states
 			IStream Stream = await StreamCollection.GetAsync(fixture.StreamConfig!);
-			Stream = Deref(await StreamCollection.TryUpdateTemplateRefAsync(Stream, fixture.TemplateRefId1, new List<UpdateStepStateRequest>() { new UpdateStepStateRequest() { Name = "Paused Step", PausedByUserId = UserId.GenerateNewId().ToString() } }));
+			Stream = Deref(await StreamCollection.TryUpdateTemplateRefAsync(Stream, fixture.TemplateRefId1, new List<UpdateStepStateRequest>() { new UpdateStepStateRequest() { Name = "Paused Step", PausedByUserId = new UserId(BinaryIdUtils.CreateNew()).ToString() } }));
 
 			// create a new graph with the associated nodes
 			List<NewGroup> newGroups = new List<NewGroup>();
