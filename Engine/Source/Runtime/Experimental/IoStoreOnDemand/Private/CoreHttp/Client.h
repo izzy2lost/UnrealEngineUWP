@@ -4,7 +4,6 @@
 
 #if !defined(NO_UE_INCLUDES)
 #include "Containers/StringView.h"
-#include "Memory/MemoryView.h"
 #endif
 
 #if !defined(COREHTTP_API)

@@ -8,6 +8,7 @@
 #include "IO/IoBuffer.h"
 #include "LatencyInjector.h"
 #include "Math/UnrealMathUtility.h"
+#include "Memory/MemoryView.h"
 #include "Misc/ScopeExit.h"
 #include "Misc/ScopeLock.h"
 #include "Misc/StringBuilder.h"
