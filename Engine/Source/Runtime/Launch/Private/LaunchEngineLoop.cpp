@@ -4957,6 +4957,8 @@ void FEngineLoop::Exit()
 	TRACE_CPUPROFILER_EVENT_SCOPE(FEngineLoop::Exit);
 	TRACE_BOOKMARK(TEXT("EngineLoop.Exit"));
 
+	ClearPendingCleanupObjects();
+
 	GIsRunning	= 0;
 	GLogConsole	= nullptr;
 
