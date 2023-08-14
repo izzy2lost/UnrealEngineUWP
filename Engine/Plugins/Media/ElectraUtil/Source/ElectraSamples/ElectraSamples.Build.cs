@@ -46,7 +46,7 @@ namespace UnrealBuildTool.Rules
 					if (Target.WindowsPlatform.Architecture != UnrealArch.Arm64)
 					{
 						PublicAdditionalLibraries.AddRange(new string[] {
-							DirectX.GetLibDir(Target) + "dxerr.lib",
+							Path.Combine(Target.WindowsPlatform.DirectXLibDir, "dxerr.lib"),
 						});
 					}
 

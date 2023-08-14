@@ -6,7 +6,7 @@ using UnrealBuildTool;
 
 public class XInput : ModuleRules
 {
-	protected string DirectXSDKDir { get => DirectX.GetDir(Target); }
+	protected string DirectXSDKDir { get => Target.WindowsPlatform.DirectXDir; }
 
 	public XInput(ReadOnlyTargetRules Target) : base(Target)
 	{
@@ -17,7 +17,7 @@ public class XInput : ModuleRules
 		{
 			if (Target.Architecture.bIsX64)
 			{
-				PublicAdditionalLibraries.Add(DirectX.GetLibDir(Target) + "XInput.lib");
+				PublicAdditionalLibraries.Add(Path.Combine(Target.WindowsPlatform.DirectXLibDir, "XInput.lib"));
 				PublicDependencyModuleNames.Add("DirectX");
 			}
 			else

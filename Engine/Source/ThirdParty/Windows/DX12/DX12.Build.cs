@@ -21,7 +21,7 @@ public class DX12 : ModuleRules
 				"dxguid.lib",
 			};
 
-			string DirectXSDKDir = DirectX.GetLibDir(Target);
+			string DirectXSDKDir = Target.WindowsPlatform.DirectXLibDir;
 			PublicAdditionalLibraries.AddRange(AllD3DLibs.Select(LibName => Path.Combine(DirectXSDKDir, LibName)));
 
 			// D3D12Core runtime
@@ -40,14 +40,14 @@ public class DX12 : ModuleRules
 
 			RuntimeDependencies.Add(
 				"$(TargetOutputDir)/D3D12/D3D12Core.dll",
-				DirectX.GetDllDir(Target) + "D3D12Core.dll");
+				Path.Combine(Target.WindowsPlatform.DirectXDllDir, "D3D12Core.dll"));
 
 			if (Target.Configuration != UnrealTargetConfiguration.Shipping &&
 				Target.Configuration != UnrealTargetConfiguration.Test)
 			{
 				RuntimeDependencies.Add(
 					"$(TargetOutputDir)/D3D12/d3d12SDKLayers.dll",
-					DirectX.GetDllDir(Target) + "d3d12SDKLayers.dll");
+					Path.Combine(Target.WindowsPlatform.DirectXDllDir, "d3d12SDKLayers.dll"));
 			}
 
 			// Always delay-load D3D12

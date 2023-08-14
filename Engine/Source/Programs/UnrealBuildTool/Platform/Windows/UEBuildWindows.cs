@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Linq;
 using System.Runtime.Versioning;
 using System.Text;
@@ -599,6 +600,21 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Directory containing ThirdParty DirectX
+		/// </summary>
+		public string DirectXDir => Path.Combine(Unreal.EngineSourceDirectory.FullName, "ThirdParty", "Windows", "DirectX");
+
+		/// <summary>
+		/// Directory containing ThirdParty DirectX libs
+		/// </summary>
+		public string DirectXLibDir => Path.Combine(DirectXDir, "Lib", Target.Architecture.WindowsLibDir) + "/";
+
+		/// <summary>
+		/// Directory containing ThirdParty DirectX dlls
+		/// </summary>
+		public string DirectXDllDir => Path.Combine(Unreal.EngineDirectory.FullName, "Binaries", "ThirdParty", "Windows", "DirectX", Target.Architecture.WindowsLibDir) + "/";
+
+		/// <summary>
 		/// When using a Visual Studio compiler, returns the version name as a string
 		/// </summary>
 		/// <returns>The Visual Studio compiler version name (e.g. "2019")</returns>
@@ -779,6 +795,12 @@ namespace UnrealBuildTool
 		public string? DiaSdkDir => Inner.DiaSdkDir;
 
 		public string? IDEDir => Inner.IDEDir;
+
+		public string DirectXDir => Inner.DirectXDir;
+
+		public string DirectXLibDir => Inner.DirectXLibDir;
+
+		public string DirectXDllDir => Inner.DirectXDllDir;
 
 #pragma warning restore CS1591
 		#endregion
