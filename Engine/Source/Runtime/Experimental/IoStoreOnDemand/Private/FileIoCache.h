@@ -44,7 +44,7 @@ struct FFileIoCacheConfig
 
 	uint64		DiskQuota = 512ull << 20;
 	uint32		MemoryQuota = 2 << 20;
-	uint32		JournalQuota = 4 << 20;
+	uint32		JournalQuota = 4 << 20; // description in JournalCache.cpp
 	uint32		JournalFlushInterval = 4;
 	uint32		UseLegacy = 0;
 	FRate		WriteRate;
