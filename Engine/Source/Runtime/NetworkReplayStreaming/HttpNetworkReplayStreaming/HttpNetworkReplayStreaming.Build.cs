@@ -13,6 +13,7 @@ namespace UnrealBuildTool.Rules
 				{
 					"Core",
 					"CoreUObject",
+					"CoreOnline",
                     "Engine",
                     "HTTP",
 					"NetworkReplayStreaming",
