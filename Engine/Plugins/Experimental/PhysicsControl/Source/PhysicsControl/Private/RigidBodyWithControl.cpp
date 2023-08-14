@@ -216,7 +216,7 @@ FName FAnimNode_RigidBodyWithControl::FindParentBoneNameFromBoneName(const FName
 
 //======================================================================================================================
 FName FAnimNode_RigidBodyWithControl::CreateControl(
-	const FName ParentBoneName, const FName ChildBoneName, const FRigidBodyControlData& ControlData)
+	const FName ParentBoneName, const FName ChildBoneName, const FPhysicsControlData& ControlData)
 {
 	FRigidBodyControl Control;
 	Control.ParentBoneName = ParentBoneName;
@@ -246,23 +246,23 @@ FName FAnimNode_RigidBodyWithControl::CreateControl(
 	}
 	
 	FName ControlName = GetUniqueControlName(Control.ParentBoneName, Control.ChildBoneName);
-	ControlRecords.Add(ControlName, FControlRecord(Control, JointHandle));
+	ControlRecords.Add(ControlName, FRigidBodyControlRecord(Control, JointHandle));
 
 	return ControlName;
 }
 
 //======================================================================================================================
 void FAnimNode_RigidBodyWithControl::CreateControlsFromLimbBones(
-	const FName                   LimbName,
-	const FRigidBodyLimbBones&    LimbBones,
-	const ERigidBodyControlType   ControlType,
-	const FRigidBodyControlData&  ControlData)
+	const FName                     LimbName,
+	const FPhysicsControlLimbBones& LimbBones,
+	const EPhysicsControlType       ControlType,
+	const FPhysicsControlData&      ControlData)
 {
 	for (const FName ChildBoneName : LimbBones.BoneNames)
 	{
 		FName ParentBoneName;
 
-		if (ControlType == ERigidBodyControlType::ParentSpace)
+		if (ControlType == EPhysicsControlType::ParentSpace)
 		{
 			ParentBoneName = FindParentBoneNameFromBoneName(ChildBoneName);
 			if (ParentBoneName.IsNone())
@@ -282,9 +282,9 @@ void FAnimNode_RigidBodyWithControl::CreateControlsFromLimbBones(
 		else
 		{
 			NameRecords.AddControl(ControlName, LimbName);
-			NameRecords.AddControl(ControlName, GetControlTypeName(ControlType));
+			NameRecords.AddControl(ControlName, GetPhysicsControlTypeName(ControlType));
 			NameRecords.AddControl(ControlName, FName(
-				GetControlTypeName(ControlType).ToString().Append("_").Append(LimbName.ToString())));
+				GetPhysicsControlTypeName(ControlType).ToString().Append("_").Append(LimbName.ToString())));
 		}
 	}
 }
@@ -383,7 +383,7 @@ FName FAnimNode_RigidBodyWithControl::GetUniqueControlName(const FName ParentBon
 }
 
 //======================================================================================================================
-FName FAnimNode_RigidBodyWithControl::CreateBodyModifier(FName BoneName, const FRigidBodyModifierData& ModifierData)
+FName FAnimNode_RigidBodyWithControl::CreateBodyModifier(FName BoneName, const FPhysicsControlModifierData& ModifierData)
 {
 	FName Name;
 
@@ -395,7 +395,7 @@ FName FAnimNode_RigidBodyWithControl::CreateBodyModifier(FName BoneName, const F
 		FRigidBodyModifier BodyModifier;
 		BodyModifier.BoneName = BoneName;
 		BodyModifier.ModifierData = ModifierData;
-		FBodyModifierRecord& Modifier = ModifierRecords.Add(Name, FBodyModifierRecord(BodyModifier, ActorHandle));
+		FRigidBodyModifierRecord& Modifier = ModifierRecords.Add(Name, FRigidBodyModifierRecord(BodyModifier, ActorHandle));
 	}
 
 	return Name;
@@ -403,9 +403,9 @@ FName FAnimNode_RigidBodyWithControl::CreateBodyModifier(FName BoneName, const F
 
 //======================================================================================================================
 void FAnimNode_RigidBodyWithControl::CreateBodyModifiersFromLimbBones(
-	const FName                   LimbName,
-	const FRigidBodyLimbBones&    LimbBones,
-	const FRigidBodyModifierData& DefaultModifierData)
+	const FName                        LimbName,
+	const FPhysicsControlLimbBones&    LimbBones,
+	const FPhysicsControlModifierData& DefaultModifierData)
 {
 	for (const FName BoneName : LimbBones.BoneNames)
 	{
@@ -423,15 +423,15 @@ void FAnimNode_RigidBodyWithControl::CreateBodyModifiersFromLimbBones(
 }
 
 //======================================================================================================================
-TMap<FName, FRigidBodyLimbBones> FAnimNode_RigidBodyWithControl::GetLimbBonesFromSkeletalMesh(
-	const TArray<FRigidBodyLimbSetupData>& LimbSetupData,
-	USkeletalMeshComponent* const SkeletalMeshComponent) const
+TMap<FName, FPhysicsControlLimbBones> FAnimNode_RigidBodyWithControl::GetLimbBonesFromSkeletalMesh(
+	const TArray<FPhysicsControlLimbSetupData>& LimbSetupData,
+	USkeletalMeshComponent* const               SkeletalMeshComponent) const
 {
 	// Parse the skeleton tree to figure out which bones are associated with which limbs. 
 	
 	// TODO - Output limb bones are not in the order specified in the skeleton - would be better if they were
 	
-	TMap<FName, FRigidBodyLimbBones> Result;
+	TMap<FName, FPhysicsControlLimbBones> Result;
 
 	UPhysicsAsset* const PhysicsAsset = GetPhysicsAsset();
 
@@ -451,9 +451,9 @@ TMap<FName, FRigidBodyLimbBones> FAnimNode_RigidBodyWithControl::GetLimbBonesFro
 
 	TSet<FName> AllBones;
 
-	for (const FRigidBodyLimbSetupData& LimbSetup : LimbSetupData)
+	for (const FPhysicsControlLimbSetupData& LimbSetup : LimbSetupData)
 	{
-		FRigidBodyLimbBones& LimbBones = Result.Add(LimbSetup.LimbName);
+		FPhysicsControlLimbBones& LimbBones = Result.Add(LimbSetup.LimbName);
 
 		LimbBones.bFirstBoneIsAdditional = false;
 		LimbBones.bCreateWorldSpaceControls = LimbSetup.bCreateWorldSpaceControls;
@@ -507,22 +507,22 @@ void FAnimNode_RigidBodyWithControl::InitControlsAndBodyModifiers(USkeletalMeshC
 	check(ControlRecords.IsEmpty()); // Controls should not exist when this function is called.
 
 	// These functions will create the base set of controls and modifiers from SetupData
-	TMap<FName, FRigidBodyLimbBones> AllLimbBones = 
+	TMap<FName, FPhysicsControlLimbBones> AllLimbBones =
 		GetLimbBonesFromSkeletalMesh(SetupData.LimbSetupData, SkeletalMeshComponent);
 
-	for (const TMap<FName, FRigidBodyLimbBones>::ElementType& LimbBoneEntry : AllLimbBones)
+	for (const TMap<FName, FPhysicsControlLimbBones>::ElementType& LimbBoneEntry : AllLimbBones)
 	{
 		const FName LimbName = LimbBoneEntry.Key;
-		const FRigidBodyLimbBones& LimbBones = LimbBoneEntry.Value;
+		const FPhysicsControlLimbBones& LimbBones = LimbBoneEntry.Value;
 		if (LimbBones.bCreateWorldSpaceControls)
 		{
 			CreateControlsFromLimbBones(
-				LimbName, LimbBones, ERigidBodyControlType::WorldSpace, SetupData.DefaultWorldSpaceControlData);
+				LimbName, LimbBones, EPhysicsControlType::WorldSpace, SetupData.DefaultWorldSpaceControlData);
 		}
 		if (LimbBones.bCreateParentSpaceControls)
 		{
 			CreateControlsFromLimbBones(
-				LimbName, LimbBones, ERigidBodyControlType::ParentSpace, SetupData.DefaultParentSpaceControlData);
+				LimbName, LimbBones, EPhysicsControlType::ParentSpace, SetupData.DefaultParentSpaceControlData);
 		}
 		if (LimbBones.bCreateBodyModifiers)
 		{
@@ -566,10 +566,10 @@ void FAnimNode_RigidBodyWithControl::LogControlsModifiersAndSets()
 #define RBWC_LOG_LEVEL Display
 
 	UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("Controls:"));
-	for (TMap<FName, FControlRecord>::ElementType& NameRecordPair : ControlRecords)
+	for (TMap<FName, FRigidBodyControlRecord>::ElementType& NameRecordPair : ControlRecords)
 	{
 		UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("  %s:"), *NameRecordPair.Key.ToString());
-		const FControlRecord& Record = NameRecordPair.Value;
+		const FRigidBodyControlRecord& Record = NameRecordPair.Value;
 		UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("    Parent bone: %s Child bone: %s"), 
 			*Record.Control.ParentBoneName.ToString(), *Record.Control.ChildBoneName.ToString());
 		UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("    Enabled %d"),
@@ -585,14 +585,14 @@ void FAnimNode_RigidBodyWithControl::LogControlsModifiersAndSets()
 	}
 
 	UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("Body Modifiers:"));
-	for (TMap<FName, FBodyModifierRecord>::ElementType& NameRecordPair : ModifierRecords)
+	for (TMap<FName, FRigidBodyModifierRecord>::ElementType& NameRecordPair : ModifierRecords)
 	{
 		UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("  %s:"), *NameRecordPair.Key.ToString());
-		const FBodyModifierRecord& Record = NameRecordPair.Value;
+		const FRigidBodyModifierRecord& Record = NameRecordPair.Value;
 		UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("    Bone: %s Body: %s"),
 			*Record.Modifier.BoneName.ToString(), *GetBodyFromBoneName(Record.Modifier.BoneName).ToString());
 		UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("    Movement: %s GravityMultiplier: %f"),
-			*GetControlTypeName(Record.Modifier.ModifierData.MovementType).ToString(),
+			*GetPhysicsMovementTypeName(Record.Modifier.ModifierData.MovementType).ToString(),
 			Record.Modifier.ModifierData.GravityMultiplier);
 	}
 
@@ -670,7 +670,7 @@ void FAnimNode_RigidBodyWithControl::CreateAdditionalControls()
 // Slightly annoying to have to add the names individually, but we want to check they exist
 void FAnimNode_RigidBodyWithControl::CreateAdditionalSets()
 {
-	for (const FSetUpdate& Set : AdditionalSets.ControlSetUpdates)
+	for (const FPhysicsControlSetUpdate& Set : AdditionalSets.ControlSetUpdates)
 	{
 		TArray<FName> Names = ExpandSetNames(Set.Names, NameRecords.ControlSets);
 		for (FName Name : Names)
@@ -688,7 +688,7 @@ void FAnimNode_RigidBodyWithControl::CreateAdditionalSets()
 		}
 	}
 
-	for (const FSetUpdate& Set : AdditionalSets.ModifierSetUpdates)
+	for (const FPhysicsControlSetUpdate& Set : AdditionalSets.ModifierSetUpdates)
 	{
 		TArray<FName> Names = ExpandSetNames(Set.Names, NameRecords.BodyModifierSets);
 		for (FName Name : Names)
@@ -723,8 +723,8 @@ static void ConvertStrengthToSpringParams(
 
 //======================================================================================================================
 void FAnimNode_RigidBodyWithControl::UpdateDriveSpringDamperSettings(
-	Chaos::FPBDJointSettings&             Settings, 
-	const FRigidBodyControlData&          ControlData)
+	Chaos::FPBDJointSettings&  Settings, 
+	const FPhysicsControlData& ControlData)
 {
 	float LinearSpring;
 	float LinearDamping;
@@ -764,7 +764,7 @@ static FTransform CalculateTargetTM(
 }
 
 //======================================================================================================================
-void FAnimNode_RigidBodyWithControl::ApplyControl(FControlRecord& ControlRecord, float DeltaTime)
+void FAnimNode_RigidBodyWithControl::ApplyControl(FRigidBodyControlRecord& ControlRecord, float DeltaTime)
 {
 	using namespace ImmediatePhysics;
 	FJointHandle* const JointHandle = ControlRecord.JointHandle;
@@ -858,14 +858,14 @@ void FAnimNode_RigidBodyWithControl::ApplyControl(FControlRecord& ControlRecord,
 
 //======================================================================================================================
 void FAnimNode_RigidBodyWithControl::ApplyModifier(
-	const FBodyModifierRecord& BodyModifierRecord, 
+	const FRigidBodyModifierRecord& BodyModifierRecord, 
 	const FVector&             SimSpaceGravity)
 {
 	if (BodyModifierRecord.ActorHandle)
 	{
 		// Note that there's an early out if there's no change needed, so this should be OK.
 		BodyModifierRecord.ActorHandle->SetIsKinematic(
-			BodyModifierRecord.CurrentData.MovementType == ERigidBodyMovementType::Kinematic);
+			BodyModifierRecord.CurrentData.MovementType != EPhysicsMovementType::Simulated);
 
 		// Note that the actual kinematic targets will be set separately, since they need to be set
 		// for all kinematics whether or not they were under a modifier.
@@ -883,8 +883,8 @@ void FAnimNode_RigidBodyWithControl::ApplyModifier(
 
 //======================================================================================================================
 void FAnimNode_RigidBodyWithControl::ApplyControlAndModifierUpdatesAndParametersToRecords(
-	const FRigidBodyControlAndModifierUpdates&    Updates,
-	const FRigidBodyControlAndModifierParameters& Parameters)
+	const FPhysicsControlControlAndModifierUpdates&    Updates,
+	const FPhysicsControlControlAndModifierParameters& Parameters)
 {
 	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_ApplyControlAndModifierUpdatesAndParametersToRecords);
 
@@ -895,7 +895,7 @@ void FAnimNode_RigidBodyWithControl::ApplyControlAndModifierUpdatesAndParameters
 	// This goes through the records, resetting the update parts.
 	// Then the update structures get adjusted based on the parameters.
 	// The results don't get applied to the actual constraints yet - that happens in ApplyControlsAndModifiers
-	for (TMap<FName, FControlRecord>::ElementType& NameRecordPair : ControlRecords)
+	for (TMap<FName, FRigidBodyControlRecord>::ElementType& NameRecordPair : ControlRecords)
 	{
 		FName ControlName = NameRecordPair.Key;
 		if (const FRigidBodyControlTarget* ControlTarget = ControlTargets.Targets.Find(ControlName))
@@ -909,7 +909,7 @@ void FAnimNode_RigidBodyWithControl::ApplyControlAndModifierUpdatesAndParameters
 		}
 	}
 
-	for (TMap<FName, FBodyModifierRecord>::ElementType& NameRecordPair : ModifierRecords)
+	for (TMap<FName, FRigidBodyModifierRecord>::ElementType& NameRecordPair : ModifierRecords)
 	{
 		NameRecordPair.Value.ResetCurrent();
 	}
@@ -922,19 +922,19 @@ void FAnimNode_RigidBodyWithControl::ApplyControlAndModifierUpdatesAndParameters
 
 //======================================================================================================================
 void FAnimNode_RigidBodyWithControl::ApplyControlAndBodyModifierDatas(
-	const TArray<FRigidBodyNamedControlParameters>& InControlParameters,
-	const TArray<FRigidBodyNamedModifierParameters>& InModifierParameters)
+	const TArray<FPhysicsControlNamedControlParameters>& InControlParameters,
+	const TArray<FPhysicsControlNamedModifierParameters>& InModifierParameters)
 {
 	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_ApplyControlsAndModifierDatas);
 
 	// This updates the "original" controls and modifiers based on the parameters.
-	for (const FRigidBodyNamedControlParameters& ControlParameters : InControlParameters)
+	for (const FPhysicsControlNamedControlParameters& ControlParameters : InControlParameters)
 	{
 		TArray<FName> Names = ExpandSetName(ControlParameters.Name, NameRecords.ControlSets);
 		for (FName Name : Names)
 		{
-			const FRigidBodyControlSparseData& ControlData = ControlParameters.Data;
-			if (FControlRecord* ControlRecord = ControlRecords.Find(Name))
+			const FPhysicsControlSparseData& ControlData = ControlParameters.Data;
+			if (FRigidBodyControlRecord* ControlRecord = ControlRecords.Find(Name))
 			{
 				ControlRecord->Control.ControlData.UpdateFromSparseData(ControlData);
 			}
@@ -946,13 +946,13 @@ void FAnimNode_RigidBodyWithControl::ApplyControlAndBodyModifierDatas(
 		}
 	}
 
-	for (const FRigidBodyNamedModifierParameters& ModifierParameters : InModifierParameters)
+	for (const FPhysicsControlNamedModifierParameters& ModifierParameters : InModifierParameters)
 	{
 		TArray<FName> Names = ExpandSetName(ModifierParameters.Name, NameRecords.BodyModifierSets);
 		for (FName Name : Names)
 		{
-			const FRigidBodyModifierSparseData& ModifierData = ModifierParameters.Data;
-			if (FBodyModifierRecord* ModifierRecord = ModifierRecords.Find(Name))
+			const FPhysicsControlModifierSparseData& ModifierData = ModifierParameters.Data;
+			if (FRigidBodyModifierRecord* ModifierRecord = ModifierRecords.Find(Name))
 			{
 				ModifierRecord->Modifier.ModifierData.UpdateFromSparseData(ModifierData);
 			}
@@ -990,9 +990,9 @@ void FAnimNode_RigidBodyWithControl::ApplyControlsAndModifiers(const FVector& Si
 	if (!PoseData.IsEmpty())
 	{
 		// Apply Controls.
-		for (TMap<FName, FControlRecord>::ElementType& NameRecordPair : ControlRecords)
+		for (TMap<FName, FRigidBodyControlRecord>::ElementType& NameRecordPair : ControlRecords)
 		{
-			FControlRecord& ControlRecord = NameRecordPair.Value;
+			FRigidBodyControlRecord& ControlRecord = NameRecordPair.Value;
 			if (ControlRecord.IsEnabled())
 			{
 				ApplyControl(ControlRecord, DeltaTime);
@@ -1002,7 +1002,7 @@ void FAnimNode_RigidBodyWithControl::ApplyControlsAndModifiers(const FVector& Si
 		}
 
 		// Apply Body Modifiers.
-		for (const TMap<FName, FBodyModifierRecord>::ElementType& NameRecordPair : ModifierRecords)
+		for (const TMap<FName, FRigidBodyModifierRecord>::ElementType& NameRecordPair : ModifierRecords)
 		{
 			ApplyModifier(NameRecordPair.Value, SimSpaceGravity);
 		}
@@ -1022,7 +1022,7 @@ void FAnimNode_RigidBodyWithControl::ApplyKinematicTargets()
 		{
 			FName BodyModifierName = KinematicTargetPair.Key;
 			FRigidBodyKinematicTarget& Target = KinematicTargetPair.Value;
-			FBodyModifierRecord* ModifierRecord = ModifierRecords.Find(BodyModifierName);
+			FRigidBodyModifierRecord* ModifierRecord = ModifierRecords.Find(BodyModifierName);
 			if (ModifierRecord && ModifierRecord->ActorHandle)
 			{
 				ImmediatePhysics::FActorHandle* ActorHandle = ModifierRecord->ActorHandle;

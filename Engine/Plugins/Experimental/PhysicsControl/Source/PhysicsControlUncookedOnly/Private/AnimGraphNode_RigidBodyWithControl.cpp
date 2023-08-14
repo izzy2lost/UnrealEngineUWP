@@ -103,9 +103,9 @@ void UAnimGraphNode_RigidBodyWithControl::Draw(FPrimitiveDrawInterface* PDI, USk
 		// Draw Space Controls
 		if (bIsSelected || (bIsPoseWatchEnabled && PoseWatchElementWorldSpaceControls.IsValid() && PoseWatchElementWorldSpaceControls->GetIsVisible()))
 		{
-			for (const TMap<FName, FControlRecord>::ElementType& NameRecordPair : RuntimeRigidBodyNode->ControlRecords)
+			for (const TMap<FName, FRigidBodyControlRecord>::ElementType& NameRecordPair : RuntimeRigidBodyNode->ControlRecords)
 			{
-				const FControlRecord& ControlRecord = NameRecordPair.Value;
+				const FRigidBodyControlRecord& ControlRecord = NameRecordPair.Value;
 				if (!ControlRecord.JointHandle || !ControlRecord.IsEnabled())
 				{
 					continue;

@@ -707,7 +707,7 @@ void FPhysicsControlComponentImpl::ApplyControl(FPhysicsControlRecord& Record)
 {
 	FConstraintInstance* ConstraintInstance = Record.PhysicsControlState.ConstraintInstance.Get();
 
-	if (!ConstraintInstance || !Record.PhysicsControlState.bEnabled)
+	if (!ConstraintInstance || !Record.Enabled())
 	{
 		return;
 	}

@@ -19,20 +19,6 @@ struct FPhysicsBodyModifier;
 struct FConstraintInstance;
 
 /**
- * Specifies the type of control that is created when making controls from a skeleton or a set of limbs. 
- * Note that if controls are made individually then other options are available - i.e. in a character, 
- * any body part can be controlled relative to any other part, or indeed any other object.
- */
-UENUM(BlueprintType)
-enum class EPhysicsControlType : uint8
-{
-	/** Control is done in world space, so each object/part is driven independently */
-	WorldSpace,
-	/** Control is done in the space of the parent of each object */
-	ParentSpace,
-};
-
-/**
  * Specifies how any reset to cached target should work. 
  */
 UENUM(BlueprintType)
@@ -118,8 +104,7 @@ public:
 		const FPhysicsControlData     ControlData,
 		const FPhysicsControlTarget   ControlTarget, 
 		const FPhysicsControlSettings ControlSettings,
-		FName                         Set,
-		const bool                    bEnabled = true
+		FName                         Set
 	);
 
 	/**
@@ -145,8 +130,7 @@ public:
 		const FPhysicsControlData     ControlData, 
 		const FPhysicsControlTarget   ControlTarget, 
 		const FPhysicsControlSettings ControlSettings, 
-		const FName                   Set,
-		const bool                    bEnabled = true);
+		const FName                   Set);
 
 	/**
 	 * Creates a collection of controls controlling a skeletal mesh
@@ -171,8 +155,7 @@ public:
 		const EPhysicsControlType     ControlType,
 		const FPhysicsControlData     ControlData,
 		const FPhysicsControlSettings ControlSettings,
-		const FName                   Set,
-		const bool                    bEnabled = true);
+		const FName                   Set);
 
 	/**
 	 * Creates a collection of ParentSpace controls controlling a skeletal mesh, initializing
@@ -227,8 +210,7 @@ public:
 		const EPhysicsControlType     ControlType,
 		const FPhysicsControlData     ControlData,
 		const FPhysicsControlSettings ControlSettings,
-		const FName                   Set,
-		const bool                    bEnabled = true);
+		const FName                   Set);
 
 	/**
 	 * Creates a collection of ParentSpace controls controlling a skeletal mesh, initializing them 
@@ -295,8 +277,7 @@ public:
 		const TMap<FName, FPhysicsControlLimbBones>& LimbBones,
 		const EPhysicsControlType                    ControlType,
 		const FPhysicsControlData                    ControlData,
-		const FPhysicsControlSettings                ControlSettings,
-		const bool                                   bEnabled = true);
+		const FPhysicsControlSettings                ControlSettings);
 
 	/**
 	 * Creates a collection of ParentSpace controls controlling a skeletal mesh, grouped together in limbs, initializing
@@ -362,7 +343,7 @@ public:
 	 * @return true if the control was found and modified, false if not
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	bool SetControlData(const FName Name, const FPhysicsControlData ControlData, const bool bEnableControl = true);
+	bool SetControlData(const FName Name, const FPhysicsControlData ControlData);
 
 	/**
 	 * Modifies existing control data - i.e. the strengths etc of the controls driving towards the targets
@@ -373,7 +354,7 @@ public:
 	 * @param bEnableControl Enables the control if it is currently disabled
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	void SetControlDatas(const TArray<FName>& Names, const FPhysicsControlData ControlData, const bool bEnableControl = true);
+	void SetControlDatas(const TArray<FName>& Names, const FPhysicsControlData ControlData);
 
 	/**
 	 * Modifies existing control data - i.e. the strengths etc of the controls driving towards the targets
@@ -384,7 +365,7 @@ public:
 	 * @param bEnableControl Enables the controls if currently disabled
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	void SetControlDatasInSet(const FName Set, const FPhysicsControlData ControlData, const bool bEnableControl = true);
+	void SetControlDatasInSet(const FName Set, const FPhysicsControlData ControlData);
 
 	/**
 	 * Modifies an existing control data using the multipliers
@@ -811,29 +792,6 @@ public:
 
 	/**
 	 * @param Name The name of the control to modify. 
-	 * @param bAutoDisable If set then the control will automatically deactivate after each tick.
-	 * @return true if the control was found and modified, false if not
-	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	bool SetControlAutoDisable(const FName Name, const bool bAutoDisable);
-
-	/**
-	 * @param Names The names of the controls to modify. 
-	 * @param bAutoDisable If set then the control will automatically deactivate after each tick.
-	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	void SetControlsAutoDisable(const TArray<FName>& Names, const bool bAutoDisable);
-
-	/**
-	 * @param Set The set of controls to modify. Standard sets will include "All", "WorldSpace",
-	 *        "ParentSpace" and things like "WorldSpace-ArmLeft", depending on how controls have been created.
-	 * @param bAutoDisable If set then the control will automatically deactivate after each tick.
-	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	void SetControlsInSetAutoDisable(const FName Set, const bool bAutoDisable);
-
-	/**
-	 * @param Name The name of the control to modify. 
 	 * @param bDisableCollision If set then the control will disable collision between the bodies it connects.
 	 * @return true if the control was found and modified, false if not
 	 */
@@ -878,13 +836,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
 	bool GetControlTarget(const FName Name, FPhysicsControlTarget& ControlTarget) const;
-
-	/**
-	 * @param Name        The name of the control to access. 
-	 * @return            Returns true if the control is marked to automatically disable after each tick
-	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	bool GetControlAutoDisable(const FName Name) const;
 
 	/**
 	 * @param Name        The name of the control to access. 
@@ -1329,10 +1280,8 @@ public:
 		const TArray<FPhysicsControlLimbSetupData>& LimbSetupData,
 		const FPhysicsControlData                   WorldSpaceControlData,
 		const FPhysicsControlSettings               WorldSpaceControlSettings,
-		const bool                                  bEnableWorldSpaceControls,
 		const FPhysicsControlData                   ParentSpaceControlData,
 		const FPhysicsControlSettings               ParentSpaceControlSettings,
-		const bool                                  bEnableParentSpaceControls,
 		const EPhysicsMovementType                  PhysicsMovementType = EPhysicsMovementType::Static,
 		const float                                 GravityMultiplier = 1.0f,
 		const float                                 PhysicsBlendWeight = 1.0f

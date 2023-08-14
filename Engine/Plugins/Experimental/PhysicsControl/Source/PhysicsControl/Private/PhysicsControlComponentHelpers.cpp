@@ -104,6 +104,8 @@ void ConvertConstraintProfileToControlData(
 		GetAngularDriveDamping(InProfileProperties.AngularDrive));
 
 	OutControlData.MaxTorque = float(GetAngularDriveMaxTorque(InProfileProperties.AngularDrive));
+
+	OutControlData.bEnabled = true;
 }
 
 //======================================================================================================================

@@ -2,40 +2,14 @@
 
 #include "RigidBodyControlData.h"
 
-//======================================================================================================================
-FName GetControlTypeName(const ERigidBodyMovementType MovementType)
-{
-	switch (MovementType)
-	{
-	case ERigidBodyMovementType::Kinematic:
-		return "Kinematic";
-	case ERigidBodyMovementType::Simulated:
-		return "Simulated";
-	}
-	return "None";
-}
-
-//======================================================================================================================
-FName GetControlTypeName(const ERigidBodyControlType ControlType)
-{
-	switch (ControlType)
-	{
-	case ERigidBodyControlType::ParentSpace:
-		return "ParentSpace";
-	case ERigidBodyControlType::WorldSpace:
-		return "WorldSpace";
-	}
-	return "None";
-}
-
 #define INTERPOLATE_PARAM(NAME) Output.NAME = FMath::Lerp(A.NAME, B.NAME, Weight)
 #define SET_ENABLED_PARAM(NAME) Output.bEnable##NAME = A.bEnable##NAME && B.bEnable##NAME
 
 //======================================================================================================================
-FRigidBodyControlData Interpolate(
-	const FRigidBodyControlData& A, const FRigidBodyControlData& B, const float Weight)
+FPhysicsControlData Interpolate(
+	const FPhysicsControlData& A, const FPhysicsControlData& B, const float Weight)
 {
-	FRigidBodyControlData Output;
+	FPhysicsControlData Output;
 	INTERPOLATE_PARAM(LinearStrength);
 	INTERPOLATE_PARAM(LinearDampingRatio);
 	INTERPOLATE_PARAM(LinearExtraDamping);
@@ -49,10 +23,10 @@ FRigidBodyControlData Interpolate(
 }
 
 //======================================================================================================================
-FRigidBodyControlSparseData Interpolate(
-	const FRigidBodyControlSparseData& A, const FRigidBodyControlSparseData& B, const float Weight)
+FPhysicsControlSparseData Interpolate(
+	const FPhysicsControlSparseData& A, const FPhysicsControlSparseData& B, const float Weight)
 {
-	FRigidBodyControlSparseData Output;
+	FPhysicsControlSparseData Output;
 	INTERPOLATE_PARAM(LinearStrength);
 	INTERPOLATE_PARAM(LinearDampingRatio);
 	INTERPOLATE_PARAM(LinearExtraDamping);
@@ -77,20 +51,20 @@ FRigidBodyControlSparseData Interpolate(
 }
 
 //======================================================================================================================
-FRigidBodyModifierData Interpolate(
-	const FRigidBodyModifierData& A, const FRigidBodyModifierData& B, const float Weight)
+FPhysicsControlModifierData Interpolate(
+	const FPhysicsControlModifierData& A, const FPhysicsControlModifierData& B, const float Weight)
 {
-	FRigidBodyModifierData Output;
+	FPhysicsControlModifierData Output;
 	Output.MovementType = (Weight < 0.5f) ? A.MovementType : B.MovementType;
 	INTERPOLATE_PARAM(GravityMultiplier);
 	return Output;
 }
 
 //======================================================================================================================
-FRigidBodyModifierSparseData Interpolate(
-	const FRigidBodyModifierSparseData& A, const FRigidBodyModifierSparseData& B, const float Weight)
+FPhysicsControlModifierSparseData Interpolate(
+	const FPhysicsControlModifierSparseData& A, const FPhysicsControlModifierSparseData& B, const float Weight)
 {
-	FRigidBodyModifierSparseData Output;
+	FPhysicsControlModifierSparseData Output;
 	Output.MovementType = (Weight < 0.5f) ? A.MovementType : B.MovementType;
 	INTERPOLATE_PARAM(GravityMultiplier);
 
@@ -103,7 +77,7 @@ FRigidBodyModifierSparseData Interpolate(
 #undef SET_ENABLED_PARAM
 
 //======================================================================================================================
-FControlRecord::FControlRecord(const FRigidBodyControl& InControl, ImmediatePhysics::FJointHandle* InJointHandle)
+FRigidBodyControlRecord::FRigidBodyControlRecord(const FRigidBodyControl& InControl, ImmediatePhysics::FJointHandle* InJointHandle)
 	: Control(InControl)
 	, JointHandle(InJointHandle)
 	, CurrentData(Control.ControlData)
@@ -111,7 +85,7 @@ FControlRecord::FControlRecord(const FRigidBodyControl& InControl, ImmediatePhys
 }
 
 //======================================================================================================================
-void FControlRecord::ResetCurrent(bool bResetTarget)
+void FRigidBodyControlRecord::ResetCurrent(bool bResetTarget)
 {
 	CurrentData = Control.ControlData;
 
@@ -122,7 +96,7 @@ void FControlRecord::ResetCurrent(bool bResetTarget)
 }
 
 //======================================================================================================================
-FBodyModifierRecord::FBodyModifierRecord(const FRigidBodyModifier& InModifier, ImmediatePhysics::FActorHandle* InActorHandle)
+FRigidBodyModifierRecord::FRigidBodyModifierRecord(const FRigidBodyModifier& InModifier, ImmediatePhysics::FActorHandle* InActorHandle)
 	: Modifier(InModifier)
 	, ActorHandle(InActorHandle)
 	, CurrentData(Modifier.ModifierData)
@@ -130,32 +104,8 @@ FBodyModifierRecord::FBodyModifierRecord(const FRigidBodyModifier& InModifier, I
 }
 
 //======================================================================================================================
-void FBodyModifierRecord::ResetCurrent()
+void FRigidBodyModifierRecord::ResetCurrent()
 {
 	CurrentData = Modifier.ModifierData;
 }
 
-#define SET_SPARSE_DATA(NAME) NAME = SparseData.bEnable##NAME ? SparseData.NAME : NAME
-
-//======================================================================================================================
-void FRigidBodyControlData::UpdateFromSparseData(const FRigidBodyControlSparseData& SparseData)
-{
-	SET_SPARSE_DATA(LinearStrength);
-	SET_SPARSE_DATA(LinearDampingRatio);
-	SET_SPARSE_DATA(LinearExtraDamping);
-	SET_SPARSE_DATA(AngularStrength);
-	SET_SPARSE_DATA(AngularDampingRatio);
-	SET_SPARSE_DATA(AngularExtraDamping);
-	SET_SPARSE_DATA(LinearTargetVelocityMultiplier);
-	SET_SPARSE_DATA(AngularTargetVelocityMultiplier);
-	SET_SPARSE_DATA(bEnabled);
-}
-
-//======================================================================================================================
-void FRigidBodyModifierData::UpdateFromSparseData(const FRigidBodyModifierSparseData& SparseData)
-{
-	SET_SPARSE_DATA(MovementType);
-	SET_SPARSE_DATA(GravityMultiplier);
-}
-
-#undef SET_SPARSE_DATA

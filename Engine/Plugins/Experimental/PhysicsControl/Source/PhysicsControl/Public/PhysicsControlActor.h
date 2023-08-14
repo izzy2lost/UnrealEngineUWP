@@ -177,16 +177,10 @@ struct PHYSICSCONTROL_API FInitialCharacterControls
 	FPhysicsControlSettings WorldSpaceControlSettings;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	bool bEnableWorldSpaceControls = false;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
 	FPhysicsControlData ParentSpaceControlData;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
 	FPhysicsControlSettings ParentSpaceControlSettings;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	bool bEnableParentSpaceControls = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
 	EPhysicsMovementType PhysicsMovementType = EPhysicsMovementType::Kinematic;

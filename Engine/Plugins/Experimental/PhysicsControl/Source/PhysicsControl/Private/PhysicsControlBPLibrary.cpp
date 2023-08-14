@@ -73,11 +73,11 @@ template<typename TNamedParameters> void InterpolateParametersContainers(
 
 //======================================================================================================================
 template<typename TNamedParameters> void BlendParametersThroughSet(
-	const FRigidBodyControlAndModifierParameters& InParametersContainer, 
-	const TNamedParameters&                       InStartParameters,
-	const TNamedParameters&                       InEndParameters,
-	const TArray<FName>&                          Names,
-	FRigidBodyControlAndModifierParameters&       OutParametersContainer)
+	const FPhysicsControlControlAndModifierParameters& InParametersContainer, 
+	const TNamedParameters&                            InStartParameters,
+	const TNamedParameters&                            InEndParameters,
+	const TArray<FName>&                               Names,
+	FPhysicsControlControlAndModifierParameters&       OutParametersContainer)
 {
 	// TODO - Limbs can include branches. Would need a more sophisticated approach to deal with
 	// those properly, perhaps include a depth index in the control name ?
@@ -97,64 +97,64 @@ template<typename TNamedParameters> void BlendParametersThroughSet(
 
 //======================================================================================================================
 void UPhysicsControlBPLibrary::AddControlParameters(
-	UPARAM(ref) FRigidBodyControlAndModifierParameters& InParametersContainer,
-	FRigidBodyControlAndModifierParameters&             OutParametersContainer,
-	const FName                                         Name, 
-	const FRigidBodyControlSparseData&                  ControlData)
+	UPARAM(ref) FPhysicsControlControlAndModifierParameters& InParametersContainer,
+	FPhysicsControlControlAndModifierParameters&             OutParametersContainer,
+	const FName                                              Name, 
+	const FPhysicsControlSparseData&                         ControlData)
 {
 	OutParametersContainer = InParametersContainer;
-	OutParametersContainer.Add(FRigidBodyNamedControlParameters(Name, ControlData));
+	OutParametersContainer.Add(FPhysicsControlNamedControlParameters(Name, ControlData));
 }
 
 //======================================================================================================================
 void UPhysicsControlBPLibrary::AddMultipleControlParameters(
-	UPARAM(ref) FRigidBodyControlAndModifierParameters& InParametersContainer,
-	FRigidBodyControlAndModifierParameters&             OutParametersContainer,
-	const TArray<FName>&                                Names,
-	const FRigidBodyControlSparseData&                  ControlData)
+	UPARAM(ref) FPhysicsControlControlAndModifierParameters& InParametersContainer,
+	FPhysicsControlControlAndModifierParameters&             OutParametersContainer,
+	const TArray<FName>&                                     Names,
+	const FPhysicsControlSparseData&                         ControlData)
 {
 	OutParametersContainer = InParametersContainer;
 	OutParametersContainer.ControlParameters.Reserve(OutParametersContainer.ControlParameters.Num() + Names.Num());
 
 	for (const FName Name : Names)
 	{
-		OutParametersContainer.Add(FRigidBodyNamedControlParameters(Name, ControlData));
+		OutParametersContainer.Add(FPhysicsControlNamedControlParameters(Name, ControlData));
 	}	
 }
 
 //======================================================================================================================
 void UPhysicsControlBPLibrary::AddModifierParameters(
-	UPARAM(ref) FRigidBodyControlAndModifierParameters& InParametersContainer,
-	FRigidBodyControlAndModifierParameters&             OutParametersContainer,
-	const FName                                         Name,
-	const FRigidBodyModifierSparseData&                 ModifierData)
+	UPARAM(ref) FPhysicsControlControlAndModifierParameters& InParametersContainer,
+	FPhysicsControlControlAndModifierParameters&             OutParametersContainer,
+	const FName                                              Name,
+	const FPhysicsControlModifierSparseData&                 ModifierData)
 {
 	OutParametersContainer = InParametersContainer;
-	OutParametersContainer.Add(FRigidBodyNamedModifierParameters(Name, ModifierData));
+	OutParametersContainer.Add(FPhysicsControlNamedModifierParameters(Name, ModifierData));
 }
 
 //======================================================================================================================
 void UPhysicsControlBPLibrary::AddMultipleModifierParameters(
-	UPARAM(ref) FRigidBodyControlAndModifierParameters& InParametersContainer,
-	FRigidBodyControlAndModifierParameters&             OutParametersContainer,
-	const TArray<FName>&                                Names,
-	const FRigidBodyModifierSparseData&                 ModifierData)
+	UPARAM(ref) FPhysicsControlControlAndModifierParameters& InParametersContainer,
+	FPhysicsControlControlAndModifierParameters&             OutParametersContainer,
+	const TArray<FName>&                                     Names,
+	const FPhysicsControlModifierSparseData&                 ModifierData)
 {
 	OutParametersContainer = InParametersContainer;
 	OutParametersContainer.ModifierParameters.Reserve(OutParametersContainer.ModifierParameters.Num() + Names.Num());
 
 	for (const FName Name : Names)
 	{
-		OutParametersContainer.Add(FRigidBodyNamedModifierParameters(Name, ModifierData));
+		OutParametersContainer.Add(FPhysicsControlNamedModifierParameters(Name, ModifierData));
 	}
 }
 
 //======================================================================================================================
 void UPhysicsControlBPLibrary::BlendParameters(
-	UPARAM(ref) FRigidBodyControlAndModifierParameters& InParametersContainerA, 
-	UPARAM(ref) FRigidBodyControlAndModifierParameters& InParametersContainerB, 
-	const float                                         InInterpolationWeight, 
-	FRigidBodyControlAndModifierParameters&             OutParametersContainers)
+	UPARAM(ref) FPhysicsControlControlAndModifierParameters& InParametersContainerA, 
+	UPARAM(ref) FPhysicsControlControlAndModifierParameters& InParametersContainerB, 
+	const float                                              InInterpolationWeight, 
+	FPhysicsControlControlAndModifierParameters&             OutParametersContainers)
 {
 	OutParametersContainers = InParametersContainerA;
 
@@ -166,22 +166,22 @@ void UPhysicsControlBPLibrary::BlendParameters(
 
 //======================================================================================================================
 void UPhysicsControlBPLibrary::BlendControlParametersThroughSet(
-	UPARAM(ref) FRigidBodyControlAndModifierParameters& InParametersContainer,
-	UPARAM(ref) const FRigidBodyNamedControlParameters& InStartParameters,
-	UPARAM(ref) const FRigidBodyNamedControlParameters& InEndParameters,
-	const TArray<FName>&                                InNames,
-	FRigidBodyControlAndModifierParameters&             OutParametersContainer)
+	UPARAM(ref) FPhysicsControlControlAndModifierParameters& InParametersContainer,
+	UPARAM(ref) const FPhysicsControlNamedControlParameters& InStartParameters,
+	UPARAM(ref) const FPhysicsControlNamedControlParameters& InEndParameters,
+	const TArray<FName>&                                     InNames,
+	FPhysicsControlControlAndModifierParameters&             OutParametersContainer)
 {
 	BlendParametersThroughSet(InParametersContainer, InStartParameters, InEndParameters, InNames, OutParametersContainer);
 }
 
 //======================================================================================================================
 void UPhysicsControlBPLibrary::BlendModifierParametersThroughSet(
-	UPARAM(ref) FRigidBodyControlAndModifierParameters&  InParametersContainer, 
-	UPARAM(ref) const FRigidBodyNamedModifierParameters& InStartParameters,
-	UPARAM(ref) const FRigidBodyNamedModifierParameters& InEndParameters,
-	const TArray<FName>&                                 InNames,
-	FRigidBodyControlAndModifierParameters&              OutParametersContainer)
+	UPARAM(ref) FPhysicsControlControlAndModifierParameters&  InParametersContainer, 
+	UPARAM(ref) const FPhysicsControlNamedModifierParameters& InStartParameters,
+	UPARAM(ref) const FPhysicsControlNamedModifierParameters& InEndParameters,
+	const TArray<FName>&                                      InNames,
+	FPhysicsControlControlAndModifierParameters&              OutParametersContainer)
 {
 	BlendParametersThroughSet(InParametersContainer, InStartParameters, InEndParameters, InNames, OutParametersContainer);
 }

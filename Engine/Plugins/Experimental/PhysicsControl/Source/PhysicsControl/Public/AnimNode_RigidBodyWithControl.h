@@ -9,6 +9,7 @@
 #include "CoreMinimal.h"
 #include "RigidBodyPoseData.h"
 #include "RigidBodyControlData.h"
+#include "PhysicsControlLimbData.h"
 #include "RigidBodyNameRecords.h"
 #include "BoneControllers/AnimNode_SkeletalControlBase.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -222,7 +223,7 @@ public:
 	 * Allows additional sets of controls or modifiers to be created, and existing sets to be modified
 	 */
 	UPROPERTY(EditAnywhere, Category = ControlSetup, meta = (PinHiddenByDefault))
-	FRigidBodySetUpdates AdditionalSets;
+	FPhysicsControlSetUpdates AdditionalSets;
 
 	/**
 	 * An initial set of controls that should be applied immediately after setup. This allows individual or 
@@ -230,20 +231,20 @@ public:
 	 * controls.
 	 */
 	UPROPERTY(EditAnywhere, Category = ControlSetup, meta = (PinHiddenByDefault))
-	FRigidBodyControlAndModifierParameters InitialControlAndBodyModifierUpdates;
+	FPhysicsControlControlAndModifierParameters InitialControlAndBodyModifierUpdates;
 
 	/**
 	 * Controls that should be applied each frame, and can be expected to change. Note that if these
 	 * stop being passed in then the controls and modifiers will return to their normal/original state.
 	 */
 	UPROPERTY(EditAnywhere, Category = Controls, meta = (PinShownByDefault))
-	FRigidBodyControlAndModifierParameters ControlAndModifierParameters;
+	FPhysicsControlControlAndModifierParameters ControlAndModifierParameters;
 
 	/**
 	 * Updates to controls that can be applied. Note that these update the normal/original state.
 	 */
 	UPROPERTY(EditAnywhere, Category = Controls, meta = (PinShownByDefault))
-	FRigidBodyControlAndModifierUpdates ControlAndModifierUpdates;
+	FPhysicsControlControlAndModifierUpdates ControlAndModifierUpdates;
 
 	/**
 	 * Targets that should be applied to the controls. 
@@ -302,8 +303,8 @@ private:
 		ImmediatePhysics::FActorHandle* const ChildBodyHandle, ImmediatePhysics::FActorHandle* const ParentBodyHandle);
 	void CreateWorldSpaceControlRootBody(UPhysicsAsset* const PhysicsAsset);
 
-	void ApplyControl(FControlRecord& ControlRecord, float DeltaTime);
-	void ApplyModifier(const FBodyModifierRecord& BodyModifierRecord, const FVector& SimSpaceGravity);
+	void ApplyControl(FRigidBodyControlRecord& ControlRecord, float DeltaTime);
+	void ApplyModifier(const FRigidBodyModifierRecord& BodyModifierRecord, const FVector& SimSpaceGravity);
 
 	void ApplyControlsAndModifiers(const FVector& SimSpaceGravity, float DeltaTime);
 
@@ -314,7 +315,7 @@ private:
 	void ApplyCurrentConstraintProfile();
 
 	// Adjusts the spring drive settings to reflect the control data
-	void UpdateDriveSpringDamperSettings(Chaos::FPBDJointSettings& Settings, const FRigidBodyControlData& ControlData);
+	void UpdateDriveSpringDamperSettings(Chaos::FPBDJointSettings& Settings, const FPhysicsControlData& ControlData);
 
 	TMap<FName, int32> BodyNameToIndexMap;
 	ImmediatePhysics::FActorHandle* WorldSpaceControlActorHandle;
@@ -325,24 +326,24 @@ private:
 
 	FName GetUniqueControlName(const FName ParentBoneName, const FName ChildBoneName);
 
-	FName CreateControl(const FName ParentBoneName, const FName ChildBoneName, const FRigidBodyControlData& ControlData);
+	FName CreateControl(const FName ParentBoneName, const FName ChildBoneName, const FPhysicsControlData& ControlData);
 
-	FName CreateBodyModifier(const FName BoneName, const FRigidBodyModifierData& ModifierData);
+	FName CreateBodyModifier(const FName BoneName, const FPhysicsControlModifierData& ModifierData);
 
 	void CreateControlsFromLimbBones(
-		const FName                  LimbName,
-		const FRigidBodyLimbBones&   LimbBones,
-		const ERigidBodyControlType  ControlType,
-		const FRigidBodyControlData& ControlData);
+		const FName                     LimbName,
+		const FPhysicsControlLimbBones& LimbBones,
+		const EPhysicsControlType       ControlType,
+		const FPhysicsControlData&      ControlData);
 
 	void CreateBodyModifiersFromLimbBones(
-		const FName                   LimbName,
-		const FRigidBodyLimbBones&    LimbBones,
-		const FRigidBodyModifierData& DefaultModifierData);
+		const FName                        LimbName,
+		const FPhysicsControlLimbBones&    LimbBones,
+		const FPhysicsControlModifierData& DefaultModifierData);
 
-	TMap<FName, FRigidBodyLimbBones> GetLimbBonesFromSkeletalMesh(
-		const TArray<FRigidBodyLimbSetupData>& LimbSetupData,
-		USkeletalMeshComponent* const SkeletalMeshComponent) const;
+	TMap<FName, FPhysicsControlLimbBones> GetLimbBonesFromSkeletalMesh(
+		const TArray<FPhysicsControlLimbSetupData>& LimbSetupData,
+		USkeletalMeshComponent* const               SkeletalMeshComponent) const;
 
 	// This will walk through the skeleton, create controls and body modifiers, and create the sets.
 	void InitControlsAndBodyModifiers(USkeletalMeshComponent* const SkeletalMeshComponent);
@@ -360,13 +361,13 @@ private:
 
 	// Applies the overrides to the underlying controls and modifiers
 	void ApplyControlAndBodyModifierDatas(
-		const TArray<FRigidBodyNamedControlParameters>& ControlParameters,
-		const TArray<FRigidBodyNamedModifierParameters>& ModifierParameters);
+		const TArray<FPhysicsControlNamedControlParameters>& ControlParameters,
+		const TArray<FPhysicsControlNamedModifierParameters>& ModifierParameters);
 
 	// Applies the parameters to control and modifier records
 	void ApplyControlAndModifierUpdatesAndParametersToRecords(
-		const FRigidBodyControlAndModifierUpdates&    Updates,
-		const FRigidBodyControlAndModifierParameters& Parameters);
+		const FPhysicsControlControlAndModifierUpdates&    Updates,
+		const FPhysicsControlControlAndModifierParameters& Parameters);
 
 	void InitializeNewBodyTransformsDuringSimulation(
 		FComponentSpacePoseContext& Output, const FTransform& ComponentTransform, const FTransform& BaseBoneTM);
@@ -496,10 +497,10 @@ private:
 	RigidBodyWithControl::FRigidBodyPoseData PoseData;
 
 	// Map of control records - they will be referenced by name
-	TMap<FName, FControlRecord> ControlRecords;
+	TMap<FName, FRigidBodyControlRecord> ControlRecords;
 
 	// Map of body modifier records - they will be referenced by name
-	TMap<FName, FBodyModifierRecord> ModifierRecords;
+	TMap<FName, FRigidBodyModifierRecord> ModifierRecords;
 
 	// Details about sets etc
 	FRigidBodyNameRecords NameRecords;

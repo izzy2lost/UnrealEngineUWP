@@ -19,8 +19,6 @@ struct FPhysicsControlState
 	void Reset();
 
 	TSharedPtr<FConstraintInstance> ConstraintInstance;
-
-	bool bEnabled = false;
 };
 
 /**
@@ -43,6 +41,8 @@ struct FPhysicsControlRecord
 
 	/** Sets the control point to the center of mass of the child mesh (or to zero if that fails). */
 	void ResetControlPoint();
+
+	bool Enabled() const { return PhysicsControl.ControlData.bEnabled; }
 
 	/** The configuration data */
 	FPhysicsControl PhysicsControl;

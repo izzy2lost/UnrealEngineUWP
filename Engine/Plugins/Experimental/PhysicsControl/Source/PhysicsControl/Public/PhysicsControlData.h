@@ -7,6 +7,11 @@
 #include "EngineDefines.h"
 #include "PhysicsControlData.generated.h"
 
+/**
+ * Note that this file defines structures that mostly are, or could be, shared between the PhysicsControlComponent
+ * and the RigidBodyWithControl node.
+ */
+
 class UMeshComponent;
 
 /**
@@ -23,6 +28,284 @@ enum class EPhysicsMovementType : uint8
 	Kinematic,
 	// Simulated means that the object will be controlled by the physics solver
 	Simulated
+};
+
+inline FName GetPhysicsMovementTypeName(const EPhysicsMovementType MovementType)
+{
+	switch (MovementType)
+	{
+	case EPhysicsMovementType::Static:
+		return "Static";
+	case EPhysicsMovementType::Kinematic:
+		return "Kinematic";
+	case EPhysicsMovementType::Simulated:
+		return "Simulated";
+	}
+	return "None";
+}
+
+/**
+ * Specifies the type of control that is created when making controls from a skeleton or a set of limbs. 
+ * Note that if controls are made individually then other options are available - i.e. in a character, 
+ * any body part can be controlled relative to any other part, or indeed any other object.
+ */
+UENUM(BlueprintType)
+enum class EPhysicsControlType : uint8
+{
+	/** Control is done in world space, so each object/part is driven independently */
+	WorldSpace,
+	/** Control is done in the space of the parent of each object */
+	ParentSpace,
+};
+
+inline FName GetPhysicsControlTypeName(const EPhysicsControlType ControlType)
+{
+	switch (ControlType)
+	{
+	case EPhysicsControlType::WorldSpace:
+		return "WorldSpace";
+	case EPhysicsControlType::ParentSpace:
+		return "ParentSpace";
+	}
+	return "None";
+}
+
+/**
+ * Update an existing set, or add to it
+ */
+USTRUCT(BlueprintType)
+struct PHYSICSCONTROL_API FPhysicsControlSetUpdate
+{
+	GENERATED_BODY();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
+	FName SetName;
+
+	/** The names of either controls or body modifiers (depending on context), or sets of controls/body modifiers */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
+	TArray<FName> Names;
+};
+
+/**
+ * Combines updates for control and modifier sets
+ */
+USTRUCT(BlueprintType)
+struct PHYSICSCONTROL_API FPhysicsControlSetUpdates
+{
+	GENERATED_BODY();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
+	TArray<FPhysicsControlSetUpdate> ControlSetUpdates;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
+	TArray<FPhysicsControlSetUpdate> ModifierSetUpdates;
+};
+
+/**
+ * Analogous to the ControlData, this indicates how an individual controlled body should move, with flags indicating
+ * whether each element should get used.
+ */
+USTRUCT(BlueprintType)
+struct PHYSICSCONTROL_API FPhysicsControlModifierSparseData
+{
+	GENERATED_BODY();
+
+	FPhysicsControlModifierSparseData(
+		const EPhysicsMovementType InMovementType = EPhysicsMovementType::Simulated,
+		const float                InGravityMultiplier = 1.0f)
+		: MovementType(InMovementType)
+		, GravityMultiplier(InGravityMultiplier)
+		, bEnableMovementType(1)
+		, bEnableGravityMultiplier(1)
+	{
+	}
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (editcondition = "bEnableMovementType"))
+	EPhysicsMovementType MovementType;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (editcondition = "bEnableGravityMultiplier"))
+	float GravityMultiplier;
+
+	UPROPERTY(EditAnywhere, Category = PhysicsControl, meta = (InlineEditConditionToggle))
+	uint8 bEnableMovementType : 1;
+
+	UPROPERTY(EditAnywhere, Category = PhysicsControl, meta = (InlineEditConditionToggle))
+	uint8 bEnableGravityMultiplier : 1;
+};
+
+/**
+ * Analogous to the ControlData, this indicates how an individual controlled body should move
+ */
+USTRUCT(BlueprintType)
+struct PHYSICSCONTROL_API FPhysicsControlModifierData
+{
+	GENERATED_BODY();
+
+	FPhysicsControlModifierData(
+		const EPhysicsMovementType InMovementType = EPhysicsMovementType::Simulated,
+		const float                InGravityMultiplier = 1.0f)
+		: MovementType(InMovementType)
+		, GravityMultiplier(InGravityMultiplier)
+	{
+	}
+
+	void UpdateFromSparseData(const FPhysicsControlModifierSparseData& SparseData);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
+	EPhysicsMovementType MovementType;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
+	float GravityMultiplier;
+};
+
+
+/**
+ * Strength and damping etc parameters that will affect a control, with flags indicating
+ * whether each element should get used.
+ */
+USTRUCT(BlueprintType)
+struct PHYSICSCONTROL_API FPhysicsControlSparseData
+{
+	GENERATED_BODY();
+
+	FPhysicsControlSparseData(
+		float InLinearStrength = 0.0f, float InLinearDampingRatio = 1.0f, 
+		float InLinearExtraDamping = 0.0f, float InMaxForce = 0.0f,
+		float InAngularStrength = 0.0f, float InAngularDampingRatio = 1.0f, 
+		float InAngularExtraDamping = 0.0f, float InMaxTorque = 0.0f,
+		float InLinearTargetVelocityMultiplier = 1.0f, float InAngularTargetVelocityMultiplier = 1.0f,
+		bool bInEnabled = true)
+		: LinearStrength(InLinearStrength)
+		, LinearDampingRatio(InLinearDampingRatio)
+		, LinearExtraDamping(InLinearExtraDamping)
+		, MaxForce(InMaxForce)
+		, AngularStrength(InAngularStrength)
+		, AngularDampingRatio(InAngularDampingRatio)
+		, AngularExtraDamping(InAngularExtraDamping)
+		, MaxTorque(InMaxTorque)
+		, LinearTargetVelocityMultiplier(InLinearTargetVelocityMultiplier)
+		, AngularTargetVelocityMultiplier(InAngularTargetVelocityMultiplier)
+		, bEnabled(bInEnabled)
+		, bEnableLinearStrength(true)
+		, bEnableLinearDampingRatio(true)
+		, bEnableLinearExtraDamping(true)
+		, bEnableMaxForce(true)
+		, bEnableAngularStrength(true)
+		, bEnableAngularDampingRatio(true)
+		, bEnableAngularExtraDamping(true)
+		, bEnableMaxTorque(true)
+		, bEnableLinearTargetVelocityMultiplier(true)
+		, bEnableAngularTargetVelocityMultiplier(true)
+		, bEnablebEnabled(true)
+	{
+	}
+
+	/** The strength used to drive linear motion */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (ClampMin = "0.0", editcondition = "bEnableLinearStrength"))
+	float LinearStrength;
+
+	/** 
+	 * The amount of damping associated with the linear strength. A value of 1 Results in critically 
+	 * damped motion where the control drives as quickly as possible to the target without overshooting. 
+	 * Values > 1 result in more damped motion, and values below 1 result in faster, but more "wobbly" motion.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (ClampMin = "0.0", editcondition = "bEnableLinearDampingRatio"))
+	float LinearDampingRatio;
+
+	/** 
+	 * The amount of additional linear damping. This is added to the damping that comes from LinearDampingRatio
+	 * and can be useful when you want damping even when LinearStrength is zero.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (ClampMin = "0.0", editcondition = "bEnableLinearExtraDamping"))
+	float LinearExtraDamping;
+
+	/** 
+	 * The maximum force used to drive the linear motion. Zero indicates no limit. 
+	 * Note - not yet implemented for RigidBodyWithControl 
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (ClampMin = "0.0", editcondition = "bEnableMaxForce"))
+	float MaxForce;
+
+	/** The strength used to drive angular motion */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (ClampMin = "0.0", editcondition = "bEnableAngularStrength"))
+	float AngularStrength;
+
+	/** 
+	 * The amount of damping associated with the angular strength. A value of 1 Results in critically 
+	 * damped motion where the control drives as quickly as possible to the target without overshooting. 
+	 * Values > 1 result in more damped motion, and values below 1 result in faster, but more "wobbly" motion.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (ClampMin = "0.0", editcondition = "bEnableAngularDampingRatio"))
+	float AngularDampingRatio;
+
+	/** 
+	 * The amount of additional angular damping. This is added to the damping that comes from AngularDampingRatio
+	 * and can be useful when you want damping even when AngularStrength is zero.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (ClampMin = "0.0", editcondition = "bEnableAngularExtraDamping"))
+	float AngularExtraDamping;
+
+	/** 
+	 * The maximum torque used to drive the angular motion. Zero indicates no limit. 
+ 	 * Note - not yet implemented for RigidBodyWithControl 
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (ClampMin = "0.0", editcondition = "bEnableMaxTorque"))
+	float MaxTorque;
+
+	/**
+	 * Multiplier on the velocity, which gets applied to the damping. A value of 1 means the animation target
+	 * velocity is used, which helps it track the animation. A value of 0 means damping happens in "world space" 
+	 * - so damping acts like drag on the movement.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (ClampMin = "0.0", editcondition = "bEnableLinearTargetVelocityMultiplier"))
+	float LinearTargetVelocityMultiplier;
+
+	/**
+	 * Multiplier on the angular velocity, which gets applied to the damping. A value of 1 means the animation target
+	 * velocity is used, which helps it track the animation. A value of 0 means damping happens in "world space" 
+	 * - so damping acts like drag on the movement.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (ClampMin = "0.0", editcondition = "bEnableAngularTargetVelocityMultiplier"))
+	float AngularTargetVelocityMultiplier;
+
+	/**
+	 * Whether this control should be enabled
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (editcondition = "bEnablebEnabled"))
+	uint8 bEnabled : 1;
+
+	UPROPERTY(EditAnywhere, Category = PhysicsControl, meta = (InlineEditConditionToggle))
+	uint8 bEnableLinearStrength : 1;
+
+	UPROPERTY(EditAnywhere, Category = PhysicsControl, meta = (InlineEditConditionToggle))
+	uint8 bEnableLinearDampingRatio : 1;
+
+	UPROPERTY(EditAnywhere, Category = PhysicsControl, meta = (InlineEditConditionToggle))
+	uint8 bEnableLinearExtraDamping : 1;
+
+	UPROPERTY(EditAnywhere, Category = PhysicsControl, meta = (InlineEditConditionToggle))
+	uint8 bEnableMaxForce : 1;
+
+	UPROPERTY(EditAnywhere, Category = PhysicsControl, meta = (InlineEditConditionToggle))
+	uint8 bEnableAngularStrength : 1;
+
+	UPROPERTY(EditAnywhere, Category = PhysicsControl, meta = (InlineEditConditionToggle))
+	uint8 bEnableAngularDampingRatio : 1;
+
+	UPROPERTY(EditAnywhere, Category = PhysicsControl, meta = (InlineEditConditionToggle))
+	uint8 bEnableAngularExtraDamping : 1;
+
+	UPROPERTY(EditAnywhere, Category = PhysicsControl, meta = (InlineEditConditionToggle))
+	uint8 bEnableMaxTorque : 1;
+
+	UPROPERTY(EditAnywhere, Category = PhysicsControl, meta = (InlineEditConditionToggle))
+	uint8 bEnableLinearTargetVelocityMultiplier : 1;
+
+	UPROPERTY(EditAnywhere, Category = PhysicsControl, meta = (InlineEditConditionToggle))
+	uint8 bEnableAngularTargetVelocityMultiplier : 1;
+
+	UPROPERTY(EditAnywhere, Category = PhysicsControl, meta = (InlineEditConditionToggle))
+	uint8 bEnablebEnabled : 1;
 };
 
 /**
@@ -43,8 +326,14 @@ struct PHYSICSCONTROL_API FPhysicsControlData
 		, AngularDampingRatio(1.0f)
 		, AngularExtraDamping(0.0f)
 		, MaxTorque(0.0f)
+		, LinearTargetVelocityMultiplier(1.0f)
+		, AngularTargetVelocityMultiplier(1.0f)
+		, bEnabled(true)
 	{
 	}
+
+	/** Applies the values that have been flagged as enabled from the sparse data */
+	void UpdateFromSparseData(const FPhysicsControlSparseData& SparseData);
 
 	/** The strength used to drive linear motion */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (ClampMin = "0.0"))
@@ -65,7 +354,10 @@ struct PHYSICSCONTROL_API FPhysicsControlData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (ClampMin = "0.0"))
 	float LinearExtraDamping;
 
-	/** The maximum force used to drive the linear motion. Zero indicates no limit. */
+	/** 
+	 * The maximum force used to drive the linear motion. Zero indicates no limit. 
+	 * Note - not yet implemented for RigidBodyWithControl 
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (ClampMin = "0.0"))
 	float MaxForce;
 
@@ -88,9 +380,34 @@ struct PHYSICSCONTROL_API FPhysicsControlData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (ClampMin = "0.0"))
 	float AngularExtraDamping;
 
-	/** The maximum torque used to drive the angular motion. Zero indicates no limit. */
+	/** 
+	 * The maximum torque used to drive the angular motion. Zero indicates no limit. 
+ 	 * Note - not yet implemented for RigidBodyWithControl 
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (ClampMin = "0.0"))
 	float MaxTorque;
+
+	/**
+	 * Multiplier on the velocity, which gets applied to the damping. A value of 1 means the animation target
+	 * velocity is used, which helps it track the animation. A value of 0 means damping happens in "world space" 
+	 * - so damping acts like drag on the movement.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (ClampMin = "0.0"))
+	float LinearTargetVelocityMultiplier;
+
+	/**
+	 * Multiplier on the angular velocity, which gets applied to the damping. A value of 1 means the animation target
+	 * velocity is used, which helps it track the animation. A value of 0 means damping happens in "world space" 
+	 * - so damping acts like drag on the movement.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (ClampMin = "0.0"))
+	float AngularTargetVelocityMultiplier;
+
+	/**
+	 * Whether this control should be enabled
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
+	uint8 bEnabled : 1;
 };
 
 /**
@@ -212,7 +529,6 @@ struct PHYSICSCONTROL_API FPhysicsControlSettings
 		, bUseSkeletalAnimation(true)
 		, SkeletalAnimationVelocityMultiplier(1.0f)
 		, bDisableCollision(false)
-		, bAutoDisable(false)
 	{
 	}
 
@@ -237,15 +553,6 @@ struct PHYSICSCONTROL_API FPhysicsControlSettings
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
 	bool bDisableCollision;
-
-	/**
-	 * Whether or not this control should automatically disable itself at the end of each tick. This
-	 * can be useful when it is more convenient to have a branch that handles some condition (e.g. character 
-	 * is flailing) by updating/enabling the control, and to then have the control automatically get 
-	 * disabled when the branch is no longer taken.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	bool bAutoDisable;
 };
 
 /**

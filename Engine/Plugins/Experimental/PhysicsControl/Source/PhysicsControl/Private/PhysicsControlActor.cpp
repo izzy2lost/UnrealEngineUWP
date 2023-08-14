@@ -54,10 +54,8 @@ void UPhysicsControlInitializerComponent::CreateInitialCharacterControls(UPhysic
 			InitialCharacterControls.LimbSetupData,
 			InitialCharacterControls.WorldSpaceControlData,
 			InitialCharacterControls.WorldSpaceControlSettings,
-			InitialCharacterControls.bEnableWorldSpaceControls,
 			InitialCharacterControls.ParentSpaceControlData,
 			InitialCharacterControls.ParentSpaceControlSettings,
-			InitialCharacterControls.bEnableParentSpaceControls,
 			InitialCharacterControls.PhysicsMovementType
 		);
 	}
@@ -130,8 +128,7 @@ void UPhysicsControlInitializerComponent::CreateOrUpdateInitialControls(UPhysics
 			InitialPhysicsControl.ControlData,
 			InitialPhysicsControl.ControlTarget,
 			InitialPhysicsControl.ControlSettings,
-			"All",
-			true))
+			"All"))
 		{
 			// If we were replacing a control then add it to the original sets
 			FPhysicsControlNames Names;
