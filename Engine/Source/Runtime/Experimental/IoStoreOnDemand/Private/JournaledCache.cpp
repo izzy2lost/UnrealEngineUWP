@@ -1146,7 +1146,7 @@ uint32 FJournaledCache::Run()
 	while (Running.load(std::memory_order_relaxed))
 	{
 		Update();
-		WakeEvent->Wait(127);
+		WakeEvent->Wait(37);
 	}
 	return 0;
 }
