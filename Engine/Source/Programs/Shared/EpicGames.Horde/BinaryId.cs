@@ -141,11 +141,21 @@ namespace EpicGames.Horde
 		/// <summary>
 		/// Format this id as a sequence of UTF8 characters
 		/// </summary>
+		public Utf8String ToUtf8String()
+		{
+			byte[] data = new byte[NumChars];
+			ToUtf8String(data.AsSpan());
+			return new Utf8String(data);
+		}
+
+		/// <summary>
+		/// Format this id as a sequence of UTF8 characters
+		/// </summary>
 		public void ToUtf8String(Span<byte> chars)
 		{
-			StringUtils.FormatUtf8HexString((uint)_a, chars);
-			StringUtils.FormatUtf8HexString((uint)_b, chars[8..]);
-			StringUtils.FormatUtf8HexString((uint)_c, chars[16..]);
+			StringUtils.FormatLittleEndianUtf8HexString((uint)_a, chars);
+			StringUtils.FormatLittleEndianUtf8HexString((uint)_b, chars[8..]);
+			StringUtils.FormatLittleEndianUtf8HexString((uint)_c, chars[16..]);
 		}
 
 		/// <summary>
