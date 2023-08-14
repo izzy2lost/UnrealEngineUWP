@@ -289,7 +289,6 @@ namespace Jupiter
 
 			using Serilog.Extensions.Logging.SerilogLoggerProvider serilogLoggerProvider = new();
 			Diagnostics.AddLoggerProvider(serilogLoggerProvider);
-			const string DefaultKeyspaceName = "jupiter";
 
 			string? connectionString = secretResolver.Resolve(settings.ConnectionString);
 			if (string.IsNullOrEmpty(connectionString))
@@ -300,7 +299,6 @@ namespace Jupiter
 			// Configure the builder with your cluster's contact points
 			Builder clusterBuilder = Cluster.Builder()
 				.WithConnectionString(connectionString)
-				.WithDefaultKeyspace(DefaultKeyspaceName)
 				.WithLoadBalancingPolicy(Policies.NewDefaultLoadBalancingPolicy(settings.LocalDatacenterName))
 				.WithPoolingOptions(PoolingOptions.Create().SetMaxConnectionsPerHost(HostDistance.Local, settings.MaxConnectionForLocalHost))
 				.WithExecutionProfiles(options =>
@@ -313,7 +311,6 @@ namespace Jupiter
 			if (settings.UseAzureCosmosDB)
 			{
 				CassandraConnectionStringBuilder connectionStringBuilder = new CassandraConnectionStringBuilder(connectionString);
-				connectionStringBuilder.DefaultKeyspace = DefaultKeyspaceName;
 				string[] contactPoints = connectionStringBuilder.ContactPoints;
 
 				// Connect to cassandra cluster using TLSv1.2.
@@ -388,13 +385,15 @@ namespace Jupiter
 					}
 				}
 			}
+
+			string keyspace = replicatedSession.Keyspace;
 			replicatedSession.Execute(new SimpleStatement("CREATE TYPE IF NOT EXISTS blob_identifier (hash blob)"));
-			replicatedSession.UserDefinedTypes.Define(UdtMap.For<ScyllaBlobIdentifier>("blob_identifier", DefaultKeyspaceName));
+			replicatedSession.UserDefinedTypes.Define(UdtMap.For<ScyllaBlobIdentifier>("blob_identifier", keyspace));
 
 			replicatedSession.Execute(new SimpleStatement("CREATE TYPE IF NOT EXISTS object_reference (bucket text, key text)"));
-			replicatedSession.UserDefinedTypes.Define(UdtMap.For<ScyllaObjectReference>("object_reference", DefaultKeyspaceName));
+			replicatedSession.UserDefinedTypes.Define(UdtMap.For<ScyllaObjectReference>("object_reference", keyspace));
 
-			string localKeyspaceName = $"jupiter_local_{settings.LocalKeyspaceSuffix}";
+			string localKeyspaceName = $"{keyspace}_local_{settings.LocalKeyspaceSuffix}";
 
 			Dictionary<string, string> replicationStrategyLocal = ReplicationStrategies.CreateSimpleStrategyReplicationProperty(2);
 			if (settings.LocalKeyspaceReplicationStrategy != null)

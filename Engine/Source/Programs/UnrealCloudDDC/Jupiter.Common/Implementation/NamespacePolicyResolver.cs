@@ -57,7 +57,7 @@ namespace Jupiter.Common
 			Always
 		};
 
-		public StoragePoolGCMethod GcMethod { get; set; } = StoragePoolGCMethod.LastAccess;
+		public StoragePoolGCMethod? GcMethod { get; set; } = null;
 
 		public TimeSpan DefaultTTL { get; set; } = TimeSpan.FromDays(14);
 		public bool AllowRedirectUris { get; set; } = false;
@@ -94,15 +94,13 @@ namespace Jupiter.Common
 
 		public NamespacePolicy GetPoliciesForNs(NamespaceId ns)
 		{
-			if (_namespaceSettings.CurrentValue.Policies.TryGetValue(ns.ToString(),
-					out NamespacePolicy? settings))
+			if (_namespaceSettings.CurrentValue.Policies.TryGetValue(ns.ToString(), out NamespacePolicy? settings))
 			{
 				return settings;
 			}
 			
 			// attempt to find the default mapping
-			if (_namespaceSettings.CurrentValue.Policies.TryGetValue("*",
-					out NamespacePolicy? defaultSettings))
+			if (_namespaceSettings.CurrentValue.Policies.TryGetValue("*", out NamespacePolicy? defaultSettings))
 			{
 				return defaultSettings;
 			}

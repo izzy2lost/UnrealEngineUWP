@@ -174,13 +174,15 @@ namespace Jupiter.Implementation
 			DeleteResult result = await collection.DeleteManyAsync(model =>
 				model.Ns == ns.ToString());
 
+			long deletedCount = 0;
 			if (result.IsAcknowledged)
 			{
-				return result.DeletedCount;
+				deletedCount = result.DeletedCount;
 			}
 
-			// failed to delete
-			return 0L;
+			IMongoCollection<MongoNamespacesModelV0> namespaceCollection = GetCollection<MongoNamespacesModelV0>();
+			await namespaceCollection.DeleteOneAsync(m => m.Ns == ns.ToString());
+			return deletedCount;
 
 		}
 

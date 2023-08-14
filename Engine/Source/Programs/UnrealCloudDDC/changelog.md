@@ -1,7 +1,9 @@
 # Unreleased
 
+* *Breaking* The scylla connection string now needs to include the default keyspace, a example connection string is  `Contact Points=your-scylla-dns.your-domain.com;;Default Keyspace=jupiter;`. The keyspace is `jupiter` is you are migrating from older releases. This allows you to also set the keyspace to something different if you want to run multiple instances of Unreal Cloud DDC against the same scylla cluster.)
 * Migration options from `0.3.0` have been updated to assume you have migrated by default.
 * Added `prepareNvmeFilesystem` section in Helm chart that creates a initContainer which will format a attached nvme drive.
+
 # 0.3.0
 * Azure blob storage now supports storage pools
 * Last access table refactoring - Moved the last accessing tracking out of the objects table and into a seperate table. Saves on compation work for Scylla. Set `Scylla.ListObjectsFromLastAccessTable` to migrate GC refs to use this new table (will be default in the next release).

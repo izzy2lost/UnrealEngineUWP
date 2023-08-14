@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using Jupiter.Common;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace Jupiter
@@ -68,8 +69,7 @@ namespace Jupiter
 		{
 			public override string FormatErrorMessage(string name)
 			{
-				return "Need to specify at least one storage backend. Valid ones are: " +
-					   string.Join(", ", Enum.GetNames(typeof(StorageBackendImplementations)));
+				return "Need to specify at least one storage backend. Valid ones are: " + string.Join(", ", Enum.GetNames(typeof(StorageBackendImplementations)));
 			}
 
 			public override bool IsValid(object? value)
@@ -87,7 +87,7 @@ namespace Jupiter
 		[System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1721:Property names should not match get methods", Justification = "This pattern is used to work around limitations in dotnet configurations support for enums in arrays")]
 		public string[]? StorageImplementations { get; set; }
 
-		public IEnumerable<StorageBackendImplementations> GetStorageImplementations()
+		public IEnumerable<UnrealCloudDDCSettings.StorageBackendImplementations> GetStorageImplementations()
 		{
 			foreach (string s in StorageImplementations ?? new [] {UnrealCloudDDCSettings.StorageBackendImplementations.Memory.ToString()})
 			{
@@ -198,6 +198,7 @@ namespace Jupiter
 		public int OrphanGCMaxParallelOperations { get; set; } = 8;
 		public int OrphanRefMaxParallelOperations { get; set; } = 8;
 		public bool WriteDeleteToReplicationLog { get; set; } = false;
+		public NamespacePolicy.StoragePoolGCMethod DefaultGCPolicy { get; set; } = NamespacePolicy.StoragePoolGCMethod.LastAccess;
 	}
 
 	public class UpstreamRelaySettings

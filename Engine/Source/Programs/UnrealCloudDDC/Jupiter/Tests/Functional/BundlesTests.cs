@@ -51,24 +51,25 @@ public class MemoryBundlesTests : BundlesTests
 
         _s3 = provider.GetService<IAmazonS3>();
         Assert.IsNotNull(_s3);
-        if (await _s3!.DoesS3BucketExistAsync(s3BucketName))
+		try
+		{
+			await _s3.PutBucketAsync(s3BucketName);
+		}
+		catch (AmazonS3Exception e)
+		{
+			if (e.StatusCode != HttpStatusCode.Conflict)
         {
-            // if we have failed to run the cleanup for some reason we run it now
-            await Teardown(provider);
+				// skip 409 as that means the bucket already existed
+				throw;
+			}
         }
 
-        await _s3.PutBucketAsync(s3BucketName);
         await _s3.PutObjectAsync(new PutObjectRequest { BucketName = s3BucketName, Key = BlobId.FromBlobLocator(SmallFileLocator).AsS3Key(), ContentBody = SmallFileContents });
     }
 
     protected override async Task Teardown(IServiceProvider provider)
     {
-        string s3BucketName = $"tests-{TestNamespaceName}";
-        ListObjectsResponse response = await _s3!.ListObjectsAsync(s3BucketName);
-        List<KeyVersion> objectKeys = response.S3Objects.Select(o => new KeyVersion { Key = o.Key }).ToList();
-        await _s3.DeleteObjectsAsync(new DeleteObjectsRequest { BucketName = s3BucketName, Objects = objectKeys });
-
-        await _s3.DeleteBucketAsync(s3BucketName);
+		await Task.CompletedTask;
     }
 }
 
@@ -93,24 +94,26 @@ public class ScyllaBundlesTests : BundlesTests
 
         _s3 = provider.GetService<IAmazonS3>();
         Assert.IsNotNull(_s3);
-        if (await _s3!.DoesS3BucketExistAsync(s3BucketName))
+		try
+		{
+			await _s3.PutBucketAsync(s3BucketName);
+		}
+		catch (AmazonS3Exception e)
+		{
+			if (e.StatusCode != HttpStatusCode.Conflict)
         {
-            // if we have failed to run the cleanup for some reason we run it now
-            await Teardown(provider);
+				// skip 409 as that means the bucket already existed
+				throw;
+			}
         }
 
-        await _s3.PutBucketAsync(s3BucketName);
+
         await _s3.PutObjectAsync(new PutObjectRequest { BucketName = s3BucketName, Key = BlobId.FromBlobLocator(SmallFileLocator).AsS3Key(), ContentBody = SmallFileContents });
     }
 
     protected override async Task Teardown(IServiceProvider provider)
     {
-        string s3BucketName = $"tests-{TestNamespaceName}";
-        ListObjectsResponse response = await _s3!.ListObjectsAsync(s3BucketName);
-        List<KeyVersion> objectKeys = response.S3Objects.Select(o => new KeyVersion { Key = o.Key }).ToList();
-        await _s3.DeleteObjectsAsync(new DeleteObjectsRequest { BucketName = s3BucketName, Objects = objectKeys });
-
-        await _s3.DeleteBucketAsync(s3BucketName);
+		await Task.CompletedTask;
     }
 }
 
@@ -135,24 +138,25 @@ public class MongoBundlesTests : BundlesTests
 
         _s3 = provider.GetService<IAmazonS3>();
         Assert.IsNotNull(_s3);
-        if (await _s3!.DoesS3BucketExistAsync(s3BucketName))
+		try
+		{
+			await _s3.PutBucketAsync(s3BucketName);
+		}
+		catch (AmazonS3Exception e)
+		{
+			if (e.StatusCode != HttpStatusCode.Conflict)
         {
-            // if we have failed to run the cleanup for some reason we run it now
-            await Teardown(provider);
+				// skip 409 as that means the bucket already existed
+				throw;
+			}
         }
 
-        await _s3.PutBucketAsync(s3BucketName);
         await _s3.PutObjectAsync(new PutObjectRequest { BucketName = s3BucketName, Key = BlobId.FromBlobLocator(SmallFileLocator).AsS3Key(), ContentBody = SmallFileContents });
     }
 
     protected override async Task Teardown(IServiceProvider provider)
     {
-        string s3BucketName = $"tests-{TestNamespaceName}";
-        ListObjectsResponse response = await _s3!.ListObjectsAsync(s3BucketName);
-        List<KeyVersion> objectKeys = response.S3Objects.Select(o => new KeyVersion { Key = o.Key }).ToList();
-        await _s3.DeleteObjectsAsync(new DeleteObjectsRequest { BucketName = s3BucketName, Objects = objectKeys });
-
-        await _s3.DeleteBucketAsync(s3BucketName);
+		await Task.CompletedTask;
     }
 }
 
@@ -165,7 +169,7 @@ public abstract class BundlesTests
 
     protected const string SmallFileContents = "Small file contents";
 
-    protected BundleLocator SmallFileLocator { get; } = BundleLocator.CreateUnique(String.Empty);
+	protected BundleLocator SmallFileLocator { get; } = BundleLocator.CreateUnique(string.Empty);
 
     [TestInitialize]
     public async Task SetupAsync()

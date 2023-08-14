@@ -356,6 +356,7 @@ namespace Jupiter.Implementation
 
 			// remove the tracking in the buckets table as well
 			await _session.ExecuteAsync(new SimpleStatement("DELETE FROM buckets WHERE namespace = ?", ns.ToString()));
+			await _session.ExecuteAsync(new SimpleStatement("DELETE FROM buckets_v2 WHERE namespace = ?", ns.ToString()));
 
 			return deletedCount;
 		}

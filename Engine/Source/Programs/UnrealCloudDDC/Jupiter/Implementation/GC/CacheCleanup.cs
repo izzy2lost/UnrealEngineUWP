@@ -48,13 +48,19 @@ namespace Jupiter.Implementation
 			{
 				NamespacePolicy policy = _namespacePolicyResolver.GetPoliciesForNs(ns);
 
-				if (policy.GcMethod == NamespacePolicy.StoragePoolGCMethod.LastAccess)
+				NamespacePolicy.StoragePoolGCMethod? gcMethod = policy.GcMethod;
+				if (gcMethod == null)
+				{
+					gcMethod = _settings.CurrentValue.DefaultGCPolicy;
+				}
+
+				if (gcMethod == NamespacePolicy.StoragePoolGCMethod.LastAccess)
 				{
 					// only run for namespaces set to use last access tracking
 					return true;
 				}
 
-				if (policy.GcMethod == NamespacePolicy.StoragePoolGCMethod.Always)
+				if (gcMethod == NamespacePolicy.StoragePoolGCMethod.Always)
 				{
 					// this is a old namespace that should be cleaned up
 					return true;
