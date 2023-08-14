@@ -3316,6 +3316,8 @@ static void WritePluginMetadataJsons(const FString& InAssetRegistryFileName, TMa
 		PluginGraph[PluginHierarchy.PluginsEnabledAtCook[RootIndex].Name].bIsRoot = true;
 	}
 
+	TSet<FString> LoggedPluginNames;
+
 	FTopLevelAssetPath Texture2DPath(TEXT("/Script/Engine.Texture2D"));
 	FTopLevelAssetPath Texture2DArrayPath(TEXT("/Script/Engine.Texture2DArray"));
 	FTopLevelAssetPath Texture3DPath(TEXT("/Script/Engine.Texture3D"));
@@ -3385,7 +3387,13 @@ static void WritePluginMetadataJsons(const FString& InAssetRegistryFileName, TMa
 			}
 			else
 			{
-				UE_LOG(LogTemp, Warning, TEXT("Plugin for package not found: %s (%.*s)"), PackageNameStr.GetData(), PluginName.Len(), PluginName.GetData());
+				FString AllocatedPluginName(PluginName);
+				bool bAlreadyLogged = false;
+				LoggedPluginNames.Add(MoveTemp(AllocatedPluginName), &bAlreadyLogged);
+				if (bAlreadyLogged == false)
+				{
+					UE_LOG(LogIoStore, Display, TEXT("Plugin for package not found: %s (%.*s)"), PackageNameStr.GetData(), PluginName.Len(), PluginName.GetData());
+				}
 			}
 		}
 	}
