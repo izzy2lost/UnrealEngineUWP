@@ -52,6 +52,19 @@ URCBehaviour* URCController::CreateBehaviour(TSubclassOf<URCBehaviourNode> InBeh
 	return NewBehaviour;
 }
 
+URCBehaviour* URCController::CreateBehaviourWithoutCheck(TSubclassOf<URCBehaviourNode> InBehaviourNodeClass)
+{
+	const URCBehaviourNode* DefaultBehaviourNode = Cast<URCBehaviourNode>(InBehaviourNodeClass->GetDefaultObject());
+	
+	URCBehaviour* NewBehaviour = NewObject<URCBehaviour>(this, DefaultBehaviourNode->GetBehaviourClass(), NAME_None, RF_Transactional);
+	NewBehaviour->BehaviourNodeClass = InBehaviourNodeClass;
+	NewBehaviour->Id = FGuid::NewGuid();
+	NewBehaviour->ActionContainer->PresetWeakPtr = PresetWeakPtr;
+	NewBehaviour->ControllerWeakPtr = this;
+	
+	return NewBehaviour;
+}
+
 int32 URCController::RemoveBehaviour(URCBehaviour* InBehaviour)
 {
 	return Behaviours.Remove(InBehaviour);

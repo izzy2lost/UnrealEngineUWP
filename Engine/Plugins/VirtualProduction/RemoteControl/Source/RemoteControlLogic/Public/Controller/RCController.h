@@ -31,6 +31,9 @@ public:
 	/** Create new behaviour */
 	virtual URCBehaviour* CreateBehaviour(TSubclassOf<URCBehaviourNode> InBehaviourNodeClass);
 
+	/** Create new behaviour without checking if supported */
+	virtual URCBehaviour* CreateBehaviourWithoutCheck(TSubclassOf<URCBehaviourNode> InBehaviourNodeClass);
+
 	/** Remove the behaviour by behaviour UObject pointer */
 	virtual int32 RemoveBehaviour(URCBehaviour* InBehaviour);
 

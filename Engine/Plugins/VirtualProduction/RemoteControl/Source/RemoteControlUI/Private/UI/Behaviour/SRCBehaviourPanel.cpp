@@ -171,13 +171,15 @@ TSharedRef<SWidget> SRCBehaviourPanel::GetBehaviourMenuContentWidget()
 						}
 					}
 
-					URCBehaviour* Behaviour = Controller->CreateBehaviour(Class);
+					URCBehaviour* Behaviour = Controller->CreateBehaviourWithoutCheck(Class);
 					if (!Behaviour)
 					{
 						continue;
 					}
 
 					FUIAction Action(FExecuteAction::CreateSP(this, &SRCBehaviourPanel::OnAddBehaviourClicked, Class));
+					Action.CanExecuteAction.BindSP(this, &SRCBehaviourPanel::CanExecuteAddBehaviour, Class, Behaviour);
+
 					MenuBuilder.AddMenuEntry(
 						FText::Format(LOCTEXT("AddBehaviourNode", "{0}"), Behaviour->GetDisplayName()),
 						FText::Format(LOCTEXT("AddBehaviourNodeTooltip", "{0}"), Behaviour->GetBehaviorDescription()),
@@ -208,6 +210,12 @@ void SRCBehaviourPanel::OnAddBehaviourClicked(UClass* InClass)
 			}
 		}
 	}
+}
+
+bool SRCBehaviourPanel::CanExecuteAddBehaviour(UClass* InClass, URCBehaviour* InBehaviour) const
+{
+	const URCBehaviourNode* DefaultBehaviourNode = Cast<URCBehaviourNode>(InClass->GetDefaultObject());
+	return DefaultBehaviourNode->IsSupported(InBehaviour);
 }
 
 FReply SRCBehaviourPanel::OnClickEmptyButton()
