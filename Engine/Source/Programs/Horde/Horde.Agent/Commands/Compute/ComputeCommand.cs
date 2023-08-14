@@ -92,18 +92,18 @@ namespace Horde.Agent.Commands.Compute
 			}
 			else
 			{
-				return new ServerComputeClient(CreateHttpClient, logger);
+				return new ServerComputeClient(CreateHttpClientAsync, logger);
 			}
 		}
 
-		HttpClient CreateHttpClient()
+		Task<HttpClient> CreateHttpClientAsync(CancellationToken cancellationToken)
 		{
 			ServerProfile profile = _settings.Value.GetCurrentServerProfile();
 
 			HttpClient client = _httpClientFactory.CreateClient();
 			client.BaseAddress = profile.Url;
 			client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", profile.Token);
-			return client;
+			return Task.FromResult(client);
 		}
 	}
 

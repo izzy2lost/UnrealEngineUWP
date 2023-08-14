@@ -136,7 +136,7 @@ namespace Horde
 			return result.AccessToken;
 		}
 
-		public static async Task<HordeHttpClient> GetHttpCientAsync(ILogger logger, CancellationToken cancellationToken = default)
+		public static async Task<HordeHttpClient> GetHttpClientAsync(ILogger logger, CancellationToken cancellationToken = default)
 		{
 			Uri? server = await GetServerAsync(cancellationToken);
 			if (server == null)

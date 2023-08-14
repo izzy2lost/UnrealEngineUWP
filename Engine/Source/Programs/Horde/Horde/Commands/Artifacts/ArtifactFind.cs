@@ -15,7 +15,7 @@ namespace Horde.Commands.Bundles
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			using HordeHttpClient horde = await Settings.GetHttpCientAsync(logger);
+			using HordeHttpClient horde = await Settings.GetHttpClientAsync(logger);
 
 			List<GetArtifactResponse> artifacts = await horde.FindArtifactsAsync(keys: Keys);
 			foreach (GetArtifactResponse artifact in artifacts)

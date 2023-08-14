@@ -69,7 +69,7 @@ namespace EpicGames.Horde.Compute.Clients
 		}
 
 		readonly HttpClient? _defaultHttpClient;
-		readonly Func<HttpClient> _createHttpClient;
+		readonly Func<CancellationToken, Task<HttpClient>> _createHttpClientAsync;
 		readonly CancellationTokenSource _cancellationSource = new CancellationTokenSource();
 		readonly ILogger _logger;
 
@@ -91,18 +91,18 @@ namespace EpicGames.Horde.Compute.Clients
 			_defaultHttpClient.DefaultRequestHeaders.Authorization = authHeader;
 #pragma warning restore CA2000 // Dispose objects before losing scope
 
-			_createHttpClient = GetDefaultHttpClient;
+			_createHttpClientAsync = GetDefaultHttpClientAsync;
 			_logger = logger;
 		}
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="createHttpClient">Creates an HTTP client with the correct base address for the server</param>
+		/// <param name="createHttpClientAsync">Creates an HTTP client with the correct base address for the server</param>
 		/// <param name="logger">Logger for diagnostic messages</param>
-		public ServerComputeClient(Func<HttpClient> createHttpClient, ILogger logger)
+		public ServerComputeClient(Func<CancellationToken, Task<HttpClient>> createHttpClientAsync, ILogger logger)
 		{
-			_createHttpClient = createHttpClient;
+			_createHttpClientAsync = createHttpClientAsync;
 			_logger = logger;
 		}
 
@@ -110,7 +110,7 @@ namespace EpicGames.Horde.Compute.Clients
 		/// Gets the default http client
 		/// </summary>
 		/// <returns></returns>
-		HttpClient GetDefaultHttpClient() => _defaultHttpClient!;
+		Task<HttpClient> GetDefaultHttpClientAsync(CancellationToken cancellationToken) => Task.FromResult(_defaultHttpClient!);
 
 		/// <inheritdoc/>
 		public ValueTask DisposeAsync()
@@ -144,7 +144,7 @@ namespace EpicGames.Horde.Compute.Clients
 			_logger.LogDebug("Requesting compute resource");
 
 			// Assign a compute worker
-			HttpClient client = _createHttpClient();
+			HttpClient client = await _createHttpClientAsync(cancellationToken);
 
 			AssignComputeRequest request = new AssignComputeRequest();
 			request.Requirements = requirements;

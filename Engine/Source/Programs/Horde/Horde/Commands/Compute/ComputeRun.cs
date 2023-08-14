@@ -1,0 +1,141 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+using System.Net.Http.Headers;
+using System.Reflection;
+using System.Text.Json;
+using EpicGames.Core;
+using EpicGames.Horde.Common;
+using EpicGames.Horde.Compute;
+using EpicGames.Horde.Compute.Clients;
+using EpicGames.Horde.Storage.Backends;
+using EpicGames.Horde.Storage.Bundles;
+using EpicGames.Horde.Storage.Nodes;
+using Microsoft.Extensions.Logging;
+
+namespace Horde.Commands.Compute
+{
+	/// <summary>
+	/// Executes a compute command using a task definition and sandbox taken from the local machine
+	/// </summary>
+	[Command("compute", "run", "Executes a command through the compute API")]
+	class ComputeRun : Command
+	{
+		class JsonComputeTask
+		{
+			public string Executable { get; set; } = null!;
+			public List<string> Arguments { get; set; } = new List<string>();
+			public string WorkingDir { get; set; } = String.Empty;
+			public Dictionary<string, string?> EnvVars { get; set; } = new Dictionary<string, string?>();
+			public List<string> OutputPaths { get; set; } = new List<string>();
+		}
+
+		[CommandLine("-Cluster")]
+		public string ClusterId { get; set; } = "default";
+
+		[CommandLine("-Requirements=", Description = "Match the agent to run on")]
+		public string? Requirements { get; set; }
+
+		[CommandLine("-Local")]
+		public bool Local { get; set; }
+
+		[CommandLine("-Loopback")]
+		public bool Loopback { get; set; }
+
+		[CommandLine("-InProc")]
+		public bool InProc { get; set; }
+
+		[CommandLine("-Sandbox=")]
+		public DirectoryReference SandboxDir { get; set; } = DirectoryReference.Combine(DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.LocalApplicationData)!, "Horde", "Sandbox");
+
+		[CommandLine("-Task=", Required = true)]
+		FileReference TaskFile { get; set; } = null!;
+
+		/// <inheritdoc/>
+		public override async Task<int> ExecuteAsync(ILogger logger)
+		{
+			await using IComputeClient client = CreateClient(logger);
+
+			Requirements? requirements = null;
+			if (Requirements != null)
+			{
+				requirements = new Requirements(Condition.Parse(Requirements));
+			}
+
+			await using IComputeLease? lease = await client.TryAssignWorkerAsync(new ClusterId(ClusterId), requirements, CancellationToken.None);
+			if (lease == null)
+			{
+				throw new Exception("Unable to create lease");
+			}
+
+			bool result = await HandleRequestAsync(lease, logger, CancellationToken.None);
+			return result ? 0 : 1;
+		}
+
+		IComputeClient CreateClient(ILogger logger)
+		{
+			if (Local)
+			{
+				return new LocalComputeClient(2000, SandboxDir, InProc, logger);
+			}
+			else if (Loopback)
+			{
+				return new AgentComputeClient(Assembly.GetExecutingAssembly().Location, 2000, logger);
+			}
+			else
+			{
+				return new ServerComputeClient(async ctx => await CreateHttpClientAsync(logger, ctx), logger);
+			}
+		}
+
+		static async Task<HttpClient> CreateHttpClientAsync(ILogger logger, CancellationToken cancellationToken)
+		{
+			HttpClient client = new HttpClient();
+			client.BaseAddress = await Settings.GetServerAsync(cancellationToken);
+			client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await Settings.GetAccessTokenAsync(logger, cancellationToken));
+			return client;
+		}
+
+		/// <inheritdoc/>
+		async Task<bool> HandleRequestAsync(IComputeLease lease, ILogger logger, CancellationToken cancellationToken)
+		{
+			const int ControlChannelId = 0;
+
+			// Read the task definition
+			byte[] data = await FileReference.ReadAllBytesAsync(TaskFile, cancellationToken);
+			JsonComputeTask jsonComputeTask = JsonSerializer.Deserialize<JsonComputeTask>(data, new JsonSerializerOptions { AllowTrailingCommas = true, PropertyNameCaseInsensitive = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase })!;
+
+			// Create a sandbox from the data to be uploaded
+			MemoryStorageClient storage = new MemoryStorageClient();
+			BundleNodeLocator sandbox = await CreateSandboxAsync(TaskFile, storage, cancellationToken);
+
+			// Open a socket and upload the sandbox
+			using (AgentMessageChannel channel = lease.Socket.CreateAgentMessageChannel(ControlChannelId, 4 * 1024 * 1024, logger))
+			{
+				await channel.WaitForAttachAsync(cancellationToken);
+				await channel.UploadFilesAsync("", sandbox, storage, cancellationToken);
+
+				await using (AgentManagedProcess process = await channel.ExecuteAsync(jsonComputeTask.Executable, jsonComputeTask.Arguments, jsonComputeTask.WorkingDir, jsonComputeTask.EnvVars, ExecuteProcessFlags.None, cancellationToken))
+				{
+					string? line;
+					while ((line = await process.ReadLineAsync(cancellationToken)) != null)
+					{
+						logger.LogInformation("Child Process: {Text}", line);
+					}
+				}
+			}
+
+			return true;
+		}
+
+		static async Task<BundleNodeLocator> CreateSandboxAsync(FileReference taskFile, BundleStorageClient storage, CancellationToken cancellationToken)
+		{
+			await using BundleWriter writer = storage.CreateWriter();
+
+			DirectoryNode sandbox = new DirectoryNode();
+			await sandbox.CopyFromDirectoryAsync(taskFile.Directory.ToDirectoryInfo(), new ChunkingOptions(), writer, null, cancellationToken);
+
+			BundleNodeHandle handle = await writer.FlushAsync(sandbox, cancellationToken);
+			return handle.GetLocator();
+		}
+	}
+}
