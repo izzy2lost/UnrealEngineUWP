@@ -79,9 +79,10 @@ int32 UWorldPartitionBuilderCommandlet::Main(const FString& Params)
 	TArray<FString> MapPackagesNames;
 
 	// Parse map name or maps collection
-	if (FPackageName::SearchForPackageOnDisk(Tokens[0]))
+	FString MapLongPackageName;
+	if (FPackageName::SearchForPackageOnDisk(Tokens[0], &MapLongPackageName))
 	{
-		MapPackagesNames = { Tokens[0] };
+		MapPackagesNames = { MapLongPackageName };
 	}	
 	else if (CollectionManager.CollectionExists(FName(Tokens[0]), ECollectionShareType::CST_All))
 	{
