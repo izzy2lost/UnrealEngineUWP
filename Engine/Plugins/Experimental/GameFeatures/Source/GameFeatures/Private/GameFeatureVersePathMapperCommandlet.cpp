@@ -181,6 +181,10 @@ namespace GameFeatureVersePathMapper
 		const IAssetRegistry& AR = IAssetRegistry::GetChecked();
 
 		FARFilter RawFilter;
+#if !WITH_EDITORONLY_DATA
+		// work-around for in-memory FAssetData not having chunks set
+		RawFilter.bIncludeOnlyOnDiskAssets = true;
+#endif
 		RawFilter.bRecursiveClasses = true;
 		RawFilter.ClassPaths.Add(UGameFeatureData::StaticClass()->GetClassPathName());
 
