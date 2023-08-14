@@ -4551,6 +4551,12 @@ void FControlRigEditMode::OnWorldCleanup(UWorld* World, bool bSessionEnded, bool
 	}
 }
 
+void FControlRigEditMode::OnEditorClosed()
+{
+	ControlRigShapeActors.Reset();
+	ControlRigsToRecreate.Reset();
+}
+
 void FControlRigEditMode::DestroyShapesActors(UControlRig* ControlRig)
 {
 	if (ControlRig == nullptr)

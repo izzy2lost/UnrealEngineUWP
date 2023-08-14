@@ -143,6 +143,7 @@ FControlRigEditor::~FControlRigEditor()
 		if (FControlRigEditMode* EditMode = GetEditMode())
 		{
 			RigBlueprint->OnHierarchyModified().RemoveAll(EditMode);
+			EditMode->OnEditorClosed();
 		}
 	}
 

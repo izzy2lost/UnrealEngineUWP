@@ -18,6 +18,7 @@
 
 
 class FEditorViewportClient;
+class FRigVMEditor;
 class FViewport;
 class UActorFactory;
 struct FViewportClick;
@@ -459,6 +460,7 @@ private:
 	void OnWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources);
 	UWorld* WorldPtr = nullptr;
 
+	void OnEditorClosed();
 	
 	TArray<TWeakObjectPtr<UControlRig>> RuntimeControlRigs;
 	TMap<UControlRig*,TStrongObjectPtr<UControlRigEditModeDelegateHelper>> DelegateHelpers;
