@@ -292,4 +292,9 @@ FAccountId FindAccountIdChecked(const EOS_EpicAccountId EpicAccountId)
 	return Result;
 }
 
+FAccountId CreateAccountId(const EOS_EpicAccountId EpicAccountId, const EOS_ProductUserId ProductUserId)
+{
+	return FOnlineAccountIdRegistryEOS::Get().FindOrAddAccountId(EpicAccountId, ProductUserId);
+}
+
 /* UE::Online */ }
