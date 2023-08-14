@@ -846,6 +846,17 @@ namespace UnrealBuildTool
 		{
 			return Architectures.SingleArchitecture != UnrealArch.X64;
 		}
+
+		public override UnrealArch GetHostArchitecture()
+		{
+			switch (System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture)
+			{
+				case System.Runtime.InteropServices.Architecture.Arm64:
+					return UnrealArch.Arm64;
+				default: 
+					return UnrealArch.X64;
+			}
+		}
 	}
 
 	class WindowsPlatform : UEBuildPlatform

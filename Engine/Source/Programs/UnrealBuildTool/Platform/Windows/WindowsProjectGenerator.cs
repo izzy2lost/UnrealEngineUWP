@@ -51,6 +51,9 @@ namespace UnrealBuildTool
 		{
 			StringBuilder VCUserFileContent = new StringBuilder();
 
+			string LocalOrRemoteString = InVSSettings.Architecture == null || InVSSettings.Architecture.Value == UnrealArch.Host.Value
+				? "Local" : "Remote";
+
 			VCUserFileContent.AppendLine("  <PropertyGroup {0}>", InConditionString);
 			if (InTargetRules.Type != TargetType.Game)
 			{
@@ -66,9 +69,10 @@ namespace UnrealBuildTool
 					DebugOptions += ProjectName;
 				}
 
-				VCUserFileContent.AppendLine("    <LocalDebuggerCommandArguments>{0}</LocalDebuggerCommandArguments>", DebugOptions);
+				VCUserFileContent.AppendLine($"    <{LocalOrRemoteString}DebuggerCommandArguments>{DebugOptions}</{LocalOrRemoteString}DebuggerCommandArguments>");
 			}
-			VCUserFileContent.AppendLine("    <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>");
+
+			VCUserFileContent.AppendLine($"    <DebuggerFlavor>Windows{LocalOrRemoteString}Debugger</DebuggerFlavor>");
 			VCUserFileContent.AppendLine("  </PropertyGroup>");
 
 			return VCUserFileContent.ToString();
