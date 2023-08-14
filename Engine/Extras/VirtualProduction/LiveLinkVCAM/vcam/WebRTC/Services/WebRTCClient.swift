@@ -26,7 +26,7 @@ final class WebRTCClient: NSObject {
         let videoEncoderFactory = RTCDefaultVideoEncoderFactory()
         let videoDecoderFactory = RTCDefaultVideoDecoderFactory()
 
-        let fieldTrials = ["WebRTC-MaxPacketBufferSize", "8192"]
+        let fieldTrials = ["WebRTC-MaxPacketBufferSize": "8192"]
         RTCInitFieldTrialDictionary(fieldTrials)
 
 
