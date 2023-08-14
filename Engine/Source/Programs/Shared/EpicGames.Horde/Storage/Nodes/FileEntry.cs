@@ -154,19 +154,26 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <returns></returns>
 		public async Task CopyToFileAsync(FileInfo file, CancellationToken cancellationToken)
 		{
-			ChunkedDataNode node = await ExpandAsync(cancellationToken);
-			await node.CopyToFileAsync(file, cancellationToken);
-
-			if ((Flags & FileEntryFlags.Executable) != 0)
+			try
 			{
-				if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+				ChunkedDataNode node = await ExpandAsync(cancellationToken);
+				await node.CopyToFileAsync(file, cancellationToken);
+
+				if ((Flags & FileEntryFlags.Executable) != 0)
 				{
-					FileUtils.SetFileMode_Linux(file.FullName, 0b_111_111_111);
+					if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+					{
+						FileUtils.SetFileMode_Linux(file.FullName, 0b_111_111_111);
+					}
+					else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+					{
+						FileUtils.SetFileMode_Mac(file.FullName, 0b_111_111_111);
+					}
 				}
-				else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-				{
-					FileUtils.SetFileMode_Mac(file.FullName, 0b_111_111_111);
-				}
+			}
+			catch (Exception ex)
+			{
+				throw new Exception($"Unable to extract file {file.FullName}", ex);
 			}
 		}
 
