@@ -33,110 +33,140 @@ namespace AutomationUtils.Automation
 			LoadBundleConfig<BundleSettings>(ProjectDir, Platform, out Bundles, delegate (BundleSettings Settings, ConfigHierarchy BundleConfig, string Section) { });
 		}
 
-		public static void LoadBundleConfig<TPlatformBundleSettings>(DirectoryReference ProjectDir, UnrealTargetPlatform Platform, 
+		public static void LoadBundleConfig_IncludeEditorConfig(DirectoryReference ProjectDir, UnrealTargetPlatform Platform, out IReadOnlyDictionary<string, BundleSettings> Bundles)
+		{
+			LoadBundleConfig_IncludeEditorConfig<BundleSettings>(ProjectDir, Platform, out Bundles, delegate (BundleSettings Settings, ConfigHierarchy BundleConfig, string Section) { });
+		}
+
+		public static void LoadBundleConfig<TPlatformBundleSettings>(DirectoryReference ProjectDir, UnrealTargetPlatform Platform,
+			out IReadOnlyDictionary<string, TPlatformBundleSettings> Bundles,
+			Action<TPlatformBundleSettings, ConfigHierarchy, string> GetPlatformSettings)
+			where TPlatformBundleSettings : BundleSettings, new()
+		{
+			LoadBundleConfigInternal<TPlatformBundleSettings>(false, ProjectDir, Platform, out Bundles, GetPlatformSettings);
+		}
+
+		public static void LoadBundleConfig_IncludeEditorConfig<TPlatformBundleSettings>(DirectoryReference ProjectDir, UnrealTargetPlatform Platform,
+			out IReadOnlyDictionary<string, TPlatformBundleSettings> Bundles,
+			Action<TPlatformBundleSettings, ConfigHierarchy, string> GetPlatformSettings)
+			where TPlatformBundleSettings : BundleSettings, new()
+		{
+			LoadBundleConfigInternal<TPlatformBundleSettings>(true, ProjectDir, Platform, out Bundles, GetPlatformSettings);
+		}
+
+		private static void LoadBundleConfigInternal<TPlatformBundleSettings>(bool bIncludeEditorConfig, DirectoryReference ProjectDir, UnrealTargetPlatform Platform, 
 			out IReadOnlyDictionary<string, TPlatformBundleSettings> Bundles, 
 			Action<TPlatformBundleSettings, ConfigHierarchy, string> GetPlatformSettings) 
 			where TPlatformBundleSettings : BundleSettings, new()
 		{
 			var Results = new List<TPlatformBundleSettings>();
 
-			ConfigHierarchy BundleConfig = ConfigCache.ReadHierarchy(ConfigHierarchyType.InstallBundle, ProjectDir, Platform);
+			List<ConfigHierarchy> BundleConfigs = new List<ConfigHierarchy>();
+			BundleConfigs.Add(ConfigCache.ReadHierarchy(ConfigHierarchyType.InstallBundle, ProjectDir, Platform));
+			if (bIncludeEditorConfig)
+			{
+				BundleConfigs.Add(ConfigCache.ReadHierarchy(ConfigHierarchyType.Editor, ProjectDir, Platform));
+			}
 
 			const string BundleDefinitionPrefix = "InstallBundleDefinition ";
 
-			foreach (string SectionName in BundleConfig.SectionNames)
+			foreach (ConfigHierarchy BundleConfig in BundleConfigs)
 			{
-				if (!SectionName.StartsWith(BundleDefinitionPrefix))
-					continue;
+				foreach (string SectionName in BundleConfig.SectionNames)
+				{
+					if (!SectionName.StartsWith(BundleDefinitionPrefix))
+						continue;
 
-				TPlatformBundleSettings Bundle = new TPlatformBundleSettings();
-				Bundle.Name = SectionName.Substring(BundleDefinitionPrefix.Length);
-				{
-					int Order;
-					if(BundleConfig.GetInt32(SectionName, "Order", out Order))
+					TPlatformBundleSettings Bundle = new TPlatformBundleSettings();
+					Bundle.Name = SectionName.Substring(BundleDefinitionPrefix.Length);
 					{
-						Bundle.Order = Order;
+						int Order;
+						if (BundleConfig.GetInt32(SectionName, "Order", out Order))
+						{
+							Bundle.Order = Order;
+						}
+						else
+						{
+							Bundle.Order = int.MaxValue;
+						}
 					}
-					else
 					{
-						Bundle.Order = int.MaxValue;
+						List<string> Tags;
+						if (BundleConfig.GetArray(SectionName, "Tags", out Tags))
+						{
+							Bundle.Tags = Tags;
+						}
+						else
+						{
+							Bundle.Tags = new List<string>();
+						}
 					}
-				}
-				{
-					List<string> Tags;
-					if (BundleConfig.GetArray(SectionName, "Tags", out Tags))
 					{
-						Bundle.Tags = Tags;
+						List<string> Dependencies;
+						if (BundleConfig.GetArray(SectionName, "Dependencies", out Dependencies))
+						{
+							Bundle.Dependencies = Dependencies;
+						}
+						else
+						{
+							Bundle.Dependencies = new List<string>();
+						}
 					}
-					else 
 					{
-						Bundle.Tags = new List<string>(); 
+						List<string> FileRegex;
+						if (BundleConfig.GetArray(SectionName, "FileRegex", out FileRegex))
+						{
+							Bundle.FileRegex = FileRegex;
+						}
+						else
+						{
+							Bundle.FileRegex = new List<string>();
+						}
 					}
-				}
-				{
-					List<string> Dependencies;
-					if (BundleConfig.GetArray(SectionName, "Dependencies", out Dependencies))
 					{
-						Bundle.Dependencies = Dependencies;
+						List<string> Files;
+						if (BundleConfig.GetArray(SectionName, "Files", out Files))
+						{
+							Bundle.Files = Files;
+						}
+						else
+						{
+							Bundle.Files = new List<string>();
+						}
 					}
-					else
 					{
-						Bundle.Dependencies = new List<string>();
+						bool bContainsShaderLibrary;
+						if (BundleConfig.GetBool(SectionName, "ContainsShaderLibrary", out bContainsShaderLibrary))
+						{
+							Bundle.bContainsShaderLibrary = bContainsShaderLibrary;
+						}
+						else
+						{
+							Bundle.bContainsShaderLibrary = false;
+						}
 					}
-				}
-				{
-					List<string> FileRegex;
-					if (BundleConfig.GetArray(SectionName, "FileRegex", out FileRegex))
+
 					{
-						Bundle.FileRegex = FileRegex;
+						bool bUseChunkDBs;
+						if (!BundleConfig.GetBool(SectionName, "UseChunkDBs", out bUseChunkDBs))
+						{
+							Bundle.UseChunkDBs = false;
+						}
+						else
+						{
+							Bundle.UseChunkDBs = bUseChunkDBs;
+						}
 					}
-					else
 					{
-						Bundle.FileRegex = new List<string>();
-					}
-				}
-				{
-					List<string> Files;
-					if (BundleConfig.GetArray(SectionName, "Files", out Files))
-					{
-						Bundle.Files = Files;
-					}
-					else
-					{
-						Bundle.Files = new List<string>();
-					}
-				}
-				{
-					bool bContainsShaderLibrary;
-					if (BundleConfig.GetBool(SectionName, "ContainsShaderLibrary", out bContainsShaderLibrary))
-					{
-						Bundle.bContainsShaderLibrary = bContainsShaderLibrary;
-					}
-					else 
-					{
-						Bundle.bContainsShaderLibrary = false;
-					}
-				}
-				{
-					bool bUseChunkDBs;
-					if (!BundleConfig.GetBool(SectionName, "UseChunkDBs", out bUseChunkDBs))
-					{
-						Bundle.UseChunkDBs = false;
-					}
-					else
-					{
-						Bundle.UseChunkDBs = bUseChunkDBs;
-					}
-				}
-				{
-					bool bUseDetailedInstallSizes;
-					if (!BundleConfig.GetBool(SectionName, "UseDetailedInstallSizes", out bUseDetailedInstallSizes))
-					{
-						Bundle.UseDetailedInstallSizes = true; // default to true
-					}
-					else
-					{
-						Bundle.UseDetailedInstallSizes = bUseDetailedInstallSizes;
+						bool bUseDetailedInstallSizes;
+						if (!BundleConfig.GetBool(SectionName, "UseDetailedInstallSizes", out bUseDetailedInstallSizes))
+						{
+							Bundle.UseDetailedInstallSizes = true; // default to true
+						}
+						else
+						{
+							Bundle.UseDetailedInstallSizes = bUseDetailedInstallSizes;
+						}
 					}
 				}
 
