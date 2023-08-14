@@ -621,6 +621,8 @@ public:
 	/**
 	 * Runs the entrance validation logic for all the slots in the Smart Object definition and returns all validated locations.
 	 * This method can be used to a Smart Object definition before it is added to the simulation, for example to show some UI visualization while placing an actor with Smart Object.
+	 * The method is static so it can be used even if the SmartObject subsystem is not present. 
+	 * @param World World to use for validation tracing.
 	 * @param SmartObjectDefinition Smart Object definition to validate.
 	 * @param SmartObjectTransform World transform of the Smart Object definition (e.g. Smart Object Component transform). 
 	 * @param SkipActor An actor to skip during validation (this could be an actor representing the Smart Object during placement).
@@ -628,13 +630,14 @@ public:
 	 * @param Results All entrance locations, FSmartObjectSlotEntranceLocationResult::bIsValid can be used to check if a specific result is valid.
 	 * @return True if any entrances were found.
 	 */
-	bool QueryAllValidatedEntranceLocations(
+	static bool QueryAllValidatedEntranceLocations(
+		const UWorld* World,
 		const USmartObjectDefinition& SmartObjectDefinition,
 		const FTransform& SmartObjectTransform,
 		const AActor* SkipActor,
 		const FSmartObjectSlotEntranceLocationRequest& Request,
 		TArray<FSmartObjectSlotEntranceLocationResult>& Results
-	) const;
+	);
 	
 	/**
 	 * Checks whether given slot is free and can be claimed (i.e. slot and its parent are both enabled)
@@ -1375,6 +1378,7 @@ protected:
 	/**
 	 * Validates entrance locations for a specific slot. Each slot can be annotated with multiple entrance locations, and the request can be configured to also consider the slot location as one entry.
 	 * Additionally the entrance locations can be checked to be on navigable surface (does not check that the point is reachable, though), traced on ground, and without of collisions.
+	 * @param World World to use for validation tracing. 
 	 * @param ValidationContext Valid validation context.
 	 * @param Request Request describing how to validate the entries.
 	 * @param SlotHandle Handle to the smart object slot (will be passed into the result).
@@ -1383,7 +1387,8 @@ protected:
 	 * @param SlotEntranceHandle Handle to specific entrance if just one entrance should be checked. (Optional)
 	 * @param ResultFunc Callback called on each result
 	 */
-	void QueryValidatedSlotEntranceLocationsInternal(
+	static void QueryValidatedSlotEntranceLocationsInternal(
+		const UWorld* World,
 		FSmartObjectValidationContext& ValidationContext,
 		const FSmartObjectSlotEntranceLocationRequest& Request,
 		const FSmartObjectSlotHandle SlotHandle,
@@ -1391,7 +1396,7 @@ protected:
 		const FTransform& SlotTransform,
 		const FSmartObjectSlotEntranceHandle SlotEntranceHandle,
 		TFunctionRef<bool(const FSmartObjectSlotEntranceLocationResult&)> ResultFunc
-		) const;
+		);
 
 	/**
 	 * Name of the Space partition class to use.

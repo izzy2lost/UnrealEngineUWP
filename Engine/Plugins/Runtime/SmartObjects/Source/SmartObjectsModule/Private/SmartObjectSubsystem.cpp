@@ -95,8 +95,14 @@ struct FSmartObjectValidationContext
 	FCollisionQueryParams GroundTraceQueryParams;
 	FCollisionQueryParams TransitionTraceQueryParams;
 
-	bool Init(const USmartObjectSubsystem* SmartObjectSubsystem, UWorld* World, const FSmartObjectSlotEntranceLocationRequest& Request, const AActor* SmartObjectActor)
+	bool Init(const UWorld* World, const FSmartObjectSlotEntranceLocationRequest& Request, const AActor* SmartObjectActor)
 	{
+		const UObject* LogOwner = USmartObjectSubsystem::GetCurrent(World);
+		if (!LogOwner)
+		{
+			LogOwner = World;
+		}
+
 		TSubclassOf<USmartObjectSlotValidationFilter> ValidationFilterClass = Request.ValidationFilter;
 		
 		NavigationData = Request.NavigationData;
@@ -120,7 +126,7 @@ struct FSmartObjectValidationContext
 
 		if (!ValidationFilterClass.Get())
 		{
-			UE_VLOG_UELOG(SmartObjectSubsystem, LogSmartObject, Warning,
+			UE_VLOG_UELOG(LogOwner, LogSmartObject, Warning,
 				TEXT("%hs: Invalid validation filter for user actor %s."),
 				__FUNCTION__, *GetNameSafe(Request.UserActor));
 			return false;
@@ -141,7 +147,7 @@ struct FSmartObjectValidationContext
 			{
 				if (!ValidationParams->GetUserCapsuleForActor(*Request.UserActor, UserCapsuleParams))
 				{
-					UE_VLOG_UELOG(SmartObjectSubsystem, LogSmartObject, Error,
+					UE_VLOG_UELOG(LogOwner, LogSmartObject, Error,
 						TEXT("%hs: Could not resolve user capsule size. Failed to access navigation parameters for user actor %s."),
 						__FUNCTION__, *GetNameSafe(Request.UserActor));
 					return false;
@@ -159,7 +165,7 @@ struct FSmartObjectValidationContext
 		{
 			if (!NavigationData)
 			{
-				UE_VLOG_UELOG(SmartObjectSubsystem, LogSmartObject, Error,
+				UE_VLOG_UELOG(LogOwner, LogSmartObject, Error,
 					TEXT("%hs: ProjectNavigationLocation is requested, expecting valid navigation data, NavigationData is not set."),
 					__FUNCTION__);
 				return false;
@@ -171,7 +177,7 @@ struct FSmartObjectValidationContext
 				NavigationFilter = UNavigationQueryFilter::GetQueryFilter(*NavigationData, Request.UserActor, ValidationParams->GetNavigationFilter());
 				if (!NavigationFilter.IsValid())
 				{
-					UE_VLOG_UELOG(SmartObjectSubsystem, LogSmartObject, Error,
+					UE_VLOG_UELOG(LogOwner, LogSmartObject, Error,
 						TEXT("%hs: Navigation filter was specified was failed to resolve it."),
 						__FUNCTION__);
 					return false;
@@ -1689,7 +1695,7 @@ bool USmartObjectSubsystem::FindEntranceLocationInternal(
 	UWorld* World = GetWorld();
 
 	FSmartObjectValidationContext ValidationContext;
-	if (!ValidationContext.Init(this, World, Request, SmartObjectRuntime->GetOwnerActor()))
+	if (!ValidationContext.Init(World, Request, SmartObjectRuntime->GetOwnerActor()))
 	{
 		return false;
 	}
@@ -1700,7 +1706,7 @@ bool USmartObjectSubsystem::FindEntranceLocationInternal(
 	bool bHasResult = false;
 	
 	QueryValidatedSlotEntranceLocationsInternal(
-			ValidationContext, Request, SlotHandle, SlotDefinition, SlotTransform, SlotEntranceHandle,
+			World, ValidationContext, Request, SlotHandle, SlotDefinition, SlotTransform, SlotEntranceHandle,
 			[&OutResult = Result, &bHasResult](const FSmartObjectSlotEntranceLocationResult& Result)
 			{
 				if (Result.bIsValid)
@@ -1716,17 +1722,16 @@ bool USmartObjectSubsystem::FindEntranceLocationInternal(
 }
 
 bool USmartObjectSubsystem::QueryAllValidatedEntranceLocations(
+		const UWorld* World,
 		const USmartObjectDefinition& SmartObjectDefinition,
 		const FTransform& SmartObjectTransform,
 		const AActor* SkipActor,
 		const FSmartObjectSlotEntranceLocationRequest& Request,
 		TArray<FSmartObjectSlotEntranceLocationResult>& Results
-	) const
+	)
 {
-	UWorld* World = GetWorld();
-
 	FSmartObjectValidationContext ValidationContext;
-	if (!ValidationContext.Init(this, World, Request, SkipActor))
+	if (!ValidationContext.Init(World, Request, SkipActor))
 	{
 		return false;
 	}
@@ -1738,7 +1743,7 @@ bool USmartObjectSubsystem::QueryAllValidatedEntranceLocations(
 		const FSmartObjectSlotHandle SlotHandle({}, SlotDefinition.GetIndex());
 
 		QueryValidatedSlotEntranceLocationsInternal(
-				ValidationContext, Request, SlotHandle, *SlotDefinition, SlotTransform, {},
+				World, ValidationContext, Request, SlotHandle, *SlotDefinition, SlotTransform, {},
 				[&Results](const FSmartObjectSlotEntranceLocationResult& Result)
 				{
 					Results.Add(Result);
@@ -1750,6 +1755,7 @@ bool USmartObjectSubsystem::QueryAllValidatedEntranceLocations(
 }
 
 void USmartObjectSubsystem::QueryValidatedSlotEntranceLocationsInternal(
+	const UWorld* World,
 	FSmartObjectValidationContext& ValidationContext,
 	const FSmartObjectSlotEntranceLocationRequest& Request,
 	const FSmartObjectSlotHandle SlotHandle,
@@ -1757,7 +1763,7 @@ void USmartObjectSubsystem::QueryValidatedSlotEntranceLocationsInternal(
 	const FTransform& SlotTransform,
 	const FSmartObjectSlotEntranceHandle SlotEntranceHandle,
 	TFunctionRef<bool(const FSmartObjectSlotEntranceLocationResult&)> ResultFunc
-	) const
+	)
 {
 	struct FSmartObjectSlotEntranceCandidate
 	{
@@ -1771,8 +1777,6 @@ void USmartObjectSubsystem::QueryValidatedSlotEntranceLocationsInternal(
 		bool bCheckTransitionTrajectory = false;
 		FSmartObjectSlotEntranceHandle Handle;
 	};
-	
-	UWorld* World = GetWorld();
 	
 	TArray<FSmartObjectAnnotationCollider> SlotColliders;
 	TArray<FSmartObjectSlotEntranceCandidate, TInlineAllocator<8>> Candidates;
