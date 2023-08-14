@@ -196,7 +196,7 @@ namespace EpicGames.Core
 		public bool EndsWithDirectorySeparator()
 		{
 			string lastToken = Tokens[^1];
-            return lastToken.Length > 0 && lastToken[^1] == Path.DirectorySeparatorChar;
+			return lastToken.Length > 0 && lastToken[^1] == Path.DirectorySeparatorChar;
 		}
 
 		/// <summary>

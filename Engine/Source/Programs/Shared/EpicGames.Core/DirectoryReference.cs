@@ -324,31 +324,31 @@ namespace EpicGames.Core
 			Directory.CreateDirectory(location.FullName);
 		}
 
-        /// <summary>
-        /// Deletes a directory
-        /// </summary>
+		/// <summary>
+		/// Deletes a directory
+		/// </summary>
 		/// <param name="location">Location of the directory</param>
-        public static void Delete(DirectoryReference location)
-        {
-            Directory.Delete(location.FullName);
-        }
+		public static void Delete(DirectoryReference location)
+		{
+			Directory.Delete(location.FullName);
+		}
 
-        /// <summary>
-        /// Deletes a directory
-        /// </summary>
+		/// <summary>
+		/// Deletes a directory
+		/// </summary>
 		/// <param name="location">Location of the directory</param>
 		/// <param name="bRecursive">Whether to remove directories recursively</param>
-        public static void Delete(DirectoryReference location, bool bRecursive)
-        {
-            Directory.Delete(location.FullName, bRecursive);
-        }
+		public static void Delete(DirectoryReference location, bool bRecursive)
+		{
+			Directory.Delete(location.FullName, bRecursive);
+		}
 
-        /// <summary>
-        /// Checks whether the directory exists
-        /// </summary>
+		/// <summary>
+		/// Checks whether the directory exists
+		/// </summary>
 		/// <param name="location">Location of the directory</param>
-        /// <returns>True if this directory exists</returns>
-        public static bool Exists(DirectoryReference location)
+		/// <returns>True if this directory exists</returns>
+		public static bool Exists(DirectoryReference location)
 		{
 			return Directory.Exists(location.FullName);
 		}

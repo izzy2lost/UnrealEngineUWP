@@ -20,7 +20,7 @@ using ContentId = Jupiter.Implementation.ContentId;
 namespace Jupiter.Controllers
 {
 	using IDiagnosticContext = Serilog.IDiagnosticContext;
-	using BlobNotFoundException = Jupiter.Implementation.BlobNotFoundException;
+	using BlobNotFoundException = BlobNotFoundException;
 
 	[ApiController]
 	[Authorize]

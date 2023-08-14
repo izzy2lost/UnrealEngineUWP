@@ -1097,7 +1097,7 @@ dotnet_diagnostic.CA5405.severity = warning
 [*.cs]
 
 # ReSharper properties
-resharper_csharp_indent_style = space
+resharper_csharp_indent_style = tab
 
 # All Rules Enabled as build warnings
 # Description: All Rules are enabled as build warnings. Rules with IsEnabledByDefault = false are force enabled as build warnings.
@@ -1123,4 +1123,5 @@ dotnet_diagnostic.ca5351.severity = none
 # CA1716: Identifiers should not match keywords
 # Reason: We frequently use verbs as method names, like GET as well as terms like namespace which collide with built in keywords
 dotnet_diagnostic.CA1716.severity = none
-indent_style=space
+
+indent_style=tab

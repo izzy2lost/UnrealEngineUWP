@@ -13,10 +13,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Amazon;
 using EpicGames.AspNet;
-using EpicGames.Horde.Storage;
 using Jupiter.Common;
 using Jupiter.Common.Implementation;
-using Jupiter.Implementation;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -188,8 +186,7 @@ namespace Jupiter
 						string authorization = context.Request.Headers[HeaderNames.Authorization];
 						string name = "Bearer";
 						string tokenName = $"{name} ";
-						if (string.IsNullOrEmpty(authorization) ||
-							!authorization.StartsWith(tokenName, StringComparison.InvariantCulture))
+						if (string.IsNullOrEmpty(authorization) || !authorization.StartsWith(tokenName, StringComparison.InvariantCulture))
 						{
 							return Auth.DefaultScheme;
 						}

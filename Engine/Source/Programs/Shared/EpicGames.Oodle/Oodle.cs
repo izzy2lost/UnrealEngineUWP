@@ -11,7 +11,7 @@ namespace EpicGames.Compression
 	/// Compressor type to use
 	/// </summary>
 	public enum OodleCompressorType : int
-    {
+	{
 		/// <summary>
 		/// None = memcpy, pass through uncompressed bytes
 		/// </summary>
@@ -41,14 +41,14 @@ namespace EpicGames.Compression
 		/// Hydra, the many-headed beast = Leviathan, Kraken, Mermaid, or Selkie (see $OodleLZ_About_Hydra)
 		/// </summary>
 		Hydra = 12,
-    };
+	};
 #pragma warning restore CA1008 // Add a member that has a value of zero with a suggested name of None
 
 	/// <summary>
 	/// Compression level
 	/// </summary>
 	public enum OodleCompressionLevel : int
-    {
+	{
 		/// <summary>
 		/// Don't compress, just copy raw bytes
 		/// </summary>
@@ -142,7 +142,7 @@ namespace EpicGames.Compression
 		Min = HyperFast4,
 
 		#endregion
-    }
+	}
 
 	/// <summary>
 	/// Base class for oodle exceptions
@@ -161,8 +161,8 @@ namespace EpicGames.Compression
 	/// <summary>
 	/// Wraps an instance of the Oodle compressor
 	/// </summary>
-    public sealed class Oodle
-    {
+	public sealed class Oodle
+	{
 #pragma warning disable CA1712 // Do not prefix enum values with type name
 		enum OodleLZ_Decode_ThreadPhase
 		{
@@ -210,26 +210,26 @@ namespace EpicGames.Compression
 			public int m_oodle_header_version;
 		}
 
-        [DllImport("oo2core")]
-        static extern unsafe long OodleLZ_Compress(OodleCompressorType compressor, byte* rawBuf, long rawLen, byte* compBuf, OodleCompressionLevel level, long pOptions, byte[]? dictionaryBase, byte[]? lrm, byte* scratchMem, long scratchSize);
+		[DllImport("oo2core")]
+		static extern unsafe long OodleLZ_Compress(OodleCompressorType compressor, byte* rawBuf, long rawLen, byte* compBuf, OodleCompressionLevel level, long pOptions, byte[]? dictionaryBase, byte[]? lrm, byte* scratchMem, long scratchSize);
 
-        [DllImport("oo2core")]
-        static extern long OodleLZ_GetCompressedBufferSizeNeeded(OodleCompressorType compressor, long rawSize);
+		[DllImport("oo2core")]
+		static extern long OodleLZ_GetCompressedBufferSizeNeeded(OodleCompressorType compressor, long rawSize);
 
-        [DllImport("oo2core")]
-        static extern int OodleLZDecoder_MemorySizeNeeded(OodleCompressorType compressor, long rawLen = -1);
+		[DllImport("oo2core")]
+		static extern int OodleLZDecoder_MemorySizeNeeded(OodleCompressorType compressor, long rawLen = -1);
 
 		[DllImport("oo2core")]
 		static extern int OodleLZ_GetCompressScratchMemBound(OodleCompressorType compressor, OodleCompressionLevel level, int rawLen, OodleConfigValues configValues);
 
-        [DllImport("oo2core")]
-        static extern unsafe long OodleLZ_Decompress(byte* compBuf, long compBufSize, byte* rawBuf, long rawLen, OodleLZ_FuzzSafe fuzzSafe = OodleLZ_FuzzSafe.OodleLZ_FuzzSafe_Yes, OodleLZ_CheckCRC checkCRC = OodleLZ_CheckCRC.OodleLZ_CheckCRC_No, OodleLZ_Verbosity verbosity = OodleLZ_Verbosity.OodleLZ_Verbosity_None, byte* decBufBase = null, long decBufSize = 0, long fpCallback = 0, long callbackUserData = 0, byte* decoderMemory = null, long decoderMemorySize = 0, OodleLZ_Decode_ThreadPhase threadPhase = OodleLZ_Decode_ThreadPhase.OodleLZ_Decode_Unthreaded);
+		[DllImport("oo2core")]
+		static extern unsafe long OodleLZ_Decompress(byte* compBuf, long compBufSize, byte* rawBuf, long rawLen, OodleLZ_FuzzSafe fuzzSafe = OodleLZ_FuzzSafe.OodleLZ_FuzzSafe_Yes, OodleLZ_CheckCRC checkCRC = OodleLZ_CheckCRC.OodleLZ_CheckCRC_No, OodleLZ_Verbosity verbosity = OodleLZ_Verbosity.OodleLZ_Verbosity_None, byte* decBufBase = null, long decBufSize = 0, long fpCallback = 0, long callbackUserData = 0, byte* decoderMemory = null, long decoderMemorySize = 0, OodleLZ_Decode_ThreadPhase threadPhase = OodleLZ_Decode_ThreadPhase.OodleLZ_Decode_Unthreaded);
 
-        [DllImport("oo2core")]
-        static extern void Oodle_GetConfigValues(OodleConfigValues configValues);
+		[DllImport("oo2core")]
+		static extern void Oodle_GetConfigValues(OodleConfigValues configValues);
 
-        [DllImport("oo2core")]
-        static extern void Oodle_SetConfigValues(OodleConfigValues configValues);
+		[DllImport("oo2core")]
+		static extern void Oodle_SetConfigValues(OodleConfigValues configValues);
 
 		static readonly OodleConfigValues s_configValues = new OodleConfigValues();
 
@@ -242,35 +242,35 @@ namespace EpicGames.Compression
 
 			Oodle_GetConfigValues(s_configValues);
 			s_configValues.m_OodleLZ_BackwardsCompatible_MajorVersion = 9;
-            Oodle_SetConfigValues(s_configValues);
+			Oodle_SetConfigValues(s_configValues);
 		}
 
-        private static IntPtr ImportResolver(string libraryName, Assembly assembly, DllImportSearchPath? searchpath)
-        {
-            IntPtr libHandle = IntPtr.Zero;
-            if (libraryName == "oo2core")
-            {
-                // we manually load the assembly as the file name is not consistent between platforms thus the automatic searching will not work
-                string assemblyFilename;
-                bool is64Bit = Environment.Is64BitProcess;
+		private static IntPtr ImportResolver(string libraryName, Assembly assembly, DllImportSearchPath? searchpath)
+		{
+			IntPtr libHandle = IntPtr.Zero;
+			if (libraryName == "oo2core")
+			{
+				// we manually load the assembly as the file name is not consistent between platforms thus the automatic searching will not work
+				string assemblyFilename;
+				bool is64Bit = Environment.Is64BitProcess;
 
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                {
-                    assemblyFilename = $"oo2core_9_{(is64Bit ? "win64" : "win32")}.dll";
-                }
+				if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+				{
+					assemblyFilename = $"oo2core_9_{(is64Bit ? "win64" : "win32")}.dll";
+				}
 				else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                {
-                    assemblyFilename = $"liboo2core{(is64Bit ? "linux64" : "linux")}.so.9";
-                }
-                else
-                {
-                    throw new NotImplementedException();
-                }
-                IntPtr handle = NativeLibrary.Load(assemblyFilename, assembly, searchpath);
-                libHandle = handle;
-            }
-            return libHandle;
-        }
+				{
+					assemblyFilename = $"liboo2core{(is64Bit ? "linux64" : "linux")}.so.9";
+				}
+				else
+				{
+					throw new NotImplementedException();
+				}
+				IntPtr handle = NativeLibrary.Load(assemblyFilename, assembly, searchpath);
+				libHandle = handle;
+			}
+			return libHandle;
+		}
 
 		/// <summary>
 		/// Compress a block of data
@@ -281,7 +281,7 @@ namespace EpicGames.Compression
 		/// <param name="compressionLevel">Desired compression level</param>
 		/// <returns></returns>
 		public static unsafe int Compress(OodleCompressorType compressor, ReadOnlySpan<byte> inputData, Span<byte> outputData, OodleCompressionLevel compressionLevel = OodleCompressionLevel.Normal)
-        {
+		{
 			fixed (byte* rawBufPtr = inputData)
 			fixed (byte* compBufPtr = outputData)
 			{
@@ -292,7 +292,7 @@ namespace EpicGames.Compression
 				}
 				return (int)result;
 			}
-        }
+		}
 
 		/// <summary>
 		/// Determines the max size of the compressed buffer
@@ -300,11 +300,11 @@ namespace EpicGames.Compression
 		/// <param name="compressor">Compressor type to use</param>
 		/// <param name="uncompressedLength">Length of the input data</param>
 		/// <returns>Size of the buffer required for output data</returns>
-        public static int MaximumOutputSize(OodleCompressorType compressor, int uncompressedLength)
-        {
-            long bufferSizeNeeded = OodleLZ_GetCompressedBufferSizeNeeded(compressor, uncompressedLength);
-            return (int)bufferSizeNeeded;
-        }
+		public static int MaximumOutputSize(OodleCompressorType compressor, int uncompressedLength)
+		{
+			long bufferSizeNeeded = OodleLZ_GetCompressedBufferSizeNeeded(compressor, uncompressedLength);
+			return (int)bufferSizeNeeded;
+		}
 
 		/// <summary>
 		/// Decompresses a block of data
@@ -312,8 +312,8 @@ namespace EpicGames.Compression
 		/// <param name="inputData">The compressed buffer</param>
 		/// <param name="outputData">Output buffer for decompressed data</param>
 		/// <returns></returns>
-        public static unsafe int Decompress(ReadOnlySpan<byte> inputData, Span<byte> outputData)
-        {
+		public static unsafe int Decompress(ReadOnlySpan<byte> inputData, Span<byte> outputData)
+		{
 			fixed (byte* inputPtr = inputData)
 			fixed (byte* outputPtr = outputData)
 			{
@@ -324,6 +324,6 @@ namespace EpicGames.Compression
 				}
 				return (int)result;
 			}
-        }
-    }
+		}
+	}
 }

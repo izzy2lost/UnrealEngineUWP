@@ -49,12 +49,7 @@ namespace Jupiter.Controllers
 				return result;
 			}
 
-			Task<List<(LastAccessRecord, DateTime)>>? updateRecordsTask = _lastAccessService.ProcessLastAccessRecordsAsync();
-			List<(LastAccessRecord, DateTime)>? updatedRecords = null;
-			if (updateRecordsTask != null)
-			{
-				updatedRecords = await updateRecordsTask;
-			}
+			List<(LastAccessRecord, DateTime)>? updatedRecords = await _lastAccessService.ProcessLastAccessRecordsAsync();
 
 			return Ok(new UpdatedRecordsResponse(
 				updatedRecords?.Select(tuple => new UpdatedRecordsResponse.UpdatedRecord(tuple.Item1, tuple.Item2))
