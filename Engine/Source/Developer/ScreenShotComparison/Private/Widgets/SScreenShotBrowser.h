@@ -46,7 +46,7 @@ public:
 	void DisplaySuccess_OnCheckStateChanged(ECheckBoxState NewRadioState);
 	void DisplayError_OnCheckStateChanged(ECheckBoxState NewRadioState);
 	void DisplayNew_OnCheckStateChanged(ECheckBoxState NewRadioState);
-	void OnFilterStringCommitted(const FText& InText, ETextCommit::Type InCommitType);
+	void OnReportFilterTextChanged(const FText& InText);
 
 private:
 
@@ -62,6 +62,13 @@ private:
 	void RebuildTree();
 
 	bool CanAddNewReportResult(const FImageComparisonResult& Comparison);
+
+	/**
+	* Apply the current report filter string to the widgets of comparison view.
+	* 
+	* @return amount of the widgets that have changed visibility property in accordance with the current report filter string.
+	*/
+	uint32 ApplyReportFilterToVWidgets();
 
 private:
 

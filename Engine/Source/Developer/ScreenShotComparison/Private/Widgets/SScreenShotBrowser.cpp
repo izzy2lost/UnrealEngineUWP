@@ -184,7 +184,7 @@ void SScreenShotBrowser::Construct( const FArguments& InArgs,  IScreenShotManage
 						SNew(SSearchBox)
 						.HintText(LOCTEXT("ScreenshotFilterHint", "Search"))
 						.ToolTipText(LOCTEXT("Search Tests", "Search Tests"))
-						.OnTextCommitted(this, &SScreenShotBrowser::OnFilterStringCommitted)
+						.OnTextChanged(this, &SScreenShotBrowser::OnReportFilterTextChanged)
 					]
 
 					+SHorizontalBox::Slot()
@@ -371,12 +371,17 @@ void SScreenShotBrowser::OnReportsChanged(const TArray<struct FFileChangeData>& 
 
 TSharedRef<ITableRow> SScreenShotBrowser::OnGenerateWidgetForScreenResults(TSharedPtr<FScreenComparisonModel> InItem, const TSharedRef<STableViewBase>& OwnerTable)
 {
-	// Create the row widget.
-	return
-		SNew(SScreenComparisonRow, OwnerTable)
+	check(InItem.IsValid());
+
+	TSharedRef<SScreenComparisonRow> ResultWidget = SNew(SScreenComparisonRow, OwnerTable)
 		.ScreenshotManager(ScreenShotManager)
 		.ComparisonDirectory(ComparisonRoot)
 		.ComparisonResult(InItem);
+
+	const bool bVisible = (ReportFilterString.IsEmpty() || ResultWidget->GetName().ToString().Contains(ReportFilterString, ESearchCase::IgnoreCase));
+	ResultWidget->SetVisibility(bVisible ? EVisibility::Visible : EVisibility::Collapsed);
+
+	return ResultWidget;
 }
 
 void SScreenShotBrowser::DisplaySuccess_OnCheckStateChanged(ECheckBoxState NewRadioState)
@@ -397,14 +402,40 @@ void SScreenShotBrowser::DisplayNew_OnCheckStateChanged(ECheckBoxState NewRadioS
 	bReportsChanged = true;
 }
 
-void SScreenShotBrowser::OnFilterStringCommitted(const FText& InText, ETextCommit::Type InCommitType)
+void SScreenShotBrowser::OnReportFilterTextChanged(const FText& InText)
 {
-	FString InString = InText.ToString();
-	if (ReportFilterString.Compare(InString, ESearchCase::IgnoreCase) != 0)
+	ReportFilterString = InText.ToString();
+	if (ApplyReportFilterToVWidgets() > 0)
 	{
-		ReportFilterString = InString;
-		bReportsChanged = true;
+		ComparisonView->RequestListRefresh();
 	}
+}
+
+uint32 SScreenShotBrowser::ApplyReportFilterToVWidgets()
+{
+	uint32 TouchedWidgetsCount = 0;
+	for (auto Item : ComparisonList)
+	{
+		TSharedPtr<ITableRow> Widget = ComparisonView->WidgetFromItem(Item);
+		// Note that some widgets that are not visible in the GUI view yet will be constructed only after these widgets are about to appear in the view.
+		// So, we do not use check(Widget.IsValid()) here. Visibility for these items will be set during generation of the widgets.
+		if (Widget.IsValid())
+		{
+			const EVisibility CurrentVisibility = Widget->AsWidget()->GetVisibility();
+
+			SScreenComparisonRow* Row = static_cast<SScreenComparisonRow*>(Widget.Get());
+			const bool bVisible = (ReportFilterString.IsEmpty() || Row->GetName().ToString().Contains(ReportFilterString, ESearchCase::IgnoreCase));
+			const EVisibility DesiredVisibility = (bVisible ? EVisibility::Visible : EVisibility::Collapsed);
+
+			if (DesiredVisibility != CurrentVisibility)
+			{
+				++TouchedWidgetsCount;
+				Widget->AsWidget()->SetVisibility(DesiredVisibility);
+			}
+		}
+	}
+
+	return TouchedWidgetsCount;
 }
 
 void SScreenShotBrowser::RebuildTree()
@@ -436,11 +467,6 @@ void SScreenShotBrowser::RebuildTree()
 			}
 
 			if (IsFail && !bDisplayingError)
-			{
-				continue;
-			}
-
-			if (ReportFilterString.Len() && !Report.GetReportPath().Contains(ReportFilterString, ESearchCase::IgnoreCase))
 			{
 				continue;
 			}
