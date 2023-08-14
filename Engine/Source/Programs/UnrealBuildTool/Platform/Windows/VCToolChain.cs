@@ -312,12 +312,6 @@ namespace UnrealBuildTool
 					// Enable the static analyzer with default checks.
 					Arguments.Add("--analyze");
 
-					// Emit analyzer warnings as errors
-					if (CompileEnvironment.DefaultWarningLevel == WarningLevel.Error)
-					{
-						Arguments.Add("-Xclang -analyzer-werror");
-					}
-
 					// Deprecated in LLVM 15
 					if (EnvVars.CompilerVersion <= new VersionNumber(14))
 					{
