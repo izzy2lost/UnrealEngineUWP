@@ -25,6 +25,7 @@
 #include "SkeletalRender.h"
 #include "SkinnedAssetCompiler.h"
 #include "Rendering/SkeletalMeshRenderData.h"
+#include "Rendering/RenderCommandPipes.h"
 
 #include "Logging/MessageLog.h"
 #include "Animation/AnimNode_LinkedInputPose.h"
@@ -4058,8 +4059,8 @@ void USkeletalMeshComponent::SendRenderDynamicData_Concurrent()
 
 		FSkeletalMeshSceneProxy* TargetProxy = (FSkeletalMeshSceneProxy*)SceneProxy;
 
-		ENQUEUE_RENDER_COMMAND(PoseWatchDynamicDataCommand)(
-			[TargetProxy, NewDynamicData](FRHICommandListImmediate& RHICommandList)
+		ENQUEUE_RENDER_COMMAND(PoseWatchDynamicDataCommand)(UE::RenderCommandPipe::SkeletalMesh,
+			[TargetProxy, NewDynamicData]
 			{
 				if (TargetProxy->PoseWatchDynamicData)
 				{

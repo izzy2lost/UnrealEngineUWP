@@ -12,6 +12,7 @@
 #include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Rendering/SkeletalMeshLODModel.h"
+#include "Rendering/RenderCommandPipes.h"
 #include "Serialization/MemoryReader.h"
 #include "SkeletalMeshLegacyCustomVersions.h"
 #include "UObject/Package.h"
@@ -206,7 +207,7 @@ void FSkeletalMeshLODRenderData::InitMorphResources()
 {
 	if (GAllowSkinnedMorphDataStreaming && !MorphTargetVertexInfoBuffers.IsRHIIntialized() && MorphTargetVertexInfoBuffers.IsMorphCPUDataValid() && MorphTargetVertexInfoBuffers.NumTotalBatches > 0)
 	{
-		BeginInitResource(&MorphTargetVertexInfoBuffers);
+		BeginInitResource(&MorphTargetVertexInfoBuffers, &UE::RenderCommandPipe::SkeletalMesh);
 	}
 }
 
@@ -223,9 +224,9 @@ void FSkeletalMeshLODRenderData::InitResources(bool bNeedsVertexColors, int32 LO
 	MultiSizeIndexContainer.InitResources();
 
 	StaticVertexBuffers.PositionVertexBuffer.SetOwnerName(OwnerName);
-	BeginInitResource(&StaticVertexBuffers.PositionVertexBuffer);
+	BeginInitResource(&StaticVertexBuffers.PositionVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
 	StaticVertexBuffers.StaticMeshVertexBuffer.SetOwnerName(OwnerName);
-	BeginInitResource(&StaticVertexBuffers.StaticMeshVertexBuffer);
+	BeginInitResource(&StaticVertexBuffers.StaticMeshVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
 
 	SkinWeightVertexBuffer.SetOwnerName(OwnerName);
 	SkinWeightVertexBuffer.BeginInitResources();
@@ -234,14 +235,14 @@ void FSkeletalMeshLODRenderData::InitResources(bool bNeedsVertexColors, int32 LO
 	{
 		// Only init the color buffer if the mesh has vertex colors
 		StaticVertexBuffers.ColorVertexBuffer.SetOwnerName(OwnerName);
-		BeginInitResource(&StaticVertexBuffers.ColorVertexBuffer);
+		BeginInitResource(&StaticVertexBuffers.ColorVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
 	}
 
 	if (ClothVertexBuffer.GetNumVertices() > 0)
 	{
 		// Only init the clothing buffer if the mesh has clothing data
 		ClothVertexBuffer.SetOwnerName(OwnerName);
-		BeginInitResource(&ClothVertexBuffer);
+		BeginInitResource(&ClothVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
 	}
 
 	// We can discard any the cooked DuplicatedVertices here based on runtime settings.
@@ -262,7 +263,7 @@ void FSkeletalMeshLODRenderData::InitResources(bool bNeedsVertexColors, int32 LO
 				// No need to discard CPU data in cooked builds as bNeedsCPUAccess is false (see FDuplicatedVerticesBuffer constructor), 
 				// so it'd be auto-discarded after the RHI has copied the resource data. Keep CPU data when in the editor for geometry operations.
 				RenderSection.DuplicatedVerticesBuffer.SetOwnerName(OwnerName);
-				BeginInitResource(&RenderSection.DuplicatedVerticesBuffer);
+				BeginInitResource(&RenderSection.DuplicatedVerticesBuffer, &UE::RenderCommandPipe::SkeletalMesh);
 			}
 		}
 	}
@@ -278,7 +279,7 @@ void FSkeletalMeshLODRenderData::InitResources(bool bNeedsVertexColors, int32 LO
 	if (!MorphTargetVertexInfoBuffers.IsRHIIntialized() && MorphTargetVertexInfoBuffers.IsMorphCPUDataValid() && MorphTargetVertexInfoBuffers.NumTotalBatches > 0)
 	{
 		MorphTargetVertexInfoBuffers.SetOwnerName(OwnerName);
-		BeginInitResource(&MorphTargetVertexInfoBuffers);
+		BeginInitResource(&MorphTargetVertexInfoBuffers, &UE::RenderCommandPipe::SkeletalMesh);
 	}
 
 	VertexAttributeBuffers.InitResources();
@@ -289,7 +290,7 @@ void FSkeletalMeshLODRenderData::InitResources(bool bNeedsVertexColors, int32 LO
 		if (SourceRayTracingGeometry.RawData.Num() > 0)
 		{
 			SourceRayTracingGeometry.SetOwnerName(OwnerName);
-			BeginInitResource(&SourceRayTracingGeometry);
+			BeginInitResource(&SourceRayTracingGeometry, &UE::RenderCommandPipe::SkeletalMesh);
 		}
 	}
 #endif
@@ -301,16 +302,16 @@ void FSkeletalMeshLODRenderData::ReleaseResources()
 
 	MultiSizeIndexContainer.ReleaseResources();
 
-	BeginReleaseResource(&StaticVertexBuffers.PositionVertexBuffer);
-	BeginReleaseResource(&StaticVertexBuffers.StaticMeshVertexBuffer);
+	BeginReleaseResource(&StaticVertexBuffers.PositionVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
+	BeginReleaseResource(&StaticVertexBuffers.StaticMeshVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
 	SkinWeightVertexBuffer.BeginReleaseResources();
-	BeginReleaseResource(&StaticVertexBuffers.ColorVertexBuffer);
-	BeginReleaseResource(&ClothVertexBuffer);
+	BeginReleaseResource(&StaticVertexBuffers.ColorVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
+	BeginReleaseResource(&ClothVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
 	for (FSkelMeshRenderSection& RenderSection : RenderSections)
 	{
-		BeginReleaseResource(&RenderSection.DuplicatedVerticesBuffer);
+		BeginReleaseResource(&RenderSection.DuplicatedVerticesBuffer, &UE::RenderCommandPipe::SkeletalMesh);
 	}
-	BeginReleaseResource(&MorphTargetVertexInfoBuffers);
+	BeginReleaseResource(&MorphTargetVertexInfoBuffers, &UE::RenderCommandPipe::SkeletalMesh);
 
 	DEC_DWORD_STAT_BY(STAT_SkeletalMeshVertexMemory, SkinWeightProfilesData.GetResourcesSize());
 	SkinWeightProfilesData.ReleaseResources();
@@ -319,8 +320,8 @@ void FSkeletalMeshLODRenderData::ReleaseResources()
 #if RHI_RAYTRACING
 	if (IsRayTracingAllowed())
 	{
-		BeginReleaseResource(&SourceRayTracingGeometry);
-		BeginReleaseResource(&StaticRayTracingGeometry);
+		BeginReleaseResource(&SourceRayTracingGeometry, &UE::RenderCommandPipe::SkeletalMesh);
+		BeginReleaseResource(&StaticRayTracingGeometry, &UE::RenderCommandPipe::SkeletalMesh);
 	}
 #endif
 }
