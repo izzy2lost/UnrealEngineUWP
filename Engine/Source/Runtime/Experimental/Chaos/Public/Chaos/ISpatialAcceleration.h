@@ -525,7 +525,7 @@ public:
 	TValue* Find(const TKey& Key)
 	{
 		const int32 Idx = GetUniqueIdx(Key).Idx;
-		if(Idx < Entries.Num() && Entries[Idx].bSet)
+		if(Entries.IsValidIndex(Idx) && Entries[Idx].bSet)
 		{
 			return &Entries[Idx].Value;
 		}

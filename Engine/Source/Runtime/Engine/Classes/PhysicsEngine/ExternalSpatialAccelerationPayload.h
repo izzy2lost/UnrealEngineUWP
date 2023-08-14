@@ -37,6 +37,10 @@ public:
 	ENGINE_API void Serialize(Chaos::FChaosArchive& Ar);
 	bool PrePreQueryFilter(const void* QueryData) const { return false; }
 	bool PrePreSimFilter(const void* SimData) const { return false; }
+	bool IsValid() const 
+	{
+		return CachedUniqueIdx.IsValid(); // Don't use this payload if the UniqueIdx is invalid
+	};
 
 	friend ENGINE_API uint32 GetTypeHash(const FExternalSpatialAccelerationPayload& Payload);
 private:
