@@ -4727,6 +4727,8 @@ void FRendererModule::BeginRenderingViewFamilies(FCanvas* Canvas, TArrayView<FSc
 			GFastVRamConfig.Update();
 		});
 
+	UE::RenderCommandPipe::FSyncScope SyncScope;
+
 	// Flush the canvas first.
 	Canvas->Flush_GameThread();
 

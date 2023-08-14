@@ -291,19 +291,19 @@ FName FRenderResource::GetOwnerName() const
 #endif
 }
 
-void BeginInitResource(FRenderResource* Resource)
+void BeginInitResource(FRenderResource* Resource, FRenderCommandPipe* RenderCommandPipe)
 {
-	ENQUEUE_RENDER_COMMAND(InitCommand)(
-		[Resource](FRHICommandListImmediate& RHICmdList)
+	ENQUEUE_RENDER_COMMAND(InitCommand)(RenderCommandPipe,
+		[Resource](FRHICommandListBase& RHICmdList)
 		{
 			Resource->InitResource(RHICmdList);
 		});
 }
 
-void BeginUpdateResourceRHI(FRenderResource* Resource)
+void BeginUpdateResourceRHI(FRenderResource* Resource, FRenderCommandPipe* RenderCommandPipe)
 {
-	ENQUEUE_RENDER_COMMAND(UpdateCommand)(
-		[Resource](FRHICommandListImmediate& RHICmdList)
+	ENQUEUE_RENDER_COMMAND(UpdateCommand)(RenderCommandPipe,
+		[Resource](FRHICommandListBase& RHICmdList)
 		{
 			Resource->UpdateRHI(RHICmdList);
 		});
@@ -367,15 +367,15 @@ void EndBatchedRelease()
 	GBatchedReleaseIsActive = false;
 }
 
-void BeginReleaseResource(FRenderResource* Resource)
+void BeginReleaseResource(FRenderResource* Resource, FRenderCommandPipe* RenderCommandPipe)
 {
 	if (GBatchedReleaseIsActive && IsInGameThread())
 	{
 		GBatchedRelease.Add(Resource);
 		return;
 	}
-	ENQUEUE_RENDER_COMMAND(ReleaseCommand)(
-		[Resource](FRHICommandList& RHICmdList)
+	ENQUEUE_RENDER_COMMAND(ReleaseCommand)(RenderCommandPipe,
+		[Resource]
 		{
 			Resource->ReleaseResource();
 		});

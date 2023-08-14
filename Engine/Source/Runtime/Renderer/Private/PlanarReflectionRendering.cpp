@@ -706,6 +706,8 @@ void FScene::UpdatePlanarReflectionContents(UPlanarReflectionComponent* CaptureC
 			FPlanarReflectionSceneProxy* SceneProxyPtr = CaptureComponent->SceneProxy;
 			FPlanarReflectionRenderTarget* RenderTargetPtr = CaptureComponent->RenderTarget;
 
+			UE::RenderCommandPipe::FSyncScope SyncScope;
+
 			if (bIsMobilePixelProjectedReflectionEnabled)
 			{
 				ENQUEUE_RENDER_COMMAND(CaptureCommand)(

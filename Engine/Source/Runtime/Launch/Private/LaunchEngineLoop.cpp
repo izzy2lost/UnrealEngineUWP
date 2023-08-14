@@ -4362,6 +4362,8 @@ int32 FEngineLoop::PreInitPostStartupScreen(const TCHAR* CmdLine)
 		PrecacheComputePipelineStatesForGlobalShaders(GShaderPlatformForFeatureLevel[GMaxRHIFeatureLevel], nullptr);
 	}
 
+	UE::RenderCommandPipe::Initialize();
+
 #else // WITH_ENGINE
 	InitEngineTextLocalization();
 	InitGameTextLocalization();
@@ -5690,6 +5692,8 @@ void FEngineLoop::Tick()
 			});
 		}
 
+		UE::RenderCommandPipe::StartRecording();
+
 #if !UE_SERVER && WITH_ENGINE
 		if (!GIsEditor && GEngine->GameViewport && GEngine->GameViewport->GetWorld() && GEngine->GameViewport->GetWorld()->IsCameraMoveable())
 		{
@@ -6010,6 +6014,8 @@ void FEngineLoop::Tick()
 			}
 		}
 #endif
+
+		UE::RenderCommandPipe::StopRecording();
 
 		for (FSceneInterface* Scene : GetRendererModule().GetAllocatedScenes())
 		{

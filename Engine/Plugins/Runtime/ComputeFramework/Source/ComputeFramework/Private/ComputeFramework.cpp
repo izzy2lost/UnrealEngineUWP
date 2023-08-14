@@ -87,6 +87,8 @@ namespace ComputeFramework
 		FComputeGraphTaskWorker* ComputeGraphWorker = ComputeSystem != nullptr ? ComputeSystem->GetComputeWorker(InScene) : nullptr;
 		if (ensure(ComputeGraphWorker))
 		{
+			UE::RenderCommandPipe::FSyncScope SyncScope;
+
 			ENQUEUE_RENDER_COMMAND(ComputeFrameworkFlushCommand)(
 				[ComputeGraphWorker, InExecutionGroupName](FRHICommandListImmediate& RHICmdList)
 				{
