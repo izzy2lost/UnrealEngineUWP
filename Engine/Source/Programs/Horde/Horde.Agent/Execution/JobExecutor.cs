@@ -999,7 +999,7 @@ namespace Horde.Agent.Execution
 				CreateJobArtifactRequest artifactRequest = new CreateJobArtifactRequest();
 				artifactRequest.JobId = _jobId;
 				artifactRequest.StepId = step.StepId;
-				artifactRequest.Type = JobArtifactType.Output;
+				artifactRequest.Type = JobArtifactType.TempStorage;
 				artifactRequest.NamespaceId = _namespaceId.ToString();
 				artifactRequest.RefName = refName.ToString();
 

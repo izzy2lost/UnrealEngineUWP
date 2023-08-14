@@ -77,9 +77,9 @@ namespace Horde.Server.Jobs
 
 			ArtifactType type = request.Type switch
 			{
-				JobArtifactType.Output => ArtifactType.StepOutput,
+				JobArtifactType.TempStorage => ArtifactType.StepTempStorage,
 				JobArtifactType.Saved => ArtifactType.StepSaved,
-				JobArtifactType.Trace => ArtifactType.StepTrace,
+				JobArtifactType.Trace => ArtifactType.StepTraces,
 				JobArtifactType.TestData => ArtifactType.StepTestData,
 				_ => throw new StructuredRpcException(StatusCode.InvalidArgument, "Invalid artifact type")
 			};
