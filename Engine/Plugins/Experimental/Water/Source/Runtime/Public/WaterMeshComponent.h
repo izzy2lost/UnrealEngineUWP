@@ -102,7 +102,7 @@ private:
 	UPROPERTY(EditAnywhere, Category = Rendering, meta = (ClampMin = "1", AllowPrivateAcces = "true"))
 	FIntPoint ExtentInTiles = FIntPoint(64, 64);
 
-	/** The extent of the system in number of tiles when local tessellation is enabled. Maximum number of tiles for this system will be ExtentInTiles.X*2*ExtentInTiles.Y*2 */
+	/** The extent of the system in number of tiles when local tessellation is enabled. Maximum number of tiles for this system will be LocalTessellationExtentInTiles.X * 2 * LocalTessellationExtentInTiles.Y * 2 */
 	UPROPERTY(EditAnywhere, Category = Rendering, meta = (ClampMin = "1"))
 	FIntPoint LocalTessellationExtentInTiles = FIntPoint(32, 32);
 

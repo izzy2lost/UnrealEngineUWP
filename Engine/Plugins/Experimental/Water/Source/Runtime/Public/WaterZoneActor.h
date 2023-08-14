@@ -173,9 +173,15 @@ private:
 	UPROPERTY(Category = Water, EditAnywhere, AdvancedDisplay)
 	int32 OverlapPriority = 0;
 
+	/**
+	 * Enables the Local Tessellation mode for this water zone. In this mode, the WaterInfoTexture represents only a sliding window around the view location where the dynamically tessellated water mesh will be generated.
+	 * The size of the sliding window is defined by the LocalTessellationExtent parameter which determines the diameters in world space units. In this mode, both the water info texture and water quad tree are regenerated
+	 * at runtime.
+	 */
 	UPROPERTY(Category = LocalTessellation, EditAnywhere)
 	bool bEnableLocalOnlyTessellation = false;
 
+	/** The diameters in world space units for the region within which local dynamic tessellation occurs. A smaller value increases the effective pixel density of the water info texture. */
 	UPROPERTY(Category = LocalTessellation, EditAnywhere, meta = (EditCondition = "bEnableLocalOnlyTessellation"))
 	FVector LocalTessellationExtent;
 
@@ -184,6 +190,7 @@ private:
 	FVector2f WaterHeightExtents;
 	float GroundZMin;
 
+	/** Current center of the local tessellation sliding window. Updated by the WaterViewExtension when the view crosses the update boundary */
 	FVector LocalTessellationCenter;
 
 	/** Unique Id for accessing zone data (Location, extent, ,...) in GPU buffers */
