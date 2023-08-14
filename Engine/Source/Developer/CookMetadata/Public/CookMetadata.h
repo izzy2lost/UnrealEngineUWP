@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Containers/Array.h"
+#include "Containers/Map.h"
 #include "Containers/UnrealString.h"
 #include "CoreTypes.h"
 #include "Memory/MemoryFwd.h"
@@ -17,6 +18,7 @@ enum class ECookMetadataStateVersion : uint8
 	PluginHierarchy = 1,
 	PostWritebackHash = 2,
 	FixSerialization = 3,
+	AddedCustomFields = 4,
 
 	// Add new versions above this.
 	VersionCount,
@@ -118,6 +120,12 @@ struct COOKMETADATA_API FCookMetadataPluginEntry
 {
 	FString Name;
 
+	// These contain values pulled from the uplugin json file and hold fields that are not
+	// part of the engine FPluginDescriptor. They are for per-project values. The keys for the maps
+	// are indices in to FCookMetadataPluginHierarchy::CustomFieldNames. See the comment for CustomFieldNames.
+	TMap<uint8, bool> CustomBoolFields;
+	TMap<uint8, FString> CustomStringFields;
+
 	// The dependencies are stored in the FCookMetadataPluginHierarchy::PluginDependencies array,
 	// and this is an index into it. From there you can get a further index into PluginsEnabledAtCook
 	// to get the plugin information.
@@ -144,6 +152,7 @@ struct COOKMETADATA_API FCookMetadataPluginEntry
 	{
 		Ar << Entry.Name << Entry.DependencyIndexStart << Entry.DependencyIndexEnd;
 		Ar << Entry.InclusiveSizes << Entry.ExclusiveSizes;
+		Ar << Entry.CustomBoolFields << Entry.CustomStringFields;
 		return Ar;
 	}
 };
@@ -162,9 +171,44 @@ struct COOKMETADATA_API FCookMetadataPluginHierarchy
 	// The list of root plugins for the project as defined by the Editor.ini file.
 	TArray<uint16> RootPlugins;
 
+	// The list of custom field names. The values stored on an entry index in to this for the name.
+	// These values are copied from the plugins' json descriptor to allow for carrying through project
+	// specific data in to the metadata.
+	//
+	// To enable custom field replication, add the CookMetadataCustomPluginFields section to the relevant Editor.ini file
+	// and add to the follow arrays, as desired:
+	//
+	//  BoolFields, StringFields, PerPlatformBoolFields, PerPlatformStringFields
+	// 
+	// Bool and String refer to the json type, and will emit as bool or FString here. The PerPlatform arrays
+	// will check in the uplugin json for a field named PerPlatform<ArrayValue>. That field is expected to be
+	// an array of override objects. Each object is required to have the platform name and override value. E.g.:
+	//
+	//	[CookMetadataCustomPluginFields]
+	//	+PerPlatformBoolFields = ExampleProjectBool
+	//	+StringField = ExampleProjectString
+	//
+	// Will look in the uplugin file for this:
+	//
+	// 	"ExampleProjectBool": true
+	//	"PerPlatformExampleProjectBool": [
+	//		{
+	//			"Platform": "Windows",
+	//			"Value": false
+	//		}
+	//	]
+	//	"ExampleProjectString": "AProjectString"
+	//
+	// Note that in the per platform case, the base value is not required (i.e. ExampleProjectBool above), however it
+	// provides a default value for unlisted platforms. If it does not exist, false is used for bool fields, and an empty string
+	// for string fields.
+	TArray<FString> CustomFieldNames;
+
 	friend FArchive& operator<<(FArchive& Ar, FCookMetadataPluginHierarchy& Hierarchy)
 	{
-		return Ar << Hierarchy.PluginsEnabledAtCook << Hierarchy.PluginDependencies << Hierarchy.RootPlugins;
+		Ar << Hierarchy.PluginsEnabledAtCook << Hierarchy.PluginDependencies;
+		Ar << Hierarchy.RootPlugins << Hierarchy.CustomFieldNames;
+		return Ar;
 	}
 };
 

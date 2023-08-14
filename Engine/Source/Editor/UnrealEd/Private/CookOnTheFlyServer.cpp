@@ -46,6 +46,7 @@
 #include "CookPackageSplitter.h"
 #include "DerivedDataCacheInterface.h"
 #include "DistanceFieldAtlas.h"
+#include "Dom/JsonObject.h"
 #include "Editor.h"
 #include "Editor/UnrealEdEngine.h"
 #include "EditorDomain/EditorDomain.h"
@@ -9482,7 +9483,7 @@ void UCookOnTheFlyServer::WriteCookMetadata(const ITargetPlatform* InTargetPlatf
 	constexpr int32 AdditionalPseudoPlugins = 2; // /Engine and /Game.
 	if (IntFitsIn<uint16>(EnabledPlugins.Num() + AdditionalPseudoPlugins) == false)
 	{
-		UE_LOG(LogCook, Warning, TEXT("Number of plugins exceeds 64k, unable to write cook metadata file (count = %d"), EnabledPlugins.Num() + AdditionalPseudoPlugins);
+		UE_LOG(LogCook, Warning, TEXT("Number of plugins exceeds 64k, unable to write cook metadata file (count = %d)"), EnabledPlugins.Num() + AdditionalPseudoPlugins);
 	}
 	else
 	{
@@ -9498,6 +9499,44 @@ void UCookOnTheFlyServer::WriteCookMetadata(const ITargetPlatform* InTargetPlatf
 			NewEntry.Name = EnabledPlugin->GetName();
 			IndexForPlugin.Add(NewEntry.Name, AddIndex);
 			AddIndex++;
+		}
+
+		TArray<FString> BoolCustomFieldsList;
+		TArray<FString> StringCustomFieldsList;
+		TArray<FString> PerPlatformBoolCustomFieldsList;
+		TArray<FString> PerPlatformStringCustomFieldsList;
+		GConfig->GetArray(TEXT("CookMetadataCustomPluginFields"), TEXT("BoolFields"), BoolCustomFieldsList, GEditorIni);		
+		GConfig->GetArray(TEXT("CookMetadataCustomPluginFields"), TEXT("StringFields"), StringCustomFieldsList, GEditorIni);
+		GConfig->GetArray(TEXT("CookMetadataCustomPluginFields"), TEXT("PerPlatformBoolFields"), PerPlatformBoolCustomFieldsList, GEditorIni);
+		GConfig->GetArray(TEXT("CookMetadataCustomPluginFields"), TEXT("PerPlatformStringFields"), PerPlatformStringCustomFieldsList, GEditorIni);
+
+		// Get the names as a unique list for indexing the names for serialization
+		TArray<FString> CustomFieldNames;
+		TMap<FString, uint8> CustomFieldNameIndex;
+		{
+			auto GetNames = [&CustomFieldNameIndex, &CustomFieldNames](const TArray<FString>& FieldList)
+			{
+				for (const FString& FieldName : FieldList)
+				{
+					uint8& FoundAtIndex = CustomFieldNameIndex.FindOrAdd(FieldName, MAX_uint8);
+					if (FoundAtIndex == MAX_uint8)
+					{
+						CustomFieldNames.Add(FieldName);
+						FoundAtIndex = (uint8)(CustomFieldNames.Num() - 1);
+					}
+				}
+			};
+
+			GetNames(BoolCustomFieldsList);
+			GetNames(StringCustomFieldsList);
+			GetNames(PerPlatformBoolCustomFieldsList);
+			GetNames(PerPlatformStringCustomFieldsList);
+		}
+
+		if (CustomFieldNames.Num() > 255)
+		{
+			// Sanity check integer limits - should never hit this, but if we do all bets are off.
+			UE_LOG(LogCook, Warning, TEXT("Number of custom plugin fields exceeds 255 (count = %d), custom fields will be incorrect!"), CustomFieldNames.Num());
 		}
 
 		// Add the /Engine and /Game pseudo plugins. These are placeholders for holding size information when unrealpak runs.
@@ -9524,6 +9563,117 @@ void UCookOnTheFlyServer::WriteCookMetadata(const ITargetPlatform* InTargetPlatf
 			{
 				RootPlugins.Add(SelfIndex);
 			}
+
+			// Pull in any custom fields the project wants to pass on.
+			auto CheckForCustomFields = [&Descriptor, &PlatformNameString, &EnabledPlugin, &Entry, &CustomFieldNameIndex](bool bIsBool, bool bIsPerPlatform, const TArray<FString>& FieldNames)
+			{
+				for (const FString& FieldName : FieldNames)
+				{
+					TVariant<bool, FString> FieldValue;
+			
+					bool bHasField = false;
+
+					if (bIsBool)
+					{
+						bool bPlatformAgnosticValue = false;
+						bHasField = Descriptor.CachedJson->TryGetBoolField(FieldName, bPlatformAgnosticValue);
+						FieldValue.Set<bool>(bPlatformAgnosticValue);
+					}
+					else
+					{
+						FString PlatformAgnosticString;
+						bHasField = Descriptor.CachedJson->TryGetStringField(FieldName, PlatformAgnosticString);
+						FieldValue.Set<FString>(MoveTemp(PlatformAgnosticString));
+					}
+
+					if (bIsPerPlatform)
+					{
+						// If the field is marked as per-platform, then it has a field with the same name except
+						// prepended with PerPlatform. Inside that is an array of objects with Platform and Value
+						// to specify the override for specific platforms.
+						bool bHasPerPlatform = false;
+
+						const TArray<TSharedPtr<FJsonValue>>* Array;
+						if (Descriptor.CachedJson->TryGetArrayField(TEXT("PerPlatform") + FieldName, Array))
+						{
+							bHasPerPlatform = true;
+
+							for (const TSharedPtr<FJsonValue>& Value : *Array)
+							{
+								const TSharedPtr<FJsonObject>& ValueObject = Value->AsObject();
+								if (ValueObject.IsValid())
+								{
+									FString OverridePlatformName;
+									if (!ValueObject->TryGetStringField(TEXT("Platform"), OverridePlatformName))
+									{
+										UE_LOG(LogCook, Error, TEXT("Unable to get Platform field from PerPlatform%s array in plugin %s json."), *FieldName, *EnabledPlugin->GetName());
+										continue;
+									}
+
+									if (OverridePlatformName == PlatformNameString)
+									{
+										bool bGotOverride = false;
+
+										if (bIsBool)
+										{
+											bool bPlatformValue = false;
+											bGotOverride = ValueObject->TryGetBoolField(TEXT("Value"), bPlatformValue);
+											FieldValue.Set<bool>(bPlatformValue);
+										}
+										else
+										{
+											FString PlatformString;
+											bGotOverride = ValueObject->TryGetStringField(TEXT("Value"), PlatformString);
+											FieldValue.Set<FString>(MoveTemp(PlatformString));
+										}
+
+										if (!bGotOverride)
+										{
+											UE_LOG(LogCook, Error, TEXT("Unable to get Value field from PerPlatform%s array in plugin %s json for platform %s"), *FieldName, *EnabledPlugin->GetName(), *PlatformNameString);
+											continue;
+										}
+										bHasField = true;
+									}
+								}
+							}
+						} // end if the plugin has overrides
+
+						// If the field has a per platform value, but no value for this platform in either the
+						// agnostic or the specific area, then we fill it with default values so it's still
+						// present in the output, even if it's just default values.
+						if (bHasPerPlatform && !bHasField)
+						{
+							bHasField = true;
+							if (bIsBool)
+							{
+								FieldValue.Set<bool>(false);
+							}
+							else
+							{
+								FieldValue.Set<FString>(FString());
+							}
+						}
+					} // end if field is per platform
+
+					if (bHasField)
+					{
+						if (bIsBool)
+						{
+							Entry.CustomBoolFields.Add(CustomFieldNameIndex[FieldName], FieldValue.Get<bool>());
+						}
+						else
+						{
+							Entry.CustomStringFields.Add(CustomFieldNameIndex[FieldName], MoveTemp(FieldValue.Get<FString>()));
+						}
+					}
+				} // end each field name
+
+			}; // end local lambda
+
+			CheckForCustomFields(true, false, BoolCustomFieldsList);
+			CheckForCustomFields(true, true, PerPlatformBoolCustomFieldsList);
+			CheckForCustomFields(false, false, StringCustomFieldsList);
+			CheckForCustomFields(false, true, PerPlatformStringCustomFieldsList);
 
 			for (FPluginReferenceDescriptor ChildPlugin : Descriptor.Plugins)
 			{
@@ -9567,6 +9717,7 @@ void UCookOnTheFlyServer::WriteCookMetadata(const ITargetPlatform* InTargetPlatf
 			PluginHierarchy.PluginsEnabledAtCook = MoveTemp(PluginsToAdd);
 			PluginHierarchy.PluginDependencies = MoveTemp(PluginChildArray);
 			PluginHierarchy.RootPlugins = MoveTemp(RootPlugins);
+			PluginHierarchy.CustomFieldNames = MoveTemp(CustomFieldNames);
 
 			MetadataState.SetPluginHierarchyInfo(MoveTemp(PluginHierarchy));
 			MetadataState.SetAssociatedDevelopmentAssetRegistryHash(InDevelopmentAssetRegistryHash);
