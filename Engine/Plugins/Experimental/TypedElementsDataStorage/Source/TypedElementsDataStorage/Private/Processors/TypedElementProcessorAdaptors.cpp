@@ -262,9 +262,15 @@ public:
 		};
 
 		void* ObjectCopy = ScratchBuffer.Allocate(ObjectType->GetStructureSize(), ObjectType->GetMinAlignment());
-		FAddValueColumn* AddedColumn = ObjectType->GetCppStructOps()->HasDestructor() ?
-			ScratchBuffer.Emplace<FAddValueColumnWithDestructor>(ObjectType, FMassEntityHandle::FromNumber(Row), ObjectCopy) :
-			ScratchBuffer.Emplace<FAddValueColumn>(ObjectType, FMassEntityHandle::FromNumber(Row), ObjectCopy);
+		FAddValueColumn* AddedColumn = nullptr;
+		if (ObjectType->StructFlags & (STRUCT_IsPlainOldData | STRUCT_NoDestructor))
+		{
+			AddedColumn = ScratchBuffer.Emplace<FAddValueColumn>(ObjectType, FMassEntityHandle::FromNumber(Row), ObjectCopy);
+		}
+		else
+		{
+			AddedColumn = ScratchBuffer.Emplace<FAddValueColumnWithDestructor>(ObjectType, FMassEntityHandle::FromNumber(Row), ObjectCopy);
+		}
 
 		Context.Defer().PushCommand<FMassDeferredAddCommand>(
 			[AddedColumn](FMassEntityManager& System)
@@ -314,9 +320,15 @@ public:
 		};
 
 		void* MovedObject = ScratchBuffer.Allocate(ObjectType->GetStructureSize(), ObjectType->GetMinAlignment());
-		FAddMoveableValueColumn* AddedColumn = ObjectType->GetCppStructOps()->HasDestructor() ?
-			ScratchBuffer.Emplace<FAddMoveableValueColumnWithDestructor>(Mover, ObjectType, FMassEntityHandle::FromNumber(Row), MovedObject) :
-			ScratchBuffer.Emplace<FAddMoveableValueColumn>(Mover, ObjectType, FMassEntityHandle::FromNumber(Row), MovedObject);
+		FAddMoveableValueColumn* AddedColumn = nullptr;
+		if (ObjectType->StructFlags & (STRUCT_IsPlainOldData | STRUCT_NoDestructor))
+		{
+			AddedColumn = ScratchBuffer.Emplace<FAddMoveableValueColumn>(Mover, ObjectType, FMassEntityHandle::FromNumber(Row), MovedObject);
+		}
+		else
+		{
+			AddedColumn = ScratchBuffer.Emplace<FAddMoveableValueColumnWithDestructor>(Mover, ObjectType, FMassEntityHandle::FromNumber(Row), MovedObject);
+		}
 
 		Context.Defer().PushCommand<FMassDeferredAddCommand>(
 			[AddedColumn](FMassEntityManager& System)
