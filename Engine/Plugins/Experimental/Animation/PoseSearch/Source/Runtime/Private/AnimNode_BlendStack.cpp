@@ -235,6 +235,21 @@ float FPoseSearchAnimPlayer::GetAccumulatedTime() const
 	return 0.f;
 }
 
+float FPoseSearchAnimPlayer::GetPlayRate() const
+{
+	if (SequencePlayerNode.GetSequence())
+	{
+		return SequencePlayerNode.GetPlayRate();
+	}
+
+	if (BlendSpacePlayerNode.GetBlendSpace())
+	{
+		return BlendSpacePlayerNode.GetPlayRate();
+	}
+
+	return 0.f;
+}
+
 FVector FPoseSearchAnimPlayer::GetBlendParameters() const
 {
 	if (BlendSpacePlayerNode.GetBlendSpace())

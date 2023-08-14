@@ -20,6 +20,7 @@ struct FPoseSearchAnimPlayer
 	void Evaluate_AnyThread(FPoseContext& Output);
 	void Update_AnyThread(const FAnimationUpdateContext& Context);
 	float GetAccumulatedTime() const;
+	float GetPlayRate() const;
 	
 	float GetBlendInPercentage() const;
 	bool GetBlendInWeights(TArray<float>& Weights) const;
