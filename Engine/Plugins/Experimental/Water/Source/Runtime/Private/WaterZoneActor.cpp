@@ -445,7 +445,7 @@ bool AWaterZone::UpdateWaterInfoTexture()
 			}
 
 			WaterBodiesToRender.Add(WaterBodyComponent);
-			const FBox WaterBodyBounds = WaterBodyComponent->CalcBounds(WaterBodyComponent->GetComponentToWorld()).GetBox();
+			const FBox WaterBodyBounds = WaterBodyComponent->Bounds.GetBox();
 			WaterZMax = FMath::Max(WaterZMax, WaterBodyBounds.Max.Z);
 			WaterZMin = FMath::Min(WaterZMin, WaterBodyBounds.Min.Z);
 
