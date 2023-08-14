@@ -13,6 +13,7 @@
 #include "Abilities/GameplayAbilityTypes.h"
 #include "GameplayTaskOwnerInterface.h"
 #include "Abilities/GameplayAbilityTargetTypes.h"
+#include "Net/Core/PushModel/PushModelMacros.h"
 #include "GameplayAbility.generated.h"
 
 class UAbilitySystemComponent;
@@ -107,6 +108,7 @@ UCLASS(Blueprintable)
 class GAMEPLAYABILITIES_API UGameplayAbility : public UObject, public IGameplayTaskOwnerInterface
 {
 	GENERATED_UCLASS_BODY()
+	REPLICATED_BASE_CLASS(UGameplayAbility)
 
 	friend class UAbilitySystemComponent;
 	friend class UGameplayAbilitySet;

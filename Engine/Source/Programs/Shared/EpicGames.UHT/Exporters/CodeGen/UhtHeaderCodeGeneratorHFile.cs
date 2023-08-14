@@ -1500,9 +1500,21 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			// it's the base most replicated class. In that case, go ahead and add our interface macro.
 			if (classObj.ClassExportFlags.HasExactFlags(UhtClassExportFlags.HasReplciatedProperties, UhtClassExportFlags.SelfHasReplicatedProperties))
 			{
-				builder.Append("private: \\\r\n");
-				builder.Append("\tREPLICATED_BASE_CLASS(").Append(classObj.SourceName).Append(") \\\r\n");
-				builder.Append("public: \\\r\n");
+				// Make sure the client hasn't implemented it themselves
+				bool alreadyDefinedPushModel = false;
+				UhtClass? checkForReplicatedBaseClass = classObj;
+				while (!alreadyDefinedPushModel && checkForReplicatedBaseClass != null)
+				{
+					alreadyDefinedPushModel = checkForReplicatedBaseClass.TryGetDeclaration("REPLICATED_BASE_CLASS", out _);
+					checkForReplicatedBaseClass = checkForReplicatedBaseClass.SuperClass;
+				}
+
+				if (!alreadyDefinedPushModel)
+				{
+					builder.Append("private: \\\r\n");
+					builder.Append("\tREPLICATED_BASE_CLASS(").Append(classObj.SourceName).Append(") \\\r\n");
+					builder.Append("public: \\\r\n");
+				}
 			}
 			return builder;
 		}
