@@ -1,3 +1,4 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
 using System.Runtime.InteropServices;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
