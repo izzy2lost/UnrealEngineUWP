@@ -76,6 +76,8 @@ UObject* FMovieSceneSpawnRegister::SpawnObject(const FGuid& BindingId, UMovieSce
 
 bool FMovieSceneSpawnRegister::DestroySpawnedObject(const FGuid& BindingId, FMovieSceneSequenceIDRef TemplateID, IMovieScenePlayer& Player)
 {
+	TGuardValue<bool> CleaningUp(bCleaningUp, true);
+
 	FMovieSceneSpawnRegisterKey Key(TemplateID, BindingId);
 	
 	FSpawnedObject* Existing = Register.Find(Key);
