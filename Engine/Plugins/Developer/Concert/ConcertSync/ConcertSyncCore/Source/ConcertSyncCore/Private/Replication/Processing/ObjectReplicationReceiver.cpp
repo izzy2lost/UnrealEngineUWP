@@ -32,7 +32,7 @@ namespace UE::ConcertSyncCore
 			NumObjects += StreamEvent.ReplicatedObjects.Num();
 			for (const FConcertObjectReplicationEvent& ObjectEvent : StreamEvent.ReplicatedObjects)
 			{
-				const int32 NumAccepted = ReplicationCache->StoreUntilConsumed(StreamEvent.StreamId, ObjectEvent);
+				const int32 NumAccepted = ReplicationCache->StoreUntilConsumed(SessionContext.SourceEndpointId, StreamEvent.StreamId, ObjectEvent);
 				NumCacheUsages += NumAccepted;
 				NumOfAcceptedObjects += NumAccepted == 0 ? 0 : 1;
 			}

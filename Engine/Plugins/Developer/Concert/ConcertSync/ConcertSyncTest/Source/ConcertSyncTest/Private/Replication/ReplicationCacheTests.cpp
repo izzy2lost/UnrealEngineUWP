@@ -60,22 +60,22 @@ namespace UE::ConcertSyncTests
 		public:
 
 			FAutomationTestBase& Test;
-			ConcertSyncCore::FReplicationStreamObjectID AllowedObject;
+			ConcertSyncCore::FStreamedObjectID AllowedObject;
 			EReplicationCacheTestFlags Flags;
 			TSharedPtr<const FConcertObjectReplicationEvent> CachedData;
 
-			FTestReplicationCacheUser(FAutomationTestBase& Test, ConcertSyncCore::FReplicationStreamObjectID AllowedObject, EReplicationCacheTestFlags Flags = EReplicationCacheTestFlags::None)
+			FTestReplicationCacheUser(FAutomationTestBase& Test, ConcertSyncCore::FStreamedObjectID AllowedObject, EReplicationCacheTestFlags Flags = EReplicationCacheTestFlags::None)
 				: Test(Test)
 				, AllowedObject(MoveTemp(AllowedObject))
 				, Flags(Flags)
 			{}
 			
-			virtual bool WantsToAcceptObject(const ConcertSyncCore::FReplicationStreamObjectID& Object) const override
+			virtual bool WantsToAcceptObject(const ConcertSyncCore::FReplicatedObjectInfo& Object) const override
 			{
 				return !EnumHasAnyFlags(Flags, EReplicationCacheTestFlags::NeverReceive) && AllowedObject == Object;
 			}
 			
-			virtual void OnDataCached(const ConcertSyncCore::FReplicationStreamObjectID& Object, TSharedRef<const FConcertObjectReplicationEvent> Data) override
+			virtual void OnDataCached(const ConcertSyncCore::FReplicatedObjectInfo& Object, TSharedRef<const FConcertObjectReplicationEvent> Data) override
 			{
 				if (EnumHasAnyFlags(Flags, EReplicationCacheTestFlags::NeverReceive))
 				{
@@ -123,7 +123,8 @@ namespace UE::ConcertSyncTests
 		// Set up
 		const FGuid StreamId = FGuid::NewGuid();
 		const FSoftObjectPath ObjectPath(TEXT("/Game/World.World:PersistentLevel.StaticMeshActor0"));
-		const ConcertSyncCore::FReplicationStreamObjectID ObjectID{ StreamId, ObjectPath};
+		const FGuid DummySendingClientId = FGuid::NewGuid();
+		const ConcertSyncCore::FReplicatedObjectInfo ObjectID{ { StreamId, ObjectPath }, DummySendingClientId};
 		
 		TSharedRef<ConcertSyncCore::FObjectReplicationCache> Cache = MakeShared<ConcertSyncCore::FObjectReplicationCache>(MakeShared<FTestReplicationFormat>());
 		TSharedRef<FTestReplicationCacheUser> User_NeverConsume = MakeShared<FTestReplicationCacheUser>(*this, ObjectID, EReplicationCacheTestFlags::NeverConsume);
@@ -144,11 +145,11 @@ namespace UE::ConcertSyncTests
 
 		
 		// Tests
-		Cache->StoreUntilConsumed(StreamId, Event_5);
+		Cache->StoreUntilConsumed(DummySendingClientId, StreamId, Event_5);
 		TestTrue(TEXT("Users have same data"), User_NeverConsume->CachedData.Get() == User_ConsumeManually->CachedData.Get());
 		User_ConsumeManually->Consume();
 		
-		Cache->StoreUntilConsumed(StreamId, Event_10);
+		Cache->StoreUntilConsumed(DummySendingClientId, StreamId, Event_10);
 		TestEqual(TEXT("Combined events: 5 and 10"), User_NeverConsume->PeakData(), 15.f);
 		TestEqual(TEXT("Received new data: 10"), User_ConsumeManually->PeakData(), 10.f);
 		
@@ -156,7 +157,7 @@ namespace UE::ConcertSyncTests
 		Cache->UnregisterDataCacheUser(User_ConsumeManually);
 		Cache->RegisterDataCacheUser(User_ConsumeManually);
 		const void* AddressBefore = User_ConsumeManually->GetDataAddress();
-		Cache->StoreUntilConsumed(StreamId, Event_100);
+		Cache->StoreUntilConsumed(DummySendingClientId, StreamId, Event_100);
 		TestEqual(TEXT("Combined events: 5, 10, and 100"), User_NeverConsume->PeakData(), 115.f);
 		TestEqual(TEXT("Received totally new data"), User_ConsumeManually->PeakData(), 100.f);
 		TestNotEqual(TEXT("Received totally new allocated data"), AddressBefore, User_ConsumeManually->GetDataAddress());

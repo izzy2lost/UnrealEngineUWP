@@ -12,11 +12,11 @@ namespace UE::ConcertSyncCore
 		: ReplicationFormat(MoveTemp(ReplicationFormat))
 	{}
 
-	int32 FObjectReplicationCache::StoreUntilConsumed(const FGuid& OriginStreamId, const FConcertObjectReplicationEvent& ObjectReplicationEvent)
+	int32 FObjectReplicationCache::StoreUntilConsumed(const FGuid& SendingEndpointId, const FGuid& OriginStreamId, const FConcertObjectReplicationEvent& ObjectReplicationEvent)
 	{
 		int32 NumAccepted = 0;
 		
-		const FReplicationStreamObjectID ObjectId{ OriginStreamId, ObjectReplicationEvent.ReplicatedObject };
+		const FReplicatedObjectInfo ObjectId{ { OriginStreamId, ObjectReplicationEvent.ReplicatedObject }, SendingEndpointId };
 		FObjectCache* ObjectCacheBeforeAddition = Cache.Find(ObjectId);
 		if (ObjectCacheBeforeAddition)
 		{
@@ -66,7 +66,7 @@ namespace UE::ConcertSyncCore
 					}
 
 					// ObjectCache may not be found because cache user was unregistered and then destroyed: UnregisterDataCacheUser removes cache users.
-					const FReplicationStreamObjectID ObjectId{ OriginStreamId, LazilyCopiedEventPtr->ReplicatedObject };
+					const FStreamedObjectID ObjectId{ OriginStreamId, LazilyCopiedEventPtr->ReplicatedObject };
 					FObjectCache* ObjectCache = This->Cache.Find(ObjectId);
 					if (!ObjectCache)
 					{

@@ -25,7 +25,7 @@ namespace UE::ConcertSyncCore
 	public:
 
 		/** @return Whether this user is interested in data from this object. */
-		virtual bool WantsToAcceptObject(const FReplicationStreamObjectID& Object) const = 0;
+		virtual bool WantsToAcceptObject(const FReplicatedObjectInfo& Object) const = 0;
 
 		/**
 		 * Called when data that is interesting to this user becomes available.
@@ -33,7 +33,7 @@ namespace UE::ConcertSyncCore
 		 * The user can keep hold of Data until it is used, at which point it just let's Data get out of scope.
 		 * If new data is received while this user is referencing Data, Data will be combined to contain any new data.
 		 */
-		virtual void OnDataCached(const FReplicationStreamObjectID& Object, TSharedRef<const FConcertObjectReplicationEvent> Data) = 0;
+		virtual void OnDataCached(const FReplicatedObjectInfo& Object, TSharedRef<const FConcertObjectReplicationEvent> Data) = 0;
 
 		virtual ~IReplicationCacheUser() = default;
 	};
@@ -58,11 +58,12 @@ namespace UE::ConcertSyncCore
 
 		/**
 		 * Called when new data is received for an object and shares it with any IObjectCacheUser that is possibly interested in it.
+		 * @param SendingEndpointId The ID of the client endpoint that sent this data
 		 * @param OriginStreamId The stream from which the object was replicated
 		 * @param ObjectReplicationEvent The data that was replicated
 		 * @return The number of cache users that accepted this event. 
 		 */
-		int32 StoreUntilConsumed(const FGuid& OriginStreamId, const FConcertObjectReplicationEvent& ObjectReplicationEvent);
+		int32 StoreUntilConsumed(const FGuid& SendingEndpointId, const FGuid& OriginStreamId, const FConcertObjectReplicationEvent& ObjectReplicationEvent);
 
 		/** Registers a new user, which will start receiving data for any new data received from now on. */
 		void RegisterDataCacheUser(TSharedRef<IReplicationCacheUser> User);
@@ -91,6 +92,6 @@ namespace UE::ConcertSyncCore
 			TMap<TWeakPtr<IReplicationCacheUser>, TWeakPtr<FConcertObjectReplicationEvent>> DataInUse;
 		};
 		/** Maps every object to the events cached for it. */
-		TMap<FReplicationStreamObjectID, FObjectCache> Cache; 
+		TMap<FStreamedObjectID, FObjectCache> Cache; 
 	};
 }

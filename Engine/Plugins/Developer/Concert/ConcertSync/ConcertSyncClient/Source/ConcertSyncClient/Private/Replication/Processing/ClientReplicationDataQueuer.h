@@ -20,7 +20,7 @@ namespace UE::ConcertSyncClient::Replication
 		static TSharedRef<FClientReplicationDataQueuer> Make(IConcertClientReplicationBridge* ReplicationBridge, TSharedRef<ConcertSyncCore::FObjectReplicationCache> InReplicationCache);
 		
 		//~ Begin IReplicationCacheUser Interface
-		virtual bool WantsToAcceptObject(const ConcertSyncCore::FReplicationStreamObjectID& Object) const override;
+		virtual bool WantsToAcceptObject(const ConcertSyncCore::FReplicatedObjectInfo& Object) const override;
 		//~ End IReplicationCacheUser Interface
 
 	private:

@@ -54,7 +54,7 @@ namespace UE::ConcertSyncClient::Replication
 		}
 	}
 
-	void FClientReplicationDataCollector::ForEachPendingObject(TFunctionRef<void(const ConcertSyncCore::FReplicationStreamObjectID&)> ProcessItemFunc) const
+	void FClientReplicationDataCollector::ForEachPendingObject(TFunctionRef<void(const ConcertSyncCore::FStreamedObjectID&)> ProcessItemFunc) const
 	{
 		for (const TPair<FSoftObjectPath, TArray<FObjectInfo>>& Pair : ObjectsToReplicate)
 		{
@@ -69,7 +69,7 @@ namespace UE::ConcertSyncClient::Replication
 	}
 
 	bool FClientReplicationDataCollector::ExtractReplicationDataForObject(
-		const ConcertSyncCore::FReplicationStreamObjectID& ObjectToProcess,
+		const ConcertSyncCore::FStreamedObjectID& ObjectToProcess,
 		TFunctionRef<void(const FConcertSessionSerializedPayload& Payload)> ProcessCopyable,
 		TFunctionRef<void(FConcertSessionSerializedPayload&& Payload)> ProcessMoveable
 		)

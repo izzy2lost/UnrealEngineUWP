@@ -15,7 +15,7 @@ namespace UE::ConcertSyncServer::Replication
 	)
 		: StreamDescriptions(MoveTemp(StreamDescriptions))
 		, ClientEndpointId(ClientEndpointId)
-		, EventQueue(FServerReplicationDataQueuer::Make(*this, MoveTemp(ReplicationCache)))
+		, EventQueue(FServerReplicationDataQueuer::Make(ClientEndpointId, MoveTemp(ReplicationCache)))
 		, DataRelay(ClientEndpointId, MoveTemp(Session), EventQueue)
 	{}
 

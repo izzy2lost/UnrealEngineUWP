@@ -9,7 +9,7 @@
 
 namespace UE::ConcertSyncCore
 {
-	struct FReplicationStreamObjectID;
+	struct FStreamedObjectID;
 	
 	/**
 	 * Responsible for obtaining replication data.
@@ -23,7 +23,7 @@ namespace UE::ConcertSyncCore
 	public:
 		
 		/** Iterates the objects that must be processed for replication (the result of ExtractReplicationDataForObject MAY return something new). */
-		virtual void ForEachPendingObject(TFunctionRef<void(const FReplicationStreamObjectID&)> ProcessItemFunc) const = 0;
+		virtual void ForEachPendingObject(TFunctionRef<void(const FStreamedObjectID&)> ProcessItemFunc) const = 0;
 		/** @return The number of objects ForEachPendingObject would iterate. Can be used, e.g. for Reserve()-ing a container. */
 		virtual int32 NumObjects() const = 0;
 
@@ -40,12 +40,12 @@ namespace UE::ConcertSyncCore
 		 * @return Whether successful. False indicates the call was invalid to make (ForEachPendingObject did not return Object). True indicates success, even if ProcessCopyable was not called.		
 		 */
 		virtual bool ExtractReplicationDataForObject(
-			const FReplicationStreamObjectID& Object,
+			const FStreamedObjectID& Object,
 			TFunctionRef<void(const FConcertSessionSerializedPayload& Payload)> ProcessCopyable,
 			TFunctionRef<void(FConcertSessionSerializedPayload&& Payload)> ProcessMoveable
 			) = 0;
 		/** Util version for callers that only want to read and do not want to store the payload. */
-		bool ExtractReplicationDataForObject(const FReplicationStreamObjectID& Object, TFunctionRef<void(const FConcertSessionSerializedPayload& Payload)> ProcessCopyable)
+		bool ExtractReplicationDataForObject(const FStreamedObjectID& Object, TFunctionRef<void(const FConcertSessionSerializedPayload& Payload)> ProcessCopyable)
 		{
 			return ExtractReplicationDataForObject(Object, ProcessCopyable, [&ProcessCopyable](FConcertSessionSerializedPayload&& Payload){ ProcessCopyable(Payload); });
 		}

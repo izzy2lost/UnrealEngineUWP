@@ -37,7 +37,7 @@ namespace UE::ConcertSyncCore
 		struct FObjectProcessArgs
 		{
 			/** Info about the object to process */
-			FReplicationStreamObjectID ObjectInfo;
+			FStreamedObjectID ObjectInfo;
 		};
 
 		FORCEINLINE IReplicationDataSource& GetDataSource() const { return DataSource.Get(); }

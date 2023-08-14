@@ -21,18 +21,18 @@ namespace UE::ConcertSyncServer::Replication
 		friend class SharedPointerInternals::TIntrusiveReferenceController;
 	public:
 		
-		static TSharedRef<FServerReplicationDataQueuer> Make(const FConcertReplicationClient& OwningClient, TSharedRef<ConcertSyncCore::FObjectReplicationCache> InReplicationCache);
+		static TSharedRef<FServerReplicationDataQueuer> Make(const FGuid& OwningClientEndpointId, TSharedRef<ConcertSyncCore::FObjectReplicationCache> InReplicationCache);
 		
 		//~ Begin IReplicationCacheUser Interface
-		virtual bool WantsToAcceptObject(const ConcertSyncCore::FReplicationStreamObjectID& Object) const override;
+		virtual bool WantsToAcceptObject(const ConcertSyncCore::FReplicatedObjectInfo& Object) const override;
 		//~ End IReplicationCacheUser Interface
 
 	private:
 
-		FServerReplicationDataQueuer(const FConcertReplicationClient& OwningClient);
+		FServerReplicationDataQueuer(const FGuid& OwningClientEndpointId);
 
 		/** The client for which this FServerReplicationDataQueuer exists. */
-		const TSet<FGuid> OwningClientStreamIds;
+		const FGuid OwningClientEndpointId;
 	};
 }
 
