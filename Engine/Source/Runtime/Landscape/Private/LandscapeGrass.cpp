@@ -1315,6 +1315,8 @@ public:
 		RenderTargetTexture->InitCustomFormat(TargetSize.X, TargetSize.Y, PF_B8G8R8A8, bForceLinearGamma);
 		RenderTargetResource = RenderTargetTexture->GameThread_GetRenderTargetResource()->GetTextureRenderTarget2DResource();
 
+		UE::RenderCommandPipe::FSyncScope SyncScope;
+
 		// render
 		FLandscapeGrassWeightExporter_RenderThread* Exporter = this;
 		ENQUEUE_RENDER_COMMAND(FDrawSceneCommand)(

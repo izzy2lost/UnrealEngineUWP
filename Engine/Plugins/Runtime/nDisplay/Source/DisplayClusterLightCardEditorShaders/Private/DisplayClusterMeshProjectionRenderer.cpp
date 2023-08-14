@@ -906,6 +906,8 @@ void FDisplayClusterMeshProjectionRenderer::Render(FCanvas* Canvas, FSceneInterf
 	const bool bIsHitTesting = Canvas->IsHitTesting();
 	FHitProxyConsumer* HitProxyConsumer = Canvas->GetHitProxyConsumer();
 
+	UE::RenderCommandPipe::FSyncScope SyncScope;
+
 	ENQUEUE_RENDER_COMMAND(FDrawProjectedMeshes)(
 		[RenderTarget, Scene, RenderSettings, bIsHitTesting, HitProxyConsumer, this](FRHICommandListImmediate& RHICmdList)
 		{

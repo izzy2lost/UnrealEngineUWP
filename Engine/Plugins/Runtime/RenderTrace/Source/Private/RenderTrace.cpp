@@ -643,6 +643,8 @@ void FRenderTraceQueue::Tick(float DeltaTime)
 
 	if (RequestsToUpdate.Num() > 0)
 	{
+		UE::RenderCommandPipe::FSyncScope SyncScope;
+
 		ENQUEUE_RENDER_COMMAND(FRenderTraceUpdaterTick)(
 			[InRequestsToUpdate=MoveTemp(RequestsToUpdate)](FRHICommandListImmediate& RHICmdList)
 			{
