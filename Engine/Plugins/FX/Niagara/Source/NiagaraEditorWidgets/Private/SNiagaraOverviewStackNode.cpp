@@ -857,9 +857,24 @@ void SNiagaraOverviewStackNode::OnScalabilityModeChanged(bool bActive)
 EVisibility SNiagaraOverviewStackNode::ShowExcludedOverlay() const
 {
 	// we only want actual results in scalability mode and for nodes representing emitters (not system nodes)
-	if(bScalabilityModeActive && EmitterHandleViewModelWeak.IsValid())
-	{		
-		return EmitterHandleViewModelWeak.Pin()->GetEmitterHandle()->GetEmitterData()->IsAllowedByScalability() ? EVisibility::Hidden : EVisibility::HitTestInvisible;
+	if(bScalabilityModeActive)
+	{
+		if (UNiagaraSystemScalabilityViewModel* ScalabilityVM = ScalabilityViewModel.Get())
+		{
+			const TSharedPtr<FNiagaraSystemViewModel> SystemViewModel = ScalabilityVM->GetSystemViewModel().Pin();
+			if (SystemViewModel && !SystemViewModel->GetSystem().IsAllowedByScalability())
+			{
+				return EVisibility::HitTestInvisible;
+			}
+		}
+
+		if (const TSharedPtr<FNiagaraEmitterHandleViewModel> EmitterHandleViewModel = EmitterHandleViewModelWeak.Pin())
+		{
+			if (!EmitterHandleViewModel->GetEmitterHandle()->GetEmitterData()->IsAllowedByScalability())
+			{
+				return EVisibility::HitTestInvisible;
+			}
+		}
 	}
 	
 	return EVisibility::Hidden; 

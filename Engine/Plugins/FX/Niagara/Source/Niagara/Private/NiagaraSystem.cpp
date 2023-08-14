@@ -1025,9 +1025,9 @@ void UNiagaraSystem::PostLoad()
 #endif // WITH_EDITORONLY_DATA
 
 	//Apply platform set redirectors
-	auto ApplyPlatformSetRedirects = [](FNiagaraPlatformSet& Platforms)
+	auto ApplyPlatformSetRedirects = [](FNiagaraPlatformSet& PlatformSet)
 	{
-		Platforms.ApplyRedirects();
+		PlatformSet.ApplyRedirects();
 	};
 	ForEachPlatformSet(ApplyPlatformSetRedirects);
 
@@ -3563,6 +3563,11 @@ void UNiagaraSystem::ResolveScalabilitySettings()
 	}
 
 	FNiagaraWorldManager::RequestInvalidateCachedSystemScalabilityDataForAllWorlds();
+}
+
+bool UNiagaraSystem::IsAllowedByScalability() const
+{
+	return Platforms.IsActive();
 }
 
 void UNiagaraSystem::UpdateScalability()

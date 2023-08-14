@@ -708,7 +708,6 @@ public:
 	FORCEINLINE bool GetOverrideScalabilitySettings()const { return bOverrideScalabilitySettings; }
 	FORCEINLINE void SetOverrideScalabilitySettings(bool bOverride) { bOverrideScalabilitySettings = bOverride; }
 
-
 	NIAGARA_API void GatherStaticVariables(TArray<FNiagaraVariable>& OutVars, TArray<FNiagaraVariable>& OutEmitterVars) const;
 #endif
 	NIAGARA_API UNiagaraEffectType* GetEffectType()const;
@@ -716,6 +715,12 @@ public:
 	NIAGARA_API const FNiagaraSystemScalabilityOverride& GetCurrentOverrideSettings() const;
 	FORCEINLINE bool NeedsSortedSignificanceCull()const{ return bNeedsSortedSignificanceCull; }
 	
+	NIAGARA_API FNiagaraPlatformSet& GetScalabilityPlatformSet() { return Platforms; }
+	NIAGARA_API const FNiagaraPlatformSet& GetScalabilityPlatformSet() const { return Platforms; }
+
+	/** Returns true if this emitter's platform filter allows it on this platform and quality level. */
+	NIAGARA_API bool IsAllowedByScalability() const;
+
 	NIAGARA_API void UpdateScalability();
 
 	NIAGARA_API ENiagaraCullProxyMode GetCullProxyMode()const;
@@ -819,6 +824,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (EditCondition="bOverrideScalabilitySettings", DisplayInScalabilityContext))
 	FNiagaraSystemScalabilityOverrides SystemScalabilityOverrides;
+
+	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (DisplayInScalabilityContext))
+	FNiagaraPlatformSet Platforms;
 
 	/** Handles to the emitter this System will simulate. */
 	UPROPERTY()

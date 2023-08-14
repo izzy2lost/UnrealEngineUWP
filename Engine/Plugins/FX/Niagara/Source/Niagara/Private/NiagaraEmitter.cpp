@@ -1070,7 +1070,8 @@ bool UNiagaraEmitter::NeedsLoadForTargetPlatform(const ITargetPlatform* TargetPl
 {
 	// Don't load disabled emitters.
 	// Awkwardly, this requires us to look for ourselves in the owning system.
-	if (const UNiagaraSystem* OwnerSystem = GetTypedOuter<const UNiagaraSystem>())
+	const UNiagaraSystem* OwnerSystem = GetTypedOuter<const UNiagaraSystem>();
+	if ( OwnerSystem )
 	{
 		for (const FNiagaraEmitterHandle& EmitterHandle : OwnerSystem->GetEmitterHandles())
 		{
@@ -1089,6 +1090,13 @@ bool UNiagaraEmitter::NeedsLoadForTargetPlatform(const ITargetPlatform* TargetPl
 	{
 		return true;
 	}
+
+	if (OwnerSystem && !OwnerSystem->GetScalabilityPlatformSet().IsEnabledForPlatform(TargetPlatform->IniPlatformName()))
+	{
+		UE_LOG(LogNiagara, Verbose, TEXT("Pruned emitter %s for platform %s from system scalability"), *GetFullName(), *TargetPlatform->DisplayName().ToString())
+		return false;
+	}
+
 
 	bool bIsEnabled = IsEnabledOnPlatform(TargetPlatform->IniPlatformName());
 	if(!bIsEnabled)

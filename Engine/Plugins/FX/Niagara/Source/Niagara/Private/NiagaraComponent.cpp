@@ -1238,6 +1238,12 @@ void UNiagaraComponent::ActivateInternal(bool bReset /* = false */, bool bIsScal
 		return;
 	}
 
+	if (!Asset->IsAllowedByScalability())
+	{
+		OnSystemComplete(true);
+		return;
+	}
+
 	bIsCulledByScalability = false;
 	
 	//Ensure we're not paused. Non-scalability activate calls should override pause state.
