@@ -93,6 +93,9 @@ public:
 	uint8 bCastShadow : 1;
 
 	UPROPERTY(EditAnywhere, Category = "Component Settings")
+	uint8 bEmissiveLightSource : 1;
+		
+	UPROPERTY(EditAnywhere, Category = "Component Settings")
 	uint8 bCastDynamicShadow : 1;
 
 	UPROPERTY(EditAnywhere, Category = "Component Settings")
@@ -106,6 +109,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Component Settings")
 	uint8 bAffectDynamicIndirectLighting : 1;
+
+	UPROPERTY(EditAnywhere, Category = "Component Settings")
+	uint8 bAffectDynamicIndirectLightingWhileHidden : 1;
 
 	UPROPERTY(EditAnywhere, Category = "Component Settings")
 	uint8 bAffectDistanceFieldLighting : 1;
