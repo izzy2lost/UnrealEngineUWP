@@ -168,11 +168,11 @@ namespace AutomationUtils.Automation
 							Bundle.UseDetailedInstallSizes = bUseDetailedInstallSizes;
 						}
 					}
+
+					GetPlatformSettings(Bundle, BundleConfig, BundleDefinitionPrefix + Bundle.Name);
+
+					Results.Add(Bundle);
 				}
-
-				GetPlatformSettings(Bundle, BundleConfig, BundleDefinitionPrefix + Bundle.Name);
-
-				Results.Add(Bundle);
 			}
 
 			// Use OrderBy and not Sort because OrderBy is stable
