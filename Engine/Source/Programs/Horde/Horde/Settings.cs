@@ -121,12 +121,8 @@ namespace Horde
 			using ITokenStore tokenStore = TokenStoreFactory.CreateTokenStore();
 			OidcTokenManager oidcTokenManager = OidcTokenManager.CreateTokenManager(configuration, tokenStore, new List<string>() { OidcProvider });
 
-			OidcTokenInfo result;
-			try
-			{
-				result = await oidcTokenManager.GetAccessToken(OidcProvider, cancellationToken);
-			}
-			catch (NotLoggedInException)
+			OidcTokenInfo? result = await oidcTokenManager.TryGetAccessToken(OidcProvider, cancellationToken);
+			if(result == null)
 			{
 				result = await oidcTokenManager.Login(OidcProvider, cancellationToken);
 			}

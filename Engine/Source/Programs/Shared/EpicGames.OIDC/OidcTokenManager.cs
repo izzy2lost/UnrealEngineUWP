@@ -148,6 +148,11 @@ namespace EpicGames.OIDC
 			return _tokenClients[providerIdentifier].GetAccessTokenAsync(cancellationToken);
 		}
 
+		public Task<OidcTokenInfo?> TryGetAccessToken(string providerIdentifier, CancellationToken cancellationToken = default)
+		{
+			return _tokenClients[providerIdentifier].TryGetAccessTokenAsync(cancellationToken);
+		}
+
 		public OidcStatus GetStatusForProvider(string providerIdentifier)
 		{
 			return _tokenClients[providerIdentifier].GetStatus();
@@ -449,7 +454,7 @@ namespace EpicGames.OIDC
 			return false;
 		}
 
-		private async Task<OidcTokenInfo> DoRefreshToken(string inRefreshToken, CancellationToken cancellationToken)
+		private async Task<OidcTokenInfo?> TryDoRefreshToken(string inRefreshToken, CancellationToken cancellationToken)
 		{
 			// redirect uri is not used for refrehs tokens so we can just pick one of them to configure the client
 			OidcClientOptions options = await BuildClientOptions(_redirectUris.First(), cancellationToken);
@@ -464,7 +469,7 @@ namespace EpicGames.OIDC
 				{
 					// the refresh token is no logger valid, resetting it and treating us as not logged in
 					_refreshToken = null;
-					throw new NotLoggedInException();
+					return null;
 				}
 				else
 				{
@@ -507,7 +512,18 @@ namespace EpicGames.OIDC
 
 			return disco;
 		}
+
 		public async Task<OidcTokenInfo> GetAccessTokenAsync(CancellationToken cancellationToken)
+		{
+			OidcTokenInfo? tokenInfo = await TryGetAccessTokenAsync(cancellationToken);
+			if (tokenInfo == null)
+			{
+				throw new NotLoggedInException();
+			}
+			return tokenInfo;
+		}
+
+		public async Task<OidcTokenInfo?> TryGetAccessTokenAsync(CancellationToken cancellationToken)
 		{
 			if (String.IsNullOrEmpty(_refreshToken))
 			{
@@ -526,7 +542,7 @@ namespace EpicGames.OIDC
 				};
 			}
 
-			return await DoRefreshToken(_refreshToken, cancellationToken);
+			return await TryDoRefreshToken(_refreshToken, cancellationToken);
 		}
 
 		public OidcStatus GetStatus()
