@@ -94,6 +94,12 @@ namespace Horde.Server.Jobs.Bisect
 		/// <inheritdoc cref="IBisectTask.InitialJobId"/>
 		public JobId InitialJobId => _bisectTask.InitialJobId;
 
+		/// <inheritdoc cref="IBisectTask.InitialStepId"/>
+		public SubResourceId InitialBatchId => _bisectTask.InitialStepId;
+
+		/// <inheritdoc cref="IBisectTask.InitialStepId"/>
+		public SubResourceId InitialStepId => _bisectTask.InitialStepId;
+
 		/// <inheritdoc cref="IBisectTask.InitialChange"/>
 		public int InitialChange => _bisectTask.InitialChange;
 
@@ -158,7 +164,6 @@ namespace Horde.Server.Jobs.Bisect
 		/// </summary>
 		public List<JobId> ExcludeJobs { get; set; } = new List<JobId>();
 	}
-
 
 	/// <summary>
 	/// Controller for the /api/v1/bisect endpoint
@@ -242,12 +247,27 @@ namespace Horde.Server.Jobs.Bisect
 				return BadRequest("Step has not failed");
 			}
 
+			IJobStepBatch? initialBatch = null;
+			foreach (IJobStepBatch batch in job.Batches)
+			{
+				if (batch.Steps.FirstOrDefault(x => x.Id == jobStep.Id) != null)
+				{
+					initialBatch = batch;
+					break;
+				}
+			}
+
+			if (initialBatch == null)
+			{
+				return BadRequest("Unable to find batch");
+			}
+
 			CreateBisectTaskOptions options = new CreateBisectTaskOptions();
 			options.CommitTags = create.CommitTags;
 			options.IgnoreChanges = create.IgnoreChanges;
 			options.IgnoreJobs = create.IgnoreJobs;
 
-			IBisectTask bisectTask = await _bisectTaskCollection.CreateAsync(job, create.NodeName, jobStep.Outcome, User.GetUserId() ?? UserId.Empty, options, cancellationToken);
+			IBisectTask bisectTask = await _bisectTaskCollection.CreateAsync(job, initialBatch.Id, jobStep.Id, create.NodeName, jobStep.Outcome, User.GetUserId() ?? UserId.Empty, options, cancellationToken);
 			return new CreateBisectTaskResponse(bisectTask);
 		}
 
@@ -342,7 +362,14 @@ namespace Horde.Server.Jobs.Bisect
 		async Task<GetBisectTaskResponse> CreateBisectTaskResponseAsync(IJob initialJob, IBisectTask task, CancellationToken cancellationToken = default)
 		{
 			IUser? user = await _userCollection.GetCachedUserAsync(task.OwnerId);
+
 			List<IJobStepRef> steps = await _jobStepRefs.GetStepsForNodeAsync(initialJob.StreamId, initialJob.TemplateId, task.NodeName, null, true, 1024, task.Id, cancellationToken);
+			IJobStepRef? initialStep = await _jobStepRefs.FindAsync(task.InitialJobId, task.InitialBatchId, task.InitialStepId);
+			if (initialStep != null) 
+			{
+				steps.Add(initialStep);
+			}
+
 			IJob? nextJob = task.State == BisectTaskState.Running ? await _jobCollection.FindBisectTaskJobsAsync(task.Id, true, cancellationToken).FirstOrDefaultAsync(cancellationToken) : null;
 			return new GetBisectTaskResponse(task, new GetThinUserInfoResponse(user), steps, nextJob);
 		}
@@ -421,7 +448,7 @@ namespace Horde.Server.Jobs.Bisect
 				IJob? job = jobs.FirstOrDefault(x => x.Id == task.InitialJobId);
 				if (job != null)
 				{
-					responses.Add(await CreateBisectTaskResponseAsync(job, task, cancellationToken));				
+					responses.Add(await CreateBisectTaskResponseAsync(job, task, cancellationToken));
 				}
 			}
 

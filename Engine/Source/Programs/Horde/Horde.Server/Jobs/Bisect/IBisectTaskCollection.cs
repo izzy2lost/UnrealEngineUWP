@@ -19,13 +19,15 @@ namespace Horde.Server.Jobs.Bisect
 		/// Creates a new bisect task
 		/// </summary>
 		/// <param name="job">First job to search back from</param>
+		/// <param name="batchId">Starting batch id for the bisection</param>
+		/// <param name="stepId">Starting batch id for the bisection</param>
 		/// <param name="nodeName">Name of the node to search for</param>
 		/// <param name="outcome">Outcome of the step to search for</param>
 		/// <param name="ownerId">User that initiated the search</param>
 		/// <param name="options">Options for the bisection</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The new bisect task instance</returns>
-		public Task<IBisectTask> CreateAsync(IJob job, string nodeName, JobStepOutcome outcome, UserId ownerId, CreateBisectTaskOptions? options = null, CancellationToken cancellationToken = default);
+		public Task<IBisectTask> CreateAsync(IJob job, SubResourceId batchId, SubResourceId stepId, string nodeName, JobStepOutcome outcome, UserId ownerId, CreateBisectTaskOptions? options = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Finds all the active bisect tasks

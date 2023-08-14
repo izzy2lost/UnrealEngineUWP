@@ -95,6 +95,16 @@ namespace Horde.Server.Jobs.Bisect
 		public JobId InitialJobId { get; }
 
 		/// <summary>
+		/// Starting batch id for the bisection
+		/// </summary>
+		public SubResourceId InitialBatchId { get; }
+
+		/// <summary>
+		/// Starting step id for the bisection
+		/// </summary>
+		public SubResourceId InitialStepId { get; }
+
+		/// <summary>
 		/// Starting change for the bisection
 		/// </summary>
 		public int InitialChange { get; }

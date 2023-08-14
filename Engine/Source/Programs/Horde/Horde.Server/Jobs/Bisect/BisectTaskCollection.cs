@@ -51,6 +51,12 @@ namespace Horde.Server.Jobs.Bisect
 			[BsonElement("job")]
 			public JobId InitialJobId { get; set; }
 
+			[BsonElement("batchid")]
+			public SubResourceId InitialBatchId { get; set; }
+
+			[BsonElement("stepid")]
+			public SubResourceId InitialStepId { get; set; }
+
 			[BsonElement("chg")]
 			public int InitialChange { get; set; }
 
@@ -87,7 +93,7 @@ namespace Horde.Server.Jobs.Bisect
 		}
 
 		/// <inheritdoc/>
-		public async Task<IBisectTask> CreateAsync(IJob job, string nodeName, JobStepOutcome outcome, UserId ownerId, CreateBisectTaskOptions? options, CancellationToken cancellationToken = default)
+		public async Task<IBisectTask> CreateAsync(IJob job, SubResourceId batchId, SubResourceId stepId, string nodeName, JobStepOutcome outcome, UserId ownerId, CreateBisectTaskOptions? options, CancellationToken cancellationToken = default)
 		{
 			BisectTaskDoc bisectTaskDoc = new BisectTaskDoc();
 			bisectTaskDoc.Id = BisectTaskId.GenerateNewId();
@@ -98,6 +104,8 @@ namespace Horde.Server.Jobs.Bisect
 			bisectTaskDoc.NodeName = nodeName;
 			bisectTaskDoc.Outcome = outcome;
 			bisectTaskDoc.InitialJobId = job.Id;
+			bisectTaskDoc.InitialBatchId = batchId;
+			bisectTaskDoc.InitialStepId = stepId;
 			bisectTaskDoc.InitialChange = job.Change;
 			bisectTaskDoc.CurrentJobId = job.Id;
 			bisectTaskDoc.CurrentChange = job.Change;

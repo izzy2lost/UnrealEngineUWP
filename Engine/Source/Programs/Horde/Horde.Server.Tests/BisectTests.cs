@@ -101,7 +101,7 @@ namespace Horde.Server.Tests
 			List<GetBisectTaskResponse> jobTasks = Deref(await BisectTasksController!.GetJobBisectTasksAsync(failedJob.Id));
 			Assert.AreEqual(1, jobTasks.Count);
 			Assert.AreEqual(failedJob.Id, jobTasks[0].InitialJobId);
-			Assert.AreEqual(3, jobTasks[0].Steps.Count);
+			Assert.AreEqual(4, jobTasks[0].Steps.Count);
 			Assert.AreEqual(BisectTaskState.Succeeded, jobTasks[0].State);
 
 		}
