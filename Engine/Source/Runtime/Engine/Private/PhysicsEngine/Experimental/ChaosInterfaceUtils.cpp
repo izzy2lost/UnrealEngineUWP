@@ -118,6 +118,10 @@ namespace ChaosInterface
 			const ECollisionEnabled::Type CombinedCollisionEnabled = CollisionEnabledIntersection(BodyCollisionEnabled, ShapeCollisionEnabled);
 			CollisionEnabledToFlags(CombinedCollisionEnabled, bEnableQuery, bEnableSim, bEnableProbe);
 
+			// Mirror behavior of FBodyInstance::BuildBodyCollisionFlags.
+			// At the chaos level, if probe is enabled, we must also have sim.
+			bEnableSim |= bEnableProbe;
+
 			// Set the parameters on the shape
 			NewShape->SetSimEnabled(bEnableSim);
 			NewShape->SetQueryEnabled(bEnableQuery);
