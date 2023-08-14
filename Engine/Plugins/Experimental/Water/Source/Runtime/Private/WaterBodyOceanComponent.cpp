@@ -220,10 +220,6 @@ bool UWaterBodyOceanComponent::GenerateWaterBodyMesh(UE::Geometry::FDynamicMesh3
 	// Expand the island slightly so we aren't intersecting with the spline
 	IslandBounds.Expand(1);
 
-	const FTransform& ComponentTransform = GetComponentTransform();
-	FVector RelativeLocationToZone = ComponentTransform.InverseTransformPosition(FVector(SavedZoneLocation, 0.));
-	RelativeLocationToZone.Z = ComponentTransform.GetLocation().Z;
-
 	const FVector2D OceanExtentScaled = OceanExtents / FVector2D(GetComponentScale());
 
 	const FBox OceanBounds3d = CalcBounds(FTransform::Identity).GetBox();
@@ -496,7 +492,7 @@ void UWaterBodyOceanComponent::OnPostRegisterAllComponents()
 FBoxSphereBounds UWaterBodyOceanComponent::CalcBounds(const FTransform& LocalToWorld) const
 {
 	const FTransform& ComponentTransform = GetComponentTransform();
-	FVector RelativeLocationToZone = ComponentTransform.InverseTransformPosition(FVector(SavedZoneLocation, 0.));
+	FVector RelativeLocationToZone = bCenterOnWaterZone ? ComponentTransform.InverseTransformPosition(FVector(SavedZoneLocation, 0.0)) : FVector::ZeroVector;
 	RelativeLocationToZone.Z = 0;
 
 	const FVector2D OceanExtentScaled = (OceanExtents / FVector2D(GetComponentScale())) / 2.;
