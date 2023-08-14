@@ -239,12 +239,12 @@ public class Core : ModuleRules
 				{
 					PublicAdditionalLibraries.Add(Path.Combine(SuperluminalLibDir, "PerformanceAPI_MD.lib"));
 				}
-				PublicDefinitions.Add("WITH_SUPERLUMINAL_PROFILER=1");					  
-				PublicSystemIncludePaths.Add(Path.Combine(SuperluminalApiDir, "include/"));
+				PrivateDefinitions.Add("WITH_SUPERLUMINAL_PROFILER=1");
+				PrivateIncludePaths.Add(Path.Combine(SuperluminalApiDir, "include/"));
 			}
 			else
 			{
-				PublicDefinitions.Add("WITH_SUPERLUMINAL_PROFILER=0");
+				PrivateDefinitions.Add("WITH_SUPERLUMINAL_PROFILER=0");
 			}
 		}
 
