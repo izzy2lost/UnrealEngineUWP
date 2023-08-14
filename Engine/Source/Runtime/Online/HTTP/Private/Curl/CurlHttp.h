@@ -351,6 +351,7 @@ private:
 
 	/** Broadcast newly received headers */
 	void BroadcastNewlyReceivedHeaders();
+	void BroadcastNewlyReceivedHeader(const FString& HeaderKey, const FString& HeaderValue);
 
 	/** Combine a header's key/value in the format "Key: Value" */
 	static FString CombineHeaderKeyValue(const FString& HeaderKey, const FString& HeaderValue);
