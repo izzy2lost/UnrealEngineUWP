@@ -12,8 +12,8 @@ namespace UnrealBuildTool.Rules
                 new string[]
 				{
 					"Core",
-					"CoreUObject",
 					"CoreOnline",
+					"CoreUObject",
                     "Engine",
                     "HTTP",
 					"NetworkReplayStreaming",
