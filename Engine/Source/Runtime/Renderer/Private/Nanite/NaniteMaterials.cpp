@@ -3970,10 +3970,6 @@ FNaniteVisibility::PrimitiveDrawType* FNaniteVisibility::GetShadingDrawReference
 
 void FNaniteVisibility::RemoveReferences(const FPrimitiveSceneInfo* SceneInfo)
 {
-	if (!GNaniteMaterialVisibility)
-	{
-		return;
-	}
-
+	// Always remove references even when nanite visibility is disabled, as the CVar could change state while a primitive is attached to the scene.
 	PrimitiveReferences.Remove(SceneInfo);
 }
