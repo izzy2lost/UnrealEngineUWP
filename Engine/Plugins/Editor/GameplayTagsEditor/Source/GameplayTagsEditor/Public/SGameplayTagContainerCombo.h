@@ -8,7 +8,6 @@
 #include "Widgets/Views/SListView.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "GameplayTagContainer.h"
-#include "EditorUndoClient.h"
 #include "SGameplayTagChip.h"
 
 class IPropertyHandle;
@@ -21,7 +20,7 @@ class SComboButton;
 /**
  * Widget for editing a Gameplay Tag Container.
  */
-class SGameplayTagContainerCombo : public SCompoundWidget, public FEditorUndoClient
+class SGameplayTagContainerCombo : public SCompoundWidget
 {
 	SLATE_DECLARE_WIDGET(SGameplayTagContainerCombo, SCompoundWidget)
 	
@@ -68,12 +67,6 @@ public:
 
 	GAMEPLAYTAGSEDITOR_API void Construct(const FArguments& InArgs);
 
-protected:
-	//~ Begin FEditorUndoClient Interface
-	virtual void PostUndo(bool bSuccess) override;
-	virtual void PostRedo(bool bSuccess) override;
-	//~ End FEditorUndoClient Interface
-
 private:
 
 	struct FEditableItem
@@ -90,6 +83,7 @@ private:
 		bool bMultipleValues = false;
 	};
 
+	void OnPostUndoRedo();
 	bool IsValueEnabled() const;
 	void RefreshTagContainers();
 	TSharedRef<ITableRow> MakeTagListViewRow(TSharedPtr<FEditableItem> Item, const TSharedRef<STableViewBase>& OwnerTable);
@@ -115,11 +109,11 @@ private:
 	FString Filter;
 	FString SettingsName;
 	bool bIsReadOnly = false;
-	bool bRegisteredForUndo = false;
 	FOnTagContainerChanged OnTagContainerChanged;
 	TSharedPtr<IPropertyHandle> PropertyHandle;
 	TSharedPtr<SMenuAnchor> MenuAnchor;
 	TSharedPtr<SComboButton> ComboButton;
 	TSharedPtr<SGameplayTagPicker> TagPicker;
 	FGameplayTag TagToHilight;
+	FDelegateHandle PostUndoRedoDelegateHandle;
 };

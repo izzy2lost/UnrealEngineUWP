@@ -187,6 +187,9 @@ public:
 	// End of SWidget interface
 
 protected:
+
+	void UpdatePropertyView(const float InDeltaTime);
+
 	/**
 	 * Called when a color property is changed from a color picker
 	 */

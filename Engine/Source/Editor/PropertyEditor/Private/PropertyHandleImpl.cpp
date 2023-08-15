@@ -56,6 +56,11 @@ FPropertyValueImpl::FPropertyValueImpl( TSharedPtr<FPropertyNode> InPropertyNode
 
 void FPropertyValueImpl::EnumerateObjectsToModify( FPropertyNode* InPropertyNode, const EnumerateObjectsToModifyFuncRef& InObjectsToModifyCallback ) const
 {
+	if (!InPropertyNode)
+	{
+		return;
+	}
+	
 	// Find the parent object node which contains offset addresses for reading a property value on an object
 	FComplexPropertyNode* ComplexNode = InPropertyNode->FindComplexParent();
 	if (ComplexNode)
@@ -834,17 +839,18 @@ FPropertyAccess::Result FPropertyValueImpl::SetValueAsString( const FString& InV
 
 		// If more than one object is selected, an empty field indicates their values for this property differ.
 		// Don't send it to the objects value in this case (if we did, they would all get set to None which isn't good).
-		FComplexPropertyNode* ParentNode = PropertyNodePin->FindComplexParent();
-
-		FString PreviousValue;
-		GetValueAsString( PreviousValue );
-
-		const bool bDidValueChange = Value.Len() && (FCString::Strcmp(*PreviousValue, *Value) != 0);
-		const bool bComingOutOfInteractiveChange = bInteractiveChangeInProgress && ( ( Flags & EPropertyValueSetFlags::InteractiveChange ) != EPropertyValueSetFlags::InteractiveChange );
-
-		if ( ParentNode && ( ParentNode->GetInstancesNum() == 1 || bComingOutOfInteractiveChange || bDidValueChange ) )
+		if (FComplexPropertyNode* ParentNode = PropertyNodePin->FindComplexParent())
 		{
-			ImportText( Value, PropertyNodePin.Get(), Flags );
+			FString PreviousValue;
+			GetValueAsString( PreviousValue );
+
+			const bool bDidValueChange = Value.Len() && (FCString::Strcmp(*PreviousValue, *Value) != 0);
+			const bool bComingOutOfInteractiveChange = bInteractiveChangeInProgress && ( ( Flags & EPropertyValueSetFlags::InteractiveChange ) != EPropertyValueSetFlags::InteractiveChange );
+
+			if ( ParentNode->GetInstancesNum() == 1 || bComingOutOfInteractiveChange || bDidValueChange )
+			{
+				ImportText( Value, PropertyNodePin.Get(), Flags );
+			}
 		}
 
 		Result = FPropertyAccess::Success;

@@ -7,7 +7,6 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "GameplayTagContainer.h"
-#include "EditorUndoClient.h"
 #include "SGameplayTagChip.h"
 
 class IPropertyHandle;
@@ -19,7 +18,7 @@ class SGameplayTagPicker;
 /**
  * Widget for editing a Gameplay Tag.
  */
-class SGameplayTagCombo : public SCompoundWidget, public FEditorUndoClient
+class SGameplayTagCombo : public SCompoundWidget
 {
 	SLATE_DECLARE_WIDGET(SGameplayTagCombo, SCompoundWidget)
 
@@ -66,14 +65,9 @@ public:
 
 	GAMEPLAYTAGSEDITOR_API void Construct(const FArguments& InArgs);
 
-protected:
-	//~ Begin FEditorUndoClient Interface
-	virtual void PostUndo(bool bSuccess) override;
-	virtual void PostRedo(bool bSuccess) override;
-	//~ End FEditorUndoClient Interface
-
 private:
 
+	void OnPostUndoRedo();
 	bool ShowClearButton() const;
 	FText GetText() const;
 	bool IsValueEnabled() const;
@@ -98,10 +92,10 @@ private:
 	bool bIsReadOnly = false;
 	FString Filter;
 	FString SettingsName;
-	bool bRegisteredForUndo = false;
 	FOnTagChanged OnTagChanged;
 	TSharedPtr<IPropertyHandle> PropertyHandle;
 	TSharedPtr<SMenuAnchor> MenuAnchor;
 	TSharedPtr<SComboButton> ComboButton;
 	TSharedPtr<SGameplayTagPicker> TagPicker;
+	FDelegateHandle PostUndoRedoDelegateHandle;
 };

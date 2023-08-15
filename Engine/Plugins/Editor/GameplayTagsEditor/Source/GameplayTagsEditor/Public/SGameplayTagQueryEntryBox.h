@@ -6,7 +6,6 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "GameplayTagContainer.h"
-#include "EditorUndoClient.h"
 #include "SGameplayTagQueryWidget.h"
 
 class IPropertyHandle;
@@ -15,7 +14,7 @@ class SHorizontalBox;
 /**
  * Widget for editing a Gameplay Tag Query.
  */
-class SGameplayTagQueryEntryBox : public SCompoundWidget, public FEditorUndoClient
+class SGameplayTagQueryEntryBox : public SCompoundWidget
 {
 	SLATE_DECLARE_WIDGET(SGameplayTagQueryEntryBox, SCompoundWidget)
 	
@@ -52,14 +51,9 @@ public:
 
 	GAMEPLAYTAGSEDITOR_API void Construct(const FArguments& InArgs);
 
-protected:
-	//~ Begin FEditorUndoClient Interface
-	virtual void PostUndo(bool bSuccess) override;
-	virtual void PostRedo(bool bSuccess) override;
-	//~ End FEditorUndoClient Interface
-
 private:
 
+	void OnPostUndoRedo();
 	void CacheQueryList();
 	FReply OnEditButtonClicked();
 	FReply OnClearAllButtonClicked();
@@ -74,7 +68,6 @@ private:
 
 	bool bIsReadOnly = false;
 	FString Filter;
-	bool bRegisteredForUndo = false;
 	FOnTagQueryChanged OnTagQueryChanged;
 	TSharedPtr<IPropertyHandle> PropertyHandle;
 	TArray<FGameplayTagQuery> CachedQueries;
@@ -85,4 +78,6 @@ private:
 	
 	FText QueryDescription;
 	FText QueryDescriptionTooltip;
+	
+	FDelegateHandle PostUndoRedoDelegateHandle;
 };

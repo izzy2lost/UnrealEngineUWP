@@ -90,8 +90,8 @@ FPropertyNode::~FPropertyNode()
 void FPropertyNode::InitNode(const FPropertyNodeInitParams& InitParams)
 {
 	//Dismantle the previous tree
-	DestroyTree();
-
+	DestroyTree(/*bInDestroySelf*/false);
+	
 	//tree hierarchy
 	check(InitParams.ParentNode.Get() != this);
 	ParentNodeWeakPtr = InitParams.ParentNode;
@@ -255,14 +255,15 @@ void FPropertyNode::InitNode(const FPropertyNodeInitParams& InitParams)
 		SetNodeFlags( EPropertyNodeFlags::RequiresValidation, bRequiresValidation );
 	}
 
+	// Build property path before building children so that we have parent property path for debugging.
+	PropertyPath = FPropertyNode::CreatePropertyPath(this->AsShared())->ToString();
+	
 	InitExpansionFlags();
 
 	if (InitParams.bAllowChildren)
 	{
 		RebuildChildren();
 	}
-
-	PropertyPath = FPropertyNode::CreatePropertyPath(this->AsShared())->ToString();
 }
 
 /**
@@ -2667,7 +2668,25 @@ bool FPropertyNode::IsChildOfFavorite (void) const
  */
 void FPropertyNode::DestroyTree(const bool bInDestroySelf)
 {
-	ChildNodes.Empty();
+	if (bInDestroySelf)
+	{
+		// Detach from parent, so that instances of this node will not be able to follow the parent chain.
+		// Some code, like property rows, hold hard references to the nodes, so this method does not actually
+		// destroy the child nodes, it happens much later when we refresh the property nodes.
+		// Breaking the chain prevents the "destroyed" nodes accessing the parent (complex) nodes,
+		// which may already point to completely different data (and have new child nodes).
+		ParentNodeWeakPtr = nullptr;
+	}
+	
+	if (ChildNodes.Num() > 0)
+	{
+		// Detach and drop children.
+		for (TSharedPtr<FPropertyNode>& ChildNode : ChildNodes)
+		{
+			ChildNode->DestroyTree();
+		}
+		ChildNodes.Empty();
+	}
 }
 
 /**
