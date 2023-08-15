@@ -5064,8 +5064,6 @@ void FRigConnectorElementDetails::CustomizeSettings(IDetailLayoutBuilder& Detail
 	DetailBuilder.HideProperty(SettingsHandle);
 
 	IDetailCategoryBuilder& SettingsCategory = DetailBuilder.EditCategory(TEXT("Settings"), LOCTEXT("Settings", "Settings"));
-
-	SettingsCategory.AddProperty(SettingsHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FRigConnectorSettings, ResolvedItem))).IsEnabled(false);
 }
 
 #undef LOCTEXT_NAMESPACE

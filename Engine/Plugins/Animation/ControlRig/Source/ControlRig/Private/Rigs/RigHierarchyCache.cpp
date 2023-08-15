@@ -67,3 +67,16 @@ bool FCachedRigElement::IsIdentical(const FRigElementKey& InKey, const URigHiera
 	return InKey == Key && InHierarchy->GetTopologyVersion() == ContainerVersion;
 }
 
+FRigElementKeyRedirector::FRigElementKeyRedirector(const TMap<FRigElementKey, FRigElementKey>& InMap, const URigHierarchy* InHierarchy)
+{
+	check(InHierarchy);
+	InternalKeyToExternalKey.Reserve(InMap.Num());
+	ExternalKeys.Reserve(InMap.Num());
+	for(const TPair<FRigElementKey, FRigElementKey>& Pair : InMap)
+	{
+		check(Pair.Key.IsValid());
+		InternalKeyToExternalKey.Add(Pair.Key, FCachedRigElement(Pair.Value, InHierarchy));
+		ExternalKeys.Add(Pair.Value);
+	}
+}
+

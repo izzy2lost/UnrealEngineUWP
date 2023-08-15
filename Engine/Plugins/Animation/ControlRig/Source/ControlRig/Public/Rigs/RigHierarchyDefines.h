@@ -1534,7 +1534,7 @@ public:
 			}
 			case ERigElementType::Null:
 			{
-				return FString::Printf(TEXT("Space(%s)"), *Name.ToString());
+				return FString::Printf(TEXT("Null(%s)"), *Name.ToString());
 			}
 			case ERigElementType::Control:
 			{
@@ -1552,7 +1552,12 @@ public:
 			{
 				return FString::Printf(TEXT("Reference(%s)"), *Name.ToString());
 			}
+			case ERigElementType::Connector:
+			{
+				return FString::Printf(TEXT("Connector(%s)"), *Name.ToString());
+			}
 		}
+		
 		return FString();
 	}
 

@@ -6,6 +6,7 @@
 #include "RigVMCore/RigVMExecuteContext.h"
 #include "RigVMCore/RigVM.h"
 #include "RigHierarchyElements.h"
+#include "RigHierarchyCache.h"
 #include "RigHierarchyPose.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "EdGraph/EdGraphPin.h"
@@ -336,6 +337,22 @@ public:
 	 */
 	int32 GetIndex(const FRigElementKey& InKey) const
 	{
+		if(ElementRedirector)
+		{
+			if(FCachedRigElement* CachedRigElement = ElementRedirector->Find(InKey))
+			{
+				if(CachedRigElement->UpdateCache(this))
+				{
+					return CachedRigElement->GetIndex();
+				}
+				return INDEX_NONE;
+			}
+			if(ElementRedirector->ContainsExternalKey(InKey))
+			{
+				return INDEX_NONE;
+			}
+		}
+		
 		if(const int32* Index = IndexLookup.Find(InKey))
 		{
 			return *Index;
@@ -872,6 +889,24 @@ public:
 		return GetKeysOfType<FRigReferenceElement>(bTraverse);
 	}
 
+	/**
+	 * Returns all Connector elements
+	 * @param bTraverse Returns the elements in order of a depth first traversal
+	 */
+	TArray<FRigConnectorElement*> GetConnectors(bool bTraverse = false) const
+	{
+		return GetElementsOfType<FRigConnectorElement>(bTraverse);
+	}
+
+	/**
+	 * Returns all Connector elements
+	 * @param bTraverse Returns the elements in order of a depth first traversal
+	 */
+	UFUNCTION(BlueprintCallable, Category = URigHierarchy, meta = (DisplayName = "Get Connectors", ScriptName = "GetConnectors"))
+	TArray<FRigElementKey> GetConnectorKeys(bool bTraverse = true) const
+	{
+		return GetKeysOfType<FRigConnectorElement>(bTraverse);
+	}
 	/**
 	 * Returns all root elements
 	 */
@@ -3175,6 +3210,17 @@ public:
 	void Traverse(TFunction<void(FRigBaseElement*, bool& /* continue */)> PerElementFunction, bool bTowardsChildren = true) const;
 
 	/**
+	 * Returns true if a hierarchy can be linked into another hierarchy. This relies on Connector elements
+	 * as the relevant landmarks providing rules for validation.
+	 */
+	UFUNCTION(BlueprintCallable, Category = URigHierarchy, meta = (DisplayName = "Can Link", ScriptName = "CanConnect"))
+	bool CanConnect_ForBlueprint(FRigConnectionInfo InConnectionInfo) const
+	{
+		return CanConnect(&InConnectionInfo);
+	}
+	bool CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason = nullptr) const;
+
+	/**
 	 * Performs undo for one transform change
 	 */
 	bool Undo();
@@ -4446,6 +4492,8 @@ private:
 		}
 	}
 
+	FRigElementKeyRedirector* ElementRedirector;
+
 	void UpdateVisibilityOnProxyControls();
 
 	static const TArray<FString>& GetTransformTypeStrings();
@@ -4474,6 +4522,7 @@ private:
 	friend struct FControlRigVisualGraphUtils;
 	friend struct FRigHierarchyEnableControllerBracket;
 	friend struct FRigHierarchyExecuteContextBracket;
+	friend struct FRigHierarchyRedirectorGuard;
 };
 
 struct CONTROLRIG_API FRigHierarchyInteractionBracket
@@ -4589,6 +4638,18 @@ public:
 private:
 
 	bool bPreviousValue;
+};
+
+struct CONTROLRIG_API FRigHierarchyRedirectorGuard
+{
+public:
+	FRigHierarchyRedirectorGuard(URigHierarchy* InHierarchy, FRigElementKeyRedirector& InRedirector)
+		: Guard(InHierarchy->ElementRedirector, &InRedirector)
+	{
+	}
+
+private:
+	TGuardValue<FRigElementKeyRedirector*> Guard;
 };
 
 template<>

@@ -1461,29 +1461,66 @@ void FRigConnectorSettings::Save(FArchive& Ar)
 {
 	Ar.UsingCustomVersion(FControlRigObjectVersion::GUID);
 
-	Ar << ResolvedItem;
+	Ar << Description;
+
+	int32 NumRules = Rules.Num();
+	Ar << NumRules;
+	for(int32 Index = 0; Index < NumRules; Index++)
+	{
+
+		Rules[Index].Save(Ar);
+	}
 }
 
 void FRigConnectorSettings::Load(FArchive& Ar)
 {
 	Ar.UsingCustomVersion(FControlRigObjectVersion::GUID);
 
-	Ar << ResolvedItem;
-}
+	Ar << Description;
 
-uint32 GetTypeHash(const FRigConnectorSettings& Settings)
-{
-	uint32 Hash = GetTypeHash(Settings.ResolvedItem);
-	return Hash;
+	int32 NumRules = 0;
+	Ar << NumRules;
+	Rules.SetNumZeroed(NumRules);
+	for(int32 Index = 0; Index < NumRules; Index++)
+	{
+
+		Rules[Index].Load(Ar);
+	}
 }
 
 bool FRigConnectorSettings::operator==(const FRigConnectorSettings& InOther) const
 {
-	if(ResolvedItem != InOther.ResolvedItem)
+	if(!Description.Equals(InOther.Description, ESearchCase::CaseSensitive))
 	{
 		return false;
 	}
+	if(Rules.Num() != InOther.Rules.Num())
+	{
+		return false;
+	}
+	for(int32 Index = 0; Index < Rules.Num(); Index++)
+	{
+		if(Rules[Index] != InOther.Rules[Index])
+		{
+			return false;
+		}
+	}
 	return true;
+}
+
+uint32 FRigConnectorSettings::GetRulesHash() const
+{
+	uint32 Hash = GetTypeHash(Rules.Num());
+	for(const FRigConnectionRuleStash& Rule : Rules)
+	{
+		Hash = HashCombine(Hash, GetTypeHash(Rule));
+	}
+	return Hash;
+}
+
+uint32 GetTypeHash(const FRigConnectorSettings& Settings)
+{
+	return Settings.GetRulesHash();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1508,6 +1545,92 @@ void FRigConnectorElement::Load(FArchive& Ar, URigHierarchy* Hierarchy, ESeriali
 	{
 		Settings.Load(Ar);
 	}
+}
+
+bool FRigConnectorElement::CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason) const
+{
+	check(InConnectionInfo);
+	check(InConnectionInfo->IsValid());
+
+	if(!InConnectionInfo->ConnectionMap.Contains(GetKey()))
+	{
+		if(OutFailureReason)
+		{
+			static constexpr TCHAR Format[] = TEXT("Connector '%s' is not mapped in ConnectionMap.");
+			OutFailureReason->Appendf(Format, *GetKey().ToString());
+		}
+		return false;
+	}
+
+	for(const FRigConnectionRuleStash& Stash : Settings.Rules)
+	{
+		TSharedPtr<FStructOnScope> RuleScope;
+		const FRigConnectionRule* Rule = Stash.Get(RuleScope);
+		if(Rule == nullptr)
+		{
+			if(OutFailureReason)
+			{
+				static constexpr TCHAR Format[] = TEXT("Rule '%s' could not be loaded from '%s'");
+				OutFailureReason->Appendf(Format, *Stash.ScriptStructPath, *Stash.ExportedText);
+			}
+			return false;
+		}
+
+		FRigConnectionInfo InfoPerRule = *InConnectionInfo;
+		InfoPerRule.ConnectionMap.Reset();
+		InfoPerRule.ConnectionMap.Add(GetKey(), InConnectionInfo->ConnectionMap.FindChecked(GetKey()));
+
+		const TArray<FRigElementKey> AdditionalConnectorKeys = Rule->GetAdditionalConnectors();
+		for(const FRigElementKey& AdditionalConnectorKey : AdditionalConnectorKeys)
+		{
+			if(AdditionalConnectorKey.Type != ERigElementType::Connector)
+			{
+				if(OutFailureReason)
+				{
+					static constexpr TCHAR Format[] = TEXT("Additionally required connector '%s' is not a connector.");
+					OutFailureReason->Appendf(Format, *AdditionalConnectorKey.ToString());
+				}
+				return false;
+			}
+			if(!InConnectionInfo->SourceHierarchy->Contains(AdditionalConnectorKey))
+			{
+				if(OutFailureReason)
+				{
+					static constexpr TCHAR Format[] = TEXT("Additionally required connector '%s' does not exist.");
+					OutFailureReason->Appendf(Format, *AdditionalConnectorKey.ToString());
+				}
+				return false;
+			}
+			if(!InConnectionInfo->ConnectionMap.Contains(AdditionalConnectorKey))
+			{
+				if(OutFailureReason)
+				{
+					static constexpr TCHAR Format[] = TEXT("Additionally required connector '%s' not provided as part of ConnectionMap.");
+					OutFailureReason->Appendf(Format, *AdditionalConnectorKey.ToString());
+				}
+				return false;
+			}
+			const FRigElementKey& AdditionalTargetKey = InConnectionInfo->ConnectionMap.FindChecked(AdditionalConnectorKey);
+			if(!InConnectionInfo->TargetHierarchy->Contains(AdditionalTargetKey))
+			{
+				if(OutFailureReason)
+				{
+					static constexpr TCHAR Format[] = TEXT("Target element '%s' does not exist.");
+					OutFailureReason->Appendf(Format, *AdditionalConnectorKey.ToString());
+				}
+				return false;
+			}
+
+			InfoPerRule.ConnectionMap.Add(AdditionalConnectorKey, AdditionalTargetKey);
+		}
+
+		if(!Rule->CanConnect(&InfoPerRule, OutFailureReason))
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
 void FRigConnectorElement::CopyFrom(URigHierarchy* InHierarchy, FRigBaseElement* InOther, URigHierarchy* InOtherHierarchy)

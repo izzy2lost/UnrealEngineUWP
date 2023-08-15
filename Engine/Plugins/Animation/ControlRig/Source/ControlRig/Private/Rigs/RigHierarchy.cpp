@@ -124,6 +124,7 @@ URigHierarchy::URigHierarchy()
 #if WITH_EDITOR
 , bRecordTransformsAtRuntime(true)
 #endif
+, ElementRedirector(nullptr)
 {
 	Reset();
 #if WITH_EDITOR
@@ -1970,7 +1971,7 @@ bool URigHierarchy::CanSwitchToParent(FRigElementKey InChild, FRigElementKey InP
 	{
 		if(OutFailureReason)
 		{
-			*OutFailureReason = FString::Printf(TEXT("Child Element %s cannot be found."), *InChild.ToString());
+			OutFailureReason->Appendf(TEXT("Child Element %s cannot be found."), *InChild.ToString());
 		}
 		return false;
 	}
@@ -1987,7 +1988,7 @@ bool URigHierarchy::CanSwitchToParent(FRigElementKey InChild, FRigElementKey InP
 		
 		if(OutFailureReason)
 		{
-			*OutFailureReason = FString::Printf(TEXT("Parent Element %s cannot be found."), *InParent.ToString());
+			OutFailureReason->Appendf(TEXT("Parent Element %s cannot be found."), *InParent.ToString());
 		}
 		return false;
 	}
@@ -2003,7 +2004,7 @@ bool URigHierarchy::CanSwitchToParent(FRigElementKey InChild, FRigElementKey InP
 	{
 		if(OutFailureReason)
 		{
-			*OutFailureReason = FString::Printf(TEXT("Child Element %s does not allow space switching (it's not a multi parent element)."), *InChild.ToString());
+			OutFailureReason->Appendf(TEXT("Child Element %s does not allow space switching (it's not a multi parent element)."), *InChild.ToString());
 		}
 	}
 
@@ -2012,7 +2013,7 @@ bool URigHierarchy::CanSwitchToParent(FRigElementKey InChild, FRigElementKey InP
 	{
 		if(OutFailureReason)
 		{
-			*OutFailureReason = FString::Printf(TEXT("Parent Element %s is not a transform element"), *InParent.ToString());
+			OutFailureReason->Appendf(TEXT("Parent Element %s is not a transform element"), *InParent.ToString());
 		}
 	}
 
@@ -2020,7 +2021,7 @@ bool URigHierarchy::CanSwitchToParent(FRigElementKey InChild, FRigElementKey InP
 	{
 		if(OutFailureReason)
 		{
-			*OutFailureReason = FString::Printf(TEXT("Cannot switch '%s' to '%s' - would cause a cycle."), *InChild.ToString(), *InParent.ToString());
+			OutFailureReason->Appendf(TEXT("Cannot switch '%s' to '%s' - would cause a cycle."), *InChild.ToString(), *InParent.ToString());
 		}
 		return false;
 	}
@@ -2292,6 +2293,98 @@ void URigHierarchy::Traverse(TFunction<void(FRigBaseElement*, bool& /* continue 
 			}
 		}
 	}
+}
+
+bool URigHierarchy::CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason) const
+{
+	check(InConnectionInfo);
+	check(InConnectionInfo->IsValid());
+
+	// make sure all connectors are provided
+	const TArray<FRigConnectorElement*> ExpectedConnectors = InConnectionInfo->SourceHierarchy->GetConnectors(false);
+	for(const FRigConnectorElement* ExpectedConnector : ExpectedConnectors)
+	{
+		if(!InConnectionInfo->ConnectionMap.Contains(ExpectedConnector->GetKey()))
+		{
+			if(OutFailureReason)
+			{
+				static constexpr TCHAR Format[] = TEXT("Connector key '%s' not provided as part of the connection map.");
+				OutFailureReason->Appendf(Format, *ExpectedConnector->GetKey().ToString());
+			}
+			return false;
+		}
+	}
+	
+	for(const TPair<FRigElementKey, FRigElementKey>& Pair : InConnectionInfo->ConnectionMap)
+	{
+		const FRigElementKey& ConnectorKey = Pair.Key;
+		const FRigElementKey& TargetKey = Pair.Value;
+
+		if(!ConnectorKey.IsValid())
+		{
+			if(OutFailureReason)
+			{
+				static constexpr TCHAR Format[] = TEXT("Connector key '%s' is not valid.");
+				OutFailureReason->Appendf(Format, *ConnectorKey.ToString());
+			}
+			return false;
+		}
+		if(ConnectorKey.Type != ERigElementType::Connector)
+		{
+			if(OutFailureReason)
+			{
+				static constexpr TCHAR Format[] = TEXT("Connector key '%s' is not a connector.");
+				OutFailureReason->Appendf(Format, *ConnectorKey.ToString());
+			}
+			return false;
+		}
+		if(!TargetKey.IsValid())
+		{
+			if(OutFailureReason)
+			{
+				static constexpr TCHAR Format[] = TEXT("Target key '%s' is not valid.");
+				OutFailureReason->Appendf(Format, *TargetKey.ToString());
+			}
+			return false;
+		}
+
+		const FRigConnectorElement* Connector = InConnectionInfo->SourceHierarchy->Find<FRigConnectorElement>(ConnectorKey); 
+		if(Connector == nullptr)
+		{
+			if(OutFailureReason)
+			{
+				static constexpr TCHAR Format[] = TEXT("Connector element '%s' does not exist.");
+				OutFailureReason->Appendf(Format, *ConnectorKey.ToString());
+			}
+			return false;
+		}
+		const FRigBaseElement* Target = Find<FRigBaseElement>(TargetKey);
+		if(Target == nullptr)
+		{
+			if(OutFailureReason)
+			{
+				static constexpr TCHAR Format[] = TEXT("Target element '%s' does not exist.");
+				OutFailureReason->Appendf(Format, *TargetKey.ToString());
+			}
+			return false;
+		}
+		const FRigTransformElement* TargetTransform = Cast<FRigTransformElement>(Target);
+		if(TargetTransform == nullptr)
+		{
+			if(OutFailureReason)
+			{
+				static constexpr TCHAR Format[] = TEXT("Target element '%s' is not a transform.");
+				OutFailureReason->Appendf(Format, *TargetKey.ToString());
+			}
+			return false;
+		}
+
+		if(!Connector->CanConnect(InConnectionInfo, OutFailureReason))
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 bool URigHierarchy::Undo()

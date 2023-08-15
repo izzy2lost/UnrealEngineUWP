@@ -150,3 +150,24 @@ private:
 
 	const FRigBaseElement* Element;
 };
+
+class CONTROLRIG_API FRigElementKeyRedirector
+{
+public:
+
+	FRigElementKeyRedirector()
+		: InternalKeyToExternalKey()
+	{}
+
+	FRigElementKeyRedirector(const TMap<FRigElementKey, FRigElementKey>& InMap, const URigHierarchy* InHierarchy);
+	
+	bool Contains(const FRigElementKey& InKey) const { return InternalKeyToExternalKey.Contains(InKey); }
+	bool ContainsExternalKey(const FRigElementKey& InKey) const { return ExternalKeys.Contains(InKey); }
+	const FCachedRigElement* Find(const FRigElementKey& InKey) const { return InternalKeyToExternalKey.Find(InKey); }
+	FCachedRigElement* Find(const FRigElementKey& InKey) { return InternalKeyToExternalKey.Find(InKey); }
+
+private:
+
+	TMap<FRigElementKey, FCachedRigElement> InternalKeyToExternalKey;
+	TSet<FRigElementKey> ExternalKeys;
+};

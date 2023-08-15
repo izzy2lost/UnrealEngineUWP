@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "RigHierarchyDefines.h"
 #include "RigHierarchyMetadata.h"
+#include "RigConnectionRules.h"
 #include "RigHierarchyElements.generated.h"
 
 struct FRigVMExecuteContext;
@@ -1559,6 +1560,43 @@ protected:
 };
 
 USTRUCT(BlueprintType)
+struct CONTROLRIG_API FRigConnectionInfo
+{
+	GENERATED_BODY()
+
+public:
+	
+	FRigConnectionInfo()
+	: SourceHierarchy(nullptr)
+	, TargetHierarchy(nullptr)
+	{}
+
+	FRigConnectionInfo(const TMap<FRigElementKey, FRigElementKey>& InMap, URigHierarchy* InSourceHierarchy, URigHierarchy* InTargetHierarchy)
+	: ConnectionMap(InMap)
+	, SourceHierarchy(InSourceHierarchy)
+	, TargetHierarchy(InTargetHierarchy)
+	{}
+
+	bool IsValid() const
+	{
+		return (!ConnectionMap.IsEmpty()) && (SourceHierarchy != nullptr) && (TargetHierarchy != nullptr);
+	}
+
+	// The keys of the connectors in the source hierarchy
+	// mapping to the to-be-linked keys of the elements in the target hierarchy
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Limit)
+	TMap<FRigElementKey, FRigElementKey> ConnectionMap;
+
+	// The hierarchy owning the connectors
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Limit)
+	URigHierarchy* SourceHierarchy; 
+
+	// The hierarchy to be linked into
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Limit)
+	URigHierarchy* TargetHierarchy; 
+};
+
+USTRUCT(BlueprintType)
 struct CONTROLRIG_API FRigConnectorSettings
 {
 	GENERATED_BODY()
@@ -1571,7 +1609,10 @@ struct CONTROLRIG_API FRigConnectorSettings
 	friend uint32 GetTypeHash(const FRigConnectorSettings& Settings);
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Control)
-	FRigElementKey ResolvedItem;
+	FString Description;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Control)
+	TArray<FRigConnectionRuleStash> Rules;
 
 	bool operator == (const FRigConnectorSettings& InOther) const;
 
@@ -1579,6 +1620,14 @@ struct CONTROLRIG_API FRigConnectorSettings
 	{
 		return !(*this == InOther);
 	}
+
+	template<typename T>
+	int32 AddRule(const T& InRule)
+	{
+		return Rules.Emplace(&InRule);
+	}
+
+	uint32 GetRulesHash() const;
 };
 
 USTRUCT(BlueprintType)
@@ -1600,6 +1649,8 @@ public:
 	virtual void Save(FArchive& A, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase) override;
 	virtual void Load(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase) override;
 
+	bool CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason) const;
+	
 private:
 
 	virtual void CopyFrom(URigHierarchy* InHierarchy, FRigBaseElement* InOther, URigHierarchy* InOtherHierarchy) override;
