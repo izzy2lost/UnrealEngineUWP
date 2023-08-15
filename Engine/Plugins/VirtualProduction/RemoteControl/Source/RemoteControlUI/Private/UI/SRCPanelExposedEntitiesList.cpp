@@ -206,13 +206,12 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 	// Groups List
 	SAssignNew(GroupsListView, SListView<TSharedPtr<SRCPanelTreeNode>>)
 		.ItemHeight(24.f)
-		.OnGenerateRow(this, &SRCPanelExposedEntitiesList::OnGenerateRow)
-		.OnSelectionChanged(this, &SRCPanelExposedEntitiesList::OnSelectionChanged)
 		.SelectionMode(ESelectionMode::Single)
 		.ListItemsSource(reinterpret_cast<TArray<TSharedPtr<SRCPanelTreeNode>>*>(&FieldGroups))
-		.OnContextMenuOpening(this, &SRCPanelExposedEntitiesList::OnContextMenuOpening, SRCPanelTreeNode::Group)
-		.ListViewStyle(&RCPanelStyle->TableViewStyle)
-		.ClearSelectionOnClick(true);
+		.ClearSelectionOnClick(true)
+		.OnGenerateRow(this, &SRCPanelExposedEntitiesList::OnGenerateRow)
+		.OnSelectionChanged(this, &SRCPanelExposedEntitiesList::OnSelectionChanged)
+		.OnContextMenuOpening(this, &SRCPanelExposedEntitiesList::OnContextMenuOpening, SRCPanelTreeNode::Group);
 
 	// Group Dock Panel
 	TSharedPtr<SRCMinorPanel> GroupDockPanel = SNew(SRCMinorPanel)

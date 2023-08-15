@@ -64,11 +64,10 @@ public:
 
 		ListView = SNew(SListView<TSharedPtr<ActionType>>)
 			.ListItemsSource(&ActionItems)
+			.HeaderRow(ActionType::GetHeaderRow())
 			.OnGenerateRow(this, &SRCActionPanelList::OnGenerateWidgetForList)
 			.OnSelectionChanged(this, &SRCActionPanelList::OnSelectionChanged)
-			.ListViewStyle(&RCPanelStyle->TableViewStyle)
-			.OnContextMenuOpening(this, &SRCLogicPanelListBase::GetContextMenuWidget)
-			.HeaderRow(ActionType::GetHeaderRow());
+			.OnContextMenuOpening(this, &SRCLogicPanelListBase::GetContextMenuWidget);
 
 		ChildSlot
 			[
