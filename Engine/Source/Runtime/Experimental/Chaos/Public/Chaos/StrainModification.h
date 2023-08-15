@@ -5,11 +5,13 @@
 #include "Chaos/Core.h"
 #include "ParticleHandleFwd.h"
 
+class IPhysicsProxyBase;
 class FGeometryCollectionPhysicsProxy;
 
 namespace Chaos
 {
 	class FRigidClustering;
+	class FClusterUnionPhysicsProxy;
 	class FStrainModifierAccessor;
 	class FStrainedProxyModifier;
 	class FStrainedProxyIterator;
@@ -23,6 +25,23 @@ namespace Chaos
 		CollisionStrain = 1 << 2
 	};
 
+	struct FStrainedProxyAndRoot
+	{
+		IPhysicsProxyBase* Proxy = nullptr;
+
+		// Can be a root if proxy is a GC or the directly strained particle if the proxy is a cluster union
+		Chaos::FPBDRigidClusteredParticleHandle* ParticleHandle = nullptr;
+
+		// true if the particle handle is actually a partial GC attached toa cluster union
+		bool bPartialDestruction = false;
+
+		FGeometryCollectionPhysicsProxy* CastToGeometryCollectionProxy() const;
+		
+		bool IsPartialDestruction() const;
+
+		bool operator==(const  Chaos::FStrainedProxyAndRoot& Other) const;
+	};
+
 	// FStrainedProxyModifier
 	//
 	// User-facing api for accessing the proxy of a strained cluster. Provides const access to the
@@ -30,24 +49,26 @@ namespace Chaos
 	class FStrainedProxyModifier
 	{
 	public:
-		FStrainedProxyModifier(FRigidClustering& InRigidClustering, FGeometryCollectionPhysicsProxy* InProxy)
+		FStrainedProxyModifier(FRigidClustering& InRigidClustering, FStrainedProxyAndRoot InProxyAndRoot)
 			: RigidClustering(InRigidClustering)
-			, Proxy(InProxy)
-			, RootHandle(InitRootHandle(InProxy))
-			, RestChildren(InitRestChildren(InProxy))
+			, ProxyAndRoot(InProxyAndRoot)
+			, RestChildren(InitRestChildren(InProxyAndRoot.CastToGeometryCollectionProxy()))
 		{ }
 
 		FStrainedProxyModifier(const FStrainedProxyModifier& Other)
 			: RigidClustering(Other.RigidClustering)
-			, Proxy(Other.Proxy)
+			, ProxyAndRoot(Other.ProxyAndRoot)
 			, RestChildren(Other.RestChildren)
 		{ }
 
 		// Get the proxy that owns the strained cluster or clusters
-		CHAOS_API const FGeometryCollectionPhysicsProxy* GetProxy() const;
+		CHAOS_API const IPhysicsProxyBase* GetProxy() const;
 
-		// Get the physics handle for the strained parent cluster
-		CHAOS_API const Chaos::FPBDRigidParticleHandle* GetRootHandle() const;
+		// Get the original root handle from the geometry collection proxy
+		CHAOS_API const Chaos::FPBDRigidParticleHandle* GetOriginalRootHandle() const;
+
+		// Get the physics handle for the strained parent cluster or the strained particle directly if it's part of partial destruction
+		CHAOS_API const Chaos::FPBDRigidParticleHandle* GetParticleHandle() const;
 
 		// Get the number of level-1 strainable entities (number of rest-children in the per-particle
 		// strain model, or number of rest-connections in the edge/area model).
@@ -73,13 +94,10 @@ namespace Chaos
 
 	private:
 
-		static CHAOS_API Chaos::FPBDRigidClusteredParticleHandle* InitRootHandle(FGeometryCollectionPhysicsProxy* Proxy);
-
 		static CHAOS_API const TSet<int32>* InitRestChildren(FGeometryCollectionPhysicsProxy* Proxy);
 
 		FRigidClustering& RigidClustering;
-		FGeometryCollectionPhysicsProxy* Proxy;
-		Chaos::FPBDRigidClusteredParticleHandle* RootHandle;
+		FStrainedProxyAndRoot ProxyAndRoot;
 		const TSet<int32>* RestChildren;
 	};
 
@@ -90,15 +108,15 @@ namespace Chaos
 	class FStrainedProxyIterator
 	{
 	public:
-		FStrainedProxyIterator(FRigidClustering& InRigidClustering, TArray<FGeometryCollectionPhysicsProxy*>& InProxies, int32 InIndex)
+		FStrainedProxyIterator(FRigidClustering& InRigidClustering, TArray<FStrainedProxyAndRoot>& InProxyAndRoots, int32 InIndex)
 			: RigidClustering(InRigidClustering)
-			, Proxies(InProxies)
+			, ProxyAndRoots(InProxyAndRoots)
 			, Index(InIndex)
 		{ }
 
 		FStrainedProxyIterator(const FStrainedProxyIterator& Other)
 			: RigidClustering(Other.RigidClustering)
-			, Proxies(Other.Proxies)
+			, ProxyAndRoots(Other.ProxyAndRoots)
 			, Index(Other.Index)
 		{ }
 
@@ -112,7 +130,7 @@ namespace Chaos
 
 	private:
 		FRigidClustering& RigidClustering;
-		TArray<FGeometryCollectionPhysicsProxy*>& Proxies;
+		TArray<FStrainedProxyAndRoot>& ProxyAndRoots;
 		int32 Index;
 	};
 
@@ -129,22 +147,22 @@ namespace Chaos
 
 		FStrainedProxyRange(const FStrainedProxyRange& Other)
 			: RigidClustering(Other.RigidClustering)
-			, Proxies(Other.Proxies)
+			, ProxyAndRoots(Other.ProxyAndRoots)
 		{ }
 
 		FStrainedProxyIterator begin()
 		{
-			return FStrainedProxyIterator(RigidClustering, Proxies, 0);
+			return FStrainedProxyIterator(RigidClustering, ProxyAndRoots, 0);
 		}
 
 		FStrainedProxyIterator end()
 		{
-			return FStrainedProxyIterator(RigidClustering, Proxies, Proxies.Num());
+			return FStrainedProxyIterator(RigidClustering, ProxyAndRoots, ProxyAndRoots.Num());
 		}
 
 	private:
 		FRigidClustering& RigidClustering;
-		TArray<FGeometryCollectionPhysicsProxy*> Proxies;
+		TArray<FStrainedProxyAndRoot> ProxyAndRoots;
 		const TArray<FPBDRigidClusteredParticleHandle*>* StrainedParticles;
 	};
 

@@ -4914,6 +4914,15 @@ void FGeometryCollectionPhysicsProxy::FieldForcesUpdateCallback(Chaos::FPBDRigid
 	}
 }
 
+FGeometryCollectionPhysicsProxy::FClusterHandle* FGeometryCollectionPhysicsProxy::GetInitialRootHandle_Internal() const
+{
+	if (SolverParticleHandles.IsValidIndex(Parameters.InitialRootIndex))
+	{
+		return SolverParticleHandles[Parameters.InitialRootIndex];
+	}
+	return nullptr;
+}
+
 TArray<Chaos::FPhysicsObjectHandle> FGeometryCollectionPhysicsProxy::GetAllPhysicsObjects() const
 {
 	TArray<Chaos::FPhysicsObjectHandle> Handles;

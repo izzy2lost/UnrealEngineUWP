@@ -469,6 +469,8 @@ public:
 		PostPhysicsSyncCallback = Callback;
 	}
 	
+	CHAOS_API FClusterHandle* GetInitialRootHandle_Internal() const;
+
 	CHAOS_API TArray<Chaos::FPhysicsObjectHandle> GetAllPhysicsObjects() const ;
 	CHAOS_API TArray<Chaos::FPhysicsObjectHandle> GetAllPhysicsObjectIncludingNulls() const;
 	CHAOS_API Chaos::FPhysicsObjectHandle GetPhysicsObjectByIndex(int32 Index) const;

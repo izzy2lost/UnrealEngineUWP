@@ -3,6 +3,7 @@
 #include "Chaos/StrainModification.h"
 #include "Chaos/PBDRigidClustering.h"
 #include "PhysicsProxy/GeometryCollectionPhysicsProxy.h"
+#include "PhysicsProxy/ClusterUnionPhysicsProxy.h"
 #include "GeometryCollection/GeometryCollectionSimulationCoreTypes.h"
 #include "GeometryCollection/GeometryCollection.h"
 
@@ -16,14 +17,67 @@ namespace
 	}
 }
 
-const FGeometryCollectionPhysicsProxy* Chaos::FStrainedProxyModifier::GetProxy() const
+FGeometryCollectionPhysicsProxy* Chaos::FStrainedProxyAndRoot::CastToGeometryCollectionProxy() const
 {
-	return Proxy;
+	if (Proxy && Proxy->GetType() == EPhysicsProxyType::GeometryCollectionType)
+	{
+		return static_cast<FGeometryCollectionPhysicsProxy*>(Proxy);
+	}
+	return nullptr;
 }
 
-const Chaos::FPBDRigidParticleHandle* Chaos::FStrainedProxyModifier::GetRootHandle() const
+bool Chaos::FStrainedProxyAndRoot::IsPartialDestruction() const
 {
-	return RootHandle;
+	return bPartialDestruction;
+}
+
+bool Chaos::FStrainedProxyAndRoot::operator==(const  Chaos::FStrainedProxyAndRoot& Other) const
+{
+	// no need to test the partial destruction flag 
+	return ((Proxy == Other.Proxy) && (ParticleHandle == Other.ParticleHandle));
+}
+
+
+const IPhysicsProxyBase* Chaos::FStrainedProxyModifier::GetProxy() const
+{
+	return ProxyAndRoot.Proxy;
+}
+
+const Chaos::FPBDRigidParticleHandle* Chaos::FStrainedProxyModifier::GetOriginalRootHandle() const
+{
+	if (FGeometryCollectionPhysicsProxy* ProxyGC = ProxyAndRoot.CastToGeometryCollectionProxy())
+	{
+		return ProxyGC->GetInitialRootHandle_Internal();
+	}
+	return nullptr;
+}
+
+const Chaos::FPBDRigidParticleHandle* Chaos::FStrainedProxyModifier::GetParticleHandle() const
+{
+	return ProxyAndRoot.ParticleHandle;
+}
+
+template <typename TFunction>
+static void ForEachRootChildParticle(const Chaos::FStrainedProxyAndRoot& ProxyAndRoot, const TSet<int32>* RestChildren, TFunction Func)
+{
+	if (ProxyAndRoot.IsPartialDestruction())
+	{
+		// when partial destruction, only process the particle handle
+		Func(ProxyAndRoot.ParticleHandle);
+	}
+	else if (RestChildren)
+	{
+		if (FGeometryCollectionPhysicsProxy* ProxyGC = ProxyAndRoot.CastToGeometryCollectionProxy())
+		{
+			for (int32 RestChildIdx : *RestChildren)
+			{
+				Chaos::FPBDRigidClusteredParticleHandle* ChildHandle = ProxyGC->GetSolverParticleHandles()[RestChildIdx];
+				if (ChildHandle->Parent() == nullptr) { continue; }
+
+				Func(ChildHandle);
+			}
+		}
+	}
 }
 
 int32 Chaos::FStrainedProxyModifier::GetNumRestBreakables() const
@@ -32,36 +86,28 @@ int32 Chaos::FStrainedProxyModifier::GetNumRestBreakables() const
 	{
 		return RestChildren->Num();
 	}
-	return 0;
+	return 1; // cluser union case
 }
 
 int32 Chaos::FStrainedProxyModifier::GetNumBreakingStrains(const bool bDoubleCount, const uint8 StrainTypes) const
 {
-	// Make sure we have a proxy and rest-children
-	if (Proxy == nullptr) { return 0; }
-	if (RestChildren == nullptr) { return 0; }
-
-	// Loop over each child, checking whether or not it will have been freed
-	// by the strain that it has accumulated
 	int32 NumBreakingStrains = 0;
-	for (int32 RestChildIdx : *RestChildren)
-	{
-		Chaos::FPBDRigidClusteredParticleHandle* ChildHandle = Proxy->GetSolverParticleHandles()[RestChildIdx];
-		if (ChildHandle->Parent() == nullptr) { continue; }
-
-		// Get the applied and internal strain
-		const float InternalStrain = ChildHandle->GetInternalStrains();
-		const float MaxAppliedStrain = GetMaxAppliedStrain(ChildHandle, StrainTypes);
-
-		if (bDoubleCount && InternalStrain > SMALL_NUMBER)
+	ForEachRootChildParticle(ProxyAndRoot, RestChildren,
+		[this, &NumBreakingStrains, &bDoubleCount, &StrainTypes] (Chaos::FPBDRigidClusteredParticleHandle* ChildHandle)
 		{
-			NumBreakingStrains += (int32)(MaxAppliedStrain / InternalStrain);
-		}
-		else if (MaxAppliedStrain >= InternalStrain)
-		{
-			++NumBreakingStrains;
-		}
-	}
+			// Get the applied and internal strain
+			const float InternalStrain = ChildHandle->GetInternalStrains();
+			const float MaxAppliedStrain = GetMaxAppliedStrain(ChildHandle, StrainTypes);
+
+			if (bDoubleCount && InternalStrain > SMALL_NUMBER)
+			{
+				NumBreakingStrains += (int32)(MaxAppliedStrain / InternalStrain);
+			}
+			else if (MaxAppliedStrain >= InternalStrain)
+			{
+				++NumBreakingStrains;
+			}
+		});
 
 	// Return the number of breaking strains
 	return NumBreakingStrains;
@@ -69,64 +115,41 @@ int32 Chaos::FStrainedProxyModifier::GetNumBreakingStrains(const bool bDoubleCou
 
 float Chaos::FStrainedProxyModifier::GetMaxBreakStrainRatio(const float FatigueThreshold, const uint8 StrainTypes) const
 {
-	// Make sure we have a proxy and rest-children
-	if (Proxy == nullptr) { return 0; }
-	if (RestChildren == nullptr) { return 0; }
-
-	// Loop over each child, checking whether or not it will have been freed
-	// by the strain that it has accumulated
 	float MaxBreakStrainRatio = 0.f;
-	for (int32 RestChildIdx : *RestChildren)
-	{
-		Chaos::FPBDRigidClusteredParticleHandle* ChildHandle = Proxy->GetSolverParticleHandles()[RestChildIdx];
-		if (ChildHandle->Parent() == nullptr) { continue; }
+	ForEachRootChildParticle(ProxyAndRoot, RestChildren,
+		[this, &MaxBreakStrainRatio, &FatigueThreshold, &StrainTypes] (Chaos::FPBDRigidClusteredParticleHandle* ChildHandle)
+		{
+			// compute the strain ratio
+			const float InternalStrain = ChildHandle->GetInternalStrains();
+			const float MaxAppliedStrain = GetMaxAppliedStrain(ChildHandle, StrainTypes);
+			const float AdjustedAppliedStrain = (MaxAppliedStrain >= FatigueThreshold) ? MaxAppliedStrain : 0.f;
+			const float StrainRatio = (InternalStrain > SMALL_NUMBER) ? (MaxAppliedStrain / InternalStrain) : 1.0f;
 
-		// compute the strain ratio
-		const float InternalStrain = ChildHandle->GetInternalStrains();
-		const float MaxAppliedStrain = GetMaxAppliedStrain(ChildHandle, StrainTypes);
-		const float AdjustedAppliedStrain = (MaxAppliedStrain >= FatigueThreshold) ? MaxAppliedStrain : 0.f;
-		const float StrainRatio = (InternalStrain > SMALL_NUMBER)? (MaxAppliedStrain / InternalStrain) : 1.0f;
-
-		MaxBreakStrainRatio = FMath::Max(MaxBreakStrainRatio, StrainRatio);
-	}
+			MaxBreakStrainRatio = FMath::Max(MaxBreakStrainRatio, StrainRatio);
+		});
 
 	return MaxBreakStrainRatio;
 }
 
 void Chaos::FStrainedProxyModifier::AdjustStrainForBreak(const float FatigueThreshold, const uint8 StrainTypes)
 {
-	// Make sure we have a proxy and rest-children
-	if (Proxy == nullptr) { return; }
-	if (RestChildren == nullptr) { return; }
-
-	// Loop over each child, checking whether or not it will have been freed
-	// by the strain that it has accumulated
-	float MaxBreakStrainRatio = 0.f;
-	for (int32 RestChildIdx : *RestChildren)
-	{
-		Chaos::FPBDRigidClusteredParticleHandle* ChildHandle = Proxy->GetSolverParticleHandles()[RestChildIdx];
-		if (ChildHandle->Parent() == nullptr) { continue; }
-
-		// compute the strain ratio
-		const float InternalStrain = ChildHandle->GetInternalStrains();
-		const float MaxAppliedStrain = GetMaxAppliedStrain(ChildHandle, StrainTypes);
-		if (MaxAppliedStrain >= FatigueThreshold)
+	ForEachRootChildParticle(ProxyAndRoot, RestChildren,
+		[this, &FatigueThreshold, &StrainTypes] (Chaos::FPBDRigidClusteredParticleHandle* ChildHandle)
 		{
-			RigidClustering.SetExternalStrain(ChildHandle, InternalStrain);
-		}
-	}
+			// compute the strain ratio
+			const float InternalStrain = ChildHandle->GetInternalStrains();
+			const float MaxAppliedStrain = GetMaxAppliedStrain(ChildHandle, StrainTypes);
+			if (MaxAppliedStrain >= FatigueThreshold)
+			{
+				RigidClustering.SetExternalStrain(ChildHandle, InternalStrain);
+			}
+		});
 }
 
 void Chaos::FStrainedProxyModifier::ClearStrains()
 {
-	// Make sure we have a proxy and rest-children
-	if (Proxy == nullptr) { return; }
-	if (RestChildren == nullptr) { return; }
-
-	// Loop over each child, clearing the strain associated with it
-	for (int32 RestChildIdx : *RestChildren)
-	{
-		if (Chaos::FPBDRigidClusteredParticleHandle* ChildHandle = Proxy->GetSolverParticleHandles()[RestChildIdx])
+	ForEachRootChildParticle(ProxyAndRoot, RestChildren,
+		[this] (Chaos::FPBDRigidClusteredParticleHandle* ChildHandle)
 		{
 			// Clear accumulated collision impulses
 			ChildHandle->ClearCollisionImpulse();
@@ -137,31 +160,15 @@ void Chaos::FStrainedProxyModifier::ClearStrains()
 			// ChildHandle->ClearExternalStrain();
 			// Instead we use:
 			RigidClustering.SetExternalStrain(ChildHandle, FReal(0));
-		}
-	}
+		});
 }
 
-Chaos::FPBDRigidClusteredParticleHandle* Chaos::FStrainedProxyModifier::InitRootHandle(FGeometryCollectionPhysicsProxy* Proxy)
+const TSet<int32>* Chaos::FStrainedProxyModifier::InitRestChildren(FGeometryCollectionPhysicsProxy* ProxyGC)
 {
-	if (Proxy == nullptr) { return nullptr; }
+	if (ProxyGC == nullptr) { return nullptr; }
 
 	// Get the root index of the proxy
-	FSimulationParameters& Parameters = Proxy->GetSimParameters();
-	const int32 RootIndex = Parameters.InitialRootIndex;
-	if (RootIndex == INDEX_NONE) { return nullptr; }
-
-	// Return the particle handle corresponding to the root index
-	TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ParticleHandles = Proxy->GetSolverParticleHandles();
-	if (!ParticleHandles.IsValidIndex(RootIndex)) { return nullptr; }
-	return ParticleHandles[RootIndex];
-}
-
-const TSet<int32>* Chaos::FStrainedProxyModifier::InitRestChildren(FGeometryCollectionPhysicsProxy* Proxy)
-{
-	if (Proxy == nullptr) { return nullptr; }
-
-	// Get the root index of the proxy
-	FSimulationParameters& Parameters = Proxy->GetSimParameters();
+	FSimulationParameters& Parameters = ProxyGC->GetSimParameters();
 	const int32 RootIndex = Parameters.InitialRootIndex;
 	if (RootIndex == INDEX_NONE) { return nullptr; }
 
@@ -171,7 +178,7 @@ const TSet<int32>* Chaos::FStrainedProxyModifier::InitRestChildren(FGeometryColl
 
 Chaos::FStrainedProxyModifier Chaos::FStrainedProxyIterator::operator*()
 {
-	return Chaos::FStrainedProxyModifier(RigidClustering, Proxies[Index]);
+	return Chaos::FStrainedProxyModifier(RigidClustering, ProxyAndRoots[Index]);
 }
 
 Chaos::FStrainedProxyIterator& Chaos::FStrainedProxyIterator::operator++()
@@ -183,7 +190,7 @@ Chaos::FStrainedProxyIterator& Chaos::FStrainedProxyIterator::operator++()
 bool Chaos::FStrainedProxyIterator::operator==(const FStrainedProxyIterator& Other) const
 {
 	return
-		Proxies == Other.Proxies &&
+		ProxyAndRoots == Other.ProxyAndRoots &&
 		Index == Other.Index;
 }
 
@@ -191,50 +198,32 @@ Chaos::FStrainedProxyRange::FStrainedProxyRange(Chaos::FRigidClustering& InRigid
 	: RigidClustering(InRigidClustering)
 	, StrainedParticles(InStrainedParticles)
 {
-	const TSet<Chaos::FPBDRigidClusteredParticleHandle*>& StrainedParents = RigidClustering.GetTopLevelClusterParentsStrained();
-
-	auto ForEveryParticle = [this, &StrainedParents]<typename TLambda>(TLambda&& Func)
+	if (!StrainedParticles)
 	{
-		if (StrainedParticles)
+		return;
+	}
+
+	ProxyAndRoots.Reserve(StrainedParticles->Num());
+	for (Chaos::FPBDRigidClusteredParticleHandle* Cluster : *StrainedParticles)
+	{
+		// Make sure the cluster's physics proxy exists and is the right type
+		IPhysicsProxyBase* Proxy = Cluster->PhysicsProxy();
+		if (Proxy == nullptr)
 		{
-			for (Chaos::FPBDRigidClusteredParticleHandle* Cluster : *StrainedParticles)
-			{
-				Func(Cluster);
-			}
+			return;
 		}
-		else
+
+		const bool bIsGeometryCollectionProxy = (Proxy->GetType() == EPhysicsProxyType::GeometryCollectionType);
+		if (bIsGeometryCollectionProxy)
 		{
-			for (Chaos::FPBDRigidClusteredParticleHandle* Cluster : StrainedParents)
-			{
-				Func(Cluster);
-			}
-		}
-	};
-
-	Proxies.Reserve(StrainedParticles ? StrainedParticles->Num() : StrainedParents.Num());
-	ForEveryParticle(
-		[this, bRootLevelOnly](Chaos::FPBDRigidClusteredParticleHandle* Cluster)
-		{
-			// Make sure the cluster's physics proxy exists and is the right type
-			IPhysicsProxyBase* ProxyBase = Cluster->PhysicsProxy();
-			if (ProxyBase == nullptr)
-			{
-				return;
-			}
-
-			if (ProxyBase->GetType() != EPhysicsProxyType::GeometryCollectionType)
-			{
-				return;
-			}
-
-			FGeometryCollectionPhysicsProxy* Proxy = static_cast<FGeometryCollectionPhysicsProxy*>(ProxyBase);
-
-			// Make sure the rest collection has a root index
+			// Make sure the rest collection has a root index (If a GC)
 			if (bRootLevelOnly)
 			{
-				FSimulationParameters& Parameters = Proxy->GetSimParameters();
+				FGeometryCollectionPhysicsProxy* ProxyGC = static_cast<FGeometryCollectionPhysicsProxy*>(Proxy);
+
+				FSimulationParameters& Parameters = ProxyGC->GetSimParameters();
 				const int32 RootIndex = Parameters.InitialRootIndex;
-				TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ParticleHandles = Proxy->GetSolverParticleHandles();
+				TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ParticleHandles = ProxyGC->GetSolverParticleHandles();
 				if (ParticleHandles.IsValidIndex(RootIndex))
 				{
 					if (Cluster != ParticleHandles[RootIndex])
@@ -242,20 +231,43 @@ Chaos::FStrainedProxyRange::FStrainedProxyRange(Chaos::FRigidClustering& InRigid
 						return;
 					}
 				}
-			}
 
-			// Only need to use AddUnique if we're not checking for root, since at most
-			// one cluster will have the rest collection's root index.
-			if (bRootLevelOnly)
-			{
-				Proxies.Add(Proxy);
+				// Only need to use AddUnique if we're not checking for root, since at most
+				// one cluster will have the rest collection's root index.
+				ProxyAndRoots.Add({ Proxy, Cluster, /*bPartialDestruction*/ false });
 			}
 			else
 			{
-				Proxies.AddUnique(Proxy);
+
+				ProxyAndRoots.AddUnique({ Proxy, Cluster, /*bPartialDestruction*/ false});
 			}
 		}
-	);
+
+		// if the cluster union is the one reported we are in a partial destruction scenario
+		const bool bIsClusterUnionProxy = (Proxy->GetType() == EPhysicsProxyType::ClusterUnionProxy);
+		if (bIsClusterUnionProxy)
+		{
+			// for cluster union we go through the children 
+			Chaos::FClusterUnionPhysicsProxy* ProxyUC = static_cast<FClusterUnionPhysicsProxy*>(Proxy);
+			if (const TArray<Chaos::FPBDRigidParticleHandle*>* ClusterUnionChildren = RigidClustering.GetChildrenMap().Find(ProxyUC->GetParticle_Internal()))
+			{
+				for (Chaos::FPBDRigidParticleHandle* ChildHandle : *ClusterUnionChildren)
+				{
+					if (ChildHandle)
+					{
+						if (Chaos::FPBDRigidClusteredParticleHandle* ClusteredChildHandle = ChildHandle->CastToClustered())
+						{
+							if (ClusteredChildHandle->GetExternalStrain() > 0 || ClusteredChildHandle->CollisionImpulse() > 0)
+							{
+								// we actually add tyhe cluster union proxy and the partial destruction child handle
+								ProxyAndRoots.Add({ ClusteredChildHandle->PhysicsProxy(), ClusteredChildHandle, /*bPartialDestruction*/ true});
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 Chaos::FStrainedProxyRange Chaos::FStrainModifierAccessor::GetStrainedProxies(const bool bRootLevelOnly)
