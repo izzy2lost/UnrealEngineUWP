@@ -33,6 +33,18 @@ public:
 	};
 
 
+	enum class EApproximationType
+	{
+		NoConstraint = 0,
+		AxisAlignedBox = 1 << 0,
+		OrientedBox = 1 << 1,
+		SweptHull = 1 << 2,
+		ConvexHull = 1 << 3,
+		SweptProjection = 1 << 4,
+		All = 0xFFFF
+	};
+
+
 	/**
 	 * FMeshInstanceGroupData is data shared among one or more FBaseMeshInstances.
 	 * For example all instances in an ISMC can share a single FMeshInstanceGroupData.
@@ -46,6 +58,13 @@ public:
 
 		bool bPreserveUVs = false;
 		bool bAllowMerging = true;		// if false, cannot merge the geometry from this mesh with adjacent meshes to reduce triangle count
+
+		bool bAllowApproximation = true;			// if false, only Copied or Simplified LODs will be used for this Part. This flag will be combined w/ the Instance-level flag.
+
+		// ApproximationConstraint can be used to control which types of Approximation are used for LODs of this Part.
+		// This is a bitmask, any unset EApproximationType bits should be ignored by the CombineMeshInstances implementation
+		// Note however that 0 (all bits unset) is 'NoConstraint', implementations are intended to treat this as 'Allow All Types'
+		EApproximationType ApproximationConstraint = EApproximationType::NoConstraint;
 	};
 
 
@@ -58,7 +77,7 @@ public:
 		TArray<FTransform3d> TransformSequence;		// set of transforms on this instance. Often just a single transform.
 		int32 GroupDataIndex = -1;					// index into FSourceInstanceList::InstanceGroupDatas
 
-		bool bAllowApproximation = true;			// if false, only Copied or Simplified LODs will be used for this part instance
+		bool bAllowApproximation = true;			// if false, only Copied or Simplified LODs will be used for this part Instance. Will be combined w/ the GroupData flag.
 
 		// in some cases it may be desirable to have "groups" of instances which should be output as separate meshes, but
 		// be jointly processed in terms of (eg) the part LODs. If any InstanceSubsetID is non-zero, then instance subsets
