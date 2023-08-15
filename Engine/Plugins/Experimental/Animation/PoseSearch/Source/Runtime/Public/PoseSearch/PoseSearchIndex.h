@@ -104,7 +104,8 @@ struct FSearchIndexAsset
 	int32 LastSampleIdx = INDEX_NONE;
 
 	bool IsPoseInRange(int32 PoseIdx) const { return (PoseIdx >= FirstPoseIdx) && (PoseIdx < FirstPoseIdx + GetNumPoses()); }
-
+	bool operator==(const FSearchIndexAsset& Other) const;
+	
 #if DO_CHECK
 	bool IsInitialized() const 
 	{
@@ -171,6 +172,8 @@ struct FSearchStats
 	float MaxSpeed = 0.f;
 	float AverageAcceleration = 0.f;
 	float MaxAcceleration = 0.f;
+
+	bool operator==(const FSearchStats& Other) const;
 	friend FArchive& operator<<(FArchive& Ar, FSearchStats& Stats);
 };
 
@@ -266,6 +269,15 @@ struct FSparsePoseMultiMap
 		return sizeof(MaxKey) + sizeof(MaxValue) + sizeof(DeltaKeyValue) + DataValues.GetAllocatedSize();
 	}
 
+	bool operator==(const FSparsePoseMultiMap& Other) const
+	{
+		return
+			MaxKey == Other.MaxKey &&
+			MaxValue == Other.MaxValue &&
+			DeltaKeyValue == Other.DeltaKeyValue &&
+			DataValues == Other.DataValues;
+	}
+
 	friend FArchive& operator<<(FArchive& Ar, FSparsePoseMultiMap& SparsePoseMultiMap)
 	{
 		Ar << SparsePoseMultiMap.MaxKey;
@@ -327,6 +339,10 @@ struct FSearchIndexBase
 		return MakeArrayView(&Values[ValueOffset], DataCardinality);
 	}
 
+#if ENABLE_ANIM_DEBUG
+	bool Compare(const FSearchIndexBase& Other) const;
+#endif // ENABLE_ANIM_DEBUG
+
 	friend FArchive& operator<<(FArchive& Ar, FSearchIndexBase& Index);
 };
 
@@ -379,6 +395,10 @@ struct FSearchIndex : public FSearchIndexBase
 	POSESEARCH_API void GetPoseToPCAValuesVectorIndexes(TArray<uint32>& PoseToPCAValuesVectorIndexes) const;
 
 	friend FArchive& operator<<(FArchive& Ar, FSearchIndex& Index);
+
+#if ENABLE_ANIM_DEBUG
+	bool Compare(const FSearchIndex& Other) const;
+#endif // ENABLE_ANIM_DEBUG
 };
 
 } // namespace UE::PoseSearch

@@ -29,6 +29,11 @@
 #include "UObject/NoExportTypes.h"
 #include "UObject/PackageReload.h"
 
+#if ENABLE_ANIM_DEBUG
+static TAutoConsoleVariable<bool> CVarMotionMatchInvalidateIndexingCache(TEXT("a.MotionMatch.InvalidateIndexingCache"), false, TEXT("MotionMatch Invalidate Indexing Cache"));
+static TAutoConsoleVariable<bool> CVarMotionMatchForceIndexing(TEXT("a.MotionMatch.ForceIndexing"), false, TEXT("MotionMatch Force Indexing"));
+#endif
+
 namespace UE::PoseSearch
 {
 static const UE::DerivedData::FValueId Id(UE::DerivedData::FValueId::FromName("Data"));
@@ -636,17 +641,15 @@ struct FPoseSearchDatabaseAsyncCacheTask
 		Failed		// the task has ended unsuccessfully
 	};
 
-	// these methods MUST be protected by FPoseSearchDatabaseAsyncCacheTask::Mutex! and to make sure we pass the mutex as input param
-	FPoseSearchDatabaseAsyncCacheTask(UPoseSearchDatabase* InDatabase, FCriticalSection& OuterMutex, bool bPerformConditionalPostLoadIfRequired);
-	void StartNewRequestIfNeeded(FCriticalSection& OuterMutex, bool bPerformConditionalPostLoadIfRequired);
-	bool CancelIfDependsOn(const UObject* Object, FCriticalSection& OuterMutex);
+	FPoseSearchDatabaseAsyncCacheTask(UPoseSearchDatabase* InDatabase, bool bPerformConditionalPostLoadIfRequired);
+	void StartNewRequestIfNeeded(bool bPerformConditionalPostLoadIfRequired);
+	bool CancelIfDependsOn(const UObject* Object);
 	void Update(FCriticalSection& OuterMutex);
 	void Wait(FCriticalSection& OuterMutex);
-	void Cancel(FCriticalSection& OuterMutex);
-	bool Poll(FCriticalSection& OuterMutex) const;
-	void AddReferencedObjects(FReferenceCollector& Collector, FCriticalSection& OuterMutex);
-	bool ContainsDatabase(const UPoseSearchDatabase* OtherDatabase, FCriticalSection& OuterMutex) const;
-	bool IsValid(FCriticalSection& OuterMutex) const;
+	void Cancel();
+	bool Poll() const;
+	void AddReferencedObjects(FReferenceCollector& Collector);
+	bool IsValid() const;
 	const FIoHash& GetDerivedDataKey() const { return DerivedDataKey; }
 	const UPoseSearchDatabase* GetDatabase() const { return Database.Get(); }
 
@@ -664,6 +667,11 @@ private:
 
 	TWeakObjectPtr<UPoseSearchDatabase> Database;
 	FSearchIndex SearchIndex;
+
+#if ENABLE_ANIM_DEBUG
+	FSearchIndex SearchIndexCompare;
+#endif //ENABLE_ANIM_DEBUG
+
 	UE::DerivedData::FRequestOwner Owner;
 	FIoHash DerivedDataKey = FIoHash::Zero;
 	TSet<TWeakObjectPtr<const UObject>> DatabaseDependencies;
@@ -674,7 +682,7 @@ private:
 
 class FPoseSearchDatabaseAsyncCacheTasks : public TArray<TUniquePtr<FPoseSearchDatabaseAsyncCacheTask>> {};
 
-FPoseSearchDatabaseAsyncCacheTask::FPoseSearchDatabaseAsyncCacheTask(UPoseSearchDatabase* InDatabase, FCriticalSection& OuterMutex, bool bPerformConditionalPostLoadIfRequired)
+FPoseSearchDatabaseAsyncCacheTask::FPoseSearchDatabaseAsyncCacheTask(UPoseSearchDatabase* InDatabase, bool bPerformConditionalPostLoadIfRequired)
 	: Database(InDatabase)
 	, Owner(UE::DerivedData::EPriority::Normal)
 	, DerivedDataKey(FIoHash::Zero)
@@ -682,7 +690,7 @@ FPoseSearchDatabaseAsyncCacheTask::FPoseSearchDatabaseAsyncCacheTask(UPoseSearch
 	if (IsInGameThread())
 	{
 		// it is safe to compose DDC key only on the game thread, since assets can modified in this thread execution
-		StartNewRequestIfNeeded(OuterMutex, bPerformConditionalPostLoadIfRequired);
+		StartNewRequestIfNeeded(bPerformConditionalPostLoadIfRequired);
 	}
 	else
 	{
@@ -692,22 +700,28 @@ FPoseSearchDatabaseAsyncCacheTask::FPoseSearchDatabaseAsyncCacheTask(UPoseSearch
 
 FPoseSearchDatabaseAsyncCacheTask::~FPoseSearchDatabaseAsyncCacheTask()
 {
-	Database = nullptr;
-	SearchIndex.Reset();
+	// Owner.Cancel must be performed before SearchIndex.Reset() in case any task is flying (launched by Owner.LaunchTask)
 	Owner.Cancel();
+
+	Database = nullptr;
+
+	SearchIndex.Reset();
+#if ENABLE_ANIM_DEBUG
+	SearchIndexCompare.Reset();
+#endif //ENABLE_ANIM_DEBUG
+
 	DerivedDataKey = FIoHash::Zero;
 	DatabaseDependencies.Reset();
 }
 
-void FPoseSearchDatabaseAsyncCacheTask::StartNewRequestIfNeeded(FCriticalSection& OuterMutex, bool bPerformConditionalPostLoadIfRequired)
+void FPoseSearchDatabaseAsyncCacheTask::StartNewRequestIfNeeded(bool bPerformConditionalPostLoadIfRequired)
 {
 	using namespace UE::DerivedData;
 
 	check(IsInGameThread());
 
-	FScopeLock Lock(&OuterMutex);
-
 	// making sure there are no active requests
+	// Owner.Cancel must be performed before SearchIndex.Reset() in case any task is flying (launched by Owner.LaunchTask)
 	Owner.Cancel();
 
 	// composing the key
@@ -751,29 +765,31 @@ void FPoseSearchDatabaseAsyncCacheTask::StartNewRequestIfNeeded(FCriticalSection
 }
 
 // it cancels and waits for the task to be done and reset the local SearchIndex. SetState to Cancelled
-void FPoseSearchDatabaseAsyncCacheTask::Cancel(FCriticalSection& OuterMutex)
+void FPoseSearchDatabaseAsyncCacheTask::Cancel()
 {
 	check(IsInGameThread());
 
-	FScopeLock Lock(&OuterMutex);
-
+	// Owner.Cancel must be performed before SearchIndex.Reset() in case any task is flying (launched by Owner.LaunchTask)
 	Owner.Cancel();
+
 	SearchIndex.Reset();
+#if ENABLE_ANIM_DEBUG
+	SearchIndexCompare.Reset();
+#endif //ENABLE_ANIM_DEBUG
+
 	DerivedDataKey = FIoHash::Zero;
 	SetState(EState::Cancelled);
 }
 
-bool FPoseSearchDatabaseAsyncCacheTask::CancelIfDependsOn(const UObject* Object, FCriticalSection& OuterMutex)
+bool FPoseSearchDatabaseAsyncCacheTask::CancelIfDependsOn(const UObject* Object)
 {
 	if (Object)
 	{
-		FScopeLock Lock(&OuterMutex);
-
 		// DatabaseDependencies is updated only in StartNewRequestIfNeeded when there are no active requests, so it's thread safe to access it 
 		if (DatabaseDependencies.Contains(Object))
 		{
 			UE_LOG(LogPoseSearch, Log, TEXT("%s - %s Cancelled because of %s"), *LexToString(DerivedDataKey), *Database->GetName(), *Object->GetName());
-			Cancel(OuterMutex);
+			Cancel();
 			return true;
 		}
 	}
@@ -784,16 +800,14 @@ void FPoseSearchDatabaseAsyncCacheTask::Update(FCriticalSection& OuterMutex)
 {
 	check(IsInGameThread());
 
-	FScopeLock Lock(&OuterMutex);
-
 	check(GetState() != EState::Cancelled); // otherwise FPoseSearchDatabaseAsyncCacheTask should have been already removed
 
 	if (GetState() == EState::Notstarted)
 	{
-		StartNewRequestIfNeeded(OuterMutex, false);
+		StartNewRequestIfNeeded(false);
 	}
 
-	if (GetState() == EState::Prestarted && Poll(OuterMutex))
+	if (GetState() == EState::Prestarted && Poll())
 	{
 		// task is done: we need to update the state form Prestarted to Ended/Failed
 		Wait(OuterMutex);
@@ -811,9 +825,8 @@ void FPoseSearchDatabaseAsyncCacheTask::Wait(FCriticalSection& OuterMutex)
 {
 	check(GetState() == EState::Prestarted);
 
-	Owner.Wait();
-
 	FScopeLock Lock(&OuterMutex);
+	Owner.Wait();
 
 	const bool bFailedIndexing = SearchIndex.IsEmpty();
 	if (!bFailedIndexing)
@@ -831,23 +844,19 @@ void FPoseSearchDatabaseAsyncCacheTask::Wait(FCriticalSection& OuterMutex)
 		SetState(EState::Failed);
 	}
 	SearchIndex.Reset();
+#if ENABLE_ANIM_DEBUG
+	SearchIndexCompare.Reset();
+#endif //ENABLE_ANIM_DEBUG
 }
 
 // true is the task is done executing
-bool FPoseSearchDatabaseAsyncCacheTask::Poll(FCriticalSection& OuterMutex) const
+bool FPoseSearchDatabaseAsyncCacheTask::Poll() const
 {
 	return Owner.Poll();
 }
 
-bool FPoseSearchDatabaseAsyncCacheTask::ContainsDatabase(const UPoseSearchDatabase* OtherDatabase, FCriticalSection& OuterMutex) const
+bool FPoseSearchDatabaseAsyncCacheTask::IsValid() const
 {
-	FScopeLock Lock(&OuterMutex);
-	return Database.Get() == OtherDatabase;
-}
-
-bool FPoseSearchDatabaseAsyncCacheTask::IsValid(FCriticalSection& OuterMutex) const
-{
-	FScopeLock Lock(&OuterMutex);
 	return Database.IsValid();
 }
 
@@ -868,6 +877,10 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 
 		// we found the cached data associated to the PendingDerivedDataKey: we'll deserialized into SearchIndex
 		SearchIndex.Reset();
+#if ENABLE_ANIM_DEBUG
+		SearchIndexCompare.Reset();
+#endif //ENABLE_ANIM_DEBUG
+
 		FSharedBuffer RawData = Response.Record.GetValue(Id).GetData().Decompress();
 		FMemoryReaderView Reader(RawData);
 		Reader << SearchIndex;
@@ -892,13 +905,32 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 	if (Response.Status == EStatus::Canceled)
 	{
 		SearchIndex.Reset();
+#if ENABLE_ANIM_DEBUG
+		SearchIndexCompare.Reset();
+#endif //ENABLE_ANIM_DEBUG
 		UE_LOG(LogPoseSearch, Log, TEXT("%s - %s BuildIndex Cancelled"), *LexToString(FullIndexKey.Hash), *Database->GetName());
 	}
 	
-	if (Response.Status == EStatus::Error || bCacheCorrupted)
+	bool bForceBuildIndex = false;
+#if ENABLE_ANIM_DEBUG
+	if (CVarMotionMatchForceIndexing.GetValueOnAnyThread())
 	{
+		bForceBuildIndex = true;
+	}
+#endif // ENABLE_ANIM_DEBUG
+
+	if (Response.Status == EStatus::Error || bCacheCorrupted || bForceBuildIndex)
+	{
+#if ENABLE_ANIM_DEBUG
+		const bool bCompareSearchIndex = Response.Status != EStatus::Error && !bCacheCorrupted && bForceBuildIndex;
+		if (bCompareSearchIndex)
+		{
+			SearchIndexCompare = SearchIndex;
+		}
+#endif // ENABLE_ANIM_DEBUG
+
 		// we didn't find the cached data associated to the PendingDerivedDataKey: we'll BuildIndex to update SearchIndex and "Put" the data over the DDC
-		Owner.LaunchTask(TEXT("PoseSearchDatabaseBuild"), [this, FullIndexKey]
+		Owner.LaunchTask(TEXT("PoseSearchDatabaseBuild"), [this, FullIndexKey, bCompareSearchIndex]
 			{
 				COOK_STAT(auto Timer = UsageStats.TimeSyncWork());
 
@@ -907,8 +939,11 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 				IndexBaseDatabases.Add(Database.Get()); // the first one is always this Database
 				if (!IndexBaseDatabases[0])
 				{
-					UE_LOG(LogPoseSearch, Log, TEXT("%s - BuildIndex Cancelled because associated Database weak pointer has been released."), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName());
+					UE_LOG(LogPoseSearch, Log, TEXT("%s - BuildIndex Cancelled because associated Database weak pointer has been released."), *LexToString(FullIndexKey.Hash));
 					SearchIndex.Reset();
+#if ENABLE_ANIM_DEBUG
+					SearchIndexCompare.Reset();
+#endif //ENABLE_ANIM_DEBUG
 					return;
 				}
 
@@ -934,13 +969,16 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 					{
 						if (IndexBaseIdx == 0)
 						{
-							UE_LOG(LogPoseSearch, Error, TEXT("%s - %s BuildIndex Failed becasue of invalid Schema"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName());
+							UE_LOG(LogPoseSearch, Error, TEXT("%s - %s BuildIndex Failed because of invalid Schema"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName());
 						}
 						else
 						{
 							UE_LOG(LogPoseSearch, Error, TEXT("%s - %s BuildIndex Failed because dependent database '%s' has an invalid Schema"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName(), *IndexBaseDatabase->GetName());
 						}
 						SearchIndex.Reset();
+#if ENABLE_ANIM_DEBUG
+						SearchIndexCompare.Reset();
+#endif //ENABLE_ANIM_DEBUG
 						return;
 					}
 
@@ -956,6 +994,9 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 									// want to sample a mirrored asset
 									UE_LOG(LogPoseSearch, Error, TEXT("%s - %s BuildIndex Failed because '%s' requires a MirrorDataTable to sample mirrored animation assets"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName(), *IndexBaseDatabase->Schema->GetName());
 									SearchIndex.Reset();
+#if ENABLE_ANIM_DEBUG
+									SearchIndexCompare.Reset();
+#endif //ENABLE_ANIM_DEBUG
 									return;
 								}
 							}
@@ -966,6 +1007,9 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 					{
 						UE_LOG(LogPoseSearch, Log, TEXT("%s - %s BuildIndex Cancelled"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName());
 						SearchIndex.Reset();
+#if ENABLE_ANIM_DEBUG
+						SearchIndexCompare.Reset();
+#endif //ENABLE_ANIM_DEBUG
 						return;
 					}
 
@@ -976,6 +1020,9 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 					{
 						UE_LOG(LogPoseSearch, Log, TEXT("%s - %s BuildIndex Cancelled"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName());
 						SearchIndex.Reset();
+#if ENABLE_ANIM_DEBUG
+						SearchIndexCompare.Reset();
+#endif //ENABLE_ANIM_DEBUG
 						return;
 					}
 
@@ -984,6 +1031,9 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 					{
 						UE_LOG(LogPoseSearch, Log, TEXT("%s - %s BuildIndex Cancelled"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName());
 						SearchIndex.Reset();
+#if ENABLE_ANIM_DEBUG
+						SearchIndexCompare.Reset();
+#endif //ENABLE_ANIM_DEBUG
 						return;
 					}
 				}
@@ -1000,6 +1050,9 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 				{
 					UE_LOG(LogPoseSearch, Log, TEXT("%s - %s BuildIndex Cancelled"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName());
 					SearchIndex.Reset();
+#if ENABLE_ANIM_DEBUG
+					SearchIndexCompare.Reset();
+#endif //ENABLE_ANIM_DEBUG
 					return;
 				}
 
@@ -1008,6 +1061,9 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 				{
 					UE_LOG(LogPoseSearch, Log, TEXT("%s - %s BuildIndex Cancelled"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName());
 					SearchIndex.Reset();
+#if ENABLE_ANIM_DEBUG
+					SearchIndexCompare.Reset();
+#endif //ENABLE_ANIM_DEBUG
 					return;
 				}
 
@@ -1016,6 +1072,9 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 				{
 					UE_LOG(LogPoseSearch, Log, TEXT("%s - %s BuildIndex Cancelled"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName());
 					SearchIndex.Reset();
+#if ENABLE_ANIM_DEBUG
+					SearchIndexCompare.Reset();
+#endif //ENABLE_ANIM_DEBUG
 					return;
 				}
 
@@ -1024,6 +1083,9 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 				{
 					UE_LOG(LogPoseSearch, Log, TEXT("%s - %s BuildIndex Cancelled"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName());
 					SearchIndex.Reset();
+#if ENABLE_ANIM_DEBUG
+					SearchIndexCompare.Reset();
+#endif //ENABLE_ANIM_DEBUG
 					return;
 				}
 
@@ -1035,6 +1097,16 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 
 				UE_LOG(LogPoseSearch, Log, TEXT("%s - %s BuildIndex Succeeded"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName());
 
+#if ENABLE_ANIM_DEBUG
+				if (bCompareSearchIndex)
+				{
+					if (!SearchIndexCompare.Compare(SearchIndex))
+					{
+						UE_LOG(LogPoseSearch, Warning, TEXT("%s - %s BuildIndex mismatch with DDC Index"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName());
+					}
+				}
+#endif // ENABLE_ANIM_DEBUG
+
 				// putting SearchIndex to DDC
 				TArray<uint8> RawBytes;
 				FMemoryWriter Writer(RawBytes);
@@ -1044,6 +1116,7 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 
 				FCacheRecordBuilder Builder(FullIndexKey);
 				Builder.AddValue(Id, RawData);
+
 				GetCache().Put({ { { IndexBaseDatabases[0]->GetPathName() }, Builder.Build() } }, Owner, [IndexBaseDatabases, FullIndexKey](FCachePutResponse&& Response)
 					{
 						if (Response.Status == EStatus::Error)
@@ -1057,10 +1130,8 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 	}
 }
 
-void FPoseSearchDatabaseAsyncCacheTask::AddReferencedObjects(FReferenceCollector& Collector, FCriticalSection& OuterMutex)
+void FPoseSearchDatabaseAsyncCacheTask::AddReferencedObjects(FReferenceCollector& Collector)
 {
-	FScopeLock Lock(&OuterMutex);
-
 	const EState State = GetState();
 	if (State != EState::Ended && State != EState::Failed)
 	{
@@ -1117,7 +1188,7 @@ void FAsyncPoseSearchDatabasesManagement::OnObjectModified(UObject* Object)
 	// iterating backwards because of the possible RemoveAtSwap
 	for (int32 TaskIndex = Tasks.Num() - 1; TaskIndex >= 0; --TaskIndex)
 	{
-		if (Tasks[TaskIndex]->CancelIfDependsOn(Object, Mutex))
+		if (Tasks[TaskIndex]->CancelIfDependsOn(Object))
 		{
 			Tasks.RemoveAtSwap(TaskIndex, 1, false);
 		}
@@ -1164,10 +1235,21 @@ void FAsyncPoseSearchDatabasesManagement::Tick(float DeltaTime)
 
 	check(IsInGameThread());
 
+#if ENABLE_ANIM_DEBUG
+	if (CVarMotionMatchInvalidateIndexingCache.GetValueOnAnyThread())
+	{
+		for (TUniquePtr<FPoseSearchDatabaseAsyncCacheTask>& TaskPtr : Tasks)
+		{
+			UE_LOG(LogPoseSearch, Log, TEXT("%s - %s Cancelled because of CVarMotionMatchInvalidateIndexingCache"), *LexToString(TaskPtr->GetDerivedDataKey()), *TaskPtr->GetDatabase()->GetName());
+		}
+		Tasks.Reset();
+	}
+#endif // ENABLE_ANIM_DEBUG
+	
 	// iterating backwards because of the possible RemoveAtSwap 
 	for (int32 TaskIndex = Tasks.Num() - 1; TaskIndex >= 0; --TaskIndex)
 	{
-		if (!Tasks[TaskIndex]->IsValid(Mutex))
+		if (!Tasks[TaskIndex]->IsValid())
 		{
 			Tasks.RemoveAtSwap(TaskIndex, 1, false);
 		}
@@ -1194,7 +1276,7 @@ void FAsyncPoseSearchDatabasesManagement::AddReferencedObjects(FReferenceCollect
 
 	for (TUniquePtr<FPoseSearchDatabaseAsyncCacheTask>& TaskPtr : Tasks)
 	{
-		TaskPtr->AddReferencedObjects(Collector, Mutex);
+		TaskPtr->AddReferencedObjects(Collector);
 	}
 }
 
@@ -1225,7 +1307,7 @@ bool FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(const UPoseSear
 	FPoseSearchDatabaseAsyncCacheTask* Task = nullptr;
 	for (TUniquePtr<FPoseSearchDatabaseAsyncCacheTask>& TaskPtr : This.Tasks)
 	{
-		if (TaskPtr->ContainsDatabase(Database, Mutex))
+		if (TaskPtr->GetDatabase() == Database)
 		{
 			Task = TaskPtr.Get();
 
@@ -1233,9 +1315,9 @@ bool FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(const UPoseSear
 			{
 				if (Task->GetState() == FPoseSearchDatabaseAsyncCacheTask::EState::Prestarted)
 				{
-					Task->Cancel(Mutex);
+					Task->Cancel();
 				}
-				Task->StartNewRequestIfNeeded(Mutex, bWaitForCompletion);
+				Task->StartNewRequestIfNeeded(bWaitForCompletion);
 			}
 			break;
 		}
@@ -1244,7 +1326,7 @@ bool FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(const UPoseSear
 	if (!Task)
 	{
 		// we didn't find the Task, so we Emplace a new one
-		This.Tasks.Emplace(MakeUnique<FPoseSearchDatabaseAsyncCacheTask>(const_cast<UPoseSearchDatabase*>(Database), Mutex, bWaitForCompletion));
+		This.Tasks.Emplace(MakeUnique<FPoseSearchDatabaseAsyncCacheTask>(const_cast<UPoseSearchDatabase*>(Database), bWaitForCompletion));
 		Task = This.Tasks.Last().Get();
 	}
 

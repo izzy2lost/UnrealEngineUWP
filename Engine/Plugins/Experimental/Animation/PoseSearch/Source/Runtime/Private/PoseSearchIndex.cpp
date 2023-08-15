@@ -323,6 +323,18 @@ FArchive& operator<<(FArchive& Ar, FPoseMetadata& Metadata)
 
 //////////////////////////////////////////////////////////////////////////
 // FSearchIndexAsset
+bool FSearchIndexAsset::operator==(const FSearchIndexAsset& Other) const
+{
+	return
+		SourceAssetIdx == Other.SourceAssetIdx &&
+		bMirrored == Other.bMirrored &&
+		PermutationIdx == Other.PermutationIdx &&
+		BlendParameters == Other.BlendParameters &&
+		FirstPoseIdx == Other.FirstPoseIdx &&
+		FirstSampleIdx == Other.FirstSampleIdx &&
+		LastSampleIdx == Other.LastSampleIdx;
+}
+
 FArchive& operator<<(FArchive& Ar, FSearchIndexAsset& IndexAsset)
 {
 	Ar << IndexAsset.SourceAssetIdx;
@@ -337,6 +349,15 @@ FArchive& operator<<(FArchive& Ar, FSearchIndexAsset& IndexAsset)
 
 //////////////////////////////////////////////////////////////////////////
 // FSearchStats
+bool FSearchStats::operator==(const FSearchStats& Other) const
+{
+	return
+		AverageSpeed == Other.AverageSpeed &&
+		MaxSpeed == Other.MaxSpeed &&
+		AverageAcceleration == Other.AverageAcceleration &&
+		MaxAcceleration == Other.MaxAcceleration;
+}
+
 FArchive& operator<<(FArchive& Ar, FSearchStats& Stats)
 {
 	Ar << Stats.AverageSpeed;
@@ -401,6 +422,45 @@ void FSearchIndexBase::AllocateData(int32 DataCardinality, int32 NumPoses)
 	Values.SetNumZeroed(DataCardinality * NumPoses);
 	PoseMetadata.SetNumZeroed(NumPoses);
 }
+
+#if ENABLE_ANIM_DEBUG
+bool FSearchIndexBase::Compare(const FSearchIndexBase& Other) const
+{
+	bool bResult = true;
+
+	if (Values != Other.Values)
+	{
+		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndexBase::Compare - Values mismatch"));
+		bResult = false;
+	}
+
+	if (bAnyBlockTransition != Other.bAnyBlockTransition)
+	{
+		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndexBase::Compare - bAnyBlockTransition mismatch"));
+		bResult = false;
+	}
+
+	if (Assets != Other.Assets)
+	{
+		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndexBase::Compare - Assets mismatch"));
+		bResult = false;
+	}
+	 
+	if (MinCostAddend != Other.MinCostAddend)
+	{
+		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndexBase::Compare - MinCostAddend mismatch"));
+		bResult = false;
+	}
+
+	if (Stats != Other.Stats)
+	{
+		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndexBase::Compare - Stats mismatch"));
+		bResult = false;
+	}
+
+	return true;
+}
+#endif // ENABLE_ANIM_DEBUG
 
 FArchive& operator<<(FArchive& Ar, FSearchIndexBase& Index)
 {
@@ -549,24 +609,21 @@ void FSearchIndex::PruneDuplicatePCAValues(float SimilarityThreshold, int32 Numb
 					PoseIndexes.Add(PoseIdx);
 				}
 
-				int32 MoreThanOne = 0;
-				int32 MaxDuplicates = 1;
+				// sorting PCAValuesVectorToPoseIndexesMap keys to create a deterministic FSparsePoseMultiMap later on
+				// we're not using TSortedMap for performance reasons, because PCAValuesVectorToPoseIndexesMap can be quite big
+				TArray<uint32> SortedKeys;
+				SortedKeys.Reserve(PCAValuesVectorToPoseIndexesMap.Num());
 				for (const TPair<uint32, TArray<uint32>>& Pair : PCAValuesVectorToPoseIndexesMap)
 				{
-					if (Pair.Value.Num() > 1)
-					{
-						++MoreThanOne;
-						MaxDuplicates = FMath::Max(MaxDuplicates, Pair.Value.Num());
-					}
+					SortedKeys.Add(Pair.Key);
 				}
-
-				UE_LOG(LogPoseSearch, Log, TEXT("MoreThanOne %d, MaxDuplicates %d"), MoreThanOne, MaxDuplicates);
+				SortedKeys.Sort();
 
 				FSparsePoseMultiMap<uint32> SparsePoseMultiMap(PCAValuesVectorToPoseIndexesMap.Num(), NumPoses - 1);
-				for (const TPair<uint32, TArray<uint32>>& Pair : PCAValuesVectorToPoseIndexesMap)
+				for (const uint32& Key : SortedKeys)
 				{
-					const uint32 PCAValuesVectorIdx = Pair.Key;
-					const TArray<uint32>& PoseIndexes = Pair.Value;
+					const uint32 PCAValuesVectorIdx = Key;
+					const TArray<uint32>& PoseIndexes = PCAValuesVectorToPoseIndexesMap[Key];
 					SparsePoseMultiMap.Insert(PCAValuesVectorIdx, PoseIndexes);
 				}
 
@@ -663,6 +720,59 @@ void FSearchIndex::GetPoseToPCAValuesVectorIndexes(TArray<uint32>& PoseToPCAValu
 		PoseToPCAValuesVectorIndexes.Reset();
 	}
 }
+
+#if ENABLE_ANIM_DEBUG
+bool FSearchIndex::Compare(const FSearchIndex& Other) const
+{
+	bool bResult = FSearchIndexBase::Compare(static_cast<const FSearchIndexBase&>(Other));
+
+	if (WeightsSqrt != Other.WeightsSqrt)
+	{
+		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndex::Compare - WeightsSqrt mismatch"));
+		bResult = false;
+	}
+	
+	if (PCAValues != Other.PCAValues)
+	{
+		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndex::Compare - PCAValues mismatch"));
+		bResult = false;
+	}
+
+	if (PCAValuesVectorToPoseIndexes != Other.PCAValuesVectorToPoseIndexes)
+	{
+		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndex::Compare - PCAValuesVectorToPoseIndexes mismatch"));
+		bResult = false;
+	}
+
+	if (PCAProjectionMatrix != Other.PCAProjectionMatrix)
+	{
+		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndex::Compare - PCAProjectionMatrix mismatch"));
+		bResult = false;
+	}
+
+	if (Mean != Other.Mean)
+	{
+		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndex::Compare - Mean mismatch"));
+		bResult = false;
+	}
+
+	if (PCAExplainedVariance != Other.PCAExplainedVariance)
+	{
+		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndex::Compare - PCAExplainedVariance mismatch"));
+		bResult = false;
+	}
+
+	// @todo: implement me
+	//if (KDTree != Other.KDTree)
+	//{
+	//	UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndex::Compare - KDTree mismatch"));
+	//	bResult = false;
+	//}
+	
+	return bResult;
+}
+#endif // ENABLE_ANIM_DEBUG
+
 
 FArchive& operator<<(FArchive& Ar, FSearchIndex& Index)
 {
