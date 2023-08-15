@@ -174,10 +174,29 @@ public:
 	static FAutomationScreenshotOptions GetDefaultScreenshotOptionsForRendering(EComparisonTolerance Tolerance = EComparisonTolerance::Low, float Delay = 0.2);
 
 	/**
-	 * Mute the report of log error and warning matching a pattern during an automated test
+	 * Mute the report of log error and warning matching a pattern during an automated test. Treat the pattern as regex by default.
+	 * @param ExpectedPatternString	Expects a Regex pattern.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Automation", meta = (AdvancedDisplay = "Occurrences, ExactMatch, IsRegex"))
+	static void AddExpectedLogError(FString ExpectedPatternString, int32 Occurrences = 1, bool ExactMatch = false, bool IsRegex = true);
+
+	/**
+	 * Mute the report of log error and warning matching a plain string during an automated test
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Automation", meta = (AdvancedDisplay = "Occurrences, ExactMatch"))
-	static void AddExpectedLogError(FString ExpectedPatternString, int32 Occurrences = 1, bool ExactMatch = false);
+	static void AddExpectedPlainLogError(FString ExpectedString, int32 Occurrences = 1, bool ExactMatch = false);
+
+	/**
+	 * Expect a specific log message to match a pattern during an automated test regardless of its verbosity. Treat the pattern as regex by default.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Automation", meta = (AdvancedDisplay = "Occurrences, ExactMatch, IsRegex"))
+	static void AddExpectedLogMessage(FString ExpectedPatternString, int32 Occurrences = 1, bool ExactMatch = false, bool IsRegex = true);
+
+	/**
+	 * Expect a specific log message to match a plain string during an automated test regardless of its verbosity
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Automation", meta = (AdvancedDisplay = "Occurrences, ExactMatch"))
+	static void AddExpectedPlainLogMessage(FString ExpectedString, int32 Occurrences = 1, bool ExactMatch = false);
 
 	/**
 	 * Sets all other settings based on an overall value

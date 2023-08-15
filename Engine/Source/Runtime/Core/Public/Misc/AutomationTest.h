@@ -605,12 +605,13 @@ public:
 
 struct FAutomationExpectedMessage
 {
-	// Original regular expression pattern string matching expected log message.
-	// NOTE: using the Exact comparison type wraps the pattern string with ^ and $ tokens,
-	// but the base pattern string is preserved to allow checks for duplicate entries.
+	// Original string pattern matching expected log message.
+	// If IsRegex is false, it is this string that is used to match.
+	// Otherwise MessagePatternRegex is set to a valid pointer of FRegexPattern.
+	// The base pattern string is preserved none the less to allow checks for duplicate entries.
 	FString MessagePatternString;
-	// Regular expression pattern for MessagePatternString
-	FRegexPattern MessagePattern;
+	// Regular expression pattern from MessagePatternString if regex option was true(default), otherwise it is not set.
+	TOptional<FRegexPattern> MessagePatternRegex;
 	// Type of comparison to perform on error log using MessagePattern.
 	EAutomationExpectedMessageFlags::MatchType CompareType;
 	/** 
@@ -625,24 +626,75 @@ struct FAutomationExpectedMessage
 	/**
 	* Constructor
 	*/
-	FAutomationExpectedMessage(FString& InMessagePattern, ELogVerbosity::Type InVerbosity, EAutomationExpectedMessageFlags::MatchType InCompareType, int32 InExpectedNumberOfOccurrences = 1)
+	FAutomationExpectedMessage(FString& InMessagePattern, ELogVerbosity::Type InVerbosity, EAutomationExpectedMessageFlags::MatchType InCompareType, int32 InExpectedNumberOfOccurrences = 1, bool IsRegex = true)
 		: MessagePatternString(InMessagePattern)
-		, MessagePattern((InCompareType == EAutomationExpectedMessageFlags::Exact) ? FString::Printf(TEXT("^%s$"), *InMessagePattern) : InMessagePattern)
 		, CompareType(InCompareType)
 		, ExpectedNumberOfOccurrences(InExpectedNumberOfOccurrences)
 		, ActualNumberOfOccurrences(0)
 		, Verbosity(InVerbosity)
-	{}
+	{
+		if (IsRegex)
+		{
+			MessagePatternRegex = FRegexPattern((InCompareType == EAutomationExpectedMessageFlags::Exact) ? FString::Printf(TEXT("^%s$"), *InMessagePattern) : InMessagePattern, ERegexPatternFlags::CaseInsensitive);
+		}		
+	}
 
 	FAutomationExpectedMessage(FString& InMessagePattern, ELogVerbosity::Type InVerbosity, int32 InExpectedNumberOfOccurrences)
 		: MessagePatternString(InMessagePattern)
-		, MessagePattern(InMessagePattern)
+		, MessagePatternRegex(FRegexPattern(InMessagePattern, ERegexPatternFlags::CaseInsensitive))
 		, CompareType(EAutomationExpectedMessageFlags::Contains)
 		, ExpectedNumberOfOccurrences(InExpectedNumberOfOccurrences)
 		, ActualNumberOfOccurrences(0)
 		, Verbosity(InVerbosity)
 	{}
+
+	inline bool IsRegex() const
+	{
+		return MessagePatternRegex.IsSet();
+	}
+
+	inline bool IsExactCompareType() const
+	{
+		return CompareType == EAutomationExpectedMessageFlags::Exact;
+	}
+
+	/// <summary>
+	/// Look if Message matches the expected message and increment internal counter if true.
+	/// </summary>
+	/// <param name="Message"></param>
+	/// <returns></returns>
+	bool Matches(const FString& Message)
+	{
+		bool HasMatch = false;
+		if (IsRegex())
+		{
+			FRegexMatcher MessageMatcher(MessagePatternRegex.GetValue(), Message);
+			HasMatch = MessageMatcher.FindNext();
+		}
+		else
+		{
+			HasMatch = Message.Contains(MessagePatternString) && (!IsExactCompareType() || Message.Len() == MessagePatternString.Len());
+		}
+		ActualNumberOfOccurrences += HasMatch;
+		return HasMatch;
+	}
+
+	bool operator==(const FAutomationExpectedMessage& Other) const
+	{
+		return MessagePatternString == Other.MessagePatternString;
+	}
+
+	bool operator<(const FAutomationExpectedMessage& Other) const
+	{
+		return MessagePatternString < Other.MessagePatternString;
+	}
+
 };
+
+FORCEINLINE uint32 GetTypeHash(const FAutomationExpectedMessage& Object)
+{
+	return GetTypeHash(Object.MessagePatternString);
+}
 
 struct FAutomationScreenshotData
 {
@@ -1489,14 +1541,28 @@ public:
 	* Adds a regex pattern to an internal list that this test will expect to encounter in logs (of the specified verbosity) during its execution. If an expected pattern
 	* is not encountered, it will cause this test to fail.
 	*
-	* @param ExpectedPatternString - The expected message string. Supports basic regex patterns.
+	* @param ExpectedPatternString - The expected message string. Supports basic regex patterns if IsRegex is set to true (the default).
+	* @param ExpectedVerbosity - The expected message verbosity. This is treated as a minimum requirement, so for example the Warning level will intercept Warnings, Errors and Fatal.
+	* @param CompareType - How to match this string with an encountered message, should it match exactly or simply just contain the string.
+	* @param Occurrences - How many times to expect this message string to be seen. If > 0, the message must be seen the exact number of times
+	* specified or the test will fail. If == 0, the message must be seen one or more times (with no upper limit) or the test will fail.
+	* @param IsRegex - If the pattern is to be used as regex or plain string. Default is true.
+	*/
+	CORE_API void AddExpectedMessage(FString ExpectedPatternString, ELogVerbosity::Type ExpectedVerbosity, EAutomationExpectedMessageFlags::MatchType CompareType = EAutomationExpectedMessageFlags::Contains, int32 Occurrences = 1, bool IsRegex = true);
+
+	/**
+
+	* Adds a plain string to an internal list that this test will expect to encounter in logs (of the specified verbosity) during its execution. If an expected pattern
+	* is not encountered, it will cause this test to fail.
+	*
+	* @param ExpectedString - The expected message string.
 	* @param ExpectedVerbosity - The expected message verbosity. This is treated as a minimum requirement, so for example the Warning level will intercept Warnings, Errors and Fatal.
 	* @param CompareType - How to match this string with an encountered message, should it match exactly or simply just contain the string.
 	* @param Occurrences - How many times to expect this message string to be seen. If > 0, the message must be seen the exact number of times
 	* specified or the test will fail. If == 0, the message must be seen one or more times (with no upper limit) or the test will fail.
 	*/
-	CORE_API void AddExpectedMessage(FString ExpectedPatternString, ELogVerbosity::Type ExpectedVerbosity, EAutomationExpectedMessageFlags::MatchType CompareType = EAutomationExpectedMessageFlags::Contains, int32 Occurrences = 1);
-	
+	CORE_API void AddExpectedMessagePlain(FString ExpectedString, ELogVerbosity::Type ExpectedVerbosity, EAutomationExpectedMessageFlags::MatchType CompareType = EAutomationExpectedMessageFlags::Contains, int32 Occurrences = 1);
+
 	/**
 	* Adds a regex pattern to an internal list that this test will expect to encounter in logs (of all severities) during its execution. If an expected pattern
 	* is not encountered, it will cause this test to fail.
@@ -1505,8 +1571,21 @@ public:
 	* @param CompareType - How to match this string with an encountered message, should it match exactly or simply just contain the string.
 	* @param Occurrences - How many times to expect this message string to be seen. If > 0, the message must be seen the exact number of times
 	* specified or the test will fail. If == 0, the message must be seen one or more times (with no upper limit) or the test will fail.
+	* @param IsRegex - If the pattern is to be used as regex or plain string. Default is true.
 	*/
-	CORE_API void AddExpectedMessage(FString ExpectedPatternString, EAutomationExpectedMessageFlags::MatchType CompareType = EAutomationExpectedMessageFlags::Contains, int32 Occurrences = 1);
+	CORE_API void AddExpectedMessage(FString ExpectedPatternString, EAutomationExpectedMessageFlags::MatchType CompareType = EAutomationExpectedMessageFlags::Contains, int32 Occurrences = 1, bool IsRegex = true);
+
+	/**
+	* Adds a plain string to an internal list that this test will expect to encounter in logs (of all severities) during its execution. If an expected pattern
+	* is not encountered, it will cause this test to fail.
+	*
+	* @param ExpectedString - The expected message string.
+	* @param CompareType - How to match this string with an encountered message, should it match exactly or simply just contain the string.
+	* @param Occurrences - How many times to expect this message string to be seen. If > 0, the message must be seen the exact number of times
+	* specified or the test will fail. If == 0, the message must be seen one or more times (with no upper limit) or the test will fail.
+	*/
+	CORE_API void AddExpectedMessagePlain(FString ExpectedString, EAutomationExpectedMessageFlags::MatchType CompareType = EAutomationExpectedMessageFlags::Contains, int32 Occurrences = 1);
+
 
 	/**
 	* Populate the provided expected log messages object with the expected messages contained within the test. Not particularly efficient,
@@ -1524,8 +1603,20 @@ public:
 	* @param CompareType - How to match this string with an encountered error, should it match exactly or simply just contain the string.
 	* @param Occurrences - How many times to expect this error string to be seen. If > 0, the error must be seen the exact number of times
 	* specified or the test will fail. If == 0, the error must be seen one or more times (with no upper limit) or the test will fail.
+	* @param IsRegex - If the pattern is to be used as regex or plain string. Default is true.
 	*/
-	CORE_API void AddExpectedError(FString ExpectedPatternString, EAutomationExpectedErrorFlags::MatchType CompareType = EAutomationExpectedErrorFlags::Contains, int32 Occurrences = 1);
+	CORE_API void AddExpectedError(FString ExpectedPatternString, EAutomationExpectedErrorFlags::MatchType CompareType = EAutomationExpectedErrorFlags::Contains, int32 Occurrences = 1, bool IsRegex = true);
+
+	/**
+	* Adds a plain string to an internal list that this test will expect to encounter in error or warning logs during its execution. If an expected pattern
+	* is not encountered, it will cause this test to fail.
+	*
+	* @param ExpectedString - The expected message string.
+	* @param CompareType - How to match this string with an encountered error, should it match exactly or simply just contain the string.
+	* @param Occurrences - How many times to expect this error string to be seen. If > 0, the error must be seen the exact number of times
+	* specified or the test will fail. If == 0, the error must be seen one or more times (with no upper limit) or the test will fail.
+	*/
+	CORE_API void AddExpectedErrorPlain(FString ExpectedString, EAutomationExpectedErrorFlags::MatchType CompareType = EAutomationExpectedErrorFlags::Contains, int32 Occurrences = 1);
 
 	/**
 	 * Is this a complex tast - if so it will be a stress test.
@@ -2050,7 +2141,7 @@ private:
 	CORE_API void InternalSetSuccessState(bool bSuccessful);
 
 	/* Log messages to be expected while processing this test.*/
-	TArray<FAutomationExpectedMessage> ExpectedMessages;
+	TSet<FAutomationExpectedMessage> ExpectedMessages;
 
 	/** Critical section lock */
 	FCriticalSection ActionCS;

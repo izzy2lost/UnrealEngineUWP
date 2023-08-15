@@ -1330,7 +1330,7 @@ bool FAutomationTestBase::HasMetExpectedMessages(ELogVerbosity::Type VerbosityTy
 			bHasMetAllExpectedMessages = false;
 
 			ExecutionInfo.AddEvent(FAutomationEvent(EAutomationEventType::Error,
-				FString::Printf(TEXT("Expected ('%s') log message matching '%s' to occur %d times with %s match type, but it was found %d time(s).")
+				FString::Printf(TEXT("Expected ('%s') level log message or higher matching '%s' to occur %d times with %s match type, but it was found %d time(s).")
 					, LogVerbosityString
 					, *ExpectedMessage.MessagePatternString
 					, ExpectedMessage.ExpectedNumberOfOccurrences
@@ -1345,7 +1345,7 @@ bool FAutomationTestBase::HasMetExpectedMessages(ELogVerbosity::Type VerbosityTy
 				bHasMetAllExpectedMessages = false;
 
 				ExecutionInfo.AddEvent(FAutomationEvent(EAutomationEventType::Error,
-					FString::Printf(TEXT("Expected suppressed ('%s') log message matching '%s' did not occur.")
+					FString::Printf(TEXT("Expected suppressed ('%s') level log message or higher matching '%s' did not occur.")
 						, LogVerbosityString
 						, *ExpectedMessage.MessagePatternString)
 					, ExecutionInfo.GetContext()));
@@ -1353,7 +1353,7 @@ bool FAutomationTestBase::HasMetExpectedMessages(ELogVerbosity::Type VerbosityTy
 			else
 			{
 				ExecutionInfo.AddEvent(FAutomationEvent(EAutomationEventType::Info,
-					FString::Printf(TEXT("Suppressed expected ('%s') log message matching '%s' %d times.")
+					FString::Printf(TEXT("Suppressed expected ('%s') level log message or higher matching '%s' %d times.")
 						, LogVerbosityString
 						, *ExpectedMessage.MessagePatternString
 						, ExpectedMessage.ActualNumberOfOccurrences)
@@ -1389,28 +1389,13 @@ void FAutomationTestBase::AddExpectedMessage(
 	FString ExpectedPatternString,
 	ELogVerbosity::Type ExpectedVerbosity,
 	EAutomationExpectedMessageFlags::MatchType CompareType,
-	int32 Occurrences)
+	int32 Occurrences,
+	bool IsRegex)
 {
 	if (Occurrences >= 0)
 	{
 		FScopeLock Lock(&ActionCS);
-		// If we already have a message matching string in our list, let's not add it again.
-		FAutomationExpectedMessage* FoundEntry = ExpectedMessages.FindByPredicate(
-			[ExpectedPatternString](const FAutomationExpectedMessage& InItem) 
-				{
-					return InItem.MessagePatternString == ExpectedPatternString; 
-				}
-		);
-
-		if (FoundEntry)
-		{
-			UE_LOG(LogAutomationTest, Warning, TEXT("Adding expected log message matching '%s' failed: cannot add duplicate entries"), *ExpectedPatternString)
-		}
-		else
-		{
-			// ToDo: Check that ExpectedPatternString is valid before adding
-			ExpectedMessages.Add(FAutomationExpectedMessage(ExpectedPatternString, ExpectedVerbosity, CompareType, Occurrences));
-		}
+		ExpectedMessages.Add(FAutomationExpectedMessage(ExpectedPatternString, ExpectedVerbosity, CompareType, Occurrences, IsRegex));
 	}
 	else
 	{
@@ -1421,9 +1406,27 @@ void FAutomationTestBase::AddExpectedMessage(
 void FAutomationTestBase::AddExpectedMessage(
 	FString ExpectedPatternString,
 	EAutomationExpectedMessageFlags::MatchType CompareType,
+	int32 Occurrences,
+	bool IsRegex)
+{
+	AddExpectedMessage(MoveTemp(ExpectedPatternString), ELogVerbosity::All, CompareType, Occurrences, IsRegex);	
+}
+
+void FAutomationTestBase::AddExpectedMessagePlain(
+	FString ExpectedString,
+	ELogVerbosity::Type ExpectedVerbosity,
+	EAutomationExpectedMessageFlags::MatchType CompareType,
 	int32 Occurrences)
 {
-	AddExpectedMessage(MoveTemp(ExpectedPatternString), ELogVerbosity::All, CompareType, Occurrences);	
+	AddExpectedMessage(MoveTemp(ExpectedString), ExpectedVerbosity, CompareType, Occurrences, false);
+}
+
+void FAutomationTestBase::AddExpectedMessagePlain(
+	FString ExpectedString,
+	EAutomationExpectedMessageFlags::MatchType CompareType,
+	int32 Occurrences)
+{
+	AddExpectedMessagePlain(MoveTemp(ExpectedString), ELogVerbosity::All, CompareType, Occurrences);
 }
 
 void FAutomationTestBase::GetExpectedMessages(
@@ -1432,7 +1435,7 @@ void FAutomationTestBase::GetExpectedMessages(
 {
 	if (Verbosity == ELogVerbosity::All)
 	{
-		OutInfo = ExpectedMessages;
+		OutInfo = ExpectedMessages.Array();
 	}
 	else
 	{
@@ -1442,12 +1445,21 @@ void FAutomationTestBase::GetExpectedMessages(
 			return FAutomationTestBase::LogCategoryMatchesSeverityInclusive(Message.Verbosity, Verbosity);
 		});
 	}
+	OutInfo.Sort();
 }
 
-void FAutomationTestBase::AddExpectedError(FString ExpectedErrorPattern, EAutomationExpectedErrorFlags::MatchType InCompareType, int32 Occurrences)
+void FAutomationTestBase::AddExpectedError(FString ExpectedErrorPattern, EAutomationExpectedErrorFlags::MatchType InCompareType, int32 Occurrences, bool IsRegex)
 {
 	// Set verbosity to Warning as it's inclusive, and so checks for both Warnings and Errors
-	AddExpectedMessage(MoveTemp(ExpectedErrorPattern), ELogVerbosity::Warning, static_cast<EAutomationExpectedMessageFlags::MatchType>(InCompareType), Occurrences);
+	AddExpectedMessage(MoveTemp(ExpectedErrorPattern), ELogVerbosity::Warning, static_cast<EAutomationExpectedMessageFlags::MatchType>(InCompareType), Occurrences, IsRegex);
+}
+
+void FAutomationTestBase::AddExpectedErrorPlain(
+	FString ExpectedString,
+	EAutomationExpectedErrorFlags::MatchType CompareType,
+	int32 Occurrences)
+{
+	AddExpectedMessagePlain(MoveTemp(ExpectedString), ELogVerbosity::Warning, static_cast<EAutomationExpectedMessageFlags::MatchType>(CompareType), Occurrences);
 }
 
 uint32 FAutomationTestBase::ExtractAutomationTestFlags(FString InTagNotation)
@@ -1712,8 +1724,6 @@ bool FAutomationTestBase::IsExpectedMessage(
 	FScopeLock Lock(&ActionCS);
 	for (FAutomationExpectedMessage& ExpectedMessage : ExpectedMessages)
 	{
-		FRegexMatcher MessageMatcher(ExpectedMessage.MessagePattern, Message);
-
 		// Maintains previous behavior: Adjust so that error and fatal messages are tested against when the input verbosity is "Warning"
 		// Similarly, any message above warning should be considered an "info" message
 		const ELogVerbosity::Type AdjustedMessageVerbosity =
@@ -1722,9 +1732,8 @@ bool FAutomationTestBase::IsExpectedMessage(
 			: ELogVerbosity::VeryVerbose;
 
 		// Compare the incoming message verbosity with the expected verbosity,
-		if (LogCategoryMatchesSeverityInclusive(Verbosity, AdjustedMessageVerbosity) && MessageMatcher.FindNext())
+		if (LogCategoryMatchesSeverityInclusive(Verbosity, AdjustedMessageVerbosity) && ExpectedMessage.Matches(Message))
 		{
-			ExpectedMessage.ActualNumberOfOccurrences++;
 			return true;
 		}
 	}

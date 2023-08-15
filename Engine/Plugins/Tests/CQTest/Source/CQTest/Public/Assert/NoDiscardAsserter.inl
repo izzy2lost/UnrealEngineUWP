@@ -6,18 +6,7 @@
 
 inline void FNoDiscardAsserter::ExpectError(FString Error, int32 Count)
 {
-	static const FRegexPattern Pattern(TEXT("([\\[\\]{}()^$.?\\\\*+|])"));
-	FRegexMatcher Matcher(Pattern, Error);
-	FString SanitizedError(Error);
-	int32 Offset = 0;
-
-	while (Matcher.FindNext())
-	{
-		int32 Pos = Matcher.GetMatchBeginning() + Offset++;
-		SanitizedError.InsertAt(Pos, TEXT("\\"));
-	}
-
-	TestRunner.AddExpectedError(SanitizedError, EAutomationExpectedErrorFlags::Contains, Count);
+	TestRunner.AddExpectedError(Error, EAutomationExpectedErrorFlags::Contains, Count, false);
 }
 
 inline void FNoDiscardAsserter::ExpectErrorRegex(FString Error, int32 Count)
