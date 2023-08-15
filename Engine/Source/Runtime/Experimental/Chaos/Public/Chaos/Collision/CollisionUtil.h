@@ -1,6 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "Chaos/Collision/PBDCollisionConstraint.h"
+#include "Chaos/ImplicitObject.h"
+#include "Chaos/ParticleHandle.h"
+
 namespace Chaos
 {
 	extern bool bChaos_Collision_EnableBoundsChecks;
