@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Server.Notices
 {
@@ -124,7 +125,7 @@ namespace Horde.Server.Server.Notices
 
 				if (notice.UserId != null)
 				{
-					userInfo = new GetThinUserInfoResponse(await _userCollection.GetCachedUserAsync(notice.UserId));
+					userInfo = (await _userCollection.GetCachedUserAsync(notice.UserId))?.ToThinApiResponse();
 				}
 
 				messages.Add(new GetNoticeResponse() { Id = notice.Id.ToString(), Active = true, Message = notice.Message, CreatedByUser = userInfo});

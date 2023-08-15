@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Api;
 using Horde.Server.Acls;
 using Horde.Server.Agents;
 using Horde.Server.Jobs.Artifacts;
@@ -455,13 +456,13 @@ namespace Horde.Server.Jobs
 			GetThinUserInfoResponse? startedByUserInfo = null;
 			if (job.StartedByUserId != null)
 			{
-				startedByUserInfo = new GetThinUserInfoResponse(await _userCollection.GetCachedUserAsync(job.StartedByUserId.Value));
+				startedByUserInfo = (await _userCollection.GetCachedUserAsync(job.StartedByUserId.Value))?.ToThinApiResponse();
 			}
 
 			GetThinUserInfoResponse? abortedByUserInfo = null;
 			if (job.AbortedByUserId != null)
 			{
-				abortedByUserInfo = new GetThinUserInfoResponse(await _userCollection.GetCachedUserAsync(job.AbortedByUserId.Value));
+				abortedByUserInfo = (await _userCollection.GetCachedUserAsync(job.AbortedByUserId.Value))?.ToThinApiResponse();
 			}
 
 			GetJobResponse response = new GetJobResponse(job, startedByUserInfo, abortedByUserInfo);
@@ -517,13 +518,13 @@ namespace Horde.Server.Jobs
 			GetThinUserInfoResponse? abortedByUserInfo = null;
 			if (step.AbortedByUserId != null)
 			{
-				abortedByUserInfo = new GetThinUserInfoResponse(await _userCollection.GetCachedUserAsync(step.AbortedByUserId.Value));
+				abortedByUserInfo = (await _userCollection.GetCachedUserAsync(step.AbortedByUserId.Value))?.ToThinApiResponse();
 			}
 
 			GetThinUserInfoResponse? retriedByUserInfo = null;
 			if (step.RetriedByUserId != null)
 			{
-				retriedByUserInfo = new GetThinUserInfoResponse(await _userCollection.GetCachedUserAsync(step.RetriedByUserId.Value));
+				retriedByUserInfo = (await _userCollection.GetCachedUserAsync(step.RetriedByUserId.Value))?.ToThinApiResponse();
 			}
 
 			return new GetStepResponse(step, abortedByUserInfo, retriedByUserInfo);

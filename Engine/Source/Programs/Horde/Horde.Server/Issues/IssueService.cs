@@ -10,6 +10,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Api;
 using Horde.Server.Issues.Handlers;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;

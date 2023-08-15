@@ -3,18 +3,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Claims;
 using System.Text.Json;
-using EpicGames.Core;
-using Horde.Server.Acls;
-using Horde.Server.Agents;
-using Horde.Server.Agents.Pools;
-using Horde.Server.Jobs;
-using Horde.Server.Server;
-using Horde.Server.Server.Notices;
-using MongoDB.Bson;
 
-namespace Horde.Server.Users
+#pragma warning disable CA2227
+
+namespace EpicGames.Horde.Api
 {
 	/// <summary>
 	/// Response describing the current user
@@ -24,7 +17,7 @@ namespace Horde.Server.Users
 		/// <summary>
 		/// Id of the user
 		/// </summary>
-		public string Id { get; set; }
+		public UserId Id { get; set; }
 
 		/// <summary>
 		/// Name of the user
@@ -59,7 +52,7 @@ namespace Horde.Server.Users
 		/// <summary>
 		/// Claims for the user
 		/// </summary>
-		public List<UserClaim>? Claims { get; set; }
+		public List<GetUserClaimResponse>? Claims { get; set; }
 
 		/// <summary>
 		/// Whether to enable experimental features for this user
@@ -89,35 +82,35 @@ namespace Horde.Server.Users
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public GetUserResponse(IUser user, IAvatar? avatar, IUserClaims? claims, IUserSettings? settings)
+		public GetUserResponse(UserId id, string name)
 		{
-			Id = user.Id.ToString();
-			Name = user.Name;
-			Email = user.Email;
+			Id = id;
+			Name = name;
+		}
+	}
 
-			Image24 = avatar?.Image24;
-			Image32 = avatar?.Image32;
-			Image48 = avatar?.Image48;
-			Image72 = avatar?.Image72;
-						
-			Claims = claims?.Claims.Select(x => new UserClaim(x)).ToList();
+	/// <summary>
+	/// New claim document
+	/// </summary>
+	public class GetUserClaimResponse
+	{
+		/// <summary>
+		/// Type of the claim
+		/// </summary>
+		public string Type { get; set; }
 
-			if (settings != null)
-			{
-				EnableExperimentalFeatures = settings.EnableExperimentalFeatures;
-				
-				DashboardSettings = BsonTypeMapper.MapToDotNetValue(settings.DashboardSettings);
-				PinnedJobIds = settings.PinnedJobIds.ConvertAll(x => x.ToString());
+		/// <summary>
+		/// Value for the claim
+		/// </summary>
+		public string Value { get; set; }
 
-				if (settings.JobTemplateSettings != null && settings.JobTemplateSettings.Count > 0)
-				{
-					JobTemplateSettings = new List<GetJobTemplateSettingsResponse>();
-					for (int i = 0; i < settings.JobTemplateSettings.Count; i++)
-					{
-						JobTemplateSettings.Add(new GetJobTemplateSettingsResponse(settings.JobTemplateSettings[i]));
-					}
-				}
-			}
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public GetUserClaimResponse(string type, string value)
+		{
+			Type = type;
+			Value = value;
 		}
 	}
 
@@ -154,13 +147,13 @@ namespace Horde.Server.Users
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public GetJobTemplateSettingsResponse(IUserJobTemplateSettings settings)
+		public GetJobTemplateSettingsResponse(string streamId, string templateId, string templateHash, List<string> arguments, DateTime updateTimeUtc)
 		{
-			StreamId = settings.StreamId.ToString();
-			TemplateId = settings.TemplateId.ToString();
-			TemplateHash = settings.TemplateHash.ToString();
-			Arguments = settings.Arguments.ToList();
-			UpdateTimeUtc = new DateTimeOffset(settings.UpdateTimeUtc);
+			StreamId = streamId;
+			TemplateId = templateId;
+			TemplateHash = templateHash;
+			Arguments = arguments;
+			UpdateTimeUtc = new DateTimeOffset(updateTimeUtc);
 		}
 	}
 
@@ -169,22 +162,34 @@ namespace Horde.Server.Users
 	/// </summary>
 	public class GetDashboardFeaturesResponse
 	{
-		/// <inheritdoc cref="DashboardConfig.ShowLandingPage"/>
+		/// <summary>
+		/// Navigate to the landing page by default
+		/// </summary>
 		public bool ShowLandingPage { get; set; }
 
-		/// <inheritdoc cref="DashboardConfig.ShowCI"/>
+		/// <summary>
+		/// Enable CI functionality
+		/// </summary>
 		public bool ShowCI { get; set; }
 
-		/// <inheritdoc cref="DashboardConfig.ShowAgents"/>
+		/// <summary>
+		/// Whether to show functionality related to agents, pools, and utilization on the dashboard.
+		/// </summary>
 		public bool ShowAgents { get; set; }
 
-		/// <inheritdoc cref="DashboardConfig.ShowPerforceServers"/>
+		/// <summary>
+		/// Show the Perforce server option on the server menu
+		/// </summary>
 		public bool ShowPerforceServers { get; set; }
 
-		/// <inheritdoc cref="DashboardConfig.ShowDeviceManager"/>
+		/// <summary>
+		/// Show the device manager on the server menu
+		/// </summary>
 		public bool ShowDeviceManager { get; set; }
 
-		/// <inheritdoc cref="DashboardConfig.ShowTests"/>
+		/// <summary>
+		/// Show automated tests on the server menu
+		/// </summary>
 		public bool ShowTests { get; set; }
 
 		/// <summary>
@@ -201,22 +206,6 @@ namespace Horde.Server.Users
 		/// Whether the remote desktop button should be shown on the agent modal
 		/// </summary>
 		public bool ShowRemoteDesktop { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public GetDashboardFeaturesResponse(GlobalConfig globalConfig, ClaimsPrincipal principal)
-		{
-			ShowLandingPage = globalConfig.Dashboard.ShowLandingPage;
-			ShowCI = globalConfig.Dashboard.ShowCI;
-			ShowAgents = globalConfig.Dashboard.ShowAgents;
-			ShowPerforceServers = globalConfig.Dashboard.ShowPerforceServers;
-			ShowDeviceManager = globalConfig.Dashboard.ShowDeviceManager;
-			ShowTests = globalConfig.Dashboard.ShowTests;
-			ShowNoticeEditor = globalConfig.Authorize(NoticeAclAction.CreateNotice, principal) || globalConfig.Authorize(NoticeAclAction.UpdateNotice, principal);
-			ShowPoolEditor = globalConfig.Authorize(PoolAclAction.CreatePool, principal) || globalConfig.Authorize(PoolAclAction.UpdatePool, principal);
-			ShowRemoteDesktop = globalConfig.Authorize(AgentAclAction.UpdateAgent, principal);
-		}
 	}
 
 	/// <summary>
@@ -227,7 +216,7 @@ namespace Horde.Server.Users
 		/// <summary>
 		/// Id of the user
 		/// </summary>
-		public string Id { get; set; }
+		public UserId Id { get; set; }
 
 		/// <summary>
 		/// Name of the user
@@ -242,28 +231,17 @@ namespace Horde.Server.Users
 		/// <summary>
 		/// The user login [DEPRECATED]
 		/// </summary>
-		internal string? Login { get; set; }
+		public string? Login { get; set; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="user"></param>
-		public GetThinUserInfoResponse(IUser? user)
+		public GetThinUserInfoResponse(UserId id, string name, string? email, string? login)
 		{
-			if (user == null)
-			{
-				Id = String.Empty;
-				Name = "(Unknown)";
-				Email = null;
-				Login = null;
-			}
-			else
-			{
-				Id = user.Id.ToString();
-				Name = user.Name;
-				Email = user.Email;
-				Login = user.Login;
-			}
+			Id = id;
+			Name = name;
+			Email = email;
+			Login = login;
 		}
 	}
 

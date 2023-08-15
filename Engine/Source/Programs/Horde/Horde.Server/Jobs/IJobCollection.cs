@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Api;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Pools;

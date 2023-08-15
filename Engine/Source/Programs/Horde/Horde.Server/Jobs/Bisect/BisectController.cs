@@ -16,6 +16,7 @@ using HordeCommon;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Jobs.Bisect
 {
@@ -77,7 +78,7 @@ namespace Horde.Server.Jobs.Bisect
 		public BisectTaskState State => _bisectTask.State;
 
 		/// <inheritdoc cref="IBisectTask.OwnerId"/>
-		public GetThinUserInfoResponse Owner { get; }
+		public GetThinUserInfoResponse? Owner { get; }
 
 		/// <inheritdoc cref="IBisectTask.StreamId"/>
 		public StreamId StreamId => _bisectTask.StreamId;
@@ -124,7 +125,7 @@ namespace Horde.Server.Jobs.Bisect
 		/// </summary>
 		public List<GetJobStepRefResponse> Steps { get; }
 
-		internal GetBisectTaskResponse(IBisectTask bisectTask, GetThinUserInfoResponse owner, List<IJobStepRef> steps, IJob? nextJob)
+		internal GetBisectTaskResponse(IBisectTask bisectTask, GetThinUserInfoResponse? owner, List<IJobStepRef> steps, IJob? nextJob)
 		{
 			_bisectTask = bisectTask;
 			Owner = owner;
@@ -371,7 +372,7 @@ namespace Horde.Server.Jobs.Bisect
 			}
 
 			IJob? nextJob = task.State == BisectTaskState.Running ? await _jobCollection.FindBisectTaskJobsAsync(task.Id, true, cancellationToken).FirstOrDefaultAsync(cancellationToken) : null;
-			return new GetBisectTaskResponse(task, new GetThinUserInfoResponse(user), steps, nextJob);
+			return new GetBisectTaskResponse(task, user?.ToThinApiResponse(), steps, nextJob);
 		}
 
 		/// <summary>

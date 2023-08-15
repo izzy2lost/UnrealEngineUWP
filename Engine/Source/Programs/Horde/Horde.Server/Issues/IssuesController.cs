@@ -21,6 +21,7 @@ using Horde.Server.Users;
 using Horde.Server.Jobs.Graphs;
 using Microsoft.Extensions.Options;
 using Horde.Server.Server;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Issues
 {

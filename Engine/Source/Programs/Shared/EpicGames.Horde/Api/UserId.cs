@@ -3,10 +3,8 @@
 using System.ComponentModel;
 using EpicGames.Core;
 using EpicGames.Horde;
-using Horde.Server.Utilities;
-using MongoDB.Bson;
 
-namespace Horde.Server.Users
+namespace EpicGames.Horde.Api
 {
 	/// <summary>
 	/// Identifier for a user
@@ -27,10 +25,10 @@ namespace Horde.Server.Users
 		/// </summary>
 		public static UserId Anonymous { get; } = UserId.Parse("63f7d3525119b9aa4c0f035a");
 
-		/// <inheritdoc cref="ObjectId.Parse(System.String)"/>
+		/// <inheritdoc cref="BinaryId.Parse(System.String)"/>
 		public static UserId Parse(string text) => new UserId(BinaryId.Parse(text));
 
-		/// <inheritdoc cref="ObjectId.TryParse(System.String, out ObjectId)"/>
+		/// <inheritdoc cref="BinaryId.TryParse(System.String, out BinaryId)"/>
 		public static bool TryParse(string text, out UserId id)
 		{
 			if (BinaryId.TryParse(text, out BinaryId objectId))

@@ -2,13 +2,19 @@
 
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
+using Horde.Server.Acls;
+using Horde.Server.Agents;
+using Horde.Server.Agents.Pools;
 using Horde.Server.Jobs;
 using Horde.Server.Server;
+using Horde.Server.Server.Notices;
 using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Users
 {
@@ -53,10 +59,25 @@ namespace Horde.Server.Users
 			IUserClaims claims = await _userCollection.GetClaimsAsync(internalUser.Id);
 			IUserSettings settings = await _userCollection.GetSettingsAsync(internalUser.Id);
 
-			GetUserResponse response = new GetUserResponse(internalUser, avatar, claims, settings);
-			response.DashboardFeatures = new GetDashboardFeaturesResponse(_globalConfig.Value, User);
+			GetUserResponse response = internalUser.ToApiResponse(avatar, claims, settings);
+			response.DashboardFeatures = GetDashboardFeatures(_globalConfig.Value, User);
 
 			return PropertyFilter.Apply(response, filter);
+		}
+
+		static GetDashboardFeaturesResponse GetDashboardFeatures(GlobalConfig globalConfig, ClaimsPrincipal principal)
+		{
+			GetDashboardFeaturesResponse response = new GetDashboardFeaturesResponse();
+			response.ShowLandingPage = globalConfig.Dashboard.ShowLandingPage;
+			response.ShowCI = globalConfig.Dashboard.ShowCI;
+			response.ShowAgents = globalConfig.Dashboard.ShowAgents;
+			response.ShowPerforceServers = globalConfig.Dashboard.ShowPerforceServers;
+			response.ShowDeviceManager = globalConfig.Dashboard.ShowDeviceManager;
+			response.ShowTests = globalConfig.Dashboard.ShowTests;
+			response.ShowNoticeEditor = globalConfig.Authorize(NoticeAclAction.CreateNotice, principal) || globalConfig.Authorize(NoticeAclAction.UpdateNotice, principal);
+			response.ShowPoolEditor = globalConfig.Authorize(PoolAclAction.CreatePool, principal) || globalConfig.Authorize(PoolAclAction.UpdatePool, principal);
+			response.ShowRemoteDesktop = globalConfig.Authorize(AgentAclAction.UpdateAgent, principal);
+			return response;
 		}
 
 		/// <summary>

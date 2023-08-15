@@ -209,7 +209,7 @@ namespace Horde.Server.Streams
 
 							stepStates ??= new List<GetTemplateStepStateResponse>();
 
-							GetThinUserInfoResponse? pausedByUserInfo = new GetThinUserInfoResponse(await _userCollection.GetCachedUserAsync(state.PausedByUserId));
+							GetThinUserInfoResponse? pausedByUserInfo = (await _userCollection.GetCachedUserAsync(state.PausedByUserId))?.ToThinApiResponse();
 							stepStates.Add(new GetTemplateStepStateResponse(state, pausedByUserInfo));
 						}
 					}

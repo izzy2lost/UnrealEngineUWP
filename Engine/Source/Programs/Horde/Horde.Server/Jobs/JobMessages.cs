@@ -6,6 +6,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
+using EpicGames.Horde.Api;
 using Horde.Server.Acls;
 using Horde.Server.Jobs.Bisect;
 using Horde.Server.Jobs.Graphs;

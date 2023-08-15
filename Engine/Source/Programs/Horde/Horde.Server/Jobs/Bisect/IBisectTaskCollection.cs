@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Horde.Server.Perforce;
 using Horde.Server.Users;
 using HordeCommon;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Jobs.Bisect
 {

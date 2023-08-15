@@ -10,6 +10,7 @@ using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Authentication
 {

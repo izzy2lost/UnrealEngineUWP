@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Security.Claims;
 using EpicGames.Core;
+using EpicGames.Horde.Api;
 using Horde.Server.Acls;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Leases;

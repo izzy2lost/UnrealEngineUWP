@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using EpicGames.Core;
+using EpicGames.Horde.Api;
 using Horde.Server.Issues.External;
 using Horde.Server.Streams;
 using Horde.Server.Users;
@@ -553,24 +554,15 @@ namespace Horde.Server.Issues
 			Promoted = issue.Promoted;
 			Owner = details.Owner?.Login;
 			OwnerId = details.Owner?.Id.ToString();
-			if(details.Owner != null)
-			{
-				OwnerInfo = new GetThinUserInfoResponse(details.Owner);
-			}
+			OwnerInfo = details.Owner?.ToThinApiResponse();
 			NominatedBy = details.NominatedBy?.Login;
-			if (details.NominatedBy != null)
-			{
-				NominatedByInfo = new GetThinUserInfoResponse(details.NominatedBy);
-			}
+			NominatedByInfo = details.NominatedBy?.ToThinApiResponse();
 			AcknowledgedAt = issue.AcknowledgedAt;
 			FixChange = issue.FixChange;
 			ResolvedAt = issue.ResolvedAt;
 			ResolvedBy = details.ResolvedBy?.Login;
 			ResolvedById = details.ResolvedBy?.Id.ToString();
-			if (details.ResolvedBy != null)
-			{
-				ResolvedByInfo = new GetThinUserInfoResponse(details.ResolvedBy);
-			}
+			ResolvedByInfo = details.ResolvedBy?.ToThinApiResponse();
 			VerifiedAt = issue.VerifiedAt;
 			LastSeenAt = issue.LastSeenAt;
 			Streams = details.Spans.Select(x => x.StreamName).Distinct().ToList()!;
@@ -590,12 +582,12 @@ namespace Horde.Server.Issues
 			}
 			PrimarySuspects = details.SuspectUsers.Where(x => x.Login != null).Select(x => x.Login).ToList();
 			PrimarySuspectIds= details.SuspectUsers.Select(x => x.Id.ToString()).ToList();
-			PrimarySuspectsInfo = details.SuspectUsers.ConvertAll(x => new GetThinUserInfoResponse(x));
+			PrimarySuspectsInfo = details.SuspectUsers.ConvertAll(x => x.ToThinApiResponse());
 			ShowDesktopAlerts = showDesktopAlerts;
 			ExternalIssueKey = details.ExternalIssueKey;
-			QuarantinedByUserInfo = details.QuarantinedBy != null ? new GetThinUserInfoResponse(details.QuarantinedBy) : null;
+			QuarantinedByUserInfo = details.QuarantinedBy?.ToThinApiResponse();
 			QuarantineTimeUtc = details.QuarantineTimeUtc;
-			ForceClosedByUserInfo = details.ForceClosedBy != null ? new GetThinUserInfoResponse(details.ForceClosedBy) : null;
+			ForceClosedByUserInfo = details.ForceClosedBy?.ToThinApiResponse();
 			WorkflowThreadUrl = issue.WorkflowThreadUrl;
 		}
 	}
@@ -800,18 +792,18 @@ namespace Horde.Server.Issues
 			Promoted = issue.Promoted;
 			if (owner != null)
 			{
-				Owner = new GetThinUserInfoResponse(owner);
+				Owner = owner.ToThinApiResponse();
 			}
 			if (nominatedBy != null)
 			{
-				NominatedBy = new GetThinUserInfoResponse(nominatedBy);
+				NominatedBy = nominatedBy.ToThinApiResponse();
 			}
 			AcknowledgedAt = issue.AcknowledgedAt;
 			FixChange = issue.FixChange;
 			ResolvedAt = issue.ResolvedAt;
 			if (resolvedBy != null)
 			{
-				ResolvedBy = new GetThinUserInfoResponse(resolvedBy);
+				ResolvedBy = resolvedBy.ToThinApiResponse();
 			}
 			VerifiedAt = issue.VerifiedAt;
 			LastSeenAt = issue.LastSeenAt;
@@ -819,7 +811,7 @@ namespace Horde.Server.Issues
 			ExternalIssueKey = issue.ExternalIssueKey;
 			if (quarantinedBy != null)
 			{
-				QuarantinedBy = new GetThinUserInfoResponse(quarantinedBy);
+				QuarantinedBy = quarantinedBy.ToThinApiResponse();
 				QuarantineTimeUtc = issue.QuarantineTimeUtc;
 			}
 			WorkflowThreadUrl = issue.WorkflowThreadUrl;

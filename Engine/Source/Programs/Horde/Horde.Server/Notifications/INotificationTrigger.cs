@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Horde.Server.Users;
 using Horde.Server.Utilities;
 using MongoDB.Bson;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Notifications
 {

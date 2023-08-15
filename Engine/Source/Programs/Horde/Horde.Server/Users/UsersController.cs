@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Users
 {
@@ -63,7 +64,7 @@ namespace Horde.Server.Users
 			IAvatar? avatar = (AvatarService == null) ? (IAvatar?)null : await AvatarService.GetAvatarAsync(user);
 			IUserClaims? claims = await UserCollection.GetClaimsAsync(user.Id);
 			IUserSettings? settings = await UserCollection.GetSettingsAsync(user.Id);
-			return PropertyFilter.Apply(new GetUserResponse(user, avatar, claims, settings), filter);
+			return PropertyFilter.Apply(user.ToApiResponse(avatar, claims, settings), filter);
 		}
 
 		/// <summary>
@@ -95,7 +96,7 @@ namespace Horde.Server.Users
 			{
 				IAvatar? avatar = (AvatarService == null || !includeAvatar) ? (IAvatar?)null : await AvatarService.GetAvatarAsync(user);
 				IUserClaims? claims = (!includeClaims) ? null : await UserCollection.GetClaimsAsync(user.Id);
-				response.Add(new GetUserResponse(user, avatar, claims, null));
+				response.Add(user.ToApiResponse(avatar, claims, null));
 			}
 
 			return response;

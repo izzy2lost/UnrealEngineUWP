@@ -568,7 +568,7 @@ namespace Horde.Server.Streams
 		{
 			Number = commit.Number;
 			Author = author.Name;
-			AuthorInfo = new GetThinUserInfoResponse(author);
+			AuthorInfo = author.ToThinApiResponse();
 			Description = commit.Description;
 
 			if (tags != null)

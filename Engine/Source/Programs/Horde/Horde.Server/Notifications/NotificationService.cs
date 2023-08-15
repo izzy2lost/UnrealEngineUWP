@@ -9,6 +9,7 @@ using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Api;
 using EpicGames.Redis;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Configuration;
