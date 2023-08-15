@@ -135,6 +135,11 @@ public:
 		return Errors;
 	}
 
+	inline TConstArrayView<FShaderCompilerError> GetErrors() const
+	{
+		return MakeArrayView(Errors);
+	}
+
 	inline bool ParseAndModify(
 		const FShaderCompilerInput& Input, 
 		const FShaderCompilerEnvironment& Environment, 

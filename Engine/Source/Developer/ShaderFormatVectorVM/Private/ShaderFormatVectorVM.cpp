@@ -8,11 +8,25 @@
 #include "Interfaces/IShaderFormat.h"
 #include "Interfaces/IShaderFormatModule.h"
 #include "hlslcc.h"
+#include "ShaderCompilerCore.h"
 #include "ShaderCore.h"
 
 
-//TODO: Much of the below is some partial work I did towards having the VVM be treat just as a shader platform.
-//This seems like a reasonable way to go but I'm not 100% certain yet.
+extern bool PreprocessVectorVMShader(
+	const FShaderCompilerInput& Input,
+	const FShaderCompilerEnvironment& Environment,
+	class FShaderPreprocessOutput& PreprocessOutput);
+
+extern bool CompileVectorVMShader(
+	const FShaderCompilerInput& Input,
+	const FShaderPreprocessOutput& PreprocessOutput,
+	FShaderCompilerOutput& Output,
+	const FString& WorkingDirectory);
+
+extern void OutputVectorVMDebugData(
+	const FShaderCompilerInput& Input,
+	const FShaderPreprocessOutput& PreprocessOutput,
+	const FShaderCompilerOutput& Output);
 
 static FName NAME_VVM_1_0(TEXT("VVM_1_0"));
 
@@ -49,18 +63,26 @@ public:
 		OutFormats.Add(NAME_VVM_1_0);
 	}
 
-	virtual void CompileShader(FName Format, const struct FShaderCompilerInput& Input, struct FShaderCompilerOutput& Output,const FString& WorkingDirectory) const override
+	virtual bool SupportsIndependentPreprocessing() const override
 	{
-		CheckFormat(Format);
+		return true;
+	}
 
-		if (Format == NAME_VVM_1_0)
-		{
-			CompileShader_VectorVM(Input, Output, WorkingDirectory, (int8)VectorVMFormats::VVM_1_0);
-		}
-		else
-		{
-			check(0);
-		}
+	virtual bool PreprocessShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& PreprocessOutput) const override
+	{
+		CheckFormat(Input.ShaderFormat);
+		return PreprocessVectorVMShader(Input, Environment, PreprocessOutput);
+	}
+
+	virtual void CompilePreprocessedShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, FShaderCompilerOutput& Output, const FString& WorkingDirectory) const override
+	{
+		CheckFormat(Input.ShaderFormat);
+		CompileVectorVMShader(Input, PreprocessOutput, Output, WorkingDirectory);
+	}
+
+	virtual void OutputDebugData(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, const FShaderCompilerOutput& Output) const override
+	{
+		OutputVectorVMDebugData(Input, PreprocessOutput, Output);
 	}
 
 	virtual const TCHAR* GetPlatformIncludeDirectory() const

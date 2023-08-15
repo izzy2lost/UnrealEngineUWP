@@ -30,7 +30,7 @@
 #include "Serialization/MemoryReader.h"
 #include "ShaderCompiler.h"
 #include "ShaderCore.h"
-#include "ShaderFormatVectorVM.h"
+#include "VectorVMTestCompile.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraCompiler"
 
@@ -1704,10 +1704,9 @@ void FNiagaraEditorModule::TestCompileScriptFromConsole(const TArray<FString>& A
 			Input.Environment.SetDefine(TEXT("AMPLIFICATIONSHADER"), 0);
 			Input.Environment.IncludeVirtualPathToContentsMap.Add(TEXT("/Engine/Generated/NiagaraEmitterInstance.ush"), TranslatedHLSL);
 
-			FShaderCompilerOutput Output;
 			FVectorVMCompilationOutput CompilationOutput;
 			double StartTime = FPlatformTime::Seconds();
-			bool bSucceeded = CompileShader_VectorVM(Input, Output, FString(FPlatformProcess::ShaderDir()), 0, CompilationOutput, GNiagaraSkipVectorVMBackendOptimizations != 0);
+			bool bSucceeded = TestCompileVectorVMShader(Input, FString(FPlatformProcess::ShaderDir()), CompilationOutput, GNiagaraSkipVectorVMBackendOptimizations != 0);
 			float DeltaTime = (float)(FPlatformTime::Seconds() - StartTime);
 
 			if (bSucceeded)
