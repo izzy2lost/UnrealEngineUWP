@@ -504,7 +504,7 @@ template <typename T> struct TRemovePointer<T*> { typedef T Type; };
  * const object, because we would prefer to be informed when MoveTemp will have no effect.
  */
 template <typename T>
-FORCEINLINE typename TRemoveReference<T>::Type&& MoveTemp(T&& Obj)
+UE_INTRINSIC_CAST FORCEINLINE typename TRemoveReference<T>::Type&& MoveTemp(T&& Obj)
 {
 	typedef typename TRemoveReference<T>::Type CastType;
 
@@ -522,7 +522,7 @@ FORCEINLINE typename TRemoveReference<T>::Type&& MoveTemp(T&& Obj)
  * where you can but not stop compilation.
  */
 template <typename T>
-FORCEINLINE typename TRemoveReference<T>::Type&& MoveTempIfPossible(T&& Obj)
+UE_INTRINSIC_CAST FORCEINLINE typename TRemoveReference<T>::Type&& MoveTempIfPossible(T&& Obj)
 {
 	typedef typename TRemoveReference<T>::Type CastType;
 	return (CastType&&)Obj;
@@ -584,13 +584,13 @@ FORCEINLINE std::decay_t<T> CopyTempIfNecessary(T&& Val)
  * This is UE's equivalent of std::forward.
  */
 template <typename T>
-FORCEINLINE T&& Forward(typename TRemoveReference<T>::Type& Obj)
+UE_INTRINSIC_CAST FORCEINLINE T&& Forward(typename TRemoveReference<T>::Type& Obj)
 {
 	return (T&&)Obj;
 }
 
 template <typename T>
-FORCEINLINE T&& Forward(typename TRemoveReference<T>::Type&& Obj)
+UE_INTRINSIC_CAST FORCEINLINE T&& Forward(typename TRemoveReference<T>::Type&& Obj)
 {
 	return (T&&)Obj;
 }
@@ -755,7 +755,7 @@ template <
 	typename Base,
 	decltype(ImplicitConv<const volatile Base*>((typename TRemoveReference<T>::Type*)nullptr))* = nullptr
 >
-FORCEINLINE decltype(auto) ForwardAsBase(typename TRemoveReference<T>::Type& Obj)
+UE_INTRINSIC_CAST FORCEINLINE decltype(auto) ForwardAsBase(typename TRemoveReference<T>::Type& Obj)
 {
 	return (TCopyQualifiersAndRefsFromTo_T<T&&, Base>)Obj;
 }
@@ -765,7 +765,7 @@ template <
 	typename Base,
 	decltype(ImplicitConv<const volatile Base*>((typename TRemoveReference<T>::Type*)nullptr))* = nullptr
 >
-FORCEINLINE decltype(auto) ForwardAsBase(typename TRemoveReference<T>::Type&& Obj)
+UE_INTRINSIC_CAST FORCEINLINE decltype(auto) ForwardAsBase(typename TRemoveReference<T>::Type&& Obj)
 {
 	return (TCopyQualifiersAndRefsFromTo_T<T&&, Base>)Obj;
 }

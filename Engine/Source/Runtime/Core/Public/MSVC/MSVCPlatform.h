@@ -20,3 +20,6 @@
 
 #define PLATFORM_RETURN_ADDRESS()	        _ReturnAddress()
 #define PLATFORM_RETURN_ADDRESS_POINTER()	_AddressOfReturnAddress()
+
+// https://devblogs.microsoft.com/cppblog/improving-the-state-of-debug-performance-in-c/
+#define UE_INTRINSIC_CAST [[msvc::intrinsic]]
