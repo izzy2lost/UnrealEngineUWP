@@ -281,7 +281,7 @@ void FNiagaraDataChannelGameDataWriterBase::BeginWrite()
 
 void FNiagaraDataChannelGameDataWriterBase::Publish(FNiagaraDataChannelDataPtr& Destination)
 {
-	if (Data->Num() > 0)
+	if (Data && Data->Num() > 0)
 	{
 		FNiagaraDataChannelPublishRequest PublishRequest;
 		PublishRequest.bVisibleToCPUSims = true;

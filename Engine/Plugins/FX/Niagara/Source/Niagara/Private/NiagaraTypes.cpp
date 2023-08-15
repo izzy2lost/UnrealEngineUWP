@@ -307,6 +307,7 @@ FNiagaraTypeDefinition FNiagaraTypeHelper::Vector2DDef;
 FNiagaraTypeDefinition FNiagaraTypeHelper::VectorDef;
 FNiagaraTypeDefinition FNiagaraTypeHelper::Vector4Def;
 FNiagaraTypeDefinition FNiagaraTypeHelper::QuatDef;
+FNiagaraTypeDefinition FNiagaraTypeHelper::DoubleDef;
 
 FRWLock FNiagaraTypeHelper::RemapTableLock;
 TMap<TWeakObjectPtr<UScriptStruct>, FNiagaraTypeHelper::FRemapEntry> FNiagaraTypeHelper::RemapTable;
@@ -684,7 +685,7 @@ FNiagaraTypeDefinition FNiagaraTypeHelper::GetLWCType(const FNiagaraTypeDefiniti
 
 	if(InType == FNiagaraTypeDefinition::GetFloatDef())
 	{
-		return FNiagaraTypeDefinition(FNiagaraDouble::StaticStruct(), FNiagaraTypeDefinition::EAllowUnfriendlyStruct::Allow);
+		return DoubleDef;
 	}
 	else if (InType == FNiagaraTypeDefinition::GetVec2Def())
 	{
@@ -725,6 +726,7 @@ void FNiagaraTypeHelper::InitStaticTypes()
 		VectorDef = FNiagaraTypeDefinition(FindObjectChecked<UScriptStruct>(CoreUObjectPkg, TEXT("Vector")), FNiagaraTypeDefinition::EAllowUnfriendlyStruct::Allow);
 		Vector4Def = FNiagaraTypeDefinition(FindObjectChecked<UScriptStruct>(CoreUObjectPkg, TEXT("Vector4")), FNiagaraTypeDefinition::EAllowUnfriendlyStruct::Allow);
 		QuatDef = FNiagaraTypeDefinition(FindObjectChecked<UScriptStruct>(CoreUObjectPkg, TEXT("Quat")), FNiagaraTypeDefinition::EAllowUnfriendlyStruct::Allow);
+		DoubleDef = FNiagaraTypeDefinition(FNiagaraDouble::StaticStruct(), FNiagaraTypeDefinition::EAllowUnfriendlyStruct::Allow);
 	}
 }
 
@@ -746,6 +748,11 @@ FNiagaraTypeDefinition FNiagaraTypeHelper::GetVector4Def()
 FNiagaraTypeDefinition FNiagaraTypeHelper::GetQuatDef()
 {
 	return QuatDef;
+}
+
+FNiagaraTypeDefinition FNiagaraTypeHelper::GetDoubleDef()
+{
+	return DoubleDef;
 }
 
 UScriptStruct* FNiagaraTypeHelper::FindNiagaraFriendlyTopLevelStruct(UScriptStruct* InStruct, ENiagaraStructConversion StructConversion)

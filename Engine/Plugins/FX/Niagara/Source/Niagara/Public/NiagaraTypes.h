@@ -429,6 +429,7 @@ public:
 	static NIAGARA_API FNiagaraTypeDefinition GetVectorDef();
 	static NIAGARA_API FNiagaraTypeDefinition GetVector4Def();
 	static NIAGARA_API FNiagaraTypeDefinition GetQuatDef();
+	static NIAGARA_API FNiagaraTypeDefinition GetDoubleDef();
 
 	static NIAGARA_API void InitStaticTypes();
 private:
@@ -458,6 +459,7 @@ private:
 	static FNiagaraTypeDefinition VectorDef;
 	static FNiagaraTypeDefinition Vector4Def;
 	static FNiagaraTypeDefinition QuatDef;
+	static FNiagaraTypeDefinition DoubleDef;
 };
 
 /** Information about how this type should be laid out in an FNiagaraDataSet */
