@@ -2559,6 +2559,8 @@ UInstancedStaticMeshComponent::UInstancedStaticMeshComponent(const FObjectInitia
 	bDisallowMeshPaintPerInstance = true;
 	bMultiBodyOverlap = true;
 
+	bUseGpuLodSelection = true;
+
 #if STATS
 	{
 		UObject const* StatObject = this->AdditionalStatObject();
