@@ -921,8 +921,9 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 
 	if (Response.Status == EStatus::Error || bCacheCorrupted || bForceBuildIndex)
 	{
+		bool bCompareSearchIndex = false;
 #if ENABLE_ANIM_DEBUG
-		const bool bCompareSearchIndex = Response.Status != EStatus::Error && !bCacheCorrupted && bForceBuildIndex;
+		bCompareSearchIndex = Response.Status != EStatus::Error && !bCacheCorrupted && bForceBuildIndex;
 		if (bCompareSearchIndex)
 		{
 			SearchIndexCompare = SearchIndex;
