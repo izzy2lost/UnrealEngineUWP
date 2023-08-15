@@ -2802,6 +2802,12 @@ void ULevel::FixupActorFolders()
 		return;
 	}
 
+	TGuardValue<bool> IsFixingUpActorFoldersGuard(bIsFixingUpActorFolders, true);	
+	if (*IsFixingUpActorFoldersGuard)
+	{
+		return;
+	}
+
 	if (IsUsingActorFolders())
 	{
 		TGuardValue<bool> FixingActorFolders(GIsFixingActorFolders, true);

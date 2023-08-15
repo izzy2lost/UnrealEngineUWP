@@ -776,6 +776,10 @@ private:
 	/** Keeps track of whether we've looked for actor folder objects manually loaded from their external packages. */
 	UPROPERTY(Transient)
 	bool bNeedsUpdateForLoadedExternalActorFolders;
+
+	/** Keeps track of whether we are already fixing up actor folders or not. */
+	UPROPERTY(Transient)
+	bool bIsFixingUpActorFolders;
 #endif // #if WITH_EDITORONLY_DATA
 
 	enum class ERouteActorInitializationState : uint8
