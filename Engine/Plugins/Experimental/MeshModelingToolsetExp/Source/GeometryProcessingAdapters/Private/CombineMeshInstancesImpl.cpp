@@ -2409,8 +2409,7 @@ static void PostProcessHiddenFaceRemovedMesh(
 
 		// simplify to planar
 		FQEMSimplification Simplifier(&SubRegionMesh);
-		Simplifier.bAllowSeamCollapse = false;		// workaround for UV seam collapse issue
-		//Simplifier.bAllowSeamCollapse = true;
+		Simplifier.bAllowSeamCollapse = true;
 		Simplifier.bRetainQuadricMemory = false;
 
 		EEdgeRefineFlags BoundaryConstraint = EEdgeRefineFlags::NoFlip;
