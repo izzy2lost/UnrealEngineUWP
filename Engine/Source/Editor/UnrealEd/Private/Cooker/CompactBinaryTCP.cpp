@@ -251,6 +251,8 @@ EConnectionStatus FCompactBinaryTCPImpl::PollSendBytes(FSocket* Socket, const vo
 EConnectionStatus FCompactBinaryTCPImpl::TryWritePacket(FSocket* Socket, FSendBuffer& Buffer,
 	TArrayView<FMarshalledMessage>&& AppendMessages, uint64 MaxPacketSize)
 {
+	// Copy AppendMessages into the SendBuffer before any early exit; we are responsible for holding
+	// a reference to them now.
 	if (!AppendMessages.IsEmpty())
 	{
 		Buffer.PendingMessages.Reserve(Buffer.PendingMessages.Num() + AppendMessages.Num());
@@ -259,6 +261,12 @@ EConnectionStatus FCompactBinaryTCPImpl::TryWritePacket(FSocket* Socket, FSendBu
 			Buffer.PendingMessages.Add(MoveTemp(NewMessage));
 		}
 	}
+
+	if (!Socket)
+	{
+		return EConnectionStatus::Terminated;
+	}
+
 	MaxPacketSize = MaxPacketSize == 0 ? MaxOSPacketSize : FMath::Min(MaxPacketSize, MaxOSPacketSize);
 
 	for (;;)
