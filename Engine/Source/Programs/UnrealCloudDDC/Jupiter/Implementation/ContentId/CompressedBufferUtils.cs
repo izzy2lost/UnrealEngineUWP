@@ -73,10 +73,12 @@ namespace Jupiter.Implementation
 	public class CompressedBufferUtils
 	{
 		private readonly Tracer _tracer;
+		private readonly BufferedPayloadFactory _payloadFactory;
 
-		public CompressedBufferUtils(Tracer tracer)
+		public CompressedBufferUtils(Tracer tracer, BufferedPayloadFactory payloadFactory)
 		{
 			_tracer = tracer;
+			_payloadFactory = payloadFactory;
 		}
 		
 		private static (CompressedBufferHeader, uint[]) ExtractHeader(BinaryReader br)
@@ -193,7 +195,7 @@ namespace Jupiter.Implementation
 				throw new Exception($"Expected stream to be {header.TotalCompressedSize} but it was {streamSize}");
 			}
 
-			using FilesystemBufferedPayloadWriter bufferedPayloadWriter = new FilesystemBufferedPayloadWriter();
+			using FilesystemBufferedPayloadWriter bufferedPayloadWriter = _payloadFactory.CreateFilesystemBufferedPayloadWriter();
 
 			{
 				await using Stream targetStream = bufferedPayloadWriter.GetWritableStream();

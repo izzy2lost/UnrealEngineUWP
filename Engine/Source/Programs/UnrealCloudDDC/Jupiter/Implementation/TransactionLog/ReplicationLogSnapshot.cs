@@ -54,30 +54,30 @@ namespace Jupiter.Implementation.TransactionLog
 
 	public class BinaryReplicationLogSnapshot : ReplicationLogSnapshot
 	{
-		private FilesystemBufferedPayload? _filesystemBufferedPayload;
+		private IBufferedPayload? _bufferedPayload;
 
-		private BinaryReplicationLogSnapshot(NamespaceId ns, string lastBucket, Guid lastEvent, ulong countOfObjects, FilesystemBufferedPayload payload) : base(ns, lastBucket, lastEvent, countOfObjects)
+		private BinaryReplicationLogSnapshot(NamespaceId ns, string lastBucket, Guid lastEvent, ulong countOfObjects, IBufferedPayload payload) : base(ns, lastBucket, lastEvent, countOfObjects)
 		{
-			_filesystemBufferedPayload = payload; 
+			_bufferedPayload = payload; 
 		}
 
 		private BinaryReplicationLogSnapshot(NamespaceId ns) : base(ns)
 		{
-			_filesystemBufferedPayload = null;
+			_bufferedPayload = null;
 		}
 
 		public override void Dispose()
 		{
-			if (_filesystemBufferedPayload != null)
+			if (_bufferedPayload != null)
 			{
-				_filesystemBufferedPayload.Dispose();
-				_filesystemBufferedPayload = null;
+				_bufferedPayload.Dispose();
+				_bufferedPayload = null;
 			}
 		}
 
-		public static ReplicationLogSnapshot FromStream(Tracer tracer, Stream stream)
+		public static ReplicationLogSnapshot FromStream(BufferedPayloadFactory payloadFactory, Stream stream)
 		{
-			FilesystemBufferedPayload payload = FilesystemBufferedPayload.CreateAsync(tracer, stream).Result;
+			IBufferedPayload payload = payloadFactory.CreateFilesystemBufferedPayloadAsync(stream).Result;
 
 			using Stream payloadStream = payload.GetStream();
 			(NamespaceId ns, string lastBucket, Guid lastEvent, ulong countOfObjects) = ReadHeader(payloadStream);
@@ -111,12 +111,12 @@ namespace Jupiter.Implementation.TransactionLog
 
 		public override IEnumerable<SnapshotLiveObject> GetLiveObjects()
 		{
-			if (_filesystemBufferedPayload == null)
+			if (_bufferedPayload == null)
 			{
 				yield break;
 			}
 
-			using Stream payloadStream = _filesystemBufferedPayload.GetStream();
+			using Stream payloadStream = _bufferedPayload.GetStream();
 
 			(NamespaceId ns, string lastBucket, Guid lastEvent, ulong countOfObjects) = ReadHeader(payloadStream);
 
@@ -140,11 +140,11 @@ namespace Jupiter.Implementation.TransactionLog
 
 	public class ReplicationLogFactory
 	{
-		private readonly Tracer _tracer;
+		private readonly BufferedPayloadFactory _payloadFactory;
 
-		public ReplicationLogFactory(Tracer tracer)
+		public ReplicationLogFactory(BufferedPayloadFactory payloadFactory)
 		{
-			_tracer = tracer;
+			_payloadFactory = payloadFactory;
 		}
 
 		public ReplicationLogSnapshot DeserializeSnapshotFromStream(Stream stream)
@@ -166,7 +166,7 @@ namespace Jupiter.Implementation.TransactionLog
 
 			if (hasMagic)
 			{
-				return BinaryReplicationLogSnapshot.FromStream(_tracer, stream);
+				return BinaryReplicationLogSnapshot.FromStream(_payloadFactory, stream);
 			}
 
 			return JsonReplicationLogSnapshot.FromStream(stream);

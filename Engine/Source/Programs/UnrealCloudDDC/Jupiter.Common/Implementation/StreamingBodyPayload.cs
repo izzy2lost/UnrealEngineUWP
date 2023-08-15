@@ -58,9 +58,9 @@ namespace Jupiter.Common.Implementation
 	{
 		private FileInfo? _tempFile;
 
-		public FilesystemBufferedPayloadWriter()
+		private FilesystemBufferedPayloadWriter(string filesystemRoot)
 		{
-			_tempFile = new FileInfo(Path.GetTempFileName());
+			_tempFile = new FileInfo(Path.Combine(filesystemRoot, Path.GetRandomFileName()));
 		}
 
 		public void Dispose()
@@ -93,6 +93,11 @@ namespace Jupiter.Common.Implementation
 
 			return _tempFile.OpenWrite();
 		}
+
+		public static FilesystemBufferedPayloadWriter Create(string filesystemTempPayloadRoot)
+		{
+			return new FilesystemBufferedPayloadWriter(filesystemTempPayloadRoot);
+		}
 	}
 
 	/// <summary>
@@ -105,9 +110,9 @@ namespace Jupiter.Common.Implementation
 
 		public FileInfo TempFile => _tempFile;
 
-		private FilesystemBufferedPayload()
+		private FilesystemBufferedPayload(string filesystemRoot)
 		{
-			_tempFile = new FileInfo(Path.GetTempFileName());
+			_tempFile = new FileInfo(Path.Combine(filesystemRoot, Path.GetRandomFileName()));
 		}
 
 		internal FilesystemBufferedPayload(FileInfo bufferFile)
@@ -117,9 +122,9 @@ namespace Jupiter.Common.Implementation
 			_length = _tempFile.Length;
 		}
 
-		public static async Task<FilesystemBufferedPayload> CreateAsync(Tracer tracer, Stream s)
+		public static async Task<FilesystemBufferedPayload> CreateAsync(Tracer tracer, Stream s, string filesystemRoot)
 		{
-			FilesystemBufferedPayload payload = new FilesystemBufferedPayload();
+			FilesystemBufferedPayload payload = new FilesystemBufferedPayload(filesystemRoot);
 
 			{
 				using TelemetrySpan? scope = tracer.StartActiveSpan("payload.buffer")
@@ -157,6 +162,11 @@ namespace Jupiter.Common.Implementation
 		/// If the request is smaller then MemoryBufferSize we buffer it in memory rather then as a file
 		/// </summary>
 		public long MemoryBufferSize { get; set; } = int.MaxValue;
+
+		/// <summary>
+		/// The default root to create temporary buffered files under, defaults to %TEMP% or /tmp
+		/// </summary>
+		public string FilesystemTempPayloadRoot { get; set; } = Path.GetTempPath();
 	}
 
 	public class BufferedPayloadFactory
@@ -168,6 +178,8 @@ namespace Jupiter.Common.Implementation
 		{
 			_options = options;
 			_tracer = tracer;
+
+			Directory.CreateDirectory(options.CurrentValue.FilesystemTempPayloadRoot);
 		}
 
 		public Task<IBufferedPayload> CreateFromRequest(HttpRequest request)
@@ -190,12 +202,17 @@ namespace Jupiter.Common.Implementation
 				return await MemoryBufferedPayload.CreateAsync(_tracer, s);
 			}
 
-			return await FilesystemBufferedPayload.CreateAsync(_tracer, s);
+			return await FilesystemBufferedPayload.CreateAsync(_tracer, s, _options.CurrentValue.FilesystemTempPayloadRoot);
 		}
 
 		public async Task<IBufferedPayload> CreateFilesystemBufferedPayloadAsync(Stream s)
 		{
-			return await FilesystemBufferedPayload.CreateAsync(_tracer, s);
+			return await FilesystemBufferedPayload.CreateAsync(_tracer, s, _options.CurrentValue.FilesystemTempPayloadRoot);
+		}
+
+		public FilesystemBufferedPayloadWriter CreateFilesystemBufferedPayloadWriter()
+		{
+			return FilesystemBufferedPayloadWriter.Create(_options.CurrentValue.FilesystemTempPayloadRoot);
 		}
 	}
 }

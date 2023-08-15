@@ -192,16 +192,18 @@ namespace Jupiter.Implementation
 		private readonly IOptionsMonitor<S3Settings> _settings;
 		private readonly Tracer _tracer;
 		private readonly ILogger<AmazonStorageBackend> _logger;
+		private readonly BufferedPayloadFactory _payloadFactory;
 		private bool _bucketExistenceChecked;
 		private bool _bucketAccessPolicyApplied;
 
-		public AmazonStorageBackend(IAmazonS3 amazonS3, string bucketName, IOptionsMonitor<S3Settings> settings, Tracer tracer, ILogger<AmazonStorageBackend> logger)
+		public AmazonStorageBackend(IAmazonS3 amazonS3, string bucketName, IOptionsMonitor<S3Settings> settings, Tracer tracer, ILogger<AmazonStorageBackend> logger, BufferedPayloadFactory payloadFactory)
 		{
 			_amazonS3 = amazonS3;
 			_bucketName = bucketName;
 			_settings = settings;
 			_tracer = tracer;
 			_logger = logger;
+			_payloadFactory = payloadFactory;
 		}
 
 		public async Task WriteAsync(string path, Stream stream, CancellationToken cancellationToken)
@@ -302,7 +304,7 @@ namespace Jupiter.Implementation
 				else if (stream.Length > 16 * (long)Math.Pow(2, 20))
 				{
 					// will be chunked by TransferUtility
-					using FilesystemBufferedPayloadWriter writer = new FilesystemBufferedPayloadWriter();
+					using FilesystemBufferedPayloadWriter writer = _payloadFactory.CreateFilesystemBufferedPayloadWriter();
 					{
 						await using Stream writableStream = writer.GetWritableStream();
 						await stream.CopyToAsync(writableStream, cancellationToken);

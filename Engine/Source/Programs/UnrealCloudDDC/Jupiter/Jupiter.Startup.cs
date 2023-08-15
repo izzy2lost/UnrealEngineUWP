@@ -97,6 +97,8 @@ namespace Jupiter
 
 			services.AddOptions<ConsistencyCheckSettings>().Bind(Configuration.GetSection("ConsistencyCheck")).ValidateDataAnnotations();
 
+			services.AddOptions<BufferedPayloadOptions>().Bind(Configuration.GetSection("PayloadBuffering")).ValidateDataAnnotations();
+
 			services.AddOptions<UpstreamRelaySettings>().Configure(o => Configuration.GetSection("Upstream").Bind(o)).ValidateDataAnnotations();
 			services.AddOptions<ClusterSettings>().Configure(o => Configuration.GetSection("Cluster").Bind(o)).ValidateDataAnnotations();
 
@@ -156,7 +158,7 @@ namespace Jupiter
 			services.AddSingleton(serviceType: typeof(ILeaderElection), CreateLeaderElection);
 
 			services.AddTransient<IRequestHelper, RequestHelper>();
-
+			services.AddSingleton<BufferedPayloadFactory>();
 			services.AddSingleton(Configuration);
 
 			services.AddSingleton<FormatResolver>();
