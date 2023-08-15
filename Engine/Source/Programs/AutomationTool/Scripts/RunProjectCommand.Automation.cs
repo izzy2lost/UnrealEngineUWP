@@ -325,7 +325,7 @@ namespace AutomationScripts
 				int LastAutoFailIndex = -1;
 
 				Logger.LogInformation("Starting Client for unattended test....");
-				ClientProcess = SC.StageTargetPlatform.RunClient(ClientRunFlags, ClientApp, ClientCmdLine, Params);
+				ClientProcess = SC.StageTargetPlatform.RunClient(ClientRunFlags, ClientApp, ClientCmdLine, Params, SC);
 
 				if (DedicatedServerProcess != null)
 				{
@@ -334,7 +334,7 @@ namespace AutomationScripts
 						for (int i = 1; i < NumClients; i++)
 						{
 							Logger.LogInformation("Starting Extra Client {i} for unattended test....", i);
-							ExtraClients.Add(SC.StageTargetPlatform.RunClient(ExtraClientRunFlags, ClientApp, ClientCmdLine, Params));
+							ExtraClients.Add(SC.StageTargetPlatform.RunClient(ExtraClientRunFlags, ClientApp, ClientCmdLine, Params, SC));
 						}
 					}
 				}
@@ -458,7 +458,7 @@ namespace AutomationScripts
 			else
 			{
 				Logger.LogInformation("Starting Client....");
-				ClientProcess = SC.StageTargetPlatform.RunClient(ClientRunFlags, ClientApp, ClientCmdLine, Params);
+				ClientProcess = SC.StageTargetPlatform.RunClient(ClientRunFlags, ClientApp, ClientCmdLine, Params, SC);
 
 				if (DedicatedServerProcess != null)
 				{
@@ -467,7 +467,7 @@ namespace AutomationScripts
 						for (int i = 1; i < NumClients; i++)
 						{
 							Logger.LogInformation("Starting Extra Client {i}....", i);
-							ExtraClients.Add(SC.StageTargetPlatform.RunClient(ExtraClientRunFlags, ClientApp, ClientCmdLine, Params));
+							ExtraClients.Add(SC.StageTargetPlatform.RunClient(ExtraClientRunFlags, ClientApp, ClientCmdLine, Params, SC));
 						}
 					}
 				}
