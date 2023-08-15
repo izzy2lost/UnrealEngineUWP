@@ -112,8 +112,8 @@ public:
 	ENGINE_API void LoadSettings(const TCHAR* Section);
 	ENGINE_API void SaveSettings(const TCHAR* Section);
 
-	class UDirectionalLightComponent* DirectionalLight;
-	class USkyLightComponent* SkyLight;
+	class UDirectionalLightComponent* DirectionalLight = nullptr;;
+	class USkyLightComponent* SkyLight = nullptr;;
 
 private:
 
