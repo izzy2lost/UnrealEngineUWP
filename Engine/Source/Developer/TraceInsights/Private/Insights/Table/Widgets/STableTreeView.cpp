@@ -165,6 +165,15 @@ STableTreeView::~STableTreeView()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+void STableTreeView::SetCurrentGroupings(TArray<TSharedPtr<FTreeNodeGrouping>>& InCurrentGroupings)
+{
+	PreChangeGroupings();
+	CurrentGroupings = InCurrentGroupings;
+	PostChangeGroupings();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 void STableTreeView::InitCommandList()
 {
 	FTableTreeViewCommands::Register();
