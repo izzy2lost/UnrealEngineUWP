@@ -627,10 +627,17 @@ void UVCamOutputProviderBase::PostEditUndo()
 	Super::PostEditUndo();
 
 	// Need to restore because we killed the widget in PreEditUndo
-	if (bIsActive)
+	if (IsActiveAndOuterComponentEnabled())
 	{
 		// The transaction has overwritten our properties, e.g. UMGWidget, which would make OnActivate fail 
 		OnDeactivate();
+
+		// Our initialized state may also not line up anymore - in that case we must be initialized before activating.
+		if (!IsInitialized())
+		{
+			Initialize();
+		}
+		
 		// Now we're in a clean base state to re-activate
 		OnActivate();
 	}

@@ -194,6 +194,8 @@ void UVCamComponent::ApplyComponentInstanceData(FVCamComponentInstanceData& Comp
 	// However, input must be manually re-initialized since the modifiers were duplicated and the input system is still pointing at the old modifier instances.
 	// AppliedInputContext was nulled by the cache because is marked Transient, so we have to restore it manually.
 	ReinitializeInput(ComponentInstanceData.AppliedInputContexts);
+
+	RefreshInitializationState();
 }
 
 bool UVCamComponent::CanUpdate() const
@@ -331,16 +333,6 @@ void UVCamComponent::PreEditChange(FEditPropertyChain& PropertyAboutToChange)
 		{
 			SavedModifierStack = ModifierStack;
 		}
-		else if (MemberPropertyName == NAME_Enabled)
-		{
-			// Changing the enabled state needs to be done here instead of PostEditChange
-			// So we need to grab the value from the FProperty directly before using it
-			void* PropertyData = MemberProperty->ContainerPtrToValuePtr<void>(this);
-			bool bWasEnabled = false;
-			MemberProperty->CopySingleValue(&bWasEnabled, PropertyData);
-			
-			SetEnabled(!bWasEnabled);
-		}
 	}
 	
 	UObject::PreEditChange(PropertyAboutToChange);
@@ -352,16 +344,8 @@ void UVCamComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 	if (Property && PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
 	{
 		const FName PropertyName = Property->GetFName();
-		
-		if (PropertyName == GET_MEMBER_NAME_CHECKED(UVCamComponent, bEnabled))
-		{
-			// Only act here if we are a struct (like FModifierStackEntry)
-			if (!Property->GetOwner<UClass>())
-			{
-				SetEnabled(bEnabled);
-			}
-		}
-		else if (PropertyName == GET_MEMBER_NAME_CHECKED(UVCamComponent, ModifierStack))
+
+		if (PropertyName == GET_MEMBER_NAME_CHECKED(UVCamComponent, ModifierStack))
 		{
 			ValidateModifierStack();
 			SavedModifierStack.Empty();
@@ -383,6 +367,11 @@ void UVCamComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 	// Called e.g. after PostEditUndo. Must make sure that the delegates are registered.
 	EnsureDelegatesRegistered();
 	ApplyInputProfile();
+
+	// Fix up any incorrect state we may be in after PostEditUndo or other types of changes.
+	// IsInitialized uses the SubsystemCollection, which is not reflected, so it should always accurately report our state.
+	RefreshInitializationState();
+	
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 
@@ -1924,4 +1913,16 @@ void UVCamComponent::UnregisterInputComponent()
 	}
 	
 	AppliedInputContexts.Reset();
+}
+
+void UVCamComponent::RefreshInitializationState()
+{
+	if (!IsInitialized() && bEnabled)
+	{
+		SetEnabled(true);
+	}
+	else if (IsInitialized() && !bEnabled)
+	{
+		SetEnabled(false);
+	}
 }

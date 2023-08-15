@@ -567,4 +567,7 @@ private:
 	/** Utility functions for registering and unregistering our input component with the correct input system */
 	virtual void RegisterInputComponent();
 	virtual void UnregisterInputComponent();
+
+	/** Called after an undo, or applying instance cache. Calls Initialize or Deinitialize if needed based on bEnabled. */
+	void RefreshInitializationState();
 };
