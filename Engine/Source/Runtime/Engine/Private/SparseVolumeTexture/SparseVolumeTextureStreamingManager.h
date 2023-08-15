@@ -255,8 +255,8 @@ private:
 			RetryCount = 0;
 			++RequestVersion;
 #endif
-			RequestBuffer = {};
 			Request.Reset();
+			RequestBuffer = {};
 			IssuedInFrame = 0;
 			bBlocking = false;
 		}
