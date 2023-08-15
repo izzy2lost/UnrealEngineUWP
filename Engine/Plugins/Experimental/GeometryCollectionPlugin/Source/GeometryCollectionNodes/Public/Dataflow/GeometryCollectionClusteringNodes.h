@@ -205,6 +205,66 @@ public:
 };
 
 
+
+UENUM(BlueprintType)
+enum class EClusterNeighborSelectionMethodEnum : uint8
+{
+	Dataflow_ClusterNeighborSelectionMethod_LargestNeighbor UMETA(DisplayName = "Largest Neighbor"),
+	Dataflow_ClusterNeighborSelectionMethod_NearestCenter UMETA(DisplayName = "Nearest Center")
+};
+
+/**
+ * Merge selected bones to their neighbors
+ */
+USTRUCT(meta = (DataflowGeometryCollection))
+struct FClusterMergeToNeighborsDataflowNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FClusterMergeToNeighborsDataflowNode, "ClusterMergeToNeighbors", "GeometryCollection|Cluster", "")
+
+public:
+
+	/** Collection on which to merge bones into a neighboring cluster */
+	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
+	FManagedArrayCollection Collection;
+
+	/** Bone selection */
+	UPROPERTY(meta = (DataflowInput, DisplayName = "TransformSelection"))
+	FDataflowTransformSelection TransformSelection;
+
+	/** Method to choose which neighbor to merge */
+	UPROPERTY(EditAnywhere, Category = Options, meta = (DisplayName = "Merge To"))
+	EClusterNeighborSelectionMethodEnum NeighborSelectionMethod = EClusterNeighborSelectionMethodEnum::Dataflow_ClusterNeighborSelectionMethod_LargestNeighbor;
+
+	/** Size (cube root of volume) of minimum desired post-merge clusters; if > 0, selected clusters may be merged multiple times until the cluster size is above this value */
+	UPROPERTY(EditAnywhere, Category = Options, meta = (DataflowInput, DisplayName = "Min Cluster Size", ClampMin = "0"))
+	float MinVolumeCubeRoot = 0.0f;
+
+	/** Whether to only allow clusters to merge if their bones are connected in the proximity graph */
+	UPROPERTY(EditAnywhere, Category = Options, meta = (DataflowInput))
+	bool bOnlyToConnected = true;
+
+	/** Whether to only allow clusters to merge if they have the same parent bone */
+	UPROPERTY(EditAnywhere, Category = Options, meta = (DataflowInput))
+	bool bOnlySameParent = true;
+
+	FClusterMergeToNeighborsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+		: FDataflowNode(InParam, InGuid)
+	{
+		RegisterInputConnection(&Collection);
+		RegisterInputConnection(&TransformSelection);
+		RegisterInputConnection(&MinVolumeCubeRoot);
+		RegisterInputConnection(&bOnlyToConnected);
+		RegisterInputConnection(&bOnlySameParent);
+
+		RegisterOutputConnection(&Collection, &Collection);
+	}
+
+	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+
+};
+
+
 /**
  * Merge selected bones under a new parent cluster
  */

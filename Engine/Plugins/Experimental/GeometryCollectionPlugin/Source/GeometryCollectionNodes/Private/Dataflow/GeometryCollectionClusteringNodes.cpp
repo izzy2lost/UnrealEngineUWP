@@ -43,6 +43,7 @@ namespace Dataflow
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FClusterFlattenDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FClusterUnclusterDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FClusterDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FClusterMergeToNeighborsDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FClusterMergeDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FClusterIsolatedRootsDataflowNode);
 
@@ -164,6 +165,50 @@ void FClusterDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflow
 			FFractureEngineClustering::ClusterSelected(*GeomCollection, Selection);
 			SetValue(Context, (const FManagedArrayCollection&)(*GeomCollection), &Collection);
 		}
+	}
+}
+
+void FClusterMergeToNeighborsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA(&Collection))
+	{
+		const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
+		const FDataflowTransformSelection& InTransformSelection = GetValue(Context, &TransformSelection);
+		if (InTransformSelection.NumSelected() == 0)
+		{
+			SetValue(Context, InCollection, &Collection);
+			return;
+		}
+		if (TUniquePtr<FGeometryCollection> GeomCollection = TUniquePtr<FGeometryCollection>(InCollection.NewCopy<FGeometryCollection>()))
+		{
+			double InMinVolumeCubeRoot = (double)GetValue(Context, &MinVolumeCubeRoot);
+			double InMinVolume = InMinVolumeCubeRoot * InMinVolumeCubeRoot * InMinVolumeCubeRoot;
+			bool bInOnlyToConnected = GetValue(Context, &bOnlyToConnected);
+			bool bInOnlySameParent = GetValue(Context, &bOnlySameParent);
+			UE::PlanarCut::ENeighborSelectionMethod InNeighborSelectionMethod =
+				NeighborSelectionMethod == EClusterNeighborSelectionMethodEnum::Dataflow_ClusterNeighborSelectionMethod_LargestNeighbor ?
+				UE::PlanarCut::ENeighborSelectionMethod::LargestNeighbor : UE::PlanarCut::ENeighborSelectionMethod::NearestCenter;
+
+			TArray<int32> Selection = InTransformSelection.AsArray();
+			TArray<double> Volumes;
+			FindBoneVolumes(
+				*GeomCollection,
+				TArrayView<const int32>(),
+				Volumes, 1.0, true);
+			MergeClusters(
+				*GeomCollection,
+				Volumes,
+				InMinVolume,
+				Selection,
+				InNeighborSelectionMethod,
+				bInOnlyToConnected,
+				bInOnlySameParent
+			);
+			SetValue(Context, (const FManagedArrayCollection&)(*GeomCollection), &Collection);
+			return;
+		}
+
+		SetValue(Context, InCollection, &Collection);
 	}
 }
 
