@@ -2675,7 +2675,7 @@ FRayTracingGeometryRHIRef FD3D12DynamicRHI::RHICreateRayTracingGeometry(FRHIComm
 	return new FD3D12RayTracingGeometry(RHICmdList, &Adapter, Initializer);
 }
 
-void FD3D12DynamicRHI::RHITransferRayTracingGeometryUnderlyingResource(FRHIRayTracingGeometry* DestGeometry, FRHIRayTracingGeometry* SrcGeometry)
+void FD3D12DynamicRHI::RHITransferRayTracingGeometryUnderlyingResource(FRHICommandListBase& RHICmdList, FRHIRayTracingGeometry* DestGeometry, FRHIRayTracingGeometry* SrcGeometry)
 {
 	check(DestGeometry);
 	FD3D12RayTracingGeometry* Dest = ResourceCast(DestGeometry);

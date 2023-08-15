@@ -592,12 +592,14 @@ void FRHICommandUpdateRHIResources::Execute(FRHICommandListBase& CmdList)
 		{
 		case FRHIResourceUpdateInfo::UT_Buffer:
 			GDynamicRHI->RHITransferBufferUnderlyingResource(
+				CmdList,
 				Info.Buffer.DestBuffer,
 				Info.Buffer.SrcBuffer);
 			break;
 #if RHI_RAYTRACING
 		case FRHIResourceUpdateInfo::UT_RayTracingGeometry:
 			GDynamicRHI->RHITransferRayTracingGeometryUnderlyingResource(
+				CmdList,
 				Info.RayTracingGeometry.DestGeometry,
 				Info.RayTracingGeometry.SrcGeometry);
 			break;

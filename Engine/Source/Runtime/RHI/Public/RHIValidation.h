@@ -525,9 +525,9 @@ public:
 		return Texture;
 	}
 
-	void RHITransferBufferUnderlyingResource(FRHIBuffer* DestBuffer, FRHIBuffer* SrcBuffer) override final
+	void RHITransferBufferUnderlyingResource(FRHICommandListBase& RHICmdList, FRHIBuffer* DestBuffer, FRHIBuffer* SrcBuffer) override final
 	{
-		RHI->RHITransferBufferUnderlyingResource(DestBuffer, SrcBuffer);
+		RHI->RHITransferBufferUnderlyingResource(RHICmdList, DestBuffer, SrcBuffer);
 	}
 
 	/**
@@ -1276,9 +1276,9 @@ public:
 		return RHI->RHICalcRayTracingGeometrySize(RHICmdList, Initializer);
 	}
 
-	void RHITransferRayTracingGeometryUnderlyingResource(FRHIRayTracingGeometry* DestGeometry, FRHIRayTracingGeometry* SrcGeometry) override final
+	void RHITransferRayTracingGeometryUnderlyingResource(FRHICommandListBase& RHICmdList, FRHIRayTracingGeometry* DestGeometry, FRHIRayTracingGeometry* SrcGeometry) override final
 	{
-		RHI->RHITransferRayTracingGeometryUnderlyingResource(DestGeometry, SrcGeometry);
+		RHI->RHITransferRayTracingGeometryUnderlyingResource(RHICmdList, DestGeometry, SrcGeometry);
 	}
 #endif // RHI_RAYTRACING
 

@@ -664,7 +664,7 @@ void FMetalRHICommandContext::RHIBuildAccelerationStructure(const FRayTracingSce
 		InstanceBuffer, SceneBuildParams.InstanceBufferOffset);
 }
 
-void FMetalDynamicRHI::RHITransferRayTracingGeometryUnderlyingResource(FRHIRayTracingGeometry* DestGeometry, FRHIRayTracingGeometry* SrcGeometry)
+void FMetalDynamicRHI::RHITransferRayTracingGeometryUnderlyingResource(FRHICommandListBase& RHICmdList, FRHIRayTracingGeometry* DestGeometry, FRHIRayTracingGeometry* SrcGeometry)
 {
 	check(DestGeometry);
 	FMetalRayTracingGeometry* Dest = ResourceCast(DestGeometry);
