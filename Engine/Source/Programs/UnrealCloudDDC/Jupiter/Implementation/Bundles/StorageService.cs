@@ -60,7 +60,9 @@ public class StorageClient : BundleStorageClient
 		_treeReader = new BundleReader(this, null, NullLogger.Instance);
 	}
 
+#pragma warning disable IDE0060
 	public async Task<(BundleLocator Locator, Uri UploadUrl)?> GetWriteRedirectAsync(string prefix, CancellationToken cancellationToken)
+#pragma warning restore IDE0060
 	{
 		BundleLocator locator = BundleLocator.CreateUnique(prefix);
 		BlobId blobIdentifier = BlobId.FromBlobLocator(locator);
@@ -111,7 +113,9 @@ public class StorageClient : BundleStorageClient
 		yield break;
 	}
 
+#pragma warning disable IDE0060
 	public async Task<Uri?> GetReadRedirectAsync(BundleLocator locator, CancellationToken cancellationToken)
+#pragma warning restore IDE0060
 	{
 		BlobId blobIdentifier = BlobId.FromBlobLocator(locator);
 		Uri? redirectUri = await _blobService.GetObjectWithRedirectAsync(_namespaceId, blobIdentifier);
@@ -178,7 +182,9 @@ public class StorageClient : BundleStorageClient
 		return WriteRefTargetAsync(refName, target.GetLocator(), requestOptions, cancellationToken);
 	}
 
+#pragma warning disable IDE0060
 	public async Task WriteRefTargetAsync(RefName refName, BundleNodeLocator target, RefOptions? requestOptions, CancellationToken cancellationToken)
+#pragma warning restore IDE0060
 	{
 		BlobId bundleBlob = BlobId.FromBlobLocator(target.Blob);
 		RefId refKey = RefId.FromName(refName.ToString());
