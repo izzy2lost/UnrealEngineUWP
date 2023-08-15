@@ -127,6 +127,164 @@ UDynamicMesh* UGeometryScriptLibrary_MeshUVFunctions::SetMeshTriangleUVs(
 
 
 
+UDynamicMesh* UGeometryScriptLibrary_MeshUVFunctions::AddUVElementToMesh(
+	UDynamicMesh* TargetMesh,
+	int UVSetIndex,
+	FVector2D NewUVPosition,
+	int& NewUVElementID,
+	bool& bIsValidUVSet,
+	bool bDeferChangeNotifications)
+{
+	bIsValidUVSet = false;
+	NewUVElementID = -1;
+	if (TargetMesh)
+	{
+		TargetMesh->EditMesh([&](FDynamicMesh3& EditMesh)
+		{
+			if (EditMesh.HasAttributes() && UVSetIndex < EditMesh.Attributes()->NumUVLayers() )
+			{
+				FDynamicMeshUVOverlay* UVOverlay = EditMesh.Attributes()->GetUVLayer(UVSetIndex);
+				if (UVOverlay != nullptr)
+				{
+					bIsValidUVSet = true;
+					NewUVElementID = UVOverlay->AppendElement((FVector2f)NewUVPosition);
+				}
+			}
+		}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, bDeferChangeNotifications);
+	}
+	return TargetMesh;	
+}
+
+
+
+
+UDynamicMesh* UGeometryScriptLibrary_MeshUVFunctions::SetMeshTriangleUVElementIDs(
+	UDynamicMesh* TargetMesh,
+	int UVSetIndex,
+	int TriangleID, 
+	FIntVector TriangleUVElements,
+	bool& bIsValidTriangle,
+	bool bDeferChangeNotifications)
+{
+	bIsValidTriangle = false;
+	if (TargetMesh)
+	{
+		TargetMesh->EditMesh([&](FDynamicMesh3& EditMesh)
+		{
+			if (EditMesh.IsTriangle(TriangleID) && EditMesh.HasAttributes() && UVSetIndex < EditMesh.Attributes()->NumUVLayers() )
+			{
+				FDynamicMeshUVOverlay* UVOverlay = EditMesh.Attributes()->GetUVLayer(UVSetIndex);
+				if (UVOverlay != nullptr)
+				{
+					// sanity check here because SetTriangle does not
+					FIndex3i MeshTri = EditMesh.GetTriangle(TriangleID);
+					for (int32 j = 0; j < 3; ++j)
+					{
+						int32 VertexID = MeshTri[j];
+						int32 ElemID = TriangleUVElements[j];
+						int32 ParentVertexID = UVOverlay->GetParentVertex(ElemID);
+						if (ParentVertexID != IndexConstants::InvalidID && ParentVertexID != VertexID)
+						{
+							return;		// would create broken topology
+						}
+						
+					}
+
+					if (UVOverlay->SetTriangle(TriangleID, (FIndex3i)TriangleUVElements, false) == EMeshResult::Ok)
+					{
+						bIsValidTriangle = true;
+					}
+				}
+			}
+		}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, bDeferChangeNotifications);
+	}
+	return TargetMesh;	
+}
+
+
+
+UDynamicMesh* UGeometryScriptLibrary_MeshUVFunctions::GetMeshTriangleUVElementIDs(
+	UDynamicMesh* TargetMesh,
+	int UVSetIndex,
+	int TriangleID,
+	FIntVector& TriangleUVElements,
+	bool& bHaveValidUVs)
+{
+	bHaveValidUVs = false;
+	if (TargetMesh)
+	{
+		TargetMesh->ProcessMesh([&](const FDynamicMesh3& EditMesh)
+		{
+			if (EditMesh.IsTriangle(TriangleID) && EditMesh.HasAttributes() && UVSetIndex < EditMesh.Attributes()->NumUVLayers() )
+			{
+				const FDynamicMeshUVOverlay* UVOverlay = EditMesh.Attributes()->GetUVLayer(UVSetIndex);
+				if (UVOverlay != nullptr && UVOverlay->IsSetTriangle(TriangleID))
+				{
+					bHaveValidUVs = true;
+					TriangleUVElements = UVOverlay->GetTriangle(TriangleID);
+				}
+			}
+		});
+	}
+	return TargetMesh;	
+}
+
+
+
+UDynamicMesh* UGeometryScriptLibrary_MeshUVFunctions::GetMeshUVElementPosition(
+	UDynamicMesh* TargetMesh,
+	int UVSetIndex,
+	int ElementID,
+	FVector2D& UVPosition,
+	bool& bIsValidElementID)
+{
+	bIsValidElementID = false;
+	if (TargetMesh)
+	{
+		TargetMesh->ProcessMesh([&](const FDynamicMesh3& EditMesh)
+		{
+			if (EditMesh.HasAttributes() && UVSetIndex < EditMesh.Attributes()->NumUVLayers() )
+			{
+				const FDynamicMeshUVOverlay* UVOverlay = EditMesh.Attributes()->GetUVLayer(UVSetIndex);
+				if (UVOverlay != nullptr && UVOverlay->IsElement(ElementID))
+				{
+					bIsValidElementID = true;
+					UVPosition = (FVector2D)UVOverlay->GetElement(ElementID);
+				}
+			}
+		});
+	}
+	return TargetMesh;	
+}
+
+
+
+UDynamicMesh* UGeometryScriptLibrary_MeshUVFunctions::SetMeshUVElementPosition(
+	UDynamicMesh* TargetMesh,
+	int UVSetIndex,
+	int ElementID,
+	FVector2D NewUVPosition,
+	bool& bIsValidElementID,
+	bool bDeferChangeNotifications)
+{
+	bIsValidElementID = false;
+	if (TargetMesh)
+	{
+		TargetMesh->EditMesh([&](FDynamicMesh3& EditMesh)
+		{
+			if (EditMesh.HasAttributes() && UVSetIndex < EditMesh.Attributes()->NumUVLayers() )
+			{
+				FDynamicMeshUVOverlay* UVOverlay = EditMesh.Attributes()->GetUVLayer(UVSetIndex);
+				if (UVOverlay != nullptr && UVOverlay->IsElement(ElementID))
+				{
+					bIsValidElementID = true;
+					UVOverlay->SetElement(ElementID, (FVector2f)NewUVPosition);
+				}
+			}
+		}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, bDeferChangeNotifications);
+	}
+	return TargetMesh;	
+}
 
 
 void ApplyMeshUVEditorOperation(UDynamicMesh* TargetMesh, int32 UVSetIndex, bool& bHasUVSet, UGeometryScriptDebug* Debug,

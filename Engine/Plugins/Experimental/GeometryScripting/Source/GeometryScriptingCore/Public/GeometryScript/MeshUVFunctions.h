@@ -168,8 +168,10 @@ public:
 		UGeometryScriptDebug* Debug = nullptr );
 
 	/**
-	* Sets the UVs of a mesh triangle in the given UV Channel.
-	*/
+	 * Sets the UVs of a mesh triangle in the given UV Channel. 
+	 * This function will create new UV elements for each vertex of the triangle, meaning that
+	 * the triangle will become an isolated UV island.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|UVs", meta=(ScriptMethod))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
 	SetMeshTriangleUVs( 
@@ -178,6 +180,79 @@ public:
 		int TriangleID, 
 		FGeometryScriptUVTriangle UVs,
 		bool& bIsValidTriangle, 
+		bool bDeferChangeNotifications = false );
+
+
+	/**
+	 * Adds a new UV Element to the specified UV Channel of the Mesh and returns a new UV Element ID.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshEdits", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
+	AddUVElementToMesh( 
+		UDynamicMesh* TargetMesh, 
+		UPARAM(DisplayName = "UV Channel") int32 UVSetIndex,
+		FVector2D NewUVPosition, 
+		UPARAM(DisplayName = "New UV Element ID") int& NewUVElementID,
+		bool& bIsValidUVSet,
+		bool bDeferChangeNotifications = false );
+
+	/**
+	 * Sets the UV Element IDs for a given Triangle in the specified UV Channel, ie the "UV Triangle" indices.
+	 * This function does not create new UVs, the provided UV Elements must already.
+	 * The UV Triangle can only be set if the resulting topology would be valid, ie the Elements cannot be shared
+	 * between different base Mesh Vertices, so they must either be unused by any other triangles, or already associated
+	 * with the same mesh vertex in other UV triangles. 
+	 * If any conditions are not met, bIsValidTriangle will be returned as false.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|UVs", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
+	SetMeshTriangleUVElementIDs( 
+		UDynamicMesh* TargetMesh, 
+		UPARAM(DisplayName = "UV Channel") int UVSetIndex,
+		int TriangleID, 
+		FIntVector TriangleUVElements,
+		bool& bIsValidTriangle, 
+		bool bDeferChangeNotifications = false );
+
+
+	/**
+	 * Returns the UV Element IDs associated with the three vertices of the triangle in the specified UV Channel.
+	 * If the Triangle does not exist in the mesh or if no UVs are set in the specified UV Channel for the triangle, bHaveValidUVs will be returned as false.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|UVs", meta = (ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
+	GetMeshTriangleUVElementIDs(
+		UDynamicMesh* TargetMesh, 
+		UPARAM(DisplayName = "UV Channel") int32 UVSetIndex, 
+		int32 TriangleID, 
+		FIntVector& TriangleUVElements,
+		bool& bHaveValidUVs);
+
+	/**
+	 * Returns the UV Position for a given UV Element ID in the specified UV Channel.
+	 * If the UV Set or Element ID does not exist, bIsValidElementID will be returned as false.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|UVs", meta = (ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
+	GetMeshUVElementPosition(
+		UDynamicMesh* TargetMesh, 
+		UPARAM(DisplayName = "UV Channel") int32 UVSetIndex, 
+		int32 ElementID, 
+		FVector2D& UVPosition,
+		bool& bIsValidElementID);
+
+	/**
+	 * Sets the UV position of a specific ElementID in the given UV Set/Channel
+	 * If the UV Set or Element ID does not exist, bIsValidElementID will be returned as false.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|UVs", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
+	SetMeshUVElementPosition( 
+		UDynamicMesh* TargetMesh, 
+		UPARAM(DisplayName = "UV Channel") int UVSetIndex,
+		int ElementID, 
+		FVector2D NewUVPosition,
+		bool& bIsValidElementID, 
 		bool bDeferChangeNotifications = false );
 
 	/**
