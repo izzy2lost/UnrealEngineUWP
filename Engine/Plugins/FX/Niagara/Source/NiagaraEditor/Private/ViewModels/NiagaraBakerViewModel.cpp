@@ -389,6 +389,22 @@ void FNiagaraBakerViewModel::SetSimTickRate(int TickRate)
 	}
 }
 
+bool FNiagaraBakerViewModel::LockToSimulationFrameRate() const
+{
+	UNiagaraBakerSettings* BakerSettings = GetBakerSettings();
+	return BakerSettings ? BakerSettings->bLockToSimulationFrameRate : true;
+}
+
+void FNiagaraBakerViewModel::ToggleLockToSimulationFrameRate()
+{
+	if (UNiagaraBakerSettings* BakerSettings = GetBakerSettings())
+	{
+		const FScopedTransaction Transaction(LOCTEXT("SetAllowMultiTick", "SetAllowMultiTick"));
+		BakerSettings->Modify();
+		BakerSettings->bLockToSimulationFrameRate = BakerSettings->bLockToSimulationFrameRate ? 0 : 1;
+	}
+}
+
 void FNiagaraBakerViewModel::AddOutput(UClass* Class)
 {
 	if (UNiagaraBakerSettings* BakerSettings = GetBakerSettings())
