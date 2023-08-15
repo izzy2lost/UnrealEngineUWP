@@ -360,6 +360,9 @@ struct FFortniteMainBranchObjectVersion
 		// EditableWhenInherited: Skip custom serialization on non Archetypes
 		ISMComponentEditableWhenInheritedSkipSerialization,
 
+		// GrassTypes are now per-component, rather than per-landscape proxy :
+		LandscapeSupportPerComponentGrassTypes,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

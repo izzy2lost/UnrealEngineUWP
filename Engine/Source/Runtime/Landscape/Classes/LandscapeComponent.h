@@ -192,10 +192,13 @@ struct FLandscapeComponentGrassData
 
 	// Guid per material instance in the hierarchy between the assigned landscape material (instance) and the root UMaterial
 	// used to detect changes to material instance parameters or the root material that could affect the grass maps
-	TArray<FGuid, TInlineAllocator<2>> MaterialStateIds;
+	TArray<FGuid, TInlineAllocator<2>> MaterialStateIds_DEPRECATED;
 	// cached component rotation when material world-position-offset is used,
 	// as this will affect the direction of world-position-offset deformation (included in the HeightData below)
-	FQuat RotationForWPO;
+	FQuat RotationForWPO_DEPRECATED;
+
+	// Variable used to detect when grass data needs to be regenerated:
+	uint32 GenerationHash = 0;
 #endif
 
 #if WITH_EDITORONLY_DATA
@@ -511,6 +514,15 @@ private:
 	UPROPERTY(EditAnywhere, Category = LandscapeComponent)
 	TArray<FLandscapePerLODMaterialOverride> PerLODOverrideMaterials;
 
+	/** Cached list of grass types supported by the component's material */
+	UPROPERTY()
+	TArray<TObjectPtr<ULandscapeGrassType>> GrassTypes;
+
+	/** Cached max discard distance of all grass types supported by the component's material*/
+	UPROPERTY()
+	float GrassTypesMaxDiscardDistance = 0.0f;
+
+
 public:
 
 	/** Uniquely identifies this component's built map data. */
@@ -786,8 +798,20 @@ public:
 
 	/** Gets the landscape info object for this landscape */
 	LANDSCAPE_API ULandscapeInfo* GetLandscapeInfo() const;
+	
+	const TArray<ULandscapeGrassType*>& GetGrassTypes() const { return GrassTypes; }
+
+	/** Temporarily sets the grass type for this component. Any call to UpdateGrassTypes will override what has been set using this method */
+	void SetGrassTypes(const TArray<ULandscapeGrassType*>& InGrassTypes) { GrassTypes = InGrassTypes; }
+	
+	bool MaterialHasGrass() const { return !GetGrassTypes().IsEmpty(); }
+	
+	float GetGrassTypesMaxDiscardDistance() const { return GrassTypesMaxDiscardDistance; }
+	void SetGrassTypesMaxDiscardDistance(const float InGrassTypesMaxDiscardDistance) { GrassTypesMaxDiscardDistance = InGrassTypesMaxDiscardDistance; }
 
 #if WITH_EDITOR
+	/** Recomputes the list of grass types and other related info (in case there was a material change, for example) : */
+	void UpdateGrassTypes();
 
 	/** Deletes a material layer from the current edit layer on this component, removing all its data, adjusting other layer's weightmaps if necessary, etc. */
 	LANDSCAPE_API void DeleteLayer(ULandscapeLayerInfoObject* LayerInfo, FLandscapeEditDataInterface& LandscapeEdit);
@@ -805,9 +829,6 @@ public:
 	LANDSCAPE_API void ReplaceLayer(ULandscapeLayerInfoObject* FromLayerInfo, ULandscapeLayerInfoObject* ToLayerInfo, FLandscapeEditDataInterface& LandscapeEdit);
 	void ReplaceLayerInternal(ULandscapeLayerInfoObject* FromLayerInfo, ULandscapeLayerInfoObject* ToLayerInfo, FLandscapeEditDataInterface& LandscapeEdit, const FGuid& InEditLayerGUID);
 
-	// true if the component's landscape material supports grass
-	bool MaterialHasGrass() const;
-
 	/** Creates and destroys cooked grass data stored in the map */
 	void RenderGrassMap();
 	void RemoveGrassMap();
@@ -817,6 +838,9 @@ public:
 
 	/* Are the textures we need to render a grassmap currently streamed in? */
 	bool AreTexturesStreamedForGrassMapRender() const;
+
+	/** Computes a hash representing the state of the material and grasstypes used by this component. */
+	LANDSCAPE_API uint32 ComputeGrassMapGenerationHash() const;
 
 	/* Is the grassmap data outdated, eg by a material */
 	bool IsGrassMapOutdated() const;

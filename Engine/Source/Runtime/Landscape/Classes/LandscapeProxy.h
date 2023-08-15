@@ -514,17 +514,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintSetter=EditorSetLandscapeMaterial, Category=Landscape, meta=(LandscapeOverridable))
 	TObjectPtr<UMaterialInterface> LandscapeMaterial;
 
-#if !WITH_EDITORONLY_DATA
-	/** Used to cache grass types from GetGrassTypes */
-	UMaterialInterface* LandscapeMaterialCached;
-
-	/** Cached grass types from GetGrassTypes */
-	TArray<ULandscapeGrassType*> LandscapeGrassTypes;
-
-	/** Cached grass max discard distance for all grass in GetGrassTypes */
-	float GrassMaxDiscardDistance;
-#endif
-
 	/** Material used to render landscape components with holes. If not set, LandscapeMaterial will be used (blend mode will be overridden to Masked if it is set to Opaque) */
 	UPROPERTY(EditAnywhere, Category=Landscape, AdvancedDisplay, meta = (LandscapeOverridable))
 	TObjectPtr<UMaterialInterface> LandscapeHoleMaterial;
@@ -635,6 +624,11 @@ public:
 	// Disables landscape grass processing entirely if no landscape components have landscape grass configured
 	UPROPERTY()
 	bool bHasLandscapeGrass;
+
+	// Only used outside of the editor (e.g. in cooked builds)
+	// Cached grass max discard distance for all grass types in all landscape components with landscape grass configured
+	UPROPERTY()
+	float GrassTypesMaxDiscardDistance = 0.0f;
 
 	/**
 	 *	The resolution to cache lighting at, in texels/quad in one axis
@@ -1028,10 +1022,6 @@ public:
 	 */
 	LANDSCAPE_API static void RemoveAllExclusionBoxes();
 
-
-	/* Get the list of grass types on this landscape */
-	static void GetGrassTypes(const UWorld* World, UMaterialInterface* LandscapeMat, TArray<ULandscapeGrassType*>& GrassTypesOut, float& OutMaxDiscardDistance);
-
 	/* Invalidate the precomputed grass and baked texture data for the specified components */
 	LANDSCAPE_API static void InvalidateGeneratedComponentData(const TSet<ULandscapeComponent*>& Components, bool bInvalidateLightingCache = false);
 	LANDSCAPE_API static void InvalidateGeneratedComponentData(const TArray<ULandscapeComponent*>& Components, bool bInvalidateLightingCache = false);
@@ -1046,7 +1036,11 @@ public:
 	void UpdateGrassData(bool bInShouldMarkDirty = false, struct FScopedSlowTask* InSlowTask = nullptr);
 
 	/** Render grass maps for the specified components */
-	void RenderGrassMaps(const TArray<ULandscapeComponent*>& LandscapeComponents, const TArray<ULandscapeGrassType*>& GrassTypes);
+	UE_DEPRECATED(5.4, "This version of RenderGrassMaps is deprecated to account for landscape components with their own grass types, use the other version instead.")
+	void RenderGrassMaps(const TArray<ULandscapeComponent*>& InLandscapeComponents, const TArray<ULandscapeGrassType*>& InGrassTypes) {}
+
+	/** Render grass maps for the specified components */
+	void RenderGrassMaps(TArrayView<ULandscapeComponent* const> InLandscapeComponents);
 
 	struct UE_DEPRECATED(5.3, "FGIBakedTextureState is officially deprecated now and nothing updates it anymore") FGIBakedTextureState
 	{

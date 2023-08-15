@@ -1339,6 +1339,11 @@ void ULandscapeComponent::PostLoad()
 		}
 	}
 
+	if (GIsEditor && GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::LandscapeSupportPerComponentGrassTypes)
+	{
+		UpdateGrassTypes();
+	}
+
 #if !UE_BUILD_SHIPPING
 	if (MobileCombinationMaterialInstances.Num() == 0)
 	{
@@ -1412,11 +1417,6 @@ ALandscapeProxy::ALandscapeProxy(const FObjectInitializer& ObjectInitializer)
 #if WITH_EDITORONLY_DATA
 	, TargetDisplayOrder(ELandscapeLayerDisplayMode::Default)
 #endif // WITH_EDITORONLY_DATA
-#if !WITH_EDITORONLY_DATA
-	, LandscapeMaterialCached(nullptr)
-	, LandscapeGrassTypes()
-	, GrassMaxDiscardDistance(0.0f)
-#endif
 	, bHasLandscapeGrass(true)
 {
 	bReplicates = false;
