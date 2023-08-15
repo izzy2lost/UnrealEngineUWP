@@ -1125,12 +1125,7 @@ void ULevel::PostLoad()
 	{
 		if (!bWasDuplicated)
 		{
-			// Load all folders for this level
-			FExternalPackageHelper::LoadObjectsFromExternalPackages<UActorFolder>(this, [this](UActorFolder* LoadedFolder)
-			{
-				check(IsValid(LoadedFolder));
-				LoadedExternalActorFolders.Add(LoadedFolder);
-			});
+			bNeedsUpdateForLoadedExternalActorFolders = true;
 		}
 	}
 
@@ -2813,13 +2808,19 @@ void ULevel::FixupActorFolders()
 
 		if (IsUsingExternalObjects())
 		{
-			// At this point, LoadedExternalActorFolders are fully loaded, transfer them to the ActorFolders list.
-			for (UActorFolder* LoadedActorFolder : LoadedExternalActorFolders)
+			if (bNeedsUpdateForLoadedExternalActorFolders)
 			{
-				check(LoadedActorFolder->GetGuid().IsValid());
-				AddActorFolder(LoadedActorFolder);
+				// Load all folders for this level
+				FExternalPackageHelper::LoadObjectsFromExternalPackages<UActorFolder>(this, [this](UActorFolder* LoadedFolder)
+				{
+					check(IsValid(LoadedFolder));
+					check(LoadedFolder->GetGuid().IsValid());
+					// At this point, this ActorFolders is fully loaded, transfer it to the ActorFolders list.
+					AddActorFolder(LoadedFolder);
+				});
+				
+				bNeedsUpdateForLoadedExternalActorFolders = false;
 			}
-			LoadedExternalActorFolders.Empty();
 		}
 		else
 		{
