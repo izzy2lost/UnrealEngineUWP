@@ -8,7 +8,9 @@ using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Xml;
 using EpicGames.Core;
+using Horde.Server.Acls;
 using Horde.Server.Projects;
 using Horde.Server.Server;
 using Horde.Server.Streams;
@@ -44,10 +46,10 @@ namespace Horde.Server.Commands.Config
 
 			Dictionary<JsonSchemaType, PageInfo> typeToPageInfo = new Dictionary<JsonSchemaType, PageInfo>
 			{
-				[serverSchema.RootType] = new PageInfo("appsettings.json (Server)", "Horde (../Home.md) > Deployment (../Deployment.md) > Server (Server.md)", "Deployment/ServerSettings.md"),
-				[globalSchema.RootType] = new PageInfo("Globals.json", "Horde (../Home.md) > Configuration (../Config.md)", "Config/Schema/Globals.md"),
-				[projectSchema.RootType] = new PageInfo("*.project.json", "Horde (../Home.md) > Configuration (../Config.md)", "Config/Schema/Projects.md"),
-				[streamSchema.RootType] = new PageInfo("*.stream.json", "Horde (../Home.md) > Configuration (../Config.md)", "Config/Schema/Streams.md"),
+				[serverSchema.RootType] = new PageInfo("appsettings.json (Server)", "[Horde](../Home.md) > [Deployment](../Deployment.md) > Server (Server.md)", "Deployment/ServerSettings.md"),
+				[globalSchema.RootType] = new PageInfo("Globals.json", "[Horde](../Home.md) > [Configuration](../Config.md)", "Config/Schema/Globals.md"),
+				[projectSchema.RootType] = new PageInfo("*.project.json", "[Horde](../Home.md) > [Configuration](../Config.md)", "Config/Schema/Projects.md"),
+				[streamSchema.RootType] = new PageInfo("*.stream.json", "[Horde](../Home.md) > [Configuration](../Config.md)", "Config/Schema/Streams.md"),
 			};
 
 			if (Agent == null)
@@ -69,7 +71,97 @@ namespace Horde.Server.Commands.Config
 				await WriteDocAsync(type, pageInfo.Title, pageInfo.FileName, pageInfo.LinkRail, typeNameToPageName, logger);
 			}
 
+			await WriteAclDocAsync(Assembly.GetExecutingAssembly(), logger);
 			return 0;
+		}
+
+		async Task WriteAclDocAsync(Assembly assembly, ILogger logger)
+		{
+			FileReference file = FileReference.Combine(OutputDir, "Config/Schema/AclActions.md");
+			DirectoryReference.CreateDirectory(file.Directory);
+
+			using (FileStream stream = FileReference.Open(file, FileMode.Create, FileAccess.Write))
+			{
+				using (StreamWriter writer = new StreamWriter(stream))
+				{
+					await writer.WriteLineAsync($"[Horde](../Home.md) > [Configuration](../Config.md) > ACL Actions");
+					await writer.WriteLineAsync();
+					await writer.WriteLineAsync($"# ACL Actions");
+					await writer.WriteLineAsync();
+
+					Dictionary<string, List<PropertyInfo>> categoryToProperties = new Dictionary<string, List<PropertyInfo>>();
+
+					List<PropertyInfo> newProperties = new List<PropertyInfo>();
+					foreach (Type type in assembly.GetTypes())
+					{
+						if (type.IsClass)
+						{
+							foreach (PropertyInfo propertyInfo in type.GetProperties(BindingFlags.Static | BindingFlags.Public))
+							{
+								if (propertyInfo.PropertyType == typeof(AclAction))
+								{
+									newProperties.Add(propertyInfo);
+								}
+							}
+							if (newProperties.Count > 0)
+							{
+								string category = type.Namespace ?? "Default";
+
+								int topNamespaceIdx = category.LastIndexOf('.');
+								if (topNamespaceIdx != -1)
+								{
+									category = category.Substring(topNamespaceIdx + 1);
+								}
+
+								List<PropertyInfo>? existingProperties;
+								if (categoryToProperties.TryGetValue(category, out existingProperties))
+								{
+									existingProperties.AddRange(newProperties);
+									newProperties.Clear();
+								}
+								else
+								{
+									categoryToProperties.Add(category, newProperties);
+									newProperties = new List<PropertyInfo>();
+								}
+							}
+						}
+					}
+
+					XmlDocument documentation = new XmlDocument();
+
+					FileReference inputDocumentationFile = new FileReference(assembly.Location).ChangeExtension(".xml");
+					if (FileReference.Exists(inputDocumentationFile))
+					{
+						documentation.Load(inputDocumentationFile.FullName);
+					}
+
+					foreach ((string category, List<PropertyInfo> properties) in categoryToProperties.OrderBy(x => x.Key))
+					{
+						await writer.WriteLineAsync();
+						await writer.WriteLineAsync($"## {category}");
+						await writer.WriteLineAsync();
+						await writer.WriteLineAsync("| Name | Description |");
+						await writer.WriteLineAsync("| ---- | ----------- |");
+						foreach (PropertyInfo property in properties)
+						{
+							AclAction action = (AclAction)property.GetValue(null)!;
+							string description = String.Empty;
+
+							string selector = $"//member[@name='P:{property.DeclaringType!.FullName}.{property.Name}']/summary";
+							XmlNode? node = documentation.SelectSingleNode(selector);
+							if (node != null)
+							{
+								description = node.InnerText.Trim().Replace("\r\n", "\n", StringComparison.Ordinal);
+							}
+
+							await writer.WriteLineAsync($"| `{action.Name}` | {description} |");
+						}
+					}
+				}
+			}
+
+			logger.LogInformation("Written {File}", file);
 		}
 
 		class ObjectQueue
