@@ -193,7 +193,24 @@ void AActor::OnRep_ReplicatedMovement()
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 		if (CVarDrawDebugRepMovement->GetInt() > 0)
 		{
-			DrawDebugCapsule(GetWorld(), LocalRepMovement.Location, GetSimpleCollisionHalfHeight(), GetSimpleCollisionRadius(), LocalRepMovement.Rotation.Quaternion(), FColor(100, 255, 100), false, 1.f);
+			FColor DebugColor = FColor::Green;
+			if (LocalRepMovement.bRepPhysics)
+			{
+				switch (GetPhysicsReplicationMode())
+				{
+				case EPhysicsReplicationMode::PredictiveInterpolation:
+					DebugColor = FColor::Yellow;
+					break;
+				case EPhysicsReplicationMode::Resimulation:
+					DebugColor = FColor::Red;
+					break;
+				case EPhysicsReplicationMode::Default:
+				default:
+					DebugColor = FColor::Cyan;
+					break;
+				}
+			}
+			DrawDebugCapsule(GetWorld(), LocalRepMovement.Location, GetSimpleCollisionHalfHeight(), GetSimpleCollisionRadius(), LocalRepMovement.Rotation.Quaternion(), DebugColor, false, 1.f);
 		}
 #endif
 
