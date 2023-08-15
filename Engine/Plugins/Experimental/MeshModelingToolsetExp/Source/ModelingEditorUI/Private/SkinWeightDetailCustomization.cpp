@@ -509,7 +509,6 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 				[
 					SNew(SButton)
 					.HAlign(HAlign_Center)
-					.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("VerticalToolBar.Button"))
 					.Text(LOCTEXT("AddWeightsButtonLabel", "Add"))
 					.ToolTipText(LOCTEXT("AddOpTooltip", "Add: applies the current weight plus the flood amount to the new weight."))
 					.OnClicked_Lambda([this]()
