@@ -11,27 +11,25 @@ UENUM()
 enum class ENDIStaticMesh_SourceMode : uint8
 {
 	/**
-	Default behavior.
+	Default behavior follows the order of.
 	- Use "Source" when specified (either set explicitly or via blueprint with Set Niagara Static Mesh Component).
-	- When no source is specified, attempt to find a Static Mesh Component on an attached actor or component.
-	- If no source actor/component specified and no attached component found, fall back to the "Default Mesh" specified.
+	- Use Mesh Parameter Binding if valid
+	- Find Static Mesh Component, Attached Actor, Attached Component
+	- Falls back to 'Default Mesh' specified on the data interface
 	*/
 	Default,
 
-	/**
-	Only use "Source" (either set explicitly or via blueprint with Set Niagara Static Mesh Component).
-	*/
+	/**	Only use "Source" (either set explicitly or via blueprint with Set Niagara Static Mesh Component). */
 	Source,
 
-	/**
-	Only use the parent actor or component the system is attached to.
-	*/
+	/**	Only use the parent actor or component the system is attached to. */
 	AttachParent,
 
-	/**
-	Only use the "Default Mesh" specified.
-	*/
+	/** Only use the "Default Mesh" specified. */
 	DefaultMeshOnly,
+
+	/** Only use the mesh parameter binding. */
+	MeshParameterBinding,
 };
 
 USTRUCT()
@@ -60,7 +58,7 @@ public:
 	/** Controls how to retrieve the Static Mesh Component to attach to. */
 	UPROPERTY(EditAnywhere, Category = "Mesh")
 	ENDIStaticMesh_SourceMode SourceMode = ENDIStaticMesh_SourceMode::Default;
-	
+
 #if WITH_EDITORONLY_DATA
 	/** Mesh used to sample from when not overridden by a source actor from the scene. Only available in editor for previewing. This is removed in cooked builds. */
 	UPROPERTY(EditAnywhere, Category = "Mesh")
@@ -113,6 +111,10 @@ public:
 	/** Reference to a user parameter if we're reading one. */
 	UPROPERTY(EditAnywhere, Category = "LOD")
 	FNiagaraUserParameterBinding LODIndexUserParameter;
+
+	/** Mesh parameter binding can be either an Actor (in which case we find the component), static mesh component or a static mesh. */
+	UPROPERTY(EditAnywhere, Category = "Mesh")
+	FNiagaraUserParameterBinding MeshParameterBinding;
 
 	/** When attached to an Instanced Static Mesh, which instance should be read from. */
 	UPROPERTY(EditAnywhere, Category = "Mesh")
@@ -185,7 +187,7 @@ public:
 #endif
 	//~ UNiagaraDataInterface interface
 
-	NIAGARA_API UStaticMesh* GetStaticMesh(USceneComponent*& OutComponent, class FNiagaraSystemInstance* SystemInstance = nullptr);
+	NIAGARA_API UStaticMesh* GetStaticMesh(USceneComponent*& OutComponent, class FNiagaraSystemInstance* SystemInstance = nullptr, UObject* ParameterBindingValue = nullptr);
 	NIAGARA_API void SetSourceComponentFromBlueprints(UStaticMeshComponent* ComponentToUse);
 	NIAGARA_API void SetDefaultMeshFromBlueprints(UStaticMesh* MeshToUse);
 
