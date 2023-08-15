@@ -1001,6 +1001,25 @@ void StopRenderCommandFenceBundler()
 	BundledCompletionEvent.Reset();
 }
 
+std::atomic<int> GTimeoutSuspendCount;
+
+void SuspendRenderThreadTimeout()
+{
+	++GTimeoutSuspendCount;
+}
+
+void ResumeRenderThreadTimeout()
+{
+	--GTimeoutSuspendCount;
+
+	check(GTimeoutSuspendCount >= 0);
+}
+
+bool IsRenderThreadTimeoutSuspended()
+{
+	return GTimeoutSuspendCount > 0;
+}
+
 TAutoConsoleVariable<int32> CVarGTSyncType(
 	TEXT("r.GTSyncType"),
 	0,
@@ -1224,7 +1243,7 @@ static void GameThreadWaitForTask(const UE::Tasks::FTask& Task, bool bEmptyGameT
 				// editor threads can block for quite a while... 
 				if (!bDone && !bRenderThreadEnsured)
 				{
-					if (bOverdue && !bDisabled && !FPlatformMisc::IsDebuggerPresent())
+					if (bOverdue && !bDisabled && !IsRenderThreadTimeoutSuspended() && !FPlatformMisc::IsDebuggerPresent())
 					{
 						UE_LOG(LogRendererCore, Fatal, TEXT("GameThread timed out waiting for RenderThread after %.02f secs"), RenderThreadTimeoutClock.Seconds() - StartTime);
 					}

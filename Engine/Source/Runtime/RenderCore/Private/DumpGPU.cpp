@@ -4,6 +4,7 @@
 #include "HAL/PlatformFileManager.h"
 #include "HAL/PlatformMisc.h"
 #include "HAL/PlatformOutputDevices.h"
+#include "HAL/ThreadHeartBeat.h"
 #include "Async/AsyncWork.h"
 #include "Misc/App.h"
 #include "Misc/FileHelper.h"
@@ -23,6 +24,7 @@
 #include "RHIUtilities.h"
 #include "RHIValidation.h"
 #include "RenderGraphPrivate.h"
+#include "RenderThreadTimeoutControl.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDumpGPU, Log, All);
 
@@ -2149,6 +2151,11 @@ FString FRDGBuilder::BeginResourceDump(const TCHAR* Cmd)
 		GNextRDGResourceDumpContext = nullptr;
 	}
 
+	// Dumping resource may take a while and we don't want to get 'hang' crashes in the process.
+	// We resume from EndResourceDump after the dump has finished.
+	FThreadHeartBeat::Get().SuspendHeartBeat(true);
+	SuspendRenderThreadTimeout();
+
 	UE_LOG(LogDumpGPU, Display, TEXT("DumpGPU to %s starting this frame"), *NewResourceDumpContext->DumpingDirectoryPath);
 	NewResourceDumpContext->MemoryConstants = FPlatformMemory::GetConstants();
 	NewResourceDumpContext->MemoryStats = FPlatformMemory::GetStats();
@@ -2436,6 +2443,10 @@ void FRDGBuilder::EndResourceDump()
 	delete GRDGResourceDumpContext;
 	GRDGResourceDumpContext = nullptr;
 	DumpingFrameCounter_GameThread = 0;
+
+	// It matches SuspendHeartBeat from BeginResourceDump.
+	FThreadHeartBeat::Get().ResumeHeartBeat(true);
+	ResumeRenderThreadTimeout();
 }
 
 static const TCHAR* GetPassEventNameWithGPUMask(const FRDGPass* Pass, FString& OutNameStorage)
