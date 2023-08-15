@@ -7,6 +7,7 @@
 
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Animation/AnimMontage.h"
+#include "Animation/AnimInstance.h"
 #include "EngineStats.h"
 #include "AI/NavigationSystemBase.h"
 #include "AI/Navigation/NavigationDataInterface.h"
@@ -10082,11 +10083,26 @@ void UCharacterMovementComponent::MoveAutonomous
 		}
 		// TODO: SaveBaseLocation() in case tick moves us?
 
-		if (!CharacterMovementCVars::EnableQueuedAnimEventsOnServer || CharacterOwner->GetMesh()->ShouldOnlyTickMontages(DeltaTime))
+		USkeletalMeshComponent* OwnerMesh = CharacterOwner->GetMesh();
+		check(OwnerMesh != nullptr)
+		
+		if (CharacterMovementCVars::EnableQueuedAnimEventsOnServer)
 		{
-			// If we're not doing a full anim graph update on the server, 
-			// trigger events right away, as we could be receiving multiple ServerMoves per frame.
-			CharacterOwner->GetMesh()->ConditionallyDispatchQueuedAnimEvents();
+			if (OwnerMesh->VisibilityBasedAnimTickOption <= EVisibilityBasedAnimTickOption::AlwaysTickPose && OwnerMesh->GetAnimInstance()->NeedsUpdate())
+			{
+				// If we are doing a full graph update on the server but its doing a parallel update,
+				// trigger events right away since these are notifies queued from the montage update and we could be receiving multiple ServerMoves per frame.
+				OwnerMesh->ConditionallyDispatchQueuedAnimEvents();
+				OwnerMesh->AllowQueuedAnimEventsNextDispatch();
+			}
+		}
+		else
+		{
+			// Revert back to old behavior if wanted/needed.
+			if (OwnerMesh->ShouldOnlyTickMontages(DeltaTime))
+			{
+				OwnerMesh->ConditionallyDispatchQueuedAnimEvents();
+			}
 		}
 	}
 

@@ -942,6 +942,9 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	const TArray<UAnimInstance*>& GetLinkedAnimInstances() const { return LinkedInstances; }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+	/** If true, next time that ConditionallyDispatchQueuedAnimEvents() is called it will trigger any queued anim notifies available. */
+	ENGINE_API void AllowQueuedAnimEventsNextDispatch();
+	
 private:
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	TArray<TObjectPtr<UAnimInstance>>& GetLinkedAnimInstances() { return LinkedInstances; }

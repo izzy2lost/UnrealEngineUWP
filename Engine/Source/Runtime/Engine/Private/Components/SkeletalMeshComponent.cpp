@@ -3208,6 +3208,11 @@ void USkeletalMeshComponent::ResetLinkedAnimInstances()
 	LinkedInstances.Reset();
 }
 
+void USkeletalMeshComponent::AllowQueuedAnimEventsNextDispatch()
+{
+	bNeedsQueuedAnimEventsDispatched = true;
+}
+
 UAnimInstance* USkeletalMeshComponent::GetLinkedAnimGraphInstanceByTag(FName InName) const
 {
 	if(AnimScriptInstance)
