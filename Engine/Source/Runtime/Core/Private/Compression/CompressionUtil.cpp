@@ -96,23 +96,36 @@ namespace FCompressionUtil
 
 	TArray<FString> CORE_API HexDumpLines(const uint8* Bytes, int64 BytesNum, int64 OffsetStart, int64 OffsetEnd, int32 BytesPerLine)
 	{
-		OffsetStart = FMath::Max(0ll, OffsetStart);
-		OffsetEnd = FMath::Min(BytesNum, OffsetEnd);
-		TArray<FString> Results;
+ 		TArray<FString> Results;
 
 		for (int64 Idx = OffsetStart; Idx < OffsetEnd;)
 		{
-			int64 LineOffset = OffsetStart;
 			FString HexString;
+			HexString.Reserve(128);
+			int64 LineOffset = OffsetStart;
 			for (int64 Idx2 = 0; Idx2 < BytesPerLine && Idx < OffsetEnd; ++Idx, ++Idx2, ++OffsetStart)
 			{
-				HexString += FString::Printf(TEXT("%02X "), Bytes[Idx]);
+				if (0 <= Idx && Idx < BytesNum)
+				{
+					HexString += FString::Printf(TEXT("%02X "), Bytes[Idx]);
+				}
+				else
+				{
+					HexString += TEXT("-- ");
+				}
 				if ((Idx2 & 7) == 7)
 				{
 					HexString += TEXT(" ");
 				}
 			}
-			Results.Add(FString::Printf(TEXT("%016X: %s"), LineOffset, *HexString));
+			if (LineOffset >= 0)
+			{
+				Results.Add(FString::Printf(TEXT("%016X: %s"), LineOffset, *HexString));
+			}
+			else
+			{
+				Results.Add(FString::Printf(TEXT(" -%014X: %s"), -LineOffset, *HexString));
+			}
 		}
 		return Results;
 	}

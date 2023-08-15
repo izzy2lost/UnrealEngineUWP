@@ -158,7 +158,13 @@ public:
 		bool bCollectCurrentCallstack,
 		int32 StackIgnoreCount);
 
-	/** Append other callstacks. */
+	/**
+	 * Remove offset->callstack entries reported for a range of offsets. Only removes entries that start within the
+	 * range, does not remove entries that start before the range but end in or after it.
+	 */
+	void RemoveRange(int64 StartOffset, int64 Length);
+
+	/** Append other offset->callstacks entries and callstacks they refer to. */
 	void Append(const FCallstacks& Other, int64 OtherStartOffset);
 
 	/** Finds a callstack associated with data at the specified offset */
@@ -226,22 +232,21 @@ class FAccumulator : public FRefCountBase
 {
 public:
 	FAccumulator(UObject* InAsset, FName InPackageName, int32 InMaxDiffsToLog,
-		FMessageCallback&& InMessageCallback);
+		FMessageCallback&& InMessageCallback, EPackageHeaderFormat InPackageHeaderFormat);
 	virtual ~FAccumulator();
 
-	void OnFirstSaveComplete(FStringView InLooseFilePath, int64 InHeaderSize,
+	void OnFirstSaveComplete(FStringView InLooseFilePath, int64 InHeaderSize, int64 InPreTransformHeaderSize,
 		ICookedPackageWriter::FPreviousCookedBytesData&& InPreviousPackageData);
 	void OnSecondSaveComplete(int64 InHeaderSize);
 	bool HasDifferences() const;
 
 	/** Compares results from the second save with the previous cook results in PreviousPackagedata.  */
-	void CompareWithPrevious(const TCHAR* CallstackCutoffText, TMap<FName,FArchiveDiffStats>& OutStats,
-		const EPackageHeaderFormat PackageHeaderFormat);
+	void CompareWithPrevious(const TCHAR* CallstackCutoffText, TMap<FName,FArchiveDiffStats>& OutStats);
 
 	void SetHeaderSize(int64 InHeaderSize);
 	void SetCollectingCallstacks(bool bInCollectingCallstacks);
 	FName GetAssetClass() const;
-
+	bool IsWriterUsingPostSaveTransforms() const;
 
 private:
 	void GenerateDiffMapForSection(const FPackageData& SourcePackage, const FPackageData& DestPackage, bool& bOutSectionIdentical);
@@ -264,7 +269,9 @@ private:
 	FString Filename;
 	UObject* Asset = nullptr;
 	int64 HeaderSize = 0;
+	int64 PreTransformHeaderSize = 0;
 	int32 MaxDiffsToLog = 5;
+	EPackageHeaderFormat PackageHeaderFormat = EPackageHeaderFormat::PackageFileSummary;
 	bool bFirstSaveComplete = false;
 	bool bHasDifferences = false;
 

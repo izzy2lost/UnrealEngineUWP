@@ -48,8 +48,9 @@ bool FDiffWriterArchiveTestsCallstacks::RunTest(const FString& Parameters)
 
 	const int32 MaxDiffsToLog = 1000;
 	FName PackageName(TEXT("PackageName"));
+	EPackageHeaderFormat HeaderFormat(EPackageHeaderFormat::PackageFileSummary);
 	TRefCountPtr<FAccumulator> Accumulator = new FAccumulator(nullptr, PackageName, MaxDiffsToLog,
-		[](ELogVerbosity::Type Verbosity, FStringView Message) {});
+		[](ELogVerbosity::Type Verbosity, FStringView Message) {}, HeaderFormat);
 	FBasicDiffState State = FBasicDiffState{ 1,2,3 };
 	FDiffArchiveForLinker Ar(*Accumulator);
 
@@ -81,11 +82,12 @@ bool FDiffWriterArchiveTestsBasic::RunTest(const FString& Parameters)
 	const int32 MaxDiffsToLog = 1000;
 	FName PackageName(TEXT("PackageName"));
 	FString Filename(TEXT("Filename"));
+	EPackageHeaderFormat HeaderFormat(EPackageHeaderFormat::PackageFileSummary);
 
 	// SECTION("DiffMap - identical")
 	{
 		TRefCountPtr<FAccumulator> Accumulator = new FAccumulator(nullptr, PackageName, MaxDiffsToLog,
-			[](ELogVerbosity::Type Verbosity, FStringView Message) {});
+			[](ELogVerbosity::Type Verbosity, FStringView Message) {}, HeaderFormat);
 
 		FLargeMemoryWriter InitialState;
 		{
@@ -100,7 +102,7 @@ bool FDiffWriterArchiveTestsBasic::RunTest(const FString& Parameters)
 		}
 
 		ICookedPackageWriter::FPreviousCookedBytesData InitialData = ToPackageData(InitialState);
-		Accumulator->OnFirstSaveComplete(Filename, 0, MoveTemp(InitialData));
+		Accumulator->OnFirstSaveComplete(Filename, 0, 0, MoveTemp(InitialData));
 
 		TestTrueExpr(!Accumulator->HasDifferences());
 	}
@@ -108,7 +110,7 @@ bool FDiffWriterArchiveTestsBasic::RunTest(const FString& Parameters)
 	// SECTION("DiffMap - mismatch")
 	{
 		TRefCountPtr<FAccumulator> Accumulator = new FAccumulator(nullptr, PackageName, MaxDiffsToLog,
-			[](ELogVerbosity::Type Verbosity, FStringView Message) {});
+			[](ELogVerbosity::Type Verbosity, FStringView Message) {}, HeaderFormat);
 
 		FLargeMemoryWriter InitialState;
 		{
@@ -123,7 +125,7 @@ bool FDiffWriterArchiveTestsBasic::RunTest(const FString& Parameters)
 		}
 
 		ICookedPackageWriter::FPreviousCookedBytesData InitialData = ToPackageData(InitialState);
-		Accumulator->OnFirstSaveComplete(Filename, 0, MoveTemp(InitialData));
+		Accumulator->OnFirstSaveComplete(Filename, 0, 0, MoveTemp(InitialData));
 
 		TestTrueExpr(Accumulator->HasDifferences());
 	}
@@ -131,7 +133,7 @@ bool FDiffWriterArchiveTestsBasic::RunTest(const FString& Parameters)
 	// SECTION("Compare - mismatch")
 	{
 		TRefCountPtr<FAccumulator> Accumulator = new FAccumulator(nullptr, PackageName, MaxDiffsToLog,
-			[](ELogVerbosity::Type Verbosity, FStringView Message) {});
+			[](ELogVerbosity::Type Verbosity, FStringView Message) {}, HeaderFormat);
 
 		FBasicDiffState InitialState = FBasicDiffState {1,2,3};
 		FLargeMemoryWriter InitialMemory;
@@ -146,7 +148,7 @@ bool FDiffWriterArchiveTestsBasic::RunTest(const FString& Parameters)
 
 		// Generate diff map
 		{
-			Accumulator->OnFirstSaveComplete(Filename, 0, MoveTemp(InitialData));
+			Accumulator->OnFirstSaveComplete(Filename, 0, 0, MoveTemp(InitialData));
 			TestTrueExpr(Accumulator->HasDifferences());
 		}
 		
@@ -159,7 +161,7 @@ bool FDiffWriterArchiveTestsBasic::RunTest(const FString& Parameters)
 		// Compare using callstacks and diffmap
 		{
 			TMap<FName, FArchiveDiffStats> DiffStats;
-			Accumulator->CompareWithPrevious(TEXT("BasicDiffTest"), DiffStats, EPackageHeaderFormat::PackageFileSummary);
+			Accumulator->CompareWithPrevious(TEXT("BasicDiffTest"), DiffStats);
 			TestTrueExpr(DiffStats[NAME_None].NumDiffs == 2);
 		}
 	}
