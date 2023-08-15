@@ -617,6 +617,7 @@ void SClassPropertyEntryBox::Construct(const FArguments& InArgs)
 				.ShowTree(InArgs._ShowTreeView)
 				.SelectedClass(InArgs._SelectedClass)
 				.OnSetClass(InArgs._OnSetClass)
+				.ClassViewerFilters(InArgs._ClassViewerFilters)
 		]
 	];
 }
