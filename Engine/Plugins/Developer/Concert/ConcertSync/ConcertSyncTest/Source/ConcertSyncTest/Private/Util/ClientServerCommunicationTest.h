@@ -414,7 +414,16 @@ namespace UE::ConcertSyncTests
 
 		FConcertClientServerCommunicationTest(const FString& InName, const bool bInComplexTask)
 			: FAutomationTestBase(InName, bInComplexTask)
-		{}
+		{
+			FAutomationTestFramework& Framework = FAutomationTestFramework::Get();
+			Framework.OnTestEndEvent.AddRaw(this, &FConcertClientServerCommunicationTest::CleanUpTest);
+		}
+		
+		virtual ~FConcertClientServerCommunicationTest() override
+		{
+			FAutomationTestFramework& Framework = FAutomationTestFramework::Get();
+			Framework.OnTestEndEvent.RemoveAll(this);
+		}
 
 		FClientInfo& ConnectClient()
 		{
@@ -434,6 +443,15 @@ namespace UE::ConcertSyncTests
 
 		const TSharedPtr<FConcertServerSessionMock>& GetServerSessionMock() const { return ServerSessionMock; }
 
+		virtual void CleanUpTest(FAutomationTestBase* AutomationTestBase)
+		{
+			if (AutomationTestBase == this)
+			{
+				Clients.Reset();
+				ServerSessionMock.Reset();
+			}
+		}
+		
 	private:
 		TSharedPtr<FConcertServerSessionMock> ServerSessionMock;
 		TArray<TUniquePtr<FClientInfo>> Clients;

@@ -5,7 +5,7 @@
 #include "Algo/AnyOf.h"
 #include "Replication/IConcertClientReplicationBridge.h"
 
-namespace UE::ConcertSyncTests
+namespace UE::ConcertSyncTests::Replication
 {
 	class FConcertClientReplicationBridgeMock : public IConcertClientReplicationBridge
 	{

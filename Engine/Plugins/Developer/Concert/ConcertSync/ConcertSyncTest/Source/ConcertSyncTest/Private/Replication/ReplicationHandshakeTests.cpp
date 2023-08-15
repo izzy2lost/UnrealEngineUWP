@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Util/ConcertMocks.h"
+#include "Util/ClientServerCommunicationTest.h"
 
 #include "Replication/Data/ReplicationClientDescription.h"
 #include "Replication/Data/ReplicationStreamDescription.h"
@@ -16,7 +16,7 @@
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
 
-namespace UE::ConcertSyncTests
+namespace UE::ConcertSyncTests::Replication
 {
 	/**
 	 * Tests the handshake for joining and leaving a replication session.

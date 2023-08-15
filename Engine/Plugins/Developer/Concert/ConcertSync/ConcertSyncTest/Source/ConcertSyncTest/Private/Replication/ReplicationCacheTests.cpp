@@ -5,7 +5,7 @@
 #include "Replication/Processing/ObjectReplicationCache.h"
 #include "Replication/ReplicationStreamObjectID.h"
 #include "TestReflectionObject.h"
-#include "Util/ConcertMocks.h"
+#include "Util/ClientServerCommunicationTest.h"
 
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
