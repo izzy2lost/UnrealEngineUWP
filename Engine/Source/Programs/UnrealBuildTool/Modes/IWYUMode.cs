@@ -350,11 +350,11 @@ namespace UnrealBuildTool
 		/// <param name="Logger"></param>
 		public override async Task<int> ExecuteAsync(CommandLineArguments Arguments, ILogger Logger)
 		{
+			Arguments.ApplyTo(this);
+
 			Logger.LogInformation($"====================================================");
 			Logger.LogInformation($"Running IWYU. {(bWrite ? "" : "(Preview mode. Add -Write to write modifications to files)")}");
 			Logger.LogInformation($"====================================================");
-
-			Arguments.ApplyTo(this);
 
 			// Fixup the log path if it wasn't overridden by a config file
 			if (IWYUBaseLogFileName == null)
