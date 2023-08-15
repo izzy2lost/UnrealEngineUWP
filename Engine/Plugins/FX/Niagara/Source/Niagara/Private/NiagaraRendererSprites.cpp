@@ -474,8 +474,6 @@ void FNiagaraRendererSprites::InitializeSortInfo(FParticleSpriteRenderData& Part
 
 void FNiagaraRendererSprites::SetupVertexFactory(FRHICommandListBase& RHICmdList, FParticleSpriteRenderData& ParticleSpriteRenderData, FNiagaraSpriteVertexFactory& VertexFactory) const
 {
-	VertexFactory.SetParticleFactoryType(NVFT_Sprite);
-
 	// Set facing / alignment
 	{
 		ENiagaraSpriteFacingMode ActualFacingMode = FacingMode;
