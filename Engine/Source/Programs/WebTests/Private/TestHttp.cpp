@@ -32,8 +32,8 @@ class FHttpModuleTestFixture
 public:
 	FHttpModuleTestFixture()
 		: WebServerIp(TEXT("127.0.0.1"))
-		, WebServerPort(8000)
 		, bRunHeavyTests(false)
+		, bTestHttps(false)
 	{
 		ParseSettingsFromCommandLine();
 
@@ -55,17 +55,16 @@ public:
 		FParse::Bool(FCommandLine::Get(), TEXT("run_heavy_tests"), bRunHeavyTests);
 	}
 
-	const FString UrlWithInvalidPortToTestConnectTimeout() const { return FString::Format(TEXT("http://{0}:{1}"), { *WebServerIp, 8765 }); }
-	const FString UrlBase() const { return FString::Format(TEXT("http://{0}:{1}"), { *WebServerIp, WebServerPort }); }
+	const FString UrlWithInvalidPortToTestConnectTimeout() const { return FString::Format(TEXT("{0}://{1}:{2}"), { this->bTestHttps ? TEXT("https") : TEXT("http"), *WebServerIp, 8765 }); }
+	const FString UrlBase() const { return FString::Format(TEXT("{0}://{1}:{2}"), { this->bTestHttps ? TEXT("https") : TEXT("http"), *WebServerIp, this->bTestHttps ? TEXT("8001") : TEXT("8000") }); }
 	const FString UrlHttpTests() const { return FString::Format(TEXT("{0}/webtests/httptests"), { *UrlBase() }); }
 	const FString UrlToTestMethods() const { return FString::Format(TEXT("{0}/methods"), { *UrlHttpTests() }); }
 	const FString UrlStreamDownload(uint32 Chunks, uint32 ChunkSize) { return FString::Format(TEXT("{0}/streaming_download/{1}/{2}/"), { *UrlHttpTests(), Chunks, ChunkSize }); }
 
 	FString WebServerIp;
-	uint32 WebServerPort;
 	FHttpModule* HttpModule;
-
 	bool bRunHeavyTests;
+	bool bTestHttps;
 };
 
 TEST_CASE_METHOD(FHttpModuleTestFixture, "Shutdown http module without issue when there are ongoing http requests.", HTTP_TAG)

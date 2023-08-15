@@ -12,4 +12,5 @@ if exist env (
 	)
 )
 
-python manage.py runserver 0.0.0.0:8000
+start "HTTP Server" python manage.py runserver 0.0.0.0:8000
+@REM start "HTTPS Server" python manage.py runsslserver 0.0.0.0:8001 --certificate ssl/https_server_certificate.crt --key ssl/https_server.key
