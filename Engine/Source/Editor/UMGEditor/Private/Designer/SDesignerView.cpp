@@ -2517,6 +2517,25 @@ FReply SDesignerView::OnDragDetected(const FGeometry& MyGeometry, const FPointer
 		ClearExtensionWidgets();
 
 		TSharedRef<FSelectedWidgetDragDropOp> DragOp = FSelectedWidgetDragDropOp::New(BlueprintEditor.Pin(), this, DraggingWidgets);
+		TWeakPtr<SDesignerView> WeakDesignerView = SharedThis(this);
+		DragOp->OnDragDropEnded.AddLambda([WeakDesignerView, WeakDragOp = DragOp.ToWeakPtr()]()
+			{
+				if (TSharedPtr<SDesignerView> DesignerViewPtr = WeakDesignerView.Pin())
+				{
+					if (TSharedPtr<FWidgetBlueprintEditor> BlueprintEditorPtr = DesignerViewPtr->BlueprintEditor.Pin())
+					{
+						if (DesignerViewPtr->DropPreviews.Num() == 0)
+						{
+							DesignerViewPtr->bMovingExistingWidget = false;
+							if (WeakDragOp.IsValid() && WeakDragOp.Pin()->DraggedWidgets.Num() > 0)
+							{
+								BlueprintEditorPtr->RefreshPreview();
+							}
+						}
+					}
+				}
+			});
+
 		return FReply::Handled().BeginDragDrop(DragOp);
 	}
 
