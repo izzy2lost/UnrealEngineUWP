@@ -542,13 +542,11 @@ namespace Horde.Server.Tools
 		/// </summary>
 		/// <param name="id">Identifier of the tool to retrieve</param>
 		/// <param name="locator">The blob locator</param>
-		/// <param name="length">Length of data to return</param>
-		/// <param name="offset">Offset of the data to return</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Information about all the artifacts</returns>
 		[HttpGet]
 		[Route("/api/v1/tools/{id}/blobs/{*locator}")]
-		public async Task<ActionResult<object>> ReadToolBlobAsync(ToolId id, BundleLocator locator, [FromQuery] int? offset = null, [FromQuery] int? length = null, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<object>> ReadToolBlobAsync(ToolId id, BundleLocator locator, CancellationToken cancellationToken = default)
 		{
 			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value);
 			if (tool == null)
@@ -566,7 +564,7 @@ namespace Horde.Server.Tools
 			}
 
 			BundleStorageClient storageClient = await _toolCollection.GetStorageClientAsync(tool, cancellationToken);
-			return StorageController.ReadBlobInternalAsync(storageClient, locator, offset, length, cancellationToken);
+			return StorageController.ReadBlobInternalAsync(storageClient, locator, Request.Headers, cancellationToken);
 		}
 
 		bool AuthorizeDownload(ToolConfig toolConfig)

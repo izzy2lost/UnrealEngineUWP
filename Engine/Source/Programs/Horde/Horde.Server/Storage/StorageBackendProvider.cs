@@ -77,16 +77,13 @@ namespace Horde.Server.Storage
 			public IAsyncEnumerable<string> EnumerateAsync(CancellationToken cancellationToken = default) => _backend.EnumerateAsync(cancellationToken);
 
 			/// <inheritdoc/>
-			public Task<Stream> ReadAsync(string path, CancellationToken cancellationToken = default) => _backend.ReadAsync(path, cancellationToken);
-
-			/// <inheritdoc/>
-			public Task<Stream> ReadAsync(string path, int offset, int length, CancellationToken cancellationToken = default) => _backend.ReadAsync(path, offset, length, cancellationToken);
+			public Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default) => _backend.ReadAsync(path, offset, length, cancellationToken);
 
 			/// <inheritdoc/>
 			public Task WriteAsync(string path, Stream stream, CancellationToken cancellationToken = default) => _backend.WriteAsync(path, stream, cancellationToken);
 
 			/// <inheritdoc/>
-			public ValueTask<Uri?> TryGetReadRedirectAsync(string path, int? offset = null, int? length = null, CancellationToken cancellationToken = default) => _backend.TryGetReadRedirectAsync(path, offset, length, cancellationToken);
+			public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default) => _backend.TryGetReadRedirectAsync(path, cancellationToken);
 
 			/// <inheritdoc/>
 			public ValueTask<Uri?> TryGetWriteRedirectAsync(string path, CancellationToken cancellationToken = default) => _backend.TryGetWriteRedirectAsync(path, cancellationToken);

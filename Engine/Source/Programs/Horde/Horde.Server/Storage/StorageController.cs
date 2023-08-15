@@ -266,39 +266,71 @@ namespace Horde.Server.Storage
 				return Forbid(StorageAclAction.ReadBlobs, namespaceId);
 			}
 
-			return await ReadBlobInternalAsync(client, locator, offset, length, cancellationToken);
+			return await ReadBlobInternalAsync(client, locator, Request.Headers, cancellationToken);
 		}
 
 		/// <summary>
 		/// Reads a blob from storage, without performing namespace access checks.
 		/// </summary>
-		internal static async Task<ActionResult> ReadBlobInternalAsync(BundleStorageClient storageClient, BundleLocator locator, int? offset, int? length, CancellationToken cancellationToken)
+		internal static async Task<ActionResult> ReadBlobInternalAsync(BundleStorageClient storageClient, BundleLocator locator, IHeaderDictionary headers, CancellationToken cancellationToken)
 		{
 			if (storageClient is StorageClient storageClientImpl)
 			{
-				Uri? redirectUrl = await storageClientImpl.GetReadRedirectAsync(locator, offset, length, cancellationToken);
+				Uri? redirectUrl = await storageClientImpl.GetReadRedirectAsync(locator, cancellationToken);
 				if (redirectUrl != null)
 				{
 					return new RedirectResult(redirectUrl.ToString());
 				}
 			}
 
+			// Parse the range header
+			int offset = 0;
+			int? length = null;
+
+			if (headers.Range.Count > 0)
+			{
+				if (headers.Range.Count > 1)
+				{
+					return new BadRequestObjectResult(LogEvent.Create(LogLevel.Error, "Unsupported range header; only one range is allowed"));
+				}
+
+				string value = headers.Range[0];
+
+				Match match = Regex.Match(value, @"^\s*bytes\s*=\s*(\d*)-(\d*)$");
+				if (!match.Success)
+				{
+					return new BadRequestObjectResult(LogEvent.Create(LogLevel.Error, "Unsupported range header syntax; cannot parse {Value}", value));
+				}
+
+				if (match.Groups[1].Length > 0 && !Int32.TryParse(match.Groups[1].Value, out offset))
+				{
+					return new BadRequestObjectResult(LogEvent.Create(LogLevel.Error, "Unable to parse start for range: {Value}", value));
+				}
+				if (match.Groups[2].Length > 0)
+				{
+					int end;
+					if (Int32.TryParse(match.Groups[2].Value, out end) && end > offset)
+					{
+						length = (end + 1) - offset;
+					}
+					else
+					{
+						return new BadRequestObjectResult(LogEvent.Create(LogLevel.Error, "Unable to parse end for range: {Value}", value));
+					}
+				}
+			}
+
 #pragma warning disable CA2000 // Dispose objects before losing scope
-			// TODO: would be better to use the range header here, but seems to require a lot of plumbing to convert unseekable AWS streams into a format that works with range processing.
 			Stream stream;
-			if (offset == null && length == null)
+			if (offset == 0 && length == null)
 			{
 				Bundle bundle = await storageClient.ReadBundleAsync(locator, cancellationToken);
 				stream = new ReadOnlySequenceStream(bundle.AsSequence());
 			}
-			else if (offset != null && length != null)
-			{
-				ReadOnlyMemory<byte> memory = await storageClient.ReadBundleRangeAsync(locator, offset.Value, length.Value, cancellationToken);
-				stream = new ReadOnlyMemoryStream(memory);
-			}
 			else
 			{
-				return new BadRequestObjectResult("Offset and length must both be specified as query parameters for ranged reads");
+				ReadOnlyMemory<byte> memory = await storageClient.ReadBundleRangeAsync(locator, offset, length, cancellationToken);
+				stream = new ReadOnlyMemoryStream(memory);
 			}
 			return new FileStreamResult(stream, "application/octet-stream");
 #pragma warning restore CA2000 // Dispose objects before losing scope

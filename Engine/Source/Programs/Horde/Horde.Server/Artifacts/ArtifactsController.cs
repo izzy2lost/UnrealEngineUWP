@@ -74,14 +74,12 @@ namespace Horde.Server.Artifacts
 		/// </summary>
 		/// <param name="id">Identifier of the artifact to retrieve</param>
 		/// <param name="locator">The blob locator</param>
-		/// <param name="length">Length of data to return</param>
-		/// <param name="offset">Offset of the data to return</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Information about all the artifacts</returns>
 		[HttpGet]
 		[Route("/api/v2/artifacts/{id}/blobs/{*locator}")]
 		[Route("/api/v2/artifacts/{id}/bundles/{*locator}")]
-		public async Task<ActionResult> ReadArtifactBlobAsync(ArtifactId id, BundleLocator locator, [FromQuery] int? offset = null, [FromQuery] int? length = null, CancellationToken cancellationToken = default)
+		public async Task<ActionResult> ReadArtifactBlobAsync(ArtifactId id, BundleLocator locator, CancellationToken cancellationToken = default)
 		{
 			IArtifact? artifact = await _artifactCollection.GetAsync(id, cancellationToken);
 			if (artifact == null)
@@ -98,7 +96,7 @@ namespace Horde.Server.Artifacts
 			}
 
 			StorageClient storageClient = await _storageService.GetClientAsync(artifact.NamespaceId, cancellationToken);
-			return await StorageController.ReadBlobInternalAsync(storageClient, locator, offset, length, cancellationToken);
+			return await StorageController.ReadBlobInternalAsync(storageClient, locator, Request.Headers, cancellationToken);
 		}
 
 		/// <summary>

@@ -98,11 +98,9 @@ namespace Horde.Server.Storage
 		/// Gets a redirect for a read request
 		/// </summary>
 		/// <param name="locator">Locator for the blob</param>
-		/// <param name="offset">Offset of the data to return</param>
-		/// <param name="length">Length of the data to return</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Path to upload the data to</returns>
-		public abstract ValueTask<Uri?> GetReadRedirectAsync(BundleLocator locator, int? offset, int? length, CancellationToken cancellationToken = default);
+		public abstract ValueTask<Uri?> GetReadRedirectAsync(BundleLocator locator, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets a redirect for a write request
@@ -155,10 +153,10 @@ namespace Horde.Server.Storage
 			}
 
 			/// <inheritdoc/>
-			public override ValueTask<Uri?> GetReadRedirectAsync(BundleLocator locator, int? offset = null, int? length = null, CancellationToken cancellationToken = default) => Backend.TryGetReadRedirectAsync(GetBlobPath(locator), offset, length, cancellationToken);
+			public override ValueTask<Uri?> GetReadRedirectAsync(BundleLocator locator, CancellationToken cancellationToken = default) => Backend.TryGetReadRedirectAsync(GetBlobPath(locator), cancellationToken);
 
 			/// <inheritdoc/>
-			public override async Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BundleLocator locator, int offset, int length, CancellationToken cancellationToken = default)
+			public override async Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BundleLocator locator, int offset, int? length, CancellationToken cancellationToken = default)
 			{
 				using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(StorageClientImpl)}.{nameof(ReadBundleRangeAsync)}");
 				span.SetAttribute("locator", locator.ToString());
@@ -168,13 +166,7 @@ namespace Horde.Server.Storage
 				string path = GetBlobPath(locator);
 				await using Stream stream = await Backend.ReadAsync(path, offset, length, cancellationToken);
 
-				ReadOnlyMemory<byte> data = await stream.ReadAllBytesAsync(cancellationToken);
-				if (data.Length > length)
-				{
-					_logger.LogDebug("Storage backend returned more data than requested; truncating response (wanted {Length}, got {GotLength})", length, data.Length);
-					data = data.Slice(0, length);
-				}
-				return data;
+				return await stream.ReadAllBytesAsync(cancellationToken);
 			}
 
 			/// <inheritdoc/>

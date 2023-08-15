@@ -270,9 +270,18 @@ namespace Horde.Server.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public Task<Stream> ReadAsync(string path, int offset, int length, CancellationToken cancellationToken)
+		public Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken)
 		{
-			return ReadAsync(path, new ByteRange(offset, offset + length), cancellationToken);
+			string range;
+			if (length == null)
+			{
+				range = $"bytes={offset}-";
+			}
+			else
+			{
+				range = $"bytes={offset}-{offset + length.Value - 1}";
+			}
+			return ReadAsync(path, new ByteRange(range), cancellationToken);
 		}
 
 		async Task<Stream> ReadAsync(string path, ByteRange? byteRange, CancellationToken cancellationToken)
@@ -314,7 +323,7 @@ namespace Horde.Server.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public ValueTask<Uri?> TryGetReadRedirectAsync(string path, int? offset, int? length, CancellationToken cancellationToken = default) => new ValueTask<Uri?>(GetPresignedUrl(path, HttpVerb.GET, offset, length));
+		public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default) => new ValueTask<Uri?>(GetPresignedUrl(path, HttpVerb.GET));
 
 		/// <inheritdoc/>
 		public ValueTask<Uri?> TryGetWriteRedirectAsync(string path, CancellationToken cancellationToken = default) => new ValueTask<Uri?>(GetPresignedUrl(path, HttpVerb.PUT));
@@ -322,7 +331,7 @@ namespace Horde.Server.Storage.Backends
 		/// <summary>
 		/// Helper method to generate a presigned URL for a request
 		/// </summary>
-		Uri? GetPresignedUrl(string path, HttpVerb verb, int? offset = null, int? length = null)
+		Uri? GetPresignedUrl(string path, HttpVerb verb)
 		{
 			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsStorageBackend)}.{nameof(GetPresignedUrl)}");
 			span.SetAttribute("path", path);
@@ -335,17 +344,6 @@ namespace Horde.Server.Storage.Backends
 				newGetRequest.BucketName = _options.AwsBucketName;
 				newGetRequest.Key = fullPath;
 				newGetRequest.Verb = verb;
-				if (offset != null || length != null)
-				{
-					StringBuilder range = new StringBuilder("bytes=");
-					range.Append(offset ?? 0);
-					range.Append('-');
-					if (length != null)
-					{
-						range.Append(offset + (length.Value - 1));
-					}
-					newGetRequest.Headers["Range"] = range.ToString();
-				}
 				newGetRequest.Expires = DateTime.UtcNow.AddHours(3.0);
 				newGetRequest.ResponseHeaderOverrides.CacheControl = "private, max-age=2592000, immutable"; // 30 days
 

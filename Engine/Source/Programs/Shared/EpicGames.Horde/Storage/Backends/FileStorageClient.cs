@@ -65,14 +65,14 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public override async Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BundleLocator id, int offset, int length, CancellationToken cancellationToken = default)
+		public override async Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BundleLocator id, int offset, int? length, CancellationToken cancellationToken = default)
 		{
 			Bundle bundle = await ReadBundleAsync(id, cancellationToken);
 
 			ReadOnlySequence<byte> sequence = bundle.AsSequence().Slice(offset);
-			if (sequence.Length > length)
+			if (length.HasValue && sequence.Length > length)
 			{
-				sequence = sequence.Slice(0, length);
+				sequence = sequence.Slice(0, length.Value);
 			}
 
 			return sequence.AsSingleSegment();

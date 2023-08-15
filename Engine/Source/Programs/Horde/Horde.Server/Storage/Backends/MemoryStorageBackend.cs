@@ -7,6 +7,7 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
 
 namespace Horde.Server.Storage.Backends
 {
@@ -29,18 +30,17 @@ namespace Horde.Server.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public Task<Stream> ReadAsync(string path, CancellationToken cancellationToken)
-		{
-			byte[] data = _pathToData[path];
-			return Task.FromResult<Stream>(new MemoryStream(data, false));
-		}
+		public Task<Stream> ReadAsync(string path, CancellationToken cancellationToken) => ReadAsync(path, 0, null, cancellationToken);
 
 		/// <inheritdoc/>
-		public async Task<Stream> ReadAsync(string path, int offset, int length, CancellationToken cancellationToken)
+		public Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken)
 		{
-			Stream stream = await ReadAsync(path, cancellationToken);
-			stream.Seek(offset, SeekOrigin.Begin);
-			return stream;
+			ReadOnlyMemory<byte> data = _pathToData[path].AsMemory(offset);
+			if (length != null)
+			{
+				data = data.Slice(0, length.Value);
+			}
+			return Task.FromResult<Stream>(new ReadOnlyMemoryStream(data));
 		}
 
 		/// <inheritdoc/>
@@ -78,7 +78,7 @@ namespace Horde.Server.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public ValueTask<Uri?> TryGetReadRedirectAsync(string path, int? offset = null, int? length = null, CancellationToken cancellationToken = default) => default;
+		public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default) => default;
 
 		/// <inheritdoc/>
 		public ValueTask<Uri?> TryGetWriteRedirectAsync(string path, CancellationToken cancellationToken = default) => default;

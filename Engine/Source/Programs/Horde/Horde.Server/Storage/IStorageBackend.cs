@@ -23,19 +23,11 @@ namespace Horde.Server.Storage
 		/// Attempts to open a read stream for the given path.
 		/// </summary>
 		/// <param name="path">Relative path within the bucket</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns></returns>
-		Task<Stream> ReadAsync(string path, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Attempts to open a read stream for the given path.
-		/// </summary>
-		/// <param name="path">Relative path within the bucket</param>
 		/// <param name="offset">Offset to start reading from</param>
 		/// <param name="length">Length of data to read</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		Task<Stream> ReadAsync(string path, int offset, int length, CancellationToken cancellationToken = default);
+		Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Writes a stream to the given path. If the stream throws an exception during read, the write will be aborted.
@@ -72,11 +64,9 @@ namespace Horde.Server.Storage
 		/// Gets a HTTP redirect for a read request
 		/// </summary>
 		/// <param name="path">Path to read from</param>
-		/// <param name="offset">Offset to start reading from</param>
-		/// <param name="length">Length of data to read</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Path to upload the data to</returns>
-		ValueTask<Uri?> TryGetReadRedirectAsync(string path, int? offset, int? length, CancellationToken cancellationToken = default);
+		ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets a HTTP redirect for a write request
@@ -121,10 +111,7 @@ namespace Horde.Server.Storage
 			public void Dispose() => _inner.Dispose();
 
 			/// <inheritdoc/>
-			public Task<Stream> ReadAsync(string path, CancellationToken cancellationToken) => _inner.ReadAsync(path, cancellationToken);
-
-			/// <inheritdoc/>
-			public Task<Stream> ReadAsync(string path, int offset, int length, CancellationToken cancellationToken) => _inner.ReadAsync(path, offset, length, cancellationToken);
+			public Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken) => _inner.ReadAsync(path, offset, length, cancellationToken);
 
 			/// <inheritdoc/>
 			public Task WriteAsync(string path, Stream stream, CancellationToken cancellationToken) => _inner.WriteAsync(path, stream, cancellationToken);
@@ -139,7 +126,7 @@ namespace Horde.Server.Storage
 			public IAsyncEnumerable<string> EnumerateAsync(CancellationToken cancellationToken = default) => _inner.EnumerateAsync(cancellationToken);
 
 			/// <inheritdoc/>
-			public ValueTask<Uri?> TryGetReadRedirectAsync(string path, int? offset = null, int? length = null, CancellationToken cancellationToken = default) => _inner.TryGetReadRedirectAsync(path, offset, length, cancellationToken);
+			public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default) => _inner.TryGetReadRedirectAsync(path, cancellationToken);
 
 			/// <inheritdoc/>
 			public ValueTask<Uri?> TryGetWriteRedirectAsync(string path, CancellationToken cancellationToken = default) => _inner.TryGetWriteRedirectAsync(path, cancellationToken);
@@ -202,6 +189,15 @@ namespace Horde.Server.Storage
 		{
 			return new TypedStorageBackend<T>(backend);
 		}
+
+		/// <summary>
+		/// Attempts to open a read stream for the given path.
+		/// </summary>
+		/// <param name="storageBackend"></param>
+		/// <param name="path">Relative path within the bucket</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns></returns>
+		public static Task<Stream> ReadAsync(this IStorageBackend storageBackend, string path, CancellationToken cancellationToken = default) => storageBackend.ReadAsync(path, 0, null, cancellationToken);
 
 		/// <summary>
 		/// Writes a block of memory to storage
