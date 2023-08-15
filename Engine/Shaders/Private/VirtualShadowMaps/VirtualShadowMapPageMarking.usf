@@ -35,6 +35,12 @@ uint InputType;
 uint bCullBackfacingPixels;
 uint NumDirectionalLightSmInds;
 
+int GetBiasedClipmapLevel(FVirtualShadowMapProjectionShaderData BaseProjectionData, FLWCVector3 WorldPosition)
+{
+	float BiasedLevel = CalcAbsoluteClipmapLevel(BaseProjectionData, WorldPosition) + BaseProjectionData.ResolutionLodBias + VirtualShadowMap.GlobalResolutionLodBias;
+	return int(floor(BiasedLevel));
+}
+
 uint GetMipLevelLocal(int VirtualShadowMapId, float3 TranslatedWorldPosition, float SceneDepth)
 {
 	FVirtualShadowMapProjectionShaderData ProjectionData = GetVirtualShadowMapProjectionData(VirtualShadowMapId);
@@ -45,7 +51,7 @@ uint GetMipLevelLocal(int VirtualShadowMapId, float3 TranslatedWorldPosition, fl
 
 	float Footprint = VirtualShadowMapCalcPixelFootprintLocal(ProjectionData, ShadowTranslatedWorldPosition, SceneDepth);
 
-	float MipLevelFloat = log2(Footprint) + ProjectionData.ResolutionLodBias;
+	float MipLevelFloat = log2(Footprint) + ProjectionData.ResolutionLodBias + VirtualShadowMap.GlobalResolutionLodBias;
 	uint MipLevel = uint(max(floor(MipLevelFloat), 0.0f));
 	return min(MipLevel, (VSM_MAX_MIP_LEVELS - 1U));
 }
@@ -112,7 +118,7 @@ void MarkPageClipmap(
 	FLWCVector3 WorldPosition,
 	float3 TranslatedWorldPosition)
 {
-	const int ClipmapLevel = CalcClipmapLevel(ProjectionData, WorldPosition);
+	const int ClipmapLevel = GetBiasedClipmapLevel(ProjectionData, WorldPosition);
 	int ClipmapIndex = max(0, ClipmapLevel - ProjectionData.ClipmapLevel);
 	if (ClipmapIndex < ProjectionData.ClipmapLevelCountRemaining)
 	{

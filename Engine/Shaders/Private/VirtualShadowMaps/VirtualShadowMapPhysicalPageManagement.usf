@@ -1111,11 +1111,14 @@ StructuredBuffer<int> PhysicalPageLists;
 void FeedbackStatusCS()
 {
 	{
-		FGPUMessageWriter Mw = GPUMessageBegin(StatusMessageId, 1U);
+		FGPUMessageWriter Mw = GPUMessageBegin(StatusMessageId, 2U);
 
 		// Write out how many pages are still available
-		int CountIndex = GetPhysicalPageListStart(PHYSICAL_PAGE_LIST_AVAILABLE) + VirtualShadowMap.MaxPhysicalPages;		
+		int CountIndex = GetPhysicalPageListStart(PHYSICAL_PAGE_LIST_AVAILABLE) + VirtualShadowMap.MaxPhysicalPages;
 		GPUMessageWriteItem(Mw, PhysicalPageLists[CountIndex]);
+
+		// Write out the resolution lod bias from this frame
+		GPUMessageWriteItem(Mw, VirtualShadowMap.GlobalResolutionLodBias);
 	}
 }
 

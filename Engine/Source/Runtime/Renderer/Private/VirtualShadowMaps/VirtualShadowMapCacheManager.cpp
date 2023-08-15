@@ -86,6 +86,20 @@ static TAutoConsoleVariable<int32> CVarVSMReservedResource(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<float> CVarVSMDynamicResolutionMaxLodBias(
+	TEXT("r.Shadow.Virtual.DynamicRes.MaxResolutionLodBias"),
+	2.0f,
+	TEXT("Maximum LOD bias to clamp to for global dynamic resolution reduction. 0 = disabled"),
+	ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<float> CVarVSMDynamicResolutionMaxPagePoolAllocation(
+	TEXT("r.Shadow.Virtual.DynamicRes.MaxPagePoolAllocation"),
+	0.85f,
+	TEXT("If allocation exceeds this factor of total page pool capacity, shadow resolution will be biased downwards. 0 = disabled"),
+	ECVF_RenderThreadSafe
+);
+
 void FVirtualShadowMapCacheEntry::UpdateClipmapLevel(
 	FVirtualShadowMapArray& VirtualShadowMapArray,
 	const FVirtualShadowMapPerLightCacheEntry& PerLightEntry,
@@ -521,30 +535,64 @@ FVirtualShadowMapArrayCacheManager::FVirtualShadowMapArrayCacheManager(FScene* I
 	StatusFeedbackSocket = GPUMessage::RegisterHandler(TEXT("Shadow.Virtual.StatusFeedback"), [this](GPUMessage::FReader Message)
 	{
 		// Goes negative on underflow
-		int32 NumPagesFree = Message.Read<int32>(0);
-			
-		CSV_CUSTOM_STAT(VSM, FreePages, NumPagesFree, ECsvCustomStatOp::Set);
+		int32 LastFreePhysicalPages = Message.Read<int32>(0);
+		const float LastGlobalResolutionLodBias = FMath::AsFloat(Message.Read<uint32>(0U));
+		
+		CSV_CUSTOM_STAT(VSM, FreePages, LastFreePhysicalPages, ECsvCustomStatOp::Set);
 
-		if (NumPagesFree < 0)
+		// Dynamic resolution
 		{
-			static const auto* CVarResolutionLodBiasLocalPtr = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("r.Shadow.Virtual.ResolutionLodBiasLocal"));
-			const float LodBiasLocal = CVarResolutionLodBiasLocalPtr->GetValueOnRenderThread();
+			// Could be cvars if needed, but not clearly something that needs to be tweaked currently
+			// NOTE: Should react more quickly when reducing resolution than when increasing again
+			// TODO: Possibly something smarter/PID-like rather than simple exponential decay
+			const float ResolutionDownExpLerpFactor = 0.5f;
+			const float ResolutionUpExpLerpFactor = 0.1f;
+			const uint32 FramesBeforeResolutionUp = 10;
 
-			static const auto* CVarResolutionLodBiasDirectionalPtr = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("r.Shadow.Virtual.ResolutionLodBiasDirectional"));
-			const float LodBiasDirectional = CVarResolutionLodBiasDirectionalPtr->GetValueOnRenderThread();
+			const float MaxPageAllocation = CVarVSMDynamicResolutionMaxPagePoolAllocation.GetValueOnRenderThread();
+			const float MaxLodBias = CVarVSMDynamicResolutionMaxLodBias.GetValueOnRenderThread();
+			
+			if (MaxPageAllocation > 0.0f)
+			{
+				const uint32 SceneFrameNumber = Scene->GetFrameNumberRenderThread();
 
-			static const auto* CVarMaxPhysicalPagesPtr = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Shadow.Virtual.MaxPhysicalPages"));
-			const int32 MaxPhysicalPages = CVarMaxPhysicalPagesPtr->GetValueOnRenderThread();
+				// Dynamically bias shadow resolution when we get too near the maximum pool capacity
+				// NB: In a perfect world each +1 of resolution bias will drop the allocation in half
+				float CurrentAllocation = 1.0f - (LastFreePhysicalPages / static_cast<float>(MaxPhysicalPages));
+				float AllocationRatio = CurrentAllocation / MaxPageAllocation;
+				float TargetLodBias = FMath::Max(0.0f, LastGlobalResolutionLodBias + FMath::Log2(AllocationRatio));
 
+				if (CurrentAllocation <= MaxPageAllocation &&
+					(SceneFrameNumber - LastFrameOverPageAllocationBudget) > FramesBeforeResolutionUp)
+				{
+					GlobalResolutionLodBias = FMath::Lerp(GlobalResolutionLodBias, TargetLodBias, ResolutionUpExpLerpFactor);
+				}
+				else if (CurrentAllocation > MaxPageAllocation)
+				{
+					LastFrameOverPageAllocationBudget = SceneFrameNumber;
+					GlobalResolutionLodBias = FMath::Lerp(GlobalResolutionLodBias, TargetLodBias, ResolutionDownExpLerpFactor);
+				}
+			}
+
+			GlobalResolutionLodBias = FMath::Clamp(GlobalResolutionLodBias, 0.0f, MaxLodBias);
+		}
+
+		if (LastFreePhysicalPages < 0)
+		{
 #if !UE_BUILD_SHIPPING
 			if (!bLoggedPageOverflow)
 			{
+				static const auto* CVarResolutionLodBiasLocalPtr = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("r.Shadow.Virtual.ResolutionLodBiasLocal"));
+				static const auto* CVarResolutionLodBiasDirectionalPtr = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("r.Shadow.Virtual.ResolutionLodBiasDirectional"));
+
 				UE_LOG(LogRenderer, Warning, TEXT("Virtual Shadow Map Page Pool overflow (%d page allocations were not served), this will produce visual artifacts (missing shadow), increase the page pool limit or reduce resolution bias to avoid.\n")
-					TEXT(" See r.Shadow.Virtual.MaxPhysicalPages (%d), r.Shadow.Virtual.ResolutionLodBiasLocal (%.2f), and r.Shadow.Virtual.ResolutionLodBiasDirectional (%.2f)"),
-					-NumPagesFree,
+					TEXT(" See r.Shadow.Virtual.MaxPhysicalPages (%d), r.Shadow.Virtual.ResolutionLodBiasLocal (%.2f), r.Shadow.Virtual.ResolutionLodBiasDirectional (%.2f), Global Resolution Lod Bias (%.2f)"),
+					-LastFreePhysicalPages,
 					MaxPhysicalPages,
-					LodBiasLocal,
-					LodBiasDirectional);
+					CVarResolutionLodBiasLocalPtr->GetValueOnRenderThread(),
+					CVarResolutionLodBiasDirectionalPtr->GetValueOnRenderThread(),
+					GlobalResolutionLodBias);
+
 				bLoggedPageOverflow = true;
 			}
 			LastOverflowTime = float(FGameTime::GetTimeSinceAppStart().GetRealTimeSeconds());
@@ -600,7 +648,6 @@ FVirtualShadowMapArrayCacheManager::FVirtualShadowMapArrayCacheManager(FScene* I
 		float RealTimeSeconds = float(FGameTime::GetTimeSinceAppStart().GetRealTimeSeconds());
 
 		// Show for ~5s after last overflow
-		int32 CurrentFrameNumber = Scene->GetFrameNumber();
 		if (LastOverflowTime >= 0.0f && RealTimeSeconds - LastOverflowTime < 5.0f)
 		{
 			OutMessages.Add(FCoreDelegates::EOnScreenMessageSeverity::Warning, FText::FromString(FString::Printf(TEXT("Virtual Shadow Map Page Pool overflow detected (%0.0f seconds ago)"), RealTimeSeconds - LastOverflowTime)));
@@ -628,7 +675,7 @@ FVirtualShadowMapArrayCacheManager::~FVirtualShadowMapArrayCacheManager()
 }
 
 
-void FVirtualShadowMapArrayCacheManager::SetPhysicalPoolSize(FRDGBuilder& GraphBuilder, FIntPoint RequestedSize, int RequestedArraySize, uint32 MaxPhysicalPages)
+void FVirtualShadowMapArrayCacheManager::SetPhysicalPoolSize(FRDGBuilder& GraphBuilder, FIntPoint RequestedSize, int RequestedArraySize, uint32 RequestedMaxPhysicalPages)
 {
 	// Using ReservedResource|ImmediateCommit flags hint to the RHI that the resource can be allocated using N small physical memory allocations,
 	// instead of a single large contighous allocation. This helps Windows video memory manager page allocations in and out of local memory more efficiently.
@@ -639,6 +686,7 @@ void FVirtualShadowMapArrayCacheManager::SetPhysicalPoolSize(FRDGBuilder& GraphB
 	if (!PhysicalPagePool 
 		|| PhysicalPagePool->GetDesc().Extent != RequestedSize 
 		|| PhysicalPagePool->GetDesc().ArraySize != RequestedArraySize
+		|| RequestedMaxPhysicalPages != MaxPhysicalPages
 		|| PhysicalPagePoolCreateFlags != RequestedCreateFlags)
 	{
 		if (PhysicalPagePool)
@@ -668,6 +716,8 @@ void FVirtualShadowMapArrayCacheManager::SetPhysicalPoolSize(FRDGBuilder& GraphB
 			RequestedArraySize
 		);
 		GRenderTargetPool.FindFreeElement(GraphBuilder.RHICmdList, Desc2D, PhysicalPagePool, TEXT("Shadow.Virtual.PhysicalPagePool"));
+
+		MaxPhysicalPages = RequestedMaxPhysicalPages;
 
 		// Allocate page metadata alongside
 		FRDGBufferRef PhysicalPageMetaDataRDG = GraphBuilder.CreateBuffer(

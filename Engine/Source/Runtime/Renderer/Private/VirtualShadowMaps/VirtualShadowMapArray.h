@@ -134,7 +134,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FVirtualShadowMapUniformParameters, )
 	SHADER_PARAMETER(uint32, PackedShadowMaskMaxLightCount)
 	SHADER_PARAMETER(FVector4f, RecPhysicalPoolSize)
 	SHADER_PARAMETER(FIntPoint, PhysicalPoolSize)
-	SHADER_PARAMETER(FIntPoint, PhysicalPoolSizePages)	
+	SHADER_PARAMETER(FIntPoint, PhysicalPoolSizePages)
 
 	// Set to 1 if r.Shadow.Virtual.NonNanite.IncludeInCoarsePages is set to 0 in order to signal that we want to use the legacy path for just excluding non-nanite
 	SHADER_PARAMETER(uint32, bExcludeNonNaniteFromCoarsePages)
@@ -144,6 +144,8 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FVirtualShadowMapUniformParameters, )
 
 	// For shadow page age calculations
 	SHADER_PARAMETER(uint32, SceneFrameNumber)
+
+	SHADER_PARAMETER(float, GlobalResolutionLodBias)
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ProjectionData)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, PageTable)

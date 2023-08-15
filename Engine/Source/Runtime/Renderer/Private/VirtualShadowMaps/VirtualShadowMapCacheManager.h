@@ -321,6 +321,8 @@ public:
 	uint32 GetStatsFeedbackMessageId() const { return StatsFeedbackSocket.GetMessageId().IsValid() ? StatsFeedbackSocket.GetMessageId().GetIndex() : INDEX_NONE; }
 #endif
 
+	float GetGlobalResolutionLodBias() const { return GlobalResolutionLodBias; }
+
 private:
 	// Invalidate the cache for all shadows, causing any pages to be rerendered
 	void Invalidate(FRDGBuilder& GraphBuilder);
@@ -356,6 +358,7 @@ private:
 	TRefCountPtr<IPooledRenderTarget> HZBPhysicalPagePool;
 	ETextureCreateFlags PhysicalPagePoolCreateFlags = TexCreate_None;
 	TRefCountPtr<FRDGPooledBuffer> PhysicalPageMetaData;
+	uint32 MaxPhysicalPages = 0;
 
 	// Index the Cache entries by the light ID
 	TMap< uint64, TSharedPtr<FVirtualShadowMapPerLightCacheEntry> > CacheEntries;
@@ -376,6 +379,12 @@ private:
 
 	FVirtualShadowMapFeedback StaticGPUInvalidationsFeedback;
 	GPUMessage::FSocket StatusFeedbackSocket;
+
+	// Current global resolution bias (when enabled) based on feedback from page pressure, etc.
+	float GlobalResolutionLodBias = 0.0f;
+	uint32 LastFrameOverPageAllocationBudget = 0;
+	
+	
 
 	// Debug stuff
 #if !UE_BUILD_SHIPPING
