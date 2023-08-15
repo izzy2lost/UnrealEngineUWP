@@ -174,15 +174,9 @@ namespace Horde.Server.Agents.Leases
 			}
 
 			AgentLease? agentLease = agent.Leases.FirstOrDefault(x => x.Id == leaseId);
-
 			if (agentLease == null)
 			{
 				return NotFound(agent.Id, leaseId);
-			}
-
-			if (!agentLease.IsConformLease())
-			{
-				return BadRequest("Lease abort only supported on conform leases for now, {LeaseId}", leaseId);
 			}
 
 			await _agentService.CancelLeaseAsync(agent, leaseId);
