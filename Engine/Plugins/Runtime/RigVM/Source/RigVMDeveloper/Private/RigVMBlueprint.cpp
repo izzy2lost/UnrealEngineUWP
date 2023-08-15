@@ -1481,8 +1481,7 @@ void URigVMBlueprint::HandleReportFromCompiler(EMessageSeverity::Type InSeverity
 
 	if (URigVMEdGraphNode* EdGraphNode = Cast<URigVMEdGraphNode>(SubjectForMessage))
 	{
-		EdGraphNode->ErrorType = (int32)InSeverity;
-		EdGraphNode->ErrorMsg = InMessage;
+		EdGraphNode->SetErrorInfo(InSeverity, InMessage);
 		EdGraphNode->bHasCompilerMessage = EdGraphNode->ErrorType <= int32(EMessageSeverity::Info);
 	}
 }

@@ -173,6 +173,10 @@ public:
 
 	void ClearErrorInfo();
 
+	void AddErrorInfo(const EMessageSeverity::Type& InSeverity, const FString& InMessage);
+
+	void SetErrorInfo(const EMessageSeverity::Type& InSeverity, const FString& InMessage);
+
 	URigVMPin* FindModelPinFromGraphPin(const UEdGraphPin* InGraphPin) const;
 	UEdGraphPin* FindGraphPinFromModelPin(const URigVMPin* InModelPin, bool bAsInput) const;
 
@@ -269,6 +273,8 @@ private:
 	FNodePinsChanged NodePinsChanged;
 	FNodePinExpansionChanged NodePinExpansionChanged;
 	FNodeBeginRemoval NodeBeginRemoval;
+
+	TSet<uint32> ErrorMessageHashes;
 
 	mutable const FRigVMTemplate* CachedTemplate;
 	mutable TOptional<bool> DrawAsCompactNodeCache;

@@ -1053,9 +1053,12 @@ void SRigVMGraphNode::RefreshErrorInfo()
 							if(Pin->IsArray() && !Pin->IsFixedSizeArray())
 							{
 								GraphNode->bHasCompilerMessage = true;
-								GraphNode->ErrorType = int32(EMessageSeverity::Info);
-								static const FString ArrayWarning = TEXT("This node creates a copy of the array.\nThis may cause side effects.");
-								GraphNode->ErrorMsg = ArrayWarning;
+								if (URigVMEdGraphNode* RigVMEdGraphNode = Cast<URigVMEdGraphNode>(GraphNode))
+								{
+									static const FString ArrayWarning = TEXT("This node creates a copy of the array.\nThis may cause side effects.");
+									RigVMEdGraphNode->SetErrorInfo(EMessageSeverity::Info, ArrayWarning);
+								}
+								
 								break;
 							}
 						}

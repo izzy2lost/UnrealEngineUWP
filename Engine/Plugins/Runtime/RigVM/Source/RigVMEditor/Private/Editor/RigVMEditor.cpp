@@ -3261,19 +3261,9 @@ void FRigVMEditor::UpdateGraphCompilerErrors()
 				bFoundError = bFoundError || Entry.Severity <= EMessageSeverity::Error;
 				bFoundWarning = bFoundWarning || Entry.Severity <= EMessageSeverity::Warning;
 
-				int32 ErrorType = (int32)Entry.Severity;
-				if (GraphNode->ErrorType < ErrorType)
+				if (URigVMEdGraphNode* RigVMEdGraphNode = Cast<URigVMEdGraphNode>(GraphNode))
 				{
-					continue;
-				}
-				else if (GraphNode->ErrorType == ErrorType)
-				{
-					GraphNode->ErrorMsg = FString::Printf(TEXT("%s\n%s"), *GraphNode->ErrorMsg, *Entry.Message);
-				}
-				else
-				{
-					GraphNode->ErrorMsg = Entry.Message;
-					GraphNode->ErrorType = ErrorType;
+					RigVMEdGraphNode->AddErrorInfo(Entry.Severity, Entry.Message);
 				}
 			}
 

@@ -213,8 +213,8 @@ void URigVMEdGraphNode::ReconstructNode_Internal(bool bForce)
 #endif
 
 	// Clear previously set messages
-	ErrorMsg.Reset();
-
+	ClearErrorInfo();
+	
 	// Move the existing pins to a saved array.
 	// This way we can reuse them later
 	LastEdGraphPins = Pins;
@@ -473,7 +473,42 @@ void URigVMEdGraphNode::ClearErrorInfo()
 	// SRigVMGraphNode only updates if the error types do not match so we have
 	// clear the error type as well, see SRigVMGraphNode::RefreshErrorInfo()
 	ErrorType = (int32)EMessageSeverity::Info + 1;
-	ErrorMsg = FString();	
+	ErrorMsg = FString();
+	ErrorMessageHashes.Reset();
+}
+
+void URigVMEdGraphNode::AddErrorInfo(const EMessageSeverity::Type& InSeverity, const FString& InMessage)
+{
+	if (ErrorType < InSeverity)
+	{
+		return;
+	}
+
+	const uint32 MessageHash = GetTypeHash(InMessage);
+	if (ErrorType == InSeverity)
+	{
+		if (ErrorMessageHashes.Contains(MessageHash))
+		{
+			return;
+		}
+		ErrorMessageHashes.Add(MessageHash);
+		ErrorMsg = FString::Printf(TEXT("%s\n%s"), *ErrorMsg, *InMessage);
+	}
+	else
+	{
+		ErrorMessageHashes.Reset();
+		ErrorMessageHashes.Add(MessageHash);
+		ErrorMsg = InMessage;
+		ErrorType = InSeverity;
+	}
+}
+
+void URigVMEdGraphNode::SetErrorInfo(const EMessageSeverity::Type& InSeverity, const FString& InMessage)
+{
+	ErrorMessageHashes.Reset();
+	ErrorMessageHashes.Add(GetTypeHash(InMessage));
+	ErrorMsg = InMessage;
+	ErrorType = InSeverity;
 }
 
 URigVMPin* URigVMEdGraphNode::FindModelPinFromGraphPin(const UEdGraphPin* InGraphPin) const
