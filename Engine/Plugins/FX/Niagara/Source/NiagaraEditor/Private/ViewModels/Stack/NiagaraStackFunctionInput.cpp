@@ -390,7 +390,7 @@ bool UNiagaraStackFunctionInput::SupportsSummaryView() const
 {
 	if(GetInputMetaData().IsSet())
 	{
-		if(GetInputMetaData()->bInlineEditConditionToggle || !GetInputMetaData()->ParentAttribute.IsNone())
+		if(GetInputMetaData()->bInlineEditConditionToggle)
 		{
 			return false;
 		}
