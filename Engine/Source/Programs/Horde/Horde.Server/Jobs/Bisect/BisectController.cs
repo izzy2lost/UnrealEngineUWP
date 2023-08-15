@@ -96,7 +96,7 @@ namespace Horde.Server.Jobs.Bisect
 		public JobId InitialJobId => _bisectTask.InitialJobId;
 
 		/// <inheritdoc cref="IBisectTask.InitialBatchId"/>
-		public string InitialBatchId => _bisectTask.InitialStepId.ToString();
+		public string InitialBatchId => _bisectTask.InitialBatchId.ToString();
 
 		/// <inheritdoc cref="IBisectTask.InitialStepId"/>
 		public string InitialStepId => _bisectTask.InitialStepId.ToString();
