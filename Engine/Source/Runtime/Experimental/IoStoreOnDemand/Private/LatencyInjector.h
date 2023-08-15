@@ -21,7 +21,8 @@ struct FLatencyInjector
 	enum class EType { Network, File };
 	static void Initialize(const TCHAR* CommandLine)IAS_DISABLED_IMPL(return);
 	static void Set(int32 MinMs, int32 MaxMs)		IAS_DISABLED_IMPL(return);
-	static void Begin(EType, uint32& Param)			IAS_DISABLED_IMPL(return);
+	static void SetFailureRate(int32 Percent)		IAS_DISABLED_IMPL(return);
+	static bool Begin(EType, uint32& Param)			IAS_DISABLED_IMPL(return true);
 	static bool HasExpired(uint32 Param)			IAS_DISABLED_IMPL(return true);
 };
 

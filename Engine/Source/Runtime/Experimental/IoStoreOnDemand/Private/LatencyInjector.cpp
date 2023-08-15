@@ -20,7 +20,8 @@ static int64 CycleBase;
 static int64 CycleFreq;
 static int32 MinMs;
 static int32 MaxMs;
-
+static int32 FailPercent;
+static int32 FailState;
 ////////////////////////////////////////////////////////////////////////////////
 static void InitializeLatency(const TCHAR* CommandLine)
 {
@@ -45,6 +46,27 @@ static void InitializeLatency(const TCHAR* CommandLine)
 	FLatencyInjector::Set(Values[0], Values[1]);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+static void InitializeFailure(const TCHAR* CommandLine)
+{
+	// -Ias.ForceFailPercent=40  : 40% chance that a request will fail
+	// -Ias.ForceFailPercent=0   : invalid
+	// -Ias.ForceFailPercent=101 : invalid
+
+	FString Value;
+	if (!FParse::Value(CommandLine, TEXT("Ias.ForceFailPercent="), Value))
+	{
+		return;
+	}
+
+	int32 Percent = -1;
+	LexFromString(Percent, *Value);
+	if (Percent < 1 || Percent > 100)
+		return;
+
+	FLatencyInjector::SetFailureRate(Percent);
+}
+
 }; // namespace Injector
 
 
@@ -54,6 +76,7 @@ void FLatencyInjector::Initialize(const TCHAR* CommandLine)
 {
 	using namespace Injector;
 	InitializeLatency(CommandLine);
+	InitializeFailure(CommandLine);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,14 +102,31 @@ void FLatencyInjector::Set(int32 MinMs, int32 MaxMs)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void FLatencyInjector::Begin(EType, uint32& Param)
+void FLatencyInjector::SetFailureRate(int32 Percent)
 {
 	using namespace Injector;
+	FailPercent = Percent;
+	FailState = int32(FPlatformTime::Cycles64()) | 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool FLatencyInjector::Begin(EType, uint32& Param)
+{
+	using namespace Injector;
+
+	if (FailPercent)
+	{
+		FailState *= 0xac564b05;
+		if (int32 Value = ((FailState & 0xff) * 100) / 0xff; Value < FailPercent)
+		{
+			return false;
+		}
+	}
 
 	if (MaxMs <= 0 || MinMs < 0)
 	{
 		Param = 0;
-		return;
+		return true;
 	}
 
 	int64 Cycles = FPlatformTime::Cycles64();
@@ -107,6 +147,7 @@ void FLatencyInjector::Begin(EType, uint32& Param)
 	Bias /= 1000;
 
 	Param = uint32(Cycles + Bias - CycleBase);
+	return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

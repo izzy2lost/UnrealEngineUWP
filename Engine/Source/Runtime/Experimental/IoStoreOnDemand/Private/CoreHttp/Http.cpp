@@ -1777,7 +1777,11 @@ static FHandlerResult DoRecvContent(FActivity* Activity, uint32 MaxRecvSize)
 		RecvSize += Result;
 	}
 
-	FLatencyInjector::Begin(FLatencyInjector::EType::Network, Activity->StateParam);
+	if (!FLatencyInjector::Begin(FLatencyInjector::EType::Network, Activity->StateParam))
+	{
+		Activity_SetError(Activity, "Forced random failure");
+		return { -1 };
+	}
 
 	Activity->State = FActivity::EState::RecvDone;
 	return { 0, RecvSize };
