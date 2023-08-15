@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Statistics.h"
+
+#include "AnalyticsEventAttribute.h"
 #include "Misc/CoreDelegates.h"
 
 #if IAS_WITH_STATISTICS
@@ -135,6 +137,26 @@ FOnDemandIoBackendStats::~FOnDemandIoBackendStats()
 FOnDemandIoBackendStats* FOnDemandIoBackendStats::Get()
 {
 	return GStatistics;
+}
+
+void FOnDemandIoBackendStats::ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const
+{
+	AppendAnalyticsEventAttributeArray(OutAnalyticsArray,
+		TEXT("IasHttpErrorCount"), GHttpErrorCount.Get(), 
+		TEXT("IasHttpRetryCount"), GHttpRetryCount.Get(),
+		TEXT("IasHttpGetCount"), GHttpGetCount.Get(),
+		TEXT("IasHttpPendingCount"), GHttpPendingCount.Get(),
+		TEXT("IasHttpDownloadedBytes"), GHttpDownloadedBytes.Get(),
+
+		TEXT("IasCacheErrorCount"), GCacheErrorCount.Get(),
+		TEXT("IasCacheGetCount"), GCacheGetCount.Get(),
+		TEXT("IasCachePutCount"), GCachePutCount.Get(),
+		TEXT("IasCachetRejectCount"), GCachePutRejectCount.Get(),
+		
+		TEXT("IasCacheCachedBytes"), GCacheCachedBytes.Get(),
+		TEXT("IasCacheReadBytes"), GCacheReadBytes.Get(),
+		TEXT("IasCacheRejectBytes"), GCacheRejectBytes.Get()
+	);	
 }
 
 void FOnDemandIoBackendStats::OnIoRequestEnqueue()

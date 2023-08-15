@@ -6,8 +6,15 @@ public class IoStoreOnDemand : ModuleRules
 {
 	public IoStoreOnDemand(ReadOnlyTargetRules Target) : base(Target)
 	{
-        PublicDependencyModuleNames.Add("Core");
-        PrivateDependencyModuleNames.AddRange(new string[] { "HTTP", "Json" });
+		PublicDependencyModuleNames.Add("Core");
+		PrivateDependencyModuleNames.AddRange(
+			new string[] {
+				"HTTP",
+				"Json",
+				"Analytics",
+			}
+		);
+
 		bAllowConfidentialPlatformDefines = true;
 
 		if (Target.Platform.IsInGroup(UnrealPlatformGroup.Desktop) &&
@@ -15,5 +22,5 @@ public class IoStoreOnDemand : ModuleRules
 		{
 			PrivateDependencyModuleNames.AddRange(new string[] { "S3Client", "RSA" });
 		}
-    }
+	}
 }

@@ -8,6 +8,7 @@
 #define UE_API IOSTOREONDEMAND_API
 
 class IIoCache;
+struct FAnalyticsEventAttribute;
 
 namespace UE
 {
@@ -25,7 +26,10 @@ struct FOnDemandEndpoint
 	FString ServiceUrl;
 	FString TocPath;
 
-	bool IsValid() const { return (DistributionUrl.Len() > 0 || ServiceUrl.Len() > 0) && TocPath.Len() > 0; }
+	bool IsValid() const
+	{
+		return (DistributionUrl.Len() > 0 || ServiceUrl.Len() > 0) && TocPath.Len() > 0;
+	}
 };
 
 class IOnDemandIoDispatcherBackend
@@ -33,9 +37,12 @@ class IOnDemandIoDispatcherBackend
 {
 public:
 	virtual ~IOnDemandIoDispatcherBackend() = default;
+
 	virtual void Mount(const FOnDemandEndpoint& Endpoint) = 0;
 	virtual void SetBulkOptionalEnabled(bool bInEnabled) = 0;
 	virtual void SetEnabled(bool bInEnabled) = 0;
+
+	virtual void ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const = 0;
 
 #if IS_PROGRAM || WITH_EDITOR
 	virtual bool FlushDeferedEndPoints(double TimeOut) = 0;

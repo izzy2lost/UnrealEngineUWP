@@ -7,21 +7,22 @@
 #include "IO/IoHash.h"
 #include "IO/IoStatus.h"
 #include "Misc/Guid.h"
+#include "Modules/ModuleInterface.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/NameTypes.h"
-#include "Modules/ModuleInterface.h"
 
 #if (IS_PROGRAM || WITH_EDITOR)
-#include "Misc/AES.h"
 #include "Containers/Map.h"
+#include "Misc/AES.h"
 #endif // (IS_PROGRAM || WITH_EDITOR)
 
 #define UE_API IOSTOREONDEMAND_API
 
 class FArchive;
-class FCbWriter;
 class FCbFieldView;
+class FCbWriter;
 class IIoStoreWriter;
+struct FAnalyticsEventAttribute;
 struct FIoContainerSettings;
 struct FIoStoreWriterSettings;
 
@@ -178,16 +179,17 @@ namespace UE
 class FIoStoreOnDemandModule
 	: public IModuleInterface
 {
+private:
 	TSharedPtr<UE::IOnDemandIoDispatcherBackend> Backend;
 
 public:
 	UE_API void SetBulkOptionalEnabled(bool bInEnabled);
 	UE_API void SetEnabled(bool bInEnabled);
 
+	UE_API void ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const;
+
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
-
-private:
 };
 
 #undef UE_API

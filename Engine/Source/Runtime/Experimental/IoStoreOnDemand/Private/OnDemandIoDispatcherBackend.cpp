@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "OnDemandIoDispatcherBackend.h"
-#include "Statistics.h"
 
+#include "AnalyticsEventAttribute.h"
 #include "CancellationToken.h"
 #include "Containers/StringView.h"
 #include "CoreHttp/Client.h"
@@ -32,6 +32,7 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/MemoryReader.h"
+#include "Statistics.h"
 #include "Tasks/Task.h"
 
 #include <atomic>
@@ -64,6 +65,11 @@ static FAutoConsoleVariableRef CVar_IoDispatcherBulkOptionalEnabled(
 	GIoDispatcherBulkOptionalEnabled,
 	TEXT("Enables bulk optional requests.")
 );
+
+static TAutoConsoleVariable<bool> CVar_IoReportAnalytics(
+	TEXT("ias.ReportAnalytics"),
+	true,
+	TEXT("Enables reporting statics to the analytics system"));
 
 namespace UE::IO::Private
 {
@@ -1189,6 +1195,7 @@ public:
 	virtual void Mount(const FOnDemandEndpoint& Endpoint) override;
 	virtual void SetBulkOptionalEnabled(bool bInEnabled) override;
 	virtual void SetEnabled(bool bInEnabled) override;
+	virtual void ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const override;
 
 #if IS_PROGRAM || WITH_EDITOR
 	virtual bool FlushDeferedEndPoints(double TimeOut = 0.0) override;
@@ -1553,6 +1560,32 @@ void FOnDemandIoBackend::SetEnabled(bool bInEnabled)
 {
 	UE_LOG(LogIas, Log, TEXT("HTTP streaming '%s'"), bInEnabled ? TEXT("Enabled") : TEXT("Disabled"));
 	bEnabled = bInEnabled;
+}
+
+void FOnDemandIoBackend::ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const
+{
+	if (!CVar_IoReportAnalytics.GetValueOnAnyThread())
+	{
+		return;
+	}
+
+	if (bEnabled)
+	{
+		AppendAnalyticsEventAttributeArray(OutAnalyticsArray,
+			TEXT("IasEnabled"), false,
+			TEXT("IasCDNBackend"), HttpClient->ServiceUrl()
+		);
+
+		Stats.ReportAnalytics(OutAnalyticsArray);
+	}
+	else
+	{
+		AppendAnalyticsEventAttributeArray(OutAnalyticsArray,
+			TEXT("IasEnabled"), false
+		);
+	}
+
+	
 }
 
 #if IS_PROGRAM || WITH_EDITOR

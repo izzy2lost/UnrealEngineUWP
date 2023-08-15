@@ -1443,6 +1443,14 @@ void FIoStoreOnDemandModule::SetEnabled(bool bInEnabled)
 	}
 }
 
+void FIoStoreOnDemandModule::ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const
+{
+	if (Backend.IsValid())
+	{
+		Backend->ReportAnalytics(OutAnalyticsArray);
+	}
+}
+
 void FIoStoreOnDemandModule::StartupModule()
 {
 	LLM_SCOPE(ELLMTag::FileSystem);

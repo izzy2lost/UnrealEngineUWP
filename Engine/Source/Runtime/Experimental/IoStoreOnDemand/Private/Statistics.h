@@ -5,13 +5,13 @@
 #include "ProfilingDebugging/CountersTrace.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 
-#include <atomic>
-
 #if COUNTERSTRACE_ENABLED || CSV_PROFILER
 #	define IAS_WITH_STATISTICS 1
 #else
 #	define IAS_WITH_STATISTICS 0
 #endif
+
+struct FAnalyticsEventAttribute;
 
 namespace UE::IO::Private
 {
@@ -26,8 +26,12 @@ class FOnDemandIoBackendStats
 {
 public:
 	static FOnDemandIoBackendStats* Get() IAS_STATISTICS_IMPL(nullptr)
+
 	FOnDemandIoBackendStats() IAS_STATISTICS_IMPL()
 	~FOnDemandIoBackendStats() IAS_STATISTICS_IMPL()
+
+	void ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const IAS_STATISTICS_IMPL()
+
 	void OnIoRequestEnqueue() IAS_STATISTICS_IMPL()
 	void OnIoRequestComplete(uint64 Size, uint64 DurationMs) IAS_STATISTICS_IMPL()
 	void OnIoRequestCancel() IAS_STATISTICS_IMPL()
