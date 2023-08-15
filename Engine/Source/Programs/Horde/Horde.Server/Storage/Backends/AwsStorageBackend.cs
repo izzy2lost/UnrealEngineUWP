@@ -6,6 +6,7 @@ using System.Data.SqlTypes;
 using System.Globalization;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Amazon;
@@ -313,7 +314,7 @@ namespace Horde.Server.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default) => new ValueTask<Uri?>(GetPresignedUrl(path, HttpVerb.GET));
+		public ValueTask<Uri?> TryGetReadRedirectAsync(string path, int? offset, int? length, CancellationToken cancellationToken = default) => new ValueTask<Uri?>(GetPresignedUrl(path, HttpVerb.GET, offset, length));
 
 		/// <inheritdoc/>
 		public ValueTask<Uri?> TryGetWriteRedirectAsync(string path, CancellationToken cancellationToken = default) => new ValueTask<Uri?>(GetPresignedUrl(path, HttpVerb.PUT));
@@ -321,7 +322,7 @@ namespace Horde.Server.Storage.Backends
 		/// <summary>
 		/// Helper method to generate a presigned URL for a request
 		/// </summary>
-		Uri? GetPresignedUrl(string path, HttpVerb verb)
+		Uri? GetPresignedUrl(string path, HttpVerb verb, int? offset = null, int? length = null)
 		{
 			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsStorageBackend)}.{nameof(GetPresignedUrl)}");
 			span.SetAttribute("path", path);
@@ -334,6 +335,20 @@ namespace Horde.Server.Storage.Backends
 				newGetRequest.BucketName = _options.AwsBucketName;
 				newGetRequest.Key = fullPath;
 				newGetRequest.Verb = verb;
+				if (offset != null || length != null)
+				{
+					StringBuilder range = new StringBuilder();
+					if (offset != null)
+					{
+						range.Append(offset.Value);
+					}
+					range.Append("-");
+					if (length != null)
+					{
+						range.Append(length.Value);
+					}
+					newGetRequest.Headers["Range"] = range.ToString();
+				}
 				newGetRequest.Expires = DateTime.UtcNow.AddHours(3.0);
 				newGetRequest.ResponseHeaderOverrides.CacheControl = "private, max-age=2592000, immutable"; // 30 days
 

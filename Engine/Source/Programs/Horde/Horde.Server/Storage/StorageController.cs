@@ -276,7 +276,7 @@ namespace Horde.Server.Storage
 		{
 			if (storageClient is StorageClient storageClientImpl)
 			{
-				Uri? redirectUrl = await storageClientImpl.GetReadRedirectAsync(locator, cancellationToken);
+				Uri? redirectUrl = await storageClientImpl.GetReadRedirectAsync(locator, offset, length, cancellationToken);
 				if (redirectUrl != null)
 				{
 					return new RedirectResult(redirectUrl.ToString());

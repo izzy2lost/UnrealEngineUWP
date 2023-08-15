@@ -86,7 +86,7 @@ namespace Horde.Server.Storage
 			public Task WriteAsync(string path, Stream stream, CancellationToken cancellationToken = default) => _backend.WriteAsync(path, stream, cancellationToken);
 
 			/// <inheritdoc/>
-			public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default) => _backend.TryGetReadRedirectAsync(path, cancellationToken);
+			public ValueTask<Uri?> TryGetReadRedirectAsync(string path, int? offset = null, int? length = null, CancellationToken cancellationToken = default) => _backend.TryGetReadRedirectAsync(path, offset, length, cancellationToken);
 
 			/// <inheritdoc/>
 			public ValueTask<Uri?> TryGetWriteRedirectAsync(string path, CancellationToken cancellationToken = default) => _backend.TryGetWriteRedirectAsync(path, cancellationToken);

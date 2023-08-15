@@ -98,9 +98,11 @@ namespace Horde.Server.Storage
 		/// Gets a redirect for a read request
 		/// </summary>
 		/// <param name="locator">Locator for the blob</param>
+		/// <param name="offset">Offset of the data to return</param>
+		/// <param name="length">Length of the data to return</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Path to upload the data to</returns>
-		public abstract ValueTask<Uri?> GetReadRedirectAsync(BundleLocator locator, CancellationToken cancellationToken = default);
+		public abstract ValueTask<Uri?> GetReadRedirectAsync(BundleLocator locator, int? offset, int? length, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets a redirect for a write request
@@ -153,7 +155,7 @@ namespace Horde.Server.Storage
 			}
 
 			/// <inheritdoc/>
-			public override ValueTask<Uri?> GetReadRedirectAsync(BundleLocator locator, CancellationToken cancellationToken = default) => Backend.TryGetReadRedirectAsync(GetBlobPath(locator), cancellationToken);
+			public override ValueTask<Uri?> GetReadRedirectAsync(BundleLocator locator, int? offset = null, int? length = null, CancellationToken cancellationToken = default) => Backend.TryGetReadRedirectAsync(GetBlobPath(locator), offset, length, cancellationToken);
 
 			/// <inheritdoc/>
 			public override async Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BundleLocator locator, int offset, int length, CancellationToken cancellationToken = default)

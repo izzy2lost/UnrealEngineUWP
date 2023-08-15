@@ -72,9 +72,11 @@ namespace Horde.Server.Storage
 		/// Gets a HTTP redirect for a read request
 		/// </summary>
 		/// <param name="path">Path to read from</param>
+		/// <param name="offset">Offset to start reading from</param>
+		/// <param name="length">Length of data to read</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Path to upload the data to</returns>
-		ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default);
+		ValueTask<Uri?> TryGetReadRedirectAsync(string path, int? offset, int? length, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets a HTTP redirect for a write request
@@ -137,7 +139,7 @@ namespace Horde.Server.Storage
 			public IAsyncEnumerable<string> EnumerateAsync(CancellationToken cancellationToken = default) => _inner.EnumerateAsync(cancellationToken);
 
 			/// <inheritdoc/>
-			public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default) => _inner.TryGetReadRedirectAsync(path, cancellationToken);
+			public ValueTask<Uri?> TryGetReadRedirectAsync(string path, int? offset = null, int? length = null, CancellationToken cancellationToken = default) => _inner.TryGetReadRedirectAsync(path, offset, length, cancellationToken);
 
 			/// <inheritdoc/>
 			public ValueTask<Uri?> TryGetWriteRedirectAsync(string path, CancellationToken cancellationToken = default) => _inner.TryGetWriteRedirectAsync(path, cancellationToken);
