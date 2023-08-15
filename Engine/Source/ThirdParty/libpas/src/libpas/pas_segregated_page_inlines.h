@@ -406,12 +406,18 @@ static PAS_ALWAYS_INLINE void pas_segregated_page_note_full_emptiness(pas_segreg
             break;
         }
         case pas_medium_segregated_page_config_variant: {
+            verse_heap_chunk_map_entry old_entry;
             verse_heap_chunk_map_entry entry;
-            entry = verse_heap_chunk_map_entry_create_empty();
+			old_entry = *entry_ptr;
+			PAS_ASSERT(verse_heap_chunk_map_entry_is_medium_segregated(old_entry));
+			PAS_ASSERT(&verse_heap_chunk_map_entry_medium_segregated_header_object(old_entry)->segregated == page);
+			PAS_ASSERT(verse_heap_chunk_map_entry_medium_segregated_empty_mode(old_entry) == pas_is_not_empty);
+			entry = verse_heap_chunk_map_entry_create_medium_segregated(
+				verse_heap_chunk_map_entry_medium_segregated_header_object(old_entry), pas_is_empty);
             if (verbose) {
                 pas_log("Clearing medium entry for page = %p, boundary = %p, entry_ptr = %p, old_entry = ",
                         page, (void*)boundary, entry_ptr);
-                verse_heap_chunk_map_entry_dump(*entry_ptr, &pas_log_stream.base);
+                verse_heap_chunk_map_entry_dump(old_entry, &pas_log_stream.base);
                 pas_log(", new_entry = ");
                 verse_heap_chunk_map_entry_dump(entry, &pas_log_stream.base);
                 pas_log("\n");

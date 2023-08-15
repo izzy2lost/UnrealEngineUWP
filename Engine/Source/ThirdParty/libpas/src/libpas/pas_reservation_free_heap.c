@@ -67,7 +67,6 @@ pas_allocation_result pas_reservation_free_heap_try_allocate_with_alignment(
     pas_large_free_heap_config config;
     pas_allocation_result result;
 
-    PAS_ASSERT(allocation_kind == pas_delegate_allocation);
     PAS_ASSERT(pas_is_aligned(size, pas_page_malloc_alignment()));
     
     pas_heap_lock_assert_held();

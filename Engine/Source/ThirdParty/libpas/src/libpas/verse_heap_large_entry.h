@@ -9,9 +9,9 @@
 
 PAS_BEGIN_EXTERN_C;
 
-struct pas_large_heap;
+struct pas_heap;
 struct verse_heap_large_entry;
-typedef struct pas_large_heap pas_large_heap;
+typedef struct pas_heap pas_heap;
 typedef struct verse_heap_large_entry verse_heap_large_entry;
 
 struct verse_heap_large_entry {

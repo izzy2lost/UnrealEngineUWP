@@ -36,16 +36,51 @@ pas_page_base* verse_heap_medium_segregated_page_base_for_boundary_remote(
 pas_page_base* verse_heap_create_page_base(
     void* boundary, pas_page_kind kind, pas_lock_hold_mode heap_lock_hold_mode)
 {
+	verse_heap_medium_page_header_object* header_object;
+	verse_heap_chunk_map_entry* entry_ptr;
+	
     PAS_ASSERT(kind == pas_small_exclusive_segregated_page_kind
                || kind == pas_medium_exclusive_segregated_page_kind);
-    PAS_UNUSED_PARAM(heap_lock_hold_mode);
-    return verse_heap_page_base_for_boundary(boundary, pas_page_kind_get_segregated_variant(kind));
+	
+	if (kind == pas_small_exclusive_segregated_page_kind)
+		return verse_heap_page_base_for_boundary(boundary, pas_small_segregated_page_config_variant);
+	
+	pas_heap_lock_lock_conditionally(heap_lock_hold_mode);
+	header_object = verse_heap_medium_page_header_object_create();
+	pas_heap_lock_unlock_conditionally(heap_lock_hold_mode);
+	
+	header_object->boundary = (uintptr_t)boundary;
+	entry_ptr = verse_heap_get_chunk_map_entry_ptr((uintptr_t)boundary);
+	PAS_ASSERT(verse_heap_chunk_map_entry_is_empty(*entry_ptr));
+	*entry_ptr = verse_heap_chunk_map_entry_create_medium_segregated(header_object, pas_is_empty);
+	
+	return &header_object->segregated.base;
 }
 
 void verse_heap_destroy_page_base(pas_page_base* page, pas_lock_hold_mode heap_lock_hold_mode)
 {
-    PAS_UNUSED_PARAM(page);
-    PAS_UNUSED_PARAM(heap_lock_hold_mode);
+	verse_heap_medium_page_header_object* header_object;
+	pas_page_kind kind;
+	verse_heap_chunk_map_entry* entry_ptr;
+	
+	kind = pas_page_base_get_kind(page);
+    PAS_ASSERT(kind == pas_small_exclusive_segregated_page_kind
+               || kind == pas_medium_exclusive_segregated_page_kind);
+
+	if (kind == pas_small_exclusive_segregated_page_kind)
+		return;
+
+	header_object = (verse_heap_medium_page_header_object*)((uintptr_t)page - PAS_OFFSETOF(verse_heap_medium_page_header_object, segregated));
+
+	entry_ptr = verse_heap_get_chunk_map_entry_ptr(header_object->boundary);
+	PAS_ASSERT(verse_heap_chunk_map_entry_is_medium_segregated(*entry_ptr));
+	PAS_ASSERT(verse_heap_chunk_map_entry_medium_segregated_header_object(*entry_ptr) == header_object);
+	PAS_ASSERT(verse_heap_chunk_map_entry_medium_segregated_empty_mode(*entry_ptr) == pas_is_empty);
+	*entry_ptr = verse_heap_chunk_map_entry_create_empty();
+	
+	pas_heap_lock_lock_conditionally(heap_lock_hold_mode);
+	verse_heap_medium_page_header_object_destroy(header_object);
+	pas_heap_lock_unlock_conditionally(heap_lock_hold_mode);
 }
 
 typedef struct {

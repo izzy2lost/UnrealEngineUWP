@@ -5,8 +5,8 @@
 #if LIBPAS_ENABLED
 
 #include "verse_heap_chunk_map_entry.h"
-#include "verse_heap_large_entry.h"
 
+#include "verse_heap_large_entry.h"
 #include "pas_stream.h"
 
 #if PAS_ENABLE_VERSE
@@ -24,7 +24,7 @@ void verse_heap_chunk_map_entry_dump(verse_heap_chunk_map_entry entry, pas_strea
     }
 
     if (verse_heap_chunk_map_entry_is_medium_segregated(entry)) {
-        pas_stream_printf(stream, "medium");
+        pas_stream_printf(stream, "medium:%p/%s", verse_heap_chunk_map_entry_medium_segregated_header_object(entry), pas_empty_mode_get_string(verse_heap_chunk_map_entry_medium_segregated_empty_mode(entry)));
         return;
     }
 

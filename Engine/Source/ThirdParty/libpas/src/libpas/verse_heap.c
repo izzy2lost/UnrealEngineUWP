@@ -29,8 +29,6 @@
 
 #if PAS_ENABLE_VERSE
 
-verse_heap_chunk_map_entry* verse_heap_first_level_chunk_map[VERSE_HEAP_CHUNK_MAP_FIRST_LEVEL_SIZE];
-
 bool verse_heap_is_ready_for_allocation = false;
 
 verse_heap_object_set verse_heap_all_objects = VERSE_HEAP_OBJECT_SET_INITIALIZER;
@@ -62,36 +60,6 @@ void (*verse_heap_live_bytes_trigger_callback)(void) = NULL;
 pas_allocator_counts verse_heap_allocator_counts;
 
 verse_heap_thread_local_cache_layout_node_vector verse_heap_thread_local_cache_layout_node_vector_instance = PAS_IMMUTABLE_VECTOR_INITIALIZER;
-
-verse_heap_chunk_map_entry* verse_heap_initialize_chunk_map_entry_ptr(uintptr_t address)
-{
-    verse_heap_chunk_map_entry** second_level_ptr;
-
-    pas_heap_lock_assert_held();
-
-    PAS_ASSERT(address <= PAS_MAX_ADDRESS);
-
-    second_level_ptr = verse_heap_first_level_chunk_map + 
-        ((address >> VERSE_HEAP_CHUNK_MAP_FIRST_LEVEL_SHIFT) & VERSE_HEAP_CHUNK_MAP_FIRST_LEVEL_MASK);
-
-    if (!*second_level_ptr) {
-        /* We allocate from our reservation because that way we know we'll get all zeroes. */
-        pas_allocation_result allocation_result;
-        pas_large_free_heap_config config;
-        size_t size;
-        verse_heap_initialize_page_cache_config(&config);
-        size = sizeof(verse_heap_chunk_map_entry) * VERSE_HEAP_CHUNK_MAP_SECOND_LEVEL_SIZE;
-        allocation_result = pas_simple_large_free_heap_try_allocate(
-            &verse_heap_page_cache, size, pas_alignment_create_traditional(sizeof(verse_heap_chunk_map_entry)), &config);
-        PAS_ASSERT(allocation_result.did_succeed);
-        PAS_ASSERT(allocation_result.zero_mode == pas_zero_mode_is_all_zero);
-        pas_reservation_commit((void*)allocation_result.begin, size);
-        *second_level_ptr = (verse_heap_chunk_map_entry*)allocation_result.begin;
-    }
-
-    return (*second_level_ptr) + ((address >> VERSE_HEAP_CHUNK_MAP_SECOND_LEVEL_SHIFT)
-                                  & VERSE_HEAP_CHUNK_MAP_SECOND_LEVEL_MASK);
-}
 
 static pas_aligned_allocation_result page_cache_aligned_allocator(
     size_t size, pas_alignment alignment, void* arg)

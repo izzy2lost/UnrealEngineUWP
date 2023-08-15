@@ -115,8 +115,14 @@ static PAS_ALWAYS_INLINE uintptr_t verse_heap_find_allocated_object_start_inline
     }
 
     if (verse_heap_chunk_map_entry_is_medium_segregated(chunk_map_entry)) {
-        return pas_segregated_page_try_find_allocated_object_start(
-            inner_ptr, VERSE_HEAP_CONFIG.medium_segregated_config, pas_segregated_page_exclusive_role);
+		if (verse_heap_chunk_map_entry_medium_segregated_empty_mode(chunk_map_entry) == pas_is_empty) {
+			/* This means that the page might be decommitted at any time. The scavenger runs concurrently to marking,
+			   including conservative marking! */
+			return 0;
+		}
+        return pas_segregated_page_try_find_allocated_object_start_with_page(
+            &verse_heap_chunk_map_entry_medium_segregated_header_object(chunk_map_entry)->segregated,
+			inner_ptr, VERSE_HEAP_CONFIG.medium_segregated_config, pas_segregated_page_exclusive_role);
     }
 
     PAS_TESTING_ASSERT(verse_heap_chunk_map_entry_is_large(chunk_map_entry));

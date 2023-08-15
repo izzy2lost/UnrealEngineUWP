@@ -65,8 +65,6 @@ _Static_assert(sizeof(pas_segregated_page_emptiness) == sizeof(pas_pair), "pas_s
 _Static_assert(PAS_ALIGNOF(pas_segregated_page_emptiness) == PAS_ALIGNOF(pas_pair), "pas_segregated_page_emptiness should be able to be used as pas_pair");
 #endif
 
-/* This struct lives somewhere in the small page. Where it lives, and how big the page is, are
-   controlled by the pas_segregated_page_config. */
 struct pas_segregated_page {
     pas_page_base base;
     

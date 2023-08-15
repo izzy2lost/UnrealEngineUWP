@@ -159,6 +159,7 @@
     <ClInclude Include="src\libpas\pas_designated_intrinsic_heap_inlines.h" />
     <ClInclude Include="src\libpas\pas_dyld_state.h" />
     <ClInclude Include="src\libpas\pas_dynamic_primitive_heap_map.h" />
+    <ClInclude Include="src\libpas\pas_empty_mode.h" />
     <ClInclude Include="src\libpas\pas_ensure_heap_forced_into_reserved_memory.h" />
     <ClInclude Include="src\libpas\pas_ensure_heap_with_page_caches.h" />
     <ClInclude Include="src\libpas\pas_enumerable_page_malloc.h" />
@@ -391,6 +392,7 @@
     <ClInclude Include="src\libpas\ue_include\verse_local_allocator_ue.h" />
     <ClInclude Include="src\libpas\verse_heap.h" />
     <ClInclude Include="src\libpas\verse_heap_black_allocation_mode.h" />
+    <ClInclude Include="src\libpas\verse_heap_chunk_map.h" />
     <ClInclude Include="src\libpas\verse_heap_chunk_map_entry.h" />
     <ClInclude Include="src\libpas\verse_heap_compact_large_entry_ptr.h" />
     <ClInclude Include="src\libpas\verse_heap_config.h" />
@@ -398,6 +400,7 @@
     <ClInclude Include="src\libpas\verse_heap_iterate_filter.h" />
     <ClInclude Include="src\libpas\verse_heap_iteration_state.h" />
     <ClInclude Include="src\libpas\verse_heap_large_entry.h" />
+    <ClInclude Include="src\libpas\verse_heap_medium_page_header_object.h" />
     <ClInclude Include="src\libpas\verse_heap_object_set.h" />
     <ClInclude Include="src\libpas\verse_heap_object_set_inlines.h" />
     <ClInclude Include="src\libpas\verse_heap_object_set_set.h" />
@@ -554,9 +557,11 @@
     <ClCompile Include="src\libpas\thingy_heap.c" />
     <ClCompile Include="src\libpas\thingy_heap_config.c" />
     <ClCompile Include="src\libpas\verse_heap.c" />
+    <ClCompile Include="src\libpas\verse_heap_chunk_map.c" />
     <ClCompile Include="src\libpas\verse_heap_chunk_map_entry.c" />
     <ClCompile Include="src\libpas\verse_heap_config.c" />
     <ClCompile Include="src\libpas\verse_heap_large_entry.c" />
+    <ClCompile Include="src\libpas\verse_heap_medium_page_header_object.c" />
     <ClCompile Include="src\libpas\verse_heap_object_set.c" />
     <ClCompile Include="src\libpas\verse_heap_object_set_set.c" />
     <ClCompile Include="src\libpas\verse_heap_page_header.c" />

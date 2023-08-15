@@ -4,24 +4,14 @@
 #define VERSE_HEAP_CONFIG_H
 
 #include "pas_heap_config_utils.h"
-#include "ue_include/verse_heap_config_ue.h"
+#include "verse_heap_chunk_map.h"
+#include "verse_heap_medium_page_header_object.h"
 #include "verse_heap_page_header.h"
 #include "verse_heap_type.h"
 
 #if PAS_ENABLE_VERSE
 
 PAS_BEGIN_EXTERN_C;
-
-#define VERSE_HEAP_CHUNK_MAP_FIRST_LEVEL_BITS ((PAS_ADDRESS_BITS - VERSE_HEAP_CHUNK_SIZE_SHIFT) >> 1u)
-#define VERSE_HEAP_CHUNK_MAP_FIRST_LEVEL_MASK (((uintptr_t)1 << VERSE_HEAP_CHUNK_MAP_FIRST_LEVEL_BITS) - 1)
-#define VERSE_HEAP_CHUNK_MAP_FIRST_LEVEL_SIZE (1u << VERSE_HEAP_CHUNK_MAP_FIRST_LEVEL_BITS)
-#define VERSE_HEAP_CHUNK_MAP_SECOND_LEVEL_BITS ((PAS_ADDRESS_BITS - VERSE_HEAP_CHUNK_SIZE_SHIFT + 1) >> 1u)
-#define VERSE_HEAP_CHUNK_MAP_SECOND_LEVEL_MASK (((uintptr_t)1 << VERSE_HEAP_CHUNK_MAP_SECOND_LEVEL_BITS) - 1)
-#define VERSE_HEAP_CHUNK_MAP_SECOND_LEVEL_SIZE (1u << VERSE_HEAP_CHUNK_MAP_SECOND_LEVEL_BITS)
-
-#define VERSE_HEAP_CHUNK_MAP_SECOND_LEVEL_SHIFT VERSE_HEAP_CHUNK_SIZE_SHIFT
-#define VERSE_HEAP_CHUNK_MAP_FIRST_LEVEL_SHIFT \
-    (VERSE_HEAP_CHUNK_MAP_SECOND_LEVEL_SHIFT + VERSE_HEAP_CHUNK_MAP_SECOND_LEVEL_BITS)
 
 #define VERSE_HEAP_SMALL_PAGE_MAX_ELIGIBLE_OCCUPANCY ((double)0.7)
 
@@ -38,28 +28,27 @@ PAS_BEGIN_EXTERN_C;
     PAS_MAX_OBJECT_SIZE(VERSE_HEAP_SMALL_SEGREGATED_PAYLOAD_SIZE)
 #define VERSE_HEAP_SMALL_SEGREGATED_WASTEAGE_HANDICAP PAS_SMALL_PAGE_HANDICAP
 
-/* We make medium pages larger than normal to offset three effects:
+/* We make medium pages larger than normal because:
 
-   1. The fact that we have an inline header. The larger the medium page, the less that matters.
+   1. We don't have bitfit.
 
-   2. We don't have bitfit.
-
-   3. We want to match chunk size so we don't end up in the perverse situation where a chunk wastes
-      a whole medium page's worth of space just to allow for mark bits.
+   2. We want to match chunk size.
 
    Also note the MAX_OBJECT_SIZE - we intentionally allow mediums to be used even if it means just one
    object.*/
 #define VERSE_HEAP_MEDIUM_SEGREGATED_GRANULE_SIZE PAS_GRANULE_DEFAULT_SIZE
-#define VERSE_HEAP_MEDIUM_SEGREGATED_HEADER_SIZE \
-    (VERSE_HEAP_PAGE_SIZE + sizeof(verse_heap_page_header) + \
-     PAS_BASIC_SEGREGATED_PAGE_HEADER_SIZE_EXCLUSIVE( \
-        VERSE_HEAP_MEDIUM_SEGREGATED_MIN_ALIGN_SHIFT, \
-        VERSE_HEAP_MEDIUM_SEGREGATED_PAGE_SIZE, \
-        VERSE_HEAP_MEDIUM_SEGREGATED_GRANULE_SIZE))
+#define VERSE_HEAP_MEDIUM_SEGREGATED_HEADER_SIZE VERSE_HEAP_PAGE_SIZE
 #define VERSE_HEAP_MEDIUM_SEGREGATED_PAYLOAD_SIZE \
     (VERSE_HEAP_MEDIUM_SEGREGATED_PAGE_SIZE - VERSE_HEAP_MEDIUM_SEGREGATED_HEADER_SIZE)
 #define VERSE_HEAP_MEDIUM_SEGREGATED_MAX_OBJECT_SIZE VERSE_HEAP_MEDIUM_SEGREGATED_PAYLOAD_SIZE
 #define VERSE_HEAP_MEDIUM_SEGREGATED_WASTEAGE_HANDICAP PAS_MEDIUM_PAGE_HANDICAP
+
+#define VERSE_HEAP_MEDIUM_SEGREGATED_HEADER_OBJECT_SIZE \
+    (PAS_OFFSETOF(verse_heap_medium_page_header_object, segregated) + \
+     PAS_BASIC_SEGREGATED_PAGE_HEADER_SIZE_EXCLUSIVE( \
+        VERSE_HEAP_MEDIUM_SEGREGATED_MIN_ALIGN_SHIFT, \
+        VERSE_HEAP_MEDIUM_SEGREGATED_PAGE_SIZE, \
+        VERSE_HEAP_MEDIUM_SEGREGATED_GRANULE_SIZE))
 
 static PAS_ALWAYS_INLINE pas_page_base* verse_heap_page_base_for_page_header(verse_heap_page_header* header)
 {
@@ -87,17 +76,19 @@ static PAS_ALWAYS_INLINE verse_heap_page_header* verse_heap_page_header_for_boun
     void* boundary, pas_segregated_page_config_variant variant)
 {
     if (variant == pas_medium_segregated_page_config_variant)
-        boundary = (char*)boundary + VERSE_HEAP_PAGE_SIZE;
+        return &verse_heap_chunk_map_entry_medium_segregated_header_object(verse_heap_get_chunk_map_entry((uintptr_t)boundary))->verse;
     return (verse_heap_page_header*)boundary;
 }
 
 static PAS_ALWAYS_INLINE void* verse_heap_boundary_for_page_header(
     verse_heap_page_header* header, pas_segregated_page_config_variant variant)
 {
-    void* boundary = header;
-    if (variant == pas_medium_segregated_page_config_variant)
-        boundary = (char*)boundary - VERSE_HEAP_PAGE_SIZE;
-    return boundary;
+    if (variant == pas_medium_segregated_page_config_variant) {
+		verse_heap_medium_page_header_object* header_object;
+		header_object = (verse_heap_medium_page_header_object*)((uintptr_t)header - PAS_OFFSETOF(verse_heap_medium_page_header_object, verse));
+		return (void*)header_object->boundary;
+	}
+    return header;
 }
 
 static PAS_ALWAYS_INLINE pas_page_base* verse_heap_page_base_for_boundary(

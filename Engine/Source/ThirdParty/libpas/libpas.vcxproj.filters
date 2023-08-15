@@ -1149,6 +1149,15 @@
     <ClInclude Include="src\libpas\pas_primordial_page_state.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\libpas\pas_empty_mode.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\libpas\verse_heap_chunk_map.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\libpas\verse_heap_medium_page_header_object.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\libpas\bmalloc_heap.c">
@@ -1617,6 +1626,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\libpas\pas_global_physical_page_sharing_cache.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\libpas\verse_heap_chunk_map.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\libpas\verse_heap_medium_page_header_object.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
