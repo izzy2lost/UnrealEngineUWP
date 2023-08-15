@@ -593,3 +593,4 @@ void WaterRefractionCopyPS(
     OutSceneDepth = min(OutSceneDepth, 65500.0f);
 #endif
 }
+
