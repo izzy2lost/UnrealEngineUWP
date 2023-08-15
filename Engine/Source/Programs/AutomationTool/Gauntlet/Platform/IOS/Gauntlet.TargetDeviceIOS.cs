@@ -122,7 +122,7 @@ namespace Gauntlet
 			if (!HasExited)
 			{
 				WasKilled = true;
-				ProcessResult.ProcessObject.Kill();
+				ProcessResult.ProcessObject.Kill(true);
 			}
 		}
 
