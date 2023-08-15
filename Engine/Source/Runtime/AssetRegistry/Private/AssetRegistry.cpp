@@ -2213,6 +2213,14 @@ void EnumerateMemoryAssets(const FARCompiledFilter& InFilter, TSet<FName>& OutPa
 					{
 						PartialAssetData.TagsAndValues = FAssetDataTagMapSharedView(MoveTemp(*ModifiedTags));
 					}
+#if !WITH_EDITORONLY_DATA
+					// In non-editor builds, UObject::GetChunkIds returns an empty set.
+					// Like our contract for tags, when the information is missing from the UObject, our contract
+					// for that information in AssetRegistry queries is that we return the on-disk version of the data.
+					// The on-disk version of the data for GetChunkIds is the data that was stored in the generated
+					// AssetRegistry by calling AddChunkId for each chunkID that the cooker found the Asset to be in.
+					PartialAssetData.SetChunkIDs(OnDiskAssetData->GetChunkIDs());
+#endif
 				}
 			}
 			// After adding tags, PartialAssetData is now a full AssetData
