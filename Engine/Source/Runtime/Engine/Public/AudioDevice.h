@@ -958,17 +958,24 @@ public:
 	/** Unregisters the sound submix */
 	virtual void UnregisterSoundSubmix(const USoundSubmixBase* SoundSubmix) {}
 
-	/**
-	 * Registers the submix buffer listener with the given submix.
-	 * A nullptr for SoundSubmix will register the listener with the master submix.
-	*/
+	ENGINE_API virtual USoundSubmix& GetMainSubmixObject() const;
+
+	UE_DEPRECATED(5.4, "Use RegisterSubmixBufferListener version that requires a shared reference to a listener and provide explicit reference to a submix: use GetMainSubmixObject to register with the Main Output Submix (rather than nullptr for safety), and instantiate buffer listener via the shared pointer API.")
 	ENGINE_API virtual void RegisterSubmixBufferListener(ISubmixBufferListener* InSubmixBufferListener, USoundSubmix* SoundSubmix = nullptr);
 
-	/**
-	 * Unregisters the submix buffer listener with the given submix.
-	 * A nullptr for SoundSubmix will unregister the listener with the master submix.
-	*/
+	UE_DEPRECATED(5.4, "Use UnregisterSubmixBufferListener version that requires a shared reference to a listener and provide explicit reference to a submix: use GetMainSubmixObject to unregister from the Main Output Submix (rather than nullptr for safety), and instantiate buffer listener via the shared pointer API.")
 	ENGINE_API virtual void UnregisterSubmixBufferListener(ISubmixBufferListener* InSubmixBufferListener, USoundSubmix* SoundSubmix = nullptr);
+
+	/**
+	 * Registers the provided submix buffer listener with the given submix.
+	*/
+	ENGINE_API virtual void RegisterSubmixBufferListener(TSharedRef<ISubmixBufferListener, ESPMode::ThreadSafe> InSubmixBufferListener, USoundSubmix& SoundSubmix);
+
+	/**
+	 * Unregisters the provided submix buffer listener with the given submix.
+	*/
+	ENGINE_API virtual void UnregisterSubmixBufferListener(TSharedRef<ISubmixBufferListener, ESPMode::ThreadSafe> InSubmixBufferListener, USoundSubmix& SoundSubmix);
+
 
 	ENGINE_API virtual Audio::FPatchOutputStrongPtr AddPatchForSubmix(uint32 InObjectId, float InPatchGain);
 

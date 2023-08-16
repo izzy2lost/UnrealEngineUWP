@@ -186,6 +186,7 @@ public:
 
 	// ISubmixBufferListener
 	void OnNewSubmixBuffer(const USoundSubmix* OwningSubmix, float* AudioData, int32 NumSamples, int32 NumChannels, const int32 InSampleRate, double AudioClock) override;
+	const FString& GetListenerName() const override;
 	// ~ ISubmixBufferListener
 
 private:

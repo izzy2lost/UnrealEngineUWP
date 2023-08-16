@@ -163,15 +163,21 @@ void FMediaIOAudioCapture::RegisterBufferListener(FAudioDevice* AudioDevice)
 		NumChannels = MixerDevice->GetDeviceOutputChannels();
 		SampleRate = MixerDevice->GetSampleRate();
 		PrimarySubmixName = *GetDefault<UAudioSettings>()->MasterSubmix.GetAssetName();
-		AudioDevice->RegisterSubmixBufferListener(this);
+		AudioDevice->RegisterSubmixBufferListener(AsShared(), AudioDevice->GetMainSubmixObject());
 	}
+}
+
+const FString& FMediaIOAudioCapture::GetListenerName() const
+{
+	static const FString ListenerName = TEXT("MediaIO AudioCapture Listener");
+	return ListenerName;
 }
 
 void FMediaIOAudioCapture::UnregisterBufferListener(FAudioDevice* AudioDevice)
 {
 	if (AudioDevice)
 	{
-		AudioDevice->UnregisterSubmixBufferListener(this);
+		AudioDevice->UnregisterSubmixBufferListener(AsShared(), AudioDevice->GetMainSubmixObject());
 	}
 }
 

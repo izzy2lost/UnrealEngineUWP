@@ -44,6 +44,7 @@ public:
 	NIAGARA_API int32 GetNumChannels() const;
 
 	// Begin ISubmixBufferListener overrides
+	NIAGARA_API virtual const FString& GetListenerName() const override;
 	NIAGARA_API virtual void OnNewSubmixBuffer(const USoundSubmix* OwningSubmix, float* AudioData, int32 NumSamples, int32 NumChannels, const int32 SampleRate, double AudioClock) override;
 	// End ISubmixBufferListener overrides
 
@@ -113,7 +114,7 @@ private:
 
 	// Map of audio devices to submix listeners. Needed for editor where multiple audio devices
 	// may exist.
-	TMap<Audio::FDeviceId, TUniquePtr<FNiagaraSubmixListener>> SubmixListeners;
+	TMap<Audio::FDeviceId, TSharedPtr<FNiagaraSubmixListener>> SubmixListeners;
 
 	// Mixer for sending audio 
 	Audio::FPatchMixer PatchMixer;

@@ -68,5 +68,5 @@ private:
 
 	bool bUseExternalSignallingServer = false;
 
-	TMap<Audio::FDeviceId, TSharedPtr<UE::EditorPixelStreaming::FEditorSubmixListener>> AudioInputs;
+	TMap<Audio::FDeviceId, TSharedPtr<UE::EditorPixelStreaming::FEditorSubmixListener, ESPMode::ThreadSafe>> AudioInputs;
 };

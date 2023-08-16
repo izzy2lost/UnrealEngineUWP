@@ -54,7 +54,7 @@ void FNiagaraDataInterfaceProxyOscilloscope::RegisterToAllAudioDevices()
 		{
 			check(!SubmixListeners.Contains(DeviceId));
 			const int32 NumSamplesToPop = Align(FMath::FloorToInt(ScopeInMilliseconds / 1000.0f * InDevice->GetSampleRate()) * AUDIO_MIXER_MAX_OUTPUT_CHANNELS, 4);
-			SubmixListeners.Emplace(DeviceId, new FNiagaraSubmixListener(PatchMixer, NumSamplesToPop, DeviceId, SubmixRegisteredTo));
+			SubmixListeners.Emplace(DeviceId, MakeShared<FNiagaraSubmixListener>(PatchMixer, NumSamplesToPop, DeviceId, SubmixRegisteredTo));
 			SubmixListeners[DeviceId]->RegisterToSubmix();
 		});
 	}
@@ -101,7 +101,7 @@ void FNiagaraDataInterfaceProxyOscilloscope::OnNewDeviceCreated(Audio::FDeviceId
 		if (ensure(DeviceHandle))
 		{
 			const int32 NumSamplesToPop = Align(FMath::FloorToInt(ScopeInMilliseconds / 1000.0f * DeviceHandle->GetSampleRate()) * AUDIO_MIXER_MAX_OUTPUT_CHANNELS, 4);
-			SubmixListeners.Emplace(InID, new FNiagaraSubmixListener(PatchMixer, NumSamplesToPop, InID, SubmixRegisteredTo));
+			SubmixListeners.Emplace(InID, MakeShared<FNiagaraSubmixListener>(PatchMixer, NumSamplesToPop, InID, SubmixRegisteredTo));
 			SubmixListeners[InID]->RegisterToSubmix();
 		}
 	}

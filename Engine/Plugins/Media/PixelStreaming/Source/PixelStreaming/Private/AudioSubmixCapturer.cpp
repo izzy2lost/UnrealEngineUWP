@@ -59,9 +59,15 @@ namespace UE::PixelStreaming
 			return false;
 		}
 
-		AudioDevice->RegisterSubmixBufferListener(this);
+		AudioDevice->RegisterSubmixBufferListener(AsShared(), AudioDevice->GetMainSubmixObject());
 		bInitialised = true;
 		return true;
+	}
+
+	const FString& FAudioSubmixCapturer::GetListenerName() const
+	{
+		static const FString ListenerName = TEXT("PixelStreaming:SubmixCapturer");
+		return ListenerName;
 	}
 
 	void FAudioSubmixCapturer::OnNewSubmixBuffer(const USoundSubmix* OwningSubmix,
@@ -184,7 +190,7 @@ namespace UE::PixelStreaming
 			FAudioDeviceHandle AudioDevice = GEngine->GetMainAudioDevice();
 			if (AudioDevice)
 			{
-				AudioDevice->UnregisterSubmixBufferListener(this);
+				AudioDevice->UnregisterSubmixBufferListener(AsShared(), AudioDevice->GetMainSubmixObject());
 			}
 		}
 

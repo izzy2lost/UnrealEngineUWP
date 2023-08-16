@@ -13,7 +13,7 @@ namespace UE::EditorPixelStreaming
 	{
 		if (AudioDevice.IsValid())
 		{
-			AudioDevice->RegisterSubmixBufferListener(this);
+			AudioDevice->RegisterSubmixBufferListener(AsShared(), AudioDevice->GetMainSubmixObject());
 		}
 	}
 
@@ -21,7 +21,7 @@ namespace UE::EditorPixelStreaming
 	{
 		if (FAudioDevice* AudioDevice = FAudioDeviceManager::Get()->GetAudioDeviceRaw(AudioDeviceId))
 		{
-			AudioDevice->UnregisterSubmixBufferListener(this);
+			AudioDevice->UnregisterSubmixBufferListener(AsShared(), AudioDevice->GetMainSubmixObject());
 		}
 	}
 

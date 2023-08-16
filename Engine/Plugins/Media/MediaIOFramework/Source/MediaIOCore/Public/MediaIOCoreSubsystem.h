@@ -58,7 +58,7 @@ private:
 private:
 	TUniquePtr<FMediaIOAudioCapture> MainMediaIOAudioCapture;
 	
-	TMap<Audio::FDeviceId, TUniquePtr<FMediaIOAudioCapture>> MediaIOAudioCaptures;
+	TMap<Audio::FDeviceId, TSharedPtr<FMediaIOAudioCapture, ESPMode::ThreadSafe>> MediaIOAudioCaptures;
 
 	FDelegateHandle DeviceDestroyedHandle;
 

@@ -251,10 +251,16 @@ namespace Audio
 		AUDIOMIXER_API void ResumeRecordingOutput();
 
 		// Register buffer listener with this submix
+		// Unregister buffer listener with this submix
+
+		UE_DEPRECATED(5.4, "This function is deprecated. Use RegisterBufferListener version that is provided a shared reference to a listener.")
 		AUDIOMIXER_API void RegisterBufferListener(ISubmixBufferListener* BufferListener);
 		
-		// Unregister buffer listener with this submix
+		UE_DEPRECATED(5.4, "This function is deprecated. Use UnregisterBufferListener version that is provided a shared reference to a listener.")
 		AUDIOMIXER_API void UnregisterBufferListener(ISubmixBufferListener* BufferListener);
+
+		AUDIOMIXER_API void RegisterBufferListener(TSharedRef<ISubmixBufferListener, ESPMode::ThreadSafe> BufferListener);
+		AUDIOMIXER_API void UnregisterBufferListener(TSharedRef<ISubmixBufferListener, ESPMode::ThreadSafe> BufferListener);
 
 		// Starts envelope following with the given attack time and release time
 		AUDIOMIXER_API void StartEnvelopeFollowing(int32 AttackTime, int32 ReleaseTime);
@@ -355,6 +361,11 @@ namespace Audio
 		AUDIOMIXER_API TUniquePtr<ISoundfieldTranscodeStream> GetTranscoderForChildSubmix(const TSharedPtr<Audio::FMixerSubmix, ESPMode::ThreadSafe>& InChildSubmix);
 
 	protected:
+		struct AUDIOMIXER_API FSubmixBufferListenerInfo
+		{
+			ISubmixBufferListener* Listener = nullptr;
+			FString Descriptor;
+		};
 
 		// Pump command queue
 		AUDIOMIXER_API void PumpCommandQueue();
@@ -565,8 +576,8 @@ namespace Audio
 		// Submix command queue to shuffle commands from audio thread to audio render thread.
 		TQueue<TFunction<void()>> CommandQueue;
 
-		// List of submix buffer listeners
-		TArray<ISubmixBufferListener*> BufferListeners;
+		// List of submix buffer listeners.
+		TArray<TSharedRef<ISubmixBufferListener, ESPMode::ThreadSafe>> BufferListeners;
 
 		// Critical section used for modifying and interacting with buffer listeners
 		mutable FCriticalSection BufferListenerCriticalSection;

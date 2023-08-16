@@ -51,18 +51,20 @@ void FPixelStreamingEditorModule::StartupModule()
 	Settings::InitialiseSettings();
 	bUseExternalSignallingServer = Settings::CVarEditorPixelStreamingUseRemoteSignallingServer.GetValueOnAnyThread();
 
-    // Enable experimental audio so we can mix the different editor audio outputs
-    IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("PixelStreaming.ExperimentalAudioInput")); 
-    CVar->Set(true);
+	// Enable experimental audio so we can mix the different editor audio outputs
+	IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("PixelStreaming.ExperimentalAudioInput")); 
+	CVar->Set(true);
 
-    FAudioDeviceManagerDelegates::OnAudioDeviceCreated.AddLambda([&](Audio::FDeviceId AudioDeviceId) {
-	    FAudioDeviceManager* DeviceManager = GEngine->GetAudioDeviceManager();
-	    FAudioDeviceHandle Device = DeviceManager->GetAudioDevice(AudioDeviceId);
-        AudioInputs.Add(AudioDeviceId, MakeShared<FEditorSubmixListener>(Device));
-    });
-    FAudioDeviceManagerDelegates::OnAudioDeviceDestroyed.AddLambda([&](Audio::FDeviceId AudioDeviceId) {
-        AudioInputs.Remove(AudioDeviceId);
-    });
+	FAudioDeviceManagerDelegates::OnAudioDeviceCreated.AddLambda([&](Audio::FDeviceId AudioDeviceId)
+	{
+		FAudioDeviceManager* DeviceManager = GEngine->GetAudioDeviceManager();
+		FAudioDeviceHandle Device = DeviceManager->GetAudioDevice(AudioDeviceId);
+		AudioInputs.Add(AudioDeviceId, MakeShared<FEditorSubmixListener, ESPMode::ThreadSafe>(Device));
+	});
+	FAudioDeviceManagerDelegates::OnAudioDeviceDestroyed.AddLambda([&](Audio::FDeviceId AudioDeviceId)
+	{
+		AudioInputs.Remove(AudioDeviceId);
+	});
 
 	IPixelStreamingModule& Module = IPixelStreamingModule::Get();
 	Module.OnReady().AddRaw(this, &FPixelStreamingEditorModule::InitEditorStreaming);

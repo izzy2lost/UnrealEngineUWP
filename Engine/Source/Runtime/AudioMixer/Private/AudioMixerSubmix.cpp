@@ -1090,9 +1090,9 @@ namespace Audio
 		{
 			// query the SubmixBufferListeners to see if they plan to render audio into this buffer
 			FScopeLock Lock(&BufferListenerCriticalSection);
-			for (const ISubmixBufferListener* BufferListener : BufferListeners)
+			for (const TSharedRef<ISubmixBufferListener, ESPMode::ThreadSafe>& BufferListener : BufferListeners)
 			{
-				if (BufferListener && BufferListener->IsRenderingAudio())
+				if (BufferListener->IsRenderingAudio())
 				{
 					return true;
 				}
@@ -1569,9 +1569,8 @@ namespace Audio
 			double AudioClock = MixerDevice->GetAudioTime();
 			float SampleRate = MixerDevice->GetSampleRate();
 			FScopeLock Lock(&BufferListenerCriticalSection);
-			for (ISubmixBufferListener* BufferListener : BufferListeners)
+			for (TSharedRef<ISubmixBufferListener, ESPMode::ThreadSafe>& BufferListener : BufferListeners)
 			{
-				check(BufferListener);
 				BufferListener->OnNewSubmixBuffer(SoundSubmix, OutAudioBuffer.GetData(), OutAudioBuffer.Num(), NumChannels, SampleRate, AudioClock);
 			}
 
@@ -2093,13 +2092,25 @@ namespace Audio
 	{
 		FScopeLock Lock(&BufferListenerCriticalSection);
 		check(BufferListener);
-		BufferListeners.AddUnique(BufferListener);
+		BufferListeners.Add(BufferListener->AsShared());
+	}
+
+	void FMixerSubmix::RegisterBufferListener(TSharedRef<ISubmixBufferListener, ESPMode::ThreadSafe> BufferListener)
+	{
+		FScopeLock Lock(&BufferListenerCriticalSection);
+		BufferListeners.Add(BufferListener);
 	}
 
 	void FMixerSubmix::UnregisterBufferListener(ISubmixBufferListener* BufferListener)
 	{
 		FScopeLock Lock(&BufferListenerCriticalSection);
 		check(BufferListener);
+		BufferListeners.Remove(BufferListener->AsShared());
+	}
+
+	void FMixerSubmix::UnregisterBufferListener(TSharedRef<ISubmixBufferListener, ESPMode::ThreadSafe> BufferListener)
+	{
+		FScopeLock Lock(&BufferListenerCriticalSection);
 		BufferListeners.Remove(BufferListener);
 	}
 

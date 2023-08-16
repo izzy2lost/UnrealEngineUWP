@@ -6836,12 +6836,30 @@ void FAudioDevice::UnregisterSoundClass(USoundClass* InSoundClass)
 	}
 }
 
+USoundSubmix& FAudioDevice::GetMainSubmixObject() const
+{
+	UE_LOG(LogAudio, Error, TEXT("Main submix accessor only supported with the audio mixer. Run with audio mixer enabled. Class Default Object returned."));
+	USoundSubmix* CDO = USoundSubmix::StaticClass()->GetDefaultObject<USoundSubmix>();
+	check(CDO);
+	return *CDO;
+}
+
 void FAudioDevice::RegisterSubmixBufferListener(ISubmixBufferListener* InSubmixBufferListener, USoundSubmix* SoundSubmix)
 {
 	UE_LOG(LogAudio, Error, TEXT("Submix buffer listener only works with the audio mixer. Please run with audio mixer enabled."));
 }
 
+void FAudioDevice::RegisterSubmixBufferListener(TSharedRef<ISubmixBufferListener, ESPMode::ThreadSafe>, USoundSubmix& SoundSubmix)
+{
+	UE_LOG(LogAudio, Error, TEXT("Submix buffer listener only works with the audio mixer. Please run with audio mixer enabled."));
+}
+
 void FAudioDevice::UnregisterSubmixBufferListener(ISubmixBufferListener* InSubmixBufferListener, USoundSubmix* SoundSubmix)
+{
+	UE_LOG(LogAudio, Error, TEXT("Submix buffer listener only works with the audio mixer. Please run with audio mixer enabled."));
+}
+
+void FAudioDevice::UnregisterSubmixBufferListener(TSharedRef<ISubmixBufferListener, ESPMode::ThreadSafe>, USoundSubmix& SoundSubmix)
 {
 	UE_LOG(LogAudio, Error, TEXT("Submix buffer listener only works with the audio mixer. Please run with audio mixer enabled."));
 }

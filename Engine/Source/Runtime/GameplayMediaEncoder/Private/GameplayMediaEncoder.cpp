@@ -64,15 +64,16 @@ FAutoConsoleCommand GameplayMediaEncoderShutdown(TEXT("GameplayMediaEncoder.Shut
 //
 //////////////////////////////////////////////////////////////////////////
 
-FGameplayMediaEncoder* FGameplayMediaEncoder::Singleton = nullptr;
+TSharedPtr<FGameplayMediaEncoder, ESPMode::ThreadSafe> FGameplayMediaEncoder::Singleton = { };
 
 FGameplayMediaEncoder* FGameplayMediaEncoder::Get()
 {
-	if(!Singleton)
+	// Constructed and captured as a thread safe shared pointer as this is required by the audio submix listener interface
+	if(!Singleton.IsValid())
 	{
-		Singleton = new FGameplayMediaEncoder();
+		Singleton = MakeShared<FGameplayMediaEncoder>();
 	}
-	return Singleton;
+	return Singleton.Get();
 }
 
 FGameplayMediaEncoder::FGameplayMediaEncoder() {}
@@ -307,7 +308,7 @@ bool FGameplayMediaEncoder::Start()
 	if(AudioDevice)
 	{
 		bAudioFormatChecked = false;
-		AudioDevice->RegisterSubmixBufferListener(this);
+		AudioDevice->RegisterSubmixBufferListener(AsShared(), AudioDevice->GetMainSubmixObject());
 	}
 
 	FSlateApplication::Get().GetRenderer()->OnBackBufferReadyToPresent().AddRaw(this, &FGameplayMediaEncoder::OnFrameBufferReady);
@@ -327,10 +328,9 @@ void FGameplayMediaEncoder::Stop()
 
 	if(UGameEngine* GameEngine = Cast<UGameEngine>(GEngine))
 	{
-		FAudioDevice* AudioDevice = GameEngine->GetMainAudioDeviceRaw();
-		if(AudioDevice)
+		if(FAudioDevice* AudioDevice = GameEngine->GetMainAudioDeviceRaw())
 		{
-			AudioDevice->UnregisterSubmixBufferListener(this);
+			AudioDevice->UnregisterSubmixBufferListener(AsShared(), AudioDevice->GetMainSubmixObject());
 		}
 
 		if(FSlateApplication::IsInitialized())
@@ -388,6 +388,11 @@ void FGameplayMediaEncoder::Shutdown()
 
 FTimespan FGameplayMediaEncoder::GetMediaTimestamp() const { return FTimespan::FromSeconds(FPlatformTime::Seconds()) - StartTime; }
 
+const FString& FGameplayMediaEncoder::GetListenerName() const
+{
+	static const FString& ListenerName = TEXT("GameplayMediaEncoderListener");
+	return ListenerName;
+}
 void FGameplayMediaEncoder::OnNewSubmixBuffer(const USoundSubmix* OwningSubmix, float* AudioData, int32 NumSamples, int32 NumChannels, const int32 SampleRate, double /*AudioClock*/)
 {
 	CSV_SCOPED_TIMING_STAT(GameplayMediaEncoder, OnNewSubmixBuffer);

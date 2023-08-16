@@ -39,10 +39,16 @@ void FRPMEstimationPreviewTone::StartTestTone(float InVolume)
 			if (FAudioDevice* AudioDevice = AudioDeviceManager->GetMainAudioDeviceRaw())
 			{
 				bRegistered = true;
-				AudioDevice->RegisterSubmixBufferListener(this);
+				AudioDevice->RegisterSubmixBufferListener(AsShared(), AudioDevice->GetMainSubmixObject());
 			}
 		}
 	}
+}
+
+const FString& FRPMEstimationPreviewTone::GetListenerName() const
+{
+	static const FString ListenerName = TEXT("RPM Estimation Preview Tone Listener");
+	return ListenerName;
 }
 
 void FRPMEstimationPreviewTone::StopTestTone()
@@ -56,7 +62,7 @@ void FRPMEstimationPreviewTone::StopTestTone()
 			if (FAudioDevice* AudioDevice = AudioDeviceManager->GetMainAudioDeviceRaw())
 			{
 				bRegistered = false;
-				AudioDevice->UnregisterSubmixBufferListener(this);
+				AudioDevice->UnregisterSubmixBufferListener(AsShared(), AudioDevice->GetMainSubmixObject());
 			}
 		}
 	}
@@ -154,6 +160,9 @@ void FRPMEstimationPreviewTone::OnNewSubmixBuffer(const USoundSubmix* OwningSubm
 #endif
 
 UMotoSynthSource::UMotoSynthSource()
+#if WITH_EDITORONLY_DATA
+	: MotoSynthSineToneTest(MakeShared<FRPMEstimationPreviewTone, ESPMode::ThreadSafe>())
+#endif // WITH_EDITORONLY_DATA
 {
 }
 
@@ -172,6 +181,11 @@ void UMotoSynthSource::BeginDestroy()
 		MotoSynthDataManager.UnRegisterData(SourceDataID);
 		SourceDataID = INDEX_NONE;
 	}
+
+#if WITH_EDITORONLY_DATA
+	MotoSynthSineToneTest->Reset();
+	MotoSynthSineToneTest.Reset();
+#endif // WITH_EDITORONLY_DATA
 }
 
 uint32 UMotoSynthSource::GetNextSourceID() const
@@ -240,23 +254,23 @@ void UMotoSynthSource::PostLoad()
 #if WITH_EDITOR
 void UMotoSynthSource::PlayToneMatch()
 {
-	MotoSynthSineToneTest.Reset();
+	MotoSynthSineToneTest->Reset();
 
 	FRichCurve* RichRPMCurve = RPMCurve.GetRichCurve();
 	if (RichRPMCurve)
 	{
-		MotoSynthSineToneTest.SetPitchCurve(*RichRPMCurve);
+		MotoSynthSineToneTest->SetPitchCurve(*RichRPMCurve);
 	}
 
 	TArrayView<const int16> Audiobuffer = MakeArrayView(SourceDataPCM.GetData(), SourceDataPCM.Num());
-	MotoSynthSineToneTest.SetAudioFile(Audiobuffer, SourceSampleRate);
+	MotoSynthSineToneTest->SetAudioFile(Audiobuffer, SourceSampleRate);
 
-	MotoSynthSineToneTest.StartTestTone(RPMSynthVolume);
+	MotoSynthSineToneTest->StartTestTone(RPMSynthVolume);
 }
 
 void UMotoSynthSource::StopToneMatch()
 {
-	MotoSynthSineToneTest.StopTestTone();
+	MotoSynthSineToneTest->StopTestTone();
 }
 
 void UMotoSynthSource::UpdateSourceData()

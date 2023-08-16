@@ -54,16 +54,29 @@ namespace Audio
 		{}
 	};
 
-	// Master submixes
+	// Required submixes
+	namespace ERequiredSubmixes
+	{
+		enum Type
+		{
+			Main = 0,
+			BaseDefault = 1,
+			Reverb = 2,
+			EQ = 3,
+			Count = 4
+		};
+	}
+
+	// Deprecated, use ERequiredSubmixes above
 	namespace EMasterSubmixType
 	{
 		enum Type
 		{
-			Master,
-			BaseDefault,
-			Reverb,
-			EQ,
-			Count,
+			Master = ERequiredSubmixes::Main,
+			BaseDefault = ERequiredSubmixes::BaseDefault,
+			Reverb = ERequiredSubmixes::Reverb,
+			EQ = ERequiredSubmixes::EQ,
+			Count = ERequiredSubmixes::Count
 		};
 	}
 
@@ -178,8 +191,14 @@ namespace Audio
 		AUDIOMIXER_API virtual void RemoveSpectralAnalysisDelegate(USoundSubmix* InSubmix, const FOnSubmixSpectralAnalysisBP& OnSubmixSpectralAnalysisBP) override;
 
 		// Submix buffer listener callbacks
+		UE_DEPRECATED(5.4, "Use RegisterSubmixBufferListener version that requires a shared reference to a listener and provide explicit reference to a submix: use GetMainSubmixObject to register with the Main Output Submix (rather than nullptr for safety), and instantiate buffer listener via the shared pointer API.")
 		AUDIOMIXER_API virtual void RegisterSubmixBufferListener(ISubmixBufferListener* InSubmixBufferListener, USoundSubmix* InSubmix = nullptr) override;
+
+		UE_DEPRECATED(5.4, "Use UnregisterSubmixBufferListener version that requires a shared reference to a listener and provide explicit reference to a submix: use GetMainSubmixObject to unregister from the Main Output Submix (rather than nullptr for safety), and instantiate buffer listener via the shared pointer API.")
 		AUDIOMIXER_API virtual void UnregisterSubmixBufferListener(ISubmixBufferListener* InSubmixBufferListener, USoundSubmix* InSubmix = nullptr) override;
+
+		AUDIOMIXER_API virtual void RegisterSubmixBufferListener(TSharedRef<ISubmixBufferListener, ESPMode::ThreadSafe> InSubmixBufferListener, USoundSubmix& InSubmix) override;
+		AUDIOMIXER_API virtual void UnregisterSubmixBufferListener(TSharedRef<ISubmixBufferListener, ESPMode::ThreadSafe> InSubmixBufferListener, USoundSubmix& InSubmix) override;
 
 		AUDIOMIXER_API virtual FPatchOutputStrongPtr AddPatchForSubmix(uint32 InObjectId, float InPatchGain) override;
 
@@ -251,19 +270,29 @@ namespace Audio
 		AUDIOMIXER_API FMixerSourceManager* GetSourceManager();
 		AUDIOMIXER_API const FMixerSourceManager* GetSourceManager() const;
 
-		AUDIOMIXER_API FMixerSubmixWeakPtr GetMasterSubmix(); 
+		AUDIOMIXER_API virtual USoundSubmix& GetMainSubmixObject() const override;
+
 		AUDIOMIXER_API FMixerSubmixWeakPtr GetBaseDefaultSubmix();
+		AUDIOMIXER_API FMixerSubmixWeakPtr GetMainSubmix();
+		AUDIOMIXER_API FMixerSubmixWeakPtr GetReverbSubmix();
+		AUDIOMIXER_API FMixerSubmixWeakPtr GetEQSubmix();
+
+		// Renamed Main submix: these functions will be deprecated in a future release
+		AUDIOMIXER_API void AddMasterSubmixEffect(FSoundEffectSubmixPtr SoundEffect);
+		AUDIOMIXER_API void RemoveMasterSubmixEffect(uint32 SubmixEffectId);
+		AUDIOMIXER_API void ClearMasterSubmixEffects();
+		AUDIOMIXER_API FMixerSubmixWeakPtr GetMasterSubmix();
 		AUDIOMIXER_API FMixerSubmixWeakPtr GetMasterReverbSubmix();
 		AUDIOMIXER_API FMixerSubmixWeakPtr GetMasterEQSubmix();
 
-		// Add submix effect to master submix
-		AUDIOMIXER_API void AddMasterSubmixEffect(FSoundEffectSubmixPtr SoundEffect);
-		
-		// Remove submix effect from master submix
-		AUDIOMIXER_API void RemoveMasterSubmixEffect(uint32 SubmixEffectId);
-		
-		// Clear all submix effects from master submix
-		AUDIOMIXER_API void ClearMasterSubmixEffects();
+		// Add submix effect to main submix
+		AUDIOMIXER_API void AddMainSubmixEffect(FSoundEffectSubmixPtr SoundEffect);
+
+		// Remove submix effect from main submix
+		AUDIOMIXER_API void RemoveMainSubmixEffect(uint32 SubmixEffectId);
+
+		// Clear all submix effects from main submix
+		AUDIOMIXER_API void ClearMainSubmixEffects();
 
 		// Add submix effect to given submix
 		AUDIOMIXER_API int32 AddSubmixEffect(USoundSubmix* InSoundSubmix, FSoundEffectSubmixPtr SoundEffect);
@@ -363,7 +392,7 @@ namespace Audio
 
 		bool IsMainAudioDevice() const;
 
-		void LoadMasterSoundSubmix(EMasterSubmixType::Type InType, const FString& InDefaultName, bool bInDefaultMuteWhenBackgrounded, FSoftObjectPath& InOutObjectPath);
+		void LoadRequiredSubmix(ERequiredSubmixes::Type InType, const FString& InDefaultName, bool bInDefaultMuteWhenBackgrounded, FSoftObjectPath& InOutObjectPath);
 		void LoadPluginSoundSubmixes();
 		void LoadSoundSubmix(USoundSubmixBase& SoundSubmix);
 
@@ -373,16 +402,16 @@ namespace Audio
 
 		ICompressedAudioInfo* CreateAudioInfo(FName InFormat) const;
 
-		bool IsMasterSubmixType(const USoundSubmixBase* InSubmix) const;
-		FMixerSubmixPtr GetMasterSubmixInstance(uint32 InSubmixId);
-		FMixerSubmixPtr GetMasterSubmixInstance(const USoundSubmixBase* InSubmix);
+		bool IsRequiredSubmixType(const USoundSubmixBase* InSubmix) const;
+		FMixerSubmixPtr GetRequiredSubmixInstance(uint32 InSubmixId);
+		FMixerSubmixPtr GetRequiredSubmixInstance(const USoundSubmixBase* InSubmix);
 		
 		// Pumps the audio render thread command queue
 		void PumpCommandQueue();
 		void PumpGameThreadCommandQueue();
 		
-		TArray<USoundSubmix*> MasterSubmixes;
-		TArray<FMixerSubmixPtr> MasterSubmixInstances;
+		TArray<USoundSubmix*> RequiredSubmixes;
+		TArray<FMixerSubmixPtr> RequiredSubmixInstances;
 
 		TArray<TStrongObjectPtr<UAudioBus>> DefaultAudioBuses;
 		/** Ptr to the platform interface, which handles streaming audio to the hardware device. */

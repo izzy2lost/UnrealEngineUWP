@@ -23,6 +23,8 @@ THIRD_PARTY_INCLUDES_END
 #include "AudioEncoder.h"
 #include "VideoEncoder.h"
 #include "MediaPacket.h"
+#include "Templates/SharedPointer.h"
+#include "Templates/SharedPointerInternals.h"
 #include "VideoEncoderInput.h"
 
 class SWindow;
@@ -33,7 +35,7 @@ public:
 	virtual void OnMediaSample(const AVEncoder::FMediaPacket& Sample) = 0;
 };
 
-class FGameplayMediaEncoder final : private ISubmixBufferListener, public AVEncoder::IAudioEncoderListener
+class FGameplayMediaEncoder final : public ISubmixBufferListener, public AVEncoder::IAudioEncoderListener
 {
 public:
 
@@ -89,6 +91,8 @@ public:
 	AVEncoder::FVideoConfig GetVideoConfig() const { return VideoConfig; }
 
 private:
+	template <typename ObjectType, ESPMode Mode>
+	friend class SharedPointerInternals::TIntrusiveReferenceController;
 
 	// Private to control how our single instance is created
 	GAMEPLAYMEDIAENCODER_API FGameplayMediaEncoder();
@@ -98,7 +102,9 @@ private:
 
 	// Back buffer capture
 	GAMEPLAYMEDIAENCODER_API void OnFrameBufferReady(SWindow& SlateWindow, const FTexture2DRHIRef& FrameBuffer);
+
 	// ISubmixBufferListener interface
+	GAMEPLAYMEDIAENCODER_API const FString& GetListenerName() const override;
 	GAMEPLAYMEDIAENCODER_API void OnNewSubmixBuffer(const USoundSubmix* OwningSubmix, float* AudioData, int32 NumSamples, int32 NumChannels, const int32 SampleRate, double AudioClock) override;
 
 	GAMEPLAYMEDIAENCODER_API void ProcessAudioFrame(const float* AudioData, int32 NumSamples, int32 NumChannels, int32 SampleRate);
@@ -141,7 +147,7 @@ private:
 	bool bDoFrameSkipping = false;
 
 	friend class FGameplayMediaEncoderModule;
-	static GAMEPLAYMEDIAENCODER_API FGameplayMediaEncoder* Singleton;
+	static GAMEPLAYMEDIAENCODER_API TSharedPtr<FGameplayMediaEncoder, ESPMode::ThreadSafe> Singleton;
 
 	// live streaming: quality adaptation to available uplink b/w
 	TAtomic<uint32> NewVideoBitrate{ 0 };
