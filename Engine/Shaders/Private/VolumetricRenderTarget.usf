@@ -74,13 +74,17 @@ float4 PreviousVolumetricTextureSizeAndInvSize;
 uint4 PreviousFrameVolumetricTextureValidCoordRect;
 float4 PreviousFrameVolumetricTextureValidUvRect;
 
+float HistoryPreExposureCorrection;
+
 float4 SafeLoadPreviousFrameVolumetricTexture(uint2 Coord)
 {
-	return PreviousFrameVolumetricTexture.Load(uint3(clamp(Coord, PreviousFrameVolumetricTextureValidCoordRect.xy, PreviousFrameVolumetricTextureValidCoordRect.zw), 0));
+	float4 Result = PreviousFrameVolumetricTexture.Load(uint3(clamp(Coord, PreviousFrameVolumetricTextureValidCoordRect.xy, PreviousFrameVolumetricTextureValidCoordRect.zw), 0));
+	return float4(Result.rgb * HistoryPreExposureCorrection, Result.a);
 }
 float4 SafeSamplePreviousFrameVolumetricTexture(float2 UV)
 {
-	return PreviousFrameVolumetricTexture.SampleLevel(LinearTextureSampler, clamp(UV, PreviousFrameVolumetricTextureValidUvRect.xy, PreviousFrameVolumetricTextureValidUvRect.zw), 0);
+	float4 Result = PreviousFrameVolumetricTexture.SampleLevel(LinearTextureSampler, clamp(UV, PreviousFrameVolumetricTextureValidUvRect.xy, PreviousFrameVolumetricTextureValidUvRect.zw), 0);
+	return float4(Result.rgb * HistoryPreExposureCorrection, Result.a);
 }
 FDepthData SafeLoadPreviousFrameVolumetricDepthTexture(uint2 Coord)
 {
