@@ -35,6 +35,9 @@ inline const int32 ShaderCompileWorkerSingleJobHeader = 'S';
 // this is for the protocol, not the data.
 inline const int32 ShaderCompileWorkerPipelineJobHeader = 'P';
 
+// modify this for changes to the FShaderCompilerOutput data structure (in addition to ShaderCompileWorkerOutputVersion)
+inline const int32 FShaderCompilerOutputStructVersion = 1;
+
 namespace UE::ShaderCompiler
 {
 	RENDERCORE_API ERHIBindlessConfiguration GetBindlessResourcesConfiguration(FName ShaderFormat);
@@ -545,7 +548,7 @@ struct FShaderCompilerError
 
 /**
  *	The output of the shader compiler.
- *	Bump ShaderCompileWorkerOutputVersion if FShaderCompilerOutput changes
+ *	Bump FShaderCompilerOutputStructVersion and ShaderCompileWorkerOutputVersion if FShaderCompilerOutput changes
  */
 struct FShaderCompilerOutput
 {

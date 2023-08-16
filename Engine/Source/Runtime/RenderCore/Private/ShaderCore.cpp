@@ -3126,6 +3126,10 @@ FShaderCommonCompileJob::FInputHash FShaderCompileJob::GetInputHash()
 	if (Input.bCachePreprocessed)
 	{
 		FMemoryHasherBlake3 Hasher;
+
+		int32 FShaderCompilerOutputStructVersionLocal = FShaderCompilerOutputStructVersion;
+		Hasher << FShaderCompilerOutputStructVersionLocal;
+
 		FShaderTarget Target = Input.Target;
 		Hasher << Target;
 		Hasher << Input.EntryPointName;
@@ -3153,6 +3157,9 @@ FShaderCommonCompileJob::FInputHash FShaderCompileJob::GetInputHash()
 		auto SerializeInputs = [this](FArchive& Archive)
 		{
 			checkf(Archive.IsSaving() && !Archive.IsLoading(), TEXT("A loading archive is passed to FShaderCompileJob::GetInputHash(), this is not supported as it may corrupt its data"));
+
+			int32 FShaderCompilerOutputStructVersionLocal = FShaderCompilerOutputStructVersion;
+			Archive << FShaderCompilerOutputStructVersionLocal;
 
 			// Don't include debug group name in the hashing; this drastically worsens our cache hit rate
 			FString DebugGroupNameTmp(MoveTemp(Input.DebugGroupName));
