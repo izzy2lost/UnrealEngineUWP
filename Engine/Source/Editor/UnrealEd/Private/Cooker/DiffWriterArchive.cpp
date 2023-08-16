@@ -799,6 +799,7 @@ void FAccumulator::CompareWithPreviousForSection(const FPackageData& SourcePacka
 		}
 		else
 		{
+			check(CallstackAtOffsetPtr && DifferenceCallstackDataPtr); // These were set up above.
 			const FCallstacks::FCallstackAtOffset& CallstackAtOffset = *CallstackAtOffsetPtr;
 			const FCallstacks::FCallstackData& DifferenceCallstackData = *DifferenceCallstackDataPtr;
 			const FString& DifferenceCallstackDataText = LastDifferenceCallstackDataText;
