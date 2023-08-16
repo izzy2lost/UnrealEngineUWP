@@ -31,7 +31,7 @@ namespace Chaos
 
 			const FVec3f& GetX() const { return X; }
 
-			const FRotation3f& GetR() const { return R; }
+			FRotation3f GetR() const { return FRotation3f(FQuat4f(R[0], R[1], R[2], R[3])); }
 
 			const FAABB3f& GetBounds() const { return Bounds; }
 
@@ -55,15 +55,16 @@ namespace Chaos
 			FChaosArchive& Serialize(FChaosArchive& Ar);
 
 			// Transform and bounds in the space of the BVH owner (Union Implicit)
-			FRotation3f R;
+			float R[4];	//an alias for FRotation3f to avoid 16b alignment requirement that creates 12b of padding
+
 			FVec3f X;
 			FAABB3f Bounds;
 
-			// The leaf geometry stripped of decorators (but not Instanced or Scaled)
-			TSerializablePtr<FImplicitObject> Geometry;
-
 			// The index of our ancestor in the array of RootObjects that was provided when creating the BVH
 			int32 RootObjectIndex;
+
+			// The leaf geometry stripped of decorators (but not Instanced or Scaled)
+			TSerializablePtr<FImplicitObject> Geometry;
 
 			// Our index in the hierarchy. This could be used to uniquely identity copies of the same implicit in the hierarchy
 			int32 ObjectIndex;
@@ -128,7 +129,7 @@ namespace Chaos
 
 			const FVec3f& GetX(const int32 ObjectIndex) const { return Objects[ObjectIndex].GetX(); }
 
-			const FRotation3f& GetR(const int32 ObjectIndex) const { return Objects[ObjectIndex].GetR(); }
+			FRotation3f GetR(const int32 ObjectIndex) const { return Objects[ObjectIndex].GetR(); }
 
 			const FAABB3f& GetBounds(const int32 ObjectIndex) const { return Objects[ObjectIndex].GetBounds(); }
 
