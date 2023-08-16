@@ -1735,7 +1735,7 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 
 		if (NumObservedPostMountPausers == NumExpectedPostMountPausers)
 		{
-			UpdateStateMachineDeferred();
+			UpdateStateMachineImmediate();
 		}
 	}
 
