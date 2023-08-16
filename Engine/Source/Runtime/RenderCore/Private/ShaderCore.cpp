@@ -1291,6 +1291,8 @@ public:
 				Compiler->CompileShader(Job.Input.ShaderFormat, Job.Input, Job.Output, WorkingDirectory);
 			}
 
+			// set the input hash on the output to allow sanity checking the job results on completion/reading from cache
+			Job.Output.InputHash = Job.Input.Hash;
 		}
 #if PLATFORM_WINDOWS
 		__except(HandleShaderCompileException(GetExceptionInformation(), OutExceptionMsg, OutExceptionCallstack))
@@ -1458,7 +1460,8 @@ void CompileShaderPipeline(const TArray<const IShaderFormat*>& ShaderFormats, FS
 	checkf(PipelineJob->StageJobs.Num() > 0, TEXT("Pipeline %s has zero jobs!"), PipelineJob->Key.ShaderPipeline->GetName());
 	FShaderCompileJob* CurrentJob = PipelineJob->StageJobs[0]->GetSingleShaderJob();
 
-	CurrentJob->Input.bCompilingForShaderPipeline = true;
+	// Flag should be set on the first job when the FShaderPipelineCompileJob was constructed, to ensure the flag is included when computing the input hash.
+	check(CurrentJob->Input.bCompilingForShaderPipeline == true);
 
 	// First job doesn't have to trim outputs
 	CurrentJob->Input.bIncludeUsedOutputs = false;
@@ -3126,6 +3129,10 @@ FShaderCommonCompileJob::FInputHash FShaderCompileJob::GetInputHash()
 		FShaderTarget Target = Input.Target;
 		Hasher << Target;
 		Hasher << Input.EntryPointName;
+
+		// Include this flag, so shader pipeline jobs get a different hash from single shader jobs, even if the preprocessed shader is otherwise the same.
+		Hasher << Input.bCompilingForShaderPipeline;
+
 		FShaderCompilerEnvironment MergedEnvironment = Input.Environment;
 		if (Input.SharedEnvironment)
 		{
@@ -3300,6 +3307,8 @@ void FShaderCompileJob::SerializeOutput(FArchive& Ar)
 		Output.CompileTime = ActualCompileTime;
 		Output.PreprocessTime = ActualPreprocessTime;
 	}
+
+	checkf(Output.InputHash == Input.Hash, TEXT("Failed sanity check: InputHash reported from compile output does not match InputHash from compile input"));
 }
 
 void FShaderCompileJob::OnComplete()
@@ -3413,6 +3422,12 @@ FShaderPipelineCompileJob::FShaderPipelineCompileJob(int32 NumStages)
 	{
 		StageJobs.Add(new FShaderCompileJob());
 	}
+
+	if (StageJobs.Num())
+	{
+		// Set this flag on first job in constructor, so it's included during input hash computation.  Flag is set conditionally for other stage jobs in CompileShaderPipeline.
+		StageJobs[0]->Input.bCompilingForShaderPipeline = true;
+	}
 }
 
 FShaderPipelineCompileJob::FShaderPipelineCompileJob(uint32 InHash, uint32 InId, EShaderCompileJobPriority InPriroity, const FShaderPipelineCompileJobKey& InKey) :
@@ -3425,6 +3440,12 @@ FShaderPipelineCompileJob::FShaderPipelineCompileJob(uint32 InHash, uint32 InId,
 	{
 		const FShaderCompileJobKey StageKey(ShaderType, InKey.VFType, InKey.PermutationId);
 		StageJobs.Add(new FShaderCompileJob(StageKey.MakeHash(InId), InId, InPriroity, StageKey));
+	}
+	
+	if (StageJobs.Num())
+	{
+		// Set this flag on first job in constructor, so it's included during input hash computation.  Flag is set conditionally for other stage jobs in CompileShaderPipeline.
+		StageJobs[0]->Input.bCompilingForShaderPipeline = true;
 	}
 }
 

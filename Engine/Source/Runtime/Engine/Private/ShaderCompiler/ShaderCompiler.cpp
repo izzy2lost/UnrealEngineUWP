@@ -241,7 +241,7 @@ static FAutoConsoleVariableRef CVarShaderCompilerDebugDiscardCacheOutputs(
 	ECVF_Default
 );
 
-int32 GShaderCompilerParallelSubmitJobs = 0;
+int32 GShaderCompilerParallelSubmitJobs = 1;
 static FAutoConsoleVariableRef CVarShaderCompilerParallelSubmitJobs(
 	TEXT("r.ShaderCompiler.ParallelSubmitJobs"),
 	GShaderCompilerParallelSubmitJobs,
@@ -481,7 +481,7 @@ public:
 	static const int32 STRIPE_SHIFT = 32 - NUM_STRIPE_BITS;
 
 	template<typename JobType, typename KeyType>
-	JobType* PrepareJob(uint32 InId, const KeyType& InKey, EShaderCompileJobPriority InPriority, bool& bOutNewJob)
+	FShaderCommonCompileJobPtr PrepareJob(uint32 InId, const KeyType& InKey, EShaderCompileJobPriority InPriority, bool& bOutNewJob)
 	{
 		const uint32 Hash = InKey.MakeHash(InId);
 		FLockStripeData& Stripe = GetStripe(JobType::Type, Hash);
@@ -611,12 +611,14 @@ public:
 	JobType* PrepareJob(uint32 InId, const KeyType& InKey, EShaderCompileJobPriority InPriority)
 	{
 		bool bNewJob;
-		JobType* Result = JobTable.PrepareJob<JobType>(InId, InKey, InPriority, bNewJob);
+		FShaderCommonCompileJobPtr Result = JobTable.PrepareJob<JobType>(InId, InKey, InPriority, bNewJob);
 
 		if (bNewJob)
 		{
-			// If it's a new job, return it
-			return Result;
+			// If it's a new job, return it -- it's OK to cast the ref-counted pointer to a raw pointer, because JobTable
+			// itself has a reference to the job, and a newly added job hasn't been submitted yet, so it can't make a
+			// round trip through the pipeline and be released until that happens.
+			return (JobType*)Result.GetReference();
 		}
 		else if (InPriority > Result->Priority)
 		{
@@ -7074,6 +7076,8 @@ void GlobalBeginCompileShader(
 
 	FShaderCompileUtilities::GenerateBrdfHeaders(ShaderPlatform);
 
+	// NOTE:  Input.bCompilingForShaderPipeline is initialized by the constructor for single versus pipeline jobs, do not initialize again here!
+
 	Input.Target = Target;
 	Input.ShaderPlatformName = FDataDrivenShaderPlatformInfo::GetName(ShaderPlatform);
 	Input.ShaderFormat = ShaderFormatName;
@@ -7081,7 +7085,6 @@ void GlobalBeginCompileShader(
 	GetShaderCompressionOodleSettings(Input.OodleCompressor, Input.OodleLevel);
 	Input.VirtualSourceFilePath = SourceFilename;
 	Input.EntryPointName = FunctionName;
-	Input.bCompilingForShaderPipeline = false;
 	Input.bIncludeUsedOutputs = false;
 	Input.DumpDebugInfoRootPath = GShaderCompilingManager->GetAbsoluteShaderDebugInfoDirectory() / Input.ShaderPlatformName.ToString();
 	Input.DebugInfoFlags = GShaderCompilingManager->GetDumpShaderDebugInfoFlags();
