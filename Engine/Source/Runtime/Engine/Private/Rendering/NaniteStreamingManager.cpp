@@ -133,6 +133,14 @@ static FAutoConsoleVariableRef CVarNaniteStreamingPrefetch(
 	ECVF_RenderThreadSafe
 );
 
+static int32 GNaniteStreamingDynamicPageUploadBuffer = 0;
+static FAutoConsoleVariableRef CVarNaniteStreamingDynamicPageUploadBuffer(
+	TEXT("r.Nanite.Streaming.DynamicPageUploadBuffer"),
+	GNaniteStreamingDynamicPageUploadBuffer,
+	TEXT("Set Dynamic flag on the page upload buffer. This can eliminate a buffer copy on some platforms, but potentially also make the transcode shader slower."),
+	ECVF_RenderThreadSafe
+);
+
 static_assert(NANITE_MAX_GPU_PAGES_BITS + MAX_RUNTIME_RESOURCE_VERSIONS_BITS + NANITE_STREAMING_REQUEST_MAGIC_BITS <= 32,		"Streaming request member RuntimeResourceID_Magic doesn't fit in 32 bits");
 static_assert(NANITE_MAX_RESOURCE_PAGES_BITS + NANITE_MAX_GROUP_PARTS_BITS + NANITE_STREAMING_REQUEST_MAGIC_BITS <= 32,			"Streaming request member PageIndex_NumPages_Magic doesn't fit in 32 bits");
 
@@ -403,7 +411,11 @@ public:
 		
 		// Add EBufferUsageFlags::Dynamic to skip the unneeded copy from upload to VRAM resource on d3d12 RHI
 		FRDGBufferDesc BufferDesc = FRDGBufferDesc::CreateByteAddressUploadDesc(PageAllocationSize);
-		BufferDesc.Usage = BufferDesc.Usage | EBufferUsageFlags::Dynamic;
+		if (GNaniteStreamingDynamicPageUploadBuffer)
+		{
+			BufferDesc.Usage |= EBufferUsageFlags::Dynamic;
+		}
+		
 		AllocatePooledBuffer(BufferDesc, PageUploadBuffer, TEXT("Nanite.PageUploadBuffer"));
 	
 		PageDataPtr = (uint8*)GraphBuilder.RHICmdList.LockBuffer(PageUploadBuffer->GetRHI(), 0, MaxPageBytes, RLM_WriteOnly);
