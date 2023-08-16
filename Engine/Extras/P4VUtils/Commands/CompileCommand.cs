@@ -155,6 +155,11 @@ namespace P4VUtils.Commands
 			{
 #pragma warning disable CA2000 // Dispose objects before losing scope
 				await Process.CopyToAsync(Console.OpenStandardOutput(), CancellationToken.None);
+				
+				if (Process.ExitCode != 0)
+				{
+					return false;
+				}
 #pragma warning restore CA2000 // Dispose objects before losing scope
 			}
 
