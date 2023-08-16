@@ -728,8 +728,8 @@ namespace Metasound
 			// Determine the inputs and outputs needed in the wrapping graph. Also
 			// cache any exiting literals that have been set on the wrapping graph.
 			TSet<FName> InputsInheritingDefault;
-			TArray<FMetasoundFrontendClassInput> ClassInputs = GenerateRequiredClassInputs(PresetGraphHandle, InputsInheritingDefault);
-			TArray<FMetasoundFrontendClassOutput> ClassOutputs = GenerateRequiredClassOutputs(PresetGraphHandle);
+			TArray<FMetasoundFrontendClassInput> ClassInputs = GenerateRequiredClassInputs(InDocument, PresetGraphHandle, InputsInheritingDefault);
+			TArray<FMetasoundFrontendClassOutput> ClassOutputs = GenerateRequiredClassOutputs(InDocument, PresetGraphHandle);
 
 			FGuid PresetNodeID;
 			PresetGraphHandle->IterateConstNodes([InPresetNodeID = &PresetNodeID](FConstNodeHandle PresetNodeHandle)
@@ -873,7 +873,7 @@ namespace Metasound
 #endif // WITH_EDITOR
 		}
 
-		TArray<FMetasoundFrontendClassInput> FRebuildPresetRootGraph::GenerateRequiredClassInputs(const FConstGraphHandle& InPresetGraph, TSet<FName>& OutInputsInheritingDefault) const
+		TArray<FMetasoundFrontendClassInput> FRebuildPresetRootGraph::GenerateRequiredClassInputs(FDocumentHandle& InDocumentHandle, const FConstGraphHandle& InPresetGraph, TSet<FName>& OutInputsInheritingDefault) const
 		{
 			TArray<FMetasoundFrontendClassInput> ClassInputs;
 
@@ -896,8 +896,7 @@ namespace Metasound
 					ClassInput.Metadata.SetDescription(InputNode->GetDescription());
 					ClassInput.Metadata.SetDisplayName(Input->GetMetadata().GetDisplayName());
 #endif // WITH_EDITOR
-					FConstDocumentHandle DocumentHandle = InPresetGraph->GetOwningDocument();
-					FDocumentAccessPtr DocumentPtr = DocumentHandle->GetDocumentPtr();
+					FDocumentAccessPtr DocumentPtr = InDocumentHandle->GetDocumentPtr();
 					const FMetasoundFrontendDocument* Document = DocumentPtr.Get();
 					check(Document);
 					ClassInput.VertexID = FDocumentIDGenerator::Get().CreateVertexID(*Document);;
@@ -952,7 +951,7 @@ namespace Metasound
 			return ClassInputs;
 		}
 
-		TArray<FMetasoundFrontendClassOutput> FRebuildPresetRootGraph::GenerateRequiredClassOutputs(const FConstGraphHandle& InPresetGraph) const
+		TArray<FMetasoundFrontendClassOutput> FRebuildPresetRootGraph::GenerateRequiredClassOutputs(FDocumentHandle& InDocumentHandle, const FConstGraphHandle& InPresetGraph) const
 		{
 			TArray<FMetasoundFrontendClassOutput> ClassOutputs;
 
@@ -976,8 +975,7 @@ namespace Metasound
 					ClassOutput.Metadata.SetDisplayName(Output->GetMetadata().GetDisplayName());
 #endif // WITH_EDITOR
 
-					FConstDocumentHandle DocumentHandle = InPresetGraph->GetOwningDocument();
-					FDocumentAccessPtr DocumentPtr = DocumentHandle->GetDocumentPtr();
+					FDocumentAccessPtr DocumentPtr = InDocumentHandle->GetDocumentPtr();
 					const FMetasoundFrontendDocument* Document = DocumentPtr.Get();
 					check(Document);
 					ClassOutput.VertexID = FDocumentIDGenerator::Get().CreateVertexID(*Document);

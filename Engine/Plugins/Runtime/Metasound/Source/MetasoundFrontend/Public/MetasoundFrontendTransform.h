@@ -176,10 +176,10 @@ namespace Metasound
 			// Get the class inputs needed for this preset. Input literals set on 
 			// the preset graph will be used if they are set and are marked as inheriting
 			// the default from the referenced graph.
-			TArray<FMetasoundFrontendClassInput> GenerateRequiredClassInputs(const FConstGraphHandle& InParentGraph, TSet<FName>& OutInputsInheritingDefault) const;
+			TArray<FMetasoundFrontendClassInput> GenerateRequiredClassInputs(FDocumentHandle& InDocumentHandle, const FConstGraphHandle& InParentGraph, TSet<FName>& OutInputsInheritingDefault) const;
 
 			// Get the class Outputs needed for this preset.
-			TArray<FMetasoundFrontendClassOutput> GenerateRequiredClassOutputs(const FConstGraphHandle& InParentGraph) const;
+			TArray<FMetasoundFrontendClassOutput> GenerateRequiredClassOutputs(FDocumentHandle& InDocumentHandle, const FConstGraphHandle& InParentGraph) const;
 
 			// Add inputs to parent graph and connect to wrapped graph node.
 			void AddAndConnectInputs(const TArray<FMetasoundFrontendClassInput>& InClassInputs, FGraphHandle& InParentGraphHandle, FNodeHandle& InReferencedNode) const;
