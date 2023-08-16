@@ -27,7 +27,7 @@ UNSYNC_THIRD_PARTY_INCLUDES_START
 #include <md5-sse2.h>
 UNSYNC_THIRD_PARTY_INCLUDES_END
 
-#define UNSYNC_VERSION_STR "1.0.52"
+#define UNSYNC_VERSION_STR "1.0.53-dev"
 
 namespace unsync {
 
@@ -1186,7 +1186,7 @@ DownloadBlocks(FProxyPool&					  ProxyPool,
 					{
 						ProxyPool.Dealloc(std::move(Proxy));
 					}
-					else if (DownloadResult.GetError() == EDownloadRetryMode::Abort)
+					else if (DownloadResult.GetError().RetryMode == EDownloadRetryMode::Abort)
 					{
 						bGotError = true;
 						ProxyPool.Invalidate();

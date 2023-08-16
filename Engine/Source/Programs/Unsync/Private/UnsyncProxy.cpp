@@ -30,16 +30,6 @@ struct FUnsyncProtocolImpl : FRemoteProtocolBase
 
 	const FRemoteProtocolFeatures Features;
 
-	struct FHelloResponse
-	{
-		std::string Name;
-		std::string VersionNumber;
-		std::string VersionGit;
-		std::string SessionId;
-		std::vector<std::string> FeatureNames;
-		FRemoteProtocolFeatures Features;
-	};
-	static TResult<FHelloResponse> QueryHello(const FRemoteDesc& RemoteDesc);
 	static void SendTelemetryEvent(const FRemoteDesc& RemoteDesc, const FTelemetryEventSyncComplete& Event);
 };
 
@@ -241,7 +231,7 @@ FUnsyncProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBl
 			}
 		}
 
-		FileListPacket FileListHeader;
+		FFileListPacket FileListHeader;
 		FileListHeader.DataSizeBytes = CheckedNarrow(FileListData.Size());
 		FileListHeader.NumFiles		 = CheckedNarrow(FileListUtf8.size());
 
@@ -304,8 +294,11 @@ FUnsyncProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBl
 
 		bOk &= (SocketRecvAll(*SocketHandle, BlockPacket.CompressedData.Data(), BlockPacket.CompressedData.Size()) == CompressedDataSize);
 
-		if (BlockPacket.Hash == FHash128{})	 // response is always terminated with an empty packet
+		static const FHash128 TerminatorHash = FHash128{}; // response is always terminated with an empty packet
+
+		if (BlockPacket.Hash == TerminatorHash)
 		{
+			// TODO: Termination packet payload may contain diagnostic messages that can be reported to the user
 			break;
 		}
 
@@ -327,7 +320,7 @@ FUnsyncProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBl
 		bIsConnetedToHost = false;
 	}
 
-	return ResultOk<EDownloadRetryMode>();
+	return ResultOk<FDownloadError>();
 }
 
 void
@@ -350,7 +343,8 @@ FUnsyncProtocolImpl::GetSocketSecurity() const
 	}
 }
 
-TResult<FUnsyncProtocolImpl::FHelloResponse> FUnsyncProtocolImpl::QueryHello(const FRemoteDesc& RemoteDesc)
+namespace ProxyQuery {
+TResult<FHelloResponse> Hello(const FRemoteDesc& RemoteDesc)
 {
 	const char* Url = "/api/v1/hello";
 	FHttpResponse Response = HttpRequest(RemoteDesc, EHttpMethod::GET, Url);
@@ -426,6 +420,7 @@ TResult<FUnsyncProtocolImpl::FHelloResponse> FUnsyncProtocolImpl::QueryHello(con
 
 	return ResultOk(std::move(Result));
 }
+}  // namespace ProxyQuery
 
 void
 FUnsyncProtocolImpl::SendTelemetryEvent(const FRemoteDesc& RemoteDesc, const FTelemetryEventSyncComplete& Event)
@@ -596,7 +591,7 @@ FProxyPool::FProxyPool(const FRemoteDesc& InRemoteDesc)
 			RemoteDesc.HostAddress.c_str(),
 			RemoteDesc.HostPort);
 
-		TResult<FUnsyncProtocolImpl::FHelloResponse> Response = FUnsyncProtocolImpl::QueryHello(RemoteDesc);
+		TResult<ProxyQuery::FHelloResponse> Response = ProxyQuery::Hello(RemoteDesc);
 
 		if (Response.IsError())
 		{
@@ -604,7 +599,7 @@ FProxyPool::FProxyPool(const FRemoteDesc& InRemoteDesc)
 		}
 		else
 		{
-			const FUnsyncProtocolImpl::FHelloResponse& Data = Response.GetData();
+			const ProxyQuery::FHelloResponse& Data = Response.GetData();
 			UNSYNC_VERBOSE(L"Connection established. Server name: %hs, version: %hs, git: %hs.", 
 				Data.Name.empty() ? "unknown" : Data.Name.c_str(),
 				Data.VersionNumber.empty() ? "unknown" : Data.VersionNumber.c_str(),

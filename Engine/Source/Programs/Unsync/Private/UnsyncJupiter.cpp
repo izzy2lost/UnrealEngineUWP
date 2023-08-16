@@ -823,12 +823,12 @@ FJupiterProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FB
 {
 	if (!IsValid())
 	{
-		return FDownloadResult(EDownloadRetryMode::Abort);
+		return FDownloadError(EDownloadRetryMode::Abort);
 	}
 
 	if (NeedBlocks.Size() == 0)
 	{
-		return ResultOk<EDownloadRetryMode>();
+		return ResultOk<FDownloadError>();
 	}
 
 	UNSYNC_ASSERT(Connection.NumActiveRequests == 0);
@@ -1044,7 +1044,7 @@ FJupiterProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FB
 	UNSYNC_ASSERT(Connection.NumActiveRequests == 0);
 	UNSYNC_ASSERT(Connection.ResponseQueue.empty());
 
-	return ResultOk<EDownloadRetryMode>();
+	return ResultOk<FDownloadError>();
 }
 
 void

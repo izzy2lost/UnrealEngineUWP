@@ -37,6 +37,8 @@ set(src
 	Private/UnsyncCmdDiff.h
 	Private/UnsyncCmdHash.cpp
 	Private/UnsyncCmdHash.h
+	Private/UnsyncCmdMount.cpp
+	Private/UnsyncCmdMount.h
 	Private/UnsyncCmdPatch.cpp
 	Private/UnsyncCmdPatch.h
 	Private/UnsyncCmdPush.cpp
@@ -67,6 +69,8 @@ set(src
 	Private/UnsyncMemory.h
 	Private/UnsyncMiniCb.cpp
 	Private/UnsyncMiniCb.h
+	Private/UnsyncMount.cpp
+	Private/UnsyncMount.h
 	Private/UnsyncPool.h
 	Private/UnsyncProgress.cpp
 	Private/UnsyncProgress.h

@@ -108,9 +108,9 @@ InnerMain(int Argc, char** Argv)
 		App->add_option("--proxy, --remote",
 						RemoteAddressUtf8,
 						"FProxy server address ([transport://]address[:port][/request][#namespace])");
-		App->add_option("--no-proxy-select",
-						bNoProxySelect,
-						"Skip automatic server selection and use the exact one specified by command line or environment variable");
+		App->add_flag("--no-proxy-select",
+					  bNoProxySelect,
+					  "Skip automatic server selection and use the exact one specified by command line or environment variable");
 	};
 
 	CLI::App* SubHash = Cli.add_subcommand("hash", "Generate hash manifest for a file or directory");
@@ -652,7 +652,8 @@ InnerMain(int Argc, char** Argv)
 		}
 	}
 
-	if (!bNoProxySelect && RemoteDesc.IsValid() && RemoteDesc.Protocol == EProtocolFlavor::Unsync)
+	if (!bNoProxySelect && !Cli.got_subcommand(SubQuery)
+		&& RemoteDesc.IsValid() && RemoteDesc.Protocol == EProtocolFlavor::Unsync)
 	{
 		UNSYNC_LOG(L"Selecting server using root '%hs'", RemoteDesc.HostAddress.c_str());
 		TResult<FMirrorInfo> MirrorResult = FindClosestMirror(RemoteDesc);

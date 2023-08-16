@@ -23,7 +23,17 @@ enum class EDownloadRetryMode
 	Abort,	// unrecoverable error
 };
 
-using FDownloadResult = TResult<FEmpty, EDownloadRetryMode>;
+struct FDownloadError : FError
+{
+	FDownloadError() = default;
+	FDownloadError(EDownloadRetryMode InRetryMode) : RetryMode(InRetryMode) {}
+
+	EDownloadRetryMode RetryMode = EDownloadRetryMode::Abort;
+
+	bool CanRetry() const { return RetryMode == EDownloadRetryMode ::Retry; }
+};
+
+using FDownloadResult = TResult<FEmpty, FDownloadError>;
 
 struct FDownloadedBlock
 {
@@ -169,5 +179,22 @@ private:
 
 	std::mutex Mutex;
 };
+
+namespace ProxyQuery
+{
+
+struct FHelloResponse
+{
+	std::string Name;
+	std::string VersionNumber;
+	std::string VersionGit;
+	std::string SessionId;
+
+	std::vector<std::string> FeatureNames;
+	FRemoteProtocolFeatures	 Features;
+};
+TResult<FHelloResponse> Hello(const FRemoteDesc& RemoteDesc);
+
+} 
 
 }  // namespace unsync

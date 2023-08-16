@@ -21,7 +21,7 @@ RunHttpPing(std::string_view Address, uint16 Port)
 	FTimePoint		TimeBegin = TimePointNow();
 	FHttpConnection Connection(Address, Port);
 	FHttpRequest	Request;
-	Request.Url				   = "/api/v1/hello";
+	Request.Url				   = "/api/v1/ping";
 	Request.Method			   = EHttpMethod::GET;
 	FHttpResponse PingResponse = HttpRequest(Connection, Request);
 	FTimePoint	  TimeEnd	   = TimePointNow();

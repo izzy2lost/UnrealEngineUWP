@@ -129,7 +129,7 @@ struct FCommandPacket
 	uint64					CommandId = 0;
 };
 
-struct FileListPacket
+struct FFileListPacket
 {
 	static constexpr uint64 MAGIC		  = 0x28B96050A327172Aull;
 	uint64					Magic		  = MAGIC;
