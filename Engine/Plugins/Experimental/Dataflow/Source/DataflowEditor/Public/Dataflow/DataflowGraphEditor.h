@@ -133,6 +133,8 @@ private:
 	/** Return whether all currently selected Dataflow nodes can execute the RemovePin function. */
 	bool CanRemoveOptionPin() const;
 
+	bool GetPinVisibility(SGraphEditor::EPinVisibility InVisibility) const;
+
 	FDataflowEditorCommands::FOnDragDropEventCallback OnDragDropEventCallback;
 	FDataflowEditorCommands::FGraphEvaluationCallback EvaluateGraphCallback;
 

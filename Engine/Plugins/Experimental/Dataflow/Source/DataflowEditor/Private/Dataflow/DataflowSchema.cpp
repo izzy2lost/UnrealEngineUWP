@@ -43,7 +43,6 @@ void UDataflowSchema::GetContextMenuActions(class UToolMenu* Menu, class UGraphN
 				Section.AddMenuEntry(FDataflowEditorCommands::Get().EvaluateNode);
 			}
 		}
-
 		{
 			FToolMenuSection& Section = Menu->AddSection("TestGraphSchemaOrganization", LOCTEXT("GraphSchemaOrganization_MenuHeader", "Organization"));
 			{
@@ -69,8 +68,21 @@ void UDataflowSchema::GetContextMenuActions(class UToolMenu* Menu, class UGraphN
 				}));
 			}
 		}
-	}
+		{
+			FToolMenuSection& Section = Menu->AddSection("TestGraphSchemaDisplay", LOCTEXT("GraphSchemaDisplay_MenuHeader", "Display"));
+			{
+				Section.AddSubMenu("PinVisibility", LOCTEXT("PinVisibilityHeader", "Pin Visibility"), FText(),
+					FNewToolMenuDelegate::CreateLambda([](UToolMenu* PinVisibilityMenu)
+				{
+					FToolMenuSection& InSection = PinVisibilityMenu->AddSection("TestGraphSchemaPinVisibility");
+					InSection.AddMenuEntry(FGraphEditorCommands::Get().ShowAllPins);
+					InSection.AddMenuEntry(FGraphEditorCommands::Get().HideNoConnectionPins);
+					InSection.AddMenuEntry(FGraphEditorCommands::Get().HideNoConnectionNoDefaultPins);
+				}));
+			}
 
+		}
+	}
 	Super::GetContextMenuActions(Menu, Context);
 }
 

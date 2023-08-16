@@ -15,6 +15,7 @@
 #include "HAL/PlatformApplicationMisc.h"
 #include "ScopedTransaction.h"
 #include "IStructureDetailsView.h"
+#include "SGraphPanel.h"
 
 #define LOCTEXT_NAMESPACE "DataflowGraphEditor"
 
@@ -105,6 +106,24 @@ void SDataflowGraphEditor::Construct(const FArguments& InArgs, UObject* InAssetO
 			GraphEditorCommands->MapAction(
 				FDataflowEditorCommands::Get().ZoomToFitGraph,
 				FExecuteAction::CreateSP(this, &SDataflowGraphEditor::ZoomToFitGraph)
+			);
+			GraphEditorCommands->MapAction(
+				FGraphEditorCommands::Get().ShowAllPins,
+				FExecuteAction::CreateSP(this, &SDataflowGraphEditor::SetPinVisibility, SGraphEditor::Pin_Show),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateSP(this, &SDataflowGraphEditor::GetPinVisibility, SGraphEditor::Pin_Show)
+			);
+			GraphEditorCommands->MapAction(
+				FGraphEditorCommands::Get().HideNoConnectionPins,
+				FExecuteAction::CreateSP(this, &SDataflowGraphEditor::SetPinVisibility, SGraphEditor::Pin_HideNoConnection),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateSP(this, &SDataflowGraphEditor::GetPinVisibility, SGraphEditor::Pin_HideNoConnection)
+			);
+			GraphEditorCommands->MapAction(
+				FGraphEditorCommands::Get().HideNoConnectionNoDefaultPins,
+				FExecuteAction::CreateSP(this, &SDataflowGraphEditor::SetPinVisibility, SGraphEditor::Pin_HideNoConnectionNoDefault),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateSP(this, &SDataflowGraphEditor::GetPinVisibility, SGraphEditor::Pin_HideNoConnectionNoDefault)
 			);
 		}
 	}
@@ -499,6 +518,15 @@ void SDataflowGraphEditor::ZoomToFitGraph()
 {
 	constexpr bool bOnlySelection = true;	// This will focus on the selected nodes, if any. If no nodes are selected, it will focus the whole graph.
 	ZoomToFit(bOnlySelection);
+}
+
+bool SDataflowGraphEditor::GetPinVisibility(SGraphEditor::EPinVisibility PinVisibility) const
+{
+	if (const SGraphPanel* GraphPanel = GetGraphPanel())
+	{
+		return GraphPanel->GetPinVisibility() == PinVisibility;
+	}
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE
