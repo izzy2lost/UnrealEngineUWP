@@ -173,10 +173,12 @@ namespace Chaos
 			if (!Constraint->GetManifoldPoint(ConstraintManifoldPointIndex).Flags.bDisabled)
 			{
 				const int32 SolverManifoldPointIndex = Solver.AddManifoldPoint();
-
-				// Transform the constraint contact data into world space for use by the solver
-				// We build this data directly into the solver's world-space contact data which looks a bit odd with "Init" called after but there you go
-				UpdateCollisionSolverContactPointFromConstraint(Solver, SolverManifoldPointIndex, Constraint, ConstraintManifoldPointIndex, Dt, Body0, Body1);
+				if (SolverManifoldPointIndex != INDEX_NONE)
+				{
+					// Transform the constraint contact data into world space for use by the solver
+					// We build this data directly into the solver's world-space contact data which looks a bit odd with "Init" called after but there you go
+					UpdateCollisionSolverContactPointFromConstraint(Solver, SolverManifoldPointIndex, Constraint, ConstraintManifoldPointIndex, Dt, Body0, Body1);
+				}
 			}
 		}
 
@@ -249,21 +251,24 @@ namespace Chaos
 
 			if (!Constraint->GetManifoldPoint(ManifoldPointIndex).Flags.bDisabled)
 			{
-				const Private::FPBDCollisionSolverManifoldPoint& SolverManifoldPoint = Solver.GetManifoldPoint(SolverManifoldPointIndex);
+				if (SolverManifoldPointIndex < Solver.NumManifoldPoints())
+				{
+					const Private::FPBDCollisionSolverManifoldPoint& SolverManifoldPoint = Solver.GetManifoldPoint(SolverManifoldPointIndex);
 
-				NetPushOut =
-					SolverManifoldPoint.NetPushOutNormal * SolverManifoldPoint.ContactNormal +
-					SolverManifoldPoint.NetPushOutTangentU * SolverManifoldPoint.ContactTangentU +
-					SolverManifoldPoint.NetPushOutTangentV * SolverManifoldPoint.ContactTangentV;
+					NetPushOut =
+						SolverManifoldPoint.NetPushOutNormal * SolverManifoldPoint.ContactNormal +
+						SolverManifoldPoint.NetPushOutTangentU * SolverManifoldPoint.ContactTangentU +
+						SolverManifoldPoint.NetPushOutTangentV * SolverManifoldPoint.ContactTangentV;
 
-				NetImpulse =
-					SolverManifoldPoint.NetImpulseNormal * SolverManifoldPoint.ContactNormal +
-					SolverManifoldPoint.NetImpulseTangentU * SolverManifoldPoint.ContactTangentU +
-					SolverManifoldPoint.NetImpulseTangentV * SolverManifoldPoint.ContactTangentV;
+					NetImpulse =
+						SolverManifoldPoint.NetImpulseNormal * SolverManifoldPoint.ContactNormal +
+						SolverManifoldPoint.NetImpulseTangentU * SolverManifoldPoint.ContactTangentU +
+						SolverManifoldPoint.NetImpulseTangentV * SolverManifoldPoint.ContactTangentV;
 
-				StaticFrictionRatio = SolverManifoldPoint.StaticFrictionRatio;
+					StaticFrictionRatio = SolverManifoldPoint.StaticFrictionRatio;
 
-				++SolverManifoldPointIndex;
+					++SolverManifoldPointIndex;
+				}
 			}
 
 			// NOTE: We call this even for points we did not run the solver for (but with zero results)
@@ -287,7 +292,10 @@ namespace Chaos
 		, CollisionConstraints()
 		, AppliedShockPropagation(1)
 		, Scratch()
-		, CollisionSolvers()
+		, CollisionSolvers(nullptr)
+		, CollisionSolverManifoldPoints(nullptr)
+		, NumCollisionSolverManifoldPoints(0)
+		, MaxCollisionSolverManifoldPoints(0)
 		, bCollisionConstraintPerIterationCollisionDetection()
 		, bPerIterationCollisionDetection(false)
 	{
@@ -301,30 +309,72 @@ namespace Chaos
 	{
 		AppliedShockPropagation = FSolverReal(1);
 
-		// A over-allocation policy to avoid reallocation every frame in the common case where a pile of objects is dropped
-		// and the number of contacts increases every tick.
-		int CollisionBufferNum = MaxCollisions;
-		if (CollisionBufferNum > CollisionConstraints.Max())
-		{
-			CollisionBufferNum = (5 * MaxCollisions) / 4; // +25%
-		}
-
+		const int CollisionBufferNum = CalculateCollisionBufferNum(MaxCollisions, CollisionConstraints.Num());
 		CollisionConstraints.Reset(CollisionBufferNum);
 		bCollisionConstraintPerIterationCollisionDetection.Reset(CollisionBufferNum);
 
 		// Just set the array size for these right away - all data will be initialized later
 		bCollisionConstraintPerIterationCollisionDetection.SetNumUninitialized(MaxCollisions, false);
 
-		// Prepare the scratch buffer
-		const size_t AlignedSolverSize = Align(sizeof(Private::FPBDCollisionSolver), alignof(Private::FPBDCollisionSolver));
-		const size_t AlignedPointSize = Align(sizeof(Private::FPBDCollisionSolverManifoldPoint), alignof(Private::FPBDCollisionSolverManifoldPoint));
-		const size_t ScratchSize = CollisionBufferNum * (AlignedSolverSize + Private::FPBDCollisionSolver::MaxPointsPerConstraint * AlignedPointSize);
-		Scratch.Reset(ScratchSize);
-
-		// Allocate scratch space for the collision solvers and manifold points
-		CollisionSolvers = Scratch.AllocArray<Private::FPBDCollisionSolver>(MaxCollisions);
-		CollisionSolverManifoldPoints = Scratch.AllocArray<Private::FPBDCollisionSolverManifoldPoint>(MaxCollisions);
+		// Reset the solver buffers. We could manifold points as constraints are added,
+		// and re-allocate and assign the scratch buffers after
 		NumCollisionSolverManifoldPoints = 0;
+		MaxCollisionSolverManifoldPoints = 0;
+		CollisionSolvers = nullptr;
+		CollisionSolverManifoldPoints = nullptr;
+	}
+
+	int32 FPBDCollisionContainerSolver::CalculateCollisionBufferNum(const int32 InTightFittingNum, const int32 InCurrentBufferNum) const
+	{
+		// A buffer over-allocation policy to avoid reallocation every frame in the common case where a pile of objects is dropped
+		// and the number of contacts increases every tick. Used for collision solvers and manifold points
+		int CollisionBufferNum = InTightFittingNum;
+		if (CollisionBufferNum > InCurrentBufferNum)
+		{
+			CollisionBufferNum = (5 * InTightFittingNum) / 4; // +25%
+		}
+		return CollisionBufferNum;
+	}
+
+	int32 FPBDCollisionContainerSolver::CalculateConstraintMaxManifoldPoints(const FPBDCollisionConstraint* Constraint) const
+	{
+		// NOTE: we don't know how many points we will create if collision detection is deferred or incrememntal, so we just assume 4
+		// @todo(chaos): see if we can do better here
+		const bool bDeferredCollisionDetection = ConstraintContainer.GetDetectorSettings().bDeferNarrowPhase;
+		const int32 ManifoldPointMax = (bDeferredCollisionDetection || Constraint->GetUseIncrementalManifold()) ? 4 : Constraint->NumManifoldPoints();
+		return ManifoldPointMax;
+	}
+
+	void FPBDCollisionContainerSolver::PrepareSolverBuffer()
+	{
+		NumCollisionSolverManifoldPoints = 0;
+		MaxCollisionSolverManifoldPoints = 0;
+		CollisionSolvers = nullptr;
+		CollisionSolverManifoldPoints = nullptr;
+
+		// Count the manifold points
+		// @todo(chaos): can we avoid this?
+		const int32 NumCollisionsConstraints = CollisionConstraints.Num();
+		for (int32 ConstraintIndex = 0; ConstraintIndex < NumCollisionsConstraints; ++ConstraintIndex)
+		{
+			MaxCollisionSolverManifoldPoints += CalculateConstraintMaxManifoldPoints(GetConstraint(ConstraintIndex));
+		}
+
+		// Set up the solver buffers
+		if (NumCollisionsConstraints > 0)
+		{
+			// Resize the scratch buffer (up to 25% slack)
+			constexpr size_t AlignedSolverSize = Align(sizeof(Private::FPBDCollisionSolver), alignof(Private::FPBDCollisionSolver));
+			constexpr size_t AlignedPointSize = Align(sizeof(Private::FPBDCollisionSolverManifoldPoint), alignof(Private::FPBDCollisionSolverManifoldPoint));
+			const size_t ScratchSize = NumCollisionsConstraints * AlignedSolverSize + MaxCollisionSolverManifoldPoints * AlignedPointSize;
+			const size_t ScratchBufferSize = CalculateCollisionBufferNum(ScratchSize, Scratch.BufferSize());
+			Scratch.Reset(ScratchBufferSize);
+
+			// Allocate scratch space for the collision solvers and manifold points
+			// NOTE: scratch return a valid pointer even for 0 size so CollisionSolverManifoldPoints is always a valid pointer in the scratch (but may have no space)
+			CollisionSolvers = Scratch.AllocArray<Private::FPBDCollisionSolver>(NumCollisionsConstraints);
+			CollisionSolverManifoldPoints = Scratch.AllocArray<Private::FPBDCollisionSolverManifoldPoint>(MaxCollisionSolverManifoldPoints);
+		}
 	}
 
 	void FPBDCollisionContainerSolver::AddConstraints()
@@ -344,7 +394,7 @@ namespace Chaos
 	{
 		for (Private::FPBDIslandConstraint* IslandConstraint : IslandConstraints)
 		{
-			// We will only ever be given constraints from our container (asserts in non-shipping)
+			// We will only ever be given constraints from our container (NOTE: AsUnsafe asserts in dev)
 			FPBDCollisionConstraint& Constraint = IslandConstraint->GetConstraint()->AsUnsafe<FPBDCollisionConstraintHandle>()->GetContact();
 
 			AddConstraint(Constraint);
@@ -353,33 +403,22 @@ namespace Chaos
 
 	void FPBDCollisionContainerSolver::AddConstraint(FPBDCollisionConstraint& Constraint)
 	{
-		// NOTE: No need to add to CollisionSolvers or bCollisionConstraintPerIterationCollisionDetection
-		const int32 Index = CollisionConstraints.Add(&Constraint);
-
-		// Allocate the manifold points for this constraints solver
-		// NOTE: we don't know how many points we will create if collision detection is deferred or incrememntal, so just allocate space for the max allowed
-		// @todo(chaos): see if we can do better - we don't want to pay for this logic when it is only used rarely
-		const bool bDeferredCollisionDetection = ConstraintContainer.GetDetectorSettings().bDeferNarrowPhase;
-		const int32 ManifoldPointMax = (bDeferredCollisionDetection || Constraint.GetUseIncrementalManifold()) ? Private::FPBDCollisionSolver::MaxPointsPerConstraint : Constraint.NumManifoldPoints();
-
-		if (ManifoldPointMax > 0)
-		{
-			GetSolver(Index).SetManifoldPointsBuffer(&CollisionSolverManifoldPoints[NumCollisionSolverManifoldPoints], ManifoldPointMax);
-			NumCollisionSolverManifoldPoints += ManifoldPointMax;
-		}
-		else
-		{
-			GetSolver(Index).Reset();
-		}
+		// NOTE: No need to add to CollisionSolvers or bCollisionConstraintPerIterationCollisionDetection - handled later
+		CollisionConstraints.Add(&Constraint);
 	}
-
 
 	void FPBDCollisionContainerSolver::AddBodies(FSolverBodyContainer& SolverBodyContainer)
 	{
-		for (int32 SolverIndex = 0, SolverEndIndex = NumSolvers(); SolverIndex < SolverEndIndex; ++SolverIndex)
+		// All constarints are now added. We can allocate the solver buffers.
+		PrepareSolverBuffer();
+
+		// Make sure have a valid manifold point buffer if we have constraints (it may be zero size, but we want the pointer to be valid)
+		check((CollisionSolverManifoldPoints != nullptr) || (GetNumConstraints() == 0));
+
+		for (int32 ConstraintIndex = 0, ConstraintEndIndex = GetNumConstraints(); ConstraintIndex < ConstraintEndIndex; ++ConstraintIndex)
 		{
-			Private::FPBDCollisionSolver& CollisionSolver = GetSolver(SolverIndex);
-			FPBDCollisionConstraint* Constraint = GetConstraint(SolverIndex);
+			Private::FPBDCollisionSolver& CollisionSolver = GetSolver(ConstraintIndex);
+			FPBDCollisionConstraint* Constraint = GetConstraint(ConstraintIndex);
 			check(Constraint != nullptr);
 
 			// Find the solver bodies for the particles we constrain. This will add them to the container
@@ -389,7 +428,13 @@ namespace Chaos
 			check(Body0 != nullptr);
 			check(Body1 != nullptr);
 
+			// Set up the solver manifold point buffer pointer
+			const int32 ConstraintManifoldPointMax = CalculateConstraintMaxManifoldPoints(GetConstraint(ConstraintIndex));
+
+			CollisionSolver.Reset(&CollisionSolverManifoldPoints[NumCollisionSolverManifoldPoints], ConstraintManifoldPointMax);
 			CollisionSolver.SetSolverBodies(*Body0, *Body1);
+
+			NumCollisionSolverManifoldPoints += ConstraintManifoldPointMax;
 		}
 	}
 
@@ -467,7 +512,7 @@ namespace Chaos
 
 			// Reset the collision solver here as the pointers will be invalid on the next tick
 			// @todo(chaos): Pointers are always reinitalized before use next tick so this isn't strictly necessary
-			CollisionSolver.Reset();
+			CollisionSolver.Reset(nullptr, 0);
 		}
 	}
 

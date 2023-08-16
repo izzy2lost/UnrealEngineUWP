@@ -215,7 +215,7 @@ namespace Chaos
 			check(ConstraintSolverBodies[ConstraintIndex] != nullptr);
 
 			FPBDCollisionSolver* Solver = &CollisionSolvers[ConstraintIndex];
-			Solver->SetManifoldPointsBuffer(&CollisionSolverManifoldPoints[ConstraintIndex], 1);
+			Solver->Reset(&CollisionSolverManifoldPoints[ConstraintIndex], 1);
 			Solver->SetStiffness(1);
 
 			FSolverBody* Body0 = ConstraintSolverBodies[ConstraintIndex];	// vehicle chassis			
@@ -305,7 +305,7 @@ namespace Chaos
 		}
 
 		ConstraintSolverBodies[ConstraintIndex] = nullptr;
-		CollisionSolvers[ConstraintIndex].Reset();
+		CollisionSolvers[ConstraintIndex].Reset(nullptr, 0);
 	}
 
 	void FPBDSuspensionConstraints::ApplyPositionConstraint(const int32 ConstraintIndex, const FReal Dt, const int32 It, const int32 NumIts)

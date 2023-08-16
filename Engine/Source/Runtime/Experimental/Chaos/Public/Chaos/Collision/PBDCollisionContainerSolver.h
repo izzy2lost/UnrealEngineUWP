@@ -58,6 +58,9 @@ namespace Chaos
 
 		void CachePrefetchSolver(const int32 ConstraintIndex) const;
 		void AddConstraint(FPBDCollisionConstraint& Constraint);
+		int32 CalculateCollisionBufferNum(const int32 InTightFittingNum, const int32 InCurrentBufferNum) const;
+		int32 CalculateConstraintMaxManifoldPoints(const FPBDCollisionConstraint* Constraint) const;
+		void PrepareSolverBuffer();
 		void UpdatePositionShockPropagation(const FReal Dt, const int32 It, const int32 NumIts, const int32 BeginIndex, const int32 EndIndex, const FPBDCollisionSolverSettings& SolverSettings);
 		void UpdateVelocityShockPropagation(const FReal Dt, const int32 It, const int32 NumIts, const int32 BeginIndex, const int32 EndIndex, const FPBDCollisionSolverSettings& SolverSettings);
 		void ApplyShockPropagation(const FSolverReal ShockPropagation);
@@ -81,6 +84,7 @@ namespace Chaos
 		// The start of the manifold points array in the scratch buffer
 		Private::FPBDCollisionSolverManifoldPoint* CollisionSolverManifoldPoints;
 		int32 NumCollisionSolverManifoldPoints;
+		int32 MaxCollisionSolverManifoldPoints;
 
 		// Whether we need to run incremental collision for each constraint (LevelSets only now)
 		TArray<bool> bCollisionConstraintPerIterationCollisionDetection;

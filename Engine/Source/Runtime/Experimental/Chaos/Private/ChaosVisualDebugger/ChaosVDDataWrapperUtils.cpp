@@ -106,10 +106,11 @@ FChaosVDConstraint FChaosVDDataWrapperUtils::BuildConstraintDataWrapperFromConst
 	WrappedConstraintData.LastShapeWorldPositionDelta = FVector(InConstraint.LastShapeWorldPositionDelta);
 	WrappedConstraintData.LastShapeWorldRotationDelta = FQuat(InConstraint.LastShapeWorldRotationDelta);
 
-	WrappedConstraintData.ManifoldPoints.Reserve(Chaos::FPBDCollisionConstraint::MaxManifoldPoints);
-	WrappedConstraintData.ManifoldPoints.SetNum(Chaos::FPBDCollisionConstraint::MaxManifoldPoints);
+	const int32 MaxManifoldPoints = InConstraint.ManifoldPoints.Num();
+	WrappedConstraintData.ManifoldPoints.Reserve(MaxManifoldPoints);
+	WrappedConstraintData.ManifoldPoints.SetNum(MaxManifoldPoints);
 
-	for (int32 PointIndex = 0; PointIndex < Chaos::FPBDCollisionConstraint::MaxManifoldPoints; PointIndex++)
+	for (int32 PointIndex = 0; PointIndex < MaxManifoldPoints; PointIndex++)
 	{
 		FChaosVDManifoldPoint& CurrentCVDMainFoldPoint = WrappedConstraintData.ManifoldPoints[PointIndex];
 

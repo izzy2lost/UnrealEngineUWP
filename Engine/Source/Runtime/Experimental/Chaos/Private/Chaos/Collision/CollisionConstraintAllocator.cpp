@@ -168,7 +168,7 @@ namespace Chaos
 			{
 				if (Constraint != nullptr)
 				{
-					Constraint->SetDisabled(true);
+					Constraint->BeginTick();
 				}
 			}
 		}

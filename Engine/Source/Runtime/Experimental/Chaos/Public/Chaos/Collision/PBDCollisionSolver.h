@@ -75,6 +75,9 @@ namespace Chaos
 			// Equal to (NormalPushOut / TangentialPushOut) before clamping to the friction cone.
 			// Used to move the static friction anchors to the edge of the cone in Scatter.
 			FSolverReal StaticFrictionRatio;
+
+			// Transient - whether to apply friction on the current iteration
+			uint32 bApplyFriction : 1;
 		};
 
 		/**
@@ -87,7 +90,6 @@ namespace Chaos
 		{
 		public:
 			static const int32 MaxConstrainedBodies = 2;
-			static const int32 MaxPointsPerConstraint = 4;
 
 			// Create a solver that is initialized to safe defaults
 			static FPBDCollisionSolver MakeInitialized()
@@ -107,13 +109,13 @@ namespace Chaos
 			FPBDCollisionSolver() {}
 
 			/** Reset the state of the collision solver */
-			void Reset()
+			void Reset(FPBDCollisionSolverManifoldPoint* InManifoldPoints, const int32 InMaxManifoldPoints)
 			{
 				State.SolverBodies[0].Reset();
 				State.SolverBodies[1].Reset();
-				State.ManifoldPoints = nullptr;
+				State.ManifoldPoints = InManifoldPoints;
 				State.NumManifoldPoints = 0;
-				State.MaxManifoldPoints = 0;
+				State.MaxManifoldPoints = InMaxManifoldPoints;
 			}
 
 			void ResetManifold()
@@ -155,20 +157,18 @@ namespace Chaos
 
 			int32 AddManifoldPoint()
 			{
-				check(State.NumManifoldPoints < State.MaxManifoldPoints);
-				return State.NumManifoldPoints++;
-			}
-
-			void SetManifoldPointsBuffer(FPBDCollisionSolverManifoldPoint* InManifoldPoints, const int32 InMaxManifoldPoints)
-			{
-				State.ManifoldPoints = InManifoldPoints;
-				State.MaxManifoldPoints = InMaxManifoldPoints;
-				State.NumManifoldPoints = 0;
+				if (State.NumManifoldPoints < State.MaxManifoldPoints)
+				{
+					return State.NumManifoldPoints++;
+				}
+				return INDEX_NONE;
 			}
 
 			const FPBDCollisionSolverManifoldPoint& GetManifoldPoint(const int32 ManifoldPointIndex) const
 			{
+				check(State.ManifoldPoints != nullptr);
 				check(ManifoldPointIndex < NumManifoldPoints());
+
 				return State.ManifoldPoints[ManifoldPointIndex];
 			}
 
@@ -918,6 +918,8 @@ namespace Chaos
 			const FSolverReal InWorldContactDeltaTangentV,
 			const FSolverReal InWorldContactVelocityTargetNormal)
 		{
+			check(State.ManifoldPoints != nullptr);
+			check(PointIndex < State.NumManifoldPoints);
 			FPBDCollisionSolverManifoldPoint& ManifoldPoint = State.ManifoldPoints[PointIndex];
 
 			ManifoldPoint.RelativeContactPoints[0] = InRelativeContactPosition0;
@@ -958,7 +960,6 @@ namespace Chaos
 		{
 			// Accumulate net pushout for friction limits below
 			bool bApplyFriction = false;
-			bool bApplyPointFriction[MaxPointsPerConstraint] = { false, };
 			FSolverReal NumFrictionContacts = FSolverReal(0);	// NOTE: deliberately not an int
 			FSolverReal TotalPushOutNormal = FSolverReal(0);
 
@@ -982,6 +983,7 @@ namespace Chaos
 
 				// Friction gets updated for any point with a net normal correction or where we have previously had a normal correction and 
 				// already applied friction (in which case we may need to zero it)
+				SolverManifoldPoint.bApplyFriction = false;
 				if (SolverManifoldPoint.NetPushOutNormal > 0)
 				{
 					TotalPushOutNormal += SolverManifoldPoint.NetPushOutNormal;
@@ -990,7 +992,7 @@ namespace Chaos
 				if ((SolverManifoldPoint.NetPushOutNormal > 0) || (SolverManifoldPoint.NetPushOutTangentU != 0) || (SolverManifoldPoint.NetPushOutTangentV != 0))
 				{
 					bApplyFriction = true;
-					bApplyPointFriction[PointIndex] = ((SolverManifoldPoint.NetPushOutNormal > 0) || (SolverManifoldPoint.NetPushOutTangentU != 0) || (SolverManifoldPoint.NetPushOutTangentV != 0));
+					SolverManifoldPoint.bApplyFriction = ((SolverManifoldPoint.NetPushOutNormal > 0) || (SolverManifoldPoint.NetPushOutTangentU != 0) || (SolverManifoldPoint.NetPushOutTangentV != 0));
 				}
 			}
 
@@ -1007,7 +1009,7 @@ namespace Chaos
 				for (int32 PointIndex = 0; PointIndex < NumManifoldPoints(); ++PointIndex)
 				{
 					FPBDCollisionSolverManifoldPoint& SolverManifoldPoint = State.ManifoldPoints[PointIndex];
-					if (bApplyPointFriction[PointIndex])
+					if (SolverManifoldPoint.bApplyFriction)
 					{
 						FSolverReal ContactDeltaTangentU, ContactDeltaTangentV;
 						CalculateContactPositionErrorTangential(SolverManifoldPoint, ContactDeltaTangentU, ContactDeltaTangentV);

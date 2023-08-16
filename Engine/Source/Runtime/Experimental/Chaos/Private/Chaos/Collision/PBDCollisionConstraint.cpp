@@ -635,14 +635,6 @@ namespace Chaos
 
 	void FPBDCollisionConstraint::AddIncrementalManifoldContact(const FContactPoint& ContactPoint)
 	{
-		if (ManifoldPoints.IsFull())
-		{
-			// @todo(chaos): we should remove a contact here if we try to add a new point
-			// For now just update the existing ones to select the deepest
-			UpdateManifoldContacts();
-			return;
-		}
-
 		if (Flags.bUseManifold)
 		{
 			// See if the manifold point already exists
@@ -1059,7 +1051,7 @@ namespace Chaos
 		return TNumericLimits<FReal>::Max();
 	}
 
-	int32 FPBDCollisionConstraint::FindSavedManifoldPoint(const int32 ManifoldPointIndex, TCArray<int32, MaxManifoldPoints>& InOutAllowedSavedPointIndices) const
+	int32 FPBDCollisionConstraint::FindSavedManifoldPoint(const int32 ManifoldPointIndex, int32* InOutAllowedSavedPointIndices, int32& InOutNumAllowedSavedPoints) const
 	{
 		int32 MatchIndex = INDEX_NONE;
 
@@ -1072,7 +1064,7 @@ namespace Chaos
 				const FReal DistanceToleranceSq = FMath::Square(Chaos_Manifold_FrictionPositionTolerance);
 				FReal BestScore = DistanceToleranceSq;
 
-				for (int32 AllowedPointIndex = 0; AllowedPointIndex < InOutAllowedSavedPointIndices.Num(); ++AllowedPointIndex)
+				for (int32 AllowedPointIndex = 0; AllowedPointIndex < InOutNumAllowedSavedPoints; ++AllowedPointIndex)
 				{
 					const int32 SavedPointIndex = InOutAllowedSavedPointIndices[AllowedPointIndex];
 					const FSavedManifoldPoint& SavedManifoldPoint = SavedManifoldPoints[SavedPointIndex];
@@ -1083,7 +1075,12 @@ namespace Chaos
 						BestScore = Score;
 						MatchIndex = SavedPointIndex;
 
-						InOutAllowedSavedPointIndices.RemoveAtSwap(AllowedPointIndex);
+						// RemoveAtSwap
+						--InOutNumAllowedSavedPoints;
+						if (AllowedPointIndex < InOutNumAllowedSavedPoints)
+						{
+							InOutAllowedSavedPointIndices[AllowedPointIndex] = InOutAllowedSavedPointIndices[InOutNumAllowedSavedPoints];
+						}
 
 						// Just take the first match we find that meets our tolerance
 						break;
@@ -1097,16 +1094,17 @@ namespace Chaos
 
 	void FPBDCollisionConstraint::AssignSavedManifoldPoints()
 	{
-		TCArray<int32, MaxManifoldPoints> AllowedPointIndices;
+		TManifoldPointArray<int32> AllowedPointIndices;
 		AllowedPointIndices.SetNum(SavedManifoldPoints.Num());
 		for (int32 PointIndex = 0, PointEndIndex = SavedManifoldPoints.Num(); PointIndex < PointEndIndex; ++PointIndex)
 		{
 			AllowedPointIndices[PointIndex] = PointIndex;
 		}
 
+		int32 NumAllowedPointIndices = AllowedPointIndices.Num();
 		for (int32 PointIndex = 0, PointEndIndex = ManifoldPoints.Num(); PointIndex < PointEndIndex; ++PointIndex)
 		{
-			const int32 SavedManifoldPointIndex = FindSavedManifoldPoint(PointIndex, AllowedPointIndices);
+			const int32 SavedManifoldPointIndex = FindSavedManifoldPoint(PointIndex, AllowedPointIndices.GetData(), NumAllowedPointIndices);
 
 			if (SavedManifoldPointIndex != INDEX_NONE)
 			{

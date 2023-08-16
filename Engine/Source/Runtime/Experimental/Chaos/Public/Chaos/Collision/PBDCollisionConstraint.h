@@ -206,8 +206,6 @@ namespace Chaos
 	public:
 		using FConstraintContainerHandle = TIntrusiveConstraintHandle<FPBDCollisionConstraint>;
 
-		static const int32 MaxManifoldPoints = 4;
-
 		static constexpr FRealSingle MaxTOI = std::numeric_limits<FRealSingle>::max();
 
 		/**
@@ -350,10 +348,23 @@ namespace Chaos
 		void ResetPhi(FReal InPhi) { ClosestManifoldPointIndex = INDEX_NONE; }
 		FReal GetPhi() const { return (ClosestManifoldPointIndex != INDEX_NONE) ? ManifoldPoints[ClosestManifoldPointIndex].ContactPoint.Phi : TNumericLimits<FReal>::Max(); }
 
+		// A tick reset called on all constraints that were Activated last tick
+		void BeginTick()
+		{
+			Flags.bDisabled = true;
+			if (!IsSleeping())
+			{
+				Flags.bIsCurrent = false;
+			}
+			ContainerCookie.ConstraintIndex = INDEX_NONE;
+			ContainerCookie.CCDConstraintIndex = INDEX_NONE;
+		}
+
 		// Was this constraint activated this frame? It will be activated if the shapes are within CullDistance of each other.
-		// NOTE: All Current constraints are in the ActiveConstraints list on the CollisionConstraintAllocator. This remains true 
-		// even if disabled by the user (via SetDisabled()) in a callback. We only care about "not current" constraints
+		// NOTE: All Awake Current constraints are in the ActiveConstraints list on the CollisionConstraintAllocator. This remains true 
+		// even if disabled by the user (via SetDisabled()) in a callback. We usually only care about "not current" constraints
 		// for debug visualization/reporting. Normally you would only need to consider GetDisabled()
+		// NOTE: sleeping constraints are also considered Current, but are not in the ActiveConstraints list
 		bool IsCurrent() const { return Flags.bIsCurrent; }
 
 		// Allow the user to disable this constraint. @see GetActive().
@@ -464,8 +475,8 @@ namespace Chaos
 		CHAOS_API void ResetManifold();
 
 		// @todo(chaos): remove array view and provide per-point accessor
-		TArrayView<FManifoldPoint> GetManifoldPoints() { return MakeArrayView(ManifoldPoints.begin(), ManifoldPoints.Num()); }
-		TArrayView<const FManifoldPoint> GetManifoldPoints() const { return MakeArrayView(ManifoldPoints.begin(), ManifoldPoints.Num()); }
+		TArrayView<FManifoldPoint> GetManifoldPoints() { return MakeArrayView(ManifoldPoints); }
+		TArrayView<const FManifoldPoint> GetManifoldPoints() const { return MakeArrayView(ManifoldPoints); }
 
 		int32 NumManifoldPoints() const { return ManifoldPoints.Num(); }
 		FManifoldPoint& GetManifoldPoint(const int32 PointIndex) { return ManifoldPoints[PointIndex]; }
@@ -518,7 +529,7 @@ namespace Chaos
 		// @todo(chaos): remove this and use SetOneShotManifoldContacts
 		inline void AddOneshotManifoldContact(const FContactPoint& ContactPoint)
 		{
-			if (ContactPoint.IsSet() && !ManifoldPoints.IsFull())
+			if (ContactPoint.IsSet())
 			{
 				int32 ManifoldPointIndex = AddManifoldPoint(ContactPoint);
 				if (ManifoldPoints[ManifoldPointIndex].ContactPoint.Phi < GetPhi())
@@ -539,7 +550,11 @@ namespace Chaos
 			ResetActiveManifoldContacts();
 
 			FReal MinPhi = TNumericLimits<FReal>::Max();
-			const int32 NumContacts = FMath::Min(ContactPoints.Num(), MaxManifoldPoints);
+			
+			const int32 NumContacts = ContactPoints.Num();
+			
+			ManifoldPoints.Reserve(NumContacts);
+
 			for (int32 ContactIndex = 0; ContactIndex < NumContacts; ++ContactIndex)
 			{
 				const FContactPoint& ContactPoint = ContactPoints[ContactIndex];
@@ -599,16 +614,6 @@ namespace Chaos
 		CHAOS_API void ResetActiveManifoldContacts();
 		CHAOS_API bool TryAddManifoldContact(const FContactPoint& ContactPoint);
 		CHAOS_API bool TryInsertManifoldContact(const FContactPoint& ContactPoint);
-
-		//@ todo(chaos): These are for the collision forwarding system - this should use the collision modifier system (which should be extended to support adding collisions)
-		void SetManifoldPoints(const TArray<FManifoldPoint>& InManifoldPoints)
-		{ 
-			ManifoldPoints.SetNum(FMath::Min(MaxManifoldPoints, InManifoldPoints.Num()));
-			for (int32 ManifoldPointIndex = 0; ManifoldPoints.Num(); ++ManifoldPointIndex)
-			{
-				ManifoldPoints[ManifoldPointIndex] = InManifoldPoints[ManifoldPointIndex];
-			}
-		}
 
 		// The GJK warm-start data. This is updated directly in the narrow phase
 		FGJKSimplexData& GetGJKWarmStartData() { return GJKWarmStartData; }
@@ -783,7 +788,7 @@ namespace Chaos
 		CHAOS_API bool AreMatchingContactPoints(const FContactPoint& A, const FContactPoint& B, FReal& OutScore) const;
 		CHAOS_API int32 FindManifoldPoint(const FContactPoint& ContactPoint) const;
 
-		CHAOS_API int32 FindSavedManifoldPoint(const int32 ManifoldPointIndex, TCArray<int32, MaxManifoldPoints>& InOutAllowedSavedPointIndices) const;
+		CHAOS_API int32 FindSavedManifoldPoint(const int32 ManifoldPointIndex, int32* InOutAllowedSavedPointIndices, int32& InOutNumAllowedSavedPoints) const;
 		CHAOS_API void AssignSavedManifoldPoints();
 
 		inline void InitManifoldPoint(const int32 ManifoldPointIndex, const FContactPoint& ContactPoint)
@@ -800,7 +805,7 @@ namespace Chaos
 
 		inline int32 AddManifoldPoint(const FContactPoint& ContactPoint)
 		{
-			int32 ManifoldPointIndex = ManifoldPoints.Add();	// Note: no initialization (see TCArray)
+			int32 ManifoldPointIndex = ManifoldPoints.AddUninitialized();	// Note: no initialization (see InitManifoldPoint)
 			InitManifoldPoint(ManifoldPointIndex, ContactPoint);
 			return ManifoldPointIndex;
 		}
@@ -891,9 +896,12 @@ namespace Chaos
 		Private::FImplicitBoundsTestFlags BoundsTestFlags;
 		EContactShapesType ShapesType;
 
-		TCArray<FSavedManifoldPoint, MaxManifoldPoints> SavedManifoldPoints;
-		TCArray<FManifoldPoint, MaxManifoldPoints> ManifoldPoints;
-		TCArray<FManifoldPointResult, MaxManifoldPoints> ManifoldPointResults;
+		template<typename T>
+		using TManifoldPointArray = TArray<T, TInlineAllocator<4>>;
+
+		TManifoldPointArray<FSavedManifoldPoint> SavedManifoldPoints;
+		TManifoldPointArray<FManifoldPoint> ManifoldPoints;
+		TManifoldPointArray<FManifoldPointResult> ManifoldPointResults;
 
 		// Value in range [0,1] used to interpolate P between [X,P] that we will rollback to when solving at time of impact.
 		FRealSingle CCDTimeOfImpact;

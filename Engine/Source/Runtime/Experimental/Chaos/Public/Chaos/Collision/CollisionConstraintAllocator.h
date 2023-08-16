@@ -603,9 +603,23 @@ namespace Chaos
 
 		if (!(VisitFlags & ECollisionVisitorFlags::VisitDisabled))
 		{
-			if (!Constraint->IsEnabled())
+			// Awkward. Sleeping constraints are considered "disabled" so if we want to
+			// visit sleeping constraints we must ignore the disabled state when asleep
+			if (!(VisitFlags & ECollisionVisitorFlags::VisitSleeping))
 			{
-				return false;
+				// We do NOT want to visit sleeping, so we can just check the enabled flag
+				if (!Constraint->IsEnabled())
+				{
+					return false;
+				}
+			}
+			else
+			{
+				// We do want to visit sleeping, so we only skip disabled-awake constraints
+				if (!Constraint->IsEnabled() && !Constraint->IsSleeping())
+				{
+					return false;
+				}
 			}
 		}
 
