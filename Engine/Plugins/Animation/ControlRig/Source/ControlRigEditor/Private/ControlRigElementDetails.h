@@ -781,4 +781,5 @@ protected:
 	UControlRigBlueprint* BlueprintBeingCustomized;
 	TSharedPtr<IPropertyHandle> StructPropertyHandle;
 	TSharedPtr<IPropertyUtilities> PropertyUtilities;
+	TAttribute<bool> EnabledAttribute;
 };
