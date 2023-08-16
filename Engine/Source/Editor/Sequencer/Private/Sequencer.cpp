@@ -4197,12 +4197,7 @@ void FSequencer::GetViewportSettings(TMap<FViewportClient*, EMovieSceneViewportP
 
 UMovieSceneEntitySystemLinker* FSequencer::ConstructEntitySystemLinker()
 {
-	UObject* Context = GetPlaybackContext();
-	if (!Context)
-	{
-		Context = GetTransientPackage();
-	}
-
+	UObject* Context = GetTransientPackage();
 	FName EntitySystemLinkerName = MakeUniqueObjectName(Context, UMovieSceneEntitySystemLinker::StaticClass(), TEXT("SequencerEntitySystemLinker"));
 	UMovieSceneEntitySystemLinker* EntitySystemLinker = NewObject<UMovieSceneEntitySystemLinker>(Context, EntitySystemLinkerName);
 	EntitySystemLinker->SetLinkerRole(UE::MovieScene::EEntitySystemLinkerRole::Standalone);
