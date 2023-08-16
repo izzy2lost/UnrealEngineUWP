@@ -13,7 +13,7 @@ public class NNEUtils : ModuleRules
 
 		PublicIncludePaths.AddRange(
 			new string[] {
-				Path.GetFullPath(Path.Combine(EngineDirectory, "Plugins/Experimental/NNE/Source/NNE/Private")),
+				Path.GetFullPath(Path.Combine(EngineDirectory, "Source/Runtime/NNE/Private")),
 			}
 		);
 
