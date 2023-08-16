@@ -16,6 +16,13 @@ namespace Chaos
 {
 	namespace
 	{
+		bool bChaosClusterUnionGenerateInterclusterEdges = true;
+		FAutoConsoleVariableRef CVarChaosClusterUnionGenerateInterclusterEdges(
+			TEXT("p.Chaos.ClusterUnion.GenerateInterclusterEdges"),
+			bChaosClusterUnionGenerateInterclusterEdges,
+			TEXT("Whether to generate intercluster edges automatically when adding to a cluster union (and remove them when removing from the cluster union).")
+		);
+
 		FRigidTransform3 GetParticleRigidFrameInClusterUnion(FPBDRigidParticleHandle* Child, const FRigidTransform3& ClusterWorldTM)
 		{
 			FRigidTransform3 Frame = FRigidTransform3::Identity;
@@ -138,20 +145,99 @@ namespace Chaos
 						}
 						if (bOverlap)
 						{
-							Clustering.CreateNodeConnection(Particle, ClusterUnion.ChildParticles[RootObjectIndex]);
+							FPBDRigidParticleHandle* OtherParticle = ClusterUnion.ChildParticles[RootObjectIndex];
+							Clustering.CreateNodeConnection(Particle, OtherParticle);
+
+							if (bChaosClusterUnionGenerateInterclusterEdges && Particle && OtherParticle)
+							{
+								// Only generate intercluster edges for main particles. Auxiliary particles that are just bits and pieces of geometry collections
+								// shouldn't also generate intercluster edges.
+								if (FClusterUnionParticleProperties* Properties = ClusterUnion.ChildProperties.Find(Particle); !Properties || !Properties->bIsAuxiliaryParticle)
+								{
+									const TArray<FPBDRigidParticleHandle*>& ParticleChildren = Clustering.GetChildrenMap().FindRef(Particle->CastToClustered());
+									const TArray<FPBDRigidParticleHandle*>& OtherChildren = Clustering.GetChildrenMap().FindRef(OtherParticle->CastToClustered());
+
+									TSet<FPBDRigidParticleHandle*> FromSet{ ParticleChildren };
+									TSet<FPBDRigidParticleHandle*> ToSet{ OtherChildren };
+
+									TArray<FPBDRigidParticleHandle*> AllParticles;
+									AllParticles.Reserve(FromSet.Num() + ToSet.Num());
+									AllParticles.Append(ParticleChildren);
+									AllParticles.Append(OtherChildren);
+
+									FClusterCreationParameters Parameters{ 0.3f, 100, false, false };
+									Parameters.ConnectionMethod = FClusterCreationParameters::EConnectionMethod::BoundsOverlapFilteredDelaunayTriangulation;
+									Parameters.ConnectionGraphBoundsFilteringMargin = 1.0;
+
+									Clustering.GenerateConnectionGraph(AllParticles, Parameters, &FromSet, &ToSet);
+								}
+							}
 						}
 					}
 				);
 			}
 		}
 
+		void RemoveClusterUnionEdges(FRigidClustering& Clustering, FPBDRigidParticleHandle* ParticleHandle)
+		{
+			if (!ParticleHandle)
+			{
+				return;
+			}
+
+			Clustering.RemoveNodeConnections(ParticleHandle);
+
+			if (bChaosClusterUnionGenerateInterclusterEdges)
+			{
+				if (FPBDRigidClusteredParticleHandle* ClusterParticle = ParticleHandle->CastToClustered())
+				{
+					if (TArray<FPBDRigidParticleHandle*>* AllChildren = Clustering.GetChildrenMap().Find(ClusterParticle))
+					{
+						for (FPBDRigidParticleHandle* Child : *AllChildren)
+						{
+							if (!Child)
+							{
+								continue;
+							}
+
+							if (FPBDRigidClusteredParticleHandle* ClusterChild = Child->CastToClustered())
+							{
+								Clustering.RemoveFilteredNodeConnections(
+									ClusterChild,
+								    [Child](const FConnectivityEdge& Edge)
+									{
+										return IsInterclusterEdge(*Child, Edge);
+									}
+								);
+							}
+						}
+					}
+				}
+			}
+		}
+
 		void GenerateConnectionGraph(FRigidClustering& Clustering, FClusterUnion& ClusterUnion)
 		{
-			Clustering.ClearConnectionGraph(ClusterUnion.InternalCluster);
 			for (FPBDRigidParticleHandle* ChildParticle : ClusterUnion.ChildParticles)
 			{
+				RemoveClusterUnionEdges(Clustering, ChildParticle);
 				AddParticleToConnectionGraph(Clustering, ClusterUnion, ChildParticle);
 			}
+		}
+
+		FPBDRigidClusteredParticleHandle* GetParentParticleInClusterUnion(const FClusterUnion& ClusterUnion, FPBDRigidClusteredParticleHandle* Particle)
+		{
+			if (!Particle)
+			{
+				return nullptr;
+			}
+
+			if (Particle->Parent() == ClusterUnion.InternalCluster)
+			{
+				return Particle;
+			}
+
+			return GetParentParticleInClusterUnion(ClusterUnion, Particle->Parent());
 		}
 	}
 
@@ -493,6 +579,8 @@ namespace Chaos
 				const FRigidTransform3 Frame = GetParticleRigidFrameInClusterUnion(Particle, ClusterWorldTM);
 				ClusterParticle->SetChildToParent(Frame);
 			}
+
+			MEvolution.GetParticles().MarkTransientDirtyParticle(Particle);
 		}
 
 		// For all the particles that have been added to the cluster we need to set their parent proxy to the
@@ -621,6 +709,8 @@ namespace Chaos
 				}
 
 				Cluster->PendingConnectivityOperations.Add({ Handle, EClusterUnionConnectivityOperation::Remove });
+
+				MEvolution.GetParticles().MarkTransientDirtyParticle(Handle);
 			}
 		}
 
@@ -722,14 +812,17 @@ namespace Chaos
 		UpdateShapesDatas(ClusterUnion.ChildParticles, ClusterUnion.InternalCluster->ShapesArray(),
 			ClusterUnion.ClusterUnionParameters.ActorId, ClusterUnion.ClusterUnionParameters.ComponentId, NumSimpleShapes);
 
-		if(EnumHasAnyFlags(Flags, EUpdateClusterUnionPropertiesFlags::ForceGenerateConnectionGraph))
+		if (ClusterUnion.bGenerateConnectivityEdges)
 		{
-			GenerateConnectionGraph(MClustering, ClusterUnion);
-			ClusterUnion.PendingConnectivityOperations.Empty();
-		}
-		else if (EnumHasAnyFlags(Flags, EUpdateClusterUnionPropertiesFlags::IncrementalGenerateConnectionGraph))
-		{
-			FlushIncrementalConnectivityGraphOperations(ClusterUnion);
+			if(EnumHasAnyFlags(Flags, EUpdateClusterUnionPropertiesFlags::ForceGenerateConnectionGraph))
+			{
+				GenerateConnectionGraph(MClustering, ClusterUnion);
+				ClusterUnion.PendingConnectivityOperations.Empty();
+			}
+			else if (EnumHasAnyFlags(Flags, EUpdateClusterUnionPropertiesFlags::IncrementalGenerateConnectionGraph))
+			{
+				FlushIncrementalConnectivityGraphOperations(ClusterUnion);
+			}
 		}
 
 		for (FPBDRigidClusteredParticleHandle* ChildParticle : PendingParticlesToUndoChildToParentLock)
@@ -755,7 +848,7 @@ namespace Chaos
 			}
 			else if (Op.Value == EClusterUnionConnectivityOperation::Remove)
 			{
-				MClustering.RemoveNodeConnections(Op.Key);
+				RemoveClusterUnionEdges(MClustering, Op.Key);
 			}
 		}
 
@@ -933,7 +1026,7 @@ namespace Chaos
 				return !Props->bIsAuxiliaryParticle;
 			}
 
-			return true;
+			return false;
 		};
 
 		if (FPBDRigidClusteredParticleHandle* ClusterParticle = Particle->CastToClustered())
@@ -945,9 +1038,10 @@ namespace Chaos
 
 			for (const FConnectivityEdge& Edge : ClusterParticle->ConnectivityEdges())
 			{
-				if (IsInterclusterEdge(*ClusterParticle, Edge))
+				if (Edge.Sibling && IsInterclusterEdge(*ClusterParticle, Edge))
 				{
-					if (Edge.Sibling && IsParticleMainParticle(Edge.Sibling->CastToClustered()))
+					// We don't want to check the sibling, we want to check the parent of the sibling that's actually in the cluster union
+					if (IsParticleMainParticle(GetParentParticleInClusterUnion(ClusterUnion, Edge.Sibling->CastToClustered())))
 					{
 						return true;
 					}

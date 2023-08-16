@@ -715,6 +715,10 @@ namespace Chaos
 		if (ensure(Child != nullptr && ClusteredParent != nullptr))
 		{
 			FPBDRigidClusteredParticleHandle* ClusteredChild = Child->CastToClustered();
+			if (!ClusteredChild || ClusteredChild->Parent() != ClusteredParent)
+			{
+				return;
+			}
 
 			MEvolution.EnableParticle(Child);
 			TopLevelClusterParents.Add(ClusteredChild);
@@ -1208,9 +1212,12 @@ namespace Chaos
 										{
 											if (FClusterUnion* ClusterUnion = ClusterUnionManager.FindClusterUnionFromParticle(GetActiveParentParticle(Edge.Sibling)))
 											{
-												AttachedClusterUnion = ClusterUnion;
+												if (ClusterUnion->bCheckConnectivity)
+												{
+													AttachedClusterUnion = ClusterUnion;
+													break;
+												}
 											}
-											break;
 										}
 									}
 								}
@@ -2748,19 +2755,7 @@ namespace Chaos
 		FPBDRigidClusteredParticleHandle* ClusteredChild)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_RemoveNodeConnections);
-		check(ClusteredChild);
-		TArray<TConnectivityEdge<FReal>>& Edges = ClusteredChild->ConnectivityEdges();
-		for (TConnectivityEdge<FReal>& Edge : Edges)
-		{
-			TArray<TConnectivityEdge<FReal>>& OtherEdges = Edge.Sibling->CastToClustered()->ConnectivityEdges();
-			const int32 Idx = OtherEdges.IndexOfByKey(ClusteredChild);
-			if (Idx != INDEX_NONE)
-				OtherEdges.RemoveAtSwap(Idx);
-			// Make sure there are no duplicates!
-			check(OtherEdges.IndexOfByKey(ClusteredChild) == INDEX_NONE);
-		}
-		Edges.SetNum(0);
+		RemoveFilteredNodeConnections(ClusteredChild, true);
 	}
-
 
 } // namespace Chaos

@@ -78,7 +78,16 @@ bool IsInterclusterEdge(const TPBDRigidParticleHandle<T, 3>& Particle, const TCo
 	{
 		return false;
 	}
-	return Particle.PhysicsProxy() != Edge.Sibling->PhysicsProxy();
+
+	const TPBDRigidClusteredParticleHandle<T, 3>* ClusterParticle = Particle.CastToClustered();
+	const TPBDRigidClusteredParticleHandle<T, 3>* SiblingParticle = Edge.Sibling->CastToClustered();
+
+	if (!ClusterParticle || !SiblingParticle)
+	{
+		return false;
+	}
+
+	return ClusterParticle->Parent() != SiblingParticle->Parent();
 }
 
 class FRigidClusteredFlags

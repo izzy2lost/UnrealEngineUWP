@@ -143,6 +143,7 @@ namespace Chaos
 			// be a result of physical simulation.
 			ClusterUnion->bNeedsXRInitialization = false;
 			ClusterUnion->bCheckConnectivity = InitData.bCheckConnectivity;
+			ClusterUnion->bGenerateConnectivityEdges = InitData.bGenerateConnectivityEdges;
 		}
 	}
 

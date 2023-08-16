@@ -407,6 +407,49 @@ public:
 	CHAOS_API void RemoveNodeConnections(FPBDRigidParticleHandle* Child);
 	CHAOS_API void RemoveNodeConnections(FPBDRigidClusteredParticleHandle* Child);
 
+	template<typename TFilter>
+	void RemoveFilteredNodeConnections(FPBDRigidClusteredParticleHandle* ClusteredChild, TFilter&& Filter)
+	{
+		check(ClusteredChild != nullptr);
+
+		constexpr bool bHasFilter = std::is_invocable_r_v < bool, TFilter, const TConnectivityEdge<FReal>&>;
+		TArray<TConnectivityEdge<FReal>>& Edges = ClusteredChild->ConnectivityEdges();
+		for (int32 EdgeIndex = Edges.Num() - 1; EdgeIndex >= 0; --EdgeIndex)
+		{
+			const TConnectivityEdge<FReal>& Edge = Edges[EdgeIndex];
+			FPBDRigidParticleHandle* Sibling = Edge.Sibling;
+			if constexpr (bHasFilter) 
+			{
+				if (!Filter(Edge))
+				{
+					continue;
+				}
+
+				Edges.RemoveAtSwap(EdgeIndex, 1, false);
+			}
+
+			check(Sibling != nullptr);
+			TArray<TConnectivityEdge<FReal>>& OtherEdges = Sibling->CastToClustered()->ConnectivityEdges();
+			const int32 Idx = OtherEdges.IndexOfByKey(ClusteredChild);
+			if (Idx != INDEX_NONE)
+			{
+				OtherEdges.RemoveAtSwap(Idx);
+			}
+
+			// Make sure there are no duplicates!
+			check(OtherEdges.IndexOfByKey(ClusteredChild) == INDEX_NONE);
+		}
+
+		if constexpr (!bHasFilter)
+		{
+			Edges.SetNum(0);
+		}
+		else
+		{
+			Edges.Shrink();
+		}
+	}
+
 	template<typename ParticleHandleTypeA, typename ParticleHandleTypeB>
 	void CreateNodeConnection(ParticleHandleTypeA* A, ParticleHandleTypeB* B)
 	{

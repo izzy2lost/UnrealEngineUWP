@@ -99,6 +99,9 @@ namespace Chaos
 		// Whether or not we need to check for connectivity for this cluster union.
 		bool bCheckConnectivity = false;
 
+		// Whether or not to generate connectivity edges (used to differentiate between server graphs vs client graphs).
+		bool bGenerateConnectivityEdges = true;
+
 		// Pending particles that need to be added into the connectivity graph.
 		TArray<TPair<FPBDRigidParticleHandle*, EClusterUnionConnectivityOperation>> PendingConnectivityOperations;
 	};

@@ -588,6 +588,7 @@ void UClusterUnionComponent::OnCreatePhysicsState()
 
 	// Only need to check connectivity on the server and have the client rely on replication to get the memo on when to release from cluster union.
 	InitData.bCheckConnectivity = bHasAuthority;
+	InitData.bGenerateConnectivityEdges = bHasAuthority;
 
 	PhysicsProxy = new Chaos::FClusterUnionPhysicsProxy{ this, Parameters, InitData };
 	PhysicsProxy->Initialize_External();

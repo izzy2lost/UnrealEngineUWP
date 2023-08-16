@@ -33,6 +33,7 @@ namespace Chaos
 		uint32 ComponentId = INDEX_NONE;
 		bool bCheckConnectivity = true;
 		bool bUnbreakable = false;
+		bool bGenerateConnectivityEdges = true;
 	};
 
 	/**
