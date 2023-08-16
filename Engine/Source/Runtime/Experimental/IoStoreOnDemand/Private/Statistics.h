@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "HAL/LowLevelMemTracker.h"
 #include "ProfilingDebugging/CountersTrace.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 
