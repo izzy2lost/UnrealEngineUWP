@@ -8,6 +8,7 @@
 #include "Async/ParallelFor.h"
 #include "RenderUtils.h"
 #include "Rendering/NaniteResources.h"
+#include "ShaderCompilerCore.h"
 #include "Stats/StatsTrace.h"
 #include "RHIGPUReadback.h"
 
