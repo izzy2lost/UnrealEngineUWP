@@ -172,6 +172,9 @@ class ULandscapeGrassType : public UObject
 	uint32 bEnableDensityScaling : 1;
 
 	UPROPERTY()
+	uint32 StateHash = 0;
+
+	UPROPERTY()
 	TObjectPtr<UStaticMesh> GrassMesh_DEPRECATED;
 	UPROPERTY()
 	float GrassDensity_DEPRECATED;
@@ -185,13 +188,15 @@ class ULandscapeGrassType : public UObject
 	bool RandomRotation_DEPRECATED;
 	UPROPERTY()
 	bool AlignToSurface_DEPRECATED;
-
+	
 	//~ Begin UObject Interface
 	virtual void PostLoad() override;
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 	//~ End UObject Interface
+
+	uint32 ComputeStateHash();
 };
 
 

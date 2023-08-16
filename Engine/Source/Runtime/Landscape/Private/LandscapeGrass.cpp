@@ -1574,9 +1574,6 @@ uint32 ULandscapeComponent::ComputeGrassMapGenerationHash() const
 		if (UMaterial* MaterialBase = Material->GetMaterial())
 		{
 			// If anything changes in the grass types, we should take that into account as well :
-			// TODO [jonathan.bard], todo(luc.eygasier): make this event-based... 
-			FArchiveCrc32 Ar(Hash);
-			
 			for (ULandscapeGrassType* GrassType : GrassTypes)
 			{
 				if (GrassType == nullptr)
@@ -1584,9 +1581,8 @@ uint32 ULandscapeComponent::ComputeGrassMapGenerationHash() const
 					continue;
 				}
 
-				GrassType->Serialize(Ar);
+				Hash = FCrc::TypeCrc32(GrassType->StateHash, Hash);
 			}
-			Hash = Ar.GetCrc();
 		}
 	}
 
@@ -2017,8 +2013,9 @@ void ULandscapeGrassType::PostLoad()
 		GrassVarieties.Add(Grass);
 		GrassMesh_DEPRECATED = nullptr;
 	}
-}
 
+	StateHash = ComputeStateHash();
+}
 
 #if WITH_EDITOR
 void ULandscapeGrassType::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
@@ -2054,8 +2051,21 @@ void ULandscapeGrassType::PostEditChangeProperty(FPropertyChangedEvent& Property
 			}
 		}
 	}
+
+	StateHash = ComputeStateHash();
 }
 #endif
+
+uint32 ULandscapeGrassType::ComputeStateHash()
+{
+	uint32 Hash = 0;
+
+	FArchiveCrc32 Ar;
+	Serialize(Ar);
+	Hash = Ar.GetCrc();
+
+	return Hash;
+}
 
 //
 // FLandscapeComponentGrassData
