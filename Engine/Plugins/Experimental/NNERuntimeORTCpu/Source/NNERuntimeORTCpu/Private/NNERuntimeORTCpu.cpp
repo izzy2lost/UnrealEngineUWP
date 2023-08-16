@@ -73,13 +73,13 @@ bool UNNERuntimeORTCpuImpl::CanCreateModelCPU(TObjectPtr<UNNEModelData> ModelDat
 	return bResult;
 }
 
-TUniquePtr<UE::NNE::IModelCPU> UNNERuntimeORTCpuImpl::CreateModel(TObjectPtr<UNNEModelData> ModelData)
+TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeORTCpuImpl::CreateModelCPU(TObjectPtr<UNNEModelData> ModelData)
 {
 	check(ModelData != nullptr);
 	
 	if (!CanCreateModelCPU(ModelData))
 	{
-		return TUniquePtr<UE::NNE::IModelCPU>();
+		return TSharedPtr<UE::NNE::IModelCPU>();
 	}
 
 	TConstArrayView<uint8> Data = ModelData->GetModelData(GetRuntimeName());
@@ -96,5 +96,5 @@ TUniquePtr<UE::NNE::IModelCPU> UNNERuntimeORTCpuImpl::CreateModel(TObjectPtr<UNN
 		FEngineAnalytics::GetProvider().RecordEvent(TEXT("NeuralNetworkEngine.CreateModel"), Attributes);
 	}
 
-	return TUniquePtr<UE::NNE::IModelCPU>(IModel);
+	return TSharedPtr<UE::NNE::IModelCPU>(IModel);
 }

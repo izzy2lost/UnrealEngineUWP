@@ -327,7 +327,7 @@ namespace UE::NNERuntimeORT::Private
 
 #if PLATFORM_WINDOWS
 
-	TUniquePtr<UE::NNE::IModelInstanceGPU> FModelORTDml::CreateModelInstance()
+	TSharedPtr<UE::NNE::IModelInstanceGPU> FModelORTDml::CreateModelInstanceGPU()
 	{
 		const FRuntimeConf InConf;
 		FModelInstanceORTDml* ModelInstance = new FModelInstanceORTDml(ORTEnvironment, InConf);
@@ -335,11 +335,11 @@ namespace UE::NNERuntimeORT::Private
 		if (!ModelInstance->Init(ModelData))
 		{
 			delete ModelInstance;
-			return TUniquePtr<UE::NNE::IModelInstanceGPU>();
+			return TSharedPtr<UE::NNE::IModelInstanceGPU>();
 		}
 
 		UE::NNE::IModelInstanceGPU* IModelInstance = static_cast<UE::NNE::IModelInstanceGPU*>(ModelInstance);
-		return TUniquePtr<UE::NNE::IModelInstanceGPU>(IModelInstance);
+		return TSharedPtr<UE::NNE::IModelInstanceGPU>(IModelInstance);
 	}
 
 	FModelORTDml::FModelORTDml(Ort::Env* InORTEnvironment, TConstArrayView<uint8> InModelData) :
@@ -349,7 +349,7 @@ namespace UE::NNERuntimeORT::Private
 
 	}
 
-	TUniquePtr<UE::NNE::IModelInstanceGPU> FModelORTCuda::CreateModelInstance()
+	TSharedPtr<UE::NNE::IModelInstanceGPU> FModelORTCuda::CreateModelInstanceGPU()
 	{
 		const FRuntimeConf InConf;
 		FModelInstanceORTCuda* ModelInstance = new FModelInstanceORTCuda(ORTEnvironment, InConf);
@@ -357,11 +357,11 @@ namespace UE::NNERuntimeORT::Private
 		if (!ModelInstance->Init(ModelData))
 		{
 			delete ModelInstance;
-			return TUniquePtr<UE::NNE::IModelInstanceGPU>();
+			return TSharedPtr<UE::NNE::IModelInstanceGPU>();
 		}
 
 		UE::NNE::IModelInstanceGPU* IModelInstance = static_cast<UE::NNE::IModelInstanceGPU*>(ModelInstance);
-		return TUniquePtr<UE::NNE::IModelInstanceGPU>(IModelInstance);
+		return TSharedPtr<UE::NNE::IModelInstanceGPU>(IModelInstance);
 	}
 
 	FModelORTCuda::FModelORTCuda(Ort::Env* InORTEnvironment, TConstArrayView<uint8> InModelData) :

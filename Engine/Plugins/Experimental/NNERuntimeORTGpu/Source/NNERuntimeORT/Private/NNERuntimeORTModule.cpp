@@ -43,6 +43,10 @@ namespace UE::NNERuntimeORT::Private::DllHelper
 
 void FNNERuntimeORTModule::StartupModule()
 {
+#ifdef WITH_EDITOR
+	FModuleManager::Get().LoadModule(TEXT("NNEEditor"));
+#endif
+
 #if PLATFORM_WINDOWS
 	const FString PluginDir = IPluginManager::Get().FindPlugin("NNERuntimeORTGpu")->GetBaseDir();
 	const FString OrtBinPath = FPaths::Combine(PluginDir, TEXT(PREPROCESSOR_TO_STRING(ONNXRUNTIME_PLATFORM_PATH)));

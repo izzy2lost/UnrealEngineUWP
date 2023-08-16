@@ -33,5 +33,10 @@ public class NNERuntimeORTCpu : ModuleRules
 				"NNEOnnxruntime"
 			}
 		);
+
+		if (Target.Type == TargetType.Editor)
+		{
+			PublicDependencyModuleNames.Add("NNEEditor");
+		}
 	}
 }

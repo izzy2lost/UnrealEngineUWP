@@ -9,6 +9,10 @@
 
 void FNNERuntimeRDGModule::StartupModule()
 {
+#ifdef WITH_EDITOR
+	FModuleManager::Get().LoadModule(TEXT("NNEEditor"));
+#endif
+
 	// NNE runtime ORT Cpu startup
 	NNERuntimeRDGHlsl = NewObject<UNNERuntimeRDGHlslImpl>();
 	if (NNERuntimeRDGHlsl.IsValid())

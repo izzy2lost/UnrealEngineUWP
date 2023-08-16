@@ -34,10 +34,6 @@
 	],
 	"Plugins": [
 		{
-			"Name": "NNE",
-			"Enabled": true
-		},
-		{
 			"Name": "NNERuntimeORTCpu",
 			"Enabled": true
 		}

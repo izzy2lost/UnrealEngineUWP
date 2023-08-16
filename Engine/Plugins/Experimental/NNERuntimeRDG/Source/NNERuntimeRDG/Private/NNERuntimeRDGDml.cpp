@@ -157,12 +157,12 @@ bool UNNERuntimeRDGDmlImpl::CanCreateModelRDG(TObjectPtr<UNNEModelData> ModelDat
 #endif
 };
 
-TUniquePtr<UE::NNE::IModelRDG> UNNERuntimeRDGDmlImpl::CreateModel(TObjectPtr<UNNEModelData> ModelData)
+TSharedPtr<UE::NNE::IModelRDG> UNNERuntimeRDGDmlImpl::CreateModelRDG(TObjectPtr<UNNEModelData> ModelData)
 {
 #ifdef NNE_USE_DIRECTML
 	if (!CanCreateModelRDG(ModelData))
 	{
-		return TUniquePtr<UE::NNE::IModelRDG>();
+		return TSharedPtr<UE::NNE::IModelRDG>();
 	}
 
 	TConstArrayView<uint8> Data = ModelData->GetModelData(GetRuntimeName());
@@ -178,9 +178,9 @@ TUniquePtr<UE::NNE::IModelRDG> UNNERuntimeRDGDmlImpl::CreateModel(TObjectPtr<UNN
 		FEngineAnalytics::GetProvider().RecordEvent(TEXT("NeuralNetworkEngine.CreateModel"), Attributes);
 	}
 
-	return TUniquePtr<UE::NNE::IModelRDG>(Model);
+	return TSharedPtr<UE::NNE::IModelRDG>(Model);
 #else
-	return TUniquePtr<UE::NNE::IModelRDG>();
+	return TSharedPtr<UE::NNE::IModelRDG>();
 #endif
 }
 

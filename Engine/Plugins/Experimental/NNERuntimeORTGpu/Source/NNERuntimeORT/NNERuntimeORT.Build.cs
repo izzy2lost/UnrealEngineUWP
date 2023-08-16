@@ -57,5 +57,10 @@ public class NNERuntimeORT : ModuleRules
 			AddEngineThirdPartyPrivateStaticDependencies(Target, "DirectML");
 
 		}
+
+		if (Target.Type == TargetType.Editor)
+		{
+			PublicDependencyModuleNames.Add("NNEEditor");
+		}
 	}
 }

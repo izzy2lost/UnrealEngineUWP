@@ -86,7 +86,7 @@ namespace UE::NNERuntimeORTCpu::Private
 		FModelCPU(Ort::Env* InORTEnvironment, TConstArrayView<uint8> ModelData);
 		virtual ~FModelCPU() {};
 
-		virtual TUniquePtr<UE::NNE::IModelInstanceCPU> CreateModelInstance() override;
+		virtual TSharedPtr<UE::NNE::IModelInstanceCPU> CreateModelInstanceCPU() override;
 
 	private:
 		Ort::Env* ORTEnvironment;

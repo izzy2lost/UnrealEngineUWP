@@ -107,7 +107,7 @@ namespace UE::NNERuntimeORT::Private
 		FModelORTDml(Ort::Env* InORTEnvironment, TConstArrayView<uint8> ModelData);
 		virtual ~FModelORTDml() {};
 
-		virtual TUniquePtr<UE::NNE::IModelInstanceGPU> CreateModelInstance() override;
+		virtual TSharedPtr<UE::NNE::IModelInstanceGPU> CreateModelInstanceGPU() override;
 
 	private:
 		Ort::Env* ORTEnvironment;
@@ -120,7 +120,7 @@ namespace UE::NNERuntimeORT::Private
 		FModelORTCuda(Ort::Env* InORTEnvironment, TConstArrayView<uint8> ModelData);
 		virtual ~FModelORTCuda() {};
 
-		virtual TUniquePtr<UE::NNE::IModelInstanceGPU> CreateModelInstance() override;
+		virtual TSharedPtr<UE::NNE::IModelInstanceGPU> CreateModelInstanceGPU() override;
 
 	private:
 		Ort::Env* ORTEnvironment;

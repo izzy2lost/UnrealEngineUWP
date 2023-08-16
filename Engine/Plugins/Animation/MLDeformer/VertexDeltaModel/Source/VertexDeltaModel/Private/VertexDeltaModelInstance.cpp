@@ -177,7 +177,7 @@ void UVertexDeltaModelInstance::CreateNNEModel()
 				if (RuntimeRDG.IsValid())
 				{
 					// allocate tensor inputs and outputs
-					ModelInstanceRDG = RuntimeRDG->CreateModel(ModelData)->CreateModelInstance();
+					ModelInstanceRDG = RuntimeRDG->CreateModelRDG(ModelData)->CreateModelInstanceRDG();
 
 					if (ModelInstanceRDG)
 					{

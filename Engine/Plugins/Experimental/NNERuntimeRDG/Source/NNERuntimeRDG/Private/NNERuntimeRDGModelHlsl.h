@@ -41,7 +41,7 @@ public:
 	FModel(TConstArrayView<uint8> ModelData);
 	virtual ~FModel() {};
 
-	virtual TUniquePtr<UE::NNE::IModelInstanceRDG> CreateModelInstance() override;
+	virtual TSharedPtr<UE::NNE::IModelInstanceRDG> CreateModelInstanceRDG() override;
 
 private:
 	TArray<uint8> ModelData;

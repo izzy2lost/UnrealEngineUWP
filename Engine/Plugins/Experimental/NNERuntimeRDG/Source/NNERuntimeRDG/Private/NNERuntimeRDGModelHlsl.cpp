@@ -364,18 +364,18 @@ bool FModelInstance::PrepareWeights()
 	return true;
 }
 
-TUniquePtr<UE::NNE::IModelInstanceRDG> FModel::CreateModelInstance()
+TSharedPtr<UE::NNE::IModelInstanceRDG> FModel::CreateModelInstanceRDG()
 {
 	FModelInstance* ModelInstance = new FModelInstance();
 
 	if (!ModelInstance->Init(ModelData))
 	{
 		delete ModelInstance;
-		return TUniquePtr<UE::NNE::IModelInstanceRDG>();
+		return TSharedPtr<UE::NNE::IModelInstanceRDG>();
 	}
 
 	UE::NNE::IModelInstanceRDG* IModelInstance = static_cast<UE::NNE::IModelInstanceRDG*>(ModelInstance);
-	return TUniquePtr<UE::NNE::IModelInstanceRDG>(IModelInstance);
+	return TSharedPtr<UE::NNE::IModelInstanceRDG>(IModelInstance);
 }
 
 FModel::FModel(TConstArrayView<uint8> InModelData) : ModelData(InModelData) {}

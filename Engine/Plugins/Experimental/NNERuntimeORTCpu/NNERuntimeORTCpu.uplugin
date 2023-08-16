@@ -49,11 +49,5 @@
 			"LoadingPhase": "Default",
 			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
 		}
-	],
-	"Plugins": [
-		{
-			"Name": "NNE",
-			"Enabled": true
-		}
 	]
 }

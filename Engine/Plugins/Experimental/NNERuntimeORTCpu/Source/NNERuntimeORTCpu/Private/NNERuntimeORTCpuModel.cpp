@@ -300,7 +300,7 @@ namespace UE::NNERuntimeORTCpu::Private
 		InputTransferStatisticsEstimator.ResetStats();
 	}
 
-	TUniquePtr<UE::NNE::IModelInstanceCPU> FModelCPU::CreateModelInstance()
+	TSharedPtr<UE::NNE::IModelInstanceCPU> FModelCPU::CreateModelInstanceCPU()
 	{
 		const UE::NNERuntimeORTCpu::Private::FRuntimeConf InConf;
 		UE::NNERuntimeORTCpu::Private::FModelInstanceCPU* ModelInstance = new UE::NNERuntimeORTCpu::Private::FModelInstanceCPU(ORTEnvironment, InConf);
@@ -308,11 +308,11 @@ namespace UE::NNERuntimeORTCpu::Private
 		if (!ModelInstance->Init(ModelData))
 		{
 			delete ModelInstance;
-			return TUniquePtr<UE::NNE::IModelInstanceCPU>();
+			return TSharedPtr<UE::NNE::IModelInstanceCPU>();
 		}
 
 		UE::NNE::IModelInstanceCPU* IModelInstance = static_cast<UE::NNE::IModelInstanceCPU*>(ModelInstance);
-		return TUniquePtr<UE::NNE::IModelInstanceCPU>(IModelInstance);
+		return TSharedPtr<UE::NNE::IModelInstanceCPU>(IModelInstance);
 	}
 
 	FModelCPU::FModelCPU(Ort::Env* InORTEnvironment, TConstArrayView<uint8> InModelData) :

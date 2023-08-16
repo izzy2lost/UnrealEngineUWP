@@ -7,6 +7,10 @@
 
 void FNNERuntimeORTCpuModule::StartupModule()
 {
+#ifdef WITH_EDITOR
+	FModuleManager::Get().LoadModule(TEXT("NNEEditor"));
+#endif
+
 	// NNE runtime startup
 	NNERuntimeORTCpu = NewObject<UNNERuntimeORTCpuImpl>();
 	if (NNERuntimeORTCpu.IsValid())
