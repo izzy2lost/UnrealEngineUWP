@@ -29,6 +29,7 @@ RWBuffer<uint> OutVisibilityMask;
 uint NumInstances;
 uint InstanceSceneDataSOAStride;
 int4 ViewRect;
+float OcclusionSlop;
 
 #define EInstanceVisibilityStatus uint // Not all platforms support native enums
 #define IVS_Hidden          0 // Instance is hidden or invalid, no occlusion query needed
@@ -60,7 +61,7 @@ EInstanceVisibilityStatus GetInstanceDataAndVisibility(uint InstanceId, out FIns
 	}
 
 	float3 BoxOrigin = InstanceData.LocalBoundsCenter;
-	float3 BoxExtent = InstanceData.LocalBoundsExtent;
+	float3 BoxExtent = InstanceData.LocalBoundsExtent + OcclusionSlop;
 
 	const bool bIsOrtho = IsOrthoProjection(ResolvedView.ViewToClip);
 
@@ -229,7 +230,7 @@ void MainVS(
 	else // Status == IVS_PossiblyVisible
 #endif // USE_COMPUTE_INSTANCE_CULLING_SETUP
 	{
-		float3 LocalPosition = (InPosition * InstanceData.LocalBoundsExtent * InstanceData.DeterminantSign) + InstanceData.LocalBoundsCenter;
+		float3 LocalPosition = (InPosition * (InstanceData.LocalBoundsExtent + OcclusionSlop) * InstanceData.DeterminantSign) + InstanceData.LocalBoundsCenter;
 		float4 WorldPosition = TransformLocalToTranslatedWorld(LocalPosition, InstanceData.LocalToWorld);
 		OutPosition = mul(WorldPosition, ResolvedView.TranslatedWorldToClip);
 	}
@@ -268,7 +269,7 @@ void DebugMainVS(
 	
 	if (InstanceData.ValidInstance && VisibilityStatus != IVS_Incompatible)
 	{
-		float3 LocalPosition = (InPosition * InstanceData.LocalBoundsExtent * InstanceData.DeterminantSign) + InstanceData.LocalBoundsCenter;
+		float3 LocalPosition = (InPosition * (InstanceData.LocalBoundsExtent + OcclusionSlop) * InstanceData.DeterminantSign) + InstanceData.LocalBoundsCenter;
 		float4 WorldPosition = TransformLocalToTranslatedWorld(LocalPosition, InstanceData.LocalToWorld);
 
 		OutPosition = mul(WorldPosition, ResolvedView.TranslatedWorldToClip);

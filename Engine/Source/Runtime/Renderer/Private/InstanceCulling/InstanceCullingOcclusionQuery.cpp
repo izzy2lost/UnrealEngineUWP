@@ -99,6 +99,7 @@ public:
 		SHADER_PARAMETER_SAMPLER(SamplerState, HZBSampler)
 		SHADER_PARAMETER(FVector2f, HZBSize)
 		SHADER_PARAMETER(FIntVector4, ViewRect)
+		SHADER_PARAMETER(float, OcclusionSlop)
 		SHADER_PARAMETER(int32, NumInstances)
 	END_SHADER_PARAMETER_STRUCT()
 };
@@ -135,6 +136,7 @@ public:
 		SHADER_PARAMETER_SAMPLER(SamplerState, HZBSampler)
 		SHADER_PARAMETER(FVector2f, HZBSize)
 		SHADER_PARAMETER(FIntVector4, ViewRect)
+		SHADER_PARAMETER(float, OcclusionSlop)
 	END_SHADER_PARAMETER_STRUCT()
 };
 
@@ -354,6 +356,7 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 		PassParameters->HZBSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 		PassParameters->HZBSize = FVector2f(HZBSize.X, HZBSize.Y);
 		PassParameters->ViewRect = FIntVector4(View.ViewRect.Min.X, View.ViewRect.Min.Y, View.ViewRect.Max.X, View.ViewRect.Max.Y);
+		PassParameters->OcclusionSlop = OCCLUSION_SLOP;
 		PassParameters->InstanceSceneDataSOAStride = GPUSceneParameters.InstanceDataSOAStride;
 		PassParameters->GPUSceneInstanceSceneData = GPUSceneParameters.GPUSceneInstanceSceneData;
 		PassParameters->GPUSceneInstancePayloadData = GPUSceneParameters.GPUSceneInstancePayloadData;
@@ -383,6 +386,7 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 		PassParameters->VS.HZBSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 		PassParameters->VS.HZBSize = FVector2f(HZBSize.X, HZBSize.Y);
 		PassParameters->VS.ViewRect = FIntVector4(View.ViewRect.Min.X, View.ViewRect.Min.Y, View.ViewRect.Max.X, View.ViewRect.Max.Y);
+		PassParameters->VS.OcclusionSlop = OCCLUSION_SLOP;
 		PassParameters->VS.InstanceSceneDataSOAStride = GPUSceneParameters.InstanceDataSOAStride;
 		PassParameters->VS.GPUSceneInstanceSceneData = GPUSceneParameters.GPUSceneInstanceSceneData;
 		PassParameters->VS.GPUSceneInstancePayloadData = GPUSceneParameters.GPUSceneInstancePayloadData;
@@ -494,6 +498,7 @@ public:
 		SHADER_PARAMETER_SAMPLER(SamplerState, HZBSampler)
 		SHADER_PARAMETER(FVector2f, HZBSize)
 		SHADER_PARAMETER(FIntVector4, ViewRect)
+		SHADER_PARAMETER(float, OcclusionSlop)
 	END_SHADER_PARAMETER_STRUCT()
 };
 
@@ -585,6 +590,7 @@ void FInstanceCullingOcclusionQueryRenderer::RenderDebug(FRDGBuilder& GraphBuild
 
 	FOcclusionInstanceCullingDebugParameters* PassParameters = GraphBuilder.AllocParameters<FOcclusionInstanceCullingDebugParameters>();
 
+	PassParameters->VS.OcclusionSlop = OCCLUSION_SLOP;
 	PassParameters->VS.ViewRect = FIntVector4(View.ViewRect.Min.X, View.ViewRect.Min.Y, View.ViewRect.Max.X, View.ViewRect.Max.Y);
 	PassParameters->VS.View = View.ViewUniformBuffer;
 	PassParameters->VS.InstanceSceneDataSOAStride = GPUSceneParameters.InstanceDataSOAStride;
