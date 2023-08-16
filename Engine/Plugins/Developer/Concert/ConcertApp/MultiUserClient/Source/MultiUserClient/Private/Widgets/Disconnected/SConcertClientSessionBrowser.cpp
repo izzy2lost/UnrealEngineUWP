@@ -45,7 +45,7 @@
 
 void SConcertClientSessionBrowser::Construct(const FArguments& InArgs, IConcertClientPtr InConcertClient, TSharedPtr<FText> InSearchText)
 {
-	if (!InConcertClient.IsValid())
+	if (!InConcertClient.IsValid() || IsEngineExitRequested())
 	{
 		return; // Don't build the UI if ConcertClient is not available.
 	}
