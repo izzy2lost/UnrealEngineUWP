@@ -108,8 +108,8 @@ struct FObservedComponent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Caching")
 	bool bPlaybackEnabled;
 
-	/** USD cache directory, if supported. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Caching")
+	/** USD cache directory, if supported for this simulated structure type. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Caching", meta=(ContentDir))
 	FDirectoryPath USDCacheDirectory;
 
 	/** 

@@ -19,6 +19,8 @@
 
 #endif // USE_USD_SDK && DO_USD_CACHING
 
+DEFINE_LOG_CATEGORY(LogChaosFleshCache)
+
 namespace Chaos
 {
 	FFleshCacheAdapterCVarParams CVarParams;
@@ -106,11 +108,18 @@ namespace Chaos
 						{
 							if (!UE::ChaosCachingUSD::WritePoints(MonolithStage, PrimPath, InTime, Points, Vels))
 							{
-								// TODO: Warn
+								UE_LOG(LogChaosFleshCache, Error,
+									TEXT("Failed to write points '%s' at time %g to file: '%s'"),
+									*PrimPath, InTime, *MonolithStage.GetRootLayer().GetDisplayName());
 								return;
 							}
 							// Save every n frames?
-							UE::ChaosCachingUSD::SaveStage(MonolithStage, MinTime, MaxTime);
+							if (!UE::ChaosCachingUSD::SaveStage(MonolithStage, MinTime, MaxTime))
+							{
+								UE_LOG(LogChaosFleshCache, Error,
+									TEXT("Failed to save file: '%s'"),
+									*MonolithStage.GetRootLayer().GetDisplayName());
+							}
 						}
 					}
 #else // USE_USD_SDK && DO_USD_CACHING
@@ -184,12 +193,20 @@ namespace Chaos
 						Prev != PrevV ||
 						Next != NextV)
 					{
+						UE_LOG(LogChaosFleshCache, Error,
+							TEXT("Inconsistent bracketing time samples for attributes '%s' and '%s' at frame %g from file: '%s'"),
+							*UE::ChaosCachingUSD::GetPointsAttrName(),
+							*UE::ChaosCachingUSD::GetVelocityAttrName(),
+							TargetTime, *MonolithStage.GetRootLayer().GetDisplayName());
 						return;
 					}
 
 					if (!UE::ChaosCachingUSD::ReadPoints(MonolithStage, PrimPath, Prev, Points0, Vels0) ||
 						Points0.size() != Vels0.size())
 					{
+						UE_LOG(LogChaosFleshCache, Error,
+							TEXT("Failed to read points '%s' at time %g from file: '%s'"),
+							*PrimPath, Prev, *MonolithStage.GetRootLayer().GetDisplayName());
 						return;
 					}
 
@@ -225,6 +242,9 @@ namespace Chaos
 						Points1.size() != Vels1.size() ||
 						Points0.size() != Points1.size())
 					{
+						UE_LOG(LogChaosFleshCache, Error,
+							TEXT("Failed to read points '%s' at time %g from file: '%s'"),
+							*PrimPath, Next, *MonolithStage.GetRootLayer().GetDisplayName());
 						return;
 					}
 					double Duration = Next - Prev;
@@ -370,6 +390,9 @@ namespace Chaos
 
 					if (!UE::ChaosCachingUSD::ReadPoints(MonolithStage, PrimPath, -TNumericLimits<double>::Max(), Points, Vels))
 					{
+						UE_LOG(LogChaosFleshCache, Error, 
+							TEXT("Failed to read points '%s' at time 'default' from file: '%s'"), 
+							*PrimPath, *MonolithStage.GetRootLayer().GetDisplayName());
 						return;
 					}
 
@@ -513,6 +536,7 @@ namespace Chaos
 				{
 					if (!PlatformFile.CreateDirectory(*CacheDir))
 					{
+						UE_LOG(LogChaosFleshCache, Error, TEXT("Failed to create output directory: '%s'"), *CacheDir);
 						return false;
 					}
 				}
@@ -521,6 +545,7 @@ namespace Chaos
 				const FFleshCollection* RestCollection = RestCollectionAsset ? RestCollectionAsset->GetCollection() : nullptr;
 				if (!RestCollection)
 				{
+					UE_LOG(LogChaosFleshCache, Error, TEXT("Failed to get rest collection from flesh component: '%s'"), *FleshComp->GetName());
 					return false;
 				}
 
@@ -546,6 +571,7 @@ namespace Chaos
 
 							if (!PlatformFile.MoveFile(*UniqueFilePath, *FilePath))
 							{
+								UE_LOG(LogChaosFleshCache, Error, TEXT("Failed to rename file from '%s' to '%s'."), *FilePath, *UniqueFilePath);
 								return false;
 							}
 						}
@@ -554,6 +580,7 @@ namespace Chaos
 					{
 						if (!PlatformFile.DeleteFile(*FilePath))
 						{
+							UE_LOG(LogChaosFleshCache, Error, TEXT("Failed to remove existing cache file: '%s'"), *FilePath);
 							return false;
 						}
 					}
@@ -564,10 +591,12 @@ namespace Chaos
 					}
 					if (!UE::ChaosCachingUSD::NewStage(FilePath, MonolithStage))
 					{
+						UE_LOG(LogChaosFleshCache, Error, TEXT("Failed to create new USD file: '%s'"), *FilePath);
 						return false;
 					}
 					if (!UE::ChaosCachingUSD::WriteTetMesh(MonolithStage, PrimPath, *RestCollection))
 					{
+						UE_LOG(LogChaosFleshCache, Error, TEXT("Failed to write tetrahedron mesh '%s' to USD file: '%s'"), *PrimPath, *FilePath);
 						return false;
 					}
 				}
@@ -616,15 +645,20 @@ namespace Chaos
 						}
 						if (!UE::ChaosCachingUSD::OpenStage(FilePath, MonolithStage))
 						{
+							UE_LOG(LogChaosFleshCache, Error, TEXT("Failed to open USD cache file: '%s'"), *FilePath);
 							return false;
 						}
 					}
 					else
 					{
+						UE_LOG(LogChaosFleshCache, Error, TEXT("USD cache file not found: '%s'"), *FilePath);
 						return false;
 					}
 				}
-
+				if (!bUseMonolith)
+				{
+					UE_LOG(LogChaosFleshCache, Warning, TEXT("No USD file structure selected (bMonolith)."));
+				}
 #endif // USE_USD_SDK && DO_USD_CACHING
 
 			}

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Modules/ModuleInterface.h"
+#include "ChaosCachingUSD/Module.h"
+
 #include "Modules/ModuleManager.h"
 #include "Interfaces/IPluginManager.h"
 #include "Misc/Paths.h"
@@ -8,14 +9,9 @@
 #include "UnrealUSDWrapper.h"
 #include "USDMemory.h"
 
+IMPLEMENT_MODULE_USD(FChaosCachingUSDModule, ChaosCachingUSD);
 
-class FChaosCachingUSDModule : public IModuleInterface
-{
-	//~ Begin IModuleInterface API
-	virtual void StartupModule() override;
-	//~ End IModuleInterface API
-
-};
+DEFINE_LOG_CATEGORY(LogChaosCacheUSD)
 
 void FChaosCachingUSDModule::StartupModule()
 {
@@ -34,6 +30,3 @@ void FChaosCachingUSDModule::StartupModule()
 	UnrealUSDWrapper::RegisterPlugins(ChaosCachingUSDResourcesDir);
 #endif // USE_USD_SDK
 }
-
-
-IMPLEMENT_MODULE_USD(FChaosCachingUSDModule, ChaosCachingUSD);

@@ -17,6 +17,8 @@
 
 #endif // USE_USD_SDK && DO_USD_CACHING
 
+DECLARE_LOG_CATEGORY_EXTERN(LogChaosFleshCache, Verbose, All);
+
 namespace Chaos::Softs
 {
 	class FDeformableSolver;
