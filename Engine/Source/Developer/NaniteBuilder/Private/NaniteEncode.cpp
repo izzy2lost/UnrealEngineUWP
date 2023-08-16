@@ -80,10 +80,8 @@ struct FPageGPUHeader
 
 struct FPageDiskHeader
 {
-	uint32 GpuSize;
 	uint32 NumClusters;
 	uint32 NumRawFloat4s;
-	uint32 NumTexCoords;
 	uint32 NumVertexRefs;
 	uint32 DecodeInfoOffset;
 	uint32 StripBitmaskOffset;
@@ -95,8 +93,9 @@ struct FClusterDiskHeader
 	uint32 IndexDataOffset;
 	uint32 PageClusterMapOffset;
 	uint32 VertexRefDataOffset;
-	uint32 PositionDataOffset;
-	uint32 AttributeDataOffset;
+	uint32 LowBytesOffset;
+	uint32 MidBytesOffset;
+	uint32 HighBytesOffset;
 	uint32 NumVertexRefs;
 	uint32 NumPrevRefVerticesBeforeDwords;
 	uint32 NumPrevNewVerticesBeforeDwords;
@@ -243,6 +242,16 @@ private:
 	uint64 			PendingBits;
 	int32 			NumPendingBits;
 };
+
+static uint32 EncodeZigZag(int32 X)
+{
+	return uint32((X << 1) ^ (X >> 31));
+}
+
+static int32 DecodeZigZag(uint32 X)
+{
+	return int32(X >> 1) ^ -int32(X & 1);
+}
 
 static void RemoveRootPagesFromRange(uint32& StartPage, uint32& NumPages, const uint32 NumResourceRootPages)
 {
@@ -1000,7 +1009,7 @@ static void CalculateEncodingInfo(FEncodingInfo& Info, const Nanite::FCluster& C
 	Info.TangentPrecision = TangentPrecision;
 
 	// Vertex colors
-	Info.ColorMode = NANITE_VERTEX_COLOR_MODE_WHITE;
+	Info.ColorMode = NANITE_VERTEX_COLOR_MODE_CONSTANT;
 	Info.ColorMin = FIntVector4(255, 255, 255, 255);
 	if (bHasColors)
 	{
@@ -1032,13 +1041,6 @@ static void CalculateEncodingInfo(FEncodingInfo& Info, const Nanite::FCluster& C
 		if (NumColorBits > 0)
 		{
 			Info.ColorMode = NANITE_VERTEX_COLOR_MODE_VARIABLE;
-		}
-		else 
-		{
-			if (ColorMin.X == 255 && ColorMin.Y == 255 && ColorMin.Z == 255 && ColorMin.W == 255)
-				Info.ColorMode = NANITE_VERTEX_COLOR_MODE_WHITE;
-			else
-				Info.ColorMode = NANITE_VERTEX_COLOR_MODE_CONSTANT;
 		}
 	}
 
@@ -1168,10 +1170,27 @@ struct FVertexMapEntry
 	uint32 VertexIndex;
 };
 
+static int32 ShortestWrap(int32 Value, uint32 NumBits)
+{
+	if (NumBits == 0)
+	{
+		check(Value == 0);
+		return 0;
+	}
+	const int32 Shift = 32 - NumBits;
+	const int32 NumValues = (1 << NumBits);
+	const int32 MinValue = -(NumValues >> 1);
+	const int32 MaxValue = (NumValues >> 1) - 1;
+
+	Value = (Value << Shift) >> Shift;
+	check(Value >= MinValue && Value <= MaxValue);
+	return Value;
+}
 static void EncodeGeometryData(	const uint32 LocalClusterIndex, const FCluster& Cluster, const FEncodingInfo& EncodingInfo, uint32 NumTexCoords,
 								TArray<uint32>& StripBitmask, TArray<uint8>& IndexData,
 								TArray<uint32>& PageClusterMapData,
-								TArray<uint32>& VertexRefBitmask, TArray<uint16>& VertexRefData, TArray<uint8>& PositionData, TArray<uint8>& AttributeData,
+								TArray<uint32>& VertexRefBitmask, TArray<uint16>& VertexRefData,
+								TArray<uint8>& LowByteStream, TArray<uint8>& MidByteStream, TArray<uint8>& HighByteStream,
 								const TArrayView<uint32> PageDependencies, const TArray<TMap<FVariableVertex, FVertexMapEntry>>& PageVertexMaps,
 								TMap<FVariableVertex, uint32>& UniqueVertices, uint32& NumCodedVertices, bool bHasTangents)
 {
@@ -1234,7 +1253,7 @@ static void EncodeGeometryData(	const uint32 LocalClusterIndex, const FCluster& 
 		}
 		else
 		{
-			uint32 Val = (LocalClusterIndex << NANITE_MAX_CLUSTER_VERTICES_BITS) | (uint32)UniqueToVertexIndex.Num();
+			uint32 Val = (LocalClusterIndex << NANITE_MAX_CLUSTER_VERTICES_BITS) | (uint32)VertexIndex;
 			UniqueVertices.Add(Vertex, Val);
 			UniqueToVertexIndex.Add(VertexIndex);
 		}
@@ -1263,11 +1282,14 @@ static void EncodeGeometryData(	const uint32 LocalClusterIndex, const FCluster& 
 	}
 
 	// Write vertex refs using Page-Cluster index + vertex index
+	uint32 PrevVertexIndex = 0;
 	for (const FVertexRef& Ref : VertexRefs)
 	{
 		uint32 PageClusterIndex = ClusterRefs.Find(FClusterRef{ Ref.PageIndex, Ref.LocalClusterIndex });
 		check(PageClusterIndex < 256);
-		VertexRefData.Add(uint16((PageClusterIndex << NANITE_MAX_CLUSTER_VERTICES_BITS) | Ref.VertexIndex));
+		const uint32 VertexIndexDelta = (Ref.VertexIndex - PrevVertexIndex) & 0xFF;
+		VertexRefData.Add(uint16((PageClusterIndex << NANITE_MAX_CLUSTER_VERTICES_BITS) | EncodeZigZag(ShortestWrap(VertexIndexDelta, 8))));
+		PrevVertexIndex = Ref.VertexIndex;
 	}
 #endif
 
@@ -1292,10 +1314,8 @@ static void EncodeGeometryData(	const uint32 LocalClusterIndex, const FCluster& 
 
 	check(NumClusterVerts > 0);
 
-	FBitWriter BitWriter_Position(PositionData);
-	FBitWriter BitWriter_Attribute(AttributeData);
-
 #if NANITE_USE_UNCOMPRESSED_VERTEX_DATA
+	FBitWriter BitWriter_Position(LowByteStream);
 	for (uint32 VertexIndex = 0; VertexIndex < NumClusterVerts; VertexIndex++)
 	{
 		const FVector3f& Position = Cluster.GetPosition(VertexIndex);
@@ -1305,6 +1325,7 @@ static void EncodeGeometryData(	const uint32 LocalClusterIndex, const FCluster& 
 	}
 	BitWriter_Position.Flush(sizeof(uint32));
 
+	FBitWriter BitWriter_Attribute(MidByteStream);
 	for (uint32 VertexIndex = 0; VertexIndex < NumClusterVerts; VertexIndex++)
 	{
 		// Normal
@@ -1379,29 +1400,87 @@ static void EncodeGeometryData(	const uint32 LocalClusterIndex, const FCluster& 
 		TexCoordBits[UVIndex] = TexCoordBitsU + TexCoordBitsV;
 	}
 
-	// Quantize and write positions
-	for (uint32 VertexIndex : UniqueToVertexIndex)
-	{
-		const FIntVector& Position = Cluster.QuantizedPositions[VertexIndex];
-		BitWriter_Position.PutBits(Position.X, Cluster.QuantizedPosBits.X);
-		BitWriter_Position.PutBits(Position.Y, Cluster.QuantizedPosBits.Y);
-		BitWriter_Position.PutBits(Position.Z, Cluster.QuantizedPosBits.Z);
-		BitWriter_Position.Flush(1);
-	}
-	BitWriter_Position.Flush(sizeof(uint32));
+	auto WriteZigZagDelta = [&LowByteStream, &MidByteStream, &HighByteStream](const int32 Delta, const uint32 NumBytes) {
+		const uint32 Value = EncodeZigZag(Delta);
+		checkSlow(DecodeZigZag(Value) == Delta);
+		
+		checkSlow(NumBytes <= 3);
+		checkSlow(Value < (1u << NumBytes));
 
-	// Quantize and write remaining shading attributes
-	uint32 PrevTangentBits = 0;
-	for (uint32 VertexIndex : UniqueToVertexIndex)
-	{
-		// Normal
-		const FVector3f TangentZ = Cluster.GetNormal(VertexIndex);
-		const uint32 PackedTangentZ = PackNormal(TangentZ, EncodingInfo.NormalPrecision);
-		BitWriter_Attribute.PutBits(PackedTangentZ, 2 * EncodingInfo.NormalPrecision);
-
-		// Tangent
-		if (bHasTangents)
+		if (NumBytes >= 3)
 		{
+			HighByteStream.Add((Value >> 16) & 0xFFu);
+		}
+
+		if (NumBytes >= 2)
+		{
+			MidByteStream.Add((Value >> 8) & 0xFFu);
+		}
+
+		if (NumBytes >= 1)
+		{
+			LowByteStream.Add(Value & 0xFFu);
+		}
+	};
+
+	const uint32 NumUniqueToVertices = UniqueToVertexIndex.Num();
+
+	const uint32 BytesPerPositionComponent = (FMath::Max3(Cluster.QuantizedPosBits.X, Cluster.QuantizedPosBits.Y, Cluster.QuantizedPosBits.Z) + 7) / 8;
+	const uint32 BytesPerNormalComponent = (EncodingInfo.NormalPrecision + 7) / 8;
+	const uint32 BytesPerTangentComponent = (EncodingInfo.TangentPrecision + 1 + 7) / 8;
+
+	FIntVector PrevPosition = FIntVector((1 << Cluster.QuantizedPosBits.X) >> 1, (1 << Cluster.QuantizedPosBits.Y) >> 1, (1 << Cluster.QuantizedPosBits.Z) >> 1);
+
+	// Position
+	for (uint32 LocalVertexIndex = 0; LocalVertexIndex < NumUniqueToVertices; LocalVertexIndex++)
+	{
+		const uint32 VertexIndex = UniqueToVertexIndex[LocalVertexIndex];
+
+		const FIntVector& Position = Cluster.QuantizedPositions[VertexIndex];
+		FIntVector PositionDelta = Position - PrevPosition;
+
+		PositionDelta.X = ShortestWrap(PositionDelta.X, Cluster.QuantizedPosBits.X);
+		PositionDelta.Y = ShortestWrap(PositionDelta.Y, Cluster.QuantizedPosBits.Y);
+		PositionDelta.Z = ShortestWrap(PositionDelta.Z, Cluster.QuantizedPosBits.Z);
+
+		WriteZigZagDelta(PositionDelta.X, BytesPerPositionComponent);
+		WriteZigZagDelta(PositionDelta.Y, BytesPerPositionComponent);
+		WriteZigZagDelta(PositionDelta.Z, BytesPerPositionComponent);
+		PrevPosition = Position;
+	}
+
+	FIntPoint PrevNormal = FIntPoint::ZeroValue;
+
+	uint32 PackedNormals[NANITE_MAX_CLUSTER_VERTICES];
+
+	// Normal
+	for (uint32 LocalVertexIndex = 0; LocalVertexIndex < NumUniqueToVertices; LocalVertexIndex++)
+	{
+		const uint32 VertexIndex = UniqueToVertexIndex[LocalVertexIndex];
+
+		const uint32 PackedNormal = PackNormal(Cluster.GetNormal(VertexIndex), EncodingInfo.NormalPrecision);
+		const FIntPoint Normal = FIntPoint(PackedNormal & ((1u << EncodingInfo.NormalPrecision) - 1u), PackedNormal >> EncodingInfo.NormalPrecision);
+		PackedNormals[LocalVertexIndex] = PackedNormal;
+			
+		FIntPoint NormalDelta = Normal - PrevNormal;
+		NormalDelta.X = ShortestWrap(NormalDelta.X, EncodingInfo.NormalPrecision);
+		NormalDelta.Y = ShortestWrap(NormalDelta.Y, EncodingInfo.NormalPrecision);
+		PrevNormal = Normal;
+
+		WriteZigZagDelta(NormalDelta.X, BytesPerNormalComponent);
+		WriteZigZagDelta(NormalDelta.Y, BytesPerNormalComponent);
+	}
+
+
+	// Tangent
+	if (bHasTangents)
+	{
+		uint32 PrevTangentBits = 0u;
+		for (uint32 LocalVertexIndex = 0; LocalVertexIndex < NumUniqueToVertices; LocalVertexIndex++)
+		{
+			const uint32 VertexIndex = UniqueToVertexIndex[LocalVertexIndex];
+			const uint32 PackedTangentZ = PackedNormals[LocalVertexIndex];
+
 			FVector3f TangentX = Cluster.GetTangentX(VertexIndex);
 			const FVector3f UnpackedTangentZ = UnpackNormal(PackedTangentZ, EncodingInfo.NormalPrecision);
 			checkSlow(UnpackedTangentZ.IsNormalized());
@@ -1419,34 +1498,63 @@ static void EncodeGeometryData(	const uint32 LocalClusterIndex, const FCluster& 
 				}
 			}
 			
-			BitWriter_Attribute.PutBits(TangentBits, 1 + EncodingInfo.TangentPrecision);
+			const uint32 TangentDelta = ShortestWrap(TangentBits - PrevTangentBits, EncodingInfo.TangentPrecision + 1);
+			WriteZigZagDelta(TangentDelta, BytesPerTangentComponent);
+				
 			PrevTangentBits = TangentBits;
 		}
-
-		// Color
-		if(EncodingInfo.ColorMode == NANITE_VERTEX_COLOR_MODE_VARIABLE)
-		{
-			FColor Color = Cluster.GetColor(VertexIndex).ToFColor(false);
-
-			int32 R = Color.R - EncodingInfo.ColorMin.X;
-			int32 G = Color.G - EncodingInfo.ColorMin.Y;
-			int32 B = Color.B - EncodingInfo.ColorMin.Z;
-			int32 A = Color.A - EncodingInfo.ColorMin.W;
-			BitWriter_Attribute.PutBits(R, EncodingInfo.ColorBits.X);
-			BitWriter_Attribute.PutBits(G, EncodingInfo.ColorBits.Y);
-			BitWriter_Attribute.PutBits(B, EncodingInfo.ColorBits.Z);
-			BitWriter_Attribute.PutBits(A, EncodingInfo.ColorBits.W);
-		}
-		
-		// UVs
-		for (uint32 TexCoordIndex = 0; TexCoordIndex < NumTexCoords; TexCoordIndex++)
-		{
-			uint32 PackedUV = PackedUVs[ NumClusterVerts * TexCoordIndex + VertexIndex ];
-			BitWriter_Attribute.PutBits(PackedUV, TexCoordBits[TexCoordIndex]);
-		}
-		BitWriter_Attribute.Flush(1);
 	}
-	BitWriter_Attribute.Flush(sizeof(uint32));
+
+	// Color
+	if (EncodingInfo.ColorMode == NANITE_VERTEX_COLOR_MODE_VARIABLE)
+	{
+		FIntVector4 PrevColor = FIntVector4(0);
+		for (uint32 LocalVertexIndex = 0; LocalVertexIndex < NumUniqueToVertices; LocalVertexIndex++)
+		{
+			const uint32 VertexIndex = UniqueToVertexIndex[LocalVertexIndex];
+			const FColor Color = Cluster.GetColor(VertexIndex).ToFColor(false);
+			const FIntVector4 ColorValue = FIntVector4(Color.R, Color.G, Color.B, Color.A) - EncodingInfo.ColorMin;
+			FIntVector4 ColorDelta = ColorValue - PrevColor;
+
+			ColorDelta.X = ShortestWrap(ColorDelta.X, EncodingInfo.ColorBits.X);
+			ColorDelta.Y = ShortestWrap(ColorDelta.Y, EncodingInfo.ColorBits.Y);
+			ColorDelta.Z = ShortestWrap(ColorDelta.Z, EncodingInfo.ColorBits.Z);
+			ColorDelta.W = ShortestWrap(ColorDelta.W, EncodingInfo.ColorBits.W);
+
+			WriteZigZagDelta(ColorDelta.X, 1);
+			WriteZigZagDelta(ColorDelta.Y, 1);
+			WriteZigZagDelta(ColorDelta.Z, 1);
+			WriteZigZagDelta(ColorDelta.W, 1);
+
+			PrevColor = ColorValue;
+		}
+	}
+		
+	// UV
+	for (uint32 TexCoordIndex = 0; TexCoordIndex < NumTexCoords; TexCoordIndex++)
+	{
+		const int32 TexCoordBitsU = (EncodingInfo.UVPrec >> (TexCoordIndex * 8 + 0)) & 15;
+		const int32 TexCoordBitsV = (EncodingInfo.UVPrec >> (TexCoordIndex * 8 + 4)) & 15;
+		const uint32 BytesPerTexCoordComponent = (FMath::Max(TexCoordBitsU, TexCoordBitsV) + 7) / 8;
+			
+		FIntPoint PrevUV = FIntPoint::ZeroValue;
+		for (uint32 LocalVertexIndex = 0; LocalVertexIndex < NumUniqueToVertices; LocalVertexIndex++)
+		{
+			const uint32 VertexIndex = UniqueToVertexIndex[LocalVertexIndex];
+
+			const uint32 PackedUV = PackedUVs[NumClusterVerts * TexCoordIndex + VertexIndex];
+			const FIntPoint UV = FIntPoint(PackedUV & ((1u << TexCoordBitsU) - 1), PackedUV >> TexCoordBitsU);
+
+			FIntPoint UVDelta = UV - PrevUV;
+			UVDelta.X = ShortestWrap(UVDelta.X, TexCoordBitsU);
+			UVDelta.Y = ShortestWrap(UVDelta.Y, TexCoordBitsV);
+			WriteZigZagDelta(UVDelta.X, BytesPerTexCoordComponent);
+			WriteZigZagDelta(UVDelta.Y, BytesPerTexCoordComponent);
+			PrevUV = UV;
+		}
+	}
+
+
 #endif
 }
 
@@ -1958,18 +2066,29 @@ static void WritePages(	FResources& Resources,
 		TArray<uint32>				CombinedVertexRefBitmaskData;
 		TArray<uint16>				CombinedVertexRefData;
 		TArray<uint8>				CombinedIndexData;
-		TArray<uint8>				CombinedPositionData;
 		TArray<uint8>				CombinedAttributeData;
 		TArray<uint32>				MaterialRangeData;
 		TArray<uint32>				VertReuseBatchInfo;
 		TArray<uint16>				CodedVerticesPerCluster;
-		TArray<uint32>				NumPositionBytesPerCluster;
 		TArray<uint32>				NumPageClusterPairsPerCluster;
 		TArray<FPackedCluster>		PackedClusters;
 
+		TArray<uint8>				LowByteStream;
+		TArray<uint8>				MidByteStream;
+		TArray<uint8>				HighByteStream;
+
+		struct FByteStreamCounters
+		{
+			uint32 Low = 0;
+			uint32 Mid = 0;
+			uint32 High = 0;
+		};
+
+		TArray<FByteStreamCounters> ByteStreamCounters;
+		ByteStreamCounters.SetNumUninitialized(Page.NumClusters);
+
 		PackedClusters.SetNumUninitialized(Page.NumClusters);
 		CodedVerticesPerCluster.SetNumUninitialized(Page.NumClusters);
-		NumPositionBytesPerCluster.SetNumUninitialized(Page.NumClusters);
 		NumPageClusterPairsPerCluster.SetNumUninitialized(Page.NumClusters);
 		
 		const uint32 NumPackedClusterDwords = Page.NumClusters * sizeof(FPackedCluster) / sizeof(uint32);
@@ -2009,19 +2128,26 @@ static void WritePages(	FResources& Resources,
 				
 				GpuSectionOffsets += EncodingInfo.GpuSizes;
 
+				const uint32 PrevLow = LowByteStream.Num();
+				const uint32 PrevMid = MidByteStream.Num();
+				const uint32 PrevHigh = HighByteStream.Num();
+
 				const FPageStreamingState& PageStreamingState = Resources.PageStreamingStates[PageIndex];
 				const uint32 DependenciesNum = (PageStreamingState.Flags & NANITE_PAGE_FLAG_RELATIVE_ENCODING) ? PageStreamingState.DependenciesNum : 0u;
 				const TArrayView<uint32> PageDependencies = TArrayView<uint32>(Resources.PageDependencies.GetData() + PageStreamingState.DependenciesStart, DependenciesNum);
-				const uint32 PrevPositionBytes = CombinedPositionData.Num();
 				const uint32 PrevPageClusterPairs = CombinedPageClusterPairData.Num();
 				uint32 NumCodedVertices = 0;
 				EncodeGeometryData(	LocalClusterIndex, Cluster, EncodingInfo, NumTexCoords, 
 									CombinedStripBitmaskData, CombinedIndexData,
-									CombinedPageClusterPairData, CombinedVertexRefBitmaskData, CombinedVertexRefData, CombinedPositionData, CombinedAttributeData,
+									CombinedPageClusterPairData, CombinedVertexRefBitmaskData, CombinedVertexRefData,
+									LowByteStream, MidByteStream, HighByteStream,
 									PageDependencies, PageVertexMaps,
 									UniqueVertices, NumCodedVertices, bHasTangents);
 
-				NumPositionBytesPerCluster[LocalClusterIndex] = CombinedPositionData.Num() - PrevPositionBytes;
+				ByteStreamCounters[LocalClusterIndex].Low	= LowByteStream.Num() - PrevLow;
+				ByteStreamCounters[LocalClusterIndex].Mid	= MidByteStream.Num() - PrevMid;
+				ByteStreamCounters[LocalClusterIndex].High	= HighByteStream.Num() - PrevHigh;
+
 				NumPageClusterPairsPerCluster[LocalClusterIndex] = CombinedPageClusterPairData.Num() - PrevPageClusterPairs;
 				CodedVerticesPerCluster[LocalClusterIndex] = uint16(NumCodedVertices);
 			}
@@ -2263,45 +2389,39 @@ static void WritePages(	FResources& Resources,
 				VertexRefs[i + CombinedVertexRefData.Num()] = CombinedVertexRefData[i] & 0xFF;
 			}
 		}
-
-		// Write Positions
+		
+		// Write low/mid/high byte streams
 		{
 			const uint32 StartOffset = PageWriter.Offset();
-			uint32 NextOffset = StartOffset;
+			uint32 NextLowOffset = StartOffset;
+			uint32 NextMidOffset = NextLowOffset + LowByteStream.Num();
+			uint32 NextHighOffset = NextMidOffset + MidByteStream.Num();
 			for (uint32 i = 0; i < Page.NumClusters; i++)
 			{
-				ClusterDiskHeaders[i].PositionDataOffset = NextOffset;
-				NextOffset += NumPositionBytesPerCluster[i];
+				ClusterDiskHeaders[i].LowBytesOffset = NextLowOffset;
+				ClusterDiskHeaders[i].MidBytesOffset = NextMidOffset;
+				ClusterDiskHeaders[i].HighBytesOffset = NextHighOffset;
+				NextLowOffset += ByteStreamCounters[i].Low;
+				NextMidOffset += ByteStreamCounters[i].Mid;
+				NextHighOffset += ByteStreamCounters[i].High;
 			}
-			const uint32 Size = NextOffset - StartOffset;
-			check(Size == CombinedPositionData.Num() * CombinedPositionData.GetTypeSize());
-			uint8* PositionData = PageWriter.Append_Ptr<uint8>(Size);
-			FMemory::Memcpy(PositionData, CombinedPositionData.GetData(), CombinedPositionData.Num() * CombinedPositionData.GetTypeSize());
-		}
 
-		// Write Attributes
-		{
-			const uint32 StartOffset = PageWriter.Offset();
-			uint32 NextOffset = StartOffset;
-			for (uint32 i = 0; i < Page.NumClusters; i++)
-			{
-				const uint32 BytesPerAttribute = (PackedClusters[i].GetBitsPerAttribute() + 7) / 8;
-				ClusterDiskHeaders[i].AttributeDataOffset = NextOffset;
-				NextOffset += Align(CodedVerticesPerCluster[i] * BytesPerAttribute, 4);
-			}
-			const uint32 Size = NextOffset - StartOffset;
-			check(Size == CombinedAttributeData.Num() * CombinedAttributeData.GetTypeSize());
-			uint8* AttribData = PageWriter.Append_Ptr<uint8>(Size);
-			FMemory::Memcpy(AttribData, CombinedAttributeData.GetData(), CombinedAttributeData.Num()* CombinedAttributeData.GetTypeSize());
+			const uint32 Size = NextHighOffset - StartOffset;
+			check(Size == LowByteStream.Num() + MidByteStream.Num() + HighByteStream.Num());
+
+			uint8* Ptr = PageWriter.Append_Ptr<uint8>(Size);
+			FMemory::Memcpy(Ptr, LowByteStream.GetData(), LowByteStream.Num());
+			Ptr += LowByteStream.Num();
+			FMemory::Memcpy(Ptr, MidByteStream.GetData(), MidByteStream.Num());
+			Ptr += MidByteStream.Num();
+			FMemory::Memcpy(Ptr, HighByteStream.GetData(), HighByteStream.Num());
 		}
 
 		// Write page header
 		{
 			FPageDiskHeader PageDiskHeader;
 			PageDiskHeader.NumClusters = Page.NumClusters;
-			PageDiskHeader.GpuSize = Page.GpuSizes.GetTotal();
 			PageDiskHeader.NumRawFloat4s = sizeof(FPageGPUHeader) / 16 + Page.NumClusters * (sizeof(FPackedCluster) + NumTexCoords * sizeof(FUVRange)) / 16 + MaterialRangeData.Num() / 4 + VertReuseBatchInfo.Num() / 4;
-			PageDiskHeader.NumTexCoords = NumTexCoords;
 			PageDiskHeader.NumVertexRefs = CombinedVertexRefData.Num();
 			PageDiskHeader.DecodeInfoOffset = DecodeInfoOffset;
 			PageDiskHeader.StripBitmaskOffset = StripBitmaskOffset;
@@ -2311,6 +2431,8 @@ static void WritePages(	FResources& Resources,
 
 		// Write cluster headers
 		FMemory::Memcpy(PageResult.GetData() + ClusterDiskHeadersOffset, ClusterDiskHeaders.GetData(), ClusterDiskHeaders.Num()* ClusterDiskHeaders.GetTypeSize());
+
+		PageWriter.Align(sizeof(uint32));
 #if 0
 		FILE* File = nullptr;
 		char Filename[128];

@@ -380,7 +380,7 @@ FCluster UnpackCluster(uint4 ClusterData[NANITE_NUM_PACKED_CLUSTER_FLOAT4S])
 	Cluster.DecodeInfoOffset	= BitFieldExtractU32(ClusterData[5].y, 22,  0);
 	Cluster.bHasTangents		= BitFieldExtractU32(ClusterData[5].y,  1, 22);
 	Cluster.NumUVs				= BitFieldExtractU32(ClusterData[5].y,  3, 23);
-	Cluster.ColorMode			= BitFieldExtractU32(ClusterData[5].y,  2, 26);
+	Cluster.ColorMode			= BitFieldExtractU32(ClusterData[5].y,  1, 26);
 	Cluster.UV_Prec				= ClusterData[5].z;
 	const uint MaterialEncoding = ClusterData[5].w;
 
