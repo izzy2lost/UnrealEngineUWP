@@ -260,11 +260,6 @@ UPackage* UObjectBase::GetExternalPackage() const
 	if ((GetFlags() & RF_HasExternalPackage) != 0)
 	{
 		ExternalPackage = GetObjectExternalPackageThreadSafe(this);
-		// if the flag is set there should be an override set.
-		if (!ExternalPackage)
-		{
-			UE_LOG(LogUObjectBase, Warning, TEXT("Object %s ExternalPackage is invalid: RF_ExternalPackage is set, but ExternalPackage is nullptr."), *static_cast<const UObjectBaseUtility*>(this)->GetPathName());
-		}
 	}
 	return ExternalPackage;
 }
@@ -291,11 +286,9 @@ void UObjectBase::SetExternalPackage(UPackage* InPackage)
 	if (InPackage)
 	{
 		HashObjectExternalPackage(this, InPackage);
-		AtomicallySetFlags(RF_HasExternalPackage);
 	}
 	else
 	{
-		AtomicallyClearFlags(RF_HasExternalPackage);
 		UnhashObjectExternalPackage(this);
 	}
 }
