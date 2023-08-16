@@ -265,7 +265,7 @@ void FDistributionEndpoints::IssueEndpointRequests()
 				[this, &ResolveRequest, MaxAttempts]
 				(FHttpRequestPtr, FHttpResponsePtr Response, bool bOk)
 				{
-					LLM_SCOPE(ELLMTag::FileSystem);
+					LLM_SCOPE_BYTAG(Ias);
 					FHttpRequestPtr Request = MoveTemp(ResolveRequest.HttpRequest);
 					if (Response->GetResponseCode() != 200)
 					{
@@ -706,7 +706,7 @@ void FOnDemandIoStore::AddDeferredContainers()
 
 void FOnDemandIoStore::OnEncryptionKeyAdded(const FGuid& Id, const FAES::FAESKey& Key)
 {
-	LLM_SCOPE(ELLMTag::FileSystem);
+	LLM_SCOPE_BYTAG(Ias);
 	TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::OnEncryptionKeyAdded);
 	AddDeferredContainers();
 }
@@ -1246,7 +1246,7 @@ FOnDemandIoBackend::~FOnDemandIoBackend()
 void FOnDemandIoBackend::Initialize(TSharedRef<const FIoDispatcherBackendContext> Context)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::Initialize);
-	LLM_SCOPE(ELLMTag::FileSystem);
+	LLM_SCOPE_BYTAG(Ias);
 	UE_LOG(LogIas, Log, TEXT("Initializing on demand I/O dispatcher backend"));
 	BackendContext = Context;
 	DistributionEndpoints.ResolveDeferredEndpoints();
@@ -1269,7 +1269,7 @@ void FOnDemandIoBackend::Shutdown()
 
 void FOnDemandIoBackend::CompleteRequest(FChunkRequest* ChunkRequest)
 {
-	LLM_SCOPE(ELLMTag::FileSystem);
+	LLM_SCOPE_BYTAG(Ias);
 	TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::CompleteRequest);
 	check(ChunkRequest != nullptr);
 	const bool bCancelled = ChunkRequest->CancellationToken.IsCancelled();
@@ -1385,7 +1385,7 @@ bool FOnDemandIoBackend::Resolve(FIoRequestImpl* Request)
 	const ETaskPriority TaskPriority = ChunkRequest->Priority > IoDispatcherPriority_Medium ? ETaskPriority::High : ETaskPriority::Normal;
 	Launch(UE_SOURCE_LOCATION, [this, ChunkRequest]()
 	{
-		LLM_SCOPE(ELLMTag::FileSystem);
+		LLM_SCOPE_BYTAG(Ias);
 		TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::CompleteOrEnqueueHttpRequest);
 		if (ChunkRequest->CacheTask.IsValid())
 		{
@@ -1512,7 +1512,7 @@ FIoStatus FOnDemandIoBackend::MountDeferredEndpoints(const FString& Distribution
 
 void FOnDemandIoBackend::Mount(const FOnDemandEndpoint& Endpoint)
 {
-	LLM_SCOPE(ELLMTag::FileSystem);
+	LLM_SCOPE_BYTAG(Ias);
 	TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::Mount);
 
 	if ((Endpoint.DistributionUrl.IsEmpty() && Endpoint.ServiceUrl.IsEmpty()) || Endpoint.TocPath.IsEmpty())
@@ -1711,7 +1711,7 @@ FIoStatus FOnDemandIoBackend::AddToc(const FOnDemandEndpoint& Endpoint)
 
 uint32 FOnDemandIoBackend::Run()
 {
-	LLM_SCOPE(ELLMTag::FileSystem);
+	LLM_SCOPE_BYTAG(Ias);
 
 	const int32 MaxConcurrentRequests = HttpClient->MaxConnectionCount();
 	FChunkRequest* NextChunkRequest = nullptr;

@@ -5,6 +5,8 @@
 #include "AnalyticsEventAttribute.h"
 #include "Misc/CoreDelegates.h"
 
+LLM_DEFINE_TAG(Ias);
+
 #if IAS_WITH_STATISTICS
 
 namespace UE::IO::Private

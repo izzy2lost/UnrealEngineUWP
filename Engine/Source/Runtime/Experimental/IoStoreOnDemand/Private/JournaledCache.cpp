@@ -8,6 +8,7 @@
 #include "Containers/Array.h"
 #include "Containers/Map.h"
 #include "Containers/UnrealString.h"
+#include "HAL/LowLevelMemTracker.h"
 #include "HAL/PlatformFile.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/Runnable.h"
@@ -1127,6 +1128,8 @@ FJournaledCache::~FJournaledCache()
 ////////////////////////////////////////////////////////////////////////////////
 void FJournaledCache::Update()
 {
+	LLM_SCOPE_BYTAG(Ias);
+
 	int32 WriteAllowance = Governor.TickAllowance();
 	if (!WriteAllowance)
 	{
@@ -1173,6 +1176,8 @@ FJournaledCache::GetRetType	FJournaledCache::Get(
 {
 	uint64 InnerKey = ReduceKey(Key);
 	return UE::Tasks::Launch(TEXT("IasCacheGet"), [this, InnerKey, Options, CancelToken] () {
+		LLM_SCOPE_BYTAG(Ias);
+
 		FCacheInner::FEntry Entry = Cache->Get(InnerKey);
 		if (!Entry.IsHit())
 		{
@@ -1483,6 +1488,7 @@ IOSTOREONDEMAND_API void Tests()
 ////////////////////////////////////////////////////////////////////////////////
 TUniquePtr<IIoCache> MakeJournaledCache(const FFileIoCacheConfig& Config)
 {
+	LLM_SCOPE_BYTAG(Ias);
 	return MakeUnique<UE::IO::Private::FJournaledCache>(Config);
 }
 

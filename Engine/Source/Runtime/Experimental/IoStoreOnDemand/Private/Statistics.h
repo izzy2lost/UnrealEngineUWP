@@ -13,6 +13,8 @@
 
 struct FAnalyticsEventAttribute;
 
+LLM_DECLARE_TAG(Ias);
+
 namespace UE::IO::Private
 {
 

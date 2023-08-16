@@ -4,6 +4,7 @@
 #include "OnDemandIoDispatcherBackend.h"
 #include "EncryptionKeyManager.h"
 #include "LatencyInjector.h"
+#include "Statistics.h"
 
 #include "FileIoCache.h"
 #include "HAL/LowLevelMemTracker.h"
@@ -1453,7 +1454,7 @@ void FIoStoreOnDemandModule::ReportAnalytics(TArray<FAnalyticsEventAttribute>& O
 
 void FIoStoreOnDemandModule::StartupModule()
 {
-	LLM_SCOPE(ELLMTag::FileSystem);
+	LLM_SCOPE_BYTAG(Ias);
 	using namespace UE::IO::Private;
 
 #if WITH_EDITOR
