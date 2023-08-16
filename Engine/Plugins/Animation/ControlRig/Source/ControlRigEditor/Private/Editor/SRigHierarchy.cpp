@@ -1172,7 +1172,7 @@ void SRigHierarchy::CreateContextMenu()
 								SelectedKey = SelectedItems[0]->Key;
 							}
 							
-							if (!SelectedKey || SelectedKey.Type == ERigElementType::Bone)
+							if (!SelectedKey || SelectedKey.Type == ERigElementType::Bone || SelectedKey.Type == ERigElementType::Connector)
 							{
 								DefaultSection.AddMenuEntry(Commands.AddBoneItem);
 							}
@@ -2355,7 +2355,6 @@ TOptional<EItemDropZone> SRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& Dr
 			case ERigElementType::Null:
 			case ERigElementType::RigidBody:
 			case ERigElementType::Reference:
-			case ERigElementType::Connector:
 			{
 				for (const FRigElementKey& DraggedKey : RigDragDropOp->GetElements())
 				{
@@ -2375,6 +2374,12 @@ TOptional<EItemDropZone> SRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& Dr
 						}
 					}
 				}
+				ReturnDropZone = DropZone;
+				break;
+			}
+			case ERigElementType::Connector:
+			{
+				// anything can be parented under a connector
 				ReturnDropZone = DropZone;
 				break;
 			}

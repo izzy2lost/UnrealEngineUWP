@@ -755,3 +755,30 @@ public:
 
 	void CustomizeSettings(IDetailLayoutBuilder& DetailBuilder);
 };
+
+class FRigConnectionRuleDetails : public IPropertyTypeCustomization
+{
+public:
+
+	static TSharedRef<IPropertyTypeCustomization> MakeInstance()
+	{
+		return MakeShareable(new FRigConnectionRuleDetails);
+	}
+
+	/** IPropertyTypeCustomization interface */
+	virtual void CustomizeHeader(TSharedRef<class IPropertyHandle> InStructPropertyHandle, class FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils) override;
+	virtual void CustomizeChildren(TSharedRef<class IPropertyHandle> InStructPropertyHandle, class IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils) override;
+
+protected:
+	
+	TSharedRef<SWidget> GenerateStructPicker();
+	void OnPickedStruct(const UScriptStruct* ChosenStruct);
+	FText OnGetStructTextValue() const;
+	void OnRuleContentChanged();
+	
+	FRigConnectionRuleStash RuleStash;
+	TSharedPtr<FStructOnScope> Storage;
+	UControlRigBlueprint* BlueprintBeingCustomized;
+	TSharedPtr<IPropertyHandle> StructPropertyHandle;
+	TSharedPtr<IPropertyUtilities> PropertyUtilities;
+};

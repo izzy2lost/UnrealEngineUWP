@@ -12,6 +12,7 @@
 #include "ControlRigBlueprint.h"
 #include "Graph/ControlRigGraph.h"
 #include "PropertyCustomizationHelpers.h"
+#include "PropertyEditorModule.h"
 #include "SEnumCombo.h"
 #include "Units/Execution/RigUnit_BeginExecution.h"
 #include "Units/Execution/RigUnit_DynamicHierarchy.h"
@@ -19,6 +20,8 @@
 #include "HAL/PlatformApplicationMisc.h"
 #include "Styling/AppStyle.h"
 #include "Editor/SRigHierarchyTreeView.h"
+#include "StructViewerFilter.h"
+#include "StructViewerModule.h"
 
 #define LOCTEXT_NAMESPACE "ControlRigElementDetails"
 
@@ -5064,6 +5067,229 @@ void FRigConnectorElementDetails::CustomizeSettings(IDetailLayoutBuilder& Detail
 	DetailBuilder.HideProperty(SettingsHandle);
 
 	IDetailCategoryBuilder& SettingsCategory = DetailBuilder.EditCategory(TEXT("Settings"), LOCTEXT("Settings", "Settings"));
+
+	bool bHideRules = false;
+	uint32 FirstHash = UINT32_MAX;
+	for (const FPerElementInfo& Info : PerElementInfos)
+	{
+		if (URigHierarchy* Hierarchy = Info.IsValid() ? Info.GetHierarchy() : nullptr)
+		{
+			if(const FRigConnectorElement* Connector = Info.GetElement<FRigConnectorElement>())
+			{
+				const uint32 Hash = Connector->Settings.GetRulesHash();
+				if(FirstHash == UINT32_MAX)
+				{
+					FirstHash = Hash;
+				}
+				else if(FirstHash != Hash)
+				{
+					bHideRules = true;
+					break;
+				}
+			}
+			else
+			{
+				bHideRules = true;
+			}
+		}
+	}
+
+	if(!bHideRules)
+	{
+		SettingsCategory
+			.AddProperty(SettingsHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FRigConnectorSettings, Rules)))
+			.IsEnabled(!IsAnyElementProcedural());
+	}
+}
+
+
+void FRigConnectionRuleDetails::CustomizeHeader(TSharedRef<IPropertyHandle> InStructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
+{
+	StructPropertyHandle = InStructPropertyHandle.ToSharedPtr();
+	PropertyUtilities = StructCustomizationUtils.GetPropertyUtilities();
+	BlueprintBeingCustomized = nullptr;
+	RigElementKeyDetails_GetCustomizedInfo(InStructPropertyHandle, BlueprintBeingCustomized);
+
+	TArray<UObject*> Objects;
+	StructPropertyHandle->GetOuterObjects(Objects);
+	FString FirstObjectValue;
+	for (int32 Index = 0; Index < Objects.Num(); Index++)
+	{
+		FString ObjectValue;
+		if(InStructPropertyHandle->GetPerObjectValue(Index, ObjectValue) == FPropertyAccess::Result::Success)
+		{
+			if(FirstObjectValue.IsEmpty())
+			{
+				FirstObjectValue = ObjectValue;
+			}
+			else
+			{
+				if(!FirstObjectValue.Equals(ObjectValue, ESearchCase::CaseSensitive))
+				{
+					FirstObjectValue.Reset();
+					break;
+				}
+			}
+		}
+	}
+
+	if(!FirstObjectValue.IsEmpty())
+	{
+		FRigConnectionRuleStash::StaticStruct()->ImportText(*FirstObjectValue, &RuleStash, nullptr, EPropertyPortFlags::PPF_None, nullptr, FRigConnectionRuleStash::StaticStruct()->GetName(), true);
+	}
+
+	if (BlueprintBeingCustomized == nullptr || FirstObjectValue.IsEmpty())
+	{
+		HeaderRow
+		.NameContent()
+		[
+			StructPropertyHandle->CreatePropertyNameWidget()
+		]
+		.ValueContent()
+		[
+			StructPropertyHandle->CreatePropertyValueWidget()
+		];
+	}
+	else
+	{
+		HeaderRow
+		.NameContent()
+		[
+			StructPropertyHandle->CreatePropertyNameWidget()
+		]
+		.ValueContent()
+		[
+			SNew(SComboButton)
+			.ContentPadding(FMargin(2,2,2,1))
+			.ButtonContent()
+			[
+				SNew(STextBlock)
+				.Text(this, &FRigConnectionRuleDetails::OnGetStructTextValue)
+			]
+			.OnGetMenuContent(this, &FRigConnectionRuleDetails::GenerateStructPicker)
+		];
+	}
+}
+
+void FRigConnectionRuleDetails::CustomizeChildren(TSharedRef<IPropertyHandle> InStructPropertyHandle, IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
+{
+	const UScriptStruct* ScriptStruct = RuleStash.GetScriptStruct();
+	if(ScriptStruct == nullptr)
+	{
+		return;
+	}
+
+	(void)RuleStash.Get(Storage);
+	const TSharedRef<FStructOnScope> StorageRef = Storage.ToSharedRef();
+	const FSimpleDelegate OnPropertyChanged = FSimpleDelegate::CreateSP(this, &FRigConnectionRuleDetails::OnRuleContentChanged);
+
+	TArray<TSharedPtr<IPropertyHandle>> ChildProperties = InStructPropertyHandle->AddChildStructure(StorageRef);
+	for (TSharedPtr<IPropertyHandle> ChildHandle : ChildProperties)
+	{
+		ChildHandle->SetOnPropertyValueChanged(OnPropertyChanged);
+		(void)StructBuilder.AddProperty(ChildHandle.ToSharedRef());
+	}
+}
+
+TSharedRef<SWidget> FRigConnectionRuleDetails::GenerateStructPicker()
+{
+	FStructViewerModule& StructViewerModule = FModuleManager::LoadModuleChecked<FStructViewerModule>("StructViewer");
+
+	class FRigConnectionRuleFilter : public IStructViewerFilter
+	{
+	public:
+		FRigConnectionRuleFilter()
+		{
+		}
+
+		virtual bool IsStructAllowed(const FStructViewerInitializationOptions& InInitOptions, const UScriptStruct* InStruct, TSharedRef<FStructViewerFilterFuncs> InFilterFuncs) override
+		{
+			static const UScriptStruct* BaseStruct = FRigConnectionRule::StaticStruct();
+			return InStruct != BaseStruct && InStruct->IsChildOf(BaseStruct);
+		}
+
+		virtual bool IsUnloadedStructAllowed(const FStructViewerInitializationOptions& InInitOptions, const FSoftObjectPath& InStructPath, TSharedRef<FStructViewerFilterFuncs> InFilterFuncs) override
+		{
+			return false;
+		}
+	};
+		
+	static TSharedPtr<FRigConnectionRuleFilter> Filter = MakeShared<FRigConnectionRuleFilter>();
+	FStructViewerInitializationOptions Options;
+	{
+		Options.StructFilter = Filter;
+		Options.Mode = EStructViewerMode::StructPicker;
+		Options.DisplayMode = EStructViewerDisplayMode::ListView;
+		Options.NameTypeToDisplay = EStructViewerNameTypeToDisplay::DisplayName;
+		Options.bShowNoneOption = false;
+		Options.bShowUnloadedStructs = false;
+		Options.bAllowViewOptions = false;
+	}
+
+	return
+		SNew(SBox)
+		.WidthOverride(330.0f)
+		[
+			SNew(SVerticalBox)
+
+			+SVerticalBox::Slot()
+			.FillHeight(1.0f)
+			.MaxHeight(500)
+			[
+				SNew(SBorder)
+				.Padding(4)
+				.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+				[
+					StructViewerModule.CreateStructViewer(Options, FOnStructPicked::CreateSP(this, &FRigConnectionRuleDetails::OnPickedStruct))
+				]
+			]
+		];
+}
+
+void FRigConnectionRuleDetails::OnPickedStruct(const UScriptStruct* ChosenStruct)
+{
+	if(ChosenStruct == nullptr)
+	{
+		RuleStash = FRigConnectionRuleStash();
+	}
+	else
+	{
+		RuleStash.ScriptStructPath = ChosenStruct->GetPathName();
+		RuleStash.ExportedText = TEXT("()");
+		Storage.Reset();
+	}
+	OnRuleContentChanged();
+	PropertyUtilities->ForceRefresh();
+}
+
+FText FRigConnectionRuleDetails::OnGetStructTextValue() const
+{
+	const UScriptStruct* ScriptStruct = RuleStash.GetScriptStruct();
+	return ScriptStruct
+		? FText::AsCultureInvariant(ScriptStruct->GetName())
+		: LOCTEXT("None", "None");
+}
+
+void FRigConnectionRuleDetails::OnRuleContentChanged()
+{
+	const UScriptStruct* ScriptStruct = RuleStash.GetScriptStruct();
+	if(Storage && Storage->GetStruct() == ScriptStruct)
+	{
+		RuleStash.ExportedText.Reset();
+		const uint8* StructMemory = Storage->GetStructMemory();
+		ScriptStruct->ExportText(RuleStash.ExportedText, StructMemory, StructMemory, nullptr, PPF_None, nullptr);
+	}
+	
+	FString Content;
+	FRigConnectionRuleStash::StaticStruct()->ExportText(Content, &RuleStash, &RuleStash, nullptr, PPF_None, nullptr);
+
+	TArray<UObject*> Objects;
+	StructPropertyHandle->GetOuterObjects(Objects);
+	FString FirstObjectValue;
+	for (int32 Index = 0; Index < Objects.Num(); Index++)
+	{
+		(void)StructPropertyHandle->SetPerObjectValue(Index, Content, EPropertyValueSetFlags::DefaultFlags);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
