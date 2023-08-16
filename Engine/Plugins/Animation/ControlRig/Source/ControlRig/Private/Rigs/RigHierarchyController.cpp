@@ -2289,7 +2289,23 @@ FName URigHierarchyController::SetDisplayName(FRigControlElement* InControlEleme
 	{
 		RenameElement(InControlElement, InControlElement->Settings.DisplayName, false);
 	}
-
+#if WITH_EDITOR
+	else
+	{
+		// if we are merely setting the display name - we want to update all listening hierarchies
+		for(URigHierarchy::FRigHierarchyListener& Listener : Hierarchy->ListeningHierarchies)
+		{
+			if(URigHierarchy* ListeningHierarchy = Listener.Hierarchy.Get())
+			{
+				if(URigHierarchyController* ListeningController = ListeningHierarchy->GetController())
+				{
+					const TGuardValue<bool> Guard(ListeningController->bSuspendAllNotifications, true);
+					ListeningController->SetDisplayName(InControlElement->GetKey(), InDisplayName, bRenameElement, false, false);
+				}
+			}
+		}
+	}
+#endif
 	return InControlElement->Settings.DisplayName;
 }
 

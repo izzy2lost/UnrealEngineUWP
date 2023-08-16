@@ -3541,6 +3541,8 @@ void FControlRigEditor::HandleMakeElementGetterSetter(ERigElementGetterSetterTyp
 		{
 			if(ControlElement->IsAnimationChannel())
 			{
+				ChannelValue = ControlElement->GetDisplayName();
+				
 				if(const FRigControlElement* ParentControlElement = Cast<FRigControlElement>(Hierarchy->GetFirstParent(ControlElement)))
 				{
 					NameValue = ParentControlElement->GetName();
