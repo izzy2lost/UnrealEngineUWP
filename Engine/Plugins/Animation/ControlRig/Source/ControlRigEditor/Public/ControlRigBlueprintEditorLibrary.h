@@ -74,5 +74,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Control Rig Blueprint")
 	static TArray<FRigModuleDescription> GetAvailableRigModules();
+	
+	UFUNCTION(BlueprintCallable, Category = "Control Rig Blueprint")
+	static void LoadAllControlRigs();
 };
 
