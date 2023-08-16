@@ -301,6 +301,11 @@ bool FRigTagConnectionRule::CanConnect(const FRigConnectionInfo* InConnectionInf
 // FRigChainConnectionRule
 ////////////////////////////////////////////////////////////////////////////////
 
+TArray<FRigElementKey> FRigChainConnectionRule::GetAdditionalConnectors() const
+{
+	return {EndConnector};
+}
+
 bool FRigChainConnectionRule::CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason) const
 {
 	if(!Super::CanConnect(InConnectionInfo, OutFailureReason))

@@ -198,7 +198,7 @@ public:
 	virtual ~FRigChainConnectionRule() override {}
 
 	virtual UScriptStruct* GetScriptStruct() const override { return FRigChainConnectionRule::StaticStruct(); }
-
+	virtual TArray<FRigElementKey> GetAdditionalConnectors() const override;
 	virtual bool CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason) const override;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Settings)
