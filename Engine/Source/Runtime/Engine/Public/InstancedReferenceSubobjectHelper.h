@@ -114,6 +114,29 @@ public:
 		}
 	}
 
+	template<typename T>
+	static void GetInstancedSubObjectsRecursive(const UObject* Container, T& OutObjects)
+	{
+		const UClass* ContainerClass = Container->GetClass();
+		for (FProperty* Prop = ContainerClass->RefLink; Prop; Prop = Prop->NextRef)
+		{
+			for (int32 ArrayIdx = 0; ArrayIdx < Prop->ArrayDim; ++ArrayIdx)
+			{
+				FInstancedPropertyPath RootPropertyPath(Prop, ArrayIdx);
+				const uint8* ValuePtr = Prop->ContainerPtrToValuePtr<uint8>(Container, ArrayIdx);
+				ForEachInstancedSubObject<const void*>(RootPropertyPath, ValuePtr, [&OutObjects](const FInstancedSubObjRef& Ref, const void*)
+				{
+					if (!OutObjects.Contains(Ref))
+					{
+						OutObjects.Add(Ref);
+						GetInstancedSubObjectsRecursive(Ref.SubObjInstance, OutObjects);
+					}
+				});
+			}
+		}
+	}
+
+
 	static ENGINE_API void Duplicate(
 		UObject* OldObject, 
 		UObject* NewObject, 
