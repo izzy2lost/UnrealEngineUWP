@@ -771,9 +771,12 @@ private:
 	 */
 	FORCEINLINE static void LinkTailAtomic(FShaderCommonCompileJob& Job, FShaderCommonCompileJob**& Tail)
 	{
+		// It's important that NextLink is set before the InterlockedExchange, as a subsequent Tail pointer exchange could write
+		// another item and need to update NextLink for this item before this function completes.
+		Job.NextLink = nullptr;
+
 		FShaderCommonCompileJob** OldTail = (FShaderCommonCompileJob**)FPlatformAtomics::InterlockedExchange((PTRINT*)&Tail, (PTRINT)&Job.NextLink);
 		Job.PrevLink = OldTail;
-		Job.NextLink = nullptr;
 
 		// Update previous tail's next pointer (or OldTail may be pointing at Head if list was empty)
 		*OldTail = (FShaderCommonCompileJob*)&Job;
