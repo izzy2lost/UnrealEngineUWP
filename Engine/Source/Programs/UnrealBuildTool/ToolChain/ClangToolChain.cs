@@ -364,7 +364,7 @@ namespace UnrealBuildTool
 				Arguments.Add("-fpch-validate-input-files-content");
 			}
 
-			if (CompileEnvironment.bAllowAutoRTFMInstrumentation)
+			if (CompileEnvironment.bAllowAutoRTFMInstrumentation && CompileEnvironment.bUseAutoRTFMCompiler)
 			{
 				Arguments.Add("-fautortfm");
 			}
@@ -395,7 +395,7 @@ namespace UnrealBuildTool
 					throw new BuildException($"Unsupported C standard type set: {CompileEnvironment.CStandard}");
 			}
 
-			if (CompileEnvironment.bAllowAutoRTFMInstrumentation)
+			if (CompileEnvironment.bAllowAutoRTFMInstrumentation && CompileEnvironment.bUseAutoRTFMCompiler)
 			{
 				Arguments.Add("-fautortfm");
 			}
