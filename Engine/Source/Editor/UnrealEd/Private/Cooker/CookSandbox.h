@@ -57,8 +57,14 @@ public:
 
 
 private:
+	struct FPluginData
+	{
+		TSharedPtr<IPlugin> Plugin;
+		FString NormalizedContentDir;
+	};
+
 	TUniquePtr<FSandboxPlatformFile> SandboxFile;
-	TArray<TSharedRef<IPlugin>>& PluginsToRemap;
+	TArray<FPluginData> PluginsToRemap;
 };
 
 struct FCookSandboxConvertCookedPathToPackageNameContext
