@@ -1248,7 +1248,7 @@ public:
 	 * Make sure the normal map has at least as many mips as this texture.
 	 */
 	UE_DEPRECATED(5.3, "Use GetCompositeTexture() and SetCompositeTexture() instead.")
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Compositing, meta = (AllowPrivateAccess), Setter = SetCompositeTexture, Getter = GetCompositeTexture)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Compositing, meta = (AllowPrivateAccess, RequiredAssetDataTags = "IsSourceValid=True"), Setter = SetCompositeTexture, Getter = GetCompositeTexture)
 	TObjectPtr<class UTexture> CompositeTexture;
 
 private:

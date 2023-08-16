@@ -88,7 +88,7 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	/** Add Textures*/
-	UPROPERTY(EditAnywhere, Category = Source2D, meta = (DisplayName = "Source Textures", EditCondition = bSourceGeneratedFromSourceTexturesArray, EditConditionHides, HideEditConditionToggle))
+	UPROPERTY(EditAnywhere, Category = Source2D, meta = (DisplayName = "Source Textures", EditCondition = bSourceGeneratedFromSourceTexturesArray, EditConditionHides, HideEditConditionToggle, RequiredAssetDataTags = "IsSourceValid=True"))
 	TArray<TObjectPtr<UTexture2D>> SourceTextures;
 
 	/** 
