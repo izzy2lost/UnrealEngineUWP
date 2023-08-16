@@ -125,6 +125,7 @@ void FISMComponentDescriptorBase::InitFrom(const UStaticMeshComponent* Template,
 	{
 		InstanceStartCullDistance = ISMTemplate->InstanceStartCullDistance;
 		InstanceEndCullDistance = ISMTemplate->InstanceEndCullDistance;
+		bUseGpuLodSelection = ISMTemplate->bUseGpuLodSelection;
 
 		// HISM Specific
 		if (const UHierarchicalInstancedStaticMeshComponent* HISMTemplate = Cast<UHierarchicalInstancedStaticMeshComponent>(Template))
@@ -212,6 +213,7 @@ bool FISMComponentDescriptorBase::operator==(const FISMComponentDescriptorBase& 
 	bVisibleInRayTracing == Other.bVisibleInRayTracing &&
 	bEvaluateWorldPositionOffset == Other.bEvaluateWorldPositionOffset &&
 	bReverseCulling == Other.bReverseCulling &&
+	bUseGpuLodSelection == Other.bUseGpuLodSelection &&
 	bUseDefaultCollision == Other.bUseDefaultCollision &&
 	bGenerateOverlapEvents == Other.bGenerateOverlapEvents &&
 	WorldPositionOffsetDisableDistance == Other.WorldPositionOffsetDisableDistance &&
@@ -324,6 +326,7 @@ void FISMComponentDescriptorBase::InitComponent(UInstancedStaticMeshComponent* I
 	ISMComponent->bVisibleInRayTracing = bVisibleInRayTracing;
 	ISMComponent->bEvaluateWorldPositionOffset = bEvaluateWorldPositionOffset;
 	ISMComponent->bReverseCulling = bReverseCulling;
+	ISMComponent->bUseGpuLodSelection = bUseGpuLodSelection;
 	ISMComponent->bUseDefaultCollision = bUseDefaultCollision;
 	ISMComponent->SetGenerateOverlapEvents(bGenerateOverlapEvents);
 	ISMComponent->WorldPositionOffsetDisableDistance = WorldPositionOffsetDisableDistance;

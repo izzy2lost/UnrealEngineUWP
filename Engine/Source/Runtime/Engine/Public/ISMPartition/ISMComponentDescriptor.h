@@ -152,6 +152,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Component Settings")
 	uint8 bReverseCulling : 1;
 
+	UPROPERTY(EditAnywhere, Category = "Component Settings")
+	uint8 bUseGpuLodSelection : 1;
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category = "Component Settings")
 	uint8 bIncludeInHLOD : 1;
