@@ -490,7 +490,7 @@ bool FWorldPartitionLevelHelper::LoadActors(UWorld* InOuterWorld, ULevel* InDest
 				// Make sure Source level actor folder fixup was called
 				if (ContainerWorld->PersistentLevel->IsUsingActorFolders())
 				{ 
-					if (ContainerWorld->PersistentLevel->bNeedsUpdateForLoadedExternalActorFolders)
+					if (!ContainerWorld->PersistentLevel->LoadedExternalActorFolders.IsEmpty())
 					{
 						ContainerWorld->PersistentLevel->bFixupActorFoldersAtLoad = false;
 						ContainerWorld->PersistentLevel->FixupActorFolders();

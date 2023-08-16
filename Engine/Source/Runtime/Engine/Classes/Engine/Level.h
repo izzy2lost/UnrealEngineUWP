@@ -773,13 +773,9 @@ private:
 	UPROPERTY(Transient)
 	TMap<FString, FActorFolderSet> FolderLabelToActorFolders;
 
-	/** Keeps track of whether we've looked for actor folder objects manually loaded from their external packages. */
+	/** Temporary array containing actor folder objects manually loaded from their external packages (only used while loading the level). */
 	UPROPERTY(Transient)
-	bool bNeedsUpdateForLoadedExternalActorFolders;
-
-	/** Keeps track of whether we are already fixing up actor folders or not. */
-	UPROPERTY(Transient)
-	bool bIsFixingUpActorFolders;
+	TArray<TObjectPtr<UActorFolder>> LoadedExternalActorFolders;
 #endif // #if WITH_EDITORONLY_DATA
 
 	enum class ERouteActorInitializationState : uint8
