@@ -1822,6 +1822,7 @@ void USmartObjectSubsystem::QueryValidatedSlotEntranceLocationsInternal(
 		FSmartObjectSlotEntranceCandidate& Candidate = Candidates.AddDefaulted_GetRef();
 		Candidate.Location = SlotTransform.GetLocation();
 		Candidate.Rotation = SlotTransform.GetRotation().Rotator();
+		Candidate.bTraceGroundLocation = true; // Use ground project by default on slots (this seems to match the users expectation). Entrances have specific bool to turn it off.
 		Candidate.Handle = FSmartObjectSlotEntranceHandle(SlotHandle, FSmartObjectSlotEntranceHandle::EType::Slot);
 	}
 
