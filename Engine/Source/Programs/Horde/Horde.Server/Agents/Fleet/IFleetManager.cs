@@ -18,29 +18,29 @@ namespace Horde.Server.Agents.Fleet
 		/// Default fleet manager
 		/// </summary>
 		Default,
-		
+
 		/// <summary>
-		/// <see cref="NoOpFleetManager" />
+		/// No-op fleet manager.
 		/// </summary>
 		NoOp,
-		
+
 		/// <summary>
-		/// <see cref="AwsFleetManager" />
+		/// Fleet manager for handling AWS EC2 instances. Will create and/or terminate instances from scratch.
 		/// </summary>
 		Aws,
-		
+
 		/// <summary>
-		/// <see cref="AwsReuseFleetManager" />
+		/// Fleet manager for handling AWS EC2 instances. Will start already existing but stopped instances to reuse existing EBS disks.
 		/// </summary>
 		AwsReuse,
-		
+
 		/// <summary>
-		/// <see cref="AwsRecyclingFleetManager" />
+		/// Fleet manager for handling AWS EC2 instances. Will start already existing but stopped instances to reuse existing EBS disks.
 		/// </summary>
 		AwsRecycle,
-		
+
 		/// <summary>
-		/// <see cref="AwsAsgFleetManager" />
+		/// Fleet manager for handling AWS EC2 instances. Uses an EC2 auto-scaling group for controlling the number of running instances.
 		/// </summary>
 		AwsAsg
 	}

@@ -254,7 +254,7 @@ namespace Horde.Server
 	}
 	
 	/// <summary>
-	/// Feature flags to aid rollout of new features
+	/// Feature flags to aid rollout of new features.
 	///
 	/// Once a feature is running in its intended state and is stable, the flag should be removed.
 	/// A name and date of when the flag was created is noted next to it to help encourage this behavior.
@@ -394,18 +394,15 @@ namespace Horde.Server
 		[JsonIgnore]
 		public AclScopeName ScopeName => AclScopeName.Root;
 
-		/// <inheritdoc cref="RunMode" />
+		/// <summary>
+		/// Modes that the server should run in. Runmodes can be used in a multi-server deployment to limit the operations that a particular instance will try to perform.
+		/// </summary>
 		public RunMode[]? RunModes { get; set; } = null;
 
 		/// <summary>
 		/// Override the data directory used by Horde. Defaults to C:\ProgramData\HordeServer on Windows, {AppDir}/Data on other platforms.
 		/// </summary>
 		public string? DataDir { get; set; } = null;
-
-		/// <summary>
-		/// Output level for console
-		/// </summary>
-		public LogEventLevel ConsoleLogLevel { get; set; } = LogEventLevel.Debug;
 
 		/// <summary>
 		/// Main port for serving HTTP. Uses the default Kestrel port (5000) if not specified.
@@ -821,7 +818,9 @@ namespace Horde.Server
 		/// </summary>
 		public bool OpenBrowser { get; set; } = false;
 
-		/// <inheritdoc cref="FeatureFlags" />
+		/// <summary>
+		/// Experimental features to enable on the server.
+		/// </summary>
 		public FeatureFlagSettings FeatureFlags { get; set; } = new ();
 
 		/// <summary>

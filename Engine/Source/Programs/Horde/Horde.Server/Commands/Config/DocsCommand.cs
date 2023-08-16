@@ -28,25 +28,24 @@ namespace Horde.Server.Commands.Config
 		[CommandLine]
 		public FileReference? Agent { get; set; }
 
-		class AppSettings
-		{
-			public ServerSettings Horde { get; set; } = new ServerSettings();
-		}
+		record class PageInfo(string Title, string LinkRail, string FileName, string? Introduction = null);
 
-		record class PageInfo(string Title, string LinkRail, string FileName);
+		const string AppSettingsIntro = "All Horde-specific settings are stored in a root object called `horde`. Other .NET functionality may be configured using properties in the root of this file.";
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
 			DirectoryReference.CreateDirectory(OutputDir);
 
-			JsonSchema serverSchema = Schemas.CreateSchema(typeof(AppSettings));
-			JsonSchema globalSchema = Schemas.CreateSchema(typeof(GlobalConfig));
-			JsonSchema projectSchema = Schemas.CreateSchema(typeof(ProjectConfig));
-			JsonSchema streamSchema = Schemas.CreateSchema(typeof(StreamConfig));
+			XmlDocReader xmlDocReader = new XmlDocReader();
+
+			JsonSchema serverSchema = JsonSchema.FromType(typeof(ServerSettings), xmlDocReader);
+			JsonSchema globalSchema = JsonSchema.FromType(typeof(GlobalConfig), xmlDocReader);
+			JsonSchema projectSchema = JsonSchema.FromType(typeof(ProjectConfig), xmlDocReader);
+			JsonSchema streamSchema = JsonSchema.FromType(typeof(StreamConfig), xmlDocReader);
 
 			Dictionary<JsonSchemaType, PageInfo> typeToPageInfo = new Dictionary<JsonSchemaType, PageInfo>
 			{
-				[serverSchema.RootType] = new PageInfo("appsettings.json (Server)", "[Horde](../Home.md) > [Deployment](../Deployment.md) > Server (Server.md)", "Deployment/ServerSettings.md"),
+				[serverSchema.RootType] = new PageInfo("appsettings.json (Server)", "[Horde](../Home.md) > [Deployment](../Deployment.md) > Server (Server.md)", "Deployment/ServerSettings.md", AppSettingsIntro),
 				[globalSchema.RootType] = new PageInfo("Globals.json", "[Horde](../Home.md) > [Configuration](../Config.md)", "Config/Schema/Globals.md"),
 				[projectSchema.RootType] = new PageInfo("*.project.json", "[Horde](../Home.md) > [Configuration](../Config.md)", "Config/Schema/Projects.md"),
 				[streamSchema.RootType] = new PageInfo("*.stream.json", "[Horde](../Home.md) > [Configuration](../Config.md)", "Config/Schema/Streams.md"),
@@ -61,107 +60,18 @@ namespace Horde.Server.Commands.Config
 				Assembly agentAssembly = Assembly.LoadFile(Agent.FullName);
 				Type agentSettingsType = agentAssembly.GetType("Horde.Agent.AgentSettings")!;
 
-				JsonSchema agentSchema = Schemas.CreateSchema(agentSettingsType);
-				await WriteDocAsync(agentSchema.RootType, "appsettings.json (Agent)", "Deployment/AgentSettings.md", "Horde (../Home.md) > Deployment (../Deployment.md) > Agent (Agent.md)", new Dictionary<string, string>(), logger);
+				JsonSchema agentSchema = JsonSchema.FromType(agentSettingsType, xmlDocReader);
+				await WriteDocAsync(agentSchema.RootType, "appsettings.json (Agent)", "Deployment/AgentSettings.md", "Horde (../Home.md) > Deployment (../Deployment.md) > Agent (Agent.md)", AppSettingsIntro, new Dictionary<string, string>(), logger);
 			}
 
 			Dictionary<string, string> typeNameToPageName = typeToPageInfo.ToDictionary(x => x.Key.Name!, x => x.Value.FileName, StringComparer.Ordinal);
 			foreach ((JsonSchemaType type, PageInfo pageInfo) in typeToPageInfo)
 			{
-				await WriteDocAsync(type, pageInfo.Title, pageInfo.FileName, pageInfo.LinkRail, typeNameToPageName, logger);
+				await WriteDocAsync(type, pageInfo.Title, pageInfo.FileName, pageInfo.LinkRail, pageInfo.Introduction, typeNameToPageName, logger);
 			}
 
 			await WriteAclDocAsync(Assembly.GetExecutingAssembly(), logger);
 			return 0;
-		}
-
-		async Task WriteAclDocAsync(Assembly assembly, ILogger logger)
-		{
-			FileReference file = FileReference.Combine(OutputDir, "Config/Schema/AclActions.md");
-			DirectoryReference.CreateDirectory(file.Directory);
-
-			using (FileStream stream = FileReference.Open(file, FileMode.Create, FileAccess.Write))
-			{
-				using (StreamWriter writer = new StreamWriter(stream))
-				{
-					await writer.WriteLineAsync($"[Horde](../Home.md) > [Configuration](../Config.md) > ACL Actions");
-					await writer.WriteLineAsync();
-					await writer.WriteLineAsync($"# ACL Actions");
-					await writer.WriteLineAsync();
-
-					Dictionary<string, List<PropertyInfo>> categoryToProperties = new Dictionary<string, List<PropertyInfo>>();
-
-					List<PropertyInfo> newProperties = new List<PropertyInfo>();
-					foreach (Type type in assembly.GetTypes())
-					{
-						if (type.IsClass)
-						{
-							foreach (PropertyInfo propertyInfo in type.GetProperties(BindingFlags.Static | BindingFlags.Public))
-							{
-								if (propertyInfo.PropertyType == typeof(AclAction))
-								{
-									newProperties.Add(propertyInfo);
-								}
-							}
-							if (newProperties.Count > 0)
-							{
-								string category = type.Namespace ?? "Default";
-
-								int topNamespaceIdx = category.LastIndexOf('.');
-								if (topNamespaceIdx != -1)
-								{
-									category = category.Substring(topNamespaceIdx + 1);
-								}
-
-								List<PropertyInfo>? existingProperties;
-								if (categoryToProperties.TryGetValue(category, out existingProperties))
-								{
-									existingProperties.AddRange(newProperties);
-									newProperties.Clear();
-								}
-								else
-								{
-									categoryToProperties.Add(category, newProperties);
-									newProperties = new List<PropertyInfo>();
-								}
-							}
-						}
-					}
-
-					XmlDocument documentation = new XmlDocument();
-
-					FileReference inputDocumentationFile = new FileReference(assembly.Location).ChangeExtension(".xml");
-					if (FileReference.Exists(inputDocumentationFile))
-					{
-						documentation.Load(inputDocumentationFile.FullName);
-					}
-
-					foreach ((string category, List<PropertyInfo> properties) in categoryToProperties.OrderBy(x => x.Key))
-					{
-						await writer.WriteLineAsync();
-						await writer.WriteLineAsync($"## {category}");
-						await writer.WriteLineAsync();
-						await writer.WriteLineAsync("| Name | Description |");
-						await writer.WriteLineAsync("| ---- | ----------- |");
-						foreach (PropertyInfo property in properties)
-						{
-							AclAction action = (AclAction)property.GetValue(null)!;
-							string description = String.Empty;
-
-							string selector = $"//member[@name='P:{property.DeclaringType!.FullName}.{property.Name}']/summary";
-							XmlNode? node = documentation.SelectSingleNode(selector);
-							if (node != null)
-							{
-								description = node.InnerText.Trim().Replace("\r\n", "\n", StringComparison.Ordinal);
-							}
-
-							await writer.WriteLineAsync($"| `{action.Name}` | {description} |");
-						}
-					}
-				}
-			}
-
-			logger.LogInformation("Written {File}", file);
 		}
 
 		class ObjectQueue
@@ -188,7 +98,7 @@ namespace Horde.Server.Commands.Config
 			public bool TryPop([NotNullWhen(true)] out JsonSchemaType? obj) => _stack.TryPop(out obj);
 		}
 
-		async Task WriteDocAsync(JsonSchemaType rootType, string title, string fileName, string linkRail, Dictionary<string, string> typeNameToLink, ILogger logger)
+		async Task WriteDocAsync(JsonSchemaType rootType, string title, string fileName, string linkRail, string? introduction, Dictionary<string, string> typeNameToLink, ILogger logger)
 		{
 			FileReference file = FileReference.Combine(OutputDir, fileName);
 			DirectoryReference.CreateDirectory(file.Directory);
@@ -200,6 +110,12 @@ namespace Horde.Server.Commands.Config
 					await writer.WriteLineAsync($"{linkRail} > {title}");
 					await writer.WriteLineAsync();
 					await writer.WriteLineAsync($"# {title}");
+
+					if (introduction != null)
+					{
+						await writer.WriteLineAsync();
+						await writer.WriteLineAsync(introduction);
+					}
 
 					HashSet<string> visitedTypeNames = new HashSet<string>(typeNameToLink.Keys, StringComparer.Ordinal);
 					visitedTypeNames.Remove(rootType.Name!);
@@ -217,24 +133,27 @@ namespace Horde.Server.Commands.Config
 
 						await writer.WriteLineAsync();
 
-						if (schemaType.Description != null)
+						if (schemaType.Description != null && (introduction == null || schemaType != rootType))
 						{
-							string description = Regex.Replace(schemaType.Description, "\r?\n", Environment.NewLine);
+							string description = schemaType.Description.ReplaceLineEndings();
 							await writer.WriteLineAsync(description);
 							await writer.WriteLineAsync();
 						}
 
 						if (schemaType is JsonSchemaObject schemaObj)
 						{
-							await writer.WriteLineAsync("Name | Type | Description");
-							await writer.WriteLineAsync("---- | ---- | -----------");
-
-							foreach (JsonSchemaProperty property in schemaObj.Properties)
+							if (schemaObj.Properties.Count > 0)
 							{
-								string name = property.CamelCaseName;
-								string type = GetMarkdownType(property.Type, typeNameToLink);
-								string description = GetMarkdownDescription(property.Description);
-								await writer.WriteLineAsync($"`{name}` | {type} | {description}");
+								await writer.WriteLineAsync("Name | Type | Description");
+								await writer.WriteLineAsync("---- | ---- | -----------");
+							
+								foreach (JsonSchemaProperty property in schemaObj.Properties)
+								{
+									string name = property.CamelCaseName;
+									string type = GetMarkdownType(property.Type, typeNameToLink);
+									string description = GetMarkdownDescription(property.Description);
+									await writer.WriteLineAsync($"`{name}` | {type} | {description}");
+								}
 							}
 						}
 						else if (schemaType is JsonSchemaEnum schemaEnum)
@@ -394,6 +313,96 @@ namespace Horde.Server.Commands.Config
 			string anchor = GetHeadingName(type).ToLowerInvariant();
 			anchor = Regex.Replace(anchor, @"[^a-z0-9]+", "-");
 			return "#" + anchor.Trim('-');
+		}
+
+
+		async Task WriteAclDocAsync(Assembly assembly, ILogger logger)
+		{
+			FileReference file = FileReference.Combine(OutputDir, "Config/Schema/AclActions.md");
+			DirectoryReference.CreateDirectory(file.Directory);
+
+			using (FileStream stream = FileReference.Open(file, FileMode.Create, FileAccess.Write))
+			{
+				using (StreamWriter writer = new StreamWriter(stream))
+				{
+					await writer.WriteLineAsync($"[Horde](../Home.md) > [Configuration](../Config.md) > ACL Actions");
+					await writer.WriteLineAsync();
+					await writer.WriteLineAsync($"# ACL Actions");
+					await writer.WriteLineAsync();
+
+					Dictionary<string, List<PropertyInfo>> categoryToProperties = new Dictionary<string, List<PropertyInfo>>();
+
+					List<PropertyInfo> newProperties = new List<PropertyInfo>();
+					foreach (Type type in assembly.GetTypes())
+					{
+						if (type.IsClass)
+						{
+							foreach (PropertyInfo propertyInfo in type.GetProperties(BindingFlags.Static | BindingFlags.Public))
+							{
+								if (propertyInfo.PropertyType == typeof(AclAction))
+								{
+									newProperties.Add(propertyInfo);
+								}
+							}
+							if (newProperties.Count > 0)
+							{
+								string category = type.Namespace ?? "Default";
+
+								int topNamespaceIdx = category.LastIndexOf('.');
+								if (topNamespaceIdx != -1)
+								{
+									category = category.Substring(topNamespaceIdx + 1);
+								}
+
+								List<PropertyInfo>? existingProperties;
+								if (categoryToProperties.TryGetValue(category, out existingProperties))
+								{
+									existingProperties.AddRange(newProperties);
+									newProperties.Clear();
+								}
+								else
+								{
+									categoryToProperties.Add(category, newProperties);
+									newProperties = new List<PropertyInfo>();
+								}
+							}
+						}
+					}
+
+					XmlDocument documentation = new XmlDocument();
+
+					FileReference inputDocumentationFile = new FileReference(assembly.Location).ChangeExtension(".xml");
+					if (FileReference.Exists(inputDocumentationFile))
+					{
+						documentation.Load(inputDocumentationFile.FullName);
+					}
+
+					foreach ((string category, List<PropertyInfo> properties) in categoryToProperties.OrderBy(x => x.Key))
+					{
+						await writer.WriteLineAsync();
+						await writer.WriteLineAsync($"## {category}");
+						await writer.WriteLineAsync();
+						await writer.WriteLineAsync("| Name | Description |");
+						await writer.WriteLineAsync("| ---- | ----------- |");
+						foreach (PropertyInfo property in properties)
+						{
+							AclAction action = (AclAction)property.GetValue(null)!;
+							string description = String.Empty;
+
+							string selector = $"//member[@name='P:{property.DeclaringType!.FullName}.{property.Name}']/summary";
+							XmlNode? node = documentation.SelectSingleNode(selector);
+							if (node != null)
+							{
+								description = node.InnerText.Trim().Replace("\r\n", "\n", StringComparison.Ordinal);
+							}
+
+							await writer.WriteLineAsync($"| `{action.Name}` | {description} |");
+						}
+					}
+				}
+			}
+
+			logger.LogInformation("Written {File}", file);
 		}
 	}
 }
