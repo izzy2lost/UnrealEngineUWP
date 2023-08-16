@@ -3094,6 +3094,7 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults_Internal(Chaos::FPBDR
 			StateData.State.DisabledState = Handle->Disabled();
 			StateData.State.HasInternalClusterParent = false;
 			StateData.State.DynamicInternalClusterParent = false;
+			StateData.State.HasClusterUnionParent = false;
 			StateData.State.DynamicState = static_cast<int8>(GetObjectStateFromHandle(Handle));
 
 			bool bHasChanged = false;
@@ -3160,6 +3161,7 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults_Internal(Chaos::FPBDR
 				StateData.State.DisabledState = false;
 				StateData.State.HasInternalClusterParent = true;
 				StateData.State.DynamicInternalClusterParent = (ClusterParent->IsDynamic());
+				StateData.State.HasClusterUnionParent = ClusterParent->PhysicsProxy()->GetType() == EPhysicsProxyType::ClusterUnionProxy;
 
 				bHasChanged = true;
 
@@ -3473,7 +3475,14 @@ bool FGeometryCollectionPhysicsProxy::PullNonInterpolatableDataFromSinglePhysics
 			Chaos::EInternalClusterType ParentType = Chaos::EInternalClusterType::None;
 			if (StateData.State.HasInternalClusterParent != 0)
 			{
-				ParentType = (StateData.State.DynamicInternalClusterParent != 0) ? Chaos::EInternalClusterType::Dynamic : Chaos::EInternalClusterType::KinematicOrStatic;
+				if (StateData.State.HasClusterUnionParent)
+				{
+					ParentType = Chaos::EInternalClusterType::ClusterUnion;
+				}
+				else
+				{
+					ParentType = (StateData.State.DynamicInternalClusterParent != 0) ? Chaos::EInternalClusterType::Dynamic : Chaos::EInternalClusterType::KinematicOrStatic;
+				}
 			}
 			const uint8 ParentTypeUInt8 = static_cast<uint8>(ParentType);
 			if (UpdateValue((*InternalClusterParentTypeArray)[TransformGroupIndex], ParentTypeUInt8))

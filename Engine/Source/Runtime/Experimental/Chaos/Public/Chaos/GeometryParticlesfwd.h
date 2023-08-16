@@ -105,5 +105,6 @@ namespace Chaos
 		None,
 		KinematicOrStatic,
 		Dynamic,
+		ClusterUnion
 	};
 }

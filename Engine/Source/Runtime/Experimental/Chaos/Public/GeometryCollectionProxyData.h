@@ -135,6 +135,9 @@ public:
 
 	/** return true if the transform has an internal cluster parent in a dynamic state */
 	CHAOS_API bool HasDynamicInternalClusterParent(int32 TransformIndex) const;
+
+	/** Return true if the transform has a cluster union parent. */
+	CHAOS_API bool HasClusterUnionParent(int32 TransformIndex) const;
 	
 private:
 	/** Active state, true means that the transform is active or broken off from its parent */
@@ -343,7 +346,8 @@ public:
 		uint16 DisabledState: 1;
 		uint16 HasInternalClusterParent: 1;
 		uint16 DynamicInternalClusterParent: 1;
-		// 5 bits left
+		uint16 HasClusterUnionParent: 1;
+		// 4 bits left
 	};
 
 	struct FStateData
