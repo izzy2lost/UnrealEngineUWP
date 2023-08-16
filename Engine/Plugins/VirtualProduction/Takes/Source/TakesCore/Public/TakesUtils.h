@@ -28,6 +28,8 @@ namespace TakesUtils
 
 	TAKESCORE_API void ClampPlaybackRangeToEncompassAllSections(UMovieScene* InMovieScene, bool bUpperBoundOnly);
 
+	TAKESCORE_API void ResetViewAndWorkRange(UMovieScene* InMovieScene);
+
 	TAKESCORE_API void SaveAsset(UObject* InObject);
 
 	TAKESCORE_API void CreateCameraCutTrack(ULevelSequence* LevelSequence, const FGuid& RecordedCameraGuid, const FMovieSceneSequenceID& SequenceID, const TRange<FFrameNumber>& InRange);

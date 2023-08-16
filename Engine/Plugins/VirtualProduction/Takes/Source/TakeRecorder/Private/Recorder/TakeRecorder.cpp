@@ -1083,6 +1083,10 @@ void UTakeRecorder::StopInternal(const bool bCancelled)
 				MovieScene->SetPlaybackRange(CachedPlaybackRange);
 			}
 		}
+		else
+		{
+			TakesUtils::ResetViewAndWorkRange(MovieScene);
+		}
 
 		if (bRecordingFinished)
 		{
