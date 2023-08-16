@@ -347,6 +347,7 @@ class FDistanceFieldShadowingUpsamplePS : public FGlobalShader
 		SHADER_PARAMETER(float, InvFadePlaneLength)
 		SHADER_PARAMETER(float, NearFadePlaneOffset)
 		SHADER_PARAMETER(float, InvNearFadePlaneLength)
+		SHADER_PARAMETER(float, OneOverDownsampleFactor)
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FUpsample : SHADER_PERMUTATION_BOOL("UPSAMPLE_REQUIRED");
@@ -359,7 +360,6 @@ class FDistanceFieldShadowingUpsamplePS : public FGlobalShader
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
-		OutEnvironment.SetDefine(TEXT("DOWNSAMPLE_FACTOR"), GAODownsampleFactor);
 		OutEnvironment.SetDefine(TEXT("FORCE_DEPTH_TEXTURE_READS"), 1);
 	}
 };
@@ -1044,6 +1044,7 @@ void FProjectedShadowInfo::RenderRayTracedDistanceFieldProjection(
 		PassParameters->PS.ShadowFactorsTexture = RayTracedShadowsTexture;
 		PassParameters->PS.ShadowFactorsSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 		PassParameters->PS.ScissorRectMinAndSize = FIntRect(ScissorRect.Min, ScissorRect.Size());
+		PassParameters->PS.OneOverDownsampleFactor = 1.0f / GetDFShadowDownsampleFactor();
 
 		if (bDirectionalLight && CascadeSettings.FadePlaneLength > 0)
 		{
@@ -1075,7 +1076,7 @@ void FProjectedShadowInfo::RenderRayTracedDistanceFieldProjection(
 		}
 
 		FDistanceFieldShadowingUpsamplePS::FPermutationDomain PermutationVector;
-		PermutationVector.Set< FDistanceFieldShadowingUpsamplePS::FUpsample >(GFullResolutionDFShadowing == 0);
+		PermutationVector.Set< FDistanceFieldShadowingUpsamplePS::FUpsample >(GetDFShadowDownsampleFactor() != 1);
 		auto PixelShader = View.ShaderMap->GetShader< FDistanceFieldShadowingUpsamplePS >(PermutationVector);
 
 		const bool bReverseCulling = View.bReverseCulling;
