@@ -249,7 +249,17 @@ FSimpleDelegate FGameFeatureDeactivatingContext::PauseDeactivationUntilComplete(
 
 	++NumPausers;
 	return FSimpleDelegate::CreateLambda(
-		[CompletionCallback=CompletionCallback, PauserTag=MoveTemp(InPauserTag)]() { CompletionCallback(PauserTag); }
+		[CompletionCallback = CompletionCallback, PauserTag = MoveTemp(InPauserTag)]() { CompletionCallback(PauserTag); }
+	);
+}
+
+FSimpleDelegate FGameFeaturePostMountingContext::PauseUntilComplete(FString InPauserTag)
+{
+	UE_LOG(LogGameFeatures, Display, TEXT("Post-mount of %.*s paused by %s"), PluginName.Len(), PluginName.GetData(), *InPauserTag);
+
+	++NumPausers;
+	return FSimpleDelegate::CreateLambda(
+		[CompletionCallback = CompletionCallback, PauserTag = MoveTemp(InPauserTag)]() { CompletionCallback(PauserTag); }
 	);
 }
 
@@ -693,9 +703,9 @@ bool UGameFeaturesSubsystem::IsPluginURLProtocol(FStringView PluginURL, EGameFea
 	return PluginURL.StartsWith(UE::GameFeatures::GameFeaturePluginProtocolPrefix(PluginProtocol));
 }
 
-void UGameFeaturesSubsystem::OnGameFeatureTerminating(const FString& PluginName, const FString& PluginURL)
+void UGameFeaturesSubsystem::OnGameFeatureTerminating(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier)
 {
-	CallbackObservers(EObserverCallback::Terminating, PluginURL, &PluginName);
+	CallbackObservers(EObserverCallback::Terminating, PluginIdentifier, &PluginName);
 
 	if (!PluginName.IsEmpty())
 	{
@@ -704,23 +714,33 @@ void UGameFeaturesSubsystem::OnGameFeatureTerminating(const FString& PluginName,
 	}
 }
 
-void UGameFeaturesSubsystem::OnGameFeatureCheckingStatus(const FString& PluginURL)
+void UGameFeaturesSubsystem::OnGameFeatureCheckingStatus(const FGameFeaturePluginIdentifier& PluginIdentifier)
 {
-	CallbackObservers(EObserverCallback::CheckingStatus, PluginURL);
+	CallbackObservers(EObserverCallback::CheckingStatus, PluginIdentifier);
 }
 
-void UGameFeaturesSubsystem::OnGameFeatureStatusKnown(const FString& PluginName, const FString& PluginURL)
+void UGameFeaturesSubsystem::OnGameFeatureStatusKnown(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier)
 {
 	// Map plugin name to plugin URL
 	if (ensure(!GameFeaturePluginNameToPathMap.Contains(PluginName)))
 	{
-		GameFeaturePluginNameToPathMap.Add(PluginName, PluginURL);
+		GameFeaturePluginNameToPathMap.Add(PluginName, PluginIdentifier.GetFullPluginURL());
 	}
 }
 
-void UGameFeaturesSubsystem::OnGameFeatureRegistering(const UGameFeatureData* GameFeatureData, const FString& PluginName, const FString& PluginURL)
+void UGameFeaturesSubsystem::OnGameFeaturePreMounting(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier, FGameFeaturePreMountingContext& Context)
 {
-	CallbackObservers(EObserverCallback::Registering, PluginURL, &PluginName, GameFeatureData);
+	CallbackObservers(EObserverCallback::PreMounting, PluginIdentifier, &PluginName, /*GameFeatureData=*/nullptr, &Context);
+}
+
+void UGameFeaturesSubsystem::OnGameFeaturePostMounting(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier, FGameFeaturePostMountingContext& Context)
+{
+	CallbackObservers(EObserverCallback::PostMounting, PluginIdentifier, &PluginName, /*GameFeatureData=*/nullptr, &Context);
+}
+
+void UGameFeaturesSubsystem::OnGameFeatureRegistering(const UGameFeatureData* GameFeatureData, const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier)
+{
+	CallbackObservers(EObserverCallback::Registering, PluginIdentifier, &PluginName, GameFeatureData);
 
 	for (UGameFeatureAction* Action : GameFeatureData->GetActions())
 	{
@@ -731,9 +751,9 @@ void UGameFeaturesSubsystem::OnGameFeatureRegistering(const UGameFeatureData* Ga
 	}
 }
 
-void UGameFeaturesSubsystem::OnGameFeatureUnregistering(const UGameFeatureData* GameFeatureData, const FString& PluginName, const FString& PluginURL)
+void UGameFeaturesSubsystem::OnGameFeatureUnregistering(const UGameFeatureData* GameFeatureData, const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier)
 {
-	CallbackObservers(EObserverCallback::Unregistering, PluginURL, &PluginName, GameFeatureData);
+	CallbackObservers(EObserverCallback::Unregistering, PluginIdentifier, &PluginName, GameFeatureData);
 
 	for (UGameFeatureAction* Action : GameFeatureData->GetActions())
 	{
@@ -744,9 +764,9 @@ void UGameFeaturesSubsystem::OnGameFeatureUnregistering(const UGameFeatureData* 
 	}
 }
 
-void UGameFeaturesSubsystem::OnGameFeatureLoading(const UGameFeatureData* GameFeatureData, const FString& PluginURL)
+void UGameFeaturesSubsystem::OnGameFeatureLoading(const UGameFeatureData* GameFeatureData, const FGameFeaturePluginIdentifier& PluginIdentifier)
 {
-	CallbackObservers(EObserverCallback::Loading, PluginURL, nullptr, GameFeatureData);
+	CallbackObservers(EObserverCallback::Loading, PluginIdentifier, nullptr, GameFeatureData);
 
 	for (UGameFeatureAction* Action : GameFeatureData->GetActions())
 	{
@@ -757,9 +777,9 @@ void UGameFeaturesSubsystem::OnGameFeatureLoading(const UGameFeatureData* GameFe
 	}
 }
 
-void UGameFeaturesSubsystem::OnGameFeatureActivating(const UGameFeatureData* GameFeatureData, const FString& PluginName, FGameFeatureActivatingContext& Context, const FString& PluginURL)
+void UGameFeaturesSubsystem::OnGameFeatureActivating(const UGameFeatureData* GameFeatureData, const FString& PluginName, FGameFeatureActivatingContext& Context, const FGameFeaturePluginIdentifier& PluginIdentifier)
 {
-	CallbackObservers(EObserverCallback::Activating, PluginURL, &PluginName, GameFeatureData);
+	CallbackObservers(EObserverCallback::Activating, PluginIdentifier, &PluginName, GameFeatureData);
 
 	for (UGameFeatureAction* Action : GameFeatureData->GetActions())
 	{
@@ -770,9 +790,9 @@ void UGameFeaturesSubsystem::OnGameFeatureActivating(const UGameFeatureData* Gam
 	}
 }
 
-void UGameFeaturesSubsystem::OnGameFeatureDeactivating(const UGameFeatureData* GameFeatureData, const FString& PluginName, FGameFeatureDeactivatingContext& Context, const FString& PluginURL)
+void UGameFeaturesSubsystem::OnGameFeatureDeactivating(const UGameFeatureData* GameFeatureData, const FString& PluginName, FGameFeatureDeactivatingContext& Context, const FGameFeaturePluginIdentifier& PluginIdentifier)
 {
-	CallbackObservers(EObserverCallback::Deactivating, PluginURL, &PluginName, GameFeatureData, &Context);
+	CallbackObservers(EObserverCallback::Deactivating, PluginIdentifier, &PluginName, GameFeatureData, &Context);
 
 	for (UGameFeatureAction* Action : GameFeatureData->GetActions())
 	{
@@ -783,9 +803,9 @@ void UGameFeaturesSubsystem::OnGameFeatureDeactivating(const UGameFeatureData* G
 	}
 }
 
-void UGameFeaturesSubsystem::OnGameFeaturePauseChange(const FString& PluginURL, const FString& PluginName, FGameFeaturePauseStateChangeContext& Context)
+void UGameFeaturesSubsystem::OnGameFeaturePauseChange(const FGameFeaturePluginIdentifier& PluginIdentifier, const FString& PluginName, FGameFeaturePauseStateChangeContext& Context)
 {
-	CallbackObservers(EObserverCallback::PauseChanged, PluginURL, &PluginName, nullptr, &Context);
+	CallbackObservers(EObserverCallback::PauseChanged, PluginIdentifier, &PluginName, nullptr, &Context);
 }
 
 const UGameFeatureData* UGameFeaturesSubsystem::GetDataForStateMachine(UGameFeaturePluginStateMachine* GFSM) const
@@ -841,6 +861,15 @@ bool UGameFeaturesSubsystem::IsGameFeaturePluginInstalled(const FString& PluginU
 	return false;
 }
 
+bool UGameFeaturesSubsystem::IsGameFeaturePluginMounted(const FString& PluginURL) const
+{
+	if (const UGameFeaturePluginStateMachine* StateMachine = FindGameFeaturePluginStateMachine(PluginURL))
+	{
+		return StateMachine->GetCurrentState() > EGameFeaturePluginState::Mounting;
+	}
+	return false;
+}
+
 bool UGameFeaturesSubsystem::IsGameFeaturePluginRegistered(const FString& PluginURL, bool bCheckForRegistering /*= false*/) const
 {
 	if (const UGameFeaturePluginStateMachine* StateMachine = FindGameFeaturePluginStateMachine(PluginURL))
@@ -884,7 +913,7 @@ void UGameFeaturesSubsystem::LoadGameFeaturePlugin(const FString& PluginURL, con
 		// on whichever Role runs second between client and server.
 
 		// Refire the observer for Activated and do nothing else.
-		CallbackObservers(EObserverCallback::Activating, PluginURL, &StateMachine->GetPluginName(), StateMachine->GetGameFeatureDataForActivePlugin());
+		CallbackObservers(EObserverCallback::Activating, StateMachine->GetPluginIdentifier(), &StateMachine->GetPluginName(), StateMachine->GetGameFeatureDataForActivePlugin());
 	}
 
 	if (ShouldUpdatePluginProtocolOptions(StateMachine, ProtocolOptions))
@@ -1018,7 +1047,7 @@ void UGameFeaturesSubsystem::ChangeGameFeatureTargetState(const FString& PluginU
 		// on whichever Role runs second between client and server.
 
 		// Refire the observer for Activated and do nothing else.
-		CallbackObservers(EObserverCallback::Activating, PluginURL, &StateMachine->GetPluginName(), StateMachine->GetGameFeatureDataForActivePlugin());
+		CallbackObservers(EObserverCallback::Activating, StateMachine->GetPluginIdentifier(), &StateMachine->GetPluginName(), StateMachine->GetGameFeatureDataForActivePlugin());
 	}
 	
 	if (ShouldUpdatePluginProtocolOptions(StateMachine, ProtocolOptions))
@@ -2141,12 +2170,12 @@ void UGameFeaturesSubsystem::ListGameFeaturePlugins(const TArray<FString>& Args,
 	Ar.Logf(TEXT("Total Game Feature Plugins: %d"), PluginCount);
 }
 
-void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, const FString& PluginURL, 
+void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, const FGameFeaturePluginIdentifier& PluginIdentifier,
 	const FString* PluginName /*= nullptr*/, 
 	const UGameFeatureData* GameFeatureData /*= nullptr*/, 
 	FGameFeatureStateChangeContext* StateChangeContext /*= nullptr*/)
 {
-	static_assert(std::underlying_type<EObserverCallback>::type(EObserverCallback::Count) == 8, "Update UGameFeaturesSubsystem::CallbackObservers to handle added EObserverCallback");
+	static_assert(std::underlying_type<EObserverCallback>::type(EObserverCallback::Count) == 10, "Update UGameFeaturesSubsystem::CallbackObservers to handle added EObserverCallback");
 
 	// Protect against modifying the observer list during iteration
 	TArray<UObject*> LocalObservers(Observers);
@@ -2157,7 +2186,7 @@ void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, c
 	{
 		for (UObject* Observer : LocalObservers)
 		{
-			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureCheckingStatus(PluginURL);
+			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureCheckingStatus(PluginIdentifier.GetFullPluginURL());
 		}
 		break;
 	}
@@ -2165,7 +2194,27 @@ void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, c
 	{
 		for (UObject* Observer : LocalObservers)
 		{
-			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureTerminating(PluginURL);
+			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureTerminating(PluginIdentifier.GetFullPluginURL());
+		}
+		break;
+	}
+	case EObserverCallback::PreMounting:
+	{
+		check(PluginName);
+		FGameFeaturePreMountingContext* PreMountingContext = static_cast<FGameFeaturePreMountingContext*>(StateChangeContext);
+		for (UObject* Observer : LocalObservers)
+		{
+			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeaturePreMounting(*PluginName, PluginIdentifier, *PreMountingContext);
+		}
+		break;
+	}
+	case EObserverCallback::PostMounting:
+	{
+		check(PluginName);
+		FGameFeaturePostMountingContext* PostMountingContext = static_cast<FGameFeaturePostMountingContext*>(StateChangeContext);
+		for (UObject* Observer : LocalObservers)
+		{
+			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeaturePostMounting(*PluginName, PluginIdentifier, *PostMountingContext);
 		}
 		break;
 	}
@@ -2175,7 +2224,7 @@ void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, c
 		check(GameFeatureData);
 		for (UObject* Observer : LocalObservers)
 		{
-			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureRegistering(GameFeatureData, *PluginName, PluginURL);
+			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureRegistering(GameFeatureData, *PluginName, PluginIdentifier.GetFullPluginURL());
 		}
 		break;
 	}
@@ -2185,7 +2234,7 @@ void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, c
 		check(GameFeatureData);
 		for (UObject* Observer : LocalObservers)
 		{
-			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureUnregistering(GameFeatureData, *PluginName, PluginURL);
+			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureUnregistering(GameFeatureData, *PluginName, PluginIdentifier.GetFullPluginURL());
 		}
 		break;
 	}
@@ -2194,7 +2243,7 @@ void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, c
 		check(GameFeatureData);
 		for (UObject* Observer : LocalObservers)
 		{
-			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureLoading(GameFeatureData, PluginURL);
+			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureLoading(GameFeatureData, PluginIdentifier.GetFullPluginURL());
 		}
 		break;
 	}
@@ -2203,7 +2252,7 @@ void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, c
 		check(GameFeatureData);
 		for (UObject* Observer : LocalObservers)
 		{
-			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureActivating(GameFeatureData, PluginURL);
+			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureActivating(GameFeatureData, PluginIdentifier.GetFullPluginURL());
 		}
 		break;
 	}
@@ -2216,7 +2265,7 @@ void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, c
 		{
 			for (UObject* Observer : LocalObservers)
 			{
-				CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureDeactivating(GameFeatureData, *DeactivatingContext, PluginURL);
+				CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureDeactivating(GameFeatureData, *DeactivatingContext, PluginIdentifier.GetFullPluginURL());
 			}
 		}
 		break;
@@ -2230,7 +2279,7 @@ void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, c
 		{
 			for (UObject* Observer : LocalObservers)
 			{
-				CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeaturePauseChange(PluginURL, *PluginName, *PauseChangeContext);
+				CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeaturePauseChange(PluginIdentifier.GetFullPluginURL(), *PluginName, *PauseChangeContext);
 			}
 		}
 		break;

@@ -155,6 +155,41 @@ private:
 	bool bIsPaused = false;
 };
 
+
+/** Context that provides extra information prior to mounting a plugin */
+struct FGameFeaturePreMountingContext : public FGameFeatureStateChangeContext
+{
+public:
+	//@TODO: Add rules specific to pre-mounting when required
+
+private:
+
+	friend struct FGameFeaturePluginState_Mounting;
+};
+
+/** Context that allows pausing prior to transitioning out of the mounting state */
+struct FGameFeaturePostMountingContext : public FGameFeatureStateChangeContext
+{
+public:
+	// Call this if your observer has an asynchronous action to complete prior to transitioning out of the mounting state
+	// and invoke the returned delegate when you are done (on the game thread!)
+	GAMEFEATURES_API FSimpleDelegate PauseUntilComplete(FString InPauserTag);
+
+	FGameFeaturePostMountingContext(FStringView InPluginName, TFunction<void(FStringView InPauserTag)>&& InCompletionCallback)
+		: PluginName(InPluginName)
+		, CompletionCallback(MoveTemp(InCompletionCallback))
+	{}
+
+	int32 GetNumPausers() const { return NumPausers; }
+
+private:
+	FStringView PluginName;
+	TFunction<void(FStringView InPauserTag)> CompletionCallback;
+	int32 NumPausers = 0;
+
+	friend struct FGameFeaturePluginState_Mounting;
+};
+
 GAMEFEATURES_API DECLARE_LOG_CATEGORY_EXTERN(LogGameFeatures, Log, All);
 /** Notification that a game feature plugin install/register/load/unload has finished */
 DECLARE_DELEGATE_OneParam(FGameFeaturePluginChangeStateComplete, const UE::GameFeatures::FResult& /*Result*/);
@@ -226,7 +261,7 @@ struct FBuiltInGameFeaturePluginBehaviorOptions
 /** Struct used to transform a GameFeaturePlugin URL into something that can uniquely identify the GameFeaturePlugin
     without including any transient data being passed in through the URL */
 USTRUCT()
-struct FGameFeaturePluginIdentifier
+struct GAMEFEATURES_API FGameFeaturePluginIdentifier
 {
 	GENERATED_BODY()
 
@@ -411,6 +446,9 @@ public:
 	/** Determines if a plugin is in the Installed state (or beyond) */
 	bool IsGameFeaturePluginInstalled(const FString& PluginURL) const;
 
+	/** Determines if a plugin is beyond the Mounting state */
+	bool IsGameFeaturePluginMounted(const FString& PluginURL) const;
+
 	/** Determines if a plugin is in the Registered state (or beyond) */
 	bool IsGameFeaturePluginRegistered(const FString& PluginURL, bool bCheckForRegistering = false) const;
 
@@ -528,31 +566,35 @@ public:
 private:
 	TSet<FString> GetActivePluginNames() const;
 
-	void OnGameFeatureTerminating(const FString& PluginName, const FString& PluginURL);
+	void OnGameFeatureTerminating(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier);
 	friend struct FGameFeaturePluginState_Terminal;
 
-	void OnGameFeatureCheckingStatus(const FString& PluginURL);
+	void OnGameFeatureCheckingStatus(const FGameFeaturePluginIdentifier& PluginIdentifier);
 	friend struct FGameFeaturePluginState_UnknownStatus;
 
-	void OnGameFeatureStatusKnown(const FString& PluginName, const FString& PluginURL);
+	void OnGameFeatureStatusKnown(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifierL);
 	friend struct FGameFeaturePluginState_CheckingStatus;
 
-	void OnGameFeatureRegistering(const UGameFeatureData* GameFeatureData, const FString& PluginName, const FString& PluginURL);
+	void OnGameFeaturePreMounting(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier, FGameFeaturePreMountingContext& Context);
+	void OnGameFeaturePostMounting(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier, FGameFeaturePostMountingContext& Context);
+	friend struct FGameFeaturePluginState_Mounting;
+
+	void OnGameFeatureRegistering(const UGameFeatureData* GameFeatureData, const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier);
 	friend struct FGameFeaturePluginState_Registering;
 
-	void OnGameFeatureUnregistering(const UGameFeatureData* GameFeatureData, const FString& PluginName, const FString& PluginURL);
+	void OnGameFeatureUnregistering(const UGameFeatureData* GameFeatureData, const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier);
 	friend struct FGameFeaturePluginState_Unregistering;
 
-	void OnGameFeatureActivating(const UGameFeatureData* GameFeatureData, const FString& PluginName, FGameFeatureActivatingContext& Context, const FString& PluginURL);
+	void OnGameFeatureActivating(const UGameFeatureData* GameFeatureData, const FString& PluginName, FGameFeatureActivatingContext& Context, const FGameFeaturePluginIdentifier& PluginIdentifier);
 	friend struct FGameFeaturePluginState_Activating;
 
-	void OnGameFeatureDeactivating(const UGameFeatureData* GameFeatureData, const FString& PluginName, FGameFeatureDeactivatingContext& Context, const FString& PluginURL);
+	void OnGameFeatureDeactivating(const UGameFeatureData* GameFeatureData, const FString& PluginName, FGameFeatureDeactivatingContext& Context, const FGameFeaturePluginIdentifier& PluginIdentifier);
 	friend struct FGameFeaturePluginState_Deactivating;
 
-	void OnGameFeatureLoading(const UGameFeatureData* GameFeatureData, const FString& PluginURL);
+	void OnGameFeatureLoading(const UGameFeatureData* GameFeatureData, const FGameFeaturePluginIdentifier& PluginIdentifier);
 	friend struct FGameFeaturePluginState_Loading;
 
-	void OnGameFeaturePauseChange(const FString& PluginURL, const FString& PluginName, FGameFeaturePauseStateChangeContext& Context);
+	void OnGameFeaturePauseChange(const FGameFeaturePluginIdentifier& PluginIdentifier, const FString& PluginName, FGameFeaturePauseStateChangeContext& Context);
 	friend struct FGameFeaturePluginState_Downloading;
 	friend struct FGameFeaturePluginState_Deactivating;
 
@@ -621,6 +663,8 @@ private:
 	{
 		CheckingStatus,
 		Terminating,
+		PreMounting,
+		PostMounting,
 		Registering,
 		Unregistering,
 		Loading,
@@ -630,7 +674,7 @@ private:
 		Count
 	};
 
-	void CallbackObservers(EObserverCallback CallbackType, const FString& PluginURL, 
+	void CallbackObservers(EObserverCallback CallbackType, const FGameFeaturePluginIdentifier& PluginIdentifier,
 		const FString* PluginName = nullptr, 
 		const UGameFeatureData* GameFeatureData = nullptr, 
 		FGameFeatureStateChangeContext* StateChangeContext = nullptr);

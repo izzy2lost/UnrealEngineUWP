@@ -6,6 +6,9 @@
 #include "GameFeatureStateChangeObserver.generated.h"
 
 class UGameFeatureData;
+struct FGameFeaturePluginIdentifier;
+struct FGameFeaturePreMountingContext;
+struct FGameFeaturePostMountingContext;
 struct FGameFeatureDeactivatingContext;
 struct FGameFeaturePauseStateChangeContext;
 
@@ -31,18 +34,31 @@ class GAMEFEATURES_API IGameFeatureStateChangeObserver
 
 public:
 
+	// Invoked when going from the UnknownStatus state to the CheckingStatus state
 	virtual void OnGameFeatureCheckingStatus(const FString& PluginURL) {}
 
+	// Invoked prior to terminating a game feature plugin
 	virtual void OnGameFeatureTerminating(const FString& PluginURL) {}
 
+	// Invoked prior to mounting a plugin (but after its install bundles become available, if any)
+	virtual void OnGameFeaturePreMounting(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier, FGameFeaturePreMountingContext& Context) {}
+
+	// Invoked at the end of the plugin mounting phase (whether it was successfully mounted or not)
+	virtual void OnGameFeaturePostMounting(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier, FGameFeaturePostMountingContext& Context) {}
+
+	// Invoked after a game feature plugin has been registered
 	virtual void OnGameFeatureRegistering(const UGameFeatureData* GameFeatureData, const FString& PluginName, const FString& PluginURL) {}
 
+	// Invoked prior to unregistering a game feature plugin
 	virtual void OnGameFeatureUnregistering(const UGameFeatureData* GameFeatureData, const FString& PluginName, const FString& PluginURL) {}
 
+	// Invoked in the early stages of the game feature plugin loading phase
 	virtual void OnGameFeatureLoading(const UGameFeatureData* GameFeatureData, const FString& PluginURL) {}
 
+	// Invoked prior to activating a game feature plugin
 	virtual void OnGameFeatureActivating(const UGameFeatureData* GameFeatureData, const FString& PluginURL) {}
 
+	// Invoked prior to deactivating a game feature plugin
 	virtual void OnGameFeatureDeactivating(const UGameFeatureData* GameFeatureData, FGameFeatureDeactivatingContext& Context, const FString& PluginURL) {}
 
 	/** Called whenever a GameFeature State either pauses or resumes work without transitioning out of that state.
