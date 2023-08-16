@@ -1436,9 +1436,13 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePlugin(const TSharedRef<IPlug
 			{
 				UGameFeaturePluginStateMachine* StateMachine = FindOrCreateGameFeaturePluginStateMachine(PluginURL, FGameFeatureProtocolOptions());
 
-				const EBuiltInAutoState InitialAutoState = (BehaviorOptions.AutoStateOverride != EBuiltInAutoState::Invalid) ? 
+				EBuiltInAutoState InitialAutoState = (BehaviorOptions.AutoStateOverride != EBuiltInAutoState::Invalid) ? 
 					BehaviorOptions.AutoStateOverride : PluginDetails.BuiltInAutoState;
-				
+				if (InitialAutoState < EBuiltInAutoState::Registered && IsRunningCookCommandlet())
+				{
+					UE_LOG(LogGameFeatures, Display, TEXT("%s will be set to Registerd for cooking"), *Plugin->GetName());
+					InitialAutoState = EBuiltInAutoState::Registered;
+				}
 				const EGameFeaturePluginState DestinationState = ConvertInitialFeatureStateToTargetState(InitialAutoState);
 
 				// If we're already at the destination or beyond, don't transition back
