@@ -762,12 +762,11 @@ bool FSearchIndex::Compare(const FSearchIndex& Other) const
 		bResult = false;
 	}
 
-	// @todo: implement me
-	//if (KDTree != Other.KDTree)
-	//{
-	//	UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndex::Compare - KDTree mismatch"));
-	//	bResult = false;
-	//}
+	if (KDTree != Other.KDTree)
+	{
+		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndex::Compare - KDTree mismatch"));
+		bResult = false;
+	}
 	
 	return bResult;
 }

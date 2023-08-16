@@ -35,6 +35,29 @@ struct POSESEARCH_API FKDTree
 		FDataSource(FDataSource&& Other) = default;
 		FDataSource& operator=(const FDataSource& Other) = default;
 		FDataSource& operator=(FDataSource&& Other) = default;
+		bool operator==(const FDataSource& Other) const
+		{
+			if (PointCount != Other.PointCount)
+			{
+				return false;
+			}
+
+			if (PointDim != Other.PointDim)
+			{
+				return false;
+			}
+
+			const int32 DataSize = PointCount * PointDim;
+			for (int32 DataIndex = 0; DataIndex < DataSize; ++DataIndex)
+			{
+				if (Data[DataIndex] != Other.Data[DataIndex])
+				{
+					return false;
+				}
+			}
+			
+			return true;
+		}
 
 		// Must return the number of data points
 		inline size_t kdtree_get_point_count() const { return PointCount; }
@@ -195,7 +218,8 @@ struct POSESEARCH_API FKDTree
 
 	FKDTree& operator=(const FKDTree& Other);
 	FKDTree& operator=(FKDTree&& Other) = delete;
-
+	bool operator==(const FKDTree& Other) const;
+	
 	void Reset();
 	void Construct(int32 Count, int32 Dim, const float* Data, int32 MaxLeafSize = 16);
 	bool FindNeighbors(FKNNResultSet& Result, const float* Query) const;

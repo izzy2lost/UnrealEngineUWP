@@ -30,9 +30,10 @@
 #include "UObject/PackageReload.h"
 
 #if ENABLE_ANIM_DEBUG
-static TAutoConsoleVariable<bool> CVarMotionMatchInvalidateIndexingCache(TEXT("a.MotionMatch.InvalidateIndexingCache"), false, TEXT("MotionMatch Invalidate Indexing Cache"));
-static TAutoConsoleVariable<bool> CVarMotionMatchForceIndexing(TEXT("a.MotionMatch.ForceIndexing"), false, TEXT("MotionMatch Force Indexing"));
-#endif
+static TAutoConsoleVariable<bool> CVarMotionMatchTestInvalidateIndexingCache(TEXT("a.MotionMatch.TestInvalidateIndexingCache"), false, TEXT("Test Invalidate Motion Matching Indexing Cache"));
+static TAutoConsoleVariable<bool> CVarMotionMatchTestForceIndexing(TEXT("a.MotionMatch.TestForceIndexing"), false, TEXT("Test Motion Matching Force Indexing"));
+static TAutoConsoleVariable<int32> CVarMotionMatchTestDeterministicKDTreeConstructIterations(TEXT("a.MotionMatch.TestDeterministicKDTreeConstructIterations"), 0, TEXT("Test Motion Matching Deterministic KDTree Construct Iterations"));
+#endif // ENABLE_ANIM_DEBUG
 
 namespace UE::PoseSearch
 {
@@ -45,7 +46,7 @@ static FCookStatsManager::FAutoRegisterCallback RegisterCookStats([](FCookStatsM
 	{
 		UsageStats.LogStats(AddStat, TEXT("MotionMatching.Usage"), TEXT(""));
 	});
-#endif
+#endif // ENABLE_COOK_STATS
 
 // helper struct to calculate mean deviations
 struct FMeanDeviationCalculator
@@ -560,6 +561,26 @@ static void PreprocessSearchIndexKDTree(FSearchIndex& SearchIndex, const UPoseSe
 		const int32 NumPCAValuesVectors = SearchIndex.PCAValues.Num() / NumberOfPrincipalComponents;
 		SearchIndex.KDTree.Construct(NumPCAValuesVectors, NumberOfPrincipalComponents, SearchIndex.PCAValues.GetData(), KDTreeMaxLeafSize);
 
+#if ENABLE_ANIM_DEBUG
+		// testing kdtree Construct determinism
+		const int32 TestDeterministicKDTreeConstructIterations = CVarMotionMatchTestDeterministicKDTreeConstructIterations.GetValueOnAnyThread();
+		if (TestDeterministicKDTreeConstructIterations > 0)
+		{
+			for (int32 Iteration = 0; Iteration < TestDeterministicKDTreeConstructIterations; ++Iteration)
+			{
+				// copy PCAValues in a different container to ensure input data has different memory addresses
+				TAlignedArray<float> PCAValuesTest = SearchIndex.PCAValues;
+
+				FKDTree KDTreeTest;
+				KDTreeTest.Construct(NumPCAValuesVectors, NumberOfPrincipalComponents, PCAValuesTest.GetData(), KDTreeMaxLeafSize);
+
+				if (KDTreeTest != SearchIndex.KDTree)
+				{
+					UE_LOG(LogPoseSearch, Warning, TEXT("PreprocessSearchIndexKDTree - FKDTree::Construct is not deterministic"));
+				}
+			}
+		}
+
 		// testing the KDTree is returning the proper searches for all the points in pca space
 		const int32 KDTreeQueryNumNeighbors = Database->KDTreeQueryNumNeighbors;
 
@@ -625,6 +646,8 @@ static void PreprocessSearchIndexKDTree(FSearchIndex& SearchIndex, const UPoseSe
 
 			check(NumberOfFailingPoints == 0);
 		}
+
+#endif // ENABLE_ANIM_DEBUG
 	}
 }
 
@@ -913,7 +936,7 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 	
 	bool bForceBuildIndex = false;
 #if ENABLE_ANIM_DEBUG
-	if (CVarMotionMatchForceIndexing.GetValueOnAnyThread())
+	if (CVarMotionMatchTestForceIndexing.GetValueOnAnyThread())
 	{
 		bForceBuildIndex = true;
 	}
@@ -1237,11 +1260,11 @@ void FAsyncPoseSearchDatabasesManagement::Tick(float DeltaTime)
 	check(IsInGameThread());
 
 #if ENABLE_ANIM_DEBUG
-	if (CVarMotionMatchInvalidateIndexingCache.GetValueOnAnyThread())
+	if (CVarMotionMatchTestInvalidateIndexingCache.GetValueOnAnyThread())
 	{
 		for (TUniquePtr<FPoseSearchDatabaseAsyncCacheTask>& TaskPtr : Tasks)
 		{
-			UE_LOG(LogPoseSearch, Log, TEXT("%s - %s Cancelled because of CVarMotionMatchInvalidateIndexingCache"), *LexToString(TaskPtr->GetDerivedDataKey()), *TaskPtr->GetDatabase()->GetName());
+			UE_LOG(LogPoseSearch, Log, TEXT("%s - %s Cancelled because of CVarMotionMatchTestInvalidateIndexingCache"), *LexToString(TaskPtr->GetDerivedDataKey()), *TaskPtr->GetDatabase()->GetName());
 		}
 		Tasks.Reset();
 	}
@@ -1297,7 +1320,7 @@ bool FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(const UPoseSear
 	{
 		Flag |= ERequestAsyncBuildFlag::WaitForCompletion;
 	}
-#endif
+#endif // WITH_ENGINE
 
 	check(EnumHasAnyFlags(Flag, ERequestAsyncBuildFlag::NewRequest | ERequestAsyncBuildFlag::ContinueRequest));
 
