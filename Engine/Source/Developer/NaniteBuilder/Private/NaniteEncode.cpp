@@ -1405,7 +1405,7 @@ static void EncodeGeometryData(	const uint32 LocalClusterIndex, const FCluster& 
 		checkSlow(DecodeZigZag(Value) == Delta);
 		
 		checkSlow(NumBytes <= 3);
-		checkSlow(Value < (1u << NumBytes));
+		checkSlow(Value < (1u << (NumBytes*8)));
 
 		if (NumBytes >= 3)
 		{
