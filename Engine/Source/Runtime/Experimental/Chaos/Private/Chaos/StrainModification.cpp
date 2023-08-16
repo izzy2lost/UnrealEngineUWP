@@ -217,11 +217,11 @@ Chaos::FStrainedProxyRange::FStrainedProxyRange(Chaos::FRigidClustering& InRigid
 		const bool bIsGeometryCollectionProxy = (Proxy->GetType() == EPhysicsProxyType::GeometryCollectionType);
 		if (bIsGeometryCollectionProxy)
 		{
+			FGeometryCollectionPhysicsProxy* ProxyGC = static_cast<FGeometryCollectionPhysicsProxy*>(Proxy);
+
 			// Make sure the rest collection has a root index (If a GC)
 			if (bRootLevelOnly)
 			{
-				FGeometryCollectionPhysicsProxy* ProxyGC = static_cast<FGeometryCollectionPhysicsProxy*>(Proxy);
-
 				FSimulationParameters& Parameters = ProxyGC->GetSimParameters();
 				const int32 RootIndex = Parameters.InitialRootIndex;
 				TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ParticleHandles = ProxyGC->GetSolverParticleHandles();
@@ -235,12 +235,12 @@ Chaos::FStrainedProxyRange::FStrainedProxyRange(Chaos::FRigidClustering& InRigid
 
 				// Only need to use AddUnique if we're not checking for root, since at most
 				// one cluster will have the rest collection's root index.
-				ProxyAndRoots.Add({ Proxy, Cluster, /*bPartialDestruction*/ false });
+				ProxyAndRoots.Add({ ProxyGC, Cluster, /*bPartialDestruction*/ false });
 			}
 			else
 			{
 
-				ProxyAndRoots.AddUnique({ Proxy, Cluster, /*bPartialDestruction*/ false});
+				ProxyAndRoots.AddUnique({ ProxyGC, Cluster, /*bPartialDestruction*/ false});
 			}
 		}
 
@@ -260,8 +260,13 @@ Chaos::FStrainedProxyRange::FStrainedProxyRange(Chaos::FRigidClustering& InRigid
 						{
 							if (ClusteredChildHandle->GetExternalStrain() > 0 || ClusteredChildHandle->CollisionImpulse() > 0)
 							{
-								// we actually add tyhe cluster union proxy and the partial destruction child handle
-								ProxyAndRoots.Add({ ClusteredChildHandle->PhysicsProxy(), ClusteredChildHandle, /*bPartialDestruction*/ true});
+								IPhysicsProxyBase* ChildProxy = ClusteredChildHandle->PhysicsProxy();
+								if (ChildProxy && ChildProxy->GetType() == EPhysicsProxyType::GeometryCollectionType)
+								{
+									// we actually add tyhe cluster union proxy and the partial destruction child handle
+									FGeometryCollectionPhysicsProxy* ChildProxyGC = static_cast<FGeometryCollectionPhysicsProxy*>(ChildProxy);
+									ProxyAndRoots.Add({ ChildProxyGC, ClusteredChildHandle, /*bPartialDestruction*/ true });
+								}
 							}
 						}
 					}

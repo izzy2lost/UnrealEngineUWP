@@ -27,7 +27,7 @@ namespace Chaos
 
 	struct FStrainedProxyAndRoot
 	{
-		IPhysicsProxyBase* Proxy = nullptr;
+		FGeometryCollectionPhysicsProxy* Proxy = nullptr;
 
 		// Can be a root if proxy is a GC or the directly strained particle if the proxy is a cluster union
 		Chaos::FPBDRigidClusteredParticleHandle* ParticleHandle = nullptr;
@@ -69,6 +69,10 @@ namespace Chaos
 
 		// Get the physics handle for the strained parent cluster or the strained particle directly if it's part of partial destruction
 		CHAOS_API const Chaos::FPBDRigidParticleHandle* GetParticleHandle() const;
+
+		// Get the physics handle for the strained parent cluster
+		UE_DEPRECATED(5.4, "This has been replaced by GetParticleHandle and GetOriginalRootHandle for finer grain access to the underlying handles")
+		CHAOS_API const Chaos::FPBDRigidParticleHandle* GetRootHandle() const { return GetParticleHandle(); }
 
 		// Get the number of level-1 strainable entities (number of rest-children in the per-particle
 		// strain model, or number of rest-connections in the edge/area model).
