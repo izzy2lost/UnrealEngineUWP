@@ -153,7 +153,7 @@ bool UUserWidget::Initialize()
 			InitializeNamedSlots();
 		}
 
-		if (!IsDesignTime())
+		if (!IsDesignTime() && PlayerContext.IsValid())
 		{
 			NativeOnInitialized();
 		}
