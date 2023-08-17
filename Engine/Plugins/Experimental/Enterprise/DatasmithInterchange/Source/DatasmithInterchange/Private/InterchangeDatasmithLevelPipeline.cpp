@@ -6,6 +6,8 @@
 #include "InterchangeDatasmithAreaLightNode.h"
 #include "InterchangeDatasmithUtils.h"
 
+#include "InterchangeDecalActorFactoryNode.h"
+#include "InterchangeDecalNode.h"
 
 #include "InterchangeAnimationTrackSetFactoryNode.h"
 #include "InterchangeAnimationTrackSetNode.h"
@@ -18,6 +20,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshActor.h"
 #include "Materials/MaterialInterface.h"
+#include "Misc/PackageName.h"
 
 void UInterchangeDatasmithLevelPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* NodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas)
 {
@@ -150,6 +153,11 @@ UInterchangeActorFactoryNode* UInterchangeDatasmithLevelPipeline::CreateActorFac
 	{
 		return NewObject<UInterchangeDatasmithAreaLightFactoryNode>(BaseNodeContainer, NAME_None);
 	}
+	// Experimental - Move to Super class once finalized
+	else if (TranslatedAssetNode && TranslatedAssetNode->IsA<UInterchangeDecalNode>())
+	{
+		return NewObject<UInterchangeDecalActorFactoryNode>(BaseNodeContainer, NAME_None);
+	}
 	else
 	{
 		return Super::CreateActorFactoryNode(SceneNode, TranslatedAssetNode);
@@ -163,6 +171,13 @@ void UInterchangeDatasmithLevelPipeline::SetUpFactoryNode(UInterchangeActorFacto
 		UInterchangeDatasmithAreaLightFactoryNode* AreaLightFactory = Cast<UInterchangeDatasmithAreaLightFactoryNode>(ActorFactoryNode);
 		ensure(AreaLightFactory);
 		SetupAreaLight(AreaLightFactory, AreaLightNode);
+	}
+	// Experimental - Move to Super class once finalized
+	else if (const UInterchangeDecalNode* DecalNode = Cast<UInterchangeDecalNode>(TranslatedAssetNode))
+	{
+		UInterchangeDecalActorFactoryNode* DecalActorFactory = Cast<UInterchangeDecalActorFactoryNode>(ActorFactoryNode);
+		ensure(DecalActorFactory);
+		SetupDecalActor(DecalActorFactory, DecalNode);
 	}
 	else
 	{
@@ -178,9 +193,9 @@ void UInterchangeDatasmithLevelPipeline::SetUpFactoryNode(UInterchangeActorFacto
 	}\
 
 /**
-* Only modifies the attribute if a condition is satisfied
-* Condition should an expression evaluated to a boolean.
-*/
+ * Only modifies the attribute if a condition is satisfied
+ * Condition should an expression evaluated to a boolean.
+ */
 #define APPLY_FACTORY_ATTRIBUTE_WITH_VALIDATION(AttributeName, AttributeType, Condition) \
 	AttributeType AttributeName;\
 	if (TranslatedNode->GetCustom##AttributeName(AttributeName))\
@@ -261,6 +276,21 @@ void UInterchangeDatasmithLevelPipeline::SetupAreaLight(UInterchangeDatasmithAre
 
 	APPLY_FACTORY_ATTRIBUTE(SpotlightInnerAngle, float);
 	APPLY_FACTORY_ATTRIBUTE(SpotlightOuterAngle, float);
+}
+
+void UInterchangeDatasmithLevelPipeline::SetupDecalActor(UInterchangeDecalActorFactoryNode* FactoryNode, const UInterchangeDecalNode* TranslatedNode) const
+{
+	APPLY_FACTORY_ATTRIBUTE(DecalSize, FVector);
+	APPLY_FACTORY_ATTRIBUTE(SortOrder, int32);
+	APPLY_FACTORY_ATTRIBUTE(DecalMaterialPathName, FString);
+
+	// If the path is not a valid object path then it is an Interchange Node UID (Decal Material Node to be specific).
+	if (!FPackageName::IsValidObjectPath(DecalMaterialPathName))
+	{
+		const FString MaterialFactoryUid = UInterchangeFactoryBaseNode::BuildFactoryNodeUid(DecalMaterialPathName);
+		FactoryNode->SetCustomDecalMaterialPathName(MaterialFactoryUid);
+		FactoryNode->AddFactoryDependencyUid(MaterialFactoryUid);
+	}
 }
 
 #undef APPLY_FACTORY_ATTRIBUTE

@@ -17,6 +17,7 @@
 #include "InterchangeShaderGraphNode.h"
 #include "InterchangeTexture2DNode.h"
 #include "InterchangeTexture2DFactoryNode.h"
+#include "InterchangeDecalMaterialNode.h"
 #include "Nodes/InterchangeUserDefinedAttribute.h"
 
 #include "Async/TaskGraphInterfaces.h"
@@ -871,6 +872,17 @@ namespace UE::DatasmithInterchange::MaterialUtils
 		return true;
 	}
 
+	bool BuildMaterialNode(IDatasmithDecalMaterialElement& MaterialElement, UInterchangeDecalMaterialNode& MaterialNode)
+	{
+		// #todo_Vedang_Javdekar Check if adding this attribute would help later in the Import Process.
+		//MaterialNode.AddInt32Attribute(MaterialTypeAttrName, int32(EDatasmithReferenceMaterialType::Decal));
+
+		MaterialNode.SetCustomDiffuseTexturePath(MaterialElement.GetDiffuseTexturePathName());
+		MaterialNode.SetCustomNormalTexturePath(MaterialElement.GetNormalTexturePathName());
+
+		return true;
+	}
+
 	void ProcessDependencies(IDatasmithUEPbrMaterialElement& MaterialElement, TArray<TSharedPtr<IDatasmithBaseMaterialElement>>& OutMaterialElements, TMap<FString, TSharedPtr<IDatasmithBaseMaterialElement>>& MaterialsToSort)
 	{
 		for (int32 ExpressionIndex = 0; ExpressionIndex < MaterialElement.GetExpressionsCount(); ExpressionIndex++)
@@ -1031,6 +1043,21 @@ namespace UE::DatasmithInterchange::MaterialUtils
 				MaterialNode->InitializeNode(MaterialNodeUid, MaterialElement->GetLabel(), EInterchangeNodeContainerType::TranslatedAsset);
 
 				if (!BuildMaterialNode(PbrMaterialElement, *MaterialNode))
+				{
+					MaterialNode = nullptr;
+				}
+
+				BaseNode = MaterialNode;
+			}
+			else if (MaterialElement->IsA(EDatasmithElementType::DecalMaterial))
+			{
+				IDatasmithDecalMaterialElement& DecalMaterialElement = static_cast<IDatasmithDecalMaterialElement&>(*MaterialElement);
+
+				UInterchangeDecalMaterialNode* MaterialNode = NewObject<UInterchangeDecalMaterialNode>(&NodeContainer);
+				const FString MaterialNodeUid = NodeUtils::DecalMaterialPrefix + FDatasmithUtils::SanitizeObjectName(MaterialElement->GetName());
+				MaterialNode->InitializeNode(MaterialNodeUid, *FDatasmithUtils::SanitizeObjectName(MaterialElement->GetLabel()), EInterchangeNodeContainerType::TranslatedAsset);
+
+				if (!BuildMaterialNode(DecalMaterialElement, *MaterialNode))
 				{
 					MaterialNode = nullptr;
 				}

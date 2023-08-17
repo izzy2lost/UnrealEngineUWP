@@ -5,6 +5,7 @@
 #include "InterchangeImportCommon.h"
 #include "InterchangeImportLog.h"
 #include "InterchangeMaterialFactoryNode.h"
+#include "InterchangeDecalMaterialFactoryNode.h"
 #include "InterchangeShaderGraphNode.h"
 #include "InterchangeSourceData.h"
 #include "InterchangeTextureNode.h"
@@ -157,11 +158,8 @@ namespace UE::Interchange::MaterialFactory::Internal
 			: UInterchangeShaderPortsAPI::MakeInputValueKey(Inputs::Texture.ToString());
 
 		FString TextureFactoryNodeUid;
-		ExpressionNode->GetStringAttribute(InputKey, TextureFactoryNodeUid);
-
-
 		// It is possible that the Texture Object Parameter was used that uses KeyValueProperty to reference the texture instead of extra texture input connection.
-		if (TextureFactoryNodeUid.IsEmpty())
+		if (!ExpressionNode->GetStringAttribute(InputKey, TextureFactoryNodeUid))
 		{
 			FString PayloadKey;
 			UInterchangeUserDefinedAttributesAPI::GetUserDefinedAttribute_FString(ExpressionNode, Inputs::Texture.ToString(), TextureFactoryNodeUid, PayloadKey);
@@ -323,7 +321,6 @@ namespace UE::Interchange::MaterialFactory::Internal
 					{
 						ParameterName = FName(*MaterialExpressionName);
 					}
-
 					// Set the parameter name if the material expression has one (some material expressions don't inherit from UMaterialExpressionParameter, ie: UMaterialExpressionTextureSampleParameter
 					*(Property->ContainerPtrToValuePtr<FName>(MaterialExpression)) = ParameterName;
 				}
@@ -385,6 +382,35 @@ namespace UE::Interchange::MaterialFactory::Internal
 	};
 #endif // #if WITH_EDITOR
 
+	/**
+	 * Try loading the asset with treating the Path as a package path, and fallback to NodeContainer if it fails.
+	 * @type AssetType the type to load
+	 * @type AssetFactoryType asset factory to use to get the referenced object
+	 * @param NodeContainer container that stores all the nodes
+	 * @param PathString path or UID of a node
+	 * 
+	 * @returns the loaded asset if there is any
+	 */
+	template<typename AssetType, typename AssetFactoryType>
+	AssetType* TryLoadAsset(const UInterchangeBaseNodeContainer& NodeContainer, FString PathString)
+	{
+		AssetType* OutAsset = nullptr;
+		if (FPackageName::IsValidObjectPath(PathString))
+		{
+			FSoftObjectPath AssetPath(PathString);
+			OutAsset = Cast<AssetType>(AssetPath.TryLoad());
+		}
+		else if (const AssetFactoryType* TextureFactoryNode = Cast<AssetFactoryType>(NodeContainer.GetNode(PathString)))
+		{
+			FSoftObjectPath ReferenceObject;
+			TextureFactoryNode->GetCustomReferenceObject(ReferenceObject);
+			OutAsset = Cast<AssetType>(ReferenceObject.TryLoad());
+		}
+
+		return OutAsset;
+	}
+
+
 	void UpdateParameterBool(UMaterialInstance& MaterialInstance, const FString& InputName, const UInterchangeMaterialInstanceFactoryNode& FactoryNode)
 	{
 #if WITH_EDITORONLY_DATA
@@ -426,10 +452,10 @@ namespace UE::Interchange::MaterialFactory::Internal
 				}
 				else
 #endif // #if WITH_EDITOR
-					if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
-					{
-						MaterialInstanceDynamic->SetScalarParameterValue(ParameterName, InputValue);
-					}
+				if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
+				{
+					MaterialInstanceDynamic->SetScalarParameterValue(ParameterName, InputValue);
+				}
 			}
 		}
 	}
@@ -453,10 +479,10 @@ namespace UE::Interchange::MaterialFactory::Internal
 					}
 					else
 #endif // #if WITH_EDITOR
-						if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
-						{
-							MaterialInstanceDynamic->SetVectorParameterValue(ParameterName, InputValue);
-						}
+					if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
+					{
+						MaterialInstanceDynamic->SetVectorParameterValue(ParameterName, InputValue);
+					}
 				}
 			}
 		}
@@ -487,10 +513,10 @@ namespace UE::Interchange::MaterialFactory::Internal
 							}
 							else
 #endif // #if WITH_EDITOR
-								if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
-								{
-									MaterialInstanceDynamic->SetTextureParameterValue(ParameterName, InputTexture);
-								}
+							if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
+							{
+								MaterialInstanceDynamic->SetTextureParameterValue(ParameterName, InputTexture);
+							}
 						}
 					}
 				}
@@ -510,11 +536,11 @@ namespace UE::Interchange::MaterialFactory::Internal
 			}
 			else
 #endif // #if WITH_EDITOR
-				if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
-				{
-					//TODO: Log Error
-					ensure(false);
-				}
+			if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
+			{
+				//TODO: Log Error
+				ensure(false);
+			}
 		}
 	}
 
@@ -530,10 +556,10 @@ namespace UE::Interchange::MaterialFactory::Internal
 			}
 			else
 #endif // #if WITH_EDITOR
-				if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
-				{
-					MaterialInstanceDynamic->SetScalarParameterValue(ParameterName, AttributeValue);
-				}
+			if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
+			{
+				MaterialInstanceDynamic->SetScalarParameterValue(ParameterName, AttributeValue);
+			}
 		}
 	}
 
@@ -549,10 +575,10 @@ namespace UE::Interchange::MaterialFactory::Internal
 			}
 			else
 #endif // #if WITH_EDITOR
-				if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
-				{
-					MaterialInstanceDynamic->SetVectorParameterValue(ParameterName, AttributeValue);
-				}
+			if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
+			{
+				MaterialInstanceDynamic->SetVectorParameterValue(ParameterName, AttributeValue);
+			}
 		}
 	}
 
@@ -575,16 +601,16 @@ namespace UE::Interchange::MaterialFactory::Internal
 					}
 					else
 #endif // #if WITH_EDITOR
-						if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
-						{
-							MaterialInstanceDynamic->SetTextureParameterValue(ParameterName, InputTexture);
-						}
+					if (UMaterialInstanceDynamic* MaterialInstanceDynamic = Cast<UMaterialInstanceDynamic>(&MaterialInstance))
+					{
+						MaterialInstanceDynamic->SetTextureParameterValue(ParameterName, InputTexture);
+					}
 				}
 			}
 		}
 	}
 }
-
+		
 namespace UE::Interchange::Materials::HashUtils
 {
 
@@ -796,26 +822,20 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeMaterialFactory::BeginIm
 #if WITH_EDITOR
 				if (UMaterialInstanceConstant* MaterialInstanceConstant = Cast<UMaterialInstanceConstant>(MaterialInstance))
 				{
+					using namespace UE::Interchange::MaterialFactory::Internal;
+
 					FString ParentPath;
 					FSoftObjectPath ParentMaterialPath;
 					if (MaterialInstanceFactoryNode->GetCustomParent(ParentPath))
 					{
-						if (FPackageName::IsValidObjectPath(ParentPath))
+						if (UMaterialInterface* ParentMaterialAsset = TryLoadAsset<UMaterialInterface, UInterchangeFactoryBaseNode>(*Arguments.NodeContainer, ParentPath))
 						{
-							ParentMaterialPath = FSoftObjectPath(ParentPath);
+							MaterialInstanceConstant->SetParentEditorOnly(ParentMaterialAsset);
+							MaterialInstanceConstant->PostEditChange();
 						}
-						else if (UInterchangeFactoryBaseNode* ParentFactory = Arguments.NodeContainer->GetFactoryNode(ParentPath))
+						else
 						{
-							ParentFactory->GetCustomReferenceObject(ParentMaterialPath);
-						}
-
-						if (ParentMaterialPath.IsValid())
-						{
-							if (UMaterialInterface* ParentMaterialAsset = Cast<UMaterialInterface>(ParentMaterialPath.TryLoad()))
-							{
-								MaterialInstanceConstant->SetParentEditorOnly(ParentMaterialAsset);
-								MaterialInstanceConstant->PostEditChange();
-							}
+							UE_LOG(LogInterchangeImport, Error, TEXT("No parent material was found."))
 						}
 					}
 				}
@@ -823,6 +843,44 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeMaterialFactory::BeginIm
 				SetupMaterialInstance(*MaterialInstance, *Arguments.NodeContainer, *MaterialInstanceFactoryNode, !Arguments.ReimportObject);
 			}
 		}
+	}
+	else if (const UInterchangeDecalMaterialFactoryNode* DecalMaterialFactoryNode = Cast<UInterchangeDecalMaterialFactoryNode>(MaterialFactoryNode))
+	{
+#if WITH_EDITOR
+		const FSoftObjectPath DecalMaterialParent(TEXT("/Interchange/Materials/DecalMaterial.DecalMaterial"));
+		const FName DiffuseTextureParameterName(TEXT("DecalTexture"));
+		const FName NormalTextureParameterName(TEXT("NormalTexture"));
+		if (UMaterialInstanceConstant* MaterialInstanceConstant = Cast<UMaterialInstanceConstant>(Material))
+		{
+			if (UMaterial* ParentMaterial = Cast<UMaterial>(DecalMaterialParent.TryLoad()))
+			{
+				using namespace UE::Interchange::MaterialFactory::Internal;
+				MaterialInstanceConstant->SetParentEditorOnly(ParentMaterial);
+
+				FString DiffuseTexturePath;
+				if (DecalMaterialFactoryNode->GetCustomDiffuseTexturePath(DiffuseTexturePath))
+				{
+					if (UTexture* InputTexture = TryLoadAsset<UTexture, UInterchangeTextureFactoryNode>(*Arguments.NodeContainer, DiffuseTexturePath))
+					{
+						MaterialInstanceConstant->SetTextureParameterValueEditorOnly(DiffuseTextureParameterName, InputTexture);
+					}
+				}
+
+				FString NormalTexturePath;
+				if (DecalMaterialFactoryNode->GetCustomNormalTexturePath(NormalTexturePath))
+				{
+					if (UTexture* InputTexture = TryLoadAsset<UTexture, UInterchangeTextureFactoryNode>(*Arguments.NodeContainer, NormalTexturePath))
+					{
+						MaterialInstanceConstant->SetTextureParameterValueEditorOnly(NormalTextureParameterName, InputTexture);
+					}
+				}
+			}
+			else
+			{
+				UE_LOG(LogInterchangeImport, Error, TEXT("Invalid Decal Material Parent Path. Can't create a Decal Material Instance."));
+			}
+		}
+#endif // #if WITH_EDITOR
 	}
 	
 	ImportAssetResult.ImportedObject = Material;
@@ -1535,7 +1593,6 @@ void UInterchangeMaterialFactory::SetupMaterialInstance(UMaterialInstance& Mater
 			{
 			case UE::Interchange::EAttributeTypes::Bool:
 			{
-				// #todo_Vedang_Javdekar: WIP
 				OverrideBoolParameter(FactoryNode, AttributeKey.Key, MaterialInstance, ParameterName);
 			}
 			break;

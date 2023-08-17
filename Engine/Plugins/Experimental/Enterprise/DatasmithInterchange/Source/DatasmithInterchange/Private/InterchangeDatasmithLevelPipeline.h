@@ -13,6 +13,8 @@ class UInterchangeBaseNodeContainer;
 class UInterchangeSceneNode;
 class UInterchangeDatasmithAreaLightFactoryNode;
 class UInterchangeDatasmithAreaLightNode;
+class UInterchangeDecalActorFactoryNode;
+class UInterchangeDecalNode;
 
 UCLASS(BlueprintType, Experimental)
 class UInterchangeDatasmithLevelPipeline : public UInterchangeGenericLevelPipeline
@@ -30,4 +32,5 @@ protected:
 private:
 
 	void SetupAreaLight(UInterchangeDatasmithAreaLightFactoryNode* AreaLightFactoryNode, const UInterchangeDatasmithAreaLightNode* AreaLightNode) const;
+	void SetupDecalActor(UInterchangeDecalActorFactoryNode* DecalActorFactoryNode, const UInterchangeDecalNode* DecalNode) const;
 };

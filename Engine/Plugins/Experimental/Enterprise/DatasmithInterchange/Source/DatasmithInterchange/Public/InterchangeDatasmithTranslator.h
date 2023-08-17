@@ -23,10 +23,12 @@ class IDatasmithActorElement;
 class IDatasmithBaseAnimationElement;
 class IDatasmithCameraActorElement;
 class IDatasmithLightActorElement;
+class IDatasmithDecalActorElement;
 class IDatasmithScene;
 class IDatasmithTransformAnimationElement;
 class UInterchangePhysicalCameraNode;
 class UInterchangeBaseLightNode;
+class UInterchangeDecalNode;
 class UInterchangeSceneNode;
 
 namespace UE::Interchange
@@ -100,6 +102,8 @@ private:
 	UInterchangePhysicalCameraNode* AddCameraNode(UInterchangeBaseNodeContainer& BaseNodeContainer, const TSharedRef<IDatasmithCameraActorElement>& CameraActor) const;
 
 	UInterchangeBaseLightNode* AddLightNode(UInterchangeBaseNodeContainer& BaseNodeContainer, const TSharedRef<IDatasmithLightActorElement>& LightActor) const;
+
+	UInterchangeDecalNode* AddDecalNode(UInterchangeBaseNodeContainer& BaseNodeContainer, const TSharedRef<IDatasmithDecalActorElement>& DecalActor) const;
 
 	TSharedPtr<UE::DatasmithImporter::FExternalSource> LoadedExternalSource;
 

@@ -24,6 +24,7 @@
 #include "InterchangeCameraNode.h"
 #include "InterchangeAnimationTrackSetNode.h"
 #include "InterchangeLightNode.h"
+#include "InterchangeDecalNode.h"
 #include "InterchangeManager.h"
 #include "InterchangeMaterialDefinitions.h"
 #include "InterchangeMaterialInstanceNode.h"
@@ -36,6 +37,8 @@
 #include "StaticMeshOperations.h"
 
 #include "Misc/App.h"
+#include "Misc/PackageName.h"
+
 
 #define LOCTEXT_NAMESPACE "DatasmithInterchange"
 
@@ -394,6 +397,13 @@ void UInterchangeDatasmithTranslator::HandleDatasmithActor(UInterchangeBaseNodeC
 		UInterchangeBaseLightNode* LightNode = AddLightNode(BaseNodeContainer, LightActor);
 		InterchangeSceneNode->SetCustomAssetInstanceUid(LightNode->GetUniqueID());
 	}
+	else if (ActorElement->IsA(EDatasmithElementType::Decal))
+	{
+		TSharedRef<IDatasmithDecalActorElement> DecalActor = StaticCastSharedRef<IDatasmithDecalActorElement>(ActorElement);
+
+		UInterchangeDecalNode* DecalNode= AddDecalNode(BaseNodeContainer, DecalActor);
+		InterchangeSceneNode->SetCustomAssetInstanceUid(DecalNode->GetUniqueID());
+	}
 
 	for (int32 ChildIndex = 0, ChildrenCount = ActorElement->GetChildrenCount(); ChildIndex < ChildrenCount; ++ChildIndex)
 	{
@@ -508,6 +518,32 @@ UInterchangeBaseLightNode* UInterchangeDatasmithTranslator::AddLightNode(UInterc
 	BaseNodeContainer.AddNode(LightNode);
 
 	return LightNode;
+}
+
+UInterchangeDecalNode* UInterchangeDatasmithTranslator::AddDecalNode(UInterchangeBaseNodeContainer& BaseNodeContainer, const TSharedRef<IDatasmithDecalActorElement>& DecalActor) const
+{
+	using namespace UE::DatasmithInterchange;
+
+	UInterchangeDecalNode* DecalNode = NewObject<UInterchangeDecalNode>(&BaseNodeContainer);
+	const FString DecalUid = NodeUtils::DecalPrefix + DecalActor->GetName();
+	DecalNode->InitializeNode(DecalUid, DecalActor->GetLabel(), EInterchangeNodeContainerType::TranslatedAsset);
+	BaseNodeContainer.AddNode(DecalNode);
+
+	DecalNode->SetCustomSortOrder(DecalActor->GetSortOrder());
+	DecalNode->SetCustomDecalSize(DecalActor->GetDimensions());
+
+	FString DecalMaterialPathName = DecalActor->GetDecalMaterialPathName();
+	if(!FPackageName::IsValidObjectPath(DecalActor->GetDecalMaterialPathName()))
+	{
+		const FString DecalMaterialUid = NodeUtils::DecalMaterialPrefix + DecalActor->GetDecalMaterialPathName();
+		if (BaseNodeContainer.IsNodeUidValid(DecalMaterialUid))
+		{
+			DecalMaterialPathName = DecalMaterialUid;
+		}
+	}
+	DecalNode->SetCustomDecalMaterialPathName(DecalMaterialPathName);
+
+	return DecalNode;
 }
 
 TOptional<UE::Interchange::FImportImage> UInterchangeDatasmithTranslator::GetTexturePayloadData(const FString& PayloadKey, TOptional<FString>& AlternateTexturePath) const

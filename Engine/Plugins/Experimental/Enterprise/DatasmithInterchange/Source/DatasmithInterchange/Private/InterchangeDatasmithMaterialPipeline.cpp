@@ -5,6 +5,7 @@
 #include "InterchangeDatasmithMaterialNode.h"
 #include "InterchangeDatasmithMaterialPipeline.h"
 #include "InterchangeDatasmithUtils.h"
+#include "InterchangeDecalMaterialNode.h"
 
 #include "DatasmithMaterialElements.h"
 #include "IDatasmithSceneElements.h"
@@ -15,7 +16,7 @@
 #include "InterchangeManager.h"
 #include "InterchangeMaterialDefinitions.h"
 #include "InterchangeMaterialFactoryNode.h"
-
+#include "InterchangeDecalMaterialFactoryNode.h"
 #include "InterchangeTexture2DNode.h"
 #include "InterchangeTexture2DFactoryNode.h"
 #include "InterchangeMaterialInstanceNode.h"
@@ -64,6 +65,7 @@ void UInterchangeDatasmithMaterialPipeline::ExecutePipeline(UInterchangeBaseNode
 	using namespace UE::DatasmithInterchange;
 
 	TArray<UInterchangeMaterialInstanceNode*> InstancedMaterials;
+	TArray<UInterchangeDecalMaterialNode*> DecalMaterials;
 	TArray<UInterchangeShaderNode*> ShaderNodes;
 
 	//Find all translated node we need for this pipeline
@@ -72,6 +74,10 @@ void UInterchangeDatasmithMaterialPipeline::ExecutePipeline(UInterchangeBaseNode
 			if (UInterchangeMaterialInstanceNode* MaterialNode = Cast<UInterchangeMaterialInstanceNode>(Node))
 			{
 				InstancedMaterials.Add(MaterialNode);
+			}
+			else if (UInterchangeDecalMaterialNode* DecalNode = Cast<UInterchangeDecalMaterialNode>(Node))
+			{
+				DecalMaterials.Add(DecalNode);
 			}
 			else if (UInterchangeShaderNode* ShaderNode = Cast<UInterchangeShaderNode>(Node))
 			{
@@ -86,6 +92,11 @@ void UInterchangeDatasmithMaterialPipeline::ExecutePipeline(UInterchangeBaseNode
 	for (UInterchangeMaterialInstanceNode* MaterialNode : InstancedMaterials)
 	{
 		PreImportMaterialNode(NodeContainer, MaterialNode);
+	}
+
+	for (UInterchangeDecalMaterialNode* MaterialNode : DecalMaterials)
+	{
+		PreImportDecalMaterialNode(NodeContainer, MaterialNode);
 	}
 }
 
@@ -389,4 +400,44 @@ void UInterchangeDatasmithMaterialPipeline::UpdateMaterialFactoryNodes(const TAr
 
 
 	}
+}
+
+void UInterchangeDatasmithMaterialPipeline::PreImportDecalMaterialNode(UInterchangeBaseNodeContainer* NodeContainer, UInterchangeDecalMaterialNode* MaterialNode)
+{
+	using namespace UE::DatasmithInterchange;
+
+	const FString MaterialNodeUid = UInterchangeDecalMaterialFactoryNode::GetMaterialFactoryNodeUidFromMaterialNodeUid(MaterialNode->GetUniqueID());
+	UInterchangeDecalMaterialFactoryNode* MaterialFactoryNode = NodeUtils::FindOrAddFactoryNode<UInterchangeDecalMaterialFactoryNode>(MaterialNode, NodeContainer, MaterialNodeUid);
+
+	// Handle Diffuse Texture
+	FString DiffuseTexturePath;
+	if (MaterialNode->GetCustomDiffuseTexturePath(DiffuseTexturePath))
+	{
+		if (!FPackageName::IsValidObjectPath(DiffuseTexturePath))
+		{
+			const FString TextureUid = UInterchangeTexture2DFactoryNode::GetTextureFactoryNodeUidFromTextureNodeUid(NodeUtils::TexturePrefix + DiffuseTexturePath);
+			MaterialFactoryNode->SetCustomDiffuseTexturePath(TextureUid);
+			MaterialFactoryNode->AddFactoryDependencyUid(TextureUid);
+		}
+	}
+	else
+	{
+		UE_LOG(LogInterchangeMaterialPipeline, Warning, TEXT("Decal Material Node doesn't have Diffuse Texture Path Attribute set."));
+	}
+
+	// Handle Normal Texture
+	FString NormalTexturePath;
+	if (MaterialNode->GetCustomNormalTexturePath(NormalTexturePath))
+	{
+		if (!FPackageName::IsValidObjectPath(DiffuseTexturePath))
+		{
+			const FString TextureUid = UInterchangeTexture2DFactoryNode::GetTextureFactoryNodeUidFromTextureNodeUid(NodeUtils::TexturePrefix + DiffuseTexturePath);
+			MaterialFactoryNode->SetCustomNormalTexturePath(TextureUid);
+			MaterialFactoryNode->AddFactoryDependencyUid(TextureUid);
+		}
+	}
+	else
+	{
+		UE_LOG(LogInterchangeMaterialPipeline, Warning, TEXT("Decal Material Node doesn't have Normal Texture Path Attribute set."));
+	}	
 }

@@ -15,6 +15,7 @@ class UInterchangeMaterialFactoryNode;
 class UInterchangeMaterialInstanceFactoryNode;
 class UInterchangeShaderGraphNode;
 class UInterchangeMaterialInstanceNode;
+class UInterchangeDecalMaterialNode;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogInterchangeMaterialPipeline, Log, All);
 
@@ -39,4 +40,5 @@ private:
 	void PreImportMaterialNode(UInterchangeBaseNodeContainer* NodeContainer, UInterchangeMaterialInstanceNode* MaterialNode);
 	void PostImportMaterialInstanceFactoryNode(const UInterchangeBaseNodeContainer* NodeContainer, UInterchangeMaterialInstanceFactoryNode* FactoryNode, UMaterialInterface* CreatedMaterial);
 	void UpdateMaterialFactoryNodes(const TArray<UInterchangeShaderNode*>& ShaderNodes);
+	void PreImportDecalMaterialNode(UInterchangeBaseNodeContainer* NodeContainer, UInterchangeDecalMaterialNode* MaterialNode);
 };
