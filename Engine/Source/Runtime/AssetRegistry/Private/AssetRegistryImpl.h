@@ -388,8 +388,10 @@ private:
 	/** Lists of results from the background thread that are waiting to get processed by the main thread */
 	FAssetDataGatherer::FResults BackgroundResults;
 
+#if !NO_LOGGING
 	/** Memory profiling information: How much memory is being used by the tags for each class. */
 	TMap<FTopLevelAssetPath, int64> TagSizeByClass;
+#endif
 
 	/** Time spent processing Gather results */
 	float StoreGatherResultsTimeSeconds;
@@ -418,6 +420,8 @@ private:
 
 	/** Record whether SearchAllAssets has been called; if so we will also search new mountpoints when added */
 	bool bSearchAllAssets;
+
+	bool bVerboseLogging;
 
 	/** List of all class names derived from Blueprint (including Blueprint itself) */
 	TSet<FTopLevelAssetPath> ClassGeneratorNames;
