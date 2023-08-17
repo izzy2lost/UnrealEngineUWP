@@ -118,16 +118,18 @@ namespace Chaos
 		}
 	};
 
+	// ID for a vertex in a trangle mesh, used by FTriangleContactPointData
 	using FContactVertexID = int32;
 
+	// ID for an edge in a trangle mesh, used by FTriangleContactPointData
 	struct FContactEdgeID
 	{
-		FContactEdgeID()
+		FORCEINLINE FContactEdgeID()
 			: VertexIDs{ INDEX_NONE, INDEX_NONE }
 		{
 		}
 
-		FContactEdgeID(const FContactVertexID VertexIndexA, const FContactVertexID VertexIndexB)
+		FORCEINLINE FContactEdgeID(const FContactVertexID VertexIndexA, const FContactVertexID VertexIndexB)
 		{
 			// EdgeID is the same if we swap the vertex indices
 			if (VertexIndexA < VertexIndexB)
@@ -142,27 +144,27 @@ namespace Chaos
 			}
 		}
 
-		bool IsValid() const
+		FORCEINLINE bool IsValid() const
 		{
 			return (VertexIDs[0] != INDEX_NONE) && (VertexIDs[1] != INDEX_NONE);
 		}
 
-		friend bool operator==(const FContactEdgeID& L, const FContactEdgeID& R)
+		FORCEINLINE friend bool operator==(const FContactEdgeID& L, const FContactEdgeID& R)
 		{
 			return L.EdgeID == R.EdgeID;
 		}
 
-		friend bool operator!=(const FContactEdgeID& L, const FContactEdgeID& R)
+		FORCEINLINE friend bool operator!=(const FContactEdgeID& L, const FContactEdgeID& R)
 		{
 			return L.EdgeID != R.EdgeID;
 		}
 
-		friend bool operator<(const FContactEdgeID& L, const FContactEdgeID& R)
+		FORCEINLINE friend bool operator<(const FContactEdgeID& L, const FContactEdgeID& R)
 		{
 			return L.EdgeID < R.EdgeID;
 		}
 
-		friend uint32 GetTypeHash(const FContactEdgeID& V)
+		FORCEINLINE friend uint32 GetTypeHash(const FContactEdgeID& V)
 		{
 			return ::GetTypeHash(V.EdgeID);
 		}
@@ -174,12 +176,8 @@ namespace Chaos
 		};
 	};
 
-	/**
-	 * @brief Extended data used when processing contactpoints on a triangle mesh. 
-	 * Adds information about which triangle we hit (in the local array of FoOntactTriangles)
-	 * as well as which mesh edge or vertex we hit if appropriate (used for pruning).
-	*/
-	class FTriangleContactPoint : public FContactPoint
+	
+	class UE_DEPRECATED(5.4, "No longer used") FTriangleContactPoint : public FContactPoint
 	{
 	public:
 		FTriangleContactPoint()
@@ -205,6 +203,166 @@ namespace Chaos
 	};
 
 	/**
+	* An ID for an Edge or Vertex in a triangle mesh.
+	*/
+	struct FContactEdgeOrVertexID
+	{
+	public:
+		FORCEINLINE FContactEdgeOrVertexID()
+			: EdgeID()
+		{
+		}
+
+		FORCEINLINE FContactEdgeOrVertexID(const FContactVertexID VertexIndex)
+		{
+			EdgeID.VertexIDs[0] = VertexIndex;
+			EdgeID.VertexIDs[1] = INDEX_NONE;
+		}
+
+		FORCEINLINE FContactEdgeOrVertexID(const FContactVertexID VertexIndexA, const FContactVertexID VertexIndexB)
+		{
+			EdgeID = FContactEdgeID(VertexIndexA, VertexIndexB);
+		}
+
+		FORCEINLINE bool IsValid() const
+		{
+			return (EdgeID.VertexIDs[0] != INDEX_NONE);
+		}
+
+		FORCEINLINE bool IsVertex() const
+		{
+			return (EdgeID.VertexIDs[0] != INDEX_NONE) && (EdgeID.VertexIDs[1] == INDEX_NONE);
+		}
+
+		FORCEINLINE bool IsEdge() const
+		{
+			return (EdgeID.VertexIDs[0] != INDEX_NONE) && (EdgeID.VertexIDs[1] != INDEX_NONE);
+		}
+
+		FORCEINLINE const FContactVertexID& GetVertexID() const
+		{
+			return EdgeID.VertexIDs[0];
+		}
+
+		FORCEINLINE const FContactEdgeID& GetEdgeID() const
+		{
+			return EdgeID;
+		}
+
+		FORCEINLINE friend bool operator==(const FContactEdgeOrVertexID& L, const FContactEdgeOrVertexID& R)
+		{
+			return L.EdgeID == R.EdgeID;
+		}
+
+		FORCEINLINE friend bool operator!=(const FContactEdgeOrVertexID& L, const FContactEdgeOrVertexID& R)
+		{
+			return L.EdgeID != R.EdgeID;
+		}
+
+		FORCEINLINE friend bool operator<(const FContactEdgeOrVertexID& L, const FContactEdgeOrVertexID& R)
+		{
+			return L.EdgeID < R.EdgeID;
+		}
+
+		FORCEINLINE friend uint32 GetTypeHash(const FContactEdgeOrVertexID& V)
+		{
+			return (V.IsVertex()) ? V.GetVertexID() : GetTypeHash(V.GetEdgeID());
+		}
+
+	private:
+		// We treat the EdgeID as a VertexID when only one vertex ID is set
+		FContactEdgeID EdgeID;
+	};
+
+	/**
+	 * @brief Extended data used when processing contactpoints on a triangle mesh.
+	 * Adds information about which triangle we hit (in the local array of FoOntactTriangles)
+	 * as well as which mesh edge or vertex we hit if appropriate (used for pruning).
+	*/
+	class FTriangleContactPointData
+	{
+	public:
+		FORCEINLINE FTriangleContactPointData()
+			: EdgeOrVertexID()
+			, ContactTriangleIndex(INDEX_NONE)
+			, ContactNormalDotTriangleNormal(0)
+			, bIsEnabled(false)
+		{
+		}
+
+		FORCEINLINE void SetVertexID(const FContactVertexID InVertexID)
+		{
+			EdgeOrVertexID = FContactEdgeOrVertexID(InVertexID);
+		}
+
+		FORCEINLINE void SetEdgeID(const FContactVertexID InVertexIDA, const FContactVertexID InVertexIDB)
+		{
+			EdgeOrVertexID = FContactEdgeOrVertexID(InVertexIDA, InVertexIDB);
+		}
+
+		FORCEINLINE void SetTriangleIndex(const int32 InTriangleIndex)
+		{
+			ContactTriangleIndex = InTriangleIndex;
+		}
+
+		FORCEINLINE void SetContactNormalDotTriangleNormal(const FRealSingle InContactNormalDotTriangleNormal)
+		{
+			ContactNormalDotTriangleNormal = InContactNormalDotTriangleNormal;
+		}
+
+		FORCEINLINE void SetEnabled()
+		{
+			bIsEnabled = true;
+		}
+
+		FORCEINLINE void SetDisabled()
+		{
+			bIsEnabled = false;
+		}
+
+		FORCEINLINE bool IsEnabled() const
+		{
+			return bIsEnabled;
+		}
+
+		FORCEINLINE int32 GetTriangleIndex() const
+		{
+			return ContactTriangleIndex;
+		}
+
+		FORCEINLINE bool IsVertex() const
+		{
+			return EdgeOrVertexID.IsVertex();
+		}
+
+		FORCEINLINE bool IsEdge() const
+		{
+			return EdgeOrVertexID.IsEdge();
+		}
+
+		FORCEINLINE FContactVertexID GetVertexID() const
+		{
+			return EdgeOrVertexID.GetVertexID();
+		}
+
+		FORCEINLINE FContactEdgeID GetEdgeID() const
+		{
+			return EdgeOrVertexID.GetEdgeID();
+		}
+
+		FORCEINLINE FRealSingle GetContactNormalDotTriangleNormal() const
+		{
+			return ContactNormalDotTriangleNormal;
+		}
+
+	private:
+		FContactEdgeOrVertexID EdgeOrVertexID;
+		int32 ContactTriangleIndex;
+		FRealSingle ContactNormalDotTriangleNormal;
+		bool bIsEnabled;
+	};
+
+	/**
 	 * Holds the contacts produced when colliding a convex shape against a non-convex triangular mesh, and provides
 	 * methods to reduce the total set of contact points down to a minimum manifold.
 	*/
@@ -215,6 +373,7 @@ namespace Chaos
 		FContactTriangleCollector(const bool bInOneSided, const FRigidTransform3& InConvexTransform)
 			: PhiTolerance(0.1)
 			, DistanceTolerance(0.1)
+			, NumDisabledTriangleContactPoints(0)
 			, bOneSidedCollision(bInOneSided)
 			, ConvexTransform(InConvexTransform)
 		{
@@ -227,6 +386,7 @@ namespace Chaos
 			const FRigidTransform3& InConvexTransform)
 			: PhiTolerance(InPhiTolerance)
 			, DistanceTolerance(InDistanceTolerance)
+			, NumDisabledTriangleContactPoints(0)
 			, bOneSidedCollision(bInOneSided)
 			, ConvexTransform(InConvexTransform)
 		{
@@ -234,7 +394,7 @@ namespace Chaos
 
 		inline TArrayView<const FContactPoint> GetContactPoints() const
 		{ 
-			return MakeArrayView(FinalContactPoints);
+			return MakeArrayView(TriangleContactPoints);
 		}
 		
 		// Add contacts between the convex and a single triangle for later processing
@@ -243,16 +403,24 @@ namespace Chaos
 			if (InContactPoints.Num() > 0)
 			{
 				const int32 ContactTriangleIndex = AddTriangle(Triangle, TriangleIndex, VertexIndex0, VertexIndex1, VertexIndex2);
-
-				TriangleContactPoints.Reserve(TriangleContactPoints.Num() + InContactPoints.Num());
+				
+				const int32 NewNumContactPoints = TriangleContactPoints.Num() + InContactPoints.Num();
+				TriangleContactPoints.Reserve(NewNumContactPoints);
+				TriangleContactPointDatas.Reserve(NewNumContactPoints);
+				
 				for (const FContactPoint& ContactPoint : InContactPoints)
 				{
 					if (ContactPoint.Phi < CullDistance)
 					{
+						const FReal ContactNormalDotTriangleNormal = FVec3::DotProduct(ContactPoint.ShapeContactNormal, ContactTriangles[ContactTriangleIndex].FaceNormal);
+
 						const int32 ContactIndex = TriangleContactPoints.Add(ContactPoint);
+						TriangleContactPointDatas.AddDefaulted();
 
 						TriangleContactPoints[ContactIndex].FaceIndex = TriangleIndex;
-						TriangleContactPoints[ContactIndex].ContactTriangleIndex = ContactTriangleIndex;
+						TriangleContactPointDatas[ContactIndex].SetTriangleIndex(ContactTriangleIndex);
+						TriangleContactPointDatas[ContactIndex].SetContactNormalDotTriangleNormal(FRealSingle(ContactNormalDotTriangleNormal));
+						TriangleContactPointDatas[ContactIndex].SetEnabled();
 					}
 				}
 			}
@@ -263,12 +431,13 @@ namespace Chaos
 
 	private:
 		void SetNumContacts(const int32 Num);
-		void RemoveContact(const int32 ContactIndex);
+		void DisableContact(const int32 ContactIndex);
+		void RemoveDisabledContacts();
 
 		void BuildContactFeatureSets();
 		void SortContactPointsForPruning();
 		void SortContactPointsForSolving();
-		void PruneEdgeContactPoints();
+		void PruneEdgeAndVertexContactPoints(const bool bPruneEdges, const bool bPruneVertices);
 		void FixInvalidNormalContactPoints();
 		void PruneInfacingContactPoints();
 		void PruneUnnecessaryContactPoints();
@@ -281,12 +450,9 @@ namespace Chaos
 
 		void DebugDrawContactPoints(const FColor& Color, const FReal LineThickness);
 
-		// The output set of contacts
-		// @todo(chaos): would be nice if we didn't need this and we could provide TriangleContactPoints instead
-		TArray<FContactPoint> FinalContactPoints;
-
 		// The collected set of contacts with additional triangle information
-		TArray<FTriangleContactPoint> TriangleContactPoints;
+		TArray<FContactPoint> TriangleContactPoints;
+		TArray<FTriangleContactPointData> TriangleContactPointDatas;
 
 		// All the triangles referenced by the TriangleContactPoints
 		TArray<FContactTriangle> ContactTriangles;
@@ -297,14 +463,20 @@ namespace Chaos
 		// A list of all the vertices of contacts with faces and edges. Used to prune vertex contacts
 		TSet<FContactVertexID> ContactVertices;
 
-		// We remove contacts that are shallower by this much compared to the deepest contact (negative to disable this functionality)
+		// We remove contacts that are shallower by this much compared to the deepest contact
 		FReal PhiTolerance;
 
 		// We remove contacts that are closer than this to any other contact (negative to disable this functionality)
 		FReal DistanceTolerance;
 
+		// How many disabled contacts are in the TriangleContactPoints and TriangleContactPointDatas arrays (until the next Pack operation)
+		int32 NumDisabledTriangleContactPoints;
+
+		// Whether we want single-sided collision and therefore reject all normal opposing the triangle faces
 		bool bOneSidedCollision;
 
+		// Local space for the triangles
+		// @todo(chaos): rename this
 		FRigidTransform3 ConvexTransform;
 	};
 

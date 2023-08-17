@@ -82,6 +82,12 @@ namespace Chaos
 	FAutoConsoleVariableRef CVarChaos_Collision_EnableEdgePrune(TEXT("p.Chaos.Collision.EnableEdgePrune"), bChaos_Collision_EnableEdgePrune, TEXT(""));
 	FAutoConsoleVariableRef CVarChaos_Collision_EdgePrunePlaneDistance(TEXT("p.Chaos.Collision.EdgePrunePlaneDistance"), Chaos_Collision_EdgePrunePlaneDistance, TEXT(""));
 
+	int32 Chaos_Collision_ReduceMeshManifoldThreshold = 1000;	// Effectively Disabled
+	FAutoConsoleVariableRef CVarChaos_Collision_ReduceMeshManifoldThreshold(TEXT("p.Chaos.Collision.ReduceMeshManifoldThreshold"), Chaos_Collision_ReduceMeshManifoldThreshold, TEXT("If an object has more contacts with a mesh than this, do not attempt to reduce the manifold"));
+
+	FRealSingle Chaos_Collision_MeshContactNormalThreshold = 0.98f;	// ~10deg
+	FAutoConsoleVariableRef CVarChaos_Collision_MeshContactNormalThreshold(TEXT("p.Chaos.Collision.MeshContactNormalThreshold"), Chaos_Collision_MeshContactNormalThreshold, TEXT("Treat contact with a dot product between the normal and the triangle face greater than this as face collisions"));
+
 	// Whether to use the new index-less GJK. 
 	// @todo(chaos): This should be removed once soaked for a bit (enabled 7 June 2022)
 	bool bChaos_Collision_UseGJK2 = false;
