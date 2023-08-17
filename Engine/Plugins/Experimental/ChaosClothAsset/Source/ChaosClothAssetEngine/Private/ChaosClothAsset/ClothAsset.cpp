@@ -284,6 +284,11 @@ void UChaosClothAsset::FinishPostLoadInternal(FSkinnedAssetPostLoadContext& Cont
 	{
 		InitResources();
 	}
+	else
+	{
+		// Update any missing data when cooking.
+		UpdateUVChannelData(false);
+	}
 
 	CalculateInvRefMatrices();
 	CalculateBounds();
@@ -319,6 +324,9 @@ bool UChaosClothAsset::IsReadyForFinishDestroy()
 void UChaosClothAsset::InitResources()
 {
 	LLM_SCOPE_BYNAME(TEXT("ClothAsset/InitResources"));
+
+	// Build the material channel data used by the texture streamer
+	UpdateUVChannelData(false);
 
 	if (SkeletalMeshRenderData.IsValid())
 	{
@@ -464,16 +472,19 @@ void UChaosClothAsset::Build(TArray<FChaosClothAssetLodTransitionDataCache>* InO
 	BuildMeshModel();
 #endif
 
-	// Load/save render data from/to DDC
 #if WITH_EDITOR
+	// Load/save render data from/to DDC
 	ExecuteBuildInternal(Context);
-	FinishBuildInternal(Context);
 #endif
 
 	if (FApp::CanEverRender())
 	{
 		InitResources();
 	}
+
+#if WITH_EDITOR
+	FinishBuildInternal(Context);
+#endif
 
 	// Re-register any components using this asset to restart the simulation with the updated asset
 	ReregisterComponents();
@@ -489,6 +500,9 @@ void UChaosClothAsset::ExecuteBuildInternal(FSkinnedAssetBuildContext& Context)
 
 	// rebuild render data from imported model
 	CacheDerivedData(&Context);
+
+	// Build the material channel data used by the texture streamer
+	UpdateUVChannelData(true);
 }
 
 void UChaosClothAsset::BeginBuildInternal(FSkinnedAssetBuildContext& Context)
@@ -543,9 +557,6 @@ void UChaosClothAsset::BuildMeshModel()
 				ClothAssetBuilder->BuildLod(*LODModel, *this, LodIndex);
 				MeshModel->LODModels.Add(LODModel);
 			}
-
-			// Build the material channel data used by the texture streamer
-			UpdateUVChannelData(true);
 		}
 	}
 }
