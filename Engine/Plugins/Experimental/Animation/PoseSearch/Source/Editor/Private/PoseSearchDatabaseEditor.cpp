@@ -122,8 +122,8 @@ namespace UE::PoseSearch
 			PreviewScene = MakeShareable(
 				new FDatabasePreviewScene(
 					FPreviewScene::ConstructionValues()
-					.AllowAudioPlayback(true)
-					.ShouldSimulatePhysics(false)
+					.SetCreatePhysicsScene(false)
+					.SetTransactional(false)
 					.ForceUseMovementComponentInNonGameWorld(true),
 					StaticCastSharedRef<FDatabaseEditor>(AsShared())));
 
