@@ -82,9 +82,9 @@ void SChaosVDPlaybackViewport::Construct(const FArguments& InArgs, TWeakPtr<FCha
 			+SVerticalBox::Slot()
 			[
 				SAssignNew(GameFramesTimelineWidget, SChaosVDTimelineWidget)
-				.HidePlayStopButtons(false)
-				.HideLockButton(true)
+				.ButtonVisibilityFlags(static_cast<uint16>(EChaosVDTimelineElementIDFlags::AllPlayback))
 				.OnFrameChanged_Raw(this, &SChaosVDPlaybackViewport::OnFrameSelectionUpdated)
+				.OnButtonClicked(this, &SChaosVDPlaybackViewport::HandlePlaybackButtonClicked)
 				.MaxFrames(0)
 			]
 		]	
@@ -157,6 +157,25 @@ void SChaosVDPlaybackViewport::HandlePlaybackControllerDataUpdated(TWeakPtr<FCha
 			// Max is inclusive and we use this to request as the index on the recorded frames/steps arrays so we need to -1 to the available frames/steps
 			GameFramesTimelineWidget->UpdateMinMaxValue(0, TrackInfo->MaxFrames != INDEX_NONE ? TrackInfo->MaxFrames -1  : 0);
 			GameFramesTimelineWidget->SetCurrentTimelineFrame(TrackInfo->CurrentFrame);
+
+			constexpr uint16 PlaybackElementDisabledDuringLiveSession = static_cast<uint16>(EChaosVDTimelineElementIDFlags::Stop | EChaosVDTimelineElementIDFlags::Next | EChaosVDTimelineElementIDFlags::Prev);
+			if (ControllerSharedPtr->IsPlayingLiveSession())
+			{
+				if (!ControllerSharedPtr->HasPauseRequest())
+				{
+					GameFramesTimelineWidget->SetAutoStopEnabled(false);
+					GameFramesTimelineWidget->Play();
+				}
+
+				uint16& CurrentEnabledFlags = GameFramesTimelineWidget->GetMutableElementEnabledFlagsRef();
+				CurrentEnabledFlags = CurrentEnabledFlags &~ PlaybackElementDisabledDuringLiveSession;
+			}
+			else
+			{
+				uint16& CurrentEnabledFlags = GameFramesTimelineWidget->GetMutableElementEnabledFlagsRef();
+				CurrentEnabledFlags = CurrentEnabledFlags | PlaybackElementDisabledDuringLiveSession;
+				GameFramesTimelineWidget->SetAutoStopEnabled(true);
+			}
 		}
 	}
 	else
@@ -186,6 +205,7 @@ void SChaosVDPlaybackViewport::HandleControllerTrackFrameUpdated(TWeakPtr<FChaos
 			if (FChaosVDGameFrameData* FrameData = RecordingData->GetGameFrameData_AssumesLocked(GameTrackFrame))
 			{
 				PlaybackViewportClient->PerformSelectedTrackingForFrame(FrameData);
+				GameFramesTimelineWidget->SetTargetFrameTime(FrameData->GetFrameTime());
 			}	
 		}
 	}
@@ -233,6 +253,28 @@ void SChaosVDPlaybackViewport::OnFrameSelectionUpdated(int32 NewFrameIndex) cons
 		PlaybackControllerPtr->GoToTrackFrame(GetInstigatorID(), EChaosVDTrackType::Game, FChaosVDPlaybackController::GameTrackID, NewFrameIndex, StepNumber);
 
 		PlaybackViewportClient->bNeedsRedraw = true;
+	}
+}
+
+void SChaosVDPlaybackViewport::HandlePlaybackButtonClicked(EChaosVDPlaybackButtonsID ButtonID)
+{
+	if (const TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = PlaybackController.Pin())
+	{
+		switch (ButtonID)
+		{
+		case EChaosVDPlaybackButtonsID::Play:
+			{
+				PlaybackControllerPtr->RequestUnpause();
+				break;
+			}
+		case EChaosVDPlaybackButtonsID::Pause:
+			{
+				PlaybackControllerPtr->RequestPause();
+				break;
+			}
+		default:
+			break;
+		}
 	}
 }
 

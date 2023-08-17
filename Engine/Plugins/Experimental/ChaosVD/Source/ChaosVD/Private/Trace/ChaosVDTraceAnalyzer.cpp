@@ -55,6 +55,7 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 			{
 				FChaosVDGameFrameData FrameData;
 				FrameData.FirstCycle = EventData.GetValue<uint64>("Cycle");
+				FrameData.StartTime = Context.EventTime.AsSeconds(FrameData.FirstCycle);
 				ChaosVDTraceProvider->AddGameFrame(MoveTemp(FrameData));
 			}
 
@@ -70,6 +71,7 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 				if (FChaosVDGameFrameData* CurrentFrameData = ChaosVDTraceProvider->GetLastGameFrame_AssumesLocked())
 				{
 					CurrentFrameData->LastCycle = EventData.GetValue<uint64>("Cycle");
+					CurrentFrameData->EndTime = Context.EventTime.AsSeconds(CurrentFrameData->LastCycle);
 				}
 			}
 			break;
@@ -81,10 +83,20 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 			NewFrameData.SolverID = EventData.GetValue<int32>("SolverID");
 			NewFrameData.FrameCycle = EventData.GetValue<uint64>("Cycle");
 			NewFrameData.bIsKeyFrame = EventData.GetValue<bool>("IsKeyFrame");
+			NewFrameData.StartTime = Context.EventTime.AsSeconds(NewFrameData.FrameCycle);
 
 			FWideStringView DebugNameView;
 			EventData.GetString("DebugName", DebugNameView);
 			NewFrameData.DebugName = DebugNameView;
+
+			// Currently not all solvers have an end frame event, so lets just set the end frame time of the previous frame, with the start of this new one.
+			{
+				FWriteScopeLock WriteLock(ChaosVDTraceProvider->GetDataLock());
+				if (FChaosVDSolverFrameData* PrevFrameData  = ChaosVDTraceProvider->GetLastSolverFrame_AssumesLocked(NewFrameData.SolverID))
+				{
+					PrevFrameData->EndTime = NewFrameData.StartTime;
+				}
+			}
 
 			// Add an empty frame. It will be filled out by the solver trace events
 			ChaosVDTraceProvider->AddSolverFrame(NewFrameData.SolverID, MoveTemp(NewFrameData));

@@ -5,6 +5,7 @@
 #include "Templates/SharedPointer.h"
 #include "Containers/Ticker.h"
 #include "Misc/Guid.h"
+#include "Trace/ChaosVDTraceManager.h"
 
 class FChaosVDTraceManager;
 class FChaosVDPlaybackController;
@@ -30,13 +31,17 @@ public:
 	TSharedPtr<FChaosVDScene>& GetCurrentScene() { return CurrentScene; };
 	TSharedPtr<FChaosVDPlaybackController>& GetPlaybackController() { return PlaybackController; };
 
+	const FChaosVDTraceSessionDescriptor& GetCurrentSessionDescriptor() { return CurrentSessionDescriptor; };
+
 	void LoadRecording(const FString& FilePath);
+
+	void SetCurrentSession(const FChaosVDTraceSessionDescriptor& SessionDescriptor);
 	
 private:
 
 	FGuid InstanceGUID;
 
-	FString CurrentSessionName;
+	FChaosVDTraceSessionDescriptor CurrentSessionDescriptor;
 
 	TSharedPtr<FChaosVDScene> CurrentScene;
 	TSharedPtr<FChaosVDPlaybackController> PlaybackController;

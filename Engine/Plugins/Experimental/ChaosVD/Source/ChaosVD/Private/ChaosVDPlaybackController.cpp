@@ -5,6 +5,7 @@
 #include "ChaosVDModule.h"
 #include "ChaosVDPlaybackControllerInstigator.h"
 #include "ChaosVDRecording.h"
+#include "ChaosVDRuntimeModule.h"
 #include "ChaosVDScene.h"
 #include "Trace/ChaosVDTraceManager.h"
 #include "Trace/ChaosVDTraceProvider.h"
@@ -13,16 +14,24 @@
 FChaosVDPlaybackController::FChaosVDPlaybackController(const TWeakPtr<FChaosVDScene>& InSceneToControl)
 {
 	SceneToControl = InSceneToControl;
+
+	RecordingStoppedHandle = FChaosVDRuntimeModule::Get().RegisterRecordingStopCallback(FChaosVDRecordingStateChangedDelegate::FDelegate::CreateRaw(this, &FChaosVDPlaybackController::HandleDisconnectedFromSession));
 }
 
 FChaosVDPlaybackController::~FChaosVDPlaybackController()
 {
+	// There is a chance the Runtime module is unloaded by now if we had the tool open and we are closing the editor
+	if (FChaosVDRuntimeModule::IsLoaded())
+	{
+		FChaosVDRuntimeModule::Get().RemoveRecordingStopCallback(RecordingStoppedHandle);
+	}
+
 	UnloadCurrentRecording(EChaosVDUnloadRecordingFlags::Silent);
 }
 
-bool FChaosVDPlaybackController::LoadChaosVDRecordingFromTraceSession(const FString& InSessionName)
+bool FChaosVDPlaybackController::LoadChaosVDRecordingFromTraceSession(const FChaosVDTraceSessionDescriptor& InSessionDescriptor)
 {
-	if (InSessionName.IsEmpty())
+	if (InSessionDescriptor.SessionName.IsEmpty())
 	{
 		return false;
 	}
@@ -32,7 +41,7 @@ bool FChaosVDPlaybackController::LoadChaosVDRecordingFromTraceSession(const FStr
 		UnloadCurrentRecording();
 	}
 
-	if (const TSharedPtr<const TraceServices::IAnalysisSession> TraceSession = FChaosVDModule::Get().GetTraceManager()->GetSession(InSessionName))
+	if (const TSharedPtr<const TraceServices::IAnalysisSession> TraceSession = FChaosVDModule::Get().GetTraceManager()->GetSession(InSessionDescriptor.SessionName))
 	{
 		if (const FChaosVDTraceProvider* ChaosVDProvider = TraceSession->ReadProvider<FChaosVDTraceProvider>(FChaosVDTraceProvider::ProviderName))
 		{
@@ -44,6 +53,8 @@ bool FChaosVDPlaybackController::LoadChaosVDRecordingFromTraceSession(const FStr
 	{
 		return false;
 	}
+
+	LoadedRecording->SetIsLive(InSessionDescriptor.bIsLiveSession);
 
 	LoadedRecording->OnRecordingUpdated().AddRaw(this, &FChaosVDPlaybackController::HandleCurrentRecordingUpdated);
 
@@ -92,7 +103,7 @@ void FChaosVDPlaybackController::UnloadCurrentRecording(EChaosVDUnloadRecordingF
 		bHasPendingGTUpdateBroadcast = true;
 	}
 
-	bPlayedFirsFrame = false;
+	bPlayedFirstFrame = false;
 }
 
 void FChaosVDPlaybackController::PlayFromClosestKeyFrame_AssumesLocked(const int32 InTrackID, const int32 FrameNumber, FChaosVDScene& InSceneToControl)
@@ -220,6 +231,12 @@ void FChaosVDPlaybackController::GoToRecordedGameFrame_AssumesLocked(const int32
 		{
 			if (const FChaosVDGameFrameData* FrameData = LoadedRecording->GetGameFrameData_AssumesLocked(FrameNumber))
 			{
+				const bool bIsFrameFullyLoaded = FrameData->EndTime > 0;
+				if (!bIsFrameFullyLoaded)
+				{
+					return;
+				}
+
 				if (TrackInfoByIDMap* TrackInfoByID = TrackInfoPerType.Find(EChaosVDTrackType::Game))
 				{
 					TArray<int32> AvailableSolversID;
@@ -562,18 +579,52 @@ bool FChaosVDPlaybackController::Tick(float DeltaTime)
 		}
 	}
 
-	if (!bPlayedFirsFrame)
+	// Load at least the first frame
+	if (!bPlayedFirstFrame)
 	{
 		if (LoadedRecording.IsValid() && LoadedRecording->GetAvailableSolversNumber_AssumesLocked() > 0)
 		{
-			constexpr int32 GameFrame = 0;
+			constexpr int32 GameFrameToLoad = 0;
 			constexpr int32 Step = 0;
-			GoToTrackFrame(IChaosVDPlaybackControllerInstigator::InvalidGuid, EChaosVDTrackType::Game, GameTrackID, GameFrame, Step);
-			bPlayedFirsFrame = true;
+			GoToTrackFrame(IChaosVDPlaybackControllerInstigator::InvalidGuid, EChaosVDTrackType::Game, GameTrackID, GameFrameToLoad, Step);
+			bPlayedFirstFrame = true;
+		}
+	}
+
+	// If we are live, make sure we don't lag too much behind
+	if (!bPauseRequested && IsPlayingLiveSession())
+	{
+		if (const FChaosVDTrackInfo* GameTrackInfo = GetTrackInfo(EChaosVDTrackType::Game, GameTrackID))
+		{
+			const int32 CurrentFrameDeltaFromLast = FMath::Abs(GameTrackInfo->MaxFrames - GameTrackInfo->CurrentFrame);
+			if (CurrentFrameDeltaFromLast > MaxFramesLaggingBehindDuringLiveSession)
+			{
+				// Playing the middle point between last and the threshold. We don't want to play the last available frame as it could be incomplete,
+				// and we don't want to go to close to the threshold.
+				const int32 GameFrameToLoad = LoadedRecording->GetAvailableGameFramesNumber() - MinFramesLaggingBehindDuringLiveSession;
+				constexpr int32 Step = 0;
+				GoToTrackFrame(IChaosVDPlaybackControllerInstigator::InvalidGuid, EChaosVDTrackType::Game, GameTrackID, GameFrameToLoad, Step);
+			}
 		}
 	}
 
 	return true;
+}
+
+bool FChaosVDPlaybackController::IsPlayingLiveSession() const
+{
+	return LoadedRecording.IsValid() ? LoadedRecording->IsLive() : false;
+}
+
+void FChaosVDPlaybackController::HandleDisconnectedFromSession()
+{
+	if (LoadedRecording.IsValid())
+	{
+		LoadedRecording->SetIsLive(false);
+	}
+
+	// Queue a general update in the Game Thread
+	bHasPendingGTUpdateBroadcast = true;
 }
 
 void FChaosVDPlaybackController::UpdateSolverTracksData()

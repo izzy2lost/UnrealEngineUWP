@@ -37,6 +37,7 @@ protected:
 	
 	FStatusBarMessageHandle RecordingMessageHandle;
 	FStatusBarMessageHandle RecordingPathMessageHandle;
+	FStatusBarMessageHandle LiveSessionEndedMessageHandle;
 	FDelegateHandle RecordingStartedHandle;
 	FDelegateHandle RecordingStoppedHandle;
 

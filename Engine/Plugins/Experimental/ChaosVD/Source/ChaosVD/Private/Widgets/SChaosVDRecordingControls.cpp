@@ -90,16 +90,28 @@ const FSlateBrush* SChaosVDRecordingControls::GetRecordOrStopButton() const
 
 void SChaosVDRecordingControls::HandleRecordingStop()
 {
+	const TSharedPtr<SChaosVDMainTab> MainTabSharedPtr = MainTabWeakPtr.Pin();
+	if (!MainTabSharedPtr.IsValid())
+	{
+		return;
+	}
+
 	UStatusBarSubsystem* StatusBarSubsystem = GEditor ? GEditor->GetEditorSubsystem<UStatusBarSubsystem>() : nullptr;
 	check(StatusBarSubsystem);
 	StatusBarSubsystem->PopStatusBarMessage(StatusBarID, RecordingMessageHandle);
 
-	FText RecordingPathMessage = FText::Format(LOCTEXT("RecordingSavedPathMessage"," Recoring saved at {0} "), FText::AsCultureInvariant(FChaosVDRuntimeModule::Get().GetActiveRecordingFileName()));
-	RecordingPathMessageHandle = StatusBarSubsystem->PushStatusBarMessage(StatusBarID, RecordingPathMessage);
-
-	if (FMessageDialog::Open(EAppMsgType::YesNo, LOCTEXT("OpenLastRecordingMessage", "Do you want to load the recorded file now? ")) == EAppReturnType::Yes)
+	if (MainTabSharedPtr->GetChaosVDEngineInstance()->GetCurrentSessionDescriptor().bIsLiveSession)
 	{
-		if (TSharedPtr<SChaosVDMainTab> MainTabSharedPtr = MainTabWeakPtr.Pin())
+		FText LiveSessionEnded = LOCTEXT("LiveSessionEndedMessage"," Live session has ended");
+		LiveSessionEndedMessageHandle = StatusBarSubsystem->PushStatusBarMessage(StatusBarID, LiveSessionEnded);
+
+	}
+	else
+	{
+		FText RecordingPathMessage = FText::Format(LOCTEXT("RecordingSavedPathMessage"," Recoring saved at {0} "), FText::AsCultureInvariant(FChaosVDRuntimeModule::Get().GetActiveRecordingFileName()));
+		RecordingPathMessageHandle = StatusBarSubsystem->PushStatusBarMessage(StatusBarID, RecordingPathMessage);
+		
+		if (FMessageDialog::Open(EAppMsgType::YesNo, LOCTEXT("OpenLastRecordingMessage", "Do you want to load the recorded file now? ")) == EAppReturnType::Yes)
 		{
 			MainTabSharedPtr->GetChaosVDEngineInstance()->LoadRecording(FChaosVDRuntimeModule::Get().GetActiveRecordingFileName());
 		}
@@ -117,6 +129,13 @@ void SChaosVDRecordingControls::HandleRecordingStart()
 	if (RecordingPathMessageHandle.IsValid())
 	{
 		StatusBarSubsystem->PopStatusBarMessage(StatusBarID, RecordingPathMessageHandle);
+		RecordingPathMessageHandle = FStatusBarMessageHandle();
+	}
+	
+	if (LiveSessionEndedMessageHandle.IsValid())
+	{
+		StatusBarSubsystem->PopStatusBarMessage(StatusBarID, LiveSessionEndedMessageHandle);
+		LiveSessionEndedMessageHandle = FStatusBarMessageHandle();
 	}
 
 	RecordingMessageHandle = StatusBarSubsystem->PushStatusBarMessage(StatusBarID, LOCTEXT("RecordingMessgae", "Recording..."));
@@ -138,7 +157,7 @@ FReply SChaosVDRecordingControls::ToggleRecordingState()
 
 bool SChaosVDRecordingControls::IsRecording() const
 {
-#if WITH_CHAOS_VISUAL_DEBUGGER
+#if WITH_CHAOS_VISUAL_DEBUGGER && UE_TRACE_ENABLED
 	return FChaosVisualDebuggerTrace::IsTracing();
 #endif
 	return false;

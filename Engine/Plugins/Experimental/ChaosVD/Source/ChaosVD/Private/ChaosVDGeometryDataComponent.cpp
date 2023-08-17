@@ -71,7 +71,7 @@ void FChaosVDGeometryDataComponentBase::UpdateDataFromShapeArray_Internal(const 
 			return true;
 		}
 
-		if (ImplicitA->GetTypeHash() == GeometryID)
+		if (GetCachedGeometryHash(ImplicitA) == GeometryID)
 		{
 			CollisionDataToUpdate = InShapeArray[RootObjectIndexA];
 			CollisionDataToUpdate.bIsComplex = FChaosVDGeometryBuilder::DoesImplicitContainType(ImplicitA, Chaos::ImplicitObjectType::HeightField) || FChaosVDGeometryBuilder::DoesImplicitContainType(ImplicitA, Chaos::ImplicitObjectType::TriangleMesh);
@@ -82,4 +82,25 @@ void FChaosVDGeometryDataComponentBase::UpdateDataFromShapeArray_Internal(const 
 
 		return true;
 	});
+}
+
+
+uint32 FChaosVDGeometryDataComponentBase::GetCachedGeometryHash(const Chaos::FImplicitObject* InImplicitObject)
+{
+	if (!ensure(InImplicitObject))
+	{
+		return 0;
+	}
+
+	if (uint32* FoundCachedHashPtr = CachedGeometryHashes.Find(InImplicitObject))
+	{
+		return *FoundCachedHashPtr;
+	}
+	else
+	{
+		uint32 GeometryHash = InImplicitObject->GetTypeHash();
+		CachedGeometryHashes.Add(InImplicitObject, GeometryHash);
+
+		return GeometryHash;
+	}
 }

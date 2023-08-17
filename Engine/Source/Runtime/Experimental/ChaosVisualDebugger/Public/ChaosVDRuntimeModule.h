@@ -26,6 +26,7 @@ class CHAOSVDRUNTIME_API FChaosVDRuntimeModule : public IModuleInterface
 public:
 
 	static FChaosVDRuntimeModule& Get();
+	static bool IsLoaded();
 	
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;

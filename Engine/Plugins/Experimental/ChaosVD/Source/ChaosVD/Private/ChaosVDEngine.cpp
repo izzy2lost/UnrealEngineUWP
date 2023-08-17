@@ -37,7 +37,7 @@ void FChaosVDEngine::DeInitialize()
 
 	if (const TSharedPtr<FChaosVDTraceManager> CVDTraceManager = FChaosVDModule::Get().GetTraceManager())
 	{
-		CVDTraceManager->CloseSession(CurrentSessionName);
+		CVDTraceManager->CloseSession(CurrentSessionDescriptor.SessionName);
 	}
 
 	CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
@@ -45,9 +45,17 @@ void FChaosVDEngine::DeInitialize()
 
 void FChaosVDEngine::LoadRecording(const FString& FilePath)
 {
-	CurrentSessionName = FChaosVDModule::Get().GetTraceManager()->LoadTraceFile(FilePath);
+	FChaosVDTraceSessionDescriptor NewSessionFromFileDescriptor;
+	NewSessionFromFileDescriptor.SessionName = FChaosVDModule::Get().GetTraceManager()->LoadTraceFile(FilePath);
+	NewSessionFromFileDescriptor.bIsLiveSession = false;
 
-	PlaybackController->LoadChaosVDRecordingFromTraceSession(CurrentSessionName);
+	SetCurrentSession(NewSessionFromFileDescriptor);
+}
+
+void FChaosVDEngine::SetCurrentSession(const FChaosVDTraceSessionDescriptor& SessionDescriptor)
+{
+	CurrentSessionDescriptor = SessionDescriptor;
+	PlaybackController->LoadChaosVDRecordingFromTraceSession(CurrentSessionDescriptor);
 }
 
 bool FChaosVDEngine::Tick(float DeltaTime)

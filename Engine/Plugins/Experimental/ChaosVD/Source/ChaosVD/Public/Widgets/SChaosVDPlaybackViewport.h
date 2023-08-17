@@ -9,6 +9,7 @@
 #include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
 
+enum class EChaosVDPlaybackButtonsID : uint8;
 class FChaosVDEditorModeTools;
 enum class EChaosVDActorTrackingMode;
 class FChaosVDPlaybackViewportClient;
@@ -53,6 +54,8 @@ protected:
 	void OnPlaybackSceneUpdated();
 
 	void OnFrameSelectionUpdated(int32 NewFrameIndex) const;
+
+	void HandlePlaybackButtonClicked(EChaosVDPlaybackButtonsID ButtonID);
 
 	TSharedPtr<SChaosVDTimelineWidget> GameFramesTimelineWidget;
 

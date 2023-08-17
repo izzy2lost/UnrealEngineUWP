@@ -17,6 +17,9 @@ void SChaosVDTimelineWidget::Construct(const FArguments& InArgs)
 	MaxFrames = InArgs._MaxFrames;
 	FrameChangedDelegate = InArgs._OnFrameChanged;
 	FrameLockedDelegate = InArgs._OnFrameLockStateChanged;
+	ButtonClickedDelegate = InArgs._OnButtonClicked;
+	bAutoStopEnabled = InArgs._AutoStopEnabled;
+	ElementVisibilityFlags = InArgs._ButtonVisibilityFlags;
 
 	SetCanTick(false);
 
@@ -32,9 +35,9 @@ void SChaosVDTimelineWidget::Construct(const FArguments& InArgs)
 				+SHorizontalBox::Slot()
 				[
 					SNew(SButton)
-					.Visibility(InArgs._HidePlayStopButtons.Get() ? EVisibility::Collapsed : EVisibility::Visible)
-					.IsEnabled_Raw(this, &SChaosVDTimelineWidget::IsUnlocked)
-					.OnClicked( FOnClicked::CreateRaw(this, &SChaosVDTimelineWidget::Play))
+					.Visibility_Raw(this, &SChaosVDTimelineWidget::GetElementVisibility, EChaosVDTimelineElementIDFlags::Play)
+					.IsEnabled_Raw(this, &SChaosVDTimelineWidget::GetElementEnabled, EChaosVDTimelineElementIDFlags::Play)
+					.OnClicked( FOnClicked::CreateRaw(this, &SChaosVDTimelineWidget::TogglePlay))
 					.ContentPadding( 2.0f )
 					.ForegroundColor( FSlateColor::UseForeground() )
 					.IsFocusable( false )
@@ -48,8 +51,8 @@ void SChaosVDTimelineWidget::Construct(const FArguments& InArgs)
 				+SHorizontalBox::Slot()
 				[
 					SNew(SButton)
-					.Visibility(InArgs._HidePlayStopButtons.Get() ? EVisibility::Collapsed : EVisibility::Visible)
-					.IsEnabled_Raw(this, &SChaosVDTimelineWidget::IsUnlocked)
+					.Visibility_Raw(this, &SChaosVDTimelineWidget::GetElementVisibility, EChaosVDTimelineElementIDFlags::Stop)
+					.IsEnabled_Raw(this, &SChaosVDTimelineWidget::GetElementEnabled, EChaosVDTimelineElementIDFlags::Stop)
 					.OnClicked( FOnClicked::CreateRaw(this, &SChaosVDTimelineWidget::Stop))
 					.ContentPadding( 2.0f )
 					.ForegroundColor( FSlateColor::UseForeground() )
@@ -64,8 +67,8 @@ void SChaosVDTimelineWidget::Construct(const FArguments& InArgs)
 				+SHorizontalBox::Slot()
 				[
 					SNew(SButton)
-					.Visibility(InArgs._HideNextPrevButtons.Get() ? EVisibility::Collapsed : EVisibility::Visible)
-					.IsEnabled_Raw(this, &SChaosVDTimelineWidget::IsUnlocked)
+					.Visibility_Raw(this, &SChaosVDTimelineWidget::GetElementVisibility, EChaosVDTimelineElementIDFlags::Prev)
+					.IsEnabled_Raw(this, &SChaosVDTimelineWidget::GetElementEnabled, EChaosVDTimelineElementIDFlags::Prev)
 					.OnClicked( FOnClicked::CreateRaw(this, &SChaosVDTimelineWidget::Prev))
 					.ContentPadding( 2.0f )
 					.ForegroundColor( FSlateColor::UseForeground() )
@@ -80,8 +83,8 @@ void SChaosVDTimelineWidget::Construct(const FArguments& InArgs)
 				+SHorizontalBox::Slot()
 				[
 					SNew(SButton)
-					.Visibility(InArgs._HideNextPrevButtons.Get() ? EVisibility::Collapsed : EVisibility::Visible)
-					.IsEnabled_Raw(this, &SChaosVDTimelineWidget::IsUnlocked)
+					.Visibility_Raw(this, &SChaosVDTimelineWidget::GetElementVisibility, EChaosVDTimelineElementIDFlags::Next)
+					.IsEnabled_Raw(this, &SChaosVDTimelineWidget::GetElementEnabled, EChaosVDTimelineElementIDFlags::Next)
 					.OnClicked( FOnClicked::CreateRaw(this, &SChaosVDTimelineWidget::Next))
 					.ContentPadding( 2.0f )
 					.ForegroundColor( FSlateColor::UseForeground() )
@@ -96,7 +99,8 @@ void SChaosVDTimelineWidget::Construct(const FArguments& InArgs)
 				+SHorizontalBox::Slot()
 				[
 					SNew(SButton)
-					.Visibility(InArgs._HideLockButton.Get() ? EVisibility::Collapsed : EVisibility::Visible)
+					.Visibility_Raw(this, &SChaosVDTimelineWidget::GetElementVisibility, EChaosVDTimelineElementIDFlags::Lock)
+					.IsEnabled_Raw(this, &SChaosVDTimelineWidget::GetElementEnabled, EChaosVDTimelineElementIDFlags::Lock)
 					.OnClicked( FOnClicked::CreateRaw(this, &SChaosVDTimelineWidget::ToggleLockState))
 					.ContentPadding( 2.0f )
 					.ForegroundColor( FSlateColor::UseForeground())
@@ -114,6 +118,9 @@ void SChaosVDTimelineWidget::Construct(const FArguments& InArgs)
 			.FillWidth(0.65f)
 			[
 			  SAssignNew(TimelineSlider, SSlider)
+			  .Visibility_Raw(this, &SChaosVDTimelineWidget::GetElementVisibility, EChaosVDTimelineElementIDFlags::Timeline)
+			  //TODO: Enable locking when we have custom images for the slider elements. Currently locking it messes up with the transparency/images
+			  //.Locked_Raw(this, &SChaosVDTimelineWidget::GetElementEnabled, EChaosVDTimelineElementIDFlags::Timeline)
 			  .ToolTipText_Lambda([this]()-> FText{ return FText::AsNumber(CurrentFrame); })
 			  .Value(CurrentFrame)
 			  .OnValueChanged_Raw(this, &SChaosVDTimelineWidget::SetCurrentTimelineFrame, EChaosVDSetTimelineFrameFlags::BroadcastChange)
@@ -145,9 +152,22 @@ void SChaosVDTimelineWidget::UpdateMinMaxValue(float NewMin, float NewMax)
 	MinFrames = NewMin;
 	MaxFrames = NewMax;
 	
-	if(CurrentFrame < NewMin || CurrentFrame > NewMax)
+	if (CurrentFrame < NewMin || CurrentFrame > NewMax)
 	{
 		CurrentFrame = NewMin;
+	}
+}
+
+void SChaosVDTimelineWidget::SetTargetFrameTime(float TargetFrameTimeSeconds)
+{
+	if (TargetFrameTimeSeconds > 0)
+	{
+		CurrentPlaybackRate = TargetFrameTimeSeconds; 
+	}
+	else
+	{
+		// Default to 60 FPS
+		CurrentPlaybackRate = 1 / 60.0f;
 	}
 }
 
@@ -171,20 +191,40 @@ void SChaosVDTimelineWidget::SetCurrentTimelineFrame(float FrameNumber, EChaosVD
 	}
 }
 
-FReply SChaosVDTimelineWidget::Play()
+void SChaosVDTimelineWidget::SetIsLocked(bool NewIsLocked)
 {
-	if (bIsPlaying)
+	bIsLocked = NewIsLocked;
+
+	if (bIsLocked)
 	{
-		bIsPlaying = false;
-		SetCanTick(false);
+		ElementEnabledFlags = static_cast<uint16>(EChaosVDTimelineElementIDFlags::Lock);	
 	}
 	else
 	{
-		bIsPlaying = true;
-		SetCanTick(true);
+		ElementEnabledFlags = DefaultEnabledElementsFlags;
+	}
+}
+
+FReply SChaosVDTimelineWidget::TogglePlay()
+{
+	if (bIsPlaying)
+	{
+		Pause();
+		ButtonClickedDelegate.ExecuteIfBound(EChaosVDPlaybackButtonsID::Pause);
+	}
+	else
+	{
+		Play();
+		ButtonClickedDelegate.ExecuteIfBound(EChaosVDPlaybackButtonsID::Play);
 	}
 
 	return FReply::Handled();
+}
+
+void SChaosVDTimelineWidget::Play()
+{
+	bIsPlaying = true;
+	SetCanTick(true);
 }
 
 FReply SChaosVDTimelineWidget::Stop()
@@ -197,7 +237,15 @@ FReply SChaosVDTimelineWidget::Stop()
 
 	SetCanTick(false);
 
+	ButtonClickedDelegate.ExecuteIfBound(EChaosVDPlaybackButtonsID::Stop);
+
 	return FReply::Handled();
+}
+
+void SChaosVDTimelineWidget::Pause()
+{
+	bIsPlaying = false;
+	SetCanTick(false);
 }
 
 FReply SChaosVDTimelineWidget::Next()
@@ -212,6 +260,8 @@ FReply SChaosVDTimelineWidget::Next()
 	
 	SetCurrentTimelineFrame(CurrentFrame);
 
+	ButtonClickedDelegate.ExecuteIfBound(EChaosVDPlaybackButtonsID::Next);
+
 	return FReply::Handled();
 }
 
@@ -225,13 +275,15 @@ FReply SChaosVDTimelineWidget::Prev()
 	CurrentFrame--;
 
 	SetCurrentTimelineFrame(CurrentFrame);
+	
+	ButtonClickedDelegate.ExecuteIfBound(EChaosVDPlaybackButtonsID::Prev);
 
 	return FReply::Handled();
 }
 
 FReply SChaosVDTimelineWidget::ToggleLockState()
 {
-	bIsLocked = !bIsLocked;
+	SetIsLocked(!bIsLocked);
 
 	FrameLockedDelegate.ExecuteIfBound(bIsLocked);
 
@@ -248,25 +300,37 @@ const FSlateBrush* SChaosVDTimelineWidget::GetLockStateIcon() const
 	return bIsLocked ? FChaosVDStyle::Get().GetBrush("LockIcon") : FChaosVDStyle::Get().GetBrush("UnlockedIcon");
 }
 
+EVisibility SChaosVDTimelineWidget::GetElementVisibility(EChaosVDTimelineElementIDFlags ElementID) const
+{
+	 return ((static_cast<uint16>(ElementID) & ElementVisibilityFlags) == static_cast<uint16>(ElementID)) ? EVisibility::Visible : EVisibility::Collapsed;
+}
+
+bool SChaosVDTimelineWidget::GetElementEnabled(EChaosVDTimelineElementIDFlags ElementID) const
+{
+	return ((static_cast<uint16>(ElementID) & ElementEnabledFlags) == static_cast<uint16>(ElementID));
+}
+
 void SChaosVDTimelineWidget::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
-	
+
+	//TODO: We should move the Ticking logic to advance frames outside of this widget.
+	// The logic to update the visual state is already controlled externally
 	if (bIsPlaying)
 	{
 		if (CurrentFrame == MaxFrames)
 		{
-			Stop();
+			if (bAutoStopEnabled)
+			{
+				Stop();
+			}
 		}
 
-		//TODO: Allow to customize the playback frametimes so it can be made an option or read from the recorded file
-		constexpr float PlaybackFrameTime = 0.016f;
-		
 		CurrentPlaybackTime += InDeltaTime;
 
-		if (CurrentPlaybackTime > PlaybackFrameTime)
+		while (CurrentPlaybackTime > CurrentPlaybackRate)
 		{
-			CurrentPlaybackTime = 0.0f;
+			CurrentPlaybackTime -= CurrentPlaybackRate;
 			Next();
 		}
 	}

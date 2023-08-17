@@ -39,8 +39,7 @@ void SChaosVDSolverPlaybackControls::Construct(const FArguments& InArgs, int32 I
 				+SVerticalBox::Slot()
 				[
 					SAssignNew(FramesTimelineWidget, SChaosVDTimelineWidget)
-						.HidePlayStopButtons(false)
-						.HideLockButton(true)
+						.ButtonVisibilityFlags(static_cast<uint16>(EChaosVDTimelineElementIDFlags::AllPlayback))
 						.OnFrameChanged_Raw(this, &SChaosVDSolverPlaybackControls::OnFrameSelectionUpdated)
 						.MaxFrames(0)
 				]
@@ -60,7 +59,7 @@ void SChaosVDSolverPlaybackControls::Construct(const FArguments& InArgs, int32 I
 				+SVerticalBox::Slot()
 				[
 					SAssignNew(StepsTimelineWidget, SChaosVDTimelineWidget)
-					.HidePlayStopButtons(true)
+					.ButtonVisibilityFlags(static_cast<uint16>(EChaosVDTimelineElementIDFlags::AllManualStepping | EChaosVDTimelineElementIDFlags::Lock))
 					.OnFrameLockStateChanged_Raw(this, &SChaosVDSolverPlaybackControls::HandleLockStateChanged)
 					.OnFrameChanged_Raw(this, &SChaosVDSolverPlaybackControls::OnStepSelectionUpdated)
 					.MaxFrames(0)
@@ -105,6 +104,10 @@ void SChaosVDSolverPlaybackControls::HandlePlaybackControllerDataUpdated(TWeakPt
 		//TODO: This will show steps 0/0 if only one step is recorded, we need to add a way to override that functionality
 		// or just set the slider to start from 1 and handle the offset later 
 		StepsTimelineWidget->UpdateMinMaxValue(0,AvailableSteps != INDEX_NONE ? AvailableSteps -1 : 0);
+
+		// On Live Sessions, only the Game Frames timeline controls are allowed for now
+		FramesTimelineWidget->SetIsLocked(ControllerSharedPtr->IsPlayingLiveSession());
+		StepsTimelineWidget->SetIsLocked(ControllerSharedPtr->IsPlayingLiveSession());
 	}
 	else
 	{
@@ -149,19 +152,24 @@ void SChaosVDSolverPlaybackControls::UpdateStepsWidgetForFrame(const FChaosVDPla
 
 void SChaosVDSolverPlaybackControls::HandleControllerTrackFrameUpdated(TWeakPtr<FChaosVDPlaybackController> InController, const FChaosVDTrackInfo* UpdatedTrackInfo, FGuid InstigatorGuid)
 {
-	if (InstigatorGuid == GetInstigatorID())
-	{
-		// Ignore the update if we initiated it
-		return;
-	}
-
 	if (const TSharedPtr<FChaosVDPlaybackController> CurrentPlaybackControllerPtr = InController.Pin())
 	{
 		if (const FChaosVDTrackInfo* SolverTrackInfo = CurrentPlaybackControllerPtr->GetTrackInfo(EChaosVDTrackType::Solver, SolverID))
 		{
-			FramesTimelineWidget->SetCurrentTimelineFrame(SolverTrackInfo->CurrentFrame, EChaosVDSetTimelineFrameFlags::None);
+			if (InstigatorGuid != GetInstigatorID())
+			{
+				// No Need to manually update the widget state if the widget it-self instigated the update 
+				FramesTimelineWidget->SetCurrentTimelineFrame(SolverTrackInfo->CurrentFrame, EChaosVDSetTimelineFrameFlags::None);
+				UpdateStepsWidgetForFrame(*CurrentPlaybackControllerPtr.Get(), SolverTrackInfo->CurrentFrame, SolverTrackInfo->CurrentStep);
+			}
 
-			UpdateStepsWidgetForFrame(*CurrentPlaybackControllerPtr.Get(), SolverTrackInfo->CurrentFrame, SolverTrackInfo->CurrentStep);
+			if (const TSharedPtr<FChaosVDRecording> RecordingData = CurrentPlaybackControllerPtr->GetCurrentRecording().Pin())
+			{
+				if (const FChaosVDSolverFrameData* FrameData = RecordingData->GetSolverFrameData_AssumesLocked(SolverID, SolverTrackInfo->CurrentFrame))
+				{
+					FramesTimelineWidget->SetTargetFrameTime(FrameData->GetFrameTime());
+				}	
+			}
 		}
 	}
 }

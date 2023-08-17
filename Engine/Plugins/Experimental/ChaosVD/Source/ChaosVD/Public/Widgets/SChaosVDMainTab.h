@@ -38,7 +38,11 @@ private:
 
 	void GenerateMainWindowMenu();
 
-	void BrowseAndOpenChaosVDFile();
+	void BrowseAndOpenChaosVDRecording();
+
+	void BrowseChaosVDRecordingFromFolder(FStringView FolderPath = TEXT(""));
+
+	void BrowseLiveSessionsFromTraceStore() const;
 
 	TSharedPtr<FChaosVDEngine> ChaosVDEngine;
 
@@ -53,4 +57,7 @@ private:
 	FName StatusBarID;
 
 	TSharedPtr<FTabManager> TabManager;
+
+	FReply HandleSessionConnectionClicked();
+	FText GetConnectButtonText() const;
 };

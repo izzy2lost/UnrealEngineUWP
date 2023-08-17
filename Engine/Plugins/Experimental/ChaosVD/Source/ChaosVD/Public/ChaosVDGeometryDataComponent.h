@@ -74,10 +74,14 @@ protected:
 	void UpdateVisibility_Internal(const FChaosVDShapeCollisionData& InCollisionData, UMeshComponent* MeshComponent);
 	
 	void UpdateDataFromShapeArray_Internal(const TArray<FChaosVDShapeCollisionData>& InShapeArray, FChaosVDShapeCollisionData& CollisionDataToUpdate);
+
+	uint32 GetCachedGeometryHash(const Chaos::FImplicitObject* InImplicitObject);
 	
 	uint32 GeometryID = 0;
 	bool bIsMeshReady = false;
 
 	FChaosVDMeshReadyDelegate MeshReadyDelegate;
+
+	TMap<const Chaos::FImplicitObject*, uint32> CachedGeometryHashes;
 	Chaos::FConstImplicitObjectPtr RootImplicitObject = nullptr;
 };

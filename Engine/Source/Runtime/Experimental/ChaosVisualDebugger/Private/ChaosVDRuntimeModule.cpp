@@ -46,6 +46,11 @@ FChaosVDRuntimeModule& FChaosVDRuntimeModule::Get()
 	return FModuleManager::Get().LoadModuleChecked<FChaosVDRuntimeModule>(TEXT("ChaosVDRuntime"));
 }
 
+bool FChaosVDRuntimeModule::IsLoaded()
+{
+	return FModuleManager::Get().IsModuleLoaded(TEXT("ChaosVDRuntime"));
+}
+
 void FChaosVDRuntimeModule::StartupModule()
 {
 #if UE_TRACE_ENABLED
@@ -159,9 +164,14 @@ void FChaosVDRuntimeModule::StartRecording(const TArray<FString>& Args)
 	}
 	else if(Args[0] == TEXT("Server"))
 	{
+		if (FTraceAuxiliary::IsConnected())
+		{
+			FTraceAuxiliary::Stop();
+		}
+
 		const FString Target = Args.IsValidIndex(1) ? Args[1] : TEXT("127.0.0.1");
 
-		FTraceAuxiliary::Start(
+		bIsRecording = FTraceAuxiliary::Start(
 		FTraceAuxiliary::EConnectionType::Network,
 		*Target,
 		nullptr);
@@ -211,6 +221,8 @@ void FChaosVDRuntimeModule::HandleTraceStopRequest(FTraceAuxiliary::EConnectionT
 		{
 			UE_LOG(LogChaosVDRuntime, Warning, TEXT("Trace Recording has been stopped unexpectedly"));
 		}
+
+		StopRecording();
 	}
 
 	bRequestedStop = false;

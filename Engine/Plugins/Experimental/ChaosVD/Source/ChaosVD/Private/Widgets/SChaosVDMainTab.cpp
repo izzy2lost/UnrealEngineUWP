@@ -4,6 +4,7 @@
 
 #include "ChaosVDEditorVisualizationSettingsTab.h"
 #include "ChaosVDEngine.h"
+#include "ChaosVDModule.h"
 #include "ChaosVDObjectDetailsTab.h"
 #include "ChaosVDOutputLogTab.h"
 #include "ChaosVDPlaybackController.h"
@@ -19,9 +20,13 @@
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "IDesktopPlatform.h"
+#include "Misc/MessageDialog.h"
 #include "StatusBarSubsystem.h"
 #include "Styling/StyleColors.h"
 #include "Styling/ToolBarStyle.h"
+#include "Trace/ChaosVDTraceManager.h"
+#include "Widgets/SChaosBrowseTraceFileSourceModal.h"
+#include "Widgets/SChaosVDBrowseSessionsModal.h"
 #include "Widgets/SChaosVDRecordingControls.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SComboButton.h"
@@ -82,7 +87,7 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 					.ContentPadding(FMargin(0, 5.f, 0, 4.f))
 					.OnClicked_Lambda([this]()
 					{
-						BrowseAndOpenChaosVDFile();
+						BrowseAndOpenChaosVDRecording();
 						return FReply::Handled();
 					})
 					.Content()
@@ -116,14 +121,8 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 				.AutoWidth()
 				[
 					SNew(SButton)
-					.ToolTip(SNew(SToolTip).Text(LOCTEXT("RemoteConnectionDesc", "Not Supported yet - Click here to connect to a remote debug session.")))
 					.ContentPadding(FMargin(0, 5.f, 0, 4.f))
-					.IsEnabled(false) // We don't support remote debugging yet
-					.OnClicked_Lambda([this]()
-					{
-						//TODO : Add a call to the method that will open the Trace Session Browser
-						return FReply::Handled();
-					})
+					.OnClicked_Raw(this, &SChaosVDMainTab::HandleSessionConnectionClicked)
 					.Content()
 					[
 						SNew(SHorizontalBox)
@@ -142,7 +141,7 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 						[
 							SNew(STextBlock)
 							.TextStyle(FAppStyle::Get(), "SmallButtonText")
-							.Text(LOCTEXT("ConnectToSession", "Connect to Session"))
+							.Text_Raw(this, &SChaosVDMainTab::GetConnectButtonText)
 						]
 					]
 				]
@@ -282,7 +281,7 @@ TSharedRef<FTabManager::FLayout> SChaosVDMainTab::GenerateMainLayout()
 					FTabManager::NewStack()
 					->SetSizeCoefficient(0.3f)
 					->AddTab(FChaosVDTabID::DetailsPanel, ETabState::OpenedTab)
-					->AddTab(FChaosVDTabID::CVDEditorSettings, ETabState::OpenedTab)
+					->AddTab(FChaosVDTabID::CVDEditorSettings, ETabState::ClosedTab)
 				)
 			)
 		);
@@ -300,7 +299,7 @@ void SChaosVDMainTab::GenerateMainWindowMenu()
 			FUIAction(
 				FExecuteAction::CreateLambda([this]()
 				{
-					BrowseAndOpenChaosVDFile();
+					BrowseAndOpenChaosVDRecording();
 				})));
 		}),
 		"File"
@@ -319,12 +318,37 @@ void SChaosVDMainTab::GenerateMainWindowMenu()
 	TabManager->SetMenuMultiBox(MenuBarBuilder.GetMultiBox(), MenuBarBuilder.MakeWidget());
 }
 
-void SChaosVDMainTab::BrowseAndOpenChaosVDFile()
+void SChaosVDMainTab::BrowseAndOpenChaosVDRecording()
+{
+	const TSharedRef<SChaosBrowseTraceFileSourceModal> SessionBrowserModal = SNew(SChaosBrowseTraceFileSourceModal);
+
+	EChaosVDBrowseFileModalResponse Response = SessionBrowserModal->ShowModal();
+	switch(Response)
+	{
+		case EChaosVDBrowseFileModalResponse::OpenFolder:
+			{
+				BrowseChaosVDRecordingFromFolder();
+				break;
+			}
+		case EChaosVDBrowseFileModalResponse::OpenTraceStore:
+			{
+				//TODO: Support remote Trace Stores 
+				BrowseChaosVDRecordingFromFolder(FChaosVDModule::Get().GetTraceManager()->GetLocalTraceStoreDirPath());
+				break;
+			}
+		case EChaosVDBrowseFileModalResponse::Cancel:
+			break;
+		default:
+				ensureMsgf(false, TEXT("Invalid responce received"));
+			break;
+	}
+}
+
+void SChaosVDMainTab::BrowseChaosVDRecordingFromFolder(FStringView FolderPath)
 {
 	TArray<FString> OutOpenFilenames;
 	if (IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get())
 	{
-		
 		FString ExtensionStr;
 		ExtensionStr += TEXT("Unreal Trace|*.utrace|");
 		//TODO: Re-enable this when we add "Clips" support as these will use our own format
@@ -333,7 +357,7 @@ void SChaosVDMainTab::BrowseAndOpenChaosVDFile()
 		DesktopPlatform->OpenFileDialog(
 			FSlateApplication::Get().FindBestParentWindowHandleForDialogs(AsShared()),
 			LOCTEXT("OpenDialogTitle", "Open Chaos Visual Debug File").ToString(),
-			TEXT(""),
+			FolderPath.GetData(),
 			TEXT(""),
 			*ExtensionStr,
 			EFileDialogFlags::None,
@@ -348,6 +372,59 @@ void SChaosVDMainTab::BrowseAndOpenChaosVDFile()
 			GetChaosVDEngineInstance()->LoadRecording(OutOpenFilenames[0]);
 		}
 	}
+}
+
+void SChaosVDMainTab::BrowseLiveSessionsFromTraceStore() const
+{
+	const TSharedRef<SChaosVDBrowseSessionsModal> SessionBrowserModal = SNew(SChaosVDBrowseSessionsModal);
+
+	if (SessionBrowserModal->ShowModal() != EAppReturnType::Cancel)
+	{
+		bool bSuccess = false;
+		const FChaosVDTraceSessionInfo SessionInfo = SessionBrowserModal->GetSelectedTraceInfo();
+		if (SessionInfo.bIsValid)
+		{
+			FChaosVDTraceSessionDescriptor NewSessionFromFileDescriptor;
+			NewSessionFromFileDescriptor.SessionName =  FChaosVDModule::Get().GetTraceManager()->ConnectToLiveSession(SessionBrowserModal->GetSelectedTraceStoreAddress(), SessionInfo.TraceID);
+			NewSessionFromFileDescriptor.bIsLiveSession = true;
+
+			bSuccess = !NewSessionFromFileDescriptor.SessionName.IsEmpty();
+
+			// If it failed we want to clean the current session name, so it is ok calling it either way
+			GetChaosVDEngineInstance()->SetCurrentSession(NewSessionFromFileDescriptor);
+		}
+
+		if (!bSuccess)
+		{
+			FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("FailedToConnectToSessionMessage", "Failed to connect to session"));	
+		}
+	}
+}
+
+FReply SChaosVDMainTab::HandleSessionConnectionClicked()
+{
+	if (TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr =  GetChaosVDEngineInstance()->GetPlaybackController())
+	{
+		const bool bIsAlreadyInLiveSession = PlaybackControllerPtr->IsPlayingLiveSession();
+	
+		if (bIsAlreadyInLiveSession)
+		{
+			FChaosVDModule::Get().GetTraceManager()->CloseSession(GetChaosVDEngineInstance()->GetCurrentSessionDescriptor().SessionName);
+			PlaybackControllerPtr->HandleDisconnectedFromSession();
+		}
+		else
+		{
+			BrowseLiveSessionsFromTraceStore();
+		}
+	}
+
+	return FReply::Handled();
+}
+
+FText SChaosVDMainTab::GetConnectButtonText() const
+{
+	const bool bIsAlreadyInLiveSession = GetChaosVDEngineInstance()->GetPlaybackController()->IsPlayingLiveSession();
+	return bIsAlreadyInLiveSession ? LOCTEXT("DisconnectFromSession", "Disconnect from Session") : LOCTEXT("ConnectToSession", "Connect to Session");
 }
 
 #undef LOCTEXT_NAMESPACE

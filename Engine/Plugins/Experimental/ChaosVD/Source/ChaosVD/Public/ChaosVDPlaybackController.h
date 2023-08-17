@@ -10,6 +10,7 @@
 #include "Delegates/Delegate.h"
 #include "HAL/ThreadSafeBool.h"
 
+struct FChaosVDTraceSessionDescriptor;
 struct FChaosVDTrackInfo;
 class FChaosVDScene;
 struct FChaosVDRecording;
@@ -67,8 +68,8 @@ public:
 	FChaosVDPlaybackController(const TWeakPtr<FChaosVDScene>& InSceneToControl);
 	virtual ~FChaosVDPlaybackController() override;
 
-	/** Loads a recording using a Trace Session Name */
-	bool LoadChaosVDRecordingFromTraceSession(const FString& InSessionName);
+	/** Loads a recording using a CVD Trace Session Descriptor */
+	bool LoadChaosVDRecordingFromTraceSession(const FChaosVDTraceSessionDescriptor& InSessionDescriptor);
 
 	/** Unloads the currently loaded recording
 	 * @param UnloadOptions Options flags to change the steps performed during the unload
@@ -206,6 +207,16 @@ public:
 	
 	virtual bool Tick(float DeltaTime) override;
 
+	/** Returns true if we are playing a live debugging session */
+	bool IsPlayingLiveSession() const;
+
+	/** Updates the loaded recording state to indicate is not longer receiving live updates */
+	void HandleDisconnectedFromSession();
+
+	void RequestPause() { bPauseRequested = true; }
+	void RequestUnpause() { bPauseRequested = false; }
+	bool HasPauseRequest() const { return bPauseRequested; }
+
 protected:
 
 	/** Updates (or adds) solvers data from the loaded recording to the solver tracks */
@@ -242,10 +253,17 @@ protected:
 	FChaosVDPlaybackControllerFrameUpdated ControllerFrameUpdatedDelegate;
 
 	/** Set to true when the recording data controlled by this Playback Controller is updated, the update delegate will be called on the GT */
-	FThreadSafeBool bHasPendingGTUpdateBroadcast;
+	std::atomic<bool> bHasPendingGTUpdateBroadcast;
 
 	/** Queue with a copy of all Track Info Updates that needs to be done in the Game thread */
 	TQueue<FChaosVDQueuedTrackInfoUpdate, EQueueMode::Mpsc> TrackInfoUpdateGTQueue;
 
-	bool bPlayedFirsFrame = false;
+	bool bPlayedFirstFrame = false;
+
+	int32 MaxFramesLaggingBehindDuringLiveSession = 50;
+	int32 MinFramesLaggingBehindDuringLiveSession = 5;
+
+	bool bPauseRequested = false;
+
+	FDelegateHandle RecordingStoppedHandle;
 };

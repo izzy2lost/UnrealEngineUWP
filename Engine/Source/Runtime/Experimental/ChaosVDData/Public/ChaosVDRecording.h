@@ -47,12 +47,42 @@ struct CHAOSVDDATA_API FChaosVDSolverFrameData
 	bool bIsKeyFrame = false;
 	FChaosVDStepsContainer SolverSteps;
 	TSet<int32> ParticlesDestroyedIDs;
+	double StartTime = -1.0;
+	double EndTime = -1.0;
+
+	/** Calculates and returns the frame time for this recorded frame.
+	 * @return Calculated frame time. -1 if it was not recorded
+	 */
+	double GetFrameTime() const
+	{
+		if (StartTime < 0 || EndTime < 0)
+		{
+			return -1.0;
+		}
+
+		return EndTime - StartTime;
+	}
 };
 
 struct FChaosVDGameFrameData
 {
 	uint64 FirstCycle;
 	uint64 LastCycle;
+	double StartTime = -1.0;
+	double EndTime = -1.0;
+
+	/** Calculates and returns the frame time for this recorded frame.
+	 * @return Calculated frame time. -1 if it was not recorded
+	 */
+	double GetFrameTime() const
+	{
+		if (StartTime < 0 || EndTime < 0)
+		{
+			return -1.0;
+		}
+
+		return EndTime - StartTime;
+	}
 
 	TMap<FName, FChaosVDTrackedLocation> RecordedNonSolverLocationsByID;
 	TMap<FName, FChaosVDTrackedTransform> RecordedNonSolverTransformsByID;
@@ -206,6 +236,12 @@ struct CHAOSVDDATA_API FChaosVDRecording
 
 	FRWLock& GetRecordingDataLock() { return RecordingDataLock; }
 
+	/** Returns true if this recording is being populated from a live session */
+	bool IsLive() const { return bIsLive; }
+
+	/** Sets if this recording is being populated from a live session */
+	void SetIsLive(bool bNewIsLive) { bIsLive = bNewIsLive; }
+
 protected:
 
 	/** Adds an Implicit Object to the recording and takes ownership of it */
@@ -228,6 +264,9 @@ protected:
 	TMap<uint32, Chaos::FConstImplicitObjectPtr> ImplicitObjects;
 
 	mutable FRWLock RecordingDataLock;
+
+	/** True if this recording is being populated from a live session */
+	bool bIsLive = false;
 
 	friend class FChaosVDTraceProvider;
 	friend class FChaosVDTraceImplicitObjectProcessor;

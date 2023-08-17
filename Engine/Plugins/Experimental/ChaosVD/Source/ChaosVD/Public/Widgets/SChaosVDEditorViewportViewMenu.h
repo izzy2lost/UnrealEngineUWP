@@ -11,7 +11,7 @@
  * Compared to the normal Editor View modes menu, it has a reduced set of modes available,
  * showing only the ones supported
  */
-class CHAOSVD_API SChaosVDEditorViewportViewMenu : public SEditorViewportViewMenu
+class SChaosVDEditorViewportViewMenu : public SEditorViewportViewMenu
 {
 public:
 	SLATE_BEGIN_ARGS(SChaosVDEditorViewportViewMenu){}
