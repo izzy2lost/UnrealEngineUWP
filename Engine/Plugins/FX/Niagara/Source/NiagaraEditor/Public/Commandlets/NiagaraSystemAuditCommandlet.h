@@ -39,6 +39,7 @@ class UNiagaraSystemAuditCommandlet : public UCommandlet
 		TSet<FName>		Systems;
 	};
 	bool bCaptureDataInterfaceUsage = false;
+	TSet<FName> NiagaraDataInterfaceUsageToCapture;
 	TMap<FName, FDataInterfaceUsage>  NiagaraDataInterfaceUsage;
 
 	/** Detailed renderer information. */
