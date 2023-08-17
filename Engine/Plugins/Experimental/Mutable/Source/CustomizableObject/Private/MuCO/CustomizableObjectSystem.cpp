@@ -3281,7 +3281,10 @@ void UCustomizableObjectSystem::OnPreBeginPIE(const bool bIsSimulatingInEditor)
 
 void UCustomizableObjectSystem::StartNextRecompile()
 {
-	CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
+	if (GEngine)
+	{
+		GEngine->ForceGarbageCollection();
+	}
 
 	FAssetData Itr = ObjectsToRecompile.Pop();
 	UCustomizableObject* CustomizableObject = Cast<UCustomizableObject>(Itr.GetAsset());
@@ -3388,7 +3391,10 @@ void UCustomizableObjectSystem::TickRecompileCustomizableObjects()
 			FSlateNotificationManager::Get().CancelProgressNotification(RecompileNotificationHandle);
 			RecompileNotificationHandle.Reset();
 
-			CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
+			if (GEngine)
+			{
+				GEngine->ForceGarbageCollection();
+			}
 		}
 	}
 }
