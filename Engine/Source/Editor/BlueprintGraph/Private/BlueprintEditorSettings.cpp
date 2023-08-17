@@ -9,7 +9,6 @@
 #include "BlueprintEditorModule.h"
 #include "BlueprintNamespaceHelper.h"
 #include "BlueprintNamespaceUtilities.h"
-#include "BlueprintTypePromotion.h"
 #include "CoreGlobals.h"
 #include "EdGraphSchema_K2.h"
 #include "Editor/EditorPerProjectUserSettings.h"
@@ -148,12 +147,10 @@ void UBlueprintEditorSettings::PostEditChangeProperty(FPropertyChangedEvent& Pro
 		bShouldRebuildRegistry = true;
 	}
 	
-	// Refresh type promotion when the preference gets changed so that we can correctly rebuild the action database
+	// Type promotion changes are handled by the action database refresh
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UBlueprintEditorSettings, bEnableTypePromotion) || 
 		PropertyName == GET_MEMBER_NAME_CHECKED(UBlueprintEditorSettings, TypePromotionPinDenyList))
 	{
-		FTypePromotion::RefreshPromotionTables();
-		
 		bShouldRebuildRegistry = true;
 	}
 

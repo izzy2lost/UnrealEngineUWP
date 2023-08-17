@@ -1365,6 +1365,10 @@ void FBlueprintActionDatabase::Tick(float DeltaTime)
 	{
 		RefreshAll();
 	}
+	else if (!BlueprintActionDatabaseImpl::PendingModules.IsEmpty())
+	{
+		PreRefresh(false);
+	}
 	
 	// Check for any modules that may have been loaded since the last tick. Even if we call RefreshAll() above, we still want to run
 	// through this list in order to keep track of loaded modules containing native script types that are registered into the database.
@@ -1499,6 +1503,9 @@ void FBlueprintActionDatabase::RefreshAll()
 
 	TGuardValue<bool> ScopedInitialization(BlueprintActionDatabaseImpl::bIsInitializing, true);
 	BlueprintActionDatabaseImpl::bRefreshAllRequested = false;
+
+	// Refresh other systems before the database is recreated
+	PreRefresh(true);
 
 	// Remove callbacks from blueprints
 	for (TObjectIterator<UBlueprint> BlueprintIt; BlueprintIt; ++BlueprintIt)
@@ -2000,6 +2007,12 @@ void FBlueprintActionDatabase::OnBlueprintChanged(UBlueprint* InBlueprint)
 	{
 		BlueprintActionDatabaseImpl::OnBlueprintChanged(InBlueprint);
 	}
+}
+
+void FBlueprintActionDatabase::PreRefresh(bool bRefreshAll)
+{
+	// Refresh other systems as necessary, doing it here avoids redundant work
+	FTypePromotion::RefreshPromotionTables();
 }
 
 bool FBlueprintActionDatabase::IsClassAllowed(UClass const* InClass, EPermissionsContext InContext)
