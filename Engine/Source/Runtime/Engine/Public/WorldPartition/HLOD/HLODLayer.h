@@ -42,10 +42,6 @@ class UHLODLayer : public UObject
 	
 #if WITH_EDITOR
 public:
-	static ENGINE_API UHLODLayer* GetHLODLayer(const AActor* InActor);
-	static ENGINE_API UHLODLayer* GetHLODLayer(const FWorldPartitionActorDesc& InActorDesc, const UWorldPartition* InWorldPartition);
-	static ENGINE_API UHLODLayer* GetHLODLayer(const FWorldPartitionActorDescView& InActorDescView, const UWorldPartition* InWorldPartition);
-
 	/** Get the default engine HLOD layers setup */
 	static ENGINE_API UHLODLayer* GetEngineDefaultHLODLayersSetup();
 

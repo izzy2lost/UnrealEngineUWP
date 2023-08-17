@@ -84,6 +84,8 @@ public:
 	ENGINE_API void SetRuntimeReferences(const TArray<FGuid>& InRuntimeReferences);
 	ENGINE_API void SetEditorReferences(const TArray<FGuid>& InEditorReferences);
 	ENGINE_API void SetDataLayerInstanceNames(const TArray<FName>& InDataLayerInstanceNames);
+	
+	ENGINE_API void SetRuntimeHLODLayer(const FSoftObjectPath& InHLODLayer);
 
 	ENGINE_API AActor* GetActor() const;
 
@@ -111,10 +113,11 @@ protected:
 	const FWorldPartitionActorDescView* ParentView;
 	bool bIsForcedNonSpatiallyLoaded;
 	bool bIsForcedNoRuntimeGrid;
-	bool bIsForcedNoDataLayers;	
+	bool bIsForcedNoDataLayers;
 	TOptional<TArray<FName>> ResolvedDataLayerInstanceNames;
 	TOptional<TArray<FName>> RuntimeDataLayerInstanceNames;
 	TOptional<TArray<FGuid>> RuntimeReferences;
+	TOptional<FSoftObjectPath> RuntimedHLODLayer;
 	TArray<FGuid> EditorReferences;
 };
 #endif

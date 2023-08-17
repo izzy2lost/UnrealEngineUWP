@@ -28,6 +28,7 @@
 #include "WorldPartition/ErrorHandling/WorldPartitionStreamingGenerationLogErrorHandler.h"
 #include "WorldPartition/ErrorHandling/WorldPartitionStreamingGenerationMapCheckErrorHandler.h"
 #include "WorldPartition/HLOD/HLODActor.h"
+#include "WorldPartition/HLOD/HLODLayer.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
 #include "HAL/FileManager.h"
 
@@ -340,6 +341,16 @@ class FWorldPartitionStreamingGenerator
 		}
 	}
 
+	void ResolveHLODLayer(FWorldPartitionActorDescView& ActorDescView, const FSoftObjectPath& DefaultHLODLayer)
+	{
+		// Only assign the default layer to actors that don't have a valid HLOD layer set. HLOD actors will have their 
+		// parent HLOD layer set during HLOD generation.
+		if (!ActorDescView.GetHLODLayer().IsValid())
+		{
+			ActorDescView.SetRuntimeHLODLayer(DefaultHLODLayer);
+		}
+	}
+
 	void ResolveParentView(FWorldPartitionActorDescView& ActorDescView, const FActorDescViewMap& ActorDescViewMap)
 	{
 		if (FGuid ParentGuid = ActorDescView.GetParentActor(); ParentGuid.IsValid())
@@ -633,6 +644,7 @@ class FWorldPartitionStreamingGenerator
 			ResolveRuntimeSpatiallyLoaded(ActorDescView);
 			ResolveRuntimeGrid(ActorDescView);
 			ResolveRuntimeDataLayers(ActorDescView, ContainerCollectionDescriptor.ActorDescViewMap);
+			ResolveHLODLayer(ActorDescView, FSoftObjectPath(WorldPartitionContext->GetDefaultHLODLayer()));
 			ResolveParentView(ActorDescView, ContainerCollectionDescriptor.ActorDescViewMap);
 		};
 

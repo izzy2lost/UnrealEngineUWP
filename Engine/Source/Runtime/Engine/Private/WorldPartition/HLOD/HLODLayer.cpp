@@ -32,53 +32,6 @@ UHLODLayer::UHLODLayer(const FObjectInitializer& ObjectInitializer)
 {}
 
 #if WITH_EDITOR
-UHLODLayer* UHLODLayer::GetHLODLayer(const AActor* InActor)
-{
-	if (UHLODLayer* HLODLayer = InActor->GetHLODLayer())
-	{
-		return HLODLayer;
-	}
-
-	// Only fallback to the default HLODLayer for the first level of HLOD
-	bool bIsHLOD0 = !InActor->IsA<AWorldPartitionHLOD>();
-	if (bIsHLOD0) 
-	{
-		// Fallback to the world partition default HLOD layer
-		if (UWorldPartition* WorldPartition = InActor->GetWorld()->GetWorldPartition())
-		{
-			return WorldPartition->GetDefaultHLODLayer();
-		}
-	}
-
-	return nullptr;
-}
-
-UHLODLayer* UHLODLayer::GetHLODLayer(const FWorldPartitionActorDescView& InActorDesc, const UWorldPartition* InWorldPartition)
-{
-	check(InWorldPartition);
-
-	const FSoftObjectPath HLODLayerPath = InActorDesc.GetHLODLayer();
-	if (UHLODLayer* HLODLayer = Cast<UHLODLayer>(HLODLayerPath.TryLoad()))
-	{
-		return HLODLayer;
-	}
-
-	// Only fallback to the default HLODLayer for the first level of HLOD
-	bool bIsHLOD0 = !InActorDesc.GetActorNativeClass()->IsChildOf<AWorldPartitionHLOD>();
-	if (bIsHLOD0)
-	{
-		// Fallback to the world partition default HLOD layer
-		return InWorldPartition->GetDefaultHLODLayer();
-	}
-
-	return nullptr;
-}
-
-UHLODLayer* UHLODLayer::GetHLODLayer(const FWorldPartitionActorDesc& InActorDesc, const UWorldPartition* InWorldPartition)
-{
-	return GetHLODLayer(FWorldPartitionActorDescView(&InActorDesc), InWorldPartition);
-}
-
 bool UHLODLayer::DoesRequireWarmup() const
 {
 	IWorldPartitionHLODUtilities* WPHLODUtilities = FModuleManager::Get().LoadModuleChecked<IWorldPartitionHLODUtilitiesModule>("WorldPartitionHLODUtilities").GetUtilities();

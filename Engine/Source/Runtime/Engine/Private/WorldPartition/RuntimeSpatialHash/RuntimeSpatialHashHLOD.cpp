@@ -285,7 +285,7 @@ static TMap<UHLODLayer*, int32> GatherHLODLayers(const IStreamingGenerationConte
 			{
 				if (ActorDescView.GetActorIsHLODRelevant())
 				{
-					UHLODLayer* HLODLayer = UHLODLayer::GetHLODLayer(ActorDescView, WorldPartition);
+					UHLODLayer* HLODLayer = Cast<UHLODLayer>(ActorDescView.GetHLODLayer().TryLoad());
 		
 					// If layer was already encountered, no need to process it again
 					if (!HLODLayersLevel.Contains(HLODLayer))

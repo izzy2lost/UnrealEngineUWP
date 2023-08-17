@@ -93,6 +93,11 @@ bool FWorldPartitionActorDescView::GetActorIsHLODRelevant() const
 
 FSoftObjectPath FWorldPartitionActorDescView::GetHLODLayer() const
 {
+	if (RuntimedHLODLayer.IsSet())
+	{
+		return RuntimedHLODLayer.GetValue();
+	}
+
 	return ActorDesc->GetHLODLayer();
 }
 
@@ -265,7 +270,11 @@ void FWorldPartitionActorDescView::SetForcedNonSpatiallyLoaded()
 
 void FWorldPartitionActorDescView::SetForcedNoRuntimeGrid()
 {
-	bIsForcedNoRuntimeGrid = true;	
+	if (!bIsForcedNoRuntimeGrid)
+	{
+		bIsForcedNoRuntimeGrid = true;	
+		UE_LOG(LogWorldPartition, Verbose, TEXT("Actor '%s' runtime grid invalidated"), *GetActorLabelOrName().ToString());
+	}
 }
 
 void FWorldPartitionActorDescView::SetForcedNoDataLayers()
@@ -290,6 +299,11 @@ void FWorldPartitionActorDescView::SetRuntimeReferences(const TArray<FGuid>& InR
 void FWorldPartitionActorDescView::SetEditorReferences(const TArray<FGuid>& InEditorReferences)
 {
 	EditorReferences = InEditorReferences;
+}
+
+void FWorldPartitionActorDescView::SetRuntimeHLODLayer(const FSoftObjectPath& InHLODLayer)
+{
+	RuntimedHLODLayer = InHLODLayer;
 }
 
 AActor* FWorldPartitionActorDescView::GetActor() const
