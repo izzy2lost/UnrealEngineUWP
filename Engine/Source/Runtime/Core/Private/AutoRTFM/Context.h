@@ -22,7 +22,7 @@ public:
     // This is public API
     ETransactionResult Transact(void (*Function)(void* Arg), void* Arg);
     
-	EContextStatus CallClosedNest(void (*ClosedFunction)(void* Arg, FContext* Context), void* Arg);
+	EContextStatus CallClosedNest(void (*ClosedFunction)(void* Arg), void* Arg);
 
 	void AbortByRequestAndThrow();
 	void AbortByRequestWithoutThrowing();

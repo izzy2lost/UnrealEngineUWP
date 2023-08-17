@@ -28,7 +28,7 @@ void CheckAlignment(FContext* Context, void* Ptr, size_t AlignmentMask)
     }
 }
 
-extern "C" void autortfm_record_write(FContext* Context, void* Ptr, size_t Size)
+extern "C" void autortfm_record_write(void* Ptr, size_t Size)
 {
 	// check for writes to null here so we end up crashing in the user
 	// code rather than in the autortfm runtime.
@@ -37,10 +37,11 @@ extern "C" void autortfm_record_write(FContext* Context, void* Ptr, size_t Size)
 		return;
 	}
 
+	FContext* Context = FContext::Get();
 	Context->RecordWrite(Ptr, Size);
 }
 
-extern "C" void autortfm_record_write_8(FContext* Context, void* Ptr)
+extern "C" void autortfm_record_write_8(void* Ptr)
 {
 	// check for writes to null here so we end up crashing in the user
 	// code rather than in the autortfm runtime.
@@ -49,30 +50,35 @@ extern "C" void autortfm_record_write_8(FContext* Context, void* Ptr)
 		return;
 	}
 
+	FContext* Context = FContext::Get();
 	Context->RecordWrite<8>(Ptr);
 }
 
-extern "C" void* autortfm_lookup_function(FContext* Context, void* OriginalFunction, const char* Where)
+extern "C" void* autortfm_lookup_function(void* OriginalFunction, const char* Where)
 {
-    return FunctionMapLookup(OriginalFunction, Context, Where);
+	FContext* Context = FContext::Get();
+    return FunctionMapLookup(OriginalFunction, Where);
 }
 
-extern "C" void autortfm_memcpy(void* Dst, const void* Src, size_t Size, FContext* Context)
+extern "C" void autortfm_memcpy(void* Dst, const void* Src, size_t Size)
 {
+	FContext* Context = FContext::Get();
     Memcpy(Dst, Src, Size, Context);
 }
 
-extern "C" void autortfm_memmove(void* Dst, const void* Src, size_t Size, FContext* Context)
+extern "C" void autortfm_memmove(void* Dst, const void* Src, size_t Size)
 {
+	FContext* Context = FContext::Get();
     Memmove(Dst, Src, Size, Context);
 }
 
-extern "C" void autortfm_memset(void* Dst, int Value, size_t Size, FContext* Context)
+extern "C" void autortfm_memset(void* Dst, int Value, size_t Size)
 {
+	FContext* Context = FContext::Get();
     Memset(Dst, Value, Size, Context);
 }
 
-extern "C" void autortfm_llvm_fail(FContext* Context, const char* Message)
+extern "C" void autortfm_llvm_fail(const char* Message)
 {
     if (Message)
     {
@@ -83,6 +89,7 @@ extern "C" void autortfm_llvm_fail(FContext* Context, const char* Message)
 		UE_LOG(LogAutoRTFM, Warning, TEXT("Transaction failing because of language issue."));
 	}
 
+	FContext* Context = FContext::Get();
     Context->AbortByLanguageAndThrow();
 }
 
@@ -91,7 +98,7 @@ extern "C" void autortfm_llvm_alignment_error(FContext* Context, void* Ptr, size
     AbortDueToBadAlignment(Context, Ptr, Alignment, Message);
 }
 
-extern "C" void autortfm_llvm_error(FContext* Context, const char* Message)
+extern "C" void autortfm_llvm_error(const char* Message)
 {
 	if (Message)
 	{
