@@ -185,9 +185,6 @@ FCurlHttpRequest::~FCurlHttpRequest()
 	checkf(FCurlHttpManager::IsInit(), TEXT("Curl request was held after the library was shutdown."));
 	if (EasyHandle)
 	{
-		// clear to prevent crashing in debug callback when this handle is part of an asynchronous curl_multi_perform()
-		curl_easy_setopt(EasyHandle, CURLOPT_DEBUGDATA, nullptr);
-
 		// cleanup the handle first (that order is used in howtos)
 		curl_easy_cleanup(EasyHandle);
 		EasyHandle = nullptr;
