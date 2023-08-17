@@ -553,7 +553,7 @@ void FPackageAutoSaver::UpdateDirtyListsForPackage(UPackage* Pkg)
 		}
 
 		// Add package into the appropriate list (map or content)
-		if (UObject* PackageAsset = Pkg->FindAssetInPackage(); PackageAsset && (Cast<UWorld>(PackageAsset) || PackageAsset->GetTypedOuter<UWorld>()))
+		if (UWorld::IsWorldOrWorldExternalPackage(Pkg))
 		{
 			DirtyMapsForAutoSave.Add(Pkg);
 		}

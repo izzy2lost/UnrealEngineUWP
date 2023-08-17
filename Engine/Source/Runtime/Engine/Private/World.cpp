@@ -8191,19 +8191,24 @@ FString UWorld::RemovePIEPrefix(const FString &Source, int32* OutPIEInstanceID)
 
 UWorld* UWorld::FindWorldInPackage(UPackage* Package)
 {
-	UWorld* RetVal = nullptr;
-	TArray<UObject*> PotentialWorlds;
-	GetObjectsWithPackage(Package, PotentialWorlds, false);
-	for ( auto ObjIt = PotentialWorlds.CreateConstIterator(); ObjIt; ++ObjIt )
+	UWorld* Result = nullptr;
+	ForEachObjectWithPackage(Package, [&Result](UObject* Object)
 	{
-		RetVal = Cast<UWorld>(*ObjIt);
-		if ( RetVal )
-		{
-			break;
-		}
-	}
+		Result = Cast<UWorld>(Object);
+		return !Result;
+	}, false);
+	return Result;
+}
 
-	return RetVal;
+bool UWorld::IsWorldOrWorldExternalPackage(UPackage* Package)
+{
+	bool bResult = false;
+	ForEachObjectWithPackage(Package, [&bResult](UObject* Object)
+	{
+		bResult = !!Cast<UWorld>(Object) || !!Object->GetTypedOuter<UWorld>();
+		return !bResult;
+	}, false);
+	return bResult;
 }
 
 UWorld* UWorld::FollowWorldRedirectorInPackage(UPackage* Package, UObjectRedirector** OptionalOutRedirector)

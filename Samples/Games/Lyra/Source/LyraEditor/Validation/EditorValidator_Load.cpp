@@ -74,7 +74,7 @@ bool UEditorValidator_Load::GetLoadWarningsAndErrorsForPackage(const FString& Pa
 	}
 
 	// Skip World or External Actor packages
-	if (UObject* PackageAsset = ExistingPackage ? ExistingPackage->FindAssetInPackage() : nullptr; PackageAsset && (Cast<UWorld>(PackageAsset) || PackageAsset->GetTypedOuter<UWorld>()))
+	if (ExistingPackage && UWorld::IsWorldOrWorldExternalPackage(ExistingPackage))
 	{
 		return true;
 	}
