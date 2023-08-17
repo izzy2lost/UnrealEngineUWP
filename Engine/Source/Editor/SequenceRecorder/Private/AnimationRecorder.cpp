@@ -511,7 +511,7 @@ UAnimSequence* FAnimationRecorder::StopRecord(bool bShowMessage)
 		Controller.NotifyPopulated();
 		Controller.CloseBracket(bTransactRecording);
 
-
+		AnimationObject->PostEditChange();
 		AnimationObject->MarkPackageDirty();
 		
 		// save the package to disk, for convenience and so we can run this in standalone mode
