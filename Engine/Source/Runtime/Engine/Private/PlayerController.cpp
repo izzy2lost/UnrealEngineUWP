@@ -83,9 +83,9 @@ DEFINE_LOG_CATEGORY(LogPlayerController);
 #define LOCTEXT_NAMESPACE "PlayerController"
 
 DECLARE_CYCLE_STAT(TEXT("PC Tick Actor"), STAT_PC_TickActor, STATGROUP_PlayerController);
-DECLARE_CYCLE_STAT(TEXT("  PC Tick Input"), STAT_PC_TickInput, STATGROUP_PlayerController);
-DECLARE_CYCLE_STAT(TEXT("    PC Build Input Stack"), STAT_PC_BuildInputStack, STATGROUP_PlayerController);
-DECLARE_CYCLE_STAT(TEXT("    PC Process Input Stack"), STAT_PC_ProcessInputStack, STATGROUP_PlayerController);
+DECLARE_CYCLE_STAT(TEXT("PC Tick Input"), STAT_PC_TickInput, STATGROUP_PlayerController);
+DECLARE_CYCLE_STAT(TEXT("PC Build Input Stack"), STAT_PC_BuildInputStack, STATGROUP_PlayerController);
+DECLARE_CYCLE_STAT(TEXT("PC Process Input Stack"), STAT_PC_ProcessInputStack, STATGROUP_PlayerController);
 
 // CVars
 namespace PlayerControllerCVars
