@@ -223,7 +223,7 @@ public:
 	*/
 	CHAOS_API void BreakingModel();
 	CHAOS_API void BreakingModel(TArray<FPBDRigidClusteredParticleHandle*>& InParticles);
-	CHAOS_API void BreakingModel(TArrayView<FPBDRigidClusteredParticleHandle*> InParticles);
+	CHAOS_API bool BreakingModel(TArrayView<FPBDRigidClusteredParticleHandle*> InParticles);
 	
 	//
 	// Access
@@ -401,7 +401,12 @@ public:
 	FClusterUnionManager& GetClusterUnionManager() { return ClusterUnionManager; }
 	const FClusterUnionManager& GetClusterUnionManager() const { return ClusterUnionManager; }
 
-	const TSet<Chaos::FPBDRigidClusteredParticleHandle*>& GetTopLevelClusterParentsStrained() const { return TopLevelClusterParentsStrained; }
+	UE_DEPRECATED(5.4, "No longer expose publicly - now return empty set")
+	const TSet<Chaos::FPBDRigidClusteredParticleHandle*>& GetTopLevelClusterParentsStrained() const
+	{ 
+		static const TSet<Chaos::FPBDRigidClusteredParticleHandle*> ConstEmptySet;
+		return ConstEmptySet;
+	}
 
 	// Remove connectivity edges for specified particles
 	CHAOS_API void RemoveNodeConnections(FPBDRigidParticleHandle* Child);
@@ -570,7 +575,8 @@ private:
 	FRigidEvolution& MEvolution;
 	FPBDRigidClusteredParticles& MParticles;
 	TSet<Chaos::FPBDRigidClusteredParticleHandle*> TopLevelClusterParents;
-	TSet<Chaos::FPBDRigidClusteredParticleHandle*> TopLevelClusterParentsStrained;
+
+	TMap<Chaos::FPBDRigidClusteredParticleHandle*, int64> TopLevelClusterParentsStrained;
 
 	// Cluster data
 	FClusterMap MChildren;
