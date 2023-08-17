@@ -30,7 +30,7 @@ namespace LowLevelTests
 		public void PreRunTests()
 		{
 			ProcessStartInfo StartInfo = new ProcessStartInfo();
-			StartInfo.WorkingDirectory = Path.Combine(Unreal.EngineDirectory.FullName, "Source", "Programs", "WebTests", "WebServer");
+			StartInfo.WorkingDirectory = Path.Combine(Unreal.EngineDirectory.FullName, "Source", "Programs", "WebTestsServer");
 			StartInfo.FileName = RuntimePlatform.IsWindows ? "cmd.exe" : "/bind/sh";
 			StartInfo.Arguments = RuntimePlatform.IsWindows ? "/c runserver.bat" : "-c 'runserver.sh'";
 			StartInfo.UseShellExecute = false;

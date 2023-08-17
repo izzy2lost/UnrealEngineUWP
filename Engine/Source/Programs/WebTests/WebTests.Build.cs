@@ -11,6 +11,7 @@ public class WebTests : TestModuleRules
 				"ApplicationCore",
 				"Core",
 				"HTTP",
+				"WebSockets",
 				"Chaos",
 				"ChaosUserDataPT"
 			});

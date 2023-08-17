@@ -32,7 +32,7 @@ class FHttpModuleTestFixture
 public:
 	FHttpModuleTestFixture()
 		: WebServerIp(TEXT("127.0.0.1"))
-		, WebServerPort(8000)
+		, WebServerHttpPort(8000)
 		, bRunHeavyTests(false)
 	{
 		ParseSettingsFromCommandLine();
@@ -56,13 +56,13 @@ public:
 	}
 
 	const FString UrlWithInvalidPortToTestConnectTimeout() const { return FString::Format(TEXT("http://{0}:{1}"), { *WebServerIp, 8765 }); }
-	const FString UrlBase() const { return FString::Format(TEXT("http://{0}:{1}"), { *WebServerIp, WebServerPort }); }
+	const FString UrlBase() const { return FString::Format(TEXT("http://{0}:{1}"), { *WebServerIp, WebServerHttpPort }); }
 	const FString UrlHttpTests() const { return FString::Format(TEXT("{0}/webtests/httptests"), { *UrlBase() }); }
 	const FString UrlToTestMethods() const { return FString::Format(TEXT("{0}/methods"), { *UrlHttpTests() }); }
 	const FString UrlStreamDownload(uint32 Chunks, uint32 ChunkSize) { return FString::Format(TEXT("{0}/streaming_download/{1}/{2}/"), { *UrlHttpTests(), Chunks, ChunkSize }); }
 
 	FString WebServerIp;
-	uint32 WebServerPort;
+	uint32 WebServerHttpPort;
 	FHttpModule* HttpModule;
 
 	bool bRunHeavyTests;
