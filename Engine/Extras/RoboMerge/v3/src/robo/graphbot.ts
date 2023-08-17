@@ -89,7 +89,7 @@ export class GraphBot implements GraphInterface, BotEventHandler {
 			this.botLogger.error(`Problem starting up bot ${botname}: ${error}`);
 		}
 
-		this.settings = new Settings(botname, this.branchGraph, this.botLogger)
+		this.settings = new Settings(botname, this.branchGraph, this.botLogger, this.p4)
 
 		this.externalUrl = externalUrl
 	}
