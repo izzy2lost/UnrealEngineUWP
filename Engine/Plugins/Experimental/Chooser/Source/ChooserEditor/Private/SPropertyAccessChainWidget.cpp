@@ -65,6 +65,16 @@ TSharedRef<SWidget> SPropertyAccessChainWidget::CreatePropertyAccessWidget()
 			}
 			return false;
 		}
+		else if (TypeFilter == "bool")
+		{
+			// special case for bools, because CPPType == "bool" doesn't catch: uint8 bBool : 1
+	
+			if (const FBoolProperty* BoolProperty = CastField<const FBoolProperty>(Property))
+			{
+				return true;
+			}
+			return false;
+		}
 
 		const FString CPPType = Property->GetCPPType();
 

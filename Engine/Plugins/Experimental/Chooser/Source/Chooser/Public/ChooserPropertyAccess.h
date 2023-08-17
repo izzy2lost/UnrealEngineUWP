@@ -25,6 +25,7 @@ namespace UE::Chooser
 		{
 			bIsFunction = false;
 			Offset = InOffset;
+			Mask = 0;
 		}
 		
 		explicit FCompiledBindingElement(UFunction* InFunction)
@@ -36,7 +37,11 @@ namespace UE::Chooser
 		bool bIsFunction;
 		union 
 		{
-			int Offset;
+			struct
+			{
+				int Offset;
+				uint8 Mask; // mask, for bitset bools
+			};
 			UFunction* Function;
 		};
 	};
@@ -45,6 +50,7 @@ namespace UE::Chooser
 	enum class EPropertyNumericalType
 	{
 		NONE,
+		BOOL,
 		INT32,
 		FLOAT,
 		DOUBLE,
@@ -241,6 +247,13 @@ bool FChooserPropertyBinding::GetValue(FChooserEvaluationContext& Context, T& Ou
 					OutResult = static_cast<T>(IntResult);
 					break;
 				}
+			case EPropertyNumericalType::BOOL:
+				{
+					const FCompiledBindingElement& Last = Binding.CompiledChain.Last();
+					uint8* ByteValue = Result + Last.Offset;
+					OutResult = !!(*ByteValue & Last.Mask);
+					break;
+				}
 			default:
 				OutResult = *reinterpret_cast<T*>(Result + Binding.CompiledChain.Last().Offset);
 				break;
@@ -349,6 +362,20 @@ bool FChooserPropertyBinding::SetValue(FChooserEvaluationContext& Context, const
 					*reinterpret_cast<int*>(Result + Binding.CompiledChain.Last().Offset) = static_cast<int>(InValue);
 					break;
 				}
+			case EPropertyNumericalType::BOOL:
+			{
+				const FCompiledBindingElement& Last = Binding.CompiledChain.Last();
+				uint8* ByteValue = Result + Last.Offset;
+				if (Last.Mask == 255) // regular bool
+				{
+					*reinterpret_cast<bool*>(Result + Binding.CompiledChain.Last().Offset) = static_cast<bool>(InValue);
+				}
+				else // bitset bool
+				{
+					*ByteValue = ((*ByteValue) & ~Last.Mask) | (InValue ? Last.Mask : 0);
+				}
+				break;
+			}
 			default:
 				*reinterpret_cast<T*>(Result + Binding.CompiledChain.Last().Offset) = InValue;
 				break;

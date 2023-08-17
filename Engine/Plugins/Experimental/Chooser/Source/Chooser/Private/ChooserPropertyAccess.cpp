@@ -216,7 +216,12 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 			// last element should be the actual property - add it's offset to whatever was accumulated from struct offsets
 			CurrentOffset += BaseProperty->GetOffset_ForInternal();
 			OutCompiledBinding.CompiledChain.Add(UE::Chooser::FCompiledBindingElement(CurrentOffset));
-
+			
+			if (const FBoolProperty* BoolProperty = CastField<FBoolProperty>(BaseProperty))
+			{
+				OutCompiledBinding.CompiledChain.Last().Mask = BoolProperty->GetFieldMask();
+				OutCompiledBinding.PropertyType = UE::Chooser::EPropertyNumericalType::BOOL;
+			}
 			if (BaseProperty->IsA<FFloatProperty>())
 			{
 				OutCompiledBinding.PropertyType = UE::Chooser::EPropertyNumericalType::FLOAT;
