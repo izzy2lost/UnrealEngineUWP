@@ -1125,6 +1125,7 @@ void OnDetailedCSVStatsEnabledChanged(IConsoleVariable* Variable)
 	if (CSVProfiler)
 	{
 		CSVProfiler->EnableCategoryByIndex(CSV_CATEGORY_INDEX(Particles), bDetailedCSVStats);
+		CSV_METADATA(TEXT("DetailedFXStats"), bDetailedCSVStats ? TEXT("1") : TEXT("0"));
 	}
 
 	if (bDetailedCSVStats)
