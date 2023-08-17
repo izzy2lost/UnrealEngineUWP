@@ -1209,7 +1209,7 @@ namespace Chaos
 				ContactPoint.ShapeContactNormal = -GJKContactPoint.ShapeContactNormal;
 				ContactPoint.Phi = GJKContactPoint.Phi;
 				ContactPoint.FaceIndex = INDEX_NONE;
-				ContactPoint.ContactType = EContactPointType::EdgeEdge;
+				ContactPoint.ContactType = bIsConvexPlaneContact ? EContactPointType::VertexPlane : EContactPointType::EdgeEdge;
 				OutContactPoints.Add(ContactPoint);
 				return;
 			}
