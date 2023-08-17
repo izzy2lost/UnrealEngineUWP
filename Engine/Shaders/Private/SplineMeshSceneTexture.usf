@@ -4,6 +4,7 @@
 #include "SplineMeshCommon.ush"
 #include "ComputeShaderUtils.ush"
 
+
 RWTexture2D<float4> SplineTextureOut;
 StructuredBuffer<uint> InstanceIdLookup;
 StructuredBuffer<uint> UpdateRequests;
