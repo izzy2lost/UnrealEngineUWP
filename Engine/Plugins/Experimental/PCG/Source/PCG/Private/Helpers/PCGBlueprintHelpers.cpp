@@ -150,46 +150,64 @@ TArray<FPCGLandscapeLayerWeight> UPCGBlueprintHelpers::GetInterpolatedPCGLandsca
 	FBox Bounds(&Location, 1);
 	TArray<TWeakObjectPtr<ALandscapeProxy>> Landscapes = PCGHelpers::GetLandscapeProxies(World, Bounds);
 
-	if (Landscapes.IsEmpty() || !Landscapes[0].Get())
+	if (Landscapes.IsEmpty())
 	{
 		return {};
 	}
 
-	ALandscapeProxy* Landscape = Landscapes[0].Get();
-	check(Landscape);
+	FString FailureReason;
 
-	ULandscapeInfo* LandscapeInfo = Landscape->GetLandscapeInfo();
-	if (!LandscapeInfo)
+
+	for (TWeakObjectPtr<ALandscapeProxy> LandscapePtr : Landscapes)
 	{
-		UE_LOG(LogPCG, Warning, TEXT("Unable to get landscape layer weights because the landscape info is not available (landscape not registered yet?"));
-		return {};
-	}
 
-	const FVector LocalPoint = Landscape->GetTransform().InverseTransformPosition(Location);
-	const FIntPoint ComponentMapKey(FMath::FloorToInt(LocalPoint.X / LandscapeInfo->ComponentSizeQuads), FMath::FloorToInt(LocalPoint.Y / LandscapeInfo->ComponentSizeQuads));
+		ALandscapeProxy* Landscape = LandscapePtr.Get();
+		if (!Landscape)
+		{
+			continue;
+		}
 
-#if WITH_EDITOR
-	ULandscapeComponent* LandscapeComponent = LandscapeInfo->XYtoComponentMap.FindRef(ComponentMapKey);
-	const FPCGLandscapeCacheEntry* CacheEntry = LandscapeCache->GetCacheEntry(LandscapeComponent, ComponentMapKey);
-#else
-	const FPCGLandscapeCacheEntry* CacheEntry = LandscapeCache->GetCacheEntry(Landscape->GetOriginalLandscapeGuid(), ComponentMapKey);
-#endif
+		ULandscapeInfo* LandscapeInfo = Landscape->GetLandscapeInfo();
+		if (!LandscapeInfo)
+		{
+			FailureReason = TEXT("Unable to get landscape layer weights because the landscape info is not available (landscape not registered yet?");
+			continue;
+		}
 
-	if (!CacheEntry)
-	{
-		return {};
-	}
+		const FVector LocalPoint = Landscape->GetTransform().InverseTransformPosition(Location);
+		const FIntPoint ComponentMapKey(FMath::FloorToInt(LocalPoint.X / LandscapeInfo->ComponentSizeQuads), FMath::FloorToInt(LocalPoint.Y / LandscapeInfo->ComponentSizeQuads));
 
-	const FVector2D ComponentLocalPoint(LocalPoint.X - ComponentMapKey.X * LandscapeInfo->ComponentSizeQuads, LocalPoint.Y - ComponentMapKey.Y * LandscapeInfo->ComponentSizeQuads);
+		#if WITH_EDITOR
+		ULandscapeComponent* LandscapeComponent = LandscapeInfo->XYtoComponentMap.FindRef(ComponentMapKey);
+		const FPCGLandscapeCacheEntry* CacheEntry = LandscapeCache->GetCacheEntry(LandscapeComponent, ComponentMapKey);
+		#else
+		const FPCGLandscapeCacheEntry* CacheEntry = LandscapeCache->GetCacheEntry(Landscape->GetOriginalLandscapeGuid(), ComponentMapKey);
+		#endif
+
+		if (!CacheEntry)
+		{
+			FailureReason = TEXT("Unable to get landscape layer weights because the cache entry is not available.");
+			continue;
+		}
+
+		const FVector2D ComponentLocalPoint(LocalPoint.X - ComponentMapKey.X * LandscapeInfo->ComponentSizeQuads, LocalPoint.Y - ComponentMapKey.Y * LandscapeInfo->ComponentSizeQuads);
 	
-	TArray<FPCGLandscapeLayerWeight> Result;
-	CacheEntry->GetInterpolatedLayerWeights(ComponentLocalPoint, Result);
+		TArray<FPCGLandscapeLayerWeight> Result;
+		CacheEntry->GetInterpolatedLayerWeights(ComponentLocalPoint, Result);
 
-	Result.Sort([](const FPCGLandscapeLayerWeight& Lhs, const FPCGLandscapeLayerWeight& Rhs) {
-		return Lhs.Weight > Rhs.Weight;
-	});
+		Result.Sort([](const FPCGLandscapeLayerWeight& Lhs, const FPCGLandscapeLayerWeight& Rhs) {
+			return Lhs.Weight > Rhs.Weight;
+		});
 
-	return Result;
+		return Result;
+	}
+
+	if(FailureReason.Len())
+	{
+		UE_LOG(LogPCG, Warning, TEXT("%s"), *FailureReason);
+	}
+
+	return {};
 }
 
 int64 UPCGBlueprintHelpers::GetTaskId(FPCGContext& Context)
