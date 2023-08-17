@@ -1714,7 +1714,10 @@ void UVCamComponent::HandleCameraComponentEventData(const FConcertSessionContext
 			{
 				for (UVCamOutputProviderBase* Provider : OutputProviders)
 				{
-					Provider->SuspendOutput();
+					if (IsValid(Provider))
+					{
+						Provider->SuspendOutput();
+					}
 				}
 			}
 		}
