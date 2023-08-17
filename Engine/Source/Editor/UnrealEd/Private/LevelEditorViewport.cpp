@@ -1412,6 +1412,13 @@ void FLevelEditorViewportClient::DestroyDropPreviewActors()
 			AActor* PreviewActor = (*ActorIt).Get();
 			if (PreviewActor && PreviewActor != GetWorld()->GetDefaultBrush())
 			{
+				// Temporary hack to remove the preview actor from the TypedElementRegistry (if it exists)
+				UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance();
+				if(ITypedElementDataStorageCompatibilityInterface* DataStorageCompatibilityInterface = TypedElementRegistry->GetMutableDataStorageCompatibility())
+				{
+					DataStorageCompatibilityInterface->RemoveCompatibleObject(PreviewActor);
+				}
+
 				GetWorld()->DestroyActor(PreviewActor);
 			}
 		}
