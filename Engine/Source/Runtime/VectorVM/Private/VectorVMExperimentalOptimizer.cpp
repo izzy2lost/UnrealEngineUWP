@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "CoreTypes.h"
+#include "VectorVM.h"
 #include "VectorVMExperimental.h"
 
 #if VECTORVM_SUPPORTS_EXPERIMENTAL
@@ -185,6 +186,170 @@ void ReinterpretVectorVMOptimizeContextData(TConstArrayView<uint8> ContextData, 
 	Context.Init.ReallocFn        = VectorVMFrozenRealloc;
 	Context.Init.FreeFn           = VectorVMFrozenFree;
 	Context.Error.CallbackFn      = nullptr;
+}
+
+namespace VectorVMScriptStringHelper
+{
+
+static void GenerateConstantTableString(const FVectorVMOptimizeContext& Context, FString& OpsConstantTable)
+{
+	// todo - implement a string of the form:
+	// 0 | Engine_WorldDeltaTime
+	// 1 | Engine_DeltaTime
+	// 2 | Engine_InverseDeltaTime
+	// to put into the human readable script version
+}
+
+// todo - note that this is just an initial implementation that needs to be revisited to confirm that it's actually
+// closely matching the byte that will be run.  In particular the register representations when aliasing output
+// buffers seems confusing.
+static bool GenerateInstructionString(const FVectorVMOptimizeContext& Context, uint32 InstrIndex, FString& InstructionString)
+{
+	const FVectorVMOptimizeInstruction& Instruction = Context.Intermediate.Instructions[InstrIndex];
+
+	TStringBuilder<128> OpName;
+	TStringBuilder<256> InstString;
+
+#if WITH_EDITOR
+	OpName << VectorVM::GetOpName(Instruction.OpCode);
+#else
+	OpName << TEXT("__OP__") << (int32)Instruction.OpCode;
+#endif
+
+	auto WriteRegisterList = [&](int32 RegOffset, int32 Count, FStringBuilderBase& StringBuilder) -> void
+	{
+		for (int32 RegIt = 0; RegIt < Count; ++RegIt)
+		{
+			if (RegIt)
+			{
+				StringBuilder << TEXT(", ");
+			}
+			switch (Context.Intermediate.RegisterUsageType[RegOffset + RegIt])
+			{
+				case VVM_RT_TEMPREG: StringBuilder << TEXT("R"); break;
+				case VVM_RT_CONST: StringBuilder << TEXT("C"); break;
+				case VVM_RT_INPUT: StringBuilder << TEXT("I"); break;
+				case VVM_RT_OUTPUT: StringBuilder << TEXT("O"); break;
+			}
+
+			StringBuilder << TEXT("[");
+			StringBuilder << Context.Intermediate.RegisterUsageBuffer[RegOffset + RegIt];
+			StringBuilder << TEXT("]");
+		}
+	};
+	
+	switch (Instruction.OpCat)
+	{
+		case EVectorVMOpCategory::Input:
+		{
+			check(Instruction.NumOutputRegisters == 1);
+			WriteRegisterList(Instruction.RegPtrOffset + Instruction.NumInputRegisters, 1, InstString);
+			InstString << TEXT(" = ");
+			InstString << OpName;
+			InstString << TEXT("(");
+			InstString << TEXT(")");
+		} break;
+
+		case EVectorVMOpCategory::Output:
+		{
+			InstString << OpName;
+			InstString << TEXT("(");
+			InstString << Instruction.Output.DataSetIdx;
+			InstString << TEXT(", ");
+			InstString << Instruction.Output.DstRegIdx;
+			InstString << TEXT(", ");
+			WriteRegisterList(Instruction.RegPtrOffset, Instruction.NumInputRegisters, InstString);
+			InstString << TEXT(")");
+		} break;
+
+		case EVectorVMOpCategory::Op:
+		{
+			check(Instruction.NumOutputRegisters == 1);
+			WriteRegisterList(Instruction.RegPtrOffset + Instruction.NumInputRegisters, 1, InstString);
+			InstString << TEXT(" = ");
+#if WITH_EDITOR
+			InstString << VectorVM::GetOpName(Instruction.OpCode);
+#else
+			InstString << TEXT("__OP__") << (int32) Instruction.OpCode;
+#endif
+			InstString << TEXT("(");
+			WriteRegisterList(Instruction.RegPtrOffset, Instruction.NumInputRegisters, InstString);
+			InstString << TEXT(")");
+		} break;
+
+		case EVectorVMOpCategory::ExtFnCall:
+		{
+			InstString << OpName;
+			InstString << TEXT("(");
+			WriteRegisterList(Instruction.RegPtrOffset, Instruction.NumInputRegisters, InstString);
+			WriteRegisterList(Instruction.RegPtrOffset + Instruction.NumInputRegisters, Instruction.NumOutputRegisters, InstString);
+			InstString << TEXT(")");
+		} break;
+
+		case EVectorVMOpCategory::IndexGen:
+		{
+			check(Instruction.NumOutputRegisters == 1);
+			WriteRegisterList(Instruction.RegPtrOffset + Instruction.NumInputRegisters, 1, InstString);
+			InstString << TEXT(" = ");
+			InstString << OpName;
+			InstString << TEXT("(");
+			WriteRegisterList(Instruction.RegPtrOffset, Instruction.NumInputRegisters, InstString);
+			InstString << TEXT(")");
+		} break;
+
+		case EVectorVMOpCategory::RWBuffer:
+		case EVectorVMOpCategory::Stat:
+		case EVectorVMOpCategory::Other:
+		{
+			InstString << OpName;
+			InstString << TEXT("(");
+			WriteRegisterList(Instruction.RegPtrOffset, Instruction.NumInputRegisters, InstString);
+			InstString << TEXT(")");
+		} break;
+	}
+
+	InstructionString = InstString.ToString();
+
+	return Instruction.InsMergedIdx == INDEX_NONE;
+}
+
+}; // VectorVMScriptStringHelper
+
+void GenerateHumanReadableVectorVMScript(const FVectorVMOptimizeContext& Context, FString& VMScript)
+{
+	using namespace VectorVMScriptStringHelper;
+
+	FString OpsConstantTable;
+	GenerateConstantTableString(Context, OpsConstantTable);
+
+	VMScript += TEXT("\n-------------------------------\n");
+	VMScript += TEXT("Summary\n");
+	VMScript += TEXT("-------------------------------\n");
+	VMScript += FString::Printf(TEXT("Num Byte Code Ops: %d\n"), Context.Intermediate.NumInstructions);
+	VMScript += FString::Printf(TEXT("Num Constants: %d\n"), Context.NumConstsRemapped);
+
+	//Dump the constant table
+	VMScript += TEXT("\n-------------------------------\n");
+	VMScript += TEXT("Constant Table\n");
+	VMScript += TEXT("-------------------------------\n");
+	VMScript += OpsConstantTable;
+
+	VMScript += TEXT("-------------------------------\n");
+	VMScript += FString::Printf(TEXT("Byte Code (%d Ops)\n"), Context.Intermediate.NumInstructions);
+	VMScript += TEXT("-------------------------------\n");
+
+	//Dump the bytecode		
+	for (uint32 op_idx = 0; op_idx < Context.Intermediate.NumInstructions; ++op_idx)
+	{
+		FString InstructionString;
+		if (GenerateInstructionString(Context, op_idx, InstructionString))
+		{
+			VMScript += FString::Printf(TEXT("%d\t| "), op_idx) + InstructionString;
+			VMScript += TEXT(";\n");
+		}
+	}
+
+	VMScript += TEXT("-------------------------------\n");
 }
 
 void FreeVectorVMOptimizeContext(FVectorVMOptimizeContext *OptContext)
@@ -1420,9 +1585,6 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 		for (uint32 i = 0; i < OptContext->Intermediate.NumInstructions; ++i)
 		{
 			FVectorVMOptimizeInstruction *Ins = OptContext->Intermediate.Instructions + i;
-			if (i == 106) {
-				int x =100;
-			}
 			int InsMergeIdx = -1;
 			if (Ins->OpCode == EVectorVMOp::exec_index)
 			{
@@ -1433,6 +1595,11 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 					FVectorVMOptimizeInstruction *Ins2 = OptContext->Intermediate.Instructions + j;
 					for (int k = 0; k < Ins2->NumInputRegisters; ++k)
 					{
+						// we're only looking for temporary registers
+						if (OptContext->Intermediate.RegisterUsageType[Ins2->RegPtrOffset + k] != VVM_RT_TEMPREG)
+						{
+							continue;
+						}
 						uint16 InputSSAReg = OptContext->Intermediate.SSARegisterUsageBuffer[Ins2->RegPtrOffset + k];
 						if (InputSSAReg == ExecSSARegIdx)
 						{
@@ -1650,18 +1817,6 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 			{
 				if (Ins0->OpCode == EVectorVMOp::exec_index && Ins1->OpCode == EVectorVMOp::i2f)
 				{
-					for (uint32 j = MergableOps[i].InsIdx0 + 1; j < OptContext->Intermediate.NumInstructions; ++j)
-					{
-						if (j != MergableOps[i].InsIdx1)
-						{
-							FVectorVMOptimizeInstruction *OtherIns = OptContext->Intermediate.Instructions + j;
-							for (int k = 0; k < OtherIns->NumInputRegisters; ++k)
-							{
-								uint16 SSA = OptContext->Intermediate.SSARegisterUsageBuffer[OtherIns->RegPtrOffset + k];
-								check(SSA != OptContext->Intermediate.SSARegisterUsageBuffer[Ins0->RegPtrOffset]);
-							}
-						}
-					}
 					VVMCreateNewRegVars(1);
 					VVMSetRegsFrom1(0, 1);
 					VVMSetMergedIns(EVectorVMOp::exec_indexf, 0, 1);
@@ -2584,9 +2739,9 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 				uint16 RegIdx = Ins->RegPtrOffset + Ins->NumInputRegisters + j;
 				uint16 SSAReg = OptContext->Intermediate.SSARegisterUsageBuffer[RegIdx];
 				uint8 RegType = OptContext->Intermediate.RegisterUsageType[RegIdx];
-				if (RegType == VVM_RT_TEMPREG && SSAReg != 0xFFFF)
+				if (RegType == VVM_RT_TEMPREG)
 				{
-					if (SSAUseMap2Inv[SSAReg] != 0xFFFF)
+					if (SSAReg != 0xFFFF && SSAUseMap2Inv[SSAReg] != 0xFFFF)
 					{
 						OptContext->Intermediate.RegisterUsageBuffer[RegIdx] = SSAUseMap2Inv[SSAReg];
 						--NumSSARegistersUsed2;

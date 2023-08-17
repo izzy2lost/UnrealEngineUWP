@@ -562,6 +562,11 @@ public:
 	UPROPERTY()
 	TArray<uint8> ExperimentalContextData;
 
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	FString LastExperimentalAssemblyScript;
+#endif
+
 	UPROPERTY()
 	uint32 bReadsSignificanceIndex : 1;
 

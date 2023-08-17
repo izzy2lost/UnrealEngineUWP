@@ -680,7 +680,8 @@ FVectorVMState *AllocVectorVMState(FVectorVMOptimizeContext *OptimizeCtx) {
 static void VVMBuildMapTableCaches(FVectorVMExecContext *ExecCtx)
 {
 	//constant buffers
-	check(ExecCtx->VVMState->NumConstBuffers < 0xFF);
+	check(ExecCtx->ConstantTableCount <= 0xFF);
+	check(ExecCtx->VVMState->NumConstBuffers <= 0xFFFF);
 	for (uint32 i = 0; i < ExecCtx->VVMState->NumConstBuffers; ++i)
 	{
 		uint32 RemappedIdx = ExecCtx->VVMState->ConstRemapTable[i];
@@ -1204,9 +1205,10 @@ static VM_FORCEINLINE const uint8 *VVM_random(const bool CT_MultipleLoops, const
 	VVMSer_instruction(0, 1);
 	if (!VVM_serSyncRandom(InsPtr, BatchState, ExecCtx, SS, CmpSS, 1, EVectorVMOp::random))
 	{
-		uint8 *P0   = BatchState->RegPtrTable[((uint16 *)InsPtr)[0]];
-		uint8 *P1   = BatchState->RegPtrTable[((uint16 *)InsPtr)[1]];
-		uint32 Inc0 = (uint32)BatchState->RegIncTable[((uint16 *)InsPtr)[0]];
+		uint16* RegIndices = (uint16*)InsPtr;
+		uint8 *P0   = BatchState->RegPtrTable[RegIndices[0]];
+		uint8 *P1   = BatchState->RegPtrTable[RegIndices[1]];
+		uint32 Inc0 = (uint32)BatchState->RegIncTable[RegIndices[0]];
 		if (CT_MultipleLoops)
 		{
 			uint8 *End = P1 + sizeof(FVecReg) * NumLoops;
@@ -1234,9 +1236,10 @@ static VM_FORCEINLINE const uint8 *VVM_randomi(const bool CT_MultipleLoops, cons
 	VVMSer_instruction(1, 1);
 	if (!VVM_serSyncRandom(InsPtr, BatchState, ExecCtx, SS, CmpSS, 1, EVectorVMOp::randomi))
 	{
-		uint8 *P0   = BatchState->RegPtrTable[((uint16 *)InsPtr)[0]];
-		uint8 *P1   = BatchState->RegPtrTable[((uint16 *)InsPtr)[1]];
-		uint32 Inc0 = (uint32)BatchState->RegIncTable[((uint16 *)InsPtr)[0]];
+		uint16* RegIndices = (uint16*)InsPtr;
+		uint8 *P0   = BatchState->RegPtrTable[RegIndices[0]];
+		uint8 *P1   = BatchState->RegPtrTable[RegIndices[1]];
+		uint32 Inc0 = (uint32)BatchState->RegIncTable[RegIndices[0]];
 		if (CT_MultipleLoops)
 		{
 			uint8 *End = P1 + sizeof(FVecReg) * NumLoops;
@@ -1264,10 +1267,13 @@ static VM_FORCEINLINE const uint8 *VVM_random_add(const bool CT_MultipleLoops, c
 	VVMSer_instruction(0, 2);
 	if (!VVM_serSyncRandom(InsPtr, BatchState, ExecCtx, SS, CmpSS, 2, EVectorVMOp::random_add))
 	{
-		uint8 *P0   = BatchState->RegPtrTable[((uint16 *)InsPtr)[0]];
-		uint8 *P1   = BatchState->RegPtrTable[((uint16 *)InsPtr)[1]];
-		uint8 *P2   = BatchState->RegPtrTable[((uint16 *)InsPtr)[2]];
-		uint32 Inc0 = (uint32)BatchState->RegIncTable[((uint16 *)InsPtr)[0]];
+		uint16* RegIndices = (uint16*)InsPtr;
+		uint8 *P0   = BatchState->RegPtrTable[RegIndices[0]];
+		uint8 *P1   = BatchState->RegPtrTable[RegIndices[1]];
+		uint8 *P2   = BatchState->RegPtrTable[RegIndices[2]];
+		uint32 Inc0 = (uint32)BatchState->RegIncTable[RegIndices[0]];
+		uint32 Inc1 = (uint32)BatchState->RegIncTable[RegIndices[1]];
+
 		if (CT_MultipleLoops)
 		{
 			uint8 *End = P2 + sizeof(FVecReg) * NumLoops;
@@ -1276,7 +1282,7 @@ static VM_FORCEINLINE const uint8 *VVM_random_add(const bool CT_MultipleLoops, c
 				VectorRegister4f R0 = VectorLoad((float *)P0);
 				VectorRegister4f R1 = VectorLoad((float *)P1);
 				P0 += Inc0;
-				P1 += Inc0;
+				P1 += Inc1;
 				VectorRegister4f Res = VectorAdd(VVM_nextRandom(BatchState, R0), R1);
 				VectorStoreAligned(Res, (float *)P2);
 				P2 += sizeof(FVecReg);
@@ -1298,10 +1304,11 @@ static VM_FORCEINLINE const uint8 *VVM_random_2x(const bool CT_MultipleLoops, co
 	VVMSer_instruction(0, 2);
 	if (!VVM_serSyncRandom(InsPtr, BatchState, ExecCtx, SS, CmpSS, 1, EVectorVMOp::random_2x) && !VVM_serSyncRandom(InsPtr, BatchState, ExecCtx, SS, CmpSS, 2, EVectorVMOp::random_2x))
 	{
-		uint8 *P0   = BatchState->RegPtrTable[((uint16 *)InsPtr)[0]];
-		uint8 *P1   = BatchState->RegPtrTable[((uint16 *)InsPtr)[1]];
-		uint8 *P2   = BatchState->RegPtrTable[((uint16 *)InsPtr)[2]];
-		uint32 Inc0 = (uint32)BatchState->RegIncTable[((uint16 *)InsPtr)[0]];
+		uint16* RegIndices = (uint16*)InsPtr;
+		uint8 *P0   = BatchState->RegPtrTable[RegIndices[0]];
+		uint8 *P1   = BatchState->RegPtrTable[RegIndices[1]];
+		uint8 *P2   = BatchState->RegPtrTable[RegIndices[2]];
+		uint32 Inc0 = (uint32)BatchState->RegIncTable[RegIndices[0]];
 		if (CT_MultipleLoops)
 		{
 			uint8 *End = P1 + sizeof(FVecReg) * NumLoops;
@@ -1331,9 +1338,10 @@ static VM_FORCEINLINE const uint8 *VVM_random_2x(const bool CT_MultipleLoops, co
 
 VM_FORCEINLINE const uint8 *VVM_half_to_float(const bool CT_MultipleLoops, const uint8 *InsPtr, FVectorVMBatchState *BatchState, int NumLoops)
 {
-	uint8 *P0   = BatchState->RegPtrTable[((uint16 *)InsPtr)[0]];
-	uint8 *P1   = BatchState->RegPtrTable[((uint16 *)InsPtr)[1]];
-	uint32 Inc0 = (uint32)BatchState->RegIncTable[((uint16 *)InsPtr)[0]] >> 1; //move the input 2 bytes instead of four
+	uint16* RegIndices = (uint16*)InsPtr;
+	uint8 *P0   = BatchState->RegPtrTable[RegIndices[0]];
+	uint8 *P1   = BatchState->RegPtrTable[RegIndices[1]];
+	uint32 Inc0 = (uint32)BatchState->RegIncTable[RegIndices[0]] >> 1; //move the input 2 bytes instead of four
 	uint8 *End  = P1 + sizeof(FVecReg) * NumLoops;
 	do {
 		FPlatformMath::VectorLoadHalf((float *)P1, (uint16 *)P0);
@@ -1345,8 +1353,9 @@ VM_FORCEINLINE const uint8 *VVM_half_to_float(const bool CT_MultipleLoops, const
 
 static const uint8 *VVM_update_id(const bool CT_MultipleLoops, const uint8 *InsPtr, FVectorVMBatchState *BatchState, FVectorVMExecContext *ExecCtx, int NumLoops)
 {
-	int32 *R1             = (int32 *)BatchState->RegPtrTable[((uint16 *)InsPtr)[0]];
-	int32 *R2             = (int32 *)BatchState->RegPtrTable[((uint16 *)InsPtr)[1]];
+	uint16* RegIndices = (uint16*)InsPtr;
+	int32 *R1             = (int32 *)BatchState->RegPtrTable[RegIndices[0]];
+	int32 *R2             = (int32 *)BatchState->RegPtrTable[RegIndices[1]];
 	uint8 DataSetIdx      = InsPtr[4];
 	FDataSetMeta *DataSet = &ExecCtx->DataSets[DataSetIdx];
 	check(DataSetIdx < (uint32)ExecCtx->DataSets.Num());
