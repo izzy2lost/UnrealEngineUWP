@@ -40,7 +40,7 @@ FKeyBuilder::FKeyBuilder(const UObject* Object, bool bUseDataVer, bool bPerformC
 	if (bUseDataVer)
 	{
 		// used to invalidate the key without having to change POSESEARCHDB_DERIVEDDATA_VER all the times
-		int32 POSESEARCHDB_DERIVEDDATA_VER_SMALL = 189;
+		int32 POSESEARCHDB_DERIVEDDATA_VER_SMALL = 191;
 		FGuid VersionGuid = FDevSystemGuids::GetSystemGuid(FDevSystemGuids::Get().POSESEARCHDB_DERIVEDDATA_VER);
 
 		*this << VersionGuid;
@@ -89,6 +89,7 @@ bool FKeyBuilder::ShouldSkipProperty(const FProperty* InProperty) const
 		return true;
 	}
 		
+	check(!InProperty->HasMetaData(IgnoreForMemberInitializationTestName));
 	check(!InProperty->HasMetaData(NeverInHashName));
 
 	#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
