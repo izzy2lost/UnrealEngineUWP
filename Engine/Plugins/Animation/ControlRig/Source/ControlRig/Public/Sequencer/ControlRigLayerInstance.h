@@ -52,6 +52,8 @@ public:
 protected:
 	// UAnimInstance interface
 	virtual FAnimInstanceProxy* CreateAnimInstanceProxy() override;
+public:
+	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
 
 public:
 	static const FName SequencerPoseName;
