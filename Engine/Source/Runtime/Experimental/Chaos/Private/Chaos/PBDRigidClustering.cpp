@@ -1264,6 +1264,8 @@ namespace Chaos
 						{
 							for (FPBDRigidParticleHandle* ChildParticle : ParticlesToRelease)
 							{
+								// Need to remove node connections here. Otherwise it may be possible for the cluster union to have erroneous intercluster edges that connect it to another cluster union.
+								RemoveNodeConnections(ChildParticle);
 								RemoveChildFromParent(ChildParticle, ClusteredParticle);
 							}
 							ActivatedChildren.Append(ParticlesToRelease);
@@ -1310,10 +1312,6 @@ namespace Chaos
 								{
 									bHasMainParticle = true;
 								}
-							}
-							else
-							{
-								bHasMainParticle = true;
 							}
 						}
 						
