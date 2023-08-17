@@ -95,6 +95,19 @@ public:
 	virtual void CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const override;
 };
 
+/** Checks to see if renderers have sorting enabled on them or not. */
+UCLASS(Category = "Validation", DisplayName = "Renderer Sorting Enabled")
+class UNiagaraValidationRule_RendererSortingEnabled : public UNiagaraValidationRule
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, Category = Validation)
+	ENiagaraValidationSeverity Severity = ENiagaraValidationSeverity::Warning;
+
+	virtual void CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const override;
+};
+
 /** This validation rule that can be used to inform or ban GPU usage on the provided platforms. */
 UCLASS(Category = "Validation", DisplayName = "Gpu Usage")
 class UNiagaraValidationRule_GpuUsage : public UNiagaraValidationRule
