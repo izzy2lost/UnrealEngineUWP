@@ -247,6 +247,12 @@ void CheckParticleViewsForDupes(FPBDRigidsSOAs& Particles)
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_Evolution_CheckParticleViewsForDupes);
 
+		// Check that all particles know what lists they are in
+		Particles.CheckListMasks();
+
+		// Check that we have no particles in multiple views
+		Particles.CheckViewMasks();
+
 		// A particle appearing twice in either of these results in a race condition because the 
 		// collision detection loop will visit the same particle pair twice on different threads.
 		CheckParticleViewForDupes(TEXT("NonDisabledDynamicView"), Particles.GetNonDisabledDynamicView());

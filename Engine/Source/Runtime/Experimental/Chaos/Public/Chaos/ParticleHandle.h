@@ -674,6 +674,31 @@ public:
 	bool LightWeightDisabled() const { return GeometryParticles->LightWeightDisabled(ParticleIdx); }
 	void SetLightWeightDisabled(bool bLightWeightDisabled) { GeometryParticles->LightWeightDisabled(ParticleIdx) = bLightWeightDisabled; }
 
+	EGeometryParticleListMask ListMask() const
+	{
+		return GeometryParticles->ListMask(ParticleIdx);
+	}
+
+	bool IsInAnyList(const EGeometryParticleListMask ListMask) const
+	{
+		return (GeometryParticles->ListMask(ParticleIdx) & ListMask) != EGeometryParticleListMask::None;
+	}
+
+	bool IsInAllLists(const EGeometryParticleListMask ListMask) const
+	{
+		return (GeometryParticles->ListMask(ParticleIdx) & ListMask) == ListMask;
+	}
+
+	void AddToLists(const EGeometryParticleListMask ListMask)
+	{
+		GeometryParticles->ListMask(ParticleIdx) |= ListMask;
+	}
+
+	void RemoveFromLists(const EGeometryParticleListMask ListMask)
+	{
+		GeometryParticles->ListMask(ParticleIdx) &= ~ListMask;
+	}
+
 #if CHAOS_DETERMINISTIC
 	FParticleID ParticleID() const { return GeometryParticles->ParticleID(ParticleIdx); }
 	void SetParticleID(const FParticleID& ParticleID)
@@ -704,8 +729,16 @@ public:
 			{
 				GeometryParticles->Handle(ParticleIdx)->ParticleIdx = ParticleIdx;
 			}
+
 			const int32 NewParticleIdx = ToSOA.Size() - 1;
 			ParticleIdx = NewParticleIdx;
+
+			// Update the particles' list mask to match its new container
+			check(GeometryParticles->GetContainerListMask() != EGeometryParticleListMask::None);
+			check(ToSOA.GetContainerListMask() != EGeometryParticleListMask::None);
+			ToSOA.ListMask(ParticleIdx) &= ~GeometryParticles->GetContainerListMask();
+			ToSOA.ListMask(ParticleIdx) |= ToSOA.GetContainerListMask();
+
 			GeometryParticles = &ToSOA;
 		}
 	}
