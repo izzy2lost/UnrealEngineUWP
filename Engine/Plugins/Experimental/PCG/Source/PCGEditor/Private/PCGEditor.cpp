@@ -2022,26 +2022,33 @@ TSharedRef<SPCGEditorGraphLogView> FPCGEditor::CreateLogWidget()
 void FPCGEditor::OnSelectedNodesChanged(const TSet<UObject*>& NewSelection)
 {
 	TArray<TWeakObjectPtr<UObject>> SelectedObjects;
-	
-	for (UObject* Object : NewSelection)
+
+	if (NewSelection.Num() == 0)
 	{
-		if (UPCGEditorGraphNodeBase* PCGGraphNode = Cast<UPCGEditorGraphNodeBase>(Object))
+		SelectedObjects.Add(PCGGraphBeingEdited);
+	}
+	else
+	{
+		for (UObject* Object : NewSelection)
 		{
-			if (UPCGNode* PCGNode = PCGGraphNode->GetPCGNode())
+			if (UPCGEditorGraphNodeBase* PCGGraphNode = Cast<UPCGEditorGraphNodeBase>(Object))
 			{
-				if (PCGNode->IsInstance())
+				if (UPCGNode* PCGNode = PCGGraphNode->GetPCGNode())
 				{
-					SelectedObjects.Add(Cast<UPCGSettingsInstance>(PCGNode->GetSettingsInterface()));
-				}
-				else
-				{
-					SelectedObjects.Add(PCGNode->GetSettings());
+					if (PCGNode->IsInstance())
+					{
+						SelectedObjects.Add(Cast<UPCGSettingsInstance>(PCGNode->GetSettingsInterface()));
+					}
+					else
+					{
+						SelectedObjects.Add(PCGNode->GetSettings());
+					}
 				}
 			}
-		}
-		else if (UEdGraphNode* GraphNode = Cast<UEdGraphNode>(Object))
-		{
-			SelectedObjects.Add(GraphNode);
+			else if (UEdGraphNode* GraphNode = Cast<UEdGraphNode>(Object))
+			{
+				SelectedObjects.Add(GraphNode);
+			}
 		}
 	}
 
