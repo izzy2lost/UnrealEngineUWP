@@ -1,6 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -33,7 +34,7 @@ namespace UnrealBuildTool
 		private string FrameworkExecutableExtension = ".exe";
 		private string FrameworkLibraryExtension = ".dll";
 
-		private readonly List<BuildTarget> BuildTargets = new List<BuildTarget>();
+		private readonly ConcurrentBag<BuildTarget> BuildTargets = new();
 
 		/// <summary>
 		/// Includes all files in the generated workspace.
