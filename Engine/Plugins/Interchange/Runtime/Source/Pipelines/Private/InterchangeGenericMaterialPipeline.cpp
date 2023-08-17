@@ -3878,10 +3878,11 @@ namespace UE::Interchange::Materials::HashUtils
 		const UInterchangeBaseMaterialFactoryNode* ParentMaterialFactory = nullptr;
 		if (UInterchangeBaseMaterialFactoryNode** ParentMaterialFactoryEntry = ParentMaterialFactoryMap.Find(MaterialHash))
 		{
-			ensure(*ParentMaterialFactoryEntry);
 			ParentMaterialFactory = *ParentMaterialFactoryEntry;
 		}
 		
+		ensure(ParentMaterialFactory);
+
 		if (!ParentMaterialFactory)
 		{
 			return nullptr;
