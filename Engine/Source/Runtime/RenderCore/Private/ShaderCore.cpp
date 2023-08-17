@@ -3315,7 +3315,7 @@ void FShaderCompileJob::SerializeOutput(FArchive& Ar)
 		Output.PreprocessTime = ActualPreprocessTime;
 	}
 
-	checkf(Output.InputHash == Input.Hash, TEXT("Failed sanity check: InputHash reported from compile output does not match InputHash from compile input"));
+	checkf(!Output.bSucceeded || Output.InputHash == Input.Hash, TEXT("Failed sanity check: InputHash reported from compile output does not match InputHash from compile input"));
 }
 
 void FShaderCompileJob::OnComplete()
