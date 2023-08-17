@@ -11,13 +11,21 @@ namespace UE::EditorPixelStreaming
 	class FEditorSubmixListener : public ISubmixBufferListener
 	{
 	public:
-		FEditorSubmixListener(FAudioDeviceHandle AudioDevice);
+		static TSharedRef<FEditorSubmixListener> Create(const FAudioDeviceHandle& DeviceHandle);
 		virtual ~FEditorSubmixListener();
 
 		// ISubmixBufferListener interface
 		void OnNewSubmixBuffer(const USoundSubmix* OwningSubmix, float* AudioData,
 			int32 NumSamples, int32 NumChannels,
 			const int32 SampleRate, double AudioClock) override;
+
+		void Shutdown();
+
+	protected:
+		template <typename ObjectType, ESPMode Mode>
+		friend class SharedPointerInternals::TIntrusiveReferenceController;
+
+		FEditorSubmixListener(const FAudioDeviceHandle& AudioDevice);
 
 	private:
 		Audio::FDeviceId AudioDeviceId;

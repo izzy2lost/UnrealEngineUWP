@@ -7,17 +7,28 @@
 
 namespace UE::EditorPixelStreaming
 {
-	FEditorSubmixListener::FEditorSubmixListener(FAudioDeviceHandle AudioDevice)
+	TSharedRef<FEditorSubmixListener, ESPMode::ThreadSafe> FEditorSubmixListener::FEditorSubmixListener::Create(const FAudioDeviceHandle& AudioDevice)
+	{
+		TSharedRef<FEditorSubmixListener, ESPMode::ThreadSafe> NewListener = MakeShared<FEditorSubmixListener, ESPMode::ThreadSafe>(AudioDevice);
+		if (AudioDevice.IsValid())
+		{
+			AudioDevice.GetAudioDevice()->RegisterSubmixBufferListener(NewListener, AudioDevice->GetMainSubmixObject());
+		}
+
+		return NewListener;
+	}
+
+	FEditorSubmixListener::FEditorSubmixListener(const FAudioDeviceHandle& AudioDevice)
 		: AudioDeviceId(AudioDevice.GetDeviceID())
 		, AudioInput(FPixelStreamingPeerConnection::CreateAudioInput())
 	{
-		if (AudioDevice.IsValid())
-		{
-			AudioDevice->RegisterSubmixBufferListener(AsShared(), AudioDevice->GetMainSubmixObject());
-		}
 	}
 
 	FEditorSubmixListener::~FEditorSubmixListener()
+	{
+	}
+
+	void FEditorSubmixListener::Shutdown()
 	{
 		if (FAudioDevice* AudioDevice = FAudioDeviceManager::Get()->GetAudioDeviceRaw(AudioDeviceId))
 		{

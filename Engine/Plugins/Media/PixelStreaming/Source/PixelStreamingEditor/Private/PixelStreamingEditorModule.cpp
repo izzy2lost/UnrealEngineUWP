@@ -59,11 +59,16 @@ void FPixelStreamingEditorModule::StartupModule()
 	{
 		FAudioDeviceManager* DeviceManager = GEngine->GetAudioDeviceManager();
 		FAudioDeviceHandle Device = DeviceManager->GetAudioDevice(AudioDeviceId);
-		AudioInputs.Add(AudioDeviceId, MakeShared<FEditorSubmixListener, ESPMode::ThreadSafe>(Device));
+		AudioInputs.Add(AudioDeviceId, FEditorSubmixListener::Create(Device));
 	});
 	FAudioDeviceManagerDelegates::OnAudioDeviceDestroyed.AddLambda([&](Audio::FDeviceId AudioDeviceId)
 	{
-		AudioInputs.Remove(AudioDeviceId);
+		TSharedPtr<UE::EditorPixelStreaming::FEditorSubmixListener, ESPMode::ThreadSafe> Input = AudioInputs.FindRef(AudioDeviceId);
+		if (Input.IsValid())
+		{
+			Input->Shutdown();
+			AudioInputs.Remove(AudioDeviceId);
+		}
 	});
 
 	IPixelStreamingModule& Module = IPixelStreamingModule::Get();
