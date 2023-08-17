@@ -13,7 +13,6 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Modules/ModuleManager.h"
 #include "WorldPartition/WorldPartition.h"
-#include "WorldPartition/WorldPartitionActorDesc.h"
 #include "WorldPartition/WorldPartitionActorDescUtils.h"
 #include "WorldPartition/WorldPartitionClassDescRegistry.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
@@ -411,29 +410,6 @@ void UActorDescContainer::OnClassDescriptorUpdated(const FWorldPartitionActorDes
 	}
 }
 
-void UActorDescContainer::OnActorDestroyed(AActor* Actor)
-{
-	// When an actor is detroyed through a user action, the transaction buffer will keep the actor alive in case the user undo the operation. When that
-	// happens without a transaction (editor tools), the actor will be destroyed on the next GC, so we must remove the actor descriptor. In rare cases
-	// this heppens in the editor, report the destroyed actor as invalid so the user can at least repair and get a valid changelist to reflect the change.
-	if (ShouldHandleActorEvent(Actor) && !GUndo && !GIsTransacting)
-	{
-		if (TUniquePtr<FWorldPartitionActorDesc>* ExistingActorDesc = GetActorDescriptor(Actor->GetActorGuid()))
-		{
-			OnActorDescRemoved(ExistingActorDesc->Get());
-			UnregisterActorDescriptor(ExistingActorDesc->Get());
-			ExistingActorDesc->Get()->Unload();
-			ExistingActorDesc->Reset();
-
-			FARFilter Filter;
-			Filter.bIncludeOnlyOnDiskAssets = true;
-			Filter.PackageNames.Add(Actor->GetPackage()->GetFName());
-			IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
-			AssetRegistry.GetAssets(Filter, InvalidActors);
-		}
-	}
-}
-
 bool UActorDescContainer::RemoveActor(const FGuid& ActorGuid)
 {
 	if (TUniquePtr<FWorldPartitionActorDesc>* ExistingActorDesc = GetActorDescriptor(ActorGuid))
@@ -479,12 +455,6 @@ void UActorDescContainer::RegisterEditorDelegates()
 		
 		FWorldPartitionClassDescRegistry& ClassDescRegistry = FWorldPartitionClassDescRegistry::Get();
 		ClassDescRegistry.OnClassDescriptorUpdated().AddUObject(this, &UActorDescContainer::OnClassDescriptorUpdated);
-
-		if (UWorld* OwningWorld = GetWorldPartition() ? GetWorldPartition()->GetWorld() : nullptr)
-		{
-			FOnActorDestroyed::FDelegate ActorDestroyedDelegate = FOnActorDestroyed::FDelegate::CreateUObject(this, &UActorDescContainer::OnActorDestroyed);
-			OnActorDestroyedHandle = OwningWorld->AddOnActorDestroyedHandler(ActorDestroyedDelegate);
-		}
 	}
 }
 
@@ -498,12 +468,6 @@ void UActorDescContainer::UnregisterEditorDelegates()
 
 		FWorldPartitionClassDescRegistry& ClassDescRegistry = FWorldPartitionClassDescRegistry::Get();
 		ClassDescRegistry.OnClassDescriptorUpdated().RemoveAll(this);
-
-		if (UWorld* OwningWorld = GetWorldPartition() ? GetWorldPartition()->GetWorld() : nullptr)
-		{
-			OwningWorld->RemoveOnActorDestroyededHandler(OnActorDestroyedHandle);
-			OnActorDestroyedHandle.Reset();
-		}
 	}
 }
 
