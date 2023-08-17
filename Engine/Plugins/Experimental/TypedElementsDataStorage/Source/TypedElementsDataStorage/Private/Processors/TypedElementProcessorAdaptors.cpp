@@ -757,6 +757,15 @@ bool UTypedElementQueryProcessorCallbackAdapterProcessorBase::ConfigureQueryCall
 	return ConfigureQueryCallbackData(Query, QueryStore, ScratchBuffer, {});
 }
 
+bool UTypedElementQueryProcessorCallbackAdapterProcessorBase::ShouldAllowQueryBasedPruning(
+	const bool bRuntimeMode) const
+{
+	// TEDS is much more dynamic with when tables and processors are added and removed
+	// Don't prune processors if they have queries where no table is defined, it is possible
+	// the table will be dynamically created later.
+	return false;
+}
+
 bool UTypedElementQueryProcessorCallbackAdapterProcessorBase::ConfigureQueryCallbackData(
 	FTypedElementExtendedQuery& Query,
 	FTypedElementExtendedQueryStore& QueryStore, 

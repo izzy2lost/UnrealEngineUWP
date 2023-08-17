@@ -92,6 +92,8 @@ public:
 		FTypedElementExtendedQueryStore& QueryStore,
 		FTypedElementDatabaseScratchBuffer& ScratchBuffer);
 
+	virtual bool ShouldAllowQueryBasedPruning(const bool bRuntimeMode) const override;
+
 protected:
 	bool ConfigureQueryCallbackData(
 		FTypedElementExtendedQuery& Query, 
