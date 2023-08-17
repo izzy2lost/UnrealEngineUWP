@@ -19,6 +19,7 @@
 #include "StateTreeCompiler.h"
 #include "StateTreeDebuggerCommands.h"
 #include "StateTreeDebuggerTrack.h"
+#include "StateTreeDelegates.h"
 #include "StateTreeEditorData.h"
 #include "StateTreeEditorSettings.h"
 #include "StateTreeEditorStyle.h"
@@ -204,6 +205,8 @@ SStateTreeDebuggerView::SStateTreeDebuggerView()
 
 SStateTreeDebuggerView::~SStateTreeDebuggerView()
 {
+	UE::StateTree::Delegates::OnTracingStateChanged.RemoveAll(this);
+
 	check(Debugger);
 	Debugger->OnScrubStateChanged.Unbind();
 	Debugger->OnBreakpointHit.Unbind();
@@ -341,6 +344,10 @@ void SStateTreeDebuggerView::Construct(const FArguments& InArgs, const UStateTre
 
 	IStateTreeModule& StateTreeModule = FModuleManager::GetModuleChecked<IStateTreeModule>("StateTreeModule");
 	bRecording = StateTreeModule.IsTracing();
+	UE::StateTree::Delegates::OnTracingStateChanged.AddSPLambda(this, [&bRecording=bRecording](const bool bTracesEnabled)
+		{
+			bRecording = bTracesEnabled;
+		});
 
 	// Bind callbacks to the debugger delegates
 	Debugger->OnNewSession.BindSP(this, &SStateTreeDebuggerView::OnNewSession);
@@ -642,7 +649,7 @@ void SStateTreeDebuggerView::Construct(const FArguments& InArgs, const UStateTre
 	// Do that after creating all our widgets in case we receive a callback
 	TArray<FStateTreeDebugger::FTraceDescriptor> TraceDescriptors;
 	Debugger->GetLiveTraces(TraceDescriptors);
-	if (TraceDescriptors.Num() == 1 && StateTreeModule.IsTracing())
+	if (TraceDescriptors.Num() == 1 && bRecording)
 	{
 		Debugger->RequestSessionAnalysis(TraceDescriptors.Last());
 	}
