@@ -751,8 +751,7 @@ class EdgeBotImpl extends PerforceStatefulBot {
 		this.resetIntegrationTimestamp()
 
 		// log that this was done
-		const log_str = (target.description || '').trim();
-		this.edgeBotLogger.info(`Submitted CL ${finalCl} to ${this.targetBranch.name}\n    ${log_str.replace(/\n/g, "\n    ")}`);
+		this.edgeBotLogger.info(`Submitted CL ${finalCl} to ${this.targetBranch.name}`);
 
 		if (info.author != 'robomerge') {
 			// change owner, so users can edit change descriptions later for reconsideration

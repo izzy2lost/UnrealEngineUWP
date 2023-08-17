@@ -131,7 +131,7 @@ export async function convertIntegrateToEdit(p4: PerforceContext, roboWorkspace:
 
 		for (const [src, target] of localFiles) {
 			if (!src) {
-				throw new Error(`No source file in move (CL${changeNum})`)
+				throw new Error(`No source file in move (CL ${changeNum})`)
 			}
 
 			p4utilsLogger.verbose(`    ${src} to ${target}`)

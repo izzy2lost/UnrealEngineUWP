@@ -1244,9 +1244,27 @@ export class PerforceContext {
 	}
 
 	/** Check out a file into a specific changelist ** ASYNC ** */
-	edit(roboWorkspace: RoboWorkspace, cl: number, filePath: string) {
+	edit(roboWorkspace: RoboWorkspace, cl: number, filePath: string, additionalArgs?: string[]) {
 		const workspace = coercePerforceWorkspace(roboWorkspace);
-		return this._execP4(workspace, ['edit', '-c', cl.toString(), filePath]);
+		const args = [
+			'edit', 
+			'-c', cl.toString(), 
+			...(additionalArgs || []),
+			filePath
+		]
+		return this._execP4(workspace, args);
+	}
+
+	/** Add a file into a specific changelist ** ASYNC ** */
+	add(roboWorkspace: RoboWorkspace, cl: number, filePath: string, filetype?: string) {
+		const workspace = coercePerforceWorkspace(roboWorkspace);
+		const args = [
+			'add', 
+			'-c', cl.toString(), 
+			...(filetype ? ['-t', filetype] : []),
+			filePath
+		]
+		return this._execP4(workspace, args);
 	}
 
 	async describe(cl: number, maxFiles?: number, includeShelved?: boolean) {
@@ -1312,7 +1330,7 @@ export class PerforceContext {
 
 		// run the P4 change command to update
 		const changeFlag = opts.changeSubmitted ? '-f' : '-u';
-		this.logger.info(`Executing: 'p4 change -i ${changeFlag}' to edit CL${changelist}`);
+		this.logger.info(`Executing: 'p4 change -i ${changeFlag}' to edit CL ${changelist}`);
 
 		await this._execP4(workspace, ['change', '-i', changeFlag],
 				{ stdin: form, quiet: true, edgeServerAddress: opts.edgeServerAddress })
@@ -1358,6 +1376,23 @@ export class PerforceContext {
 				return []
 			}
 
+			throw err
+		}
+	}
+
+	async fstat(roboWorkspace: RoboWorkspace, depotPath: string) {
+		try {
+			return await this._execP4Ztag(roboWorkspace, ['fstat', depotPath])
+		}
+		catch (reason) {
+			if (!isExecP4Error(reason)) {
+				throw reason
+			}
+
+			let [err, output] = reason
+			if (output.includes('no such file')) {
+				return []
+			}
 			throw err
 		}
 	}
