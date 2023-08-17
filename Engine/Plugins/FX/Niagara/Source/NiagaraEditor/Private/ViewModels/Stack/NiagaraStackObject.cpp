@@ -32,7 +32,7 @@ void UNiagaraStackObject::Initialize(FRequiredEntryData InRequiredEntryData, UOb
 	WeakObject = InObject;
 	bIsTopLevelObject = bInIsTopLevelObject;
 	OwningNiagaraNode = InOwningNiagaraNode;
-	bIsRefresingDataInterfaceErrors = false;
+	bIsRefreshingDataInterfaceErrors = false;
 
 	MessageLogGuid = GetSystemViewModel()->GetMessageLogGuid();
 
@@ -241,7 +241,7 @@ void UNiagaraStackObject::RefreshChildrenInternal(const TArray<UNiagaraStackEntr
 		// First we need to refresh the errors on the data interface so that the rows in the property row generator 
 		// are correct.
 		{
-			TGuardValue<bool> RefreGuard(bIsRefresingDataInterfaceErrors, true);
+			bIsRefreshingDataInterfaceErrors = true;
 			DataInterfaceObject->RefreshErrors();
 		}
 
@@ -362,10 +362,12 @@ void UNiagaraStackObject::PostRefreshChildrenInternal()
 
 void UNiagaraStackObject::PropertyRowsRefreshed()
 {
-	if(bIsRefresingDataInterfaceErrors == false)
+	if(bIsRefreshingDataInterfaceErrors == false)
 	{
 		RefreshChildren();
 	}
+	
+	bIsRefreshingDataInterfaceErrors = false;
 }
 
 void UNiagaraStackObject::OnMessageManagerRefresh(const TArray<TSharedRef<const INiagaraMessage>>& NewMessages)
@@ -386,4 +388,3 @@ void UNiagaraStackObject::OnMessageManagerRefresh(const TArray<TSharedRef<const 
 		RefreshChildren();
 	}
 }
-

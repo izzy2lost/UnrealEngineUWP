@@ -83,7 +83,7 @@ private:
 	TArray<FRegisteredClassCustomization> RegisteredClassCustomizations;
 	TArray<FRegisteredPropertyCustomization> RegisteredPropertyCustomizations;
 	TSharedPtr<IPropertyRowGenerator> PropertyRowGenerator;
-	bool bIsRefresingDataInterfaceErrors;
+	bool bIsRefreshingDataInterfaceErrors;
 
 	/** An optional object guid that can be provided to identify the object this stack entry represents. This can be used for summary view purposes and is also given to the child property rows. */
 	TOptional<FGuid> ObjectGuid;
