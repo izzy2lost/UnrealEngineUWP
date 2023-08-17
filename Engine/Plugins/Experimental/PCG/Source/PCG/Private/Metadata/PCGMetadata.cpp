@@ -747,6 +747,12 @@ int64 UPCGMetadata::GetItemCountForChild() const
 	return ParentKeys.Num() + ItemKeyOffset;
 }
 
+int64 UPCGMetadata::GetLocalItemCount() const
+{
+	FReadScopeLock ScopeLock(ItemLock);
+	return ParentKeys.Num();
+}
+
 int64 UPCGMetadata::AddEntry(int64 ParentEntry)
 {
 	FWriteScopeLock ScopeLock(ItemLock);

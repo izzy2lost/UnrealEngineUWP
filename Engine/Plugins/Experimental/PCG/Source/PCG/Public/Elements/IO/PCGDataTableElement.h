@@ -4,6 +4,8 @@
 
 #include "PCGExternalData.h"
 
+#include "PCGCommon.h"
+
 class UDataTable;
 
 #include "PCGDataTableElement.generated.h"
@@ -19,15 +21,22 @@ public:
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("LoadDataTable")); }
 	virtual FText GetDefaultNodeTitle() const override;
 	virtual FText GetNodeTooltipText() const override;
+	virtual bool HasDynamicPins() const override { return true; }
 #endif
 
+	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
+
 protected:
+	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	virtual FPCGElementPtr CreateElement() const override;
 	// ~End UPCGSettings interface
 
 public:
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings", meta = (PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	TSoftObjectPtr<UDataTable> DataTable;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ValidEnumValues = "Point, Param"))
+	EPCGExclusiveDataType OutputType = EPCGExclusiveDataType::Point;
 };
 
 class FPCGLoadDataTableElement : public FPCGExternalDataElement

@@ -4,6 +4,7 @@
 
 #include "PCGComponent.h"
 #include "PCGModule.h"
+#include "PCGParamData.h"
 #include "Data/PCGPointData.h"
 #include "Elements/IO/PCGExternalDataContext.h"
 
@@ -24,6 +25,41 @@ FText UPCGLoadDataTableSettings::GetNodeTooltipText() const
 }
 
 #endif // WITH_EDITOR
+
+TArray<FPCGPinProperties> UPCGLoadDataTableSettings::OutputPinProperties() const
+{
+	TArray<FPCGPinProperties> PinProperties;
+	PinProperties.Emplace(PCGPinConstants::DefaultOutputLabel, EPCGDataType::Any);
+
+	return PinProperties;
+}
+
+EPCGDataType UPCGLoadDataTableSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
+{
+	check(InPin);
+	if (!InPin->IsOutputPin())
+	{
+		return Super::GetCurrentPinTypes(InPin);
+	}
+
+	const UEnum* DataTypeEnum = StaticEnum<EPCGDataType>();
+	const UEnum* ExclusiveDataTypeEnum = StaticEnum<EPCGExclusiveDataType>();
+
+	if (DataTypeEnum && ExclusiveDataTypeEnum)
+	{
+		FName ExclusiveDataTypeName = ExclusiveDataTypeEnum->GetNameByValue(static_cast<__underlying_type(EPCGExclusiveDataType)>(OutputType));
+		if (ExclusiveDataTypeName != NAME_None)
+		{
+			const int64 MatchingDataType = DataTypeEnum->GetValueByName(ExclusiveDataTypeName);
+			if (ensure(MatchingDataType != INDEX_NONE))
+			{
+				return static_cast<EPCGDataType>(MatchingDataType);
+			}
+		}
+	}
+
+	return Super::GetCurrentPinTypes(InPin);
+}
 
 FPCGElementPtr UPCGLoadDataTableSettings::CreateElement() const
 {
@@ -60,13 +96,33 @@ bool FPCGLoadDataTableElement::PrepareLoad(FPCGExternalDataContext* Context) con
 	}
 
 	// 3-e. Create point data, and the mapping object
-	UPCGPointData* PointData = NewObject<UPCGPointData>();
-	check(PointData);
+	UPCGData* OutData = nullptr;
+	UPCGMetadata* OutMetadata = nullptr;
+
+	if (Settings->OutputType == EPCGExclusiveDataType::Point)
+	{
+		UPCGPointData* PointData = NewObject<UPCGPointData>();
+		check(PointData);
+		OutData = PointData;
+		OutMetadata = PointData->MutableMetadata();
+	}
+	else if(Settings->OutputType == EPCGExclusiveDataType::Param)
+	{
+		UPCGParamData* ParamData = NewObject<UPCGParamData>();
+		check(ParamData);
+		OutData = ParamData;
+		OutMetadata = ParamData->MutableMetadata();
+	}
+	else
+	{
+		ensure(0);
+		PCGE_LOG(Error, GraphAndLog, LOCTEXT("Output format not supported", "Unable to load data table to selected output type"));
+		return true;
+	}
 
 	FPCGExternalDataContext::FPointDataAccessorsMapping& PointDataAccessorMapping = Context->PointDataAccessorsMapping.Emplace_GetRef();
-	PointDataAccessorMapping.PointData = PointData;
-
-	UPCGMetadata* PointMetadata = PointData->MutableMetadata();
+	PointDataAccessorMapping.Data = OutData;
+	PointDataAccessorMapping.Metadata = OutMetadata;
 
 	// 3. Build property to accessor mappings, including renamings, and create new attributes as needed
 	for (TFieldIterator<const FProperty> FieldIt(RowStruct, EFieldIterationFlags::IncludeSuper); FieldIt; ++FieldIt)
@@ -95,14 +151,14 @@ bool FPCGLoadDataTableElement::PrepareLoad(FPCGExternalDataContext* Context) con
 			PointPropertySelector.Update(FieldName);
 		}
 
-		if (PointPropertySelector.GetSelection() == EPCGAttributePropertySelection::Attribute)
+ 		if (PointPropertySelector.GetSelection() == EPCGAttributePropertySelection::Attribute)
 		{
 			// Create attribute with the appropriate type
 			const void* FirstRow = DataTable->GetRowMap().CreateConstIterator().Value();
 			PointMetadata->CreateAttributeFromDataProperty(FName(FieldName), FirstRow, *FieldIt);
 		}
 
-		TUniquePtr<IPCGAttributeAccessor> PointPropertyAccessor = PCGAttributeAccessorHelpers::CreateAccessor(PointData, PointPropertySelector);
+		TUniquePtr<IPCGAttributeAccessor> PointPropertyAccessor = PCGAttributeAccessorHelpers::CreateAccessor(OutData, PointPropertySelector);
 
 		if (!PointPropertyAccessor)
 		{
@@ -125,8 +181,8 @@ bool FPCGLoadDataTableElement::PrepareLoad(FPCGExternalDataContext* Context) con
 
 	if (!Context->PointDataAccessorsMapping.IsEmpty())
 	{
-		FPCGTaggedData& OutData = Context->OutputData.TaggedData.Emplace_GetRef();
-		OutData.Data = PointData;
+		FPCGTaggedData& OutTaggedData = Context->OutputData.TaggedData.Emplace_GetRef();
+		OutTaggedData.Data = OutData;
 
 		Context->bDataPrepared = true;
 	}
@@ -156,14 +212,41 @@ bool FPCGLoadDataTableElement::ExecuteLoad(FPCGExternalDataContext* Context) con
 	FPCGExternalDataContext::FPointDataAccessorsMapping& PointDataAccessorMapping = Context->PointDataAccessorsMapping[0];
 
 	// Preallocate the point array, and create the row keys
-	UPCGPointData* PointData = PointDataAccessorMapping.PointData;
-	check(PointData);
+	UPCGData* Data = PointDataAccessorMapping.Data;
+	check(Data);
 
-	TArray<FPCGPoint>& Points = PointDataAccessorMapping.PointData->GetMutablePoints();
-	if (Points.IsEmpty())
+	if (UPCGPointData* PointData = Cast<UPCGPointData>(Data))
 	{
-		// Dummy implementation - note that we do initialize the points here in cases where some of the properties would not be set
-		Points.SetNum(DataTable->GetRowMap().Num());
+		TArray<FPCGPoint>& Points = PointData->GetMutablePoints();
+		if (Points.IsEmpty())
+		{
+			// Dummy implementation - note that we do initialize the points here in cases where some of the properties would not be set
+			Points.SetNum(DataTable->GetRowMap().Num());
+		}
+	}
+	else if (UPCGParamData* ParamData = Cast<UPCGParamData>(Data))
+	{
+		check(ParamData->Metadata);
+		TArray<FName> AttributeNames;
+		TArray<EPCGMetadataTypes> AttributeTypes;
+		ParamData->Metadata->GetAttributes(AttributeNames, AttributeTypes);
+
+		TArray<FPCGMetadataAttributeBase*> Attributes;
+		for (const FName AttributeName : AttributeNames)
+		{
+			Attributes.Add(ParamData->Metadata->GetMutableAttribute(AttributeName));
+		}
+
+		for (int32 EntryIndex = 0; EntryIndex < DataTable->GetRowMap().Num(); ++EntryIndex)
+		{
+			const PCGMetadataEntryKey EntryKey = ParamData->Metadata->AddEntry();
+
+			// Need to create a value entry for each newly created entry in the attributes, otherwise we will not write properly to the output
+			for (FPCGMetadataAttributeBase* Attribute : Attributes)
+			{
+				Attribute->SetValueFromValueKey(EntryKey, PCGDefaultValueKey);
+			}
+		}
 	}
 
 	TArray<void*> AllRows;

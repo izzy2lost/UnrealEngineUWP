@@ -101,7 +101,7 @@ bool FPCGLoadAlembicElement::PrepareLoad(FPCGExternalDataContext* InContext) con
 		for (const FPCGExternalDataContext::FPointDataAccessorsMapping& DataMapping : Context->PointDataAccessorsMapping)
 		{
 			FPCGTaggedData& OutData = Context->OutputData.TaggedData.Emplace_GetRef();
-			OutData.Data = DataMapping.PointData;
+			OutData.Data = DataMapping.Data;
 		}
 
 		Context->bDataPrepared = true;
@@ -136,7 +136,7 @@ bool FPCGLoadAlembicElement::ExecuteLoad(FPCGExternalDataContext* InContext) con
 	{
 		for (const FPCGExternalDataContext::FPointDataAccessorsMapping& DataMapping : Context->PointDataAccessorsMapping)
 		{
-			UPCGPointData* PointData = DataMapping.PointData;
+			UPCGPointData* PointData = Cast<UPCGPointData>(DataMapping.Data);
 
 			if (!PointData)
 			{

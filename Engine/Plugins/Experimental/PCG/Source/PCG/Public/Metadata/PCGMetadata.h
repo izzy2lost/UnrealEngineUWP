@@ -271,6 +271,7 @@ public:
 
 	int64 GetItemKeyCountForParent() const;
 	int64 GetItemCountForChild() const;
+	int64 GetLocalItemCount() const;
 
 	/**
 	* Create a new attribute. If the attribute already exists, it will raise a warning (use FindOrCreateAttribute if this usecase can arise)

@@ -251,7 +251,8 @@ void ParseAlembicObject(FPCGExternalDataContext* Context, const Alembic::Abc::IO
 			UPCGMetadata* PointMetadata = PointData->MutableMetadata();
 
 			FPCGExternalDataContext::FPointDataAccessorsMapping& PointDataAccessorMapping = Context->PointDataAccessorsMapping.Emplace_GetRef();
-			PointDataAccessorMapping.PointData = PointData;
+			PointDataAccessorMapping.Data = PointData;
+			PointDataAccessorMapping.Metadata = PointMetadata;
 			// We're not going to use the input keys, but we still need to provide something
 			PointDataAccessorMapping.RowKeys = MakeUnique<FPCGAttributeAccessorKeysEntries>(PCGInvalidEntryKey);
 

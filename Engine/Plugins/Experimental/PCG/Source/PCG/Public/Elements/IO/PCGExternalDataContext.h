@@ -32,7 +32,8 @@ struct FPCGExternalDataContext : public FPCGContext
 
 	struct FPointDataAccessorsMapping
 	{
-		UPCGPointData* PointData = nullptr;
+		UPCGData* Data = nullptr;
+		UPCGMetadata* Metadata = nullptr;
 		TArray<FRowToPointAccessors> RowToPointAccessors;
 		TUniquePtr<const IPCGAttributeAccessorKeys> RowKeys;
 	};

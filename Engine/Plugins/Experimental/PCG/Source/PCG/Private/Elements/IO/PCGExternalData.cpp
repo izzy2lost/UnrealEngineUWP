@@ -48,13 +48,12 @@ bool FPCGExternalDataElement::ExecuteLoad(FPCGExternalDataContext* Context) cons
 	// Do in parallel according to the resources given in the context
 	for (FPCGExternalDataContext::FPointDataAccessorsMapping& PointDataAccessorMapping : Context->PointDataAccessorsMapping)
 	{
-		UPCGPointData* PointData = PointDataAccessorMapping.PointData;
-		UPCGMetadata* PointMetadata = PointData->MutableMetadata();
+		UPCGData* Data = PointDataAccessorMapping.Data;
 		TUniquePtr<const IPCGAttributeAccessorKeys>& RowKeys = PointDataAccessorMapping.RowKeys;
 
 		for (FPCGExternalDataContext::FRowToPointAccessors& RowToPointAccessor : PointDataAccessorMapping.RowToPointAccessors)
 		{
-			TUniquePtr<IPCGAttributeAccessorKeys> PointKeys = PCGAttributeAccessorHelpers::CreateKeys(PointData, RowToPointAccessor.Selector);
+			TUniquePtr<IPCGAttributeAccessorKeys> PointKeys = PCGAttributeAccessorHelpers::CreateKeys(Data, RowToPointAccessor.Selector);
 
 			auto Operation = [&RowKeys, &RowToPointAccessor, &PointKeys](auto Dummy)
 			{
