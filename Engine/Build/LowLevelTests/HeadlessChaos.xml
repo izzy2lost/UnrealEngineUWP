@@ -35,8 +35,8 @@
   <Property Name="AndroidHeadlessChaosRunSupported" Value="False" />
   <Property Name="LinuxHeadlessChaosRunSupported" Value="True" />
   <Property Name="LinuxArm64HeadlessChaosRunSupported" Value="True" />
-  <Property Name="TVOSHeadlessChaosRunSupported" Value="True" />
+  <Property Name="TVOSHeadlessChaosRunSupported" Value="False" />
   <Property Name="VisionOSHeadlessChaosTags" Value="" />
   <Property Name="VisionOSHeadlessChaosExtraCompilationArgs" Value="" />
-  <Property Name="VisionOSHeadlessChaosRunSupported" Value="True" />
+  <Property Name="VisionOSHeadlessChaosRunSupported" Value="False" />
 </BuildGraph>

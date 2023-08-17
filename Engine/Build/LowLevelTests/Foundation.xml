@@ -14,7 +14,7 @@
   <Property Name="FoundationHasAfterSteps" Value="False" />
   <Property Name="FoundationUsesCatch2" Value="True" />
   <Option Name="RunFoundationTests" DefaultValue="False" Description="Run Foundation Tests" />
-  <Property Name="FoundationSupportedPlatforms" Value="Win64;Mac;Linux;Android;iOS" />
+  <Property Name="FoundationSupportedPlatforms" Value="Win64;Linux;Mac;Android;IOS" />
   <Property Name="Win64FoundationTags" Value="" />
   <Property Name="MacFoundationTags" Value="" />
   <Property Name="IOSFoundationTags" Value="" />
@@ -35,8 +35,8 @@
   <Property Name="AndroidFoundationRunSupported" Value="False" />
   <Property Name="LinuxFoundationRunSupported" Value="True" />
   <Property Name="LinuxArm64FoundationRunSupported" Value="True" />
-  <Property Name="TVOSFoundationRunSupported" Value="True" />
+  <Property Name="TVOSFoundationRunSupported" Value="False" />
   <Property Name="VisionOSFoundationTags" Value="" />
   <Property Name="VisionOSFoundationExtraCompilationArgs" Value="-allmodules" />
-  <Property Name="VisionOSFoundationRunSupported" Value="True" />
+  <Property Name="VisionOSFoundationRunSupported" Value="False" />
 </BuildGraph>

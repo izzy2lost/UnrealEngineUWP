@@ -35,8 +35,8 @@
   <Property Name="AndroidNetworkPredictionPluginRunSupported" Value="False" />
   <Property Name="LinuxNetworkPredictionPluginRunSupported" Value="True" />
   <Property Name="LinuxArm64NetworkPredictionPluginRunSupported" Value="True" />
-  <Property Name="TVOSNetworkPredictionPluginRunSupported" Value="True" />
+  <Property Name="TVOSNetworkPredictionPluginRunSupported" Value="False" />
   <Property Name="VisionOSNetworkPredictionPluginTags" Value="" />
   <Property Name="VisionOSNetworkPredictionPluginExtraCompilationArgs" Value="" />
-  <Property Name="VisionOSNetworkPredictionPluginRunSupported" Value="True" />
+  <Property Name="VisionOSNetworkPredictionPluginRunSupported" Value="False" />
 </BuildGraph>

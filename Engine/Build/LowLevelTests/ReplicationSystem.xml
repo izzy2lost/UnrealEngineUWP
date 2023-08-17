@@ -35,8 +35,8 @@
   <Property Name="AndroidReplicationSystemRunSupported" Value="False" />
   <Property Name="LinuxReplicationSystemRunSupported" Value="True" />
   <Property Name="LinuxArm64ReplicationSystemRunSupported" Value="True" />
-  <Property Name="TVOSReplicationSystemRunSupported" Value="True" />
+  <Property Name="TVOSReplicationSystemRunSupported" Value="False" />
   <Property Name="VisionOSReplicationSystemTags" Value="" />
   <Property Name="VisionOSReplicationSystemExtraCompilationArgs" Value="" />
-  <Property Name="VisionOSReplicationSystemRunSupported" Value="True" />
+  <Property Name="VisionOSReplicationSystemRunSupported" Value="False" />
 </BuildGraph>
