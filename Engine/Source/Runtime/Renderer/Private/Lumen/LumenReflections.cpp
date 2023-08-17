@@ -1009,10 +1009,18 @@ void UpdateHistoryReflections(
 		{
 			GraphBuilder.QueueTextureExtraction(AccumulatedResolveVariance, &ReflectionTemporalState.ResolveVarianceHistoryRT);
 		}
+		else
+		{
+			ReflectionTemporalState.ResolveVarianceHistoryRT = nullptr;
+		}
 
 		if (Strata::IsStrataEnabled() && !bTranslucentReflection)
 		{
 			GraphBuilder.QueueTextureExtraction(View.StrataViewData.BSDFTileTexture, &ReflectionTemporalState.BSDFTileHistoryRT);
+		}
+		else
+		{
+			ReflectionTemporalState.BSDFTileHistoryRT = nullptr;
 		}
 	}
 }
