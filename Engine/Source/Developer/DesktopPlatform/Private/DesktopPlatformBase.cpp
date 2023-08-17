@@ -832,21 +832,20 @@ bool FDesktopPlatformBase::GetOidcAccessToken(const FString& RootDir, const FStr
 
 	if (ExitCode == 10)
 	{
-		if (!bUnattended)
+		bRes = GetOidcAccessTokenInteractive(RootDir, Arguments, bUnattended, Warn, ExitCode);
+
+		bOutWasInteractiveLogin = true;
+
+		if (!bRes)
 		{
-			bRes = GetOidcAccessTokenInteractive(RootDir, Arguments, Warn, ExitCode);
-
-			bOutWasInteractiveLogin = true;
-
-			if (!bRes)
+			if (bUnattended)
+			{
+				UE_LOG(LogDesktopPlatform, Warning, TEXT("Unable to allocate an access token. Unattended set so unable to complete interactive login. Make sure you start the editor and login once or log in using UGS or using the UGS cli command 'login'. Provider used: '%s'. Ran OidcToken (project file is '%s', exe path is '%s')"), *ProviderIdentifier, *ProjectFileName, *GetOidcTokenExecutableFilename(RootDir));
+			}
+			else
 			{
 				UE_LOG(LogDesktopPlatform, Error, TEXT("Unable to allocate an access token. Interactive login failed, make sure you are assigned access and are able to login in the created browser window. Provider used: '%s'. Ran OidcToken (project file is '%s', exe path is '%s')"), *ProviderIdentifier, *ProjectFileName, *GetOidcTokenExecutableFilename(RootDir));
-				return false;
 			}
-		}
-		else
-		{
-			UE_LOG(LogDesktopPlatform, Warning, TEXT("Unable to allocate an access token. Unattended set so unable to request interactive login. Make sure you start the editor and login once or log in using UGS or using the UGS cli command 'login'. Provider used: '%s'. Ran OidcToken (project file is '%s', exe path is '%s')"), *ProviderIdentifier, *ProjectFileName, *GetOidcTokenExecutableFilename(RootDir));
 			return false;
 		}
 	}
@@ -938,13 +937,35 @@ bool FDesktopPlatformBase::GetOidcTokenStatus(const FString& RootDir, const FStr
 	return false;
 }
 
-bool FDesktopPlatformBase::GetOidcAccessTokenInteractive(const FString& RootDir,  const FString& Arguments, FFeedbackContext* Warn, int32& OutReturnCode)
+bool FDesktopPlatformBase::GetOidcAccessTokenInteractive(const FString& RootDir, const FString& Arguments, bool bUnattended, FFeedbackContext* Warn, int32& OutReturnCode)
 {
-	FText OidcInteractivePromptTitle = NSLOCTEXT("OidcToken", "OidcToken_InteractiveLaunchPromptTitle", "Unreal Engine - Authentication Required");
-	FText OidcInteractiveLaunchPromptText = NSLOCTEXT("OidcToken", "OidcToken_InteractiveLaunch", "Your team's preferred DDC (Derived Data Cache) requires you to log in. Click OK to open the authentication page in your web browser.\n\nYou can cancel authentication and work with a different shared or local DDC instead. However, this may cause delays while the editor prepares the assets you need.");
-	EAppReturnType::Type userAcknowledgedResult = FPlatformMisc::MessageBoxExt(EAppMsgType::OkCancel, *OidcInteractiveLaunchPromptText.ToString(), *OidcInteractivePromptTitle.ToString());
+	EAppReturnType::Type userAcknowledgedResult = EAppReturnType::Yes;
 
-	if (userAcknowledgedResult != EAppReturnType::Ok)
+	check(GConfig && GConfig->IsReadyForUse());
+	
+	bool bSkipInitialAcknowledgement = false;
+	GConfig->GetBool(TEXT("/Script/UnrealEd.EditorSettings"), TEXT("InteractiveOidcWithoutAcknowledgement"), bSkipInitialAcknowledgement, GEditorSettingsIni);
+
+	if (!bSkipInitialAcknowledgement)
+	{
+		if (bUnattended)
+		{
+			OutReturnCode = -1;
+			return false;
+		}
+
+		FText OidcInteractivePromptTitle = NSLOCTEXT("OidcToken", "OidcToken_InteractiveLaunchPromptTitle", "Unreal Engine - Authentication Required");
+		FText OidcInteractiveLaunchPromptText = NSLOCTEXT("OidcToken", "OidcToken_InteractiveLaunch", "Your team's preferred DDC (Derived Data Cache) requires you to log in.\n\nClick Yes to open the authentication page in your web browser, or Yes To All to always proceed to browser authentication without a prompt.\n\nClick No to decline authentication and work with a different shared or local DDC instead. However, this may cause delays while the editor prepares the assets you need.");
+		userAcknowledgedResult = FPlatformMisc::MessageBoxExt(EAppMsgType::YesNoYesAll, *OidcInteractiveLaunchPromptText.ToString(), *OidcInteractivePromptTitle.ToString());
+
+		if (userAcknowledgedResult == EAppReturnType::YesAll)
+		{
+			GConfig->SetBool(TEXT("/Script/UnrealEd.EditorSettings"), TEXT("InteractiveOidcWithoutAcknowledgement"), true, GEditorSettingsIni);
+			userAcknowledgedResult = EAppReturnType::Yes;
+		}
+	}
+
+	if (userAcknowledgedResult != EAppReturnType::Yes)
 	{
 		OutReturnCode = -1;
 		return false;
@@ -991,9 +1012,15 @@ bool FDesktopPlatformBase::GetOidcAccessTokenInteractive(const FString& RootDir,
 			UE_LOG(LogDesktopPlatform, Display, TEXT("Waiting for OidcToken to finish login..."));
 			DurationPhase = EWaitDurationPhase::Prompt;
 		}
-		// once we have waited for 30 seconds without success we give the user a option to abort
+		// once we have waited for 30 seconds without success we give the user a option to abort, or if unattended, abort without prompting
 		else if (WaitDuration > 30.0 && DurationPhase == EWaitDurationPhase::Prompt)
 		{
+			if (bUnattended)
+			{
+				bIsFinished = !FPlatformProcess::IsProcRunning(ProcHandle);
+				break;
+			}
+
 			FText OidcLongWaitPromptTitle = NSLOCTEXT("OidcToken", "OidcToken_LongWaitPromptTitle", "Wait for user login?");
 			FText OidcLongWaitPromptText = NSLOCTEXT("OidcToken", "OidcToken_LongWaitPromptText", "Login is taking a long time, make sure you have entered your credentials in your browser window. It can be in a tab in an already existing window. Keep waiting?");
 			if (FPlatformMisc::MessageBoxExt(EAppMsgType::YesNo, *OidcLongWaitPromptText.ToString(), *OidcLongWaitPromptTitle.ToString()) == EAppReturnType::No)
