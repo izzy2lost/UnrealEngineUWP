@@ -155,7 +155,7 @@ bool FPCGLoadDataTableElement::PrepareLoad(FPCGExternalDataContext* Context) con
 		{
 			// Create attribute with the appropriate type
 			const void* FirstRow = DataTable->GetRowMap().CreateConstIterator().Value();
-			PointMetadata->CreateAttributeFromDataProperty(FName(FieldName), FirstRow, *FieldIt);
+			OutMetadata->CreateAttributeFromDataProperty(FName(FieldName), FirstRow, *FieldIt);
 		}
 
 		TUniquePtr<IPCGAttributeAccessor> PointPropertyAccessor = PCGAttributeAccessorHelpers::CreateAccessor(OutData, PointPropertySelector);
