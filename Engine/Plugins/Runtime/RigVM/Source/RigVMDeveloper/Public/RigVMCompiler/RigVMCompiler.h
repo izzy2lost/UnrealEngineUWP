@@ -56,6 +56,9 @@ public:
 
 	UPROPERTY()
 	bool SetupNodeInstructionIndex;
+	
+	UPROPERTY()
+	bool ASTErrorsAsNotifications;
 
 	static FRigVMCompileSettings Fast(UScriptStruct* InExecuteContextStruct = nullptr)
 	{
@@ -75,6 +78,28 @@ public:
 		return Settings;
 	}
 
+	void ReportInfo(const FString& InMessage) const;
+	void ReportWarning(const FString& InMessage) const;
+	void ReportError(const FString& InMessage) const;
+
+	template <typename FmtType, typename... Types>
+	void ReportInfof(const FmtType& Fmt, Types... Args) const
+	{
+		ReportInfo(FString::Printf(Fmt, Args...));
+	}
+
+	template <typename FmtType, typename... Types>
+	void ReportWarningf(const FmtType& Fmt, Types... Args) const
+	{
+		ReportWarning(FString::Printf(Fmt, Args...));
+	}
+
+	template <typename FmtType, typename... Types>
+	void ReportErrorf(const FmtType& Fmt, Types... Args) const
+	{
+		ReportError(FString::Printf(Fmt, Args...));
+	}
+
 	void Report(EMessageSeverity::Type InSeverity, UObject* InSubject, const FString& InMessage) const
 	{
 		ASTSettings.Report(InSeverity, InSubject, InMessage);
@@ -87,11 +112,26 @@ public:
 	}
 };
 
+class RIGVMDEVELOPER_API FRigVMCompileSettingsDuringLoadGuard
+{
+public:
+
+	FRigVMCompileSettingsDuringLoadGuard(FRigVMCompileSettings& InSettings)
+		: ASTErrorsAsNotifications(InSettings.ASTErrorsAsNotifications, true)
+	{}
+
+private:
+
+	TGuardValue<bool> ASTErrorsAsNotifications;
+};
+
 struct RIGVMDEVELOPER_API FRigVMCompilerWorkData
 {
 public:
+	FRigVMCompileSettings Settings;
 	bool bSetupMemory;
 	URigVM* VM;
+	TArray<URigVMGraph*> Graphs;
 	UScriptStruct* ExecuteContextStruct;
 	TMap<FString, FRigVMOperand>* PinPathToOperand;
 	TMap<const FRigVMVarExprAST*, FRigVMOperand> ExprToOperand;
@@ -153,6 +193,32 @@ public:
 
 	// operators that have been delayed for injection into the bytecode
 	TMap<FRigVMOperand, FCopyOpInfo> DeferredCopyOps;
+
+	void ReportInfo(const FString& InMessage) const;
+	void ReportWarning(const FString& InMessage) const;
+	void ReportError(const FString& InMessage) const;
+
+	template <typename FmtType, typename... Types>
+	void ReportInfof(const FmtType& Fmt, Types... Args) const
+	{
+		ReportInfo(FString::Printf(Fmt, Args...));
+	}
+
+	template <typename FmtType, typename... Types>
+	void ReportWarningf(const FmtType& Fmt, Types... Args) const
+	{
+		ReportWarning(FString::Printf(Fmt, Args...));
+	}
+
+	template <typename FmtType, typename... Types>
+	void ReportErrorf(const FmtType& Fmt, Types... Args) const
+	{
+		ReportError(FString::Printf(Fmt, Args...));
+	}
+
+	FRigVMReportDelegate OriginalReportDelegate;
+	void OverrideReportDelegate(bool& bEncounteredASTError, bool& bSurpressedASTError);
+	void RemoveOverrideReportDelegate();
 };
 
 DECLARE_DELEGATE_RetVal_OneParam(const FRigVMFunctionCompilationData*, FRigVMCompiler_GetFunctionCompilationData, const FRigVMGraphFunctionHeader& Header);
@@ -166,8 +232,8 @@ public:
 
 	URigVMCompiler();
 
-	UPROPERTY(BlueprintReadWrite, Category = FRigVMCompiler)
-	FRigVMCompileSettings Settings;
+	UPROPERTY()
+	FRigVMCompileSettings Settings_DEPRECATED;
 
 	UFUNCTION(BlueprintCallable, Category = FRigVMCompiler, meta=(DeprecatedFunction, DeprecationMessage="Compile is deprecated, use CompileVM with Context parameter."))
 	bool Compile(TArray<URigVMGraph*> InGraphs, URigVMController* InController, URigVM* OutVM) { return false; }
@@ -175,18 +241,24 @@ public:
 	UFUNCTION(BlueprintCallable, Category = FRigVMCompiler)
 	bool CompileVM(TArray<URigVMGraph*> InGraphs, URigVMController* InController, URigVM* OutVM, FRigVMExtendedExecuteContext& Context)
 	{
-		return Compile(InGraphs, InController, OutVM, Context, TArray<FRigVMExternalVariable>(), nullptr);
+		return Compile(Settings_DEPRECATED, InGraphs, InController, OutVM, Context, TArray<FRigVMExternalVariable>(), nullptr);
 	}
 
 	UE_DEPRECATED(5.3, "Please use Compile with Context param.")
 	bool Compile(TArray<URigVMGraph*> InGraphs, URigVMController* InController, URigVM* OutVM, const TArray<FRigVMExternalVariable>& InExternalVariables, TMap<FString, FRigVMOperand>* OutOperands, TSharedPtr<FRigVMParserAST> InAST = TSharedPtr<FRigVMParserAST>(), FRigVMFunctionCompilationData* OutFunctionCompilationData = nullptr) { return false; }
 
+	UE_DEPRECATED(5.4, "Please use CompileFunction with Settings param.")
 	bool Compile(TArray<URigVMGraph*> InGraphs, URigVMController* InController, URigVM* OutVM, FRigVMExtendedExecuteContext& OutVMContext, const TArray<FRigVMExternalVariable>& InExternalVariables, TMap<FString, FRigVMOperand>* OutOperands, TSharedPtr<FRigVMParserAST> InAST = TSharedPtr<FRigVMParserAST>(), FRigVMFunctionCompilationData* OutFunctionCompilationData = nullptr);
+
+	bool Compile(const FRigVMCompileSettings& InSettings, TArray<URigVMGraph*> InGraphs, URigVMController* InController, URigVM* OutVM, FRigVMExtendedExecuteContext& OutVMContext, const TArray<FRigVMExternalVariable>& InExternalVariables, TMap<FString, FRigVMOperand>* OutOperands, TSharedPtr<FRigVMParserAST> InAST = TSharedPtr<FRigVMParserAST>(), FRigVMFunctionCompilationData* OutFunctionCompilationData = nullptr);
 
 	UE_DEPRECATED(5.3, "Please use CompileFunction with Context param.")
 	bool CompileFunction(const URigVMLibraryNode* InLibraryNode, URigVMController* InController, FRigVMFunctionCompilationData* OutFunctionCompilationData) { return false; }
 
+	UE_DEPRECATED(5.4, "Please use CompileFunction with Settings param.")
 	bool CompileFunction(const URigVMLibraryNode* InLibraryNode, URigVMController* InController, FRigVMFunctionCompilationData* OutFunctionCompilationData, FRigVMExtendedExecuteContext& OutVMContext);
+
+	bool CompileFunction(const FRigVMCompileSettings& InSettings, const URigVMLibraryNode* InLibraryNode, URigVMController* InController, FRigVMFunctionCompilationData* OutFunctionCompilationData, FRigVMExtendedExecuteContext& OutVMContext);
 
 	FRigVMCompiler_GetFunctionCompilationData GetFunctionCompilationData;
 	TMap<FString, const FRigVMFunctionCompilationData*> CompiledFunctions;
@@ -199,7 +271,7 @@ public:
 	// this is currently only used for arrays.
 	static const FRigVMVarExprAST* GetSourceVarExpr(const FRigVMExprAST* InExpr);
 
-	void MarkDebugWatch(bool bRequired, URigVMPin* InPin, URigVM* OutVM, TMap<FString, FRigVMOperand>* OutOperands, TSharedPtr<FRigVMParserAST> InRuntimeAST);
+	void MarkDebugWatch(const FRigVMCompileSettings& InSettings, bool bRequired, URigVMPin* InPin, URigVM* OutVM, TMap<FString, FRigVMOperand>* OutOperands, TSharedPtr<FRigVMParserAST> InRuntimeAST);
 
 private:
 
@@ -245,28 +317,28 @@ private:
 	static FString GetPinNameWithDirectionPrefix(const URigVMPin* Pin);
 	static int32 GetOperandFunctionInterfaceParameterIndex(const TArray<FString>& OperandsPinNames, const FRigVMFunctionCompilationData* FunctionCompilationData, const FRigVMOperand& Operand);
 
-	bool ValidateNode(URigVMNode* InNode, bool bCheck = true);
+	bool ValidateNode(const FRigVMCompileSettings& InSettings, URigVMNode* InNode, bool bCheck = true);
 	
-	void ReportInfo(const FString& InMessage);
-	void ReportWarning(const FString& InMessage);
-	void ReportError(const FString& InMessage);
+	void ReportInfo(const FRigVMCompileSettings& InSettings, const FString& InMessage);
+	void ReportWarning(const FRigVMCompileSettings& InSettings, const FString& InMessage);
+	void ReportError(const FRigVMCompileSettings& InSettings, const FString& InMessage);
 
 	template <typename FmtType, typename... Types>
-	void ReportInfof(const FmtType& Fmt, Types... Args)
+	void ReportInfof(const FRigVMCompileSettings& InSettings, const FmtType& Fmt, Types... Args)
 	{
-		ReportInfo(FString::Printf(Fmt, Args...));
+		ReportInfo(InSettings, FString::Printf(Fmt, Args...));
 	}
 
 	template <typename FmtType, typename... Types>
-	void ReportWarningf(const FmtType& Fmt, Types... Args)
+	void ReportWarningf(const FRigVMCompileSettings& InSettings, const FmtType& Fmt, Types... Args)
 	{
-		ReportWarning(FString::Printf(Fmt, Args...));
+		ReportWarning(InSettings, FString::Printf(Fmt, Args...));
 	}
 
 	template <typename FmtType, typename... Types>
-	void ReportErrorf(const FmtType& Fmt, Types... Args)
+	void ReportErrorf(const FRigVMCompileSettings& InSettings, const FmtType& Fmt, Types... Args)
 	{
-		ReportError(FString::Printf(Fmt, Args...));
+		ReportError(InSettings, FString::Printf(Fmt, Args...));
 	}
 	
 	friend class FRigVMCompilerImportErrorContext;

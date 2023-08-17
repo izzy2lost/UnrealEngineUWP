@@ -88,7 +88,10 @@ struct RIGVM_API FRigVMFunctionCompilationData
 {
 	GENERATED_BODY()
 
-	FRigVMFunctionCompilationData() : Hash(0) {}
+	FRigVMFunctionCompilationData()
+	: Hash(0)
+	, bEncounteredSurpressedErrors(false)
+	{}
 
 	UPROPERTY()
 	FRigVMByteCode ByteCode;
@@ -129,11 +132,19 @@ struct RIGVM_API FRigVMFunctionCompilationData
 	UPROPERTY()
 	uint32 Hash;
 
+	UPROPERTY(Transient)
+	bool bEncounteredSurpressedErrors;
+
 	TMap<FRigVMOperand, TArray<FRigVMOperand>> OperandToDebugRegisters;
 
 	bool IsValid() const
 	{
 		return Hash != 0;
+	}
+
+	bool RequiresRecompilation() const
+	{
+		return bEncounteredSurpressedErrors;
 	}
 
 	friend uint32 GetTypeHash(const FRigVMFunctionCompilationData& Data) 
@@ -213,6 +224,11 @@ struct RIGVM_API FRigVMFunctionCompilationData
 		Ar << Data.ExternalRegisterIndexToVariable;
 		Ar << Data.Operands;
 		Ar << Data.Hash;
+
+		if(Ar.IsLoading())
+		{
+			Data.bEncounteredSurpressedErrors = false;
+		}
 
 		if (Ar.CustomVer(FUE5ReleaseStreamObjectVersion::GUID) < FUE5ReleaseStreamObjectVersion::RigVMSaveDebugMapInGraphFunctionData &&
 		    Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::RigVMSaveDebugMapInGraphFunctionData)

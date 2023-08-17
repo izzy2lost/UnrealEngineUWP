@@ -1073,7 +1073,10 @@ void URigVMBlueprint::HandlePackageDone()
 	}
 	
 	RemoveDeprecatedVMMemoryClass();
-	RecompileVM();
+	{
+		const FRigVMCompileSettingsDuringLoadGuard Guard(VMCompileSettings);
+		RecompileVM();
+	}
 	RequestRigVMInit();
 	BroadcastRigVMPackageDone();
 }
@@ -1172,14 +1175,15 @@ void URigVMBlueprint::RecompileVM()
 
 		URigVMCompiler* Compiler = URigVMCompiler::StaticClass()->GetDefaultObject<URigVMCompiler>();
 		VMCompileSettings.SetExecuteContextStruct(RigVMClient.GetExecuteContextStruct());
-		Compiler->Settings = (bCompileInDebugMode) ? FRigVMCompileSettings::Fast(VMCompileSettings.GetExecuteContextStruct()) : VMCompileSettings;
-		Compiler->Compile(RigVMClient.GetAllModels(false, false), GetOrCreateController(), CDO->VM, CDO->GetExtendedExecuteContext(), CDO->GetExternalVariablesImpl(false), &PinToOperandMap);
+
+		const FRigVMCompileSettings Settings = (bCompileInDebugMode) ? FRigVMCompileSettings::Fast(VMCompileSettings.GetExecuteContextStruct()) : VMCompileSettings;
+		Compiler->Compile(Settings, RigVMClient.GetAllModels(false, false), GetOrCreateController(), CDO->VM, CDO->GetExtendedExecuteContext(), CDO->GetExternalVariablesImpl(false), &PinToOperandMap);
 
 		if (bErrorsDuringCompilation)
 		{
-			if(Compiler->Settings.SurpressErrors)
+			if(Settings.SurpressErrors)
 			{
-				Compiler->Settings.Reportf(EMessageSeverity::Info, this,
+				Settings.Reportf(EMessageSeverity::Info, this,
 					TEXT("Compilation Errors may be suppressed for ControlRigBlueprint: %s. See VM Compile Setting in Class Settings for more Details"), *this->GetName());
 			}
 			bVMRecompilationRequired = false;
@@ -2436,7 +2440,7 @@ void URigVMBlueprint::PostTransacted(const FTransactionObjectEvent& TransactionE
  				return UberGraph == nullptr || !IsValid(UberGraph);
 			});
 			RigVMClient.PostTransacted(TransactionEvent);
-
+			
 			RecompileVM();
 			(void)MarkPackageDirty();			
 		}
@@ -3012,7 +3016,6 @@ void URigVMBlueprint::HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URig
 				{
 					URigVMPin* Pin = CastChecked<URigVMPin>(InSubject)->GetRootPin(); 
 					URigVMCompiler* Compiler = URigVMCompiler::StaticClass()->GetDefaultObject<URigVMCompiler>();
-					Compiler->Settings = VMCompileSettings;
 
 					TSharedPtr<FRigVMParserAST> RuntimeAST = GetDefaultModel()->GetRuntimeAST();
 					
@@ -3033,13 +3036,13 @@ void URigVMBlueprint::HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URig
 							}
 							else
 							{
-								Compiler->MarkDebugWatch(true, Pin, DebuggedHost->GetVM(), &PinToOperandMap, RuntimeAST);
+								Compiler->MarkDebugWatch(VMCompileSettings, true, Pin, DebuggedHost->GetVM(), &PinToOperandMap, RuntimeAST);
 							}
 						}
 					}
 					else
 					{
-						Compiler->MarkDebugWatch(false, Pin, DebuggedHost->GetVM(), &PinToOperandMap, RuntimeAST);
+						Compiler->MarkDebugWatch(VMCompileSettings, false, Pin, DebuggedHost->GetVM(), &PinToOperandMap, RuntimeAST);
 					}
 				}
 				// break; fall through

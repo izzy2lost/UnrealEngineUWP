@@ -869,6 +869,76 @@ FRigVMExprAST* FRigVMParserAST::TraverseNode(const FRigVMASTProxy& InNodeProxy, 
 		return NodeExpr;
 	}
 
+	// if we hit a mutable node here that hasn't been traversed yet,
+	// it means that the node is not wired up correctly.
+	if(Node->IsMutable())
+	{
+		struct Local
+		{
+			static bool IsNodeWiredToEvent(const FRigVMASTProxy& InNodeProxy)
+			{
+				const URigVMNode* Node = InNodeProxy.GetSubjectChecked<URigVMNode>();
+				if(Node->IsEvent())
+				{
+					return true;
+				}
+
+				for(const URigVMPin* Pin : Node->GetPins())
+				{
+					if(Pin->GetDirection() != ERigVMPinDirection::Input &&
+						Pin->GetDirection() != ERigVMPinDirection::IO)
+							
+					{
+						continue;
+					}
+					if(!Pin->IsExecuteContext())
+					{
+						continue;
+					}
+					
+					const TArray<URigVMPin*> SourcePins = Pin->GetLinkedSourcePins();
+					for(const URigVMPin* SourcePin : SourcePins)
+					{
+						const FRigVMASTProxy SourceNodeProxy = InNodeProxy.GetSibling(SourcePin->GetNode());
+						if(IsNodeWiredToEvent(SourceNodeProxy))
+						{
+							return true;
+						}
+					}
+				}
+
+				// if we hit an entry node - we need to continue the search a level up.
+				// events cannot be placed inside of a function / collapse node so
+				// there's no need to dive into library nodes.
+				if(Node->IsA<URigVMFunctionEntryNode>())
+				{
+					return IsNodeWiredToEvent(InNodeProxy.GetParent());
+				}
+				return false;
+			}
+		};
+
+		if(!Local::IsNodeWiredToEvent(InNodeProxy))
+		{
+			bool bIsInObsoleteBlock = false;
+			if(InParentExpr)
+			{
+				if(InParentExpr->GetBlock() == GetObsoleteBlock())
+				{
+					bIsInObsoleteBlock = true;
+				}
+			}
+
+			if(!bIsInObsoleteBlock)
+			{
+				Settings.Report(
+					EMessageSeverity::Error,
+					Node,
+					TEXT("Node @@ is not linked to execution."));
+			}
+		}
+	}
+
 	FRigVMExprAST* NodeExpr = CreateExpressionForNode(InNodeProxy, InParentExpr);
 	if (NodeExpr)
 	{
