@@ -79,13 +79,76 @@ private:
 //////////////////////////////////////////////////////////////////////////
 // SplineMeshSceneProxy
 
-/** Helper to update the parameters of the specified spline mesh scene proxy */
-ENGINE_API void UpdateSplineMeshParams_RenderThread(FPrimitiveSceneProxy* SceneProxy, const FSplineMeshShaderParams& Params);
+/**
+ * This interface ties common functionality to the two different spline mesh scene proxies without duplicating code or
+ * introducing diamond inheritance.
+ */
+template<typename TDerived>
+class TSplineMeshSceneProxyCommon
+{
+public:
+	TSplineMeshSceneProxyCommon()
+	{
+		FMemory::Memzero(&SplineParams, sizeof(SplineParams));
+		SplineParams.TextureCoord = FUintVector2(INDEX_NONE, INDEX_NONE);
+	}
+
+	const FSplineMeshShaderParams& GetSplineMeshParams() const { return SplineParams; }
+
+	void SetSplineTextureCoord_RenderThread(uint32 SplineIndex, FUintVector2 TexCoord)
+	{
+		check(SplineIndex == 0); // currently only support one spline type, but could do instanced later
+		SplineParams.TextureCoord = TexCoord;
+		RepackSplineMeshParams();
+	}
+	
+	void UpdateSplineMeshParams_RenderThread(const FSplineMeshShaderParams& Params)
+	{
+		// Don't replace the texture coord that was assigned to us in SetSplineTextureCoord
+		FUintVector2 TexCoord = SplineParams.TextureCoord;
+		SplineParams = Params;
+		SplineParams.TextureCoord = TexCoord;
+		RepackSplineMeshParams();
+	}
+
+protected:
+	void RepackSplineMeshParams(bool bUpdateGPUScene = true)
+	{
+		auto& SceneProxy = Downcast();
+		
+		// NOTE: If the payload extension was not initialized, we're probably not using GPU Scene
+		if (SceneProxy.InstancePayloadExtension.Num() == SPLINE_MESH_PARAMS_FLOAT4_SIZE)
+		{
+			PackSplineMeshParams(SplineParams, SceneProxy.InstancePayloadExtension);
+			if (bUpdateGPUScene)
+			{
+				// Request a GPU Scene update for this primitive so it updates its instance data
+				SceneProxy.GetScene().RequestGPUSceneUpdate(
+					*SceneProxy.GetPrimitiveSceneInfo(),
+					EPrimitiveDirtyState::ChangedOther
+				);
+			}
+		}
+	}
+
+protected:
+	/** Parameters that define the spline, used to deform mesh */
+	FSplineMeshShaderParams SplineParams;
+
+private:
+	/** implemented by derived to provide access by parent */
+	virtual TDerived& Downcast() = 0;
+};
+
+#define IMPL_SPLINE_MESH_SCENE_PROXY_COMMON(classname) \
+	friend class TSplineMeshSceneProxyCommon<classname>; \
+	private: \
+		virtual classname& Downcast() override { return *this; }
 
 /** Scene proxy for SplineMesh instance */
-class FSplineMeshSceneProxy final : public FStaticMeshSceneProxy
+class FSplineMeshSceneProxy final : public FStaticMeshSceneProxy, public TSplineMeshSceneProxyCommon<FSplineMeshSceneProxy>
 {
-	friend void UpdateSplineMeshParams_RenderThread(FPrimitiveSceneProxy* SceneProxy, const FSplineMeshShaderParams& Params);
+	IMPL_SPLINE_MESH_SCENE_PROXY_COMMON(FSplineMeshSceneProxy)
 
 public:
 	FSplineMeshSceneProxy(USplineMeshComponent* InComponent);
@@ -103,9 +166,6 @@ public:
 	virtual void GetDynamicRayTracingInstances(struct FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override;
 #endif // RHI_RAYTRACING
 
-	/** Parameters that define the spline, used to deform mesh */
-	FSplineMeshShaderParams SplineParams;
-
 private:
 	struct FLODResources
 	{
@@ -120,21 +180,24 @@ private:
 
 	void SetupMeshBatchForSpline(int32 InLODIndex, FMeshBatch& OutMeshBatch) const;
 
+private:
 	TArray<FLODResources> LODResources;
 };
 
 /** Scene proxy for SplineMesh instance for Nanite */
-class FNaniteSplineMeshSceneProxy final : public Nanite::FSceneProxy
+class FNaniteSplineMeshSceneProxy final : public Nanite::FSceneProxy, public TSplineMeshSceneProxyCommon<FNaniteSplineMeshSceneProxy>
 {
-	friend void UpdateSplineMeshParams_RenderThread(FPrimitiveSceneProxy* SceneProxy, const FSplineMeshShaderParams& Params);
-	
+	IMPL_SPLINE_MESH_SCENE_PROXY_COMMON(FNaniteSplineMeshSceneProxy)
+
 public:
 	FNaniteSplineMeshSceneProxy(const Nanite::FMaterialAudit& MaterialAudit, USplineMeshComponent* InComponent);
 
 	// FPrimitiveSceneProxy interface
 	virtual SIZE_T GetTypeHash() const override;
 	virtual void OnTransformChanged(FRHICommandListBase& RHICmdList) override;
-
-	/** Parameters that define the spline, used to deform mesh */
-	FSplineMeshShaderParams SplineParams;
 };
+
+/** Helper to update the parameters of the specified spline mesh scene proxy */
+ENGINE_API void UpdateSplineMeshParams_RenderThread(FPrimitiveSceneProxy* SceneProxy, const FSplineMeshShaderParams& Params);
+
+

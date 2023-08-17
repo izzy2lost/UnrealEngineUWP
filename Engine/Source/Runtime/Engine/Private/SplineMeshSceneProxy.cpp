@@ -32,6 +32,7 @@ void FSplineMeshVertexFactory::ModifyCompilationEnvironment(const FVertexFactory
 	FLocalVertexFactory::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 
 	OutEnvironment.SetDefine(TEXT("USE_SPLINEDEFORM"), TEXT("1"));
+	OutEnvironment.SetDefine(TEXT("USE_SPLINE_MESH_SCENE_RESOURCES"), UseSplineMeshSceneResources(Parameters.Platform));
 }
 
 /**
@@ -100,11 +101,13 @@ FSplineMeshSceneProxy::FSplineMeshSceneProxy(USplineMeshComponent* InComponent) 
 	// Copy spline params from component
 	SplineParams = InComponent->CalculateShaderParams();
 
-	// If we're using GPU Scene, we place the spline mesh parameters in the instance data buffer
-	if (UseGPUScene(GetScene().GetShaderPlatform(), GetScene().GetFeatureLevel()))
+	// If we're using GPU Scene, we place the spline mesh parameters in the instance data buffer, with the
+	// exception of mobile platforms that are unable to pull this data from the structured buffer in the VS
+	const ERHIFeatureLevel::Type FeatureLevel = GetScene().GetFeatureLevel();
+	if (FeatureLevel > ERHIFeatureLevel::ES3_1 && UseGPUScene(GetScene().GetShaderPlatform(), FeatureLevel))
 	{
 		InstancePayloadExtension.SetNumUninitialized(SPLINE_MESH_PARAMS_FLOAT4_SIZE);
-		PackSplineMeshParams(SplineParams, InstancePayloadExtension);	
+		PackSplineMeshParams(SplineParams, InstancePayloadExtension);
 		bHasPerInstancePayloadExtension = true;
 
 		// We don't actually move the InstanceSceneData, but we have to add at least one to provide the spline
@@ -330,28 +333,12 @@ void UpdateSplineMeshParams_RenderThread(FPrimitiveSceneProxy* SceneProxy, const
 {
 	check(SceneProxy->IsSplineMesh());
 
-	TArrayView<FVector4f> InstancePayloadExtension;
 	if (SceneProxy->IsNaniteMesh())
 	{
-		auto* Proxy = static_cast<FNaniteSplineMeshSceneProxy*>(SceneProxy);
-		Proxy->SplineParams = Params;
-		InstancePayloadExtension = Proxy->InstancePayloadExtension;
+		static_cast<FNaniteSplineMeshSceneProxy*>(SceneProxy)->UpdateSplineMeshParams_RenderThread(Params);
 	}
 	else
 	{
-		auto* Proxy = static_cast<FSplineMeshSceneProxy*>(SceneProxy);
-		Proxy->SplineParams = Params;
-		InstancePayloadExtension = Proxy->InstancePayloadExtension;
-	}
-
-	// Re-pack the shader params and request a GPU Scene update for this primitive so it updates its instance data
-	// NOTE: The payload extension could be empty if not using GPU Scene
-	if (InstancePayloadExtension.Num() == SPLINE_MESH_PARAMS_FLOAT4_SIZE)
-	{
-		PackSplineMeshParams(Params, InstancePayloadExtension);
-
-		FSceneInterface& Scene = SceneProxy->GetScene();
-		FPrimitiveSceneInfo& SceneInfo = *SceneProxy->GetPrimitiveSceneInfo();
-		Scene.RequestGPUSceneUpdate(SceneInfo, EPrimitiveDirtyState::ChangedOther);
+		static_cast<FSplineMeshSceneProxy*>(SceneProxy)->UpdateSplineMeshParams_RenderThread(Params);
 	}
 }

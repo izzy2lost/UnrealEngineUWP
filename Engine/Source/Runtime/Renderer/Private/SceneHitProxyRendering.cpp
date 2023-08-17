@@ -35,6 +35,7 @@
 #include "HairStrands/HairStrandsData.h"
 #include "SimpleMeshDrawCommandPass.h"
 #include "StaticMeshSceneProxy.h"
+#include "SplineMeshSceneResources.h"
 
 class FHitProxyShaderElementData : public FMeshMaterialShaderElementData
 {
@@ -659,6 +660,11 @@ void FDeferredShadingSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 	}
 
 	GEngine->GetPreRenderDelegateEx().Broadcast(GraphBuilder);
+
+	if (Scene->SplineMeshSceneResources)
+	{
+		Scene->SplineMeshSceneResources->Update(GraphBuilder, GetSceneUniforms());
+	}
 
 	// Global dynamic buffers need to be committed before rendering.
 	DynamicIndexBufferForInitViews.Commit();

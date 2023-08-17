@@ -135,24 +135,37 @@ void TransformNodeCullingBounds(
 	Bounds.MeshMinDeformScale = Bounds.NodeMaxDeformScale = 1.0f;
 
 #if USE_SPLINEDEFORM
-	BRANCH
-	if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SPLINE_MESH) != 0 &&
-		(InstanceData.Flags & INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION) != 0)
+	// To reduce the cost of register pressure from loading the spline mesh parameters, we loop once for each spline
+	// mesh instance in the wave so the compiler can treat the parameters as uniform across the entire wave as an
+	// optimization
+	bool bLoop = (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SPLINE_MESH) != 0 &&
+				 (InstanceData.Flags & INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION) != 0;
+	LOOP
+	while (WaveActiveAnyTrue(bLoop))
 	{
-		// Calculate the approximate post-deformed cluster bounds and LOD bounds
-		FSplineMeshShaderParams SplineMeshParams = SplineMeshLoadParamsFromInstancePayload(InstanceData);
-		FSplineMeshDeformedLocalBounds NewBounds = SplineMeshDeformLocalBounds(SplineMeshParams, Bounds.BoxCenter, Bounds.BoxExtent);
-		Bounds.BoxCenter = NewBounds.BoundsCenter;
-		Bounds.BoxExtent = NewBounds.BoundsExtent;
+		if (bLoop)
+		{
+			uint UniformPayloadOffset = WaveReadLaneFirst(InstanceData.PayloadExtensionOffset);
+			if (InstanceData.PayloadExtensionOffset == UniformPayloadOffset)
+			{
+				// Calculate the approximate post-deformed cluster bounds and LOD bounds
+				FSplineMeshShaderParams SplineMeshParams = SplineMeshLoadParamsFromInstancePayload(UniformPayloadOffset);
+				FSplineMeshDeformedLocalBounds NewBounds = SplineMeshDeformLocalBounds(SplineMeshParams, Bounds.BoxCenter, Bounds.BoxExtent);
+				Bounds.BoxCenter = NewBounds.BoundsCenter;
+				Bounds.BoxExtent = NewBounds.BoundsExtent;
 
-		// Also modify the sphere used to select the cut of the DAG for final LOD selection.
-		// NOTE: This solution currently does nothing to maintain the inherent monotonicity of bounds between levels of
-		// the DAG and as a result, it is possible this could result in clusters from different LODs overlapping, or
-		// in clusters dropping out entirely.
-		Bounds.Sphere = SplineMeshDeformLODSphereBounds(SplineMeshParams, Bounds.Sphere);
+				// Also modify the sphere used to select the cut of the DAG for final LOD selection.
+				// NOTE: This solution currently does nothing to maintain the inherent monotonicity of bounds between levels of
+				// the DAG and as a result, it is possible this could result in clusters from different LODs overlapping, or
+				// in clusters dropping out entirely.
+				Bounds.Sphere = SplineMeshDeformLODSphereBounds(SplineMeshParams, Bounds.Sphere);
 
-		Bounds.MeshMinDeformScale = SplineMeshParams.MeshDeformScaleMinMax.x;
-		Bounds.NodeMaxDeformScale = NewBounds.DeformScaleMinMax.y;
+				Bounds.MeshMinDeformScale = SplineMeshParams.MeshDeformScaleMinMax.x;
+				Bounds.NodeMaxDeformScale = NewBounds.MaxDeformScale;
+
+				bLoop = false;
+			}
+		}
 	}
 #endif
 

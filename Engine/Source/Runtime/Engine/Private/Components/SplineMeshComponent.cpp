@@ -55,37 +55,42 @@ static bool ShouldRenderNaniteSplineMeshes()
 
 void PackSplineMeshParams(const FSplineMeshShaderParams& Params, const TArrayView<FVector4f>& Output)
 {
+	auto PackF16 = [](float Value, uint32 Shift = 0) -> uint32
+	{
+		return uint32(FFloat16(Value).Encoded) << Shift;
+	};
 	auto PackSNorm16 = [](float Value, uint32 Shift = 0) -> uint32
 	{
 		float N = FMath::Clamp(Value, -1.0f, 1.0f) * 0.5f + 0.5f;
 		return uint32(N * 65535.0f) << Shift;
 	};
 
-	static_assert(SPLINE_MESH_PARAMS_FLOAT4_SIZE == 8, "If you changed the packed size of FSplineMeshShaderParams, this function needs to be updated");
+	static_assert(SPLINE_MESH_PARAMS_FLOAT4_SIZE == 7, "If you changed the packed size of FSplineMeshShaderParams, this function needs to be updated");
 	check(Output.Num() >= SPLINE_MESH_PARAMS_FLOAT4_SIZE);
 	
-	Output[0]	= FVector4f(Params.StartPos, Params.StartScale.X);
-	Output[1]	= FVector4f(Params.EndPos, Params.StartScale.Y);
-	Output[2]	= FVector4f(Params.StartTangent, Params.EndScale.X);
-	Output[3]	= FVector4f(Params.EndTangent, Params.EndScale.Y);
-	Output[4]	= FVector4f(Params.StartOffset, Params.EndOffset);
+	Output[0]	= FVector4f(Params.StartPos, Params.EndTangent.X);
+	Output[1]	= FVector4f(Params.EndPos, Params.EndTangent.Y);
+	Output[2]	= FVector4f(Params.StartTangent, Params.EndTangent.Z);
+	Output[3]	= FVector4f(Params.StartOffset, Params.EndOffset);
 
-	Output[5].X	= Params.StartRoll;
-	Output[5].Y	= Params.EndRoll;
+	Output[4].X	= FMath::AsFloat(PackF16(Params.StartScale.X) | PackF16(Params.StartScale.Y, 16u));
+	Output[4].Y	= FMath::AsFloat(PackF16(Params.EndScale.X) | PackF16(Params.EndScale.Y, 16u));
+	Output[4].Z	= FMath::AsFloat(PackF16(Params.StartRoll) | PackF16(Params.EndRoll, 16u));
+	Output[4].W	= FMath::AsFloat((Params.TextureCoord.X & 0xFFFFu) | (Params.TextureCoord.Y << 16u));
+	
+	Output[5].X	= Params.MeshDeformScaleMinMax.X;
+	Output[5].Y	= Params.MeshDeformScaleMinMax.Y;
 	Output[5].Z	= Params.MeshScaleZ;
 	Output[5].W	= Params.MeshMinZ;
 
-	Output[6].X = BitCast<float, uint32>(PackSNorm16(Params.SplineUpDir.X) | PackSNorm16(Params.SplineUpDir.Y, 16u));
-	Output[6].Y = BitCast<float, uint32>(PackSNorm16(Params.SplineUpDir.Z));
+	Output[6].X = FMath::AsFloat(PackSNorm16(Params.SplineUpDir.X) | PackSNorm16(Params.SplineUpDir.Y, 16u));
+	Output[6].Y = FMath::AsFloat(PackSNorm16(Params.SplineUpDir.Z) |
+								 PackF16(FMath::Max(0.0f, Params.NaniteClusterBoundsScale), 16u) |
+								 (Params.bSmoothInterpRollScale ? (1 << 31u) : 0u));
 
 	const FQuat4f MeshRot = FQuat4f(FMatrix44f(Params.MeshDir, Params.MeshX, Params.MeshY, FVector3f::ZeroVector));
-	Output[6].Z = BitCast<float, uint32>(PackSNorm16(MeshRot.X) | PackSNorm16(MeshRot.Y, 16u));
-	Output[6].W = BitCast<float, uint32>(PackSNorm16(MeshRot.Z) | PackSNorm16(MeshRot.W, 16u));
-
-	Output[7].X	= Params.MeshDeformScaleMinMax.X;
-	Output[7].Y	= Params.MeshDeformScaleMinMax.Y;
-	Output[7].Z	= Params.bSmoothInterpRollScale ? 1.0f : 0.0f;
-	Output[7].W	= 0.0f;
+	Output[6].Z = FMath::AsFloat(PackSNorm16(MeshRot.X) | PackSNorm16(MeshRot.Y, 16u));
+	Output[6].W = FMath::AsFloat(PackSNorm16(MeshRot.Z) | PackSNorm16(MeshRot.W, 16u));
 }
 
 /**
@@ -194,14 +199,15 @@ void FSplineMeshVertexFactoryShaderParameters::GetElementShaderBindings(
 		ShaderBindings.Add(Shader->GetUniformBufferParameter<FLocalVertexFactoryUniformShaderParameters>(), LocalVertexFactory->GetUniformBuffer());
 	}
 
-	if (!bUseGPUScene)
+	// If we can't use GPU Scene instance data, we have to bind the params to the VS loosely
+	// NOTE: Mobile GPU scene can't support loading the spline params from instance data in VS
+	if (!bUseGPUScene || FeatureLevel == ERHIFeatureLevel::ES3_1)
 	{
 		checkSlow(BatchElement.bIsSplineProxy);
 		const FSplineMeshSceneProxy* SplineProxy = BatchElement.SplineMeshSceneProxy;
-		const FSplineMeshShaderParams& SplineParams = SplineProxy->SplineParams;
 
 		FVector4f ParamData[SPLINE_MESH_PARAMS_FLOAT4_SIZE];
-		PackSplineMeshParams(SplineParams, TArrayView<FVector4f>(ParamData, SPLINE_MESH_PARAMS_FLOAT4_SIZE));
+		PackSplineMeshParams(SplineProxy->GetSplineMeshParams(), TArrayView<FVector4f>(ParamData, SPLINE_MESH_PARAMS_FLOAT4_SIZE));
 
 		ShaderBindings.Add(SplineMeshParams, ParamData);
 	}
@@ -629,8 +635,10 @@ FSplineMeshShaderParams USplineMeshComponent::CalculateShaderParams() const
 	Output.EndOffset 				= FVector2f(SplineParams.EndOffset);
 	Output.StartRoll 				= SplineParams.StartRoll;
 	Output.EndRoll 					= SplineParams.EndRoll;
+	Output.NaniteClusterBoundsScale	= SplineParams.NaniteClusterBoundsScale;
 	Output.bSmoothInterpRollScale 	= bSmoothInterpRollScale;
 	Output.SplineUpDir 				= FVector3f(SplineUpDir);
+	Output.TextureCoord 			= FUintVector2(INDEX_NONE, INDEX_NONE); // either unused or assigned later
 
 	const uint32 MeshXAxis = (ForwardAxis + 1) % 3;
 	const uint32 MeshYAxis = (ForwardAxis + 2) % 3;
@@ -641,11 +649,15 @@ FSplineMeshShaderParams USplineMeshComponent::CalculateShaderParams() const
 
 	Output.MeshScaleZ = 1.0f;
 	Output.MeshMinZ = 0.0f;
+
+	float BoundsXYRadius = 0.0f;
 	if (GetStaticMesh())
 	{
+		const FBoxSphereBounds StaticMeshBounds = GetStaticMesh()->GetBounds();
+		BoundsXYRadius = FVector3f(StaticMeshBounds.BoxExtent).Dot((Output.MeshX + Output.MeshY).GetUnsafeNormal());
+
 		if (FMath::IsNearlyEqual(SplineBoundaryMin, SplineBoundaryMax))
 		{
-			const FBoxSphereBounds StaticMeshBounds = GetStaticMesh()->GetBounds();
 			float MaxMeshLen = 2.0f * GetAxisValueRef(StaticMeshBounds.BoxExtent, ForwardAxis);
 			if (MaxMeshLen <= 0.0f)
 			{
@@ -683,6 +695,11 @@ FSplineMeshShaderParams USplineMeshComponent::CalculateShaderParams() const
 		// deformation and take the smallest of the axes. This is important for LOD selection of Nanite spline
 		// meshes.
 		{
+			// Estimate length added due to twisting as well
+			const float XYRadius = BoundsXYRadius * FMath::Max(Output.StartScale.GetAbsMax(), Output.EndScale.GetAbsMax());
+			const float TwistRadians = FMath::Abs(Output.StartRoll - Output.EndRoll);
+			SplineLength += TwistRadians * XYRadius;
+
 			// Take the mid-point scale in X/Y to balance out LOD selection in case either of them are extreme.
 			auto AvgAbs = [](float A, float B) { return (FMath::Abs(A) + FMath::Abs(B)) * 0.5f; };
 			FVector3f DeformScale = FVector3f(

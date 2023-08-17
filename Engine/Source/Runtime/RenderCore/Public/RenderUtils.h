@@ -476,6 +476,9 @@ extern RENDERCORE_API bool IsRayTracingAllowed();
 // This function may only be called at runtime, never during cooking.
 extern RENDERCORE_API ERayTracingMode GetRayTracingMode();
 
+/** Whether or not the platform supports the scene spline texture for spline meshes */
+RENDERCORE_API bool UseSplineMeshSceneResources(const FStaticShaderPlatform Platform);
+
 namespace Strata
 {
 	RENDERCORE_API bool IsStrataEnabled();
