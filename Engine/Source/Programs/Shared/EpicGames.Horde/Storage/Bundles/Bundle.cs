@@ -70,6 +70,11 @@ namespace EpicGames.Horde.Storage.Bundles
 	public class Bundle
 	{
 		/// <summary>
+		/// Maximum number of exports from a single bundle
+		/// </summary>
+		public const int MaxExports = 60000;
+
+		/// <summary>
 		/// Header for the bundle
 		/// </summary>
 		public BundleHeader Header { get; }

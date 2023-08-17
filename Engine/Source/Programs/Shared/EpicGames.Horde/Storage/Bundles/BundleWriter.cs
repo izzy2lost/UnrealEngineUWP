@@ -346,6 +346,9 @@ namespace EpicGames.Horde.Storage.Bundles
 				_encodedPacketWriter.Dispose();
 			}
 
+			// Whether this bundle is full
+			public bool IsFull() => _queue.Count >= Bundle.MaxExports;
+
 			// Whether this bundle has finished writing
 			public bool IsComplete() => CompleteTask.IsCompleted;
 
@@ -787,7 +790,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			}
 
 			// If the bundle is full, start the process of writing it to disk
-			if (currentBundle.UncompressedLength > _options.MaxBlobSize)
+			if (currentBundle.UncompressedLength > _options.MaxBlobSize || currentBundle.IsFull())
 			{
 				Complete();
 			}
