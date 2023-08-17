@@ -155,7 +155,7 @@ struct FSlateFontInfo
 	TSharedPtr<const FCompositeFont> CompositeFont;
 
 	/** The name of the font to use from the default typeface (None will use the first entry) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=SlateStyleRules, meta=(DisplayName="Typeface"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=SlateStyleRules, meta=(DisplayName="Typeface", EditCondition="FontObject"))
 	FName TypefaceFontName;
 
 	/**
@@ -176,6 +176,14 @@ struct FSlateFontInfo
 
 	/** The font fallback level. Runtime only, don't set on shared FSlateFontInfo, as it may change the font elsewhere (make a copy). */
 	EFontFallback FontFallback;
+
+	/** Enable pseudo-monospaced font. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=SlateStyleRules, meta=(DisplayName="Monospacing"))
+	bool bForceMonospaced = false;
+
+	/** The uniform width to apply to all characters when bForceMonospaced is enabled, proportional of the font Size. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=SlateStyleRules, meta=(ClampMin=0))
+	float MonospacedWidth = 1.0f;
 
 #if WITH_EDITORONLY_DATA
 private:
@@ -252,7 +260,7 @@ public:
 	SLATECORE_API FSlateFontInfo( const WIDECHAR* InFontName, float InSize, EFontHinting InHinting = EFontHinting::Default );
 
 public:
-	inline bool IsIdentialToForCaching(const FSlateFontInfo& Other) const
+	inline bool IsIdenticalToForCaching(const FSlateFontInfo& Other) const
 	{
 		// Ignore FontMaterial because it does not affect the cached glyph.
 		return FontObject == Other.FontObject
@@ -263,7 +271,7 @@ public:
 			&& SkewAmount == Other.SkewAmount;
 	}
 
-	inline bool IsIdenticalTo(const FSlateFontInfo& Other) const
+	inline  bool IsIdenticalTo(const FSlateFontInfo& Other) const
 	{
 		return FontObject == Other.FontObject
 			&& FontMaterial == Other.FontMaterial
@@ -272,7 +280,9 @@ public:
 			&& TypefaceFontName == Other.TypefaceFontName
 			&& Size == Other.Size
 			&& LetterSpacing == Other.LetterSpacing
-			&& SkewAmount == Other.SkewAmount;
+			&& SkewAmount == Other.SkewAmount
+			&& bForceMonospaced == Other.bForceMonospaced
+			&& (bForceMonospaced ? MonospacedWidth == Other.MonospacedWidth : true);
 	}
 
 	inline bool operator==(const FSlateFontInfo& Other) const

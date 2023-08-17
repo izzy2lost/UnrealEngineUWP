@@ -49,7 +49,7 @@ public:
 
 	inline bool IsIdenticalToForCaching(const FSlateFontKey& Other) const
 	{
-		return FontInfo.IsIdentialToForCaching(Other.FontInfo)
+		return FontInfo.IsIdenticalToForCaching(Other.FontInfo)
 			&& OutlineSettings.IsIdenticalToForCaching(Other.OutlineSettings)
 			&& Scale == Other.Scale;
 	}

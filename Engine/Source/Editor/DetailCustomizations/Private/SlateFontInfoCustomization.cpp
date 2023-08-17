@@ -123,6 +123,24 @@ void FSlateFontInfoStructCustomization::CustomizeChildren(TSharedRef<IPropertyHa
 	
 	InStructBuilder.AddProperty(InStructPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FSlateFontInfo, SkewAmount)).ToSharedRef());
 
+	const TSharedRef<IPropertyHandle> MonospacingHandle = InStructPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FSlateFontInfo, bForceMonospaced)).ToSharedRef();
+	InStructBuilder.AddProperty(MonospacingHandle);
+
+	const TSharedRef<IPropertyHandle> MonospacingWidthHandle = InStructPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FSlateFontInfo, MonospacedWidth)).ToSharedRef();
+	InStructBuilder.AddProperty(MonospacingWidthHandle);
+	
+	// Set an initial "sensible" value based on the current font size. Won't run if value is already non-default/zero 
+	MonospacingHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([this, MonospacingWidthHandle]()
+	{
+		if (!MonospacingWidthHandle->DiffersFromDefault())
+		{
+			float FontSizeValue;
+			FontSizeProperty->GetValue(FontSizeValue);
+			
+			MonospacingWidthHandle->SetValue(static_cast<int32>(FontSizeValue));
+		}
+	}));
+
 	InStructBuilder.AddProperty(InStructPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FSlateFontInfo, FontMaterial)).ToSharedRef());
 
 	InStructBuilder.AddProperty(InStructPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FSlateFontInfo, OutlineSettings)).ToSharedRef());

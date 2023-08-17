@@ -282,7 +282,6 @@ FShapedGlyphSequenceRef FSlateTextShaper::FinalizeTextShaping(TArray<FShapedGlyp
 
 		if (FaceGlyphData.FaceAndMemory.IsValid() && FaceGlyphData.FaceAndMemory->IsFaceValid())
 		{
-
 			if (FMath::IsNearlyEqual(InFontInfo.GetClampSkew(), 0.f))
 			{
 				FT_Set_Transform(FaceGlyphData.FaceAndMemory->GetFace(), nullptr, nullptr);
@@ -405,6 +404,15 @@ void FSlateTextShaper::PerformKerningOnlyTextShaping(const TCHAR* InText, const 
 			ensure(LetterSpacingScaledAsFloat <= std::numeric_limits<int16>::max());
 			const int16 LetterSpacingScaled = (int16)LetterSpacingScaledAsFloat;
 
+			// Used for monospacing
+			int16 FixedAdvance = INDEX_NONE;
+			if (InFontInfo.bForceMonospaced)
+			{
+				const float MonospacingScaledAsFloat = InFontInfo.MonospacedWidth != 0 ? InFontInfo.MonospacedWidth * InFontInfo.Size * FinalFontScale : 0.f;
+				ensure(MonospacingScaledAsFloat <= std::numeric_limits<int16>::max());
+				FixedAdvance = (int16)MonospacingScaledAsFloat;
+			}
+
 			FreeTypeUtils::ApplySizeAndScale(KerningOnlyTextSequenceEntry.FaceAndMemory->GetFace(), InFontInfo.Size, FinalFontScale);
 			TSharedRef<FShapedGlyphFaceData> ShapedGlyphFaceData = MakeShared<FShapedGlyphFaceData>(KerningOnlyTextSequenceEntry.FaceAndMemory, GlyphFlags, InFontInfo.Size, FinalFontScale, InFontInfo.GetClampSkew());
 			TSharedPtr<FFreeTypeKerningCache> KerningCache = FTCacheDirectory->GetKerningCache(KerningOnlyTextSequenceEntry.FaceAndMemory->GetFace(), FT_KERNING_DEFAULT, InFontInfo.Size, FinalFontScale);
@@ -439,9 +447,9 @@ void FSlateTextShaper::PerformKerningOnlyTextShaping(const TCHAR* InText, const 
 					ShapedGlyphEntry.FontFaceData = ShapedGlyphFaceData;
 					ShapedGlyphEntry.GlyphIndex = GlyphIndex;
 					ShapedGlyphEntry.SourceIndex = CurrentCharIndex;
-					ShapedGlyphEntry.XAdvance = XAdvance;
+					ShapedGlyphEntry.XAdvance = !InFontInfo.bForceMonospaced ? XAdvance : FixedAdvance;
 					ShapedGlyphEntry.YAdvance = 0;
-					ShapedGlyphEntry.XOffset = 0;
+					ShapedGlyphEntry.XOffset = !InFontInfo.bForceMonospaced ? 0 : (FixedAdvance - XAdvance) / 2;
 					ShapedGlyphEntry.YOffset = 0;
 					ShapedGlyphEntry.Kerning = 0;
 					ShapedGlyphEntry.NumCharactersInGlyph = 1;
@@ -459,7 +467,7 @@ void FSlateTextShaper::PerformKerningOnlyTextShaping(const TCHAR* InText, const 
 							PreviousShapedGlyphEntry.XAdvance += LetterSpacingScaled;
 						}
 
-						if (ShapedGlyphEntry.bIsVisible)
+						if (ShapedGlyphEntry.bIsVisible && !InFontInfo.bForceMonospaced)
 						{
 							FT_Vector KerningVector;
 							if (KerningCache && KerningCache->FindOrCache(PreviousShapedGlyphEntry.GlyphIndex, ShapedGlyphEntry.GlyphIndex, KerningVector))

@@ -481,7 +481,7 @@ struct FCharacterEntry
 	uint16 VSize = 0;
 	/** The vertical distance from the baseline to the topmost border of the character */
 	int16 VerticalOffset = 0;
-	/** The vertical distance from the origin to the left most border of the character */
+	/** The horizontal distance from the origin to the left most border of the character */
 	int16 HorizontalOffset = 0;
 	/** The largest vertical distance below the baseline for any character in the font */
 	int16 GlobalDescender = 0;
