@@ -227,8 +227,8 @@ void FNiagaraRendererMeshes::Initialize(const UNiagaraRendererProperties* InProp
 		FMeshData& MeshData = Meshes.AddDefaulted_GetRef();
 		MeshData.RenderableMesh = RenderableMesh;
 		MeshData.SourceMeshIndex = SourceMeshIndex;
+		MeshData.LODMode = MeshProperties.LODMode;
 		MeshData.LODLevel = 0;
-		MeshData.LODBias = 0;
 		MeshData.PivotOffset = FVector3f(MeshProperties.PivotOffset);
 		MeshData.PivotOffsetSpace = MeshProperties.PivotOffsetSpace;
 		MeshData.Scale = FVector3f(MeshProperties.Scale);
@@ -244,7 +244,7 @@ void FNiagaraRendererMeshes::Initialize(const UNiagaraRendererProperties* InProp
 		}
 		else		
 		{
-			MeshData.LODBias = MeshProperties.LODBias;
+			MeshData.LODDistanceFactor = MeshProperties.LODDistanceFactor;
 		}
 
 		// Get materials and remap them into the base material list
@@ -1307,7 +1307,17 @@ void FNiagaraRendererMeshes::GetDynamicMeshElements(const TArray<const FSceneVie
 				const FMeshData& MeshData = Meshes[MeshIndex];
 
 				INiagaraRenderableMesh::FLODModelData LODModel;
-				MeshData.RenderableMesh->GetLODModelData(LODModel, MeshData.LODLevel);
+				if (MeshData.LODMode == ENiagaraMeshLODMode::ByComponentBounds)
+				{
+					const FBoxSphereBounds ProxyBounds = SceneProxy->GetBounds();
+					const int32 LODLevel = MeshData.RenderableMesh->ComputeLOD(ProxyBounds.Origin, ProxyBounds.SphereRadius, *View, MeshData.LODDistanceFactor);
+					MeshData.RenderableMesh->GetLODModelData(LODModel, LODLevel);
+				}
+				else
+				{
+					MeshData.RenderableMesh->GetLODModelData(LODModel, MeshData.LODLevel);
+				}
+
 				if (LODModel.LODIndex == INDEX_NONE)
 				{
 					continue;

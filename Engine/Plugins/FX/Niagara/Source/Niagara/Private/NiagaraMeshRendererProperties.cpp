@@ -11,11 +11,12 @@
 #include "NiagaraSystem.h"
 #include "NiagaraSystemImpl.h"
 
-#include "MaterialDomain.h"
-#include "Materials/MaterialRenderProxy.h"
 #include "Engine/StaticMesh.h"
+#include "Materials/MaterialRenderProxy.h"
 #include "Materials/MaterialInstanceConstant.h"
 #include "Modules/ModuleManager.h"
+#include "MaterialDomain.h"
+#include "SceneManagement.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraMeshRendererProperties)
 
@@ -85,6 +86,11 @@ public:
 			OutLODModelData.WireframeNumIndices = LODResources.AdditionalIndexBuffers->WireframeIndexBuffer.GetNumIndices();
 			OutLODModelData.WireframeIndexBuffer = &LODResources.AdditionalIndexBuffers->WireframeIndexBuffer;
 		}
+	}
+
+	virtual int32 ComputeLOD(const FVector& SphereOrigin, const float SphereRadius, const FSceneView& SceneView, float LODDistanceFactor) override
+	{
+		return ComputeStaticMeshLOD(RenderData, SphereOrigin, SphereRadius, SceneView, MinLOD, LODDistanceFactor);
 	}
 
 	static void InitVertexFactoryComponents(

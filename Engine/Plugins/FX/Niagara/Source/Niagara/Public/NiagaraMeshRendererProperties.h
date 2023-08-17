@@ -72,15 +72,17 @@ enum class ENiagaraMeshLODMode : uint8
 	LODBias,
 
 	/*
-	* Calculates the LOD level for the instance based on screen space size and renders all particles with this LOD.
-	* LOD bias is applied to the calculation.
+	* The LOD level is calculated based on screen space size of the component bounds.
+	* All particles will be rendered with the same calculated LOD level.
+	* Increasing 'LOD calculation scale' will result in lower quality LODs being used, this is useful as component bounds generally are larger than the particle mesh bounds.
 	*/
-	//PerInstance,
+	ByComponentBounds,
 
 	/*
+	* The LOD level is calcuated per particle using the particle position and mesh sphere bounds.
+	* This involves running a dispatch & draw per LOD level.
 	* Calculates and renders each particle with it's calcualted LOD level.
-	* LOD bias is applied to the calculation.
-	* Note: This is the most expensive option as we need to bucket the particles into each LOD and dispatch draws per bucket.
+	* Increasing 'LOD calculation scale' will result in lower quality LODs being used.
 	*/
 	//PerParticle,
 };
@@ -192,7 +194,7 @@ struct FNiagaraMeshRendererMeshProperties
 	FNiagaraParameterBindingWithValue LODLevelBinding;
 
 	/* LOD bias to apply to the LOD calculation. */
-	UPROPERTY(EditAnywhere, Category = "Mesh", meta = (UIMin = "0", DisplayName = "LOD Bias", EditCondition = "LODMode != ENiagaraMeshLODMode::LODLevel", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = "Mesh", meta = (UIMin = "0", DisplayName = "LOD Bias", EditCondition = "LODMode == ENiagaraMeshLODMode::LODBias", EditConditionHides))
 	FNiagaraParameterBindingWithValue LODBiasBinding;
 #endif
 
@@ -201,6 +203,10 @@ struct FNiagaraMeshRendererMeshProperties
 
 	UPROPERTY()
 	int32 LODBias = 0;
+
+	/** Used in LOD calculation to modify the distance, i.e. increasing the value will make lower poly LODs transition closer to the camera. */
+	UPROPERTY(EditAnywhere, Category = "Mesh", meta = (UIMin = "0", DisplayName = "LOD Distance Factor", EditCondition = "LODMode == ENiagaraMeshLODMode::ByComponentBounds || LODMode == ENiagaraMeshLODMode::PerParticle", EditConditionHides))
+	float LODDistanceFactor = 1.0f;
 
 	/** Scale of the mesh */
 	UPROPERTY(EditAnywhere, Category = "Mesh")

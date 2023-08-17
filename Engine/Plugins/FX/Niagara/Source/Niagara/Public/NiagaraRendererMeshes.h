@@ -83,8 +83,9 @@ protected:
 	{
 		FNiagaraRenderableMeshPtr RenderableMesh;
 		uint32 SourceMeshIndex = INDEX_NONE;
+		ENiagaraMeshLODMode LODMode = ENiagaraMeshLODMode::LODLevel;
 		int32 LODLevel = 0;
-		int32 LODBias = 0;
+		float LODDistanceFactor = 1.0f;
 		FVector3f PivotOffset = FVector3f::ZeroVector;
 		ENiagaraMeshPivotOffsetSpace PivotOffsetSpace = ENiagaraMeshPivotOffsetSpace::Mesh;
 		FVector3f Scale = FVector3f(1.0f, 1.0f, 1.0f);

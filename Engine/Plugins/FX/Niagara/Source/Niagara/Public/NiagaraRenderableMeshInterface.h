@@ -14,6 +14,7 @@ class FNiagaraMeshVertexFactory;
 class UMaterialInterface;
 class FRayTracingGeometry;
 class FRHIUniformBuffer;
+class FSceneView;
 struct FStaticMeshSection;
 
 // Abstact class that for a renderable mesh
@@ -47,6 +48,8 @@ public:
 	virtual void SetupVertexFactory(class FNiagaraMeshVertexFactory& InVertexFactory, const FLODModelData& LODModelData) const = 0;
 	// Gather a list of used materials
 	virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials) const = 0;
+
+	virtual int32 ComputeLOD(const FVector& SphereOrigin, const float SphereRadius, const FSceneView& SceneView, float LODDistanceFactor) { return 0; }
 };
 
 using FNiagaraRenderableMeshPtr = TSharedPtr<INiagaraRenderableMesh, ESPMode::ThreadSafe>;
