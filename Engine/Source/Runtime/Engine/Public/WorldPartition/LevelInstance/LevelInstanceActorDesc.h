@@ -37,6 +37,7 @@ protected:
 	ENGINE_API virtual void Init(const FWorldPartitionActorDescInitData& DescData) override;
 	ENGINE_API virtual bool Equals(const FWorldPartitionActorDesc* Other) const override;
 	ENGINE_API virtual void TransferFrom(const FWorldPartitionActorDesc* From) override;
+	ENGINE_API virtual void TransferWorldData(const FWorldPartitionActorDesc* From) override;
 	virtual uint32 GetSizeOf() const override { return sizeof(FLevelInstanceActorDesc); }
 	ENGINE_API virtual void Serialize(FArchive& Ar) override;
 	ENGINE_API virtual void SetContainer(UActorDescContainer* InContainer, UWorld* InWorldContext) override;

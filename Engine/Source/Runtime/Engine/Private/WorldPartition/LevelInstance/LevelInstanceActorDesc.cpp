@@ -233,6 +233,14 @@ void FLevelInstanceActorDesc::TransferFrom(const FWorldPartitionActorDesc* From)
 	}
 }
 
+void FLevelInstanceActorDesc::TransferWorldData(const FWorldPartitionActorDesc* From)
+{
+	FWorldPartitionActorDesc::TransferWorldData(From);
+
+	FLevelInstanceActorDesc* FromLevelInstanceActorDesc = (FLevelInstanceActorDesc*)From;
+	LevelInstanceTransform = FromLevelInstanceActorDesc->LevelInstanceTransform;
+}
+
 void FLevelInstanceActorDesc::Serialize(FArchive& Ar)
 {
 	FWorldPartitionActorDesc::Serialize(Ar);
