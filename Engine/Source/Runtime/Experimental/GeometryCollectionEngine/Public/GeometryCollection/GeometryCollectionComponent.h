@@ -452,6 +452,9 @@ class UGeometryCollectionComponent : public UMeshComponent, public IChaosNotifyH
 
 public:
 
+	// Collision profile name that indicates we should use the geometry collection's default collision profile.
+	GEOMETRYCOLLECTIONENGINE_API static FName DefaultCollisionProfileName;
+
 	//~ Begin UActorComponent Interface.
 	GEOMETRYCOLLECTIONENGINE_API virtual void CreateRenderState_Concurrent(FRegisterComponentContext* Context) override;
 	GEOMETRYCOLLECTIONENGINE_API virtual void SendRenderDynamicData_Concurrent() override;
