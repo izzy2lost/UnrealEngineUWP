@@ -37,10 +37,9 @@ SGameplayTagContainerCombo::SGameplayTagContainerCombo()
 
 SGameplayTagContainerCombo::~SGameplayTagContainerCombo()
 {
-	if (PostUndoRedoDelegateHandle.IsValid())
+	if (bRegisteredForUndo)
 	{
-		FEditorDelegates::PostUndoRedo.Remove(PostUndoRedoDelegateHandle);
-		PostUndoRedoDelegateHandle.Reset();
+		GEditor->UnregisterForUndo(this);
 	}
 }
 
@@ -54,9 +53,10 @@ void SGameplayTagContainerCombo::Construct(const FArguments& InArgs)
 
 	if (PropertyHandle.IsValid())
 	{
-		PostUndoRedoDelegateHandle = FEditorDelegates::PostUndoRedo.AddSP(this, &SGameplayTagContainerCombo::OnPostUndoRedo);
 		PropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &SGameplayTagContainerCombo::RefreshTagContainers));
 		RefreshTagContainers();
+		GEditor->RegisterForUndo(this);
+		bRegisteredForUndo = true;
 
 		if (Filter.IsEmpty())
 		{
@@ -156,13 +156,6 @@ void SGameplayTagContainerCombo::Construct(const FArguments& InArgs)
 			]
 		]
 	];
-}
-
-void SGameplayTagContainerCombo::OnPostUndoRedo()
-{
-	// This widgets OnPostUndoRedo is called before the details view has had change to handle post undo (the delegate is executed in reverse).
-	// Defer the update to next tick, so that details view has had the change to refresh the property nodes (or else we crash).
-	GEditor->GetTimerManager()->SetTimerForNextTick( FTimerDelegate::CreateSP(this, &SGameplayTagContainerCombo::RefreshTagContainers));
 }
 
 bool SGameplayTagContainerCombo::IsValueEnabled() const
@@ -518,6 +511,22 @@ FReply SGameplayTagContainerCombo::OnClearTagClicked(const FGameplayTag TagToCle
 	return FReply::Handled();
 }
 
+void SGameplayTagContainerCombo::PostUndo(bool bSuccess)
+{
+	if (bSuccess)
+	{
+		RefreshTagContainers();
+	}
+}
+
+void SGameplayTagContainerCombo::PostRedo(bool bSuccess)
+{
+	if (bSuccess)
+	{
+		RefreshTagContainers();
+	}
+}
+
 void SGameplayTagContainerCombo::RefreshTagContainers()
 {
 	CachedTagContainers.Reset();
@@ -525,33 +534,30 @@ void SGameplayTagContainerCombo::RefreshTagContainers()
 
 	if (PropertyHandle.IsValid())
 	{
-		if (PropertyHandle->IsValidHandle())
+		// From property
+		SGameplayTagPicker::EnumerateEditableTagContainersFromPropertyHandle(PropertyHandle.ToSharedRef(), [this](const FGameplayTagContainer& InTagContainer)
 		{
-			// From property
-			SGameplayTagPicker::EnumerateEditableTagContainersFromPropertyHandle(PropertyHandle.ToSharedRef(), [this](const FGameplayTagContainer& InTagContainer)
-			{
-				CachedTagContainers.Add(InTagContainer);
+			CachedTagContainers.Add(InTagContainer);
 
-				for (auto It = InTagContainer.CreateConstIterator(); It; ++It)
+			for (auto It = InTagContainer.CreateConstIterator(); It; ++It)
+			{
+				const FGameplayTag Tag = *It;
+				const int32 ExistingItemIndex = TagsToEdit.IndexOfByPredicate([Tag](const TSharedPtr<FEditableItem>& Item)
 				{
-					const FGameplayTag Tag = *It;
-					const int32 ExistingItemIndex = TagsToEdit.IndexOfByPredicate([Tag](const TSharedPtr<FEditableItem>& Item)
-					{
-						return Item.IsValid() && Item->Tag == Tag;
-					});
-					if (ExistingItemIndex != INDEX_NONE)
-					{
-						TagsToEdit[ExistingItemIndex]->Count++;
-					}
-					else
-					{
-						TagsToEdit.Add(MakeShared<FEditableItem>(Tag));
-					}
+					return Item.IsValid() && Item->Tag == Tag;
+				});
+				if (ExistingItemIndex != INDEX_NONE)
+				{
+					TagsToEdit[ExistingItemIndex]->Count++;
 				}
-				
-				return true;
-			});
-		}
+				else
+				{
+					TagsToEdit.Add(MakeShared<FEditableItem>(Tag));
+				}
+			}
+			
+			return true;
+		});
 	}
 	else
 	{

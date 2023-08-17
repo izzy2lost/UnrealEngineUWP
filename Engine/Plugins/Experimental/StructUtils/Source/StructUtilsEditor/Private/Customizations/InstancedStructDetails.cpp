@@ -11,6 +11,7 @@
 #include "ScopedTransaction.h"
 #include "Modules/ModuleManager.h"
 #include "StructViewerModule.h"
+#include "StructViewerFilter.h"
 #include "Styling/SlateIconFinder.h"
 #include "Engine/UserDefinedStruct.h"
 #include "InstancedStruct.h"
@@ -350,8 +351,20 @@ FName FInstancedStructDataDetails::GetName() const
 	return Name;
 }
 
+void FInstancedStructDataDetails::PostUndo(bool bSuccess)
+{
+	// Undo; force a sync next Tick
+	LastSyncEditableInstanceFromSourceSeconds = 0.0;
+}
+
+void FInstancedStructDataDetails::PostRedo(bool bSuccess)
+{
+	// Redo; force a sync next Tick
+	LastSyncEditableInstanceFromSourceSeconds = 0.0;
+}
 
 ////////////////////////////////////
+
 
 TSharedRef<IPropertyTypeCustomization> FInstancedStructDetails::MakeInstance()
 {

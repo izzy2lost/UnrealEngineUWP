@@ -75,15 +75,6 @@ bool SGameplayTagPicker::GetEditableTagContainersFromPropertyHandle(const TShare
 	});
 }
 
-SGameplayTagPicker::~SGameplayTagPicker()
-{
-	if (PostUndoRedoDelegateHandle.IsValid())
-	{
-		FEditorDelegates::PostUndoRedo.Remove(PostUndoRedoDelegateHandle);
-		PostUndoRedoDelegateHandle.Reset();
-	}
-}
-
 void SGameplayTagPicker::Construct(const FArguments& InArgs)
 {
 	TagContainers = InArgs._TagContainers;
@@ -110,8 +101,6 @@ void SGameplayTagPicker::Construct(const FArguments& InArgs)
 
 	bRestrictedTags = InArgs._RestrictedTags;
 
-	PostUndoRedoDelegateHandle = FEditorDelegates::PostUndoRedo.AddSP(this, &SGameplayTagPicker::OnPostUndoRedo);
-	
 	UGameplayTagsManager::OnEditorRefreshGameplayTagTree.AddSP(this, &SGameplayTagPicker::RefreshOnNextTick);
 	UGameplayTagsManager& Manager = UGameplayTagsManager::Get();
 
@@ -159,7 +148,7 @@ void SGameplayTagPicker::Construct(const FArguments& InArgs)
 	SettingsCombo->SetOnGetMenuContent(FOnGetContent::CreateSP(this, &SGameplayTagPicker::MakeSettingsMenu, SettingsCombo));
 
 
-	TWeakPtr<SGameplayTagPicker> WeakSelf = SharedThis(this);
+	TWeakPtr<SGameplayTagPicker> WeakSelf = StaticCastWeakPtr<SGameplayTagPicker>(AsWeak());
 	
 	TSharedRef<SWidget> Picker = 
 		SNew(SBorder)
@@ -1786,17 +1775,14 @@ void SGameplayTagPicker::SetTagContainers(TConstArrayView<FGameplayTagContainer>
 	TagContainers = InTagContainers;
 }
 
-void SGameplayTagPicker::OnPostUndoRedo()
+void SGameplayTagPicker::PostUndo(bool bSuccess)
 {
-	// This widgets OnPostUndoRedo is called before the details view has had change to handle post undo (the delegate is executed in reverse).
-	// Defer the update to next tick, so that details view has had the change to refresh the property nodes (or else we may crash).
-	GEditor->GetTimerManager()->SetTimerForNextTick([WeakSelf = SharedThis(this).ToWeakPtr()]()
-	{
-		if (SGameplayTagPicker* Self = WeakSelf.Pin().Get())
-		{
-			Self->OnRefreshTagContainers.ExecuteIfBound(*Self);
-		}
-	});
+	OnRefreshTagContainers.ExecuteIfBound(*this);
+}
+
+void SGameplayTagPicker::PostRedo(bool bSuccess)
+{
+	OnRefreshTagContainers.ExecuteIfBound(*this);
 }
 
 void SGameplayTagPicker::VerifyAssetTagValidity()

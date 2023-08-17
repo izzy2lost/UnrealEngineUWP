@@ -1083,14 +1083,10 @@ void SDetailsViewBase::HandlePendingCleanup()
 }
 
 /** Ticks the property view.  This function performs a data consistency check */
-void SDetailsViewBase::Tick( const FGeometry& /*AllottedGeometry*/, const double InCurrentTime, const float InDeltaTime )
+void SDetailsViewBase::Tick( const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime )
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(SDetailsViewBase::Tick);
-	UpdatePropertyView(InDeltaTime);
-}
 
-void SDetailsViewBase::UpdatePropertyView(const float InDeltaTime)
-{
 	HandlePendingCleanup();
 
 	FDetailsViewConfig* ViewConfig = GetMutableViewConfig();

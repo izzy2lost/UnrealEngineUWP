@@ -33,10 +33,9 @@ SGameplayTagQueryEntryBox::SGameplayTagQueryEntryBox()
 
 SGameplayTagQueryEntryBox::~SGameplayTagQueryEntryBox()
 {
-	if (PostUndoRedoDelegateHandle.IsValid())
+	if (bRegisteredForUndo)
 	{
-		FEditorDelegates::PostUndoRedo.Remove(PostUndoRedoDelegateHandle);
-		PostUndoRedoDelegateHandle.Reset();
+		GEditor->UnregisterForUndo(this);
 	}
 }
 
@@ -48,8 +47,9 @@ void SGameplayTagQueryEntryBox::Construct(const FArguments& InArgs)
 
 	if (PropertyHandle.IsValid())
 	{
-		PostUndoRedoDelegateHandle = FEditorDelegates::PostUndoRedo.AddSP(this, &SGameplayTagQueryEntryBox::OnPostUndoRedo);
 		PropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &SGameplayTagQueryEntryBox::CacheQueryList));
+		GEditor->RegisterForUndo(this);
+		bRegisteredForUndo = true;
 		bIsReadOnly = PropertyHandle->IsEditConst();
 
 		if (Filter.IsEmpty())
@@ -128,6 +128,16 @@ void SGameplayTagQueryEntryBox::Construct(const FArguments& InArgs)
 			]
 		]
 	];
+}
+
+void SGameplayTagQueryEntryBox::PostUndo(bool bSuccess)
+{
+	CacheQueryList();
+}
+
+void SGameplayTagQueryEntryBox::PostRedo(bool bSuccess)
+{
+	CacheQueryList();
 }
 
 FText SGameplayTagQueryEntryBox::GetQueryDescText() const
@@ -242,32 +252,22 @@ FReply SGameplayTagQueryEntryBox::OnEditButtonClicked()
 	return FReply::Handled();
 }
 
-void SGameplayTagQueryEntryBox::OnPostUndoRedo()
-{
-	// This widgets OnPostUndoRedo is called before the details view has had change to handle post undo (the delegate is executed in reverse).
-	// Defer the update to next tick, so that details view has had the change to refresh the property nodes (or else we crash).
-	GEditor->GetTimerManager()->SetTimerForNextTick(FTimerDelegate::CreateSP(this, &SGameplayTagQueryEntryBox::CacheQueryList));
-}
-
 void SGameplayTagQueryEntryBox::CacheQueryList()
 {
 	CachedQueries.Empty();
 
 	if (PropertyHandle.IsValid())
 	{
-		if (PropertyHandle->IsValidHandle())
+		// Cache queries from the property handle. Add empty queries even if the instance data is null so that the indices match with the property handle.
+		TArray<void*> RawStructData;
+		PropertyHandle->AccessRawData(RawStructData);
+		
+		for (int32 Idx = 0; Idx < RawStructData.Num(); ++Idx)
 		{
-			// Cache queries from the property handle. Add empty queries even if the instance data is null so that the indices match with the property handle.
-			TArray<void*> RawStructData;
-			PropertyHandle->AccessRawData(RawStructData);
-			
-			for (int32 Idx = 0; Idx < RawStructData.Num(); ++Idx)
+			FGameplayTagQuery& Query = CachedQueries.AddDefaulted_GetRef();
+			if (RawStructData[Idx])
 			{
-				FGameplayTagQuery& Query = CachedQueries.AddDefaulted_GetRef();
-				if (RawStructData[Idx])
-				{
-					Query = *(FGameplayTagQuery*)RawStructData[Idx]; 
-				}
+				Query = *(FGameplayTagQuery*)RawStructData[Idx]; 
 			}
 		}
 	}

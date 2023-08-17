@@ -1030,9 +1030,6 @@ void SDetailsView::InvalidateCachedState()
 	{
 		RootNode->InvalidateCachedState();
 	}
-
-	// Update property view immediately after undo or redo so to validate that the data layout matches the current data. 
-	UpdatePropertyView(0.0f);
 }
 
 bool SDetailsView::IsConnected() const
