@@ -6,6 +6,7 @@
 #include "HttpModule.h"
 #include "Analytics.h"
 #include "AnalyticsPerfTracker.h"
+#include "AnalyticsProviderETEventCache.h"
 
 IMPLEMENT_MODULE( FAnalyticsET, AnalyticsET );
 
@@ -13,6 +14,7 @@ void FAnalyticsET::StartupModule()
 {
 	// Make sure http is loaded so that we can flush events during module shutdown
 	FModuleManager::LoadModuleChecked<FHttpModule>("HTTP");
+	FAnalyticsProviderETEventCache::OnStartupModule();
 }
 
 void FAnalyticsET::ShutdownModule()

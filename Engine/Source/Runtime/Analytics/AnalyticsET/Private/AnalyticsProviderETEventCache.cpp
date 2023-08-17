@@ -22,7 +22,12 @@ namespace EventCacheStatic
 		TEXT("Percentage of the maximum payload for an EventCache that will trigger a warning message, listing the events in the payload. This is intended to be used to investigate spammy or slow telemetry.")
 	);
 
-	static float PayloadFlushTimeSecForWarning = 0.001f;
+	static float PayloadFlushTimeSecForWarning =
+#if !WITH_EDITOR
+		.001f;
+#else
+		-1.0f; // Initialized in OnStartupModule below
+#endif
 	FAutoConsoleVariableRef CvarPayloadFlushTimeSecForWarning(
 		TEXT("AnalyticsET.PayloadFlushTimeSecForWarning"),
 		PayloadFlushTimeSecForWarning,
@@ -185,6 +190,19 @@ namespace EventCacheStatic
 		// we are going to write UTF8 directly into our payload buffer.
 		AppendString(Buffer, PayloadTemplate, PayloadTemplateLength);
 	}
+}
+
+ANALYTICSET_API void FAnalyticsProviderETEventCache::OnStartupModule()
+{
+#if WITH_EDITOR
+	// Set some performance configuration values that have different defaults depending upon
+	// commandline (editor versus commandlet)
+	bool bCommandlet = IsRunningCommandlet();
+	if (EventCacheStatic::PayloadFlushTimeSecForWarning < 0)
+	{
+		EventCacheStatic::PayloadFlushTimeSecForWarning = !bCommandlet ? 0.001f : 1.0f;
+	}
+#endif
 }
 
 FAnalyticsProviderETEventCache::FAnalyticsProviderETEventCache(int32 InMaximumPayloadSize, int32 InPreallocatedPayloadSize)
