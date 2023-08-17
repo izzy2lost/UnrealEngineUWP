@@ -322,6 +322,12 @@ public:
 	* For game code access to the cpu copy image, use GetCPUCopy().
 	*/
 	ENGINE_API UTexture2D* GetCPUCopyTexture();
+
+	/**
+	 * Returns true if the Downscale and DownscaleOptions properties should be editable in the UI.
+	 * Currently downscaling is only supported for 2d textures without mipmaps.
+	 */
+	virtual bool AreDownscalePropertiesEditable() const override { return MipGenSettings == TMGS_NoMipmaps || MipGenSettings == TMGS_FromTextureGroup; }
 #endif
 
 	friend struct FRenderAssetStreamingManager;

@@ -1003,13 +1003,29 @@ static void GetTextureBuildSettings(
 	}
 
 	OutBuildSettings.Downscale = 1.0f;
+
+	float Downscale;
+	ETextureDownscaleOptions DownscaleOptions;
+	TextureLODSettings.GetDownscaleOptions(Texture, TargetPlatform, Downscale, DownscaleOptions);
+
 	// Downscale only allowed if NoMipMaps, 2d, and not VT
 	//	silently does nothing otherwise
 	if (! bVirtualTextureStreaming &&
 		MipGenSettings == TMGS_NoMipmaps && 
 		Texture.IsA(UTexture2D::StaticClass()))	// TODO: support more texture types
 	{
-		TextureLODSettings.GetDownscaleOptions(Texture, TargetPlatform, OutBuildSettings.Downscale, (ETextureDownscaleOptions&)OutBuildSettings.DownscaleOptions);
+		OutBuildSettings.Downscale = Downscale;
+		OutBuildSettings.DownscaleOptions = (uint8)DownscaleOptions;
+	}
+	// only show a warning for textures where Downscale setting would have effect if it was used
+	else if (Downscale != 1.f)
+	{
+		UE_LOG(LogTexture, Warning, TEXT("Downscale setting of %f was not used when building texture %s%s."), Downscale, *Texture.GetName(),
+			bVirtualTextureStreaming ? TEXT(" because it is using virtual texturing") :
+			MipGenSettings != TMGS_NoMipmaps ? TEXT(" because it is using mipmaps") :
+			!Texture.IsA(UTexture2D::StaticClass()) ? TEXT(" because it is only supported for 2D textures") :
+			TEXT("")
+		);
 	}
 	
 	// For virtual texturing we take the address mode into consideration

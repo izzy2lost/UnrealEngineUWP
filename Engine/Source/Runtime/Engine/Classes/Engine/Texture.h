@@ -1343,16 +1343,22 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=LevelOfDetail, meta=(DisplayName="Texture Group"), AssetRegistrySearchable)
 	TEnumAsByte<enum TextureGroup> LODGroup;
 
+	/** This function is used to control access to the Downscale and DownscaleOptions properties from the Texture Editor UI
+	 * in order to make it more clear to the user whether these properties will or will not be used when building the texture.
+	 */
+	UFUNCTION()
+	virtual bool AreDownscalePropertiesEditable() const { return false; }
+
 	/** Downscale source texture, applied only to 2d textures without mips 
-	 * 0.0 - use scale value from texture group
+	 * < 1.0 - use scale value from texture group
 	 * 1.0 - do not scale texture
 	 * > 1.0 - scale texure
 	 */
-	UPROPERTY(EditAnywhere, Category=LevelOfDetail, AdvancedDisplay, meta=(ClampMin="0.0", ClampMax="8.0"))
+	UPROPERTY(EditAnywhere, Category=LevelOfDetail, AdvancedDisplay, meta=(ClampMin="0.0", ClampMax="8.0", EditCondition=AreDownscalePropertiesEditable))
 	FPerPlatformFloat Downscale;
 
 	/** Texture downscaling options */
-	UPROPERTY(EditAnywhere, Category=LevelOfDetail, AdvancedDisplay)
+	UPROPERTY(EditAnywhere, Category=LevelOfDetail, AdvancedDisplay, meta=(EditCondition=AreDownscalePropertiesEditable))
 	ETextureDownscaleOptions DownscaleOptions;
 
 	/** 
