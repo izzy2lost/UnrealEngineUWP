@@ -13,7 +13,7 @@
 
 float4x4 ClipToResurrectionClip;
 
-Texture2D<float> ClosestDepthTexture;
+Texture2D<float2> ClosestDepthTexture;
 Texture2D<tsr_half4> HistoryRejectionTexture;
 
 RWTexture2D<float2> DilatedVelocityOutput;
@@ -44,7 +44,7 @@ void MainCS(
 	{
 		float2 ResurrectedEncodedScreenVelocity;
 		{
-			float DeviceZ = ClosestDepthTexture[InputPixelPos];
+			float DeviceZ = ClosestDepthTexture[InputPixelPos].g;
 
 			float2 ScreenPos = ApplyScreenTransform(float2(InputPixelPos), InputPixelPosToScreenPos);
 

@@ -38,7 +38,11 @@
 float4x4 RotationalClipToPrevClip;
 
 Texture2D<float2> DilatedVelocityTexture;
-Texture2D<float> ClosestDepthTexture;
+#if CONFIG_RESURRECTION_REPROJECTION
+	Texture2D<float2> ClosestDepthTexture;
+#else
+	Texture2D<float> ClosestDepthTexture;
+#endif
 Texture2D<uint> PrevUseCountTexture;
 Texture2D<uint> PrevClosestDepthTexture;
 
@@ -265,7 +269,7 @@ void LoadPrevAtomicTexturesSamples(
 void ProcessPrevAtomicTexturesSamples(
 	uint HistoryUseCountSamples[4],
 	uint HistoryClosestDeviceZSamples[4],
-	float DeviceZ,
+	float PrevDeviceZ,
 	float2 PrevScreenPos,
 	out tsr_half ParallaxRejectionMask,
 	out bool bIsValidHoleFillingPixelVelocity,
@@ -275,7 +279,7 @@ void ProcessPrevAtomicTexturesSamples(
 	bIsValidHoleFillingPixelVelocity = false;
 	EncodedHoleFillingVelocity = 0;
 
-	float WorldDepth = ConvertFromDeviceZ(DeviceZ);
+	float WorldDepth = ConvertFromDeviceZ(PrevDeviceZ);
 	
 	float2 PrevInputBufferUV = (InputInfo_ScreenPosToViewportScale * PrevScreenPos + InputInfo_ScreenPosToViewportBias) * InputInfo_ExtentInverse;
 	PrevInputBufferUV = INVARIANT(PrevInputBufferUV);
@@ -385,7 +389,10 @@ void MainCS(
 
 	// Sample current frame informations.
 	float2 EncodedScreenVelocity;
-	float DeviceZ;
+	#if CONFIG_RESURRECTION_REPROJECTION
+		float DeviceZ;
+	#endif
+	float PrevDeviceZ;
 	tsr_half VelocityEdge = tsr_half(1.0);
 	ISOLATE
 	{
@@ -400,7 +407,13 @@ void MainCS(
 		// Issue texture fetechs
 		ISOLATE
 		{
-			DeviceZ = ClosestDepthTexture[InputPixelPos];
+			#if CONFIG_RESURRECTION_REPROJECTION
+				float2 DeviceZAndPrevDeviceZ = ClosestDepthTexture[InputPixelPos];
+				DeviceZ = DeviceZAndPrevDeviceZ.g;
+				PrevDeviceZ = DeviceZAndPrevDeviceZ.r;
+			#else
+				PrevDeviceZ = ClosestDepthTexture[InputPixelPos];
+			#endif
 
 			#if CONFIG_VELOCITY_SAMPLES == 1
 				EncodedScreenVelocity = DilatedVelocityTexture[InputPixelPos];
@@ -419,7 +432,7 @@ void MainCS(
 			#else
 				SharedArray0[GroupThreadIndex] = EncodedVelocityNeighborhood[0];
 			#endif
-			SharedArray1[GroupThreadIndex] = DeviceZ;
+			SharedArray1[GroupThreadIndex] = PrevDeviceZ;
 		}
 		#endif
 		
@@ -540,7 +553,7 @@ void MainCS(
 		#if CONFIG_MANUAL_LDS_SPILL
 		{
 			EncodedScreenVelocity = SharedArray0[GroupThreadIndex];
-			DeviceZ = SharedArray1[GroupThreadIndex];
+			PrevDeviceZ = SharedArray1[GroupThreadIndex];
 		}
 		#endif
 		
@@ -558,7 +571,7 @@ void MainCS(
 		ProcessPrevAtomicTexturesSamples(
 			HistoryUseCountSamples,
 			HistoryClosestDeviceZSamples,
-			DeviceZ,
+			PrevDeviceZ,
 			PrevScreenPos,
 			/* out */ ParallaxRejectionMask,
 			/* out */ bIsValidHoleFillingPixelVelocity,

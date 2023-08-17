@@ -33,7 +33,7 @@ float MaxHistorySampleCount;
 float OutputToHistoryResolutionFractionSquare;
 
 Texture2D<tsr_half3> SceneColorTexture;
-Texture2D<float>     ClosestDepthTexture;
+Texture2D<float2>    ClosestDepthTexture;
 Texture2D<float2>    DilatedVelocityTexture;
 Texture2D<tsr_half4> HistoryRejectionTexture;
 Texture2D<tsr_ushort> AntiAliasMaskTexture;
@@ -125,7 +125,7 @@ tsr_half3 DisplayResurrectionMask(FContext Ctx)
 tsr_half3 DisplayResurrectedColor(FContext Ctx)
 {
 	tsr_half LowFrequencyRejection = HistoryRejectionTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0).r;
-	float ClosestDeviceZ = ClosestDepthTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0);
+	float ClosestDeviceZ = ClosestDepthTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0).g;
 	bool ResurrectionMask = (tsr_ushort(HistoryRejectionTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0).a * tsr_half(255.0)) & tsr_ushort(0x2)) != tsr_ushort(0x0);
 
 	float4 ThisClip = float4(Ctx.ScreenPos, ClosestDeviceZ, 1);

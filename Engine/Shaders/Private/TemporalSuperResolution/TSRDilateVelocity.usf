@@ -56,7 +56,7 @@ Texture2D SceneVelocityTexture;
 Texture2D<uint> PrevScatteredSubpixelDepthTexture;
 
 RWTexture2D<float2> DilatedVelocityOutput;
-RWTexture2D<float> ClosestDepthOutput;
+RWTexture2D<float2> ClosestDepthOutput;
 globallycoherent RWTexture2DArray<uint> PrevAtomicOutput;
 RWTexture2DArray<uint> R8Output;
 RWTexture2D<uint> SubpixelDepthOutput;
@@ -368,6 +368,8 @@ void MainCS(
 		float2 VelocityPolar;
 		ReduceVelocityFlattenTile(GroupThreadIndex, FinalScreenVelocity.xy, /* out */ VelocityPolarRange, /* out */ VelocityPolar);
 	#endif
+	
+	float PrevClosestDeviceZ = ClosestDeviceZ - FinalScreenVelocity.z;
 
 	{
 		bool bValidOutputPixel = all(InputPixelPos < InputInfo_ViewportMax);
@@ -381,7 +383,7 @@ void MainCS(
 			float2 PixelVelocity = FinalScreenVelocity.xy * 0.5 * InputInfo_ViewportSize;
 			uint EncodedHoleFillingVelocity = EncodeHoleFillingVelocity(PixelVelocity);
 
-			uint PrevClosestDepth = (f32tof16(ClosestDeviceZ) << VELOCITY_HOLE_FILLING_BITS) | EncodedHoleFillingVelocity;
+			uint PrevClosestDepth = (f32tof16(PrevClosestDeviceZ) << VELOCITY_HOLE_FILLING_BITS) | EncodedHoleFillingVelocity;
 			
 			bool bValidHistoryCoord = bValidOutputPixel && all(and(PrevInputBufferUV > PrevOutputBufferUVMin, PrevInputBufferUV < PrevOutputBufferUVMax));
 
@@ -419,7 +421,7 @@ void MainCS(
 
 		//DilatedVelocityOutput[OutputPixelPos] = EncodedVelocity.xy; //EncodeVelocityToTexture(float3(FinalScreenVelocity.xy, 0.0)).xy;
 		DilatedVelocityOutput[OutputPixelPos] = EncodeVelocityToTexture(float3(FinalScreenVelocity.xy, 0.0)).xy;
-		ClosestDepthOutput[OutputPixelPos] = ClosestDeviceZ;
+		ClosestDepthOutput[OutputPixelPos] = float2(PrevClosestDeviceZ, ClosestDeviceZ);
 		#if CONFIG_SUBPIXEL_DEPTH
 		{
 			SubpixelDepthOutput[OutputPixelPos] = CompressedSubpixelDepth;
