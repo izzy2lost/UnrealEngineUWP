@@ -372,6 +372,7 @@ namespace UE::Chooser
 				OutStructType = Context.Params[PropertyBinding.ContextIndex].GetScriptStruct();
 			}
 			
+
 			if (OutContainer == nullptr || OutStructType == nullptr)
 			{
 				return false;
