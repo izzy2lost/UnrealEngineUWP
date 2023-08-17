@@ -6826,6 +6826,11 @@ bool FStructUtils::ArePropertiesTheSame(const FProperty* A, const FProperty* B, 
 
 bool FStructUtils::TheSameLayout(const UStruct* StructA, const UStruct* StructB, bool bCheckPropertiesNames)
 {
+	if (StructA == StructB)
+	{
+		return true;
+	}
+
 	bool bResult = false;
 	if (StructA 
 		&& StructB 
