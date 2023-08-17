@@ -606,7 +606,7 @@ private:
 			USizeType NewMax        = (USizeType)LocalArrayNum + (USizeType)ExtraSlack;
 
 			// This should only happen when we've underflowed or overflowed SizeType
-			if ((SizeType)NewMax < LocalArrayNum)
+			if ((SizeType)NewMax < (SizeType)LocalArrayNum)
 			{
 				UE::Core::Private::OnInvalidArrayNum((unsigned long long)ExtraSlack);
 			}
