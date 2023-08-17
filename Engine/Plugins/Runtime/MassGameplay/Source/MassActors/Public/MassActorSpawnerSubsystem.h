@@ -192,10 +192,16 @@ protected:
 	/** Called at the end of the PrePhysics mass processing phase and calls ProcessPendingDestruction */ 
 	void OnPrePhysicsPhaseFinished(const float DeltaSeconds); 
 	
-	/** Retrieve what would be the next best spawning request to spawn, can be overridden to have different logic
+	/** 
+	 *  Retrieve what would be the next best spawning request to spawn, can be overridden to have different logic
 	 *  Default implementation is the first valid request in the list, no interesting logic yet
-	 *  @return the next best handle to spawn. */
-	virtual FMassActorSpawnRequestHandle GetNextRequestToSpawn() const;
+	 *  @param InOutHandleIndex used to start the search in subsequent locations. Also the index ensures the same handle 
+	 *    won't get returned twice in a row. InOutHandleIndex being INDEX_NONE indicates this is the first run, so all 
+	 *    handles are to be considered. If it's a  valid index then we iterate all but one to not even consider the 
+	 *    handle indicated by InOutHandleIndex.
+	 *  @return the next best handle to spawn. 
+	 */
+	virtual FMassActorSpawnRequestHandle GetNextRequestToSpawn(int32& InOutHandleIndex) const;
 
 	virtual ESpawnRequestStatus SpawnOrRetrieveFromPool(FConstStructView SpawnRequestView, TObjectPtr<AActor>& OutSpawnedActor);
 
@@ -241,4 +247,8 @@ protected:
 
 	mutable int32 NumActorSpawned = 0;
 	mutable int32 NumActorPooled = 0;
+
+public:
+	UE_DEPRECATED(5.4, "This flavor of GetNextRequestToSpawn is deprecated. Use the alternative taking an int32& parameter")
+	virtual FMassActorSpawnRequestHandle GetNextRequestToSpawn() const final;
 };
