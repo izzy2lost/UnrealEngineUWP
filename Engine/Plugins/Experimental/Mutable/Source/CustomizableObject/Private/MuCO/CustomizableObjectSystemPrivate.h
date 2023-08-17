@@ -676,23 +676,8 @@ public:
 
 	// Remove references to cached objects that have been deleted in the unreal
 	// side, and cannot be cached anyway.
-	// This should only happen in the mutable thread
-	void CleanupCache()
-	{
-		for (int ModelIndex=0; ModelIndex<ModelResourcesCache.Num();)
-		{
-			if (!ModelResourcesCache[ModelIndex].Object.IsValid(false,true))
-			{
-				// The whole object has been destroyed. Remove everything.
-				ModelResourcesCache.RemoveAtSwap(ModelIndex);
-			}
-			else
-			{
-				// \todo: Free invalid references to specific resources
-				++ModelIndex;
-			}
-		}
-	}
+	// This should only happen in the game thread
+	void CleanupCache();
 
 
 	// This should only happen in the game thread
