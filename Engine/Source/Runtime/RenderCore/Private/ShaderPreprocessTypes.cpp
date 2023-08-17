@@ -21,7 +21,7 @@ void FShaderDiagnosticRemapper::Remap(FShaderCompilerError& Diagnostic) const
 		const FString& ErrorLineStr = Diagnostic.ErrorLineString;
 		check(FChar::IsDigit(ErrorLineStr[0]));
 		int32 StrippedLineNum = 0, LineNumberEnd = 0;
-		while (FChar::IsDigit(ErrorLineStr[LineNumberEnd]))
+		while (LineNumberEnd < ErrorLineStr.Len() && FChar::IsDigit(ErrorLineStr[LineNumberEnd]))
 		{
 			StrippedLineNum = StrippedLineNum * 10 + ErrorLineStr[LineNumberEnd++] - TEXT('0');
 		}
