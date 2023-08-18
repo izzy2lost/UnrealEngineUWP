@@ -1950,9 +1950,12 @@ void FPCGEditor::OnClose()
 
 	if (PCGComponentBeingInspected.IsValid())
 	{
-		PCGComponentBeingInspected->DisableInspection();
+		if (PCGComponentBeingInspected->IsInspecting())
+		{
+			PCGComponentBeingInspected->DisableInspection();
+		}
 
-		if (PCGGraphBeingEdited)
+		if (PCGGraphBeingEdited && PCGGraphBeingEdited->IsInspecting())
 		{
 			PCGGraphBeingEdited->DisableInspection();
 		}
