@@ -346,7 +346,7 @@ static bool VerifyNodalColoring(const TArray<TArray<int32>>& Graph, const Chaos:
 	for (int32 p = 0; p < GraphParticlesEnd - GraphParticlesStart; p++)
 	{
 		int32 ParticleIndex = p + GraphParticlesStart;
-		if (InParticles.InvM(ParticleIndex) != (T)0.)
+		if (InParticles.InvM(ParticleIndex) != (T)0. && IncidentElements[ParticleIndex].Num() > 0 )
 		{
 			if (!ParticleIsIncluded[ParticleIndex])
 			{
@@ -411,7 +411,7 @@ static bool VerifyExtraNodalColoring(const Chaos::TDynamicParticles<T, 3>& InPar
 
 	for (int32 ParticleIndex = 0; ParticleIndex < (int32)InParticles.Size(); ParticleIndex++)
 	{
-		if (InParticles.InvM(ParticleIndex) != (T)0.)
+		if (InParticles.InvM(ParticleIndex) != (T)0. && (IncidentElements[ParticleIndex].Num() > 0 || ExtraIncidentElements[ParticleIndex].Num() > 0))
 		{
 			if (!ParticleIsIncluded[ParticleIndex])
 			{
@@ -1778,7 +1778,7 @@ void Chaos::ComputeExtraNodalColoring(const TArray<TArray<int32>>& Graph, const 
 	ParticlesPerColor.SetNum(ParticleColors.Max() + 1);
 	for (int32 i = 0; i < ExtraIncidentElements.Num(); i++)
 	{
-		if (ParticleIsAffected[i])
+		if (ParticleIsAffected[i] && ParticleColors[i] != INDEX_NONE)
 		{
 			ParticlesPerColor[ParticleColors[i]].Emplace(i);
 		}

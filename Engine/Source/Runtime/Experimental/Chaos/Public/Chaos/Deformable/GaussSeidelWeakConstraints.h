@@ -66,24 +66,7 @@ namespace Chaos::Softs
 					ExtraConstraints[i][j+Indices[i].Num()] = SecondIndices[i][j];
 				}
 			}
-			TArray<TArray<int32>> TotalConstraints = MeshConstraints;
-			TotalConstraints += ExtraConstraints;
-			TArray<TArray<int32>> TotalIncidentElements = MeshIncidentElements, TotalIncidentElementsLocal = MeshIncidentElementsLocal;
 			WCIncidentElements = Chaos::Utilities::ComputeIncidentElements(ExtraConstraints, &WCIncidentElementsLocal);
-			
-			//TODO (Yizhou): Directly computing incident elements is inefficient. Optimize the total incident elements in future.
-			TotalIncidentElements = Chaos::Utilities::ComputeIncidentElements(TotalConstraints, &TotalIncidentElementsLocal);
-			Particle2WCIndices.Init(INDEX_NONE, InParticles.Size());
-			for (int32 i = 0; i < WCIncidentElements.Num(); i++)
-			{
-				if (WCIncidentElements[i].Num() > 0)
-				{
-					int32 p = ExtraConstraints[WCIncidentElements[i][0]][WCIncidentElementsLocal[i][0]];
-					Particle2WCIndices[p] = i;
-				}
-			}
-
-			ParticlesPerColor = ComputeNodalColoring(TotalConstraints, InParticles, 0, InParticles.Size(), TotalIncidentElements, TotalIncidentElementsLocal, &ParticleColors);
 
 			NodalWeights.Init({}, InParticles.Size());
 
@@ -708,6 +691,147 @@ namespace Chaos::Softs
 			}
 		}
 
+
+		void ComputeCollisionWCDataSimplified(TArray<TArray<int32>>& ExtraConstraints, TArray<TArray<int32>>& ExtraWCIncidentElements, TArray<TArray<int32>>& ExtraWCIncidentElementsLocal)
+		{
+			ensureMsgf(Indices.Num() >= InitialWCSize, TEXT("The size of Indices is smaller than InitialWCSize"));
+
+			ExtraConstraints.Init(TArray<int32>(), Indices.Num() - InitialWCSize);
+			for (int32 i = InitialWCSize; i < Indices.Num(); i++)
+			{
+				ExtraConstraints[i - InitialWCSize].SetNum(Indices[i].Num() + SecondIndices[i].Num());
+				for (int32 j = 0; j < Indices[i].Num(); j++)
+				{
+					ExtraConstraints[i - InitialWCSize][j] = Indices[i][j];
+				}
+				for (int32 j = 0; j < SecondIndices[i].Num(); j++)
+				{
+					ExtraConstraints[i - InitialWCSize][j + Indices[i].Num()] = SecondIndices[i][j];
+				}
+			}
+
+			ExtraWCIncidentElements = Chaos::Utilities::ComputeIncidentElements(ExtraConstraints, &ExtraWCIncidentElementsLocal);
+
+			NodalWeights = NoCollisionNodalWeights;
+			for (int32 i = 0; i < ExtraWCIncidentElements.Num(); i++)
+			{
+				if (ExtraWCIncidentElements[i].Num() > 0)
+				{
+					int32 p = ExtraConstraints[ExtraWCIncidentElements[i][0]][ExtraWCIncidentElementsLocal[i][0]];
+					if (NodalWeights[p].Num() == 0)
+					{
+						NodalWeights[p].Init(T(0), 6);
+					}
+					for (int32 j = 0; j < ExtraWCIncidentElements[i].Num(); j++)
+					{
+						int32 LocalIndex = ExtraWCIncidentElementsLocal[i][j];
+						int32 ConstraintIndex = ExtraWCIncidentElements[i][j] + InitialWCSize;
+						T weight = T(0);
+						if (LocalIndex >= Indices[ConstraintIndex].Num())
+						{
+							weight = SecondWeights[ConstraintIndex][LocalIndex - Indices[ConstraintIndex].Num()];
+						}
+						else
+						{
+							weight = Weights[ConstraintIndex][LocalIndex];
+						}
+						if (IsAnisotropic[ConstraintIndex])
+						{
+							for (int32 alpha = 0; alpha < 3; alpha++)
+							{
+								NodalWeights[p][alpha] += Normals[ConstraintIndex][alpha] * Normals[ConstraintIndex][alpha] * weight * weight * Stiffness[ConstraintIndex];
+							}
+
+							NodalWeights[p][3] += Normals[ConstraintIndex][0] * Normals[ConstraintIndex][1] * weight * weight * Stiffness[ConstraintIndex];
+							NodalWeights[p][4] += Normals[ConstraintIndex][0] * Normals[ConstraintIndex][2] * weight * weight * Stiffness[ConstraintIndex];
+							NodalWeights[p][5] += Normals[ConstraintIndex][1] * Normals[ConstraintIndex][2] * weight * weight * Stiffness[ConstraintIndex];
+						}
+						else
+						{
+							for (int32 alpha = 0; alpha < 3; alpha++)
+							{
+								NodalWeights[p][alpha] += weight * weight * Stiffness[ConstraintIndex];
+							}
+						}
+					}
+				}
+			}
+		}
+
+
+		TArray<TArray<int32>> GetStaticConstraintArrays(TArray<TArray<int32>>& IncidentElements, TArray<TArray<int32>> IncidentElementsLocal)
+		{
+			IncidentElements = NoCollisionWCIncidentElements;
+			IncidentElementsLocal = NoCollisionWCIncidentElementsLocal;
+			return NoCollisionConstraints;
+		}
+
+		TArray<TArray<int32>> GetDynamicConstraintArrays(TArray<TArray<int32>>& IncidentElements, TArray<TArray<int32>> IncidentElementsLocal)
+		{
+			TArray<TArray<int32>> ExtraConstraints;
+			ExtraConstraints.Init(TArray<int32>(), Indices.Num());
+			for (int32 i = InitialWCSize; i < Indices.Num(); i++)
+			{
+				ExtraConstraints[i - InitialWCSize].SetNum(Indices[i].Num() + SecondIndices[i].Num());
+				for (int32 j = 0; j < Indices[i].Num(); j++)
+				{
+					ExtraConstraints[i - InitialWCSize][j] = Indices[i][j];
+				}
+				for (int32 j = 0; j < SecondIndices[i].Num(); j++)
+				{
+					ExtraConstraints[i - InitialWCSize][j + Indices[i].Num()] = SecondIndices[i][j];
+				}
+			}
+
+			IncidentElements = Chaos::Utilities::ComputeIncidentElements(ExtraConstraints, &IncidentElementsLocal);
+
+			return ExtraConstraints;
+		}
+
+		void AddWCResidualAndHessian(const ParticleType& InParticles, const int32 ConstraintIndex, const int32 LocalIndex, const T Dt, TVec3<T>& ParticleResidual, Chaos::PMatrix<T, 3, 3>& ParticleHessian)
+		{
+			TVec3<T> SpringEdge((T)0.);
+			for (int32 l = 0; l < Weights[ConstraintIndex].Num(); l++)
+			{
+				for (int32 beta = 0; beta < 3; beta++)
+				{
+					SpringEdge[beta] += Weights[ConstraintIndex][l] * InParticles.P(Indices[ConstraintIndex][l])[beta];
+				}
+			}
+			for (int32 l = 0; l < SecondWeights[ConstraintIndex].Num(); l++)
+			{
+				for (int32 beta = 0; beta < 3; beta++)
+				{
+					SpringEdge[beta] -= SecondWeights[ConstraintIndex][l] * InParticles.P(SecondIndices[ConstraintIndex][l])[beta];
+				}
+			}
+			T weight = T(0);
+			if (LocalIndex >= Indices[ConstraintIndex].Num())
+			{
+				weight = -SecondWeights[ConstraintIndex][LocalIndex - Indices[ConstraintIndex].Num()];
+			}
+			else
+			{
+				weight = Weights[ConstraintIndex][LocalIndex];
+			}
+			if (IsAnisotropic[ConstraintIndex])
+			{
+				T comp = TVec3<T>::DotProduct(SpringEdge, Normals[ConstraintIndex]);
+				TVec3<T> proj = Normals[ConstraintIndex] * comp;
+				for (int32 alpha = 0; alpha < 3; alpha++)
+				{
+					ParticleResidual[alpha] += Dt * Dt * Stiffness[ConstraintIndex] * proj[alpha] * weight;
+				}
+			}
+			else
+			{
+				for (int32 alpha = 0; alpha < 3; alpha++)
+				{
+					ParticleResidual[alpha] += Dt * Dt * Stiffness[ConstraintIndex] * SpringEdge[alpha] * weight;
+				}
+			}
+
+		}
 
 		TArray<TArray<int32>> Indices;
 		TArray<TArray<T>> Weights;

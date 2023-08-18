@@ -91,6 +91,9 @@ namespace Chaos::Softs
 	FCriticalSection FDeformableSolver::PackageInputMutex;
 	FCriticalSection FDeformableSolver::SolverEnabledMutex;
 
+	int32 GSParallelMax = 100;
+	FAutoConsoleVariableRef CVarDeformableGSParrelMax(TEXT("p.Chaos.Deformable.GSParallelMax"), GSParallelMax, TEXT("Minimal number of particles to process in parallel for Gauss Seidel constraints. [def: 100]"));
+
 	FDeformableSolver::FDeformableSolver(FDeformableSolverProperties InProp)
 		: CurrentInputPackage(TUniquePtr < FDeformablePackage >(nullptr))
 		, PreviousInputPackage(TUniquePtr < FDeformablePackage >(nullptr))
@@ -1198,37 +1201,58 @@ namespace Chaos::Softs
 	{
 		PERF_SCOPE(STAT_ChaosDeformableSolver_InitializeGaussSeidelConstraintVariables);
 
+		GSMasterConstraint.Reset(new Chaos::Softs::FGaussSeidelMasterConstraint<FSolverReal, FSolverParticles>(Evolution->Particles(), Property.bDoQuasistatics, Property.bUseSOR, Property.OmegaSOR, GSParallelMax));
+
 		if (Property.bUseGSNeohookean)
 		{
 			GSNeohookeanConstraints.Reset(new Chaos::Softs::FGaussSeidelNeohookeanConstraints<FSolverReal, FSolverParticles>(
 				Evolution->Particles(), *AllElements, *AllTetEMeshArray, *AllTetNuMeshArray, MoveTemp(*AllTetAlphaJArray), MoveTemp(*AllIncidentElements), MoveTemp(*AllIncidentElementsLocal), 0, Evolution->Particles().Size(), Property.bDoQuasistatics, Property.bUseSOR, Property.OmegaSOR, GDeformableXPBDCorotatedParams));
 			Evolution->ResetConstraintRules();
+			
+			GSMasterConstraint->AddStaticConstraints(GSNeohookeanConstraints->GetMeshArray(), GSNeohookeanConstraints->GetIncidentElements(), GSNeohookeanConstraints->GetIncidentElementsLocal());
+
 			int32 InitIndex1 = Evolution->AddConstraintInitRange(1, true);
 			Evolution->ConstraintInits()[InitIndex1] =
 				[this](FSolverParticles& InParticles, const FSolverReal Dt)
 			{
-				this->GSNeohookeanConstraints->Init(Dt, InParticles);
+				this->GSMasterConstraint->Init(Dt, InParticles);
 			};
+
 			int32 ConstraintIndex1 = Evolution->AddConstraintRuleRange(1, true);
 			Evolution->ConstraintRules()[ConstraintIndex1] =
 				[this](FSolverParticles& InParticles, const FSolverReal Dt)
 			{
-				this->GSNeohookeanConstraints->Apply(InParticles, Dt);
+				this->GSMasterConstraint->Apply(InParticles, Dt);
 			};
 
+
+			int32 StaticIndex = GSMasterConstraint->AddStaticConstraintResidualAndHessianRange(1);
+
+			GSMasterConstraint->StaticConstraintResidualAndHessian()[StaticIndex] = [this](const FSolverParticles& Particles, const int32 ElementIndex, const int32 ElementIndexLocal, const FSolverReal Dt, TVec3<FSolverReal>& ParticleResidual, Chaos::PMatrix<FSolverReal, 3, 3>& ParticleHessian)
+			{
+				this->GSNeohookeanConstraints->AddHyperelasticResidualAndHessian(Particles, ElementIndex, ElementIndexLocal, Dt, ParticleResidual, ParticleHessian);
+			};
+			
+			
 			if (Property.bEnablePositionTargets)
 			{
 				TArray<TArray<int32>> ParticlesPerColor;
 				GSWeakConstraints->ComputeInitialWCData(Evolution->Particles(), GSNeohookeanConstraints->GetMeshArray(), GSNeohookeanConstraints->GetIncidentElements(), GSNeohookeanConstraints->GetIncidentElementsLocal(), ParticlesPerColor);
-				GSNeohookeanConstraints->SetParticlesPerColor(MoveTemp(ParticlesPerColor));
 
-				GSNeohookeanConstraints->AddAdditionalRes = [this](const FSolverParticles& InParticles, const int32 p, const FSolverReal Dt, TVec3<FSolverReal>& res)
+				TArray<TArray<int32>> StaticIncidentElements, StaticIncidentElementsLocal;
+				TArray<TArray<int32>> StaticConstraints = GSWeakConstraints->GetStaticConstraintArrays(StaticIncidentElements, StaticIncidentElementsLocal);
+				GSMasterConstraint->AddStaticConstraints(StaticConstraints, StaticIncidentElements, StaticIncidentElementsLocal);
+
+				int32 StaticIndex1 = GSMasterConstraint->AddStaticConstraintResidualAndHessianRange(1);
+				GSMasterConstraint->StaticConstraintResidualAndHessian()[StaticIndex1] = [this](const FSolverParticles& Particles, const int32 ConstraintIndex, const int32 ConstraintIndexLocal, const FSolverReal Dt, TVec3<FSolverReal>& ParticleResidual, Chaos::PMatrix<FSolverReal, 3, 3>& ParticleHessian)
 				{
-					this->GSWeakConstraints->AddWCResidual(InParticles, p, Dt, res);
+					this->GSWeakConstraints->AddWCResidualAndHessian(Particles, ConstraintIndex, ConstraintIndexLocal, Dt, ParticleResidual, ParticleHessian);
 				};
-				GSNeohookeanConstraints->AddAdditionalHessian = [this](const FSolverParticles& InParticles, const int32 p, const FSolverReal Dt, Chaos::PMatrix<FSolverReal, 3, 3>& hessian)
+
+				int32 PerNodeIndex = GSMasterConstraint->AddPerNodeHessianRange(1);
+				GSMasterConstraint->PerNodeHessian()[PerNodeIndex] = [this](const int32 p, const FSolverReal Dt, Chaos::PMatrix<FSolverReal, 3, 3>& ParticleHessian)
 				{
-					this->GSWeakConstraints->AddWCHessian(p, Dt, hessian);
+					this->GSWeakConstraints->AddWCHessian(p, Dt, ParticleHessian);
 				};
 			}
 		} 
@@ -1237,35 +1261,58 @@ namespace Chaos::Softs
 			GSCorotatedConstraints.Reset(new Chaos::Softs::FGaussSeidelCorotatedConstraints<FSolverReal, FSolverParticles>(
 				Evolution->Particles(), *AllElements, *AllTetEMeshArray, *AllTetNuMeshArray, MoveTemp(*AllTetAlphaJArray), MoveTemp(*AllIncidentElements), MoveTemp(*AllIncidentElementsLocal), 0, Evolution->Particles().Size(), Property.bDoQuasistatics, Property.bUseSOR, Property.OmegaSOR, GDeformableXPBDCorotatedParams));
 			Evolution->ResetConstraintRules();
+
+			GSMasterConstraint->AddStaticConstraints(GSCorotatedConstraints->GetMeshArray(), GSCorotatedConstraints->GetIncidentElements(), GSCorotatedConstraints->GetIncidentElementsLocal());
+			
 			int32 InitIndex1 = Evolution->AddConstraintInitRange(1, true);
 			Evolution->ConstraintInits()[InitIndex1] =
 				[this](FSolverParticles& InParticles, const FSolverReal Dt)
 			{
-				this->GSCorotatedConstraints->Init(Dt, InParticles);
+				this->GSMasterConstraint->Init(Dt, InParticles);
 			};
+
 			int32 ConstraintIndex1 = Evolution->AddConstraintRuleRange(1, true);
 			Evolution->ConstraintRules()[ConstraintIndex1] =
 				[this](FSolverParticles& InParticles, const FSolverReal Dt)
 			{
-				this->GSCorotatedConstraints->Apply(InParticles, Dt);
+				this->GSMasterConstraint->Apply(InParticles, Dt);
 			};
+
+
+			int32 StaticIndex = GSMasterConstraint->AddStaticConstraintResidualAndHessianRange(1);
+
+			GSMasterConstraint->StaticConstraintResidualAndHessian()[StaticIndex] = [this](const FSolverParticles& Particles, const int32 ElementIndex, const int32 ElementIndexLocal, const FSolverReal Dt, TVec3<FSolverReal>& ParticleResidual, Chaos::PMatrix<FSolverReal, 3, 3>& ParticleHessian)
+			{
+				this->GSCorotatedConstraints->AddHyperelasticResidualAndHessian(Particles, ElementIndex, ElementIndexLocal, Dt, ParticleResidual, ParticleHessian);
+			};
+				
 
 			if (Property.bEnablePositionTargets)
 			{
 				TArray<TArray<int32>> ParticlesPerColor;
 				GSWeakConstraints->ComputeInitialWCData(Evolution->Particles(), GSCorotatedConstraints->GetMeshArray(), GSCorotatedConstraints->GetIncidentElements(), GSCorotatedConstraints->GetIncidentElementsLocal(), ParticlesPerColor);
-				GSCorotatedConstraints->SetParticlesPerColor(MoveTemp(ParticlesPerColor));
 
-				GSCorotatedConstraints->AddAdditionalRes = [this](const FSolverParticles& InParticles, const int32 p, const FSolverReal Dt, TVec3<FSolverReal>& res)
+				TArray<TArray<int32>> StaticIncidentElements, StaticIncidentElementsLocal;
+				TArray<TArray<int32>> StaticConstraints = GSWeakConstraints->GetStaticConstraintArrays(StaticIncidentElements, StaticIncidentElementsLocal);
+				GSMasterConstraint->AddStaticConstraints(StaticConstraints, StaticIncidentElements, StaticIncidentElementsLocal);
+
+				int32 StaticIndex1 = GSMasterConstraint->AddStaticConstraintResidualAndHessianRange(1);
+				GSMasterConstraint->StaticConstraintResidualAndHessian()[StaticIndex1] = [this](const FSolverParticles& Particles, const int32 ConstraintIndex, const int32 ConstraintIndexLocal, const FSolverReal Dt, TVec3<FSolverReal>& ParticleResidual, Chaos::PMatrix<FSolverReal, 3, 3>& ParticleHessian)
 				{
-					this->GSWeakConstraints->AddWCResidual(InParticles, p, Dt, res);
+					this->GSWeakConstraints->AddWCResidualAndHessian(Particles, ConstraintIndex, ConstraintIndexLocal, Dt, ParticleResidual, ParticleHessian);
 				};
-				GSCorotatedConstraints->AddAdditionalHessian = [this](const FSolverParticles& InParticles, const int32 p, const FSolverReal Dt, Chaos::PMatrix<FSolverReal, 3, 3>& hessian)
+
+				int32 PerNodeIndex = GSMasterConstraint->AddPerNodeHessianRange(1);
+				GSMasterConstraint->PerNodeHessian()[PerNodeIndex] = [this](const int32 p, const FSolverReal Dt, Chaos::PMatrix<FSolverReal, 3, 3>& ParticleHessian)
 				{
-					this->GSWeakConstraints->AddWCHessian(p, Dt, hessian);
+					this->GSWeakConstraints->AddWCHessian(p, Dt, ParticleHessian);
 				};
+
 			}
 		}
+
+		GSMasterConstraint->InitStaticColor(Evolution->Particles());
+
 		if (Property.bEnablePositionTargets)
 		{
 			int32 InitIndex1 = Evolution->AddConstraintInitRange(1, true);
@@ -1278,6 +1325,21 @@ namespace Chaos::Softs
 
 		if (Property.bDoSelfCollision)
 		{
+			int32 DynamicIndex = GSMasterConstraint->AddDynamicConstraintResidualAndHessianRange(1);
+			GSMasterConstraint->DynamicConstraintResidualAndHessian()[DynamicIndex] = [this](const FSolverParticles& Particles, const int32 ConstraintIndex, const int32 ConstraintIndexLocal, const FSolverReal Dt, TVec3<FSolverReal>& ParticleResidual, Chaos::PMatrix<FSolverReal, 3, 3>& ParticleHessian)
+			{
+				this->GSWeakConstraints->AddWCResidualAndHessian(Particles, ConstraintIndex + this->GSWeakConstraints->InitialWCSize, ConstraintIndexLocal, Dt, ParticleResidual, ParticleHessian);
+			};
+
+			if (!Property.bEnablePositionTargets)
+			{
+				int32 PerNodeIndex = GSMasterConstraint->AddPerNodeHessianRange(1);
+				GSMasterConstraint->PerNodeHessian()[PerNodeIndex] = [this](const int32 p, const FSolverReal Dt, Chaos::PMatrix<FSolverReal, 3, 3>& ParticleHessian)
+				{
+					this->GSWeakConstraints->AddWCHessian(p, Dt, ParticleHessian);
+				};
+			}
+
 			this->GSWeakConstraints->UpdateBoundaryVertices(*SurfaceElements);
 			
 			int32 InitIndex = Evolution->AddConstraintInitRange(1, true);
@@ -1294,26 +1356,17 @@ namespace Chaos::Softs
 			};
 
 			int32 InitIndex1 = Evolution->AddConstraintInitRange(1, true);
-			if (Property.bUseGSNeohookean)
+
+
+			Evolution->ConstraintInits()[InitIndex1] =
+				[this](FSolverParticles& InParticles, const FSolverReal Dt)
 			{
-				Evolution->ConstraintInits()[InitIndex1] =
-					[this](FSolverParticles& InParticles, const FSolverReal Dt)
-				{
-					TArray<TArray<int32>> ParticlesPerColor;
-					this->GSWeakConstraints->ComputeCollisionWCData(this->Evolution->Particles(), this->GSNeohookeanConstraints->GetMeshArray(), this->GSNeohookeanConstraints->GetIncidentElements(), this->GSNeohookeanConstraints->GetIncidentElementsLocal(), ParticlesPerColor);
-					this->GSNeohookeanConstraints->SetParticlesPerColor(MoveTemp(ParticlesPerColor));
-				};
-			}
-			else
-			{
-				Evolution->ConstraintInits()[InitIndex1] =
-					[this](FSolverParticles& InParticles, const FSolverReal Dt)
-				{
-					TArray<TArray<int32>> ParticlesPerColor;
-					this->GSWeakConstraints->ComputeCollisionWCData(this->Evolution->Particles(), this->GSCorotatedConstraints->GetMeshArray(), this->GSCorotatedConstraints->GetIncidentElements(), this->GSCorotatedConstraints->GetIncidentElementsLocal(), ParticlesPerColor);
-					this->GSCorotatedConstraints->SetParticlesPerColor(MoveTemp(ParticlesPerColor));
-				};
-			}
+				TArray<TArray<int32>> WCCollisionConstraints, WCCollisionIncidentElements, WCCollisionIncidentElementsLocal;
+				this->GSWeakConstraints->ComputeCollisionWCDataSimplified(WCCollisionConstraints, WCCollisionIncidentElements, WCCollisionIncidentElementsLocal);
+				this->GSMasterConstraint->AddDynamicConstraints(WCCollisionConstraints, WCCollisionIncidentElements, WCCollisionIncidentElementsLocal);
+				this->GSMasterConstraint->InitDynamicColor(InParticles);
+			}; 
+			
 		}
 	}
 
