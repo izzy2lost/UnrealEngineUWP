@@ -447,6 +447,7 @@ public:
 
 	struct FParticleCollisionFilterData
 	{
+		int32 ParticleIndex = INDEX_NONE;
 		bool bIsValid = false;
 		bool bQueryEnabled = false;
 		bool bSimEnabled = false;

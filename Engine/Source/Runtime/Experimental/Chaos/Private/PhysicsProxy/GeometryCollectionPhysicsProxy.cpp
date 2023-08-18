@@ -3696,18 +3696,17 @@ void FGeometryCollectionPhysicsProxy::UpdatePerParticleFilterData_External(const
 		{
 			Chaos::FWritePhysicsObjectInterface_Internal Interface= Chaos::FPhysicsObjectInternalInterface::GetWrite();
 
-			int32 ParticleIndex = 0;
 			for (const FParticleCollisionFilterData& Data : PerParticleData)
 			{
-				Chaos::FPhysicsObjectHandle Object = PhysicsObjects[ParticleIndex].Get();
-				if (Data.bIsValid && Object)
+				if (Data.bIsValid && Data.ParticleIndex != INDEX_NONE)
 				{
-					TArrayView<Chaos::FPhysicsObjectHandle> ParticleView{ &Object, 1 };
-					Interface.UpdateShapeCollisionFlags(ParticleView, Data.bSimEnabled, Data.bQueryEnabled);
-					Interface.UpdateShapeFilterData(ParticleView, Data.QueryFilter, Data.SimFilter);
+					if (Chaos::FPhysicsObjectHandle Object = PhysicsObjects[Data.ParticleIndex].Get())
+					{
+						TArrayView<Chaos::FPhysicsObjectHandle> ParticleView{ &Object, 1 };
+						Interface.UpdateShapeCollisionFlags(ParticleView, Data.bSimEnabled, Data.bQueryEnabled);
+						Interface.UpdateShapeFilterData(ParticleView, Data.QueryFilter, Data.SimFilter);
+					}
 				}
-
-				++ParticleIndex;
 			}
 		});
 	}

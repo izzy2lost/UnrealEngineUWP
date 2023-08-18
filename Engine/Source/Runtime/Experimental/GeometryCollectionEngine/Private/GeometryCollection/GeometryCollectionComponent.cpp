@@ -3514,13 +3514,14 @@ void UGeometryCollectionComponent::LoadCollisionProfiles()
 
 			if (Data)
 			{
-				PerParticleData.Add(*Data);
-				Interface->UpdateShapeCollisionFlags(ParticleView, Data->bSimEnabled, Data->bQueryEnabled);
-				Interface->UpdateShapeFilterData(ParticleView, Data->QueryFilter, Data->SimFilter);
-			}
-			else
-			{
-				PerParticleData.Add({});
+				FCollisionProfileDataCache ParticleData = *Data;
+				ParticleData.ParticleIndex = ParticleIndex;
+
+				PerParticleData.Emplace(MoveTemp(ParticleData));
+
+				// Need to update on the GT too (physics proxy will just enqueue to do it on the PT) or else the changes won't take effect for GT SQ queries.
+				Interface->UpdateShapeCollisionFlags(ParticleView, ParticleData.bSimEnabled, ParticleData.bQueryEnabled);
+				Interface->UpdateShapeFilterData(ParticleView, ParticleData.QueryFilter, ParticleData.SimFilter);
 			}
 		}
 	}
