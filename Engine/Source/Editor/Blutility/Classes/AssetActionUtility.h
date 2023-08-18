@@ -35,11 +35,18 @@ struct FAssetActionSupportCondition
 
 	/**
 	 * This is the failure reason to reply to the user with if the condition above fails.
-	 * If you leave this blank, we will hide the option.  If fill in the reason, will show the option but give the reason
-	 * it is disabled.
+	 * If you fill in the reason, it will override the default failure text in the tooltip for the function menu option.
 	 */
 	UPROPERTY(EditAnywhere, Category=Condition, meta=(MultiLine=true))
 	FString FailureReason;
+
+	/**
+	 * If this filter does not pass, show the corresponding functions from the menu anyways.
+	 * If true, the menu option will display with the error tooltip, but be disabled.
+	 * If false, the menu options will be removed entirely.
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "Asset Support")
+	bool bShowInMenuIfFilterFails = true;
 };
 
 /** 
