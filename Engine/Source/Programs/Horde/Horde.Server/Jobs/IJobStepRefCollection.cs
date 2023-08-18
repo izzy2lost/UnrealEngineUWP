@@ -12,6 +12,7 @@ using Horde.Server.Logs;
 using Horde.Server.Streams;
 using HordeCommon;
 using Microsoft.Extensions.Logging;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Jobs
 {

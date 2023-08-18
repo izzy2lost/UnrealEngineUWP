@@ -11,6 +11,7 @@ using Horde.Server.Streams;
 using HordeCommon;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Attributes;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Jobs
 {

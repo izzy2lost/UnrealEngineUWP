@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using Horde.Server.Utilities;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Agents.Sessions
 {

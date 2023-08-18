@@ -14,7 +14,6 @@ using EpicGames.Horde.Compute.Transports;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Agents;
-using Horde.Server.Agents.Leases;
 using Horde.Server.Jobs;
 using Horde.Server.Logs;
 using Horde.Server.Utilities;
@@ -91,7 +90,7 @@ namespace Horde.Server.Compute
 				return null;
 			}
 
-			return new ComputeResource(ip, port, computeTask, agent.Properties, leaseId);
+			return new ComputeResource(ip, port, computeTask, agent.Properties, agent.Id, leaseId);
 		}
 
 		static ComputeTask CreateComputeTask(Dictionary<string, int> assignedResources, LogId? logId, LeaseId? parentLeaseId)

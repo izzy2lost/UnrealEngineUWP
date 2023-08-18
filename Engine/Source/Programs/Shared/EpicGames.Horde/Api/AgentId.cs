@@ -3,20 +3,16 @@
 using System;
 using System.ComponentModel;
 using System.Globalization;
-using EpicGames.Redis;
-using MongoDB.Bson.Serialization;
-using MongoDB.Bson.Serialization.Attributes;
-using MongoDB.Bson.Serialization.Serializers;
-using StackExchange.Redis;
+using System.Text.Json;
+using EpicGames.Core;
 
-namespace Horde.Server.Agents
+namespace EpicGames.Horde.Api
 {
 	/// <summary>
 	/// Normalized hostname of an agent
 	/// </summary>
 	[TypeConverter(typeof(AgentIdTypeConverter))]
-	[RedisConverter(typeof(AgentIdRedisConverter))]
-	[BsonSerializer(typeof(AgentIdBsonSerializer))]
+	[LogValueFormatter(typeof(AgentIdLogFormatter))]
 	public struct AgentId : IEquatable<AgentId>
 	{
 		/// <summary>
@@ -122,45 +118,6 @@ namespace Horde.Server.Agents
 	}
 
 	/// <summary>
-	/// Converter to/from Redis values
-	/// </summary>
-	public sealed class AgentIdRedisConverter : IRedisConverter<AgentId>
-	{
-		/// <inheritdoc/>
-		public AgentId FromRedisValue(RedisValue value) => new AgentId((string)value!);
-
-		/// <inheritdoc/>
-		public RedisValue ToRedisValue(AgentId value) => value.ToString();
-	}
-
-	/// <summary>
-	/// Serializer for StringId objects
-	/// </summary>
-	public sealed class AgentIdBsonSerializer : SerializerBase<AgentId>
-	{
-		/// <inheritdoc/>
-		public override AgentId Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args)
-		{
-			string argument;
-			if (context.Reader.CurrentBsonType == MongoDB.Bson.BsonType.ObjectId)
-			{
-				argument = context.Reader.ReadObjectId().ToString();
-			}
-			else
-			{
-				argument = context.Reader.ReadString();
-			}
-			return new AgentId(argument);
-		}
-
-		/// <inheritdoc/>
-		public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, AgentId value)
-		{
-			context.Writer.WriteString(value.ToString());
-		}
-	}
-
-	/// <summary>
 	/// Type converter from strings to PropertyFilter objects
 	/// </summary>
 	sealed class AgentIdTypeConverter : TypeConverter
@@ -194,6 +151,21 @@ namespace Horde.Server.Agents
 			{
 				return null;
 			}
+		}
+	}
+
+	/// <summary>
+	/// Formats an AgentId as a typed log value
+	/// </summary>
+	class AgentIdLogFormatter : ILogValueFormatter
+	{
+		/// <inheritdoc/>
+		public void Format(object value, Utf8JsonWriter writer)
+		{
+			writer.WriteStartObject();
+			writer.WriteString(LogEventPropertyName.Type, "AgentId");
+			writer.WriteString(LogEventPropertyName.Text, ((AgentId)value).ToString());
+			writer.WriteEndObject();
 		}
 	}
 }

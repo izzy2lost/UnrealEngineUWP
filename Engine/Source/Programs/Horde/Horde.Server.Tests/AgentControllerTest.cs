@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Horde.Server.Agents;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Tests;
 

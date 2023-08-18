@@ -13,6 +13,7 @@ using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Caching.Memory;
 using OpenTelemetry.Trace;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Agents.Fleet
 {

@@ -12,6 +12,7 @@ using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Agents.Telemetry
 {

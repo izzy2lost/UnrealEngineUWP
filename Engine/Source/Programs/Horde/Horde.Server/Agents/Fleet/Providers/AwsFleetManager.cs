@@ -12,6 +12,7 @@ using Horde.Server.Auditing;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Trace;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Agents.Fleet.Providers
 {

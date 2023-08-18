@@ -11,6 +11,7 @@ using Amazon.AutoScaling;
 using Amazon.EC2;
 using Datadog.Trace;
 using EpicGames.Core;
+using EpicGames.Horde.Api;
 using EpicGames.Horde.Storage;
 using Horde.Server.Acls;
 using Horde.Server.Agents;

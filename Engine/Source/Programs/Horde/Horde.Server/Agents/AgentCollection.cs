@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
+using EpicGames.Horde.Api;
 using EpicGames.Redis;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Agents.Pools;

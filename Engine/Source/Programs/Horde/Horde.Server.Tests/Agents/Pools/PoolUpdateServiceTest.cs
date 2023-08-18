@@ -7,6 +7,7 @@ using System.Threading;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
 using Microsoft.Extensions.Logging.Abstractions;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Tests.Agents.Pools
 {

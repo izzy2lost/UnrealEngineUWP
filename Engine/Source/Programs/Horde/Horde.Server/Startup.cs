@@ -107,6 +107,8 @@ using EpicGames.Horde.Storage.Bundles;
 using Horde.Server.Ddc;
 using System.Net.Mime;
 using Microsoft.Extensions.Logging.Abstractions;
+using EpicGames.Redis;
+using StackExchange.Redis;
 
 namespace Horde.Server
 {
@@ -342,7 +344,19 @@ namespace Horde.Server
 
 			settings.Telemetry = telemetryConfigs;
 		}
-		
+
+		/// <summary>
+		/// Converter to/from Redis values
+		/// </summary>
+		sealed class AgentIdRedisConverter : IRedisConverter<AgentId>
+		{
+			/// <inheritdoc/>
+			public AgentId FromRedisValue(RedisValue value) => new AgentId((string)value!);
+
+			/// <inheritdoc/>
+			public RedisValue ToRedisValue(AgentId value) => value.ToString();
+		}
+
 		// This method gets called *multiple times* by the runtime. Use this method to add services to the container.
 		public void ConfigureServices(IServiceCollection services)
 		{
@@ -371,6 +385,8 @@ namespace Horde.Server
 				int min = settings.GlobalThreadPoolMinSize.Value;
 				ThreadPool.SetMinThreads(min, min);
 			}
+
+			RedisSerializer.RegisterConverter<AgentId, AgentIdRedisConverter>();
 
 #pragma warning disable CA2000 // Dispose objects before losing scope
 			RedisService redisService = new RedisService(settings);
@@ -994,6 +1010,30 @@ namespace Horde.Server
 			}
 		}
 
+		public sealed class AgentIdBsonSerializer : SerializerBase<AgentId>
+		{
+			/// <inheritdoc/>
+			public override AgentId Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args)
+			{
+				string argument;
+				if (context.Reader.CurrentBsonType == MongoDB.Bson.BsonType.ObjectId)
+				{
+					argument = context.Reader.ReadObjectId().ToString();
+				}
+				else
+				{
+					argument = context.Reader.ReadString();
+				}
+				return new AgentId(argument);
+			}
+
+			/// <inheritdoc/>
+			public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, AgentId value)
+			{
+				context.Writer.WriteString(value.ToString());
+			}
+		}
+
 		public sealed class AclActionBsonSerializer : SerializerBase<AclAction>
 		{
 			/// <inheritdoc/>
@@ -1029,6 +1069,7 @@ namespace Horde.Server
 				BsonSerializer.RegisterSerializer(new RefNameBsonSerializer());
 				BsonSerializer.RegisterSerializer(new IoHashBsonSerializer());
 				BsonSerializer.RegisterSerializer(new NamespaceIdBsonSerializer());
+				BsonSerializer.RegisterSerializer(new AgentIdBsonSerializer());
 				BsonSerializer.RegisterSerializer(new AclActionBsonSerializer());
 				BsonSerializer.RegisterSerializer(new AclScopeNameBsonSerializer());
 				BsonSerializer.RegisterSerializer(new ConditionSerializer());

@@ -4,21 +4,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
-using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Core;
 using EpicGames.Horde.Api;
 using EpicGames.Horde.Compute;
-using EpicGames.Horde.Compute.Clients;
-using EpicGames.Horde.Compute.Transports;
-using Google.Protobuf;
-using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Agents;
-using Horde.Server.Agents.Leases;
 using Horde.Server.Server;
 using Horde.Server.Tasks;
-using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -51,6 +43,11 @@ namespace Horde.Server.Compute
 		public IReadOnlyList<string> Properties { get; }
 
 		/// <summary>
+		/// Agent id on the remote machine
+		/// </summary>
+		public AgentId AgentId { get; }
+
+		/// <summary>
 		/// Lease id on the remote machine
 		/// </summary>
 		public LeaseId LeaseId { get; }
@@ -58,12 +55,13 @@ namespace Horde.Server.Compute
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ComputeResource(IPAddress ip, int port, ComputeTask task, IReadOnlyList<string> properties, LeaseId leaseId)
+		public ComputeResource(IPAddress ip, int port, ComputeTask task, IReadOnlyList<string> properties, AgentId agentId, LeaseId leaseId)
 		{
 			Ip = ip;
 			Port = port;
 			Task = task;
 			Properties = properties;
+			AgentId = agentId;
 			LeaseId = leaseId;
 		}
 	}

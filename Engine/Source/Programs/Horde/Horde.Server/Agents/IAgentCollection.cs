@@ -9,6 +9,7 @@ using Horde.Server.Agents.Sessions;
 using Horde.Server.Auditing;
 using Horde.Server.Utilities;
 using HordeCommon;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Agents
 {

@@ -3,6 +3,7 @@
 using Horde.Server.Acls;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Sessions;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Utilities
 {

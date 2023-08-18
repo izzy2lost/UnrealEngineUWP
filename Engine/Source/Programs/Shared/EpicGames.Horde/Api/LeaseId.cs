@@ -13,7 +13,7 @@ namespace EpicGames.Horde.Api
 	[JsonSchemaString]
 	[TypeConverter(typeof(BinaryIdTypeConverter<LeaseId, LeaseIdConverter>))]
 	[BinaryIdConverter(typeof(LeaseIdConverter))]
-	[LogValueFormatterAttribute(typeof(LeaseIdLogFormatter))]
+	[LogValueFormatter(typeof(LeaseIdLogFormatter))]
 	public record struct LeaseId(BinaryId Id)
 	{
 		/// <inheritdoc cref="BinaryId.TryParse(System.String, out BinaryId)"/>

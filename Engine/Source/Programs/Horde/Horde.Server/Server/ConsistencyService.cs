@@ -12,6 +12,7 @@ using HordeCommon;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Horde.Server.Agents;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Server
 {

@@ -45,6 +45,11 @@ namespace EpicGames.Horde.Api
 		public string Key { get; set; } = String.Empty;
 
 		/// <summary>
+		/// Identifier for the remote machine
+		/// </summary>
+		public AgentId AgentId { get; set; }
+
+		/// <summary>
 		/// Identifier for the new lease on the remote machine
 		/// </summary>
 		public LeaseId LeaseId { get; set; }
