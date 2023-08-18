@@ -120,8 +120,7 @@ public:
 				return Name.GetValue();
 			}
 		}
-		static const FName NoneName(NAME_None);
-		return NoneName;
+		return EmptyName;
 	}
 
 	const FString& GetName() const
@@ -137,7 +136,6 @@ public:
 			Name.GetValue().ToString(ValueString);
 			return ValueString;
 		}
-		static const FString EmptyString;
 		return EmptyString;
 	}
 
@@ -176,4 +174,7 @@ private:
 
 	mutable TOptional<FName> Name;
 	mutable TOptional<FString> NameString;
+
+	static const FString EmptyString;
+	static const FName EmptyName;
 };
