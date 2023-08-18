@@ -430,7 +430,7 @@ public:
 		check(Component);
 		check(Component->GroomAsset);
 		check(Component->GroomAsset->GetNumHairGroups() > 0);
-		ComponentId = Component->ComponentId.PrimIDValue;
+		ComponentId = Component->GetPrimitiveSceneId().PrimIDValue;
 		Strands_DebugMaterial = Component->Strands_DebugMaterial;
 		bAlwaysHasVelocity = false;
 		if (IsHairStrandsBindingEnable() && Component->RegisteredMeshComponent)

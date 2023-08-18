@@ -209,9 +209,9 @@ void AColorCorrectRegion::TransferState()
 	}
 
 	// Store component id to be used on render thread.
-	if (!(TempCCRStateRenderThread->FirstPrimitiveId == IdentityComponent->ComponentId))
+	if (!(TempCCRStateRenderThread->FirstPrimitiveId == IdentityComponent->GetPrimitiveSceneId()))
 	{
-		TempCCRStateRenderThread->FirstPrimitiveId = IdentityComponent->ComponentId;
+		TempCCRStateRenderThread->FirstPrimitiveId = IdentityComponent->GetPrimitiveSceneId();
 	}
 
 	{
