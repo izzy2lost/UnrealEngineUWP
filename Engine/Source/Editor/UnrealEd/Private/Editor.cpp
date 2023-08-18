@@ -171,6 +171,7 @@ FEditorDelegates::FOnViewAssetIdentifiers				FEditorDelegates::OnEditAssetIdenti
 FEditorDelegates::FOnRestartRequested					FEditorDelegates::OnRestartRequested;
 FEditorDelegates::FOnEditorBoot							FEditorDelegates::OnEditorBoot;
 FEditorDelegates::FOnEditorInitialized					FEditorDelegates::OnEditorInitialized;
+FEditorDelegates::FOnExternalContentResolved			FEditorDelegates::OnExternalContentResolved;
 
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 

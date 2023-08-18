@@ -22,6 +22,7 @@
 class AStaticMeshActor;
 class FEdMode;
 class UFactory;
+struct FGuid;
 
 /** The shorthand identifier used for editor modes */
 typedef FName FEditorModeID;
@@ -173,6 +174,8 @@ struct FEditorDelegates
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnEditorBoot, double Duration);
 	/** delegate for when the editor has fully initialized */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnEditorInitialized, double Duration);
+	/** delegate when external content resolves and can replace placeholder data */
+	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnExternalContentResolved, const FGuid&, const FAssetData& /*PlaceholderAsset*/, const FAssetData& /*ResolvedAsset*/);
 
 	/** Called when the CurrentLevel is switched to a new level.  Note that this event won't be fired for temporary
 		changes to the current level, such as when copying/pasting actors. */
@@ -357,6 +360,8 @@ struct FEditorDelegates
 	static UNREALED_API FOnEditorBoot OnEditorBoot;
 	/** Called when the editor has initialized */
 	static UNREALED_API FOnEditorInitialized OnEditorInitialized;
+	/** Called when external content gets resolved */
+	static UNREALED_API FOnExternalContentResolved OnExternalContentResolved;
 };
 
 /**
