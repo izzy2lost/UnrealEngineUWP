@@ -16,6 +16,8 @@ class FLocalVertexFactoryUniformShaderParameters;
 class FRawStaticIndexBuffer;
 struct FStaticMeshVertexFactories;
 using FStaticMeshVertexFactoriesArray = TArray<FStaticMeshVertexFactories>;
+struct FStaticMeshSceneProxyDesc;
+
 
 /**
  * A static mesh component scene proxy.
@@ -27,6 +29,9 @@ public:
 
 	/** Initialization constructor. */
 	ENGINE_API FStaticMeshSceneProxy(UStaticMeshComponent* Component, bool bForceLODsShareStaticLighting);
+
+	/** Initialization constructor. */
+	ENGINE_API FStaticMeshSceneProxy(const FStaticMeshSceneProxyDesc& InDesc, bool bForceLODsShareStaticLighting);
 
 	ENGINE_API virtual ~FStaticMeshSceneProxy();
 
@@ -106,7 +111,7 @@ protected:
 public:
 	// FPrimitiveSceneProxy interface.
 #if WITH_EDITOR
-	ENGINE_API virtual HHitProxy* CreateHitProxies(UPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) override;
+	ENGINE_API virtual HHitProxy* CreateHitProxies(IPrimitiveComponent* ComponentInterface, TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) override;
 #endif
 	ENGINE_API virtual void DrawStaticElements(FStaticPrimitiveDrawInterface* PDI) override;
 	ENGINE_API virtual int32 GetLOD(const FSceneView* View) const override;
@@ -204,7 +209,7 @@ protected:
 		const FRawStaticIndexBuffer* PreCulledIndexBuffer;
 
 		/** Initialization constructor. */
-		FLODInfo(const UStaticMeshComponent* InComponent, const FStaticMeshVertexFactoriesArray& InLODVertexFactories, int32 InLODIndex, int32 InClampedMinLOD, bool bLODsShareStaticLighting);
+		FLODInfo(const FStaticMeshSceneProxyDesc& InProxyDesc, const FStaticMeshVertexFactoriesArray& InLODVertexFactories, int32 InLODIndex, int32 InClampedMinLOD, bool bLODsShareStaticLighting);
 
 		bool UsesMeshModifyingMaterials() const { return bUsesMeshModifyingMaterials; }
 
@@ -281,7 +286,7 @@ private:
 	const UStaticMesh* StaticMesh;
 
 #if STATICMESH_ENABLE_DEBUG_RENDERING
-	AActor* Owner;
+	UObject* Owner;
 	/** LightMap resolution used for VMI_LightmapDensity */
 	int32 LightMapResolution;
 	/** Body setup for collision debug rendering */

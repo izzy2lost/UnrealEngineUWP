@@ -11,6 +11,7 @@
 #include "Engine/World.h"
 #include "PSOPrecache.h"
 #include "UObject/UnrealType.h"
+#include "StaticMeshSceneProxyDesc.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MeshComponent)
 
@@ -131,13 +132,14 @@ void UMeshComponent::SetMaterialByName(FName MaterialSlotName, UMaterialInterfac
 	SetMaterial(MaterialIndex, Material);
 }
 
-FMaterialRelevance UMeshComponent::GetMaterialRelevance(ERHIFeatureLevel::Type InFeatureLevel) const
+template<class T> 
+FMaterialRelevance GetMaterialRelevanceImp(const T& Component, ERHIFeatureLevel::Type InFeatureLevel)
 {
 	// Combine the material relevance for all materials.
 	FMaterialRelevance Result;
-	for(int32 ElementIndex = 0;ElementIndex < GetNumMaterials();ElementIndex++)
+	for(int32 ElementIndex = 0;ElementIndex < Component.GetNumMaterials();ElementIndex++)
 	{
-		UMaterialInterface const* MaterialInterface = GetMaterial(ElementIndex);
+		UMaterialInterface const* MaterialInterface = Component.GetMaterial(ElementIndex);
 		if(!MaterialInterface)
 		{
 			MaterialInterface = UMaterial::GetDefaultMaterial(MD_Surface);
@@ -145,13 +147,28 @@ FMaterialRelevance UMeshComponent::GetMaterialRelevance(ERHIFeatureLevel::Type I
 		Result |= MaterialInterface->GetRelevance_Concurrent(InFeatureLevel);
 	}
 
-	UMaterialInterface const* OverlayMaterialInterface = GetOverlayMaterial();
+	UMaterialInterface const* OverlayMaterialInterface = Component.GetOverlayMaterial();
 	if (OverlayMaterialInterface != nullptr)
 	{
 		Result |= OverlayMaterialInterface->GetRelevance_Concurrent(InFeatureLevel);
 	}
 
 	return Result;
+}
+
+FMaterialRelevance UMeshComponent::GetMaterialRelevance(ERHIFeatureLevel::Type InFeatureLevel) const
+{
+	return GetMaterialRelevanceImp(*this, InFeatureLevel);	
+}
+
+FMaterialRelevance FStaticMeshSceneProxyDesc::GetMaterialRelevance(ERHIFeatureLevel::Type InFeatureLevel) const
+{
+	if (bUseProvidedMaterialRelevance)
+	{
+		return MaterialRelevance; 
+	}
+
+	return GetMaterialRelevanceImp(*this, InFeatureLevel);	
 }
 
 int32 UMeshComponent::GetNumOverrideMaterials() const

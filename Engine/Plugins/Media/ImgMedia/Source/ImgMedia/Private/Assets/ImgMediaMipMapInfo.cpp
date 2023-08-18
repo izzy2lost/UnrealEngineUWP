@@ -423,7 +423,7 @@ namespace {
 
 			for (const FImgMediaViewInfo& ViewInfo : InViewInfos)
 			{
-				if (IsPrimitiveComponentHidden(Mesh->ComponentId, ViewInfo))
+				if (IsPrimitiveComponentHidden(Mesh->GetPrimitiveSceneId(), ViewInfo))
 				{
 					continue;
 				}
@@ -659,7 +659,7 @@ namespace {
 
 			for (const FImgMediaViewInfo& ViewInfo : InViewInfos)
 			{
-				if (IsPrimitiveComponentHidden(Mesh->ComponentId, ViewInfo))
+				if (IsPrimitiveComponentHidden(Mesh->GetPrimitiveSceneId(), ViewInfo))
 				{
 					continue;
 				}

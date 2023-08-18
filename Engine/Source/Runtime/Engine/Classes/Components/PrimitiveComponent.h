@@ -15,6 +15,7 @@
 #include "Engine/EngineTypes.h"
 #include "Engine/ScopedMovementUpdate.h"
 #include "Components/SceneComponent.h"
+#include "Components/ActorPrimitiveComponentInterface.h"
 #include "RenderCommandFence.h"
 #include "GameFramework/Actor.h"
 #include "CollisionQueryParams.h"
@@ -31,6 +32,7 @@
 #include "Stats/Stats2.h"
 #include "PSOPrecache.h"
 #include "MeshDrawCommandStatsDefines.h"
+#include "PrimitiveSceneInfoData.h"
 #include "PrimitiveComponent.generated.h"
 
 DECLARE_CYCLE_STAT_EXTERN(TEXT("BeginComponentOverlap"), STAT_BeginComponentOverlap, STATGROUP_Game, ENGINE_API);
@@ -820,38 +822,10 @@ public:
 	virtual ERuntimeVirtualTextureMainPassType GetVirtualTextureRenderPassType() const { return VirtualTextureRenderPassType; }
 	/** Get the max draw distance to use in the main pass when also rendering to a runtime virtual texture. This is combined with the other max draw distance settings. */
 	virtual float GetVirtualTextureMainPassMaxDrawDistance() const { return 0.f; }
-
-	/** Used by the renderer, to identify a component across re-registers. */
-	FPrimitiveComponentId ComponentId;
-
-	/**
-	* Identifier used to track the time that this component was registered with the world / renderer.
-	* Updated to unique incremental value each time OnRegister() is called. The value of 0 is unused.
-	* */
-	int32 RegistrationSerialNumber = -1;
-
-	/**
-	* Incremented by the main thread before being attached to the scene, decremented
-	* by the rendering thread after removal. This counter exists to assert that 
-	* operations are safe in order to help avoid race conditions.
-	*
-	*           *** Runtime logic should NEVER rely on this value. ***
-	*
-	* The only safe assertions to make are:
-	*
-	*     AttachmentCounter == 0: The primitive is not exposed to the rendering
-	*                             thread, it is safe to modify shared members.
-	*                             This assertion is valid ONLY from the main thread.
-	*
-	*     AttachmentCounter >= 1: The primitive IS exposed to the rendering
-	*                             thread and therefore shared members must not
-	*                             be modified. This assertion may be made from
-	*                             any thread. Note that it is valid and expected
-	*                             for AttachmentCounter to be larger than 1, e.g.
-	*                             during reattachment.
-	*/
-	FThreadSafeCounter AttachmentCounter;
-
+	
+	/** Used by the renderer, to identify a component across re-registers. */	
+	FPrimitiveComponentId GetPrimitiveSceneId() const { return SceneData.PrimitiveSceneId; }
+	
 	/** Used to detach physics objects before simulation begins. This is needed because at runtime we can't have simulated objects inside the attachment hierarchy */
 	ENGINE_API virtual void BeginPlay() override;
 
@@ -862,13 +836,12 @@ protected:
 	/** Last time we checked AreAllCollideableDescendantsRelative(), so we can throttle those tests since it rarely changes once false. */
 	float LastCheckedAllCollideableDescendantsTime;
 
-	/** Next id to be used by a component. */
-	static ENGINE_API FThreadSafeCounter NextComponentId;
-
-	/** Next registration serial number to be assigned to a component when it is registered. */
-	static ENGINE_API FThreadSafeCounter NextRegistrationSerialNumber;
+private:
+	
+	float OcclusionBoundsSlack;
 
 public:
+
 	/** 
 	 * Scales the bounds of the object.
 	 * This is useful when using World Position Offset to animate the vertices of the object outside of its bounds. 
@@ -878,21 +851,11 @@ public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category=Rendering, meta=(UIMin = "1", UIMax = "10.0"))
 	float BoundsScale;
 
-	/** Last time the component was submitted for rendering (called FScene::AddPrimitive). */
-	float LastSubmitTime;
+	UE_DECLARE_COMPONENT_ACTOR_INTERFACE(PrimitiveComponent)
 
 private:
-	/**
-	 * The value of WorldSettings->TimeSeconds for the frame when this component was last rendered.  This is written
-	 * from the render thread, which is up to a frame behind the game thread, so you should allow this time to
-	 * be at least a frame behind the game thread's world time before you consider the actor non-visible.
-	 */
-	mutable float LastRenderTime;
-
-	/** Same as LastRenderTime but only updated if the component is on screen. Used by the texture streamer. */
-	mutable float LastRenderTimeOnScreen;
-
-	float OcclusionBoundsSlack;
+	
+	FPrimitiveSceneInfoData SceneData;
 
 #if MESH_DRAW_COMMAND_STATS
 	/** Optional category name for this component in the mesh draw stat collection. */
@@ -900,8 +863,12 @@ private:
 #endif
 
 	friend class FPrimitiveSceneInfo;
+	friend struct FPrimitiveSceneInfoAdapter;
 
-public:
+public:	
+
+	FPrimitiveSceneInfoData& GetSceneData() { return SceneData; }
+
 	ENGINE_API int32 GetRayTracingGroupId() const;
 
 	/**
@@ -915,8 +882,8 @@ public:
 	ENGINE_API bool WasRecentlyRendered(float Tolerance = 0.2f) const;
 
 	ENGINE_API void SetLastRenderTime(float InLastRenderTime);
-	float GetLastRenderTime() const { return LastRenderTime; }
-	float GetLastRenderTimeOnScreen() const { return LastRenderTimeOnScreen; }
+	float GetLastRenderTime() const { return SceneData.LastRenderTime; }
+	float GetLastRenderTimeOnScreen() const { return SceneData.LastRenderTimeOnScreen; }
 
 #if MESH_DRAW_COMMAND_STATS
 	ENGINE_API void SetMeshDrawCommandStatsCategory(FName StatsCategory);
@@ -1955,9 +1922,12 @@ public:
 	 */
 	static ENGINE_API uint32 GlobalOverlapEventsCounter;
 
-	/** The primitive's scene info. */
+	/** The old primitive's scene info ptr, now superceded by the ptr in SceneData, but it's still here due to pervasive usage. */
 	FPrimitiveSceneProxy* SceneProxy;
-	
+
+	FPrimitiveSceneProxy* GetSceneProxy() const { check(SceneProxy == SceneData.SceneProxy); return SceneData.SceneProxy; }
+	void ReleaseSceneProxy() { check(SceneProxy == SceneData.SceneProxy); SceneProxy = nullptr;  SceneData.SceneProxy = nullptr; }
+
 	/** A fence to track when the primitive is detached from the scene in the rendering thread. */
 	FRenderCommandFence DetachFence;
 
@@ -2211,6 +2181,17 @@ public:
 	{
 		return NULL;
 	}
+
+#if WITH_EDITOR
+	/**
+	 * Creates a HHitProxy to represent the component at SectionIndex / MaterialIndex
+	 * @return The proxy object.
+	 */
+	ENGINE_API virtual HHitProxy* CreateHitProxy(int32 SectionIndex, int32 MaterialIndex) const
+	{
+		return nullptr;
+	}
+#endif
 
 	/**
 	 * Determines whether the proxy for this primitive type needs to be recreated whenever the primitive moves.
@@ -2529,6 +2510,8 @@ public:
 	
 	/** Returns whether this component is still being compiled or dependent on other objects being compiled. */
 	virtual bool IsCompiling() const { return false; }
+
+	ENGINE_API virtual void GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) const;
 
 #if WITH_EDITOR
 	/** Returns mask that represents in which views this primitive is hidden */

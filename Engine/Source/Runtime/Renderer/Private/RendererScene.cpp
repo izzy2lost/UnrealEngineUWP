@@ -45,6 +45,8 @@
 #include "SkyAtmosphereRendering.h"
 #include "BasePassRendering.h"
 #include "MobileBasePassRendering.h"
+#include "PrimitiveSceneDesc.h"
+#include "InstancedStaticMeshSceneProxyDesc.h"
 #include "ScenePrivate.h"
 #include "RendererModule.h"
 #include "StaticMeshResources.h"
@@ -1553,8 +1555,13 @@ void FScene::AddPrimitiveSceneInfo_RenderThread(FPrimitiveSceneInfo* PrimitiveSc
  * @param Component Component to verify
  * @param World World who's scene the primitive is being attached to
  */
-FORCEINLINE static void VerifyProperPIEScene(UPrimitiveComponent* Component, UWorld* World)
+FORCEINLINE static void VerifyProperPIEScene(UObject* Component, UWorld* World)
 {
+	if (!Component)
+	{
+		return;
+	}
+
 	checkfSlow(Component->GetOuter() == GetTransientPackage() || 
 		(FPackageName::GetLongPackageAssetName(Component->GetOutermostObject()->GetPackage()->GetName()).StartsWith(PLAYWORLD_PACKAGE_PREFIX) == 
 		FPackageName::GetLongPackageAssetName(World->GetPackage()->GetName()).StartsWith(PLAYWORLD_PACKAGE_PREFIX)),
@@ -1805,17 +1812,41 @@ FScene::~FScene()
 	delete SplineMeshSceneResources;
 }
 
+// Helpers for internal templates
+UObject* ToUObject(FPrimitiveSceneDesc* Desc)
+{
+	return Desc->PrimitiveUObject;
+}
+
+UObject* ToUObject(UPrimitiveComponent* Prim)
+{
+	return Prim;
+}
+
+
 void FScene::AddPrimitive(UPrimitiveComponent* Primitive)
+{	
+	// If the bulk reregister flag is set, add / remove will be handled in bulk by the FStaticMeshComponentBulkReregisterContext
+	if (Primitive->bBulkReregister)
+	{
+		return;
+	}
+	BatchAddPrimitivesInternal(MakeArrayView(&Primitive, 1));
+}
+
+void FScene::AddPrimitive(FPrimitiveSceneDesc* Primitive)
 {
 	// If the bulk reregister flag is set, add / remove will be handled in bulk by the FStaticMeshComponentBulkReregisterContext
 	if (Primitive->bBulkReregister)
 	{
 		return;
 	}
-	BatchAddPrimitives(MakeArrayView(&Primitive, 1));
+
+	BatchAddPrimitivesInternal(MakeArrayView(&Primitive, 1));
 }
 
-void FScene::BatchAddPrimitives(TArrayView<UPrimitiveComponent*> InPrimitives)
+template<class T> 	
+void FScene::BatchAddPrimitivesInternal(TArrayView<T*> InPrimitives)
 {
 	check(InPrimitives.Num() > 0);
 
@@ -1823,9 +1854,9 @@ void FScene::BatchAddPrimitives(TArrayView<UPrimitiveComponent*> InPrimitives)
 	// If detailed per-tag asset memory stats are active, don't batch primitives, so the memory tags can be independent
 	if (FLowLevelMemTracker::Get().IsTagSetActive(ELLMTagSet::Assets) && InPrimitives.Num() > 1)
 	{
-		for (UPrimitiveComponent* Primitive : InPrimitives)
+		for (T* Primitive : InPrimitives)
 		{
-			BatchAddPrimitives(MakeArrayView(TArrayView<UPrimitiveComponent*>(&Primitive, 1)));
+			BatchAddPrimitivesInternal(MakeArrayView(TArrayView<T*>(&Primitive, 1)));
 		}
 		return;
 	}
@@ -1859,30 +1890,41 @@ void FScene::BatchAddPrimitives(TArrayView<UPrimitiveComponent*> InPrimitives)
 	};
 	TArray<FCreateRenderThreadParameters, TInlineAllocator<1>> ParamsList;
 	ParamsList.Reserve(InPrimitives.Num());
-
-	for (UPrimitiveComponent* Primitive : InPrimitives)
+	
+	for (T* Primitive : InPrimitives)
 	{
+		FPrimitiveSceneInfoData& SceneData = Primitive->GetSceneData();
+	
 		checkf(!Primitive->IsUnreachable(), TEXT("%s"), *Primitive->GetFullName());
 
 		const float WorldTime = GetWorld()->GetTimeSeconds();
 		// Save the world transform for next time the primitive is added to the scene
-		float DeltaTime = WorldTime - Primitive->LastSubmitTime;
-		if ( DeltaTime < -0.0001f || Primitive->LastSubmitTime < 0.0001f )
+		float DeltaTime = WorldTime - SceneData.LastSubmitTime;
+		if ( DeltaTime < -0.0001f ||SceneData.LastSubmitTime < 0.0001f )
 		{
 			// Time was reset?
-			Primitive->LastSubmitTime = WorldTime;
+			SceneData.LastSubmitTime = WorldTime;
 		}
 		else if ( DeltaTime > 0.0001f )
 		{
 			// First call for the new frame?
-			Primitive->LastSubmitTime = WorldTime;
+			SceneData.LastSubmitTime = WorldTime;
 		}
 
-		checkf(!Primitive->SceneProxy, TEXT("Primitive has already been added to the scene!"));
+		FPrimitiveSceneProxy* PrimitiveSceneProxy  = nullptr;
 
-		// Create the primitive's scene proxy.
-		FPrimitiveSceneProxy* PrimitiveSceneProxy = Primitive->CreateSceneProxy();
-		Primitive->SceneProxy = PrimitiveSceneProxy;
+		if (Primitive->GetPrimitiveComponentInterface())
+		{
+			checkf(!Primitive->GetSceneProxy(), TEXT("Primitive has already been added to the scene!"));
+			PrimitiveSceneProxy = Primitive->GetPrimitiveComponentInterface()->CreateSceneProxy();
+			check(SceneData.SceneProxy == PrimitiveSceneProxy); // CreateSceneProxy has access to the shared SceneData and should set it properly
+		}
+		else
+		{
+			check(!Primitive->ShouldRecreateProxyOnUpdateTransform()); // recreating proxies when updating the transform requires a IPrimitiveComponentInterface
+			PrimitiveSceneProxy = Primitive->GetSceneProxy();
+		}
+	
 		if(!PrimitiveSceneProxy)
 		{
 			// Primitives which don't have a proxy are irrelevant to the scene manager.
@@ -1906,7 +1948,7 @@ void FScene::BatchAddPrimitives(TArrayView<UPrimitiveComponent*> InPrimitives)
 			Primitive->GetLocalBounds(),
 
 			// If this primitive has a simulated previous transform, ensure that the velocity data for the scene representation is correct.
-			FMotionVectorSimulation::Get().GetPreviousTransform(Primitive)
+			FMotionVectorSimulation::Get().GetPreviousTransform(ToUObject(Primitive))
 		);
 
 		// Help track down primitive with bad bounds way before the it gets to the Renderer
@@ -1916,10 +1958,10 @@ void FScene::BatchAddPrimitives(TArrayView<UPrimitiveComponent*> InPrimitives)
 		INC_DWORD_STAT_BY( STAT_GameToRendererMallocTotal, PrimitiveSceneProxy->GetMemoryFootprint() + PrimitiveSceneInfo->GetMemoryFootprint() );
 
 		// Verify the primitive is valid
-		VerifyProperPIEScene(Primitive, World);
+		VerifyProperPIEScene(ToUObject(Primitive), World);		
 
 		// Increment the attachment counter, the primitive is about to be attached to the scene.
-		Primitive->AttachmentCounter.Increment();
+		SceneData.AttachmentCounter.Increment();
 	}
 
 	// Create any RenderThreadResources required and send a command to the rendering thread to add the primitive to the scene.
@@ -1940,6 +1982,17 @@ void FScene::BatchAddPrimitives(TArrayView<UPrimitiveComponent*> InPrimitives)
 				Scene->AddPrimitiveSceneInfo_RenderThread(Params.PrimitiveSceneInfo, Params.PreviousTransform);
 			}
 		});
+
+}
+
+void FScene::BatchAddPrimitives(TArrayView<UPrimitiveComponent*> InPrimitives)
+{
+	BatchAddPrimitivesInternal(InPrimitives);
+}
+
+void FScene::BatchAddPrimitives(TArrayView<FPrimitiveSceneDesc*> InPrimitives)
+{
+	BatchAddPrimitivesInternal(InPrimitives);
 }
 
 static int32 GWarningOnRedundantTransformUpdate = 0;
@@ -2005,28 +2058,42 @@ void FScene::UpdatePrimitiveOcclusionBoundsSlack_RenderThread(const FPrimitiveSc
 
 void FScene::UpdatePrimitiveTransform(UPrimitiveComponent* Primitive)
 {
+	UpdatePrimitiveTransformInternal(Primitive);
+}
+
+void FScene::UpdatePrimitiveTransform(FPrimitiveSceneDesc* Primitive)
+{
+	UpdatePrimitiveTransformInternal(Primitive);	
+}
+
+template<class T> 	
+void FScene::UpdatePrimitiveTransformInternal(T* Primitive)
+{
 	SCOPE_CYCLE_COUNTER(STAT_UpdatePrimitiveTransformGT);
 	SCOPED_NAMED_EVENT(FScene_UpdatePrimitiveTransform, FColor::Yellow);
 
+	FPrimitiveSceneInfoData& SceneData = Primitive->GetSceneData();
+
 	// Save the world transform for next time the primitive is added to the scene
-	const float WorldTime = GetWorld()->GetTimeSeconds();
-	float DeltaTime = WorldTime - Primitive->LastSubmitTime;
-	if (DeltaTime < -0.0001f || Primitive->LastSubmitTime < 0.0001f)
+	const float WorldTime = GetWorld()->GetTimeSeconds();	
+	float DeltaTime = WorldTime - SceneData.LastSubmitTime;
+	if (DeltaTime < -0.0001f || SceneData.LastSubmitTime < 0.0001f)
 	{
 		// Time was reset?
-		Primitive->LastSubmitTime = WorldTime;
+		SceneData.LastSubmitTime = WorldTime;
 	}
 	else if (DeltaTime > 0.0001f)
 	{
 		// First call for the new frame?
-		Primitive->LastSubmitTime = WorldTime;
+		SceneData.LastSubmitTime = WorldTime;
 	}
 
-	if (Primitive->SceneProxy)
+	if (Primitive->GetSceneProxy())
 	{
 		// Check if the primitive needs to recreate its proxy for the transform update.
 		if (Primitive->ShouldRecreateProxyOnUpdateTransform())
 		{
+			check(Primitive->GetPrimitiveComponentInterface()); // required to execute the Remove/Add sequence inside this method
 			// Re-add the primitive from scratch to recreate the primitive's proxy.
 			RemovePrimitive(Primitive);
 			AddPrimitive(Primitive);
@@ -2048,20 +2115,20 @@ void FScene::UpdatePrimitiveTransform(UPrimitiveComponent* Primitive)
 
 			FPrimitiveUpdateParams UpdateParams;
 			UpdateParams.Scene = this;
-			UpdateParams.PrimitiveSceneProxy = Primitive->SceneProxy;
+			UpdateParams.PrimitiveSceneProxy = Primitive->GetSceneProxy();
 			UpdateParams.WorldBounds = Primitive->Bounds;
 			UpdateParams.LocalToWorld = Primitive->GetRenderMatrix();
 			UpdateParams.AttachmentRootPosition = AttachmentRootPosition;
 			UpdateParams.LocalBounds = Primitive->GetLocalBounds();
-			UpdateParams.PreviousTransform = FMotionVectorSimulation::Get().GetPreviousTransform(Primitive);
+			UpdateParams.PreviousTransform = FMotionVectorSimulation::Get().GetPreviousTransform(ToUObject(Primitive));
 
 			// Help track down primitive with bad bounds way before the it gets to the renderer.
 			ensureMsgf(!UpdateParams.WorldBounds.BoxExtent.ContainsNaN() && !UpdateParams.WorldBounds.Origin.ContainsNaN() && !FMath::IsNaN(UpdateParams.WorldBounds.SphereRadius) && FMath::IsFinite(UpdateParams.WorldBounds.SphereRadius),
 				TEXT("NaNs found on Bounds for Primitive %s: Owner: %s, Resource: %s, Level: %s, Origin: %s, BoxExtent: %s, SphereRadius: %f"),
 				*Primitive->GetName(),
-				*Primitive->SceneProxy->GetOwnerName().ToString(),
-				*Primitive->SceneProxy->GetResourceName().ToString(),
-				*Primitive->SceneProxy->GetLevelName().ToString(),
+				*Primitive->GetSceneProxy()->GetOwnerName().ToString(),
+				*Primitive->GetSceneProxy()->GetResourceName().ToString(),
+				*Primitive->GetSceneProxy()->GetLevelName().ToString(),
 				*UpdateParams.WorldBounds.Origin.ToString(),
 				*UpdateParams.WorldBounds.BoxExtent.ToString(),
 				UpdateParams.WorldBounds.SphereRadius
@@ -2069,10 +2136,10 @@ void FScene::UpdatePrimitiveTransform(UPrimitiveComponent* Primitive)
 
 			bool bPerformUpdate = true;
 
-			const bool bAllowSkip = GSkipRedundantTransformUpdate && Primitive->SceneProxy->CanSkipRedundantTransformUpdates();
+			const bool bAllowSkip = GSkipRedundantTransformUpdate && Primitive->GetSceneProxy()->CanSkipRedundantTransformUpdates();
 			if (bAllowSkip || GWarningOnRedundantTransformUpdate)
 			{
-				if (Primitive->SceneProxy->WouldSetTransformBeRedundant_AnyThread(
+				if (Primitive->GetSceneProxy()->WouldSetTransformBeRedundant_AnyThread(
 					UpdateParams.LocalToWorld,
 					UpdateParams.WorldBounds,
 					UpdateParams.LocalBounds,
@@ -2089,9 +2156,9 @@ void FScene::UpdatePrimitiveTransform(UPrimitiveComponent* Primitive)
 						UE_LOG(LogRenderer, Warning,
 							TEXT("Redundant UpdatePrimitiveTransform for Primitive %s: Owner: %s, Resource: %s, Level: %s"),
 							*Primitive->GetName(),
-							*Primitive->SceneProxy->GetOwnerName().ToString(),
-							*Primitive->SceneProxy->GetResourceName().ToString(),
-							*Primitive->SceneProxy->GetLevelName().ToString()
+							*Primitive->GetSceneProxy()->GetOwnerName().ToString(),
+							*Primitive->GetSceneProxy()->GetResourceName().ToString(),
+							*Primitive->GetSceneProxy()->GetLevelName().ToString()
 						);
 					}
 				}
@@ -2125,9 +2192,8 @@ void FScene::UpdatePrimitiveTransform(UPrimitiveComponent* Primitive)
 
 void FScene::UpdatePrimitiveOcclusionBoundsSlack(UPrimitiveComponent* Primitive, float NewSlack)
 {
-	if (Primitive->SceneProxy)
+	if (const FPrimitiveSceneProxy* SceneProxy = Primitive->GetSceneProxy())
 	{
-		const FPrimitiveSceneProxy* SceneProxy = Primitive->SceneProxy;
 		ENQUEUE_RENDER_COMMAND(UpdateOcclusionBoundsSlackCmd)(
 			[this, SceneProxy, NewSlack](FRHICommandListImmediate&)
 			{
@@ -2139,45 +2205,72 @@ void FScene::UpdatePrimitiveOcclusionBoundsSlack(UPrimitiveComponent* Primitive,
 void FScene::UpdatePrimitiveInstances(UInstancedStaticMeshComponent* Primitive)
 {
 	SCOPE_CYCLE_COUNTER(STAT_UpdatePrimitiveInstanceGT);
+	SCOPED_NAMED_EVENT(FScene_UpdatePrimitiveInstance, FColor::Yellow);	
+
+	// If the primitive doesn't have a scene info object yet, it must be added from scratch.
+	if (!Primitive->GetSceneProxy())
+	{
+		AddPrimitive(Primitive);
+		return;
+	}
+
+	FUpdateInstanceCommand UpdateParams;
+	UpdateParams.PrimitiveSceneProxy = Primitive->GetSceneProxy();
+	UpdateParams.WorldBounds = Primitive->Bounds;
+	UpdateParams.LocalBounds = ((UPrimitiveComponent*)Primitive)->GetLocalBounds();
+
+	// #todo (jnadro) This code should not be dependent on static mesh bounds.		
+	UpdateParams.StaticMeshBounds = Primitive->GetStaticMesh()->GetBounds();
+	UpdateParams.CmdBuffer = Primitive->InstanceUpdateCmdBuffer;	// Copy
+
+	return UpdatePrimitiveInstances(UpdateParams);
+}
+
+void FScene::UpdatePrimitiveInstances(FInstancedStaticMeshSceneDesc* Primitive)
+{
+	SCOPE_CYCLE_COUNTER(STAT_UpdatePrimitiveInstanceGT);
 	SCOPED_NAMED_EVENT(FScene_UpdatePrimitiveInstance, FColor::Yellow);
 
-	if (Primitive->SceneProxy)
+	// If the primitive doesn't have a scene info object yet, it must be added from scratch.
+	if (!Primitive->GetSceneProxy())
 	{
-		FUpdateInstanceCommand UpdateParams;
-		UpdateParams.PrimitiveSceneProxy = Primitive->SceneProxy;
-		UpdateParams.WorldBounds = Primitive->Bounds;
-		UpdateParams.LocalBounds = Cast<UPrimitiveComponent>(Primitive)->GetLocalBounds();
-
-		// #todo (jnadro) This code should not be dependent on static mesh bounds.
-		UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Primitive);
-		UpdateParams.StaticMeshBounds = StaticMeshComponent ? StaticMeshComponent->GetStaticMesh()->GetBounds() : FBoxSphereBounds();
-		UpdateParams.CmdBuffer = Primitive->InstanceUpdateCmdBuffer;	// Copy
-
-		ENQUEUE_RENDER_COMMAND(UpdateInstanceCommand)(
-			[this, UpdateParams = MoveTemp(UpdateParams)](FRHICommandListImmediate& RHICmdList)
-			{
-#if VALIDATE_PRIMITIVE_PACKED_INDEX
-				if (AddedPrimitiveSceneInfos.Find(UpdateParams.PrimitiveSceneProxy->GetPrimitiveSceneInfo()) != nullptr)
-				{
-					check(UpdateParams.PrimitiveSceneProxy->GetPrimitiveSceneInfo()->PackedIndex == INDEX_NONE);
-				}
-				else
-				{
-					check(UpdateParams.PrimitiveSceneProxy->GetPrimitiveSceneInfo()->PackedIndex != INDEX_NONE);
-				}
-
-				check(RemovedPrimitiveSceneInfos.Find(UpdateParams.PrimitiveSceneProxy->GetPrimitiveSceneInfo()) == nullptr);
-#endif
-				FScopeCycleCounter Context(UpdateParams.PrimitiveSceneProxy->GetStatId());
-				UpdatedInstances.Update(UpdateParams.PrimitiveSceneProxy, UpdateParams);
-			}
-		);
+		AddPrimitive(*Primitive);
+		return;
 	}
- 	else
- 	{
- 		// If the primitive doesn't have a scene info object yet, it must be added from scratch.
- 		AddPrimitive(Primitive);
- 	}
+	
+	FUpdateInstanceCommand UpdateParams;
+	UpdateParams.PrimitiveSceneProxy = Primitive->GetSceneProxy();
+	UpdateParams.WorldBounds = Primitive->GetBounds();
+	UpdateParams.LocalBounds = Primitive->GetLocalBounds();
+
+	// #todo (jnadro) This code should not be dependent on static mesh bounds.		
+	UpdateParams.StaticMeshBounds = Primitive->GetStaticMesh()->GetBounds();
+	UpdateParams.CmdBuffer = Primitive->GetInstanceUpdateCommandBuffer();	// Copy
+
+	return UpdatePrimitiveInstances(UpdateParams);
+}
+
+void FScene::UpdatePrimitiveInstances(FUpdateInstanceCommand& UpdateParams)
+{	
+	ENQUEUE_RENDER_COMMAND(UpdateInstanceCommand)(
+		[this, UpdateParams = MoveTemp(UpdateParams)](FRHICommandListImmediate& RHICmdList)
+		{
+#if VALIDATE_PRIMITIVE_PACKED_INDEX
+			if (AddedPrimitiveSceneInfos.Find(UpdateParams.PrimitiveSceneProxy->GetPrimitiveSceneInfo()) != nullptr)
+			{
+				check(UpdateParams.PrimitiveSceneProxy->GetPrimitiveSceneInfo()->PackedIndex == INDEX_NONE);
+			}
+			else
+			{
+				check(UpdateParams.PrimitiveSceneProxy->GetPrimitiveSceneInfo()->PackedIndex != INDEX_NONE);
+			}
+
+			check(RemovedPrimitiveSceneInfos.Find(UpdateParams.PrimitiveSceneProxy->GetPrimitiveSceneInfo()) == nullptr);
+#endif
+			FScopeCycleCounter Context(UpdateParams.PrimitiveSceneProxy->GetStatId());
+			UpdatedInstances.Update(UpdateParams.PrimitiveSceneProxy, UpdateParams);
+		}
+	);
 }
 
 void FScene::UpdatePrimitiveSelectedState_RenderThread(const FPrimitiveSceneInfo* PrimitiveSceneInfo, bool bIsSelected)
@@ -2204,7 +2297,7 @@ void FScene::UpdatePrimitiveLightingAttachmentRoot(UPrimitiveComponent* Primitiv
 		NewLightingAttachmentRoot = NULL;
 	}
 
-	FPrimitiveComponentId NewComponentId = NewLightingAttachmentRoot ? NewLightingAttachmentRoot->ComponentId : FPrimitiveComponentId();
+	FPrimitiveComponentId NewComponentId = NewLightingAttachmentRoot ? NewLightingAttachmentRoot->GetPrimitiveSceneId() : FPrimitiveComponentId();
 
 	if (Primitive->SceneProxy)
 	{
@@ -2247,8 +2340,18 @@ void FScene::UpdatePrimitiveAttachment(UPrimitiveComponent* Primitive)
 
 void FScene::UpdateCustomPrimitiveData(UPrimitiveComponent* Primitive)
 {
+	UpdateCustomPrimitiveData(Primitive->GetSceneProxy(), Primitive->GetCustomPrimitiveData());
+}
+
+void FScene::UpdateCustomPrimitiveData(FPrimitiveSceneDesc* Primitive, const FCustomPrimitiveData& CustomPrimitiveData)
+{
+	UpdateCustomPrimitiveData(Primitive->GetSceneProxy(), CustomPrimitiveData);
+}
+
+void FScene::UpdateCustomPrimitiveData(FPrimitiveSceneProxy* SceneProxy, const FCustomPrimitiveData& CustomPrimitiveData)
+{
 	// This path updates the primitive data directly in the GPUScene. 
-	if(Primitive->SceneProxy) 
+	if (SceneProxy) 
 	{
 		struct FUpdateParams
 		{
@@ -2259,8 +2362,8 @@ void FScene::UpdateCustomPrimitiveData(UPrimitiveComponent* Primitive)
 
 		FUpdateParams UpdateParams;
 		UpdateParams.Scene = this;
-		UpdateParams.PrimitiveSceneProxy = Primitive->SceneProxy;
-		UpdateParams.CustomPrimitiveData = Primitive->GetCustomPrimitiveData(); 
+		UpdateParams.PrimitiveSceneProxy = SceneProxy;
+		UpdateParams.CustomPrimitiveData = CustomPrimitiveData; 
 
 		ENQUEUE_RENDER_COMMAND(UpdateCustomPrimitiveDataCommand)(
 			[UpdateParams](FRHICommandListImmediate& RHICmdList)
@@ -2276,7 +2379,7 @@ void FScene::UpdatePrimitiveDistanceFieldSceneData_GameThread(UPrimitiveComponen
 
 	if (Primitive->SceneProxy)
 	{
-		Primitive->LastSubmitTime = GetWorld()->GetTimeSeconds();
+		Primitive->GetSceneData().LastSubmitTime = GetWorld()->GetTimeSeconds();
 
 		ENQUEUE_RENDER_COMMAND(UpdatePrimDFSceneDataCmd)(
 			[this, PrimitiveSceneProxy = Primitive->SceneProxy](FRHICommandList&)
@@ -2357,7 +2460,19 @@ void FScene::RemovePrimitive(UPrimitiveComponent* Primitive)
 	BatchRemovePrimitives(MakeArrayView(&Primitive, 1));
 }
 
-void FScene::BatchRemovePrimitives(TArrayView<UPrimitiveComponent*> InPrimitives)
+void FScene::RemovePrimitive(FPrimitiveSceneDesc* Primitive)
+{
+	// If the bulk reregister flag is set, add / remove will be handled in bulk by the FStaticMeshComponentBulkReregisterContext
+	if (Primitive->bBulkReregister)
+	{
+		return;
+	}
+
+	BatchRemovePrimitives(MakeArrayView(&Primitive, 1));
+}
+
+template<class T> 	
+void FScene::BatchRemovePrimitivesInternal(TArrayView<T*> InPrimitives)
 {
 	SCOPE_CYCLE_COUNTER(STAT_RemoveScenePrimitiveGT);
 	SCOPED_NAMED_EVENT(FScene_RemovePrimitive, FColor::Yellow);
@@ -2371,18 +2486,17 @@ void FScene::BatchRemovePrimitives(TArrayView<UPrimitiveComponent*> InPrimitives
 	TArray<FPrimitiveRemoveInfo, TInlineAllocator<1>> RemoveInfos;
 	RemoveInfos.Reserve(InPrimitives.Num());
 
-	for (UPrimitiveComponent* Primitive : InPrimitives)
+	for (T* Primitive : InPrimitives)
 	{
-		FPrimitiveSceneProxy* PrimitiveSceneProxy = Primitive->SceneProxy;
-
+		FPrimitiveSceneInfoData& SceneData = Primitive->GetSceneData();
+		FPrimitiveSceneProxy* PrimitiveSceneProxy = Primitive->GetSceneProxy();
 		if (PrimitiveSceneProxy)
 		{
 			FPrimitiveSceneInfo* PrimitiveSceneInfo = PrimitiveSceneProxy->GetPrimitiveSceneInfo();
 
 			// Disassociate the primitive's scene proxy.
-			Primitive->SceneProxy = NULL;
-
-			RemoveInfos.Add({ PrimitiveSceneInfo, &Primitive->AttachmentCounter });
+			Primitive->ReleaseSceneProxy();
+			RemoveInfos.Add({ PrimitiveSceneInfo, &Primitive->GetSceneData().AttachmentCounter });
 		}
 	}
 
@@ -2403,6 +2517,16 @@ void FScene::BatchRemovePrimitives(TArrayView<UPrimitiveComponent*> InPrimitives
 	}
 }
 
+void FScene::BatchRemovePrimitives(TArrayView<UPrimitiveComponent*> InPrimitives)
+{
+	BatchRemovePrimitivesInternal(InPrimitives);
+}
+
+void FScene::BatchRemovePrimitives(TArrayView<FPrimitiveSceneDesc*> InPrimitives)
+{
+	BatchRemovePrimitivesInternal(InPrimitives);
+}
+
 void FScene::ReleasePrimitive(UPrimitiveComponent* PrimitiveComponent)
 {
 	// Check if this components was already bulk released on the render side
@@ -2413,7 +2537,18 @@ void FScene::ReleasePrimitive(UPrimitiveComponent* PrimitiveComponent)
 	BatchReleasePrimitives(MakeArrayView(&PrimitiveComponent, 1));
 }
 
-void FScene::BatchReleasePrimitives(TArrayView<UPrimitiveComponent*> InPrimitives)
+void FScene::ReleasePrimitive(FPrimitiveSceneDesc* Primitive)
+{
+	// Check if this components was already bulk released on the render side
+	if (Primitive->bBulkReregister)
+	{
+		return;
+	}
+	BatchReleasePrimitives(MakeArrayView(&Primitive, 1));
+}
+
+template<class T> 	
+void FScene::BatchReleasePrimitivesInternal(TArrayView<T*> InPrimitives)
 {
 	// Send a command to the rendering thread to clean up any state dependent on this primitive
 	FScene* Scene = this;
@@ -2422,7 +2557,7 @@ void FScene::BatchReleasePrimitives(TArrayView<UPrimitiveComponent*> InPrimitive
 
 	for (int32 ComponentIndex = 0; ComponentIndex < InPrimitives.Num(); ComponentIndex++)
 	{
-		ReleaseComponentIds[ComponentIndex] = InPrimitives[ComponentIndex]->ComponentId;
+		ReleaseComponentIds[ComponentIndex] = InPrimitives[ComponentIndex]->GetPrimitiveSceneId();
 	}
 
 	ENQUEUE_RENDER_COMMAND(FReleasePrimitiveCommand)(
@@ -2434,6 +2569,16 @@ void FScene::BatchReleasePrimitives(TArrayView<UPrimitiveComponent*> InPrimitive
 				Scene->IndirectLightingCache.ReleasePrimitive(PrimitiveComponentId);
 			}
 		});
+}
+
+void FScene::BatchReleasePrimitives(TArrayView<UPrimitiveComponent*> InPrimitives)
+{
+	BatchReleasePrimitivesInternal(InPrimitives);
+}
+
+void FScene::BatchReleasePrimitives(TArrayView<FPrimitiveSceneDesc*> InPrimitives)
+{
+	BatchReleasePrimitivesInternal(InPrimitives);
 }
 
 void FScene::AssignAvailableShadowMapChannelForLight(FLightSceneInfo* LightSceneInfo)
@@ -4517,7 +4662,7 @@ void FScene::DumpUnbuiltLightInteractions( FOutputDevice& Ar ) const
 			if (Interaction->IsUncachedStaticLighting())
 			{
 				bLightHasUnbuiltInteractions = true;
-				PrimitivesWithUnbuiltInteractions.Add(Interaction->GetPrimitiveSceneInfo()->ComponentForDebuggingOnly->GetFullName());
+				PrimitivesWithUnbuiltInteractions.Add(Interaction->GetPrimitiveSceneInfo()->GetComponentForDebugOnly()->GetFullName());
 			}
 		}
 
@@ -4528,7 +4673,7 @@ void FScene::DumpUnbuiltLightInteractions( FOutputDevice& Ar ) const
 			if (Interaction->IsUncachedStaticLighting())
 			{
 				bLightHasUnbuiltInteractions = true;
-				PrimitivesWithUnbuiltInteractions.Add(Interaction->GetPrimitiveSceneInfo()->ComponentForDebuggingOnly->GetFullName());
+				PrimitivesWithUnbuiltInteractions.Add(Interaction->GetPrimitiveSceneInfo()->GetComponentForDebugOnly()->GetFullName());
 			}
 		}
 
@@ -6666,6 +6811,19 @@ public:
 	{
 		return TConstArrayView<FPrimitiveComponentId>();
 	}
+
+	virtual void AddPrimitive(FPrimitiveSceneDesc* Primitive) override {};
+	virtual void RemovePrimitive(FPrimitiveSceneDesc* Primitive) override {};
+	virtual void ReleasePrimitive(FPrimitiveSceneDesc* Primitive) override {};
+	virtual void UpdatePrimitiveTransform(FPrimitiveSceneDesc* Primitive) override {};
+
+	virtual void BatchAddPrimitives(TArrayView<FPrimitiveSceneDesc*> InPrimitives) override {};
+	virtual void BatchRemovePrimitives(TArrayView<FPrimitiveSceneDesc*> InPrimitives) override {};
+	virtual void BatchReleasePrimitives(TArrayView<FPrimitiveSceneDesc*> InPrimitives) override {};
+
+	virtual void UpdateCustomPrimitiveData(FPrimitiveSceneDesc* Primitive, const FCustomPrimitiveData&) override {}
+	virtual void UpdatePrimitiveInstances(FInstancedStaticMeshSceneDesc* Primitive) override {};
+
 
 private:
 	UWorld* World;

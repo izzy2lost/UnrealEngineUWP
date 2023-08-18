@@ -229,7 +229,7 @@ void FWorldRenderCapture::SetVisibleActors(const TArray<AActor*>& Actors)
 			if (Cast<UPrimitiveComponent>(Component) != nullptr)
 			{
 				UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Component);
-				VisiblePrimitives.Add(PrimitiveComponent->ComponentId);
+				VisiblePrimitives.Add(PrimitiveComponent->GetPrimitiveSceneId());
 
 				// Append bounds of visible components only
 				BoundsBuilder += PrimitiveComponent->Bounds;

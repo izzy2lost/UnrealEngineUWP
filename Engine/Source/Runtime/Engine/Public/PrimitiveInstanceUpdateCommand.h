@@ -43,17 +43,17 @@ struct FInstanceUpdateCmdBuffer
 	void ENGINE_API HideInstance(int32 RenderIndex);
 	void ENGINE_API AddInstance(const FMatrix& InTransform);
 	void ENGINE_API AddInstance(int32 InstanceId, const FMatrix& InTransform, const FMatrix& InPreviousTransform, TConstArrayView<float> InCustomDataFloats);
-	void UpdateInstance(int32 RenderIndex, const FMatrix& InTransform);
-	void UpdateInstance(int32 RenderIndex, const FMatrix& InTransform, const FMatrix& InPreviousTransform);
-	void SetEditorData(int32 RenderIndex, const FColor& Color, bool bSelected);
+	void ENGINE_API UpdateInstance(int32 RenderIndex, const FMatrix& InTransform);
+	void ENGINE_API UpdateInstance(int32 RenderIndex, const FMatrix& InTransform, const FMatrix& InPreviousTransform);
+	void ENGINE_API SetEditorData(int32 RenderIndex, const FColor& Color, bool bSelected);
 	void SetLightMapData(int32 RenderIndex, const FVector2D& LightmapUVBias);
 	void SetShadowMapData(int32 RenderIndex, const FVector2D& ShadowmapUVBias);
-	void SetCustomData(int32 RenderIndex, TConstArrayView<float> CustomDataFloats);
+	void ENGINE_API SetCustomData(int32 RenderIndex, TConstArrayView<float> CustomDataFloats);
 	int32 NumInlineCommands() const { return Cmds.Num(); }
 
 	// Command that can't be in-lined and should cause full buffer rebuild
 	void ENGINE_API Edit();
-	void Reset();
+	void ENGINE_API Reset();
 	int32 NumTotalCommands() const { return NumEdits; };
 
 	static inline uint32 PackEditorData(const FColor& HitProxyColor, bool bSelected)

@@ -30,6 +30,7 @@
 #include "Components/ReflectionCaptureComponent.h"
 #include "ReflectionEnvironment.h"
 #include "RHIStaticStates.h"
+#include "InstancedStaticMeshSceneProxyDesc.h"
 
 #define LOCTEXT_NAMESPACE "StaticLightingSystem"
 
@@ -1017,7 +1018,8 @@ void FScene::AddGeometryInstanceFromComponent(UInstancedStaticMeshComponent* InC
 	FInstanceGroupRenderState InstanceRenderState;
 	InstanceRenderState.ComponentUObject = Instance->ComponentUObject;
 	InstanceRenderState.RenderData = Instance->ComponentUObject->GetStaticMesh()->GetRenderData();
-	InstanceRenderState.InstancedRenderData = MakeUnique<FInstancedStaticMeshRenderData>(Instance->ComponentUObject, FeatureLevel);
+	FInstancedStaticMeshSceneProxyDesc ProxyDesc(Instance->ComponentUObject);
+	InstanceRenderState.InstancedRenderData = MakeUnique<FInstancedStaticMeshRenderData>(&ProxyDesc, FeatureLevel);
 	InstanceRenderState.LocalToWorld = InComponent->GetRenderMatrix();
 	InstanceRenderState.WorldBounds = InComponent->Bounds;
 	InstanceRenderState.ActorPosition = InComponent->GetActorPositionForRenderer();
@@ -2308,7 +2310,7 @@ void FScene::ApplyFinishedLightmapsToWorld()
 								// The rendering thread reads from LODData and IrrelevantLights, therefore
 								// the component must have finished detaching from the scene on the rendering
 								// thread before it is safe to continue.
-								check(StaticMeshComponent->AttachmentCounter.GetValue() == 0);
+								check(StaticMeshComponent->GetSceneData().AttachmentCounter.GetValue() == 0);
 
 								// Ensure LODData has enough entries in it, free not required.
 								const bool bLODDataCountChanged = StaticMeshComponent->SetLODDataCount(LODIndex + 1, StaticMeshComponent->GetStaticMesh()->GetNumLODs());

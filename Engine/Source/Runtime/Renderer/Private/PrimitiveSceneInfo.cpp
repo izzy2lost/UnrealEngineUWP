@@ -12,6 +12,8 @@
 #include "VelocityRendering.h"
 #include "ScenePrivate.h"
 #include "RayTracingGeometry.h"
+#include "Components/ComponentInterfaces.h"
+
 #include "RendererModule.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "RayTracing/RayTracingMaterialHitShaders.h"
@@ -31,6 +33,8 @@
 #include "RenderCore.h"
 #include "Materials/MaterialRenderProxy.h"
 #include "StaticMeshBatch.h"
+#include "PrimitiveSceneDesc.h"
+
 
 extern int32 GGPUSceneInstanceClearList;
 
@@ -161,11 +165,90 @@ FPrimitiveSceneInfoCompact::FPrimitiveSceneInfoCompact(FPrimitiveSceneInfo* InPr
 	VisibilityId = PrimitiveSceneInfo->Proxy->GetVisibilityId();
 }
 
-FPrimitiveSceneInfo::FPrimitiveSceneInfo(UPrimitiveComponent* InComponent, FScene* InScene) :
-	Proxy(InComponent->SceneProxy),
-	PrimitiveComponentId(InComponent->ComponentId),
-	RegistrationSerialNumber(InComponent->RegistrationSerialNumber),
-	OwnerLastRenderTime(FActorLastRenderTime::GetPtr(InComponent->GetOwner())),
+struct FPrimitiveSceneInfoAdapter
+{
+	FPrimitiveSceneInfoAdapter(UPrimitiveComponent* InComponent)		
+	{		
+		SceneProxy = InComponent->SceneProxy;
+		SceneData = &InComponent->SceneData;
+		ComponentId = SceneData->PrimitiveSceneId;			
+		check(InComponent->GetSceneData().RegistrationSerialNumber != -1);
+		RegistrationSerialNumber = InComponent->GetSceneData().RegistrationSerialNumber;
+		Component = InComponent;
+		PrimitiveComponentInterface = InComponent->GetPrimitiveComponentInterface();
+		PrimitiveDesc = nullptr;		
+		
+		// This validates the UPrimitiveComponent has properly initialized its OwnerLastRenderTimePtr
+		check(InComponent->SceneData.OwnerLastRenderTimePtr == FActorLastRenderTime::GetPtr(InComponent->GetOwner()));		
+		Mobility = InComponent->Mobility;
+
+		const UPrimitiveComponent* SearchParentComponent = InComponent->GetLightingAttachmentRoot();
+
+		if (SearchParentComponent && SearchParentComponent != InComponent)
+		{
+			LightingAttachmentComponentId = SearchParentComponent->GetPrimitiveSceneId();
+		}
+
+		// set LOD parent info if exists
+		UPrimitiveComponent* LODParent = InComponent->GetLODParentPrimitive();
+		if (LODParent)
+		{
+			LODParentComponentId = LODParent->GetPrimitiveSceneId();
+		}		
+
+		if (GIsEditor)
+		{
+			// Create a dynamic hit proxy for the primitive. 
+			DefaultHitProxy = SceneProxy->CreateHitProxies(PrimitiveComponentInterface, HitProxies);
+		}
+		
+	}
+	
+	FPrimitiveSceneInfoAdapter(FPrimitiveSceneDesc* InPrimitiveSceneDesc)
+	{		
+		check(InPrimitiveSceneDesc);		
+
+		Component = nullptr;
+		PrimitiveComponentInterface = InPrimitiveSceneDesc->GetPrimitiveComponentInterface();
+		SceneData = &InPrimitiveSceneDesc->GetSceneData();
+		PrimitiveDesc = InPrimitiveSceneDesc;
+		SceneProxy = InPrimitiveSceneDesc->GetSceneProxy();
+		check(SceneProxy);
+		ComponentId = InPrimitiveSceneDesc->GetPrimitiveSceneId();
+		RegistrationSerialNumber = InPrimitiveSceneDesc->GetRegistrationSerialNumber();
+		LODParentComponentId = InPrimitiveSceneDesc->GetLODParentId();
+		LightingAttachmentComponentId = InPrimitiveSceneDesc->GetLightingAttachmentId();			 		
+		Mobility = InPrimitiveSceneDesc->GetMobility();				
+		
+		if (GIsEditor && PrimitiveComponentInterface)
+		{
+			// Create a dynamic hit proxy for the primitive. 
+			DefaultHitProxy = SceneProxy->CreateHitProxies(PrimitiveComponentInterface, HitProxies);				
+		}
+
+	}
+	
+	FPrimitiveSceneProxy* SceneProxy;
+	FPrimitiveComponentId ComponentId;
+	int32 RegistrationSerialNumber;
+	FPrimitiveComponentId LODParentComponentId;
+	FPrimitiveComponentId LightingAttachmentComponentId;	
+	EComponentMobility::Type Mobility;
+
+	// mutable so that hit proxies can be moved to final destination
+	mutable TArray<TRefCountPtr<HHitProxy> > HitProxies;
+	HHitProxy* DefaultHitProxy = nullptr;
+
+	FPrimitiveSceneInfoData* SceneData;
+	UPrimitiveComponent* Component;
+	IPrimitiveComponent* PrimitiveComponentInterface;
+	FPrimitiveSceneDesc* PrimitiveDesc;
+};
+
+FPrimitiveSceneInfo::FPrimitiveSceneInfo(const FPrimitiveSceneInfoAdapter& InAdapter, FScene* InScene):
+	Proxy(InAdapter.SceneProxy),
+	PrimitiveComponentId(InAdapter.ComponentId),
+	RegistrationSerialNumber(InAdapter.RegistrationSerialNumber),
 	IndirectLightingCacheAllocation(NULL),
 	CachedPlanarReflectionProxy(NULL),
 	CachedReflectionCaptureProxy(NULL),
@@ -177,27 +260,28 @@ FPrimitiveSceneInfo::FPrimitiveSceneInfo(UPrimitiveComponent* InComponent, FScen
 	GpuLodInstanceRadius(0),
 	PackedIndex(INDEX_NONE),
 	PersistentIndex(FPersistentPrimitiveIndex{ INDEX_NONE }),
-	ComponentForDebuggingOnly(InComponent),
+	PrimitiveComponentInterfaceForDebuggingOnly(InAdapter.PrimitiveComponentInterface),
+	SceneData(InAdapter.SceneData),	
 	bNeedsUniformBufferUpdate(false),
 	bIndirectLightingCacheBufferDirty(false),
 	bRegisteredVirtualTextureProducerCallback(false),
 	bRegisteredWithVelocityData(false),
-	bCacheShadowAsStatic((InComponent->Mobility != EComponentMobility::Movable && InComponent->ShadowCacheInvalidationBehavior != EShadowCacheInvalidationBehavior::Always) || InComponent->ShadowCacheInvalidationBehavior == EShadowCacheInvalidationBehavior::Static),
+	bCacheShadowAsStatic((InAdapter.Mobility != EComponentMobility::Movable && InAdapter.SceneProxy->GetShadowCacheInvalidationBehavior() != EShadowCacheInvalidationBehavior::Always) || InAdapter.SceneProxy->GetShadowCacheInvalidationBehavior() == EShadowCacheInvalidationBehavior::Static),
 	bNaniteRasterBinsRenderCustomDepth(false),
 	bPendingAddToScene(false),
 	bPendingAddStaticMeshes(false),
 	bPendingFlushVirtualTexture(false),
 	bNeedsCachedReflectionCaptureUpdate(true),
-	bShouldRenderInMainPass(InComponent->SceneProxy->ShouldRenderInMainPass()),
-	bVisibleInRealTimeSkyCapture(InComponent->SceneProxy->IsVisibleInRealTimeSkyCaptures()),
+	bShouldRenderInMainPass(InAdapter.SceneProxy->ShouldRenderInMainPass()),
+	bVisibleInRealTimeSkyCapture(InAdapter.SceneProxy->IsVisibleInRealTimeSkyCaptures()),
 #if RHI_RAYTRACING
 	bDrawInGame(Proxy->IsDrawnInGame()),
 	bRayTracingFarField(Proxy->IsRayTracingFarField()),
-	bIsVisibleInSceneCaptures(!InComponent->SceneProxy->IsHiddenInSceneCapture()),
-	bIsVisibleInSceneCapturesOnly(InComponent->SceneProxy->IsVisibleInSceneCaptureOnly()),
-	bIsRayTracingRelevant(InComponent->SceneProxy->IsRayTracingRelevant()),
-	bIsRayTracingStaticRelevant(InComponent->SceneProxy->IsRayTracingStaticRelevant()),
-	bIsVisibleInRayTracing(InComponent->SceneProxy->IsVisibleInRayTracing()),
+	bIsVisibleInSceneCaptures(!InAdapter.SceneProxy->IsHiddenInSceneCapture()),
+	bIsVisibleInSceneCapturesOnly(InAdapter.SceneProxy->IsVisibleInSceneCaptureOnly()),
+	bIsRayTracingRelevant(InAdapter.SceneProxy->IsRayTracingRelevant()),
+	bIsRayTracingStaticRelevant(InAdapter.SceneProxy->IsRayTracingStaticRelevant()),
+	bIsVisibleInRayTracing(InAdapter.SceneProxy->IsVisibleInRayTracing()),
 	bCachedRaytracingDataDirty(false),
 	CoarseMeshStreamingHandle(INDEX_NONE),
 #endif
@@ -209,46 +293,49 @@ FPrimitiveSceneInfo::FPrimitiveSceneInfo(UPrimitiveComponent* InComponent, FScen
 	LightmapDataOffset(INDEX_NONE),
 	NumLightmapDataEntries(0)
 {
-	check(ComponentForDebuggingOnly);
 	check(PrimitiveComponentId.IsValid());
 	check(Proxy);
+	check(SceneData);
 
-	const UPrimitiveComponent* SearchParentComponent = InComponent->GetLightingAttachmentRoot();
-
-	if (SearchParentComponent && SearchParentComponent != InComponent)
-	{
-		LightingAttachmentRoot = SearchParentComponent->ComponentId;
-	}
+	LightingAttachmentRoot  = InAdapter.LightingAttachmentComponentId;	
 
 	// Only create hit proxies in the Editor as that's where they are used.
 	if (GIsEditor)
 	{
 		// Create a dynamic hit proxy for the primitive. 
-		DefaultDynamicHitProxy = Proxy->CreateHitProxies(InComponent,HitProxies);
+		DefaultDynamicHitProxy = InAdapter.DefaultHitProxy;		
+		HitProxies = MoveTemp(InAdapter.HitProxies);
+
 		if( DefaultDynamicHitProxy )
 		{
+			check(HitProxies.Contains(DefaultDynamicHitProxy));
 			DefaultDynamicHitProxyId = DefaultDynamicHitProxy->Id;
 		}
 	}
-
-	// set LOD parent info if exists
-	UPrimitiveComponent* LODParent = InComponent->GetLODParentPrimitive();
-	if (LODParent)
-	{
-		LODParentComponentId = LODParent->ComponentId;
-	}
+	
+	LODParentComponentId = InAdapter.LODParentComponentId;
 
 	FMemory::Memzero(CachedReflectionCaptureProxies);
 
 #if RHI_RAYTRACING
-	RayTracingGeometries = InComponent->SceneProxy->MoveRayTracingGeometries();
+	RayTracingGeometries = InAdapter.SceneProxy->MoveRayTracingGeometries();
 	CachedRayTracingGeometry = nullptr;
 #endif
 
 	if (FInstanceCullingContext::IsGPUCullingEnabled())
 	{
-		GpuLodInstanceRadius = InComponent->SceneProxy->GetGpuLodInstanceRadius();
+		GpuLodInstanceRadius = InAdapter.SceneProxy->GetGpuLodInstanceRadius();
 	}
+}
+
+FPrimitiveSceneInfo::FPrimitiveSceneInfo(UPrimitiveComponent* InPrimitive,FScene* InScene)
+	: FPrimitiveSceneInfo(FPrimitiveSceneInfoAdapter(InPrimitive), InScene)
+{
+}	
+
+FPrimitiveSceneInfo::FPrimitiveSceneInfo(FPrimitiveSceneDesc* InPrimitiveSceneDesc,FScene* InScene)
+	: FPrimitiveSceneInfo(FPrimitiveSceneInfoAdapter(InPrimitiveSceneDesc), InScene)
+{
 }
 
 FPrimitiveSceneInfo::~FPrimitiveSceneInfo()
@@ -1932,7 +2019,7 @@ void FPrimitiveSceneInfo::GatherLightingAttachmentGroupPrimitives(TArray<FPrimit
 {
 #if ENABLE_NAN_DIAGNOSTIC
 	// local function that returns full name of object
-	auto GetObjectName = [](const UPrimitiveComponent* InPrimitive)->FString
+	auto GetObjectName = [](const UObject* InPrimitive)->FString
 	{
 		return (InPrimitive) ? InPrimitive->GetFullName() : FString(TEXT("Unknown Object"));
 	};
@@ -1940,7 +2027,7 @@ void FPrimitiveSceneInfo::GatherLightingAttachmentGroupPrimitives(TArray<FPrimit
 	// verify that the current object has a valid bbox before adding it
 	const float& BoundsRadius = this->Proxy->GetBounds().SphereRadius;
 	if (ensureMsgf(!FMath::IsNaN(BoundsRadius) && FMath::IsFinite(BoundsRadius),
-		TEXT("%s had an ill-formed bbox and was skipped during shadow setup, contact DavidH."), *GetObjectName(this->ComponentForDebuggingOnly)))
+		TEXT("%s had an ill-formed bbox and was skipped during shadow setup, contact DavidH."), *GetObjectName(this->PrimitiveComponentInterfaceForDebuggingOnly->GetUObject())))
 	{
 		OutChildSceneInfos.Add(this);
 	}
@@ -1971,7 +2058,7 @@ void FPrimitiveSceneInfo::GatherLightingAttachmentGroupPrimitives(TArray<FPrimit
 				const float& ShadowChildBoundsRadius = ShadowChild->Proxy->GetBounds().SphereRadius;
 
 				if (ensureMsgf(!FMath::IsNaN(ShadowChildBoundsRadius) && FMath::IsFinite(ShadowChildBoundsRadius),
-					TEXT("%s had an ill-formed bbox and was skipped during shadow setup, contact DavidH."), *GetObjectName(ShadowChild->ComponentForDebuggingOnly)))
+					TEXT("%s had an ill-formed bbox and was skipped during shadow setup, contact DavidH."), *GetObjectName(ShadowChild->PrimitiveComponentInterfaceForDebuggingOnly->GetUObject())))
 				{
 					checkSlow(!OutChildSceneInfos.Contains(ShadowChild))
 				    OutChildSceneInfos.Add(ShadowChild);
@@ -2160,15 +2247,7 @@ void FPrimitiveSceneInfo::RemoveCachedReflectionCaptures()
 
 void FPrimitiveSceneInfo::UpdateComponentLastRenderTime(float CurrentWorldTime, bool bUpdateLastRenderTimeOnScreen) const
 {
-	ComponentForDebuggingOnly->LastRenderTime = CurrentWorldTime;
-	if (bUpdateLastRenderTimeOnScreen)
-	{
-		ComponentForDebuggingOnly->LastRenderTimeOnScreen = CurrentWorldTime;
-	}
-	if (OwnerLastRenderTime)
-	{
-		*OwnerLastRenderTime = CurrentWorldTime; // Sets OwningActor->LastRenderTime
-	}
+	SceneData->SetLastRenderTime(CurrentWorldTime, bUpdateLastRenderTimeOnScreen);
 }
 
 void FPrimitiveOctreeSemantics::SetOctreeNodeIndex(const FPrimitiveSceneInfoCompact& Element, FOctreeElementId2 Id)
@@ -2183,24 +2262,21 @@ void FPrimitiveOctreeSemantics::SetOctreeNodeIndex(const FPrimitiveSceneInfoComp
 
 FString FPrimitiveSceneInfo::GetFullnameForDebuggingOnly() const
 {
-	// This is not correct to access component from rendering thread, but this is for debugging only
-	if (ComponentForDebuggingOnly)
-	{	
-		return ComponentForDebuggingOnly->GetFullGroupName(false);
+	if (PrimitiveComponentInterfaceForDebuggingOnly)
+	{
+		return PrimitiveComponentInterfaceForDebuggingOnly->GetUObject()->GetFullGroupName(false);
 	}
+
 	return FString(TEXT("Unknown Object"));
 }
 
 FString FPrimitiveSceneInfo::GetOwnerActorNameOrLabelForDebuggingOnly() const
 {
-	if (ComponentForDebuggingOnly)
+	if (PrimitiveComponentInterfaceForDebuggingOnly)
 	{
-#if ACTOR_HAS_LABELS
-		return ComponentForDebuggingOnly->GetOwner() ? ComponentForDebuggingOnly->GetOwner()->GetActorNameOrLabel() : ComponentForDebuggingOnly->GetName();
-#else
-		return ComponentForDebuggingOnly->GetName();
-#endif
+		return PrimitiveComponentInterfaceForDebuggingOnly->GetOwnerName();
 	}
+	
 	return FString(TEXT("Unknown Object"));
 }
 void FPrimitiveSceneInfo::SetCacheShadowAsStatic(bool bStatic)
@@ -2210,4 +2286,14 @@ void FPrimitiveSceneInfo::SetCacheShadowAsStatic(bool bStatic)
 		bCacheShadowAsStatic = bStatic;
 		RequestGPUSceneUpdate(EPrimitiveDirtyState::ChangedOther);
 	}
+}
+
+const UPrimitiveComponent* FPrimitiveSceneInfo::GetComponentForDebugOnly() const 
+{ 
+	return Cast<UPrimitiveComponent>(PrimitiveComponentInterfaceForDebuggingOnly->GetUObject()); 
+}
+
+const IPrimitiveComponent* FPrimitiveSceneInfo::GetComponentInterfaceForDebugOnly() const 
+{
+	return PrimitiveComponentInterfaceForDebuggingOnly; 
 }

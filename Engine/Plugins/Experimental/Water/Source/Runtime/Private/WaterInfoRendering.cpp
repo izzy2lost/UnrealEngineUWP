@@ -765,7 +765,7 @@ void UpdateWaterInfoRendering(
 		{
 			if (GroundPrimComp.IsValid())
 			{
-				ComponentsToRenderInDepthPass.Add(GroundPrimComp.Get()->ComponentId);
+				ComponentsToRenderInDepthPass.Add(GroundPrimComp.Get()->GetPrimitiveSceneId());
 			}
 		}
 	}
@@ -790,8 +790,8 @@ void UpdateWaterInfoRendering(
 			const FBox WaterBodyBounds = WaterBodyToRender->Bounds.GetBox();
 			if (CaptureBounds.Intersect(FBox2D(FVector2D(WaterBodyBounds.Min), FVector2D(WaterBodyBounds.Max))))
 			{
-				ComponentsToRenderInColorPass.Add(WaterBodyToRender->GetWaterInfoMeshComponent()->ComponentId);
-				ComponentsToRenderInDilationPass.Add(WaterBodyToRender->GetDilatedWaterInfoMeshComponent()->ComponentId);
+				ComponentsToRenderInColorPass.Add(WaterBodyToRender->GetWaterInfoMeshComponent()->GetPrimitiveSceneId());
+				ComponentsToRenderInDilationPass.Add(WaterBodyToRender->GetDilatedWaterInfoMeshComponent()->GetPrimitiveSceneId());
 			}
 		}
 	}

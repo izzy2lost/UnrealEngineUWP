@@ -1925,7 +1925,7 @@ void UNiagaraDataInterfaceStaticMesh::ProvidePerInstanceDataForRenderThread(void
 
 	if ( UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(InstanceData->SceneComponentWeakPtr) )
 	{
-		DataFromGT->DistanceFieldPrimitiveId = PrimitiveComponent->ComponentId;
+		DataFromGT->DistanceFieldPrimitiveId = PrimitiveComponent->GetPrimitiveSceneId();
 	}
 }
 

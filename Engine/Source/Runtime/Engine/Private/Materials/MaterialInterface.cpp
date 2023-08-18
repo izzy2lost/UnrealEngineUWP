@@ -633,16 +633,16 @@ void UMaterialInterface::SubmitRemainingJobsForWorld(UWorld* World, EMaterialSha
 	TSet<UMaterialInterface*> MaterialsToCache;
 	FObjectCacheContextScope ObjectCacheScope;
 
-	for (UPrimitiveComponent* PrimitiveComponent : ObjectCacheScope.GetContext().GetPrimitiveComponents())
+	for (IPrimitiveComponent* PrimitiveComponentInterface : ObjectCacheScope.GetContext().GetPrimitiveComponents())
 	{
-		if (World && !World->ContainsActor(PrimitiveComponent->GetOwner()))
+		if (World && PrimitiveComponentInterface->GetWorld() == World)
 		{
 			continue;
 		}
 
-		if (PrimitiveComponent->IsRenderStateCreated())
+		if (PrimitiveComponentInterface->IsRenderStateCreated())
 		{
-			TObjectCacheIterator<UMaterialInterface> UsedMaterials = ObjectCacheScope.GetContext().GetUsedMaterials(PrimitiveComponent);
+			TObjectCacheIterator<UMaterialInterface> UsedMaterials = ObjectCacheScope.GetContext().GetUsedMaterials(PrimitiveComponentInterface);
 			for (UMaterialInterface* MaterialInterface : UsedMaterials)
 			{
 				if (MaterialInterface && !MaterialInterface->IsComplete())

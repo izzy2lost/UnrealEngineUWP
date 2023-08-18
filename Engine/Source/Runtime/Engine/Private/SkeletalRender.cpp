@@ -65,7 +65,7 @@ FSkeletalMeshObject::FSkeletalMeshObject(USkinnedMeshComponent* InMeshComponent,
 ,	bUsePerBoneMotionBlur(InMeshComponent->bPerBoneMotionBlur)
 ,	StatId(InMeshComponent->GetSkinnedAsset()->GetStatID(true))
 ,	FeatureLevel(InFeatureLevel)
-,	ComponentId(InMeshComponent->ComponentId.PrimIDValue)
+,	ComponentId(InMeshComponent->GetPrimitiveSceneId().PrimIDValue)
 ,	WorldScale(InMeshComponent->GetComponentScale())
 #if RHI_ENABLE_RESOURCE_INFO
 ,	AssetPathName(InMeshComponent->GetSkinnedAsset()->GetPathName())

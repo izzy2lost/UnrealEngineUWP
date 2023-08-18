@@ -5927,14 +5927,14 @@ void APlayerController::BuildHiddenComponentList(const FVector& ViewLocation, TS
 				UPrimitiveComponent* PrimitiveComponent = Components[ComponentIndex];
 				if (PrimitiveComponent->IsRegistered())
 				{
-					HiddenComponentsOut.Add(PrimitiveComponent->ComponentId);
+					HiddenComponentsOut.Add(PrimitiveComponent->GetPrimitiveSceneId());
 
 					for (USceneComponent* AttachedChild : PrimitiveComponent->GetAttachChildren())
 					{						
 						UPrimitiveComponent* AttachChildPC = Cast<UPrimitiveComponent>(AttachedChild);
 						if (AttachChildPC && AttachChildPC->IsRegistered())
 						{
-							HiddenComponentsOut.Add(AttachChildPC->ComponentId);
+							HiddenComponentsOut.Add(AttachChildPC->GetPrimitiveSceneId());
 						}
 					}
 				}
@@ -5955,7 +5955,7 @@ void APlayerController::BuildHiddenComponentList(const FVector& ViewLocation, TS
 		{
 			if (Component->IsRegistered())
 			{
-				HiddenComponentsOut.Add(Component->ComponentId);
+				HiddenComponentsOut.Add(Component->GetPrimitiveSceneId());
 			}
 		}
 		else

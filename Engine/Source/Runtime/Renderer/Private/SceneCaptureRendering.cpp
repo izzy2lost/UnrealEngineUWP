@@ -660,7 +660,7 @@ void SetupViewFamilyForSceneCapture(
 			UPrimitiveComponent* PrimitiveComponent = It->Get();
 			if (PrimitiveComponent)
 			{
-				View->HiddenPrimitives.Add(PrimitiveComponent->ComponentId);
+				View->HiddenPrimitives.Add(PrimitiveComponent->GetPrimitiveSceneId());
 			}
 		}
 
@@ -674,7 +674,7 @@ void SetupViewFamilyForSceneCapture(
 				{
 					if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(Component))
 					{
-						View->HiddenPrimitives.Add(PrimComp->ComponentId);
+						View->HiddenPrimitives.Add(PrimComp->GetPrimitiveSceneId());
 					}
 				}
 			}
@@ -690,7 +690,7 @@ void SetupViewFamilyForSceneCapture(
 				UPrimitiveComponent* PrimitiveComponent = It->Get();
 				if (PrimitiveComponent)
 				{
-					View->ShowOnlyPrimitives->Add(PrimitiveComponent->ComponentId);
+					View->ShowOnlyPrimitives->Add(PrimitiveComponent->GetPrimitiveSceneId());
 				}
 			}
 
@@ -704,7 +704,7 @@ void SetupViewFamilyForSceneCapture(
 					{
 						if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(Component))
 						{
-							View->ShowOnlyPrimitives->Add(PrimComp->ComponentId);
+							View->ShowOnlyPrimitives->Add(PrimComp->GetPrimitiveSceneId());
 						}
 					}
 				}

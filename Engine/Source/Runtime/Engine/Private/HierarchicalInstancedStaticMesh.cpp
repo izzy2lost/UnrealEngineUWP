@@ -841,7 +841,7 @@ SIZE_T FHierarchicalStaticMeshSceneProxy::GetTypeHash() const
 }
 
 FHierarchicalStaticMeshSceneProxy::FHierarchicalStaticMeshSceneProxy(UHierarchicalInstancedStaticMeshComponent* InComponent, ERHIFeatureLevel::Type InFeatureLevel)
-: FInstancedStaticMeshSceneProxy(InComponent, InFeatureLevel)
+: FInstancedStaticMeshSceneProxy((UInstancedStaticMeshComponent*)InComponent, InFeatureLevel)
 , ClusterTreePtr(InComponent->ClusterTreePtr.ToSharedRef())
 , ClusterTree(*InComponent->ClusterTreePtr)
 , UnbuiltBounds(InComponent->UnbuiltInstanceBoundsList)

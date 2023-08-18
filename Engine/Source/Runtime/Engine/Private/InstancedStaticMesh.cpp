@@ -43,6 +43,8 @@
 #include "UObject/UObjectIterator.h"
 #include "GenericPlatform/ICursor.h"
 
+#include "InstancedStaticMeshSceneProxyDesc.h"
+
 #if RHI_RAYTRACING
 #endif
 
@@ -1145,17 +1147,17 @@ IMPLEMENT_VERTEX_FACTORY_TYPE(FInstancedStaticMeshVertexFactory,"/Engine/Private
 	| EVertexFactoryFlags::SupportsLumenMeshCards
 );
 
-FInstancedStaticMeshRenderData::FInstancedStaticMeshRenderData(UInstancedStaticMeshComponent* InComponent, ERHIFeatureLevel::Type InFeatureLevel)
-	: Component(InComponent)
-	, LightMapCoordinateIndex(Component->GetStaticMesh()->GetLightMapCoordinateIndex())
-	, PerInstanceRenderData(InComponent->PerInstanceRenderData)
-	, LODModels(Component->GetStaticMesh()->GetRenderData()->LODResources)
+FInstancedStaticMeshRenderData::FInstancedStaticMeshRenderData(const FInstancedStaticMeshSceneProxyDesc* InDesc, ERHIFeatureLevel::Type InFeatureLevel)
+	: Component(Cast<UInstancedStaticMeshComponent>(InDesc->Component))
+	, LightMapCoordinateIndex(InDesc->GetStaticMesh()->GetLightMapCoordinateIndex())
+	, PerInstanceRenderData(InDesc->PerInstanceRenderData)
+	, LODModels(InDesc->GetStaticMesh()->GetRenderData()->LODResources)
 	, FeatureLevel(InFeatureLevel)
 {
 	check(PerInstanceRenderData.IsValid());
 	// Allocate the vertex factories for each LOD
 	InitVertexFactories();
-	RegisterSpeedTreeWind();
+	RegisterSpeedTreeWind(InDesc);
 }
 
 void FInstancedStaticMeshRenderData::ReleaseResources(FSceneInterface* Scene, const UStaticMesh* StaticMesh)
@@ -1232,7 +1234,8 @@ void FInstancedStaticMeshRenderData::BindBuffersToVertexFactories(FRHICommandLis
 		// Assign to the vertex factory for this LOD.
 		FInstancedStaticMeshVertexFactory& VertexFactory = VertexFactories[LODIndex];
 		const FColorVertexBuffer* ColorVertexBuffer = RenderData->bHasColorVertexData ? &(RenderData->VertexBuffers.ColorVertexBuffer) : nullptr;
-		if (Component->LODData.IsValidIndex(LODIndex) && Component->LODData[LODIndex].OverrideVertexColors)
+		//@todo: replacement for non UInstancedStaticMeshComponent case
+		if (Component && Component->LODData.IsValidIndex(LODIndex) && Component->LODData[LODIndex].OverrideVertexColors)
 		{
 			ColorVertexBuffer = Component->LODData[LODIndex].OverrideVertexColors;
 		}
@@ -1257,16 +1260,16 @@ void FInstancedStaticMeshRenderData::InitVertexFactories()
 		});
 }
 
-void FInstancedStaticMeshRenderData::RegisterSpeedTreeWind()
+void FInstancedStaticMeshRenderData::RegisterSpeedTreeWind(const FInstancedStaticMeshSceneProxyDesc* InProxyDesc)
 {
 	// register SpeedTree wind with the scene
-	if (Component->GetStaticMesh()->SpeedTreeWind.IsValid())
+	if (InProxyDesc->GetStaticMesh()->SpeedTreeWind.IsValid())
 	{
 		for (int32 LODIndex = 0; LODIndex < LODModels.Num(); LODIndex++)
 		{
-			if (Component->GetScene())
+			if (InProxyDesc->GetScene())
 			{
-				Component->GetScene()->AddSpeedTreeWind(&VertexFactories[LODIndex], Component->GetStaticMesh());
+				InProxyDesc->GetScene()->AddSpeedTreeWind(&VertexFactories[LODIndex], InProxyDesc->GetStaticMesh());
 			}
 		}
 	}
@@ -1720,7 +1723,63 @@ FInstancedStaticMeshVFLooseUniformShaderParametersRef FInstancedStaticMeshSceneP
 	return CreateUniformBufferImmediate(LooseParameters, UniformBufferUsage);
 }
 
-void FInstancedStaticMeshSceneProxy::SetupProxy(UInstancedStaticMeshComponent* InComponent)
+FInstancedStaticMeshSceneProxyDesc::FInstancedStaticMeshSceneProxyDesc(const UInstancedStaticMeshComponent* InComponent)
+	: FStaticMeshSceneProxyDesc(InComponent)	  
+{
+	PerInstanceSMData = InComponent->PerInstanceSMData;
+	PerInstanceRenderData = InComponent->PerInstanceRenderData;;
+	PerInstanceSMCustomData = InComponent->PerInstanceSMCustomData;
+#if WITH_EDITOR
+	SelectedInstances = InComponent->SelectedInstances;
+#endif
+	InstanceReorderTable = InComponent->InstanceReorderTable; 
+	PerInstancePrevTransform = InComponent->PerInstancePrevTransform;
+	InstanceUpdateCmdBuffer = &InComponent->InstanceUpdateCmdBuffer;
+
+	InstanceStartCullDistance = InComponent->InstanceStartCullDistance ;
+	InstanceEndCullDistance = InComponent->InstanceEndCullDistance;
+
+	InComponent->GetInstancesMinMaxScale(MinScale, MaxScale);
+	NumCustomDataFloats = InComponent->NumCustomDataFloats;
+	TranslatedInstanceSpaceOrigin = InComponent->GetTranslatedInstanceSpaceOrigin();	
+	InstanceLODDistanceScale = InComponent->InstanceLODDistanceScale;
+
+	bUseGpuLodSelection = InComponent->bUseGpuLodSelection;
+	bHasPerInstanceHitProxies = InComponent->bHasPerInstanceHitProxies;
+}
+
+/** Initialization constructor. */
+FInstancedStaticMeshSceneProxy::FInstancedStaticMeshSceneProxy(UInstancedStaticMeshComponent* InComponent, ERHIFeatureLevel::Type InFeatureLevel)
+		: FInstancedStaticMeshSceneProxy(FInstancedStaticMeshSceneProxyDesc(InComponent), InFeatureLevel)
+{
+
+}
+
+/** Initialization constructor. */
+FInstancedStaticMeshSceneProxy::FInstancedStaticMeshSceneProxy(const FInstancedStaticMeshSceneProxyDesc& InProxyDesc, ERHIFeatureLevel::Type InFeatureLevel)
+	:	FStaticMeshSceneProxy(InProxyDesc, true)
+	,	StaticMesh(InProxyDesc.GetStaticMesh())
+	,	InstancedRenderData(&InProxyDesc, InFeatureLevel)
+#if WITH_EDITOR
+	,	bHasSelectedInstances(false)
+#endif
+	,	InstanceLODDistanceScale(InProxyDesc.InstanceLODDistanceScale)
+#if RHI_RAYTRACING
+	,	CachedRayTracingLOD(-1)
+#endif
+	,	StaticMeshBounds(StaticMesh->GetBounds())
+{
+#if WITH_EDITOR
+	for (int32 InstanceIndex = 0; InstanceIndex < InProxyDesc.SelectedInstances.Num() && !bHasSelectedInstances; ++InstanceIndex)
+	{
+		bHasSelectedInstances |= InProxyDesc.SelectedInstances[InstanceIndex];
+	}
+#endif
+
+	SetupProxy(InProxyDesc);
+}
+
+void FInstancedStaticMeshSceneProxy::SetupProxy(const FInstancedStaticMeshSceneProxyDesc& InProxyDesc)
 {
 #if WITH_EDITOR
 	if (bHasSelectedInstances)
@@ -1762,24 +1821,24 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(UInstancedStaticMeshComponent* I
 		if (!OverlayMaterial->CheckMaterialUsage_Concurrent(MATUSAGE_InstancedStaticMeshes))
 		{
 			OverlayMaterial = UMaterial::GetDefaultMaterial(MD_Surface);
-			UE_LOG(LogStaticMesh, Error, TEXT("Overlay material with missing usage flag was applied to instanced static mesh %s"),	*InComponent->GetStaticMesh()->GetPathName());
+			UE_LOG(LogStaticMesh, Error, TEXT("Overlay material with missing usage flag was applied to instanced static mesh %s"),	*InProxyDesc.GetStaticMesh()->GetPathName());
 		}
 	}
 
 	// Small optimization: If there's only a single instance, assume we can cull the entire primitive if it is outside the instance cull distance
 	if (ensure(InstancedRenderData.PerInstanceRenderData.IsValid()) &&
 		InstancedRenderData.PerInstanceRenderData->InstanceBuffer.GetNumInstances() == 1 &&
-		InComponent->InstanceEndCullDistance > 0)
+		InProxyDesc.InstanceEndCullDistance > 0)
 	{
-		MaxDrawDistance = FMath::Min(MaxDrawDistance, float(InComponent->InstanceEndCullDistance));
+		MaxDrawDistance = FMath::Min(MaxDrawDistance, float(InProxyDesc.InstanceEndCullDistance));
 	}
 
 	// Copy the parameters for LOD - all instances
-	UserData_AllInstances.MeshRenderData = InComponent->GetStaticMesh()->GetRenderData();
-	UserData_AllInstances.StartCullDistance = InComponent->InstanceStartCullDistance;
-	UserData_AllInstances.EndCullDistance = InComponent->InstanceEndCullDistance;
+	UserData_AllInstances.MeshRenderData = InProxyDesc.GetStaticMesh()->GetRenderData();
+	UserData_AllInstances.StartCullDistance = InProxyDesc.InstanceStartCullDistance;
+	UserData_AllInstances.EndCullDistance = InProxyDesc.InstanceEndCullDistance;
 	UserData_AllInstances.LODDistanceScale = 1.0f;
-	UserData_AllInstances.InstancingOffset = InComponent->GetStaticMesh()->GetBoundingBox().GetCenter();
+	UserData_AllInstances.InstancingOffset = InProxyDesc.GetStaticMesh()->GetBoundingBox().GetCenter();
 	UserData_AllInstances.MinLOD = ClampedMinLOD;
 	UserData_AllInstances.bRenderSelected = true;
 	UserData_AllInstances.bRenderUnselected = true;
@@ -1787,7 +1846,7 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(UInstancedStaticMeshComponent* I
 
 	FVector MinScale(0);
 	FVector MaxScale(0);
-	InComponent->GetInstancesMinMaxScale(MinScale, MaxScale);
+	InProxyDesc.GetInstancesMinMaxScale(MinScale, MaxScale);
 
 	UserData_AllInstances.AverageInstancesScale = MinScale + (MaxScale - MinScale) / 2.0f;
 
@@ -1800,13 +1859,13 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(UInstancedStaticMeshComponent* I
 	UserData_DeselectedInstances.bRenderSelected = false;
 
 #if RHI_RAYTRACING
-	bSupportRayTracing = InComponent->GetStaticMesh()->bSupportRayTracing;
+	bSupportRayTracing = InProxyDesc.GetStaticMesh()->bSupportRayTracing;
 #endif
 
 	const bool bUseGPUScene = UseGPUScene(GetScene().GetShaderPlatform(), GetScene().GetFeatureLevel());
 	
 	const bool bEnableGpuLodSelection = CVarGpuLodSelection.GetValueOnAnyThread() != 0;
-	bUseGpuLodSelection = InComponent->bUseGpuLodSelection && bUseGPUScene && bEnableGpuLodSelection;
+	bUseGpuLodSelection = InProxyDesc.bUseGpuLodSelection && bUseGPUScene && bEnableGpuLodSelection;
 
 	if (bUseGPUScene)
 	{
@@ -1820,16 +1879,16 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(UInstancedStaticMeshComponent* I
 			}
 		}
 		
-		const TArray<int32>& InstanceReorderTable = InComponent->InstanceReorderTable;
+		const TArrayView<const int32>& InstanceReorderTable = InProxyDesc.InstanceReorderTable;
 
 		// NumRenderInstances is the extent that the reorder table can map to.
 		// Temporarily when removing instances from a HISM this can be sparse so that InComponent->GetInstanceCount() < NumRenderInstances.
-		const int32 NumRenderInstances = FMath::Max<int32>(InComponent->InstanceUpdateCmdBuffer.NumEditInstances, InComponent->GetInstanceCount());
+		const int32 NumRenderInstances = FMath::Max<int32>(InProxyDesc.GetInstanceUpdateCmdBuffer().NumEditInstances, InProxyDesc.GetInstanceCount());
 
 		bSupportsInstanceDataBuffer = true;
 		InstanceSceneData.SetNumZeroed(NumRenderInstances);
 
-		bHasPerInstanceDynamicData = InComponent->PerInstancePrevTransform.Num() > 0 && InComponent->PerInstancePrevTransform.Num() == InComponent->GetInstanceCount();
+		bHasPerInstanceDynamicData = InProxyDesc.PerInstancePrevTransform.Num() > 0 && InProxyDesc.PerInstancePrevTransform.Num() == InProxyDesc.GetInstanceCount();
 		InstanceDynamicData.SetNumZeroed(bHasPerInstanceDynamicData ? NumRenderInstances : 0);
 
 		static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
@@ -1845,20 +1904,20 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(UInstancedStaticMeshComponent* I
 #endif
 
 		// Only allocate if material bound which uses this
-		if (bHasPerInstanceCustomData && InComponent->NumCustomDataFloats > 0)
+		if (bHasPerInstanceCustomData && InProxyDesc.NumCustomDataFloats > 0)
 		{
-			InstanceCustomData.SetNumZeroed(NumRenderInstances * InComponent->NumCustomDataFloats);
+			InstanceCustomData.SetNumZeroed(NumRenderInstances * InProxyDesc.NumCustomDataFloats);
 		}
 		else
 		{
 			bHasPerInstanceCustomData = false;
 		}
 
-		FVector TranslatedSpaceOffset = -InComponent->GetTranslatedInstanceSpaceOrigin();
+		FVector TranslatedSpaceOffset = -InProxyDesc.GetTranslatedInstanceSpaceOrigin();
 
 		// Add the visible instances. 
 		// Non visible ones (that are being removed) should not appear due to a zeroed render transform in the entries where we don't add anything here.
-		for (int32 InstanceIndex = 0; InstanceIndex < InComponent->GetInstanceCount(); ++InstanceIndex)
+		for (int32 InstanceIndex = 0; InstanceIndex < InProxyDesc.GetInstanceCount(); ++InstanceIndex)
 		{
 			const int32 RenderInstanceIndex = InstanceReorderTable.IsValidIndex(InstanceIndex) ? InstanceReorderTable[InstanceIndex] : InstanceIndex;
 
@@ -1877,14 +1936,14 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(UInstancedStaticMeshComponent* I
 			FInstanceSceneData& SceneData = InstanceSceneData[RenderInstanceIndex];
 
 			FTransform InstanceTransform;
-			InComponent->GetInstanceTransform(InstanceIndex, InstanceTransform);
+			InProxyDesc.GetInstanceTransform(InstanceIndex, InstanceTransform);
 			InstanceTransform.AddToTranslation(TranslatedSpaceOffset);
 			SceneData.LocalToPrimitive = InstanceTransform.ToMatrixWithScale();
 
 			if (bHasPerInstanceDynamicData)
 			{
 				FTransform InstancePrevTransform;
-				const bool bHasPrevTransform = InComponent->GetInstancePrevTransform(InstanceIndex, InstancePrevTransform);
+				const bool bHasPrevTransform = InProxyDesc.GetInstancePrevTransform(InstanceIndex, InstancePrevTransform);
 				ensure(bHasPrevTransform); // Should always be true here
 				InstancePrevTransform.AddToTranslation(TranslatedSpaceOffset);
 				InstanceDynamicData[RenderInstanceIndex].PrevLocalToPrimitive = InstancePrevTransform.ToMatrixWithScale();
@@ -1892,13 +1951,13 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(UInstancedStaticMeshComponent* I
 
 			if (bHasPerInstanceCustomData)
 			{
-				const int32 SrcCustomDataOffset = InstanceIndex  * InComponent->NumCustomDataFloats;
-				const int32 DstCustomDataOffset = RenderInstanceIndex * InComponent->NumCustomDataFloats;
+				const int32 SrcCustomDataOffset = InstanceIndex  * InProxyDesc.NumCustomDataFloats;
+				const int32 DstCustomDataOffset = RenderInstanceIndex * InProxyDesc.NumCustomDataFloats;
 				FMemory::Memcpy
 				(
 					&InstanceCustomData[DstCustomDataOffset],
-					&InComponent->PerInstanceSMCustomData[SrcCustomDataOffset],
-					InComponent->NumCustomDataFloats * sizeof(float)
+					&InProxyDesc.PerInstanceSMCustomData[SrcCustomDataOffset],
+					InProxyDesc.NumCustomDataFloats * sizeof(float)
 				);
 			}
 		}
@@ -2129,7 +2188,7 @@ void FInstancedStaticMeshSceneProxy::GetDistanceFieldInstanceData(TArray<FRender
 	}
 }
 
-HHitProxy* FInstancedStaticMeshSceneProxy::CreateHitProxies(UPrimitiveComponent* Component,TArray<TRefCountPtr<HHitProxy> >& OutHitProxies)
+HHitProxy* FInstancedStaticMeshSceneProxy::CreateHitProxies(IPrimitiveComponent* Component,TArray<TRefCountPtr<HHitProxy> >& OutHitProxies)
 {
 	if (InstancedRenderData.PerInstanceRenderData.IsValid() && InstancedRenderData.PerInstanceRenderData->HitProxies.Num())
 	{

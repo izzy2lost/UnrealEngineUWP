@@ -6005,16 +6005,19 @@ namespace
 		FObjectCacheContextScope ObjectCacheScope;
 		TSet<FSceneInterface*> ScenesToUpdate;
 		TIndirectArray<FComponentRecreateRenderStateContext> ComponentContexts;
-		for (UPrimitiveComponent* PrimitiveComponent : ObjectCacheScope.GetContext().GetPrimitiveComponents())
+		for (IPrimitiveComponent* PrimitiveComponentInterface : ObjectCacheScope.GetContext().GetPrimitiveComponents())
 		{
-			if (PrimitiveComponent->IsRenderStateCreated())
+			if (PrimitiveComponentInterface->IsRenderStateCreated())
 			{
-				ComponentContexts.Add(new FComponentRecreateRenderStateContext(PrimitiveComponent, &ScenesToUpdate));
+				ComponentContexts.Add(new FComponentRecreateRenderStateContext(PrimitiveComponentInterface, &ScenesToUpdate));
 #if WITH_EDITOR
-				if (PrimitiveComponent->HasValidSettingsForStaticLighting(false))
+				if (UPrimitiveComponent* PrimitiveComponent = PrimitiveComponentInterface->GetUObject<UPrimitiveComponent>())
 				{
-					FStaticLightingSystemInterface::OnPrimitiveComponentUnregistered.Broadcast(PrimitiveComponent);
-					FStaticLightingSystemInterface::OnPrimitiveComponentRegistered.Broadcast(PrimitiveComponent);
+					if (PrimitiveComponent->HasValidSettingsForStaticLighting(false))
+					{
+						FStaticLightingSystemInterface::OnPrimitiveComponentUnregistered.Broadcast(PrimitiveComponent);
+						FStaticLightingSystemInterface::OnPrimitiveComponentRegistered.Broadcast(PrimitiveComponent);
+					}
 				}
 #endif
 			}
@@ -6317,7 +6320,7 @@ void FShaderCompilingManager::PropagateMaterialChangesToPrimitives(TMap<TRefCoun
 			UpdatedMaterials.Add(UpdatedMaterial->GetMaterialInterface());
 		}
 
-		for (UPrimitiveComponent* PrimitiveComponent : ObjectCacheScope.GetContext().GetPrimitivesAffectedByMaterials(UpdatedMaterials))
+		for (IPrimitiveComponent* PrimitiveComponent : ObjectCacheScope.GetContext().GetPrimitivesAffectedByMaterials(UpdatedMaterials))
 		{
 			PrimitiveComponent->MarkRenderStateDirty();
 		}

@@ -730,11 +730,13 @@ void FCardRepresentationAsyncQueue::ProcessAsyncTasks(bool bLimitExecutionTime)
 			// Any already created render state needs to be dirtied
 			if (RenderData->IsInitialized())
 			{
-				for (UStaticMeshComponent* Component : ObjectCacheScope.GetContext().GetStaticMeshComponents(Task->StaticMesh))
+				for (IStaticMeshComponent* Component : ObjectCacheScope.GetContext().GetStaticMeshComponents(Task->StaticMesh))
 				{
-					if (Component->IsRegistered() && Component->IsRenderStateCreated())
+					IPrimitiveComponent* PrimitiveComponent = Component->GetPrimitiveComponentInterface();
+
+					if (PrimitiveComponent->IsRegistered() && PrimitiveComponent->IsRenderStateCreated())
 					{
-						Component->MarkRenderStateDirty();
+						PrimitiveComponent->MarkRenderStateDirty();
 					}
 				}
 			}

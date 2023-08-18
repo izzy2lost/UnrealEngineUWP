@@ -10,6 +10,7 @@
 #include "Engine/EngineTypes.h"
 #include "Engine/TextureStreamingTypes.h"
 #include "Components/MeshComponent.h"
+#include "Components/ActorStaticMeshComponentInterface.h"
 #include "PackedNormal.h"
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "RawIndexBuffer.h"
@@ -475,7 +476,7 @@ public:
 #endif
 	//~ End USceneComponent Interface
 
-
+	UE_DECLARE_COMPONENT_ACTOR_INTERFACE(StaticMeshComponent)	
 
 	//~ Begin UActorComponent Interface.
 protected: 
@@ -538,8 +539,8 @@ public:
 	ENGINE_API virtual bool HasValidSettingsForStaticLighting(bool bOverlookInvalidComponents) const override;
 
 	ENGINE_API virtual void GetLightAndShadowMapMemoryUsage( int32& LightMapMemoryUsage, int32& ShadowMapMemoryUsage ) const override;
-	ENGINE_API virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials = false) const override;
-	ENGINE_API virtual UMaterialInterface* GetMaterial(int32 MaterialIndex) const override;
+	ENGINE_API virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials = false) const final;
+	ENGINE_API virtual UMaterialInterface* GetMaterial(int32 MaterialIndex) const final;
 	ENGINE_API virtual UMaterialInterface* GetEditorMaterial(int32 MaterialIndex) const override;
 	ENGINE_API virtual int32 GetMaterialIndex(FName MaterialSlotName) const override;
 	ENGINE_API virtual UMaterialInterface* GetMaterialFromCollisionFaceIndex(int32 FaceIndex, int32& SectionIndex) const override;
@@ -550,13 +551,18 @@ public:
 
 	ENGINE_API virtual bool IsShown(const FEngineShowFlags& ShowFlags) const override;
 #if WITH_EDITOR
+	ENGINE_API void OnMeshRebuild(bool bRenderDataChanged);
 	ENGINE_API virtual void PostStaticMeshCompilation();
 	ENGINE_API virtual bool ComponentIsTouchingSelectionBox(const FBox& InSelBBox, const bool bConsiderOnlyBSP, const bool bMustEncompassEntireComponent) const override;
 	ENGINE_API virtual bool ComponentIsTouchingSelectionFrustum(const FConvexVolume& InSelBBox, const bool bConsiderOnlyBSP, const bool bMustEncompassEntireComponent) const override;
 #endif
 	virtual float GetStreamingScale() const override { return GetComponentTransform().GetMaximumAxisScale(); }
 	virtual bool SupportsWorldPositionOffsetVelocity() const override { return bWorldPositionOffsetWritesVelocity; }
-	//~ End UPrimitiveComponent Interface.
+	ENGINE_API virtual void GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) const override;	
+#if WITH_EDITOR
+	ENGINE_API virtual HHitProxy* CreateHitProxy(int32 SectionIndex, int32 MaterialIndex) const override;	
+#endif
+//~ End UPrimitiveComponent Interface.
 
 	//~ Begin INavRelevantInterface Interface.
 	ENGINE_API virtual bool IsNavigationRelevant() const override;

@@ -44,6 +44,7 @@ class FStaticMeshUpdate;
 class UPackage;
 struct FMeshDescription;
 struct FStaticMeshLODResources;
+class IStaticMeshComponent;
 
 /*-----------------------------------------------------------------------------
 	Async Static Mesh Compilation
@@ -1816,6 +1817,9 @@ public:
 
 	ENGINE_API int32 GetMaterialIndexFromImportedMaterialSlotName(FName ImportedMaterialSlotName) const;
 
+
+	ENGINE_API void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, TFunctionRef<UMaterialInterface*(int32)> OverrideMaterial) const;
+
 	/**
 	 * Returns the render data to use for exporting the specified LOD. This method should always
 	 * be called when exporting a static mesh.
@@ -2022,7 +2026,7 @@ private:
 	/**
 	 * Complete the static mesh building process - Can't be done in parallel.
 	 */
-	void FinishBuildInternal(const TArray<UStaticMeshComponent*>& InAffectedComponents, bool bHasRenderDataChanged, bool bShouldComputeExtendedBounds = true);
+	void FinishBuildInternal(const TArray<IStaticMeshComponent*>& InAffectedComponents, bool bHasRenderDataChanged, bool bShouldComputeExtendedBounds = true);
 
 	/**
 	 * Get an estimate of the peak amount of memory required to build this mesh.

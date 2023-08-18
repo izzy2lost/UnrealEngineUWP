@@ -437,16 +437,16 @@ void FTextureCompilingManager::PostCompilation(TArrayView<UTexture* const> InCom
 				{
 					TRACE_CPUPROFILER_EVENT_SCOPE(UpdatePrimitives);
 
-					TSet<UPrimitiveComponent*> AffectedPrimitives;
+					TSet<IPrimitiveComponent*> AffectedPrimitives;
 					for (UMaterialInterface* MaterialInterface : AffectedMaterials)
 					{
-						for (UPrimitiveComponent* Component : ObjectCacheScope.GetContext().GetPrimitivesAffectedByMaterial(MaterialInterface))
+						for (IPrimitiveComponent* Component : ObjectCacheScope.GetContext().GetPrimitivesAffectedByMaterial(MaterialInterface))
 						{
 							AffectedPrimitives.Add(Component);
 						}
 					}
 
-					for (UPrimitiveComponent* AffectedPrimitive : AffectedPrimitives)
+					for (IPrimitiveComponent* AffectedPrimitive : AffectedPrimitives)
 					{
 						AffectedPrimitive->MarkRenderStateDirty();
 					}
@@ -640,7 +640,7 @@ void FTextureCompilingManager::ProcessTextures(bool bLimitExecutionTime, int32 M
 				{
 					for (UMaterialInterface* MaterialInterface : ObjectCacheScope.GetContext().GetMaterialsAffectedByTexture(Texture))
 					{
-						for (UPrimitiveComponent* Component : ObjectCacheScope.GetContext().GetPrimitivesAffectedByMaterial(MaterialInterface))
+						for (IPrimitiveComponent* Component : ObjectCacheScope.GetContext().GetPrimitivesAffectedByMaterial(MaterialInterface))
 						{
 							if (Component->IsRegistered() && Component->IsRenderStateCreated() && Component->GetLastRenderTimeOnScreen() > 0.0f)
 							{

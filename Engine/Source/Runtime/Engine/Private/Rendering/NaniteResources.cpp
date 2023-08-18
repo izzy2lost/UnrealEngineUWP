@@ -27,6 +27,8 @@
 #include "Stats/StatsTrace.h"
 
 #include "ComponentRecreateRenderStateContext.h"
+#include "StaticMeshSceneProxyDesc.h"
+#include "InstancedStaticMeshSceneProxyDesc.h"
 
 #if WITH_EDITOR
 #include "DerivedDataCache.h"
@@ -502,6 +504,11 @@ void FSceneProxyBase::FMaterialSection::ResetToDefaultMaterial(bool bShading, bo
 #if WITH_EDITOR
 HHitProxy* FSceneProxyBase::CreateHitProxies(UPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy>>& OutHitProxies)
 {
+	return CreateHitProxies(Component->GetPrimitiveComponentInterface(), OutHitProxies);
+}
+
+HHitProxy* FSceneProxyBase::CreateHitProxies(IPrimitiveComponent* ComponentInterface,TArray<TRefCountPtr<HHitProxy> >& OutHitProxies)
+{	
 	// Subclasses will have populated OutHitProxies already - update the hit proxy ID before used by GPUScene
 	HitProxyIds.SetNumUninitialized(OutHitProxies.Num());
 	for (int32 HitProxyId = 0; HitProxyId < HitProxyIds.Num(); ++HitProxyId)
@@ -639,26 +646,26 @@ void FSceneProxyBase::OnMaterialsUpdated()
 	}
 }
 
-FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UStaticMeshComponent* Component)
-: FSceneProxyBase(Component)
-, MeshInfo(Component)
-, RenderData(Component->GetStaticMesh()->GetRenderData())
-, StaticMesh(Component->GetStaticMesh())
+FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshSceneProxyDesc& ProxyDesc, bool InbIsInstancedMesh)
+: FSceneProxyBase(ProxyDesc)
+, MeshInfo(ProxyDesc)
+, RenderData(ProxyDesc.GetStaticMesh()->GetRenderData())
+, StaticMesh(ProxyDesc.GetStaticMesh())
 #if NANITE_ENABLE_DEBUG_RENDERING
-, Owner(Component->GetOwner())
-, LightMapResolution(Component->GetStaticLightMapResolution())
-, BodySetup(Component->GetBodySetup())
+, Owner(ProxyDesc.GetOwner())
+, LightMapResolution(ProxyDesc.GetStaticLightMapResolution())
+, BodySetup(ProxyDesc.GetBodySetup())
 , CollisionTraceFlag(ECollisionTraceFlag::CTF_UseSimpleAndComplex)
-, CollisionResponse(Component->GetCollisionResponseToChannels())
-, ForcedLodModel(Component->ForcedLodModel)
-, LODForCollision(Component->GetStaticMesh()->LODForCollision)
-, bDrawMeshCollisionIfComplex(Component->bDrawMeshCollisionIfComplex)
-, bDrawMeshCollisionIfSimple(Component->bDrawMeshCollisionIfSimple)
+, CollisionResponse(ProxyDesc.GetCollisionResponseToChannels())
+, ForcedLodModel(ProxyDesc.ForcedLodModel)
+, LODForCollision(ProxyDesc.GetStaticMesh()->LODForCollision)
+, bDrawMeshCollisionIfComplex(ProxyDesc.bDrawMeshCollisionIfComplex)
+, bDrawMeshCollisionIfSimple(ProxyDesc.bDrawMeshCollisionIfSimple)
 #endif
 {
 	LLM_SCOPE_BYTAG(Nanite);
 
-	Resources = Component->GetNaniteResources();
+	Resources = ProxyDesc.GetNaniteResources();
 
 	// This should always be valid.
 	checkSlow(Resources && Resources->PageStreamingStates.Num() > 0);
@@ -666,7 +673,7 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UStaticMeshCompone
 	// Nanite supports the GPUScene instance data buffer.
 	bSupportsInstanceDataBuffer = true;
 
-	DistanceFieldSelfShadowBias = FMath::Max(Component->bOverrideDistanceFieldSelfShadowBias ? Component->DistanceFieldSelfShadowBias : Component->GetStaticMesh()->DistanceFieldSelfShadowBias, 0.0f);
+	DistanceFieldSelfShadowBias = FMath::Max(ProxyDesc.bOverrideDistanceFieldSelfShadowBias ? ProxyDesc.DistanceFieldSelfShadowBias : ProxyDesc.GetStaticMesh()->DistanceFieldSelfShadowBias, 0.0f);
 
 	// Use fast path that does not update static draw lists.
 	bStaticElementsAlwaysUseProxyPrimitiveUniformBuffer = true;
@@ -677,11 +684,11 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UStaticMeshCompone
 	// Indicates if 1 or more materials contain settings not supported by Nanite.
 	bHasMaterialErrors = false;
 
-	InstanceWPODisableDistance = Component->WorldPositionOffsetDisableDistance;
+	InstanceWPODisableDistance = ProxyDesc.WorldPositionOffsetDisableDistance;
 
 	SetLevelColor(FLinearColor::White);
 	SetPropertyColor(FLinearColor::White);
-	SetWireframeColor(Component->GetWireframeColor());
+	SetWireframeColor(ProxyDesc.GetWireframeColor());
 
 	const bool bHasSurfaceStaticLighting = MeshInfo.GetLightMap() != nullptr || MeshInfo.GetShadowMap() != nullptr;
 
@@ -693,11 +700,11 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UStaticMeshCompone
 	DistanceFieldData = MeshResources.DistanceFieldData;
 	CardRepresentationData = MeshResources.CardRepresentationData;
 
-	bEvaluateWorldPositionOffset = !IsOptimizedWPO() || !!Component->bEvaluateWorldPositionOffset;
+	bEvaluateWorldPositionOffset = !IsOptimizedWPO() || ProxyDesc.bEvaluateWorldPositionOffset;
 	
 	MaterialSections.SetNumZeroed(MeshSections.Num());
 
-	const bool bIsInstancedMesh = Component->IsA<UInstancedStaticMeshComponent>();
+	const bool bIsInstancedMesh = InbIsInstancedMesh;
 
 	NaniteMaterialMask = FUint32Vector2(0u, 0u);
 
@@ -711,23 +718,23 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UStaticMeshCompone
 		MaterialSection.bSelected = false;
 		if (GIsEditor)
 		{
-			if (Component->SelectedEditorMaterial != INDEX_NONE)
+			if (ProxyDesc.SelectedEditorMaterial != INDEX_NONE)
 			{
-				MaterialSection.bSelected = (Component->SelectedEditorMaterial == MaterialSection.MaterialIndex);
+				MaterialSection.bSelected = (ProxyDesc.SelectedEditorMaterial == MaterialSection.MaterialIndex);
 			}
-			else if (Component->SelectedEditorSection != INDEX_NONE)
+			else if (ProxyDesc.SelectedEditorSection != INDEX_NONE)
 			{
-				MaterialSection.bSelected = (Component->SelectedEditorSection == SectionIndex);
+				MaterialSection.bSelected = (ProxyDesc.SelectedEditorSection == SectionIndex);
 			}
 
 			// If material is hidden, then skip the raster
-			if ((Component->MaterialIndexPreview != INDEX_NONE) && (Component->MaterialIndexPreview != MaterialSection.MaterialIndex))
+			if ((ProxyDesc.MaterialIndexPreview != INDEX_NONE) && (ProxyDesc.MaterialIndexPreview != MaterialSection.MaterialIndex))
 			{
 				MaterialSection.bHidden = true;
 			}
 
 			// If section is hidden, then skip the raster
-			if ((Component->SectionIndexPreview != INDEX_NONE) && (Component->SectionIndexPreview != SectionIndex))
+			if ((ProxyDesc.SectionIndexPreview != INDEX_NONE) && (ProxyDesc.SectionIndexPreview != SectionIndex))
 			{
 				MaterialSection.bHidden = true;
 			}
@@ -751,7 +758,7 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UStaticMeshCompone
 			}
 
 			// Get the shading material
-			ShadingMaterial = MaterialAudit.GetSafeMaterial(MaterialSection.MaterialIndex);
+			ShadingMaterial = MaterialAudit.GetMaterial(MaterialSection.MaterialIndex);
 
 			// Copy over per-instance material flags for this section
 			MaterialSection.bHasPerInstanceRandomID = MaterialAudit.HasPerInstanceRandomID(MaterialSection.MaterialIndex);
@@ -771,7 +778,7 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UStaticMeshCompone
 			}
 		}
 
-		if (ShadingMaterial == nullptr || Component->ShouldRenderProxyFallbackToDefaultMaterial())
+		if (ShadingMaterial == nullptr || ProxyDesc.ShouldRenderProxyFallbackToDefaultMaterial())
 		{
 			ShadingMaterial = MaterialSection.bHidden ? GEngine->NaniteHiddenSectionMaterial.Get() : UMaterial::GetDefaultMaterial(MD_Surface);
 		}
@@ -813,7 +820,7 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UStaticMeshCompone
 
 	if (IsRayTracingAllowed())
 	{
-		CoarseMeshStreamingHandle = (Nanite::CoarseMeshStreamingHandle)Component->GetStaticMesh()->GetStreamingIndex();
+		CoarseMeshStreamingHandle = (Nanite::CoarseMeshStreamingHandle)ProxyDesc.GetStaticMesh()->GetStreamingIndex();
 		if (MeshResources.GetNumVertices())
 		{
 			bHasRayTracingInstances = true;
@@ -835,8 +842,8 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UStaticMeshCompone
 		}
 	}
 
-	const int32 SMCurrentMinLOD = Component->GetStaticMesh()->GetMinLODIdx();
-	int32 EffectiveMinLOD = Component->bOverrideMinLOD ? Component->MinLOD : SMCurrentMinLOD; 
+	const int32 SMCurrentMinLOD = ProxyDesc.GetStaticMesh()->GetMinLODIdx();
+	int32 EffectiveMinLOD = ProxyDesc.bOverrideMinLOD ? ProxyDesc.MinLOD : SMCurrentMinLOD; 
 	
 	ClampedMinLOD = FMath::Clamp(EffectiveMinLOD, FirstAvailableLOD, RenderData->LODResources.Num() - 1);
 
@@ -845,7 +852,7 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UStaticMeshCompone
 
 	for (int32 LODIndex = 0; LODIndex < RenderData->LODResources.Num(); LODIndex++)
 	{
-		FFallbackLODInfo* NewLODInfo = new (&FallbackLODs[LODIndex]) FFallbackLODInfo(Component, RenderData->LODVertexFactories, LODIndex, ClampedMinLOD);
+		FFallbackLODInfo* NewLODInfo = new (&FallbackLODs[LODIndex]) FFallbackLODInfo(&ProxyDesc, RenderData->LODVertexFactories, LODIndex, ClampedMinLOD);
 	}
 
 	if (BodySetup)
@@ -858,33 +865,33 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UStaticMeshCompone
 	Instance.LocalToPrimitive.SetIdentity();
 
 	FilterFlags = EFilterFlags::StaticMesh;
-	FilterFlags |= Component->Mobility == EComponentMobility::Static ? EFilterFlags::StaticMobility : EFilterFlags::NonStaticMobility;
+	FilterFlags |= ProxyDesc.Mobility == EComponentMobility::Static ? EFilterFlags::StaticMobility : EFilterFlags::NonStaticMobility;
 
-	bReverseCulling = Component->bReverseCulling;
+	bReverseCulling = ProxyDesc.bReverseCulling;
 
 	UpdateVisibleInLumenScene();
 }
 
-FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UInstancedStaticMeshComponent* Component)
-: FSceneProxy(MaterialAudit, static_cast<UStaticMeshComponent*>(Component))
+FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FInstancedStaticMeshSceneProxyDesc& InProxyDesc)
+	: FSceneProxy(MaterialAudit, InProxyDesc, true)
 {
 	LLM_SCOPE_BYTAG(Nanite);
 
 	// Nanite meshes do not deform internally
 	bHasDeformableMesh = false;
 
-	PerInstanceRenderData = Component->PerInstanceRenderData;
+	PerInstanceRenderData = InProxyDesc.PerInstanceRenderData;
 	check(PerInstanceRenderData.IsValid());
 
 #if WITH_EDITOR
-	const bool bSupportInstancePicking = Component->bHasPerInstanceHitProxies && SMInstanceElementDataUtil::SMInstanceElementsEnabled();
+	const bool bSupportInstancePicking = InProxyDesc.bHasPerInstanceHitProxies && SMInstanceElementDataUtil::SMInstanceElementsEnabled();
 	HitProxyMode = bSupportInstancePicking ? EHitProxyMode::PerInstance : EHitProxyMode::MaterialSection;
 
 	if (HitProxyMode == EHitProxyMode::PerInstance)
 	{
-		for (int32 InstanceIndex = 0; InstanceIndex < Component->SelectedInstances.Num() && !bHasSelectedInstances; ++InstanceIndex)
+		for (int32 InstanceIndex = 0; InstanceIndex < InProxyDesc.SelectedInstances.Num() && !bHasSelectedInstances; ++InstanceIndex)
 		{
-			bHasSelectedInstances |= Component->SelectedInstances[InstanceIndex];
+			bHasSelectedInstances |= InProxyDesc.SelectedInstances[InstanceIndex];
 		}
 
 		if (bHasSelectedInstances)
@@ -897,8 +904,8 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UInstancedStaticMe
 
 	// NumRenderInstances is the extent that the reorder table can map to.
 	// Temporarily when removing instances from a HISM this can be sparse so that NumInstances < NumRenderInstances.
-	const int32 NumInstances = Component->GetInstanceCount();
-	const int32 NumRenderInstances = FMath::Max<int32>(Component->InstanceUpdateCmdBuffer.NumEditInstances, NumInstances);
+	const int32 NumInstances = InProxyDesc.GetInstanceCount();
+	const int32 NumRenderInstances = FMath::Max<int32>(InProxyDesc.GetInstanceUpdateCmdBuffer().NumEditInstances, NumInstances);
 	InstanceSceneData.SetNumZeroed(NumRenderInstances);
 
 	bHasPerInstanceLocalBounds = false;
@@ -906,7 +913,7 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UInstancedStaticMe
 
 	UpdateMaterialDynamicDataUsage();
 
-	bHasPerInstanceDynamicData = Component->PerInstancePrevTransform.Num() == NumInstances;
+	bHasPerInstanceDynamicData = InProxyDesc.PerInstancePrevTransform.Num() == NumInstances;
 	InstanceDynamicData.SetNumZeroed(bHasPerInstanceDynamicData ? NumRenderInstances : 0);
 
 	static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
@@ -922,22 +929,22 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UInstancedStaticMe
 #endif
 
 	// Only allocate if material bound which uses this
-	const int32 NumInstCustDataFloats = Component->NumCustomDataFloats;
+	const int32 NumInstCustDataFloats = InProxyDesc.NumCustomDataFloats;
 	if (bHasPerInstanceCustomData && NumInstCustDataFloats > 0)
 	{
 		InstanceCustomData.SetNumZeroed(NumInstCustDataFloats * NumRenderInstances);
-		check(InstanceCustomData.Num() == Component->PerInstanceSMCustomData.Num()); // Sanity check on the data packing
+		check(InstanceCustomData.Num() == InProxyDesc.PerInstanceSMCustomData.Num()); // Sanity check on the data packing
 	}
 	else
 	{
 		bHasPerInstanceCustomData = false;
 	}
 
-	FVector TranslatedSpaceOffset = -Component->GetTranslatedInstanceSpaceOrigin();
+	FVector TranslatedSpaceOffset = -InProxyDesc.GetTranslatedInstanceSpaceOrigin();
 
 	for (int32 InstanceIndex = 0; InstanceIndex < NumInstances; ++InstanceIndex)
 	{
-		const int32 OutputIndex = Component->GetRenderIndex(InstanceIndex);
+		const int32 OutputIndex = InProxyDesc.GetRenderIndex(InstanceIndex);
 		if (OutputIndex == INDEX_NONE)
 		{
 			// could be skipped by density settings
@@ -947,14 +954,14 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UInstancedStaticMe
 		FInstanceSceneData& SceneData = InstanceSceneData[OutputIndex];
 
 		FTransform InstanceTransform;
-		Component->GetInstanceTransform(InstanceIndex, InstanceTransform);
+		InProxyDesc.GetInstanceTransform(InstanceIndex, InstanceTransform);
 		InstanceTransform.AddToTranslation(TranslatedSpaceOffset);
 		SceneData.LocalToPrimitive = InstanceTransform.ToMatrixWithScale();
 
 		if (bHasPerInstanceDynamicData)
 		{
 			FTransform InstancePrevTransform;
-			const bool bHasPrevTransform = Component->GetInstancePrevTransform(InstanceIndex, InstancePrevTransform);
+			const bool bHasPrevTransform = InProxyDesc.GetInstancePrevTransform(InstanceIndex, InstancePrevTransform);
 			ensure(bHasPrevTransform); // Should always be true here
 			InstancePrevTransform.AddToTranslation(TranslatedSpaceOffset);
 			InstanceDynamicData[OutputIndex].PrevLocalToPrimitive = InstancePrevTransform.ToMatrixWithScale();
@@ -963,10 +970,10 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UInstancedStaticMe
 		if (bHasPerInstanceCustomData)
 		{
 			// Sanity check overflows
-			check((InstanceIndex + 1) * NumInstCustDataFloats <= Component->PerInstanceSMCustomData.Num());
+			check((InstanceIndex + 1) * NumInstCustDataFloats <= InProxyDesc.PerInstanceSMCustomData.Num());
 			check((OutputIndex + 1) * NumInstCustDataFloats <= InstanceCustomData.Num());
 			
-			const float* InputFloats = &Component->PerInstanceSMCustomData[InstanceIndex * NumInstCustDataFloats];
+			const float* InputFloats = &InProxyDesc.PerInstanceSMCustomData[InstanceIndex * NumInstCustDataFloats];
 			float* OutputFloats = &InstanceCustomData[OutputIndex * NumInstCustDataFloats];
 			FMemory::Memcpy(OutputFloats, InputFloats, NumInstCustDataFloats * sizeof(float));
 		}
@@ -1047,10 +1054,20 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UInstancedStaticMe
 	}
 #endif
 
-	EndCullDistance = Component->InstanceEndCullDistance;
+	EndCullDistance = InProxyDesc.InstanceEndCullDistance;
 
 	FilterFlags = EFilterFlags::InstancedStaticMesh;
-	FilterFlags |= Component->Mobility == EComponentMobility::Static ? EFilterFlags::StaticMobility : EFilterFlags::NonStaticMobility;
+	FilterFlags |= InProxyDesc.Mobility == EComponentMobility::Static ? EFilterFlags::StaticMobility : EFilterFlags::NonStaticMobility;
+}
+
+FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UStaticMeshComponent* Component)
+	: FSceneProxy(MaterialAudit, FStaticMeshSceneProxyDesc(Component))
+{
+}
+
+FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UInstancedStaticMeshComponent* Component)
+	: FSceneProxy(MaterialAudit, FInstancedStaticMeshSceneProxyDesc(Component))
+{
 }
 
 FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UHierarchicalInstancedStaticMeshComponent* Component)
@@ -1232,7 +1249,7 @@ void FSceneProxy::GetLightRelevance(const FLightSceneProxy* LightSceneProxy, boo
 
 #if WITH_EDITOR
 
-HHitProxy* FSceneProxy::CreateHitProxies(UPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy>>& OutHitProxies)
+HHitProxy* FSceneProxy::CreateHitProxies(IPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy>>& OutHitProxies)
 {
 	LLM_SCOPE_BYTAG(Nanite);
 
@@ -1245,11 +1262,15 @@ HHitProxy* FSceneProxy::CreateHitProxies(UPrimitiveComponent* Component, TArray<
 				// Generate separate hit proxies for each material section, so that we can perform hit tests against each one.
 				for (int32 SectionIndex = 0; SectionIndex < MaterialSections.Num(); ++SectionIndex)
 				{
-					FMaterialSection& Section = MaterialSections[SectionIndex];
-					HHitProxy* ActorHitProxy = new HActor(Component->GetOwner(), Component, SectionIndex, SectionIndex);
-					check(!Section.HitProxy);
-					Section.HitProxy = ActorHitProxy;
-					OutHitProxies.Add(ActorHitProxy);
+					FMaterialSection& Section = MaterialSections[SectionIndex];					
+					HHitProxy* ActorHitProxy = Component->CreateHitProxy(SectionIndex, SectionIndex);
+
+					if (ActorHitProxy)
+					{
+						check(!Section.HitProxy);
+						Section.HitProxy = ActorHitProxy;
+						OutHitProxies.Add(ActorHitProxy);
+					}
 				}
 			}
 			break;
@@ -1274,18 +1295,25 @@ HHitProxy* FSceneProxy::CreateHitProxies(UPrimitiveComponent* Component, TArray<
 
 #endif
 
-FSceneProxy::FMeshInfo::FMeshInfo(const UStaticMeshComponent* InComponent)
+FSceneProxy::FMeshInfo::FMeshInfo(const FStaticMeshSceneProxyDesc& InProxyDesc)
 {
 	LLM_SCOPE_BYTAG(Nanite);
 
-	if (InComponent->LightmapType == ELightmapType::ForceVolumetric)
+	// StaticLighting only supported by UStaticMeshComponents & derived classes for the moment
+	const UStaticMeshComponent* Component =  InProxyDesc.GetUStaticMeshComponent();
+	if (!Component)
+	{
+		return;
+	}
+
+	if (Component->LightmapType == ELightmapType::ForceVolumetric)
 	{
 		SetGlobalVolumeLightmap(true);
 	}
 #if WITH_EDITOR
-	else if (FStaticLightingSystemInterface::GetPrimitiveMeshMapBuildData(InComponent, 0))
+	else if (Component && FStaticLightingSystemInterface::GetPrimitiveMeshMapBuildData(Component, 0))
 	{
-		const FMeshMapBuildData* MeshMapBuildData = FStaticLightingSystemInterface::GetPrimitiveMeshMapBuildData(InComponent, 0);
+		const FMeshMapBuildData* MeshMapBuildData = FStaticLightingSystemInterface::GetPrimitiveMeshMapBuildData(Component, 0);
 		if (MeshMapBuildData)
 		{
 			SetLightMap(MeshMapBuildData->LightMap);
@@ -1296,11 +1324,11 @@ FSceneProxy::FMeshInfo::FMeshInfo(const UStaticMeshComponent* InComponent)
 		}
 	}
 #endif
-	else if (InComponent->LODData.Num() > 0)
+	else if (InProxyDesc.LODData.Num() > 0)
 	{
-		const FStaticMeshComponentLODInfo& ComponentLODInfo = InComponent->LODData[0];
+		const FStaticMeshComponentLODInfo& ComponentLODInfo = InProxyDesc.LODData[0];
 
-		const FMeshMapBuildData* MeshMapBuildData = InComponent->GetMeshMapBuildData(ComponentLODInfo);
+		const FMeshMapBuildData* MeshMapBuildData = Component->GetMeshMapBuildData(ComponentLODInfo);
 		if (MeshMapBuildData)
 		{
 			SetLightMap(MeshMapBuildData->LightMap);
@@ -1331,21 +1359,21 @@ FLightInteraction FSceneProxy::FMeshInfo::GetInteraction(const FLightSceneProxy*
 // Loosely copied from FStaticMeshSceneProxy::FLODInfo::FLODInfo and modified for Nanite fallback
 // TODO: Refactor all this to share common code with Nanite and regular SM scene proxy
 FSceneProxy::FFallbackLODInfo::FFallbackLODInfo(
-	const UStaticMeshComponent* InComponent,
+	const FStaticMeshSceneProxyDesc* InProxyDesc,
 	const FStaticMeshVertexFactoriesArray& InLODVertexFactories,
 	int32 LODIndex,
 	int32 InClampedMinLOD
 )
 {
-	const auto FeatureLevel = InComponent->GetWorld()->GetFeatureLevel();
+	const auto FeatureLevel = InProxyDesc->GetScene()->GetFeatureLevel();
 
-	FStaticMeshRenderData* MeshRenderData = InComponent->GetStaticMesh()->GetRenderData();
+	FStaticMeshRenderData* MeshRenderData = InProxyDesc->GetStaticMesh()->GetRenderData();
 	FStaticMeshLODResources& LODModel = MeshRenderData->LODResources[LODIndex];
 	const FStaticMeshVertexFactories& VFs = InLODVertexFactories[LODIndex];
 
-	if (LODIndex < InComponent->LODData.Num() && LODIndex >= InClampedMinLOD)
+	if (LODIndex < InProxyDesc->LODData.Num() && LODIndex >= InClampedMinLOD)
 	{
-		const FStaticMeshComponentLODInfo& ComponentLODInfo = InComponent->LODData[LODIndex];
+		const FStaticMeshComponentLODInfo& ComponentLODInfo = InProxyDesc->LODData[LODIndex];
 
 		// Initialize this LOD's overridden vertex colors, if it has any
 		if (ComponentLODInfo.OverrideVertexColors)
@@ -1373,7 +1401,7 @@ FSceneProxy::FFallbackLODInfo::FFallbackLODInfo(
 					FColorVertexBuffer* VertexBuffer = OverrideColorVertexBuffer;
 
 					//temp measure to identify nullptr crashes deep in the renderer
-					FString ComponentPathName = InComponent->GetPathName();
+					FString ComponentPathName = InProxyDesc->GetPathName();
 					checkf(LODModel.VertexBuffers.PositionVertexBuffer.GetNumVertices() > 0, TEXT("LOD: %i of PathName: %s has an empty position stream."), LODIndex, *ComponentPathName);
 
 					ENQUEUE_RENDER_COMMAND(FLocalVertexFactoryCopyData)(
@@ -1396,7 +1424,7 @@ FSceneProxy::FFallbackLODInfo::FFallbackLODInfo(
 		FSectionInfo SectionInfo;
 
 		// Determine the material applied to this element of the LOD.
-		SectionInfo.Material = InComponent->GetMaterial(Section.MaterialIndex);
+		SectionInfo.Material = InProxyDesc->GetMaterial(Section.MaterialIndex);
 #if WITH_EDITORONLY_DATA
 		SectionInfo.MaterialIndex = Section.MaterialIndex;
 #endif
@@ -1410,13 +1438,13 @@ FSceneProxy::FFallbackLODInfo::FFallbackLODInfo(
 #if WITH_EDITORONLY_DATA
 		if (GIsEditor)
 		{
-			if (InComponent->SelectedEditorMaterial >= 0)
+			if (InProxyDesc->SelectedEditorMaterial >= 0)
 			{
-				SectionInfo.bSelected = (InComponent->SelectedEditorMaterial == Section.MaterialIndex);
+				SectionInfo.bSelected = (InProxyDesc->SelectedEditorMaterial == Section.MaterialIndex);
 			}
 			else
 			{
-				SectionInfo.bSelected = (InComponent->SelectedEditorSection == SectionIndex);
+				SectionInfo.bSelected = (InProxyDesc->SelectedEditorSection == SectionIndex);
 			}
 		}
 #endif
@@ -2227,25 +2255,55 @@ uint32 FSceneProxy::GetMemoryFootprint() const
 	return sizeof( *this ) + GetAllocatedSize();
 }
 
-void AuditMaterials(const UStaticMeshComponent* Component, FMaterialAudit& Audit)
+struct FAuditMaterialSlotInfo
+{
+	UMaterialInterface* Material;
+	FName SlotName;	
+};
+
+template<class T>
+TArray<FAuditMaterialSlotInfo, TInlineAllocator<32>> GetMaterialSlotInfos(const T& Object)
+{
+	TArray<FAuditMaterialSlotInfo, TInlineAllocator<32>> Infos;
+
+	if (UStaticMesh* StaticMesh = Object.GetStaticMesh())
+	{
+		TArray<FStaticMaterial>& StaticMaterials = StaticMesh->GetStaticMaterials();
+
+		uint32 Index = 0;
+		for (FStaticMaterial& Material : StaticMaterials)
+		{
+			Infos.Add({Object.GetNaniteAuditMaterial(Index), Material.MaterialSlotName});
+			Index++;
+		}			
+	}
+
+	return Infos;
+}
+
+template<class T> 
+FMaterialAudit& AuditMaterialsImp(const T* InProxyDesc, FMaterialAudit& Audit)
 {
 	static const auto NaniteForceEnableMeshesCvar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.ForceEnableMeshes"));
 	static const bool bNaniteForceEnableMeshes = NaniteForceEnableMeshesCvar && NaniteForceEnableMeshesCvar->GetValueOnAnyThread() != 0;
 
 	Audit.bHasAnyError = false;
-	Audit.Entries.Reset();
+	Audit.Entries.Reset();	
 
-	if (Component != nullptr)
+	if (InProxyDesc != nullptr)
 	{
-		const int32 NumMaterials = Component->GetNumMaterials();
-		const TArray<FName> MaterialSlotNames = Component->GetMaterialSlotNames();
-		for (const FName& SlotName : MaterialSlotNames)
+		TArray<FAuditMaterialSlotInfo, TInlineAllocator<32>> Slots = Nanite::GetMaterialSlotInfos(*InProxyDesc);		
+
+		uint32 Index = 0;
+		for (const FAuditMaterialSlotInfo& SlotInfo : Slots)
 		{
 			FMaterialAuditEntry& Entry = Audit.Entries.AddDefaulted_GetRef();
-			Entry.MaterialSlotName = SlotName;
-			Entry.MaterialIndex = Component->GetMaterialIndex(SlotName);
-			Entry.Material = Component->GetNaniteAuditMaterial(Entry.MaterialIndex);
+			Entry.MaterialSlotName = SlotInfo.SlotName;
+			Entry.MaterialIndex = Index;
+			Index++;
+			Entry.Material = SlotInfo.Material;
 			Entry.bHasNullMaterial = Entry.Material == nullptr;
+
 
 			if (Entry.bHasNullMaterial)
 			{
@@ -2294,7 +2352,7 @@ void AuditMaterials(const UStaticMeshComponent* Component, FMaterialAudit& Audit
 			if (!bUsingCookedEditorData && Entry.bHasAnyError && !Audit.bHasAnyError)
 			{
 				// Only populate on error for performance/memory reasons
-				Audit.AssetName = Component->GetStaticMesh()->GetName();
+				Audit.AssetName = InProxyDesc->GetStaticMesh()->GetName();
 				Audit.FallbackMaterial = UMaterial::GetDefaultMaterial(MD_Surface);
 			}
 
@@ -2331,6 +2389,19 @@ void AuditMaterials(const UStaticMeshComponent* Component, FMaterialAudit& Audit
 #endif
 		}
 	}
+
+	return Audit;
+}
+
+
+void AuditMaterials(const UStaticMeshComponent* Component, FMaterialAudit& Audit)
+{
+	AuditMaterialsImp(Component, Audit);
+}
+
+void AuditMaterials(const FStaticMeshSceneProxyDesc* ProxyDesc, FMaterialAudit& Audit)
+{
+	AuditMaterialsImp(ProxyDesc, Audit);
 }
 
 bool IsSupportedBlendMode(EBlendMode BlendMode)

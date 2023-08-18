@@ -3551,9 +3551,13 @@ void ALandscape::InvalidateRVTForTextures(const TSet<UTexture2D*>& InTextures)
 				{
 					if (MaterialInterface->WritesToRuntimeVirtualTexture())
 					{
-						for (UPrimitiveComponent* PrimitiveComponent : ObjectCacheScope.GetContext().GetPrimitivesAffectedByMaterial(MaterialInterface))
+						for (IPrimitiveComponent* PrimitiveComponentInterface : ObjectCacheScope.GetContext().GetPrimitivesAffectedByMaterial(MaterialInterface))
 						{
-							PrimitiveComponentsToInvalidate.Add(PrimitiveComponent);
+							// Landscape only supports UPrimitiveComponent for the moment
+							if (UPrimitiveComponent* PrimitiveComponent = PrimitiveComponentInterface->GetUObject<UPrimitiveComponent>())
+							{
+								PrimitiveComponentsToInvalidate.Add(PrimitiveComponent);
+							}
 						}
 					}
 				}

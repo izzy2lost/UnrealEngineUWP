@@ -3970,12 +3970,14 @@ void UStaticMesh::PreEditChange(FProperty* PropertyAboutToChange)
 	// FStaticMeshComponentRecreateRenderStateContext constructor, but we don't want to re-create the render state immediately.
 	TSet<FSceneInterface*> Scenes;
 	FObjectCacheContextScope ObjectCacheScope;
-	for (UStaticMeshComponent* Component : ObjectCacheScope.GetContext().GetStaticMeshComponents(this))
+	for (IStaticMeshComponent* Component : ObjectCacheScope.GetContext().GetStaticMeshComponents(this))
 	{
-		if (Component->IsRenderStateCreated())
+		IPrimitiveComponent* PrimComponent = Component->GetPrimitiveComponentInterface();
+
+		if (PrimComponent->IsRenderStateCreated())
 		{
-			Component->DestroyRenderState_Concurrent();
-			Scenes.Add(Component->GetScene());
+			PrimComponent->DestroyRenderState();
+			Scenes.Add(PrimComponent->GetScene());
 		}
 	}
 
@@ -8051,6 +8053,40 @@ UMaterialInterface* UStaticMesh::GetMaterial(int32 MaterialIndex) const
 	}
 
 	return nullptr;
+}
+
+void UStaticMesh::GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, TFunctionRef<UMaterialInterface*(int32)> OverrideMaterial) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UStaticMesh::GetUsedMaterials);
+
+	if (const FStaticMeshRenderData* ThisRenderData = GetRenderData())
+	{		
+		TSet<int32> UniqueIndex;
+		for (int32 LODIndex = 0, Num = GetRenderData()->LODResources.Num(); LODIndex < Num; LODIndex++)
+		{
+			const FStaticMeshLODResources& LODResources = ThisRenderData->LODResources[LODIndex];
+			for (int32 SectionIndex = 0; SectionIndex < LODResources.Sections.Num(); SectionIndex++)
+			{
+				// Get the material for each element at the current lod index
+				UniqueIndex.Add(LODResources.Sections[SectionIndex].MaterialIndex);
+			}
+		}
+
+		if (UniqueIndex.Num() > 0)
+		{
+			//We need to output the material in the correct order (follow the material index)
+			//So we sort the map with the material index
+			UniqueIndex.Sort([](int32 A, int32 B) {
+				return A < B; // sort keys in order
+			});
+
+			OutMaterials.Reserve(UniqueIndex.Num());
+			for (int32 MaterialIndex : UniqueIndex)
+			{
+				OutMaterials.Add(OverrideMaterial(MaterialIndex));
+			}
+		}
+	}
 }
 
 

@@ -45,6 +45,7 @@
 #include "Engine/StaticMesh.h"
 #include "MaterialDomain.h"
 #include "Rendering/NaniteResources.h"
+#include "StaticMeshSceneProxyDesc.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StaticMeshComponent)
 
@@ -355,7 +356,7 @@ void UStaticMeshComponent::Serialize(FArchive& Ar)
 #if WITH_EDITORONLY_DATA
 	if (Ar.UEVer() < VER_UE4_COMBINED_LIGHTMAP_TEXTURES)
 	{
-		check(AttachmentCounter.GetValue() == 0);
+		check(GetSceneData().AttachmentCounter.GetValue() == 0);
 		// Irrelevant lights were incorrect before VER_UE4_TOSS_IRRELEVANT_LIGHTS
 		IrrelevantLights_DEPRECATED.Empty();
 	}
@@ -676,7 +677,7 @@ void UStaticMeshComponent::NotifyIfStaticMeshChanged()
 	if (KnownStaticMesh != StaticMesh)
 	{
 		KnownStaticMesh = StaticMesh;
-		FObjectCacheEventSink::NotifyStaticMeshChanged_Concurrent(this);
+		FObjectCacheEventSink::NotifyStaticMeshChanged_Concurrent(GetStaticMeshComponentInterface());
 
 		// Update this component streaming data.
 		IStreamingManager::Get().NotifyPrimitiveUpdated(this);
@@ -1825,7 +1826,7 @@ void UStaticMeshComponent::BeginDestroy()
 
 #if WITH_EDITOR
 	// The object cache needs to be notified when we're getting destroyed
-	FObjectCacheEventSink::NotifyStaticMeshChanged_Concurrent(this);
+	FObjectCacheEventSink::NotifyStaticMeshChanged_Concurrent(GetStaticMeshComponentInterface());
 #endif
 }
 
@@ -2331,21 +2332,49 @@ const Nanite::FResources* UStaticMeshComponent::GetNaniteResources() const
 	return nullptr;
 }
 
+namespace Nanite
+{
+	template<class T> 
+	bool ShouldCreateNaniteProxy(const T& Component, FMaterialAudit* OutNaniteMaterials = nullptr);
+
+	template<class T> 
+	bool HasValidNaniteData(const T& Component)
+	{
+		const FResources* NaniteResources = Component.GetNaniteResources();
+		return NaniteResources != nullptr ? NaniteResources->PageStreamingStates.Num() > 0 : false;
+	}
+
+	template<class T> 
+	bool UseNaniteOverrideMaterials(const T& Component, bool bDoingMaterialAudit) 
+	{
+		// Check for valid data on this SMC and support for Nanite material overrides
+		return (bDoingMaterialAudit || ShouldCreateNaniteProxy(Component)) && GEnableNaniteMaterialOverrides != 0;
+	}
+}
+
 bool UStaticMeshComponent::HasValidNaniteData() const
 {
-	const Nanite::FResources* NaniteResources = UStaticMeshComponent::GetNaniteResources();
-	return NaniteResources != nullptr ? NaniteResources->PageStreamingStates.Num() > 0 : false;
+	return Nanite::HasValidNaniteData(*this);
+}
+
+bool FStaticMeshSceneProxyDesc::HasValidNaniteData() const
+{
+	return Nanite::HasValidNaniteData(*this);
 }
 
 bool UStaticMeshComponent::UseNaniteOverrideMaterials(bool bDoingMaterialAudit) const
 {
-	// Check for valid data on this SMC and support for Nanite material overrides
-	return (bDoingMaterialAudit || ShouldCreateNaniteProxy()) && GEnableNaniteMaterialOverrides != 0;
+	return Nanite::UseNaniteOverrideMaterials(*this, bDoingMaterialAudit);	
 }
 
 bool UStaticMeshComponent::UseNaniteOverrideMaterials() const
 {
 	return UseNaniteOverrideMaterials(false);
+}
+
+bool FStaticMeshSceneProxyDesc::UseNaniteOverrideMaterials(bool bDoingMaterialAudit) const
+{
+	return Nanite::UseNaniteOverrideMaterials(*this, bDoingMaterialAudit);	
 }
 
 void UStaticMeshComponent::SetForcedLodModel(int32 NewForcedLodModel)
@@ -2822,35 +2851,11 @@ void UStaticMeshComponent::GetUsedMaterials(TArray<UMaterialInterface*>& OutMate
 {
 	//TRACE_CPUPROFILER_EVENT_SCOPE(UStaticMeshComponent::GetUsedMaterials);
 
-	if (GetStaticMesh() && GetStaticMesh()->GetRenderData())
+	if (GetStaticMesh())
 	{
-		FStaticMeshRenderData* RenderData = GetStaticMesh()->GetRenderData();
-
-		TSet<int32> UniqueIndex;
-		for (int32 LODIndex = 0, Num = RenderData->LODResources.Num(); LODIndex < Num; LODIndex++)
+		GetStaticMesh()->GetUsedMaterials(OutMaterials, [this](int32 Index) { return GetMaterial(Index); });
+		if (OutMaterials.Num() > 0)
 		{
-			FStaticMeshLODResources& LODResources = RenderData->LODResources[LODIndex];
-			for (int32 SectionIndex = 0; SectionIndex < LODResources.Sections.Num(); SectionIndex++)
-			{
-				// Get the material for each element at the current lod index
-				UniqueIndex.Add(LODResources.Sections[SectionIndex].MaterialIndex);
-			}
-		}
-
-		if (UniqueIndex.Num() > 0)
-		{
-			//We need to output the material in the correct order (follow the material index)
-			//So we sort the map with the material index
-			UniqueIndex.Sort([](int32 A, int32 B) {
-				return A < B; // sort keys in order
-			});
-
-			OutMaterials.Reserve(UniqueIndex.Num());
-			for (int32 MaterialIndex : UniqueIndex)
-			{
-				OutMaterials.Add(GetMaterial(MaterialIndex));
-			}
-
 			UMaterialInterface* OverlayMaterialInterface = GetOverlayMaterial();
 			if (OverlayMaterialInterface != nullptr)
 			{
@@ -3182,6 +3187,28 @@ ECheckSectionBoundsResult CheckSectionBounds(const FStaticMeshSection& Section, 
 }
 
 } // namespace StaticMeshComponent_SelectionHelpers
+
+
+void UStaticMeshComponent::OnMeshRebuild(bool bRenderDataChanged)
+{
+	if (bRenderDataChanged)
+	{
+		// Fixup their override colors if necessary.
+		// Also invalidate lighting. *** WARNING components may be reattached here! ***
+		FixupOverrideColorsIfNecessary(true);
+		InvalidateLightingCache();
+	}
+	else
+	{
+		// No change in RenderData, still re-register components with preview static lighting system as ray tracing geometry has been recreated
+		// When RenderData is changed, this is handled by InvalidateLightingCache()
+		FStaticLightingSystemInterface::OnPrimitiveComponentUnregistered.Broadcast(this);
+		if (HasValidSettingsForStaticLighting(false))
+		{
+			FStaticLightingSystemInterface::OnPrimitiveComponentRegistered.Broadcast(this);
+		}
+	}
+}
 
 bool UStaticMeshComponent::ComponentIsTouchingSelectionBox(const FBox& InSelBBox, const bool bConsiderOnlyBSP, const bool bMustEncompassEntireComponent) const
 {
@@ -3644,6 +3671,37 @@ FArchive& operator<<(FArchive& Ar,FStaticMeshComponentLODInfo& I)
 
 	return Ar;
 }
+
+void UStaticMeshComponent::GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) const
+{
+	if (StaticMesh)
+	{
+		PrimitiveStats.NbTriangles = StaticMesh->GetNumTriangles(PrimitiveStats.ForLOD);
+	}
+}
+
+#if WITH_EDITOR
+void FActorStaticMeshComponentInterface::OnMeshRebuild(bool bRenderDataChanged)
+{
+	UStaticMeshComponent::GetStaticMeshComponent(this)->OnMeshRebuild(bRenderDataChanged);
+}
+
+void FActorStaticMeshComponentInterface::PostStaticMeshCompilation()
+{
+	UStaticMeshComponent::GetStaticMeshComponent(this)->PostStaticMeshCompilation();
+}
+#endif
+
+UStaticMesh* FActorStaticMeshComponentInterface::GetStaticMesh() const
+{
+	return UStaticMeshComponent::GetStaticMeshComponent(this)->GetStaticMesh();
+}
+
+IPrimitiveComponent* FActorStaticMeshComponentInterface::GetPrimitiveComponentInterface() 
+{
+	return UStaticMeshComponent::GetStaticMeshComponent(this)->GetPrimitiveComponentInterface();
+}
+
 
 #undef LOCTEXT_NAMESPACE
 

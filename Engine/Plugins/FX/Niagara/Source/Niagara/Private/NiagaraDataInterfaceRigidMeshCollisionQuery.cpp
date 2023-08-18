@@ -364,7 +364,7 @@ void UpdateAssetArrays(TConstArrayView<TComponentType*> Components, const FVecto
 
 		const FVector3f CurrMeshScale(MeshTransform.GetScale3D());
 
-		const int32 ComponentIdIndex = OutAssetArrays->UniqueCompnentId.AddUnique(Component->ComponentId);
+		const int32 ComponentIdIndex = OutAssetArrays->UniqueCompnentId.AddUnique(Component->GetPrimitiveSceneId());
 
 		for (const FKConvexElem& ConvexElem : BodySetup->AggGeom.ConvexElems)
 		{

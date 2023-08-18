@@ -364,7 +364,7 @@ void FProxyGenerationProcessor::ProcessJob(const FGuid& JobGuid, FProxyGeneratio
 	{
 		Algo::ForEach(RecreateRenderStateContext.GetComponentsUsingMesh(OldStaticMesh), [](UStaticMeshComponent* Component)
 		{
-			FObjectCacheEventSink::NotifyStaticMeshChanged_Concurrent(Component);
+			FObjectCacheEventSink::NotifyStaticMeshChanged_Concurrent(Component->GetStaticMeshComponentInterface());
 		});
 	}
 

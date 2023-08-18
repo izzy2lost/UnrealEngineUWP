@@ -36,7 +36,10 @@ class FReflectionCaptureProxy;
 class FScene;
 class FViewInfo;
 class UPrimitiveComponent;
-
+class IPrimitiveComponent;
+struct FPrimitiveSceneInfoAdapter;
+struct FPrimitiveSceneDesc;
+struct FPrimitiveSceneInfoData;
 struct FNaniteMaterialSlot;
 struct FNaniteRasterBin;
 struct FNaniteShadingBin;
@@ -301,18 +304,6 @@ public:
 	int32 RegistrationSerialNumber;
 
 	/** 
-	 * Pointer to the last render time variable on the primitive's owning actor (if owned), which is written to by the RT and read by the GT.
-	 * The value of LastRenderTime will therefore not be deterministic due to race conditions, but the GT uses it in a way that allows this.
-	 * Storing a pointer to the UObject member variable only works because:
-	 *	UPrimitiveComponent's outer is its owning AActor, so it prevents the owner from being garbage collected while the component lives.
-	 *  If the UPrimitiveComponent is GC'd during the Actor's lifetime, OwnerLastRenderTime is still valid so there is no issue.
-	 *	If the UPrimitiveComponent and the Actor are GC'd together, neither will be deleted until FinishDestroy has been executed on both.
-	 *	UPrimitiveComponent's FinishDestroy will not execute until the primitive has been detached from the Scene through it's DetachFence.
-	 * In general feedback from the renderer to the game thread like this should be avoided.
-	 */
-	float* OwnerLastRenderTime;
-
-	/** 
 	 * The root attachment component id for use with lighting, if valid.
 	 * If the root id is not valid, this is a parent primitive.
 	 */
@@ -402,6 +393,7 @@ public:
 
 	/** Initialization constructor. */
 	FPrimitiveSceneInfo(UPrimitiveComponent* InPrimitive,FScene* InScene);
+	FPrimitiveSceneInfo(FPrimitiveSceneDesc* InPrimitiveSceneDesc, FScene* InScene);
 
 	/** Destructor. */
 	~FPrimitiveSceneInfo();
@@ -585,6 +577,9 @@ public:
 
 	void SetCacheShadowAsStatic(bool bStatic);
 
+	const UPrimitiveComponent* GetComponentForDebugOnly() const;
+	const IPrimitiveComponent* GetComponentInterfaceForDebugOnly() const;
+
 	UE_DEPRECATED(5.3, "NeedsUpdateStaticMeshes has been deprecated.")
 	bool NeedsUpdateStaticMeshes() { return false; }
 
@@ -607,6 +602,8 @@ public:
 	void SetNeedsUniformBufferUpdate(bool bInNeedsUniformBufferUpdate) { RequestUniformBufferUpdate(); }
 
 private:
+	
+	FPrimitiveSceneInfo(const FPrimitiveSceneInfoAdapter& InAdapter, FScene* InScene);
 
 	/** Let FScene have direct access to the Id. */
 	friend class FScene;
@@ -623,11 +620,17 @@ private:
 	FPersistentPrimitiveIndex PersistentIndex;
 
 	/** 
-	 * The UPrimitiveComponent this scene info is for, useful for quickly inspecting properties on the corresponding component while debugging.
+	 * The IPrimitiveComponentInterface this scene info is for, useful for quickly inspecting properties on the corresponding component while debugging.
 	 * This should not be dereferenced on the rendering thread.  The game thread can be modifying UObject members at any time.
 	 * Use PrimitiveComponentId instead when a component identifier is needed.
+	 * 	
+	 */	
+	const IPrimitiveComponent*  PrimitiveComponentInterfaceForDebuggingOnly;  
+
+	/** 
+	 * Ptr to the FPrimitiveSceneInfoData for this prim, this is used for shared data between the primitive and the component that created the primitive. 
 	 */
-	const UPrimitiveComponent* ComponentForDebuggingOnly;
+	FPrimitiveSceneInfoData* SceneData;
 
 	/** These flags carry information about which runtime virtual textures are bound to this primitive. */
 	FPrimitiveVirtualTextureFlags RuntimeVirtualTextureFlags;

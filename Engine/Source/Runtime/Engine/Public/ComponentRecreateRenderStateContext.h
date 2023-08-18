@@ -5,18 +5,35 @@
 #include "CoreMinimal.h"
 #include "Containers/IndirectArray.h"
 #include "Components/ActorComponent.h"
+#include "Components/ComponentInterfaces.h"
 #include "SceneInterface.h"
 
 /** Destroys render state for a component and then recreates it when this object is destroyed */
 class FComponentRecreateRenderStateContext
 {
 private:
-	/** Pointer to component we are recreating render state for */
+	/** Pointer to component we are recreating render state for */	
 	UActorComponent* Component = nullptr;
+	IPrimitiveComponent* ComponentInterface = nullptr;
 
 	TSet<FSceneInterface*>* ScenesToUpdateAllPrimitiveSceneInfos = nullptr;
 
 public:
+	FComponentRecreateRenderStateContext(IPrimitiveComponent* InComponentInterface, TSet<FSceneInterface*>* InScenesToUpdateAllPrimitiveSceneInfos = nullptr)		
+			: ScenesToUpdateAllPrimitiveSceneInfos(InScenesToUpdateAllPrimitiveSceneInfos)
+	{
+		check(InComponentInterface);
+		checkf(!InComponentInterface->IsUnreachable(), TEXT("%s"), *InComponentInterface->GetFullName());
+
+		if (InComponentInterface->IsRegistered() && InComponentInterface->IsRenderStateCreated())
+		{
+			InComponentInterface->DestroyRenderState();
+			ComponentInterface = InComponentInterface;
+
+			UpdateAllPrimitiveSceneInfosForSingleComponentInterface(InComponentInterface, ScenesToUpdateAllPrimitiveSceneInfos);
+		}
+	}
+
 	FComponentRecreateRenderStateContext(UActorComponent* InComponent, TSet<FSceneInterface*>* InScenesToUpdateAllPrimitiveSceneInfos = nullptr)
 		: ScenesToUpdateAllPrimitiveSceneInfos(InScenesToUpdateAllPrimitiveSceneInfos)
 	{
@@ -30,10 +47,6 @@ public:
 
 			UpdateAllPrimitiveSceneInfosForSingleComponent(InComponent, ScenesToUpdateAllPrimitiveSceneInfos);
 		}
-		else
-		{
-			Component = nullptr;
-		}
 	}
 
 	FComponentRecreateRenderStateContext(const FComponentRecreateRenderStateContext&) = delete;
@@ -41,17 +54,21 @@ public:
 	
 	FComponentRecreateRenderStateContext(FComponentRecreateRenderStateContext&& Other)
 		: Component(Other.Component)
+		, ComponentInterface(Other.ComponentInterface)
 		, ScenesToUpdateAllPrimitiveSceneInfos(Other.ScenesToUpdateAllPrimitiveSceneInfos)
 	{
 		Other.Component = nullptr;
+		Other.ComponentInterface = nullptr;
 		Other.ScenesToUpdateAllPrimitiveSceneInfos = nullptr;
 	}
 
 	FComponentRecreateRenderStateContext& operator=(FComponentRecreateRenderStateContext&& Other)
 	{
 		Component = Other.Component;
+		ComponentInterface = Other.ComponentInterface ;
 		ScenesToUpdateAllPrimitiveSceneInfos = Other.ScenesToUpdateAllPrimitiveSceneInfos;
 		Other.Component = nullptr;
+		Other.ComponentInterface = nullptr;
 		Other.ScenesToUpdateAllPrimitiveSceneInfos = nullptr;
 		return *this;
 	}
@@ -63,6 +80,13 @@ public:
 			Component->CreateRenderState_Concurrent(nullptr);
 
 			UpdateAllPrimitiveSceneInfosForSingleComponent(Component, ScenesToUpdateAllPrimitiveSceneInfos);
+		}
+
+		if (ComponentInterface && !ComponentInterface ->IsRenderStateCreated() && ComponentInterface ->IsRegistered())
+		{
+			ComponentInterface ->CreateRenderState(nullptr);
+
+			UpdateAllPrimitiveSceneInfosForSingleComponentInterface(ComponentInterface, ScenesToUpdateAllPrimitiveSceneInfos);
 		}
 	}
 };

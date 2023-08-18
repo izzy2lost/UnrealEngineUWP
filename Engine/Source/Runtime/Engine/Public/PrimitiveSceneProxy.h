@@ -38,6 +38,8 @@ class FRayTracingGeometry;
 class FVertexFactory;
 class IHeterogeneousVolumeInterface;
 struct FPrimitiveUniformShaderParametersBuilder;
+struct FPrimitiveSceneProxyDesc;
+class IPrimitiveComponent;
 
 namespace Nanite
 {
@@ -188,6 +190,7 @@ public:
 
 	/** Initialization constructor. */
 	ENGINE_API FPrimitiveSceneProxy(const UPrimitiveComponent* InComponent, FName ResourceName = NAME_None);
+	ENGINE_API FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InDesc, FName ResourceName = NAME_None);
 
 	/** Copy constructor. */
 	FPrimitiveSceneProxy(FPrimitiveSceneProxy const&) = default;
@@ -272,6 +275,14 @@ public:
 	 * @return The hit proxy to use by default for elements drawn by DrawDynamicElements.
 	 */
 	ENGINE_API virtual HHitProxy* CreateHitProxies(UPrimitiveComponent* Component,TArray<TRefCountPtr<HHitProxy> >& OutHitProxies);
+
+	/**
+	 * Creates the hit proxies are used when DrawDynamicElements is called.
+	 * Called in the game thread.
+	 * @param OutHitProxies - Hit proxes which are created should be added to this array.
+	 * @return The hit proxy to use by default for elements drawn by DrawDynamicElements.
+	 */
+	ENGINE_API virtual HHitProxy* CreateHitProxies(IPrimitiveComponent* ComponentInterface,TArray<TRefCountPtr<HHitProxy> >& OutHitProxies);
 
 #if WITH_EDITOR
 	/** 

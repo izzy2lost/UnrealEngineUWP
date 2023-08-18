@@ -436,7 +436,7 @@ void FNiagaraBakerRenderer::RenderBufferVisualization(UTextureRenderTarget2D* Re
 	if (BakerSettings->bRenderComponentOnly)
 	{
 		ViewInitOptions.ShowOnlyPrimitives.Emplace();
-		ViewInitOptions.ShowOnlyPrimitives->Add(PreviewComponent->ComponentId);
+		ViewInitOptions.ShowOnlyPrimitives->Add(PreviewComponent->GetPrimitiveSceneId());
 	}
 	
 	FSceneView* NewView = new FSceneView(ViewInitOptions);

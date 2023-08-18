@@ -3330,6 +3330,18 @@ public:
 			return FindLumenSceneData(View.State ? View.State->GetViewKey() : 0, View.GPUMask.GetFirstIndex());
 		}
 	}
+	virtual void AddPrimitive(FPrimitiveSceneDesc* Primitive) override;
+	virtual void RemovePrimitive(FPrimitiveSceneDesc* Primitive) override;
+	virtual void ReleasePrimitive(FPrimitiveSceneDesc* Primitive) override;
+	virtual void UpdatePrimitiveTransform(FPrimitiveSceneDesc* Primitive) override;
+
+	virtual void BatchAddPrimitives(TArrayView<FPrimitiveSceneDesc*> InPrimitives) override;
+	virtual void BatchRemovePrimitives(TArrayView<FPrimitiveSceneDesc*> InPrimitives) override;
+	virtual void BatchReleasePrimitives(TArrayView<FPrimitiveSceneDesc*> InPrimitives) override;
+		
+	virtual void UpdateCustomPrimitiveData(FPrimitiveSceneDesc* Primitive, const FCustomPrimitiveData& CustomPrimitiveData) override;
+
+	virtual void UpdatePrimitiveInstances(FInstancedStaticMeshSceneDesc* Primitive) override;
 
 	bool HasSkyAtmosphere() const
 	{
@@ -3664,6 +3676,19 @@ public:
 protected:
 
 private:
+
+	template<class T> 	
+	void BatchAddPrimitivesInternal(TArrayView<T*> InPrimitives);
+
+	template<class T> 	
+	void BatchRemovePrimitivesInternal(TArrayView<T*> InPrimitives);
+
+	template<class T> 	
+	void BatchReleasePrimitivesInternal(TArrayView<T*> InPrimitives);	
+
+	template<class T> 	
+	void UpdatePrimitiveTransformInternal(T* Primitive);
+	
 	void RemoveViewLumenSceneData_RenderThread(FSceneViewStateInterface* ViewState);
 	void RemoveViewState_RenderThread(FSceneViewStateInterface*);
 
@@ -3696,6 +3721,8 @@ private:
 	void UpdatePrimitiveTransform_RenderThread(FPrimitiveSceneProxy* PrimitiveSceneProxy, const FBoxSphereBounds& WorldBounds, const FBoxSphereBounds& LocalBounds, const FMatrix& LocalToWorld, const FVector& OwnerPosition, const TOptional<FTransform>& PreviousTransform);
 
 	void UpdatePrimitiveOcclusionBoundsSlack_RenderThread(const FPrimitiveSceneProxy* PrimitiveSceneProxy, float NewSlack);
+
+	void UpdateCustomPrimitiveData(FPrimitiveSceneProxy* SceneProxy, const FCustomPrimitiveData& CustomPrimitiveData);
 
 	/** Updates a single primitive's lighting attachment root. */
 	void UpdatePrimitiveLightingAttachmentRoot(UPrimitiveComponent* Primitive);
@@ -3791,6 +3818,8 @@ private:
 		FBoxSphereBounds LocalBounds;
 		FBoxSphereBounds StaticMeshBounds;
 	};
+
+	void UpdatePrimitiveInstances(FUpdateInstanceCommand& UpdateParams);
 
 	struct FLevelCommand
 	{

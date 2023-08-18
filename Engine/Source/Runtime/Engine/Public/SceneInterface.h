@@ -66,6 +66,12 @@ struct FLightRenderParameters;
 struct FPersistentPrimitiveIndex;
 template<int32 MaxSHOrder> class TSHVectorRGB;
 using FSHVectorRGB3 = TSHVectorRGB<3>;
+struct FCustomPrimitiveData;
+
+
+struct FPrimitiveSceneDesc;
+struct FInstancedStaticMeshSceneDesc;
+struct FLightSceneDesc;
 
 enum EBasePassDrawListType
 {
@@ -512,6 +518,21 @@ public:
 	virtual void AddLumenSceneCard(class ULumenSceneCardComponent* LumenSceneCardComponent) {};
 	virtual void UpdateLumenSceneCardTransform(class ULumenSceneCardComponent* LumenSceneCardComponent) {};
 	virtual void RemoveLumenSceneCard(class ULumenSceneCardComponent* LumenSceneCardComponent) {};
+
+	// FPrimtiveDesc version for primitive/light scene interactions
+	virtual void AddPrimitive(FPrimitiveSceneDesc* Primitive) = 0;
+	virtual void RemovePrimitive(FPrimitiveSceneDesc* Primitive) = 0;
+	virtual void ReleasePrimitive(FPrimitiveSceneDesc* Primitive) = 0;
+	virtual void UpdatePrimitiveTransform(FPrimitiveSceneDesc* Primitive) = 0;
+
+	virtual void BatchAddPrimitives(TArrayView<FPrimitiveSceneDesc*> InPrimitives) = 0;
+	virtual void BatchRemovePrimitives(TArrayView<FPrimitiveSceneDesc*> InPrimitives) = 0;
+	virtual void BatchReleasePrimitives(TArrayView<FPrimitiveSceneDesc*> InPrimitives) = 0;
+	
+	virtual void UpdateCustomPrimitiveData(FPrimitiveSceneDesc* Primitive, const FCustomPrimitiveData& CustomPrimitiveData) = 0;
+
+	virtual void UpdatePrimitiveInstances(FInstancedStaticMeshSceneDesc* Primitive) = 0;	
+
 
 	/**
 	 * Release this scene and remove it from the rendering thread

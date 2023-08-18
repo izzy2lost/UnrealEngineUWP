@@ -484,6 +484,8 @@ public:
 	/** Recorded modifications to per-instance data */
 	FInstanceUpdateCmdBuffer InstanceUpdateCmdBuffer;
 
+	FInstanceUpdateCmdBuffer& GetInstanceUpdateCmdBuffer() { return InstanceUpdateCmdBuffer; }
+
 	/** 
 	 * Flag for using RemoveAtSwap on instance removal. 
 	 * The implementation is free to ignore this flag, but should honor whatever behavior is being returned by SupportsRemoveSwap().

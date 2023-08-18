@@ -4373,7 +4373,7 @@ private:
 	}
 
 	friend class UPrimitiveComponent;
-	friend class FPrimitiveSceneInfo;
+	friend struct FPrimitiveSceneInfoAdapter;
 };
 
 #if WITH_EDITOR

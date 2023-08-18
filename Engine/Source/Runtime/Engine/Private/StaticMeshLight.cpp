@@ -223,7 +223,7 @@ void FStaticMeshStaticLightingTextureMapping::Apply(FQuantizedLightmapData* Quan
 		// The rendering thread reads from LODData and IrrelevantLights, therefore
 		// the component must have finished detaching from the scene on the rendering
 		// thread before it is safe to continue.
-		check(StaticMeshComponent->AttachmentCounter.GetValue() == 0);
+		check(StaticMeshComponent->GetSceneData().AttachmentCounter.GetValue() == 0);
 
 		// Ensure LODData has enough entries in it, free not required.
 		const bool bLODDataCountChanged = StaticMeshComponent->SetLODDataCount(LODIndex + 1, StaticMeshComponent->GetStaticMesh()->GetNumLODs());

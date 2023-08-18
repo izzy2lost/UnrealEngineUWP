@@ -16,6 +16,8 @@ enum ECollisionTraceFlag : int;
 enum EMaterialDomain : int;
 struct FStaticMeshVertexFactories;
 using FStaticMeshVertexFactoriesArray = TArray<FStaticMeshVertexFactories>;
+struct FStaticMeshSceneProxyDesc;
+struct FInstancedStaticMeshSceneProxyDesc;
 
 namespace Nanite
 {
@@ -40,7 +42,7 @@ struct FMaterialAuditEntry
 	uint8 bHasInvalidUsage				: 1;
 };
 
-struct FMaterialAudit
+struct ENGINE_API FMaterialAudit
 {
 	FString AssetName;
 	TArray<FMaterialAuditEntry, TInlineAllocator<4>> Entries;
@@ -104,6 +106,8 @@ struct FMaterialAudit
 };
 
 ENGINE_API void AuditMaterials(const UStaticMeshComponent* Component, FMaterialAudit& Audit);
+ENGINE_API void AuditMaterials(const FStaticMeshSceneProxyDesc* ProxyDesc, FMaterialAudit& Audit);
+
 ENGINE_API bool IsSupportedBlendMode(EBlendMode Mode);
 ENGINE_API bool IsSupportedBlendMode(const FMaterial& In);
 ENGINE_API bool IsSupportedBlendMode(const FMaterialShaderParameters& In);
@@ -193,7 +197,19 @@ public:
 	};
 
 public:
-	FSceneProxyBase(UPrimitiveComponent* Component)
+
+	FSceneProxyBase(const FPrimitiveSceneProxyDesc& Desc)
+	: FPrimitiveSceneProxy(Desc)
+	{
+		bIsNaniteMesh  = true;
+		bHasProgrammableRaster = false;
+		bReverseCulling = false;
+	#if WITH_EDITOR
+		bHasSelectedInstances = false;
+	#endif
+	}
+
+	FSceneProxyBase(const UPrimitiveComponent* Component)
 	: FPrimitiveSceneProxy(Component)
 	{
 		bIsNaniteMesh  = true;
@@ -207,6 +223,7 @@ public:
 	virtual ~FSceneProxyBase() = default;
 
 #if WITH_EDITOR
+	ENGINE_API virtual HHitProxy* CreateHitProxies(IPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy>>& OutHitProxies) override;
 	ENGINE_API virtual HHitProxy* CreateHitProxies(UPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy>>& OutHitProxies) override;
 #endif
 
@@ -328,6 +345,9 @@ class FSceneProxy : public FSceneProxyBase
 public:
 	using Super = FSceneProxyBase;
 
+	ENGINE_API FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshSceneProxyDesc& ProxyDesc, bool bIsInstanced = false);
+	ENGINE_API FSceneProxy(const FMaterialAudit& MaterialAudit, const FInstancedStaticMeshSceneProxyDesc& ProxyDesc);
+
 	ENGINE_API FSceneProxy(const FMaterialAudit& MaterialAudit, UStaticMeshComponent* Component);
 	ENGINE_API FSceneProxy(const FMaterialAudit& MaterialAudit, UInstancedStaticMeshComponent* Component);
 	ENGINE_API FSceneProxy(const FMaterialAudit& MaterialAudit, UHierarchicalInstancedStaticMeshComponent* Component);
@@ -341,7 +361,7 @@ public:
 	ENGINE_API virtual void GetLightRelevance(const FLightSceneProxy* LightSceneProxy, bool& bDynamic, bool& bRelevant, bool& bLightMapped, bool& bShadowMapped) const override;
 
 #if WITH_EDITOR
-	ENGINE_API virtual HHitProxy* CreateHitProxies(UPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy>>& OutHitProxies) override;
+	ENGINE_API virtual HHitProxy* CreateHitProxies(IPrimitiveComponent* ComponentInterface,TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) override;
 #endif
 	ENGINE_API virtual void DrawStaticElements(FStaticPrimitiveDrawInterface* PDI) override;
 	ENGINE_API virtual void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const override;
@@ -410,13 +430,13 @@ public:
 
 protected:
 	ENGINE_API virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
-
+	
 	ENGINE_API virtual void OnEvaluateWorldPositionOffsetChanged_RenderThread() override;
 
 	class FMeshInfo : public FLightCacheInterface
 	{
 	public:
-		FMeshInfo(const UStaticMeshComponent* InComponent);
+		FMeshInfo(const FStaticMeshSceneProxyDesc& InProxyDesc);
 
 		// FLightCacheInterface.
 		virtual FLightInteraction GetInteraction(const FLightSceneProxy* LightSceneProxy) const override;
@@ -476,7 +496,7 @@ protected:
 #endif
 
 #if NANITE_ENABLE_DEBUG_RENDERING
-	AActor* Owner;
+	UObject* Owner;
 
 	/** LightMap resolution used for VMI_LightmapDensity */
 	int32 LightMapResolution;
@@ -548,7 +568,7 @@ protected:
 		TUniformBufferRef<FLocalVertexFactoryUniformShaderParameters> OverrideColorVFUniformBuffer;
 
 		FFallbackLODInfo(
-			const UStaticMeshComponent* InComponent,
+			const FStaticMeshSceneProxyDesc* InProxyDEsc,
 			const FStaticMeshVertexFactoriesArray& InLODVertexFactories,
 			int32 InLODIndex,
 			int32 InClampedMinLOD

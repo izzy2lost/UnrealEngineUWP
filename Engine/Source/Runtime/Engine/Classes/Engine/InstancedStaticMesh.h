@@ -33,6 +33,7 @@
 #endif
 
 class ULightComponent;
+struct FInstancedStaticMeshSceneProxyDesc;
 
 extern TAutoConsoleVariable<float> CVarFoliageMinimumScreenSize;
 extern TAutoConsoleVariable<float> CVarRandomLODRange;
@@ -400,8 +401,8 @@ struct FInstanceUpdateCmdBuffer;
 struct FPerInstanceRenderData
 {
 	// Should be always constructed on main thread
-	FPerInstanceRenderData(FStaticMeshInstanceData& Other, ERHIFeatureLevel::Type InFeaureLevel, bool InRequireCPUAccess, FBox InBounds, bool bTrack, bool bDeferGPUUploadIn);
-	~FPerInstanceRenderData();
+	ENGINE_API FPerInstanceRenderData(FStaticMeshInstanceData& Other, ERHIFeatureLevel::Type InFeaureLevel, bool InRequireCPUAccess, FBox InBounds, bool bTrack, bool bDeferGPUUploadIn);
+	ENGINE_API ~FPerInstanceRenderData();
 
 	/**
 	 * Call to update the Instance buffer with pre allocated data without recreating the FPerInstanceRenderData
@@ -455,11 +456,12 @@ class FInstancedStaticMeshRenderData
 {
 public:
 
-	ENGINE_API FInstancedStaticMeshRenderData(UInstancedStaticMeshComponent* InComponent, ERHIFeatureLevel::Type InFeatureLevel);
+	ENGINE_API FInstancedStaticMeshRenderData(const FInstancedStaticMeshSceneProxyDesc* InDesc, ERHIFeatureLevel::Type InFeatureLevel);
 
 	ENGINE_API void ReleaseResources(FSceneInterface* Scene, const UStaticMesh* StaticMesh);
 
 	/** Source component */
+	// @todo: remove and use IPrimitiveComponentInterface* when we add support for static lighting through that path
 	UInstancedStaticMeshComponent* Component;
 
 	/** Cache off some component data. */
@@ -481,7 +483,7 @@ public:
 
 private:
 	void InitVertexFactories();
-	void RegisterSpeedTreeWind();
+	void RegisterSpeedTreeWind(const FInstancedStaticMeshSceneProxyDesc* InProxyDesc);
 };
 
 
@@ -489,33 +491,16 @@ private:
 	FInstancedStaticMeshSceneProxy
 -----------------------------------------------------------------------------*/
 
+struct FInstancedStaticMeshSceneProxyDesc;
+
 class FInstancedStaticMeshSceneProxy : public FStaticMeshSceneProxy
 {
 public:
 	ENGINE_API SIZE_T GetTypeHash() const override;
 
-	FInstancedStaticMeshSceneProxy(UInstancedStaticMeshComponent* InComponent, ERHIFeatureLevel::Type InFeatureLevel)
-	:	FStaticMeshSceneProxy(InComponent, true)
-	,	StaticMesh(InComponent->GetStaticMesh())
-	,	InstancedRenderData(InComponent, InFeatureLevel)
-#if WITH_EDITOR
-	,	bHasSelectedInstances(false)
-#endif
-	,	InstanceLODDistanceScale(InComponent->InstanceLODDistanceScale)
-#if RHI_RAYTRACING
-	,	CachedRayTracingLOD(-1)
-#endif
-	,	StaticMeshBounds(StaticMesh->GetBounds())
-	{
-#if WITH_EDITOR
-		for (int32 InstanceIndex = 0; InstanceIndex < InComponent->SelectedInstances.Num() && !bHasSelectedInstances; ++InstanceIndex)
-		{
-			bHasSelectedInstances |= InComponent->SelectedInstances[InstanceIndex];
-		}
-#endif
-
-		SetupProxy(InComponent);
-	}
+	/** Initialization constructor. */
+	ENGINE_API FInstancedStaticMeshSceneProxy(UInstancedStaticMeshComponent* InComponent, ERHIFeatureLevel::Type InFeatureLevel);
+	ENGINE_API FInstancedStaticMeshSceneProxy(const FInstancedStaticMeshSceneProxyDesc& InDesc, ERHIFeatureLevel::Type InFeatureLevel);
 
 	~FInstancedStaticMeshSceneProxy()
 	{
@@ -591,12 +576,12 @@ public:
 	 * @param OutHitProxies - Hit proxies which are created should be added to this array.
 	 * @return The hit proxy to use by default for elements drawn by DrawDynamicElements.
 	 */
-	ENGINE_API virtual HHitProxy* CreateHitProxies(UPrimitiveComponent* Component,TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) override;
+	ENGINE_API virtual HHitProxy* CreateHitProxies(IPrimitiveComponent* Component,TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) override;
 
 	ENGINE_API virtual bool GetInstanceDrawDistanceMinMax(FVector2f& OutDistanceMinMax) const override;
 
-	virtual float GetLodScreenSizeScale() const override;
-	virtual float GetGpuLodInstanceRadius() const override;
+	ENGINE_API virtual float GetLodScreenSizeScale() const override;
+	ENGINE_API virtual float GetGpuLodInstanceRadius() const override;
 
 	virtual bool IsDetailMesh() const override { return true; }
 
@@ -643,7 +628,7 @@ protected:
 	FBoxSphereBounds StaticMeshBounds;
 private:
 
-	ENGINE_API void SetupProxy(UInstancedStaticMeshComponent* InComponent);
+	void SetupProxy(const FInstancedStaticMeshSceneProxyDesc& InProxyDesc);
 
 	/** Stores a loose uniform buffer per LOD, used for static view relevance. */
 	TMap<uint32, FInstancedStaticMeshVFLooseUniformShaderParametersRef> LODLooseUniformBuffers;

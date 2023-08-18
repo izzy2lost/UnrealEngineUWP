@@ -5,6 +5,7 @@
 =============================================================================*/
 
 #include "PrimitiveSceneProxy.h"
+#include "PrimitiveSceneProxyDesc.h"
 #include "PrimitiveViewRelevance.h"
 #include "UObject/Package.h"
 #include "Engine/Engine.h"
@@ -23,6 +24,7 @@
 #include "DataDrivenShaderPlatformInfo.h"
 #include "SceneInterface.h"
 #include "PrimitiveUniformShaderParametersBuilder.h"
+#include "Components/InstancedStaticMeshComponent.h"
 
 #if WITH_EDITOR
 #include "FoliageHelper.h"
@@ -251,70 +253,202 @@ static FRenderBounds PadLocalRenderBounds(const FRenderBounds& InBounds, const F
 	return Result;
 }
 
+FPrimitiveSceneProxyDesc::FPrimitiveSceneProxyDesc(const UPrimitiveComponent* InComponent)
+	: FPrimitiveSceneProxyDesc()
+{
+	CastShadow = InComponent->CastShadow;
+	bReceivesDecals = InComponent->bReceivesDecals;
+	bOnlyOwnerSee = InComponent->bOnlyOwnerSee;
+	bOwnerNoSee = InComponent->bOwnerNoSee;
+	bLevelInstanceEditingState = InComponent->GetLevelInstanceEditingState();
+	bUseViewOwnerDepthPriorityGroup  = InComponent->bUseViewOwnerDepthPriorityGroup ;
+	bVisibleInReflectionCaptures = InComponent->bVisibleInReflectionCaptures;
+	bVisibleInRealTimeSkyCaptures = InComponent->bVisibleInRealTimeSkyCaptures;
+	bVisibleInRayTracing = InComponent->bVisibleInRayTracing;
+	bRenderInDepthPass = InComponent->bRenderInDepthPass;
+	bRenderInMainPass = InComponent->bRenderInMainPass;
+	bTreatAsBackgroundForOcclusion = InComponent->bTreatAsBackgroundForOcclusion;
+	bCastDynamicShadow = InComponent->bCastDynamicShadow;
+	bCastStaticShadow = InComponent->bCastStaticShadow;
+	bEmissiveLightSource = InComponent->bEmissiveLightSource;
+	bAffectDynamicIndirectLighting = InComponent->bAffectDynamicIndirectLighting;
+	bAffectIndirectLightingWhileHidden = InComponent->bAffectIndirectLightingWhileHidden;
+	bAffectDistanceFieldLighting = InComponent->bAffectDistanceFieldLighting;
+	bCastVolumetricTranslucentShadow = InComponent->bCastVolumetricTranslucentShadow;
+	bCastContactShadow = InComponent->bCastContactShadow;
+	bCastHiddenShadow = InComponent->bCastHiddenShadow;
+	bCastShadowAsTwoSided = InComponent->bCastShadowAsTwoSided;
+	bSelfShadowOnly = InComponent->bSelfShadowOnly;
+	bCastInsetShadow = InComponent->bCastInsetShadow;
+	bCastCinematicShadow = InComponent->bCastCinematicShadow;
+	bCastFarShadow = InComponent->bCastFarShadow;
+	bLightAttachmentsAsGroup = InComponent->bLightAttachmentsAsGroup;
+	bSingleSampleShadowFromStationaryLights = InComponent->bSingleSampleShadowFromStationaryLights;
+	bUseAsOccluder = InComponent->bUseAsOccluder;
+	bSelectable = InComponent->bSelectable;
+	bHasPerInstanceHitProxies = InComponent->bHasPerInstanceHitProxies;
+	bUseEditorCompositing = InComponent->bUseEditorCompositing;
+	bIsBeingMovedByEditor = InComponent->bIsBeingMovedByEditor;
+	bReceiveMobileCSMShadows = InComponent->bReceiveMobileCSMShadows;
+	bRenderCustomDepth = InComponent->bRenderCustomDepth;
+	bVisibleInSceneCaptureOnly = InComponent->bVisibleInSceneCaptureOnly;
+	bHiddenInSceneCapture = InComponent->bHiddenInSceneCapture;
+	bRayTracingFarField = InComponent->bRayTracingFarField;
+	bHoldout = InComponent->bHoldout;
+
+	bIsVisible = InComponent->IsVisible();
+	bIsVisibleEditor = InComponent->GetVisibleFlag();
+	bSelected = InComponent->IsSelected();
+	bIndividuallySelected = InComponent->IsComponentIndividuallySelected();
+	bShouldRenderSelected = InComponent->ShouldRenderSelected();
+	bCollisionEnabled = InComponent->IsCollisionEnabled(); 
+	
+	if (const AActor* ActorOwner = InComponent->GetOwner())
+	{
+		bIsHidden = ActorOwner->IsHidden(); 
+#if WITH_EDITOR
+		bIsHiddenEd = ActorOwner->IsHiddenEd(); 	
+		bIsOwnedByFoliage = FFoliageHelper::IsOwnedByFoliage(ActorOwner);
+#endif
+
+		if(bOnlyOwnerSee || bOwnerNoSee || bUseViewOwnerDepthPriorityGroup)
+		{
+			// Make a list of the actors which directly or indirectly own the InComponent.
+			for(const AActor* CurrentOwner = ActorOwner;CurrentOwner;CurrentOwner = CurrentOwner->GetOwner())
+			{
+				ActorOwners.Add(CurrentOwner);
+			}
+		}
+	}
+	bSupportsWorldPositionOffsetVelocity = InComponent->SupportsWorldPositionOffsetVelocity();
+	bIsEditorOnly = InComponent->IsEditorOnly(); 
+	bIsInstancedStaticMesh = Cast<UInstancedStaticMeshComponent>(InComponent) != nullptr; 
+
+	Mobility = InComponent->Mobility;;
+	TranslucencySortPriority = InComponent->TranslucencySortPriority;
+	TranslucencySortDistanceOffset = InComponent->TranslucencySortDistanceOffset;
+	LightmapType = InComponent->LightmapType ;
+	ViewOwnerDepthPriorityGroup = InComponent->ViewOwnerDepthPriorityGroup;
+	CustomDepthStencilValue = InComponent->CustomDepthStencilValue;
+	CustomDepthStencilWriteMask = InComponent->CustomDepthStencilWriteMask;
+	LightingChannels = InComponent->LightingChannels;
+	RayTracingGroupCullingPriority = InComponent->RayTracingGroupCullingPriority;
+	IndirectLightingCacheQuality = InComponent->IndirectLightingCacheQuality;
+	ShadowCacheInvalidationBehavior = InComponent->ShadowCacheInvalidationBehavior;
+	DepthPriorityGroup = InComponent->GetStaticDepthPriorityGroup();
+	
+	VirtualTextureLodBias = InComponent->VirtualTextureLodBias ;
+	VirtualTextureCullMips = InComponent->VirtualTextureCullMips ;
+	VirtualTextureMinCoverage = InComponent->VirtualTextureMinCoverage ;
+	ComponentId = InComponent->GetPrimitiveSceneId() ;
+	VisibilityId = InComponent->VisibilityId ;
+	CachedMaxDrawDistance = InComponent->CachedMaxDrawDistance ;
+	MinDrawDistance = InComponent->MinDrawDistance ;
+	BoundsScale = InComponent->BoundsScale ;
+	RayTracingGroupId = InComponent->GetRayTracingGroupId() ;
+
+	bHasStaticLighting = InComponent->HasStaticLighting();
+	bHasValidSettingsForStaticLighting = InComponent->HasValidSettingsForStaticLighting(false);
+	bIsPrecomputedLightingValid = InComponent->IsPrecomputedLightingValid();
+	bShadowIndirectOnly = InComponent->GetShadowIndirectOnly();	
+
+	Component = const_cast<UPrimitiveComponent*>(InComponent); 
+	Owner = InComponent->GetOwner();
+
+	World = InComponent->GetWorld();
+	CustomPrimitiveData = &InComponent->GetCustomPrimitiveData();
+	Scene = InComponent->GetScene();
+	PrimitiveComponentInterface = InComponent->GetPrimitiveComponentInterface();
+	
+	FeatureLevel = Scene->GetFeatureLevel();
+
+#if WITH_EDITOR
+	HiddenEditorViews = InComponent->GetHiddenEditorViews();
+#endif
+	bShouldRenderProxyFallbackToDefaultMaterial = InComponent->ShouldRenderProxyFallbackToDefaultMaterial();
+
+	AdditionalStatObjectPtr = InComponent->AdditionalStatObject();
+	StatId = AdditionalStatObjectPtr? AdditionalStatObjectPtr->GetStatID(true) : InComponent->GetStatID(true);
+
+	TArray<URuntimeVirtualTexture*> const& VirtualTextures = InComponent->GetRuntimeVirtualTextures();	
+	RuntimeVirtualTextures = MakeArrayView( const_cast<URuntimeVirtualTexture**>(VirtualTextures.GetData()), VirtualTextures.Num());	
+	VirtualTextureRenderPassType = InComponent->GetVirtualTextureRenderPassType();
+	VirtualTextureMainPassMaxDrawDistance = InComponent->GetVirtualTextureMainPassMaxDrawDistance();
+
+#if MESH_DRAW_COMMAND_STATS
+	MeshDrawCommandStatsCategory = InComponent->GetMeshDrawCommandStatsCategory();
+#endif
+}
+
+
 FPrimitiveSceneProxy::FPrimitiveSceneProxy(const UPrimitiveComponent* InComponent, FName InResourceName)
-:
+	: FPrimitiveSceneProxy(FPrimitiveSceneProxyDesc(InComponent), InResourceName)
+{
+}
+
+FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InProxyDesc, FName InResourceName) :
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	WireframeColor(FLinearColor::White)
 ,	LevelColor(FLinearColor::White)
 ,	PropertyColor(FLinearColor::White)
 ,	
 #endif
-	CustomPrimitiveData(InComponent->GetCustomPrimitiveData())
-,	TranslucencySortPriority(FMath::Clamp(InComponent->TranslucencySortPriority, SHRT_MIN, SHRT_MAX))
-,	TranslucencySortDistanceOffset(InComponent->TranslucencySortDistanceOffset)
-,	Mobility(InComponent->Mobility)
-,	LightmapType(InComponent->LightmapType)
+	CustomPrimitiveData(InProxyDesc.GetCustomPrimitiveData())
+,	TranslucencySortPriority(FMath::Clamp(InProxyDesc.TranslucencySortPriority, SHRT_MIN, SHRT_MAX))
+,	TranslucencySortDistanceOffset(InProxyDesc.TranslucencySortDistanceOffset)
+,	Mobility(InProxyDesc.Mobility)
+,	LightmapType(InProxyDesc.LightmapType)
 ,	StatId()
-,	DrawInGame(InComponent->IsVisible())
-,	DrawInEditor(InComponent->GetVisibleFlag())
-,	bReceivesDecals(InComponent->bReceivesDecals)
+,	DrawInGame(InProxyDesc.IsVisible())
+,	DrawInEditor(InProxyDesc.IsVisibleEditor())
+,	bReceivesDecals(InProxyDesc.bReceivesDecals)
 ,	bVirtualTextureMainPassDrawAlways(true)
 ,	bVirtualTextureMainPassDrawNever(false)
-,	bOnlyOwnerSee(InComponent->bOnlyOwnerSee)
-,	bOwnerNoSee(InComponent->bOwnerNoSee)
-,	bParentSelected(InComponent->ShouldRenderSelected())
-,	bIndividuallySelected(InComponent->IsComponentIndividuallySelected())
-,	bLevelInstanceEditingState(InComponent->GetLevelInstanceEditingState())
+,	bOnlyOwnerSee(InProxyDesc.bOnlyOwnerSee)
+,	bOwnerNoSee(InProxyDesc.bOwnerNoSee)
+,	bParentSelected(InProxyDesc.ShouldRenderSelected())
+,	bIndividuallySelected(InProxyDesc.IsComponentIndividuallySelected())
+,	bLevelInstanceEditingState(InProxyDesc.GetLevelInstanceEditingState())
 ,	bHovered(false)
-,	bUseViewOwnerDepthPriorityGroup(InComponent->bUseViewOwnerDepthPriorityGroup)
-,	StaticDepthPriorityGroup((uint8)InComponent->GetStaticDepthPriorityGroup())
-,	ViewOwnerDepthPriorityGroup(InComponent->ViewOwnerDepthPriorityGroup)
-,	bStaticLighting(InComponent->HasStaticLighting())
-,	bVisibleInReflectionCaptures(InComponent->bVisibleInReflectionCaptures)
-,	bVisibleInRealTimeSkyCaptures(InComponent->bVisibleInRealTimeSkyCaptures)
-,	bVisibleInRayTracing(InComponent->bVisibleInRayTracing)
-,	bRenderInDepthPass(InComponent->bRenderInDepthPass)
-,	bRenderInMainPass(InComponent->bRenderInMainPass)
+,	bUseViewOwnerDepthPriorityGroup(InProxyDesc.bUseViewOwnerDepthPriorityGroup)
+,	StaticDepthPriorityGroup((uint8)InProxyDesc.GetStaticDepthPriorityGroup())
+,	ViewOwnerDepthPriorityGroup(InProxyDesc.ViewOwnerDepthPriorityGroup)
+,	bStaticLighting(InProxyDesc.HasStaticLighting())
+,	bVisibleInReflectionCaptures(InProxyDesc.bVisibleInReflectionCaptures)
+,	bVisibleInRealTimeSkyCaptures(InProxyDesc.bVisibleInRealTimeSkyCaptures)
+,	bVisibleInRayTracing(InProxyDesc.bVisibleInRayTracing)
+,	bRenderInDepthPass(InProxyDesc.bRenderInDepthPass)
+,	bRenderInMainPass(InProxyDesc.bRenderInMainPass)
 ,	bForceHidden(false)
-,	bCollisionEnabled(InComponent->IsCollisionEnabled())
-,	bTreatAsBackgroundForOcclusion(InComponent->bTreatAsBackgroundForOcclusion)
+,	bCollisionEnabled(InProxyDesc.IsCollisionEnabled())
+,	bTreatAsBackgroundForOcclusion(InProxyDesc.bTreatAsBackgroundForOcclusion)
 ,	bVisibleInLumenScene(false)
 ,	bCanSkipRedundantTransformUpdates(true)
 ,	bGoodCandidateForCachedShadowmap(true)
-,	bNeedsUnbuiltPreviewLighting(!InComponent->IsPrecomputedLightingValid())
-,	bHasValidSettingsForStaticLighting(InComponent->HasValidSettingsForStaticLighting(false))
+,	bNeedsUnbuiltPreviewLighting(!InProxyDesc.IsPrecomputedLightingValid())
+,	bHasValidSettingsForStaticLighting(InProxyDesc.HasValidSettingsForStaticLighting())
 ,	bWillEverBeLit(true)
 	// Disable dynamic shadow casting if the primitive only casts indirect shadows, since dynamic shadows are always shadowing direct lighting
-,	bCastDynamicShadow(InComponent->bCastDynamicShadow && InComponent->CastShadow && !InComponent->GetShadowIndirectOnly())
-,	bEmissiveLightSource(InComponent->bEmissiveLightSource)
-,   bAffectDynamicIndirectLighting(InComponent->bAffectDynamicIndirectLighting)
-,	bAffectIndirectLightingWhileHidden(InComponent->bAffectDynamicIndirectLighting && InComponent->bAffectIndirectLightingWhileHidden)
-,   bAffectDistanceFieldLighting(InComponent->bAffectDistanceFieldLighting)
-,	bCastStaticShadow(InComponent->CastShadow && InComponent->bCastStaticShadow)
-,	ShadowCacheInvalidationBehavior(InComponent->ShadowCacheInvalidationBehavior)
-,	bCastVolumetricTranslucentShadow(InComponent->bCastDynamicShadow && InComponent->CastShadow && InComponent->bCastVolumetricTranslucentShadow)
-,	bCastContactShadow(InComponent->CastShadow && InComponent->bCastContactShadow)
+,	bCastDynamicShadow(InProxyDesc.bCastDynamicShadow && InProxyDesc.CastShadow && !InProxyDesc.GetShadowIndirectOnly())
+,	bEmissiveLightSource(InProxyDesc.bEmissiveLightSource)
+,   bAffectDynamicIndirectLighting(InProxyDesc.bAffectDynamicIndirectLighting)
+,	bAffectIndirectLightingWhileHidden(InProxyDesc.bAffectDynamicIndirectLighting && InProxyDesc.bAffectIndirectLightingWhileHidden)
+,   bAffectDistanceFieldLighting(InProxyDesc.bAffectDistanceFieldLighting)
+,	bCastStaticShadow(InProxyDesc.CastShadow && InProxyDesc.bCastStaticShadow)
+,	ShadowCacheInvalidationBehavior(InProxyDesc.ShadowCacheInvalidationBehavior)
+,	bCastVolumetricTranslucentShadow(InProxyDesc.bCastDynamicShadow && InProxyDesc.CastShadow && InProxyDesc.bCastVolumetricTranslucentShadow)
+,	bCastContactShadow(InProxyDesc.CastShadow && InProxyDesc.bCastContactShadow)
 ,	bCastDeepShadow(false)
 ,	bCastCapsuleDirectShadow(false)
 ,	bCastsDynamicIndirectShadow(false)
-,	bCastHiddenShadow(InComponent->CastShadow && InComponent->bCastHiddenShadow)
-,	bCastShadowAsTwoSided(InComponent->bCastShadowAsTwoSided)
-,	bSelfShadowOnly(InComponent->bSelfShadowOnly)
-,	bCastInsetShadow(InComponent->bSelfShadowOnly ? true : InComponent->bCastInsetShadow)	// Assumed to be enabled if bSelfShadowOnly is enabled.
-,	bCastCinematicShadow(InComponent->bCastCinematicShadow)
-,	bCastFarShadow(InComponent->bCastFarShadow)
-,	bLightAttachmentsAsGroup(InComponent->bLightAttachmentsAsGroup)
-,	bSingleSampleShadowFromStationaryLights(InComponent->bSingleSampleShadowFromStationaryLights)
+,	bCastHiddenShadow(InProxyDesc.CastShadow && InProxyDesc.bCastHiddenShadow)
+,	bCastShadowAsTwoSided(InProxyDesc.bCastShadowAsTwoSided)
+,	bSelfShadowOnly(InProxyDesc.bSelfShadowOnly)
+,	bCastInsetShadow(InProxyDesc.bSelfShadowOnly ? true : InProxyDesc.bCastInsetShadow)	// Assumed to be enabled if bSelfShadowOnly is enabled.
+,	bCastCinematicShadow(InProxyDesc.bCastCinematicShadow)
+,	bCastFarShadow(InProxyDesc.bCastFarShadow)
+,	bLightAttachmentsAsGroup(InProxyDesc.bLightAttachmentsAsGroup)
+,	bSingleSampleShadowFromStationaryLights(InProxyDesc.bSingleSampleShadowFromStationaryLights)
 ,	bStaticElementsAlwaysUseProxyPrimitiveUniformBuffer(false)
 ,	bVFRequiresPrimitiveUniformBuffer(true)
 ,	bIsNaniteMesh(false)
@@ -345,38 +479,38 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const UPrimitiveComponent* InComponen
 #if WITH_EDITOR
 ,	bHasPerInstanceEditorData(false)
 #endif
-,	bAllowApproximateOcclusion(InComponent->Mobility != EComponentMobility::Movable)
-,   bHoldout(InComponent->bHoldout)
+,	bAllowApproximateOcclusion(InProxyDesc.Mobility != EComponentMobility::Movable)
+,   bHoldout(InProxyDesc.bHoldout)
 ,	bSplineMesh(false)
-,	bUseAsOccluder(InComponent->bUseAsOccluder)
-,	bSelectable(InComponent->bSelectable)
-,	bHasPerInstanceHitProxies(InComponent->bHasPerInstanceHitProxies)
-,	bUseEditorCompositing(InComponent->bUseEditorCompositing)
-,	bIsBeingMovedByEditor(InComponent->bIsBeingMovedByEditor)
-,	bReceiveMobileCSMShadows(InComponent->bReceiveMobileCSMShadows)
-,	bRenderCustomDepth(InComponent->bRenderCustomDepth)
-,	bVisibleInSceneCaptureOnly(InComponent->bVisibleInSceneCaptureOnly)
-,	bHiddenInSceneCapture(InComponent->bHiddenInSceneCapture)
-,	bRayTracingFarField(InComponent->bRayTracingFarField)
-,	CustomDepthStencilValue(InComponent->CustomDepthStencilValue)
-,	CustomDepthStencilWriteMask(FRendererStencilMaskEvaluation::ToStencilMask(InComponent->CustomDepthStencilWriteMask))
-,	LightingChannelMask(GetLightingChannelMaskForStruct(InComponent->LightingChannels))
-,	RayTracingGroupId(InComponent->GetRayTracingGroupId())
-,	RayTracingGroupCullingPriority((uint8)InComponent->RayTracingGroupCullingPriority)
-,	IndirectLightingCacheQuality(InComponent->IndirectLightingCacheQuality)
-,	VirtualTextureLodBias(InComponent->VirtualTextureLodBias)
-,	VirtualTextureCullMips(InComponent->VirtualTextureCullMips)
-,	VirtualTextureMinCoverage(InComponent->VirtualTextureMinCoverage)
+,	bUseAsOccluder(InProxyDesc.bUseAsOccluder)
+,	bSelectable(InProxyDesc.bSelectable)
+,	bHasPerInstanceHitProxies(InProxyDesc.bHasPerInstanceHitProxies)
+,	bUseEditorCompositing(InProxyDesc.bUseEditorCompositing)
+,	bIsBeingMovedByEditor(InProxyDesc.bIsBeingMovedByEditor)
+,	bReceiveMobileCSMShadows(InProxyDesc.bReceiveMobileCSMShadows)
+,	bRenderCustomDepth(InProxyDesc.bRenderCustomDepth)
+,	bVisibleInSceneCaptureOnly(InProxyDesc.bVisibleInSceneCaptureOnly)
+,	bHiddenInSceneCapture(InProxyDesc.bHiddenInSceneCapture)
+,	bRayTracingFarField(InProxyDesc.bRayTracingFarField)
+,	CustomDepthStencilValue(InProxyDesc.CustomDepthStencilValue)
+,	CustomDepthStencilWriteMask(FRendererStencilMaskEvaluation::ToStencilMask(InProxyDesc.CustomDepthStencilWriteMask))
+,	LightingChannelMask(GetLightingChannelMaskForStruct(InProxyDesc.LightingChannels))
+,	RayTracingGroupId(InProxyDesc.GetRayTracingGroupId())
+,	RayTracingGroupCullingPriority((uint8)InProxyDesc.RayTracingGroupCullingPriority)
+,	IndirectLightingCacheQuality(InProxyDesc.IndirectLightingCacheQuality)
+,	VirtualTextureLodBias(InProxyDesc.VirtualTextureLodBias)
+,	VirtualTextureCullMips(InProxyDesc.VirtualTextureCullMips)
+,	VirtualTextureMinCoverage(InProxyDesc.VirtualTextureMinCoverage)
 ,	DynamicIndirectShadowMinVisibility(0)
 ,	DistanceFieldSelfShadowBias(0.0f)
 ,	MaxWPOExtent(0.0f)
 ,	MinMaxMaterialDisplacement(0.0f, 0.0f)
-,	PrimitiveComponentId(InComponent->ComponentId)
-,	Scene(InComponent->GetScene())
+,	PrimitiveComponentId(InProxyDesc.ComponentId)
+,	Scene(InProxyDesc.GetScene())
 ,	PrimitiveSceneInfo(nullptr)
-,	OwnerName(InComponent->GetOwner() ? InComponent->GetOwner()->GetFName() : NAME_None)
+,	OwnerName(InProxyDesc.GetOwner() ? InProxyDesc.GetOwner()->GetFName() : NAME_None)
 ,	ResourceName(InResourceName)
-,	LevelName(InComponent->GetOwner() ? InComponent->GetOwner()->GetLevel()->GetOutermost()->GetFName() : NAME_None)
+,	LevelName(InProxyDesc.GetComponentLevel() ? InProxyDesc.GetComponentLevel()->GetOutermost()->GetFName() : NAME_None)
 #if WITH_EDITOR
 // by default we are always drawn
 ,	HiddenEditorViews(0)
@@ -384,18 +518,18 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const UPrimitiveComponent* InComponen
 ,	DrawInAnyEditMode(0)
 ,   bIsFoliage(false)
 #endif
-,	VisibilityId(InComponent->VisibilityId)
-,	ComponentForDebuggingOnly(InComponent)
+,	VisibilityId(InProxyDesc.VisibilityId)
+, 	ComponentForDebuggingOnly(Cast<UPrimitiveComponent>(InProxyDesc.Component))
 #if WITH_EDITOR
 ,	NumUncachedStaticLightingInteractions(0)
 #endif
-,	MaxDrawDistance(InComponent->CachedMaxDrawDistance > 0 ? InComponent->CachedMaxDrawDistance : FLT_MAX)
-,	MinDrawDistance(InComponent->MinDrawDistance)
+,	MaxDrawDistance(InProxyDesc.CachedMaxDrawDistance > 0 ? InProxyDesc.CachedMaxDrawDistance : FLT_MAX)
+,	MinDrawDistance(InProxyDesc.MinDrawDistance)
 {
 	check(Scene);
 
 	// Initialize ForceHidden flag based on Level's visibility (only if Level bRequireFullVisibilityToRender is set)
-	if (ULevel* Level = InComponent->GetComponentLevel())
+	if (ULevel* Level = InProxyDesc.GetComponentLevel())
 	{
 		bShouldNotifyOnWorldAddRemove = Level->bRequireFullVisibilityToRender;
 		if (bShouldNotifyOnWorldAddRemove)
@@ -406,17 +540,19 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const UPrimitiveComponent* InComponen
 
 #if STATS
 	{
-		UObject const* StatObject = InComponent->AdditionalStatObject(); // prefer the additional object, this is usually the thing related to the component
-		if (!StatObject)
+		if (UObject const* StatObject = InProxyDesc.AdditionalStatObject()) // prefer the additional object, this is usually the thing related to the component)
 		{
-			StatObject = InComponent;
+			StatId = StatObject->GetStatID(true);
 		}
-		StatId = StatObject->GetStatID(true);
+		else
+		{
+			StatId = InProxyDesc.GetStatID(true);
+		}
 	}
 #endif
 
 #if MESH_DRAW_COMMAND_STATS
-	MeshDrawCommandStatsCategory = InComponent->GetMeshDrawCommandStatsCategory();
+	MeshDrawCommandStatsCategory = InProxyDesc.GetMeshDrawCommandStatsCategory();
 #endif
 
 	if (bNeedsUnbuiltPreviewLighting && !bHasValidSettingsForStaticLighting)
@@ -426,34 +562,29 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const UPrimitiveComponent* InComponen
 		bNeedsUnbuiltPreviewLighting = false;
 	}
 	
-	if(InComponent->GetOwner())
 	{
-		DrawInGame &= !(InComponent->GetOwner()->IsHidden());
+		DrawInGame &= !InProxyDesc.IsHidden();
 		#if WITH_EDITOR
-			DrawInEditor &= !InComponent->GetOwner()->IsHiddenEd();
+			DrawInEditor &= !InProxyDesc.IsHiddenEd();
 		#endif
 
 		if(bOnlyOwnerSee || bOwnerNoSee || bUseViewOwnerDepthPriorityGroup)
 		{
-			// Make a list of the actors which directly or indirectly own the component.
-			for(const AActor* Owner = InComponent->GetOwner();Owner;Owner = Owner->GetOwner())
-			{
-				Owners.Add(Owner);
-			}
+			Owners = MoveTemp(InProxyDesc.ActorOwners);
 		}
 
 #if WITH_EDITOR
 		// cache the actor's group membership
-		HiddenEditorViews = InComponent->GetHiddenEditorViews();
-		DrawInAnyEditMode = InComponent->GetOwner()->IsEditorOnly();
-		bIsFoliage = FFoliageHelper::IsOwnedByFoliage(InComponent->GetOwner());
+		HiddenEditorViews = InProxyDesc.GetHiddenEditorViews();
+		DrawInAnyEditMode = InProxyDesc.IsEditorOnly();
+		bIsFoliage = InProxyDesc.IsOwnedByFoliage();
 #endif
-	}
+	}	
 
 	// Setup the runtime virtual texture information
 	if (UseVirtualTexturing(GetScene().GetFeatureLevel()))
 	{
-		for (URuntimeVirtualTexture* VirtualTexture : InComponent->GetRuntimeVirtualTextures())
+		for (URuntimeVirtualTexture* VirtualTexture : InProxyDesc.GetRuntimeVirtualTextures())
 		{
 			if (VirtualTexture != nullptr)
 			{
@@ -464,26 +595,30 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const UPrimitiveComponent* InComponen
 	}
 
 	// Conditionally remove from the main passes based on the runtime virtual texture setup
-	const bool bRequestVirtualTexture = InComponent->GetRuntimeVirtualTextures().Num() > 0;
+	const bool bRequestVirtualTexture = InProxyDesc.GetRuntimeVirtualTextures().Num() > 0;
 	if (bRequestVirtualTexture)
 	{
-		ERuntimeVirtualTextureMainPassType MainPassType = InComponent->GetVirtualTextureRenderPassType();
+		ERuntimeVirtualTextureMainPassType MainPassType = InProxyDesc.GetVirtualTextureRenderPassType();
 		bVirtualTextureMainPassDrawNever = MainPassType == ERuntimeVirtualTextureMainPassType::Never;
 		bVirtualTextureMainPassDrawAlways = MainPassType == ERuntimeVirtualTextureMainPassType::Always;
 	}
 
 	// Modify max draw distance for main pass if we are using virtual texturing
 	const bool bUseVirtualTexture = RuntimeVirtualTextures.Num() > 0;
-	if (bUseVirtualTexture && InComponent->GetVirtualTextureMainPassMaxDrawDistance() > 0.f)
+	if (bUseVirtualTexture && InProxyDesc.GetVirtualTextureMainPassMaxDrawDistance() > 0.f)
 	{
-		MaxDrawDistance = FMath::Min(MaxDrawDistance, InComponent->GetVirtualTextureMainPassMaxDrawDistance());
+		MaxDrawDistance = FMath::Min(MaxDrawDistance, InProxyDesc.GetVirtualTextureMainPassMaxDrawDistance());
 	}
 
-#if WITH_EDITOR
+#if WITH_EDITOR	
 	const bool bGetDebugMaterials = true;
-	InComponent->GetUsedMaterials(UsedMaterialsForVerification, bGetDebugMaterials);
+	InProxyDesc.GetUsedMaterials(UsedMaterialsForVerification, bGetDebugMaterials);
 
-	FObjectCacheEventSink::NotifyUsedMaterialsChanged_Concurrent(InComponent, UsedMaterialsForVerification);
+	// If InProxyDesc can't provide a PrimitiveComponentInterface we can't be notified about updates
+	if (InProxyDesc.GetPrimitiveComponentInterface())
+	{
+		FObjectCacheEventSink::NotifyUsedMaterialsChanged_Concurrent(InProxyDesc.GetPrimitiveComponentInterface(), UsedMaterialsForVerification);
+	}
 #endif
 
 	bAnyMaterialHasWorldPositionOffset = false;
@@ -492,7 +627,7 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const UPrimitiveComponent* InComponen
 		ERHIFeatureLevel::Type FeatureLevel = GetScene().GetFeatureLevel();
 
 		TArray<UMaterialInterface*> UsedMaterials;
-		InComponent->GetUsedMaterials(UsedMaterials);
+		InProxyDesc.GetUsedMaterials(UsedMaterials);
 		for (const UMaterialInterface* MaterialInterface : UsedMaterials)
 		{
 			if (MaterialInterface)
@@ -507,7 +642,7 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const UPrimitiveComponent* InComponen
 	}
 
 	bAlwaysHasVelocity = CVarVelocityForceOutput.GetValueOnAnyThread();
-	if (!bAlwaysHasVelocity && InComponent->SupportsWorldPositionOffsetVelocity() && VertexDeformationOutputsVelocity() && bAnyMaterialHasWorldPositionOffset)
+	if (!bAlwaysHasVelocity && InProxyDesc.SupportsWorldPositionOffsetVelocity() && VertexDeformationOutputsVelocity() && bAnyMaterialHasWorldPositionOffset)
 	{
 		bHasWorldPositionOffsetVelocity = true;
 	}
@@ -537,8 +672,11 @@ FPrimitiveSceneProxy::~FPrimitiveSceneProxy()
 {
 }
 
+// Invoked by SceneProxy types who still create their proxies through the legacy path
 HHitProxy* FPrimitiveSceneProxy::CreateHitProxies(UPrimitiveComponent* Component,TArray<TRefCountPtr<HHitProxy> >& OutHitProxies)
 {
+	check(Component);
+
 	if(Component->GetOwner())
 	{
 		HHitProxy* ActorHitProxy;
@@ -562,6 +700,19 @@ HHitProxy* FPrimitiveSceneProxy::CreateHitProxies(UPrimitiveComponent* Component
 	{
 		return NULL;
 	}
+}
+
+HHitProxy* FPrimitiveSceneProxy::CreateHitProxies(IPrimitiveComponent* ComponentInterface,TArray<TRefCountPtr<HHitProxy> >& OutHitProxies)
+{
+	// Support for legacy path for proxy creation, if not handled invoke the IPrimitiveComponentInterface path
+	if (UPrimitiveComponent* PrimitiveComponent =  ComponentInterface->GetUObject<UPrimitiveComponent>())
+	{		
+		HHitProxy* OutProxy = CreateHitProxies(PrimitiveComponent, OutHitProxies);
+		if (OutProxy)
+			return OutProxy;
+	}
+
+	return ComponentInterface->CreateHitProxies(OutHitProxies);
 }
 
 FPrimitiveViewRelevance FPrimitiveSceneProxy::GetViewRelevance(const FSceneView* View) const
@@ -1813,3 +1964,13 @@ ERayTracingPrimitiveFlags FPrimitiveSceneProxy::GetCachedRayTracingInstance(FRay
 	return ResultFlags;
 }
 #endif
+
+void FPrimitiveSceneProxyDesc::GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials) const 
+{
+	// Only UPrimitiveComponent should rely on this method 
+	const UPrimitiveComponent* AsComponent = Cast<UPrimitiveComponent>(Component);
+	check(AsComponent);
+	
+	return AsComponent->GetUsedMaterials(OutMaterials, bGetDebugMaterials);	
+}
+

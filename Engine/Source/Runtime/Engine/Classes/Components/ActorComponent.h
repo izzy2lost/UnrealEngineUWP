@@ -31,6 +31,7 @@ class ULevel;
 class UWorld;
 class UPrimitiveComponent;
 struct FSimpleMemberReference;
+class IPrimitiveComponent;
 
 ENGINE_API extern int32 GEnableDeferredPhysicsCreation;
 
@@ -98,6 +99,7 @@ FORCEINLINE EUpdateTransformFlags SkipPhysicsToEnum(bool bSkipPhysics){ return b
 
 class FSceneInterface;
 extern ENGINE_API void UpdateAllPrimitiveSceneInfosForSingleComponent(UActorComponent* InComponent, TSet<FSceneInterface*>* InScenesToUpdateAllPrimitiveSceneInfosForBatching = nullptr);
+extern ENGINE_API void UpdateAllPrimitiveSceneInfosForSingleComponentInterface(IPrimitiveComponent* InComponent, TSet<FSceneInterface*>* InScenesToUpdateAllPrimitiveSceneInfosForBatching = nullptr);
 extern ENGINE_API void UpdateAllPrimitiveSceneInfosForScenes(TSet<FSceneInterface*> ScenesToUpdateAllPrimitiveSceneInfos);
 
 class UActorComponent;

@@ -803,11 +803,13 @@ void FDistanceFieldAsyncQueue::ProcessAsyncTasks(bool bLimitExecutionTime)
 			// Renderstates are not initialized between UStaticMesh::PreEditChange() and UStaticMesh::PostEditChange()
 			if (RenderData->IsInitialized())
 			{
-				for (UStaticMeshComponent* Component : ObjectCacheScope.GetContext().GetStaticMeshComponents(Task->StaticMesh))
+				for (IStaticMeshComponent* Component : ObjectCacheScope.GetContext().GetStaticMeshComponents(Task->StaticMesh))
 				{
-					if (Component->IsRegistered() && Component->IsRenderStateCreated())
+					IPrimitiveComponent* PrimitiveComponent = Component->GetPrimitiveComponentInterface();
+
+					if (PrimitiveComponent->IsRegistered() && PrimitiveComponent->IsRenderStateCreated())
 					{
-						Component->MarkRenderStateDirty();
+						PrimitiveComponent->MarkRenderStateDirty();
 					}
 				}
 			}

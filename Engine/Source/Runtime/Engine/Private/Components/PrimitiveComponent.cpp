@@ -45,6 +45,7 @@
 #include "UObject/ObjectSaveContext.h"
 #include "Engine/DamageEvents.h"
 #include "MeshUVChannelInfo.h"
+#include "PrimitiveSceneDesc.h"
 
 #if WITH_EDITOR
 #include "Engine/LODActor.h"
@@ -271,12 +272,6 @@ uint32 UPrimitiveComponent::GlobalOverlapEventsCounter = 0;
 
 FName UPrimitiveComponent::RVTActorDescProperty(TEXT("RVT"));
 
-// 0 is reserved to mean invalid
-FThreadSafeCounter UPrimitiveComponent::NextRegistrationSerialNumber;
-
-// 0 is reserved to mean invalid
-FThreadSafeCounter UPrimitiveComponent::NextComponentId;
-
 UPrimitiveComponent::UPrimitiveComponent(FVTableHelper& Helper) : Super(Helper) { }
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS;
@@ -286,8 +281,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 UPrimitiveComponent::UPrimitiveComponent(const FObjectInitializer& ObjectInitializer /*= FObjectInitializer::Get()*/)
 	: Super(ObjectInitializer)
 {
-	LastRenderTime = -1000.0f;
-	LastRenderTimeOnScreen = -1000.0f;
 	OcclusionBoundsSlack = 0.f;
 	BoundsScale = 1.0f;
 	MinDrawDistance = 0.0f;
@@ -325,7 +318,6 @@ UPrimitiveComponent::UPrimitiveComponent(const FObjectInitializer& ObjectInitial
 	CanBeCharacterBase_DEPRECATED = ECB_Yes;
 #endif
 	CanCharacterStepUpOn = ECB_Yes;
-	ComponentId.PrimIDValue = NextComponentId.Increment();
 	CustomDepthStencilValue = 0;
 	CustomDepthStencilWriteMask = ERendererStencilMask::ERSM_Default;
 	RayTracingGroupId = FPrimitiveSceneProxy::InvalidRayTracingGroupId;
@@ -635,11 +627,17 @@ void UPrimitiveComponent::SendRenderTransform_Concurrent()
 
 void UPrimitiveComponent::OnRegister()
 {
-	Super::OnRegister();
-
+	// Both those are initalized before call Super::OnRegister since the primitive can be added to the scene
+	// before this method completes, for example through FNiagaraSystem::PollForCompilationComplete()
+	 
+	// Setup our ptr to the OwnerLastRenderTimer for rendering time feedback from the renderer
+	SceneData.OwnerLastRenderTimePtr = FActorLastRenderTime::GetPtr(GetOwner());
+	
 	// Deterministically track primitives via registration sequence numbers.
-	RegistrationSerialNumber = NextRegistrationSerialNumber.Increment();
+ 	SceneData.RegistrationSerialNumber = FPrimitiveSceneInfoData::GetNextRegistrationSerialNumber(); 
 
+	Super::OnRegister();
+	
 	if (bCanEverAffectNavigation)
 	{
 		const bool bNavRelevant = bNavigationRelevant = IsNavigationRelevant();
@@ -662,12 +660,14 @@ void UPrimitiveComponent::OnRegister()
 #endif
 
 	// Update our Owner's LastRenderTime
-	SetLastRenderTime(LastRenderTime);
+	SetLastRenderTime(SceneData.LastRenderTime);
 }
 
 
 void UPrimitiveComponent::OnUnregister()
 {
+	SceneData.OwnerLastRenderTimePtr = nullptr;
+
 	// If this is being garbage collected we don't really need to worry about clearing this
 	if (!HasAnyFlags(RF_BeginDestroyed) && !IsUnreachable())
 	{
@@ -1553,7 +1553,7 @@ bool UPrimitiveComponent::IsReadyForFinishDestroy()
 void UPrimitiveComponent::FinishDestroy()
 {
 	// The detach fence has cleared so we better not be attached to the scene.
-	check(AttachmentCounter.GetValue() == 0);
+	check(SceneData.AttachmentCounter.GetValue() == 0);
 	Super::FinishDestroy();
 }
 
@@ -4508,12 +4508,12 @@ bool UPrimitiveComponent::WasRecentlyRendered(float Tolerance /*= 0.2*/) const
 
 void UPrimitiveComponent::SetLastRenderTime(float InLastRenderTime)
 {
-	LastRenderTime = InLastRenderTime;
+	SceneData.LastRenderTime = InLastRenderTime;
 	if (AActor* Owner = GetOwner())
 	{
-		if (LastRenderTime > Owner->GetLastRenderTime())
+		if (InLastRenderTime > Owner->GetLastRenderTime())
 		{
-			FActorLastRenderTime::Set(Owner, LastRenderTime);
+			FActorLastRenderTime::Set(Owner, InLastRenderTime);
 		}
 	}
 }
@@ -4714,6 +4714,155 @@ void UPrimitiveComponent::SetExcludedFromHLODLevel(EHLODLevelExclusion HLODLevel
 	{
 		EnumRemoveFlags((EHLODLevelExclusion&)ExcludeFromHLODLevels, HLODLevel);
 	}
+}
+
+void UPrimitiveComponent::GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) const
+{
+	// no default values returned
+}
+
+bool FActorPrimitiveComponentInterface::IsRenderStateCreated() const 
+{
+	return UPrimitiveComponent::GetPrimitiveComponent(this)->IsRenderStateCreated();
+}
+
+bool FActorPrimitiveComponentInterface::IsRenderStateDirty() const 
+{
+	return UPrimitiveComponent::GetPrimitiveComponent(this)->IsRenderStateDirty();
+}
+
+bool FActorPrimitiveComponentInterface::ShouldCreateRenderState() const 
+{
+	return UPrimitiveComponent::GetPrimitiveComponent(this)->ShouldCreateRenderState();
+}
+
+bool FActorPrimitiveComponentInterface::IsRegistered() const 
+{
+	return UPrimitiveComponent::GetPrimitiveComponent(this)->IsRegistered();
+}
+
+bool FActorPrimitiveComponentInterface::IsUnreachable() const 
+{
+	return UPrimitiveComponent::GetPrimitiveComponent(this)->IsUnreachable();
+}
+
+UWorld* FActorPrimitiveComponentInterface::GetWorld() const 
+{
+	return UPrimitiveComponent::GetPrimitiveComponent(this)->GetWorld();
+}
+
+FSceneInterface* FActorPrimitiveComponentInterface::GetScene() const 
+{
+	return UPrimitiveComponent::GetPrimitiveComponent(this)->GetScene();
+}
+
+FPrimitiveSceneProxy* FActorPrimitiveComponentInterface::GetSceneProxy() const 
+{
+	return UPrimitiveComponent::GetPrimitiveComponent(this)->SceneProxy;
+}
+
+void FActorPrimitiveComponentInterface::GetUsedMaterials(TArray<UMaterialInterface*> OutMaterials, bool bGetDebugMaterials) const
+{
+	UPrimitiveComponent::GetPrimitiveComponent(this)->GetUsedMaterials(OutMaterials, bGetDebugMaterials);
+}
+
+void FActorPrimitiveComponentInterface::MarkRenderStateDirty()
+{
+	UPrimitiveComponent::GetPrimitiveComponent(this)->MarkRenderStateDirty();
+}
+
+void FActorPrimitiveComponentInterface::DestroyRenderState() 
+{
+	UPrimitiveComponent::GetPrimitiveComponent(this)->DestroyRenderState_Concurrent();
+}
+
+void FActorPrimitiveComponentInterface::CreateRenderState(FRegisterComponentContext* Context) 
+{
+	UPrimitiveComponent::GetPrimitiveComponent(this)->CreateRenderState_Concurrent(Context);
+}
+
+FString FActorPrimitiveComponentInterface::GetName() const 
+{
+	return UPrimitiveComponent::GetPrimitiveComponent(this)->GetName();
+}
+
+FString FActorPrimitiveComponentInterface::GetFullName() const 
+{
+	return UPrimitiveComponent::GetPrimitiveComponent(this)->GetFullName();
+}
+
+FTransform FActorPrimitiveComponentInterface::GetTransform() const 
+{
+	return UPrimitiveComponent::GetPrimitiveComponent(this)->GetComponentTransform();
+}
+
+FBoxSphereBounds FActorPrimitiveComponentInterface::GetBounds() const 
+{
+	return UPrimitiveComponent::GetPrimitiveComponent(this)->Bounds;
+}
+
+float FActorPrimitiveComponentInterface::GetLastRenderTimeOnScreen() const 
+{
+	return UPrimitiveComponent::GetPrimitiveComponent(this)->GetLastRenderTimeOnScreen();
+}
+
+void FActorPrimitiveComponentInterface::GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) const
+{
+return UPrimitiveComponent::GetPrimitiveComponent(this)->GetPrimitiveStats(PrimitiveStats);
+}
+
+
+UObject* FActorPrimitiveComponentInterface::GetUObject() 
+{
+	return UPrimitiveComponent::GetPrimitiveComponent(this);
+}
+
+const UObject* FActorPrimitiveComponentInterface::GetUObject() const 
+{
+	return UPrimitiveComponent::GetPrimitiveComponent(this);
+}
+
+UObject* FActorPrimitiveComponentInterface::GetOwner() const 
+{
+	return UPrimitiveComponent::GetPrimitiveComponent(this)->GetOwner();
+}
+
+FString FActorPrimitiveComponentInterface::GetOwnerName() const 
+{
+	const UPrimitiveComponent* Component = UPrimitiveComponent::GetPrimitiveComponent(this);
+
+#if ACTOR_HAS_LABELS
+	return Component->GetOwner() ? Component->GetOwner()->GetActorNameOrLabel() : Component->GetName();
+#else
+	return Component->GetName();
+#endif
+}
+
+FPrimitiveSceneProxy* FActorPrimitiveComponentInterface::CreateSceneProxy() 
+{
+	UPrimitiveComponent* Component = UPrimitiveComponent::GetPrimitiveComponent(this);
+	check(Component->SceneProxy == nullptr && Component->SceneData.SceneProxy == nullptr);
+	FPrimitiveSceneProxy* Proxy = Component->CreateSceneProxy();
+	Component->SceneData.SceneProxy = Proxy;
+	Component->SceneProxy = Proxy;
+	return Proxy;
+}
+
+#if WITH_EDITOR
+
+HHitProxy* FActorPrimitiveComponentInterface::CreateHitProxy(int32 SectionIndex, int32 MaterialIndex) 
+{
+	UPrimitiveComponent* Component = UPrimitiveComponent::GetPrimitiveComponent(this);	
+	return Component->CreateHitProxy(SectionIndex, MaterialIndex);	
+}
+#endif
+
+HHitProxy* FActorPrimitiveComponentInterface::CreateHitProxies(TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) 
+{
+	// As of now the legacy path in FPrimitiveSceneProxy::CreateHitProxies that takes a UPrimitiveComponent* is used to 
+	// create hit proxies for AActors/UPrimitiveComponent, we'll re-evaluate how we proceed for non-UPrimitiveComponents
+	// when support for this is implemented entirely
+	return nullptr; 
 }
 
 #undef LOCTEXT_NAMESPACE
