@@ -8,6 +8,7 @@ using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Api;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Clients;
 using EpicGames.Horde.Compute.Transports;
@@ -50,14 +51,20 @@ namespace Horde.Server.Compute
 		public IReadOnlyList<string> Properties { get; }
 
 		/// <summary>
+		/// Lease id on the remote machine
+		/// </summary>
+		public LeaseId LeaseId { get; }
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ComputeResource(IPAddress ip, int port, ComputeTask task, IReadOnlyList<string> properties)
+		public ComputeResource(IPAddress ip, int port, ComputeTask task, IReadOnlyList<string> properties, LeaseId leaseId)
 		{
 			Ip = ip;
 			Port = port;
 			Task = task;
 			Properties = properties;
+			LeaseId = leaseId;
 		}
 	}
 
