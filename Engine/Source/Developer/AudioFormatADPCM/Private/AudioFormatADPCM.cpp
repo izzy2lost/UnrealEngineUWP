@@ -616,6 +616,13 @@ public:
 				SrcSize -= SizeOfNewChunk;
 				SrcData += SizeOfNewChunk;
 
+				// Handle bad data. If there's less than a single frame remaining
+				// bail, otherwise we can get stuck.
+				if (SrcSize < FrameSize)
+				{
+					break;
+				}
+
 				if (SrcSize > 0)
 				{
 					DataLeftInCurChunk = MaxChunkSize;
