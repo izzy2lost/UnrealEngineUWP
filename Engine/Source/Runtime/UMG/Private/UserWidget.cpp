@@ -1063,6 +1063,7 @@ void UUserWidget::SetVisibility(ESlateVisibility InVisibility)
 void UUserWidget::SetPlayerContext(const FLocalPlayerContext& InPlayerContext)
 {
 	PlayerContext = InPlayerContext;
+	CachedWorld.Reset();
 
 	if (WidgetTree)
 	{
@@ -1097,6 +1098,7 @@ void UUserWidget::SetOwningLocalPlayer(ULocalPlayer* LocalPlayer)
 	if ( LocalPlayer )
 	{
 		PlayerContext = FLocalPlayerContext(LocalPlayer, GetWorld());
+		CachedWorld.Reset();
 	}
 }
 
@@ -1110,6 +1112,7 @@ void UUserWidget::SetOwningPlayer(APlayerController* LocalPlayerController)
 	if (LocalPlayerController && LocalPlayerController->IsLocalController())
 	{
 		PlayerContext = FLocalPlayerContext(LocalPlayerController);
+		CachedWorld.Reset();
 	}
 }
 
