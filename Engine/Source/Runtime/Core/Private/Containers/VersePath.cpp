@@ -3,8 +3,6 @@
 #include "Containers/VersePath.h"
 #include "Misc/Char.h"
 
-#if UE_USE_VERSE_PATHS
-
 namespace UE::VersePath::Private
 {
 	struct FNullTerminal
@@ -284,5 +282,3 @@ FString UE::Core::MangleGuidToVerseIdent(const FString& Guid)
 	Ident.ReplaceInline(TEXT("}"), TEXT(""), ESearchCase::CaseSensitive);
 	return Ident;
 }
-
-#endif // #if UE_USE_VERSE_PATHS

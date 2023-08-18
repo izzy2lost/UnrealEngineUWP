@@ -16,10 +16,8 @@
 #include "Misc/ConfigCacheIni.h"
 #include "Containers/VersePath.h"
 
-#if UE_USE_VERSE_PATHS
 #include "Misc/PathViews.h"
 #include "Interfaces/IPluginManager.h"
-#endif
 
 /***********************/
 /******** Names ********/
@@ -206,8 +204,6 @@ UPackage* UObjectBaseUtility::GetPackage() const
 	}
 }
 
-#if UE_USE_VERSE_PATHS
-
 UE::Core::FVersePath UObjectBaseUtility::GetVersePath() const
 {
 	UObject* ThisOuter = GetOuter();
@@ -290,8 +286,6 @@ UE::Core::FVersePath UObjectBaseUtility::GetVersePath() const
 
 	return Result;
 }
-
-#endif
 
 /**
  * Legacy function, has the same behavior as GetPackage

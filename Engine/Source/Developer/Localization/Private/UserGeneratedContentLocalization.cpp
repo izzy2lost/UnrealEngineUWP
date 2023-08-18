@@ -313,7 +313,6 @@ bool ExportLocalization(TArrayView<const TSharedRef<IPlugin>> Plugins, const FEx
 				}
 			}
 
-#if WITH_VERSE
 			// Gather Verse
 			if (ExportOptions.bGatherVerse && Plugin->CanContainVerse())
 			{
@@ -325,7 +324,6 @@ bool ExportLocalization(TArrayView<const TSharedRef<IPlugin>> Plugins, const FEx
 				ConfigSection.Add(TEXT("ExcludePathFilters"), FPaths::ConvertRelativePathToFull(FPaths::Combine(Plugin->GetContentDir(), TEXT("Localization"), TEXT("*"))));
 				ConfigSection.Add(TEXT("ExcludePathFilters"), FPaths::ConvertRelativePathToFull(FPaths::Combine(Plugin->GetContentDir(), TEXT("L10N"), TEXT("*"))));
 			}
-#endif	// WITH_VERSE
 
 			// Generate manifest
 			{

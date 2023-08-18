@@ -773,15 +773,6 @@ namespace UnrealBuildTool
 		public bool bEnableMeshEditor = false;
 
 		/// <summary>
-		/// Whether to use the verse script interface.
-		/// </summary>
-		[RequiresUniqueBuildEnvironment]
-		[CommandLine("-NoUseVerse", Value = "false")]
-		[CommandLine("-UseVerse", Value = "true")]
-		[XmlConfigFile(Category = "BuildConfiguration")]
-		public bool bUseVerse = true;
-
-		/// <summary>
 		/// Whether to use the BPVM to run Verse.
 		/// </summary>
 		[RequiresUniqueBuildEnvironment]
@@ -3059,8 +3050,6 @@ namespace UnrealBuildTool
 
 		public EGeneratedCodeVersion GeneratedCodeVersion => Inner.GeneratedCodeVersion;
 		public bool bEnableMeshEditor => Inner.bEnableMeshEditor;
-
-		public bool bUseVerse => Inner.bUseVerse;
 
 		public bool bUseVerseBPVM => Inner.bUseVerseBPVM;
 

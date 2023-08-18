@@ -505,7 +505,6 @@ IModuleInterface* FModuleManager::LoadModuleWithFailureReason(const FName InModu
 			FScopedBootTiming BootScope("LoadModule  - ", InModuleName);
 			TRACE_LOADTIME_REQUEST_GROUP_SCOPE(TEXT("LoadModule - %s"), *InModuleName.ToString());
 
-#if USE_PER_MODULE_UOBJECT_BOOTSTRAP || WITH_VERSE
 			{
 				// Defer String Table find/load during CDO registration, as it may happen 
 				// before StartupModule has had a chance to load the String Table
@@ -513,7 +512,6 @@ IModuleInterface* FModuleManager::LoadModuleWithFailureReason(const FName InModu
 
 				ProcessLoadedObjectsCallback.Broadcast(InModuleName, bCanProcessNewlyLoadedObjects);
 			}
-#endif
 
 			// Startup the module
 			{

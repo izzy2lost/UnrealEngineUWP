@@ -2519,12 +2519,9 @@ namespace UnrealBuildTool
 			Task VNITask = Task.Run(() =>
 			{
 				// Prepare cached data for VNI header generation
-				if (Rules.bUseVerse)
+				using (Timeline.ScopeEvent("ExternalExecution.SetupVNIModules()"))
 				{
-					using (Timeline.ScopeEvent("ExternalExecution.SetupVNIModules()"))
-					{
-						VNIExecution.SetupVNIModules(ModulesToGenerateHeadersFor, RulesAssembly, out Makefile.VNIModules);
-					}
+					VNIExecution.SetupVNIModules(ModulesToGenerateHeadersFor, RulesAssembly, out Makefile.VNIModules);
 				}
 
 				// Copy Verse BPVM usage flag
@@ -3982,7 +3979,7 @@ namespace UnrealBuildTool
 
 			// Exclude additional modules that were added only for include-path-only purposes, and those that will have their Verse dependency satisfied
 			HashSet<UEBuildModuleCPP> ValidModules = new HashSet<UEBuildModuleCPP>(
-				AllModules.OfType<UEBuildModuleCPP>().Where(x => x.PrivateIncludePathModules != null && (!x.bDependsOnVerse || Rules.bUseVerse)));
+				AllModules.OfType<UEBuildModuleCPP>().Where(x => x.PrivateIncludePathModules != null));
 
 			// Make sure precompiled modules don't reference any non-precompiled modules
 			foreach (UEBuildModuleCPP ValidModule in ValidModules)
@@ -4921,16 +4918,9 @@ namespace UnrealBuildTool
 				GlobalCompileEnvironment.Definitions.Add("UE_TRACE_ENABLED=0");
 			}
 
-			if (Rules.bUseVerse)
-			{
-				GlobalCompileEnvironment.Definitions.Add("WITH_VERSE=1");
-				GlobalCompileEnvironment.Definitions.Add("UE_USE_VERSE_PATHS=1");
-			}
-			else
-			{
-				GlobalCompileEnvironment.Definitions.Add("WITH_VERSE=0");
-				GlobalCompileEnvironment.Definitions.Add("UE_USE_VERSE_PATHS=0");
-			}
+			// TODO - Sooner or later these should be removed.  bUseVerse has already been removed
+			GlobalCompileEnvironment.Definitions.Add("WITH_VERSE=1");
+			GlobalCompileEnvironment.Definitions.Add("UE_USE_VERSE_PATHS=1");
 
 			if (Rules.bUseVerseBPVM)
 			{
@@ -5478,12 +5468,6 @@ namespace UnrealBuildTool
 				}
 
 				Modules.Add(Module.Name, Module);
-
-				// Module must not have Verse if Verse is not enabled
-				if (Module.bHasVerse && !Rules.bUseVerse && !Rules.bBuildAllModules && !ProjectFileGenerator.bGenerateProjectFiles)
-				{
-					Logger.LogInformation("Module '{ModuleName}' has associated Verse code but target '{TargetName}' does not have Verse enabled. C++ include errors are likely to follow.", Module.Name, TargetName);
-				}
 			}
 
 			// Warn if the module reference has incorrect text case

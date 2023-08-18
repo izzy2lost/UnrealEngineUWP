@@ -888,10 +888,8 @@ public:
 	/** Get the common tag name used for all asset source file import paths */
 	static COREUOBJECT_API const FName& SourceFileTagName();
 
-#if UE_USE_VERSE_PATHS
 	/** Get the common tag name used for all asset verse paths */
 	static COREUOBJECT_API const FName& AssetVersePathTagName();
-#endif
 
 #if WITH_EDITOR
 

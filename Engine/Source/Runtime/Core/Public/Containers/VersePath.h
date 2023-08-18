@@ -9,8 +9,6 @@
 #include "CoreMinimal.h"
 #include "VersePathFwd.h"
 
-#if UE_USE_VERSE_PATHS
-
 class UE::Core::FVersePath
 {
 	friend bool operator==(const FVersePath& Lhs, const FVersePath& Rhs);
@@ -91,5 +89,3 @@ FORCEINLINE uint32 GetTypeHash(const UE::Core::FVersePath& VersePath) // Must be
 {
 	return GetTypeHash(VersePath.AsStringView());
 }
-
-#endif // #if UE_USE_VERSE_PATHS

@@ -593,14 +593,12 @@ public:
 	 */
 	COREUOBJECT_API UPackage* GetPackage() const;
 
-#if UE_USE_VERSE_PATHS
 	/**
 	 * Gets the versepath of the UObject.
 	 *
 	 * @return The VersePath of the object
 	 */
 	COREUOBJECT_API UE::Core::FVersePath GetVersePath() const;
-#endif
 
 	/** 
 	 * Legacy function, has the same behavior as GetPackage

@@ -76,9 +76,7 @@
 #include "AutoRTFM/AutoRTFM.h"
 #include "UObject/PropertyOptional.h"
 
-#if UE_USE_VERSE_PATHS
 #include "Interfaces/IPluginManager.h"
-#endif
 
 
 DEFINE_LOG_CATEGORY(LogUObjectGlobals);
@@ -522,7 +520,6 @@ UObject* StaticFindObjectSafe(UClass* Class, FTopLevelAssetPath ObjectPath, bool
 	}
 }
 
-#if UE_USE_VERSE_PATHS
 FORCENOINLINE UObject* StaticFindObject(UClass* Class, const UE::Core::FVersePath& VersePath)
 {
 	IPluginManager& PluginManager = IPluginManager::Get();
@@ -548,7 +545,6 @@ FORCENOINLINE UObject* StaticFindObject(UClass* Class, const UE::Core::FVersePat
 	UObject* Result = StaticFindObject(Class, nullptr, *ObjectPath);
 	return Result;
 }
-#endif
 
 //
 // Find an object; can't fail.

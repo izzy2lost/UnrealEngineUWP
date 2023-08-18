@@ -3071,7 +3071,6 @@ FName FPluginManager::PackageNameFromModuleName(FName ModuleName)
 	return Result;
 }
 
-#if UE_USE_VERSE_PATHS
 bool FPluginManager::TrySplitVersePath(const UE::Core::FVersePath& VersePath, FName& OutPackageName, FString& OutLeafPath)
 {
 	// Can't do anything with an empty vpath
@@ -3099,7 +3098,6 @@ bool FPluginManager::TrySplitVersePath(const UE::Core::FVersePath& VersePath, FN
 
 	return false;
 }
-#endif // #if UE_USE_VERSE_PATHS
 
 #if WITH_EDITOR
 void FPluginManager::AddToModuleNameToPluginMap(const TSharedRef<FPlugin>& Plugin)

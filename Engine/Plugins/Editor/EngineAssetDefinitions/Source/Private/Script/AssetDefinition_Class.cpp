@@ -86,7 +86,6 @@ namespace MenuExtension_Class
 				{
 					UClass *const BaseClass = (CBContext->SelectedAssets.Num() == 1) ? Cast<UClass>(CBContext->SelectedAssets[0].GetAsset()) : nullptr;
 
-#if UE_USE_VERSE_PATHS
 					if (BaseClass)
 					{
 						TArray<UObject::FAssetRegistryTag> InTags;
@@ -101,7 +100,6 @@ namespace MenuExtension_Class
 							}
 						}
 					}
-#endif
 
 					// Only allow the New class option if we have a base class that we can actually derive from in one of our project modules
 					FGameProjectGenerationModule& GameProjectGenerationModule = FGameProjectGenerationModule::Get();

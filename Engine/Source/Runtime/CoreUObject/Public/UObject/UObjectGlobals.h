@@ -385,7 +385,6 @@ COREUOBJECT_API UObject* StaticFindObjectChecked( UClass* Class, UObject* InOute
 /** Internal version of StaticFindObject that will not assert on GIsSavingPackage or IsGarbageCollectingAndLockingUObjectHashTables() */
 COREUOBJECT_API UObject* StaticFindObjectSafe( UClass* Class, UObject* InOuter, const TCHAR* Name, bool ExactClass=false );
 
-#if UE_USE_VERSE_PATHS
 /**
  * Tries to find an object in memory, using a Verse path.
  *
@@ -396,7 +395,6 @@ COREUOBJECT_API UObject* StaticFindObjectSafe( UClass* Class, UObject* InOuter, 
  * @return	Returns a pointer to the found object or nullptr if none could be found
  */
 COREUOBJECT_API UObject* StaticFindObject(UClass* Class, const UE::Core::FVersePath& VersePath);
-#endif
 
 /**
  * Tries to find an object in memory. This version uses FTopLevelAssetPath to find the object.

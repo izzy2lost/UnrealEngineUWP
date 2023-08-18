@@ -2151,12 +2151,10 @@ void UObject::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 		OutTags.Add(FAssetRegistryTag(FPrimaryAssetId::PrimaryAssetNameTag, PrimaryAssetId.PrimaryAssetName.ToString(), UObject::FAssetRegistryTag::TT_Alphabetical));
 	}
 
-#if UE_USE_VERSE_PATHS
 	if (UE::Core::FVersePath VersePath = this->GetVersePath())
 	{
 		OutTags.Emplace(UObject::AssetVersePathTagName(), MoveTemp(VersePath).ToString(), UObject::FAssetRegistryTag::TT_Alphabetical);
 	}
-#endif
 
 	GetAssetRegistryTagsFromSearchableProperties(this, OutTags);
 
@@ -2243,13 +2241,11 @@ const FName& UObject::SourceFileTagName()
 	return SourceFilePathName;
 }
 
-#if UE_USE_VERSE_PATHS
 const FName& UObject::AssetVersePathTagName()
 {
 	static const FName AssetVersePathTag = TEXT("AssetVersePath");
 	return AssetVersePathTag;
 }
-#endif
 
 #if WITH_EDITOR
 
