@@ -15,5 +15,13 @@ public class WebTests : TestModuleRules
 				"Chaos",
 				"ChaosUserDataPT"
 			});
+		
+		UpdateBuildGraphPropertiesFile(new Metadata() { 
+			TestName = "Web", 
+			TestShortName = "Web", 
+			ReportType = "xml", 
+		});
 	}
 }
+
+
