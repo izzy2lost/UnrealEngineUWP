@@ -5,6 +5,10 @@
 #include "GlobalDistanceFieldShared.ush"
 #include "GlobalDistanceFieldUpdate.ush"
 
+#ifndef THREADGROUP_SIZE
+#define THREADGROUP_SIZE 0
+#endif
+
 StructuredBuffer<uint> GlobalDistanceFieldPageFreeListAllocatorBuffer;
 uint GlobalDistanceFieldMaxPageNum;
 
