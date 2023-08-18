@@ -533,7 +533,7 @@ void MobileEncodeGBuffer(
 	{
 		OutGBufferA.rg = UnitVectorToOctahedron( normalize(GBuffer.WorldNormal) ) * 0.5f + 0.5f;
 #if ALLOW_STATIC_LIGHTING
-		OutGBufferA.b = EncodeIndirectIrradiance(GBuffer.IndirectIrradiance * GBuffer.GBufferAO);
+		OutGBufferA.b = EncodeIndirectIrradiance(GBuffer.IndirectIrradiance);
 #else
 		OutGBufferA.b = 1;
 #endif
