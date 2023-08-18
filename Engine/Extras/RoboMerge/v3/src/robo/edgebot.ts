@@ -529,10 +529,7 @@ class EdgeBotImpl extends PerforceStatefulBot {
 
 		// We want to do a virtual merge unless the change is going to be (or could be
 		// in userRequest/reconsider case) handed off to the user
-		const doVirtualMerge = 
-			   info.forceStompChanges 
-			|| info.sendNoShelfNotification 
-		    || (!info.userRequest && !info.forceCreateAShelf && !target.flags.has('manual'))
+		const doVirtualMerge = !info.userRequest && !info.forceCreateAShelf && !target.flags.has('manual') 
 
 		this.currentIntegrationStartTimestamp = Date.now()
 		await this.p4.sync(info.targetWorkspaceOverride, this.targetBranch.rootPath + '#0', {edgeServerAddress})
