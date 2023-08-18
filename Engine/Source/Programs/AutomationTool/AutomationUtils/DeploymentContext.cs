@@ -168,6 +168,12 @@ public class DeploymentContext //: ProjectParams
 	public DirectoryReference DLCRoot;
 
 	/// <summary>
+	/// The list of AdditionalPluginDirectories from the project.uproject. Files in plugins in these
+	/// directories are staged into <StageRoot>/RemappedPlugins/PluginName.
+	/// </summary>
+	public List<DirectoryReference> AdditionalPluginDirectories;
+
+	/// <summary>
 	///  raw name used for platform subdirectories Win32
 	/// </summary>
 	public string PlatformDir;
@@ -407,7 +413,8 @@ public class DeploymentContext //: ProjectParams
 		bool IsClientInsteadOfNoEditor,
         bool InForceChunkManifests,
 		bool InSeparateDebugStageDirectory,
-		DirectoryReference InDLCRoot
+		DirectoryReference InDLCRoot,
+		List<DirectoryReference> InAdditionalPluginDirectories
 		)
 	{
 		bStageCrashReporter = InStageCrashReporter;
@@ -424,6 +431,7 @@ public class DeploymentContext //: ProjectParams
 		Stage = InStage;
 		Archive = InArchive;
 		DLCRoot = InDLCRoot;
+		AdditionalPluginDirectories = InAdditionalPluginDirectories;
 
         if (CookSourcePlatform != null && InCooked)
         {
@@ -738,34 +746,32 @@ public class DeploymentContext //: ProjectParams
 	public StagedFileReference GetStagedFileLocation(FileReference InputFile)
 	{
 		StagedFileReference OutputFile;
-		if(InputFile.IsUnderDirectory(ProjectRoot))
+		foreach (DirectoryReference AdditionalPluginDir in AdditionalPluginDirectories)
+		{
+			if (InputFile.IsUnderDirectory(AdditionalPluginDir))
+			{
+				// This is a plugin that lives outside of the Engine/Plugins or Game/Plugins directory so needs to be remapped for staging/packaging
+				// We need to remap C:\SomePath\PluginName\RelativePath to RemappedPlugins\PluginName\RelativePath
+				OutputFile = new StagedFileReference(
+					String.Format("RemappedPlugins/{0}", InputFile.MakeRelativeTo(AdditionalPluginDir)));
+				return OutputFile;
+			}
+		}
+
+		if (InputFile.IsUnderDirectory(ProjectRoot))
 		{
 			OutputFile = StagedFileReference.Combine(RelativeProjectRootForStage, InputFile.MakeRelativeTo(ProjectRoot));
 		}
-        else if (InputFile.HasExtension(".uplugin"))
-        {
-			DirectoryReference EnterpriseRoot = DirectoryReference.Combine(EngineRoot, "..", "Enterprise"); // Enterprise plugins aren't under the project additional plugin directories, so they shouldn't be remapped
-            if (InputFile.IsUnderDirectory(EngineRoot) || InputFile.IsUnderDirectory(EnterpriseRoot))
-			{
-				OutputFile = new StagedFileReference(InputFile.MakeRelativeTo(LocalRoot));
-			}
-            else
-			{
-				// This is a plugin that lives outside of the Engine/Plugins or Game/Plugins directory so needs to be remapped for staging/packaging
-				// We need to remap C:\SomePath\PluginName\PluginName.uplugin to RemappedPlugins\PluginName\PluginName.uplugin
-				OutputFile = new StagedFileReference(String.Format("RemappedPlugins/{0}/{1}", InputFile.GetFileNameWithoutExtension(), InputFile.GetFileName()));
-			}
-        }
-        else if (InputFile.IsUnderDirectory(LocalRoot))
-        {
+		else if (InputFile.IsUnderDirectory(LocalRoot))
+		{
 			OutputFile = new StagedFileReference(InputFile.MakeRelativeTo(LocalRoot));
-        }
-        else if (DLCRoot != null && InputFile.IsUnderDirectory(DLCRoot))
+		}
+		else if (DLCRoot != null && InputFile.IsUnderDirectory(DLCRoot))
 		{
 			OutputFile = new StagedFileReference(InputFile.MakeRelativeTo(DLCRoot));
 		}
 		else
-        {
+		{
 			throw new AutomationException("Can't deploy {0} because it doesn't start with {1} or {2}", InputFile, ProjectRoot, LocalRoot);
 		}
 		return OutputFile;

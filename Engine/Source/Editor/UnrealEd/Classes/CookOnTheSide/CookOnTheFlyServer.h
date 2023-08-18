@@ -1256,6 +1256,8 @@ private:
 
 	UNREALED_API FString GetContentDirectoryForDLC() const;
 
+	FString GetMetadataDirectory() const;
+
 	/**
 	 * Is the local CookOnTheFlyServer cooking a Project+Engine+EmbeddedPlugin Release that can be used as a
 	 * base for future DLC or Patches?

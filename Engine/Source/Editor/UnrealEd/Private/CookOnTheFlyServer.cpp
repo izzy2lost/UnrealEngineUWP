@@ -1200,6 +1200,12 @@ FString UCookOnTheFlyServer::GetContentDirectoryForDLC() const
 	return GetBaseDirectoryForDLC() / TEXT("Content");
 }
 
+FString UCookOnTheFlyServer::GetMetadataDirectory() const
+{
+	FString ProjectOrPluginRoot = !IsCookingDLC() ? FPaths::ProjectDir() : GetBaseDirectoryForDLC();
+	return ProjectOrPluginRoot / TEXT("Metadata");
+}
+
 // allow for a command line to start async preloading a Development AssetRegistry if requested
 static FEventRef GPreloadAREvent(EEventMode::ManualReset);
 static FEventRef GPreloadARInfoEvent(EEventMode::ManualReset);
@@ -7392,7 +7398,7 @@ bool UCookOnTheFlyServer::GetCurrentIniVersionStrings( const ITargetPlatform* Ta
 
 bool UCookOnTheFlyServer::GetCookedIniVersionStrings(const ITargetPlatform* TargetPlatform, UE::Cook::FIniSettingContainer& OutIniSettings, TMap<FString,FString>& OutAdditionalSettings) const
 {
-	const FString EditorIni = FPaths::ProjectDir() / TEXT("Metadata") / TEXT("CookedIniVersion.txt");
+	const FString EditorIni = GetMetadataDirectory() / TEXT("CookedIniVersion.txt");
 	const FString SandboxEditorIni = ConvertToFullSandboxPath(*EditorIni, true);
 
 
@@ -7691,7 +7697,7 @@ TMap<FName, FString> UCookOnTheFlyServer::CalculateCookSettingStrings() const
 
 FString UCookOnTheFlyServer::GetCookSettingsFileName(const ITargetPlatform* TargetPlatform) const
 {
-	FString CookedSettingsIni = FPaths::ProjectDir() / TEXT("Metadata") / TEXT("CookedSettings.txt");
+	FString CookedSettingsIni = GetMetadataDirectory() / TEXT("CookedSettings.txt");
 	return ConvertToFullSandboxPath(*CookedSettingsIni, true, TargetPlatform->PlatformName());
 }
 
@@ -7928,7 +7934,7 @@ bool UCookOnTheFlyServer::SaveCurrentIniSettings(const ITargetPlatform* TargetPl
 	UE::Cook::FIniSettingContainer CurrentIniSettings;
 	GetCurrentIniVersionStrings(TargetPlatform, CurrentIniSettings);
 
-	const FString EditorIni = FPaths::ProjectDir() / TEXT("Metadata") / TEXT("CookedIniVersion.txt");
+	const FString EditorIni = GetMetadataDirectory() / TEXT("CookedIniVersion.txt");
 	const FString SandboxEditorIni = ConvertToFullSandboxPath(*EditorIni, true);
 
 
@@ -8935,14 +8941,7 @@ FString UCookOnTheFlyServer::GetCookedAssetRegistryFilename(const FString& Platf
 
 FString UCookOnTheFlyServer::GetCookedCookMetadataFilename(const FString& PlatformName )
 {
-	if (IsCookingDLC())
-	{
-		check(IsDirectorCookByTheBook());
-		const FString Filename = GetBaseDirectoryForDLC() / TEXT("Metadata") / UE::Cook::GetCookMetadataFilename();
-		return ConvertToFullSandboxPath(*Filename, true).Replace(TEXT("[Platform]"), *PlatformName);
-	}
-
-	const FString MetadataFilename = FPaths::ProjectDir() / TEXT("Metadata") / UE::Cook::GetCookMetadataFilename();
+	const FString MetadataFilename = GetMetadataDirectory() / UE::Cook::GetCookMetadataFilename();
 	return ConvertToFullSandboxPath(*MetadataFilename, true).Replace(TEXT("[Platform]"), *PlatformName);
 }
 
@@ -9307,7 +9306,7 @@ void UCookOnTheFlyServer::CreatePipelineCache(const ITargetPlatform* TargetPlatf
 					// copy the resulting file to metadata for easier examination later
 					if (IFileManager::Get().FileExists(*PCPath))
 					{
-						const FString RootPipelineCacheMetadataPath = FPaths::ProjectDir() / TEXT("Metadata") / TEXT("PipelineCaches");
+						const FString RootPipelineCacheMetadataPath = GetMetadataDirectory() / TEXT("PipelineCaches");
 						const FString PipelineCacheMetadataPathSB = ConvertToFullSandboxPath(*RootPipelineCacheMetadataPath, true);
 						const FString PipelineCacheMetadataPath = PipelineCacheMetadataPathSB.Replace(TEXT("[Platform]"), *TargetPlatform->PlatformName());
 						const FString PipelineCacheMetadataFileName = PipelineCacheMetadataPath / OutFilename;
@@ -9350,7 +9349,7 @@ void UCookOnTheFlyServer::GetShaderLibraryPaths(const ITargetPlatform* TargetPla
 	const FString BasePath = (!IsCookingDLC() || bUseProjectDirForDLC) ? FPaths::ProjectContentDir() : GetContentDirectoryForDLC();
 	OutShaderCodeDir = ConvertToFullSandboxPath(*BasePath, true, TargetPlatform->PlatformName());
 
-	const FString RootMetaDataPath = FPaths::ProjectDir() / TEXT("Metadata") / TEXT("PipelineCaches");
+	const FString RootMetaDataPath = GetMetadataDirectory() / TEXT("PipelineCaches");
 	OutMetaDataPath = ConvertToFullSandboxPath(*RootMetaDataPath, true, *TargetPlatform->PlatformName()); 
 }
 
@@ -10534,6 +10533,8 @@ void UCookOnTheFlyServer::LoadBeginCookIterativeFlagsLocal(FBeginCookContext& Be
 		bool bIterateSharedBuild = false;
 		if (bIterative && bIsSharedIterativeCook && !PlatformData->bIsSandboxInitialized)
 		{
+			checkf(!IsCookingDLC(), TEXT("SharedIterativeCook is not implemented for DLC")); // The paths below look in the ProjectSavedDir, we don't have a save dir per dlc
+
 			// see if the shared build is newer then the current cooked content in the local directory
 			FString SharedCookedAssetRegistry = FPaths::Combine(*FPaths::ProjectSavedDir(), TEXT("SharedIterativeBuild"),
 				*TargetPlatform->PlatformName(), TEXT("Metadata"), GetDevelopmentAssetRegistryFilename());
@@ -10691,15 +10692,7 @@ UE::Cook::FCookSavePackageContext* UCookOnTheFlyServer::CreateSaveContext(const 
 	checkf(SandboxFile, TEXT("SaveContexts cannot be created until after CreateSandboxFile has been called from a StartCook function."));
 
 	const FString RootPathSandbox = ConvertToFullSandboxPath(FPaths::RootDir(), true);
-	FString MetadataPathSandbox;
-	if (IsCookingDLC())
-	{
-		MetadataPathSandbox = ConvertToFullSandboxPath(GetBaseDirectoryForDLC() / "Metadata", true);
-	}
-	else
-	{
-		MetadataPathSandbox = ConvertToFullSandboxPath(FPaths::ProjectDir() / "Metadata", true);
-	}
+	FString MetadataPathSandbox = ConvertToFullSandboxPath(GetMetadataDirectory(), true);
 	const FString PlatformString = TargetPlatform->PlatformName();
 	const FString ResolvedRootPath = RootPathSandbox.Replace(TEXT("[Platform]"), *PlatformString);
 	const FString ResolvedMetadataPath = MetadataPathSandbox.Replace(TEXT("[Platform]"), *PlatformString);

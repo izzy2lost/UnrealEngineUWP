@@ -443,6 +443,7 @@ namespace AutomationTool
 			this.TraceHost = InParams.TraceHost;
 			this.TraceFile = InParams.TraceFile;
 			this.SessionLabel = InParams.SessionLabel;
+			this.ProjectDescriptor = InParams.ProjectDescriptor;
 		}
 
 		/// <summary>
@@ -620,6 +621,12 @@ namespace AutomationTool
 			//
 
 			this.RawProjectPath = RawProjectPath;
+			try
+			{
+				this.ProjectDescriptor = ProjectDescriptor.FromFile(RawProjectPath);
+			}
+			catch { this.ProjectDescriptor = new ProjectDescriptor(); }
+
 			if (DirectoriesToCook != null)
 			{
 				this.DirectoriesToCook = DirectoriesToCook;
@@ -711,7 +718,8 @@ namespace AutomationTool
 				}
 				else
 				{
-					List<PluginInfo> CandidatePlugins = Plugins.ReadAvailablePlugins(Unreal.EngineDirectory, DirectoryReference.FromFile(RawProjectPath), null);
+					List<PluginInfo> CandidatePlugins = Plugins.ReadAvailablePlugins(Unreal.EngineDirectory,
+						DirectoryReference.FromFile(RawProjectPath), AdditionalPluginDirectories);
 					PluginInfo DLCPlugin = CandidatePlugins.FirstOrDefault(x => String.Equals(x.Name, DLCName, StringComparison.InvariantCultureIgnoreCase));
 					if (DLCPlugin == null)
 					{
@@ -2323,6 +2331,7 @@ namespace AutomationTool
 		private List<SingleTargetProperties> DetectedTargets;
 		private Dictionary<UnrealTargetPlatform, ConfigHierarchy> LoadedEngineConfigs;
 		private Dictionary<UnrealTargetPlatform, ConfigHierarchy> LoadedGameConfigs;
+		private ProjectDescriptor ProjectDescriptor;
 
 		private List<String> TargetNamesOfType(TargetType DesiredType)
 		{
@@ -2739,7 +2748,53 @@ namespace AutomationTool
 			get { return ProjectUtils.GetShortProjectName(RawProjectPath); }
 		}
 
-  		/// <summary>
+		/// <summary>
+		/// AdditionalPluginDirectories from the project.uproject file
+		/// </summary>
+		public List<DirectoryReference> AdditionalPluginDirectories
+		{
+			get { return ProjectDescriptor.AdditionalPluginDirectories; }
+		}
+
+		/// <summary>
+		/// Get the relative path to the DLC plugin's cooked output from the deployment
+		/// root of the DLC. e.g. <ProjectName>\Plugins\<PluginName> for plugins under the Project's plugin
+		/// directories.
+		/// </summary>
+		public string FindPluginRelativePathFromPlatformCookDir(FileReference PluginFile,
+			DirectoryReference ProjectRoot, DirectoryReference EngineRoot, DirectoryReference LocalRoot, string ShortProjectName)
+		{
+			if (DLCOverrideCookedSubDir != null)
+			{
+				return DLCOverrideCookedSubDir;
+			}
+
+			foreach (DirectoryReference AdditionalPluginDir in AdditionalPluginDirectories)
+			{
+				if (PluginFile.IsUnderDirectory(AdditionalPluginDir))
+				{
+					// This is a plugin that lives outside of the Engine/Plugins or Game/Plugins directory so needs to be remapped for staging/packaging
+					// The deployment path for plugins in AdditionalPluginDirectories is RemappedPlugins\PluginName
+					return String.Format("RemappedPlugins/{0}", PluginFile.GetFileNameWithoutExtension());
+				}
+			}
+
+			DirectoryReference DLCRoot = PluginFile.Directory;
+			if (DLCRoot.IsUnderDirectory(EngineRoot))
+			{
+				return Path.Combine("Engine", DLCRoot.MakeRelativeTo(EngineRoot));
+			}
+			else if (DLCRoot.IsUnderDirectory(ProjectRoot))
+			{
+				return Path.Combine(ShortProjectName, DLCRoot.MakeRelativeTo(ProjectRoot));
+			}
+			else
+			{
+				return DLCRoot.MakeRelativeTo(LocalRoot);
+			}
+		}
+
+		/// <summary>
 		/// True if this project contains source code.
 		/// </summary>	
 		public bool IsCodeBasedProject

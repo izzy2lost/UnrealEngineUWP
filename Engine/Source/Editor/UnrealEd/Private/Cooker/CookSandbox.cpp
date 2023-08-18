@@ -28,8 +28,8 @@ FCookSandbox::FCookSandbox(FStringView OutputDirectory, TArray<TSharedRef<IPlugi
 	{
 		FPluginData& Data = PluginsToRemap.Emplace_GetRef();
 		Data.Plugin = Plugin;
-		Data.NormalizedContentDir = Plugin->GetContentDir();
-		FPaths::MakeStandardFilename(Data.NormalizedContentDir);
+		Data.NormalizedRootDir = Plugin->GetBaseDir();
+		FPaths::MakeStandardFilename(Data.NormalizedRootDir);
 	}
 }
 
@@ -94,20 +94,19 @@ bool FCookSandbox::TryConvertUncookedFilenameToCookedRemappedPluginFilename(FStr
 	for (const FPluginData& Data : PluginsToRemap)
 	{
 		// If these match, then this content is part of plugin that gets remapped when packaged/staged
-		FStringView ContentRelPath;
-		if (FPathViews::TryMakeChildPathRelativeTo(NormalizedFileName, Data.NormalizedContentDir, ContentRelPath))
+		FStringView PluginRootRelPath;
+		if (FPathViews::TryMakeChildPathRelativeTo(NormalizedFileName, Data.NormalizedRootDir, PluginRootRelPath))
 		{
 			const FString& PluginName = Data.Plugin->GetName();
 
-			// Put this is in <sandbox path>/RemappedPlugins/<PluginName>/Content/ContentRelPath
+			// Put this is in <sandbox path>/RemappedPlugins/<PluginName>/PluginRootRelPath
 			constexpr FStringView RemappedPluginsDirName(REMAPPED_PLUGINS);
 			OutCookedFileName.Reserve(PlatformSandboxRootDir.Len() + RemappedPluginsDirName.Len() +
-				PluginName.Len() + ContentFolderName.Len() + ContentRelPath.Len() + 4);
+				PluginName.Len() + PluginRootRelPath.Len() + 3);
 			OutCookedFileName = PlatformSandboxRootDir;
 			OutCookedFileName /= REMAPPED_PLUGINS;
 			OutCookedFileName /= Data.Plugin->GetName();
-			OutCookedFileName /= ContentFolderName;
-			OutCookedFileName /= ContentRelPath;
+			OutCookedFileName /= PluginRootRelPath;
 			return true;
 		}
 	}
@@ -208,12 +207,12 @@ FString& FCookSandbox::ConvertCookedPathToUncookedPath(FStringView CookedPath,
 			FString ExpectedRemainingRoot;
 			for (const FPluginData& Data: PluginsToRemap)
 			{
-				ExpectedRemainingRoot = Data.Plugin->GetName() + TEXT("/") + ContentFolder;
-				FStringView RelPathFromContentFolder;
-				if (FPathViews::TryMakeChildPathRelativeTo(PluginPath, ExpectedRemainingRoot, RelPathFromContentFolder))
+				ExpectedRemainingRoot = Data.Plugin->GetName();
+				FStringView RelPathFromPluginRoot;
+				if (FPathViews::TryMakeChildPathRelativeTo(PluginPath, ExpectedRemainingRoot, RelPathFromPluginRoot))
 				{
-					UncookedFileName = Data.NormalizedContentDir;
-					UncookedFileName /= RelPathFromContentFolder;
+					UncookedFileName = Data.NormalizedRootDir;
+					UncookedFileName /= RelPathFromPluginRoot;
 					break;
 				}
 			}

@@ -60,7 +60,7 @@ private:
 	struct FPluginData
 	{
 		TSharedPtr<IPlugin> Plugin;
-		FString NormalizedContentDir;
+		FString NormalizedRootDir;
 	};
 
 	TUniquePtr<FSandboxPlatformFile> SandboxFile;

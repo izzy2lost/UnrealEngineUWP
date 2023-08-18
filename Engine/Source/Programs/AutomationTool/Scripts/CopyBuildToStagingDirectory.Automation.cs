@@ -689,10 +689,12 @@ namespace AutomationScripts
 		/// <param name="ProjectFile">The project being built</param>
 		/// <param name="Targets">List of targets being staged</param>
 		/// <returns>List of plugin files that should be staged</returns>
-		private static List<FileReference> GetPluginsForContentProject(FileReference ProjectFile, List<TargetReceipt> Targets)
+		private static List<FileReference> GetPluginsForContentProject(FileReference ProjectFile,
+			List<TargetReceipt> Targets, List<DirectoryReference> AdditionalPluginDirectories)
 		{
 			ProjectDescriptor Project = ProjectDescriptor.FromFile(ProjectFile);
-			List<PluginInfo> AvailablePlugins = UnrealBuildTool.Plugins.ReadAvailablePlugins(Unreal.EngineDirectory, ProjectFile.Directory, null);
+			List<PluginInfo> AvailablePlugins = UnrealBuildTool.Plugins.ReadAvailablePlugins(Unreal.EngineDirectory,
+				ProjectFile.Directory, AdditionalPluginDirectories);
 
 			HashSet<FileReference> Plugins = new HashSet<FileReference>();
 			foreach (TargetReceipt Target in Targets)
@@ -882,29 +884,13 @@ namespace AutomationScripts
 			}
 			if (Params.HasDLCName)
 			{
-				// Making a plugin
-				DirectoryReference DLCRoot = Params.DLCFile.Directory;
-				string DLCCookedSubDir;
-				if (Params.DLCOverrideCookedSubDir != null)
-				{
-					DLCCookedSubDir = Params.DLCOverrideCookedSubDir;
-				}
-				else if (DLCRoot.IsUnderDirectory(SC.EngineRoot))
-				{
-					DLCCookedSubDir = Path.Combine("Engine", DLCRoot.MakeRelativeTo(SC.EngineRoot));
-				}
-				else if (DLCRoot.IsUnderDirectory(SC.ProjectRoot))
-				{
-					DLCCookedSubDir = Path.Combine(SC.ShortProjectName, DLCRoot.MakeRelativeTo(SC.ProjectRoot));
-				}
-				else
-				{
-					DLCCookedSubDir = DLCRoot.MakeRelativeTo(SC.LocalRoot);
-				}
+				// We are making a plugin
+				string DLCCookedSubDir = Params.FindPluginRelativePathFromPlatformCookDir(Params.DLCFile, SC.ProjectRoot, SC.EngineRoot, SC.LocalRoot, SC.ShortProjectName);
+
 				// Put all of the cooked dir into the staged dir
 				if (String.IsNullOrEmpty(Params.CookOutputDir))
 				{
-					SC.PlatformCookDir = DirectoryReference.Combine(DLCRoot, "Saved", "Cooked", SC.CookPlatform);
+					SC.PlatformCookDir = DirectoryReference.Combine(Params.DLCFile.Directory, "Saved", "Cooked", SC.CookPlatform);
 				}
 				else
 				{
@@ -1142,7 +1128,8 @@ namespace AutomationScripts
 					// Stage any content-only plugins for content-only projects. We don't have a custom executable for these.
 					if (!Params.IsCodeBasedProject)
 					{
-						List<FileReference> PluginFiles = GetPluginsForContentProject(Params.RawProjectPath, SC.StageTargets.ConvertAll(x => x.Receipt));
+						List<FileReference> PluginFiles = GetPluginsForContentProject(Params.RawProjectPath,
+							SC.StageTargets.ConvertAll(x => x.Receipt), Params.AdditionalPluginDirectories);
 						SC.StageFiles(StagedFileType.UFS, PluginFiles);
 					}
 				}
@@ -1234,7 +1221,8 @@ namespace AutomationScripts
 					List<PluginInfo> AvailablePlugins = new List<PluginInfo>();
 					if (StagedPlugins.Count > 0 && PlatformExtensionsToStage.Count > 0)
 					{
-						AvailablePlugins = UnrealBuildTool.Plugins.ReadAvailablePlugins(Unreal.EngineDirectory, Params.RawProjectPath.Directory, null);
+						AvailablePlugins = UnrealBuildTool.Plugins.ReadAvailablePlugins(Unreal.EngineDirectory,
+							Params.RawProjectPath.Directory, Params.AdditionalPluginDirectories);
 					}
 					foreach (KeyValuePair<StagedFileReference, FileReference> StagedPlugin in StagedPlugins)
 					{
@@ -5044,7 +5032,8 @@ namespace AutomationScripts
 					Params.Client,
 					Params.Manifests,
 					Params.SeparateDebugInfo,
-					Params.HasDLCName ? Params.DLCFile.Directory : null
+					Params.HasDLCName ? Params.DLCFile.Directory : null,
+					Params.AdditionalPluginDirectories
 					);
 				LogDeploymentContext(SC);
 
