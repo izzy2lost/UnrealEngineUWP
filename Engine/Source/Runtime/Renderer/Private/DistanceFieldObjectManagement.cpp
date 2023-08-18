@@ -290,10 +290,10 @@ void ProcessDistanceFieldObjectRemoves(FScene* Scene, TArray<FSetElementId>& Dis
 
 void LogDistanceFieldUpdate(FPrimitiveSceneInfo const* PrimitiveSceneInfo, float BoundingRadius, bool bIsAddOperation)
 {
-	extern int32 GAOLogGlobalDistanceFieldModifiedPrimitives;
+	extern int32 GGlobalDistanceFieldDebugLogModifiedPrimitives;
 
-	if (GAOLogGlobalDistanceFieldModifiedPrimitives == 1
-		|| (GAOLogGlobalDistanceFieldModifiedPrimitives == 2 && !PrimitiveSceneInfo->Proxy->IsOftenMoving()))
+	if (GGlobalDistanceFieldDebugLogModifiedPrimitives == 1
+		|| (GGlobalDistanceFieldDebugLogModifiedPrimitives == 2 && !PrimitiveSceneInfo->Proxy->IsOftenMoving()))
 	{
 		UE_LOG(LogDistanceField, Log,
 			TEXT("Global Distance Field %s primitive %s %s %s bounding radius %.1f"),
