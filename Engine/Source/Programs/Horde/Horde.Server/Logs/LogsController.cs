@@ -370,6 +370,10 @@ namespace Horde.Server.Logs
 		async Task<bool> AuthorizeAsync(ILogFile logFile, AclAction action, ClaimsPrincipal user)
 		{
 			GlobalConfig globalConfig = _globalConfig.Value;
+			if (user.HasAdminClaim())
+			{
+				return true;
+			}
 			if (logFile.LeaseId != null && user.HasLeaseClaim(logFile.LeaseId.Value))
 			{
 				return true;
