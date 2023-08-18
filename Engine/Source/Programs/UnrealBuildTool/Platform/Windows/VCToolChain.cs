@@ -2456,7 +2456,18 @@ namespace UnrealBuildTool
 				{
 					// Write the PDB file to the output directory.
 					{
-						FileReference PDBFilePath = FileReference.Combine(LinkEnvironment.OutputDirectory!, Path.GetFileNameWithoutExtension(OutputFile.AbsolutePath) + ".pdb");
+						FileReference? PDBFilePath = FileReference.Combine(LinkEnvironment.OutputDirectory!, Path.GetFileNameWithoutExtension(OutputFile.AbsolutePath) + ".pdb");
+
+						// If stripping private symbols, write the full pdb as .full.pdb
+						if (Target.WindowsPlatform.bStripPrivateSymbols)
+						{
+							FileItem StrippedPDBFile = FileItem.GetItemByFileReference(PDBFilePath);
+							Arguments.Add($"/PDBSTRIPPED:\"{NormalizeCommandLinePath(StrippedPDBFile)}\"");
+							ProducedItems.Add(StrippedPDBFile);
+
+							PDBFilePath = FileReference.Combine(LinkEnvironment.OutputDirectory!, Path.GetFileNameWithoutExtension(OutputFile.AbsolutePath) + ".full.pdb");
+						}
+
 						FileItem PDBFile = FileItem.GetItemByFileReference(PDBFilePath);
 						Arguments.Add($"/PDB:\"{NormalizeCommandLinePath(PDBFilePath)}\"");
 						ProducedItems.Add(PDBFile);
@@ -2527,7 +2538,7 @@ namespace UnrealBuildTool
 			// Delete PDB files for all produced items, since incremental updates are slower than full ones.
 			if (!LinkEnvironment.bUseIncrementalLinking)
 			{
-				LinkAction.DeleteItems.UnionWith(LinkAction.ProducedItems.Where(x => x.Location.HasExtension(".pdb")));
+				LinkAction.DeleteItems.UnionWith(LinkAction.ProducedItems.Where(x => x.Location.HasExtension(".pdb") || x.Location.HasExtension(".full.pdb")));
 			}
 
 			// Delete any .sup.lib files before building, even if they're not tracked
@@ -2616,6 +2627,7 @@ namespace UnrealBuildTool
 			"/FASTGENPROFILE",
 			"/OUT:",
 			"/PDB:",
+			"/PDBSTRIPPED:",
 			"/NOLOGO",
 			"/LIBPATH:",
 			"/errorReport:",

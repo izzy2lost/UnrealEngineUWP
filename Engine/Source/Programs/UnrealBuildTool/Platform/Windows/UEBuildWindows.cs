@@ -444,6 +444,14 @@ namespace UnrealBuildTool
 		public bool bStrictEnumTypesConformance = false;
 
 		/// <summary>
+		/// Whether to request the linker create a stripped pdb file as part of the build.
+		/// If enabled the full debug pdb will have the extension .full.pdb
+		/// </summary>
+		[XmlConfigFile(Category = "WindowsPlatform")]
+		[CommandLine("-StripPrivateSymbols")]
+		public bool bStripPrivateSymbols = false;
+
+		/// <summary>
 		/// Specify an alternate location for the PDB file. This option does not change the location of the generated PDB file,
 		/// it changes the name that is embedded into the executable. Path can contain %_PDB% which will be expanded to the original
 		/// PDB file name of the target, without the directory.
@@ -742,6 +750,8 @@ namespace UnrealBuildTool
 		public bool bStrictPreprocessorConformance => Inner.bStrictPreprocessorConformance;
 
 		public bool bStrictEnumTypesConformance => Inner.bStrictEnumTypesConformance;
+
+		public bool bStripPrivateSymbols => Inner.bStripPrivateSymbols;
 
 		public string? PdbAlternatePath => Inner.PdbAlternatePath;
 
@@ -1298,6 +1308,7 @@ namespace UnrealBuildTool
 				|| IsBuildProductName(FileName, NamePrefixes, NameSuffixes, ".dll.rsp")
 				|| IsBuildProductName(FileName, NamePrefixes, NameSuffixes, ".lib")
 				|| IsBuildProductName(FileName, NamePrefixes, NameSuffixes, ".pdb")
+				|| IsBuildProductName(FileName, NamePrefixes, NameSuffixes, ".full.pdb")
 				|| IsBuildProductName(FileName, NamePrefixes, NameSuffixes, ".exp")
 				|| IsBuildProductName(FileName, NamePrefixes, NameSuffixes, ".obj")
 				|| IsBuildProductName(FileName, NamePrefixes, NameSuffixes, ".map")
