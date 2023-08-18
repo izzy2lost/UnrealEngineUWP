@@ -1364,6 +1364,12 @@ export type GetLogFileResponse = {
 	/** Unique id of the job for this log file */
 	jobId: string;
 
+	/** Unique id of the lease for this log file */
+	leaseId?: string;
+
+	/** Unique id of the session for this log file */
+	sessionId?: string;
+
 	/** Type of events stored in this log */
 	type: LogType;
 

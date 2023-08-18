@@ -3,11 +3,15 @@ import { Stack, Text } from '@fluentui/react';
 import React from 'react';
 import Highlight from 'react-highlighter';
 import { IssueData, LogLine } from '../backend/Api';
+import backend from '../backend';
+import { NavigateFunction } from 'react-router-dom';
 
 enum TagType {
    None,
    SourceFile,
-   MSDNCode
+   MSDNCode,
+   AgentId,
+   LeaseId
 }
 
 export type LogItem = {
@@ -50,7 +54,7 @@ const renderMessage = (line: LogLine, lineNumber: number | undefined, logStyle: 
 };
 
 
-const renderTags = (line: LogLine, lineNumber: number | undefined, logStyle: any, tags: string[], search?: string) => {
+const renderTags = (navigate: NavigateFunction, line: LogLine, lineNumber: number | undefined, logStyle: any, tags: string[], search?: string) => {
 
    if (!line || !line.format || !line.properties) {
       return <Stack styles={{ root: { color: "#000000", paddingLeft: 8, whiteSpace: "pre", tabSize: "3" } }}>Internal log line format error</Stack>;
@@ -136,15 +140,58 @@ const renderTags = (line: LogLine, lineNumber: number | undefined, logStyle: any
             tagType = TagType.MSDNCode;
          }
 
+         if (type === "LeaseId") {
+            tagType = TagType.LeaseId;
+         }
+
+         if (type === "AgentId") {
+            tagType = TagType.AgentId;
+         }
+
       }
 
       if (tagType === TagType.None || !record) {
 
          return <Highlight key={key} search={search ? search : ""} className={logStyle.logLine}>{text}</Highlight>;
 
+      } else if (tagType === TagType.LeaseId) {
+
+         const navigateToLeaseLog = async (toplevel: boolean) => {
+
+            const logData = await backend.getLease(text);
+            const url = `/log/${logData?.logId}?leaseId=${text}`;
+            if (!toplevel) {
+               navigate(url)
+            } else {
+               window.open(url, "_blank");
+            }
+         }
+
+         return <a key={key} href="/"
+            
+            onAuxClick={(ev) =>
+            {
+               ev.preventDefault();
+               ev.stopPropagation()
+               navigateToLeaseLog(true)
+            }}
+         
+            onClick={(ev) => {
+               ev.stopPropagation();
+               ev.preventDefault();
+               navigateToLeaseLog(!!ev?.ctrlKey || !!ev.metaKey)
+            }}>
+            <Highlight search={search ? search : ""} className={logStyle.logLine}>{text}</Highlight>
+         </a>;
+
       } else if (tagType === TagType.MSDNCode) {
 
          return <a key={key} target="_blank" rel="noopener noreferrer" href={`https://msdn.microsoft.com/query/dev16.query?appId=Dev16IDEF1&l=EN-US&k=k(${text.toLowerCase()})&rd=true`} onClick={(ev) => ev.stopPropagation()}><Highlight search={search ? search : ""} className={logStyle.logLine}>{text}</Highlight></a>;
+
+      } else if (tagType === TagType.AgentId) {
+         const search = window.location.search;
+         const url = `${window.location.pathname}` + (search ? search + `&agentId=${encodeURIComponent(text)}` : `?agentId=${encodeURIComponent(text)}`);
+         return <a key={key} href="/" onClick={async (ev) => { ev.stopPropagation(); ev.preventDefault(); navigate(url) }}><Highlight search={search ? search : ""} className={logStyle.logLine}>{text}</Highlight></a>;
 
       } else if (tagType === TagType.SourceFile) {
 
@@ -214,7 +261,7 @@ const renderTags = (line: LogLine, lineNumber: number | undefined, logStyle: any
 
 };
 
-export const renderLine = (line: LogLine | undefined, lineNumber: number | undefined, logStyle: any, search?: string) => {
+export const renderLine = (navigate: NavigateFunction, line: LogLine | undefined, lineNumber: number | undefined, logStyle: any, search?: string) => {
 
    if (!line) {
       return null;
@@ -245,7 +292,7 @@ export const renderLine = (line: LogLine | undefined, lineNumber: number | undef
 
 
    if (tags.length && format && line.properties) {
-      return renderTags(line, lineNumber, logStyle, tags, search);
+      return renderTags(navigate, line, lineNumber, logStyle, tags, search);
    }
 
    return renderMessage(line, lineNumber, logStyle, search);

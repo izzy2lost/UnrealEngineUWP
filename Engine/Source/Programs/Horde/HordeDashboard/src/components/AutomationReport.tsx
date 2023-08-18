@@ -3,7 +3,7 @@ import { action, makeObservable, observable } from "mobx";
 import { observer } from "mobx-react-lite";
 import moment from "moment";
 import { useEffect, useState } from "react";
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import backend from "../backend";
 import { EventSeverity, GetLogEventResponse, GetTestDataDetailsResponse, GetTestDataRefResponse, GetTestResponse } from "../backend/Api";
 import { TestDataHandler } from "../backend/AutomationTestData";
@@ -301,6 +301,8 @@ class TestReportGenerator {
 
 const ErrorPane: React.FC<{ failure: TestFailureEvent }> = ({ failure }) => {
 
+   const navigate = useNavigate();
+
    const events = failure.events;
    if (!events) {
       return null;
@@ -318,7 +320,7 @@ const ErrorPane: React.FC<{ failure: TestFailureEvent }> = ({ failure }) => {
 
       const url = `/log/${failure.logId}?lineindex=${event.lineIndex}`;
 
-      const lines = event.lines.filter(line => line.message?.trim().length).map(line => <Stack styles={{ root: { paddingLeft: 8, paddingRight: 8, lineBreak: "anywhere", whiteSpace: "pre-wrap", lineHeight: 18, fontSize: 10, fontFamily: "Horde Cousine Regular, monospace, monospace" } }}> <Link className="log-link" target="_blank" to={url}>{renderLine(line, undefined, {})}</Link></Stack>);
+      const lines = event.lines.filter(line => line.message?.trim().length).map(line => <Stack styles={{ root: { paddingLeft: 8, paddingRight: 8, lineBreak: "anywhere", whiteSpace: "pre-wrap", lineHeight: 18, fontSize: 10, fontFamily: "Horde Cousine Regular, monospace, monospace" } }}> <Link className="log-link" target="_blank" to={url}>{renderLine(navigate, line, undefined, {})}</Link></Stack>);
 
       return (<Stack className={styles.itemCell} styles={{ root: { padding: 8, marginRight: 8 } }}><Stack className={event.severity === EventSeverity.Warning ? styles.gutterWarning : styles.gutter} styles={{ root: { padding: 0, margin: 0 } }}>
          <Stack styles={{ root: { paddingLeft: 14 } }}>
