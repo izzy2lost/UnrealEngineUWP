@@ -597,7 +597,7 @@ FNiagaraSpriteUniformBufferRef FNiagaraRendererSprites::CreateViewUniformBuffer(
 				if (IsTranslucentOnlyBlendMode(ParticleSpriteRenderData.BlendMode))
 				{
 					ParticleSpriteRenderData.bHasTranslucentMaterials = true;
-					PerViewUniformParameters.PixelCoverageColorBlend = FVector4f(PixelCoverageBlend, PixelCoverageBlend, PixelCoverageBlend, 0.0f);
+					PerViewUniformParameters.PixelCoverageColorBlend = FVector4f(0.0f, 0.0f, 0.0f, PixelCoverageBlend);
 				}
 				else if (IsAdditiveBlendMode(ParticleSpriteRenderData.BlendMode))
 				{
