@@ -10,6 +10,9 @@ public:
 	FRigName()
 	{}
 
+	FRigName(const FRigName& InOther) = default;
+	FRigName& operator =(const FRigName& InOther) = default;
+
 	FRigName(const FName& InName)
 		:FRigName()
 	{
@@ -20,12 +23,6 @@ public:
 		:FRigName()
 	{
 		SetName(InNameString);
-	}
-
-	FRigName(const FRigName& InOther)
-		: Name(InOther.Name)
-		, NameString(InOther.NameString)
-	{
 	}
 
 	FRigName& operator =(const FName& InName)
