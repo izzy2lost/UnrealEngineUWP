@@ -1189,11 +1189,12 @@ AActor* FDatasmithImporter::ImportActor( FDatasmithImportContext& ImportContext,
 		ImportedActor = FDatasmithActorImporter::ImportBaseActor( ImportContext, ActorElement );
 	}
 
-
 	if ( ImportedActor ) // It's possible that we didn't import an actor (ie: the user doesn't want to import the cameras), in that case, we'll skip it in the hierarchy
 	{
 		ImportContext.Hierarchy.Push( ImportedActor->GetRootComponent() );
 		ImportMetaDataForObject(ImportContext, ActorElement, ImportedActor);
+
+		ImportContext.AddImportedActor(ImportedActor);
 	}
 	else
 	{
