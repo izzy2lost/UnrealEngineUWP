@@ -46,7 +46,8 @@ public:
 	bool Initialize() { return true; }
 	bool InitializeForPointData(const UPCGPointData* PointData) { return true; }
 	void AddToPartitionData(Element* SelectedElement, const UPCGPointData* ParentPointData, const FPCGPoint& Point) {}
-	void WriteToOutputData(UPCGPointData* OutPointData, Element* SelectedElement, const FPCGPoint& Point) {}
+	void WriteToOutputData(UPCGPointData* OutPointData, Element* SelectedElement, const FPCGPoint& Point, int32 PointIndex) {}
+	void Finalize(const UPCGPointData* InPointData, UPCGPointData* OutPointData) {}
 	Element* SelectPoint(const FPCGPoint& Point, int32 PointIndex) { return nullptr; }
 	int32 TimeSlicingCheckFrequency() const { return 1024; }
 
@@ -69,7 +70,7 @@ bool FPCGPointDataPartitionBase<Derived, KeyType>::SelectPoints(FPCGContext& Con
 
 	if (InCurrentPointIndex == 0)
 	{
-		if (!This()->InitializeForPointData(PointData))
+		if (!This()->InitializeForPointData(PointData, OutPointData))
 		{
 			return true;
 		}
@@ -92,7 +93,7 @@ bool FPCGPointDataPartitionBase<Derived, KeyType>::SelectPoints(FPCGContext& Con
 			This()->AddToPartitionData(SelectedElement, PointData, Point);
 		}
 
-		This()->WriteToOutputData(OutPointData, SelectedElement, Point);
+		This()->WriteToOutputData(OutPointData, SelectedElement, Point, CurrentPointIndex);
 
 		++CurrentPointIndex;
 
@@ -110,6 +111,11 @@ bool FPCGPointDataPartitionBase<Derived, KeyType>::SelectPoints(FPCGContext& Con
 	}
 
 	InCurrentPointIndex = CurrentPointIndex;
+
+	if (CurrentPointIndex == Points.Num())
+	{
+		This()->Finalize(PointData, OutPointData);
+	}
 
 	return (CurrentPointIndex == Points.Num());
 }

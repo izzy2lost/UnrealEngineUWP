@@ -51,7 +51,7 @@ namespace PCGMetadataElementCommon
 	* Return false if it process nothing.
 	*/
 	template <typename T, typename Func>
-	bool ApplyOnAccessor(const IPCGAttributeAccessorKeys& Keys, const IPCGAttributeAccessor& Accessor, Func&& Callback, const int32 ChunkSize = DefaultChunkSize)
+	bool ApplyOnAccessor(const IPCGAttributeAccessorKeys& Keys, const IPCGAttributeAccessor& Accessor, Func&& Callback, EPCGAttributeAccessorFlags Flags = EPCGAttributeAccessorFlags::StrictType, const int32 ChunkSize = DefaultChunkSize)
 	{
 		const int32 NumberOfEntries = Keys.GetNum();
 
@@ -71,7 +71,7 @@ namespace PCGMetadataElementCommon
 			const int32 Range = FMath::Min(NumberOfEntries - StartIndex, ChunkSize);
 			TArrayView<T> View(TempValues.GetData(), Range);
 
-			if (!Accessor.GetRange(View, StartIndex, Keys))
+			if (!Accessor.GetRange(View, StartIndex, Keys, Flags))
 			{
 				return false;
 			}

@@ -140,7 +140,7 @@ public:
 	{
 	}
 
-	bool InitializeForPointData(const UPCGPointData* PointData)
+	bool InitializeForPointData(const UPCGPointData* PointData, UPCGPointData* OutPointData)
 	{
 		if (!PointData || !PointData->ConstMetadata())
 		{
