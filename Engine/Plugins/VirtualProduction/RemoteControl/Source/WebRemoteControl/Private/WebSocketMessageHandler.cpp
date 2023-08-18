@@ -801,9 +801,9 @@ void FWebSocketMessageHandler::HandleWebSocketBeginEditorTransaction(const FRemo
 	if (TransactionGuid.IsValid())
 	{
 		ClientsByTransactionGuid.FindOrAdd(TransactionGuid);
-		ContributeToTransaction(WebSocketMessage.ClientId, Body.TransactionId);
-
 		TransactionIdsByClientId.FindOrAdd(WebSocketMessage.ClientId).Add({ TransactionGuid, Body.TransactionId });
+
+		ContributeToTransaction(WebSocketMessage.ClientId, Body.TransactionId);
 	}
 	else
 	{
