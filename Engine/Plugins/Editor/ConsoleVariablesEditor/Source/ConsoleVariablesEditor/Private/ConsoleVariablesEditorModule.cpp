@@ -23,6 +23,27 @@
 
 #define LOCTEXT_NAMESPACE "FConsoleVariablesEditorModule"
 
+namespace UE::ConsoleVariablesEditor::ModuleUtils::Private
+{
+	/**
+	 * Warn the user once if attempting to sync Cvars in multi-user if in PIE.
+	 * @return Whether the user is in PIE.
+	 */
+	static bool CheckIsRunningPieAndWarnSyncDisabledInPie()
+	{
+		/* Have we warned the user about PIE in the Console Variables Editor? */
+		static bool bHaveWarnedAboutPIE = false;
+	
+		const bool bRunningInPIE =  GEditor && GEditor->IsPlaySessionInProgress();
+		if (bRunningInPIE && !bHaveWarnedAboutPIE)
+		{
+			UE_LOG(LogConsoleVariablesEditor, Display, TEXT("Play In Editor is about to start or has started; Multi-User Cvar sync is suspended during PIE."));
+			bHaveWarnedAboutPIE = bRunningInPIE;
+		}
+		return bRunningInPIE;
+	}
+}
+
 const FName FConsoleVariablesEditorModule::ConsoleVariablesToolkitPanelTabId(TEXT("ConsoleVariablesToolkitPanel"));
 
 FConsoleVariablesEditorModule& FConsoleVariablesEditorModule::Get()
@@ -262,30 +283,19 @@ bool FConsoleVariablesEditorModule::PopulateGlobalSearchAssetWithVariablesMatchi
 
 void FConsoleVariablesEditorModule::SendMultiUserConsoleVariableChange(ERemoteCVarChangeType InChangeType, const FString& InVariableName, const FString& InValueAsString)
 {
-	if (GEditor && GEditor->IsPlaySessionInProgress() && !bHaveWarnedAboutPIE)
+	using namespace UE::ConsoleVariablesEditor::ModuleUtils::Private; 
+	if (MainPanel->GetMultiUserManager().IsLocalUserInMultiUserSession() && !CheckIsRunningPieAndWarnSyncDisabledInPie())
 	{
-		UE_LOG(LogConsoleVariablesEditor, Display, TEXT("%hs: Play In Editor is about to start or has started; Multi-User Cvar sync is suspended during PIE."), __FUNCTION__);
-		bHaveWarnedAboutPIE = true;
-		return;
+		MainPanel->GetMultiUserManager().SendConsoleVariableChange(InChangeType, InVariableName, InValueAsString);
 	}
-
-	bHaveWarnedAboutPIE = false;
-	MainPanel->GetMultiUserManager().SendConsoleVariableChange(InChangeType, InVariableName, InValueAsString);
 }
 
 void FConsoleVariablesEditorModule::OnRemoteCvarChanged(ERemoteCVarChangeType InChangeType, const FString InName, const FString InValue)
 {
-	if (GEditor && GEditor->IsPlaySessionInProgress() && !bHaveWarnedAboutPIE)
-	{
-		UE_LOG(LogConsoleVariablesEditor, Warning, TEXT("%hs: Play In Editor is about to start or has started; Multi-User Cvar sync is suspended during PIE."), __FUNCTION__);
-		bHaveWarnedAboutPIE = true;
-		return;
-	}
-
-	bHaveWarnedAboutPIE = false;
-	UE_LOG(LogConsoleVariablesEditor, VeryVerbose, TEXT("Remote set console variable %s = %s"), *InName, *InValue);
-
-	if (GetDefault<UConcertCVarSynchronization>()->bSyncCVarTransactions)
+	using namespace UE::ConsoleVariablesEditor::ModuleUtils::Private; 
+	if (MainPanel->GetMultiUserManager().IsLocalUserInMultiUserSession() &&
+		!CheckIsRunningPieAndWarnSyncDisabledInPie() &&
+		GetDefault<UConcertCVarSynchronization>()->bSyncCVarTransactions)
 	{
 		FScopeMultiUserReceiveCVar CVarChange(*InName, CommandsReceivedFromMultiUser);
 
@@ -307,10 +317,7 @@ void FConsoleVariablesEditorModule::OnRemoteCvarChanged(ERemoteCVarChangeType In
 			);
 		}
 
-		if (MainPanel->GetEditorListMode() == FConsoleVariablesEditorList::EConsoleVariablesEditorListMode::Preset)
-		{
-			MainPanel->RebuildList();
-		}
+		MainPanel->OnRemoteCvarChanged();
 	}
 }
 

@@ -514,5 +514,20 @@ bool FManager::IsInitialized() const
 {
 	return Implementation->bIsInitialized;
 }
+
+bool FManager::IsSyncEnabled() const
+{
+	return Implementation->bIsEnabled;
+}
+
+bool FManager::IsSessionValid() const
+{
+	return Implementation->WeakSession.IsValid();
+}
+
+bool FManager::IsLocalUserInMultiUserSession()
+{
+	return IsSyncEnabled() && IsSessionValid();
+}
 };
 

@@ -56,6 +56,12 @@ struct FManager
 	void SetEnableMultiUserSupport(bool bIsEnabled);
 
 	bool IsInitialized() const;
+
+	bool IsSyncEnabled() const;
+
+	bool IsSessionValid() const;
+
+	bool IsLocalUserInMultiUserSession();
 	
 private:
 	TUniquePtr<FManagerImpl> Implementation;

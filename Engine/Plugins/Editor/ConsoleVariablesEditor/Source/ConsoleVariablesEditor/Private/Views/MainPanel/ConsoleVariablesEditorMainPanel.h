@@ -29,6 +29,8 @@ public:
 
 	void UpdateCachedValue(const FString& InConsoleVar, const FString& Value);
 
+	void OnRemoteCvarChanged();
+
 	FReply ValidateConsoleInputAndAddToCurrentPreset(const FText& CommittedText) const;
 
 	/*

@@ -96,6 +96,14 @@ void FConsoleVariablesEditorMainPanel::UpdateCachedValue(const FString& InConsol
 	}
 }
 
+void FConsoleVariablesEditorMainPanel::OnRemoteCvarChanged()
+{
+	if (GetEditorListMode() == FConsoleVariablesEditorList::EConsoleVariablesEditorListMode::Preset)
+	{
+		RebuildList();
+	}
+}
+
 FReply FConsoleVariablesEditorMainPanel::ValidateConsoleInputAndAddToCurrentPreset(const FText& CommittedText) const
 {
 	// Clear Search

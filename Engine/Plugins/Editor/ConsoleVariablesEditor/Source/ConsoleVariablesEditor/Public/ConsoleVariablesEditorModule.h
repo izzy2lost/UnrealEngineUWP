@@ -164,7 +164,4 @@ private:
 	 * a remote cvar change creating a ping/pong cvar updates effect between nodes.
 	 */
 	TMap<FString, int32> CommandsReceivedFromMultiUser;
-
-	/* Have we warned the user about PIE and Console Variable Editor */
-	bool bHaveWarnedAboutPIE = false;
 };
