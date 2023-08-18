@@ -138,7 +138,7 @@ void FRigBaseElement::Load(FArchive& Ar, URigHierarchy* Hierarchy, ESerializatio
 		ensure(LoadedKey.Type == Key.Type);
 		Key = LoadedKey;
 
-		NameString = Key.Name.ToString();
+		NameString.Reset();
 
 		RemoveAllMetadata();
 		
@@ -200,18 +200,18 @@ bool FRigBaseElement::RemoveAllMetadata()
 {
 	if(!Metadata.IsEmpty())
 	{
-		TArray<FName> Names;
-		Names.Reserve(Metadata.Num());
+		TArray<FName> MetaDataNames;
+		MetaDataNames.Reserve(Metadata.Num());
 		for(FRigBaseMetadata* Md : Metadata)
 		{
-			Names.Add(Md->GetName());
+			MetaDataNames.Add(Md->GetName());
 			FRigBaseMetadata::DestroyMetadata(&Md);
 		}
 		Metadata.Reset();
 		MetadataNameToIndex.Reset();
-		for(const FName& Name: Names)
+		for(const FName& MetaDataName: MetaDataNames)
 		{
-			NotifyMetadataChanged(Name);
+			NotifyMetadataChanged(MetaDataName);
 		}
 		return true;
 	}

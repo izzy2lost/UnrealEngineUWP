@@ -3328,7 +3328,7 @@ bool UnrealToUsd::ConvertControlRigSection(
 			RigJointIndexToRefSkeletonIndex.Reset();
 			for (FRigBoneElement* RigBone : Hierarchy->GetBones())
 			{
-				RigJointIndexToRefSkeletonIndex.Add(InRefSkeleton.FindBoneIndex(RigBone->GetName()));
+				RigJointIndexToRefSkeletonIndex.Add(InRefSkeleton.FindBoneIndex(RigBone->GetFName()));
 			}
 		};
 	RegenerateRigJointIndexToRefSkeletonIndex();
@@ -3451,7 +3451,7 @@ bool UnrealToUsd::ConvertControlRigSection(
 		for ( int32 Index = 0; Index < CurveElements.Num(); ++Index )
 		{
 			FRigCurveElement* Element = CurveElements[Index];
-			const FString& CurveNameString = Element->GetNameString();
+			const FString& CurveNameString = Element->GetName();
 
 			CurveNames.push_back( UnrealToUsd::ConvertToken( *CurveNameString ).Get() );
 		}

@@ -1002,7 +1002,7 @@ void UControlRigDetailPanelControlProxies::RecreateAllProxies(UControlRig* Contr
 	{
 		if(ControlElement->Settings.AnimationType != ERigControlAnimationType::VisualCue)
 		{
-			AddProxy(ControlRig,ControlElement->GetName(), ControlElement);
+			AddProxy(ControlRig,ControlElement->GetFName(), ControlElement);
 		}
 	}
 }

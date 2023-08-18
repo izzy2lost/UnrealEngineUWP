@@ -208,7 +208,7 @@ void UAnimGraphNode_ControlRig::CreateCustomPins(TArray<UEdGraphPin*>* OldPins)
 				{
 					if (Hierarchy->IsAnimatable(ControlElement))
 					{
-						const FName ControlName = ControlElement->GetName();
+						const FName ControlName = ControlElement->GetFName();
 						BeginExposableNames.Remove(ControlName);
 
 						if (CurrentlyExposedNames.Contains(ControlName))
@@ -220,7 +220,7 @@ void UAnimGraphNode_ControlRig::CreateCustomPins(TArray<UEdGraphPin*>* OldPins)
 							}
 
 							UEdGraphPin* NewPin = CreatePin(EEdGraphPinDirection::EGPD_Input, PinType, ControlName);
-							NewPin->PinFriendlyName = FText::FromName(ControlElement->GetName());
+							NewPin->PinFriendlyName = FText::FromName(ControlElement->GetFName());
 
 							// Newly created pin does not have an auto generated default value, so we need to generate one here
 							// Missing the auto-gen default would cause UEdGraphPin::MovePersistentDataFromOldPin to override
@@ -378,7 +378,7 @@ void UAnimGraphNode_ControlRig::RebuildExposedProperties()
 				{
 					if (Hierarchy->IsAnimatable(ControlElement))
 					{
-						const FName ControlName = ControlElement->GetName();
+						const FName ControlName = ControlElement->GetFName();
 						CustomPinProperties.Add(MakeOptionalPin(ControlName));
 					}
 					return true;
@@ -644,7 +644,7 @@ void UAnimGraphNode_ControlRig::GetAvailableMapping(const FName& PathName, TArra
 					{
 						if (Hierarchy->IsAnimatable(ControlElement))
 						{
-							OutArray.Add(ControlElement->GetName());
+							OutArray.Add(ControlElement->GetFName());
 						}
 						return true;
 					});
@@ -718,8 +718,8 @@ void UAnimGraphNode_ControlRig::CreateVariableMapping(const FString& FilteredTex
 					{
 						if (Hierarchy->IsAnimatable(ControlElement))
 						{
-							const FName ControlName = ControlElement->GetName();
-							const FString& DisplayName = ControlName.ToString();
+							const FName ControlName = ControlElement->GetFName();
+							const FString& DisplayName = ControlElement->GetName();
 
 							if (!bDoFiltering || DisplayName.Contains(FilteredText))
 							{

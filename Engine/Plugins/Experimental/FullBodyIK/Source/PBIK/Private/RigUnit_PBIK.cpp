@@ -69,7 +69,7 @@ FRigUnit_PBIK_Execute()
 		// create bones
 		for (int B = 0; B < BoneElements.Num(); ++B)
 		{
-			FName Name = BoneElements[B]->GetName();
+			FName Name = BoneElements[B]->GetFName();
 
 			// get the first parent that is not excluded
 			int32 ParentElementIndex = INDEX_NONE;
@@ -98,7 +98,7 @@ FRigUnit_PBIK_Execute()
 			const FTransform OrigTransform = Hierarchy->GetTransform(BoneElements[B], ERigTransformType::InitialGlobal);
 			const FVector InOrigPosition = OrigTransform.GetLocation();
 			const FQuat InOrigRotation = OrigTransform.GetRotation();
-			bool bIsRoot = BoneElements[B]->GetName() == Root;
+			bool bIsRoot = BoneElements[B]->GetFName() == Root;
 			WorkData.Solver.AddBone(Name, ParentIndex, InOrigPosition, InOrigRotation, bIsRoot);
 		}
 		

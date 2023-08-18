@@ -117,7 +117,7 @@ void UControlRigSkeletalMeshComponent::RebuildDebugDrawSkeleton()
 					{
 						if(ParentName.IsNone())
 						{
-							ParentName = InBoneElement->GetName();
+							ParentName = InBoneElement->GetFName();
 						}
 						bContinue = false;
 					}
@@ -130,12 +130,12 @@ void UControlRigSkeletalMeshComponent::RebuildDebugDrawSkeleton()
 				}
 					
 				FMeshBoneInfo NewMeshBoneInfo;
-				NewMeshBoneInfo.Name = BoneElement->GetName();
+				NewMeshBoneInfo.Name = BoneElement->GetFName();
 				NewMeshBoneInfo.ParentIndex = ParentIndex; 
 				// give ref pose here
 				RefSkelModifier.Add(NewMeshBoneInfo, Hierarchy->GetInitialGlobalTransform(Index), true);
 
-				AddedBoneMap.FindOrAdd(BoneElement->GetName(), DebugDrawBones.Num());
+				AddedBoneMap.FindOrAdd(BoneElement->GetFName(), DebugDrawBones.Num());
 				DebugDrawBones.Add(DebugDrawBones.Num());
 				DebugDrawBoneIndexInHierarchy.Add(BoneElement->GetIndex());
 			}

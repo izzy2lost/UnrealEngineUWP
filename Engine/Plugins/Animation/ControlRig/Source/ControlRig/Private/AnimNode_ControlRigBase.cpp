@@ -358,7 +358,7 @@ void FAnimNode_ControlRigBase::UpdateOutput(UControlRig* ControlRig, FPoseContex
 		const TArray<FRigCurveElement*> Curves = Hierarchy->GetCurves();
 		auto GetNameFromIndex = [&Curves](int32 InCurveIndex)
 		{
-			return Curves[InCurveIndex]->GetName();
+			return Curves[InCurveIndex]->GetFName();
 		};
 
 		auto GetValueFromIndex = [&Curves](int32 InCurveIndex)

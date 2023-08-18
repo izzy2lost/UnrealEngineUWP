@@ -2566,7 +2566,7 @@ void FControlRigParameterTrackEditor::SelectRigsAndControls(UControlRig* Control
 									{
 										if (const TSet<FName>* Controls = RigsAndControls.Find(ControlRig))
 										{
-											if (Controls->Contains(ParentControlElement->GetName()))
+											if (Controls->Contains(ParentControlElement->GetFName()))
 											{
 												continue;
 											}
@@ -3413,7 +3413,7 @@ void FControlRigParameterTrackEditor::HandleControlSelected(UControlRig* Subject
 			{
 				UMovieSceneSection* Section = Track->GetSectionToKey();
 				UMovieSceneControlRigParameterSection* ParamSection = Cast<UMovieSceneControlRigParameterSection>(Section);
-				SelectSequencerNodeInSection(ParamSection, ControlElement->GetName(), bSelected);
+				SelectSequencerNodeInSection(ParamSection, ControlElement->GetFName(), bSelected);
 			}
 			else
 			{
@@ -3421,7 +3421,7 @@ void FControlRigParameterTrackEditor::HandleControlSelected(UControlRig* Subject
 				{
 					if (UMovieSceneControlRigParameterSection* ParamSection = Cast< UMovieSceneControlRigParameterSection>(BaseSection))
 					{
-						SelectSequencerNodeInSection(ParamSection, ControlElement->GetName(), bSelected);
+						SelectSequencerNodeInSection(ParamSection, ControlElement->GetFName(), bSelected);
 					}
 				}
 			}
@@ -3471,7 +3471,7 @@ void FControlRigParameterTrackEditor::HandleControlModified(UControlRig* Control
 	{
 		return;
 	}
-	FTransform  Transform = ControlRig->GetControlLocalTransform(ControlElement->GetName());
+	FTransform  Transform = ControlRig->GetControlLocalTransform(ControlElement->GetFName());
 	UMovieScene* MovieScene = GetSequencer()->GetFocusedMovieSceneSequence()->GetMovieScene();
 	const TArray<FMovieSceneBinding>& Bindings = MovieScene->GetBindings();
 	for (const FMovieSceneBinding& Binding : Bindings)
@@ -3493,7 +3493,7 @@ void FControlRigParameterTrackEditor::HandleControlModified(UControlRig* Control
 						{
 							KeyMode = ESequencerKeyMode::ManualKeyForced;
 						}
-						AddControlKeys(Component, ControlRig, Name, ControlElement->GetName(), (EControlRigContextChannelToKey)Context.KeyMask, 
+						AddControlKeys(Component, ControlRig, Name, ControlElement->GetFName(), (EControlRigContextChannelToKey)Context.KeyMask, 
 							KeyMode, Context.LocalTime);
 						ControlChangedDuringUndoBracket++;
 					}
@@ -3653,13 +3653,13 @@ void FControlRigParameterTrackEditor::GetControlRigKeys(
 			continue;
 		}
 
-		if (FChannelMapInfo* pChannelIndex = SectionToKey->ControlChannelMap.Find(ControlElement->GetName()))
+		if (FChannelMapInfo* pChannelIndex = SectionToKey->ControlChannelMap.Find(ControlElement->GetFName()))
 		{
 			int32 ChannelIndex = pChannelIndex->ChannelIndex;
 
 
 			bool bMaskKeyOut = (ControlIndex >= ControlsMask.Num() || ControlsMask[ControlIndex] == false);
-			bool bSetKey = ControlElement->GetName() == ParameterName && !bMaskKeyOut;
+			bool bSetKey = ControlElement->GetFName() == ParameterName && !bMaskKeyOut;
 
 			FRigControlValue ControlValue = InControlRig->GetControlValue(ControlElement, ERigControlValueType::Current);
 
@@ -3767,7 +3767,7 @@ void FControlRigParameterTrackEditor::GetControlRigKeys(
 
 				if (bInConstraintSpace)
 				{
-					const uint32 ControlHash = UTransformableControlHandle::ComputeHash(InControlRig, ControlElement->GetName());
+					const uint32 ControlHash = UTransformableControlHandle::ComputeHash(InControlRig, ControlElement->GetFName());
 					TOptional<FTransform> Transform = FTransformConstraintUtils::GetRelativeTransform(InControlRig->GetWorld(), ControlHash);
 					if (Transform)
 					{
@@ -4094,9 +4094,9 @@ bool FControlRigParameterTrackEditor::ModifyOurGeneratedKeysByCurrentAndWeight(U
 		{
 			for (const FFloatInterrogationData& Val : InterrogationData.Iterate<FFloatInterrogationData>(UMovieSceneControlRigParameterSection::GetFloatInterrogationKey()))
 			{
-				if ((Val.ParameterName == ControlElement->GetName()))
+				if ((Val.ParameterName == ControlElement->GetFName()))
 				{
-					pChannelIndex = Section->ControlChannelMap.Find(ControlElement->GetName());
+					pChannelIndex = Section->ControlChannelMap.Find(ControlElement->GetFName());
 					if (pChannelIndex && pChannelIndex->GeneratedKeyIndex != INDEX_NONE)
 					{
 						ChannelIndex = pChannelIndex->GeneratedKeyIndex;
@@ -4119,9 +4119,9 @@ bool FControlRigParameterTrackEditor::ModifyOurGeneratedKeysByCurrentAndWeight(U
 		{
 			for (const FVector2DInterrogationData& Val : InterrogationData.Iterate<FVector2DInterrogationData>(UMovieSceneControlRigParameterSection::GetVector2DInterrogationKey()))
 			{
-				if ((Val.ParameterName == ControlElement->GetName()))
+				if ((Val.ParameterName == ControlElement->GetFName()))
 				{
-					pChannelIndex = Section->ControlChannelMap.Find(ControlElement->GetName());
+					pChannelIndex = Section->ControlChannelMap.Find(ControlElement->GetFName());
 					if (pChannelIndex && pChannelIndex->GeneratedKeyIndex != INDEX_NONE)
 					{
 						ChannelIndex = pChannelIndex->GeneratedKeyIndex;
@@ -4141,9 +4141,9 @@ bool FControlRigParameterTrackEditor::ModifyOurGeneratedKeysByCurrentAndWeight(U
 		{
 			for (const FVectorInterrogationData& Val : InterrogationData.Iterate<FVectorInterrogationData>(UMovieSceneControlRigParameterSection::GetVectorInterrogationKey()))
 			{
-				if ((Val.ParameterName == ControlElement->GetName()))
+				if ((Val.ParameterName == ControlElement->GetFName()))
 				{
-					pChannelIndex = Section->ControlChannelMap.Find(ControlElement->GetName());
+					pChannelIndex = Section->ControlChannelMap.Find(ControlElement->GetFName());
 					if (pChannelIndex && pChannelIndex->GeneratedKeyIndex != INDEX_NONE)
 					{
 						ChannelIndex = pChannelIndex->GeneratedKeyIndex;
@@ -4167,9 +4167,9 @@ bool FControlRigParameterTrackEditor::ModifyOurGeneratedKeysByCurrentAndWeight(U
 			for (const FEulerTransformInterrogationData& Val : InterrogationData.Iterate<FEulerTransformInterrogationData>(UMovieSceneControlRigParameterSection::GetTransformInterrogationKey()))
 			{
 
-				if ((Val.ParameterName == ControlElement->GetName()))
+				if ((Val.ParameterName == ControlElement->GetFName()))
 				{
-					pChannelIndex = Section->ControlChannelMap.Find(ControlElement->GetName());
+					pChannelIndex = Section->ControlChannelMap.Find(ControlElement->GetFName());
 					if (pChannelIndex && pChannelIndex->GeneratedKeyIndex != INDEX_NONE)
 					{
 						ChannelIndex = pChannelIndex->GeneratedKeyIndex;
@@ -4948,7 +4948,7 @@ bool FControlRigParameterTrackEditor::CollapseAllLayers(TSharedPtr<ISequencer>&S
 							continue;
 						}
 						TPair<FName, TArray<FTransform>> NameTransforms;
-						NameTransforms.Key = ControlElement->GetName();
+						NameTransforms.Key = ControlElement->GetFName();
 						NameTransforms.Value.SetNum(Frames.Num());
 						ControlLocalTransforms.Add(NameTransforms);
 					}
@@ -5377,7 +5377,7 @@ void FControlRigParameterSection::ShowSelectedControlsChannels()
 		ControlRig->GetControlsInOrder(Controls);
 		for (const FRigControlElement* RigControl : Controls)
 		{
-			const FName RigName = RigControl->GetName();
+			const FName RigName = RigControl->GetFName();
 			if (ControlRig->IsControlSelected(RigName))
 			{
 				FChannelMapInfo* pChannelIndex = ParameterSection->ControlChannelMap.Find(RigName);

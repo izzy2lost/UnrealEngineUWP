@@ -537,7 +537,7 @@ TArray<FName> UControlRigComponent::GetElementNames(ERigElementType ElementType)
 		{
 			if(Element->IsTypeOf(ElementType))
 			{
-				Names.Add(Element->GetName());
+				Names.Add(Element->GetFName());
 			}
 		}
 	}
@@ -662,11 +662,11 @@ void UControlRigComponent::AddMappedSkeletalMesh(USkeletalMeshComponent* Skeleta
 			{
 				CR->GetHierarchy()->ForEach<FRigBoneElement>([SkeletalMeshComponent, &BonesToMap](FRigBoneElement* BoneElement) -> bool
 				{
-					if (SkeletalMeshComponent->GetBoneIndex(BoneElement->GetName()) != INDEX_NONE)
+					if (SkeletalMeshComponent->GetBoneIndex(BoneElement->GetFName()) != INDEX_NONE)
 					{
 						FControlRigComponentMappedBone BoneToMap;
-						BoneToMap.Source = BoneElement->GetName();
-						BoneToMap.Target = BoneElement->GetName();
+						BoneToMap.Source = BoneElement->GetFName();
+						BoneToMap.Target = BoneElement->GetFName();
 						BonesToMap.Add(BoneToMap);
 					}
 					return true;
@@ -689,8 +689,8 @@ void UControlRigComponent::AddMappedSkeletalMesh(USkeletalMeshComponent* Skeleta
 				CR->GetHierarchy()->ForEach<FRigCurveElement>([Skeleton, &CurvesToMap](FRigCurveElement* CurveElement) -> bool
                 {
 					FControlRigComponentMappedCurve CurveToMap;
-					CurveToMap.Source = CurveElement->GetName();
-					CurveToMap.Target = CurveElement->GetName();
+					CurveToMap.Source = CurveElement->GetFName();
+					CurveToMap.Target = CurveElement->GetFName();
 					CurvesToMap.Add(CurveToMap);
 					return true;
 				});

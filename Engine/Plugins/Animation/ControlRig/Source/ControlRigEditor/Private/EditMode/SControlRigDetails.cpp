@@ -149,15 +149,15 @@ void FControlRigEditModeGenericDetails::CustomizeDetails(class IDetailLayoutBuil
 				FRigControlElement* ParentControlElement = Cast<FRigControlElement>(Hierarchy->GetFirstParent(ControlElement));
 				if (ParentControlElement)
 				{
-					ParentControlName = ParentControlElement->GetName();
+					ParentControlName = ParentControlElement->GetFName();
 				}
 
-				if (ParentControlName == ControlElement->GetName())
+				if (ParentControlName == ControlElement->GetFName())
 				{
 					if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(ModeTools->GetActiveMode(FControlRigEditMode::ModeName)))
 					{
 						UControlRig* ControlRig = Proxy->ControlRig.Get();
-						if (UObject* NestedProxy = EditMode->ControlProxy->FindProxy(ControlRig,ControlElement->GetName()))
+						if (UObject* NestedProxy = EditMode->ControlProxy->FindProxy(ControlRig,ControlElement->GetFName()))
 						{
 							FName PropertyName(NAME_None);
 							switch (ControlElement->Settings.ControlType)

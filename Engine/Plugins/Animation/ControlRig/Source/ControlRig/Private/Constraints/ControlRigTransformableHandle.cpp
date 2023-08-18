@@ -226,7 +226,7 @@ bool UTransformableControlHandle::HasDirectDependencyWith(const UTransformableHa
 	const FRigBaseElementParentArray AllParents = Hierarchy->GetParents(ControlElement, bRecursive);
 	const bool bIsParent = AllParents.ContainsByPredicate([this, OtherHash](const FRigBaseElement* Parent)
 	{
-		const uint32 ParentHash = ComputeHash(ControlRig.Get(), Parent->GetName());
+		const uint32 ParentHash = ComputeHash(ControlRig.Get(), Parent->GetFName());
 		return ParentHash == OtherHash;		
 	});
 
@@ -239,7 +239,7 @@ bool UTransformableControlHandle::HasDirectDependencyWith(const UTransformableHa
 	const TArray<FRigControlElement*> AllControls = Hierarchy->GetControls();
 	const int32 IndexOfPossibleParent = AllControls.IndexOfByPredicate([this, OtherHash](const FRigBaseElement* Parent)
 	{
-		const uint32 ChildHash = ComputeHash(ControlRig.Get(), Parent->GetName());
+		const uint32 ChildHash = ComputeHash(ControlRig.Get(), Parent->GetFName());
 		return ChildHash == OtherHash;
 	});
 
@@ -368,7 +368,7 @@ void UTransformableControlHandle::OnHierarchyModified(
 			const FName OldName = Hierarchy->GetPreviousName(InElement->GetKey());
 			if (OldName == ControlName)
 			{
-				ControlName = InElement->GetName();
+				ControlName = InElement->GetFName();
 			}
 			break;
 		}
@@ -397,7 +397,7 @@ void UTransformableControlHandle::OnControlModified(
 		const EHandleEvent Event = InContext.bConstraintUpdate ?
 			EHandleEvent::GlobalTransformUpdated : EHandleEvent::LocalTransformUpdated;
 
-		if (InControl->GetName() == ControlName)
+		if (InControl->GetFName() == ControlName)
 		{	// if that handle is wrapping InControl  
 			OnHandleModified.Broadcast(this, Event);
 		}

@@ -37,7 +37,7 @@ struct CONTROLRIG_API FRigControlCopy
 
 	FRigControlCopy(FRigControlElement* InControlElement, URigHierarchy* InHierarchy)
 	{
-		Name = InControlElement->GetName();
+		Name = InControlElement->GetFName();
 		ControlType = InControlElement->Settings.ControlType;
 		Value = InHierarchy->GetControlValue(InControlElement, ERigControlValueType::Current);
 		ParentKey = InHierarchy->GetFirstParent(InControlElement->GetKey());

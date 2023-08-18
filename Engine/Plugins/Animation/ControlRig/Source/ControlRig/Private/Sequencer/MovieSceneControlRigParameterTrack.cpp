@@ -683,7 +683,7 @@ TOptional<EEulerRotationOrder> UMovieSceneControlRigParameterTrack::GetControlRo
 	TOptional<EEulerRotationOrder> Order;
 	if (bCurrent)
 	{
-		const FControlRotationOrder* RotationOrder = ControlsRotationOrder.Find(ControlElement->GetName());
+		const FControlRotationOrder* RotationOrder = ControlsRotationOrder.Find(ControlElement->GetFName());
 		if (RotationOrder)
 		{
 			Order = RotationOrder->RotationOrder;
@@ -717,7 +717,7 @@ TArray<FName> UMovieSceneControlRigParameterTrack::GetControlsWithDifferentRotat
 			TOptional<EEulerRotationOrder> Setting = GetControlRotationOrder(ControlElement, false);
 			if (Current != Setting)
 			{
-				Names.Add(ControlElement->GetName());
+				Names.Add(ControlElement->GetFName());
 			}
 
 		}

@@ -1870,7 +1870,7 @@ void SRigHierarchy::HandleNewItem(ERigElementType InElementType, bool bIsAnimati
 						Settings.ControlType = ERigControlType::Float;
 						Settings.MinimumValue = FRigControlValue::Make<float>(0.f);
 						Settings.MaximumValue = FRigControlValue::Make<float>(1.f);
-						Settings.DisplayName = Hierarchy->GetSafeNewDisplayName(ParentKey, *NewNameTemplate);
+						Settings.DisplayName = Hierarchy->GetSafeNewDisplayName(ParentKey, FRigName(NewNameTemplate));
 
 						NewItemKey = Controller->AddAnimationChannel(NewElementName, ParentKey, Settings, true, true);
 					}
@@ -2253,7 +2253,7 @@ URigHierarchy* SRigHierarchy::GetDefaultHierarchy() const
 
 FName SRigHierarchy::CreateUniqueName(const FName& InBaseName, ERigElementType InElementType) const
 {
-	return GetHierarchy()->GetSafeNewName(InBaseName.ToString(), InElementType);
+	return GetHierarchy()->GetSafeNewName(InBaseName, InElementType);
 }
 
 void SRigHierarchy::PostRedo(bool bSuccess) 
@@ -2471,9 +2471,8 @@ FName SRigHierarchy::HandleRenameElement(const FRigElementKey& OldKey, const FSt
 		URigHierarchyController* Controller = Hierarchy->GetController(true);
 		check(Controller);
 
-		FString SanitizedNameStr = NewName;
-		Hierarchy->SanitizeName(SanitizedNameStr);
-		const FName SanitizedName = *SanitizedNameStr;
+		FRigName SanitizedName(NewName);
+		Hierarchy->SanitizeName(SanitizedName);
 		FName ResultingName = NAME_None;
 
 		bool bUseDisplayName = false;
@@ -2546,7 +2545,7 @@ bool SRigHierarchy::HandleVerifyNameChanged(const FRigElementKey& OldKey, const 
 				if(const FRigBaseElement* ParentElement = Hierarchy->GetFirstParent(ControlElement))
 				{
 					FString OutErrorString;
-					if (!Hierarchy->IsDisplayNameAvailable(ParentElement->GetKey(), NewName, &OutErrorString))
+					if (!Hierarchy->IsDisplayNameAvailable(ParentElement->GetKey(), FRigName(NewName), &OutErrorString))
 					{
 						OutErrorMessage = FText::FromString(OutErrorString);
 						return false;
@@ -2557,7 +2556,7 @@ bool SRigHierarchy::HandleVerifyNameChanged(const FRigElementKey& OldKey, const 
 		else
 		{
 			FString OutErrorString;
-			if (!Hierarchy->IsNameAvailable(NewName, OldKey.Type, &OutErrorString))
+			if (!Hierarchy->IsNameAvailable(FRigName(NewName), OldKey.Type, &OutErrorString))
 			{
 				OutErrorMessage = FText::FromString(OutErrorString);
 				return false;
@@ -2847,7 +2846,7 @@ bool SRigHierarchy::FindClosestBone(const FVector& Point, FName& OutRigElementNa
             {
                 NearestDistance = CurDistance;
                 OutGlobalTransform = CurTransform;
-                OutRigElementName = Element->GetName();
+                OutRigElementName = Element->GetFName();
             }
             return true;
 		});

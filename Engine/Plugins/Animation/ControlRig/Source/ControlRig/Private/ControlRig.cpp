@@ -1358,7 +1358,7 @@ void UControlRig::GetMappableNodeData(TArray<FName>& OutNames, TArray<FNodeItem>
 	// now add all nodes
 	DynamicHierarchy->ForEach<FRigBoneElement>([&OutNames, &OutNodeItems, this](FRigBoneElement* BoneElement) -> bool
     {
-		OutNames.Add(BoneElement->GetName());
+		OutNames.Add(BoneElement->GetFName());
 		FRigElementKey ParentKey = DynamicHierarchy->GetFirstParent(BoneElement->GetKey());
 		if(ParentKey.Type != ERigElementType::Bone)
 		{
@@ -1558,7 +1558,7 @@ void UControlRig::CreateRigControlsForCurveContainer()
 
 		DynamicHierarchy->ForEach<FRigCurveElement>([this, Controller](FRigCurveElement* CurveElement) -> bool
         {
-			const FString Name = CurveElement->GetName().ToString();
+			const FString Name = CurveElement->GetFName().ToString();
 			
 			if (Name.Contains(CtrlPrefix) && !DynamicHierarchy->Contains(FRigElementKey(*Name, ERigElementType::Curve))) //-V1051
 			{
@@ -1571,7 +1571,7 @@ void UControlRig::CreateRigControlsForCurveContainer()
 				FRigControlValue Value;
 				Value.Set<float>(CurveElement->Value);
 
-				Controller->AddControl(CurveElement->GetName(), FRigElementKey(), Settings, Value, FTransform::Identity, FTransform::Identity); 
+				Controller->AddControl(CurveElement->GetFName(), FRigElementKey(), Settings, Value, FTransform::Identity, FTransform::Identity); 
 			}
 
 			return true;
@@ -1586,7 +1586,7 @@ void UControlRig::HandleOnControlModified(UControlRig* Subject, FRigControlEleme
 	if (Control->Settings.bIsCurve && DynamicHierarchy)
 	{
 		const FRigControlValue Value = DynamicHierarchy->GetControlValue(Control, IsConstructionModeEnabled() ? ERigControlValueType::Initial : ERigControlValueType::Current);
-		DynamicHierarchy->SetCurveValue(FRigElementKey(Control->GetName(), ERigElementType::Curve), Value.Get<float>());
+		DynamicHierarchy->SetCurveValue(FRigElementKey(Control->GetFName(), ERigElementType::Curve), Value.Get<float>());
 	}	
 }
 
@@ -1816,7 +1816,7 @@ TArray<FName> UControlRig::CurrentControlSelection() const
 		TArray<const FRigBaseElement*> SelectedControls = DynamicHierarchy->GetSelectedElements(ERigElementType::Control);
 		for (const FRigBaseElement* SelectedControl : SelectedControls)
 		{
-			SelectedControlNames.Add(SelectedControl->GetName());
+			SelectedControlNames.Add(SelectedControl->GetFName());
 		}
 #if WITH_EDITOR
 		for(const TSharedPtr<FRigDirectManipulationInfo>& ManipulationInfo : RigUnitManipulationInfos)
@@ -2276,7 +2276,7 @@ FName UControlRig::GetNameForTransientControl(const URigVMUnitNode* InNode, cons
 	check(DynamicHierarchy);
 	
 	const FString NodeName = InNode->GetName();
-	return DynamicHierarchy->GetSanitizedName(FString::Printf(TEXT("ControlForNode|%s|%s"), *NodeName, *InTarget.Name));
+	return DynamicHierarchy->GetSanitizedName(FRigName(FString::Printf(TEXT("ControlForNode|%s|%s"), *NodeName, *InTarget.Name)));
 }
 
 FString UControlRig::GetNodeNameFromTransientControl(const FRigElementKey& InKey)
@@ -2892,7 +2892,7 @@ void UControlRig::HandleInteractionRigControlSelected(UControlRig* Subject, FRig
 
 		if (bInverted)
 		{
-			const FString ControlName = Control->GetName().ToString();
+			const FString ControlName = Control->GetFName().ToString();
 			if (ControlName.EndsWith(TEXT("_CONTROL")))
 			{
 				const FString BaseName = ControlName.Left(ControlName.Len() - 8);
@@ -2951,7 +2951,7 @@ void UControlRig::SetBoneInitialTransformsFromRefSkeleton(const FReferenceSkelet
 	{
 		if(BoneElement->BoneType == ERigBoneType::Imported)
 		{
-			const int32 BoneIndex = InReferenceSkeleton.FindBoneIndex(BoneElement->GetName());
+			const int32 BoneIndex = InReferenceSkeleton.FindBoneIndex(BoneElement->GetFName());
 			if (BoneIndex != INDEX_NONE)
 			{
 				const FTransform LocalInitialTransform = InReferenceSkeleton.GetRefBonePose()[BoneIndex];
@@ -2984,7 +2984,7 @@ void UControlRig::SetBoneInitialTransformsFromCompactPose(FCompactPose* InCompac
 		{
 			if (BoneElement->BoneType == ERigBoneType::Imported)
 			{
-				int32 MeshIndex = InCompactPose->GetBoneContainer().GetPoseBoneIndexForBoneName(BoneElement->GetName());
+				int32 MeshIndex = InCompactPose->GetBoneContainer().GetPoseBoneIndexForBoneName(BoneElement->GetFName());
 				if (MeshIndex != INDEX_NONE)
 				{
 					FCompactPoseBoneIndex CPIndex = InCompactPose->GetBoneContainer().MakeCompactPoseIndex(FMeshPoseBoneIndex(MeshIndex));
@@ -3222,7 +3222,7 @@ UControlRig::FTransientControlScope::FTransientControlScope(TObjectPtr<URigHiera
 	for (FRigControlElement* Control : Hierarchy->GetTransientControls())
 	{
 		FTransientControlInfo Info;
-		Info.Name = Control->GetName();
+		Info.Name = Control->GetFName();
 		Info.Parent = Hierarchy->GetFirstParent(Control->GetKey());
 		Info.Settings = Control->Settings;
 		// preserve whatever value that was produced by this transient control at the moment

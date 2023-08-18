@@ -893,7 +893,7 @@ bool FRigBaseElementDetails::OnVerifyNameChanged(const FText& InText, FText& Out
 	}
 
 	FString OutErrorMessageStr;
-	if (!Hierarchy->IsNameAvailable(InText.ToString(), GetElementKey().Type, &OutErrorMessageStr))
+	if (!Hierarchy->IsNameAvailable(FRigName(InText.ToString()), GetElementKey().Type, &OutErrorMessageStr))
 	{
 		OutErrorMessage = FText::FromString(OutErrorMessageStr);
 		return false;
@@ -3501,14 +3501,14 @@ FReply FRigControlElementDetails::OnAddAnimationChannelClicked()
 	const FRigElementKey Key = PerElementInfos[0].GetElement()->GetKey();
 	URigHierarchy* HierarchyToChange = PerElementInfos[0].GetDefaultHierarchy();
 
-	static const FString ChannelName = TEXT("Channel");
+	static const FName ChannelName = TEXT("Channel");
 	FRigControlSettings Settings;
 	Settings.AnimationType = ERigControlAnimationType::AnimationChannel;
 	Settings.ControlType = ERigControlType::Float;
 	Settings.MinimumValue = FRigControlValue::Make<float>(0.f);
 	Settings.MaximumValue = FRigControlValue::Make<float>(1.f);
 	Settings.DisplayName = HierarchyToChange->GetSafeNewDisplayName(Key, ChannelName);
-	HierarchyToChange->GetController(true)->AddAnimationChannel(*ChannelName, Key, Settings, true, true);
+	HierarchyToChange->GetController(true)->AddAnimationChannel(ChannelName, Key, Settings, true, true);
 	HierarchyToChange->GetController(true)->SelectElement(Key);
 	return FReply::Handled();
 }
@@ -4349,7 +4349,7 @@ bool FRigControlElementDetails::OnVerifyDisplayNameChanged(const FText& InText, 
 	if(const FRigBaseElement* ParentElement = Hierarchy->GetFirstParent(ControlElement))
 	{
 		FString OutErrorString;
-		if (!Hierarchy->IsDisplayNameAvailable(ParentElement->GetKey(), NewName, &OutErrorString))
+		if (!Hierarchy->IsDisplayNameAvailable(ParentElement->GetKey(), FRigName(NewName), &OutErrorString))
 		{
 			OutErrorMessage = FText::FromString(OutErrorString);
 			return false;

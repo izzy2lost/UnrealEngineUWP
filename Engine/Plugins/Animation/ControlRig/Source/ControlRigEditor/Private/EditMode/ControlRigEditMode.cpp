@@ -721,7 +721,7 @@ TSet<FName> FControlRigEditMode::GetActiveControlsFromSequencer(UControlRig* Con
 							{
 								if (Mask[Index])
 								{
-									ActiveControls.Add(ControlElement->GetName());
+									ActiveControls.Add(ControlElement->GetFName());
 								}
 								++Index;
 							}
@@ -798,7 +798,7 @@ void FControlRigEditMode::Render(const FSceneView* View, FViewport* Viewport, FP
 									FLinearColor Color = FLinearColor::White;
 									if (bHasFKRig)
 									{
-										FName ControlName = UFKControlRig::GetControlName(ParentTransformElement->GetName(), ParentTransformElement->GetType());
+										FName ControlName = UFKControlRig::GetControlName(ParentTransformElement->GetFName(), ParentTransformElement->GetType());
 										if (ActiveControlName.Num() > 0 && ActiveControlName.Contains(ControlName) == false)
 										{
 											continue;
@@ -814,7 +814,7 @@ void FControlRigEditMode::Render(const FSceneView* View, FViewport* Viewport, FP
 									{
 										if (bHitTesting)
 										{
-											PDI->SetHitProxy(new HFKRigBoneProxy(ParentTransformElement->GetName(), ControlRig));
+											PDI->SetHitProxy(new HFKRigBoneProxy(ParentTransformElement->GetFName(), ControlRig));
 										}
 										PDI->DrawLine(ComponentTransform.TransformPosition(Transform.GetLocation()), ComponentTransform.TransformPosition(ParentTransform.GetLocation()), Color, SDPG_Foreground);
 										if (bHitTesting)
@@ -828,7 +828,7 @@ void FControlRigEditMode::Render(const FSceneView* View, FViewport* Viewport, FP
 							FLinearColor Color = FLinearColor::White;
 							if (bHasFKRig)
 							{
-								FName ControlName = UFKControlRig::GetControlName(TransformElement->GetName(), TransformElement->GetType());
+								FName ControlName = UFKControlRig::GetControlName(TransformElement->GetFName(), TransformElement->GetType());
 								if (ActiveControlName.Num() > 0 && ActiveControlName.Contains(ControlName) == false)
 								{
 									return true;
@@ -843,7 +843,7 @@ void FControlRigEditMode::Render(const FSceneView* View, FViewport* Viewport, FP
 								const bool bHitTesting = PDI->IsHitTesting() && bBoolSetHitProxies && (TransformElement->GetType() == ERigElementType::Bone);
 								if (bHitTesting)
 								{
-									PDI->SetHitProxy(new HFKRigBoneProxy(TransformElement->GetName(), ControlRig));
+									PDI->SetHitProxy(new HFKRigBoneProxy(TransformElement->GetFName(), ControlRig));
 								}
 								PDI->DrawPoint(ComponentTransform.TransformPosition(Transform.GetLocation()), Color, 5.0f, SDPG_Foreground);
 
@@ -3308,7 +3308,7 @@ void FControlRigEditMode::RecreateControlShapeActors(const TArray<FRigElementKey
 						for (int32 Index = 0; Index < Controls.Num(); ++Index)
 						{
 							FRigControlElement* Element = Controls[Index];
-							if (Element && Element->GetName() == Actor->ControlName)
+							if (Element && Element->GetFName() == Actor->ControlName)
 							{
 								Controls.RemoveAtSwap(Index);
 								break;
@@ -3362,9 +3362,9 @@ void FControlRigEditMode::CreateShapeActors(UControlRig* ControlRig)
 			Param.ManipObj = ControlRig;
 			Param.ControlRigIndex = ControlRigIndex;
 			Param.ControlRig = ControlRig;
-			Param.ControlName = ControlElement->GetName();
+			Param.ControlName = ControlElement->GetFName();
 			Param.ShapeName = ControlElement->Settings.ShapeName;
-			Param.SpawnTransform = ControlRig->GetControlGlobalTransform(ControlElement->GetName());
+			Param.SpawnTransform = ControlRig->GetControlGlobalTransform(ControlElement->GetFName());
 			Param.ShapeTransform = ControlRig->GetHierarchy()->GetControlShapeTransform(ControlElement, ERigTransformType::CurrentLocal);
 			Param.bSelectable = ControlElement->Settings.IsSelectable(false);
 
@@ -3633,7 +3633,7 @@ void FControlRigEditMode::OnHierarchyModified(ERigHierarchyNotification InNotif,
 				if (FRigControlElement* ControlElement = InHierarchy->Find<FRigControlElement>(InElement->GetKey()))
 				{
 					UControlRig* ControlRig = InHierarchy->GetTypedOuter<UControlRig>();
-					if(ControlProxy->IsSelected(ControlRig, ControlElement->GetName()))
+					if(ControlProxy->IsSelected(ControlRig, ControlElement->GetFName()))
 					{
 						// reselect the control - to affect the details panel / sequencer
 						if(URigHierarchyController* Controller = InHierarchy->GetController())
@@ -3716,9 +3716,9 @@ void FControlRigEditMode::OnHierarchyModified(ERigHierarchyNotification InNotif,
 									{
 										if (const FRigControlElement* DrivenControl = ControlRig->GetHierarchy()->Find<FRigControlElement>(DrivenKey))
 										{
-											ControlProxy->SelectProxy(ControlRig, DrivenControl->GetName(), bSelected);
+											ControlProxy->SelectProxy(ControlRig, DrivenControl->GetFName(), bSelected);
 
-											if (AControlRigShapeActor* DrivenShapeActor = GetControlShapeFromControlName(ControlRig,DrivenControl->GetName()))
+											if (AControlRigShapeActor* DrivenShapeActor = GetControlShapeFromControlName(ControlRig,DrivenControl->GetFName()))
 											{
 												if(bSelected)
 												{
@@ -3743,7 +3743,7 @@ void FControlRigEditMode::OnHierarchyModified(ERigHierarchyNotification InNotif,
 													if(DrivenKeys.Contains(ParentControlElement->GetKey()) ||
 														ParentControlElement->GetKey() == ControlElement->GetKey())
 													{
-														ControlProxy->SelectProxy(ControlRig, AnimationChannelControl->GetName(), bSelected);
+														ControlProxy->SelectProxy(ControlRig, AnimationChannelControl->GetFName(), bSelected);
 													}
 												}
 											}
@@ -3834,7 +3834,7 @@ void FControlRigEditMode::OnHierarchyModified_AnyThread(ERigHierarchyNotificatio
 void FControlRigEditMode::OnControlModified(UControlRig* Subject, FRigControlElement* InControlElement, const FRigControlModifiedContext& Context)
 {
 	//this makes sure the details panel ui get's updated, don't remove
-	ControlProxy->ProxyChanged(Subject,InControlElement->GetName());
+	ControlProxy->ProxyChanged(Subject,InControlElement->GetFName());
 
 	/*
 	FScopedTransaction ScopedTransaction(LOCTEXT("ModifyControlTransaction", "Modify Control"),!GIsTransacting && Context.SetKey != EControlRigSetKey::Never);

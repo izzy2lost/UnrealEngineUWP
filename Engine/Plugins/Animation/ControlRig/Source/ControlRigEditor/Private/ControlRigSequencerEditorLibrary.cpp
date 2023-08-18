@@ -2931,7 +2931,7 @@ bool UControlRigSequencerEditorLibrary::GetControlsMask(UMovieSceneSection* InSe
 	int32 Index = 0;
 	for (const FRigControlElement* RigControl : Controls)
 	{
-		if (RigControl->GetName() == ControlName)
+		if (RigControl->GetFName() == ControlName)
 		{
 			return ParameterSection->GetControlsMask(Index);
 		}
@@ -2965,7 +2965,7 @@ void UControlRigSequencerEditorLibrary::SetControlsMask(UMovieSceneSection* InSe
 	int32 Index = 0;
 	for (const FRigControlElement* RigControl : Controls)
 	{
-		if (ControlNames.Contains(RigControl->GetName()))
+		if (ControlNames.Contains(RigControl->GetFName()))
 		{
 			ParameterSection->SetControlsMask(Index, bVisible);
 		}

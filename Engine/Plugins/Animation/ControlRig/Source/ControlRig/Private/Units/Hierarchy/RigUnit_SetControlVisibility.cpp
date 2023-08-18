@@ -45,7 +45,7 @@ FRigUnit_SetControlVisibility_Execute()
 		{
 			Hierarchy->ForEach<FRigControlElement>([&Keys, Pattern](FRigControlElement* ControlElement) -> bool
 			{
-				if (ControlElement->GetName().ToString().Contains(Pattern, ESearchCase::CaseSensitive))
+				if (ControlElement->GetFName().ToString().Contains(Pattern, ESearchCase::CaseSensitive))
 				{
 					Keys.Add(ControlElement->GetKey());
 				}

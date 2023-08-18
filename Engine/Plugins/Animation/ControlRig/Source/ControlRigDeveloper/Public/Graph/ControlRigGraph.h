@@ -88,7 +88,7 @@ private:
 			{
 				if(!bFilter || IncludeElementInNameList<T>(Cast<T>(Element)))
 				{
-					Names.Add(Element->GetName().ToString());
+					Names.Add(Element->GetName());
 				}
 			}
 		}

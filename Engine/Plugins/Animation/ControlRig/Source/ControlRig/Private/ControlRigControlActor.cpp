@@ -247,7 +247,7 @@ void AControlRigControlActor::Refresh()
 							Component->SetMaterial(i, MaterialInstance);
 						}
 
-						ControlNames.Add(ControlElement->GetName());
+						ControlNames.Add(ControlElement->GetFName());
 						ShapeTransforms.Add(ShapeDef->Transform * Hierarchy->GetControlShapeTransform(ControlElement, ERigTransformType::CurrentLocal));
 						Components.Add(Component);
 						Materials.Add(MaterialInstance);

@@ -1312,7 +1312,7 @@ bool UAnimSequencerController::SetCurveAttributes(const FAnimationCurveIdentifie
 				const URigHierarchy* Hierarchy = FKRig->GetHierarchy();
 				if (Hierarchy ||  IgnoreSkeletonValidation())
 				{
-					const FRigElementKey CurveKey(URigHierarchy::GetSanitizedName(CurveId.CurveName.ToString()), ERigElementType::Curve);
+					const FRigElementKey CurveKey(URigHierarchy::GetSanitizedName(CurveId.CurveName), ERigElementType::Curve);
 					const FRigElementKey CurveControlKey(UFKControlRig::GetControlName(CurveKey.Name, ERigElementType::Curve), ERigElementType::Control);
 
 					const bool bContainsCurve = Hierarchy ? Hierarchy->Contains(CurveKey) : IgnoreSkeletonValidation();
@@ -1547,7 +1547,7 @@ bool UAnimSequencerController::SetBoneTrackKeys(FName BoneName, const TArray<FVe
 				{
 					if (URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
 					{
-						const FRigElementKey BoneKey(URigHierarchy::GetSanitizedName(BoneName.ToString()), ERigElementType::Bone);
+						const FRigElementKey BoneKey(URigHierarchy::GetSanitizedName(BoneName), ERigElementType::Bone);
 						const FRigElementKey BoneNameControlKey(UFKControlRig::GetControlName(BoneKey.Name, ERigElementType::Bone), ERigElementType::Control);
 						
 						const bool bContainsBone = Hierarchy->Contains(BoneKey);
@@ -2161,12 +2161,12 @@ void UAnimSequencerController::RemoveUnusedControlsAndCurves() const
 				{
 					if(!(TransformCurves.ContainsByPredicate([ControlElement](const FTransformParameterNameAndCurves& TransformParameter)
 							{
-								return TransformParameter.ParameterName == ControlElement->GetName();
+								return TransformParameter.ParameterName == ControlElement->GetFName();
 							})
 							||
 							ScalarCurves.ContainsByPredicate([ControlElement](const FScalarParameterNameAndCurve& ScalarParameter)
 							{
-								return ScalarParameter.ParameterName == ControlElement->GetName();
+								return ScalarParameter.ParameterName == ControlElement->GetFName();
 							}))
 					)
 					{
@@ -2182,7 +2182,7 @@ void UAnimSequencerController::RemoveUnusedControlsAndCurves() const
 				{
 					if(!FloatCurves.ContainsByPredicate([CurveElement](const FFloatCurve& FloatCurve)
 					{
-						return FloatCurve.GetName() == CurveElement->GetName();
+						return FloatCurve.GetName() == CurveElement->GetFName();
 					}))
 					{						
 						ElementsToRemove.Add(CurveElement->GetKey());
@@ -2452,7 +2452,7 @@ bool UAnimSequencerController::AddBoneControl(const FName& BoneName) const
 		{
 			if(URigHierarchy* Hierarchy = FKRig->GetHierarchy())
 			{
-				const FRigElementKey BoneKey(URigHierarchy::GetSanitizedName(BoneName.ToString()), ERigElementType::Bone);
+				const FRigElementKey BoneKey(URigHierarchy::GetSanitizedName(BoneName), ERigElementType::Bone);
 				const FRigElementKey BoneNameControlKey(UFKControlRig::GetControlName(BoneKey.Name, ERigElementType::Bone), ERigElementType::Control);
 
 				const bool bContainsBone = Hierarchy->Contains(BoneKey);
@@ -2557,7 +2557,7 @@ bool UAnimSequencerController::RemoveBoneControl(const FName& BoneName) const
 		{
 			if(URigHierarchy* Hierarchy = FKRig->GetHierarchy())
 			{
-				const FRigElementKey BoneNameControlKey(UFKControlRig::GetControlName(URigHierarchy::GetSanitizedName(BoneName.ToString()), ERigElementType::Bone), ERigElementType::Control);
+				const FRigElementKey BoneNameControlKey(UFKControlRig::GetControlName(URigHierarchy::GetSanitizedName(BoneName), ERigElementType::Bone), ERigElementType::Control);
 				
 				const bool bContainsTransformCurve = Section->GetTransformParameterNamesAndCurves().ContainsByPredicate([BoneNameControlKey](const FTransformParameterNameAndCurves& Parameter)
 				{
@@ -2615,7 +2615,7 @@ bool UAnimSequencerController::SetBoneCurveKeys(const FName& BoneName, const TAr
 			const URigHierarchy* Hierarchy = FKRig->GetHierarchy();
 			if(Hierarchy || IgnoreSkeletonValidation())
 			{
-				const FRigElementKey BoneKey(URigHierarchy::GetSanitizedName(BoneName.ToString()), ERigElementType::Bone);
+				const FRigElementKey BoneKey(URigHierarchy::GetSanitizedName(BoneName), ERigElementType::Bone);
 				const FRigElementKey BoneNameControlKey(UFKControlRig::GetControlName(BoneKey.Name, ERigElementType::Bone), ERigElementType::Control);
 
 				const bool bContainsBone = Hierarchy ? Hierarchy->Contains(BoneKey) : IgnoreSkeletonValidation();
@@ -2806,7 +2806,7 @@ bool UAnimSequencerController::UpdateBoneCurveKeys(const FName& BoneName, const 
 		{
 			if(URigHierarchy* Hierarchy = FKRig->GetHierarchy())
 			{
-				const FRigElementKey BoneKey(URigHierarchy::GetSanitizedName(BoneName.ToString()), ERigElementType::Bone);
+				const FRigElementKey BoneKey(URigHierarchy::GetSanitizedName(BoneName), ERigElementType::Bone);
 				const FRigElementKey BoneNameControlKey(UFKControlRig::GetControlName(BoneKey.Name, ERigElementType::Bone), ERigElementType::Control);
 
 				const bool bContainsBone = Hierarchy->Contains(BoneKey);
@@ -2902,7 +2902,7 @@ bool UAnimSequencerController::RemoveBoneCurveKey(const FName& BoneName, float T
 			{
 				if(const URigHierarchy* Hierarchy = FKRig->GetHierarchy())
 				{
-					const FRigElementKey BoneKey(URigHierarchy::GetSanitizedName(BoneName.ToString()), ERigElementType::Bone);
+					const FRigElementKey BoneKey(URigHierarchy::GetSanitizedName(BoneName), ERigElementType::Bone);
 					const FRigElementKey BoneNameControlKey(UFKControlRig::GetControlName(BoneKey.Name, ERigElementType::Bone), ERigElementType::Control);
 	
 					const bool bContainsBone = Hierarchy->Contains(BoneKey);
@@ -2975,7 +2975,7 @@ bool UAnimSequencerController::AddCurveControl(const FName& CurveName) const
 		{
 			if(URigHierarchy* Hierarchy = FKRig->GetHierarchy())
 			{				
-				const FRigElementKey CurveKey(URigHierarchy::GetSanitizedName(CurveName.ToString()), ERigElementType::Curve);
+				const FRigElementKey CurveKey(URigHierarchy::GetSanitizedName(CurveName), ERigElementType::Curve);
 				const FRigElementKey CurveControlKey(UFKControlRig::GetControlName(CurveKey.Name, ERigElementType::Curve), ERigElementType::Control);
 
 				const bool bContainsCurve = Hierarchy->Contains(CurveKey);
@@ -3059,10 +3059,10 @@ bool UAnimSequencerController::RenameCurveControl(const FName& CurveName, const 
 			{
 				if (URigHierarchyController* Controller = RigHierarchy->GetController())
 				{
-					const FRigElementKey CurveKey(URigHierarchy::GetSanitizedName(CurveName.ToString()), ERigElementType::Curve);
+					const FRigElementKey CurveKey(URigHierarchy::GetSanitizedName(CurveName), ERigElementType::Curve);
 					const FRigElementKey CurveControlKey(UFKControlRig::GetControlName(CurveKey.Name, ERigElementType::Curve), ERigElementType::Control);
 
-					const FName SanitizedNewCurveName = URigHierarchy::GetSanitizedName(NewCurveName.ToString());
+					const FName SanitizedNewCurveName = URigHierarchy::GetSanitizedName(NewCurveName);
 					// Rename the curve element itself
 					if (RigHierarchy->Contains(CurveKey))
 					{											
@@ -3146,7 +3146,7 @@ bool UAnimSequencerController::RemoveCurveControl(const FName& CurveName) const
 		{
 			if(URigHierarchy* Hierarchy = FKRig->GetHierarchy())
 			{									
-				const FRigElementKey CurveKey(URigHierarchy::GetSanitizedName(CurveName.ToString()), ERigElementType::Curve);
+				const FRigElementKey CurveKey(URigHierarchy::GetSanitizedName(CurveName), ERigElementType::Curve);
 				const FRigElementKey CurveControlKey(UFKControlRig::GetControlName(CurveKey.Name, ERigElementType::Curve), ERigElementType::Control);
 
 				const bool bContainsCurve = Hierarchy->Contains(CurveKey);
@@ -3212,7 +3212,7 @@ bool UAnimSequencerController::SetCurveControlKeys(const FName& CurveName, const
 
 			if (Hierarchy ||  IgnoreSkeletonValidation())
 			{
-				const FRigElementKey CurveKey(URigHierarchy::GetSanitizedName(CurveName.ToString()), ERigElementType::Curve);
+				const FRigElementKey CurveKey(URigHierarchy::GetSanitizedName(CurveName), ERigElementType::Curve);
 				const FRigElementKey CurveControlKey(UFKControlRig::GetControlName(CurveKey.Name, ERigElementType::Curve), ERigElementType::Control);
 
 				const bool bContainsCurve = Hierarchy ? Hierarchy->Contains(CurveKey) : IgnoreSkeletonValidation();
@@ -3298,7 +3298,7 @@ bool UAnimSequencerController::SetCurveControlKey(const FName& CurveName, const 
 		{
 			if(const URigHierarchy* Hierarchy = FKRig->GetHierarchy())
 			{
-				const FRigElementKey CurveKey(URigHierarchy::GetSanitizedName(CurveName.ToString()), ERigElementType::Curve);
+				const FRigElementKey CurveKey(URigHierarchy::GetSanitizedName(CurveName), ERigElementType::Curve);
 				const FRigElementKey CurveControlKey(UFKControlRig::GetControlName(CurveKey.Name, ERigElementType::Curve), ERigElementType::Control);
 				const bool bContainsCurve = Hierarchy->Contains(CurveKey);
 				const bool bContainsCurveControl = Hierarchy->Contains(CurveControlKey);
@@ -3388,7 +3388,7 @@ bool UAnimSequencerController::RemoveCurveControlKey(const FName& CurveName, flo
 			if(const URigHierarchy* Hierarchy = FKRig->GetHierarchy())
 			{
 				const FFrameNumber FrameNumber = Model->MovieScene->GetTickResolution().AsFrameNumber(Time);
-				const FRigElementKey CurveKey(URigHierarchy::GetSanitizedName(CurveName.ToString()), ERigElementType::Curve);
+				const FRigElementKey CurveKey(URigHierarchy::GetSanitizedName(CurveName), ERigElementType::Curve);
 				const FRigElementKey CurveControlKey(UFKControlRig::GetControlName(CurveKey.Name, ERigElementType::Curve), ERigElementType::Control);
 				const bool bContainsCurve = Hierarchy->Contains(CurveKey);
 				const bool bContainsCurveControl = Hierarchy->Contains(CurveControlKey);
@@ -3453,7 +3453,7 @@ bool UAnimSequencerController::DuplicateCurveControl(const FName& CurveName, con
 			{
 				if (URigHierarchyController* HierarchyController = Hierarchy->GetController())
 				{
-					const FRigElementKey NewCurveKey(URigHierarchy::GetSanitizedName(DuplicateCurveName.ToString()), ERigElementType::Curve);
+					const FRigElementKey NewCurveKey(URigHierarchy::GetSanitizedName(DuplicateCurveName), ERigElementType::Curve);
 					const FRigElementKey NewCurveControlKey(UFKControlRig::GetControlName(NewCurveKey.Name, ERigElementType::Curve), ERigElementType::Control);
 
 					const bool bAlreadyContainsCurve = Hierarchy->Contains(NewCurveKey);
@@ -3473,7 +3473,7 @@ bool UAnimSequencerController::DuplicateCurveControl(const FName& CurveName, con
 						// Rename the curve driving the control value
 						const FScalarParameterNameAndCurve* ParameterCurvePair = Section->GetScalarParameterNamesAndCurves().FindByPredicate([CurveName](const FScalarParameterNameAndCurve& Parameter)
 						{
-							return Parameter.ParameterName == UFKControlRig::GetControlName(URigHierarchy::GetSanitizedName(CurveName.ToString()), ERigElementType::Curve);
+							return Parameter.ParameterName == UFKControlRig::GetControlName(URigHierarchy::GetSanitizedName(CurveName), ERigElementType::Curve);
 						});
 				
 						if(ParameterCurvePair)

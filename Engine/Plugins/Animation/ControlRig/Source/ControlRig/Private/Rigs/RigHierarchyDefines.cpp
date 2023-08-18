@@ -173,14 +173,14 @@ FRigElementKeyCollection FRigElementKeyCollection::MakeFromName(
 		return InHierarchy->GetKeysByPredicate([WildcardString, InElementTypes](const FRigBaseElement& InElement) -> bool
 		{
 			return InElement.IsTypeOf(static_cast<ERigElementType>(InElementTypes)) &&
-				   WildcardString.IsMatch(InElement.GetNameString());
+				   WildcardString.IsMatch(InElement.GetName());
 		}, bTraverse);
 	}
 	
 	return InHierarchy->GetKeysByPredicate([PartialNameString, InElementTypes](const FRigBaseElement& InElement) -> bool
 	{
 		return InElement.IsTypeOf(static_cast<ERigElementType>(InElementTypes)) &&
-			   InElement.GetNameString().Contains(PartialNameString);
+			   InElement.GetName().Contains(PartialNameString);
 	}, bTraverse);
 }
 

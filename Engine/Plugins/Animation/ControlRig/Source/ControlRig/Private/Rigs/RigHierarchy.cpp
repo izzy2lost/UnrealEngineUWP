@@ -484,7 +484,7 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 			FRigBaseElement* Target = (FRigBaseElement*)&NewElementsPerType[ElementTypeIndex][StructureSize * SubIndex];
 		
 			Target->Key = Key;
-			Target->NameString = Source->NameString;
+			Target->NameString.Reset();
 			Target->SubIndex = SubIndex;
 			Target->Index = Elements.Add(Target);
 			Target->CreatedAtInstructionIndex = Source->CreatedAtInstructionIndex;
@@ -518,7 +518,7 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 
 			check(Target->Key.Type == Source->Key.Type);
             Target->Key = Source->Key;
-            Target->NameString = Source->NameString;
+            Target->NameString.Reset();
             Target->SubIndex = Source->SubIndex;
             Target->Index = Source->Index;
 			Target->CreatedAtInstructionIndex = Source->CreatedAtInstructionIndex;
@@ -555,7 +555,7 @@ uint32 URigHierarchy::GetNameHash() const
 	for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ElementIndex++)
 	{
 		const FRigBaseElement* Element = Elements[ElementIndex];
-		Hash = HashCombine(Hash, GetTypeHash(Element->GetName()));
+		Hash = HashCombine(Hash, GetTypeHash(Element->GetFName()));
 	}
 	return Hash;	
 }
@@ -1042,12 +1042,14 @@ TArray<FRigElementKey> URigHierarchy::GetSelectedKeys(ERigElementType InTypeFilt
 	return Selection;
 }
 
-void URigHierarchy::SanitizeName(FString& InOutName)
+void URigHierarchy::SanitizeName(FRigName& InOutName)
 {
 	// Sanitize the name
-	for (int32 i = 0; i < InOutName.Len(); ++i)
+	FString SanitizedNameString = InOutName.GetName();
+	bool bChangedSomething = false;
+	for (int32 i = 0; i < SanitizedNameString.Len(); ++i)
 	{
-		TCHAR& C = InOutName[i];
+		TCHAR& C = SanitizedNameString[i];
 
 		const bool bGoodChar = FChar::IsAlpha(C) ||					 // Any letter
 			(C == '_') || (C == '-') || (C == '.') || (C == '|') ||	 // _  - .  | anytime
@@ -1057,63 +1059,33 @@ void URigHierarchy::SanitizeName(FString& InOutName)
 		if (!bGoodChar)
 		{
 			C = '_';
+			bChangedSomething = true;
 		}
 	}
 
-	if (InOutName.Len() > GetMaxNameLength())
+	if (SanitizedNameString.Len() > GetMaxNameLength())
 	{
-		InOutName.LeftChopInline(InOutName.Len() - GetMaxNameLength());
+		SanitizedNameString.LeftChopInline(SanitizedNameString.Len() - GetMaxNameLength());
+		bChangedSomething = true;
+	}
+
+	if(bChangedSomething)
+	{
+		InOutName.SetName(SanitizedNameString);
 	}
 }
 
-FName URigHierarchy::GetSanitizedName(const FString& InName)
+FRigName URigHierarchy::GetSanitizedName(const FRigName& InName)
 {
-	FString Name = InName;
+	FRigName Name = InName;
 	SanitizeName(Name);
-
-	if (Name.IsEmpty())
-	{
-		return NAME_None;
-	}
-
-	return *Name;
+	return Name;
 }
 
-bool URigHierarchy::IsNameAvailable(const FString& InPotentialNewName, ERigElementType InType, FString* OutErrorMessage) const
+bool URigHierarchy::IsNameAvailable(const FRigName& InPotentialNewName, ERigElementType InType, FString* OutErrorMessage) const
 {
-	const FString UnsanitizedName = InPotentialNewName;
-	if (UnsanitizedName.Len() > GetMaxNameLength())
-	{
-		if (OutErrorMessage)
-		{
-			*OutErrorMessage = TEXT("Name too long.");
-		}
-		return false;
-	}
-
-	if (UnsanitizedName == TEXT("None"))
-	{
-		if (OutErrorMessage)
-		{
-			*OutErrorMessage = TEXT("None is not a valid name.");
-		}
-		return false;
-	}
-
-	FString SanitizedName = UnsanitizedName;
-	SanitizeName(SanitizedName);
-
-	if (SanitizedName != UnsanitizedName)
-	{
-		if (OutErrorMessage)
-		{
-			*OutErrorMessage = TEXT("Name contains invalid characters.");
-		}
-		return false;
-	}
-
 	// check for fixed keywords
-	const FRigElementKey PotentialKey(*InPotentialNewName, InType);
+	const FRigElementKey PotentialKey(InPotentialNewName.GetFName(), InType);
 	if(PotentialKey == URigHierarchy::GetDefaultParentKey())
 	{
 		return false;
@@ -1128,13 +1100,7 @@ bool URigHierarchy::IsNameAvailable(const FString& InPotentialNewName, ERigEleme
 		return false;
 	}
 
-	return true;
-}
-
-bool URigHierarchy::IsDisplayNameAvailable(const FRigElementKey& InParentElement,
-	const FString& InPotentialNewDisplayName, FString* OutErrorMessage) const
-{
-	const FString UnsanitizedName = InPotentialNewDisplayName;
+	const FRigName UnsanitizedName = InPotentialNewName;
 	if (UnsanitizedName.Len() > GetMaxNameLength())
 	{
 		if (OutErrorMessage)
@@ -1144,7 +1110,7 @@ bool URigHierarchy::IsDisplayNameAvailable(const FRigElementKey& InParentElement
 		return false;
 	}
 
-	if (UnsanitizedName == TEXT("None"))
+	if (UnsanitizedName.IsNone())
 	{
 		if (OutErrorMessage)
 		{
@@ -1153,7 +1119,7 @@ bool URigHierarchy::IsDisplayNameAvailable(const FRigElementKey& InParentElement
 		return false;
 	}
 
-	FString SanitizedName = UnsanitizedName;
+	FRigName SanitizedName = UnsanitizedName;
 	SanitizeName(SanitizedName);
 
 	if (SanitizedName != UnsanitizedName)
@@ -1165,14 +1131,20 @@ bool URigHierarchy::IsDisplayNameAvailable(const FRigElementKey& InParentElement
 		return false;
 	}
 
+	return true;
+}
+
+bool URigHierarchy::IsDisplayNameAvailable(const FRigElementKey& InParentElement,
+	const FRigName& InPotentialNewDisplayName, FString* OutErrorMessage) const
+{
 	if(InParentElement.IsValid())
 	{
 		const TArray<FRigElementKey> ChildKeys = GetChildren(InParentElement);
-		if(ChildKeys.ContainsByPredicate([SanitizedName, this](const FRigElementKey& InChildKey) -> bool
+		if(ChildKeys.ContainsByPredicate([&InPotentialNewDisplayName, this](const FRigElementKey& InChildKey) -> bool
 		{
 			if(const FRigBaseElement* BaseElement = Find(InChildKey))
 			{
-				if(BaseElement->GetDisplayName().ToString() == SanitizedName)
+				if(BaseElement->GetDisplayName() == InPotentialNewDisplayName.GetFName())
 				{
 					return true;
 				}
@@ -1188,33 +1160,64 @@ bool URigHierarchy::IsDisplayNameAvailable(const FRigElementKey& InParentElement
 		}
 	}
 
+	const FRigName UnsanitizedName = InPotentialNewDisplayName;
+	if (UnsanitizedName.Len() > GetMaxNameLength())
+	{
+		if (OutErrorMessage)
+		{
+			*OutErrorMessage = TEXT("Name too long.");
+		}
+		return false;
+	}
+
+	if (UnsanitizedName.IsNone())
+	{
+		if (OutErrorMessage)
+		{
+			*OutErrorMessage = TEXT("None is not a valid name.");
+		}
+		return false;
+	}
+
+	FRigName SanitizedName = UnsanitizedName;
+	SanitizeName(SanitizedName);
+
+	if (SanitizedName != UnsanitizedName)
+	{
+		if (OutErrorMessage)
+		{
+			*OutErrorMessage = TEXT("Name contains invalid characters.");
+		}
+		return false;
+	}
+
 	return true;
 }
 
-FName URigHierarchy::GetSafeNewName(const FString& InPotentialNewName, ERigElementType InType) const
+FRigName URigHierarchy::GetSafeNewName(const FRigName& InPotentialNewName, ERigElementType InType) const
 {
-	FString SanitizedName = InPotentialNewName;
+	FRigName SanitizedName = InPotentialNewName;
 	SanitizeName(SanitizedName);
-	FString Name = SanitizedName;
+	FRigName Name = SanitizedName;
 
 	int32 Suffix = 1;
 	while (!IsNameAvailable(Name, InType))
 	{
-		FString BaseString = SanitizedName;
+		FString BaseString = SanitizedName.GetName();
 		if (BaseString.Len() > GetMaxNameLength() - 4)
 		{
 			BaseString.LeftChopInline(BaseString.Len() - (GetMaxNameLength() - 4));
 		}
-		Name = *FString::Printf(TEXT("%s_%d"), *BaseString, ++Suffix);
+		Name.SetName(FString::Printf(TEXT("%s_%d"), *BaseString, ++Suffix));
 	}
-	return *Name;
+	return Name;
 }
 
-FName URigHierarchy::GetSafeNewDisplayName(const FRigElementKey& InParentElement, const FString& InPotentialNewDisplayName) const
+FRigName URigHierarchy::GetSafeNewDisplayName(const FRigElementKey& InParentElement, const FRigName& InPotentialNewDisplayName) const
 {
-	if(InPotentialNewDisplayName.IsEmpty())
+	if(InPotentialNewDisplayName.IsNone())
 	{
-		return NAME_None;
+		return FRigName();
 	}
 
 	TArray<FRigElementKey> KeysToCheck;
@@ -1239,9 +1242,9 @@ FName URigHierarchy::GetSafeNewDisplayName(const FRigElementKey& InParentElement
 		}
 	}
 
-	FString SanitizedName = InPotentialNewDisplayName;
+	FRigName SanitizedName = InPotentialNewDisplayName;
 	SanitizeName(SanitizedName);
-	FString Name = SanitizedName;
+	FRigName Name = SanitizedName;
 
 	TArray<FString> DisplayNames;
 	Algo::Transform(KeysToCheck, DisplayNames, [this](const FRigElementKey& InKey) -> FString
@@ -1254,17 +1257,17 @@ FName URigHierarchy::GetSafeNewDisplayName(const FRigElementKey& InParentElement
 	});
 
 	int32 Suffix = 1;
-	while (DisplayNames.Contains(Name))
+	while (DisplayNames.Contains(Name.GetName()))
 	{
-		FString BaseString = SanitizedName;
+		FString BaseString = SanitizedName.GetName();
 		if (BaseString.Len() > GetMaxNameLength() - 4)
 		{
 			BaseString.LeftChopInline(BaseString.Len() - (GetMaxNameLength() - 4));
 		}
-		Name = *FString::Printf(TEXT("%s_%d"), *BaseString, ++Suffix);
+		Name.SetName(FString::Printf(TEXT("%s_%d"), *BaseString, ++Suffix));
 	}
 
-	return *Name;
+	return Name;
 }
 
 int32 URigHierarchy::GetPoseVersion(const FRigElementKey& InKey) const
@@ -3102,8 +3105,8 @@ void URigHierarchy::SetTransform(FRigTransformElement* InTransformElement, const
 									static constexpr TCHAR MessageFormat[] = TEXT("Setting transform of parent (%s) after setting child (%s).\nThis may lead to unexpected results.");
 									const FString& Message = FString::Printf(
 										MessageFormat,
-										*InTransformElement->GetName().ToString(),
-										*Child->GetName().ToString());
+										*InTransformElement->GetName(),
+										*Child->GetName());
 									CRContext.GetLog()->Report(
 										EMessageSeverity::Info,
 										ExecuteContext->GetPublicData<>().GetFunctionName(),
@@ -3287,7 +3290,7 @@ FTransform URigHierarchy::GetControlOffsetTransform(FRigControlElement* InContro
 
 				checkf(FRigComputedTransform::Equals(GlobalTransform, ComputedTransform),
 					TEXT("Element '%s' Offset %s Cached vs Computed doesn't match. ('%s' <-> '%s')"),
-					*InControlElement->GetName().ToString(),
+					*InControlElement->GetName(),
 					*TransformTypeStrings[(int32)InTransformType],
 					*GlobalTransform.ToString(), *ComputedTransform.ToString());
 			}
@@ -3311,7 +3314,7 @@ FTransform URigHierarchy::GetControlOffsetTransform(FRigControlElement* InContro
 
 				checkf(FRigComputedTransform::Equals(LocalTransform, ComputedTransform),
 					TEXT("Element '%s' Offset %s Cached vs Computed doesn't match. ('%s' <-> '%s')"),
-					*InControlElement->GetName().ToString(),
+					*InControlElement->GetName(),
 					*TransformTypeStrings[(int32)InTransformType],
 					*LocalTransform.ToString(), *ComputedTransform.ToString());
 			}
@@ -3628,7 +3631,7 @@ void URigHierarchy::SetControlSettings(FRigControlElement* InControlElement, FRi
 		}
 		if (!BlueprintName.IsEmpty())
 		{
-			FString ControlNamePythonized = RigVMPythonUtils::PythonizeName(InControlElement->GetName().ToString());
+			FString ControlNamePythonized = RigVMPythonUtils::PythonizeName(InControlElement->GetName());
 			FString SettingsName = FString::Printf(TEXT("control_settings_%s"),
 				*ControlNamePythonized);
 			TArray<FString> Commands = ControlSettingsToPythonCommands(InControlElement->Settings, SettingsName);
@@ -4010,7 +4013,7 @@ void URigHierarchy::SetConnectorSettings(FRigConnectorElement* InConnectorElemen
 		}
 		if (!BlueprintName.IsEmpty())
 		{
-			FString ControlNamePythonized = RigVMPythonUtils::PythonizeName(InConnectorElement->GetName().ToString());
+			FString ControlNamePythonized = RigVMPythonUtils::PythonizeName(InConnectorElement->GetName());
 			FString SettingsName = FString::Printf(TEXT("connector_settings_%s"),
 				*ControlNamePythonized);
 			TArray<FString> Commands = ConnectorSettingsToPythonCommands(InConnectorElement->Settings, SettingsName);
@@ -5087,7 +5090,7 @@ void URigHierarchy::EnsureCacheValidityImpl()
 					const FTransform ComputedTransform = HierarchyForLambda->GetControlOffsetTransform(ControlElement, TransformType);
 					checkf(FRigComputedTransform::Equals(CachedTransform, ComputedTransform),
 						TEXT("Element '%s' Offset %s Cached vs Computed doesn't match. ('%s' <-> '%s')"),
-						*Element->GetName().ToString(),
+						*Element->GetName(),
 						*TransformTypeString,
 						*CachedTransform.ToString(),
 						*ComputedTransform.ToString());
@@ -5110,7 +5113,7 @@ void URigHierarchy::EnsureCacheValidityImpl()
 					const FTransform ComputedTransform = HierarchyForLambda->GetTransform(TransformElement, TransformType);
 					checkf(FRigComputedTransform::Equals(CachedTransform, ComputedTransform),
 						TEXT("Element '%s' Pose %s Cached vs Computed doesn't match. ('%s' <-> '%s')"),
-						*Element->GetName().ToString(),
+						*Element->GetName(),
 						*TransformTypeString,
 						*CachedTransform.ToString(), *ComputedTransform.ToString());
 				}
@@ -5132,7 +5135,7 @@ void URigHierarchy::EnsureCacheValidityImpl()
 					const FTransform ComputedTransform = HierarchyForLambda->GetControlShapeTransform(ControlElement, TransformType);
 					checkf(FRigComputedTransform::Equals(CachedTransform, ComputedTransform),
 						TEXT("Element '%s' Shape %s Cached vs Computed doesn't match. ('%s' <-> '%s')"),
-						*Element->GetName().ToString(),
+						*Element->GetName(),
 						*TransformTypeString,
 						*CachedTransform.ToString(), *ComputedTransform.ToString());
 				}

@@ -1303,7 +1303,7 @@ void FControlRigSpaceChannelHelpers::CompensateIfNeeded(
 		if(Control)// ac && Control->GetName() != ControlName)
 		{ 
 			//only if we have a channel
-			if (FSpaceControlNameAndChannel* Channel = Section->GetSpaceChannel(Control->GetName()))
+			if (FSpaceControlNameAndChannel* Channel = Section->GetSpaceChannel(Control->GetFName()))
 			{
 				const TArrayView<const FFrameNumber> FramesToCompensate = GetSpaceTimesToCompensate(Channel);
 				if (FramesToCompensate.Num() > 0)
@@ -1324,7 +1324,7 @@ void FControlRigSpaceChannelHelpers::CompensateIfNeeded(
 							TArray<FTransform> ControlWorldTransforms;
 							FControlRigSnapper Snapper;
 							Snapper.GetControlRigControlTransforms(
-								Sequencer, ControlRig, Control->GetName(),
+								Sequencer, ControlRig, Control->GetFName(),
 								{Time},
 								ControlRigParentWorldTransforms, ControlWorldTransforms);
 
@@ -1346,7 +1346,7 @@ void FControlRigSpaceChannelHelpers::CompensateIfNeeded(
 							//now set time -1 frame value
 							ControlRig->Evaluate_AnyThread();
 							KeyframeContext.LocalTime = TickResolution.AsSeconds(FFrameTime(Time - 1));
-							ControlRig->SetControlGlobalTransform(Control->GetName(), ControlWorldTransforms[0], true, KeyframeContext, false /*undo*/, false /*bPrintPython*/, true/* bFixEulerFlips*/);
+							ControlRig->SetControlGlobalTransform(Control->GetFName(), ControlWorldTransforms[0], true, KeyframeContext, false /*undo*/, false /*bPrintPython*/, true/* bFixEulerFlips*/);
 							
 							bDidIt = true;
 						}

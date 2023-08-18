@@ -157,7 +157,7 @@ void UControlRigThumbnailRenderer::AddAdditionalPreviewSceneContent(UObject* Obj
 								MeshComponent->SetMaterial(i, MaterialInstance);
 							}
 
-							ShapeActors.Add(ControlElement->GetName(), ShapeActor);
+							ShapeActors.Add(ControlElement->GetFName(), ShapeActor);
 
 							ShapeActor->GetStaticMeshComponent()->SetStaticMesh(StaticMesh);
 							ShapeActor->SetActorTransform(ShapeDef->Transform * ShapeGlobalTransform);

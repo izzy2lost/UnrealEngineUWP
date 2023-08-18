@@ -556,9 +556,9 @@ public:
 
 	FRigBaseElement()
     : Key()
-	, NameString()
     , Index(INDEX_NONE)
 	, SubIndex(INDEX_NONE)
+	, NameString()
 	, CreatedAtInstructionIndex(INDEX_NONE)
 	, OwnedInstances(0)
 	, TopologyVersion(0)
@@ -582,9 +582,6 @@ protected:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = RigElement, meta = (AllowPrivateAccess = "true"))
 	FRigElementKey Key;
 
-	UPROPERTY(transient)
-	FString NameString;
-
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = RigElement, meta = (AllowPrivateAccess = "true"))
 	int32 Index;
 
@@ -599,6 +596,8 @@ protected:
 		return true;
 	}
 
+	mutable TOptional<FString> NameString;
+
 public:
 
 	UScriptStruct* GetElementStruct() const;
@@ -606,9 +605,16 @@ public:
 	virtual void Save(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase);
 	virtual void Load(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase);
 
-	const FName& GetName() const { return Key.Name; }
-	const FString& GetNameString() const { return NameString; }
-	virtual const FName& GetDisplayName() const { return GetName(); }
+	const FName& GetFName() const { return Key.Name; }
+	const FString& GetName() const
+	{
+		if(!NameString.IsSet())
+		{
+			NameString = Key.Name.ToString();
+		}
+		return NameString.GetValue();
+	}
+	virtual const FName& GetDisplayName() const { return GetFName(); }
 	ERigElementType GetType() const { return Key.Type; }
 	const FRigElementKey& GetKey() const { return Key; }
 	int32 GetIndex() const { return Index; }

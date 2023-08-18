@@ -752,16 +752,16 @@ void FSequencerTrailHierarchy::RegisterControlRigDelegates(USkeletalMeshComponen
 
 			if (bSelected)
 			{
-				AddControlRigTrail(Component,ControlRig,CRParameterTrack, ControlElement->GetName());
+				AddControlRigTrail(Component,ControlRig,CRParameterTrack, ControlElement->GetFName());
 			}
 
 			if (ControlsTracked.Find(ControlRig) != nullptr)
 			{
-				if (ControlsTracked[ControlRig].Contains(ControlElement->GetName()))
+				if (ControlsTracked[ControlRig].Contains(ControlElement->GetFName()))
 				{
 					if (bSelected == false)
 					{
-						const FGuid TrailGuid = ControlsTracked[ControlRig][ControlElement->GetName()];
+						const FGuid TrailGuid = ControlsTracked[ControlRig][ControlElement->GetFName()];
 						VisibilityManager.ControlSelected.Remove(TrailGuid);
 						RemoveTrailIfNotAlwaysVisible(TrailGuid);
 					}
@@ -806,12 +806,12 @@ void FSequencerTrailHierarchy::RegisterControlRigDelegates(USkeletalMeshComponen
 			
 			if(InNotif == ERigHierarchyNotification::ElementRemoved)
 			{
-				if (!ControlsTracked.Contains(ControlRig) || !ControlsTracked[ControlRig].Contains(ControlElement->GetName())) // We only care about controls
+				if (!ControlsTracked.Contains(ControlRig) || !ControlsTracked[ControlRig].Contains(ControlElement->GetFName())) // We only care about controls
 				{
 					return;
 				}
 				
-				const FGuid TrailGuid = ControlsTracked[ControlRig][ControlElement->GetName()];
+				const FGuid TrailGuid = ControlsTracked[ControlRig][ControlElement->GetFName()];
 				RemoveTrail(TrailGuid);
 			}
             else if(InNotif == ERigHierarchyNotification::ElementRenamed)
@@ -825,7 +825,7 @@ void FSequencerTrailHierarchy::RegisterControlRigDelegates(USkeletalMeshComponen
 
 				const FGuid TempTrailGuid = ControlsTracked[ControlRig][OldName];
 				ControlsTracked[ControlRig].Remove(OldName);
-				ControlsTracked[ControlRig].Add(ControlElement->GetName(), TempTrailGuid);
+				ControlsTracked[ControlRig].Add(ControlElement->GetFName(), TempTrailGuid);
             }
         }
     );

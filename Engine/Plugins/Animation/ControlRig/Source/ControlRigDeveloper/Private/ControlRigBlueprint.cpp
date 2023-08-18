@@ -240,7 +240,7 @@ void UControlRigBlueprint::UpdateExposedModuleConnectors()
 	Hierarchy->ForEach<FRigConnectorElement>([this](const FRigConnectorElement* ConnectorElement) -> bool
 	{
 		FRigModuleConnector ExposedConnector;
-		ExposedConnector.Name = ConnectorElement->GetNameString();
+		ExposedConnector.Name = ConnectorElement->GetName();
 		ExposedConnector.bIsRoot = Hierarchy->GetNumberOfParents(ConnectorElement) == 0;
 		ExposedConnector.Settings = ConnectorElement->Settings;
 		ModuleSettings.ExposedConnectors.Add(ExposedConnector);
@@ -1396,7 +1396,7 @@ UControlRigBlueprint::FControlValueScope::FControlValueScope(UControlRigBlueprin
 		TArray<FRigControlElement*> Controls = CR->AvailableControls();
 		for (FRigControlElement* ControlElement : Controls)
 		{
-			ControlValues.Add(ControlElement->GetName(), CR->GetControlValue(ControlElement->GetName()));
+			ControlValues.Add(ControlElement->GetFName(), CR->GetControlValue(ControlElement->GetFName()));
 		}
 	}
 #endif

@@ -2742,7 +2742,7 @@ void FControlRigEditor::OnHierarchyModified(ERigHierarchyNotification InNotif, U
 
 			CacheNameLists();
 
-			const FString RemovedElementName = InElement->GetName().ToString();
+			const FString RemovedElementName = InElement->GetName();
 			const ERigElementType RemovedElementType = InElement->GetType();
 
 			TArray<UEdGraph*> EdGraphs;
@@ -2815,7 +2815,7 @@ void FControlRigEditor::OnHierarchyModified(ERigHierarchyNotification InNotif, U
 			}
 
 			const FString OldNameStr = InHierarchy->GetPreviousName(InElement->GetKey()).ToString();
-			const FString NewNameStr = InElement->GetName().ToString();
+			const FString NewNameStr = InElement->GetName();
 			const ERigElementType ElementType = InElement->GetType(); 
 
 			TArray<UEdGraph*> EdGraphs;
@@ -3058,7 +3058,7 @@ void FControlRigEditor::SynchronizeViewportBoneSelection()
 		TArray<const FRigBaseElement*> SelectedBones = GetHierarchyBeingDebugged()->GetSelectedElements(ERigElementType::Bone);
 		for (const FRigBaseElement* SelectedBone : SelectedBones)
 		{
- 			const int32 BoneIndex = EditorSkelComp->GetReferenceSkeleton().FindBoneIndex(SelectedBone->GetName());
+ 			const int32 BoneIndex = EditorSkelComp->GetReferenceSkeleton().FindBoneIndex(SelectedBone->GetFName());
 			if(BoneIndex != INDEX_NONE)
 			{
 				EditorSkelComp->BonesOfInterest.AddUnique(BoneIndex);
@@ -3561,7 +3561,7 @@ void FControlRigEditor::HandleMakeElementGetterSetter(ERigElementGetterSetterTyp
 				
 				if(const FRigControlElement* ParentControlElement = Cast<FRigControlElement>(Hierarchy->GetFirstParent(ControlElement)))
 				{
-					NameValue = ParentControlElement->GetName();
+					NameValue = ParentControlElement->GetFName();
 				}
 				else
 				{
@@ -4121,7 +4121,7 @@ void FControlRigEditor::HandleOnControlModified(UControlRig* Subject, FRigContro
 			}
 			else if (ElementKey.Type == ERigElementType::Null)
 			{
-				const FTransform GlobalTransform = GetControlRig()->GetControlGlobalTransform(ControlElement->GetName());
+				const FTransform GlobalTransform = GetControlRig()->GetControlGlobalTransform(ControlElement->GetFName());
 				Blueprint->Hierarchy->SetGlobalTransform(ElementKey, GlobalTransform);
 				Hierarchy->SetGlobalTransform(ElementKey, GlobalTransform);
 				if (IsConstructionModeEnabled())

@@ -60,8 +60,8 @@ void UAnimationSequencerDataModel::RemoveOutOfDateControls() const
 					TArray<FRigElementKey> ElementKeysToRemove;
 					Hierarchy->ForEach<FRigControlElement>([this, Section, &ElementKeysToRemove](const FRigControlElement* ControlElement) -> bool
 					{
-						const bool bContainsBone = Section->HasTransformParameter(ControlElement->GetName());
-						const bool bContainsCurve = Section->HasScalarParameter(ControlElement->GetName());
+						const bool bContainsBone = Section->HasTransformParameter(ControlElement->GetFName());
+						const bool bContainsCurve = Section->HasScalarParameter(ControlElement->GetFName());
 						
 						if (!bContainsBone && !bContainsCurve)
 						{
@@ -73,7 +73,7 @@ void UAnimationSequencerDataModel::RemoveOutOfDateControls() const
 						
 					Hierarchy->ForEach<FRigCurveElement>([this, &ElementKeysToRemove](const FRigCurveElement* CurveElement) -> bool
 					{
-						const FName TargetCurveName = CurveElement->GetName();
+						const FName TargetCurveName = CurveElement->GetFName();
 						if(!LegacyCurveData.FloatCurves.ContainsByPredicate([TargetCurveName](const FFloatCurve& Curve) { return Curve.GetName() == TargetCurveName; }))
 						{
 							ElementKeysToRemove.Add(CurveElement->GetKey());	
@@ -884,17 +884,17 @@ void UAnimationSequencerDataModel::GenerateLegacyCurveData()
 
 						Hierarchy->ForEach<FRigCurveElement>([Hierarchy, this, ScalarCurves, FrameRate = GetFrameRate(), SequencerSuffix](const FRigCurveElement* CurveElement) -> bool
 							{
-								const FRigElementKey ControlKey(UFKControlRig::GetControlName(CurveElement->GetName(), ERigElementType::Curve), ERigElementType::Control);
+								const FRigElementKey ControlKey(UFKControlRig::GetControlName(CurveElement->GetFName(), ERigElementType::Curve), ERigElementType::Control);
 								if (const FRigControlElement* Element = Hierarchy->Find<FRigControlElement>(ControlKey))
 								{
 									FFloatCurve& FloatCurve = LegacyCurveData.FloatCurves.AddDefaulted_GetRef();
 									if (RetainFloatCurves)
 									{
-									FloatCurve.SetName(FName(*(CurveElement->GetName().ToString() + TEXT("_Sequencer"))));
+									FloatCurve.SetName(FName(*(CurveElement->GetFName().ToString() + TEXT("_Sequencer"))));
 									}
 									else
 									{
-									FloatCurve.SetName(CurveElement->GetName());
+									FloatCurve.SetName(CurveElement->GetFName());
 									}						
 								
 									FloatCurve.Color = Element->Settings.ShapeColor;
@@ -912,7 +912,7 @@ void UAnimationSequencerDataModel::GenerateLegacyCurveData()
 
 									if (const FScalarParameterNameAndCurve* ScalarCurve = ScalarCurves.FindByPredicate([Element](FScalarParameterNameAndCurve Curve)
 									{
-										return Curve.ParameterName == Element->GetName();
+										return Curve.ParameterName == Element->GetFName();
 									}))
 									{							
 										AnimSequencerHelpers::ConvertFloatChannelToRichCurve(ScalarCurve->ParameterCurve, FloatCurve.FloatCurve, FrameRate);
@@ -1183,7 +1183,7 @@ void UAnimationSequencerDataModel::GeneratePoseData(UControlRig* ControlRig, FAn
 				QUICK_SCOPE_CYCLE_COUNTER(STAT_GetMappings);
 				RigHierarchy->ForEach<FRigBoneElement>([&MeshRefSkeleton, &RequiredBones, &SkeletonRefSkeleton, &RigHierarchy, &RetargetingScope, &RigPose](const FRigBoneElement* BoneElement) -> bool
 				{
-					const FName& BoneName = BoneElement->GetName();
+					const FName& BoneName = BoneElement->GetFName();
 					const int32 BoneIndex = MeshRefSkeleton.FindBoneIndex(BoneName);
 					if (BoneIndex != INDEX_NONE)
 					{
@@ -1205,7 +1205,7 @@ void UAnimationSequencerDataModel::GeneratePoseData(UControlRig* ControlRig, FAn
 
 				RigHierarchy->ForEach<FRigCurveElement>([this, &RigHierarchy, &Curve](const FRigCurveElement* CurveElement) -> bool
 					{
-						const FName& CurveName = CurveElement->GetName();
+						const FName& CurveName = CurveElement->GetFName();
 					Curve.Add(CurveName, RigHierarchy->GetCurveValue(CurveElement->GetKey()));
 						return true;
 					});

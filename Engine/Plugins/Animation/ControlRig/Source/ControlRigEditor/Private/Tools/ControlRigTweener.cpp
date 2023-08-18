@@ -380,13 +380,13 @@ bool FAnimSliderObjectSelection::Setup(const TArray<UControlRig*>& SelectedContr
 					TArray<FKeyHandle> Handles;
 					for (FRigControlElement* ControlElement : CurrentControls)
 					{
-						if (ControlRig->GetHierarchy()->IsAnimatable(ControlElement) &&  ControlRig->IsControlSelected(ControlElement->GetName()))
+						if (ControlRig->GetHierarchy()->IsAnimatable(ControlElement) &&  ControlRig->IsControlSelected(ControlElement->GetFName()))
 						{
 							FAnimSliderObjectSelection::FObjectChannels ObjectChannels;
 							ObjectChannels.Section = Section;
 							KeyTimes.SetNum(0);
 							Handles.SetNum(0);
-							FChannelMapInfo* pChannelIndex = Section->ControlChannelMap.Find(ControlElement->GetName());
+							FChannelMapInfo* pChannelIndex = Section->ControlChannelMap.Find(ControlElement->GetFName());
 							if (pChannelIndex == nullptr)
 							{
 								continue;

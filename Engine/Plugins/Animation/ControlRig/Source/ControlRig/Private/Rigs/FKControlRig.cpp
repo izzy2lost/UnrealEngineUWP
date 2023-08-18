@@ -120,7 +120,7 @@ bool UFKControlRig::Execute_Internal(const FName& InEventName)
 	{
 		GetHierarchy()->ForEach<FRigBoneElement>([&](FRigBoneElement* BoneElement) -> bool
         {
-			const FName ControlName = GetControlName(BoneElement->GetName(), BoneElement->GetType());
+			const FName ControlName = GetControlName(BoneElement->GetFName(), BoneElement->GetType());
 			const FRigElementKey ControlKey(ControlName, ERigElementType::Control);
 			const int32 ControlIndex = GetHierarchy()->GetIndex(ControlKey);
 			if (ControlIndex != INDEX_NONE && IsControlActive[ControlIndex])
@@ -157,7 +157,7 @@ bool UFKControlRig::Execute_Internal(const FName& InEventName)
 
 		GetHierarchy()->ForEach<FRigCurveElement>([&](FRigCurveElement* CurveElement) -> bool
         {
-			const FName ControlName = GetControlName(CurveElement->GetName(), CurveElement->GetType());
+			const FName ControlName = GetControlName(CurveElement->GetFName(), CurveElement->GetType());
 			const FRigElementKey ControlKey(ControlName, ERigElementType::Control);
 			const int32 ControlIndex = GetHierarchy()->GetIndex(ControlKey);
 			
@@ -200,7 +200,7 @@ bool UFKControlRig::Execute_Internal(const FName& InEventName)
 
 			FRigBoneElement* BoneElement = CastChecked<FRigBoneElement>(InElement);
 
-			const FName ControlName = GetControlName(BoneElement->GetName(), BoneElement->GetType());
+			const FName ControlName = GetControlName(BoneElement->GetFName(), BoneElement->GetType());
 			const FRigElementKey ControlKey(ControlName, ERigElementType::Control);
 			const int32 ControlIndex = GetHierarchy()->GetIndex(ControlKey);
 			
@@ -235,7 +235,7 @@ bool UFKControlRig::Execute_Internal(const FName& InEventName)
 
 		GetHierarchy()->ForEach<FRigCurveElement>([&](FRigCurveElement* CurveElement) -> bool
         {
-			const FName ControlName = GetControlName(CurveElement->GetName(), CurveElement->GetType());
+			const FName ControlName = GetControlName(CurveElement->GetFName(), CurveElement->GetType());
 			const FRigElementKey ControlKey(ControlName, ERigElementType::Control);
 			const int32 ControlIndex = GetHierarchy()->GetIndex(ControlKey);
 
@@ -308,7 +308,7 @@ TArray<FName> UFKControlRig::GetControlNames()
 	TArray<FName> Names;
 	for (FRigControlElement* ControlElement : Controls) 
 	{
-		Names.Add(ControlElement->GetName());
+		Names.Add(ControlElement->GetFName());
 	}
 	return Names;
 }
@@ -372,7 +372,7 @@ void UFKControlRig::CreateRigElements(const FReferenceSkeleton& InReferenceSkele
 		{
 			auto CreateControlForBoneElement = [this, Controller](const FRigBoneElement* BoneElement)
 			{
-				const FName BoneName = BoneElement->GetName();
+				const FName BoneName = BoneElement->GetFName();
 				const FName ControlName = GetControlName(BoneName, BoneElement->GetType());
 				const FRigElementKey ParentKey = GetHierarchy()->GetFirstParent(BoneElement->GetKey());
 
@@ -410,13 +410,13 @@ void UFKControlRig::CreateRigElements(const FReferenceSkeleton& InReferenceSkele
 		{
 			GetHierarchy()->ForEach<FRigCurveElement>([&](const FRigCurveElement* CurveElement) -> bool
 			{
-				const FName ControlName = GetControlName(CurveElement->GetName(), CurveElement->GetType());
+				const FName ControlName = GetControlName(CurveElement->GetFName(), CurveElement->GetType());
 
 				FRigControlSettings Settings;
 				Settings.ControlType = ERigControlType::Float;
-				Settings.DisplayName = CurveElement->GetName();
+				Settings.DisplayName = CurveElement->GetFName();
 
-				const FName DisplayCurveControlName(*(CurveElement->GetName().ToString() + TEXT(" Curve")));
+				const FName DisplayCurveControlName(*(CurveElement->GetFName().ToString() + TEXT(" Curve")));
 				Settings.DisplayName = DisplayCurveControlName;
 				Controller->AddControl(ControlName, FRigElementKey(), Settings, FRigControlValue::Make(CurveElement->Value), FTransform::Identity, FTransform::Identity, false);
 				
@@ -439,7 +439,7 @@ void UFKControlRig::SetControlOffsetsFromBoneInitials()
 		}
 
 		const FRigBoneElement* BoneElement = CastChecked<FRigBoneElement>(InElement);
-		const FName BoneName = BoneElement->GetName();
+		const FName BoneName = BoneElement->GetFName();
 		const FName ControlName = GetControlName(BoneName, BoneElement->GetType());
 
 		FRigControlElement* ControlElement = GetHierarchy()->Find<FRigControlElement>(FRigElementKey(ControlName, ERigElementType::Control));
@@ -521,11 +521,11 @@ void UFKControlRig::ToggleApplyMode()
         {
             if (ControlElement->Settings.ControlType == ERigControlType::EulerTransform)
 			{
-				SetControlValue<FEulerTransform>(ControlElement->GetName(), FEulerTransform::Identity, true, Context, bSetupUndo);
+				SetControlValue<FEulerTransform>(ControlElement->GetFName(), FEulerTransform::Identity, true, Context, bSetupUndo);
 			}
 			else if (ControlElement->Settings.ControlType == ERigControlType::Float)
 			{
-				SetControlValue<float>(ControlElement->GetName(), 0.f, true, Context, bSetupUndo);
+				SetControlValue<float>(ControlElement->GetFName(), 0.f, true, Context, bSetupUndo);
 			}
 
 			return true;
@@ -543,12 +543,12 @@ void UFKControlRig::ToggleApplyMode()
 			{
 				const FRigControlValue::FEulerTransform_Float InitValue =
 					GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Initial).Get<FRigControlValue::FEulerTransform_Float>();
-				SetControlValue<FRigControlValue::FEulerTransform_Float>(ControlElement->GetName(), InitValue, true, Context, bSetupUndo);
+				SetControlValue<FRigControlValue::FEulerTransform_Float>(ControlElement->GetFName(), InitValue, true, Context, bSetupUndo);
 			}
 			else if (ControlElement->Settings.ControlType == ERigControlType::Float)
 			{
 				const float InitValue = GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Initial).Get<float>();
-				SetControlValue<float>(ControlElement->GetName(), InitValue, true, Context, bSetupUndo);
+				SetControlValue<float>(ControlElement->GetFName(), InitValue, true, Context, bSetupUndo);
 			}
 
 			return true;

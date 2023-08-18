@@ -632,7 +632,7 @@ void USequencerPivotTool::GizmoTransformStarted(UTransformProxy* Proxy)
 						//if we have a parent that's selected and we are a float/bool/int/enum skip
 						if (FRigControlElement* ParentControlElement = Cast<FRigControlElement>(ControlRig->GetHierarchy()->GetFirstParent(ControlElement)))
 						{
-							if (ControlRig->IsControlSelected(ParentControlElement->GetName()) && (
+							if (ControlRig->IsControlSelected(ParentControlElement->GetFName()) && (
 								ControlElement->Settings.ControlType == ERigControlType::Bool || 
 								ControlElement->Settings.ControlType == ERigControlType::Float || 
 								ControlElement->Settings.ControlType == ERigControlType::Integer)

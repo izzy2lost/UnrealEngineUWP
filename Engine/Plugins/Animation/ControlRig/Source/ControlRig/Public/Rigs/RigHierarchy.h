@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "RigVMCore/RigVMExecuteContext.h"
 #include "RigVMCore/RigVM.h"
+#include "RigName.h"
 #include "RigHierarchyElements.h"
 #include "RigHierarchyCache.h"
 #include "RigHierarchyPose.h"
@@ -1556,14 +1557,14 @@ public:
 	 * Sanitizes a name by removing invalid characters.
 	 * @param InOutName The name to sanitize in place.
 	 */
-	static void SanitizeName(FString& InOutName);
+	static void SanitizeName(FRigName& InOutName);
 
 	/**
 	 * Sanitizes a name by removing invalid characters.
 	 * @param InName The name to sanitize.
 	 * @return The sanitized name.
  	 */
-	static FName GetSanitizedName(const FString& InName);
+	static FRigName GetSanitizedName(const FRigName& InName);
 
 	/**
 	 * Returns true if a given name is available.
@@ -1572,7 +1573,7 @@ public:
 	 * @param OutErrorMessage An optional pointer to return a potential error message 
 	 * @return Returns true if the name is available.
 	 */
-	bool IsNameAvailable(const FString& InPotentialNewName, ERigElementType InType, FString* OutErrorMessage = nullptr) const;
+	bool IsNameAvailable(const FRigName& InPotentialNewName, ERigElementType InType, FString* OutErrorMessage = nullptr) const;
 
 	/**
 	 * Returns true if a given display name is available.
@@ -1581,7 +1582,7 @@ public:
 	 * @param OutErrorMessage An optional pointer to return a potential error message 
 	 * @return Returns true if the name is available.
 	 */
-	bool IsDisplayNameAvailable(const FRigElementKey& InParentElement, const FString& InPotentialNewDisplayName, FString* OutErrorMessage = nullptr) const;
+	bool IsDisplayNameAvailable(const FRigElementKey& InParentElement, const FRigName& InPotentialNewDisplayName, FString* OutErrorMessage = nullptr) const;
 
 	/**
 	 * Returns a valid new name for a to-be-added element.
@@ -1589,7 +1590,7 @@ public:
 	 * @param InType The type of the to-be-added element
 	 * @return Returns the name to use for the to-be-added element.
 	 */
-	FName GetSafeNewName(const FString& InPotentialNewName, ERigElementType InType) const;
+	FRigName GetSafeNewName(const FRigName& InPotentialNewName, ERigElementType InType) const;
 
 	/**
 	 * Returns a valid new display name for a control
@@ -1597,7 +1598,7 @@ public:
 	 * @param InPotentialNewDisplayName The name to be sanitized and adjusted for availability
 	 * @return Returns the name to use for the to-be-added element.
 	 */
-	FName GetSafeNewDisplayName(const FRigElementKey& InParentElement, const FString& InPotentialNewDisplayName) const;
+	FRigName GetSafeNewDisplayName(const FRigElementKey& InParentElement, const FRigName& InPotentialNewDisplayName) const;
 
 	/**
 	 * Returns the modified event, which can be used to 

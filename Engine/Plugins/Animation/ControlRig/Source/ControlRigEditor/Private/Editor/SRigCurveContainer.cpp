@@ -392,7 +392,7 @@ void SRigCurveContainer::CreateRigCurveList( const FString& SearchText )
 		// Iterate through all curves..
 		Hierarchy->ForEach<FRigCurveElement>([this](FRigCurveElement* CurveElement) -> bool
 		{
-			const FString CurveString = CurveElement->GetName().ToString();
+			const FString CurveString = CurveElement->GetName();
 			
 			// See if we pass the search filter
             if (!FilterText.IsEmpty() && !CurveString.Contains(*FilterText.ToString()))
@@ -400,7 +400,7 @@ void SRigCurveContainer::CreateRigCurveList( const FString& SearchText )
                 return true;
             }
 
-            TSharedRef<FDisplayedRigCurveInfo> NewItem = FDisplayedRigCurveInfo::Make(CurveElement->GetName());
+            TSharedRef<FDisplayedRigCurveInfo> NewItem = FDisplayedRigCurveInfo::Make(CurveElement->GetFName());
             RigCurveList.Add(NewItem);
 
 			return true;
@@ -601,7 +601,7 @@ void SRigCurveContainer::OnHierarchyModified(ERigHierarchyNotification InNotif, 
 				const bool bSelected = InNotif == ERigHierarchyNotification::ElementSelected;
 				for(const FDisplayedRigCurveInfoPtr& Item : RigCurveList)
 				{
-					if (Item->CurveName == InElement->GetName())
+					if (Item->CurveName == InElement->GetFName())
 					{
 						RigCurveListView->SetItemSelection(Item, bSelected);
 						break;

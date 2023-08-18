@@ -573,7 +573,7 @@ struct FParameterTransformChannelEditorData
 				auto GetTranslationFromTransform = [&](const FVector& InTranslation)
 				{
 					// switch translation to constraint space if needed
-					const uint32 ControlHash = UTransformableControlHandle::ComputeHash(ControlRig, ControlElement->GetName());
+					const uint32 ControlHash = UTransformableControlHandle::ComputeHash(ControlRig, ControlElement->GetFName());
 					TOptional<FTransform> ConstraintSpaceTransform = FTransformConstraintUtils::GetRelativeTransform(ControlRig->GetWorld(), ControlHash);
 					if (ConstraintSpaceTransform)
 					{
@@ -627,7 +627,7 @@ struct FParameterTransformChannelEditorData
 				if (ControlElement->Settings.ControlType == ERigControlType::EulerTransform)
 				{
 					// switch rotation to constraint space if needed
-					const uint32 ControlHash = UTransformableControlHandle::ComputeHash(ControlRig, ControlElement->GetName());
+					const uint32 ControlHash = UTransformableControlHandle::ComputeHash(ControlRig, ControlElement->GetFName());
 					TOptional<FTransform> ConstraintSpaceTransform = FTransformConstraintUtils::GetRelativeTransform(ControlRig->GetWorld(), ControlHash);
 					if (ConstraintSpaceTransform)
 					{
@@ -653,7 +653,7 @@ struct FParameterTransformChannelEditorData
 				auto GetScaleFromTransform = [&](const FVector& InScale3D)
 				{
 					// switch scale to constraint space if needed
-					const uint32 ControlHash = UTransformableControlHandle::ComputeHash(ControlRig, ControlElement->GetName());
+					const uint32 ControlHash = UTransformableControlHandle::ComputeHash(ControlRig, ControlElement->GetFName());
 					TOptional<FTransform> ConstraintSpaceTransform = FTransformConstraintUtils::GetRelativeTransform(ControlRig->GetWorld(), ControlHash);
 					if (ConstraintSpaceTransform)
 					{
@@ -950,7 +950,7 @@ void UMovieSceneControlRigParameterSection::SetBlendType(EMovieSceneBlendType In
 
 				case ERigControlType::Scale:
 				{
-					ChannelInfo = ControlChannelMap.Find(ControlElement->GetName());
+					ChannelInfo = ControlChannelMap.Find(ControlElement->GetFName());
 					if (ChannelInfo)
 					{
 						if (InBlendType == EMovieSceneBlendType::Absolute)
@@ -971,7 +971,7 @@ void UMovieSceneControlRigParameterSection::SetBlendType(EMovieSceneBlendType In
 				case ERigControlType::Transform:
 				case ERigControlType::EulerTransform:
 				{
-					ChannelInfo = ControlChannelMap.Find(ControlElement->GetName());
+					ChannelInfo = ControlChannelMap.Find(ControlElement->GetFName());
 					if (ChannelInfo)
 					{
 						if (InBlendType == EMovieSceneBlendType::Absolute)
@@ -1575,7 +1575,7 @@ bool UMovieSceneControlRigParameterSection::IsDifferentThanLastControlsUsedToRec
 	for (int32 Index = 0; Index < LastControlsUsedToReconstruct.Num(); ++Index)
 	{
 		//for the channel proxy we really just care about name and type, and if any are nullptr's
-		if (LastControlsUsedToReconstruct[Index].Key != NewControls[Index]->GetName() ||
+		if (LastControlsUsedToReconstruct[Index].Key != NewControls[Index]->GetFName() ||
 			LastControlsUsedToReconstruct[Index].Value != NewControls[Index]->Settings.ControlType)
 		{
 			return true;
@@ -1591,7 +1591,7 @@ void UMovieSceneControlRigParameterSection::StoreLastControlsUsedToReconstruct(c
 	{
 		if (NewControls[Index])
 		{
-			LastControlsUsedToReconstruct[Index].Key = NewControls[Index]->GetName();
+			LastControlsUsedToReconstruct[Index].Key = NewControls[Index]->GetFName();
 			LastControlsUsedToReconstruct[Index].Value = NewControls[Index]->Settings.ControlType;
 		}
 	}
@@ -1717,7 +1717,7 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 			{
 				if(const FRigControlElement* ParentControlElement = Cast<FRigControlElement>(Hierarchy->GetFirstParent(ControlElement)))
 				{
-					ParentControlName = ParentControlElement->GetName();
+					ParentControlName = ParentControlElement->GetFName();
 					Group = FText::FromName(ParentControlElement->GetDisplayName());
 				}
 			}
@@ -1731,7 +1731,7 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 				{
 					for (FScalarParameterNameAndCurve& Scalar : GetScalarParameterNamesAndCurves())
 					{
-						if (ControlElement->GetName() == Scalar.ParameterName)
+						if (ControlElement->GetFName() == Scalar.ParameterName)
 						{
 							if (Group.IsEmpty())
 							{
@@ -1764,7 +1764,7 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 				{
 					for (FBoolParameterNameAndCurve& Bool : GetBoolParameterNamesAndCurves())
 					{
-						if (ControlElement->GetName() == Bool.ParameterName)
+						if (ControlElement->GetFName() == Bool.ParameterName)
 						{
 							if (Group.IsEmpty())
 							{
@@ -1801,7 +1801,7 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 					{
 						for (FEnumParameterNameAndCurve& Enum : GetEnumParameterNamesAndCurves())
 						{
-							if (ControlElement->GetName() == Enum.ParameterName)
+							if (ControlElement->GetFName() == Enum.ParameterName)
 							{
 								if (Group.IsEmpty())
 								{
@@ -1835,7 +1835,7 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 					{
 						for (FIntegerParameterNameAndCurve& Integer : GetIntegerParameterNamesAndCurves())
 						{
-							if (ControlElement->GetName() == Integer.ParameterName)
+							if (ControlElement->GetFName() == Integer.ParameterName)
 							{
 								if (Group.IsEmpty())
 								{
@@ -1872,7 +1872,7 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 				{
 					for (FVector2DParameterNameAndCurves& Vector2D : GetVector2DParameterNamesAndCurves())
 					{
-						if (ControlElement->GetName() == Vector2D.ParameterName)
+						if (ControlElement->GetFName() == Vector2D.ParameterName)
 						{
 							if(Group.IsEmpty())
 							{
@@ -1908,7 +1908,7 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 				{
 					for (FVectorParameterNameAndCurves& Vector : GetVectorParameterNamesAndCurves())
 					{
-						if (ControlElement->GetName() == Vector.ParameterName)
+						if (ControlElement->GetFName() == Vector.ParameterName)
 						{
 							if(Group.IsEmpty())
 							{
@@ -1987,9 +1987,9 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 				{
 					for (FTransformParameterNameAndCurves& Transform : GetTransformParameterNamesAndCurves())
 					{
-						if (ControlElement->GetName() == Transform.ParameterName)
+						if (ControlElement->GetFName() == Transform.ParameterName)
 						{
-							const FName ControlName = ControlElement->GetName();
+							const FName ControlName = ControlElement->GetFName();
 							if(Group.IsEmpty())
 							{
 								ControlChannelMap.Add(Transform.ParameterName, FChannelMapInfo(ControlIndex, TotalIndex, FloatChannelIndex, INDEX_NONE, NAME_None, MaskIndex, CategoryIndex));
@@ -2088,7 +2088,7 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 				{
 					for (FScalarParameterNameAndCurve& Scalar : GetScalarParameterNamesAndCurves())
 					{
-						if (ControlElement->GetName() == Scalar.ParameterName)
+						if (ControlElement->GetFName() == Scalar.ParameterName)
 						{
 							ControlChannelMap.Add(Scalar.ParameterName, FChannelMapInfo(ControlIndex, TotalIndex,FloatChannelIndex,INDEX_NONE, NAME_None,MaskIndex));
 							Channels.Add(Scalar.ParameterCurve);
@@ -2104,7 +2104,7 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 				{
 					for (FBoolParameterNameAndCurve& Bool : GetBoolParameterNamesAndCurves())
 					{
-						if (ControlElement->GetName() == Bool.ParameterName)
+						if (ControlElement->GetFName() == Bool.ParameterName)
 						{
 							ControlChannelMap.Add(Bool.ParameterName, FChannelMapInfo(ControlIndex, TotalIndex, BoolChannelIndex, INDEX_NONE, NAME_None, MaskIndex));
 							Channels.Add(Bool.ParameterCurve);
@@ -2122,7 +2122,7 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 					{
 						for (FEnumParameterNameAndCurve& Enum : GetEnumParameterNamesAndCurves())
 						{
-							if (ControlElement->GetName() == Enum.ParameterName)
+							if (ControlElement->GetFName() == Enum.ParameterName)
 							{
 								ControlChannelMap.Add(Enum.ParameterName, FChannelMapInfo(ControlIndex, TotalIndex, EnumChannelIndex, INDEX_NONE, NAME_None, MaskIndex));
 								Channels.Add(Enum.ParameterCurve);
@@ -2137,7 +2137,7 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 					{
 						for (FIntegerParameterNameAndCurve& Integer : GetIntegerParameterNamesAndCurves())
 						{
-							if (ControlElement->GetName() == Integer.ParameterName)
+							if (ControlElement->GetFName() == Integer.ParameterName)
 							{
 								ControlChannelMap.Add(Integer.ParameterName, FChannelMapInfo(ControlIndex, TotalIndex, IntegerChannelIndex, INDEX_NONE, NAME_None, MaskIndex));
 								Channels.Add(Integer.ParameterCurve);
@@ -2154,7 +2154,7 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 				{
 					for (FVector2DParameterNameAndCurves& Vector2D : GetVector2DParameterNamesAndCurves())
 					{
-						if (ControlElement->GetName() == Vector2D.ParameterName)
+						if (ControlElement->GetFName() == Vector2D.ParameterName)
 						{
 							ControlChannelMap.Add(Vector2D.ParameterName, FChannelMapInfo(ControlIndex, TotalIndex, FloatChannelIndex, INDEX_NONE, NAME_None, MaskIndex));
 							Channels.Add(Vector2D.XCurve);
@@ -2173,7 +2173,7 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 				{
 					for (FVectorParameterNameAndCurves& Vector : GetVectorParameterNamesAndCurves())
 					{
-						if (ControlElement->GetName() == Vector.ParameterName)
+						if (ControlElement->GetFName() == Vector.ParameterName)
 						{
 							ControlChannelMap.Add(Vector.ParameterName, FChannelMapInfo(ControlIndex, TotalIndex, FloatChannelIndex, INDEX_NONE, NAME_None, MaskIndex));
 							bool bDoSpaceChannel = true;
@@ -2219,7 +2219,7 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 				{
 					for (FTransformParameterNameAndCurves& Transform : GetTransformParameterNamesAndCurves())
 					{
-						if (ControlElement->GetName() == Transform.ParameterName)
+						if (ControlElement->GetFName() == Transform.ParameterName)
 						{
 							ControlChannelMap.Add(Transform.ParameterName, FChannelMapInfo(ControlIndex, TotalIndex,FloatChannelIndex, INDEX_NONE, NAME_None, MaskIndex));
 						
@@ -2446,7 +2446,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 		{
 			if (ControlElement->Settings.ControlType == ERigControlType::Float)
 			{
-				const FName TargetCurveName = UFKControlRig::GetControlTargetName(ControlElement->GetName(), ERigElementType::Curve);
+				const FName TargetCurveName = UFKControlRig::GetControlTargetName(ControlElement->GetFName(), ERigElementType::Curve);
 				const FRigElementKey CurveKey = FRigElementKey(TargetCurveName, ERigElementType::Curve);
 				// Ensure name is valid, and curve actually exists in the hierarchy,
 				// this means we could not be renaming some controls for which the curves do not exist anymore, which ties back to comment at the top op the function
@@ -2454,7 +2454,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 				if (TargetCurveName != NAME_None && Hierarchy->Find(CurveKey))
 				{
 					// Add mapping from old to new control naming scheme (previous was using uniform naming for both bones and curves)
-					CurveControlNameRemapping.Add(ControlElement->GetName(), UFKControlRig::GetControlName(TargetCurveName, ERigElementType::Bone));
+					CurveControlNameRemapping.Add(ControlElement->GetFName(), UFKControlRig::GetControlName(TargetCurveName, ERigElementType::Bone));
 				}
 			}
 		}
@@ -2473,7 +2473,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 			RenameParameterName(PreviousName, ControlElement->GetKey().Name);
 		}
 
-		if (const FName* OldCurveControlName = CurveControlNameRemapping.Find(ControlElement->GetName()))
+		if (const FName* OldCurveControlName = CurveControlNameRemapping.Find(ControlElement->GetFName()))
 		{
 			RenameParameterName(*OldCurveControlName, ControlElement->GetKey().Name);
 		}
@@ -2488,7 +2488,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 				//or use IntialValue?
 				DefaultValue = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<float>();
 			}
-			AddScalarParameter(ControlElement->GetName(), DefaultValue, false);
+			AddScalarParameter(ControlElement->GetFName(), DefaultValue, false);
 			break;
 		}
 		case ERigControlType::Bool:
@@ -2498,7 +2498,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 			if (bSetDefault)
 			{
 				DefaultValue = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<bool>();
-				AddBoolParameter(ControlElement->GetName(), DefaultValue, false);
+				AddBoolParameter(ControlElement->GetFName(), DefaultValue, false);
 
 			}
 			break;
@@ -2512,7 +2512,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 				if (bSetDefault)
 				{
 					DefaultValue = (uint8)ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<int32>();
-					AddEnumParameter(ControlElement->GetName(), ControlElement->Settings.ControlEnum, DefaultValue, false);
+					AddEnumParameter(ControlElement->GetFName(), ControlElement->Settings.ControlEnum, DefaultValue, false);
 				}
 			}
 			else
@@ -2522,7 +2522,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 				if (bSetDefault)
 				{
 					DefaultValue = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<int32>();
-					AddIntegerParameter(ControlElement->GetName(), DefaultValue, false);
+					AddIntegerParameter(ControlElement->GetFName(), DefaultValue, false);
 				}
 			}
 			break;
@@ -2536,7 +2536,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 				const FVector3f TempValue = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
 				DefaultValue = FVector2D(TempValue.X, TempValue.Y);
 			}
-			AddVector2DParameter(ControlElement->GetName(), DefaultValue, false);
+			AddVector2DParameter(ControlElement->GetFName(), DefaultValue, false);
 			break;
 		}
 
@@ -2550,7 +2550,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 				//or use IntialValue?
 				DefaultValue = (FVector)ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
 			}
-			AddVectorParameter(ControlElement->GetName(), DefaultValue, false);
+			AddVectorParameter(ControlElement->GetFName(), DefaultValue, false);
 			//mz todo specify rotator special so we can do quat interps
 			break;
 		}
@@ -2583,7 +2583,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 					DefaultValue = FEulerTransform(NoScale.Rotation.Rotator(), NoScale.Location, FVector::OneVector);
 				}
 			}
-			AddTransformParameter(ControlElement->GetName(), DefaultValue, false);
+			AddTransformParameter(ControlElement->GetFName(), DefaultValue, false);
 			break;
 		}
 
@@ -2882,7 +2882,7 @@ void UMovieSceneControlRigParameterSection::RecordControlRigKey(FFrameNumber Fra
 			{
 				continue;
 			}
-			FChannelMapInfo* pChannelIndex = ControlChannelMap.Find(ControlElement->GetName());
+			FChannelMapInfo* pChannelIndex = ControlChannelMap.Find(ControlElement->GetFName());
 			if (pChannelIndex == nullptr)
 			{
 				continue;
