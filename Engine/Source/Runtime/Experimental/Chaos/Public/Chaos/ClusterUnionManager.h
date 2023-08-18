@@ -110,6 +110,7 @@ namespace Chaos
 	{
 		FTransform ChildToParent;
 		bool bLock = false;
+		FClusterUnionIndex ClusterUnionIndex = INDEX_NONE;
 	};
 
 	/**
