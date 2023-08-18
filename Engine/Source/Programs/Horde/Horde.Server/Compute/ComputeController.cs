@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Compute;
@@ -88,11 +89,12 @@ namespace Horde.Server.Compute
 		/// </summary>
 		/// <param name="clusterId">Id of the compute cluster</param>
 		/// <param name="request">The request parameters</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
 		[HttpPost]
 		[Authorize]
 		[Route("/api/v2/compute/{clusterId}")]
-		public async Task<ActionResult<AssignComputeResponse>> AssignComputeResourceAsync(ClusterId clusterId, [FromBody] AssignComputeRequest request)
+		public async Task<ActionResult<AssignComputeResponse>> AssignComputeResourceAsync(ClusterId clusterId, [FromBody] AssignComputeRequest request, CancellationToken cancellationToken)
 		{
 			ComputeClusterConfig? clusterConfig;
 			if (!_globalConfig.Value.TryGetComputeCluster(clusterId, out clusterConfig))
@@ -108,7 +110,7 @@ namespace Horde.Server.Compute
 
 			Requirements requirements = request.Requirements ?? new Requirements();
 
-			ComputeResource? computeResource = await _computeService.TryAllocateResourceAsync(requirements, parentLeaseId);
+			ComputeResource? computeResource = await _computeService.TryAllocateResourceAsync(requirements, parentLeaseId, cancellationToken);
 			if (computeResource == null)
 			{
 				return StatusCode((int)HttpStatusCode.ServiceUnavailable);
