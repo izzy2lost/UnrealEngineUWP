@@ -57,7 +57,8 @@ Texture2D<uint> PrevScatteredSubpixelDepthTexture;
 
 RWTexture2D<float2> DilatedVelocityOutput;
 RWTexture2D<float2> ClosestDepthOutput;
-globallycoherent RWTexture2DArray<uint> PrevAtomicOutput;
+globallycoherent RWTexture2D<uint> PrevUseCountOutput;
+globallycoherent RWTexture2D<uint> PrevClosestDepthOutput;
 RWTexture2DArray<uint> R8Output;
 RWTexture2D<uint> SubpixelDepthOutput;
 
@@ -409,8 +410,8 @@ void MainCS(
 					uint2 CompressedUseCountPixelPos = PixelPos;
 				#endif
 
-				InterlockedAdd(PrevAtomicOutput[uint3(CompressedUseCountPixelPos, 0)], FinalAdd);
-				InterlockedMax(PrevAtomicOutput[uint3(PixelPos, 1)], PrevClosestDepth);
+				InterlockedAdd(PrevUseCountOutput[CompressedUseCountPixelPos], FinalAdd);
+				InterlockedMax(PrevClosestDepthOutput[PixelPos], PrevClosestDepth);
 			}
 		}
 		#endif
