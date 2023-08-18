@@ -1205,10 +1205,10 @@ FString CreateShaderCompilerWorkerDirectCommandLine(const FShaderCompilerInput& 
 {
 	FString Text(TEXT("-directcompile -format="));
 	Text += Input.ShaderFormat.GetPlainNameString();
-	Text += TEXT(" -entry=");
+	Text += TEXT(" -entry=\"");
 	Text += Input.EntryPointName;
 
-	Text += TEXT(" -shaderPlatformName=");
+	Text += TEXT("\" -shaderPlatformName=");
 	Text += Input.ShaderPlatformName.GetPlainNameString();
 
 	switch (Input.Target.Frequency)
