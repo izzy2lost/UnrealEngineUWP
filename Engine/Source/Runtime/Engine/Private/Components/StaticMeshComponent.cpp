@@ -2335,7 +2335,7 @@ const Nanite::FResources* UStaticMeshComponent::GetNaniteResources() const
 namespace Nanite
 {
 	template<class T> 
-	bool ShouldCreateNaniteProxy(const T& Component, FMaterialAudit* OutNaniteMaterials = nullptr);
+	bool ShouldCreateNaniteProxy(const T& Component, FMaterialAudit* OutNaniteMaterials);
 
 	template<class T> 
 	bool HasValidNaniteData(const T& Component)
@@ -2348,7 +2348,7 @@ namespace Nanite
 	bool UseNaniteOverrideMaterials(const T& Component, bool bDoingMaterialAudit) 
 	{
 		// Check for valid data on this SMC and support for Nanite material overrides
-		return (bDoingMaterialAudit || ShouldCreateNaniteProxy(Component)) && GEnableNaniteMaterialOverrides != 0;
+		return (bDoingMaterialAudit || ShouldCreateNaniteProxy(Component, nullptr)) && GEnableNaniteMaterialOverrides != 0;
 	}
 }
 

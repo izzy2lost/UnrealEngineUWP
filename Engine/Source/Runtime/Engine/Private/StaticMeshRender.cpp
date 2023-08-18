@@ -2557,7 +2557,7 @@ FLODMask FStaticMeshSceneProxy::GetLODMask(const FSceneView* View) const
 namespace Nanite
 {
 	template<class T> 
-	bool ShouldCreateNaniteProxy(const T& Component, FMaterialAudit* OutNaniteMaterials = nullptr)
+	bool ShouldCreateNaniteProxy(const T& Component, FMaterialAudit* OutNaniteMaterials)
 	{
 		// Whether or not to allow Nanite for this component
 	#if WITH_EDITORONLY_DATA
