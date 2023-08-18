@@ -32,6 +32,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Jobs
 {
@@ -729,7 +730,7 @@ namespace Horde.Server.Jobs
 			_logger.LogDebug("Assigning job {JobId}, batch {BatchId} to waiter (agent {AgentId})", job.Id, batch.Id, agent.Id);
 
 			// Generate a new unique id for the lease
-			LeaseId leaseId = LeaseId.GenerateNewId();
+			LeaseId leaseId = new LeaseId(BinaryIdUtils.CreateNew());
 
 			// The next time to try assigning to another agent
 			DateTime backOffTime = DateTime.UtcNow + TimeSpan.FromMinutes(1.0);

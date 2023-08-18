@@ -14,6 +14,7 @@ using Horde.Server.Utilities;
 using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Tests.Fleet
 {
@@ -123,7 +124,7 @@ namespace Horde.Server.Tests.Fleet
 				payload = Any.Pack(computeTask).ToByteArray();
 			}
 
-			ILease lease = await LeaseCollection.AddAsync(LeaseId.GenerateNewId(), null, "placeholderLease", agent.Id, agent.SessionId!.Value, new StreamId("placeholderStream"), pool.Id, null, startTime, payload);
+			ILease lease = await LeaseCollection.AddAsync(new LeaseId(BinaryIdUtils.CreateNew()), null, "placeholderLease", agent.Id, agent.SessionId!.Value, new StreamId("placeholderStream"), pool.Id, null, startTime, payload);
 			bool wasModified = await LeaseCollection.TrySetOutcomeAsync(lease.Id, startTime + duration, LeaseOutcome.Success, null);
 			Assert.IsTrue(wasModified);
 			return lease;

@@ -22,15 +22,17 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Hosting;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using MongoDB.Bson;
-using AgentCapabilities = HordeCommon.Rpc.Messages.AgentCapabilities;
-using ISession = Microsoft.AspNetCore.Http.ISession;
 using Horde.Server.Jobs.Artifacts;
 using Horde.Server.Agents;
 using HordeCommon.Rpc.Messages;
 using Horde.Server.Agents.Sessions;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Tests
 {
+	using AgentCapabilities = HordeCommon.Rpc.Messages.AgentCapabilities;
+	using ISession = Microsoft.AspNetCore.Http.ISession;
+
 	public class AppLifetimeStub : IHostApplicationLifetime
 	{
 		public CancellationToken ApplicationStarted { get; }
@@ -451,7 +453,7 @@ namespace Horde.Server.Tests
 			// Set the session ID on the job batch to pass auth later
 			Deref(await JobCollection.TryAssignLeaseAsync(fixture.Job1, 0, new PoolId("foo"),
 				new AgentId("test"), sessionId,
-				LeaseId.GenerateNewId(), LogId.GenerateNewId()));
+				new LeaseId(BinaryIdUtils.CreateNew()), LogId.GenerateNewId()));
 /*
 			TestAsyncStreamReader<UploadArtifactRequest> RequestStream = new TestAsyncStreamReader<UploadArtifactRequest>(Context);
 			Task<UploadArtifactResponse> Call = TestSetup.RpcService.UploadArtifact(RequestStream,  Context);

@@ -9,6 +9,7 @@ using Horde.Server.Logs;
 using Horde.Server.Streams;
 using Horde.Server.Utilities;
 using HordeCommon;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Agents.Leases
 {

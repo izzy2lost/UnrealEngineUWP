@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Agents.Leases
 {

@@ -7,6 +7,7 @@ using Horde.Server.Server;
 using Horde.Server.Utilities;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Agents
 {

@@ -13,12 +13,14 @@ using Horde.Server.Agents;
 using Horde.Server.Agents.Fleet;
 using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Pools;
+using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using MongoDB.Bson;
 using Moq;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Tests.Fleet;
 
@@ -170,7 +172,7 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 	public async Task GetInstancesAvailableForTermination_AgentRunningJob_ReturnsNoInstanceId()
 	{
 		// Arrange
-		AgentLease lease = new(new LeaseId(ObjectId.GenerateNewId()), null, "test-lease", null, null, null, LeaseState.Active, null, false, null);
+		AgentLease lease = new(new LeaseId(BinaryIdUtils.CreateNew()), null, "test-lease", null, null, null, LeaseState.Active, null, false, null);
 		IAgent agent = await CreateAgentAsync(new PoolId("pool1"), awsInstanceId: "i-1000", lease: lease);
 		TerminationPolicyEvent e = CreateTerminationPolicyEvent("i-1000");
 

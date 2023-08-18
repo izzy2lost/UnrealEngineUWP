@@ -20,6 +20,7 @@ using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Tasks
 {
@@ -173,7 +174,7 @@ namespace Horde.Server.Tasks
 				ConformTask task = new ConformTask();
 				if (await GetWorkspacesAsync(agent, task.Workspaces))
 				{
-					LeaseId leaseId = LeaseId.GenerateNewId();
+					LeaseId leaseId = new LeaseId(BinaryIdUtils.CreateNew());
 					if (await AllocateConformLeaseAsync(agent.Id, task.Workspaces, leaseId))
 					{
 						ILogFile log = await _logService.CreateLogFileAsync(JobId.Empty, leaseId, agent.SessionId, LogType.Json, useNewStorageBackend: false, cancellationToken: cancellationToken);

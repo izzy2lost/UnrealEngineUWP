@@ -7,6 +7,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Api;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Clients;
 using EpicGames.Horde.Compute.Transports;
@@ -16,6 +17,7 @@ using Horde.Server.Agents;
 using Horde.Server.Agents.Leases;
 using Horde.Server.Jobs;
 using Horde.Server.Logs;
+using Horde.Server.Utilities;
 using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 
@@ -51,7 +53,7 @@ namespace Horde.Server.Compute
 				Dictionary<string, int> assignedResources = new Dictionary<string, int>();
 				if (agent.MeetsRequirements(requirements, assignedResources))
 				{
-					LeaseId leaseId = LeaseId.GenerateNewId();
+					LeaseId leaseId = new LeaseId(BinaryIdUtils.CreateNew());
 					ILogFile? log = await _logService.CreateLogFileAsync(JobId.Empty, leaseId, agent.SessionId, LogType.Json, useNewStorageBackend: true, cancellationToken: cancellationToken);
 
 					ComputeTask computeTask = CreateComputeTask(assignedResources, log?.Id, parentLeaseId);

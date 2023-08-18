@@ -7,6 +7,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Api;
 using EpicGames.Horde.Common;
 using EpicGames.Horde.Compute;
 using Google.Protobuf.WellKnownTypes;

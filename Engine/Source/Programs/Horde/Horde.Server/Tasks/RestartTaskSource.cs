@@ -11,6 +11,7 @@ using Horde.Server.Logs;
 using Horde.Server.Utilities;
 using HordeCommon;
 using HordeCommon.Rpc.Tasks;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Tasks
 {
@@ -40,7 +41,7 @@ namespace Horde.Server.Tasks
 				return await DrainAsync(cancellationToken);
 			}
 
-			LeaseId leaseId = LeaseId.GenerateNewId();
+			LeaseId leaseId = new LeaseId(BinaryIdUtils.CreateNew());
 			ILogFile log = await _logService.CreateLogFileAsync(JobId.Empty, leaseId, agent.SessionId, LogType.Json, useNewStorageBackend: false, cancellationToken: cancellationToken);
 
 			RestartTask task = new RestartTask();

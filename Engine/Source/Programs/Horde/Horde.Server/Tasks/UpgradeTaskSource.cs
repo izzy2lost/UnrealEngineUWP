@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Api;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Agents;
@@ -13,6 +14,7 @@ using Horde.Server.Jobs;
 using Horde.Server.Logs;
 using Horde.Server.Server;
 using Horde.Server.Tools;
+using Horde.Server.Utilities;
 using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Options;
@@ -67,7 +69,7 @@ namespace Horde.Server.Tasks
 				return await DrainAsync(cancellationToken);
 			}
 
-			LeaseId leaseId = LeaseId.GenerateNewId();
+			LeaseId leaseId = new LeaseId(BinaryIdUtils.CreateNew());
 			ILogFile logFile = await _logService.CreateLogFileAsync(JobId.Empty, leaseId, agent.SessionId, LogType.Json, useNewStorageBackend: false, cancellationToken: cancellationToken);
 
 			UpgradeTask task = new UpgradeTask();

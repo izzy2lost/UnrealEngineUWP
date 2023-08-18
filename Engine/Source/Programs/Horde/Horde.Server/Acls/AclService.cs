@@ -13,6 +13,7 @@ using Horde.Server.Server;
 using Horde.Server.Utilities;
 using Microsoft.IdentityModel.Tokens;
 using MongoDB.Driver;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Acls
 {

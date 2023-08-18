@@ -118,12 +118,12 @@ namespace Horde.Server.Tests
 
 			SessionId sessionId1 = SessionId.GenerateNewId();
 			await JobCollection.TryAssignLeaseAsync(fixture.Job1, 0, new PoolId("foo"), fixture.Agent1.Id,
-				sessionId1, LeaseId.GenerateNewId(), LogId.GenerateNewId());
+				sessionId1, new LeaseId(BinaryIdUtils.CreateNew()), LogId.GenerateNewId());
 			
 			SessionId sessionId2 = SessionId.GenerateNewId();
 			IJob job = (await JobCollection.GetAsync(fixture.Job1.Id))!;
 			await JobCollection.TryAssignLeaseAsync(job, 0, new PoolId("foo"), fixture.Agent1.Id,
-				sessionId2, LeaseId.GenerateNewId(), LogId.GenerateNewId());
+				sessionId2, new LeaseId(BinaryIdUtils.CreateNew()), LogId.GenerateNewId());
 			
 			// Manually verify the log output
 		}

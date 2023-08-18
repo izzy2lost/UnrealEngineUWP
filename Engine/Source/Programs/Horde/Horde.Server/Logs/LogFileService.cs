@@ -28,10 +28,12 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using OpenTelemetry.Trace;
-using Stream = System.IO.Stream;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Logs
 {
+	using Stream = System.IO.Stream;
+
 	/// <summary>
 	/// Metadata about a log file
 	/// </summary>
