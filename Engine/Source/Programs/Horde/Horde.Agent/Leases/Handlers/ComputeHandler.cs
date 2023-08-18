@@ -84,6 +84,11 @@ namespace Horde.Agent.Leases.Handlers
 			await using IServerLogger? serverLogger = (computeTask.LogId != null)? _serverLoggerFactory.CreateLogger(session, computeTask.LogId, null, true) : null;
 			ILogger logger = serverLogger ?? _logger;
 
+			if (!String.IsNullOrEmpty(computeTask.ParentLeaseId))
+			{
+				logger.LogInformation("Parent lease: {LeaseId}", computeTask.ParentLeaseId);
+			}
+
 			logger.LogInformation("Starting compute task (lease {LeaseId}). Waiting for connection with nonce {Nonce}...", leaseId, StringUtils.FormatHexString(computeTask.Nonce.Span));
 
 			TcpClient? tcpClient = null;

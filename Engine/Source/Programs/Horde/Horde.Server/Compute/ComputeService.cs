@@ -54,7 +54,7 @@ namespace Horde.Server.Compute
 					LeaseId leaseId = LeaseId.GenerateNewId();
 					ILogFile? log = await _logService.CreateLogFileAsync(JobId.Empty, leaseId, agent.SessionId, LogType.Json, useNewStorageBackend: true, cancellationToken: cancellationToken);
 
-					ComputeTask computeTask = CreateComputeTask(assignedResources, log?.Id);
+					ComputeTask computeTask = CreateComputeTask(assignedResources, log?.Id, parentLeaseId);
 
 					byte[] payload = Any.Pack(computeTask).ToByteArray();
 					AgentLease lease = new AgentLease(leaseId, parentLeaseId, "Compute task", null, null, log?.Id, LeaseState.Pending, assignedResources, requirements.Exclusive, payload);
@@ -92,13 +92,14 @@ namespace Horde.Server.Compute
 			return new ComputeResource(ip, port, computeTask, agent.Properties);
 		}
 
-		static ComputeTask CreateComputeTask(Dictionary<string, int> assignedResources, LogId? logId)
+		static ComputeTask CreateComputeTask(Dictionary<string, int> assignedResources, LogId? logId, LeaseId? parentLeaseId)
 		{
 			ComputeTask computeTask = new ComputeTask();
 			computeTask.Nonce = UnsafeByteOperations.UnsafeWrap(RandomNumberGenerator.GetBytes(ServerComputeClient.NonceLength));
 			computeTask.Key = UnsafeByteOperations.UnsafeWrap(AesTransport.CreateKey());
 			computeTask.Resources.Add(assignedResources);
 			computeTask.LogId = logId?.ToString();
+			computeTask.ParentLeaseId = parentLeaseId?.ToString();
 			return computeTask;
 		}
 	}
