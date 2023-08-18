@@ -22,4 +22,6 @@
 #define PLATFORM_RETURN_ADDRESS_POINTER()	_AddressOfReturnAddress()
 
 // https://devblogs.microsoft.com/cppblog/improving-the-state-of-debug-performance-in-c/
+#if __has_cpp_attribute(msvc::intrinsic)
 #define UE_INTRINSIC_CAST [[msvc::intrinsic]]
+#endif
