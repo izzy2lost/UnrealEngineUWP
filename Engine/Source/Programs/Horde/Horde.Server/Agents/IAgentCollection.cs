@@ -23,7 +23,8 @@ namespace Horde.Server.Agents
 		/// <param name="id">Id for the new agent</param>
 		/// <param name="enabled">Whether the agent is enabled or not</param>
 		/// <param name="pools">Pools for the agent</param>
-		Task<IAgent> AddAsync(AgentId id, bool enabled, List<PoolId>? pools = null);
+		/// <param name="ephemeral">Whether the agent is ephemeral or not</param>
+		Task<IAgent> AddAsync(AgentId id, bool enabled, List<PoolId>? pools = null, bool ephemeral = false);
 
 		/// <summary>
 		/// Deletes an agent

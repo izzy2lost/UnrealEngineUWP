@@ -482,6 +482,11 @@ namespace Horde.Server.Agents
 		/// Whether the agent is enabled
 		/// </summary>
 		public bool Enabled { get; }
+		
+		/// <summary>
+		/// Whether the agent is ephemeral
+		/// </summary>
+		public bool Ephemeral { get; }
 
 		/// <summary>
 		/// Whether the agent should be included on the dashboard. This is set to true for ephemeral agents once they are no longer online, or agents that are explicitly deleted.

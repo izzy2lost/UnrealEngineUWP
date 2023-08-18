@@ -191,6 +191,14 @@ namespace Horde.Agent
 		public string? Name { get; set; }
 
 		/// <summary>
+		/// Whether agent should register as being ephemeral.
+		/// Doing so will not persist any long-lived data on the server and
+		/// once disconnected it's assumed to have been deleted permanently.
+		/// Ideal for short-lived agents, such as spot instances on AWS EC2.
+		/// </summary>
+		public bool Ephemeral { get; set; } = false;
+
+		/// <summary>
 		/// The executor to use for jobs. Defaults to the Perforce executor.
 		/// </summary>
 		public string Executor { get; set; } = Execution.PerforceExecutor.Name;

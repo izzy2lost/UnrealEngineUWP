@@ -270,6 +270,7 @@ namespace Horde.Agent.Services
 
 					CreateAgentRequest createAgentRequest = new CreateAgentRequest();
 					createAgentRequest.Name = currentSettings.GetAgentName();
+					createAgentRequest.Ephemeral = currentSettings.Ephemeral;
 
 					CreateAgentResponse createAgentResponse = await rpcClient.CreateAgentAsync(createAgentRequest, null, null, cancellationToken);
 					registration = new AgentRegistration(grpcService.ServerProfile.Url, createAgentResponse.Id, createAgentResponse.Token);

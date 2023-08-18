@@ -126,11 +126,12 @@ namespace Horde.Server.Agents
 			{
 			}
 
-			public AgentDocument(AgentId id, bool enabled, List<PoolId> pools)
+			public AgentDocument(AgentId id, bool enabled, List<PoolId> pools, bool ephemeral)
 			{
 				Id = id;
 				Enabled = enabled;
 				Pools = pools;
+				Ephemeral = ephemeral;
 			}
 		}
 
@@ -156,9 +157,9 @@ namespace Horde.Server.Agents
 		}
 
 		/// <inheritdoc/>
-		public async Task<IAgent> AddAsync(AgentId id, bool enabled, List<PoolId>? pools)
+		public async Task<IAgent> AddAsync(AgentId id, bool enabled, List<PoolId>? pools, bool ephemeral)
 		{
-			AgentDocument agent = new AgentDocument(id, enabled, pools ?? new List<PoolId>());
+			AgentDocument agent = new AgentDocument(id, enabled, pools ?? new List<PoolId>(), ephemeral);
 			await _agents.InsertOneAsync(agent);
 			return agent;
 		}

@@ -368,10 +368,11 @@ namespace Horde.Server.Tests
 		/// <param name="adjustClockBy">Time span to temporarily skew the clock when creating the agent</param>
 		/// <param name="awsInstanceId">AWS instance ID for the agent (will be set in properties)</param>
 		/// <param name="lease">A lease to assign the agent</param>
+		/// <param name="ephemeral">Whether the agent is ephemeral</param>
 		/// <returns>A new agent</returns>
 		public async Task<IAgent> CreateAgentAsync(
 			PoolId poolId, bool enabled = true, bool requestShutdown = false, List<string>? properties = null,
-			TimeSpan? adjustClockBy = null, string? awsInstanceId = null, AgentLease? lease = null)
+			TimeSpan? adjustClockBy = null, string? awsInstanceId = null, AgentLease? lease = null, bool ephemeral = false)
 		{
 			DateTime now = Clock.UtcNow;
 			if (adjustClockBy != null)
@@ -386,7 +387,7 @@ namespace Horde.Server.Tests
 				tempProps.Add(KnownPropertyNames.AwsInstanceId + "=" + awsInstanceId);
 			}
 			
-			IAgent agent = await AgentService.CreateAgentAsync("TestAgent" + s_agentIdCounter++, enabled, new List<PoolId> { poolId });
+			IAgent agent = await AgentService.CreateAgentAsync("TestAgent" + s_agentIdCounter++, enabled, new List<PoolId> { poolId }, ephemeral);
 			agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, tempProps, resources, null);
 			if (requestShutdown)
 			{

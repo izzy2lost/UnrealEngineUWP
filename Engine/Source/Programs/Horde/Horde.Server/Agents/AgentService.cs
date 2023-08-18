@@ -189,10 +189,11 @@ namespace Horde.Server.Agents
 		/// <param name="name">Name of the agent</param>
 		/// <param name="enabled">Whether the agent is currently enabled</param>
 		/// <param name="pools">Pools for this agent</param>
+		/// <param name="ephemeral">Whether the agent is ephemeral or not</param>
 		/// <returns>Unique id for the agent</returns>
-		public Task<IAgent> CreateAgentAsync(string name, bool enabled, List<PoolId>? pools)
+		public Task<IAgent> CreateAgentAsync(string name, bool enabled, List<PoolId>? pools, bool ephemeral = false)
 		{
-			return Agents.AddAsync(new AgentId(name), enabled, pools);
+			return Agents.AddAsync(new AgentId(name), enabled, pools, ephemeral);
 		}
 
 		/// <summary>
@@ -236,10 +237,22 @@ namespace Horde.Server.Agents
 		/// Marks the agent as deleted
 		/// </summary>
 		/// <param name="agent">The agent to delete</param>
+		/// <param name="forceDelete">Whether to fully delete the agent as opposed to just marking it as deleted</param>
 		/// <returns>Async task</returns>
-		public async Task DeleteAgentAsync(IAgent? agent)
+		public async Task DeleteAgentAsync(IAgent? agent, bool forceDelete = false)
 		{
-			while (agent != null && !agent.Deleted)
+			if (agent == null)
+			{
+				return;
+			}
+
+			if (forceDelete)
+			{
+				await Agents.ForceDeleteAsync(agent.Id);
+				return;
+			}
+			
+			while (agent is { Deleted: false })
 			{
 				IAgent? newAgent = await Agents.TryDeleteAsync(agent);
 				if(newAgent != null)
@@ -1031,7 +1044,13 @@ namespace Horde.Server.Agents
 				{
 					stoppingToken.ThrowIfCancellationRequested();
 					_logger.LogDebug("Terminating session {SessionId} for agent {Agent}", expiredAgent.SessionId, expiredAgent.Id);
-					await TryTerminateSessionAsync(expiredAgent);
+					IAgent? terminatedAgent = await TryTerminateSessionAsync(expiredAgent);
+
+					if (terminatedAgent is { Status: AgentStatus.Stopped, Ephemeral: true })
+					{
+						_logger.LogDebug("Deleting ephemeral agent {Agent}", terminatedAgent.Id);
+						await DeleteAgentAsync(terminatedAgent, true);
+					}
 				}
 
 				// Try again if we didn't fetch everything

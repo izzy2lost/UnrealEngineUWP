@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using Horde.Server.Agents;
+using Horde.Server.Agents.Pools;
 using Horde.Server.Auditing;
 using Horde.Server.Jobs;
 using Horde.Server.Server;
@@ -171,6 +172,34 @@ public class AgentServiceTest : TestSetup
 		
 		double? rate2 = await AgentService.GetRateAsync(agent2.Id);
 		Assert.AreEqual(300, rate2!.Value, 0.1);
+	}
+	
+	[TestMethod]
+	public async Task EphemeralTest()
+	{
+		IAgent agent1 = await CreateAgentAsync(new PoolId("pool1"), ephemeral: true);
+		IAgent agent2 = await CreateAgentAsync(new PoolId("pool1"), ephemeral: false);
+		Assert.IsTrue(agent1.Ephemeral);
+		Assert.IsFalse(agent2.Ephemeral);
+		
+		agent1 = (await AgentService.GetAgentAsync(agent1.Id))!;
+		agent2 = (await AgentService.GetAgentAsync(agent2.Id))!;
+		Assert.IsTrue(agent1.Ephemeral);
+		Assert.IsFalse(agent2.Ephemeral);
+		Assert.AreEqual(AgentStatus.Ok, agent1.Status);
+		Assert.AreEqual(AgentStatus.Ok, agent2.Status);
+
+		// Let background task run for purging outdated sessions
+		await AgentService.StartAsync(CancellationToken.None);
+		await Clock.AdvanceAsync(TimeSpan.FromHours(1));
+		
+		// Ephemeral agent is deleted once its session is terminated
+		Assert.IsNull((await AgentService.GetAgentAsync(agent1.Id)));
+		
+		// Normal agent is stopped but kept around
+		agent2 = (await AgentService.GetAgentAsync(agent2.Id))!;
+		Assert.AreEqual(AgentStatus.Stopped, agent2.Status);
+		Assert.IsFalse(agent2.Deleted);
 	}
 
 	private static ClaimsPrincipal GetUser(IAgent agent)
