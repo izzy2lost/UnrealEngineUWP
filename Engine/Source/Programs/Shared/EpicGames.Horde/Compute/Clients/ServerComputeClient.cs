@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using EpicGames.Horde.Api;
 using EpicGames.Horde.Compute.Transports;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -26,21 +26,6 @@ namespace EpicGames.Horde.Compute.Clients
 		/// Length of the nonce sent as part of handshaking between initiator and remote
 		/// </summary>
 		public const int NonceLength = 64;
-
-		class AssignComputeRequest
-		{
-			public Requirements? Requirements { get; set; }
-		}
-
-		class AssignComputeResponse
-		{
-			public string Ip { get; set; } = String.Empty;
-			public int Port { get; set; }
-			public string Nonce { get; set; } = String.Empty;
-			public string Key { get; set; } = String.Empty;
-			public Dictionary<string, int> AssignedResources { get; set; } = new Dictionary<string, int>();
-			public List<string> Properties { get; set; } = new List<string>();
-		}
 
 		record class LeaseInfo(IReadOnlyList<string> Properties, IReadOnlyDictionary<string, int> AssignedResources, RemoteComputeSocket Socket);
 
@@ -181,7 +166,7 @@ namespace EpicGames.Horde.Compute.Clients
 			// Send the nonce
 			byte[] nonce = StringUtils.ParseHexString(responseMessage.Nonce);
 			await socket.SendMessageAsync(nonce, SocketFlags.None, cancellationToken);
-			_logger.LogDebug("Connection established.");
+			_logger.LogInformation("Connected to {Ip} under lease {LeaseId}", responseMessage.Ip, responseMessage.LeaseId);
 
 			// Pass the rest of the call over to the handler
 			byte[] key = StringUtils.ParseHexString(responseMessage.Key);
