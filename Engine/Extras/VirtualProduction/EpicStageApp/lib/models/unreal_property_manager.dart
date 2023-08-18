@@ -487,24 +487,21 @@ class UnrealPropertyManager {
 
     property.bIsPendingUnexpose = false;
 
-    if (response.code != HttpResponseCode.ok) {
-      if (property.exposeCompleter != null) {
+    if (property.exposeCompleter != null) {
+      if (response.code == HttpResponseCode.ok) {
+        // We started tracking this property again after requesting unexpose, so we need to send a new expose request
+        // instead of removing it
+        _exposeProperty(propertyId);
+      } else {
         // Treat the property as re-exposed since we failed to remove it anyway
         property.exposeCompleter!.complete();
         property.exposeCompleter = null;
-        return;
       }
-
-      /// TODO: Handle this case better. We should try again to remove it, but maybe with exponential backoff
       return;
     }
 
-    if (property.exposeCompleter != null) {
-      // We started tracking this property again after requesting unexpose, so we need to send a new expose request
-      // instead of removing it
-      _exposeProperty(propertyId);
-      return;
-    }
+    // If we aren't intending to re-expose this property right away and got an error, the property was likely unexposed
+    // without our knowledge, so we can just forget about it
 
     _propertyIdsByLabel.remove(property.label);
     _trackedProperties.remove(propertyId);

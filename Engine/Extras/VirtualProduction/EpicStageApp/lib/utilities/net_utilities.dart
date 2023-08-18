@@ -10,6 +10,8 @@ import 'package:uuid/uuid.dart';
 
 import '../models/engine_connection.dart';
 
+final _log = Logger('NetUtilities');
+
 const int _protocolVersion = 0; // The current protocol version for beacon messages
 const String _protocolIdentifier = 'ES@p';
 
@@ -63,7 +65,7 @@ ConnectionData? getConnectionFromBeaconResponse(Datagram datagram) {
 
     connection = ConnectionData(uuid: engineUuid, name: name, websocketAddress: datagram.address, websocketPort: port);
   } catch (error) {
-    // TODO: Set up error logging so we can do something here
+    _log.warning('Failed to interpret beacon response from ${datagram.address.address}:/n$error');
   }
 
   return connection;
