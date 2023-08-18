@@ -914,7 +914,7 @@ static bool BlueprintActionFilterImpl::IsAssetPermissionNotGranted(FBlueprintAct
 	{
 		if (Filter.AssetReferenceFilter.IsValid())
 		{
-			bool const bIsAccessible = Filter.AssetReferenceFilter->PassesFilter(FAssetData(Owner));
+			bool const bIsAccessible = Filter.AssetReferenceFilter->PassesFilter(FAssetData(Owner, FAssetData::ECreationFlags::SkipAssetRegistryTagsGathering));
 			if (!bIsAccessible)
 			{
 				bIsFilteredOut = true;

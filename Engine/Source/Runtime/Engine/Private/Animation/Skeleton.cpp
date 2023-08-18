@@ -140,7 +140,7 @@ bool USkeleton::IsCompatibleForEditor(const FAssetData& AssetData, const TCHAR* 
 bool USkeleton::IsCompatibleForEditor(const FString& SkeletonAssetString) const
 {
 	// First check against itself.
-	const FString SkeletonString = FAssetData(this).GetExportTextName();
+	const FString SkeletonString = FAssetData(this, FAssetData::ECreationFlags::SkipAssetRegistryTagsGathering).GetExportTextName();
 	if (SkeletonString == SkeletonAssetString)
 	{
 		return true;

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Animation/AnimCurveMetadata.h"
 #include "Animation/Skeleton.h"
@@ -43,12 +43,12 @@ void UAnimCurveMetaData::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags
 	// The delimiter is necessary so we can distinguish between data with no curves and old data, as the asset registry
 	// strips tags that have empty values 
 	TStringBuilder<256> CurvesBuilder;
-	CurvesBuilder.Append(USkeleton::CurveTagDelimiter);	
+	CurvesBuilder << USkeleton::CurveTagDelimiter;
 
 	ForEachCurveMetaData([&CurvesBuilder](FName InCurveName, const FCurveMetaData&)
 	{
-		CurvesBuilder.Append(InCurveName.ToString());
-		CurvesBuilder.Append(USkeleton::CurveTagDelimiter);
+		CurvesBuilder << InCurveName;
+		CurvesBuilder << USkeleton::CurveTagDelimiter;
 	});
 
 	OutTags.Add(FAssetRegistryTag(USkeleton::CurveNameTag, CurvesBuilder.ToString(), FAssetRegistryTag::TT_Hidden));
