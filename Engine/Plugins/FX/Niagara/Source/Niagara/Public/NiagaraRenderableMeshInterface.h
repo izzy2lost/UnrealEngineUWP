@@ -49,6 +49,11 @@ public:
 	// Gather a list of used materials
 	virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials) const = 0;
 
+	// Get the available LOD range
+	virtual FIntVector2 GetLODRange() const { return FIntVector2(0, 0); }
+	// Return parameters used for LOD calculation, screen size min, screen size max & sphere size
+	virtual FVector3f GetLODScreenSize(int32 LODLevel) const { return FVector3f(0.0f, 1.0f, 1.0f); }
+	// Compute the LOD level for the sphere location
 	virtual int32 ComputeLOD(const FVector& SphereOrigin, const float SphereRadius, const FSceneView& SceneView, float LODDistanceFactor) { return 0; }
 };
 

@@ -84,7 +84,7 @@ enum class ENiagaraMeshLODMode : uint8
 	* Calculates and renders each particle with it's calcualted LOD level.
 	* Increasing 'LOD calculation scale' will result in lower quality LODs being used.
 	*/
-	//PerParticle,
+	PerParticle,
 };
 
 USTRUCT()
@@ -207,6 +207,17 @@ struct FNiagaraMeshRendererMeshProperties
 	/** Used in LOD calculation to modify the distance, i.e. increasing the value will make lower poly LODs transition closer to the camera. */
 	UPROPERTY(EditAnywhere, Category = "Mesh", meta = (UIMin = "0", DisplayName = "LOD Distance Factor", EditCondition = "LODMode == ENiagaraMeshLODMode::ByComponentBounds || LODMode == ENiagaraMeshLODMode::PerParticle", EditConditionHides))
 	float LODDistanceFactor = 1.0f;
+
+	/**
+	When enabled you can restrict the LOD range we consider for LOD calculation.
+	This can be useful to reduce the performance impact, as it reduces the number of draw calls required.
+	*/
+	UPROPERTY(EditAnywhere, Category = "Mesh", meta = (DisplayName = "Use LOD Range", EditCondition = "LODMode == ENiagaraMeshLODMode::PerParticle", EditConditionHides))
+	bool bUseLODRange = false;
+
+	/** Used to restrict the range of LODs we include when dynamically calculating the LOD level. */
+	UPROPERTY(EditAnywhere, Category = "Mesh", meta = (DisplayName = "LOD Range", EditCondition = "bUseLODRange && LODMode == ENiagaraMeshLODMode::PerParticle", EditConditionHides))
+	FIntVector2 LODRange;
 
 	/** Scale of the mesh */
 	UPROPERTY(EditAnywhere, Category = "Mesh")

@@ -57,6 +57,7 @@ int VisibilityTagDataOffset;
 
 float3 LocalBoundingCenter;
 float2 DistanceCullRangeSquared;
+float4 LODScreenSize;
 
 int bNeedsPrevTransform;
 
@@ -166,15 +167,22 @@ void UpdateMeshInstancesCS(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_Grou
 	Params.PrimitiveInvNonUniformScale	= PrimitiveData.InvNonUniformScale;
 
 	NiagaraMeshParticleTransforms Transforms = NiagaraCalculateMeshParticleTransforms(Params);
-
+	
 	// Transform the bounding center to world-space and distance cull
 	{
-		FLWCVector3 BCenter = LWCMultiply(LocalBoundingCenter, Transforms.LocalToWorld);
-		float3 CamVec = LWCToFloat(LWCSubtract(BCenter, PrimaryView.WorldCameraOrigin));
-		float CamDistSq = dot(CamVec, CamVec);
+		const FLWCVector3 BCenter = LWCMultiply(LocalBoundingCenter, Transforms.LocalToWorld);
+		const float3 CamVec = LWCToFloat(LWCSubtract(BCenter, PrimaryView.WorldCameraOrigin));
+		const float CamDistSq = length2(CamVec);
 		if (CamDistSq < DistanceCullRangeSquared.x  || CamDistSq > DistanceCullRangeSquared.y)
 		{
 			// We are outside the distance ranges required
+			CullInstance(InstanceId);
+			return;
+		}
+		
+		const float ScreenRadius = saturate(LODScreenSize.z / max(1.0f, CamDistSq * LODScreenSize.w));
+		if ( ScreenRadius < LODScreenSize.x || ScreenRadius >= LODScreenSize.y )
+		{
 			CullInstance(InstanceId);
 			return;
 		}

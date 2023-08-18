@@ -2287,6 +2287,7 @@ void FNiagaraGpuComputeDispatch::GenerateSortKeys(FRHICommandListImmediate& RHIC
 			Params.MeshIndex = SortInfo.MeshIndex;
 			Params.MeshIndexAttributeOffset = SortInfo.MeshIndexAttributeOffset;
 			Params.CullDistanceRangeSquared = SortInfo.DistanceCullRange * SortInfo.DistanceCullRange;
+			Params.LODScreenSize = SortInfo.LODScreenSize;
 			Params.LocalBoundingSphere = FVector4f((FVector3f)SortInfo.LocalBSphere.Center, SortInfo.LocalBSphere.W);
 			Params.CullingWorldSpaceOffset = (FVector3f)SortInfo.CullingWorldSpaceOffset;
 			Params.SystemLWCTile = SortInfo.SystemLWCTile;

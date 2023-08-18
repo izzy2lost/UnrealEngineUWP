@@ -88,6 +88,22 @@ public:
 		}
 	}
 
+	virtual FIntVector2 GetLODRange() const override
+	{
+		return FIntVector2(MeshMinLOD, RenderData->LODResources.Num());
+	}
+
+	virtual FVector3f GetLODScreenSize(int32 LODLevel) const override
+	{
+		constexpr int32 MaxLODLevel = MAX_STATIC_MESH_LODS - 1;
+		LODLevel = FMath::Clamp(LODLevel, 0, MaxLODLevel);
+		return FVector3f(
+			LODLevel < MaxLODLevel ? RenderData->ScreenSize[LODLevel + 1].GetValue() : 0.0f,
+			RenderData->ScreenSize[LODLevel].GetValue(),
+			RenderData->Bounds.SphereRadius
+		);
+	}
+
 	virtual int32 ComputeLOD(const FVector& SphereOrigin, const float SphereRadius, const FSceneView& SceneView, float LODDistanceFactor) override
 	{
 		return ComputeStaticMeshLOD(RenderData, SphereOrigin, SphereRadius, SceneView, MinLOD, LODDistanceFactor);
@@ -218,6 +234,7 @@ FNiagaraMeshRendererMeshProperties::FNiagaraMeshRendererMeshProperties()
 #if WITH_EDITORONLY_DATA
 	, UserParamBinding_DEPRECATED(FNiagaraTypeDefinition(UStaticMesh::StaticClass()))
 #endif
+	, LODRange(0, MAX_STATIC_MESH_LODS)
 	, Scale(1.0f, 1.0f, 1.0f)
 	, Rotation(FRotator::ZeroRotator)
 	, PivotOffset(ForceInitToZero)
@@ -313,10 +330,17 @@ FNiagaraRenderer* UNiagaraMeshRendererProperties::CreateEmitterRenderer(ERHIFeat
 	{
 		if (MeshProperties.HasValidRenderableMesh())
 		{
-			// There's at least one valid mesh
-			FNiagaraRenderer* NewRenderer = new FNiagaraRendererMeshes(FeatureLevel, this, Emitter);
+			FNiagaraRendererMeshes* NewRenderer = new FNiagaraRendererMeshes(FeatureLevel, this, Emitter);
 			NewRenderer->Initialize(this, Emitter, InController);
-			return NewRenderer;
+			if (NewRenderer->HasValidMeshes())
+			{
+				return NewRenderer;
+			}
+
+			// There are cases where we might end up with no meshes to render due to LODs or features not being enabled on that platform
+			// so we discard the renderer here, the cost to do this work in HasValidRenderableMesh makes it not worthwhile
+			delete NewRenderer;
+			return nullptr;
 		}
 	}
 
@@ -1175,6 +1199,21 @@ void UNiagaraMeshRendererProperties::PostEditChangeProperty(FPropertyChangedEven
 			if (ChildStructProp->Struct == FNiagaraMaterialAttributeBinding::StaticStruct())
 			{
 				UpdateSourceModeDerivates(SourceMode, true);
+			}
+		}
+	}
+
+	if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(UNiagaraMeshRendererProperties, Meshes))
+	{
+		for (FNiagaraMeshRendererMeshProperties& MeshProperties : Meshes)
+		{
+			if (MeshProperties.bUseLODRange)
+			{
+				MeshProperties.LODRange.X = FMath::Clamp(MeshProperties.LODRange.X, 0, MAX_STATIC_MESH_LODS - 1);
+				MeshProperties.LODRange.Y = FMath::Clamp(MeshProperties.LODRange.Y, 1, MAX_STATIC_MESH_LODS);
+
+				MeshProperties.LODRange.X = FMath::Clamp(MeshProperties.LODRange.X, 0, MeshProperties.LODRange.Y - 1);
+				MeshProperties.LODRange.Y = FMath::Clamp(MeshProperties.LODRange.Y, MeshProperties.LODRange.X + 1, MAX_STATIC_MESH_LODS);
 			}
 		}
 	}

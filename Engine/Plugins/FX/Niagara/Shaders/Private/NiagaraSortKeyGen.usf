@@ -48,6 +48,7 @@ uint RendererVisTagAttributeOffset;
 int MeshIndex;
 uint MeshIndexAttributeOffset;
 float2 CullDistanceRangeSquared;
+float4 LODScreenSize;
 float4 LocalBoundingSphere;
 float3 CullingWorldSpaceOffset;
 float3 SystemLWCTile;
@@ -171,6 +172,13 @@ bool CullParticle(in uint ParticleIndex)
 		return true;
 	}
 
+	// Cull based on LOD level
+	const float ScreenRadius = saturate(LODScreenSize.z / max(1.0f, CamDistSq * LODScreenSize.w));
+	if ( ScreenRadius < LODScreenSize.x || ScreenRadius >= LODScreenSize.y )
+	{
+		return true;
+	}
+	
 	// Cull based on renderer visibility
 	if (RendererVisTagAttributeOffset != -1)
 	{

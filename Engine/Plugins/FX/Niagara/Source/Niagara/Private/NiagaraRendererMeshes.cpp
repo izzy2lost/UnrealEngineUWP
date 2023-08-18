@@ -106,6 +106,7 @@ FNiagaraRendererMeshes::FNiagaraRendererMeshes(ERHIFeatureLevel::Type FeatureLev
 	SubImageSize = FVector2f(Properties->SubImageSize);	// LWC_TODO: Precision loss
 	bSubImageBlend = Properties->bSubImageBlend;
 	bEnableFrustumCulling = Properties->bEnableFrustumCulling;
+	bEnableLODCulling = false;
 	bEnableCulling = bEnableFrustumCulling;
 	DistanceCullRange = FVector2f(0, FLT_MAX);
 	DistanceCullRangeSquared = FVector2f(0, FLT_MAX);
@@ -128,7 +129,7 @@ FNiagaraRendererMeshes::FNiagaraRendererMeshes(ERHIFeatureLevel::Type FeatureLev
 	{
 		DistanceCullRange = FVector2f(Properties->MinCameraDistance, Properties->MaxCameraDistance);
 		DistanceCullRangeSquared = DistanceCullRange* DistanceCullRange;
-		bEnableCulling = true;
+		bEnableCulling |= true;
 	}
 
 	// Ensure valid value for the locked axis
@@ -161,7 +162,7 @@ FNiagaraRendererMeshes::FNiagaraRendererMeshes(ERHIFeatureLevel::Type FeatureLev
 	}
 	else if (Data.GetVariableComponentOffsets(Properties->MeshIndexBinding.GetDataSetBindableVariable(), FloatOffset, ParticleMeshIndexOffset, HalfOffset))
 	{
-		bEnableCulling = ParticleMeshIndexOffset != INDEX_NONE;
+		bEnableCulling |= ParticleMeshIndexOffset != INDEX_NONE;
 	}
 
 	MaterialParamValidMask = Properties->MaterialParamValidMask;
@@ -222,58 +223,77 @@ void FNiagaraRendererMeshes::Initialize(const UNiagaraRendererProperties* InProp
 			continue;
 		}
 
-
-		// We have a valid mesh fill in the details
-		FMeshData& MeshData = Meshes.AddDefaulted_GetRef();
-		MeshData.RenderableMesh = RenderableMesh;
-		MeshData.SourceMeshIndex = SourceMeshIndex;
-		MeshData.LODMode = MeshProperties.LODMode;
-		MeshData.LODLevel = 0;
-		MeshData.PivotOffset = FVector3f(MeshProperties.PivotOffset);
-		MeshData.PivotOffsetSpace = MeshProperties.PivotOffsetSpace;
-		MeshData.Scale = FVector3f(MeshProperties.Scale);
-		MeshData.Rotation = FQuat4f(MeshProperties.Rotation.Quaternion());
-
+		FIntVector2 LODRange = FIntVector2(0, 1);
 		if (MeshProperties.LODMode == ENiagaraMeshLODMode::LODLevel)
 		{
-			MeshData.LODLevel = MeshProperties.LODLevel;
+			LODRange.X = MeshProperties.LODLevel;
+			LODRange.Y = LODRange.X + 1;
 		}
-		else if (MeshProperties.LODMode == ENiagaraMeshLODMode::LODBias)
+		else if (MeshProperties.LODMode == ENiagaraMeshLODMode::PerParticle)
 		{
-			RenderableMesh->SetMinLODBias(MeshProperties.LODBias);
-		}
-		else		
-		{
-			MeshData.LODDistanceFactor = MeshProperties.LODDistanceFactor;
+			LODRange = RenderableMesh->GetLODRange();
+			if (MeshProperties.bUseLODRange)
+			{
+				LODRange.X = FMath::Max(MeshProperties.LODRange.X, LODRange.X);
+				LODRange.Y = FMath::Max(MeshProperties.LODRange.Y, LODRange.Y);
+			}
+			bEnableLODCulling |= LODRange.Y - LODRange.X > 1;
 		}
 
-		// Get materials and remap them into the base material list
-		TArray<UMaterialInterface*> UsedMaterials;
-		RenderableMesh->GetUsedMaterials(UsedMaterials);
-		Properties->ApplyMaterialOverrides(Emitter, UsedMaterials);
-
-		for (UMaterialInterface* UsedMaterial : UsedMaterials)
+		for (int32 LOD=LODRange.X; LOD < LODRange.Y; ++LOD)
 		{
-			MeshData.MaterialRemapTable.Add(
-				BaseMaterials_GT.IndexOfByPredicate(
-					[&](UMaterialInterface* LookMat)
-					{
-						if (LookMat == UsedMaterial)
+			// We have a valid mesh fill in the details
+			FMeshData& MeshData = Meshes.AddDefaulted_GetRef();
+			MeshData.RenderableMesh = RenderableMesh;
+			MeshData.SourceMeshIndex = SourceMeshIndex;
+			MeshData.LODMode = MeshProperties.LODMode;
+			MeshData.LODLevel = LOD;
+			MeshData.PivotOffset = FVector3f(MeshProperties.PivotOffset);
+			MeshData.PivotOffsetSpace = MeshProperties.PivotOffsetSpace;
+			MeshData.Scale = FVector3f(MeshProperties.Scale);
+			MeshData.Rotation = FQuat4f(MeshProperties.Rotation.Quaternion());
+
+			if (MeshProperties.LODMode == ENiagaraMeshLODMode::LODBias)
+			{
+				RenderableMesh->SetMinLODBias(MeshProperties.LODBias);
+			}
+			else if (MeshProperties.LODMode == ENiagaraMeshLODMode::ByComponentBounds || MeshProperties.LODMode == ENiagaraMeshLODMode::PerParticle)
+			{
+				MeshData.LODDistanceFactor = MeshProperties.LODDistanceFactor;
+				if (MeshProperties.LODMode == ENiagaraMeshLODMode::PerParticle)
+				{
+					MeshData.LODScreenSize = RenderableMesh->GetLODScreenSize(LOD);
+					MeshData.LODScreenSize.X = LOD < LODRange.Y - 1 ? MeshData.LODScreenSize.X : 0.0f;
+					MeshData.LODScreenSize.Y = LOD > LODRange.X ? MeshData.LODScreenSize.Y : 2.0f;
+				}
+			}
+
+			// Get materials and remap them into the base material list
+			TArray<UMaterialInterface*> UsedMaterials;
+			RenderableMesh->GetUsedMaterials(UsedMaterials);
+			Properties->ApplyMaterialOverrides(Emitter, UsedMaterials);
+
+			for (UMaterialInterface* UsedMaterial : UsedMaterials)
+			{
+				MeshData.MaterialRemapTable.Add(
+					BaseMaterials_GT.IndexOfByPredicate(
+						[&](UMaterialInterface* LookMat)
 						{
-							return true;
+							if (LookMat == UsedMaterial)
+							{
+								return true;
+							}
+							if (UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(LookMat))
+							{
+								return UsedMaterial == MID->Parent;
+							}
+							return false;
 						}
-						if (UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(LookMat))
-						{
-							return UsedMaterial == MID->Parent;
-						}
-						return false;
-					}
-				)
-			);
+					)
+				);
+			}
 		}
 	}
-
-	checkf(Meshes.Num() > 0, TEXT("At least one valid mesh is required to instantiate a mesh renderer"));
 }
 
 void FNiagaraRendererMeshes::ReleaseRenderThreadResources()
@@ -384,7 +404,8 @@ void FNiagaraRendererMeshes::PrepareParticleMeshRenderData(FParticleMeshRenderDa
 		}
 
 		// Do we need culling? (When using GPU Scene, we don't cull in the sort passes)
-		ParticleMeshRenderData.bNeedsCull = bEnableCulling && !ParticleMeshRenderData.bUseGPUScene;
+		ParticleMeshRenderData.bNeedsCull = (bEnableCulling || bEnableLODCulling) && !ParticleMeshRenderData.bUseGPUScene;
+		ParticleMeshRenderData.bAllowPerParticleMeshLODs = bEnableLODCulling;
 		ParticleMeshRenderData.bSortCullOnGpu = (ParticleMeshRenderData.bNeedsSort && FNiagaraUtilities::AllowGPUSorting(ShaderPlatform)) || (ParticleMeshRenderData.bNeedsCull && FNiagaraUtilities::AllowGPUCulling(ShaderPlatform));
 
 		// Validate what we setup
@@ -393,6 +414,7 @@ void FNiagaraRendererMeshes::PrepareParticleMeshRenderData(FParticleMeshRenderDa
 			if (!ensureMsgf(!ParticleMeshRenderData.bNeedsCull || ParticleMeshRenderData.bSortCullOnGpu, TEXT("Culling is requested on GPU but we don't support sorting, this will result in incorrect rendering.")))
 			{
 				ParticleMeshRenderData.bNeedsCull = false;
+				ParticleMeshRenderData.bAllowPerParticleMeshLODs = false;
 			}
 			ParticleMeshRenderData.bNeedsSort &= ParticleMeshRenderData.bSortCullOnGpu;
 
@@ -402,6 +424,7 @@ void FNiagaraRendererMeshes::PrepareParticleMeshRenderData(FParticleMeshRenderDa
 				//ensureMsgf(false, TEXT("Culling & sorting is not supported once the culled counts have been acquired, sorting & culling will be disabled for these draws."));
 				ParticleMeshRenderData.bNeedsSort = false;
 				ParticleMeshRenderData.bNeedsCull = false;
+				ParticleMeshRenderData.bAllowPerParticleMeshLODs = false;
 			}
 		}
 		else
@@ -414,7 +437,7 @@ void FNiagaraRendererMeshes::PrepareParticleMeshRenderData(FParticleMeshRenderDa
 			}
 
 			// For CPU sims, decide if we should sort / cull on the GPU or not
-			if ( ParticleMeshRenderData.bSortCullOnGpu )
+			if ( ParticleMeshRenderData.bSortCullOnGpu && !ParticleMeshRenderData.bAllowPerParticleMeshLODs)
 			{
 				const int32 NumInstances = ParticleMeshRenderData.SourceParticleData->GetNumInstances();
 
@@ -426,6 +449,9 @@ void FNiagaraRendererMeshes::PrepareParticleMeshRenderData(FParticleMeshRenderDa
 
 				ParticleMeshRenderData.bSortCullOnGpu = bSortMoveToGpu || bCullMoveToGpu;
 			}
+
+			// Update if we support per particle LODs, we either need to be able to run the sort & cull process or use GPU scene
+			ParticleMeshRenderData.bAllowPerParticleMeshLODs &= ParticleMeshRenderData.bSortCullOnGpu || ParticleMeshRenderData.bUseGPUScene;
 		}
 
 		// Update layout as it could have changed
@@ -665,7 +691,7 @@ void FNiagaraRendererMeshes::PreparePerMeshData(FParticleMeshRenderData& Particl
 	}
 }
 
-uint32 FNiagaraRendererMeshes::PerformSortAndCull(FRHICommandListBase& RHICmdList, FParticleMeshRenderData& ParticleMeshRenderData, FGlobalDynamicReadBuffer& ReadBuffer, FNiagaraGPUSortInfo& SortInfo, FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface, int32 MeshIndex) const
+uint32 FNiagaraRendererMeshes::PerformSortAndCull(FRHICommandListBase& RHICmdList, FParticleMeshRenderData& ParticleMeshRenderData, FGlobalDynamicReadBuffer& ReadBuffer, FNiagaraGPUSortInfo& SortInfo, FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface, const FSceneView& View, const FMeshData& MeshData) const
 {
 	// Emitter mode culls earlier on
 	if (SourceMode == ENiagaraRendererSourceDataMode::Emitter)
@@ -680,7 +706,9 @@ uint32 FNiagaraRendererMeshes::PerformSortAndCull(FRHICommandListBase& RHICmdLis
 	{
 		SortInfo.LocalBSphere = ParticleMeshRenderData.CullingSphere;
 		SortInfo.CullingWorldSpaceOffset = ParticleMeshRenderData.WorldSpacePivotOffset;
-		SortInfo.MeshIndex = MeshIndex;
+		SortInfo.MeshIndex = MeshData.SourceMeshIndex;
+		SortInfo.LODScreenSize = FNiagaraRendererMeshes::GetShaderLODScreenSize(View, MeshData);
+
 		if (ParticleMeshRenderData.bSortCullOnGpu)
 		{
 			SortInfo.CulledGPUParticleCountOffset = ParticleMeshRenderData.bNeedsCull ? ComputeDispatchInterface->GetGPUInstanceCounterManager().AcquireCulledEntry() : INDEX_NONE;
@@ -976,6 +1004,20 @@ FNiagaraMeshUniformBufferRef FNiagaraRendererMeshes::CreateVFUniformBuffer(const
 	return FNiagaraMeshUniformBufferRef::CreateUniformBufferImmediate(Params, UniformBuffer_SingleFrame);
 }
 
+FVector4f FNiagaraRendererMeshes::GetShaderLODScreenSize(const FSceneView& View, const FMeshData& MeshData)
+{
+	const FSceneView& LODView = GetLODView(View);
+	const FMatrix& ProjMatrix = LODView.ViewMatrices.GetProjectionMatrix();
+	const float LODSize = MeshData.LODScreenSize.Z * FMath::Max(ProjMatrix.M[0][0], ProjMatrix.M[1][1]) * 0.5f;
+
+	return FVector4f(
+		FMath::Square(MeshData.LODScreenSize.X * 0.5f),
+		FMath::Square(MeshData.LODScreenSize.Y * 0.5f),
+		FMath::Square(LODSize),
+		ProjMatrix.M[2][3] * LODView.LODDistanceFactor * MeshData.LODDistanceFactor
+	);
+}
+
 void FNiagaraRendererMeshes::SetupElementForGPUScene(
 	const FParticleMeshRenderData& ParticleMeshRenderData,
 	const FNiagaraMeshCommonParameters& CommonParameters,
@@ -1016,6 +1058,7 @@ void FNiagaraRendererMeshes::SetupElementForGPUScene(
 		GPUSceneRes.GPUWriteParams.VisibilityTagDataOffset 	= ParticleMeshRenderData.RendererVisTagOffset;
 		GPUSceneRes.GPUWriteParams.LocalBoundingCenter		= (FVector3f)LocalBounds.GetCenter();
 		GPUSceneRes.GPUWriteParams.DistanceCullRangeSquared = DistanceCullRangeSquared;
+		GPUSceneRes.GPUWriteParams.LODScreenSize			= GetShaderLODScreenSize(View, MeshData);
 		GPUSceneRes.GPUWriteParams.bNeedsPrevTransform		= bNeedsPrevTransform ? 1 : 0;
 
 		// We need to set this flag to force the system to always cull individual instances, because we may need to discard instances that are:
@@ -1286,14 +1329,13 @@ void FNiagaraRendererMeshes::GetDynamicMeshElements(const TArray<const FSceneVie
 				InitializeSortInfo(ParticleMeshRenderData, *SceneProxy, *View, ViewIndex, bIsInstancedStereo, SortInfo);
 			}
 
+			const bool bHasMeshIndexValidBinding = ParticleMeshRenderData.MeshIndexOffset != INDEX_NONE || EmitterModeMeshIndex != INDEX_NONE;
+
 			FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface = SceneProxy->GetComputeDispatchInterface();
 			for (int32 MeshIndex = 0; MeshIndex < Meshes.Num(); ++MeshIndex)
 			{
-				// No binding for mesh index or we don't allow culling we will only render the first mesh for all particles
-				const bool bHasValidBinding = ParticleMeshRenderData.MeshIndexOffset != INDEX_NONE
-					|| EmitterModeMeshIndex != INDEX_NONE;
-
-				if (MeshIndex > 0 && (!bHasValidBinding || (!ParticleMeshRenderData.bNeedsCull && !ParticleMeshRenderData.bUseGPUScene)))
+				const FMeshData& MeshData = Meshes[MeshIndex];
+				if (MeshData.SourceMeshIndex > 0 && (!bHasMeshIndexValidBinding || (!ParticleMeshRenderData.bNeedsCull && !ParticleMeshRenderData.bUseGPUScene)))
 				{
 					break;
 				}
@@ -1304,7 +1346,14 @@ void FNiagaraRendererMeshes::GetDynamicMeshElements(const TArray<const FSceneVie
 					continue;
 				}
 
-				const FMeshData& MeshData = Meshes[MeshIndex];
+				// If we can no perform sorting / culling on the GPU we need to skip meshes which are LODs
+				if (MeshData.LODMode == ENiagaraMeshLODMode::PerParticle && !ParticleMeshRenderData.bAllowPerParticleMeshLODs)
+				{
+					if (MeshIndex != 0 && Meshes[MeshIndex - 1].SourceMeshIndex == Meshes[MeshIndex].SourceMeshIndex)
+					{
+						continue;
+					}
+				}
 
 				INiagaraRenderableMesh::FLODModelData LODModel;
 				if (MeshData.LODMode == ENiagaraMeshLODMode::ByComponentBounds)
@@ -1339,7 +1388,7 @@ void FNiagaraRendererMeshes::GetDynamicMeshElements(const TArray<const FSceneVie
 				PreparePerMeshData(ParticleMeshRenderData, VertexFactory, *SceneProxy, MeshData);
 
 				// Sort/Cull particles if needed.
-				const uint32 NumInstances = PerformSortAndCull(RHICmdList, ParticleMeshRenderData, Collector.GetDynamicReadBuffer(), SortInfo, ComputeDispatchInterface, MeshData.SourceMeshIndex);
+				const uint32 NumInstances = PerformSortAndCull(RHICmdList, ParticleMeshRenderData, Collector.GetDynamicReadBuffer(), SortInfo, ComputeDispatchInterface, *View, MeshData);
 				if ( NumInstances > 0 )
 				{
 					// Increment stats
@@ -1512,7 +1561,7 @@ void FNiagaraRendererMeshes::GetDynamicRayTracingInstances(FRayTracingMaterialGa
 
 		// Sort/Cull particles if needed.
 		FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface = SceneProxy->GetComputeDispatchInterface();
-		const uint32 NumInstances = PerformSortAndCull(RHICmdList, ParticleMeshRenderData, Context.RayTracingMeshResourceCollector.GetDynamicReadBuffer(), SortInfo, ComputeDispatchInterface, MeshData.SourceMeshIndex);
+		const uint32 NumInstances = PerformSortAndCull(RHICmdList, ParticleMeshRenderData, Context.RayTracingMeshResourceCollector.GetDynamicReadBuffer(), SortInfo, ComputeDispatchInterface, *View, MeshData);
 		if ( NumInstances == 0 )
 		{
 			continue;

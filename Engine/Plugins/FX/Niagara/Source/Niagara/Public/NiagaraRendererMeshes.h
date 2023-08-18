@@ -38,6 +38,8 @@ public:
 #endif
 	//FNiagaraRenderer Interface END
 
+	bool HasValidMeshes() const { return Meshes.Num() > 0; }
+
 protected:
 	struct FParticleMeshRenderData
 	{
@@ -50,6 +52,7 @@ protected:
 		bool							bSortCullOnGpu = false;
 		bool							bNeedsSort = false;
 		bool							bNeedsCull = false;
+		bool							bAllowPerParticleMeshLODs = false;
 		bool							bIsGpuLowLatencyTranslucency = false;
 
 		const FNiagaraRendererLayout*	RendererLayout = nullptr;
@@ -86,6 +89,7 @@ protected:
 		ENiagaraMeshLODMode LODMode = ENiagaraMeshLODMode::LODLevel;
 		int32 LODLevel = 0;
 		float LODDistanceFactor = 1.0f;
+		FVector3f LODScreenSize = FVector3f(0.0f, 2.0f, 1.0f);
 		FVector3f PivotOffset = FVector3f::ZeroVector;
 		ENiagaraMeshPivotOffsetSpace PivotOffsetSpace = ENiagaraMeshPivotOffsetSpace::Mesh;
 		FVector3f Scale = FVector3f(1.0f, 1.0f, 1.0f);
@@ -126,9 +130,11 @@ protected:
 	NIAGARA_API void PrepareParticleRenderBuffers(FRHICommandListBase& RHICmdList, FParticleMeshRenderData& ParticleMeshRenderData, FGlobalDynamicReadBuffer& DynamicReadBuffer) const;
 	NIAGARA_API void InitializeSortInfo(const FParticleMeshRenderData& ParticleMeshRenderData, const FNiagaraSceneProxy& SceneProxy, const FSceneView& View, int32 ViewIndex, bool bIsInstancedStereo, FNiagaraGPUSortInfo& OutSortInfo) const;
 	NIAGARA_API void PreparePerMeshData(FParticleMeshRenderData& ParticleMeshRenderData, const FNiagaraMeshVertexFactory& VertexFactory, const FNiagaraSceneProxy& SceneProxy, const FMeshData& MeshData) const;
-	NIAGARA_API uint32 PerformSortAndCull(FRHICommandListBase& RHICmdList, FParticleMeshRenderData& ParticleMeshRenderData, FGlobalDynamicReadBuffer& ReadBuffer, FNiagaraGPUSortInfo& SortInfo, class FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface, int32 MeshIndex) const;
+	NIAGARA_API uint32 PerformSortAndCull(FRHICommandListBase& RHICmdList, FParticleMeshRenderData& ParticleMeshRenderData, FGlobalDynamicReadBuffer& ReadBuffer, FNiagaraGPUSortInfo& SortInfo, class FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface, const FSceneView& View, const FMeshData& MeshData) const;
 	NIAGARA_API FNiagaraMeshCommonParameters CreateCommonShaderParams(const FParticleMeshRenderData& ParticleMeshRenderData, const FSceneView& View, const FMeshData& MeshData, const FNiagaraSceneProxy& SceneProxy) const;
 	NIAGARA_API FNiagaraMeshUniformBufferRef CreateVFUniformBuffer(const FParticleMeshRenderData& ParticleMeshRenderData, const FNiagaraMeshCommonParameters& CommonParams) const;
+
+	static FVector4f GetShaderLODScreenSize(const FSceneView& View, const FMeshData& MeshData);
 
 	NIAGARA_API void SetupElementForGPUScene(
 		const FParticleMeshRenderData& ParticleMeshRenderData,
@@ -174,6 +180,7 @@ private:
 	uint32 bLockedAxisEnable : 1;
 	uint32 bEnableCulling : 1;
 	uint32 bEnableFrustumCulling : 1;
+	uint32 bEnableLODCulling : 1;
 	uint32 bAccurateMotionVectors : 1;
 	uint32 bIsHeterogeneousVolume : 1;
 	uint32 bCastShadows : 1;
