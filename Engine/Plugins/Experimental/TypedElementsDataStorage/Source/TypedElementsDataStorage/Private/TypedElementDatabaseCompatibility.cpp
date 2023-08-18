@@ -13,6 +13,24 @@
 #include "MassActorEditorSubsystem.h"
 #include "MassActorSubsystem.h"
 #include "TypedElementDataStorageProfilingMacros.h"
+#include "Memento/TypedElementMementoInterface.h"
+
+namespace Private
+{
+	// Number of frames to keep memento rows before deletion
+	bool GMementosEnabled = false;
+	FAutoConsoleVariableRef CVarMementoEnable(
+		TEXT("teds.mementos.enable"),
+		GMementosEnabled,
+		TEXT("Enable memento system for newly added objects\n"));
+
+	void RegisterRowForMementoization(ITypedElementDataStorageInterface* Storage, TypedElementRowHandle Row)
+	{
+		TypedElementTableHandle UnpopulatedMementoTable = UTypedElementMementoInterface::GetUnpopulatedMementoTable();
+		TypedElementRowHandle Memento = Storage->AddRow(UnpopulatedMementoTable);
+		Storage->AddOrGetColumn<FTypedElementMementoOnDelete>(Row, FTypedElementMementoOnDelete{ .Memento = Memento });
+	}
+}
 
 void UTypedElementDatabaseCompatibility::Initialize(ITypedElementDataStorageInterface* StorageInterface)
 {
@@ -423,6 +441,11 @@ void UTypedElementDatabaseCompatibility::TickPendingActorRegistration(UWorld* Ed
 					
 					// Make sure the new row is tagged for update.
 					Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
+					
+					if (Private::GMementosEnabled)
+					{
+						Private::RegisterRowForMementoization(Storage, Row);
+					}
 				});
 		}
 			
@@ -455,6 +478,11 @@ void UTypedElementDatabaseCompatibility::TickPendingUObjectRegistration()
 					Storage->AddOrGetColumn<FTypedElementClassTypeInfoColumn>(Row, FTypedElementClassTypeInfoColumn{ .TypeInfo = Object->GetClass() });
 					// Make sure the new row is tagged for update.
 					Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
+
+					if (Private::GMementosEnabled)
+					{
+						Private::RegisterRowForMementoization(Storage, Row);
+					}
 				});
 		}
 
@@ -486,6 +514,11 @@ void UTypedElementDatabaseCompatibility::TickPendingExternalObjectRegistration()
 					Storage->AddOrGetColumn<FTypedElementClassTypeInfoColumn>(Row, FTypedElementScriptStructTypeInfoColumn{ .TypeInfo = Object.TypeInfo });
 					// Make sure the new row is tagged for update.
 					Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
+
+					if (Private::GMementosEnabled)
+					{
+						Private::RegisterRowForMementoization(Storage, Row);
+					}
 				});
 		}
 
