@@ -1147,7 +1147,7 @@ HHitProxy* FStaticMeshSceneProxy::CreateHitProxies(IPrimitiveComponent* Componen
 	if ( ComponentInterface->GetOwner() )
 	{
 		// Sanity check for a case we'll not be handling anymore
-		check (! (ComponentInterface->GetUObject<UBrushComponent>() || ComponentInterface->GetOwner<ABrush>()));
+		check (! (ComponentInterface->GetUObject<UBrushComponent>()));
 
 		// Generate separate hit proxies for each sub mesh, so that we can perform hit tests against each section for applying materials
 		// to each one.
