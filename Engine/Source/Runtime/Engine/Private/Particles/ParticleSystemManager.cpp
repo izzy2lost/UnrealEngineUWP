@@ -113,7 +113,8 @@ public:
 
 	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 	{
-		FTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
+		//FTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
+		FTaskTagScope Scope(ETaskTag::EParallelGameThread);
 		SCOPE_CYCLE_COUNTER(STAT_PSCMan_AsyncBatch);
 
 // 		FString Ticked;
