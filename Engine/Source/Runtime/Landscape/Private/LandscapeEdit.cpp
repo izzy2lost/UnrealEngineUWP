@@ -1878,6 +1878,7 @@ void ULandscapeComponent::UpdatePhysicalMaterialTasks()
 		}
 		else
 		{
+			PhysicalMaterialHash = Hash;
 			// Clear the renderable physical material properties as we don't need them :
 			CollisionComponent->PhysicalMaterialRenderObjects.Reset();
 			CollisionComponent->PhysicalMaterialRenderData.RemoveBulkData();
