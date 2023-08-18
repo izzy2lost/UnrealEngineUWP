@@ -61,6 +61,16 @@ namespace Horde.Server.Logs
         public string JobId { get; set; }
 
 		/// <summary>
+		/// The lease allowed to write to this log
+		/// </summary>
+		public string? LeaseId { get; }
+
+		/// <summary>
+		/// The session allowed to write to this log
+		/// </summary>
+		public string? SessionId { get; }
+
+		/// <summary>
 		/// Type of events stored in this log
 		/// </summary>
 		public LogType Type { get; set; }
@@ -79,6 +89,8 @@ namespace Horde.Server.Logs
 		{
             Id = logFile.Id.ToString();
             JobId = logFile.JobId.ToString();
+			LeaseId = logFile.LeaseId.ToString();
+			SessionId = logFile.SessionId.ToString();
 			Type = logFile.Type;
             LineCount = metadata.MaxLineIndex;
 		}
