@@ -96,8 +96,6 @@
 #include "Rendering/StaticLightingSystemInterface.h"
 #endif
 
-#include "SplineMeshSceneResources.h"
-
 #define VALIDATE_PRIMITIVE_PACKED_INDEX 0
 
 /** Affects BasePassPixelShader.usf so must relaunch editor to recompile shaders. */
@@ -1646,7 +1644,6 @@ FScene::FScene(UWorld* InWorld, bool bInRequiresHitProxies, bool bInIsEditorScen
 ,	RayTracingDynamicGeometryCollection(nullptr)
 ,	RayTracingSkinnedGeometryUpdateQueue(nullptr)
 #endif
-,	SplineMeshSceneResources(nullptr)
 ,	NumVisibleLights_GameThread(0)
 ,	NumEnabledSkylights_GameThread(0)
 ,	SceneFrameNumber(0)
@@ -1725,11 +1722,6 @@ FScene::FScene(UWorld* InWorld, bool bInRequiresHitProxies, bool bInIsEditorScen
 
 	// Allocate the shadow scene, it is always present but we use a pointer such that it can be forward declared.
 	ShadowScene = new FShadowScene(*this);
-
-	if (UseSplineMeshSceneResources(GetFeatureLevelShaderPlatform(InFeatureLevel)))
-	{
-		SplineMeshSceneResources = new FSplineMeshSceneResources(*this);
-	}
 }
 
 FScene::~FScene()
@@ -1808,8 +1800,6 @@ FScene::~FScene()
 	checkf(RemovedPrimitiveSceneInfos.Num() == 0, TEXT("Leaking %d FPrimitiveSceneInfo instances."), RemovedPrimitiveSceneInfos.Num()); // Ensure UpdateAllPrimitiveSceneInfos() is called before destruction.
 
 	delete SceneLightInfoUpdates;
-
-	delete SplineMeshSceneResources;
 }
 
 // Helpers for internal templates
@@ -5481,11 +5471,6 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 	auto &SceneCullingUpdater = SceneCulling->BeginUpdate(GraphBuilder);
 
 	SceneCullingUpdater.OnPreSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPreUpdateSet());
-	
-	if (SplineMeshSceneResources)
-	{
-		SplineMeshSceneResources->PreSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPreUpdateSet());
-	}
 
 	// Create a SceneUB that permits access to the scene for invalidation processing.
 	FSceneUniformBuffer SceneUB;
@@ -6317,11 +6302,6 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 	}
 
 	SceneCullingUpdater.OnPostSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPostUpdateSet());
-	
-	if (SplineMeshSceneResources)
-	{
-		SplineMeshSceneResources->PostSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPostUpdateSet());
-	}
 
 	UpdateCachedShadowState(SceneUpdateChangeSetStorage.GetPreUpdateSet(), SceneUpdateChangeSetStorage.GetPostUpdateSet());
 	ShadowScene->PostSceneUpdate(SceneUpdateChangeSetStorage.GetPreUpdateSet(), SceneUpdateChangeSetStorage.GetPostUpdateSet());

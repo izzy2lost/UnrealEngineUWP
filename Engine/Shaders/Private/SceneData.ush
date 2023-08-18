@@ -540,8 +540,12 @@ float4 LoadInstancePayloadDataElement(uint Index)
 
 float4 LoadInstancePayloadExtensionElement(FInstanceSceneData InstanceData, uint Index)
 {
-	checkSlow(InstanceData.PayloadExtensionOffset != INVALID_INSTANCE_PAYLOAD_OFFSET);
-	return LoadInstancePayloadDataElement(InstanceData.PayloadExtensionOffset + Index);
+	if (InstanceData.PayloadExtensionOffset != INVALID_INSTANCE_PAYLOAD_OFFSET)
+	{
+		return LoadInstancePayloadDataElement(InstanceData.PayloadExtensionOffset + Index);
+	}
+
+	return (float4)0;
 }
 
 float4 LoadInstanceCustomDataElement(FInstanceSceneData SceneData, uint Float4Index)

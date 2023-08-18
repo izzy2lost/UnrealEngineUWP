@@ -3,13 +3,7 @@
 #pragma once
 
 // The packed size of the spline mesh data in float4s
-#define SPLINE_MESH_PARAMS_FLOAT4_SIZE 7
-
-// Definitions for sizing the scene spline mesh texture and encoding spline addresses
-#define SPLINE_MESH_TEXEL_WIDTH_BITS		(6u)
-#define SPLINE_MESH_TEXEL_WIDTH				(1u << SPLINE_MESH_TEXEL_WIDTH_BITS)
-#define SPLINE_MESH_TEXEL_WIDTH_MASK		(SPLINE_MESH_TEXEL_WIDTH - 1u)
-#define SPLINE_MESH_TEXTURE_MAX_DIMENSION	(16 * 1024)
+#define SPLINE_MESH_PARAMS_FLOAT4_SIZE 8
 
 #ifdef __cplusplus
 #include "HLSLTypeAliases.h"
@@ -38,8 +32,6 @@ struct FSplineMeshShaderParams
 	float3 MeshDir;
 	float3 MeshX;
 	float3 MeshY;
-	uint2 TextureCoord;
-	float NaniteClusterBoundsScale;
 };
 
 #ifdef __cplusplus
@@ -57,25 +49,19 @@ FSplineMeshShaderParams UnpackSplineMeshParams(float4 PackedParams[SPLINE_MESH_P
 	Output.StartPos 				= PackedParams[0].xyz;
 	Output.EndPos 					= PackedParams[1].xyz;
 	Output.StartTangent 			= PackedParams[2].xyz;
-	Output.EndTangent 				= float3(PackedParams[0].w, PackedParams[1].w, PackedParams[2].w);
-	Output.StartOffset 				= PackedParams[3].xy;
-	Output.EndOffset 				= PackedParams[3].zw;
-	Output.StartScale 				= float2(f16tof32(asuint(PackedParams[4].x)),
-											 f16tof32(asuint(PackedParams[4].x) >> 16u));
-	Output.EndScale 				= float2(f16tof32(asuint(PackedParams[4].y)),
-											 f16tof32(asuint(PackedParams[4].y) >> 16u));
-	Output.StartRoll 				= f16tof32(asuint(PackedParams[4].z));
-	Output.EndRoll 					= f16tof32(asuint(PackedParams[4].z) >> 16u);
-	Output.TextureCoord				= uint2(asuint(PackedParams[4].w) & 0xFFFFu,
-											asuint(PackedParams[4].w) >> 16u);
-	Output.MeshDeformScaleMinMax	= PackedParams[5].xy;
+	Output.EndTangent 				= PackedParams[3].xyz;
+	Output.StartScale 				= float2(PackedParams[0].w, PackedParams[1].w);
+	Output.EndScale 				= float2(PackedParams[2].w, PackedParams[3].w);
+	Output.StartOffset 				= PackedParams[4].xy;
+	Output.EndOffset 				= PackedParams[4].zw;
+	Output.StartRoll 				= PackedParams[5].x;
+	Output.EndRoll 					= PackedParams[5].y;
 	Output.MeshScaleZ 				= PackedParams[5].z;
 	Output.MeshMinZ 				= PackedParams[5].w;
 	Output.SplineUpDir 				= float3(SNorm16ToF32(asuint(PackedParams[6].x)),
 											 SNorm16ToF32(asuint(PackedParams[6].x) >> 16u),
 											 SNorm16ToF32(asuint(PackedParams[6].y)));
-	Output.NaniteClusterBoundsScale	= f16tof32((asuint(PackedParams[6].y) >> 16u) & 0x7FFFu);
-	Output.bSmoothInterpRollScale	= (asuint(PackedParams[6].y) >> 31u) != 0;
+
 	FQuat MeshQuat					= FQuat(SNorm16ToF32(asuint(PackedParams[6].z)),
 											SNorm16ToF32(asuint(PackedParams[6].z) >> 16u),
 											SNorm16ToF32(asuint(PackedParams[6].w)),
@@ -84,6 +70,9 @@ FSplineMeshShaderParams UnpackSplineMeshParams(float4 PackedParams[SPLINE_MESH_P
 	Output.MeshDir					= MeshRot[0];
 	Output.MeshX					= MeshRot[1];
 	Output.MeshY					= MeshRot[2];
+
+	Output.MeshDeformScaleMinMax	= PackedParams[7].xy;
+	Output.bSmoothInterpRollScale 	= PackedParams[7].z != 0.0f;
 
 	return Output;
 }

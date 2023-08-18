@@ -92,7 +92,6 @@ class FStaticMeshBatch;
 class FShadowScene;
 class FSceneLightInfoUpdates;
 class FSceneCulling;
-class FSplineMeshSceneResources;
 
 /**
  * Describes all light modifications to the scene by recording the light scene IDs.
@@ -3178,9 +3177,6 @@ public:
 	class FRayTracingDynamicGeometryCollection* RayTracingDynamicGeometryCollection;
 	class FRayTracingSkinnedGeometryUpdateQueue* RayTracingSkinnedGeometryUpdateQueue;
 #endif
-
-	/** Spline mesh data shared between all views. */
-	FSplineMeshSceneResources* SplineMeshSceneResources;
 
 	/** Initialization constructor. */
 	FScene(UWorld* InWorld, bool bInRequiresHitProxies,bool bInIsEditorScene, bool bCreateFXSystem, ERHIFeatureLevel::Type InFeatureLevel);

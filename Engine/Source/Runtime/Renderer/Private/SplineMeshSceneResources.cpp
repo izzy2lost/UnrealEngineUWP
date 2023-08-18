@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#if 0 // changes backed out for now until issues are resolved.
+
 #include "SplineMeshSceneResources.h"
 #include "SplineMeshShaderParams.h"
 #include "SplineMeshSceneProxy.h"
@@ -500,3 +502,5 @@ FRDGBufferSRVRef FSplineMeshSceneResources::GetInstanceIdLookupSRV(FRDGBuilder& 
 	bInstanceLookupDirty = false;
 	return GraphBuilder.CreateSRV(InstanceIdLookup);
 }
+
+#endif 

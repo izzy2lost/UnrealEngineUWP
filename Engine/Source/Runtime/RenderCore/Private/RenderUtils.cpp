@@ -1573,20 +1573,6 @@ ERayTracingMode GetRayTracingMode()
 	return IsRayTracingAllowed() ? GRayTracingMode : ERayTracingMode::Disabled;
 }
 
-bool UseSplineMeshSceneResources(const FStaticShaderPlatform Platform)
-{
-	// This feature currently requires GPU Scene to be supported and enabled.
-	// NOTE: Mobile can't support this feature because it requries vertex shaders to read from structured buffers
-	if (UseGPUScene(Platform) && !IsMobilePlatform(Platform))
-	{
-		static const auto AllowSceneTexture = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.SplineMesh.SceneTexture"));
-		static const bool bAllowSceneTexture = (AllowSceneTexture && AllowSceneTexture->GetValueOnAnyThread() != 0);
-		return bAllowSceneTexture;
-	}
-
-	return false;
-}
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Strata settings interface
 

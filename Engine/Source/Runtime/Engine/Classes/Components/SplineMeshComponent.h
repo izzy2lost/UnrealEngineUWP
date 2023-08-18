@@ -17,7 +17,7 @@ struct FNavigableGeometryExport;
 class UBodySetup;
 
 // Helper for packing spline mesh shader parameters into a float4 buffer
-ENGINE_API void PackSplineMeshParams(const FSplineMeshShaderParams& Params, const TArrayView<FVector4f>& Output);
+void PackSplineMeshParams(const FSplineMeshShaderParams& Params, const TArrayView<FVector4f>& Output);
 
 UENUM(BlueprintType)
 namespace ESplineMeshAxis
@@ -79,14 +79,6 @@ struct FSplineMeshParams
 	UPROPERTY(EditAnywhere, Category=SplineMesh, AdvancedDisplay)
 	FVector2D EndOffset;
 
-	/**
-	 * How much to scale the calculated culling bounds of Nanite clusters after deformation.
-	 * NOTE: This should only be set greater than 1.0 if it fixes visible issues with clusters being
-	 * incorrectly culled.
-	 */
-	UPROPERTY(EditAnywhere, Category=SplineMesh, AdvancedDisplay, meta=(ClampMin=1.0))
-	float NaniteClusterBoundsScale;
-
 
 	FSplineMeshParams()
 		: StartPos(ForceInit)
@@ -99,7 +91,6 @@ struct FSplineMeshParams
 		, EndTangent(ForceInit)
 		, EndRoll(0)
 		, EndOffset(ForceInit)
-		, NaniteClusterBoundsScale(1.0f)
 	{
 	}
 
