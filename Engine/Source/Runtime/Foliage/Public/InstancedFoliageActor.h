@@ -270,7 +270,7 @@ public:
 	static FOLIAGE_API bool HasFoliageAttached(UActorComponent* InComponent);
 
 	/* Called to notify InstancedFoliageActor that a UFoliageType has been modified */
-	void NotifyFoliageTypeChanged(UFoliageType* FoliageType, bool bSourceChanged);
+	FOLIAGE_API void NotifyFoliageTypeChanged(UFoliageType* FoliageType, bool bSourceChanged);
 	void NotifyFoliageTypeWillChange(UFoliageType* FoliageType);
 
 	DECLARE_EVENT_OneParam(AInstancedFoliageActor, FOnFoliageTypeMeshChanged, UFoliageType*);

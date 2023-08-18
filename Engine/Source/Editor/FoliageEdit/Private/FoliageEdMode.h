@@ -485,7 +485,7 @@ public:
 	bool IsModifierButtonPressed(const FEditorViewportClient* ViewportClient) const;
 
 	/** Add a new asset (FoliageType or StaticMesh) */
-	UFoliageType* AddFoliageAsset(UObject* InAsset);
+	UFoliageType* AddFoliageAsset(UObject* InAsset, bool bInPlaceholderAsset = false);
 
 	/** Remove a list of Foliage types */
 	bool RemoveFoliageType(UFoliageType** FoliageTypes, int32 Num);
@@ -509,7 +509,7 @@ public:
 	void ReplaceSettingsObject(UFoliageType* OldSettings, UFoliageType* NewSettings);
 
 	/** Save the foliage type object. If it isn't an asset, will prompt the user for a location to save the new asset. */
-	UFoliageType* SaveFoliageTypeObject(UFoliageType* Settings);
+	UFoliageType* SaveFoliageTypeObject(UFoliageType* Settings, bool bPlaceholderAsset = false);
 
 	void IncludeNonFoliageActors(const TArray<const UFoliageType*>& FoliageTypes, bool bOnlyCurrentLevel);
 

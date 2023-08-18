@@ -3428,7 +3428,7 @@ void FEdModeFoliage::MoveSelectedFoliageToLevel(ULevel* InTargetLevel)
 	}
 }
 
-UFoliageType* FEdModeFoliage::AddFoliageAsset(UObject* InAsset)
+UFoliageType* FEdModeFoliage::AddFoliageAsset(UObject* InAsset, bool bInPlaceholderAsset)
 {
 	UFoliageType* FoliageType = nullptr;
 
@@ -3452,7 +3452,7 @@ UFoliageType* FEdModeFoliage::AddFoliageAsset(UObject* InAsset)
 				// If the world is partitioned or the world has sublevels,
 				// require the user to save the new foliage as an asset.
 				// The user will then be able to paint over all cells/sub-level.
-				FoliageType = SaveFoliageTypeObject(FoliageType);
+				FoliageType = SaveFoliageTypeObject(FoliageType, bInPlaceholderAsset);
 			}
 
 			if (FoliageType != nullptr)
@@ -3586,9 +3586,9 @@ void FEdModeFoliage::ReplaceSettingsObject(UFoliageType* OldSettings, UFoliageTy
 	PopulateFoliageMeshList();
 }
 
-UFoliageType* FEdModeFoliage::SaveFoliageTypeObject(UFoliageType* InFoliageType)
+UFoliageType* FEdModeFoliage::SaveFoliageTypeObject(UFoliageType* InFoliageType, bool bInPlaceholderAsset)
 {
-	UFoliageType* TypeToSave = FFoliageEditUtility::SaveFoliageTypeObject(InFoliageType);
+	UFoliageType* TypeToSave = FFoliageEditUtility::SaveFoliageTypeObject(InFoliageType, bInPlaceholderAsset);
 
 	if (TypeToSave != nullptr && TypeToSave != InFoliageType)
 	{
