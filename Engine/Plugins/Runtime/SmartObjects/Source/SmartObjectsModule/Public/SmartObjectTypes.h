@@ -599,7 +599,11 @@ enum class ESmartObjectChangeReason : uint8
 	/** Object was enabled. */
 	OnObjectEnabled,
 	/** Object was disabled. */
-	OnObjectDisabled
+	OnObjectDisabled,
+	/** Related Smart Object Component is bound to simulation. */
+	OnComponentBound,
+	/** Related Smart Object Component is unbound from simulation. */
+	OnComponentUnbound,
 };
 
 /**

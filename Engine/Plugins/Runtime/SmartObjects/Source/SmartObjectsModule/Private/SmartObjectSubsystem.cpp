@@ -310,6 +310,14 @@ void USmartObjectSubsystem::BindComponentToSimulationInternal(USmartObjectCompon
 	SmartObjectRuntime.OwnerComponent = &SmartObjectComponent;
 	SmartObjectComponent.OnRuntimeInstanceBound(SmartObjectRuntime);
 	UE_VLOG_UELOG(this, LogSmartObject, Verbose, TEXT("SmartObjectComponent %s bound to simulation."), *GetFullNameSafe(&SmartObjectComponent));
+
+	if (SmartObjectRuntime.OnEvent.IsBound())
+	{
+		FSmartObjectEventData Data;
+		Data.SmartObjectHandle = SmartObjectRuntime.GetRegisteredHandle();
+		Data.Reason = ESmartObjectChangeReason::OnComponentBound;
+		SmartObjectRuntime.OnEvent.Broadcast(Data);
+	}
 }
 
 void USmartObjectSubsystem::UnbindComponentFromSimulation(USmartObjectComponent& SmartObjectComponent)
@@ -327,6 +335,14 @@ void USmartObjectSubsystem::UnbindComponentFromSimulation(USmartObjectComponent&
 
 void USmartObjectSubsystem::UnbindComponentFromSimulationInternal(USmartObjectComponent& SmartObjectComponent, FSmartObjectRuntime& SmartObjectRuntime)
 {
+	if (SmartObjectRuntime.OnEvent.IsBound())
+	{
+		FSmartObjectEventData Data;
+		Data.SmartObjectHandle = SmartObjectRuntime.GetRegisteredHandle();
+		Data.Reason = ESmartObjectChangeReason::OnComponentUnbound;
+		SmartObjectRuntime.OnEvent.Broadcast(Data);
+	}
+
 	SmartObjectComponent.OnRuntimeInstanceUnbound(SmartObjectRuntime);
 	SmartObjectRuntime.OwnerComponent = nullptr;
 }

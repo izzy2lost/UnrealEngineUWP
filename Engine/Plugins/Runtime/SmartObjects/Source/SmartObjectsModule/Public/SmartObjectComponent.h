@@ -68,6 +68,9 @@ public:
 	bool IsSmartObjectEnabled() const;
 
 	FSmartObjectComponentEventNativeSignature& GetOnSmartObjectEventNative() { return OnSmartObjectEventNative; }
+
+	/** Returns true if the Smart Object component is registered to the Smart Object subsystem. Depending on the update order, sometimes it is possible that the subsystem gets enabled after the component. */
+	UFUNCTION(BlueprintCallable, Category = "SmartObject")
 	bool IsBoundToSimulation() const { return EventDelegateHandle.IsValid(); }
 
 #if WITH_EDITORONLY_DATA
