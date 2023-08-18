@@ -35,6 +35,7 @@ class ModalDropdownButton<ItemType> extends StatefulWidget {
     this.openRectExtraSpace = EdgeInsets.zero,
     this.bStretchDropdown = false,
     this.tooltipMessage,
+    this.bDisabled = false,
   }) : super(key: key);
 
   /// Function that builds the button based on the dropdown's [state].
@@ -53,6 +54,9 @@ class ModalDropdownButton<ItemType> extends StatefulWidget {
   /// An optional tooltip message to show when the button is hovered or long pressed.
   final String? tooltipMessage;
 
+  /// whether the button is disabled or not.
+  final bool? bDisabled;
+
   @override
   State<ModalDropdownButton<ItemType>> createState() => _ModalDropdownButtonState<ItemType>();
 }
@@ -69,7 +73,7 @@ class _ModalDropdownButtonState<ItemType> extends State<ModalDropdownButton<Item
         cursor: MaterialStateMouseCursor.clickable,
         child: GestureDetector(
           key: _dropdownOriginator,
-          onTap: _onTap,
+          onTap: widget.bDisabled == true ? null : _onTap,
           child: widget.buttonBuilder(context, ModalDropdownButtonState.closed),
         ),
       ),
