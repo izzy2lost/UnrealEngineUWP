@@ -1577,20 +1577,11 @@ void FOnDemandIoBackend::ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAn
 	if (bEnabled)
 	{
 		AppendAnalyticsEventAttributeArray(OutAnalyticsArray,
-			TEXT("IasEnabled"), false,
 			TEXT("IasCDNBackend"), HttpClient->ServiceUrl()
 		);
 
 		Stats.ReportAnalytics(OutAnalyticsArray);
 	}
-	else
-	{
-		AppendAnalyticsEventAttributeArray(OutAnalyticsArray,
-			TEXT("IasEnabled"), false
-		);
-	}
-
-	
 }
 
 #if IS_PROGRAM || WITH_EDITOR
