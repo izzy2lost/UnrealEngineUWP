@@ -361,7 +361,7 @@ private:
 	bool bPanning;
 
 	/** Mouse down position range */
-	FVector2D MouseDownPosition[2];
+	TOptional<FVector2D> MouseDownPosition[2];
 
 	/** Geometry on mouse down */
 	FGeometry MouseDownGeometry;
