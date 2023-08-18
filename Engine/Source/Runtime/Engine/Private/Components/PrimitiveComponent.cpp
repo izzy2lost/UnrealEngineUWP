@@ -569,6 +569,10 @@ void UPrimitiveComponent::CreateRenderState_Concurrent(FRegisterComponentContext
 		CachedMaxDrawDistance = bNeverCull ? 0.f : LDMaxDrawDistance;
 	}
 
+	// Always setup our ptr to the OwnerLastRenderTimer for rendering time feedback from the renderer
+	// The owner can change after calls to OnRegister so we must resynchronize this value
+	SceneData.OwnerLastRenderTimePtr = FActorLastRenderTime::GetPtr(GetOwner());
+
 	Super::CreateRenderState_Concurrent(Context);
 
 	UpdateBounds();
