@@ -486,7 +486,7 @@ void ImplCollectChildHiddenComponents(TSet<FPrimitiveComponentId>& OutPrimitives
 				UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(ChildIt);
 				if (PrimComp)
 				{
-					OutPrimitives.Add(PrimComp->ComponentId);
+					OutPrimitives.Add(PrimComp->GetPrimitiveSceneId());
 				}
 			}
 		}
@@ -514,7 +514,7 @@ void ADisplayClusterRootActor::GetTypedPrimitives(TSet<FPrimitiveComponentId>& O
 						UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(CompIt);
 						if (PrimComp)
 						{
-							OutPrimitives.Add(PrimComp->ComponentId);
+							OutPrimitives.Add(PrimComp->GetPrimitiveSceneId());
 						}
 
 						if (bCollectChildrenVisualizationComponent)
@@ -530,7 +530,7 @@ void ADisplayClusterRootActor::GetTypedPrimitives(TSet<FPrimitiveComponentId>& O
 				UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(CompIt);
 				if (PrimComp)
 				{
-					OutPrimitives.Add(PrimComp->ComponentId);
+					OutPrimitives.Add(PrimComp->GetPrimitiveSceneId());
 				}
 
 				if (bCollectChildrenVisualizationComponent)
@@ -585,7 +585,7 @@ bool ADisplayClusterRootActor::GetHiddenInGamePrimitives(TSet<FPrimitiveComponen
 			{
 				if(UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(PreviewMesh))
 				{
-					OutPrimitives.Add(PrimComp->ComponentId);
+					OutPrimitives.Add(PrimComp->GetPrimitiveSceneId());
 				}
 			}
 		}
@@ -600,7 +600,7 @@ bool ADisplayClusterRootActor::GetHiddenInGamePrimitives(TSet<FPrimitiveComponen
 		{
 			if (CompIt->bHiddenInGame)
 			{
-				OutPrimitives.Add(CompIt->ComponentId);
+				OutPrimitives.Add(CompIt->GetPrimitiveSceneId());
 			}
 
 			ImplCollectChildHiddenComponents(OutPrimitives, CompIt);
@@ -684,7 +684,7 @@ bool ADisplayClusterRootActor::GetHiddenInGamePrimitives(TSet<FPrimitiveComponen
 #endif
 								)
 							{
-								PrimitiveComponentsArray[Index].Add(PrimComp->ComponentId);
+								PrimitiveComponentsArray[Index].Add(PrimComp->GetPrimitiveSceneId());
 							}
 
 							ImplCollectChildHiddenComponents(PrimitiveComponentsArray[Index], PrimComp);

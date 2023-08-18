@@ -31,7 +31,7 @@ static void ImplCollectVisibility(ADisplayClusterRootActor& RootActor, const FDi
 				{
 					if (const UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(Component))
 					{
-						OutAdditionalComponentsList.Add(PrimComp->ComponentId);
+						OutAdditionalComponentsList.Add(PrimComp->GetPrimitiveSceneId());
 					}
 				}
 			}
