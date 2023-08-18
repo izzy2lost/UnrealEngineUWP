@@ -50,8 +50,6 @@ $ bDebugBuildsActuallyUseDebugCRT : Enables the debug C++ runtime (CRT) for debu
 
 $ bLegalToDistributeBinary : Whether the output from this target can be publicly distributed, even if it has dependencies on modules that are in folders with special restrictions (eg. CarefullyRedist, NotForLicensees, NoRedist).
 
-$ bUseVerse : Whether to use the verse script interface.
-
 $ bUseVerseBPVM : Whether to use the BPVM to run Verse.
 
 $ bUseAutoRTFMCompiler : Whether to use the AutoRTFM Clang compiler.

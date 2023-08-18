@@ -94,8 +94,6 @@ $ GeneratedCodeVersion (EGeneratedCodeVersion): Allow target module to override 
 
 $ bEnableMeshEditor (Boolean): Whether to enable the mesh editor.
 
-$ bUseVerse (Boolean): Whether to use the verse script interface.
-
 $ bUseVerseBPVM (Boolean): Whether to use the BPVM to run Verse.
 
 $ bUseAutoRTFMCompiler (Boolean): Whether to use the AutoRTFM Clang compiler.
