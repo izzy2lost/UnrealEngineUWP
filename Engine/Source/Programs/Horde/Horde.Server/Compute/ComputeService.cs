@@ -61,7 +61,7 @@ namespace Horde.Server.Compute
 					byte[] payload = Any.Pack(computeTask).ToByteArray();
 					AgentLease lease = new AgentLease(leaseId, parentLeaseId, "Compute task", null, null, log?.Id, LeaseState.Pending, assignedResources, requirements.Exclusive, payload);
 
-					ComputeResource? resource = TryAssign(agent, computeTask);
+					ComputeResource? resource = TryAssign(agent, computeTask, leaseId);
 					if (resource != null)
 					{
 						IAgent? newAgent = await _agentCollection.TryAddLeaseAsync(agent, lease);
@@ -77,7 +77,7 @@ namespace Horde.Server.Compute
 			return null;
 		}
 
-		static ComputeResource? TryAssign(IAgent agent, ComputeTask computeTask)
+		static ComputeResource? TryAssign(IAgent agent, ComputeTask computeTask, LeaseId leaseId)
 		{
 			string? ipStr = agent.GetPropertyValues("ComputeIp").FirstOrDefault();
 			if (ipStr == null || !IPAddress.TryParse(ipStr, out IPAddress? ip))
@@ -91,7 +91,7 @@ namespace Horde.Server.Compute
 				return null;
 			}
 
-			return new ComputeResource(ip, port, computeTask, agent.Properties);
+			return new ComputeResource(ip, port, computeTask, agent.Properties, leaseId);
 		}
 
 		static ComputeTask CreateComputeTask(Dictionary<string, int> assignedResources, LogId? logId, LeaseId? parentLeaseId)

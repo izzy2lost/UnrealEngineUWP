@@ -54,6 +54,11 @@ namespace Horde.Server.Compute
 		public string Key { get; set; } = String.Empty;
 
 		/// <summary>
+		/// Identifier for the new lease on the remote machine
+		/// </summary>
+		public LeaseId LeaseId { get; set; }
+
+		/// <summary>
 		/// Resources assigned to this machine
 		/// </summary>
 		public Dictionary<string, int> AssignedResources { get; set; } = new Dictionary<string, int>();
@@ -121,6 +126,7 @@ namespace Horde.Server.Compute
 			response.Port = computeResource.Port;
 			response.Nonce = StringUtils.FormatHexString(computeResource.Task.Nonce.Span);
 			response.Key = StringUtils.FormatHexString(computeResource.Task.Key.Span);
+			response.LeaseId = computeResource.LeaseId;
 			response.Properties = computeResource.Properties;
 
 			foreach (KeyValuePair<string, int> pair in computeResource.Task.Resources)
