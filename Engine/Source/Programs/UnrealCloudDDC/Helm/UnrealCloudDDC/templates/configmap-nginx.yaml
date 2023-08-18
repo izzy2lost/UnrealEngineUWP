@@ -38,6 +38,7 @@ data:
         server_name public_http1;
 
         proxy_buffering off;
+        proxy_request_buffering off;
         proxy_http_version 1.1;
         
         location /api {
@@ -81,6 +82,7 @@ data:
         server_name corp_http1;
         
         proxy_buffering off;
+        proxy_request_buffering off;
         proxy_http_version 1.1;
         
         location /api {
@@ -124,6 +126,7 @@ data:
         server_name public_http2;
 
         proxy_buffering off;
+        proxy_request_buffering off;
         proxy_http_version 1.1;
         
         location /api {
@@ -167,6 +170,7 @@ data:
         server_name corp_http2;
 
         proxy_buffering off;
+        proxy_request_buffering off;
         proxy_http_version 1.1;
         
         location /api {
