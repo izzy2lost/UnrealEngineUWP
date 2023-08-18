@@ -910,7 +910,7 @@ void UAnimationSequencerDataModel::GenerateLegacyCurveData()
 										}
 									}							
 
-									if (const FScalarParameterNameAndCurve* ScalarCurve = ScalarCurves.FindByPredicate([Element](FScalarParameterNameAndCurve Curve)
+									if (const FScalarParameterNameAndCurve* ScalarCurve = ScalarCurves.FindByPredicate([Element](const FScalarParameterNameAndCurve& Curve)
 									{
 										return Curve.ParameterName == Element->GetFName();
 									}))
