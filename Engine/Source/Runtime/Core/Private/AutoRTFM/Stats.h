@@ -27,6 +27,8 @@ enum class EStatsKind : uint8_t
 	MaximumCommitTasks,
 	AverageAbortTasks,
 	MaximumAbortTasks,
+	NewMemoryTrackerHit,
+	NewMemoryTrackerMiss,
 	Total
 };
 
@@ -42,6 +44,8 @@ template<EStatsKind Kind> constexpr bool IsStatsKindNoArgs()
 	case EStatsKind::HitSetHit:
 	case EStatsKind::HitSetMiss:
 	case EStatsKind::HitSetSkippedBecauseOfStackLocalMemory:
+	case EStatsKind::NewMemoryTrackerHit:
+	case EStatsKind::NewMemoryTrackerMiss:
 		return true;
 	}
 }

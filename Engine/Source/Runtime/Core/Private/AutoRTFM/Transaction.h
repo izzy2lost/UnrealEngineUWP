@@ -3,6 +3,7 @@
 #pragma once
 
 #include "HitSet.h"
+#include "IntervalTree.h"
 #include "LongJump.h"
 #include "Stats.h"
 #include "TaggedPtr.h"
@@ -99,6 +100,7 @@ private:
 	bool bIsStackScoped{false};
 
     FHitSet HitSet;
+    FIntervalTree NewMemoryTracker;
     FWriteLog WriteLog;
     FWriteLogBumpAllocator WriteLogBumpAllocator;
     TStatStorage<uint64_t> StatDepth = 1;

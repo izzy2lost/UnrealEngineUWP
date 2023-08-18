@@ -88,6 +88,17 @@ template<> void AutoRTFM::FStats::Report<AutoRTFM::EStatsKind::MaximumAbortTasks
     UE_LOG(LogAutoRTFM, Display, TEXT("  Maximum abort tasks:       %11u"), Data);
 }
 
+template<> void AutoRTFM::FStats::Report<AutoRTFM::EStatsKind::NewMemoryTrackerHit>(const uint64_t Data) const
+{
+    UE_LOG(LogAutoRTFM, Display, TEXT("  New memory hits:           %11u"), Data);
+}
+
+template<> void AutoRTFM::FStats::Report<AutoRTFM::EStatsKind::NewMemoryTrackerMiss>(const uint64_t Data) const
+{
+    UE_LOG(LogAutoRTFM, Display, TEXT("  New memory misses:         %11u"), Data);
+}
+
+
 void AutoRTFM::FStats::Report() const
 {
 	if constexpr (bCollectStats)
@@ -116,6 +127,8 @@ void AutoRTFM::FStats::Report() const
             REPORT_CASE(AutoRTFM::EStatsKind::MaximumCommitTasks);
             REPORT_CASE(AutoRTFM::EStatsKind::AverageAbortTasks);
             REPORT_CASE(AutoRTFM::EStatsKind::MaximumAbortTasks);
+            REPORT_CASE(AutoRTFM::EStatsKind::NewMemoryTrackerHit);
+            REPORT_CASE(AutoRTFM::EStatsKind::NewMemoryTrackerMiss);
 #undef REPORT_CASE
 			}
 		}

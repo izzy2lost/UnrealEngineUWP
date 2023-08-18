@@ -17,6 +17,7 @@ FTransaction::FTransaction(FContext* Context)
 bool FTransaction::IsFresh() const
 {
     return HitSet.IsEmpty()
+        && NewMemoryTracker.IsEmpty()
         && WriteLog.IsEmpty()
         && CommitTasks.IsEmpty()
         && AbortTasks.IsEmpty()
@@ -205,6 +206,7 @@ void FTransaction::Reset()
     CommitTasks.Reset();
     AbortTasks.Reset();
 	HitSet.Reset();
+    NewMemoryTracker.Reset();
 	WriteLog.Reset();
 	WriteLogBumpAllocator.Reset();
 }

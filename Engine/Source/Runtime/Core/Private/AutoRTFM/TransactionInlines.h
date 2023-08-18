@@ -38,9 +38,20 @@ UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(void* LogicalAddress, siz
             Stats.Collect<EStatsKind::HitSetHit>();
             return;
         }
+    
+        Stats.Collect<EStatsKind::HitSetMiss>();
+    }
+    else
+    {
+        if (NewMemoryTracker.Contains(LogicalAddress, Size))
+        {
+            Stats.Collect<EStatsKind::NewMemoryTrackerHit>();
+            return;
+        }
+
+        Stats.Collect<EStatsKind::NewMemoryTrackerMiss>();
     }
 
-    Stats.Collect<EStatsKind::HitSetMiss>();
 
     uint8_t* const Address = reinterpret_cast<uint8_t*>(LogicalAddress);
 
@@ -83,15 +94,24 @@ template<unsigned SIZE> UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(v
     RecordWriteMaxPageSized(LogicalAddress, SIZE);
 }
 
-UE_AUTORTFM_FORCEINLINE void FTransaction::DidAllocate(void* LogicalAddress, size_t Size)
+UE_AUTORTFM_FORCEINLINE void FTransaction::DidAllocate(void* LogicalAddress, const size_t Size)
 {
-    if ((0 < Size) && (Size <= FWriteLogBumpAllocator::MaxSize))
+	if (0 == Size)
+	{
+		return;
+	}
+	else if (Size <= FWriteLogBumpAllocator::MaxSize)
     {
         FMemoryLocation Key(LogicalAddress);
         Key.SetTopTag(static_cast<uint16_t>(Size));
         // Otherwise we need to record the write.
         const bool DidInsert = HitSet.Insert(Key);
         ASSERT(DidInsert); 
+    }
+    else
+    {
+        const bool DidInsert = NewMemoryTracker.Insert(LogicalAddress, Size);
+        ASSERT(DidInsert);
     }
 }
 
