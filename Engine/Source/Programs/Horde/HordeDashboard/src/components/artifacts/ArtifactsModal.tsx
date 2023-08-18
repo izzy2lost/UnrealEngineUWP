@@ -474,13 +474,12 @@ const DownloadButton: React.FC<{ handler: ArtifactsHandler }> = observer(({ hand
             const item = selection[0] as BrowserItem;
             if (item.type === BrowserType.File) {
 
-               try {
-                  setDownloading(true);
-                  await backend.downloadArtifactV2(handler.artifact.id, (handler.path ? handler.path + "/" : "") + item.text, item.text);
+               try {                  
+                  backend.downloadArtifactV2(handler.artifact.id, (handler.path ? handler.path + "/" : "") + item.text);
                } catch (err) {
                   console.error(err);
                } finally {
-                  setDownloading(false);
+                  
                }
 
                return;
@@ -511,16 +510,13 @@ const DownloadButton: React.FC<{ handler: ArtifactsHandler }> = observer(({ hand
          if (context === "step-trace") {
             contextName = "trace";
          }
-
-         const filename = "horde-" + contextName + "-artifacts-" + handler.jobId + '-' + handler.stepId + ".zip";
-
-         try {
-            setDownloading(true);
-            await backend.downloadArtifactZipV2(handler.artifact.id, { filter: filters }, filename);
+         
+         try {            
+            backend.downloadArtifactZipV2(handler.artifact.id, { filter: filters });
          } catch (err) {
             console.error(err);
          } finally {
-            setDownloading(false);
+            
          }
 
       }}>{buttonText}</PrimaryButton>

@@ -584,42 +584,21 @@ export class Backend {
         });
     }
 
-    downloadArtifactV2(artifactId: string, path: string, filename: string): Promise<boolean> {
-
-        return new Promise<any>((resolve, reject) => {
-            this.backend.get(`/api/v2/artifacts/${artifactId}/file`, { params: { path: path }, responseBlob: true }).then(response => {
-                const url = window.URL.createObjectURL(response.data);
-                const link = document.createElement('a');
-                link.href = url;
-                link.setAttribute('download', filename);
-                link.click();
-                setTimeout(() => {
-                    window.URL.revokeObjectURL(url);
-                }, 100);
-                resolve(true);
-            }).catch(reason => {
-                reject(reason);
-            });
-        });
+    downloadArtifactV2(artifactId: string, path: string) {
+        const url = `/api/v2/artifacts/${artifactId}/file?path=${encodeURIComponent(path)}`;
+        window.location.assign(url);
     }
 
-    downloadArtifactZipV2(artifactId: string, request: CreateZipRequest, filename: string): Promise<boolean> {
+    downloadArtifactZipV2(artifactId: string, request: CreateZipRequest) {
+        
+        const filter = request.filter.map(f => `filter=${encodeURIComponent(f)}`).join("&")
 
-        return new Promise<any>((resolve, reject) => {
-            this.backend.post(`/api/v2/artifacts/${artifactId}/zip`, request, { responseBlob: true }).then(response => {
-                const url = window.URL.createObjectURL(response.data);
-                const link = document.createElement('a');
-                link.href = url;
-                link.setAttribute('download', filename);
-                link.click();
-                setTimeout(() => {
-                    window.URL.revokeObjectURL(url);
-                }, 100);
-                resolve(true);
-            }).catch(reason => {
-                reject(reason);
-            });
-        });
+        let url = `/api/v2/artifacts/${artifactId}/zip`;
+        if (filter.length) {
+            url += "?" + filter;
+        }
+
+        window.location.assign(url);
 
     }
 
