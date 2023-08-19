@@ -187,10 +187,26 @@ struct FVulkanShaderHeader
 	uint32                                  RayTracingPayloadType = 0;
 	uint32                                  RayTracingPayloadSize = 0;
 
-
 	FSHAHash								SourceHash;
 	uint32									SpirvCRC = 0;
 	uint8									WaveSize = 0;
+
+	// For RayHitGroup shaders
+	enum class ERayHitGroupEntrypoint : uint8
+	{
+		NotPresent = 0,
+
+		// Hit group types are all stored in a single spirv blob
+		// and each have different entry point names
+		// NOTE: Not used yet because of compiler issues
+		CommonBlob,
+
+		// Hit group types are each stored in a different spirv blob
+		// to circumvent DXC compilation issues
+		SeparateBlob
+	};
+	ERayHitGroupEntrypoint RayGroupAnyHit = ERayHitGroupEntrypoint::NotPresent;
+	ERayHitGroupEntrypoint RayGroupIntersection = ERayHitGroupEntrypoint::NotPresent;
 
 	TArray<FSpirvInfo>						UniformBufferSpirvInfos;
 	TArray<FSpirvInfo>						GlobalSpirvInfos;
@@ -296,6 +312,8 @@ inline FArchive& operator<<(FArchive& Ar, FVulkanShaderHeader& Header)
 	Ar << Header.SourceHash;
 	Ar << Header.SpirvCRC;
 	Ar << Header.WaveSize;
+	Ar << Header.RayGroupAnyHit;
+	Ar << Header.RayGroupIntersection;
 	Ar << Header.UniformBufferSpirvInfos;
 	Ar << Header.GlobalSpirvInfos;
 	Ar << Header.DebugName;
