@@ -120,6 +120,7 @@ struct FHandshakePacket
 };
 
 static constexpr uint64 COMMAND_ID_DISCONNECT = 0;
+static constexpr uint64 COMMAND_ID_AUTHENTICATE = 0xAA77CB56ABD7153Aull;
 static constexpr uint64 COMMAND_ID_GET_BLOCKS = 0xBBE2A1CECC8C949Cull;
 
 struct FCommandPacket
@@ -127,6 +128,13 @@ struct FCommandPacket
 	static constexpr uint64 MAGIC	  = 0x251B6A201A26EC82ull;
 	uint64					Magic	  = MAGIC;
 	uint64					CommandId = 0;
+};
+
+struct FBufferPacket
+{
+	static constexpr uint64 MAGIC		  = 0x6539A89058A3400Aull;
+	uint64					Magic		  = MAGIC;
+	uint32					DataSizeBytes = 0;
 };
 
 struct FFileListPacket

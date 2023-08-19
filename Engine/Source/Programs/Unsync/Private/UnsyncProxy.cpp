@@ -121,6 +121,28 @@ FUnsyncProtocolImpl::FUnsyncProtocolImpl(const FRemoteDesc&				RemoteDesc,
 			return true;
 		}();
 	}
+
+	if (IsValid() && Features.bAuthentication && RemoteDesc.Authentication)
+	{
+		bool bOk = IsValid();
+
+		FCommandPacket Packet;
+		Packet.CommandId = COMMAND_ID_AUTHENTICATE;
+		bOk &= SendStruct(*SocketHandle, Packet);
+		bOk &= SendBuffer(*SocketHandle, *RemoteDesc.Authentication);
+
+		int32 ResultSize = 0;
+		bOk &= SocketRecvT(*SocketHandle, ResultSize);
+
+		FBuffer ResultBuffer;
+		if (ResultSize)
+		{
+			ResultBuffer.Resize(ResultSize);
+			bOk &= (SocketRecvAll(*SocketHandle, ResultBuffer.Data(), ResultSize) == ResultSize);
+		}
+
+		// TODO: parse authentication result packet and report errors
+	}
 }
 
 FProxy::~FProxy()
@@ -396,6 +418,14 @@ TResult<FHelloResponse> Hello(const FRemoteDesc& RemoteDesc)
 		Result.SessionId = Field.string_value();
 	}
 
+	if (auto& Field = JsonObject["auth"]; Field.is_object())
+	{
+		Result.AuthServerUri = Field["server"].string_value();
+		Result.AuthClientId	 = Field["client_id"].string_value();
+		Result.AuthAudience	 = Field["audience"].string_value();
+		Result.CallbackUri	 = Field["callback"].string_value();
+	}
+
 	if (auto& Field = JsonObject["features"]; Field.is_array())
 	{
 		Result.FeatureNames.reserve(Field.array_items().size());
@@ -409,10 +439,13 @@ TResult<FHelloResponse> Hello(const FRemoteDesc& RemoteDesc)
 				{
 					Result.Features.bTelemetry = true;
 				}
-
-				if (Elem.string_value() == "mirrors")
+				else if (Elem.string_value() == "mirrors")
 				{
 					Result.Features.bMirrors = true;
+				}
+				else if (Elem.string_value() == "authentication")
+				{
+					Result.Features.bAuthentication = true;
 				}
 			}
 		}

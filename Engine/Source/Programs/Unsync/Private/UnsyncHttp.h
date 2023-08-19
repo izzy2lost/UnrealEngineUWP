@@ -22,6 +22,7 @@ enum class EHttpContentType
 	Text_Plain,
 	Application_OctetStream,
 	Application_Json,
+	Application_WWWFormUrlEncoded,
 	Application_UECB,  // Unreal Engine Compact Binary
 };
 
@@ -61,6 +62,9 @@ struct FHttpConnection
 {
 	FHttpConnection(const std::string_view InHostAddress, uint16 InPort, const FTlsClientSettings* TlsSettings = nullptr);
 	FHttpConnection(const FHttpConnection& Other);
+
+	[[nodiscard]] static FHttpConnection CreateDefaultHttp(const std::string_view InHostAddress, uint16 Port = 80);
+	[[nodiscard]] static FHttpConnection CreateDefaultHttps(const std::string_view InHostAddress, uint16 Port = 443);
 
 	bool Open();
 	void Close();

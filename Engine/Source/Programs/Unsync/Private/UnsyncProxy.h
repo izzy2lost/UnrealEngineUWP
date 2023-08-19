@@ -87,6 +87,7 @@ struct FRemoteProtocolFeatures
 {
 	bool bTelemetry = false;
 	bool bMirrors = false;
+	bool bAuthentication = false;
 };
 
 struct FTelemetryEventSyncComplete
@@ -190,10 +191,26 @@ struct FHelloResponse
 	std::string VersionGit;
 	std::string SessionId;
 
+	std::string AuthServerUri;
+	std::string AuthClientId;
+	std::string AuthAudience;
+	std::string CallbackUri;
+
 	std::vector<std::string> FeatureNames;
 	FRemoteProtocolFeatures	 Features;
+
+	bool SupportsAuthentication() const
+	{
+		return Features.bAuthentication && !AuthServerUri.empty() && !AuthClientId.empty();
+	}
 };
 TResult<FHelloResponse> Hello(const FRemoteDesc& RemoteDesc);
+
+struct FLoginResponse
+{
+	std::shared_ptr<FBuffer> Authentication;
+};
+TResult<FLoginResponse> QueryLogin(const FRemoteDesc& RemoteDesc);
 
 } 
 

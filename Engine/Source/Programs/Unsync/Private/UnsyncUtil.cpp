@@ -5,6 +5,7 @@
 
 #if UNSYNC_PLATFORM_WINDOWS
 #	include <Windows.h>
+#	include <shellapi.h>
 #	include <lm.h>
 #	include <lmdfs.h>
 #	include <wincrypt.h>
@@ -15,6 +16,7 @@
 #	pragma comment(lib, "Mpr.lib")
 #endif	// UNSYNC_PLATFORM_WINDOWS
 
+#include <stdlib.h>
 #include <codecvt>
 #include <filesystem>
 #include <locale>
@@ -409,5 +411,46 @@ GetSystemRootCerts()
 
 	return GSystemRootCerts;
 }
+
+#if UNSYNC_PLATFORM_WINDOWS
+void OpenUrlInDefaultBrowser(const char* Address)
+{
+	ShellExecuteA(nullptr, "open", Address, nullptr, nullptr, SW_SHOWNORMAL);
+}
+#else // UNSYNC_PLATFORM_WINDOWS
+void
+OpenUrlInDefaultBrowser(const char* Address)
+{
+	UNSYNC_FATAL(L"OpenUrlInDefaultBrowser is not implemented");
+}
+#endif // UNSYNC_PLATFORM_WINDOWS
+
+
+#if UNSYNC_PLATFORM_WINDOWS
+FPath GetUserHomeDirectory()
+{
+	if (const char* EnvUserProfile = getenv("USERPROFILE"))
+	{
+		return NormalizeFilenameUtf8(EnvUserProfile);
+	}
+	else
+	{
+		return {};
+	}
+}
+#else // UNSYNC_PLATFORM_WINDOWS
+FPath
+GetUserHomeDirectory()
+{
+	if (const char* EnvUserProfile = getenv("HOME"))
+	{
+		return NormalizeFilenameUtf8(EnvUserProfile);
+	}
+	else
+	{
+		return {};
+	}
+}
+#endif // UNSYNC_PLATFORM_WINDOWS
 
 }  // namespace unsync

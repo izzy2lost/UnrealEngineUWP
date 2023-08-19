@@ -317,4 +317,8 @@ Append(fmt::memory_buffer& Buf, const char* S)
 	Buf.append(std::string_view(S));
 }
 
+void OpenUrlInDefaultBrowser(const char* Address);
+
+FPath GetUserHomeDirectory();
+
 }  // namespace unsync

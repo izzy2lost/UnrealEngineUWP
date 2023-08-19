@@ -1,0 +1,98 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "UnsyncBuffer.h"
+#include "UnsyncCommon.h"
+#include "UnsyncError.h"
+#include "UnsyncHash.h"
+
+#include <string>
+
+#if UNSYNC_USE_TLS
+
+namespace unsync {
+
+struct FHttpConnection;
+struct FRemoteDesc;
+
+struct FAuthToken
+{
+	// Raw data acquired from authentication endpoint
+	std::string Raw;
+
+	// Parsed data for convenience
+	std::string Access;
+	std::string Refresh;
+	int64		ExirationTime = 0; // UNIX timestamp in seconds (0 if unknown)
+};
+
+struct FAuthDesc
+{
+	// Mandatory configuration
+	std::string ServerHost; // only the hostname itself
+	std::string ClientId;
+	
+	// Mandatory fields for certain APIs
+	std::string AuthorizationEndpoint;
+	std::string TokenEndpoint;
+	std::string UserInfoEndpoint;
+	std::string JwksUri;
+
+	// Optional configuration
+	std::string Audience;
+	std::string Callback;	// OAuth flow redirection URL
+
+	// Check that mandatory fields have values
+	bool IsValid() const
+	{
+		return !ServerHost.empty() && !ClientId.empty();
+	}
+};
+
+// Query OIDC/OAuth2 configuration using server handshake
+TResult<FAuthDesc> GetAuthenticationDesc(const FRemoteDesc& RemoteDesc);
+
+// Perform the complete authentication flow:
+// - Attempt use stored refresh token first
+// - If refresh is not possible, use PKCE Authentication flow to get new tokens
+// - Save refresh token in user directory for future use
+TResult<FAuthToken> Authenticate(const FRemoteDesc& RemoteDesc, const FAuthDesc& AuthDesc);
+
+// Auth utility functions
+
+TResult<FAuthToken> AcquireAuthToken(const FAuthDesc& AuthDesc);
+TResult<FAuthToken> RefreshAuthToken(const FAuthDesc& AuthDesc, const FAuthToken& PreviousToken);
+TResult<FAuthToken> RefreshOrAcquireToken(const FAuthDesc& AuthDesc, const FAuthToken& PreviousToken);
+
+struct FAuthUserInfo
+{
+	std::string Sub;
+	std::string Name;
+	std::string Nickname;
+	std::string GivenName;
+	std::string FamilyName;
+	std::string Email;
+};
+TResult<FAuthUserInfo> GetUserInfo(FHttpConnection& HttpConnection, const FAuthDesc& AuthDesc, const FAuthToken& AuthToken);
+
+std::string GenerateTokenId(const FRemoteDesc& RemoteDesc);
+
+bool				SaveRefreshToken(const FPath& Path, const FAuthToken& AuthToken);
+TResult<FAuthToken> LoadRefreshToken(const FPath& Path);
+
+std::string SecureRandomBytesAsHexString(uint32 NumBytes);
+FHash256	HashSha256Bytes(const uint8* Data, uint64 Size);
+std::string EncodeBase64(const uint8* Data, uint64 Size);
+bool		DecodeBase64(std::string_view Base64Data, FBuffer& Output);
+
+void TransformBase64VanillaToUrlSafe(std::string& Base64Vanilla);
+void TransformBase64UrlSafeToVanilla(std::string& Base64UrlSafe);
+
+std::string GetPKCECodeChallenge(std::string_view CodeVerifier);
+
+bool TryAddAuthentication(FRemoteDesc& InOutRemoteDesc);
+
+}  // namespace unsync
+
+#endif	// UNSYNC_USE_TLS

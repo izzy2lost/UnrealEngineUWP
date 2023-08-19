@@ -128,6 +128,13 @@ private:
 	std::variant<T, Et> DataOrError;
 };
 
+template<typename T, typename Te, typename T2>
+inline TResult<T, Te>
+MoveError(TResult<T2, Te>& X)
+{
+	return TResult<T, Te>(std::move(X.GetError()));
+}
+
 template<typename Tx, typename E = FError>
 static TResult<Tx, E>
 ResultOk(Tx Ok)

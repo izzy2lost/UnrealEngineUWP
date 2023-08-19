@@ -128,6 +128,10 @@ struct FHttpParser
 			{
 				Response.ContentType = EHttpContentType::Application_UECB;
 			}
+			else if (MatchUncased(PendingValue, "application/x-www-form-urlencoded"))
+			{
+				Response.ContentType = EHttpContentType::Application_WWWFormUrlEncoded;
+			}
 			else if (MatchUncased(PendingValue, "text/html"))
 			{
 				Response.ContentType = EHttpContentType::Text_Html;
@@ -327,6 +331,9 @@ HttpRequestBegin(FHttpConnection& Connection, const FHttpRequest& Request)
 			case EHttpContentType::Application_UECB:
 				HttpHeader += "Content-type: application/x-ue-cb\r\n";
 				break;
+			case EHttpContentType::Application_WWWFormUrlEncoded:
+				HttpHeader += "Content-type: application/x-www-form-urlencoded\r\n";
+				break;
 			case EHttpContentType::Application_Json:
 				HttpHeader += "Content-type: application/json\r\n";
 				break;
@@ -470,6 +477,21 @@ FHttpConnection::FHttpConnection(const FHttpConnection& Other)
 , bTlsVerifyCertificate(Other.bTlsVerifyCertificate)
 , TlsCacert(Other.TlsCacert)
 {
+}
+
+FHttpConnection
+FHttpConnection::CreateDefaultHttp(const std::string_view InHostAddress, uint16 Port)
+{
+	return FHttpConnection(InHostAddress, Port, nullptr);
+}
+
+FHttpConnection
+FHttpConnection::CreateDefaultHttps(const std::string_view InHostAddress, uint16 Port)
+{
+	FTlsClientSettings TlsSettings;
+	TlsSettings.Subject			   = InHostAddress.data();
+	TlsSettings.bVerifyCertificate = true;
+	return FHttpConnection(InHostAddress, Port, &TlsSettings);
 }
 
 bool

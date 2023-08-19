@@ -24,6 +24,7 @@ UNSYNC_THIRD_PARTY_INCLUDES_START
 #endif	// UNSYNC_PLATFORM_UNIX
 
 #include <unordered_set>
+#include <limits>
 
 #if UNSYNC_USE_TLS
 #	include <tls.h>
@@ -89,6 +90,65 @@ GetCurrentHostName()
 	}
 }
 
+static int32
+GetLastSocketError()
+{
+#if UNSYNC_PLATFORM_WINDOWS
+	return WSAGetLastError();
+#else
+	return -1; // TODO: report unix socket error
+#endif
+}
+
+FSocketHandle
+SocketListenTcp(const char* Address, uint16 Port)
+{
+	LazyInitSockets();
+
+	SOCKET ListenSocket = socket(AF_INET, SOCK_STREAM, 0);
+
+	if (ListenSocket == INVALID_SOCKET)
+	{
+		UNSYNC_ERROR(L"Failed to create TCP socket (error code %d)", GetLastSocketError());
+		return 0;
+	}
+
+	sockaddr_in Service;
+	Service.sin_family		= AF_INET;
+	Service.sin_addr.s_addr = inet_addr(Address);
+	Service.sin_port		= htons(Port);
+
+	int32 BindResult = bind(ListenSocket, (SOCKADDR*)&Service, sizeof(Service));
+	if (BindResult == SOCKET_ERROR)
+	{
+		UNSYNC_ERROR(L"Failed to bind TCP socket (error code %d)", GetLastSocketError());
+		SocketClose(ListenSocket);
+		return 0;
+	}
+
+	int32 ListenResult = listen(ListenSocket, 1);
+	if (ListenResult == SOCKET_ERROR)
+	{
+		UNSYNC_ERROR(L"Failed to listen on TCP socket (error code %d)", GetLastSocketError());
+		SocketClose(ListenSocket);
+		return 0;
+	}
+
+	return ListenSocket;
+}
+
+FSocketHandle
+SocketAccept(FSocketHandle ListenSocket)
+{
+	SOCKET AcceptSocket = accept(ListenSocket, nullptr, nullptr);
+	if (AcceptSocket == INVALID_SOCKET)
+	{
+		UNSYNC_ERROR(L"Failed to accept connection on TCP socket (error code %d)", GetLastSocketError());
+		return 0;
+	}
+	return AcceptSocket;
+}
+
 FSocketHandle
 SocketConnectTcp(const char* DestAddress, uint16 Port)
 {
@@ -98,11 +158,7 @@ SocketConnectTcp(const char* DestAddress, uint16 Port)
 
 	if (Sock == INVALID_SOCKET)
 	{
-#if UNSYNC_PLATFORM_WINDOWS
-		UNSYNC_ERROR(L"Failed to create TCP socket (error code %d)", WSAGetLastError());
-#else
-		UNSYNC_ERROR(L"Failed to create TCP socket");  // TODO: report unix socket error
-#endif	// UNSYNC_PLATFORM_WINDOWS
+		UNSYNC_ERROR(L"Failed to create TCP socket (error code %d)", GetLastSocketError());
 		return 0;
 	}
 
@@ -411,13 +467,20 @@ ToString(ESocketSecurity Security)
 }
 
 bool
-SendBuffer(FSocketBase& Socket, const FBuffer& Data)
+SendBuffer(FSocketBase& Socket, const FBufferView& Data)
 {
-	int32 Size = int32(Data.Size());
+	UNSYNC_ASSERT(Data.Size <= std::numeric_limits<int32>::max());
+	int32 Size = int32(Data.Size);
 	bool  bOk  = true;
 	bOk &= SocketSendT(Socket, Size);
-	bOk &= (SocketSend(Socket, Data.Data(), Size) == Size);
+	bOk &= (SocketSend(Socket, Data.Data, Size) == Size);
 	return bOk;
+}
+
+bool
+SendBuffer(FSocketBase& Socket, const FBuffer& Data)
+{
+	return SendBuffer(Socket, Data.View());
 }
 
 }  // namespace unsync

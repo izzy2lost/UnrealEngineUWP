@@ -31,6 +31,8 @@ endif()
 # Add unsync code
 
 set(src
+	Private/UnsyncAuth.cpp
+	Private/UnsyncAuth.h
 	Private/UnsyncBuffer.cpp
 	Private/UnsyncBuffer.h
 	Private/UnsyncCmdDiff.cpp

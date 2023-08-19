@@ -43,6 +43,8 @@ struct FRemoteDesc
 	std::string StorageBucket = "unsync";  // TODO: override via command line
 	std::string HttpHeaders;
 
+	std::shared_ptr<FBuffer> Authentication;  // Opaque blob that will be sent to the remote server to authenticate the user
+
 	bool					 bTlsEnable			   = true;	// Prefer TLS, if supported by protocol and remote server
 	bool					 bTlsVerifyCertificate = true;	// Disabling this allows self-signed certificates
 	std::string				 TlsSubject;					// Use host by default

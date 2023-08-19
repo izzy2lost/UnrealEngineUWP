@@ -14,6 +14,7 @@
 #include "UnsyncTest.h"
 #include "UnsyncThread.h"
 #include "UnsyncUtil.h"
+#include "UnsyncAuth.h"
 
 UNSYNC_THIRD_PARTY_INCLUDES_START
 #if UNSYNC_PLATFORM_WINDOWS
@@ -105,9 +106,9 @@ InnerMain(int Argc, char** Argv)
 #endif	// UNSYNC_USE_TLS
 
 	auto AddProxyOptions = [&RemoteAddressUtf8, &bNoProxySelect](CLI::App* App) {
-		App->add_option("--proxy, --remote",
+		App->add_option("--proxy, --remote, --server",
 						RemoteAddressUtf8,
-						"FProxy server address ([transport://]address[:port][/request][#namespace])");
+						"Download server address ([transport://]address[:port][/request][#namespace])");
 		App->add_flag("--no-proxy-select",
 					  bNoProxySelect,
 					  "Skip automatic server selection and use the exact one specified by command line or environment variable");
@@ -706,6 +707,18 @@ InnerMain(int Argc, char** Argv)
 			UNSYNC_WARNING(L"Scavenge directory '%ls' does not exist", ScavengeRoot.wstring().c_str());
 			ScavengeRoot = FPath{};
 		}
+
+#if UNSYNC_USE_TLS
+		{
+			UNSYNC_VERBOSE(L"Attempting to authenticate");
+			UNSYNC_LOG_INDENT;
+			bool bUsingAuthentication = TryAddAuthentication(RemoteDesc);
+			if (bUsingAuthentication)
+			{
+				UNSYNC_VERBOSE(L"Authentication enabled");
+			}
+		}
+#endif	// UNSYNC_USE_TLS
 
 		FCmdSyncOptions SyncOptions;
 

@@ -10,11 +10,8 @@ struct tls;
 
 namespace unsync {
 
-#ifndef UNSYNC_USE_TLS
-#	define UNSYNC_USE_TLS 0
-#endif
-
 class FBuffer;
+struct FBufferView;
 using FSocketHandle = uintptr_t;
 
 struct FSocketAddress  // opaque buffer that holds socket address
@@ -36,6 +33,9 @@ struct FSocketAddress  // opaque buffer that holds socket address
 
 // Returns current host name or empty string if it could not be determined.
 std::string GetCurrentHostName();
+
+FSocketHandle SocketListenTcp(const char* Address, uint16 Port);
+FSocketHandle SocketAccept(FSocketHandle ListenSocket);
 
 FSocketHandle SocketConnectTcp(const char* DestAddress, uint16 Port);
 void		  SocketClose(FSocketHandle Socket);
@@ -173,6 +173,7 @@ SendStruct(FSocketBase& Socket, const T& Data)
 	return bOk;
 }
 
+bool SendBuffer(FSocketBase& Socket, const FBufferView& Data);
 bool SendBuffer(FSocketBase& Socket, const FBuffer& Data);
 
 template<typename T>
