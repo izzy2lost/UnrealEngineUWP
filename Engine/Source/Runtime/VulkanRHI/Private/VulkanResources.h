@@ -99,6 +99,8 @@ public:
 
 class FVulkanShader : public IRefCountedObject
 {
+protected:
+
 	static FCriticalSection VulkanShaderModulesMapCS;
 
 public:
@@ -180,9 +182,15 @@ public:
 	public:
 		TArrayView<uint32> GetCodeView() {return CodeView;}
 	};
-	FSpirvCode GetSpirvCode();
+
+	inline FSpirvCode GetSpirvCode()
+	{
+		return GetSpirvCode(SpirvContainer);
+	}
+	
 	FSpirvCode GetPatchedSpirvCode(const FGfxPipelineDesc& Desc, const FVulkanLayout* Layout);
 protected:
+
 #if UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT
 	FString							DebugEntryPoint;
 #endif
@@ -197,7 +205,7 @@ protected:
 
 	FShaderResourceTable			ShaderResourceTable;
 
-private:
+protected:
 	class FSpirvContainer
 	{
 		friend class FVulkanShader;
@@ -211,6 +219,8 @@ private:
 
 	friend FArchive& operator<<(FArchive& Ar, class FVulkanShader::FSpirvContainer& SpirvContainer);
 	static FSpirvCode PatchSpirvInputAttachments(FSpirvCode& SpirvCode);
+
+	static FSpirvCode GetSpirvCode(const FSpirvContainer& Container);
 
 protected:
 	void Setup(FVulkanShaderHeader&& InCodeHeader, FShaderResourceTable&& InSRT, FSpirvContainer&& InSpirvContainer, uint64 InShaderKey);
@@ -271,9 +281,20 @@ private:
 		, FVulkanShader(InDevice, InFrequency)
 	{
 	}
+
+	FSpirvContainer AnyHitSpirvContainer;
+	FSpirvContainer IntersectionSpirvContainer;
+
 	friend class FVulkanShaderFactory;
 
 public:
+	static const uint32 MainModuleIdentifier = 0;
+	static const uint32 ClosestHitModuleIdentifier = MainModuleIdentifier;
+	static const uint32 AnyHitModuleIdentifier = 1;
+	static const uint32 IntersectionModuleIdentifier = 2;
+
+	TRefCountPtr<FVulkanShaderModule> GetOrCreateHandle(uint32 ModuleIdentifier);
+
 	// IRefCountedObject interface.
 	virtual uint32 AddRef() const override final
 	{

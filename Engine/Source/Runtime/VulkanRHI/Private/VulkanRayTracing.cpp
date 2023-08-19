@@ -931,6 +931,11 @@ void FVulkanRayTracingShaderTable::Init(const FVulkanRayTracingScene* Scene, con
 	InitAlloc(Miss, SceneInitializer.NumMissShaderSlots, true);
 	InitAlloc(HitGroup, Pipeline->bAllowHitGroupIndexing ? SceneInitializer.NumTotalSegments * SceneInitializer.ShaderSlotsPerGeometrySegment : 1, true);
 	InitAlloc(Callable, SceneInitializer.NumCallableShaderSlots, true);
+
+	if (!Pipeline->bAllowHitGroupIndexing && Pipeline->GetShaderHandles(SF_RayHitGroup).Num())
+	{
+		SetSlot(SF_RayHitGroup, 0, 0, Pipeline->GetShaderHandles(SF_RayHitGroup));
+	}
 }
 
 FVulkanRayTracingShaderTable::FVulkanShaderTableAllocation& FVulkanRayTracingShaderTable::GetAlloc(EShaderFrequency Frequency)
@@ -1317,7 +1322,7 @@ FVulkanRayTracingPipelineState::FVulkanRayTracingPipelineState(FVulkanDevice* co
 
 		VkPipelineShaderStageCreateInfo ShaderStage;
 		ZeroVulkanStruct(ShaderStage, VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO);
-		ShaderStage.module = RayGenShader->GetOrCreateHandle()->GetVkShaderModule();
+		ShaderStage.module = RayGenShader->GetOrCreateHandle(FVulkanRayTracingShader::MainModuleIdentifier)->GetVkShaderModule();
 		ShaderStage.stage = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
 			
 		ANSICHAR* const EntryPoint = new ANSICHAR[EntryPointNameMaxLength];
@@ -1346,7 +1351,7 @@ FVulkanRayTracingPipelineState::FVulkanRayTracingPipelineState(FVulkanDevice* co
 
 		VkPipelineShaderStageCreateInfo ShaderStage;
 		ZeroVulkanStruct(ShaderStage, VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO);
-		ShaderStage.module = MissShader->GetOrCreateHandle()->GetVkShaderModule();
+		ShaderStage.module = MissShader->GetOrCreateHandle(FVulkanRayTracingShader::MainModuleIdentifier)->GetVkShaderModule();
 		ShaderStage.stage = VK_SHADER_STAGE_MISS_BIT_KHR;
 
 		ANSICHAR* const EntryPoint = new char[EntryPointNameMaxLength];
@@ -1370,27 +1375,58 @@ FVulkanRayTracingPipelineState::FVulkanRayTracingPipelineState(FVulkanDevice* co
 	HitGroup.Shaders.Reserve(InitializerHitGroupShaders.Num());
 	for (FRHIRayTracingShader* const HitGroupShaderRHI : InitializerHitGroupShaders)
 	{
-		checkSlow(HitGroupShaderRHI->GetFrequency() == SF_RayHitGroup);
-		FVulkanRayTracingShader* const HitGroupShader = ResourceCast(HitGroupShaderRHI);
-
-		VkPipelineShaderStageCreateInfo ShaderStage;
-		ZeroVulkanStruct(ShaderStage, VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO);
-		ShaderStage.module = HitGroupShader->GetOrCreateHandle()->GetVkShaderModule();
-		ShaderStage.stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-
-		ANSICHAR* const EntryPoint = new char[EntryPointNameMaxLength];
-		HitGroupShader->GetEntryPoint(EntryPoint, EntryPointNameMaxLength);
-		EntryPointNames.Add(EntryPoint);
-		ShaderStage.pName = EntryPoint;
-		ShaderStages.Add(ShaderStage);
-
 		VkRayTracingShaderGroupCreateInfoKHR ShaderGroup;
 		ZeroVulkanStruct(ShaderGroup, VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR);
 		ShaderGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
 		ShaderGroup.generalShader = VK_SHADER_UNUSED_KHR;
-		ShaderGroup.closestHitShader = ShaderStages.Num() - 1;
-		ShaderGroup.anyHitShader = VK_SHADER_UNUSED_KHR; // vkrt: todo
-		ShaderGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+
+		checkSlow(HitGroupShaderRHI->GetFrequency() == SF_RayHitGroup);
+		FVulkanRayTracingShader* const HitGroupShader = ResourceCast(HitGroupShaderRHI);
+
+		// Closest Hit, always present
+		{
+			ANSICHAR* const EntryPoint = new char[EntryPointNameMaxLength];
+			HitGroupShader->GetEntryPoint(EntryPoint, EntryPointNameMaxLength);
+			EntryPointNames.Add(EntryPoint);
+
+			VkPipelineShaderStageCreateInfo ShaderStage;
+			ZeroVulkanStruct(ShaderStage, VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO);
+			ShaderStage.module = HitGroupShader->GetOrCreateHandle(FVulkanRayTracingShader::ClosestHitModuleIdentifier)->GetVkShaderModule();
+			ShaderStage.stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+			ShaderStage.pName = EntryPoint;
+			ShaderGroup.closestHitShader = ShaderStages.Add(ShaderStage);
+		}
+
+		// Any Hit, optional
+		if (HitGroupShader->GetCodeHeader().RayGroupAnyHit != FVulkanShaderHeader::ERayHitGroupEntrypoint::NotPresent)
+		{
+			VkPipelineShaderStageCreateInfo ShaderStage;
+			ZeroVulkanStruct(ShaderStage, VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO);
+			ShaderStage.module = HitGroupShader->GetOrCreateHandle(FVulkanRayTracingShader::AnyHitModuleIdentifier)->GetVkShaderModule();
+			ShaderStage.stage = VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
+			ShaderStage.pName = "main_00000000_00000000"; // :todo-jn: patch in the size_crc
+			ShaderGroup.anyHitShader = ShaderStages.Add(ShaderStage);
+		}
+		else
+		{
+			ShaderGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
+		}
+
+		// Intersection, optional
+		if (HitGroupShader->GetCodeHeader().RayGroupIntersection != FVulkanShaderHeader::ERayHitGroupEntrypoint::NotPresent)
+		{
+			VkPipelineShaderStageCreateInfo ShaderStage;
+			ZeroVulkanStruct(ShaderStage, VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO);
+			ShaderStage.module = HitGroupShader->GetOrCreateHandle(FVulkanRayTracingShader::IntersectionModuleIdentifier)->GetVkShaderModule();
+			ShaderStage.stage = VK_SHADER_STAGE_INTERSECTION_BIT_KHR;
+			ShaderStage.pName = "main_00000000_00000000"; // :todo-jn: patch in the size_crc
+			ShaderGroup.intersectionShader = ShaderStages.Add(ShaderStage);
+		}
+		else
+		{
+			ShaderGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+		}
+
 		ShaderGroups.Add(ShaderGroup);
 
 		HitGroup.Shaders.Add(HitGroupShader);
@@ -1404,7 +1440,7 @@ FVulkanRayTracingPipelineState::FVulkanRayTracingPipelineState(FVulkanDevice* co
 
 		VkPipelineShaderStageCreateInfo ShaderStage;
 		ZeroVulkanStruct(ShaderStage, VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO);
-		ShaderStage.module = CallableShader->GetOrCreateHandle()->GetVkShaderModule();
+		ShaderStage.module = CallableShader->GetOrCreateHandle(FVulkanRayTracingShader::MainModuleIdentifier)->GetVkShaderModule();
 		ShaderStage.stage = VK_SHADER_STAGE_CALLABLE_BIT_KHR;
 
 		ANSICHAR* const EntryPoint = new char[EntryPointNameMaxLength];

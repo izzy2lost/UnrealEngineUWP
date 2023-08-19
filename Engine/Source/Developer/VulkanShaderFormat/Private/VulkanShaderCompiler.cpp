@@ -1139,16 +1139,6 @@ static void BuildShaderOutput(
 	// Build the SRT for this shader from the NEWHeader
 	SerializedOutput.ShaderResourceTable = BuildSRTFromHeader(NEWHeader);
 
-	// Write out the header and shader source code.
-	FMemoryWriter Ar(ShaderOutput.ShaderCode.GetWriteAccess(), true);
-	Ar << SerializedOutput.Header;
-	Ar << SerializedOutput.ShaderResourceTable;
-
-	check(SerializedOutput.Spirv.Data.Num() != 0);
-	uint32 SpirvCodeSizeBytes = SerializedOutput.Spirv.GetByteSize();
-	Ar << SpirvCodeSizeBytes;
-	Ar.Serialize((uint8*)SerializedOutput.Spirv.Data.GetData(), SpirvCodeSizeBytes);
-
 	ShaderOutput.bSucceeded = true;
 
 	if (ShaderInput.ExtraSettings.bExtractShaderSource)
@@ -1577,7 +1567,15 @@ static bool BuildShaderOutputFromSpirv(
 
 	PatchSpirvReflectionEntries(SerializedOutput.Spirv);
 
-	SerializedOutput.Spirv.EntryPointName = PatchSpirvEntryPointWithCRC(SerializedOutput.Spirv, SerializedOutput.Spirv.CRC);
+	// :todo-jn: We don't store the CRC of each member of the hit group, leave the entrypoint untouched on the extra modules
+	if (InternalState.HasMultipleEntryPoints() && (InternalState.HitGroupShaderType != FVulkanShaderCompilerInternalState::EHitGroupShaderType::ClosestHit))
+	{
+		SerializedOutput.Spirv.EntryPointName = "main_00000000_00000000";
+	}
+	else
+	{
+		SerializedOutput.Spirv.EntryPointName = PatchSpirvEntryPointWithCRC(SerializedOutput.Spirv, SerializedOutput.Spirv.CRC);
+	}
 
 	Output.NumInstructions = CalculateSpirvInstructionCount(SerializedOutput.Spirv);
 
@@ -2075,6 +2073,54 @@ static bool CompileWithShaderConductor(
 
 
 
+static void RemoveUnusedBindlessHeaps(FString& PreprocessedShaderSource, const TCHAR* HeapType)
+{
+	const FString HeapIdentifier = TEXT("VULKAN_") + FString(HeapType) + TEXT("_HEAP(");
+
+	int32 SearchIndex = PreprocessedShaderSource.Find(HeapIdentifier, ESearchCase::CaseSensitive, ESearchDir::FromStart, -1);
+	while (SearchIndex != INDEX_NONE)
+	{
+		const int32 TypeNameStartIndex = SearchIndex + HeapIdentifier.Len();
+		const int32 TypeNameEndIndex = PreprocessedShaderSource.Find(TEXT(")"), ESearchCase::CaseSensitive, ESearchDir::FromStart, TypeNameStartIndex);
+		FString TypeName(TypeNameEndIndex - TypeNameStartIndex, &PreprocessedShaderSource[TypeNameStartIndex]);
+		TypeName.TrimStartAndEndInline();
+
+		// Make sure it's one of our automatically generated types
+		if (TypeName.StartsWith(TEXT("SafeType")))
+		{
+			// Ugly and fast way to make sure ity's a heap declaration (this should catch the generated ones at least)
+			if ((PreprocessedShaderSource[TypeNameEndIndex + 1] == '[') &&
+				(PreprocessedShaderSource[TypeNameEndIndex + 2] == ']') &&
+				(PreprocessedShaderSource[TypeNameEndIndex + 3] == ';'))
+			{
+				int32 FirstUseIndex = PreprocessedShaderSource.Find(TypeName, ESearchCase::CaseSensitive, ESearchDir::FromStart, TypeNameEndIndex + 4);
+				while (FirstUseIndex != INDEX_NONE)
+				{
+					const int32 NextChar = FirstUseIndex + TypeName.Len();
+					if (FChar::IsWhitespace(PreprocessedShaderSource[NextChar]) || PreprocessedShaderSource[NextChar] == ')')
+					{
+						break;
+					}
+					FirstUseIndex = PreprocessedShaderSource.Find(TypeName, ESearchCase::CaseSensitive, ESearchDir::FromStart, NextChar);
+				}
+
+				if (FirstUseIndex == INDEX_NONE)
+				{
+					const int32 DeclarationBeginIndex = PreprocessedShaderSource.Find(TypeName, ESearchCase::CaseSensitive, ESearchDir::FromEnd, SearchIndex);
+					if ((DeclarationBeginIndex != INDEX_NONE) && ((SearchIndex - DeclarationBeginIndex) < (TypeName.Len() + 4)))
+					{
+						for (int32 Idx = DeclarationBeginIndex; Idx <= (TypeNameEndIndex + 3); Idx++)
+						{
+							PreprocessedShaderSource[Idx] = ' ';
+						}
+					}
+				}
+			}
+		}
+
+		SearchIndex = PreprocessedShaderSource.Find(HeapIdentifier, ESearchCase::CaseSensitive, ESearchDir::FromStart, TypeNameEndIndex + 4);
+	}
+}
 
 
 
@@ -2190,14 +2236,276 @@ bool PreprocessVulkanShader(const FShaderCompilerInput& Input, const FShaderComp
 	}
 	#endif // UE_VULKAN_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
 
+	// Clean up the code a bit, it's unreadable otherwise with all the unused heaps left around
+	if (InternalState.bSupportsBindless)
+	{
+		RemoveUnusedBindlessHeaps(PreprocessedShaderSource, TEXT("SAMPLER"));
+		RemoveUnusedBindlessHeaps(PreprocessedShaderSource, TEXT("RESOURCE"));
+		UE::ShaderCompilerCommon::RemoveDeadCode(PreprocessedShaderSource, InternalState.GetRequiredSymbols(), PreprocessOutput.EditErrors());
+
+		if (InternalState.bDebugDump)
+		{
+			DumpDebugShaderText(Input, PreprocessedShaderSource, TEXT("bindless.final.hlsl"));
+		}
+	}
+
 	return true;
+}
+
+
+// :todo-jn: TEMPORARY EXPERIMENT - will eventually move into preprocessing step
+static TArray<FString> ConvertUBToBindless(FString& PreprocessedShaderSource)
+{
+	// Fill a map so we pull our bindless sampler/resource indices from the right struct
+	// :todo-jn: Do we not have the layout somewhere instead of calculating offsets?  there must be a better way...
+	auto GenerateNewDecl = [](const int32 CBIndex, const FString& Members, const FString& CBName)
+	{
+		const FString PrefixedCBName = FString::Printf(TEXT("%s%d_%s"), *kBindlessCBPrefix, CBIndex, *CBName);
+		const FString BindlessCBType = PrefixedCBName + TEXT("_Type");
+		const FString BindlessCBHeapName = PrefixedCBName + kBindlessHeapSuffix;
+
+		FString CBDecl;
+		CBDecl.Reserve(Members.Len() * 3);  // start somewhere approx less bad
+
+		// Declare the struct
+		CBDecl += TEXT("struct ") + BindlessCBType + TEXT(" \n{\n") + Members + TEXT("\n};\n");
+
+		// Declare the safetype and bindless array for this cb
+		CBDecl += FString::Printf(TEXT("ConstantBuffer<%s> %s[];\n"), *BindlessCBType, *BindlessCBHeapName);
+
+		// Now bring in the CB
+		CBDecl += FString::Printf(TEXT("static const %s %s = %s[VulkanHitGroupSystemParameters.BindlessUniformBuffers[%d]];\n"),
+			*BindlessCBType, *PrefixedCBName, *BindlessCBHeapName, CBIndex);
+
+		// Now create a global scope var for each value (as the cbuffer would provide) to patch in seemlessly with the rest of the code
+		uint32 MemberOffset = 0;
+		const TCHAR* MemberSearchPtr = *Members;
+		const uint32 LastMemberSemicolonIndex = Members.Find(TEXT(";"), ESearchCase::CaseSensitive, ESearchDir::FromEnd, -1);
+		check(LastMemberSemicolonIndex != INDEX_NONE);
+		const TCHAR* LastMemberSemicolon = &Members[LastMemberSemicolonIndex];
+
+		do
+		{
+			const TCHAR* MemberTypeStartPtr = nullptr;
+			const TCHAR* MemberTypeEndPtr = nullptr;
+			ParseHLSLTypeName(MemberSearchPtr, MemberTypeStartPtr, MemberTypeEndPtr);
+			const FString MemberTypeName(MemberTypeEndPtr - MemberTypeStartPtr, MemberTypeStartPtr);
+
+			FString MemberName;
+			MemberSearchPtr = ParseHLSLSymbolName(MemberTypeEndPtr, MemberName);
+			check(MemberName.Len() > 0);
+
+			// Skip over trailing tokens and pick up arrays
+			FString ArrayDecl;
+			while (*MemberSearchPtr && *MemberSearchPtr != ';')
+			{
+				if (*MemberSearchPtr == '[')
+				{
+					ArrayDecl.AppendChar(*MemberSearchPtr);
+
+					MemberSearchPtr++;
+					while (*MemberSearchPtr && *MemberSearchPtr != ']')
+					{
+						ArrayDecl.AppendChar(*MemberSearchPtr);
+						MemberSearchPtr++;
+					}
+
+					ArrayDecl.AppendChar(*MemberSearchPtr);
+				}
+
+				MemberSearchPtr++;
+			}
+
+			CBDecl += FString::Printf(TEXT("static const %s %s%s = %s.%s;\n"), *MemberTypeName, *MemberName, *ArrayDecl, *PrefixedCBName, *MemberName);
+
+		} while (MemberSearchPtr < LastMemberSemicolon);
+
+		return CBDecl;
+	};
+
+	// replace "cbuffer" decl with a struct filled from bindless constant buffer
+	TArray<FString> BindlessUBs;
+	{
+		const FString UniformBufferDeclIdentifier = TEXT("cbuffer");
+
+		int32 SearchIndex = PreprocessedShaderSource.Find(UniformBufferDeclIdentifier, ESearchCase::CaseSensitive, ESearchDir::FromStart, -1);
+		while (SearchIndex != INDEX_NONE)
+		{
+			FString StructName;
+			const TCHAR* StructNameEndPtr = ParseHLSLSymbolName(&PreprocessedShaderSource[SearchIndex + UniformBufferDeclIdentifier.Len()], StructName);
+			check(StructName.Len() > 0);
+
+			const int32 CBIndex = BindlessUBs.Add(StructName);
+			check(CBIndex < 16);
+
+			const TCHAR* OpeningBracePtr = FCString::Strstr(&PreprocessedShaderSource[SearchIndex + UniformBufferDeclIdentifier.Len()], TEXT("{"));
+			check(OpeningBracePtr);
+			const TCHAR* ClosingBracePtr = FindMatchingClosingBrace(OpeningBracePtr + 1);
+			check(ClosingBracePtr);
+			const int32 ClosingBraceIndex = ClosingBracePtr - (*PreprocessedShaderSource);
+
+			const FString Members(ClosingBracePtr - OpeningBracePtr - 1, OpeningBracePtr + 1);
+			const FString NewDecl = GenerateNewDecl(CBIndex, Members, StructName);
+
+			const int32 OldDeclLen = ClosingBraceIndex - SearchIndex + 1;
+			PreprocessedShaderSource.RemoveAt(SearchIndex, OldDeclLen, false);
+			PreprocessedShaderSource.InsertAt(SearchIndex, NewDecl);
+
+			SearchIndex = PreprocessedShaderSource.Find(UniformBufferDeclIdentifier, ESearchCase::CaseSensitive, ESearchDir::FromStart, SearchIndex + NewDecl.Len());
+		}
+	}
+	return BindlessUBs;
+}
+
+
+static bool CompileShaderGroup(
+	FVulkanShaderCompilerInternalState& InternalState,
+	const FString& OriginalPreprocessedShaderSource,
+	FShaderCompilerOutput& MergedOutput
+)
+{
+	checkf(InternalState.bSupportsBindless && InternalState.bUseBindlessUniformBuffer, TEXT("Ray tracing requires full bindless in Vulkan."));
+
+	// Compile each one of the shader modules seperately and create one big blob for the engine
+	auto CompilePartialExport = [&OriginalPreprocessedShaderSource, &InternalState, &MergedOutput](
+		FVulkanShaderCompilerInternalState::EHitGroupShaderType HitGroupShaderType,
+		const TCHAR* PartialFileExtension,
+		VulkanShaderCompilerSerializedOutput& PartialSerializedOutput)
+	{
+		InternalState.HitGroupShaderType = HitGroupShaderType;
+
+		FShaderCompilerOutput TempOutput;
+		const bool bIsClosestHit = (HitGroupShaderType == FVulkanShaderCompilerInternalState::EHitGroupShaderType::ClosestHit);
+		FShaderCompilerOutput& PartialOutput = bIsClosestHit ? MergedOutput : TempOutput;
+
+		FString PartialPreprocessedShaderSource = OriginalPreprocessedShaderSource;
+		UE::ShaderCompilerCommon::RemoveDeadCode(PartialPreprocessedShaderSource, InternalState.GetEntryPointName(), PartialOutput.Errors);
+
+		if (InternalState.bDebugDump)
+		{
+			DumpDebugShaderText(InternalState.Input, PartialPreprocessedShaderSource, *FString::Printf(TEXT("%s.hlsl"), PartialFileExtension));
+		}
+
+		const bool bPartialSuccess = CompileWithShaderConductor(InternalState, PartialPreprocessedShaderSource, PartialSerializedOutput, PartialOutput);
+
+		if (!bIsClosestHit)
+		{
+			MergedOutput.NumInstructions = FMath::Max(MergedOutput.NumInstructions, PartialOutput.NumInstructions);
+			MergedOutput.NumTextureSamplers = FMath::Max(MergedOutput.NumTextureSamplers, PartialOutput.NumTextureSamplers);
+			MergedOutput.Errors.Append(MoveTemp(PartialOutput.Errors));
+		}
+
+		return bPartialSuccess;
+	};
+
+	bool bSuccess = false;
+
+	// Closest Hit Module, always present
+	VulkanShaderCompilerSerializedOutput ClosestHitSerializedOutput;
+	{
+		bSuccess = CompilePartialExport(FVulkanShaderCompilerInternalState::EHitGroupShaderType::ClosestHit, TEXT("closest"), ClosestHitSerializedOutput);
+	}
+
+	// Any Hit Module, optional
+	const bool bHasAnyHitModule = !InternalState.AnyHitEntry.IsEmpty();
+	VulkanShaderCompilerSerializedOutput AnyHitSerializedOutput;
+	if (bSuccess && bHasAnyHitModule)
+	{
+		bSuccess = CompilePartialExport(FVulkanShaderCompilerInternalState::EHitGroupShaderType::AnyHit, TEXT("anyhit"), AnyHitSerializedOutput);
+	}
+
+	// Intersection Module, optional
+	const bool bHasIntersectionModule = !InternalState.IntersectionEntry.IsEmpty();
+	VulkanShaderCompilerSerializedOutput IntersectionSerializedOutput;
+	if (bSuccess && bHasIntersectionModule)
+	{
+		bSuccess = CompilePartialExport(FVulkanShaderCompilerInternalState::EHitGroupShaderType::Intersection, TEXT("intersection"), IntersectionSerializedOutput);
+	}
+
+	// Add the bindless data in the output at the very end
+	{
+		auto GetLayoutHash = [&InternalState](const FString& UBName)
+		{
+			uint32 LayoutHash = 0;
+			const FUniformBufferEntry* UniformBufferEntry = InternalState.Input.Environment.UniformBufferMap.Find(UBName);
+			if (UniformBufferEntry)
+			{
+				LayoutHash = UniformBufferEntry->LayoutHash;
+			}
+			else if ((UBName == FShaderParametersMetadata::kRootUniformBufferBindingName) && InternalState.Input.RootParametersStructure)
+			{
+				LayoutHash = InternalState.Input.RootParametersStructure->GetLayoutHash();
+			}
+			else
+			{
+				LayoutHash = 0;
+			}
+			return LayoutHash;
+		};
+
+		ClosestHitSerializedOutput.Header.UniformBuffers.Empty();
+		for (int32 CBIndex = 0; CBIndex < InternalState.AllBindlessUBs.Num(); CBIndex++)
+		{
+			const FString& CBName = InternalState.AllBindlessUBs[CBIndex];
+
+			// It's possible SPIRV compilation has optimized out a buffer from every shader in the group
+			if (ClosestHitSerializedOutput.UsedBindlessUB.Contains(CBName) ||
+				AnyHitSerializedOutput.UsedBindlessUB.Contains(CBName) ||
+				IntersectionSerializedOutput.UsedBindlessUB.Contains(CBName))
+			{
+				FVulkanShaderHeader::FUniformBufferInfo& UBInfo = ClosestHitSerializedOutput.Header.UniformBuffers.AddZeroed_GetRef();
+				UBInfo.LayoutHash = GetLayoutHash(CBName);
+				UBInfo.ConstantDataOriginalBindingIndex = CBIndex;
+#if VULKAN_ENABLE_BINDING_DEBUG_NAMES
+				UBInfo.DebugName = CBName;
+#endif
+
+				MergedOutput.ParameterMap.AddParameterAllocation(*CBName, CBIndex, (uint16)FVulkanShaderHeader::UniformBuffer, 1, EShaderParameterType::UniformBuffer);
+			}
+		}
+	}
+
+	{
+		// :todo-jn: Having multiple entrypoints in a single SPIRV blob crashes on FLumenHardwareRayTracingMaterialHitGroup for some reason
+		// Adjust the header before we write it out
+		ClosestHitSerializedOutput.Header.RayGroupAnyHit = bHasAnyHitModule ? FVulkanShaderHeader::ERayHitGroupEntrypoint::SeparateBlob : FVulkanShaderHeader::ERayHitGroupEntrypoint::NotPresent;
+		ClosestHitSerializedOutput.Header.RayGroupIntersection = bHasIntersectionModule ? FVulkanShaderHeader::ERayHitGroupEntrypoint::SeparateBlob : FVulkanShaderHeader::ERayHitGroupEntrypoint::NotPresent;
+
+		check(ClosestHitSerializedOutput.Spirv.Data.Num() != 0);
+		FMemoryWriter Ar(MergedOutput.ShaderCode.GetWriteAccess(), true);
+		Ar << ClosestHitSerializedOutput.Header;
+		Ar << ClosestHitSerializedOutput.ShaderResourceTable;
+
+		{
+			uint32 SpirvCodeSizeBytes = ClosestHitSerializedOutput.Spirv.GetByteSize();
+			Ar << SpirvCodeSizeBytes;
+			Ar.Serialize((uint8*)ClosestHitSerializedOutput.Spirv.Data.GetData(), SpirvCodeSizeBytes);
+		}
+
+		if (bHasAnyHitModule)
+		{
+			uint32 SpirvCodeSizeBytes = AnyHitSerializedOutput.Spirv.GetByteSize();
+			Ar << SpirvCodeSizeBytes;
+			Ar.Serialize((uint8*)AnyHitSerializedOutput.Spirv.Data.GetData(), SpirvCodeSizeBytes);
+		}
+
+		if (bHasIntersectionModule)
+		{
+			uint32 SpirvCodeSizeBytes = IntersectionSerializedOutput.Spirv.GetByteSize();
+			Ar << SpirvCodeSizeBytes;
+			Ar.Serialize((uint8*)IntersectionSerializedOutput.Spirv.Data.GetData(), SpirvCodeSizeBytes);
+		}
+	}
+
+	MergedOutput.bSucceeded = bSuccess;
+	return bSuccess;
 }
 
 void CompileVulkanShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, FShaderCompilerOutput& Output, const class FString& WorkingDirectory)
 {
 	check(IsVulkanShaderFormat(Input.ShaderFormat));
 
-	const FVulkanShaderCompilerInternalState InternalState(Input);
+	FVulkanShaderCompilerInternalState InternalState(Input);
 
 	const EHlslShaderFrequency HlslFrequency = InternalState.GetHlslShaderFrequency();
 	if (HlslFrequency == HSF_InvalidFrequency)
@@ -2210,12 +2518,38 @@ void CompileVulkanShader(const FShaderCompilerInput& Input, const FShaderPreproc
 		return;
 	}
 
+	FString BindlessPreprocessedShaderSource;
+	if (InternalState.bUseBindlessUniformBuffer)
+	{
+		BindlessPreprocessedShaderSource = PreprocessOutput.GetSource();
+		InternalState.AllBindlessUBs = ConvertUBToBindless(BindlessPreprocessedShaderSource);
+	}
+	const FString& PreprocessedShaderSource = InternalState.bUseBindlessUniformBuffer ? BindlessPreprocessedShaderSource : PreprocessOutput.GetSource();
+
 	bool bSuccess = false;
 
 #if PLATFORM_MAC || PLATFORM_WINDOWS || PLATFORM_LINUX
-	// Compile shader via ShaderConductor (DXC, SPIRV-Tools)
-	VulkanShaderCompilerSerializedOutput SerializedOutput;
-	bSuccess = CompileWithShaderConductor(InternalState, PreprocessOutput.GetSource(), SerializedOutput, Output);
+	// HitGroup shaders might have multiple entrypoints that we combine into a single blob
+	if (InternalState.HasMultipleEntryPoints())
+	{
+		bSuccess = CompileShaderGroup(InternalState, PreprocessedShaderSource, Output);
+	}
+	else
+	{
+		// Compile regular shader via ShaderConductor (DXC)
+		VulkanShaderCompilerSerializedOutput SerializedOutput;
+		bSuccess = CompileWithShaderConductor(InternalState, PreprocessedShaderSource, SerializedOutput, Output);
+
+		// Write out the header and shader source code (except for the extra shaders in hit groups)
+		check(SerializedOutput.Spirv.Data.Num() != 0);
+		FMemoryWriter Ar(Output.ShaderCode.GetWriteAccess(), true);
+		Ar << SerializedOutput.Header;
+		Ar << SerializedOutput.ShaderResourceTable;
+
+		uint32 SpirvCodeSizeBytes = SerializedOutput.Spirv.GetByteSize();
+		Ar << SpirvCodeSizeBytes;
+		Ar.Serialize((uint8*)SerializedOutput.Spirv.Data.GetData(), SpirvCodeSizeBytes);
+	}
 #endif // PLATFORM_MAC || PLATFORM_WINDOWS || PLATFORM_LINUX
 	
 	if (Input.Environment.CompilerFlags.Contains(CFLAG_ExtraShaderData))
