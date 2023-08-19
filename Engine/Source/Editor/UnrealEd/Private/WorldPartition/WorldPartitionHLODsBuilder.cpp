@@ -169,6 +169,7 @@ UWorldPartitionHLODsBuilder::UWorldPartitionHLODsBuilder(const FObjectInitialize
 
 	bDistributedBuild = HasParam("DistributedBuild");
 	bForceBuild = HasParam("RebuildHLODs");
+	bReportOnly = HasParam("ReportOnly");
 
 	GetParamValue("BuildManifest=", BuildManifest);
 	GetParamValue("BuilderIdx=", BuilderIdx);
@@ -331,24 +332,27 @@ bool UWorldPartitionHLODsBuilder::RunInternal(UWorld* InWorld, const FCellInfo& 
 		bRet = SetupHLODActors();
 	}
 
-	if (bRet && ShouldRunStep(EHLODBuildStep::HLOD_Build))
+	if (!bReportOnly)
 	{
-		bRet = BuildHLODActors();
-	}
+		if (bRet && ShouldRunStep(EHLODBuildStep::HLOD_Build))
+		{
+			bRet = BuildHLODActors();
+		}
 
-	if (bRet && ShouldRunStep(EHLODBuildStep::HLOD_Delete))
-	{
-		bRet = DeleteHLODActors();
-	}
+		if (bRet && ShouldRunStep(EHLODBuildStep::HLOD_Delete))
+		{
+			bRet = DeleteHLODActors();
+		}
 
-	if (bRet && ShouldRunStep(EHLODBuildStep::HLOD_Finalize))
-	{
-		bRet = SubmitHLODActors();
-	}
+		if (bRet && ShouldRunStep(EHLODBuildStep::HLOD_Finalize))
+		{
+			bRet = SubmitHLODActors();
+		}
 
-	if (bRet && ShouldRunStep(EHLODBuildStep::HLOD_Stats))
-	{
-		bRet = DumpStats();
+		if (bRet && ShouldRunStep(EHLODBuildStep::HLOD_Stats))
+		{
+			bRet = DumpStats();
+		}
 	}
 
 	WorldPartition = nullptr;
@@ -379,8 +383,11 @@ bool UWorldPartitionHLODsBuilder::SetupHLODActors()
 			GEngine->OnActorFolderAdded().Remove(ActorFolderAddedDelegateHandle);
 		};
 
-		const bool bCreateActorsOnly = true;
-		WorldPartition->GenerateHLOD(SourceControlHelper, bCreateActorsOnly);
+		UWorldPartition::FSetupHLODActorsParams SetupHLODActorsParams = UWorldPartition::FSetupHLODActorsParams()
+			.SetSourceControlHelper(SourceControlHelper)
+			.SetReportOnly(bReportOnly);
+
+		WorldPartition->SetupHLODActors(SetupHLODActorsParams);
 
 		// When performing a distributed build, ensure our work folder is empty
 		if (IsDistributedBuild())

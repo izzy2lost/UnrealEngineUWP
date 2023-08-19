@@ -124,6 +124,7 @@ private:
 
 	bool bDistributedBuild;
 	bool bForceBuild;
+	bool bReportOnly;
 	FString BuildManifest;
 	int32 BuilderIdx;
 	int32 BuilderCount;

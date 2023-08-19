@@ -289,7 +289,23 @@ public:
 	
 	UHLODLayer* GetDefaultHLODLayer() const { return DefaultHLODLayer; }
 	void SetDefaultHLODLayer(UHLODLayer* InDefaultHLODLayer) { DefaultHLODLayer = InDefaultHLODLayer; }
-	ENGINE_API void GenerateHLOD(ISourceControlHelper* SourceControlHelper, bool bCreateActorsOnly);
+
+	/* Struct of optional parameters passed to SetupHLODActors function. */
+	struct FSetupHLODActorsParams
+	{
+		FSetupHLODActorsParams()
+			: SourceControlHelper(nullptr)
+			, bReportOnly(false)
+		{}
+
+		ISourceControlHelper* SourceControlHelper;
+		bool bReportOnly;
+
+		FSetupHLODActorsParams& SetSourceControlHelper(ISourceControlHelper* InSourceControlHelper) { SourceControlHelper = InSourceControlHelper; return *this; }
+		FSetupHLODActorsParams& SetReportOnly(bool bInReportOnly) { bReportOnly = bInReportOnly; return *this; }
+	};
+
+	ENGINE_API void SetupHLODActors(const FSetupHLODActorsParams& Params);
 
 	// Debugging
 	ENGINE_API void DrawRuntimeHashPreview();
