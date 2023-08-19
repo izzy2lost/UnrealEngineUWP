@@ -478,11 +478,16 @@ namespace Chaos
 
 	FString GetCacheDirectory(const FObservedComponent& InObserved)
 	{
+		// USDCacheDirectory is relative to the content dir, but with "/Game" rather than just "/" or some relative path.
 		FString CacheDir = InObserved.USDCacheDirectory.Path;
 		if (CacheDir.IsEmpty())
 		{
-			FString ProjectDir = FPaths::ProjectContentDir();
-			CacheDir = FPaths::Combine(ProjectDir, FString(TEXT("SimCache")));
+			CacheDir = FString(TEXT("SimCache"));
+		}
+		FPaths::NormalizeDirectoryName(CacheDir);
+		if (CacheDir.StartsWith(FString(TEXT("/Game"))))
+		{
+			CacheDir = FPaths::Combine(FPaths::ProjectContentDir(), CacheDir.RightChop(5));
 		}
 		return CacheDir;
 	}
@@ -534,7 +539,7 @@ namespace Chaos
 				IPlatformFile& PlatformFile = FileManager.GetPlatformFile();
 				if (!PlatformFile.DirectoryExists(*CacheDir))
 				{
-					if (!PlatformFile.CreateDirectory(*CacheDir))
+					if (!PlatformFile.CreateDirectoryTree(*CacheDir))
 					{
 						UE_LOG(LogChaosFleshCache, Error, TEXT("Failed to create output directory: '%s'"), *CacheDir);
 						return false;

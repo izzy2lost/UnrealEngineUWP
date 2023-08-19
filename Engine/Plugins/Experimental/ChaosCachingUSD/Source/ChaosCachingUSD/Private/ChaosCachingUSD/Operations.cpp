@@ -97,7 +97,21 @@ UE::ChaosCachingUSD::SaveStage(UE::FUsdStage& Stage, const double FirstFrame, co
 			Stage.SetEndTimeCode(LastFrame);
 		}
 	}
-	return Stage.GetRootLayer().Save();
+	if (UE::FSdfLayer RootLayer = Stage.GetRootLayer())
+	{
+		UE_LOG(LogUsd, Log, TEXT("Saving USD file: '%s'"), *RootLayer.GetRealPath());
+		if (!RootLayer.Save())
+		{
+			UE_LOG(LogUsd, Error, TEXT("Failed to save USD file: '%s'"), *RootLayer.GetRealPath());
+			return false;
+		}
+		return true;
+	}
+	else
+	{
+		UE_LOG(LogUsd, Error, TEXT("USD Stage has no root layer."));
+		return false;
+	}
 }
 
 bool
@@ -446,8 +460,7 @@ UE::ChaosCachingUSD::WriteTetMesh(
 			*PrimPath, *Stage.GetRootLayer().GetRealPath());
 	}
 
-	UE::ChaosCachingUSD::SaveStage(Stage, -TNumericLimits<double>::Max(), -TNumericLimits<double>::Max());
-	return true;
+	return UE::ChaosCachingUSD::SaveStage(Stage, -TNumericLimits<double>::Max(), -TNumericLimits<double>::Max());
 }
 
 bool
