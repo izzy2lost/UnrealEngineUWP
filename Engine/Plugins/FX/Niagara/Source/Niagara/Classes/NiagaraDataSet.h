@@ -281,9 +281,9 @@ public:
 	FORCEINLINE TArray<int32>& GetSpawnedIDsTable() { return SpawnedIDsTable; }
 	FORCEINLINE const TArray<int32>& GetFreeIDTable() const { return FreeIDsTable; }
 	FORCEINLINE const TArray<int32>& GetSpawnedIDsTable() const { return SpawnedIDsTable; }
-	FORCEINLINE int32& GetNumFreeIDs() { return NumFreeIDs; }
-	FORCEINLINE int32& GetMaxUsedID() { return MaxUsedID; }
-	FORCEINLINE int32& GetIDAcquireTag() { return IDAcquireTag; }
+	FORCEINLINE int32* GetNumFreeIDsPtr() { return &NumFreeIDs; }
+	FORCEINLINE int32* GetMaxUsedIDPtr() { return &MaxUsedID; }
+	FORCEINLINE int32 GetIDAcquireTag() const { return IDAcquireTag; }
 	FORCEINLINE void SetIDAcquireTag(int32 InTag) { IDAcquireTag = InTag; }
 	FORCEINLINE FRWBuffer& GetGPUFreeIDs() { return GPUFreeIDs; }
 	FORCEINLINE uint32 GetGPUNumAllocatedIDs() const { return GPUNumAllocatedIDs; }

@@ -85,7 +85,8 @@ public:
 	
 	NIAGARA_API bool GetBoundRendererValue_GT(const FNiagaraVariableBase& InBaseVar, const FNiagaraVariableBase& InSubVar, void* OutValueData) const;
 
-	FNiagaraDataSet& GetData()const { return *ParticleDataSet; }
+	FNiagaraDataSet& GetData() { return *ParticleDataSet; }
+	const FNiagaraDataSet& GetData() const { return *ParticleDataSet; }
 
 	FORCEINLINE bool IsActive()const { return ExecutionState == ENiagaraExecutionState::Active; }
 	FORCEINLINE bool IsDisabled()const { return ExecutionState == ENiagaraExecutionState::Disabled; }

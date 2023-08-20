@@ -270,7 +270,7 @@ FNiagaraDynamicDataBase::FNiagaraDynamicDataBase(const FNiagaraEmitterInstance* 
 {
 	check(InEmitter);
 
-	FNiagaraDataSet& DataSet = InEmitter->GetData();
+	const FNiagaraDataSet& DataSet = InEmitter->GetData();
 	SimTarget = DataSet.GetSimTarget();
 	SystemInstanceID = InEmitter->GetParentSystemInstance()->GetId();
 

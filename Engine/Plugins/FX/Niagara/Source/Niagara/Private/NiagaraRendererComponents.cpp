@@ -37,12 +37,12 @@ static FAutoConsoleVariableRef CVarNiagaraComponentRenderPoolInactiveTimeLimit(
 //////////////////////////////////////////////////////////////////////////
 
 template<typename T>
-void SetValueWithAccessor(FNiagaraVariable& DataVariable, FNiagaraDataSet& Data, int ParticleIndex)
+void SetValueWithAccessor(FNiagaraVariable& DataVariable, const FNiagaraDataSet& Data, int ParticleIndex)
 {
 	DataVariable.SetValue<T>(FNiagaraDataSetAccessor<T>::CreateReader(Data, DataVariable.GetName()).Get(ParticleIndex));
 }
 
-void SetVariableByType(FNiagaraVariable& DataVariable, FNiagaraDataSet& Data, int ParticleIndex)
+void SetVariableByType(FNiagaraVariable& DataVariable, const FNiagaraDataSet& Data, int ParticleIndex)
 {
 	const FNiagaraTypeDefinition& VarType = DataVariable.GetType();
 	if (VarType == FNiagaraTypeDefinition::GetFloatDef()) { SetValueWithAccessor<float>(DataVariable, Data, ParticleIndex); }
@@ -402,8 +402,8 @@ void FNiagaraRendererComponents::PostSystemTick_GameThread(const UNiagaraRendere
 	}
 
 	const double CurrentTime = AttachComponent->GetWorld()->GetRealTimeSeconds();
-	FNiagaraDataSet& Data = Emitter->GetData();
-	FNiagaraDataBuffer& ParticleData = Data.GetCurrentDataChecked();
+	const FNiagaraDataSet& Data = Emitter->GetData();
+	const FNiagaraDataBuffer& ParticleData = Data.GetCurrentDataChecked();
 	FNiagaraDataSetReaderInt32<FNiagaraBool> EnabledAccessor = FNiagaraDataSetAccessor<FNiagaraBool>::CreateReader(Data, Properties->EnabledBinding.GetDataSetBindableVariable().GetName());
 	FNiagaraDataSetReaderInt32<int32> VisTagAccessor = FNiagaraDataSetAccessor<int32>::CreateReader(Data, Properties->RendererVisibilityTagBinding.GetDataSetBindableVariable().GetName());
 	FNiagaraDataSetReaderInt32<int32> UniqueIDAccessor = FNiagaraDataSetAccessor<int32>::CreateReader(Data, FName("UniqueID"));
@@ -685,7 +685,7 @@ void FNiagaraRendererComponents::OnSystemComplete_GameThread(const UNiagaraRende
 void FNiagaraRendererComponents::TickPropertyBindings(
 	const UNiagaraComponentRendererProperties* Properties,
 	USceneComponent* Component,
-	FNiagaraDataSet& Data,
+	const FNiagaraDataSet& Data,
 	int32 ParticleIndex,
 	FComponentPoolEntry& PoolEntry,
 	const FNiagaraLWCConverter& LwcConverter)

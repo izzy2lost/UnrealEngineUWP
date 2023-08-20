@@ -263,8 +263,8 @@ void FNiagaraRendererGeometryCache::PostSystemTick_GameThread(const UNiagaraRend
 
 	if (Properties->SourceMode == ENiagaraRendererSourceDataMode::Particles)
 	{
-		FNiagaraDataSet& Data = Emitter->GetData();
-		FNiagaraDataBuffer& ParticleData = Data.GetCurrentDataChecked();
+		const FNiagaraDataSet& Data = Emitter->GetData();
+		const FNiagaraDataBuffer& ParticleData = Data.GetCurrentDataChecked();
 		FNiagaraDataSetReaderInt32<FNiagaraBool> EnabledReader = Properties->EnabledAccessor.GetReader(Data);
 		FNiagaraDataSetReaderInt32<int32> VisTagReader = Properties->VisTagAccessor.GetReader(Data);
 		FNiagaraDataSetReaderInt32<int32> ArrayIndexReader = Properties->ArrayIndexAccessor.GetReader(Data);
