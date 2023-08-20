@@ -15,15 +15,13 @@ class FBuffer;
 
 static constexpr uint16 UNSYNC_DEFAULT_PORT = 53841;
 
-enum class EProtocolFlavor
-{
+enum class EProtocolFlavor {
 	Unknown,
 	Unsync,
 	Jupiter,
 };
 
-enum class ETransportProtocol
-{
+enum class ETransportProtocol {
 	Http,
 	Unsync,
 };
@@ -43,12 +41,12 @@ struct FRemoteDesc
 	std::string StorageBucket = "unsync";  // TODO: override via command line
 	std::string HttpHeaders;
 
-	std::shared_ptr<FBuffer> Authentication;  // Opaque blob that will be sent to the remote server to authenticate the user
-
 	bool					 bTlsEnable			   = true;	// Prefer TLS, if supported by protocol and remote server
 	bool					 bTlsVerifyCertificate = true;	// Disabling this allows self-signed certificates
 	std::string				 TlsSubject;					// Use host by default
 	std::shared_ptr<FBuffer> TlsCacert;	 // Custom CA to use for server certificate validation (system root CA is used by default)
+
+	bool bAuthenticationRequired = false;
 
 	uint32 MaxConnections = 8;	// Limit on concurrent connections to this server
 

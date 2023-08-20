@@ -306,6 +306,13 @@ HttpRequestBegin(FHttpConnection& Connection, const FHttpRequest& Request)
 		}
 	}
 
+	if (!Request.BearerToken.empty())
+	{
+		HttpHeader += "Authorization: Bearer ";
+		HttpHeader += Request.BearerToken;
+		HttpHeader += "\r\n";
+	}
+
 	HttpHeader += "Host: " + Connection.HostAddress + "\r\n";
 
 	HttpHeader += "User-Agent: unsync v" + GetVersionString() + "\r\n";

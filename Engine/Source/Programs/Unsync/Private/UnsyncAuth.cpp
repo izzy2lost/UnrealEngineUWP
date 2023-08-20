@@ -7,6 +7,7 @@
 #include "UnsyncProxy.h"
 
 #include <fmt/format.h>
+#include <ctime>
 #include <json11.hpp>
 
 #if UNSYNC_USE_TLS
@@ -112,6 +113,11 @@ TransformBase64UrlSafeToVanilla(std::string& Data)
 {
 	std::replace(Data.begin(), Data.end(), '-', '+');
 	std::replace(Data.begin(), Data.end(), '_', '/');
+
+	while ((Data.length() % 4) != 0)
+	{
+		Data.push_back('=');
+	}
 }
 
 std::string
@@ -222,6 +228,54 @@ StartHttpCallbackServer(FSocketHandle	   CallbackListenSocket,
 	});
 };
 
+TResult<json11::Json>
+DecodeJwtPayload(std::string JwtDataBase64Url)
+{
+	using namespace json11;
+
+	size_t PayloadOffset = JwtDataBase64Url.find('.');
+	if (PayloadOffset == std::string::npos)
+	{
+		return AppError(L"Failed to locate JWT payload section");
+	}
+	PayloadOffset += 1;	 // skip the delimiter
+
+	size_t SignatureOffset = JwtDataBase64Url.find('.', PayloadOffset + 1);
+	if (SignatureOffset == std::string::npos)
+	{
+		return AppError(L"Failed to locate JWT signature section");
+	}
+	SignatureOffset += 1;  // skip the delimiter
+
+	size_t PayloadLength = SignatureOffset - PayloadOffset - 1;
+
+	std::string JwtPayloadBase64 = JwtDataBase64Url.substr(PayloadOffset, PayloadLength);
+	TransformBase64UrlSafeToVanilla(JwtPayloadBase64);
+
+	FBuffer JasonData;
+	bool	bDecoded = DecodeBase64(JwtPayloadBase64, JasonData);
+
+	if (!bDecoded)
+	{
+		return AppError(L"Failed to decode Base64 JWT data");
+	}
+
+	if (*JasonData.end() != 0)
+	{
+		JasonData.PushBack(0);
+	}
+
+	std::string JsonErrorString;
+	Json		JsonObject = Json::parse((const char*)JasonData.Data(), JsonErrorString);
+
+	if (!JsonErrorString.empty())
+	{
+		return AppError(fmt::format("JSON error while parsing token: {}", JsonErrorString.c_str()));
+	}
+
+	return ResultOk(std::move(JsonObject));
+}
+
 TResult<FAuthToken>
 AcquireAuthToken(const FAuthDesc& AuthDesc)
 {
@@ -273,7 +327,7 @@ AcquireAuthToken(const FAuthDesc& AuthDesc)
 		"client_id={}&"
 		"{}"  // optional audience parameter
 		"response_type=code&"
-		"scope=offline_access%20profile%20openid%20email&"
+		"scope=offline_access&"
 		"code_challenge_method=S256&"
 		"code_challenge={}&"
 		"state={}&"
@@ -355,6 +409,16 @@ AcquireAuthToken(const FAuthDesc& AuthDesc)
 			TokenType		 = JsonObject["token_type"].string_value();
 			ExpiresInSeconds = int64(JsonObject["expires_in"].number_value());
 
+			TResult<json11::Json> DecodedAccessTokenResult = DecodeJwtPayload(AccessToken);
+			if (DecodedAccessTokenResult.IsOk())
+			{
+				const json11::Json& AccessTokenJsonObject = DecodedAccessTokenResult.GetData();
+				if (auto& Field = AccessTokenJsonObject["exp"]; Field.is_number())
+				{
+					Result.ExirationTime = int64(Field.number_value());
+				}
+			}
+
 			Result.Raw = JsonString;
 		}
 		else
@@ -377,8 +441,6 @@ AcquireAuthToken(const FAuthDesc& AuthDesc)
 TResult<FAuthUserInfo>
 GetUserInfo(FHttpConnection& HttpConnection, const FAuthDesc& AuthDesc, const FAuthToken& AuthToken)
 {
-	std::string AuthHeader = fmt::format("Authorization: Bearer {}", AuthToken.Access);
-
 	if (AuthDesc.UserInfoEndpoint.empty())
 	{
 		return AppError(L"User info endpoint is unknown");
@@ -387,7 +449,7 @@ GetUserInfo(FHttpConnection& HttpConnection, const FAuthDesc& AuthDesc, const FA
 	FHttpRequest Request;
 	Request.Url			  = AuthDesc.UserInfoEndpoint;
 	Request.Method		  = EHttpMethod::GET;
-	Request.CustomHeaders = AuthHeader;
+	Request.BearerToken	  = AuthToken.Access;
 
 	FHttpResponse Response = HttpRequest(HttpConnection, Request);
 
@@ -476,6 +538,16 @@ RefreshAuthToken(const FAuthDesc& AuthDesc, const FAuthToken& PreviousToken)
 			TokenType		 = JsonObject["token_type"].string_value();
 			ExpiresInSeconds = int64(JsonObject["expires_in"].number_value());
 
+			TResult<json11::Json> DecodedAccessTokenResult = DecodeJwtPayload(AccessToken);
+			if (DecodedAccessTokenResult.IsOk())
+			{
+				const json11::Json& AccessTokenJsonObject = DecodedAccessTokenResult.GetData();
+				if (auto& Field = AccessTokenJsonObject["exp"]; Field.is_number())
+				{
+					Result.ExirationTime = int64(Field.number_value());
+				}
+			}
+
 			Result.Raw = JsonString;
 		}
 		else
@@ -507,19 +579,43 @@ GenerateTokenId(const FRemoteDesc& RemoteDesc)
 }
 
 bool
-SaveRefreshToken(const FPath& Path, const FAuthToken& AuthToken)
+SaveAuthToken(const FPath& Path, const FAuthToken& AuthToken)
 {
-	return WriteBufferToFile(Path, (const uint8*)AuthToken.Refresh.data(), AuthToken.Refresh.length());
+	return WriteBufferToFile(Path, (const uint8*)AuthToken.Raw.data(), AuthToken.Raw.length());
 }
 
 TResult<FAuthToken>
-LoadRefreshToken(const FPath& Path)
+LoadAuthToken(const FPath& Path)
 {
 	FBuffer FileBuffer = ReadFileToBuffer(Path);
 	if (FileBuffer.Size())
 	{
+		using namespace json11;
+
 		FAuthToken AuthToken;
-		AuthToken.Refresh.append((const char*)FileBuffer.Data(), FileBuffer.Size());
+		AuthToken.Raw.append((const char*)FileBuffer.Data(), FileBuffer.Size());
+
+		std::string JsonErrorString;
+		Json		JsonObject = Json::parse(AuthToken.Raw, JsonErrorString);
+
+		if (!JsonErrorString.empty())
+		{
+			return AppError(fmt::format("JSON error while parsing token: {}", JsonErrorString.c_str()));
+		}
+
+		AuthToken.Access  = JsonObject["access_token"].string_value();
+		AuthToken.Refresh = JsonObject["refresh_token"].string_value();
+
+		TResult<json11::Json> DecodedAccessTokenResult = DecodeJwtPayload(AuthToken.Access);
+		if (DecodedAccessTokenResult.IsOk())
+		{
+			const json11::Json& AccessTokenJsonObject = DecodedAccessTokenResult.GetData();
+			if (auto& Field = AccessTokenJsonObject["exp"]; Field.is_number())
+			{
+				AuthToken.ExirationTime = int64(Field.number_value());
+			}
+		}
+
 		return ResultOk(AuthToken);
 	}
 	else
@@ -545,27 +641,77 @@ RefreshOrAcquireToken(const FAuthDesc& AuthDesc, const FAuthToken& PreviousToken
 	return AcquireAuthToken(AuthDesc);
 }
 
-TResult<FAuthToken>
-Authenticate(const FRemoteDesc& RemoteDesc, const FAuthDesc& AuthDesc)
+TResult<FPath>
+GetTokenCachePath(const FRemoteDesc& RemoteDesc)
 {
 	FPath UserHomePath = GetUserHomeDirectory();
+	if (UserHomePath.empty())
+	{
+		return AppError(L"Could not query user home directory path");
+	}
 
 	std::string TokenId = GenerateTokenId(RemoteDesc);
 
 	FPath UnsyncSettingsPath = UserHomePath / FPath(".unsync");
 	FPath TokenCachePath	 = UnsyncSettingsPath / FPath(TokenId);
 
+	return ResultOk(TokenCachePath);
+}
+
+void
+LogAuthTokenExpiration(const FAuthToken& AuthToken)
+{
+	if (AuthToken.ExirationTime != 0)
+	{
+		int64 CurrentTime	   = GetSecondsFromUnixEpoch();
+		int64 ExpiresInSeconds = AuthToken.ExirationTime - CurrentTime;
+		if (ExpiresInSeconds > 0)
+		{
+			UNSYNC_VERBOSE(L"Authentication token will expire in %d sec", int(ExpiresInSeconds));
+		}
+		else
+		{
+			UNSYNC_VERBOSE(L"Authentication token has expired");
+		}
+	}
+}
+
+TResult<FAuthToken>
+Authenticate(const FRemoteDesc& RemoteDesc, int32 RefreshThreshold)
+{
+	// Authentication must be serialized (only one thread should ever open the browser for interactive login, etc.)
+	static std::mutex			AuthMutex;
+	std::lock_guard<std::mutex> LockGuard(AuthMutex);
+
 	FAuthToken PreviousToken;
 
-	if (PathExists(TokenCachePath))
+	TResult<FPath> TokenCachePathResult = GetTokenCachePath(RemoteDesc);
+
+	if (const FPath* TokenCachePath = TokenCachePathResult.TryData())
 	{
-		TResult<FAuthToken> LoadResult = LoadRefreshToken(TokenCachePath);
+		TResult<FAuthToken> LoadResult = LoadAuthToken(*TokenCachePath);
 		if (FAuthToken* LoadedToken = LoadResult.TryData())
 		{
-			UNSYNC_VERBOSE(L"Loaded cached authentication data");
+			UNSYNC_VERBOSE2(L"Loaded cached authentication token");
 			PreviousToken = std::move(*LoadedToken);
 		}
 	}
+
+	int64 CurrentTime	   = GetSecondsFromUnixEpoch();
+	int64 ExpiresInSeconds = PreviousToken.ExirationTime - CurrentTime;
+	if (ExpiresInSeconds > RefreshThreshold)
+	{
+		LogAuthTokenExpiration(PreviousToken);
+		return ResultOk(PreviousToken);
+	}
+
+	TResult<FAuthDesc> AuthDescResult = GetAuthenticationDesc(RemoteDesc);
+	if (AuthDescResult.IsError())
+	{
+		return MoveError<FAuthToken>(AuthDescResult);
+	}
+
+	const FAuthDesc& AuthDesc = AuthDescResult.GetData();
 
 	TResult<FAuthToken> FreshTokenResult = RefreshOrAcquireToken(AuthDesc, PreviousToken);
 	if (FreshTokenResult.IsError())
@@ -573,9 +719,9 @@ Authenticate(const FRemoteDesc& RemoteDesc, const FAuthDesc& AuthDesc)
 		return FreshTokenResult;
 	}
 
-	if (!UserHomePath.empty())
+	if (const FPath* TokenCachePath = TokenCachePathResult.TryData())
 	{
-		CreateDirectories(UnsyncSettingsPath);
+		CreateDirectories(TokenCachePath->parent_path());
 
 		// Allow saving tokens during dry run
 		// TODO: need a dedicated file flag to allow writes during dry run
@@ -583,14 +729,19 @@ Authenticate(const FRemoteDesc& RemoteDesc, const FAuthDesc& AuthDesc)
 		const bool bPrevDryRun = GDryRun;
 		GDryRun				   = false;
 
-		bool bSaved = SaveRefreshToken(TokenCachePath, FreshTokenResult.GetData());
+		bool bSaved = SaveAuthToken(*TokenCachePath, FreshTokenResult.GetData());
 
 		GDryRun = bPrevDryRun;
 
 		if (bSaved)
 		{
-			UNSYNC_VERBOSE2(L"Saved refresh token to file: %s", TokenCachePath.wstring().c_str());
+			UNSYNC_VERBOSE2(L"Saved authentication token to file: %s", TokenCachePath->wstring().c_str());
 		}
+	}
+
+	if (FreshTokenResult.IsOk())
+	{
+		LogAuthTokenExpiration(FreshTokenResult.GetData());
 	}
 
 	return FreshTokenResult;
@@ -599,26 +750,16 @@ Authenticate(const FRemoteDesc& RemoteDesc, const FAuthDesc& AuthDesc)
 bool
 TryAddAuthentication(FRemoteDesc& InOutRemoteDesc)
 {
-	TResult<FAuthDesc> AuthDescResult = GetAuthenticationDesc(InOutRemoteDesc);
-	if (AuthDescResult.IsError())
-	{
-		return false;
-	}
+	TResult<FAuthToken> AuthTokenResult = Authenticate(InOutRemoteDesc, 5 * 60);
 
-	const FAuthDesc& AuthDesc = AuthDescResult.GetData();
-
-	TResult<FAuthToken> AuthTokenResult = Authenticate(InOutRemoteDesc, AuthDesc);
 	if (AuthTokenResult.IsError())
 	{
 		return false;
 	}
 
-	const std::string& AccessToken = AuthTokenResult->Access;
-
 	// Authentication requires encrypted connection
-	InOutRemoteDesc.bTlsEnable	   = true;
-	InOutRemoteDesc.Authentication = std::make_shared<FBuffer>();
-	InOutRemoteDesc.Authentication->Append((const uint8*)AccessToken.data(), AccessToken.length());
+	InOutRemoteDesc.bTlsEnable				= true;
+	InOutRemoteDesc.bAuthenticationRequired = true;
 
 	return true;
 }
@@ -709,6 +850,12 @@ GetAuthenticationDesc(const FRemoteDesc& RemoteDesc)
 	}
 
 	return ResultOk(AuthDesc);
+}
+
+int64
+GetSecondsFromUnixEpoch()
+{
+	return int64(std::time(nullptr));
 }
 
 }  // namespace unsync

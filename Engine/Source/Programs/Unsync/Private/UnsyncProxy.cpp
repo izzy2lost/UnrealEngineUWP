@@ -4,6 +4,7 @@
 #include "UnsyncCompression.h"
 #include "UnsyncFile.h"
 #include "UnsyncJupiter.h"
+#include "UnsyncAuth.h"
 
 #include <json11.hpp>
 #include <fmt/format.h>
@@ -122,26 +123,39 @@ FUnsyncProtocolImpl::FUnsyncProtocolImpl(const FRemoteDesc&				RemoteDesc,
 		}();
 	}
 
-	if (IsValid() && Features.bAuthentication && RemoteDesc.Authentication)
+	if (IsValid() && Features.bAuthentication && RemoteDesc.bAuthenticationRequired)
 	{
 		bool bOk = IsValid();
 
-		FCommandPacket Packet;
-		Packet.CommandId = COMMAND_ID_AUTHENTICATE;
-		bOk &= SendStruct(*SocketHandle, Packet);
-		bOk &= SendBuffer(*SocketHandle, *RemoteDesc.Authentication);
+		TResult<FAuthToken> AuthTokenResult = Authenticate(RemoteDesc, 15 * 60);
 
-		int32 ResultSize = 0;
-		bOk &= SocketRecvT(*SocketHandle, ResultSize);
-
-		FBuffer ResultBuffer;
-		if (ResultSize)
+		if (AuthTokenResult.IsOk())
 		{
-			ResultBuffer.Resize(ResultSize);
-			bOk &= (SocketRecvAll(*SocketHandle, ResultBuffer.Data(), ResultSize) == ResultSize);
-		}
+			FBufferView AccessToken = {(const uint8*)AuthTokenResult->Access.data(), AuthTokenResult->Access.length()};
 
-		// TODO: parse authentication result packet and report errors
+			FCommandPacket Packet;
+			Packet.CommandId = COMMAND_ID_AUTHENTICATE;
+			bOk &= SendStruct(*SocketHandle, Packet);
+			bOk &= SendBuffer(*SocketHandle, AccessToken);
+
+			int32 ResultSize = 0;
+			bOk &= SocketRecvT(*SocketHandle, ResultSize);
+
+			FBuffer ResultBuffer;
+			if (ResultSize)
+			{
+				ResultBuffer.Resize(ResultSize);
+				bOk &= (SocketRecvAll(*SocketHandle, ResultBuffer.Data(), ResultSize) == ResultSize);
+			}
+
+			// TODO: parse authentication result packet and report errors
+		}
+		else
+		{
+			LogError(AuthTokenResult.GetError());
+			UNSYNC_ERROR(L"Server requires authentication");
+			Invalidate();
+		}
 	}
 }
 

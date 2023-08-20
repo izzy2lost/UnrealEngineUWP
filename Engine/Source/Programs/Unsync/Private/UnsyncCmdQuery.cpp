@@ -146,20 +146,43 @@ CmdQueryMirrors(const FCmdQueryOptions& Options)
 int32
 CmdQueryLogin(const FCmdQueryOptions& Options)
 {
-	TResult<FAuthDesc> AuthDescResult = GetAuthenticationDesc(Options.Remote);
-	if (AuthDescResult.IsError())
-	{
-		LogError(AuthDescResult.GetError());
-		return -1;
-	}
-
-	const FAuthDesc& AuthDesc = AuthDescResult.GetData();
-
-	TResult<FAuthToken> AuthToken = Authenticate(Options.Remote, AuthDesc);
+	TResult<FAuthToken> AuthToken = Authenticate(Options.Remote, 5 * 60);
 
 	if (AuthToken.IsOk())
 	{
-		UNSYNC_LOG(L"Login successful");
+		{
+			FHttpConnection Connection		 = FHttpConnection::CreateDefaultHttps(Options.Remote.HostAddress, Options.Remote.HostPort);
+			Connection.bTlsVerifyCertificate = false;
+
+			FHttpRequest Request;
+			Request.Url			   = "/api/v1/login";
+			Request.Method		   = EHttpMethod::GET;
+			Request.BearerToken	   = AuthToken->Access;
+			FHttpResponse Response = HttpRequest(Connection, Request);
+
+			if (Response.Success())
+			{
+				UNSYNC_LOG("Login successful");
+			}
+			else
+			{
+				LogError(HttpError(Response.Code));
+				return -1;
+			}
+		}
+
+
+		UNSYNC_LOG(L"Getting user info from authentication server");
+		UNSYNC_LOG_INDENT;
+
+		TResult<FAuthDesc> AuthDescResult = GetAuthenticationDesc(Options.Remote);
+		if (AuthDescResult.IsError())
+		{
+			LogError(AuthDescResult.GetError());
+			return -1;
+		}
+
+		const FAuthDesc& AuthDesc = AuthDescResult.GetData();
 
 		FHttpConnection AuthConnection = FHttpConnection::CreateDefaultHttps(AuthDesc.ServerHost);
 

@@ -39,6 +39,7 @@ struct FHttpRequest
 	EHttpMethod		 Method		   = EHttpMethod::GET;
 	std::string_view Url		   = {};
 	std::string_view CustomHeaders = {};
+	std::string_view BearerToken   = {};
 
 	EHttpContentType PayloadContentType = EHttpContentType::Unknown;
 	FBufferView		 Payload			= {};

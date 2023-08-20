@@ -57,7 +57,8 @@ TResult<FAuthDesc> GetAuthenticationDesc(const FRemoteDesc& RemoteDesc);
 // - Attempt use stored refresh token first
 // - If refresh is not possible, use PKCE Authentication flow to get new tokens
 // - Save refresh token in user directory for future use
-TResult<FAuthToken> Authenticate(const FRemoteDesc& RemoteDesc, const FAuthDesc& AuthDesc);
+// - Skips acquiring new token if remaining valid time is above RefreshThreshold (in seconds)
+TResult<FAuthToken> Authenticate(const FRemoteDesc& RemoteDesc, int32 RefreshThreshold = INT_MAX);
 
 // Auth utility functions
 
@@ -78,8 +79,8 @@ TResult<FAuthUserInfo> GetUserInfo(FHttpConnection& HttpConnection, const FAuthD
 
 std::string GenerateTokenId(const FRemoteDesc& RemoteDesc);
 
-bool				SaveRefreshToken(const FPath& Path, const FAuthToken& AuthToken);
-TResult<FAuthToken> LoadRefreshToken(const FPath& Path);
+bool				SaveAuthToken(const FPath& Path, const FAuthToken& AuthToken);
+TResult<FAuthToken> LoadAuthToken(const FPath& Path);
 
 std::string SecureRandomBytesAsHexString(uint32 NumBytes);
 FHash256	HashSha256Bytes(const uint8* Data, uint64 Size);
@@ -92,6 +93,8 @@ void TransformBase64UrlSafeToVanilla(std::string& Base64UrlSafe);
 std::string GetPKCECodeChallenge(std::string_view CodeVerifier);
 
 bool TryAddAuthentication(FRemoteDesc& InOutRemoteDesc);
+
+int64 GetSecondsFromUnixEpoch();
 
 }  // namespace unsync
 
