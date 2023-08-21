@@ -426,13 +426,7 @@ FMetasoundFrontendClassInterface FMetasoundFrontendClassInterface::GenerateClass
 			ClassInput.Name = InputVertex.VertexName;
 			ClassInput.TypeName = InputVertex.DataTypeName;
 			ClassInput.AccessType = Metasound::DocumentPrivate::CoreVertexAccessTypeToFrontendVertexAccessType(InputVertex.AccessType);
-#if WITH_EDITOR
-			const bool bIsDeterministic = MetaSoundEnableDeterministicIDGenerationInEditorCVar != 0 && !IsRunningCookCommandlet();
-			ClassInput.VertexID = bIsDeterministic ? FClassIDGenerator::Get().CreateInputID(ClassInput) : FGuid::NewGuid();
-#else 
-			const bool bIsDeterministic = MetaSoundEnableRuntimeDeterministicIDGeneration != 0 && !IsRunningCookCommandlet();
-			ClassInput.VertexID = bIsDeterministic ? FClassIDGenerator::Get().CreateInputID(ClassInput) : FGuid::NewGuid();
-#endif // WITH_EDITOR
+			ClassInput.VertexID = FClassIDGenerator::Get().CreateInputID(ClassInput);
 
 #if WITH_EDITOR
 			const FDataVertexMetadata& VertexMetadata = InputVertex.Metadata;
@@ -488,13 +482,7 @@ FMetasoundFrontendClassInterface FMetasoundFrontendClassInterface::GenerateClass
 			ClassOutput.Name = OutputVertex.VertexName;
 			ClassOutput.TypeName = OutputVertex.DataTypeName;
 			ClassOutput.AccessType = Metasound::DocumentPrivate::CoreVertexAccessTypeToFrontendVertexAccessType(OutputVertex.AccessType);
-#if WITH_EDITOR
-			const bool bIsDeterministic = MetaSoundEnableDeterministicIDGenerationInEditorCVar != 0 && !IsRunningCookCommandlet();
-			ClassOutput.VertexID = bIsDeterministic ? FClassIDGenerator::Get().CreateOutputID(ClassOutput) : FGuid::NewGuid();
-#else 
-			const bool bIsDeterministic = MetaSoundEnableRuntimeDeterministicIDGeneration != 0 && !IsRunningCookCommandlet();
-			ClassOutput.VertexID = bIsDeterministic ? FClassIDGenerator::Get().CreateOutputID(ClassOutput) : FGuid::NewGuid();
-#endif // WITH_EDITOR
+			ClassOutput.VertexID = FClassIDGenerator::Get().CreateOutputID(ClassOutput);
 #if WITH_EDITOR
 			const FDataVertexMetadata& VertexMetadata = OutputVertex.Metadata;
 
@@ -760,13 +748,7 @@ FMetasoundFrontendClassInput::FMetasoundFrontendClassInput(const Audio::FParamet
 	Name = InInput.InitValue.ParamName;
 	DefaultLiteral = FMetasoundFrontendLiteral(InInput.InitValue);
 	TypeName = Metasound::DocumentPrivate::ResolveMemberDataType(InInput.DataType, InInput.InitValue.ParamType);
-#if WITH_EDITOR
-	const bool bIsDeterministic = MetaSoundEnableDeterministicIDGenerationInEditorCVar != 0 && !IsRunningCookCommandlet();
-	VertexID = bIsDeterministic ? FClassIDGenerator::Get().CreateInputID(InInput) : FGuid::NewGuid();
-#else 
-	const bool bIsDeterministic = MetaSoundEnableRuntimeDeterministicIDGeneration != 0 && !IsRunningCookCommandlet();
-	VertexID = bIsDeterministic ? FClassIDGenerator::Get().CreateInputID(InInput) : FGuid::NewGuid();
-#endif // WITH_EDITOR
+	VertexID = FClassIDGenerator::Get().CreateInputID(InInput);
 
 #if WITH_EDITOR
 	// Interfaces should never serialize text to avoid desync between
@@ -794,13 +776,7 @@ FMetasoundFrontendClassOutput::FMetasoundFrontendClassOutput(const Audio::FParam
 
 	Name = Output.ParamName;
 	TypeName = Metasound::DocumentPrivate::ResolveMemberDataType(Output.DataType, Output.ParamType);
-#if WITH_EDITOR
-	const bool bIsDeterministic = MetaSoundEnableDeterministicIDGenerationInEditorCVar != 0 && !IsRunningCookCommandlet();
-	VertexID = bIsDeterministic ? FClassIDGenerator::Get().CreateOutputID(Output) : FGuid::NewGuid();
-#else 
-	const bool bIsDeterministic = MetaSoundEnableRuntimeDeterministicIDGeneration != 0 && !IsRunningCookCommandlet();
-	VertexID = bIsDeterministic ? FClassIDGenerator::Get().CreateOutputID(Output) : FGuid::NewGuid();
-#endif // WITH_EDITOR
+	VertexID = FClassIDGenerator::Get().CreateOutputID(Output);
 
 #if WITH_EDITOR
 	// Interfaces should never serialize text to avoid desync between

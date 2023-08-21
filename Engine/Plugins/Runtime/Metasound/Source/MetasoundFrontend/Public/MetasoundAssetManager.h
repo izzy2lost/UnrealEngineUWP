@@ -55,6 +55,9 @@ namespace Metasound
 			// If true, warnings will be logged if updating a node results in existing connections being discarded.
 			bool bAutoUpdateLogWarningOnDroppedConnection = false;
 
+			// If true, the preprocessed document will be registered 
+			bool bPreprocessDocument = true;
+
 #if WITH_EDITOR
 			// Attempt to rebuild referenced classes (only run if class not registered or set to force re-register)
 			bool bRebuildReferencedAssetClasses = true;

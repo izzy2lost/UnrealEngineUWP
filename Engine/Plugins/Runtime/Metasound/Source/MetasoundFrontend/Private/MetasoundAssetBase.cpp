@@ -238,12 +238,20 @@ void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSo
 	{
 		AssetName = OwningAsset->GetName();
 	}
+	
+	TSharedPtr<FMetasoundFrontendDocument> DocumentToRegister;
+	if (InRegistrationOptions.bPreprocessDocument)
+	{
+		DocumentToRegister = PreprocessDocument();
+	}
+	else
+	{
+		DocumentToRegister = MakeShared<FMetasoundFrontendDocument>(GetDocumentChecked());
+	}
 
-	TSharedPtr<FMetasoundFrontendDocument> PreprocessedDocument = PreprocessDocument();
-	CacheRuntimeData(*PreprocessedDocument);
+	CacheRuntimeData(*DocumentToRegister);
 	FNodeClassInfo AssetClassInfo = GetAssetClassInfo();
-
-	TUniquePtr<INodeRegistryEntry> RegistryEntry = MakeUnique<AssetBasePrivate::FNodeRegistryEntry>(AssetName, PreprocessedDocument, AssetClassInfo.AssetPath);
+	TUniquePtr<INodeRegistryEntry> RegistryEntry = MakeUnique<AssetBasePrivate::FNodeRegistryEntry>(AssetName, DocumentToRegister, AssetClassInfo.AssetPath);
 
 	UnregisterGraphWithFrontend();
 	RegistryKey = FMetasoundFrontendRegistryContainer::Get()->RegisterNode(MoveTemp(RegistryEntry));
@@ -265,6 +273,73 @@ void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSo
 			}
 		}
 		UE_LOG(LogMetaSound, Error, TEXT("Registration failed for MetaSound node class '%s' of UObject class '%s'"), *AssetName, *ClassName);
+	}
+}
+
+void FMetasoundAssetBase::CookGraph()
+{
+	using namespace Metasound;
+	using namespace Metasound::Frontend;
+
+	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::CookGraph);
+	if (IsRegistered())
+	{
+		return;
+	}
+
+	RegisterAssetDependenciesForCook();
+	IMetaSoundAssetManager::GetChecked().AddOrUpdateAsset(*GetOwningAsset());
+
+	// Auto update must be done after all referenced asset classes are registered
+	const bool bDidUpdate = AutoUpdate(/*bAutoUpdateLogWarningOnDroppedConnection=*/true);
+#if WITH_EDITOR
+	if (bDidUpdate)
+	{
+		GetModifyContext().SetForceRefreshViews();
+	}
+#endif // WITH_EDITOR
+
+#if WITH_EDITOR
+	// Must be completed after auto-update to ensure all non-transient referenced dependency data is up-to-date (ex.
+	// class version), which is required for most accurately caching current registry metadata.
+	CacheRegistryMetadata();
+#endif // WITH_EDITOR
+
+	FString AssetName;
+	const UObject* OwningAsset = GetOwningAsset();
+	if (ensure(OwningAsset))
+	{
+		AssetName = OwningAsset->GetName();
+	}
+	
+	TSharedPtr<FMetasoundFrontendDocument> DocumentToRegister = PreprocessDocument();
+	TSharedPtr<FMetasoundFrontendDocument> PreprocessedDocumentCopy = MakeShared<FMetasoundFrontendDocument>(*DocumentToRegister);
+	// Replace document with preprocessed document
+	SetDocument(*PreprocessedDocumentCopy, /*bMarkDirty=*/false);
+
+	FNodeClassInfo AssetClassInfo = GetAssetClassInfo();
+	TUniquePtr<INodeRegistryEntry> RegistryEntry = MakeUnique<AssetBasePrivate::FNodeRegistryEntry>(AssetName, DocumentToRegister, AssetClassInfo.AssetPath);
+
+	UnregisterGraphWithFrontend();
+	RegistryKey = FMetasoundFrontendRegistryContainer::Get()->RegisterNode(MoveTemp(RegistryEntry));
+
+	if (NodeRegistryKey::IsValid(RegistryKey) && FMetasoundFrontendRegistryContainer::Get()->IsNodeRegistered(RegistryKey))
+	{
+#if WITH_EDITORONLY_DATA
+		UpdateAssetRegistry();
+#endif // WITH_EDITORONLY_DATA
+	}
+	else
+	{
+		FString ClassName;
+		if (OwningAsset)
+		{
+			if (UClass* Class = OwningAsset->GetClass())
+			{
+				ClassName = Class->GetName();
+			}
+		}
+		UE_LOG(LogMetaSound, Error, TEXT("While cooking graph, registration failed for MetaSound node class '%s' of UObject class '%s'"), *AssetName, *ClassName);
 	}
 }
 
@@ -310,11 +385,14 @@ bool FMetasoundAssetBase::IsInterfaceDeclared(const FMetasoundFrontendVersion& I
 	return GetDocumentChecked().Interfaces.Contains(InVersion);
 }
 
-void FMetasoundAssetBase::SetDocument(const FMetasoundFrontendDocument& InDocument)
+void FMetasoundAssetBase::SetDocument(const FMetasoundFrontendDocument& InDocument, bool bMarkDirty)
 {
 	FMetasoundFrontendDocument& Document = GetDocumentChecked();
 	Document = InDocument;
-	MarkMetasoundDocumentDirty();
+	if (bMarkDirty)
+	{
+		MarkMetasoundDocumentDirty();
+	}
 }
 
 void FMetasoundAssetBase::AddDefaultInterfaces()
@@ -332,25 +410,24 @@ void FMetasoundAssetBase::AddDefaultInterfaces()
 	FModifyRootGraphInterfaces({ }, InitVersions).Transform(GetDocumentChecked());
 }
 
-void FMetasoundAssetBase::SetDocument(FMetasoundFrontendDocument&& InDocument)
+void FMetasoundAssetBase::SetDocument(FMetasoundFrontendDocument&& InDocument, bool bMarkDirty)
 {
 	FMetasoundFrontendDocument& Document = GetDocumentChecked();
 	Document = MoveTemp(InDocument);
-	MarkMetasoundDocumentDirty();
+	if (bMarkDirty)
+	{
+		MarkMetasoundDocumentDirty();
+	}
 }
 
 bool FMetasoundAssetBase::VersionAsset()
 {
 	using namespace Metasound;
 	using namespace Metasound::Frontend;
+
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::VersionAsset);
-#if WITH_EDITOR
-	const bool bIsDeterministic = MetaSoundEnableDeterministicIDGenerationInEditorCVar != 0 && !IsRunningCookCommandlet();
+	constexpr bool bIsDeterministic = true;
 	FDocumentIDGenerator::FScopeDeterminism DeterminismScope(bIsDeterministic);
-#else
-	const bool bIsDeterministic = MetaSoundEnableRuntimeDeterministicIDGeneration != 0 && !IsRunningCookCommandlet();
-	FDocumentIDGenerator::FScopeDeterminism DeterminismScope(bIsDeterministic);
-#endif // WITH_EDITOR
 
 	FName AssetName;
 	FString AssetPath;
@@ -843,16 +920,26 @@ void FMetasoundAssetBase::RegisterAssetDependencies(const Metasound::Frontend::F
 	}
 }
 
+void FMetasoundAssetBase::RegisterAssetDependenciesForCook()
+{
+	using namespace Metasound::Frontend;
+
+	IMetaSoundAssetManager& AssetManager = IMetaSoundAssetManager::GetChecked();
+	TArray<FMetasoundAssetBase*> References = GetReferencedAssets();
+	for (FMetasoundAssetBase* Reference : References)
+	{
+		if (!Reference->IsRegistered())
+		{
+			// TODO: Check for infinite recursion and error if so
+			AssetManager.AddOrUpdateAsset(*(Reference->GetOwningAsset()));
+			Reference->CookGraph();
+		}
+	}
+}
+
 bool FMetasoundAssetBase::AutoUpdate(bool bInLogWarningsOnDroppedConnection)
 {
 	using namespace Metasound::Frontend;
-#if WITH_EDITOR
-	const bool bIsDeterministic = MetaSoundEnableDeterministicIDGenerationInEditorCVar != 0 && !IsRunningCookCommandlet();
-	FDocumentIDGenerator::FScopeDeterminism DeterminismScope(bIsDeterministic);
-#else
-	const bool bIsDeterministic = MetaSoundEnableRuntimeDeterministicIDGeneration != 0 && !IsRunningCookCommandlet();
-	FDocumentIDGenerator::FScopeDeterminism DeterminismScope(bIsDeterministic);
-#endif // WITH_EDITOR
 
 	FString OwningAssetName = GetOwningAssetName();
 	const bool bAutoUpdated = FAutoUpdateRootGraph(MoveTemp(OwningAssetName), bInLogWarningsOnDroppedConnection).Transform(GetDocumentHandle());

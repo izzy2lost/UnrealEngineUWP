@@ -9,8 +9,7 @@ namespace Metasound
 {
 	namespace Frontend
 	{
-		extern METASOUNDFRONTEND_API int32 MetaSoundEnableDeterministicIDGenerationInEditorCVar;
-		extern METASOUNDFRONTEND_API int32 MetaSoundEnableRuntimeDeterministicIDGeneration;
+		extern METASOUNDFRONTEND_API int32 MetaSoundEnableCookDeterministicIDGeneration;
 
 		/*** 
 		 * For generating IDs using a given document. 
@@ -87,7 +86,7 @@ namespace Metasound
 			FGuid CreateOutputID(const FMetasoundFrontendClassOutput& Output) const;
 			FGuid CreateOutputID(const Audio::FParameterInterface::FOutput& Output) const;
 
-			FGuid CreateNamespacedIDFromString(const FGuid NamespaceGuid, FString StringToHash) const;
+			FGuid CreateNamespacedIDFromString(const FGuid NamespaceGuid, const FString& StringToHash) const;
 		};
 	}
 }

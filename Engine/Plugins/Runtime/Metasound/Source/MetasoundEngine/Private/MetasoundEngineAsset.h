@@ -5,6 +5,7 @@
 #include "Metasound.h"
 #include "MetasoundAssetManager.h"
 #include "MetasoundBuilderSubsystem.h"
+#include "MetasoundFrontendDocumentIdGenerator.h"
 #include "MetasoundUObjectRegistry.h"
 #include "Serialization/Archive.h"
 
@@ -98,9 +99,19 @@ namespace Metasound
 
 			if (UMetasoundEditorGraphBase* MetaSoundGraph = Cast<UMetasoundEditorGraphBase>(InMetaSound.GetGraph()))
 			{
-				// Cooked data must be deterministic, so do not call register graph as this can
-				// initiate an auto-update and/or local registry data cache and modify serialized data.
-				if (!InSaveContext.IsCooking())
+				if (InSaveContext.IsCooking())
+				{
+					// Use deterministic ID generation so more can be done at cook rather than runtime
+					if (MetaSoundEnableCookDeterministicIDGeneration != 0)
+					{
+						{
+							constexpr bool bIsDeterministic = true;
+							FDocumentIDGenerator::FScopeDeterminism DeterminismScope = FDocumentIDGenerator::FScopeDeterminism(bIsDeterministic);
+							InMetaSound.CookGraph();
+						}
+					}
+				}
+				else
 				{
 					MetaSoundGraph->RegisterGraphWithFrontend();
 					MetaSoundGraph->GetModifyContext().SetForceRefreshViews();

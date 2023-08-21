@@ -6,19 +6,11 @@ namespace Metasound
 {
 	namespace Frontend
 	{
-		int32 MetaSoundEnableDeterministicIDGenerationInEditorCVar = 0;
-		FAutoConsoleVariableRef CVarMetaSoundEnableDeterministicIDGenerationInEditor(
-			TEXT("au.MetaSound.EnableDeterministicIDGenerationInEditorCVar"),
-			MetaSoundEnableDeterministicIDGenerationInEditorCVar,
-			TEXT("Enable deterministic ID generation in MetaSounds for AutoUpdate while in editor (requires editor restart for effect) \n")
-			TEXT("0: Disabled (default), !0: Enabled"),
-			ECVF_Default);
-
-		int32 MetaSoundEnableRuntimeDeterministicIDGeneration = 0;
-		FAutoConsoleVariableRef CVarMetaSoundEnableRuntimeDeterministicIDGeneration(
-			TEXT("au.MetaSound.EnableRuntimeDeterministicIDGeneration"),
-			MetaSoundEnableRuntimeDeterministicIDGeneration,
-			TEXT("Enable deterministic ID generation in MetaSounds for AutoUpdate at runtime (non editor) \n")
+		int32 MetaSoundEnableCookDeterministicIDGeneration = 0;
+		FAutoConsoleVariableRef CVarMetaSoundEnableCookDeterministicIDGeneration(
+			TEXT("au.MetaSound.EnableCookDeterministicIDGeneration"),
+			MetaSoundEnableCookDeterministicIDGeneration,
+			TEXT("Enable moving MetaSound registration operations like AutoUpdate and PreprocessDocument from runtime to cook using deterministic ID generation \n")
 			TEXT("0: Disabled (default), !0: Enabled"),
 			ECVF_Default);
 
@@ -122,7 +114,7 @@ namespace Metasound
 			return CreateNamespacedIDFromString(ParameterInterfaceOutputNamespaceGuid, NameToHash);
 		}
 
-		FGuid FClassIDGenerator::CreateNamespacedIDFromString(const FGuid NamespaceGuid, FString StringToHash) const
+		FGuid FClassIDGenerator::CreateNamespacedIDFromString(const FGuid NamespaceGuid, const FString& StringToHash) const
 		{
 			FSHA1 Hasher;
 			Hasher.Update(reinterpret_cast<const uint8*>(&NamespaceGuid), sizeof(FGuid));

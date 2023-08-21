@@ -75,6 +75,9 @@ public:
 	// Unregisters the root graph of the given asset with the MetaSound Frontend.
 	void UnregisterGraphWithFrontend();
 
+	// Prepares graph for cook, including autoupdating and preprocessing graph and registering node, similar to RegisterGraphWithFrontend. 
+	void CookGraph();
+
 	// Sets/overwrites the root class metadata
 	UE_DEPRECATED(5.3, "Directly setting graph class Metadata is no longer be supported. Use the FMetaSoundFrontendDocumentBuilder to modify class data.")
 	virtual void SetMetadata(FMetasoundFrontendClassMetadata& InMetadata);
@@ -132,8 +135,8 @@ public:
 
 	// Overwrites the existing document. If the document's interface is not supported,
 	// the FMetasoundAssetBase be while queried for a new one using `GetPreferredInterface`.
-	void SetDocument(const FMetasoundFrontendDocument& InDocument);
-	void SetDocument(FMetasoundFrontendDocument&& InDocument);
+	void SetDocument(const FMetasoundFrontendDocument& InDocument, bool bMarkDirty = true);
+	void SetDocument(FMetasoundFrontendDocument&& InDocument, bool bMarkDirty = true);
 
 	FMetasoundFrontendDocument& GetDocumentChecked();
 	const FMetasoundFrontendDocument& GetDocumentChecked() const;
@@ -221,6 +224,7 @@ protected:
 
 	bool AutoUpdate(bool bInLogWarningsOnDroppedConnection);
 	void RegisterAssetDependencies(const Metasound::Frontend::FMetaSoundAssetRegistrationOptions& InRegistrationOptions);
+	void RegisterAssetDependenciesForCook();
 	TSharedPtr<FMetasoundFrontendDocument> PreprocessDocument();
 private:
 #if WITH_EDITORONLY_DATA

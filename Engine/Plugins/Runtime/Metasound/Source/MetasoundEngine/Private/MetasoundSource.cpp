@@ -20,6 +20,7 @@
 #include "MetasoundFrontendController.h"
 #include "MetasoundFrontendDataTypeRegistry.h"
 #include "MetasoundFrontendDocumentBuilder.h"
+#include "MetasoundFrontendDocumentIdGenerator.h"
 #include "MetasoundFrontendQuery.h"
 #include "MetasoundFrontendQuerySteps.h"
 #include "MetasoundFrontendTransform.h"
@@ -53,6 +54,15 @@ namespace Metasound
 		{
 			Frontend::FMetaSoundAssetRegistrationOptions RegOptions;
 			RegOptions.bForceReregister = false;
+#if !WITH_EDITOR 
+			if (Frontend::MetaSoundEnableCookDeterministicIDGeneration != 0)
+			{
+				// When without editor, don't AutoUpdate or PreprocessDocument at runtime. This should happen at cook or asset save.
+				// When with editor, those are needed because sounds are not necessarily saved before previewing
+				RegOptions.bAutoUpdate = false;
+				RegOptions.bPreprocessDocument = false;
+			}
+#endif // !WITH_EDITOR
 			if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
 			{
 				RegOptions.bAutoUpdateLogWarningOnDroppedConnection = Settings->bAutoUpdateLogWarningOnDroppedConnection;
