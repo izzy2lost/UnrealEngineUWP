@@ -84,6 +84,10 @@ void SetProjectNameAndDirectory()
 	if (!ProjectDirOverride.IsEmpty())
 	{
 		FPaths::NormalizeDirectoryName(ProjectDirOverride);
+		if (!ProjectDirOverride.EndsWith(TEXT("/")))
+		{
+			ProjectDirOverride.Append(TEXT("/"));
+		}
 		FGenericPlatformMisc::SetOverrideProjectDir(ProjectDirOverride);
 	}
 }
