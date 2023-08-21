@@ -8,6 +8,7 @@
 #endif
 #include "IAudioParameterInterfaceRegistry.h"
 #include "AudioLinkSettingsAbstract.h"
+#include "SoundAttenuationEditorSettings.h"
 
 #include "SoundAttenuation.generated.h"
 
@@ -509,6 +510,13 @@ struct FSoundAttenuationSettings : public FBaseAttenuationSettings
 		, PriorityAttenuationDistanceMax(UE_REAL_TO_FLOAT(AttenuationShapeExtents.X) + FalloffDistance)
 		, ManualPriorityAttenuation(1.0f)
 	{
+#if WITH_EDITOR
+		if (const USoundAttenuationEditorSettings* SoundAttenuationEditorSettings = GetDefault<USoundAttenuationEditorSettings>())
+		{
+			bEnableReverbSend = SoundAttenuationEditorSettings->bEnableReverbSend;
+			bEnableSendToAudioLink = SoundAttenuationEditorSettings->bEnableSendToAudioLink;
+		}
+#endif // WITH_EDITOR
 	}
 
 	ENGINE_API bool operator==(const FSoundAttenuationSettings& Other) const;

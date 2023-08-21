@@ -273,7 +273,7 @@ private:
 	bool bOverrideAttenuation;
 
 	/** The attenuation settings to use. */
-	UPROPERTY( EditAnywhere, Category="Attenuation" )
+	UPROPERTY( EditAnywhere, Category="Attenuation", meta = (EditCondition = "bOverrideAttenuation") )
 	TObjectPtr<class USoundAttenuation> AttenuationSettings;
 
 	/** Called when subtitles are sent to the SubtitleManager.  Set this delegate if you want to hijack the subtitles for other purposes */
