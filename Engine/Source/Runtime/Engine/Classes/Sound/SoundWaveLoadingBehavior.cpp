@@ -1,13 +1,18 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "SoundWaveLoadingBehavior.h"
 
+#include "Audio.h"
+#include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "GenericPlatform/GenericPlatformMisc.h"
 #include "Interfaces/ITargetPlatform.h"
+#include "Misc/CommandLine.h"
 #include "SoundClass.h"
 #include "SoundCue.h"
 #include "SoundWave.h"
+#include "UObject/LinkerLoad.h"
+
 
 const TCHAR* EnumToString(ESoundWaveLoadingBehavior InCurrentState)
 {

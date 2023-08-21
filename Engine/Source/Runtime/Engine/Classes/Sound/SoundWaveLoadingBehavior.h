@@ -40,7 +40,9 @@ ENGINE_API const TCHAR* EnumToString(ESoundWaveLoadingBehavior InCurrentState);
 
 #if WITH_EDITOR
 
+class USoundWave;
 class USoundClass;
+class ITargetPlatform;
 
 class ISoundWaveLoadingBehaviorUtil
 {
