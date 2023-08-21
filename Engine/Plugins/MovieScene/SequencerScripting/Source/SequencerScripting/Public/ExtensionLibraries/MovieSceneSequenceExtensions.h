@@ -260,7 +260,7 @@ public:
 	 * @param StartTimeInSeconds The desired view range start time in seconds for this sequence
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Sequencer|Sequence", meta = (ScriptMethod, DevelopmentOnly))
-	static void SetViewRangeStart(UMovieSceneSequence* InSequence, float StartTimeInSeconds);
+	static void SetViewRangeStart(UMovieSceneSequence* InSequence, double StartTimeInSeconds);
 
 	/**
 	 * Get the sequence view range start in seconds
@@ -269,7 +269,7 @@ public:
 	 * @return The view range start time in seconds for this sequence
 	 */
 	UFUNCTION(BlueprintPure, Category = "Sequencer|Sequence", meta = (ScriptMethod, DevelopmentOnly))
-	static float GetViewRangeStart(UMovieSceneSequence* InSequence);
+	static double GetViewRangeStart(UMovieSceneSequence* InSequence);
 
 	/**
 	 * Set the sequence view range end in seconds
@@ -278,7 +278,7 @@ public:
 	 * @param StartTimeInSeconds The desired view range end time in seconds for this sequence
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Sequencer|Sequence", meta = (ScriptMethod, DevelopmentOnly))
-	static void SetViewRangeEnd(UMovieSceneSequence* InSequence, float EndTimeInSeconds);
+	static void SetViewRangeEnd(UMovieSceneSequence* InSequence, double EndTimeInSeconds);
 
 	/**
 	 * Get the sequence view range end in seconds
@@ -287,7 +287,7 @@ public:
 	 * @return The view range end time in seconds for this sequence
 	 */
 	UFUNCTION(BlueprintPure, Category = "Sequencer|Sequence", meta = (ScriptMethod, DevelopmentOnly))
-	static float GetViewRangeEnd(UMovieSceneSequence* InSequence);
+	static double GetViewRangeEnd(UMovieSceneSequence* InSequence);
 
 	/**
 	 * Set the sequence work range start in seconds
@@ -296,7 +296,7 @@ public:
 	 * @param StartTimeInSeconds The desired work range start time in seconds for this sequence
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Sequencer|Sequence", meta = (ScriptMethod, DevelopmentOnly))
-	static void SetWorkRangeStart(UMovieSceneSequence* InSequence, float StartTimeInSeconds);
+	static void SetWorkRangeStart(UMovieSceneSequence* InSequence, double StartTimeInSeconds);
 
 	/**
 	 * Get the sequence work range start in seconds
@@ -305,7 +305,7 @@ public:
 	 * @return The work range start time in seconds for this sequence
 	 */
 	UFUNCTION(BlueprintPure, Category = "Sequencer|Sequence", meta = (ScriptMethod, DevelopmentOnly))
-	static float GetWorkRangeStart(UMovieSceneSequence* InSequence);
+	static double GetWorkRangeStart(UMovieSceneSequence* InSequence);
 
 	/**
 	 * Set the sequence work range end in seconds
@@ -314,7 +314,7 @@ public:
 	 * @param StartTimeInSeconds The desired work range end time in seconds for this sequence
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Sequencer|Sequence", meta = (ScriptMethod, DevelopmentOnly))
-	static void SetWorkRangeEnd(UMovieSceneSequence* InSequence, float EndTimeInSeconds);
+	static void SetWorkRangeEnd(UMovieSceneSequence* InSequence, double EndTimeInSeconds);
 
 	/**
 	 * Get the sequence work range end in seconds
@@ -323,7 +323,7 @@ public:
 	 * @return The work range end time in seconds for this sequence
 	 */
 	UFUNCTION(BlueprintPure, Category = "Sequencer|Sequence", meta = (ScriptMethod, DevelopmentOnly))
-	static float GetWorkRangeEnd(UMovieSceneSequence* InSequence);
+	static double GetWorkRangeEnd(UMovieSceneSequence* InSequence);
 
 	/**
 	 * Set the evaluation type for this sequence

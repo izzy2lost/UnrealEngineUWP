@@ -626,7 +626,7 @@ void UMovieScene::SetPlaybackRange(const TRange<FFrameNumber>& NewRange, bool bA
 #endif
 }
 
-void UMovieScene::SetWorkingRange(float Start, float End)
+void UMovieScene::SetWorkingRange(double Start, double End)
 {
 #if WITH_EDITORONLY_DATA
 	EditorData.WorkStart = Start;
@@ -634,7 +634,7 @@ void UMovieScene::SetWorkingRange(float Start, float End)
 #endif
 }
 
-void UMovieScene::SetViewRange(float Start, float End)
+void UMovieScene::SetViewRange(double Start, double End)
 {
 #if WITH_EDITORONLY_DATA
 	EditorData.ViewStart = Start;

@@ -230,10 +230,10 @@ void UAnimSequencerController::SetMovieSceneRange(FFrameNumber InFrameNumber) co
 	MovieScene->SetPlaybackRangeLocked(false);
 	
 	FMovieSceneEditorData& EditorData = MovieScene->GetEditorData();
-	EditorData.ViewStart = EditorData.WorkStart = 0.f;
+	EditorData.ViewStart = EditorData.WorkStart = 0.0;
 	EditorData.ViewEnd = EditorData.WorkEnd = Model->GetFrameRate().AsSeconds(InFrameNumber);
-	MovieScene->SetWorkingRange(static_cast<float>(EditorData.ViewStart), static_cast<float>(EditorData.ViewEnd));
-	MovieScene->SetViewRange(static_cast<float>(EditorData.ViewStart), static_cast<float>(EditorData.ViewEnd));
+	MovieScene->SetWorkingRange(EditorData.ViewStart, EditorData.ViewEnd);
+	MovieScene->SetViewRange(EditorData.ViewStart, EditorData.ViewEnd);
 
 	if (UMovieSceneControlRigParameterSection* Section = Model->GetFKControlRigSection())
 	{

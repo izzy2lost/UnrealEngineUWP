@@ -987,7 +987,7 @@ public:
 	 * @param Start The offset from 0-time to view this movie scene.
 	 * @param End The offset from 0-time to view this movie scene
 	 */
-	MOVIESCENE_API void SetWorkingRange(float Start, float End);
+	MOVIESCENE_API void SetWorkingRange(double Start, double End);
 
 	/**
 	 * Set the start and end view range (inner) for this movie scene
@@ -995,7 +995,7 @@ public:
 	 * @param Start The offset from 0-time to view this movie scene
 	 * @param End The offset from 0-time to view this movie scene
 	 */
-	MOVIESCENE_API void SetViewRange(float Start, float End);
+	MOVIESCENE_API void SetViewRange(double Start, double End);
 
 #if WITH_EDITORONLY_DATA
 

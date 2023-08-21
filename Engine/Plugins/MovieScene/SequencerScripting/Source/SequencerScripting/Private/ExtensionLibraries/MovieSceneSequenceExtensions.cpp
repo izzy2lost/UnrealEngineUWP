@@ -445,7 +445,7 @@ void UMovieSceneSequenceExtensions::SetPlaybackEndSeconds(UMovieSceneSequence* S
 	}
 }
 
-void UMovieSceneSequenceExtensions::SetViewRangeStart(UMovieSceneSequence* Sequence, float StartTimeInSeconds)
+void UMovieSceneSequenceExtensions::SetViewRangeStart(UMovieSceneSequence* Sequence, double StartTimeInSeconds)
 {
 	if (!Sequence)
 	{
@@ -462,12 +462,12 @@ void UMovieSceneSequenceExtensions::SetViewRangeStart(UMovieSceneSequence* Seque
 	}
 }
 
-float UMovieSceneSequenceExtensions::GetViewRangeStart(UMovieSceneSequence* Sequence)
+double UMovieSceneSequenceExtensions::GetViewRangeStart(UMovieSceneSequence* Sequence)
 {
 	if (!Sequence)
 	{
 		FFrame::KismetExecutionMessage(TEXT("Cannot call GetViewRangeStart on a null sequence"), ELogVerbosity::Error);
-		return 0.f;
+		return 0;
 	}
 
 	UMovieScene* MovieScene = GetMovieScene(Sequence);
@@ -477,10 +477,10 @@ float UMovieSceneSequenceExtensions::GetViewRangeStart(UMovieSceneSequence* Sequ
 		return MovieScene->GetEditorData().ViewStart;
 #endif
 	}
-	return 0.f;
+	return 0;
 }
 
-void UMovieSceneSequenceExtensions::SetViewRangeEnd(UMovieSceneSequence* Sequence, float EndTimeInSeconds)
+void UMovieSceneSequenceExtensions::SetViewRangeEnd(UMovieSceneSequence* Sequence, double EndTimeInSeconds)
 {
 	if (!Sequence)
 	{
@@ -497,12 +497,12 @@ void UMovieSceneSequenceExtensions::SetViewRangeEnd(UMovieSceneSequence* Sequenc
 	}
 }
 
-float UMovieSceneSequenceExtensions::GetViewRangeEnd(UMovieSceneSequence* Sequence)
+double UMovieSceneSequenceExtensions::GetViewRangeEnd(UMovieSceneSequence* Sequence)
 {
 	if (!Sequence)
 	{
 		FFrame::KismetExecutionMessage(TEXT("Cannot call GetViewRangeEnd on a null sequence"), ELogVerbosity::Error);
-		return 0.f;
+		return 0;
 	}
 
 	UMovieScene* MovieScene = GetMovieScene(Sequence);
@@ -512,10 +512,10 @@ float UMovieSceneSequenceExtensions::GetViewRangeEnd(UMovieSceneSequence* Sequen
 		return MovieScene->GetEditorData().ViewEnd;
 #endif
 	}
-	return 0.f;
+	return 0;
 }
 
-void UMovieSceneSequenceExtensions::SetWorkRangeStart(UMovieSceneSequence* Sequence, float StartTimeInSeconds)
+void UMovieSceneSequenceExtensions::SetWorkRangeStart(UMovieSceneSequence* Sequence, double StartTimeInSeconds)
 {
 	if (!Sequence)
 	{
@@ -532,12 +532,12 @@ void UMovieSceneSequenceExtensions::SetWorkRangeStart(UMovieSceneSequence* Seque
 	}
 }
 
-float UMovieSceneSequenceExtensions::GetWorkRangeStart(UMovieSceneSequence* Sequence)
+double UMovieSceneSequenceExtensions::GetWorkRangeStart(UMovieSceneSequence* Sequence)
 {
 	if (!Sequence)
 	{
 		FFrame::KismetExecutionMessage(TEXT("Cannot call GetWorkRangeStart on a null sequence"), ELogVerbosity::Error);
-		return 0.f;
+		return 0;
 	}
 
 	UMovieScene* MovieScene = GetMovieScene(Sequence);
@@ -547,10 +547,10 @@ float UMovieSceneSequenceExtensions::GetWorkRangeStart(UMovieSceneSequence* Sequ
 		return MovieScene->GetEditorData().WorkStart;
 #endif
 	}
-	return 0.f;
+	return 0;
 }
 
-void UMovieSceneSequenceExtensions::SetWorkRangeEnd(UMovieSceneSequence* Sequence, float EndTimeInSeconds)
+void UMovieSceneSequenceExtensions::SetWorkRangeEnd(UMovieSceneSequence* Sequence, double EndTimeInSeconds)
 {
 	if (!Sequence)
 	{
@@ -567,12 +567,12 @@ void UMovieSceneSequenceExtensions::SetWorkRangeEnd(UMovieSceneSequence* Sequenc
 	}
 }
 
-float UMovieSceneSequenceExtensions::GetWorkRangeEnd(UMovieSceneSequence* Sequence)
+double UMovieSceneSequenceExtensions::GetWorkRangeEnd(UMovieSceneSequence* Sequence)
 {
 	if (!Sequence)
 	{
 		FFrame::KismetExecutionMessage(TEXT("Cannot call GetWorkRangeEnd on a null sequence"), ELogVerbosity::Error);
-		return 0.f;
+		return 0;
 	}
 
 	UMovieScene* MovieScene = GetMovieScene(Sequence);
@@ -582,7 +582,7 @@ float UMovieSceneSequenceExtensions::GetWorkRangeEnd(UMovieSceneSequence* Sequen
 		return MovieScene->GetEditorData().WorkEnd;
 #endif
 	}
-	return 0.f;
+	return 0;
 }
 
 void UMovieSceneSequenceExtensions::SetEvaluationType(UMovieSceneSequence* Sequence, EMovieSceneEvaluationType InEvaluationType)
