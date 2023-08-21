@@ -162,6 +162,12 @@ void FNiagaraScratchPadScriptViewModel::SetScriptName(FText InScriptName)
 		FScopedTransaction RenameTransaction(LOCTEXT("RenameScriptTransaction", "Rename scratch pad script."));
 
 		FName NewUniqueName = FNiagaraEditorUtilities::GetUniqueObjectName<UNiagaraScript>(OriginalScript->GetOuter(), *NewName);
+		
+		if(OriginalScript->HasAnyFlags(RF_Transactional) == false)
+		{
+			OriginalScript->SetFlags(RF_Transactional);
+		}
+		
 		OriginalScript->Modify();
 		OriginalScript->Rename(*NewUniqueName.ToString(), nullptr, REN_DontCreateRedirectors);
 

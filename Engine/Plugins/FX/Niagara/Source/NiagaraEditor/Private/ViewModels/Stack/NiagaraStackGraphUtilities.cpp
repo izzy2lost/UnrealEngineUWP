@@ -3643,6 +3643,7 @@ void FNiagaraStackGraphUtilities::RenameReferencingParameters(UNiagaraSystem* Sy
 			continue;
 		}
 
+		Script->Modify();
 		TArray<FNiagaraVariable> RapidIterationVariables;
 		Script->RapidIterationParameters.GetParameters(RapidIterationVariables);
 
