@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include "Containers/PagedArray.h"
+#include "Utils.h"
 
 namespace AutoRTFM
 {
