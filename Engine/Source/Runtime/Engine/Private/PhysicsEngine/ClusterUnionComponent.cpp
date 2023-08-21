@@ -691,6 +691,18 @@ FBoxSphereBounds UClusterUnionComponent::CalcBounds(const FTransform& LocalToWor
 	return CachedLocalBounds.TransformBy(LocalToWorld);
 }
 
+FVector UClusterUnionComponent::GetComponentVelocity() const
+{
+	if (!PhysicsProxy)
+	{
+		return Super::GetComponentVelocity();
+	}
+
+	Chaos::FPhysicsObjectHandle PhysicsObject = PhysicsProxy->GetPhysicsObjectHandle();
+	FLockedReadPhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockRead({&PhysicsObject, 1});
+	return Interface->GetV(PhysicsObject);
+}
+
 bool UClusterUnionComponent::ShouldCreatePhysicsState() const
 {
 	return true;

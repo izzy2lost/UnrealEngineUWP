@@ -296,6 +296,7 @@ public:
 	ENGINE_API virtual void OnReceiveReplicatedState(const FVector X, const FQuat R, const FVector V, const FVector W) override;
 	ENGINE_API virtual void OnUpdateTransform(EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport) override;
 	ENGINE_API virtual FBoxSphereBounds CalcBounds(const FTransform& LocalToWorld) const override;
+	ENGINE_API virtual FVector GetComponentVelocity() const override;
 	//~ End USceneComponent Interface
 
 	//~ Begin IPhysicsComponent Interface.
