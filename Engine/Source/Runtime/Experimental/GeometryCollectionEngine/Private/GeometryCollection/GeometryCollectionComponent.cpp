@@ -2052,6 +2052,15 @@ namespace {
 		for (; OneOffActivatedProcessed < RepData.OneOffActivated.Num(); ++OneOffActivatedProcessed)
 		{
 			const FGeometryCollectionActivatedCluster& ActivatedCluster = RepData.OneOffActivated[OneOffActivatedProcessed];
+
+#if !UE_BUILD_SHIPPING
+			if(!PhysicsProxy->GetParticles().IsValidIndex(ActivatedCluster.ActivatedIndex))
+			{
+				ensureMsgf(false, TEXT("Invalid activated cluster index processing replication data."));
+				continue;
+			}
+#endif
+
 			FPBDRigidParticleHandle* OneOff = PhysicsProxy->GetParticles()[ActivatedCluster.ActivatedIndex];
 
 			if (ensure(OneOff))
