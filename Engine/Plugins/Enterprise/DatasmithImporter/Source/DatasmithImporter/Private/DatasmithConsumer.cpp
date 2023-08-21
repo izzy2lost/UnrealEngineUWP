@@ -1664,12 +1664,6 @@ namespace DatasmithConsumerUtils
 					TSharedRef< IDatasmithBaseMaterialElement > MaterialElement = FDatasmithSceneFactory::CreateMaterial( *AssetTag );
 					MaterialElement->SetLabel( *MaterialInstance->GetName() );
 
-					if (UMaterial* SourceMaterial = Cast< UMaterial >(MaterialInstance))
-					{
-						MaterialElement = StaticCastSharedRef< IDatasmithBaseMaterialElement >( FDatasmithSceneFactory::CreateUEPbrMaterial( *AssetTag ) );
-						MaterialElement->SetLabel( *MaterialInstance->GetName() );
-					}
-
 					if ( UMaterialInterface* MaterialParent = MaterialInstance->Parent )
 					{
 						FString MaterialInstancePath = MaterialInstance->GetOutermost()->GetName();
