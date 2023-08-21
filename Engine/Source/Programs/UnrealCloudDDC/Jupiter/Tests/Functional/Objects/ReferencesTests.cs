@@ -419,7 +419,7 @@ namespace Jupiter.FunctionalTests.References
 			{
 				BucketId bucket = new BucketId("bucket");
 
-				RefRecord objectRecord = await ReferencesStore.GetAsync(TestNamespace, bucket, key, IReferencesStore.FieldFlags.IncludePayload);
+				RefRecord objectRecord = await ReferencesStore.GetAsync(TestNamespace, bucket, key, IReferencesStore.FieldFlags.IncludePayload, IReferencesStore.OperationFlags.None);
 
 				Assert.IsTrue(objectRecord.IsFinalized);
 				Assert.AreEqual(key, objectRecord.Name);
@@ -506,7 +506,7 @@ namespace Jupiter.FunctionalTests.References
 			{
 				BucketId bucket = new BucketId("bucket");
 
-				RefRecord objectRecord = await ReferencesStore.GetAsync(TestNamespace, bucket, key, IReferencesStore.FieldFlags.None);
+				RefRecord objectRecord = await ReferencesStore.GetAsync(TestNamespace, bucket, key, IReferencesStore.FieldFlags.None, IReferencesStore.OperationFlags.None);
 
 				Assert.IsTrue(objectRecord.IsFinalized);
 				Assert.AreEqual(key, objectRecord.Name);
@@ -640,7 +640,7 @@ namespace Jupiter.FunctionalTests.References
 			{
 				BucketId bucket = new BucketId("bucket");
 
-				RefRecord objectRecord = await ReferencesStore.GetAsync(TestNamespace, bucket, key, IReferencesStore.FieldFlags.IncludePayload);
+				RefRecord objectRecord = await ReferencesStore.GetAsync(TestNamespace, bucket, key, IReferencesStore.FieldFlags.IncludePayload, IReferencesStore.OperationFlags.None);
 
 				Assert.IsTrue(objectRecord.IsFinalized);
 				Assert.AreEqual(key, objectRecord.Name);
@@ -824,7 +824,7 @@ namespace Jupiter.FunctionalTests.References
 			{
 				BucketId bucket = new BucketId("bucket");
 
-				RefRecord objectRecord = await ReferencesStore.GetAsync(TestNamespace, bucket, key, IReferencesStore.FieldFlags.IncludePayload);
+				RefRecord objectRecord = await ReferencesStore.GetAsync(TestNamespace, bucket, key, IReferencesStore.FieldFlags.IncludePayload, IReferencesStore.OperationFlags.None);
 
 				Assert.IsTrue(objectRecord.IsFinalized);
 				Assert.AreEqual(key, objectRecord.Name);
@@ -1186,7 +1186,7 @@ namespace Jupiter.FunctionalTests.References
 
 			// check that actual internal representation
 			{
-				RefRecord objectRecord = await ReferencesStore.GetAsync(TestNamespace, bucket, key, IReferencesStore.FieldFlags.IncludePayload);
+				RefRecord objectRecord = await ReferencesStore.GetAsync(TestNamespace, bucket, key, IReferencesStore.FieldFlags.IncludePayload, IReferencesStore.OperationFlags.None);
 
 				Assert.IsFalse(objectRecord.IsFinalized);
 				Assert.AreEqual(key, objectRecord.Name);
@@ -1222,7 +1222,7 @@ namespace Jupiter.FunctionalTests.References
 
 			// check that actual internal representation has updated its state
 			{
-				RefRecord objectRecord = await ReferencesStore.GetAsync(TestNamespace, bucket, key, IReferencesStore.FieldFlags.None);
+				RefRecord objectRecord = await ReferencesStore.GetAsync(TestNamespace, bucket, key, IReferencesStore.FieldFlags.None, IReferencesStore.OperationFlags.None);
 
 				Assert.IsTrue(objectRecord.IsFinalized);
 				Assert.AreEqual(key, objectRecord.Name);

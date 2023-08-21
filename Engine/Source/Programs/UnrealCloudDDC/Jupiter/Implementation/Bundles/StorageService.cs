@@ -148,7 +148,7 @@ public class StorageClient : BundleStorageClient
 		// TODO: Cache time is ignored
 		try
 		{
-			RefRecord record = await _refStore.GetAsync(_namespaceId, _defaultBucket,  RefId.FromName(name.ToString()), IReferencesStore.FieldFlags.IncludePayload);
+			RefRecord record = await _refStore.GetAsync(_namespaceId, _defaultBucket,  RefId.FromName(name.ToString()), IReferencesStore.FieldFlags.IncludePayload, IReferencesStore.OperationFlags.None );
 			if (record.InlinePayload == null)
 			{
 				// if there is no inline payload this is not a bundle ref

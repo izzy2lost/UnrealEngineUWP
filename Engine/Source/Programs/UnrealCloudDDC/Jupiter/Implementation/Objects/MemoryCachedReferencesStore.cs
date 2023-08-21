@@ -49,16 +49,21 @@ namespace Jupiter.Implementation.Objects
 			return _referenceCaches.GetOrAdd(ns, id => new MemoryCache(_options.CurrentValue));
 		}
 
-		public async Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
+		public async Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags fieldFlags, IReferencesStore.OperationFlags opFlags)
 		{
+			if (opFlags.HasFlag(IReferencesStore.OperationFlags.BypassCache))
+			{
+				return await _actualStore.GetAsync(ns, bucket, key, IReferencesStore.FieldFlags.All, opFlags);
+			}
+
 			MemoryCache cache = GetCacheForNamespace(ns);
 
 			if (cache.TryGetValue(new CachedReferenceKey(bucket, key), out CachedReferenceEntry cachedResult))
 			{
-				return cachedResult.ToRefRecord(flags);
+				return cachedResult.ToRefRecord(fieldFlags);
 			}
 
-			RefRecord objectRecord = await _actualStore.GetAsync(ns, bucket, key, IReferencesStore.FieldFlags.All);
+			RefRecord objectRecord = await _actualStore.GetAsync(ns, bucket, key, IReferencesStore.FieldFlags.All, opFlags);
 			AddCacheEntry(ns, bucket, key, objectRecord);
 
 			return objectRecord;

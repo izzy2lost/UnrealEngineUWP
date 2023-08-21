@@ -9,7 +9,7 @@ namespace Jupiter.Implementation
 {
 	public interface IReferencesStore
 	{
-		Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, FieldFlags flags);
+		Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, FieldFlags fieldFlags, OperationFlags opFlags );
 
 		[Flags]
 		public enum FieldFlags
@@ -17,6 +17,13 @@ namespace Jupiter.Implementation
 			None = 0,
 			IncludePayload = 1,
 			All = IncludePayload
+		}
+
+		[Flags]
+		public enum OperationFlags
+		{
+			None = 0,
+			BypassCache = 1
 		}
 
 		Task PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized);

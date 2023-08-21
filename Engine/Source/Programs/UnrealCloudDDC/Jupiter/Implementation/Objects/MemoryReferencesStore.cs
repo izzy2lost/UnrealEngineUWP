@@ -19,11 +19,11 @@ namespace Jupiter.Implementation
 
 		}
 
-		public Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
+		public Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags fieldFlags, IReferencesStore.OperationFlags opFlags)
 		{
 			if (_objects.TryGetValue(BuildKey(ns, bucket, key), out MemoryStoreObject? o))
 			{
-				return Task.FromResult(o.ToRefRecord(flags));
+				return Task.FromResult(o.ToRefRecord(fieldFlags));
 			}
 
 			throw new RefNotFoundException(ns, bucket, key);

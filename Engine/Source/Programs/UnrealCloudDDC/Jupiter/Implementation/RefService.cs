@@ -44,7 +44,13 @@ namespace Jupiter.Implementation
 			_logger = logger;
 		}
 
-		public async Task<(RefRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[]? fields = null, bool doLastAccessTracking = true)
+		public Task<(RefRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[]? fields = null, bool doLastAccessTracking = true)
+		{
+			return GetAsync(ns, bucket, key, fields, doLastAccessTracking, skipCache: false);
+		}
+
+		// ReSharper disable once MethodOverloadWithOptionalParameter - this private overload exists only for bypassing cache for internal use within this service
+		private async Task<(RefRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[]? fields = null, bool doLastAccessTracking = true, bool skipCache = false)
 		{
 			// if no field filtering is being used we assume everything is needed
 			IReferencesStore.FieldFlags flags = IReferencesStore.FieldFlags.All;
@@ -63,13 +69,19 @@ namespace Jupiter.Implementation
 				}
 			}
 
+			IReferencesStore.OperationFlags opFlags = IReferencesStore.OperationFlags.None;
+			if (skipCache)
+			{
+				opFlags |= IReferencesStore.OperationFlags.BypassCache;
+			}
+
 			IServerTiming? serverTiming = _httpContextAccessor.HttpContext?.RequestServices.GetService<IServerTiming>();
 
 			RefRecord o;
 			{
 				using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope("ref.get", "Fetching Ref from DB");
 
-				o = await _referencesStore.GetAsync(ns, bucket, key, flags);
+				o = await _referencesStore.GetAsync(ns, bucket, key, flags, opFlags);
 			}
 
 			if (doLastAccessTracking)
@@ -159,7 +171,8 @@ namespace Jupiter.Implementation
 
 		public async Task<(ContentId[], BlobId[])> FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash)
 		{
-			(RefRecord o, BlobContents? blob) = await GetAsync(ns, bucket, key);
+			// finalize is intended to verify the state of the object in the db, so we bypass any caches to make sure the object we are working on is not stale
+			(RefRecord o, BlobContents? blob) = await GetAsync(ns, bucket, key, skipCache: true);
 			if (blob == null)
 			{
 				throw new InvalidOperationException("No blob when attempting to finalize");
@@ -242,7 +255,7 @@ namespace Jupiter.Implementation
 		{
 			try
 			{
-				(RefRecord, BlobContents?) _ = await GetAsync(ns, bucket, key, new string[] {"name"});
+				(RefRecord, BlobContents?) _ = await GetAsync(ns, bucket, key, new string[] {"name"}, doLastAccessTracking: false, skipCache: false);
 			}
 			catch (NamespaceNotFoundException)
 			{
@@ -271,7 +284,7 @@ namespace Jupiter.Implementation
 		public async Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId name)
 		{
 			byte[] blob;
-			RefRecord o = await _referencesStore.GetAsync(ns, bucket, name, IReferencesStore.FieldFlags.IncludePayload);
+			RefRecord o = await _referencesStore.GetAsync(ns, bucket, name, IReferencesStore.FieldFlags.IncludePayload, IReferencesStore.OperationFlags.None);
 			if (o.InlinePayload != null && o.InlinePayload.Length != 0)
 			{
 				blob = o.InlinePayload;

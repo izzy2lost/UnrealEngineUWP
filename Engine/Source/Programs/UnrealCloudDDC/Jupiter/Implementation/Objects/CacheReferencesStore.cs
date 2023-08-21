@@ -31,11 +31,11 @@ namespace Jupiter.Implementation
 			_upstreamReferenceStore = ActivatorUtilities.CreateInstance<UpstreamReferenceStore>(provider);
 		}
 
-		public async Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
+		public async Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags fieldFlags, IReferencesStore.OperationFlags opFlags)
 		{
 			try
 			{
-				RefRecord cachedRecord = await _mongoReferenceStore.GetAsync(ns, bucket, key, flags);
+				RefRecord cachedRecord = await _mongoReferenceStore.GetAsync(ns, bucket, key, fieldFlags, opFlags);
 				return cachedRecord;
 			}
 			catch (RefNotFoundException)
@@ -43,7 +43,7 @@ namespace Jupiter.Implementation
 				// not cached, we check the upstream for it
 			}
  
-			RefRecord record = await _upstreamReferenceStore.GetAsync(ns, bucket, key, flags);
+			RefRecord record = await _upstreamReferenceStore.GetAsync(ns, bucket, key, fieldFlags, opFlags);
 			await _mongoReferenceStore.PutAsync(record.Namespace, record.Bucket, record.Name, record.BlobIdentifier, record.InlinePayload, record.IsFinalized);
 			return record;
 		}
@@ -105,7 +105,7 @@ namespace Jupiter.Implementation
 		{
 		}
 
-		public async Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags flags)
+		public async Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags fieldFlags, IReferencesStore.OperationFlags opFlags)
 		{
 			using HttpRequestMessage getObjectRequest = await BuildHttpRequestAsync(HttpMethod.Get, new Uri($"api/v1/refs/{ns}/{bucket}/{key}/metadata", UriKind.Relative));
 			getObjectRequest.Headers.Add("Accept", MediaTypeNames.Application.Json);
@@ -183,7 +183,7 @@ namespace Jupiter.Implementation
 		public async Task UpdateLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime)
 		{
 			// there is no endpoint to update last access time externally, but fetching a object will in turn update its last access time, though to a different time then newLastAccessTime
-			await GetAsync(ns, bucket, key, IReferencesStore.FieldFlags.None);
+			await GetAsync(ns, bucket, key, IReferencesStore.FieldFlags.None, IReferencesStore.OperationFlags.None);
 		}
 
 		public IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecordsAsync()
