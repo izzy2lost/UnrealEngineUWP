@@ -44,7 +44,6 @@ public class AnimGraph : ModuleRules
 			new string[] {
                 "UnrealEd",
                 "GraphEditor",
-				"AnimationBlueprintEditor",
             }
 		);
 	}
