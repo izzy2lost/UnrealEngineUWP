@@ -17,7 +17,6 @@
 #include "BlueprintActionDatabaseRegistrar.h"
 #include "BlueprintNodeTemplateCache.h"
 #include "Animation/AnimNode_AssetPlayerBase.h"
-#include "AnimationBlueprintEditorSettings.h"
 
 #define LOCTEXT_NAMESPACE "UAnimGraphNode_AssetPlayerBase"
 
@@ -309,17 +308,14 @@ void UAnimGraphNode_AssetPlayerBase::GetMenuActionsHelper(
 		}	
 		Filter.bRecursiveClasses = true;
 		
-		if (GetDefault<UAnimationBlueprintEditorSettings>()->bShowAssetsInBlueprintContextMenu)
-		{
-			TArray<FAssetData> Assets;
-			AssetRegistryModule.Get().GetAssets(Filter, Assets);
+		TArray<FAssetData> Assets;
+		AssetRegistryModule.Get().GetAssets(Filter, Assets);
 
-			for (const FAssetData& AssetData : Assets)
+		for (const FAssetData& AssetData : Assets)
+		{
+			if(AssetData.IsUAsset())
 			{
-				if(AssetData.IsUAsset())
-				{
-					MakeActionFromAsset(AssetData);
-				}
+				MakeActionFromAsset(AssetData);
 			}
 		}
 
@@ -337,7 +333,7 @@ void UAnimGraphNode_AssetPlayerBase::GetMenuActionsHelper(
 			MakeActionFromAsset(FAssetData());
 		}
 	}
-	else if (bIsObjectOfAssetType && GetDefault<UAnimationBlueprintEditorSettings>()->bShowAssetsInBlueprintContextMenu)
+	else if (bIsObjectOfAssetType)
 	{
 		MakeActionFromAsset(FAssetData(QueryObject));
 	}
