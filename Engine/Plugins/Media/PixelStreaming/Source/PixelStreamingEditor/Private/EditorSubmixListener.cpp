@@ -28,6 +28,12 @@ namespace UE::EditorPixelStreaming
 	{
 	}
 
+	const FString& FEditorSubmixListener::GetListenerName() const
+	{
+		static const FString ListenerName(TEXT("PixelStreamingEditorListener"));
+		return ListenerName;
+	}
+
 	void FEditorSubmixListener::Shutdown()
 	{
 		if (FAudioDevice* AudioDevice = FAudioDeviceManager::Get()->GetAudioDeviceRaw(AudioDeviceId))

@@ -21,6 +21,8 @@ namespace UE::EditorPixelStreaming
 
 		void Shutdown();
 
+		virtual const FString& GetListenerName() const override;
+
 	protected:
 		template <typename ObjectType, ESPMode Mode>
 		friend class SharedPointerInternals::TIntrusiveReferenceController;
