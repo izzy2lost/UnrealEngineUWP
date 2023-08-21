@@ -115,6 +115,12 @@ FTexturePlatformData** UVolumeTexture::GetRunningPlatformData()
 
 void UVolumeTexture::SetPlatformData(FTexturePlatformData* InPlatformData)
 {
+	if (PrivatePlatformData)
+	{
+		ReleaseResource();
+		delete PrivatePlatformData;
+	}
+
 	PrivatePlatformData = InPlatformData;
 }
 

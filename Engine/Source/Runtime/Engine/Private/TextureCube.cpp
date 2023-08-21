@@ -91,6 +91,11 @@ FTexturePlatformData** UTextureCube::GetRunningPlatformData()
 
 void UTextureCube::SetPlatformData(FTexturePlatformData* InPlatformData)
 {
+	if (PrivatePlatformData)
+	{
+		ReleaseResource();
+		delete PrivatePlatformData;
+	}
 	PrivatePlatformData = InPlatformData;
 }
 

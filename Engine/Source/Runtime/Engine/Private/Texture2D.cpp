@@ -293,6 +293,11 @@ FTexturePlatformData** UTexture2D::GetRunningPlatformData()
 
 void UTexture2D::SetPlatformData(FTexturePlatformData* InPlatformData)
 {
+	if (PrivatePlatformData)
+	{
+		ReleaseResource();
+		delete PrivatePlatformData;
+	}
 	PrivatePlatformData = InPlatformData;
 }
 

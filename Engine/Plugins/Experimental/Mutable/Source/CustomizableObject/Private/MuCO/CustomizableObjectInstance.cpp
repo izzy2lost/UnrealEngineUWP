@@ -5783,11 +5783,6 @@ void UCustomizableInstancePrivateData::BuildMaterials(const TSharedPtr<FMutableO
 											check(PlatformData->Mips[0].SizeY == MutableTexture->GetPlatformData()->Mips[0].SizeY);
 										}
 
-										if (MutableTexture->GetPlatformData())
-										{
-											delete MutableTexture->GetPlatformData();
-										}
-
 										MutableTexture->SetPlatformData(PlatformData);
 										OperationData->ImageToPlatformDataMap.Remove(Image.ImageID);
 									}

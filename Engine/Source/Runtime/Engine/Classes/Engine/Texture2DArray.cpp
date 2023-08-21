@@ -110,6 +110,12 @@ FTexturePlatformData** UTexture2DArray::GetRunningPlatformData()
 
 void UTexture2DArray::SetPlatformData(FTexturePlatformData* InPlatformData)
 {
+	if (PrivatePlatformData)
+	{
+		ReleaseResource();
+		delete PrivatePlatformData;
+	}
+
 	PrivatePlatformData = InPlatformData;
 }
 
