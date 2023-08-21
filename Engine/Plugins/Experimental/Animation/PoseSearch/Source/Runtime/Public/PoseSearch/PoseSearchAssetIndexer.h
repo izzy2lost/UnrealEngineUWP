@@ -63,6 +63,10 @@ public:
 
 	bool IsProcessFailed() const { return bProcessFailed; }
 
+#if ENABLE_ANIM_DEBUG
+	void CompareCachedEntries(const FAssetIndexer& Other) const;
+#endif // ENABLE_ANIM_DEBUG
+
 private:
 	int32 GetVectorIdx(int32 SampleIdx) const;
 

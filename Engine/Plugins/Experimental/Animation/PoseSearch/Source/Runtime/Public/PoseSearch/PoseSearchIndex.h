@@ -64,6 +64,15 @@ public:
 		ValueOffset = Value;
 	}
 
+	bool operator==(const FPoseMetadata& Other) const
+	{
+		return
+			ValueOffset == Other.ValueOffset &&
+			AssetIndex == Other.AssetIndex &&
+			bBlockTransition == Other.bBlockTransition &&
+			CostAddend == Other.CostAddend;
+	}
+
 	friend FArchive& operator<<(FArchive& Ar, FPoseMetadata& Metadata);
 };
 
@@ -339,9 +348,7 @@ struct FSearchIndexBase
 		return MakeArrayView(&Values[ValueOffset], DataCardinality);
 	}
 
-#if ENABLE_ANIM_DEBUG
-	bool Compare(const FSearchIndexBase& Other) const;
-#endif // ENABLE_ANIM_DEBUG
+	bool operator==(const FSearchIndexBase& Other) const;
 
 	friend FArchive& operator<<(FArchive& Ar, FSearchIndexBase& Index);
 };
@@ -394,11 +401,8 @@ struct FSearchIndex : public FSearchIndexBase
 	// returns the inverse mapping of PCAValuesVectorToPoseIndexes
 	POSESEARCH_API void GetPoseToPCAValuesVectorIndexes(TArray<uint32>& PoseToPCAValuesVectorIndexes) const;
 
+	bool operator==(const FSearchIndex& Other) const;
 	friend FArchive& operator<<(FArchive& Ar, FSearchIndex& Index);
-
-#if ENABLE_ANIM_DEBUG
-	bool Compare(const FSearchIndex& Other) const;
-#endif // ENABLE_ANIM_DEBUG
 };
 
 } // namespace UE::PoseSearch

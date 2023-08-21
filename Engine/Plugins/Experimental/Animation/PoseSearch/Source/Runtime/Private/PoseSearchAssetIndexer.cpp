@@ -15,7 +15,12 @@
 
 namespace UE::PoseSearch
 {
-	
+
+#if ENABLE_ANIM_DEBUG
+static TAutoConsoleVariable<bool> CVarMotionMatchTestDisableIndexerCaching(TEXT("a.MotionMatch.TestDisableIndexerCaching"), false, TEXT("Disable Motion Matching Indexer Caching"));
+static TAutoConsoleVariable<int> CVarMotionMatchTestExtractPoseDeterminismNumIterations(TEXT("a.MotionMatch.TestExtractPoseDeterminismNumIterations"), 0, TEXT("Test Motion Matching ExtractPose Determinism via this NumIterations retries"));
+#endif // ENABLE_ANIM_DEBUG
+
 //////////////////////////////////////////////////////////////////////////
 // FSamplingParam helpers
 struct FSamplingParam
@@ -271,8 +276,13 @@ FTransform FAssetIndexer::MirrorTransform(const FTransform& Transform) const
 FAssetIndexer::CachedEntry& FAssetIndexer::GetEntry(float SampleTime)
 {
 	using namespace UE::Anim;
+	
+	bool bDisableCaching = false;
+#if ENABLE_ANIM_DEBUG
+	bDisableCaching = CVarMotionMatchTestDisableIndexerCaching.GetValueOnAnyThread();
+#endif // ENABLE_ANIM_DEBUG
 
-	CachedEntry* Entry = CachedEntries.Find(SampleTime);
+	CachedEntry* Entry = bDisableCaching ? nullptr : CachedEntries.Find(SampleTime);
 	if (!Entry)
 	{
 		Entry = &CachedEntries.Add(SampleTime);
@@ -303,6 +313,34 @@ FAssetIndexer::CachedEntry& FAssetIndexer::GetEntry(float SampleTime)
 		FCompactPose Pose;
 		Pose.SetBoneContainer(&BoneContainer);
 		AssetSampler.ExtractPose(CurrentTime, Pose);
+
+#if ENABLE_ANIM_DEBUG
+		const int32 NumIterations = CVarMotionMatchTestExtractPoseDeterminismNumIterations.GetValueOnAnyThread();
+		for (int32 IterationIndex = 0; IterationIndex < NumIterations; ++IterationIndex)
+		{
+			FCompactPose TestPose;
+			TestPose.SetBoneContainer(&BoneContainer);
+			AssetSampler.ExtractPose(CurrentTime, TestPose);
+
+			const TConstArrayView<FTransform> Bones = Pose.GetBones();
+			const TConstArrayView<FTransform> TestBones = TestPose.GetBones();
+			if (Bones.Num() != TestBones.Num())
+			{
+				UE_LOG(LogPoseSearch, Warning, TEXT("FAssetIndexer::GetEntry - ExtractPose is not deterministic"));
+			}
+			else
+			{
+				for (int32 BoneIndex = 0; BoneIndex < Bones.Num(); ++BoneIndex)
+				{
+					if (FMemory::Memcmp(&Bones[BoneIndex], &TestBones[BoneIndex], sizeof(FTransform)) != 0)
+					{
+						UE_LOG(LogPoseSearch, Warning, TEXT("FAssetIndexer::GetEntry - ExtractPose is not deterministic"));
+					}
+				}
+			}
+		}
+#endif // ENABLE_ANIM_DEBUG
+
 		Pose[FCompactPoseBoneIndex(RootBoneIndexType)].SetIdentity();
 
 		if (SearchIndexAsset.bMirrored && Schema.MirrorDataTable)
@@ -689,6 +727,66 @@ float FAssetIndexer::CalculatePermutationTimeOffset() const
 	const float PermutationTimeOffset = Schema.PermutationsTimeOffset + SearchIndexAsset.PermutationIdx / float(Schema.PermutationsSampleRate);
 	return PermutationTimeOffset;
 }
+
+#if ENABLE_ANIM_DEBUG
+void FAssetIndexer::CompareCachedEntries(const FAssetIndexer& Other) const
+{
+	if (CachedEntries.Num() != Other.CachedEntries.Num())
+	{
+		UE_LOG(LogPoseSearch, Warning, TEXT("CompareCachedEntries - FAssetIndexer::CachedEntries::Num is not deterministic"));
+	}
+	else
+	{
+		for (const TPair<float, CachedEntry>& Pair : CachedEntries)
+		{
+			if (const CachedEntry* OtherEntry = Other.CachedEntries.Find(Pair.Key))
+			{
+				const CachedEntry* Entry = &Pair.Value;
+				if (Entry->SampleTime != OtherEntry->SampleTime)
+				{
+					UE_LOG(LogPoseSearch, Warning, TEXT("CompareCachedEntries - FAssetIndexer::CachedEntries::SampleTime is not deterministic (%f, %f)"), Entry->SampleTime, OtherEntry->SampleTime);
+				}
+
+				if (Entry->bClamped != OtherEntry->bClamped)
+				{
+					UE_LOG(LogPoseSearch, Warning, TEXT("CompareCachedEntries - FAssetIndexer::CachedEntries::bClamped is not deterministic"));
+				}
+
+				if (FMemory::Memcmp(&Entry->RootTransform, &OtherEntry->RootTransform, sizeof(FTransform)) != 0)
+				{
+					UE_LOG(LogPoseSearch, Warning, TEXT("CompareCachedEntries - FAssetIndexer::CachedEntries::RootTransform is not deterministic"));
+				}
+
+				if (Entry->ComponentSpacePose.GetComponentSpaceFlags() != OtherEntry->ComponentSpacePose.GetComponentSpaceFlags())
+				{
+					UE_LOG(LogPoseSearch, Warning, TEXT("CompareCachedEntries - FAssetIndexer::CachedEntries::ComponentSpacePose::ComponentSpaceFlags is not deterministic"));
+				}
+
+				const TConstArrayView<FTransform> Bones = Entry->ComponentSpacePose.GetPose().GetBones();
+				const TConstArrayView<FTransform> OtherBones = OtherEntry->ComponentSpacePose.GetPose().GetBones();
+				if (Bones.Num() != OtherBones.Num())
+				{
+					UE_LOG(LogPoseSearch, Warning, TEXT("CompareCachedEntries - FAssetIndexer::CachedEntries::ComponentSpacePose::Bones is not deterministic"));
+				}
+				else
+				{
+					for (int32 Index = 0; Index < Bones.Num(); ++Index)
+					{
+						if (FMemory::Memcmp(&Bones[Index], &OtherBones[Index], sizeof(FTransform)) != 0)
+						{
+							UE_LOG(LogPoseSearch, Warning, TEXT("CompareCachedEntries - FAssetIndexer::CachedEntries::Bones[%d] is not deterministic"), Index);
+						}
+					}
+				}
+			}
+			else
+			{
+				UE_LOG(LogPoseSearch, Warning, TEXT("CompareCachedEntries - FAssetIndexer::CachedEntries is not deterministic. Missing CachedEntry at time %f"), Pair.Key);
+			}
+		}
+	}
+}
+#endif // ENABLE_ANIM_DEBUG
 
 } // namespace UE::PoseSearch
 #endif // WITH_EDITOR

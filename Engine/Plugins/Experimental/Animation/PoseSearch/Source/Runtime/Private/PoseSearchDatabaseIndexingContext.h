@@ -37,6 +37,10 @@ struct FDatabaseIndexingContext
 {
 	bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const UPoseSearchDatabase& Database, UE::DerivedData::FRequestOwner& Owner);
 
+	const FAssetSamplingContext& GetSamplingContext() const { return SamplingContext; }
+	const TConstArrayView<FAnimationAssetSampler> GetSamplers() const { return Samplers; }
+	const TConstArrayView<FAssetIndexer> GetIndexers() const { return Indexers; }
+
 private:
 	FAssetSamplingContext SamplingContext;
 	TArray<FAnimationAssetSampler> Samplers;

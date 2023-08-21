@@ -11,7 +11,6 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "DerivedDataCache.h"
 #include "DerivedDataRequestOwner.h"
-#include "Editor/EditorEngine.h"
 #include "InstancedStruct.h"
 #include "Misc/CoreDelegates.h"
 #include "PoseSearchDatabaseIndexingContext.h"
@@ -678,6 +677,150 @@ static void PreprocessSearchIndexKDTree(FSearchIndex& SearchIndex, const UPoseSe
 	}
 }
 
+#if ENABLE_ANIM_DEBUG
+
+static void CompareIndexingContext(const FDatabaseIndexingContext& A, const FDatabaseIndexingContext& B)
+{
+	if (A.GetIndexers().Num() != B.GetIndexers().Num())
+	{
+		UE_LOG(LogPoseSearch, Warning, TEXT("CompareIndexers - FAssetIndexer is not deterministic"));
+	}
+	else
+	{
+		for (int32 Index = 0; Index < A.GetIndexers().Num(); ++Index)
+		{
+			A.GetIndexers()[Index].CompareCachedEntries(B.GetIndexers()[Index]);
+		}
+	}
+}
+
+static void CompareChannelValues(int32 RecursionIndex, int32 PoseIndex, const TConstArrayView<float>& PoseA, const TConstArrayView<float>& PoseB, const TConstArrayView<TObjectPtr<UPoseSearchFeatureChannel>>& Channels, FStringBuilderBase& StringBuilder)
+{
+	bool bPrintHeader = true;
+	for (const TObjectPtr<UPoseSearchFeatureChannel>& ChannelPtr : Channels)
+	{
+		const int32 ChannelCardinality = ChannelPtr->GetChannelCardinality();
+		const int32 ChannelDataOffset = ChannelPtr->GetChannelDataOffset();
+
+		for (int32 Index = 0; Index < ChannelCardinality; ++Index)
+		{
+			const int32 DataOffset = ChannelDataOffset + Index;
+			const float ValueA = PoseA[DataOffset];
+			const float ValueB = PoseB[DataOffset];
+			if (ValueA != ValueB)
+			{
+				if (bPrintHeader && RecursionIndex == 0)
+				{
+					StringBuilder.Appendf(TEXT("Values mismatch at pose %d\n"), PoseIndex);
+					bPrintHeader = false;
+				}
+
+				for (int32 Indentation = 0; Indentation < RecursionIndex; ++Indentation)
+				{
+					StringBuilder.Append(TEXT("    "));
+				}
+
+				StringBuilder.Appendf(TEXT("%s - %d (%f, %f)\n"), *ChannelPtr->GetName(), Index, ValueA, ValueB);
+			}
+		}
+
+		CompareChannelValues(RecursionIndex + 1, PoseIndex, PoseA, PoseB, ChannelPtr->GetSubChannels(), StringBuilder);
+	}
+}
+
+static void CompareSearchIndexBase(const FSearchIndexBase& A, const FSearchIndexBase& B, const UPoseSearchSchema* Schema, FStringBuilderBase& StringBuilder)
+{
+	check(Schema);
+
+	if (A.Values.Num() != B.Values.Num())
+	{
+		StringBuilder.Append(TEXT("Values.Num mismatch\n"));
+	}
+	else if ((A.Values.Num() % Schema->SchemaCardinality) != 0)
+	{
+		StringBuilder.Append(TEXT("Values.Num is not a multiple of Schema->SchemaCardinality!\n"));
+	}
+	else if (Schema->SchemaCardinality > 0)
+	{
+		// cannot use A.GetNumPoses() since A.Values can be pruned out from duplicates
+		int32 ValuesDataOffset = 0;
+		const int32 NumValuePoses = A.Values.Num() / Schema->SchemaCardinality;
+		for (int32 ValuePoseIndex = 0; ValuePoseIndex < NumValuePoses; ++ValuePoseIndex)
+		{
+			const TConstArrayView<float> PoseA = MakeArrayView(A.Values.GetData() + ValuePoseIndex * Schema->SchemaCardinality, Schema->SchemaCardinality);
+			const TConstArrayView<float> PoseB = MakeArrayView(B.Values.GetData() + ValuePoseIndex * Schema->SchemaCardinality, Schema->SchemaCardinality);
+			CompareChannelValues(0, ValuePoseIndex, PoseA, PoseB, Schema->GetChannels(), StringBuilder);
+		}
+	}
+
+	if (A.PoseMetadata != B.PoseMetadata)
+	{
+		StringBuilder.Append(TEXT("PoseMetadata mismatch\n"));
+	}
+
+	if (A.bAnyBlockTransition != B.bAnyBlockTransition)
+	{
+		StringBuilder.Append(TEXT("bAnyBlockTransition mismatch\n"));
+	}
+
+	if (A.Assets != B.Assets)
+	{
+		StringBuilder.Append(TEXT("Assets mismatch\n"));
+	}
+	 
+	if (A.MinCostAddend != B.MinCostAddend)
+	{
+		StringBuilder.Append(TEXT("MinCostAddend mismatch\n"));
+	}
+
+	if (A.Stats != B.Stats)
+	{
+		StringBuilder.Append(TEXT("Stats mismatch\n"));
+	}
+}
+
+static void CompareSearchIndex(const FSearchIndex& A, const FSearchIndex& B, const UPoseSearchSchema* Schema, FStringBuilderBase& StringBuilder)
+{
+	CompareSearchIndexBase(A, B, Schema, StringBuilder);
+
+	if (A.WeightsSqrt != B.WeightsSqrt)
+	{
+		StringBuilder.Append(TEXT("WeightsSqrt mismatch\n"));
+	}
+	
+	if (A.PCAValues != B.PCAValues)
+	{
+		StringBuilder.Append(TEXT("PCAValues mismatch\n"));
+	}
+
+	if (A.PCAValuesVectorToPoseIndexes != B.PCAValuesVectorToPoseIndexes)
+	{
+		StringBuilder.Append(TEXT("PCAValuesVectorToPoseIndexes mismatch\n"));
+	}
+
+	if (A.PCAProjectionMatrix != B.PCAProjectionMatrix)
+	{
+		StringBuilder.Append(TEXT("PCAProjectionMatrix mismatch\n"));
+	}
+
+	if (A.Mean != B.Mean)
+	{
+		StringBuilder.Append(TEXT("Mean mismatch\n"));
+	}
+
+	if (A.PCAExplainedVariance != B.PCAExplainedVariance)
+	{
+		StringBuilder.Append(TEXT("PCAExplainedVariance mismatch\n"));
+	}
+
+	if (A.KDTree != B.KDTree)
+	{
+		StringBuilder.Append(TEXT("KDTree mismatch\n"));
+	}
+}
+
+#endif // ENABLE_ANIM_DEBUG
+
 //////////////////////////////////////////////////////////////////////////
 // FPoseSearchDatabaseAsyncCacheTask
 struct FPoseSearchDatabaseAsyncCacheTask
@@ -1095,9 +1238,13 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 							FDatabaseIndexingContext TestDbIndexingContext;
 							if (TestDbIndexingContext.IndexDatabase(TestSearchIndexBase, *IndexBaseDatabase, Owner))
 							{
-								if (!TestSearchIndexBase.Compare(SearchIndexBase))
+								if (TestSearchIndexBase != SearchIndexBase)
 								{
-									UE_LOG(LogPoseSearch, Warning, TEXT("OnGetComplete - IndexDatabase is not deterministic"));
+									FStringBuilderBase Message;
+									CompareSearchIndexBase(TestSearchIndexBase, SearchIndexBase, IndexBaseDatabase->Schema, Message);
+									UE_LOG(LogPoseSearch, Warning, TEXT("OnGetComplete - IndexDatabase is not deterministic\n%s"), *Message);
+
+									CompareIndexingContext(TestDbIndexingContext, DbIndexingContext);
 								}
 							}
 						}
@@ -1188,9 +1335,11 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 #if ENABLE_ANIM_DEBUG
 				if (bCompareSearchIndex)
 				{
-					if (!SearchIndexCompare.Compare(SearchIndex))
+					if (SearchIndexCompare != SearchIndex)
 					{
-						UE_LOG(LogPoseSearch, Warning, TEXT("%s - %s BuildIndex mismatch with DDC Index"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName());
+						FStringBuilderBase Message;
+						CompareSearchIndex(SearchIndexCompare, SearchIndex, IndexBaseDatabases[0]->Schema, Message);
+						UE_LOG(LogPoseSearch, Warning, TEXT("%s - %s BuildIndex mismatch with DDC Index\n%s"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName(), *Message);
 					}
 				}
 #endif // ENABLE_ANIM_DEBUG
@@ -1237,9 +1386,11 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 											FSearchIndex TestSearchIndex;
 											Reader << TestSearchIndex;
 
-											if (!TestSearchIndex.Compare(SearchIndex))
+											if (TestSearchIndex != SearchIndex)
 											{
-												UE_LOG(LogPoseSearch, Warning, TEXT("%s - %s DDC Index mismatch with BuildIndex"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName());
+												FStringBuilderBase Message;
+												CompareSearchIndex(TestSearchIndex, SearchIndex, IndexBaseDatabases[0]->Schema, Message);
+												UE_LOG(LogPoseSearch, Warning, TEXT("%s - %s DDC Index mismatch with BuildIndex\n%s"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName(), *Message);
 											}
 										}
 									});
@@ -1428,14 +1579,6 @@ bool FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(const UPoseSear
 	}
 
 	FScopeLock Lock(&Mutex);
-
-#if WITH_ENGINE
-	//If there isn't an EditorEngine (ex. Standalone Game via -game argument) the FAsyncPoseSearchDatabasesManagement task doesn't get ticked, need to force completion here
-	if (Cast<UEditorEngine>(GEngine) == nullptr)
-	{
-		Flag |= ERequestAsyncBuildFlag::WaitForCompletion;
-	}
-#endif // WITH_ENGINE
 
 	check(EnumHasAnyFlags(Flag, ERequestAsyncBuildFlag::NewRequest | ERequestAsyncBuildFlag::ContinueRequest));
 

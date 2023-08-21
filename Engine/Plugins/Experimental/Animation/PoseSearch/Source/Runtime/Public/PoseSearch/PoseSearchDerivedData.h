@@ -22,7 +22,7 @@ namespace UE::PoseSearch
 	};
 	ENUM_CLASS_FLAGS(ERequestAsyncBuildFlag);
 
-	class POSESEARCH_API FAsyncPoseSearchDatabasesManagement : public FTickableEditorObject, public FTickableCookObject, public FGCObject
+	class POSESEARCH_API FAsyncPoseSearchDatabasesManagement : public FTickableGameObject, public FTickableCookObject, public FGCObject
 	{
 	public:
 		static bool RequestAsyncBuildIndex(const UPoseSearchDatabase* Database, ERequestAsyncBuildFlag Flag);
@@ -39,11 +39,13 @@ namespace UE::PoseSearch
 		void Shutdown();
 		void StartQueuedTasks(int32 MaxActiveTasks);
 
-		// Begin FTickableEditorObject
+		// Begin FTickableGameObject
 		virtual void Tick(float DeltaTime) override;
 		virtual ETickableTickType GetTickableTickType() const override { return ETickableTickType::Always; }
 		virtual TStatId GetStatId() const override;
-		// End FTickableEditorObject
+		virtual bool IsTickableWhenPaused() const override { return true; }
+		virtual bool IsTickableInEditor() const override { return true; }
+		// End FTickableGameObject
 
 		// Begin FTickableCookObject
 		virtual void TickCook(float DeltaTime, bool bCookCompete) override;

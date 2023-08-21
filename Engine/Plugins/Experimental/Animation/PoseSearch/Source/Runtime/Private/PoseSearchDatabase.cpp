@@ -16,6 +16,10 @@
 #include "PoseSearch/PoseSearchSchema.h"
 #include "UObject/ObjectSaveContext.h"
 
+#if WITH_EDITOR && WITH_ENGINE
+#include "Editor/EditorEngine.h"
+#endif //WITH_EDITOR && WITH_ENGINE
+
 DECLARE_STATS_GROUP(TEXT("PoseSearch"), STATGROUP_PoseSearch, STATCAT_Advanced);
 DECLARE_CYCLE_STAT_EXTERN(TEXT("Search Brute Force"), STAT_PoseSearch_BruteForce, STATGROUP_PoseSearch, );
 DECLARE_CYCLE_STAT_EXTERN(TEXT("Search PCA/KNN"), STAT_PoseSearch_PCAKNN, STATGROUP_PoseSearch, );
@@ -524,7 +528,17 @@ void UPoseSearchDatabase::PostLoad()
 
 #if WITH_EDITOR
 	using namespace UE::PoseSearch;
-	FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(this, ERequestAsyncBuildFlag::NewRequest);
+
+	ERequestAsyncBuildFlag Flag = ERequestAsyncBuildFlag::NewRequest;
+#if WITH_ENGINE
+	// If there isn't an EditorEngine (ex. Standalone Game via -game argument) we WaitForCompletion
+	if (Cast<UEditorEngine>(GEngine) == nullptr)
+	{
+		Flag |= ERequestAsyncBuildFlag::WaitForCompletion;
+	}
+#endif // WITH_ENGINE
+
+	FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(this, Flag);
 #endif
 
 	Super::PostLoad();

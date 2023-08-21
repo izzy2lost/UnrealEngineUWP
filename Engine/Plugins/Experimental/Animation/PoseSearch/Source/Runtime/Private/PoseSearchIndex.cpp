@@ -423,44 +423,16 @@ void FSearchIndexBase::AllocateData(int32 DataCardinality, int32 NumPoses)
 	PoseMetadata.SetNumZeroed(NumPoses);
 }
 
-#if ENABLE_ANIM_DEBUG
-bool FSearchIndexBase::Compare(const FSearchIndexBase& Other) const
+bool FSearchIndexBase::operator==(const FSearchIndexBase& Other) const
 {
-	bool bResult = true;
-
-	if (Values != Other.Values)
-	{
-		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndexBase::Compare - Values mismatch"));
-		bResult = false;
-	}
-
-	if (bAnyBlockTransition != Other.bAnyBlockTransition)
-	{
-		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndexBase::Compare - bAnyBlockTransition mismatch"));
-		bResult = false;
-	}
-
-	if (Assets != Other.Assets)
-	{
-		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndexBase::Compare - Assets mismatch"));
-		bResult = false;
-	}
-	 
-	if (MinCostAddend != Other.MinCostAddend)
-	{
-		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndexBase::Compare - MinCostAddend mismatch"));
-		bResult = false;
-	}
-
-	if (Stats != Other.Stats)
-	{
-		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndexBase::Compare - Stats mismatch"));
-		bResult = false;
-	}
-
-	return true;
+	return
+		Values == Other.Values &&
+		PoseMetadata == Other.PoseMetadata &&
+		bAnyBlockTransition == Other.bAnyBlockTransition &&
+		Assets == Other.Assets &&
+		MinCostAddend == Other.MinCostAddend &&
+		Stats == Other.Stats;
 }
-#endif // ENABLE_ANIM_DEBUG
 
 FArchive& operator<<(FArchive& Ar, FSearchIndexBase& Index)
 {
@@ -721,57 +693,18 @@ void FSearchIndex::GetPoseToPCAValuesVectorIndexes(TArray<uint32>& PoseToPCAValu
 	}
 }
 
-#if ENABLE_ANIM_DEBUG
-bool FSearchIndex::Compare(const FSearchIndex& Other) const
+bool FSearchIndex::operator==(const FSearchIndex& Other) const
 {
-	bool bResult = FSearchIndexBase::Compare(static_cast<const FSearchIndexBase&>(Other));
-
-	if (WeightsSqrt != Other.WeightsSqrt)
-	{
-		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndex::Compare - WeightsSqrt mismatch"));
-		bResult = false;
-	}
-	
-	if (PCAValues != Other.PCAValues)
-	{
-		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndex::Compare - PCAValues mismatch"));
-		bResult = false;
-	}
-
-	if (PCAValuesVectorToPoseIndexes != Other.PCAValuesVectorToPoseIndexes)
-	{
-		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndex::Compare - PCAValuesVectorToPoseIndexes mismatch"));
-		bResult = false;
-	}
-
-	if (PCAProjectionMatrix != Other.PCAProjectionMatrix)
-	{
-		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndex::Compare - PCAProjectionMatrix mismatch"));
-		bResult = false;
-	}
-
-	if (Mean != Other.Mean)
-	{
-		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndex::Compare - Mean mismatch"));
-		bResult = false;
-	}
-
-	if (PCAExplainedVariance != Other.PCAExplainedVariance)
-	{
-		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndex::Compare - PCAExplainedVariance mismatch"));
-		bResult = false;
-	}
-
-	if (KDTree != Other.KDTree)
-	{
-		UE_LOG(LogPoseSearch, Warning, TEXT("FSearchIndex::Compare - KDTree mismatch"));
-		bResult = false;
-	}
-	
-	return bResult;
+	return
+		FSearchIndexBase::operator==(Other) &&
+		WeightsSqrt == Other.WeightsSqrt &&
+		PCAValues == Other.PCAValues &&
+		PCAValuesVectorToPoseIndexes == Other.PCAValuesVectorToPoseIndexes &&
+		PCAProjectionMatrix == Other.PCAProjectionMatrix &&
+		Mean == Other.Mean &&
+		PCAExplainedVariance == Other.PCAExplainedVariance &&
+		KDTree == Other.KDTree;
 }
-#endif // ENABLE_ANIM_DEBUG
-
 
 FArchive& operator<<(FArchive& Ar, FSearchIndex& Index)
 {
