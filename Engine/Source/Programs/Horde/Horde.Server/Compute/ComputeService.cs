@@ -100,7 +100,7 @@ namespace Horde.Server.Compute
 			computeTask.Key = UnsafeByteOperations.UnsafeWrap(AesTransport.CreateKey());
 			computeTask.Resources.Add(assignedResources);
 			computeTask.LogId = logId?.ToString();
-			computeTask.ParentLeaseId = parentLeaseId?.ToString();
+			computeTask.ParentLeaseId = parentLeaseId?.ToString() ?? String.Empty;
 			return computeTask;
 		}
 	}
