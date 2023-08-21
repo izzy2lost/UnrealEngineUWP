@@ -847,6 +847,9 @@ private:
 	/** Pending tree items that are yet to be added the tree */
 	FSceneOutlinerTreeItemMap PendingTreeItemMap;
 
+	/** Pending tree items that are yet to be removed from the tree */
+	FSceneOutlinerTreeItemMap PendingTreeItemMap_Removal;
+
 	/** Folders pending selection */
 	TArray<FFolder> PendingFoldersSelect;
 

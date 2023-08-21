@@ -941,6 +941,8 @@ void SSceneOutliner::RemoveItemFromTree(FSceneOutlinerTreeItemRef ReferenceItem)
 			RootTreeItems.Remove(Item);
 		}
 
+		PendingTreeItemMap_Removal.Remove(Item->GetID());
+
 		TreeItemMap.Remove(Item->GetID());
 
 		Mode->OnItemRemoved(Item);
@@ -1969,7 +1971,13 @@ void SSceneOutliner::OnHierarchyChangedEvent(FSceneOutlinerHierarchyChangedData 
 	{
 		for (const auto& TreeItemPtr : Event.Items)
 		{
-			if (TreeItemPtr.IsValid() && !TreeItemMap.Find(TreeItemPtr->GetID()))
+			if(!TreeItemPtr.IsValid())
+			{
+				continue;
+			}
+
+			// If the item doesn't exist in the tree, or is being removed and re-added in the same frame - it is not a duplicate and can be added
+			if(!TreeItemMap.Find(TreeItemPtr->GetID()) || PendingTreeItemMap_Removal.Find(TreeItemPtr->GetID()))
 			{
 				AddPendingItemAndChildren(TreeItemPtr);
 				if (Event.ItemActions)
@@ -1992,6 +2000,7 @@ void SSceneOutliner::OnHierarchyChangedEvent(FSceneOutlinerHierarchyChangedData 
 			if (Item)
 			{
 				PendingOperations.Emplace(SceneOutliner::FPendingTreeOperation::Removed, Item->ToSharedRef());
+				PendingTreeItemMap_Removal.Add(TreeItemID, Item->ToSharedRef());
 			}
 		}
 		Refresh();
@@ -2077,6 +2086,7 @@ void SSceneOutliner::OnItemLabelChanged(FSceneOutlinerTreeItemPtr ChangedItem)
 		{
 			// No longer matches the filters, remove it
 			PendingOperations.Emplace(SceneOutliner::FPendingTreeOperation::Removed, ExistingItem->ToSharedRef());
+			PendingTreeItemMap_Removal.Add(ChangedItem->GetID(), ExistingItem->ToSharedRef());
 			Refresh();
 		}
 	}
