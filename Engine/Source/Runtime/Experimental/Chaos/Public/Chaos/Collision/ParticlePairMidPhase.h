@@ -317,6 +317,7 @@ namespace Chaos
 		 */
 		void SetIsActive(bool bIsActive)
 		{
+			Flags.bIsModified = true;
 			Flags.bIsActive = bIsActive;
 		}
 
