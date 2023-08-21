@@ -440,7 +440,6 @@ void FJournal::ClosePhrase(FPhrase& Phrase)
 
 		File->Seek(DataCursor);
 		File->Write(Buffer, WriteSize);
-		File->Flush();
 		File.Reset();
 
 		Prune(DataCursor, WriteSize);
@@ -584,7 +583,6 @@ int32 FJournal::Flush()
 
 		File->Seek(JournalCursor);
 		File->Write((uint8*)(Entries.GetData()), Size);
-		File->Flush();
 		JournalCursor += Size;
 	}
 
