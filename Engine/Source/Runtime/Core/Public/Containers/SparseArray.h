@@ -1060,8 +1060,8 @@ public:
 			return !(bool)*this;
 		}
 
-		FORCEINLINE const ElementType& operator*() const { return Array(GetIndex()); }
-		FORCEINLINE const ElementType* operator->() const { return &Array(GetIndex()); }
+		FORCEINLINE const ElementType& operator*() const { return Array[GetIndex()]; }
+		FORCEINLINE const ElementType* operator->() const { return &Array[GetIndex()]; }
 		FORCEINLINE const FRelativeBitReference& GetRelativeBitReference() const { return BitArrayIt; }
 	private:
 		const TSparseArray& Array;
