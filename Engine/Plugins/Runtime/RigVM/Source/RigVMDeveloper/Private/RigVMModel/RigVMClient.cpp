@@ -1178,11 +1178,8 @@ bool FRigVMClient::UpdateFunctionReferences(const FRigVMGraphFunctionHeader& Hea
 		{
 			const TSoftObjectPtr<URigVMFunctionReferenceNode>& Reference = FunctionReferenceArray->FunctionReferences[i];
 
-			// Load reference package
-			if (!Reference.IsValid())
-			{
-				Reference.LoadSynchronous();
-			}
+			// Only update references that are loaded
+			// Other references will be updated when they are loaded
 			if (Reference.IsValid())
 			{
 				URigVMFunctionReferenceNode* Node = Reference.Get();
@@ -1194,7 +1191,7 @@ bool FRigVMClient::UpdateFunctionReferences(const FRigVMGraphFunctionHeader& Hea
 				{
 					if (URigVMLibraryNode* LibraryNode = Node->FindFunctionForNode())
 					{
-						IRigVMClientHost* OtherClientHost = LibraryNode->GetImplementingOuter<IRigVMClientHost>();							
+						IRigVMClientHost* OtherClientHost = LibraryNode->GetImplementingOuter<IRigVMClientHost>();
 						if (bUpdateDependencies)
 						{
 							OtherClientHost->GetRigVMClient()->UpdateDependenciesForFunction(LibraryNode);
