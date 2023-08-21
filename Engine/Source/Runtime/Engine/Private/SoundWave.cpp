@@ -30,16 +30,14 @@
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "Algo/BinarySearch.h"
 #include "Templates/UnrealTemplate.h"
+#include "UObject/ObjectSaveContext.h"
 
-#if WITH_EDITOR
-#endif // WITH_EDITOR
-
-static int32 SoundWaveDefaultLoadingBehaviorCVar = 0;
+static int32 SoundWaveDefaultLoadingBehaviorCVar = static_cast<int32>(ESoundWaveLoadingBehavior::LoadOnDemand);
 FAutoConsoleVariableRef CVarSoundWaveDefaultLoadingBehavior(
 	TEXT("au.streamcache.SoundWaveDefaultLoadingBehavior"),
 	SoundWaveDefaultLoadingBehaviorCVar,
 	TEXT("This can be set to define the default behavior when a USoundWave is loaded.\n")
-	TEXT("0: Default (load on demand), 1: Retain audio data on load, 2: prime audio data on load, 3: load on demand (No audio data is loaded until a USoundWave is played or primed)."),
+	TEXT("1: Retain audio data on load, 2: prime audio data on load, 3: load on demand (No audio data is loaded until a USoundWave is played or primed)."),
 	ECVF_Default);
 
 static int32 ForceNonStreamingInEditorCVar = 0;
@@ -81,6 +79,28 @@ FAutoConsoleVariableRef CvarAllowReverbForMultichannelSources(
 	TEXT("Controls if we allow Reverb processing for sources with channel counts > 2.\n")
 	TEXT("0: Disable, >0: Enable"),
 	ECVF_Default);
+
+namespace SoundWave_Private
+{
+	static ESoundWaveLoadingBehavior GetDefaultLoadingBehaviorCVar()
+	{
+		// query the default loading behavior CVar
+		ensureMsgf(SoundWaveDefaultLoadingBehaviorCVar >= static_cast<int32>(ESoundWaveLoadingBehavior::RetainOnLoad) &&
+			SoundWaveDefaultLoadingBehaviorCVar <= static_cast<int32>(ESoundWaveLoadingBehavior::LoadOnDemand),
+			TEXT("Invalid default loading behavior CVar value=%d:%s. Use value 1 (retain on load), 2 (prime on load) or 3 (load on demand)."),
+			SoundWaveDefaultLoadingBehaviorCVar, EnumToString(static_cast<ESoundWaveLoadingBehavior>(SoundWaveDefaultLoadingBehaviorCVar)));
+
+		// Clamp the value to make sure its in range.
+		const ESoundWaveLoadingBehavior DefaultLoadingBehavior = static_cast<ESoundWaveLoadingBehavior>(
+			FMath::Clamp<int32>(
+				SoundWaveDefaultLoadingBehaviorCVar,
+				static_cast<int32>(ESoundWaveLoadingBehavior::RetainOnLoad),
+				static_cast<int32>(ESoundWaveLoadingBehavior::LoadOnDemand)
+			));
+
+		return DefaultLoadingBehavior;
+	}
+}
 
 
 #if !UE_BUILD_SHIPPING
@@ -146,8 +166,8 @@ void FSoundWaveData::InitializeDataFromSoundWave(USoundWave& InWave)
 
 	// cache the runtime format for the wave
 	// note if this fails, it will ensure, and keep the "FSoundWaveProxy_InvalidFormat" as its value.
-	FName FoundFormat = FindRuntimeFormat(InWave);
-	if (!FoundFormat.IsNone())
+	const FName FoundFormat = FindRuntimeFormat(InWave);
+	if (ensure(!FoundFormat.IsNone()))
 	{
 		RuntimeFormat = FoundFormat;
 	}
@@ -656,6 +676,11 @@ ITargetPlatform* USoundWave::GetRunningPlatform()
 	}
 }
 
+ENGINE_API ESoundWaveLoadingBehavior USoundWave::GetDefaultLoadingBehavior() 
+{
+	return SoundWave_Private::GetDefaultLoadingBehaviorCVar();
+}
+
 /*-----------------------------------------------------------------------------
 	FStreamedAudioChunk
 -----------------------------------------------------------------------------*/
@@ -663,36 +688,32 @@ ITargetPlatform* USoundWave::GetRunningPlatform()
 void FStreamedAudioChunk::Serialize(FArchive& Ar, UObject* Owner, int32 ChunkIndex)
 {
 	DECLARE_SCOPE_CYCLE_COUNTER( TEXT("FStreamedAudioChunk::Serialize"), STAT_StreamedAudioChunk_Serialize, STATGROUP_LoadTime );
-	bool bShouldInlineAudioChunk = false;
-
-	const ITargetPlatform* CookingTarget = Ar.CookingTarget();
-	if (CookingTarget != nullptr)
-	{
-		const FPlatformAudioCookOverrides* Overrides = FPlatformCompressionUtilities::GetCookOverrides(*CookingTarget->IniPlatformName());
-		check(Overrides);
-		bShouldInlineAudioChunk = Overrides->bInlineStreamedAudioChunks;
-	}
 
 	enum 
 	{
 		IsCooked			 = 1 << 0,
-		HasSeekOffset		 = 1 << 1
+		HasSeekOffset		 = 1 << 1,
+		IsInlined			 = 1 << 2,
 	};
 	
 	// Bit-pack flags into a single uint32, instead of a bool.
 	uint32 Flags = 0;
 	if (Ar.IsSaving())
 	{
+#if WITH_EDITORONLY_DATA
+		// Chunk 0 is always inlined, others are optionally inlined.
+		const bool bShouldInline = ChunkIndex == 0 || bInlineChunk;
+		Flags |= bShouldInline ? IsInlined : 0;
+#endif //WITH_EDITORONLY_DATA
 		Flags |= Ar.IsCooking() ? IsCooked : 0;
 		Flags |= SeekOffsetInAudioFrames != INDEX_NONE ? HasSeekOffset : 0;
 	}
 
 	Ar << Flags;
 
-	// ChunkIndex 0 is always inline payload, all other chunks are streamed.
 	if (Ar.IsSaving())
 	{
-		if (ChunkIndex == 0 || (ChunkIndex == 1 && bShouldInlineAudioChunk))
+		if (Flags & IsInlined)
 		{
 			BulkData.SetBulkDataFlags(BULKDATA_ForceInlinePayload);
 		}
@@ -738,9 +759,10 @@ void FStreamedAudioChunk::Serialize(FArchive& Ar, UObject* Owner, int32 ChunkInd
 		Ar << DerivedDataKey;
 	}
 
-	if (Ar.IsLoading() && (Flags & IsCooked))
+	if (Ar.IsLoading())
 	{
-		bLoadedFromCookedPackage = true;
+		bLoadedFromCookedPackage = !!(Flags & IsCooked);
+		bInlineChunk = !!(Flags & IsInlined);
 	}
 #endif // #if WITH_EDITORONLY_DATA
 }
@@ -776,6 +798,19 @@ bool FStreamedAudioChunk::GetCopy(void** OutChunkData)
 	}
 
 	return false;
+}
+
+FBulkDataBuffer<uint8> FStreamedAudioChunk::MoveOutAsBuffer() 
+{
+	if (ensure(AudioDataSize > 0))
+	{
+		if (ensure(AudioDataSize <= BulkData.GetElementCount()))
+		{
+			const int64 RequestedSize = FMath::Min(AudioDataSize, BulkData.GetElementCount());
+			return BulkData.GetCopyAsBuffer(RequestedSize, /* Discard Internal Copy */ true);
+		}
+	}
+	return {};
 }
 
 #if WITH_EDITORONLY_DATA
@@ -989,9 +1024,44 @@ void USoundWave::Serialize( FArchive& Ar )
 	DECLARE_SCOPE_CYCLE_COUNTER( TEXT("USoundWave::Serialize"), STAT_SoundWave_Serialize, STATGROUP_LoadTime );
 
 	Super::Serialize( Ar );
+	
+	// Bit-pack.
+	enum
+	{
+		CookedFlag					= 1 << 0,
+		HasOwnerLoadingBehaviorFlag	= 1 << 1,
+		
+		LoadingBehaviorShift		= 2,
+		LoadingBehaviorMask			= 0b00000111,
+	};
 
-	bool bCooked = Ar.IsCooking();
-	Ar << bCooked;
+	// Pack flags into uint32
+	uint32 Flags = 0;
+	if (Ar.IsSaving())
+	{
+		if (Ar.IsCooking())
+		{
+			Flags |= CookedFlag;
+
+#if WITH_EDITOR
+			// If we are going to save the owners loading behavior
+			const ISoundWaveLoadingBehaviorUtil::FClassData OwnerBehavior = GetOwnerLoadingBehavior(Ar.CookingTarget());
+			if (OwnerBehavior.LoadingBehavior != ESoundWaveLoadingBehavior::Uninitialized)
+			{
+				UE_LOG(LogAudio, Display, TEXT("Saving Owners Loading Behavior: %s, %s"), 
+				       EnumToString(OwnerBehavior.LoadingBehavior), *GetFullName());
+				
+				Flags |= HasOwnerLoadingBehaviorFlag;
+				Flags |= (uint32)OwnerBehavior.LoadingBehavior << LoadingBehaviorShift;
+			}
+#endif //WITH_EDITOR
+
+		}
+	}
+
+	Ar << Flags;
+
+	const bool bCooked = Flags & CookedFlag;
 
 	if (FPlatformProperties::RequiresCookedData() && !bCooked && Ar.IsLoading())
 	{
@@ -1158,6 +1228,13 @@ void USoundWave::Serialize( FArchive& Ar )
 	}
 
 	Ar << CompressedDataGuid;
+
+	// Use our owners loading behavior if we've been cooked to do so.
+	if (Ar.IsLoading() && (Flags & CookedFlag) && (Flags & HasOwnerLoadingBehaviorFlag) && LoadingBehavior != ESoundWaveLoadingBehavior::ForceInline)
+	{
+		const ESoundWaveLoadingBehavior OwnerBehavior = (ESoundWaveLoadingBehavior)((Flags >> LoadingBehaviorShift) & LoadingBehaviorMask);
+		LoadingBehavior = OwnerBehavior;
+	}
 
 #if WITH_EDITORONLY_DATA	
 	// If we're converting to FEditorBulkData, we need to first serialize the CompressedDataGuid, as we use it as our key.
@@ -1582,7 +1659,7 @@ FName USoundWave::GetPlatformSpecificFormat(FName Format, const FPlatformAudioCo
 	return PlatformSpecificFormat;
 }
 
-void USoundWave::BeginGetCompressedData(FName Format, const FPlatformAudioCookOverrides* CompressionOverrides)
+void USoundWave::BeginGetCompressedData(FName Format, const FPlatformAudioCookOverrides* CompressionOverrides, const ITargetPlatform* InTargetPlatform)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(USoundWave::BeginGetCompressedData);
 	check(SoundWaveDataPtr);
@@ -1604,7 +1681,7 @@ void USoundWave::BeginGetCompressedData(FName Format, const FPlatformAudioCookOv
 		{
 			COOK_STAT(auto Timer = SoundWaveCookStats::UsageStats.TimeSyncWork());
 			COOK_STAT(Timer.TrackCyclesOnly());
-			FDerivedAudioDataCompressor* DeriveAudioData = new FDerivedAudioDataCompressor(this, Format, PlatformSpecificFormat, CompressionOverrides);
+			FDerivedAudioDataCompressor* DeriveAudioData = new FDerivedAudioDataCompressor(this, Format, PlatformSpecificFormat, CompressionOverrides, InTargetPlatform);
 			uint32 GetHandle = GetDerivedDataCacheRef().GetAsynchronous(DeriveAudioData);
 			AsyncLoadingDataFormats.Add(PlatformSpecificFormat, GetHandle);
 		}
@@ -1642,7 +1719,7 @@ bool USoundWave::IsLoadedFromCookedData() const
 
 #endif
 
-FByteBulkData* USoundWave::GetCompressedData(FName Format, const FPlatformAudioCookOverrides* CompressionOverrides)
+FByteBulkData* USoundWave::GetCompressedData(FName Format, const FPlatformAudioCookOverrides* CompressionOverrides, const ITargetPlatform* InTargetPlatform )
 {
 	check(SoundWaveDataPtr);
 
@@ -1681,7 +1758,7 @@ FByteBulkData* USoundWave::GetCompressedData(FName Format, const FPlatformAudioC
 			else
 #endif
 			{
-				FDerivedAudioDataCompressor* DeriveAudioData = new FDerivedAudioDataCompressor(this, Format, PlatformSpecificFormat, CompressionOverrides);
+				FDerivedAudioDataCompressor* DeriveAudioData = new FDerivedAudioDataCompressor(this, Format, PlatformSpecificFormat, CompressionOverrides, InTargetPlatform);
 				bGetSuccessful = GetDerivedDataCacheRef().GetSynchronous(DeriveAudioData, OutData, &bDataWasBuilt);
 			}
 
@@ -1827,6 +1904,12 @@ void USoundWave::PostLoad()
 		}
 #endif // #if WITH_EDITORONLY_DATA
 
+		// update shared state
+		if (!HasAnyFlags(RF_ClassDefaultObject) && FApp::CanEverRenderAudio())
+		{
+			SoundWaveDataPtr->InitializeDataFromSoundWave(*this);
+		}
+		
 		ESoundWaveLoadingBehavior ActualLoadingBehavior = GetLoadingBehavior();
 
 		if (!Proxy.IsValid() && ActualLoadingBehavior != ESoundWaveLoadingBehavior::ForceInline)
@@ -1889,17 +1972,12 @@ void USoundWave::PostLoad()
 		{
 			if (Platform->AllowAudioVisualData())
 			{
-				BeginGetCompressedData(Platform->GetWaveFormat(this), FPlatformCompressionUtilities::GetCookOverrides(*Platform->IniPlatformName()));
+				BeginGetCompressedData(Platform->GetWaveFormat(this), FPlatformCompressionUtilities::GetCookOverrides(*Platform->IniPlatformName()), Platform);
 			}
 		}
 	}
 
-	// update shared state
-	if (!HasAnyFlags(RF_ClassDefaultObject) && FApp::CanEverRenderAudio())
-	{
-		SoundWaveDataPtr->InitializeDataFromSoundWave(*this);
-	}
-
+	
 	// We don't precache default objects and we don't precache in the Editor as the latter will
 	// most likely cause us to run out of memory.
 	if (!GIsEditor && !IsTemplate(RF_ClassDefaultObject) && GEngine)
@@ -2168,6 +2246,42 @@ void USoundWave::InvalidateSoundWaveIfNeccessary()
 	}
 }
 
+void USoundWave::PreSave(FObjectPreSaveContext InSaveContext)
+{
+	if (InSaveContext.IsCooking())
+	{
+		// Populate our cache ahead of Serialize, where we can't do any AssetRegistry queries safely.
+		GetOwnerLoadingBehavior(InSaveContext.GetTargetPlatform());
+	}
+	Super::PreSave(InSaveContext);
+}
+
+ISoundWaveLoadingBehaviorUtil::FClassData USoundWave::GetOwnerLoadingBehavior(const ITargetPlatform* InTargetPlatform) const
+{
+	// Use {} or Name_None in the case of a missing platform.
+	const FName PlatformName = InTargetPlatform ? *InTargetPlatform->PlatformName() : FName();
+
+	// Lock for entirity of call.
+	FScopeLock Lock(&OwnerLoadingBehaviorCacheCS);
+	
+	// We have it in our cache?
+	if (const ISoundWaveLoadingBehaviorUtil::FClassData* Cached = OwnerLoadingBehaviorCache.Find(PlatformName))
+	{
+		return *Cached;
+	}
+
+	// ... otherwise, do lookup
+	if (const ISoundWaveLoadingBehaviorUtil* Util = ISoundWaveLoadingBehaviorUtil::Get())
+	{
+		const ISoundWaveLoadingBehaviorUtil::FClassData Data = Util->FindOwningLoadingBehavior(this, InTargetPlatform);
+		OwnerLoadingBehaviorCache.Add(PlatformName, Data);
+		return Data;
+	}
+	
+	// Not set.
+	return {};
+}
+
 float USoundWave::GetSampleRateForTargetPlatform(const ITargetPlatform* TargetPlatform)
 {
 	const FPlatformAudioCookOverrides* Overrides = FPlatformCompressionUtilities::GetCookOverrides(*TargetPlatform->IniPlatformName());
@@ -2180,6 +2294,58 @@ float USoundWave::GetSampleRateForTargetPlatform(const ITargetPlatform* TargetPl
 		return -1.0f;
 	}
 }
+
+#if WITH_EDITOR
+
+float USoundWave::GetSizeOfFirstAudioChunkInSeconds(const ITargetPlatform* InPlatform) const
+{
+#if WITH_EDITORONLY_DATA
+	
+	ensure(InPlatform);
+
+	// We need to walk up the hierarchy of sound classes to first determine our FirstAudioChunkSize.
+	if (SoundWaveDataPtr->LoadingBehavior == ESoundWaveLoadingBehavior::Uninitialized)
+	{
+		CacheInheritedLoadingBehavior();
+	}
+
+	// Use owner loading behavior if we have it.
+	ISoundWaveLoadingBehaviorUtil::FClassData Behavior = GetOwnerLoadingBehavior(InPlatform);
+	if (Behavior.LoadingBehavior == ESoundWaveLoadingBehavior::Uninitialized)
+	{
+		// Otherwise use what we've been tagged
+		Behavior.LoadingBehavior = SoundWaveDataPtr->LoadingBehavior;
+		Behavior.LengthOfFirstChunkInSeconds = SoundWaveDataPtr->SizeOfFirstAudioChunkInSeconds;
+	}
+
+	// We only allow setting the first chunk size if we're planning on retaining it.
+	// This could be relaxed later once we have a better format that wouldn't cause a huge delta
+	// on tuning the size (all assets etc). By using just retained, we expect a smaller set.
+	if (Behavior.LoadingBehavior == ESoundWaveLoadingBehavior::RetainOnLoad)
+	{
+		// See if we have an override for this platform on the SoundClass hierarchy.
+		const FName PlatformName = InPlatform ? InPlatform->GetPlatformInfo().IniPlatformName : FName();
+		const float PlatformSize = Behavior.LengthOfFirstChunkInSeconds.GetValueForPlatform(PlatformName);
+
+		if (PlatformSize > 0)
+		{
+			return PlatformSize;
+		}
+
+		// If that's not set to anything fallback to setting on cook overrides, if there's anything set.
+		if (const FPlatformAudioCookOverrides* CompressionOverrides = FPlatformCompressionUtilities::GetCookOverrides(*PlatformName.ToString()))
+		{
+			return CompressionOverrides->LengthOfFirstAudioChunkInSecs;
+		}
+	}
+	
+#endif //WITH_EDITORONLY_DATA
+
+	// Nothing.
+	return 0.f;
+}
+
+#endif //WITH_EDTIOR
 
 void USoundWave::LogBakedData()
 {
@@ -2594,8 +2760,9 @@ void USoundWave::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 	static const FName StreamingFName = GET_MEMBER_NAME_CHECKED(USoundWave, bStreaming);
 	static const FName SoundAssetCompressionTypeFName = GET_MEMBER_NAME_CHECKED(USoundWave, SoundAssetCompressionType);
 	static const FName LoadingBehaviorFName = GET_MEMBER_NAME_CHECKED(USoundWave, LoadingBehavior);
-	static const FName InitialChunkSizeFName = GET_MEMBER_NAME_CHECKED(USoundWave, InitialChunkSize);
+	static const FName InitialChunkSizeFName = GET_MEMBER_NAME_CHECKED(USoundWave, InitialChunkSize_DEPRECATED);
 	static const FName TransformationsFName = GET_MEMBER_NAME_CHECKED(USoundWave, Transformations);
+	static const FName InlinedAudioInSecondsFName = GET_MEMBER_NAME_CHECKED(USoundWave, SizeOfFirstAudioChunkInSeconds);
 
 	// force proxy state to be up to date
 	SoundWaveDataPtr->InitializeDataFromSoundWave(*this);
@@ -2614,7 +2781,7 @@ void USoundWave::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 		if (PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
 		{
 			// Regenerate on save any compressed sound formats or if analysis needs to be re-done
-			if (Name == LoadingBehaviorFName)
+			if (Name == LoadingBehaviorFName || Name == InlinedAudioInSecondsFName)
 			{
 				// Update and cache new loading behavior if it has changed. This
 				// must be called before a new FSoundWaveProxy is created. 
@@ -2640,6 +2807,7 @@ void USoundWave::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 				|| Name == SampleRateFName
 				|| Name == StreamingFName
 				|| Name == LoadingBehaviorFName
+				|| Name == InlinedAudioInSecondsFName
 				|| Name == InitialChunkSizeFName
 				|| Name == TransformationsFName)
 			{
@@ -4091,6 +4259,9 @@ void USoundWave::CacheInheritedLoadingBehavior() const
 		if (SoundWaveDataPtr->LoadingBehavior == ESoundWaveLoadingBehavior::Uninitialized)
 		{
 			SoundWaveDataPtr->LoadingBehavior = LoadingBehavior;
+#if WITH_EDITORONLY_DATA
+			SoundWaveDataPtr->SizeOfFirstAudioChunkInSeconds = SizeOfFirstAudioChunkInSeconds;
+#endif //WITH_EDITORONLY_DATA
 		}
 	}
  	else if (SoundWaveDataPtr->bLoadingBehaviorOverridden)
@@ -4104,20 +4275,22 @@ void USoundWave::CacheInheritedLoadingBehavior() const
 
 		USoundClass* CurrentSoundClass = GetSoundClass();
 		ESoundWaveLoadingBehavior SoundClassLoadingBehavior = ESoundWaveLoadingBehavior::Inherited;
+		FPerPlatformFloat SoundClassSizeOfFirstAudioChunkInSeconds = 0;
 
 		// Recurse through this sound class's parents until we find an override.
 		while (SoundClassLoadingBehavior == ESoundWaveLoadingBehavior::Inherited && CurrentSoundClass != nullptr)
 		{
 			SoundClassLoadingBehavior = CurrentSoundClass->Properties.LoadingBehavior;
+#if WITH_EDITORONLY_DATA
+			SoundClassSizeOfFirstAudioChunkInSeconds = CurrentSoundClass->Properties.SizeOfFirstAudioChunkInSeconds;
+#endif //WITH_EDITORONLY_DATA			
 			CurrentSoundClass = CurrentSoundClass->ParentClass;
 		}
 
 		// If we could not find an override in the sound class hierarchy, use the loading behavior defined by our cvar.
 		if (SoundClassLoadingBehavior == ESoundWaveLoadingBehavior::Inherited)
 		{
-			// query the default loading behavior CVar
-			ensureAlwaysMsgf(SoundWaveDefaultLoadingBehaviorCVar >= 0 && SoundWaveDefaultLoadingBehaviorCVar < 4, TEXT("Invalid default loading behavior CVar value. Use value 0, 1, 2 or 3."));
-			ESoundWaveLoadingBehavior DefaultLoadingBehavior = (ESoundWaveLoadingBehavior)FMath::Clamp<int32>(SoundWaveDefaultLoadingBehaviorCVar, 0, (int32)ESoundWaveLoadingBehavior::LoadOnDemand);
+			const ESoundWaveLoadingBehavior DefaultLoadingBehavior = SoundWave_Private::GetDefaultLoadingBehaviorCVar();
 
 			// override this loading behavior w/ our default
 			SoundClassLoadingBehavior = DefaultLoadingBehavior;
@@ -4125,6 +4298,9 @@ void USoundWave::CacheInheritedLoadingBehavior() const
 		}
 
 		SoundWaveDataPtr->LoadingBehavior = SoundClassLoadingBehavior;
+#if WITH_EDITORONLY_DATA		
+		SoundWaveDataPtr->SizeOfFirstAudioChunkInSeconds = SoundClassSizeOfFirstAudioChunkInSeconds;
+#endif //WITH_EDITORONLY_DATA		
 	}
 }
 
@@ -4167,9 +4343,9 @@ ESoundWaveLoadingBehavior USoundWave::GetLoadingBehavior(bool bCheckSoundClasses
 		}
 		else
 		{
-			// Otherwise, use the loading behavior defined by our cvar.
-			ensureAlwaysMsgf(SoundWaveDefaultLoadingBehaviorCVar >= 0 && SoundWaveDefaultLoadingBehaviorCVar < 4, TEXT("Invalid default loading behavior CVar value. Use value 0, 1, 2 or 3."));
-			return (ESoundWaveLoadingBehavior)FMath::Clamp<int32>(SoundWaveDefaultLoadingBehaviorCVar, 0, (int32)ESoundWaveLoadingBehavior::LoadOnDemand);
+			// Use the cvar.
+			const ESoundWaveLoadingBehavior DefaultSoundWaveBehavior = SoundWave_Private::GetDefaultLoadingBehaviorCVar();
+			return DefaultSoundWaveBehavior;
 		}
 	}
 	else if (SoundWaveDataPtr->LoadingBehavior == ESoundWaveLoadingBehavior::Uninitialized)
@@ -4177,6 +4353,8 @@ ESoundWaveLoadingBehavior USoundWave::GetLoadingBehavior(bool bCheckSoundClasses
 		CacheInheritedLoadingBehavior();
 	}
 
+	// We should have resolved by now.
+	ensure(SoundWaveDataPtr->LoadingBehavior != ESoundWaveLoadingBehavior::Inherited);
 	return SoundWaveDataPtr->LoadingBehavior;
 }
 
@@ -4463,3 +4641,4 @@ bool USoundWave::HasError() const
 	check(SoundWaveDataPtr);
 	return SoundWaveDataPtr->HasError();
 }
+

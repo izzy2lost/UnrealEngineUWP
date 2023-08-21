@@ -6,6 +6,7 @@
 #include "Engine/Engine.h"
 #include "Interfaces/IAudioFormat.h"
 #include "ADPCMAudioInfo.h"
+#include "AudioStreamingCache.h"
 #include "Misc/CoreStats.h"
 #include "Misc/ScopeRWLock.h"
 #include "Stats/StatsTrace.h"
@@ -27,11 +28,11 @@ IStreamedCompressedInfo::IStreamedCompressedInfo()
 	, LastPCMOffset(0)
 	, bStoringEndOfFile(false)
 	, CurrentChunkIndex(0)
-	, bPrintChunkFailMessage(true)
 	, SrcBufferPadding(0)
 	, StreamSeekBlockIndex(INDEX_NONE)
 	, StreamSeekBlockOffset(0)
 {
+	StartTimeInCycles = FPlatformTime::Cycles64();
 }
 
 uint32 IStreamedCompressedInfo::Read(void *OutBuffer, uint32 DataSize)
@@ -184,7 +185,7 @@ bool IStreamedCompressedInfo::StreamCompressedInfoInternal(const FSoundWaveProxy
 		return false;
 	}
 
-	// Get the first chunk of audio data (should always be loaded)
+	// Get the zeroth chunk of data (should always be loaded)
 	CurrentChunkIndex = 0;
 	uint32 ChunkSize = 0;
 	const uint8* FirstChunk = GetLoadedChunk(StreamingSoundWave, CurrentChunkIndex, ChunkSize);
@@ -229,7 +230,7 @@ bool IStreamedCompressedInfo::StreamCompressedData(uint8* Destination, bool bLoo
 	SCOPED_NAMED_EVENT(IStreamedCompressedInfo_StreamCompressedData, FColor::Blue);
 
 	SCOPE_CYCLE_COUNTER(STAT_AudioStreamedDecompressTime);
-
+	
 	UE_LOG(LogAudio, Log, TEXT("Streaming compressed data from SoundWave'%s' - Chunk=%d\tNumChunks=%d\tOffset=%d\tChunkSize=%d\tLooping=%s\tLastPCMOffset=%d\tContainsEOF=%s" ), 
 		*StreamingSoundWave->GetFName().ToString(), 	
 		CurrentChunkIndex, 
@@ -249,7 +250,15 @@ bool IStreamedCompressedInfo::StreamCompressedData(uint8* Destination, bool bLoo
 	{
 		uint32 ChunkSize = 0;
 		const uint8* NewlySeekedChunk = GetLoadedChunk(StreamingSoundWave, StreamSeekBlockIndex, ChunkSize);
-		UE_LOG(LogAudio, Log, TEXT("Seek block request: %d / %d (%s)"), StreamSeekBlockIndex.load(), StreamSeekBlockOffset, SrcBufferData == nullptr ? TEXT("present") : TEXT("missing"));
+		UE_LOG(LogAudio, Log, TEXT("Seek request for (%s): (%s) Chunk=%d (%s), Offset=%d, OffsetInAudioFrames=%u"),
+			*StreamingSoundWave->GetFName().ToString(),
+			StreamSeekToAudioFrames != INDEX_NONE ? TEXT("Using streaming seek-tables") : TEXT("Using chunk/offset pair"),
+			StreamSeekBlockIndex.load(),
+			NewlySeekedChunk != nullptr ? TEXT("cache hit") : TEXT("cache miss"),
+			StreamSeekBlockOffset,
+			StreamSeekToAudioFrames
+		);
+		
 		if (NewlySeekedChunk == nullptr)
 		{
 			// After a seek we're likely to need to wait a bit for the chunk to get in to memory.
@@ -314,7 +323,6 @@ bool IStreamedCompressedInfo::StreamCompressedData(uint8* Destination, bool bLoo
 		SrcBufferData = GetLoadedChunk(StreamingSoundWave, CurrentChunkIndex, ChunkSize);
 		if (SrcBufferData)
 		{
-			bPrintChunkFailMessage = true;
 			SrcBufferDataSize = ChunkSize;
 			SrcBufferOffset = CurrentChunkIndex == 0 ? AudioDataOffset : 0;
 
@@ -327,12 +335,48 @@ bool IStreamedCompressedInfo::StreamCompressedData(uint8* Destination, bool bLoo
 		}
 		else
 		{
-			// Still not loaded, zero remainder of current buffer
-			if (bPrintChunkFailMessage)
+			// Still not loaded, zero remainder of current buffer.
+			// For Chunk 1
+			//  For Load on Demand, this is expected, because it will likely wait for the first chunk to load.
+			//  For Prime on Load, it could happen if the load is still pending for the First Chunk.
+			//  For Retain on Load, it could also happen if the retained data has been purged for the cache. (or we're in the editor)
+			// For All other Chunks other than > 1
+			//  An underrun (starvation) has occured. Warn the user.
+			const ESoundWaveLoadingBehavior Behavior = StreamingSoundWave->GetLoadingBehavior();
+			const float TimeSoFar = FPlatformTime::ToSeconds64(FPlatformTime::Cycles64() - StartTimeInCycles);
+			if (CurrentChunkIndex == 1)
 			{
-				UE_LOG(LogAudio, Verbose, TEXT("Chunk %d not loaded from streaming manager for SoundWave '%s'. Likely due to stall on game thread."), CurrentChunkIndex, *StreamingSoundWave->GetFName().ToString());
-				bPrintChunkFailMessage = false;
+				switch(Behavior)
+				{
+				case ESoundWaveLoadingBehavior::RetainOnLoad:
+				{	// We don't inline in the editor, so don't warn.
+					const bool bIsEditor = GEngine ? GEngine->IsEditor() : false;
+					UE_CLOG(!bIsEditor, LogAudioStreamCaching, Verbose, TEXT("First Audio Chunk (%s) not loaded and we are 'RetainOnLoad'. Likely because the stream cache has purged it. FailCount=%d"),
+						*StreamingSoundWave->GetFName().ToString(), ++PrintChunkFailMessageCount);
+					break;
+				}
+				case ESoundWaveLoadingBehavior::PrimeOnLoad:
+				{
+					UE_LOG(LogAudioStreamCaching, Verbose, TEXT("First Audio Chunk (%s) not loaded and we are 'PrimeOnLoad'. Likely because the stream cache is still loading it. Attempt=%d"),
+						*StreamingSoundWave->GetFName().ToString(), ++PrintChunkFailMessageCount);
+					break;
+				}
+				case ESoundWaveLoadingBehavior::LoadOnDemand:
+				{
+					UE_LOG(LogAudioStreamCaching, VeryVerbose, TEXT("First Audio Chunk (%s) not loaded and we are 'LoadOnDemand'. This is expected while we load the first chunk. Attempt=%d"),
+						*StreamingSoundWave->GetFName().ToString(), ++PrintChunkFailMessageCount);
+					break;
+				}
+				default:
+					break;
+				}
 			}
+			else // If we're mid play back, and we hit this point. We've underrun, log a warning.
+			{
+				UE_LOG(LogAudioStreamCaching, Warning, TEXT("Chunk %d not yet loaded for playing SoundWave '%s'. Attempt=%d, LoadBehavior=%s, Latency=%2.2f secs, LikelyReason: Not loaded fast enough, IO Saturation." ),
+					CurrentChunkIndex, *StreamingSoundWave->GetFName().ToString(), ++PrintChunkFailMessageCount, EnumToString(Behavior), TimeSoFar);
+			}
+			
 			ZeroBuffer(Destination + RawPCMOffset, BufferSize - RawPCMOffset);
 			OutNumBytesStreamed = BufferSize - RawPCMOffset;
 			return false;
@@ -353,9 +397,11 @@ bool IStreamedCompressedInfo::StreamCompressedData(uint8* Destination, bool bLoo
 		// Decompress the next compression frame of audio (many samples) into the PCM buffer
 		int32 DecodedSamples = DecompressToPCMBuffer(/*Unused*/ 0);
 
-
 		if (DecodedSamples < 0)
 		{
+			UE_LOG(LogAudioStreamCaching, Warning, TEXT("Zero pad buffer Chunk=%d, Wave=%s, Reason=Decoder returned negative samples."),
+				CurrentChunkIndex, *StreamingSoundWave->GetFName().ToString());
+
 			LastPCMByteSize = 0;
 			ZeroBuffer(Destination + RawPCMOffset, BufferSize - RawPCMOffset);
 			OutNumBytesStreamed = BufferSize - RawPCMOffset;
@@ -415,10 +461,14 @@ bool IStreamedCompressedInfo::StreamCompressedData(uint8* Destination, bool bLoo
 						ensureMsgf(FStreamedAudioChunkSeekTable::Parse(SrcBufferData, SrcBufferDataSize, SrcBufferOffset, GetCurrentSeekTable()), 
 							TEXT("Failed to parse seektable in '%s' chunk=%d"), *StreamingSoundWave->GetFName().ToString(), CurrentChunkIndex);
 					}
-					UE_CLOG(PreviousChunkIndex != CurrentChunkIndex, LogAudio, Log, TEXT("Changed current chunk '%s' from %d to %d, Offset %d"), *StreamingSoundWave->GetFName().ToString(), PreviousChunkIndex, CurrentChunkIndex, SrcBufferOffset);
+					UE_CLOG(PreviousChunkIndex != CurrentChunkIndex, LogAudio, Log, TEXT("Changed current chunk '%s' from %d to %d, Offset %d"),
+						*StreamingSoundWave->GetFName().ToString(), PreviousChunkIndex, CurrentChunkIndex, SrcBufferOffset);
 				}
 				else
 				{
+					UE_LOG(LogAudioStreamCaching, Warning, TEXT("Chunk %d not yet loaded for playing SoundWave '%s'. LikelyReason: Not loaded fast enough, IO Saturation."),
+						CurrentChunkIndex, *StreamingSoundWave->GetFName().ToString());
+
 					SrcBufferDataSize = 0;
 					RawPCMOffset += ZeroBuffer(Destination + RawPCMOffset, BufferSize - RawPCMOffset);
 				}

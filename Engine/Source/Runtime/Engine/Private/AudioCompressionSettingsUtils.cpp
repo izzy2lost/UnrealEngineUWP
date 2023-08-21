@@ -107,7 +107,15 @@ void CacheAudioCookOverrides(FPlatformAudioCookOverrides& OutOverrides, const TC
 		OutOverrides.SoundCueCookQualityIndex = SoundCueQualityIndex;
 	}
 
-	GConfig->GetBool(*CategoryName, TEXT("bInlineStreamedAudioChunks"), OutOverrides.bInlineStreamedAudioChunks, GEngineIni);
+	if (bool bInlineFirstAudioChunk = false; PlatformFile->GetBool(*CategoryName, TEXT("bInlineFirstAudioChunk"), bInlineFirstAudioChunk))
+	{
+		OutOverrides.bInlineFirstAudioChunk = bInlineFirstAudioChunk;
+	}
+
+	if (float LengthOfFirstAudioChunkInSeconds = 0.f; PlatformFile->GetFloat(*CategoryName, TEXT("LengthOfFirstAudioChunkInSeconds"), LengthOfFirstAudioChunkInSeconds))
+	{
+		OutOverrides.LengthOfFirstAudioChunkInSecs = LengthOfFirstAudioChunkInSeconds;
+	}
 
 	/** Memory Load On Demand Settings */
 	// Cache size:

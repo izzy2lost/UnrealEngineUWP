@@ -14,9 +14,10 @@
 #include "HAL/LowLevelMemTracker.h"
 #include "ContentStreaming.h"
 
-// 186ms of 44.1KHz data
-// 372ms of 22KHz data
-#define MONO_PCM_BUFFER_SAMPLES		8192
+// 100ms of 48KHz data
+// 108ms of 44.1KHz data
+// 218ms of 22KHz data
+#define MONO_PCM_BUFFER_SAMPLES		(4800)
 #define MONO_PCM_BUFFER_SIZE		( MONO_PCM_BUFFER_SAMPLES * sizeof( int16 ) )
 
 struct FSoundQualityInfo;
@@ -319,7 +320,9 @@ protected:
 	/** The current chunk index in the streamed chunks. */
 	int32 CurrentChunkIndex;
 	/** Whether or not to print the chunk fail message. */
-	bool bPrintChunkFailMessage;
+	int32 PrintChunkFailMessageCount = 0;
+	/** A counter of when we started the last request (for gauging latency) */
+	uint64 StartTimeInCycles = 0;
 	/** Number of bytes of padding used, overridden in some implementations. Defaults to 0. */
 	uint32 SrcBufferPadding;
 	/** Chunk Handle to ensure that this chunk of streamed audio is not deleted while we are using it. */

@@ -1571,7 +1571,7 @@ void FAudioChunkCache::KickOffAsyncLoad(FCacheElement* CacheElement, const FChun
 {
 	check(CacheElement);
 
-	const FStreamedAudioChunk* Chunk = CacheElement->GetChunk(InKey.ChunkIndex);
+	FStreamedAudioChunk* Chunk = CacheElement->GetChunk(InKey.ChunkIndex);
 
 	if (nullptr == Chunk)
 	{
@@ -1692,7 +1692,7 @@ void FAudioChunkCache::KickOffAsyncLoad(FCacheElement* CacheElement, const FChun
 			CacheElement->bIsLoaded = true;
 
 #if DEBUG_STREAM_CACHE
-			CacheElement->DebugInfo.TimeToLoad = (FPlatformTime::Seconds() - CacheElement->DebugInfo.TimeLoadStarted) * 1000.0f;
+			CacheElement->DebugInfo.TimeToLoad = FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - CacheElement->DebugInfo.TimeLoadStarted);
 #endif
 			const EAudioChunkLoadResult LoadResult = bWasCancelled ? EAudioChunkLoadResult::Interrupted : EAudioChunkLoadResult::Completed;
 			ExecuteOnLoadCompleteCallback(LoadResult, OnLoadCompleted, CallbackThread);
@@ -1701,21 +1701,53 @@ void FAudioChunkCache::KickOffAsyncLoad(FCacheElement* CacheElement, const FChun
 		};
 
 #if DEBUG_STREAM_CACHE
-		CacheElement->DebugInfo.TimeLoadStarted = FPlatformTime::Seconds();
+		CacheElement->DebugInfo.TimeLoadStarted = FPlatformTime::Cycles64();
 #endif
 
 		CacheElement->ReadRequest = nullptr;
-		IBulkDataIORequest* LocalReadRequest = Chunk->BulkData.CreateStreamingRequest(0, ChunkDataSize, AsyncIOPriority | AIOP_FLAG_DONTCACHE, &AsyncFileCallBack, CacheElement->ChunkData);
-		if (!LocalReadRequest)
+		if (Chunk->BulkData.IsBulkDataLoaded())
 		{
-			UE_LOG(LogAudioStreamCaching, Error, TEXT("Chunk load in audio LRU cache failed."));
-			OnLoadCompleted(EAudioChunkLoadResult::ChunkOutOfBounds);
-			NumberOfLoadsInFlight.Decrement();
+			// If this chunk has been inlined and loaded, move out the data into our newly allocated block.
+			const FBulkDataBuffer<uint8> ChunkMemory = Chunk->MoveOutAsBuffer();
+			
+			// Copy and delete to be sure we pay back the LLM and use our newly allocated version.
+			check(CacheElement->ChunkDataSize <= ChunkMemory.GetView().Num());
+			FMemory::Memcpy(CacheElement->ChunkData, ChunkMemory.GetView().GetData(), ChunkMemory.GetView().Num());
+
+#if DEBUG_STREAM_CACHE
+			UE_LOG(LogAudioStreamCaching, Verbose, TEXT("Loading Inlined Chunk: %s, %d, TimeToLoad=%2.2fms"), *InKey.SoundWaveName.ToString(),
+				InKey.ChunkIndex, FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - CacheElement->DebugInfo.TimeLoadStarted));
+
+			CacheElement->DebugInfo.bWasLoadedFromInlineChunk = true;
+			UE_LOG(LogAudioStreamCaching, VeryVerbose, TEXT("COPY+DISCARD %s - Bulk=0x%p"), *InKey.SoundWaveName.ToString(), &Chunk->BulkData);
+#endif //DEBUG_STREAM_CACHE
+			
+			// Fire the callback (this will mark it load completed etc).
+			AsyncFileCallBack(false, nullptr);
 		}
-		else if (FPlatformAtomics::InterlockedCompareExchangePointer((void* volatile*)&CacheElement->ReadRequest, LocalReadRequest, nullptr) == (void*)0x1)
+		else
 		{
-			// The request is completed before we can store it. Just delete it
-			TGraphTask<FClearAudioChunkCacheReadRequestTask>::CreateTask().ConstructAndDispatchWhenReady(LocalReadRequest);
+			UE_LOG(LogAudioStreamCaching, VeryVerbose, TEXT("DISK %s - Bulk=0x%p"), *InKey.SoundWaveName.ToString(), &Chunk->BulkData)
+
+#if DEBUG_STREAM_CACHE
+			CacheElement->DebugInfo.bWasInlinedButUnloaded = Chunk->BulkData.IsInlined() || Chunk->BulkData.GetBulkDataFlags() & BULKDATA_ForceInlinePayload;
+			UE_CLOG(CacheElement->DebugInfo.bWasInlinedButUnloaded,LogAudioStreamCaching, Log, TEXT("IO LOAD FOR INLINE %s - Bulk=0x%p"), *InKey.SoundWaveName.ToString(), &Chunk->BulkData);
+#endif //DEBUG_STREAM_CACHE
+			
+			UE_LOG(LogAudioStreamCaching, Verbose, TEXT("Loading Chunk: %s, %d"), *InKey.SoundWaveName.ToString(), InKey.ChunkIndex);
+
+			IBulkDataIORequest* LocalReadRequest = Chunk->BulkData.CreateStreamingRequest(0, ChunkDataSize, AsyncIOPriority | AIOP_FLAG_DONTCACHE, &AsyncFileCallBack, CacheElement->ChunkData);
+			if (!LocalReadRequest)
+			{
+				UE_LOG(LogAudioStreamCaching, Error, TEXT("Chunk load in audio LRU cache failed."));
+				OnLoadCompleted(EAudioChunkLoadResult::ChunkOutOfBounds);
+				NumberOfLoadsInFlight.Decrement();
+			}
+			else if (FPlatformAtomics::InterlockedCompareExchangePointer((void* volatile*)&CacheElement->ReadRequest, LocalReadRequest, nullptr) == (void*)0x1)
+			{
+				// The request is completed before we can store it. Just delete it
+				TGraphTask<FClearAudioChunkCacheReadRequestTask>::CreateTask().ConstructAndDispatchWhenReady(LocalReadRequest);
+			}
 		}
 	}
 }
@@ -1975,6 +2007,7 @@ TPair<int, int> FAudioChunkCache::DebugDisplayLegacy(UWorld* World, FViewport* V
 		bool bLoadingBehaviorExternallyOverriden = false;
 		bool bWasCacheMiss = false;
 		bool bIsStaleChunk = false;
+		bool bWasLoadedInlined = false;
 
 #if DEBUG_STREAM_CACHE
 		NumTotalChunks = CurrentElement->DebugInfo.NumTotalChunks;
@@ -1984,6 +2017,7 @@ TPair<int, int> FAudioChunkCache::DebugDisplayLegacy(UWorld* World, FViewport* V
 		LoadingBehavior = CurrentElement->DebugInfo.LoadingBehavior;
 		bLoadingBehaviorExternallyOverriden = CurrentElement->DebugInfo.bLoadingBehaviorExternallyOverriden;
 		bWasCacheMiss = CurrentElement->DebugInfo.bWasCacheMiss;
+		bWasLoadedInlined = CurrentElement->DebugInfo.bWasLoadedFromInlineChunk;
 #endif
 
 #if WITH_EDITOR
@@ -1993,7 +2027,7 @@ TPair<int, int> FAudioChunkCache::DebugDisplayLegacy(UWorld* World, FViewport* V
 
 		const bool bWasTrimmed = CurrentElement->ChunkDataSize == 0;
 
-		FString ElementInfo = *FString::Printf(TEXT("%4i. Size: %6.2f KB   Chunk: %d of %d   Request Count: %d    Average Index: %6.2f  Number of Handles Retaining Chunk: %d     Chunk Load Time(in ms): %6.4fms      Loading Behavior: %s%s      Name: %s Notes: %s %s"),
+		FString ElementInfo = *FString::Printf(TEXT("%4i. Size: %6.2f KB   Chunk: %d of %d   Request Count: %d    Average Index: %6.2f  Number of Handles Retaining Chunk: %d     Chunk Load Time(in ms): %6.4fms      Loading Behavior: %s%s      Name: %s Notes: %s %s %s"),
 			Index,
 			CurrentElement->ChunkDataSize / 1024.0f,
 			CurrentElement->Key.ChunkIndex,
@@ -2006,7 +2040,8 @@ TPair<int, int> FAudioChunkCache::DebugDisplayLegacy(UWorld* World, FViewport* V
 			bLoadingBehaviorExternallyOverriden ? TEXT("*") : TEXT(""),
 			bWasTrimmed ? TEXT("TRIMMED CHUNK") : *CurrentElement->Key.SoundWaveName.ToString(),
 			bWasCacheMiss ? TEXT("(Cache Miss!)") : TEXT(""),
-			bIsStaleChunk ? TEXT("(Stale Chunk)") : TEXT("")
+			bIsStaleChunk ? TEXT("(Stale Chunk)") : TEXT(""),
+			bWasLoadedInlined ? TEXT("(Inlined)") : TEXT("")
 		);
 
 		// Since there's a lot of info here,
@@ -2110,6 +2145,7 @@ FString FAudioChunkCache::DebugPrint()
 		bool bLoadingBehaviorExternallyOverriden = false;
 		bool bWasCacheMiss = false;
 		bool bIsStaleChunk = false;
+		bool bWasLoadedInlined = false;
 
 #if DEBUG_STREAM_CACHE
 		NumTotalChunks = CurrentElement->DebugInfo.NumTotalChunks;
@@ -2119,6 +2155,7 @@ FString FAudioChunkCache::DebugPrint()
 		LoadingBehavior = CurrentElement->DebugInfo.LoadingBehavior;
 		bLoadingBehaviorExternallyOverriden = CurrentElement->DebugInfo.bLoadingBehaviorExternallyOverriden;
 		bWasCacheMiss = CurrentElement->DebugInfo.bWasCacheMiss;
+		bWasLoadedInlined = CurrentElement->DebugInfo.bWasLoadedFromInlineChunk;
 #endif
 
 #if WITH_EDITOR
@@ -2128,7 +2165,7 @@ FString FAudioChunkCache::DebugPrint()
 
 		const bool bWasTrimmed = CurrentElement->ChunkDataSize == 0;
 
-		FString ElementInfo = *FString::Printf(TEXT("%4i.\t, %6.2f\t, %d of %d\t, %d\t, %6.2f\t, %d\t,  %6.4f\t, %s\t, %s%s, %s %s %s"),
+		FString ElementInfo = *FString::Printf(TEXT("%4i.\t, %6.2f\t, %d of %d\t, %d\t, %6.2f\t, %d\t,  %6.4f\t, %s\t, %s%s, %s %s %s %s"),
 			Index,
 			CurrentElement->ChunkDataSize / 1024.0f,
 			CurrentElement->Key.ChunkIndex,
@@ -2142,7 +2179,8 @@ FString FAudioChunkCache::DebugPrint()
 			bLoadingBehaviorExternallyOverriden ? TEXT("*") : TEXT(""),
 			bWasCacheMiss ? TEXT("(Cache Miss!)") : TEXT(""),
 			bIsStaleChunk ? TEXT("(Stale Chunk)") : TEXT(""),
-			CurrentElement->IsLoadInProgress() ? TEXT("(Loading In Progress)") : TEXT("")
+			CurrentElement->IsLoadInProgress() ? TEXT("(Loading In Progress)") : TEXT(""),
+			bWasLoadedInlined ? TEXT("(Inlined)") : TEXT("(Disk)")
 		);
 
 		if (!bWasTrimmed)

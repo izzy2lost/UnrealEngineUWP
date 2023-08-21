@@ -20,7 +20,7 @@ namespace Audio
 			TUniquePtr<ICompressedAudioInfo> InfoInstance;
 			FName Format = Wave->GetRuntimeFormat();
 			IAudioInfoFactory* Factory = IAudioInfoFactoryRegistry::Get().Find(Format);
-			if (!ensure(Factory))
+			if (!ensureMsgf(Factory, TEXT("Format '%s' not found for wave '%s'"),*Format.ToString(), *Wave->GetPackageName().ToString()))
 			{
 				return nullptr;
 			}

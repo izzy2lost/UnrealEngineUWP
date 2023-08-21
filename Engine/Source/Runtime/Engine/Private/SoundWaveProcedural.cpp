@@ -157,12 +157,12 @@ bool USoundWaveProcedural::HasCompressedData(FName Format, ITargetPlatform* Targ
 	return false;
 }
 
-void USoundWaveProcedural::BeginGetCompressedData(FName Format, const FPlatformAudioCookOverrides* CompressionOverrides)
+void USoundWaveProcedural::BeginGetCompressedData(FName Format, const FPlatformAudioCookOverrides* CompressionOverrides, const ITargetPlatform* InTargetPlatform)
 {
 	// SoundWaveProcedural does not have compressed data and should generally not be asked about it
 }
 
-FByteBulkData* USoundWaveProcedural::GetCompressedData(FName Format, const FPlatformAudioCookOverrides* CompressionOverrides)
+FByteBulkData* USoundWaveProcedural::GetCompressedData(FName Format, const FPlatformAudioCookOverrides* CompressionOverrides, const ITargetPlatform* InTargetPlatform )
 {
 	// SoundWaveProcedural does not have compressed data and should generally not be asked about it
 	return nullptr;

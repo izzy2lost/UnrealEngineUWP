@@ -73,6 +73,9 @@ struct FStreamedAudioChunk
 	/**  returns false if data retrieval failed */
 	bool GetCopy(void** OutChunkData);
 
+	/* Moves the memory out of the byte bulk-data. (Does copy with Discard original) */
+	FBulkDataBuffer<uint8> MoveOutAsBuffer();
+
 	/** Size of the chunk of data in bytes including zero padding */
 	int32 DataSize = 0;
 
@@ -96,6 +99,9 @@ public:
 
 	/** True if this chunk was loaded from a cooked package. */
 	bool bLoadedFromCookedPackage = false;
+
+	/** If marked true, will attempt to inline this chunk. */
+	bool bInlineChunk = false;
 
 	/**
 	 * Place chunk data in the derived data cache associated with the provided
@@ -155,7 +161,7 @@ struct FStreamedAudioPlatformData
 	ENGINE_API void Serialize(FArchive& Ar, class USoundWave* Owner);
 
 #if WITH_EDITORONLY_DATA
-	ENGINE_API void Cache(class USoundWave& InSoundWave, const FPlatformAudioCookOverrides* CompressionOverrides, FName AudioFormatName, uint32 InFlags);
+	ENGINE_API void Cache(class USoundWave& InSoundWave, const FPlatformAudioCookOverrides* CompressionOverrides, FName AudioFormatName, uint32 InFlags, const ITargetPlatform* InTargetPlatform=nullptr);
 	ENGINE_API void FinishCache();
 	ENGINE_API bool IsFinishedCache() const;
 	ENGINE_API bool IsAsyncWorkComplete() const;
@@ -182,7 +188,6 @@ private:
 	 * @param SerializedData Serialized data resulting from DDC.GetAsynchronousResults or DDC.GetSynchronous.
 	 * @param ChunkToDeserializeInto is the chunk to fill with the deserialized data.
 	 * @param ChunkIndex is the index of the chunk in this instance of FStreamedAudioPlatformData.
-	 * @param bCachedChunk is true if the chunk was successfully cached, false otherwise.
 	 * @param OutChunkData is a pointer to a pointer to populate with the chunk itself, or if pointing to nullptr, returns an allocated buffer.
 	 * @returns the size of the chunk loaded in bytes, or zero if the chunk didn't load.
 	 */
@@ -598,9 +603,9 @@ public:
 	 */
 	ENGINE_API ESoundWaveLoadingBehavior GetLoadingBehavior(bool bCheckSoundClasses = true) const;
 
-	/** Use this to override how much audio data is loaded when this USoundWave is loaded. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Loading")
-	int32 InitialChunkSize;
+	/** Please use size of First Chunk in Seconds. */
+	UPROPERTY(AdvancedDisplay, meta=(DeprecatedProperty))
+	int32 InitialChunkSize_DEPRECATED;
 
 #if WITH_EDITOR
 	ENGINE_API const FWaveTransformUObjectConfiguration& GetTransformationChainConfig() const;
@@ -714,6 +719,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Loading", meta = (DisplayName = "Loading Behavior Override"))
 	mutable ESoundWaveLoadingBehavior LoadingBehavior;
 
+#if WITH_EDITORONLY_DATA
+public:
+   	/** How much audio to add to First Audio Chunk (in seconds), (only for RetainOnLoad) */
+   	UPROPERTY(EditAnywhere, Category = Loading, meta = (UIMin = 0, UIMax = 10, EditCondition = "LoadingBehavior == ESoundWaveLoadingBehavior::RetainOnLoad"), DisplayName="Size of First Audio Chunk (seconds)")
+   	FPerPlatformFloat SizeOfFirstAudioChunkInSeconds = 0.0f;
+#endif //WITH_EDITOR_ONLY_DATA
+
 	/** A localized version of the text that is actually spoken phonetically in the audio. */
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use Subtitles instead."))
 	FString SpokenText_DEPRECATED;
@@ -823,6 +835,8 @@ public:
 	*/
 	static ENGINE_API ITargetPlatform* GetRunningPlatform();
 
+	static ENGINE_API ESoundWaveLoadingBehavior GetDefaultLoadingBehavior();
+
 	/** Async worker that decompresses the audio data on a different thread */
 	typedef FAsyncTask< class FAsyncAudioDecompressWorker > FAsyncAudioDecompress;	// Forward declare typedef
 	FAsyncAudioDecompress* AudioDecompressor;
@@ -895,6 +909,8 @@ public:
 	ENGINE_API bool IsAsyncWorkComplete() const;
 
 	ENGINE_API void PostImport();
+	
+	ENGINE_API virtual void PreSave(FObjectPreSaveContext SaveContext);
 
 private:
 	friend class FSoundWaveCompilingManager;
@@ -1090,18 +1106,18 @@ public:
 	ENGINE_API bool IsLoadedFromCookedData() const;
 #endif //WITH_EDITOR
 
-	ENGINE_API virtual void BeginGetCompressedData(FName Format, const FPlatformAudioCookOverrides* CompressionOverrides);
+	ENGINE_API virtual void BeginGetCompressedData(FName Format, const FPlatformAudioCookOverrides* CompressionOverrides, const ITargetPlatform* InTargetPlatform);
 
 	/**
 	 * Gets the compressed data from derived data cache for the specified platform
 	 * Warning, the returned pointer isn't valid after we add new formats
 	 *
 	 * @param Format	format of compressed data
-	 * @param PlatformName optional name of platform we are getting compressed data for.
 	 * @param CompressionOverrides optional platform compression overrides
 	 * @return	compressed data, if it could be obtained
 	 */
-	ENGINE_API virtual FByteBulkData* GetCompressedData(FName Format, const FPlatformAudioCookOverrides* CompressionOverrides = GetPlatformCompressionOverridesForCurrentPlatform());
+	ENGINE_API virtual FByteBulkData* GetCompressedData(FName Format, const FPlatformAudioCookOverrides* CompressionOverrides = GetPlatformCompressionOverridesForCurrentPlatform(),
+		const ITargetPlatform* InTargetPlatform = GetRunningPlatform());
 
 	/**
 	 * Change the guid and flush all compressed data
@@ -1187,10 +1203,23 @@ public:
 #if WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR
+	
+	/*
+	* Used to determine the loading behavior that's applied by the owner of this wave. Will determine
+	* the most appropriate loading behavior if there are multiple owners. If there is no owner "Unintialized"
+	* will be returned. The results are cached in TMap below.
+	*/
+	ISoundWaveLoadingBehaviorUtil::FClassData GetOwnerLoadingBehavior(const ITargetPlatform* InTargetPlatform) const;
+	
+	mutable TMap<FName, ISoundWaveLoadingBehaviorUtil::FClassData> OwnerLoadingBehaviorCache;
+	mutable FCriticalSection OwnerLoadingBehaviorCacheCS;
+			
 	/*
 	* Returns a sample rate if there is a specific sample rate override for this platform, -1.0 otherwise.
 	*/
 	ENGINE_API float GetSampleRateForTargetPlatform(const ITargetPlatform* TargetPlatform);
+	
+	ENGINE_API float GetSizeOfFirstAudioChunkInSeconds(const ITargetPlatform* InTargetPlatform) const;
 
 	/**
 	 * Begins caching platform data in the background for the platform requested
@@ -1354,6 +1383,7 @@ public:
 
 #if WITH_EDITORONLY_DATA
  	ENGINE_API FString GetDerivedDataKey() const;
+	ENGINE_API FPerPlatformFloat GetSizeOfFirstAudioChunkInSeconds() const { return SizeOfFirstAudioChunkInSeconds; }
 #endif // #if WITH_EDITORONLY_DATA
 
 	int32 GetResourceSize() { return ResourceSize; }
@@ -1388,6 +1418,11 @@ private:
 
 	ESoundWaveLoadingBehavior LoadingBehavior = ESoundWaveLoadingBehavior::Uninitialized;
 
+#if WITH_EDITORONLY_DATA
+	// Set by CacheInheritedLoadingBehavior after traversing the Soundclass heirarchy 
+	FPerPlatformFloat SizeOfFirstAudioChunkInSeconds = 0.f;
+#endif //WITH_EDITORONLY_DATA
+	
 #if WITH_EDITOR
 	std::atomic<int32> CurrentChunkRevision;
 #endif // #if WITH_EDITOR
@@ -1398,7 +1433,7 @@ private:
 	FObjectKey SoundWaveKeyCached;
 	TArray<FSoundWaveCuePoint> CuePoints;
 	TArray<FSoundWaveCuePoint> LoopRegions;
-	ESoundAssetCompressionType SoundAssetCompressionType;
+	ESoundAssetCompressionType SoundAssetCompressionType = ESoundAssetCompressionType::BinkAudio;
 	FGuid WaveGuid;
 	
 	float SampleRate = 0;
