@@ -57,7 +57,7 @@ namespace Horde.Agent.Tests
 
 		class FakeServerLoggerFactory : IServerLoggerFactory
 		{
-			public IServerLogger CreateLogger(ISession session, string logId, string? jobId, string? batchId, string? stepId, bool? warnings = null, bool? useNewLogger = null) => new FakeServerLogger();
+			public IServerLogger CreateLogger(ISession session, string logId, string? jobId, string? batchId, string? stepId, bool? warnings = null, bool? useNewLogger = null, LogLevel outputLevel = LogLevel.Information) => new FakeServerLogger();
 		}
 
 		class FakeSessionStorageFactory : IServerStorageFactory

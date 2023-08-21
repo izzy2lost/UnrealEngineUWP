@@ -130,7 +130,7 @@ namespace Horde.Agent.Commands.Utilities
 
 			using (LogSink sink = new LogSink(runUatBat.Directory, logger))
 			{
-				await using (JsonRpcLogger jsonLogger = new JsonRpcLogger(sink, "log", null, logger))
+				await using (JsonRpcLogger jsonLogger = new JsonRpcLogger(sink, "log", null, LogLevel.Information, logger))
 				{
 					using (LogParser filter = new LogParser(jsonLogger, new List<string>()))
 					{
