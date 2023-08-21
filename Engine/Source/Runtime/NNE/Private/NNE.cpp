@@ -94,6 +94,10 @@ namespace UE::NNE
 
 	bool RegisterRuntime(TWeakInterfacePtr<INNERuntime> Runtime)
 	{
+#ifdef WITH_EDITOR
+		FModuleManager::Get().LoadModule(TEXT("NNEEditor"));
+#endif
+
 		FString RuntimeName = Runtime->GetRuntimeName();
 		FCoreDelegates::OnAllModuleLoadingPhasesComplete.AddLambda([RuntimeName]() {
 			if (FEngineAnalytics::IsAvailable())

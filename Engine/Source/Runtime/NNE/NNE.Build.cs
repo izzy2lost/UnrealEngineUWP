@@ -23,6 +23,8 @@ namespace UnrealBuildTool.Rules
 						"DerivedDataCache"
 					}
 				);
+
+				DynamicallyLoadedModuleNames.Add("NNEEditor");
 			}
 		}
     }

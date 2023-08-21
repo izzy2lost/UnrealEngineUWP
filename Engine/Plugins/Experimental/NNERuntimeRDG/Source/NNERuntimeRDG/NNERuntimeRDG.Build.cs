@@ -52,10 +52,5 @@ public class NNERuntimeRDG : ModuleRules
 		{	
 			PrivateDependencyModuleNames.Add("VulkanRHI");
 		}
-
-		if (Target.Type == TargetType.Editor)
-		{
-			PublicDependencyModuleNames.Add("NNEEditor");
-		}
 	}
 }
