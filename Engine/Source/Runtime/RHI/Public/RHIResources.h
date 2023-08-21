@@ -3109,16 +3109,14 @@ public:
 	static constexpr uint32 ArgumentByteStride = sizeof(uint32) * 4u;
 
 	const uint32 NumRecords = 0;
-	const bool bEmulated = false;
 
 	virtual FUint32Vector4 GetPlatformData() const = 0;
 	virtual void CalcDispatchBufferSizes(uint32& OutDataBufferSize, uint32& OutExecutionBufferSize) const = 0;
 
 public:
-	FRHIShaderBundle(uint32 InNumRecords, bool bInEmulated = false)
+	FRHIShaderBundle(uint32 InNumRecords)
 		: FRHIResource(RRT_ShaderBundle)
 		, NumRecords(InNumRecords)
-		, bEmulated(bInEmulated)
 	{
 	}
 };

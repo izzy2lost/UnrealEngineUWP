@@ -289,7 +289,8 @@ public:
 		FRHIShaderResourceView* RecordArgBufferSRV,
 		FRHIShaderResourceView* RecordDataBufferSRV,
 		FRHIUnorderedAccessView* ExecutionBufferUAV,
-		TConstArrayView<FRHIShaderBundleDispatch> Dispatches) {}
+		TConstArrayView<FRHIShaderBundleDispatch> Dispatches,
+		bool bEmulated) {}
 
 	virtual void RHIBeginUAVOverlap() {}
 	virtual void RHIEndUAVOverlap() {}

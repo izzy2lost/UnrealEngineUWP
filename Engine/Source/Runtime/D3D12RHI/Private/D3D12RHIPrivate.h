@@ -447,7 +447,7 @@ public:
 	virtual void RHITransferRayTracingGeometryUnderlyingResource(FRHICommandListBase& RHICmdList, FRHIRayTracingGeometry* DestGeometry, FRHIRayTracingGeometry* SrcGeometry) final override;
 #endif //D3D12_RHI_RAYTRACING
 
-	virtual FShaderBundleRHIRef RHICreateShaderBundle(uint32 NumRecords, bool bInEmulated) override;
+	virtual FShaderBundleRHIRef RHICreateShaderBundle(uint32 NumRecords) override;
 
 	bool CheckGpuHeartbeat() const override;
 

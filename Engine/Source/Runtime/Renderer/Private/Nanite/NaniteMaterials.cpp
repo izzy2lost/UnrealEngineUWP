@@ -53,11 +53,19 @@ static FAutoConsoleVariableRef CVarNaniteComputeMaterials(
 );
 
 // TODO: Heavily work in progress / experimental - do not use!
-static int32 GNaniteBundleDispatch = 0;
-static FAutoConsoleVariableRef CVarNaniteBundleDispatch(
-	TEXT("r.Nanite.BundleDispatch"),
-	GNaniteBundleDispatch,
-	TEXT("Whether to enable Nanite shader bundle dispatch"),
+static int32 GNaniteBundleEmulation = 0;
+static FAutoConsoleVariableRef CVarNaniteBundleEmulation(
+	TEXT("r.Nanite.Bundle.Emulation"),
+	GNaniteBundleEmulation,
+	TEXT("Whether to force shader bundle dispatch emulation"),
+	ECVF_RenderThreadSafe
+);
+
+static int32 GNaniteBundleShading = 0;
+static FAutoConsoleVariableRef CVarNaniteBundleShading(
+	TEXT("r.Nanite.Bundle.Shading"),
+	GNaniteBundleShading,
+	TEXT("Whether to enable Nanite shader bundle dispatch for shading"),
 	ECVF_RenderThreadSafe
 );
 
@@ -939,9 +947,8 @@ void BuildShadingCommands(
 	// Create Shader Bundle
 	if (!!GRHISupportsDispatchShaderBundle && ShadingCommands.Commands.Num() > 0)
 	{
-		const bool bEmulated = true; // TODO: Hook up cvar to force emulation when real support exists
 		const uint32 NumRecords = ShadingCommands.MaxShadingBin + 1u;
-		ShadingCommands.ShaderBundle = RHICreateShaderBundle(NumRecords, bEmulated);
+		ShadingCommands.ShaderBundle = RHICreateShaderBundle(NumRecords);
 		check(ShadingCommands.ShaderBundle != nullptr);
 	}
 	else
@@ -1394,7 +1401,8 @@ void DispatchBasePass(
 	);
 
 	const bool bSkipBarriers = GNaniteBarrierTest != 0;
-	const bool bDispatchBundle = !!GRHISupportsDispatchShaderBundle && GNaniteBundleDispatch != 0;
+	const bool bBundleShading = !!GRHISupportsDispatchShaderBundle && GNaniteBundleShading != 0;
+	const bool bBundleEmulation = bBundleShading && GNaniteBundleEmulation != 0;
 
 	auto ShadePassWork = []
 	(
@@ -1406,10 +1414,11 @@ void DispatchBasePass(
 		FRHIComputeCommandList& RHICmdList,
 		const uint32 IndirectArgStride,
 		bool bSkipBarriers,
-		bool bDispatchBundle
+		bool bBundleShading,
+		bool bBundleEmulation
 	)
 	{
-		if (!bDispatchBundle || ShaderBundle->bEmulated)
+		if (!bBundleShading || bBundleEmulation)
 		{
 			ShadingPassParameters->MaterialIndirectArgs->MarkResourceAsUsed();
 		}
@@ -1448,7 +1457,7 @@ void DispatchBasePass(
 			0
 		);
 
-		FRHIBuffer* IndirectArgsBuffer = (!bDispatchBundle || ShaderBundle->bEmulated) ? ShadingPassParameters->MaterialIndirectArgs->GetIndirectRHICallBuffer() : nullptr;
+		FRHIBuffer* IndirectArgsBuffer = (!bBundleShading || bBundleEmulation) ? ShadingPassParameters->MaterialIndirectArgs->GetIndirectRHICallBuffer() : nullptr;
 
 		if (ParallelCommandListSet)
 		{
@@ -1489,16 +1498,17 @@ void DispatchBasePass(
 			FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
 			check(!BatchedParameters.HasParameters());
 
-			if (bDispatchBundle && ShaderBundle.IsValid())
+			if (bBundleShading && ShaderBundle.IsValid())
 			{
 				auto RecordDispatches = [&](FRHICommandDispatchShaderBundle& Command)
 				{
-					Command.ShaderBundle = ShaderBundle;
-					Command.RecordArgBufferSRV = ShadingPassParameters->RecordArgBuffer->GetRHI();
-					Command.RecordDataBufferSRV = ShadingPassParameters->RecordDataBuffer->GetRHI();
-					Command.ExecutionBufferUAV = ShadingPassParameters->ExecutionBuffer->GetRHI();
+					Command.ShaderBundle		= ShaderBundle;
+					Command.bEmulated			= bBundleEmulation;
+					Command.RecordArgBufferSRV	= ShadingPassParameters->RecordArgBuffer->GetRHI();
+					Command.RecordDataBufferSRV	= ShadingPassParameters->RecordDataBuffer->GetRHI();
+					Command.ExecutionBufferUAV	= ShadingPassParameters->ExecutionBuffer->GetRHI();
 
-					check(!ShaderBundle->bEmulated || Command.RecordArgBufferSRV->GetBuffer() == IndirectArgsBuffer);
+					check(!bBundleEmulation || Command.RecordArgBufferSRV->GetBuffer() == IndirectArgsBuffer);
 
 					Command.Dispatches.SetNum(ShaderBundle->NumRecords);
 
@@ -1580,7 +1590,7 @@ void DispatchBasePass(
 		}
 	};
 
-	const bool bParallelDispatch = !bDispatchBundle && GRHICommandList.UseParallelAlgorithms() && CVarParallelBasePassBuild.GetValueOnRenderThread() != 0 &&
+	const bool bParallelDispatch = !bBundleShading && GRHICommandList.UseParallelAlgorithms() && CVarParallelBasePassBuild.GetValueOnRenderThread() != 0 &&
 								   FParallelMeshDrawCommandPass::IsOnDemandShaderCreationEnabled();
 	if (bParallelDispatch)
 	{
@@ -1604,13 +1614,14 @@ void DispatchBasePass(
 					RHICmdList,
 					IndirectArgStride,
 					bSkipBarriers,
-					false
+					false /* bBundleShading   */,
+					false /* bBundleEmulation */
 				);
 			});
 	}
 	else
 	{
-		if (bDispatchBundle && ShaderBundle.IsValid())
+		if (bBundleShading && ShaderBundle.IsValid())
 		{
 			uint32 RecordDataBufferSize = 0u;
 			uint32 ExecutionBufferSize = 0u;
@@ -1631,10 +1642,10 @@ void DispatchBasePass(
 			RDG_EVENT_NAME("ShadeGBufferCS"),
 			ShadingPassParameters,
 			ERDGPassFlags::Compute,
-			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgStride, &View, ViewRect, bSkipBarriers, bDispatchBundle]
+			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgStride, &View, ViewRect, bSkipBarriers, bBundleShading, bBundleEmulation]
 			(const FRDGPass* RDGPass, FRHIComputeCommandList& RHICmdList)
 			{
-				if (bDispatchBundle)
+				if (bBundleShading)
 				{
 					ShadingPassParameters->RecordArgBuffer->MarkResourceAsUsed();
 					ShadingPassParameters->RecordDataBuffer->MarkResourceAsUsed();
@@ -1650,7 +1661,8 @@ void DispatchBasePass(
 					RHICmdList,
 					IndirectArgStride,
 					bSkipBarriers,
-					bDispatchBundle
+					bBundleShading,
+					bBundleEmulation
 				);
 			});
 	}

@@ -1712,11 +1712,13 @@ FRHICOMMAND_MACRO(FRHICommandDispatchShaderBundle)
 	FRHIShaderResourceView* RecordDataBufferSRV;
 	FRHIUnorderedAccessView* ExecutionBufferUAV;
 	TArray<FRHIShaderBundleDispatch> Dispatches;
+	bool bEmulated;
 	FORCEINLINE_DEBUGGABLE FRHICommandDispatchShaderBundle()
 		: ShaderBundle(nullptr)
 		, RecordArgBufferSRV(nullptr)
 		, RecordDataBufferSRV(nullptr)
 		, ExecutionBufferUAV(nullptr)
+		, bEmulated(true)
 	{
 	}
 	FORCEINLINE_DEBUGGABLE FRHICommandDispatchShaderBundle(
@@ -1724,13 +1726,15 @@ FRHICOMMAND_MACRO(FRHICommandDispatchShaderBundle)
 		FRHIShaderResourceView* InRecordArgBufferSRV,
 		FRHIShaderResourceView* InRecordDataBufferSRV,
 		FRHIUnorderedAccessView* InExecutionBufferUAV,
-		TConstArrayView<FRHIShaderBundleDispatch> InDispatches
+		TConstArrayView<FRHIShaderBundleDispatch> InDispatches,
+		bool bInEmulated
 	)
 		: ShaderBundle(InShaderBundle)
 		, RecordArgBufferSRV(InRecordArgBufferSRV)
 		, RecordDataBufferSRV(InRecordDataBufferSRV)
 		, ExecutionBufferUAV(InExecutionBufferUAV)
 		, Dispatches(InDispatches)
+		, bEmulated(bInEmulated)
 	{
 	}
 	RHI_API void Execute(FRHICommandListBase& CmdList);
@@ -2856,15 +2860,16 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		FRHIShaderResourceView* RecordArgBufferSRV,
 		FRHIShaderResourceView* RecordDataBufferSRV,
 		FRHIUnorderedAccessView* ExecutionBufferUAV,
-		TConstArrayView<FRHIShaderBundleDispatch> Dispatches
+		TConstArrayView<FRHIShaderBundleDispatch> Dispatches,
+		bool bEmulated
 	)
 	{
 		if (Bypass())
 		{
-			GetContext().RHIDispatchShaderBundle(ShaderBundle, RecordArgBufferSRV, RecordDataBufferSRV, ExecutionBufferUAV, Dispatches);
+			GetContext().RHIDispatchShaderBundle(ShaderBundle, RecordArgBufferSRV, RecordDataBufferSRV, ExecutionBufferUAV, Dispatches, bEmulated);
 			return;
 		}
-		ALLOC_COMMAND(FRHICommandDispatchShaderBundle)(ShaderBundle, RecordArgBufferSRV, RecordDataBufferSRV, ExecutionBufferUAV, Dispatches);
+		ALLOC_COMMAND(FRHICommandDispatchShaderBundle)(ShaderBundle, RecordArgBufferSRV, RecordDataBufferSRV, ExecutionBufferUAV, Dispatches, bEmulated);
 	}
 
 	FORCEINLINE_DEBUGGABLE void BeginUAVOverlap()

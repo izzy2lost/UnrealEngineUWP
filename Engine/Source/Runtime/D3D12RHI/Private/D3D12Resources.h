@@ -980,8 +980,8 @@ class FD3D12ShaderBundle : public FRHIShaderBundle
 	friend class FD3D12DynamicRHI;
 
 public:
-	FD3D12ShaderBundle(FD3D12Device* InDevice, uint32 InNumRecords, bool bInEmulated = false)
-		: FRHIShaderBundle(InNumRecords, bInEmulated)
+	FD3D12ShaderBundle(FD3D12Device* InDevice, uint32 InNumRecords)
+		: FRHIShaderBundle(InNumRecords)
 	{
 	}
 

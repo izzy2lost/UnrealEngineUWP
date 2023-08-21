@@ -628,7 +628,8 @@ public:
 		FRHIShaderResourceView* RecordArgBufferSRV,
 		FRHIShaderResourceView* RecordDataBufferSRV,
 		FRHIUnorderedAccessView* ExecutionBufferUAV,
-		TConstArrayView<FRHIShaderBundleDispatch> Dispatches) override;
+		TConstArrayView<FRHIShaderBundleDispatch> Dispatches,
+		bool bEmulated) override;
 
 	virtual void RHIDrawPrimitive(uint32 BaseVertexIndex, uint32 NumPrimitives, uint32 NumInstances) final override;
 	virtual void RHIDrawPrimitiveIndirect(FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset) final override;

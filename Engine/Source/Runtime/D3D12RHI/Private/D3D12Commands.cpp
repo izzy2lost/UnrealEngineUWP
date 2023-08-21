@@ -1617,10 +1617,11 @@ void FD3D12CommandContext::RHIDispatchShaderBundle(
 	FRHIShaderResourceView* RecordArgBufferSRV,
 	FRHIShaderResourceView* RecordDataBufferSRV,
 	FRHIUnorderedAccessView* ExecutionBufferUAV,
-	TConstArrayView<FRHIShaderBundleDispatch> Dispatches
+	TConstArrayView<FRHIShaderBundleDispatch> Dispatches,
+	bool bEmulated
 )
 {
-	check(ShaderBundle != nullptr && Dispatches.Num() > 0 && ShaderBundle->bEmulated);
+	check(ShaderBundle != nullptr && Dispatches.Num() > 0);
 	TRHICommandList_RecursiveHazardous<FD3D12CommandContext> RHICmdList(this);
 	UE::RHICore::DispatchShaderBundleEmulation(RHICmdList, ShaderBundle, RecordArgBufferSRV->GetBuffer(), Dispatches);
 }

@@ -170,7 +170,8 @@ public:
 		FRHIShaderResourceView* RecordArgBufferSRV,
 		FRHIShaderResourceView* RecordDataBufferSRV,
 		FRHIUnorderedAccessView* ExecutionBufferUAV,
-		TConstArrayView<FRHIShaderBundleDispatch> Dispatches) final override
+		TConstArrayView<FRHIShaderBundleDispatch> Dispatches,
+		bool bEmulated) final override
 	{
 		checkf(Dispatches.Num() > 0, TEXT("A shader bundle must be dispatched with at least one record."));
 		for (const FRHIShaderBundleDispatch& Dispatch : Dispatches)
@@ -183,14 +184,14 @@ public:
 			ValidateShaderParameters(Dispatch.Shader, Tracker, State.StaticUniformBuffers, Dispatch.Parameters.ResourceParameters, ERHIAccess::SRVCompute, RHIValidation::EUAVMode::Compute);
 			ValidateShaderParameters(Dispatch.Shader, Tracker, State.StaticUniformBuffers, Dispatch.Parameters.BindlessParameters, ERHIAccess::SRVCompute, RHIValidation::EUAVMode::Compute);
 
-			if (ShaderBundleRHI->bEmulated)
+			if (bEmulated)
 			{
 				const uint32 ArgumentOffset = (Dispatch.RecordIndex * FRHIShaderBundle::ArgumentByteStride);
 				FValidationRHI::ValidateDispatchIndirectArgsBuffer(RecordArgBufferSRV->GetBuffer(), ArgumentOffset);
 			}
 		}
 
-		if (ShaderBundleRHI->bEmulated)
+		if (bEmulated)
 		{
 			Tracker->Assert(RecordArgBufferSRV->GetBuffer()->GetWholeResourceIdentity(), ERHIAccess::IndirectArgs);
 		}
@@ -201,7 +202,7 @@ public:
 			Tracker->Assert(ExecutionBufferUAV->GetViewIdentity(),  ERHIAccess::UAVCompute);
 		}
 
-		RHIContext->RHIDispatchShaderBundle(ShaderBundleRHI, RecordArgBufferSRV, RecordDataBufferSRV, ExecutionBufferUAV, Dispatches);
+		RHIContext->RHIDispatchShaderBundle(ShaderBundleRHI, RecordArgBufferSRV, RecordDataBufferSRV, ExecutionBufferUAV, Dispatches, bEmulated);
 	}
 
 	virtual void RHIBeginUAVOverlap() final override
@@ -517,7 +518,8 @@ public:
 		FRHIShaderResourceView* RecordArgBufferSRV,
 		FRHIShaderResourceView* RecordDataBufferSRV,
 		FRHIUnorderedAccessView* ExecutionBufferUAV,
-		TConstArrayView<FRHIShaderBundleDispatch> Dispatches) final override
+		TConstArrayView<FRHIShaderBundleDispatch> Dispatches,
+		bool bEmulated) final override
 	{
 		checkf(Dispatches.Num() > 0, TEXT("A shader bundle must be dispatched with at least one record."));
 		for (const FRHIShaderBundleDispatch& Dispatch : Dispatches)
@@ -530,14 +532,14 @@ public:
 			ValidateShaderParameters(Dispatch.Shader, Tracker, State.StaticUniformBuffers, Dispatch.Parameters.ResourceParameters, ERHIAccess::SRVCompute, RHIValidation::EUAVMode::Compute);
 			ValidateShaderParameters(Dispatch.Shader, Tracker, State.StaticUniformBuffers, Dispatch.Parameters.BindlessParameters, ERHIAccess::SRVCompute, RHIValidation::EUAVMode::Compute);
 
-			if (ShaderBundleRHI->bEmulated)
+			if (bEmulated)
 			{
 				const uint32 ArgumentOffset = (Dispatch.RecordIndex * FRHIShaderBundle::ArgumentByteStride);
 				FValidationRHI::ValidateDispatchIndirectArgsBuffer(RecordArgBufferSRV->GetBuffer(), ArgumentOffset);
 			}
 		}
 
-		if (ShaderBundleRHI->bEmulated)
+		if (bEmulated)
 		{
 			Tracker->Assert(RecordArgBufferSRV->GetBuffer()->GetWholeResourceIdentity(), ERHIAccess::IndirectArgs);
 		}
@@ -548,7 +550,7 @@ public:
 			Tracker->Assert(ExecutionBufferUAV->GetViewIdentity(),  ERHIAccess::UAVCompute);
 		}
 
-		RHIContext->RHIDispatchShaderBundle(ShaderBundleRHI, RecordArgBufferSRV, RecordDataBufferSRV, ExecutionBufferUAV, Dispatches);
+		RHIContext->RHIDispatchShaderBundle(ShaderBundleRHI, RecordArgBufferSRV, RecordDataBufferSRV, ExecutionBufferUAV, Dispatches, bEmulated);
 	}
 
 	virtual void RHIBeginUAVOverlap() final override

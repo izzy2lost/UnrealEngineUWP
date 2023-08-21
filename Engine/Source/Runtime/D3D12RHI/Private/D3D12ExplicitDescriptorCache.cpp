@@ -185,7 +185,7 @@ void FD3D12ExplicitDescriptorHeap::Init(uint32 InMaxNumDescriptors, D3D12_DESCRI
 	CPUBase = D3D12Heap->GetCPUDescriptorHandleForHeapStart();
 	GPUBase = D3D12Heap->GetGPUDescriptorHandleForHeapStart();
 
-	checkf(CPUBase.ptr, TEXT("Ray tracing descriptor heap of type %d returned from descriptor heap cache is invalid."), Type);
+	checkf(CPUBase.ptr, TEXT("Explicit descriptor heap of type %d returned from descriptor heap cache is invalid."), Type);
 
 	DescriptorSize = GetParentDevice()->GetDevice()->GetDescriptorHandleIncrementSize(Type);
 
@@ -229,7 +229,7 @@ int32 FD3D12ExplicitDescriptorHeap::Allocate(uint32 InNumDescriptors)
 			// allocations may be happening simultaneously, but we only want to report the error once.
 
 			UE_LOG(LogD3D12RHI, Error,
-			       TEXT("Ray tracing view descriptor heap overflow. Current frame will not be rendered correctly. ")
+			       TEXT("Explicit view descriptor heap overflow. Current frame will not be rendered correctly. ")
 			       TEXT("Increase r.D3D12.RayTracingViewDescriptorHeapSize to at least %d to fix this issue."),
 			       MaxNumDescriptors * 2);
 		}
@@ -370,7 +370,7 @@ int32 FD3D12ExplicitDescriptorCache::AllocateDescriptorTable(const uint32* Descr
 	{
 	#if EXPLICIT_DESCRIPTOR_CACHE_FULL_COMPARE
 		if (ensureMsgf(Heap.CompareDescriptors(DescriptorTableBaseIndex, Descriptors, NumDescriptors), 
-		               TEXT("Ray tracing descriptor cache hash collision detected!")))
+		               TEXT("Explicit descriptor cache hash collision detected!")))
 	#endif
 		{
 			return DescriptorTableBaseIndex;

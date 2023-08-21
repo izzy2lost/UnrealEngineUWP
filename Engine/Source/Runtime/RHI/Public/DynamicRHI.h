@@ -983,7 +983,7 @@ public:
 	}
 #endif // RHI_RAYTRACING
 
-	virtual FShaderBundleRHIRef RHICreateShaderBundle(uint32 NumRecords, bool bInEmulated)
+	virtual FShaderBundleRHIRef RHICreateShaderBundle(uint32 NumRecords)
 	{
 		checkNoEntry();
 		return nullptr;
@@ -1485,9 +1485,9 @@ FORCEINLINE FRayTracingShaderRHIRef RHICreateRayTracingShader(TArrayView<const u
 
 #endif // RHI_RAYTRACING
 
-FORCEINLINE FShaderBundleRHIRef RHICreateShaderBundle(uint32 NumRecords, bool bInEmulated)
+FORCEINLINE FShaderBundleRHIRef RHICreateShaderBundle(uint32 NumRecords)
 {
-	return GDynamicRHI->RHICreateShaderBundle(NumRecords, bInEmulated);
+	return GDynamicRHI->RHICreateShaderBundle(NumRecords);
 }
 
 /**
