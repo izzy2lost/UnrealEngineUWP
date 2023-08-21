@@ -5,6 +5,7 @@
 #include "Components/Widget.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "MVVMBlueprintViewConversionFunction.h"
+#include "MVVMBlueprintViewEvent.h"
 #include "MVVMWidgetBlueprintExtension_View.h"
 #include "WidgetBlueprint.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
@@ -196,6 +197,25 @@ const FMVVMBlueprintViewBinding* UMVVMBlueprintView::GetBinding(FGuid Id) const
 	return Bindings.FindByPredicate([Id](const FMVVMBlueprintViewBinding& Binding) { return Id == Binding.BindingId; });
 }
 
+UMVVMBlueprintViewEvent* UMVVMBlueprintView::AddDefaultEvent()
+{
+	UMVVMBlueprintViewEvent* Event = NewObject<UMVVMBlueprintViewEvent>(this);
+	Events.Add(Event);
+
+	OnBindingsAdded.Broadcast();
+	OnBindingsUpdated.Broadcast();
+	return Event;
+}
+
+void UMVVMBlueprintView::RemoveEvent(UMVVMBlueprintViewEvent* Event)
+{
+	if (Events.RemoveAll([Event](TObjectPtr<UMVVMBlueprintViewEvent>& Other){ return Other == Event; }) > 0)
+	{
+		Event->RemoveWrapperGraph();
+		OnBindingsUpdated.Broadcast();
+	}
+}
+
 TArray<FText> UMVVMBlueprintView::GetBindingMessages(FGuid Id, UE::MVVM::EBindingMessageType InMessageType) const
 {
 	TArray<FText> Results;
@@ -293,6 +313,10 @@ void UMVVMBlueprintView::PreSave(FObjectPreSaveContext Context)
 	{
 		Binding.Conversion.SavePinValues(WidgetBlueprint);
 	}
+	for (UMVVMBlueprintViewEvent* Event : Events)
+	{
+		Event->SavePinValues();
+	}
 
 	Super::PreSave(Context);
 }
@@ -318,6 +342,10 @@ void UMVVMBlueprintView::PostEditChangeChainProperty(FPropertyChangedChainEvent&
 		OnBindingsUpdated.Broadcast();
 	}
 	if (PropertyChainEvent.PropertyChain.Contains(UMVVMBlueprintView::StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UMVVMBlueprintView, AvailableViewModels))))
+	{
+		OnViewModelsUpdated.Broadcast();
+	}
+	if (PropertyChainEvent.PropertyChain.Contains(UMVVMBlueprintView::StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UMVVMBlueprintView, Events))))
 	{
 		OnViewModelsUpdated.Broadcast();
 	}

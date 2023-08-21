@@ -2,12 +2,20 @@
 
 #include "MVVMPropertyPath.h"
 #include "BlueprintCompilationManager.h"
+#include "Blueprint/WidgetTree.h"
 #include "Engine/Blueprint.h"
 #include "Engine/UserDefinedStruct.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/StructureEditorUtils.h"
+#include "MVVMBlueprintView.h"
+#include "MVVMBlueprintViewModelContext.h"
+#include "MVVMWidgetBlueprintExtension_View.h"
+#include "Types/MVVMFieldVariant.h"
+#include "WidgetBlueprint.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MVVMPropertyPath)
+
+#define LOCTEXT_NAMESPACE "MVVMBlueprintFieldPath"
 
 FMVVMBlueprintFieldPath::FMVVMBlueprintFieldPath(const UBlueprint* InContext, UE::MVVM::FMVVMConstFieldVariant InField)
 {
@@ -278,3 +286,146 @@ bool FMVVMBlueprintPropertyPath::HasFieldInLocalScope() const
 
 	return false;
 }
+
+
+namespace UE::MVVM::Private
+{
+FText GetWidgetDisplayName(const UWidgetBlueprint* WidgetBlueprint, FName WidgetName, bool bUseDisplayName, bool bIncludeMetaData)
+{
+	if (!bUseDisplayName && !bIncludeMetaData)
+	{
+		return FText::FromName(WidgetName);
+	}
+
+	UWidgetTree* WidgetTree = WidgetBlueprint ? WidgetBlueprint->WidgetTree : nullptr;
+	UWidget* FoundWidget = WidgetTree ? WidgetTree->FindWidget(WidgetName) : nullptr;
+	if (bIncludeMetaData)
+	{
+		return FoundWidget ? FoundWidget->GetLabelTextWithMetadata() : FText::FromName(WidgetName);
+	}
+	return FoundWidget ? FoundWidget->GetLabelText() : FText::FromName(WidgetName);
+}
+
+
+FText GetViewModelDisplayName(const UWidgetBlueprint* WidgetBlueprint, FGuid Id, bool bUseDisplayName)
+{
+	UMVVMWidgetBlueprintExtension_View* ExtensionView = UMVVMWidgetBlueprintExtension_View::GetExtension<UMVVMWidgetBlueprintExtension_View>(WidgetBlueprint);
+	UMVVMBlueprintView* BlueprintView = ExtensionView ? ExtensionView->GetBlueprintView() : nullptr;
+	const FMVVMBlueprintViewModelContext* ViewModel = BlueprintView ? BlueprintView->FindViewModel(Id) : nullptr;
+	if (bUseDisplayName)
+	{
+		return ViewModel ? ViewModel->GetDisplayName() : LOCTEXT("None", "<None>");
+	}
+	return ViewModel ? FText::FromName(ViewModel->GetViewModelName()) : LOCTEXT("None", "<None>");
+}
+
+
+FText GetRootName(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintPropertyPath& PropertyPath, bool bUseDisplayName, bool bIncludeMetaData)
+{
+	if (PropertyPath.IsFromWidget())
+	{
+		if (WidgetBlueprint->GetFName() == PropertyPath.GetWidgetName())
+		{
+			return bUseDisplayName ? LOCTEXT("Self", "Self") : FText::FromString(WidgetBlueprint->GetFriendlyName());
+		}
+		else
+		{
+			return GetWidgetDisplayName(WidgetBlueprint, PropertyPath.GetWidgetName(), bUseDisplayName, bIncludeMetaData);
+		}
+	}
+	else if (PropertyPath.IsFromViewModel())
+	{
+		return GetViewModelDisplayName(WidgetBlueprint, PropertyPath.GetViewModelId(), bUseDisplayName);
+	}
+	return FText::GetEmpty();
+}
+}//namespace
+
+
+FText FMVVMBlueprintPropertyPath::ToText(const UWidgetBlueprint* WidgetBlueprint, bool bUseDisplayName) const
+{
+	if (WidgetBlueprint == nullptr)
+	{
+		return FText::GetEmpty();
+	}
+
+	auto GetDisplayNameForField = [](const UE::MVVM::FMVVMConstFieldVariant& Field) -> FText
+	{
+		if (!Field.IsEmpty())
+		{
+			if (Field.IsProperty())
+			{
+				return Field.GetProperty()->GetDisplayNameText();
+			}
+			else if (Field.IsFunction())
+			{
+				return Field.GetFunction()->GetDisplayNameText();
+			}
+		}
+		return LOCTEXT("None", "<None>");
+	};
+
+	TArray<FText> JoinArgs;
+	JoinArgs.Add(UE::MVVM::Private::GetRootName(WidgetBlueprint, *this, bUseDisplayName, false));
+	TArray<UE::MVVM::FMVVMConstFieldVariant> Fields = GetFields(WidgetBlueprint->SkeletonGeneratedClass);
+	for (const UE::MVVM::FMVVMConstFieldVariant& Field : Fields)
+	{
+		JoinArgs.Add(bUseDisplayName ? GetDisplayNameForField(Field) : FText::FromName(Field.GetName()));
+	}
+	return FText::Join(LOCTEXT("PathDelimiter", "."), JoinArgs);
+}
+
+
+FString FMVVMBlueprintPropertyPath::ToString(const UWidgetBlueprint* WidgetBlueprint, bool bUseDisplayName, bool bIncludeMetaData) const
+{
+	if (WidgetBlueprint == nullptr)
+	{
+		return FString();
+	}
+
+	TStringBuilder<256> Builder;
+	Builder << UE::MVVM::Private::GetRootName(WidgetBlueprint, *this, bUseDisplayName, bIncludeMetaData).ToString();
+
+	TArray<UE::MVVM::FMVVMConstFieldVariant> Fields = GetFields(WidgetBlueprint->SkeletonGeneratedClass);
+	for (const UE::MVVM::FMVVMConstFieldVariant& Field : Fields)
+	{
+		Builder << '.';
+		if (!Field.IsEmpty())
+		{
+			if (Field.IsProperty())
+			{
+				if (bUseDisplayName)
+				{
+					Builder << Field.GetProperty()->GetDisplayNameText().ToString();
+				}
+				else
+				{
+					Builder << Field.GetProperty()->GetFName();
+				}
+			}
+			else if (Field.IsFunction())
+			{
+				if (bUseDisplayName)
+				{
+					Builder << Field.GetFunction()->GetDisplayNameText().ToString();
+				}
+				else
+				{
+					Builder << Field.GetFunction()->GetFName();
+				}
+				if (bIncludeMetaData)
+				{
+					const FString& FunctionKeywords = Field.GetFunction()->GetMetaData(FBlueprintMetadata::MD_FunctionKeywords);
+					if (!FunctionKeywords.IsEmpty())
+					{
+						Builder << TEXT(".");
+						Builder << FunctionKeywords;
+					}
+				}
+			}
+		}
+	}
+	return Builder.ToString();
+}
+
+#undef LOCTEXT_NAMESPACE

@@ -312,6 +312,54 @@ private:
 
 
 /**
+ * A compiled and shared delegate bindings
+ */
+USTRUCT()
+struct MODELVIEWVIEWMODEL_API FMVVMViewClass_CompiledEvent
+{
+	GENERATED_BODY()
+
+	friend UE::MVVM::Private::FMVVMViewBlueprintCompiler;
+
+public:
+	/** @return The unique name of the source object that owns the multicast delegate. */
+	FName GetSourceName() const
+	{
+		return SourceName;
+	}
+
+	const FMVVMVCompiledFieldPath& GetMulticastDelegatePath() const
+	{
+		return FieldPath;
+	}
+
+	const FName GetUserWidgetFunctionName() const
+	{
+		return FunctionName;
+	}
+
+#if UE_WITH_MVVM_DEBUGGING
+	struct FToStringArgs
+	{
+		bool bUseDisplayName = true;
+	};
+	/** @return a human readable version of the binding that can be use for debugging purposes. */
+	FString ToString(const FMVVMCompiledBindingLibrary& CompiledBindingLibrary, FToStringArgs Args) const;
+#endif
+
+private:
+	UPROPERTY()
+	FMVVMVCompiledFieldPath FieldPath;
+
+	UPROPERTY()
+	FName FunctionName;
+
+	UPROPERTY()
+	FName SourceName;
+};
+
+
+/**
  * Shared between every instances of the same View class.
  */
 UCLASS()
@@ -366,6 +414,12 @@ public:
 	{
 		return CompiledBindings[Index];
 	}
+	
+	/**  */
+	const TArrayView<const FMVVMViewClass_CompiledEvent> GetCompiledEvents() const
+	{
+		return MakeArrayView(CompiledEvents);
+	}
 
 #if UE_WITH_MVVM_DEBUGGING
 	void Log(FMVVMViewClass_SourceCreator::FToStringArgs SourceArgs, FMVVMViewClass_CompiledBinding::FToStringArgs BindingArgs) const;
@@ -376,6 +430,12 @@ private:
 	TArrayView<FMVVMViewClass_CompiledBinding> GetCompiledBindings()
 	{
 		return MakeArrayView(CompiledBindings);
+	}
+	
+	/**  */
+	TArrayView<FMVVMViewClass_CompiledEvent> GetCompiledEvents()
+	{
+		return MakeArrayView(CompiledEvents);
 	}
 
 #if WITH_EDITOR
@@ -390,6 +450,10 @@ private:
 	/** */
 	UPROPERTY()
 	TArray<FMVVMViewClass_CompiledBinding> CompiledBindings;
+	
+	/** */
+	UPROPERTY()
+	TArray<FMVVMViewClass_CompiledEvent> CompiledEvents;
 
 	/** All the bindings shared between all the View instance. */
 	UPROPERTY()

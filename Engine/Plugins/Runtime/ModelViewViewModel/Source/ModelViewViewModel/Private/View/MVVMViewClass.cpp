@@ -490,6 +490,41 @@ FString FMVVMViewClass_CompiledBinding::ToString(const FMVVMCompiledBindingLibra
 }
 #endif
 
+///////////////////////////////////////////////////////////////////////
+// 
+///////////////////////////////////////////////////////////////////////
+#if UE_WITH_MVVM_DEBUGGING
+FString FMVVMViewClass_CompiledEvent::ToString(const FMVVMCompiledBindingLibrary& BindingLibrary, FToStringArgs Args) const
+{
+	TStringBuilder<1024> StringBuilder;
+
+	if (GetMulticastDelegatePath().IsValid())
+	{
+		StringBuilder << TEXT("Event: ");
+
+		if (Args.bUseDisplayName)
+		{
+			StringBuilder << TEXT('"');
+		}
+
+		TValueOrError<FString, FString> SourceFieldPathString = BindingLibrary.FieldPathToString(GetMulticastDelegatePath(), Args.bUseDisplayName);
+		StringBuilder << (SourceFieldPathString.HasValue() ? SourceFieldPathString.StealValue() : SourceFieldPathString.StealError());
+
+		if (Args.bUseDisplayName)
+		{
+			StringBuilder << TEXT("\"\n");
+		}
+	}
+
+	StringBuilder << TEXT("SourceName: ");
+	StringBuilder << GetSourceName();
+
+	StringBuilder << TEXT(", Function: ");
+	StringBuilder << GetUserWidgetFunctionName();
+
+	return StringBuilder.ToString();
+}
+#endif
 
 ///////////////////////////////////////////////////////////////////////
 // 
@@ -592,6 +627,17 @@ void UMVVMViewClass::Log(FMVVMViewClass_SourceCreator::FToStringArgs SourceArgs,
 	{
 		Builder << TEXT("\n");
 		Builder << Binding.ToString(GetBindingLibrary(), BindingArgs);
+	}
+	UE_LOG(LogMVVM, Log, TEXT("%s"), Builder.ToString());
+
+	Builder.Reset();
+
+	Builder << TEXT("Compiled Events for: ");
+	Builder << GetOutermost()->GetFName();
+	for (const FMVVMViewClass_CompiledEvent& Event : GetCompiledEvents())
+	{
+		Builder << TEXT("\n");
+		Builder << Event.ToString(GetBindingLibrary(), FMVVMViewClass_CompiledEvent::FToStringArgs());
 	}
 	UE_LOG(LogMVVM, Log, TEXT("%s"), Builder.ToString());
 

@@ -9,6 +9,7 @@
 #include "MVVMPropertyPath.generated.h"
 
 class UBlueprint;
+class UWidgetBlueprint;
 
 /**
  * A single item in a Property Path
@@ -216,6 +217,10 @@ public:
 			}
 		}
 	}
+
+public:
+	FText ToText(const UWidgetBlueprint* Blueprint, bool bUseDisplayName) const;
+	FString ToString(const UWidgetBlueprint* Blueprint, bool bUseDisplayName, bool bIncludeMetaData) const;
 };
 
 template<>

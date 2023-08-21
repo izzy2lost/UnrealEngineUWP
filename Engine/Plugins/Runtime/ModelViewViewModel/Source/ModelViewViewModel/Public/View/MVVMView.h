@@ -13,6 +13,7 @@ template <typename InterfaceType> class TScriptInterface;
 
 class UMVVMViewClass;
 struct FMVVMViewClass_CompiledBinding;
+struct FMVVMViewClass_CompiledEvent;
 struct FMVVMViewDelayedBinding;
 class UMVVMViewModelBase;
 class UWidget;
@@ -21,6 +22,7 @@ namespace UE::MVVM
 	class FDebugging;
 }
 
+/** */
 USTRUCT()
 struct FMVVMViewSource
 {
@@ -153,6 +155,12 @@ private:
 	FDelegateHandle RegisterLibraryBinding(const FMVVMViewClass_CompiledBinding& Binding, int32 BindingIndex);
 	void UnregisterLibraryBinding(const FMVVMViewClass_CompiledBinding& Binding, FDelegateHandle Handle, int32 BindingIndex);
 
+	void InitializeEvents();
+	void UninitializeEvents();
+	void EnableLibraryEvent(const FMVVMViewClass_CompiledEvent& Item, int32 EventIndex);
+	void DisableLibraryEvent(const FMVVMViewClass_CompiledEvent& Item, int32 EventIndex);
+	bool IsLibraryEventEnabled(int32 EventIndex) const;
+
 	TScriptInterface<INotifyFieldValueChanged> FindSource(const FMVVMViewClass_CompiledBinding& Binding, int32 BindingIndex, bool bAllowNull) const;
 	FMVVMViewSource* FindViewSource(const FName SourceName);
 	const FMVVMViewSource* FindViewSource(const FName SourceName) const;
@@ -166,6 +174,9 @@ private:
 
 	/** The binding that are registered by the view to the sources. */
 	TArray<FDelegateHandle> RegisteredLibraryBindings;
+	
+	/** The event that are registered by the view to the sources. */
+	TBitArray<> RegisteredLibraryEvents;
 
 	/** Should log when a binding is executed. */
 	UPROPERTY(EditAnywhere, Transient, Category = "Viewmodel")

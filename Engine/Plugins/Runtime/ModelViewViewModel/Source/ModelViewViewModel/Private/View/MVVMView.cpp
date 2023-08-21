@@ -56,6 +56,7 @@ void UMVVMView::Construct()
 	{
 		InitializeSources();
 	}
+	InitializeEvents();
 
 	bConstructed = true;
 }
@@ -70,6 +71,7 @@ void UMVVMView::Destruct()
 	UE::MVVM::FDebugging::BroadcastViewBeginDestruction(this);
 #endif
 
+	UninitializeEvents();
 	UninitializeSources(); // and bindings
 }
 
@@ -390,6 +392,7 @@ bool UMVVMView::SetSourceInternal(FName ViewModelName, TScriptInterface<INotifyF
 	if (PreviousValue != NewValue.GetObject())
 	{
 		const TArrayView<const FMVVMViewClass_CompiledBinding> CompiledBindings = ClassExtension->GetCompiledBindings();
+		const TArrayView<const FMVVMViewClass_CompiledEvent> CompiledEvents = ClassExtension->GetCompiledEvents();
 
 		// Unregister any bindings from that source
 		if (bBindingsInitialized)
@@ -400,6 +403,19 @@ bool UMVVMView::SetSourceInternal(FName ViewModelName, TScriptInterface<INotifyF
 				if (IsLibraryBindingEnabled(Index) && Binding.GetSourceName() == ViewModelName)
 				{
 					DisableLibraryBinding(Binding, Index);
+				}
+			}
+		}
+
+		// Unregisterer any events from that source
+		if (bConstructed)
+		{
+			for (int32 Index = 0; Index < CompiledEvents.Num(); ++Index)
+			{
+				const FMVVMViewClass_CompiledEvent& CompiledEvent = CompiledEvents[Index];
+				if (IsLibraryEventEnabled(Index) && CompiledEvent.GetSourceName() == ViewModelName)
+				{
+					DisableLibraryEvent(CompiledEvent, Index);
 				}
 			}
 		}
@@ -423,6 +439,7 @@ bool UMVVMView::SetSourceInternal(FName ViewModelName, TScriptInterface<INotifyF
 
 		bool bPreviousEveryTickBinding = bHasEveryTickBinding;
 		bHasEveryTickBinding = false;
+
 		// Register back any bindings that was previously enabled
 		if (bBindingsInitialized && NewValue.GetObject())
 		{
@@ -450,6 +467,20 @@ bool UMVVMView::SetSourceInternal(FName ViewModelName, TScriptInterface<INotifyF
 							}
 						}
 					}
+				}
+			}
+		}
+
+		// Register back any events that was previously enabled
+		if (bConstructed && NewValue.GetObject())
+		{
+			// Enabled the default events
+			for (int32 Index = 0; Index < CompiledEvents.Num(); ++Index)
+			{
+				const FMVVMViewClass_CompiledEvent& CompiledEvent = CompiledEvents[Index];
+				if (CompiledEvent.GetSourceName() == ViewModelName)
+				{
+					EnableLibraryEvent(CompiledEvent, Index);
 				}
 			}
 		}
@@ -859,6 +890,133 @@ void UMVVMView::UnregisterLibraryBinding(const FMVVMViewClass_CompiledBinding& B
 			--RegisteredSource->RegisteredCount;
 		}
 	}
+}
+
+
+void UMVVMView::InitializeEvents()
+{
+	UUserWidget* UserWidget = GetUserWidget();
+	check(UserWidget);
+	check(ClassExtension);
+
+	const TArrayView<const FMVVMViewClass_CompiledEvent>& CompiledEvent = ClassExtension->GetCompiledEvents();
+
+	ensure(RegisteredLibraryEvents.IsEmpty());
+	RegisteredLibraryEvents.Reset();
+	RegisteredLibraryEvents.Add(false, CompiledEvent.Num());
+
+	for (int32 Index = 0; Index < CompiledEvent.Num(); ++Index)
+	{
+		const FMVVMViewClass_CompiledEvent& Event = CompiledEvent[Index];
+		EnableLibraryEvent(Event, Index);
+	}
+}
+
+
+void UMVVMView::UninitializeEvents()
+{
+	check(ClassExtension);
+
+	const TArrayView<const FMVVMViewClass_CompiledEvent>& CompiledEvent = ClassExtension->GetCompiledEvents();
+	for (int32 Index = 0; Index < CompiledEvent.Num(); ++Index)
+	{
+		const FMVVMViewClass_CompiledEvent& Event = CompiledEvent[Index];
+		if (RegisteredLibraryEvents[Index])
+		{
+			DisableLibraryEvent(Event, Index);
+		}
+	}
+}
+
+
+void UMVVMView::EnableLibraryEvent(const FMVVMViewClass_CompiledEvent& Event, int32 EventIndex)
+{
+	UUserWidget* UserWidget = GetUserWidget();
+	check(UserWidget);
+
+	auto LogMessage = [this, &Event, EventIndex](const FText& Message)
+	{
+		UE::MVVM::FMessageLog Log(GetUserWidget());
+		Log.Error(FText::Format(LOCTEXT("EnableLibraryEventFailed_Format", "Widget '{0}' can't register event '{1}'. {2}")
+			, FText::FromString(GetFullName())
+#if UE_WITH_MVVM_DEBUGGING
+			, FText::FromString(Event.ToString(ClassExtension->GetBindingLibrary(), FMVVMViewClass_CompiledEvent::FToStringArgs()))
+#else
+			, FText::AsNumber(EventIndex)
+#endif
+			, Message
+			));
+	};
+
+	const UFunction* FunctionToBind = UserWidget->GetClass()->FindFunctionByName(Event.GetUserWidgetFunctionName());
+	if (FunctionToBind == nullptr)
+	{
+		LogMessage(LOCTEXT("EnableLibraryEventFailed_FunctionNotFound", "Function not found"));
+		return;
+	}
+
+	const FMVVMCompiledBindingLibrary& Library = ClassExtension->GetBindingLibrary();
+	TValueOrError<UE::MVVM::FFieldContext, void> FieldPathResult = Library.EvaluateFieldPath(UserWidget, Event.GetMulticastDelegatePath());
+	if (FieldPathResult.HasError())
+	{
+		LogMessage(LOCTEXT("EnableLibraryEventFailed_CantEvaluateBindingPath", "The binding path couldn't be evaluated."));
+		return;
+	}
+
+	UE::MVVM::FFieldContext FieldContext = FieldPathResult.StealValue();
+	if (FieldContext.GetObjectVariant().IsNull() || !FieldContext.GetObjectVariant().IsUObject())
+	{
+		LogMessage(LOCTEXT("EnableLibraryEventFailed_OwnerInvalid", "The owner is invalid."));
+		return;
+	}
+
+
+	FMulticastDelegateProperty* MulticastDelegateProp = FieldContext.GetFieldVariant().IsProperty() ? CastField<FMulticastDelegateProperty>(FieldContext.GetFieldVariant().GetProperty()) : nullptr;
+	if (!MulticastDelegateProp)
+	{
+		LogMessage(LOCTEXT("EnableLibraryEventFailed_NotAProperty", "The path doesn't point to a multicast delegate property."));
+		return;
+	}
+
+	FScriptDelegate Delegate;
+	Delegate.BindUFunction(UserWidget, Event.GetUserWidgetFunctionName());
+	MulticastDelegateProp->AddDelegate(MoveTemp(Delegate), FieldContext.GetObjectVariant().GetUObject());
+	RegisteredLibraryEvents[EventIndex] = true;
+}
+
+
+void UMVVMView::DisableLibraryEvent(const FMVVMViewClass_CompiledEvent& Event, int32 EventIndex)
+{
+	check(IsLibraryEventEnabled(EventIndex));
+
+	RegisteredLibraryEvents[EventIndex] = false;
+
+	UUserWidget* UserWidget = GetUserWidget();
+	check(UserWidget);
+	const FMVVMCompiledBindingLibrary& Library = ClassExtension->GetBindingLibrary();
+
+	TValueOrError<UE::MVVM::FFieldContext, void> FieldPathResult = Library.EvaluateFieldPath(UserWidget, Event.GetMulticastDelegatePath());
+	if (FieldPathResult.HasError())
+	{
+		return;
+	}
+
+	UE::MVVM::FFieldContext FieldContext = FieldPathResult.StealValue();
+	if (FieldContext.GetObjectVariant().IsNull())
+	{
+		return;
+	}
+
+	FMulticastDelegateProperty* MulticastDelegateProp = CastFieldChecked<FMulticastDelegateProperty>(FieldContext.GetFieldVariant().GetProperty());
+	FScriptDelegate Delegate;
+	Delegate.BindUFunction(UserWidget, Event.GetUserWidgetFunctionName());
+	MulticastDelegateProp->RemoveDelegate(Delegate, FieldContext.GetObjectVariant().GetUObject());
+}
+
+
+bool UMVVMView::IsLibraryEventEnabled(int32 EventIndex) const
+{
+	return ensure(RegisteredLibraryEvents.IsValidIndex(EventIndex)) && RegisteredLibraryEvents[EventIndex];
 }
 
 

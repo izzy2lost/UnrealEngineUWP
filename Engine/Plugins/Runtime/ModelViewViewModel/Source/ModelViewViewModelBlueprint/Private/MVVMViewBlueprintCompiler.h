@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Bindings/MVVMCompiledBindingLibraryCompiler.h"
+#include "MVVMBlueprintViewEvent.h"
 #include "MVVMBlueprintViewModelContext.h"
 #include "Types/MVVMFieldVariant.h"
 #include "WidgetBlueprintCompiler.h"
@@ -47,7 +48,6 @@ public:
 
 	void AddExtension(UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension);
 	void CleanOldData(UWidgetBlueprintGeneratedClass* ClassToClean, UObject* OldCDO);
-	void CleanTemporaries(UWidgetBlueprintGeneratedClass* ClassToClean);
 
 	/** Generate function that are hidden from the user (not on the Skeleton class). */
 	void CreateFunctions(UMVVMBlueprintView* BlueprintView);
@@ -77,10 +77,14 @@ private:
 
 	bool PreCompileBindings(UWidgetBlueprintGeneratedClass* Class, UMVVMBlueprintView* BlueprintView);
 	bool CompileBindings(const FCompiledBindingLibraryCompiler::FCompileResult& CompileResult, UWidgetBlueprintGeneratedClass* Class, UMVVMBlueprintView* BlueprintView, UMVVMViewClass* ViewExtension);
+	
+	bool PreCompileEvents(UWidgetBlueprintGeneratedClass* Class, UMVVMBlueprintView* BlueprintView);
+	bool CompileEvents(const FCompiledBindingLibraryCompiler::FCompileResult& CompileResult, UWidgetBlueprintGeneratedClass* Class, UMVVMBlueprintView* BlueprintView, UMVVMViewClass* ViewExtension);
 
 	const FCompilerSourceCreatorContext* FindViewModelSource(FGuid Id) const;
 
 	void AddMessageForBinding(FMVVMBlueprintViewBinding& Binding, UMVVMBlueprintView* BlueprintView, const FText& MessageText, EBindingMessageType MessageType, FName ArgumentName = FName()) const;
+	void AddMessageForEvent(UMVVMBlueprintViewEvent* Event, const FText& MessageText, UMVVMBlueprintViewEvent::EMessageType MessageType, FName ArgumentName) const;
 	void AddErrorForViewModel(const FMVVMBlueprintViewModelContext& ViewModel, const FText& Message) const;
 
 	TValueOrError<FBindingSourceContext, FText> CreateBindingSourceContext(const UMVVMBlueprintView* BlueprintView, const UWidgetBlueprintGeneratedClass* Class, const FMVVMBlueprintPropertyPath& PropertyPath, bool bIsOneTimeBinding);
@@ -149,7 +153,6 @@ private:
 		FCompiledBindingLibraryCompiler::FFieldPathHandle SourceRead;
 		FCompiledBindingLibraryCompiler::FFieldPathHandle DestinationWrite;
 		FCompiledBindingLibraryCompiler::FFieldPathHandle ConversionFunction;
-		FCompiledBindingLibraryCompiler::FFieldPathHandle ExecutionFunction;
 
 		bool bIsConversionFunctionComplex = false;
 	};
@@ -256,12 +259,26 @@ private:
 	};
 	TArray<FComplexConversionFunctionContext> ComplexConversionFunctionContexts;
 
+	/**
+	 * Context for multicast delegate
+	 */
+	struct FEventDelegateContext
+	{
+		UMVVMBlueprintViewEvent* BlueprintEvent = nullptr;
+
+		FCompiledBindingLibraryCompiler::FFieldPathHandle DelegateFieldPathHandle;
+		FName GeneratedGraphName;
+		FName SourceName;
+	};
+	TArray<FEventDelegateContext> EventDelegateContexts;
+
 	TMap<FName, UWidget*> WidgetNameToWidgetPointerMap;
 	FWidgetBlueprintCompilerContext& WidgetBlueprintCompilerContext;
 	FCompiledBindingLibraryCompiler BindingLibraryCompiler;
 	bool bAreSourcesCreatorValid = true;
 	bool bAreSourceContextsValid = true;
-	bool bIsBindingsValid = true;
+	bool bAreBindingsValid = true;
+	bool bAreEventsValid = true;
 };
 
 } //namespace

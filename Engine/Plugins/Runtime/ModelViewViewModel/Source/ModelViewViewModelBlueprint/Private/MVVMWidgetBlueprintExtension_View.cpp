@@ -134,11 +134,21 @@ void UMVVMWidgetBlueprintExtension_View::HandleFinishCompilingClass(UWidgetBluep
 			bCompiled = CurrentCompilerContext->Compile(Class, BlueprintView, ViewExtension);
 		}
 
-		CurrentCompilerContext->CleanTemporaries(Class);
-
-		if (bCompiled && UE::MVVM::Private::GAllowViewClass)
+		if (bCompiled)
 		{
 			check(ViewExtension);
+			if (!UE::MVVM::Private::GAllowViewClass)
+			{
+				ViewExtension->SetFlags(RF_Transient);
+
+				// If we are not allowed to add the view class, add the transient flags on added conversion graph and event graph.
+				for (TFieldIterator<UFunction> FunctionIter(Class, EFieldIteratorFlags::ExcludeSuper); FunctionIter; ++FunctionIter)
+				{
+					UFunction* Function = *FunctionIter;
+					Function->SetFlags(RF_Transient);
+				}
+			}
+
 			// Does it have any bindings
 			if (const_cast<const UMVVMViewClass*>(ViewExtension)->GetCompiledBindings().Num() > 0)
 			{
@@ -151,21 +161,9 @@ void UMVVMWidgetBlueprintExtension_View::HandleFinishCompilingClass(UWidgetBluep
 				CurrentCompilerContext->AddExtension(Class, ViewExtension);
 			}
 		}
-		else if (bCompiled)
-		{
-			// If we are not allowed to add the view class, add the transient flags on added conversion graph.
-			for (TFieldIterator<UFunction> FunctionIter(Class, EFieldIteratorFlags::ExcludeSuper); FunctionIter; ++FunctionIter)
-			{
-				UFunction* Function = *FunctionIter;
-				Function->SetFlags(RF_Transient);
-			}
-		}
-	}
-	else
-	{
-		CurrentCompilerContext->CleanTemporaries(Class);
 	}
 }
+
 
 UMVVMWidgetBlueprintExtension_View::FSearchData UMVVMWidgetBlueprintExtension_View::HandleGatherSearchData(const UBlueprint* OwningBlueprint) const
 {
@@ -198,6 +196,7 @@ UMVVMWidgetBlueprintExtension_View::FSearchData UMVVMWidgetBlueprintExtension_Vi
 	}
 	return SearchData;
 }
+
 
 void UMVVMWidgetBlueprintExtension_View::SetFilterSettings(FMVVMViewBindingFilterSettings InFilterSettings)
 {

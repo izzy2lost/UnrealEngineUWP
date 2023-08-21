@@ -8,6 +8,7 @@
 #include "MVVMBlueprintView.generated.h"
 
 class UMVVMWidgetBlueprintExtension_View;
+class UMVVMBlueprintViewEvent;
 
 class UWidget;
 class UWidgetBlueprint;
@@ -116,6 +117,19 @@ public:
 		return Bindings;
 	}
 
+	UMVVMBlueprintViewEvent* AddDefaultEvent();
+	void RemoveEvent(UMVVMBlueprintViewEvent* Event);
+
+	TArrayView<TObjectPtr<UMVVMBlueprintViewEvent>> GetEvents()
+	{
+		return Events;
+	}
+
+	const TArrayView<const TObjectPtr<UMVVMBlueprintViewEvent>> GetEvents() const
+	{
+		return Events;
+	}
+
 	TArray<FText> GetBindingMessages(FGuid Id, UE::MVVM::EBindingMessageType InMessageType) const;
 	bool HasBindingMessage(FGuid Id, UE::MVVM::EBindingMessageType InMessageType) const;
 	void AddMessageToBinding(FGuid Id, UE::MVVM::FBindingMessage MessageToAdd);
@@ -152,6 +166,9 @@ private:
 
 	UPROPERTY(EditAnywhere, Category = "Viewmodel")
 	TArray<FMVVMBlueprintViewBinding> Bindings;
+	
+	UPROPERTY(Instanced, EditAnywhere, Category = "Viewmodel")
+	TArray<TObjectPtr<UMVVMBlueprintViewEvent>> Events;
 
 	UPROPERTY(EditAnywhere, Category = "Viewmodel")
 	TArray<FMVVMBlueprintViewModelContext> AvailableViewModels;
