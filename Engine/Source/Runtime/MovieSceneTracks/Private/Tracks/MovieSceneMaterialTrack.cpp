@@ -143,7 +143,7 @@ void UMovieSceneMaterialTrack::AddScalarParameterKey(const FMaterialParameterInf
 	}
 	if (NearestSection == nullptr)
 	{
-		NearestSection = Cast<UMovieSceneComponentMaterialParameterSection>(CreateNewSection());
+		NearestSection = CreateNewSection();
 
 		UMovieScene* MovieScene = GetTypedOuter<UMovieScene>();
 		check(MovieScene);
@@ -191,7 +191,7 @@ void UMovieSceneMaterialTrack::AddColorParameterKey(const FMaterialParameterInfo
 	}
 	if (NearestSection == nullptr)
 	{
-		NearestSection = Cast<UMovieSceneComponentMaterialParameterSection>(CreateNewSection());
+		NearestSection = CreateNewSection();
 
 		UMovieScene* MovieScene = GetTypedOuter<UMovieScene>();
 		check(MovieScene);
