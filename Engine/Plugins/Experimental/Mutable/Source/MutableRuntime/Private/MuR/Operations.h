@@ -839,6 +839,13 @@ namespace mu
 			ADDRESS rotation = 0;
 
 			uint32 AddressMode = 0;
+
+            /** Size of the image to create. If 0, reuse size from base.*/
+            uint16 SizeX = 0;
+            uint16 SizeY = 0;
+
+			uint16 SourceSizeX = 0;
+			uint16 SourceSizeY = 0;
 		};
 
         //-------------------------------------------------------------------------------------

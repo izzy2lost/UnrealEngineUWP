@@ -1729,6 +1729,9 @@ namespace mu
 			&& 
 			(bOnlyFirstLOD || pBase->GetLODCount()==1 ) )
 		{
+			check(pBlend->RelevancyMaxY < pBase->GetSizeY());
+			check(pBlend->RelevancyMaxY >= pBlend->RelevancyMinY);
+
 			int32 NumRelevantRows = pBlend->RelevancyMaxY - pBlend->RelevancyMinY + 1;
 			PixelCount = SizeX * NumRelevantRows;
 			int32 DataOffset = pBlend->RelevancyMinY * SizeX * 4;
@@ -1834,6 +1837,9 @@ namespace mu
 			&&
 			(bOnlyFirstLOD || pBase->GetLODCount() == 1))
 		{
+			check(pBlend->RelevancyMaxY < pBase->GetSizeY());
+			check(pBlend->RelevancyMaxY >= pBlend->RelevancyMinY);
+
 			int32 NumRelevantRows = pBlend->RelevancyMaxY - pBlend->RelevancyMinY + 1;
 			PixelCount = SizeX * NumRelevantRows;
 			int32 DataOffset = pBlend->RelevancyMinY * SizeX;

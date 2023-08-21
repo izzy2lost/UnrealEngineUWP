@@ -28,6 +28,12 @@ struct FProgram;
 		ASTChild scaleY;
 		ASTChild rotation;
 
+		uint16 SizeX;
+		uint16 SizeY;
+
+		uint16 SourceSizeX;
+		uint16 SourceSizeY;
+
 		EAddressMode AddressMode = EAddressMode::Wrap;
 
 	public:

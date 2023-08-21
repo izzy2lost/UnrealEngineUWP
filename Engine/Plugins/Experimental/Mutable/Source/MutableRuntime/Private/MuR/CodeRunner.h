@@ -96,9 +96,21 @@ namespace  mu
 					uint8 Mip;
 					float MipValue;
 				} RasterMesh;
+
+				struct
+				{
+					uint16 SizeX;
+					uint16 SizeY;
+					uint16 ScaleXEncodedHalf;
+					uint16 ScaleYEncodedHalf;
+					float MipValue;
+				} ImageTransform;
 			};
             Ptr<RefCounted> Resource;
         };
+
+		// Assertion to know when FScheduledOpData size changes. It is ok to modifiy if needed. 
+		static_assert(sizeof(FScheduledOpData) == 4*4 + sizeof(Ptr<RefCounted>), "FScheduledOpData size changed.");
 
 
         Ptr<RangeIndex> BuildCurrentOpRangeIndex( const FScheduledOp&, const Parameters*, const Model*, int32 ParameterIndex );

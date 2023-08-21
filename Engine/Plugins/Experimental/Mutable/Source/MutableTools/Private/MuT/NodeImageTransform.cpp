@@ -155,5 +155,29 @@ namespace mu
 	{
 		return m_pD->AddressMode;
 	}
+
+	//---------------------------------------------------------------------------------------------
+	uint16 NodeImageTransform::GetSizeX() const
+	{
+		return m_pD->SizeX;
+	}
+
+	//---------------------------------------------------------------------------------------------
+	void NodeImageTransform::SetSizeX(uint16 SizeX)
+	{
+		m_pD->SizeX = SizeX;
+	}
+
+	//---------------------------------------------------------------------------------------------
+	uint16 NodeImageTransform::GetSizeY() const
+	{
+		return m_pD->SizeY;
+	}
+
+	//---------------------------------------------------------------------------------------------
+	void NodeImageTransform::SetSizeY(uint16 SizeY)
+	{
+		m_pD->SizeY = SizeY;
+	}
 }
 

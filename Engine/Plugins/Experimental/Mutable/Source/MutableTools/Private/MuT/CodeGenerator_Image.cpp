@@ -601,24 +601,34 @@ namespace mu
 		op->scaleY = ScaleY ? ScaleY : ScaleX;
 		op->rotation = Rotation; 
 		op->AddressMode = node.AddressMode;
+		op->SizeX = node.SizeX;
+		op->SizeY = node.SizeY;
 
-        // Base image
+		// Base image
         Ptr<ASTOp> base;
+		FImageGenerationOptions NewOptions = Options;
+		NewOptions.ImageLayoutStrategy = CompilerOptions::TextureLayoutStrategy::None;
+		NewOptions.LayoutToApply = nullptr;
+		NewOptions.LayoutBlockId = -1;
+		NewOptions.RectSize = {};
+
         if ( node.m_pBase )
         {
 			FImageGenerationResult BaseResult;
-			GenerateImage(Options, BaseResult, node.m_pBase);
+			GenerateImage(NewOptions, BaseResult, node.m_pBase);
 			base = BaseResult.op;
 		}
         else
         {
             // This argument is required
-            base = GenerateMissingImageCode(TEXT("Image Transform Base"), EImageFormat::IF_RGB_UBYTE, node.m_errorContext, Options);
+            base = GenerateMissingImageCode(TEXT("Image Transform Base"), EImageFormat::IF_RGB_UBYTE, node.m_errorContext, NewOptions);
         }
-
-		EImageFormat baseFormat = base->GetImageDesc().m_format;
-        base = GenerateImageSize( base, Options.RectSize);
+		
+		FImageDesc BaseDesc = base->GetImageDesc();
+		
         op->base = base;
+		op->SourceSizeX = BaseDesc.m_size.X;
+		op->SourceSizeY = BaseDesc.m_size.Y;
 
         Result.op = op; 
     }

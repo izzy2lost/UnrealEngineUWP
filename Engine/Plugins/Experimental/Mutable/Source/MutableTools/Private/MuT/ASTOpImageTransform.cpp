@@ -41,13 +41,18 @@ namespace mu
 	{
 		if (auto other = dynamic_cast<const ASTOpImageTransform*>(&otherUntyped))
 		{
-			return base == other->base &&
+			return 
+				base == other->base &&
 				offsetX == other->offsetX &&
 				offsetY == other->offsetY &&
 				scaleX == other->scaleX &&
 				scaleY == other->scaleY &&
 				rotation == other->rotation &&
-				AddressMode == other->AddressMode;
+				AddressMode == other->AddressMode &&
+				SizeX == other->SizeX &&
+				SizeY == other->SizeY &&
+				SourceSizeX == other->SourceSizeX &&
+				SourceSizeY == other->SourceSizeY;
 		}
 		return false;
 	}
@@ -64,6 +69,10 @@ namespace mu
 		hash_combine(res, scaleY.child().get());
 		hash_combine(res, rotation.child().get());
 		hash_combine(res, std::hash<uint32>()(static_cast<uint32>(AddressMode)));
+		hash_combine(res, SizeX);
+		hash_combine(res, SizeY);
+		hash_combine(res, SourceSizeX);
+		hash_combine(res, SourceSizeY);
 		return res;
 	}
 
@@ -79,6 +88,10 @@ namespace mu
 		n->scaleY = mapChild(scaleY.child());
 		n->rotation = mapChild(rotation.child());
 		n->AddressMode = AddressMode;
+		n->SizeX = SizeX;
+		n->SizeY = SizeY;
+		n->SourceSizeX = SourceSizeX;
+		n->SourceSizeY = SourceSizeY;
 		return n;
 	}
 
@@ -111,7 +124,10 @@ namespace mu
 			Args.scaleY = scaleY ? scaleY->linkedAddress : 0;
 			Args.rotation = rotation ? rotation->linkedAddress : 0;
 			Args.AddressMode = static_cast<uint32>(AddressMode);
-
+			Args.SizeX = SizeX;
+			Args.SizeY = SizeY;
+			Args.SourceSizeX = SourceSizeX;
+			Args.SourceSizeY = SourceSizeY;
 
 			linkedAddress = (OP::ADDRESS)program.m_opAddress.Num();
 			program.m_opAddress.Add((uint32_t)program.m_byteCode.Num());

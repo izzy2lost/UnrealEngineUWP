@@ -1283,12 +1283,18 @@ namespace mu
 				break;
 			}
 
-			case OP_TYPE::IM_TRANSFORM:
+            case OP_TYPE::IM_TRANSFORM:
 			{
-				Ptr<ASTOpImageTransform> nop = mu::Clone<ASTOpImageTransform>(at);
-				Ptr<ASTOp> maskOp = nop->base.child();
-				nop->base = Visit(maskOp, currentSinkingOp);
-				newAt = nop;
+				// It can only sink in the transform if it doesn't have it's own size.
+				const ASTOpImageTransform* typedAt = dynamic_cast<const ASTOpImageTransform*>(at.get());
+				if (typedAt->SizeX == 0 && typedAt->SizeY == 0)
+				{
+					Ptr<ASTOpImageTransform> nop = mu::Clone<ASTOpImageTransform>(at);
+					Ptr<ASTOp> maskOp = nop->base.child();
+					nop->base = Visit(maskOp, currentSinkingOp);
+					newAt = nop;
+				}
+
 				break;
 			}
 
@@ -1372,6 +1378,16 @@ namespace mu
 				at = sourceOp;
                 break;
             }
+            
+            case OP_TYPE::IM_TRANSFORM:
+			{
+				// Set the size in the children and remove resize
+				Ptr<ASTOpImageTransform> sourceOp = mu::Clone<ASTOpImageTransform>(sourceAt.get());
+				sourceOp->SizeX = op.args.ImageResize.size[0];
+				sourceOp->SizeY = op.args.ImageResize.size[1];
+				at = sourceOp;
+				break;
+			}
 
             case OP_TYPE::IM_CONDITIONAL:
             {
@@ -1671,6 +1687,20 @@ namespace mu
 				break;
 			}
 
+            case OP_TYPE::IM_TRANSFORM:
+			{
+				// We can only optimize here if we know the transform result size, otherwise, we will sink the op in the sinker.
+				const ASTOpImageTransform* typedAt = dynamic_cast<const ASTOpImageTransform*>(sourceAt.get());
+				if (typedAt->SizeX != 0 && typedAt->SizeY != 0)
+				{
+					// Set the size in the children and remove resize
+					Ptr<ASTOpImageTransform> sourceOp = mu::Clone<ASTOpImageTransform>(sourceAt.get());
+					sourceOp->SizeX = FMath::CeilToInt32(sourceOp->SizeX * op.args.ImageResizeRel.factor[0]);
+					sourceOp->SizeY = FMath::CeilToInt32(sourceOp->SizeY * op.args.ImageResizeRel.factor[1]);
+					at = sourceOp;
+				}
+				break;
+			}
 
 				// Don't combine. ResizeRel sometimes can resize more children than Resize can do. (see RasterMesh)
 				// It can be combined in an optimization step further in the process, when normal sizes may have been 

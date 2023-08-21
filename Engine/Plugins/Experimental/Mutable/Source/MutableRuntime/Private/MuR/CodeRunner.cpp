@@ -2,6 +2,7 @@
 
 #include "MuR/CodeRunner.h"
 
+#include "GenericPlatform/GenericPlatformMath.h"
 #include "HAL/UnrealMemory.h"
 #include "Logging/LogCategory.h"
 #include "Logging/LogMacros.h"
@@ -78,7 +79,7 @@ float GlobalProjectionLodBias = 0.0f;
 static FAutoConsoleVariableRef CVarGlobalProjectionLodBias (
 	TEXT("mutable.GlobalProjectionLodBias"),
 	GlobalProjectionLodBias,
-	TEXT("Lod bias applied to the lod resulting form the best mip computation, only used if a min filter method different than None is used."),
+	TEXT("Lod bias applied to the lod resulting form the best mip computation for ImageProject operations, only used if a min filter method different than None is used."),
 	ECVF_Default);
 
 bool bUseProjectionVectorImpl = true;
@@ -86,6 +87,20 @@ static FAutoConsoleVariableRef CVarUseProjectionVectorImpl (
 	TEXT("mutable.UseProjectionVectorImpl"),
 	bUseProjectionVectorImpl,
 	TEXT("If set to true, enables the vectorized implementation of the projection pixel processing."),
+	ECVF_Default);
+
+float GlobalImageTransformLodBias = 0.0f;
+static FAutoConsoleVariableRef CVarGlobalImageTransformLodBias (
+	TEXT("mutable.GlobalImageTransformLodBias"),
+	GlobalImageTransformLodBias,
+		TEXT("Lod bias applied to the lod resulting form the best mip computation for ImageTransform operations"),
+	ECVF_Default);
+
+bool bUseImageTransformVectorImpl = true;
+static FAutoConsoleVariableRef CVarUseImageTransformVectorImpl (
+	TEXT("mutable.UseImageTransformVectorImpl"),
+	bUseImageTransformVectorImpl,
+	TEXT("If set to true, enables the vectorized implementation of the image transform pixel processing."),
 	ECVF_Default);
 }
 
@@ -4715,50 +4730,147 @@ namespace mu
             {
             case 0:
 			{
-				const TArray<FScheduledOp, TInlineAllocator<6>> Deps = {
-						FScheduledOp(Args.base, item),
-						FScheduledOp(Args.offsetX, item),
-						FScheduledOp(Args.offsetY, item),
-						FScheduledOp(Args.scaleX, item),
-						FScheduledOp(Args.scaleY, item),
-						FScheduledOp(Args.rotation, item) };
+				const TArray<FScheduledOp, TFixedAllocator<2>> Deps = 
+				{
+					FScheduledOp(Args.scaleX, item),
+					FScheduledOp(Args.scaleY, item),
+				};
 
                 AddOp(FScheduledOp(item.At, item, 1), Deps);
 
 				break;
 			}
-            case 1:
-            {
+			case 1:
+			{
             	MUTABLE_CPUPROFILER_SCOPE(IM_TRANSFORM_1)
-            		
-                Ptr<const Image> pBaseImage = LoadImage(FCacheAddress(Args.base, item));
-                
-                const FVector2f Offset = FVector2f(
-                        Args.offsetX ? LoadScalar(FCacheAddress(Args.offsetX, item)) : 0.0f,
-                        Args.offsetY ? LoadScalar(FCacheAddress(Args.offsetY, item)) : 0.0f);
 
                 const FVector2f Scale = FVector2f(
                         Args.scaleX ? LoadScalar(FCacheAddress(Args.scaleX, item)) : 1.0f,
                         Args.scaleY ? LoadScalar(FCacheAddress(Args.scaleY, item)) : 1.0f);
+	
+				using FUint16Vector2 = UE::Math::TIntVector2<uint16>;
+				const FUint16Vector2 DestSizeI = Invoke([&]() 
+				{
+					int32 MipsToDrop = item.ExecutionOptions;
+					
+					FUint16Vector2 Size = FUint16Vector2(
+							Args.SizeX > 0 ? Args.SizeX : Args.SourceSizeX, 
+							Args.SizeY > 0 ? Args.SizeY : Args.SourceSizeY); 
+
+					while (MipsToDrop && !(Size.X % 2) && !(Size.Y % 2))
+					{
+						Size.X = FMath::Max(uint16(1), FMath::DivideAndRoundUp(Size.X, uint16(2)));
+						Size.Y = FMath::Max(uint16(1), FMath::DivideAndRoundUp(Size.Y, uint16(2)));
+						--MipsToDrop;
+					}
+
+					return Size;
+				});
+
+				const FVector2f DestSize = FVector2f(DestSizeI.X, DestSizeI.Y);
+				const FVector2f SourceSize = FVector2f(Args.SourceSizeX, Args.SourceSizeY);
+
+				const float DestAspectRatio = DestSize.X / DestSize.Y;
+				const float SrcAspecRatio = SourceSize.X / SourceSize.Y;
+			
+				const bool bKeepSourceAspectRatio = true;
+				
+				const FTransform2f Transform = FTransform2f(FVector2f(-0.5f)).
+					Concatenate(FTransform2f(FScale2f(Scale))).
+					Concatenate(FTransform2f(FVector2f(0.5f)));
+
+				FBox2f NormalizedCropRect(ForceInit);
+				NormalizedCropRect += Transform.TransformPoint(FVector2f(0.0f, 0.0f));
+				NormalizedCropRect += Transform.TransformPoint(FVector2f(1.0f, 0.0f));
+				NormalizedCropRect += Transform.TransformPoint(FVector2f(0.0f, 1.0f));
+				NormalizedCropRect += Transform.TransformPoint(FVector2f(1.0f, 1.0f));
+
+				const FVector2f ScaledSourceSize = NormalizedCropRect.GetSize() * DestSize;
+
+				const float BestMip = 
+					FMath::Log2(FMath::Max(1.0f, FMath::Square(SourceSize.GetMin()))) * 0.5f - 
+				    FMath::Log2(FMath::Max(1.0f, FMath::Square(ScaledSourceSize.GetMin()))) * 0.5f;
+
+				FScheduledOpData HeapData;
+				HeapData.ImageTransform.SizeX = DestSizeI.X;
+				HeapData.ImageTransform.SizeY = DestSizeI.Y;
+				FPlatformMath::StoreHalf(&HeapData.ImageTransform.ScaleXEncodedHalf, Scale.X),
+				FPlatformMath::StoreHalf(&HeapData.ImageTransform.ScaleYEncodedHalf, Scale.Y),
+				HeapData.ImageTransform.MipValue = BestMip + GlobalImageTransformLodBias;
+
+				const int32 HeapDataAddress = m_heapData.Add(HeapData);
+
+				const uint8 Mip = static_cast<uint8>(FMath::Max(0, FMath::FloorToInt(HeapData.ImageTransform.MipValue)));
+				const TArray<FScheduledOp, TFixedAllocator<4>> Deps = 
+				{
+					FScheduledOp::FromOpAndOptions(Args.base, item, Mip),
+					FScheduledOp(Args.offsetX,  item),
+					FScheduledOp(Args.offsetY,  item),
+					FScheduledOp(Args.rotation, item) 
+				};
+				
+                AddOp(FScheduledOp(item.At, item, 2, HeapDataAddress), Deps);
+
+				break;
+			}
+            case 2:
+            {
+				MUTABLE_CPUPROFILER_SCOPE(IM_TRANSFORM_2);
+			
+				const FScheduledOpData HeapData = m_heapData[item.CustomState];
+
+				const uint8 Mip = static_cast<uint8>(FMath::Max(0, FMath::FloorToInt(HeapData.ImageTransform.MipValue)));
+				Ptr<const Image> Source = LoadImage(FCacheAddress(Args.base, item.ExecutionIndex, Mip));
+
+				const FVector2f Offset = FVector2f(
+                        Args.offsetX ? LoadScalar(FCacheAddress(Args.offsetX, item)) : 0.0f,
+                        Args.offsetY ? LoadScalar(FCacheAddress(Args.offsetY, item)) : 0.0f);
+
+                const FVector2f Scale = FVector2f(
+						FPlatformMath::LoadHalf(&HeapData.ImageTransform.ScaleXEncodedHalf),
+						FPlatformMath::LoadHalf(&HeapData.ImageTransform.ScaleYEncodedHalf));
 
 				// Map Range 0-1 to a full rotation
                 const float Rotation = LoadScalar(FCacheAddress(Args.rotation, item)) * UE_TWO_PI;
-			
-				EImageFormat BaseFormat = pBaseImage->GetFormat();
-				int32 BaseLODs = pBaseImage->GetLODCount();
-				FImageSize BaseSize = pBaseImage->GetSize();
-				FImageSize SampleImageSize =  FImageSize(
-					static_cast<uint16>(FMath::Clamp(FMath::FloorToInt(float(BaseSize.X) * FMath::Abs(Scale.X)), 2, BaseSize.X)),
-					static_cast<uint16>(FMath::Clamp(FMath::FloorToInt(float(BaseSize.Y) * FMath::Abs(Scale.Y)), 2, BaseSize.Y)));
 	
-				Ptr<Image> pSampleImage = CreateImage(SampleImageSize[0], SampleImageSize[1], BaseLODs, BaseFormat, EInitializationType::NotInitialized);
-				ImOp.ImageResizeLinear( pSampleImage.get(), 0, pBaseImage.get());
-				Release(pBaseImage);
+				EImageFormat SourceFormat = Source->GetFormat();
+				EImageFormat Format = GetUncompressedFormat(SourceFormat);
 
-				Ptr<Image> Result = CreateImage(BaseSize.X, BaseSize.Y, 1, BaseFormat, EInitializationType::NotInitialized);
-				ImageTransform(Result.get(), pSampleImage.get(), Offset, Scale, Rotation, static_cast<EAddressMode>(Args.AddressMode));
+				if (Format != SourceFormat)
+				{
+					MUTABLE_CPUPROFILER_SCOPE(RunCode_ImageTransform_FormatFixup);	
+					Ptr<Image> Formatted = CreateImage(Source->GetSizeX(), Source->GetSizeY(), Source->GetLODCount(), Format, EInitializationType::NotInitialized);
+					bool bSuccess = false;
+					ImOp.ImagePixelFormat(bSuccess, m_pSettings->ImageCompressionQuality, Formatted.get(), Source.get());
+					check(bSuccess); 
 
-				Release(pSampleImage);
+					Release(Source);
+					Source = Formatted;
+				}
+
+				if (Source->GetLODCount() < 2 && Source->GetSizeX() > 1 && Source->GetSizeY() > 1)
+				{
+					MUTABLE_CPUPROFILER_SCOPE(RunCode_ImageTransform_BilinearMipGen);
+
+					Ptr<Image> NewImage = CreateImage(Source->GetSizeX(), Source->GetSizeY(), 2, Source->GetFormat(), EInitializationType::NotInitialized);
+
+					check(NewImage->GetDataSize() >= Source->GetDataSize());
+					FMemory::Memcpy(NewImage->GetData(), Source->GetData(), Source->GetDataSize());
+
+					ImageMipmapInPlace(0, NewImage.get(), FMipmapGenerationSettings{});
+
+					Release(Source);
+					Source = NewImage;
+				}
+
+				const EAddressMode AddressMode = static_cast<EAddressMode>(Args.AddressMode);
+				Ptr<Image> Result = CreateImage(
+						HeapData.ImageTransform.SizeX, HeapData.ImageTransform.SizeY, 1, Format, EInitializationType::Black);
+
+				const float MipFactor = FMath::Frac(FMath::Max(0.0f, HeapData.ImageTransform.MipValue));
+				ImageTransform(Result.get(), Source.get(), Offset, Scale, Rotation, MipFactor, AddressMode, bUseImageTransformVectorImpl);
+
+				Release(Source);
 				StoreImage(item, Result);
 
                 break;

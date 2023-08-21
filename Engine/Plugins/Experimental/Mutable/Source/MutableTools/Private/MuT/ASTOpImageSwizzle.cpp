@@ -246,6 +246,17 @@ namespace mu
 			return at;
 		}
 
+		// If all channels are the same, and in the same order, and the source format is the same that we are
+		// setting in the swizzle, then the swizzle won't do anything.
+		if (bAllChannelsAreTheSame && bSameChannelOrder)
+		{
+			FImageDesc SourceDesc = channelSourceAt->GetImageDesc();
+			if (SourceDesc.m_format == Format)
+			{
+				return channelSourceAt;
+			}
+		}
+
 		OP_TYPE sourceType = channelSourceAt->GetOpType();
 
 		if (bAllChannelsAreTheSame && channelSourceAt)

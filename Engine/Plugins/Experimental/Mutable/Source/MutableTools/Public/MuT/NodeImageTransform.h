@@ -75,6 +75,13 @@ namespace mu
 
 		EAddressMode GetAddressMode() const;
 		void SetAddressMode(EAddressMode AddressMode);
+
+		uint16 GetSizeX() const;
+		void SetSizeX(uint16 SizeX); 
+
+		uint16 GetSizeY() const;
+		void SetSizeY(uint16 SizeY); 
+
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern
 		//-----------------------------------------------------------------------------------------
