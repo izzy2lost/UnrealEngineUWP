@@ -144,6 +144,13 @@ void FAuthOSSAdapter::PostInitialize()
 							TranslateLoginStatus(NewStatus) });
 					}
 				});
+			if (FUniqueNetIdPtr NetId = Identity->GetUniquePlayerId(LocalPlayerNum))
+			{
+				HandleLoginStatusChangedImplOp(FAuthHandleLoginStatusChangedImpl::Params{
+								FPlatformMisc::GetPlatformUserForUserIndex(LocalPlayerNum),
+								static_cast<FOnlineServicesOSSAdapter&>(Services).GetAccountIdRegistry().FindOrAddHandle(NetId.ToSharedRef()),
+								TranslateLoginStatus(Identity->GetLoginStatus(LocalPlayerNum)) });
+			}			
 		}
 	}
 }
