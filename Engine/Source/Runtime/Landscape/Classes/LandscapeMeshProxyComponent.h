@@ -40,5 +40,6 @@ public:
 	LANDSCAPE_API void InitializeForLandscape(ALandscapeProxy* Landscape, int8 InProxyLOD);
 	
 	virtual FPrimitiveSceneProxy* CreateSceneProxy() override;
+	virtual void PostLoad() override;
 };
 
