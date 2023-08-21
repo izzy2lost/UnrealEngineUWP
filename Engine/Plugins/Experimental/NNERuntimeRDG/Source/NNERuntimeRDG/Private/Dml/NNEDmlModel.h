@@ -3,6 +3,7 @@
 #pragma once
 
 #include "NNEDmlCommon.h"
+#include "NNEModelData.h"
 #include "NNERuntimeRDGModel.h"
 
 struct ID3D12DynamicRHI;
@@ -95,13 +96,13 @@ private:
 class FModel : public NNE::IModelRDG
 {
 public:
-	FModel(TConstArrayView<uint8> InModelData, FDmlDeviceContext* InDevCtx);
+	FModel(const TSharedPtr<NNE::FSharedModelData>& InModelData, FDmlDeviceContext* InDevCtx);
 	virtual ~FModel() {};
 
-	virtual TSharedPtr<UE::NNE::IModelInstanceRDG> CreateModelInstanceRDG() override;
+	virtual TSharedPtr<NNE::IModelInstanceRDG> CreateModelInstanceRDG() override;
 
 private:
-	TArray<uint8> ModelData;
+	TSharedPtr<NNE::FSharedModelData> ModelData;
 	FDmlDeviceContext* DevCtx;
 };
 

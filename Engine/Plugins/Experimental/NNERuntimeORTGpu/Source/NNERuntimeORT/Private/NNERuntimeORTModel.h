@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "NNEModelBase.h"
+#include "NNEModelData.h"
 #include "NNERuntimeGPU.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
@@ -104,27 +105,27 @@ namespace UE::NNERuntimeORT::Private
 	class FModelORTDml : public NNE::IModelGPU
 	{
 	public:
-		FModelORTDml(Ort::Env* InORTEnvironment, TConstArrayView<uint8> ModelData);
+		FModelORTDml(Ort::Env* InORTEnvironment, const TSharedPtr<UE::NNE::FSharedModelData>& InModelData);
 		virtual ~FModelORTDml() {};
 
-		virtual TSharedPtr<UE::NNE::IModelInstanceGPU> CreateModelInstanceGPU() override;
+		virtual TSharedPtr<NNE::IModelInstanceGPU> CreateModelInstanceGPU() override;
 
 	private:
 		Ort::Env* ORTEnvironment;
-		TArray<uint8> ModelData;
+		TSharedPtr<UE::NNE::FSharedModelData> ModelData;
 	};
 
 	class FModelORTCuda : public NNE::IModelGPU
 	{
 	public:
-		FModelORTCuda(Ort::Env* InORTEnvironment, TConstArrayView<uint8> ModelData);
+		FModelORTCuda(Ort::Env* InORTEnvironment, const TSharedPtr<UE::NNE::FSharedModelData>& InModelData);
 		virtual ~FModelORTCuda() {};
 
-		virtual TSharedPtr<UE::NNE::IModelInstanceGPU> CreateModelInstanceGPU() override;
+		virtual TSharedPtr<NNE::IModelInstanceGPU> CreateModelInstanceGPU() override;
 
 	private:
 		Ort::Env* ORTEnvironment;
-		TArray<uint8> ModelData;
+		TSharedPtr<UE::NNE::FSharedModelData> ModelData;
 	};
 #endif
 	

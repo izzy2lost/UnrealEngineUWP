@@ -300,22 +300,23 @@ namespace UE::NNERuntimeORTCpu::Private
 		InputTransferStatisticsEstimator.ResetStats();
 	}
 
-	TSharedPtr<UE::NNE::IModelInstanceCPU> FModelCPU::CreateModelInstanceCPU()
+	TSharedPtr<NNE::IModelInstanceCPU> FModelCPU::CreateModelInstanceCPU()
 	{
-		const UE::NNERuntimeORTCpu::Private::FRuntimeConf InConf;
-		UE::NNERuntimeORTCpu::Private::FModelInstanceCPU* ModelInstance = new UE::NNERuntimeORTCpu::Private::FModelInstanceCPU(ORTEnvironment, InConf);
+		const NNERuntimeORTCpu::Private::FRuntimeConf InConf;
+		NNERuntimeORTCpu::Private::FModelInstanceCPU* ModelInstance = new NNERuntimeORTCpu::Private::FModelInstanceCPU(ORTEnvironment, InConf);
 
-		if (!ModelInstance->Init(ModelData))
+		check(ModelData.IsValid());
+		if (!ModelInstance->Init(ModelData->GetView()))
 		{
 			delete ModelInstance;
-			return TSharedPtr<UE::NNE::IModelInstanceCPU>();
+			return TSharedPtr<NNE::IModelInstanceCPU>();
 		}
 
-		UE::NNE::IModelInstanceCPU* IModelInstance = static_cast<UE::NNE::IModelInstanceCPU*>(ModelInstance);
-		return TSharedPtr<UE::NNE::IModelInstanceCPU>(IModelInstance);
+		NNE::IModelInstanceCPU* IModelInstance = static_cast<NNE::IModelInstanceCPU*>(ModelInstance);
+		return TSharedPtr<NNE::IModelInstanceCPU>(IModelInstance);
 	}
 
-	FModelCPU::FModelCPU(Ort::Env* InORTEnvironment, TConstArrayView<uint8> InModelData) :
+	FModelCPU::FModelCPU(Ort::Env* InORTEnvironment, const TSharedPtr<UE::NNE::FSharedModelData>& InModelData) :
 		ORTEnvironment(InORTEnvironment),
 		ModelData(InModelData)
 	{

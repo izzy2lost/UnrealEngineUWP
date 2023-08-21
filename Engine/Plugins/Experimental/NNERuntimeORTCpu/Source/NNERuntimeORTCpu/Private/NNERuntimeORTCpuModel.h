@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "NNEModelBase.h"
+#include "NNEModelData.h"
 #include "NNERuntimeCPU.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
@@ -83,14 +84,14 @@ namespace UE::NNERuntimeORTCpu::Private
 	class FModelCPU : public NNE::IModelCPU
 	{
 	public:
-		FModelCPU(Ort::Env* InORTEnvironment, TConstArrayView<uint8> ModelData);
+		FModelCPU(Ort::Env* InORTEnvironment, const TSharedPtr<UE::NNE::FSharedModelData>& InModelData);
 		virtual ~FModelCPU() {};
 
-		virtual TSharedPtr<UE::NNE::IModelInstanceCPU> CreateModelInstanceCPU() override;
+		virtual TSharedPtr<NNE::IModelInstanceCPU> CreateModelInstanceCPU() override;
 
 	private:
 		Ort::Env* ORTEnvironment;
-		TArray<uint8> ModelData;
+		TSharedPtr<UE::NNE::FSharedModelData> ModelData;
 	};
 	
 } // UE::NNERuntimeORTCpu::Private

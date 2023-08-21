@@ -16,7 +16,6 @@
 #include "DerivedDataCache.h"
 #include "DerivedDataRequestOwner.h"
 #include "Internationalization/TextLocalizationResource.h"
-#include "Memory/SharedBuffer.h"
 #include "Misc/Guid.h"
 #endif
 
@@ -122,7 +121,7 @@ FGuid UNNEModelData::GetFileId()
 	return FileId;
 }
 
-TConstArrayView<uint8> UNNEModelData::GetModelData(const FString& RuntimeName)
+TSharedPtr<UE::NNE::FSharedModelData> UNNEModelData::GetModelData(const FString& RuntimeName)
 {
 #if WITH_EDITORONLY_DATA
 	// Check model data is supporting the requested target runtime
@@ -134,15 +133,15 @@ TConstArrayView<uint8> UNNEModelData::GetModelData(const FString& RuntimeName)
 		{
 			UE_LOG(LogNNE, Error, TEXT("- %s"), *TargetRuntimesName);
 		}
-		return {};
+		return TSharedPtr<UE::NNE::FSharedModelData>();
 	}
 #endif //WITH_EDITORONLY_DATA
 
 	// Check if we have a local cache hit
-	TArray<uint8>* LocalData = ModelData.Find(RuntimeName);
+	FSharedBuffer* LocalData = ModelData.Find(RuntimeName);
 	if (LocalData)
 	{
-		return TConstArrayView<uint8>(LocalData->GetData(), LocalData->Num());
+		return MakeShared<UE::NNE::FSharedModelData>(*LocalData);
 	}
 	
 #if WITH_EDITOR
@@ -150,32 +149,33 @@ TConstArrayView<uint8> UNNEModelData::GetModelData(const FString& RuntimeName)
 	if (!NNERuntime.IsValid())
 	{
 		UE_LOG(LogNNE, Error, TEXT("UNNEModelData: Runtime '%s' is among the target runtimes but instance is invalid."), *RuntimeName);
-		return {};
+		return TSharedPtr<UE::NNE::FSharedModelData>();
 	}
 
 	FString ModelDataIdentifier = NNERuntime->GetModelDataIdentifier(FileType, FileData, FileId, nullptr);
 	if (ModelDataIdentifier.Len() == 0)
 	{
 		UE_LOG(LogNNE, Error, TEXT("UNNEModelData: Runtime '%s' returned an empty string as a ModelDataIdentifier. GetModelDataIdentifier should always return a valid identifier."), *RuntimeName);
-		return {};
+		return TSharedPtr<UE::NNE::FSharedModelData>();
 	}
 	
 	// Check if we have a DDC cache hit
 	FSharedBuffer RemoteData = GetFromDDC(FileId, RuntimeName, ModelDataIdentifier);
 	if (RemoteData.GetSize() > 0)
 	{
-		ModelData.Add(RuntimeName, TArray<uint8>((uint8*)RemoteData.GetData(), RemoteData.GetSize()));
+		ModelData.Add(RuntimeName, RemoteData);
 		
-		TArray<uint8>* CachedRemoteData = ModelData.Find(RuntimeName);
-		return TConstArrayView<uint8>(CachedRemoteData->GetData(), CachedRemoteData->Num());
+		return MakeShared<UE::NNE::FSharedModelData>(RemoteData);
 	}
 #endif //WITH_EDITOR
 
 	// Try to create the model
-	TArray<uint8> CreatedData = CreateRuntimeDataBlob(RuntimeName, FileType, FileData, FileId, nullptr);
-	if (CreatedData.Num() < 1)
+	TArray<uint8> RuntimeDataBlob = CreateRuntimeDataBlob(RuntimeName, FileType, FileData, FileId, nullptr);
+	FSharedBuffer CreatedData = MakeSharedBufferFromArray(MoveTemp(RuntimeDataBlob));
+	if (CreatedData.GetSize() < 1)
 	{
-		return {};
+		
+		return TSharedPtr<UE::NNE::FSharedModelData>();
 	}
 
 	// Cache the model
@@ -183,12 +183,10 @@ TConstArrayView<uint8> UNNEModelData::GetModelData(const FString& RuntimeName)
 
 #if WITH_EDITOR
 	// And put it into DDC
-	FSharedBuffer SharedBuffer = MakeSharedBufferFromArray(MoveTemp(CreatedData));
-	PutIntoDDC(FileId, RuntimeName, ModelDataIdentifier, SharedBuffer);
+	PutIntoDDC(FileId, RuntimeName, ModelDataIdentifier, CreatedData);
 #endif //WITH_EDITOR
 	
-	TArray<uint8>* CachedCreatedData = ModelData.Find(RuntimeName);
-	return TConstArrayView<uint8>(CachedCreatedData->GetData(), CachedCreatedData->Num());
+	return MakeShared<UE::NNE::FSharedModelData>(CreatedData);
 }
 
 void UNNEModelData::Serialize(FArchive& Ar)
@@ -216,9 +214,10 @@ void UNNEModelData::Serialize(FArchive& Ar)
 
 		for (const FString& RuntimeName : CookedRuntimeNames)
 		{
-			TArray<uint8> CreatedData = CreateRuntimeDataBlob(RuntimeName, FileType, FileData, FileId, Ar.GetArchiveState().CookingTarget());
-			if (CreatedData.Num() > 0)
+			TArray RuntimeDataBlob = CreateRuntimeDataBlob(RuntimeName, FileType, FileData, FileId, Ar.GetArchiveState().CookingTarget());
+			if (RuntimeDataBlob.Num() > 0)
 			{
+				FSharedBuffer CreatedData = MakeSharedBufferFromArray(MoveTemp(RuntimeDataBlob));
 				ModelData.Add(RuntimeName, CreatedData);
 #if WITH_EDITOR
 				TWeakInterfacePtr<INNERuntime> NNERuntime = UE::NNE::GetRuntime<INNERuntime>(RuntimeName);
@@ -227,8 +226,7 @@ void UNNEModelData::Serialize(FArchive& Ar)
 					FString ModelDataIdentifier = NNERuntime->GetModelDataIdentifier(FileType, FileData, FileId, Ar.GetArchiveState().CookingTarget());
 					if (ModelDataIdentifier.Len() > 0)
 					{
-						FSharedBuffer SharedBuffer = MakeSharedBufferFromArray(MoveTemp(CreatedData));
-						PutIntoDDC(FileId, RuntimeName, ModelDataIdentifier, SharedBuffer);
+						PutIntoDDC(FileId, RuntimeName, ModelDataIdentifier, CreatedData);
 					}
 					else
 					{
@@ -257,7 +255,9 @@ void UNNEModelData::Serialize(FArchive& Ar)
 		for (int i = 0; i < NumItems; i++)
 		{
 			Ar << RuntimeNames[i];
-			Ar << ModelData[RuntimeNames[i]];
+			FSharedBuffer Data = ModelData[RuntimeNames[i]];
+			TArray<uint8> DataToSerialize(static_cast<const uint8*>(Data.GetData()), Data.GetSize());
+			Ar << DataToSerialize;
 		}
 	}
 	else
@@ -291,7 +291,8 @@ void UNNEModelData::Serialize(FArchive& Ar)
 				Ar << Name;
 				TArray<uint8> Data;
 				Ar << Data;
-				ModelData.Add(Name, MoveTemp(Data));
+				FSharedBuffer SharedData = MakeSharedBufferFromArray(MoveTemp(Data));
+				ModelData.Add(Name, SharedData);
 			}
 		}
 	}

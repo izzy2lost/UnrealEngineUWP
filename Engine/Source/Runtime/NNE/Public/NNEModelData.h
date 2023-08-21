@@ -3,8 +3,32 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Memory/SharedBuffer.h"
+#include "Templates/SharedPointer.h"
 
 #include "NNEModelData.generated.h"
+
+namespace UE::NNE
+{
+	/**
+	 * This class present a ref counted view on an immutable memory buffer. 
+	 * Allowing runtime to reference result of GetModelData() even if they outlive UNNEModelData.
+	 */
+	class FSharedModelData
+	{
+	private:
+		FSharedBuffer Data;
+
+	public:
+		FSharedModelData(FSharedBuffer InData) : Data(InData) {}
+		FSharedModelData() {}
+
+		TConstArrayView<uint8> GetView() const
+		{
+			return MakeArrayView(static_cast<const uint8*>(Data.GetData()), Data.GetSize());
+		}
+	};
+}
 
 /**
  * This class represents assets that store neural network model data.
@@ -63,9 +87,9 @@ public:
 	 * This function is used by runtimes when creating a model. In editor, the function will create the optimized model data with the passed runtime in case it has not been cached in the DCC yet. In game, the cooked data is accessed.
 	 *
 	 * @param RuntimeName The name of the runtime for which the data should be returned.
-	 * @return The optimized and runtime specific model data or an empty view in case of a failure.
+	 * @return The optimized and runtime specific model data or an invalid TSharedPtr in case of failure.
 	 */
-	TConstArrayView<uint8> GetModelData(const FString& RuntimeName);
+	TSharedPtr<UE::NNE::FSharedModelData> GetModelData(const FString& RuntimeName);
 
 	/**
 	 * Implements custom serialization of this asset.
@@ -131,6 +155,6 @@ private:
 	/**
 	 * The processed / optimized model data for the different runtimes.
 	 */
-	TMap<FString, TArray<uint8>> ModelData;
+	TMap<FString, FSharedBuffer> ModelData;
 
 };

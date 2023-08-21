@@ -143,7 +143,14 @@ FString UNNERuntimeRDGDmlImpl::GetModelDataIdentifier(FString FileType, TConstAr
 bool UNNERuntimeRDGDmlImpl::CanCreateModelRDG(TObjectPtr<UNNEModelData> ModelData) const
 {
 #ifdef NNE_USE_DIRECTML
-	TConstArrayView<uint8> Data = ModelData->GetModelData(GetRuntimeName());
+	TSharedPtr<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName());
+
+	if (!SharedData.IsValid())
+	{
+		return false;
+	}
+
+	TConstArrayView<uint8> Data = SharedData->GetView();
 
 	if (Data.Num() <= FModelInfo::Get()->GetGuidSize() + FModelInfo::Get()->GetVersionSize())
 	{
@@ -165,7 +172,8 @@ TSharedPtr<UE::NNE::IModelRDG> UNNERuntimeRDGDmlImpl::CreateModelRDG(TObjectPtr<
 		return TSharedPtr<UE::NNE::IModelRDG>();
 	}
 
-	TConstArrayView<uint8> Data = ModelData->GetModelData(GetRuntimeName());
+	TSharedPtr<UE::NNE::FSharedModelData> Data = ModelData->GetModelData(GetRuntimeName());
+	check(Data.IsValid());
 	FModel* Model = new FModel(Data, Ctx);
 
 	if (FEngineAnalytics::IsAvailable())
@@ -173,7 +181,7 @@ TSharedPtr<UE::NNE::IModelRDG> UNNERuntimeRDGDmlImpl::CreateModelRDG(TObjectPtr<
 		TArray<FAnalyticsEventAttribute> Attributes = MakeAnalyticsEventAttributeArray(
 			TEXT("PlatformName"), UGameplayStatics::GetPlatformName(),
 			TEXT("HashedRuntimeName"), FMD5::HashAnsiString(*GetRuntimeName()),
-			TEXT("ModelDataSize"), Data.Num()
+			TEXT("ModelDataSize"), Data->GetView().Num()
 		);
 		FEngineAnalytics::GetProvider().RecordEvent(TEXT("NeuralNetworkEngine.CreateModel"), Attributes);
 	}

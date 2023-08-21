@@ -1386,21 +1386,22 @@ int FModelInstance::PrepareTensorShapesAndData()
 	return 0;
 }
 
-TSharedPtr<UE::NNE::IModelInstanceRDG> FModel::CreateModelInstanceRDG()
+TSharedPtr<NNE::IModelInstanceRDG> FModel::CreateModelInstanceRDG()
 {
 	FModelInstance* ModelInstance = new FModelInstance();
 
-	if (!ModelInstance->Init(ModelData, DevCtx))
+	check(ModelData.IsValid());
+	if (!ModelInstance->Init(ModelData->GetView(), DevCtx))
 	{
 		delete ModelInstance;
-		return TSharedPtr<UE::NNE::IModelInstanceRDG>();
+		return TSharedPtr<NNE::IModelInstanceRDG>();
 	}
 
-	UE::NNE::IModelInstanceRDG* IModelInstance = static_cast<UE::NNE::IModelInstanceRDG*>(ModelInstance);
-	return TSharedPtr<UE::NNE::IModelInstanceRDG>(IModelInstance);
+	NNE::IModelInstanceRDG* IModelInstance = static_cast<NNE::IModelInstanceRDG*>(ModelInstance);
+	return TSharedPtr<NNE::IModelInstanceRDG>(IModelInstance);
 }
 
-FModel::FModel(TConstArrayView<uint8> InModelData, FDmlDeviceContext* InDevCtx) 
+FModel::FModel(const TSharedPtr<NNE::FSharedModelData>& InModelData, FDmlDeviceContext* InDevCtx)
 	: ModelData(InModelData), DevCtx(InDevCtx)
 {
 }

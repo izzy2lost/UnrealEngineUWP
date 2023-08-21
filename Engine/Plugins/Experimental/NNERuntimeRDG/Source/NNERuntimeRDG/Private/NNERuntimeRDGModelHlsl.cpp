@@ -364,20 +364,21 @@ bool FModelInstance::PrepareWeights()
 	return true;
 }
 
-TSharedPtr<UE::NNE::IModelInstanceRDG> FModel::CreateModelInstanceRDG()
+TSharedPtr<NNE::IModelInstanceRDG> FModel::CreateModelInstanceRDG()
 {
 	FModelInstance* ModelInstance = new FModelInstance();
 
-	if (!ModelInstance->Init(ModelData))
+	check(ModelData.IsValid());
+	if (!ModelInstance->Init(ModelData->GetView()))
 	{
 		delete ModelInstance;
-		return TSharedPtr<UE::NNE::IModelInstanceRDG>();
+		return TSharedPtr<NNE::IModelInstanceRDG>();
 	}
 
-	UE::NNE::IModelInstanceRDG* IModelInstance = static_cast<UE::NNE::IModelInstanceRDG*>(ModelInstance);
-	return TSharedPtr<UE::NNE::IModelInstanceRDG>(IModelInstance);
+	NNE::IModelInstanceRDG* IModelInstance = static_cast<NNE::IModelInstanceRDG*>(ModelInstance);
+	return TSharedPtr<NNE::IModelInstanceRDG>(IModelInstance);
 }
 
-FModel::FModel(TConstArrayView<uint8> InModelData) : ModelData(InModelData) {}
+FModel::FModel(const TSharedPtr<UE::NNE::FSharedModelData>& InModelData) : ModelData(InModelData) {}
 
 } // namespace UE::NNERuntimeRDG::Private::Hlsl

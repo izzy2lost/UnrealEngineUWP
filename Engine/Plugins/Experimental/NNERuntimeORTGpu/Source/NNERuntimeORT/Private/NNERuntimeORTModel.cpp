@@ -327,44 +327,46 @@ namespace UE::NNERuntimeORT::Private
 
 #if PLATFORM_WINDOWS
 
-	TSharedPtr<UE::NNE::IModelInstanceGPU> FModelORTDml::CreateModelInstanceGPU()
+	TSharedPtr<NNE::IModelInstanceGPU> FModelORTDml::CreateModelInstanceGPU()
 	{
 		const FRuntimeConf InConf;
 		FModelInstanceORTDml* ModelInstance = new FModelInstanceORTDml(ORTEnvironment, InConf);
 
-		if (!ModelInstance->Init(ModelData))
+		check(ModelData.IsValid());
+		if (!ModelInstance->Init(ModelData->GetView()))
 		{
 			delete ModelInstance;
 			return TSharedPtr<UE::NNE::IModelInstanceGPU>();
 		}
 
-		UE::NNE::IModelInstanceGPU* IModelInstance = static_cast<UE::NNE::IModelInstanceGPU*>(ModelInstance);
-		return TSharedPtr<UE::NNE::IModelInstanceGPU>(IModelInstance);
+		NNE::IModelInstanceGPU* IModelInstance = static_cast<NNE::IModelInstanceGPU*>(ModelInstance);
+		return TSharedPtr<NNE::IModelInstanceGPU>(IModelInstance);
 	}
 
-	FModelORTDml::FModelORTDml(Ort::Env* InORTEnvironment, TConstArrayView<uint8> InModelData) :
+	FModelORTDml::FModelORTDml(Ort::Env* InORTEnvironment, const TSharedPtr<UE::NNE::FSharedModelData>& InModelData) :
 		ORTEnvironment(InORTEnvironment),
 		ModelData(InModelData)
 	{
 
 	}
 
-	TSharedPtr<UE::NNE::IModelInstanceGPU> FModelORTCuda::CreateModelInstanceGPU()
+	TSharedPtr<NNE::IModelInstanceGPU> FModelORTCuda::CreateModelInstanceGPU()
 	{
 		const FRuntimeConf InConf;
 		FModelInstanceORTCuda* ModelInstance = new FModelInstanceORTCuda(ORTEnvironment, InConf);
 
-		if (!ModelInstance->Init(ModelData))
+		check(ModelData.IsValid());
+		if (!ModelInstance->Init(ModelData->GetView()))
 		{
 			delete ModelInstance;
-			return TSharedPtr<UE::NNE::IModelInstanceGPU>();
+			return TSharedPtr<NNE::IModelInstanceGPU>();
 		}
 
-		UE::NNE::IModelInstanceGPU* IModelInstance = static_cast<UE::NNE::IModelInstanceGPU*>(ModelInstance);
-		return TSharedPtr<UE::NNE::IModelInstanceGPU>(IModelInstance);
+		NNE::IModelInstanceGPU* IModelInstance = static_cast<NNE::IModelInstanceGPU*>(ModelInstance);
+		return TSharedPtr<NNE::IModelInstanceGPU>(IModelInstance);
 	}
 
-	FModelORTCuda::FModelORTCuda(Ort::Env* InORTEnvironment, TConstArrayView<uint8> InModelData) :
+	FModelORTCuda::FModelORTCuda(Ort::Env* InORTEnvironment, const TSharedPtr<UE::NNE::FSharedModelData>& InModelData) :
 		ORTEnvironment(InORTEnvironment),
 		ModelData(InModelData)
 	{

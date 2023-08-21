@@ -61,7 +61,14 @@ bool UNNERuntimeORTCpuImpl::CanCreateModelCPU(TObjectPtr<UNNEModelData> ModelDat
 	
 	int32 GuidSize = sizeof(UNNERuntimeORTCpuImpl::GUID);
 	int32 VersionSize = sizeof(UNNERuntimeORTCpuImpl::Version);
-	TConstArrayView<uint8> Data = ModelData->GetModelData(GetRuntimeName());
+	TSharedPtr<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName());
+
+	if (!SharedData.IsValid())
+	{
+		return false;
+	}
+
+	TConstArrayView<uint8> Data = SharedData->GetView();
 	
 	if (Data.Num() <= GuidSize + VersionSize)
 	{
@@ -82,7 +89,8 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeORTCpuImpl::CreateModelCPU(TObjectPtr<
 		return TSharedPtr<UE::NNE::IModelCPU>();
 	}
 
-	TConstArrayView<uint8> Data = ModelData->GetModelData(GetRuntimeName());
+	TSharedPtr<UE::NNE::FSharedModelData> Data = ModelData->GetModelData(GetRuntimeName());
+	check(Data.IsValid());
 	UE::NNERuntimeORTCpu::Private::FModelCPU* Model = new UE::NNERuntimeORTCpu::Private::FModelCPU(&NNEEnvironmentCPU, Data);
 	UE::NNE::IModelCPU* IModel = static_cast<UE::NNE::IModelCPU*>(Model);
 
@@ -91,7 +99,7 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeORTCpuImpl::CreateModelCPU(TObjectPtr<
 		TArray<FAnalyticsEventAttribute> Attributes = MakeAnalyticsEventAttributeArray(
 			TEXT("PlatformName"), UGameplayStatics::GetPlatformName(),
 			TEXT("HashedRuntimeName"), FMD5::HashAnsiString(*GetRuntimeName()),
-			TEXT("ModelDataSize"), Data.Num()
+			TEXT("ModelDataSize"), Data->GetView().Num()
 		);
 		FEngineAnalytics::GetProvider().RecordEvent(TEXT("NeuralNetworkEngine.CreateModel"), Attributes);
 	}

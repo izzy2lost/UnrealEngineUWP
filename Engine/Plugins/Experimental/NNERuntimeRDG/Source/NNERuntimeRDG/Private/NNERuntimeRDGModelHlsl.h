@@ -3,6 +3,7 @@
 #pragma once
 
 #include "NNERuntimeRDGModel.h"
+#include "NNEModelData.h"
 #include "NNETypes.h"
 
 class FRDGBuilder;
@@ -38,13 +39,13 @@ private:
 class FModel : public NNE::IModelRDG
 {
 public:
-	FModel(TConstArrayView<uint8> ModelData);
+	FModel(const TSharedPtr<UE::NNE::FSharedModelData>& InModelData);
 	virtual ~FModel() {};
 
-	virtual TSharedPtr<UE::NNE::IModelInstanceRDG> CreateModelInstanceRDG() override;
+	virtual TSharedPtr<NNE::IModelInstanceRDG> CreateModelInstanceRDG() override;
 
 private:
-	TArray<uint8> ModelData;
+	TSharedPtr<UE::NNE::FSharedModelData> ModelData;
 };
 
 } // namespace UE::NNERuntimeRDG::Private::Hlsl
