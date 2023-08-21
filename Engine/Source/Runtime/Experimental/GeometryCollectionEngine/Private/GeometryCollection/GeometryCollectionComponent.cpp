@@ -3449,9 +3449,6 @@ void UGeometryCollectionComponent::LoadCollisionProfiles()
 			Cache.QueryFilter = InitialQueryFilter;
 			Cache.SimFilter = InitialSimFilter;
 
-			Cache.QueryFilter.Word3 |= (EPDF_SimpleCollision | EPDF_ComplexCollision);
-			Cache.SimFilter.Word3 |= (EPDF_SimpleCollision | EPDF_ComplexCollision);
-		
 			Cache.bQueryEnabled = true;
 			Cache.bSimEnabled = true;
 		}
