@@ -172,6 +172,7 @@ namespace EpicGames.Horde.Compute
 		enum ControlMessageType
 		{
 			Detach = -2,
+			KeepAlive = -3,
 		}
 
 		class RecvBuffer : IDisposable
@@ -237,7 +238,7 @@ namespace EpicGames.Horde.Compute
 		readonly ComputeTransport _transport;
 		readonly ILogger _logger;
 
-		BackgroundTask? _recvTask;
+		readonly BackgroundTask _recvTask;
 		readonly Dictionary<int, RecvBuffer> _recvBuffers = new Dictionary<int, RecvBuffer>();
 
 		readonly SemaphoreSlim _sendSemaphore = new SemaphoreSlim(1, 1);
@@ -255,6 +256,8 @@ namespace EpicGames.Horde.Compute
 		{
 			_transport = transport;
 			_logger = logger;
+
+			_recvTask = BackgroundTask.StartNew(ctx => RunRecvTaskAsync(_transport, ctx));
 		}
 
 		/// <summary>
@@ -281,6 +284,16 @@ namespace EpicGames.Horde.Compute
 			await CloseAsync(CancellationToken.None);
 			_sendSemaphore.Dispose();
 			GC.SuppressFinalize(this);
+		}
+
+		/// <summary>
+		/// Sends a keep alive message to the remote machine. Does not wait for a response. Designed to keep a connection open when the remote is eagerly trying to close it.
+		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public async Task SendKeepAliveMessageAsync(CancellationToken cancellationToken)
+		{
+			_logger.LogDebug("Sending ping message");
+			await SendInternalAsync(0, (int)ControlMessageType.KeepAlive, ReadOnlyMemory<byte>.Empty, cancellationToken);
 		}
 
 		async Task RunRecvTaskAsync(ComputeTransport transport, CancellationToken cancellationToken)
@@ -318,6 +331,10 @@ namespace EpicGames.Horde.Compute
 					else if (size == (int)ControlMessageType.Detach)
 					{
 						detachTasks.Add(DetachRecvBufferAsync(id, cancellationToken));
+					}
+					else if (size == (int)ControlMessageType.KeepAlive)
+					{
+						_logger.LogDebug("Received ping message");
 					}
 					else
 					{
@@ -485,7 +502,6 @@ namespace EpicGames.Horde.Compute
 				}
 
 				_recvBuffers.Add(channelId, new RecvBuffer(recvBuffer.CreateWriter()));
-				_recvTask ??= BackgroundTask.StartNew(ctx => RunRecvTaskAsync(_transport, ctx));
 			}
 		}
 

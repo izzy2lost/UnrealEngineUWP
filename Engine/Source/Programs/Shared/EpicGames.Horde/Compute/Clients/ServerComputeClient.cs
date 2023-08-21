@@ -5,6 +5,7 @@ using EpicGames.Horde.Api;
 using EpicGames.Horde.Compute.Transports;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
@@ -33,6 +34,8 @@ namespace EpicGames.Horde.Compute.Clients
 		class LeaseImpl : IComputeLease
 		{
 			readonly IAsyncEnumerator<LeaseInfo> _source;
+			
+			BackgroundTask? _pingTask;
 
 			public IReadOnlyList<string> Properties => _source.Current.Properties;
 			public IReadOnlyDictionary<string, int> AssignedResources => _source.Current.AssignedResources;
@@ -41,17 +44,42 @@ namespace EpicGames.Horde.Compute.Clients
 			public LeaseImpl(IAsyncEnumerator<LeaseInfo> source)
 			{
 				_source = source;
+				_pingTask = BackgroundTask.StartNew(PingAsync);
 			}
 
 			/// <inheritdoc/>
 			public async ValueTask DisposeAsync()
 			{
+				if (_pingTask != null)
+				{
+					await _pingTask.DisposeAsync();
+					_pingTask = null;
+				}
+
 				await _source.MoveNextAsync();
 				await _source.DisposeAsync();
 			}
 
 			/// <inheritdoc/>
-			public ValueTask CloseAsync(CancellationToken cancellationToken) => Socket.CloseAsync(cancellationToken);
+			public async ValueTask CloseAsync(CancellationToken cancellationToken)
+			{
+				if (_pingTask != null)
+				{
+					await _pingTask.DisposeAsync();
+					_pingTask = null;
+				}
+
+				await Socket.CloseAsync(cancellationToken);
+			}
+
+			async Task PingAsync(CancellationToken cancellationToken)
+			{
+				while (!cancellationToken.IsCancellationRequested)
+				{
+					await Socket.SendKeepAliveMessageAsync(cancellationToken);
+					await Task.Delay(TimeSpan.FromSeconds(5.0), cancellationToken);
+				}
+			}
 		}
 
 		readonly HttpClient? _defaultHttpClient;
