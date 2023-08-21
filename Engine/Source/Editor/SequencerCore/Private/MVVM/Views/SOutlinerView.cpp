@@ -525,15 +525,7 @@ void SOutlinerView::UpdateTrackGutterColumns(TSharedPtr<FEditorViewModel> InEdit
 	// Spacer column callback, generates a line to separate the track gutter from the outliner
 	auto GenerateSpacer = [=](const TWeakViewModelPtr<IOutlinerExtension>& InWeakModel, const TSharedRef<SOutlinerViewRow>& InRow) -> TSharedRef<SWidget>
 	{
-		return SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				SNew(SSeparator)
-				.Orientation(Orient_Vertical)
-				.Thickness(1.0f)
-				.SeparatorImage(FAppStyle::Get().GetBrush("Separator"))
-			];
+		return SNew(SBorder).BorderImage(FAppStyle::Get().GetBrush("Separator"));
 	};
 
 	// Left padding
