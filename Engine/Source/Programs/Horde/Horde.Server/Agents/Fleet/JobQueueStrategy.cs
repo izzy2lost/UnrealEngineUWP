@@ -98,6 +98,7 @@ namespace Horde.Server.Agents.Fleet
 		private readonly IStreamCollection _streamCollection;
 		private readonly IClock _clock;
 		private readonly IMemoryCache _cache;
+		private readonly bool _isDowntimeActive;
 		private readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 
 		/// <summary>
@@ -108,15 +109,17 @@ namespace Horde.Server.Agents.Fleet
 		/// <param name="streamCollection"></param>
 		/// <param name="clock"></param>
 		/// <param name="cache"></param>
+		/// <param name="isDowntimeActive"></param>
 		/// <param name="globalConfig"></param>
 		/// <param name="settings"></param>
-		public JobQueueStrategy(IJobCollection jobs, IGraphCollection graphs, IStreamCollection streamCollection, IClock clock, IMemoryCache cache, IOptionsMonitor<GlobalConfig> globalConfig, JobQueueSettings? settings = null)
+		public JobQueueStrategy(IJobCollection jobs, IGraphCollection graphs, IStreamCollection streamCollection, IClock clock, IMemoryCache cache, bool isDowntimeActive, IOptionsMonitor<GlobalConfig> globalConfig, JobQueueSettings? settings = null)
 		{
 			_jobs = jobs;
 			_graphs = graphs;
 			_streamCollection = streamCollection;
 			_clock = clock;
 			_cache = cache;
+			_isDowntimeActive = isDowntimeActive;
 			_globalConfig = globalConfig;
 			Settings = settings ?? new JobQueueSettings();
 		}
@@ -188,6 +191,13 @@ namespace Horde.Server.Agents.Fleet
 			List<(PoolId PoolId, int QueueSize)> poolsWithQueueSize = jobBatches.GroupBy(t => t.PoolId).Select(t => (t.Key, t.Count())).ToList();
 
 			span.SetAttribute("numPools", poolsWithQueueSize.Count);
+
+			if (_isDowntimeActive)
+			{
+				// As an optimization, assume queue size is zero during maintenance windows.
+				return poolsWithQueueSize.ToDictionary(x => x.PoolId, x => 0);
+			}
+			
 			return poolsWithQueueSize.ToDictionary(x => x.PoolId, x => x.QueueSize);
 		}
 

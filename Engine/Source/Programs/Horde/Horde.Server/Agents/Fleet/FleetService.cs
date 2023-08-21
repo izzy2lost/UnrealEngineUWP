@@ -381,7 +381,7 @@ namespace Horde.Server.Agents.Fleet
 						{
 							case PoolSizeStrategy.JobQueue:
 								JobQueueSettings jqSettings = DeserializeConfig<JobQueueSettings>(info.Config);
-								JobQueueStrategy jqStrategy = new (_jobCollection, _graphCollection, _streamCollection, _clock, _cache, _globalConfig, jqSettings);
+								JobQueueStrategy jqStrategy = new (_jobCollection, _graphCollection, _streamCollection, _clock, _cache, _downtimeService.IsDowntimeActive, _globalConfig, jqSettings);
 								return info.ExtraAgentCount != 0 ? new ExtraAgentCountStrategy(jqStrategy, info.ExtraAgentCount) : jqStrategy;
 							
 							case PoolSizeStrategy.LeaseUtilization:
@@ -409,7 +409,7 @@ namespace Horde.Server.Agents.Fleet
 			switch (pool.SizeStrategy ?? _settings.Value.DefaultAgentPoolSizeStrategy)
 			{
 				case PoolSizeStrategy.JobQueue:
-					return new JobQueueStrategy(_jobCollection, _graphCollection, _streamCollection, _clock, _cache, _globalConfig, pool.JobQueueSettings);
+					return new JobQueueStrategy(_jobCollection, _graphCollection, _streamCollection, _clock, _cache, _downtimeService.IsDowntimeActive, _globalConfig, pool.JobQueueSettings);
 				case PoolSizeStrategy.LeaseUtilization:
 					LeaseUtilizationSettings luSettings = new();
 					if (pool.MinAgents != null)

@@ -32,6 +32,16 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
+		public async Task DowntimeActive()
+		{
+			(JobQueueStrategy strategy, PoolSizeResult poolSizeResult, IPool pool, List<IAgent> agents) = await SetUpJobsAsync(1, 5, isDowntimeActive: true);
+			await Clock.AdvanceAsync(TimeSpan.FromSeconds(strategy.Settings.ReadyTimeThresholdSec) + TimeSpan.FromSeconds(5));
+			Dictionary<PoolId, int> poolQueueSizes = await strategy.GetPoolQueueSizesAsync(Clock.UtcNow - TimeSpan.FromHours(2));
+			Assert.AreEqual(1, poolQueueSizes.Count);
+			Assert.AreEqual(0, poolQueueSizes[pool.Id]);
+		}
+		
+		[TestMethod]
 		public async Task EmptyJobQueue()
 		{
 			await AssertAgentCount(0, -1, false);
@@ -79,9 +89,9 @@ namespace Horde.Server.Tests.Fleet
 			await AssertAgentCount(25, 7);
 		}
 
-		public async Task AssertAgentCount(int numBatchesReady, int expectedAgentDelta, bool waitedBeyondThreshold = true, int numAgents = 8)
+		public async Task AssertAgentCount(int numBatchesReady, int expectedAgentDelta, bool waitedBeyondThreshold = true, int numAgents = 8, bool isDowntimeActive = false)
 		{
-			(JobQueueStrategy strategy, PoolSizeResult poolSizeResult, IPool pool, List<IAgent> agents) = await SetUpJobsAsync(1, numBatchesReady, numAgents);
+			(JobQueueStrategy strategy, PoolSizeResult poolSizeResult, IPool pool, List<IAgent> agents) = await SetUpJobsAsync(1, numBatchesReady, numAgents, isDowntimeActive);
 			TimeSpan timeToWait = waitedBeyondThreshold
 				? TimeSpan.FromSeconds(strategy.Settings.ReadyTimeThresholdSec) + TimeSpan.FromSeconds(5)
 				: TimeSpan.FromSeconds(15);
@@ -97,7 +107,7 @@ namespace Horde.Server.Tests.Fleet
 		/// </summary>
 		/// <param name="numBatchesRunning">Num of job batches that should be in state running</param>
 		/// <param name="numBatchesReady">Num of job batches that should be in state waiting</param>
-		private async Task<(JobQueueStrategy, PoolSizeResult, IPool, List<IAgent> agents)> SetUpJobsAsync(int numBatchesRunning, int numBatchesReady, int numAgents = 8)
+		private async Task<(JobQueueStrategy, PoolSizeResult, IPool, List<IAgent> agents)> SetUpJobsAsync(int numBatchesRunning, int numBatchesReady, int numAgents = 8, bool isDowntimeActive = false)
 		{
 			IPool pool = await PoolService.CreatePoolAsync("bogusPool1", new AddPoolOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0 });
 			List<IAgent> agents = new();
@@ -143,7 +153,7 @@ namespace Horde.Server.Tests.Fleet
 				await JobCollection.TryUpdateBatchAsync(job, graph, job.Batches[0].Id, null, JobStepBatchState.Ready, null);
 			}
 
-			return (new (JobCollection, GraphCollection, StreamCollection, Clock, Cache, GlobalConfig), poolSize, pool, agents);
+			return (new (JobCollection, GraphCollection, StreamCollection, Clock, Cache, isDowntimeActive, GlobalConfig), poolSize, pool, agents);
 		}
 		
 		private async Task<IJob> AddPlaceholderJob(IGraph graph, StreamId streamId, string nodeNameToExecute)
