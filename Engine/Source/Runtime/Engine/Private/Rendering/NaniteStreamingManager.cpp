@@ -11,6 +11,7 @@
 #include "ShaderCompilerCore.h"
 #include "Stats/StatsTrace.h"
 #include "RHIGPUReadback.h"
+#include "HAL/PlatformFileManager.h"
 
 #if WITH_EDITOR
 #include "DerivedDataCache.h"
@@ -2630,7 +2631,8 @@ void FStreamingManager::AsyncUpdate()
 
 #if !WITH_EDITOR
 		// Issue warning if we end up taking the legacy path
-		if (NumLegacyRequestsIssued > 0)
+		static const bool bUsingPakFiles = FPlatformFileManager::Get().FindPlatformFile(TEXT("PakFile")) != nullptr;
+		if (NumLegacyRequestsIssued > 0 && bUsingPakFiles)
 		{
 			static bool bHasWarned = false;
 			if(!bHasWarned)
