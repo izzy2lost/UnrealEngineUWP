@@ -34,6 +34,8 @@ namespace EpicGames.Horde.Tests
 			public Dictionary<int, ComputeBufferWriter> RecvBufferWriters { get; } = new Dictionary<int, ComputeBufferWriter>();
 			public Dictionary<int, ComputeBufferReader> SendBufferReaders { get; } = new Dictionary<int, ComputeBufferReader>();
 
+			public override ILogger Logger => NullLogger.Instance;
+
 			public void Dispose()
 			{
 				foreach (ComputeBufferWriter writer in RecvBufferWriters.Values)
@@ -76,8 +78,8 @@ namespace EpicGames.Horde.Tests
 		{
 			Pipe recvPipe = new Pipe();
 			Pipe sendPipe = new Pipe();
-			await using RemoteComputeSocket localSocket = new RemoteComputeSocket(new PipeTransport(sendPipe.Reader, recvPipe.Writer), ComputeSocketEndpoint.Local, new TestLogger());
-			await using RemoteComputeSocket agentSocket = new RemoteComputeSocket(new PipeTransport(recvPipe.Reader, sendPipe.Writer), ComputeSocketEndpoint.Remote, new TestLogger());
+			await using RemoteComputeSocket localSocket = new RemoteComputeSocket(new PipeTransport(sendPipe.Reader, recvPipe.Writer), new TestLogger());
+			await using RemoteComputeSocket agentSocket = new RemoteComputeSocket(new PipeTransport(recvPipe.Reader, sendPipe.Writer), new TestLogger());
 
 			await RunAgentTests(localSocket, agentSocket);
 		}
@@ -95,8 +97,8 @@ namespace EpicGames.Horde.Tests
 			using Socket serverSocket = await listener.AcceptSocketAsync(CancellationToken.None);
 			await clientConnectTask;
 
-			await using RemoteComputeSocket localSocket = new RemoteComputeSocket(new TcpTransport(clientSocket), ComputeSocketEndpoint.Local, new TestLogger());
-			await using RemoteComputeSocket agentSocket = new RemoteComputeSocket(new TcpTransport(serverSocket), ComputeSocketEndpoint.Remote, new TestLogger());
+			await using RemoteComputeSocket localSocket = new RemoteComputeSocket(new TcpTransport(clientSocket), new TestLogger());
+			await using RemoteComputeSocket agentSocket = new RemoteComputeSocket(new TcpTransport(serverSocket), new TestLogger());
 
 			await RunAgentTests(localSocket, agentSocket);
 		}
@@ -107,7 +109,7 @@ namespace EpicGames.Horde.Tests
 			await using (BackgroundTask agentTask = BackgroundTask.StartNew(ctx => RunAgent(agentSocket, tempDir, ctx)))
 			{
 				const int PrimaryChannelId = 0;
-				using (AgentMessageChannel channel = localSocket.CreateAgentMessageChannel(PrimaryChannelId, 4 * 1024 * 1024, NullLogger.Instance))
+				using (AgentMessageChannel channel = localSocket.CreateAgentMessageChannel(PrimaryChannelId, 4 * 1024 * 1024))
 				{
 					await channel.WaitForAttachAsync();
 
@@ -126,7 +128,7 @@ namespace EpicGames.Horde.Tests
 					}
 
 					const int SecondaryChannelId = 1;
-					using (AgentMessageChannel channel2 = localSocket.CreateAgentMessageChannel(SecondaryChannelId, 4 * 1024 * 1024, NullLogger.Instance))
+					using (AgentMessageChannel channel2 = localSocket.CreateAgentMessageChannel(SecondaryChannelId, 4 * 1024 * 1024))
 					{
 						await channel.ForkAsync(SecondaryChannelId, 4 * 1024 * 1024);
 

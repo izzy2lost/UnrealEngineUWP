@@ -60,7 +60,7 @@ namespace EpicGames.Horde.Compute
 
 		async Task RunAsync(ComputeSocket socket, int channelId, int bufferSize, CancellationToken cancellationToken)
 		{
-			using (AgentMessageChannel channel = socket.CreateAgentMessageChannel(channelId, bufferSize, _logger))
+			using (AgentMessageChannel channel = socket.CreateAgentMessageChannel(channelId, bufferSize))
 			{
 				await channel.AttachAsync(cancellationToken);
 

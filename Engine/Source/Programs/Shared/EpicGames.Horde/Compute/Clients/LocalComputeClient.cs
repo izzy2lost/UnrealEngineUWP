@@ -35,6 +35,39 @@ namespace EpicGames.Horde.Compute.Clients
 			public ValueTask CloseAsync(CancellationToken cancellationToken) => _socket.CloseAsync(cancellationToken);
 		}
 
+		class PrefixLogger : ILogger
+		{
+			readonly string _prefix;
+			readonly ILogger _inner;
+
+			public PrefixLogger(string prefix, ILogger inner)
+			{
+				_prefix = prefix;
+				_inner = inner;
+			}
+
+			public IDisposable BeginScope<TState>(TState state) => _inner.BeginScope<TState>(state);
+			public bool IsEnabled(LogLevel logLevel) => _inner.IsEnabled(logLevel);
+
+			public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+			{
+				if (state is IEnumerable<KeyValuePair<string, object>> enumerable)
+				{
+					List<KeyValuePair<string, object>> copy = new List<KeyValuePair<string, object>>(enumerable);
+
+					int idx = copy.FindIndex(x => x.Key.Equals("{OriginalFormat}", StringComparison.OrdinalIgnoreCase));
+					if (idx != -1 && copy[idx].Value is string format)
+					{
+						copy[idx] = new KeyValuePair<string, object>(copy[idx].Key, "[{_tag}] " + format);
+						copy.Add(new KeyValuePair<string, object>("_tag", _prefix));
+						_inner.Log(logLevel, eventId, copy, exception, (s, e) => $"[{_prefix}] {formatter(state, exception)}");
+						return;
+					}
+				}
+				_inner.Log(logLevel, eventId, state, exception, formatter);
+			}
+		}
+
 		readonly BackgroundTask _listenerTask;
 		readonly Socket _listener;
 		readonly Socket _socket;
@@ -57,7 +90,7 @@ namespace EpicGames.Horde.Compute.Clients
 			_listener.Bind(new IPEndPoint(IPAddress.Loopback, port));
 			_listener.Listen();
 
-			_listenerTask = BackgroundTask.StartNew(ctx => RunListenerAsync(_listener, sandboxDir, _executeInProcess, logger, ctx));
+			_listenerTask = BackgroundTask.StartNew(ctx => RunListenerAsync(_listener, sandboxDir, _executeInProcess, new PrefixLogger("REMOTE", logger), ctx));
 
 			_socket = new Socket(SocketType.Stream, ProtocolType.IP);
 			_socket.Connect(IPAddress.Loopback, port);
@@ -80,7 +113,7 @@ namespace EpicGames.Horde.Compute.Clients
 
 			using MemoryCache memoryCache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 10 * 1024 * 1024 });
 
-			await using (RemoteComputeSocket socket = new RemoteComputeSocket(new TcpTransport(tcpSocket), ComputeSocketEndpoint.Remote, logger))
+			await using (RemoteComputeSocket socket = new RemoteComputeSocket(new TcpTransport(tcpSocket), logger))
 			{
 				AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, memoryCache, null, executeInProcess, null, logger);
 				await worker.RunAsync(socket, cancellationToken);
@@ -92,7 +125,7 @@ namespace EpicGames.Horde.Compute.Clients
 		public Task<IComputeLease?> TryAssignWorkerAsync(ClusterId clusterId, Requirements? requirements, CancellationToken cancellationToken)
 		{
 #pragma warning disable CA2000 // Dispose objects before losing scope
-			RemoteComputeSocket socket = new RemoteComputeSocket(new TcpTransport(_socket), ComputeSocketEndpoint.Local, _logger);
+			RemoteComputeSocket socket = new RemoteComputeSocket(new TcpTransport(_socket), new PrefixLogger("CLIENT", _logger));
 			return Task.FromResult<IComputeLease?>(new LeaseImpl(socket));
 #pragma warning restore CA2000 // Dispose objects before losing scope
 		}

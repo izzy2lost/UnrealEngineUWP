@@ -31,7 +31,7 @@ namespace Horde.Agent.Commands.Compute
 		protected override async Task<bool> HandleRequestAsync(IComputeLease lease, CancellationToken cancellationToken)
 		{
 			ComputeSocket socket = lease.Socket;
-			using (AgentMessageChannel channel = socket.CreateAgentMessageChannel(0, _logger))
+			using (AgentMessageChannel channel = socket.CreateAgentMessageChannel(0))
 			{
 				_logger.LogInformation("Sending XOR request");
 				await channel.SendXorRequestAsync(new byte[] { 1, 2, 3, 4, 5 }, (byte)123, cancellationToken);

@@ -71,12 +71,12 @@ namespace RemoteClient
 			if (options.UseCppWorker)
 			{
 				FileReference remoteServerFile = FileReference.Combine(ClientSourceDir, "../RemoteWorkerCpp/bin/RemoteServerCpp.exe");
-				await RunRemoteAsync(lease, remoteServerFile.Directory, "RemoteWorkerCpp.exe", new List<string>(), logger);
+				await RunRemoteAsync(lease, remoteServerFile.Directory, "RemoteWorkerCpp.exe", new List<string>());
 			}
 			else
 			{
 				FileReference remoteServerFile = FileReference.Combine(ClientSourceDir, "../RemoteWorker", CurrentAssemblyFile.Directory.MakeRelativeTo(ClientSourceDir), "RemoteWorker.dll");
-				await RunRemoteAsync(lease, remoteServerFile.Directory, @"C:\Program Files\dotnet\dotnet.exe", new List<string> { remoteServerFile.GetFileName() }, logger);
+				await RunRemoteAsync(lease, remoteServerFile.Directory, @"C:\Program Files\dotnet\dotnet.exe", new List<string> { remoteServerFile.GetFileName() });
 			}
 		}
 
@@ -84,15 +84,15 @@ namespace RemoteClient
 		const int BackgroundChannelId = 1;
 		const int ChildProcessChannelId = 100;
 
-		static async Task RunRemoteAsync(IComputeLease lease, DirectoryReference uploadDir, string executable, List<string> arguments, ILogger logger)
+		static async Task RunRemoteAsync(IComputeLease lease, DirectoryReference uploadDir, string executable, List<string> arguments)
 		{
 			// Create a message channel on channel id 0. The Horde Agent always listens on this channel for requests.
-			using (AgentMessageChannel channel = lease.Socket.CreateAgentMessageChannel(PrimaryChannelId, 4 * 1024 * 1024, logger))
+			using (AgentMessageChannel channel = lease.Socket.CreateAgentMessageChannel(PrimaryChannelId, 4 * 1024 * 1024))
 			{
 				await channel.WaitForAttachAsync();
 
 				// Fork another message loop. We'll use this to run an XOR task in the background.
-				using AgentMessageChannel backgroundChannel = lease.Socket.CreateAgentMessageChannel(BackgroundChannelId, 4 * 1024 * 1024, logger);
+				using AgentMessageChannel backgroundChannel = lease.Socket.CreateAgentMessageChannel(BackgroundChannelId, 4 * 1024 * 1024);
 				await using BackgroundTask otherChannelTask = BackgroundTask.StartNew(ctx => RunBackgroundXorAsync(backgroundChannel));
 				await channel.ForkAsync(BackgroundChannelId, 4 * 1024 * 1024, default);
 
@@ -108,14 +108,14 @@ namespace RemoteClient
 
 				// Run the task remotely in the background and echo the output to the console
 				using ComputeChannel childProcessChannel = lease.Socket.CreateChannel(ChildProcessChannelId);
-				await using BackgroundTask tickTask = BackgroundTask.StartNew(ctx => WriteNumbersAsync(childProcessChannel, logger, ctx));
+				await using BackgroundTask tickTask = BackgroundTask.StartNew(ctx => WriteNumbersAsync(childProcessChannel, lease.Socket.Logger, ctx));
 
 				await using (AgentManagedProcess process = await channel.ExecuteAsync(executable, arguments, null, null, ExecuteProcessFlags.None))
 				{
 					string? line;
 					while ((line = await process.ReadLineAsync()) != null)
 					{
-						logger.LogInformation("[REMOTE] {Line}", line);
+						lease.Socket.Logger.LogInformation("{Line}", line);
 					}
 				}
 			}

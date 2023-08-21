@@ -6,13 +6,12 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Compute.Buffers;
-using JetBrains.Annotations;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EpicGames.Horde.Compute
 {
@@ -21,6 +20,11 @@ namespace EpicGames.Horde.Compute
 	/// </summary>
 	public abstract class ComputeSocket
 	{
+		/// <summary>
+		/// Logger for diagnostic messages
+		/// </summary>
+		public abstract ILogger Logger { get; }
+
 		/// <summary>
 		/// Attaches a buffer to receive data.
 		/// </summary>
@@ -82,19 +86,30 @@ namespace EpicGames.Horde.Compute
 
 		readonly ComputeBufferWriter _commandBufferWriter;
 		readonly List<ComputeBuffer> _buffers = new List<ComputeBuffer>();
+		readonly ILogger _logger;
+
+		/// <inheritdoc/>
+		public override ILogger Logger => _logger;
 
 		/// <summary>
 		/// Creates a socket for a worker
 		/// </summary>
-		private WorkerComputeSocket(ComputeBufferWriter commandBufferWriter)
+		private WorkerComputeSocket(ComputeBufferWriter commandBufferWriter, ILogger logger)
 		{
 			_commandBufferWriter = commandBufferWriter;
+			_logger = logger;
 		}
 
 		/// <summary>
 		/// Opens a socket which allows a worker to communicate with the Horde Agent
 		/// </summary>
-		public static WorkerComputeSocket Open()
+		public static WorkerComputeSocket Open() => Open(NullLogger.Instance);
+
+		/// <summary>
+		/// Opens a socket which allows a worker to communicate with the Horde Agent
+		/// </summary>
+		/// <param name="logger">Logger for diagnostic messages</param>
+		public static WorkerComputeSocket Open(ILogger logger)
 		{
 			string? baseName = Environment.GetEnvironmentVariable(IpcEnvVar);
 			if (baseName == null)
@@ -102,17 +117,18 @@ namespace EpicGames.Horde.Compute
 				throw new InvalidOperationException($"Environment variable {IpcEnvVar} is not defined; cannot connect as worker.");
 			}
 
-			return Open(baseName);
+			return Open(baseName, logger);
 		}
 
 		/// <summary>
 		/// Opens a socket which allows a worker to communicate with the Horde Agent
 		/// </summary>
 		/// <param name="commandBufferName">Name of the command buffer</param>
-		public static WorkerComputeSocket Open(string commandBufferName)
+		/// <param name="logger">Logger for diagnostic messages</param>
+		public static WorkerComputeSocket Open(string commandBufferName, ILogger logger)
 		{
 			using SharedMemoryBuffer commandBuffer = SharedMemoryBuffer.OpenExisting(commandBufferName);
-			return new WorkerComputeSocket(commandBuffer.CreateWriter());
+			return new WorkerComputeSocket(commandBuffer.CreateWriter(), logger);
 		}
 
 		/// <inheritdoc/>
@@ -146,22 +162,6 @@ namespace EpicGames.Horde.Compute
 
 			_commandBufferWriter.AdvanceWritePosition(writer.Length);
 		}
-	}
-
-	/// <summary>
-	/// Enum identifying which end of the socket a particular machine is
-	/// </summary>
-	public enum ComputeSocketEndpoint
-	{
-		/// <summary>
-		/// The initiating machine
-		/// </summary>
-		Local,
-
-		/// <summary>
-		/// The remote machine
-		/// </summary>
-		Remote,
 	}
 
 	/// <summary>
@@ -235,7 +235,6 @@ namespace EpicGames.Horde.Compute
 		bool _complete;
 
 		readonly ComputeTransport _transport;
-		readonly ComputeSocketEndpoint _endpoint;
 		readonly ILogger _logger;
 
 		BackgroundTask? _recvTask;
@@ -244,18 +243,17 @@ namespace EpicGames.Horde.Compute
 		readonly SemaphoreSlim _sendSemaphore = new SemaphoreSlim(1, 1);
 		readonly Dictionary<int, SendBuffer> _sendBuffers = new Dictionary<int, SendBuffer>();
 
-		string Tag => (_endpoint == ComputeSocketEndpoint.Local)? "LOCAL": "REMOTE";
+		/// <inheritdoc/>
+		public override ILogger Logger => _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="transport">Transport to communicate with the remote</param>
-		/// <param name="endpoint">Tag for log messages</param>
 		/// <param name="logger">Logger for trace output</param>
-		public RemoteComputeSocket(ComputeTransport transport, ComputeSocketEndpoint endpoint, ILogger logger)
+		public RemoteComputeSocket(ComputeTransport transport, ILogger logger)
 		{
 			_transport = transport;
-			_endpoint = endpoint;
 			_logger = logger;
 		}
 
@@ -273,7 +271,7 @@ namespace EpicGames.Horde.Compute
 			// Wait for the reader to stop
 			if (_recvTask != null)
 			{
-				await _recvTask.StopAsync();
+				await _recvTask.DisposeAsync();
 			}
 		}
 
@@ -287,7 +285,7 @@ namespace EpicGames.Horde.Compute
 
 		async Task RunRecvTaskAsync(ComputeTransport transport, CancellationToken cancellationToken)
 		{
-			_logger.LogDebug("[{Tag}] Started socket reader", Tag);
+			_logger.LogDebug("Started socket reader");
 
 			List<Task> detachTasks = new List<Task>();
 
@@ -304,7 +302,7 @@ namespace EpicGames.Horde.Compute
 					// Read the next packet header
 					if (!await transport.RecvOptionalAsync(header, cancellationToken))
 					{
-						_logger.LogDebug("[{Tag}] End of socket", Tag);
+						_logger.LogDebug("End of socket");
 						break;
 					}
 
@@ -323,7 +321,7 @@ namespace EpicGames.Horde.Compute
 					}
 					else
 					{
-						_logger.LogDebug("[{Tag}] Unrecognized control message: {Message}", Tag, size);
+						_logger.LogDebug("Unrecognized control message: {Message}", size);
 					}
 				}
 			}
@@ -344,11 +342,11 @@ namespace EpicGames.Horde.Compute
 			// Wait for all the detach tasks to finish
 			if (detachTasks.Count > 0)
 			{
-				_logger.LogDebug("[{Tag}] Waiting for detach tasks to complete...", Tag);
+				_logger.LogDebug("Waiting for detach tasks to complete...");
 				await Task.WhenAll(detachTasks).WaitAsync(cancellationToken);
 			}
 
-			_logger.LogDebug("[{Tag}] Closing reader", Tag);
+			_logger.LogDebug("Closing reader");
 		}
 
 		async Task ReadPacketAsync(ComputeTransport transport, int id, int size, CancellationToken cancellationToken)
@@ -399,7 +397,7 @@ namespace EpicGames.Horde.Compute
 						Memory<byte> memory = writer.GetWriteBuffer();
 						while (memory.Length < size)
 						{
-							_logger.LogDebug("[{Tag}] No space in buffer {Id}, flushing", Tag, id);
+							_logger.LogDebug("No space in buffer {Id}, flushing", id);
 							await writer.WaitToWriteAsync(size, cancellationToken);
 							memory = writer.GetWriteBuffer();
 						}
@@ -474,7 +472,7 @@ namespace EpicGames.Horde.Compute
 		/// <inheritdoc/>
 		public override void AttachRecvBuffer(int channelId, ComputeBuffer recvBuffer)
 		{
-			_logger.LogDebug("[{Tag}] Attaching recv buffer {Id}", Tag, channelId);
+			_logger.LogDebug("Attaching recv buffer {Id}", channelId);
 			lock (_lockObject)
 			{
 				if (_complete)
@@ -494,7 +492,7 @@ namespace EpicGames.Horde.Compute
 		[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope")]
 		async Task DetachRecvBufferAsync(int id, CancellationToken cancellationToken)
 		{
-			_logger.LogDebug("[{Tag}] Detaching recv buffer {Id}", Tag, id);
+			_logger.LogDebug("Detaching recv buffer {Id}", id);
 
 			// Get the current receive buffer
 			RecvBuffer? recvBuffer;
@@ -502,7 +500,7 @@ namespace EpicGames.Horde.Compute
 			{
 				if (!_recvBuffers.TryGetValue(id, out recvBuffer))
 				{
-					_logger.LogDebug("[{Tag}] Buffer {Id} has already been detached", Tag, id);
+					_logger.LogDebug("Buffer {Id} has already been detached", id);
 					return;
 				}
 				recvBuffer.AddRef(); // Note: adding extra ref here
@@ -563,7 +561,7 @@ namespace EpicGames.Horde.Compute
 		/// <inheritdoc/>
 		public override void AttachSendBuffer(int channelId, ComputeBuffer sendBuffer)
 		{
-			_logger.LogDebug("[{Tag}] Attaching send buffer {Id}", Tag, channelId);
+			_logger.LogDebug("Attaching send buffer {Id}", channelId);
 			lock (_lockObject)
 			{
 				if (_sendBuffers.ContainsKey(channelId))
