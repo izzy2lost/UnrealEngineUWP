@@ -25,6 +25,7 @@ public class GameProjectGeneration : ModuleRules
 				"Analytics",
 				"ApplicationCore",
 				"AppFramework",
+				"AssetTools",
 				"ClassViewer",
 				"Core",
 				"CoreUObject",
