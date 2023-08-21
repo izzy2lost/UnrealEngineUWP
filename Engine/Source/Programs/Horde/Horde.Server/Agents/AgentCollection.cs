@@ -245,6 +245,13 @@ namespace Horde.Server.Agents
 			List<AgentDocument> results = await _agents.Find(x => x.SessionId.HasValue && !(x.SessionExpiresAt > utcNow)).Limit(maxAgents).ToListAsync();
 			return results.ConvertAll<IAgent>(x => x);
 		}
+		
+		/// <inheritdoc/>
+		public async Task<List<IAgent>> FindDeletedAsync()
+		{
+			List<AgentDocument> results = await _agents.Find(x => x.Deleted).ToListAsync();
+			return results.ConvertAll<IAgent>(x => x);
+		}
 
 		/// <summary>
 		/// Update a single document
@@ -490,10 +497,9 @@ namespace Horde.Server.Agents
 			update = update.Set(x => x.Status, AgentStatus.Stopped);
 			update = update.Set(x => x.LastStatusChange, _clock.UtcNow);
 
-			bool deleted = agent.Deleted || agent.Ephemeral;
-			if (deleted != agent.Deleted)
+			if (agent.Ephemeral)
 			{
-				update = update.Set(x => x.Deleted, agent.Deleted);
+				update = update.Set(x => x.Deleted, true);
 			}
 
 			return await TryUpdateAsync(agent, update);

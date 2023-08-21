@@ -69,12 +69,18 @@ namespace Horde.Server.Agents
 		Task<List<IAgent>> FindAsync(PoolId? poolId = null, DateTime? modifiedAfter = null, string? property = null, AgentStatus? status = null, bool? enabled = null, int? index = null, int? count = null);
 
 		/// <summary>
-		/// Finds all the expired agents
+		/// Finds all agents with an expired session
 		/// </summary>
 		/// <param name="utcNow">The current time</param>
 		/// <param name="maxAgents">Maximum number of agents to return</param>
 		/// <returns>List of agents</returns>
 		Task<List<IAgent>> FindExpiredAsync(DateTime utcNow, int maxAgents);
+		
+		/// <summary>
+		/// Finds all agents marked as deleted
+		/// </summary>
+		/// <returns>List of agents</returns>
+		Task<List<IAgent>> FindDeletedAsync();
 
 		/// <summary>
 		/// Update an agent's settings

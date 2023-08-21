@@ -1030,9 +1030,16 @@ namespace Horde.Server.Agents
 		/// </summary>
 		/// <param name="stoppingToken">Token indicating the service is shutting down</param>
 		/// <returns>Async task</returns>
-		async ValueTask TickAsync(CancellationToken stoppingToken)
+		internal async ValueTask TickAsync(CancellationToken stoppingToken)
 		{
-			while (!stoppingToken.IsCancellationRequested)
+			await TerminateExpiredSessionsAsync(stoppingToken);
+			await DeleteExpiredEphemeralAgentsAsync(stoppingToken);
+			await CollectMetricsAsync();
+		}
+
+		private async Task TerminateExpiredSessionsAsync(CancellationToken cancellationToken)
+		{
+			while (!cancellationToken.IsCancellationRequested)
 			{
 				// Find all the agents which are ready to be expired
 				const int MaxAgents = 100;
@@ -1042,25 +1049,31 @@ namespace Horde.Server.Agents
 				// Transition each agent to being offline
 				foreach (IAgent expiredAgent in expiredAgents)
 				{
-					stoppingToken.ThrowIfCancellationRequested();
+					cancellationToken.ThrowIfCancellationRequested();
 					_logger.LogDebug("Terminating session {SessionId} for agent {Agent}", expiredAgent.SessionId, expiredAgent.Id);
-					IAgent? terminatedAgent = await TryTerminateSessionAsync(expiredAgent);
-
-					if (terminatedAgent is { Status: AgentStatus.Stopped, Ephemeral: true })
-					{
-						_logger.LogDebug("Deleting ephemeral agent {Agent}", terminatedAgent.Id);
-						await DeleteAgentAsync(terminatedAgent, true);
-					}
+					await TryTerminateSessionAsync(expiredAgent);
 				}
 
 				// Try again if we didn't fetch everything
-				if(expiredAgents.Count < MaxAgents)
+				if (expiredAgents.Count < MaxAgents)
 				{
 					break;
 				}
 			}
-
-			await CollectMetricsAsync();
+		}
+		
+		private async Task DeleteExpiredEphemeralAgentsAsync(CancellationToken cancellationToken)
+		{
+			foreach (IAgent agent in await Agents.FindDeletedAsync())
+			{
+				cancellationToken.ThrowIfCancellationRequested();
+				bool noStatusChangeDuringPeriod = _clock.UtcNow > agent.LastStatusChange + TimeSpan.FromDays(7);
+				if (agent.Status == AgentStatus.Stopped && noStatusChangeDuringPeriod)
+				{
+					_logger.LogDebug("Deleting ephemeral agent {Agent}", agent.Id);
+					await DeleteAgentAsync(agent, true);
+				}
+			}
 		}
 
 		private async Task CollectMetricsAsync()

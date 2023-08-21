@@ -178,29 +178,25 @@ public class AgentServiceTest : TestSetup
 	[TestMethod]
 	public async Task EphemeralTest()
 	{
-		IAgent agent1 = await CreateAgentAsync(new PoolId("pool1"), ephemeral: true);
-		IAgent agent2 = await CreateAgentAsync(new PoolId("pool1"), ephemeral: false);
-		Assert.IsTrue(agent1.Ephemeral);
-		Assert.IsFalse(agent2.Ephemeral);
+		IAgent agent = await CreateAgentAsync(new PoolId("pool1"), ephemeral: true);
+		Assert.IsTrue(agent.Ephemeral);
 		
-		agent1 = (await AgentService.GetAgentAsync(agent1.Id))!;
-		agent2 = (await AgentService.GetAgentAsync(agent2.Id))!;
-		Assert.IsTrue(agent1.Ephemeral);
-		Assert.IsFalse(agent2.Ephemeral);
-		Assert.AreEqual(AgentStatus.Ok, agent1.Status);
-		Assert.AreEqual(AgentStatus.Ok, agent2.Status);
+		agent = (await AgentService.GetAgentAsync(agent.Id))!;
+		Assert.IsTrue(agent.Ephemeral);
+		Assert.AreEqual(AgentStatus.Ok, agent.Status);
 
-		// Let background task run for purging outdated sessions
-		await AgentService.StartAsync(CancellationToken.None);
+		// Let background task run for purging outdated sessions, which will terminate session for our agent
 		await Clock.AdvanceAsync(TimeSpan.FromHours(1));
+		await AgentService.TickAsync(CancellationToken.None);
 		
-		// Ephemeral agent is deleted once its session is terminated
-		Assert.IsNull((await AgentService.GetAgentAsync(agent1.Id)));
+		// Ephemeral agent is marked as deleted once its session is terminated
+		Assert.IsTrue((await AgentService.GetAgentAsync(agent.Id))!.Deleted);
 		
-		// Normal agent is stopped but kept around
-		agent2 = (await AgentService.GetAgentAsync(agent2.Id))!;
-		Assert.AreEqual(AgentStatus.Stopped, agent2.Status);
-		Assert.IsFalse(agent2.Deleted);
+		await Clock.AdvanceAsync(TimeSpan.FromDays(8));
+		await AgentService.TickAsync(CancellationToken.None);
+		
+		// Once more time has passed, the ephemeral agent marked as deleted is removed from database
+		Assert.IsNull(await AgentService.GetAgentAsync(agent.Id));
 	}
 
 	private static ClaimsPrincipal GetUser(IAgent agent)
