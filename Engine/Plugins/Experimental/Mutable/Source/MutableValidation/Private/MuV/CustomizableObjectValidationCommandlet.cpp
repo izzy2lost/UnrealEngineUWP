@@ -2,6 +2,7 @@
 
 #include "MuV/CustomizableObjectValidationCommandlet.h"
 
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Containers/Array.h"
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectSystem.h"
@@ -41,6 +42,13 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 	{
 		UE_LOG(LogMutable,Error,TEXT("Failed to cast found UObject to UCustomizableObject."));
 		return 1;
+	}
+	
+	// Perform a blocking search to ensure all assets used by mutable are reachable using the AssetRegistry
+	{
+		UE_LOG(LogMutable,Display,TEXT("Searching all assets (this will take some time)..."));
+		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(AssetRegistryConstants::ModuleName);
+		AssetRegistryModule.Get().SearchAllAssets(true /* bSynchronousSearch */);
 	}
 	
 	// Compile the Customizable Object ------------------------------------------------------------------------------ //
