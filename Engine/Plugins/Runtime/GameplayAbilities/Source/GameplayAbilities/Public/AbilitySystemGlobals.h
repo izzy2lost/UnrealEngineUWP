@@ -414,7 +414,7 @@ protected:
 	void OnPreBeginPIE(const bool bIsSimulatingInEditor);
 #endif
 
-	void ResetCachedData();
+	static void ResetCachedData();
 	void HandlePreLoadMap(const FWorldContext& WorldContext, const FString& MapName);
 
 #if WITH_EDITORONLY_DATA

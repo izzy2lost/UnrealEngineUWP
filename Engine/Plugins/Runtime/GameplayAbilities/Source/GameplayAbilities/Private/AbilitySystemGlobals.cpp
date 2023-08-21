@@ -522,6 +522,21 @@ void UAbilitySystemGlobals::HandlePreLoadMap(const FWorldContext& WorldContext, 
 		return;
 	}
 
+	// If we are preloading a map but coming from an existing map, then we should wait until the previous map is cleaned up,
+	// otherwise we'll end up stomping FActiveGameplayEffectHandle map.
+	if (const UWorld* InWorld = WorldContext.World())
+	{
+		FWorldDelegates::OnPostWorldCleanup.AddWeakLambda(InWorld, [InWorld](UWorld* WorldParam, bool bSessionEnded, bool bCleanupResources)
+			{
+				if (WorldParam == InWorld)
+				{
+					ResetCachedData();
+				}
+			});
+
+		return;
+	}
+
 	ResetCachedData();
 }
 
