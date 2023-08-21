@@ -13,6 +13,8 @@
 // FRigBaseElement
 ////////////////////////////////////////////////////////////////////////////////
 
+const FRigBaseElement::EElementIndex FRigBaseElement::ElementTypeIndex = BaseElement;
+
 FRigBaseElement::FRigBaseElement(const FRigBaseElement& InOther)
 {
 	*this = InOther;
@@ -481,6 +483,8 @@ FRigBaseElement* FRigElementHandle::Get()
 // FRigTransformElement
 ////////////////////////////////////////////////////////////////////////////////
 
+const FRigBaseElement::EElementIndex FRigTransformElement::ElementTypeIndex = TransformElement;
+
 void FRigTransformElement::Save(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase)
 {
 	Super::Save(Ar, Hierarchy, SerializationPhase);
@@ -543,6 +547,8 @@ void FRigTransformElement::CopyFrom(URigHierarchy* InHierarchy, FRigBaseElement*
 // FRigSingleParentElement
 ////////////////////////////////////////////////////////////////////////////////
 
+const FRigBaseElement::EElementIndex FRigSingleParentElement::ElementTypeIndex = SingleParentElement;
+
 void FRigSingleParentElement::Save(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase)
 {
 	Super::Save(Ar, Hierarchy, SerializationPhase);
@@ -594,6 +600,8 @@ void FRigSingleParentElement::CopyFrom(URigHierarchy* InHierarchy, FRigBaseEleme
 ////////////////////////////////////////////////////////////////////////////////
 // FRigMultiParentElement
 ////////////////////////////////////////////////////////////////////////////////
+
+const FRigBaseElement::EElementIndex FRigMultiParentElement::ElementTypeIndex = MultiParentElement;
 
 void FRigMultiParentElement::Save(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase)
 {
@@ -746,6 +754,8 @@ void FRigMultiParentElement::CopyPose(FRigBaseElement* InOther, bool bCurrent, b
 static_assert(sizeof(FRigBoneElement) <= 736, "FRigBoneElement was optimized to fit into 736 bytes bin of MallocBinned3");
 #endif
 
+const FRigBaseElement::EElementIndex FRigBoneElement::ElementTypeIndex = BoneElement;
+
 void FRigBoneElement::Save(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase)
 {
 	Super::Save(Ar, Hierarchy, SerializationPhase);
@@ -778,6 +788,12 @@ void FRigBoneElement::CopyFrom(URigHierarchy* InHierarchy, FRigBaseElement* InOt
 	const FRigBoneElement* Source = CastChecked<FRigBoneElement>(InOther);
 	BoneType = Source->BoneType;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// FRigNullElement
+////////////////////////////////////////////////////////////////////////////////
+
+const FRigBaseElement::EElementIndex FRigNullElement::ElementTypeIndex = NullElement;
 
 ////////////////////////////////////////////////////////////////////////////////
 // FRigControlSettings
@@ -1231,6 +1247,8 @@ void FRigControlSettings::SetupLimitArrayForType(bool bLimitTranslation, bool bL
 // FRigControlElement
 ////////////////////////////////////////////////////////////////////////////////
 
+const FRigBaseElement::EElementIndex FRigControlElement::ElementTypeIndex = ControlElement;
+
 void FRigControlElement::Save(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase)
 {
 	Super::Save(Ar, Hierarchy, SerializationPhase);
@@ -1301,6 +1319,8 @@ void FRigControlElement::CopyPose(FRigBaseElement* InOther, bool bCurrent, bool 
 ////////////////////////////////////////////////////////////////////////////////
 // FRigCurveElement
 ////////////////////////////////////////////////////////////////////////////////
+
+const FRigBaseElement::EElementIndex FRigCurveElement::ElementTypeIndex = CurveElement;
 
 void FRigCurveElement::Save(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase)
 {
@@ -1376,6 +1396,8 @@ void FRigRigidBodySettings::Load(FArchive& Ar)
 // FRigRigidBodyElement
 ////////////////////////////////////////////////////////////////////////////////
 
+const FRigBaseElement::EElementIndex FRigRigidBodyElement::ElementTypeIndex = RigidBodyElement;
+
 void FRigRigidBodyElement::Save(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase)
 {
 	Super::Save(Ar, Hierarchy, SerializationPhase);
@@ -1408,6 +1430,8 @@ void FRigRigidBodyElement::CopyFrom(URigHierarchy* InHierarchy, FRigBaseElement*
 ////////////////////////////////////////////////////////////////////////////////
 // FRigReferenceElement
 ////////////////////////////////////////////////////////////////////////////////
+
+const FRigBaseElement::EElementIndex FRigReferenceElement::ElementTypeIndex = ReferenceElement;
 
 void FRigReferenceElement::Save(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase)
 {
@@ -1526,6 +1550,8 @@ uint32 GetTypeHash(const FRigConnectorSettings& Settings)
 ////////////////////////////////////////////////////////////////////////////////
 // FRigConnectorElement
 ////////////////////////////////////////////////////////////////////////////////
+
+const FRigBaseElement::EElementIndex FRigConnectorElement::ElementTypeIndex = ConnectorElement;
 
 void FRigConnectorElement::Save(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase)
 {

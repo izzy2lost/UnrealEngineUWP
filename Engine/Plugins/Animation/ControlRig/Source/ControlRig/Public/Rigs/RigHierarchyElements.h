@@ -38,7 +38,8 @@ template<typename T> \
 friend T* CastChecked(ElementType* InElement) \
 { \
 	return CastChecked<T>((FRigBaseElement*) InElement); \
-}
+} \
+virtual int32 GetElementTypeIndex() const override { return (int32)ElementType::ElementTypeIndex; }
 
 UENUM()
 namespace ERigTransformType
@@ -554,6 +555,25 @@ struct CONTROLRIG_API FRigBaseElement
 
 public:
 
+	enum EElementIndex
+	{
+		BaseElement,
+		TransformElement,
+		SingleParentElement,
+		MultiParentElement,
+		BoneElement,
+		NullElement,
+		ControlElement,
+		CurveElement,
+		RigidBodyElement,
+		ReferenceElement,
+		ConnectorElement,
+
+		Max
+	};
+
+	static const EElementIndex ElementTypeIndex;
+
 	FRigBaseElement()
     : Key()
     , Index(INDEX_NONE)
@@ -570,6 +590,9 @@ public:
 	FRigBaseElement& operator= (const FRigBaseElement& InOther);
 
 	virtual ~FRigBaseElement();
+
+	virtual int32 GetElementTypeIndex() const { return (int32)ElementTypeIndex; }
+	int32 GetElementTypeCount() const { return (int32)EElementIndex::Max; }
 
 	enum ESerializationPhase
 	{
@@ -753,6 +776,8 @@ public:
 	GENERATED_BODY()
 	DECLARE_RIG_ELEMENT_METHODS(FRigTransformElement)
 
+	static const EElementIndex ElementTypeIndex;
+
 	FRigTransformElement()
 		: FRigBaseElement()
 	{}
@@ -829,6 +854,8 @@ public:
 	
 	GENERATED_BODY()
 	DECLARE_RIG_ELEMENT_METHODS(FRigSingleParentElement)
+
+	static const EElementIndex ElementTypeIndex;
 
 	FRigSingleParentElement()
 	: FRigTransformElement()
@@ -979,6 +1006,8 @@ public:
 	GENERATED_BODY()
 	DECLARE_RIG_ELEMENT_METHODS(FRigMultiParentElement)
 
+	static const EElementIndex ElementTypeIndex;
+
     FRigMultiParentElement()
     : FRigTransformElement()
 	{}
@@ -1019,6 +1048,8 @@ public:
 	GENERATED_BODY()
 	DECLARE_RIG_ELEMENT_METHODS(FRigBoneElement)
 
+	static const EElementIndex ElementTypeIndex;
+
 	FRigBoneElement()
 		: FRigSingleParentElement()
 	{
@@ -1053,6 +1084,8 @@ public:
 	
 	GENERATED_BODY()
 	DECLARE_RIG_ELEMENT_METHODS(FRigNullElement)
+
+	static const EElementIndex ElementTypeIndex;
 
 	FRigNullElement()
     : FRigMultiParentElement()
@@ -1368,6 +1401,8 @@ struct CONTROLRIG_API FRigControlElement : public FRigMultiParentElement
 	GENERATED_BODY()
 	DECLARE_RIG_ELEMENT_METHODS(FRigControlElement)
 
+	static const EElementIndex ElementTypeIndex;
+
 	FRigControlElement()
 		: FRigMultiParentElement()
 	{
@@ -1436,6 +1471,8 @@ public:
 	GENERATED_BODY()
 	DECLARE_RIG_ELEMENT_METHODS(FRigCurveElement)
 
+	static const EElementIndex ElementTypeIndex;
+
 	FRigCurveElement()
 		: FRigBaseElement()
 		, bIsValueSet(true)
@@ -1497,6 +1534,8 @@ public:
 	GENERATED_BODY()
 	DECLARE_RIG_ELEMENT_METHODS(FRigRigidBodyElement)
 
+	static const EElementIndex ElementTypeIndex;
+
     FRigRigidBodyElement()
         : FRigSingleParentElement()
 	{
@@ -1534,6 +1573,8 @@ public:
 	
 	GENERATED_BODY()
 	DECLARE_RIG_ELEMENT_METHODS(FRigReferenceElement)
+
+	static const EElementIndex ElementTypeIndex;
 
     FRigReferenceElement()
         : FRigSingleParentElement()
@@ -1643,6 +1684,8 @@ public:
 	
 	GENERATED_BODY()
 	DECLARE_RIG_ELEMENT_METHODS(FRigConnectorElement)
+
+	static const EElementIndex ElementTypeIndex;
 
 	FRigConnectorElement()
 		: FRigSingleParentElement()

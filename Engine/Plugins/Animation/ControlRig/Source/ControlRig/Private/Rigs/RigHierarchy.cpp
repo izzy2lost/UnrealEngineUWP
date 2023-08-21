@@ -4423,33 +4423,59 @@ void URigHierarchy::UpdateCachedChildren(const FRigBaseElement* InElement, bool 
 	{
 		return;
 	}
-	
+
 	InElement->CachedChildren.Reset();
-	
+
+	for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ElementIndex++)
+	{
+		FRigBaseElement* Element = Elements[ElementIndex];
+		if(Element->IsA<FRigSingleParentElement>() || Element->IsA<FRigMultiParentElement>())
+		{
+			if(Element->TopologyVersion != TopologyVersion)
+			{
+				Element->CachedChildren.Reset();
+			}
+		}
+	}
+
+	// since we'll have to loop over all children anyway - it makes sense to update all of them
+	// at the same time.
 	for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ElementIndex++)
 	{
 		FRigBaseElement* Element = Elements[ElementIndex];
 		if(FRigSingleParentElement* SingleParentElement = Cast<FRigSingleParentElement>(Element))
 		{
-			if(SingleParentElement->ParentElement == InElement)
+			if(FRigTransformElement* ParentElement = SingleParentElement->ParentElement)
 			{
-				InElement->CachedChildren.Add(SingleParentElement);
+				if(ParentElement->TopologyVersion != TopologyVersion)
+				{
+					ParentElement->CachedChildren.Add(SingleParentElement);
+				}
 			}
 		}
 		else if(FRigMultiParentElement* MultiParentElement = Cast<FRigMultiParentElement>(Element))
 		{
 			for(const FRigElementParentConstraint& ParentConstraint : MultiParentElement->ParentConstraints)
 			{
-				if(ParentConstraint.ParentElement == InElement)
+				if(FRigTransformElement* ParentElement = ParentConstraint.ParentElement)
 				{
-					InElement->CachedChildren.Add(MultiParentElement);
-					break;
+					if(ParentElement->TopologyVersion != TopologyVersion)
+					{
+						ParentElement->CachedChildren.Add(MultiParentElement);
+					}
 				}
 			}
 		}
 	}
 
-	InElement->TopologyVersion = TopologyVersion;
+	for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ElementIndex++)
+	{
+		FRigBaseElement* Element = Elements[ElementIndex];
+		if(Element->IsA<FRigSingleParentElement>() || Element->IsA<FRigMultiParentElement>())
+		{
+			Element->TopologyVersion = TopologyVersion;
+		}
+	}
 }
 
 void URigHierarchy::UpdateAllCachedChildren() const
