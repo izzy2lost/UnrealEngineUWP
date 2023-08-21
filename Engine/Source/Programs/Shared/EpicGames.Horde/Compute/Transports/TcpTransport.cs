@@ -36,8 +36,10 @@ namespace EpicGames.Horde.Compute.Transports
 		/// <inheritdoc/>
 		public override async ValueTask SendAsync(ReadOnlySequence<byte> buffer, CancellationToken cancellationToken)
 		{
+			int offset = 0;
 			foreach (ReadOnlyMemory<byte> memory in buffer)
 			{
+				_socket.NoDelay = (offset + memory.Length == buffer.Length);
 				await _socket.SendMessageAsync(memory, SocketFlags.None, cancellationToken);
 				Position += memory.Length;
 			}
