@@ -139,7 +139,7 @@ private:
 	int32 CachedDataNumBytes;
 
 	FName CorrespondingWaveName;
-	FObjectKey CorrespondingWaveObjectKey;
+	FGuid CorrespondingWaveGuid;
 
 	// The index of this chunk in the sound wave's full set of chunks of compressed audio.
 	int32 ChunkIndex;

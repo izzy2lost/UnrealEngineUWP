@@ -1294,6 +1294,7 @@ public:
 
 	ENGINE_API void OverrideRuntimeFormat(const FName& InRuntimeFormat);
 
+	const FGuid& GetGUID() const { return WaveGuid; }
 	const FName& GetFName() const { return NameCached; }
 	const FName& GetPackageName() const { return PackageNameCached; }
 	const FName& GetRuntimeFormat() const { return RuntimeFormat; }
@@ -1398,6 +1399,7 @@ private:
 	TArray<FSoundWaveCuePoint> CuePoints;
 	TArray<FSoundWaveCuePoint> LoopRegions;
 	ESoundAssetCompressionType SoundAssetCompressionType;
+	FGuid WaveGuid;
 	
 	float SampleRate = 0;
 	float Duration = 0;

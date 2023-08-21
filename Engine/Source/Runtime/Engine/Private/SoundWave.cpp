@@ -160,6 +160,7 @@ void FSoundWaveData::InitializeDataFromSoundWave(USoundWave& InWave)
 	NumChannels = InWave.NumChannels;
 
 	NumFrames = (int32)(Duration * (float)SampleRate);
+	WaveGuid = InWave.CompressedDataGuid;
 
 	// update shared flags
 	bIsLooping = InWave.IsLooping();

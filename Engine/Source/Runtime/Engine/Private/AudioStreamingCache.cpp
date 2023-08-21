@@ -231,11 +231,11 @@ FAudioChunkCache::FChunkKey::FChunkKey(const FSoundWavePtr& InSoundWave, uint32 
 	if (InSoundWave.IsValid())
 	{
 		SoundWaveName = InSoundWave->GetFName();
-		ObjectKey = InSoundWave->GetFObjectKey();
+		ObjectKey = InSoundWave->GetGUID();
 	}
 }
 
-FAudioChunkCache::FChunkKey::FChunkKey(const FName& InSoundWaveName , const FObjectKey& InSoundWaveObjectKey , uint32 InChunkIndex
+FAudioChunkCache::FChunkKey::FChunkKey(const FName& InSoundWaveName , const FGuid& InSoundWaveObjectKey , uint32 InChunkIndex
 #if WITH_EDITOR
 		, uint32 InChunkRevision
 #endif // #if WITH_EDITOR
@@ -636,7 +636,7 @@ void FCachedAudioStreamingManager::AddReferenceToChunk(const FAudioChunkHandle& 
 
 	const FAudioChunkCache::FChunkKey ChunkKey(
 		  InHandle.CorrespondingWaveName
-		, InHandle.CorrespondingWaveObjectKey
+		, InHandle.CorrespondingWaveGuid
 		, ((uint32)InHandle.ChunkIndex)
 #if WITH_EDITOR
 		, InHandle.ChunkRevision
@@ -654,7 +654,7 @@ void FCachedAudioStreamingManager::RemoveReferenceToChunk(const FAudioChunkHandl
 
 	const FAudioChunkCache::FChunkKey ChunkKey(
 		  InHandle.CorrespondingWaveName
-		, InHandle.CorrespondingWaveObjectKey
+		, InHandle.CorrespondingWaveGuid
 		, ((uint32)InHandle.ChunkIndex)
 #if WITH_EDITOR
 		, InHandle.ChunkRevision
@@ -1525,30 +1525,7 @@ FAudioChunkCache::FCacheElement* FAudioChunkCache::EvictLeastRecentChunk(bool bB
 	return CacheElement;
 }
 
-TArray<FObjectKey> FAudioChunkCache::GetLeastRecentlyUsedRetainedSoundWaves(int32 NumSoundWavesToRetrieve)
-{
-	// Start at the least recent element, then crawl our way up the LRU cache, 
-	// adding object keys for elements as we go.
-	FCacheElement* CacheElement = LeastRecentElement;
 
-	TArray<FObjectKey> SoundWavesToRelease;
-
-	// In order to avoid cycles, we always leave at least two chunks in the cache.
-	const FCacheElement* ElementToStopAt = MostRecentElement;
-
-	while (CacheElement && CacheElement != ElementToStopAt && SoundWavesToRelease.Num() < NumSoundWavesToRetrieve)
-	{
-		// If the least recent chunk is evictable, evict it.
-		if (CacheElement->IsInUse())
-		{
-			SoundWavesToRelease.Add(CacheElement->Key.ObjectKey);
-		}
-
-		CacheElement = CacheElement->MoreRecentElement;
-	}
-
-	return SoundWavesToRelease;
-}
 
 static FAutoConsoleTaskPriority CPrio_ClearAudioChunkCacheReadRequest(
 	TEXT("TaskGraph.TaskPriorities.ClearAudioChunkCacheReadRequest"),

@@ -1466,7 +1466,7 @@ FAudioChunkHandle::FAudioChunkHandle(const uint8* InData, uint32 NumBytes, const
 		TSharedPtr<FSoundWaveData> SoundWaveData = InSoundWave->GetSoundWaveData();
 		if (SoundWaveData.IsValid())
 		{
-			CorrespondingWaveObjectKey = SoundWaveData->GetFObjectKey();
+			CorrespondingWaveGuid = SoundWaveData->GetGUID();
 		}
 	}
 }
@@ -1494,7 +1494,7 @@ FAudioChunkHandle& FAudioChunkHandle::operator=(FAudioChunkHandle&& Other)
 	CachedData = Other.CachedData;
 	CachedDataNumBytes = Other.CachedDataNumBytes;
 	CorrespondingWaveName = Other.CorrespondingWaveName;
-	CorrespondingWaveObjectKey = Other.CorrespondingWaveObjectKey;
+	CorrespondingWaveGuid = Other.CorrespondingWaveGuid;
 	ChunkIndex = Other.ChunkIndex;
 #if WITH_EDITOR
 	CorrespondingWave = MoveTemp(Other.CorrespondingWave);
@@ -1506,7 +1506,7 @@ FAudioChunkHandle& FAudioChunkHandle::operator=(FAudioChunkHandle&& Other)
 	Other.CachedData = nullptr;
 	Other.CachedDataNumBytes = 0;
 	Other.CorrespondingWaveName = FName();
-	Other.CorrespondingWaveObjectKey = FObjectKey();
+	Other.CorrespondingWaveGuid = FGuid();
 	Other.ChunkIndex = INDEX_NONE;
 #if WITH_EDITOR
 	Other.CorrespondingWave = nullptr;
@@ -1527,7 +1527,7 @@ FAudioChunkHandle& FAudioChunkHandle::operator=(const FAudioChunkHandle& Other)
 	CachedData = Other.CachedData;
 	CachedDataNumBytes = Other.CachedDataNumBytes;
 	CorrespondingWaveName = Other.CorrespondingWaveName;
-	CorrespondingWaveObjectKey = Other.CorrespondingWaveObjectKey;
+	CorrespondingWaveGuid = Other.CorrespondingWaveGuid;
 	ChunkIndex = Other.ChunkIndex;
 #if WITH_EDITOR
 	CorrespondingWave = Other.CorrespondingWave;

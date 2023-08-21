@@ -38,7 +38,7 @@ public:
 
 		FChunkKey(
 			  const FName& InSoundWaveName
-			, const FObjectKey& InSoundWaveObjectKey
+			, const FGuid& InSoundWaveGuid
 			, uint32 InChunkIndex
 #if WITH_EDITOR
 			, uint32 InChunkRevision = 0
@@ -58,7 +58,7 @@ public:
 
 	public:
 		FName SoundWaveName = FName();
-		FObjectKey ObjectKey = FObjectKey();
+		FGuid ObjectKey = FGuid();
 		uint32 ChunkIndex = INDEX_NONE;
 
 #if WITH_EDITOR
@@ -231,6 +231,8 @@ private:
 
 		// if true, 
 		bool bWasCacheMiss;
+		bool bWasLoadedFromInlineChunk = false;
+		bool bWasInlinedButUnloaded = false;
 
 		FCacheElementDebugInfo()
 			: NumTotalChunks(0)
@@ -252,6 +254,8 @@ private:
 			LoadingBehavior = ESoundWaveLoadingBehavior::Uninitialized;
 			bWasCacheMiss = false;
 			AverageLocationInCacheWhenNeeded = 0.0f;
+			bWasLoadedFromInlineChunk = false;
+			bWasInlinedButUnloaded = false;
 		}
 
 	};
