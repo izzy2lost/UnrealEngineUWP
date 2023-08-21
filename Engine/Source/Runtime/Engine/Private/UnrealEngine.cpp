@@ -14915,6 +14915,10 @@ bool UEngine::LoadMap( FWorldContext& WorldContext, FURL URL, class UPendingNetG
 		// Clean up networking
 		ShutdownWorldNetDriver(WorldContext.World());
 
+		// Force mark all streaming levels for stream out
+		WorldContext.World()->bIsLevelStreamingFrozen = false;
+		WorldContext.World()->SetShouldForceUnloadStreamingLevels(true);
+
 		// Make sure there are no pending visibility requests.
 		WorldContext.World()->FlushLevelStreaming(EFlushLevelStreamingType::Visibility);
 

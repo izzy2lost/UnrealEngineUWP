@@ -2051,6 +2051,10 @@ void UWorld::InitWorld(const InitializationValues IVS)
 		return;
 	}
 
+	// Reset flags in case of world reuse
+	bIsLevelStreamingFrozen = false;
+	bShouldForceUnloadStreamingLevels = false;
+
 	FCoreUObjectDelegates::GetPostGarbageCollect().AddUObject(this, &UWorld::OnPostGC);
 
 	InitializeSubsystems();

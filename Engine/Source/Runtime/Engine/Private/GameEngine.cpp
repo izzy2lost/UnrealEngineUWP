@@ -1236,6 +1236,13 @@ void UGameEngine::PreExit()
 			// Shut down any existing game connections
 			ShutdownWorldNetDriver(World);
 
+			// Force mark all streaming levels for stream out
+			World->bIsLevelStreamingFrozen = false;
+			World->SetShouldForceUnloadStreamingLevels(true);
+
+			// Make sure there are no pending visibility requests.
+			World->FlushLevelStreaming(EFlushLevelStreamingType::Visibility);
+						
 			for (FActorIterator ActorIt(World); ActorIt; ++ActorIt)
 			{
 				ActorIt->RouteEndPlay(EEndPlayReason::Quit);
@@ -1246,7 +1253,6 @@ void UGameEngine::PreExit()
 				World->GetGameInstance()->Shutdown();
 			}
 
-			World->FlushLevelStreaming(EFlushLevelStreamingType::Visibility);
 			World->CleanupWorld();
 		}
 	}
