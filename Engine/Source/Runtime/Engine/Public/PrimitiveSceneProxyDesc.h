@@ -58,7 +58,7 @@ struct FPrimitiveSceneProxyDesc
 		bIsHidden = false;
 		bIsHiddenEd = false;
 		bSupportsWorldPositionOffsetVelocity = true;
-		bIsEditorOnly = false;
+		bIsOwnerEditorOnly = false;
 		bIsInstancedStaticMesh = false;
 		bHoldout = false;
 
@@ -128,7 +128,7 @@ struct FPrimitiveSceneProxyDesc
 	uint32 bIsHidden : 1;
 	uint32 bIsHiddenEd : 1;
 	uint32 bSupportsWorldPositionOffsetVelocity : 1;
-	uint32 bIsEditorOnly : 1;
+	uint32 bIsOwnerEditorOnly : 1;
 	uint32 bIsInstancedStaticMesh : 1;
 	uint32 bHasStaticLighting : 1;
 	uint32 bHasValidSettingsForStaticLighting : 1;
@@ -210,7 +210,7 @@ struct FPrimitiveSceneProxyDesc
 	FString GetPathName() const { return Component->GetPathName(); }
 	
 	bool IsHidden() const { return bIsHidden; }
-	bool IsEditorOnly() const { return bIsEditorOnly; }
+	bool IsOwnerEditorOnly() const { return bIsOwnerEditorOnly; }
 
 #if WITH_EDITOR
 	bool IsHiddenEd() const { return bIsHiddenEd; }

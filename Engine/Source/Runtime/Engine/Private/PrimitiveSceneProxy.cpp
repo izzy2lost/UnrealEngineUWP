@@ -319,9 +319,10 @@ FPrimitiveSceneProxyDesc::FPrimitiveSceneProxyDesc(const UPrimitiveComponent* In
 				ActorOwners.Add(CurrentOwner);
 			}
 		}
+		
+		bIsOwnerEditorOnly = InComponent->GetOwner()->IsEditorOnly(); 
 	}
 	bSupportsWorldPositionOffsetVelocity = InComponent->SupportsWorldPositionOffsetVelocity();
-	bIsEditorOnly = InComponent->IsEditorOnly(); 
 	bIsInstancedStaticMesh = Cast<UInstancedStaticMeshComponent>(InComponent) != nullptr; 
 
 	Mobility = InComponent->Mobility;;
@@ -576,7 +577,7 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 #if WITH_EDITOR
 		// cache the actor's group membership
 		HiddenEditorViews = InProxyDesc.GetHiddenEditorViews();
-		DrawInAnyEditMode = InProxyDesc.IsEditorOnly();
+		DrawInAnyEditMode = InProxyDesc.IsOwnerEditorOnly();
 		bIsFoliage = InProxyDesc.IsOwnedByFoliage();
 #endif
 	}	
