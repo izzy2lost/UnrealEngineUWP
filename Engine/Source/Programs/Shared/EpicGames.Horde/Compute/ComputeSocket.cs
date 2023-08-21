@@ -287,7 +287,7 @@ namespace EpicGames.Horde.Compute
 
 		async Task RunRecvTaskAsync(ComputeTransport transport, CancellationToken cancellationToken)
 		{
-			_logger.LogTrace("[{Tag}] Started socket reader", Tag);
+			_logger.LogDebug("[{Tag}] Started socket reader", Tag);
 
 			List<Task> detachTasks = new List<Task>();
 
@@ -304,7 +304,7 @@ namespace EpicGames.Horde.Compute
 					// Read the next packet header
 					if (!await transport.RecvOptionalAsync(header, cancellationToken))
 					{
-						_logger.LogTrace("[{Tag}] End of socket", Tag);
+						_logger.LogDebug("[{Tag}] End of socket", Tag);
 						break;
 					}
 
@@ -323,7 +323,7 @@ namespace EpicGames.Horde.Compute
 					}
 					else
 					{
-						_logger.LogWarning("[{Tag}] Unrecognized control message: {Message}", Tag, size);
+						_logger.LogDebug("[{Tag}] Unrecognized control message: {Message}", Tag, size);
 					}
 				}
 			}
@@ -344,11 +344,11 @@ namespace EpicGames.Horde.Compute
 			// Wait for all the detach tasks to finish
 			if (detachTasks.Count > 0)
 			{
-				_logger.LogTrace("[{Tag}] Waiting for detach tasks to complete...", Tag);
+				_logger.LogDebug("[{Tag}] Waiting for detach tasks to complete...", Tag);
 				await Task.WhenAll(detachTasks).WaitAsync(cancellationToken);
 			}
 
-			_logger.LogTrace("[{Tag}] Closing reader", Tag);
+			_logger.LogDebug("[{Tag}] Closing reader", Tag);
 		}
 
 		async Task ReadPacketAsync(ComputeTransport transport, int id, int size, CancellationToken cancellationToken)
@@ -399,7 +399,7 @@ namespace EpicGames.Horde.Compute
 						Memory<byte> memory = writer.GetWriteBuffer();
 						while (memory.Length < size)
 						{
-							_logger.LogTrace("[{Tag}] No space in buffer {Id}, flushing", Tag, id);
+							_logger.LogDebug("[{Tag}] No space in buffer {Id}, flushing", Tag, id);
 							await writer.WaitToWriteAsync(size, cancellationToken);
 							memory = writer.GetWriteBuffer();
 						}
@@ -474,7 +474,7 @@ namespace EpicGames.Horde.Compute
 		/// <inheritdoc/>
 		public override void AttachRecvBuffer(int channelId, ComputeBuffer recvBuffer)
 		{
-			_logger.LogTrace("[{Tag}] Attaching recv buffer {Id}", Tag, channelId);
+			_logger.LogDebug("[{Tag}] Attaching recv buffer {Id}", Tag, channelId);
 			lock (_lockObject)
 			{
 				if (_complete)
@@ -494,7 +494,7 @@ namespace EpicGames.Horde.Compute
 		[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope")]
 		async Task DetachRecvBufferAsync(int id, CancellationToken cancellationToken)
 		{
-			_logger.LogTrace("[{Tag}] Detaching recv buffer {Id}", Tag, id);
+			_logger.LogDebug("[{Tag}] Detaching recv buffer {Id}", Tag, id);
 
 			// Get the current receive buffer
 			RecvBuffer? recvBuffer;
@@ -502,7 +502,7 @@ namespace EpicGames.Horde.Compute
 			{
 				if (!_recvBuffers.TryGetValue(id, out recvBuffer))
 				{
-					_logger.LogTrace("[{Tag}] Buffer {Id} has already been detached", Tag, id);
+					_logger.LogDebug("[{Tag}] Buffer {Id} has already been detached", Tag, id);
 					return;
 				}
 				recvBuffer.AddRef(); // Note: adding extra ref here
@@ -563,7 +563,7 @@ namespace EpicGames.Horde.Compute
 		/// <inheritdoc/>
 		public override void AttachSendBuffer(int channelId, ComputeBuffer sendBuffer)
 		{
-			_logger.LogTrace("[{Tag}] Attaching send buffer {Id}", Tag, channelId);
+			_logger.LogDebug("[{Tag}] Attaching send buffer {Id}", Tag, channelId);
 			lock (_lockObject)
 			{
 				if (_sendBuffers.ContainsKey(channelId))

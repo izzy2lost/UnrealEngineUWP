@@ -21,8 +21,9 @@ namespace Horde.Agent.Services
 		/// <param name="stepId">The job step id</param>
 		/// <param name="warnings">Whether to suppress warnings</param>
 		/// <param name="useNewLogger">Whether to enable the new logger backend</param>
+		/// <param name="outputLevel">Minimum output level for messages</param>
 		/// <returns>New logger instance</returns>
-		IServerLogger CreateLogger(ISession session, string logId, string? jobId, string? batchId, string? stepId, bool? warnings, bool? useNewLogger);
+		IServerLogger CreateLogger(ISession session, string logId, string? jobId, string? batchId, string? stepId, bool? warnings, bool? useNewLogger, LogLevel outputLevel = LogLevel.Information);
 	}
 
 	/// <summary>
@@ -38,10 +39,11 @@ namespace Horde.Agent.Services
 		/// <param name="logId">The log identifier</param>
 		/// <param name="warnings">Whether to suppress warnings</param>
 		/// <param name="useNewLogger">Whether to enable the new logger backend</param>
+		/// <param name="outputLevel">Minimum output level for messages</param>
 		/// <returns>New logger instance</returns>
-		public static IServerLogger CreateLogger(this IServerLoggerFactory service, ISession session, string logId, bool? warnings, bool? useNewLogger)
+		public static IServerLogger CreateLogger(this IServerLoggerFactory service, ISession session, string logId, bool? warnings, bool? useNewLogger, LogLevel outputLevel = LogLevel.Information)
 		{
-			return service.CreateLogger(session, logId, null, null, null, warnings, useNewLogger);
+			return service.CreateLogger(session, logId, null, null, null, warnings, useNewLogger, outputLevel);
 		}
 	}
 
@@ -63,7 +65,7 @@ namespace Horde.Agent.Services
 		}
 
 		/// <inheritdoc/>
-		public IServerLogger CreateLogger(ISession session, string logId, string? jobId, string? batchId, string? stepId, bool? warnings, bool? useNewLogger)
+		public IServerLogger CreateLogger(ISession session, string logId, string? jobId, string? batchId, string? stepId, bool? warnings, bool? useNewLogger, LogLevel outputLevel)
 		{
 #pragma warning disable CA2000 // Dispose objects before losing scope
 			IJsonRpcLogSink sink = new JsonRpcLogSink(session.RpcConnection, jobId, batchId, stepId, _logger);
@@ -72,7 +74,7 @@ namespace Horde.Agent.Services
 				IStorageClient storageClient = _storageClientFactory.CreateStorageClient(session, $"/api/v1/logs/{logId}/");
 				sink = new JsonRpcAndStorageLogSink(session.RpcConnection, logId, sink, storageClient, _logger);
 			}
-			return new JsonRpcLogger(sink, logId, warnings, _logger);
+			return new JsonRpcLogger(sink, logId, warnings, outputLevel, _logger);
 #pragma warning restore CA2000 // Dispose objects before losing scope
 		}
 	}

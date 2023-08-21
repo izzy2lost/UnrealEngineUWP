@@ -68,7 +68,7 @@ namespace EpicGames.Horde.Compute
 				for (; ; )
 				{
 					using AgentMessage message = await channel.ReceiveAsync(cancellationToken);
-					_logger.LogTrace("Compute Channel {ChannelId}: {MessageType}", channelId, message.Type);
+					_logger.LogDebug("Compute Channel {ChannelId}: {MessageType}", channelId, message.Type);
 
 					switch (message.Type)
 					{

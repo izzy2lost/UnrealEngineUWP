@@ -47,6 +47,7 @@ namespace Horde.Agent.Utility
 		internal readonly IJsonRpcLogSink _sink;
 		internal readonly string _logId;
 		internal readonly bool _warnings;
+		internal readonly LogLevel _outputLevel;
 		internal readonly ILogger _inner;
 		readonly Channel<JsonLogEvent> _dataChannel;
 		Task? _dataWriter;
@@ -66,12 +67,14 @@ namespace Horde.Agent.Utility
 		/// <param name="sink">Sink for log events</param>
 		/// <param name="logId">The log id to write to</param>
 		/// <param name="warnings">Whether to include warnings in the output</param>
+		/// <param name="outputLevel">Minimum level for output</param>
 		/// <param name="inner">Additional logger to write to</param>
-		public JsonRpcLogger(IJsonRpcLogSink sink, string logId, bool? warnings, ILogger inner)
+		public JsonRpcLogger(IJsonRpcLogSink sink, string logId, bool? warnings, LogLevel outputLevel, ILogger inner)
 		{
 			_sink = sink;
 			_logId = logId;
 			_warnings = warnings ?? true;
+			_outputLevel = outputLevel;
 			_inner = inner;
 			_dataChannel = Channel.CreateUnbounded<JsonLogEvent>();
 			_dataWriter = Task.Run(() => RunDataWriterAsync());
@@ -93,7 +96,7 @@ namespace Horde.Agent.Utility
 		}
 
 		/// <inheritdoc/>
-		public bool IsEnabled(LogLevel logLevel) => _inner.IsEnabled(logLevel);
+		public bool IsEnabled(LogLevel logLevel) => logLevel >= _outputLevel;
 
 		/// <inheritdoc/>
 		public IDisposable BeginScope<TState>(TState state) => _inner.BeginScope(state);
