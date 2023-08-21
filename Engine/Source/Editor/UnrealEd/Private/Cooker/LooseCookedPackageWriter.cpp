@@ -523,10 +523,12 @@ void FLooseCookedPackageWriter::UpdateManifest(FRecord& Record)
 bool FLooseCookedPackageWriter::GetPreviousCookedBytes(const FPackageInfo& Info, FPreviousCookedBytesData& OutData)
 {
 	UE::ArchiveStackTrace::FPackageData ExistingPackageData;
-	UE::ArchiveStackTrace::LoadPackageIntoMemory(*Info.LooseFilePath, ExistingPackageData, OutData.Data);
+	TUniquePtr<uint8, UE::ArchiveStackTrace::FDeleteByFree> Bytes;
+	UE::ArchiveStackTrace::LoadPackageIntoMemory(*Info.LooseFilePath, ExistingPackageData, Bytes);
 	OutData.Size = ExistingPackageData.Size;
 	OutData.HeaderSize = ExistingPackageData.HeaderSize;
 	OutData.StartOffset = ExistingPackageData.StartOffset;
+	OutData.Data.Reset(Bytes.Release());
 	return OutData.Data.IsValid();
 }
 

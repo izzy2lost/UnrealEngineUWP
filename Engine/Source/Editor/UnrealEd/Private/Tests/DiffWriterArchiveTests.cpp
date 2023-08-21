@@ -32,7 +32,8 @@ ICookedPackageWriter::FPreviousCookedBytesData ToPackageData(FLargeMemoryWriter&
 	int64 Size = Ar.TotalSize(); // Cache this before calling ReleaseOwnership
 	return ICookedPackageWriter::FPreviousCookedBytesData
 	{
-		TUniquePtr<uint8>(Ar.ReleaseOwnership()), Size, 0 /* HeaderSize */, 0 /* StartOffset */
+		TUniquePtr<uint8, ICookedPackageWriter::FDeleteByFree>(Ar.ReleaseOwnership()),
+			Size, 0 /* HeaderSize */, 0 /* StartOffset */
 	};
 }
 

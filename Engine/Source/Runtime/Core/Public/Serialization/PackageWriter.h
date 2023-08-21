@@ -317,9 +317,17 @@ public:
 	virtual void UpdatePackageModificationStatus(FName PackageName, bool bIterativelyUnmodified,
 		bool& bInOutShouldIterativelySkip) = 0;
 
+	struct FDeleteByFree
+	{
+		void operator()(void* Ptr) const
+		{
+			FMemory::Free(Ptr);
+		}
+	};
+
 	struct FPreviousCookedBytesData
 	{
-		TUniquePtr<uint8> Data;
+		TUniquePtr<uint8, FDeleteByFree> Data;
 		int64 Size;
 		int64 HeaderSize;
 		int64 StartOffset;
