@@ -1252,7 +1252,7 @@ int32 FInternalPlayLevelUtils::ResolveDirtyBlueprints(const bool bPromptForCompi
 	}
 
 	bool bRunCompilation = bAutoCompile;
-	if (bPromptForCompile)
+	if (bPromptForCompile && (InNeedOfRecompile.Num() > 0))
 	{
 		FFormatNamedArguments Args;
 		Args.Add(TEXT("DirtyBlueprints"), FText::FromString(PromptDirtyList));
