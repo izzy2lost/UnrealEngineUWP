@@ -13,6 +13,12 @@ namespace EpicGames.Horde.Compute
 	public class Requirements
 	{
 		/// <summary>
+		/// Pool of machines to draw from
+		/// </summary>
+		[CbField("p")]
+		public string? Pool { get; set; }
+
+		/// <summary>
 		/// Condition string to be evaluated against the machine spec, eg. cpu-cores >= 10 &amp;&amp; ram.mb >= 200 &amp;&amp; pool == 'worker'
 		/// </summary>
 		[CbField("c")]
@@ -60,6 +66,10 @@ namespace EpicGames.Horde.Compute
 		public override string ToString()
 		{
 			List<string> list = new List<string>();
+			if (Pool != null)
+			{
+				list.Add($"Pool:{Pool}");
+			}
 			if (Condition != null)
 			{
 				list.Add($"\"{Condition}\"");

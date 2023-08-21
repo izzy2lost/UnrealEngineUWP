@@ -725,19 +725,25 @@ namespace Horde.Server.Agents
 		/// <returns>True if the new lease can be granted</returns>
 		public static bool MeetsRequirements(this IAgent agent, Requirements requirements, Dictionary<string, int> assignedResources)
 		{
-			return MeetsRequirements(agent, requirements.Condition, requirements.Resources, requirements.Exclusive, assignedResources);
+			PoolId? poolId = null;
+			if (!String.IsNullOrEmpty(requirements.Pool))
+			{
+				poolId = new PoolId(requirements.Pool);
+			}
+			return MeetsRequirements(agent, poolId, requirements.Condition, requirements.Resources, requirements.Exclusive, assignedResources);
 		}
 
 		/// <summary>
 		/// Determine whether it's possible to add a lease for the given resources
 		/// </summary>
 		/// <param name="agent">The agent to create a lease for</param>
-		/// <param name="exclusive">Whether t</param>
+		/// <param name="poolId">Pool to take the machine from</param>
 		/// <param name="condition">Condition to satisfy</param>
 		/// <param name="resources">Resources required to execute</param>
+		/// <param name="exclusive">Whether the lease needs to be executed exclusively on the machine</param>
 		/// <param name="assignedResources">Resources allocated to the task</param>
 		/// <returns>True if the new lease can be granted</returns>
-		public static bool MeetsRequirements(this IAgent agent, Condition? condition, Dictionary<string, ResourceRequirements>? resources, bool exclusive, Dictionary<string, int> assignedResources)
+		public static bool MeetsRequirements(this IAgent agent, PoolId? poolId, Condition? condition, Dictionary<string, ResourceRequirements>? resources, bool exclusive, Dictionary<string, int> assignedResources)
 		{
 			if (!agent.Enabled || agent.Status != AgentStatus.Ok)
 			{
@@ -748,6 +754,10 @@ namespace Horde.Server.Agents
 				return false;
 			}
 			if (exclusive && agent.Leases.Any())
+			{
+				return false;
+			}
+			if (poolId.HasValue && !agent.IsInPool(poolId.Value))
 			{
 				return false;
 			}
