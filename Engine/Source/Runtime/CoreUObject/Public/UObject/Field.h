@@ -271,6 +271,14 @@ class FFieldVariant
 
 	static constexpr uintptr_t UObjectMask = 0x1;
 
+	void ConditionallyMarkAsReachable()
+	{
+		if (IsUObject() && Container.Object && UE::GC::Private::GIsIncrementalReachabilityPending)
+		{
+			Container.Object->MarkAsReachable();
+		}
+	}
+	
 public:
 
 	FFieldVariant()
@@ -292,11 +300,38 @@ public:
 	{
 		Container.Object = const_cast<UObject*>(ImplicitConv<const UObject*>(InObject));
 		Container.Object = (UObject*)((uintptr_t)Container.Object | UObjectMask);
+		ConditionallyMarkAsReachable();
 	}
 
 	FFieldVariant(TYPE_OF_NULLPTR)
 		: FFieldVariant()
 	{
+	}
+
+	FFieldVariant(const FFieldVariant& Other)
+		: Container(Other.Container)
+	{
+		ConditionallyMarkAsReachable();
+	}
+	
+	FFieldVariant& operator=(const FFieldVariant& Other)
+	{
+		Container = Other.Container;
+		ConditionallyMarkAsReachable();
+		return *this;
+	}
+	
+	FFieldVariant(FFieldVariant&& Other)
+		: Container(Other.Container)
+	{
+		ConditionallyMarkAsReachable();
+	}
+	
+	FFieldVariant& operator=(FFieldVariant&& Other)
+	{
+		Container = Other.Container;
+		ConditionallyMarkAsReachable();
+		return *this;
 	}
 
 	inline bool IsUObject() const

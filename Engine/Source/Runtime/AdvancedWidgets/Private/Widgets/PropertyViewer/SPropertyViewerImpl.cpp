@@ -320,7 +320,7 @@ void FTreeNode::BuildChildNodesRecursive(IFieldIterator& FieldIterator, IFieldEx
 
 	if (ChildStructType)
 	{
-		for (const FFieldVariant FieldIt : FieldIterator.GetFields(ChildStructType))
+		for (const FFieldVariant& FieldIt : FieldIterator.GetFields(ChildStructType))
 		{
 			if (const FProperty* PropertyIt = FieldIt.Get<FProperty>())
 			{

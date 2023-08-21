@@ -532,7 +532,7 @@ FReply SMVVMViewModelPanel::HandleDragDetected(const FGeometry& MyGeometry, cons
 			if (const FGuid* Id = PropertyViewerHandles.Find(ContainerHandle))
 			{
 				TArray<FFieldVariant> FieldsArray;
-				for (const FFieldVariant Field : Fields)
+				for (const FFieldVariant& Field : Fields)
 				{
 					FieldsArray.Add(Field);
 				}

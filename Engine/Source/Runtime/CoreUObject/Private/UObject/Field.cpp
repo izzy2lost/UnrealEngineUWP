@@ -459,6 +459,10 @@ void FField::AddReferencedObjects(FReferenceCollector& Collector)
 	if (OwnerUObject)
 	{
 		Collector.AddReferencedObject(OwnerUObject);
+		if (!OwnerUObject)
+		{
+			Owner = FFieldVariant{};
+		}
 	}
 }
 
