@@ -42,14 +42,14 @@ namespace EpicGames.OIDC
 		{
 			lock (_lockObject)
 			{
-			OidcTokenClient? client;
-			if (!_tokenClients.TryGetValue(name, out client))
-			{
-				client = new OidcTokenClient(name, providerInfo, _tokenStore);
-				_tokenClients.Add(name, client);
+				OidcTokenClient? client;
+				if (!_tokenClients.TryGetValue(name, out client))
+				{
+					client = new OidcTokenClient(name, providerInfo, _tokenStore);
+					_tokenClients.Add(name, client);
+				}
+				return client;
 			}
-			return client;
-		}
 		}
 
 		public OidcTokenManager(IServiceProvider provider, IOptionsMonitor<OidcTokenOptions> settings, ITokenStore tokenStore, List<string>? allowedProviders = null)
@@ -481,6 +481,10 @@ namespace EpicGames.OIDC
 			_accessToken = refreshTokenResult.AccessToken;
 			_tokenExpiry = refreshTokenResult.AccessTokenExpiration;
 
+			// refresh tokens are always one time use only so we need to store this new refresh token we got so it can be used the next time
+			_tokenStore.AddRefreshToken(_name, _refreshToken);
+			_tokenStore.Save();
+
 			return new OidcTokenInfo
 			{
 				IdentityToken = refreshTokenResult.IdentityToken,
@@ -532,7 +536,9 @@ namespace EpicGames.OIDC
 
 			// if the token is valid for another few minutes we can use it
 			// we avoid using a token that is about to expire to make sure we can finish the call we expect to do with it before it expires
-			if (!String.IsNullOrEmpty(_accessToken) && _tokenExpiry.AddMinutes(2) > DateTime.Now)
+			// if a token has infinite lifetime its expiry is set to 0 and is thus always valid
+			bool tokenValid = _tokenExpiry.AddMinutes(2) > DateTime.Now || _tokenExpiry == DateTimeOffset.MinValue;
+			if (!String.IsNullOrEmpty(_accessToken) && tokenValid)
 			{
 				return new OidcTokenInfo
 				{

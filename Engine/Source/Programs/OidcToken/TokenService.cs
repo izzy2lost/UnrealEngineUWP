@@ -173,6 +173,12 @@ namespace OidcToken
 		private async Task OutputToken(string token, DateTimeOffset expiresAt)
 		{
 			FileInfo fi = new(Settings.CurrentValue.OutFile);
+
+			if (fi.DirectoryName != null)
+			{
+				Directory.CreateDirectory(fi.DirectoryName);
+			}
+
 			Logger.LogInformation("Token output to \"{OutFile}\"", fi.FullName);
 
 			await using FileStream fs = fi.Open(FileMode.Create, FileAccess.Write);
