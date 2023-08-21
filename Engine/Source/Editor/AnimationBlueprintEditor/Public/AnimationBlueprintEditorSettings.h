@@ -15,7 +15,7 @@
 
 
 // Settings for the Animation Blueprint Editor
-UCLASS(config = EditorPerProjectUserSettings)
+UCLASS(config = EditorPerProjectUserSettings, MinimalAPI)
 class UAnimationBlueprintEditorSettings : public UObject
 {
 	GENERATED_BODY()
@@ -28,6 +28,10 @@ public:
 	/** Whether to display the corner text in an animation graph. Changing this only affects newly opened graphs. */
 	UPROPERTY(EditAnywhere, config, Category = "Graphs")
 	bool bShowGraphCornerText = true;
+
+	/** Whether to display assets on the anim blueprint's context menu. Toggling this option is a slow operation. */
+	UPROPERTY(EditAnywhere, config, Category = "Blueprint")
+	bool bShowAssetsInBlueprintContextMenu = true;
 
 public:
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnUpdateSettingsMulticaster, const UAnimationBlueprintEditorSettings*, EPropertyChangeType::Type);

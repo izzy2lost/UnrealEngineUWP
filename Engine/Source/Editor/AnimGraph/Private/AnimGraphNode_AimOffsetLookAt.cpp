@@ -12,6 +12,7 @@
 #include "UObject/UObjectIterator.h"
 #include "ToolMenus.h"
 #include "AnimGraphCommands.h"
+#include "AnimationBlueprintEditorSettings.h"
 
 /////////////////////////////////////////////////////
 // UAnimGraphNode_RotationOffsetBlendSpace
@@ -113,7 +114,7 @@ void UAnimGraphNode_AimOffsetLookAt::GetMenuActions(FBlueprintActionDatabaseRegi
 		}
 		// else, the Blueprint database is specifically looking for actions pertaining to something different (not a BlendSpace asset)
 	}
-	else
+	else if (GetDefault<UAnimationBlueprintEditorSettings>()->bShowAssetsInBlueprintContextMenu)
 	{
 		UClass* NodeClass = GetClass();
 		for (TObjectIterator<UBlendSpace> BlendSpaceIt; BlendSpaceIt; ++BlendSpaceIt)

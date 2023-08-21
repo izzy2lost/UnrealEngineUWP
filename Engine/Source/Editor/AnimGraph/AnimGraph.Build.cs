@@ -28,8 +28,8 @@ public class AnimGraph : ModuleRules
 				"UnrealEd",
                 "GraphEditor",
 				"PropertyEditor",
-				
-                "ContentBrowser",
+				"AnimationBlueprintEditor",
+				"ContentBrowser",
 				"KismetWidgets",
 				"ToolMenus",
 				"KismetCompiler",
@@ -46,11 +46,5 @@ public class AnimGraph : ModuleRules
                 "GraphEditor",
             }
 		);
-
-        PrivateIncludePathModuleNames.AddRange(
-            new string[] {
-                "AnimationBlueprintEditor",
-            }
-        );
 	}
 }
