@@ -67,7 +67,9 @@
 #include "Kismet2/DebuggerCommands.h"
 #include "Subsystems/PanelExtensionSubsystem.h"
 #include "ScopedTransaction.h"
-
+#include "Blueprints/DisplayClusterBlueprintGeneratedClass.h"
+#include "Misc/DisplayClusterHelpers.h"
+#include "MPCDI/DisplayClusterConfiguratorMPCDIImporter.h"
 
 #define LOCTEXT_NAMESPACE "DisplayClusterConfiguratorBlueprintEditor"
 
@@ -909,6 +911,8 @@ void FDisplayClusterConfiguratorBlueprintEditor::BindCommands()
 		FCanExecuteAction(),
 		FIsActionChecked::CreateSP(this, &FDisplayClusterConfiguratorBlueprintEditor::IsExportOnSaveSet)
 	);
+
+	ToolkitCommands->MapAction(Commands.ImportMPCDI, FExecuteAction::CreateSP(this, &FDisplayClusterConfiguratorBlueprintEditor::ImportMPCDI_Clicked));
 }
 
 void FDisplayClusterConfiguratorBlueprintEditor::CreateWidgets()
@@ -1073,6 +1077,61 @@ void FDisplayClusterConfiguratorBlueprintEditor::ToggleExportOnSaveSetting()
 	UDisplayClusterConfiguratorEditorSettings* Settings = GetMutableDefault<UDisplayClusterConfiguratorEditorSettings>();
 	Settings->bExportOnSave = !Settings->bExportOnSave;
 	Settings->SaveConfig();
+}
+
+void FDisplayClusterConfiguratorBlueprintEditor::ImportMPCDI_Clicked()
+{
+	const FString MPCDIFileDescription = LOCTEXT("MPCDIFileDescription", "MPCDI file").ToString();
+	const FString MPCDIFileExtension = TEXT("*.mpcdi");
+	const FString FileTypes = FString::Printf(TEXT("%s (%s)|%s"), *MPCDIFileDescription, *MPCDIFileExtension, *MPCDIFileExtension);
+
+	TArray<FString> OpenFileNames;
+	IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
+	bool bFileSelected = false;
+	int32 FilterIndex = -1;
+
+	// Open file dialog
+	if (DesktopPlatform)
+	{
+		const void* ParentWindowHandle = FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr);
+
+		bFileSelected = DesktopPlatform->OpenFileDialog(
+			ParentWindowHandle,
+			LOCTEXT("ImportMPCDIDialogTitle", "Import MPCDI").ToString(),
+			FEditorDirectories::Get().GetLastDirectory(ELastDirectory::GENERIC_IMPORT),
+			TEXT(""),
+			FileTypes,
+			EFileDialogFlags::None,
+			OpenFileNames,
+			FilterIndex
+		);
+	}
+
+	// Load file
+	if (bFileSelected)
+	{
+		if (OpenFileNames.Num() > 0)
+		{
+			const FString& FileName = OpenFileNames[0];
+			FEditorDirectories::Get().SetLastDirectory(ELastDirectory::GENERIC_IMPORT, FileName);
+
+			UDisplayClusterBlueprint* Blueprint = LoadedBlueprint.Get();
+
+			FDisplayClusterConfiguratorMPCDIImporterParams ImportParams {};
+			if (FDisplayClusterConfiguratorMPCDIImporter::ImportMPCDIIntoBlueprint(FileName, Blueprint, ImportParams))
+			{
+				GetEditorData()->MarkPackageDirty();
+				ClusterChanged();
+
+				// Since the blueprint component transforms are edited directly by the importer, we must
+				// fully destroy and recreate the preview actor, as otherwise the engine will not propagate the
+				// new values to the preview since there is now a difference between the preview and blueprint values
+				DestroyPreview();
+				UpdateSubobjectPreview(true);
+				SubobjectEditor->UpdateTree();
+			}
+		}
+	}
 }
 
 TStatId FDisplayClusterConfiguratorBlueprintEditor::GetStatId() const

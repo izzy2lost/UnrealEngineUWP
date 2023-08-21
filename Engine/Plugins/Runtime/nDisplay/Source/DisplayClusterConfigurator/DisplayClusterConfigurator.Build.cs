@@ -13,6 +13,7 @@ public class DisplayClusterConfigurator : ModuleRules
 				"DisplayCluster",
 				"DisplayClusterConfiguration",
 				"DisplayClusterProjection",
+				"DisplayClusterWarp",
 
 				"AdvancedPreviewScene",
 				"ApplicationCore",
@@ -36,6 +37,7 @@ public class DisplayClusterConfigurator : ModuleRules
 				"MainFrame",
 				"MediaAssets",
 				"MessageLog",
+				"Networking",
 				"PinnedCommandList",
 				"Projects",
 				"PropertyEditor",
