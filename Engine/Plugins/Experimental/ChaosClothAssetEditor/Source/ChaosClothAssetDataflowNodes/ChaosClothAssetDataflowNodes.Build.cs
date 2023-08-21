@@ -27,6 +27,7 @@ public class ChaosClothAssetDataflowNodes : ModuleRules
 				"DataflowCore",
 				"DataflowEditor",
 				"DataflowEngine",
+				"DatasmithCore",
 				"DatasmithImporter",
 				"DetailCustomizations",
 				"DynamicMesh",

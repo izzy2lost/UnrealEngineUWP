@@ -111,6 +111,9 @@ void FChaosClothAssetDataflowNodesModule::StartupModule()
 		PropertyModule->RegisterCustomPropertyTypeLayout("ChaosClothAssetWeightedValueNonAnimatable", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FWeightedValueCustomization::MakeInstance));
 		PropertyModule->RegisterCustomPropertyTypeLayout("ChaosClothAssetWeightedValueNonAnimatableNoLowHighRange", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FWeightedValueCustomization::MakeInstance));
 	}
+
+	// Register modular features
+	FChaosClothAssetDatasmithImportNode::RegisterModularFeature();
 }
 
 void FChaosClothAssetDataflowNodesModule::ShutdownModule()
@@ -122,6 +125,9 @@ void FChaosClothAssetDataflowNodesModule::ShutdownModule()
 		PropertyModule->UnregisterCustomPropertyTypeLayout("ChaosClothAssetWeightedValueNonAnimatable");
 		PropertyModule->UnregisterCustomPropertyTypeLayout("ChaosClothAssetWeightedValueNonAnimatableNoLowHighRange");
 	}
+
+	// Unregister modular features
+	FChaosClothAssetDatasmithImportNode::UnregisterModularFeature();
 }
 
 #undef LOCTEXT_NAMESPACE

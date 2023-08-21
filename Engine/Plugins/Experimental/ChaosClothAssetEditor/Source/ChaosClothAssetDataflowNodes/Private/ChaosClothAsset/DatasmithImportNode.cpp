@@ -2,8 +2,10 @@
 
 #include "ChaosClothAsset/DatasmithImportNode.h"
 #include "ChaosClothAsset/ClothAsset.h"
+#include "ChaosClothAsset/ClothComponent.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
 #include "Dataflow/DataflowInputOutput.h"
+#include "Features/IModularFeatures.h"
 #include "DatasmithImportContext.h"
 #include "DatasmithImportFactory.h"
 #include "ExternalSource.h"
@@ -13,6 +15,131 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DatasmithImportNode)
 
 #define LOCTEXT_NAMESPACE "ChaosClothAssetDatasmithImportNode"
+
+UChaosClothAssetDatasmithClothAssetFactory::UChaosClothAssetDatasmithClothAssetFactory() = default;
+UChaosClothAssetDatasmithClothAssetFactory::~UChaosClothAssetDatasmithClothAssetFactory() = default;
+
+UObject* UChaosClothAssetDatasmithClothAssetFactory::CreateClothAsset(UObject* Outer, const FName& Name, EObjectFlags Flags) const
+{
+	return CastChecked<UObject>(NewObject<UChaosClothAsset>(Outer, Name, Flags));
+}
+
+UObject* UChaosClothAssetDatasmithClothAssetFactory::DuplicateClothAsset(UObject* ClothAsset, UObject* Outer, const FName& Name) const
+{
+	return CastChecked<UObject>(DuplicateObject<UChaosClothAsset>(CastChecked<UChaosClothAsset>(ClothAsset), Outer, Name));
+}
+
+void UChaosClothAssetDatasmithClothAssetFactory::InitializeClothAsset(UObject* ClothAsset, const FDatasmithCloth& DatasmithCloth) const
+{
+	using namespace UE::Chaos::ClothAsset;
+
+	UChaosClothAsset* const ChaosClothAsset = CastChecked<UChaosClothAsset>(ClothAsset);
+
+	TArray<TSharedRef<FManagedArrayCollection>>& Collections = ChaosClothAsset->GetClothCollections();
+	Collections.Reset(1);
+	FCollectionClothFacade Cloth(Collections.Emplace_GetRef(MakeShared<FManagedArrayCollection>()));
+	Cloth.DefineSchema();
+
+	for (const FDatasmithClothPattern& Pattern : DatasmithCloth.Patterns)
+	{
+		if (Pattern.IsValid())
+		{
+			FCollectionClothSimPatternFacade ClothPattern = Cloth.AddGetSimPattern();
+			ClothPattern.Initialize(Pattern.SimPosition, Pattern.SimRestPosition, Pattern.SimTriangleIndices);
+		}
+	}
+
+	for (const FDatasmithClothSewingInfo& SeamInfo : DatasmithCloth.Sewing)
+	{
+		const int32 SeamPattern0 = (int32)SeamInfo.Seam0PanelIndex;
+		const int32 SeamPattern1 = (int32)SeamInfo.Seam1PanelIndex;
+
+		if (SeamPattern0 >= 0 && SeamPattern0 < Cloth.GetNumSimPatterns() &&
+			SeamPattern1 >= 0 && SeamPattern1 < Cloth.GetNumSimPatterns())
+		{
+			const FCollectionClothSimPatternConstFacade ClothPattern0 = Cloth.GetSimPattern(SeamPattern0);
+			const FCollectionClothSimPatternConstFacade ClothPattern1 = Cloth.GetSimPattern(SeamPattern1);
+
+			const int32 ClothPattern0VerticesOffset = ClothPattern0.GetSimVertices2DOffset();
+			const int32 ClothPattern1VerticesOffset = ClothPattern1.GetSimVertices2DOffset();
+
+			TArray<FIntVector2> Stitches;
+			const uint32 StitchesCount = FMath::Min(SeamInfo.Seam0MeshIndices.Num(), SeamInfo.Seam1MeshIndices.Num());
+			Stitches.Reserve(StitchesCount);
+			for (uint32 StitchIndex = 0; StitchIndex < StitchesCount; ++StitchIndex)
+			{
+				Stitches.Emplace(
+					(int32)SeamInfo.Seam0MeshIndices[StitchIndex] + ClothPattern0VerticesOffset,
+					(int32)SeamInfo.Seam1MeshIndices[StitchIndex] + ClothPattern1VerticesOffset);
+			}
+
+			FCollectionClothSeamFacade SeamFacade = Cloth.AddGetSeam();
+			SeamFacade.Initialize(Stitches);
+		}
+	}
+
+	// Set the render mesh to duplicate the sim mesh
+	ChaosClothAsset->CopySimMeshToRenderMesh();
+
+	// Set a default skeleton and rebuild the asset
+	ChaosClothAsset->SetReferenceSkeleton(nullptr);  // This creates a default reference skeleton, redoes the bindings, and rebuilds the asset
+}
+
+UChaosClothAssetDatasmithClothComponentFactory::UChaosClothAssetDatasmithClothComponentFactory() = default;
+UChaosClothAssetDatasmithClothComponentFactory::~UChaosClothAssetDatasmithClothComponentFactory() = default;
+
+USceneComponent* UChaosClothAssetDatasmithClothComponentFactory::CreateClothComponent(UObject* Outer) const
+{
+	return CastChecked<USceneComponent>(NewObject<UChaosClothComponent>(Outer));
+}
+
+void UChaosClothAssetDatasmithClothComponentFactory::InitializeClothComponent(USceneComponent* ClothComponent, UObject* ClothAsset, USceneComponent* RootComponent) const
+{
+	UChaosClothComponent* const ChaosClothComponent = CastChecked<UChaosClothComponent>(ClothComponent);
+	ChaosClothComponent->SetClothAsset(Cast<UChaosClothAsset>(ClothAsset));
+	ChaosClothComponent->SetupAttachment(RootComponent);
+}
+
+namespace UE::Chaos::ClothAsset::Private
+{
+	/** A modular interface to provide and initialize cloth asset objects. */
+	class FDatasmithClothFactoryClassesProvider final: public IDatasmithClothFactoryClassesProvider
+	{
+	public:
+		FDatasmithClothFactoryClassesProvider() = default;
+		virtual ~FDatasmithClothFactoryClassesProvider() override = default;
+
+		virtual FName GetName() const override
+		{
+			static const FName Name = TEXT("ChaosClothAsset");
+			return Name;
+		}
+
+		virtual TSubclassOf<UDatasmithClothAssetFactory> GetClothAssetFactoryClass() const override
+		{
+			return TSubclassOf<UDatasmithClothAssetFactory>(UChaosClothAssetDatasmithClothAssetFactory::StaticClass());
+		}
+
+		virtual TSubclassOf<UDatasmithClothComponentFactory> GetClothComponentFactoryClass() const override
+		{
+			return TSubclassOf<UDatasmithClothComponentFactory>(UChaosClothAssetDatasmithClothComponentFactory::StaticClass());
+		}
+	};
+
+	static FDatasmithClothFactoryClassesProvider DatasmithClothFactoryClassesProvider;
+}
+
+void FChaosClothAssetDatasmithImportNode::RegisterModularFeature()
+{
+	using namespace UE::Chaos::ClothAsset::Private;
+	IModularFeatures::Get().RegisterModularFeature(IDatasmithClothFactoryClassesProvider::FeatureName, &DatasmithClothFactoryClassesProvider);
+}
+
+void FChaosClothAssetDatasmithImportNode::UnregisterModularFeature()
+{
+	using namespace UE::Chaos::ClothAsset::Private;
+	IModularFeatures::Get().UnregisterModularFeature(IDatasmithClothFactoryClassesProvider::FeatureName, &DatasmithClothFactoryClassesProvider);
+}
 
 FChaosClothAssetDatasmithImportNode::FChaosClothAssetDatasmithImportNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)

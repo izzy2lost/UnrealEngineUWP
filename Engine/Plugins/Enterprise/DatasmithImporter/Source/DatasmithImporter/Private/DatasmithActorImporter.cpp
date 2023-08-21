@@ -3,6 +3,7 @@
 #include "DatasmithActorImporter.h"
 
 #include "DatasmithCameraImporter.h"
+#include "DatasmithCloth.h"
 #include "DatasmithImportContext.h"
 #include "DatasmithImporterModule.h"
 #include "DatasmithImportOptions.h"
@@ -23,8 +24,6 @@
 #include "Utility/DatasmithMeshHelper.h"
 
 #include "ActorFactories/ActorFactoryDeferredDecal.h"
-#include "ChaosClothAsset/ClothAsset.h"
-#include "ChaosClothAsset/ClothComponent.h"
 #include "CineCameraActor.h"
 #include "CineCameraComponent.h"
 #include "Components/DecalComponent.h"
@@ -35,6 +34,7 @@
 #include "Engine/DecalActor.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
+#include "Features/IModularFeatures.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/Paths.h"
@@ -317,19 +317,24 @@ AActor* FDatasmithActorImporter::ImportClothActor(FDatasmithImportContext& Impor
 			}
 		}
 
-		if (UChaosClothComponent* ClothComponent = NewObject<UChaosClothComponent>(ImportedActor))
+		// Locate a cloth factory provider
+		const TArray<IDatasmithClothFactoryClassesProvider*> ClothFactoryClassesProviders = IModularFeatures::Get().GetModularFeatureImplementations<IDatasmithClothFactoryClassesProvider>(IDatasmithClothFactoryClassesProvider::FeatureName);
+		const IDatasmithClothFactoryClassesProvider* const ClothFactoryClassesProvider = ClothFactoryClassesProviders.Num() ? ClothFactoryClassesProviders[0] : nullptr;
+		const UDatasmithClothComponentFactory* const ClothComponentFactory = ClothFactoryClassesProvider ? ClothFactoryClassesProvider->GetClothComponentFactoryClass().GetDefaultObject() : nullptr;
+		
+		// Create a new cloth component
+		if (USceneComponent* const ClothComponent = ClothComponentFactory ? ClothComponentFactory->CreateClothComponent(ImportedActor) : nullptr)
 		{
-			ClothComponent->SetClothAsset(Cast<UChaosClothAsset>(ClothAsset));
+			ClothComponentFactory->InitializeClothComponent(ClothComponent, ClothAsset, ImportedActor->GetRootComponent());
 
 			ImportedActor->AddInstanceComponent(ClothComponent);
-			ClothComponent->SetupAttachment(ImportedActor->GetRootComponent());
 
 			ClothComponent->bVisualizeComponent = true;
 			ClothComponent->RegisterComponent();
 		}
 		else
 		{
-			ImportContext.LogError(FText::Format(LOCTEXT("ClothComponentCreationFailure", "Cannot create cloth component for asset {0} reauired by actor {1}."), FText::FromString(ClothName), FText::FromString(ClothActorElement->GetLabel())));
+			ImportContext.LogError(FText::Format(LOCTEXT("ClothComponentCreationFailure", "Cannot create cloth component for asset {0} required by actor {1}."), FText::FromString(ClothName), FText::FromString(ClothActorElement->GetLabel())));
 		}
 
 		if (ClothAsset == nullptr)
