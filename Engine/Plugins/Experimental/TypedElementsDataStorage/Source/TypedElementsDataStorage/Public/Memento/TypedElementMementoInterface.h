@@ -17,14 +17,3 @@ struct FTypedElementMementoOnDelete : public FTypedElementDataStorageColumn
 	GENERATED_BODY()
 	TypedElementRowHandle Memento;
 };
-
-UCLASS()
-class UTypedElementMementoInterface : public UObject
-{
-	GENERATED_BODY()
-public:
-	/**
-	 * Gets the table type for creating an unpopulated memento row
-	 */
-	static TypedElementTableHandle GetUnpopulatedMementoTable();
-};

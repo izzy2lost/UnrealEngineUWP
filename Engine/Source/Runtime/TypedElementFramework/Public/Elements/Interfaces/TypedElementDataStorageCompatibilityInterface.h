@@ -14,6 +14,21 @@
 #include "TypedElementDataStorageCompatibilityInterface.generated.h"
 
 class AActor;
+struct FTypedElementDatabaseCompatibilityObjectTypeInfo;
+
+DECLARE_MULTICAST_DELEGATE_FourParams(
+	FTypedElementDatabaseCompatibility_OnObjectAdded,
+	ITypedElementDataStorageInterface* Storage,
+	const void* Object,
+	const FTypedElementDatabaseCompatibilityObjectTypeInfo& ObjectTypeInfo,
+	TypedElementRowHandle Row);
+
+DECLARE_MULTICAST_DELEGATE_FourParams(
+	FTypedElementDatabaseCompatibility_OnObjectPreDestroy,
+	ITypedElementDataStorageInterface* Storage,
+	const void* Object,
+	const FTypedElementDatabaseCompatibilityObjectTypeInfo& ObjectTypeInfo,
+	TypedElementRowHandle Row);
 
 UINTERFACE(MinimalAPI)
 class UTypedElementDataStorageCompatibilityInterface : public UInterface
@@ -32,7 +47,7 @@ class ITypedElementDataStorageCompatibilityInterface
 public:
 	using ObjectRegistrationFilter = TFunction<bool(const ITypedElementDataStorageCompatibilityInterface&, const UObject*)>;
 	using ObjectToRowDealiaser = TFunction<TypedElementRowHandle(const ITypedElementDataStorageCompatibilityInterface&, const UObject*)>;
-
+	
 	/**
 	 * @section Type-agnostic functions
 	 * These allow compatibility with any type. These do eventually fall back to the explicit versions.
@@ -108,6 +123,18 @@ public:
 	virtual TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const AActor* Actor) const = 0;
 	/** Finds a previously stored FStruct. If not found an invalid row handle will be returned. */
 	virtual TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const void* Object) const = 0;
+	
+	/**
+	 * An extension point called when objects have been added to the compatibility interface
+	 */
+	UE_DEPRECATED(5.4, "This is temporary for adding memento support. Do no rely on it.")
+	virtual FTypedElementDatabaseCompatibility_OnObjectAdded& GetOnObjectAddedDelegate() = 0;
+	
+	/**
+	 * An extension point called when objects have been removed from the compatibility interface
+	 */
+	UE_DEPRECATED(5.4, "This is temporary for adding memento support. Do no rely on it.")
+	virtual FTypedElementDatabaseCompatibility_OnObjectPreDestroy& GetOnObjectPreDestroy() = 0;
 };
 
 template<typename Type> Type* GetRawPointer(const TWeakObjectPtr<Type> Object)	{ return Object.Get(); }
@@ -224,4 +251,36 @@ struct TTypedElementSubsystemTraits final
 			return false;
 		}
 	}
+};
+
+enum class ETypedElementDatabaseCompatibilityObjectType
+{
+	Struct,
+	Class
+};
+
+/**
+ * Objects with type info defined in either UScriptStruct or UClass can be stored into TEDS via the
+ * ITypedElementDataStorageCompatibilityInterface
+ * This is a discriminated union which aids with callbacks made when objects are added
+ */
+struct FTypedElementDatabaseCompatibilityObjectTypeInfo
+{
+	ETypedElementDatabaseCompatibilityObjectType TypeInfoType;
+
+	union
+	{
+		const UScriptStruct* ScriptStruct;
+		const UClass* Class;
+	};
+
+	explicit FTypedElementDatabaseCompatibilityObjectTypeInfo(const UScriptStruct* InScriptStruct)
+		: TypeInfoType(ETypedElementDatabaseCompatibilityObjectType::Struct)
+		, ScriptStruct(InScriptStruct)
+	{}
+
+	explicit FTypedElementDatabaseCompatibilityObjectTypeInfo(const UClass* InClass)
+	: TypeInfoType(ETypedElementDatabaseCompatibilityObjectType::Class)
+	, Class(InClass)
+	{}
 };

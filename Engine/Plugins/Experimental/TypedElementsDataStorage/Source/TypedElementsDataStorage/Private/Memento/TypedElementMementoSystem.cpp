@@ -9,8 +9,18 @@
 #include "PropertyBag.h"
 #include "TypedElementMementoRowTypes.h"
 
+DECLARE_LOG_CATEGORY_CLASS(LogTypedElementMemento, Log, All)
+
 namespace Private
 {
+
+	// Number of frames to keep memento rows before deletion
+	bool GMementosEnabled = false;
+	FAutoConsoleVariableRef CVarMementoEnable(
+		TEXT("teds.mementos.enable"),
+		GMementosEnabled,
+		TEXT("Enable memento system for newly added objects\n"));
+
 	// Number of frames to keep memento rows before deletion
 	int32 GMementoKeepFrames = 120;
 	FAutoConsoleVariableRef CVarMementoKeepFrame(
@@ -30,10 +40,56 @@ void UTypedElementMementoSystemFactory::RegisterTables(ITypedElementDataStorageI
 		MementoRowBaseTable,
 		{FTypedElementMementoPopulated::StaticStruct()},
 		TEXT("MementoRowBasePopulatedTable"));
+}
 
-	// Note: Need to register PopulatedMementTable so that "Add Memento Deletion Policy Data" processor does not get pruned
-	// This is because Mass prunes processors that register queries which don't have a matching archtype
-	// at processor construction time
+void UTypedElementMementoSystemFactory::RegisterRegistrationFilters(
+	ITypedElementDataStorageCompatibilityInterface& DataStorageCompatibility) const
+{
+	const_cast<UTypedElementMementoSystemFactory*>(this)->RegisterWithCompatibilityLayer(DataStorageCompatibility);
+}
+
+void UTypedElementMementoSystemFactory::RegisterWithCompatibilityLayer(ITypedElementDataStorageCompatibilityInterface& DataStorageCompatibility)
+{
+	if (Private::GMementosEnabled)
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		ObjectAddedDelegateHandle = DataStorageCompatibility.GetOnObjectAddedDelegate().AddUObject(this, &UTypedElementMementoSystemFactory::HandleObjectAddedToCompatibility);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+	
+	auto HandleCVarEnabledChanged = [this, &DataStorageCompatibility](IConsoleVariable* CVar)
+	{
+		// Toggled Off
+		if (!Private::GMementosEnabled)
+		{
+			if (ObjectAddedDelegateHandle.IsValid())
+			{
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				DataStorageCompatibility.GetOnObjectAddedDelegate().Remove(ObjectAddedDelegateHandle);
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				ObjectAddedDelegateHandle.Reset();
+			}
+		}
+		// Toggled on
+		else if (Private::GMementosEnabled)
+		{
+			if (!ObjectAddedDelegateHandle.IsValid())
+			{
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				ObjectAddedDelegateHandle = DataStorageCompatibility.GetOnObjectAddedDelegate().AddUObject(this, &UTypedElementMementoSystemFactory::HandleObjectAddedToCompatibility);
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			}
+		}
+	};
+	
+	Private::CVarMementoEnable->OnChangedDelegate().AddLambda(HandleCVarEnabledChanged);
+}
+
+void UTypedElementMementoSystemFactory::HandleObjectAddedToCompatibility(ITypedElementDataStorageInterface* Storage, const void* Object, const FTypedElementDatabaseCompatibilityObjectTypeInfo& TypeInfo, TypedElementRowHandle Row)
+{
+	// Register row for mementoization
+	TypedElementRowHandle Memento = Storage->AddRow(MementoRowBaseTable);
+	Storage->AddOrGetColumn<FTypedElementMementoOnDelete>(Row, FTypedElementMementoOnDelete{ .Memento = Memento });
 }
 
 void UTypedElementMementoSystemFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const
@@ -131,8 +187,6 @@ void UTypedElementMementoSystemFactory::RegisterQueries(ITypedElementDataStorage
 			);
 		check(QueryHandle != TypedElementInvalidQueryHandle);
 	}
-
-	
 }
 
 

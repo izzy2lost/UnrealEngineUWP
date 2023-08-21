@@ -15,23 +15,6 @@
 #include "TypedElementDataStorageProfilingMacros.h"
 #include "Memento/TypedElementMementoInterface.h"
 
-namespace Private
-{
-	// Number of frames to keep memento rows before deletion
-	bool GMementosEnabled = false;
-	FAutoConsoleVariableRef CVarMementoEnable(
-		TEXT("teds.mementos.enable"),
-		GMementosEnabled,
-		TEXT("Enable memento system for newly added objects\n"));
-
-	void RegisterRowForMementoization(ITypedElementDataStorageInterface* Storage, TypedElementRowHandle Row)
-	{
-		TypedElementTableHandle UnpopulatedMementoTable = UTypedElementMementoInterface::GetUnpopulatedMementoTable();
-		TypedElementRowHandle Memento = Storage->AddRow(UnpopulatedMementoTable);
-		Storage->AddOrGetColumn<FTypedElementMementoOnDelete>(Row, FTypedElementMementoOnDelete{ .Memento = Memento });
-	}
-}
-
 void UTypedElementDatabaseCompatibility::Initialize(ITypedElementDataStorageInterface* StorageInterface)
 {
 	checkf(StorageInterface, TEXT("Typed Element's Database compatibility manager is being initialized with an invalid storage target."));
@@ -150,6 +133,17 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(UObject*
 		TypedElementRowHandle Row;
 		if (ReverseObjectLookup.RemoveAndCopyValue(Object, Row))
 		{
+			if (OnObjectPreDestroy.IsBound() && Storage->IsRowAvailable(Row))
+			{
+				// This will be null if object has not yet been added (ie. is in UObjectsPendingRegistration)
+				// Don't call it as OnAdded hasn't be called yet
+				const FTypedElementClassTypeInfoColumn* TypeInfo = Storage->GetColumn<FTypedElementClassTypeInfoColumn>(Row);
+				if (TypeInfo != nullptr)
+				{
+					OnObjectPreDestroy.Broadcast(Storage, Object, FTypedElementDatabaseCompatibilityObjectTypeInfo(TypeInfo->TypeInfo.Get()), Row);
+				}
+			}
+			
 			Storage->RemoveRow(Row);
 		}
 	}
@@ -161,6 +155,17 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(void* Ob
 	TypedElementRowHandle Row;
 	if (ReverseObjectLookup.RemoveAndCopyValue(Object, Row))
 	{
+		if (OnObjectPreDestroy.IsBound() && Storage->IsRowAvailable(Row))
+		{
+			// This will be null if object has not yet been added (ie. is in ExternalObjectsPendingRegistration)
+			// Don't call it as OnAdded hasn't be called yet
+			const FTypedElementScriptStructTypeInfoColumn* TypeInfo = Storage->GetColumn<FTypedElementScriptStructTypeInfoColumn>(Row);
+			if (TypeInfo != nullptr)
+			{
+				OnObjectPreDestroy.Broadcast(Storage, Object, FTypedElementDatabaseCompatibilityObjectTypeInfo(TypeInfo->TypeInfo.Get()), Row);
+			}
+		}
+		
 		Storage->RemoveRow(Row);
 	}
 }
@@ -183,6 +188,18 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(AActor* 
 			auto ActorStore = Storage->GetColumn<FMassActorFragment>(Entity.AsNumber());
 			if (ActorStore && !ActorStore->IsOwnedByMass()) // Only remove actors that were externally created.
 			{
+				TypedElementRowHandle Row = Entity.AsNumber();
+				if (OnObjectPreDestroy.IsBound() && Storage->IsRowAvailable(Entity.AsNumber()))
+				{
+					// This will be null if object has not yet been added (ie. is in ActorsPendingRegistration)
+					// Don't call it as OnAdded hasn't be called yet
+					const FTypedElementClassTypeInfoColumn* TypeInfo = Storage->GetColumn<FTypedElementClassTypeInfoColumn>(Row);
+					if (TypeInfo != nullptr)
+					{
+						OnObjectPreDestroy.Broadcast(Storage, Actor, FTypedElementDatabaseCompatibilityObjectTypeInfo(TypeInfo->TypeInfo.Get()), Row);
+					}
+				}
+				
 				ActorSubsystem->RemoveHandleForActor(Actor);
 				Storage->RemoveRow(Entity.AsNumber());
 			}
@@ -232,6 +249,16 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::FindRowWithCompatibleO
 		return Row ? *Row : TypedElementInvalidRowHandle;
 	}
 	return TypedElementInvalidRowHandle;
+}
+
+FTypedElementDatabaseCompatibility_OnObjectAdded& UTypedElementDatabaseCompatibility::GetOnObjectAddedDelegate()
+{
+	return OnObjectAddedDelegate;
+}
+
+FTypedElementDatabaseCompatibility_OnObjectAdded& UTypedElementDatabaseCompatibility::GetOnObjectPreDestroy()
+{
+	return OnObjectPreDestroy;
 }
 
 void UTypedElementDatabaseCompatibility::Prepare()
@@ -441,11 +468,8 @@ void UTypedElementDatabaseCompatibility::TickPendingActorRegistration(UWorld* Ed
 					
 					// Make sure the new row is tagged for update.
 					Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
-					
-					if (Private::GMementosEnabled)
-					{
-						Private::RegisterRowForMementoization(Storage, Row);
-					}
+
+					OnObjectAddedDelegate.Broadcast(Storage, Actor, FTypedElementDatabaseCompatibilityObjectTypeInfo(Actor->GetClass()) , Row);
 				});
 		}
 			
@@ -479,10 +503,7 @@ void UTypedElementDatabaseCompatibility::TickPendingUObjectRegistration()
 					// Make sure the new row is tagged for update.
 					Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
 
-					if (Private::GMementosEnabled)
-					{
-						Private::RegisterRowForMementoization(Storage, Row);
-					}
+					OnObjectAddedDelegate.Broadcast(Storage, Object.Get(), FTypedElementDatabaseCompatibilityObjectTypeInfo(Object->GetClass()), Row);
 				});
 		}
 
@@ -515,10 +536,7 @@ void UTypedElementDatabaseCompatibility::TickPendingExternalObjectRegistration()
 					// Make sure the new row is tagged for update.
 					Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
 
-					if (Private::GMementosEnabled)
-					{
-						Private::RegisterRowForMementoization(Storage, Row);
-					}
+					OnObjectAddedDelegate.Broadcast(Storage, Object.Object, FTypedElementDatabaseCompatibilityObjectTypeInfo(Object.TypeInfo.Get()), Row);
 				});
 		}
 

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -7,6 +7,9 @@
 
 #include "TypedElementMementoSystem.generated.h"
 
+class ITypedElementDataStorageInterface;
+class IConsoleVariable;
+struct FTypedElementDatabaseCompatibilityObjectTypeInfo;
 
 UCLASS()
 class UTypedElementMementoSystemFactory : public UTypedElementDataStorageFactory
@@ -16,13 +19,12 @@ class UTypedElementMementoSystemFactory : public UTypedElementDataStorageFactory
 public:
 	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const override;
 	void RegisterTables(ITypedElementDataStorageInterface& DataStorage) const override;
-
-	TypedElementTableHandle GetUnpopulatedMementoTable() const;
+	void RegisterRegistrationFilters(ITypedElementDataStorageCompatibilityInterface& DataStorageCompatibility) const override;
 private:
-	mutable TypedElementTableHandle MementoRowBaseTable;
-};
 
-inline TypedElementTableHandle UTypedElementMementoSystemFactory::GetUnpopulatedMementoTable() const
-{
-	return MementoRowBaseTable;
-}
+	void RegisterWithCompatibilityLayer(ITypedElementDataStorageCompatibilityInterface& DataStorageCompatibility);
+	void HandleObjectAddedToCompatibility(ITypedElementDataStorageInterface* Storage, const void* Object, const FTypedElementDatabaseCompatibilityObjectTypeInfo& TypeInfo, TypedElementRowHandle Row);
+	
+	mutable TypedElementTableHandle MementoRowBaseTable;
+	FDelegateHandle ObjectAddedDelegateHandle;
+};
