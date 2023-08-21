@@ -28,6 +28,13 @@ public:
 	static bool FromString(const FStringView InEncodedJsonWebToken, FJsonWebToken& OutJsonWebToken);
 
 	/**
+	 * Get raw JSON object for payload, allowing for custom claim parsing with FJsonSerializable classes.
+	 * 
+	 * @return reference to FJsonObject for the payload.
+	 */
+	const TSharedRef<FJsonObject>& GetPayload() const { return Payload; }
+
+	/**
 	 * Gets the type.
 	 *
 	 * @param OutValue The value to output on success.
