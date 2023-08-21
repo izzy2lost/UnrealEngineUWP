@@ -93,6 +93,65 @@ struct FRigTransformStackEntry
 	TArray<FString> Callstack;
 };
 
+template<typename T>
+class CONTROLRIG_API THierarchyCache
+{
+public:
+
+	THierarchyCache()
+		: TopologyVersion(0)
+	{}
+
+	THierarchyCache(const T& InValue, uint32 InTopologyVersion)
+		: THierarchyCache()
+	{
+		Value = InValue;
+		TopologyVersion = InTopologyVersion;
+	}
+
+	bool IsValid(uint32 InTopologyVersion) const
+	{
+		return (TopologyVersion == InTopologyVersion) && Value.IsSet();
+	}
+
+	void Reset()
+	{
+		TopologyVersion = 0;
+		Value = TOptional<T>();
+	}
+
+	const T& Get() const
+	{
+		return Value.GetValue();
+	}
+
+	T& Get()
+	{
+		if(!Value.IsSet())
+		{
+			Value = T();
+		}
+		return Value.GetValue();
+	}
+
+	void Set(uint32 InTopologyVersion)
+	{
+		check(Value.IsSet());
+		TopologyVersion = InTopologyVersion;
+	}
+
+	void Set(const T& InValue, uint32 InTopologyVersion)
+	{
+		Value = InValue;
+		TopologyVersion = InTopologyVersion;
+	}
+
+private:
+
+	uint32 TopologyVersion;
+	TOptional<T> Value;
+};
+
 UCLASS(BlueprintType)
 class CONTROLRIG_API URigHierarchy : public UObject
 {
@@ -3807,16 +3866,18 @@ public:
 	 */
 	bool IsParentedTo(FRigBaseElement* InChild, FRigBaseElement* InParent, const TElementDependencyMap& InDependencyMap = TElementDependencyMap()) const;
 
+private:
 	/**
 	 * Returns true if an element is affected to another element
 	 * @param InDependent The dependent element to check for a dependency
 	 * @param InDependency The dependency element to check for
-	 * @param InElementsVisited An array to keep track of whether an element is visited to avoid infinite recursion
 	 * @param InDependencyMap An additional map of dependencies to respect
+	 * @param bIsOnActualTopology Indicates that the passed dependent and dependency are expected to be on the current topology (if false they are provided with the dependency map)
 	 * @return True if the given dependent is affected by the given dependency 
 	 */
-	bool IsDependentOn(FRigBaseElement* InDependent, FRigBaseElement* InDependency, TArray<bool>& InElementsVisited, const TElementDependencyMap& InDependencyMap = TElementDependencyMap()) const;
+	bool IsDependentOn(FRigBaseElement* InDependent, FRigBaseElement* InDependency, const TElementDependencyMap& InDependencyMap = TElementDependencyMap(), bool bIsOnActualTopology = true) const;
 
+public:
 	/**
 	 * Returns the index of an element given its key within its default parent (or root)
 	 * @param InElement The element to retrieve the index for
@@ -4116,7 +4177,10 @@ private:
 	int32 ResetPoseHash;
 	TArray<bool> ResetPoseIsFilteredOut;
 	TArray<int32> ElementsToRetainLocalTransform;
-	
+
+	mutable THierarchyCache<TMap<TTuple<int32, int32>, bool>> ElementDependencyCache;
+	mutable TArray<bool> ElementDependencyVisited;
+
 #if WITH_EDITOR
 
 	// this is mainly used for propagating changes between hierarchies in the direction of blueprint -> CDO -> other instances

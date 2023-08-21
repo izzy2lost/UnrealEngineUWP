@@ -373,6 +373,7 @@ void URigHierarchy::Reset_Impl(bool bResetElements)
 	DefaultParentPerElement.Reset();
 	OrderedSelection.Reset();
 	PoseVersionPerElement.Reset();
+	ElementDependencyCache.Reset();
 
 	if(!IsGarbageCollecting())
 	{
@@ -4180,18 +4181,16 @@ FRigElementKey URigHierarchy::GetPreviousParent(const FRigElementKey& InKey) con
 
 bool URigHierarchy::IsParentedTo(FRigBaseElement* InChild, FRigBaseElement* InParent, const TElementDependencyMap& InDependencyMap) const
 {
-	TArray<bool> ElementsVisited;
-	return IsDependentOn(InChild, InParent, ElementsVisited, InDependencyMap);
+	ElementDependencyVisited.Reset();
+	if(!InDependencyMap.IsEmpty())
+	{
+		ElementDependencyVisited.SetNumZeroed(Elements.Num());
+	}
+	return IsDependentOn(InChild, InParent, InDependencyMap, true);
 }
 
-bool URigHierarchy::IsDependentOn(FRigBaseElement* InDependent, FRigBaseElement* InDependency, TArray<bool>& InElementsVisited, const TElementDependencyMap& InDependencyMap) const
+bool URigHierarchy::IsDependentOn(FRigBaseElement* InDependent, FRigBaseElement* InDependency, const TElementDependencyMap& InDependencyMap, bool bIsOnActualTopology) const
 {
-	if (InElementsVisited.Num() != Elements.Num())
-	{
-		InElementsVisited.Reset();
-		InElementsVisited.AddZeroed(Elements.Num());
-	}
-
 	if((InDependent == nullptr) || (InDependency == nullptr))
 	{
 		return false;
@@ -4203,30 +4202,73 @@ bool URigHierarchy::IsDependentOn(FRigBaseElement* InDependent, FRigBaseElement*
 	}
 
 	const int32 DependentElementIndex = InDependent->GetIndex();
+	const int32 DependencyElementIndex = InDependency->GetIndex();
+	const TTuple<int32,int32> CacheKey(DependentElementIndex, DependencyElementIndex);
 
-	if (!InElementsVisited.IsValidIndex(DependentElementIndex))
+		if(!ElementDependencyCache.IsValid(GetTopologyVersion()))
+		{
+			ElementDependencyCache.Set(TMap<TTuple<int32, int32>, bool>(), GetTopologyVersion());
+		}
+
+	// we'll only update the caches if we are following edges on the actual topology
+	if(const bool* bCachedResult = ElementDependencyCache.Get().Find(CacheKey))
 	{
-		return false;
-	}
-	
-	if (InElementsVisited[DependentElementIndex])
-	{
-		return false;
+		return *bCachedResult;
 	}
 
-	InElementsVisited[DependentElementIndex] = true;
+	// check if the reverse dependency check has been stored before - if the dependency is dependent
+	// then we don't need to recurse any further.
+	const TTuple<int32,int32> ReverseCacheKey(DependencyElementIndex, DependentElementIndex);
+	if(const bool* bReverseCachedResult = ElementDependencyCache.Get().Find(ReverseCacheKey))
+	{
+		if(*bReverseCachedResult)
+		{
+			return false;
+		}
+	}
+
+	if(!ElementDependencyVisited.IsEmpty())
+	{
+		// when running this with a provided dependency map
+		// we may run into a cycle / infinite recursion. this array
+		// keeps track of all elements being visited before.
+		if(!ElementDependencyVisited.IsValidIndex(DependentElementIndex))
+		{
+			return false;
+		}
+		if (ElementDependencyVisited[DependentElementIndex])
+		{
+			return false;
+		}
+		ElementDependencyVisited[DependentElementIndex] = true;
+	}
 
 	// collect all possible parents of the dependent
-	TArray<FRigBaseElement*> DependentParents;
 	if(const FRigSingleParentElement* SingleParentElement = Cast<FRigSingleParentElement>(InDependent))
 	{
-		 DependentParents.AddUnique(SingleParentElement->ParentElement);
+		if(IsDependentOn(SingleParentElement->ParentElement, InDependency, InDependencyMap, true))
+		{
+			// we'll only update the caches if we are following edges on the actual topology
+			if(bIsOnActualTopology)
+			{
+				ElementDependencyCache.Get().FindOrAdd(CacheKey, true);
+			}
+			return true;
+		}
 	}
 	else if(const FRigMultiParentElement* MultiParentElement = Cast<FRigMultiParentElement>(InDependent))
 	{
 		for(const FRigElementParentConstraint& ParentConstraint : MultiParentElement->ParentConstraints)
 		{
-			 DependentParents.AddUnique(ParentConstraint.ParentElement);
+			if(IsDependentOn(ParentConstraint.ParentElement, InDependency, InDependencyMap, true))
+			{
+				// we'll only update the caches if we are following edges on the actual topology
+				if(bIsOnActualTopology)
+				{
+					ElementDependencyCache.Get().FindOrAdd(CacheKey, true);
+				}
+				return true;
+			}
 		}
 	}
 
@@ -4237,18 +4279,23 @@ bool URigHierarchy::IsDependentOn(FRigBaseElement* InDependent, FRigBaseElement*
 		for(const int32 DependentIndex : DependentIndices)
 		{
 			ensure(Elements.IsValidIndex(DependentIndex));
-			DependentParents.AddUnique(Elements[DependentIndex]);
+			if(IsDependentOn(Elements[DependentIndex], InDependency, InDependencyMap, false))
+			{
+				// we'll only update the caches if we are following edges on the actual topology
+				if(bIsOnActualTopology)
+				{
+					ElementDependencyCache.Get().FindOrAdd(CacheKey, true);
+				}
+				return true;
+			}
 		}
 	}
 
-	for (FRigBaseElement* DependentParent :  DependentParents)
+	// we'll only update the caches if we are following edges on the actual topology
+	if(bIsOnActualTopology)
 	{
-		if(IsDependentOn(DependentParent, InDependency, InElementsVisited, InDependencyMap))
-		{
-			return true;
-		}
+		ElementDependencyCache.Get().FindOrAdd(CacheKey, false);
 	}
-
 	return false;
 }
 
