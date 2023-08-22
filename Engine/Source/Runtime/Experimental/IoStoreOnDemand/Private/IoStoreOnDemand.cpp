@@ -1406,7 +1406,7 @@ FIoStatus PrimeEndPoint(FStringView IoStoreOnDemandIniPath)
 	if (!Backend->FlushDeferedEndPoints(30.0))
 	{
 		// TODO: Real error value
-		return FIoStatus(EIoErrorCode::Unknown, TEXT("Unable to connect to endpoint"));
+		return FIoStatus(EIoErrorCode::Unknown, TEXT("Unable to connect to endpoint, timed out..."));
 	}
 
 	UE_LOG(LogIas, Display, TEXT("Finding on demand chunks..."));
