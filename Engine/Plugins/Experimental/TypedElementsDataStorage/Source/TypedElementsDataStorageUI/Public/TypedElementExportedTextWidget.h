@@ -34,10 +34,9 @@ public:
 	~FTypedElementExportedTextWidgetConstructor() override = default;
 
 	TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const override;
-	bool CanBeReused() const override;
 
 protected:
-	TSharedPtr<SWidget> CreateWidget() override;
+	TSharedPtr<SWidget> CreateWidget(TypedElementDataStorage::FMetaDataView Arguments) override;
 	bool FinalizeWidget(
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,

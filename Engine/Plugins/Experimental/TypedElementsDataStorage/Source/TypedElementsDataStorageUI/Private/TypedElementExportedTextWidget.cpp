@@ -110,12 +110,7 @@ TConstArrayView<const UScriptStruct*> FTypedElementExportedTextWidgetConstructor
 	return Columns;
 }
 
-bool FTypedElementExportedTextWidgetConstructor::CanBeReused() const
-{
-	return true;
-}
-
-TSharedPtr<SWidget> FTypedElementExportedTextWidgetConstructor::CreateWidget()
+TSharedPtr<SWidget> FTypedElementExportedTextWidgetConstructor::CreateWidget(TypedElementDataStorage::FMetaDataView Arguments)
 {
 	return SNew(STextBlock);
 }

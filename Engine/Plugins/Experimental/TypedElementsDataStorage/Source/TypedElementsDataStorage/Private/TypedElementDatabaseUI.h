@@ -40,14 +40,14 @@ public:
 		TArray<TWeakObjectPtr<const UScriptStruct>> Columns) override;
 
 	void CreateWidgetConstructors(FName Purpose,
-		TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments, const WidgetConstructorCallback& Callback) override;
+		TypedElementDataStorage::FMetaDataView Arguments, const WidgetConstructorCallback& Callback) override;
 	void CreateWidgetConstructors(FName Purpose, EMatchApproach MatchApproach, TArray<TWeakObjectPtr<const UScriptStruct>>& Columns,
-		TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments, const WidgetConstructorCallback& Callback) override;
+		TypedElementDataStorage::FMetaDataView Arguments, const WidgetConstructorCallback& Callback) override;
 
-	void ConstructWidgets(FName Purpose, TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments,
+	void ConstructWidgets(FName Purpose, TypedElementDataStorage::FMetaDataView Arguments,
 		const WidgetCreatedCallback& ConstructionCallback) override;
 	TSharedPtr<SWidget> ConstructWidget(TypedElementRowHandle Row, FTypedElementWidgetConstructor& Constructor,
-		TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments) override;
+		TypedElementDataStorage::FMetaDataView Arguments) override;
 
 	void ListWidgetPurposes(const WidgetPurposeCallback& Callback) const override;
 
@@ -78,23 +78,23 @@ private:
 
 	bool CreateSingleWidgetConstructor(
 		const FWidgetFactory::ConstructorType& Constructor,
-		TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments, 
+		TypedElementDataStorage::FMetaDataView Arguments,
 		TConstArrayView<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes,
 		const WidgetConstructorCallback& Callback);
 
 	void CreateWidgetInstanceFromDescription(
 		const UScriptStruct* Target,
-		TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments,
+		TypedElementDataStorage::FMetaDataView Arguments,
 		const WidgetCreatedCallback& ConstructionCallback);
 
 	void CreateWidgetInstanceFromInstance(
 		FTypedElementWidgetConstructor* SourceConstructor,
-		TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments,
+		TypedElementDataStorage::FMetaDataView Arguments,
 		const WidgetCreatedCallback& ConstructionCallback);
 
 	void CreateWidgetInstance(
 		FTypedElementWidgetConstructor& Constructor,
-		TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments,
+		TypedElementDataStorage::FMetaDataView Arguments,
 		const WidgetCreatedCallback& ConstructionCallback);
 
 	static bool PrepareColumnsList(TArray<TWeakObjectPtr<const UScriptStruct>>& Columns);
@@ -102,17 +102,17 @@ private:
 	void CreateWidgetConstructors_LongestMatch(
 		const TArray<FWidgetFactory>& WidgetFactories, 
 		TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, 
-		TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments, 
+		TypedElementDataStorage::FMetaDataView Arguments,
 		const WidgetConstructorCallback& Callback);
 	void CreateWidgetConstructors_ExactMatch(
 		const TArray<FWidgetFactory>& WidgetFactories,
 		TArray<TWeakObjectPtr<const UScriptStruct>>& Columns,
-		TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments,
+		TypedElementDataStorage::FMetaDataView Arguments,
 		const WidgetConstructorCallback& Callback);
 	void CreateWidgetConstructors_SingleMatch(
 		const TArray<FWidgetFactory>& WidgetFactories,
 		TArray<TWeakObjectPtr<const UScriptStruct>>& Columns,
-		TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments,
+		TypedElementDataStorage::FMetaDataView Arguments,
 		const WidgetConstructorCallback& Callback);
 
 	TypedElementTableHandle WidgetTable{ TypedElementInvalidTableHandle };

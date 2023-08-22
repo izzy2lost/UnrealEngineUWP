@@ -213,12 +213,7 @@ TConstArrayView<const UScriptStruct*> FTypedElementTransformHeadsUpWidgetConstru
 	return Columns;
 }
 
-bool FTypedElementTransformHeadsUpWidgetConstructor::CanBeReused() const
-{
-	return true;
-}
-
-TSharedPtr<SWidget> FTypedElementTransformHeadsUpWidgetConstructor::CreateWidget()
+TSharedPtr<SWidget> FTypedElementTransformHeadsUpWidgetConstructor::CreateWidget(TypedElementDataStorage::FMetaDataView Arguments)
 {
 	return SNew(STransformQuickDisplay);
 }

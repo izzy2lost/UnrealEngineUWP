@@ -154,12 +154,7 @@ TConstArrayView<const UScriptStruct*> FTypedElementCounterWidgetConstructor::Get
 	return Columns;
 }
 
-bool FTypedElementCounterWidgetConstructor::CanBeReused() const
-{
-	return true;
-}
-
-TSharedPtr<SWidget> FTypedElementCounterWidgetConstructor::CreateWidget()
+TSharedPtr<SWidget> FTypedElementCounterWidgetConstructor::CreateWidget(TypedElementDataStorage::FMetaDataView Arguments)
 {
 	return SNew(STextBlock)
 		.Text(FText::Format(LabelText, 0))

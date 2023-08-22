@@ -21,37 +21,28 @@ TConstArrayView<const UScriptStruct*> FTypedElementWidgetConstructor::GetAdditio
 
 bool FTypedElementWidgetConstructor::CanBeReused() const
 {
-	return false;
+	return true;
 }
 
 TSharedPtr<SWidget> FTypedElementWidgetConstructor::Construct(
 	TypedElementRowHandle Row,
 	ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi,
-	TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments)
+	TypedElementDataStorage::FMetaDataView Arguments)
 {
-	if (ApplyArguments(Arguments))
+	TSharedPtr<SWidget> Widget = CreateWidget(Arguments);
+	if (Widget)
 	{
-		TSharedPtr<SWidget> Widget = CreateWidget();
-		if (Widget)
+		DataStorage->GetColumn<FTypedElementSlateWidgetReferenceColumn>(Row)->Widget = Widget;
+		if (SetColumns(DataStorage, Row))
 		{
-			DataStorage->GetColumn<FTypedElementSlateWidgetReferenceColumn>(Row)->Widget = Widget;
-			if (SetColumns(DataStorage, Row))
+			if (FinalizeWidget(DataStorage, DataStorageUi, Row, Widget))
 			{
-				if (FinalizeWidget(DataStorage, DataStorageUi, Row, Widget))
-				{
-					return Widget;
-				}
+				return Widget;
 			}
 		}
 	}
 	return nullptr;
-}
-
-bool FTypedElementWidgetConstructor::ApplyArguments(TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments)
-{
-	SetColumnValues(*this, Arguments);
-	return true;
 }
 
 bool FTypedElementWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row)

@@ -295,11 +295,11 @@ namespace TypedElementQueryBuilder
 		template<typename... TargetTypes>
 		Select& ReadOnly();
 		TYPEDELEMENTFRAMEWORK_API Select& ReadOnly(const UScriptStruct* Target);
-		TYPEDELEMENTFRAMEWORK_API Select& ReadOnly(std::initializer_list<const UScriptStruct*> Targets);
+		TYPEDELEMENTFRAMEWORK_API Select& ReadOnly(TConstArrayView<const UScriptStruct*> Targets);
 		template<typename... TargetTypes>
 		Select& ReadWrite();
 		TYPEDELEMENTFRAMEWORK_API Select& ReadWrite(const UScriptStruct* Target);
-		TYPEDELEMENTFRAMEWORK_API Select& ReadWrite(std::initializer_list<const UScriptStruct*> Targets);
+		TYPEDELEMENTFRAMEWORK_API Select& ReadWrite(TConstArrayView<const UScriptStruct*> Targets);
 
 		TYPEDELEMENTFRAMEWORK_API ITypedElementDataStorageInterface::FQueryDescription&& Compile();
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery Where();

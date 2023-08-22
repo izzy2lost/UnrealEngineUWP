@@ -150,14 +150,10 @@ TConstArrayView<const UScriptStruct*> FTypedElementLabelWidgetConstructor::GetAd
 	return Columns;
 }
 
-bool FTypedElementLabelWidgetConstructor::CanBeReused() const
+TSharedPtr<SWidget> FTypedElementLabelWidgetConstructor::CreateWidget(TypedElementDataStorage::FMetaDataView Arguments)
 {
-	return true;
-}
-
-TSharedPtr<SWidget> FTypedElementLabelWidgetConstructor::CreateWidget()
-{
-	return SNew(STextBlock);
+	const bool* IsEditable = Arguments.FindForColumn<FTypedElementLabelColumn>(TypedElementDataStorage::IsEditableName).TryGetExact<bool>();
+	return SNew(STextBlock).IsEnabled(IsEditable ? *IsEditable : false);
 }
 
 bool FTypedElementLabelWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row)

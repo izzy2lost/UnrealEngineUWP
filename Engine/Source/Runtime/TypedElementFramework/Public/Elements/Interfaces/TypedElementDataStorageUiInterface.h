@@ -3,8 +3,8 @@
 #pragma once
 
 #include "Containers/ContainersFwd.h"
-#include "Elements/Framework/TypedElementColumnUtils.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Elements/Framework/TypedElementMetaData.h"
 #include "Templates/UnrealTypeTraits.h"
 #include "UObject/Interface.h"
 
@@ -15,13 +15,7 @@ class SWidget;
 
 /**
  * Base class used to construct Typed Element widgets with.
- * It's recommended to expose any construction variables as properties so they
- * can either be set by a user or set using the passed in arguments. The
- * Arguments can be directly used in case complex operations need to be done that
- * prevent automatically setting construction variables.
- * See below for the options to register a constructor with the Data Storage. For
- * either registration case a new instance/copy of the constructor is created so
- * arguments can be safely applied.
+ * See below for the options to register a constructor with the Data Storage.
  */
 USTRUCT()
 struct FTypedElementWidgetConstructor
@@ -50,7 +44,7 @@ public:
 
 	/**
 	 * Constructs the widget according to the provided information. Information is collected by calling
-	 * the below functions ApplyArguments, CreateWidget and AddColumns. It's recommended to overload those
+	 * the below functions CreateWidget and AddColumns. It's recommended to overload those
 	 * functions to build widgets according to a standard recipe and to reduce the amount of code needed.
 	 * If a complexer situation is called for this function can also be directly overwritten.
 	 */
@@ -58,17 +52,12 @@ public:
 		TypedElementRowHandle Row, /** The row the widget will be stored in. */
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,
-		TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments);
+		TypedElementDataStorage::FMetaDataView Arguments);
 
 protected:
-	/**
-	 * Uses the type system to apply the provided arguments to constructor's properties. Overwrite this 
-	 * function if there are non-properties that can be configured through the arguments or if the configuration
-	 * contains arguments that are too complex to initialize (fully) through the type system.
-	 */
-	TYPEDELEMENTFRAMEWORK_API virtual bool ApplyArguments(TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments);
 	/** Create a new instance of the target widget. This is a required function. */
-	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> CreateWidget() PURE_VIRTUAL(FTypedElementWidgetConstructor::CreateWidget, return nullptr; );
+	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> CreateWidget(
+		TypedElementDataStorage::FMetaDataView Arguments) PURE_VIRTUAL(FTypedElementWidgetConstructor::CreateWidget, return nullptr; );
 	/** Set any values in columns if needed. The columns provided through GetAdditionalColumnsList() will have already been created. */
 	TYPEDELEMENTFRAMEWORK_API virtual bool SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row);
 	/** 
@@ -183,25 +172,25 @@ public:
 	
 	/** Creates widget constructors for the requested purpose. */
 	virtual void CreateWidgetConstructors(FName Purpose, 
-		TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments, const WidgetConstructorCallback& Callback) = 0;
+		TypedElementDataStorage::FMetaDataView Arguments, const WidgetConstructorCallback& Callback) = 0;
 	/** 
 	 * Finds matching widget constructors for provided columns, preferring longer matches over shorter matches.
 	 * The provided list of columns will be updated to contain all columns that couldn't be matched.
 	 */
 	virtual void CreateWidgetConstructors(FName Purpose, EMatchApproach MatchApproach, TArray<TWeakObjectPtr<const UScriptStruct>>& Columns,
-		TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments, const WidgetConstructorCallback& Callback) = 0;
+		TypedElementDataStorage::FMetaDataView Arguments, const WidgetConstructorCallback& Callback) = 0;
 
 	/**
 	 * Creates all the widgets registered under the provided name. This may be a large number of widgets for a wide name
 	 * or exactly one when the exact name of the widget is registered. Arguments can be provided, but widgets are free
 	 * to ignore them.
 	 */
-	virtual void ConstructWidgets(FName Purpose, TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments, 
+	virtual void ConstructWidgets(FName Purpose, TypedElementDataStorage::FMetaDataView Arguments,
 		const WidgetCreatedCallback& ConstructionCallback) = 0;
 
 	/** Creates a single widget using the provided constructor. Arguments can optionally be used to intialize the constructor. */
 	virtual TSharedPtr<SWidget> ConstructWidget(TypedElementRowHandle Row, FTypedElementWidgetConstructor& Constructor,
-		TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments) = 0;
+		TypedElementDataStorage::FMetaDataView Arguments) = 0;
 
 	/** Calls the provided callback for all known registered widget purposes. */
 	virtual void ListWidgetPurposes(const WidgetPurposeCallback& Callback) const = 0;

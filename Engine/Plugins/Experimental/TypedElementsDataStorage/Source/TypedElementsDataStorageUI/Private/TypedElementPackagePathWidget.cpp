@@ -39,12 +39,7 @@ FTypedElementPackagePathWidgetConstructor::FTypedElementPackagePathWidgetConstru
 {
 }
 
-bool FTypedElementPackagePathWidgetConstructor::CanBeReused() const
-{
-	return true;
-}
-
-TSharedPtr<SWidget> FTypedElementPackagePathWidgetConstructor::CreateWidget()
+TSharedPtr<SWidget> FTypedElementPackagePathWidgetConstructor::CreateWidget(TypedElementDataStorage::FMetaDataView Arguments)
 {
 	return SNew(STextBlock)
 		.OverflowPolicy(ETextOverflowPolicy::Ellipsis)

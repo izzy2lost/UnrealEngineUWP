@@ -7,6 +7,7 @@
 #include "Elements/Common/TypedElementHandles.h"
 #include "Elements/Common/TypedElementQueryTypes.h"
 #include "Elements/Interfaces/TypedElementQueryStorageInterfaces.h"
+#include "Elements/Framework/TypedElementMetaData.h"
 #include "Templates/Function.h"
 #include "UObject/NameTypes.h"
 #include "UObject/WeakObjectPtr.h"
@@ -87,6 +88,7 @@ namespace TypedElementDataStorage
 
 		TArray<TWeakObjectPtr<const UScriptStruct>, TInlineAllocator<NumInlineSelections>> SelectionTypes;
 		TArray<EQueryAccessType, TInlineAllocator<NumInlineSelections>> SelectionAccessTypes;
+		TArray<FColumnMetaData, TInlineAllocator<NumInlineSelections>> SelectionMetaData;
 
 		TArray<EOperatorType, TInlineAllocator<NumInlineConditions>> ConditionTypes;
 		TArray<FOperator, TInlineAllocator<NumInlineConditions>> ConditionOperators;
