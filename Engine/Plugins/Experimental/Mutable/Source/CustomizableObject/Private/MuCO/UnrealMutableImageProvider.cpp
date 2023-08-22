@@ -108,7 +108,9 @@ mu::EImageFormat GetMutablePixelFormat(EPixelFormat InTextureFormat)
 	case PF_BC5: return mu::EImageFormat::IF_BC5;
 	case PF_G8: return mu::EImageFormat::IF_L_UBYTE;
 	case PF_ASTC_4x4: return mu::EImageFormat::IF_ASTC_4x4_RGBA_LDR;
+	case PF_ASTC_6x6: return mu::EImageFormat::IF_ASTC_6x6_RGBA_LDR;
 	case PF_ASTC_8x8: return mu::EImageFormat::IF_ASTC_8x8_RGBA_LDR;
+	case PF_ASTC_10x10: return mu::EImageFormat::IF_ASTC_10x10_RGBA_LDR;
 	case PF_ASTC_12x12: return mu::EImageFormat::IF_ASTC_12x12_RGBA_LDR;
 	default: return mu::EImageFormat::IF_NONE;
 	}

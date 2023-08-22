@@ -73,6 +73,11 @@ public class CustomizableObjectEditor : ModuleRules
 				
 				"AssetDefinition",
 				"ContentBrowser",
+				
+				"TextureCompressor",
+				"TextureBuildUtilities",
+				"ImageCore",
+
 			}
 		);
 

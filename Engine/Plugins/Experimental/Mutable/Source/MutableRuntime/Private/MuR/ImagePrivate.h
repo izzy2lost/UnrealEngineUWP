@@ -38,10 +38,22 @@ namespace mu
         case EImageFormat::IF_BC3: r = EImageFormat::IF_RGBA_UBYTE; break;
         case EImageFormat::IF_BC4: r = EImageFormat::IF_L_UBYTE; break;
         case EImageFormat::IF_BC5: r = EImageFormat::IF_RGB_UBYTE; break;
-        case EImageFormat::IF_ASTC_4x4_RGB_LDR: r = EImageFormat::IF_RGB_UBYTE; break;
-        case EImageFormat::IF_ASTC_4x4_RGBA_LDR: r = EImageFormat::IF_RGBA_UBYTE; break;
-        case EImageFormat::IF_ASTC_4x4_RG_LDR: r = EImageFormat::IF_RGB_UBYTE; break;
-        default: break;
+		case EImageFormat::IF_ASTC_4x4_RGB_LDR: r = EImageFormat::IF_RGB_UBYTE; break;
+		case EImageFormat::IF_ASTC_4x4_RGBA_LDR: r = EImageFormat::IF_RGBA_UBYTE; break;
+		case EImageFormat::IF_ASTC_4x4_RG_LDR: r = EImageFormat::IF_RGB_UBYTE; break;
+		case EImageFormat::IF_ASTC_6x6_RGB_LDR: r = EImageFormat::IF_RGB_UBYTE; break;
+		case EImageFormat::IF_ASTC_6x6_RGBA_LDR: r = EImageFormat::IF_RGBA_UBYTE; break;
+		case EImageFormat::IF_ASTC_6x6_RG_LDR: r = EImageFormat::IF_RGB_UBYTE; break;
+		case EImageFormat::IF_ASTC_8x8_RGB_LDR: r = EImageFormat::IF_RGB_UBYTE; break;
+		case EImageFormat::IF_ASTC_8x8_RGBA_LDR: r = EImageFormat::IF_RGBA_UBYTE; break;
+		case EImageFormat::IF_ASTC_8x8_RG_LDR: r = EImageFormat::IF_RGB_UBYTE; break;
+		case EImageFormat::IF_ASTC_10x10_RGB_LDR: r = EImageFormat::IF_RGB_UBYTE; break;
+		case EImageFormat::IF_ASTC_10x10_RGBA_LDR: r = EImageFormat::IF_RGBA_UBYTE; break;
+		case EImageFormat::IF_ASTC_10x10_RG_LDR: r = EImageFormat::IF_RGB_UBYTE; break;
+		case EImageFormat::IF_ASTC_12x12_RGB_LDR: r = EImageFormat::IF_RGB_UBYTE; break;
+		case EImageFormat::IF_ASTC_12x12_RGBA_LDR: r = EImageFormat::IF_RGBA_UBYTE; break;
+		case EImageFormat::IF_ASTC_12x12_RG_LDR: r = EImageFormat::IF_RGB_UBYTE; break;
+		default: break;
 		}
 
 		return r;

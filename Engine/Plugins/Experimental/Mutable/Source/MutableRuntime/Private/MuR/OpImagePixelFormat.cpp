@@ -563,6 +563,42 @@ void FImageOperator::ImagePixelFormat( bool& bOutSuccess, int32 CompressionQuali
                 break;
             }
 
+			case EImageFormat::IF_ASTC_6x6_RGB_LDR:
+			{
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::ASTC6x6RGBL_to_RGB(mipSize[0], mipSize[1],
+						Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m));
+				}
+				break;
+			}
+
+			case EImageFormat::IF_ASTC_6x6_RGBA_LDR:
+			{
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::ASTC6x6RGBAL_to_RGB(mipSize[0], mipSize[1],
+						Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m));
+				}
+				break;
+			}
+
+			case EImageFormat::IF_ASTC_6x6_RG_LDR:
+			{
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::ASTC6x6RGL_to_RGB(mipSize[0], mipSize[1],
+						Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m));
+				}
+				break;
+			}
+
 			case EImageFormat::IF_ASTC_8x8_RGB_LDR:
 			{
 				for (int m = 0; m < resultLODCount; ++m)
@@ -593,6 +629,42 @@ void FImageOperator::ImagePixelFormat( bool& bOutSuccess, int32 CompressionQuali
 				{
 					FIntVector2 mipSize = pResult->CalculateMipSize(m);
 					miro::ASTC8x8RGL_to_RGB(mipSize[0], mipSize[1],
+						Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m));
+				}
+				break;
+			}
+
+			case EImageFormat::IF_ASTC_10x10_RGB_LDR:
+			{
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::ASTC10x10RGBL_to_RGB(mipSize[0], mipSize[1],
+						Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m));
+				}
+				break;
+			}
+
+			case EImageFormat::IF_ASTC_10x10_RGBA_LDR:
+			{
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::ASTC10x10RGBAL_to_RGB(mipSize[0], mipSize[1],
+						Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m));
+				}
+				break;
+			}
+
+			case EImageFormat::IF_ASTC_10x10_RG_LDR:
+			{
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::ASTC10x10RGL_to_RGB(mipSize[0], mipSize[1],
 						Base->GetMipData(baseLOD + m),
 						pResult->GetMipData(m));
 				}
@@ -814,6 +886,30 @@ void FImageOperator::ImagePixelFormat( bool& bOutSuccess, int32 CompressionQuali
                 break;
             }
 
+			case EImageFormat::IF_ASTC_6x6_RGBA_LDR:
+			{
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::ASTC6x6RGBAL_to_RGBA(mipSize[0], mipSize[1],
+						Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m));
+				}
+				break;
+			}
+
+			case EImageFormat::IF_ASTC_6x6_RG_LDR:
+			{
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::ASTC6x6RGL_to_RGBA(mipSize[0], mipSize[1],
+						Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m));
+				}
+				break;
+			}
+
 			case EImageFormat::IF_ASTC_8x8_RGB_LDR:
 			{
 				for (int m = 0; m < resultLODCount; ++m)
@@ -844,6 +940,54 @@ void FImageOperator::ImagePixelFormat( bool& bOutSuccess, int32 CompressionQuali
 				{
 					FIntVector2 mipSize = pResult->CalculateMipSize(m);
 					miro::ASTC8x8RGL_to_RGBA(mipSize[0], mipSize[1],
+						Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m));
+				}
+				break;
+			}
+
+			case EImageFormat::IF_ASTC_6x6_RGB_LDR:
+			{
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::ASTC6x6RGBL_to_RGBA(mipSize[0], mipSize[1],
+						Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m));
+				}
+				break;
+			}
+
+			case EImageFormat::IF_ASTC_10x10_RGB_LDR:
+			{
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::ASTC10x10RGBL_to_RGBA(mipSize[0], mipSize[1],
+						Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m));
+				}
+				break;
+			}
+
+			case EImageFormat::IF_ASTC_10x10_RGBA_LDR:
+			{
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::ASTC10x10RGBAL_to_RGBA(mipSize[0], mipSize[1],
+						Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m));
+				}
+				break;
+			}
+
+			case EImageFormat::IF_ASTC_10x10_RG_LDR:
+			{
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::ASTC10x10RGL_to_RGBA(mipSize[0], mipSize[1],
 						Base->GetMipData(baseLOD + m),
 						pResult->GetMipData(m));
 				}
@@ -1360,6 +1504,275 @@ void FImageOperator::ImagePixelFormat( bool& bOutSuccess, int32 CompressionQuali
 
             break;
         }
+
+		case EImageFormat::IF_ASTC_6x6_RGB_LDR:
+		{
+			switch (Base->GetFormat())
+			{
+			case EImageFormat::IF_RGBA_UBYTE:
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::RGBA_to_ASTC6x6RGBL(
+						mipSize[0], mipSize[1], Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m), CompressionQuality);
+				}
+				break;
+
+			case EImageFormat::IF_RGB_UBYTE:
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::RGB_to_ASTC6x6RGBL(
+						mipSize[0], mipSize[1], Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m), CompressionQuality);
+				}
+				break;
+
+			//case EImageFormat::IF_ASTC_6x6_RGBA_LDR:
+			//	for (int m = 0; m < resultLODCount; ++m)
+			//	{
+			//		FIntVector2 mipSize = pResult->CalculateMipSize(m);
+			//		miro::ASTC6x6RGBAL_to_ASTC6x6RGBL(mipSize[0], mipSize[1],
+			//			Base->GetMipData(baseLOD + m),
+			//			pResult->GetMipData(m));
+			//	}
+			//	break;
+
+			//case EImageFormat::IF_L_UBYTE:
+			//	for (int m = 0; m < resultLODCount; ++m)
+			//	{
+			//		FIntVector2 mipSize = pResult->CalculateMipSize(m);
+			//		miro::L_to_ASTC6x6RGBL(mipSize[0], mipSize[1],
+			//			Base->GetMipData(baseLOD + m),
+			//			pResult->GetMipData(m), CompressionQuality);
+			//	}
+			//	break;
+
+			default:
+				// Case not implemented
+				check(false);
+
+			}
+
+			break;
+		}
+
+		case EImageFormat::IF_ASTC_6x6_RGBA_LDR:
+		{
+			switch (Base->GetFormat())
+			{
+			case EImageFormat::IF_RGBA_UBYTE:
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::RGBA_to_ASTC6x6RGBAL(
+						mipSize[0], mipSize[1], Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m), CompressionQuality);
+				}
+				break;
+
+			case EImageFormat::IF_RGB_UBYTE:
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::RGB_to_ASTC6x6RGBAL(
+						mipSize[0], mipSize[1], Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m), CompressionQuality);
+				}
+				break;
+
+			//case EImageFormat::IF_ASTC_6x6_RGB_LDR:
+			//	for (int m = 0; m < resultLODCount; ++m)
+			//	{
+			//		FIntVector2 mipSize = pResult->CalculateMipSize(m);
+			//		miro::ASTC6x6RGBL_to_ASTC6x6RGBAL(mipSize[0], mipSize[1],
+			//			Base->GetMipData(baseLOD + m),
+			//			pResult->GetMipData(m));
+			//	}
+			//	break;
+
+			default:
+				// Case not implemented
+				check(false);
+
+			}
+
+			break;
+		}
+
+		case EImageFormat::IF_ASTC_6x6_RG_LDR:
+		{
+			switch (Base->GetFormat())
+			{
+			case EImageFormat::IF_RGBA_UBYTE:
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::RGBA_to_ASTC6x6RGL(
+						mipSize[0], mipSize[1], Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m), CompressionQuality);
+				}
+				break;
+
+			case EImageFormat::IF_RGB_UBYTE:
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::RGB_to_ASTC6x6RGL(
+						mipSize[0], mipSize[1], Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m), CompressionQuality);
+				}
+				break;
+
+			//case EImageFormat::IF_ASTC_6x6_RG_LDR:
+			//	for (int m = 0; m < resultLODCount; ++m)
+			//	{
+			//		FIntVector2 mipSize = pResult->CalculateMipSize(m);
+			//		// Hack that actually works because of block size.
+			//		miro::ASTC6x6RGBAL_to_ASTC6x6RGBL(mipSize[0], mipSize[1],
+			//			Base->GetMipData(baseLOD + m),
+			//			pResult->GetMipData(m));
+			//	}
+			//	break;
+
+			default:
+				// Case not implemented
+				check(false);
+
+			}
+
+			break;
+		}
+
+		case EImageFormat::IF_ASTC_8x8_RGB_LDR:
+		{
+			switch (Base->GetFormat())
+			{
+			case EImageFormat::IF_RGBA_UBYTE:
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::RGBA_to_ASTC8x8RGBL(
+						mipSize[0], mipSize[1], Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m), CompressionQuality);
+				}
+				break;
+
+			case EImageFormat::IF_RGB_UBYTE:
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::RGB_to_ASTC8x8RGBL(
+						mipSize[0], mipSize[1], Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m), CompressionQuality);
+				}
+				break;
+
+				//case EImageFormat::IF_ASTC_8x8_RGBA_LDR:
+				//	for (int m = 0; m < resultLODCount; ++m)
+				//	{
+				//		FIntVector2 mipSize = pResult->CalculateMipSize(m);
+				//		miro::ASTC8x8RGBAL_to_ASTC8x8RGBL(mipSize[0], mipSize[1],
+				//			Base->GetMipData(baseLOD + m),
+				//			pResult->GetMipData(m));
+				//	}
+				//	break;
+
+				//case EImageFormat::IF_L_UBYTE:
+				//	for (int m = 0; m < resultLODCount; ++m)
+				//	{
+				//		FIntVector2 mipSize = pResult->CalculateMipSize(m);
+				//		miro::L_to_ASTC8x8RGBL(mipSize[0], mipSize[1],
+				//			Base->GetMipData(baseLOD + m),
+				//			pResult->GetMipData(m), CompressionQuality);
+				//	}
+				//	break;
+
+			default:
+				// Case not implemented
+				check(false);
+
+			}
+
+			break;
+		}
+
+		case EImageFormat::IF_ASTC_8x8_RGBA_LDR:
+		{
+			switch (Base->GetFormat())
+			{
+			case EImageFormat::IF_RGBA_UBYTE:
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::RGBA_to_ASTC8x8RGBAL(
+						mipSize[0], mipSize[1], Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m), CompressionQuality);
+				}
+				break;
+
+			case EImageFormat::IF_RGB_UBYTE:
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::RGB_to_ASTC8x8RGBAL(
+						mipSize[0], mipSize[1], Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m), CompressionQuality);
+				}
+				break;
+
+			//case EImageFormat::IF_ASTC_8x8_RGB_LDR:
+			//	for (int m = 0; m < resultLODCount; ++m)
+			//	{
+			//		FIntVector2 mipSize = pResult->CalculateMipSize(m);
+			//		miro::ASTC8x8RGBL_to_ASTC8x8RGBAL(mipSize[0], mipSize[1],
+			//			Base->GetMipData(baseLOD + m),
+			//			pResult->GetMipData(m));
+			//	}
+			//	break;
+
+			default:
+				// Case not implemented
+				check(false);
+
+			}
+
+			break;
+		}
+
+		case EImageFormat::IF_ASTC_8x8_RG_LDR:
+		{
+			switch (Base->GetFormat())
+			{
+			case EImageFormat::IF_RGBA_UBYTE:
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::RGBA_to_ASTC8x8RGL(
+						mipSize[0], mipSize[1], Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m), CompressionQuality);
+				}
+				break;
+
+			case EImageFormat::IF_RGB_UBYTE:
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::RGB_to_ASTC8x8RGL(
+						mipSize[0], mipSize[1], Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m), CompressionQuality);
+				}
+				break;
+
+			default:
+				// Case not implemented
+				check(false);
+
+			}
+
+			break;
+		}
 
         default:
             // Case not implemented

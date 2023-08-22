@@ -735,6 +735,10 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 									else if (FormatWithoutPrefix == TEXT("BGRA8")) mutableFormat = mu::EImageFormat::IF_RGBA_UBYTE;
 									else if (PlatformFormat.Contains(TEXT("ASTC")))
 									{
+										// \TODO: ASTC block size to use depends on several project and platform settings. Try to get it.
+										
+										// This is based on GetQualityFormat in TextureFormatASTC.cpp but it would be much better to find
+										// an way of doing it without dependant code.
 										if ((FormatWithoutPrefix == TEXT("AutoASTC")) || (FormatWithoutPrefix == TEXT("RGBAuto")))
 										{
 											mutableFormat = mu::EImageFormat::IF_ASTC_4x4_RGB_LDR;
@@ -742,6 +746,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 										}
 										else if (FormatWithoutPrefix == TEXT("RGB")) mutableFormat = mu::EImageFormat::IF_ASTC_4x4_RGB_LDR;
 										else if (FormatWithoutPrefix == TEXT("RGBA")) mutableFormat = mu::EImageFormat::IF_ASTC_4x4_RGBA_LDR;
+										else if (FormatWithoutPrefix == TEXT("RGBA_HQ")) mutableFormat = mu::EImageFormat::IF_ASTC_4x4_RGBA_LDR;
 										else if (FormatWithoutPrefix == TEXT("NormalRG")) mutableFormat = mu::EImageFormat::IF_ASTC_4x4_RG_LDR;
 										else if (PlatformFormat.Contains(TEXT("ASTC_NormalRG_Precise")))
 										{

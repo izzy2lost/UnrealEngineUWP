@@ -63,12 +63,18 @@ namespace mu
 		FImageFormatData(4, 4, 16, 4, {252, 253, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0}),     // IF_ASTC_4x4_RGBA_LDR
         FImageFormatData( 4, 4, 16, 2 ),	// IF_ASTC_4x4_RG_LDR // TODO: check black block for RG.
 		
-		FImageFormatData(8, 8, 16, 3),		// IF_ASTC_8x8_RGB_LDR,
-		FImageFormatData(8, 8, 16, 4),		// IF_ASTC_8x8_RGBA_LDR,
+		FImageFormatData(8, 8, 16, 3, {252, 253, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 255, 255}),	// IF_ASTC_8x8_RGB_LDR,
+		FImageFormatData(8, 8, 16, 4, {252, 253, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0}),		// IF_ASTC_8x8_RGBA_LDR,
 		FImageFormatData(8, 8, 16, 2),		// IF_ASTC_8x8_RG_LDR,
-		FImageFormatData(12, 12, 16, 3),	// IF_ASTC_12x12_RGB_LDR
-		FImageFormatData(12, 12, 16, 4),	// IF_ASTC_12x12_RGBA_LDR
+		FImageFormatData(12, 12, 16, 3, {252, 253, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 255, 255}),	// IF_ASTC_12x12_RGB_LDR
+		FImageFormatData(12, 12, 16, 4, {252, 253, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0}),		// IF_ASTC_12x12_RGBA_LDR
 		FImageFormatData(12, 12, 16, 2),	// IF_ASTC_12x12_RG_LDR
+		FImageFormatData(6, 6, 16, 3, {252, 253, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 255, 255}),	// IF_ASTC_6x6_RGB_LDR,
+		FImageFormatData(6, 6, 16, 4, {252, 253, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0}),		// IF_ASTC_6x6_RGBA_LDR,
+		FImageFormatData(6, 6, 16, 2),		// IF_ASTC_6x6_RG_LDR,
+		FImageFormatData(10, 10, 16, 3, {252, 253, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 255, 255}),	// IF_ASTC_6x6_RGB_LDR,
+		FImageFormatData(10, 10, 16, 4, {252, 253, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0}),		// IF_ASTC_6x6_RGBA_LDR,
+		FImageFormatData(10, 10, 16, 2),	// IF_ASTC_6x6_RG_LDR,
 
     };
 

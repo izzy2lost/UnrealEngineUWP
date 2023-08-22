@@ -811,9 +811,6 @@ public:
 	//! Update the stats logged in unreal's stats system. 
 	void UpdateStats();
 
-	// Important!!! Never call when there's a Begin Update thread running!
-	void ReleasePendingMutableInstances();
-
 	/** Update the last set amount of internal memory Mutable can use to build objects. */
 	void UpdateMemoryLimit();
 
