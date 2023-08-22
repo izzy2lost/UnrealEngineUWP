@@ -989,7 +989,6 @@ struct FMutableLODSettings
 {
 	GENERATED_BODY()
 
-#if WITH_EDITORONLY_DATA
 
 	/** Minimum LOD to render per Platform. */
 	UPROPERTY(EditAnywhere, Category = LODSettings, meta = (DisplayName = "Minimum LOD"))
@@ -998,6 +997,8 @@ struct FMutableLODSettings
 	/** Minimum LOD to render per Quality level.*/
 	UPROPERTY(EditAnywhere, Category = LODSettings, meta = (DisplayName = "Quality Level Minimum LOD"))
 	FPerQualityLevelInt MinQualityLevelLOD;
+
+#if WITH_EDITORONLY_DATA
 
 	/** Override the LOD Streaming settings from the reference skeletal meshes.*/
 	UPROPERTY(EditAnywhere, Category = LODSettings, meta = (DisplayName = "Override LOD Streaming Settings"))
@@ -1665,6 +1666,9 @@ public:
 	void GetLowPriorityTextureNames(TArray<FString>& OutTextureNames);
 
 	const TArray<FName>& GetBoneNamesArray() const;
+
+	/** Return the MinLOD index to generate based on the active LODSettings (PerPlatformMinLOD or PerQualityLevelMinLOD) */
+	int32 GetMinLODIndex() const;
 
 private:
 	

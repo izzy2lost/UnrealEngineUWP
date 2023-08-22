@@ -250,6 +250,10 @@ public:
 	FEditorCompileSettings EditorSettings;
 
 #endif
+	
+	// Return the current MinLodQualityLevel for skeletal meshes.
+	int32 GetSkeletalMeshMinLODQualityLevel() const;
+
 	bool IsSupport16BitBoneIndexEnabled() const;
 
 	bool IsProgressiveMipStreamingEnabled() const;

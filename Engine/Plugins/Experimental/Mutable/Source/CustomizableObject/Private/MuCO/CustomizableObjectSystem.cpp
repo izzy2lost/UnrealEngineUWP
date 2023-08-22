@@ -107,6 +107,19 @@ static TAutoConsoleVariable<int32> CVarGeneratedResourcesCacheSize(
 	TEXT("Limit the number of resources (images and meshes) that will be tracked for reusal. Each tracked resource uses a small amout of memory for its key."),
 	ECVF_Scalability);
 
+int32 FCustomizableObjectSystemPrivate::SkeletalMeshMinLodQualityLevel = -1;
+static void CVarMutableSinkFunction()
+{
+	if (UCustomizableObjectSystem::IsCreated())
+	{
+		FCustomizableObjectSystemPrivate* PrivateSystem = UCustomizableObjectSystem::GetInstance()->GetPrivate();
+
+		static const IConsoleVariable* CVarSkeletalMeshMinLodQualityLevelCVarName = IConsoleManager::Get().FindConsoleVariable(TEXT("r.SkeletalMesh.MinLodQualityLevel"));
+		PrivateSystem->SkeletalMeshMinLodQualityLevel = CVarSkeletalMeshMinLodQualityLevelCVarName ? CVarSkeletalMeshMinLodQualityLevelCVarName->GetInt() : INDEX_NONE;
+	}
+}
+static FAutoConsoleVariableSink CVarMutableSink(FConsoleCommandDelegate::CreateStatic(&CVarMutableSinkFunction));
+
 
 bool FMutablePendingInstanceWork::ArePendingUpdatesEmpty() const
 {
@@ -329,6 +342,8 @@ void UCustomizableObjectSystem::InitSystem()
 
 	const IConsoleVariable* CVarSupport16BitBoneIndex = IConsoleManager::Get().FindConsoleVariable(TEXT("r.GPUSkin.Support16BitBoneIndex"));
 	Private->bSupport16BitBoneIndex = CVarSupport16BitBoneIndex ? CVarSupport16BitBoneIndex->GetBool() : false;
+
+	CVarMutableSinkFunction();
 
 	Private->CurrentMutableOperation = nullptr;
 	Private->CurrentInstanceBeingUpdated = nullptr;
@@ -3131,6 +3146,13 @@ int32 UCustomizableObjectSystem::GetAverageBuildTime() const
 {
 	check(Private != nullptr);
 	return Private->TotalBuiltInstances == 0 ? 0 : Private->TotalBuildMs / Private->TotalBuiltInstances;
+}
+
+
+int32 UCustomizableObjectSystem::GetSkeletalMeshMinLODQualityLevel() const
+{
+	check(Private != nullptr);
+	return Private->SkeletalMeshMinLodQualityLevel;
 }
 
 

@@ -656,6 +656,7 @@ public:
 	static int32 EnableSkipGenerateResidentMips;
 	static int32 EnableOnlyGenerateRequestedLODs;
 	static int32 MaxTextureSizeToGenerate;
+	static int32 SkeletalMeshMinLodQualityLevel;
 	static bool bEnableMutableReusePreviousUpdateData;
 
 	/** */

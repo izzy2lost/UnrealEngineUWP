@@ -1778,6 +1778,26 @@ const TArray<FName>& UCustomizableObject::GetBoneNamesArray() const
 }
 
 
+int32 UCustomizableObject::GetMinLODIndex() const
+{
+	int32 MinLODIdx = 0;
+
+	if (GEngine && GEngine->UseSkeletalMeshMinLODPerQualityLevels)
+	{
+		if (UCustomizableObjectSystem::GetInstance() != nullptr)
+		{
+			MinLODIdx = LODSettings.MinQualityLevelLOD.GetValue(UCustomizableObjectSystem::GetInstance()->GetSkeletalMeshMinLODQualityLevel());
+		}
+	}
+	else
+	{
+		MinLODIdx = LODSettings.MinLOD.GetValue();
+	}
+
+	return FMath::Max(MinLODIdx, LODSettings.FirstLODAvailable);
+}
+
+
 FGuid UCustomizableObject::GetCompilationGuid() const
 {
 	return CompilationGuid;
