@@ -189,11 +189,10 @@ void MainVS_VideoOverlay(
 void ManualStencilTest(uint2 PixelPos)
 {
 	const uint Stencil = CalcSceneCustomStencil(PixelPos);
-	const int Diff = ManualStencilReferenceValue - Stencil;
 	const uint Test =
-		(Stencil == ManualStencilReferenceValue	? STENCIL_TEST_EQUAL	: 0) |
-		(Stencil <  ManualStencilReferenceValue	? STENCIL_TEST_LESS		: 0) |
-		(Stencil >  ManualStencilReferenceValue	? STENCIL_TEST_GREATER	: 0);
+		(ManualStencilReferenceValue == Stencil	? STENCIL_TEST_EQUAL	: 0) |
+		(ManualStencilReferenceValue <  Stencil	? STENCIL_TEST_LESS		: 0) |
+		(ManualStencilReferenceValue >  Stencil	? STENCIL_TEST_GREATER	: 0);
 
 	if ((Test & ManualStencilTestMask) == 0)
 	{

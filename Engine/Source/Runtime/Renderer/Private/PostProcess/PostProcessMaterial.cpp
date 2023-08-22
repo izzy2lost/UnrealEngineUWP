@@ -463,8 +463,13 @@ FScreenPassTexture AddPostProcessMaterialPass(
 		BlendState = GetMaterialBlendState(Material);
 	}
 
+	// Determine if the pixel shader may discard, requiring us to initialize the output texture
+	const bool bMayDiscard = CustomStencilPolicy == EMaterialCustomDepthPolicy::Enabled && Inputs.bManualStencilTest;
+
 	// Blend / Depth Stencil usage requires that the render target have primed color data.
-	const bool bCompositeWithInput = DepthStencilState != DefaultDepthStencilState || BlendState != DefaultBlendState;
+	const bool bCompositeWithInput = DepthStencilState != DefaultDepthStencilState ||
+									 BlendState != DefaultBlendState ||
+									 bMayDiscard;
 
 	// We only prime color on the output texture if we are using fixed function Blend / Depth-Stencil,
 	// or we need to retain previously rendered views.
