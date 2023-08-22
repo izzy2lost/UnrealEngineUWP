@@ -1767,6 +1767,8 @@ DEFINE_STAT(STAT_D3D12UpdateUniformBufferTime);
 DEFINE_STAT(STAT_D3D12CommitResourceTables);
 DEFINE_STAT(STAT_D3D12SetTextureInTableCalls);
 
+DEFINE_STAT(STAT_D3D12DispatchShaderBundle);
+
 DEFINE_STAT(STAT_D3D12ClearShaderResourceViewsTime);
 DEFINE_STAT(STAT_D3D12SetShaderResourceViewTime);
 DEFINE_STAT(STAT_D3D12SetUnorderedAccessViewTime);

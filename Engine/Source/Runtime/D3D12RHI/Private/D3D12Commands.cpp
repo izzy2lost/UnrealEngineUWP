@@ -1621,6 +1621,9 @@ void FD3D12CommandContext::RHIDispatchShaderBundle(
 	bool bEmulated
 )
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(RHIDispatchShaderBundle);
+	SCOPE_CYCLE_COUNTER(STAT_D3D12DispatchShaderBundle);
+
 	check(ShaderBundle != nullptr && Dispatches.Num() > 0);
 	TRHICommandList_RecursiveHazardous<FD3D12CommandContext> RHICmdList(this);
 	UE::RHICore::DispatchShaderBundleEmulation(RHICmdList, ShaderBundle, RecordArgBufferSRV->GetBuffer(), Dispatches);
