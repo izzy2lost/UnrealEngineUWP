@@ -64,11 +64,18 @@ private:
 	bool CanAddNewReportResult(const FImageComparisonResult& Comparison);
 
 	/**
-	* Apply the current report filter string to the widgets of comparison view.
-	* 
-	* @return amount of the widgets that have changed visibility property in accordance with the current report filter string.
+	* Checks whether or not the information is valid against the report filtering criteria.
+	*
+	* @param ItemName - The name of the item for the string filtering to be checked against.
+	* @param ComparisonResult - The ImageComparisonResult used to be checked against the display criteria.
+	* @return true if the passed in information matches the current filtering criteria
 	*/
-	uint32 ApplyReportFilterToVWidgets();
+	bool MatchesReportFilterCriteria(const FString& ItemName, const FImageComparisonResult& ComparisonResult) const;
+
+	/**
+	* Apply the current report filter to the widgets of comparison view.
+	*/
+	void ApplyReportFilterToVWidgets();
 
 private:
 
