@@ -172,27 +172,68 @@ Dataflow::FPin FChaosClothAssetTerminalNode::AddPin()
 	return Super::AddPin();
 }
 
-Dataflow::FPin FChaosClothAssetTerminalNode::RemovePin()
+Dataflow::FPin FChaosClothAssetTerminalNode::GetPinToRemove() const
 {
-	auto RemoveInput = [this](const FManagedArrayCollection* Collection) -> Dataflow::FPin
+	auto PinToRemove = [this](const FManagedArrayCollection* Collection) -> Dataflow::FPin
 		{
 			const FDataflowInput* const Input = FindInput(Collection);
 			check(Input);
-			Dataflow::FPin Pin = { Dataflow::FPin::EDirection::INPUT, Input->GetType(), Input->GetName() };
-			UnregisterInputConnection(Collection);  // This will delete the input, so set the pin before that
-			return Pin;
+			return { Dataflow::FPin::EDirection::INPUT, Input->GetType(), Input->GetName() };
 		};
 
 	switch (NumLods - 1)
 	{
-	case 1: --NumLods; return RemoveInput(&CollectionLod1);
-	case 2: --NumLods; return RemoveInput(&CollectionLod2);
-	case 3: --NumLods; return RemoveInput(&CollectionLod3);
-	case 4: --NumLods; return RemoveInput(&CollectionLod4);
-	case 5: --NumLods; return RemoveInput(&CollectionLod5);
+	case 1: return PinToRemove(&CollectionLod1);
+	case 2: return PinToRemove(&CollectionLod2);
+	case 3: return PinToRemove(&CollectionLod3);
+	case 4: return PinToRemove(&CollectionLod4);
+	case 5: return PinToRemove(&CollectionLod5);
 	default: break;
 	}
-	return Super::AddPin();
+	return Super::GetPinToRemove();
+}
+
+void FChaosClothAssetTerminalNode::OnPinRemoved(const Dataflow::FPin& Pin)
+{
+	auto CheckPinRemoved = [this, &Pin](const FManagedArrayCollection* Collection)
+	{
+		check(Pin.Direction == Dataflow::FPin::EDirection::INPUT);
+#if DO_CHECK
+		const FDataflowInput* const Input = FindInput(Collection);
+		check(Input);
+		check(Input->GetName() == Pin.Name);
+		check(Input->GetType() == Pin.Type);
+#endif
+	};
+
+	switch (NumLods - 1)
+	{
+	case 1:
+		CheckPinRemoved(&CollectionLod1);
+		--NumLods; 
+		break;
+	case 2:
+		CheckPinRemoved(&CollectionLod2);
+		--NumLods;
+		break;
+	case 3:
+		CheckPinRemoved(&CollectionLod3);
+		--NumLods;
+		break;
+	case 4:
+		CheckPinRemoved(&CollectionLod4);
+		--NumLods;
+		break;
+	case 5:
+		CheckPinRemoved(&CollectionLod5);
+		--NumLods;
+		break;
+	default: 
+		checkNoEntry();
+		break;
+	}
+
+	return Super::OnPinRemoved(Pin);
 }
 
 TArray<const FManagedArrayCollection*> FChaosClothAssetTerminalNode::GetCollectionLods() const

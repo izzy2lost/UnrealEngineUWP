@@ -48,7 +48,8 @@ private:
 	virtual Dataflow::FPin AddPin() override;
 	virtual bool CanAddPin() const override { return NumLods < MaxLods; }
 	virtual bool CanRemovePin() const override { return NumLods > 1; }
-	virtual Dataflow::FPin RemovePin() override;
+	virtual Dataflow::FPin GetPinToRemove() const override;
+	virtual void OnPinRemoved(const Dataflow::FPin& Pin) override;
 	virtual void Serialize(FArchive& Ar) override;
 	//~ End FDataflowNode interface
 

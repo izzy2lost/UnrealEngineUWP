@@ -93,9 +93,16 @@ struct FDataflowNode
 	virtual Dataflow::FPin AddPin() { return { Dataflow::FPin::EDirection::NONE, NAME_None, NAME_None }; }
 	/** Override this function to add the AddOptionPin functionality to the node's context menu. */
 	virtual bool CanAddPin() const { return false; }
-	/** Override this function to add the RemoveOPtionPin functionality to the node's context menu. */
-	virtual Dataflow::FPin RemovePin() { return { Dataflow::FPin::EDirection::NONE, NAME_None, NAME_None }; }
-	/** Override this function to add the RemoveOPtionPin functionality to the node's context menu. */
+	/** Override this function to add the RemoveOptionPin functionality to the node's context menu. */
+	virtual Dataflow::FPin GetPinToRemove() const { return { Dataflow::FPin::EDirection::NONE, NAME_None, NAME_None }; }
+	UE_DEPRECATED(5.4, "Use GetPinToRemove and OnPinRemoved instead.")
+	virtual Dataflow::FPin RemovePin() { return GetPinToRemove(); }
+	/** 
+	 * Override this to update any bookkeeping when a pin is being removed.
+	 * This will be called before the pin is unregistered as an input.
+	 */
+	virtual void OnPinRemoved(const Dataflow::FPin& Pin) {}
+	/** Override this function to add the RemoveOptionPin functionality to the node's context menu. */
 	virtual bool CanRemovePin() const { return false; }
 
 	DATAFLOWCORE_API virtual void AddInput(FDataflowInput* InPtr);
@@ -148,6 +155,8 @@ struct FDataflowNode
 		const FName& PassthroughName = NAME_None);
 	/** Unregister the input connection if one exists matching this property, and then invalidate the graph. */
 	DATAFLOWCORE_API void UnregisterInputConnection(const void* Property, const FName& PropertyName = NAME_None);
+	/** Unregister the connection if one exists matching this pin, then invalidate the graph. */
+	DATAFLOWCORE_API void UnregisterPinConnection(const Dataflow::FPin& Pin);
 
 	//
 	// Evaluation

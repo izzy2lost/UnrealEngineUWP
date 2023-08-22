@@ -46,6 +46,7 @@ public:
 	DATAFLOWENGINE_API virtual void GetPinHoverText(const UEdGraphPin& Pin, FString& HoverTextOut) const override;
 	DATAFLOWENGINE_API virtual FText GetPinDisplayName(const UEdGraphPin* Pin) const override;
 	DATAFLOWENGINE_API virtual void AutowireNewNode(UEdGraphPin* FromPin) override;
+	DATAFLOWENGINE_API virtual void OnPinRemoved(UEdGraphPin* InRemovedPin) override;
 #endif // WITH_EDITOR
 	// End of UEdGraphNode interface
 

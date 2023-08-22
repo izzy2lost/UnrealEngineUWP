@@ -222,6 +222,42 @@ TArray<Dataflow::FPin> FDataflowNode::GetPins() const
 	return RetVal;
 }
 
+void FDataflowNode::UnregisterPinConnection(const Dataflow::FPin& Pin)
+{
+	if (Pin.Direction == Dataflow::FPin::EDirection::INPUT)
+	{
+		for (TMap< int32, FDataflowInput*>::TIterator Iter = Inputs.CreateIterator(); Iter; ++Iter)
+		{
+			FDataflowInput* Con = Iter.Value();
+			if (Con->GetName().IsEqual(Pin.Name) && Con->GetType().IsEqual(Pin.Type))
+			{
+				Iter.RemoveCurrent();
+				delete Con;
+
+				// Invalidate graph as this input might have had connections
+				Invalidate();
+				break;
+			}
+		}
+	}
+	else if (Pin.Direction == Dataflow::FPin::EDirection::OUTPUT)
+	{
+		for (TMap<int32, FDataflowOutput*>::TIterator Iter = Outputs.CreateIterator(); Iter; ++Iter)
+		{
+			FDataflowOutput* Con = Iter.Value();
+			if (Con->GetName().IsEqual(Pin.Name) && Con->GetType().IsEqual(Pin.Type))
+			{
+				Iter.RemoveCurrent();
+				delete Con;
+
+				// Invalidate graph as this input might have had connections
+				Invalidate();
+				break;
+			}
+		}
+	}
+}
+
 void FDataflowNode::Invalidate(const Dataflow::FTimestamp& InModifiedTimestamp)
 {
 	if (LastModifiedTimestamp < InModifiedTimestamp)
