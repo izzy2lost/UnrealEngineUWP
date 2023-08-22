@@ -6,10 +6,10 @@ using EpicGames.Perforce;
 using EpicGames.Perforce.Managed;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Commands.Workspace
+namespace Horde.Commands.Perforce
 {
-	[Command("workspace", "sync", "Syncs the files for a particular stream and changelist")]
-	class WorkspaceSync : WorkspaceBase
+	[Command("perforce", "sync", "Syncs the files for a particular stream and changelist")]
+	class PerforceSync : PerforceBase
 	{
 		[CommandLine("-Client=", Required = true)]
 		[Description("Name of the client to sync. Will be created if it does not exist.")]

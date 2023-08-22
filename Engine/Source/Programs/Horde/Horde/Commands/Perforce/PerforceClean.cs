@@ -1,17 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.ComponentModel;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Perforce;
 using EpicGames.Perforce.Managed;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Commands.Workspace
+namespace Horde.Commands.Perforce
 {
-	[Command("workspace", "clean", "Cleans all modified files from the workspace.")]
-	class WorkspaceClean : WorkspaceBase
+	[Command("perforce", "clean", "Cleans all modified files from the workspace.")]
+	class PerforceClean : PerforceBase
 	{
 		[CommandLine("-Incremental")]
 		[Description("Performs an incremental sync, without removing intermediates")]

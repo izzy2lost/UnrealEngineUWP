@@ -1,20 +1,18 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Perforce;
 using EpicGames.Perforce.Managed;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Commands.Workspace
+namespace Horde.Commands.Perforce
 {
-	[Command("workspace", "dump", "Dumps the contents of the repository to the log for analysis")]
-	class WorkspaceDump : WorkspaceBase
+	[Command("perforce", "clear", "Empties the staging directory of any files, returning them to the cache")]
+	class PerforceClear : PerforceBase
 	{
 		protected override Task ExecuteAsync(IPerforceConnection perforce, ManagedWorkspace repo, ILogger logger)
 		{
-			repo.Dump();
-			return Task.CompletedTask;
+			return repo.ClearAsync(CancellationToken.None);
 		}
 	}
 }

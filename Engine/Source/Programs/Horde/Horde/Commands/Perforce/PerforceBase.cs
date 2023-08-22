@@ -1,19 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Perforce;
 using EpicGames.Perforce.Managed;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Commands.Workspace
+namespace Horde.Commands.Perforce
 {
-	abstract class WorkspaceBase : Command
+	abstract class PerforceBase : Command
 	{
 		[CommandLine("-ServerAndPort")]
 		[Description("Specifies the Perforce server and port")]

@@ -1,19 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Perforce;
 using EpicGames.Perforce.Managed;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Commands.Workspace
+namespace Horde.Commands.Perforce
 {
-	[Command("workspace", "populatecache", "Populates the cache with the head revision of the given streams")]
-	class WorkspacePopulateCache : WorkspaceBase
+	[Command("perforce", "populatecache", "Populates the cache with the head revision of the given streams")]
+	class PerforcePopulate : PerforceBase
 	{
 		[CommandLine("-ClientAndStream=")]
 		[Description("Specifies client and stream pairs, in the format Client:Stream")]

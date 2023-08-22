@@ -1,16 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Perforce;
 using EpicGames.Perforce.Managed;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Commands.Workspace
+namespace Horde.Commands.Perforce
 {
-	[Command("workspace", "purgecache", "Shrink the size of the cache to the given size")]
-	class WorkspacePurgeCache : WorkspaceBase
+	[Command("perforce", "purgecache", "Shrink the size of the cache to the given size")]
+	class PerforcePurge : PerforceBase
 	{
 		[CommandLine("-Size=")]
 		string? SizeParam { get; set; } = null;
