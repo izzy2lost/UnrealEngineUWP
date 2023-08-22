@@ -56,8 +56,8 @@ class HistoryModalState {
       // subscribe in any observers
       if (this.selectedAgentUpdated) { }
       return this._selectedAgent;
-   } 
-   
+   }
+
    private _selectedAgent: AgentData | undefined = undefined;
    @observable.shallow currentData: any = [];
    @observable.shallow infoItems: InfoPanelItem[] = [];
@@ -294,9 +294,13 @@ export const HistoryModal: React.FC<{ agentId: string | undefined, onDismiss: (.
 
    if (selectedAgent !== agentId) {
 
-      agentStore.update(agentStore.pools?.length ? true : false).then(() => {
-         state.setSelectedAgent(agentStore.agents.find(agent => agent.id === agentId));
-      });
+      agentStore.updateAgent(agentId).then(agent => {
+
+         state.setSelectedAgent(agent);
+
+      }).catch(error => {
+         console.error(`Unable to find agent id: ${agentId} ${error}`);
+      })
 
       setSelectedAgent(agentId);
    }
@@ -334,7 +338,7 @@ export const HistoryModal: React.FC<{ agentId: string | undefined, onDismiss: (.
          name: 'Disable',
          confirmText: "Are you sure you would like to disable this agent?",
          textInput: true,
-         update: (request, comment) => { request.enabled = false;  request.comment = comment }
+         update: (request, comment) => { request.enabled = false; request.comment = comment }
       },
       {
          name: 'Cancel Leases',
@@ -402,11 +406,11 @@ export const HistoryModal: React.FC<{ agentId: string | undefined, onDismiss: (.
       if (currentAction.update) {
          const request: UpdateAgentRequest = {};
          currentAction.update(request, actionState.comment);
-         backend.updateAgent(agentId, request).then(() => {            
+         backend.updateAgent(agentId, request).then(() => {
             agentStore.update(agentStore.pools?.length ? true : false).then(() => {
                state.setSelectedAgent(agentStore.agents.find(agent => agent.id === agentId));
                setActionState({});
-            });                  
+            });
          }).catch((reason) => {
             console.error(reason);
          });
