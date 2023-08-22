@@ -85,6 +85,7 @@ public:
 	ENGINE_API void SetEditorReferences(const TArray<FGuid>& InEditorReferences);
 	ENGINE_API void SetDataLayerInstanceNames(const TArray<FName>& InDataLayerInstanceNames);
 	
+	ENGINE_API void SetForcedNoHLODLayer();
 	ENGINE_API void SetRuntimeHLODLayer(const FSoftObjectPath& InHLODLayer);
 
 	ENGINE_API AActor* GetActor() const;
@@ -114,6 +115,7 @@ protected:
 	bool bIsForcedNonSpatiallyLoaded;
 	bool bIsForcedNoRuntimeGrid;
 	bool bIsForcedNoDataLayers;
+	bool bIsForceNoHLODLayer;
 	TOptional<TArray<FName>> ResolvedDataLayerInstanceNames;
 	TOptional<TArray<FName>> RuntimeDataLayerInstanceNames;
 	TOptional<TArray<FGuid>> RuntimeReferences;

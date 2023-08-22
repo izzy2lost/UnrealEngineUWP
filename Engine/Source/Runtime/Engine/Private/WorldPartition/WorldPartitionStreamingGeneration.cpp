@@ -1001,6 +1001,20 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 						NbErrorsDetected++;
 					}
+					
+					if (ActorDescView.GetHLODLayer().IsValid() && !IsValidHLODLayer(PerInstanceData.RuntimeGrid, ActorDescView.GetHLODLayer()))
+					{
+						if (PassType == EPassType::ErrorReporting)
+						{
+							ErrorHandler->OnInvalidHLODLayer(ActorDescView);
+						}
+						else
+						{
+							ActorDescView.SetForcedNoHLODLayer();
+						}
+
+						NbErrorsDetected++;
+					}
 				}
 
 				if (TSet<FGuid>* FilteredActors = ContainerFilteredActors.Find(ContainerCollectionInstanceDescriptor.ID))
@@ -1057,6 +1071,7 @@ public:
 		TMap<FGuid, const UActorDescContainer*> ActorGuidsToContainerMap;
 		TArray<TSubclassOf<AActor>> FilteredClasses;
 		TFunction<bool(FName)> IsValidGrid;
+		TFunction<bool(FName GridName, const FSoftObjectPath&)> IsValidHLODLayer;
 
 		FWorldPartitionStreamingGeneratorParams& SetWorldPartitionContext(const UWorldPartition* InWorldPartitionContext) { WorldPartitionContext = InWorldPartitionContext; return *this; }
 		FWorldPartitionStreamingGeneratorParams& SetModifiedActorsDescList(FActorDescList* InModifiedActorsDescList) { ModifiedActorsDescList = InModifiedActorsDescList; return *this; }
@@ -1065,6 +1080,7 @@ public:
 		FWorldPartitionStreamingGeneratorParams& SetActorGuidsToContainerMap(const TMap<FGuid, const UActorDescContainer*>& InActorGuidsToContainerMap) { ActorGuidsToContainerMap = InActorGuidsToContainerMap; return *this; }
 		FWorldPartitionStreamingGeneratorParams& SetFilteredClasses(const TArray<TSubclassOf<AActor>>& InFilteredClasses) { FilteredClasses = InFilteredClasses; return *this; }
 		FWorldPartitionStreamingGeneratorParams& SetIsValidGrid(TFunction<bool(FName)> InIsValidGrid) { IsValidGrid = InIsValidGrid; return *this; }
+		FWorldPartitionStreamingGeneratorParams& SetIsValidHLODLayer(TFunction<bool(FName GridName, const FSoftObjectPath&)> InIsValidHLODLayer) { IsValidHLODLayer = InIsValidHLODLayer; return *this; }
 
 		inline static FStreamingGenerationNullErrorHandler NullErrorHandler;
 	};
@@ -1075,6 +1091,7 @@ public:
 		, ModifiedActorsDescList(Params.ModifiedActorsDescList)
 		, FilteredClasses(Params.FilteredClasses)
 		, IsValidGrid(Params.IsValidGrid)
+		, IsValidHLODLayer(Params.IsValidHLODLayer)
 		, ErrorHandler(Params.ErrorHandler)
 		, ActorGuidsToContainerMap(Params.ActorGuidsToContainerMap)
 	{
@@ -1219,6 +1236,7 @@ private:
 	FActorDescList* ModifiedActorsDescList;
 	TArray<TSubclassOf<AActor>> FilteredClasses;
 	TFunction<bool(FName)> IsValidGrid;
+	TFunction<bool(FName, const FSoftObjectPath&)> IsValidHLODLayer;
 	IStreamingGenerationErrorHandler* ErrorHandler;
 
 	// Maps a level to its descriptor
@@ -1296,18 +1314,14 @@ bool UWorldPartition::GenerateContainerStreaming(const FGenerateStreamingParams&
 
 	UE_SCOPED_TIMER(*FString::Printf(TEXT("GenerateStreaming for '%s'"), *ContainerShortName), LogWorldPartition, Display);
 
-	// Dump state log
+	// Dump streaming generation log
 	TUniquePtr<FArchive> LogFileAr;
 	TUniquePtr<FHierarchicalLogArchive> HierarchicalLogAr;
 
-	bool bAllowStreamingGenerationLog = true;
-	IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
-	if (bIsPIE && !WorldPartitionEditorModule.GetEnableStreamingGenerationLogOnPIE())
-	{
-		bAllowStreamingGenerationLog = false;
-	}
+	const bool bIsStreamingGenerationLogAllowed = !bIsPIE || FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor").GetEnableStreamingGenerationLogOnPIE();
+	const bool bIsStreamingGenerationLogRelevant = IsMainWorldPartition() && (!GIsBuildMachine || GIsAutomationTesting || IsRunningCookCommandlet());
 
-	if (bAllowStreamingGenerationLog && IsMainWorldPartition() && (!GIsBuildMachine || GIsAutomationTesting || IsRunningCookCommandlet()))
+	if (bIsStreamingGenerationLogAllowed && bIsStreamingGenerationLogRelevant)
 	{
 		TStringBuilder<256> StateLogSuffix;
 		StateLogSuffix += bIsPIE ? TEXT("PIE") : (IsRunningGame() ? TEXT("Game") : (IsRunningCookCommandlet() ? TEXT("Cook") : (GIsAutomationTesting ? TEXT("UnitTest") : TEXT("Manual"))));
@@ -1323,6 +1337,7 @@ bool UWorldPartition::GenerateContainerStreaming(const FGenerateStreamingParams&
 		.SetWorldPartitionContext(this)
 		.SetModifiedActorsDescList( ModifiedActorsDescList)
 		.SetIsValidGrid([this](FName GridName) { return RuntimeHash->IsValidGrid(GridName); })
+		.SetIsValidHLODLayer([this](FName GridName, const FSoftObjectPath& HLODLayerPath) { return RuntimeHash->IsValidHLODLayer(GridName, HLODLayerPath); })
 		.SetErrorHandler(StreamingGenerationErrorHandlerOverride ? (*StreamingGenerationErrorHandlerOverride)(ErrorHandler) : ErrorHandler)
 		.SetEnableStreaming(IsStreamingEnabled());
 
@@ -1383,7 +1398,8 @@ void UWorldPartition::SetupHLODActors(const FSetupHLODActorsParams& Params)
 			.SetErrorHandler(StreamingGenerationErrorHandlerOverride ? (*StreamingGenerationErrorHandlerOverride)(&LogErrorHandler) : &LogErrorHandler)
 			.SetEnableStreaming(IsStreamingEnabled())
 			.SetFilteredClasses({ AWorldPartitionHLOD::StaticClass() })
-			.SetIsValidGrid([this](FName GridName) { return RuntimeHash->IsValidGrid(GridName); });
+			.SetIsValidGrid([this](FName GridName) { return RuntimeHash->IsValidGrid(GridName); })
+			.SetIsValidHLODLayer([this](FName GridName, const FSoftObjectPath& HLODLayerPath) { return RuntimeHash->IsValidHLODLayer(GridName, HLODLayerPath); });
 
 		FWorldPartitionStreamingGenerator StreamingGenerator(StreamingGeneratorParams);
 		FStreamingGenerationActorDescCollection ActorDescCollection{InActorDescContainer};
@@ -1406,6 +1422,7 @@ void UWorldPartition::CheckForErrors(IStreamingGenerationErrorHandler* ErrorHand
 		.SetModifiedActorsDescList(&ModifiedActorDescList)
 		.SetErrorHandler(StreamingGenerationErrorHandlerOverride ? (*StreamingGenerationErrorHandlerOverride)(ErrorHandler) : ErrorHandler)
 		.SetIsValidGrid([this](FName GridName) { return RuntimeHash->IsValidGrid(GridName); })
+		.SetIsValidHLODLayer([this](FName GridName, const FSoftObjectPath& HLODLayerPath) { return RuntimeHash->IsValidHLODLayer(GridName, HLODLayerPath); })
 		.SetEnableStreaming(IsStreamingEnabled());
 
 	ForEachActorDescContainer([&StreamingGeneratorParams](const UActorDescContainer* InActorDescContainer)
@@ -1546,7 +1563,8 @@ void UWorldPartition::CheckForErrors(const FCheckForErrorsParams& Params)
 		.SetWorldPartitionContext(Params.ActorDescContainer->GetWorldPartition())
 		.SetModifiedActorsDescList(!Params.ActorDescContainer->IsTemplateContainer() ? &ModifiedActorDescList : nullptr)
 		.SetErrorHandler(StreamingGenerationErrorHandlerOverride ? (*StreamingGenerationErrorHandlerOverride)(Params.ErrorHandler) : Params.ErrorHandler)
-		.SetIsValidGrid([](FName GridName) { return true; })
+		.SetIsValidGrid([](FName) { return true; })
+		.SetIsValidHLODLayer([](FName, const FSoftObjectPath&) { return true; })
 		.SetEnableStreaming(Params.bEnableStreaming)
 		.SetActorGuidsToContainerMap(Params.ActorGuidsToContainerMap);
 

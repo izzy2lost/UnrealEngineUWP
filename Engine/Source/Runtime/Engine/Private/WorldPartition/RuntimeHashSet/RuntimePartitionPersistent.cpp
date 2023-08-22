@@ -4,7 +4,7 @@
 #include "WorldPartition/WorldPartitionStreamingGenerationContext.h"
 
 #if WITH_EDITOR
-bool URuntimePartitionPersistent::GenerateStreaming(const TArray<const IStreamingGenerationContext::FActorSetInstance*>& ActorSetInstances, TArray<FCellDesc>& OutRuntimeCellDescs)
+bool URuntimePartitionPersistent::GenerateStreaming(const FGenerateStreamingParams& InParams, FGenerateStreamingResult& OutResult)
 {
 	UWorldPartition* WorldPartition = GetTypedOuter<UWorldPartition>();
 	UWorld* World = WorldPartition->GetWorld();
@@ -12,10 +12,10 @@ bool URuntimePartitionPersistent::GenerateStreaming(const TArray<const IStreamin
 	const bool bIsMainWorldPartition = (World == OuterWorld);
 
 	TArray<IStreamingGenerationContext::FActorInstance> CellActorInstances;
-	if (PopulateCellActorInstances(ActorSetInstances, bIsMainWorldPartition, true, CellActorInstances))
+	if (PopulateCellActorInstances(*InParams.ActorSetInstances, bIsMainWorldPartition, true, CellActorInstances))
 	{
 		const FString CellName(TEXT("Persistent"));
-		OutRuntimeCellDescs.Emplace(CreateCellDesc(CellName, false, CellActorInstances[0].ActorSetInstance->ContentBundleID, 0, CellActorInstances));
+		OutResult.RuntimeCellDescs.Emplace(CreateCellDesc(CellName, false, CellActorInstances[0].ActorSetInstance->ContentBundleID, 0, CellActorInstances));
 	}
 
 	return true;

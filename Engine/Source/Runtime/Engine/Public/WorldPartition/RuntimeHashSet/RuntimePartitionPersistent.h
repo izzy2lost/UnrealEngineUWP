@@ -15,7 +15,7 @@ public:
 	//~ Begin URuntimePartition interface
 	virtual bool SupportsHLODs() const override { return false; }
 	virtual bool IsValidGrid(FName GridName) const override { return true; }
-	virtual bool GenerateStreaming(const TArray<const IStreamingGenerationContext::FActorSetInstance*>& ActorSetInstances, TArray<FCellDesc>& OutRuntimeCellDescs) override;
+	virtual bool GenerateStreaming(const FGenerateStreamingParams& InParams, FGenerateStreamingResult& OutResult) override;
 	//~ End URuntimePartition interface
 #endif
 };

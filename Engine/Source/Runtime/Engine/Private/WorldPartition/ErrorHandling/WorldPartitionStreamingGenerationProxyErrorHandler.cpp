@@ -67,4 +67,9 @@ void FStreamingGenerationProxyErrorHandler::OnInvalidActorFilterReference(const 
 {
 	InnerErrorHandler->OnInvalidActorFilterReference(ActorDescView, ReferenceActorDescView);
 }
+
+void FStreamingGenerationProxyErrorHandler::OnInvalidHLODLayer(const FWorldPartitionActorDescView& ActorDescView)
+{
+	InnerErrorHandler->OnInvalidHLODLayer(ActorDescView);
+}
 #endif

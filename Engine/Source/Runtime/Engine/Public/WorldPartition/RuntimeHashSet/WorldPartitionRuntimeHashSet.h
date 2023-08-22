@@ -15,7 +15,7 @@ using FStaticSpatialIndexType = TStaticSpatialIndexRTree<TObjectPtr<UWorldPartit
 
 /** Holds settings for an HLOD layer for a particular partition class. */
 USTRUCT()
-struct FRuntimePartitionHLODSetup
+struct FRuntimePartitionHLODSetupLayer
 {
 	GENERATED_USTRUCT_BODY()
 
@@ -26,6 +26,21 @@ struct FRuntimePartitionHLODSetup
 
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Instanced)
 	TObjectPtr<URuntimePartition> PartitionLayer;
+};
+
+/** Holds an HLOD setup for a particular partition class. */
+USTRUCT()
+struct FRuntimePartitionHLODSetup
+{
+	GENERATED_USTRUCT_BODY()
+
+	/** Associated HLOD Layer objects */
+	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "Class != nullptr", HideEditConditionToggle, NoResetToDefault, ForceInlineRow))
+	TObjectPtr<const UHLODLayer> HLODLayer;
+
+	/** HLOD setup, one for each layers in the hierarchy */
+	UPROPERTY(VisibleAnywhere, Category = RuntimeSettings, EditFixedSize, Meta = (EditCondition = "HLODLayer != nullptr", HideEditConditionToggle, ForceInlineRow))
+	TArray<FRuntimePartitionHLODSetupLayer> PartitionLayers;
 };
 
 /** Holds settings for a runtime partition instance. */
@@ -47,12 +62,8 @@ struct FRuntimePartitionDesc
 	UPROPERTY(VisibleAnywhere, Category = RuntimeSettings, Instanced, Meta = (EditCondition = "Class != nullptr", HideEditConditionToggle, NoResetToDefault, TitleProperty = "Name"))
 	TObjectPtr<URuntimePartition> MainLayer;
 
-	/** Associated HLOD Layer object */
-	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "Class != nullptr", HideEditConditionToggle, NoResetToDefault, ForceInlineRow))
-	TObjectPtr<const UHLODLayer> HLODLayer;
-
 	/** HLOD setups used by this partition, one for each layers in the hierarchy */
-	UPROPERTY(VisibleAnywhere, Category = RuntimeSettings, EditFixedSize, Meta = (EditCondition = "HLODLayer != nullptr", HideEditConditionToggle, ForceInlineRow))
+	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "Class != nullptr", HideEditConditionToggle, ForceInlineRow))
 	TArray<FRuntimePartitionHLODSetup> HLODSetups;
 #endif
 
@@ -135,15 +146,18 @@ class UWorldPartitionRuntimeHashSet : public UWorldPartitionRuntimeHash
 	//~ End UObject Interface
 
 public:
-#if WITH_EDITOR
 	ENGINE_API virtual bool Draw2D(FWorldPartitionDraw2DContext& DrawContext) const override;
+	ENGINE_API virtual void Draw3D(const TArray<FWorldPartitionStreamingSource>& Sources) const override;
 
+#if WITH_EDITOR
 	// Streaming generation interface
 	ENGINE_API virtual void SetDefaultValues() override;
 	ENGINE_API virtual bool SupportsHLODs() const override;
+	ENGINE_API virtual bool SetupHLODActors(const IStreamingGenerationContext* StreamingGenerationContext, const UWorldPartition::FSetupHLODActorsParams& Params) const override;
 	ENGINE_API virtual bool GenerateStreaming(class UWorldPartitionStreamingPolicy* StreamingPolicy, const IStreamingGenerationContext* StreamingGenerationContext, TArray<FString>* OutPackagesToGenerate) override;
 	ENGINE_API virtual void FlushStreaming() override;
 	ENGINE_API virtual bool IsValidGrid(FName GridName) const;
+	ENGINE_API virtual bool IsValidHLODLayer(FName GridName, const FSoftObjectPath& HLODLayerPath) const;
 	ENGINE_API virtual TArray<UWorldPartitionRuntimeCell*> GetAlwaysLoadedCells() const override;
 	ENGINE_API virtual void DumpStateLog(FHierarchicalLogArchive& Ar) const override;
 

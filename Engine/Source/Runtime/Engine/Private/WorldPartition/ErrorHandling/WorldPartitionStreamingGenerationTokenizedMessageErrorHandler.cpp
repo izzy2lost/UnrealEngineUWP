@@ -210,6 +210,18 @@ void ITokenizedMessageErrorHandler::OnInvalidActorFilterReference(const FWorldPa
 	HandleTokenizedMessage(MoveTemp(Message));
 }
 
+void ITokenizedMessageErrorHandler::OnInvalidHLODLayer(const FWorldPartitionActorDescView& ActorDescView)
+{
+	TSharedRef<FTokenizedMessage> Message = FTokenizedMessage::Create(EMessageSeverity::Error);
+	Message->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_WorldPartition_Actor", "Actor")))
+		->AddToken(FActorToken::Create(ActorDescView.GetActorSoftPath().ToString(), ActorDescView.GetGuid(), FText::FromString(GetActorName(ActorDescView))))
+		->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_WorldPartition_HaveInvalidHLODLayer", "has an invalid HLOD layer")))
+		->AddToken(FAssetNameToken::Create(ActorDescView.GetHLODLayer().ToString()))
+		->AddToken(FMapErrorToken::Create(TEXT("WorldPartition_InvalidActorHLODLayer_CheckForErrors")));
+
+	HandleTokenizedMessage(MoveTemp(Message));
+}
+
 #undef LOCTEXT_NAMESPACE
 
 #endif

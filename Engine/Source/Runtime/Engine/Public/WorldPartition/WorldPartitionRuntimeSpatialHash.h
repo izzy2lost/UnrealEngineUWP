@@ -278,6 +278,7 @@ public:
 	ENGINE_API virtual void FlushStreaming() override;
 	ENGINE_API virtual bool SetupHLODActors(const IStreamingGenerationContext* StreamingGenerationContext, const UWorldPartition::FSetupHLODActorsParams& Params) const override;
 	ENGINE_API virtual bool IsValidGrid(FName GridName) const override;
+	ENGINE_API virtual bool IsValidHLODLayer(FName GridName, const FSoftObjectPath& HLODLayerPath) const override { return true; }
 	ENGINE_API virtual void DrawPreview() const override;
 
 	ENGINE_API virtual URuntimeHashExternalStreamingObjectBase* StoreToExternalStreamingObject(UObject* StreamingObjectOuter, FName StreamingObjectName) override;

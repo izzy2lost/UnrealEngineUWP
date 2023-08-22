@@ -15,7 +15,7 @@ bool URuntimePartitionLevelStreaming::IsValidGrid(FName GridName) const
 	return GridNameList.Num() && (GridNameList.Num() <= 2);
 }
 
-bool URuntimePartitionLevelStreaming::GenerateStreaming(const TArray<const IStreamingGenerationContext::FActorSetInstance*>& ActorSetInstances, TArray<FCellDesc>& OutRuntimeCellDescs)
+bool URuntimePartitionLevelStreaming::GenerateStreaming(const FGenerateStreamingParams& InParams, FGenerateStreamingResult& OutResult)
 {
 	UWorldPartition* WorldPartition = GetTypedOuter<UWorldPartition>();
 	UWorld* World = WorldPartition->GetWorld();
@@ -23,7 +23,7 @@ bool URuntimePartitionLevelStreaming::GenerateStreaming(const TArray<const IStre
 	const bool bIsMainWorldPartition = (World == OuterWorld);
 
 	TArray<IStreamingGenerationContext::FActorInstance> CellActorInstances;
-	if (PopulateCellActorInstances(ActorSetInstances, bIsMainWorldPartition, false, CellActorInstances))
+	if (PopulateCellActorInstances(*InParams.ActorSetInstances, bIsMainWorldPartition, false, CellActorInstances))
 	{
 		TMap<FName, TArray<IStreamingGenerationContext::FActorInstance>> SubLevelsActorInstances;
 		for (const IStreamingGenerationContext::FActorInstance& ActorInstance : CellActorInstances)
@@ -59,7 +59,7 @@ bool URuntimePartitionLevelStreaming::GenerateStreaming(const TArray<const IStre
 
 		for (auto& [SubLevelName, SubLevelActorSetInstances] : SubLevelsActorInstances)
 		{
-			OutRuntimeCellDescs.Emplace(CreateCellDesc(SubLevelName.ToString(), true, SubLevelActorSetInstances[0].ActorSetInstance->ContentBundleID, 0, SubLevelActorSetInstances));
+			OutResult.RuntimeCellDescs.Emplace(CreateCellDesc(SubLevelName.ToString(), true, SubLevelActorSetInstances[0].ActorSetInstance->ContentBundleID, 0, SubLevelActorSetInstances));
 		}
 	}
 

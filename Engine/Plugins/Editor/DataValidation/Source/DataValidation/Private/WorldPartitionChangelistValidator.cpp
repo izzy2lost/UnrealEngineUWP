@@ -446,5 +446,16 @@ void UWorldPartitionChangelistValidator::OnInvalidActorFilterReference(const FWo
 	// Not a validation error
 }
 
-#undef LOCTEXT_NAMESPACE
+void UWorldPartitionChangelistValidator::OnInvalidHLODLayer(const FWorldPartitionActorDescView& ActorDescView)
+{
+	if (Filter(ActorDescView))
+	{
+		FText CurrentError = FText::Format(LOCTEXT("DataValidation.Changelist.WorldPartition.InvalidHLODLayer", "Actor {0} has an invalid HLOD Layer {1}"),
+											FText::FromString(GetFullActorName(ActorDescView)), 
+											FText::FromString(ActorDescView.GetHLODLayer().ToString()));
 
+		Errors->Add(CurrentError);
+	}
+}
+
+#undef LOCTEXT_NAMESPACE

@@ -96,4 +96,8 @@ void FStreamingGenerationLogErrorHandler::OnInvalidActorFilterReference(const FW
 	UE_ASSET_LOG_ACTORDESCVIEW(LogWorldPartition, Log, ReferenceActorDescView, TEXT("Actor %s will not be filtered out because it is referenced by Actor %s not part of the filter"), *GetActorName(ReferenceActorDescView), *GetActorName(ActorDescView));
 }
 
+void FStreamingGenerationLogErrorHandler::OnInvalidHLODLayer(const FWorldPartitionActorDescView& ActorDescView)
+{
+	UE_ASSET_LOG_ACTORDESCVIEW(LogWorldPartition, Log, ActorDescView, TEXT("Actor %s has an invalid HLOD layer %s"), *GetActorName(ActorDescView), *ActorDescView.GetHLODLayer().ToString());
+}
 #endif

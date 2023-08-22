@@ -85,7 +85,15 @@ public:
 
 	virtual void OnLevelInstanceInvalidWorldAsset(const FWorldPartitionActorDescView& ActorDescView, FName WorldAsset, ELevelInstanceInvalidReason Reason) = 0;
 
+	/**
+	 * Called when an actor descriptor references another actor with a different set of actor filter.
+	 */
 	virtual void OnInvalidActorFilterReference(const FWorldPartitionActorDescView& ActorDescView, const FWorldPartitionActorDescView& ReferenceActorDescView) = 0;
+
+	/**
+	 * Called when an actor descriptor has an invalid HLOD layer.
+	 */
+	virtual void OnInvalidHLODLayer(const FWorldPartitionActorDescView& ActorDescView) = 0;
 
 	// Helpers
 	static ENGINE_API FString GetActorName(const FWorldPartitionActorDescView& ActorDescView);

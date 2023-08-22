@@ -91,6 +91,7 @@ class UWorldPartitionRuntimeHash : public UObject
 	ENGINE_API virtual void FlushStreaming();
 	virtual bool SetupHLODActors(const IStreamingGenerationContext* StreamingGenerationContext, const UWorldPartition::FSetupHLODActorsParams& Params) const { return false; }
 	virtual bool IsValidGrid(FName GridName) const { return false; }
+	virtual bool IsValidHLODLayer(FName GridName, const FSoftObjectPath& HLODLayerPath) const { return false; }
 	virtual void DrawPreview() const {}
 
 	virtual URuntimeHashExternalStreamingObjectBase* StoreToExternalStreamingObject(UObject* StreamingObjectOuter, FName StreamingObjectName) { return nullptr; }
