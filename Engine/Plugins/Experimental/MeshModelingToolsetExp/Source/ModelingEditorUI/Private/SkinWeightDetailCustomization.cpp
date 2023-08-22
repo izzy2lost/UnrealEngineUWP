@@ -11,6 +11,8 @@
 #include "UObject/UnrealTypePrivate.h"
 #include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SNumericEntryBox.h"
+#include "Widgets/Input/SSlider.h"
 
 #define LOCTEXT_NAMESPACE "SkinWeightToolSettingsEditor"
 
@@ -621,6 +623,127 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 			]
 		]
 	];
+
+	// VERTEX EDITOR category
+	EditWeightsCategory.AddCustomRow(LOCTEXT("VertexEditorRow", "Vertex Editor"), false)
+	.WholeRowContent()
+	[
+		SNew(SVertexWeightEditor, SkinToolSettings->WeightTool)
+	];
+}
+
+void SVertexWeightItem::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& OwnerTableView)
+{
+	Element = InArgs._Element;
+	ParentTable = InArgs._ParentTable;
+	SMultiColumnTableRow<TSharedPtr<FWeightEditorElement>>::Construct(FSuperRowType::FArguments(), OwnerTableView);
+}
+
+TSharedRef<SWidget> SVertexWeightItem::GenerateWidgetForColumn(const FName& ColumnName)
+{
+	if (ColumnName == "Bone")
+	{
+		const FName BoneName = ParentTable->Tool->GetBoneNameFromIndex(Element->BoneIndex);
+		return SNew(STextBlock).Text(FText::FromName(BoneName));
+	}
+
+	if (ColumnName == "Weight")
+	{
+		// add a buffer to the slider to prevent ever fully getting a value to 1 or 0 using the slider alone
+		// doing so will remove other influences and cause the slider to no longer function as all other influences
+		// will be culled by normalization thus making the slider "stuck" at full value.
+		constexpr float SliderBuffer = 0.001f;
+		
+		return SNew(SNumericEntryBox<float>)
+		.AllowSpin(true)
+		.MinSliderValue(SliderBuffer)
+		.MinValue(0.f)
+		.MaxSliderValue(1.0f-SliderBuffer)
+		.MaxValue(1.f)
+		.Value_Lambda([this]()
+		{
+			return ParentTable->Tool->GetAverageWeightOnBone(Element->BoneIndex, ParentTable->SelectedVertices);
+		})
+		.OnValueChanged_Lambda([this](float NewValue)
+		{
+			TArray<VertexIndex> VerticesToEdit;
+			ParentTable->Tool->GetSelectedVertices(VerticesToEdit);
+			ParentTable->Tool->SetBoneWeightOnVertices(Element->BoneIndex, NewValue, VerticesToEdit, !bInTransaction);
+		})
+		.OnValueCommitted_Lambda([this](float NewValue, ETextCommit::Type CommitType)
+		{
+			bInTransaction = false;
+		})
+		.OnBeginSliderMovement_Lambda([this]()
+		{
+			ParentTable->Tool->BeginChange();
+			bInTransaction = true;
+		})
+		.OnEndSliderMovement_Lambda([this](float)
+		{
+			const FText TransactionLabel = LOCTEXT("DirectWeightChange", "Set weights on vertices.");
+			ParentTable->Tool->EndChange(TransactionLabel);
+			bInTransaction = false;
+		})
+		.ToolTipText(LOCTEXT("WeightSliderToolTip", "Set the weight on this bone for the selected vertices."));
+	}
+
+	checkNoEntry();
+	return SNullWidget::NullWidget;
+}
+
+void SVertexWeightEditor::Construct(const FArguments& InArgs, USkinWeightsPaintTool* InSkinTool)
+{
+	Tool = InSkinTool;
+	Tool->OnSelectionChanged.AddLambda([this](){ RefreshView(); });
+	Tool->OnWeightsChanged.AddLambda([this](){ RefreshView(); });
+	
+	ChildSlot
+	[
+		SNew(SBox)
+		[
+			SAssignNew( ListView, SWeightEditorListViewType )
+			.SelectionMode(ESelectionMode::Single)
+			.ListItemsSource( &ListViewItems )
+			.OnGenerateRow_Lambda([this](TSharedPtr<FWeightEditorElement> Element, const TSharedRef<STableViewBase>& OwnerTableView)
+			{
+				return SNew(SVertexWeightItem, OwnerTableView).Element(Element).ParentTable(SharedThis(this));
+			})
+			.HeaderRow
+			(
+				SNew(SHeaderRow)
+				+ SHeaderRow::Column("Bone").DefaultLabel(NSLOCTEXT("WeightEditorBoneColumn", "Bone", "Bone"))
+				+ SHeaderRow::Column("Weight").DefaultLabel(NSLOCTEXT("WeightEditorWeightColumn", "Weight (Average)", "Weight (Average)"))
+			)
+		]
+	];
+
+	RefreshView();
+}
+
+void SVertexWeightEditor::RefreshView()
+{
+	if (!Tool.IsValid())
+	{
+		return; 
+	}
+
+	// get list of selected vertex indices
+	SelectedVertices.Reset();
+	Tool->GetSelectedVertices(SelectedVertices);
+	
+	// get all bones affecting the selected vertices
+	TArray<int32> Influences;
+	Tool->GetInfluences(SelectedVertices, Influences);
+
+	// generate list view items
+	ListViewItems.Reset();
+	for (const int32 InfluenceIndex : Influences)
+	{
+		ListViewItems.Add(MakeShareable(new FWeightEditorElement(InfluenceIndex)));
+	}
+	
+	ListView->RequestListRefresh();
 }
 
 #undef LOCTEXT_NAMESPACE
