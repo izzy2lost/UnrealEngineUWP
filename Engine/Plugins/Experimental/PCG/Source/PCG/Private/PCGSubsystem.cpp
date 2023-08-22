@@ -7,6 +7,7 @@
 #include "PCGModule.h"
 #include "PCGWorldActor.h"
 #include "Graph/PCGGraphCache.h"
+#include "Graph/PCGGraphCompiler.h"
 #include "Graph/PCGGraphExecutor.h"
 #include "Graph/PCGStackContext.h"
 #include "Grid/PCGLandscapeCache.h"
@@ -35,7 +36,7 @@ namespace PCGSubsystemConsole
 {
 	static FAutoConsoleCommand CommandFlushCache(
 		TEXT("pcg.FlushCache"),
-		TEXT("Clears the PCG results cache."),
+		TEXT("Clears the PCG results cache and compiled graph cache."),
 		FConsoleCommandDelegate::CreateLambda([]()
 			{
 				if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetSubsystemForCurrentWorld())
@@ -1329,6 +1330,11 @@ void UPCGSubsystem::FlushCache()
 	if (GraphExecutor)
 	{
 		GraphExecutor->GetCache().ClearCache();
+
+		if (FPCGGraphCompiler* Compiler = GraphExecutor->GetCompiler())
+		{
+			Compiler->ClearCache();
+		}
 	}
 
 #if WITH_EDITOR

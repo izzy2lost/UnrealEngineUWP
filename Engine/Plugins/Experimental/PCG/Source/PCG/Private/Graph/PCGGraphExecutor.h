@@ -127,6 +127,9 @@ public:
 	/** Gets data in the output results. Returns false if data is not ready. */
 	bool GetOutputData(FPCGTaskId InTaskId, FPCGDataCollection& OutData);
 
+	/** So the profiler can decode graph task ids **/
+	FPCGGraphCompiler* GetCompiler() const { return GraphCompiler.Get(); }
+
 #if WITH_EDITOR
 	FPCGTaskId ScheduleDebugWithTaskCallback(UPCGComponent* InComponent, TFunction<void(FPCGTaskId, const UPCGNode*, const FPCGDataCollection&)> TaskCompleteCallback);
 
@@ -135,9 +138,6 @@ public:
 
 	/** Notify compiler that graph has changed so it'll be removed from the cache */
 	void NotifyGraphChanged(UPCGGraph* InGraph);
-
-	/** So the profiler can decode graph task ids **/
-	FPCGGraphCompiler* GetCompiler() const { return GraphCompiler.Get(); }
 
 	/** Returns the number of entries currently in the cache for InElement. */
 	uint32 GetGraphCacheEntryCount(IPCGElement* InElement) const { return GraphCache.GetGraphCacheEntryCount(InElement); }

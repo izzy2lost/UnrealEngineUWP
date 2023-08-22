@@ -67,7 +67,8 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTa
 			// 1. Compile the subgraph making sure we don't reuse the same ids
 			// Note that we will not consume the pre or post-execute tasks, ergo bIsTopGraph=false
 			FPCGStackContext SubgraphStackContext;
-			TArray<FPCGGraphTask> Subtasks = GetCompiledTasks(Subgraph, SubgraphStackContext, /*bIsTopGraph=*/false);
+			// Passed uninitialized grid size to get all tasks
+			TArray<FPCGGraphTask> Subtasks = GetCompiledTasks(Subgraph, PCGHiGenGrid::UninitializedGridSize(), SubgraphStackContext, /*bIsTopGraph=*/false);
 
 #if WITH_EDITOR
 			GraphDependenciesLock.Lock();
@@ -265,22 +266,31 @@ void FPCGGraphCompiler::Compile(UPCGGraph* InGraph)
 	// Store back the results in the cache if it's valid
 	if (!CompiledTasks.IsEmpty())
 	{
-		GraphToTaskMapLock.WriteLock();
+		FWriteScopeLock Lock(GraphToTaskMapLock);
 		if (!GraphToTaskMap.Contains(InGraph))
 		{
 			GraphToTaskMap.Add(InGraph, MoveTemp(CompiledTasks));
 			GraphToStackContext.Add(InGraph, StackContext);
 		}
-		GraphToTaskMapLock.WriteUnlock();
 	}
 }
 
-TArray<FPCGGraphTask> FPCGGraphCompiler::GetPrecompiledTasks(UPCGGraph* InGraph, FPCGStackContext& OutStackContext, bool bIsTopGraph) const
+TArray<FPCGGraphTask> FPCGGraphCompiler::GetPrecompiledTasks(UPCGGraph* InGraph, uint32 GenerationGridSize, FPCGStackContext& OutStackContext, bool bIsTopGraph) const
 {
 	// Get compiled tasks in a threadsafe way
 	FReadScopeLock ReadLock(GraphToTaskMapLock);
 
-	const TArray<FPCGGraphTask>* ExistingTasks = (bIsTopGraph ? TopGraphToTaskMap : GraphToTaskMap).Find(InGraph);
+	const TArray<FPCGGraphTask>* ExistingTasks = nullptr;
+	if (bIsTopGraph)
+	{
+		// Top graphs are optimized per grid size.
+		const TMap<uint32, TArray<FPCGGraphTask>>* GridSizeToCompiledGraph = TopGraphToTaskMap.Find(InGraph);
+		ExistingTasks = GridSizeToCompiledGraph ? GridSizeToCompiledGraph->Find(GenerationGridSize) : nullptr;
+	}
+	else
+	{
+		ExistingTasks = GraphToTaskMap.Find(InGraph);
+	}
 
 	const FPCGStackContext* StackContext = (bIsTopGraph ? TopGraphToStackContext : GraphToStackContext).Find(InGraph);
 	if (StackContext)
@@ -296,7 +306,7 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::GetPrecompiledTasks(UPCGGraph* InGraph,
 	return ExistingTasks ? *ExistingTasks : TArray<FPCGGraphTask>();
 }
 
-void FPCGGraphCompiler::ResolveGridSizes(TArray<FPCGGraphTask>& InOutCompiledTasks, const FPCGStackContext& InStackContext) const
+void FPCGGraphCompiler::ResolveGridSizes(TArray<FPCGGraphTask>& InOutCompiledTasks, const FPCGStackContext& InStackContext, EPCGHiGenGrid GenerationDefaultGrid) const
 {
 	// The stack is used to form the ResourceKey - a string that provides a path to the data from top graph down to specific pin.
 	// This will be used by link tasks as store/retrieve keys to marshal data for edges that cross grid size boundaries.
@@ -309,7 +319,7 @@ void FPCGGraphCompiler::ResolveGridSizes(TArray<FPCGGraphTask>& InOutCompiledTas
 	// Calculate execution grid values for each task.
 	for (FPCGGraphTask& Task : InOutCompiledTasks)
 	{
-		CalculateGridRecursive(Task.NodeId, InStackContext, InOutCompiledTasks);
+		CalculateGridRecursive(Task.NodeId, GenerationDefaultGrid, InStackContext, InOutCompiledTasks);
 	}
 
 	// Now add link tasks - if a Grid256 task depends on data from a Grid512 task, inject a link
@@ -371,16 +381,19 @@ void FPCGGraphCompiler::ResolveGridSizes(TArray<FPCGGraphTask>& InOutCompiledTas
 	}
 }
 
-EPCGHiGenGrid FPCGGraphCompiler::CalculateGridRecursive(FPCGTaskId InTaskId, const FPCGStackContext& InStackContext, TArray<FPCGGraphTask>& InOutCompiledTasks) const
+EPCGHiGenGrid FPCGGraphCompiler::CalculateGridRecursive(
+	FPCGTaskId InTaskId,
+	EPCGHiGenGrid GenerationDefaultGrid,
+	const FPCGStackContext& InStackContext,
+	TArray<FPCGGraphTask>& InOutCompiledTasks) const
 {
 	if (InOutCompiledTasks[InTaskId].GraphGenerationGrid != EPCGHiGenGrid::Uninitialized)
 	{
 		return InOutCompiledTasks[InTaskId].GraphGenerationGrid;
 	}
 
-	// GenerationDefault as default - means we don't know at compilation-time. Any tasks with this unknown value
-	// will receive the graph default grid size at schedule-time.
-	EPCGHiGenGrid Grid = EPCGHiGenGrid::GenerationDefault;
+	// Default for outside any grid size range.
+	EPCGHiGenGrid Grid = GenerationDefaultGrid;
 
 	const UPCGNode* Node = InOutCompiledTasks[InTaskId].Node;
 	const UPCGSettings* Settings = Node ? Node->GetSettings() : nullptr;
@@ -394,7 +407,7 @@ EPCGHiGenGrid FPCGGraphCompiler::CalculateGridRecursive(FPCGTaskId InTaskId, con
 		// Grid of this task is minimum of all input grids. We can link in data from a larger grid, but not from a finer grid (this goes against hierarchy).
 		for (FPCGGraphTaskInput InputTask : InOutCompiledTasks[InTaskId].Inputs)
 		{
-			const EPCGHiGenGrid InputGrid = CalculateGridRecursive(InputTask.TaskId, InStackContext, InOutCompiledTasks);
+			const EPCGHiGenGrid InputGrid = CalculateGridRecursive(InputTask.TaskId, GenerationDefaultGrid, InStackContext, InOutCompiledTasks);
 			if (PCGHiGenGrid::IsValidGrid(InputGrid))
 			{
 				Grid = FMath::Min(InputGrid, Grid);
@@ -407,23 +420,24 @@ EPCGHiGenGrid FPCGGraphCompiler::CalculateGridRecursive(FPCGTaskId InTaskId, con
 	return Grid;
 }
 
-TArray<FPCGGraphTask> FPCGGraphCompiler::GetCompiledTasks(UPCGGraph* InGraph, FPCGStackContext& OutStackContext, bool bIsTopGraph)
+TArray<FPCGGraphTask> FPCGGraphCompiler::GetCompiledTasks(UPCGGraph* InGraph, uint32 GenerationGridSize, FPCGStackContext& OutStackContext, bool bIsTopGraph)
 {
 	TArray<FPCGGraphTask> CompiledTasks;
 
 	if (bIsTopGraph)
 	{
 		// Always try to compile
-		CompileTopGraph(InGraph);
+		CompileTopGraph(InGraph, GenerationGridSize);
 
 		// Get compiled tasks in a threadsafe way
-		GraphToTaskMapLock.ReadLock();
-		if (TopGraphToTaskMap.Contains(InGraph))
+		FReadScopeLock Lock(GraphToTaskMapLock);
+		const TMap<uint32, TArray<FPCGGraphTask>>* GridSizeToCompiledGraph = TopGraphToTaskMap.Find(InGraph);
+		const TArray<FPCGGraphTask>* Tasks = GridSizeToCompiledGraph ? GridSizeToCompiledGraph->Find(GenerationGridSize) : nullptr;
+		if (Tasks)
 		{
-			CompiledTasks = TopGraphToTaskMap[InGraph];
+			CompiledTasks = *Tasks;
 			OutStackContext = TopGraphToStackContext[InGraph];
 		}
-		GraphToTaskMapLock.ReadUnlock();
 	}
 	else
 	{
@@ -431,13 +445,12 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::GetCompiledTasks(UPCGGraph* InGraph, FP
 		Compile(InGraph);
 
 		// Get compiled tasks in a threadsafe way
-		GraphToTaskMapLock.ReadLock();
-		if (GraphToTaskMap.Contains(InGraph))
+		FReadScopeLock Lock(GraphToTaskMapLock);
+		if (TArray<FPCGGraphTask>* Tasks = GraphToTaskMap.Find(InGraph))
 		{
-			CompiledTasks = GraphToTaskMap[InGraph];
+			CompiledTasks = *Tasks;
 			OutStackContext = GraphToStackContext[InGraph];
 		}
-		GraphToTaskMapLock.ReadUnlock();
 	}
 
 	return CompiledTasks;
@@ -465,10 +478,11 @@ void FPCGGraphCompiler::OffsetNodeIds(TArray<FPCGGraphTask>& Tasks, FPCGTaskId O
 	}
 }
 
-void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph)
+void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGridSize)
 {
 	GraphToTaskMapLock.ReadLock();
-	bool bAlreadyCached = TopGraphToTaskMap.Contains(InGraph);
+	const TMap<uint32, TArray<FPCGGraphTask>>* GridSizeToCompiledGraph = TopGraphToTaskMap.Find(InGraph);
+	const bool bAlreadyCached = GridSizeToCompiledGraph && GridSizeToCompiledGraph->Contains(GenerationGridSize);
 	GraphToTaskMapLock.ReadUnlock();
 
 	if (bAlreadyCached)
@@ -478,7 +492,7 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph)
 
 	// Build from non-top tasks
 	FPCGStackContext StackContext;
-	TArray<FPCGGraphTask> CompiledTasks = GetCompiledTasks(InGraph, StackContext, /*bIsTopGraph=*/false);
+	TArray<FPCGGraphTask> CompiledTasks = GetCompiledTasks(InGraph, GenerationGridSize, StackContext, /*bIsTopGraph=*/false);
 
 	// Check that the compilation was valid
 	if (CompiledTasks.Num() == 0)
@@ -486,11 +500,20 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph)
 		return;
 	}
 
-	if (InGraph->IsHierarchicalGenerationEnabled())
+	if (GenerationGridSize != PCGHiGenGrid::UninitializedGridSize())
 	{
-		// Operates on compiled tasks before pre/post task added, as it may add tasks for linkages
-		// and the pre/post task need to reside at the end of the compiled task array.
-		ResolveGridSizes(CompiledTasks, StackContext);
+		if (InGraph->IsHierarchicalGenerationEnabled())
+		{
+			const EPCGHiGenGrid DefaultGrid = PCGHiGenGrid::GridSizeToGrid(InGraph->GetDefaultGridSize());
+			ResolveGridSizes(CompiledTasks, StackContext, DefaultGrid);
+		}
+
+		const EPCGHiGenGrid GenerationGrid = PCGHiGenGrid::GridSizeToGrid(GenerationGridSize);
+		for (FPCGGraphTask& Task : CompiledTasks)
+		{
+			// Make a copy of this because many things can be scheduled over many frames
+			Task.GenerationGrid = GenerationGrid;
+		}
 	}
 
 	const int TaskNum = CompiledTasks.Num();
@@ -543,12 +566,22 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph)
 
 	// Store back the results in the cache
 	GraphToTaskMapLock.WriteLock();
-	if (!TopGraphToTaskMap.Contains(InGraph))
+	TMap<uint32, TArray<FPCGGraphTask>>& TasksPerGenerationGrid = TopGraphToTaskMap.FindOrAdd(InGraph);
+	if (!TasksPerGenerationGrid.Contains(GenerationGridSize))
 	{
-		TopGraphToTaskMap.Add(InGraph, MoveTemp(CompiledTasks));
+		TasksPerGenerationGrid.Add(GenerationGridSize, MoveTemp(CompiledTasks));
 		TopGraphToStackContext.Add(InGraph, StackContext);
 	}
 	GraphToTaskMapLock.WriteUnlock();
+}
+
+void FPCGGraphCompiler::ClearCache()
+{
+	FWriteScopeLock Lock(GraphToTaskMapLock);
+	GraphToTaskMap.Reset();
+	GraphToStackContext.Reset();
+	TopGraphToTaskMap.Reset();
+	TopGraphToStackContext.Reset();
 }
 
 #if WITH_EDITOR

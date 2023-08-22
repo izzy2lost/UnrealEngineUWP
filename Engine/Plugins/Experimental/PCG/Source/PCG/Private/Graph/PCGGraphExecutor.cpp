@@ -99,14 +99,15 @@ FPCGTaskId FPCGGraphExecutor::Schedule(UPCGComponent* Component, const TArray<FP
 
 FPCGTaskId FPCGGraphExecutor::Schedule(UPCGGraph* Graph, UPCGComponent* SourceComponent, FPCGElementPtr PreGraphElement, FPCGElementPtr InputElement, const TArray<FPCGTaskId>& ExternalDependencies, const FPCGStack* InFromStack)
 {
-	if (SourceComponent && IsGraphCacheDebuggingEnabled())
+	check(SourceComponent);
+
+	if (IsGraphCacheDebuggingEnabled())
 	{
 		UE_LOG(LogPCG, Log, TEXT("[%s] --- SCHEDULE GRAPH ---"), *SourceComponent->GetOwner()->GetName());
 	}
 
-	UPCGSubsystem* Subsystem = SourceComponent ? UPCGSubsystem::GetInstance(SourceComponent->GetWorld()) : nullptr;
 #if WITH_EDITOR
-	if (Subsystem)
+	if (UPCGSubsystem* Subsystem = SourceComponent ? UPCGSubsystem::GetInstance(SourceComponent->GetWorld()) : nullptr)
 	{
 		for (const UPCGNode* Node : Graph->GetNodes())
 		{
@@ -118,9 +119,12 @@ FPCGTaskId FPCGGraphExecutor::Schedule(UPCGGraph* Graph, UPCGComponent* SourceCo
 
 	FPCGTaskId ScheduledId = InvalidPCGTaskId;
 
+	const bool bNonPartitionedComponent = !SourceComponent->IsLocalComponent() && !SourceComponent->IsPartitioned();
+	const uint32 GenerationGridSize = bNonPartitionedComponent ? PCGHiGenGrid::UninitializedGridSize() : SourceComponent->GetGenerationGridSize();
+
 	// Get compiled tasks from compiler
 	TSharedPtr<FPCGStackContext> StackContextPtr = MakeShared<FPCGStackContext>();
-	TArray<FPCGGraphTask> CompiledTasks = GraphCompiler->GetCompiledTasks(Graph, *StackContextPtr);
+	TArray<FPCGGraphTask> CompiledTasks = GraphCompiler->GetCompiledTasks(Graph, GenerationGridSize, *StackContextPtr);
 
 	// Create the final stack context by including the current stack frames
 	if (InFromStack)
@@ -133,38 +137,6 @@ FPCGTaskId FPCGGraphExecutor::Schedule(UPCGGraph* Graph, UPCGComponent* SourceCo
 	{
 		Task.SourceComponent = SourceComponent;
 		Task.StackContext = StackContextPtr;
-	}
-
-	// Finalize grid sizes on tasks if graph has hierarchical generation enabled. Some tasks do not have a concrete grid size
-	// assigned at compile time, such as nodes outside of any authored grid size range. Also if we are generating on a non-partitioned
-	// component, knock out the grid sizes.
-	if (SourceComponent && SourceComponent->GetGraph() && SourceComponent->GetGraph()->IsHierarchicalGenerationEnabled())
-	{
-		const bool bNonPartitionedComponent = !SourceComponent->IsLocalComponent() && !SourceComponent->IsPartitioned();
-		const EPCGHiGenGrid Grid = SourceComponent->GetGenerationGrid();
-		const EPCGHiGenGrid DefaultGrid = PCGHiGenGrid::GridSizeToGrid(SourceComponent->GetGraph()->GetDefaultGridSize());
-
-		for (FPCGGraphTask& Task : CompiledTasks)
-		{
-			// Make a copy of this because many things can be scheduled over many frames
-			Task.GenerationGrid = Grid;
-
-			// Set graph generation grid size for this task
-			if (bNonPartitionedComponent)
-			{
-				// Non-partitioned component - throw away grid from all tasks which will force them all to run
-				Task.GraphGenerationGrid = EPCGHiGenGrid::Uninitialized;
-			}
-			else if (!!(Task.GraphGenerationGrid & EPCGHiGenGrid::GenerationDefault))
-			{
-				// Remove the generation default flag (but leave any other grid sizes that might have been set - linkage tasks
-				// will store the To grid size in the lower bits).
-				Task.GraphGenerationGrid &= ~EPCGHiGenGrid::GenerationDefault;
-
-				// Add default grid size
-				Task.GraphGenerationGrid |= DefaultGrid;
-			}
-		}
 	}
 
 	// Prepare scheduled task that will be promoted in the next Execute call.
@@ -1270,10 +1242,14 @@ FPCGElementPtr FPCGGraphExecutor::GetFetchInputElement()
 
 FPCGTaskId FPCGGraphExecutor::ScheduleDebugWithTaskCallback(UPCGComponent* InComponent, TFunction<void(FPCGTaskId/* TaskId*/, const UPCGNode*/* Node*/, const FPCGDataCollection&/* TaskOutput*/)> TaskCompleteCallback)
 {
+	check(InComponent);
 	FPCGTaskId FinalTaskID = Schedule(InComponent, {});
 
+	const bool bNonPartitionedComponent = !InComponent->IsLocalComponent() && !InComponent->IsPartitioned();
+	const uint32 GenerationGridSize = bNonPartitionedComponent ? PCGHiGenGrid::UninitializedGridSize() : InComponent->GetGenerationGridSize();
+
 	FPCGStackContext DummyStackContext;
-	TArray<FPCGGraphTask> CompiledTasks = GraphCompiler->GetCompiledTasks(InComponent->GetGraph(), DummyStackContext, /*bIsTopGraph=*/true);
+	TArray<FPCGGraphTask> CompiledTasks = GraphCompiler->GetCompiledTasks(InComponent->GetGraph(), GenerationGridSize, DummyStackContext, /*bIsTopGraph=*/true);
 	CompiledTasks.Pop(); // Remove the final task
 
 	// Set up all final dependencies for the entire execution
@@ -1501,20 +1477,14 @@ namespace PCGGraphExecutor
 	bool ExecuteGridLinkage(EPCGHiGenGrid InFromGrid, EPCGHiGenGrid InToGrid, const FString& InResourceKey, const FName& InOutputPinLabel, const UPCGNode* InDownstreamNode, FPCGGridLinkageContext* InContext)
 	{
 		// Non-hierarchical generation - no linkage required - data should just pass through.
-		if (!InContext->SourceComponent->GetGraph()->IsHierarchicalGenerationEnabled())
+		if (!InContext->SourceComponent->GetGraph()->IsHierarchicalGenerationEnabled()
+			|| !ensure(PCGHiGenGrid::IsValidGrid(InFromGrid) || InFromGrid == EPCGHiGenGrid::Unbounded))
 		{
 			InContext->OutputData = InContext->InputData;
 			return true;
 		}
 
-		EPCGHiGenGrid FromGrid = InFromGrid;
-		// If grid was not determined, apply default generation grid size.
-		if (!PCGHiGenGrid::IsValidGrid(FromGrid) && ensure(FromGrid == EPCGHiGenGrid::GenerationDefault))
-		{
-			FromGrid = InContext->SourceComponent->GetGraph()->GetDefaultGrid();
-		}
-
-		const uint32 FromGridSize = PCGHiGenGrid::IsValidGrid(FromGrid) ? PCGHiGenGrid::GridToGridSize(FromGrid) : PCGHiGenGrid::UnboundedGridSize();
+		const uint32 FromGridSize = PCGHiGenGrid::IsValidGrid(InFromGrid) ? PCGHiGenGrid::GridToGridSize(InFromGrid) : PCGHiGenGrid::UnboundedGridSize();
 		const uint32 ToGridSize = PCGHiGenGrid::IsValidGrid(InToGrid) ? PCGHiGenGrid::GridToGridSize(InToGrid) : PCGHiGenGrid::UnboundedGridSize();
 
 		// Never allow a large grid to read data from small grid - this violates hierarchy.
@@ -1553,7 +1523,7 @@ namespace PCGGraphExecutor
 			return true;
 		}
 
-		if (!!(FromGrid & InContext->GenerationGrid) && FromGridSize != ToGridSize)
+		if (!!(InFromGrid & InContext->GenerationGrid) && FromGridSize != ToGridSize)
 		{
 			PCGGraphExecutionLogging::LogGridLinkageTaskExecuteStore(InContext, FromGridSize, ToGridSize, InResourceKey);
 

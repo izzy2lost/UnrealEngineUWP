@@ -153,9 +153,6 @@ enum class EPCGHiGenGrid : uint32
 
 	// Should execute once rather than executing on any grid
 	Unbounded = 2 * GridMax,
-
-	// Flag for grid not known yet. Represents the default grid size (which can be changed at runtime on PCGWorldActor)
-	GenerationDefault = 2 * Unbounded UMETA(Hidden),
 };
 ENUM_CLASS_FLAGS(EPCGHiGenGrid);
 
