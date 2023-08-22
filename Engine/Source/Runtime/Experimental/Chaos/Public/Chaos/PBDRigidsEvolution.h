@@ -21,6 +21,9 @@
 #include "RewindData.h"
 #include "ChaosVisualDebugger/ChaosVDContextProvider.h"
 
+// Enable support for Collision Test Mode (reset particle positions and constraints every tick for debugging)
+#define CHAOS_EVOLUTION_COLLISION_TESTMODE (!UE_BUILD_TEST && !UE_BUILD_SHIPPING)
+
 extern int32 ChaosRigidsEvolutionApplyAllowEarlyOutCVar;
 extern int32 ChaosRigidsEvolutionApplyPushoutAllowEarlyOutCVar;
 extern int32 ChaosNumPushOutIterationsOverride;
@@ -440,6 +443,10 @@ public:
 	*/
 	void DisableParticle(FGeometryParticleHandle* Particle)
 	{
+#if CHAOS_EVOLUTION_COLLISION_TESTMODE
+		TestModeParticleDisabled(Particle);
+#endif
+
 		RemoveParticleFromAccelerationStructure(*Particle);
 		Particles.DisableParticle(Particle);
 		DisableConstraints(Particle);
@@ -543,6 +550,10 @@ public:
 
 	void DestroyParticle(FGeometryParticleHandle* Particle)
 	{
+#if CHAOS_EVOLUTION_COLLISION_TESTMODE
+		TestModeParticleDisabled(Particle);
+#endif
+
 		if (MRewindData)
 		{
 			MRewindData->RemoveObject(Particle);
@@ -1101,6 +1112,22 @@ protected:
 	TArray<FUniqueIdx> PendingReleaseIndices;	//for now just assume a one frame delay, but may need something more general
 	bool bIsResim = false; 
 	bool bIsReset = false;
+
+#if CHAOS_EVOLUTION_COLLISION_TESTMODE
+	// Test Mode for Collision issues (resets particle positions every tick for repeatable testing)
+	CHAOS_API void TestModeParticleDisabled(FGeometryParticleHandle* Particle);
+	CHAOS_API void TestModeSaveParticles();
+	CHAOS_API void TestModeSaveParticle(FGeometryParticleHandle* Particle);
+	CHAOS_API void TestModeRestoreParticles();
+	CHAOS_API void TestModeRestoreParticle(FGeometryParticleHandle* Particle);
+
+	struct FTestModeParticleData
+	{
+		FVec3 X, P, V, W;
+		FRotation3 R, Q;
+	};
+	TMap<FPBDRigidParticleHandle*, FTestModeParticleData> TestModeData;
+#endif
 };
 
 

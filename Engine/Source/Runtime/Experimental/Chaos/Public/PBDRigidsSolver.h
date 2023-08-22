@@ -242,6 +242,7 @@ namespace Chaos
 		CHAOS_API void SyncEvents_GameThread();
 
 		/**/
+		CHAOS_API void PreSolveDebugDraw() const;
 		CHAOS_API void PostTickDebugDraw(FReal Dt) const;
 
 		// Visual debugger (VDB) push methods

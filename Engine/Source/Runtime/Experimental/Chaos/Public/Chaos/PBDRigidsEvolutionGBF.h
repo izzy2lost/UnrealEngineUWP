@@ -412,18 +412,9 @@ namespace Chaos
 
 		bool bIsDeterministic;
 
-		// Test Mode for Collision issues
-		// @todo(chaos): remove this when no longer needed
-		void TestModeResetParticles();
+#if CHAOS_EVOLUTION_COLLISION_TESTMODE
 		void TestModeResetCollisions();
-
-		struct FTestModeParticleData
-		{
-			FVec3 X, P, V, W;
-			FRotation3 R, Q;
-		};
-		TMap<FPBDRigidParticleHandle*, FTestModeParticleData> TestModeData;
-		// End Test Mode
+#endif
 	};
 
 }

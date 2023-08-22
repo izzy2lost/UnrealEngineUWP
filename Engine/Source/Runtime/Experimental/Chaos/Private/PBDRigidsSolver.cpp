@@ -168,6 +168,11 @@ namespace Chaos
 		FAutoConsoleVariableRef CVarChaosSolverDebugDrawShowServer(TEXT("p.Chaos.Solver.DebugDraw.ShowServer"), ChaosSolverDebugDrawShowServer, TEXT("Draw server related debug data"));
 		FAutoConsoleVariableRef CVarChaosSolverDebugDrawShowClient(TEXT("p.Chaos.Solver.DebugDraw.ShowClient"), ChaosSolverDebugDrawShowClient, TEXT("Draw client related debug data"));
 
+		int32 ChaosSolverDebugDrawPostIntegrationShapes = 0;
+		int32 ChaosSolverDebugDrawPostIntegrationCollisions = 0;
+		FAutoConsoleVariableRef CVarChaosSolverDrawPostIntegrationShapes(TEXT("p.Chaos.Solver.DebugDrawPostIntegrationShapes"), ChaosSolverDebugDrawPostIntegrationShapes, TEXT("Draw Shapes prior to constraint solve phase."));
+		FAutoConsoleVariableRef CVarChaosSolverDrawPostIntegrationCollisions(TEXT("p.Chaos.Solver.DebugDrawPostIntegrationCollisions"), ChaosSolverDebugDrawPostIntegrationCollisions, TEXT("Draw Collisions prior to constraint solve phase."));
+
 
 		DebugDraw::FChaosDebugDrawSettings ChaosSolverDebugDebugDrawSettings(
 			/* ArrowSize =					*/ 10.0f,
@@ -300,27 +305,27 @@ namespace Chaos
 		FAutoConsoleVariableRef CVarChaosSolverDeterministic(TEXT("p.Chaos.Solver.Deterministic"), ChaosSolverDeterministic, TEXT("Override determinism. 0: disabled; 1: enabled; -1: use config"));
 
 		// Copied from RBAN
-		Chaos::FRealSingle ChaosSolverJointPositionTolerance = 0.025f;
+		FRealSingle ChaosSolverJointPositionTolerance = 0.025f;
 		FAutoConsoleVariableRef CVarChaosSolverJointPositionTolerance(TEXT("p.Chaos.Solver.Joint.PositionTolerance"), ChaosSolverJointPositionTolerance, TEXT("PositionTolerance."));
-		Chaos::FRealSingle ChaosSolverJointAngleTolerance = 0.001f;
+		FRealSingle ChaosSolverJointAngleTolerance = 0.001f;
 		FAutoConsoleVariableRef CVarChaosSolverJointAngleTolerance(TEXT("p.Chaos.Solver.Joint.AngleTolerance"), ChaosSolverJointAngleTolerance, TEXT("AngleTolerance."));
-		Chaos::FRealSingle ChaosSolverJointMinParentMassRatio = 0.2f;
+		FRealSingle ChaosSolverJointMinParentMassRatio = 0.2f;
 		FAutoConsoleVariableRef CVarChaosSolverJointMinParentMassRatio(TEXT("p.Chaos.Solver.Joint.MinParentMassRatio"), ChaosSolverJointMinParentMassRatio, TEXT("6Dof joint MinParentMassRatio (if > 0)"));
-		Chaos::FRealSingle ChaosSolverJointMaxInertiaRatio = 5.0f;
+		FRealSingle ChaosSolverJointMaxInertiaRatio = 5.0f;
 		FAutoConsoleVariableRef CVarChaosSolverJointMaxInertiaRatio(TEXT("p.Chaos.Solver.Joint.MaxInertiaRatio"), ChaosSolverJointMaxInertiaRatio, TEXT("6Dof joint MaxInertiaRatio (if > 0)"));
 
 		// Collision detection cvars
 		// These override the engine config if >= 0
-		Chaos::FRealSingle ChaosSolverCullDistance = -1.0f;
+		FRealSingle ChaosSolverCullDistance = -1.0f;
 		FAutoConsoleVariableRef CVarChaosSolverCullDistance(TEXT("p.Chaos.Solver.Collision.CullDistance"), ChaosSolverCullDistance, TEXT("Override cull distance (if >= 0)"));
 
 		// @todo(chaos): move to physics project settings and set these to -1 when we are settled on values...
-		Chaos::FRealSingle ChaosSolverVelocityBoundsMultiplier = 1.0f;
-		Chaos::FRealSingle ChaosSolverMaxVelocityBoundsExpansion = 3.0f;	// This should probably be a fraction of object size (see FParticlePairMidPhase::GenerateCollisions)
+		FRealSingle ChaosSolverVelocityBoundsMultiplier = 1.0f;
+		FRealSingle ChaosSolverMaxVelocityBoundsExpansion = 3.0f;	// This should probably be a fraction of object size (see FParticlePairMidPhase::GenerateCollisions)
 		FAutoConsoleVariableRef CVarChaosSolverVelocityBoundsMultiplier(TEXT("p.Chaos.Solver.Collision.VelocityBoundsMultiplier"), ChaosSolverVelocityBoundsMultiplier, TEXT("Override velocity bounds multiplier (if >= 0)"));
 		FAutoConsoleVariableRef CVarChaosSolverMaxVelocityBoundsExpansion(TEXT("p.Chaos.Solver.Collision.MaxVelocityBoundsExpansion"), ChaosSolverMaxVelocityBoundsExpansion, TEXT("Override max velocity bounds expansion (if >= 0)"));
 
-		Chaos::FRealSingle ChaosSolverMaxPushOutVelocity = -1.0f;
+		FRealSingle ChaosSolverMaxPushOutVelocity = -1.0f;
 		FAutoConsoleVariableRef CVarChaosSolverMaxPushOutVelocity(TEXT("p.Chaos.Solver.Collision.MaxPushOutVelocity"), ChaosSolverMaxPushOutVelocity, TEXT("Override max pushout velocity (if >= 0)"));
 
 		int32 ChaosSolverCleanupCommandsOnDestruction = 1;
@@ -404,7 +409,7 @@ namespace Chaos
 			
 			{
 				SCOPE_CYCLE_COUNTER(STAT_UpdateParams);
-				Chaos::FPBDPositionConstraints PositionTarget; // Dummy for now
+				FPBDPositionConstraints PositionTarget; // Dummy for now
 				TMap<int32, int32> TargetedParticles;
 				{
 					MSolver->FieldParameterUpdateCallback(PositionTarget, TargetedParticles);
@@ -577,10 +582,10 @@ namespace Chaos
 		, FloorHeight(0.f)
 		, bIsDeterministic(false)
 		, Particles(UniqueIndices)
-		, MEvolution(new FPBDRigidsEvolution(Particles, SimMaterials, &MidPhaseModifiers, &CCDModifiers, &StrainModifiers, &ContactModifiers, BufferingModeIn == Chaos::EMultiBufferMode::Single))
+		, MEvolution(new FPBDRigidsEvolution(Particles, SimMaterials, &MidPhaseModifiers, &CCDModifiers, &StrainModifiers, &ContactModifiers, BufferingModeIn == EMultiBufferMode::Single))
 		, MEventManager(new FEventManager(BufferingModeIn))
 		, MSolverEventFilters(new FSolverEventFilters())
-		, MDirtyParticlesBuffer(new FDirtyParticlesBuffer(BufferingModeIn, BufferingModeIn == Chaos::EMultiBufferMode::Single))
+		, MDirtyParticlesBuffer(new FDirtyParticlesBuffer(BufferingModeIn, BufferingModeIn == EMultiBufferMode::Single))
 		, MCurrentLock(new FCriticalSection())
 
 		, PerSolverField(nullptr)
@@ -589,14 +594,20 @@ namespace Chaos
 		Reset();
 
 		MEvolution->SetInternalParticleInitilizationFunction(
-			[this](const Chaos::FGeometryParticleHandle* OldParticle, Chaos::FGeometryParticleHandle* NewParticle) 
-				{
+			[this](const FGeometryParticleHandle* OldParticle, FGeometryParticleHandle* NewParticle) 
+			{
 				IPhysicsProxyBase* Proxy = const_cast<IPhysicsProxyBase*>(OldParticle->PhysicsProxy());
-				if (Chaos::FPBDRigidClusteredParticleHandle* NewClusteredParticle = NewParticle->CastToClustered())
-					{
+				if (FPBDRigidClusteredParticleHandle* NewClusteredParticle = NewParticle->CastToClustered())
+				{
 					NewClusteredParticle->AddPhysicsProxy(Proxy);
 				}
 				NewParticle->SetPhysicsProxy(Proxy);
+			});
+
+		MEvolution->SetPreApplyCallback(
+			[this]()
+			{
+				PreSolveDebugDraw();
 			});
 	}
 
@@ -636,8 +647,8 @@ namespace Chaos
 
 		RigidBody_External.SetUniqueIdx(GetEvolution()->GenerateUniqueIdx());
 		TrackGTParticle_External(*Proxy->GetParticle_LowLevel());	//todo: remove this
-		//Chaos::FParticlePropertiesData& RemoteParticleData = *DirtyPropertiesManager->AccessProducerBuffer()->NewRemoteParticleProperties();
-		//Chaos::FShapeRemoteDataContainer& RemoteShapeContainer = *DirtyPropertiesManager->AccessProducerBuffer()->NewRemoteShapeContainer();
+		//FParticlePropertiesData& RemoteParticleData = *DirtyPropertiesManager->AccessProducerBuffer()->NewRemoteParticleProperties();
+		//FShapeRemoteDataContainer& RemoteShapeContainer = *DirtyPropertiesManager->AccessProducerBuffer()->NewRemoteShapeContainer();
 
 		Proxy->SetSolver(this);
 		Proxy->GetParticle_LowLevel()->SetProxy(Proxy);
@@ -684,10 +695,10 @@ namespace Chaos
 		// Remove the proxy from the GT proxy map
 		FUniqueIdx UniqueIdx = Proxy->GetGameThreadAPI().UniqueIdx();
 
-		Chaos::FIgnoreCollisionManager& CollisionManager = GetEvolution()->GetBroadPhase().GetIgnoreCollisionManager();
+		FIgnoreCollisionManager& CollisionManager = GetEvolution()->GetBroadPhase().GetIgnoreCollisionManager();
 		{
 			int32 ExternalTimestamp = GetMarshallingManager().GetExternalTimestamp_External();
-			Chaos::FIgnoreCollisionManager::FDeactivationSet& PendingMap = CollisionManager.GetPendingDeactivationsForGameThread(ExternalTimestamp);
+			FIgnoreCollisionManager::FDeactivationSet& PendingMap = CollisionManager.GetPendingDeactivationsForGameThread(ExternalTimestamp);
 			PendingMap.Add(UniqueIdx);
 		}
 
@@ -700,7 +711,7 @@ namespace Chaos
 				GetEventManager()->template ClearEvents<FCollisionEventData>(EEventType::Collision, [Proxy]
 				(FCollisionEventData& EventDataInOut)
 				{
-					Chaos::FCollisionDataArray const& CollisionData = EventDataInOut.CollisionData.AllCollisionsArray;
+					FCollisionDataArray const& CollisionData = EventDataInOut.CollisionData.AllCollisionsArray;
 					if (CollisionData.Num() > 0)
 					{
 						check(Proxy);
@@ -857,7 +868,7 @@ namespace Chaos
 		);
 	}
 
-	void FPBDRigidsSolver::RegisterObject(Chaos::FJointConstraint* GTConstraint)
+	void FPBDRigidsSolver::RegisterObject(FJointConstraint* GTConstraint)
 	{
 		LLM_SCOPE(ELLMTag::ChaosConstraint);
 		FJointConstraintPhysicsProxy* JointProxy = new FJointConstraintPhysicsProxy(GTConstraint, nullptr);
@@ -866,7 +877,7 @@ namespace Chaos
 		AddDirtyProxy(JointProxy);
 	}
 
-	void FPBDRigidsSolver::UnregisterObject(Chaos::FJointConstraint* GTConstraint)
+	void FPBDRigidsSolver::UnregisterObject(FJointConstraint* GTConstraint)
 	{
 		FJointConstraintPhysicsProxy* JointProxy = GTConstraint->GetProxy<FJointConstraintPhysicsProxy>();
 		check(JointProxy);
@@ -899,7 +910,7 @@ namespace Chaos
 		});
 	}
 
-	void FPBDRigidsSolver::RegisterObject(Chaos::FCharacterGroundConstraint* GTConstraint)
+	void FPBDRigidsSolver::RegisterObject(FCharacterGroundConstraint* GTConstraint)
 	{
 		LLM_SCOPE(ELLMTag::ChaosConstraint);
 		FCharacterGroundConstraintProxy* ConstraintProxy = new FCharacterGroundConstraintProxy(GTConstraint);
@@ -908,7 +919,7 @@ namespace Chaos
 		AddDirtyProxy(ConstraintProxy);
 	}
 
-	void FPBDRigidsSolver::UnregisterObject(Chaos::FCharacterGroundConstraint* GTConstraint)
+	void FPBDRigidsSolver::UnregisterObject(FCharacterGroundConstraint* GTConstraint)
 	{
 		FCharacterGroundConstraintProxy* ConstraintProxy = GTConstraint->GetProxy<FCharacterGroundConstraintProxy>();
 		check(ConstraintProxy);
@@ -936,7 +947,7 @@ namespace Chaos
 			});
 	}
 
-	void FPBDRigidsSolver::RegisterObject(Chaos::FSuspensionConstraint* GTConstraint)
+	void FPBDRigidsSolver::RegisterObject(FSuspensionConstraint* GTConstraint)
 	{
 		LLM_SCOPE(ELLMTag::ChaosConstraint);
 		FSuspensionConstraintPhysicsProxy* SuspensionProxy = new FSuspensionConstraintPhysicsProxy(GTConstraint, nullptr);
@@ -945,7 +956,7 @@ namespace Chaos
 		AddDirtyProxy(SuspensionProxy);
 	}
 
-	void FPBDRigidsSolver::UnregisterObject(Chaos::FSuspensionConstraint* GTConstraint)
+	void FPBDRigidsSolver::UnregisterObject(FSuspensionConstraint* GTConstraint)
 	{
 		FSuspensionConstraintPhysicsProxy* SuspensionProxy = GTConstraint->GetProxy<FSuspensionConstraintPhysicsProxy>();
 		check(SuspensionProxy);
@@ -968,7 +979,7 @@ namespace Chaos
 			});
 	}
 
-	void FPBDRigidsSolver::SetSuspensionTarget(Chaos::FSuspensionConstraint* GTConstraint, const FVector& TargetPos, const FVector& Normal, bool Enabled)
+	void FPBDRigidsSolver::SetSuspensionTarget(FSuspensionConstraint* GTConstraint, const FVector& TargetPos, const FVector& Normal, bool Enabled)
 	{
 		EnsureIsInPhysicsThreadContext();
 		FSuspensionConstraintPhysicsProxy* SuspensionProxy = GTConstraint->GetProxy<FSuspensionConstraintPhysicsProxy>();
@@ -1033,7 +1044,7 @@ namespace Chaos
 		FEventDefaults::RegisterSystemEvents(*GetEventManager());
 	}
 
-	void FPBDRigidsSolver::ChangeBufferMode(Chaos::EMultiBufferMode InBufferMode)
+	void FPBDRigidsSolver::ChangeBufferMode(EMultiBufferMode InBufferMode)
 	{
 		// This seems unused inside the solver? #BH
 		BufferMode = InBufferMode;
@@ -1915,31 +1926,31 @@ namespace Chaos
 			ensure(PullData->DirtyRigids.Num() == 0);	//we only fill this once per frame
 			int32 BufferIdx = 0;
 
-			for (Chaos::TPBDRigidParticleHandleImp<FReal, 3, false>& DirtyParticle : DirtyParticles)
+			for (TPBDRigidParticleHandleImp<FReal, 3, false>& DirtyParticle : DirtyParticles)
 			{
 				if(IPhysicsProxyBase* Proxy = DirtyParticle.Handle()->PhysicsProxy())
 				{
 					switch(DirtyParticle.GetParticleType())
 					{
-						case Chaos::EParticleType::Rigid:
+						case EParticleType::Rigid:
 						{
 							if(!bIsResim || DirtyParticle.SyncState() == ESyncState::HardDesync)
 							{
-								if (!(Chaos::SyncKinematicOnGameThread == 0 && DirtyParticle.ObjectState() == EObjectStateType::Kinematic))
+								if (!(SyncKinematicOnGameThread == 0 && DirtyParticle.ObjectState() == EObjectStateType::Kinematic))
 								{
 									ActiveRigid.AddUnique((FSingleParticlePhysicsProxy*)Proxy);
 								}
 							}
 							break;
 						}
-						case Chaos::EParticleType::Kinematic:
-						case Chaos::EParticleType::Static:
+						case EParticleType::Kinematic:
+						case EParticleType::Static:
 							ensure(false);
 							break;
-						case Chaos::EParticleType::GeometryCollection:
+						case EParticleType::GeometryCollection:
 							ActiveGC.AddUnique((FGeometryCollectionPhysicsProxy*)(Proxy));
 							break;
-						case Chaos::EParticleType::Clustered:
+						case EParticleType::Clustered:
 							if (auto ClusterParticle = DirtyParticle.CastToClustered())
 							{
 								if (ClusterParticle->InternalCluster())
@@ -2236,6 +2247,63 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 		CHAOS_COUNTER_STAT(NumDynamicShapes, NumDynamicShapes);
 	}
 
+	void FPBDRigidsSolver::PreSolveDebugDraw() const
+	{
+#if CHAOS_DEBUG_DRAW
+		QUICK_SCOPE_CYCLE_COUNTER(SolverDebugDraw);
+
+#if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
+		const bool bIsServer = DebugName.ToString().StartsWith(TEXT("Server"));
+		if (bIsServer && !ChaosSolverDebugDrawShowServer)
+		{
+			return;
+		}
+		if (!bIsServer && !ChaosSolverDebugDrawShowClient)
+		{
+			return;
+		}
+
+		if (ChaosSolverDebugDrawColorShapeByClientServer)
+		{
+			if (bIsServer)
+			{
+				ChaosSolverDebugDebugDrawSettings.ShapesColorsPerState = GetSolverShapesColorsByState_Server();
+			}
+			else
+			{
+				ChaosSolverDebugDebugDrawSettings.ShapesColorsPerState = GetSolverShapesColorsByState_Client();
+			}
+		}
+		else
+		{
+			ChaosSolverDebugDebugDrawSettings.ShapesColorsPerState = DebugDraw::GetDefaultShapesColorsByState();
+		}
+#endif
+
+		if (ChaosSolverDebugDrawPostIntegrationShapes == 1)
+		{
+			if (ChaosSolverDrawShapesShowStatic)
+			{
+				DebugDraw::DrawParticleShapes(FRigidTransform3(), Particles.GetActiveStaticParticlesView(), 1.0f, &ChaosSolverDebugDebugDrawSettings);
+			}
+			if (ChaosSolverDrawShapesShowKinematic)
+			{
+				DebugDraw::DrawParticleShapes(FRigidTransform3(), Particles.GetActiveKinematicParticlesView(), 1.0f, &ChaosSolverDebugDebugDrawSettings);
+			}
+			if (ChaosSolverDrawShapesShowDynamic)
+			{
+				DebugDraw::DrawParticleShapes(FRigidTransform3(), Particles.GetNonDisabledDynamicView(), 1.0f, &ChaosSolverDebugDebugDrawSettings);
+			}
+		}
+
+		if (ChaosSolverDebugDrawPostIntegrationCollisions == 1)
+		{
+			DebugDraw::DrawCollisions(FRigidTransform3(), GetEvolution()->GetCollisionConstraints().GetConstraintAllocator(), 1.f, &ChaosSolverDebugDebugDrawSettings);
+		}
+
+#endif
+	}
+
 	void FPBDRigidsSolver::PostTickDebugDraw(FReal Dt) const
 	{
 #if CHAOS_DEBUG_DRAW
@@ -2364,37 +2432,37 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 		return GetParticleProxy_PT(Handle.UniqueIdx());
 	}
 
-	void FPBDRigidsSolver::UpdateMaterial(Chaos::FMaterialHandle InHandle, const Chaos::FChaosPhysicsMaterial& InNewData)
+	void FPBDRigidsSolver::UpdateMaterial(FMaterialHandle InHandle, const FChaosPhysicsMaterial& InNewData)
 	{
 		TSolverSimMaterialScope<ELockType::Write> Scope(this);
 		*SimMaterials.Get(InHandle.InnerHandle) = InNewData;
 	}
 
-	void FPBDRigidsSolver::CreateMaterial(Chaos::FMaterialHandle InHandle, const Chaos::FChaosPhysicsMaterial& InNewData)
+	void FPBDRigidsSolver::CreateMaterial(FMaterialHandle InHandle, const FChaosPhysicsMaterial& InNewData)
 	{
 		TSolverSimMaterialScope<ELockType::Write> Scope(this);
 		ensure(SimMaterials.Create(InNewData) == InHandle.InnerHandle);
 	}
 
-	void FPBDRigidsSolver::DestroyMaterial(Chaos::FMaterialHandle InHandle)
+	void FPBDRigidsSolver::DestroyMaterial(FMaterialHandle InHandle)
 	{
 		TSolverSimMaterialScope<ELockType::Write> Scope(this);
 		SimMaterials.Destroy(InHandle.InnerHandle);
 	}
 
-	void FPBDRigidsSolver::UpdateMaterialMask(Chaos::FMaterialMaskHandle InHandle, const Chaos::FChaosPhysicsMaterialMask& InNewData)
+	void FPBDRigidsSolver::UpdateMaterialMask(FMaterialMaskHandle InHandle, const FChaosPhysicsMaterialMask& InNewData)
 	{
 		TSolverSimMaterialScope<ELockType::Write> Scope(this);
 		*SimMaterialMasks.Get(InHandle.InnerHandle) = InNewData;
 	}
 
-	void FPBDRigidsSolver::CreateMaterialMask(Chaos::FMaterialMaskHandle InHandle, const Chaos::FChaosPhysicsMaterialMask& InNewData)
+	void FPBDRigidsSolver::CreateMaterialMask(FMaterialMaskHandle InHandle, const FChaosPhysicsMaterialMask& InNewData)
 	{
 		TSolverSimMaterialScope<ELockType::Write> Scope(this);
 		ensure(SimMaterialMasks.Create(InNewData) == InHandle.InnerHandle);
 	}
 
-	void FPBDRigidsSolver::DestroyMaterialMask(Chaos::FMaterialMaskHandle InHandle)
+	void FPBDRigidsSolver::DestroyMaterialMask(FMaterialMaskHandle InHandle)
 	{
 		TSolverSimMaterialScope<ELockType::Write> Scope(this);
 		SimMaterialMasks.Destroy(InHandle.InnerHandle);
@@ -2495,9 +2563,9 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 	}
 
 
-	Chaos::FClusterCreationParameters::EConnectionMethod ToInternalConnectionMethod(EClusterUnionMethod InMethod)
+	FClusterCreationParameters::EConnectionMethod ToInternalConnectionMethod(EClusterUnionMethod InMethod)
 	{
-		using ETargetEnum = Chaos::FClusterCreationParameters::EConnectionMethod;
+		using ETargetEnum = FClusterCreationParameters::EConnectionMethod;
 		switch(InMethod)
 		{
 		case EClusterUnionMethod::PointImplicit:
@@ -2515,7 +2583,7 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 		return ETargetEnum::None;
 	}
 
-	void Chaos::FPBDRigidsSolver::ApplyConfig(const FChaosSolverConfiguration& InConfig)
+	void FPBDRigidsSolver::ApplyConfig(const FChaosSolverConfiguration& InConfig)
 	{
 		GetEvolution()->GetRigidClustering().SetClusterConnectionFactor(InConfig.ClusterConnectionFactor);
 		GetEvolution()->GetRigidClustering().SetClusterUnionConnectionType(ToInternalConnectionMethod(InConfig.ClusterUnionConnectionType));
@@ -2537,14 +2605,14 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 		EventTeardown.Broadcast();
 	}
 
-	void Chaos::FPBDRigidsSolver::FieldParameterUpdateCallback(
-		Chaos::FPBDPositionConstraints& PositionTarget,
+	void FPBDRigidsSolver::FieldParameterUpdateCallback(
+		FPBDPositionConstraints& PositionTarget,
 		TMap<int32, int32>& TargetedParticles)
 	{
 		GetPerSolverField().FieldParameterUpdateCallback(this, PositionTarget, TargetedParticles);
 	}
 
-	void Chaos::FPBDRigidsSolver::FieldForcesUpdateCallback()
+	void FPBDRigidsSolver::FieldForcesUpdateCallback()
 	{
 		GetPerSolverField().FieldForcesUpdateCallback(this);
 	}

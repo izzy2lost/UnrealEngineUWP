@@ -159,7 +159,8 @@ namespace Chaos
 
 		// Put the solver into a mode where it reset particles to their initial positions each frame.
 		// This is used to test collision detection and - it will be removed
-		// @chaos(todo): remove this when no longer needed
+		// NOTE: You should also set the following for dragging in PIE to work while test mode is active:
+		// 		p.DisableEditorPhysicsHandle 1
 		bool bChaos_Solver_TestMode  = false;
 		FAutoConsoleVariableRef CVarChaosSolverTestMode(TEXT("p.Chaos.Solver.TestMode"), bChaos_Solver_TestMode, TEXT(""));
 
@@ -400,6 +401,12 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 	// Update the collision solver type (used to support runtime comparisons of solver types for debugging/testing)
 	UpdateCollisionSolverType();
 
+#if CHAOS_EVOLUTION_COLLISION_TESTMODE
+	{
+		TestModeSaveParticles();
+	}
+#endif
+
 	{
 		CVD_SCOPE_TRACE_SOLVER_STEP(TEXT("Integrate"))
 		SCOPE_CYCLE_COUNTER(STAT_Evolution_Integrate);
@@ -407,11 +414,12 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 		Integrate(Particles.GetActiveParticlesView(), Dt);
 	}
 
-	if (bChaos_Solver_TestMode)
+#if CHAOS_EVOLUTION_COLLISION_TESTMODE
 	{
-		TestModeResetParticles();
+		TestModeRestoreParticles();
 		TestModeResetCollisions();
 	}
+#endif
 
 	{
 		CVD_SCOPE_TRACE_SOLVER_STEP(TEXT("ApplyKinematicTargets"))
@@ -621,10 +629,11 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 		GetIslandManager().EndTick();
 	}
 
-	if (bChaos_Solver_TestMode)
+#if CHAOS_EVOLUTION_COLLISION_TESTMODE
 	{
-		TestModeResetParticles();
+		TestModeRestoreParticles();
 	}
+#endif
 
 	if (CVars::DoFinalProbeNarrowPhase)
 	{
@@ -677,45 +686,6 @@ void FPBDRigidsEvolutionGBF::SetShockPropagationIterations(const int32 InPositio
 	IslandManager.SetAssignLevels(CollisionConstraints.IsShockPropagationEnabled());
 }
 
-void FPBDRigidsEvolutionGBF::TestModeResetParticles()
-{
-	for (auto& Rigid : Particles.GetNonDisabledDynamicView())
-	{
-		FTestModeParticleData* Data = TestModeData.Find(Rigid.Handle());
-		if (Data != nullptr)
-		{
-			Rigid.X() = Data->X;
-			Rigid.P() = Data->P;
-			Rigid.R() = Data->R;
-			Rigid.Q() = Data->Q;
-			Rigid.V() = Data->V;
-			Rigid.W() = Data->W;
-		}
-		if (Data == nullptr)
-		{
-			Data = &TestModeData.Add(Rigid.Handle());
-			Data->X = Rigid.X();
-			Data->P = Rigid.P();
-			Data->R = Rigid.R();
-			Data->Q = Rigid.Q();
-			Data->V = Rigid.V();
-			Data->W = Rigid.W();
-		}
-	}
-}
-
-void FPBDRigidsEvolutionGBF::TestModeResetCollisions()
-{
-	for (FPBDCollisionConstraintHandle* Collision : CollisionConstraints.GetConstraintHandles())
-	{
-		if (Collision != nullptr)
-		{
-			Collision->GetContact().ResetManifold();
-			Collision->GetContact().ResetModifications();
-			Collision->GetContact().GetGJKWarmStartData().Reset();
-		}
-	}
-}
 
 void FPBDRigidsEvolutionGBF::ResetCollisions()
 {
@@ -1019,6 +989,13 @@ CHAOS_API void FPBDRigidsEvolutionGBF::SetParticleTransform(FGeometryParticleHan
 	FGenericParticleHandle(InParticle)->SetTransform(InPos, InRot);
 
 	OnParticleMoved(InParticle, PrevX, PrevR, bIsTeleport);
+
+#if CHAOS_EVOLUTION_COLLISION_TESTMODE
+	{
+		// Update the test mode cache so we can move particles in PIE to test collisions
+		TestModeSaveParticle(InParticle);
+	}
+#endif
 }
 
 
@@ -1192,5 +1169,19 @@ void FPBDRigidsEvolutionGBF::UpdateInertiaConditioning()
 	}
 }
 
+#if CHAOS_EVOLUTION_COLLISION_TESTMODE
+void FPBDRigidsEvolutionGBF::TestModeResetCollisions()
+{
+	for (FPBDCollisionConstraintHandle* Collision : CollisionConstraints.GetConstraintHandles())
+	{
+		if (Collision != nullptr)
+		{
+			Collision->GetContact().ResetManifold();
+			Collision->GetContact().ResetModifications();
+			Collision->GetContact().GetGJKWarmStartData().Reset();
+		}
+	}
+}
+#endif
 }
 

@@ -24,6 +24,11 @@ FAutoConsoleVariableRef CVarChaosNumContactIterationsOverride(TEXT("p.ChaosNumCo
 
 namespace Chaos
 {
+	namespace CVars
+	{
+		extern bool bChaos_Solver_TestMode;
+	}
+
 	CHAOS_API int32 FixBadAccelerationStructureRemoval = 1;
 	FAutoConsoleVariableRef CVarFixBadAccelerationStructureRemoval(TEXT("p.FixBadAccelerationStructureRemoval"), FixBadAccelerationStructureRemoval, TEXT(""));
 
@@ -1146,4 +1151,95 @@ namespace Chaos
 	{
 		return Private::GetFirstPhysicsMaterial(Particle, &PhysicsMaterials, &PerParticlePhysicsMaterials, &SolverPhysicsMaterials);
 	}
+
+#if CHAOS_EVOLUTION_COLLISION_TESTMODE
+	void FPBDRigidsEvolutionBase::TestModeParticleDisabled(FGeometryParticleHandle* Particle)
+	{
+		if (FPBDRigidParticleHandle* Rigid = Particle->CastToRigidParticle())
+		{
+			TestModeData.Remove(Rigid);
+		}
+	}
+
+	void FPBDRigidsEvolutionBase::TestModeSaveParticles()
+	{
+		if (!CVars::bChaos_Solver_TestMode)
+		{
+			return;
+		}
+
+		for (auto& Rigid : Particles.GetNonDisabledDynamicView())
+		{
+			TestModeSaveParticle(Rigid.Handle());
+		}
+	}
+
+	void FPBDRigidsEvolutionBase::TestModeSaveParticle(FGeometryParticleHandle* Particle)
+	{
+		if (!CVars::bChaos_Solver_TestMode)
+		{
+			return;
+		}
+
+		if (FPBDRigidParticleHandle* Rigid = Particle->CastToRigidParticle())
+		{
+			FTestModeParticleData* Data = TestModeData.Find(Rigid);
+			if (Data == nullptr)
+			{
+				Data = &TestModeData.Add(Rigid);
+			}
+			Data->X = Rigid->X();
+			Data->P = Rigid->P();
+			Data->R = Rigid->R();
+			Data->Q = Rigid->Q();
+			Data->V = Rigid->V();
+			Data->W = Rigid->W();
+		}
+	}
+
+	void FPBDRigidsEvolutionBase::TestModeRestoreParticles()
+	{
+		if (!CVars::bChaos_Solver_TestMode)
+		{
+			return;
+		}
+
+		for (auto& Rigid : Particles.GetNonDisabledDynamicView())
+		{
+			// If this is the first time we have seen this particle, save its data, otherwise restore it from the cache
+			FTestModeParticleData* Data = TestModeData.Find(Rigid.Handle());
+			if (Data == nullptr)
+			{
+				TestModeSaveParticle(Rigid.Handle());
+			}
+			else
+			{
+				TestModeRestoreParticle(Rigid.Handle());
+			}
+		}
+	}
+
+	void FPBDRigidsEvolutionBase::TestModeRestoreParticle(FGeometryParticleHandle* Particle)
+	{
+		if (!CVars::bChaos_Solver_TestMode)
+		{
+			return;
+		}
+
+		if (FPBDRigidParticleHandle* Rigid = Particle->CastToRigidParticle())
+		{
+			FTestModeParticleData* Data = TestModeData.Find(Rigid);
+			if (Data != nullptr)
+			{
+				Rigid->X() = Data->X;
+				Rigid->P() = Data->P;
+				Rigid->R() = Data->R;
+				Rigid->Q() = Data->Q;
+				Rigid->V() = Data->V;
+				Rigid->W() = Data->W;
+			}
+		}
+	}
+#endif
+
 }
