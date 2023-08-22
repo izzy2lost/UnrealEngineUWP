@@ -272,15 +272,8 @@ void SBindingsPanel::AddDefaultBinding()
 
 bool SBindingsPanel::CanAddBinding() const
 {
-	if (UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get())
-	{
-		if (UMVVMBlueprintView* BlueprintView = MVVMExtensionPtr->GetBlueprintView())
-		{
-			return BlueprintView->GetViewModels().Num() > 0;
-		}
-	}
-
-	return false;
+	UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get();
+	return MVVMExtensionPtr && MVVMExtensionPtr->GetBlueprintView() != nullptr;
 }
 
 FText SBindingsPanel::GetAddBindingText() const
@@ -341,11 +334,12 @@ TSharedRef<SWidget> SBindingsPanel::HandleAddDefaultBindingContextMenu()
 	FMenuBuilder MenuBuilder(bShouldCloseWindowAfterMenuSelection, nullptr);
 
 	MenuBuilder.AddMenuEntry(
-		LOCTEXT("AddSelectedWidget", "Add Selected Widget(s)"),
+		LOCTEXT("AddSelectedWidget", "Add Selected Widget(s) binding"),
 		FText::GetEmpty(),
 		FSlateIcon(),
 		FUIAction(
-			FExecuteAction::CreateSP(this, &SBindingsPanel::HandleAddDefaultBindingButtonClick, EAddBindingMode::Selected)
+			FExecuteAction::CreateSP(this, &SBindingsPanel::HandleAddDefaultBindingButtonClick, EAddBindingMode::Selected),
+			FCanExecuteAction::CreateSP(this, &SBindingsPanel::CanAddBinding)
 		));
 
 	MenuBuilder.AddMenuEntry(
@@ -353,7 +347,26 @@ TSharedRef<SWidget> SBindingsPanel::HandleAddDefaultBindingContextMenu()
 		FText::GetEmpty(),
 		FSlateIcon(),
 		FUIAction(
-			FExecuteAction::CreateSP(this, &SBindingsPanel::HandleAddDefaultBindingButtonClick, EAddBindingMode::Empty)
+			FExecuteAction::CreateSP(this, &SBindingsPanel::HandleAddDefaultBindingButtonClick, EAddBindingMode::Empty),
+			FCanExecuteAction::CreateSP(this, &SBindingsPanel::CanAddBinding)
+		));
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("AddSelectedWidgetEvent", "Add Selected Widget(s) event"),
+		FText::GetEmpty(),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateSP(this, &SBindingsPanel::HandleAddDefaultEventButtonClick, EAddBindingMode::Selected),
+			FCanExecuteAction::CreateSP(this, &SBindingsPanel::CanAddBinding)
+		));
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("AddEmptyWidgetEvent", "Add Empty event"),
+		FText::GetEmpty(),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateSP(this, &SBindingsPanel::HandleAddDefaultEventButtonClick, EAddBindingMode::Empty),
+			FCanExecuteAction::CreateSP(this, &SBindingsPanel::CanAddBinding)
 		));
 
 	return MenuBuilder.MakeWidget();
@@ -367,6 +380,41 @@ void SBindingsPanel::HandleAddDefaultBindingButtonClick(EAddBindingMode NewMode)
 		SaveSettings();
 	}
 	AddDefaultBinding();
+}
+
+void SBindingsPanel::HandleAddDefaultEventButtonClick(EAddBindingMode NewMode)
+{
+	if (UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get())
+	{
+		UMVVMEditorSubsystem* EditorSubsystem = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>();
+		if (TSharedPtr<FWidgetBlueprintEditor> BlueprintEditor = WeakBlueprintEditor.Pin())
+		{
+			UMVVMBlueprintViewEvent* NewEvent = nullptr;
+			if (AddBindingMode == EAddBindingMode::Selected)
+			{
+				for (const FWidgetReference& WidgetReference : BlueprintEditor->GetSelectedWidgets())
+				{
+					if (WidgetReference.IsValid() && WidgetReference.GetTemplate())
+					{
+						NewEvent = EditorSubsystem->AddEvent(MVVMExtensionPtr->GetWidgetBlueprint());
+						FMVVMBlueprintPropertyPath Path;
+						Path.SetWidgetName(WidgetReference.GetTemplate()->GetFName());
+						EditorSubsystem->SetEventPath(NewEvent, Path);
+					}
+				}
+			}
+
+			if (!NewEvent)
+			{
+				NewEvent = EditorSubsystem->AddEvent(MVVMExtensionPtr->GetWidgetBlueprint());
+			}
+
+			if (NewEvent && BindingsList)
+			{
+				BindingsList->RequestNavigateToEvent(NewEvent);
+			}
+		}
+	}
 }
 
 TSharedRef<SWidget> SBindingsPanel::CreateDrawerDockButton()
@@ -734,7 +782,7 @@ EVisibility SBindingsPanel::GetVisibility(bool bVisibleWithBindings) const
 	if (UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get())
 	{
 		if (MVVMExtensionPtr->GetBlueprintView() != nullptr &&
-			MVVMExtensionPtr->GetBlueprintView()->GetNumBindings() > 0)
+			(MVVMExtensionPtr->GetBlueprintView()->GetNumBindings() > 0 || MVVMExtensionPtr->GetBlueprintView()->GetEvents().Num() > 0))
 		{
 			return bVisibleWithBindings ? EVisibility::Visible : EVisibility::Collapsed;
 		}

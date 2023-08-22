@@ -20,6 +20,7 @@ template <typename T> class TSubclassOf;
 
 class UEdGraph;
 class UK2Node_CallFunction;
+class UMVVMBlueprintViewEvent;
 class UWidgetBlueprint;
 
 /** */
@@ -54,6 +55,12 @@ public:
 	void RemoveBinding(UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintViewBinding& Binding);
 
 	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
+	UMVVMBlueprintViewEvent* AddEvent(UWidgetBlueprint* WidgetBlueprint);
+
+	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
+	void RemoveEvent(UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewEvent* Event);
+
+	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
 	TArray<FMVVMAvailableBinding> GetChildViewModels(TSubclassOf<UObject> Class, TSubclassOf<UObject> Accessor);
 
 	void SetSourceToDestinationConversionFunction(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, const UFunction* ConversionFunction);
@@ -65,6 +72,12 @@ public:
 	void SetBindingTypeForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, EMVVMBindingMode Type);
 	void SetEnabledForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, bool bEnabled);
 	void SetCompileForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, bool bCompile);
+
+	void SetEventPath(UMVVMBlueprintViewEvent* Event, FMVVMBlueprintPropertyPath PropertyPath);
+	void SetEventDestinationPath(UMVVMBlueprintViewEvent* Event, FMVVMBlueprintPropertyPath PropertyPath);
+	void SetEventArgumentPath(UMVVMBlueprintViewEvent* Event, FName ArgumentName, const FMVVMBlueprintPropertyPath& PropertyPath) const;
+	void SetEnabledForEvent(UMVVMBlueprintViewEvent* Event, bool bEnabled);
+	void SetCompileForEvent(UMVVMBlueprintViewEvent* Event, bool bCompile);
 
 	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
 	bool IsValidConversionFunction(const UWidgetBlueprint* WidgeteBlueprint, const UFunction* Function, const FMVVMBlueprintPropertyPath& Source, const FMVVMBlueprintPropertyPath& Destination) const;

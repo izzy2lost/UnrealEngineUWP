@@ -11,6 +11,7 @@ class ITableRow;
 template <typename ItemType> class STreeView;
 class STableViewBase;
 class UMVVMWidgetBlueprintExtension_View;
+class UMVVMBlueprintViewEvent;
 
 namespace UE::MVVM
 {
@@ -36,6 +37,7 @@ public:
 	TSharedPtr<SWidget> OnSourceConstructContextMenu();
 
 	void RequestNavigateToBinding(FGuid BindingId);
+	void RequestNavigateToEvent(UMVVMBlueprintViewEvent* Event);
 
 private:
 	TSharedRef<ITableRow> GenerateEntryRow(TSharedPtr<FBindingEntry> Entry, const TSharedRef<STableViewBase>& OwnerTable) const;
@@ -48,7 +50,8 @@ private:
 private:
 	TWeakPtr<SBindingsPanel> BindingPanel;
 	TSharedPtr<STreeView<TSharedPtr<FBindingEntry>>> TreeView;
-	TArray<TSharedPtr<FBindingEntry>> RootGroups;
+	TArray<TSharedPtr<FBindingEntry>> AllRootGroups;
+	TArray<TSharedPtr<FBindingEntry>> FilteredRootGroups;
 	TWeakObjectPtr<UMVVMWidgetBlueprintExtension_View> MVVMExtension;
 	mutable bool bSelectionChangedGuard = false;
 	FText FilterText;

@@ -18,6 +18,7 @@
 #include "K2Node_VariableGet.h"
 #include "MVVMBlueprintView.h"
 #include "MVVMBlueprintViewConversionFunction.h"
+#include "MVVMBlueprintViewEvent.h"
 #include "MVVMDeveloperProjectSettings.h"
 #include "MVVMSubsystem.h"
 #include "MVVMWidgetBlueprintExtension_View.h"
@@ -57,6 +58,32 @@ namespace UE::MVVM::Private
 		FPropertyChangedEvent ChangeEvent(ChangedProperty, EPropertyChangeType::ValueSet);
 		FPropertyChangedChainEvent ChainEvent(EditChain, ChangeEvent);
 		BlueprintView->PostEditChangeChainProperty(ChainEvent);
+	}
+	
+	void OnEventPreEditChange(UMVVMBlueprintViewEvent* Event, FName PropertyName)
+	{
+		FProperty* ChangedProperty = UMVVMBlueprintViewEvent::StaticClass()->FindPropertyByName(PropertyName);
+		check(ChangedProperty != nullptr);
+
+		FEditPropertyChain EditChain;
+		EditChain.AddTail(ChangedProperty);
+		EditChain.SetActivePropertyNode(ChangedProperty);
+
+		Event->PreEditChange(EditChain);
+	}
+
+	void OnEventPostEditChange(UMVVMBlueprintViewEvent* Event, FName PropertyName)
+	{
+		FProperty* ChangedProperty = UMVVMBlueprintViewEvent::StaticClass()->FindPropertyByName(PropertyName);
+		check(ChangedProperty != nullptr);
+
+		FEditPropertyChain EditChain;
+		EditChain.AddTail(ChangedProperty);
+		EditChain.SetActivePropertyNode(ChangedProperty);
+
+		FPropertyChangedEvent ChangeEvent(ChangedProperty, EPropertyChangeType::ValueSet);
+		FPropertyChangedChainEvent ChainEvent(EditChain, ChangeEvent);
+		Event->PostEditChangeChainProperty(ChainEvent);
 	}
 
 	UK2Node_FunctionResult* FindFunctionResult(UEdGraph* Graph)
@@ -236,6 +263,20 @@ void UMVVMEditorSubsystem::RemoveBinding(UWidgetBlueprint* WidgetBlueprint, cons
 	}
 }
 
+UMVVMBlueprintViewEvent* UMVVMEditorSubsystem::AddEvent(UWidgetBlueprint* WidgetBlueprint)
+{
+	UMVVMBlueprintView* View = RequestView(WidgetBlueprint);
+	return View->AddDefaultEvent();
+}
+
+void UMVVMEditorSubsystem::RemoveEvent(UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewEvent* Event)
+{
+	if (UMVVMBlueprintView* View = GetView(WidgetBlueprint))
+	{
+		View->RemoveEvent(Event);
+	}
+}
+
 UFunction* UMVVMEditorSubsystem::GetConversionFunction(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintViewBinding& Binding, bool bSourceToDestination) const
 {
 	if (UMVVMBlueprintViewConversionFunction* ConversionFunction = Binding.Conversion.GetConversionFunction(bSourceToDestination))
@@ -318,7 +359,7 @@ void UMVVMEditorSubsystem::SetDestinationToSourceConversionFunction(UWidgetBluep
 	}
 }
 
-void UMVVMEditorSubsystem::SetDestinationPathForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, FMVVMBlueprintPropertyPath Field)
+void UMVVMEditorSubsystem::SetDestinationPathForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, FMVVMBlueprintPropertyPath PropertyPath)
 {
 	if (UMVVMBlueprintView* View = GetView(WidgetBlueprint))
 	{
@@ -326,7 +367,17 @@ void UMVVMEditorSubsystem::SetDestinationPathForBinding(UWidgetBlueprint* Widget
 
 		UE::MVVM::Private::OnBindingPreEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, DestinationPath));
 
-		Binding.DestinationPath = Field;
+		bool bSupports = UMVVMBlueprintViewEvent::Supports(WidgetBlueprint, PropertyPath);
+		if (bSupports)
+		{
+			UMVVMBlueprintViewEvent* Event = AddEvent(WidgetBlueprint);
+			Event->SetEventPath(PropertyPath);
+			View->RemoveBinding(&Binding);
+		}
+		else
+		{
+			Binding.DestinationPath = PropertyPath;
+		}
 
 		UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, DestinationPath));
 	}
@@ -428,6 +479,102 @@ void UMVVMEditorSubsystem::SetCompileForBinding(UWidgetBlueprint* WidgetBlueprin
 			Binding.bCompile = bCompile;
 
 			UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, bCompile));
+		}
+	}
+}
+
+void UMVVMEditorSubsystem::SetEventPath(UMVVMBlueprintViewEvent* Event, FMVVMBlueprintPropertyPath PropertyPath)
+{
+	UMVVMBlueprintView* View = Event ? Event->GetOuterUMVVMBlueprintView() : nullptr;
+	if (View)
+	{
+		UWidgetBlueprint* WidgetBlueprint = Event->GetOuterUMVVMBlueprintView()->GetOuterUMVVMWidgetBlueprintExtension_View()->GetWidgetBlueprint();
+
+		FScopedTransaction Transaction(LOCTEXT("SetEventPath", "Set Event Path"));
+
+		FName EventPath = "EventPath";
+		UE::MVVM::Private::OnEventPreEditChange(Event, EventPath);
+
+		bool bSupports = UMVVMBlueprintViewEvent::Supports(WidgetBlueprint, PropertyPath);
+
+		if (bSupports)
+		{
+			Event->SetEventPath(PropertyPath);
+		}
+		else
+		{
+			FMVVMBlueprintViewBinding& Binding = AddBinding(WidgetBlueprint);
+			SetDestinationPathForBinding(WidgetBlueprint, Binding, PropertyPath);
+			View->RemoveEvent(Event);
+		}
+
+		UE::MVVM::Private::OnEventPostEditChange(Event, EventPath);
+	}
+}
+
+void UMVVMEditorSubsystem::SetEventDestinationPath(UMVVMBlueprintViewEvent* Event, FMVVMBlueprintPropertyPath PropertyPath)
+{
+	const UMVVMBlueprintView* View = Event ? Event->GetOuterUMVVMBlueprintView() : nullptr;
+	if (View)
+	{
+		FScopedTransaction Transaction(LOCTEXT("SetEventDestinationPath", "Set Destination Path"));
+
+		FName DestinationPath = "DestinationPath";
+		UE::MVVM::Private::OnEventPreEditChange(Event, DestinationPath);
+
+		Event->SetDestinationPath(PropertyPath);
+
+		UE::MVVM::Private::OnEventPostEditChange(Event, DestinationPath);
+	}
+}
+
+void UMVVMEditorSubsystem::SetEventArgumentPath(UMVVMBlueprintViewEvent* Event, FName ArgumentName, const FMVVMBlueprintPropertyPath& Path) const
+{
+	const UMVVMBlueprintView* View = Event ? Event->GetOuterUMVVMBlueprintView() : nullptr;
+	if (View)
+	{
+		FScopedTransaction Transaction(LOCTEXT("SetEventPath", "Set Event Path"));
+
+		UE::MVVM::Private::OnEventPreEditChange(Event, "SavedPins");
+	
+		Event->SetPinPath(ArgumentName, Path);
+
+		UE::MVVM::Private::OnEventPostEditChange(Event, "SavedPins");
+	}
+}
+
+void UMVVMEditorSubsystem::SetEnabledForEvent(UMVVMBlueprintViewEvent* Event, bool bEnabled)
+{
+	if (Event->bEnabled != bEnabled)
+	{
+		const UMVVMBlueprintView* View = Event ? Event->GetOuterUMVVMBlueprintView() : nullptr;
+		if (View)
+		{
+			FScopedTransaction Transaction(LOCTEXT("SetBindingEnabled", "Set Binding Enabled"));
+
+			UE::MVVM::Private::OnEventPreEditChange(Event, GET_MEMBER_NAME_CHECKED(UMVVMBlueprintViewEvent, bEnabled));
+
+			Event->bEnabled = bEnabled;
+
+			UE::MVVM::Private::OnEventPostEditChange(Event, GET_MEMBER_NAME_CHECKED(UMVVMBlueprintViewEvent, bEnabled));
+		}
+	}
+}
+
+void UMVVMEditorSubsystem::SetCompileForEvent(UMVVMBlueprintViewEvent* Event, bool bCompile)
+{
+	if (Event->bCompile != bCompile)
+	{
+		const UMVVMBlueprintView* View = Event ? Event->GetOuterUMVVMBlueprintView() : nullptr;
+		if (View)
+		{
+			FScopedTransaction Transaction(LOCTEXT("SetBindingCompiled", "Set Binding Compiled"));
+
+			UE::MVVM::Private::OnEventPreEditChange(Event, GET_MEMBER_NAME_CHECKED(UMVVMBlueprintViewEvent, bCompile));
+
+			Event->bCompile = bCompile;
+
+			UE::MVVM::Private::OnEventPostEditChange(Event, GET_MEMBER_NAME_CHECKED(UMVVMBlueprintViewEvent, bCompile));
 		}
 	}
 }
