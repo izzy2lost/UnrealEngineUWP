@@ -186,31 +186,38 @@ namespace UnrealBuildTool
 			}
 			else
 			{
-			// look for the special app store connect key information
-			ConfigHierarchy SharedPlatformIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, ProjectFile?.Directory, UnrealTargetPlatform.Mac);
-			bool bUseAutomaticCodeSigning;
-			SharedPlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "bUseAutomaticCodeSigning", out bUseAutomaticCodeSigning);
-			if (bUseAutomaticCodeSigning)
-			{
-				ExtraOptions += " -allowProvisioningUpdates";
+				// look for the special app store connect key information
+				ConfigHierarchy SharedPlatformIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, ProjectFile?.Directory, UnrealTargetPlatform.Mac);
+				bool bUseAutomaticCodeSigning;
+				SharedPlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "bUseAutomaticCodeSigning", out bUseAutomaticCodeSigning);
 
-				// handle AppStore Connect settings
-				bool bUseAppStoreConnect;
-				SharedPlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "bUseAppStoreConnect", out bUseAppStoreConnect);
-				if (bUseAppStoreConnect)
+				// disable automatic signing, if some extra options imply manual
+				if (ExtraOptions.Contains("CODE_SIGN_IDENTITY"))
 				{
-					string? IssuerID, KeyID, KeyPath;
-					if (SharedPlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "AppStoreConnectIssuerID", out IssuerID) &&
-						SharedPlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "AppStoreConnectKeyID", out KeyID) &&
-						SharedPlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "AppStoreConnectKeyPath", out KeyPath))
+					bUseAutomaticCodeSigning = false;
+				}
+
+				if (bUseAutomaticCodeSigning)
+				{
+					ExtraOptions += " -allowProvisioningUpdates";
+	
+					// handle AppStore Connect settings
+					bool bUseAppStoreConnect;
+					SharedPlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "bUseAppStoreConnect", out bUseAppStoreConnect);
+					if (bUseAppStoreConnect)
 					{
-						FileReference KeyFile = ConvertFilePath(ProjectFile?.Directory, KeyPath);
-						ExtraOptions += $" -authenticationKeyIssuerID {IssuerID}";
-						ExtraOptions += $" -authenticationKeyID {KeyID}";
-						ExtraOptions += $" -authenticationKeyPath \"{KeyFile}\"";
+						string? IssuerID, KeyID, KeyPath;
+						if (SharedPlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "AppStoreConnectIssuerID", out IssuerID) &&
+							SharedPlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "AppStoreConnectKeyID", out KeyID) &&
+							SharedPlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "AppStoreConnectKeyPath", out KeyPath))
+						{
+							FileReference KeyFile = ConvertFilePath(ProjectFile?.Directory, KeyPath);
+							ExtraOptions += $" -authenticationKeyIssuerID {IssuerID}";
+							ExtraOptions += $" -authenticationKeyID {KeyID}";
+							ExtraOptions += $" -authenticationKeyPath \"{KeyFile}\"";
+						}
 					}
 				}
-			}
 			}
 
 			// run xcodebuild on the generated project to make the .app
