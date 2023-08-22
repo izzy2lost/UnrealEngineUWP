@@ -360,6 +360,11 @@ public:
 	 * @return A new GUID.
 	 */
 	static CORE_API FGuid NewGuid();
+	/**
+	 * Create a guid by hashing the given path; this guid will be deterministic when called in multiple cook processes
+	 * and will thus avoid cook indeterminism caused by FGuid::NewGuid. ObjectPath and Seed must be deterministic.
+	 */
+	static CORE_API FGuid NewDeterministicGuid(FStringView ObjectPath, uint64 Seed = 0);
 
 	/**
 	 * Returns a GUID which is a combinationof the two provided ones.
