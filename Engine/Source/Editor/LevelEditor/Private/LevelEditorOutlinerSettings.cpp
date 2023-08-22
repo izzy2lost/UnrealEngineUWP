@@ -348,7 +348,10 @@ void FLevelEditorOutlinerSettings::CreateSCCFilters()
 
 	// Unsaved Actors
 	FUnsavedAssetsTrackerModule& UnsavedAssetsTrackerModule = FUnsavedAssetsTrackerModule::Get();
-	UnsavedAssets = UnsavedAssetsTrackerModule.GetUnsavedAssets();
+	
+	UnsavedAssets.Empty();
+	UnsavedAssets.Append(UnsavedAssetsTrackerModule.GetUnsavedAssets());
+
 	UnsavedAssetsTrackerModule.OnUnsavedAssetAdded.AddSP(this, &FLevelEditorOutlinerSettings::OnUnsavedAssetAdded);
 	UnsavedAssetsTrackerModule.OnUnsavedAssetRemoved.AddSP(this, &FLevelEditorOutlinerSettings::OnUnsavedAssetRemoved);
 	
