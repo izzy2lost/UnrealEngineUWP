@@ -2690,40 +2690,6 @@ void UNiagaraComponent::SetVariableTextureRenderTarget(FName InVariableName, UTe
 #endif
 }
 
-TArray<FVector> UNiagaraComponent::GetNiagaraParticlePositions_DebugOnly(const FString& InEmitterName)
-{
-	return GetNiagaraParticleValueVec3_DebugOnly(InEmitterName, TEXT("Position"));
-}
-
-TArray<FVector> UNiagaraComponent::GetNiagaraParticleValueVec3_DebugOnly(const FString& InEmitterName, const FString& InValueName)
-{
-	TArray<FVector> Values;
-	FName EmitterName = FName(*InEmitterName);
-	if (SystemInstanceController.IsValid())
-	{
-		if (!SystemInstanceController->GetParticleValueVec3_DebugOnly(Values, EmitterName, FName(*InValueName)))
-		{
-			UE_LOG(LogNiagara, Warning, TEXT("Unable to find variable %s on %s per-particle data. Returning zeroes."), *InValueName, *GetPathName());
-		}
-	}
-	return Values;
-
-}
-
-TArray<float> UNiagaraComponent::GetNiagaraParticleValues_DebugOnly(const FString& InEmitterName, const FString& InValueName)
-{
-	TArray<float> Values;
-	FName EmitterName = FName(*InEmitterName);
-	if (SystemInstanceController.IsValid())
-	{
-		if (!SystemInstanceController->GetParticleValues_DebugOnly(Values, EmitterName, FName(*InValueName)))
-		{
-			UE_LOG(LogNiagara, Warning, TEXT("Unable to find variable %s on %s per-particle data. Returning zeroes."), *InValueName, *GetPathName());
-		}
-	}
-	return Values;
-}
-
 void FixInvalidUserParameters(FNiagaraUserRedirectionParameterStore& ParameterStore)
 {
 	static const FString UserPrefix = FNiagaraConstants::UserNamespace.ToString() + TEXT(".");

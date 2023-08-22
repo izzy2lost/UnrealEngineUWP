@@ -141,9 +141,9 @@ public:
 
 	NIAGARA_API bool IsReadyToRun() const;
 
-	void Dump()const;
+	void Dump() const;
 
-	bool WaitForDebugInfo();
+	bool WaitForDebugInfo() const;
 
 	FNiagaraComputeExecutionContext* GetGPUContext()const
 	{

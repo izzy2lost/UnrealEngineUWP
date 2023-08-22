@@ -1268,7 +1268,7 @@ void FNiagaraEmitterInstance::PreTick()
 	ParticleDataSet->SetIDAcquireTag(TickCount);
 }
 
-bool FNiagaraEmitterInstance::WaitForDebugInfo()
+bool FNiagaraEmitterInstance::WaitForDebugInfo() const
 {
 	FNiagaraComputeExecutionContext* DebugContext = GPUExecContext;
 	if (CachedEmitter.GetEmitterData()->SimTarget == ENiagaraSimTarget::GPUComputeSim && DebugContext)

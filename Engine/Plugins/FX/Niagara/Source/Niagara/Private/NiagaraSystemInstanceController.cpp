@@ -169,68 +169,6 @@ UMaterialInterface* FNiagaraSystemInstanceController::GetMaterialOverride(const 
 	return nullptr;
 }
 
-bool FNiagaraSystemInstanceController::GetParticleValueVec3_DebugOnly(TArray<FVector>& OutValues, FName EmitterName, FName ValueName) const
-{
-	if (SystemInstance.IsValid())
-	{
-		for (TSharedRef<FNiagaraEmitterInstance, ESPMode::ThreadSafe>& Sim : SystemInstance->GetEmitters())
-		{
-			if (Sim->GetEmitterHandle().GetName() == EmitterName)
-			{
-				FNiagaraDataBuffer& ParticleData = Sim->GetData().GetCurrentDataChecked();
-				int32 NumParticles = ParticleData.GetNumInstances();
-				OutValues.SetNum(NumParticles);
-
-				const auto Reader = FNiagaraDataSetAccessor<FVector3f>::CreateReader(Sim->GetData(), ValueName);
-				if (!Reader.IsValid())
-				{
-					return false;
-				}
-
-				for (int32 i = 0; i < NumParticles; ++i)
-				{
-					OutValues[i] = (FVector)Reader.GetSafe(i, FVector3f::ZeroVector);
-				}
-
-				break;
-			}
-		}
-	}
-
-	return true;
-}
-
-bool FNiagaraSystemInstanceController::GetParticleValues_DebugOnly(TArray<float>& OutValues, FName EmitterName, FName ValueName) const
-{
-	if (SystemInstance.IsValid())
-	{
-		for (TSharedRef<FNiagaraEmitterInstance, ESPMode::ThreadSafe>& Sim : SystemInstance->GetEmitters())
-		{
-			if (Sim->GetEmitterHandle().GetName() == EmitterName)
-			{
-				FNiagaraDataBuffer& ParticleData = Sim->GetData().GetCurrentDataChecked();
-				int32 NumParticles = ParticleData.GetNumInstances();
-				OutValues.SetNum(NumParticles);
-
-				const auto Reader = FNiagaraDataSetAccessor<float>::CreateReader(Sim->GetData(), ValueName);
-				if (!Reader.IsValid())
-				{
-					return false;
-				}
-
-				for (int32 i = 0; i < NumParticles; ++i)
-				{
-					OutValues[i] = Reader.GetSafe(i, 0.0f);
-				}
-
-				break;
-			}
-		}
-	}
-
-	return true;
-}
-
 void FNiagaraSystemInstanceController::DebugDump(bool bFullDump)
 {
 	if (SystemInstance.IsValid())
