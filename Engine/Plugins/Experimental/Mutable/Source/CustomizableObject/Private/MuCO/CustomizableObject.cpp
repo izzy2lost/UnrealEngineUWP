@@ -6,6 +6,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Async/AsyncFileHandle.h"
 #include "EdGraph/EdGraph.h"
+#include "Engine/Engine.h"
 #include "Engine/SkeletalMesh.h"
 #include "Animation/Skeleton.h"
 #include "Engine/AssetUserData.h"
