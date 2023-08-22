@@ -457,7 +457,7 @@ export class Settings {
 						}
 					})
 				}
-				else if ((Date.now() - this.lastPersistBackupTime.getTime()) / 1000 >= args.persistenceBackupFrequency) {
+				else if ((Date.now() - this.lastPersistBackupTime.getTime()) / 60000 >= args.persistenceBackupFrequency) {
 					this.lastPersistBackupTime = new Date(Date.now())
 
 					this.p4.sync(this.p4workspace, persistentFile, {opts: ['-k']})
