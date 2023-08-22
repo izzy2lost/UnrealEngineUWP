@@ -9472,6 +9472,11 @@ void UCookOnTheFlyServer::WriteCookMetadata(const ITargetPlatform* InTargetPlatf
 
 			EnabledPlugins.RemoveAllSwap([&IncludedSet](TSharedRef<IPlugin>& EnabledPlugin)
 			{
+				// Never remove plugins that are enabled by default as they are on but not included in the dlc dependency tree.
+				if (EnabledPlugin->IsEnabledByDefault(true))
+				{
+					return false;
+				}
 				return IncludedSet.Contains(EnabledPlugin->GetName()) == false;
 			}, false /* bAllowShrinking */);
 
