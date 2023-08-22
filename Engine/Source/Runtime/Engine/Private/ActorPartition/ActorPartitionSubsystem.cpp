@@ -32,6 +32,16 @@ FActorPartitionGetParams::FActorPartitionGetParams(const TSubclassOf<APartitionA
 {
 }
 
+FActorPartitionGetParams::FActorPartitionGetParams(const TSubclassOf<APartitionActor>& InActorClass, bool bInCreate, TFunctionRef<void(APartitionActor*)> InActorCreated)
+	: ActorClass(InActorClass)
+	, bCreate(bInCreate)
+	, LocationHint(FVector::Zero())
+	, LevelHint(nullptr)
+	, bBoundsSearch(true)
+	, ActorCreatedCallback(InActorCreated)
+{
+}
+
 void FActorPartitionGridHelper::ForEachIntersectingCell(const TSubclassOf<APartitionActor>& InActorClass, const FBox& InBounds, ULevel* InLevel, TFunctionRef<bool(const UActorPartitionSubsystem::FCellCoord&, const FBox&)> InOperation, uint32 InGridSize)
 {
 	const uint32 GridSize = InGridSize > 0 ? InGridSize : InActorClass->GetDefaultObject<APartitionActor>()->GetDefaultGridSize(InLevel->GetWorld());
@@ -138,11 +148,11 @@ public:
 	}
 
 
-	void ForEachRelevantActor(const TSubclassOf<APartitionActor>& InActorClass, const FBox& IntersectionBounds, TFunctionRef<bool(APartitionActor*)>InOperation) const override
+	void ForEachRelevantActor(const UActorPartitionSubsystem::FForEachRelevantActorParams& InParams) const override
 	{
-		for (TActorIterator<APartitionActor> It(World, InActorClass); It; ++It)
+		for (TActorIterator<APartitionActor> It(World, InParams.ActorClass); It; ++It)
 		{
-			if (!InOperation(*It))
+			if (!InParams.Operation(*It))
 			{
 				return;
 			}
@@ -289,21 +299,25 @@ public:
 		return FoundActor;
 	}
 
-	void ForEachRelevantActor(const TSubclassOf<APartitionActor>& InActorClass, const FBox& IntersectionBounds, TFunctionRef<bool(APartitionActor*)>InOperation) const override
+	void ForEachRelevantActor(const UActorPartitionSubsystem::FForEachRelevantActorParams& InParams) const override
 	{
 		UActorPartitionSubsystem* ActorSubsystem = World->GetSubsystem<UActorPartitionSubsystem>();
-		FActorPartitionGridHelper::ForEachIntersectingCell(InActorClass, IntersectionBounds, World->PersistentLevel, [&ActorSubsystem, &InActorClass, &IntersectionBounds, &InOperation](const UActorPartitionSubsystem::FCellCoord& InCellCoord, const FBox& InCellBounds) {
+		FActorPartitionGridHelper::ForEachIntersectingCell(InParams.ActorClass, InParams.IntersectionBounds, World->PersistentLevel, [&ActorSubsystem, &InParams](const UActorPartitionSubsystem::FCellCoord& InCellCoord, const FBox& InCellBounds) {
 
-			if (InCellBounds.Intersect(IntersectionBounds))
+			if (InCellBounds.Intersect(InParams.IntersectionBounds))
 			{
-				const bool bCreate = false;
-				if (auto PartitionActor = ActorSubsystem->GetActor(InActorClass, InCellCoord, bCreate))
+				FActorPartitionGetParams GetParams(InParams.ActorClass);
+				GetParams.bBoundsSearch = true;
+				GetParams.GuidHint = InParams.GridGuid;
+				GetParams.DataLayerEditorContext = InParams.DataLayerEditorContext;
+
+				if (auto PartitionActor = ActorSubsystem->GetActor(GetParams, InCellCoord))
 				{
-					return InOperation(PartitionActor);
+					return InParams.Operation(PartitionActor);
 				}
 			}
 			return true;
-			});
+		});
 	}
 };
 
@@ -345,7 +359,15 @@ void UActorPartitionSubsystem::ForEachRelevantActor(const TSubclassOf<APartition
 {
 	if (ActorPartition)
 	{
-		ActorPartition->ForEachRelevantActor(InActorClass, IntersectionBounds, InOperation);
+		ActorPartition->ForEachRelevantActor(FForEachRelevantActorParams(InActorClass, IntersectionBounds, InOperation));
+	}
+}
+
+void UActorPartitionSubsystem::ForEachRelevantActor(const UActorPartitionSubsystem::FForEachRelevantActorParams& InParams) const
+{
+	if (ActorPartition)
+	{
+		ActorPartition->ForEachRelevantActor(InParams);
 	}
 }
 
@@ -390,34 +412,53 @@ void UActorPartitionSubsystem::UninitializeActorPartition()
 APartitionActor* UActorPartitionSubsystem::GetActor(const FActorPartitionGetParams& GetParams)
 {
 	FCellCoord CellCoord = ActorPartition->GetActorPartitionHash(GetParams);
-	return GetActor(GetParams.ActorClass, CellCoord, GetParams.bCreate, GetParams.GuidHint, GetParams.GridSize, GetParams.bBoundsSearch, GetParams.ActorCreatedCallback);
+	return GetActor(GetParams, CellCoord);
 }
 
 APartitionActor* UActorPartitionSubsystem::GetActor(const TSubclassOf<APartitionActor>& InActorClass, const FCellCoord& InCellCoords, bool bInCreate, const FGuid& InGuid, uint32 InGridSize, bool bInBoundsSearch, TFunctionRef<void(APartitionActor*)> InActorCreated)
 {
-	const uint32 GridSize = InGridSize > 0 ? InGridSize : InActorClass->GetDefaultObject<APartitionActor>()->GetDefaultGridSize(GetWorld());
+	FActorPartitionGetParams GetParams(InActorClass, bInCreate, nullptr, FVector::Zero(), InGridSize, InGuid, bInBoundsSearch, InActorCreated);
+	return GetActor(GetParams, InCellCoords);
+}
+
+APartitionActor* UActorPartitionSubsystem::GetActor(const FActorPartitionGetParams& GetParams, const FCellCoord& InCellCoords)
+{
+	const uint32 GridSize = GetParams.GridSize > 0 ? GetParams.GridSize : GetParams.ActorClass->GetDefaultObject<APartitionActor>()->GetDefaultGridSize(GetWorld());
 	
 	UWorld* World = GetWorld();
 	const UDataLayerManager* DataLayerManager = UDataLayerManager::GetDataLayerManager(World);
+	uint32 DataLayerEditorContextHash = FDataLayerEditorContext::EmptyHash;
+	TArray<const UDataLayerInstance*> DataLayerInstances;
 	
-	auto WrappedInActorCreated = [DataLayerManager, InActorCreated](APartitionActor* PartitionActor)
+	if (DataLayerManager)
 	{
-		if(DataLayerManager)
+		if (GetParams.DataLayerEditorContext.IsSet())
 		{
-			for (UDataLayerInstance* DataLayer : DataLayerManager->GetActorEditorContextDataLayers())
-			{
-				PartitionActor->AddDataLayer(DataLayer);
-			}
+			DataLayerInstances = DataLayerManager->GetDataLayerInstances(GetParams.DataLayerEditorContext->GetDataLayerInstanceNames());
+			DataLayerEditorContextHash = GetParams.DataLayerEditorContext->GetHash();
 		}
-		InActorCreated(PartitionActor);
+		else
+		{
+			DataLayerInstances.Append(DataLayerManager->GetActorEditorContextDataLayers());
+			DataLayerEditorContextHash = DataLayerManager->GetDataLayerEditorContextHash();
+		}
+	}
+
+	auto WrappedInActorCreated = [&DataLayerInstances, ActorCreated = GetParams.ActorCreatedCallback](APartitionActor* PartitionActor)
+	{
+		for (const UDataLayerInstance* DataLayer : DataLayerInstances)
+		{
+			PartitionActor->AddDataLayer(DataLayer);
+		}
+		ActorCreated(PartitionActor);
 	};
 
-	FActorPartitionIdentifier ActorPartitionId(InActorClass, InGuid, DataLayerManager ? DataLayerManager->GetDataLayerEditorContextHash() : FDataLayerEditorContext::EmptyHash);
+	FActorPartitionIdentifier ActorPartitionId(GetParams.ActorClass, GetParams.GuidHint, DataLayerEditorContextHash);
 	TMap<FActorPartitionIdentifier, TWeakObjectPtr<APartitionActor>>* ActorsPerId = PartitionedActors.Find(InCellCoords);
 	APartitionActor* FoundActor = nullptr;
 	if (!ActorsPerId)
 	{
-		FoundActor = ActorPartition->GetActor(ActorPartitionId, bInCreate, InCellCoords, GridSize, bInBoundsSearch, WrappedInActorCreated);
+		FoundActor = ActorPartition->GetActor(ActorPartitionId, GetParams.bCreate, InCellCoords, GridSize, GetParams.bBoundsSearch, WrappedInActorCreated);
 		if (FoundActor)
 		{
 			PartitionedActors.Add(InCellCoords).Add(ActorPartitionId, FoundActor);
@@ -428,7 +469,7 @@ APartitionActor* UActorPartitionSubsystem::GetActor(const TSubclassOf<APartition
 		TWeakObjectPtr<APartitionActor>* ActorPtr = ActorsPerId->Find(ActorPartitionId);
 		if (!ActorPtr || !ActorPtr->IsValid())
 		{
-			FoundActor = ActorPartition->GetActor(ActorPartitionId, bInCreate, InCellCoords, GridSize, bInBoundsSearch, WrappedInActorCreated);
+			FoundActor = ActorPartition->GetActor(ActorPartitionId, GetParams.bCreate, InCellCoords, GridSize, GetParams.bBoundsSearch, WrappedInActorCreated);
 			if (FoundActor)
 			{
 				if (!ActorPtr)

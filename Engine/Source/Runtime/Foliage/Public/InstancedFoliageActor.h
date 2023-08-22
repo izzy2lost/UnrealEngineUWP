@@ -13,6 +13,7 @@
 #include "InstancedFoliage.h"
 #include "InstancedFoliageCustomVersion.h"
 #include "ISMPartition/ISMPartitionActor.h"
+#include "WorldPartition/DataLayer/DataLayerEditorContext.h"
 
 #include "InstancedFoliageActor.generated.h"
 
@@ -170,8 +171,9 @@ public:
 	 * @param bCreateIfNone					Create if doesnt already exist
 	 * @param InLevelHint					Level hint for foliage instance creation
 	 * @param InLocationHint				Location hint for foliage instance creation
+	 * @param InDataLayerEditorContext		Optional DataLayer editor context. If none provided, the current editor context will be used
 	 */
-	static FOLIAGE_API AInstancedFoliageActor* Get(UWorld* InWorld, bool bCreateIfNone, ULevel* InLevelHint = nullptr, const FVector& InLocationHint = FVector(ForceInitToZero));
+	static FOLIAGE_API AInstancedFoliageActor* Get(UWorld* InWorld, bool bCreateIfNone, ULevel* InLevelHint = nullptr, const FVector& InLocationHint = FVector(ForceInitToZero), const TOptional<FDataLayerEditorContext>& InDataLayerEditorContext = TOptional<FDataLayerEditorContext>());
 
 	static FOLIAGE_API AInstancedFoliageActor* GetDefault(UWorld* InWorld);
 
