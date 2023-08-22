@@ -1693,6 +1693,8 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMP4()
 	ActiveTrackData.bGotAllSamples = true;
 	// Emit all remaining pending AUs
 	EmitSamples(EEmitType::AllRemaining, Request);
+	ActiveTrackData.AccessUnitFIFO.Empty();
+	ActiveTrackData.SortedAccessUnitFIFO.Empty();
 
 	// If we did not set a specific failure message yet set the one from the downloader.
 	if (ds.FailureReason.Len() == 0)
@@ -2304,6 +2306,8 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMKV()
 	ActiveTrackData.bGotAllSamples = true;
 	// Emit all remaining pending AUs
 	EmitSamples(EEmitType::AllRemaining, Request);
+	ActiveTrackData.AccessUnitFIFO.Empty();
+	ActiveTrackData.SortedAccessUnitFIFO.Empty();
 
 	// If we did not set a specific failure message yet set the one from the downloader.
 	if (ds.FailureReason.Len() == 0)
@@ -2412,12 +2416,6 @@ void FStreamReaderDASH::FStreamHandler::UpdateAUDropState(FAccessUnit* InAU, con
 FStreamReaderDASH::FStreamHandler::EEmitResult FStreamReaderDASH::FStreamHandler::EmitSamples(EEmitType InEmitType, const TSharedPtrTS<FStreamSegmentRequestDASH>& InRequest)
 {
 	EEmitResult Result = EEmitResult::SentNothing;
-
-	if (ActiveTrackData.bReadPastLastPTS)
-	{
-		ActiveTrackData.AccessUnitFIFO.Empty();
-		ActiveTrackData.SortedAccessUnitFIFO.Empty();
-	}
 
 	while(ActiveTrackData.AccessUnitFIFO.Num() && !bTerminate && !HasReadBeenAborted())
 	{
