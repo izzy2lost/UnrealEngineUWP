@@ -31,11 +31,10 @@ UObject* UInterchangeStaticMeshActorFactory::ProcessActor(AActor& SpawnedActor, 
 	{
 		bool bHasGeometricTransform = false;
 		FTransform GeometricTransform;
-		if (FactoryNode.IsA(UInterchangeMeshActorFactoryNode::StaticClass()))
+		const UInterchangeMeshActorFactoryNode* MeshActorFactoryNode = Cast<UInterchangeMeshActorFactoryNode>(&FactoryNode);
+		if (MeshActorFactoryNode)
 		{
-			const UInterchangeMeshActorFactoryNode& MeshActorFactoryNode = static_cast<const UInterchangeMeshActorFactoryNode&>(FactoryNode);
-
-			if (MeshActorFactoryNode.GetCustomGeometricTransform(GeometricTransform))
+			if (MeshActorFactoryNode->GetCustomGeometricTransform(GeometricTransform))
 			{
 				bHasGeometricTransform = true;
 			}
@@ -81,6 +80,10 @@ UObject* UInterchangeStaticMeshActorFactory::ProcessActor(AActor& SpawnedActor, 
 						{
 							GeometricTransformMeshComponent->SetStaticMesh(StaticMesh);
 						}
+						if (MeshActorFactoryNode)
+						{
+							UE::Interchange::ActorHelper::ApplySlotMaterialDependencies(NodeContainer, *MeshActorFactoryNode, *GeometricTransformMeshComponent);
+						}
 					}
 				}
 
@@ -105,6 +108,10 @@ UObject* UInterchangeStaticMeshActorFactory::ProcessActor(AActor& SpawnedActor, 
 				if (StaticMesh != StaticMeshComponent->GetStaticMesh())
 				{
 					StaticMeshComponent->SetStaticMesh(StaticMesh);
+				}
+				if (MeshActorFactoryNode)
+				{
+					UE::Interchange::ActorHelper::ApplySlotMaterialDependencies(NodeContainer, *MeshActorFactoryNode, *StaticMeshComponent);
 				}
 			}
 		}
