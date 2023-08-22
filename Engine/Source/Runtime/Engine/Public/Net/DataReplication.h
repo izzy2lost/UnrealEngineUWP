@@ -272,6 +272,9 @@ public:
 
 	/** Whether or not we've already replicated properties this frame. */
 	uint32 bHasReplicatedProperties : 1;
+	
+	/** Is this a subobject replicator and have we sent the creation data yet. */
+    uint32 bSentSubObjectCreation : 1;
 
 private:
 

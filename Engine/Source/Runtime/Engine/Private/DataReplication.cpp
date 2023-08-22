@@ -323,6 +323,7 @@ FObjectReplicator::FObjectReplicator()
 	, bOpenAckCalled(false)
 	, bForceUpdateUnmapped(false)
 	, bHasReplicatedProperties(false)
+	, bSentSubObjectCreation(false)
 	, bSupportsFastArrayDelta(false)
 	, bCanUseNonDirtyOptimization(false)
 	, bDirtyForReplay(true)
@@ -602,6 +603,7 @@ void FObjectReplicator::CleanUp()
 	Connection					= nullptr;
 	RemoteFunctions				= nullptr;
 	bHasReplicatedProperties	= false;
+	bSentSubObjectCreation		= false;
 	bOpenAckCalled				= false;
 
 	RepState = nullptr;

@@ -5306,12 +5306,12 @@ bool UActorChannel::WriteSubObjectInBunch(UObject* Obj, FOutBunch& Bunch, FRepli
 		Connection->Driver->GuidCache->AssignNewNetGUID_Server( Obj );	//Make sure it gets a NetGUID so that it is now 'supported'
 	}
 
-	bool NewSubobject = false;
-	
 	FReplicationFlags ObjRepFlags = RepFlags;
 	TSharedRef<FObjectReplicator>& ObjectReplicator = !bFoundReplicator ? CreateReplicator(Obj) : *FoundReplicator;
 
-	if (!bFoundReplicator || bNewToReplay)
+	const bool bIsNewSubObject = (ObjectReplicator->bSentSubObjectCreation == false) || bNewToReplay;
+
+	if (bIsNewSubObject)
 	{
 		// This is the first time replicating this subobject
 		// This bunch should be reliable and we should always return true
@@ -5319,7 +5319,8 @@ bool UActorChannel::WriteSubObjectInBunch(UObject* Obj, FOutBunch& Bunch, FRepli
 		// (this will ensure the content header chunk is sent which is all we care about
 		// to spawn this on the client).
 		Bunch.bReliable = true;
-		NewSubobject = true;
+		ObjectReplicator->bSentSubObjectCreation = true;
+
 		if (UE::Net::bEnableNetInitialSubObjects)
 		{
 			ObjRepFlags.bNetInitial = true;
@@ -5327,7 +5328,7 @@ bool UActorChannel::WriteSubObjectInBunch(UObject* Obj, FOutBunch& Bunch, FRepli
 	}
 	UE_NET_TRACE_OBJECT_SCOPE(ObjectReplicator->ObjectNetGUID, Bunch, GetTraceCollector(Bunch), ENetTraceVerbosity::Trace);
 	bool bWroteSomething = ObjectReplicator.Get().ReplicateProperties(Bunch, ObjRepFlags);
-	if (NewSubobject && !bWroteSomething)
+	if (bIsNewSubObject && !bWroteSomething)
 	{
 		// Write empty payload to force object creation
 		FNetBitWriter EmptyPayload;
