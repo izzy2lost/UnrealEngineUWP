@@ -14,6 +14,9 @@
 #include "Rendering/NaniteResources.h"
 #include "AI/NavigationSystemBase.h"
 
+
+DECLARE_CYCLE_STAT(TEXT("MassVisualizationComponent EndVisualChanges"), STAT_MassVisualizationComponent_EndVisualChanges, STATGROUP_Mass);
+
 //---------------------------------------------------------------
 // UMassVisualizationComponent
 //---------------------------------------------------------------
@@ -523,6 +526,7 @@ void UMassVisualizationComponent::HandleChangesWithExternalIDTracking(UInstanced
 void UMassVisualizationComponent::EndVisualChanges()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("MassVisualizationComponent EndVisualChanges")
+	SCOPE_CYCLE_COUNTER(STAT_MassVisualizationComponent_EndVisualChanges);
 
 	// Batch update gathered instance transforms
 	for (auto It = ISMCSharedData.CreateIterator(); It; ++It)

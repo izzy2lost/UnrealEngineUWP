@@ -15,7 +15,7 @@
 
 #define LOCTEXT_NAMESPACE "Mass"
 
-DECLARE_CYCLE_STAT(TEXT("Mass Phase Done"), STAT_MassPhaseDone, STATGROUP_TaskGraphTasks);
+DECLARE_CYCLE_STAT(TEXT("Mass Phase Tick"), STAT_Mass_PhaseTick, STATGROUP_Mass);
 
 namespace UE::Mass::Tweakables
 {
@@ -55,6 +55,8 @@ void FMassProcessingPhase::ExecuteTick(float DeltaTime, ELevelTick TickType, ENa
 	{
 		return;
 	}
+
+	SCOPE_CYCLE_COUNTER(STAT_Mass_PhaseTick);
 
 	checkf(PhaseManager, TEXT("Manager is null which is not a supported case. Either this FMassProcessingPhase has not been initialized properly or it's been left dangling after the FMassProcessingPhase owner got destroyed."));
 

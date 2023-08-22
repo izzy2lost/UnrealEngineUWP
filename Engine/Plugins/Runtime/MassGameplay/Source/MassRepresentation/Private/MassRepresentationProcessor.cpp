@@ -15,6 +15,8 @@
 #include "MassExecutionContext.h"
 
 
+DECLARE_CYCLE_STAT(TEXT("Visualization Processor Execute"), STAT_Mass_VisProcessor_Execute, STATGROUP_Mass);
+
 namespace UE::Mass::Representation
 {
 	int32 bAllowKeepActorExtraFrame = 1;
@@ -375,6 +377,8 @@ void UMassVisualizationProcessor::UpdateEntityVisibility(const FMassEntityHandle
 
 void UMassVisualizationProcessor::Execute(FMassEntityManager& InEntityManager, FMassExecutionContext& Context)
 {
+	SCOPE_CYCLE_COUNTER(STAT_Mass_VisProcessor_Execute);
+
 	int32 TotalEntitiesProcessed = 0;
 	// Update entities visualization
 	EntityQuery.ForEachEntityChunk(InEntityManager, Context, [this, &TotalEntitiesProcessed](FMassExecutionContext& Context)
