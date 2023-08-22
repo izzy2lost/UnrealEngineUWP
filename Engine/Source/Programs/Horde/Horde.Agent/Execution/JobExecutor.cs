@@ -184,6 +184,7 @@ namespace Horde.Agent.Execution
 		protected List<string> _targets = new List<string>();
 		protected string? _scriptFileName;
 		protected bool _preprocessScript;
+		protected bool _savePreprocessedScript;
 
 		/// <summary>
 		/// Logger for the local agent process (as opposed to job logger)
@@ -275,6 +276,10 @@ namespace Horde.Agent.Execution
 				else if (argument.Equals("-Preprocess", StringComparison.OrdinalIgnoreCase))
 				{
 					_preprocessScript = true;
+				}
+				else if (argument.Equals("-SavePreprocessed", StringComparison.OrdinalIgnoreCase))
+				{
+					_savePreprocessedScript = true;
 				}
 				else if (argument.StartsWith(TargetArgumentPrefix, StringComparison.OrdinalIgnoreCase))
 				{
@@ -464,7 +469,7 @@ namespace Horde.Agent.Execution
 
 			FileReference? preprocessedScriptFile = null;
 			FileReference? preprocessedSchemaFile = null;
-			if (_preprocessScript)
+			if (_preprocessScript || _savePreprocessedScript)
 			{
 				preprocessedScriptFile = FileReference.Combine(workspaceDir, PreprocessedScript);
 				arguments.AppendArgument("-Preprocess=", preprocessedScriptFile.FullName);
