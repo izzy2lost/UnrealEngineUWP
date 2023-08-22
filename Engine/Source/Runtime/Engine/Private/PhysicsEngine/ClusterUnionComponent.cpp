@@ -95,7 +95,7 @@ void UClusterUnionComponent::AddComponentToCluster(UPrimitiveComponent* InCompon
 	PendingComponentsToAdd.Remove(InComponent);
 
 	TArray<Chaos::FPhysicsObjectHandle> AllObjects = InComponent->GetAllPhysicsObjects();
-	FLockedReadPhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockRead(AllObjects);
+	FLockedWritePhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockWrite(AllObjects);
 
 	TArray<Chaos::FPhysicsObjectHandle> Objects;
 	if (BoneIds.IsEmpty())
@@ -138,6 +138,8 @@ void UClusterUnionComponent::AddComponentToCluster(UPrimitiveComponent* InCompon
 	ChildToParents.Reserve(Objects.Num());
 
 	const FTransform CurrentComponentTransform = GetComponentTransform();
+
+	const bool bHasKinematicObject = !Interface->AreAllDynamicOrSleeping(Objects);
 	for (Chaos::FPhysicsObjectHandle Object : Objects)
 	{
 		if (Object)
@@ -160,6 +162,13 @@ void UClusterUnionComponent::AddComponentToCluster(UPrimitiveComponent* InCompon
 			const FTransform CurrentParticleTransform = Interface->GetTransform(Object);
 			ChildToParents.Add(CurrentParticleTransform.GetRelativeTransform(CurrentComponentTransform));
 		}
+	}
+
+	// The first time we add a component, we need to manage the GT-side object state and set it to kinematic immediately.
+	if (bHasKinematicObject && PendingComponentSync.IsEmpty() && PerComponentData.IsEmpty())
+	{
+		Chaos::FPhysicsObjectHandle SelfHandle = PhysicsProxy->GetPhysicsObjectHandle();
+		Interface->ForceKinematic( { &SelfHandle, 1 });
 	}
 
 	// Need to listen to changes in the component's physics state. If it gets destroyed it should be removed from the cluster union as well.

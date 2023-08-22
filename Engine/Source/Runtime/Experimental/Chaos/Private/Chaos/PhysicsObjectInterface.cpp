@@ -768,6 +768,27 @@ namespace Chaos
 	}
 
 	template<EThreadContext Id>
+	void FWritePhysicsObjectInterface<Id>::ForceKinematic(TArrayView<const FPhysicsObjectHandle> InObjects)
+	{
+		for (const FPhysicsObjectHandle Object : InObjects)
+		{
+			if (!Object)
+			{
+				continue;
+			}
+
+			if (TThreadParticle<Id>* Particle = Object->GetParticle<Id>())
+			{
+				EObjectStateType State = Object->ObjectState<Id>();
+				if (State != EObjectStateType::Kinematic)
+				{
+					SetParticleStateHelper<Id>(Object, EObjectStateType::Kinematic);
+				}
+			}
+		}
+	}
+
+	template<EThreadContext Id>
 	void FWritePhysicsObjectInterface<Id>::AddForce(TArrayView<const FPhysicsObjectHandle> InObjects, const FVector& Force, bool bInvalidate)
 	{
 		for (const FPhysicsObjectHandle Object : InObjects)
