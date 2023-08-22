@@ -226,6 +226,9 @@ private:
 	// This VE is used for LocalPlayer::GetViewPoint(). It calls the ISceneViewExtension::SetupViewPoint() function of this VE.
 	TSharedPtr<class FDisplayClusterViewportManagerViewPointExtension, ESPMode::ThreadSafe> ViewportManagerViewPointExtension;
 
+	// This VE is used to display frame information such as timecode and frame number.
+	TSharedPtr<class FDisplayClusterViewportFrameStatsViewExtension, ESPMode::ThreadSafe> FrameStatsViewExtension;
+
 #if WITH_EDITOR
 	/** The handle for FCoreUObjectDelegates::GetPreGarbageCollectDelegate */
 	FDelegateHandle PreGarbageCollectHandle;

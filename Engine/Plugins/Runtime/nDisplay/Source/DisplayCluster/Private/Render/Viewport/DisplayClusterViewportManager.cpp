@@ -4,6 +4,7 @@
 #include "Render/Viewport/DisplayClusterViewportManagerProxy.h"
 #include "Render/Viewport/DisplayClusterViewportManagerViewExtension.h"
 #include "Render/Viewport/DisplayClusterViewportManagerViewPointExtension.h"
+#include "Render/Viewport/DisplayClusterViewportFrameStatsViewExtension.h"
 
 #include "IDisplayCluster.h"
 #include "Render/IDisplayClusterRenderManager.h"
@@ -619,6 +620,11 @@ bool FDisplayClusterViewportManager::BeginNewFrame(FViewport* InViewport, UWorld
 	if (!ViewportManagerViewPointExtension.IsValid())
 	{
 		ViewportManagerViewPointExtension = FSceneViewExtensions::NewExtension<FDisplayClusterViewportManagerViewPointExtension>(this);
+	}
+
+	if (!FrameStatsViewExtension.IsValid())
+	{
+		FrameStatsViewExtension = FSceneViewExtensions::NewExtension<FDisplayClusterViewportFrameStatsViewExtension>(this);
 	}
 
 	// Before new frame
