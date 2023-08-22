@@ -480,8 +480,6 @@ private:
 
 	TArray<TSharedRef<FWindowsWindow>> Windows;
 
-	TSharedRef<class XInputInterface> XInput;
-
 	/** List of input devices implemented in external modules. */
 	TArray<TSharedPtr<class IInputDevice>> ExternalInputDevices;
 	bool bHasLoadedInputPlugins;

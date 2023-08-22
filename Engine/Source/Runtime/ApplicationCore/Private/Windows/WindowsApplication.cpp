@@ -10,7 +10,6 @@
 #include "Misc/App.h"
 #include "Windows/WindowsWindow.h"
 #include "Windows/WindowsCursor.h"
-#include "XInputInterface.h"
 #include "Features/IModularFeatures.h"
 #include "IInputDeviceModule.h"
 #include "IInputDevice.h"
@@ -118,7 +117,6 @@ FWindowsApplication::FWindowsApplication( const HINSTANCE HInstance, const HICON
 	, bForceActivateByMouse( false )
 	, bForceNoGamepads( false )
 	, bConsumeAltSpace( false )
-	, XInput( XInputInterface::Create( MessageHandler ) )
 	, bHasLoadedInputPlugins( false )
 	, bAllowedToDeferMessageProcessing(true)
 	, CVarDeferMessageProcessing( 
@@ -384,7 +382,6 @@ void FWindowsApplication::InitializeWindow( const TSharedRef< FGenericWindow >& 
 void FWindowsApplication::SetMessageHandler( const TSharedRef< FGenericApplicationMessageHandler >& InMessageHandler )
 {
 	GenericApplication::SetMessageHandler(InMessageHandler);
-	XInput->SetMessageHandler( InMessageHandler );
 
 	TArray<IInputDeviceModule*> PluginImplementations = IModularFeatures::Get().GetModularFeatureImplementations<IInputDeviceModule>( IInputDeviceModule::GetModularFeatureName() );
 	for( auto DeviceIt = ExternalInputDevices.CreateIterator(); DeviceIt; ++DeviceIt )
@@ -409,11 +406,6 @@ bool FWindowsApplication::IsGamepadAttached() const
 	if (bForceNoGamepads)
 	{
 		return false;
-	}
-
-	if (XInput->IsGamepadAttached())
-	{
-		return true;
 	}
 
 	for( auto DeviceIt = ExternalInputDevices.CreateConstIterator(); DeviceIt; ++DeviceIt )
@@ -1883,7 +1875,14 @@ int32 FWindowsApplication::ProcessMessage( HWND hwnd, uint32 msg, WPARAM wParam,
 
 		case WM_DEVICECHANGE:
 			{
-				XInput->SetNeedsControllerStateUpdate(); 
+				static const FInputDeviceProperty RequestUpdateProp(TEXT("Request_Device_Update"));
+				for( auto DeviceIt = ExternalInputDevices.CreateIterator(); DeviceIt; ++DeviceIt )
+				{
+					// Pass in -1 because this isn't for any specific device, it is just a message requesting an update to any attached controllers.
+					// At the moment, this will only be listened for by XInput.
+					(*DeviceIt)->SetDeviceProperty(-1, &RequestUpdateProp);
+				}
+				
 				QueryConnectedMice();
 			}
 			break;
@@ -2808,9 +2807,6 @@ void FWindowsApplication::PollGameDeviceState( const float TimeDelta )
 		return; // do not proceed if the app uses VR focus but doesn't have it
 	}
 
-	// Poll game device states and send new events
-	XInput->SendControllerEvents();
-
 	// Poll externally-implemented devices
 	for( auto DeviceIt = ExternalInputDevices.CreateIterator(); DeviceIt; ++DeviceIt )
 	{
@@ -2841,8 +2837,6 @@ void FWindowsApplication::SetForceFeedbackChannelValues(int32 ControllerId, cons
 	}
 
 	const FForceFeedbackValues* InternalValues = &Values;
- 
-	XInput->SetChannelValues( ControllerId, *InternalValues );
  
 	// send vibration to externally-implemented devices
 	for( auto DeviceIt = ExternalInputDevices.CreateIterator(); DeviceIt; ++DeviceIt )

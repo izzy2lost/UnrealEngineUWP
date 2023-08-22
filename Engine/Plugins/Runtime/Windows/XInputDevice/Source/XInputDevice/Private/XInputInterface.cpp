@@ -275,6 +275,16 @@ void XInputInterface::SetMessageHandler( const TSharedRef< FGenericApplicationMe
 	MessageHandler = InMessageHandler;
 }
 
+void XInputInterface::SetDeviceProperty(int32 ControllerId, const FInputDeviceProperty* Property)
+{
+	// This should only get called from WindowsApplication.cpp when Windows detects a device change.
+	static const FName UpdateRequestedName = TEXT("Request_Device_Update");
+	if (Property && Property->Name == UpdateRequestedName)
+	{
+		SetNeedsControllerStateUpdate();	
+	}
+}
+
 void XInputInterface::SetChannelValue( int32 ControllerId, const FForceFeedbackChannelType ChannelType, const float Value )
 {
 	if (ControllerId >= 0 && ControllerId < MAX_NUM_XINPUT_CONTROLLERS)

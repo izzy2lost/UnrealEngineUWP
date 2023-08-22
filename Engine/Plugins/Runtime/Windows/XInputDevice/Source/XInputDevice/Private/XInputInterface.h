@@ -46,6 +46,15 @@ public:
 	virtual void SetChannelValue( int32 ControllerId, const FForceFeedbackChannelType ChannelType, const float Value ) override;
 
 	/**
+	* Sets a property for a given controller id.
+	* Will be ignored for devices which don't support the property.
+	*
+	* @param ControllerId the id of the controller whose property is to be applied
+	* @param Property Base class pointer to property that will be applied
+	*/
+	virtual void SetDeviceProperty(int32 ControllerId, const FInputDeviceProperty* Property) override;
+
+	/**
 	* Sets the strength/speed of all the channels for the given controller id.
 	* NOTE: Unsupported channels are silently ignored
 	*
