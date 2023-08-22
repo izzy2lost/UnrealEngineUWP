@@ -152,6 +152,12 @@ namespace Chaos
 		CHAOS_API virtual void SetParticleTransformSwept(FGeometryParticleHandle* InParticle, const FVec3& InPos, const FRotation3& InRot, const bool bIsTeleport);
 
 		/**
+		* Set the kinematic target for a particle. This will exist for only one tick - a new target must be set for the next tick if required.
+		* If called on a dynamic object, is equivalent to SetParticleTransform with bIsTeleport=false
+		*/
+		CHAOS_API void SetParticleKinematicTarget(FGeometryParticleHandle* ParticleHandle, const FKinematicTarget& NewKinematicTarget);
+
+		/**
 		 * Called when a particle is moved. We need to reset some friction properties, sleeping properties, etc
 		 */
 		CHAOS_API void OnParticleMoved(FGeometryParticleHandle* InParticle, const FVec3& PrevX, const FRotation3& PrevR, const bool bIsTeleport);

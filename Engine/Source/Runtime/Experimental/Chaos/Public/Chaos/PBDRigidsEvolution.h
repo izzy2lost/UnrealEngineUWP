@@ -66,11 +66,6 @@ struct FBroadPhaseConfig
 
 extern CHAOS_API FBroadPhaseConfig BroadPhaseConfig;
 
-namespace CVars
-{
-	extern CHAOS_API bool bDisallowSetKinematicTargetOnDynamics;
-}
-
 extern CHAOS_API int32 FixBadAccelerationStructureRemoval;
 
 class FChaosArchive;
@@ -407,32 +402,6 @@ public:
 		return IslandGroupManager.GetIterationSettings().GetNumProjectionIterations();
 	}
 
-	/**
-	* Set the kinematic target for a particle. This will exist for only one tick - a new target must be set for the next tick if required.
-	*/
-	void SetParticleKinematicTarget(FKinematicGeometryParticleHandle* KinematicHandle, const FKinematicTarget& NewKinematicTarget)
-	{
-		if (KinematicHandle == nullptr)
-		{
-			return;
-		}
-
-		// NOTE: We ignore SetKinematicTarget if called on a dynamic body since this is not supported
-		// and if we callMarkMovingKinematic(KinematicHandle) on a dynamic the particle will end up
-		// in two mutally exlcusivbe particle lists, leading to a collision detection race condition.
-		// @todo(chaos): maybe we should ensure that this is not called for dynamics
-		if ((KinematicHandle->ObjectState() == EObjectStateType::Kinematic) || !CVars::bDisallowSetKinematicTargetOnDynamics)
-		{
-			// optimization : we keep track of moving kinematic targets ( list gets clear every frame )
-			if (NewKinematicTarget.GetMode() != EKinematicTargetMode::None)
-			{
-				// move particle from "non-moving" kinematics to "moving" kinematics
-				Particles.MarkMovingKinematic(KinematicHandle);
-			}
-			KinematicHandle->SetKinematicTarget(NewKinematicTarget);
-		}
-	}
-	
 	/**
 	* To be called after creating a particle in the Particles container
 	* @todo(chaos): We should add a particle creation API to the evolution

@@ -1051,6 +1051,33 @@ void FPBDRigidsEvolutionGBF::SetParticleTransformSwept(FGeometryParticleHandle* 
 	}
 }
 
+void FPBDRigidsEvolutionGBF::SetParticleKinematicTarget(FGeometryParticleHandle* ParticleHandle, const FKinematicTarget& NewKinematicTarget)
+{
+	FGenericParticleHandle Particle = ParticleHandle;
+
+	// NOTE: If called on a dynamic body we just move the body
+	// @todo(chaos): maybe we should ensure that this is not called for dynamics
+	if (Particle->IsKinematic())
+	{
+		FKinematicGeometryParticleHandle* Kinematic = Particle->CastToKinematicParticle();
+
+		// optimization : we keep track of moving kinematic targets ( list gets clear every frame )
+		if (NewKinematicTarget.GetMode() != EKinematicTargetMode::None)
+		{
+			// move particle from "non-moving" kinematics to "moving" kinematics
+			Particles.MarkMovingKinematic(Kinematic);
+		}
+		Kinematic->SetKinematicTarget(NewKinematicTarget);
+	}
+	else if (Particle->IsDynamic())
+	{
+		if (NewKinematicTarget.GetMode() == EKinematicTargetMode::Position)
+		{
+			SetParticleTransform(ParticleHandle, NewKinematicTarget.GetTargetPosition(), NewKinematicTarget.GetTargetRotation(), false);
+		}
+	}
+}
+
 void FPBDRigidsEvolutionGBF::OnParticleMoved(FGeometryParticleHandle* InParticle, const FVec3& PrevX, const FRotation3& PrevR, const bool bIsTeleport)
 {
 	// When a particle is moved, we need to tell the collisions because they cache friction state and 

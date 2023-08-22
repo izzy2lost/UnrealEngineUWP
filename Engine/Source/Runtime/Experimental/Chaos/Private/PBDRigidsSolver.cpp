@@ -363,9 +363,7 @@ namespace Chaos
 
 		// Enable a couple bug fixes with temporary roll-back just in case
 		bool bRemoveParticleFromMovingKinematicsOnDisable = true;
-		bool bDisallowSetKinematicTargetOnDynamics = true;
 		FAutoConsoleVariableRef CVarChaosRemoveParticleFromMovingKinematicsOnDisable(TEXT("p.Chaos.RemoveParticleFromMovingKinematicsOnDisable"), bRemoveParticleFromMovingKinematicsOnDisable, TEXT(""));
-		FAutoConsoleVariableRef CVarChaosDisallowSetKinematicTargetOnDynamics(TEXT("p.Chaos.DisallowSetKinematicTargetOnDynamics"), bDisallowSetKinematicTargetOnDynamics, TEXT(""));
 	}
 }
 
