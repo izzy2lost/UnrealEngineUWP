@@ -169,7 +169,7 @@ class UFont : public UObject, public IFontProviderInterface
 	FName LegacyFontName;
 
 	/** Embedded composite font data */
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, Category = RuntimeFont)
 	FCompositeFont CompositeFont;
 
 public:

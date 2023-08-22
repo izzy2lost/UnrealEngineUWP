@@ -8,6 +8,7 @@
 #include "SlateGlobals.h"
 
 #include <limits>
+#include "Fonts/FontUtils.h"
 
 DECLARE_CYCLE_STAT(TEXT("Freetype Render Glyph"), STAT_FreetypeRenderGlyph, STATGROUP_Slate);
 
@@ -197,7 +198,7 @@ uint16 FSlateFontRenderer::GetMaxHeight(const FSlateFontInfo& InFontInfo, const 
 
 		// Adjust the height by the size of the outline that was applied.  
 		const float HeightAdjustment = InFontInfo.OutlineSettings.OutlineSize * InScale;
-		return static_cast<uint16>(FreeTypeUtils::Convert26Dot6ToRoundedPixel<int32>(FaceGlyphData.FaceAndMemory->GetScaledHeight()) + HeightAdjustment);
+		return static_cast<uint16>(FreeTypeUtils::Convert26Dot6ToRoundedPixel<int32>(FaceGlyphData.FaceAndMemory->GetScaledHeight(UE::Slate::FontUtils::IsAscentDescentOverrideEnabled(InFontInfo.FontObject))) + HeightAdjustment); 
 	}
 
 	return 0;
@@ -218,7 +219,7 @@ int16 FSlateFontRenderer::GetBaseline(const FSlateFontInfo& InFontInfo, const fl
 	{
 		FreeTypeUtils::ApplySizeAndScale(FaceGlyphData.FaceAndMemory->GetFace(), InFontInfo.Size, InScale);
 
-		return FreeTypeUtils::Convert26Dot6ToRoundedPixel<int16>(FaceGlyphData.FaceAndMemory->GetDescender());
+		return FreeTypeUtils::Convert26Dot6ToRoundedPixel<int16>(FaceGlyphData.FaceAndMemory->GetDescender(UE::Slate::FontUtils::IsAscentDescentOverrideEnabled(InFontInfo.FontObject)));
 	}
 
 	return 0;

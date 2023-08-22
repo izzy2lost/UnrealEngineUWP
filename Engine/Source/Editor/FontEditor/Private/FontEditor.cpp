@@ -1014,6 +1014,13 @@ void FFontEditor::OnPostReimport(UObject* InObject, bool bSuccess)
 
 void FFontEditor::OnObjectPropertyChanged(UObject* InObject, struct FPropertyChangedEvent& InPropertyChangedEvent)
 {
+	if (Cast<UFont>(InObject))
+	{
+		//Force all texts using a font to be refreshed.
+		FSlateApplicationBase::Get().InvalidateAllWidgets(false);
+		GSlateLayoutGeneration++;
+	}
+
 	if (Cast<UFontFace>(InObject))
 	{
 		// Refresh the composite font editor when a font face is changed as it may affect our preview
