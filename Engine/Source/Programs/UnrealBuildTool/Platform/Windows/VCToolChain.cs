@@ -1227,12 +1227,10 @@ namespace UnrealBuildTool
 				Arguments.Add("/fastfail");
 			}
 
-			// for monolithic editor builds, add the PDBPAGESIZE option, (VS 16.11, VC toolchain 14.29.30133), but the pdb will be too large without this
-			// some monolithic game builds could be too large as well, but they can be added in a .Target.cs with:
-			//   			WindowsPlatform.AdditionalLinkerOptions = "/PDBPAGESIZE:8192";
-			if (Target.LinkType == TargetLinkType.Monolithic && Target.Type == TargetType.Editor)
+			// Allow for PDBs larger than 4GB
+			if (Target.WindowsPlatform.PdbPageSize.HasValue)
 			{
-				Arguments.Add("/PDBPAGESIZE:16384");
+				Arguments.Add($"/PDBPAGESIZE:{System.Numerics.BitOperations.RoundUpToPowerOf2(Target.WindowsPlatform.PdbPageSize.Value)}");
 				//Arguments.Add("/PDBCompress"); // Do not turn this on, it makes link times almost 2x slower. This is _only_ to save local disk space. Will _not_ make actual file smaller for network transfer
 			}
 
