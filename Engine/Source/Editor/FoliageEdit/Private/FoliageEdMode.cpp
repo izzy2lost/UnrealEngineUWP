@@ -704,7 +704,7 @@ void FEdModeFoliage::ForEachFoliageInfo(UWorld* InWorld, const UFoliageType* Fol
 	if (UActorPartitionSubsystem* ActorPartitionSubsystem = InWorld->GetSubsystem<UActorPartitionSubsystem>())
 	{	
 		const FBox BrushSphereBounds(BrushSphere.Center - BrushSphere.W, BrushSphere.Center + BrushSphere.W);
-		ActorPartitionSubsystem->ForEachRelevantActor(UActorPartitionSubsystem::FForEachRelevantActorParams(AInstancedFoliageActor::StaticClass(), BrushSphereBounds, IFAOperation));
+		ActorPartitionSubsystem->ForEachRelevantActor(AInstancedFoliageActor::StaticClass(), BrushSphereBounds, IFAOperation);
 	}
 }
 

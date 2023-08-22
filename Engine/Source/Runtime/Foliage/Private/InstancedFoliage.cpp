@@ -3107,19 +3107,20 @@ const FFoliageInfo* AInstancedFoliageActor::FindInfo(const UFoliageType* InType)
 
 
 #if WITH_EDITOR
-AInstancedFoliageActor* AInstancedFoliageActor::Get(UWorld* InWorld, bool bCreateIfNone, ULevel* InLevelHint, const FVector& InLocationHint, const TOptional<FDataLayerEditorContext>& InDataLayerEditorContext)
+AInstancedFoliageActor* AInstancedFoliageActor::Get(UWorld* InWorld, bool bCreateIfNone, ULevel* InLevelHint, const FVector& InLocationHint)
 {
 	UActorPartitionSubsystem* ActorPartitionSubsystem = InWorld->GetSubsystem<UActorPartitionSubsystem>();
-	FActorPartitionGetParams GetParams(
-		AInstancedFoliageActor::StaticClass(),
-		bCreateIfNone,
-		InLevelHint,
-		InLocationHint
+
+	return Cast<AInstancedFoliageActor>(
+		ActorPartitionSubsystem->GetActor(
+			FActorPartitionGetParams(
+				AInstancedFoliageActor::StaticClass(), 
+				bCreateIfNone, 
+				InLevelHint, 
+				InLocationHint
+			)
+		)
 	);
-
-	GetParams.DataLayerEditorContext = InDataLayerEditorContext;
-
-	return Cast<AInstancedFoliageActor>(ActorPartitionSubsystem->GetActor(GetParams));
 }
 
 
@@ -3214,7 +3215,6 @@ namespace FoliagePartitioningUtils
 
 		bool bMovedInstances = true;
 		AInstancedFoliageActor* TargetIFA = nullptr;
-		FDataLayerEditorContext DataLayerEditorContext(SourceIFA->GetWorld(), SourceIFA->GetDataLayerInstanceNames());
 
 		TSet<int32>* InstanceSet = GetInstanceSet();
 		while (InstanceSet && InstanceSet->Num() > 0 && bMovedInstances)
@@ -3226,7 +3226,7 @@ namespace FoliagePartitioningUtils
 			for (int32 InstanceIdx : *InstanceSet)
 			{
 				FFoliageInstance& Instance = FoliageInfo.Instances[InstanceIdx];
-				AInstancedFoliageActor* NewIFA = AInstancedFoliageActor::Get(SourceIFA->GetWorld(), true, SourceIFA->GetLevel(), Instance.Location, DataLayerEditorContext);
+				AInstancedFoliageActor* NewIFA = AInstancedFoliageActor::Get(SourceIFA->GetWorld(), true, SourceIFA->GetLevel(), Instance.Location);
 				if ((TargetIFA == nullptr || TargetIFA == NewIFA) && NewIFA != SourceIFA)
 				{
 					TargetIFA = NewIFA;
@@ -3566,8 +3566,6 @@ void AInstancedFoliageActor::MoveInstancesToNewComponent(UPrimitiveComponent* In
 	// If Modify was called on this IFA
 	bool bModified = false;
 	
-	FDataLayerEditorContext DataLayerEditorContext(IFAWorld, GetDataLayerInstanceNames());
-
 	for (auto& Pair : FoliageInfos)
 	{			
 		FFoliageInfo& Info = *Pair.Value;
@@ -3590,7 +3588,7 @@ void AInstancedFoliageActor::MoveInstancesToNewComponent(UPrimitiveComponent* In
 				{
 					FFoliageInstance& InstanceToMove = Info.Instances[InstanceIndex];
 					const bool bCreate = true;
-					if (AInstancedFoliageActor* TargetIFA = AInstancedFoliageActor::Get(IFAWorld, bCreate, IFALevel, InstanceToMove.Location, DataLayerEditorContext))
+					if (AInstancedFoliageActor* TargetIFA = AInstancedFoliageActor::Get(IFAWorld, bCreate, IFALevel, InstanceToMove.Location))
 					{
 						// Call Modify only once
 						if (!bModified)
@@ -5662,10 +5660,7 @@ void AInstancedFoliageActor::HandleFoliageInstancePostMove(const FFoliageInstanc
 	// Verify, and re-instance any existing typed elements if required
 	{
 		const FFoliageInstance& FoliageInstance = InstanceId.GetInstanceChecked();
-
-		FDataLayerEditorContext DataLayerEditorContext(GetWorld(), GetDataLayerInstanceNames());
-
-		AInstancedFoliageActor* TargetIFA = AInstancedFoliageActor::Get(GetWorld(), /*bCreateIfNone*/true, GetLevel(), FoliageInstance.Location, DataLayerEditorContext);
+		AInstancedFoliageActor* TargetIFA = AInstancedFoliageActor::Get(GetWorld(), /*bCreateIfNone*/true, GetLevel(), FoliageInstance.Location);
 		if (TargetIFA != this)
 		{
 			// Add the new instance first, as we need both instances available for the re-instance to work

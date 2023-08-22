@@ -7,7 +7,6 @@
 #include "Misc/HashBuilder.h"
 #include "Misc/Guid.h"
 #include "ActorPartition/PartitionActor.h"
-#include "WorldPartition/DataLayer/DataLayerEditorContext.h"
 #include "ActorPartitionSubsystem.generated.h"
 
 class FBaseActorPartition;
@@ -20,7 +19,6 @@ class UWorldPartition;
 struct FActorPartitionGetParams
 {
 	ENGINE_API FActorPartitionGetParams(const TSubclassOf<APartitionActor>& InActorClass, bool bInCreate, ULevel* InLevelHint, const FVector& InLocationHint, uint32 InGridSize = 0, const FGuid& InGuidHint = FGuid(), bool bInBoundsSearch = true, TFunctionRef<void(APartitionActor*)> InActorCreated = [](APartitionActor*) {});
-	ENGINE_API FActorPartitionGetParams(const TSubclassOf<APartitionActor>& InActorClass, bool bInCreate = false, TFunctionRef<void(APartitionActor*)> InActorCreated = [](APartitionActor*) {});
 
 	/* Class of Actor we are getting from the subsystem. */
 	TSubclassOf<APartitionActor> ActorClass;
@@ -45,9 +43,6 @@ struct FActorPartitionGetParams
 
 	/* If set, a callback to use if an actor is created. */
 	TFunctionRef<void(APartitionActor*)> ActorCreatedCallback;
-
-	/* Optional DataLayer editor context. If none provided, the current editor context will be used */
-	TOptional<FDataLayerEditorContext> DataLayerEditorContext;
 };
 
 /**
@@ -159,8 +154,7 @@ public:
 	};
 
 #if WITH_EDITOR
-	ENGINE_API APartitionActor* GetActor(const FActorPartitionGetParams& GetParams, const FCellCoord& InCellCoords);
-	ENGINE_API APartitionActor* GetActor(const FActorPartitionGetParams& GetParams);
+	ENGINE_API APartitionActor* GetActor(const FActorPartitionGetParams& GetParam);
 
 	/**
 	 * Returns a matching actor based on the parameters being provided
@@ -177,36 +171,7 @@ public:
 	ENGINE_API virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	ENGINE_API virtual void Deinitialize() override;
 
-	struct FForEachRelevantActorParams
-	{
-		FForEachRelevantActorParams(const TSubclassOf<APartitionActor>& InActorClass, const FBox& InIntersectionBounds, TFunctionRef<bool(APartitionActor*)> InOperation)
-			: ActorClass(InActorClass)
-			, IntersectionBounds(InIntersectionBounds)
-			, Operation(InOperation)
-		{
-
-		}
-
-		/* Actor class to search for */
-		TSubclassOf<APartitionActor> ActorClass;
-
-		/* Bounds to search */
-		FBox IntersectionBounds;
-		
-		/* Search for a specific grid guid */
-		FGuid GridGuid;
-
-		/* Search for a specific data layer editor context */
-		TOptional<FDataLayerEditorContext> DataLayerEditorContext;
-		
-		TFunctionRef<bool(APartitionActor*)> Operation;
-	};
-
-	UE_DEPRECATED(5.4, "Use ForEachRelevantActor taking FForEachRelevantActorParams parameter instead")
 	ENGINE_API void ForEachRelevantActor(const TSubclassOf<APartitionActor>& InActorClass, const FBox& IntersectionBounds, TFunctionRef<bool(APartitionActor*)>InOperation) const;
-	
-	ENGINE_API void ForEachRelevantActor(const FForEachRelevantActorParams& InParams) const;
-
 #endif
 	ENGINE_API bool IsLevelPartition() const;
 
@@ -238,7 +203,7 @@ public:
 
 	virtual UActorPartitionSubsystem::FCellCoord GetActorPartitionHash(const FActorPartitionGetParams& GetParams) const = 0;
 	virtual APartitionActor* GetActor(const FActorPartitionIdentifier& InActorPartitionId, bool bInCreate, const UActorPartitionSubsystem::FCellCoord& InCellCoord, uint32 InGridSize, bool bInBoundsSearch, TFunctionRef<void(APartitionActor*)> InActorCreated) = 0;
-	virtual void ForEachRelevantActor(const UActorPartitionSubsystem::FForEachRelevantActorParams& InParams) const = 0;
+	virtual void ForEachRelevantActor(const TSubclassOf<APartitionActor>& InActorClass, const FBox& IntersectionBounds, TFunctionRef<bool(APartitionActor*)>InOperation) const = 0;
 
 	DECLARE_EVENT_OneParam(FBaseActorPartition, FOnActorPartitionHashInvalidated, const UActorPartitionSubsystem::FCellCoord&);
 	FOnActorPartitionHashInvalidated& GetOnActorPartitionHashInvalidated() { return OnActorPartitionHashInvalidated; }
