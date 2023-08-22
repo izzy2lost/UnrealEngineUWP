@@ -130,6 +130,7 @@ static UPackage*			GObjTransientPkg								= NULL;
 	static FUObjectAnnotationSparse<FPropagatedEditChangeAnnotation, true> PropagatedEditChangeAnnotation;
 	UObject::FAssetRegistryTag::FOnGetObjectAssetRegistryTags UObject::FAssetRegistryTag::OnGetExtraObjectTags;
 	UObject::FAssetRegistryTag::FOnGetExtendedAssetRegistryTagsForSave UObject::FAssetRegistryTag::OnGetExtendedAssetRegistryTagsForSave;
+	UObject::FOnGetPreviewPlatform UObject::OnGetPreviewPlatform;
 #endif // WITH_EDITOR
 
 UObject::UObject( EStaticConstructor, EObjectFlags InFlags )
@@ -2664,16 +2665,29 @@ void UObject::LoadConfig( UClass* ConfigClass/*=NULL*/, const TCHAR* InFilename/
 
 	const bool bPerObject = UsesPerObjectConfig(this);
 
-	// does the class want to override the platform hierarchy (ignored if we passd in a specific ini file),
+	// does the class want to override the platform hierarchy (ignored if we passed in a specific ini file),
 	// and if the name isn't the current running platform (no need to load extra files if already in GConfig)
-	bool bUseConfigOverride = InFilename == nullptr && GetConfigOverridePlatform() != nullptr &&
-		FCString::Stricmp(GetConfigOverridePlatform(), ANSI_TO_TCHAR(FPlatformProperties::IniPlatformName())) != 0;
+	bool bUseConfigOverride = false;
 	FConfigFile* OverrideConfigFile = nullptr;
 	FConfigFile LocalOverrideConfig;
-	if (bUseConfigOverride)
+
+	if (InFilename == nullptr && GetConfigOverridePlatform() != nullptr &&
+		FCString::Stricmp(GetConfigOverridePlatform(), ANSI_TO_TCHAR(FPlatformProperties::IniPlatformName())) != 0)
 	{
 		OverrideConfigFile = FConfigCacheIni::FindOrLoadPlatformConfig(LocalOverrideConfig, *GetClass()->ClassConfigName.ToString(), GetConfigOverridePlatform());
+		bUseConfigOverride = true;
 	}
+#if WITH_EDITOR
+	else if (GetClass()->HasAnyClassFlags(CLASS_PerPlatformConfig) && UObject::OnGetPreviewPlatform.IsBound())
+	{
+		FName PreviewPlatform;
+		if (UObject::OnGetPreviewPlatform.Execute(PreviewPlatform))
+		{
+			OverrideConfigFile = FConfigCacheIni::FindOrLoadPlatformConfig(LocalOverrideConfig, *GetClass()->ClassConfigName.ToString(), *PreviewPlatform.ToString());
+			bUseConfigOverride = true;
+		}
+	}
+#endif
 
 	FString ClassSection;
 	FString ClassPathSection;
@@ -2801,6 +2815,8 @@ void UObject::LoadConfig( UClass* ConfigClass/*=NULL*/, const TCHAR* InFilename/
 			Key = CVarName;
 			PortFlags |= PPF_ConsoleVariable;
 		}
+
+		const bool bIsPerPlatformConfig = GetClass()->HasAnyClassFlags(CLASS_PerPlatformConfig);
 #endif // #if WITH_EDITOR
 
 		UE_LOG(LogConfig, Verbose, TEXT("   Loading value for %s from [%s]"), *Key, *ClassSection);
@@ -2841,6 +2857,18 @@ void UObject::LoadConfig( UClass* ConfigClass/*=NULL*/, const TCHAR* InFilename/
 		}
 		else
 		{
+			FScriptArrayHelper_InContainer ArrayHelper(Array, this);
+
+#if WITH_EDITOR
+			// Empty out any array properties if this is a PerPlatformConfig class
+			// as we are replacing the values with the Platform's version when entering
+			// a new preview platform.
+			if (bIsPerPlatformConfig)
+			{
+				ArrayHelper.EmptyValues();
+			}
+#endif
+
 			FConfigSection* Sec = GetConfigSection(*ClassSection, *PropFileName);
 			if (!Sec && bPerObject && ClassPathSection.Len())
 			{
@@ -2852,8 +2880,8 @@ void UObject::LoadConfig( UClass* ConfigClass/*=NULL*/, const TCHAR* InFilename/
 				const FName KeyName(*Key, FNAME_Find);
 				Sec->MultiFind(KeyName,List);
 
-				FScriptArrayHelper_InContainer ArrayHelper(Array, this);
 				const int32 Size = Array->Inner->ElementSize;
+
 				// Only override default properties if there is something to override them with.
 				if ( List.Num() > 0 )
 				{

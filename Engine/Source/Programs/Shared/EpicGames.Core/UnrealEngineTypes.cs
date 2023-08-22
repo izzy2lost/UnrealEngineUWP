@@ -180,10 +180,9 @@ namespace EpicGames.Core
 		Interface = 0x00004000u,
 
 		/// <summary>
-		/// Do not export a constructor for this class, assuming it is in the cpptext
-		/// </summary>
-		[Obsolete("No longer used in the engine.")]
-		CustomConstructor = 0x00008000u,
+		/// Config for this class is overridden in platform inis, reload when previewing platforms
+		/// </summary>	
+		PerPlatformConfig = 0x00008000u,
 
 		/// <summary>
 		/// all properties and functions in this class are const and should be exported as const
@@ -289,7 +288,7 @@ namespace EpicGames.Core
 		/// <summary>
 		/// This is used as a mask for the flags put into generated code for "compiled in" classes.
 		/// </summary>
-		SaveInCompiledInClasses = Abstract | DefaultConfig | GlobalUserConfig | ProjectUserConfig | Config | Transient | Optional | Native | NotPlaceable | PerObjectConfig |
+		SaveInCompiledInClasses = Abstract | DefaultConfig | GlobalUserConfig | ProjectUserConfig | PerPlatformConfig | Config | Transient | Optional | Native | NotPlaceable | PerObjectConfig |
 			ConfigDoNotCheckDefaults | EditInlineNew | CollapseCategories | Interface | DefaultToInstanced | HasInstancedReference | Hidden | Deprecated |
 			HideDropDown | Intrinsic | Const | MinimalAPI | RequiredAPI | MatchedSerializers | NeedsDeferredDependencyLoading,
 	};

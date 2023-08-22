@@ -1291,7 +1291,18 @@ public:
 	 */
 	COREUOBJECT_API FString GetProjectUserConfigFilename() const;
 
-	/** Returns the override config hierarchy platform (if NDAd platforms need defaults to not be in Base*.ini but still want editor to load them) */
+#if WITH_EDITOR
+	/** 
+	 * Delegate to return the current preview platform name, or NAME_None if no preview platform is currently active.
+	 * Used by LoadConfig for CLASS_PerPlatformConfig objects.
+	 */
+	DECLARE_DELEGATE_RetVal_OneParam(bool, FOnGetPreviewPlatform, FName&);
+	COREUOBJECT_API static FOnGetPreviewPlatform OnGetPreviewPlatform;
+#endif
+
+	/** 
+	 * Returns the override config hierarchy platform (if NDAd platforms need defaults to not be in Base*.ini but still want editor to load them) 
+	 */
 	virtual const TCHAR* GetConfigOverridePlatform() const { return nullptr; }
 
 	/**

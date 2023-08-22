@@ -496,6 +496,9 @@ UEditorEngine::UEditorEngine(const FObjectInitializer& ObjectInitializer)
 
 	// The AssetRegistry module is needed early in initialization functions so load it here rather than in Init
 	FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+	// Callback to get the preview platform is used for PerPlatformConfig classes
+	UObject::OnGetPreviewPlatform.BindUObject(this, &UEditorEngine::GetPreviewPlatformName);
 }
 
 
@@ -1400,6 +1403,7 @@ void UEditorEngine::FinishDestroy()
 		}
 
 		// Unregister events
+		UObject::OnGetPreviewPlatform.Unbind();
 		FEditorDelegates::MapChange.RemoveAll(this);
 		FCoreDelegates::ModalMessageDialog.Unbind();
 		FCoreUObjectDelegates::ShouldLoadOnTop.Unbind();
@@ -7780,6 +7784,15 @@ void UEditorEngine::SetPreviewPlatform(const FPreviewPlatformInfo& NewPreviewPla
 		}
 	}
 
+	// Update any PerPlatformConfig class defaults or instances
+	for (FThreadSafeObjectIterator ObjIterator(UObject::StaticClass(), RF_NoFlags); ObjIterator; ++ObjIterator)
+	{
+		if ((*ObjIterator) && ObjIterator->GetClass()->HasAnyClassFlags(CLASS_PerPlatformConfig))
+		{
+			ObjIterator->LoadConfig();
+		}
+	}
+
 	constexpr bool bUpdateProgressDialog = true;
 	constexpr bool bCacheAllRemainingShaders = false;
 
@@ -7888,8 +7901,18 @@ void UEditorEngine::ToggleFeatureLevelPreview()
 		UDeviceProfileManager::Get().RestorePreviewDeviceProfile();
 	}
 
+	// Update any PerPlatformConfig class defaults or instances
+	for (FThreadSafeObjectIterator ObjIterator(UObject::StaticClass(), RF_NoFlags); ObjIterator; ++ObjIterator)
+	{
+		if ((*ObjIterator) && ObjIterator->GetClass()->HasAnyClassFlags(CLASS_PerPlatformConfig))
+		{
+			ObjIterator->LoadConfig();
+		}
+	}
+
 	Scalability::ApplyCachedQualityLevelForShaderPlatform(GetActiveShaderPlatform());
 	OnEffectivePreviewShaderPlatformChange();
+
 	PreviewPlatformChanged.Broadcast();
 
 	UStaticMesh::OnLodStrippingQualityLevelChanged(nullptr);

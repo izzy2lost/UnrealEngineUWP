@@ -1405,6 +1405,10 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			{
 				builder.Append(" | CLASS_ProjectUserConfig");
 			}
+			if (classObj.ClassFlags.HasAnyFlags(EClassFlags.PerPlatformConfig))
+			{
+				builder.Append(" | CLASS_PerPlatformConfig");
+			}		
 			if (classObj.ClassFlags.HasAnyFlags(EClassFlags.Config))
 			{
 				builder.Append(" | CLASS_Config");

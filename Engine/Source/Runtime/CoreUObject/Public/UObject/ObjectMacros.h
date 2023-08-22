@@ -219,8 +219,8 @@ enum EClassFlags
 	CLASS_CollapseCategories  = 0x00002000u,
 	/** Class is an interface **/
 	CLASS_Interface           = 0x00004000u,
-	/**  Do not export a constructor for this class, assuming it is in the cpptext **/
-	CLASS_CustomConstructor UE_DEPRECATED(5.1, "CLASS_CustomConstructor should no longer be used. It is no longer being set by engine code.") = 0x00008000u,
+	/**  Config for this class is overridden in platform inis, reload when previewing platforms **/
+	CLASS_PerPlatformConfig   = 0x00008000u,
 	/** all properties and functions in this class are const and should be exported as const */
 	CLASS_Const			      = 0x00010000u,
 
@@ -266,7 +266,7 @@ ENUM_CLASS_FLAGS(EClassFlags);
 
 /** Flags to inherit from base class */
 #define CLASS_Inherit ((EClassFlags)(CLASS_Transient | CLASS_Optional | CLASS_DefaultConfig | CLASS_Config | CLASS_PerObjectConfig | CLASS_ConfigDoNotCheckDefaults | CLASS_NotPlaceable \
-						| CLASS_Const | CLASS_HasInstancedReference | CLASS_Deprecated | CLASS_DefaultToInstanced | CLASS_GlobalUserConfig | CLASS_ProjectUserConfig | CLASS_NeedsDeferredDependencyLoading))
+						| CLASS_Const | CLASS_HasInstancedReference | CLASS_Deprecated | CLASS_DefaultToInstanced | CLASS_GlobalUserConfig | CLASS_ProjectUserConfig | CLASS_PerPlatformConfig | CLASS_NeedsDeferredDependencyLoading))
 
 /** These flags will be cleared by the compiler when the class is parsed during script compilation */
 #define CLASS_RecompilerClear ((EClassFlags)(CLASS_Inherit | CLASS_Abstract | CLASS_Native | CLASS_Intrinsic | CLASS_TokenStreamAssembled))
@@ -283,12 +283,14 @@ ENUM_CLASS_FLAGS(EClassFlags);
 	CLASS_DefaultConfig | \
 	CLASS_GlobalUserConfig | \
 	CLASS_ProjectUserConfig | \
+	CLASS_PerPlatformConfig | \
 	CLASS_Config | \
 	CLASS_Transient | \
 	CLASS_Optional | \
 	CLASS_Native | \
 	CLASS_NotPlaceable | \
 	CLASS_PerObjectConfig | \
+	CLASS_PerPlatformConfig | \
 	CLASS_ConfigDoNotCheckDefaults | \
 	CLASS_EditInlineNew | \
 	CLASS_CollapseCategories | \

@@ -25,7 +25,7 @@ struct FMeshDrawCommandStatsBudget
 };
 
 /** User settings used by the MeshDrawCommandStats system. */
-UCLASS(Config=Engine, defaultconfig, meta = (DisplayName = "Mesh Stats"))
+UCLASS(Config=Engine, defaultconfig, perplatformconfig, meta = (DisplayName = "Mesh Stats"))
 class ENGINE_API UMeshDrawCommandStatsSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
