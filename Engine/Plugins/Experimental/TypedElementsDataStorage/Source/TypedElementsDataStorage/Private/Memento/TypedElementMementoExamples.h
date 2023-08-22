@@ -43,13 +43,23 @@ public:
 	virtual const UScriptStruct* GetMementoType() const override { return FTypedElementPackagePathColumnMemento::StaticStruct(); }
 
 private:
-	virtual void TranslateColumnToMemento(const void* TypedErasedColumn, void* TypeErasedMemento) const override
+	virtual void TranslateColumnToMemento(const void* TypeErasedColumn, void* TypeErasedMemento) const override
 	{
 		// Boilerplate to get the types back
-		const FTypedElementPackagePathColumn* Column = static_cast<const FTypedElementPackagePathColumn*>(TypedErasedColumn);
+		const FTypedElementPackagePathColumn* Column = static_cast<const FTypedElementPackagePathColumn*>(TypeErasedColumn);
 		FTypedElementPackagePathColumnMemento* Memento = static_cast<FTypedElementPackagePathColumnMemento*>(TypeErasedMemento);
 
 		// Explicit mapping between the FString 
 		Memento->Path = FName(Column->Path);
+	}
+
+	virtual void TranslateMementoToColumn(const void* TypeErasedMemento, void* TypeErasedColumn) const override
+	{
+		// Boilerplate to get the types back
+		const FTypedElementPackagePathColumnMemento* Memento = static_cast<const FTypedElementPackagePathColumnMemento*>(TypeErasedMemento);
+		FTypedElementPackagePathColumn* Column = static_cast<FTypedElementPackagePathColumn*>(TypeErasedColumn);
+
+		// Explicit mapping between the FString 
+		Column->Path = *Memento->Path.ToString();
 	}
 };

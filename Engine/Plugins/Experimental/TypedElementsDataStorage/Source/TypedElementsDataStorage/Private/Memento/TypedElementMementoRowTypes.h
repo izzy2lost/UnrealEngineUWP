@@ -23,9 +23,17 @@ struct FTypedElementMementoTag : public FTypedElementDataStorageTag
  * Column for a memento row indicating that the row is populated with memento data
  */
 USTRUCT()
-struct FTypedElementMementoPopulated : public FTypedElementDataStorageColumn
+struct FTypedElementMementoPopulated : public FTypedElementDataStorageTag
 {
-	// Frame number that the memento row became populated
 	GENERATED_BODY()
-	uint64 FrameNumber;
+};
+
+/**
+ * A column added to a memento row which will trigger the reinstantiation process
+ */
+USTRUCT()
+struct FTypedElementReinstanceTarget : public FTypedElementDataStorageColumn
+{
+	GENERATED_BODY()
+	TypedElementRowHandle Target;
 };

@@ -283,4 +283,17 @@ struct FTypedElementDatabaseCompatibilityObjectTypeInfo
 	: TypeInfoType(ETypedElementDatabaseCompatibilityObjectType::Class)
 	, Class(InClass)
 	{}
+
+	FName GetFName() const;
 };
+
+
+inline FName FTypedElementDatabaseCompatibilityObjectTypeInfo::GetFName() const
+{
+	switch(TypeInfoType)
+	{
+	case ETypedElementDatabaseCompatibilityObjectType::Struct: return ScriptStruct->GetFName();
+	case ETypedElementDatabaseCompatibilityObjectType::Class: return Class->GetFName();
+	default: return FName();
+	}
+}

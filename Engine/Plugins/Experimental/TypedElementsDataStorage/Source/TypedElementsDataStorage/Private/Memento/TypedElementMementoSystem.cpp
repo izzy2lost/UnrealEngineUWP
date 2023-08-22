@@ -6,27 +6,18 @@
 #include "HAL/IConsoleManager.h"
 #include "Memento/TypedElementMementoInterface.h"
 #include "Memento/TypedElementMementoTranslators.h"
-#include "PropertyBag.h"
 #include "TypedElementMementoRowTypes.h"
 
 DECLARE_LOG_CATEGORY_CLASS(LogTypedElementMemento, Log, All)
 
 namespace Private
 {
-
 	// Number of frames to keep memento rows before deletion
 	bool GMementosEnabled = false;
 	FAutoConsoleVariableRef CVarMementoEnable(
 		TEXT("teds.mementos.enable"),
 		GMementosEnabled,
 		TEXT("Enable memento system for newly added objects\n"));
-
-	// Number of frames to keep memento rows before deletion
-	int32 GMementoKeepFrames = 120;
-	FAutoConsoleVariableRef CVarMementoKeepFrame(
-		TEXT("teds.mementos.keepframes"),
-		GMementoKeepFrames,
-		TEXT("Number of frames to keep memento rows before deletion\n"));
 }
 
 void UTypedElementMementoSystemFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage) const
@@ -54,6 +45,7 @@ void UTypedElementMementoSystemFactory::RegisterWithCompatibilityLayer(ITypedEle
 	{
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		ObjectAddedDelegateHandle = DataStorageCompatibility.GetOnObjectAddedDelegate().AddUObject(this, &UTypedElementMementoSystemFactory::HandleObjectAddedToCompatibility);
+		ObjectRemovedDelegateHandle = DataStorageCompatibility.GetOnObjectPreDestroy().AddUObject(this, &UTypedElementMementoSystemFactory::HandleObjectPreRemoveFromCompatibility);
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 	
@@ -66,6 +58,7 @@ void UTypedElementMementoSystemFactory::RegisterWithCompatibilityLayer(ITypedEle
 			{
 				PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				DataStorageCompatibility.GetOnObjectAddedDelegate().Remove(ObjectAddedDelegateHandle);
+				DataStorageCompatibility.GetOnObjectPreDestroy().Remove(ObjectRemovedDelegateHandle);
 				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				ObjectAddedDelegateHandle.Reset();
 			}
@@ -77,23 +70,73 @@ void UTypedElementMementoSystemFactory::RegisterWithCompatibilityLayer(ITypedEle
 			{
 				PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				ObjectAddedDelegateHandle = DataStorageCompatibility.GetOnObjectAddedDelegate().AddUObject(this, &UTypedElementMementoSystemFactory::HandleObjectAddedToCompatibility);
+				ObjectRemovedDelegateHandle = DataStorageCompatibility.GetOnObjectPreDestroy().AddUObject(this, &UTypedElementMementoSystemFactory::HandleObjectPreRemoveFromCompatibility);
 				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 		}
 	};
 	
 	Private::CVarMementoEnable->OnChangedDelegate().AddLambda(HandleCVarEnabledChanged);
+	
+	FCoreUObjectDelegates::OnObjectsReinstanced.AddUObject(this, &UTypedElementMementoSystemFactory::HandleOnObjectsReinstanced);
+}
+
+/**
+ * Object reinstancing happens in the following sequence:
+ * - This HandleOnObjectsReinstanced callback is fired
+ * - The old instance objects are deleted
+ * - The new instance objects are added
+ */
+void UTypedElementMementoSystemFactory::HandleOnObjectsReinstanced(
+	const FCoreUObjectDelegates::FReplacementObjectMap& ObjectReplacementMap)
+{
+	for (FCoreUObjectDelegates::FReplacementObjectMap::TConstIterator Iter = ObjectReplacementMap.CreateConstIterator(); Iter; ++Iter)
+	{
+		const UObject* PreDeleteObject = Iter->Key;
+		const UObject* NewInstanceObject = Iter->Value;
+		
+		const TypedElementRowHandle* MementoRowPtr = MementoizableObjects.Find(PreDeleteObject);
+		if (MementoRowPtr != nullptr)
+		{
+			NewInstanceToMementoMap.Add(NewInstanceObject, *MementoRowPtr);
+			UE_LOG(LogTypedElementMemento, VeryVerbose, TEXT("Instance Replacement: 0x%p -> %llu [%s]"), NewInstanceObject, *MementoRowPtr, *NewInstanceObject->GetClass()->GetName());
+		}
+	}
 }
 
 void UTypedElementMementoSystemFactory::HandleObjectAddedToCompatibility(ITypedElementDataStorageInterface* Storage, const void* Object, const FTypedElementDatabaseCompatibilityObjectTypeInfo& TypeInfo, TypedElementRowHandle Row)
 {
-	// Register row for mementoization
-	TypedElementRowHandle Memento = Storage->AddRow(MementoRowBaseTable);
-	Storage->AddOrGetColumn<FTypedElementMementoOnDelete>(Row, FTypedElementMementoOnDelete{ .Memento = Memento });
+	// Register row unconditionally for mementoization
+	{
+		TypedElementRowHandle Memento = Storage->AddRow(MementoRowBaseTable);
+		Storage->AddOrGetColumn<FTypedElementMementoOnDelete>(Row, FTypedElementMementoOnDelete{ .Memento = Memento });
+		UE_LOG(LogTypedElementMemento, VeryVerbose, TEXT("Object [%s] tagged for mementoization 0x%p -> %llu"), *TypeInfo.GetFName().ToString(), Object, Memento);
+		MementoizableObjects.Add(Object, Memento);
+	}
+
+	// If this object is a reinstantiation of a deleted object, then setup the memento row to with the target
+	// row to trigger reinstantiation
+	TypedElementRowHandle Memento;
+	if (NewInstanceToMementoMap.RemoveAndCopyValue(Object, Memento))
+	{
+		UE_LOG(LogTypedElementMemento, VeryVerbose, TEXT("New instance object [%s] mapped to memento 0x%p -> %llu"), *TypeInfo.GetFName().ToString(), Object, Memento);
+		Storage->AddOrGetColumn<FTypedElementReinstanceTarget>(Memento, FTypedElementReinstanceTarget{.Target = Row});
+	}
+}
+
+void UTypedElementMementoSystemFactory::HandleObjectPreRemoveFromCompatibility(ITypedElementDataStorageInterface* Storage,
+	const void* Object, const FTypedElementDatabaseCompatibilityObjectTypeInfo& TypeInfo, TypedElementRowHandle Row)
+{
+	UE_LOG(LogTypedElementMemento, VeryVerbose, TEXT("Removing object 0x%p"),Object);
+
+	// Remove row unconditionally from mementoization
+	MementoizableObjects.Remove(Object);
 }
 
 void UTypedElementMementoSystemFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const
 {
+	using DSI = ITypedElementDataStorageInterface;
+	
 	TArray<const UTypedElementMementoTranslatorBase*> MementoTranslators;
 
 	// Discover all MementoTranslators
@@ -142,6 +185,45 @@ void UTypedElementMementoSystemFactory::RegisterQueries(ITypedElementDataStorage
 		check(QueryHandle != TypedElementInvalidQueryHandle);
 	}
 
+	// Setup processors to execute memento translators on to reinstantiate rows
+	for (int32 Index = 0, End = MementoTranslators.Num(); Index < End; ++Index)
+	{
+		const UTypedElementMementoTranslatorBase* MementoTranslator = MementoTranslators[Index];
+		const UScriptStruct* MementoizedColumnType = MementoTranslator->GetColumnType();
+		const UScriptStruct* MementoType = MementoTranslator->GetMementoType();
+
+		TypedElementQueryHandle Subquery = DataStorage.RegisterQuery(
+			Select()
+				.ReadWrite(MementoizedColumnType)
+			.Compile());
+
+		const FName TranslationProcessorName = FName(FString::Printf(TEXT("MementoTranslator: %s -> %s"), *MementoType->GetName(), *MementoizedColumnType->GetName()));
+		const TypedElementQueryHandle QueryHandle = DataStorage.RegisterQuery(
+			Select(
+				TranslationProcessorName,
+				FProcessor(DSI::EQueryTickPhase::PostPhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::Default)),
+				[MementoTranslator](TypedElementDataStorage::IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementReinstanceTarget& ReinstanceTarget)
+				{
+					const UScriptStruct* MementoType = MementoTranslator->GetMementoType();
+					
+					const void* Memento = Context.GetColumn(MementoType);
+					Context.RunSubquery(0, ReinstanceTarget.Target, 
+						[MementoTranslator, Memento](const DSI::FQueryDescription&, DSI::ISubqueryContext& SubQueryContext)
+						{
+							const UScriptStruct* MementoizedColumnType = MementoTranslator->GetColumnType();
+							void* MementoizedColumn = SubQueryContext.GetMutableColumn(MementoizedColumnType);
+
+							MementoTranslator->TranslateMementoToColumn(Memento, MementoizedColumn);
+						});
+				})
+				.ReadOnly(MementoType)
+				.Where()
+					.All<FTypedElementMementoTag>()
+				.DependsOn().SubQuery(Subquery)
+				.Compile());
+		check(QueryHandle != TypedElementInvalidQueryHandle);
+	}
+
 	// Setup a default policy of deleting populated mementos after a set number of frames
 	// The first use-case of mementos are to support reinstancing which occurs over a single frame
 	// Therefore it should be safe to remove populated mementos after a couple of frames since the data
@@ -150,22 +232,15 @@ void UTypedElementMementoSystemFactory::RegisterQueries(ITypedElementDataStorage
 	{
 		const TypedElementQueryHandle QueryHandle = DataStorage.RegisterQuery(
 			Select(
-				TEXT("Add Memento Deletion Policy Data"),
+				TEXT("Add Memento Populated Tag"),
 				FObserver::OnRemove<FTypedElementMementoOnDelete>(), // When a memento is populated
 				[](TypedElementDataStorage::IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementMementoOnDelete& MementoRow)
 				{
-					Context.AddColumn<FTypedElementMementoPopulated>(
-						MementoRow.Memento,
-						FTypedElementMementoPopulated
-						{
-							.FrameNumber = GFrameCounter
-						});
+					Context.AddColumn<FTypedElementMementoPopulated>(MementoRow.Memento, FTypedElementMementoPopulated{});
 				})
 				.Compile());
 		check(QueryHandle != TypedElementInvalidQueryHandle);
 	}
-
-	using DSI = ITypedElementDataStorageInterface;
 
 	/**
 	 * A processor which deletes mementos that were populated more than N frames ago
@@ -173,16 +248,13 @@ void UTypedElementMementoSystemFactory::RegisterQueries(ITypedElementDataStorage
 	{
 		const TypedElementQueryHandle QueryHandle = DataStorage.RegisterQuery(
 			Select(
-			TEXT("Delete populated mementos older than N frames"),
+			TEXT("Delete populated mementos"),
 			FProcessor(DSI::EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::Default)),
-				[](TypedElementDataStorage::IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementMementoPopulated& PopulateFrameNumber)
+				[](TypedElementDataStorage::IQueryContext& Context, TypedElementRowHandle Row)
 				{
-					if (PopulateFrameNumber.FrameNumber + Private::GMementoKeepFrames < GFrameCounter)
-					{
-						Context.RemoveRow(Row);
-					}
+					Context.RemoveRow(Row);
 				})
-				.Where().All<FTypedElementMementoTag>()
+				.Where().All<FTypedElementMementoTag, FTypedElementMementoPopulated>()
 				.Compile()
 			);
 		check(QueryHandle != TypedElementInvalidQueryHandle);

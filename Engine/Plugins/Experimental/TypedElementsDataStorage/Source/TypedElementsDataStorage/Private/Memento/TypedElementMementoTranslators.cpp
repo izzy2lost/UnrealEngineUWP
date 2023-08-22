@@ -45,27 +45,45 @@ void UTypedElementDefaultMementoTranslator::PostInitProperties()
 		const FProperty* DestinationProperty = PropertyBag->FindPropertyByName(SourceProperty->GetFName());
 		if (DestinationProperty && DestinationProperty->SameType(SourceProperty))
 		{
-			SourceProperties.Add(SourceProperty);
-			DestinationProperties.Add(DestinationProperty);
+			MementoizedColumnProperties.Add(SourceProperty);
+			MementoProperties.Add(DestinationProperty);
 		}
 	}
 }
 
-void UTypedElementDefaultMementoTranslator::TranslateColumnToMemento(const void* Column, void* Memento) const
+void UTypedElementDefaultMementoTranslator::TranslateColumnToMemento(const void* TypeErasedColumn, void* TypeErasedMemento) const
 {
-	const UScriptStruct* ColumnType = GetColumnType();
+	const std::byte* BaseAddressColumn = static_cast<const std::byte*>(TypeErasedColumn);
+	std::byte* BaseAddressMemento = static_cast<std::byte*>(TypeErasedMemento);
 
-	const std::byte* BaseAddressColumn = static_cast<const std::byte*>(Column);
-	std::byte* BaseAddressMemento = static_cast<std::byte*>(Memento);
+	check(MementoizedColumnProperties.Num() == MementoProperties.Num());
 
-	check(SourceProperties.Num() == DestinationProperties.Num());
-
-	for (int32 PropertyIndex = 0, PropertyIndexEnd = SourceProperties.Num(); PropertyIndex < PropertyIndexEnd; ++PropertyIndex)
+	for (int32 PropertyIndex = 0, PropertyIndexEnd = MementoizedColumnProperties.Num(); PropertyIndex < PropertyIndexEnd; ++PropertyIndex)
 	{
-		const FProperty* SourceProperty = SourceProperties[PropertyIndex];
-		const FProperty* DestinationProperty = DestinationProperties[PropertyIndex];
+		const FProperty* SourceProperty = MementoizedColumnProperties[PropertyIndex];
+		const FProperty* DestinationProperty = MementoProperties[PropertyIndex];
 		void* DestinationValueAddress = BaseAddressMemento + DestinationProperty->GetOffset_ForInternal();
 		const void* SourceValueAddress = BaseAddressColumn + SourceProperty->GetOffset_ForInternal();
+		SourceProperty->CopyCompleteValue(
+			DestinationValueAddress,
+			SourceValueAddress);
+	}	
+}
+
+void UTypedElementDefaultMementoTranslator::TranslateMementoToColumn(const void* TypeErasedMemento,
+	void* TypeErasedColumn) const
+{
+	const std::byte* BaseAddressMemento = static_cast<const std::byte*>(TypeErasedMemento);
+	std::byte* BaseAddressColumn = static_cast<std::byte*>(TypeErasedColumn);
+
+	check(MementoizedColumnProperties.Num() == MementoProperties.Num());
+
+	for (int32 PropertyIndex = 0, PropertyIndexEnd = MementoizedColumnProperties.Num(); PropertyIndex < PropertyIndexEnd; ++PropertyIndex)
+	{
+		const FProperty* SourceProperty = MementoProperties[PropertyIndex];
+		const FProperty* DestinationProperty = MementoizedColumnProperties[PropertyIndex];
+		void* DestinationValueAddress = BaseAddressColumn + DestinationProperty->GetOffset_ForInternal();
+		const void* SourceValueAddress = BaseAddressMemento + SourceProperty->GetOffset_ForInternal();
 		SourceProperty->CopyCompleteValue(
 			DestinationValueAddress,
 			SourceValueAddress);

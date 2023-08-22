@@ -36,6 +36,10 @@ public:
 	 * Implements the logic to convert a column to a memento
 	 */
 	virtual void TranslateColumnToMemento(const void* TypeErasedColumn, void* TypeErasedMemento) const PURE_VIRTUAL(UTypedElementColumnMementoProcessorBase, )
+	/**
+	 * Implements the logic to convert a memento to a column
+	 */
+	virtual void TranslateMementoToColumn(const void* TypeErasedMemento, void* TypeErasedColumn) const PURE_VIRTUAL(UTypedElementColumnMementoProcessorBase, )
 };
 
 /**
@@ -78,14 +82,15 @@ public:
 	virtual const UScriptStruct* GetMementoType() const final override;
 
 	virtual void PostInitProperties() final override;
+	
+	virtual void TranslateColumnToMemento(const void* Column, void* Memento) const final override;
+	virtual void TranslateMementoToColumn(const void* TypeErasedMemento, void* TypeErasedColumn) const final override;
 
 private:
-	virtual void TranslateColumnToMemento(const void* Column, void* Memento) const final override;
-	
 	UPROPERTY()
 	TObjectPtr<const UScriptStruct> MementoType = nullptr;
 
-	TArray<const FProperty*> SourceProperties;
-	TArray<const FProperty*> DestinationProperties;
+	TArray<const FProperty*> MementoizedColumnProperties;
+	TArray<const FProperty*> MementoProperties;
 };
 
