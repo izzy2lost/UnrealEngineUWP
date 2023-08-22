@@ -204,7 +204,7 @@ namespace BuoyancyAlgorithms
 		return ShapeVol;
 	}
 
-	bool ComputeSubmergedVolume(const FPBDRigidsEvolutionGBF* Evolution, const FGeometryParticleHandle* ParticleA, const FGeometryParticleHandle* ParticleB, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM)
+	bool ComputeSubmergedVolume(const FPBDRigidsEvolutionGBF* Evolution, const FGeometryParticleHandle* ParticleA, const FGeometryParticleHandle* ParticleB, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM, float& TotalVol)
 	{
 		if (ComputeSubmergedVolume(ParticleA, ParticleB, NumSubdivisions, MinVolume, SubmergedShapes, SubmergedVol, SubmergedCoM))
 		{
@@ -217,6 +217,7 @@ namespace BuoyancyAlgorithms
 			// possibly count as submerged volumes.
 			const FRealSingle ParticleVolB = ComputeParticleVolume(Evolution, ParticleB);
 			const FRealSingle ShapeVolB = ComputeShapeVolume(ParticleB);
+			TotalVol = ParticleVolB;
 
 			// If the submerged vol somehow exceeded the max shape vol, clamp it
 			if (SubmergedVol - ShapeVolB > UE_SMALL_NUMBER)

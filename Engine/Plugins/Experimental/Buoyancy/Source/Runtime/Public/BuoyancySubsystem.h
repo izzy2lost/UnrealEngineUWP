@@ -7,6 +7,7 @@
 #include "Chaos/Framework/PhysicsProxyBase.h"
 #include "PBDRigidsSolver.h"
 #include "Engine/EngineBaseTypes.h"
+#include "WaterBodyComponent.h"
 #include "BuoyancySubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogBuoyancySubsystem, Log, All);
@@ -35,7 +36,25 @@ struct FBuoyancySettings
 	float MinBoundsSubdivisionVol = FMath::Pow(100.f, 3.f); // 1m^3
 
 	ECollisionChannel WaterCollisionChannel = ECollisionChannel::ECC_MAX;
+
+	bool bSurfaceTouchCallback = true;
+
+	float MinVelocityForSurfaceTouchCallback = 10.f;
 };
+
+
+//
+// Buoyancy Delegate Callback
+//
+
+UDELEGATE()
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_SixParams(FSurfaceTouchedDelegate,
+	class AWaterBody*, WaterBodyActor,
+	UPrimitiveComponent*, WaterComponent,
+	UPrimitiveComponent*, SubmergedComponent,
+	float, SubmergedVolume,
+	const FVector&, SubmergedCenterOfMass,
+	const FVector&, SubmergedVelocity);
 
 
 //
@@ -61,7 +80,13 @@ public:
 	bool SetEnabled(const bool bEnabled);
 
 	// Return true if subsystem is enabled and running
+	UFUNCTION()
 	bool IsEnabled() const;
+
+	// Give access to a delegate which will trigger when objects
+	// are in water.
+	UPROPERTY(BlueprintAssignable, Category = Buoyancy)
+	FSurfaceTouchedDelegate OnSurfaceTouched;
 
 protected:
 
@@ -94,6 +119,31 @@ private:
 // Buoyancy Sim Callback
 //
 
+// Metadata for submersions, used for event callbacks
+struct FBuoyancySubmersionMetaData
+{
+	struct FWaterContact
+	{
+		Chaos::FGeometryParticleHandle* Water;
+		float Vol;
+		FVector CoM;
+		FVector Vel;
+	};
+
+	// How many metadata's allowed per submerged particle
+	static constexpr int32 MaxNumWaterContacts = 3;
+	TArray<FWaterContact, TInlineAllocator<MaxNumWaterContacts>> WaterContacts;
+};
+
+
+// A minimal struct of data tracking all the submersions in a frame.
+struct FBuoyancySubmersion
+{
+	Chaos::FPBDRigidParticleHandle* Particle;
+	float Vol;
+	FVector CoM;
+};
+
 struct FBuoyancySubsystemSimCallbackInput : public Chaos::FSimCallbackInput
 {
 	// Here we use a unique ptr so that it is possible to provide an async
@@ -105,11 +155,27 @@ struct FBuoyancySubsystemSimCallbackInput : public Chaos::FSimCallbackInput
 	void Reset();
 };
 
+struct FBuoyancySubsystemSimCallbackOutput : public Chaos::FSimCallbackOutput
+{
+	struct FSurfaceTouch
+	{
+		IPhysicsProxyBase* RigidProxy;
+		IPhysicsProxyBase* WaterProxy;
+		float Vol;
+		FVector CoM;
+		FVector Vel;
+	};
+
+	TArray<FSurfaceTouch> SurfaceTouches;
+
+	void Reset();
+};
+
 // NOTE: The Presimulate option is only needed for proper registry with the solver.
 //       We don't actually need (or want!) a presimulate tick.
 class FBuoyancySubsystemSimCallback : public Chaos::TSimCallbackObject<
 	FBuoyancySubsystemSimCallbackInput,
-	Chaos::FSimCallbackNoOutput,
+	FBuoyancySubsystemSimCallbackOutput,
 	Chaos::ESimCallbackOptions::Presimulate | Chaos::ESimCallbackOptions::MidPhaseModification>
 {
 private:
@@ -122,19 +188,15 @@ private:
 	// memory that was allocated by GT to minimize copies.
 	TUniquePtr<FBuoyancySettings> BuoyancySettings;
 
-	// A minimal struct of data tracking all the submersions in a frame.
-	struct FSubmersion
-	{
-		Chaos::FPBDRigidParticleHandle* Particle;
-		float Vol;
-		Chaos::FVec3 CoM;
-	};
-
 	// This sparse array of submersion events is indexed on particle unique indices.
 	// All buoyant forces due to submersions are applied at once. It's stored as
 	// a member variable and reset every frame, to avoid reallocation of similarly
 	// sized data.
-	TSparseArray<FSubmersion> Submersions;
+	TSparseArray<FBuoyancySubmersion> Submersions;
+
+	// Another sparse array to be kept in sync with Submersions, which will contain
+	// metadata useful for event callbacks
+	TSparseArray<FBuoyancySubmersionMetaData> SubmersionMetaData;
 
 	// This is a sparse array of bit arrays representing which shapes in an object
 	// have already been accounted for when submerging an object. For example, if
