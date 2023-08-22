@@ -181,6 +181,11 @@ bool UGeometryCacheTrackUsd::GetMeshDataAtTime(float Time, FGeometryCacheMeshDat
 	return GetMeshData(SampleIndex, OutMeshData);
 }
 
+bool UGeometryCacheTrackUsd::GetMeshDataAtSampleIndex(int32 SampleIndex, FGeometryCacheMeshData& OutMeshData)
+{
+	return GetMeshData(SampleIndex, OutMeshData);
+}
+
 bool UGeometryCacheTrackUsd::GetMeshData(int32 SampleIndex, FGeometryCacheMeshData& OutMeshData)
 {
 	if (IGeometryCacheStreamer::Get().IsTrackRegistered(this))

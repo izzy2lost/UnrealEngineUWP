@@ -551,10 +551,19 @@ bool UGeometryCacheTrackStreamable::GetMeshDataAtTime(float Time, FGeometryCache
 		return false;
 	}
 
+	const int32 SampleIndex = FindSampleIndexFromTime(Time, false);
+	return GetMeshDataAtSampleIndex(SampleIndex, OutMeshData);
+}
+
+bool UGeometryCacheTrackStreamable::GetMeshDataAtSampleIndex(int32 SampleIndex, FGeometryCacheMeshData& OutMeshData)
+{
+	if (!Codec || !Samples.IsValidIndex(SampleIndex))
+	{
+		return false;
+	}
+
 	// Fetch the mesh data directly bypassing the GeometryCacheStreamingManager
 	FStreamingGeometryCacheData Data(this);
-
-	const int32 SampleIndex = FindSampleIndexFromTime(Time, false);
 	Data.AddNeededChunk(SampleIndex);
 	Data.UpdateStreamingStatus();
 	Data.BlockTillAllRequestsFinished();
