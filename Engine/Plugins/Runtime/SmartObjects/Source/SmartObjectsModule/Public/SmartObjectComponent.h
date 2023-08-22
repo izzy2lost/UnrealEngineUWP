@@ -81,6 +81,8 @@ protected:
 	friend FSmartObjectComponentInstanceData;
 	virtual TStructOnScope<FActorComponentInstanceData> GetComponentInstanceData() const override;
 
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 	void OnRuntimeEventReceived(const FSmartObjectEventData& Event);
 	
 	UPROPERTY(BlueprintAssignable, Category = SmartObject, meta=(DisplayName = "OnSmartObjectEvent"))
@@ -109,11 +111,11 @@ protected:
 	void RegisterToSubsystem();
 	void UnregisterFromSubsystem(const ESmartObjectUnregistrationType UnregistrationType);
 
-	UPROPERTY(EditAnywhere, Category = SmartObject, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, Category = SmartObject, BlueprintReadWrite, Replicated)
 	TObjectPtr<USmartObjectDefinition> DefinitionAsset;
 
 	/** RegisteredHandle != FSmartObjectHandle::Invalid when registered into a collection by SmartObjectSubsystem */
-	UPROPERTY(Transient, VisibleAnywhere, Category = SmartObject)
+	UPROPERTY(Transient, VisibleAnywhere, Category = SmartObject, BlueprintReadOnly, Replicated)
 	FSmartObjectHandle RegisteredHandle;
 
 	ESmartObjectRegistrationType RegistrationType = ESmartObjectRegistrationType::None;

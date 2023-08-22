@@ -18,6 +18,12 @@ USmartObjectComponent::USmartObjectComponent(const FObjectInitializer& ObjectIni
 
 }
 
+void USmartObjectComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	// Required to allow for sub classes to replicate the state of this smart object.
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+}
+
 void USmartObjectComponent::PostInitProperties()
 {
 	Super::PostInitProperties();
@@ -82,11 +88,14 @@ void USmartObjectComponent::RegisterToSubsystem()
 	}
 #endif // WITH_EDITOR
 
-	// Note: we don't report error or ensure on missing subsystem since it might happen
-	// in various scenarios (e.g. inactive world)
-	if (USmartObjectSubsystem* Subsystem = USmartObjectSubsystem::GetCurrent(World))
+	if (GetOwnerRole() == ROLE_Authority)
 	{
-		Subsystem->RegisterSmartObject(*this);
+		// Note: we don't report error or ensure on missing subsystem since it might happen
+		// in various scenarios (e.g. inactive world)
+		if (USmartObjectSubsystem* Subsystem = USmartObjectSubsystem::GetCurrent(World))
+		{
+			Subsystem->RegisterSmartObject(*this);
+		}	
 	}
 }
 
@@ -106,7 +115,8 @@ void USmartObjectComponent::UnregisterFromSubsystem(const ESmartObjectUnregistra
 	}
 #endif // WITH_EDITOR
 
-	if (GetRegisteredHandle().IsValid())
+	// Only attempt to unregister if we are the authoritative role
+	if (GetRegisteredHandle().IsValid() && GetOwnerRole() == ENetRole::ROLE_Authority)
 	{
 		if (USmartObjectSubsystem* Subsystem = USmartObjectSubsystem::GetCurrent(World))
 		{

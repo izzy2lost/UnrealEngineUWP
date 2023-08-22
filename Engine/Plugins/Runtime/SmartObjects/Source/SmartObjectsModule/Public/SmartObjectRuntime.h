@@ -78,11 +78,11 @@ struct SMARTOBJECTSMODULE_API FSmartObjectClaimHandle
 	static const FSmartObjectClaimHandle InvalidHandle;
 
 	/** Handle to the Smart Object where the claimed slot belongs to.  */
-	UPROPERTY(EditAnywhere, Transient, Category="Default")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Transient, Category="Default")
 	FSmartObjectHandle SmartObjectHandle;
 
 	/** Handle of the claimed slot. */
-	UPROPERTY(EditAnywhere, Transient, Category="Default")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Transient, Category="Default")
 	FSmartObjectSlotHandle SlotHandle;
 
 	/** Handle describing the user which claimed the slot. */
@@ -172,12 +172,15 @@ protected:
 	}
 
 	/** Offset of the slot relative to the Smart Object. */
+	UPROPERTY(Transient, VisibleAnywhere, Category=SmartObjects)
 	FVector3f Offset = FVector3f::ZeroVector;
 
 	/** Rotation of the slot relative to the Smart Object. */
+	UPROPERTY(Transient, VisibleAnywhere, Category=SmartObjects)
 	FRotator3f Rotation = FRotator3f::ZeroRotator;
 	
 	/** Runtime tags associated with this slot. */
+	UPROPERTY(Transient, VisibleAnywhere, Category=SmartObjects)
 	FGameplayTagContainer Tags;
 
 	/** Struct used to store contextual data of the user when claiming or using a slot. */
@@ -190,6 +193,7 @@ protected:
 	FOnSlotInvalidated OnSlotInvalidatedDelegate;
 
 	/** Handle to the user that reserves or uses the slot */
+	UPROPERTY(Transient, VisibleAnywhere, Category=SmartObjects)
 	FSmartObjectUserHandle User;
 
 	/** World condition runtime state. */
@@ -197,12 +201,15 @@ protected:
 	mutable FWorldConditionQueryState PreconditionState;
 
 	/** Current availability state of the slot */
+	UPROPERTY(Transient, VisibleAnywhere, Category=SmartObjects)
 	ESmartObjectSlotState State = ESmartObjectSlotState::Free;
 
 	/** True if the slot is enabled */
+	UPROPERTY(Transient, VisibleAnywhere, Category=SmartObjects)
 	uint8 bSlotEnabled : 1;
 
 	/** True if the parent smart object is enabled */
+	UPROPERTY(Transient, VisibleAnywhere, Category=SmartObjects)
 	uint8 bObjectEnabled : 1;
 };
 
@@ -300,9 +307,11 @@ private:
 	TWeakObjectPtr<USmartObjectComponent> OwnerComponent;
 	
 	/** Instance specific transform */
+	UPROPERTY(Transient, VisibleAnywhere, Category=SmartObjects)
 	FTransform Transform;
 
 	/** Tags applied to the current instance */
+	UPROPERTY(Transient, VisibleAnywhere, Category=SmartObjects)
 	FGameplayTagContainer Tags;
 
 	/** Delegate fired whenever a new tag is added or an existing one gets removed */
@@ -314,6 +323,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	FOnSmartObjectEvent OnEvent;
 
 	/** RegisteredHandle != FSmartObjectHandle::Invalid when registered with SmartObjectSubsystem */
+	UPROPERTY(Transient, VisibleAnywhere, Category=SmartObjects)
 	FSmartObjectHandle RegisteredHandle;
 
 	/** Spatial representation data associated to the current instance */
@@ -325,6 +335,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif
 
 	/** Each slot has its own disable state but keeping it also in the parent instance allow faster validation in some cases. */
+	UPROPERTY(Transient, VisibleAnywhere, Category=SmartObjects)
 	uint8 bEnabled : 1;
 };
 

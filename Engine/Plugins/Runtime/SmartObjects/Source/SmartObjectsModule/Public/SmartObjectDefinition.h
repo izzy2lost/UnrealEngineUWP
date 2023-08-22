@@ -36,7 +36,7 @@ class SMARTOBJECTSMODULE_API USmartObjectBehaviorDefinition : public UObject
 /**
  * Persistent and sharable definition of a smart object slot.
  */
-USTRUCT()
+USTRUCT(BlueprintType)
 struct SMARTOBJECTSMODULE_API FSmartObjectSlotDefinition
 {
 	GENERATED_BODY()
@@ -59,15 +59,15 @@ struct SMARTOBJECTSMODULE_API FSmartObjectSlotDefinition
 #endif // WITH_EDITORONLY_DATA
 
 	/** Whether the slot is enable initially. */
-	UPROPERTY(EditDefaultsOnly, Category = "SmartObject")
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "SmartObject")
 	bool bEnabled = true;
 
 	/** Initial runtime tags. */
-	UPROPERTY(EditDefaultsOnly, Category = "SmartObject")
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "SmartObject")
 	FGameplayTagContainer RuntimeTags;
 
 	/** This slot is available only for users matching this query. */
-	UPROPERTY(EditDefaultsOnly, Category = "SmartObject")
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "SmartObject")
 	FGameplayTagQuery UserTagFilter;
 
 	/**
@@ -75,7 +75,7 @@ struct SMARTOBJECTSMODULE_API FSmartObjectSlotDefinition
 	 * Depending on the tag filtering policy these tags can override the parent object's tags
 	 * or be combined with them while applying filters from requests.
 	 */
-	UPROPERTY(EditDefaultsOnly, Category = "SmartObject")
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "SmartObject")
 	FGameplayTagContainer ActivityTags;
 
 	/** Preconditions that must pass for the slot to be selected. */
@@ -83,15 +83,15 @@ struct SMARTOBJECTSMODULE_API FSmartObjectSlotDefinition
 	FWorldConditionQueryDefinition SelectionPreconditions;
 
 	/** Offset relative to the parent object where the slot is located. */
-	UPROPERTY(EditDefaultsOnly, Category = "SmartObject")
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "SmartObject")
 	FVector3f Offset = FVector3f::ZeroVector;
 
 	/** Rotation relative to the parent object. */
-	UPROPERTY(EditDefaultsOnly, Category = "SmartObject")
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "SmartObject")
 	FRotator3f Rotation = FRotator3f::ZeroRotator;
 
 	/** Custom data (struct inheriting from SmartObjectSlotDefinitionData) that can be added to the slot definition and accessed through a FSmartObjectSlotView */
-	UPROPERTY(EditDefaultsOnly, Category = "SmartObject", meta = (BaseStruct = "/Script/SmartObjectsModule.SmartObjectSlotDefinitionData", ExcludeBaseStruct))
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "SmartObject", meta = (BaseStruct = "/Script/SmartObjectsModule.SmartObjectSlotDefinitionData", ExcludeBaseStruct))
 	TArray<FInstancedStruct> Data;
 
 	/**
@@ -99,7 +99,7 @@ struct SMARTOBJECTSMODULE_API FSmartObjectSlotDefinition
 	 * This allows multiple frameworks to provide their specific behavior definition to the slot.
 	 * Note that there should be only one definition of each type since the first one will be selected.
 	 */
-	UPROPERTY(EditDefaultsOnly, Category = "SmartObject", Instanced)
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "SmartObject", Instanced)
 	TArray<TObjectPtr<USmartObjectBehaviorDefinition>> BehaviorDefinitions;
 };
 
@@ -164,10 +164,15 @@ public:
 	const FSmartObjectSlotDefinition& GetSlot(const int32 Index) const { return Slots[Index]; }
 
 	/** @return mutable slot definition stored at a given index */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category="SmartObject")
 	FSmartObjectSlotDefinition& GetMutableSlot(const int32 Index) { return Slots[Index]; }
 
 	/** @return True if specified slot index is valid. */
-	bool IsValidSlotIndex(const int32 SlotIndex) const { return Slots.IsValidIndex(SlotIndex); } 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category="SmartObject")
+	bool IsValidSlotIndex(const int32 SlotIndex) const { return Slots.IsValidIndex(SlotIndex); }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category="SmartObject")
+	const TArray<FSmartObjectSlotDefinition>& K2_GetSlots() const { return Slots; }
 
 #if WITH_EDITOR
 	/** Returns a view on all the slot definitions */
@@ -179,6 +184,7 @@ public:
 #endif
 
 	/** Return bounds encapsulating all slots */
+	UFUNCTION(BlueprintCallable, Category="SmartObject")
 	FBox GetBounds() const;
 
 	/** Adds and returns a reference to a defaulted slot (used for testing purposes) */
@@ -203,6 +209,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 * @return Transform (in world space) of the slot associated to SlotIndex, or OwnerTransform if index is invalid.
 	 * @note Method will ensure on invalid invalid index.
 	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category="SmartObject")
 	FTransform GetSlotWorldTransform(const int32 SlotIndex, const FTransform& OwnerTransform) const;
 
 	/**
@@ -210,6 +217,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 * @param SlotIndex	Index of the slot for which the tags are requested
 	 * @param OutActivityTags Tag container to fill with the activity tags associated to the slot
 	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category="SmartObject", meta = (DisplayName="Get Slot Activity Tags (By Index)", ScriptName="GetSlotActivityTagsByIndex", AutoCreateRefTerm = "OutActivityTags"))
 	void GetSlotActivityTags(const int32 SlotIndex, FGameplayTagContainer& OutActivityTags) const;
 
 	/**
@@ -220,9 +228,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	void GetSlotActivityTags(const FSmartObjectSlotDefinition& SlotDefinition, FGameplayTagContainer& OutActivityTags) const;
 
 	/** Returns the tag query to run on the user tags provided by a request to accept this definition */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category="SmartObject")
 	const FGameplayTagQuery& GetUserTagFilter() const { return UserTagFilter; }
 
 	/** Sets the tag query to run on the user tags provided by a request to accept this definition */
+	UFUNCTION(BlueprintCallable, Category="SmartObject")
 	void SetUserTagFilter(const FGameplayTagQuery& InUserTagFilter) { UserTagFilter = InUserTagFilter; }
 
 	/** Returns the tag query to run on the runtime tags of a smart object instance to accept it */
@@ -234,12 +244,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	void SetObjectTagFilter(const FGameplayTagQuery& InObjectTagFilter) {}
 
 	/** Returns the list of tags describing the activity associated to this definition */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category="SmartObject")
 	const FGameplayTagContainer& GetActivityTags() const { return ActivityTags; }
 
 	/** Sets the list of tags describing the activity associated to this definition */
 	void SetActivityTags(const FGameplayTagContainer& InActivityTags) { ActivityTags = InActivityTags; }
 
 	/** Returns the tag filtering policy that should be applied on User tags by this definition */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category="SmartObject")
 	ESmartObjectTagFilteringPolicy GetUserTagsFilteringPolicy() const { return UserTagsFilteringPolicy; }
 
 	/** Sets the tag filtering policy to apply on User tags by this definition */
