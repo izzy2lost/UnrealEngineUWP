@@ -1830,6 +1830,34 @@ static void InternalSerializeGuide(FArchive& Ar, UObject* Owner, FHairGroupPlatf
 	GuideData.BulkData.Serialize(Ar, Owner);
 }
 
+static bool AfterVerifyHeader_DoesDataExist(UObject* Owner, FHairGroupPlatformData::FStrands& StrandData)
+{
+	bool bAllSucceeded = true;
+	bool bSucceeded;
+	{
+		FHairStreamingRequest R;
+		R.Request(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, -1/*LODIndex*/, StrandData.BulkData,
+			true /*bWait*/, true /*bFillBulkdata*/, true /*bWarmCache*/, Owner->GetFName(),
+			&bSucceeded);
+		bAllSucceeded &= bSucceeded;
+	}
+	{
+		FHairStreamingRequest R;
+		R.Request(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, -1/*LODIndex*/, StrandData.InterpolationBulkData,
+			true /*bWait*/, true /*bFillBulkdata*/, true /*bWarmCache*/, Owner->GetFName(),
+			&bSucceeded);
+		bAllSucceeded &= bSucceeded;
+	}
+	{
+		FHairStreamingRequest R;
+		R.Request(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, -1/*LODIndex*/, StrandData.ClusterBulkData,
+			true /*bWait*/, true /*bFillBulkdata*/, true /*bWarmCache*/, Owner->GetFName(),
+			&bSucceeded);
+		bAllSucceeded &= bSucceeded;
+	}
+	return bAllSucceeded;
+}
+
 static void InternalSerializeStrand(FArchive& Ar, UObject* Owner, FHairGroupPlatformData::FStrands& StrandData, bool bHeader, bool bData)
 {
 	Ar.UsingCustomVersion(FAnimObjectVersion::GUID);
@@ -2545,7 +2573,7 @@ bool UGroomAsset::CacheStrandsData(uint32 GroupIndex, FString& OutDerivedDataKey
 
 	FHairGroupPlatformData& PlatformData = GetHairGroupsPlatformData()[GroupIndex];
 
-	bool bSuccess = true;
+	bool bSuccess = false;
 	if (Data)
 	{
 		UE_CLOG(IsHairStrandsDDCLogEnable(), LogHairStrands, Log, TEXT("[Groom/DDC] Strands - Found (Groom:%s Group6:%d)."), *GetName(), GroupIndex);
@@ -2558,8 +2586,9 @@ bool UGroomAsset::CacheStrandsData(uint32 GroupIndex, FString& OutDerivedDataKey
 
 		InternalSerializeGuide(Ar, this, PlatformData.Guides);
 		InternalSerializeStrand(Ar, this, PlatformData.Strands, true/*Header*/, false/*Data*/);
+		bSuccess = AfterVerifyHeader_DoesDataExist(this, PlatformData.Strands);
 	}
-	else
+	if (!bSuccess)
 	{
 		if (!IsInGameThread())
 		{
