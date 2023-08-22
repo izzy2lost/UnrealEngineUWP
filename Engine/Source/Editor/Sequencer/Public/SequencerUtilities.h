@@ -36,10 +36,10 @@ struct FMovieScenePasteFoldersParams
 		: Sequence(InSequence)
 		, ParentFolder(InParentFolder) {}
 
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Scene")
 	TObjectPtr<UMovieSceneSequence> Sequence;
 	
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Scene")
 	TObjectPtr<UMovieSceneFolder> ParentFolder;
 };
 
@@ -55,13 +55,13 @@ struct FMovieScenePasteSectionsParams
 		, TrackRowIndices(InTrackRowIndices)
 		, Time(InTime) {}
 
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Scene")
 	TArray<TObjectPtr<UMovieSceneTrack>> Tracks;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Scene")
 	TArray<int32> TrackRowIndices;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Scene")
 	FFrameTime Time;
 };
 
@@ -78,16 +78,16 @@ struct FMovieScenePasteTracksParams
 		, ParentFolder(InParentFolder)
 		, Folders(InFolders) {}
 
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Scene")
 	TObjectPtr<UMovieSceneSequence> Sequence;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Scene")
 	TArray<FMovieSceneBindingProxy> Bindings;
 	
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Scene")
 	TObjectPtr<UMovieSceneFolder> ParentFolder;
 	
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Scene")
 	TArray<TObjectPtr<UMovieSceneFolder>> Folders;
 };
 
@@ -103,16 +103,16 @@ struct FMovieScenePasteBindingsParams
 		, Folders(InFolders)
 		, bDuplicateExistingActors(bInDuplicateExistingActors) {}
 
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Scene")
 	TArray<FMovieSceneBindingProxy> Bindings;
 	
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Scene")
 	TObjectPtr<UMovieSceneFolder> ParentFolder;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Scene")
 	TArray<TObjectPtr<UMovieSceneFolder>> Folders;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Scene")
 	bool bDuplicateExistingActors;
 };
 

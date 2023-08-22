@@ -85,25 +85,25 @@ struct FSequencerExportFBXParams
 		, OverrideOptions(InOverrideOptions)
 		, FBXFileName(InFBXFileName) {}
 	
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Scene")
 	TObjectPtr<UWorld> World;
 	
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Scene")
 	TObjectPtr<ULevelSequence> Sequence;
 	
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Scene")
 	TObjectPtr<ULevelSequence> RootSequence;
 	
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Scene")
 	TArray<FMovieSceneBindingProxy> Bindings;
 	
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Scene")
 	TArray<TObjectPtr<UMovieSceneTrack>> Tracks;
 	
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Scene")
 	TObjectPtr<UFbxExportOption> OverrideOptions;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Scene")
 	FString FBXFileName;
 };
 
