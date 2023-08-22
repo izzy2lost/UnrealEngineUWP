@@ -1204,7 +1204,7 @@ FTransform USmartObjectSubsystem::GetSlotTransformChecked(const FSmartObjectSlot
 {
 	const FSmartObjectRuntime* SmartObjectRuntime = nullptr;
 	const FSmartObjectRuntimeSlot* Slot = nullptr;
-	check(GetValidatedRuntimeAndSlot(SlotHandle, SmartObjectRuntime, Slot, ANSI_TO_TCHAR(__FUNCTION__)));
+	verify(GetValidatedRuntimeAndSlot(SlotHandle, SmartObjectRuntime, Slot, ANSI_TO_TCHAR(__FUNCTION__)));
 	return Slot->GetSlotLocalTransform() * SmartObjectRuntime->Transform;
 }
 
