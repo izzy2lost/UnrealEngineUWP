@@ -17,7 +17,7 @@ inline void* FunctionMapLookup(void* OldFunction, const char* Where)
     {
 		if (Where)
 		{
-			UE_LOG(LogAutoRTFM, Warning, TEXT("Could not find function %p '%s' where '%s'."), OldFunction, *GetFunctionDescription(OldFunction), Where);
+			UE_LOG(LogAutoRTFM, Warning, TEXT("Could not find function %p '%s' where '%s'."), OldFunction, *GetFunctionDescription(OldFunction), ANSI_TO_TCHAR(Where));
 		}
 		else
 		{

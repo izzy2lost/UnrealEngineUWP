@@ -82,7 +82,7 @@ extern "C" void autortfm_llvm_fail(const char* Message)
 {
     if (Message)
     {
-		UE_LOG(LogAutoRTFM, Warning, TEXT("Transaction failing because of language issue '%s'."), Message);
+		UE_LOG(LogAutoRTFM, Warning, TEXT("Transaction failing because of language issue '%s'."), ANSI_TO_TCHAR(Message));
     }
     else
     {
@@ -102,7 +102,7 @@ extern "C" void autortfm_llvm_error(const char* Message)
 {
 	if (Message)
 	{
-		UE_LOG(LogAutoRTFM, Fatal, TEXT("Transaction failing because of LLVM issue '%s'."), Message);
+		UE_LOG(LogAutoRTFM, Fatal, TEXT("Transaction failing because of LLVM issue '%s'."), ANSI_TO_TCHAR(Message));
 	}
 	else
 	{
