@@ -79,6 +79,18 @@ namespace AutomationTool.Tasks
 		/// </summary>
 		[TaskParameter(Optional = true)]
 		public string DestinationCloudBucket;
+
+		/// <summary>
+		/// The directory to store the exported oplog
+		/// </summary>
+		[TaskParameter(Optional = true)]
+		public string DestinationDir;
+
+		/// <summary>
+		/// The name of the oplog to write on disk
+		/// </summary>
+		[TaskParameter(Optional = true)]
+		public string DestinationOplogName;
 	}
 
 	/// <summary>
@@ -270,6 +282,13 @@ namespace AutomationTool.Tasks
 						}
 					}
 
+					break;
+				case SnapshotStorageType.File:
+					string ProjectId = ProjectUtils.GetProjectPathId(ProjectFile);
+					OplogExportCommandline.AppendFormat(" --file {0} --name {1} {2} {3}", Parameters.DestinationDir, Parameters.DestinationOplogName, ProjectId, Parameters.Platform);
+
+					Logger.LogInformation("Running '{Arg0} {Arg1}'", CommandUtils.MakePathSafeToUseWithCommandLine(ZenExe.FullName), OplogExportCommandline.ToString());
+					CommandUtils.RunAndLog(CommandUtils.CmdEnv, ZenExe.FullName, OplogExportCommandline.ToString(), Options: CommandUtils.ERunOptions.Default);
 					break;
 				default:
 					throw new AutomationException("Unknown/invalid/unimplemented destination storage type - {0}", Parameters.DestinationStorageType);
