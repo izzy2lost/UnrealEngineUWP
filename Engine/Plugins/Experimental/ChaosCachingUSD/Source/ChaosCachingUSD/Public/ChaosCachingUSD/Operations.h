@@ -3,6 +3,7 @@
 #pragma once
 #if USE_USD_SDK
 
+#include "Chaos/Vector.h"
 #include "GeometryCollection/GeometryCollection.h"
 #include "GeometryCollection/ManagedArray.h"
 #include "Math/UnrealMathUtility.h"
@@ -134,11 +135,14 @@ namespace UE::ChaosCachingUSD
 	CHAOSCACHINGUSD_API bool WritePoints(UE::FUsdStage& Stage, const FString& PrimPath, const double Time, const FManagedArrayCollection& Collection, const int32 StructureIndex = INDEX_NONE);
 	/** Write points and velocities to \c UsdGeomPointBased at \c PrimPath. */
 	CHAOSCACHINGUSD_API bool WritePoints(UE::FUsdStage& Stage, const FString& PrimPath, const double Time, pxr::VtArray<pxr::GfVec3f>& VtPoints, pxr::VtArray<pxr::GfVec3f>& VtVels);
+	/** Copy \p Points and \p Vels to \c VtArray (with USD memory allocator), then write to USD stage. */
+	CHAOSCACHINGUSD_API bool WritePoints(UE::FUsdStage& Stage, const FString& PrimPath, const double Time, const TArray<Chaos::TVector<float, 3>>& Points, const TArray<Chaos::TVector<float, 3>>& Vels);
 
 	/** Get time samples for an attribute. */
 	CHAOSCACHINGUSD_API bool ReadTimeSamples(const UE::FUsdStage& Stage, const FString& PrimPath, const FString& AttrName, TArray<double>& TimeSamples);
 	/** Get time samples for the points attribute. */
 	CHAOSCACHINGUSD_API bool ReadTimeSamples(const UE::FUsdStage& Stage, const FString& PrimPath, TArray<double>& TimeSamples);
+	CHAOSCACHINGUSD_API uint64 GetNumTimeSamples(const UE::FUsdStage& Stage, const FString& PrimPath, const FString& AttrName);
 
 	CHAOSCACHINGUSD_API FString GetPointsAttrName();
 	CHAOSCACHINGUSD_API FString GetVelocityAttrName();

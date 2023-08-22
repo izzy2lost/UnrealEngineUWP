@@ -35,6 +35,10 @@ namespace Chaos
 		TEXT("p.Chaos.Caching.USD.NoClobber"),
 		CVarParams.bNoClobber,
 		TEXT("Rename rather than over write existing cach files. [def: true]"));
+	FAutoConsoleVariableRef CVarDeformableFleshCacheSaveFrequency(
+		TEXT("p.Chaos.Caching.USD.SaveFrequency"),
+		CVarParams.SaveFrequency,
+		TEXT("Interval in frames to flush USD data to disk. 2 saves every other frame, 1 saves every frame, 0 caches in memory until complete. [def: 10]"));
 
 #endif // USE_USD_SDK && DO_USD_CACHING
 
@@ -93,27 +97,19 @@ namespace Chaos
 					MinTime = FMath::Min(InTime, MinTime);
 					MaxTime = FMath::Max(InTime, MaxTime);
 
-					pxr::VtArray<pxr::GfVec3f> Points = UE::ChaosCachingUSD::ToVtVec3Array(Particles.XArray());
-					pxr::VtArray<pxr::GfVec3f> Vels   = UE::ChaosCachingUSD::ToVtVec3Array(Particles.GetV());
-					
-					// Try to not fill the disk with redundant data.  Finalize() does last save 
-					// to set the final frame range.
-					if (UE::ChaosCachingUSD::ValuesDiffer(Points, PrevPoints, 0.5) ||
-						UE::ChaosCachingUSD::ValuesDiffer(Vels, PrevVels, 0.5))
+					if (MonolithStage)
 					{
-						PrevPoints = Points;
-						PrevVels = Vels;
-
-						if (MonolithStage)
+						if (!UE::ChaosCachingUSD::WritePoints(MonolithStage, PrimPath, InTime, Particles.XArray(), Particles.GetV()))
 						{
-							if (!UE::ChaosCachingUSD::WritePoints(MonolithStage, PrimPath, InTime, Points, Vels))
-							{
-								UE_LOG(LogChaosFleshCache, Error,
-									TEXT("Failed to write points '%s' at time %g to file: '%s'"),
-									*PrimPath, InTime, *MonolithStage.GetRootLayer().GetDisplayName());
-								return;
-							}
-							// Save every n frames?
+							UE_LOG(LogChaosFleshCache, Error,
+								TEXT("Failed to write points '%s' at time %g to file: '%s'"),
+								*PrimPath, InTime, *MonolithStage.GetRootLayer().GetDisplayName());
+							return;
+						}
+
+						uint64 NumTimeSamples = UE::ChaosCachingUSD::GetNumTimeSamples(MonolithStage, PrimPath, UE::ChaosCachingUSD::GetPointsAttrName());
+						if (CVarParams.SaveFrequency >= 1 && NumTimeSamples % CVarParams.SaveFrequency == 0)
+						{
 							if (!UE::ChaosCachingUSD::SaveStage(MonolithStage, MinTime, MaxTime))
 							{
 								UE_LOG(LogChaosFleshCache, Error,
@@ -675,9 +671,6 @@ namespace Chaos
 	{
 #if USE_USD_SDK && DO_USD_CACHING
 		// Detach shared memory arrays.
-		PrevPoints.clear();
-		PrevVels.clear();
-		
 		if (MonolithStage)
 		{
 			if (!bReadOnly)

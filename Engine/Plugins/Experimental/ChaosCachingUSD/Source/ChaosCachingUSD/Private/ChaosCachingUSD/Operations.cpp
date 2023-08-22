@@ -83,6 +83,8 @@ UE::ChaosCachingUSD::OpenStage(const FString& StageName, UE::FUsdStage& UsdStage
 bool 
 UE::ChaosCachingUSD::SaveStage(UE::FUsdStage& Stage, const double FirstFrame, const double LastFrame)
 {
+	FScopedUsdAllocs UsdAllocs; // Use USD memory allocator
+
 	if (FirstFrame != -TNumericLimits<double>::Max() && LastFrame != -TNumericLimits<double>::Max())
 	{
 		const double StageStart = Stage.GetStartTimeCode();
@@ -201,7 +203,7 @@ UE::ChaosCachingUSD::InitValueClipsTemplate(
 	const double EndTime,
 	const double Stride)
 {
-	FScopedUsdAllocs UEAllocs; // Use USD memory allocator
+	FScopedUsdAllocs UsdAllocs; // Use USD memory allocator
 
 	UE::FSdfLayer ParentLayer = ParentStage.GetRootLayer();
 	UE::FSdfLayer TopologyLayer = ParentStage.GetRootLayer();
@@ -317,7 +319,7 @@ UE::ChaosCachingUSD::WriteTetMesh(
 	const FManagedArrayCollection& Collection, 
 	const int32 StructureIndex)
 {
-	FScopedUsdAllocs UEAllocs; // Use USD memory allocator
+	FScopedUsdAllocs UsdAllocs; // Use USD memory allocator
 
 	const TManagedArray<FIntVector4>* Tetrahedron =
 		Collection.FindAttribute<FIntVector4>(
@@ -460,7 +462,7 @@ UE::ChaosCachingUSD::WriteTetMesh(
 			*PrimPath, *Stage.GetRootLayer().GetRealPath());
 	}
 
-	return UE::ChaosCachingUSD::SaveStage(Stage, -TNumericLimits<double>::Max(), -TNumericLimits<double>::Max());
+	return true;
 }
 
 bool
@@ -471,6 +473,8 @@ UE::ChaosCachingUSD::WritePoints(
 	pxr::VtArray<pxr::GfVec3f>& VtPoints,
 	pxr::VtArray<pxr::GfVec3f>& VtVels)
 {
+	FScopedUsdAllocs UsdAllocs; // Use USD memory allocator
+
 	pxr::GfMatrix4d GfMat(1.0);
 
 	UE::FSdfPath Path(*PrimPath);
@@ -507,7 +511,7 @@ UE::ChaosCachingUSD::WritePoints(
 	const FManagedArrayCollection& Collection, 
 	const int32 StructureIndex)
 {
-	FScopedUsdAllocs UEAllocs; // Use USD memory allocator
+	FScopedUsdAllocs UsdAllocs; // Use USD memory allocator
 
 	const TManagedArray<int32>* VertexStart =
 		Collection.FindAttribute<int32>(
@@ -566,6 +570,24 @@ UE::ChaosCachingUSD::WritePoints(
 }
 
 bool 
+UE::ChaosCachingUSD::WritePoints(
+	UE::FUsdStage& Stage, 
+	const FString& PrimPath, 
+	const double Time, 
+	const TArray<Chaos::TVector<float, 3>>& Points, 
+	const TArray<Chaos::TVector<float, 3>>& Vels)
+{
+	FScopedUsdAllocs UsdAllocs; // Use USD memory allocator
+
+	pxr::VtArray<pxr::GfVec3f> VtPoints(static_cast<size_t>(Points.Num()));
+	for (int32 i = 0; i < Points.Num(); i++) VtPoints[i].Set(Points[i][0], Points[i][1], Points[i][2]);
+	pxr::VtArray<pxr::GfVec3f> VtVels(static_cast<size_t>(Vels.Num()));
+	for (int32 i = 0; i < Vels.Num(); i++) VtPoints[i].Set(Vels[i][0], Vels[i][1], Vels[i][2]);
+
+	return WritePoints(Stage, PrimPath, Time, VtPoints, VtVels);
+}
+
+bool
 UE::ChaosCachingUSD::ReadTimeSamples(
 	const UE::FUsdStage& Stage, 
 	const FString& PrimPath, 
@@ -587,6 +609,28 @@ UE::ChaosCachingUSD::ReadTimeSamples(
 	}
 	Attr.GetTimeSamples(TimeSamples);
 	return true;
+}
+
+uint64
+UE::ChaosCachingUSD::GetNumTimeSamples(
+	const UE::FUsdStage& Stage,
+	const FString& PrimPath,
+	const FString& AttrName)
+{
+	UE::FSdfPath Path(*PrimPath);
+	UE::FUsdPrim Prim = Stage.GetPrimAtPath(Path);
+	if (!Prim)
+	{
+		UE_LOG(LogUsd, Error, TEXT("No prim found at path '%s'."), *PrimPath);
+		return 0;
+	}
+	UE::FUsdAttribute Attr = Prim.GetAttribute(*AttrName);
+	if (!Attr)
+	{
+		UE_LOG(LogUsd, Error, TEXT("No attribute '%s' found on prim '%s'."), *AttrName, *PrimPath);
+		return 0;
+	}
+	return Attr.GetNumTimeSamples();
 }
 
 bool 
@@ -621,7 +665,7 @@ UE::ChaosCachingUSD::GetBracketingTimeSamples(
 	double* Lower, 
 	double* Upper)
 {
-	FScopedUsdAllocs UEAllocs; // Use USD memory allocator
+	FScopedUsdAllocs UsdAllocs; // Use USD memory allocator
 
 	UE::FSdfPath Path(*PrimPath);
 	UE::FUsdPrim Prim = Stage.GetPrimAtPath(Path);
@@ -642,7 +686,6 @@ UE::ChaosCachingUSD::GetBracketingTimeSamples(
 		TargetTime, Lower, Upper, &bHasTimeSamples) && bHasTimeSamples;
 }
 
-
 bool
 UE::ChaosCachingUSD::ReadPoints(
 	const UE::FUsdStage& Stage,
@@ -651,7 +694,7 @@ UE::ChaosCachingUSD::ReadPoints(
 	const double Time,
 	pxr::VtArray<pxr::GfVec3f>& VtPoints)
 {
-	FScopedUsdAllocs UEAllocs; // Use USD memory allocator
+	FScopedUsdAllocs UsdAllocs; // Use USD memory allocator
 	
 	UE::FSdfPath Path(*PrimPath);
 	UE::FUsdPrim Prim = Stage.GetPrimAtPath(Path);

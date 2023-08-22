@@ -33,6 +33,7 @@ namespace Chaos
 		// USD caching options
 		bool bWriteBinary = true;
 		bool bNoClobber = true;
+		int32 SaveFrequency = 10;
 	};
 
 	/**
@@ -86,9 +87,6 @@ namespace Chaos
 
 		mutable double MinTime = TNumericLimits<double>::Max();
 		mutable double MaxTime = -TNumericLimits<double>::Max();
-
-		mutable pxr::VtArray<pxr::GfVec3f> PrevPoints;
-		mutable pxr::VtArray<pxr::GfVec3f> PrevVels;
 
 		mutable UE::FUsdStage MonolithStage;
 
