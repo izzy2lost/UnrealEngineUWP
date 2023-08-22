@@ -5,6 +5,11 @@
 #include "Engine/EngineBaseTypes.h"
 #include "ShowFlags.h"
 
+UMovieGraphDeferredRenderPassNode::UMovieGraphDeferredRenderPassNode()
+	: ViewModeIndex(VMI_Lit)
+{
+}
+
 #if WITH_EDITOR
 FText UMovieGraphDeferredRenderPassNode::GetNodeTitle(const bool bGetDescriptive) const
 {
@@ -20,11 +25,5 @@ FString UMovieGraphDeferredRenderPassNode::GetRendererNameImpl() const
 
 EViewModeIndex UMovieGraphDeferredRenderPassNode::GetViewModeIndex() const
 {
-	return VMI_Lit;
-}
-
-FEngineShowFlags UMovieGraphDeferredRenderPassNode::GetShowFlags() const
-{
-	FEngineShowFlags ShowFlags = FEngineShowFlags(EShowFlagInitMode::ESFIM_Game);
-	return ShowFlags;
+	return ViewModeIndex;
 }

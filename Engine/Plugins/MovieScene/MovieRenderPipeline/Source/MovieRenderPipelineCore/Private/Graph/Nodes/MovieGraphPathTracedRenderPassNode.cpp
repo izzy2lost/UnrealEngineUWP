@@ -5,6 +5,12 @@
 #include "Engine/EngineBaseTypes.h"
 #include "ShowFlags.h"
 
+UMovieGraphPathTracedRenderPassNode::UMovieGraphPathTracedRenderPassNode()
+{
+	ShowFlags->ApplyDefaultShowFlagValue(VMI_PathTracing, true);
+	// TODO: Showflag for SetMotionBlur()?
+}
+
 #if WITH_EDITOR
 FText UMovieGraphPathTracedRenderPassNode::GetNodeTitle(const bool bGetDescriptive) const
 {
@@ -44,13 +50,4 @@ FString UMovieGraphPathTracedRenderPassNode::GetRendererNameImpl() const
 EViewModeIndex UMovieGraphPathTracedRenderPassNode::GetViewModeIndex() const
 {
 	return VMI_PathTracing;
-}
-
-FEngineShowFlags UMovieGraphPathTracedRenderPassNode::GetShowFlags() const
-{
-	FEngineShowFlags ShowFlags = FEngineShowFlags(EShowFlagInitMode::ESFIM_Game);
-	ShowFlags.SetPathTracing(true);
-	// TODO: SetMotionBlur()?
-	
-	return ShowFlags;
 }

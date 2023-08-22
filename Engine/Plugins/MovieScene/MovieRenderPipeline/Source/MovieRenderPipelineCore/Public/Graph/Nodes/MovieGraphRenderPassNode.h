@@ -28,12 +28,16 @@ public:
 	// UMovieGraphRenderPassNode Interface
 	/** Get the name of this renderer. Deferred, Path Tracer, Panoramic, etc. Called on the CDO. */
 	FString GetRendererName() const { return GetRendererNameImpl(); }
+	
 	/** Called when this should set up for rendering a new shot. Called on the CDO. */
 	void Setup(const FMovieGraphRenderPassSetupData& InSetupData) { SetupImpl(InSetupData); }
+	
 	/** Called when this should do teardown of resources. FlushRenderingCommands() will have already been called by this point. Called on the CDO. */
 	void Teardown() { TeardownImpl(); }
+	
 	/** Called each tick (once per temporal sample). Called on the CDO. */
 	void Render(const FMovieGraphTraversalContext& InFrameTraversalContext, const FMovieGraphTimeStepData& InTimeData) { RenderImpl(InFrameTraversalContext, InTimeData); }
+
 	/** 
 	* Called each output frame. Should add a series of FMovieGraphRenderDataIdentifiers to the array, and then when producing frames
 	* in Render, the resulting image data should have the matching FMovieGraphRenderDataIdentifiers associated with it. Used by the

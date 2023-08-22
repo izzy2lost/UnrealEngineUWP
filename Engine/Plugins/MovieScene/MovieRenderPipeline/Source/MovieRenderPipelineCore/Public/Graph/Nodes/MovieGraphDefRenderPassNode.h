@@ -13,6 +13,8 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphDeferredRenderPassNode : public UMo
 	GENERATED_BODY()
 
 public:
+	UMovieGraphDeferredRenderPassNode();
+
 #if WITH_EDITOR
 	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const override;
 #endif
@@ -24,6 +26,13 @@ protected:
 
 	// UMovieGraphCoreRenderPassNode Interface
 	virtual EViewModeIndex GetViewModeIndex() const override;
-	virtual FEngineShowFlags GetShowFlags() const override;
 	// ~UMovieGraphCoreRenderPassNode Interface
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_ViewModeIndex : 1;
+
+	/** The view mode index that will be applied to renders. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta=(EditCondition="bOverride_ViewModeIndex", InvalidEnumValues = "VMI_PathTracing"))
+	TEnumAsByte<EViewModeIndex> ViewModeIndex;
 };

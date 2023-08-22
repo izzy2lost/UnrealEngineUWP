@@ -13,6 +13,8 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphPathTracedRenderPassNode : public U
 	GENERATED_BODY()
 
 public:
+	UMovieGraphPathTracedRenderPassNode();
+
 #if WITH_EDITOR
 	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const override;
 #endif
@@ -29,7 +31,6 @@ protected:
 
 	// UMovieGraphCoreRenderPassNode Interface
 	virtual EViewModeIndex GetViewModeIndex() const override;
-	virtual FEngineShowFlags GetShowFlags() const override;
 	// ~UMovieGraphCoreRenderPassNode Interface
 
 private:

@@ -12,6 +12,7 @@
 #include "MoviePipelineQueue.h"
 #include "MoviePipelineQueueSubsystem.h"
 #include "SPositiveActionButton.h"
+#include "Graph/Nodes/MovieGraphCoreRenderPassNode.h"
 #include "Widgets/Input/SComboBox.h"
 
 #define LOCTEXT_NAMESPACE "SMoviePipelineActiveRenderSettingsTabContent"
@@ -45,6 +46,23 @@ FString FActiveRenderSettingsTreeElement::GetValue() const
 			SettingsNode->GetDynamicPropertyValue(PropertyDesc.Name, ValueString);
 			return ValueString;
 		}
+	}
+
+	// If the property implements IMovieGraphTraversableObject, get the value via GetMergedProperties().
+	// Value will be formatted as a newline-delimited list of "PropertyName = PropertyValue" strings.
+	const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(SettingsProperty);
+	if (ObjectProperty && ObjectProperty->PropertyClass->ImplementsInterface(UMovieGraphTraversableObject::StaticClass()))
+	{
+		const IMovieGraphTraversableObject* MergeableProperty = Cast<IMovieGraphTraversableObject>(
+			ObjectProperty->GetObjectPropertyValue(ObjectProperty->ContainerPtrToValuePtr<void>(SettingsNode)));
+		
+		TArray<FString> MergedValues;
+		Algo::Transform(MergeableProperty->GetMergedProperties(), MergedValues, [](const TPair<FString, FString>& Pair)
+		{
+			return FString::Format(TEXT("{0} = {1}"), {Pair.Key, Pair.Value});
+		});
+		
+		return FString::Join(MergedValues, TEXT("\n"));
 	}
 
 	// Otherwise, ask the property for its value directly
@@ -242,7 +260,7 @@ TSharedRef<SWidget> SMovieGraphActiveRenderSettingsTreeItem::GenerateWidgetForCo
 
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
-			.VAlign(VAlign_Center)
+			.VAlign(VAlign_Top)
 			.HAlign(HAlign_Right)
 			[
 				SNew(STextBlock)

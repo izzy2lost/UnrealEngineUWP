@@ -1,11 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+
 #include "CoreMinimal.h"
 #include "EdGraph/EdGraph.h"
 #include "Graph/MovieGraphNode.h"
 #include "Graph/MovieGraphTraversalContext.h"
 #include "MovieGraphValueContainer.h"
+#include "UObject/Interface.h"
 
 #include "MovieGraphConfig.generated.h"
 
@@ -480,6 +482,33 @@ public:
 	/** Mapping between named branches (at the root of the config) and their evaluated values. */
 	UPROPERTY(Transient)
 	TMap<FName, FMovieGraphEvaluatedBranchConfig> BranchConfigMapping;
+};
+
+UINTERFACE(MinimalAPI)
+class UMovieGraphTraversableObject : public UInterface
+{
+	GENERATED_BODY()
+};
+
+/**
+ * Provides a way for objects, which would otherwise not be mergeable during a traversal, to merge in a well-defined way.
+ * Also allows objects to expose which properties have been affected by the merge.
+ */
+class IMovieGraphTraversableObject
+{
+	GENERATED_BODY()
+
+public:
+	/** Merges the contents of InSourceClass into this object. */
+	virtual void Merge(const IMovieGraphTraversableObject* InSourceObject) { }
+
+	/**
+	 * Gets properties, and their associated values, which have been modified by a merge.
+	 * Key = property name, value = stringified value
+	 * The stringified value is a representation of the value which will usually be displayed in the UI. It does not need
+	 * to be a serialized representation.
+	 */
+	virtual TArray<TPair<FString, FString>> GetMergedProperties() const { return {}; }
 };
 
 /**

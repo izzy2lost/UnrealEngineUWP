@@ -1000,10 +1000,13 @@ void UMovieGraphConfig::CopyOverriddenProperties(UMovieGraphNode* FromNode, UMov
 		}
 
 		// If our destination node already has this property marked as overridden, then some other node in the graph has
-		// taken priority and set the value to something, so we don't want to override it.
+		// taken priority and set the value to something, so we don't want to override it. The exception to this is
+		// an object implementing IMovieGraphTraversableObject -- they determine when/how property values are updated.
+		const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(DestNodeProperty);
+		const bool bIsMergeableObject = ObjectProperty && ObjectProperty->PropertyClass->ImplementsInterface(UMovieGraphTraversableObject::StaticClass());
 		const bool bAlreadyOverriddenOnDestNode = bIsDynamic
 			? ToNode->IsDynamicPropertyOverridden(PropertyName)
-			: EditConditionProperty->GetPropertyValue_InContainer(ToNode);
+			: EditConditionProperty->GetPropertyValue_InContainer(ToNode) && !bIsMergeableObject;
 		if (bAlreadyOverriddenOnDestNode)
 		{
 			continue;
@@ -1056,6 +1059,24 @@ void UMovieGraphConfig::CopyOverriddenProperties(UMovieGraphNode* FromNode, UMov
 		else
 		{
 			EditConditionProperty->SetPropertyValue_InContainer(ToNode, true);
+		}
+
+		// Before using the normal property copying procedure, check to see if this property is an IMovieGraphTraversableObject.
+		// These objects define a particular way they should have their properties merged.
+		if (bIsMergeableObject)
+		{
+			const IMovieGraphTraversableObject* SourceTraversableObject = Cast<IMovieGraphTraversableObject>(
+				ObjectProperty->GetObjectPropertyValue(ObjectProperty->ContainerPtrToValuePtr<void>(FromNode)));
+			IMovieGraphTraversableObject* DestTraversableObject = Cast<IMovieGraphTraversableObject>(
+				ObjectProperty->GetObjectPropertyValue(ObjectProperty->ContainerPtrToValuePtr<void>(ToNode)));
+			
+			if (DestTraversableObject && SourceTraversableObject)
+			{
+				DestTraversableObject->Merge(SourceTraversableObject);
+
+				// Property has been copied via Merge(), don't run the normal copy procedure
+				continue;
+			}
 		}
 
 		// Now we need to copy the value from the source to the destination

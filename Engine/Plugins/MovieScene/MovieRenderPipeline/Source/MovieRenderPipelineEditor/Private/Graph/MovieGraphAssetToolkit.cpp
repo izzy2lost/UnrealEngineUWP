@@ -4,8 +4,10 @@
 
 #include "Customizations/Graph/GraphMemberCustomization.h"
 #include "Customizations/Graph/GraphNodeCustomization.h"
+#include "Customizations/Graph/MovieGraphShowFlagsCustomization.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Graph/MovieGraphConfig.h"
+#include "Graph/Nodes/MovieGraphCoreRenderPassNode.h"
 #include "MovieEdGraphNode.h"
 #include "MovieGraphSchema.h"
 #include "PropertyEditorModule.h"
@@ -230,6 +232,10 @@ TSharedRef<SDockTab> FMovieGraphAssetToolkit::SpawnTab_RenderGraphDetails(const 
 	SelectedGraphObjectsDetailsWidget->RegisterInstancedCustomPropertyLayout(
 		UMovieGraphNode::StaticClass(),
 		FOnGetDetailCustomizationInstance::CreateStatic(&FGraphNodeCustomization::MakeInstance));
+
+	SelectedGraphObjectsDetailsWidget->RegisterInstancedCustomPropertyTypeLayout(
+		UMovieGraphShowFlags::StaticClass()->GetFName(),
+		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieGraphShowFlagsCustomization::MakeInstance));
 	
 	return SNew(SDockTab)
 		.TabColorScale(GetTabColorScale())
