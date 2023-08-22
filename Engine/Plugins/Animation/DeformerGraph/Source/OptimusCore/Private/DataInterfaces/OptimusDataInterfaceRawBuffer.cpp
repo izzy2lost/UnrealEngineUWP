@@ -88,16 +88,19 @@ void UOptimusRawBufferDataInterface::GetSupportedOutputs(TArray<FShaderFunctionD
 
 	OutFunctions.AddDefaulted_GetRef()
 		.SetName(TEXT("WriteAtomicAdd"))
+		.AddReturnType(ValueType)
 		.AddParam(EShaderFundamentalType::Uint)
 		.AddParam(ValueType);
 
 	OutFunctions.AddDefaulted_GetRef()
 		.SetName(TEXT("WriteAtomicMin"))
+		.AddReturnType(ValueType)
 		.AddParam(EShaderFundamentalType::Uint)
 		.AddParam(ValueType);
 
 	OutFunctions.AddDefaulted_GetRef()
 		.SetName(TEXT("WriteAtomicMax"))
+		.AddReturnType(ValueType)
 		.AddParam(EShaderFundamentalType::Uint)
 		.AddParam(ValueType);
 }
@@ -180,6 +183,7 @@ UComputeDataProvider* UOptimusTransientBufferDataInterface::CreateDataProvider(
 	UOptimusTransientBufferDataProvider *Provider = CreateProvider<UOptimusTransientBufferDataProvider>(InBinding);
 	Provider->ElementStride = ValueType->GetResourceElementSize();
 	Provider->RawStride = GetRawStride();
+	Provider->bZeroInitForAtomicWrites = bZeroInitForAtomicWrites;
 	return Provider;
 }
 
@@ -427,7 +431,7 @@ FComputeDataProviderRenderProxy* UOptimusTransientBufferDataProvider::GetRenderP
 		}
 	}
 	
-	return new FOptimusTransientBufferDataProviderProxy(InvocationCounts, ElementStride, RawStride);
+	return new FOptimusTransientBufferDataProviderProxy(InvocationCounts, ElementStride, RawStride, bZeroInitForAtomicWrites);
 }
 
 
@@ -447,12 +451,14 @@ FComputeDataProviderRenderProxy* UOptimusPersistentBufferDataProvider::GetRender
 FOptimusTransientBufferDataProviderProxy::FOptimusTransientBufferDataProviderProxy(
 	TArray<int32> InInvocationElementCounts,
 	int32 InElementStride,
-	int32 InRawStride
+	int32 InRawStride,
+	bool bInZeroInitForAtomicWrites
 	) :
 	InvocationElementCounts(InInvocationElementCounts),
 	TotalElementCount(0),
 	ElementStride(InElementStride),
-	RawStride(InRawStride)
+	RawStride(InRawStride),
+	bZeroInitForAtomicWrites(bInZeroInitForAtomicWrites)
 {
 	for (int32 NumElements : InvocationElementCounts)
 	{
@@ -485,6 +491,11 @@ void FOptimusTransientBufferDataProviderProxy::AllocateResources(FRDGBuilder& Gr
 	Buffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(Stride, TotalElementCount * ElementStrideMultiplier), TEXT("TransientBuffer"), ERDGBufferFlags::None);
 	BufferSRV = GraphBuilder.CreateSRV(Buffer);
 	BufferUAV = GraphBuilder.CreateUAV(Buffer, ERDGUnorderedAccessViewFlags::SkipBarrier);
+
+	if (bZeroInitForAtomicWrites)
+	{
+		AddClearUAVPass(GraphBuilder, BufferUAV, 0);
+	}
 }
 
 void FOptimusTransientBufferDataProviderProxy::GatherDispatchData(FDispatchData const& InDispatchData)

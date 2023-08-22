@@ -115,6 +115,9 @@ public:
 	void GetShaderParameters(TCHAR const* UID, FShaderParametersMetadataBuilder& InOutBuilder, FShaderParametersMetadataAllocations& InOutAllocations) const override;
 	UComputeDataProvider* CreateDataProvider(TObjectPtr<UObject> InBinding, uint64 InInputMask, uint64 InOutputMask) const override;
 	//~ End UComputeDataInterface Interface
+
+	UPROPERTY()
+	bool bZeroInitForAtomicWrites = false;	
 };
 
 
@@ -212,6 +215,8 @@ public:
 	//~ Begin UComputeDataProvider Interface
 	FComputeDataProviderRenderProxy* GetRenderProxy() override;
 	//~ End UComputeDataProvider Interface
+
+	bool bZeroInitForAtomicWrites = false;
 };
 
 
@@ -242,7 +247,8 @@ public:
 	FOptimusTransientBufferDataProviderProxy(
 		TArray<int32> InInvocationElementCounts,
 		int32 InElementStride,
-		int32 InRawStride
+		int32 InRawStride,
+		bool bInZeroInitForAtomicWrites
 		);
 
 	//~ Begin FComputeDataProviderRenderProxy Interface
@@ -258,6 +264,7 @@ private:
 	int32 TotalElementCount;
 	const int32 ElementStride;
 	const int32 RawStride;
+	const bool bZeroInitForAtomicWrites;
 
 	FRDGBufferRef Buffer;
 	FRDGBufferSRVRef BufferSRV;

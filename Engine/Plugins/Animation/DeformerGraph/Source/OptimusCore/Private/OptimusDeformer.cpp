@@ -1667,6 +1667,10 @@ UOptimusComputeGraph* UOptimusDeformer::CompileNodeGraphToComputeGraph(
 							TransientBufferDI->DataDomain = Pin->GetDataDomain();
 							TransientBufferDI->ComponentSourceBinding = *ComponentSourceBindings.CreateConstIterator();
 							TransientBufferDI->DomainConstantIdentifier = {ConnectedNode.Node, NAME_None, Pin->GetFName()};
+							if (KernelProvider->GetPinSupportAtomic(Pin))
+							{
+								TransientBufferDI->bZeroInitForAtomicWrites = true;
+							}
 							
 							LinkDataInterfaceMap.Add(Pin, TransientBufferDI);
 						}

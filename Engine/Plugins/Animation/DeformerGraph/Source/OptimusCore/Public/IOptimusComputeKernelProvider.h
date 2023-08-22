@@ -108,4 +108,7 @@ public:
 	
 	/** Each kernel may have its own data interface responsible for passing kernel related data to GPU */
 	virtual UComputeDataInterface* MakeKernelDataInterface(UObject* InOuter) const = 0;
+
+	/** Check if a specific pin needs to support atomic operation */
+	virtual bool GetPinSupportAtomic(const UOptimusNodePin* InPin) const = 0;
 };

@@ -62,6 +62,7 @@ public:
 	FOptimusExecutionDomain GetExecutionDomain() const override;
 	const UOptimusNodePin* GetPrimaryGroupPin() const override;
 	UComputeDataInterface* MakeKernelDataInterface(UObject* InOuter) const override;
+	bool GetPinSupportAtomic(const UOptimusNodePin* InPin) const override;
 
 #if WITH_EDITOR
 	// IOptimusShaderTextProvider overrides
@@ -74,6 +75,7 @@ public:
 	
 	// IOptimusParameterBindingProvider
 	FString GetBindingDeclaration(FName BindingName) const override;
+	bool GetBindingAtomicSupportCheckBoxVisibility(FName BindingName) const override;
 
 	// IOptimusNodeAdderPinProvider
 	TArray<FAdderPinAction> GetAvailableAdderPinActions(
@@ -186,6 +188,7 @@ private:
 	UOptimusNodePin* GetPrimaryGroupPin_Internal() const;
 	void PostLoadExtractExecutionDomain();
 	void PostLoadAddMissingPrimaryGroupPin();
+	void PostLoadExtractAtomicModeFromConnectedResource();
 	
 	// Called during UOptimusDeformer::PostLoad()
 	bool PostLoadRemoveDeprecatedNumThreadsPin();

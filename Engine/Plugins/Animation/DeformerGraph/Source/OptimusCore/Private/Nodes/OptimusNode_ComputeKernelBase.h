@@ -10,6 +10,7 @@
 
 #include "OptimusNode_ComputeKernelBase.generated.h"
 
+enum class EOptimusBufferWriteType : uint8;
 struct FOptimusKernelConstantContainer;
 class UComputeSource;
 
@@ -52,6 +53,7 @@ public:
 	FOptimusExecutionDomain GetExecutionDomain() const override PURE_VIRTUAL(UOptimusNode_ComputeKernelBase::GetExecutionDomain, return {}; );
 	const UOptimusNodePin* GetPrimaryGroupPin() const override PURE_VIRTUAL(UOptimusNode_ComputeKernelBase::GetPrimaryGroupPin, return {}; );  
 	UComputeDataInterface* MakeKernelDataInterface(UObject* InOuter) const override PURE_VIRTUAL(UOptimusNode_ComputeKernelBase::MakeKernelDataInterface, return {}; );
+	bool GetPinSupportAtomic(const UOptimusNodePin* InPin) const override PURE_VIRTUAL(UOptimusNode_ComputeKernelBase::GetPinSupportAtomic, return {}; );
 	
 	// -- UOptimusNode overrides
 	TOptional<FText> ValidateForCompile() const override;
@@ -70,6 +72,29 @@ protected:
 		return IndexNames;
 	}
 
+	static TArray<FString> GetIndexNamesFromDataDomain(
+		const FOptimusDataDomain &InDomain
+		)
+	{
+		TArray<FString> IndexNames;
+	
+		if (InDomain.Type == EOptimusDataDomainType::Dimensional)
+		{
+			TArray<FName> LevelNames = InDomain.DimensionNames;
+			IndexNames = GetIndexNamesFromDataDomainLevels(LevelNames);
+		}
+		else if (InDomain.Type == EOptimusDataDomainType::Expression)
+		{
+			IndexNames = {TEXT("Index")};
+		}
+		else
+		{
+			checkNoEntry();
+		}
+
+		return IndexNames;
+	}
+
 	static FString GetCookedKernelSource(
 		const FString& InObjectPathName,
 		const FString& InShaderSource,
@@ -78,6 +103,8 @@ protected:
 		);
 
 	static TSet<UOptimusComponentSourceBinding*> GetGroupComponentSourceBindings(const UOptimusNodePin* InGroupPin);
+
+	static FString GetAtomicWriteFunctionName(EOptimusBufferWriteType InWriteType, const FString& InBindingName);
 	
 private:
 	TOptional<FText> ProcessInputPinForComputeKernel(

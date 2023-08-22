@@ -1100,8 +1100,18 @@ public:
 		CustomizationUtils = &InCustomizationUtils;
 		
 		TSharedPtr<IPropertyHandle> DataTypeProperty = BindingPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FOptimusParameterBinding, DataType));
-		const TSharedPtr<IPropertyHandle> DataDomainProperty = BindingPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FOptimusParameterBinding, DataDomain));	
-	
+		const TSharedPtr<IPropertyHandle> DataDomainProperty = BindingPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FOptimusParameterBinding, DataDomain));
+		const TSharedPtr<IPropertyHandle> SupportAtomicProperty = BindingPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FOptimusParameterBinding, bSupportAtomicIfCompatibleDataType));
+
+		const TArray<TWeakObjectPtr<UObject>>& SelectedObjects = InCustomizationUtils.GetPropertyUtilities()->GetSelectedObjects();
+
+		auto IsAtomicCheckBoxVisible = [SelectedObjects, InBindingPropertyHandle]()
+		{
+			return FOptimusParameterBindingCustomization::IsAtomicCheckBoxVisible(SelectedObjects, InBindingPropertyHandle);
+		};
+
+		TSharedRef<SWidget> AtomicToggleWidget = SupportAtomicProperty->CreatePropertyValueWidget(false);
+		
 		FDetailWidgetRow DataTypeHeaderRow;
 		DataTypeRefCustomizationInstance = FOptimusDataTypeRefCustomization::MakeInstance();
 		DataTypeRefCustomizationInstance->CustomizeHeader(DataTypeProperty.ToSharedRef(), DataTypeHeaderRow, InCustomizationUtils);
@@ -1148,7 +1158,22 @@ public:
 					// padding values grabbed from DetailWidgetConstants
 					.Padding(0,0,10,0)
 					[
-						DataTypeHeaderRow.ValueContent().Widget
+						SNew(SHorizontalBox)
+						+SHorizontalBox::Slot()
+						[
+							DataTypeHeaderRow.ValueContent().Widget
+						]
+						+SHorizontalBox::Slot()
+						.AutoWidth()
+						[
+							SNew(SHorizontalBox)
+							.Visibility_Lambda(IsAtomicCheckBoxVisible)
+							+SHorizontalBox::Slot()
+							.Padding(5,0,0,0)
+							[
+								AtomicToggleWidget
+							]
+						]
 					]
 				]
 				+SSplitter::Slot()
@@ -1237,6 +1262,31 @@ TSharedRef<IPropertyTypeCustomization> FOptimusParameterBindingCustomization::Ma
 	return MakeShared<FOptimusParameterBindingCustomization>();
 }
 
+EVisibility FOptimusParameterBindingCustomization::IsAtomicCheckBoxVisible(const TArray<TWeakObjectPtr<UObject>>& InSelectedObjects,  TSharedRef<IPropertyHandle> InPropertyHandle)
+{
+	for (TWeakObjectPtr<UObject> Object : InSelectedObjects)
+	{
+		if (IOptimusParameterBindingProvider* BindingProvider = Cast<IOptimusParameterBindingProvider>(Object))
+		{
+			TArray<const void *> RawData;
+
+			InPropertyHandle->AccessRawData(RawData);
+			if (RawData.Num() > 0)
+			{
+				const FOptimusParameterBinding* Binding = static_cast<const FOptimusParameterBinding*>(RawData[0]);
+				// During drag & reorder, we can have invalid bindings in the property
+				if (Binding && Binding->Name != NAME_None)
+				{
+					return BindingProvider->GetBindingAtomicSupportCheckBoxVisibility(Binding->Name) ? EVisibility::Visible : EVisibility::Collapsed;
+				}
+			}
+			break;
+		}
+	}
+		
+	return EVisibility::Collapsed;
+}
+
 FOptimusParameterBindingCustomization::FOptimusParameterBindingCustomization()
 {
 	
@@ -1302,36 +1352,44 @@ void FOptimusParameterBindingCustomization::CustomizeChildren(
 	IPropertyTypeCustomizationUtils& InCustomizationUtils
 	)
 {
-	FString Declaration;
+	
 	const TArray<TWeakObjectPtr<UObject>>& SelectedObjects = InCustomizationUtils.GetPropertyUtilities()->GetSelectedObjects();
-	for (TWeakObjectPtr<UObject> Object : SelectedObjects)
-	{
-		if (IOptimusParameterBindingProvider* BindingProvider = Cast<IOptimusParameterBindingProvider>(Object))
-		{
-			TArray<const void *> RawData;
 
-			InPropertyHandle->AccessRawData(RawData);
-			if (ensure(RawData.Num() > 0))
+	auto GetDeclarationText = [SelectedObjects, InPropertyHandle]()
+	{
+		FString Declaration;
+		
+		for (TWeakObjectPtr<UObject> Object : SelectedObjects)
+		{
+			if (IOptimusParameterBindingProvider* BindingProvider = Cast<IOptimusParameterBindingProvider>(Object))
 			{
-				const FOptimusParameterBinding* Binding = static_cast<const FOptimusParameterBinding*>(RawData[0]);
-				// During drag & reorder, we can have invalid bindings in the property
-				if (Binding->Name != NAME_None)
+				TArray<const void *> RawData;
+
+				InPropertyHandle->AccessRawData(RawData);
+				if (ensure(RawData.Num() > 0))
 				{
-					if (Binding->DataType->ShaderValueType.IsValid())
+					const FOptimusParameterBinding* Binding = static_cast<const FOptimusParameterBinding*>(RawData[0]);
+					// During drag & reorder, we can have invalid bindings in the property
+					if (Binding && Binding->Name != NAME_None)
 					{
-						Declaration = BindingProvider->GetBindingDeclaration(Binding->Name);
-					}
-					else
-					{
-						Declaration = FString::Printf(TEXT("Type is not supported"));
+						if (Binding->DataType->ShaderValueType.IsValid())
+						{
+							Declaration = BindingProvider->GetBindingDeclaration(Binding->Name);
+						}
+						else
+						{
+							Declaration = FString::Printf(TEXT("Type is not supported"));
+						}
 					}
 				}
+				break;
 			}
-			break;
 		}
-	}
 
-	if (!Declaration.IsEmpty())
+		return FText::FromString(Declaration);
+	};
+	
+	if (!GetDeclarationText().IsEmpty())
 	{
 		FDetailWidgetRow& DeclarationRow = InChildBuilder.AddCustomRow(FText::GetEmpty());
 		DeclarationRow
@@ -1346,12 +1404,21 @@ void FOptimusParameterBindingCustomization::CustomizeChildren(
 			.MinDesiredWidth(180.0f)
 			[
 				SNew(SMultiLineEditableTextBox)
-				.Text(FText::FromString(Declaration))
+				.Text_Lambda(GetDeclarationText)
 				.Font(FCoreStyle::GetDefaultFontStyle("Mono",InCustomizationUtils.GetRegularFont().Size))
 				.IsReadOnly(true)
 			]
 		];		
 	}
+
+	auto IsAtomicRowVisible = [SelectedObjects, InPropertyHandle]()
+	{
+		return IsAtomicCheckBoxVisible(SelectedObjects, InPropertyHandle);
+	};
+	
+	TSharedPtr<IPropertyHandle> SupportAtomicHandle = InPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FOptimusParameterBinding, bSupportAtomicIfCompatibleDataType), false);
+	IDetailPropertyRow& AtomicRow = InChildBuilder.AddProperty(SupportAtomicHandle.ToSharedRef());
+	AtomicRow.Visibility(TAttribute<EVisibility>::CreateLambda(IsAtomicRowVisible));
 }
 
 TSharedRef<FOptimusParameterBindingArrayBuilder> FOptimusParameterBindingArrayBuilder::MakeInstance(

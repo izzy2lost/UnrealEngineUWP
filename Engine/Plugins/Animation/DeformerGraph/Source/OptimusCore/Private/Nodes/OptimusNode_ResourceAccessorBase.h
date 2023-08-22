@@ -60,6 +60,9 @@ public:
 	// Also IOptimusComponentBindingProvider implementation
 	UOptimusComponentSourceBinding* GetComponentBinding() const override;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	EOptimusBufferWriteType GetDeprecatedBufferWriteType() const { return WriteType_DEPRECATED; }
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	
 protected:
 	void PreDuplicateRequirementActions(const UOptimusNodeGraph* InTargetGraph, FOptimusCompoundAction* InCompoundAction) override;
@@ -74,8 +77,8 @@ protected:
 	TWeakObjectPtr<UOptimusResourceDescription> ResourceDesc;
 
 	/** Logical operation when writing to the resource. */
-	UPROPERTY(EditAnywhere, Category = Resource)
-	EOptimusBufferWriteType WriteType = EOptimusBufferWriteType::Write;
+	UPROPERTY(meta=(DeprecatedProperty))
+	EOptimusBufferWriteType WriteType_DEPRECATED= EOptimusBufferWriteType::Write;
 
 	UPROPERTY(DuplicateTransient)
 	FOptimusNode_ResourceAccessorBase_DuplicationInfo DuplicationInfo;

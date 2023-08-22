@@ -94,6 +94,22 @@ struct OPTIMUSCORE_API FOptimusDataDomain
 	{
 		return Type == EOptimusDataDomainType::Dimensional && DimensionNames.Num() > 1;
 	}
+
+	int NumDimensions() const
+	{
+		if (Type == EOptimusDataDomainType::Dimensional)
+		{
+			return DimensionNames.Num();
+		}
+
+		if (Type == EOptimusDataDomainType::Expression)
+		{
+			return 1;
+		}
+
+		checkNoEntry();
+		return 0;
+	}
 	
 	/** Convenience function to check if this data domain is One-dimensional*/
 	bool IsOneDimensional() const

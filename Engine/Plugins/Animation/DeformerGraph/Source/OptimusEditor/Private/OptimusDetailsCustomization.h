@@ -237,6 +237,7 @@ public:
 	};
 	
 	static TSharedRef<IPropertyTypeCustomization> MakeInstance();
+	static EVisibility IsAtomicCheckBoxVisible(const TArray<TWeakObjectPtr<UObject>>& InSelectedObjects,  TSharedRef<IPropertyHandle> InPropertyHandle);
 
 	FOptimusParameterBindingCustomization();
 

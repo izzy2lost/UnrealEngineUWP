@@ -438,9 +438,13 @@ TArray<float> UOptimusDeformerInstance::GetConstantValuePerInvocation(const FOpt
 		}
 
 
-		if (ensure(LodIndex != INDEX_NONE))
+		if (LodIndex != INDEX_NONE)
 		{
 			ComponentContext.LodIndexPerComponent.Add(LodIndex);
+		}
+		else
+		{
+			return {};
 		}
 	}
 
