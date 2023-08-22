@@ -111,6 +111,19 @@ FReply FCrashReportClient::Close()
 	return FReply::Handled();
 }
 
+#if PLATFORM_WINDOWS
+extern void CopyDiagnosticFilesToClipboard(TConstArrayView<FString> Files);
+#endif
+
+#if PLATFORM_WINDOWS
+FReply FCrashReportClient::CopyFilesToClipboard()
+{
+	TArray<FString> Files = FPlatformErrorReport(ErrorReport.GetReportDirectory()).GetFilesToUpload();
+	CopyDiagnosticFilesToClipboard(Files);
+	return FReply::Handled();
+}
+#endif
+
 FReply FCrashReportClient::Submit()
 {
 	bSendData = true;

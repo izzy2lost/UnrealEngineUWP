@@ -129,6 +129,14 @@ void FCrashReportCoreConfig::SetProjectConfigOverrides(const FConfigFile& InConf
 		{
 			bIsAllowedToCloseWithoutSending = FCString::ToBool(*IsAllowedToCloseWithoutSendingValue->GetValue());
 		}
+
+#if PLATFORM_WINDOWS
+		const FConfigValue* IsAllowedToCopyFilesToClipboard = Section->Find(TEXT("bIsAllowedToCopyFilesToClipboard"));
+		if (IsAllowedToCopyFilesToClipboard  != nullptr)
+		{
+			bIsAllowedToCopyFilesToClipboard  = FCString::ToBool(*IsAllowedToCopyFilesToClipboard->GetValue());
+		}
+#endif
 	}
 }
 

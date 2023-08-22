@@ -105,6 +105,13 @@ struct FCrashReportCoreConfig
 		return bIsAllowedToCloseWithoutSending;
 	}
 
+#if PLATFORM_WINDOWS
+	const bool IsAllowedToCopyFilesToClipboard() const
+	{
+		return bIsAllowedToCopyFilesToClipboard;
+	}
+#endif
+
 	int GetUserCommentSizeLimit() const
 	{
 		return UserCommentSizeLimit;
@@ -164,6 +171,11 @@ protected:
 
 	/** Whether the user is allowed to close the crash reporter without sending a report */
 	bool bIsAllowedToCloseWithoutSending;
+
+#if PLATFORM_WINDOWS
+	/** Whether the user is allowed to copy the report files to the clipboard */
+	bool bIsAllowedToCopyFilesToClipboard;
+#endif
 
 	/** Size limit for the description of multi-line text */
 	int UserCommentSizeLimit;

@@ -69,6 +69,11 @@ private:
 	/** Whether the send buttons are enabled. */
 	bool IsSendEnabled() const;
 
+#if PLATFORM_WINDOWS
+	/** Whether the copy to clipboard button is available. */
+	bool IsCopyToClipboardEnabled() const;
+#endif
+
 	/** Crash report client implementation object */
 	TSharedPtr<FCrashReportClient> CrashReportClient;
 
