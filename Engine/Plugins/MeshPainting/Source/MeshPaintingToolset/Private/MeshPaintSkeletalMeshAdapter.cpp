@@ -403,14 +403,6 @@ void FMeshPaintSkeletalMeshComponentAdapter::PreEdit()
 			{
 				UInterchangeGenericAssetsPipeline* GenericAssetPipeline = Cast<UInterchangeGenericAssetsPipeline>(PipelineBase);
 
-				if (!GenericAssetPipeline)
-				{
-					if (UInterchangePythonPipelineAsset* PythonPipelineAsset = Cast<UInterchangePythonPipelineAsset>(PipelineBase))
-					{
-						GenericAssetPipeline = Cast<UInterchangeGenericAssetsPipeline>(PythonPipelineAsset->GeneratedPipeline);
-					}
-				}
-				
 				if (GenericAssetPipeline)
 				{
 					if (GenericAssetPipeline->CommonMeshesProperties && GenericAssetPipeline->CommonMeshesProperties->VertexColorImportOption != EInterchangeVertexColorImportOption::IVCIO_Ignore)
