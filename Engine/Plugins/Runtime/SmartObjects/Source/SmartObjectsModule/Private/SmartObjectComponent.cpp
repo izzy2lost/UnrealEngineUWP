@@ -5,6 +5,7 @@
 #include "Engine/World.h"
 #include "SmartObjectSubsystem.h"
 #include "VisualLogger/VisualLogger.h"
+#include "Net/UnrealNetwork.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SmartObjectComponent)
 
@@ -22,6 +23,9 @@ void USmartObjectComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 {
 	// Required to allow for sub classes to replicate the state of this smart object.
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	
+	DISABLE_REPLICATED_PROPERTY(USmartObjectComponent, DefinitionAsset);
+	DISABLE_REPLICATED_PROPERTY(USmartObjectComponent, RegisteredHandle);
 }
 
 void USmartObjectComponent::PostInitProperties()
