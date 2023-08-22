@@ -68,6 +68,10 @@ void UCommonInputSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
+	// There is a dependency on the Enhanced Input subsystem below so we need to make sure it is available
+	// in a packaged game
+	Collection.InitializeDependency<UEnhancedInputLocalPlayerSubsystem>();
+
 	FCommonInputBase::GetInputSettings()->LoadData();
 
 	const UCommonInputPlatformSettings* Settings = UPlatformSettingsManager::Get().GetSettingsForPlatform<UCommonInputPlatformSettings>();
