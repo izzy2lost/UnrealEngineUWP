@@ -1484,7 +1484,7 @@ IOSTOREONDEMAND_API void Tests()
 // }}}
 
 ////////////////////////////////////////////////////////////////////////////////
-TUniquePtr<IIoCache> MakeJournaledCache(const FFileIoCacheConfig& Config)
+TUniquePtr<IIoCache> MakeFileIoCache(const FFileIoCacheConfig& Config)
 {
 	LLM_SCOPE_BYTAG(Ias);
 	return MakeUnique<UE::IO::Private::FJournaledCache>(Config);
