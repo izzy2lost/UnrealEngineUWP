@@ -4,6 +4,7 @@
 
 #include "MovieSceneEntityIDs.h"
 #include "MovieSceneSequenceID.h"
+#include "Engine/World.h"
 #include "Evaluation/MovieScenePlayback.h"
 #include "EntitySystem/MovieSceneEntityManager.h"
 #include "EntitySystem/MovieSceneInstanceRegistry.h"
