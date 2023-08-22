@@ -733,8 +733,7 @@ public:
 
 private:
 	static void* AllocateMetaDataMemory(SIZE_T Size);
-	static FPlatformMemory::FPlatformVirtualMemoryBlock AllocateMemoryBlock(SIZE_T Size);
-	static void DeallocateMemoryBlock(FPlatformMemory::FPlatformVirtualMemoryBlock& Block);
+	static void FreeMetaDataMemory(void *Ptr, SIZE_T Size);
 };
 
 PRAGMA_RESTORE_UNSAFE_TYPECAST_WARNINGS
