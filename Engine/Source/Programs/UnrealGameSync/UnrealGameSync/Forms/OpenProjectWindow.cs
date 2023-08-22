@@ -51,31 +51,31 @@ namespace UnrealGameSync
 			}
 			else
 			{
-				if(!String.IsNullOrWhiteSpace(project.ServerAndPort))
+				if (!String.IsNullOrWhiteSpace(project.ServerAndPort))
 				{
 					_serverAndPortOverride = project.ServerAndPort;
 				}
-				if(!String.IsNullOrWhiteSpace(project.UserName))
+				if (!String.IsNullOrWhiteSpace(project.UserName))
 				{
 					_userNameOverride = project.UserName;
 				}
 
-				if(project.ClientPath != null && project.ClientPath.StartsWith("//", StringComparison.Ordinal))
+				if (project.ClientPath != null && project.ClientPath.StartsWith("//", StringComparison.Ordinal))
 				{
 					int slashIdx = project.ClientPath.IndexOf('/', 2);
-					if(slashIdx != -1)
+					if (slashIdx != -1)
 					{
 						WorkspaceNameTextBox.Text = project.ClientPath.Substring(2, slashIdx - 2);
 						WorkspacePathTextBox.Text = project.ClientPath.Substring(slashIdx);
 					}
 				}
 
-				if(project.LocalPath != null)
+				if (project.LocalPath != null)
 				{
 					LocalFileTextBox.Text = project.LocalPath;
 				}
 
-				if(project.Type == UserSelectedProjectType.Client)
+				if (project.Type == UserSelectedProjectType.Client)
 				{
 					WorkspaceRadioBtn.Checked = true;
 				}
@@ -88,6 +88,7 @@ namespace UnrealGameSync
 			UpdateEnabledControls();
 			UpdateServerLabel();
 			UpdateWorkspacePathBrowseButton();
+			UpdateP4ConfigCheckBox();
 			UpdateOkButton();
 		}
 
@@ -96,7 +97,7 @@ namespace UnrealGameSync
 		public static OpenProjectInfo? ShowModal(IWin32Window owner, UserSelectedProjectSettings? project, UserSettings settings, IPerforceSettings defaultPerforceSettings, IServiceProvider serviceProvider, ILogger logger)
 		{
 			using OpenProjectWindow window = new OpenProjectWindow(project, settings, defaultPerforceSettings, serviceProvider, logger);
-			if(window.ShowDialog(owner) == DialogResult.OK)
+			if (window.ShowDialog(owner) == DialogResult.OK)
 			{
 				return window._openProjectInfo;
 			}
@@ -108,7 +109,7 @@ namespace UnrealGameSync
 
 		private void UpdateEnabledControls()
 		{
-			Color workspaceTextColor = WorkspaceRadioBtn.Checked? SystemColors.ControlText : SystemColors.GrayText;
+			Color workspaceTextColor = WorkspaceRadioBtn.Checked ? SystemColors.ControlText : SystemColors.GrayText;
 			WorkspaceNameLabel.ForeColor = workspaceTextColor;
 			WorkspaceNameTextBox.ForeColor = workspaceTextColor;
 			WorkspaceNameNewBtn.ForeColor = workspaceTextColor;
@@ -117,7 +118,7 @@ namespace UnrealGameSync
 			WorkspacePathTextBox.ForeColor = workspaceTextColor;
 			WorkspacePathBrowseBtn.ForeColor = workspaceTextColor;
 
-			Color localFileTextColor = LocalFileRadioBtn.Checked? SystemColors.ControlText : SystemColors.GrayText;
+			Color localFileTextColor = LocalFileRadioBtn.Checked ? SystemColors.ControlText : SystemColors.GrayText;
 			LocalFileLabel.ForeColor = localFileTextColor;
 			LocalFileTextBox.ForeColor = localFileTextColor;
 			LocalFileBrowseBtn.ForeColor = localFileTextColor;
@@ -127,14 +128,14 @@ namespace UnrealGameSync
 
 		public static string GetServerLabelText(IPerforceSettings defaultSettings, string? serverAndPort, string? userName)
 		{
-			if(serverAndPort == null && userName == null)
+			if (serverAndPort == null && userName == null)
 			{
 				return String.Format("Using default connection settings (user '{0}' on server '{1}').", defaultSettings.UserName, defaultSettings.ServerAndPort);
 			}
 			else
 			{
 				StringBuilder text = new StringBuilder("Connecting as ");
-				if(userName == null)
+				if (userName == null)
 				{
 					text.Append("default user");
 				}
@@ -143,7 +144,7 @@ namespace UnrealGameSync
 					text.AppendFormat("user '{0}'", userName);
 				}
 				text.Append(" on ");
-				if(serverAndPort == null)
+				if (serverAndPort == null)
 				{
 					text.Append("default server.");
 				}
@@ -163,6 +164,14 @@ namespace UnrealGameSync
 		private void UpdateWorkspacePathBrowseButton()
 		{
 			WorkspacePathBrowseBtn.Enabled = TryGetWorkspaceName(out _);
+		}
+
+		private void UpdateP4ConfigCheckBox()
+		{
+			bool isP4ConfigSet = !String.IsNullOrEmpty(PerforceEnvironment.Default.GetValue("P4CONFIG"));
+
+			GenerateP4ConfigCheckbox.Visible = isP4ConfigSet;
+			GenerateP4ConfigCheckbox.Checked = isP4ConfigSet;
 		}
 
 		private void UpdateOkButton()
@@ -290,7 +299,7 @@ namespace UnrealGameSync
 
 				PerforceSettings newPerforceSettings = Utility.OverridePerforceSettings(Perforce, selectedProject.ServerAndPort, selectedProject.UserName);
 
-				ModalTask<OpenProjectInfo>? newOpenProjectInfo = PerforceModalTask.Execute(this, "Opening project", "Opening project, please wait...", newPerforceSettings, (x, y) => DetectSettingsAsync(x, selectedProject, _settings, oidcTokenManager, logger, y), logger);
+				ModalTask<OpenProjectInfo>? newOpenProjectInfo = PerforceModalTask.Execute(this, "Opening project", "Opening project, please wait...", newPerforceSettings, (x, y) => DetectSettingsAsync(x, selectedProject, _settings, oidcTokenManager, GenerateP4ConfigCheckbox.Checked, logger, y), logger);
 				if (newOpenProjectInfo != null && newOpenProjectInfo.Succeeded)
 				{
 					_openProjectInfo = newOpenProjectInfo.Result;
@@ -300,9 +309,9 @@ namespace UnrealGameSync
 			}
 		}
 
-		public static async Task<OpenProjectInfo> DetectSettingsAsync(IPerforceConnection perforce, UserSelectedProjectSettings selectedProject, UserSettings userSettings, OidcTokenManager oidcTokenManager, ILogger<OpenProjectInfo> logger, CancellationToken cancellationToken)
+		public static async Task<OpenProjectInfo> DetectSettingsAsync(IPerforceConnection perforce, UserSelectedProjectSettings selectedProject, UserSettings userSettings, OidcTokenManager oidcTokenManager, bool GenerateP4Config, ILogger<OpenProjectInfo> logger, CancellationToken cancellationToken)
 		{
-			OpenProjectInfo settings = await OpenProjectInfo.CreateAsync(perforce, selectedProject, userSettings, oidcTokenManager, logger, cancellationToken);
+			OpenProjectInfo settings = await OpenProjectInfo.CreateAsync(perforce, selectedProject, userSettings, oidcTokenManager, GenerateP4Config, logger, cancellationToken);
 			if (s_onDetectProjectSettings != null)
 			{
 				string? message;

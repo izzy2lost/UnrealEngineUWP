@@ -26,8 +26,9 @@ namespace UnrealGameSync
 		public IReadOnlyList<string>? WorkspaceProjectStreamFilter { get; }
 		public List<KeyValuePair<FileReference, DateTime>> LocalConfigFiles { get; }
 		public OidcTokenClient? OidcTokenClient { get; }
+		public bool GenerateP4Config { get; }
 
-		public OpenProjectInfo(UserSelectedProjectSettings selectedProject, IPerforceSettings perforceSettings, ProjectInfo projectInfo, UserWorkspaceSettings workspaceSettings, WorkspaceStateWrapper workspaceStateWrapper, ConfigFile latestProjectConfigFile, ConfigFile workspaceProjectConfigFile, IReadOnlyList<string>? workspaceProjectStreamFilter, List<KeyValuePair<FileReference, DateTime>> localConfigFiles, OidcTokenClient? oidcTokenClient)
+		public OpenProjectInfo(UserSelectedProjectSettings selectedProject, IPerforceSettings perforceSettings, ProjectInfo projectInfo, UserWorkspaceSettings workspaceSettings, WorkspaceStateWrapper workspaceStateWrapper, ConfigFile latestProjectConfigFile, ConfigFile workspaceProjectConfigFile, IReadOnlyList<string>? workspaceProjectStreamFilter, List<KeyValuePair<FileReference, DateTime>> localConfigFiles, OidcTokenClient? oidcTokenClient, bool generateP4Config)
 		{
 			SelectedProject = selectedProject;
 
@@ -40,9 +41,10 @@ namespace UnrealGameSync
 			WorkspaceProjectStreamFilter = workspaceProjectStreamFilter;
 			LocalConfigFiles = localConfigFiles;
 			OidcTokenClient = oidcTokenClient;
+			GenerateP4Config = generateP4Config;
 		}
 
-		public static async Task<OpenProjectInfo> CreateAsync(IPerforceSettings defaultPerforceSettings, UserSelectedProjectSettings selectedProject, UserSettings userSettings, OidcTokenManager oidcTokenManager, ILogger<OpenProjectInfo> logger, CancellationToken cancellationToken)
+		public static async Task<OpenProjectInfo> CreateAsync(IPerforceSettings defaultPerforceSettings, UserSelectedProjectSettings selectedProject, UserSettings userSettings, OidcTokenManager oidcTokenManager, bool generateP4Config, ILogger<OpenProjectInfo> logger, CancellationToken cancellationToken)
 		{
 			PerforceSettings perforceSettings = Utility.OverridePerforceSettings(defaultPerforceSettings, selectedProject.ServerAndPort, selectedProject.UserName);
 			using IPerforceConnection perforce = await PerforceConnection.CreateAsync(perforceSettings, logger);
@@ -55,10 +57,10 @@ namespace UnrealGameSync
 			}
 
 			// Execute like a regular task
-			return await CreateAsync(perforce, selectedProject, userSettings, oidcTokenManager, logger, cancellationToken);
+			return await CreateAsync(perforce, selectedProject, userSettings, oidcTokenManager, generateP4Config, logger, cancellationToken);
 		}
 
-		public static async Task<OpenProjectInfo> CreateAsync(IPerforceConnection defaultConnection, UserSelectedProjectSettings selectedProject, UserSettings userSettings, OidcTokenManager oidcTokenManager, ILogger<OpenProjectInfo> logger, CancellationToken cancellationToken)
+		public static async Task<OpenProjectInfo> CreateAsync(IPerforceConnection defaultConnection, UserSelectedProjectSettings selectedProject, UserSettings userSettings, OidcTokenManager oidcTokenManager, bool generateP4Config, ILogger<OpenProjectInfo> logger, CancellationToken cancellationToken)
 		{
 			using IDisposable loggerScope = logger.BeginScope("Project {SelectedProject}", selectedProject.ToString());
 			logger.LogInformation("Detecting settings for {Project}", selectedProject);
@@ -234,7 +236,12 @@ namespace UnrealGameSync
 				ConfigFile workspaceProjectConfigFile = await WorkspaceUpdate.ReadProjectConfigFile(branchDirectoryName, newSelectedFileName, logger);
 				IReadOnlyList<string>? workspaceProjectStreamFilter = await WorkspaceUpdate.ReadProjectStreamFilter(perforceClient, workspaceProjectConfigFile, cancellationToken);
 
-				OpenProjectInfo workspaceSettings = new OpenProjectInfo(selectedProject, perforceSettings, projectInfo, userWorkspaceSettings, workspaceStateWrapper, latestProjectConfigFile, workspaceProjectConfigFile, workspaceProjectStreamFilter, localConfigFiles, oidcTokenClient);
+				OpenProjectInfo workspaceSettings = new OpenProjectInfo(selectedProject, perforceSettings, projectInfo, userWorkspaceSettings, workspaceStateWrapper, latestProjectConfigFile, workspaceProjectConfigFile, workspaceProjectStreamFilter, localConfigFiles, oidcTokenClient, generateP4Config);
+
+				if (generateP4Config)
+				{
+					GenerateP4ConfigFile(perforceSettings, projectInfo, logger);
+				}
 
 				return workspaceSettings;
 			}
@@ -291,6 +298,51 @@ namespace UnrealGameSync
 				}
 			}
 			return candidateClients;
+		}
+
+		static void GenerateP4ConfigFile(IPerforceSettings perforceSettings, ProjectInfo projectInfo, ILogger<OpenProjectInfo> logger)
+		{
+			string? p4ConfigName = PerforceEnvironment.Default.GetValue("P4CONFIG");
+
+			// We only create a p4config if the user has opted into the system by setting P4CONFIG manually.
+			if (String.IsNullOrEmpty(p4ConfigName))
+			{
+				logger.LogError("Could not generate a p4config file as the envvar P4CONFIG is not set!");
+				return;
+			}
+
+			string configFilePath = Path.Combine(projectInfo.LocalRootPath.ToString(), p4ConfigName);
+
+			// Do not update or replace the file if it already exists 
+			if (File.Exists(configFilePath))
+			{
+				logger.LogDebug("P4CONFIG file '{Path}' already exists.", configFilePath);
+				return;
+			}
+
+			Dictionary<string, string> settings = new Dictionary<string, string>();
+			settings.Add("P4PORT", perforceSettings.ServerAndPort);
+			settings.Add("P4USER", perforceSettings.UserName);
+			settings.Add("P4CLIENT", perforceSettings.ClientName ?? "");
+
+			List<string> Lines = new List<string>();
+			foreach (KeyValuePair<string, string> setting in settings)
+			{
+				Lines.Add(String.Format("{0}={1}", setting.Key, setting.Value));
+
+			}
+
+			try
+			{
+				File.WriteAllLines(configFilePath, Lines);
+			}
+			catch (Exception ex)
+			{
+				logger.LogError(ex, "Failed to write {Path} with exception - {Msg}", p4ConfigName, ex.Message);
+				return;
+			}
+
+			logger.LogInformation("Successfully wrote a P4CONFIG file to '{Path}'.", configFilePath);
 		}
 	}
 }

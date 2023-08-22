@@ -343,14 +343,18 @@ namespace UnrealGameSync
 
 			ProjectInfo project = openProjectInfo.ProjectInfo;
 
-			_workspace = new Workspace(perforceClientSettings, project, openProjectInfo.WorkspaceStateWrapper, openProjectInfo.WorkspaceProjectConfigFile, openProjectInfo.WorkspaceProjectStreamFilter, new LogControlTextWriter(SyncLog), _serviceProvider);
+			_workspace = new Workspace(perforceClientSettings, project, openProjectInfo.WorkspaceStateWrapper, openProjectInfo.WorkspaceProjectConfigFile, openProjectInfo.WorkspaceProjectStreamFilter,
+				new LogControlTextWriter(SyncLog), _serviceProvider);
+
 			_workspace.OnStateChanged += StateChangedCallback;
 			_workspace.OnUpdateComplete += UpdateCompleteCallback;
 
 			FileReference projectLogBaseName = FileReference.Combine(_workspaceDataFolder, "sync.log");
 
 			ILogger perforceLogger = _serviceProvider.GetRequiredService<ILogger<PerforceMonitor>>();
-			_perforceMonitor = new PerforceMonitor(perforceClientSettings, openProjectInfo.ProjectInfo, openProjectInfo.LatestProjectConfigFile, openProjectInfo.ProjectInfo.CacheFolder, openProjectInfo.LocalConfigFiles, openProjectInfo.OidcTokenClient, _serviceProvider);
+			_perforceMonitor = new PerforceMonitor(perforceClientSettings, openProjectInfo.ProjectInfo, openProjectInfo.LatestProjectConfigFile, openProjectInfo.ProjectInfo.CacheFolder, openProjectInfo.LocalConfigFiles,
+				openProjectInfo.OidcTokenClient, _serviceProvider);
+
 			_perforceMonitor.OnUpdate += UpdateBuildListCallback;
 			_perforceMonitor.OnUpdateMetadata += UpdateBuildMetadataCallback;
 			_perforceMonitor.OnStreamChange += StreamChanged;

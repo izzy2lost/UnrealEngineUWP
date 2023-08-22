@@ -1229,7 +1229,7 @@ namespace UnrealGameSync
 
 			PerforceSettings perforceSettings = Utility.OverridePerforceSettings(_defaultPerforceSettings, project.ServerAndPort, project.UserName);
 
-			ModalTask<OpenProjectInfo>? settingsTask = PerforceModalTask.Execute(this, "Opening Project", "Opening project, please wait...", perforceSettings, (p, c) => OpenProjectWindow.DetectSettingsAsync(p, project, _settings, _oidcTokenManager, projectLogger, c), projectLogger, taskFlags);
+			ModalTask<OpenProjectInfo>? settingsTask = PerforceModalTask.Execute(this, "Opening Project", "Opening project, please wait...", perforceSettings, (p, c) => OpenProjectWindow.DetectSettingsAsync(p, project, _settings, _oidcTokenManager, false, projectLogger, c), projectLogger, taskFlags);
 			if (settingsTask == null || settingsTask.Failed)
 			{
 				if (settingsTask != null)

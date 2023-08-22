@@ -198,7 +198,7 @@ namespace UnrealGameSync
 				{
 					ILogger<OpenProjectInfo> logger = serviceProvider.GetRequiredService<ILogger<OpenProjectInfo>>();
 					OidcTokenManager oidcTokenManager = serviceProvider.GetRequiredService<OidcTokenManager>();
-					Task<OpenProjectInfo> startupTask = Task.Run(() => OpenProjectInfo.CreateAsync(defaultPerforceSettings, projectSettings, _settings, oidcTokenManager, logger, _startupCancellationSource.Token), _startupCancellationSource.Token);
+					Task<OpenProjectInfo> startupTask = Task.Run(() => OpenProjectInfo.CreateAsync(defaultPerforceSettings, projectSettings, _settings, oidcTokenManager, false, logger, _startupCancellationSource.Token), _startupCancellationSource.Token);
 					startupTasks.Add((projectSettings, new ModalTask<OpenProjectInfo>(startupTask)));
 				}
 			}
