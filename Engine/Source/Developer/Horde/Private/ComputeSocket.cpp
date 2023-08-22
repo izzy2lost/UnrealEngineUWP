@@ -4,7 +4,6 @@
 #include "ComputePlatform.h"
 #include <iostream>
 #include <assert.h>
-#include <uchar.h>
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>

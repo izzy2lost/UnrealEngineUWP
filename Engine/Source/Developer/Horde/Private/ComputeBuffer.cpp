@@ -60,7 +60,7 @@ struct FComputeBufferDetail
 			unsigned long long Length : 31;
 			unsigned long long ReaderFlags : 31;
 			EWriteState WriteState : 2;
-		};
+		} Fields;
 	};
 
 	struct FChunkStatePtr
@@ -165,7 +165,7 @@ struct FComputeBufferDetail
 			unsigned long long ChunkIdx : 8;
 			unsigned long long RefCount : 23;
 			unsigned long long Detached : 1;
-		};
+		} Fields;
 	};
 
 	struct FReaderStatePtr
@@ -225,7 +225,7 @@ struct FComputeBufferDetail
 			int ReaderFlags : 8;
 			int RefCount : 23;
 			unsigned int Wrapped : 1;
-		};
+		} Fields;
 	};
 
 	struct FWriterStatePtr
@@ -240,9 +240,9 @@ struct FComputeBufferDetail
 			return FWriterState(FComputePlatform::AtomicRead64(&State->Value));
 		}
 
-		void Set(FWriterState State)
+		void Set(FWriterState NewState)
 		{
-			FComputePlatform::AtomicWrite64(&State.Value, State.Value);
+			FComputePlatform::AtomicWrite64(&State->Value, NewState.Value);
 		}
 
 		bool TryUpdate(FWriterState PrevValue, FWriterState NextValue)

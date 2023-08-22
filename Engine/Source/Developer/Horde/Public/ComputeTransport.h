@@ -46,6 +46,6 @@ protected:
 	virtual void Close() override final;
 
 private:
-	FComputeBufferReader RecvBufferReader;
 	FComputeBufferWriter SendBufferWriter;
+	FComputeBufferReader RecvBufferReader;
 };

@@ -111,7 +111,9 @@ void FAgentMessageChannel::Execute(const char* Exe, const char** Args, size_t Nu
 	for (size_t Idx = 0; Idx < NumEnvVars; Idx++)
 	{
 		const char* EqualsPtr = strchr(EnvVars[Idx], '=');
-		WriteString(std::string_view(EnvVars[Idx], EqualsPtr));
+		UE_COMPUTE_ASSERT(EqualsPtr != nullptr);
+
+		WriteString(std::string_view(EnvVars[Idx], EqualsPtr - EnvVars[Idx]));
 		if (*(EqualsPtr + 1) == 0)
 		{
 			WriteOptionalString(nullptr);
