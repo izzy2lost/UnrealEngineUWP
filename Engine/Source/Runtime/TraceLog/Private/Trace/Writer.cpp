@@ -469,7 +469,7 @@ static FTraceGuid GTraceGuid; // = {0, 0, 0, 0};
 ////////////////////////////////////////////////////////////////////////////////
 static void Writer_SendSync()
 {
-	if (GSyncPacketCountdown <= 0)
+	if (GSyncPacketCountdown <= 0 || !GDataHandle)
 	{
 		return;
 	}
