@@ -20,6 +20,7 @@
 struct FMeshDescription;
 class USkinWeightsPaintTool;
 class UPolygonSelectionMechanic;
+class UPersonaEditorModeManagerContext;
 
 namespace UE::Geometry 
 {
@@ -35,7 +36,8 @@ UENUM()
 enum class EWeightEditMode : uint8
 {
 	Brush,
-	Vertices
+	Vertices,
+	Bones,
 };
 
 // weight color mode
@@ -499,6 +501,8 @@ protected:
 
 	UPROPERTY()
 	TWeakObjectPtr<USkeletalMeshEditorContextObjectBase> EditorContext = nullptr;
+	UPROPERTY()
+	TWeakObjectPtr<UPersonaEditorModeManagerContext> PersonaModeManagerContext = nullptr;
 
 	friend SkinPaintTool::FSkinToolDeformer;
 };

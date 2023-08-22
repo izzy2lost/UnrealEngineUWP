@@ -38,6 +38,7 @@
 #include "MeshVertexSculptTool.h"
 #include "ModelingToolsManagerActions.h"
 #include "OffsetMeshTool.h"
+#include "PersonaModule.h"
 #include "PolygonOnMeshTool.h"
 #include "ProjectToTargetTool.h"
 #include "RemeshMeshTool.h"
@@ -263,10 +264,19 @@ void USkeletalMeshModelingToolsEditorMode::Exit()
 	UEdMode::Exit();
 }
 
-
 void USkeletalMeshModelingToolsEditorMode::CreateToolkit()
 {
 	Toolkit = MakeShareable(new FSkeletalMeshModelingToolsEditorModeToolkit);
+}
+
+bool USkeletalMeshModelingToolsEditorMode::IsCompatibleWith(FEditorModeID OtherModeID) const
+{
+	if (OtherModeID == FPersonaEditModes::SkeletonSelection)
+	{
+		return true;
+	}
+	
+	return Super::IsCompatibleWith(OtherModeID);
 }
 
 void USkeletalMeshModelingToolsEditorMode::Tick(FEditorViewportClient* ViewportClient, float DeltaTime)

@@ -57,7 +57,7 @@
 #include "Customization/BlendSpaceDetails.h"
 #include "Customization/BlendParameterDetails.h"
 #include "Customization/InterpolationParameterDetails.h"
-#include "EditModes/SkeletonSelectionEditMode.h"
+#include "SkeletonSelectionEditMode.h"
 #include "PersonaEditorModeManager.h"
 #include "PreviewSceneCustomizations.h"
 #include "SSkeletonSlotNames.h"

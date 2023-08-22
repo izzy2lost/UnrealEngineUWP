@@ -45,8 +45,9 @@ void FSkinWeightDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 		[
 			SNew(SSegmentedControl<EWeightEditMode>)
 			.ToolTipText(LOCTEXT("EditingModeTooltip",
-					"Brush: the interactive viewport brush interface for editing weights.\n"
-					"Selection: the 1-off editing operations for weights on selected elements (bones and vertices).\n"))
+					"Brush: edit weights by painting directly on mesh.\n"
+					"Vertices: select vertices and edit weights directly.\n"
+					"Bones: select and manipulate bones to preview deformations.\n"))
 			.Value_Lambda([this]()
 			{
 				return SkinToolSettings->EditingMode;
@@ -64,6 +65,8 @@ void FSkinWeightDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 			.Text(LOCTEXT("BrushEditMode", "Brush"))
 			+ SSegmentedControl<EWeightEditMode>::Slot(EWeightEditMode::Vertices)
 			.Text(LOCTEXT("VertexEditMode", "Vertices"))
+			+ SSegmentedControl<EWeightEditMode>::Slot(EWeightEditMode::Bones)
+			.Text(LOCTEXT("BoneEditMode", "Bones"))
 		]
 	];
 

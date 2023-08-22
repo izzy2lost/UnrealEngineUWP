@@ -25,6 +25,8 @@
 #include "Util/ColorConstants.h"
 #include "Operations/SmoothBoneWeights.h"
 #include "ContextObjectStore.h"
+#include "Editor/Persona/Public/IPersonaEditorModeManager.h"
+#include "Editor/Persona/Public/PersonaModule.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SkinWeightsPaintTool)
 
@@ -702,6 +704,8 @@ void USkinWeightsPaintTool::Init(const FToolBuilderState& InSceneState)
 {
 	const UContextObjectStore* ContextObjectStore = InSceneState.ToolManager->GetContextObjectStore();
 	EditorContext = ContextObjectStore->FindContext<USkeletalMeshEditorContextObjectBase>();
+
+	PersonaModeManagerContext = ContextObjectStore->FindContext<UPersonaEditorModeManagerContext>();
 }
 
 void USkinWeightsPaintTool::Setup()
@@ -1532,6 +1536,11 @@ void USkinWeightsPaintTool::OnShutdown(EToolShutdownType ShutdownType)
 	{
 		EditorContext->UnbindFrom(this);
 	}
+
+	if (PersonaModeManagerContext.IsValid())
+	{
+		PersonaModeManagerContext->GetPersonaEditorModeManager()->DeactivateMode(FPersonaEditModes::SkeletonSelection);
+	}
 }
 
 void USkinWeightsPaintTool::BeginChange()
@@ -2002,8 +2011,26 @@ void USkinWeightsPaintTool::HandleSkeletalMeshModified(const TArray<FName>& InBo
 void USkinWeightsPaintTool::ToggleEditingMode()
 {
 	Weights.Deformer.SetAllVerticesToBeUpdated();
+
+	// toggle brush mode
 	SetBrushEnabled(WeightToolProperties->EditingMode == EWeightEditMode::Brush);
+
+	// toggle vertex mode
 	PolygonSelectionMechanic->SetIsEnabled(WeightToolProperties->EditingMode == EWeightEditMode::Vertices);
+
+	// toggle bone select mode
+	// this mode is set to be compatible with the 
+	if (PersonaModeManagerContext.IsValid())
+	{
+		if (WeightToolProperties->EditingMode == EWeightEditMode::Bones)
+		{
+			PersonaModeManagerContext->GetPersonaEditorModeManager()->ActivateMode(FPersonaEditModes::SkeletonSelection);	
+		}
+		else
+		{
+			PersonaModeManagerContext->GetPersonaEditorModeManager()->DeactivateMode(FPersonaEditModes::SkeletonSelection);	
+		}
+	}
 }
 
 void USkinWeightsPaintTool::GetSelectedVertices(TArray<int32>& OutVertexIndices) const

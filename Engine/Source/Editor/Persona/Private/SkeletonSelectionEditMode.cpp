@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "EditModes/SkeletonSelectionEditMode.h"
+#include "SkeletonSelectionEditMode.h"
 #include "Animation/DebugSkelMeshComponent.h"
 #include "AnimationEditorViewportClient.h"
 #include "CanvasItem.h"

@@ -166,7 +166,7 @@ void FSkeletalMeshModelingToolsModule::OnToggleEditingToolsMode(TWeakPtr<ISkelet
 		}
 		else
 		{
-			EditorModeManager.ActivateDefaultMode();
+			EditorModeManager.DeactivateMode(USkeletalMeshModelingToolsEditorMode::Id);
 		}
 	}
 }
