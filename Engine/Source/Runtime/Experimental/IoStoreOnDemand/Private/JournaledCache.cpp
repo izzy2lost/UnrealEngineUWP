@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "FileIoCache.h"
+#include "IasCache.h"
 #include "IO/IoStoreOnDemand.h"
 #include "Statistics.h"
 
@@ -865,7 +865,7 @@ class FCache
 {
 public:
 	struct FConfig
-		: public FFileIoCacheConfig
+		: public FIasCacheConfig
 	{
 		FString	Path;
 	};
@@ -1063,13 +1063,13 @@ uint32 FCache::DebugVisit(void* Param, FDebugCacheEntry::Callback* Callback)
 
 ////////////////////////////////////////////////////////////////////////////////
 class FJournaledCache
-	: public IIoCache
+	: public IIasCache
 	, public FRunnable
 {
 public:
 	using GetRetType = UE::Tasks::TTask<TIoStatusOr<FIoBuffer>>;
 
-								FJournaledCache(const FFileIoCacheConfig& Config);
+								FJournaledCache(const FIasCacheConfig& Config);
 								~FJournaledCache();
 	virtual bool				ContainsChunk(const FIoHash& Key) const override;
 	virtual GetRetType			Get(const FIoHash& Key, const FIoReadOptions& Options, const FIoCancellationToken* CancellationToken) override;
@@ -1093,19 +1093,19 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-FJournaledCache::FJournaledCache(const FFileIoCacheConfig& Config)
+FJournaledCache::FJournaledCache(const FIasCacheConfig& Config)
 {
 	TStringBuilder<256> CachePath;
 	CachePath << FPaths::ProjectPersistentDownloadDir();
 	CachePath << TEXT("ias.cache.0");
 
 	FCacheInner::FConfig EventualConfig;
-	static_cast<FFileIoCacheConfig&>(EventualConfig) = Config;
+	static_cast<FIasCacheConfig&>(EventualConfig) = Config;
 	EventualConfig.Path = CachePath;
 	Cache = MakeUnique<FCacheInner>(MoveTemp(EventualConfig));
 	Cache->Load();
 
-	const FFileIoCacheConfig::FRate& WriteRate = Config.WriteRate;
+	const FIasCacheConfig::FRate& WriteRate = Config.WriteRate;
 	Governor.Set(WriteRate.Allowance, WriteRate.Ops, WriteRate.Seconds);
 
 	StartThread();
@@ -1484,7 +1484,7 @@ IOSTOREONDEMAND_API void Tests()
 // }}}
 
 ////////////////////////////////////////////////////////////////////////////////
-TUniquePtr<IIoCache> MakeFileIoCache(const FFileIoCacheConfig& Config)
+TUniquePtr<IIasCache> MakeIasCache(const FIasCacheConfig& Config)
 {
 	LLM_SCOPE_BYTAG(Ias);
 	return MakeUnique<UE::IO::Private::FJournaledCache>(Config);

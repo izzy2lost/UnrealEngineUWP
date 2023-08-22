@@ -7,7 +7,7 @@
 
 #define UE_API IOSTOREONDEMAND_API
 
-class IIoCache;
+class IIasCache;
 struct FAnalyticsEventAttribute;
 
 namespace UE
@@ -50,7 +50,7 @@ public:
 #endif // IS_PROGRAM || WITH_EDITOR
 };
 
-UE_API TSharedPtr<IOnDemandIoDispatcherBackend> MakeOnDemandIoDispatcherBackend(TSharedPtr<IIoCache> Cache);
+UE_API TSharedPtr<IOnDemandIoDispatcherBackend> MakeOnDemandIoDispatcherBackend(TSharedPtr<IIasCache> Cache);
 
 } // namespace UE
 

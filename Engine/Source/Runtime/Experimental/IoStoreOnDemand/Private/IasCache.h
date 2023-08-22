@@ -13,10 +13,10 @@ class FIoReadOptions;
 struct FIoHash;
 
 /** Cache for binary blobs with a 20 byte cache key. */
-class IIoCache
+class IIasCache
 {
 public:
-	virtual ~IIoCache() = default;
+	virtual ~IIasCache() = default;
 
 	/** Returns whether the specified cache key is present in the cache. */
 	virtual bool ContainsChunk(const FIoHash& Key) const = 0;
@@ -31,7 +31,7 @@ public:
 	virtual FIoStatus Put(const FIoHash& Key, FIoBuffer& Data) = 0;
 };
 
-struct FFileIoCacheConfig
+struct FIasCacheConfig
 {
 	struct FRate
 	{
@@ -48,4 +48,4 @@ struct FFileIoCacheConfig
 	bool		DropCache = false;
 };
 
-TUniquePtr<IIoCache> MakeFileIoCache(const FFileIoCacheConfig& Config);
+TUniquePtr<IIasCache> MakeIasCache(const FIasCacheConfig& Config);

@@ -1,12 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "IO/IoStoreOnDemand.h"
-#include "OnDemandIoDispatcherBackend.h"
+
 #include "EncryptionKeyManager.h"
+#include "IasCache.h"
 #include "LatencyInjector.h"
+#include "OnDemandIoDispatcherBackend.h"
 #include "Statistics.h"
 
-#include "FileIoCache.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "HAL/PlatformMisc.h"
 #include "HAL/PlatformTime.h"
@@ -172,9 +173,9 @@ static bool TryParseConfigFile(const FString& ConfigPath, UE::FOnDemandEndpoint&
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static FFileIoCacheConfig GetFileIoCacheConfig(const TCHAR* CommandLine)
+static FIasCacheConfig GetIasCacheConfig(const TCHAR* CommandLine)
 {
-	FFileIoCacheConfig Ret;
+	FIasCacheConfig Ret;
 
 	// Fetch values from .ini files
 	auto GetConfigIntImpl = [CommandLine] (const TCHAR* ConfigKey, const TCHAR* ParamName, auto& Out)
@@ -1532,10 +1533,10 @@ void FIoStoreOnDemandModule::StartupModule()
 
 	Endpoint.EndpointType = UE::EOnDemandEndpointType::CDN;
 
-	TSharedPtr<IIoCache> Cache;
-	if (FFileIoCacheConfig Config = GetFileIoCacheConfig(CommandLine); Config.DiskQuota > 0)
+	TSharedPtr<IIasCache> Cache;
+	if (FIasCacheConfig Config = GetIasCacheConfig(CommandLine); Config.DiskQuota > 0)
 	{
-		Cache = MakeShareable(MakeFileIoCache(Config).Release());
+		Cache = MakeShareable(MakeIasCache(Config).Release());
 	}
 	else
 	{

@@ -7,7 +7,7 @@
 #include "Containers/StringView.h"
 #include "CoreHttp/Client.h"
 #include "EncryptionKeyManager.h"
-#include "FileIoCache.h"
+#include "IasCache.h"
 #include "HAL/Event.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "HAL/Platform.h"
@@ -1182,7 +1182,7 @@ class FOnDemandIoBackend final
 	};
 public:
 
-	FOnDemandIoBackend(TSharedPtr<IIoCache> Cache);
+	FOnDemandIoBackend(TSharedPtr<IIasCache> Cache);
 	virtual ~FOnDemandIoBackend();
 
 	// I/O dispatcher backend
@@ -1218,7 +1218,7 @@ private:
 	static TIoStatusOr<FOnDemandToc> GetToc(const FOnDemandEndpoint& Endpoint);
 	FIoStatus AddToc(const FOnDemandEndpoint& Endpoint);
 
-	TSharedPtr<IIoCache> Cache;
+	TSharedPtr<IIasCache> Cache;
 	TUniquePtr<FOnDemandIoStore> IoStore;
 	TSharedPtr<const FIoDispatcherBackendContext> BackendContext;
 	TUniquePtr<FRunnableThread> BackendThread;
@@ -1237,7 +1237,7 @@ private:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-FOnDemandIoBackend::FOnDemandIoBackend(TSharedPtr<IIoCache> InCache)
+FOnDemandIoBackend::FOnDemandIoBackend(TSharedPtr<IIasCache> InCache)
 	: Cache(InCache)
 {
 	IoStore = MakeUnique<FOnDemandIoStore>();
@@ -1811,7 +1811,7 @@ uint32 FOnDemandIoBackend::Run()
 namespace UE
 {
 
-TSharedPtr<IOnDemandIoDispatcherBackend> MakeOnDemandIoDispatcherBackend(TSharedPtr<IIoCache> Cache)
+TSharedPtr<IOnDemandIoDispatcherBackend> MakeOnDemandIoDispatcherBackend(TSharedPtr<IIasCache> Cache)
 {
 	return MakeShareable<IOnDemandIoDispatcherBackend>(new UE::IO::Private::FOnDemandIoBackend(Cache));
 }
