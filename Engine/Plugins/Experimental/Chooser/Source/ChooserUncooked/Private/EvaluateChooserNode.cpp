@@ -405,12 +405,8 @@ void UK2Node_EvaluateChooser2::AllocateDefaultPins()
 
 	if (Chooser)
 	{
-		if (Chooser->ContextObjectType_DEPRECATED)
-		{
-			// post load fix up code doesn't run until it's too late when loading a blueprint that references an chooser
-			// need to manually trigger it here so we generate the right pins
-			Chooser->PostLoad();
-		}
+		// ensure any data upgrades have been applied to Chooser before generating pins
+		Chooser->ConditionalPostLoad();
 		
 		for(FInstancedStruct& ContextDataEntry : Chooser->ContextData)
 		{
@@ -694,6 +690,7 @@ void UK2Node_EvaluateChooser2::ExpandNode(class FKismetCompilerContext& Compiler
 								// create a struct to hold the output (or for input structs that were not connected to anything)
 								UK2Node_MakeStruct* OutputStructNode = CompilerContext.SpawnIntermediateNode<UK2Node_MakeStruct>(this, SourceGraph);
 								CompilerContext.MessageLog.NotifyIntermediateObjectCreation(OutputStructNode, this);
+								OutputStructNode->PostPlacedNewNode();
 								OutputStructNode->StructType = static_cast<UScriptStruct*>(StructContext.Struct);
 								OutputStructNode->AllocateDefaultPins();
 								OutputStructNode->FindPin(StructContext.Struct->GetFName(), EGPD_Output)->MakeLinkTo(AddStructPin);
