@@ -171,7 +171,7 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="SmartObject")
 	bool IsValidSlotIndex(const int32 SlotIndex) const { return Slots.IsValidIndex(SlotIndex); }
 
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category="SmartObject")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category="SmartObject", meta=(DisplayName="Get Smart Object Slot Definitions"))
 	const TArray<FSmartObjectSlotDefinition>& K2_GetSlots() const { return Slots; }
 
 #if WITH_EDITOR
