@@ -275,7 +275,6 @@ void UMassActorSpawnerSubsystem::ProcessPendingSpawningRequest(const double MaxT
 
 	const int32 IterationsLimit = SpawnRequestHandleManager.CalcNumUsedHandles();
 	int32 IterationsCount = 0;
-	int32 StartingHandleIndex = INDEX_NONE;
 
 	while (FPlatformTime::Seconds() < TimeSliceEnd && IterationsCount++ < IterationsLimit)
 	{

@@ -248,6 +248,8 @@ protected:
 	mutable int32 NumActorSpawned = 0;
 	mutable int32 NumActorPooled = 0;
 
+	int32 StartingHandleIndex = INDEX_NONE;
+
 public:
 	UE_DEPRECATED(5.4, "This flavor of GetNextRequestToSpawn is deprecated. Use the alternative taking an int32& parameter")
 	virtual FMassActorSpawnRequestHandle GetNextRequestToSpawn() const final;
