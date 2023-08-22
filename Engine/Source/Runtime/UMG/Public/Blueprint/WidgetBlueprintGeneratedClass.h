@@ -99,6 +99,10 @@ public:
 #endif
 
 public:
+	/** */
+	UPROPERTY()
+	uint32 bCanCallInitializedWithoutPlayerContext : 1;
+
 	UPROPERTY()
 	TArray< FDelegateRuntimeBinding > Bindings;
 

@@ -263,6 +263,9 @@ public:
 	UPROPERTY(AssetRegistrySearchable, AssetRegistrySearchable)
 	FString PaletteCategory;
 
+	/** Run the initialize event on widget that doesn't have a player context. */
+	UPROPERTY(EditAnywhere, Category="Widget")
+	bool bCanCallInitializedWithoutPlayerContext;
 #endif
 
 public:

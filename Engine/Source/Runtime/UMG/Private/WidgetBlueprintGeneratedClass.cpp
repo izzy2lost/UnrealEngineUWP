@@ -123,6 +123,7 @@ namespace
 
 UWidgetBlueprintGeneratedClass::UWidgetBlueprintGeneratedClass()
 {
+	bCanCallInitializedWithoutPlayerContext = false;
 #if WITH_EDITORONLY_DATA
 	{
 		static const FAutoRegisterTextReferenceCollectorCallback AutomaticRegistrationOfTextReferenceCollector(UWidgetBlueprintGeneratedClass::StaticClass(), &CollectWidgetBlueprintGeneratedClassTextReferences);

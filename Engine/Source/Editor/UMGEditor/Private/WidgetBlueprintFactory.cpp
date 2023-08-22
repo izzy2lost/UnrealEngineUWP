@@ -195,6 +195,8 @@ UObject* UWidgetBlueprintFactory::FactoryCreateNew(UClass* Class, UObject* InPar
 			}
 		}
 
+		NewBP->bCanCallInitializedWithoutPlayerContext = GetDefault<UUMGEditorProjectSettings>()->bCanCallInitializedWithoutPlayerContext;
+
 		{
 			IUMGEditorModule::FWidgetBlueprintCreatedArgs Args;
 			Args.ParentClass = CurrentParentClass;

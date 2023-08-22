@@ -1124,6 +1124,8 @@ void FWidgetBlueprintCompilerContext::FinishCompilingClass(UClass* Class)
 		}
 	}
 
+	BPGClass->bCanCallInitializedWithoutPlayerContext = WidgetBP->bCanCallInitializedWithoutPlayerContext;
+
 	Super::FinishCompilingClass(Class);
 
 	CA_ASSUME(BPGClass);
