@@ -59,10 +59,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = DataLayers)
 	ENGINE_API const UDataLayerInstance* GetDataLayerInstanceFromName(const FName& InDataLayerInstanceName) const;
 
-	UFUNCTION(BlueprintCallable, Category = DataLayers, BlueprintAuthorityOnly)
+	UFUNCTION(BlueprintCallable, Category = DataLayers)
 	ENGINE_API bool SetDataLayerInstanceRuntimeState(const UDataLayerInstance* InDataLayerInstance, EDataLayerRuntimeState InState, bool bInIsRecursive = false);
 
-	UFUNCTION(BlueprintCallable, Category = DataLayers, BlueprintAuthorityOnly)
+	UFUNCTION(BlueprintCallable, Category = DataLayers)
 	ENGINE_API bool SetDataLayerRuntimeState(const UDataLayerAsset* InDataLayerAsset, EDataLayerRuntimeState InState, bool bInIsRecursive = false);
 
 	UFUNCTION(BlueprintCallable, Category = DataLayers)

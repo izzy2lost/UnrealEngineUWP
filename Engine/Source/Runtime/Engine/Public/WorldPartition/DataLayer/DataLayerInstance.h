@@ -181,7 +181,6 @@ public:
 
 private:
 	ENGINE_API void AddChild(UDataLayerInstance* DataLayer);
-	ENGINE_API bool SetRuntimeState(EDataLayerRuntimeState InState, bool bInIsRecursive = false) const;
 	friend class UDataLayerManager;
 	friend class FDataLayerUtils;
 
