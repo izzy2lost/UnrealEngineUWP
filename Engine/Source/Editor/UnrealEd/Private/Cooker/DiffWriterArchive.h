@@ -104,8 +104,8 @@ public:
 		int64 Offset = -1;
 		/** Callstack CRC for the Serialize call */
 		uint32 Callstack = 0;
-		/** Collected inside of skip scope */
-		bool bIgnore = false;
+		/** Collected inside of a scope that indicates diff should be recorded but logging should be suppressed */
+		bool bSuppressLogging = false;
 	};
 
 	/** Struct to hold the actual Serialize call callstack and any associated data */
@@ -231,7 +231,7 @@ private:
 class FAccumulator : public FRefCountBase
 {
 public:
-	FAccumulator(UObject* InAsset, FName InPackageName, int32 InMaxDiffsToLog,
+	FAccumulator(UObject* InAsset, FName InPackageName, int32 InMaxDiffsToLog, bool bInIgnoreHeaderDiffs,
 		FMessageCallback&& InMessageCallback, EPackageHeaderFormat InPackageHeaderFormat);
 	virtual ~FAccumulator();
 
@@ -274,6 +274,7 @@ private:
 	EPackageHeaderFormat PackageHeaderFormat = EPackageHeaderFormat::PackageFileSummary;
 	bool bFirstSaveComplete = false;
 	bool bHasDifferences = false;
+	bool bIgnoreHeaderDiffs = false;
 
 	friend class FCallstacks;
 	friend class FDiffArchive;

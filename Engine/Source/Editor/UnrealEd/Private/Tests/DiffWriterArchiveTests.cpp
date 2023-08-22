@@ -48,9 +48,10 @@ bool FDiffWriterArchiveTestsCallstacks::RunTest(const FString& Parameters)
 	using namespace UE::DiffWriter::Tests;
 
 	const int32 MaxDiffsToLog = 1000;
+	bool bIgnoreHeaderDiffs = false;
 	FName PackageName(TEXT("PackageName"));
 	EPackageHeaderFormat HeaderFormat(EPackageHeaderFormat::PackageFileSummary);
-	TRefCountPtr<FAccumulator> Accumulator = new FAccumulator(nullptr, PackageName, MaxDiffsToLog,
+	TRefCountPtr<FAccumulator> Accumulator = new FAccumulator(nullptr, PackageName, MaxDiffsToLog, bIgnoreHeaderDiffs,
 		[](ELogVerbosity::Type Verbosity, FStringView Message) {}, HeaderFormat);
 	FBasicDiffState State = FBasicDiffState{ 1,2,3 };
 	FDiffArchiveForLinker Ar(*Accumulator);
@@ -62,13 +63,13 @@ bool FDiffWriterArchiveTestsCallstacks::RunTest(const FString& Parameters)
 	TestTrueExpr(Callstacks.GetEndOffset() == sizeof(FBasicDiffState));
 	TestTrueExpr(Callstacks.GetCallstack(0).Offset == 0);
 	TestTrueExpr(Callstacks.GetCallstack(0).Callstack == 0);
-	TestTrueExpr(Callstacks.GetCallstack(0).bIgnore == false);
+	TestTrueExpr(Callstacks.GetCallstack(0).bSuppressLogging == false);
 	TestTrueExpr(Callstacks.GetCallstack(1).Offset == 4);
 	TestTrueExpr(Callstacks.GetCallstack(1).Callstack == 0);
-	TestTrueExpr(Callstacks.GetCallstack(1).bIgnore == false);
+	TestTrueExpr(Callstacks.GetCallstack(1).bSuppressLogging == false);
 	TestTrueExpr(Callstacks.GetCallstack(2).Offset == 8);
 	TestTrueExpr(Callstacks.GetCallstack(2).Callstack == 0);
-	TestTrueExpr(Callstacks.GetCallstack(2).bIgnore == false);
+	TestTrueExpr(Callstacks.GetCallstack(2).bSuppressLogging == false);
 	return true;
 }
 
@@ -81,6 +82,7 @@ bool FDiffWriterArchiveTestsBasic::RunTest(const FString& Parameters)
 	using namespace UE::DiffWriter::Tests;
 
 	const int32 MaxDiffsToLog = 1000;
+	bool bIgnoreHeaderDiffs = false;
 	FName PackageName(TEXT("PackageName"));
 	FString Filename(TEXT("Filename"));
 	EPackageHeaderFormat HeaderFormat(EPackageHeaderFormat::PackageFileSummary);
@@ -88,7 +90,7 @@ bool FDiffWriterArchiveTestsBasic::RunTest(const FString& Parameters)
 	// SECTION("DiffMap - identical")
 	{
 		TRefCountPtr<FAccumulator> Accumulator = new FAccumulator(nullptr, PackageName, MaxDiffsToLog,
-			[](ELogVerbosity::Type Verbosity, FStringView Message) {}, HeaderFormat);
+			bIgnoreHeaderDiffs, [](ELogVerbosity::Type Verbosity, FStringView Message) {}, HeaderFormat);
 
 		FLargeMemoryWriter InitialState;
 		{
@@ -111,7 +113,7 @@ bool FDiffWriterArchiveTestsBasic::RunTest(const FString& Parameters)
 	// SECTION("DiffMap - mismatch")
 	{
 		TRefCountPtr<FAccumulator> Accumulator = new FAccumulator(nullptr, PackageName, MaxDiffsToLog,
-			[](ELogVerbosity::Type Verbosity, FStringView Message) {}, HeaderFormat);
+			bIgnoreHeaderDiffs, [](ELogVerbosity::Type Verbosity, FStringView Message) {}, HeaderFormat);
 
 		FLargeMemoryWriter InitialState;
 		{
@@ -134,7 +136,7 @@ bool FDiffWriterArchiveTestsBasic::RunTest(const FString& Parameters)
 	// SECTION("Compare - mismatch")
 	{
 		TRefCountPtr<FAccumulator> Accumulator = new FAccumulator(nullptr, PackageName, MaxDiffsToLog,
-			[](ELogVerbosity::Type Verbosity, FStringView Message) {}, HeaderFormat);
+			bIgnoreHeaderDiffs, [](ELogVerbosity::Type Verbosity, FStringView Message) {}, HeaderFormat);
 
 		FBasicDiffState InitialState = FBasicDiffState {1,2,3};
 		FLargeMemoryWriter InitialMemory;

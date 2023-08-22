@@ -222,7 +222,7 @@ UE::DiffWriter::FAccumulator& FDiffPackageWriter::ConstructAccumulator(FName Pac
 	{
 		check(!bHasStartedSecondSave); // Accumulator should already exist from CreateLinkerArchive in the first save
 		Accumulator = new UE::DiffWriter::FAccumulator(Asset, *PackageName.ToString(), MaxDiffsToLog,
-			GetDiffWriterMessageCallback(), Inner->GetCookCapabilities().HeaderFormat);
+			bIgnoreHeaderDiffs, GetDiffWriterMessageCallback(), Inner->GetCookCapabilities().HeaderFormat);
 	}
 	return *Accumulator;
 }
