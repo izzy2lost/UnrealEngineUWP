@@ -212,6 +212,16 @@ public:
 	 */
 	MOVIESCENE_API void Reset();
 
+	/**
+	 * Gets the world context for this linker
+	 */
+	virtual UWorld* GetWorld() const override { return WeakWorld.IsValid() ? WeakWorld.Get() : Super::GetWorld(); }
+
+	/**
+	 * Sets the world context for this linker
+	 */
+	void SetWorld(UWorld* InWorld) { WeakWorld = InWorld; }
+
 public:
 
 	/**
@@ -385,6 +395,7 @@ private:
 	uint64 LastInstantiationVersion;
 
 	TWeakPtr<bool> GlobalStateCaptureToken;
+	TWeakObjectPtr<UWorld> WeakWorld;
 
 protected:
 
