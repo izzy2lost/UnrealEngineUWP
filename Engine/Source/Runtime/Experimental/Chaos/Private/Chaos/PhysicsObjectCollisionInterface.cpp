@@ -25,7 +25,10 @@ namespace Chaos
 			FVector::Zero(),
 			[&OutMTD](const FShapeOverlapData&, const FShapeOverlapData&, const FMTDInfo& MTDInfo)
 			{
-				OutMTD.Penetration = FMath::Max(OutMTD.Penetration, MTDInfo.Penetration);
+				if (MTDInfo.Penetration > OutMTD.Penetration)
+				{
+					OutMTD = MTDInfo;
+				}
 				return true;
 			}
 		);
