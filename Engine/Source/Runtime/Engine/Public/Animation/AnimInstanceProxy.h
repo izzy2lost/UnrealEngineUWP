@@ -560,6 +560,7 @@ public:
 	friend struct UE::Anim::FAnimSync;
 	friend class UE::Anim::FAnimSyncGroupScope;
 	friend class UE::Anim::FActiveStateMachineScope;
+	friend struct FAnimNode_ControlRigInputPose;
 	
 protected:
 	/** Called when our anim instance is being initialized */
