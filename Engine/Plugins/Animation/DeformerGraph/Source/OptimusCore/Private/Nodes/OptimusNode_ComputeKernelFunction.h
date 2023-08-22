@@ -79,6 +79,7 @@ public:
 	FOptimusExecutionDomain GetExecutionDomain() const override;
 	const UOptimusNodePin* GetPrimaryGroupPin() const override { return {}; }
 	UComputeDataInterface* MakeKernelDataInterface(UObject* InOuter) const override { return nullptr; };
+	bool GetPinSupportAtomic(const UOptimusNodePin* InPin) const override {return false;};
 
 private:
 	UOptimusNode_ComputeKernelFunctionGeneratorClass *GetGeneratorClass() const;
