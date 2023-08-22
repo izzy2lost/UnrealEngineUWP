@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -12,30 +13,30 @@ namespace Horde.Server.Server
 	/// </summary>
 	public class GetServerInfoResponse
 	{
-        /// <summary>
+		/// <summary>
 		/// Server version info
 		/// </summary>
-        public string ServerVersion { get; set; }
+		public string ServerVersion { get; set; }
 
 		/// <summary>
 		/// The current agent version string
 		/// </summary>
 		public string? AgentVersion { get; set; }
 
-        /// <summary>
-        /// The operating system server is hosted on
-        /// </summary>
-        public string OsDescription { get; set; }
+		/// <summary>
+		/// The operating system server is hosted on
+		/// </summary>
+		public string OsDescription { get; set; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		public GetServerInfoResponse(string? agentVersion)
-        {
-            FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);		
+		{
+			FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
 			ServerVersion = versionInfo.ProductVersion ?? String.Empty;
 			AgentVersion = agentVersion;
-			OsDescription = RuntimeInformation.OSDescription;			
+			OsDescription = RuntimeInformation.OSDescription;
 		}
 	}
 
@@ -100,6 +101,49 @@ namespace Horde.Server.Server
 			ClientId = settings.OidcClientId;
 			LocalRedirectUrls = settings.OidcLocalRedirectUrls;
 		}
+	}
+
+	/// <summary>
+	/// Describes an individual config file to validate
+	/// </summary>
+	public class ValidateConfigFileRequest
+	{
+		/// <summary>
+		/// Path for the file to substitute
+		/// </summary>
+		public Uri? Uri { get; set; }
+
+		/// <summary>
+		/// Data for the file
+		/// </summary>
+		public byte[] Data { get; set; } = Array.Empty<byte>();
+	}
+
+	/// <summary>
+	/// Request to validate server configuration with the given files replacing their checked-in counterparts.
+	/// </summary>
+	public class ValidateConfigRequest
+	{
+		/// <summary>
+		/// Files to be validated.
+		/// </summary>
+		public List<ValidateConfigFileRequest> Files { get; set; } = new List<ValidateConfigFileRequest>();
+	}
+
+	/// <summary>
+	/// Response from validating config files
+	/// </summary>
+	public class ValidateConfigResponse
+	{
+		/// <summary>
+		/// Whether the files were validated successfully
+		/// </summary>
+		public bool Result { get; set; }
+
+		/// <summary>
+		/// Output message from validation
+		/// </summary>
+		public string? Message { get; set; }
 	}
 }
 
