@@ -250,17 +250,23 @@ void UNiagaraStackSummaryCategory::RefreshChildrenInternal(const TArray<UNiagara
 	for(TSharedPtr<FNiagaraHierarchyItemViewModelBase> HierarchyViewModel : AllChildrenViewModels)
 	{
 		UNiagaraHierarchyItemBase* Data = HierarchyViewModel->GetDataMutable();
+		TOptional<FGuid> FunctionCallGuid;
 		if(UNiagaraHierarchyModuleInput* ModuleInput = Cast<UNiagaraHierarchyModuleInput>(Data))
 		{
-			UsedFunctionCallNodes.Add(State.NodeGuidToModuleNodeMap[ModuleInput->GetPersistentIdentity().Guids[0]]);
+			FunctionCallGuid = ModuleInput->GetPersistentIdentity().Guids[0];
 		}
 		else if(UNiagaraHierarchyAssignmentInput* AssignmentInput = Cast<UNiagaraHierarchyAssignmentInput>(Data))
 		{
-			UsedFunctionCallNodes.Add(State.NodeGuidToModuleNodeMap[AssignmentInput->GetPersistentIdentity().Guids[0]]);
+			FunctionCallGuid = AssignmentInput->GetPersistentIdentity().Guids[0];
 		}
 		else if(UNiagaraHierarchyModule* Module = Cast<UNiagaraHierarchyModule>(Data))
 		{
-			UsedFunctionCallNodes.Add(State.NodeGuidToModuleNodeMap[Module->GetPersistentIdentity().Guids[0]]);
+			FunctionCallGuid = Module->GetPersistentIdentity().Guids[0];
+		}
+
+		if(FunctionCallGuid.IsSet() && State.NodeGuidToModuleNodeMap.Contains(FunctionCallGuid.GetValue()))
+		{
+			UsedFunctionCallNodes.Add(State.NodeGuidToModuleNodeMap[FunctionCallGuid.GetValue()]);
 		}
 	}
 	
