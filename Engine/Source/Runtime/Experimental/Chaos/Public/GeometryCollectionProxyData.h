@@ -164,6 +164,7 @@ public:
 		, bIsCollisionFilterDataDirty(false)
 		, bIsNotificationDataDirty(false) 
 		, bIsDamageSettingsDataDirty(false)
+		, bIsDamageThresholdDataDirty(false)
 		, bNotifyBreakings(false)
 		, bNotifyRemovals(false)
 		, bNotifyCrumblings(false)
@@ -180,6 +181,7 @@ public:
 		, bIsCollisionFilterDataDirty(false)
 		, bIsNotificationDataDirty(false)
 		, bIsDamageSettingsDataDirty(false)
+		, bIsDamageThresholdDataDirty(false)
 		, bNotifyBreakings(Parameters.bGenerateBreakingData)
 		, bNotifyRemovals(false)
 		, bNotifyCrumblings(Parameters.bGenerateCrumblingData)
@@ -189,6 +191,7 @@ public:
 		, bNotifyGlobalCrumblings(Parameters.bGenerateGlobalCrumblingData)
 		, bGlobalCrumblingEventIncludesChildren(Parameters.bGenerateGlobalCrumblingChildrenData)
 		, bEnableStrainOnCollision(false)
+		, DamageThresholds(Parameters.DamageThreshold)
 	{}
 
 	const FTransform& GetWorldTransform() const { return WorldTransform; }
@@ -286,11 +289,24 @@ public:
 	bool GetIsDamageSettingsDataDirty() const { return bIsDamageSettingsDataDirty; }
 	void ResetIsDamageSettingsDataDirty() { bIsDamageSettingsDataDirty = false; }
 
+	void SetDamageThresholds(const TArray<float>& InDamageThresholds)
+	{
+		DamageThresholds = InDamageThresholds;
+		bIsDamageThresholdDataDirty = true;
+	}
+
+	const TArray<float>& GetDamageThresholds() const { return DamageThresholds; }
+
+	bool GetIsDamageThresholdDataDirty() const { return bIsDamageThresholdDataDirty; }
+	void ResetIsDamageThresholdDataDirty() { bIsDamageThresholdDataDirty = false; }
+
+
 private:
 	uint16 bIsWorldTransformDirty : 1;
 	uint16 bIsCollisionFilterDataDirty : 1;
 	uint16 bIsNotificationDataDirty: 1;
 	uint16 bIsDamageSettingsDataDirty : 1;
+	uint16 bIsDamageThresholdDataDirty : 1;
 
 	/** updated when bNotificationDataDirty is set */
 	uint16 bNotifyBreakings : 1;
@@ -302,8 +318,11 @@ private:
 	uint16 bNotifyGlobalCrumblings : 1;
 	uint16 bGlobalCrumblingEventIncludesChildren : 1;
 
-	/** updated when bDamageSettingsDataDirty is set */
+	/** updated when bIsDamageSettingsDataDirty is set */
 	uint16 bEnableStrainOnCollision : 1;
+
+	/** updated when bIsDamageThresholdDataDirty is set */
+	TArray<float> DamageThresholds;
 
 	/** updated when bIsWorldTransformDirty is set */
 	FTransform WorldTransform; 

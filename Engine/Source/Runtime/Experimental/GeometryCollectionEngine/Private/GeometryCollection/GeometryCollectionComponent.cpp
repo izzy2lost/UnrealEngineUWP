@@ -723,10 +723,9 @@ void UGeometryCollectionComponent::SetDamageThreshold(const TArray<float>& InDam
 
 	DamageThreshold = InDamageThreshold;
 
-	if (IsPhysicsStateCreated())
+	if (PhysicsProxy)
 	{
-		// NOTE: Probably should use a deferred version of this.
-		RecreatePhysicsState();
+		PhysicsProxy->SetDamageThresholds_External(DamageThreshold);
 	}
 }
 

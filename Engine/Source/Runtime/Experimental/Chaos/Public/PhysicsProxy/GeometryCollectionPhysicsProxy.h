@@ -457,6 +457,8 @@ public:
 
 	CHAOS_API void UpdatePerParticleFilterData_External(const TArray<FParticleCollisionFilterData>& Data);
 	
+	CHAOS_API void SetDamageThresholds_External(const TArray<float>& DamageThresholds);
+
 	/** 
 	 * Traverses the parents of TransformGroupIdx counting number of levels,
 	 * and sets levels array value for TransformGroupIdx and its parents if not yet initialized.
@@ -530,6 +532,9 @@ protected:
 	CHAOS_API void CreateNonClusteredParticles(Chaos::FPBDRigidsSolver* RigidsSolver,	const FGeometryCollection& RestCollection, const FGeometryDynamicCollection& DynamicCollection, const TBitArray<>& EffectiveParticles);
 
 	CHAOS_API Chaos::FPBDRigidClusteredParticleHandle* FindClusteredParticleHandleByItemIndex_Internal(FGeometryCollectionItemIndex ItemIndex) const;
+
+	CHAOS_API void UpdateDamageThreshold_Internal();
+
 private:
 
 	/**
@@ -628,6 +633,7 @@ private:
 	FGeometryCollectioPerFrameData GameThreadPerFrameData;
 	bool bIsPhysicsThreadWorldTransformDirty;
 	bool bIsCollisionFilterDataDirty;
+	bool bIsDamageThresholdDataDirty;
 
 	// Currently this is using triple buffers for game-physics and 
 	// physics-game thread communication, but not for any reason other than this 

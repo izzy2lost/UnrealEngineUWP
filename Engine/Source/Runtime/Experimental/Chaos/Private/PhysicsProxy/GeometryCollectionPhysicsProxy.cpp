@@ -452,6 +452,7 @@ FGeometryCollectionPhysicsProxy::FGeometryCollectionPhysicsProxy(
 	, GameThreadPerFrameData(SimulationParameters)
 	, bIsPhysicsThreadWorldTransformDirty(false)
 	, bIsCollisionFilterDataDirty(false)
+	, bIsDamageThresholdDataDirty(false)
 	, CollectorGuid(InCollectorGuid)
 {
 	// We rely on a guarded buffer.
@@ -956,6 +957,62 @@ void FGeometryCollectionPhysicsProxy::DirtyAllParticles(const Chaos::FPBDRigidsS
 	}
 }
 
+void FGeometryCollectionPhysicsProxy::UpdateDamageThreshold_Internal()
+{
+	const int32 NumTransforms = SolverParticleHandles.Num();
+	ensure(SolverParticleHandles.Num() == SolverClusterHandles.Num());
+
+	if (Chaos::FPhysicsSolver* RBDSolver = GetSolver<Chaos::FPhysicsSolver>())
+	{
+		Chaos::FRigidClustering& Clustering = RBDSolver->GetEvolution()->GetRigidClustering();
+
+		const float StrainDefault = Parameters.DamageThreshold.Num() ? Parameters.DamageThreshold[0] : 0;
+
+		for (int32 TransformIndex = 0; TransformIndex < NumTransforms; TransformIndex++)
+		{
+			if (Chaos::FPBDRigidClusteredParticleHandle* Handle = SolverParticleHandles[TransformIndex])
+			{
+				float DamageThreshold = StrainDefault;
+
+				switch (Parameters.DamageModel)
+				{
+				case EDamageModelTypeEnum::Chaos_Damage_Model_UserDefined_Damage_Threshold:
+					if (!Parameters.bUsePerClusterOnlyDamageThreshold)
+					{
+						const bool bIsACluster = (Handle->ClusterIds().NumChildren > 0);
+						if (Parameters.EnableClustering || bIsACluster)
+						{
+							DamageThreshold = ComputeUserDefinedDamageThreshold_Internal(TransformIndex);
+						}
+					}
+					break;
+				case EDamageModelTypeEnum::Chaos_Damage_Model_Material_Strength_And_Connectivity_DamageThreshold:
+					DamageThreshold = ComputeMaterialBasedDamageThreshold_Internal(TransformIndex);
+					break;
+				}
+				Clustering.SetInternalStrain(Handle, DamageThreshold);
+			}
+		}
+
+		// user defined legacy mode: propagate to the children form the cluster values
+		if (Parameters.bUsePerClusterOnlyDamageThreshold && 
+			Parameters.DamageModel == EDamageModelTypeEnum::Chaos_Damage_Model_UserDefined_Damage_Threshold)
+		{
+			for (int32 TransformIndex = 0; TransformIndex < NumTransforms; TransformIndex++)
+			{
+				if (Chaos::FPBDRigidClusteredParticleHandle* Handle = SolverParticleHandles[TransformIndex])
+				{
+					if (Chaos::FPBDRigidClusteredParticleHandle* ParentHandle = SolverClusterHandles[TransformIndex])
+					{
+						const float DamageThreshold = ParentHandle->GetInternalStrains();
+						Clustering.SetInternalStrain(Handle, DamageThreshold);
+					}
+				}
+			}
+		}
+	}
+}
+
 void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver* RigidsSolver, typename Chaos::FPBDRigidsSolver::FParticlesType& Particles)
 {
 	const FGeometryCollection* RestCollection = Parameters.RestCollection;
@@ -1056,15 +1113,6 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 				if (Parameters.EnableClustering)
 				{
 					Handle->SetClusterGroupIndex(Parameters.ClusterGroupIndex);
-
-					float DamageThreshold = StrainDefault;
-					if (!Parameters.bUsePerClusterOnlyDamageThreshold)
-					{
-						DamageThreshold = ComputeUserDefinedDamageThreshold_Internal(TransformGroupIndex);
-					}
-					Chaos::FPhysicsSolver* RBDSolver = GetSolver<Chaos::FPhysicsSolver>();
-					RBDSolver->GetEvolution()->GetRigidClustering().SetInternalStrain(Handle, DamageThreshold);
-
 				}
 
 				// #BGTODO - non-updating parameters - remove lin/ang drag arrays and always query material if this stays a material parameter
@@ -1408,19 +1456,8 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 #endif
 		}
 
-		// assign the material based damage thresholds 
-		if (Parameters.DamageModel != EDamageModelTypeEnum::Chaos_Damage_Model_UserDefined_Damage_Threshold)
-		{
-			Chaos::FRigidClustering& Clustering = RigidsSolver->GetEvolution()->GetRigidClustering();
-			for (int32 Index = 0; Index < NumTransforms; Index++)
-			{
-				if (Chaos::FPBDRigidClusteredParticleHandle* ClusteredParticle = SolverParticleHandles[Index])
-				{
-					const float DamageThreshold = ComputeMaterialBasedDamageThreshold_Internal(Index);
-					Clustering.SetInternalStrain(ClusteredParticle, DamageThreshold);
-				}
-			}
-		}
+		// set the damage thresholds
+		UpdateDamageThreshold_Internal();
 
 		// call DirtyParticle to make sure the acceleration structure is up to date with all the changes happening here
 		DirtyAllParticles(*RigidsSolver);
@@ -1638,16 +1675,6 @@ Chaos::TPBDGeometryCollectionParticleHandle<Chaos::FReal, 3>* FGeometryCollectio
 	if (Parameters.EnableClustering)
 	{
 		Handle->SetClusterGroupIndex(Parameters.ClusterGroupIndex);
-
-		const float StrainDefault = Parameters.DamageThreshold.Num() ? Parameters.DamageThreshold[0] : 0;
-		float DamageThreshold = StrainDefault;
-		if (!Parameters.bUsePerClusterOnlyDamageThreshold)
-		{
-			DamageThreshold = ComputeUserDefinedDamageThreshold_Internal(CollectionClusterIndex);
-		}
-		Chaos::FPhysicsSolver* RBDSolver = GetSolver<Chaos::FPhysicsSolver>();
-		RBDSolver->GetEvolution()->GetRigidClustering().SetInternalStrain(Handle, DamageThreshold);
-
 	}
 
 	// #BGTODO This will not automatically update - material properties should only ever exist in the material, not in other arrays
@@ -1786,11 +1813,6 @@ FGeometryCollectionPhysicsProxy::BuildClusters_Internal(
 	// two-way mapping
 	SolverClusterHandles[CollectionClusterIndex] = Parent;
 
-	const float DamageThreshold = ComputeUserDefinedDamageThreshold_Internal(CollectionClusterIndex);
-
-	Chaos::FRigidClustering& RigidClustering = static_cast<Chaos::FPBDRigidsSolver*>(Solver)->GetEvolution()->GetRigidClustering();
-	RigidClustering.SetInternalStrain(Parent, DamageThreshold);
-	
 	// #BGTODO This will not automatically update - material properties should only ever exist in the material, not in other arrays
 	const Chaos::FChaosPhysicsMaterial* CurMaterial = static_cast<Chaos::FPBDRigidsSolver*>(Solver)->GetSimMaterials().Get(Parameters.PhysicalMaterialHandle.InnerHandle);
 	if(CurMaterial)
@@ -1812,13 +1834,6 @@ FGeometryCollectionPhysicsProxy::BuildClusters_Internal(
 	{
 		// set the damage threshold on children as they are the one where the strain is tested when breaking 
 		Chaos::FPBDRigidParticleHandle* Child = ChildHandles[Idx];
-		if (Parameters.bUsePerClusterOnlyDamageThreshold)
-		{
-			if (Chaos::FPBDRigidClusteredParticleHandle* ClusteredChild = Child->CastToClustered())
-			{
-				RigidClustering.SetInternalStrain(ClusteredChild, DamageThreshold);
-			}
-		}
 
 		const int32 ChildTransformGroupIndex = ChildTransformGroupIndices[Idx];
 		SolverClusterHandles[ChildTransformGroupIndex] = Parent;
@@ -2769,6 +2784,13 @@ void FGeometryCollectionPhysicsProxy::SetWorldTransform_External(const FTransfor
 	SetProxyDirty_External();
 }
 
+void FGeometryCollectionPhysicsProxy::SetDamageThresholds_External(const TArray<float>& DamageThresholds)
+{
+	check(IsInGameThread());
+	GameThreadPerFrameData.SetDamageThresholds(DamageThresholds);
+	SetProxyDirty_External();
+}
+
 void FGeometryCollectionPhysicsProxy::PushStateOnGameThread(Chaos::FPBDRigidsSolver* InSolver)
 {
 	// CONTEXT: GAMETHREAD
@@ -2804,6 +2826,13 @@ void FGeometryCollectionPhysicsProxy::PushStateOnGameThread(Chaos::FPBDRigidsSol
 	{
 		Parameters.bEnableStrainOnCollision = GameThreadPerFrameData.GetEnableStrainOnCollision();
 		GameThreadPerFrameData.ResetIsDamageSettingsDataDirty();
+	}
+
+	bIsDamageThresholdDataDirty = GameThreadPerFrameData.GetIsDamageThresholdDataDirty();
+	if (bIsDamageThresholdDataDirty)
+	{
+		Parameters.DamageThreshold = GameThreadPerFrameData.GetDamageThresholds();
+		GameThreadPerFrameData.ResetIsDamageThresholdDataDirty();
 	}
 }
 
@@ -2928,6 +2957,11 @@ void FGeometryCollectionPhysicsProxy::PushToPhysicsState()
 				ClusterUnionManager.UpdateClusterUnionParticlesChildToParent(ClusterUnionIndex, DeferredClusterUnionParticleUpdates, DeferredClusterUnionChildToParentUpdates, false);
 			}
 		}
+	}
+
+	if (bIsDamageThresholdDataDirty)
+	{
+		UpdateDamageThreshold_Internal();
 	}
 }
 
