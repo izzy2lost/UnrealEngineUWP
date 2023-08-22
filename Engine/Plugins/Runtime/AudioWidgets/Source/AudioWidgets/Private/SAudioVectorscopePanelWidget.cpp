@@ -20,20 +20,19 @@
 
 void SAudioVectorscopePanelWidget::Construct(const FArguments& InArgs, const FFixedSampledSequenceView& InData)
 {
-	PanelLayoutType = InArgs._PanelLayoutType;
-
 	ValueGridMaxDivisionParameter = InArgs._ValueGridMaxDivisionParameter;
 	bHideValueGrid = InArgs._HideGrid.Get();
 
 	check(InArgs._PanelStyle);
 	PanelStyle = InArgs._PanelStyle;
 
-	BuildWidget(InData);
+	BuildWidget(InData, InArgs._PanelLayoutType);
 }
 
-void SAudioVectorscopePanelWidget::BuildWidget(const FFixedSampledSequenceView& InData)
+void SAudioVectorscopePanelWidget::BuildWidget(const FFixedSampledSequenceView& InData, const EAudioPanelLayoutType InPanelLayoutType)
 {
-	DataView = InData;
+	DataView        = InData;
+	PanelLayoutType = InPanelLayoutType;
 
 	CreateBackground(PanelStyle->VectorViewerStyle);
 

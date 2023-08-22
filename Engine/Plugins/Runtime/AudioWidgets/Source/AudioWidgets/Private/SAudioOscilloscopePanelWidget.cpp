@@ -71,8 +71,6 @@ namespace AudioOscilloscopePanelWidgetPrivate
 
 void SAudioOscilloscopePanelWidget::Construct(const FArguments& InArgs, const FFixedSampledSequenceView& InData, const int32 InNumChannels)
 {
-	PanelLayoutType = InArgs._PanelLayoutType;
-
 	SequenceRulerDisplayUnit      = InArgs._SequenceRulerDisplayUnit;
 	ValueGridOverlayDisplayUnit   = InArgs._YAxisLabelsUnit.Get();
 	ValueGridMaxDivisionParameter = InArgs._ValueGridMaxDivisionParameter;
@@ -84,12 +82,13 @@ void SAudioOscilloscopePanelWidget::Construct(const FArguments& InArgs, const FF
 	check(InArgs._PanelStyle);
 	PanelStyle = InArgs._PanelStyle;
 
-	BuildWidget(InData, InNumChannels);
+	BuildWidget(InData, InNumChannels, InArgs._PanelLayoutType);
 }
 
-void SAudioOscilloscopePanelWidget::BuildWidget(const FFixedSampledSequenceView& InData, const int32 InNumChannels)
+void SAudioOscilloscopePanelWidget::BuildWidget(const FFixedSampledSequenceView& InData, const int32 InNumChannels, const EAudioPanelLayoutType InPanelLayoutType)
 {
-	NumChannels = InNumChannels;
+	NumChannels     = InNumChannels;
+	PanelLayoutType = InPanelLayoutType;
 
 	DataView = InData;
 
@@ -385,6 +384,7 @@ void SAudioOscilloscopePanelWidget::CreateChannelCombobox()
 		return SelectedChannelPtr.IsValid() ? FText::FromString(*SelectedChannelPtr) : FText::GetEmpty();
 	};
 
+	ChannelComboboxOptionsSource.Empty();
 	for (uint32 Index = 0; Index < NumChannels; ++Index)
 	{
 		ChannelComboboxOptionsSource.Add(MakeShareable(new FString(FString::FromInt(Index + 1))));
@@ -429,6 +429,7 @@ void SAudioOscilloscopePanelWidget::CreateTriggerModeCombobox()
 		return SelectedTriggerModePtr.IsValid() ? FText::FromString(*SelectedTriggerModeEnumStr) : FText::GetEmpty();
 	};
 
+	TriggerModeComboboxOptionsSource.Empty();
 	for (int64 Index = 0; Index < StaticEnum<EAudioOscilloscopeTriggerMode>()->GetMaxEnumValue(); ++Index)
 	{
 		TriggerModeComboboxOptionsSource.Add(MakeShareable(new EAudioOscilloscopeTriggerMode(static_cast<EAudioOscilloscopeTriggerMode>(Index))));

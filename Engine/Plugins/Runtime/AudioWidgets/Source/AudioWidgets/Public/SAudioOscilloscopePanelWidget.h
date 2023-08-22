@@ -91,7 +91,7 @@ public:
 
 	void Construct(const FArguments& InArgs, const FFixedSampledSequenceView& InData, const int32 InNumChannels);
 
-	void BuildWidget(const FFixedSampledSequenceView& InData, const int32 InNumChannels);
+	void BuildWidget(const FFixedSampledSequenceView& InData, const int32 InNumChannels, const EAudioPanelLayoutType InPanelLayoutType);
 
 	// SWidget methods overrides
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;

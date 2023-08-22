@@ -45,7 +45,7 @@ public:
 
 	void Construct(const FArguments& InArgs, const FFixedSampledSequenceView& InData);
 
-	void BuildWidget(const FFixedSampledSequenceView& InData);
+	void BuildWidget(const FFixedSampledSequenceView& InData, const EAudioPanelLayoutType InPanelLayoutType);
 
 	// IFixedSampledSequenceViewReceiver Interface
 	virtual void ReceiveSequenceView(const FFixedSampledSequenceView InData, const uint32 FirstSampleIndex) override;

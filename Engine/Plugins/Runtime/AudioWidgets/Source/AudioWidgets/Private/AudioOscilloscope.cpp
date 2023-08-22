@@ -51,7 +51,7 @@ namespace AudioWidgets
 		}
 		else
 		{
-			OscilloscopePanelWidget->BuildWidget(SequenceView, InNumChannels);
+			OscilloscopePanelWidget->BuildWidget(SequenceView, InNumChannels, InPanelLayoutType);
 		}
 
 		// Interconnect data provider and widget

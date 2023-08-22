@@ -47,7 +47,7 @@ namespace AudioWidgets
 		}
 		else
 		{
-			VectorscopePanelWidget->BuildWidget(SequenceView);
+			VectorscopePanelWidget->BuildWidget(SequenceView, InPanelLayoutType);
 		}
 
 		// Interconnect data provider and widget
