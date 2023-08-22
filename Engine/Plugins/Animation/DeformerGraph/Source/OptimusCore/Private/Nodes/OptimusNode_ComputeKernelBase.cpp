@@ -702,6 +702,13 @@ void UOptimusNode_ComputeKernelBase::ProcessOutputPinForComputeKernel(
 	{
 		ComponentBinding = ComponentBindings[0];
 	}
+
+	if (!ensure(ComponentBinding))
+	{
+		// Validate For Compile should have caught this
+		return;
+	}
+	
 	
 	if (!ConnectedPins.IsEmpty())
 	{
