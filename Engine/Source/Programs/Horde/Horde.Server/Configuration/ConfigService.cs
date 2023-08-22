@@ -240,6 +240,15 @@ namespace Horde.Server.Configuration
 				Uri globalConfigUri = GetGlobalConfigUri();
 				GlobalConfig globalConfig = await ConfigType.ReadAsync<GlobalConfig>(globalConfigUri, context, cancellationToken);
 				globalConfig.PostLoad(_serverSettings);
+
+				foreach (OverrideConfigFile file in overrideFiles.Values)
+				{
+					if (!file.WasRead)
+					{
+						return $"File {file.Uri} was not read by server";
+					}
+				}
+
 				return null;
 			}
 			catch (ConfigException ex)

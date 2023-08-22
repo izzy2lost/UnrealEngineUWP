@@ -143,7 +143,7 @@ namespace Horde.Server.Server
 			string? message = await _configService.ValidateAsync(files, cancellationToken);
 
 			ValidateConfigResponse response = new ValidateConfigResponse();
-			response.Result = message != null;
+			response.Result = message == null;
 			response.Message = message;
 
 			return response;
