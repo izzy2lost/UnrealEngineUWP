@@ -30,7 +30,7 @@ private:
 	using QueryStore = TTypedElementHandleStore<FTypedElementExtendedQuery>;
 public:
 	using Handle = QueryStore::Handle;
-	using ListAliveEntriesCallback = QueryStore::ListAliveEntriesCallback;
+	using ListAliveEntriesConstCallback = QueryStore::ListAliveEntriesConstCallback;
 
 	/**
 	 * @section Registration
@@ -45,6 +45,9 @@ public:
 		FMassProcessingPhaseManager& PhaseManager);
 	/** Removes the query at the given handle if still alive and otherwise does nothing. */
 	void UnregisterQuery(Handle Query, FMassProcessingPhaseManager& PhaseManager);
+
+	/** Removes all data in the query store. */
+	void Clear(FMassProcessingPhaseManager& PhaseManager);
 	
 	/** Register the defaults for a tick group. These will be applied on top of any settings provided with a query registration. */
 	void RegisterTickGroup(FName GroupName, ITypedElementDataStorageInterface::EQueryTickPhase Phase,
@@ -78,7 +81,7 @@ public:
 	bool IsAlive(Handle Entry) const;
 
 	/** Calls the provided callback for each query that's available. */
-	void ListAliveEntries(const ListAliveEntriesCallback& Callback) const;
+	void ListAliveEntries(const ListAliveEntriesConstCallback& Callback) const;
 
 	/**
 	 * @section Execution
@@ -144,6 +147,8 @@ private:
 	void UnregisterPostambleQuery(ITypedElementDataStorageInterface::EQueryTickPhase Phase, Handle Query);
 	void RunPhasePreOrPostAmbleQueries(FMassEntityManager& EntityManager, FTypedElementDatabaseScratchBuffer& ScratchBuffer,
 		ITypedElementDataStorageInterface::EQueryTickPhase Phase, float DeltaTime, TArray<Handle>& QueryHandles);
+
+	void UnregisterQueryData(Handle Query, FTypedElementExtendedQuery& QueryData, FMassProcessingPhaseManager& PhaseManager);
 
 	static const ITypedElementDataStorageInterface::FQueryDescription EmptyDescription;
 

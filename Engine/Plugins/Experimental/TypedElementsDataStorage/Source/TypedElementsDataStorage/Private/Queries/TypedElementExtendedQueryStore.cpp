@@ -39,36 +39,24 @@ void FTypedElementExtendedQueryStore::UnregisterQuery(Handle Query, FMassProcess
 {
 	if (FTypedElementExtendedQuery* QueryData = Get(Query))
 	{
-		if (QueryData->Processor)
-		{
-			if (QueryData->Processor->IsA<UTypedElementQueryProcessorCallbackAdapterProcessorBase>())
-			{
-				PhaseManager.UnregisterDynamicProcessor(*QueryData->Processor);
-			}
-			else if (QueryData->Processor->IsA<UTypedElementQueryObserverCallbackAdapterProcessorBase>())
-			{
-				checkf(false, TEXT("Observer queries can not be unregistered."));
-			}
-			else
-			{
-				checkf(false, TEXT("Query processor %s is of unsupported type %s."),
-					*QueryData->Description.Callback.Name.ToString(), *QueryData->Processor->GetSparseClassDataStruct()->GetName());
-			}
-		}
-		else if (QueryData->Description.Callback.Type == ITypedElementDataStorageInterface::EQueryCallbackType::PhasePreparation)
-		{
-			UnregisterPreambleQuery(QueryData->Description.Callback.Phase, Query);
-		}
-		else if (QueryData->Description.Callback.Type == ITypedElementDataStorageInterface::EQueryCallbackType::PhaseFinalization)
-		{
-			UnregisterPostambleQuery(QueryData->Description.Callback.Phase, Query);
-		}
-		else
-		{
-			QueryData->NativeQuery.Clear();
-		}
+		UnregisterQueryData(Query, *QueryData, PhaseManager);
 		Queries.Remove(Query);
 	}
+}
+
+void FTypedElementExtendedQueryStore::Clear(FMassProcessingPhaseManager& PhaseManager)
+{
+	TickGroupDescriptions.Empty();
+
+	Queries.ListAliveEntries([this, &PhaseManager](Handle Query, FTypedElementExtendedQuery& QueryData)
+		{
+			if (QueryData.Processor && QueryData.Processor->IsA<UTypedElementQueryObserverCallbackAdapterProcessorBase>())
+			{
+				// Observers can't be unregistered at this point, so skip these for now.
+				return;
+			}
+			UnregisterQueryData(Query, QueryData, PhaseManager);
+		});
 }
 
 void FTypedElementExtendedQueryStore::RegisterTickGroup(FName GroupName, ITypedElementDataStorageInterface::EQueryTickPhase Phase,
@@ -138,7 +126,7 @@ bool FTypedElementExtendedQueryStore::IsAlive(Handle Entry) const
 	return Queries.IsAlive(Entry);
 }
 
-void FTypedElementExtendedQueryStore::ListAliveEntries(const ListAliveEntriesCallback& Callback) const
+void FTypedElementExtendedQueryStore::ListAliveEntries(const ListAliveEntriesConstCallback& Callback) const
 {
 	Queries.ListAliveEntries(Callback);
 }
@@ -301,7 +289,7 @@ void FTypedElementExtendedQueryStore::DebugPrintQueryCallbacks(FOutputDevice& Ou
 {
 	Output.Log(TEXT("The Typed Elements Data Storage has the following query callbacks:"));
 	Queries.ListAliveEntries(
-		[&Output](const FTypedElementExtendedQuery& Query)
+		[&Output](Handle QueryHandle, const FTypedElementExtendedQuery& Query)
 		{
 			if (Query.Processor)
 			{
@@ -689,5 +677,37 @@ void FTypedElementExtendedQueryStore::RunPhasePreOrPostAmbleQueries(FMassEntityM
 			FTypedElementExtendedQuery& QueryData = Queries.Get(Query);
 			Executor.ExecuteQuery(QueryData.Description, *this, ScratchBuffer, QueryData.NativeQuery, QueryData.Description.Callback.Function);
 		}
+	}
+}
+
+void FTypedElementExtendedQueryStore::UnregisterQueryData(Handle Query, FTypedElementExtendedQuery& QueryData, FMassProcessingPhaseManager& PhaseManager)
+{
+	if (QueryData.Processor)
+	{
+		if (QueryData.Processor->IsA<UTypedElementQueryProcessorCallbackAdapterProcessorBase>())
+		{
+			PhaseManager.UnregisterDynamicProcessor(*QueryData.Processor);
+		}
+		else if (QueryData.Processor->IsA<UTypedElementQueryObserverCallbackAdapterProcessorBase>())
+		{
+			checkf(false, TEXT("Observer queries can not be unregistered."));
+		}
+		else
+		{
+			checkf(false, TEXT("Query processor %s is of unsupported type %s."),
+				*QueryData.Description.Callback.Name.ToString(), *QueryData.Processor->GetSparseClassDataStruct()->GetName());
+		}
+	}
+	else if (QueryData.Description.Callback.Type == ITypedElementDataStorageInterface::EQueryCallbackType::PhasePreparation)
+	{
+		UnregisterPreambleQuery(QueryData.Description.Callback.Phase, Query);
+	}
+	else if (QueryData.Description.Callback.Type == ITypedElementDataStorageInterface::EQueryCallbackType::PhaseFinalization)
+	{
+		UnregisterPostambleQuery(QueryData.Description.Callback.Phase, Query);
+	}
+	else
+	{
+		QueryData.NativeQuery.Clear();
 	}
 }

@@ -28,7 +28,8 @@ public:
 		uint64 Handle;
 	};
 
-	using ListAliveEntriesCallback = TFunctionRef<void(const DataType&)>;
+	using ListAliveEntriesConstCallback = TFunctionRef<void(Handle, const DataType&)>;
+	using ListAliveEntriesCallback = TFunctionRef<void(Handle, DataType&)>;
 	
 	template<typename... Args>
 	Handle Emplace(Args... Arguments);
@@ -41,7 +42,9 @@ public:
 	void Remove(Handle Entry);
 
 	bool IsAlive(Handle Entry) const;
-	void ListAliveEntries(const ListAliveEntriesCallback& Callback) const;
+	void ListAliveEntries(const ListAliveEntriesConstCallback& Callback) const;
+	void ListAliveEntries(const ListAliveEntriesConstCallback& Callback);
+	void ListAliveEntries(const ListAliveEntriesCallback& Callback);
 
 	friend bool operator==(Handle Lhs, Handle Rhs) { return Lhs.Handle == Rhs.Handle; }
 	friend bool operator!=(Handle Lhs, Handle Rhs) { return Lhs.Handle != Rhs.Handle; }
@@ -137,7 +140,7 @@ bool TTypedElementHandleStore<DataType, ReservationSize>::IsAlive(Handle Entry) 
 }
 
 template<typename DataType, uint32 ReservationSize>
-void TTypedElementHandleStore<DataType, ReservationSize>::ListAliveEntries(const ListAliveEntriesCallback& Callback) const
+void TTypedElementHandleStore<DataType, ReservationSize>::ListAliveEntries(const ListAliveEntriesConstCallback& Callback) const
 {
 	int32 Count = Data.Num();
 	const DataType* EntryIt = Data.GetData();
@@ -147,7 +150,38 @@ void TTypedElementHandleStore<DataType, ReservationSize>::ListAliveEntries(const
 	{
 		if (GenerationIt->bIsAlive)
 		{
-			Callback(*EntryIt);
+			Handle DataHandle;
+			DataHandle.Data.Index = Index;
+			DataHandle.Data.Generation = GenerationIt->Generation;
+			Callback(DataHandle, *EntryIt);
+		}
+
+		++EntryIt;
+		++GenerationIt;
+	}
+}
+
+template<typename DataType, uint32 ReservationSize>
+void TTypedElementHandleStore<DataType, ReservationSize>::ListAliveEntries(const ListAliveEntriesConstCallback& Callback)
+{
+	const_cast<const TTypedElementHandleStore<DataType, ReservationSize>*>(this)->ListAliveEntries(Callback);
+}
+
+template<typename DataType, uint32 ReservationSize>
+void TTypedElementHandleStore<DataType, ReservationSize>::ListAliveEntries(const ListAliveEntriesCallback& Callback)
+{
+	int32 Count = Data.Num();
+	DataType* EntryIt = Data.GetData();
+	FGeneration* GenerationIt = Generations.GetData();
+
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		if (GenerationIt->bIsAlive)
+		{
+			Handle DataHandle;
+			DataHandle.Data.Index = Index;
+			DataHandle.Data.Generation = GenerationIt->Generation;
+			Callback(DataHandle, *EntryIt);
 		}
 
 		++EntryIt;

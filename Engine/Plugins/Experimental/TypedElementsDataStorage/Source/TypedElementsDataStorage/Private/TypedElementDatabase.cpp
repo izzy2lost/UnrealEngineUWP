@@ -743,8 +743,13 @@ void UTypedElementDatabase::FinalizePhase(EQueryTickPhase Phase, float DeltaTime
 
 void UTypedElementDatabase::Reset()
 {
+	if (ActiveEditorPhaseManager)
+	{
+		Queries.Clear(*ActiveEditorPhaseManager.Get());
+	}
 	Tables.Reset();
 	TableNameLookup.Reset();
+	ActiveEditorPhaseManager.Reset();
 	ActiveEditorEntityManager.Reset();
 }
 
