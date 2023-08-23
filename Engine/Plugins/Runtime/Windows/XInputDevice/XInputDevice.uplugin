@@ -12,8 +12,7 @@
 	"CanContainContent": false,
 	"SupportedTargetPlatforms":
 	[
-		"Win64",
-		"WinGDK"
+		"Win64"
 	],
 	"Modules":
 	[
@@ -22,8 +21,7 @@
 			"Type": "Runtime",
 			"PlatformAllowList":
 			[
-				"Win64",
-				"WinGDK"
+				"Win64"
 			]
 		}
 	]
