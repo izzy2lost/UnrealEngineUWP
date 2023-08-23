@@ -228,10 +228,10 @@ private:
 	void OnContentPathDismounted(const FString& InAssetPath, const FString& InFilesystemPath);
 
 	/** Register a mount path from a source content path */
-	void RegisterContentMountPath(const FString& InContentPath);
+	void RegisterContentMountPath(const FString& InAssetPath, const FString& InFilesystemPath);
 
 	/** Unregister a mount path from a source content path */
-	void UnregisterContentMountPath(const FString& InContentPath);
+	void UnregisterContentMountPath(const FString& InAssetPath, const FString& InFilesystemPath);
 
 	/** Resolve the given path to its sandbox path (if any) */
 	FConcertSandboxPlatformFilePath ToSandboxPath(FString InFilename, const bool bEvenIfDisabled = false) const;
