@@ -52,7 +52,7 @@ FAutoConsoleVariableRef CVar_EnableKinematicDeferralStartPhysicsCondition(TEXT("
 bool GKinematicDeferralCheckValidBodies = true;
 FAutoConsoleVariableRef CVar_KinematicDeferralCheckValidBodies(TEXT("p.KinematicDeferralCheckValidBodies"), GKinematicDeferralCheckValidBodies, TEXT("If true, don't attempt to update deferred kinematic skeletal mesh bodies which are pending delete."));
 
-bool GKinematicDeferralUpdateExternalAccelerationStructure = true;
+bool GKinematicDeferralUpdateExternalAccelerationStructure = false;
 FAutoConsoleVariableRef CVar_KinematicDeferralUpdateExternalAccelerationStructure(TEXT("p.KinematicDeferralUpdateExternalAccelerationStructure"), GKinematicDeferralUpdateExternalAccelerationStructure, TEXT("If true, process any operations in PendingSpatialOperations_External before doing deferred kinematic updates."));
 bool GKinematicDeferralLogInvalidBodies = false;
 FAutoConsoleVariableRef CVar_KinematicDeferralLogInvalidBodies(TEXT("p.KinematicDeferralLogInvalidBodies"), GKinematicDeferralLogInvalidBodies, TEXT("If true and p.KinematicDeferralCheckValidBodies is true, log when an invalid body is found on kinematic update."));
@@ -1927,6 +1927,8 @@ void FPhysScene_Chaos::UpdateKinematicsOnDeferredSkelMeshes()
 	// may have invalid object bounds, so when the tree attempts to update the bounds
 	// of the parent node, NaNs or other invalid numbers may appear in the tree
 	// (aka, FORT-564602)
+	// Update: This fix was speculative and not needed anymore. The Gamethread Acceleration structure deletes should be up to date at this point, so no need to waste performance here.
+	// Setting GKinematicDeferralUpdateExternalAccelerationStructure to false TODO: remove option entirely after a release
 	if (GKinematicDeferralUpdateExternalAccelerationStructure)
 	{
 		CopySolverAccelerationStructure();
