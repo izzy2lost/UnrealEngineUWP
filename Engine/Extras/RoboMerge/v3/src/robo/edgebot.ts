@@ -22,7 +22,7 @@ import { PauseState } from "./state-interfaces";
 import { BlockagePauseInfo, BlockagePauseInfoMinimal, EdgeStatusFields } from "./status-types";
 import { getIntegrationOwner } from "./targets";
 
-function matchPrefix(a: string, b: string) {
+export function matchPrefix(a: string, b: string) {
 	const len = Math.min(a.length, b.length)
 	for (let i = 0; i < len; ++i) {
 		if (a.charAt(i) !== b.charAt(i)) {
@@ -899,7 +899,7 @@ class EdgeBotImpl extends PerforceStatefulBot {
 			opts.newWorkspace = targetWorkspace
 		}
 		else if (!forApproval) {
-			this.edgeBotLogger.warn(`Unable to find appropriate workspace for ${owner}` + (branch_stream || this.targetBranch.name))
+			this.edgeBotLogger.warn(`Unable to find appropriate workspace for ${owner} ` + (branch_stream || this.targetBranch.name))
 		}
 
 		// edit the owner to the author so they can resolve and submit themselves
