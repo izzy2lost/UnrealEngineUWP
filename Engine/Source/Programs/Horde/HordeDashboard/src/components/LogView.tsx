@@ -689,7 +689,13 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
          }
 
          return (
-            <Stack key={`key_log_line_${item.lineNumber}`} style={{ width: "max-content", height: handler.lineHeight }} onClick={() => { navigate(location.pathname + `?lineindex=${item.lineNumber - 1}`, { replace: true }) }}>
+            <Stack key={`key_log_line_${item.lineNumber}`} style={{ width: "max-content", height: handler.lineHeight }} onClick={() => {
+               const search = new URLSearchParams(window.location.search);
+               search.set("lineindex", (item.lineNumber - 1).toString());
+               const url = `${window.location.pathname}?` + search.toString();
+      
+               navigate(url, { replace: true })
+            }}>
                <div style={{ position: "relative" }}>
                   <Stack className={styles.logLine} tokens={{ childrenGap: 8 }} horizontal disableShrink={true}>
                      <Stack styles={{ root: { color: "#c0c0c0", width: 80, textAlign: "right", userSelect: "none", fontSize: handler.fontSize } }}>{prefix + item.lineNumber}</Stack>

@@ -168,14 +168,13 @@ const renderTags = (navigate: NavigateFunction, line: LogLine, lineNumber: numbe
          }
 
          return <a key={key} href="/"
-            
-            onAuxClick={(ev) =>
-            {
+
+            onAuxClick={(ev) => {
                ev.preventDefault();
                ev.stopPropagation()
                navigateToLeaseLog(true)
             }}
-         
+
             onClick={(ev) => {
                ev.stopPropagation();
                ev.preventDefault();
@@ -189,9 +188,10 @@ const renderTags = (navigate: NavigateFunction, line: LogLine, lineNumber: numbe
          return <a key={key} target="_blank" rel="noopener noreferrer" href={`https://msdn.microsoft.com/query/dev16.query?appId=Dev16IDEF1&l=EN-US&k=k(${text.toLowerCase()})&rd=true`} onClick={(ev) => ev.stopPropagation()}><Highlight search={search ? search : ""} className={logStyle.logLine}>{text}</Highlight></a>;
 
       } else if (tagType === TagType.AgentId) {
-         const search = window.location.search;
-         const url = `${window.location.pathname}` + (search ? search + `&agentId=${encodeURIComponent(text)}` : `?agentId=${encodeURIComponent(text)}`);
-         return <a key={key} href="/" onClick={async (ev) => { ev.stopPropagation(); ev.preventDefault(); navigate(url) }}><Highlight search={search ? search : ""} className={logStyle.logLine}>{text}</Highlight></a>;
+         const search = new URLSearchParams(window.location.search);
+         search.set("agentId", encodeURIComponent(text));
+         const url = `${window.location.pathname}?` + search.toString();
+         return <a key={key} href="/" onClick={async (ev) => { ev.stopPropagation(); ev.preventDefault(); navigate(url, { replace: true }) }}><Highlight search={search ? search : ""} className={logStyle.logLine}>{text}</Highlight></a>;
 
       } else if (tagType === TagType.SourceFile) {
 

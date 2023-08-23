@@ -23,6 +23,17 @@ export const MarkdownLink: React.FunctionComponent<ILinkProps> = props => {
    if (href) {
 
       try {
+
+         if (href.startsWith("?")) {
+            const search = new URLSearchParams(href);
+            const csearch = new URLSearchParams(window.location.search);
+            search.forEach((v, k) => {
+               csearch.set(k, v);
+            });
+
+            href = "?" + csearch.toString();
+         }
+         
          const url = new URL(href);
          if (url.hostname === window.location.hostname) {
             href = url.pathname + url.search
