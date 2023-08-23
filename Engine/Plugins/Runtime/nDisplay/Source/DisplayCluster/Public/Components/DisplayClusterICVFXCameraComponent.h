@@ -28,6 +28,7 @@ class DISPLAYCLUSTER_API UDisplayClusterICVFXCameraComponent
 	GENERATED_BODY()
 
 public:
+	UDisplayClusterICVFXCameraComponent(const FObjectInitializer& ObjectInitializer);
 
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
