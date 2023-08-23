@@ -40,6 +40,10 @@
 #define STRATA_TRANSLUCENT_ENABLED 0
 #endif
 
+#ifndef MATERIALBLENDING_ANY_TRANSLUCENT
+#define MATERIALBLENDING_ANY_TRANSLUCENT 0
+#endif
+
 #ifndef STRATA_SHEEN_QUALITY
 #define STRATA_SHEEN_QUALITY 0
 #endif
@@ -888,7 +892,7 @@ FStrataEvaluateResult StrataEvaluateBSDFCommon(FStrataBSDFContext BSDFContext, F
 			//// This is used for optically thin translucent objects, or non-bottom layer of a material.
 			////
 
-			#if STRATA_FASTPATH==0
+			#if (STRATA_FASTPATH==0 || MATERIALBLENDING_ANY_TRANSLUCENT) // !Fast path or rendering translucent materials
 			BRANCH
 			if (BSDF_GETSSSTYPE(BSDFContext.BSDF) == SSS_TYPE_SIMPLEVOLUME)
 			{

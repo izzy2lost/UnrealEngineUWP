@@ -83,6 +83,10 @@
 #define STRATA_USES_CONVERSION_FROM_LEGACY 0
 #endif
 
+#ifndef MATERIALBLENDING_ANY_TRANSLUCENT
+#define MATERIALBLENDING_ANY_TRANSLUCENT 0
+#endif
+
 // Strata packed data is read either from a view StrataMaterial resource (Texture2DArray) or a RayTracingPayload/
 #ifndef STRATA_MATERIALCONTAINER_IS_VIEWRESOURCE
 #define STRATA_MATERIALCONTAINER_IS_VIEWRESOURCE (!RAYCALLABLESHADER && !RAYHITGROUPSHADER && !RAYGENSHADER && !RAYMISSSHADER)
@@ -1418,7 +1422,7 @@ FStrataData GetStrataSlabBSDF(
 	BSDF_SETSHAREDLOCALBASISID(StrataData.InlinedBSDF,		SharedLocalBasisIndex);
 	BSDF_SETEMISSIVE		(StrataData.InlinedBSDF,		Emissive);
 
-#if !STRATA_FASTPATH
+#if (STRATA_FASTPATH==0 || MATERIALBLENDING_ANY_TRANSLUCENT) // !Fast path or rendering translucent materials
 	BSDF_SETSSSTYPE			(StrataData.InlinedBSDF,		bHasSSS ? (bHasSSSWrap ? SSS_TYPE_WRAP : (bHasSSSProfile ? SSS_TYPE_DIFFUSION_PROFILE : SSS_TYPE_DIFFUSION)) : SSS_TYPE_INVALID);
 	BSDF_SETHASANISOTROPY	(StrataData.InlinedBSDF,		bHasAnisotropy);
 	BSDF_SETISTOPLAYER		(StrataData.InlinedBSDF,		0);
