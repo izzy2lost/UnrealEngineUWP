@@ -730,6 +730,7 @@ int32 ULoadPackageCommandlet::Main( const FString& Params )
 
 				Tokens.Empty(TempTokens.Num());
 				Tokens = TempTokens;
+				break;
 			}
 		}
 	}
