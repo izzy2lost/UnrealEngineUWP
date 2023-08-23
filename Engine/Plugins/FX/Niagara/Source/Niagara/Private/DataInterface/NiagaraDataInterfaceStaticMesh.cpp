@@ -2516,6 +2516,25 @@ bool UNiagaraDataInterfaceStaticMesh::FunctionNeedsCpuAccess(FName InName)
 		GetWorldVelocityName,
 		//GetInstanceIndexName,
 		SetInstanceIndexName,
+
+		// Socket functions are safe
+		GetSocketCountName,
+		GetFilteredSocketCountName,
+		GetUnfilteredSocketCountName,
+		RandomSocketName,
+		RandomFilteredSocketName,
+		RandomUnfilteredSocketName,
+		GetSocketTransformName,
+		GetSocketTransformWSName,
+		GetSocketTransformWSInterpolatedName,
+		GetFilteredSocketTransformName,
+		GetFilteredSocketTransformWSName,
+		GetFilteredSocketTransformWSInterpolatedName,
+		GetUnfilteredSocketTransformName,
+		GetUnfilteredSocketTransformWSName,
+		GetUnfilteredSocketTransformWSInterpolatedName,
+		GetFilteredSocketName,
+		GetUnfilteredSocketName,
 	};
 
 	return SafeFunctions.Contains(InName) == false;
