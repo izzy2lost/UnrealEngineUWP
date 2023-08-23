@@ -181,13 +181,8 @@ TMap<FName, FString> UDeviceProfileManager::GatherDeviceProfileCVars(const FStri
 			return DeviceProfileCVars;
 		}
 
-		// use the DP's platform's configs, NOT the running platform, unless the profile is not there
-		FConfigCacheIni* PlatformConfigSystem = FConfigCacheIni::ForPlatform(*Profile->DeviceType);
-		FConfigFile* PlatformConfigFile = PlatformConfigSystem->FindConfigFile(GDeviceProfilesIni);
-		if (PlatformConfigFile && PlatformConfigFile->Contains(DeviceProfileName))
-		{
-			ConfigSystem = PlatformConfigSystem;
-		}
+		// use the DP's platform's configs, NOT the running platform
+		ConfigSystem = FConfigCacheIni::ForPlatform(*Profile->DeviceType);
 
 		MemBucket = Profile->GetPreviewMemorySizeBucket();
 		if(GatherMode == EDeviceProfileMode::DPM_CacheValues)

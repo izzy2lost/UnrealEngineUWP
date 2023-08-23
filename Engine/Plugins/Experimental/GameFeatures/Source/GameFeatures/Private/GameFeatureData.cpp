@@ -375,7 +375,22 @@ void UGameFeatureData::InitializeHierarchicalPluginIniFiles(const FString& Plugi
 			// Need to get the in-memory config filename, the on disk one is likely not up to date
 			FString IniFile = GConfig->GetConfigFilename(*Ini.Name);
 
-			if (FConfigFile* ExistingConfig = GConfig->FindConfigFile(IniFile))
+			// Ensure we push new device profile config to the appropriate config branch - GConfig could be Windows while we're previewing a console
+			FConfigFile* ExistingConfig = nullptr;
+#if ALLOW_OTHER_PLATFORM_CONFIG
+			if (Ini.bCreateDeviceProfiles && Ini.bUsePlatformDir)
+			{
+				FConfigCacheIni* PlatformConfigSystem = FConfigCacheIni::ForPlatform(*PlatformName);
+				ExistingConfig = PlatformConfigSystem->FindConfigFile(GDeviceProfilesIni);
+			}
+#endif
+
+			if (ExistingConfig == nullptr)
+			{
+				ExistingConfig = GConfig->FindConfigFile(IniFile);
+			}
+
+			if (ExistingConfig)
 			{
 				if (Ini.bCreateDeviceProfiles)
 				{
