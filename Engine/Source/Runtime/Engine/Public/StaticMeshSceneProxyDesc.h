@@ -18,11 +18,6 @@ struct FStaticMeshSceneProxyDesc : public FPrimitiveSceneProxyDesc
 {
 	FStaticMeshSceneProxyDesc()
 	{
-		InitDefaults();
-	}	
-
-	void InitDefaults()
-	{
 		CastShadow = true;
 		bUseAsOccluder = true;
 
@@ -46,9 +41,10 @@ struct FStaticMeshSceneProxyDesc : public FPrimitiveSceneProxyDesc
 		bForceNaniteForMasked = false;
 
 		bUseProvidedMaterialRelevance = false;
-		bUseProvidedCollisionResponseContainer = false;
 	}
+	
 	ENGINE_API FStaticMeshSceneProxyDesc(const UStaticMeshComponent*);
+	void InitializeFrom(const UStaticMeshComponent*);
 
 	UStaticMesh* StaticMesh = nullptr;
 	TArrayView<TObjectPtr<UMaterialInterface>>	OverrideMaterials;
@@ -119,7 +115,7 @@ struct FStaticMeshSceneProxyDesc : public FPrimitiveSceneProxyDesc
 		return nullptr;
 	}
 
-	FCollisionResponseContainer CollisionResponseContainer;
+	TOptional<FCollisionResponseContainer> CollisionResponseContainer;
 	
 	UObject* LODParentPrimitive = nullptr;
 	UObject* GetLODParentPrimitive() const { return LODParentPrimitive; }
@@ -174,15 +170,15 @@ struct FStaticMeshSceneProxyDesc : public FPrimitiveSceneProxyDesc
 	{ 
 		if (&InContainer != &FCollisionResponseContainer::GetDefaultResponseContainer())
 		{
-			CollisionResponseContainer = InContainer; 
-			bUseProvidedCollisionResponseContainer = true;
-		}		
+			CollisionResponseContainer = InContainer;
+		}
 	}
+
 	const FCollisionResponseContainer& GetCollisionResponseToChannels() const
 	{
-		if (bUseProvidedCollisionResponseContainer)
+		if (CollisionResponseContainer.IsSet())
 		{
-			return CollisionResponseContainer;
+			return *CollisionResponseContainer;
 		}
 
 		return FCollisionResponseContainer::GetDefaultResponseContainer();

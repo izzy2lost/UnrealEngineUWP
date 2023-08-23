@@ -2610,62 +2610,67 @@ bool FStaticMeshSceneProxyDesc::ShouldCreateNaniteProxy(Nanite::FMaterialAudit* 
 }
 
 
-FStaticMeshSceneProxyDesc::FStaticMeshSceneProxyDesc(const UStaticMeshComponent* Component)
-	: FPrimitiveSceneProxyDesc(Component)
+FStaticMeshSceneProxyDesc::FStaticMeshSceneProxyDesc(const UStaticMeshComponent* InComponent)
+	: FStaticMeshSceneProxyDesc()
+{	
+	InitializeFrom(InComponent);
+}
+
+void FStaticMeshSceneProxyDesc::InitializeFrom(const UStaticMeshComponent* InComponent)
 {
-	InitDefaults();
+	FPrimitiveSceneProxyDesc::InitializeFrom(InComponent);	
 
-	StaticMesh = Component->GetStaticMesh();
-	OverrideMaterials = const_cast<UStaticMeshComponent*>(Component)->OverrideMaterials;	
-	OverlayMaterial = Component->GetOverlayMaterial();
-	OverlayMaterialMaxDrawDistance = Component->GetOverlayMaterialMaxDrawDistance();
+	StaticMesh = InComponent->GetStaticMesh();
+	OverrideMaterials = const_cast<UStaticMeshComponent*>(InComponent)->OverrideMaterials;	
+	OverlayMaterial = InComponent->GetOverlayMaterial();
+	OverlayMaterialMaxDrawDistance = InComponent->GetOverlayMaterialMaxDrawDistance();
 
-	ForcedLodModel = Component->ForcedLodModel ;
-	MinLOD = Component->MinLOD ;
-	WorldPositionOffsetDisableDistance = Component->WorldPositionOffsetDisableDistance ;	
-	bReverseCulling = Component->bReverseCulling ;
+	ForcedLodModel = InComponent->ForcedLodModel ;
+	MinLOD = InComponent->MinLOD ;
+	WorldPositionOffsetDisableDistance = InComponent->WorldPositionOffsetDisableDistance ;	
+	bReverseCulling = InComponent->bReverseCulling ;
 #if STATICMESH_ENABLE_DEBUG_RENDERING
-	bDrawMeshCollisionIfComplex = Component->bDrawMeshCollisionIfComplex ;
-	bDrawMeshCollisionIfSimple = Component->bDrawMeshCollisionIfSimple ;
+	bDrawMeshCollisionIfComplex = InComponent->bDrawMeshCollisionIfComplex ;
+	bDrawMeshCollisionIfSimple = InComponent->bDrawMeshCollisionIfSimple ;
 #endif
-	bEvaluateWorldPositionOffset = Component->bEvaluateWorldPositionOffset ;
-	bOverrideMinLOD = Component->bOverrideMinLOD ;
-	bCastDistanceFieldIndirectShadow = Component->bCastDistanceFieldIndirectShadow ;
-	bOverrideDistanceFieldSelfShadowBias = Component->bOverrideDistanceFieldSelfShadowBias ;
-	bEvaluateWorldPositionOffsetInRayTracing = Component->bEvaluateWorldPositionOffsetInRayTracing ;	
-	bSortTriangles = Component->bSortTriangles ;
+	bEvaluateWorldPositionOffset = InComponent->bEvaluateWorldPositionOffset ;
+	bOverrideMinLOD = InComponent->bOverrideMinLOD ;
+	bCastDistanceFieldIndirectShadow = InComponent->bCastDistanceFieldIndirectShadow ;
+	bOverrideDistanceFieldSelfShadowBias = InComponent->bOverrideDistanceFieldSelfShadowBias ;
+	bEvaluateWorldPositionOffsetInRayTracing = InComponent->bEvaluateWorldPositionOffsetInRayTracing ;	
+	bSortTriangles = InComponent->bSortTriangles ;
 #if WITH_EDITOR
-	bDisplayNaniteFallbackMesh = Component->bDisplayNaniteFallbackMesh ;
+	bDisplayNaniteFallbackMesh = InComponent->bDisplayNaniteFallbackMesh ;
 #endif
-	bDisallowNanite = Component->bDisallowNanite ;
-	bForceDisableNanite = Component->bForceDisableNanite ;
-	bForceNaniteForMasked = Component->bForceNaniteForMasked ;
-	DistanceFieldSelfShadowBias = Component->DistanceFieldSelfShadowBias ;
-	DistanceFieldIndirectShadowMinVisibility = Component->DistanceFieldIndirectShadowMinVisibility ;
-	StaticLightMapResolution = Component->GetStaticLightMapResolution();
-	LightmapType = Component->LightmapType;
+	bDisallowNanite = InComponent->bDisallowNanite ;
+	bForceDisableNanite = InComponent->bForceDisableNanite ;
+	bForceNaniteForMasked = InComponent->bForceNaniteForMasked ;
+	DistanceFieldSelfShadowBias = InComponent->DistanceFieldSelfShadowBias ;
+	DistanceFieldIndirectShadowMinVisibility = InComponent->DistanceFieldIndirectShadowMinVisibility ;
+	StaticLightMapResolution = InComponent->GetStaticLightMapResolution();
+	LightmapType = InComponent->LightmapType;
 
 #if WITH_EDITORONLY_DATA
-	StreamingDistanceMultiplier = Component->StreamingDistanceMultiplier;
-	MaterialStreamingRelativeBoxes = const_cast<UStaticMeshComponent*>(Component)->MaterialStreamingRelativeBoxes;
-	SectionIndexPreview = Component->SectionIndexPreview;
-	MaterialIndexPreview = Component->MaterialIndexPreview;
-	SelectedEditorMaterial = Component->SelectedEditorMaterial;
-	SelectedEditorSection = Component->SelectedEditorSection;
+	StreamingDistanceMultiplier = InComponent->StreamingDistanceMultiplier;
+	MaterialStreamingRelativeBoxes = const_cast<UStaticMeshComponent*>(InComponent)->MaterialStreamingRelativeBoxes;
+	SectionIndexPreview = InComponent->SectionIndexPreview;
+	MaterialIndexPreview = InComponent->MaterialIndexPreview;
+	SelectedEditorMaterial = InComponent->SelectedEditorMaterial;
+	SelectedEditorSection = InComponent->SelectedEditorSection;
 
-	TextureStreamingTransformScale = Component->GetTextureStreamingTransformScale();	
+	TextureStreamingTransformScale = InComponent->GetTextureStreamingTransformScale();	
 #endif
 
-	NaniteResources = Component->GetNaniteResources();
-	BodySetup = const_cast<UStaticMeshComponent*>(Component)->GetBodySetup();
+	NaniteResources = InComponent->GetNaniteResources();
+	BodySetup = const_cast<UStaticMeshComponent*>(InComponent)->GetBodySetup();
 
-	LODData = const_cast<UStaticMeshComponent*>(Component)->LODData;
+	LODData = const_cast<UStaticMeshComponent*>(InComponent)->LODData;
 
-	WireframeColor = Component->GetWireframeColor();
-	LODParentPrimitive = Component->GetLODParentPrimitive();	
+	WireframeColor = InComponent->GetWireframeColor();
+	LODParentPrimitive = InComponent->GetLODParentPrimitive();	
 
-	SetMaterialRelevance(Component->GetMaterialRelevance(World->GetFeatureLevel()));
-	SetCollisionResponseToChannels(Component->GetCollisionResponseToChannels());
+	SetMaterialRelevance(InComponent->GetMaterialRelevance(World->GetFeatureLevel()));
+	SetCollisionResponseToChannels(InComponent->GetCollisionResponseToChannels());
 }
 
 FPrimitiveSceneProxy* UStaticMeshComponent::CreateStaticMeshSceneProxy(Nanite::FMaterialAudit& NaniteMaterials, bool bCreateNanite)

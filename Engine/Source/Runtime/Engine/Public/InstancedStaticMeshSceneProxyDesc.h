@@ -11,6 +11,7 @@ struct FInstancedStaticMeshSceneProxyDesc : public FStaticMeshSceneProxyDesc
 {		
 	FInstancedStaticMeshSceneProxyDesc() = default;
 	ENGINE_API FInstancedStaticMeshSceneProxyDesc(const UInstancedStaticMeshComponent*);
+	void InitializeFrom(const UInstancedStaticMeshComponent*);
 
 	TArrayView<const FInstancedStaticMeshInstanceData> PerInstanceSMData;	
 	TSharedPtr<FPerInstanceRenderData, ESPMode::ThreadSafe> PerInstanceRenderData;

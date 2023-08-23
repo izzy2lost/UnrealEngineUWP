@@ -1724,8 +1724,15 @@ FInstancedStaticMeshVFLooseUniformShaderParametersRef FInstancedStaticMeshSceneP
 }
 
 FInstancedStaticMeshSceneProxyDesc::FInstancedStaticMeshSceneProxyDesc(const UInstancedStaticMeshComponent* InComponent)
-	: FStaticMeshSceneProxyDesc(InComponent)	  
+	: FInstancedStaticMeshSceneProxyDesc()	  
 {
+	InitializeFrom(InComponent);
+}
+
+void FInstancedStaticMeshSceneProxyDesc::InitializeFrom(const UInstancedStaticMeshComponent* InComponent)
+{
+	FStaticMeshSceneProxyDesc::InitializeFrom(InComponent);
+
 	PerInstanceSMData = InComponent->PerInstanceSMData;
 	PerInstanceRenderData = InComponent->PerInstanceRenderData;;
 	PerInstanceSMCustomData = InComponent->PerInstanceSMCustomData;

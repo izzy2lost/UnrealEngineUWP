@@ -76,6 +76,8 @@ struct FPrimitiveSceneProxyDesc
 
 	ENGINE_API FPrimitiveSceneProxyDesc(const UPrimitiveComponent*);
 
+	void InitializeFrom(const UPrimitiveComponent*);
+	
 	virtual ~FPrimitiveSceneProxyDesc() = default;
 
 	uint32 CastShadow : 1;
