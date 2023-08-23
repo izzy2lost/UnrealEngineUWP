@@ -323,6 +323,7 @@ UGeometryCollectionComponent::UGeometryCollectionComponent(const FObjectInitiali
 	, InitializationState(ESimulationInitializationState::Unintialized)
 	, ObjectType(EObjectStateTypeEnum::Chaos_Object_Dynamic)
 	, GravityGroupIndex(0)
+	, bDensityFromPhysicsMaterial(false)
 	, bForceMotionBlur()
 	, EnableClustering(true)
 	, ClusterGroupIndex(0)
@@ -3700,6 +3701,8 @@ void UGeometryCollectionComponent::ApplyAssetDefaults()
 		{
 			BodyInstance.SetPhysMaterialOverride(RestCollection->PhysicsMaterial);
 		}
+
+		bDensityFromPhysicsMaterial = RestCollection->bDensityFromPhysicsMaterial;
 	}
 }
 
@@ -5502,7 +5505,7 @@ float UGeometryCollectionComponent::ComputeMassScaleRelativeToAsset() const
 	UPhysicalMaterial* EnginePhysicalMaterial = GetPhysicalMaterial();
 	if (ensure(EnginePhysicalMaterial))
 	{
-		if (RestCollection && RestCollection->bDensityFromPhysicsMaterial)
+		if (RestCollection && bDensityFromPhysicsMaterial)
 		{
 			bool bMassAsDensity = false;
 			const float AssetMassOrDensity = RestCollection->GetMassOrDensity(bMassAsDensity);

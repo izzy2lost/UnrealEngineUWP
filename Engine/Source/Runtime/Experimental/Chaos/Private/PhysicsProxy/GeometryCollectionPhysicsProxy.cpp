@@ -1599,8 +1599,8 @@ float FGeometryCollectionPhysicsProxy::AdjustMassForScale(float Mass) const
 Chaos::FVec3f FGeometryCollectionPhysicsProxy::AdjustInertiaForScale(const Chaos::FVec3f& Inertia) const
 {
 	const FVector3f WorldScale(Parameters.WorldTransform.GetScale3D());
-	const FVector3f InertiaScale = WorldScale * Parameters.MaterialOverrideMassScaleMultiplier;
-	return Chaos::Utilities::ScaleInertia<float>(Inertia, InertiaScale, true);
+	const FVector3f WorldScaledInertia = Chaos::Utilities::ScaleInertia<float>(Inertia, WorldScale, true);
+	return WorldScaledInertia * Parameters.MaterialOverrideMassScaleMultiplier;
 }
 
 Chaos::TPBDGeometryCollectionParticleHandle<Chaos::FReal, 3>* FGeometryCollectionPhysicsProxy::BuildNonClusters_Internal(const uint32 CollectionClusterIndex, Chaos::FPBDRigidsSolver* RigidsSolver, float Mass, Chaos::FVec3f Inertia)
