@@ -139,12 +139,18 @@ namespace UnrealBuildTool
 		/// </summary>
 		V4,
 
+		/// <summary>
+		/// New defaults for 5.4:
+		/// * TargetRules.bValidateFormatStrings = true
+		/// </summary>
+		V5,
+
 		// *** When adding new entries here, be sure to update GameProjectUtils::GetDefaultBuildSettingsVersion() to ensure that new projects are created correctly. ***
 
 		/// <summary>
 		/// Always use the defaults for the current engine version. Note that this may cause compatibility issues when upgrading.
 		/// </summary>
-		Latest = V4,
+		Latest = V5,
 	}
 
 	/// <summary>
@@ -1629,6 +1635,18 @@ namespace UnrealBuildTool
 		private bool? bRequireObjectPtrForAddReferencedObjectsPrivate;		
 
 		/// <summary>
+		/// Emits compilation errors for incorrect UE_LOG format strings.
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		[XmlConfigFile(Category = "BuildConfiguration")]		
+		public bool bValidateFormatStrings
+		{
+				get { return bValidateFormatStringsPrivate ?? (DefaultBuildSettings >= BuildSettingsVersion.V5); }
+				set { bValidateFormatStringsPrivate = value; }
+		}
+		private bool? bValidateFormatStringsPrivate;
+			
+		/// <summary>
 		/// Level to report deprecation warnings as errors
 		/// </summary>
 		public WarningLevel DeprecationWarningLevel
@@ -2908,6 +2926,11 @@ namespace UnrealBuildTool
 				{
 					ModifiedSettings.Add(Tuple.Create(String.Format("{0} = CppStandardVersion.Default", nameof(CppStandard)), "Updates C++ Standard to C++20 (Previously: CppStandardVersion.Cpp17)."));
 					ModifiedSettings.Add(Tuple.Create(String.Format("{0}.{1} = true", nameof(WindowsPlatform), nameof(WindowsPlatform.bStrictConformanceMode)), "Updates MSVC strict conformance mode to true (Previously: false)."));
+				}
+
+				if (BuildSettingsVersion.V5 <= LatestVersion && DefaultBuildSettings < BuildSettingsVersion.V5)
+				{
+					ModifiedSettings.Add(Tuple.Create(String.Format("{0} = true", nameof(bValidateFormatStrings)), "Enables compile-time validation of strings+args passed to UE_LOG. (Previously: false)."));
 				}
 
 				if (ModifiedSettings.Count > 0)
