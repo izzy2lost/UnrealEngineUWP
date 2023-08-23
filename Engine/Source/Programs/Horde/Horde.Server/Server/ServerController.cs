@@ -7,9 +7,11 @@ using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Perforce;
 using Horde.Server.Acls;
 using Horde.Server.Agents;
 using Horde.Server.Configuration;
+using Horde.Server.Perforce;
 using Horde.Server.Projects;
 using Horde.Server.Tools;
 using Horde.Server.Utilities;
@@ -33,16 +35,18 @@ namespace Horde.Server.Server
 		readonly IToolCollection _toolCollection;
 		readonly IClock _clock;
 		readonly ConfigService _configService;
+		readonly IPerforceService _perforceService;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ServerController(IToolCollection toolCollection, IClock clock, ConfigService configService, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public ServerController(IToolCollection toolCollection, IClock clock, ConfigService configService, IPerforceService perforceService, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_toolCollection = toolCollection;
 			_clock = clock;
 			_configService = configService;
+			_perforceService = perforceService;
 			_globalConfig = globalConfig;
 		}
 
@@ -131,13 +135,22 @@ namespace Horde.Server.Server
 		[Route("/api/v1/server/validateconfig")]
 		public async Task<ActionResult<ValidateConfigResponse>> ValidateConfigAsync(ValidateConfigRequest request, CancellationToken cancellationToken)
 		{
+			IPooledPerforceConnection perforce = await _perforceService.ConnectAsync(request.Cluster ?? "default", cancellationToken: cancellationToken);
+			DescribeRecord record = await perforce.DescribeAsync(request.ShelvedChange, cancellationToken);
+
 			Dictionary<Uri, byte[]> files = new Dictionary<Uri, byte[]>();
-			foreach (ValidateConfigFileRequest file in request.Files)
+			foreach (DescribeFileRecord fileRecord in record.Files)
 			{
-				if (file.Uri != null)
+				PerforceResponse<PrintRecord<byte[]>> printRecordResponse = await perforce.TryPrintDataAsync($"{fileRecord.DepotFile}@={request.ShelvedChange}", cancellationToken);
+				if (!printRecordResponse.Succeeded || printRecordResponse.Data.Contents == null)
 				{
-					files.Add(file.Uri, file.Data);
+					return BadRequest($"Unable to print contents of {fileRecord.DepotFile}@={request.ShelvedChange}");
 				}
+
+				PrintRecord<byte[]> printRecord = printRecordResponse.Data;
+
+				Uri uri = new Uri($"perforce://{request.Cluster}{printRecord.DepotFile}");
+				files.Add(uri, printRecord.Contents);
 			}
 
 			string? message = await _configService.ValidateAsync(files, cancellationToken);

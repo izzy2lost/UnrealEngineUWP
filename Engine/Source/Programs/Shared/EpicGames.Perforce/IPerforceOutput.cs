@@ -211,6 +211,8 @@ namespace EpicGames.Perforce
 			return result.ToString();
 		}
 
+		static readonly byte[] s_connectionErrorPrefix = Encoding.UTF8.GetBytes("Perforce client error:");
+
 		/// <summary>
 		/// Read a list of responses from the child process
 		/// </summary>
@@ -233,7 +235,14 @@ namespace EpicGames.Perforce
 				ReadOnlyMemory<byte> data = perforce.Data;
 				if (data.Length > 0 && responses.Count == 0 && data.Span[0] != '{')
 				{
-					throw new PerforceException("Unexpected response from server (expected '{{'):{0}", FormatDataAsString(data.Span));
+					if (data.Span.StartsWith(s_connectionErrorPrefix))
+					{
+						throw new PerforceException("Unable to connect to Perforce server:{0}", FormatDataAsString(data.Span.Slice(s_connectionErrorPrefix.Length)).TrimStart('\n', '\r'));
+					}
+					else
+					{
+						throw new PerforceException("Unexpected response from server (expected '{{'):{0}", FormatDataAsString(data.Span));
+					}
 				}
 
 				// Parse the responses from the current buffer

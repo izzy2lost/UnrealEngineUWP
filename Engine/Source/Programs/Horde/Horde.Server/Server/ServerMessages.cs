@@ -125,9 +125,14 @@ namespace Horde.Server.Server
 	public class ValidateConfigRequest
 	{
 		/// <summary>
-		/// Files to be validated.
+		/// Perforce cluster to retrieve from
 		/// </summary>
-		public List<ValidateConfigFileRequest> Files { get; set; } = new List<ValidateConfigFileRequest>();
+		public string? Cluster { get; set; }
+
+		/// <summary>
+		/// Change to test
+		/// </summary>
+		public int ShelvedChange { get; set; }
 	}
 
 	/// <summary>
