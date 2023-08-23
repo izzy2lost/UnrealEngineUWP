@@ -659,11 +659,6 @@ void UEdGraph_ReferenceViewer::GetUnfilteredGraphPluginNamesRecursive(bool bRefe
 	{
 		return;
 	}
-
-	if (OutAssetIdentifiers.Contains(InAssetIdentifier))
-	{
-		return;
-	}
 	
 	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
 	TArray<FAssetDependency> LinksToAsset;
@@ -678,12 +673,18 @@ void UEdGraph_ReferenceViewer::GetUnfilteredGraphPluginNamesRecursive(bool bRefe
 	
 	for (const FAssetDependency& Link : LinksToAsset)
 	{
+		// Avoid loops by skipping assets we've already visited.
+		if (OutAssetIdentifiers.Contains(Link.AssetId))
+		{
+			continue;;
+		}
+
 		// Don't add assets that will be hidden by Reference Viewer settings the user cannot change.
 		if (!IsPackageIdentifierPassingFilter(Link.AssetId))
 		{
 			continue;
 		}
-		
+
 		OutAssetIdentifiers.Add(Link.AssetId);
 
 		GetUnfilteredGraphPluginNamesRecursive(bReferencers, Link.AssetId, InCurrentDepth + 1, InMaxDepth, Query, OutAssetIdentifiers);

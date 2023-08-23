@@ -237,9 +237,6 @@ private:
 	/** List of collection filter options */
 	TArray<TSharedPtr<FName>> CollectionsComboList;
 
-	/** Combo box for plugin filter options */
-	TSharedPtr<SComboButton> PluginsComboButton;
-
 	/**
 	 * Whether to visually show to the user the option of "Search Depth Limit" or hide it and fix it to a default value:
 	 * - If 0 or negative, it will show to the user the option of "Search Depth Limit".

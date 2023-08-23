@@ -504,7 +504,7 @@ void SReferenceViewer::Construct(const FArguments& InArgs)
 							SNew(SBox)
 							.WidthOverride(100)
 							[
-								SAssignNew(PluginsComboButton, SComboButton)
+								SNew(SComboButton)
 								.OnGetMenuContent(this, &SReferenceViewer::BuildPluginFilterMenu)
 								.ButtonContent()
 								[
@@ -1200,8 +1200,6 @@ TSharedRef<SWidget> SReferenceViewer::BuildPluginFilterMenu()
 		})
 	);
 
-	MenuBuilder.AddSeparator();
-	
 	const TArray<FName> InitialPluginFilter = GraphObj->GetCurrentPluginFilter();
 
 	TArray<FName> EnabledPluginNames;
@@ -1214,7 +1212,12 @@ TSharedRef<SWidget> SReferenceViewer::BuildPluginFilterMenu()
 	TArray<FName> PluginNames = GraphObj->GetEncounteredPluginsAmongNodes();
 	PluginNames.Sort([](const FName& A, const FName& B) { return A.Compare(B) < 0; });
 
-	bool bAddedNonPlugins = false;
+	if (PluginNames.Num() > 0)
+	{
+		MenuBuilder.AddSeparator();
+	}
+
+	int NumNonPluginsAdded = 0;
 	// First add any "plugins" that are not actual plugins, such as /Game and /Engine.
 	for (const FName& PluginName : PluginNames)
 	{
@@ -1222,14 +1225,15 @@ TSharedRef<SWidget> SReferenceViewer::BuildPluginFilterMenu()
 		{
 			continue;
 		}
-
-		bAddedNonPlugins = true;
 		
 		PluginFilterAddMenuEntry(MenuBuilder, PluginName);
+
+		++NumNonPluginsAdded;
 	}
 
-	// Separate non-plugins from real plugins.
-	if (bAddedNonPlugins)
+	// Add a separator between non-real plugins (such as /Game and /Engine) and actual plugins.
+	// Skip this if no non-real plugins were added or if there are no more plugins to add.
+	if (NumNonPluginsAdded > 0 && NumNonPluginsAdded < PluginNames.Num())
 	{
 		MenuBuilder.AddSeparator();
 	}
