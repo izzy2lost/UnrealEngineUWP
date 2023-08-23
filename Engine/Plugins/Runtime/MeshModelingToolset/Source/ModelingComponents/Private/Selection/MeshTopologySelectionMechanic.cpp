@@ -451,6 +451,123 @@ void UMeshTopologySelectionMechanic::SelectAll()
 	ParentTool->GetToolManager()->EndUndoTransaction();
 }
 
+void UMeshTopologySelectionMechanic::GrowSelection()
+{
+	ParentTool->GetToolManager()->BeginUndoTransaction(LOCTEXT("GrowSelectionChange", "Grow Selection"));
+	BeginChange();
+
+	// add the neighbor vertices to the current selection
+	if (Properties->bSelectVertices)
+	{
+		TSet<int32> VerticesToAdd;
+		for (const int32 VertexIndex : PersistentSelection.SelectedCornerIDs)
+		{
+			for (const int32 NeighborIndex : Mesh->VtxVerticesItr(VertexIndex))
+			{
+				if (!PersistentSelection.SelectedCornerIDs.Contains(NeighborIndex))
+				{
+					VerticesToAdd.Add(NeighborIndex);
+				}
+			}	
+		}
+		
+		PersistentSelection.SelectedCornerIDs.Append(VerticesToAdd);
+	}
+
+	if (Properties->bSelectEdges || Properties->bSelectFaces)
+	{
+		// TODO add support for growing edge/face selections if your tool requires it.
+		// growing edge/face selection not yet supported
+		checkNoEntry();
+	}
+
+	SelectionTimestamp++;
+	OnSelectionChanged.Broadcast();
+	EndChangeAndEmitIfModified();
+	ParentTool->GetToolManager()->EndUndoTransaction();
+}
+
+void UMeshTopologySelectionMechanic::ShrinkSelection()
+{
+	ParentTool->GetToolManager()->BeginUndoTransaction(LOCTEXT("ShrinkSelectionChange", "Shrink Selection"));
+	BeginChange();
+
+	// remove border vertices from the current selection
+	if (Properties->bSelectVertices)
+	{
+		TSet<int32> BorderVertices;
+		for (const int32 VertexIndex : PersistentSelection.SelectedCornerIDs)
+		{
+			for (const int32 NeighborIndex : Mesh->VtxVerticesItr(VertexIndex))
+			{
+				if (!PersistentSelection.SelectedCornerIDs.Contains(NeighborIndex))
+				{
+					BorderVertices.Add(VertexIndex);
+					break;
+				}
+			}	
+		}
+		
+		for (const int32 BorderVertex : BorderVertices)
+		{
+			PersistentSelection.SelectedCornerIDs.Remove(BorderVertex);
+		}
+	}
+
+	if (Properties->bSelectEdges || Properties->bSelectFaces)
+	{
+		// TODO add support for shrinking edge/face selections if your tool requires it.
+		// shrinking edge/face selection not yet supported
+		checkNoEntry();
+	}
+
+	SelectionTimestamp++;
+	OnSelectionChanged.Broadcast();
+	EndChangeAndEmitIfModified();
+	ParentTool->GetToolManager()->EndUndoTransaction();
+}
+
+void UMeshTopologySelectionMechanic::FloodSelection()
+{
+	ParentTool->GetToolManager()->BeginUndoTransaction(LOCTEXT("FloodSelectionChange", "Flood Selection"));
+	BeginChange();
+
+	if (Properties->bSelectVertices)
+	{
+		TSet<int32>& SelectedVertices = PersistentSelection.SelectedCornerIDs;
+		TSet<int32> VerticesAddedPrevIteration = PersistentSelection.SelectedCornerIDs;
+		while(!VerticesAddedPrevIteration.IsEmpty())
+		{
+			TSet<int32> VerticesToAddThisIteration;
+			for (const int32 VertexAdded : VerticesAddedPrevIteration)
+			{
+				for (const int32 NeighborIndex : Mesh->VtxVerticesItr(VertexAdded))
+				{
+					if (!SelectedVertices.Contains(NeighborIndex))
+					{
+						VerticesToAddThisIteration.Add(NeighborIndex);
+					}
+				}
+			}
+			
+			SelectedVertices.Append(VerticesToAddThisIteration);
+			VerticesAddedPrevIteration = VerticesToAddThisIteration;
+		}
+	}
+
+	if (Properties->bSelectEdges || Properties->bSelectFaces)
+	{
+		// TODO add support for flooding edge/face selections if your tool requires it.
+		// flooding edge/face selection not yet supported
+		checkNoEntry();
+	}
+
+	SelectionTimestamp++;
+	OnSelectionChanged.Broadcast();
+	EndChangeAndEmitIfModified();
+	ParentTool->GetToolManager()->EndUndoTransaction();
+}
+
 FInputRayHit UMeshTopologySelectionMechanic::IsHitByClick(const FInputDeviceRay& ClickPos)
 {
 	if (!bIsEnabled)

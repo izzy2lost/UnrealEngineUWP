@@ -256,6 +256,10 @@ public:
 	void InvertSelection();
 	void SelectAll();
 
+	void GrowSelection();
+	void ShrinkSelection();
+	void FloodSelection();
+
 	/** 
 	 * @return true if the current selection is non-empty 
 	 */

@@ -8,6 +8,7 @@
 #include "Widgets/Input/SSegmentedControl.h"
 #include "SkeletalMesh/SkinWeightsPaintTool.h"
 #include "SSkinWeightProfileImportOptions.h"
+#include "Selection/PolygonSelectionMechanic.h"
 #include "UObject/UnrealTypePrivate.h"
 #include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Input/SButton.h"
@@ -306,7 +307,66 @@ void FSkinWeightDetailCustomization::AddBrushUI(IDetailLayoutBuilder& DetailBuil
 void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& DetailBuilder)
 {
 	// custom display of weight editing tools
-	IDetailCategoryBuilder& EditWeightsCategory = DetailBuilder.EditCategory("EditWeights", FText::GetEmpty(), ECategoryPriority::Important);
+	IDetailCategoryBuilder& EditSelectionCategory = DetailBuilder.EditCategory("Edit Selection", FText::GetEmpty(), ECategoryPriority::Important);
+	EditSelectionCategory.InitiallyCollapsed(true);
+
+	// GROW/SHRINK/FLOOD Selection category
+	EditSelectionCategory.AddCustomRow(LOCTEXT("EditSelectionRow", "Edit Selection"), false)
+	.WholeRowContent()
+	[
+		SNew(SHorizontalBox)
+
+		+SHorizontalBox::Slot()
+		.Padding(2.f, WeightEditVerticalPadding)
+		[
+			SNew(SButton)
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.Text(LOCTEXT("GrowSelectionButtonLabel", "Grow"))
+			.ToolTipText(LOCTEXT("GrowSelectionTooltip",
+					"Grow the current selection by adding connected neighbors to current selection.\n"))
+			.OnClicked_Lambda([this]()
+			{
+				SkinToolSettings->WeightTool->GetSelectionMechanic()->GrowSelection();
+				return FReply::Handled();
+			})
+		]
+
+		+SHorizontalBox::Slot()
+		.Padding(2.f, WeightEditVerticalPadding)
+		[
+			SNew(SButton)
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.Text(LOCTEXT("ShrinkSelectionButtonLabel", "Shrink"))
+			.ToolTipText(LOCTEXT("ShrinkSelectionTooltip",
+					"Shrink the current selection by removing vertices on the border of the current selection.\n"))
+			.OnClicked_Lambda([this]()
+			{
+				SkinToolSettings->WeightTool->GetSelectionMechanic()->ShrinkSelection();
+				return FReply::Handled();
+			})
+		]
+
+		+SHorizontalBox::Slot()
+		.Padding(2.f, WeightEditVerticalPadding)
+		[
+			SNew(SButton)
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.Text(LOCTEXT("FloodSelectionButtonLabel", "Flood"))
+			.ToolTipText(LOCTEXT("FloodSelectionTooltip",
+					"Flood the current selection by adding all connected vertices to the current selection.\n"))
+			.OnClicked_Lambda([this]()
+			{
+				SkinToolSettings->WeightTool->GetSelectionMechanic()->FloodSelection();
+				return FReply::Handled();
+			})
+		]
+	];
+
+	// custom display of weight editing tools
+	IDetailCategoryBuilder& EditWeightsCategory = DetailBuilder.EditCategory("Edit Weights", FText::GetEmpty(), ECategoryPriority::Important);
 	EditWeightsCategory.InitiallyCollapsed(true);
 
 	// AVERAGE/RELAX/NORMALIZE WEIGHTS category

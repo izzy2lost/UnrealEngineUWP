@@ -2033,6 +2033,11 @@ void USkinWeightsPaintTool::ToggleEditingMode()
 	}
 }
 
+TObjectPtr<UPolygonSelectionMechanic> USkinWeightsPaintTool::GetSelectionMechanic()
+{
+	return PolygonSelectionMechanic;
+}
+
 void USkinWeightsPaintTool::GetSelectedVertices(TArray<int32>& OutVertexIndices) const
 {
 	const FGroupTopologySelection& Selection = PolygonSelectionMechanic->GetActiveSelection();

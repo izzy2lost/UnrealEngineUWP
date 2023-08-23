@@ -370,6 +370,9 @@ public:
 	// toggle brush / selection mode
 	void ToggleEditingMode();
 
+	// edit selection
+	TObjectPtr<UPolygonSelectionMechanic> GetSelectionMechanic();
+
 	// get a list of currently selected vertices
 	void GetSelectedVertices(TArray<int32>& OutVertexIndices) const;
 
