@@ -24,6 +24,7 @@ public:
 	virtual FString GetNodeTitle(const FRigVMTemplateTypeMap& InTypes) const override;
 	virtual FText GetNodeTooltip(const FRigVMTemplateTypeMap& InTypes) const override;
 	virtual FString GetArgumentMetaData(const FName& InArgumentName, const FName& InMetaDataKey) const override;
+	virtual FString GetKeywords() const override;
 #endif
 
 protected:
@@ -51,6 +52,7 @@ public:
 	virtual const TArray<FRigVMTemplateArgument>& GetArguments() const override;
 #if WITH_EDITOR
 	virtual FText GetNodeTooltip(const FRigVMTemplateTypeMap& InTypes) const override;
+	virtual FString GetKeywords() const;
 #endif
 };
 

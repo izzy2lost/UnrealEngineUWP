@@ -73,6 +73,23 @@ FString FRigVMDispatch_MakeStruct::GetArgumentMetaData(const FName& InArgumentNa
 	return FRigVMDispatch_CoreBase::GetArgumentMetaData(InArgumentName, InMetaDataKey);
 }
 
+FString FRigVMDispatch_MakeStruct::GetKeywords() const
+{
+	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
+	FString Keywords = FRigVMDispatch_CoreBase::GetKeywords();
+	const TArray<TRigVMTypeIndex>& StructTypeIndices = Registry.GetTypesForCategory(FRigVMTemplateArgument::ETypeCategory_SingleScriptStructValue);
+	for(const TRigVMTypeIndex& StructTypeIndex : StructTypeIndices)
+	{
+		const FRigVMTemplateArgumentType& Type = Registry.GetType(StructTypeIndex);
+		if(const UScriptStruct* ScriptStruct = Cast<UScriptStruct>(Type.CPPTypeObject))
+		{
+			static constexpr TCHAR Format[] = TEXT(",Make%s");
+			Keywords += FString::Printf(Format, *ScriptStruct->GetName());
+		}
+	}
+	return Keywords;
+}
+
 #endif
 
 void FRigVMDispatch_MakeStruct::Execute(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray RigVMBranches)
@@ -102,6 +119,23 @@ const TArray<FRigVMTemplateArgument>& FRigVMDispatch_BreakStruct::GetArguments()
 FText FRigVMDispatch_BreakStruct::GetNodeTooltip(const FRigVMTemplateTypeMap& InTypes) const
 {
 	return LOCTEXT("BreakStructToolTip", "Decomposes a struct into its elements");
+}
+
+FString FRigVMDispatch_BreakStruct::GetKeywords() const
+{
+	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
+	FString Keywords = FRigVMDispatch_CoreBase::GetKeywords();
+	const TArray<TRigVMTypeIndex>& StructTypeIndices = Registry.GetTypesForCategory(FRigVMTemplateArgument::ETypeCategory_SingleScriptStructValue);
+	for(const TRigVMTypeIndex& StructTypeIndex : StructTypeIndices)
+	{
+		const FRigVMTemplateArgumentType& Type = Registry.GetType(StructTypeIndex);
+		if(const UScriptStruct* ScriptStruct = Cast<UScriptStruct>(Type.CPPTypeObject))
+		{
+			static constexpr TCHAR Format[] = TEXT(",Break%s");
+			Keywords += FString::Printf(Format, *ScriptStruct->GetName());
+		}
+	}
+	return Keywords;
 }
 
 #endif
