@@ -953,11 +953,11 @@ void SBlueprintDiff::GenerateDifferencesList()
 	bool bIsSpecialized = false;
 	if (PanelOld.Blueprint)
 	{
-		bIsSpecialized = PanelOld.Blueprint->GetClass() == UBlueprint::StaticClass();
+		bIsSpecialized = (PanelOld.Blueprint->GetClass() != UBlueprint::StaticClass());
 	}
 	if (PanelNew.Blueprint)
 	{
-		bIsSpecialized |= PanelNew.Blueprint->GetClass() == UBlueprint::StaticClass();
+		bIsSpecialized |= (PanelNew.Blueprint->GetClass() != UBlueprint::StaticClass());
 	}
 	
 	if (bIsSpecialized)
