@@ -114,6 +114,7 @@ ACharacter::ACharacter(const FObjectInitializer& ObjectInitializer)
 	}
 
 	BaseRotationOffset = FQuat::Identity;
+	ReplicatedGravityDirection = UCharacterMovementComponent::DefaultGravityDirection;
 }
 
 void ACharacter::PostInitializeComponents()
