@@ -265,8 +265,12 @@ void UMVVMEditorSubsystem::RemoveBinding(UWidgetBlueprint* WidgetBlueprint, cons
 
 UMVVMBlueprintViewEvent* UMVVMEditorSubsystem::AddEvent(UWidgetBlueprint* WidgetBlueprint)
 {
-	UMVVMBlueprintView* View = RequestView(WidgetBlueprint);
-	return View->AddDefaultEvent();
+	if (GetDefault<UMVVMDeveloperProjectSettings>()->bAllowBindingEvent)
+	{
+		UMVVMBlueprintView* View = RequestView(WidgetBlueprint);
+		return View->AddDefaultEvent();
+	}
+	return nullptr;
 }
 
 void UMVVMEditorSubsystem::RemoveEvent(UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewEvent* Event)
@@ -368,9 +372,14 @@ void UMVVMEditorSubsystem::SetDestinationPathForBinding(UWidgetBlueprint* Widget
 		UE::MVVM::Private::OnBindingPreEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, DestinationPath));
 
 		bool bSupports = UMVVMBlueprintViewEvent::Supports(WidgetBlueprint, PropertyPath);
+		UMVVMBlueprintViewEvent* Event = nullptr;
 		if (bSupports)
 		{
-			UMVVMBlueprintViewEvent* Event = AddEvent(WidgetBlueprint);
+			Event = AddEvent(WidgetBlueprint);
+		}
+
+		if (Event)
+		{
 			Event->SetEventPath(PropertyPath);
 			View->RemoveBinding(&Binding);
 		}

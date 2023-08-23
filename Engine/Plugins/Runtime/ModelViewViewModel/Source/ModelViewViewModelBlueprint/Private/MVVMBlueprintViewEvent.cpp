@@ -7,6 +7,7 @@
 #include "Bindings/MVVMBindingHelper.h"
 #include "Engine/Blueprint.h"
 #include "Kismet2/BlueprintEditorUtils.h"
+#include "MVVMDeveloperProjectSettings.h"
 #include "MVVMWidgetBlueprintExtension_View.h"
 #include "WidgetBlueprint.h"
 
@@ -148,7 +149,7 @@ UWidgetBlueprint* UMVVMBlueprintViewEvent::GetWidgetBlueprintInternal() const
 
 bool UMVVMBlueprintViewEvent::Supports(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintPropertyPath& PropertyPath)
 {
-	return GetEventSignature(WidgetBlueprint, PropertyPath) != nullptr;
+	return GetDefault<UMVVMDeveloperProjectSettings>()->bAllowBindingEvent && GetEventSignature(WidgetBlueprint, PropertyPath) != nullptr;
 }
 
 const UFunction* UMVVMBlueprintViewEvent::GetEventSignature() const

@@ -1914,6 +1914,11 @@ bool FMVVMViewBlueprintCompiler::PreCompileEvents(UWidgetBlueprintGeneratedClass
 		return false;
 	}
 
+	if (!GetDefault<UMVVMDeveloperProjectSettings>()->bAllowBindingEvent && BlueprintView->GetEvents().Num() > 0)
+	{
+		WidgetBlueprintCompilerContext.MessageLog.Warning(*LOCTEXT("EventsAreNotAllowed", "Binding events are not allowed in your project settings.").ToString());
+	}
+
 	for (UMVVMBlueprintViewEvent* EventPtr : BlueprintView->GetEvents())
 	{
 		if (EventPtr == nullptr || !EventPtr->bCompile)

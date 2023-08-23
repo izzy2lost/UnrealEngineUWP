@@ -128,6 +128,10 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = "Viewmodel")
 	bool bAllowConversionFunctionGeneratedGraphInEditor = true;
 
+	/** When binding to a multicast delegate property, allow to create an event. */
+	UPROPERTY(EditAnywhere, config, Category = "Viewmodel")
+	bool bAllowBindingEvent = true;
+
 	/** Permission list for filtering which execution mode is allowed. */
 	UPROPERTY(EditAnywhere, config, Category = "Viewmodel")
 	EMVVMDeveloperConversionFunctionFilterType ConversionFunctionFilter = EMVVMDeveloperConversionFunctionFilterType::BlueprintActionRegistry;
