@@ -813,40 +813,27 @@ void ULevel::AddLoadedActors(const TArray<AActor*>& ActorList, const FTransform*
 		check(Actor->GetLevel() == this);
 		check(IsValidChecked(Actor));
 
-		ActorsQueue.Add(Actor);
-
-		// Handle child actors
-		Actor->ForEachComponent<UChildActorComponent>(false, [this, &QueueActor](UChildActorComponent* ChildActorComponent)
+		int32 ActorIndex;
+		if (!Actors.Find(Actor, ActorIndex))
 		{
-			if (AActor* ChildActor = ChildActorComponent->GetChildActor())
+			Actors.Add(Actor);
+			ActorsForGC.Add(Actor);
+			ActorsQueue.Add(Actor);
+
+			// Handle child actors
+			Actor->ForEachComponent<UChildActorComponent>(false, [this, &QueueActor](UChildActorComponent* ChildActorComponent)
 			{
-				QueueActor(ChildActor);
-			}
-		});
+				if (AActor* ChildActor = ChildActorComponent->GetChildActor())
+				{
+					QueueActor(ChildActor);
+				}
+			});
+		}
 	};
 
 	for (AActor* Actor : ActorList)
 	{
-		// Actors that ask the level to keep a reference are already in the Actors array.
-		if (!Actor->ShouldLevelKeepRefIfExternal())
-		{
-			QueueActor(Actor);
-		}
-	}
-
-	TSet<AActor*> ActorsSet;
-	Algo::CopyIf(Actors, ActorsSet, [&](AActor* Actor) { return IsValid(Actor); });
-
-	for (AActor* Actor : ActorsQueue)
-	{
-		if (ActorsSet.Contains(Actor))
-		{
-			UE_LOG(LogLevel, Warning, TEXT("Duplicated actor %s (%s) found in level %s"), *Actor->GetName(), *Actor->GetActorNameOrLabel(), *GetPackage()->GetName());
-			continue;
-		}
-
-		Actors.Add(Actor);
-		ActorsForGC.Add(Actor);
+		QueueActor(Actor);
 	}
 
 	FScopedSlowTask SlowTask(ActorsQueue.Num() * 3, LOCTEXT("RegisteringActors", "Registering actors..."));
@@ -935,7 +922,7 @@ void ULevel::RemoveLoadedActor(AActor* Actor, const FTransform* TransformToRemov
 
 void ULevel::RemoveLoadedActors(const TArray<AActor*>& ActorList, const FTransform* TransformToRemove)
 {
-	TSet<AActor*> ActorsQueue;
+	TArray<AActor*> ActorsQueue;
 	ActorsQueue.Reserve(ActorList.Num());
 
 	TFunction<void(AActor* Actor)> QueueActor = [this, &ActorsQueue, &QueueActor](AActor* Actor)
@@ -953,9 +940,13 @@ void ULevel::RemoveLoadedActors(const TArray<AActor*>& ActorList, const FTransfo
 			}
 		});
 
-		// Actors that ask the level to keep a reference should stay in the Actors array.
-		if (!Actor->ShouldLevelKeepRefIfExternal())
+		int32 ActorIndex;
+		// temporarily downgraded to ensure while an issue is fixed
+		if (ensure(Actors.Find(Actor, ActorIndex))) 
 		{
+			Actors[ActorIndex] = nullptr;
+			ActorsForGC.Remove(Actor);
+
 			ActorsQueue.Add(Actor);
 		}
 	};
@@ -965,36 +956,10 @@ void ULevel::RemoveLoadedActors(const TArray<AActor*>& ActorList, const FTransfo
 		QueueActor(Actor);
 	}
 
-	auto RemoveActorsFromList = [](TArray<TObjectPtr<AActor>>& ActorList, const TSet<AActor*>& ActorsToRemove)
-	{
-		int32 NumActorsRemoved = 0;
-
-		for (TObjectPtr<AActor>& Actor : ActorList)
-		{
-			if (Actor && ActorsToRemove.Contains(Actor))
-			{
-				Actor = nullptr;
-				if (++NumActorsRemoved == ActorsToRemove.Num())
-				{
-					break;
-				}
-			}
-		}
-
-		if (NumActorsRemoved)
-		{
-			ActorList.Remove(nullptr);
-		}
-	};
-
-	// Go through the actors lists once and remove queued actors
-	RemoveActorsFromList(Actors, ActorsQueue);
-	RemoveActorsFromList(ActorsForGC, ActorsQueue);
-
 	FScopedSlowTask SlowTask(ActorsQueue.Num(), LOCTEXT("UnregisteringActors", "Unregistering actors..."));
 	SlowTask.MakeDialogDelayed(1.0f);
 
-	OnLoadedActorRemovedFromLevelPreEvent.Broadcast(ActorsQueue.Array());
+	OnLoadedActorRemovedFromLevelPreEvent.Broadcast(ActorsQueue);
 
 	for (AActor* Actor : ActorsQueue)
 	{
