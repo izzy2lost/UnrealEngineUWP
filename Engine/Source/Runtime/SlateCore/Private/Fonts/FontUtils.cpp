@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#pragma once
-
 #include "Fonts/FontUtils.h"
 #include "Fonts/FontProviderInterface.h"
 #include "Fonts/CompositeFont.h"
