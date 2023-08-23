@@ -8,7 +8,7 @@ public class TP_VehicleAdvTarget : TargetRules
 	public TP_VehicleAdvTarget(TargetInfo Target) : base(Target)
 	{
 		Type = TargetType.Game;
-		DefaultBuildSettings = BuildSettingsVersion.V4;
+		DefaultBuildSettings = BuildSettingsVersion.V5;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_3;
 		ExtraModuleNames.Add("TP_VehicleAdv");
 	}
