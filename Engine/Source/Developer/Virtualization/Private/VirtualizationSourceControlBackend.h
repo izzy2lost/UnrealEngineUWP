@@ -129,7 +129,7 @@ private:
 	virtual bool Initialize(const FString& ConfigEntry) override;
 
 	virtual EConnectionStatus OnConnect() override;
-	IVirtualizationBackend::EConnectionStatus OnConnectInternal(FStringView Port, FStringView Username, bool bSaveConnectionSettings, FText& OutErrorMessage);
+	IVirtualizationBackend::EConnectionStatus OnConnectInternal(FString& InOutPort, FString& InOutUsername, bool bSaveConnectionSettings, FText& OutErrorMessage);
 	
 	virtual bool PushData(TArrayView<FPushRequest> Requests, EPushFlags Flags) override;
 	virtual bool PullData(TArrayView<FPullRequest> Requests, EPullFlags Flags, FText& OutErrors) override;
@@ -147,7 +147,7 @@ private:
 	bool FindSubmissionWorkingDir(const FString& ConfigEntry);
 
 	/** Will display a FMessage notification to the user on the next valid engine tick to try and keep them aware of connection failures */
-	void OnConnectionError(FText Message);
+	void OnConnectionError(FText ErrorMessage);
 
 	/** A source control connection owned by the backend*/
 	TUniquePtr<ISourceControlProvider> SCCProvider;

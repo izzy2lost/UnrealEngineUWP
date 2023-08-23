@@ -11,6 +11,7 @@
 #include "Misc/App.h"
 #include "Misc/ConfigCacheIni.h"
 #include "SourceControlHelpers.h"
+#include "Styling/StyleColors.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SEditableTextBox.h"
@@ -24,7 +25,7 @@
 namespace UE::Virtualization
 {
 
-SRevisionControlConnectionDialog::FResult SRevisionControlConnectionDialog::RunDialog(FStringView RevisionControlName, FStringView ConfigSectionName,  FStringView CurrentPort, FStringView CurrentUsername)
+SRevisionControlConnectionDialog::FResult SRevisionControlConnectionDialog::RunDialog(FStringView RevisionControlName, FStringView ConfigSectionName,  FStringView CurrentPort, FStringView CurrentUsername, const FText& ErrorMessage)
 {
 	if (FApp::IsUnattended())
 	{
@@ -60,7 +61,7 @@ SRevisionControlConnectionDialog::FResult SRevisionControlConnectionDialog::RunD
 
 	TSharedPtr<SBorder> DialogWrapper =
 		SNew(SBorder)
-		.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+	//	.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
 		.Padding(4.0f)
 		[
 			SNew(SVerticalBox)
@@ -68,7 +69,7 @@ SRevisionControlConnectionDialog::FResult SRevisionControlConnectionDialog::RunD
 			.AutoHeight()
 			.Padding(16.0f, 16.0f, 16.0f, 0.0f)
 			[
-				SAssignNew(DialogWidget, SRevisionControlConnectionDialog, RevisionControlName, ConfigSectionName, CurrentPort, CurrentUsername)
+				SAssignNew(DialogWidget, SRevisionControlConnectionDialog, RevisionControlName, ConfigSectionName, CurrentPort, CurrentUsername, ErrorMessage)
 				.Window(DialogWindow)
 			]
 		];
@@ -88,20 +89,20 @@ SRevisionControlConnectionDialog::FResult SRevisionControlConnectionDialog::RunD
 	return FResult();
 }
 
-void SRevisionControlConnectionDialog::Construct(const FArguments& InArgs, FStringView RevisionControlName, FStringView InConfigSectionName, FStringView CurrentPort, FStringView CurrentUsername)
+void SRevisionControlConnectionDialog::Construct(const FArguments& InArgs, FStringView RevisionControlName, FStringView InConfigSectionName, FStringView CurrentPort, FStringView CurrentUsername, const FText& ErrorMessage)
 {
 	WindowWidget = InArgs._Window;
 
 	const FString ConnectionHelpUrl = FVirtualizationManager::GetConnectionHelpUrl();
 	ConfigSectionName = InConfigSectionName;
 
-	FText Message = FText::Format(LOCTEXT("VASCMsg", "Failed to connect to the {0} revision control server.\nThis may prevent you from loading virtualized assets in the future!\n\nPlease enter the correct {1} revision control settings below:"), 
-										FText::FromStringView(RevisionControlName),
-										FText::FromStringView(RevisionControlName));
-
-
+	FText MessagePt1 = FText::Format(LOCTEXT("VASCMsg", "Failed to connect to the {0} revision control server with the following errors:"), FText::FromStringView(RevisionControlName));
+	FText MessagePt2 = FText::Format(LOCTEXT("VASCMsg", "This may prevent you from loading virtualized assets in the future!\nPlease enter the correct {0} revision control settings below:"), FText::FromStringView(RevisionControlName));
+	
 	const FText PortToolTip = FText::Format(LOCTEXT("PortLabel_Tooltip", "The server and port for your {0} server. Usage ServerName:1234."), FText::FromStringView(RevisionControlName));
 	const FText UserToolTip = FText::Format(LOCTEXT("UserNameLabel_Tooltip", "{0} username."), FText::FromStringView(RevisionControlName));
+	
+	const char* BorderImage = "BlackBrush";
 
 	ChildSlot
 	[
@@ -127,9 +128,37 @@ void SRevisionControlConnectionDialog::Construct(const FArguments& InArgs, FStri
 			]
 			+ SHorizontalBox::Slot()
 			[
-				SNew(STextBlock)
-				.Text(MoveTemp(Message))
-				.AutoWrapText(true)
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot()
+				.Padding(FMargin(0.0f, 0.0f, 0.0f, 0.0f))
+				.AutoHeight()
+				[
+					SNew(STextBlock)
+					.Text(MoveTemp(MessagePt1))
+					.AutoWrapText(true)
+				]
+				+ SVerticalBox::Slot()
+				.Padding(FMargin(0.0f, 16.0f, 0.0f, 16.0f))
+				.AutoHeight()
+				[
+					SNew(SBorder)
+					.BorderImage(FAppStyle::Get().GetBrush(BorderImage))
+					[
+						SNew(STextBlock)
+						.ColorAndOpacity(FSlateColor(EStyleColor::Error))
+						.Text(ErrorMessage)
+						.AutoWrapText(true)
+					]
+				]
+				+ SVerticalBox::Slot()
+				.Padding(FMargin(0.0f, 0.0f, 0.0f, 0.0f))
+				.AutoHeight()
+				[
+					SNew(STextBlock)
+					.Text(MoveTemp(MessagePt2))
+					.AutoWrapText(true)
+				]
+				
 			]
 		]
 		+ SVerticalBox::Slot()
@@ -240,7 +269,6 @@ void SRevisionControlConnectionDialog::Construct(const FArguments& InArgs, FStri
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
-				.Padding(FMargin(5.0f, 0.0f))
 				[
 					SNew(SButton)
 					.VAlign(VAlign_Center)
@@ -252,7 +280,7 @@ void SRevisionControlConnectionDialog::Construct(const FArguments& InArgs, FStri
 				]
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
-				.Padding(FMargin(5.0f, 0.0f))
+				.Padding(FMargin(10.0f, 0.0f, 0.0f, 0.0f))
 				[
 					SNew(SButton)
 					.VAlign(VAlign_Center)

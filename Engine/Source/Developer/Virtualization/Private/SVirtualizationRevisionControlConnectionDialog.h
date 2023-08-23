@@ -37,13 +37,13 @@ public:
 		FString UserName;
 	};
 
-	static FResult RunDialog(FStringView RevisionControlName, FStringView ConfigSectionName, FStringView CurrentPort, FStringView CurrentUsername);
+	static FResult RunDialog(FStringView RevisionControlName, FStringView ConfigSectionName, FStringView CurrentPort, FStringView CurrentUsername, const FText& ErrorMessage);
 
 	SLATE_BEGIN_ARGS(SRevisionControlConnectionDialog) {}
 		SLATE_ARGUMENT(TSharedPtr<SWindow>, Window)
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, FStringView RevisionControlName, FStringView ConfigSectionName, FStringView CurrentPort, FStringView CurrentUsername);
+	void Construct(const FArguments& InArgs, FStringView RevisionControlName, FStringView ConfigSectionName, FStringView CurrentPort, FStringView CurrentUsername, const FText& ErrorMessage);
 
 	enum class EResult : uint8
 	{

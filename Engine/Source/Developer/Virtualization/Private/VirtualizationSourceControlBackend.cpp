@@ -340,7 +340,8 @@ IVirtualizationBackend::EConnectionStatus FSourceControlBackend::OnConnect()
 	}
 
 	FString Port = ServerAddress;
-	FString UserName = TEXT("");
+	FString UserName;
+
 	bool bSaveSettings = false; // Initially we will try to reason the perforce settings from the ini file and global environment
 								// so we don't want to save these values to the users ini files.
 
@@ -371,7 +372,8 @@ IVirtualizationBackend::EConnectionStatus FSourceControlBackend::OnConnect()
 			SRevisionControlConnectionDialog::FResult DialogResult = SRevisionControlConnectionDialog::RunDialog(	TEXT("Perforce"),
 																													TEXT("PerforceSourceControl.VirtualizationSettings"),
 																													Port,
-																													UserName);
+																													UserName,
+																													ErrorMessage);
 
 			if (!DialogResult.bShouldRetry)
 			{
@@ -393,7 +395,7 @@ IVirtualizationBackend::EConnectionStatus FSourceControlBackend::OnConnect()
 }
 
 
-IVirtualizationBackend::EConnectionStatus FSourceControlBackend::OnConnectInternal(FStringView Port, FStringView Username, bool bSaveConnectionSettings, FText& OutErrorMessage)
+IVirtualizationBackend::EConnectionStatus FSourceControlBackend::OnConnectInternal(FString& InOutPort, FString& InOutUsername, bool bSaveConnectionSettings, FText& OutErrorMessage)
 {
 	// We do not want the connection to have a client workspace so explicitly set it to empty
 	FSourceControlInitSettings SCCSettings(FSourceControlInitSettings::EBehavior::OverrideExisting);
@@ -408,16 +410,17 @@ IVirtualizationBackend::EConnectionStatus FSourceControlBackend::OnConnectIntern
 
 	SCCSettings.SetConfigBehavior(IniBehavior);
 
-	if (!Port.IsEmpty())
+	if (!InOutPort.IsEmpty())
 	{
-		SCCSettings.AddSetting(TEXT("P4Port"), Port);
+		SCCSettings.AddSetting(TEXT("P4Port"), InOutPort);
 	}
 
-	if (!Username.IsEmpty())
+	if (!InOutUsername.IsEmpty())
 	{
-		SCCSettings.AddSetting(TEXT("P4User"), Username);
+		SCCSettings.AddSetting(TEXT("P4User"), InOutUsername);
 	}
 
+	// By setting an empty "P4Client" we ensure that the provider will not attempt to find a default one.
 	SCCSettings.AddSetting(TEXT("P4Client"), TEXT(""));
 
 	SCCProvider = ISourceControlModule::Get().CreateProvider(FName("Perforce"), TEXT("Virtualization"), SCCSettings);
@@ -427,14 +430,36 @@ IVirtualizationBackend::EConnectionStatus FSourceControlBackend::OnConnectIntern
 		return IVirtualizationBackend::EConnectionStatus::Error;
 	}
 
-	// Will attempt to make initial connection to the server, it doesn't return any error values we can check against but
-	// it will output problems to the log file.
-	const bool bForceConnection = true;
-	SCCProvider->Init(bForceConnection);
+	const ISourceControlProvider::EInitFlags InitOptions =	ISourceControlProvider::EInitFlags::AttemptConnection |
+															ISourceControlProvider::EInitFlags::SupressErrorLogging;
 
-	if (!SCCProvider->IsAvailable())
+	ISourceControlProvider::FInitResult Result = SCCProvider->Init(InitOptions);
+
+	if (FString* Value = Result.ConnectionSettings.Find(ISourceControlProvider::EStatus::Port))
 	{
-		OutErrorMessage = FText(LOCTEXT("FailedSourceControlConnection", "Failed to connect to revision control backend, see the Message Log 'Revision Control' errors for details.\nThe revision control backend will be unable to pull payloads, is your revision control config set up correctly?"));
+		InOutPort = *Value;
+	}
+
+	if (FString* Value = Result.ConnectionSettings.Find(ISourceControlProvider::EStatus::User))
+	{
+		InOutUsername = *Value;
+	}
+
+	if (!Result.bIsAvailable)
+	{
+		FTextBuilder MsgBuilder;
+		if (!Result.Errors.ErrorMessage.IsEmpty())
+		{
+			MsgBuilder.AppendLine(Result.Errors.ErrorMessage);
+		}
+
+		for (const FText& Error : Result.Errors.AdditionalErrors)
+		{
+			MsgBuilder.AppendLine(Error);
+		}
+
+		OutErrorMessage = MsgBuilder.ToText();
+		
 		return IVirtualizationBackend::EConnectionStatus::Error;
 	}
 
@@ -1183,7 +1208,7 @@ bool FSourceControlBackend::FindSubmissionWorkingDir(const FString& ConfigEntry)
 	}
 }
 
-void FSourceControlBackend::OnConnectionError(FText Message)
+void FSourceControlBackend::OnConnectionError(FText ErrorMessage)
 {
 	// We don't know when or where this error might occur. We can currently only create 
 	// FMessageLog on the game thread or risk slate asserts, and if we raise a 
@@ -1195,13 +1220,15 @@ void FSourceControlBackend::OnConnectionError(FText Message)
 	// we will write it to the log at the point it is raised rather than the point it is
 	// deferred to in an attempt to make the log more readable.
 
-	if (Message.IsEmpty())
+	if (ErrorMessage.IsEmpty())
 	{
 		return;
 	}
 
+	const FText UserMessage(LOCTEXT("FailedSourceControlConnection", "Failed to connect to revision control backend, see the Message Log 'Revision Control' errors for details.\nThe revision control backend will be unable to pull payloads, is your revision control config set up correctly?"));
+
 	TSharedRef<FTokenizedMessage> TokenizedMsg = FTokenizedMessage::Create(EMessageSeverity::Error);
-	TokenizedMsg->AddToken(FTextToken::Create(Message));
+	TokenizedMsg->AddToken(FTextToken::Create(UserMessage));
 
 	FString ConnectionHelpUrl = FVirtualizationManager::GetConnectionHelpUrl();
 	if (!ConnectionHelpUrl.IsEmpty())
@@ -1212,20 +1239,37 @@ void FSourceControlBackend::OnConnectionError(FText Message)
 	if (::IsInGameThread())
 	{
 		// If we are on the game thread we can post the error message immediately
-		FMessageLog Log("LogVirtualization");
-		Log.AddMessage(TokenizedMsg);
+
+		{
+			FMessageLog Log("LogVirtualization");
+			Log.Error(ErrorMessage);
+		}
+
+		{
+			FMessageLog Log("LogVirtualization");
+			Log.AddMessage(TokenizedMsg);
+		}
 	}
 	else
 	{
 		// We can only send a FMessageLog on the GameThread so for now just log the error
 		// and we can send it to the FMessageLog system next tick
-		UE_LOG(LogVirtualization, Error, TEXT("%s"), *Message.ToString());
+		UE_LOG(LogVirtualization, Error, TEXT("%s"), *ErrorMessage.ToString());
+		UE_LOG(LogVirtualization, Error, TEXT("%s"), *UserMessage.ToString());
 
-		auto Callback = [TokenizedMsg, bShouldNotify = !bSuppressNotifications](float Delta)->bool
+		auto Callback = [ErrorMessage, TokenizedMsg, bShouldNotify = !bSuppressNotifications](float Delta)->bool
 		{
-			FMessageLog Log("LogVirtualization");
-			Log.SuppressLoggingToOutputLog();
-			Log.AddMessage(TokenizedMsg);
+			{
+				FMessageLog Log("LogVirtualization");
+				Log.SuppressLoggingToOutputLog();
+				Log.Error(ErrorMessage);
+			}
+
+			{
+				FMessageLog Log("LogVirtualization");
+				Log.SuppressLoggingToOutputLog();
+				Log.AddMessage(TokenizedMsg);
+			}
 
 			return false;
 		};
@@ -1239,7 +1283,7 @@ void FSourceControlBackend::OnConnectionError(FText Message)
 		// be issued on the first frame, increasing the chance that the user will see it.
 		auto NotificationCallback = [](float Delta)->bool
 			{
-				FMessageLog Notification("LogVirtualization");;
+				FMessageLog Notification("LogVirtualization");
 				Notification.SuppressLoggingToOutputLog();
 
 				Notification.Notify(LOCTEXT("ConnectionError", "Asset virtualization connection errors were encountered, see the message log for more info"));
