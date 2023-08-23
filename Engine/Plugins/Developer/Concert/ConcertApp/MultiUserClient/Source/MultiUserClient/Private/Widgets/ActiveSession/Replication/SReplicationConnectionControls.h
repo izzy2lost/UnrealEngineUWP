@@ -11,6 +11,8 @@ class UJoinReplicationSessionArgs;
 
 namespace UE::MultiUserClient
 {
+	class FMultiUserReplicationManager;
+
 	class SReplicationConnectionControls : public SCompoundWidget
 	{
 	public:
@@ -19,9 +21,12 @@ namespace UE::MultiUserClient
 		{}
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs);
+		void Construct(const FArguments& InArgs, TSharedRef<FMultiUserReplicationManager> InReplicationManager);
 
 	private:
+
+		/** Handles replication requests for Multi-User. */
+		TSharedPtr<FMultiUserReplicationManager> ReplicationManager;
 
 		UMultiUserReplicationClientProfileAsset* GetClientProfile() const;
 

@@ -4,11 +4,15 @@
 
 #include "ConcertLogGlobal.h"
 #include "IConcertSession.h"
-#include "Algo/Accumulate.h"
 #include "Replication/Processing/IReplicationDataSource.h"
+
+#include "Algo/Accumulate.h"
+#include "HAL/IConsoleManager.h"
 
 namespace UE::ConcertSyncCore
 {
+	static TAutoConsoleVariable<bool> CVarLogSentObjects(TEXT("Concert.Replication.LogSentObjects"), false, TEXT("Enable Concert logging for sent replicated objects."));
+	
 	FObjectReplicationSender::FObjectReplicationSender(
 		const FGuid& TargetEndpointId,
 		TSharedRef<IConcertSession> Session,
@@ -26,7 +30,7 @@ namespace UE::ConcertSyncCore
 		if (!EventToSend.Streams.IsEmpty())
 		{
 			const int32 NumObjects = Algo::TransformAccumulate(EventToSend.Streams, [](const FConcertStreamReplicationEvent& Event){ return Event.ReplicatedObjects.Num(); }, 0);
-			UE_LOG(LogConcert, Verbose, TEXT("Sending %d streams with %d objects to %s"),
+			UE_CLOG(CVarLogSentObjects.GetValueOnGameThread(), LogConcert, Log, TEXT("Sending %d streams with %d objects to %s"),
 				EventToSend.Streams.Num(),
 				NumObjects,
 				*TargetEndpointId.ToString()

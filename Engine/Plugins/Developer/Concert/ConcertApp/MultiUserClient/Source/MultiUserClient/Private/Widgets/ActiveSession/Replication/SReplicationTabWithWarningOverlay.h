@@ -9,6 +9,8 @@ class SOverlay;
 
 namespace UE::MultiUserClient
 {
+	class FMultiUserReplicationManager;
+
 	/** Wraps SReplicationControlsTab with an overlay warning the user that this feature is still experimental */
 	class SReplicationTabWithWarningOverlay : public SCompoundWidget
 	{
@@ -18,7 +20,7 @@ namespace UE::MultiUserClient
 		{}
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs);
+		void Construct(const FArguments& InArgs, TSharedRef<FMultiUserReplicationManager> InReplicationManager);
 		
 	private:
 

@@ -27,7 +27,7 @@ public:
 
 	/** The streams this client will send to the server. It takes authority over the listed properties. */
 	UPROPERTY(EditAnywhere, Category = "Replication")
-	TArray<TObjectPtr<UMultiUserReplicationStreamAsset>> Streams;
+	TSet<TObjectPtr<UMultiUserReplicationStreamAsset>> Streams;
 
 	/** Converts this asset's data to the args expected by IConcertClientReplicationManager for joining. */
 	UE::ConcertSyncClient::Replication::FJoinReplicatedSessionArgs ToJoinArgs() const;

@@ -2,19 +2,20 @@
 
 #include "IMultiUserClientModule.h"
 
-#include "IConcertSyncClientModule.h"
-#include "IConcertModule.h"
-#include "IConcertClient.h"
 #include "ConcertClientSettings.h"
-#include "IConcertSession.h"
-#include "IConcertSyncClient.h"
 #include "ConcertLogGlobal.h"
 #include "ConcertFrontendStyle.h"
 #include "ConcertSyncSettings.h"
 #include "ConcertWorkspaceData.h"
 #include "ConcertWorkspaceUI.h"
 #include "ConcertUtil.h"
+#include "IConcertClient.h"
+#include "IConcertModule.h"
+#include "IConcertSession.h"
+#include "IConcertSyncClient.h"
+#include "IConcertSyncClientModule.h"
 #include "MultiUserClientUtils.h"
+#include "Replication/MultiUserReplicationManager.h"
 
 #include "Misc/App.h"
 #include "Misc/AsyncTaskNotification.h"
@@ -621,6 +622,7 @@ public:
 
 		// Boot the client instance
 		MultiUserClient->Startup(ClientConfig, EConcertSyncSessionFlags::Default_MultiUserSession);
+		ReplicationManager = MakeShared<UE::MultiUserClient::FMultiUserReplicationManager>(MultiUserClient.ToSharedRef());
 
 		// Hook UI elements in the tool bar (and setup commands).
 		RegisterUI();
@@ -1043,7 +1045,7 @@ private:
 	{
 		const TSharedRef<SDockTab> DockTab = SNew(SDockTab)
 			.TabRole(NomadTab);
-		DockTab->SetContent(SNew(SConcertBrowser, DockTab, MultiUserClient));
+		DockTab->SetContent(SNew(SConcertBrowser, DockTab, MultiUserClient.ToSharedRef(), ReplicationManager.ToSharedRef()));
 		return DockTab;
 	}
 
@@ -1386,6 +1388,8 @@ private:
 	}
 
 	TSharedPtr<IConcertSyncClient> MultiUserClient;
+	/** Interacts with the replication system on behalf of Multi-User. */
+	TSharedPtr<UE::MultiUserClient::FMultiUserReplicationManager> ReplicationManager;
 
 	/** True if the tab spawners have been registered for this module */
 	bool bHasRegisteredTabSpawners = false;

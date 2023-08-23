@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ReplicationManagerState.h"
+#include "ReplicationManagerUtils.h"
 #include "Replication/Processing/ClientReplicationDataCollector.h"
 
 class IConcertClientSession;
@@ -25,6 +26,8 @@ namespace UE::ConcertSyncClient::Replication
 		virtual void LeaveReplicationSession() override;
 		virtual bool CanJoin() override { return true; }
 		virtual bool IsConnectedToReplicationSession() override { return false; }
+		virtual EStreamEnumerationResult ForEachRegisteredStream(TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) const override { return EStreamEnumerationResult::NoRegisteredStreams; }
+		virtual TFuture<FAuthorityChangeResponse> RequestAuthorityChange(FAuthorityChangeRequest Args) override { return RejectAll(MoveTemp(Args)); }
 		//~ End IConcertClientReplicationManager Interface
 
 	private:

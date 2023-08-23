@@ -16,46 +16,108 @@
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
+#include "UObject/Class.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Package.h"
 
-namespace UE::ConcertSyncTests::Replication
+namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 {
-	/**
-	 * Tests replicating data from sender client > server > receiver client.
-	 */
-	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FSendReceiveFlowTests, FSendReceiveObjectTestBase, "Concert.Replication.SendReceiveFlow", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
-	bool FSendReceiveFlowTests::RunTest(const FString& Parameters)
+	static bool SharedRunTest(FSendReceiveObjectTestBase& Test)
 	{
 		// 1. Init
-		SetUpClientAndServer();
+		Test.SetUpClientAndServer();
+		
+		Test.ClientReplicationManager_Sender->TakeAuthorityOver({ Test.TestObject })
+			.Next([&Test](ConcertSyncClient::Replication::FAuthorityChangeResponse&& Response)
+			{
+				if (!Response.RejectedObjects.IsEmpty())
+				{
+					Test.AddError(TEXT("Failed to take authority"));
+				}
+			});
 		
 		// 2. Send data
 		bool bHasServerReceivedData = false;
 		bool bHasClientReceivedData = false;
-		auto OnServerReceive = [this, &bHasServerReceivedData](const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event) mutable
+		auto OnServerReceive = [&Test, &bHasServerReceivedData](const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event) mutable
 		{
 			if (bHasServerReceivedData)
 			{
-				AddError(TEXT("Server was expected to receive data exactly once!"));
+				Test.AddError(TEXT("Server was expected to receive data exactly once!"));
 			}
 			bHasServerReceivedData = true;
 		};
-		auto OnClientReceive = [this, &bHasClientReceivedData](const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event) mutable
+		auto OnClientReceive = [&Test, &bHasClientReceivedData](const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event) mutable
 		{
 			if (bHasClientReceivedData)
 			{
-				AddError(TEXT("Client 2 was expected to receive data exactly once!"));
+				Test.AddError(TEXT("Client 2 was expected to receive data exactly once!"));
 			}
 			bHasClientReceivedData = true;
 		};
-		SimulateSenderToReceiver(OnServerReceive, OnClientReceive);
+		Test.SimulateSendObjectToReceiver(OnServerReceive, OnClientReceive);
 
 		// 3. Test
-		TestTrue(TEXT("Server received replication event"), bHasServerReceivedData);
-		TestTrue(TEXT("Client 2 received replication event"), bHasClientReceivedData);
-		TestEqualTestValues(*TestObject, *this);
+		Test.TestTrue(TEXT("Server received replication event"), bHasServerReceivedData);
+		Test.TestTrue(TEXT("Client 2 received replication event"), bHasClientReceivedData);
+		Test.TestEqualTestValues(*Test.TestObject, Test);
 		
 		return true;
+	}
+	
+	/**
+	 * Tests replicating data from sender client > server > receiver client.
+	 */
+	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FSendReceiveFlowTests, FSendReceiveObjectTestBase, "Concert.Replication.SendReceive.SingleStream", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+	bool FSendReceiveFlowTests::RunTest(const FString& Parameters)
+	{
+		return SharedRunTest(*this);
+	}
+
+	/** Test which still sends TestObject but does so with two separate streams: one for the float and the other for the vector property. */
+	class FSplitSendReceiveObjectTest : public FSendReceiveObjectTestBase
+	{
+	public:
+		FSplitSendReceiveObjectTest(const FString& InName, const bool bInComplexTask)
+        	: FSendReceiveObjectTestBase(InName, bInComplexTask)
+        {}
+
+	protected:
+
+		FGuid FloatStreamId = FGuid::NewGuid();
+		FGuid VectorStreamId = FGuid::NewGuid();
+		
+		//~ Begin FSendReceiveTestBase Interface
+		virtual ConcertSyncClient::Replication::FJoinReplicatedSessionArgs CreateSenderArgs() override
+		{
+			ConcertSyncClient::Replication::FJoinReplicatedSessionArgs SenderJoinArgs;
+			const UClass& TestClass = *TestObject->GetClass();
+			
+			FReplicatedObjectInfo FloatProperties { &TestClass };
+			FloatProperties.PropertySelection.ReplicatedProperties.Add(*FConcertPropertyChain::CreateFromPath(TestClass, { GET_MEMBER_NAME_CHECKED(UTestReflectionObject, Float) }));
+			FReplicatedObjectInfo VectorProperties { &TestClass };
+			VectorProperties.PropertySelection.ReplicatedProperties.Add(*FConcertPropertyChain::CreateFromPath(TestClass, { GET_MEMBER_NAME_CHECKED(UTestReflectionObject, Vector) }));
+
+			FReplicationStreamDescription FloatStream;
+			FloatStream.BaseDescription.Identifier = FloatStreamId;
+			FloatStream.BaseDescription.ReplicationMap.ReplicatedObjects.Add(TestObject, FloatProperties);
+			FReplicationStreamDescription VectorStream;
+			VectorStream.BaseDescription.Identifier = VectorStreamId;
+			VectorStream.BaseDescription.ReplicationMap.ReplicatedObjects.Add(TestObject, VectorProperties);
+			
+			SenderJoinArgs.Streams.Add(FloatStream);
+			SenderJoinArgs.Streams.Add(VectorStream);
+			return SenderJoinArgs;
+		}
+
+		virtual TSet<FGuid> GetSenderStreamIds() const override { return { FloatStreamId, VectorStreamId }; }
+		//~ End FSendReceiveTestBase Interface
+	};
+
+	/** Test which still sends TestObject but does so with two separate streams: one for the float and the other for the vector property. */
+	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FSendReceiveMultiStreamSameObjectTests, FSplitSendReceiveObjectTest, "Concert.Replication.SendReceive.MultipleStreamsForSameObject", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+	bool FSendReceiveMultiStreamSameObjectTests::RunTest(const FString& Parameters)
+	{
+		return SharedRunTest(*this);
 	}
 }

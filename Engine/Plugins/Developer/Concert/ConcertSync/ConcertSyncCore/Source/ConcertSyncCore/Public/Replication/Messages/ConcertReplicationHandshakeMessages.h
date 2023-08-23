@@ -23,28 +23,24 @@ enum class EJoinReplicationErrorCode : uint8
 
 	// Server error codes:
 
-	/** Rare case in which client is no longer in a session but has requested to join a replication session. */
-	NotInAnyConcertSession = 4,
-	
-	/** One of the specified classes was null or otherwise invalid */
-	InvalidClass = 5,
-	
-	/** An object selection contained a property twice. */
-	DuplicateProperty = 6,
-	
+	// Session:
 	/**
-	 * Client has already joined a replication session. Send FConcertLeaveReplicationSessionEvent first.
+	 * Client is not in any session but has requested to join a replication session.
+	 * This case should never happen under normal conditions e.g. when using Multi User Browser, but malicious users could make invalid requests.
 	 */
-	AlreadyInSession = 7,
+	NotInAnyConcertSession = 4,
+	/** Client has already joined a replication session. Send FConcertLeaveReplicationSessionEvent first. */
+	AlreadyInSession = 5,
 
-	/** You or another client already is using the same stream id. */
-	ConflictingStreamId = 8,
-	
-	/** You or another client already has authority over some of the data. */
-	ConflictingAuthority = 9,
-
+	// Invalid input:
+	/** One of the specified classes was null or otherwise invalid */
+	InvalidClass = 6,
+	/** An object selection contained a property twice. */
+	DuplicateProperty = 7,
+	/** Your input contained the same stream id twice. */
+	DuplicateStreamId = 8,
 	/** Failed to unpack the stream, likely because one of the attribute classes could not be resolved. */
-	FailedToUnpackStream = 10,
+	FailedToUnpackStream = 9,
 	
 	MaxPlusOne,
 	/** The maximum possible entry value */

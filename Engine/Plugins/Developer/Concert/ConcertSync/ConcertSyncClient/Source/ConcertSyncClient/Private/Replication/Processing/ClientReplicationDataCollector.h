@@ -36,7 +36,7 @@ namespace UE::ConcertSyncClient::Replication
 		FClientReplicationDataCollector(
 			IConcertClientReplicationBridge* ReplicationBridge,
 			TSharedRef<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat,
-			TArrayView<FReplicationStreamDescription> StreamsToSend
+			TArrayView<const FReplicationStreamDescription> StreamsToSend
 			);
 		virtual ~FClientReplicationDataCollector() override;
 

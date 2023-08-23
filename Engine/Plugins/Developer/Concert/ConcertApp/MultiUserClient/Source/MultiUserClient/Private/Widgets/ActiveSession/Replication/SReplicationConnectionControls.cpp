@@ -2,12 +2,9 @@
 
 #include "SReplicationConnectionControls.h"
 
-#include "IConcertSyncClient.h"
-#include "IConcertSyncClientModule.h"
 #include "Customization/ShowJoinSettingsCustomization.h"
-#include "Replication/IConcertClientReplicationManager.h"
+#include "Replication/MultiUserReplicationManager.h"
 #include "Settings/MultiUserReplicationSettings.h"
-#include "Util/ReplicationUtils.h"
 
 #include "IDetailsView.h"
 #include "Modules/ModuleManager.h"
@@ -29,8 +26,10 @@
 
 namespace UE::MultiUserClient
 {
-	void SReplicationConnectionControls::Construct(const FArguments& InArgs)
+	void SReplicationConnectionControls::Construct(const FArguments& InArgs, TSharedRef<FMultiUserReplicationManager> InReplicationManager)
 	{
+		ReplicationManager = InReplicationManager;
+		
 		TSharedPtr<SVerticalBox> Content;
 		ChildSlot
 		[
@@ -123,17 +122,8 @@ namespace UE::MultiUserClient
 
 	FReply SReplicationConnectionControls::OnJoinButtonClicked()
 	{
-		TSharedPtr<IConcertSyncClient> Client = IConcertSyncClientModule::Get().GetClient(TEXT("MultiUser"));
-		IConcertClientReplicationManager* ReplicationManager = Client ? Client->GetReplicationManager() : nullptr;
-		if (!ensure(ReplicationManager))
-		{
-			return FReply::Handled();
-		}
-
-		UMultiUserReplicationClientProfileAsset* ClientProfile = GetClientProfile();
-		checkf(ClientProfile, TEXT("Validate IsJoinButtonEnabled implementation!"));
 		// All the UI callbacks for visibility, etc. will update automatically since they do polling.
-		ReplicationUtils::JoinSessionWithEditorNotifications(*ReplicationManager, ClientProfile->ToJoinArgs());
+		ReplicationManager->JoinReplicationSession(*GetClientProfile());
 		return FReply::Handled();
 	}
 
@@ -153,9 +143,7 @@ namespace UE::MultiUserClient
 			return false;
 		}
 		
-		TSharedPtr<IConcertSyncClient> Client = IConcertSyncClientModule::Get().GetClient(TEXT("MultiUser"));
-		IConcertClientReplicationManager* ReplicationManager = Client ? Client->GetReplicationManager() : nullptr;
-		const bool bCanMakeJoinRequest = ReplicationManager && ReplicationManager->CanJoin();
+		const bool bCanMakeJoinRequest = ReplicationManager->CanJoin();
 		if (!bCanMakeJoinRequest && ErrorReason)
 		{
 			*ErrorReason = LOCTEXT("IsJoinButtonEnabled.Error.JoinRequestInProgress", "A join request is in progress.");
@@ -167,20 +155,13 @@ namespace UE::MultiUserClient
 
 	EVisibility SReplicationConnectionControls::GetJoinButtonVisibility() const
 	{
-		TSharedPtr<IConcertSyncClient> Client = IConcertSyncClientModule::Get().GetClient(TEXT("MultiUser"));
-		IConcertClientReplicationManager* ReplicationManager = Client ? Client->GetReplicationManager() : nullptr;
-		const bool bShouldBeVisible = !ReplicationManager || !ReplicationManager->IsConnectedToReplicationSession();
+		const bool bShouldBeVisible = !ReplicationManager->IsConnectedToReplicationSession();
 		return bShouldBeVisible ? EVisibility::Visible : EVisibility::Collapsed;
 	}
 
 	FReply SReplicationConnectionControls::OnLeaveButtonClicked()
 	{
-		TSharedPtr<IConcertSyncClient> Client = IConcertSyncClientModule::Get().GetClient(TEXT("MultiUser"));
-		IConcertClientReplicationManager* ReplicationManager = Client ? Client->GetReplicationManager() : nullptr;
-		if (ensure(ReplicationManager))
-		{
-			ReplicationUtils::LeaveSessionWithEditorNotifications(*ReplicationManager);
-		}
+		ReplicationManager->LeaveSession();
 		return FReply::Handled();
 	}
 }

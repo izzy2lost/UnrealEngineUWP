@@ -23,7 +23,8 @@ namespace UE::MultiUserClient
 	void SActiveSessionRoot::Construct(
 		const FArguments& InArgs,
 		const TSharedRef<SDockTab>& ConstructUnderMajorTab,
-		TSharedPtr<IConcertSyncClient> InConcertSyncClient
+		TSharedPtr<IConcertSyncClient> InConcertSyncClient,
+		TSharedRef<FMultiUserReplicationManager> InReplicationManager
 		)
 	{
 		ConcertSyncClient = InConcertSyncClient;
@@ -31,7 +32,7 @@ namespace UE::MultiUserClient
 		TabManager = FGlobalTabmanager::Get()->NewTabManager(ConstructUnderMajorTab);
 		TSharedRef<FWorkspaceItem> AppMenuGroup = TabManager->AddLocalWorkspaceMenuCategory(LOCTEXT("ConcertActiveSession", "Active Session"));
 		TabManager->SetAllowWindowMenuBar(true);
-		RegisterTabSpawners(TabManager.ToSharedRef(), AppMenuGroup);
+		RegisterTabSpawners(TabManager.ToSharedRef(), AppMenuGroup, InReplicationManager);
 
 		// Create our content
 		const TSharedRef<FTabManager::FLayout> Layout =
@@ -76,13 +77,17 @@ namespace UE::MultiUserClient
 		];
 	}
 
-	void SActiveSessionRoot::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager, const TSharedRef<FWorkspaceItem>& AppMenuGroup)
+	void SActiveSessionRoot::RegisterTabSpawners(
+		const TSharedRef<FTabManager>& InTabManager,
+		const TSharedRef<FWorkspaceItem>& AppMenuGroup,
+		TSharedRef<FMultiUserReplicationManager> InReplicationManager
+		)
 	{
 		InTabManager->RegisterTabSpawner(OverviewTabId, FOnSpawnTab::CreateSP(this, &SActiveSessionRoot::SpawnTab_Overview))
 			.SetDisplayName(LOCTEXT("OverviewTab.DisplayName", "Overview"))
 			.SetGroup(AppMenuGroup);
 	
-		InTabManager->RegisterTabSpawner(ReplicationTabId, FOnSpawnTab::CreateSP(this, &SActiveSessionRoot::SpawnTab_ReplicationControls))
+		InTabManager->RegisterTabSpawner(ReplicationTabId, FOnSpawnTab::CreateSP(this, &SActiveSessionRoot::SpawnTab_ReplicationControls, InReplicationManager))
 			.SetDisplayName(LOCTEXT("ReplicationTab.DisplayName", "Replication"))
 			.SetGroup(AppMenuGroup);
 	}
@@ -100,13 +105,13 @@ namespace UE::MultiUserClient
 			];
 	}
 
-	TSharedRef<SDockTab> SActiveSessionRoot::SpawnTab_ReplicationControls(const FSpawnTabArgs& Args)
+	TSharedRef<SDockTab> SActiveSessionRoot::SpawnTab_ReplicationControls(const FSpawnTabArgs& Args, TSharedRef<FMultiUserReplicationManager> InReplicationManager)
 	{
 		return SNew(SDockTab)
 			.Label(LOCTEXT("ReplicationTab.Label", "Replication"))
 			.ToolTipText(LOCTEXT("ReplicationTab.Tooltip", "Manage real-time object replication"))
 			[
-				SNew(SReplicationTabWithWarningOverlay)
+				SNew(SReplicationTabWithWarningOverlay, InReplicationManager)
 			];
 	}
 }

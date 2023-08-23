@@ -16,12 +16,12 @@
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
 
-namespace UE::ConcertSyncTests::Replication
+namespace UE::ConcertSyncTests::Replication::Handshake
 {
 	/**
 	 * Tests the handshake for joining and leaving a replication session.
 	 */
-	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FJoinHandshakeTest, FConcertClientServerCommunicationTest, "Concert.Replication.JoinHandshake", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FJoinHandshakeTest, FConcertClientServerCommunicationTest, "Concert.Replication.Handshake", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
 	bool FJoinHandshakeTest::RunTest(const FString& Parameters)
 	{
 		using namespace ConcertSyncClient::TestInterface;
@@ -43,7 +43,7 @@ namespace UE::ConcertSyncTests::Replication
 		FClientInfo& Client = ConnectClient();
 		const TSharedRef<IConcertClientReplicationBridge> BridgeMock = MakeShared<FConcertClientReplicationBridgeMock>();
 		const TSharedPtr<IConcertClientSession>& ClientSession = Client.ClientSessionMock;
-		const TSharedRef<IConcertClientReplicationManager> ClientReplicationManager = CreateClientReplicationManager(ClientSession.ToSharedRef(), &BridgeMock.Get());
+		const TSharedRef<IConcertClientReplicationManager> ClientReplicationManager_Primary = CreateClientReplicationManager(ClientSession.ToSharedRef(), &BridgeMock.Get());
 		FClientInfo& Client_Secondary = ConnectClient();
 		const TSharedRef<IConcertClientReplicationBridge> BridgeMock_Secondary = MakeShared<FConcertClientReplicationBridgeMock>();
 		const TSharedPtr<IConcertClientSession>& ClientSession_Secondary = Client_Secondary.ClientSessionMock;
@@ -69,68 +69,62 @@ namespace UE::ConcertSyncTests::Replication
 		// 2. Run
 
 		// 2.1 Invalid configurations
+		// These should cases never happen if using the editor tools.
+		// However malicious users or those with custom C++ logic can send whatever they want.
+		
 		// 2.1.1 Duplicate properties
 		FReplicationStreamDescription Invalid_DoublePropertyDescription = StreamDescription;
 		Invalid_DoublePropertyDescription.BaseDescription.ReplicationMap.ReplicatedObjects[PathToSomeActorComponent].PropertySelection.ReplicatedProperties.Add(ForcedLodModelProperty);
-		ClientReplicationManager->JoinReplicationSession({ ClientDescription, { Invalid_DoublePropertyDescription } })
+		ClientReplicationManager_Primary->JoinReplicationSession({ ClientDescription, { Invalid_DoublePropertyDescription } })
 			.Next([&](const FJoinReplicatedSessionResult& Result)
 			{
 				TestTrue(TEXT("Cannot contain same properties twice"), Result.ErrorCode == EJoinReplicationErrorCode::DuplicateProperty);
 			});
 		// 2.1.2 Duplicate stream identifier
-		ClientReplicationManager->JoinReplicationSession({ ClientDescription, { StreamDescription, StreamDescription } })
+		ClientReplicationManager_Primary->JoinReplicationSession({ ClientDescription, { StreamDescription, StreamDescription } })
 			.Next([&](const FJoinReplicatedSessionResult& Result)
 			{
-				TestTrue(TEXT("Cannot contain stream ID twice"), Result.ErrorCode == EJoinReplicationErrorCode::ConflictingStreamId);
+				TestTrue(TEXT("Cannot contain stream ID twice"), Result.ErrorCode == EJoinReplicationErrorCode::DuplicateStreamId);
 			});
-		// 2.1.3 Miss class path
-		ClientReplicationManager->JoinReplicationSession({ ClientDescription, { InvalidClassStreamDescription } })
+		// 2.1.3 Missing class path
+		ClientReplicationManager_Primary->JoinReplicationSession({ ClientDescription, { InvalidClassStreamDescription } })
 			.Next([&](const FJoinReplicatedSessionResult& Result)
 			{
 				TestTrue(TEXT("Cannot contain null classes"), Result.ErrorCode == EJoinReplicationErrorCode::InvalidClass);
 			});
 
-		// 2.2 Valid join
-		ClientReplicationManager->JoinReplicationSession({ ClientDescription, { StreamDescription } })
+
+		// 2.2 Real workflow cases
+		// 2.2.1 Valid join
+		ClientReplicationManager_Primary->JoinReplicationSession({ ClientDescription, { StreamDescription } })
 			.Next([&](const FJoinReplicatedSessionResult& Result)
 			{
 				TestTrue(TEXT("Join with valid args"), Result.ErrorCode == EJoinReplicationErrorCode::Success);
 			});
-		// 2.3 No joining twice
+		// 2.2.2 No joining twice
 		AddExpectedError(TEXT("JoinReplicationSession requested while already in a session"), EAutomationExpectedErrorFlags::Contains); // Not pretty, but otherwise this test fails due to logged warning
-		ClientReplicationManager->JoinReplicationSession({ ClientDescription, { StreamDescription } })
+		ClientReplicationManager_Primary->JoinReplicationSession({ ClientDescription, { StreamDescription } })
 			.Next([&](const FJoinReplicatedSessionResult& Result)
 			{
 				TestTrue(TEXT("Cannot join twice"), Result.ErrorCode == EJoinReplicationErrorCode::AlreadyInSession);
 			});
-		// 2.4 Rejoining
-		ClientReplicationManager->LeaveReplicationSession();
-		ClientReplicationManager->JoinReplicationSession({ ClientDescription, { StreamDescription } })
+		// 2.2.3 Rejoining
+		ClientReplicationManager_Primary->LeaveReplicationSession();
+		ClientReplicationManager_Primary->JoinReplicationSession({ ClientDescription, { StreamDescription } })
 			.Next([&](const FJoinReplicatedSessionResult& Result)
 			{
 				TestTrue(TEXT("Re-join session"), Result.ErrorCode == EJoinReplicationErrorCode::Success);
 			});
-
 		
-		// 2.5 Second client is not allowed replicate the same properties as the first client
+		// 2.2.4 Two clients may join with the same stream identifier and properties. 
+		// For context: UX-wise it should be as easy as possible for clients to join.
+		// This is why we allow clients to join with overlapping properties and stream IDs, which used to be rejected by the handshake.
+		// Now, they must take authority over objects before sending. See authority tests.
 		FReplicationStreamDescription DuplicateProperties = StreamDescription;
-		DuplicateProperties.BaseDescription.Identifier = FGuid::NewGuid();
-		ClientReplicationManager_Secondary->JoinReplicationSession({ ClientDescription, { DuplicateProperties } })
+		ClientReplicationManager_Secondary->JoinReplicationSession({ ClientDescription, { StreamDescription } })
 			.Next([&](const FJoinReplicatedSessionResult& Result)
 			{
-				TestTrue(TEXT("Clients cannot overlap properties"), Result.ErrorCode == EJoinReplicationErrorCode::ConflictingAuthority);
-			});
-		// 2.6 Second client is allowed to replicate different properties on the same object
-		FReplicationStreamDescription NonOverlappingProperties;
-		NonOverlappingProperties.BaseDescription.Identifier = FGuid::NewGuid();
-		FReplicatedObjectInfo StaticMeshComponentInfo_Secondary;
-		StaticMeshComponentInfo_Secondary.ClassPath = UStaticMeshComponent::StaticClass();
-		StaticMeshComponentInfo_Secondary.PropertySelection.ReplicatedProperties.Add(MinLODProperty);
-		NonOverlappingProperties.BaseDescription.ReplicationMap.ReplicatedObjects.Add(PathToSomeActorComponent, StaticMeshComponentInfo_Secondary);
-		ClientReplicationManager_Secondary->JoinReplicationSession({ ClientDescription, { NonOverlappingProperties } })
-			.Next([&](const FJoinReplicatedSessionResult& Result)
-			{
-				TestTrue(TEXT("Two clients can replicate differing properties on the same object"), Result.ErrorCode == EJoinReplicationErrorCode::Success);
+				TestTrue(TEXT("2nd client can overlap stream identifier and properties of 1st client"), Result.ErrorCode == EJoinReplicationErrorCode::Success);
 			});
 		
 		return true;

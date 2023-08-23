@@ -14,6 +14,8 @@ class SWindow;
 
 namespace UE::MultiUserClient
 {
+	class FMultiUserReplicationManager;
+	
 	/**
 	 * Displayed when the client is connected to an active session.
 	 * Manages the child content in tabs.
@@ -29,7 +31,7 @@ namespace UE::MultiUserClient
 		{}
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, const TSharedRef<SDockTab>& ConstructUnderMajorTab, TSharedPtr<IConcertSyncClient> InConcertSyncClient);
+		void Construct(const FArguments& InArgs, const TSharedRef<SDockTab>& ConstructUnderMajorTab, TSharedPtr<IConcertSyncClient> InConcertSyncClient, TSharedRef<FMultiUserReplicationManager> InReplicationManager);
 
 	private:
 
@@ -37,9 +39,9 @@ namespace UE::MultiUserClient
 		/** Holds the child content: SActiveSessionOverviewTab and SReplicationControlsTab. */
 		TSharedPtr<FTabManager> TabManager;
 		
-		void RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager, const TSharedRef<FWorkspaceItem>& AppMenuGroup);
+		void RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager, const TSharedRef<FWorkspaceItem>& AppMenuGroup, TSharedRef<FMultiUserReplicationManager> InReplicationManager);
 		TSharedRef<SDockTab> SpawnTab_Overview(const FSpawnTabArgs& Args);
-		TSharedRef<SDockTab> SpawnTab_ReplicationControls(const FSpawnTabArgs& Args);
+		TSharedRef<SDockTab> SpawnTab_ReplicationControls(const FSpawnTabArgs& Args, TSharedRef<FMultiUserReplicationManager> InReplicationManager);
 	};
 }
 

@@ -27,8 +27,10 @@ namespace UE::ConcertSyncTests::Replication
 	public:
 	
 		FSendReceiveTestBase(const FString& InName, const bool bInComplexTask);
-
-	protected:
+		
+		static ConcertSyncClient::Replication::FJoinReplicatedSessionArgs CreateHandshakeArgsFrom(const UObject& Object, const FGuid& SenderStreamId = FGuid::NewGuid());
+		
+		using FReceiveReplicationEventSignature = void(const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event);
 		
 		float FakeDeltaTime = 1.f / 60.f;
 		
@@ -47,7 +49,10 @@ namespace UE::ConcertSyncTests::Replication
 		virtual ConcertSyncClient::Replication::FJoinReplicatedSessionArgs CreateReceiverArgs() = 0;
 
 		virtual void SetUpClientAndServer();
-		void SimulateSenderToReceiver();
+		virtual void SimulateSenderToReceiver(
+			TFunctionRef<FReceiveReplicationEventSignature> OnServerReceive = [](auto&, auto&){},
+			TFunctionRef<FReceiveReplicationEventSignature> OnReceiverClientReceive = [](auto&, auto&){}
+			);
 		
 		void TickClient(FClientInfo* Client);
 		void TickServer();

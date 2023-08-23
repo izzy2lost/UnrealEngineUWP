@@ -10,6 +10,8 @@ class SExpandableArea;
 
 namespace UE::MultiUserClient
 {
+	class FMultiUserReplicationManager;
+
 	class SReplicationControlsTab : public SCompoundWidget
 	{
 	public:
@@ -18,7 +20,7 @@ namespace UE::MultiUserClient
 		{}
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs);
+		void Construct(const FArguments& InArgs, TSharedRef<FMultiUserReplicationManager> InReplicationManager);
 
 	private:
 

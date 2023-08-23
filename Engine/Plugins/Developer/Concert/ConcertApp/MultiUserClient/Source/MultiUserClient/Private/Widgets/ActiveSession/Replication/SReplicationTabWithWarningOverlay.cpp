@@ -14,7 +14,7 @@
 
 namespace UE::MultiUserClient
 {
-	void SReplicationTabWithWarningOverlay::Construct(const FArguments& InArgs)
+	void SReplicationTabWithWarningOverlay::Construct(const FArguments& InArgs, TSharedRef<FMultiUserReplicationManager> InReplicationManager)
 	{
 		ChildSlot
 		[
@@ -23,7 +23,7 @@ namespace UE::MultiUserClient
 			// The real content
 			+SOverlay::Slot()
 			[
-				SNew(SReplicationControlsTab)
+				SNew(SReplicationControlsTab, InReplicationManager)
 			]
 
 			//  

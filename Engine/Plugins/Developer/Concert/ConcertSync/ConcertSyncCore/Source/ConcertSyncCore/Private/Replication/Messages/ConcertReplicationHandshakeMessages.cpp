@@ -6,7 +6,7 @@ namespace UE::ConcertSyncCore::Replication
 {
 	FString LexJoinErrorCode(EJoinReplicationErrorCode ErrorCode)
 	{
-		static_assert(static_cast<int32>(EJoinReplicationErrorCode::Max) == 10, "Update JoinErrorCodeToText when you change entries");
+		static_assert(static_cast<int32>(EJoinReplicationErrorCode::Max) == 9, "Update JoinErrorCodeToText when you change entries");
 
 		switch (ErrorCode)
 		{
@@ -18,8 +18,7 @@ namespace UE::ConcertSyncCore::Replication
 		case EJoinReplicationErrorCode::InvalidClass: return TEXT("InvalidClass");
 		case EJoinReplicationErrorCode::DuplicateProperty: return TEXT("DuplicateProperty");
 		case EJoinReplicationErrorCode::AlreadyInSession: return TEXT("AlreadyInSession");
-		case EJoinReplicationErrorCode::ConflictingStreamId: return TEXT("ConflictingStreamId");
-		case EJoinReplicationErrorCode::ConflictingAuthority: return TEXT("ConflictingAuthority");
+		case EJoinReplicationErrorCode::DuplicateStreamId: return TEXT("DuplicateStreamId");
 		case EJoinReplicationErrorCode::FailedToUnpackStream: return TEXT("FailedToUnpackStream");
 		default: 
 			return FString();

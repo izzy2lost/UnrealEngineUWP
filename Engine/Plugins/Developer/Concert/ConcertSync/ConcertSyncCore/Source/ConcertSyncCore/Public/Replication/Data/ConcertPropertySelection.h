@@ -32,7 +32,7 @@ struct CONCERTSYNCCORE_API FConcertPropertyChain
 	static const FName InternalContainerPropertyValueName;
 
 	/** Constructs a FConcertPropertyChain from a path if it is valid. If you need to create many paths in one go, use PropertyUtils::BulkConstructConcertChainsFromPaths instead. */
-	static TOptional<FConcertPropertyChain> CreateFromPath(UStruct& Class, const TArray<FName>& NamePath);
+	static TOptional<FConcertPropertyChain> CreateFromPath(const UStruct& Class, const TArray<FName>& NamePath);
 
 	FConcertPropertyChain() = default;
 	/**
@@ -42,8 +42,10 @@ struct CONCERTSYNCCORE_API FConcertPropertyChain
 	FConcertPropertyChain(const FArchiveSerializedPropertyChain* OptionalChain, const FProperty& LeafProperty);
 	
 	/** Gets the leaf property, which is the property the path leads towards. */
-	FName GetLeafProperty() const { return PathToProperty.IsEmpty() ? NAME_None : PathToProperty[PathToProperty.Num() - 1]; }
+	FName GetLeafProperty() const { return IsEmpty() ? NAME_None : PathToProperty[PathToProperty.Num() - 1]; }
+	FName GetRootProperty() const { return IsEmpty() ? NAME_None : PathToProperty[0]; }
 	bool IsRootProperty() const { return PathToProperty.Num() == 1; }
+	bool IsEmpty() const { return PathToProperty.IsEmpty(); }
 
 	/** @return Whether this is a parent of ChildToCheck */
 	bool IsParentOf(const FConcertPropertyChain& ChildToCheck) const { return ChildToCheck.IsChildOf(*this); }
@@ -178,6 +180,9 @@ struct CONCERTSYNCCORE_API FConcertPropertySelection
 	 */
 	UPROPERTY()
 	TArray<FConcertPropertyChain> ReplicatedProperties;
+
+	/** @return Whether this and Other contain at least one property that is the same. This algorithm is strictly O(n^2) but runs O(n) on average. */
+	bool OverlapsWith(const FConcertPropertySelection& Other) const;
 };
 
 CONCERTSYNCCORE_API uint32 GetTypeHash(const FConcertPropertyChain& Chain);

@@ -23,20 +23,7 @@ namespace UE::ConcertSyncTests::Replication
 {
 	ConcertSyncClient::Replication::FJoinReplicatedSessionArgs FSendReceiveObjectTestBase::CreateSenderArgs()
 	{
-		ConcertSyncClient::Replication::FJoinReplicatedSessionArgs SenderJoinArgs;
-		
-		FReplicatedObjectInfo AllProperties { UTestReflectionObject::StaticClass() };
-		ConcertSyncCore::PropertyChain::ForEachReplicatableConcertProperty(*UTestReflectionObject::StaticClass(), [&AllProperties](FConcertPropertyChain&& Chain)
-		{
-			AllProperties.PropertySelection.ReplicatedProperties.Emplace(MoveTemp(Chain));
-			return EBreakBehavior::Continue;
-		});
-
-		FReplicationStreamDescription SendingStream;
-		SendingStream.BaseDescription.Identifier = SenderStreamId;
-		SendingStream.BaseDescription.ReplicationMap.ReplicatedObjects.Add(TestObject, AllProperties);
-		SenderJoinArgs.Streams.Add(SendingStream);
-		return SenderJoinArgs;
+		return CreateHandshakeArgsFrom(*TestObject, SenderStreamId);
 	}
 
 	ConcertSyncClient::Replication::FJoinReplicatedSessionArgs FSendReceiveObjectTestBase::CreateReceiverArgs()
@@ -58,28 +45,34 @@ namespace UE::ConcertSyncTests::Replication
 		BridgeMock_Receiver->InjectAvailableObject(*TestObject);
 	}
 	
-	void FSendReceiveObjectTestBase::SimulateSenderToReceiver(
+	void FSendReceiveObjectTestBase::SimulateSendObjectToReceiver(
 		TFunctionRef<FReceiveReplicationEventSignature> OnServerReceive,
 		TFunctionRef<FReceiveReplicationEventSignature> OnReceiverClientReceive)
 	{
 		auto TestReplicationData_Server = [this, OnServerReceive](const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event)
 		{
-			TestEqual(TEXT("Server received 1 stream"), Event.Streams.Num(), 1);
-			TestEqual(TEXT("Server received 1 object"), Event.Streams.IsEmpty() ? 0 : Event.Streams[0].ReplicatedObjects.Num() , 1);
-			TestEqual(TEXT("Server received from correct stream"), Event.Streams.IsEmpty() ? FGuid{} : Event.Streams[0].StreamId, SenderStreamId);
-			const FSoftObjectPath ObjectPath = Event.Streams.IsEmpty() || Event.Streams[0].ReplicatedObjects.IsEmpty() ? FSoftObjectPath{} : Event.Streams[0].ReplicatedObjects[0].ReplicatedObject;
-			TestEqual(TEXT("Server's received object has correct path"), ObjectPath, FSoftObjectPath(TestObject));
-
+			const TSet<FGuid> SenderStreamIds = GetSenderStreamIds();
+			TestEqual(TEXT("Server received right number of streams"), Event.Streams.Num(), SenderStreamIds.Num());
+			for (int32 i = 0; i < Event.Streams.Num(); ++i)
+			{
+				TestEqual(TEXT("Server received 1 object"), Event.Streams[i].ReplicatedObjects.Num() , 1);
+				TestTrue(TEXT("Server received from correct stream"), SenderStreamIds.Contains(Event.Streams[i].StreamId));
+				const FSoftObjectPath ObjectPath = Event.Streams[i].ReplicatedObjects.IsEmpty() ? FSoftObjectPath{} : Event.Streams[i].ReplicatedObjects[0].ReplicatedObject;
+				TestEqual(TEXT("Server's received object has correct path"), ObjectPath, FSoftObjectPath(TestObject));
+			}
 			OnServerReceive(Context, Event);
 		};
 		auto TestReplicationData_Client_Receiver = [this, OnReceiverClientReceive](const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event)
 		{
-			TestEqual(TEXT("Client 2 received 1 stream"), Event.Streams.Num(), 1);
-			TestEqual(TEXT("Client 2 received 1 object"), Event.Streams.IsEmpty() ? 0 : Event.Streams[0].ReplicatedObjects.Num() , 1);
-			TestEqual(TEXT("Client 2 received from correct stream"), Event.Streams.IsEmpty() ? FGuid{} : Event.Streams[0].StreamId, SenderStreamId);
-			const FSoftObjectPath ObjectPath = Event.Streams.IsEmpty() || Event.Streams[0].ReplicatedObjects.IsEmpty() ? FSoftObjectPath{} : Event.Streams[0].ReplicatedObjects[0].ReplicatedObject;
-			TestEqual(TEXT("Client 2's received object has correct path"), ObjectPath, FSoftObjectPath(TestObject));
-
+			const TSet<FGuid> SenderStreamIds = GetSenderStreamIds();
+			TestEqual(TEXT("Client 2 received right number of streams"), Event.Streams.Num(), SenderStreamIds.Num());
+			for (int32 i = 0; i < Event.Streams.Num(); ++i)
+			{
+				TestEqual(TEXT("Client 2 received 1 object"), Event.Streams[i].ReplicatedObjects.Num() , 1);
+				TestTrue(TEXT("Client 2 received from correct stream"), SenderStreamIds.Contains(Event.Streams[i].StreamId));
+				const FSoftObjectPath ObjectPath = Event.Streams[i].ReplicatedObjects.IsEmpty() ? FSoftObjectPath{} : Event.Streams[i].ReplicatedObjects[0].ReplicatedObject;
+				TestEqual(TEXT("Client 2's received object has correct path"), ObjectPath, FSoftObjectPath(TestObject));
+			}
 			OnReceiverClientReceive(Context, Event);
 		};
 		const FDelegateHandle ServerHandle = ServerSession->RegisterCustomEventHandler<FConcertBatchReplicationEvent>(TestReplicationData_Server);
@@ -101,6 +94,8 @@ namespace UE::ConcertSyncTests::Replication
 
 		ServerSession->UnregisterCustomEventHandler<FConcertBatchReplicationEvent>(ServerHandle);
 		ServerSession->UnregisterCustomEventHandler<FConcertBatchReplicationEvent>(ClientHandle);
+		
+		// No call to Super because we're completely overriding the behavior.
 	}
 
 	void FSendReceiveObjectTestBase::SetTestValues(UTestReflectionObject& Object)

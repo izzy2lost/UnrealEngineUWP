@@ -13,7 +13,7 @@ namespace UE::ConcertSyncClient::Replication
 	FClientReplicationDataCollector::FClientReplicationDataCollector(
 		IConcertClientReplicationBridge* ReplicationBridge,
 		TSharedRef<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat,
-		TArrayView<FReplicationStreamDescription> StreamDescriptions
+		TArrayView<const FReplicationStreamDescription> StreamDescriptions
 		)
 		: Bridge(ReplicationBridge)
 		, ReplicationFormat(MoveTemp(ReplicationFormat))

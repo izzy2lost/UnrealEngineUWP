@@ -47,33 +47,37 @@ namespace UE::ConcertSyncClient::Replication
 		virtual void LeaveReplicationSession() override;
 		virtual bool CanJoin() override { return false; }
 		virtual bool IsConnectedToReplicationSession() override { return true; }
+		virtual EStreamEnumerationResult ForEachRegisteredStream(TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) const override;
+		virtual TFuture<FAuthorityChangeResponse> RequestAuthorityChange(FAuthorityChangeRequest Args) override;
 		//~ End IConcertClientReplicationManager Interface
 
 	private:
 
 		/** Passed to FReplicationManagerState_Disconnected */
-		TSharedRef<IConcertClientSession> LiveSession;
+		const TSharedRef<IConcertClientSession> LiveSession;
 		/** Passed to FReplicationManagerState_Disconnected */
-		IConcertClientReplicationBridge* ReplicationBridge;
+		IConcertClientReplicationBridge* const ReplicationBridge;
+		/** The streams that were registered during the handshake. */
+		const TArray<FReplicationStreamDescription> RegisteredStreams;
 		
 		/** The format this client will use for sending & receiving data. */
-		TSharedRef<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat;
+		const TSharedRef<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat;
 
 		// Sending
 		/** Used as source of replication data. */
-		TSharedRef<FClientReplicationDataCollector> ReplicationDataSource;
+		const TSharedRef<FClientReplicationDataCollector> ReplicationDataSource;
 		/** Sends data collected by ReplicationDataSource to the server. */
-		TSharedRef<ConcertSyncCore::FObjectReplicationSender> Sender;
+		const TSharedRef<ConcertSyncCore::FObjectReplicationSender> Sender;
 
 		// Receiving
 		/** Stores data received by Receiver until it is consumed by ReceivedReplicationQueuer. */
-		TSharedRef<ConcertSyncCore::FObjectReplicationCache> ReceivedDataCache;
+		const TSharedRef<ConcertSyncCore::FObjectReplicationCache> ReceivedDataCache;
 		/** Receives data from remote endpoints via message bus.  */
-		TSharedRef<ConcertSyncCore::FObjectReplicationReceiver> Receiver;
+		const TSharedRef<ConcertSyncCore::FObjectReplicationReceiver> Receiver;
 		/** Queues data until is can be processed. */
-		TSharedRef<FClientReplicationDataQueuer> ReceivedReplicationQueuer;
+		const TSharedRef<FClientReplicationDataQueuer> ReceivedReplicationQueuer;
 		/** Processes data from ReceivedReplicationQueuer once we tick. */
-		TSharedRef<FObjectReplicationApplierProcessor> ReplicationApplier;
+		const TSharedRef<FObjectReplicationApplierProcessor> ReplicationApplier;
 
 		using FTickTask = void(FReplicationManagerState_Connected::*)(float TimeBudget);
 		/**

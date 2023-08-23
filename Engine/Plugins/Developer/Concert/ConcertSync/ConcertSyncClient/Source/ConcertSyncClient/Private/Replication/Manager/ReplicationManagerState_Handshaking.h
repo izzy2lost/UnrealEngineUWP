@@ -4,6 +4,7 @@
 
 #include "IConcertSessionHandler.h"
 #include "ReplicationManagerState.h"
+#include "ReplicationManagerUtils.h"
 #include "Replication/Messages/ConcertReplicationHandshakeMessages.h"
 #include "Replication/Processing/ClientReplicationDataCollector.h"
 
@@ -30,6 +31,8 @@ namespace UE::ConcertSyncClient::Replication
 		virtual void LeaveReplicationSession() override;
 		virtual bool CanJoin() override { return false; }
 		virtual bool IsConnectedToReplicationSession() override { return false; }
+		virtual EStreamEnumerationResult ForEachRegisteredStream(TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) const override { return EStreamEnumerationResult::NoRegisteredStreams; }
+		virtual TFuture<FAuthorityChangeResponse> RequestAuthorityChange(FAuthorityChangeRequest Args) override { return RejectAll(MoveTemp(Args)); }
 		//~ End IConcertClientReplicationManager Interface
 
 	private:

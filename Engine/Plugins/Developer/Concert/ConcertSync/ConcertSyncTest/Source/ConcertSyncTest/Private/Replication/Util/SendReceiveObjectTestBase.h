@@ -28,28 +28,30 @@ namespace UE::ConcertSyncTests::Replication
 		FSendReceiveObjectTestBase(const FString& InName, const bool bInComplexTask)
 			: FSendReceiveTestBase(InName, bInComplexTask)
 		{}
-
-	protected:
 		
-		using FReceiveReplicationEventSignature = void(const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event);
-		
+		/**
+		 * The object the test will be run on.
+		 * 
+		 * Note: this pointer is knowingly left dangling after the test completes...
+		 * there really is not need to override CleanUpTest because we assign TestObject first thing in SetUpClientAndServer.
+		 */
 		UTestReflectionObject* TestObject = nullptr;
 
 		//~ Begin FSendReceiveTestBase Interface
 		virtual ConcertSyncClient::Replication::FJoinReplicatedSessionArgs CreateSenderArgs() override;
 		virtual ConcertSyncClient::Replication::FJoinReplicatedSessionArgs CreateReceiverArgs() override;
 		virtual void SetUpClientAndServer() override;
+		//~ End FSendReceiveTestBase Interface
 		
 		/**
 		 * bHasServerReceivedData and bHasClientReceivedData are reset to false prior to sending.
 		 * Sets test values on TestObject and sends it to the receiver.
 		 * If the data arrived, bHasServerReceivedData and bHasClientReceivedData are true.
 		 */
-		void SimulateSenderToReceiver(
+		void SimulateSendObjectToReceiver(
 			TFunctionRef<FReceiveReplicationEventSignature> OnServerReceive = [](auto&, auto&){},
 			TFunctionRef<FReceiveReplicationEventSignature> OnReceiverClientReceive = [](auto&, auto&){}
 			);
-		//~ End FSendReceiveTestBase Interface
 
 		void SetTestValues(UTestReflectionObject& Object);
 		void SetDifferentValues(UTestReflectionObject& Object);
@@ -59,6 +61,9 @@ namespace UE::ConcertSyncTests::Replication
 		
 		const float SentFloat = 42.f;
 		const FVector SentVector = { 21.f, 84.f, -1.f };
+		
 		const FGuid SenderStreamId = FGuid::NewGuid();
+
+		virtual TSet<FGuid> GetSenderStreamIds() const { return { SenderStreamId }; } 
 	};
 }

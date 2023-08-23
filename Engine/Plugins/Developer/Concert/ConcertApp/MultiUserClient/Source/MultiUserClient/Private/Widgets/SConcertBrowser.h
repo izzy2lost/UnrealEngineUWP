@@ -9,6 +9,11 @@
 #include "IConcertModule.h"  // Change to use Fwd or Ptr.h?
 #include "ConcertMessages.h"
 
+namespace UE::MultiUserClient
+{
+	class FMultiUserReplicationManager;
+}
+
 class IConcertClientSession;
 class IConcertSyncClient;
 
@@ -32,12 +37,14 @@ public:
 	* @param InConstructUnderWindow The window in which this widget is being constructed.
 	* @param InSyncClient The sync client.
 	*/
-	void Construct(const FArguments& InArgs, TSharedRef<SDockTab> InConstructUnderMajorTab, TWeakPtr<IConcertSyncClient> InSyncClient);
+	void Construct(const FArguments& InArgs, TSharedRef<SDockTab> InConstructUnderMajorTab, TSharedRef<IConcertSyncClient> InSyncClient, TSharedRef<UE::MultiUserClient::FMultiUserReplicationManager> InReplicationManager);
 
 private:
 
 	/** Keeps the sync client interface. */
 	TWeakPtr<IConcertSyncClient> WeakConcertSyncClient;
+	/** Interacts with the replication system on behalf of Multi-User. */
+	TWeakPtr<UE::MultiUserClient::FMultiUserReplicationManager> WeakReplicationManager;
 
 	/** Kept so it can be passed on to SActiveSessionRoot. */
 	TSharedPtr<SDockTab> ConstructedUnderMajorTab;

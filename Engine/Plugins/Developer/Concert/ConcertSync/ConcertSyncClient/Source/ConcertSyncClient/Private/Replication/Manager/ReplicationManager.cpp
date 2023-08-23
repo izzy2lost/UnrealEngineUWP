@@ -2,10 +2,9 @@
 
 #include "ReplicationManager.h"
 
-#include "ConcertLogGlobal.h"
-#include "ConcertSyncClientLiveSession.h"
 #include "IConcertSession.h"
 #include "ReplicationManagerState_Disconnected.h"
+#include "ReplicationManagerUtils.h"
 
 #include "Replication/Messages/ConcertReplicationHandshakeMessages.h"
 
@@ -50,6 +49,25 @@ namespace UE::ConcertSyncClient::Replication
 	{
 		return ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."))
 			&& CurrentState->IsConnectedToReplicationSession(); 
+	}
+
+	IConcertClientReplicationManager::EStreamEnumerationResult FReplicationManager::ForEachRegisteredStream(
+		TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback
+		) const
+	{
+		return ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."))
+			? CurrentState->ForEachRegisteredStream(Callback)
+			: EStreamEnumerationResult::NoRegisteredStreams;
+	}
+
+	TFuture<FAuthorityChangeResponse> FReplicationManager::RequestAuthorityChange(FAuthorityChangeRequest Args)
+	{
+		if (ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point.")))
+		{
+			return CurrentState->RequestAuthorityChange(Args);
+		}
+		
+		return RejectAll(MoveTemp(Args));
 	}
 
 	void FReplicationManager::OnChangeState(TSharedRef<FReplicationManagerState> NewState)

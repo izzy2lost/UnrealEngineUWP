@@ -151,6 +151,11 @@ namespace UE::ConcertSyncTests
 	class FConcertServerSessionMock : public FConcertServerSessionBaseMock
 	{
 	public:
+
+		FConcertServerSessionMock()
+		{
+			RegisterCustomEventHandler<FConcertSession_LeaveSessionEvent>(this, &FConcertServerSessionMock::HandleClientLeaveEvent);
+		}
 		
 		virtual void InternalSendCustomEvent(const UScriptStruct* EventType, const void* EventData, const TArray<FGuid>& TargetEndpointIds, EConcertMessageFlags, TOptional<FConcertSequencedCustomEvent> InSequenceId={}) override
 		{
@@ -304,6 +309,17 @@ namespace UE::ConcertSyncTests
 
 		/** Connected clients sessions. */
 		TArray<FConcertClientSessionBaseMock*> ClientSessions;
+		
+		void HandleClientLeaveEvent(const FConcertSessionContext& Context, const FConcertSession_LeaveSessionEvent& Event)
+		{
+			const FGuid& ClientEndpointId = Context.SourceEndpointId;
+			ClientEndpoints.RemoveSingle(ClientEndpointId);
+			
+			const int32 Index = ClientSessions.IndexOfByPredicate([&ClientEndpointId](FConcertClientSessionBaseMock* SessionMock){ return SessionMock->GetSessionClientEndpointId() == ClientEndpointId; });
+			check(ClientSessions.IsValidIndex(Index));
+			
+			ConnectionChanged.Broadcast(*this, EConcertClientStatus::Disconnected, { ClientEndpointId });
+		}
 	};
 
 	/** Specializes the base concert client session to act as a fake client session. */
@@ -388,7 +404,17 @@ namespace UE::ConcertSyncTests
 		{
 			return FGuid(0, 0, 0, 0);
 		}
-		
+
+		virtual void Disconnect() override
+		{
+			if (ensure(bIsConnected))
+			{
+				bIsConnected = false;
+				FConcertSession_LeaveSessionEvent LeaveSessionEvent;
+				LeaveSessionEvent.SessionServerEndpointId = SessionInfo.ServerEndpointId;
+				ServerMock.DispatchEvent(EndpointId, FConcertSession_LeaveSessionEvent::StaticStruct(), &LeaveSessionEvent, { SessionInfo.ServerEndpointId }, EConcertMessageFlags::ReliableOrdered, {});
+			}
+		}
 		
 		virtual FOnConcertClientSessionTick& OnTick() override { return OnTickDelegate; }
 
@@ -396,6 +422,7 @@ namespace UE::ConcertSyncTests
 		FOnConcertClientSessionTick OnTickDelegate;
 		FConcertServerSessionMock& ServerMock;
 		FGuid EndpointId;
+		bool bIsConnected = true;
 		TMap<FName, TArray<TSharedPtr<IConcertSessionCustomEventHandler>>> CustomEventHandlers;
 	};
 

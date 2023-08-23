@@ -29,9 +29,5 @@ namespace UE::ConcertSyncServer::Replication
 	 * 
 	 * @return The error code for the request and the unpacked stream descriptions
 	 */
-	TTuple<EJoinReplicationErrorCode, FString, TArray<FReplicationStreamDescription>> ValidateRequest(
-		const FConcertReplication_Join_Request& Request,
-		const TMap<FGuid, TSharedRef<FConcertReplicationClient>>& Clients,
-		FGetClientName GetClientNameFunc
-		);
+	TTuple<EJoinReplicationErrorCode, FString, TArray<FReplicationStreamDescription>> ValidateRequest(const FConcertReplication_Join_Request& Request);
 }

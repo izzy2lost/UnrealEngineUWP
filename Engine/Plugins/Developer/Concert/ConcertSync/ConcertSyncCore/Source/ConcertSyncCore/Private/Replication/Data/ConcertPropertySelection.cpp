@@ -9,7 +9,7 @@
 
 const FName FConcertPropertyChain::InternalContainerPropertyValueName(TEXT("Value"));
 
-TOptional<FConcertPropertyChain> FConcertPropertyChain::CreateFromPath(UStruct& Class, const TArray<FName>& NamePath)
+TOptional<FConcertPropertyChain> FConcertPropertyChain::CreateFromPath(const UStruct& Class, const TArray<FName>& NamePath)
 {
 	TOptional<FConcertPropertyChain> Result;
 	// The goal here is to find a valid FProperty path based on the NamePath...
@@ -200,6 +200,25 @@ FString FConcertPropertyChain::ToString(EToStringMethod Method) const
 		return FName(NAME_None).ToString();
 	}
 	
+}
+
+bool FConcertPropertySelection::OverlapsWith(const FConcertPropertySelection& Other) const
+{
+	/* 
+	 * Performance could be improved: Two chains can only overlap if their root properties overlap.
+	 * Example: [Foo.Vector.X] and [Foo.FloatProperty] both share Foo struct (but do not overlap in this case).
+	 */
+	for (const FConcertPropertyChain& ThisChain : ReplicatedProperties)
+	{
+		for (const FConcertPropertyChain& OtherChain : Other.ReplicatedProperties)
+		{
+			if (ThisChain == OtherChain) 
+			{
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 uint32 GetTypeHash(const FConcertPropertyChain& Chain)

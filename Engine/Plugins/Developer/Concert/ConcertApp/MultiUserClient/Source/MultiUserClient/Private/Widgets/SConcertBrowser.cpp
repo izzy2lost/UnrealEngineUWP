@@ -18,7 +18,11 @@
 
 #define LOCTEXT_NAMESPACE "SConcertBrowser"
 
-void SConcertBrowser::Construct(const FArguments& InArgs, TSharedRef<SDockTab> InConstructUnderMajorTab, TWeakPtr<IConcertSyncClient> InSyncClient)
+void SConcertBrowser::Construct(
+	const FArguments& InArgs,
+	TSharedRef<SDockTab> InConstructUnderMajorTab,
+	TSharedRef<IConcertSyncClient> InSyncClient,
+	TSharedRef<UE::MultiUserClient::FMultiUserReplicationManager> InReplicationManager)
 {
 	if (!MultiUserClientUtils::HasServerCompatibleCommunicationPluginEnabled())
 	{
@@ -33,6 +37,7 @@ void SConcertBrowser::Construct(const FArguments& InArgs, TSharedRef<SDockTab> I
 	}
 
 	WeakConcertSyncClient = InSyncClient;
+	WeakReplicationManager = InReplicationManager;
 	ConstructedUnderMajorTab = MoveTemp(InConstructUnderMajorTab);
 	if (TSharedPtr<IConcertSyncClient> ConcertSyncClient = WeakConcertSyncClient.Pin())
 	{
@@ -55,15 +60,31 @@ void SConcertBrowser::HandleSessionConnectionChanged(IConcertClientSession& InSe
 
 void SConcertBrowser::AttachChildWidget(EConcertConnectionStatus ConnectionStatus)
 {
-	if (TSharedPtr<IConcertSyncClient> ConcertSyncClient = WeakConcertSyncClient.Pin())
+	if (const TSharedPtr<IConcertSyncClient> ConcertSyncClient = WeakConcertSyncClient.Pin()
+		; ensure(ConcertSyncClient))
 	{
 		if (ConnectionStatus == EConcertConnectionStatus::Connected)
 		{
-			ChildSlot.AttachWidget(SNew(UE::MultiUserClient::SActiveSessionRoot, ConstructedUnderMajorTab.ToSharedRef(), ConcertSyncClient));
+			if (const TSharedPtr<UE::MultiUserClient::FMultiUserReplicationManager> ReplicationManager = WeakReplicationManager.Pin()
+				; ensure(ReplicationManager))
+			{
+				ChildSlot.AttachWidget(
+					SNew(UE::MultiUserClient::SActiveSessionRoot,
+						ConstructedUnderMajorTab.ToSharedRef(),
+						ConcertSyncClient,
+						ReplicationManager.ToSharedRef()
+						)
+					);
+			}
 		}
 		else if (ConnectionStatus == EConcertConnectionStatus::Disconnected)
 		{
-			ChildSlot.AttachWidget(SNew(SConcertClientSessionBrowser, ConcertSyncClient->GetConcertClient(), SearchedText));
+			ChildSlot.AttachWidget(
+				SNew(SConcertClientSessionBrowser,
+					ConcertSyncClient->GetConcertClient(),
+					SearchedText
+					)
+				);
 		}
 	}
 }

@@ -27,9 +27,10 @@ namespace UE::ConcertSyncClient::Replication
 		: FReplicationManagerState(Owner)
 		, LiveSession(LiveSession)
 		, ReplicationBridge(ReplicationBridge)
+		, RegisteredStreams(MoveTemp(StreamDescriptions))
 		// TODO: Use config to determine which replication format to use
 		, ReplicationFormat(MakeShared<ConcertSyncCore::FFullObjectFormat>())
-		, ReplicationDataSource(MakeShared<FClientReplicationDataCollector>(ReplicationBridge, ReplicationFormat, StreamDescriptions))
+		, ReplicationDataSource(MakeShared<FClientReplicationDataCollector>(ReplicationBridge, ReplicationFormat, RegisteredStreams))
 		, Sender(MakeShared<ConcertSyncCore::FObjectReplicationSender>(LiveSession->GetSessionServerEndpointId(), LiveSession, ReplicationDataSource))
 		, ReceivedDataCache(MakeShared<ConcertSyncCore::FObjectReplicationCache>(ReplicationFormat))
 		, Receiver(MakeShared<ConcertSyncCore::FObjectReplicationReceiver>(LiveSession, ReceivedDataCache))
@@ -53,6 +54,29 @@ namespace UE::ConcertSyncClient::Replication
 	{
 		LiveSession->SendCustomEvent(FConcertReplication_LeaveEvent{}, LiveSession->GetSessionServerEndpointId(), EConcertMessageFlags::ReliableOrdered);
 		ChangeState(MakeShared<FReplicationManagerState_Disconnected>(LiveSession, ReplicationBridge, GetOwner()));
+	}
+
+	IConcertClientReplicationManager::EStreamEnumerationResult FReplicationManagerState_Connected::ForEachRegisteredStream(
+		TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback
+		) const
+	{
+		for (const FReplicationStreamDescription& Stream : RegisteredStreams)
+		{
+			if (Callback(Stream) == EBreakBehavior::Break)
+			{
+				break;
+			}
+		}
+		return EStreamEnumerationResult::Iterated;
+	}
+
+	TFuture<FAuthorityChangeResponse> FReplicationManagerState_Connected::RequestAuthorityChange(FAuthorityChangeRequest Args)
+	{
+		return LiveSession->SendCustomRequest<FConcertChangeAuthority_Request, FConcertChangeAuthority_Response>(Args, LiveSession->GetSessionServerEndpointId())
+			.Next([](FConcertChangeAuthority_Response&& Response)
+			{
+				return FAuthorityChangeResponse { MoveTemp(Response) };
+			});
 	}
 
 	void FReplicationManagerState_Connected::OnEnterState()

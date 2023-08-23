@@ -2,6 +2,7 @@
 
 #include "ConcertServerReplicationManager.h"
 
+#include "AuthorityManager.h"
 #include "ConcertLogGlobal.h"
 #include "IConcertSession.h"
 #include "Replication/ConcertReplicationClient.h"
@@ -15,8 +16,9 @@ namespace UE::ConcertSyncServer::Replication
 	FConcertServerReplicationManager::FConcertServerReplicationManager(TSharedRef<IConcertServerSession> InLiveSession)
 		: Session(MoveTemp(InLiveSession))
 		, ReplicationFormat(MakeShared<ConcertSyncCore::FFullObjectFormat>())
+		, AuthorityManager(MakeShared<FAuthorityManager>(*this, Session))
 		, ReplicationCache(MakeShared<ConcertSyncCore::FObjectReplicationCache>(ReplicationFormat))
-		, ReplicationDataReceiver(Session, ReplicationCache)
+		, ReplicationDataReceiver(AuthorityManager, Session, ReplicationCache)
 	{
 		Session->RegisterCustomRequestHandler<FConcertReplication_Join_Request, FConcertReplication_Join_Response>(this, &FConcertServerReplicationManager::HandleJoinReplicationSessionRequest);
 		Session->RegisterCustomEventHandler<FConcertReplication_LeaveEvent>(this, &FConcertServerReplicationManager::HandleLeaveReplicationSessionRequest);
@@ -31,6 +33,35 @@ namespace UE::ConcertSyncServer::Replication
 		Session->UnregisterCustomEventHandler<FConcertReplication_LeaveEvent>(this);
 
 		Session->OnTick().RemoveAll(this);
+	}
+
+	void FConcertServerReplicationManager::ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback)
+	{
+		const TSharedRef<FConcertReplicationClient>* Client = Clients.Find(ClientEndpointId);
+		if (!ensure(Client))
+		{
+			return;
+		}
+
+		for (const FReplicationStreamDescription& Stream : (*Client)->GetStreamDescriptions())
+		{
+			if (Callback(Stream) == EBreakBehavior::Break)
+			{
+				break;
+			}
+		}
+	}
+
+	void FConcertServerReplicationManager::ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback)
+	{
+		for (const TPair<FGuid, TSharedRef<FConcertReplicationClient>>& ClientPair : Clients)
+		{
+			if (!ClientPair.Value->GetStreamDescriptions().IsEmpty()
+				&& Callback(ClientPair.Key) == EBreakBehavior::Break)
+			{
+				break;
+			}
+		}
 	}
 
 	EConcertSessionResponseCode FConcertServerReplicationManager::HandleJoinReplicationSessionRequest(
@@ -69,16 +100,7 @@ namespace UE::ConcertSyncServer::Replication
 			return EConcertSessionResponseCode::Success;
 		}
 
-		auto GetClientName = [this](const FGuid& ClientEndpointId) -> FString
-		{
-			FConcertSessionClientInfo Info;
-			if (!ensure(Session->FindSessionClient(ClientEndpointId, Info)))
-			{
-				return TEXT("Unknown Client");
-			}
-			return FString::Printf(TEXT("%s (%s)"), *Info.ClientInfo.UserName, *ClientEndpointId.ToString());
-		};
-		auto[ErrorCode, ErrorMessage, StreamDescriptions] = ValidateRequest(Request, Clients, GetClientName);
+		auto[ErrorCode, ErrorMessage, StreamDescriptions] = ValidateRequest(Request);
 		if (ErrorCode != EJoinReplicationErrorCode::Success)
 		{
 			Response = { ErrorCode, ErrorMessage };
@@ -95,15 +117,20 @@ namespace UE::ConcertSyncServer::Replication
 		const FConcertReplication_LeaveEvent& EventData
 		)
 	{
-		UE_LOG(LogConcert, Log, TEXT("Received replication leave request from endpoint %s"), *ConcertSessionContext.SourceEndpointId.ToString());
-		Clients.Remove(ConcertSessionContext.SourceEndpointId);
+		const FGuid ClientEndpointId = ConcertSessionContext.SourceEndpointId;
+		UE_LOG(LogConcert, Log, TEXT("Received replication leave request from endpoint %s"), *ClientEndpointId.ToString());
+		
+		Clients.Remove(ClientEndpointId);
+		AuthorityManager->OnClientLeft(ClientEndpointId);
 	}
 
 	void FConcertServerReplicationManager::OnConnectionChanged(IConcertServerSession& ConcertServerSession, EConcertClientStatus ConcertClientStatus, const FConcertSessionClientInfo& ClientInfo)
 	{
+		const FGuid ClientEndpointId = ClientInfo.ClientEndpointId;
 		if (ConcertClientStatus == EConcertClientStatus::Disconnected)
 		{
-			Clients.Remove(ClientInfo.ClientEndpointId);
+			Clients.Remove(ClientEndpointId);
+			AuthorityManager->OnClientLeft(ClientEndpointId);
 		}
 	}
 

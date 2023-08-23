@@ -8,6 +8,7 @@ class IConcertSession;
 struct FConcertBatchReplicationEvent;
 struct FConcertObjectReplicationEvent;
 struct FConcertSessionContext;
+struct FConcertStreamReplicationEvent;
 
 namespace UE::ConcertSyncCore
 {
@@ -19,7 +20,12 @@ namespace UE::ConcertSyncCore
 	public:
 
 		FObjectReplicationReceiver(TSharedRef<IConcertSession> Session, TSharedRef<FObjectReplicationCache> ReplicationCache);
-		~FObjectReplicationReceiver();
+		virtual ~FObjectReplicationReceiver();
+
+	protected:
+
+		/** Whether the object should be processed. */
+		virtual bool ShouldAcceptObject(const FConcertSessionContext& SessionContext, const FConcertStreamReplicationEvent& StreamEvent, const FConcertObjectReplicationEvent& ObjectEvent) const { return true; }
 
 	private:
 

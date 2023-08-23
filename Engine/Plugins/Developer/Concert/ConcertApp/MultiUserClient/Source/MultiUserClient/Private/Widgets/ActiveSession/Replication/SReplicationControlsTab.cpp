@@ -54,7 +54,7 @@ namespace UE::MultiUserClient
 		}
 	}
 	
-	void SReplicationControlsTab::Construct(const FArguments& InArgs)
+	void SReplicationControlsTab::Construct(const FArguments& InArgs, TSharedRef<FMultiUserReplicationManager> InReplicationManager)
 	{
 		constexpr bool bCollpaseInitially_ConnectionArea	= false;
 		constexpr bool bCollpaseInitially_AttributesArea	= true;
@@ -75,7 +75,7 @@ namespace UE::MultiUserClient
 					FOnBooleanValueChanged::CreateSP(this, &SReplicationControlsTab::OnConnectionAreaExpansionChanged),
 					LOCTEXT("ConnectionArea.Label", "Connection"),
 					LOCTEXT("ConnectionArea.Tooltip", "Control the replication connection, e.g. join and leave"),
-					SNew(SReplicationConnectionControls),
+					SNew(SReplicationConnectionControls, InReplicationManager),
 					bCollpaseInitially_ConnectionArea
 					)
 			]
