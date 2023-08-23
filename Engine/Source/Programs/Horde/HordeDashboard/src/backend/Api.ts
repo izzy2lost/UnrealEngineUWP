@@ -394,7 +394,7 @@ export type GetDashboardConfigResponse = {
 	/** Help slack channel that users can use for issues */
 	helpSlackChannel?: string;
 
-	/** Device problem cooldown in minutes */ 
+	/** Device problem cooldown in minutes */
 	deviceProblemCooldownMinutes?: number
 
 }
@@ -3265,6 +3265,31 @@ export type GetPerforceServerStatusResponse = {
 	detail: string;
 }
 
+/** Request to validate server configuration with the given files replacing their checked-in counterparts. */
+export type PreflightConfigRequest = {
+
+	/**  Change to test	*/
+	shelvedChange: number;
+
+	/**  Perforce cluster to retrieve from */
+	cluster?: string;
+
+}
+
+/**  Response from validating config files */
+export type PreflightConfigResponse = {
+
+	/** Whether the files were validated successfully */
+	result: boolean;
+
+	/** Output message from validation */
+	message?: string;
+
+	/** Detailed response */
+	detail?: string;
+}
+
+
 /** Get object response which describes a device platform */
 export type GetDevicePlatformResponse = {
 
@@ -4751,7 +4776,7 @@ export type UpdateBisectTaskRequest = {
 	encludeChanges?: number[];
 
 	/// List of jobs to include in the search.	
-	includeJobs?: string[]; 
+	includeJobs?: string[];
 
 	/// List of jobs to exclude from the search.	
 	excludeJobs?: string[];
