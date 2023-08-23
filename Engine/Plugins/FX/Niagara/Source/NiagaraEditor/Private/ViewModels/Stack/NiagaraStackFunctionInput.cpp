@@ -1757,7 +1757,7 @@ void UNiagaraStackFunctionInput::GetAvailableParameterHandles(TArray<FNiagaraPar
 	}
 
 	// Filter gathered attributes by allowed usage
-	ENiagaraScriptUsage CurrentUsage = CurrentOutputNode->GetUsage();
+	ENiagaraScriptUsage CurrentUsage = CurrentOutputNode ? CurrentOutputNode->GetUsage() : ENiagaraScriptUsage::Module;
 	AvailableParameterHandles.SetNum(Algo::RemoveIf(AvailableParameterHandles, [CurrentUsage](FNiagaraParameterHandle& Handle)
 	{
 		return !IsNamespaceAllowedInUsage(Handle.GetNamespace(), CurrentUsage);
