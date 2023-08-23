@@ -358,7 +358,7 @@ bool FHairStreamingRequest::IsUnloading() const
 	return false; 
 }
 #if WITH_EDITORONLY_DATA
-static void RequestWarmCache(UE::DerivedData::FRequestOwner* RequestOwner, const TArray<UE::DerivedData::FCacheGetChunkRequest>& Requests)
+static bool RequestWarmCache(UE::DerivedData::FRequestOwner* RequestOwner, const TArray<UE::DerivedData::FCacheGetChunkRequest>& Requests)
 {
 	using namespace UE::DerivedData;
 
@@ -370,18 +370,20 @@ static void RequestWarmCache(UE::DerivedData::FRequestOwner* RequestOwner, const
 	{				
 		WarmRequest.Add({R.Name, R.Key, Policy, 0});
 	}
-	GetCache().GetValue(WarmRequest, *RequestOwner, [](FCacheGetValueResponse && Response) { /* If the data are not built the cache quert can return false. check(Response.Status == EStatus::Ok);*/ });
+	bool bHasDataInCache = true;
+	GetCache().GetValue(WarmRequest, *RequestOwner, [&bHasDataInCache](FCacheGetValueResponse && Response) { if (Response.Status != EStatus::Ok) { bHasDataInCache = false; } /* If the data are not built the cache query can return false. check(Response.Status == EStatus::Ok);*/ });
 	RequestOwner->Wait();
+	return bHasDataInCache;
 }
 
-void FHairStreamingRequest::WarmCache(uint32 InRequestedCurveCount, uint32 InRequestedPointCount, int32 InLODIndex, FHairStrandsBulkCommon& In)
+bool FHairStreamingRequest::WarmCache(uint32 InRequestedCurveCount, uint32 InRequestedPointCount, int32 InLODIndex, FHairStrandsBulkCommon& In)
 {
 	if (In.GetResourceCount() == 0 || InRequestedCurveCount == 0)
 	{
 		CurveCount = 0;
 		PointCount = 0;
 		LODIndex = -1;
-		return;
+		return true;
 	}
 	CurveCount = InRequestedCurveCount;
 	PointCount = InRequestedPointCount;
@@ -394,7 +396,7 @@ void FHairStreamingRequest::WarmCache(uint32 InRequestedCurveCount, uint32 InReq
 
 	check(DDCRequestOwner == nullptr);
 	DDCRequestOwner = MakeUnique<FRequestOwner>(UE::DerivedData::EPriority::Blocking);
-	RequestWarmCache(DDCRequestOwner.Get(), Requests);
+	return RequestWarmCache(DDCRequestOwner.Get(), Requests);
 }
 #endif
 

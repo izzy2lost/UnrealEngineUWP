@@ -349,7 +349,7 @@ struct FHairStreamingRequest
 	bool IsUnloading() const;
 
 #if WITH_EDITORONLY_DATA
-	void WarmCache(uint32 InRequestedCurveCount, uint32 InRequestedPointCount, int32 InLODIndex, FHairStrandsBulkCommon& In);
+	bool WarmCache(uint32 InRequestedCurveCount, uint32 InRequestedPointCount, int32 InLODIndex, FHairStrandsBulkCommon& In);
 #endif
 
 #if !WITH_EDITORONLY_DATA
