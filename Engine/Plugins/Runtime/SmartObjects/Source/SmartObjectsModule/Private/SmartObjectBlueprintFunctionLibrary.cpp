@@ -31,6 +31,11 @@ void USmartObjectBlueprintFunctionLibrary::SetValueAsSOClaimHandle(UBlackboardCo
 	BlackboardComponent->SetValue<UBlackboardKeyType_SOClaimHandle>(KeyID, Value);
 }
 
+FSmartObjectClaimHandle USmartObjectBlueprintFunctionLibrary::SmartObjectClaimHandle_Invalid()
+{
+	return FSmartObjectClaimHandle::InvalidHandle;
+}
+
 bool USmartObjectBlueprintFunctionLibrary::AddOrRemoveSmartObject(AActor* SmartObjectActor, const bool bAdd)
 {
 	return AddOrRemoveMultipleSmartObjects({SmartObjectActor}, bAdd);
@@ -134,6 +139,11 @@ bool USmartObjectBlueprintFunctionLibrary::MarkSmartObjectSlotAsFree(
 	}
 
 	return false;
+}
+
+FString USmartObjectBlueprintFunctionLibrary::Conv_SmartObjectClaimHandleToString(const FSmartObjectClaimHandle& Result)
+{
+	return LexToString(Result);
 }
 
 FString USmartObjectBlueprintFunctionLibrary::Conv_SmartObjectRequestResultToString(const FSmartObjectRequestResult& Result)

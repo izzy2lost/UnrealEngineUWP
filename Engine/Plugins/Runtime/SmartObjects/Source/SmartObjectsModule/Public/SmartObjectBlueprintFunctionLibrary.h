@@ -26,6 +26,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "SmartObject", meta=(DisplayName="Is Valid (Smart Object Claim Handle)", ReturnDisplayName="Is Valid"))
 	static bool IsValidSmartObjectClaimHandle(const FSmartObjectClaimHandle Handle)	{ return Handle.IsValid(); }
 
+	/** Returns the invalid smart object claim handle. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "SmartObject", meta=(ReturnDisplayName="Invalid Claim Handle"))
+	static FSmartObjectClaimHandle SmartObjectClaimHandle_Invalid();
+
 	/**
 	 * Adds to the simulation all smart objects for an actor or removes them according to 'bAdd'.
 	 * @param SmartObjectActor The actor containing the smart objects to add or remove from the simulation
@@ -135,6 +139,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "SmartObject", meta = (WorldContext = "WorldContextObject", ReturnDisplayName="bSuccess"))
 	static bool MarkSmartObjectSlotAsFree(UObject* WorldContextObject, const FSmartObjectClaimHandle ClaimHandle);
 
+	/** Converts a SmartObjectClaimHandle value to a string */
+	UFUNCTION(BlueprintPure, Category = "Utilities|String", meta = (DisplayName = "To String (SmartObjectClaimHandle)", CompactNodeTitle = "->", BlueprintAutocast))
+	static FString Conv_SmartObjectClaimHandleToString(const FSmartObjectClaimHandle& Result);
+	
 	/** Converts a SmartObjectRequestResult value to a string */
 	UFUNCTION(BlueprintPure, Category = "Utilities|String", meta = (DisplayName = "To String (SmartObjectRequestResult)", CompactNodeTitle = "->", BlueprintAutocast))
 	static FString Conv_SmartObjectRequestResultToString(const FSmartObjectRequestResult& Result);
