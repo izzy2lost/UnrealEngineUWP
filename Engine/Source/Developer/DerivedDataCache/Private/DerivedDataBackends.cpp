@@ -879,6 +879,10 @@ private:
 	ICacheStoreStats* CreateStats(ILegacyCacheStore* CacheStore, ECacheStoreFlags Flags, FStringView Type, FStringView Name, FStringView Path) final
 	{
 		check(Hierarchy);
+		if (ILegacyCacheStore* ThrottleNode = ThrottleNodes.FindRef(CacheStore))
+		{
+			CacheStore = ThrottleNode;
+		}
 		return Hierarchy->CreateStats(CacheStore, Flags, Type, Name, Path);
 	}
 
