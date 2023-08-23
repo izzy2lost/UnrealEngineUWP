@@ -41,6 +41,8 @@ void FChaosVDEngine::DeInitialize()
 	}
 
 	CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
+
+	bIsInitialized = false;
 }
 
 void FChaosVDEngine::LoadRecording(const FString& FilePath)

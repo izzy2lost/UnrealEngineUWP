@@ -79,8 +79,11 @@ void SChaosVDRecordingControls::Construct(const FArguments& InArgs, const TWeakP
 
 SChaosVDRecordingControls::~SChaosVDRecordingControls()
 {
-	 FChaosVDRuntimeModule::Get().RemoveRecordingStartedCallback(RecordingStartedHandle);
-	 FChaosVDRuntimeModule::Get().RemoveRecordingStopCallback(RecordingStoppedHandle);
+	if (FChaosVDRuntimeModule::IsLoaded())
+	{
+		FChaosVDRuntimeModule::Get().RemoveRecordingStartedCallback(RecordingStartedHandle);
+		FChaosVDRuntimeModule::Get().RemoveRecordingStopCallback(RecordingStoppedHandle);
+	}
 }
 
 const FSlateBrush* SChaosVDRecordingControls::GetRecordOrStopButton() const

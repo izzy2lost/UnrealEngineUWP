@@ -39,6 +39,8 @@ void FChaosVDModule::StartupModule()
 								.SetGroup(WorkspaceMenu::GetMenuStructure().GetDeveloperToolsDebugCategory());
 
 	ChaosVDTraceManager = MakeShared<FChaosVDTraceManager>();
+
+	FCoreDelegates::OnEnginePreExit.AddRaw(this, &FChaosVDModule::CloseActiveInstances);
 }
 
 void FChaosVDModule::ShutdownModule()
@@ -46,6 +48,10 @@ void FChaosVDModule::ShutdownModule()
 	FChaosVDStyle::Shutdown();
 
 	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(FChaosVDTabID::ChaosVisualDebuggerTab);
+	
+	FCoreDelegates::OnEnginePreExit.RemoveAll(this);
+
+	CloseActiveInstances();
 }
 
 void FChaosVDModule::RegisterClassesCustomDetails() const
@@ -79,31 +85,48 @@ TSharedRef<SDockTab> FChaosVDModule::SpawnMainTab(const FSpawnTabArgs& Args)
 	MainTabInstance->SetTabIcon(FChaosVDStyle::Get().GetBrush("TabIconPlaybackViewport"));
 
 	const FGuid InstanceGuid = ChaosVDEngineInstance->GetInstanceGuid();
-	RegisterChaosVDInstance(InstanceGuid, ChaosVDEngineInstance);
+	RegisterChaosVDEngineInstance(InstanceGuid, ChaosVDEngineInstance);
 
-	// Workaround. Currently the ChaosVD Engine instance determines the lifetime of the Editor world and other objects
-	// Some widgets, like UE Level viewport tries to iterate on these objects on destruction
-	// For now we can avoid any crashes by just de-initializing ChaosVD Engine on the next frame but that is not the real fix.
-	
-	//TODO: Ensure that systems that uses the Editor World we create know beforehand when it is about to be Destroyed and GC'd
-	MainTabInstance->SetOnTabClosed(SDockTab::FOnTabClosedCallback::CreateLambda( [this, InstanceGuid](TSharedRef<SDockTab>)
-	{
-		FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([this, InstanceGuid](float DeltaTime)->bool
-		{
-			DeregisterChaosVDInstance(InstanceGuid);
-			return false;
-		}));
-	}));
+	const SDockTab::FOnTabClosedCallback ClosedCallback = SDockTab::FOnTabClosedCallback::CreateRaw(this, &FChaosVDModule::HandleTabClosed, InstanceGuid);
+	MainTabInstance->SetOnTabClosed(ClosedCallback);
+
+	RegisterChaosVDTabInstance(InstanceGuid, MainTabInstance.ToSharedPtr());
 
 	return MainTabInstance;
 }
 
-void FChaosVDModule::RegisterChaosVDInstance(const FGuid& InstanceGuid, TSharedPtr<FChaosVDEngine> Instance)
+void FChaosVDModule::HandleTabClosed(TSharedRef<SDockTab> ClosedTab, FGuid InstanceGUID)
+{
+	// Workaround. Currently the ChaosVD Engine instance determines the lifetime of the Editor world and other objects
+	// Some widgets, like UE Level viewport tries to iterate on these objects on destruction
+	// For now we can avoid any crashes by just de-initializing ChaosVD Engine on the next frame but that is not the real fix.
+	// Unless we are shutting down the engine
+	
+	//TODO: Ensure that systems that uses the Editor World we create know beforehand when it is about to be Destroyed and GC'd
+	// Related Jira Task UE-191876
+	if (bIsShuttingDown)
+	{
+		DeregisterChaosVDTabInstance(InstanceGUID);
+		DeregisterChaosVDEngineInstance(InstanceGUID);
+	}
+	else
+	{
+		DeregisterChaosVDTabInstance(InstanceGUID);
+
+		FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([this, InstanceGUID](float DeltaTime)->bool
+		{
+			DeregisterChaosVDEngineInstance(InstanceGUID);
+			return false;
+		}));
+	}
+}
+
+void FChaosVDModule::RegisterChaosVDEngineInstance(const FGuid& InstanceGuid, TSharedPtr<FChaosVDEngine> Instance)
 {
 	ActiveChaosVDInstances.Add(InstanceGuid, Instance);
 }
 
-void FChaosVDModule::DeregisterChaosVDInstance(const FGuid& InstanceGuid)
+void FChaosVDModule::DeregisterChaosVDEngineInstance(const FGuid& InstanceGuid)
 {
 	if (TSharedPtr<FChaosVDEngine>* InstancePtrPtr = ActiveChaosVDInstances.Find(InstanceGuid))
 	{
@@ -115,6 +138,37 @@ void FChaosVDModule::DeregisterChaosVDInstance(const FGuid& InstanceGuid)
 		ActiveChaosVDInstances.Remove(InstanceGuid);
 	}	
 }
+
+void FChaosVDModule::RegisterChaosVDTabInstance(const FGuid& InstanceGuid, TSharedPtr<SDockTab> Instance)
+{
+	ActiveCVDTabs.Add(InstanceGuid, Instance);
+}
+
+void FChaosVDModule::DeregisterChaosVDTabInstance(const FGuid& InstanceGuid)
+{
+	ActiveCVDTabs.Remove(InstanceGuid);
+}
+
+void FChaosVDModule::CloseActiveInstances()
+{
+	bIsShuttingDown = true;
+	for (const TPair<FGuid, TWeakPtr<SDockTab>>& CVDTabWithID : ActiveCVDTabs)
+	{
+		if (TSharedPtr<SDockTab> CVDTab = CVDTabWithID.Value.Pin())
+		{
+			CVDTab->RequestCloseTab();
+		}
+		else
+		{
+			// if the tab Instance no longer exist, make sure the CVD engine instance is shutdown
+			DeregisterChaosVDEngineInstance(CVDTabWithID.Key);
+		}
+	}
+
+	ActiveChaosVDInstances.Reset();
+	ActiveCVDTabs.Reset();
+}
+
 
 #undef LOCTEXT_NAMESPACE
 	

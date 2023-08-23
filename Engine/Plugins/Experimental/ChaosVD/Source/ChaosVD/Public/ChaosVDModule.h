@@ -31,10 +31,21 @@ private:
 
 	TSharedRef<SDockTab> SpawnMainTab(const FSpawnTabArgs& Args);
 
-	void RegisterChaosVDInstance(const FGuid& InstanceGuid, TSharedPtr<FChaosVDEngine> Instance);
-	void DeregisterChaosVDInstance(const FGuid& InstanceGuid);
+	void HandleTabClosed(TSharedRef<SDockTab> ClosedTab, FGuid InstanceGUID);
+
+	void RegisterChaosVDEngineInstance(const FGuid& InstanceGuid, TSharedPtr<FChaosVDEngine> Instance);
+	void DeregisterChaosVDEngineInstance(const FGuid& InstanceGuid);
+
+	void RegisterChaosVDTabInstance(const FGuid& InstanceGuid, TSharedPtr<SDockTab> Instance);
+	void DeregisterChaosVDTabInstance(const FGuid& InstanceGuid);
+	
+	void CloseActiveInstances();
 	
 	TMap<FGuid, TSharedPtr<FChaosVDEngine>> ActiveChaosVDInstances;
 
+	TMap<FGuid, TWeakPtr<SDockTab>> ActiveCVDTabs;
+
 	TSharedPtr<FChaosVDTraceManager> ChaosVDTraceManager;
+
+	bool bIsShuttingDown = false;
 };
