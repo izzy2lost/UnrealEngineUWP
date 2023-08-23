@@ -12,6 +12,7 @@ struct RIGVM_API FRigVMObjectVersion
 		// Before any version changes were made
 		BeforeCustomVersionWasAdded,
 		
+		// ControlRig & RigVMHost compute and checks VM Hash
 		AddedVMHashChecks,
 
 		// Predicates added to execute operations
@@ -22,7 +23,10 @@ struct RIGVM_API FRigVMObjectVersion
 
 		// Storing paths to user defined enums map
 		VMStoringUserDefinedEnumMap,
-		
+
+		// Storing paths to user defined enums map
+		HostStoringUserDefinedData,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

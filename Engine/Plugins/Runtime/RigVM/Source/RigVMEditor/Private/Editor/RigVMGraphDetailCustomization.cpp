@@ -1741,7 +1741,7 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeLiveValues(IDetailLayoutBuil
 				}
 				else
 				{
-					URigVMMemoryStorage* Memory = VM->GetMemoryByType(Operand->GetMemoryType());
+					URigVMMemoryStorage* Memory = DebuggedHost->GetMemoryByType(Operand->GetMemoryType());
 					if(Memory == nullptr)
 					{
 						continue;

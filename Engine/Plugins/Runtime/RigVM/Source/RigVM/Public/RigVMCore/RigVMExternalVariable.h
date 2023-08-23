@@ -26,6 +26,18 @@ struct RIGVM_API FRigVMExternalVariableDef
 
 	FRigVMExternalVariableDef() = default;
 
+	bool operator == (const FRigVMExternalVariableDef& Other) const
+	{
+		return Name == Other.Name
+			&& Property == Other.Property
+			&& TypeName == Other.TypeName
+			&& TypeObject == Other.TypeObject
+			&& bIsArray == Other.bIsArray
+			&& bIsPublic == Other.bIsPublic
+			&& bIsReadOnly == Other.bIsReadOnly
+			&& Size == Other.Size;
+	}
+
 	static void GetTypeFromProperty(const FProperty* InProperty, FName& OutTypeName, UObject*& OutTypeObject)
 	{
 		if (CastField<FBoolProperty>(InProperty))

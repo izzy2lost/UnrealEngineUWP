@@ -331,7 +331,7 @@ void SRigVMExecutionStackView::Construct( const FArguments& InArgs, TSharedRef<F
 		]
 	];
 
-	RefreshTreeView(nullptr);
+	RefreshTreeView(nullptr, nullptr);
 
 	if (RigVMBlueprint.IsValid())
 	{
@@ -350,7 +350,7 @@ void SRigVMExecutionStackView::Construct( const FArguments& InArgs, TSharedRef<F
 		{
 			if (URigVMHost* RigVMHost = RigVMEditor.Pin()->GetRigVMHost())
 			{
-				OnVMCompiled(RigVMBlueprint.Get(), RigVMHost->GetVM());
+				OnVMCompiled(RigVMBlueprint.Get(),  RigVMHost->GetVM(),  RigVMHost->GetExtendedExecuteContext());
 			}
 		}
 	}
@@ -445,9 +445,9 @@ void SRigVMExecutionStackView::HandleGetChildrenForTree(TSharedPtr<FRigStackEntr
 	OutChildren = InItem->Children;
 }
 
-void SRigVMExecutionStackView::PopulateStackView(URigVM* InVM)
+void SRigVMExecutionStackView::PopulateStackView(URigVM* InVM, FRigVMExtendedExecuteContext* InVMContext)
 {
-	if (InVM)
+	if (InVM && InVMContext)
 	{
 		URigVMBlueprint* Blueprint = RigVMEditor.Pin()->GetRigVMBlueprint();
 
@@ -635,7 +635,7 @@ void SRigVMExecutionStackView::PopulateStackView(URigVM* InVM)
 		}
 
 		// 2. replace raw operand names with NodeTitle.PinName/PropertyName.OffsetName
-		TArray<FString> Labels = InVM->DumpByteCodeAsTextArray(TArray<int32>(), false, [OperandFormatMap](const FString& RegisterName, const FString& RegisterOffsetName)
+		TArray<FString> Labels = InVM->DumpByteCodeAsTextArray(*InVMContext, TArray<int32>(), false, [OperandFormatMap](const FString& RegisterName, const FString& RegisterOffsetName)
 		{
 			FString NewRegisterName = RegisterName;
 			FString NodeName;
@@ -654,7 +654,10 @@ void SRigVMExecutionStackView::PopulateStackView(URigVM* InVM)
 			return OperandLabel;
 		});
 
-		ensure(Labels.Num() == Instructions.Num());
+		if (!ensure(Labels.Num() == Instructions.Num()))
+		{
+			return;
+		}
 		
 		// 3. replace instruction names with node titles
 		for (int32 InstructionIndex = 0; InstructionIndex < Labels.Num(); InstructionIndex++)
@@ -709,14 +712,14 @@ void SRigVMExecutionStackView::PopulateStackView(URigVM* InVM)
 	}
 }
 
-void SRigVMExecutionStackView::RefreshTreeView(URigVM* InVM)
+void SRigVMExecutionStackView::RefreshTreeView(URigVM* InVM, FRigVMExtendedExecuteContext* InVMContext)
 {
 	Operators.Reset();
 
 	// populate the stack with node names/instruction names
-	PopulateStackView(InVM);
+	PopulateStackView(InVM, InVMContext);
 	
-	if (InVM)
+	if (InVM && InVMContext)
 	{
 		// fill the children from the log
 		if (RigVMEditor.IsValid())
@@ -877,9 +880,9 @@ void SRigVMExecutionStackView::HandleGoToInstruction()
 	}
 }
 
-void SRigVMExecutionStackView::OnVMCompiled(UObject* InCompiledObject, URigVM* InCompiledVM)
+void SRigVMExecutionStackView::OnVMCompiled(UObject* InCompiledObject, URigVM* InCompiledVM, FRigVMExtendedExecuteContext& InVMContext)
 {
-	RefreshTreeView(InCompiledVM);
+	RefreshTreeView(InCompiledVM, &InVMContext);
 
 	if (RigVMEditor.IsValid() && !OnHostInitializedHandle.IsValid())
 	{
@@ -914,7 +917,11 @@ void SRigVMExecutionStackView::HandleExecutionHalted(const int32 InHaltedAtInstr
 void SRigVMExecutionStackView::OnFilterTextChanged(const FText& SearchText)
 {
 	FilterText = SearchText;
-	RefreshTreeView(RigVMEditor.Pin()->GetRigVMHost()->GetVM());
+	URigVMHost* RigVMHost = RigVMEditor.Pin()->GetRigVMHost();
+	if (RigVMHost != nullptr)
+	{
+		RefreshTreeView(RigVMHost->GetVM(), &RigVMHost->GetExtendedExecuteContext());
+	}
 }
 
 void SRigVMExecutionStackView::HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject)
@@ -974,7 +981,7 @@ void SRigVMExecutionStackView::HandleHostInitializedEvent(URigVMHost* InHost, co
 {
 	TGuardValue<bool> SuspendControllerSelection(bSuspendControllerSelection, true);
 
-	RefreshTreeView(InHost->GetVM());
+	RefreshTreeView(InHost->GetVM(), &InHost->GetExtendedExecuteContext());
 	OnSelectionChanged(TSharedPtr<FRigStackEntry>(), ESelectInfo::Direct);
 
 	for (TSharedPtr<FRigStackEntry>& Operator : Operators)

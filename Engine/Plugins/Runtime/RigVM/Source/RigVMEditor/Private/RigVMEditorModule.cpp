@@ -1695,7 +1695,7 @@ void FRigVMEditorModule::PreChange(const UUserDefinedStruct* Changed, FStructure
 	{
 		URigVMHost* Host = *It;
 		// rebuild property list and property path list
-		Host->InvalidateCachedMemory();
+		Host->RecreateCachedMemory();
 	}
 }
 
@@ -1767,7 +1767,7 @@ void FRigVMEditorModule::PostChange(const UUserDefinedStruct* Changed, FStructur
 			URigVMHost* CDO = Cast<URigVMHost>(RigClass->GetDefaultObject(true /* create if needed */));
 			if (CDO->GetVM() != nullptr)
 			{
-				CDO->GetVM()->Reset();
+				CDO->GetVM()->Reset(CDO->GetExtendedExecuteContext());
 			}
 			TArray<UObject*> ArchetypeInstances;
 			CDO->GetArchetypeInstances(ArchetypeInstances);
@@ -1775,7 +1775,7 @@ void FRigVMEditorModule::PostChange(const UUserDefinedStruct* Changed, FStructur
 			{
 				if (URigVMHost* InstanceHost = Cast<URigVMHost>(Instance))
 				{
-					InstanceHost->GetVM()->Reset();
+					InstanceHost->GetVM()->Reset(InstanceHost->GetExtendedExecuteContext());
 				}
 			}
 		}

@@ -1682,7 +1682,7 @@ public:
 	ERigVMMemoryType MemoryType;
 };
 
-void FRigVMEditor::HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM)
+void FRigVMEditor::HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM, FRigVMExtendedExecuteContext& InContext)
 {
 	if(URigVMBlueprint* RigVMBlueprint = Cast<URigVMBlueprint>(InCompiledObject))
 	{
@@ -1708,7 +1708,7 @@ void FRigVMEditor::HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM
 			{
 				ERigVMMemoryType MemoryType = ActiveTab->GetMetaData<FMemoryTypeMetaData>()->MemoryType;			
 				TSharedRef<IDetailsView> DetailsView = StaticCastSharedRef<IDetailsView>(ActiveTab->GetContent());
-				DetailsView->SetObject(InVM->GetMemoryByType(MemoryType));
+				DetailsView->SetObject(InVM->GetMemoryByType(InContext, MemoryType));
 			}
 		}
 	}

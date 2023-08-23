@@ -129,11 +129,12 @@ struct RIGVMDEVELOPER_API FRigVMCompilerWorkData
 {
 public:
 	FRigVMCompileSettings Settings;
-	bool bSetupMemory;
-	URigVM* VM;
+	bool bSetupMemory = false;
+	URigVM* VM = nullptr;
 	TArray<URigVMGraph*> Graphs;
-	UScriptStruct* ExecuteContextStruct;
-	TMap<FString, FRigVMOperand>* PinPathToOperand;
+	UScriptStruct* ExecuteContextStruct = nullptr;
+	TMap<FString, FRigVMOperand>* PinPathToOperand = nullptr;
+	FRigVMExtendedExecuteContext* Context = nullptr;
 	TMap<const FRigVMVarExprAST*, FRigVMOperand> ExprToOperand;
 	TMap<const FRigVMExprAST*, bool> ExprComplete;
 	TArray<const FRigVMExprAST*> ExprToSkip;
@@ -146,15 +147,15 @@ public:
 	using FRigVMASTProxyTargetsMap =
 		TMap<FRigVMASTProxy, FRigVMASTProxyArray>;
 	TMap<FRigVMASTProxy, FRigVMASTProxyArray> CachedProxiesWithSharedOperand;
-	const FRigVMASTProxySourceMap* ProxySources;
+	const FRigVMASTProxySourceMap* ProxySources = nullptr;
 	FRigVMASTProxyTargetsMap ProxyTargets;
 	TMap<URigVMNode*, TArray<FRigVMBranchInfo>> BranchInfos;
 
 	struct FFunctionRegisterData
 	{
 		TSoftObjectPtr<URigVMFunctionReferenceNode> ReferenceNode;
-		ERigVMMemoryType MemoryType;
-		int32 RegisterIndex;
+		ERigVMMemoryType MemoryType = ERigVMMemoryType::Invalid;
+		int32 RegisterIndex = 0;
 
 		friend inline uint32 GetTypeHash(const FFunctionRegisterData& Data)
 		{
@@ -186,9 +187,9 @@ public:
 	struct FCopyOpInfo
 	{
 		FRigVMCopyOp Op;
-		const FRigVMAssignExprAST* AssignExpr;
-		const FRigVMVarExprAST* SourceExpr;
-		const FRigVMVarExprAST* TargetExpr;
+		const FRigVMAssignExprAST* AssignExpr = nullptr;
+		const FRigVMVarExprAST* SourceExpr = nullptr;
+		const FRigVMVarExprAST* TargetExpr = nullptr;
 	};
 
 	// operators that have been delayed for injection into the bytecode

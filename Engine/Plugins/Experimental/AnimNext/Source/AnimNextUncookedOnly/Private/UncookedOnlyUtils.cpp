@@ -348,7 +348,7 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 	EditorData->bVMRecompilationRequired = false;
 	if(InGraph->RigVM)
 	{
-		EditorData->VMCompiledEvent.Broadcast(InGraph, InGraph->RigVM);
+		EditorData->VMCompiledEvent.Broadcast(InGraph, InGraph->RigVM, InGraph->ExtendedExecuteContext);
 	}
 
 #if WITH_EDITOR
@@ -365,11 +365,11 @@ void FUtils::RecreateVM(UAnimNextGraph* InGraph)
 	{
 		// We dont support ERigVMMemoryType::Work memory as we dont operate on an instance
 	//	InGraph->RigVM->GetMemoryByType(ERigVMMemoryType::Work, true);
-		InGraph->RigVM->GetMemoryByType(ERigVMMemoryType::Literal, true);
-		InGraph->RigVM->GetMemoryByType(ERigVMMemoryType::Debug, true);
+		InGraph->RigVM->CreateMemoryByType(InGraph->ExtendedExecuteContext, ERigVMMemoryType::Literal);
+		InGraph->RigVM->CreateMemoryByType(InGraph->ExtendedExecuteContext, ERigVMMemoryType::Debug);
 	}
 
-	InGraph->RigVM->Reset();
+	InGraph->RigVM->Reset(InGraph->ExtendedExecuteContext);
 }
 
 UAnimNextGraph_EditorData* FUtils::GetEditorData(const UAnimNextGraph* InAnimNextGraph)
@@ -527,7 +527,7 @@ void FUtils::CompileVM(UAnimNextParameterBlock* InParameterBlock)
 	EditorData->bVMRecompilationRequired = false;
 	if(InParameterBlock->RigVM)
 	{
-		EditorData->RigVMCompiledEvent.Broadcast(InParameterBlock, InParameterBlock->RigVM);
+		EditorData->RigVMCompiledEvent.Broadcast(InParameterBlock, InParameterBlock->RigVM, InParameterBlock->ExtendedExecuteContext);
 	}
 
 #if WITH_EDITOR
@@ -591,11 +591,11 @@ void FUtils::RecreateVM(UAnimNextParameterBlock* InParameterBlock)
 	{
 		// We dont support ERigVMMemoryType::Work memory as we dont operate on an instance
 	//	InParameterBlock->RigVM->GetMemoryByType(ERigVMMemoryType::Work, true);
-		InParameterBlock->RigVM->GetMemoryByType(ERigVMMemoryType::Literal, true);
-		InParameterBlock->RigVM->GetMemoryByType(ERigVMMemoryType::Debug, true);
+		InParameterBlock->RigVM->CreateMemoryByType(InParameterBlock->ExtendedExecuteContext, ERigVMMemoryType::Literal);
+		InParameterBlock->RigVM->CreateMemoryByType(InParameterBlock->ExtendedExecuteContext, ERigVMMemoryType::Debug);
 	}
 
-	InParameterBlock->RigVM->Reset();
+	InParameterBlock->RigVM->Reset(InParameterBlock->ExtendedExecuteContext);
 }
 
 UAnimNextParameterBlock_EditorData* FUtils::GetEditorData(const UAnimNextParameterBlock* InParameterBlock)

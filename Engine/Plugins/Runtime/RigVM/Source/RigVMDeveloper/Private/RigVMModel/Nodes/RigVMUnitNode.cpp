@@ -455,7 +455,7 @@ void URigVMUnitNode::EnumeratePropertiesOnHostAndStructInstance(URigVMHost* InHo
 				}
 			case ERigVMMemoryType::Literal:
 				{
-					if(URigVMMemoryStorage* LiteralMemory = VM->GetLiteralMemory(false))
+					if(URigVMMemoryStorage* LiteralMemory = InHost->GetLiteralMemory())
 					{
 						if(const FProperty* Property = LiteralMemory->GetProperty(Operand.GetRegisterIndex()))
 						{
@@ -467,7 +467,7 @@ void URigVMUnitNode::EnumeratePropertiesOnHostAndStructInstance(URigVMHost* InHo
 				}
 			case ERigVMMemoryType::Work:
 				{
-					if(URigVMMemoryStorage* WorkMemory = VM->GetWorkMemory(false))
+					if(URigVMMemoryStorage* WorkMemory = InHost->GetWorkMemory())
 					{
 						if(const FProperty* Property = WorkMemory->GetProperty(Operand.GetRegisterIndex()))
 						{

@@ -545,6 +545,9 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 	/** Resets VM execution state */
 	void ResetExecutionState();
 
+	void CopyMemoryStorage(const FRigVMExtendedExecuteContext& Other, UObject* Outer);
+	static void CopyMemoryStorage(TObjectPtr<URigVMMemoryStorage>& TargetMemory, const TObjectPtr <URigVMMemoryStorage>& SourceMemory, UObject* Outer);
+
 	FRigVMExtendedExecuteContext& operator =(const FRigVMExtendedExecuteContext& Other);
 
 	virtual void Initialize(const UScriptStruct* InScriptStruct);
@@ -694,8 +697,14 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 		return NumExecutions;
 	}
 
+	UPROPERTY()
+	uint32 VMHash = 0;
+
 	UPROPERTY(transient)
-	uint32 VMHash = MAX_uint32;
+	TObjectPtr<URigVMMemoryStorage> WorkMemoryStorageObject;
+
+	UPROPERTY(transient)
+	TObjectPtr<URigVMMemoryStorage> DebugMemoryStorageObject;
 
 	FStructOnScope PublicDataScope;
 	URigVM* VM = nullptr;
@@ -721,9 +730,12 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 	bool bCurrentlyRunningRootEntry = false;
 	TArrayView<URigVMMemoryStorage*> CurrentMemory;
 
-	UPROPERTY(transient)
+#if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.4, "DeferredVMToCopy has been deprecated. Please update your code.")
 	TObjectPtr<URigVM> DeferredVMToCopy = nullptr;
+	UE_DEPRECATED(5.4, "DeferredVMContextToCopy has been deprecated. Please update your code.")
 	const FRigVMExtendedExecuteContext* DeferredVMContextToCopy = nullptr;
+#endif
 
 	/** Bindable event for external objects to be notified when the VM reaches an Exit Operation */
 	DECLARE_EVENT_OneParam(URigVM, FExecutionReachedExitEvent, const FName&);

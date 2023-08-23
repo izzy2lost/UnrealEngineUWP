@@ -221,12 +221,12 @@ const FProperty* FRigVMCompilerWorkData::GetPropertyForOperand(const FRigVMOpera
 		}
 	case ERigVMMemoryType::Work:
 		{
-			Property = GetPropertyFromMemory(VM->GetWorkMemory(), InOperand);
+			Property = GetPropertyFromMemory(VM->GetWorkMemory(*Context), InOperand);
 			break;
 		}
 	case ERigVMMemoryType::Debug:
 		{
-			Property = GetPropertyFromMemory(VM->GetDebugMemory(), InOperand);
+			Property = GetPropertyFromMemory(VM->GetDebugMemory(*Context), InOperand);
 			break;
 		}
 	case ERigVMMemoryType::External:
@@ -436,7 +436,7 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
-	OutVM->Reset();
+	OutVM->Reset(OutVMContext);
 
 	TMap<FString, FRigVMOperand> LocalOperands;
 	if (OutOperands == nullptr)
@@ -1049,6 +1049,7 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 	}
 
 	WorkData.VM = OutVM;
+	WorkData.Context = &OutVMContext;
 	WorkData.ExecuteContextStruct = Settings.GetExecuteContextStruct();
 	WorkData.PinPathToOperand = OutOperands;
 	WorkData.bSetupMemory = true;
@@ -1160,6 +1161,9 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 
 	// now that we have determined the needed memory, let's
 	// setup properties as needed as well as property paths
+
+	WorkData.VM->ClearMemory(*WorkData.Context);
+
 	TArray<ERigVMMemoryType> MemoryTypes;
 	MemoryTypes.Add(ERigVMMemoryType::Work);
 	MemoryTypes.Add(ERigVMMemoryType::Literal);
@@ -1179,7 +1183,10 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 		URigVMMemoryStorageGeneratorClass::CreateStorageClass(Package, MemoryType, *Properties);
 	}
 
-	WorkData.VM->ClearMemory();
+	for (ERigVMMemoryType MemoryType : MemoryTypes)
+	{
+		WorkData.VM->CreateMemoryByType(*WorkData.Context, MemoryType);
+	}
 
 	WorkData.bSetupMemory = false;
 	WorkData.ExprComplete.Reset();
@@ -1212,7 +1219,7 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 	for(ERigVMMemoryType MemoryType : MemoryTypes)
 	{
 		const TArray<FRigVMPropertyPathDescription>* Descriptions = WorkData.PropertyPathDescriptions.Find(MemoryType);
-		if(URigVMMemoryStorage* MemoryStorageObject = WorkData.VM->GetMemoryByType(MemoryType))
+		if(URigVMMemoryStorage* MemoryStorageObject = WorkData.VM->GetMemoryByType(*WorkData.Context, MemoryType))
 		{
 			if(URigVMMemoryStorageGeneratorClass* Class = Cast<URigVMMemoryStorageGeneratorClass>(MemoryStorageObject->GetClass()))
 			{
@@ -1350,9 +1357,6 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 		WorkData.ReportInfof(TEXT("Total Compilation time %f\n"), CompilationTime*1000);
 	}
 
-	WorkData.VM->SetVMHash(WorkData.VM->ComputeVMHash());
-	OutVMContext.VMHash = WorkData.VM->GetVMHash();
-
 	return true;
 }
 
@@ -1389,9 +1393,9 @@ bool URigVMCompiler::CompileFunction(const FRigVMCompileSettings& InSettings, co
 	}
 	TMap<FString, FRigVMOperand> Operands;
 
-	URigVM* TempVM = NewObject<URigVM>(InLibraryNode->GetContainedGraph());
+	URigVM* TempVM = NewObject<URigVM>(InLibraryNode->GetContainedGraph(), TEXT("CompilerTemp_VM"));
 	const bool bSuccess = Compile(InSettings, {InLibraryNode->GetContainedGraph()}, LibraryController, TempVM, OutVMContext, ExternalVariables, &Operands, nullptr, OutFunctionCompilationData);
-	TempVM->ClearMemory();
+	TempVM->ClearMemory(OutVMContext);
 	TempVM->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 	TempVM->MarkAsGarbage();
 

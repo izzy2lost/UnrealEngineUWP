@@ -1200,7 +1200,10 @@ void UControlRigBlueprint::PropagateHierarchyFromBPToInstances() const
 			DefaultObject->PostInitInstanceIfRequired();
 			DefaultObject->GetHierarchy()->CopyHierarchy(Hierarchy);
 			DefaultObject->HierarchySettings = HierarchySettings;
-			DefaultObject->Initialize(true);
+			if (!DefaultObject->HasAnyFlags(RF_NeedPostLoad)) // If CDO is loading, skip Init, it will be done later
+			{
+				DefaultObject->Initialize(true);
+			}
 
 			TArray<UObject*> ArchetypeInstances;
 			DefaultObject->GetArchetypeInstances(ArchetypeInstances);

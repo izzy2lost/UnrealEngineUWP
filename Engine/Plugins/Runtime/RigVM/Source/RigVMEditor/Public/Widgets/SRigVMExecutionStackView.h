@@ -82,7 +82,7 @@ public:
 protected:
 
 	/** Rebuild the tree view */
-	void RefreshTreeView(URigVM* InVM);
+	void RefreshTreeView(URigVM* InVM, FRigVMExtendedExecuteContext* InVMContext);
 
 private:
 
@@ -101,7 +101,7 @@ private:
 	/** Offers a dialog to move to a specific instruction */
 	void HandleGoToInstruction();
 
-	void OnVMCompiled(UObject* InCompiledObject, URigVM* InCompiledVM);
+	void OnVMCompiled(UObject* InCompiledObject, URigVM* InCompiledVM, FRigVMExtendedExecuteContext& InVMContext);
 
 	//* Focus on the instruction when the execution is halted */
 	void HandleExecutionHalted(const int32 HaltedAtInstruction, UObject* InNode, const FName& InEntryName);
@@ -120,7 +120,7 @@ private:
 	void HandleItemMouseDoubleClick(TSharedPtr<FRigStackEntry> InItem);
 
 	/** Populate the execution stack with descriptive names for each instruction */
-	void PopulateStackView(URigVM* InVM);
+	void PopulateStackView(URigVM* InVM, FRigVMExtendedExecuteContext* InVMContext);
 
 	TSharedPtr<STreeView<TSharedPtr<FRigStackEntry>>> TreeView;
 

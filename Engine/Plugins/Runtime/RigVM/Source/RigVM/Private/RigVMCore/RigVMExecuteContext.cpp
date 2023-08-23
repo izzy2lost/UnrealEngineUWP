@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RigVMCore/RigVMExecuteContext.h"
+#include "RigVMObjectVersion.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMExecuteContext)
 
@@ -55,6 +56,9 @@ void FRigVMExtendedExecuteContext::Reset()
 	VMHash = 0;
 
 	ResetExecutionState();
+
+	WorkMemoryStorageObject = nullptr;
+	DebugMemoryStorageObject = nullptr;
 
 	CurrentMemory = TArrayView<URigVMMemoryStorage*>();
 	ExecutionReachedExit().Clear();
@@ -111,6 +115,34 @@ void FRigVMExtendedExecuteContext::ResetExecutionState()
 	Factory = nullptr;
 }
 
+void FRigVMExtendedExecuteContext::CopyMemoryStorage(const FRigVMExtendedExecuteContext& Other, UObject* Outer)
+{
+	CopyMemoryStorage(WorkMemoryStorageObject, Other.WorkMemoryStorageObject, Outer);
+	CopyMemoryStorage(DebugMemoryStorageObject, Other.DebugMemoryStorageObject, Outer);
+}
+
+void FRigVMExtendedExecuteContext::CopyMemoryStorage(TObjectPtr<URigVMMemoryStorage>& TargetMemory, const TObjectPtr <URigVMMemoryStorage>& SourceMemory, UObject* Outer)
+{
+	if(SourceMemory != nullptr)
+	{
+		if(TargetMemory == nullptr)
+		{
+			TargetMemory = NewObject<URigVMMemoryStorage>(Outer, SourceMemory->GetClass());
+		}
+		else if(TargetMemory->GetClass() != SourceMemory->GetClass()
+			|| TargetMemory == SourceMemory) // when a instance comes with CDO data automatically copied during instantiation
+		{
+			TargetMemory = NewObject<URigVMMemoryStorage>(Outer, SourceMemory->GetClass());
+		}
+
+		TargetMemory->CopyFrom(SourceMemory);
+	}
+	else if(TargetMemory != nullptr)
+	{
+		TargetMemory = nullptr;
+	}
+}
+
 FRigVMExtendedExecuteContext& FRigVMExtendedExecuteContext::operator =(const FRigVMExtendedExecuteContext& Other)
 {
 	VMHash = Other.VMHash;
@@ -135,6 +167,11 @@ FRigVMExtendedExecuteContext& FRigVMExtendedExecuteContext::operator =(const FRi
 	VM = Other.VM;
 	Slices = Other.Slices;
 	SliceOffsets = Other.SliceOffsets;
+
+	CachedMemoryHandles = Other.CachedMemoryHandles;
+
+	LazyBranchInstanceData = Other.LazyBranchInstanceData;
+	ExternalVariableRuntimeData = Other.ExternalVariableRuntimeData;
 
 	return *this;
 }

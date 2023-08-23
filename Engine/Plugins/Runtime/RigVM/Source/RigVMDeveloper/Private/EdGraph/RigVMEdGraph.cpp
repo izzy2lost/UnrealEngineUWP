@@ -1010,7 +1010,7 @@ void URigVMEdGraph::RemoveNode(UEdGraphNode* InNode)
 	Super::RemoveNode(InNode);
 }
 
-void URigVMEdGraph::HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM)
+void URigVMEdGraph::HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM, FRigVMExtendedExecuteContext& InContext)
 {
 	CachedInstructionIndices.Reset();
 }

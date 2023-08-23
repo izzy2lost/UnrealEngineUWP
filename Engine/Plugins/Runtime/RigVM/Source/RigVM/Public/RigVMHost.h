@@ -30,6 +30,7 @@ public:
 	virtual UWorld* GetWorld() const override;
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
+	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 	virtual void BeginDestroy() override;
 
 	/** Gets the current absolute time */
@@ -70,7 +71,7 @@ public:
 	/** Initialize things for the RigVM owner */
 	virtual void Initialize(bool bRequestInit = true);
 
-	/** Initialize the VM */
+	/** Initialize this Host VM Instance */
 	virtual bool InitializeVM(const FName& InEventName);
 
 	/** Evaluate at Any Thread */
@@ -137,6 +138,9 @@ public:
 
 	virtual void InvalidateCachedMemory();
 
+	// Regenerates cached handles after a structural change (i.e. new UUserStruct)
+	virtual void RecreateCachedMemory();
+
 	/** Execute */
 	UFUNCTION(BlueprintCallable, Category = "RigVM")
 	virtual bool Execute(const FName& InEventName);
@@ -158,8 +162,13 @@ private:
 
 protected:
 
+	/** Initialize the CDO VM */
+	virtual bool InitializeCDOVM();
+
 	/** ExecuteUnits */
 	virtual bool Execute_Internal(const FName& InEventName);
+
+	static bool DisableExecution();
 
 public:
 
@@ -215,6 +224,22 @@ public:
 	void SetLog(FRigVMLog* InLog) { RigVMLog = InLog; }
 #endif
 
+	// Returns a VM memory storage by type
+	virtual URigVMMemoryStorage* GetMemoryByType(ERigVMMemoryType InMemoryType);
+	virtual const URigVMMemoryStorage* GetMemoryByType(ERigVMMemoryType InMemoryType) const;
+
+	// The default mutable work memory
+	URigVMMemoryStorage* GetWorkMemory() { return GetMemoryByType(ERigVMMemoryType::Work); }
+	const URigVMMemoryStorage* GetWorkMemory() const { return GetMemoryByType(ERigVMMemoryType::Work); }
+
+	// The default const literal memory
+	URigVMMemoryStorage* GetLiteralMemory() { return GetMemoryByType(ERigVMMemoryType::Literal); }
+	const URigVMMemoryStorage* GetLiteralMemory() const { return GetMemoryByType(ERigVMMemoryType::Literal); }
+
+	// The default debug watch memory
+	URigVMMemoryStorage* GetDebugMemory() { return GetMemoryByType(ERigVMMemoryType::Debug); }
+	const URigVMMemoryStorage* GetDebugMemory() const { return GetMemoryByType(ERigVMMemoryType::Debug); }
+
 	DECLARE_EVENT_TwoParams(URigVM, FRigVMExecutedEvent, class URigVMHost*, const FName&);
 	FRigVMExecutedEvent& OnInitialized_AnyThread() { return InitializedEvent; }
 	FRigVMExecutedEvent& OnExecuted_AnyThread() { return ExecutedEvent; }
@@ -253,6 +278,9 @@ public:
 		return ExtendedExecuteContext;
 	};
 
+	const TMap<FString, FSoftObjectPath>& GetUserDefinedStructGuidToPathName() const { return UserDefinedStructGuidToPathName; }
+	const TMap<FString, FSoftObjectPath>& GetUserDefinedEnumToPathName() const { return  UserDefinedEnumToPathName; }
+
 protected:
 
 	virtual void PostInitInstance(URigVMHost* InCDO);
@@ -269,13 +297,21 @@ protected:
 	/** true if we should increase the AbsoluteTime */
 	bool bAccumulateTime;
 
-	UPROPERTY()
+	UPROPERTY(transient)
 	TObjectPtr<URigVM> VM;
 
 #if WITH_EDITOR
 	FRigVMLog* RigVMLog;
 	bool bEnableLogging;
 #endif
+
+	void GenerateUserDefinedDependenciesData(FRigVMExtendedExecuteContext& Context);
+	TArray<const UObject*> GetUserDefinedDependencies(const TArray<const URigVMMemoryStorage*> InMemory);
+
+	UPROPERTY()
+	TMap<FString, FSoftObjectPath> UserDefinedStructGuidToPathName;
+	UPROPERTY()
+	TMap<FString, FSoftObjectPath> UserDefinedEnumToPathName;
 
 private:
 	UPROPERTY()
@@ -333,6 +369,8 @@ protected:
 	virtual void InitializeFromCDO();
 
 	static uint32 ComputeAndUpdateCDOHash(URigVMHost* InCDO);
+
+	virtual void CopyVMMemory(FRigVMExtendedExecuteContext& TargetContext, const FRigVMExtendedExecuteContext& SourceContext);
 
 public:
 	//~ Begin IInterface_AssetUserData Interface

@@ -1145,6 +1145,7 @@ private:
 	friend class URigVMCompiler;
 	friend struct FRigVMCompilerWorkData;
 	friend class URigVM;
+	friend class URigVMHost;
 	friend struct FRigVMCodeGenerator;
 };
 

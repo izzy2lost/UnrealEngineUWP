@@ -202,18 +202,6 @@ void FAnimNode_ControlRig::Evaluate_AnyThread(FPoseContext & Output)
 void FAnimNode_ControlRig::PostSerialize(const FArchive& Ar)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
-
-	// TODO : Investigate if this can be removed, as it calls multiple times (> 10) to ControlRig->Initialize when we open or compile a Rig (and each call it is a slow operation)
-	// after compile, we have to reinitialize
-	// because it needs new execution code
-	// since memory has changed
-	if (Ar.IsObjectReferenceCollector())
-	{
-		if (ControlRig)
-		{
-			ControlRig->Initialize();
-		}
-	}
 }
 
 void FAnimNode_ControlRig::UpdateInput(UControlRig* InControlRig, const FPoseContext& InOutput)

@@ -83,7 +83,7 @@ private:
 	void RemoveNode(UEdGraphNode* InNode);
 
 protected:
-	void HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM);
+	void HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM, FRigVMExtendedExecuteContext& InContext);
 
 private:
 	TMap<FName, UEdGraphNode*> ModelNodePathToEdNode;

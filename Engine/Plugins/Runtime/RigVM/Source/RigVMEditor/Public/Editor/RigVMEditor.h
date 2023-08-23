@@ -162,7 +162,9 @@ protected:
 	virtual void FocusInspectorOnGraphSelection(const TSet<class UObject*>& NewSelection, bool bForceRefresh = false) override;
 
 	virtual void HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject);
-	virtual void HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM);
+	UE_DEPRECATED(5.4, "Please use HandleVMCompiledEvent with ExtendedExecuteContext param.")
+	virtual void HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM) {}
+	virtual void HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM, FRigVMExtendedExecuteContext& InContext);
 	virtual void HandleVMExecutedEvent(URigVMHost* InHost, const FName& InEventName);
 	virtual void HandleVMExecutionHalted(const int32 InstructionIndex, UObject* InNode, const FName& InEntryName);
 	void SetHaltedNode(URigVMNode* Node);

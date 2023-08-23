@@ -1098,9 +1098,9 @@ void FControlRigEditor::OnCreateGraphEditorCommands(TSharedPtr<FUICommandList> G
 		FExecuteAction::CreateSP(this, &FControlRigEditor::HandleRequestDirectManipulationScale));
 }
 
-void FControlRigEditor::HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM)
+void FControlRigEditor::HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM, FRigVMExtendedExecuteContext& InContext)
 {
-	IControlRigEditor::HandleVMCompiledEvent(InCompiledObject, InVM);
+	IControlRigEditor::HandleVMCompiledEvent(InCompiledObject, InVM, InContext);
 
 	if(bRefreshDirectionManipulationTargetsRequired)
 	{

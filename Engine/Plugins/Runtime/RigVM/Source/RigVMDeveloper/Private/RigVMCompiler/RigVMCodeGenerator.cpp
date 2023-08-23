@@ -134,7 +134,7 @@ FString FRigVMCodeGenerator::DumpIncludes(bool bLog)
 	return DumpLines(Lines, bLog);
 }
 
-FString FRigVMCodeGenerator::DumpExternalVariables(bool bForHeader, bool bLog)
+FString FRigVMCodeGenerator::DumpExternalVariables(const FRigVMExtendedExecuteContext& Context, bool bForHeader, bool bLog)
 {
 	FStringArray Lines;
 
@@ -148,7 +148,7 @@ FString FRigVMCodeGenerator::DumpExternalVariables(bool bForHeader, bool bLog)
 		const FRigVMOperand ExternalVarOperand(ERigVMMemoryType::External, ExternalVariableIndex, INDEX_NONE);
 		const FRigVMExternalVariableDef& ExternalVariable = VM->GetExternalVariableDefs()[ExternalVariableIndex]; //-V758
 		const FString ExternalVarCPPType = ExternalVariable.GetExtendedCPPType().ToString();
-		FString OperandName = *GetOperandName(ExternalVarOperand, false);
+		FString OperandName = *GetOperandName(Context, ExternalVarOperand, false);
 		if(OperandName.StartsWith(TEXT("(*")) && OperandName.EndsWith(TEXT(")")))
 		{
 			OperandName = OperandName.Mid(2, OperandName.Len() - 3);
@@ -215,7 +215,7 @@ FString FRigVMCodeGenerator::DumpBlockNames(bool bForHeader, bool bLog)
 	return DumpLines(Lines, bLog);
 }
 
-FString FRigVMCodeGenerator::DumpProperties(bool bForHeader, int32 InInstructionGroup, bool bLog)
+FString FRigVMCodeGenerator::DumpProperties(const FRigVMExtendedExecuteContext& Context, bool bForHeader, int32 InInstructionGroup, bool bLog)
 {
 	if(bForHeader)
 	{
@@ -252,8 +252,8 @@ FString FRigVMCodeGenerator::DumpProperties(bool bForHeader, int32 InInstruction
 			{
 				Operand = FRigVMOperand(ERigVMMemoryType::Work, PropertyInfo.MemoryPropertyIndex, INDEX_NONE);
 			}
-			FString OperandName = GetOperandName(Operand, false);
-			FString CPPType = GetOperandCPPType(Operand);
+			FString OperandName = GetOperandName(Context, Operand, false);
+			FString CPPType = GetOperandCPPType(Context, Operand);
 
 			FString BaseCPPType = CPPType;
 			bool bIsArray = RigVMTypeUtils::IsArrayType(CPPType);
@@ -385,8 +385,8 @@ FString FRigVMCodeGenerator::DumpProperties(bool bForHeader, int32 InInstruction
 		else // work and slice look the same in the file
 		{
 			FRigVMOperand Operand(ERigVMMemoryType::Work, PropertyInfo.MemoryPropertyIndex, INDEX_NONE);
-			FString OperandName = GetOperandName(Operand, false);
-			FString CPPType = GetOperandCPPType(Operand);
+			FString OperandName = GetOperandName(Context, Operand, false);
+			FString CPPType = GetOperandCPPType(Context, Operand);
 
 			const FString MappedType = GetMappedType(Property.CPPType);
 
@@ -494,7 +494,7 @@ FString FRigVMCodeGenerator::DumpInitialize(bool bLog)
 	return DumpLines(Lines, bLog); 
 }
 
-FString FRigVMCodeGenerator::DumpInstructions(int32 InInstructionGroup, bool bLog)
+FString FRigVMCodeGenerator::DumpInstructions(const FRigVMExtendedExecuteContext& Context, int32 InInstructionGroup, bool bLog)
 {
 	const FRigVMByteCode& ByteCode = VM->GetByteCode();
 	const FRigVMInstructionArray Instructions = ByteCode.GetInstructions();
@@ -562,14 +562,14 @@ FString FRigVMCodeGenerator::DumpInstructions(int32 InInstructionGroup, bool bLo
 			const FRigVMOperandArray Operands = ByteCode.GetOperandsForOp(Instructions[BranchInfo.InstructionIndex]);
 			check(Operands.IsValidIndex(BranchInfo.ArgumentIndex));
 			const FRigVMOperand Operand = Operands[BranchInfo.ArgumentIndex];
-			const FString OperandName = GetOperandName(Operand, false, true);
-			const FString OperandCPPType = GetOperandCPPType(Operand);
+			const FString OperandName = GetOperandName(Context, Operand, false, true);
+			const FString OperandCPPType = GetOperandCPPType(Context, Operand);
 			const TRigVMTypeIndex OperandTypeIndex = FRigVMRegistry::Get().GetTypeIndexFromCPPType(OperandCPPType);
 			const FString PropertyName = RequiredUProperties.FindChecked(OperandTypeIndex).Get<1>();
 
 			// dump the instructions for the lambda wrapped with the lambda definition
 			Lines.Add(Format(RigVM_LazyEvalLambdaDefine, BranchInfo.Index, BranchInfo.Label.ToString(), *OperandCPPType, *OperandName, *PropertyName));
-			Lines.Add(DumpInstructions(TEXT("\t\t"), (int32)BranchInfo.FirstInstruction, (int32)BranchInfo.LastInstruction, Group, false));
+			Lines.Add(DumpInstructions(Context, TEXT("\t\t"), (int32)BranchInfo.FirstInstruction, (int32)BranchInfo.LastInstruction, Group, false));
 			Lines.Add(RigVM_LazyEvalLambdaReturn);
 			Lines.Emplace();
 
@@ -577,7 +577,7 @@ FString FRigVMCodeGenerator::DumpInstructions(int32 InInstructionGroup, bool bLo
 		}
 		
 		// dump the remaining instruction indices
-		Lines.Add(DumpInstructions(FString(), InstructionIndices, Group, false));
+		Lines.Add(DumpInstructions(Context, FString(), InstructionIndices, Group, false));
 	}
 	else
 	{
@@ -603,12 +603,12 @@ FString FRigVMCodeGenerator::DumpInstructions(int32 InInstructionGroup, bool bLo
 	return DumpLines(Lines, bLog);
 }
 
-FString FRigVMCodeGenerator::DumpInstructions(const FString& InPrefix, int32 InFirstInstruction, int32 InLastInstruction, const FInstructionGroup& InGroup, bool bLog)
+FString FRigVMCodeGenerator::DumpInstructions(const FRigVMExtendedExecuteContext& Context, const FString& InPrefix, int32 InFirstInstruction, int32 InLastInstruction, const FInstructionGroup& InGroup, bool bLog)
 {
-	return DumpInstructions(InPrefix, GetInstructionIndicesFromRange(InFirstInstruction, InLastInstruction), InGroup, bLog);
+	return DumpInstructions(Context, InPrefix, GetInstructionIndicesFromRange(InFirstInstruction, InLastInstruction), InGroup, bLog);
 }
 
-FString FRigVMCodeGenerator::DumpInstructions(const FString& InPrefix, const TArray<int32> InInstructionIndices, const FInstructionGroup& InGroup, bool bLog)
+FString FRigVMCodeGenerator::DumpInstructions(const FRigVMExtendedExecuteContext& Context, const FString& InPrefix, const TArray<int32> InInstructionIndices, const FInstructionGroup& InGroup, bool bLog)
 {
 	const FRigVMByteCode& ByteCode = VM->GetByteCode();
 	const TArray<FName>& Functions = VM->GetFunctionNames();
@@ -663,13 +663,13 @@ FString FRigVMCodeGenerator::DumpInstructions(const FString& InPrefix, const TAr
 				{
 					const FRigVMOperand& Operand = Operands[OperandIndex];
 					bool bSliced = false;
-					const FRigVMPropertyDescription& Property = GetPropertyDescForOperand(Operand);
+					const FRigVMPropertyDescription& Property = GetPropertyDescForOperand(Context, Operand);
 					if (RigVMTypeUtils::IsArrayType(Property.CPPType))
 					{
 						const FRigVMFunctionArgument& FunctionArgument = Function->GetArguments()[OperandIndex];
 						bSliced = FunctionArgument.Type != Property.CPPType;
 					}
-					Arguments.Add(GetOperandName(Operand, bSliced));
+					Arguments.Add(GetOperandName(Context, Operand, bSliced));
 				}
 
 				const FString JoinedArguments = FString::Join(Arguments, RigVM_CommaSeparator);
@@ -700,14 +700,14 @@ FString FRigVMCodeGenerator::DumpInstructions(const FString& InPrefix, const TAr
 			case ERigVMOpCode::Zero:
 			{
 				const FRigVMUnaryOp& Op = ByteCode.GetOpAt<FRigVMUnaryOp>(Instruction);
-				const FProperty* Property = VM->GetWorkMemory()->GetProperty(Op.Arg.GetRegisterIndex());
+				const FProperty* Property = Context.WorkMemoryStorageObject->GetProperty(Op.Arg.GetRegisterIndex());
 				if(Property->IsA<FIntProperty>())
 				{
-					Lines.Add(Prefix + Format(RigVM_ZeroOpIntFormat, *GetOperandName(Op.Arg, false)));
+					Lines.Add(Prefix + Format(RigVM_ZeroOpIntFormat, *GetOperandName(Context, Op.Arg, false)));
 				}
 				else if(Property->IsA<FNameProperty>())
 				{
-					Lines.Add(Prefix + Format(RigVM_ZeroOpNameFormat, *GetOperandName(Op.Arg, false)));
+					Lines.Add(Prefix + Format(RigVM_ZeroOpNameFormat, *GetOperandName(Context, Op.Arg, false)));
 				}
 				else
 				{
@@ -718,22 +718,22 @@ FString FRigVMCodeGenerator::DumpInstructions(const FString& InPrefix, const TAr
 			case ERigVMOpCode::BoolFalse:
 			{
 				const FRigVMUnaryOp& Op = ByteCode.GetOpAt<FRigVMUnaryOp>(Instruction);
-				Lines.Add(Prefix + Format(RigVM_BoolFalseOpFormat, *GetOperandName(Op.Arg, false)));
+				Lines.Add(Prefix + Format(RigVM_BoolFalseOpFormat, *GetOperandName(Context, Op.Arg, false)));
 				break;
 			}
 			case ERigVMOpCode::BoolTrue:
 			{
 				const FRigVMUnaryOp& Op = ByteCode.GetOpAt<FRigVMUnaryOp>(Instruction);
-				Lines.Add(Prefix + Format(RigVM_BoolTrueFormat, *GetOperandName(Op.Arg, false)));
+				Lines.Add(Prefix + Format(RigVM_BoolTrueFormat, *GetOperandName(Context, Op.Arg, false)));
 				break;
 			}
 			case ERigVMOpCode::Copy:
 			{
 				const FRigVMBinaryOp& Op = ByteCode.GetOpAt<FRigVMBinaryOp>(Instruction);
-				const FString TargetOperand = GetOperandName(Op.ArgB, false, false);
-				const FString SourceOperand = GetOperandName(Op.ArgA, false, true);
-				const FString TargetCPPType = GetOperandCPPType(Op.ArgB);
-				const FString SourceCPPType = GetOperandCPPType(Op.ArgA);
+				const FString TargetOperand = GetOperandName(Context, Op.ArgB, false, false);
+				const FString SourceOperand = GetOperandName(Context, Op.ArgA, false, true);
+				const FString TargetCPPType = GetOperandCPPType(Context, Op.ArgB);
+				const FString SourceCPPType = GetOperandCPPType(Context, Op.ArgA);
 
 				if(RigVMTypeUtils::IsArrayType(TargetCPPType) &&
 					RigVMTypeUtils::IsArrayType(SourceCPPType) &&
@@ -763,25 +763,25 @@ FString FRigVMCodeGenerator::DumpInstructions(const FString& InPrefix, const TAr
 			case ERigVMOpCode::Increment:
 			{
 				const FRigVMUnaryOp& Op = ByteCode.GetOpAt<FRigVMUnaryOp>(Instruction);
-				Lines.Add(Prefix + Format(RigVM_IncrementOpFormat, *GetOperandName(Op.Arg, false)));
+				Lines.Add(Prefix + Format(RigVM_IncrementOpFormat, *GetOperandName(Context, Op.Arg, false)));
 				break;
 			}
 			case ERigVMOpCode::Decrement:
 			{
 				const FRigVMUnaryOp& Op = ByteCode.GetOpAt<FRigVMUnaryOp>(Instruction);
-				Lines.Add(Prefix + Format(RigVM_DecrementOpFormat, *GetOperandName(Op.Arg, false)));
+				Lines.Add(Prefix + Format(RigVM_DecrementOpFormat, *GetOperandName(Context, Op.Arg, false)));
 				break;
 			}
 			case ERigVMOpCode::Equals:
 			{
 				const FRigVMComparisonOp& Op = ByteCode.GetOpAt<FRigVMComparisonOp>(Instruction);
-				Lines.Add(Prefix + Format(RigVM_EqualsOpFormat, *GetOperandName(Op.Result, false), *GetOperandName(Op.B, false), *GetOperandName(Op.B, false)));
+				Lines.Add(Prefix + Format(RigVM_EqualsOpFormat, *GetOperandName(Context, Op.Result, false), *GetOperandName(Context, Op.B, false), *GetOperandName(Context, Op.B, false)));
 				break;
 			}
 			case ERigVMOpCode::NotEquals:
 			{
 				const FRigVMComparisonOp& Op = ByteCode.GetOpAt<FRigVMComparisonOp>(Instruction);
-				Lines.Add(Prefix + Format(RigVM_NotEqualsOpFormat, *GetOperandName(Op.Result, false), *GetOperandName(Op.B, false), *GetOperandName(Op.B, false)));
+				Lines.Add(Prefix + Format(RigVM_NotEqualsOpFormat, *GetOperandName(Context, Op.Result, false), *GetOperandName(Context, Op.B, false), *GetOperandName(Context, Op.B, false)));
 				break;
 			}
 			case ERigVMOpCode::JumpAbsolute:
@@ -806,21 +806,21 @@ FString FRigVMCodeGenerator::DumpInstructions(const FString& InPrefix, const TAr
 			{
 				const FRigVMJumpIfOp& Op = ByteCode.GetOpAt<FRigVMJumpIfOp>(Instruction);
 				const FString& Condition = Op.Condition ? RigVM_TrueFormat : RigVM_FalseFormat;
-				Lines.Add(Prefix + Format(RigVM_JumpIfOpFormat, *GetOperandName(Op.Arg, false), *Condition, Op.InstructionIndex));
+				Lines.Add(Prefix + Format(RigVM_JumpIfOpFormat, *GetOperandName(Context, Op.Arg, false), *Condition, Op.InstructionIndex));
 				break;
 			}
 			case ERigVMOpCode::JumpForwardIf:
 			{
 				const FRigVMJumpIfOp& Op = ByteCode.GetOpAt<FRigVMJumpIfOp>(Instruction);
 				const FString& Condition = Op.Condition ? RigVM_TrueFormat : RigVM_FalseFormat;
-				Lines.Add(Prefix + Format(RigVM_JumpIfOpFormat, *GetOperandName(Op.Arg, false), *Condition, InstructionIndex + Op.InstructionIndex));
+				Lines.Add(Prefix + Format(RigVM_JumpIfOpFormat, *GetOperandName(Context, Op.Arg, false), *Condition, InstructionIndex + Op.InstructionIndex));
 				break;
 			}
 			case ERigVMOpCode::JumpBackwardIf:
 			{
 				const FRigVMJumpIfOp& Op = ByteCode.GetOpAt<FRigVMJumpIfOp>(Instruction);
 				const FString& Condition = Op.Condition ? RigVM_TrueFormat : RigVM_FalseFormat;
-				Lines.Add(Prefix + Format(RigVM_JumpIfOpFormat, *GetOperandName(Op.Arg, false), *Condition, InstructionIndex - Op.InstructionIndex));
+				Lines.Add(Prefix + Format(RigVM_JumpIfOpFormat, *GetOperandName(Context, Op.Arg, false), *Condition, InstructionIndex - Op.InstructionIndex));
 				break;
 			}
 			case ERigVMOpCode::Exit:
@@ -834,7 +834,7 @@ FString FRigVMCodeGenerator::DumpInstructions(const FString& InPrefix, const TAr
 			case ERigVMOpCode::BeginBlock:
 			{
 				const FRigVMBinaryOp& Op = ByteCode.GetOpAt<FRigVMBinaryOp>(Instruction);
-				Lines.Add(Prefix + Format(RigVM_BeginBlockOpFormat, *GetOperandName(Op.ArgA, false), *GetOperandName(Op.ArgB, false)));
+				Lines.Add(Prefix + Format(RigVM_BeginBlockOpFormat, *GetOperandName(Context, Op.ArgA, false), *GetOperandName(Context, Op.ArgB, false)));
 				break;
 			}
 			case ERigVMOpCode::EndBlock:
@@ -860,7 +860,7 @@ FString FRigVMCodeGenerator::DumpInstructions(const FString& InPrefix, const TAr
 					{
 						break;
 					}
-					Lines.Add(Prefix + Format(RigVM_JumpToBranchFormat, *GetOperandName(Op.Arg, false), Branches[BranchIndex].Label.ToString(), (int32)Branch.FirstInstruction));
+					Lines.Add(Prefix + Format(RigVM_JumpToBranchFormat, *GetOperandName(Context, Op.Arg, false), Branches[BranchIndex].Label.ToString(), (int32)Branch.FirstInstruction));
 				}
 				break;
 			}
@@ -897,7 +897,7 @@ TArray<int32> FRigVMCodeGenerator::GetInstructionIndicesFromRange(int32 First, i
 }
 
 
-FString FRigVMCodeGenerator::DumpHeader(bool bLog)
+FString FRigVMCodeGenerator::DumpHeader(const FRigVMExtendedExecuteContext& Context, bool bLog)
 {
 	const FRigVMByteCode& ByteCode = VM->GetByteCode();
 
@@ -968,11 +968,11 @@ FString FRigVMCodeGenerator::DumpHeader(bool bLog)
 	}
 
 	Lines.Emplace();
-	Lines.Add(DumpProperties(true, INDEX_NONE));
+	Lines.Add(DumpProperties(Context, true, INDEX_NONE));
 	Lines.Add(DumpDispatches(true));
 	if(!VM->GetExternalVariableDefs().IsEmpty())
 	{
-		Lines.Add(DumpExternalVariables(true));
+		Lines.Add(DumpExternalVariables(Context, true));
 	}
 	if(!RequiredUProperties.IsEmpty())
 	{
@@ -984,7 +984,7 @@ FString FRigVMCodeGenerator::DumpHeader(bool bLog)
 	return DumpLines(Lines, bLog);
 }
 
-FString FRigVMCodeGenerator::DumpSource(bool bLog)
+FString FRigVMCodeGenerator::DumpSource(const FRigVMExtendedExecuteContext& Context, bool bLog)
 {
 	const FRigVMByteCode& ByteCode = VM->GetByteCode();
 
@@ -1017,14 +1017,14 @@ FString FRigVMCodeGenerator::DumpSource(bool bLog)
 	Lines.Add(Format(RigVM_DefineExecuteFormat, *ClassName));
 	Lines.Add(RigVM_StartProfilingFormat);
 	Lines.Add(Format(RigVM_SetupInstructionTrackingFormat, VM->GetByteCode().GetNumInstructions()));
-	Lines.Add(DumpInstructions(INDEX_NONE));
+	Lines.Add(DumpInstructions(Context, INDEX_NONE));
 	Lines.Add(TEXT("}"));
 
 	if(!VM->GetExternalVariableDefs().IsEmpty())
 	{
 		Lines.Emplace();
 		Lines.Add(Format(RigVM_DefineUpdateExternalVariablesFormat, *ClassName));
-		Lines.Add(DumpExternalVariables(false));
+		Lines.Add(DumpExternalVariables(Context, false));
 		Lines.Add(TEXT("}"));
 	}
 
@@ -1046,13 +1046,13 @@ FString FRigVMCodeGenerator::DumpSource(bool bLog)
 			Lines.Add(Format(RigVM_DefineExecuteGroupFormat, *ClassName, *Group.Entry, GroupIndex, *Parameters));
 		}
 
-		const FString DumpedProperties = DumpProperties(false, GroupIndex);
+		const FString DumpedProperties = DumpProperties(Context, false, GroupIndex);
 		if(!DumpedProperties.IsEmpty())
 		{
 			Lines.Add(DumpedProperties);
 			Lines.Emplace();
 		}
-		Lines.Add(DumpInstructions(GroupIndex));
+		Lines.Add(DumpInstructions(Context, GroupIndex));
 		Lines.Add(TEXT("}"));
 
 		if(GroupIndex == InstructionGroups.Num() - 1)
@@ -1064,7 +1064,7 @@ FString FRigVMCodeGenerator::DumpSource(bool bLog)
 
 			Lines.Emplace();
 			Lines.Add(Format(RigVM_DefineInvokeEntryByNameFormat, *ClassName, *Parameters));
-			Lines.Add(DumpInstructions(-2));
+			Lines.Add(DumpInstructions(Context, -2));
 			Lines.Add(TEXT("}"));
 		}
 	}
@@ -1100,8 +1100,9 @@ void FRigVMCodeGenerator::Reset()
 }
 
 void FRigVMCodeGenerator::ParseVM(const FString& InClassName, const FString& InModuleName,
-	URigVMGraph* InModelToNativize, URigVM* InVMToNativize, const UScriptStruct* PublicContextStruct, 
-	TMap<FString,FRigVMOperand> InPinToOperandMap, int32 InMaxInstructionsPerFunction)
+	URigVMGraph* InModelToNativize, URigVM* InVMToNativize, FRigVMExtendedExecuteContext& InVMContext,
+	const UScriptStruct* PublicContextStruct, TMap<FString,FRigVMOperand> InPinToOperandMap,
+	int32 InMaxInstructionsPerFunction)
 {
 	check(InVMToNativize);
 
@@ -1126,13 +1127,13 @@ void FRigVMCodeGenerator::ParseVM(const FString& InClassName, const FString& InM
 	ParseInclude(URigVM::StaticClass());
 
 	Properties.Reserve(
-		InVMToNativize->GetLiteralMemory(true)->Num() +
-		InVMToNativize->GetWorkMemory(true)->Num());
-	ParseMemory(InVMToNativize->GetLiteralMemory(true));
-	ParseMemory(InVMToNativize->GetWorkMemory(true));
+		InVMToNativize->GetLiteralMemory()->Num() +
+		InVMToNativize->GetWorkMemory(InVMContext)->Num());
+	ParseMemory(InVMContext, InVMToNativize->GetLiteralMemory());
+	ParseMemory(InVMContext, InVMToNativize->GetWorkMemory(InVMContext));
 
-	ParseRequiredUProperties();
-	ParseInstructionGroups();
+	ParseRequiredUProperties(InVMContext);
+	ParseInstructionGroups(InVMContext);
 }
 
 void FRigVMCodeGenerator::ParseInclude(UStruct* InDependency, const FName& InMethodName)
@@ -1164,7 +1165,7 @@ void FRigVMCodeGenerator::ParseInclude(UStruct* InDependency, const FName& InMet
 	}
 }
 
-void FRigVMCodeGenerator::ParseRequiredUProperties()
+void FRigVMCodeGenerator::ParseRequiredUProperties(const FRigVMExtendedExecuteContext& Context)
 {
 	const TArray<FName>& Functions = VM->GetFunctionNames();
 	const FRigVMByteCode& ByteCode = VM->GetByteCode();
@@ -1212,13 +1213,13 @@ void FRigVMCodeGenerator::ParseRequiredUProperties()
 					continue;
 				}
 
-				FRigVMDispatchContext Context;
+				FRigVMDispatchContext DispatchContext;
 				if(URigVMDispatchNode* DispatchNode = Cast<URigVMDispatchNode>(ByteCode.GetSubjectForInstruction(InstructionIndex)))
 				{
-					Context = DispatchNode->GetDispatchContext();
+					DispatchContext = DispatchNode->GetDispatchContext();
 				}
 
-				Dispatches.Add(DispatchKey, {DispatchKey, Function, Context});
+				Dispatches.Add(DispatchKey, {DispatchKey, Function, DispatchContext});
 			}
 		}
 	}
@@ -1235,12 +1236,12 @@ void FRigVMCodeGenerator::ParseRequiredUProperties()
 		const FRigVMOperandArray Operands = ByteCode.GetOperandsForOp(Instructions[BranchInfo.InstructionIndex]);
 		check(Operands.IsValidIndex(BranchInfo.ArgumentIndex));
 		const FRigVMOperand Operand = Operands[BranchInfo.ArgumentIndex];
-		const FString CPPType = GetOperandCPPType(Operand);
+		const FString CPPType = GetOperandCPPType(Context, Operand);
 		AddRequiredUProperty(CPPType);
 	}
 }
 
-void FRigVMCodeGenerator::ParseMemory(URigVMMemoryStorage* InMemory)
+void FRigVMCodeGenerator::ParseMemory(const FRigVMExtendedExecuteContext& Context, URigVMMemoryStorage* InMemory)
 {
 	if (InMemory == nullptr)
 	{
@@ -1254,17 +1255,17 @@ void FRigVMCodeGenerator::ParseMemory(URigVMMemoryStorage* InMemory)
 	for (TFieldIterator<FProperty> PropertyIt(InMemory->GetClass()); PropertyIt; ++PropertyIt)
 	{
 		const FProperty* Property = *PropertyIt;
-		ParseProperty(InMemory->GetMemoryType(), Property, InMemory);
+		ParseProperty(Context, InMemory->GetMemoryType(), Property, InMemory);
 	}
 }
 
-void FRigVMCodeGenerator::ParseProperty(ERigVMMemoryType InMemoryType, const FProperty* InProperty, URigVMMemoryStorage* InMemory)
+void FRigVMCodeGenerator::ParseProperty(const FRigVMExtendedExecuteContext& Context, ERigVMMemoryType InMemoryType, const FProperty* InProperty, URigVMMemoryStorage* InMemory)
 {
 	if (URigVMMemoryStorageGeneratorClass* MemoryClass = Cast<URigVMMemoryStorageGeneratorClass>(InMemory->GetClass()))
 	{
 		const int32 PropertyIndex = InMemory->GetPropertyIndex(InProperty);
 		const FRigVMOperand Operand(InMemoryType, PropertyIndex);
-		const FRigVMPropertyDescription& PropertyDescription = GetPropertyDescForOperand(Operand);
+		const FRigVMPropertyDescription& PropertyDescription = GetPropertyDescForOperand(Context, Operand);
 
 		FPropertyInfo Info;
 		Info.MemoryPropertyIndex = PropertyIndex;
@@ -1300,7 +1301,7 @@ void FRigVMCodeGenerator::ParseProperty(ERigVMMemoryType InMemoryType, const FPr
 	}
 }
 
-void FRigVMCodeGenerator::ParseInstructionGroups()
+void FRigVMCodeGenerator::ParseInstructionGroups(const FRigVMExtendedExecuteContext& Context)
 {
 	const TArray<FName>& Functions = VM->GetFunctionNames();
 	const FRigVMByteCode& ByteCode = VM->GetByteCode();
@@ -1560,7 +1561,7 @@ void FRigVMCodeGenerator::ParseInstructionGroups()
 				if(Operand.GetMemoryType() == ERigVMMemoryType::Literal ||
 					Operand.GetMemoryType() == ERigVMMemoryType::Work)
 				{
-					const int32 PropertyIndex = GetPropertyIndex(Operand);
+					const int32 PropertyIndex = GetPropertyIndex(Context, Operand);
 					Properties[PropertyIndex].Groups.AddUnique(GroupIndex);
 				}
 			}
@@ -1599,10 +1600,10 @@ void FRigVMCodeGenerator::ParseInstructionGroups()
 	}
 }
 
-FString FRigVMCodeGenerator::GetOperandName(const FRigVMOperand& InOperand, bool bPerSlice, bool bAsInput) const
+FString FRigVMCodeGenerator::GetOperandName(const FRigVMExtendedExecuteContext& Context, const FRigVMOperand& InOperand, bool bPerSlice, bool bAsInput) const
 {
-	const FRigVMPropertyDescription& Property = GetPropertyDescForOperand(InOperand);
-	const FRigVMPropertyPathDescription& PropertyPath = GetPropertyPathForOperand(InOperand);
+	const FRigVMPropertyDescription& Property = GetPropertyDescForOperand(Context, InOperand);
+	const FRigVMPropertyPathDescription& PropertyPath = GetPropertyPathForOperand(Context, InOperand);
 
 	FString OperandName;
 	if (Property.IsValid())
@@ -1745,10 +1746,10 @@ FString FRigVMCodeGenerator::GetOperandName(const FRigVMOperand& InOperand, bool
 	return OperandName;
 }
 
-FString FRigVMCodeGenerator::GetOperandCPPType(const FRigVMOperand& InOperand) const
+FString FRigVMCodeGenerator::GetOperandCPPType(const FRigVMExtendedExecuteContext& Context, const FRigVMOperand& InOperand) const
 {
-	const FRigVMPropertyDescription& Property = GetPropertyDescForOperand(InOperand);
-	const FRigVMPropertyPathDescription& PropertyPath = GetPropertyPathForOperand(InOperand);
+	const FRigVMPropertyDescription& Property = GetPropertyDescForOperand(Context, InOperand);
+	const FRigVMPropertyPathDescription& PropertyPath = GetPropertyPathForOperand(Context, InOperand);
 
 	if (PropertyPath.IsValid())
 	{
@@ -1771,9 +1772,9 @@ FString FRigVMCodeGenerator::GetOperandCPPType(const FRigVMOperand& InOperand) c
 	return FString(); 
 }
 
-FString FRigVMCodeGenerator::GetOperandCPPBaseType(const FRigVMOperand& InOperand) const
+FString FRigVMCodeGenerator::GetOperandCPPBaseType(const FRigVMExtendedExecuteContext& Context, const FRigVMOperand& InOperand) const
 {
-	FString CPPType = GetOperandCPPType(InOperand);
+	FString CPPType = GetOperandCPPType(Context, InOperand);
 	while(RigVMTypeUtils::IsArrayType(CPPType))
 	{
 		CPPType = RigVMTypeUtils::BaseTypeFromArrayType(CPPType);
@@ -1960,9 +1961,9 @@ FString FRigVMCodeGenerator::SanitizeValue(const FString& InValue, const FString
 	return DefaultValue;
 }
 
-FRigVMPropertyDescription FRigVMCodeGenerator::GetPropertyDescForOperand(const FRigVMOperand& InOperand) const
+FRigVMPropertyDescription FRigVMCodeGenerator::GetPropertyDescForOperand(const FRigVMExtendedExecuteContext& Context, const FRigVMOperand& InOperand) const
 {
-	CheckOperand(InOperand);
+	CheckOperand(Context, InOperand);
 
 	const FProperty* Property = nullptr;
 
@@ -1974,7 +1975,7 @@ FRigVMPropertyDescription FRigVMCodeGenerator::GetPropertyDescForOperand(const F
 	}
 	else
 	{
-		if (URigVMMemoryStorage* MemoryStorage = VM->GetMemoryByType(InOperand.GetMemoryType()))
+		if (const URigVMMemoryStorage* MemoryStorage = VM->GetMemoryByType(Context, InOperand.GetMemoryType()))
 		{
 			Property = MemoryStorage->GetProperty(InOperand.GetRegisterIndex());
 		}
@@ -1985,7 +1986,7 @@ FRigVMPropertyDescription FRigVMCodeGenerator::GetPropertyDescForOperand(const F
 
 FRigVMPropertyDescription FRigVMCodeGenerator::GetPropertyForOperand(const FRigVMExtendedExecuteContext& Context, const FRigVMOperand& InOperand) const
 {
-	CheckOperand(InOperand);
+	CheckOperand(Context, InOperand);
 
 	const FProperty* Property = nullptr;
 	const uint8* Memory = nullptr;
@@ -1999,7 +2000,7 @@ FRigVMPropertyDescription FRigVMCodeGenerator::GetPropertyForOperand(const FRigV
 	}
 	else
 	{
-		if (URigVMMemoryStorage* MemoryStorage = VM->GetMemoryByType(InOperand.GetMemoryType()))
+		if (const URigVMMemoryStorage* MemoryStorage = VM->GetMemoryByType(Context, InOperand.GetMemoryType()))
 		{
 			Property = MemoryStorage->GetProperty(InOperand.GetRegisterIndex());
 			if (Property)
@@ -2032,9 +2033,9 @@ FRigVMPropertyDescription FRigVMCodeGenerator::GetPropertyForOperand(const FRigV
 	return FRigVMPropertyDescription();
 }
 
-const FRigVMPropertyPathDescription& FRigVMCodeGenerator::GetPropertyPathForOperand(const FRigVMOperand& InOperand) const
+const FRigVMPropertyPathDescription& FRigVMCodeGenerator::GetPropertyPathForOperand(const FRigVMExtendedExecuteContext& Context, const FRigVMOperand& InOperand) const
 {
-	CheckOperand(InOperand);
+	CheckOperand(Context, InOperand);
 
 	const int32 RegisterOffsetIndex = InOperand.GetRegisterOffset();
 	if (RegisterOffsetIndex != INDEX_NONE)
@@ -2048,7 +2049,7 @@ const FRigVMPropertyPathDescription& FRigVMCodeGenerator::GetPropertyPathForOper
 		}
 		else
 		{
-			if (const URigVMMemoryStorage* MemoryStorage = VM->GetMemoryByType(InOperand.GetMemoryType()))
+			if (const URigVMMemoryStorage* MemoryStorage = VM->GetMemoryByType(Context, InOperand.GetMemoryType()))
 			{
 				if (const URigVMMemoryStorageGeneratorClass* MemoryClass = Cast<URigVMMemoryStorageGeneratorClass>(MemoryStorage->GetClass()))
 				{
@@ -2074,9 +2075,9 @@ int32 FRigVMCodeGenerator::GetPropertyIndex(const FRigVMPropertyDescription& InP
 	return INDEX_NONE;
 }
 
-int32 FRigVMCodeGenerator::GetPropertyIndex(const FRigVMOperand& InOperand) const
+int32 FRigVMCodeGenerator::GetPropertyIndex(const FRigVMExtendedExecuteContext& Context, const FRigVMOperand& InOperand) const
 {
-	return GetPropertyIndex(GetPropertyDescForOperand(InOperand));
+	return GetPropertyIndex(GetPropertyDescForOperand(Context, InOperand));
 }
 
 FRigVMCodeGenerator::ERigVMNativizedPropertyType FRigVMCodeGenerator::GetPropertyType(
@@ -2090,12 +2091,12 @@ FRigVMCodeGenerator::ERigVMNativizedPropertyType FRigVMCodeGenerator::GetPropert
 	return ERigVMNativizedPropertyType::Invalid;
 }
 
-FRigVMCodeGenerator::ERigVMNativizedPropertyType FRigVMCodeGenerator::GetPropertyType(const FRigVMOperand& InOperand) const
+FRigVMCodeGenerator::ERigVMNativizedPropertyType FRigVMCodeGenerator::GetPropertyType(const FRigVMExtendedExecuteContext& Context, const FRigVMOperand& InOperand) const
 {
-	return GetPropertyType(GetPropertyDescForOperand(InOperand));
+	return GetPropertyType(GetPropertyDescForOperand(Context, InOperand));
 }
 
-void FRigVMCodeGenerator::CheckOperand(const FRigVMOperand& InOperand) const
+void FRigVMCodeGenerator::CheckOperand(const FRigVMExtendedExecuteContext& Context, const FRigVMOperand& InOperand) const
 {
 	ensure(InOperand.IsValid());
 	ensure(InOperand.GetMemoryType() != ERigVMMemoryType::Invalid);
@@ -2112,7 +2113,7 @@ void FRigVMCodeGenerator::CheckOperand(const FRigVMOperand& InOperand) const
 	}
 	else
 	{
-		URigVMMemoryStorage* Memory = VM->GetMemoryByType(InOperand.GetMemoryType(), false);
+		const URigVMMemoryStorage* Memory = VM->GetMemoryByType(Context, InOperand.GetMemoryType());
 		check(Memory);
 
 		ensure(Memory->GetProperties().IsValidIndex(InOperand.GetRegisterIndex()));

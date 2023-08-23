@@ -23,12 +23,18 @@ uint8* URigVMBlueprintGeneratedClass::GetPersistentUberGraphFrame(UObject* Obj, 
 
 void URigVMBlueprintGeneratedClass::PostInitInstance(UObject* InObj, FObjectInstancingGraph* InstanceGraph)
 {
+	// Skip SKEL classes.
+	if (InObj->GetName().StartsWith(TEXT("SKEL_")) || InObj->GetName().StartsWith(TEXT("Default__SKEL_")))
+	{
+		return;
+	}
+
 	if (URigVMHost* Owner = Cast<URigVMHost>(InObj))
 	{
 		URigVMHost* CDO = nullptr;
 		if (!Owner->HasAnyFlags(RF_ClassDefaultObject))
 		{
-			CDO = Cast<URigVMHost>(GetDefaultObject());;
+			CDO = Cast<URigVMHost>(GetDefaultObject());
 		}
 		Owner->PostInitInstance(CDO);
 	}
@@ -66,7 +72,7 @@ void URigVMBlueprintGeneratedClass::Serialize(FArchive& Ar)
 		{
 			if (Ar.IsSaving() && CDO->VM)
 			{
-				VM->CopyFrom(CDO->VM);
+				VM->CopyDataForSerialization(CDO->VM);
 			}
 		}
 	}
@@ -79,7 +85,7 @@ void URigVMBlueprintGeneratedClass::Serialize(FArchive& Ar)
 		{
 			if (Ar.IsLoading())
 			{
-				CDO->VM->CopyFrom(VM);
+				CDO->VM->CopyDataForSerialization(VM);
 			}
 		}
 	}

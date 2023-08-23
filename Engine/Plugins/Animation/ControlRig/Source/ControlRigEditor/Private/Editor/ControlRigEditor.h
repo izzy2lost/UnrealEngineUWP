@@ -77,7 +77,9 @@ public:
 	virtual void Compile() override;
 	virtual void HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject) override;
 	virtual void OnCreateGraphEditorCommands(TSharedPtr<FUICommandList> GraphEditorCommandsList) override;
-	virtual void HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM) override;
+	UE_DEPRECATED(5.4, "Please use HandleVMCompiledEvent with ExtendedExecuteContext parameter.")
+	virtual void HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM) override {}
+	virtual void HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM, FRigVMExtendedExecuteContext& InContext) override;
 
 	// allows the editor to fill an empty graph
 	virtual void CreateEmptyGraphContent(URigVMController* InController) override;

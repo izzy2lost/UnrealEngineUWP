@@ -481,7 +481,7 @@ URigVMMemoryStorageGeneratorClass* URigVMMemoryStorageGeneratorClass::GetStorage
 	UObject* Outer = InOuter->GetOuter();
 	do
 	{
-		if(Outer->IsA<UPackage>())
+		if(!Outer || Outer->IsA<UPackage>())
 		{
 			break;
 		}
@@ -554,7 +554,6 @@ URigVMMemoryStorageGeneratorClass* URigVMMemoryStorageGeneratorClass::CreateStor
 
 		OldClass->ClassFlags |= CLASS_NewerVersionExists;
 		OldClass->Rename(*DiscardedMemoryClassName, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
-
 		if (OldClass->ClassDefaultObject)
 		{
 			OldClass->ClassDefaultObject->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
@@ -648,6 +647,7 @@ bool URigVMMemoryStorageGeneratorClass::RemoveStorageClass(UObject* InOuter, ERi
 	{
 		OldClass->ClassFlags |= CLASS_NewerVersionExists;
 		OldClass->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+		OldClass->MarkAsGarbage();
 		return true;
 	}
 

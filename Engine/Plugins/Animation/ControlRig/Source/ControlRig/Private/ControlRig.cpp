@@ -301,7 +301,7 @@ bool UControlRig::InitializeVM(const FName& InEventName)
 
 #if WITH_EDITOR
 	// setup the hierarchy's controller log function
-	if(URigHierarchyController* HierarchyController = GetHierarchy()->GetController(true))
+	if (URigHierarchyController* HierarchyController = GetHierarchy()->GetController(true))
 	{
 		HierarchyController->LogFunction = [this](EMessageSeverity::Type InSeverity, const FString& Message)
 		{
@@ -545,11 +545,6 @@ bool UControlRig::Execute(const FName& InEventName)
 
 	if (VM)
 	{
-		if (VM->GetOuter() != this)
-		{
-			InstantiateVMFromCDO();
-		}
-
 #if WITH_EDITOR
 		// default to always clear data after each execution
 		// only set a valid first entry event later when execution
@@ -1220,8 +1215,8 @@ bool UControlRig::Execute_Internal(const FName& InEventName)
 			if(!VM->IsContextValidForExecution(Context) ||
 				!IsValidLowLevel() ||
 				!VM->IsValidLowLevel() ||
-				!VM->GetLiteralMemory()->IsValidLowLevel() ||
-				!VM->GetWorkMemory()->IsValidLowLevel())
+				!GetLiteralMemory()->IsValidLowLevel() ||
+				!GetWorkMemory()->IsValidLowLevel())
 			{
 				UE_LOG(LogControlRig, Warning, InvalidatedVMFormat, *GetClass()->GetName());
 				return false;
@@ -1239,8 +1234,6 @@ bool UControlRig::Execute_Internal(const FName& InEventName)
 		
 		const bool bUseDebuggingSnapshots = !VM->IsNativized();
 		
-		TArray<URigVMMemoryStorage*> LocalMemory = VM->GetLocalMemoryArray();
-
 #if WITH_EDITOR
 		if(bUseDebuggingSnapshots)
 		{
@@ -1253,14 +1246,12 @@ bool UControlRig::Execute_Internal(const FName& InEventName)
 				{
 					if(bIsEventFirstInQueue)
 					{
-						VM->CopyFrom(SnapShotVM, false, false, false, true, true);
-						GetExtendedExecuteContext() = GetSnapshotContext();
+						CopyVMMemory(GetExtendedExecuteContext(), GetSnapshotContext());
 					}
 				}
 				else if(bIsEventLastInQueue)
 				{
-					SnapShotVM->CopyFrom(VM, false, false, false, true, true);
-					GetSnapshotContext() = GetExtendedExecuteContext();
+					CopyVMMemory(GetSnapshotContext(), GetExtendedExecuteContext());
 				}
 			}
 		}
@@ -1288,6 +1279,7 @@ bool UControlRig::Execute_Internal(const FName& InEventName)
 #endif
 		FRigHierarchyExecuteContextBracket HierarchyContextGuard(Hierarchy, &Context);
 
+		TArray<URigVMMemoryStorage*> LocalMemory = VM->GetLocalMemoryArray(Context);
 		const bool bSuccess = VM->Execute(Context, LocalMemory, InEventName) != ERigVMExecuteResult::Failed;
 
 #if UE_RIGVM_PROFILE_EXECUTE_UNITS_NUM
@@ -3040,6 +3032,7 @@ void UControlRig::PostInitInstanceIfRequired()
 		else
 		{
 			UControlRig* CDO = GetClass()->GetDefaultObject<UControlRig>();
+			ensure(VM == nullptr || VM == CDO->VM);
 			PostInitInstance(CDO);
 		}
 	}
@@ -3084,19 +3077,10 @@ void UControlRig::PostInitInstance(URigVMHost* InCDO)
 		RF_Transient | RF_Transactional;
 
 	FRigVMExtendedExecuteContext& Context = GetExtendedExecuteContext();
-	// set up the VM
-	VM = NewObject<URigVM>(this, TEXT("VM"), SubObjectFlags);
+	
 	Context.SetContextPublicDataStruct(FControlRigExecuteContext::StaticStruct());
 
-	// Cooked platforms will load these pointers from disk.
-	// In certain scenarios RequiresCookedData wil be false but the PKG_FilterEditorOnly will still be set (UEFN)
-	if (!FPlatformProperties::RequiresCookedData() && !GetClass()->RootPackageHasAnyFlags(PKG_FilterEditorOnly))
-	{
-		VM->GetMemoryByType(ERigVMMemoryType::Work, true);
-		VM->GetMemoryByType(ERigVMMemoryType::Literal, true);
-		VM->GetMemoryByType(ERigVMMemoryType::Debug, true);
-	}
-
+	Context.ExecutionReachedExit().RemoveAll(this);
 	Context.ExecutionReachedExit().AddUObject(this, &UControlRig::HandleExecutionReachedExit);
 	UpdateVMSettings();
 
@@ -3104,34 +3088,50 @@ void UControlRig::PostInitInstance(URigVMHost* InCDO)
 	DynamicHierarchy = NewObject<URigHierarchy>(this, TEXT("DynamicHierarchy"), SubObjectFlags);
 
 #if WITH_EDITOR
-	const TWeakObjectPtr<UControlRig> WeakThis = this;
-	DynamicHierarchy->OnUndoRedo().AddStatic(&UControlRig::OnHierarchyTransformUndoRedoWeak, WeakThis);
+		const TWeakObjectPtr<UControlRig> WeakThis = this;
+		DynamicHierarchy->OnUndoRedo().AddStatic(&UControlRig::OnHierarchyTransformUndoRedoWeak, WeakThis);
 #endif
 
-	if(!HasAnyFlags(RF_ClassDefaultObject) && InCDO)
+	if(!HasAnyFlags(RF_ClassDefaultObject))
 	{
-		InCDO->PostInitInstanceIfRequired();
-
-		VM->CopyFrom(InCDO->GetVM(), false, false, false, true); // we need the external properties to keep the Hash consistent with CDO
-		VM->SetVMHash(VM->ComputeVMHash());
-		DynamicHierarchy->CopyHierarchy(CastChecked<UControlRig>(InCDO)->GetHierarchy());
-
-		// This has to be calculated after the copy, as the CDO memory is lazily instantiated and it affects the Hash
-		const uint32 CDOVMHash = ComputeAndUpdateCDOHash(InCDO);
-		Context.VMHash = CDOVMHash;
-
-		if (VM->GetVMHash() != CDOVMHash)
+		if (ensure(InCDO))
 		{
-			UE_LOG(LogRigVM
-				, Warning
-				, TEXT("ControlRig : CDO VM Hash [%d] is different from calculated VM Hash [%d]. Please recompile ControlRig used at Asset : [%s]")
-				, CDOVMHash
-				, VM->GetVMHash()
-				, *GetPathName());
+			ensure(VM == nullptr || VM == InCDO->GetVM());
+			if (VM == nullptr) // this is needed for some EngineTests, on a normal setup, the VM is set to the CDO VM already
+			{
+				VM = InCDO->GetVM();
+			}
+
+			// This is needed by some tests that use Templates to run (and RigVMHost does not initialize template CDO rigs)
+			if (InCDO->HasAnyFlags(RF_ArchetypeObject))
+			{
+				CopyVMMemory(GetExtendedExecuteContext(), InCDO->GetExtendedExecuteContext());
+
+				Context.VMHash = InCDO->GetExtendedExecuteContext().VMHash;
+
+				if (!ensure(VM->GetVMHash() == Context.VMHash))
+				{
+					UE_LOG(LogRigVM
+						, Warning
+						, TEXT("ControlRig : VM Hash [%u] is different from Context stored VM Hash [%u]. Please recompile ControlRig used at Asset : [%s]")
+						, Context.VMHash
+						, VM->GetVMHash()
+						, *GetPathName());
+				}
+			}
+
+			DynamicHierarchy->CopyHierarchy(CastChecked<UControlRig>(InCDO)->GetHierarchy());
 		}
 	}
 	else // we are the CDO
 	{
+		check(InCDO == nullptr);
+
+		if (VM == nullptr)
+		{
+			VM = NewObject<URigVM>(this, TEXT("ControlRig_VM"), SubObjectFlags);
+		}
+
 		// for default objects we need to check if the CDO is rooted. specialized Control Rigs
 		// such as the FK control rig may not have a root since they are part of a C++ package.
 
