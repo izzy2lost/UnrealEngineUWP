@@ -15,6 +15,7 @@
 #include "Styling/AppStyle.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Input/SCheckBox.h"
+#include "Editor/Transactor.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowSNode)
 
@@ -185,6 +186,18 @@ TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> FAssetSchemaAc
 	return TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode>(nullptr);
 }
 
+void SDataflowEdNode::CopyDataflowNodeSettings(TSharedPtr<FDataflowNode> SourceDataflowNode, TSharedPtr<FDataflowNode> TargetDataflowNode)
+{
+	using namespace UE::Transaction;
+	FSerializedObject SerializationObject;
+
+	FSerializedObjectDataWriter ArWriter(SerializationObject);
+	SourceDataflowNode->SerializeInternal(ArWriter);
+
+	FSerializedObjectDataReader ArReader(SerializationObject);
+	TargetDataflowNode->SerializeInternal(ArReader);
+}
+
 static UDataflowEdNode* CreateNode(UDataflow* Dataflow, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode, const FName NodeUniqueName, const FName NodeTypeName, TSharedPtr<FDataflowNode> DataflowNodeToDuplicate, bool bCopySettings = false)
 {
 	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
@@ -204,7 +217,7 @@ static UDataflowEdNode* CreateNode(UDataflow* Dataflow, UEdGraphPin* FromPin, co
 				// Copy properties from DataflowNodeToDuplicate to DataflowNode
 				if (bCopySettings)
 				{
-					DataflowNode->CopyNodeProperties(DataflowNodeToDuplicate);
+					SDataflowEdNode::CopyDataflowNodeSettings(DataflowNodeToDuplicate, DataflowNode);
 				}
 
 				EdNode->CreateNewGuid();
