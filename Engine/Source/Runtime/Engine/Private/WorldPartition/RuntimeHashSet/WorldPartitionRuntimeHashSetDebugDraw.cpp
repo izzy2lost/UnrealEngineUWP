@@ -9,6 +9,7 @@
 #include "WorldPartition/WorldPartitionDebugHelper.h"
 #include "DrawDebugHelpers.h"
 #include "Math/TransformCalculus2D.h"
+#include "Misc/Paths.h"
 
 static int32 GShowRuntimeHashSetDebugDisplayLevel = 0;
 static FAutoConsoleVariableRef CVarShowRuntimeHashSetDebugDisplayLevel(
