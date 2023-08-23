@@ -314,18 +314,18 @@ enum class ENDISkeletalMesh_SourceMode : uint8
 	Default behavior.
 	- Use "Source" when specified (either set explicitly or via blueprint with Set Niagara Skeletal Mesh Component).
 	- When no source is specified, fall back on attached actor or component.
+	- If no attach actor look at the default mesh
 	*/
 	Default,
 
-	/**
-	Only use "Source" (either set explicitly or via blueprint with Set Niagara Skeletal Mesh Component).
-	*/
+	/**	Only use "Source" (either set explicitly or via blueprint with Set Niagara Skeletal Mesh Component). */
 	Source,
 
-	/**
-	Only use the parent actor or component the system is attached to.
-	*/
-	AttachParent
+	/**	Only use the parent actor or component the system is attached to. */
+	AttachParent,
+
+	/** Only use the "Default Mesh" specified. */
+	DefaultMeshOnly,
 };
 
 UENUM()
@@ -689,6 +689,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Mesh", meta = (DisallowedClasses = "/Script/ApexDestruction.DestructibleMesh"))
 	TSoftObjectPtr<USkeletalMesh> PreviewMesh;
 #endif
+
+	/** Mesh used to sample from when not overridden by a source actor from the scene. This mesh is NOT removed from cooked builds. */
+	UPROPERTY(EditAnywhere, Category = "Mesh", meta = (DisallowedClasses = "/Script/ApexDestruction.DestructibleMesh"))
+	TObjectPtr<USkeletalMesh> DefaultMesh;
 
 protected:
 	/** The source actor from which to sample. Takes precedence over the direct mesh. Note that this can only be set when used as a user variable on a component in the world.*/
