@@ -448,11 +448,14 @@ FString FArrayProperty::GetCPPType( FString* ExtendedTypeText/*=NULL*/, uint32 C
 	return GetCPPTypeCustom(ExtendedTypeText, CPPExportFlags, InnerTypeText, InnerExtendedTypeText);
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FString FArrayProperty::GetCPPTypeForwardDeclaration() const
 {
 	checkSlow(Inner);
 	return Inner->GetCPPTypeForwardDeclaration();
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 FString FArrayProperty::GetCPPMacroType( FString& ExtendedTypeText ) const
 {
 	checkSlow(Inner);

@@ -121,12 +121,14 @@ FString FOptionalProperty::GetCPPMacroType(FString& ExtendedTypeText) const
 	return TEXT("TOPTIONAL");
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FString FOptionalProperty::GetCPPTypeForwardDeclaration() const
 {
 	// We assume that TOptional<> is globally known already and that we just need to make the value type known
 	checkSlow(ValueProperty);
 	return ValueProperty->GetCPPTypeForwardDeclaration();
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FOptionalProperty::LinkInternal(FArchive& Ar)
 {

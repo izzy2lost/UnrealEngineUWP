@@ -541,11 +541,13 @@ FString FSetProperty::GetCPPType(FString* ExtendedTypeText, uint32 CPPExportFlag
 	return GetCPPTypeCustom(ExtendedTypeText, CPPExportFlags, ElementTypeText, ElementExtendedTypeText);
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FString FSetProperty::GetCPPTypeForwardDeclaration() const
 {
 	checkSlow(ElementProp);
 	return ElementProp->GetCPPTypeForwardDeclaration();
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FSetProperty::ExportText_Internal(FString& ValueStr, const void* ContainerOrPropertyPtr, EPropertyPointerType PropertyPointerType, const void* DefaultValue, UObject* Parent, int32 PortFlags, UObject* ExportRootScope) const
 {

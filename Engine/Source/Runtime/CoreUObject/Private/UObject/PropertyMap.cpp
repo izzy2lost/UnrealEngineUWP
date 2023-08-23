@@ -617,6 +617,7 @@ FString FMapProperty::GetCPPType(FString* ExtendedTypeText, uint32 CPPExportFlag
 	return GetCPPTypeCustom(ExtendedTypeText, CPPExportFlags, KeyTypeText, KeyExtendedTypeText, ValueTypeText, ValueExtendedTypeText);
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FString FMapProperty::GetCPPTypeForwardDeclaration() const
 {
 	checkSlow(KeyProp);
@@ -624,6 +625,7 @@ FString FMapProperty::GetCPPTypeForwardDeclaration() const
 	// Generates a single ' ' when no forward declaration is needed. Purely an aesthetic concern at this time:
 	return FString::Printf( TEXT("%s %s"), *KeyProp->GetCPPTypeForwardDeclaration(), *ValueProp->GetCPPTypeForwardDeclaration());
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FString FMapProperty::GetCPPMacroType( FString& ExtendedTypeText ) const
 {

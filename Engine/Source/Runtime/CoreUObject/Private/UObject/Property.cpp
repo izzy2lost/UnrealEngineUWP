@@ -996,6 +996,7 @@ bool FProperty::PassCPPArgsByRef() const
 }
 
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void FProperty::ExportCppDeclaration(FOutputDevice& Out, EExportedDeclaration::Type DeclarationType, const TCHAR* ArrayDimOverride, uint32 AdditionalExportCPPFlags
 	, bool bSkipParameterName, const FString* ActualCppType, const FString* ActualExtendedType, const FString* ActualParameterName) const
 {
@@ -1135,6 +1136,7 @@ void FProperty::ExportCppDeclaration(FOutputDevice& Out, EExportedDeclaration::T
 		}
 	}
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 bool FProperty::ExportText_Direct
 	(

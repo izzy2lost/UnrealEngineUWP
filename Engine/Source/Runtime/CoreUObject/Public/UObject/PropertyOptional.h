@@ -203,6 +203,7 @@ public:
 	// UHT interface
 	virtual FString GetCPPType(FString* ExtendedTypeText = NULL, uint32 CPPExportFlags = 0) const override;
 	virtual FString GetCPPMacroType(FString& ExtendedTypeText) const override;
+	UE_DEPRECATED(5.4, "UnrealHeaderTool only API.  No replacement available.")
 	virtual FString GetCPPTypeForwardDeclaration() const override;
 	// End of UHT interface
 
