@@ -31,7 +31,6 @@
 #include "UserInterface/PropertyTable/TextPropertyTableCellPresenter.h"
 #include "Widgets/Colors/SColorPicker.h"
 #include "Widgets/Layout/SBorder.h"
-#include "DetailsViewStyle.h"
 
 
 IMPLEMENT_MODULE( FPropertyEditorModule, PropertyEditor );
@@ -92,8 +91,6 @@ void FPropertyEditorModule::StartupModule()
 	StructOnScopePropertyOwner = nullptr;
 
 	FCoreUObjectDelegates::OnObjectsReplaced.AddRaw(this, &FPropertyEditorModule::ReplaceViewedObjects);
-
-	FDetailsViewStyle::InitializeDetailsViewStyles();
 }
 
 void FPropertyEditorModule::ShutdownModule()
