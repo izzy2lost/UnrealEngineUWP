@@ -291,4 +291,19 @@ public:
 
 	/** Sets the minimum width of the detail panel's right column. */
 	virtual void SetRightColumnMinWidth(float InMinWidth) = 0;
+
+	/**
+	* Updates @code FDetailsViewStyleKey& StyleKey @endcode for the current IDetailsView state
+	*/
+	virtual void UpdateStyleKey() = 0;
+
+	/**
+	* Gets the @code FDetailsViewStyleKey& @endcode which provides a Key to the current style for a Details View
+	*/
+	virtual FDetailsViewStyleKey& GetStyleKey() = 0;
+	
+	/**
+   	* Returns a bool indicating whether the given @code FDetailsViewStyleKey @endcode is the default Details View Style 
+   	*/
+   	virtual bool IsDefaultStyle() const = 0;
 };

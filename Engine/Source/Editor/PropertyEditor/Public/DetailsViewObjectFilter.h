@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "DetailsViewStyleKey.h"
 
 /**
  * An object root is a collection of UObjects that represent a top level set of properties in a details panel
@@ -33,13 +34,31 @@ struct FDetailsViewObjectRoot
 };
 
 /**
- * An object filter determines the root objects that should be displayed from a set of given source objects passed to the details panel
+ * An object filter determines the root objects that should be displayed from a set of given source objects passed to the details panel.
+ * It can also be used to convey characteristics of a details view which may alter depending upon the type of objects
+ * that have been filtered.
  */
 class FDetailsViewObjectFilter
 {
 public:
+
 	virtual ~FDetailsViewObjectFilter() {}
 
+	/**
+	 * Given a const TArray<UObject*>& SourceObjects, it fills a TArray<FDetailsViewObjectRoot> with the objects
+	 * that we need as details objects roots. This may be the same as the original SourceObjects, or it may be
+	 * some subset of them, or some of their Sub-objects
+	 *
+	 * @param SourceObjects the array of objects acting as the Source of the root objects for the details view
+	 * @return the TArray<FDetailsViewObjectRoot> with the objects that will act as root objects for the details view 
+	 */
 	virtual TArray<FDetailsViewObjectRoot> FilterObjects(const TArray<UObject*>& SourceObjects) = 0;
 
+	/**
+	 * Returns the @code FDetailsViewStyleKey& @endcode that is the Key to the current objects' style
+	 */
+	virtual const FDetailsViewStyleKey& GetObjectsDetailsViewStyleKey()
+	{
+		return FDetailsViewStyleKeys::Default;
+	}
 };

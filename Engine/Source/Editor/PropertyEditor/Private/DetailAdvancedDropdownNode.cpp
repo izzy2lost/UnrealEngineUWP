@@ -9,6 +9,8 @@
 #include "UserInterface/PropertyEditor/PropertyEditorConstants.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
+#include "DetailsViewStyle.h"
+#include "SDetailsView.h"
 
 class SAdvancedDropdownRow : public SDetailTableRowBase
 {
@@ -85,26 +87,29 @@ public:
 			]
 		];
 
-		TWeakPtr<STableViewBase> OwnerTableViewWeak = InOwnerTableView;
-		auto GetScrollbarWellBrush = [this, OwnerTableViewWeak]()
+		OwnerTableViewWeak = InOwnerTableView;
+		auto GetScrollbarWellBrush = [this]()
 		{
 			return SDetailTableRowBase::IsScrollBarVisible(OwnerTableViewWeak) ?
 				FAppStyle::Get().GetBrush("DetailsView.GridLine") : 
 				FAppStyle::Get().GetBrush("DetailsView.CategoryMiddle");
 		};
 
-		auto GetScrollbarWellTint = [this, OwnerTableViewWeak]()
+		auto GetScrollbarWellTint = [this]()
 		{
-			return SDetailTableRowBase::IsScrollBarVisible(OwnerTableViewWeak) ?
+			return IsScrollBarVisible(OwnerTableViewWeak) ?
 				FStyleColors::White : 
 				this->GetRowBackgroundColor();
 		};
+
+		static FDetailsViewStyleKey PrimaryKey = SDetailsView::PrimaryDetailsViewStyleKey;
+		FDetailsViewStyle ViewStyle = DetailsView ? DetailsView->GetStyleKey() : PrimaryKey;
 
 		ChildSlot
 		[
 			SNew(SBorder)
 			.BorderImage(FAppStyle::Get().GetBrush("DetailsView.GridLine"))
-			.Padding(FMargin(0, 0, 0, 1))
+			.Padding(ViewStyle.GetRowPadding())
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()

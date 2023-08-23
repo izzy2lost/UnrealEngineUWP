@@ -719,6 +719,8 @@ void SDetailsView::SetObjectArrayPrivate(const TArray<UObject*>& InObjects)
 	double StartTime = FPlatformTime::Seconds();
 
 	const TArray<FDetailsViewObjectRoot> Roots = ObjectFilter->FilterObjects(InObjects);
+	
+	UpdateStyleKey();
 
 	PreSetObject(Roots.Num());
 
@@ -1469,6 +1471,34 @@ const FSlateBrush* SDetailsView::GetViewOptionsBadgeIcon() const
 					|| (DetailsViewArgs.bShowAnimatedPropertiesOption && IsShowAnimatedChecked() );
 
 	return bHasBadge ? FAppStyle::Get().GetBrush("Icons.BadgeModified") : nullptr;
+}
+
+bool SDetailsView::IsDefaultStyle() const
+{
+	return StyleKey == PrimaryDetailsViewStyleKey;
+}
+
+void SDetailsView::UpdateStyleKey()
+{
+	const bool IsDefault = FDetailsViewStyleKeys::IsDefault(ObjectFilter->GetObjectsDetailsViewStyleKey());
+
+	if (IsDefault && DetailsViewArgs.StyleKey.IsValid()) 
+	{
+		StyleKey = *DetailsViewArgs.StyleKey.Get();
+	}
+	else if (!IsDefault)
+	{
+		StyleKey = ObjectFilter->GetObjectsDetailsViewStyleKey();
+	}
+	else
+	{
+		StyleKey = PrimaryDetailsViewStyleKey;
+	}
+}
+
+FDetailsViewStyleKey& SDetailsView::GetStyleKey()
+{
+	return StyleKey;
 }
 
 #undef LOCTEXT_NAMESPACE
