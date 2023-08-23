@@ -123,10 +123,9 @@ private:
 
 	void OnEnableCollectionFilterChanged(ECheckBoxState NewState);
 	ECheckBoxState IsEnableCollectionFilterChecked() const;
-	TSharedRef<SWidget> GenerateCollectionFilterItem(TSharedPtr<FName> InItem);
-	void UpdateCollectionsComboList();
-	void HandleCollectionFilterChanged(TSharedPtr<FName> Item, ESelectInfo::Type SelectInfo);
-	FText GetCollectionFilterText() const;
+	void CollectionFilterAddMenuEntry(FMenuBuilder& MenuBuilder, const FName& CollectionName);
+	TSharedRef<SWidget> BuildCollectionFilterMenu();
+	FText GetCollectionComboButtonText() const;
 
 	void OnEnablePluginFilterChanged(ECheckBoxState NewState);
 	ECheckBoxState IsEnablePluginFilterChecked() const;
