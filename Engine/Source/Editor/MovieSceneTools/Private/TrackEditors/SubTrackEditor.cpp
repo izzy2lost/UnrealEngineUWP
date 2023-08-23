@@ -525,7 +525,9 @@ void FSubTrackEditor::CreateNewTake(UMovieSceneSubSection* Section)
 	uint32 ShotNumberDigits = 0;
 	uint32 TakeNumberDigits = 0;
 	
-	if (MovieSceneToolHelpers::ParseShotName(GetSubSectionDisplayName(Section), ShotPrefix, ShotNumber, TakeNumber, ShotNumberDigits, TakeNumberDigits))
+	FString SequenceName = Section->GetSequence() ? Section->GetSequence()->GetName() : FString();
+
+	if (MovieSceneToolHelpers::ParseShotName(SequenceName, ShotPrefix, ShotNumber, TakeNumber, ShotNumberDigits, TakeNumberDigits))
 	{
 		TArray<FAssetData> AssetData;
 		uint32 CurrentTakeNumber = INDEX_NONE;
@@ -544,39 +546,47 @@ void FSubTrackEditor::CreateNewTake(UMovieSceneSubSection* Section)
 			}
 		}
 
-		FString NewShotName = MovieSceneToolHelpers::ComposeShotName(ShotPrefix, ShotNumber, NewTakeNumber, ShotNumberDigits, TakeNumberDigits);
+		FString NewSectionName = MovieSceneToolHelpers::ComposeShotName(ShotPrefix, ShotNumber, NewTakeNumber, ShotNumberDigits, TakeNumberDigits);
 
-		TRange<FFrameNumber> NewShotRange         = Section->GetRange();
-		FFrameNumber         NewShotStartOffset   = Section->Parameters.StartFrameOffset;
-		float                NewShotTimeScale     = Section->Parameters.TimeScale;
-		int32                NewShotPrerollFrames = Section->GetPreRollFrames();
+		TRange<FFrameNumber> NewSectionRange         = Section->GetRange();
+		FFrameNumber         NewSectionStartOffset   = Section->Parameters.StartFrameOffset;
+		float                NewSectionTimeScale     = Section->Parameters.TimeScale;
+		int32                NewSectionPrerollFrames = Section->GetPreRollFrames();
 		int32                NewRowIndex          = Section->GetRowIndex();
-		FFrameNumber         NewShotStartTime     = NewShotRange.GetLowerBound().IsClosed() ? UE::MovieScene::DiscreteInclusiveLower(NewShotRange) : 0;
-		FColor               NewShotColorTint     = Section->GetColorTint();
+		FFrameNumber         NewSectionStartTime     = NewSectionRange.GetLowerBound().IsClosed() ? UE::MovieScene::DiscreteInclusiveLower(NewSectionRange) : 0;
+		FColor               NewSectionColorTint     = Section->GetColorTint();
 		UMovieSceneSubTrack* SubTrack = CastChecked<UMovieSceneSubTrack>(Section->GetOuter());
 		FString NewSequencePath = FPaths::GetPath(Section->GetSequence()->GetPathName());
 
-		if (UMovieSceneSequence* NewSequence = MovieSceneToolHelpers::CreateSequence(NewShotName, NewSequencePath, Section))
+		if (UMovieSceneSequence* NewSequence = MovieSceneToolHelpers::CreateSequence(NewSectionName, NewSequencePath, Section))
 		{
 			const FScopedTransaction Transaction(LOCTEXT("NewTake_Transaction", "New Take"));
 
 			int32 Duration = UE::MovieScene::DiscreteSize(Section->GetRange());
 
-			UMovieSceneSubSection* NewShot = SubTrack->AddSequence(NewSequence, NewShotStartTime, Duration);
+			UMovieSceneSubSection* NewSection = SubTrack->AddSequence(NewSequence, NewSectionStartTime, Duration);
 			SubTrack->RemoveSection(*Section);
 
-			NewShot->SetRange(NewShotRange);
-			NewShot->Parameters.StartFrameOffset = NewShotStartOffset;
-			NewShot->Parameters.TimeScale = NewShotTimeScale;
-			NewShot->SetPreRollFrames(NewShotPrerollFrames);
-			NewShot->SetRowIndex(NewRowIndex);
-			NewShot->SetColorTint(NewShotColorTint);
+			NewSection->SetRange(NewSectionRange);
+			NewSection->Parameters.StartFrameOffset = NewSectionStartOffset;
+			NewSection->Parameters.TimeScale = NewSectionTimeScale;
+			NewSection->SetPreRollFrames(NewSectionPrerollFrames);
+			NewSection->SetRowIndex(NewRowIndex);
+			NewSection->SetColorTint(NewSectionColorTint);
 
-			MovieSceneToolHelpers::SetTakeNumber(NewShot, NewTakeNumber);
+			UMovieSceneCinematicShotSection* ShotSection = Cast<UMovieSceneCinematicShotSection>(Section);
+			UMovieSceneCinematicShotSection* NewShotSection = Cast<UMovieSceneCinematicShotSection>(NewSection);
+
+			if (ShotSection && NewShotSection)
+			{
+				NewShotSection->SetShotDisplayName(ShotSection->GetShotDisplayName());
+			}
+
+			MovieSceneToolHelpers::SetTakeNumber(NewSection, NewTakeNumber);
 
 			GetSequencer()->NotifyMovieSceneDataChanged( EMovieSceneDataChangeType::MovieSceneStructureItemsChanged );
 			GetSequencer()->EmptySelection();
-			GetSequencer()->SelectSection(NewShot);
+			GetSequencer()->SelectSection(NewSection);
 			GetSequencer()->ThrobSectionSelection();
 		}
 	}
@@ -628,6 +638,14 @@ void FSubTrackEditor::ChangeTake(UMovieSceneSequence* Sequence)
 			NewSection->SetPreRollFrames(NewSectionPrerollFrames);
 			NewSection->SetRowIndex(NewSectionRowIndex);
 			NewSection->SetColorTint(NewSectionColorTint);
+
+			UMovieSceneCinematicShotSection* ShotSection = Cast<UMovieSceneCinematicShotSection>(Section);
+			UMovieSceneCinematicShotSection* NewShotSection = Cast<UMovieSceneCinematicShotSection>(NewSection);
+
+			if (ShotSection && NewShotSection)
+			{
+				NewShotSection->SetShotDisplayName(ShotSection->GetShotDisplayName());
+			}
 
 			bChangedTake = true;
 		}

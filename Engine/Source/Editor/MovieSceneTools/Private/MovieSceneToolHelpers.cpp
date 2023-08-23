@@ -499,16 +499,7 @@ FString MovieSceneToolHelpers::GenerateNewSubsequenceName(const TArray<UMovieSce
 	}
 
 	FString NextSectionName = NextSection && NextSection->GetSequence() ? NextSection->GetSequence()->GetName() : FString();
-	if (const UMovieSceneCinematicShotSection* ShotSection = Cast<UMovieSceneCinematicShotSection>(NextSection))
-	{
-		NextSectionName = ShotSection->GetShotDisplayName();
-	}
-
 	FString CurrentSectionName = CurrentSection && CurrentSection->GetSequence() ? CurrentSection->GetSequence()->GetName() : FString();
-	if (const UMovieSceneCinematicShotSection* ShotSection = Cast<UMovieSceneCinematicShotSection>(CurrentSection))
-	{
-		CurrentSectionName = ShotSection->GetShotDisplayName();
-	}
 
 	// This is the first or last shot
 	if ((CurrentSection == nullptr && NextSection) || (CurrentSection != nullptr && CurrentSection == NextSection))
@@ -679,13 +670,8 @@ void MovieSceneToolHelpers::GatherTakes(const UMovieSceneSection* Section, TArra
 	uint32 ShotNumberDigits = 0;
 	uint32 TakeNumberDigits = 0;
 
-	FString SubSectionName = SubSection->GetSequence()->GetName();
-	if (const UMovieSceneCinematicShotSection* ShotSection = Cast<UMovieSceneCinematicShotSection>(SubSection))
-	{
-		SubSectionName = ShotSection->GetShotDisplayName();
-	}
-
-	ParseShotName(SubSectionName, ShotPrefix, ShotNumber, OutCurrentTakeNumber, ShotNumberDigits, TakeNumberDigits);
+	FString SequenceName = SubSection->GetSequence()->GetName();
+	ParseShotName(SequenceName, ShotPrefix, ShotNumber, OutCurrentTakeNumber, ShotNumberDigits, TakeNumberDigits);
 
 	// Gather up all level sequence assets
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
@@ -734,13 +720,8 @@ bool MovieSceneToolHelpers::GetTakeNumber(const UMovieSceneSection* Section, FAs
 	uint32 ShotNumberDigits = 0;
 	uint32 TakeNumberDigits = 0;
 
-	FString SubSectionName = SubSection->GetSequence()->GetName();
-	if (const UMovieSceneCinematicShotSection* ShotSection = Cast<UMovieSceneCinematicShotSection>(SubSection))
-	{
-		SubSectionName = ShotSection->GetShotDisplayName();
-	}
-
-	ParseShotName(SubSectionName, ShotPrefix, ShotNumber, TakeNumberDummy, ShotNumberDigits, TakeNumberDigits);
+	FString SequenceName = SubSection->GetSequence()->GetName();
+	ParseShotName(SequenceName, ShotPrefix, ShotNumber, TakeNumberDummy, ShotNumberDigits, TakeNumberDigits);
 	
 	// Gather up all level sequence assets
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
