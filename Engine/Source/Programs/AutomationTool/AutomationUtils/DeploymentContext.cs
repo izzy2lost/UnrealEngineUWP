@@ -1241,6 +1241,6 @@ public class DeploymentContext //: ProjectParams
 			return FileReference.Combine(SC.ProjectRoot, Ref.Name.Substring(SC.ShortProjectName.Length + 1));
 		}
 
-		throw new Exception();
+		throw new Exception($"Don't know how to convert staged file {Ref.Name} to its original editor path, because it is not in a recognized root directory.");
 	}
 }
