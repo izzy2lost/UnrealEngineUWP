@@ -3327,6 +3327,7 @@ bool FEdModeFoliage::IsModifierButtonPressed(const FEditorViewportClient* Viewpo
 
 void FEdModeFoliage::MoveSelectedFoliageToActorEditorContext()
 {
+	const FScopedTransaction Transaction(NSLOCTEXT("UnrealEd", "MoveSelectedFoliageToActorEditorContext", "Move Selected Foliage to Actor Editor Context"));
 	AInstancedFoliageActor::MoveSelectedInstancesToActorEditorContext(GetWorld());
 }
 
