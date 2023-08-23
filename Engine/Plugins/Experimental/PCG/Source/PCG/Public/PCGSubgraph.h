@@ -33,8 +33,13 @@ protected:
 	//~Begin UObject interface implementation
 	virtual void PostLoad() override;
 	virtual void BeginDestroy() override;
+	virtual void PostDuplicate(bool bDuplicateForPIE) override;
+	virtual void PostEditImport() override;
 	virtual void PostInitProperties() override;
+
 #if WITH_EDITOR
+	virtual void PreEditUndo() override;
+	virtual void PostEditUndo() override;
 	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 	//~End UObject interface implementation
@@ -42,6 +47,9 @@ protected:
 	//~Begin UPCGSettings interface
 	virtual void GetTrackedActorKeys(FPCGActorSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const override;
 	virtual bool IsStructuralProperty(const FName& InPropertyName) const override;
+
+	void SetupCallbacks();
+	void TeardownCallbacks();
 #endif
 
 	TArray<FPCGPinProperties> InputPinProperties() const override;
