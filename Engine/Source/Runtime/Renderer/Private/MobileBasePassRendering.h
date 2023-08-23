@@ -319,11 +319,12 @@ public:
 
 namespace MobileBasePass
 {
+	bool IsUsingDirectionalLightForLighmapPolicySelection(const FScene* Scene);
+
 	ELightMapPolicyType SelectMeshLightmapPolicy(
 		const FScene* Scene, 
 		const FMeshBatch& MeshBatch, 
 		const FPrimitiveSceneProxy* PrimitiveSceneProxy, 
-		const FLightSceneInfo* MobileDirectionalLight, 
 		bool bPrimReceivesCSM, 
 		bool bUsedDeferredShading,
 		bool bIsLitMaterial,
