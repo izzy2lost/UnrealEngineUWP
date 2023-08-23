@@ -4949,7 +4949,7 @@ void FActiveGameplayEffectsContainer::GetActiveGameplayEffectDataByAttribute(TMu
 	// Add all of the active gameplay effects
 	for (const FActiveGameplayEffect& Effect : this)
 	{
-		if (Effect.Spec.Modifiers.Num() == Effect.Spec.Def->Modifiers.Num())
+		if (Effect.Spec.Def && Effect.Spec.Modifiers.Num() == Effect.Spec.Def->Modifiers.Num())
 		{
 			for (int32 Idx = 0; Idx < Effect.Spec.Modifiers.Num(); ++Idx)
 			{
