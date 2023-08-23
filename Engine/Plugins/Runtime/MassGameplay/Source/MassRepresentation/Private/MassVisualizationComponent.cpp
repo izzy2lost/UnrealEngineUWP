@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MassVisualizationComponent.h"
+#include "CoreGlobals.h"
 #include "Logging/LogMacros.h"
 #include "MassVisualizer.h"
 #include "MassRepresentationTypes.h"
@@ -15,7 +16,12 @@
 #include "AI/NavigationSystemBase.h"
 
 
-DECLARE_CYCLE_STAT(TEXT("MassVisualizationComponent EndVisualChanges"), STAT_MassVisualizationComponent_EndVisualChanges, STATGROUP_Mass);
+DECLARE_CYCLE_STAT(TEXT("VisualizationComp EndVisualChanges"), STAT_Mass_VisualizationComponent_EndVisualChanges, STATGROUP_Mass);
+DECLARE_CYCLE_STAT(TEXT("VisualizationComp Handle Changes"), STAT_Mass_VisualizationComponent_HandleChangesWithExternalIDTracking, STATGROUP_Mass);
+
+DECLARE_DWORD_COUNTER_STAT(TEXT("VisualizationComp Instances Removed"), STAT_Mass_VisualizationComponent_InstancesRemovedNum, STATGROUP_Mass);
+DECLARE_DWORD_COUNTER_STAT(TEXT("VisualizationComp Instances Added"), STAT_Mass_VisualizationComponent_InstancesAddedNum, STATGROUP_Mass);
+
 
 //---------------------------------------------------------------
 // UMassVisualizationComponent
@@ -25,6 +31,10 @@ namespace UE::Mass::Representation
 {
 	int32 GCallUpdateInstances = 1;
 	FAutoConsoleVariableRef  CVarCallUpdateInstances(TEXT("Mass.CallUpdateInstances"), GCallUpdateInstances, TEXT("Toggle between UpdateInstances and BatchUpdateTransform."));
+
+#if STATS
+	uint32 LastStatsResetFrame = 0;
+#endif // STATS
 }  // UE::Mass::Representation
 
 void UMassVisualizationComponent::PostInitProperties()
@@ -181,7 +191,7 @@ void UMassVisualizationComponent::ConstructStaticMeshComponents()
 
 				if (SharedData == nullptr)
 				{
-					SharedData = &ISMCSharedData.Emplace(GetTypeHash(MeshDesc), FMassISMCSharedData(ISMC));
+					SharedData = &ISMCSharedData.Add(GetTypeHash(MeshDesc), FMassISMCSharedData(ISMC));
 				}
 				else
 				{
@@ -265,9 +275,9 @@ void UMassVisualizationComponent::ClearAllVisualInstances()
 	InstancedStaticMeshInfos.Reset();
 	
 	// Pool should already be empty, got a problem if it's not
-	for (auto It = ISMCSharedData.CreateIterator(); It; ++It)
+	for (int32 SharedDataIndex = 0; SharedDataIndex < ISMCSharedData.Num(); ++SharedDataIndex)
 	{
-		if (UInstancedStaticMeshComponent* InstancedStaticMeshComponent = It.Value().GetISMComponent())
+		if (UInstancedStaticMeshComponent* InstancedStaticMeshComponent = ISMCSharedData.GetAtIndex(SharedDataIndex).GetISMComponent())
 		{
 			InstancedStaticMeshComponent->ClearInstances();
 			InstancedStaticMeshComponent->DestroyComponent();
@@ -306,10 +316,12 @@ void UMassVisualizationComponent::HandleChangesWithExternalIDTracking(UInstanced
 {
 	constexpr float EqualTolerance = 1e-6;
 
-	if (SharedData.HasUpdatesToApply() == false)
+	if (!ensureMsgf(SharedData.HasUpdatesToApply(), TEXT("We're not expected to call this function for SharedData that needs no instance work, as per FMassISMCSharedData::FDirtyIterator used to iterate over data.")))
 	{
 		return;
 	}
+
+	SCOPE_CYCLE_COUNTER(STAT_Mass_VisualizationComponent_HandleChangesWithExternalIDTracking);
 
 	UHierarchicalInstancedStaticMeshComponent* HISMComp = Cast<UHierarchicalInstancedStaticMeshComponent>(&ISMComponent);
 	bool bAutoReset = HISMComp ? HISMComp->bAutoRebuildTreeOnInstanceChanges : false;
@@ -318,6 +330,8 @@ void UMassVisualizationComponent::HandleChangesWithExternalIDTracking(UInstanced
 	// that it's better to have redundant things visible than not seeing required things
 	if (SharedData.GetRemoveInstanceIds().Num())
 	{
+		INC_DWORD_STAT_BY(STAT_Mass_VisualizationComponent_InstancesRemovedNum, SharedData.GetRemoveInstanceIds().Num());
+
 		//RemoveInstanceWithIds(SharedData.GetRemoveInstanceIds());
 		TConstArrayView<int32> InstanceIds = SharedData.GetRemoveInstanceIds();
 
@@ -456,6 +470,8 @@ void UMassVisualizationComponent::HandleChangesWithExternalIDTracking(UInstanced
 	TArray<int32>& InstanceIds = SharedData.UpdateInstanceIds;
 	if (InstanceIds.Num())
 	{
+		INC_DWORD_STAT_BY(STAT_Mass_VisualizationComponent_InstancesAddedNum, InstanceIds.Num());
+
 		check(ISMComponent.InstanceIdToInstanceIndexMap.Num() == ISMComponent.PerInstanceSMData.Num());
 
 		// We first add all the unique IDs, while removing incoming data duplicating the existing data.
@@ -526,12 +542,22 @@ void UMassVisualizationComponent::HandleChangesWithExternalIDTracking(UInstanced
 void UMassVisualizationComponent::EndVisualChanges()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("MassVisualizationComponent EndVisualChanges")
-	SCOPE_CYCLE_COUNTER(STAT_MassVisualizationComponent_EndVisualChanges);
+	SCOPE_CYCLE_COUNTER(STAT_Mass_VisualizationComponent_EndVisualChanges);
+
+#if STATS
+	if (UE::Mass::Representation::LastStatsResetFrame != GFrameNumber)
+	{
+		SET_DWORD_STAT(STAT_Mass_VisualizationComponent_InstancesRemovedNum, 0);
+		SET_DWORD_STAT(STAT_Mass_VisualizationComponent_InstancesAddedNum, 0);
+		UE::Mass::Representation::LastStatsResetFrame = GFrameNumber;
+	}
+#endif // STATS
 
 	// Batch update gathered instance transforms
-	for (auto It = ISMCSharedData.CreateIterator(); It; ++It)
+	for (FMassISMCSharedDataMap::FDirtyIterator It(ISMCSharedData); It; ++It)
 	{
-		FMassISMCSharedData& SharedData = It.Value();
+		FMassISMCSharedData& SharedData = *It;
+
 		UInstancedStaticMeshComponent* InstancedStaticMeshComponent = SharedData.GetISMComponent();
 		// @todo need to check validity this way since Mass used to rely on the assumption that all the ISM components used were
 		// under its control. That's no longer the case, but the system has not been updated to take that into consideration.
@@ -605,6 +631,8 @@ void UMassVisualizationComponent::EndVisualChanges()
 		
 		SharedData.ResetAccumulatedData();
 	}
+
+	ISMCSharedData.ResetAllDirtyFlags();
 }
 
 //---------------------------------------------------------------
@@ -646,7 +674,7 @@ void FMassLODSignificanceRange::AddBatchedTransform(const int32 InstanceId, cons
 			continue;
 		}
 
-		FMassISMCSharedData& SharedData = (*ISMCSharedDataPtr)[StaticMeshRefs[i]];
+		FMassISMCSharedData& SharedData = ISMCSharedDataPtr->GetAndMarkDirty(StaticMeshRefs[i]);
 
 		SharedData.UpdateInstanceIds.Add(InstanceId);
 		SharedData.StaticMeshInstanceTransforms.Add(Transform);
@@ -664,7 +692,7 @@ void FMassLODSignificanceRange::AddBatchedCustomDataFloats(const TArray<float>& 
 			continue;
 		}
 
-		FMassISMCSharedData& SharedData = (*ISMCSharedDataPtr)[StaticMeshRefs[i]];
+		FMassISMCSharedData& SharedData = ISMCSharedDataPtr->GetAndMarkDirty(StaticMeshRefs[i]);
 		SharedData.StaticMeshInstanceCustomFloats.Append(CustomFloats);
 	}
 }
@@ -674,7 +702,7 @@ void FMassLODSignificanceRange::AddInstance(const int32 InstanceId, const FTrans
 	check(ISMCSharedDataPtr);
 	for (int i = 0; i < StaticMeshRefs.Num(); i++)
 	{
-		FMassISMCSharedData& SharedData = (*ISMCSharedDataPtr)[StaticMeshRefs[i]];
+		FMassISMCSharedData& SharedData = ISMCSharedDataPtr->GetAndMarkDirty(StaticMeshRefs[i]);
 		SharedData.UpdateInstanceIds.Add(InstanceId);
 		SharedData.StaticMeshInstanceTransforms.Add(Transform);
 		SharedData.StaticMeshInstancePrevTransforms.Add(Transform);
@@ -686,7 +714,7 @@ void FMassLODSignificanceRange::RemoveInstance(const int32 InstanceId)
 	check(ISMCSharedDataPtr);
 	for (int i = 0; i < StaticMeshRefs.Num(); i++)
 	{
-		FMassISMCSharedData& SharedData = (*ISMCSharedDataPtr)[StaticMeshRefs[i]];
+		FMassISMCSharedData& SharedData = ISMCSharedDataPtr->GetAndMarkDirty(StaticMeshRefs[i]);
 		SharedData.RemoveInstanceIds.Add(InstanceId);
 	}
 }
@@ -701,7 +729,7 @@ void FMassLODSignificanceRange::WriteCustomDataFloatsAtStartIndex(int32 StaticMe
 			return;
 		}
 
-		FMassISMCSharedData& SharedData = (*ISMCSharedDataPtr)[StaticMeshRefs[StaticMeshIndex]];
+		FMassISMCSharedData& SharedData = ISMCSharedDataPtr->GetAndMarkDirty(StaticMeshRefs[StaticMeshIndex]);
 
 		int32 StartIndex = FloatsPerInstance * SharedData.WriteIterator + StartFloatIndex;
 

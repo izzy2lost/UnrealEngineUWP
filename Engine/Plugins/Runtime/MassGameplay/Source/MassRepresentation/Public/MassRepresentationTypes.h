@@ -201,6 +201,11 @@ struct MASSREPRESENTATION_API FMassISMCSharedData
 	
 	bool RequiresExternalInstanceIDTracking() const { return bRequiresExternalInstanceIDTracking; }
 
+	void Reset() 
+	{
+		*this = FMassISMCSharedData();
+	}
+
 protected:
 	friend FMassLODSignificanceRange;
 	friend UMassVisualizationComponent;
@@ -228,7 +233,157 @@ protected:
 	uint8 bRequiresExternalInstanceIDTracking : 1;
 };
 
-using FMassISMCSharedDataMap = TMap<uint32, FMassISMCSharedData>;
+
+/** 
+ * The container type hosting FMassISMCSharedData instances and supplying functionality of marking entries that require 
+ * instance-related operations (adding, removing). 
+ * 
+ * To get a FMassISMCSharedData instance to add operations to it call GetAndMarkDirty.
+ * 
+ * Use FDirtyIterator to iterate over just the data that needs processing. 
+ * 
+ * @see UMassVisualizationComponent::EndVisualChanges for iteration
+ * @see FMassLODSignificanceRange methods for performing dirtying operations
+ */
+struct FMassISMCSharedDataMap 
+{
+	struct FDirtyIterator
+	{
+		friend FMassISMCSharedDataMap;
+		explicit FDirtyIterator(FMassISMCSharedDataMap& InContainer)
+			: Container(InContainer), It(InContainer.GetDirtyArray())
+		{
+			if (It && It.GetValue() != bValueToCheck)
+			{
+				// will result in either setting IT to the first bInValue, or making bool(It) == false
+				++(*this);
+			}
+		}
+	public:
+		operator bool() const { return bool(It); }
+
+		FDirtyIterator& operator++()
+		{
+			while (++It)
+			{
+				if (It.GetValue() == bValueToCheck)
+				{
+					break;
+				}
+			}
+			return *this;
+		}
+
+		FMassISMCSharedData& operator*() const
+		{
+			return Container.GetAtIndex(It.GetIndex());
+		}
+
+	private:
+		FMassISMCSharedDataMap& Container;
+		TBitArray<>::FConstIterator It;
+		static constexpr bool bValueToCheck = true;
+	};
+
+	FMassISMCSharedData& GetAndMarkDirty(const uint32 Hash)
+	{
+		const int32 DataIndex = Map[Hash];
+		DirtyData[DataIndex] = true;
+		return Data[DataIndex];
+	}
+	
+	FMassISMCSharedData& FindOrAdd(const uint32 Hash, const FMassISMCSharedData& NewData)
+	{
+		const int32* DataIndex = Map.Find(Hash);
+		if (DataIndex == nullptr)
+		{
+			return Add(Hash, NewData);
+		}
+		check(Data.IsValidIndex(*DataIndex));
+		return Data[*DataIndex];
+	}
+
+	FMassISMCSharedData* Find(const uint32 Hash)
+	{
+		int32* DataIndex = Map.Find(Hash);
+		return (DataIndex == nullptr || *DataIndex == INDEX_NONE) ? (FMassISMCSharedData*)nullptr : &Data[*DataIndex];
+	}
+
+	FMassISMCSharedData& Add(const uint32 Hash, const FMassISMCSharedData& NewData)
+	{
+		const int32 DataIndex = FreeIndices.Num() ? FreeIndices.Pop() : Data.Num();
+		Map.Add(Hash, DataIndex);
+
+		if (DataIndex == Data.Num())
+		{
+			DirtyData.Add(false, DataIndex - DirtyData.Num() + 1);
+			return Data.Add_GetRef(NewData);
+		}
+		else
+		{
+			DirtyData[DataIndex] = false;
+			Data[DataIndex] = NewData;
+			return Data[DataIndex];
+		}
+	}
+
+	void Remove(const uint32 Hash)
+	{
+		int32 DataIndex = INDEX_NONE;
+		if (ensure(Map.RemoveAndCopyValue(Hash, DataIndex)))
+		{
+			DirtyData[DataIndex] = false;
+			Data[DataIndex].Reset();
+			FreeIndices.Add(DataIndex);
+		}
+	}
+
+	FMassISMCSharedData& GetAtIndex(const int32 DataIndex)
+	{
+		return Data[DataIndex];
+	}
+	
+	const TBitArray<>& GetDirtyArray() const 
+	{ 
+		return DirtyData;
+	}
+
+	/** @return total number of entries in Data array. Note that some or all entries could be empty (i.e. already freed) */
+	int32 Num() const
+	{
+		return Data.Num();
+	}
+
+	/** @return number of non-empty entries in Data. */
+	int32 NumValid() const
+	{
+		return Data.Num() - FreeIndices.Num();
+	}
+
+	bool IsDirty(const int32 DataIndex) const
+	{
+		return DirtyData[DataIndex];
+	}
+
+	void ResetAllDirtyFlags()
+	{
+		DirtyData.SetRange(0, DirtyData.Num(), false);
+	}
+
+	void Reset()
+	{
+		*this = FMassISMCSharedDataMap();
+	}
+
+protected:
+	TArray<FMassISMCSharedData> Data;
+	/** Mapping from Hash of data represented by FMassISMCSharedData to an index to Data */
+	TMap<uint32, int32> Map;
+	/** Indicates whether corresponding Data entry has any instance work assigned to it (instance addition or removal) */
+	TBitArray<> DirtyData;
+	/** Indices to Data that are available for reuse */
+	TArray<int32> FreeIndices;
+};
 
 
 USTRUCT()
@@ -255,7 +410,7 @@ public:
 				continue;
 			}
 
-			FMassISMCSharedData& SharedData = (*ISMCSharedDataPtr)[StaticMeshRefs[i]];
+			FMassISMCSharedData& SharedData = (*ISMCSharedDataPtr).GetAndMarkDirty(StaticMeshRefs[i]);
 			const int32 StartIndex = SharedData.StaticMeshInstanceCustomFloats.AddDefaulted(StructSizeInFloats + NumFloatsToPad);
 			InCustomDataType* CustomData = reinterpret_cast<InCustomDataType*>(&SharedData.StaticMeshInstanceCustomFloats[StartIndex]);
 			*CustomData = InCustomData;
