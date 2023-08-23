@@ -73,9 +73,9 @@ EMovieSceneChannelProxyType UMovieSceneComponentMaterialParameterSection::CacheC
 		}
 		return Path;
 	};
-	auto GetMaterialParameterTooltipText = [](const FString& ParameterPath)
+	auto GetMaterialParameterTooltipText = [](IMovieScenePlayer* Player, FGuid BindingID, FMovieSceneSequenceID SequenceID, FString ParameterPath)
 	{
-		return FString::Printf(TEXT("Path: %s"), *ParameterPath);
+		return FText::Format(LOCTEXT("MaterialParameterPath", "Path: {0}"), FText::FromString(ParameterPath));
 	};
 	int32 SortOrder = 0;
 	for (FScalarMaterialParameterInfoAndCurve& Scalar : ScalarParameterInfosAndCurves)
@@ -84,7 +84,7 @@ EMovieSceneChannelProxyType UMovieSceneComponentMaterialParameterSection::CacheC
 		FText ParameterDisplayName = GetMaterialParameterDisplayText(FText::FromName(Scalar.ParameterInfo.Name), Scalar.ParameterLayerName, Scalar.ParameterAssetName);
 		FMovieSceneChannelMetaData MetaData(*ParameterPath, ParameterDisplayName);
 		// Prevent single channels from collapsing to the track node
-		MetaData.PropertyMetaData.Add(FCommonChannelData::TooltipText, GetMaterialParameterTooltipText(ParameterPath));
+		MetaData.GetTooltipTextDelegate.BindLambda(GetMaterialParameterTooltipText, ParameterPath);
 		MetaData.bCanCollapseToTrack = false;
 		MetaData.SortOrder = SortOrder++;
 		Channels.Add(Scalar.ParameterCurve, MetaData, TMovieSceneExternalValue<float>());
@@ -92,36 +92,35 @@ EMovieSceneChannelProxyType UMovieSceneComponentMaterialParameterSection::CacheC
 	for (FColorMaterialParameterInfoAndCurves& Color : ColorParameterInfosAndCurves)
 	{
 		FString ParameterPath = GetMaterialParameterPath(Color.ParameterInfo.Name, Color.ParameterLayerName, Color.ParameterAssetName);
-		FString TooltipText = GetMaterialParameterTooltipText(ParameterPath);
 		FText ParameterDisplayName = GetMaterialParameterDisplayText(FText::FromName(Color.ParameterInfo.Name), Color.ParameterLayerName, Color.ParameterAssetName);
 		FText Group = FText::FromString(ParameterPath);
 
 		FMovieSceneChannelMetaData MetaData_R(*(ParameterPath + TEXT("R")), FCommonChannelData::ChannelR, Group);
-		MetaData_R.PropertyMetaData.Add(FCommonChannelData::TooltipText, FString::Printf(TEXT("%s.%s"), *TooltipText, TEXT("R")));
+		MetaData_R.GetTooltipTextDelegate.BindLambda(GetMaterialParameterTooltipText, ParameterPath + TEXT(".R"));
 		MetaData_R.SortOrder = SortOrder++;
 		MetaData_R.Color = FCommonChannelData::RedChannelColor;
 		MetaData_R.PropertyMetaData.Add(FCommonChannelData::GroupDisplayName, ParameterDisplayName.ToString());
-		MetaData_R.PropertyMetaData.Add(FCommonChannelData::GroupTooltipText, TooltipText);
+		MetaData_R.GetGroupTooltipTextDelegate.BindLambda(GetMaterialParameterTooltipText, ParameterPath);
 
 		FMovieSceneChannelMetaData MetaData_G(*(ParameterPath + TEXT("G")), FCommonChannelData::ChannelG, Group);
-		MetaData_G.PropertyMetaData.Add(FCommonChannelData::TooltipText, FString::Printf(TEXT("%s.%s"), *TooltipText, TEXT("G")));
+		MetaData_G.GetTooltipTextDelegate.BindLambda(GetMaterialParameterTooltipText, ParameterPath + TEXT(".G"));
 		MetaData_G.SortOrder = SortOrder++;
 		MetaData_G.Color = FCommonChannelData::GreenChannelColor;
 		MetaData_G.PropertyMetaData.Add(FCommonChannelData::GroupDisplayName, ParameterDisplayName.ToString());
-		MetaData_G.PropertyMetaData.Add(FCommonChannelData::GroupTooltipText, TooltipText);
+		MetaData_G.GetGroupTooltipTextDelegate.BindLambda(GetMaterialParameterTooltipText, ParameterPath);
 
 		FMovieSceneChannelMetaData MetaData_B(*(ParameterPath + TEXT("B")), FCommonChannelData::ChannelB, Group);
-		MetaData_B.PropertyMetaData.Add(FCommonChannelData::TooltipText, FString::Printf(TEXT("%s.%s"), *TooltipText, TEXT("B")));
+		MetaData_B.GetTooltipTextDelegate.BindLambda(GetMaterialParameterTooltipText, ParameterPath + TEXT(".B"));
 		MetaData_B.SortOrder = SortOrder++;
 		MetaData_B.Color = FCommonChannelData::BlueChannelColor;
 		MetaData_B.PropertyMetaData.Add(FCommonChannelData::GroupDisplayName, ParameterDisplayName.ToString());
-		MetaData_B.PropertyMetaData.Add(FCommonChannelData::GroupTooltipText, TooltipText);
+		MetaData_B.GetGroupTooltipTextDelegate.BindLambda(GetMaterialParameterTooltipText, ParameterPath);
 
 		FMovieSceneChannelMetaData MetaData_A(*(ParameterPath + TEXT("A")), FCommonChannelData::ChannelA, Group);
-		MetaData_A.PropertyMetaData.Add(FCommonChannelData::TooltipText, FString::Printf(TEXT("%s.%s"), *TooltipText, TEXT("A")));
+		MetaData_A.GetTooltipTextDelegate.BindLambda(GetMaterialParameterTooltipText, ParameterPath + TEXT(".A"));
 		MetaData_A.SortOrder = SortOrder++;
 		MetaData_A.PropertyMetaData.Add(FCommonChannelData::GroupDisplayName, ParameterDisplayName.ToString());
-		MetaData_A.PropertyMetaData.Add(FCommonChannelData::GroupTooltipText, TooltipText);
+		MetaData_A.GetGroupTooltipTextDelegate.BindLambda(GetMaterialParameterTooltipText, ParameterPath);
 
 		Channels.Add(Color.RedCurve, MetaData_R, TMovieSceneExternalValue<float>());
 		Channels.Add(Color.GreenCurve, MetaData_G, TMovieSceneExternalValue<float>());

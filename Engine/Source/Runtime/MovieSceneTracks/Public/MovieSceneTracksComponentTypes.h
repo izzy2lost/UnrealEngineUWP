@@ -597,6 +597,7 @@ struct FMovieSceneTracksComponentTypes
 	struct
 	{
 		FComponentTypeID BoundMaterialChanged;
+		FComponentTypeID CustomPrimitiveData;
 	} Tags;
 
 	TComponentTypeID<FLevelVisibilityComponentData> LevelVisibility;

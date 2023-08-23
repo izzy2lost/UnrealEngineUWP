@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Channels/MovieSceneChannelEditorData.h"
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
 #include "Fonts/SlateFontInfo.h"
@@ -87,7 +88,7 @@ class SEQUENCER_API FCategoryGroupModel
 public:
 	UE_SEQUENCER_DECLARE_CASTABLE(FCategoryGroupModel, FOutlinerItemModel, ITrackAreaExtension, ICompoundOutlinerExtension, IDeletableExtension, IRecyclableExtension);
 
-	explicit FCategoryGroupModel(FName InCategoryName, const FText& InDisplayText, const FText& InTooltipText);
+	explicit FCategoryGroupModel(FName InCategoryName, const FText& InDisplayText, FGetMovieSceneTooltipText InGetGroupTooltipTextDelegate);
 
 	~FCategoryGroupModel();
 
@@ -104,11 +105,6 @@ public:
 	FText GetDisplayText() const
 	{
 		return DisplayText;
-	}
-
-	FText GetTooltipText() const
-	{
-		return TooltipText;
 	}
 
 	void AddCategory(TWeakViewModelPtr<FCategoryModel> InCategory);
@@ -143,7 +139,7 @@ private:
 	TArray<TWeakViewModelPtr<FCategoryModel>> Categories;
 	FName CategoryName;
 	FText DisplayText;
-	FText TooltipText;
+	FGetMovieSceneTooltipText GetGroupTooltipTextDelegate;
 	FOutlinerSizing ComputedSizing;
 };
 

@@ -564,6 +564,10 @@ FMovieSceneTracksComponentTypes::FMovieSceneTracksComponentTypes()
 	Tags.BoundMaterialChanged = ComponentRegistry->NewTag(TEXT("Bound Material Changed"));
 	FBuiltInComponentTypes::Get()->RequiresInstantiationMask.Set(Tags.BoundMaterialChanged);
 
+	// Used to indicate the ParameterName component for certain parameter types (scalar, vector2d, vector, color)
+	// should be interpreted as an index for custom primitive data.
+	Tags.CustomPrimitiveData = ComponentRegistry->NewTag(TEXT("Custom Primitive Data"));
+
 	FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
 
 	// --------------------------------------------------------------------------------------------
@@ -754,6 +758,10 @@ FMovieSceneTracksComponentTypes::FMovieSceneTracksComponentTypes()
 	// --------------------------------------------------------------------------------------------
 	// Set up SkeletalAnimation components
 	ComponentRegistry->Factories.DuplicateChildComponent(SkeletalAnimation);
+
+	// --------------------------------------------------------------------------------------------
+	// Set up custom primitive data components
+	ComponentRegistry->Factories.DefineChildComponent(Tags.CustomPrimitiveData, Tags.CustomPrimitiveData);
 
 	InitializeMovieSceneTracksAccessors(this);
 }

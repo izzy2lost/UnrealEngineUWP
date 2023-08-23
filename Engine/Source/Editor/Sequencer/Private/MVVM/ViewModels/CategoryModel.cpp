@@ -6,10 +6,11 @@
 #include "ISequencerSection.h"
 #include "MVVM/Extensions/ITrackExtension.h"
 #include "MVVM/ViewModels/ChannelModel.h"
+#include "MVVM/ViewModels/ObjectBindingModel.h"
 #include "MVVM/ViewModels/SectionModel.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "MVVM/ViewModels/SequenceModel.h"
 #include "MVVM/ViewModels/SequencerModelUtils.h"
-#include "MVVM/ViewModels/ViewModelIterators.h"
 #include "MVVM/Views/SChannelView.h"
 #include "MVVM/Views/SOutlinerItemViewBase.h"
 #include "MVVM/Views/SSequencerKeyNavigationButtons.h"
@@ -85,10 +86,10 @@ FLinearColor FCategoryModel::GetKeyBarColor() const
 	return FColor(160, 160, 160);
 }
 
-FCategoryGroupModel::FCategoryGroupModel(FName InCategoryName, const FText& InDisplayText, const FText& InTooltipText)
+FCategoryGroupModel::FCategoryGroupModel(FName InCategoryName, const FText& InDisplayText, FGetMovieSceneTooltipText InGetGroupTooltipTextDelegate)
 	: CategoryName(InCategoryName)
 	, DisplayText(InDisplayText)
-	, TooltipText(InTooltipText)
+	, GetGroupTooltipTextDelegate(InGetGroupTooltipTextDelegate)
 {
 	SetIdentifier(InCategoryName);
 }
@@ -168,7 +169,27 @@ FText FCategoryGroupModel::GetLabel() const
 
 FText FCategoryGroupModel::GetLabelToolTipText() const
 {
-	return GetTooltipText();
+	if (GetGroupTooltipTextDelegate.IsBound())
+	{
+		if (TViewModelPtr<FSequenceModel> SequenceModel = FindAncestorOfType<FSequenceModel>())
+		{
+			if (TSharedPtr<FSequencerEditorViewModel> SequencerModel = SequenceModel->GetEditor())
+			{
+				FMovieSceneSequenceID SequenceID = SequenceModel->GetSequenceID();
+				IMovieScenePlayer* Player = SequencerModel->GetSequencer().Get();
+				if (Player)
+				{
+					if (TViewModelPtr<FObjectBindingModel> ObjectBindingModel = FindAncestorOfType<FObjectBindingModel>())
+					{
+						FGuid ObjectBindingID = ObjectBindingModel->GetObjectGuid();
+
+						return GetGroupTooltipTextDelegate.Execute(Player, ObjectBindingID, SequenceID);
+					}
+				}
+			}
+		}
+	}
+	return FText();
 }
 
 FSlateFontInfo FCategoryGroupModel::GetLabelFont() const

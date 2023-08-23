@@ -20,6 +20,7 @@ struct FMovieSceneRootEvaluationTemplateInstance;
 
 #if WITH_EDITOR
 
+DECLARE_DELEGATE_RetVal_ThreeParams(FText, FGetMovieSceneTooltipText, IMovieScenePlayer*, FGuid, FMovieSceneSequenceID);
 /**
  * Editor meta data for a channel of data within a movie scene section
  */
@@ -66,8 +67,12 @@ struct FMovieSceneChannelMetaData
 	FName Name;
 	/** Text to display on this channel's key area node */
 	FText DisplayText;
+	/** Delegate to get a dynamic tooltip for the key area node */
+	FGetMovieSceneTooltipText GetTooltipTextDelegate;
 	/** Name to group this channel with others of the same group name */
 	FText Group;
+	/** Delegate to get a dynamic tooltip for the group */
+	FGetMovieSceneTooltipText GetGroupTooltipTextDelegate;
 	/** Intent name */
 	FText IntentName;
 	/* Optional. If unspecified IKeyArea::CreateCurveEditorModel will create a fallback. */
@@ -145,7 +150,6 @@ struct FCommonChannelData
 
 	static MOVIESCENE_API const FName TooltipText;
 	static MOVIESCENE_API const FName GroupDisplayName;
-	static MOVIESCENE_API const FName GroupTooltipText;
 };
 
 

@@ -13,6 +13,7 @@
 #include "ISequencerChannelInterface.h"
 #include "ISequencerSection.h"
 #include "MVVM/Extensions/ITrackExtension.h"
+#include "MVVM/ViewModels/ObjectBindingModel.h"
 #include "MVVM/ViewModels/SectionModel.h"
 #include "MVVM/ViewModels/SequenceModel.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
@@ -261,12 +262,25 @@ FLinearColor FChannelModel::GetKeyBarColor() const
 	return FColor(160, 160, 160);
 }
 
-
+FChannelGroupModel::FChannelGroupModel(FName InChannelName, const FText& InDisplayText)
+	: ChannelsSerialNumber(0)
+	, ChannelName(InChannelName)
+	, DisplayText(InDisplayText)
+{
+}
 FChannelGroupModel::FChannelGroupModel(FName InChannelName, const FText& InDisplayText, const FText& InTooltipText)
 	: ChannelsSerialNumber(0)
 	, ChannelName(InChannelName)
 	, DisplayText(InDisplayText)
-	, TooltipText(InTooltipText)
+	, GetTooltipTextDelegate(FGetMovieSceneTooltipText::CreateLambda([InTooltipText](...) {return InTooltipText; }))
+{
+}
+
+FChannelGroupModel::FChannelGroupModel(FName InChannelName, const FText& InDisplayText, FGetMovieSceneTooltipText InGetTooltipTextDelegate)
+	: ChannelsSerialNumber(0)
+	, ChannelName(InChannelName)
+	, DisplayText(InDisplayText)
+	, GetTooltipTextDelegate(InGetTooltipTextDelegate)
 {
 }
 
@@ -316,6 +330,31 @@ void FChannelGroupModel::CleanupChannels()
 	{
 		++ChannelsSerialNumber;
 	}
+}
+
+FText FChannelGroupModel::GetTooltipText() const
+{
+	if (GetTooltipTextDelegate.IsBound())
+	{
+		if (TViewModelPtr<FSequenceModel> SequenceModel = FindAncestorOfType<FSequenceModel>())
+		{
+			if (TSharedPtr<FSequencerEditorViewModel> SequencerModel = SequenceModel->GetEditor())
+			{
+				FMovieSceneSequenceID SequenceID = SequenceModel->GetSequenceID();
+				IMovieScenePlayer* Player = SequencerModel->GetSequencer().Get();
+				if (Player)
+				{
+					if (TViewModelPtr<FObjectBindingModel> ObjectBindingModel = FindAncestorOfType<FObjectBindingModel>())
+					{
+						FGuid ObjectBindingID = ObjectBindingModel->GetObjectGuid();
+
+						return GetTooltipTextDelegate.Execute(Player, ObjectBindingID, SequenceID);
+					}
+				}
+			}
+		}
+	}
+	return FText();
 }
 
 TArrayView<const TWeakViewModelPtr<FChannelModel>> FChannelGroupModel::GetChannels() const
@@ -720,8 +759,8 @@ void FChannelGroupOverrideHelper::RemoveChannelOverrides(TSharedPtr<FSequenceMod
 	SequenceModel->GetSequencer()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
 }
 
-FChannelGroupOutlinerModel::FChannelGroupOutlinerModel(FName InChannelName, const FText& InDisplayText, const FText& InTooltipText)
-	: TOutlinerModelMixin<FChannelGroupModel>(InChannelName, InDisplayText, InTooltipText)
+FChannelGroupOutlinerModel::FChannelGroupOutlinerModel(FName InChannelName, const FText& InDisplayText, FGetMovieSceneTooltipText InGetTooltipTextDelegate)
+	: TOutlinerModelMixin<FChannelGroupModel>(InChannelName, InDisplayText, InGetTooltipTextDelegate)
 {
 	SetIdentifier(InChannelName);
 }

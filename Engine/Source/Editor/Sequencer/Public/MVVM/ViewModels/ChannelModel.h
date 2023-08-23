@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Channels/MovieSceneChannelEditorData.h"
 #include "Channels/MovieSceneChannelOverrideContainer.h"
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
@@ -127,7 +128,9 @@ public:
 
 	UE_SEQUENCER_DECLARE_CASTABLE(FChannelGroupModel, FViewModel, ITrackAreaExtension, IRecyclableExtension);
 
+	FChannelGroupModel(FName InChannelName, const FText& InDisplayText);
 	FChannelGroupModel(FName InChannelName, const FText& InDisplayText, const FText& InTooltipText);
+	FChannelGroupModel(FName InChannelName, const FText& InDisplayText, FGetMovieSceneTooltipText InGetTooltipTextDelegate);
 	~FChannelGroupModel();
 
 	/** Returns whether any of the channels within this group have any keyframes on them */
@@ -140,7 +143,7 @@ public:
 	FText GetDisplayText() const { return DisplayText; }
 
 	/** Returns the tooltip for this group */
-	FText GetTooltipText() const { return TooltipText; }
+	FText GetTooltipText() const;
 
 	/** Gets all the channel models in this group */
 	TArrayView<const TWeakViewModelPtr<FChannelModel>> GetChannels() const;
@@ -193,7 +196,7 @@ protected:
 	uint32 ChannelsSerialNumber;
 	FName ChannelName;
 	FText DisplayText;
-	FText TooltipText;
+	FGetMovieSceneTooltipText GetTooltipTextDelegate;
 };
 
 
@@ -210,7 +213,7 @@ public:
 
 	UE_SEQUENCER_DECLARE_CASTABLE(FChannelGroupOutlinerModel, FChannelGroupModel, FOutlinerItemModelMixin, ICompoundOutlinerExtension, IDeletableExtension);
 
-	FChannelGroupOutlinerModel(FName InChannelName, const FText& InDisplayText, const FText& InTooltipText);
+	FChannelGroupOutlinerModel(FName InChannelName, const FText& InDisplayText, FGetMovieSceneTooltipText InGetTooltipTextDelegate);
 	~FChannelGroupOutlinerModel();
 
 public:

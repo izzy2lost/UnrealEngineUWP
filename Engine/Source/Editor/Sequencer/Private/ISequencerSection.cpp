@@ -29,9 +29,9 @@ struct FMovieSceneChannel;
 /** Data pertaining to a group of channels */
 struct FGroupData
 {
-	FGroupData(FText InGroupText, FText InGroupTooltipText)
+	FGroupData(FText InGroupText, FGetMovieSceneTooltipText InGetGroupTooltipTextDelegate)
 		: GroupText(InGroupText)
-		, GroupTooltipText(InGroupTooltipText)
+		, GetGroupTooltipTextDelegate(InGetGroupTooltipTextDelegate)
 		, SortOrder(-1)
 	{}
 
@@ -48,8 +48,8 @@ struct FGroupData
 	/** Text to display for the group */
 	FText GroupText;
 	
-	/** Text to display for the group tooltip */
-	FText GroupTooltipText;
+	/** Getter for text to display for the group tooltip */
+	FGetMovieSceneTooltipText GetGroupTooltipTextDelegate;
 
 	/** Sort order of the group */
 	uint32 SortOrder;
@@ -97,7 +97,7 @@ void ISequencerSection::GenerateSectionLayout( ISectionLayoutBuilder& LayoutBuil
 					{
 						GroupDisplayName = FText::FromName(GroupName);
 					}
-					ExistingGroup = &GroupToChannelsMap.Add(GroupName, FGroupData(GroupDisplayName, FText::FromString(MetaData.GetPropertyMetaData(FCommonChannelData::GroupTooltipText))));
+					ExistingGroup = &GroupToChannelsMap.Add(GroupName, FGroupData(GroupDisplayName, MetaData.GetGroupTooltipTextDelegate));
 				}
 
 				ExistingGroup->AddChannel(FChannelData{ Channel, MetaData });
@@ -185,7 +185,7 @@ void ISequencerSection::GenerateSectionLayout( ISectionLayoutBuilder& LayoutBuil
 				return this->ConstructCategoryModel(InCategoryName, InDisplayText, ChannelData.Channels);
 			};
 
-			LayoutBuilder.PushCategory(GroupName, ChannelData.GroupText, ChannelData.GroupTooltipText, Factory);
+			LayoutBuilder.PushCategory(GroupName, ChannelData.GroupText, ChannelData.GetGroupTooltipTextDelegate, Factory);
 		}
 
 		for (const FChannelData& ChannelAndData : ChannelData.Channels)
