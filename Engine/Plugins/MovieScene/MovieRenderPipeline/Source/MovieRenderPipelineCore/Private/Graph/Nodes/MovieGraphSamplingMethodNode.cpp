@@ -3,7 +3,7 @@
 #include "Graph/Nodes/MovieGraphSamplingMethodNode.h"
 
 #include "Graph/MovieGraphConfig.h"
-#include "Graph/MovieGraphLinTimeStep.h"
+#include "Graph/MovieGraphLinearTimeStep.h"
 #include "Styling/AppStyle.h"
 
 UMovieGraphSamplingMethodNode::UMovieGraphSamplingMethodNode()

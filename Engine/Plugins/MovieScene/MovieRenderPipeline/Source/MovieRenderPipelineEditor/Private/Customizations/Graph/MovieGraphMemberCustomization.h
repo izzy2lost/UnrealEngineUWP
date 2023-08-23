@@ -14,12 +14,12 @@
 #define LOCTEXT_NAMESPACE "MoviePipelineEditor"
 
 /** Customize how members for a graph appear in the details panel. */
-class FGraphMemberCustomization : public IDetailCustomization
+class FMovieGraphMemberCustomization : public IDetailCustomization
 {
 public:
 	static TSharedRef<IDetailCustomization> MakeInstance()
 	{
-		return MakeShared<FGraphMemberCustomization>();
+		return MakeShared<FMovieGraphMemberCustomization>();
 	}
 
 protected:
@@ -97,8 +97,8 @@ protected:
 			[
 				SAssignNew(NameEditableTextBox, SEditableTextBox)
 				.Text_Lambda([MemberObject]() { return FText::FromString(MemberObject->GetMemberName()); })
-				.OnTextChanged(this, &FGraphMemberCustomization::OnNameChanged, MemberObject)
-				.OnTextCommitted(this, &FGraphMemberCustomization::OnNameCommitted, MemberObject)
+				.OnTextChanged(this, &FMovieGraphMemberCustomization::OnNameChanged, MemberObject)
+				.OnTextCommitted(this, &FMovieGraphMemberCustomization::OnNameCommitted, MemberObject)
 				.IsReadOnly_Lambda([MemberObject]() { return !MemberObject->IsEditable(); })
 				.SelectAllTextWhenFocused(true)
 				.Font(IDetailLayoutBuilder::GetDetailFont())

@@ -4,7 +4,7 @@
 
 #include "MovieGraphCoreTimeStep.h"
 
-#include "MovieGraphLinTimeStep.generated.h"
+#include "MovieGraphLinearTimeStep.generated.h"
 
 /**
  * Advances time forward linearly until the end of the range of time that is being rendered is reached. This is useful

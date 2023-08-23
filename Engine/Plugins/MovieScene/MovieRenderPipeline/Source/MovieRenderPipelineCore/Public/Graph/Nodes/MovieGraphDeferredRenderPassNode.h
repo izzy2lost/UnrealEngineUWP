@@ -4,7 +4,7 @@
 
 #include "Graph/Nodes/MovieGraphCoreRenderPassNode.h"
 
-#include "MovieGraphDefRenderPassNode.generated.h"
+#include "MovieGraphDeferredRenderPassNode.generated.h"
 
 /** A render node which uses the deferred renderer. */
 UCLASS()

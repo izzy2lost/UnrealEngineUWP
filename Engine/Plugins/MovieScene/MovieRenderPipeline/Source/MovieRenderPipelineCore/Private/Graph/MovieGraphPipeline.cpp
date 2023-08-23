@@ -4,7 +4,7 @@
 
 #include "Graph/MovieGraphCVarManager.h"
 #include "Graph/MovieGraphDataTypes.h"
-#include "Graph/MovieGraphLinTimeStep.h"
+#include "Graph/MovieGraphLinearTimeStep.h"
 #include "Graph/MovieGraphOutputMerger.h"
 #include "Graph/MoviePipelineRenderLayerSubsystem.h"
 #include "Graph/Nodes/MovieGraphCollectionNode.h"

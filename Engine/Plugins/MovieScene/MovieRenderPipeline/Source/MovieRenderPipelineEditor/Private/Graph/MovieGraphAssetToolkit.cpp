@@ -2,8 +2,8 @@
 
 #include "MovieGraphAssetToolkit.h"
 
-#include "Customizations/Graph/GraphMemberCustomization.h"
-#include "Customizations/Graph/GraphNodeCustomization.h"
+#include "Customizations/Graph/MovieGraphMemberCustomization.h"
+#include "Customizations/Graph/MovieGraphNodeCustomization.h"
 #include "Customizations/Graph/MovieGraphShowFlagsCustomization.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Graph/MovieGraphConfig.h"
@@ -227,11 +227,11 @@ TSharedRef<SDockTab> FMovieGraphAssetToolkit::SpawnTab_RenderGraphDetails(const 
 
 	SelectedGraphObjectsDetailsWidget->RegisterInstancedCustomPropertyLayout(
 		UMovieGraphMember::StaticClass(),
-		FOnGetDetailCustomizationInstance::CreateStatic(&FGraphMemberCustomization::MakeInstance));
+		FOnGetDetailCustomizationInstance::CreateStatic(&FMovieGraphMemberCustomization::MakeInstance));
 
 	SelectedGraphObjectsDetailsWidget->RegisterInstancedCustomPropertyLayout(
 		UMovieGraphNode::StaticClass(),
-		FOnGetDetailCustomizationInstance::CreateStatic(&FGraphNodeCustomization::MakeInstance));
+		FOnGetDetailCustomizationInstance::CreateStatic(&FMovieGraphNodeCustomization::MakeInstance));
 
 	SelectedGraphObjectsDetailsWidget->RegisterInstancedCustomPropertyTypeLayout(
 		UMovieGraphShowFlags::StaticClass()->GetFName(),

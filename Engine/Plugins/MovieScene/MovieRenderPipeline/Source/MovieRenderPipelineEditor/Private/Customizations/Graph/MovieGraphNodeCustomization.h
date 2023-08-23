@@ -10,12 +10,12 @@
 #define LOCTEXT_NAMESPACE "MoviePipelineEditor"
 
 /** Customize how graph nodes appear in the details panel. */
-class FGraphNodeCustomization : public IDetailCustomization
+class FMovieGraphNodeCustomization : public IDetailCustomization
 {
 public:
 	static TSharedRef<IDetailCustomization> MakeInstance()
 	{
-		return MakeShared<FGraphNodeCustomization>();
+		return MakeShared<FMovieGraphNodeCustomization>();
 	}
 
 protected:

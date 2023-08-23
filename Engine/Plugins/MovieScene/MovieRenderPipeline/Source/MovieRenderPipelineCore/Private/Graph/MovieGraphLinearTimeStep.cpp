@@ -1,6 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Graph/MovieGraphLinTimeStep.h"
+#include "Graph/MovieGraphLinearTimeStep.h"
 
 #include "Graph/Nodes/MovieGraphSamplingMethodNode.h"
 

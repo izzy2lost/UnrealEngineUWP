@@ -1,6 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Graph/Nodes/MovieGraphDefRenderPassNode.h"
+#include "Graph/Nodes/MovieGraphDeferredRenderPassNode.h"
 
 #include "Engine/EngineBaseTypes.h"
 #include "ShowFlags.h"
