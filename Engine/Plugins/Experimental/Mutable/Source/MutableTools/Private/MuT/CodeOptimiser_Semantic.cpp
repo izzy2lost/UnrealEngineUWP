@@ -1286,13 +1286,13 @@ namespace mu
             case OP_TYPE::IM_TRANSFORM:
 			{
 				// It can only sink in the transform if it doesn't have it's own size.
-				const ASTOpImageTransform* typedAt = dynamic_cast<const ASTOpImageTransform*>(at.get());
-				if (typedAt->SizeX == 0 && typedAt->SizeY == 0)
+				const ASTOpImageTransform* TypedAt = dynamic_cast<const ASTOpImageTransform*>(at.get());
+				if (TypedAt->SizeX == 0 && TypedAt->SizeY == 0)
 				{
-					Ptr<ASTOpImageTransform> nop = mu::Clone<ASTOpImageTransform>(at);
-					Ptr<ASTOp> maskOp = nop->base.child();
-					nop->base = Visit(maskOp, currentSinkingOp);
-					newAt = nop;
+					Ptr<ASTOpImageTransform> NewOp = mu::Clone<ASTOpImageTransform>(at);
+					Ptr<ASTOp> MaskOp = NewOp->Base.child();
+					NewOp->Base = Visit(MaskOp, currentSinkingOp);
+					newAt = NewOp;
 				}
 
 				break;

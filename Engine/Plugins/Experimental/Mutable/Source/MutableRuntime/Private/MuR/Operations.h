@@ -831,14 +831,15 @@ namespace mu
 
 		struct ImageTransformArgs
 		{
-			ADDRESS base = 0;
-			ADDRESS offsetX = 0;
-			ADDRESS offsetY = 0;
-			ADDRESS scaleX = 0;
-			ADDRESS scaleY = 0;
-			ADDRESS rotation = 0;
+			ADDRESS Base = 0;
+			ADDRESS OffsetX = 0;
+			ADDRESS OffsetY = 0;
+			ADDRESS ScaleX = 0;
+			ADDRESS ScaleY = 0;
+			ADDRESS Rotation = 0;
 
-			uint32 AddressMode = 0;
+			uint32 AddressMode      : 31;
+			uint32 bKeepAspectRatio : 1;
 
             /** Size of the image to create. If 0, reuse size from base.*/
             uint16 SizeX = 0;

@@ -82,6 +82,9 @@ namespace mu
 		uint16 GetSizeY() const;
 		void SetSizeY(uint16 SizeY); 
 
+		bool GetKeepAspectRatio() const;
+		void SetKeepAspectRatio(bool bKeepAspectRatio);
+
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern
 		//-----------------------------------------------------------------------------------------

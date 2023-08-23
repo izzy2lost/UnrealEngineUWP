@@ -803,6 +803,31 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 			default: { check(false); return mu::EAddressMode::None; }
 			}
 		}));
+
+		FUintVector2 TextureSize(TypedNodeTransform->TextureSizeX, TypedNodeTransform->TextureSizeY);
+
+		// Calculating Texture size using Reference texture parameters
+		if (TypedNodeTransform->ReferenceTexture)
+		{
+			const int32 LODBias = ComputeLODBias(
+				GenerationContext, TypedNodeTransform->ReferenceTexture, TypedNodeTransform->ReferenceTexture->MaxTextureSize, 
+				nullptr, INDEX_NONE, false);
+
+			if (TextureSize.X > 0 && TextureSize.Y > 0)
+			{
+				TextureSize.X = TextureSize.X >> LODBias;
+				TextureSize.Y = TextureSize.Y >> LODBias;
+			}
+			else
+			{
+				TextureSize.X = TypedNodeTransform->ReferenceTexture->GetImportedSize().X >> LODBias;
+				TextureSize.Y = TypedNodeTransform->ReferenceTexture->GetImportedSize().Y >> LODBias;
+			}
+		}
+		
+		TransformNode->SetKeepAspectRatio(TypedNodeTransform->bKeepAspectRatio);
+		TransformNode->SetSizeX(TextureSize.X);
+		TransformNode->SetSizeY(TextureSize.Y);
 	}
 
 	else if (const UCustomizableObjectNodeTextureSaturate* TypedNodeSaturate = Cast<UCustomizableObjectNodeTextureSaturate>(Node))

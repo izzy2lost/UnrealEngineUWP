@@ -21,12 +21,12 @@ struct FProgram;
 	{
 	public:
 
-		ASTChild base;
-		ASTChild offsetX;
-		ASTChild offsetY;
-		ASTChild scaleX;
-		ASTChild scaleY;
-		ASTChild rotation;
+		ASTChild Base;
+		ASTChild OffsetX;
+		ASTChild OffsetY;
+		ASTChild ScaleX;
+		ASTChild ScaleY;
+		ASTChild Rotation;
 
 		uint16 SizeX;
 		uint16 SizeY;
@@ -35,6 +35,7 @@ struct FProgram;
 		uint16 SourceSizeY;
 
 		EAddressMode AddressMode = EAddressMode::Wrap;
+		bool bKeepAspectRatio = false;
 
 	public:
 
@@ -44,11 +45,11 @@ struct FProgram;
 
 		OP_TYPE GetOpType() const override { return OP_TYPE::IM_TRANSFORM; }
 		uint64 Hash() const override;
-		bool IsEqual(const ASTOp& otherUntyped) const override;
-		Ptr<ASTOp> Clone(MapChildFuncRef mapChild) const override;
+		bool IsEqual(const ASTOp& OtherUntyped) const override;
+		Ptr<ASTOp> Clone(MapChildFuncRef MapChild) const override;
 		void ForEachChild(const TFunctionRef<void(ASTChild&)>) override;
-		void Link(FProgram& program, FLinkerOptions* Options) override;
-		FImageDesc GetImageDesc(bool returnBestOption, FGetImageDescContext* context) const override;
+		void Link(FProgram& Program, FLinkerOptions* Options) override;
+		FImageDesc GetImageDesc(bool bReturnBestOption, FGetImageDescContext* Context) const override;
 		void GetLayoutBlockSize(int* pBlockX, int* pBlockY) override;
 		Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
 	};

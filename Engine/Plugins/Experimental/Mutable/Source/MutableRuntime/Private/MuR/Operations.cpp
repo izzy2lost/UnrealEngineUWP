@@ -797,12 +797,12 @@ namespace mu
 		case OP_TYPE::IM_TRANSFORM:
 		{
 			OP::ImageTransformArgs Args = program.GetOpArgs<OP::ImageTransformArgs>(at);
-			f(Args.base);
-			f(Args.offsetX);
-			f(Args.offsetY);
-			f(Args.scaleX);
-			f(Args.scaleY);
-			f(Args.rotation);
+			f(Args.Base);
+			f(Args.OffsetX);
+			f(Args.OffsetY);
+			f(Args.ScaleX);
+			f(Args.ScaleY);
+			f(Args.Rotation);
 			break;
 		}
 

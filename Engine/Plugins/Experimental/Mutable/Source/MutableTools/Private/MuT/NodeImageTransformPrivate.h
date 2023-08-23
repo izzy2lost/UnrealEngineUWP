@@ -33,12 +33,16 @@ namespace mu
 		EAddressMode AddressMode = EAddressMode::Wrap;
 		uint32 SizeX = 0;
 		uint32 SizeY = 0;
+		
+		bool bKeepAspectRatio = false;
+		uint8 UnusedPadding[sizeof(NodeImagePtr) - sizeof(bool)] = {0}; 
+		static_assert(sizeof(NodeImagePtr) - sizeof(bool) >= 1);
 
 
 		//!
-		void Serialise( OutputArchive& arch ) const
+		void Serialise(OutputArchive& arch) const
 		{
-            uint32 ver = 2;
+            uint32 ver = 3;
 			arch << ver;
 
 			arch << m_pBase;
@@ -50,14 +54,15 @@ namespace mu
 			arch << static_cast<uint32>(AddressMode);
 			arch << SizeX;
 			arch << SizeY;
+			arch << bKeepAspectRatio;
 		}
 
 		//!
-		void Unserialise( InputArchive& arch )
+		void Unserialise(InputArchive& arch)
 		{
             uint32 ver;
 			arch >> ver;
-			check(ver <= 2);
+			check(ver <= 3);
 
 			arch >> m_pBase;
 			arch >> m_pOffsetX;
@@ -78,6 +83,11 @@ namespace mu
 			{
 				arch >> SizeX;
 				arch >> SizeY;
+			}
+
+			if (ver >= 3)
+			{
+				arch >> bKeepAspectRatio;
 			}
 		}
 	};

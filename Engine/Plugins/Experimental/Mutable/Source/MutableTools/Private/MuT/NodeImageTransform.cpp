@@ -179,5 +179,17 @@ namespace mu
 	{
 		m_pD->SizeY = SizeY;
 	}
+
+	//---------------------------------------------------------------------------------------------
+	bool NodeImageTransform::GetKeepAspectRatio() const
+	{
+		return m_pD->bKeepAspectRatio;;
+	}
+
+	//---------------------------------------------------------------------------------------------
+	void NodeImageTransform::SetKeepAspectRatio(bool bKeepAspectRatio)
+	{
+		m_pD->bKeepAspectRatio = bKeepAspectRatio;
+	}
 }
 

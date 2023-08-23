@@ -4732,8 +4732,8 @@ namespace mu
 			{
 				const TArray<FScheduledOp, TFixedAllocator<2>> Deps = 
 				{
-					FScheduledOp(Args.scaleX, item),
-					FScheduledOp(Args.scaleY, item),
+					FScheduledOp(Args.ScaleX, item),
+					FScheduledOp(Args.ScaleY, item),
 				};
 
                 AddOp(FScheduledOp(item.At, item, 1), Deps);
@@ -4744,9 +4744,9 @@ namespace mu
 			{
             	MUTABLE_CPUPROFILER_SCOPE(IM_TRANSFORM_1)
 
-                const FVector2f Scale = FVector2f(
-                        Args.scaleX ? LoadScalar(FCacheAddress(Args.scaleX, item)) : 1.0f,
-                        Args.scaleY ? LoadScalar(FCacheAddress(Args.scaleY, item)) : 1.0f);
+                FVector2f Scale = FVector2f(
+                        Args.ScaleX ? LoadScalar(FCacheAddress(Args.ScaleX, item)) : 1.0f,
+                        Args.ScaleY ? LoadScalar(FCacheAddress(Args.ScaleY, item)) : 1.0f);
 	
 				using FUint16Vector2 = UE::Math::TIntVector2<uint16>;
 				const FUint16Vector2 DestSizeI = Invoke([&]() 
@@ -4769,15 +4769,19 @@ namespace mu
 
 				const FVector2f DestSize = FVector2f(DestSizeI.X, DestSizeI.Y);
 				const FVector2f SourceSize = FVector2f(Args.SourceSizeX, Args.SourceSizeY);
+	
+				if (Args.bKeepAspectRatio)
+				{
+					const float DestAspectOverSrcAspect = (DestSize.X * SourceSize.Y) / (DestSize.Y * SourceSize.X); 
 
-				const float DestAspectRatio = DestSize.X / DestSize.Y;
-				const float SrcAspecRatio = SourceSize.X / SourceSize.Y;
+					Scale *= DestAspectOverSrcAspect > 1.0f 
+							? FVector2f(1.0f/DestAspectOverSrcAspect, 1.0f) 
+							: FVector2f(1.0f, DestAspectOverSrcAspect); 
+				}
 			
-				const bool bKeepSourceAspectRatio = true;
-				
-				const FTransform2f Transform = FTransform2f(FVector2f(-0.5f)).
-					Concatenate(FTransform2f(FScale2f(Scale))).
-					Concatenate(FTransform2f(FVector2f(0.5f)));
+				const FTransform2f Transform = FTransform2f(FVector2f(-0.5f))
+					.Concatenate(FTransform2f(FScale2f(Scale)))
+					.Concatenate(FTransform2f(FVector2f(0.5f)));
 
 				FBox2f NormalizedCropRect(ForceInit);
 				NormalizedCropRect += Transform.TransformPoint(FVector2f(0.0f, 0.0f));
@@ -4803,10 +4807,10 @@ namespace mu
 				const uint8 Mip = static_cast<uint8>(FMath::Max(0, FMath::FloorToInt(HeapData.ImageTransform.MipValue)));
 				const TArray<FScheduledOp, TFixedAllocator<4>> Deps = 
 				{
-					FScheduledOp::FromOpAndOptions(Args.base, item, Mip),
-					FScheduledOp(Args.offsetX,  item),
-					FScheduledOp(Args.offsetY,  item),
-					FScheduledOp(Args.rotation, item) 
+					FScheduledOp::FromOpAndOptions(Args.Base, item, Mip),
+					FScheduledOp(Args.OffsetX,  item),
+					FScheduledOp(Args.OffsetY,  item),
+					FScheduledOp(Args.Rotation, item) 
 				};
 				
                 AddOp(FScheduledOp(item.At, item, 2, HeapDataAddress), Deps);
@@ -4820,18 +4824,18 @@ namespace mu
 				const FScheduledOpData HeapData = m_heapData[item.CustomState];
 
 				const uint8 Mip = static_cast<uint8>(FMath::Max(0, FMath::FloorToInt(HeapData.ImageTransform.MipValue)));
-				Ptr<const Image> Source = LoadImage(FCacheAddress(Args.base, item.ExecutionIndex, Mip));
+				Ptr<const Image> Source = LoadImage(FCacheAddress(Args.Base, item.ExecutionIndex, Mip));
 
 				const FVector2f Offset = FVector2f(
-                        Args.offsetX ? LoadScalar(FCacheAddress(Args.offsetX, item)) : 0.0f,
-                        Args.offsetY ? LoadScalar(FCacheAddress(Args.offsetY, item)) : 0.0f);
+                        Args.OffsetX ? LoadScalar(FCacheAddress(Args.OffsetX, item)) : 0.0f,
+                        Args.OffsetY ? LoadScalar(FCacheAddress(Args.OffsetY, item)) : 0.0f);
 
                 const FVector2f Scale = FVector2f(
 						FPlatformMath::LoadHalf(&HeapData.ImageTransform.ScaleXEncodedHalf),
 						FPlatformMath::LoadHalf(&HeapData.ImageTransform.ScaleYEncodedHalf));
 
 				// Map Range 0-1 to a full rotation
-                const float Rotation = LoadScalar(FCacheAddress(Args.rotation, item)) * UE_TWO_PI;
+                const float Rotation = LoadScalar(FCacheAddress(Args.Rotation, item)) * UE_TWO_PI;
 	
 				EImageFormat SourceFormat = Source->GetFormat();
 				EImageFormat Format = GetUncompressedFormat(SourceFormat);
@@ -6642,11 +6646,20 @@ namespace mu
             {
             case 0:
 			{
-				AddOp(FScheduledOp(item.At, item, 1), FScheduledOp(Args.base, item));
+				AddOp(FScheduledOp(item.At, item, 1), FScheduledOp(Args.Base, item));	
                 break;
 			}
             case 1:
             {
+				m_heapImageDesc[item.CustomState].m_lods = 1;
+				m_heapImageDesc[item.CustomState].m_format = GetUncompressedFormat(m_heapImageDesc[item.CustomState].m_format);
+				
+				if (!(Args.SizeX == 0 && Args.SizeY == 0))
+				{
+					m_heapImageDesc[item.CustomState].m_size[0] = Args.SizeX;
+					m_heapImageDesc[item.CustomState].m_size[1] = Args.SizeY;
+				}
+
 				StoreValidDesc(item);
                 break;
             }

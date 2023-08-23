@@ -558,79 +558,80 @@ namespace mu
 
 	void CodeGenerator::GenerateImage_Transform(const FImageGenerationOptions& Options, FImageGenerationResult& Result, const NodeImageTransform* InNode)
     {
-		const NodeImageTransform::Private& node = *InNode->GetPrivate();
+		const NodeImageTransform::Private& Node = *InNode->GetPrivate();
 
         MUTABLE_CPUPROFILER_SCOPE(NodeImageTransform);
 
-        Ptr<ASTOpImageTransform> op = new ASTOpImageTransform();
+        Ptr<ASTOpImageTransform> Op = new ASTOpImageTransform();
 
 		Ptr<ASTOp> OffsetX;
-		if (node.m_pOffsetX)
+		if (Node.m_pOffsetX)
 		{
-			OffsetX = Generate(node.m_pOffsetX);
+			OffsetX = Generate(Node.m_pOffsetX);
 		}
 
 		Ptr<ASTOp> OffsetY;
-		if (node.m_pOffsetY)
+		if (Node.m_pOffsetY)
 		{
-			OffsetY = Generate(node.m_pOffsetY);
+			OffsetY = Generate(Node.m_pOffsetY);
 		}
 	
 		Ptr<ASTOp> ScaleX;
-		if (node.m_pScaleX)
+		if (Node.m_pScaleX)
 		{
-			ScaleX = Generate(node.m_pScaleX);
+			ScaleX = Generate(Node.m_pScaleX);
 		}
 	
 		Ptr<ASTOp> ScaleY;
-		if (node.m_pScaleY)
+		if (Node.m_pScaleY)
 		{
-			ScaleY = Generate(node.m_pScaleY);
+			ScaleY = Generate(Node.m_pScaleY);
 		}
 
 		Ptr<ASTOp> Rotation;
-		if (node.m_pRotation)
+		if (Node.m_pRotation)
 		{
-			Rotation = Generate(node.m_pRotation);
+			Rotation = Generate(Node.m_pRotation);
 		}
 
 		// If one of the inputs (offset or scale) is missig assume unifrom translation/scaling 
-		op->offsetX = OffsetX ? OffsetX : OffsetY;
-		op->offsetY = OffsetY ? OffsetY : OffsetX;
- 		op->scaleX = ScaleX ? ScaleX : ScaleY;
-		op->scaleY = ScaleY ? ScaleY : ScaleX;
-		op->rotation = Rotation; 
-		op->AddressMode = node.AddressMode;
-		op->SizeX = node.SizeX;
-		op->SizeY = node.SizeY;
+		Op->OffsetX = OffsetX ? OffsetX : OffsetY;
+		Op->OffsetY = OffsetY ? OffsetY : OffsetX;
+ 		Op->ScaleX = ScaleX ? ScaleX : ScaleY;
+		Op->ScaleY = ScaleY ? ScaleY : ScaleX;
+		Op->Rotation = Rotation; 
+		Op->AddressMode = Node.AddressMode;
+		Op->SizeX = Node.SizeX;
+		Op->SizeY = Node.SizeY;
+		Op->bKeepAspectRatio = Node.bKeepAspectRatio;
 
 		// Base image
-        Ptr<ASTOp> base;
+        Ptr<ASTOp> Base;
 		FImageGenerationOptions NewOptions = Options;
 		NewOptions.ImageLayoutStrategy = CompilerOptions::TextureLayoutStrategy::None;
 		NewOptions.LayoutToApply = nullptr;
 		NewOptions.LayoutBlockId = -1;
 		NewOptions.RectSize = {};
 
-        if ( node.m_pBase )
+        if (Node.m_pBase)
         {
 			FImageGenerationResult BaseResult;
-			GenerateImage(NewOptions, BaseResult, node.m_pBase);
-			base = BaseResult.op;
+			GenerateImage(NewOptions, BaseResult, Node.m_pBase);
+			Base = BaseResult.op;
 		}
         else
         {
             // This argument is required
-            base = GenerateMissingImageCode(TEXT("Image Transform Base"), EImageFormat::IF_RGB_UBYTE, node.m_errorContext, NewOptions);
+            Base = GenerateMissingImageCode(TEXT("Image Transform Base"), EImageFormat::IF_RGB_UBYTE, Node.m_errorContext, NewOptions);
         }
 		
-		FImageDesc BaseDesc = base->GetImageDesc();
+		FImageDesc BaseDesc = Base->GetImageDesc();
 		
-        op->base = base;
-		op->SourceSizeX = BaseDesc.m_size.X;
-		op->SourceSizeY = BaseDesc.m_size.Y;
+        Op->Base = Base;
+		Op->SourceSizeX = BaseDesc.m_size.X;
+		Op->SourceSizeY = BaseDesc.m_size.Y;
 
-        Result.op = op; 
+        Result.op = Op; 
     }
 
     //---------------------------------------------------------------------------------------------

@@ -523,13 +523,19 @@ namespace mu
 	}
 
     //---------------------------------------------------------------------------------------------
-    Ptr<ASTOp> ImageDescGenerator::Visit( const NodeImageTransform::Private& node )
+    Ptr<ASTOp> ImageDescGenerator::Visit(const NodeImageTransform::Private& node)
     {
         m_desc = MUTABLE_MISSING_IMAGE_DESC;
 
-        if ( NodeImage* pBase = node.m_pBase.get() )
+        if (NodeImage* pBase = node.m_pBase.get())
         {
-            Generate( *pBase->GetBasePrivate() );
+            Generate(*pBase->GetBasePrivate());
+            
+            if (!(node.SizeX == 0 && node.SizeY == 0))
+            {
+                m_desc.m_size[0] = static_cast<uint16>(node.SizeX);  
+                m_desc.m_size[1] = static_cast<uint16>(node.SizeY);  
+            }
         }
 
         return 0;
