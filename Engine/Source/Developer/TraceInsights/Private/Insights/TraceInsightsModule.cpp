@@ -198,6 +198,31 @@ void FTraceInsightsModule::CreateDefaultStore()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+FString FTraceInsightsModule::GetDefaultStoreDir()
+{
+	using UE::Trace::FStoreClient;
+
+	FStoreClient* StoreClientPtr = FStoreClient::Connect(TEXT("localhost"));
+	TUniquePtr<FStoreClient> StoreClient = TUniquePtr<FStoreClient>(StoreClientPtr);
+
+	if (!StoreClient)
+	{
+		UE_LOG(TraceInsights, Error, TEXT("Failed to connect to the store client."));
+		return FString("");
+	}
+
+	const FStoreClient::FStatus* Status = StoreClient->GetStatus();
+	if (!StoreClient)
+	{
+		UE_LOG(TraceInsights, Error, TEXT("Failed to get the status of the store client."));
+		return FString("");
+	}
+
+	return FString(Status->GetStoreDir());
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 UE::Trace::FStoreClient* FTraceInsightsModule::GetStoreClient()
 {
 	return FInsightsManager::Get()->GetStoreClient();

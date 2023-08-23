@@ -2,17 +2,19 @@
 
 #include "Insights/Tests/InsightsTestUtils.h"
 
-#include "Misc/AutomationTest.h"
 #include "Modules/ModuleManager.h"
+#include "Misc/FileHelper.h"
+#include "HAL/FileManagerGeneric.h"
+
 #include "TraceServices/AnalysisService.h"
 #include "TraceServices/Model/AnalysisSession.h"
 #include "TraceServices/ITraceServicesModule.h"
 #include "TraceServices/ModuleService.h"
-
 #include "Insights/Common/Stopwatch.h"
 #include "Insights/IUnrealInsightsModule.h"
+#include "Insights/InsightsManager.h"
 
-#include "Misc/FileHelper.h"
+#include "Misc/AutomationTest.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -75,14 +77,26 @@ bool FInsightsTestUtils::AnalyzeTrace(const TCHAR* Path) const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool FInsightsTestUtils::FileContainsString(const FString& PathToFile, const FString& ExpectedString, const float Timeout) const
+bool FInsightsTestUtils::FileContainsString(const FString& PathToFile, const FString& ExpectedString, const float& Timeout) const
 {
+	if (!FPaths::FileExists(PathToFile))
+	{
+		return false;
+	}
+
 	float StartTime = FPlatformTime::Seconds();
 	while ((FPlatformTime::Seconds() - StartTime) < Timeout)
 	{
 		FString LogFileContents;
-		if (FFileHelper::LoadFileToString(LogFileContents, *PathToFile))
+		IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+		TUniquePtr<IFileHandle> FileHandle(PlatformFile.OpenRead(*PathToFile, true)); // Open the file with shared read access
+		if (FileHandle)
 		{
+			TArray<uint8> FileData;
+			FileData.SetNumUninitialized(FileHandle->Size());
+			FileHandle->Read(FileData.GetData(), FileData.Num());
+			FFileHelper::BufferToString(LogFileContents, FileData.GetData(), FileData.Num());
+
 			if (LogFileContents.Contains(ExpectedString))
 			{
 				return true;
@@ -92,4 +106,110 @@ bool FInsightsTestUtils::FileContainsString(const FString& PathToFile, const FSt
 	}
 
 	return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool FInsightsTestUtils::StartTracing(FTraceAuxiliary::EConnectionType ConnectionType, const float& Timeout) const
+{
+	if (ConnectionType == FTraceAuxiliary::EConnectionType::Network)
+	{
+		return FTraceAuxiliary::Start(FTraceAuxiliary::EConnectionType::Network, TEXT("localhost"), nullptr);
+	}
+	else if (ConnectionType == FTraceAuxiliary::EConnectionType::File)
+	{
+		return FTraceAuxiliary::Start(FTraceAuxiliary::EConnectionType::File, nullptr, nullptr);
+	}
+
+	double TraceVerifyStartTime = FPlatformTime::Seconds();
+	while (FPlatformTime::Seconds() - TraceVerifyStartTime < Timeout)
+	{
+		if (FTraceAuxiliary::IsConnected())
+		{
+			return true;
+		}
+		FPlatformProcess::Sleep(0.1f);
+	}
+
+	return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool FInsightsTestUtils::SetupUTS(const float& Timeout) const
+{
+	const FString UnrealTraceServerName = TEXT("UnrealTraceServer");
+
+	FString UTSPath = FPlatformProcess::GenerateApplicationPath("UnrealTraceServer", EBuildConfiguration::Development);
+	FString UTSParameters = TEXT("daemon");
+	constexpr bool bLaunchDetached = true;
+	constexpr bool bLaunchHidden = false;
+	constexpr bool bLaunchReallyHidden = false;
+	uint32 ProcessID = 0;
+	const int32 PriorityModifier = 0;
+	const TCHAR* OptionalWorkingDirectory = nullptr;
+	void* PipeWriteChild = nullptr;
+	void* PipeReadChild = nullptr;
+	FProcHandle UTSHandle = FPlatformProcess::CreateProc(*UTSPath, *UTSParameters, bLaunchDetached, bLaunchHidden, bLaunchReallyHidden, &ProcessID, PriorityModifier, OptionalWorkingDirectory, PipeWriteChild, PipeReadChild);
+	if (!UTSHandle.IsValid())
+	{
+		return false;
+	}
+
+	double StartTime = FPlatformTime::Seconds();
+	while (FPlatformTime::Seconds() - StartTime < Timeout)
+	{
+		if (FPlatformProcess::IsApplicationRunning(*UnrealTraceServerName))
+		{
+			return true;
+		}
+		UTSHandle = FPlatformProcess::CreateProc(*UTSPath, *UTSParameters, bLaunchDetached, bLaunchHidden, bLaunchReallyHidden, &ProcessID, PriorityModifier, OptionalWorkingDirectory, PipeWriteChild, PipeReadChild);
+		FPlatformProcess::Sleep(0.1f);
+	}
+
+	return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool FInsightsTestUtils::KillUTS(const float& Timeout) const
+{
+	const FString UnrealTraceServerName = TEXT("UnrealTraceServer");
+
+	FString UTSPath = FPlatformProcess::GenerateApplicationPath("UnrealTraceServer", EBuildConfiguration::Development);
+	FString UTSParameters = TEXT("kill");
+	constexpr bool bLaunchDetached = true;
+	constexpr bool bLaunchHidden = false;
+	constexpr bool bLaunchReallyHidden = false;
+	uint32 ProcessID = 0;
+	const int32 PriorityModifier = 0;
+	const TCHAR* OptionalWorkingDirectory = nullptr;
+	void* PipeWriteChild = nullptr;
+	void* PipeReadChild = nullptr;
+	FProcHandle UTSHandle = FPlatformProcess::CreateProc(*UTSPath, *UTSParameters, bLaunchDetached, bLaunchHidden, bLaunchReallyHidden, &ProcessID, PriorityModifier, OptionalWorkingDirectory, PipeWriteChild, PipeReadChild);
+	if (!UTSHandle.IsValid())
+	{
+		return false;
+	}
+
+	double StartTime = FPlatformTime::Seconds();
+	while (FPlatformTime::Seconds() - StartTime < Timeout)
+	{
+		if (!FPlatformProcess::IsApplicationRunning(*UnrealTraceServerName))
+		{
+			return true;
+		}
+		UTSHandle = FPlatformProcess::CreateProc(*UTSPath, *UTSParameters, bLaunchDetached, bLaunchHidden, bLaunchReallyHidden, &ProcessID, PriorityModifier, OptionalWorkingDirectory, PipeWriteChild, PipeReadChild); 
+		FPlatformProcess::Sleep(0.1f);
+	}
+
+	return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FInsightsTestUtils::ResetSession() const
+{
+	TSharedPtr<FInsightsManager> InsightsManager = FInsightsManager::Get();
+	InsightsManager->ResetSession();
 }

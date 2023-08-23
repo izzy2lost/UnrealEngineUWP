@@ -328,6 +328,9 @@ public:
 
 	void ScheduleCommand(const FString& InCmd);
 
+	/** Resets (closes) current session instance. */
+	void ResetSession(bool bNotify = true);
+
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// SessionChangedEvent
 
@@ -371,6 +374,8 @@ private:
 	/** Called to spawn the Launcher major tab. */
 	TSharedRef<SDockTab> SpawnLauncherTab(const FSpawnTabArgs& Args);
 
+	TSharedRef<SDockTab> SpawnSessionBrowserAutomationWindowTab(const FSpawnTabArgs& Args);
+
 	/** Callback called when the Launcher major tab is closed. */
 	void OnLauncherTabClosed(TSharedRef<SDockTab> TabBeingClosed);
 
@@ -382,9 +387,6 @@ private:
 
 	/** Updates this manager, done through FCoreTicker. */
 	bool Tick(float DeltaTime);
-
-	/** Resets (closes) current session instance. */
-	void ResetSession(bool bNotify = true);
 
 	/** Extract messages from the session */
 	void PollAnalysisInfo();

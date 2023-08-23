@@ -180,6 +180,11 @@ public:
 	virtual void CreateDefaultStore() = 0;
 
 	/**
+	 * Gets the default trace store (for "Browser" mode).
+	*/
+	virtual FString GetDefaultStoreDir() = 0;
+
+	/**
 	 * Gets the store client.
 	 */
 	virtual UE::Trace::FStoreClient* GetStoreClient() = 0;
