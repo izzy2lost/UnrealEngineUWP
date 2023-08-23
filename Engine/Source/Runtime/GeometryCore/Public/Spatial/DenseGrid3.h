@@ -116,7 +116,14 @@ public:
 		return Buffer[I + Dimensions.X * (J + Dimensions.Y * K)];
 	}
 
-
+	TArray<ElemType>& GridValues()
+	{
+		return Buffer;
+	}
+	const TArray<ElemType>& GridValues() const
+	{
+		return Buffer;
+	}
 
 	/**
 	* @return the grid value at (X,Y,Z)
