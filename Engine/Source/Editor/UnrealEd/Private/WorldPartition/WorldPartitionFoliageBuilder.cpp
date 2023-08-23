@@ -124,8 +124,8 @@ bool UWorldPartitionFoliageBuilder::RunInternal(UWorld* World, const FCellInfo& 
 			const FDataLayerEditorContext DataLayerEditorContext(World, ActorDesc->GetDataLayerInstanceNames());
 			const FActorPartitionIdentifier ActorPartitionIdentifier(ActorDesc->GetActorNativeClass(), IFA->GetGridGuid(), DataLayerEditorContext.GetHash());
 			const bool bShouldIncludeGridSizeInName = ActorPartitionIdentifier.GetClass()->GetDefaultObject<APartitionActor>()->ShouldIncludeGridSizeInName(World, ActorPartitionIdentifier);
-			const FString ExpectedActorName = APartitionActor::GetActorName(World, ActorPartitionIdentifier.GetClass(), ActorPartitionIdentifier.GetGridGuid(), ActorPartitionIdentifier, PartitionActorDesc->GridSize, 
-				PartitionActorDesc->GridIndexX, PartitionActorDesc->GridIndexY, PartitionActorDesc->GridIndexZ, DataLayerEditorContext.GetHash());
+			const FString ExpectedActorName = APartitionActor::GetActorName(World, ActorPartitionIdentifier, PartitionActorDesc->GridSize, 
+				PartitionActorDesc->GridIndexX, PartitionActorDesc->GridIndexY, PartitionActorDesc->GridIndexZ);
 
 			if (ActorDesc->GetActorName() != ExpectedActorName)
 			{

@@ -33,6 +33,7 @@ public:
 	UNREALED_API void ResetContext(IActorEditorContextClient* Client);
 	UNREALED_API void PushContext();
 	UNREALED_API void PopContext();
+	UNREALED_API void InitializeContextFromActor(AActor* Actor);
 	UNREALED_API TArray<IActorEditorContextClient*> GetDisplayableClients() const;
 	FOnActorEditorContextSubsystemChanged& OnActorEditorContextSubsystemChanged() { return ActorEditorContextSubsystemChanged; }
 

@@ -12,6 +12,7 @@
 
 #if WITH_EDITOR
 #include "WorldPartition/DataLayer/DataLayerManager.h"
+#include "WorldPartition/ContentBundle/ContentBundleEngineSubsystem.h"
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ActorPartitionSubsystem)
@@ -19,6 +20,21 @@
 DEFINE_LOG_CATEGORY_STATIC(LogActorPartitionSubsystem, All, All);
 
 #if WITH_EDITOR
+
+// @todo_ow: All this can be converted back to DataLayerEditorContextHash when EDL replaces ContentBundles
+namespace FActorPartitionContextHash
+{
+	uint32 Get(const FGuid& InContentBundleGuid, uint32 InDataLayerEditorContextHash)
+	{
+		return InContentBundleGuid.IsValid() ? FCrc::TypeCrc32(InContentBundleGuid, InDataLayerEditorContextHash) : InDataLayerEditorContextHash;
+	}
+
+	uint32 Get(const FGuid& InContentBundleGuid, UWorld* InWorld, const TArray<FName>& InDataLayerInstanceNames)
+	{
+		FDataLayerEditorContext DataLayerEditorContext(InWorld, InDataLayerInstanceNames);
+		return Get(InContentBundleGuid, DataLayerEditorContext.GetHash());
+	}
+};
 
 FActorPartitionGetParams::FActorPartitionGetParams(const TSubclassOf<APartitionActor>& InActorClass, bool bInCreate, ULevel* InLevelHint, const FVector& InLocationHint, uint32 InGridSize, const FGuid& InGuidHint, bool bInBoundsSearch, TFunctionRef<void(APartitionActor*)> InActorCreated)
 	: ActorClass(InActorClass)
@@ -192,16 +208,19 @@ public:
 	{
 		APartitionActor* FoundActor = nullptr;
 		bool bUnloadedActorExists = false;
-		auto FindActor = [&FoundActor, &bUnloadedActorExists, InCellCoord, InActorPartitionId, InGridSize, ThisWorld = World](const FWorldPartitionActorDesc* ActorDesc)
+		FGuid ContentBundleGuid = UContentBundleEngineSubsystem::Get()->GetEditingContentBundleGuid();
+
+		auto FindActor = [&FoundActor, &bUnloadedActorExists, &ContentBundleGuid, InCellCoord, InActorPartitionId, InGridSize, ThisWorld = World](const FWorldPartitionActorDesc* ActorDesc)
 		{
 			check(ActorDesc->GetActorNativeClass()->IsChildOf(InActorPartitionId.GetClass()));
 			FPartitionActorDesc* PartitionActorDesc = (FPartitionActorDesc*)ActorDesc;
+
 			if ((PartitionActorDesc->GridIndexX == InCellCoord.X) &&
 				(PartitionActorDesc->GridIndexY == InCellCoord.Y) &&
 				(PartitionActorDesc->GridIndexZ == InCellCoord.Z) &&
 				(PartitionActorDesc->GridSize == InGridSize) &&
 				(PartitionActorDesc->GridGuid == InActorPartitionId.GetGridGuid()) &&
-				(FDataLayerEditorContext(ThisWorld, PartitionActorDesc->GetDataLayerInstanceNames()).GetHash() == InActorPartitionId.GetDataLayerEditorContextHash()))
+				(FActorPartitionContextHash::Get(PartitionActorDesc->GetContentBundleGuid(), ThisWorld, PartitionActorDesc->GetDataLayerInstanceNames()) == InActorPartitionId.GetContextHash()))
 			{
 				AActor* DescActor = ActorDesc->GetActor();
 
@@ -241,7 +260,7 @@ public:
 				
 		if (!FoundActor && bInCreate)
 		{
-			const FString ActorName = APartitionActor::GetActorName(World, InActorPartitionId.GetClass(), InActorPartitionId.GetGridGuid(), InActorPartitionId, InGridSize, InCellCoord.X, InCellCoord.Y, InCellCoord.Z, InActorPartitionId.GetDataLayerEditorContextHash());
+			const FString ActorName = APartitionActor::GetActorName(World, InActorPartitionId, InGridSize, InCellCoord.X, InCellCoord.Y, InCellCoord.Z);
 
 			FActorSpawnParameters SpawnParams;
 			SpawnParams.OverrideLevel = InCellCoord.Level;
@@ -270,19 +289,7 @@ public:
 			
 			InActorCreated(FoundActor);
 
-			// Once actor is created, update its label
-			TStringBuilderWithBuffer<TCHAR, NAME_SIZE> ActorLabelBuilder;
-			ActorLabelBuilder += FString::Printf(TEXT("%s"), *InActorPartitionId.GetClass()->GetName());
-			if (FoundActor->ShouldIncludeGridSizeInLabel())
-			{
-				ActorLabelBuilder += FString::Printf(TEXT("_%u"), InGridSize);
-			}
-			ActorLabelBuilder += FString::Printf(TEXT("_%d_%d_%d"), InCellCoord.X, InCellCoord.Y, InCellCoord.Z);
-			if (InActorPartitionId.GetDataLayerEditorContextHash() != FDataLayerEditorContext::EmptyHash)
-			{
-				ActorLabelBuilder += FString::Printf(TEXT("_%X"), InActorPartitionId.GetDataLayerEditorContextHash());
-			}
-			FoundActor->SetActorLabel(*ActorLabelBuilder);
+			APartitionActor::SetLabelForActor(FoundActor, InActorPartitionId, InGridSize, InCellCoord.X, InCellCoord.Y, InCellCoord.Z);
 		}
 
 		check(FoundActor || !bInCreate);
@@ -398,26 +405,15 @@ APartitionActor* UActorPartitionSubsystem::GetActor(const TSubclassOf<APartition
 	const uint32 GridSize = InGridSize > 0 ? InGridSize : InActorClass->GetDefaultObject<APartitionActor>()->GetDefaultGridSize(GetWorld());
 	
 	UWorld* World = GetWorld();
+	FGuid ContentBundleGuid = UContentBundleEngineSubsystem::Get()->GetEditingContentBundleGuid();
 	const UDataLayerManager* DataLayerManager = UDataLayerManager::GetDataLayerManager(World);
-	
-	auto WrappedInActorCreated = [DataLayerManager, InActorCreated](APartitionActor* PartitionActor)
-	{
-		if(DataLayerManager)
-		{
-			for (UDataLayerInstance* DataLayer : DataLayerManager->GetActorEditorContextDataLayers())
-			{
-				PartitionActor->AddDataLayer(DataLayer);
-			}
-		}
-		InActorCreated(PartitionActor);
-	};
-
-	FActorPartitionIdentifier ActorPartitionId(InActorClass, InGuid, DataLayerManager ? DataLayerManager->GetDataLayerEditorContextHash() : FDataLayerEditorContext::EmptyHash);
+	const uint32 DataLayerEditorContextHash = DataLayerManager ? DataLayerManager->GetDataLayerEditorContextHash() : FDataLayerEditorContext::EmptyHash;
+	FActorPartitionIdentifier ActorPartitionId(InActorClass, InGuid, FActorPartitionContextHash::Get(ContentBundleGuid, DataLayerEditorContextHash));
 	TMap<FActorPartitionIdentifier, TWeakObjectPtr<APartitionActor>>* ActorsPerId = PartitionedActors.Find(InCellCoords);
 	APartitionActor* FoundActor = nullptr;
 	if (!ActorsPerId)
 	{
-		FoundActor = ActorPartition->GetActor(ActorPartitionId, bInCreate, InCellCoords, GridSize, bInBoundsSearch, WrappedInActorCreated);
+		FoundActor = ActorPartition->GetActor(ActorPartitionId, bInCreate, InCellCoords, GridSize, bInBoundsSearch, InActorCreated);
 		if (FoundActor)
 		{
 			PartitionedActors.Add(InCellCoords).Add(ActorPartitionId, FoundActor);
@@ -428,7 +424,7 @@ APartitionActor* UActorPartitionSubsystem::GetActor(const TSubclassOf<APartition
 		TWeakObjectPtr<APartitionActor>* ActorPtr = ActorsPerId->Find(ActorPartitionId);
 		if (!ActorPtr || !ActorPtr->IsValid())
 		{
-			FoundActor = ActorPartition->GetActor(ActorPartitionId, bInCreate, InCellCoords, GridSize, bInBoundsSearch, WrappedInActorCreated);
+			FoundActor = ActorPartition->GetActor(ActorPartitionId, bInCreate, InCellCoords, GridSize, bInBoundsSearch, InActorCreated);
 			if (FoundActor)
 			{
 				if (!ActorPtr)

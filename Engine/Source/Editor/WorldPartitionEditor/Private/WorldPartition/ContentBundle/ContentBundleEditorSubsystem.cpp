@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "WorldPartition/ContentBundle/ContentBundleEditorSubsystem.h"
-
+#include "WorldPartition/ContentBundle/ContentBundleEngineSubsystem.h"
 #include "WorldPartition/ContentBundle/ContentBundle.h"
 #include "WorldPartition/ContentBundle/ContentBundleDescriptor.h"
 #include "WorldPartition/ContentBundle/ContentBundle.h"
@@ -30,6 +30,11 @@ void UContentBundleEditingSubmodule::DoDenitialize()
 	}
 
 	EditingContentBundleGuid.Invalidate();
+	if (GEngine)
+	{
+		UContentBundleEngineSubsystem::Get()->SetEditingContentBundleGuid(EditingContentBundleGuid);
+	}
+
 	EditingContentBundlesStack.Empty();
 }
 
@@ -54,6 +59,8 @@ void UContentBundleEditingSubmodule::PostEditUndo()
 		{
 			StartEditing(NewEditingContentBundle);
 		}
+
+		UContentBundleEngineSubsystem::Get()->SetEditingContentBundleGuid(EditingContentBundleGuid);
 	}
 
 	PreUndoRedoEditingContentBundleGuid.Invalidate();
@@ -80,6 +87,17 @@ void UContentBundleEditingSubmodule::OnExecuteActorEditorContextAction(UWorld* I
 		break;
 	case EActorEditorContextAction::PopContext:
 		PopContentBundleEditing();
+		break;
+	case EActorEditorContextAction::InitializeContextFromActor:
+		{
+			if (InActor->GetContentBundleGuid().IsValid())
+			{
+				if (TSharedPtr<FContentBundleEditor> EditingContentBundle = GetEditorContentBundle(InActor->GetContentBundleGuid()))
+				{
+					ActivateContentBundleEditing(EditingContentBundle);
+				}
+			}
+		}
 		break;
 	}
 }
@@ -163,6 +181,7 @@ bool UContentBundleEditingSubmodule::ActivateContentBundleEditing(TSharedPtr<FCo
 			DeactivateCurrentContentBundleEditing();
 		}
 		EditingContentBundleGuid = ContentBundleEditor->GetDescriptor()->GetGuid();
+		UContentBundleEngineSubsystem::Get()->SetEditingContentBundleGuid(EditingContentBundleGuid);
 		StartEditing(ContentBundleEditor);
 		return true;
 	}
@@ -186,6 +205,7 @@ bool UContentBundleEditingSubmodule::DeactivateContentBundleEditing(TSharedPtr<F
 	{
 		check(EditingContentBundleGuid == ContentBundleEditor->GetDescriptor()->GetGuid());
 		EditingContentBundleGuid.Invalidate();
+		UContentBundleEngineSubsystem::Get()->SetEditingContentBundleGuid(EditingContentBundleGuid);
 		StopEditing(ContentBundleEditor);
 		return true;
 	}

@@ -611,6 +611,9 @@ void FActorFolders::OnExecuteActorEditorContextAction(UWorld* InWorld, const EAc
 				(*Folders)->PopActorEditorContext();
 			}
 			break;
+		case EActorEditorContextAction::InitializeContextFromActor:
+			SetActorEditorContextFolder(*(InActor->GetWorld()), InActor->GetFolder());
+			break;
 	}
 }
 

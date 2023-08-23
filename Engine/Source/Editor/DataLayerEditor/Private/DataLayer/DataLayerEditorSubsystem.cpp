@@ -314,6 +314,15 @@ void UDataLayerEditorSubsystem::OnExecuteActorEditorContextAction(UWorld* InWorl
 			DataLayerManager->PopActorEditorContext();
 			BroadcastDataLayerChanged(EDataLayerAction::Reset, NULL, NAME_None);
 			break;
+		case EActorEditorContextAction::InitializeContextFromActor:
+			for (const UDataLayerInstance* DataLayerInstance : InActor->GetDataLayerInstances())
+			{
+				if (DataLayerInstance->CanBeInActorEditorContext())
+				{
+					const_cast<UDataLayerInstance*>(DataLayerInstance)->AddToActorEditorContext();
+				}
+			}
+			break;
 		}
 	}
 }	

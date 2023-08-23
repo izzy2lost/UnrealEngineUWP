@@ -134,6 +134,21 @@ void UActorEditorContextSubsystem::PopContext()
 	ActorEditorContextSubsystemChanged.Broadcast();
 }
 
+void UActorEditorContextSubsystem::InitializeContextFromActor(AActor* Actor)
+{
+	UWorld* World = GetWorld();
+	if (Clients.IsEmpty() || !World || !Actor)
+	{
+		return;
+	}
+
+	for (IActorEditorContextClient* Client : Clients)
+	{
+		Client->OnExecuteActorEditorContextAction(World, EActorEditorContextAction::InitializeContextFromActor, Actor);
+	}
+	ActorEditorContextSubsystemChanged.Broadcast();
+}
+
 TArray<IActorEditorContextClient*> UActorEditorContextSubsystem::GetDisplayableClients() const
 {
 	TArray<IActorEditorContextClient*> DisplayableClients;
