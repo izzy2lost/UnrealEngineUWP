@@ -21,6 +21,7 @@
 #include "PrimitiveInstanceUpdateCommand.h"
 #include "NaniteSceneProxy.h" // TODO: PROG_RASTER
 #include "ComponentRecreateRenderStateContext.h"
+#include "ComponentReregisterContext.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "SceneInterface.h"
 #include "PrimitiveUniformShaderParametersBuilder.h"
@@ -105,6 +106,40 @@ static TAutoConsoleVariable<int32> CVarApproximateOcclusionQueries(
 	TEXT("Batch occlusion for a static and skeletal mesh even if there are movable.In general it's more beneficial to batch occlusion queires for all meshes"),
 	ECVF_RenderThreadSafe
 );
+
+static int32 GCustomDepthMode = 1;
+static TAutoConsoleVariable<int32> CVarCustomDepth(
+	TEXT("r.CustomDepth"),
+	GCustomDepthMode,
+	TEXT("0: feature is disabled\n")
+	TEXT("1: feature is enabled, texture is created on demand\n")
+	TEXT("2: feature is enabled, texture is not released until required (should be the project setting if the feature should not stall)\n")
+	TEXT("3: feature is enabled, stencil writes are enabled, texture is not released until required (should be the project setting if the feature should not stall)"),
+	ECVF_RenderThreadSafe);
+
+void OnCustomDepthChanged(IConsoleVariable* Var)
+{
+	// Easiest way to update all static scene proxies is to recreate them
+	FlushRenderingCommands();
+	FGlobalComponentReregisterContext ReregisterContext;
+	GCustomDepthMode = CVarCustomDepth.GetValueOnAnyThread();
+}
+
+void InitCustomDepth()
+{
+	CVarCustomDepth.AsVariable()->SetOnChangedCallback(FConsoleVariableDelegate::CreateStatic(&OnCustomDepthChanged));
+}
+
+bool FPrimitiveSceneProxy::ShouldRenderCustomDepth() const
+{
+	const bool bCustomDepthEnabled = GCustomDepthMode != 0;
+	return bCustomDepthEnabled && bRenderCustomDepth;
+}
+
+ECustomDepthMode GetCustomDepthMode()
+{
+	return (ECustomDepthMode)GCustomDepthMode;
+}
 
 bool IsAllowingApproximateOcclusionQueries()
 {

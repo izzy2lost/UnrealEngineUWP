@@ -138,6 +138,19 @@ public:
 	{}
 };
 
+enum class ECustomDepthMode : uint32
+{
+	// Custom depth is disabled.
+	Disabled,
+
+	// Custom depth is enabled.
+	Enabled,
+
+	// Custom depth is enabled and uses stencil.
+	EnabledWithStencil,
+};
+
+ENGINE_API extern ECustomDepthMode GetCustomDepthMode();
 extern bool IsOptimizedWPO();
 ENGINE_API extern bool ShouldOptimizedWPOAffectNonNaniteShaderSelection();
 extern bool IsAllowingApproximateOcclusionQueries();
@@ -650,7 +663,7 @@ public:
 	inline bool IsEditingLevelInstanceChild() const { return bLevelInstanceEditingState; }
 	inline bool IsSelected() const { return IsParentSelected() || IsIndividuallySelected(); }
 	inline bool WantsSelectionOutline() const { return bWantsSelectionOutline; }
-	inline bool ShouldRenderCustomDepth() const { return bRenderCustomDepth; }
+	ENGINE_API bool ShouldRenderCustomDepth() const;
 	inline bool IsVisibleInSceneCaptureOnly() const { return bVisibleInSceneCaptureOnly; }
 	inline bool IsHiddenInSceneCapture() const { return bHiddenInSceneCapture; }
 	inline uint8 GetCustomDepthStencilValue() const { return CustomDepthStencilValue; }
