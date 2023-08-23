@@ -11,6 +11,15 @@
 #include "MeshPassProcessor.inl"
 #include "UnrealEngine.h"
 
+static TAutoConsoleVariable<int32> CVarCustomDepth(
+	TEXT("r.CustomDepth"),
+	1,
+	TEXT("0: feature is disabled\n")
+	TEXT("1: feature is enabled, texture is created on demand\n")
+	TEXT("2: feature is enabled, texture is not released until required (should be the project setting if the feature should not stall)\n")
+	TEXT("3: feature is enabled, stencil writes are enabled, texture is not released until required (should be the project setting if the feature should not stall)"),
+	ECVF_RenderThreadSafe);
+
 static TAutoConsoleVariable<int32> CVarCustomDepthOrder(
 	TEXT("r.CustomDepth.Order"),
 	2,
@@ -44,6 +53,17 @@ ECustomDepthPassLocation GetCustomDepthPassLocation(EShaderPlatform Platform)
 	return bCustomDepthBeforeBasePase ? ECustomDepthPassLocation::BeforeBasePass : ECustomDepthPassLocation::AfterBasePass;
 }
 
+ECustomDepthMode GetCustomDepthMode()
+{
+	switch (CVarCustomDepth.GetValueOnAnyThread())
+	{
+	case 1: // Fallthrough.
+	case 2: return ECustomDepthMode::Enabled;
+	case 3: return ECustomDepthMode::EnabledWithStencil;
+	}
+	return ECustomDepthMode::Disabled;
+}
+
 bool IsCustomDepthPassWritingStencil()
 {
 	return GetCustomDepthMode() == ECustomDepthMode::EnabledWithStencil;
@@ -53,7 +73,7 @@ FCustomDepthTextures FCustomDepthTextures::Create(FRDGBuilder& GraphBuilder, FIn
 {
 	const ECustomDepthMode CustomDepthMode = GetCustomDepthMode();
 
-	if (CustomDepthMode == ECustomDepthMode::Disabled)
+	if (!IsCustomDepthPassEnabled())
 	{
 		return {};
 	}
