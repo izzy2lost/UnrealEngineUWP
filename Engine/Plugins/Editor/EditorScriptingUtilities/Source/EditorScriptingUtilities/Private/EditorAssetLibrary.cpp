@@ -499,6 +499,35 @@ TMap<FName, FString> UEditorAssetLibrary::GetTagValues(const FString& AssetPath)
 	return EditorAssetSubsystem->GetTagValues(AssetPath);
 }
 
+namespace UE{ namespace Private {
+	// This is a long standing convention, but not encoded in an obvious owner
+	// that I could find:
+	static const TCHAR* DefaultRootAssetDirectory = TEXT("Game");
+	static FString ProjectRootAssetDirectory = TEXT("Game");
+}}
+
+FString UEditorAssetLibrary::GetProjectRootAssetDirectory()
+{
+	using namespace UE::Private;
+	return ProjectRootAssetDirectory;
+}
+
+void UEditorAssetLibrary::OverrideProjectRootAssetDirectory(FStringView InProjectRootAssetDirectory)
+{
+	using namespace UE::Private;
+	if(ensureMsgf(!InProjectRootAssetDirectory.StartsWith(TEXT("/")), TEXT("Expected root directory name without path")))
+	{
+		ProjectRootAssetDirectory = InProjectRootAssetDirectory;
+	}
+
+}
+
+void UEditorAssetLibrary::ResetProjectRootAssetDirectory()
+{
+	using namespace UE::Private;
+	ProjectRootAssetDirectory = DefaultRootAssetDirectory;
+}
+
 TMap<FName, FString> UEditorAssetLibrary::GetMetadataTagValues(UObject* Object)
 {
 	UEditorAssetSubsystem* EditorAssetSubsystem = GEditor->GetEditorSubsystem<UEditorAssetSubsystem>();
