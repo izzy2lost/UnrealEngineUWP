@@ -132,8 +132,8 @@ namespace Horde.Server.Server
 		/// Returns settings for automating auth against this server
 		/// </summary>
 		[HttpPost]
-		[Route("/api/v1/server/validateconfig")]
-		public async Task<ActionResult<ValidateConfigResponse>> ValidateConfigAsync(ValidateConfigRequest request, CancellationToken cancellationToken)
+		[Route("/api/v1/server/preflightconfig")]
+		public async Task<ActionResult<PreflightConfigResponse>> PreflightConfigAsync(PreflightConfigRequest request, CancellationToken cancellationToken)
 		{
 			string cluster = request.Cluster ?? "default";
 
@@ -157,7 +157,7 @@ namespace Horde.Server.Server
 
 			string? message = await _configService.ValidateAsync(files, cancellationToken);
 
-			ValidateConfigResponse response = new ValidateConfigResponse();
+			PreflightConfigResponse response = new PreflightConfigResponse();
 			response.Result = message == null;
 			response.Message = message;
 

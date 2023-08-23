@@ -251,14 +251,10 @@ namespace Horde.Server.Configuration
 
 				return null;
 			}
-			catch (ConfigException ex)
+			catch (Exception ex)
 			{
 				string trace = String.Join("\n", context.IncludeStack.Select(x => $"\n  {x}"));
-				return $"{ex.Message}\nInclude stack:\n{trace}";
-			}
-			catch (Exception ex) when (ex is not ConfigException)
-			{
-				return ex.ToString();
+				return $"{ex.Message}\n\nInclude stack:\n{trace}\n\nTrace:\n{ex.StackTrace}";
 			}
 		}
 

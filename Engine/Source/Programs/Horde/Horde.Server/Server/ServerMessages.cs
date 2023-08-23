@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using Amazon.S3.Model;
 
 namespace Horde.Server.Server
 {
@@ -104,25 +105,9 @@ namespace Horde.Server.Server
 	}
 
 	/// <summary>
-	/// Describes an individual config file to validate
-	/// </summary>
-	public class ValidateConfigFileRequest
-	{
-		/// <summary>
-		/// Path for the file to substitute
-		/// </summary>
-		public Uri? Uri { get; set; }
-
-		/// <summary>
-		/// Data for the file
-		/// </summary>
-		public byte[] Data { get; set; } = Array.Empty<byte>();
-	}
-
-	/// <summary>
 	/// Request to validate server configuration with the given files replacing their checked-in counterparts.
 	/// </summary>
-	public class ValidateConfigRequest
+	public class PreflightConfigRequest
 	{
 		/// <summary>
 		/// Perforce cluster to retrieve from
@@ -138,7 +123,7 @@ namespace Horde.Server.Server
 	/// <summary>
 	/// Response from validating config files
 	/// </summary>
-	public class ValidateConfigResponse
+	public class PreflightConfigResponse
 	{
 		/// <summary>
 		/// Whether the files were validated successfully
@@ -149,6 +134,11 @@ namespace Horde.Server.Server
 		/// Output message from validation
 		/// </summary>
 		public string? Message { get; set; }
+
+		/// <summary>
+		/// Detailed response
+		/// </summary>
+		public string? Detail { get; set; }
 	}
 }
 
