@@ -372,8 +372,6 @@ namespace UE::Interchange::GLTFMaterials
 						AngleRadians = TWO_PI - AngleRadians;
 					}
 
-					AngleRadians = 1.0f - (AngleRadians / TWO_PI);
-
 					SetScalar(Name + TEXT("_Rotation"), AngleRadians, 0.f);
 				}
 			}
