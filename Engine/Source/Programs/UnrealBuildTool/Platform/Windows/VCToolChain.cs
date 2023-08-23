@@ -1601,6 +1601,18 @@ namespace UnrealBuildTool
 						{
 							CompileAction.Arguments.Add("-fautortfm");
 						}
+
+						// If we are using the AutoRTFM compiler, we make the compile action depend on the version of the compiler itself.
+						// This lets us update the compiler (which might not cause a version update of the compiler, which instead tracks
+						// the LLVM versioning scheme that Clang uses), but ensure that we rebuild the source if the compiler has changed.
+						if (CompileEnvironment.bUseAutoRTFMCompiler)
+						{
+							FileReference? CompilerPath = GetCppCompilerPath();
+							if (null != CompilerPath)
+							{
+								BaseCompileAction.AdditionalPrerequisiteItems.Add(FileItem.GetItemByFileReference(CompilerPath));
+							}
+						}
 					}
 				}
 				else
