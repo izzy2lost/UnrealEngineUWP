@@ -2635,6 +2635,8 @@ void FDeferredShadingSceneRenderer::RenderLightForHair(
 		PassParameters->PS.ShadowChannelMask[FMath::Clamp(LightSceneInfo->GetDynamicShadowMapChannel(), 0, 3)] = 1.f;
 	}
 	PassParameters->PS.RenderTargets[0] = FRenderTargetBinding(View.HairStrandsViewData.VisibilityData.SampleLightingTexture, ERenderTargetLoadAction::ELoad);
+	PassParameters->PS.RenderTargets[1] = FRenderTargetBinding();
+	PassParameters->PS.RenderTargets[2] = FRenderTargetBinding();
 	PassParameters->PS.RenderTargets.DepthStencil = FDepthStencilBinding(nullptr, ERenderTargetLoadAction::ENoAction, ERenderTargetLoadAction::ENoAction, FExclusiveDepthStencil::DepthNop_StencilNop);
 
 	FDeferredLightPS::FPermutationDomain PermutationVector;

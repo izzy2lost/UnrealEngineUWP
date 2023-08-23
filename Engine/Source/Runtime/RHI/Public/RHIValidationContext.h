@@ -1109,7 +1109,7 @@ public:
 
 			// Check all bound textures have the same dimensions
 			FIntVector MipDimensions = RTV.RenderTarget->GetMipDimensions(RTV.MipIndex);
-			checkf(ViewDimensions.IsZero() || ViewDimensions == MipDimensions, TEXT("Render target size mismatch. All render and depth target views must have the same effective dimensions."));
+			checkf(ViewDimensions.IsZero() || ViewDimensions == MipDimensions, TEXT("Render target size mismatch (RT%d: %dx%d vs. Expected: %dx%d). All render and depth target views must have the same effective dimensions."), RTVIndex, MipDimensions.X, MipDimensions.Y, ViewDimensions.X, ViewDimensions.Y);
 			ViewDimensions = MipDimensions;
 
 			uint32 ArraySlice = RTV.ArraySlice;
@@ -1140,7 +1140,7 @@ public:
 		{
 			// Check all bound textures have the same dimensions
 			FIntVector MipDimensions = DSV.DepthStencilTarget->GetMipDimensions(0);
-			checkf(ViewDimensions.IsZero() || ViewDimensions == MipDimensions, TEXT("Depth target size mismatch. All render and depth target views must have the same effective dimensions."));
+			checkf(ViewDimensions.IsZero() || ViewDimensions == MipDimensions, TEXT("Depth target size mismatch (Depth: %dx%d vs. Expected: %dx%d). All render and depth target views must have the same effective dimensions."), MipDimensions.X, MipDimensions.Y, ViewDimensions.X, ViewDimensions.Y);
 			ViewDimensions = MipDimensions;
 
 			if (DSV.ResolveTarget)
