@@ -3,6 +3,7 @@
 #pragma once
 
 #include "MuCO/CustomizableObject.h"
+#include "MuCO/LogBenchmarkUtil.h"
 #include "MuR/Serialisation.h"
 
 class FArchive;
@@ -12,6 +13,7 @@ class UCustomizableObject;
 namespace mu { class Model; }
 struct FMutableStreamableBlock;
 
+DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Streaming Ops"), STAT_MutableStreamingOps, STATGROUP_Mutable, );
 
 
 class UnrealMutableInputStream : public mu::InputStream

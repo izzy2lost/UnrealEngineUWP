@@ -610,6 +610,36 @@ struct FMutableReleasePlatformOperationData
 };
 
 
+struct FMutableStats
+{
+	// Stores the number of pending instance updates, LOD Updates, discards and releases last tick
+	int32 MutablePendingInstanceWorkCount = 0;
+
+	// Total time spent building instances
+	int32 TotalBuildMs = 0;
+
+	// Total number of instances built or updated.
+	int32 TotalBuiltInstances = 0;
+
+	// Number of instances alive (built)
+	int32 NumInstances = 0;
+
+	// Number of CustomizableObjectInstances waiting to be updated.
+	int32 NumPendingInstances = 0;
+
+	// Total number of CustomizableObjectInstances, including not built.
+	int32 TotalInstances = 0;
+
+	// Total memory in bytes used for generated textures
+	int64_t TextureMemoryUsed = 0;
+
+	uint32 CountAllocatedSkeletalMesh = 0;
+
+	// \TODO: Remove this array if we are not gathering stats!
+	TArray<TWeakObjectPtr<class UTexture2D>> TextureTrackerArray;
+};
+
+
 class FCustomizableObjectSystemPrivate : public FGCObject
 {
 public:
@@ -765,39 +795,19 @@ public:
 	bool IsReplaceDiscardedWithReferenceMeshEnabled() const { return bReplaceDiscardedWithReferenceMesh; }
 	void SetReplaceDiscardedWithReferenceMeshEnabled(bool bIsEnabled) { bReplaceDiscardedWithReferenceMesh = bIsEnabled; }
 
-	int32 GetCountAllocatedSkeletalMesh() { return CountAllocatedSkeletalMesh; }
+	int32 GetCountAllocatedSkeletalMesh() { return MutableStats.CountAllocatedSkeletalMesh; }
+
+	mutable FMutableStats MutableStats;
 
 	bool bReplaceDiscardedWithReferenceMesh = false;
 	bool bReleaseTexturesImmediately = false;
 
 	bool bSupport16BitBoneIndex = false;
 
-	// Statistics: Total time spent building instances
-	int32 TotalBuildMs = 0;
-
-	// Statistics: Total number of instances built or updated.
-	int32 TotalBuiltInstances = 0;
-
-	// Statistics: Number of instances alive (built)
-	int32 NumInstances = 0;
-
-	// Statistics: number of CustomizableObjectInstances waiting to be updated.
-	int32 NumPendingInstances = 0;
-
-	// Statistics: Total number of CustomizableObjectInstances, including not built.
-	int32 TotalInstances = 0;
-
-	// Statistics: total memory in bytes used for generated textures
-	int64_t TextureMemoryUsed = 0;
-
-	mutable uint32 CountAllocatedSkeletalMesh = 0;
-
 	static FCustomizableObjectCompilerBase* (*NewCompilerFunc)();
 
 	void CreatedTexture(UTexture2D* Texture);
 
-	// \TODO: Remove this array if we are not gathering stats!
-	TArray<TWeakObjectPtr<class UTexture2D>> TextureTrackerArray;
 	TMap<FMutableImageCacheKey, uint32> TextureReferenceCount; // Keeps a count of texture usage to decide if they have to be blocked from GC during an update
 
 	// This is protected from GC by AddReferencedObjects
@@ -808,9 +818,6 @@ public:
 	// Handle to the registered TickDelegate.
 	FTSTicker::FDelegateHandle TickDelegateHandle;
 	FTickerDelegate TickDelegate;
-
-	//! Update the stats logged in unreal's stats system. 
-	void UpdateStats();
 
 	/** Update the last set amount of internal memory Mutable can use to build objects. */
 	void UpdateMemoryLimit();

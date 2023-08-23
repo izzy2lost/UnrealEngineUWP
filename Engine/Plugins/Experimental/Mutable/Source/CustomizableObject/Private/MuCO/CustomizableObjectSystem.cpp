@@ -7,11 +7,9 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAsset.h"
-#include "GameFramework/Pawn.h"
 #include "Engine/SkinnedAssetCommon.h"
 #include "GameFramework/PlayerController.h"
 #include "Interfaces/ITargetPlatform.h"
-#include "Kismet/GameplayStatics.h"
 #include "MuCO/CustomizableInstanceLODManagement.h"
 #include "MuCO/CustomizableInstancePrivateData.h"
 #include "MuCO/CustomizableObjectPrivate.h"
@@ -27,7 +25,6 @@
 #include "MuCO/UnrealPortabilityHelpers.h"
 #include "MuR/Model.h"
 #include "MuR/Settings.h"
-#include "TextureResource.h"
 #include "UObject/UObjectIterator.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "ContentStreaming.h"
@@ -53,24 +50,6 @@ namespace impl
 	void Task_Game_Callbacks_Work(UCustomizableObjectInstance* CustomizableObjectInstance);
 }
 
-DEFINE_STAT(STAT_MutableNumSkeletalMeshes);
-DEFINE_STAT(STAT_MutableNumCachedSkeletalMeshes);
-DEFINE_STAT(STAT_MutableNumAllocatedSkeletalMeshes);
-DEFINE_STAT(STAT_MutableNumInstancesLOD0);
-DEFINE_STAT(STAT_MutableNumInstancesLOD1);
-DEFINE_STAT(STAT_MutableNumInstancesLOD2);
-DEFINE_STAT(STAT_MutableSkeletalMeshResourceMemory);
-DEFINE_STAT(STAT_MutableNumTextures);
-DEFINE_STAT(STAT_MutableNumCachedTextures);
-DEFINE_STAT(STAT_MutableNumAllocatedTextures);
-DEFINE_STAT(STAT_MutableTextureResourceMemory);
-DEFINE_STAT(STAT_MutableTextureGeneratedMemory);
-DEFINE_STAT(STAT_MutableTextureCacheMemory);
-DEFINE_STAT(STAT_MutablePendingInstanceUpdates);
-DEFINE_STAT(STAT_MutableAbandonedInstanceUpdates);
-DEFINE_STAT(STAT_MutableInstanceBuildTime);
-DEFINE_STAT(STAT_MutableInstanceBuildTimeAvrg);
-DEFINE_STAT(STAT_MutableStreamingOps);
 
 DECLARE_CYCLE_STAT(TEXT("MutablePendingRelease Time"), STAT_MutablePendingRelease, STATGROUP_Game);
 DECLARE_CYCLE_STAT(TEXT("MutableTask"), STAT_MutableTask, STATGROUP_Game);
@@ -353,10 +332,10 @@ void UCustomizableObjectSystem::InitSystem()
 	Private->TickDelegateHandle = FTSTicker::GetCoreTicker().AddTicker(Private->TickDelegate, 0.f);
 #endif // !UE_SERVER
 
-	Private->TotalBuildMs = 0;
-	Private->TotalBuiltInstances = 0;
-	Private->NumInstances = 0;
-	Private->TextureMemoryUsed = 0;
+	Private->MutableStats.TotalBuildMs = 0;
+	Private->MutableStats.TotalBuiltInstances = 0;
+	Private->MutableStats.NumInstances = 0;
+	Private->MutableStats.TextureMemoryUsed = 0;
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	SET_DWORD_STAT(STAT_MutableNumSkeletalMeshes, 0);
@@ -481,8 +460,23 @@ void UCustomizableObjectSystem::SetNewCompilerFunc(FCustomizableObjectCompilerBa
 
 void FCustomizableObjectSystemPrivate::CreatedTexture(UTexture2D* Texture)
 {
-	// TODO: Do not keep this array unless we are gathering stats!
-	TextureTrackerArray.Add(Texture);
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	bool bLogEnabled = true;
+#else
+	bool bLogEnabled = LogBenchmarkUtil::IsLoggingActive();
+#endif
+	if (bLogEnabled)
+	{
+		MutableStats.TextureTrackerArray.Add(Texture);
+
+		for (auto Iterator = MutableStats.TextureTrackerArray.CreateIterator(); Iterator; ++Iterator)
+		{
+			if (Iterator->IsStale())
+			{
+				Iterator.RemoveCurrent();
+			}
+		}
+	}
 
 	INC_DWORD_STAT(STAT_MutableNumTextures);
 }
@@ -495,202 +489,6 @@ static FAutoConsoleVariableRef CVarEnableMutableAnimInfoDebugging(
 	TEXT("If set to 1 or greater print on screen the animation info of the pawn's Customizable Object Instance. Anim BPs, slots and tags will be displayed."
 	"If the root Customizable Object is recompiled after this command is run, the used skeletal meshes will also be displayed."),
 	ECVF_Default);
-
-
-void FCustomizableObjectSystemPrivate::UpdateStats()
-{
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	bool bLogEnabled = true;
-#else
-	bool bLogEnabled = LogBenchmarkUtil::isLoggingActive();
-#endif
-	if (bLogEnabled)
-	{
-		CountAllocatedSkeletalMesh = 0;
-
-		int CountLOD0 = 0;
-		int CountLOD1 = 0;
-		int CountLOD2 = 0;
-		int CountTotal = 0;
-
-		for (TObjectIterator<UCustomizableObjectInstance> CustomizableObjectInstance; CustomizableObjectInstance; ++CustomizableObjectInstance)
-		{
-			if ( IsValidChecked(*CustomizableObjectInstance) && CustomizableObjectInstance->GetPrivate())
-			{
-				++CountTotal;
-
-				for (int32 ComponentIndex = 0; ComponentIndex < CustomizableObjectInstance->SkeletalMeshes.Num(); ++ComponentIndex)
-				{
-					if (CustomizableObjectInstance->SkeletalMeshes[ComponentIndex] && CustomizableObjectInstance->SkeletalMeshes[ComponentIndex]->GetResourceForRendering())
-					{
-						CountAllocatedSkeletalMesh++;
-
-						if (CustomizableObjectInstance->GetCurrentMinLOD() < 1)
-						{
-							++CountLOD0;
-						}
-						else if (CustomizableObjectInstance->GetCurrentMaxLOD() < 2)
-						{
-							++CountLOD1;
-						}
-						else
-						{
-							++CountLOD2;
-						}
-					}
-				}
-			}
-		}
-
-		NumInstances = CountLOD0 + CountLOD1 + CountLOD2;
-		TotalInstances = CountTotal;
-		NumPendingInstances = MutablePendingInstanceWork.Num();
-		//SET_DWORD_STAT(STAT_MutableSkeletalMeshResourceMemory, Size / 1024.f);
-		SET_DWORD_STAT(STAT_MutablePendingInstanceUpdates, MutablePendingInstanceWork.Num());
-
-		uint64 Size = 0;
-		uint32 CountAllocated = 0;
-		for (TWeakObjectPtr<UTexture2D>& Tracker : TextureTrackerArray)
-		{
-			if (Tracker.IsValid() && Tracker->GetResource())
-			{
-				CountAllocated++;
-
-				if (Tracker->GetResource()->TextureRHI)
-				{
-					Size += Tracker->CalcTextureMemorySizeEnum(TMC_AllMips);
-				}
-			}
-		}
-
-		TextureMemoryUsed = int64_t(Size / 1024);
-
-		uint64 SizeGenerated = 0;
-		for (TObjectIterator<UCustomizableObjectInstance> CustomizableObjectInstance; CustomizableObjectInstance; ++CustomizableObjectInstance)
-		{
-			if (IsValidChecked(*CustomizableObjectInstance) && CustomizableObjectInstance->GetPrivate() && CustomizableObjectInstance->HasAnySkeletalMesh())
-			{
-				bool bHasResourceForRendering = false;
-				for (int32 MeshIndex = 0; !bHasResourceForRendering && MeshIndex < CustomizableObjectInstance->SkeletalMeshes.Num(); ++MeshIndex)
-				{
-					bHasResourceForRendering = CustomizableObjectInstance->GetSkeletalMesh(MeshIndex) && CustomizableObjectInstance->GetSkeletalMesh(MeshIndex)->GetResourceForRendering();
-				}
-
-				if (bHasResourceForRendering)
-				{
-					for (const FGeneratedTexture& GeneratedTextures : CustomizableObjectInstance->GetPrivate()->GeneratedTextures)
-					{
-						if (GeneratedTextures.Texture)
-						{
-							check(GeneratedTextures.Texture != nullptr);
-							SizeGenerated += GeneratedTextures.Texture->CalcTextureMemorySizeEnum(TMC_AllMips);
-						}
-					}
-				}
-			}
-		}
-
-		if (LogBenchmarkUtil::isLoggingActive())
-		{
-			LogBenchmarkUtil::updateStat("customizable_objects", (int32)CountAllocatedSkeletalMesh);
-			LogBenchmarkUtil::updateStat("pending_instance_updates", MutablePendingInstanceWork.Num());
-			LogBenchmarkUtil::updateStat("allocated_textures", (int32)CountAllocated);
-			LogBenchmarkUtil::updateStat("texture_resource_memory", (long double)Size / 1048576.0L);
-			LogBenchmarkUtil::updateStat("texture_generated_memory", (long double)SizeGenerated / 1048576.0L);
-		}
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		SET_DWORD_STAT(STAT_MutableNumInstancesLOD0, CountLOD0);
-		SET_DWORD_STAT(STAT_MutableNumInstancesLOD1, CountLOD1);
-		SET_DWORD_STAT(STAT_MutableNumInstancesLOD2, CountLOD2);
-		SET_DWORD_STAT(STAT_MutableNumAllocatedSkeletalMeshes, CountAllocatedSkeletalMesh);
-		SET_DWORD_STAT(STAT_MutablePendingInstanceUpdates, MutablePendingInstanceWork.Num());
-		SET_DWORD_STAT(STAT_MutableNumAllocatedTextures, CountAllocated);
-		SET_DWORD_STAT(STAT_MutableTextureResourceMemory, Size / 1024.f);
-		SET_DWORD_STAT(STAT_MutableTextureGeneratedMemory, SizeGenerated / 1024.f);
-#endif
-
-#if WITH_EDITORONLY_DATA
-		if (FCustomizableObjectSystemPrivate::IsMutableAnimInfoDebuggingEnabled())
-		{
-			if (GEngine)
-			{
-				bool bFoundPlayer = false;
-				int32 MsgIndex = 15820; // Arbitrary big value to prevent collisions with other on-screen messages
-
-				for (TObjectIterator<UCustomizableSkeletalComponent> CustomizableSkeletalComponent; CustomizableSkeletalComponent; ++CustomizableSkeletalComponent)
-				{
-					AActor* ParentActor = CustomizableSkeletalComponent->GetAttachmentRootActor();
-					UCustomizableObjectInstance* Instance = CustomizableSkeletalComponent->CustomizableObjectInstance;
-
-					APawn* PlayerPawn = nullptr;
-					if (UWorld* World = CustomizableSkeletalComponent->GetWorld())
-					{
-						PlayerPawn = UGameplayStatics::GetPlayerPawn(World, 0);						
-					}
-					
-					if (ParentActor && (ParentActor == PlayerPawn) && Instance)
-					{
-						bFoundPlayer = true;
-
-						FString TagString;
-						const FGameplayTagContainer& Tags = Instance->GetAnimationGameplayTags();
-
-						for (const FGameplayTag& Tag : Tags)
-						{
-							TagString += !TagString.IsEmpty() ? FString(TEXT(", ")) : FString();
-							TagString += Tag.ToString();
-						}												
-												
-						GEngine->AddOnScreenDebugMessage(MsgIndex++, .0f, FColor::Green, TEXT("Animation tags: ") + TagString);
-
-						check(Instance->GetPrivate() != nullptr);
-						FCustomizableInstanceComponentData* ComponentData = Instance->GetPrivate()->GetComponentData(CustomizableSkeletalComponent->ComponentIndex);
-
-						if (ComponentData)
-						{
-							for (TPair<FName, TSoftClassPtr<UAnimInstance>>& Entry : ComponentData->AnimSlotToBP)
-							{
-								FString AnimBPSlot;
-
-								AnimBPSlot += Entry.Key.ToString() + FString("-") + Entry.Value.GetAssetName();
-								GEngine->AddOnScreenDebugMessage(MsgIndex++, .0f, FColor::Green, AnimBPSlot);
-							}
-						}
-
-						GEngine->AddOnScreenDebugMessage(MsgIndex++, .0f, FColor::Green, TEXT("Slots-AnimBP: "));
-
-						if (ComponentData)
-						{
-							if (ComponentData->MeshPartPaths.IsEmpty())
-							{
-								GEngine->AddOnScreenDebugMessage(MsgIndex++, .0f, FColor::Magenta,
-									TEXT("No meshes found. In order to see the meshes compile the pawn's root CustomizableObject after the 'mutable.EnableMutableAnimInfoDebugging 1' command has been run."));
-							}
-
-							for (const FString& MeshPath : ComponentData->MeshPartPaths)
-							{
-								GEngine->AddOnScreenDebugMessage(MsgIndex++, .0f, FColor::Magenta, MeshPath);
-							}
-						}
-
-						GEngine->AddOnScreenDebugMessage(MsgIndex++, .0f, FColor::Magenta, TEXT("Meshes: "));
-
-						GEngine->AddOnScreenDebugMessage(MsgIndex++, .0f, FColor::Cyan,
-							TEXT("Player Pawn Mutable Mesh/Animation info for component ") + FString::Printf(TEXT("%d"), 
-							CustomizableSkeletalComponent->ComponentIndex));
-					}
-				}
-
-				if (!bFoundPlayer)
-				{
-					GEngine->AddOnScreenDebugMessage(MsgIndex, .0f, FColor::Yellow, TEXT("Mutable Animation info: N/A"));
-				}
-			}
-		}
-#endif
-	}
-}
 
 
 void FCustomizableObjectSystemPrivate::AddReferencedObjects(FReferenceCollector& Collector)
@@ -1994,18 +1792,8 @@ namespace impl
 			CustomizableObjectInstancePrivateData->TexturesToRelease.Empty();
 		}
 
-		// TODO: T2927
-		if (LogBenchmarkUtil::isLoggingActive())
-		{
-			double deltaSeconds = FPlatformTime::Seconds() - CustomizableObjectSystemPrivateData->CurrentMutableOperation->StartUpdateTime;
-			int32 deltaMs = int32(deltaSeconds * 1000);
-
-			LogBenchmarkUtil::updateStat("customizable_instance_build_time", deltaMs);
-			CustomizableObjectSystemPrivateData->TotalBuildMs += deltaMs;
-			CustomizableObjectSystemPrivateData->TotalBuiltInstances++;
-			SET_DWORD_STAT(STAT_MutableInstanceBuildTime, deltaMs);
-			SET_DWORD_STAT(STAT_MutableInstanceBuildTimeAvrg, CustomizableObjectSystemPrivateData->TotalBuildMs / CustomizableObjectSystemPrivateData->TotalBuiltInstances);
-		}
+		LogBenchmarkUtil::UpdateBuildTimeStats(CustomizableObjectSystemPrivateData->MutableStats, 
+												CustomizableObjectSystemPrivateData->CurrentMutableOperation->StartUpdateTime);
 
 		// End Update
 		System->ClearCurrentMutableOperation();
@@ -2425,7 +2213,7 @@ namespace impl
 			return;
 		}
 
-		if (LogBenchmarkUtil::isLoggingActive())
+		if (LogBenchmarkUtil::IsLoggingActive())
 		{
 			Operation->StartUpdateTime = FPlatformTime::Seconds();
 		}
@@ -2847,22 +2635,9 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 	{
 		AdvanceCurrentOperation();
 	}
-	
-	// TODO: T2927
-	if (LogBenchmarkUtil::isLoggingActive())
-	{
-		uint64 SizeCache = 0;
-		for (const UTexture2D* CachedTextures : ProtectedCachedTextures)
-		{
-			if (CachedTextures)
-			{
-				SizeCache += CachedTextures->CalcTextureMemorySizeEnum(TMC_AllMips);
-			}
-		}
-		SET_DWORD_STAT(STAT_MutableTextureCacheMemory, SizeCache / 1024.f);
-	}
 
-	Private->UpdateStats();
+	Private->MutableStats.MutablePendingInstanceWorkCount = Private->MutablePendingInstanceWork.Num();
+	LogBenchmarkUtil::UpdateStats(Private->MutableStats, ProtectedCachedTextures);
 
 #if WITH_EDITOR
 	TickRecompileCustomizableObjects();
@@ -3121,31 +2896,31 @@ FMutableOperation FMutableOperation::CreateInstanceUpdate(UCustomizableObjectIns
 int32 UCustomizableObjectSystem::GetNumInstances() const
 {
 	check(Private != nullptr);
-	return Private->NumInstances;
+	return Private->MutableStats.NumInstances;
 }
 
 int32 UCustomizableObjectSystem::GetNumPendingInstances() const
 {
 	check(Private != nullptr);
-	return Private->NumPendingInstances;
+	return Private->MutableStats.NumPendingInstances;
 }
 
 int32 UCustomizableObjectSystem::GetTotalInstances() const
 {
 	check(Private != nullptr);
-	return Private->TotalInstances;
+	return Private->MutableStats.TotalInstances;
 }
 
 int32 UCustomizableObjectSystem::GetTextureMemoryUsed() const
 {
 	check(Private != nullptr);
-	return int32(Private->TextureMemoryUsed);
+	return int32(Private->MutableStats.TextureMemoryUsed);
 }
 
 int32 UCustomizableObjectSystem::GetAverageBuildTime() const
 {
 	check(Private != nullptr);
-	return Private->TotalBuiltInstances == 0 ? 0 : Private->TotalBuildMs / Private->TotalBuiltInstances;
+	return Private->MutableStats.TotalBuiltInstances == 0 ? 0 : Private->MutableStats.TotalBuildMs / Private->MutableStats.TotalBuiltInstances;
 }
 
 
@@ -3235,14 +3010,16 @@ void UCustomizableObjectSystem::AddUncompiledCOWarning(const UCustomizableObject
 	UE_LOG(LogMutable, Error, TEXT("%s"), *ErrorString);
 }
 
+
 void UCustomizableObjectSystem::EnableBenchmark()
 {
-	LogBenchmarkUtil::startLogging();
+	LogBenchmarkUtil::StartLogging();
 }
+
 
 void UCustomizableObjectSystem::EndBenchmark()
 {
-	LogBenchmarkUtil::shutdownAndSaveResults();
+	LogBenchmarkUtil::ShutdownAndSaveResults();
 }
 
 

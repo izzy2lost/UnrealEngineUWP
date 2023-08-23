@@ -17,6 +17,7 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Modules/ModuleManager.h"
+
 #include "MuCO/CustomizableInstanceLODManagement.h"
 #include "MuCO/CustomizableInstancePrivateData.h"
 #include "MuCO/CustomizableObjectExtension.h"
@@ -27,7 +28,9 @@
 #include "MuCO/ICustomizableObjectModule.h"
 #include "MuCO/UnrealConversionUtils.h"
 #include "MuCO/UnrealPortabilityHelpers.h"
+#include "MuCO/LogBenchmarkUtil.h"
 #include "MuR/Model.h"
+
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "Rendering/Texture2DResource.h"
 #include "RenderingThread.h"

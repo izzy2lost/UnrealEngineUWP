@@ -12,6 +12,7 @@
 #include "HAL/PlatformFileManager.h"
 #endif
 
+DEFINE_STAT(STAT_MutableStreamingOps);
 
 //-------------------------------------------------------------------------------------------------
 #if WITH_EDITOR
