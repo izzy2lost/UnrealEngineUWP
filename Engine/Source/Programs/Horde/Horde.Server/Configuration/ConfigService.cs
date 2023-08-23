@@ -259,7 +259,8 @@ namespace Horde.Server.Configuration
 				message.Append("\n\nLocation:\n");
 				foreach (IConfigFile include in context.IncludeStack)
 				{
-					message.Append($"  {include.Uri}\n");
+					string path = include.GetUserFormattedPath();
+					message.Append($"  {path}\n");
 				}
 				if (ex is not ConfigException && ex is not JsonException)
 				{
