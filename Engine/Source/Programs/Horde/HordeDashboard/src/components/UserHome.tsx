@@ -5,7 +5,7 @@ import { action, makeObservable, observable } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import moment from "moment-timezone";
 import { default as React, useEffect, useState } from 'react';
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import backend, { useBackend } from "../backend";
 import { GetIssueResponse, GetStepResponse, JobData, JobQuery, JobState, JobStepOutcome, LabelData, LabelOutcome, LabelState, ProjectData, StepData, StreamData } from "../backend/Api";
 import dashboard, { StatusColor } from "../backend/Dashboard";
@@ -21,6 +21,7 @@ import { useQuery } from './JobDetailCommon';
 import { JobOperationsContextMenu } from "./JobOperationsContextMenu";
 import { IssueStatusIcon, StepStatusIcon } from "./StatusIcon";
 import { TopNav } from './TopNav';
+import { PreflightConfigModal } from './preflights/PreflightConfigCheck';
 
 
 type JobItem = {
@@ -1059,6 +1060,12 @@ const JobsPanel: React.FC<{ includeOtherPreflights: boolean }> = observer(({ inc
 });
 
 const UserHomeViewInner: React.FC = () => {
+      
+   const search = new URLSearchParams(window.location.search);
+   const change = !search.get("preflightconfig") ? "" : search.get("preflightconfig")!;
+
+   const navigate = useNavigate();
+   
 
    useEffect(() => {
 
@@ -1071,6 +1078,7 @@ const UserHomeViewInner: React.FC = () => {
    handler.startPolling();
 
    return <Stack tokens={{ childrenGap: 0 }} styles={{ root: { backgroundColor: modeColors.background, margin: 0, paddingTop: 8 } }}>
+      {(!!change || !!search.has("preflightconfig")) && <PreflightConfigModal onClose={() => {navigate("/index", {replace: true})}}/>}
       <Stack style={{ padding: 0 }} className={detailClasses.detailsRow}>
          <FocusZone direction={FocusZoneDirection.vertical} style={{ padding: 0 }}>
             <div className={detailClasses.container} style={{ width: "100%", height: 'calc(100vh - 208px)', position: 'relative' }} data-is-scrollable={true}>

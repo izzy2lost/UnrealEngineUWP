@@ -3,7 +3,8 @@
 import { Image, Spinner, SpinnerSize, Stack, Text } from '@fluentui/react';
 import React, { useState } from 'react';
 import { useDarkreader } from 'react-darkreader';
-import { createBrowserRouter, Navigate, Outlet, RouteObject, RouterProvider } from 'react-router-dom';
+import { Navigate, Outlet, RouteObject, RouterProvider, createBrowserRouter } from 'react-router-dom';
+import hordePlugins from './Plugins';
 import backend from './backend';
 import { DashboardPreference } from './backend/Api';
 import { getSiteConfig } from './backend/Config';
@@ -15,9 +16,8 @@ import { AutomationView } from './components/AutomationView';
 import { DashboardView } from './components/DashboardView';
 import { DebugView } from './components/DebugView';
 import { DeviceView } from './components/DeviceView';
-import { DocView } from './components/docs/DocView';
 import { ErrorDialog, ErrorHandler } from './components/ErrorHandler';
-import { JobDetailViewV2 } from './components/jobDetailsV2/JobDetailViewV2';
+import { JobRedirector } from './components/JobRedirector';
 import { LogView } from './components/LogView';
 import { NoticeView } from './components/NoticeView';
 import { PerforceServerView } from './components/PerforceView';
@@ -29,11 +29,11 @@ import { TestReportView } from './components/TestReportView';
 import { ToolView } from './components/ToolView';
 import { UserHomeView } from './components/UserHome';
 import { UtilizationReportView } from './components/UtilizationReportView';
-import hordePlugins from './Plugins';
-import { modeColors, preloadFonts } from './styles/Styles';
+import { DocView } from './components/docs/DocView';
+import { JobDetailViewV2 } from './components/jobDetailsV2/JobDetailViewV2';
+import { PreflightConfigRedirector } from './components/preflights/PreflightConfigCheckRedirector';
 import { StepIssueReportTest } from './components/test/IssueStepReport';
-import { JobRedirector } from './components/JobRedirector';
-import { PreflightConfigView } from './components/preflights/PreflightConfigCheck';
+import { modeColors, preloadFonts } from './styles/Styles';
 
 
 let router: any;
@@ -143,7 +143,7 @@ const Main: React.FC = () => {
                { path: "admin/token", element: <AdminToken /> },
                { path: "reports/utilization", element: <UtilizationReportView /> },
                { path: "preflight", element: <PreflightRedirector /> },
-               { path: "preflightconfig", element: <PreflightConfigView /> },
+               { path: "preflightconfig", element: <PreflightConfigRedirector /> },
                { path: "dashboard", element: <DashboardView /> },
                { path: "perforce/servers", element: <PerforceServerView /> },
                { path: "notices", element: <NoticeView /> },

@@ -1,4 +1,4 @@
-import { FontIcon, MaskedTextField, PrimaryButton, Spinner, SpinnerSize, Stack, Text, TextField } from "@fluentui/react";
+import { FontIcon, IconButton, MaskedTextField, Modal, PrimaryButton, Spinner, SpinnerSize, Stack, Text, TextField } from "@fluentui/react";
 import { useWindowSize } from "../../base/utilities/hooks";
 import { hordeClasses, modeColors } from "../../styles/Styles";
 import { Breadcrumbs } from "../Breadcrumbs";
@@ -11,10 +11,10 @@ import dashboard, { StatusColor } from "../../backend/Dashboard";
 const PreflightConfigPanel: React.FC = () => {
 
    const search = new URL(window.location.toString()).searchParams;
-   const shelvedChange = search.get("shelvedchange") ? search.get("shelvedchange")! : undefined;
+   const shelvedChange = search.get("preflightconfig") ? search.get("preflightconfig")! : undefined;
 
    const navigate = useNavigate();
-   const [state, setState] = useState<{ initialCL?: string, submitting?: boolean, success?: boolean, message?: string }>({initialCL: shelvedChange});
+   const [state, setState] = useState<{ initialCL?: string, submitting?: boolean, success?: boolean, message?: string }>({ initialCL: shelvedChange });
 
    const maskFormat: { [key: string]: RegExp } = {
       '*': /[0-9]/,
@@ -27,7 +27,7 @@ const PreflightConfigPanel: React.FC = () => {
          if (!shelvedChange) {
             return;
          }
-   
+
          preflightCL = shelvedChange;
       }
 
@@ -49,7 +49,7 @@ const PreflightConfigPanel: React.FC = () => {
 
 
    return (<Stack>
-      <Stack styles={{ root: { paddingTop: 18, paddingLeft: 12, paddingRight: 12, width: "100%" } }} >
+      <Stack styles={{ root: { paddingTop: 18, paddingLeft: 0, paddingRight: 0, width: "100%" } }} >
          <Stack tokens={{ childrenGap: 12 }} >
             <Stack style={{ width: 800, paddingLeft: 12 }}>
                <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 24 }}>
@@ -59,11 +59,11 @@ const PreflightConfigPanel: React.FC = () => {
                         ev.preventDefault();
 
                         if (!newValue) {
-                           navigate("/preflightconfig", { replace: true });
+                           navigate("/index?preflightconfig", { replace: true });
                         }
 
                         if (!isNaN(parseInt(newValue!))) {
-                           navigate(`?shelvedchange=${newValue}`, { replace: true });
+                           navigate(`/index?preflightconfig=${newValue}`, { replace: true });
                         }
 
                      }} />
@@ -87,35 +87,46 @@ const PreflightConfigPanel: React.FC = () => {
                      }}>Check</PrimaryButton>
                   </Stack>
                </Stack>
-               {!!state.message && <Stack style={{ paddingTop: 24, paddingRight: 2 }}>
-                  <TextField readOnly multiline resizable={false} label="Error Message" autoAdjustHeight={false} defaultValue={state.message} style={{ whiteSpace: "pre-wrap", height: 500 }}> </TextField>
+               {!!state.message && <Stack style={{ paddingTop: 18, paddingRight: 2 }}>
+                  <Stack style={{ paddingBottom: 12 }}>
+                     <Text styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>Error Message</Text>
+                  </Stack>
+                  <Stack style={{ border: "1px solid #CDCBC9" }}>
+                     <Text style={{ whiteSpace: "pre-wrap", height: "472px", overflowY: "auto", padding: 18 }}> {state.message}</Text>
+                  </Stack>
                </Stack>}
             </Stack>
          </Stack>
       </Stack>
-   </Stack>);
+   </Stack>)
 }
 
 
-export const PreflightConfigView: React.FC = () => {
+export const PreflightConfigModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
-   const windowSize = useWindowSize();
-   const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
-
-   return <Stack className={hordeClasses.horde}>
-      <TopNav />
-      <Breadcrumbs items={[{ text: 'Preflight Configuration' }]} />
-      <Stack horizontal>
-         <div key={`windowsize_noticeview_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440 / 2), flexShrink: 0, backgroundColor: modeColors.background }} />
-         <Stack tokens={{ childrenGap: 0 }} styles={{ root: { backgroundColor: modeColors.background, width: "100%" } }}>
-            <Stack style={{ maxWidth: 1440, paddingTop: 6, marginLeft: 4, height: 'calc(100vh - 8px)' }}>
-               <Stack horizontal className={hordeClasses.raised}>
-                  <Stack style={{ width: "100%", height: 'calc(100vh - 228px)' }} tokens={{ childrenGap: 18 }}>
+   return <Stack>
+      <Modal isOpen={true} isBlocking={true} topOffsetFixed={true} styles={{ main: { padding: 8, width: 880, height: 720, hasBeenOpened: false, top: "80px", position: "absolute" } }} onDismiss={() => onClose()} className={hordeClasses.modal}>
+         <Stack className="horde-no-darktheme" styles={{ root: { paddingTop: 10, paddingRight: 0 } }}>
+            <Stack style={{ paddingLeft: 24, paddingRight: 12 }}>
+               <Stack tokens={{ childrenGap: 12 }} style={{ height: 700 }}>
+                  <Stack horizontal verticalAlign="start">
+                     <Stack style={{ paddingTop: 3 }}>
+                        <Text variant="mediumPlus" styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>Preflight Configuration</Text>
+                     </Stack>
+                     <Stack grow />
+                     <Stack horizontalAlign="end" >
+                        <IconButton
+                           iconProps={{ iconName: 'Cancel' }}
+                           onClick={() => { onClose() }}
+                        />
+                     </Stack>
+                  </Stack>
+                  <Stack styles={{ root: { paddingLeft: 4, paddingRight: 0, paddingTop: 8, paddingBottom: 4 } }}>
                      <PreflightConfigPanel />
                   </Stack>
                </Stack>
             </Stack>
          </Stack>
-      </Stack>
-   </Stack>
+      </Modal>
+   </Stack>;
 };
