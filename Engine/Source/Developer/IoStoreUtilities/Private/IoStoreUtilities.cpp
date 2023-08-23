@@ -99,7 +99,7 @@ static const uint64 DefaultCompressionBlockAlignment = 64 << 10;
 static const uint64 DefaultMemoryMappingAlignment = 16 << 10;
 
 static TUniquePtr<FIoStoreReader> CreateIoStoreReader(const TCHAR* Path, const FKeyChain& KeyChain);
-bool UploadIoStoreContainerFiles(const UE::FIoStoreUploadParams& UploadParams, TConstArrayView<FString> ContainerFiles, const FKeyChain& KeyChain);
+bool UploadIoStoreContainerFiles(const UE::IO::IAS::FIoStoreUploadParams& UploadParams, TConstArrayView<FString> ContainerFiles, const FKeyChain& KeyChain);
 
 class FIoStoreChunkDatabase : public IIoStoreWriterReferenceChunkDatabase
 {
@@ -5070,7 +5070,7 @@ int32 CreateTarget(const FIoStoreArguments& Arguments, const FIoStoreWriterSetti
 
 	if (Arguments.bUpload && OnDemandContainers.IsEmpty() == false)
 	{
-		TIoStatusOr<UE::FIoStoreUploadParams> UploadParams = UE::FIoStoreUploadParams::Parse(FCommandLine::Get());
+		TIoStatusOr<UE::IO::IAS::FIoStoreUploadParams> UploadParams = UE::IO::IAS::FIoStoreUploadParams::Parse(FCommandLine::Get());
 		if (UploadParams.IsOk() == false)
 		{
 			UE_LOG(LogIoStore, Warning, TEXT("Skipping upload of container file(s), reason '%s'"), *UploadParams.Status().ToString());
@@ -8622,7 +8622,7 @@ int32 CreateIoStoreContainerFiles(const TCHAR* CmdLine)
 	return CreateTarget(Arguments, WriterSettings);
 }
 
-bool UploadIoStoreContainerFiles(const UE::FIoStoreUploadParams& UploadParams, TConstArrayView<FString> ContainerFiles, const FKeyChain& KeyChain)
+bool UploadIoStoreContainerFiles(const UE::IO::IAS::FIoStoreUploadParams& UploadParams, TConstArrayView<FString> ContainerFiles, const FKeyChain& KeyChain)
 {
 	TMap<FGuid, FAES::FAESKey> EncryptionKeys;
 	for (const TPair<FGuid, FNamedAESKey>& KeyPair: KeyChain.GetEncryptionKeys())
@@ -8630,14 +8630,14 @@ bool UploadIoStoreContainerFiles(const UE::FIoStoreUploadParams& UploadParams, T
 		EncryptionKeys.Add(KeyPair.Key, KeyPair.Value.Key);
 	}
 
-	TIoStatusOr<UE::FIoStoreUploadResult> Result = UE::UploadContainerFiles(UploadParams, ContainerFiles, EncryptionKeys);
+	TIoStatusOr<UE::IO::IAS::FIoStoreUploadResult> Result = UE::IO::IAS::UploadContainerFiles(UploadParams, ContainerFiles, EncryptionKeys);
 	if (Result.IsOk() == false)
 	{
 		UE_LOG(LogIoStore, Error, TEXT("Failed to upload container file(s), reason '%s'"), *Result.Status().ToString());
 		return false;
 	}
 
-	UE::FIoStoreUploadResult UploadResult = Result.ConsumeValueOrDie();
+	UE::IO::IAS::FIoStoreUploadResult UploadResult = Result.ConsumeValueOrDie();
 
 	FString ConfigFilePath;
 	if (FParse::Value(FCommandLine::Get(), TEXT("ConfigFilePath="), ConfigFilePath))
@@ -8708,7 +8708,7 @@ bool UploadIoStoreContainerFiles(const TCHAR* ContainerPathOrWildcard)
 	FKeyChain KeyChain;
 	LoadKeyChain(FCommandLine::Get(), KeyChain);
 
-	TIoStatusOr<UE::FIoStoreUploadParams> UploadParams = UE::FIoStoreUploadParams::Parse(FCommandLine::Get());
+	TIoStatusOr<UE::IO::IAS::FIoStoreUploadParams> UploadParams = UE::IO::IAS::FIoStoreUploadParams::Parse(FCommandLine::Get());
 	if (UploadParams.IsOk() == false)
 	{
 		UE_LOG(LogIoStore, Error, TEXT("Failed to upload container file(s), reason '%s'"), *UploadParams.Status().ToString());
@@ -8762,14 +8762,14 @@ bool DownloadIoStoreContainerFiles(const TCHAR* TocPath)
 {
 	check(TocPath);
 
-	TIoStatusOr<UE::FIoStoreDownloadParams> Params = UE::FIoStoreDownloadParams::Parse(FCommandLine::Get());
+	TIoStatusOr<UE::IO::IAS::FIoStoreDownloadParams> Params = UE::IO::IAS::FIoStoreDownloadParams::Parse(FCommandLine::Get());
 	if (Params.IsOk() == false)
 	{
 		UE_LOG(LogIoStore, Error, TEXT("Failed to download container file(s), reason '%s'"), *Params.Status().ToString());
 		return false;
 	}
 
-	FIoStatus Status = UE::DownloadContainerFiles(Params.ConsumeValueOrDie(), TocPath);
+	FIoStatus Status = UE::IO::IAS::DownloadContainerFiles(Params.ConsumeValueOrDie(), TocPath);
 	if (Status.IsOk() == false)
 	{
 		UE_LOG(LogIoStore, Error, TEXT("Failed to download container file(s), reason '%s'"), *Status.ToString());
@@ -8780,7 +8780,7 @@ bool DownloadIoStoreContainerFiles(const TCHAR* TocPath)
 
 bool PrimeEndPoint(FStringView IoStoreOnDemandIniPath)
 {
-	FIoStatus Status = UE::PrimeEndPoint(IoStoreOnDemandIniPath);
+	FIoStatus Status = UE::IO::IAS::PrimeEndPoint(IoStoreOnDemandIniPath);
 	if (Status.IsOk() == false)
 	{
 		UE_LOG(LogIoStore, Error, TEXT("Failed to prime end points, reason '%s'"), *Status.ToString());

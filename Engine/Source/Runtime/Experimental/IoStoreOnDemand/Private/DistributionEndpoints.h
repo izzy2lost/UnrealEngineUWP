@@ -8,7 +8,7 @@
 #include "HAL/CriticalSection.h"
 #include "HttpFwd.h"
 
-namespace UE::IO
+namespace UE::IO::IAS
 {
 
 class FDistributionEndpoints
@@ -51,4 +51,4 @@ private:
 	bool bInitialized = false;
 };
 
-} // namespace UE::IO
+} // namespace UE::IO::IAS

@@ -13,7 +13,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 class FIoBuffer;
 
-namespace UE::HTTP
+namespace UE::IO::IAS::HTTP
 {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -186,6 +186,6 @@ private:
 	FEventLoop&				operator = (FEventLoop&&)		= delete;
 };
 
-} // namespace UE::HTTP
+} // namespace UE::IO::IAS::HTTP
 
 /* vim: set noet : */

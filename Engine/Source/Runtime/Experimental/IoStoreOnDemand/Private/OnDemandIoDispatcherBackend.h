@@ -5,12 +5,10 @@
 #include "IO/IoDispatcherBackend.h"
 #include "Templates/SharedPointer.h"
 
-#define UE_API IOSTOREONDEMAND_API
-
 class IIasCache;
 struct FAnalyticsEventAttribute;
 
-namespace UE
+namespace UE::IO::IAS
 {
 
 enum class EOnDemandEndpointType
@@ -50,8 +48,6 @@ public:
 #endif // IS_PROGRAM || WITH_EDITOR
 };
 
-UE_API TSharedPtr<IOnDemandIoDispatcherBackend> MakeOnDemandIoDispatcherBackend(TSharedPtr<IIasCache> Cache);
+TSharedPtr<IOnDemandIoDispatcherBackend> MakeOnDemandIoDispatcherBackend(TSharedPtr<IIasCache> Cache);
 
-} // namespace UE
-
-#undef UE_API
+} // namespace UE::IO::IAS

@@ -13,10 +13,10 @@
 #include "Serialization/JsonSerializer.h"
 #include "Statistics.h"
 
-extern int32 GIoDispatcherMaxHttpRetryCount;
-
-namespace UE::IO
+namespace UE::IO::IAS
 {
+
+extern int32 GIoDispatcherMaxHttpRetryCount;
 
 FDistributionEndpoints::~FDistributionEndpoints()
 {
@@ -235,4 +235,4 @@ void FDistributionEndpoints::CompleteEndpointRequest(FResolveRequest& ResolveReq
 	}
 }
 
-} // namespace UE::IO
+} // namespace UE::IO::IAS

@@ -10,7 +10,7 @@ LLM_DEFINE_TAG(Ias);
 
 #if IAS_WITH_STATISTICS
 
-namespace UE::IO::Private
+namespace UE::IO::IAS
 {
 
 static TAutoConsoleVariable<bool> CVar_ReportHttpAnalytics(
@@ -471,6 +471,6 @@ void FOnDemandIoBackendStats::OnHttpError()
 	GHttpErrorCount.Add(1);
 }
 
-} // namespace UE::IO::Private
+} // namespace UE::IO::IAS
 
 #endif // IAS_WITH_STATISTICS

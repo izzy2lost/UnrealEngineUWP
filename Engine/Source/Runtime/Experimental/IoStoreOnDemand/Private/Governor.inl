@@ -4,7 +4,7 @@
 
 #include "HAL/PlatformTime.h"
 
-namespace UE::IO::Private {
+namespace UE::IO::IAS {
 
 ////////////////////////////////////////////////////////////////////////////////
 class FGovernorExternal
@@ -123,4 +123,4 @@ inline void FGovernorInternal::Return(int32 LeftOver)
 	using FGovernor = FGovernorInternal;
 #endif
 
-} // namespace UE::IO::Private
+} // namespace UE::IO::IAS

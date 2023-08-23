@@ -7,7 +7,7 @@
 #include "Misc/AES.h"
 #include "Misc/Guid.h"
 
-namespace UE
+namespace UE::IO::IAS
 {
 
 /** Manages a set of registered encryption key(s). */
@@ -41,4 +41,4 @@ private:
 	FEncryptionKeyAddedDelegate KeyAdded;
 };
 
-} // namespace UE
+} // namespace UE::IO::IAS

@@ -4,6 +4,8 @@
 
 #include <atomic>
 
+namespace UE::IO::IAS {
+
 /**
  * Experimental type for signaling cancellation of asynchronouse I/O operations.
  */
@@ -31,3 +33,5 @@ struct FIoCancellationToken
 private:
 	std::atomic_bool bCancellationRequested{false};
 };
+
+} // namespace UE::IO::IAS

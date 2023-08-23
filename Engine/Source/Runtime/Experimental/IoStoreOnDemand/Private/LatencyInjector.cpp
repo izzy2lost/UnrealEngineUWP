@@ -9,7 +9,7 @@
 
 #if IAS_WITH_LATENCY_INJECTOR
 
-namespace UE::IO::Private
+namespace UE::IO::IAS
 {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,6 +162,6 @@ bool FLatencyInjector::HasExpired(uint32 Param)
 	return Cycles >= (int64(Param) + Injector::CycleBase);
 }
 
-} // namespace UE::IO::Private
+} // namespace UE::IO::IAS
 
 #endif // IAS_WITH_LATENCY_INJECTOR

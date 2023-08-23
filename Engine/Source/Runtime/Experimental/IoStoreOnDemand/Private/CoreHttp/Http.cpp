@@ -77,10 +77,8 @@ enum : SocketType { InvalidSocket = -1 };
 
 // }}}
 
-namespace UE::HTTP
+namespace UE::IO::IAS::HTTP
 {
-
-using FLatencyInjector = UE::IO::Private::FLatencyInjector;
 
 // {{{1 misc ...................................................................
 
@@ -2334,7 +2332,7 @@ COREHTTP_API void CoreHttpTest()
 		uint64 Hash = 0;
 	} Content[64];
 
-	auto HashSink = [&] (const UE::HTTP::FTicketStatus& Status) -> FIoBuffer*
+	auto HashSink = [&] (const FTicketStatus& Status) -> FIoBuffer*
 	{
 		check(Status.GetId() != FTicketStatus::EId::Error);
 
@@ -2476,7 +2474,7 @@ COREHTTP_API void CoreHttpTest()
 		};
 
 		uint64 Errors = 0;
-		auto ErrorSink = [&] (const UE::HTTP::FTicketStatus& Status)
+		auto ErrorSink = [&] (const FTicketStatus& Status)
 		{
 			FTicket Ticket = Status.GetTicket();
 			uint32 Index = 63 - FMath::CountLeadingZeros64(uint64(Ticket));
@@ -2589,6 +2587,6 @@ COREHTTP_API void CoreHttpTest()
 
 // }}}
 
-} // namespace UE::HTTP
+} // namespace UE::IO::IAS
 
 /* vim: set noet : */

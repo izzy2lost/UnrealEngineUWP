@@ -35,6 +35,9 @@
 
 #include <atomic>
 
+namespace UE::IO::IAS
+{
+
 ///////////////////////////////////////////////////////////////////////////////
 int32 GIoDispatcherMaxHttpConnectionCount = 8;
 static FAutoConsoleVariableRef CVar_IoDispatcherMaxHttpConnectionCount (
@@ -69,16 +72,13 @@ static TAutoConsoleVariable<bool> CVar_IoReportAnalytics(
 	true,
 	TEXT("Enables reporting statics to the analytics system"));
 
-namespace UE::IO::Private
-{
-
 ///////////////////////////////////////////////////////////////////////////////
 #if !UE_BUILD_SHIPPING
 static void LatencyTest(FStringView InUrl, FStringView InPath)
 {
 	auto AnsiUrl = StringCast<ANSICHAR>(InUrl.GetData(), InUrl.Len());
 
-	using namespace UE::HTTP;
+	using namespace UE::IO::IAS::HTTP;
 
 	FConnectionPool::FParams PoolParams;
 	PoolParams.SetHostFromUrl(AnsiUrl);
@@ -199,7 +199,7 @@ void FHttpClient::Get(FAnsiStringView Url, FGetCallback&& Callback)
 
 void FHttpClient::Issue(FAnsiStringView Url, FGetCallback&& Callback, FIoOffsetAndLength Range)
 {
-	using namespace UE::HTTP;
+	using namespace UE::IO::IAS::HTTP;
 
 	auto Sink = [
 		Buffer = FIoBuffer(),
@@ -241,7 +241,7 @@ void FHttpClient::Issue(FAnsiStringView Url, FGetCallback&& Callback, FIoOffsetA
 			}
 		};
 
-	UE::HTTP::FRequest Request = EventLoop.Get(Url, *ConnectionPool);
+	UE::IO::IAS::HTTP::FRequest Request = EventLoop.Get(Url, *ConnectionPool);
 	const uint64 RangeStart = Range.GetOffset();
 	const uint64 RangeEnd = Range.GetOffset() + Range.GetLength();
 	if (RangeStart > 0 || RangeEnd > 0)
@@ -814,7 +814,7 @@ static void LogIoResult(
 ///////////////////////////////////////////////////////////////////////////////
 class FOnDemandIoBackend final
 	: public FRunnable
-	, public UE::IOnDemandIoDispatcherBackend
+	, public IOnDemandIoDispatcherBackend
 {
 	using FIoRequestQueue = TThreadSafeIntrusiveQueue<FIoRequestImpl>;
 	using FChunkRequestQueue = TThreadSafeIntrusiveQueue<FChunkRequest>;
@@ -1448,7 +1448,7 @@ FIoStatus FOnDemandIoBackend::AddToc(const FOnDemandEndpoint& Endpoint)
 #if !UE_BUILD_SHIPPING
 	Launch(TEXT("IasLatencyTest"), [ServiceUrl=Endpoint.ServiceUrl, TocPath=Endpoint.TocPath] ()
 	{
-		UE::IO::Private::LatencyTest(ServiceUrl, TocPath);
+		LatencyTest(ServiceUrl, TocPath);
 	});
 #endif // !UE_BUILD_SHIPPING
 
@@ -1562,14 +1562,9 @@ uint32 FOnDemandIoBackend::Run()
 	return 0;
 }
 
-} // namespace UE::IO::Private
-
-namespace UE
-{
-
 TSharedPtr<IOnDemandIoDispatcherBackend> MakeOnDemandIoDispatcherBackend(TSharedPtr<IIasCache> Cache)
 {
-	return MakeShareable<IOnDemandIoDispatcherBackend>(new UE::IO::Private::FOnDemandIoBackend(Cache));
+	return MakeShareable<IOnDemandIoDispatcherBackend>(new FOnDemandIoBackend(Cache));
 }
 
-} // namespace UE
+} // namespace UE::IO::IAS

@@ -28,7 +28,7 @@ struct FIoStoreWriterSettings;
 
 UE_API DECLARE_LOG_CATEGORY_EXTERN(LogIas, VeryVerbose, All);
 
-namespace UE
+namespace UE::IO::IAS
 {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -169,18 +169,13 @@ UE_API FIoStatus PrimeEndPoint(FStringView IoStoreOnDemandIniPath);
 
 #endif // (IS_PROGRAM || WITH_EDITOR)
 
-} // namespace UE
-
-namespace UE
-{
-	class IOnDemandIoDispatcherBackend;
-}
+class IOnDemandIoDispatcherBackend;
 
 class FIoStoreOnDemandModule
 	: public IModuleInterface
 {
 private:
-	TSharedPtr<UE::IOnDemandIoDispatcherBackend> Backend;
+	TSharedPtr<IOnDemandIoDispatcherBackend> Backend;
 
 public:
 	UE_API void SetBulkOptionalEnabled(bool bInEnabled);
@@ -191,5 +186,7 @@ public:
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 };
+
+} // namespace UE::IO::IAS
 
 #undef UE_API

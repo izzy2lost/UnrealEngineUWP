@@ -16,7 +16,7 @@ struct FAnalyticsEventAttribute;
 
 LLM_DECLARE_TAG(Ias);
 
-namespace UE::IO::Private
+namespace UE::IO::IAS
 {
 
 #if IAS_WITH_STATISTICS
@@ -57,4 +57,4 @@ public:
 
 #undef IAS_STATISTICS_IMPL
 
-} // namespace UE::IO::Private
+} // namespace UE::IO::IAS

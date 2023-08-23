@@ -3,7 +3,7 @@
 #include "EncryptionKeyManager.h"
 #include "Misc/CoreDelegates.h"
 
-namespace UE
+namespace UE::IO::IAS
 {
 
 FEncryptionKeyManager::FEncryptionKeyManager()
@@ -74,4 +74,4 @@ FEncryptionKeyManager& FEncryptionKeyManager::Get()
 	return Mgr;
 }
 
-} // namespace UE
+} // namespace UE::IO::IAS

@@ -42,10 +42,7 @@ by 1 journal write. A value of <=1 will flush immediately (N.B. doing so causes
 two writes per allowed op-throttle).
 */
 
-namespace UE::IO::Private
-{
-
-namespace JournaledCache
+namespace UE::IO::IAS::JournaledCache
 {
 
 // {{{1 structs ................................................................
@@ -1055,11 +1052,13 @@ uint32 FCache::DebugVisit(void* Param, FDebugCacheEntry::Callback* Callback)
 
 // }}}
 
-} // namespace JournaledCache
+} // namespace UE::IO::IAS::JournaledCache
 
 
+namespace UE::IO::IAS {
 
 // {{{1 journaled-cache ........................................................
+
 
 ////////////////////////////////////////////////////////////////////////////////
 class FJournaledCache
@@ -1231,8 +1230,6 @@ uint64 FJournaledCache::ReduceKey(const FIoHash& Key)
 
 // }}}
 
-} // namespace UE::IO::Private
-
 
 
 // {{{1 test ...................................................................
@@ -1262,7 +1259,7 @@ static uint64 KeyGen(const FIoBuffer& Data)
 ////////////////////////////////////////////////////////////////////////////////
 IOSTOREONDEMAND_API void Tests()
 {
-	using namespace UE::IO::Private::JournaledCache;
+	using namespace JournaledCache;
 
 	// Some randomness
 	uint64 Th = 0x0'a9e0'493; // prime!
@@ -1487,7 +1484,9 @@ IOSTOREONDEMAND_API void Tests()
 TUniquePtr<IIasCache> MakeIasCache(const FIasCacheConfig& Config)
 {
 	LLM_SCOPE_BYTAG(Ias);
-	return MakeUnique<UE::IO::Private::FJournaledCache>(Config);
+	return MakeUnique<FJournaledCache>(Config);
 }
+
+} // namespace UE::IO::IAS
 
 /* vim: set noet foldlevel=1 : */

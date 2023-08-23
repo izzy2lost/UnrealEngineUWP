@@ -36,7 +36,7 @@
 
 DEFINE_LOG_CATEGORY(LogIas);
 
-namespace UE::IO::Private
+namespace UE::IO::IAS
 {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,7 +98,7 @@ static bool ApplyEncryptionKeyFromString(const FString& GuidKeyPair)
 	if (ParseEncryptionKeyParam(GuidKeyPair, KeyGuid, Key))
 	{
 		// TODO: PAK and I/O store should share key manager
-		UE::FEncryptionKeyManager::Get().AddKey(KeyGuid, Key);
+		FEncryptionKeyManager::Get().AddKey(KeyGuid, Key);
 		FCoreDelegates::GetRegisterEncryptionKeyMulticastDelegate().Broadcast(KeyGuid, Key);
 
 		return true;
@@ -110,7 +110,7 @@ static bool ApplyEncryptionKeyFromString(const FString& GuidKeyPair)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool TryParseConfigContent(const FString& ConfigContent, const FString& ConfigFileName, UE::FOnDemandEndpoint& OutEndpoint)
+static bool TryParseConfigContent(const FString& ConfigContent, const FString& ConfigFileName, FOnDemandEndpoint& OutEndpoint)
 {
 	if (ConfigContent.IsEmpty())
 	{
@@ -149,7 +149,7 @@ static bool TryParseConfigContent(const FString& ConfigContent, const FString& C
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool TryParseConfigFileFromPlatformPackage(UE::FOnDemandEndpoint& OutEndpoint)
+static bool TryParseConfigFileFromPlatformPackage(FOnDemandEndpoint& OutEndpoint)
 {
 	const FString ConfigFileName = TEXT("IoStoreOnDemand.ini");
 	const FString ConfigPath = FPaths::Combine(TEXT("Cloud"), ConfigFileName);
@@ -159,7 +159,7 @@ static bool TryParseConfigFileFromPlatformPackage(UE::FOnDemandEndpoint& OutEndp
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool TryParseConfigFile(const FString& ConfigPath, UE::FOnDemandEndpoint& OutEndpoint)
+static bool TryParseConfigFile(const FString& ConfigPath, FOnDemandEndpoint& OutEndpoint)
 {
 	const FString ConfigFileName = TEXT("IoStoreOnDemand.ini");
 	FString ConfigContent; 
@@ -224,13 +224,6 @@ static FIasCacheConfig GetIasCacheConfig(const TCHAR* CommandLine)
 
 	return Ret;
 }
-
-} // namespace UE::IO::Private
-
-
-
-namespace UE
-{
 
 ////////////////////////////////////////////////////////////////////////////////
 FArchive& operator<<(FArchive& Ar, FOnDemandTocHeader& Header)
@@ -768,7 +761,7 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 			if (Ar.IsError()) 
 			{
 				Toc = FOnDemandToc{};
-				if (UE::LoadFromCompactBinary(FCbFieldView(TocResponse.Body.GetData()), Toc) == false)
+				if (LoadFromCompactBinary(FCbFieldView(TocResponse.Body.GetData()), Toc) == false)
 				{
 					UE_LOG(LogIas, Warning, TEXT("Failed to load TOC '%s/%s/%s'"), *Client.GetConfig().ServiceUrl, *UploadParams.Bucket, *TocInfo.Key);
 					continue;
@@ -1153,7 +1146,7 @@ FIoStatus DownloadContainerFiles(const FIoStoreDownloadParams& DownloadParams, c
 	}
 
 	FOnDemandToc OnDemandToc;
-	if (UE::LoadFromCompactBinary(FCbFieldView(TocResponse.Body.GetData()), OnDemandToc) == false)
+	if (LoadFromCompactBinary(FCbFieldView(TocResponse.Body.GetData()), OnDemandToc) == false)
 	{
 		return FIoStatus(EIoErrorCode::ReadError, TEXT("Failed to load on demand TOC"));
 	}
@@ -1365,31 +1358,19 @@ FIoStatus DownloadContainerFiles(const FIoStoreDownloadParams& DownloadParams, c
 	return FIoStatus::Ok;
 }
 
-class FMyRequest : public FIoRequestImpl
-{
-public:
-
-	static FMyRequest* CreateRequest(const FIoChunkId& ChunkId)
-	{
-		return nullptr;
-	}
-};
-
 FIoStatus PrimeEndPoint(FStringView IoStoreOnDemandIniPath)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(PrimeEndPoint);
 
-	using namespace UE::IO::Private;
-
-	UE::FOnDemandEndpoint EndPoint;
+	FOnDemandEndpoint EndPoint;
 	if (!TryParseConfigFile(FString(IoStoreOnDemandIniPath), EndPoint))
 	{
 		return FIoStatus(EIoErrorCode::Unknown, TEXT("Failed to parse config file"));
 	}
 
-	EndPoint.EndpointType = UE::EOnDemandEndpointType::CDN;
+	EndPoint.EndpointType = EOnDemandEndpointType::CDN;
 
-	TSharedPtr <UE::IOnDemandIoDispatcherBackend> Backend = UE::MakeOnDemandIoDispatcherBackend(nullptr);
+	TSharedPtr <IOnDemandIoDispatcherBackend> Backend = MakeOnDemandIoDispatcherBackend(nullptr);
 	Backend->Mount(EndPoint);
 
 	check(!FIoDispatcher::IsInitialized()); // Assume this is only run in standalone programs that have not
@@ -1441,12 +1422,9 @@ FIoStatus PrimeEndPoint(FStringView IoStoreOnDemandIniPath)
 }
 #endif // (PLATFORM_DESKTOP && (IS_PROGRAM || WITH_EDITOR))
 
-} // namespace UE
+
 
 ////////////////////////////////////////////////////////////////////////////////
-
-IMPLEMENT_MODULE(FIoStoreOnDemandModule, IoStoreOnDemand);
-
 void FIoStoreOnDemandModule::SetBulkOptionalEnabled(bool bInEnabled)
 {
 	if (Backend.IsValid())
@@ -1474,7 +1452,6 @@ void FIoStoreOnDemandModule::ReportAnalytics(TArray<FAnalyticsEventAttribute>& O
 void FIoStoreOnDemandModule::StartupModule()
 {
 	LLM_SCOPE_BYTAG(Ias);
-	using namespace UE::IO::Private;
 
 #if WITH_EDITOR
 	bool bEnabledInEditor = false;
@@ -1488,7 +1465,7 @@ void FIoStoreOnDemandModule::StartupModule()
 
 	const TCHAR* CommandLine = FCommandLine::Get();
 
-	UE::FOnDemandEndpoint Endpoint;
+	FOnDemandEndpoint Endpoint;
 	
 	FString UrlParam;
 	if (FParse::Value(CommandLine, TEXT("Ias.TocUrl="), UrlParam))
@@ -1515,7 +1492,7 @@ void FIoStoreOnDemandModule::StartupModule()
 
 	if (!Endpoint.IsValid())
 	{
-		Endpoint = UE::FOnDemandEndpoint();
+		Endpoint = FOnDemandEndpoint();
 		if (!TryParseConfigFileFromPlatformPackage(Endpoint))
 		{
 			return;
@@ -1531,7 +1508,7 @@ void FIoStoreOnDemandModule::StartupModule()
 
 	FLatencyInjector::Initialize(CommandLine);
 
-	Endpoint.EndpointType = UE::EOnDemandEndpointType::CDN;
+	Endpoint.EndpointType = EOnDemandEndpointType::CDN;
 
 	TSharedPtr<IIasCache> Cache;
 	if (FIasCacheConfig Config = GetIasCacheConfig(CommandLine); Config.DiskQuota > 0)
@@ -1543,7 +1520,7 @@ void FIoStoreOnDemandModule::StartupModule()
 		UE_LOG(LogIas, Log, TEXT("File cache disabled. Streaming only."));
 	}
 
-	Backend = UE::MakeOnDemandIoDispatcherBackend(Cache);
+	Backend = MakeOnDemandIoDispatcherBackend(Cache);
 	Backend->Mount(Endpoint);
 	int32 BackendPriority = -10;
 #if !UE_BUILD_SHIPPING
@@ -1559,3 +1536,9 @@ void FIoStoreOnDemandModule::StartupModule()
 void FIoStoreOnDemandModule::ShutdownModule()
 {
 }
+
+} // namespace UE::IO::IAS
+
+////////////////////////////////////////////////////////////////////////////////
+
+IMPLEMENT_MODULE(UE::IO::IAS::FIoStoreOnDemandModule, IoStoreOnDemand);
