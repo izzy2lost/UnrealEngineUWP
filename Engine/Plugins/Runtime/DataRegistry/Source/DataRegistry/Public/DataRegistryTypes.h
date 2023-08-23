@@ -458,6 +458,9 @@ struct FDataRegistryResolver
 /** Scope object to set a temporary resolver, or register a global one */
 struct DATAREGISTRY_API FDataRegistryResolverScope
 {
+	/** Creates a temporary resolver scope without requiring a dynamically allocated object. Only valid on game thread */
+	FDataRegistryResolverScope(FDataRegistryResolver& ScopeResolver);
+
 	/** Creates a temporary resolver scope, will use the passed in resolver until scope returns. Only valid on game thread */
 	FDataRegistryResolverScope(const TSharedPtr<FDataRegistryResolver>& ScopeResolver);
 
@@ -473,15 +476,36 @@ struct DATAREGISTRY_API FDataRegistryResolverScope
 	/** Use the stack to resolve an ID, will return the resolver used if found */
 	static TSharedPtr<FDataRegistryResolver> ResolveIdToName(FName& OutResolvedName, const FDataRegistryId& ItemId, const class UDataRegistry* Registry, const class UDataRegistrySource* RegistrySource);
 
+	/** Use the stack to resolve an ID, will return the resolver as raw pointer if found */
+	static FDataRegistryResolver* ResolveNameFromId(FName& OutResolvedName, const FDataRegistryId& ItemId, const class UDataRegistry* Registry, const class UDataRegistrySource* RegistrySource);
+
 	/** Returns true if there are any volatile resolvers on the stack */
 	static bool IsStackVolatile();
 
 private:
 	// Stack depth at point this was added
-	int32 StackAtAdd = 0;
+	FDataRegistryResolver* AddedScopeResolver;
 
-	// Global and temporary resolver stack, will go from last added back to 0
-	static TArray<TSharedPtr<FDataRegistryResolver> > ResolverStack;
+	// Global and temporary resolver stack, will go from last added back to 0, optionally able to push stack objects
+	struct FResolverStackEntry
+	{
+		FResolverStackEntry(const TSharedPtr<FDataRegistryResolver>& ScopeResolver)
+			: AsSharedPtr(ScopeResolver)
+			, AsRawPtr(ScopeResolver.Get())
+		{
+		}
+
+		FResolverStackEntry(FDataRegistryResolver& ScopeResolver)
+			: AsSharedPtr()
+			, AsRawPtr(&ScopeResolver)
+		{
+		}
+
+		TSharedPtr<FDataRegistryResolver> AsSharedPtr;
+		FDataRegistryResolver* AsRawPtr;
+	};
+
+	static TArray<FResolverStackEntry> ResolverStack;
 
 };
 

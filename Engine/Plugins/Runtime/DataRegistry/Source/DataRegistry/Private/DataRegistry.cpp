@@ -988,8 +988,8 @@ FName UDataRegistry::MapIdToResolvedName(const FDataRegistryId& ItemId, const UD
 {
 	// Try resolver stack before falling back to raw name
 	FName ResolvedName;
-	TSharedPtr<FDataRegistryResolver> FoundResolver = FDataRegistryResolverScope::ResolveIdToName(ResolvedName, ItemId, this, RegistrySource);
-	if (FoundResolver.IsValid())
+	FDataRegistryResolver* FoundResolver = FDataRegistryResolverScope::ResolveNameFromId(ResolvedName, ItemId, this, RegistrySource);
+	if (FoundResolver)
 	{
 		return ResolvedName;
 	}
