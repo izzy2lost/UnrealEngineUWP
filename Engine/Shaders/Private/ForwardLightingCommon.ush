@@ -194,7 +194,7 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 			{
 				#if SUPPORT_VSM_FOWARD_QUALITY == 1
 				{
-					const FLightShaderParameters DireciontalLight = ConvertToLightShaderParameters(LightData);
+					const FLightShaderParameters DirectionalLight = ConvertToLightShaderParameters(LightData);
 					FVirtualShadowMapSMRTSettings SMRTSettings = GetDirectionalLightSMRTSettings();
 
 					const bool bBackfaceCull = !IsSubsurfaceModel(GBufferData.ShadingModelID);
@@ -203,7 +203,7 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 
 					FVirtualShadowMapSampleResult VirtualShadowMapSample = TraceDirectional(
 						ForwardLightData.DirectionalLightVSM,
-						DireciontalLight,
+						DirectionalLight,
 						PixelPos,
 						GBufferData.Depth,
 						TranslatedWorldPosition,
