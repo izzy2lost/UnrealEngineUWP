@@ -1382,6 +1382,14 @@ void FGenericCrashContext::GetPortableCallStack(const uint64* StackFrames, int32
 	}
 }
 
+void FGenericCrashContext::AddPortableThreadCallStacks(TConstArrayView<FThreadCallStack> Threads)
+{
+	for (const FThreadCallStack& Thread : Threads)
+	{
+		AddPortableThreadCallStack(Thread.ThreadId, Thread.ThreadName, Thread.StackFrames.GetData(), Thread.StackFrames.Num());
+	}
+}
+
 void FGenericCrashContext::AddPortableThreadCallStack(uint32 ThreadId, const TCHAR* ThreadName, const uint64* StackFrames, int32 NumStackFrames)
 {
 	// Not implemented for generic class

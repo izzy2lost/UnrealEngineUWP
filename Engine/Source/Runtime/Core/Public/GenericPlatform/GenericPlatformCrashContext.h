@@ -283,6 +283,13 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FEngineDataSetDelegate, const FString&, con
 DECLARE_MULTICAST_DELEGATE(FGameDataResetDelegate);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FGameDataSetDelegate, const FString&, const FString&);
 
+struct FThreadCallStack
+{
+	TConstArrayView<uint64> StackFrames;
+	const TCHAR* ThreadName;
+	uint32 ThreadId;
+};
+
 /**
  *	Contains a runtime crash's properties that are common for all platforms.
  *	This may change in the future.
@@ -564,6 +571,7 @@ public:
 	CORE_API virtual void GetModules(TArray<FStackWalkModuleInfo>& OutModules) const;
 	
 	/** Adds a portable callstack for a thread */
+	CORE_API virtual void AddPortableThreadCallStacks(TConstArrayView<FThreadCallStack> Threads);
 	CORE_API virtual void AddPortableThreadCallStack(uint32 ThreadId, const TCHAR* ThreadName, const uint64* StackFrames, int32 NumStackFrames);
 
 	/** Allows platform implementations to copy files to report directory. */

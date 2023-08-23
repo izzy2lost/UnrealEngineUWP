@@ -507,6 +507,8 @@ FPlatformErrorReport CollectErrorReport(FRecoveryService* RecoveryService, uint3
 	// Initialize the stack walking for the monitored process (effectively overriding this process stack walking functionality)
 	FPlatformStackWalk::InitStackWalkingForProcess(ProcessHandle);
 
+	TArray<TArray<uint64>> ThreadCallStacks;
+	ThreadCallStacks.Reserve(SharedCrashContext.NumThreads);
 	for (uint32 ThreadIdx = 0; ThreadIdx < SharedCrashContext.NumThreads; ThreadIdx++)
 	{
 		const uint32 ThreadId = SharedCrashContext.ThreadIds[ThreadIdx];
@@ -546,13 +548,15 @@ FPlatformErrorReport CollectErrorReport(FRecoveryService* RecoveryService, uint3
 			CR_MAX_STACK_FRAMES,
 			PlatformContext.Get()
 		);
+		
+		ThreadCallStacks.Emplace(TArray<uint64>(StackFrames, StackFrameCount));		
 
-		CrashContext.AddPortableThreadCallStack(
-			SharedCrashContext.ThreadIds[ThreadIdx],
-			&SharedCrashContext.ThreadNames[ThreadIdx*CR_MAX_THREAD_NAME_CHARS],
-			StackFrames,
-			StackFrameCount
-		);
+		// CrashContext.AddPortableThreadCallStack(
+		// 	SharedCrashContext.ThreadIds[ThreadIdx],
+		// 	&SharedCrashContext.ThreadNames[ThreadIdx*CR_MAX_THREAD_NAME_CHARS],
+		// 	StackFrames,
+		// 	StackFrameCount
+		// );
 
 		// Add the crashing stack specifically. Is this really needed?
 		if (ThreadId == SharedCrashContext.CrashingThreadId)
@@ -594,6 +598,21 @@ FPlatformErrorReport CollectErrorReport(FRecoveryService* RecoveryService, uint3
 			bOutCrashPortableCallstackAvailable = StackFrameCount > 0;
 		}
 	}
+
+	{
+		TArray<FThreadCallStack> Threads;
+		Threads.Reserve(SharedCrashContext.NumThreads);
+		for (uint32 ThreadIdx = 0; ThreadIdx < SharedCrashContext.NumThreads; ++ThreadIdx)
+		{
+			Threads.Add({
+				MakeArrayView(ThreadCallStacks[ThreadIdx]),
+				&SharedCrashContext.ThreadNames[ThreadIdx*CR_MAX_THREAD_NAME_CHARS],
+				SharedCrashContext.ThreadIds[ThreadIdx],
+			});
+		}
+		CrashContext.AddPortableThreadCallStacks(Threads);
+	}
+
 
 	FCrashReportAnalyticsSessionSummary::Get().OnCrashReportGatheringFiles();
 
