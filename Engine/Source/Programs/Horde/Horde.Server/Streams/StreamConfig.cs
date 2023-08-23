@@ -25,6 +25,10 @@ using Horde.Server.Utilities;
 using Horde.Common;
 using HordeCommon;
 using HordeCommon.Rpc.Tasks;
+using System.Reflection;
+using System.ComponentModel;
+using EpicGames.Serialization;
+using System.Diagnostics;
 
 namespace Horde.Server.Streams
 {
@@ -257,6 +261,15 @@ namespace Horde.Server.Streams
 			foreach (TemplateRefConfig template in Templates)
 			{
 				template.PostLoad(this);
+			}
+
+			ConfigType.MergeDefaults(AgentTypes.Select(x => (x.Key, x.Value.Base, x.Value)));
+			ConfigType.MergeDefaults(WorkspaceTypes.Select(x => (x.Key, x.Value.Base, x.Value)));
+			ConfigType.MergeDefaults(Templates.Select(x => (x.Id, x.Base, x)));
+
+			foreach (TemplateRefConfig template in Templates)
+			{
+				template.JobOptions.MergeDefaults(JobOptions);
 			}
 
 			if (Environment != null && Environment.Count > 0)
@@ -516,9 +529,13 @@ namespace Horde.Server.Streams
 	public class AgentConfig
 	{
 		/// <summary>
+		/// Base agent config to inherit settings from
+		/// </summary>
+		public string? Base { get; set; }
+
+		/// <summary>
 		/// Pool of agents to use for this agent type
 		/// </summary>
-		[Required]
 		public PoolId Pool { get; set; }
 
 		/// <summary>
@@ -539,6 +556,7 @@ namespace Horde.Server.Streams
 		/// <summary>
 		/// Tokens to allocate for this agent type
 		/// </summary>
+		[ConfigMergeStrategy(ConfigMergeStrategy.Append)]
 		public List<TokenConfig>? Tokens { get; set; }
 
 		/// <summary>
@@ -565,6 +583,11 @@ namespace Horde.Server.Streams
 	/// </summary>
 	public class WorkspaceConfig
 	{
+		/// <summary>
+		/// Base workspace to derive from
+		/// </summary>
+		public string? Base { get; set; }
+
 		/// <summary>
 		/// Name of the Perforce server cluster to use
 		/// </summary>
@@ -598,21 +621,23 @@ namespace Horde.Server.Streams
 		/// <summary>
 		/// Custom view for the workspace
 		/// </summary>
+		[ConfigMergeStrategy(ConfigMergeStrategy.Append)]
 		public List<string>? View { get; set; }
 
 		/// <summary>
 		/// Whether to use an incrementally synced workspace
 		/// </summary>
-		public bool Incremental { get; set; }
+		public bool? Incremental { get; set; }
 
 		/// <summary>
 		/// Whether to use the AutoSDK
 		/// </summary>
-		public bool UseAutoSdk { get; set; } = true;
+		public bool? UseAutoSdk { get; set; }
 
 		/// <summary>
 		/// View for the AutoSDK paths to sync. If null, the whole thing will be synced.
 		/// </summary>
+		[ConfigMergeStrategy(ConfigMergeStrategy.Append)]
 		public List<string>? AutoSdkView { get; set; }
 
 		/// <summary>
@@ -700,6 +725,7 @@ namespace Horde.Server.Streams
 	/// <summary>
 	/// Parameters to create a template within a stream
 	/// </summary>
+	[DebuggerDisplay("{Id}")]
 	public class TemplateRefConfig : TemplateConfig, IAclScope
 	{
 		/// <summary>
@@ -720,6 +746,11 @@ namespace Horde.Server.Streams
 		/// Optional identifier for this ref. If not specified, an id will be generated from the name.
 		/// </summary>
 		public TemplateId Id { get; set; }
+
+		/// <summary>
+		/// Base template id to copy from
+		/// </summary>
+		public TemplateId Base { get; set; }
 
 		/// <summary>
 		/// Whether to show badges in UGS for these jobs
@@ -763,16 +794,19 @@ namespace Horde.Server.Streams
 		/// <summary>
 		/// Schedule to execute this template
 		/// </summary>
+		[ConfigMergeStrategy(ConfigMergeStrategy.Recursive)]
 		public ScheduleConfig? Schedule { get; set; }
 
 		/// <summary>
 		/// List of chained job triggers
 		/// </summary>
+		[ConfigMergeStrategy(ConfigMergeStrategy.Append)]
 		public List<ChainedJobTemplateConfig>? ChainedJobs { get; set; }
 
 		/// <summary>
 		/// The ACL for this template
 		/// </summary>
+		[ConfigMergeStrategy(ConfigMergeStrategy.Recursive)]
 		public AclConfig? Acl { get; set; }
 
 		/// <summary>
@@ -782,14 +816,13 @@ namespace Horde.Server.Streams
 		public void PostLoad(StreamConfig streamConfig)
 		{
 			StreamConfig = streamConfig;
-			ScopeName = streamConfig.ScopeName.Append("t", Id.ToString());
-
-			JobOptions.MergeDefaults(streamConfig.JobOptions);
 
 			if (Id.IsEmpty)
 			{
 				Id = new TemplateId(StringId.Sanitize(Name));
 			}
+
+			ScopeName = streamConfig.ScopeName.Append("t", Id.ToString());
 		}
 	}
 

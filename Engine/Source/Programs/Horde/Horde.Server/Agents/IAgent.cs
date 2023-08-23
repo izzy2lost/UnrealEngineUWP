@@ -955,7 +955,7 @@ namespace Horde.Server.Agents
 				{
 					identifier = workspaceConfig.Identifier;
 				}
-				else if (workspaceConfig.Incremental)
+				else if (workspaceConfig.Incremental ?? false)
 				{
 					identifier = $"{streamConfig.GetEscapedName()}+{agentType.Workspace}";
 				}
@@ -965,7 +965,7 @@ namespace Horde.Server.Agents
 				}
 
 				// Create the new workspace
-				workspace = new AgentWorkspace(workspaceConfig.Cluster, workspaceConfig.UserName, identifier, workspaceConfig.Stream ?? streamConfig.Name, workspaceConfig.View, workspaceConfig.Incremental, workspaceConfig.Method);
+				workspace = new AgentWorkspace(workspaceConfig.Cluster, workspaceConfig.UserName, identifier, workspaceConfig.Stream ?? streamConfig.Name, workspaceConfig.View, workspaceConfig.Incremental ?? false, workspaceConfig.Method);
 				autoSdkConfig = GetAutoSdkConfig(workspaceConfig, streamConfig);
 
 				return true;
@@ -974,7 +974,7 @@ namespace Horde.Server.Agents
 			static AutoSdkConfig? GetAutoSdkConfig(WorkspaceConfig workspaceConfig, StreamConfig streamConfig)
 			{
 				AutoSdkConfig? autoSdkConfig = null;
-				if (workspaceConfig.UseAutoSdk)
+				if (workspaceConfig.UseAutoSdk ?? true)
 				{
 					List<string> view = new List<string>();
 					if (streamConfig.AutoSdkView != null)

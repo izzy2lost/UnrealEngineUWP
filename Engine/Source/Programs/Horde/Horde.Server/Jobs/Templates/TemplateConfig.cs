@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
+using Horde.Server.Configuration;
 using Horde.Server.Streams;
 using HordeCommon;
 using HordeCommon.Rpc.Tasks;
@@ -65,21 +66,25 @@ namespace Horde.Server.Jobs.Templates
 		/// <summary>
 		/// Default change to build at. Each object has a condition parameter which can evaluated by the server to determine which change to use.
 		/// </summary>
+		[ConfigMergeStrategy(ConfigMergeStrategy.Append)]
 		public List<ChangeQueryConfig>? DefaultChange { get; set; }
 
 		/// <summary>
 		/// Fixed arguments for the new job
 		/// </summary>
+		[ConfigMergeStrategy(ConfigMergeStrategy.Append)]
 		public List<string> Arguments { get; set; } = new List<string>();
 
 		/// <summary>
 		/// Parameters for this template
 		/// </summary>
+		[ConfigMergeStrategy(ConfigMergeStrategy.Append)]
 		public List<ParameterData> Parameters { get; set; } = new List<ParameterData>();
 
 		/// <summary>
 		/// Default settings for jobs
 		/// </summary>
+		[ConfigMergeStrategy(ConfigMergeStrategy.Recursive)]
 		public JobOptions JobOptions { get; set; } = new JobOptions();
 
 		/// <summary>
