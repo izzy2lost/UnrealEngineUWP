@@ -33,12 +33,18 @@ namespace UE::ConcertSyncClient::Replication
 		GetDataSource().ExtractReplicationDataForObject(Args.ObjectInfo, [this, Object, &bAppliedData](const FConcertSessionSerializedPayload& Payload)
 		{
 			bAppliedData = true;
-			ReplicationFormat->ApplyReplicationEvent(*Object, Payload);
 
-			// TODO: This is very hacky and leaves performance on the table... this is in case ApplyReplicationEvent updates the transform
+			// TODO DP UE-193659: This is very hacky and leaves performance on the table... this is in case ApplyReplicationEvent updates the transform
 			if (USceneComponent* SceneComponent = Cast<USceneComponent>(Object))
 			{
+				FTransform TransformBefore = SceneComponent->GetComponentTransform();
+				ReplicationFormat->ApplyReplicationEvent(*Object, Payload);
+				SceneComponent->SetWorldTransform(TransformBefore);
 				SceneComponent->UpdateComponentToWorld();
+			}
+			else
+			{
+				ReplicationFormat->ApplyReplicationEvent(*Object, Payload);
 			}
 		});
 		// This should not happen. If it does, we're wasting  network bandwidth.
