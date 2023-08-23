@@ -457,6 +457,7 @@ void UPoseSearchLibrary::MotionMatch(
 	Result.SelectedDatabase = nullptr;
 	Result.SearchCost = MAX_flt;
 
+	FMemMark Mark(FMemStack::Get());
 	if (Database && AnimInstance)
 	{
 		const FPoseSearchQueryTrajectory TrajectoryRootSpace = ProcessTrajectory(Trajectory, AnimInstance->GetOwningComponent()->GetComponentTransform(), 0.f, 0.f, TrajectorySpeedMultiplier);
@@ -535,7 +536,6 @@ void UPoseSearchLibrary::MotionMatch(
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 		}
 
-		FMemMark Mark(FMemStack::Get());
 		FSearchContext SearchContext(AnimInstance, &TrajectoryRootSpace, ExtendedPoseHistory.IsInitialized() ? &ExtendedPoseHistory : nullptr, TimeToFutureAnimationStart);
 
 		FSearchResult SearchResult = Database->Search(SearchContext);

@@ -7,11 +7,11 @@
 #include "Animation/MirrorDataTable.h"
 #include "PoseSearch/PoseSearchAnimNotifies.h"
 #include "PoseSearch/PoseSearchAssetSampler.h"
+#include "PoseSearch/PoseSearchContext.h"
 #include "PoseSearch/PoseSearchDefines.h"
 #include "PoseSearch/PoseSearchFeatureChannel.h"
 #include "PoseSearch/PoseSearchIndex.h"
 #include "PoseSearch/PoseSearchSchema.h"
-#include "PoseSearchDatabaseIndexingContext.h"
 
 namespace UE::PoseSearch
 {
@@ -79,6 +79,28 @@ static FSamplingParam WrapOrClampSamplingParam(bool bCanWrap, float SamplingPara
 }
 
 //////////////////////////////////////////////////////////////////////////
+// FAssetSamplingContext
+void FAssetSamplingContext::Init(const UMirrorDataTable* InMirrorDataTable, const FBoneContainer& BoneContainer)
+{
+	MirrorDataTable = InMirrorDataTable;
+
+	if (InMirrorDataTable)
+	{
+		InMirrorDataTable->FillCompactPoseAndComponentRefRotations(BoneContainer, CompactPoseMirrorBones, ComponentSpaceRefRotations);
+	}
+	else
+	{
+		CompactPoseMirrorBones.Reset();
+		ComponentSpaceRefRotations.Reset();
+	}
+}
+
+FTransform FAssetSamplingContext::MirrorTransform(const FTransform& InTransform) const
+{
+	return UE::PoseSearch::MirrorTransform(InTransform, MirrorDataTable->MirrorAxis, ComponentSpaceRefRotations[FCompactPoseBoneIndex(RootBoneIndexType)]);
+}
+
+//////////////////////////////////////////////////////////////////////////
 // FAssetIndexer
 FAssetIndexer::FAssetIndexer(const FBoneContainer& InBoneContainer, const FSearchIndexAsset& InSearchIndexAsset, 
 	const FAssetSamplingContext& InSamplingContext, const UPoseSearchSchema& InSchema, const FAnimationAssetSampler& InAssetSampler)
@@ -103,8 +125,6 @@ void FAssetIndexer::AssignWorkingData(int32 InStartPoseIdx, TArrayView<float> In
 void FAssetIndexer::Process(int32 AssetIdx)
 {
 	check(Schema.IsValid());
-
-	FMemMark Mark(FMemStack::Get());
 
 	bProcessFailed = false;
 
@@ -310,6 +330,7 @@ FAssetIndexer::CachedEntry& FAssetIndexer::GetEntry(float SampleTime)
 			CurrentTime = FMath::Clamp(CurrentTime, 0.f, PlayLength);
 		}
 
+		FMemMark Mark(FMemStack::Get());
 		FCompactPose Pose;
 		Pose.SetBoneContainer(&BoneContainer);
 		AssetSampler.ExtractPose(CurrentTime, Pose);
@@ -354,7 +375,10 @@ FAssetIndexer::CachedEntry& FAssetIndexer::GetEntry(float SampleTime)
 			// Note curves and attributes are not used during the indexing process and therefore don't need to be mirrored
 		}
 
-		Entry->ComponentSpacePose.InitPose(MoveTemp(Pose));
+		FCSPose<FCompactPose> StackComponentSpacePose;
+		StackComponentSpacePose.InitPose(MoveTemp(Pose));
+		Entry->ComponentSpacePose.CopyPose(StackComponentSpacePose);
+
 		Entry->RootTransform = Sample.RootTransform;
 		Entry->bClamped = Sample.bClamped;
 	}

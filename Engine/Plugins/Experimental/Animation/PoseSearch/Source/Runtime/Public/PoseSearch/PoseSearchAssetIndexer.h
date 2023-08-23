@@ -14,9 +14,27 @@ namespace UE::PoseSearch
 {
 
 struct FAnimationAssetSampler;
-struct FAssetSamplingContext;
 struct FSearchIndexAsset;
 struct FPoseMetadata;
+
+struct FAssetSamplingContext
+{
+	// Time delta used for computing pose derivatives
+	static constexpr float FiniteDelta = 1 / 60.0f;
+
+	// Mirror data table pointer copied from Schema for convenience
+	TObjectPtr<const UMirrorDataTable> MirrorDataTable;
+
+	// Compact pose format of Mirror Bone Map
+	TCustomBoneIndexArray<FCompactPoseBoneIndex, FCompactPoseBoneIndex> CompactPoseMirrorBones;
+
+	// Pre-calculated component space rotations of reference pose, which allows mirror to work with any joint orientation
+	// Only initialized and used when a mirroring table is specified
+	TCustomBoneIndexArray<FQuat, FCompactPoseBoneIndex> ComponentSpaceRefRotations;
+
+	void Init(const UMirrorDataTable* InMirrorDataTable, const FBoneContainer& BoneContainer);
+	FTransform MirrorTransform(const FTransform& Transform) const;
+};
 
 class FAssetIndexer
 {
@@ -97,7 +115,7 @@ private:
 		bool bClamped = false;
 
 		FTransform RootTransform;
-		FCSPose<FCompactPose> ComponentSpacePose;
+		FCSPose<FCompactHeapPose> ComponentSpacePose;
 	};
 
 	FSampleInfo GetSampleInfo(float SampleTime) const;

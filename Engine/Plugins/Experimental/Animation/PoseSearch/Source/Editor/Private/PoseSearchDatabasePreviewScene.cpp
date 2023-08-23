@@ -66,11 +66,6 @@ namespace UE::PoseSearch
 		if (ViewModel->IsPoseFeaturesDrawMode(EFeaturesDrawMode::All | EFeaturesDrawMode::Detailed) && !ViewModel->GetPreviewActors().IsEmpty() &&
 			FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
 		{
-#if ENABLE_ANIM_DEBUG
-			// memory marker required for PreviewActor.Sampler.ExtractPose
-			FMemMark Mark(FMemStack::Get());
-#endif // ENABLE_ANIM_DEBUG
-
 			bool bDrawQueryVector = ViewModel->ShouldDrawQueryVector();
 			for (FDatabasePreviewActor& PreviewActor : ViewModel->GetPreviewActors())
 			{
@@ -92,6 +87,7 @@ namespace UE::PoseSearch
 						if (DebugDrawSamplerSize > UE_KINDA_SMALL_NUMBER)
 						{
 							// drawing the pose extracted from the Sampler to visually compare with the pose features and the mesh drawing
+							FMemMark Mark(FMemStack::Get());
 							FCompactPose Pose;
 							Pose.SetBoneContainer(&PreviewActor.GetAnimPreviewInstance()->GetRequiredBonesOnAnyThread());
 							PreviewActor.Sampler.ExtractPose(PreviewActor.CurrentTime, Pose);
@@ -99,9 +95,9 @@ namespace UE::PoseSearch
 							const FTransform RootTransform = PreviewActor.Sampler.ExtractRootTransform(PreviewActor.CurrentTime);
 
 							FCSPose<FCompactPose> ComponentSpacePose;
-							ComponentSpacePose.InitPose(Pose);
+							ComponentSpacePose.InitPose(MoveTemp(Pose));
 
-							for (int32 BoneIndex = 0; BoneIndex < Pose.GetNumBones(); ++BoneIndex)
+							for (int32 BoneIndex = 0; BoneIndex < ComponentSpacePose.GetPose().GetNumBones(); ++BoneIndex)
 							{
 								const FTransform BoneWorldTransforms = ComponentSpacePose.GetComponentSpaceTransform(FCompactPoseBoneIndex(BoneIndex)) * RootTransform;
 								DrawParams.DrawPoint(BoneWorldTransforms.GetTranslation(), FColor::Red, DebugDrawSamplerSize);

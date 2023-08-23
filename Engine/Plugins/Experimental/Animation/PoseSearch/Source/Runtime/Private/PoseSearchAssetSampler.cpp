@@ -183,13 +183,17 @@ static void ProcessRootTransform(const UBlendSpace* BlendSpace, const FVector& B
 				BlendSample.Time = CurrentTime * Scale;
 			}
 
+			FMemMark Mark(FMemStack::Get());
 			FCompactPose Pose;
 			FBlendedCurve BlendedCurve;
 			UE::Anim::FStackAttributeContainer StackAttributeContainer;
 			FAnimationPoseData AnimPoseData(Pose, BlendedCurve, StackAttributeContainer);
 
-			Pose.SetBoneContainer(&BoneContainer);
-			BlendedCurve.InitFrom(BoneContainer);
+			// copying bone container to be thread safe, since it has mutable members
+			FBoneContainer BoneContainerCopy = BoneContainer;
+
+			Pose.SetBoneContainer(&BoneContainerCopy);
+			BlendedCurve.InitFrom(BoneContainerCopy);
 
 			BlendSpace->GetAnimationPose(BlendSamples, ExtractionCtx, AnimPoseData);
 
@@ -261,8 +265,6 @@ float FAnimationAssetSampler::GetPlayLength(const UAnimationAsset* AnimAsset, co
 	{
 		if (const UBlendSpace* BlendSpace = Cast<UBlendSpace>(AnimAsset))
 		{
-			FMemMark Mark(FMemStack::Get());
-
 			TArray<FBlendSampleData> BlendSamples;
 			int32 TriangulationIndex = 0;
 			if (BlendSpace->GetSamplesFromBlendInput(BlendParameters, BlendSamples, TriangulationIndex, true))
@@ -419,15 +421,10 @@ void FAnimationAssetSampler::ExtractPose(const FAnimExtractContext& ExtractionCt
 
 void FAnimationAssetSampler::ExtractPose(float Time, FCompactPose& OutPose) const
 {
-	using namespace UE::Anim;
-
+	UE::Anim::FStackAttributeContainer UnusedAtrribute;
 	FBlendedCurve UnusedCurve;
-	FStackAttributeContainer UnusedAtrribute;
+	UnusedCurve.InitFrom(OutPose.GetBoneContainer());
 	FAnimationPoseData AnimPoseData = { OutPose, UnusedCurve, UnusedAtrribute };
-
-	check(OutPose.IsValid());
-	FBoneContainer& BoneContainer = OutPose.GetBoneContainer();
-	UnusedCurve.InitFrom(BoneContainer);
 
 	FDeltaTimeRecord DeltaTimeRecord;
 	DeltaTimeRecord.Set(Time, 0.f);
@@ -580,7 +577,6 @@ void FAnimationAssetSampler::Process(const FBoneContainer& BoneContainer)
 {
 	if (const UBlendSpace* BlendSpace = Cast<UBlendSpace>(AnimationAsset.Get()))
 	{
-		FMemMark Mark(FMemStack::Get());
 		ProcessRootTransform(BlendSpace, BlendParameters, CachedPlayLength, BoneContainer, RootTransformSamplingRate, IsLoopable(), AccumulatedRootTransform);
 	}
 }

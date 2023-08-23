@@ -134,17 +134,13 @@ void UPoseSearchMeshComponent::UpdatePose(const FUpdateContext& UpdateContext)
 	}
 
 	FCSPose<FCompactPose> ComponentSpacePose;
-	ComponentSpacePose.InitPose(CompactPose);
+	ComponentSpacePose.InitPose(MoveTemp(CompactPose));
 
 	for (const FBoneIndexType BoneIndex : RequiredBones.GetBoneIndicesArray())
 	{
-		const FTransform BoneTransform = 
-			ComponentSpacePose.GetComponentSpaceTransform(FCompactPoseBoneIndex(BoneIndex));
-
-		FSkeletonPoseBoneIndex SkeletonBoneIndex =
-			RequiredBones.GetSkeletonPoseIndexFromCompactPoseIndex(FCompactPoseBoneIndex(BoneIndex));
-		FName BoneName = 
-			RequiredBones.GetSkeletonAsset()->GetReferenceSkeleton().GetBoneName(SkeletonBoneIndex.GetInt());
+		const FTransform BoneTransform = ComponentSpacePose.GetComponentSpaceTransform(FCompactPoseBoneIndex(BoneIndex));
+		FSkeletonPoseBoneIndex SkeletonBoneIndex = RequiredBones.GetSkeletonPoseIndexFromCompactPoseIndex(FCompactPoseBoneIndex(BoneIndex));
+		FName BoneName = RequiredBones.GetSkeletonAsset()->GetReferenceSkeleton().GetBoneName(SkeletonBoneIndex.GetInt());
 		SetBoneTransformByName(BoneName, BoneTransform, EBoneSpaces::ComponentSpace);
 	}
 

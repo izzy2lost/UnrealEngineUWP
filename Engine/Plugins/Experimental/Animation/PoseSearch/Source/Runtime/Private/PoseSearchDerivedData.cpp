@@ -13,7 +13,6 @@
 #include "DerivedDataRequestOwner.h"
 #include "InstancedStruct.h"
 #include "Misc/CoreDelegates.h"
-#include "PoseSearchDatabaseIndexingContext.h"
 #include "PoseSearch/PoseSearchAnimNotifies.h"
 #include "PoseSearch/PoseSearchAssetIndexer.h"
 #include "PoseSearch/PoseSearchDatabase.h"
@@ -677,22 +676,178 @@ static void PreprocessSearchIndexKDTree(FSearchIndex& SearchIndex, const UPoseSe
 	}
 }
 
-#if ENABLE_ANIM_DEBUG
-
-static void CompareIndexingContext(const FDatabaseIndexingContext& A, const FDatabaseIndexingContext& B)
+static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const UPoseSearchDatabase& Database, UE::DerivedData::FRequestOwner& Owner)
 {
-	if (A.GetIndexers().Num() != B.GetIndexers().Num())
+	const UPoseSearchSchema* Schema = Database.Schema;
+	check(Schema);
+
+	FBoneContainer BoneContainer;
+	BoneContainer.InitializeTo(Schema->BoneIndicesWithParents, UE::Anim::FCurveFilterSettings(UE::Anim::ECurveFilterMode::DisallowAll), *Schema->Skeleton);
+
+	FAssetSamplingContext SamplingContext;
+	SamplingContext.Init(Schema->MirrorDataTable, BoneContainer);
+
+	if (Owner.IsCanceled())
 	{
-		UE_LOG(LogPoseSearch, Warning, TEXT("CompareIndexers - FAssetIndexer is not deterministic"));
+		return false;
 	}
-	else
+
+	// Prepare samplers for all animation assets.
+	TArray<FAnimationAssetSampler> Samplers;
+	Samplers.Reserve(256);
+	
+	TMap<TPair<const UAnimationAsset*, FVector>, int32> SamplerMap;
+	SamplerMap.Reserve(256);
+
+	for (const FInstancedStruct& DatabaseAssetStruct : Database.AnimationAssets)
 	{
-		for (int32 Index = 0; Index < A.GetIndexers().Num(); ++Index)
+		if (const FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace = DatabaseAssetStruct.GetPtr<FPoseSearchDatabaseBlendSpace>())
 		{
-			A.GetIndexers()[Index].CompareCachedEntries(B.GetIndexers()[Index]);
+			if (DatabaseBlendSpace->BlendSpace)
+			{
+				int32 HorizontalBlendNum, VerticalBlendNum;
+				DatabaseBlendSpace->GetBlendSpaceParameterSampleRanges(HorizontalBlendNum, VerticalBlendNum);
+
+				for (int32 HorizontalIndex = 0; HorizontalIndex < HorizontalBlendNum; HorizontalIndex++)
+				{
+					for (int32 VerticalIndex = 0; VerticalIndex < VerticalBlendNum; VerticalIndex++)
+					{
+						const FVector BlendParameters = DatabaseBlendSpace->BlendParameterForSampleRanges(HorizontalIndex, VerticalIndex);
+
+						if (!SamplerMap.Contains({ DatabaseBlendSpace->BlendSpace, BlendParameters }))
+						{
+							SamplerMap.Add({ DatabaseBlendSpace->BlendSpace, BlendParameters }, Samplers.Num());
+							Samplers.Emplace(DatabaseBlendSpace->BlendSpace, BlendParameters);
+						}
+					}
+				}
+			}
+		}
+		else if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = DatabaseAssetStruct.GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
+		{
+			if (const UAnimationAsset* AnimationAsset = DatabaseAnimationAssetBase->GetAnimationAsset())
+			{
+				if (!SamplerMap.Contains({ AnimationAsset, FVector::ZeroVector }))
+				{
+					SamplerMap.Add({ AnimationAsset, FVector::ZeroVector }, Samplers.Num());
+					Samplers.Emplace(AnimationAsset);
+				}
+			}
 		}
 	}
+
+	ParallelFor(Samplers.Num(), [&Samplers, &BoneContainer](int32 SamplerIdx) { Samplers[SamplerIdx].Process(BoneContainer); }, ParallelForFlags);
+
+	if (Owner.IsCanceled())
+	{
+		return false;
+	}
+
+	// prepare indexers
+	TArray<FAssetIndexer> Indexers;
+	Indexers.Reserve(SearchIndexBase.Assets.Num());
+
+	int32 TotalPoses = 0;
+	for (int32 AssetIdx = 0; AssetIdx != SearchIndexBase.Assets.Num(); ++AssetIdx)
+	{
+		FSearchIndexAsset& SearchIndexAsset = SearchIndexBase.Assets[AssetIdx];
+		check(SearchIndexAsset.FirstPoseIdx == TotalPoses);
+
+		const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database.GetAnimationAssetStruct(SearchIndexAsset).GetPtr<FPoseSearchDatabaseAnimationAssetBase>();
+		check(DatabaseAnimationAssetBase && DatabaseAnimationAssetBase->GetAnimationAsset());
+		const FAnimationAssetSampler& AssetSampler = Samplers[SamplerMap[{ DatabaseAnimationAssetBase->GetAnimationAsset(), SearchIndexAsset.BlendParameters }]];
+
+		Indexers.Emplace(BoneContainer, SearchIndexAsset, SamplingContext, *Schema, AssetSampler);
+		TotalPoses += SearchIndexAsset.GetNumPoses();
+	}
+
+	// allocating Values and PoseMetadata
+	SearchIndexBase.AllocateData(Schema->SchemaCardinality, TotalPoses);
+
+	// assigning local data to each Indexer
+	TotalPoses = 0;
+	for (int32 AssetIdx = 0; AssetIdx != SearchIndexBase.Assets.Num(); ++AssetIdx)
+	{
+		Indexers[AssetIdx].AssignWorkingData(TotalPoses, SearchIndexBase.Values, SearchIndexBase.PoseMetadata);
+		TotalPoses += Indexers[AssetIdx].GetNumIndexedPoses();
+	}
+
+	if (Owner.IsCanceled())
+	{
+		return false;
+	}
+	
+	// Index asset data
+	ParallelFor(Indexers.Num(), [&Indexers](int32 AssetIdx) { Indexers[AssetIdx].Process(AssetIdx); }, ParallelForFlags);
+
+	for (const FAssetIndexer& Indexer : Indexers)
+	{
+		if (Indexer.IsProcessFailed())
+		{
+			return false;
+		}
+	}
+
+	if (Owner.IsCanceled())
+	{
+		return false;
+	}
+
+	// Joining Metadata.Flags into OverallFlags
+	SearchIndexBase.bAnyBlockTransition = false;
+	for (const FPoseMetadata& Metadata : SearchIndexBase.PoseMetadata)
+	{
+		if (Metadata.IsBlockTransition())
+		{
+			SearchIndexBase.bAnyBlockTransition = true;
+			break;
+		}
+	}
+
+	// Joining Stats
+	int32 NumAccumulatedSamples = 0;
+	SearchIndexBase.Stats = FSearchStats();
+	for (int32 AssetIdx = 0; AssetIdx != SearchIndexBase.Assets.Num(); ++AssetIdx)
+	{
+		const FAssetIndexer::FStats& Stats = Indexers[AssetIdx].GetStats();
+		SearchIndexBase.Stats.AverageSpeed += Stats.AccumulatedSpeed;
+		SearchIndexBase.Stats.MaxSpeed = FMath::Max(SearchIndexBase.Stats.MaxSpeed, Stats.MaxSpeed);
+		SearchIndexBase.Stats.AverageAcceleration += Stats.AccumulatedAcceleration;
+		SearchIndexBase.Stats.MaxAcceleration = FMath::Max(SearchIndexBase.Stats.MaxAcceleration, Stats.MaxAcceleration);
+
+		NumAccumulatedSamples += Stats.NumAccumulatedSamples;
+	}
+
+	if (NumAccumulatedSamples > 0)
+	{
+		const float Denom = 1.f / float(NumAccumulatedSamples);
+		SearchIndexBase.Stats.AverageSpeed *= Denom;
+		SearchIndexBase.Stats.AverageAcceleration *= Denom;
+	}
+
+	// Calculate Min Cost Addend
+	SearchIndexBase.MinCostAddend = 0.f;
+	if (!SearchIndexBase.PoseMetadata.IsEmpty())
+	{
+		SearchIndexBase.MinCostAddend = MAX_FLT;
+		for (const FPoseMetadata& PoseMetadata : SearchIndexBase.PoseMetadata)
+		{
+			if (PoseMetadata.GetCostAddend() < SearchIndexBase.MinCostAddend)
+			{
+				SearchIndexBase.MinCostAddend = PoseMetadata.GetCostAddend();
+			}
+		}
+	}
+
+	if (Owner.IsCanceled())
+	{
+		return false;
+	}
+
+	return true;
 }
+
+#if ENABLE_ANIM_DEBUG
 
 static void CompareChannelValues(int32 RecursionIndex, int32 PoseIndex, const TConstArrayView<float>& PoseA, const TConstArrayView<float>& PoseB, const TConstArrayView<TObjectPtr<UPoseSearchFeatureChannel>>& Channels, FStringBuilderBase& StringBuilder)
 {
@@ -1217,8 +1372,7 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 						return;
 					}
 
-					FDatabaseIndexingContext DbIndexingContext;
-					if (!DbIndexingContext.IndexDatabase(SearchIndexBase, *IndexBaseDatabase, Owner))
+					if (!IndexDatabase(SearchIndexBase, *IndexBaseDatabase, Owner))
 					{
 						UE_LOG(LogPoseSearch, Log, TEXT("%s - %s BuildIndex Cancelled"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName());
 						SearchIndex.Reset();
@@ -1235,16 +1389,13 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 						for (int32 Iteration = 0; Iteration < NumIterations; ++Iteration)
 						{
 							FSearchIndexBase TestSearchIndexBase = SearchIndexBase;
-							FDatabaseIndexingContext TestDbIndexingContext;
-							if (TestDbIndexingContext.IndexDatabase(TestSearchIndexBase, *IndexBaseDatabase, Owner))
+							if (IndexDatabase(TestSearchIndexBase, *IndexBaseDatabase, Owner))
 							{
 								if (TestSearchIndexBase != SearchIndexBase)
 								{
 									FStringBuilderBase Message;
 									CompareSearchIndexBase(TestSearchIndexBase, SearchIndexBase, IndexBaseDatabase->Schema, Message);
 									UE_LOG(LogPoseSearch, Warning, TEXT("OnGetComplete - IndexDatabase is not deterministic\n%s"), *Message);
-
-									CompareIndexingContext(TestDbIndexingContext, DbIndexingContext);
 								}
 							}
 						}
@@ -1495,6 +1646,8 @@ void FAsyncPoseSearchDatabasesManagement::OnPackageReloaded(const EPackageReload
 void FAsyncPoseSearchDatabasesManagement::Shutdown()
 {
 	FScopeLock Lock(&Mutex);
+
+	Tasks.Reset();
 
 	FCoreUObjectDelegates::OnObjectModified.Remove(OnObjectModifiedHandle);
 	OnObjectModifiedHandle.Reset();
