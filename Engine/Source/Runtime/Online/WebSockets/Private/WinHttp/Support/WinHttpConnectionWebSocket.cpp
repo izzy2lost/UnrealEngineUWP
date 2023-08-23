@@ -25,7 +25,7 @@ void CALLBACK UE_WinHttpWebSocketStatusCallback(HINTERNET hInternet, DWORD_PTR d
 	const EWinHttpCallbackStatus Status = static_cast<EWinHttpCallbackStatus>(dwInternetStatus);
 	if (!IsValidStatus(Status))
 	{
-		UE_LOG(LogWinHttp, Warning, TEXT("WebSocket[%p]: Received unknown WinHttp Status %lu"), dwContext, dwInternetStatus);
+		UE_LOG(LogWinHttp, Warning, TEXT("WebSocket[%p]: Received unknown WinHttp Status %lu"), reinterpret_cast<void*>(dwContext), dwInternetStatus);
 		return;
 	}
 

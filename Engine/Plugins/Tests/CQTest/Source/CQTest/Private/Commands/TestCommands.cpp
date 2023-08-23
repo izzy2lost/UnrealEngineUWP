@@ -26,7 +26,7 @@ bool CQTEST_API FWaitUntil::Update()
 	{
 		if (Description)
 		{
-			UE_LOG(LogCqTest, Log, TEXT("Finished %s after %d milliseconds"), Description, Elapsed.GetTotalMilliseconds());
+			UE_LOG(LogCqTest, Log, TEXT("Finished %s after %d milliseconds"), Description, int(Elapsed.GetTotalMilliseconds()));
 		}
 		return true;
 	}

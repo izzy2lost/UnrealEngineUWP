@@ -55,6 +55,11 @@ public:
 	/** Special group, SubObjects assigned to this group will replicate if replay netconditions is met  */
 	bool IsNetGroupReplayNetObjectGroup() const { return Index == NetGroupReplayNetObjectGroupIndex; }
 
+	uint32 GetRawValue() const
+	{
+		return Value;
+	}
+	
 private:
 	friend UE::Net::Private::FNetObjectGroups;
 

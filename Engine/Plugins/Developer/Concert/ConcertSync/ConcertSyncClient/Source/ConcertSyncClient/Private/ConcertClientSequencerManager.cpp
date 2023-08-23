@@ -767,7 +767,7 @@ void FConcertClientSequencerManager::ApplyOpenEvent(const FConcertSequencerOpenE
 		FConcertSyncEncounteredMissingObject MissingObjectDelegate;
 		MissingObjectDelegate.BindLambda([](const FStringView MissingObject)
 			{
-				UE_LOG(LogConcertSequencerSync, Display, TEXT("Missing Object %s when loading PendingTake"), MissingObject);
+				UE_LOG(LogConcertSequencerSync, Display, TEXT("Missing Object %s when loading PendingTake"), *FString(MissingObject));
 			});
 
 		FConcertSyncWorldRemapper Remapper(

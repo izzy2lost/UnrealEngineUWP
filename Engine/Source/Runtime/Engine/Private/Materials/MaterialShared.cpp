@@ -2840,7 +2840,7 @@ bool FMaterial::CacheShaders(const FMaterialShaderMapId& ShaderMapId, EShaderPla
 					IsSpecialEngineMaterial() ? TEXT("Is special engine material.") : TEXT("")
 				);
 #else
-				UE_LOG(LogMaterial, Display, TEXT("%s cached shader map for material %, compiling. %s"),
+				UE_LOG(LogMaterial, Display, TEXT("%s cached shader map for material %s, compiling. %s"),
 					ShaderMapCondition,
 					*GetAssetName(),
 					IsSpecialEngineMaterial() ? TEXT("Is special engine material.") : TEXT("")

@@ -1425,7 +1425,7 @@ void FMetalStateCache::SetShaderTexture(EMetalShaderStages const Frequency, FMet
 	check(Index < ML_MaxTextures);
 
 #if (PLATFORM_IOS || PLATFORM_TVOS)
-    UE_CLOG([Texture.GetPtr() storageMode] == MTLStorageModeMemoryless, LogMetal, Fatal, TEXT("FATAL: Attempting to bind a memoryless texture. Stage %u Index %u Texture %@"), Frequency, Index, Texture.GetPtr());
+	UE_CLOG([Texture.GetPtr() storageMode] == MTLStorageModeMemoryless, LogMetal, Fatal, TEXT("FATAL: Attempting to bind a memoryless texture. Stage %u Index %u Texture %s"), Frequency, Index, *FString([Texture.GetPtr() description]));
 #endif
 	
 	if (ShaderTextures[Frequency].Textures[Index] != Texture

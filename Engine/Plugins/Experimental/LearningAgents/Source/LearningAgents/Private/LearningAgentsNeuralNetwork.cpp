@@ -138,7 +138,7 @@ void ULearningAgentsNeuralNetwork::LoadNetworkFromSnapshot(const FFilePath& File
 
 		if (Offset != RecordingData.Num())
 		{
-			UE_LOG(LogLearning, Error, TEXT("%s: Failed to load network. Unexpected end of file."));
+			UE_LOG(LogLearning, Error, TEXT("Failed to load network. Unexpected end of file."));
 			return;
 		}
 

@@ -282,9 +282,9 @@ namespace InstallerHelpers
 			UE_LOG(LogBPSInstallerConfig, Log, TEXT("Build Config: CloudDirectories: %s"), *CloudDirectory);
 		}
 
-		UE_LOG(LogBPSInstallerConfig, Log, TEXT("Build Config: InstallMode: %s"), *LexToString(InstallerConfiguration.InstallMode));
-		UE_LOG(LogBPSInstallerConfig, Log, TEXT("Build Config: VerifyMode: %s"), *LexToString(InstallerConfiguration.VerifyMode));
-		UE_LOG(LogBPSInstallerConfig, Log, TEXT("Build Config: DeltaPolicy: %s"), *LexToString(InstallerConfiguration.DeltaPolicy));
+		UE_LOG(LogBPSInstallerConfig, Log, TEXT("Build Config: InstallMode: %s"), LexToString(InstallerConfiguration.InstallMode));
+		UE_LOG(LogBPSInstallerConfig, Log, TEXT("Build Config: VerifyMode: %s"), LexToString(InstallerConfiguration.VerifyMode));
+		UE_LOG(LogBPSInstallerConfig, Log, TEXT("Build Config: DeltaPolicy: %s"), LexToString(InstallerConfiguration.DeltaPolicy));
 		UE_LOG(LogBPSInstallerConfig, Log, TEXT("Build Config: bRunRequiredPrereqs: %s"), (InstallerConfiguration.bRunRequiredPrereqs) ? TEXT("true") : TEXT("false"));
 		UE_LOG(LogBPSInstallerConfig, Log, TEXT("Build Config: bAllowConcurrentExecution: %s"), (InstallerConfiguration.bAllowConcurrentExecution) ? TEXT("true") : TEXT("false"));
 	}

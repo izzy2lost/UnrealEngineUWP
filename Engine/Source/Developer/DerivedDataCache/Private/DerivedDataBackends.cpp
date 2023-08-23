@@ -357,7 +357,7 @@ public:
 		{
 			if (WritePakCache)
 			{
-				UE_LOG(LogDerivedDataCache, Warning, TEXT("Unable to create %s pak cache because only one pak cache write node is supported."), *NodeName);
+				UE_LOG(LogDerivedDataCache, Warning, TEXT("Unable to create %s pak cache because only one pak cache write node is supported."), NodeName);
 				return false;
 			}
 
@@ -399,7 +399,7 @@ public:
 	{
 		if (bVerifyFound)
 		{
-			UE_LOG(LogDerivedDataCache, Warning, TEXT("Unable to create %s Verify because only one Verify node is supported."), *NodeName);
+			UE_LOG(LogDerivedDataCache, Warning, TEXT("Unable to create %s Verify because only one Verify node is supported."), NodeName);
 			return false;
 		}
 
@@ -430,7 +430,7 @@ public:
 	{
 		if (bAsyncFound)
 		{
-			UE_LOG(LogDerivedDataCache, Warning, TEXT("Unable to create %s AsyncPut because only one AsyncPut node is supported."), *NodeName);
+			UE_LOG(LogDerivedDataCache, Warning, TEXT("Unable to create %s AsyncPut because only one AsyncPut node is supported."), NodeName);
 			return false;
 		}
 
@@ -558,7 +558,7 @@ public:
 		UE_LOG(LogDerivedDataCache, Display, TEXT("Boot nodes are deprecated. Please remove the Boot node from the cache graph."));
 		if (bBootFound)
 		{
-			UE_LOG(LogDerivedDataCache, Warning, TEXT("Unable to create %s Boot cache because only one Boot node is supported."), *NodeName);
+			UE_LOG(LogDerivedDataCache, Warning, TEXT("Unable to create %s Boot cache because only one Boot node is supported."), NodeName);
 			return false;
 		}
 

@@ -177,7 +177,7 @@ bool FHeader::Validate(bool bPrintToLog)
 	{
 		if (bPrintToLog)
 		{
-			UE_LOG(LogSparseVolumeTexture, Warning, TEXT("SparseVolumeTexture page table texture memory size (%ll) exceeds the 2048MB GPU resource limit!"), (long long)PageTableSizeBytes);
+			UE_LOG(LogSparseVolumeTexture, Warning, TEXT("SparseVolumeTexture page table texture memory size (%lld) exceeds the 2048MB GPU resource limit!"), (long long)PageTableSizeBytes);
 		}
 		return false;
 	}

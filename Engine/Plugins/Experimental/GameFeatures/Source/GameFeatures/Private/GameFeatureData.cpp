@@ -295,7 +295,7 @@ void UGameFeatureData::InitializeHierarchicalPluginIniFiles(const FString& Plugi
 					}
 					else
 					{
-						UE_LOG(LogGameFeatures, Warning, TEXT("Game feature '%s' has invalid runtime device profile %s with parent %s, suffix %s, %d CVars, %d fragments"),
+						UE_LOG(LogGameFeatures, Warning, TEXT("Game feature '%s' has invalid runtime device profile with parent %s, suffix %s, %d CVars, %d fragments"),
 							*PluginName, ParentProfileName ? *ParentProfileName->GetValue() : TEXT("null"), ProfileSuffix ? *ProfileSuffix->GetValue() : TEXT("null"),
 							FragmentIncludes.Num(), PluginCVars.Num());
 					}

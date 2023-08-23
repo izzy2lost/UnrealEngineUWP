@@ -169,7 +169,7 @@ void FCacheStoreReplay::SerializeRequests(
 	{
 		TUtf8StringBuilder<1024> Batch;
 		CompactBinaryToCompactJson(Writer.Save().AsObject(), Batch);
-		UE_LOG(LogDerivedDataCache, Verbose, TEXT("Replay: %hs"), *Batch);
+		UE_LOG(LogDerivedDataCache, Verbose, TEXT("Replay: %s"), StringCast<TCHAR>(*Batch).Get());
 	}
 
 	WriteToArchive(Writer);
@@ -407,7 +407,7 @@ bool FCacheReplayReader::FState::DispatchRequests(
 		{
 			TUtf8StringBuilder<1024> Batch;
 			CompactBinaryToCompactJson(Object, Batch);
-			UE_LOG(LogDerivedDataCache, Verbose, TEXT("Replay: %hs"), *Batch);
+			UE_LOG(LogDerivedDataCache, Verbose, TEXT("Replay: %s"), StringCast<TCHAR>(*Batch).Get());
 		}
 
 		TRACE_CPUPROFILER_EVENT_SCOPE(ReplayDDC_Dispatch);

@@ -93,14 +93,14 @@ FString FChaosVDTraceManager::GetLocalTraceStoreDirPath()
 
 	if (!StoreClient)
 	{
-		UE_LOG(LogChaosVDEditor, Error, TEXT("[%hs] Failed to connect to local Trace Store client"), ANSI_TO_TCHAR(__FUNCTION__));
+		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Failed to connect to local Trace Store client"), ANSI_TO_TCHAR(__FUNCTION__));
 		return TEXT("");
 	}
 
 	const UE::Trace::FStoreClient::FStatus* Status = StoreClient->GetStatus();
 	if (!Status)
 	{
-		UE_LOG(LogChaosVDEditor, Error, TEXT("[%hs] Failed to to get Trace Store staus"), ANSI_TO_TCHAR(__FUNCTION__));
+		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Failed to to get Trace Store staus"), ANSI_TO_TCHAR(__FUNCTION__));
 		return TEXT("");
 	}
 
