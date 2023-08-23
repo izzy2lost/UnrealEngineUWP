@@ -197,7 +197,7 @@ private:
 
 	int32 HandshakeRequest(TArrayView<const TSharedPtr<FInternetAddr>> HostAddresses);
 	FSocket* AcquireSocketFromPool();
-	FSocket* AcquireNewSocket();
+	FSocket* AcquireNewSocket(float TimeoutSeconds = -1.0f);
 	void ReleaseSocket(FSocket* Socket, bool bKeepAlive);
 
 	ISocketSubsystem& SocketSubsystem;

@@ -1,22 +1,23 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "StorageServerPlatformFile.h"
-#include "StorageServerIoDispatcherBackend.h"
-#include "HAL/IPlatformFileModule.h"
+#include "Algo/Replace.h"
+#include "CookOnTheFly.h"
+#include "CookOnTheFlyPackageStore.h"
 #include "HAL/FileManagerGeneric.h"
+#include "HAL/IPlatformFileModule.h"
+#include "Misc/App.h"
 #include "Misc/CommandLine.h"
+#include "Misc/CoreDelegates.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeRWLock.h"
-#include "StorageServerConnection.h"
-#include "Modules/ModuleManager.h"
 #include "Misc/StringBuilder.h"
-#include "Algo/Replace.h"
-#include "StorageServerPackageStore.h"
-#include "CookOnTheFlyPackageStore.h"
-#include "Misc/CoreDelegates.h"
 #include "Modules/ModuleManager.h"
-#include "CookOnTheFly.h"
+#include "Modules/ModuleManager.h"
 #include "Serialization/CompactBinarySerialization.h"
+#include "StorageServerConnection.h"
+#include "StorageServerIoDispatcherBackend.h"
+#include "StorageServerPackageStore.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogStorageServerPlatformFile, Log, All);
 
@@ -308,10 +309,12 @@ bool FStorageServerPlatformFile::ShouldBeUsed(IPlatformFile* Inner, const TCHAR*
 
 		if (FCbFieldView ZenServerField = ProjectStoreObject["zenserver"])
 		{
+#if PLATFORM_DESKTOP
 			if (FUtf8StringView HostName = ZenServerField["hostname"].AsString(); !HostName.IsEmpty())
 			{
 				HostAddrs.Add(FString(HostName));
 			}
+#endif
 			FCbArrayView RemoteHostNames = ZenServerField["remotehostnames"].AsArrayView();
 			for (FCbFieldView RemoteHostName : RemoteHostNames)
 			{
@@ -415,7 +418,18 @@ void FStorageServerPlatformFile::InitializeAfterProjectFilePath()
 	}
 	else
 	{
-		UE_LOG(LogStorageServerPlatformFile, Fatal, TEXT("Failed to initialize connection"));
+		if (!FApp::IsUnattended())
+		{
+			FText FailedConnectionTitle = NSLOCTEXT("StorageServer", "StorageServer_ConnectFailedTitle", "Failed to connect");
+			FText FailedConnectionText = FText::Format(NSLOCTEXT("StorageServer", "StorageServer_ConnectFailedText",
+				"Network data streaming failed to connect to any of the following data sources:\n\n{0}\n\n"
+				"This can be due to the sources being offline, invalid addresses, firewall blocking, or the sources being on a different network from this device. "
+				"If these issues can't be addressed, you can use an installed build without network data streaming. This process will now exit."),
+				FText::FromString(FString::Join(HostAddrs, TEXT("\n"))));
+			FPlatformMisc::MessageBoxExt(EAppMsgType::Ok, *FailedConnectionText.ToString(), *FailedConnectionTitle.ToString());
+		}
+
+		UE_LOG(LogStorageServerPlatformFile, Fatal, TEXT("Failed to initialize connection to %s"), *FString::Join(HostAddrs, TEXT("\n")));
 	}
 }
 

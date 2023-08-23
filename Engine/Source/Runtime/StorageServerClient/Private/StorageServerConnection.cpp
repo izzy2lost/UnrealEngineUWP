@@ -506,7 +506,10 @@ int32 FStorageServerConnection::HandshakeRequest(TArrayView<const TSharedPtr<FIn
 		
 		UE_LOG(LogStorageServerConnection, Display, TEXT("Trying to handshake with Zen at '%s'"), *Addr->ToString(true));
 
-		FSocket* ConnectSocket = AcquireNewSocket();
+		// Handshakes are done with a limited connection timeout so that we can find out if the destination is unreachable
+		// in a timely manner.
+		const float ConnectionTimeoutSeconds = 5.0f;
+		FSocket* ConnectSocket = AcquireNewSocket(ConnectionTimeoutSeconds);
 		if (!ConnectSocket)
 		{
 			continue;
@@ -715,14 +718,30 @@ FSocket* FStorageServerConnection::AcquireSocketFromPool()
 	return nullptr;
 }
 
-FSocket* FStorageServerConnection::AcquireNewSocket()
+FSocket* FStorageServerConnection::AcquireNewSocket(float TimeoutSeconds)
 {
 	FSocket* Socket = SocketSubsystem.CreateSocket(NAME_Stream, TEXT("StorageServer"), ServerAddr->GetProtocolType());
 	check(Socket);
 
-	if (Socket->Connect(*ServerAddr))
+	if (TimeoutSeconds > 0.0f)
 	{
-		return Socket;
+		Socket->SetNonBlocking(true);
+		ON_SCOPE_EXIT
+		{
+			Socket->SetNonBlocking(false);
+		};
+
+		if (Socket->Connect(*ServerAddr) && Socket->Wait(ESocketWaitConditions::WaitForWrite, FTimespan::FromSeconds(TimeoutSeconds)))
+		{
+			return Socket;
+		}
+	}
+	else
+	{
+		if (Socket->Connect(*ServerAddr))
+		{
+			return Socket;
+		}
 	}
 
 	delete Socket;
