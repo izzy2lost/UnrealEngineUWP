@@ -1,11 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using EpicGames.Perforce;
 using Horde.Agent.Utility;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
@@ -103,7 +101,12 @@ public class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 		FileReference cacheFile = FileReference.Combine(_workspace.MetadataDir, "Contents.dat");
 		if (_useCacheFile)
 		{
-			await _workspace.UpdateLocalCacheMarkerAsync(cacheFile, changeNum, preflightChangeNum);
+			bool isSyncedDataDirty = await _workspace.UpdateLocalCacheMarkerAsync(cacheFile, changeNum, preflightChangeNum);
+			scope.Span.SetTag("IsSyncedDataDirty", isSyncedDataDirty);
+			if (!isSyncedDataDirty)
+			{
+				return;
+			}
 		}
 		else
 		{
@@ -120,6 +123,7 @@ public class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 		scope.Span.SetTag("Cluster", _agentWorkspace.Cluster);
 		scope.Span.SetTag("Incremental", _agentWorkspace.Incremental);
 		scope.Span.SetTag("Method", _agentWorkspace.Method);
+		scope.Span.SetTag("UseCacheFile", _useCacheFile);
 		return scope;
 	}
 }

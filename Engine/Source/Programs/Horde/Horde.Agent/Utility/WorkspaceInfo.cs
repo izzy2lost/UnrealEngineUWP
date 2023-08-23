@@ -305,8 +305,8 @@ namespace Horde.Agent.Utility
 		/// <param name="cacheFile">Path to the cache file</param>
 		/// <param name="change">The current change being built</param>
 		/// <param name="preflightChange">The preflight changelist number</param>
-		/// <returns>Async task</returns>
-		public async Task UpdateLocalCacheMarkerAsync(FileReference cacheFile, int change, int preflightChange)
+		/// <returns>True if cache file was replaced. That is if changelist or stream view is different from what is already synced</returns>
+		public async Task<bool> UpdateLocalCacheMarkerAsync(FileReference cacheFile, int change, int preflightChange)
 		{
 			// Create the new cache file descriptor
 			string newDescriptor = GetCacheMarkerDescriptor(change, preflightChange);
@@ -320,7 +320,7 @@ namespace Horde.Agent.Utility
 					string oldDescriptor = await FileReference.ReadAllTextAsync(descriptorFile);
 					if (oldDescriptor.Equals(newDescriptor, StringComparison.Ordinal))
 					{
-						return;
+						return false;
 					}
 					else
 					{
@@ -332,6 +332,7 @@ namespace Horde.Agent.Utility
 
 			// Write the new descriptor file
 			await FileReference.WriteAllTextAsync(descriptorFile, newDescriptor);
+			return true;
 		}
 
 		string GetCacheMarkerDescriptor(int change, int preflightChange)
