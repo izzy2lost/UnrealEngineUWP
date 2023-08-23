@@ -3325,6 +3325,11 @@ bool FEdModeFoliage::IsModifierButtonPressed(const FEditorViewportClient* Viewpo
 	return IsShiftDown(ViewportClient->Viewport);
 }
 
+void FEdModeFoliage::MoveSelectedFoliageToActorEditorContext()
+{
+	AInstancedFoliageActor::MoveSelectedInstancesToActorEditorContext(GetWorld());
+}
+
 bool FEdModeFoliage::CanMoveSelectedFoliageToLevel(ULevel* InTargetLevel) const
 {
 	UWorld* World = InTargetLevel->OwningWorld;

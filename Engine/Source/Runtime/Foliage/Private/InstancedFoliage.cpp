@@ -58,6 +58,10 @@ InstancedFoliage.cpp: Instanced foliage implementation.
 #include "Misc/CoreMisc.h"
 #include "Engine/DamageEvents.h"
 
+#if WITH_EDITOR
+#include "ActorEditorContext/ScopedActorEditorContextFromActor.h"
+#endif
+
 #define LOCTEXT_NAMESPACE "InstancedFoliage"
 
 #define DO_FOLIAGE_CHECK			0			// whether to validate foliage data during editing.
@@ -3246,11 +3250,25 @@ namespace FoliagePartitioningUtils
 	}
 }
 
+void AInstancedFoliageActor::MoveSelectedInstancesToActorEditorContext(UWorld* InWorld)
+{
+	for (TActorIterator<AInstancedFoliageActor> It(InWorld); It; ++It)
+	{
+		AInstancedFoliageActor* IFA = *It;
+		IFA->ForEachFoliageInfo([IFA](UFoliageType* FoliageType, FFoliageInfo& FoliageInfo)
+		{
+			FoliagePartitioningUtils::Update(IFA, FoliageInfo, [&]() { return &FoliageInfo.SelectedIndices; });
+			return true; // continue iteration
+		});
+	}
+}
+
 void AInstancedFoliageActor::UpdateInstancePartitioning(UWorld* InWorld)
 {
 	for (TActorIterator<AInstancedFoliageActor> It(InWorld); It; ++It)
 	{
 		AInstancedFoliageActor* IFA = *It;
+		FScopedActorEditorContextFromActor Context(IFA);
 		IFA->ForEachFoliageInfo([IFA](UFoliageType* FoliageType, FFoliageInfo& FoliageInfo)
         {
 			FoliagePartitioningUtils::Update(IFA, FoliageInfo, [&]() { return &FoliageInfo.SelectedIndices; });
@@ -3267,10 +3285,13 @@ void AInstancedFoliageActor::UpdateInstancePartitioningForMovedComponent(UActorC
 		return;
 	}
 
-	for (auto& Pair : FoliageInfos)
 	{
-		FFoliageInfo& Info = *Pair.Value;
-		FoliagePartitioningUtils::Update(this, Info, [&]() { return Info.ComponentHash.Find(BaseId); });
+		FScopedActorEditorContextFromActor Context(this);
+		for (auto& Pair : FoliageInfos)
+		{
+			FFoliageInfo& Info = *Pair.Value;
+			FoliagePartitioningUtils::Update(this, Info, [&]() { return Info.ComponentHash.Find(BaseId); });
+		}
 	}
 }
 
@@ -3565,6 +3586,7 @@ void AInstancedFoliageActor::MoveInstancesToNewComponent(UPrimitiveComponent* In
 
 	// If Modify was called on this IFA
 	bool bModified = false;
+	FScopedActorEditorContextFromActor Context(this);
 	
 	for (auto& Pair : FoliageInfos)
 	{			
@@ -5659,6 +5681,7 @@ void AInstancedFoliageActor::HandleFoliageInstancePostMove(const FFoliageInstanc
 	// This instance may be been moved into a new world partition
 	// Verify, and re-instance any existing typed elements if required
 	{
+		FScopedActorEditorContextFromActor Context(this);
 		const FFoliageInstance& FoliageInstance = InstanceId.GetInstanceChecked();
 		AInstancedFoliageActor* TargetIFA = AInstancedFoliageActor::Get(GetWorld(), /*bCreateIfNone*/true, GetLevel(), FoliageInstance.Location);
 		if (TargetIFA != this)

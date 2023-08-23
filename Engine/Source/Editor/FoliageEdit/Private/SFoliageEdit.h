@@ -240,8 +240,8 @@ public:	// SELECTION
 	/** Handler for 'Deselect All' command  */
 	void OnDeselectAllInstances();
 
-	/** Handler for 'Move to Current Level' command*/
-	void OnMoveSelectedInstancesToCurrentLevel();
+	/** Handler for 'Move to Current Editor Context' command*/
+	void OnMoveSelectedInstancesToActorEditorContext();
 
 	/** Tooltip text for 'Instance Count" column */
 	FText GetTotalInstanceCountTooltipText() const;

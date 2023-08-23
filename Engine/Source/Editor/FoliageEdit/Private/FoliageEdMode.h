@@ -419,6 +419,9 @@ public:
 
 	/** Tell us if we can moves selected foliage instances to the target level. */
 	bool CanMoveSelectedFoliageToLevel(ULevel* InTargetLevel) const;
+	
+	/** Moves selected foliage instances to the current actor editor context */
+	void MoveSelectedFoliageToActorEditorContext();
 
 	/** Ends tracking and end potential transaction */
 	bool EndTracking();
