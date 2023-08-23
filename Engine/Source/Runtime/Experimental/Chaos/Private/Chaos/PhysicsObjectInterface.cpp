@@ -253,6 +253,26 @@ namespace Chaos
 	}
 
 	template<EThreadContext Id>
+	FVector FReadPhysicsObjectInterface<Id>::GetVAtPoint(const FConstPhysicsObjectHandle Object, const FVector& Point)
+	{
+		if (!Object)
+		{
+			return FVector::Zero();
+		}
+
+		if (TThreadParticle<Id>* Particle = Object->GetParticle<Id>())
+		{
+			if (TThreadKinematicParticle<Id>* Kinematic = Particle->CastToKinematicParticle())
+			{
+				const FVector CenterOfMass = GetWorldCoM(Object);
+				const FVector Diff = Point - CenterOfMass;
+				return Kinematic->V() - FVector::CrossProduct(Diff, Kinematic->W());
+			}
+		}
+
+		return FVector::Zero();
+	}
+	template<EThreadContext Id>
 	FVector FReadPhysicsObjectInterface<Id>::GetW(const FConstPhysicsObjectHandle Object)
 	{
 		if (!Object)

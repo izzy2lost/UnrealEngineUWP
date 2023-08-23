@@ -68,6 +68,7 @@ namespace Chaos
 		CHAOS_API FVector GetWorldCoM(const FConstPhysicsObjectHandle Object);
 		CHAOS_API FQuat GetR(const FConstPhysicsObjectHandle Object);
 		CHAOS_API FVector GetV(const FConstPhysicsObjectHandle Object);
+		CHAOS_API FVector GetVAtPoint(const FConstPhysicsObjectHandle Object, const FVector& Point);
 		CHAOS_API FVector GetW(const FConstPhysicsObjectHandle Object);
 		CHAOS_API FSpatialAccelerationIdx GetSpatialIndex(const FConstPhysicsObjectHandle Object);
 

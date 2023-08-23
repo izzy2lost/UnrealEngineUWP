@@ -277,6 +277,11 @@ FVector UPrimitiveComponent::GetPhysicsLinearVelocity(FName BoneName)
 	{
 		return BI->GetUnrealWorldVelocity();
 	}
+	else if (Chaos::FConstPhysicsObjectHandle Handle = GetPhysicsObjectByName(BoneName))
+	{
+		FLockedReadPhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockRead(Handle);
+		return Interface->GetV(Handle);
+	}
 	return FVector(0,0,0);
 }
 
@@ -285,6 +290,11 @@ FVector UPrimitiveComponent::GetPhysicsLinearVelocityAtPoint(FVector Point, FNam
 	if (FBodyInstance* BI = GetBodyInstance(BoneName))
 	{
 		return BI->GetUnrealWorldVelocityAtPoint(Point);
+	}
+	else if (Chaos::FConstPhysicsObjectHandle Handle = GetPhysicsObjectByName(BoneName))
+	{
+		FLockedReadPhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockRead(Handle);
+		return Interface->GetVAtPoint(Handle, Point);
 	}
 	return FVector(0, 0, 0);
 }
@@ -314,10 +324,14 @@ void UPrimitiveComponent::SetPhysicsMaxAngularVelocityInRadians(float NewMaxAngV
 
 FVector UPrimitiveComponent::GetPhysicsAngularVelocityInRadians(FName BoneName) const
 {
-	FBodyInstance* const BI = GetBodyInstance(BoneName);
-	if(BI != NULL)
+	if (FBodyInstance* const BI = GetBodyInstance(BoneName))
 	{
 		return BI->GetUnrealWorldAngularVelocityInRadians();
+	}
+	else if (Chaos::FConstPhysicsObjectHandle Handle = GetPhysicsObjectByName(BoneName))
+	{
+		FLockedReadPhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockRead(Handle);
+		return Interface->GetW(Handle);
 	}
 	return FVector(0,0,0);
 }
@@ -327,6 +341,11 @@ FVector UPrimitiveComponent::GetCenterOfMass(FName BoneName) const
 	if (FBodyInstance* ComponentBodyInstance = GetBodyInstance(BoneName))
 	{
 		return ComponentBodyInstance->GetCOMPosition();
+	}
+	else if (Chaos::FConstPhysicsObjectHandle Handle = GetPhysicsObjectByName(BoneName))
+	{
+		FLockedReadPhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockRead(Handle);
+		return Interface->GetWorldCoM(Handle);
 	}
 
 	return FVector::ZeroVector;
