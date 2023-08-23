@@ -193,6 +193,8 @@ public:
 	UE_API bool GetGCStatus(FGCStatus& Status);
 	UE_API bool RequestGC(const bool* OverrideCollectSmallObjects = nullptr, const uint32* OverrideMaxCacheDuration = nullptr);
 
+	UE_API bool AddSponsorProcessIDs(TArrayView<uint32> SponsorProcessIDs);
+
 	static UE_API uint16 GetAutoLaunchedPort();
 
 private:

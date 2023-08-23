@@ -1720,6 +1720,26 @@ FZenServiceInstance::TryRecovery()
 	return bLastRecoveryResult;
 }
 
+bool
+FZenServiceInstance::AddSponsorProcessIDs(TArrayView<uint32> SponsorProcessIDs)
+{
+	ZenServerState State(/*bReadOnly*/ false);
+	ZenServerState::ZenServerEntry* Entry = State.LookupByEffectiveListenPort(Port);
+	if (Entry)
+	{
+		bool bAllAdded = true;
+		for (uint32 SponsorProcessID : SponsorProcessIDs)
+		{
+			if (!Entry->AddSponsorProcess(SponsorProcessID))
+			{
+				bAllAdded = false;
+			}
+		}
+		return bAllAdded;
+	}
+	return false;
+}
+
 uint16
 FZenServiceInstance::GetAutoLaunchedPort()
 {
