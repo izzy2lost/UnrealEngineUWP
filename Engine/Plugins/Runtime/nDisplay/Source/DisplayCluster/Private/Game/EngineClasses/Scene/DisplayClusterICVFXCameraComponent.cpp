@@ -19,6 +19,10 @@
 #include "DisplayClusterEnums.h"
 #include "Version/DisplayClusterICVFXCameraCustomVersion.h"
 
+UDisplayClusterICVFXCameraComponent::UDisplayClusterICVFXCameraComponent(const FObjectInitializer& ObjectInitializer)
+{
+	PrimaryComponentTick.bCanEverTick = true;
+}
 
 void UDisplayClusterICVFXCameraComponent::Serialize(FArchive& Ar)
 {
