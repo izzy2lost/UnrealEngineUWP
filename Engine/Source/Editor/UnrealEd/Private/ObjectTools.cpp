@@ -2685,7 +2685,7 @@ namespace ObjectTools
 		TArray<UObject*> ObjectsToPrivatize;
 		for (const FAssetData& AssetToPrivatize : AssetsToPrivatize)
 		{
-			UObject* ObjectToPrivatize = AssetToPrivatize.GetAsset({ ULevel::LoadAllExternalObjectsTag });
+			UObject* ObjectToPrivatize = AssetToPrivatize.GetAsset();
 
 			if (ObjectToPrivatize)
 			{
