@@ -279,8 +279,9 @@ public:
 	/** Call this after modifying the InputProfile in code to update the player mapped keys */
 	void ApplyInputProfile();
 
+	/** @return Whether LiveLinkData has a valid result. */
 	UFUNCTION(BlueprintCallable, Category="VirtualCamera")
-	void GetLiveLinkDataForCurrentFrame(FLiveLinkCameraBlueprintData& LiveLinkData);
+	bool GetLiveLinkDataForCurrentFrame(FLiveLinkCameraBlueprintData& LiveLinkData);
 
 	/**
 	 * Registers the given object with the VCamComponent's Input Component

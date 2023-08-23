@@ -687,8 +687,10 @@ void UVCamComponent::Update()
 		UpdateActorViewportLocks();
 		
 		FLiveLinkCameraBlueprintData InitialLiveLinkData;
-		GetLiveLinkDataForCurrentFrame(InitialLiveLinkData);
-		CopyLiveLinkDataToCamera(InitialLiveLinkData, GetTargetCamera());
+		if (GetLiveLinkDataForCurrentFrame(InitialLiveLinkData))
+		{
+			CopyLiveLinkDataToCamera(InitialLiveLinkData, GetTargetCamera());
+		}
 
 		TickModifierStack(DeltaTime);
 		SendCameraDataViaMultiUser();
@@ -1059,7 +1061,7 @@ UInputVCamSubsystem* UVCamComponent::GetInputVCamSubsystem() const
 	return SubsystemCollection.GetSubsystem<UInputVCamSubsystem>(UInputVCamSubsystem::StaticClass());
 }
 
-void UVCamComponent::GetLiveLinkDataForCurrentFrame(FLiveLinkCameraBlueprintData& LiveLinkData)
+bool UVCamComponent::GetLiveLinkDataForCurrentFrame(FLiveLinkCameraBlueprintData& LiveLinkData)
 {
 	IModularFeatures& ModularFeatures = IModularFeatures::Get();
 	if (ModularFeatures.IsModularFeatureAvailable(ILiveLinkClient::ModularFeatureName))
@@ -1080,7 +1082,7 @@ void UVCamComponent::GetLiveLinkDataForCurrentFrame(FLiveLinkCameraBlueprintData
 				if (LiveLinkClient.EvaluateFrame_AnyThread(LiveLinkSubject, ULiveLinkCameraRole::StaticClass(), EvaluatedFrame))
 				{
 					FLiveLinkBlueprintDataStruct WrappedBlueprintData(FLiveLinkCameraBlueprintData::StaticStruct(), &LiveLinkData);
-					GetDefault<ULiveLinkCameraRole>()->InitializeBlueprintData(EvaluatedFrame, WrappedBlueprintData);
+					return GetDefault<ULiveLinkCameraRole>()->InitializeBlueprintData(EvaluatedFrame, WrappedBlueprintData);
 				}
 			}
 			else if (LiveLinkClient.DoesSubjectSupportsRole_AnyThread(*FoundSubjectKey, ULiveLinkTransformRole::StaticClass()))
@@ -1088,10 +1090,13 @@ void UVCamComponent::GetLiveLinkDataForCurrentFrame(FLiveLinkCameraBlueprintData
 				if (LiveLinkClient.EvaluateFrame_AnyThread(LiveLinkSubject, ULiveLinkTransformRole::StaticClass(), EvaluatedFrame))
 				{
 					LiveLinkData.FrameData.Transform = EvaluatedFrame.FrameData.Cast<FLiveLinkTransformFrameData>()->Transform;
+					return true;
 				}
 			}
 		}
 	}
+	
+	return false;
 }
 
 void UVCamComponent::RegisterObjectForInput(UObject* Object)
