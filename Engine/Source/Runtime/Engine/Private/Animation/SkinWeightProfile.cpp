@@ -528,9 +528,10 @@ void FSkinWeightProfilesData::ReleaseResources()
 	ProfileNameToBuffer.GenerateValueArray(Buffers);
 	ProfileNameToBuffer.Empty();
 
-	// Never release a default buffer
-	if (bDefaultOverriden)
+	// Never release a default _dynamic_ buffer
+	if (bDefaultOverriden && !bStaticOverriden)
 	{
+		ensure(DefaultOverrideSkinWeightBuffer != nullptr);
 		Buffers.Remove(DefaultOverrideSkinWeightBuffer);
 		ProfileNameToBuffer.Add(DefaultProfileName, DefaultOverrideSkinWeightBuffer);
 	}
