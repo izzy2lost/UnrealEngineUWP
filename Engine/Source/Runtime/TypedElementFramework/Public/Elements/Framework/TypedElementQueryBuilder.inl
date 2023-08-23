@@ -529,22 +529,19 @@ namespace TypedElementQueryBuilder
 				}
 				else
 				{
-					if constexpr (sizeof...(Args) > 0)
+					for (TypedElementRowHandle Row : Rows)
 					{
-						for (TypedElementRowHandle Row : Rows)
+						if constexpr (sizeof...(Args) > 0)
 						{
-							if constexpr (sizeof...(Args) > 0)
-							{
-								std::apply([this, Row, &Caller](auto&&... Column)
-									{
-										Caller(this->ContextWrapper, Row, *Column...);
-										((++Column), ...);
-									}, this->Columns);
-							}
-							else
-							{
-								Caller(this->ContextWrapper, Row);
-							}
+							std::apply([this, Row, &Caller](auto&&... Column)
+								{
+									Caller(this->ContextWrapper, Row, *Column...);
+									((++Column), ...);
+								}, this->Columns);
+						}
+						else
+						{
+							Caller(this->ContextWrapper, Row);
 						}
 					}
 				}
