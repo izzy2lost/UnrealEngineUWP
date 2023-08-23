@@ -780,6 +780,8 @@ public:
 	virtual ir_rvalue *hir(exec_list *instructions,
 	struct _mesa_glsl_parse_state *state);
 
+	void sortlabels();
+
 	/**
 	* A list of cases.
 	*/
