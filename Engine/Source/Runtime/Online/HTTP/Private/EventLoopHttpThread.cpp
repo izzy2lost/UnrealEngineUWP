@@ -78,6 +78,7 @@ void FEventLoopHttpThread::UpdateConfigs()
 {
 	ResetTickTimer();
 	UpdateEventLoopConfigs();
+	FHttpThreadBase::UpdateConfigs();
 }
 
 void FEventLoopHttpThread::AddRequest(IHttpThreadedRequest* Request)
