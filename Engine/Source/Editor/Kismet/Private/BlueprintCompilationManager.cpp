@@ -241,9 +241,13 @@ void FBlueprintCompilationManagerImpl::QueueForCompilation(const FBPCompileReque
 		if(GCompilingBlueprint)
 		{
 			FString CurrentlyCompiling;
-			for (const FBPCompileRequestInternal& CompilerData : QueuedRequests)
+			for (const TPair<TObjectPtr<UClass>, TObjectPtr<UClass>>& CompilerData : ClassesToReinstance)
 			{
-				CurrentlyCompiling += CompilerData.UserData.BPToCompile->GetName() + TEXT(" ");
+				if (!CompilerData.Value)
+				{
+					continue;
+				}
+				CurrentlyCompiling += CompilerData.Value->GetName() + TEXT(" ");
 			}
 			ensureMsgf(false, 
 				TEXT("Attempting to enqueue %s for compile while compiling: %s"), 
