@@ -531,8 +531,8 @@ void UTypedElementDatabaseCompatibility::TickPendingExternalObjectRegistration()
 			It->Value.ProcessEntries(*Storage, It->Key, 
 				[this](TypedElementRowHandle Row, const ExternalObjectRegistration& Object)
 				{
-					Storage->AddOrGetColumn<FTypedElementUObjectColumn>(Row, FTypedElementExternalObjectColumn{ .Object = Object.Object });
-					Storage->AddOrGetColumn<FTypedElementClassTypeInfoColumn>(Row, FTypedElementScriptStructTypeInfoColumn{ .TypeInfo = Object.TypeInfo });
+					Storage->AddOrGetColumn<FTypedElementExternalObjectColumn>(Row, FTypedElementExternalObjectColumn{ .Object = Object.Object });
+					Storage->AddOrGetColumn<FTypedElementScriptStructTypeInfoColumn>(Row, FTypedElementScriptStructTypeInfoColumn{ .TypeInfo = Object.TypeInfo });
 					// Make sure the new row is tagged for update.
 					Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
 

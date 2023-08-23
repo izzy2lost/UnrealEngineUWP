@@ -354,12 +354,25 @@ void ITypedElementDataStorageInterface::RemoveColumns(TypedElementRowHandle Row)
 	RemoveColumns(Row, { Columns::StaticStruct()...});
 }
 
+template<typename ColumnType, typename FirstArg, typename... NextArgs>
+struct TCompileTimeSliceDisabler
+{
+	// Fail assertion if the only argument is derived from FTypedElementDataStorageColumn and not the same as ColumnType
+	// This gives a good indication that object slicing is probably happening.
+	static_assert(!(sizeof...(NextArgs) == 0 && std::is_base_of_v<FTypedElementDataStorageColumn, FirstArg> && !std::is_same_v<ColumnType, FirstArg>),
+		"Probable object slicing detected. The invoked constructor of ColumnType uses a different column type as it's first argument. "
+		"This is detected as a likely object slice and disabled. "
+		"If this is what you intended, then explicitly slice the object using the constructor before passing it as an argument");
+};
+
 template<typename ColumnType, typename... Args>
 ColumnType* ITypedElementDataStorageInterface::AddOrGetColumn(TypedElementRowHandle Row, Args... Arguments)
 {
 	auto* Result = reinterpret_cast<ColumnType*>(AddOrGetColumnData(Row, ColumnType::StaticStruct()));
 	if constexpr (sizeof...(Arguments) > 0)
 	{
+		[[maybe_unused]] TCompileTimeSliceDisabler<ColumnType, Args...> SliceDisabler;
+		
 		if (Result)
 		{
 			new(Result) ColumnType{ std::forward<Args>(Arguments)... };
