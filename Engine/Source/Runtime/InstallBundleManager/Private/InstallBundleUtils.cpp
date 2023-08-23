@@ -18,6 +18,7 @@
 #include "Stats/Stats.h"
 
 #include "Algo/AnyOf.h"
+#include "Algo/AllOf.h"
 #include "Algo/Find.h"
 
 namespace InstallBundleUtil
@@ -277,7 +278,7 @@ namespace InstallBundleUtil
 	void FContentRequestStatsMap::StatsBegin(FName BundleName)
 	{
 		FContentRequestStats& Stats = StatsMap.FindOrAdd(BundleName);
-		if (ensureAlwaysMsgf(Stats.bOpen, TEXT("StatsBegin - Stat closed for %s"), *BundleName.ToString()) == false)
+		if (false == ensureAlwaysMsgf(Stats.bOpen, TEXT("StatsBegin - Stat closed for %s"), *BundleName.ToString()))
 		{
 			Stats = FContentRequestStats();
 		}
@@ -289,8 +290,14 @@ namespace InstallBundleUtil
 	{
 		FContentRequestStats& Stats = StatsMap.FindOrAdd(BundleName);
 
-		if (ensureAlwaysMsgf(Stats.bOpen, TEXT("StatsEnd - Stat closed for %s"), *BundleName.ToString()))
+		ensureAlwaysMsgf(Stats.bOpen && Stats.StartTime > 0, TEXT("StatsEnd - Stat closed for %s"), *BundleName.ToString());
+		if (Stats.bOpen)
 		{
+			ensureAlwaysMsgf(
+				Algo::AllOf(Stats.StateStats, 
+					[](const TPair<FString, FContentRequestStateStats>& Pair) { return !Pair.Value.bOpen; }),
+				TEXT("StatsEnd - StateStat open for %s"), *BundleName.ToString());
+
 			Stats.EndTime = FPlatformTime::Seconds();
 			Stats.bOpen = false;
 		}
@@ -298,20 +305,29 @@ namespace InstallBundleUtil
 
 	void FContentRequestStatsMap::StatsReset(FName BundleName)
 	{
-		StatsMap.Remove(BundleName);
+		if (FContentRequestStats* Stats = StatsMap.Find(BundleName))
+		{
+			ensureAlwaysMsgf(!Stats->bOpen, TEXT("StatsReset - Stat open for %s"), *BundleName.ToString());
+			ensureAlwaysMsgf(
+				Algo::AllOf(Stats->StateStats,
+					[](const TPair<FString, FContentRequestStateStats>& Pair) { return !Pair.Value.bOpen; }),
+				TEXT("StatsReset - StateStat open for %s"), *BundleName.ToString());
+
+			StatsMap.Remove(BundleName);
+		}
 	}
 
 	void FContentRequestStatsMap::StatsBegin(FName BundleName, const TCHAR* State)
 	{
 		FContentRequestStats& Stats = StatsMap.FindOrAdd(BundleName);
-		if (ensureAlwaysMsgf(Stats.bOpen, TEXT("StatsBegin - Stat closed for %s - %s"), *BundleName.ToString(), State) == false)
+		if (false == ensureAlwaysMsgf(Stats.bOpen, TEXT("StatsBegin - Stat closed for %s - %s"), *BundleName.ToString(), State))
 		{
 			Stats = FContentRequestStats();
 			Stats.StartTime = FPlatformTime::Seconds();
 		}
 
 		FContentRequestStateStats& StateStats = Stats.StateStats.FindOrAdd(State);
-		if (ensureAlwaysMsgf(StateStats.bOpen, TEXT("StatsBegin - StateStat closed for %s - %s"), *BundleName.ToString(), State) == false)
+		if (false == ensureAlwaysMsgf(StateStats.bOpen, TEXT("StatsBegin - StateStat closed for %s - %s"), *BundleName.ToString(), State))
 		{
 			StateStats = FContentRequestStateStats();
 		}
@@ -322,14 +338,14 @@ namespace InstallBundleUtil
 	void FContentRequestStatsMap::StatsEnd(FName BundleName, const TCHAR* State, uint64 DataSize /*= 0*/)
 	{
 		FContentRequestStats& Stats = StatsMap.FindOrAdd(BundleName);
-		if (ensureAlwaysMsgf(Stats.bOpen, TEXT("StatsEnd - Stat closed for %s - %s"), *BundleName.ToString(), State) == false)
+		if (false == ensureAlwaysMsgf(Stats.bOpen && Stats.StartTime > 0, TEXT("StatsEnd - Stat closed for %s - %s"), *BundleName.ToString(), State))
 		{
 			Stats = FContentRequestStats();
 			Stats.StartTime = FPlatformTime::Seconds();
 		}
 
 		FContentRequestStateStats& StateStats = Stats.StateStats.FindOrAdd(State);
-		if(ensureAlwaysMsgf(StateStats.bOpen, TEXT("StatsEnd - StateStat closed for %s - %s"), *BundleName.ToString(), State))
+		if (ensureAlwaysMsgf(StateStats.bOpen && StateStats.StartTime > 0, TEXT("StatsEnd - StateStat closed for %s - %s"), *BundleName.ToString(), State))
 		{
 			StateStats.EndTime = FPlatformTime::Seconds();
 			StateStats.DataSize = DataSize;

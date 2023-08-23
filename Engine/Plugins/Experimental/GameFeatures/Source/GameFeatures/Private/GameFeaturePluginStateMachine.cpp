@@ -1382,7 +1382,29 @@ struct FGameFeaturePluginState_Downloading : public FGameFeaturePluginState
 		TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
 		const TArray<FName>& InstallBundles = StateProperties.ProtocolMetadata.GetSubtype<FInstallBundlePluginProtocolMetaData>().InstallBundles;
 
-		GotContentStateHandle = BundleManager->GetContentState(InstallBundles, EInstallBundleGetContentStateFlags::None, true, FInstallBundleGetContentStateDelegate::CreateRaw(this, &FGameFeaturePluginState_Downloading::OnGotContentState));
+		if (InstallBundles.Num() > 1)
+		{
+			GotContentStateHandle = BundleManager->GetContentState(InstallBundles, EInstallBundleGetContentStateFlags::None, true, 
+				FInstallBundleGetContentStateDelegate::CreateRaw(this, &FGameFeaturePluginState_Downloading::OnGotContentState));
+		}
+		else
+		{
+			// We usualy only have a use case of one bundle per GFP and we only care about relative weighting here, so we don't need 
+			// any of the other content state metadata. We can just assume the weight is 1.0 and not have to wait for the full 
+			// async call to get the rest of the metadata.
+			TValueOrError<FInstallBundleCombinedInstallState, EInstallBundleResult> MaybeInstallState = BundleManager->GetInstallStateSynchronous(InstallBundles, true);
+			check(MaybeInstallState.HasValue());
+			const FInstallBundleCombinedInstallState& InstallState = MaybeInstallState.GetValue();
+			FInstallBundleCombinedContentState HackContentState;
+			HackContentState.IndividualBundleStates.Reserve(InstallState.IndividualBundleStates.Num());
+			for(const TPair<FName, EInstallBundleInstallState>& Pair : InstallState.IndividualBundleStates)
+			{
+				FInstallBundleContentState& BundleContentState = HackContentState.IndividualBundleStates.Emplace(Pair.Key);
+				BundleContentState.State = Pair.Value;
+				BundleContentState.Weight = 1.0f;
+			}
+			OnGotContentState(MoveTemp(HackContentState));
+		}
 	}
 
 	virtual void UpdateState(FGameFeaturePluginStateStatus& StateStatus) override

@@ -490,6 +490,7 @@ namespace BuildPatchServices
 				TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest = HttpManager->CreateRequest();
 				HttpRequest->OnRequestProgress64().BindThreadSafeSP(HttpDelegates, &FHttpDelegates::HttpRequestProgress, NewRequest.Key);
 				HttpRequest->OnProcessRequestComplete().BindThreadSafeSP(HttpDelegates, &FHttpDelegates::HttpRequestComplete, MakeDownloadRecord(NewRequest.Key, NewRequest.Value));
+				HttpRequest->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
 				HttpRequest->SetURL(NewRequest.Value);
 				HttpRequest->SetVerb(TEXT("GET"));
 				HttpRequest->ProcessRequest();
