@@ -713,6 +713,25 @@ namespace Horde.Agent.Tests
 			CheckEventGroup(logEvents, 5, 6, LogLevel.Error, KnownLogEvents.MSTest);
 		}
 
+		[TestMethod]
+		public void MsTestEventMatcher2()
+		{
+			string[] lines =
+			{
+				@"  Passed ConditionSimple [154 ms]",
+				@"  Passed GetPoolQueueSizes [1 s]",
+				@"  Failed DowntimeActive [6 s]",
+				@"  Error Message:",
+				@"   Assert.AreEqual failed. Expected:<1>. Actual:<0>.",
+				@"  Stack Trace:",
+				@"     at Horde.Server.Tests.Fleet.JobQueueStrategyTest.DowntimeActive() in /app/Source/Programs/Horde/Horde.Server.Tests/Fleet/JobQueueStrategyTest.cs:line 40",
+			};
+
+			List<LogEvent> logEvents = Parse(lines);
+			Assert.AreEqual(5, logEvents.Count);
+			CheckEventGroup(logEvents, 2, 5, LogLevel.Error, KnownLogEvents.MSTest);
+		}
+
 		static List<LogEvent> Parse(IEnumerable<string> lines)
 		{
 			return Parse(String.Join("\n", lines));
