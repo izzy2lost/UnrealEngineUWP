@@ -436,6 +436,7 @@ public:
 	// ~Begin UObject interface
 	virtual void PostLoad() override;
 	virtual void BeginDestroy() override;
+	virtual void PostEditImport() override;
 
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -444,8 +445,11 @@ public:
 
 	void SetSettings(UPCGSettings* InSettings);
 
+protected:
 #if WITH_EDITOR
 	void OnSettingsChanged(UPCGSettings* InSettings, EPCGChangeType ChangeType);
+
+	void PostSettingsChanged();
 #endif
 
 #if WITH_EDITORONLY_DATA
@@ -453,6 +457,7 @@ public:
 	TObjectPtr<UPCGSettings> OriginalSettings = nullptr; // Transient just for display
 #endif
 
+public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Instance, meta = (EditInline))
 	TObjectPtr<UPCGSettings> Settings = nullptr;
 };

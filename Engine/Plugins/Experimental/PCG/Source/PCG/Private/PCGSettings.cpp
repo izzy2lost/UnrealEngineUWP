@@ -753,15 +753,7 @@ void UPCGSettingsInstance::PostLoad()
 	Super::PostLoad();
 
 #if WITH_EDITOR
-	if (Settings)
-	{
-		Settings->OnSettingsChangedDelegate.AddUObject(this, &UPCGSettingsInstance::OnSettingsChanged);
-		Settings->ConditionalPostLoad();
-	}
-#endif
-
-#if WITH_EDITOR
-	OriginalSettings = Settings;
+	PostSettingsChanged();
 #endif
 }
 
@@ -777,6 +769,15 @@ void UPCGSettingsInstance::BeginDestroy()
 	Super::BeginDestroy();
 }
 
+void UPCGSettingsInstance::PostEditImport()
+{
+	Super::PostEditImport();
+
+#if WITH_EDITOR
+	PostSettingsChanged();
+#endif
+}
+
 void UPCGSettingsInstance::SetSettings(UPCGSettings* InSettings)
 {
 #if WITH_EDITOR
@@ -787,15 +788,9 @@ void UPCGSettingsInstance::SetSettings(UPCGSettings* InSettings)
 #endif
 
 	Settings = InSettings;
-#if WITH_EDITOR
-	OriginalSettings = Settings;
-#endif
 
 #if WITH_EDITOR
-	if (Settings)
-	{
-		Settings->OnSettingsChangedDelegate.AddUObject(this, &UPCGSettingsInstance::OnSettingsChanged);
-	}
+	PostSettingsChanged();
 #endif
 }
 
@@ -813,6 +808,17 @@ void UPCGSettingsInstance::OnSettingsChanged(UPCGSettings* InSettings, EPCGChang
 	if (InSettings == Settings)
 	{
 		OnSettingsChangedDelegate.Broadcast(InSettings, ChangeType);
+	}
+}
+
+void UPCGSettingsInstance::PostSettingsChanged()
+{
+	OriginalSettings = Settings;
+
+	if (Settings)
+	{
+		Settings->OnSettingsChangedDelegate.AddUObject(this, &UPCGSettingsInstance::OnSettingsChanged);
+		Settings->ConditionalPostLoad();
 	}
 }
 #endif
