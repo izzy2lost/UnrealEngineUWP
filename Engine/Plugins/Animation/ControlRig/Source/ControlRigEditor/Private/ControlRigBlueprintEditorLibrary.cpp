@@ -2,10 +2,8 @@
 
 #include "ControlRigBlueprintEditorLibrary.h"
 #include "Editor/SRigHierarchy.h"
-#include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "RigVMModel/RigVMPin.h"
-#include "Misc/ScopedSlowTask.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigBlueprintEditorLibrary)
 
@@ -15,7 +13,7 @@ FAutoConsoleCommand FCmdControlRigLoadAllAssets
 	TEXT("Loads all control rig assets."),
 	FConsoleCommandDelegate::CreateLambda([]()
 	{
-		UControlRigBlueprintEditorLibrary::LoadAllControlRigs();
+		UControlRigBlueprintEditorLibrary::LoadAssetsByClass(UControlRigBlueprint::StaticClass());
 	})
 );
 
@@ -48,33 +46,6 @@ USkeletalMesh* UControlRigBlueprintEditorLibrary::GetPreviewMesh(UControlRigBlue
 	return InRigBlueprint->GetPreviewMesh();
 }
 
-void UControlRigBlueprintEditorLibrary::RecompileVM(UControlRigBlueprint* InRigBlueprint)
-{
-	if(InRigBlueprint == nullptr)
-	{
-		return;
-	}
-	InRigBlueprint->RecompileVM();
-}
-
-void UControlRigBlueprintEditorLibrary::RecompileVMIfRequired(UControlRigBlueprint* InRigBlueprint)
-{
-	if(InRigBlueprint == nullptr)
-	{
-		return;
-	}
-	InRigBlueprint->RecompileVMIfRequired();
-}
-
-void UControlRigBlueprintEditorLibrary::RequestAutoVMRecompilation(UControlRigBlueprint* InRigBlueprint)
-{
-	if(InRigBlueprint == nullptr)
-	{
-		return;
-	}
-	InRigBlueprint->RequestAutoVMRecompilation();
-}
-
 void UControlRigBlueprintEditorLibrary::RequestControlRigInit(UControlRigBlueprint* InRigBlueprint)
 {
 	if(InRigBlueprint == nullptr)
@@ -82,24 +53,6 @@ void UControlRigBlueprintEditorLibrary::RequestControlRigInit(UControlRigBluepri
 		return;
 	}
 	InRigBlueprint->RequestRigVMInit();
-}
-
-URigVMGraph* UControlRigBlueprintEditorLibrary::GetModel(UControlRigBlueprint* InRigBlueprint)
-{
-	if(InRigBlueprint == nullptr)
-	{
-		return nullptr;
-	}
-	return InRigBlueprint->GetDefaultModel();
-}
-
-URigVMController* UControlRigBlueprintEditorLibrary::GetController(UControlRigBlueprint* InRigBlueprint)
-{
-	if(InRigBlueprint == nullptr)
-	{
-		return nullptr;
-	}
-	return InRigBlueprint->GetController();
 }
 
 TArray<UControlRigBlueprint*> UControlRigBlueprintEditorLibrary::GetCurrentlyOpenRigBlueprints()
@@ -174,35 +127,3 @@ TArray<FRigModuleDescription> UControlRigBlueprintEditorLibrary::GetAvailableRig
 	
 	return ModuleDescriptions;
 }
-
-void UControlRigBlueprintEditorLibrary::LoadAllControlRigs()
-{
-	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-
-	// Collect a full list of assets with the specified class
-	TArray<FAssetData> AssetDataList;
-	AssetRegistryModule.Get().GetAssetsByClass(UControlRigBlueprint::StaticClass()->GetClassPathName(), AssetDataList, true);
-
-	const int32 NumAssets = AssetDataList.Num();
-
-	FScopedSlowTask LoadAllRigsTask(NumAssets, FText::FromString("Load all control rigs..."));
-	LoadAllRigsTask.MakeDialog(true);
-
-	for(int32 Index = 0; Index < NumAssets; Index++)
-	{
-		if (LoadAllRigsTask.ShouldCancel())
-		{
-			break;
-		}
-
-		const FAssetData& AssetData = AssetDataList[Index];
-		LoadAllRigsTask.EnterProgressFrame(1, FText::FromName(AssetData.PackageName));		
-
-		static constexpr TCHAR Format[] = TEXT("[%d/%d]: %s -> %s");
-		UE_LOG(LogControlRig, Display, Format, Index, NumAssets, *AssetData.AssetName.ToString(), *AssetData.PackageName.ToString())
-		(void)AssetData.GetAsset();
-
-		LoadAllRigsTask.ForceRefresh();
-	}
-}
-

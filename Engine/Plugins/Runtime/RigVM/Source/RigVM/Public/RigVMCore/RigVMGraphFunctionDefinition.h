@@ -291,28 +291,28 @@ struct RIGVM_API FRigVMGraphFunctionArgument
 	, bIsConst(false)
 	{}
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionArgument)
 	FName Name;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionArgument)
 	FName DisplayName;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionArgument)
 	FName CPPType;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionArgument)
 	TSoftObjectPtr<UObject> CPPTypeObject;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionArgument)
 	bool bIsArray;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionArgument)
 	ERigVMPinDirection Direction;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionArgument)
 	FString DefaultValue;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionArgument)
 	bool bIsConst;
 	
 	UPROPERTY()
@@ -368,11 +368,11 @@ struct RIGVM_API FRigVMGraphFunctionIdentifier
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionIdentifier)
 	FSoftObjectPath LibraryNode;
 
 	// A path to the IRigVMGraphFunctionHost that stores the function information, and compilation data (e.g. RigVMBlueprintGeneratedClass)
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionIdentifier)
 	FSoftObjectPath HostObject;
 
 	FRigVMGraphFunctionIdentifier()
@@ -409,28 +409,28 @@ struct RIGVM_API FRigVMGraphFunctionHeader
 		, Name(NAME_None)
 	{}
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionHeader)
 	FRigVMGraphFunctionIdentifier LibraryPointer;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionHeader)
 	FName Name;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionHeader)
 	FString NodeTitle;
 	
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionHeader)
 	FLinearColor NodeColor = FLinearColor::White;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionHeader)
 	FText Tooltip;
 	
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionHeader)
 	FString Category;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionHeader)
 	FString Keywords;	
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionHeader)
 	TArray<FRigVMGraphFunctionArgument> Arguments;
 
 	UPROPERTY()

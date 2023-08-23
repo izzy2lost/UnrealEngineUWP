@@ -106,6 +106,8 @@ TArray<URigVMBlueprint*> URigVMBlueprint::sCurrentlyOpenedRigVMBlueprints;
 #if WITH_EDITOR
 const FName URigVMBlueprint::RigVMPanelNodeFactoryName(TEXT("FRigVMEdGraphPanelNodeFactory"));
 const FName URigVMBlueprint::RigVMPanelPinFactoryName(TEXT("FRigVMEdGraphPanelPinFactory"));
+FCriticalSection URigVMBlueprint::QueuedCompilerMessageDelegatesMutex;
+TArray<FOnRigVMReportCompilerMessage::FDelegate> URigVMBlueprint::QueuedCompilerMessageDelegates;
 #endif
 
 URigVMBlueprint::URigVMBlueprint()
@@ -140,6 +142,17 @@ URigVMBlueprint::URigVMBlueprint(const FObjectInitializer& ObjectInitializer)
 	VMCompileSettings.ASTSettings.ReportDelegate.BindUObject(this, &URigVMBlueprint::HandleReportFromCompiler);
 
 #if WITH_EDITOR
+	TArray<FOnRigVMReportCompilerMessage::FDelegate> DelegatesForReportFromCompiler;
+	{
+		FScopeLock Lock(&QueuedCompilerMessageDelegatesMutex);
+		Swap(QueuedCompilerMessageDelegates, DelegatesForReportFromCompiler);
+	}
+
+	for(const FOnRigVMReportCompilerMessage::FDelegate& Delegate : DelegatesForReportFromCompiler)
+	{
+		ReportCompilerMessageEvent.Add(Delegate);
+	}
+
 	if (HasAnyFlags(RF_ClassDefaultObject))
 	{
 		CompileLog.bSilentMode = true;
@@ -1486,6 +1499,13 @@ void URigVMBlueprint::HandleReportFromCompiler(EMessageSeverity::Type InSeverity
 			Log->Note(*InMessage);
 		}
 
+		static const FString Error = TEXT("Error");
+		static const FString Warning = TEXT("Warning");
+		if(InMessage.Contains(Error, ESearchCase::IgnoreCase) ||
+			InMessage.Contains(Warning, ESearchCase::IgnoreCase))
+		{
+			BroadCastReportCompilerMessage(InSeverity, InSubject, InMessage);
+		}
 		UE_LOG(LogRigVMDeveloper, Display, TEXT("%s"), *InMessage);
 	}
 
@@ -4105,6 +4125,22 @@ bool URigVMBlueprint::RemoveEdGraphForCollapseNode(URigVMCollapseNode* InNode, b
 
 	return false;
 }
+
+#if WITH_EDITOR
+
+void URigVMBlueprint::QueueCompilerMessageDelegate(const FOnRigVMReportCompilerMessage::FDelegate& InDelegate)
+{
+	FScopeLock Lock(&QueuedCompilerMessageDelegatesMutex);
+	QueuedCompilerMessageDelegates.Add(InDelegate);
+}
+
+void URigVMBlueprint::ClearQueuedCompilerMessageDelegates()
+{
+	FScopeLock Lock(&QueuedCompilerMessageDelegatesMutex);
+	QueuedCompilerMessageDelegates.Reset();
+}
+
+#endif
 
 #undef LOCTEXT_NAMESPACE
 

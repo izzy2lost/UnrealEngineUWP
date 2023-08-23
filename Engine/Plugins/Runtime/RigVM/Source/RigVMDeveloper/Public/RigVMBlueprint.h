@@ -13,6 +13,9 @@
 #include "EdGraph/RigVMEdGraph.h"
 #include "EdGraph/RigVMEdGraphSchema.h"
 #include "RigVMSettings.h"
+#if WITH_EDITOR
+#include "HAL/CriticalSection.h"
+#endif
 
 #include "RigVMBlueprint.generated.h"
 
@@ -742,6 +745,20 @@ private:
 	bool bErrorsDuringCompilation;
 	bool bSuspendPythonMessagesForRigVMClient;
 	bool bMarkBlueprintAsStructurallyModifiedPending;
+
+#if WITH_EDITOR
+
+public:
+
+	static void QueueCompilerMessageDelegate(const FOnRigVMReportCompilerMessage::FDelegate& InDelegate);
+	static void ClearQueuedCompilerMessageDelegates();
+	
+private:
+
+	static FCriticalSection QueuedCompilerMessageDelegatesMutex;
+	static TArray<FOnRigVMReportCompilerMessage::FDelegate> QueuedCompilerMessageDelegates;
+
+#endif
 
 	friend class FRigVMBlueprintCompilerContext;
 	friend class FRigVMEditor;
