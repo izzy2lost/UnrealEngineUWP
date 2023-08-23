@@ -343,8 +343,17 @@ void FNiagaraSystemCompilationTask::Abort()
 	bAborting = true;
 }
 
-FNiagaraSystemCompilationTask::FCompileGroupInfo::FCompileGroupInfo(int32 InEmitterIndex)
-: EmitterIndex(InEmitterIndex)
+
+const FNiagaraSystemCompilationTask::FEmitterInfo* FNiagaraSystemCompilationTask::FSystemInfo::EmitterInfoBySourceEmitter(int32 InSourceEmitterIndex) const
+{
+	return EmitterInfo.FindByPredicate([InSourceEmitterIndex](const FEmitterInfo& Info) -> bool
+	{
+		return Info.SourceEmitterIndex == InSourceEmitterIndex;
+	});
+}
+
+FNiagaraSystemCompilationTask::FCompileGroupInfo::FCompileGroupInfo(int32 InSourceEmitterIndex)
+: SourceEmitterIndex(InSourceEmitterIndex)
 {}
 
 bool FNiagaraSystemCompilationTask::FCompileGroupInfo::HasOutstandingCompileTasks(const FNiagaraSystemCompilationTask& ParentTask) const
@@ -388,20 +397,18 @@ void FNiagaraSystemCompilationTask::FCompileGroupInfo::InstantiateCompileGraph(c
 	const int32 EmitterCount = ParentTask.SystemInfo.EmitterInfo.Num();
 	BasePtr.EmitterData.Reserve(EmitterCount);
 
-	for (int32 EmitterIt = 0; EmitterIt < EmitterCount; ++EmitterIt)
+	for (const FEmitterInfo& EmitterInfo : ParentTask.SystemInfo.EmitterInfo)
 	{
-		const FEmitterInfo& EmitterInfo = ParentTask.SystemInfo.EmitterInfo[EmitterIt];
-
 		TSharedPtr<FNiagaraCompilationCopyData, ESPMode::ThreadSafe> EmitterPtr = MakeShared<FNiagaraCompilationCopyData, ESPMode::ThreadSafe>();
 		EmitterPtr->EmitterUniqueName = EmitterInfo.UniqueEmitterName;
 		EmitterPtr->ValidUsages = BasePtr.ValidUsages;
 
 		// Don't need to copy the graph if we aren't going to use it.
-		if (EmitterInfo.Enabled && ((EmitterIndex == INDEX_NONE) || (EmitterIt == EmitterIndex)))
+		if (EmitterInfo.Enabled && ((SourceEmitterIndex == INDEX_NONE) || (SourceEmitterIndex == EmitterInfo.SourceEmitterIndex)))
 		{
-			const FNiagaraPrecompileData* EmitterRequestData = static_cast<const FNiagaraPrecompileData*>(ParentTask.SystemPrecompileData->GetDependentRequest(EmitterIt).Get());
+			const FNiagaraPrecompileData* EmitterRequestData = static_cast<const FNiagaraPrecompileData*>(ParentTask.SystemPrecompileData->GetDependentRequest(EmitterInfo.DigestedEmitterIndex).Get());
 
-			if (const FNiagaraCompilationGraph* SourceGraph = EmitterInfo.SourceGraph.Get())
+			if (const FNiagaraCompilationGraphDigested* SourceGraph = EmitterInfo.SourceGraph.Get())
 			{
 				EmitterPtr->InstantiateCompilationCopy(*SourceGraph, EmitterRequestData, ENiagaraScriptUsage::EmitterSpawnScript, EmitterInfo.ConstantResolver);
 			}
@@ -418,7 +425,7 @@ void FNiagaraSystemCompilationTask::FCompileGroupInfo::InstantiateCompileGraph(c
 		// skip the deep copy if we're not compiling the system scripts
 		if (BasePtr.ValidUsages.Contains(ENiagaraScriptUsage::SystemSpawnScript))
 		{
-			if (const FNiagaraCompilationGraph* SourceGraph = ParentTask.SystemInfo.SystemSourceGraph.Get())
+			if (const FNiagaraCompilationGraphDigested* SourceGraph = ParentTask.SystemInfo.SystemSourceGraph.Get())
 			{
 				BasePtr.InstantiateCompilationCopy(*SourceGraph, ParentTask.SystemPrecompileData.Get(), ENiagaraScriptUsage::SystemSpawnScript, ParentTask.SystemInfo.ConstantResolver);
 			}
@@ -436,19 +443,17 @@ void FNiagaraSystemCompilationTask::FCompileGroupInfo::InstantiateCompileGraph(c
 	}
 
 	// Now we can finish off the emitters.
-	for (int32 EmitterIt = 0; EmitterIt < EmitterCount; ++EmitterIt)
+	for (const FEmitterInfo& EmitterInfo : ParentTask.SystemInfo.EmitterInfo)
 	{
-		const FEmitterInfo& EmitterInfo = ParentTask.SystemInfo.EmitterInfo[EmitterIt];
-
 		TArray<FNiagaraVariable> EncounterableEmitterVariables;
-		ParentTask.SystemPrecompileData->GetDependentRequest(EmitterIt)->GatherPreCompiledVariables(FString(), EncounterableEmitterVariables);
+		ParentTask.SystemPrecompileData->GetDependentRequest(EmitterInfo.DigestedEmitterIndex)->GatherPreCompiledVariables(FString(), EncounterableEmitterVariables);
 
-		if (EmitterInfo.Enabled && ((EmitterIndex == INDEX_NONE) || (EmitterIt == EmitterIndex)))
+		if (EmitterInfo.Enabled && ((SourceEmitterIndex == INDEX_NONE) || (SourceEmitterIndex == EmitterInfo.SourceEmitterIndex)))
 		{
 			TArray<FNiagaraVariable> StaticVariablesFromEmitter = ParentTask.SystemInfo.StaticVariableResults;
 			StaticVariablesFromEmitter.Append(EmitterInfo.StaticVariableResults);
 
-			BasePtr.EmitterData[EmitterIt]->CreateParameterMapHistory(ParentTask, EncounterableEmitterVariables, StaticVariablesFromEmitter, EmitterInfo.ConstantResolver, EmitterInfo.SimStages);
+			BasePtr.EmitterData[EmitterInfo.DigestedEmitterIndex]->CreateParameterMapHistory(ParentTask, EncounterableEmitterVariables, StaticVariablesFromEmitter, EmitterInfo.ConstantResolver, EmitterInfo.SimStages);
 		}
 	}
 }
@@ -463,7 +468,7 @@ FNiagaraSystemCompilationTask::FCompileGroupInfo* FNiagaraSystemCompilationTask:
 {
 	return CompileGroups.FindByPredicate([EmitterIndex](const FCompileGroupInfo& GroupInfo) -> bool
 	{
-		return GroupInfo.EmitterIndex == EmitterIndex;
+		return GroupInfo.SourceEmitterIndex == EmitterIndex;
 	});
 }
 
@@ -474,27 +479,31 @@ const FNiagaraSystemCompilationTask::FScriptInfo* FNiagaraSystemCompilationTask:
 
 void FNiagaraSystemCompilationTask::FCompileTaskInfo::CollectNamedDataInterfaces(FNiagaraSystemCompilationTask* SystemCompileTask, const FCompileGroupInfo& GroupInfo)
 {
-	const FNiagaraCompilationCopyData* CompilationCopyData = GroupInfo.EmitterIndex == INDEX_NONE
-		? GroupInfo.CompilationCopy.Get()
-		: static_cast<const FNiagaraCompilationCopyData*>(GroupInfo.CompilationCopy->GetDependentRequest(GroupInfo.EmitterIndex).Get());
-	const FScriptInfo& ScriptInfo = SystemCompileTask->DigestedScriptInfo.FindChecked(ScriptKey);
 	FString UniqueEmitterName;
+	const FNiagaraCompilationCopyData* CompilationCopyData = nullptr;
 
-	if (SystemCompileTask->SystemInfo.EmitterInfo.IsValidIndex(GroupInfo.EmitterIndex))
+	if (const FEmitterInfo* EmitterInfo = SystemCompileTask->SystemInfo.EmitterInfoBySourceEmitter(GroupInfo.SourceEmitterIndex))
 	{
-		UniqueEmitterName = SystemCompileTask->SystemInfo.EmitterInfo[GroupInfo.EmitterIndex].UniqueEmitterName;
+		CompilationCopyData = static_cast<const FNiagaraCompilationCopyData*>(GroupInfo.CompilationCopy->GetDependentRequest(EmitterInfo->DigestedEmitterIndex).Get());
+		UniqueEmitterName = EmitterInfo->UniqueEmitterName;
 	}
+	else
+	{
+		CompilationCopyData = GroupInfo.CompilationCopy.Get();
+	}
+
+	const FScriptInfo& ScriptInfo = SystemCompileTask->DigestedScriptInfo.FindChecked(ScriptKey);
 
 	auto AccumulateInputDataInterfaces = [this, &UniqueEmitterName](const FNiagaraCompilationNode& Node) -> bool
 	{
 		if (const FNiagaraCompilationNodeInput* InputNode = Node.AsType<FNiagaraCompilationNodeInput>())
 		{
-			if (InputNode->DataInterfaceName != NAME_None && InputNode->InstancedDataInterface)
+			if (InputNode->DataInterfaceName != NAME_None && InputNode->DuplicatedDataInterface)
 			{
 				constexpr bool bIsParameterMapDataInterface = false;
 				FName DIName = FNiagaraHlslTranslator::GetDataInterfaceName(InputNode->DataInterfaceName, UniqueEmitterName, bIsParameterMapDataInterface);
 
-				NamedDataInterfaces.Add(DIName, InputNode->InstancedDataInterface);
+				NamedDataInterfaces.Add(DIName, InputNode->DuplicatedDataInterface);
 			}
 		}
 
@@ -524,6 +533,8 @@ void FNiagaraSystemCompilationTask::FCompileTaskInfo::CollectNamedDataInterfaces
 
 	if (UNiagaraScript::IsSystemScript(ScriptInfo.Usage))
 	{
+		check(GroupInfo.SourceEmitterIndex == INDEX_NONE);
+
 		const ENiagaraScriptUsage EmitterUsage = ScriptInfo.Usage == ENiagaraScriptUsage::SystemSpawnScript
 			? ENiagaraScriptUsage::EmitterSpawnScript
 			: ENiagaraScriptUsage::EmitterUpdateScript;
@@ -533,7 +544,6 @@ void FNiagaraSystemCompilationTask::FCompileTaskInfo::CollectNamedDataInterfaces
 			return UNiagaraScript::IsEquivalentUsage(OutputNode.Usage, EmitterUsage) && OutputNode.UsageId == EmitterUsageId;
 		};
 
-		check(GroupInfo.EmitterIndex == INDEX_NONE);
 		for (const FNiagaraCompilationCopyData::FSharedCompilationCopy& EmitterCompilationCopy : CompilationCopyData->EmitterData)
 		{
 			if (const FNiagaraCompilationGraph* EmitterGraph = EmitterCompilationCopy->InstantiatedGraph.Get())
@@ -547,13 +557,19 @@ void FNiagaraSystemCompilationTask::FCompileTaskInfo::CollectNamedDataInterfaces
 
 void FNiagaraSystemCompilationTask::FCompileTaskInfo::TranslateAndIssueCompile(FNiagaraSystemCompilationTask* SystemCompileTask, const FCompileGroupInfo& GroupInfo)
 {
-	const FNiagaraPrecompileData* PrecompileData = GroupInfo.EmitterIndex == INDEX_NONE
-		? SystemCompileTask->SystemPrecompileData.Get()
-		: static_cast<const FNiagaraPrecompileData*>(SystemCompileTask->SystemPrecompileData->GetDependentRequest(GroupInfo.EmitterIndex).Get());
+	const FNiagaraPrecompileData* PrecompileData = nullptr;
+	const FNiagaraCompilationCopyData* CompilationCopyData = nullptr;
 
-	const FNiagaraCompilationCopyData* CompilationCopyData = GroupInfo.EmitterIndex == INDEX_NONE
-		? GroupInfo.CompilationCopy.Get()
-		: static_cast<const FNiagaraCompilationCopyData*>(GroupInfo.CompilationCopy->GetDependentRequest(GroupInfo.EmitterIndex).Get());
+	if (const FEmitterInfo* EmitterInfo = SystemCompileTask->SystemInfo.EmitterInfoBySourceEmitter(GroupInfo.SourceEmitterIndex))
+	{
+		PrecompileData = static_cast<const FNiagaraPrecompileData*>(SystemCompileTask->SystemPrecompileData->GetDependentRequest(EmitterInfo->DigestedEmitterIndex).Get());
+		CompilationCopyData = static_cast<const FNiagaraCompilationCopyData*>(GroupInfo.CompilationCopy->GetDependentRequest(EmitterInfo->DigestedEmitterIndex).Get());
+	}
+	else
+	{
+		PrecompileData = SystemCompileTask->SystemPrecompileData.Get();
+		CompilationCopyData = GroupInfo.CompilationCopy.Get();
+	}
 
 	const FScriptInfo& ScriptInfo = SystemCompileTask->DigestedScriptInfo.FindChecked(ScriptKey);
 
@@ -865,12 +881,18 @@ void FNiagaraSystemCompilationTask::DigestSystemInfo()
 	}
 
 	const TArray<FNiagaraEmitterHandle>& EmitterHandles = System_GT->GetEmitterHandles();
-	const int32 EmitterCount = EmitterHandles.Num();
+	const int32 SourceEmitterCount = EmitterHandles.Num();
 
-	SystemInfo.EmitterInfo.Reserve(EmitterCount);
-	for (const FNiagaraEmitterHandle& Handle : EmitterHandles)
+	SystemInfo.EmitterInfo.Reserve(SourceEmitterCount);
+	for (int32 SourceEmitterIndex = 0; SourceEmitterIndex < SourceEmitterCount; ++SourceEmitterIndex)
 	{
-		const int32 EmitterIndex = SystemInfo.EmitterInfo.Num();
+		const FNiagaraEmitterHandle& Handle = EmitterHandles[SourceEmitterIndex];
+		if (!Handle.GetIsEnabled())
+		{
+			continue;
+		}
+
+		const int32 DigestedEmitterIndex = SystemInfo.EmitterInfo.Num();
 
 		FEmitterInfo& EmitterInfo = SystemInfo.EmitterInfo.AddDefaulted_GetRef();
 		const FVersionedNiagaraEmitter& HandleInstance = Handle.GetInstance();
@@ -882,7 +904,8 @@ void FNiagaraSystemCompilationTask::DigestSystemInfo()
 		EmitterInfo.UniqueInstanceName = Handle.GetUniqueInstanceName();
 		EmitterInfo.Enabled = Handle.GetIsEnabled();
 		EmitterInfo.ConstantResolver = FNiagaraFixedConstantResolver(FCompileConstantResolver(HandleInstance, ENiagaraScriptUsage::EmitterSpawnScript));
-		EmitterInfo.EmitterIndex = EmitterIndex;
+		EmitterInfo.SourceEmitterIndex = SourceEmitterIndex;
+		EmitterInfo.DigestedEmitterIndex = DigestedEmitterIndex;
 		EmitterInfo.SourceGraph = DigestDatabase.CreateGraphDigest(EmitterGraph, ChangeIdBuilder);
 
 		{
@@ -1036,7 +1059,7 @@ void FNiagaraSystemCompilationTask::AddScript(int32 EmitterIndex, UNiagaraScript
 
 	Info.Usage = Script->GetUsage();
 	Info.UsageId = Script->GetUsageId();
-	Info.EmitterIndex = EmitterIndex;
+	Info.SourceEmitterIndex = EmitterIndex;
 	for (UNiagaraScript* DependentScript : NiagaraCompilationCopyImpl::FindDependentScripts(System_GT.Get(), EmitterData, Script))
 	{
 		Info.DependentScripts.AddUnique(DependentScript);
@@ -1112,9 +1135,9 @@ bool FNiagaraSystemCompilationTask::Poll(FNiagaraSystemAsyncCompileResults& Resu
 
 					if (const FScriptInfo* ScriptInfo = DigestedScriptInfo.Find(SourceScript))
 					{
-						if (SystemInfo.EmitterInfo.IsValidIndex(ScriptInfo->EmitterIndex))
+						if (const FEmitterInfo* EmitterInfo = SystemInfo.EmitterInfoBySourceEmitter(ScriptInfo->SourceEmitterIndex))
 						{
-							CompileData.UniqueEmitterName = SystemInfo.EmitterInfo[ScriptInfo->EmitterIndex].UniqueEmitterName;
+							CompileData.UniqueEmitterName = EmitterInfo->UniqueEmitterName;
 						}
 
 						// we also need to incorporate the rapid iteration parameters that we encountered
@@ -1313,7 +1336,7 @@ struct FNiagaraSystemCompilationTask::FCollectStaticVariablesTaskBuilder
 	FCollectStaticVariablesTaskBuilder(FNiagaraSystemCompilationTask& CompilationTask)
 	: FoundStaticVariables(CompilationTask.SystemInfo.StaticVariableResults)
 	{
-		if (FNiagaraCompilationGraph* SystemGraph = CompilationTask.SystemInfo.SystemSourceGraph.Get())
+		if (FNiagaraCompilationGraphDigested* SystemGraph = CompilationTask.SystemInfo.SystemSourceGraph.Get())
 		{
 			FStaticVariableBuilderTaskHandle BuilderTask = MakeShared<FStaticVariableBuilderTask, ESPMode::ThreadSafe>();
 			BuilderTask->CompilationTask = &CompilationTask;
@@ -1330,7 +1353,7 @@ struct FNiagaraSystemCompilationTask::FCollectStaticVariablesTaskBuilder
 	FCollectStaticVariablesTaskBuilder(const FNiagaraSystemCompilationTask& CompilationTask, FEmitterInfo& EmitterInfo)
 	: FoundStaticVariables(EmitterInfo.StaticVariableResults)
 	{
-		if (FNiagaraCompilationGraph* EmitterGraph = EmitterInfo.SourceGraph.Get())
+		if (FNiagaraCompilationGraphDigested* EmitterGraph = EmitterInfo.SourceGraph.Get())
 		{
 			TArray<const FNiagaraCompilationNodeOutput*> OutputNodes;
 			EmitterGraph->FindOutputNodes(OutputNodes);
@@ -1506,20 +1529,18 @@ struct FNiagaraSystemCompilationTask::FBuildRapidIterationTaskBuilder
 		FString UniqueEmitterName;
 		FNiagaraFixedConstantResolver ConstantResolver;
 	
-		if (ScriptInfo.EmitterIndex == INDEX_NONE)
+		if (const FEmitterInfo* EmitterInfo = CompilationTask.SystemInfo.EmitterInfoBySourceEmitter(ScriptInfo.SourceEmitterIndex))
+		{
+			Graph = EmitterInfo->SourceGraph.Get();
+			FoundStaticVariables = &EmitterInfo->StaticVariableResults;
+			UniqueEmitterName = EmitterInfo->UniqueEmitterName;
+			ConstantResolver = EmitterInfo->ConstantResolver;
+		}
+		else
 		{
 			Graph = CompilationTask.SystemInfo.SystemSourceGraph.Get();
 			FoundStaticVariables = &CompilationTask.SystemInfo.StaticVariableResults;
 			ConstantResolver = CompilationTask.SystemInfo.ConstantResolver;
-		}
-		else
-		{
-			FEmitterInfo& EmitterInfo = CompilationTask.SystemInfo.EmitterInfo[ScriptInfo.EmitterIndex];
-
-			Graph = EmitterInfo.SourceGraph.Get();
-			FoundStaticVariables = &EmitterInfo.StaticVariableResults;
-			UniqueEmitterName = EmitterInfo.UniqueEmitterName;
-			ConstantResolver = EmitterInfo.ConstantResolver;
 		}
 
 		if (Graph)
@@ -1725,10 +1746,8 @@ UE::Tasks::FTask FNiagaraSystemCompilationTask::BuildRapidIterationParametersAsy
 
 	if (SystemCollectStaticVariableTask.IsValid())
 	{
-		const int32 EmitterCount = SystemInfo.EmitterInfo.Num();
-		for (int32 EmitterIndex = 0; EmitterIndex < EmitterCount; ++EmitterIndex)
+		for (FEmitterInfo& EmitterInfo : SystemInfo.EmitterInfo)
 		{
-			FEmitterInfo& EmitterInfo = SystemInfo.EmitterInfo[EmitterIndex];
 			if (!EmitterInfo.Enabled)
 			{
 				continue;
@@ -1739,7 +1758,7 @@ UE::Tasks::FTask FNiagaraSystemCompilationTask::BuildRapidIterationParametersAsy
 				FTask EmitterStaticVariableTask = EmitterTaskBuilder.LaunchCollectedTasks();
 			}, SystemCollectStaticVariableTask);
 
-			CollectStaticVariableTasks.Add(EmitterIndex, EmitterCollectStaticVariableTask);
+			CollectStaticVariableTasks.Add(EmitterInfo.DigestedEmitterIndex, EmitterCollectStaticVariableTask);
 		}
 
 		TArray<FTask> PendingTasks;
@@ -1747,11 +1766,13 @@ UE::Tasks::FTask FNiagaraSystemCompilationTask::BuildRapidIterationParametersAsy
 		{
 			FScriptInfo& ScriptInfo = CurrentIt.Value;
 
+			const FEmitterInfo* EmitterInfo = SystemInfo.EmitterInfoBySourceEmitter(ScriptInfo.SourceEmitterIndex);
+
 			PendingTasks.Add(Launch(UE_SOURCE_LOCATION, [this, &ScriptInfo]
 			{
 				FBuildRapidIterationTaskBuilder TaskBuilder(*this, ScriptInfo);
 				AddNested(TaskBuilder.LaunchCollectedTasks());
-			}, CollectStaticVariableTasks.FindRef(ScriptInfo.EmitterIndex)));
+			}, CollectStaticVariableTasks.FindRef(EmitterInfo ? EmitterInfo->DigestedEmitterIndex : INDEX_NONE)));
 		}
 
 		// lastly we need a single task to copy over parameters between dependent scripts

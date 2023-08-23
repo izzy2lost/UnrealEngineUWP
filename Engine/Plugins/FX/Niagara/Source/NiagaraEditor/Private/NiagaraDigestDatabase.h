@@ -13,7 +13,7 @@ class UNiagaraGraph;
 class UNiagaraParameterCollection;
 class UNiagaraScriptSourceBase;
 
-using FNiagaraDigestedGraphPtr = TSharedPtr<FNiagaraCompilationGraph, ESPMode::ThreadSafe>;
+using FNiagaraDigestedGraphPtr = TSharedPtr<FNiagaraCompilationGraphDigested, ESPMode::ThreadSafe>;
 
 class FNiagaraCompilationGraphHandle
 {
@@ -116,7 +116,6 @@ public:
 	void ReleaseDatabase();
 
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-	
 	virtual FString GetReferencerName() const override;
 
 protected:

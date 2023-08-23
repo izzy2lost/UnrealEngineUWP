@@ -68,7 +68,11 @@ struct FNiagaraSystemCompilationTask
 		FNiagaraFixedConstantResolver ConstantResolver;
 		TArray<TObjectKey<UNiagaraScript>> OwnedScriptKeys;
 
-		int32 EmitterIndex;
+		// Index into the EmitterHandles[] of the owning System
+		int32 SourceEmitterIndex;
+
+		// Index of the this in FSystemInfo::EmitterInfo
+		int32 DigestedEmitterIndex;
 		bool Enabled;
 	};
 
@@ -87,17 +91,19 @@ struct FNiagaraSystemCompilationTask
 
 		bool bUseRapidIterationParams;
 		bool bDisableDebugSwitches;
+
+		const FEmitterInfo* EmitterInfoBySourceEmitter(int32 InSourceEmitterIndex) const;
 	};
 
 	struct FCompileGroupInfo
 	{
 		FCompileGroupInfo() = delete;
-		FCompileGroupInfo(int32 InEmitterIndex);
+		FCompileGroupInfo(int32 InSourceEmitterIndex);
 
 		bool HasOutstandingCompileTasks(const FNiagaraSystemCompilationTask& ParentTask) const;
 		void InstantiateCompileGraph(const FNiagaraSystemCompilationTask& ParentTask);
 
-		const int32 EmitterIndex;
+		const int32 SourceEmitterIndex;
 		TArray<int32> CompileTaskIndices;
 		TArray<ENiagaraScriptUsage> ValidUsages;
 		TSharedPtr<FNiagaraCompilationCopyData> CompilationCopy;
@@ -109,7 +115,7 @@ struct FNiagaraSystemCompilationTask
 		FGuid UsageId;
 		FNiagaraParameterStore RapidIterationParameters;
 		TArray<TObjectKey<UNiagaraScript>> DependentScripts;
-		int32 EmitterIndex = INDEX_NONE;
+		int32 SourceEmitterIndex = INDEX_NONE;
 	};
 
 	struct FCompileTaskInfo
@@ -190,7 +196,6 @@ private:
 	TUniquePtr<FDispatchDataCachePutRequests> PutRequestHelper;
 
 	TMap<TObjectKey<UNiagaraScript>, FScriptInfo> DigestedScriptInfo;
-	TSet<FNiagaraDigestedGraphPtr> DigestedGraphs;
 
 	TMap<TObjectKey<UNiagaraParameterCollection>, FNiagaraCompilationNPCHandle> DigestedParameterCollections;
 

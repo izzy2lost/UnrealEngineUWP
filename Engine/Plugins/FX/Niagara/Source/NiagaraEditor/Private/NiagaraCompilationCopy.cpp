@@ -479,12 +479,6 @@ void FNiagaraPrecompileData::CollectBakedRapidIterationParameters(const FNiagara
 	}
 }
 
-
-const TMap<FName, UNiagaraDataInterface*>& FNiagaraCompilationCopyData::GetObjectNameMap()
-{
-	return ObjectPtrDecay(InstantiatedGraph->CachedDataInterfaceInstanceDuplicates);
-}
-
 UNiagaraDataInterface* FNiagaraCompilationCopyData::GetDuplicatedDataInterfaceCDOForClass(UClass* Class) const
 {
 	if (UNiagaraDataInterface* ClassDefault = AggregatedDataInterfaceCDODuplicates.FindRef(Class))
@@ -498,13 +492,13 @@ UNiagaraDataInterface* FNiagaraCompilationCopyData::GetDuplicatedDataInterfaceCD
 	return nullptr;
 }
 
-void FNiagaraCompilationCopyData::InstantiateCompilationCopy(const FNiagaraCompilationGraph& SourceGraph, const FNiagaraPrecompileData* PrecompileData, ENiagaraScriptUsage InUsage, FNiagaraFixedConstantResolver ConstantResolver)
+void FNiagaraCompilationCopyData::InstantiateCompilationCopy(const FNiagaraCompilationGraphDigested& SourceGraph, const FNiagaraPrecompileData* PrecompileData, ENiagaraScriptUsage InUsage, FNiagaraFixedConstantResolver ConstantResolver)
 {
 	InstantiatedGraph = SourceGraph.Instantiate(PrecompileData, this, ValidUsages, ConstantResolver);
 
 	if (InstantiatedGraph)
 	{
-		AggregatedDataInterfaceCDODuplicates.Append(ObjectPtrDecay(InstantiatedGraph->CachedDataInterfaceCDODuplicates));
+		AggregatedDataInterfaceCDODuplicates.Append(ObjectPtrDecay(InstantiatedGraph->AggregateDataInterfaceCDODuplicates));
 	}
 }
 
