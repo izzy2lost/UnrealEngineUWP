@@ -10,6 +10,7 @@
 #include "InterchangeDispatcherTask.h"
 #include "InterchangeManager.h"
 #include "InterchangeImportLog.h"
+#include "InterchangeTranslatorHelper.h"
 #include "Mesh/InterchangeMeshPayload.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/FileHelper.h"
@@ -185,24 +186,13 @@ void UInterchangeFbxTranslator::ImportFinish()
 
 TOptional<UE::Interchange::FImportImage> UInterchangeFbxTranslator::GetTexturePayloadData(const FString& PayLoadKey, TOptional<FString>& AlternateTexturePath) const
 {
-	UInterchangeSourceData* PayloadSourceData = UInterchangeManager::GetInterchangeManager().CreateSourceData(PayLoadKey);
-	FGCObjectScopeGuard ScopedSourceData(PayloadSourceData);
-	
-	if (!PayloadSourceData)
-	{
-		return TOptional<UE::Interchange::FImportImage>();
-	}
-	UInterchangeTranslatorBase* SourceTranslator = UInterchangeManager::GetInterchangeManager().GetTranslatorForSourceData(PayloadSourceData);
-	FGCObjectScopeGuard ScopedSourceTranslator(SourceTranslator);
-	const IInterchangeTexturePayloadInterface* TextureTranslator = Cast<IInterchangeTexturePayloadInterface>(SourceTranslator);
+	UE::Interchange::Private::FScopedTranslator ScopedTranslator(PayLoadKey, Results);
+	const IInterchangeTexturePayloadInterface* TextureTranslator = ScopedTranslator.GetPayLoadInterface<IInterchangeTexturePayloadInterface>();
 	if (!ensure(TextureTranslator))
 	{
 		return TOptional<UE::Interchange::FImportImage>();
 	}
-
 	AlternateTexturePath = PayLoadKey;
-	SourceTranslator->SetResultsContainer(Results);
-
 	return TextureTranslator->GetTexturePayloadData(PayLoadKey, AlternateTexturePath);
 }
 

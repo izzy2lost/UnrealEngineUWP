@@ -21,6 +21,7 @@
 #include "InterchangeSceneNode.h"
 #include "InterchangeShaderGraphNode.h"
 #include "InterchangeTexture2DNode.h"
+#include "InterchangeTranslatorHelper.h"
 #include "InterchangeVariantSetNode.h"
 #include "Nodes/InterchangeSourceNode.h"
 
@@ -791,26 +792,13 @@ TOptional< UE::Interchange::FImportImage > UInterchangeGLTFTranslator::GetTextur
 	else
 	{
 		const FString TextureFilePath = FPaths::ConvertRelativePathToFull(GltfTexture.Source.FilePath);
-
-		UInterchangeSourceData* PayloadSourceData = UInterchangeManager::GetInterchangeManager().CreateSourceData(TextureFilePath);
-		FGCObjectScopeGuard ScopedSourceData(PayloadSourceData);
-
-		if (!PayloadSourceData)
-		{
-			return TexturePayloadData;
-		}
-
-		UInterchangeTranslatorBase* SourceTranslator = UInterchangeManager::GetInterchangeManager().GetTranslatorForSourceData(PayloadSourceData);
-		FGCObjectScopeGuard ScopedSourceTranslator(SourceTranslator);
-		const IInterchangeTexturePayloadInterface* TextureTranslator = Cast< IInterchangeTexturePayloadInterface >(SourceTranslator);
+		UE::Interchange::Private::FScopedTranslator ScopedTranslator(TextureFilePath, Results);
+		const IInterchangeTexturePayloadInterface* TextureTranslator = ScopedTranslator.GetPayLoadInterface<IInterchangeTexturePayloadInterface>();
 		if (!ensure(TextureTranslator))
 		{
 			return TexturePayloadData;
 		}
-		SourceTranslator->SetResultsContainer(Results);
-
 		AlternateTexturePath = TextureFilePath;
-
 		TexturePayloadData = TextureTranslator->GetTexturePayloadData(PayloadKey, AlternateTexturePath);
 	}
 

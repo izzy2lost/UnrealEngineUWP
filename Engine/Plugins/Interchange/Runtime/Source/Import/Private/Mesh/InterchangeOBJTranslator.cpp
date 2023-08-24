@@ -13,6 +13,7 @@
 #include "InterchangeShaderGraphNode.h"
 #include "InterchangeTexture2DNode.h"
 #include "InterchangeTextureNode.h"
+#include "InterchangeTranslatorHelper.h"
 #include "MaterialDomain.h"
 #include "Materials/Material.h"
 #include "Misc/ConfigCacheIni.h"
@@ -1576,25 +1577,13 @@ TOptional<UE::Interchange::FImportImage> UInterchangeOBJTranslator::GetTexturePa
 	// Here, we have a texture source referenced by the .obj which is ideally handled by the existing texture translators.
 	// In this case, we can just implement the texture payload interface here and use a temporary texture translator instance
 	// to generate the payload, but what if the translator needed to do non-trivial work during the Translate() phase?
-	UInterchangeSourceData* PayloadSourceData = UInterchangeManager::GetInterchangeManager().CreateSourceData(PayLoadKey);
-	FGCObjectScopeGuard ScopedSourceData(PayloadSourceData);
-	if (!PayloadSourceData)
-	{
-		return TOptional<UE::Interchange::FImportImage>();
-	}
-
-	UInterchangeTranslatorBase* SourceTranslator = UInterchangeManager::GetInterchangeManager().GetTranslatorForSourceData(PayloadSourceData);
-	FGCObjectScopeGuard ScopedSourceTranslator(SourceTranslator);
-	const IInterchangeTexturePayloadInterface* TextureTranslator = Cast<IInterchangeTexturePayloadInterface>(SourceTranslator);
+	UE::Interchange::Private::FScopedTranslator ScopedTranslator(PayLoadKey, Results);
+	const IInterchangeTexturePayloadInterface* TextureTranslator = ScopedTranslator.GetPayLoadInterface<IInterchangeTexturePayloadInterface>();
 	if (!ensure(TextureTranslator))
 	{
 		return TOptional<UE::Interchange::FImportImage>();
 	}
-
-	SourceTranslator->SetResultsContainer(Results);
-
 	AlternateTexturePath = PayLoadKey;
-
 	return TextureTranslator->GetTexturePayloadData(PayLoadKey, AlternateTexturePath);
 }
 
