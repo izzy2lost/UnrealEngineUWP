@@ -995,6 +995,9 @@ namespace UnrealBuildTool
 					Target.WindowsPlatform.Compiler = WindowsCompiler.Clang;
 				}
 				Target.StaticAnalyzer = StaticAnalyzer.Default;
+
+				// Clang static analysis requires non unity builds
+				Target.bUseUnityBuild = false;
 			}
 			else if (Target.StaticAnalyzer != StaticAnalyzer.None &&
 					 Target.StaticAnalyzerOutputType != StaticAnalyzerOutputType.Text)

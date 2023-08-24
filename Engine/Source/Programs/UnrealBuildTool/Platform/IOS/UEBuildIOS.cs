@@ -716,7 +716,7 @@ namespace UnrealBuildTool
 			{
 				Target.StaticAnalyzer = StaticAnalyzer.Default;
 				Target.StaticAnalyzerOutputType = (Environment.GetEnvironmentVariable("CLANG_ANALYZER_OUTPUT")?.Contains("html", StringComparison.OrdinalIgnoreCase) == true) ? StaticAnalyzerOutputType.Html : StaticAnalyzerOutputType.Text;
-				Target.StaticAnalyzerMode = String.Equals(Environment.GetEnvironmentVariable("CLANG_STATIC_ANALYZER_MODE"), "shallow") ? StaticAnalyzerMode.Shallow : StaticAnalyzerMode.Deep;
+				Target.StaticAnalyzerMode = String.Equals(Environment.GetEnvironmentVariable("CLANG_STATIC_ANALYZER_MODE"), "shallow", StringComparison.OrdinalIgnoreCase) ? StaticAnalyzerMode.Shallow : StaticAnalyzerMode.Deep;
 			}
 			else if (Target.StaticAnalyzer == StaticAnalyzer.Clang)
 			{
@@ -728,6 +728,9 @@ namespace UnrealBuildTool
 			{
 				Target.bDisableLinking = true;
 				Target.bIgnoreBuildOutputs = true;
+
+				// Clang static analysis requires non unity builds
+				Target.bUseUnityBuild = false;
 			}
 
 			// we assume now we are building with IOS8 or later
