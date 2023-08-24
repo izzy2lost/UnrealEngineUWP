@@ -202,7 +202,7 @@ namespace mu
     
     // clang-format off
 
-    const TCHAR* s_opNames[ size_t(OP_TYPE::COUNT) ] =
+    const TCHAR* s_opNames[ int32(OP_TYPE::COUNT) ] =
 	{
 		TEXT("NONE             "),
 
@@ -257,8 +257,6 @@ namespace mu
 		
 		TEXT("CO_SAMPLEIMAGE   "),
 		TEXT("CO_SWIZZLE       "),
-		TEXT("CO_IMAGESIZE     "),
-		TEXT("CO_LAYOUTBLOCKTR "),
 		TEXT("CO_FROMSCALARS   "),
 		TEXT("CO_ARITHMETIC    "),
 
@@ -299,14 +297,12 @@ namespace mu
         TEXT("ME_REMOVEMASK    "),
         TEXT("ME_FORMAT        "),
         TEXT("ME_EXTRACTLABLOCK"),
-        TEXT("ME_EXTRACTFACEGRP"),
 		TEXT("ME_TRANSFORM     "),
 		TEXT("ME_CLIPMORPHPLANE"),
         TEXT("ME_CLIPWITHMESH  "),
         TEXT("ME_SETSKELETON   "),
         TEXT("ME_PROJECT       "),
         TEXT("ME_APPLYPOSE     "),
-        TEXT("ME_REMAPINDICES  "),
 		TEXT("ME_GEOMETRYOP	   "),
 		TEXT("ME_BINDSHAPE	   "),
 		TEXT("ME_APPLYSHAPE	   "),
@@ -329,6 +325,8 @@ namespace mu
 		TEXT("LA_REMOVEBLOCKS  "),
 		TEXT("LA_FROMMESH	   "),
 	};
+
+	static_assert(sizeof(s_opNames) / sizeof(void*) == int32(OP_TYPE::COUNT));
 
     // clang-format on
 

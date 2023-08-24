@@ -619,22 +619,6 @@ namespace mu
                 break;
             }
 
-			case OP_TYPE::ME_EXTRACTFACEGROUP:
-			{
-				recurse = false;
-
-				const ASTOpFixed* op = dynamic_cast<const ASTOpFixed*>(node.get());
-
-				// todo: check if we really need all of them
-				uint64_t newState = currentSemantics;
-				newState |= (UINT64_C(1) << MBS_LAYOUTBLOCK);
-				newState |= (UINT64_C(1) << MBS_CHART);
-				newState |= (UINT64_C(1) << MBS_VERTEXINDEX);
-
-				RecurseWithState(op->children[op->op.args.MeshExtractFaceGroup.source].child(), newState);
-				break;
-			}
-
 			case OP_TYPE::LA_FROMMESH:
 			{
 				recurse = false;

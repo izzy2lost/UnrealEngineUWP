@@ -50,7 +50,6 @@
 #include "MuR/OpMeshGeometryOperation.h"
 #include "MuR/OpMeshMerge.h"
 #include "MuR/OpMeshMorph.h"
-#include "MuR/OpMeshRemapIndices.h"
 #include "MuR/OpMeshRemove.h"
 #include "MuR/OpMeshReshape.h"
 #include "MuR/OpMeshTransform.h"
@@ -1851,63 +1850,6 @@ namespace mu
             break;
         }
 
-        case OP_TYPE::ME_EXTRACTFACEGROUP:
-        {
-			OP::MeshExtractFaceGroupArgs args = pModel->GetPrivate()->m_program.GetOpArgs<OP::MeshExtractFaceGroupArgs>(item.At);
-            switch (item.Stage)
-            {
-            case 0:
-			{
-				if (args.source)
-				{
-					AddOp(FScheduledOp(item.At, item, 1),
-						FScheduledOp(args.source, item));
-				}
-				else
-				{
-					StoreMesh(item, nullptr);
-				}
-
-				break;
-			}
-            case 1:
-            {
-				MUTABLE_CPUPROFILER_SCOPE(ME_EXTRACTFACEGROUP_1)
-
-                Ptr<const Mesh> Source = LoadMesh(FCacheAddress(args.source, item));
-				if (Source)
-				{
-					Ptr<Mesh> Result = CreateMesh();
-
-					bool bOutSuccess = false;
-					MeshExtractFaceGroup(Result.get(), Source.get(), args.group, bOutSuccess);
-
-					Release(Source);
-					if (!bOutSuccess)
-					{
-						check(false);
-						Release(Result);
-						StoreMesh(item, nullptr);
-					}
-					else
-					{
-						StoreMesh(item, Result);
-					}
-				}
-				else
-				{
-					StoreMesh(item, nullptr);
-				}
-                break;
-            }
-
-            default:
-                check(false);
-            }
-
-            break;
-        }
-
         case OP_TYPE::ME_TRANSFORM:
         {
 			OP::MeshTransformArgs args = pModel->GetPrivate()->m_program.GetOpArgs<OP::MeshTransformArgs>(item.At);
@@ -2193,64 +2135,6 @@ namespace mu
 
 			break;
 		}
-
-        case OP_TYPE::ME_REMAPINDICES:
-        {
-			OP::MeshRemapIndicesArgs args = pModel->GetPrivate()->m_program.GetOpArgs<OP::MeshRemapIndicesArgs>(item.At);
-            switch (item.Stage)
-            {
-            case 0:
-			{
-				if (args.source)
-				{
-					AddOp(FScheduledOp(item.At, item, 1),
-						FScheduledOp(args.source, item),
-						FScheduledOp(args.reference, item));
-				}
-				else
-				{
-					StoreMesh(item, nullptr);
-				}
-				break;
-			}
-            case 1:
-            {
-    			MUTABLE_CPUPROFILER_SCOPE(ME_REMAPINDICES_1)
-
-                Ptr<const Mesh> Source = LoadMesh(FCacheAddress(args.source,item));
-                Ptr<const Mesh> pReference = LoadMesh(FCacheAddress(args.reference,item));
-
-                // Only if both are valid.
-                MeshPtr Result = CreateMesh(Source ? Source->GetDataSize() : 0);
-                
-				bool bOutSuccess = false;
-				if (Source && pReference)
-                {	
-                    MeshRemapIndices(Result.get(), Source.get(), pReference.get(), bOutSuccess);
-                }
-			
-				Release(pReference);
-				if (!bOutSuccess)
-				{
-					Release(Result);
-					StoreMesh(item, Source);
-				}
-				else
-				{	
-					Release(Source);
-					StoreMesh(item, Result);
-				}
-
-                break;
-            }
-
-            default:
-                check(false);
-            }
-
-            break;
-        }
-
 
         case OP_TYPE::ME_APPLYPOSE:
         {
@@ -5483,84 +5367,6 @@ namespace mu
                     {
                         FVector4f p = LoadColor( FCacheAddress(args.sources[t],item) );
                         result[t] = p[ args.sourceChannels[t] ];
-                    }
-                }
-
-                StoreColor( item, result );
-                break;
-            }
-
-            default:
-                check(false);
-            }
-
-            break;
-        }
-
-        case OP_TYPE::CO_IMAGESIZE:
-        {
-			OP::ColourImageSizeArgs args = pModel->GetPrivate()->m_program.GetOpArgs<OP::ColourImageSizeArgs>(item.At);
-            switch (item.Stage)
-            {
-            case 0:
-                    AddOp( FScheduledOp( item.At, item, 1),
-                           FScheduledOp( args.image, item) );
-                break;
-
-            case 1:
-            {
-                Ptr<const Image> pImage = LoadImage( FCacheAddress(args.image,item) );
-
-				FVector4f result = FVector4f( (float)pImage->GetSizeX(), (float)pImage->GetSizeY(), 0.0f, 0.0f );
-
-				Release(pImage);
-                StoreColor( item, result );
-                break;
-            }
-
-            default:
-                check(false);
-            }
-
-            break;
-        }
-
-        case OP_TYPE::CO_LAYOUTBLOCKTRANSFORM:
-        {
-			OP::ColourLayoutBlockTransformArgs args = pModel->GetPrivate()->m_program.GetOpArgs<OP::ColourLayoutBlockTransformArgs>(item.At);
-            switch (item.Stage)
-            {
-            case 0:
-                    AddOp( FScheduledOp( item.At, item, 1),
-                           FScheduledOp( args.layout, item) );
-                break;
-
-            case 1:
-            {
-                Ptr<const Layout> pLayout = LoadLayout( FCacheAddress(args.layout,item) );
-
-				FVector4f result = FVector4f(0,0,0,0);
-                if ( pLayout )
-                {
-                    int relBlockIndex = pLayout->FindBlock( args.block );
-
-                    if( relBlockIndex >=0 )
-                    {
-                        box< UE::Math::TIntVector2<uint16> > rectInblocks;
-                        pLayout->GetBlock
-                                (
-                                    relBlockIndex,
-                                    &rectInblocks.min[0], &rectInblocks.min[1],
-                                    &rectInblocks.size[0], &rectInblocks.size[1]
-                                    );
-
-                        // Convert the rect from blocks to pixels
-                        FIntPoint grid = pLayout->GetGridSize();
-
-                        result = FVector4f( float(rectInblocks.min[0]) / float(grid[0]),
-                                              float(rectInblocks.min[1]) / float(grid[1]),
-                                              float(rectInblocks.size[0]) / float(grid[0]),
-                                              float(rectInblocks.size[1]) / float(grid[1]) );
                     }
                 }
 

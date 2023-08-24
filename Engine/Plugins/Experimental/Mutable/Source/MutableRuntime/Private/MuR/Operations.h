@@ -122,14 +122,6 @@ namespace mu
         //! Make a color by shuffling channels from other colours.
         CO_SWIZZLE,
 
-        //! Make a "color" from the size of an image. Colours are used as a generic vector here.
-		//! \TODO: Deprecated?
-		CO_IMAGESIZE,
-
-        //! Encode a layout block transformation in a vector: position = (x,y) size = ( z, w )
-		//! \TODO: Deprecated?
-		CO_LAYOUTBLOCKTRANSFORM,
-
         //! Compose a vector from 4 scalars
         CO_FROMSCALARS,
 
@@ -257,10 +249,6 @@ namespace mu
         //! Extract a fragment of a mesh containing a specific layout block.
         ME_EXTRACTLAYOUTBLOCK,
 
-        //! Extract a fragment of a mesh containing a specific face group.
-		//! \TODO: Deprecated?
-		ME_EXTRACTFACEGROUP,
-
         //! Apply a transform in a 4x4 matrix to the geometry channels of the mesh
         ME_TRANSFORM,
 
@@ -279,11 +267,6 @@ namespace mu
 
         //! Deform a skinned mesh applying a skeletal pose
         ME_APPLYPOSE,
-
-		//! Remap the vertex index buffer with the ones in the reference mesh, using the current
-		//! ones as relative to that mesh.
-		//! \TODO: Deprecated?
-		ME_REMAPINDICES,
 
 		//! Apply a geometry core operation to a mesh.
 		//! \TODO: Deprecated?
@@ -501,18 +484,7 @@ namespace mu
             ADDRESS sources[ MUTABLE_OP_MAX_SWIZZLE_CHANNELS ];
         };
 
-        struct ColourImageSizeArgs
-        {
-            ADDRESS image;
-        };
-
-        struct ColourLayoutBlockTransformArgs
-        {
-            ADDRESS layout;
-            uint16 block;
-        };
-
-        struct ColourMultiplyArgs
+		struct ColourMultiplyArgs
         {
             ADDRESS a,b;
         };
@@ -914,13 +886,6 @@ namespace mu
 
         };
 
-
-        struct MeshExtractFaceGroupArgs
-        {
-            ADDRESS source;
-            uint32 group;
-        };
-
 		struct MeshTransformArgs
 		{
 			ADDRESS source;
@@ -1143,9 +1108,7 @@ namespace mu
             //-------------------------------------------------------------------------------------
             ColourSampleImageArgs ColourSampleImage;
             ColourSwizzleArgs ColourSwizzle;
-            ColourImageSizeArgs ColourImageSize;
             ColourMultiplyArgs ColourMultiply;
-            ColourLayoutBlockTransformArgs ColourLayoutBlockTransform;
             ColourFromScalarsArgs ColourFromScalars;
             ArithmeticArgs ColourArithmetic;
 
@@ -1173,7 +1136,6 @@ namespace mu
             MeshMergeArgs MeshMerge;
             MeshInterpolateArgs MeshInterpolate;
             MeshMaskDiffArgs MeshMaskDiff;
-            MeshExtractFaceGroupArgs MeshExtractFaceGroup;
 			MeshClipMorphPlaneArgs MeshClipMorphPlane;
             MeshClipWithMeshArgs MeshClipWithMesh;
             MeshSetSkeletonArgs MeshSetSkeleton;

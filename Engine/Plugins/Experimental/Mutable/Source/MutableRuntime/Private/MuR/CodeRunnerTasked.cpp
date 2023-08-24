@@ -137,8 +137,6 @@ namespace mu
 		    
 		{   0,   0,   0,   0 },	// CO_SAMPLEIMAGE
 		{   0,   0,   0,   0 },	// CO_SWIZZLE
-		{   0,   0,   0,   0 },	// CO_IMAGESIZE
-		{   0,   0,   0,   0 },	// CO_LAYOUTBLOCKTRANSFORM
 		{   0,   0,   0,   0 },	// CO_FROMSCALARS
 		{   0,   0,   0,   0 },	// CO_ARITHMETIC
 		    
@@ -186,7 +184,6 @@ namespace mu
 		{   0,   0,   0,   0 },	// ME_SETSKELETON
 		{   0,   0,   0,   0 },	// ME_PROJECT
 		{   0,   0,   0,   0 },	// ME_APPLYPOSE
-		{   0,   0,   0,   0 },	// ME_REMAPINDICES
 		{   0,   0,   0,   0 },	// ME_GEOMETRYOPERATION
 		{   0, -20,   0,   0 },	// ME_BINDSHAPE
 		{   0, -10,   0,   0 },	// ME_APPLYSHAPE

@@ -53,7 +53,7 @@ namespace mu
 
         typedef enum {
             FT_LAYOUT_BLOCKS = 0,
-            FT_FACE_GROUP
+            FT_FACE_GROUP_DEPRECATED
         } FRAGMENT_TYPE;
 
         //! Get the type of mesh fragment to extract.

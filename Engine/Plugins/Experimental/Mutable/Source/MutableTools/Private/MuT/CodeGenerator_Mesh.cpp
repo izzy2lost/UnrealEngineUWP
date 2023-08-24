@@ -948,16 +948,9 @@ class Node;
                 }
             }
 
-            else if ( node.m_fragmentType==NodeMeshFragment::FT_FACE_GROUP )
+            else
             {
-				// \TODO: Deprecated?
-                Ptr<ASTOpFixed> op = new ASTOpFixed();
-                OutResult.meshOp = op;
-
-                op->op.type = OP_TYPE::ME_EXTRACTFACEGROUP;
-
-                op->SetChild( op->op.args.MeshExtractFaceGroup.source, BaseResult.meshOp );
-                op->op.args.MeshExtractFaceGroup.group = node.m_layoutOrGroup;
+				check(false);
             }
 
         }

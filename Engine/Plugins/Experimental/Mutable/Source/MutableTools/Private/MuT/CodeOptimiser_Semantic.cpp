@@ -1116,7 +1116,7 @@ namespace mu
 				// still an integer after relative scale
 				bool acceptable = false;
 				{
-					auto typedAt = dynamic_cast<const ASTOpImageCompose*>(at.get());
+					const ASTOpImageCompose* typedAt = dynamic_cast<const ASTOpImageCompose*>(at.get());
 					Ptr<ASTOp> originalBaseOp = typedAt->Base.child();
 
 					// \todo: recursion-proof cache?
@@ -1283,7 +1283,7 @@ namespace mu
 				break;
 			}
 
-            case OP_TYPE::IM_TRANSFORM:
+			case OP_TYPE::IM_TRANSFORM:
 			{
 				// It can only sink in the transform if it doesn't have it's own size.
 				const ASTOpImageTransform* TypedAt = dynamic_cast<const ASTOpImageTransform*>(at.get());
@@ -1378,8 +1378,8 @@ namespace mu
 				at = sourceOp;
                 break;
             }
-            
-            case OP_TYPE::IM_TRANSFORM:
+
+			case OP_TYPE::IM_TRANSFORM:
 			{
 				// Set the size in the children and remove resize
 				Ptr<ASTOpImageTransform> sourceOp = mu::Clone<ASTOpImageTransform>(sourceAt.get());
@@ -1656,7 +1656,7 @@ namespace mu
 
 			case OP_TYPE::IM_BLANKLAYOUT:
 			{
-				auto newOp = mu::Clone<ASTOpFixed>(sourceAt);
+				Ptr<ASTOpFixed> newOp = mu::Clone<ASTOpFixed>(sourceAt);
 
 				newOp->op.args.ImageBlankLayout.blockSize[0] =
 					uint16(newOp->op.args.ImageBlankLayout.blockSize[0]
@@ -1672,22 +1672,16 @@ namespace mu
 
 			case OP_TYPE::IM_PLAINCOLOUR:
 			{
-				auto newOp = mu::Clone<ASTOpFixed>(sourceAt);
+				Ptr<ASTOpFixed> newOp = mu::Clone<ASTOpFixed>(sourceAt);
 
-				newOp->op.args.ImagePlainColour.size[0] =
-					uint16(newOp->op.args.ImagePlainColour.size[0]
-						* op.args.ImageResizeRel.factor[0]
-						+ 0.5f);
-				newOp->op.args.ImagePlainColour.size[1] =
-					uint16(newOp->op.args.ImagePlainColour.size[1]
-						* op.args.ImageResizeRel.factor[1]
-						+ 0.5f);
+				newOp->op.args.ImagePlainColour.size[0] = FMath::CeilToInt( newOp->op.args.ImagePlainColour.size[0] * op.args.ImageResizeRel.factor[0] );
+				newOp->op.args.ImagePlainColour.size[1] = FMath::CeilToInt( newOp->op.args.ImagePlainColour.size[1] * op.args.ImageResizeRel.factor[1] );
 				newOp->op.args.ImagePlainColour.LODs = 1; // TODO
 				at = newOp;
 				break;
 			}
 
-            case OP_TYPE::IM_TRANSFORM:
+			case OP_TYPE::IM_TRANSFORM:
 			{
 				// We can only optimize here if we know the transform result size, otherwise, we will sink the op in the sinker.
 				const ASTOpImageTransform* typedAt = dynamic_cast<const ASTOpImageTransform*>(sourceAt.get());

@@ -1210,11 +1210,6 @@ FImageDesc ASTOpFixed::GetImageDesc( bool returnBestOption, FGetImageDescContext
 		res = GetImageDesc(op.args.ImageInvert.base, returnBestOption, context);
 		break;
 
-    case OP_TYPE::CO_IMAGESIZE:
-        res = GetImageDesc( op.args.ColourImageSize.image, returnBestOption, context );
-        res.m_format = EImageFormat::IF_NONE;
-        break;
-
 	case OP_TYPE::IM_COLOURMAP:
 		res = GetImageDesc( op.args.ImageColourMap.base, returnBestOption, context );
 		break;
@@ -1542,8 +1537,6 @@ bool ASTOpFixed::IsColourConstant(FVector4f& colour) const
 
     case OP_TYPE::CO_SAMPLEIMAGE:
     case OP_TYPE::CO_SWIZZLE:
-    case OP_TYPE::CO_IMAGESIZE:
-    case OP_TYPE::CO_LAYOUTBLOCKTRANSFORM:
     case OP_TYPE::CO_FROMSCALARS:
     case OP_TYPE::CO_ARITHMETIC:
 

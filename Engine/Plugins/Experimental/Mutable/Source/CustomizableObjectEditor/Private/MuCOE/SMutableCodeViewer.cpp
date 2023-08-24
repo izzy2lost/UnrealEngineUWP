@@ -1022,7 +1022,7 @@ void SMutableCodeViewer::GenerateNavigationDropdownElements()
 	
 	// Add an extra operation type that will represent the constant resource based navigation type
 	{
-		const FText EntryName = FText::FromString("CONST_RESOURCE_BASED_NAV");	
+		const FText EntryName = FText::FromString("Selected Constant");	
 		const FSlateColor EntryColor = FSlateColor(FLinearColor(0.35f ,0.35f,1.0f,1));
 		ConstantBasedNavigationEntry = MakeShared<FMutableOperationElement>(mu::OP_TYPE::NONE,EntryName,0,EntryColor);
 		
