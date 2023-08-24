@@ -1464,7 +1464,8 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 		}
 
 		// should also do this for #manual changes (set up some testing around those first)
-		if (change.forceCreateAShelf || change.isUserRequest) {
+		if (change.forceCreateAShelf && optWorkspaceOverride) {
+		//if (change.forceCreateAShelf || change.isUserRequest) {
 			if (!optWorkspaceOverride && (result.info.targets || []).length == 1) {
 				const workspaces: ClientSpec[] = await p4util.getWorkspacesForUser(this.p4, result.info.owner!)
 
