@@ -33,6 +33,7 @@
 #include "Containers/Map.h"
 #include "Shader/ShaderTypes.h"
 #include "SparseVolumeTexture/SparseVolumeTexture.h"
+#include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
 
 #if WITH_EDITORONLY_DATA
 #include "Materials/MaterialExpressionSceneTexture.h"
@@ -52,6 +53,8 @@
 #include "StrataMaterial.h"
 #include "HLSLMaterialDerivativeAutogen.h"
 #endif
+
+#include "HLSLMaterialTranslator.generated.h"
 
 class Error;
 
@@ -232,6 +235,277 @@ enum EStrataCompilationContext : uint8
 	SCC_MAX = 2u
 };
 
+
+/** Data structure used to cache a part of material translation results. It contains all the generated
+    defines that will be declared during the compilation of the generated material shader. */
+USTRUCT()
+struct FHLSLMaterialTranslatorEnvironmentDefines
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	bool bNeedsParticlePosition;
+
+	UPROPERTY()
+	bool bNeedsParticleVelocity;
+
+	UPROPERTY()
+	bool bUseDynamicParameters;
+
+	UPROPERTY()
+	uint32 DynamicParametersMask;
+
+	UPROPERTY()
+	bool bNeedsParticleTime;
+
+	UPROPERTY()
+	bool bUsesParticleMotionBlur;
+
+	UPROPERTY()
+	bool bNeedsParticleRandom;
+
+	UPROPERTY()
+	bool bSphericalParticleOpacity;
+
+	UPROPERTY()
+	bool bUseParticleSubUVs;
+
+	UPROPERTY()
+	bool bLightmapUVAccess;
+
+	UPROPERTY()
+	bool bUsesAOMaterialMask;
+
+	UPROPERTY()
+	bool bUsesSpeedtree;
+
+	UPROPERTY()
+	bool bNeedsWorldPositionExcludingShaderOffsets;
+
+	UPROPERTY()
+	bool bNeedsParticleSize;
+
+	UPROPERTY()
+	bool bNeedsParticleSpriteRotation;
+
+	UPROPERTY()
+	bool bNeedsSceneTextures;
+
+	UPROPERTY()
+	bool bUsesEyeAdaptation;
+
+	UPROPERTY()
+	bool bVirtualTextureOutput;
+
+	UPROPERTY()
+	bool bUsesPerInstanceCustomData;
+
+	UPROPERTY()
+	bool bUsesPerInstanceRandom;
+
+	UPROPERTY()
+	bool bUsesPerInstanceFadeAmount;
+
+	UPROPERTY()
+	bool bUsesVertexInterpolator;
+
+	UPROPERTY()
+	bool bUsesSkyAtmosphere;
+
+	UPROPERTY()
+	bool bUsesVertexColor;
+
+	UPROPERTY()
+	bool bUsesParticleColor;
+
+	UPROPERTY()
+	bool bUsesParticleLocalToWorld;
+
+	UPROPERTY()
+	bool bUsesParticleWorldToLocal;
+
+	UPROPERTY()
+	bool bUsesInstanceLocalToWorldPS;
+
+	UPROPERTY()
+	bool bUsesInstanceWorldToLocalPS;
+
+	UPROPERTY()
+	bool bUsesTransformVector;
+
+	UPROPERTY()
+	bool bUsesPixelDepthOffset;
+
+	UPROPERTY()
+	bool bUsesWorldPositionOffset;
+
+	UPROPERTY()
+	bool bUsesDisplacement;
+
+	UPROPERTY()
+	bool bUsesEmissiveColor;
+
+	UPROPERTY()
+	bool bUsesDistortion;
+
+	UPROPERTY()
+	bool bDistortionAccountForCoverage;
+
+	UPROPERTY()
+	bool bMaterialEnableTranslucencyFogging;
+
+	UPROPERTY()
+	bool bMaterialEnableTranslucencyCloudFogging;
+
+	UPROPERTY()
+	bool bMaterialIsSky;
+
+	UPROPERTY()
+	bool bMaterialComputeFogPerPixel;
+
+	UPROPERTY()
+	bool bMaterialFullyRough;
+
+	UPROPERTY()
+	bool bMaterialUsesAnisotropy;
+
+	UPROPERTY()
+	uint8 MaterialDecalReadMask;
+
+	UPROPERTY()
+	bool bMaterialUsesDecalLookup;
+
+	UPROPERTY()
+	uint8 MaterialPathTracingBufferRead;
+
+	UPROPERTY()
+	uint32 NumVirtualTextureSamples;
+
+	UPROPERTY()
+	bool bMaterialVirtualTextureFeedback;
+
+	enum EVirtualPageType
+	{
+		TABLE0 = 0,
+		TABLE1 = 1,
+		TABLE_INDIRECTION = 2
+	};
+
+	UPROPERTY()
+	TArray<uint8> VirtualPageTypes;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UMaterialParameterCollection>> ParameterCollections;
+
+	UPROPERTY()
+	bool bSingleLayerWaterShadingQuality;
+
+	UPROPERTY()
+	bool bShadingModelsIsLit;
+
+	UPROPERTY()
+	uint32 MaterialShadingModelEnabled;
+
+	UPROPERTY()
+	bool bMaterialSubsurfaceProfileUseCurvature;
+
+	UPROPERTY()
+	bool bMaterialShadingModelEyeUseCurvature;
+
+	UPROPERTY()
+	bool bDisableForwardLocalLights;
+
+	UPROPERTY()
+	bool bSingleLayerWaterSeparatedMainLight;
+
+	UPROPERTY()
+	bool bMaterialSingleShadingModel;
+
+	UPROPERTY()
+	bool bMaterialVolumetricAdvanced;
+
+	UPROPERTY()
+	bool bMaterialVolumetricAdvancedPhasePerSample;
+
+	UPROPERTY()
+	bool bMaterialVolumetricAdvancedGreyscaleMaterial;
+
+	UPROPERTY()
+	bool bMaterialVolumetricAdvancedRaymarchVolumeShadow;
+
+	UPROPERTY()
+	bool bMaterialVolumetricAdvancedClampMultiscatteringContribution;
+
+	UPROPERTY()
+	uint32 MaterialVolumetricAdvancedMultiscatteringOctaveCount;
+
+	UPROPERTY()
+	bool bMaterialVolumetricAdvancedConservativeDensity;
+
+	UPROPERTY()
+	bool bMaterialVolumetricAdvancedOverrideAmbientOcclusion;
+
+	UPROPERTY()
+	bool bMaterialVolumetricAdvancedAdvancedGroundContribution;
+
+	UPROPERTY()
+	bool bMaterialVolumetricCloudEmptySpaceSkippingOutput;
+
+	UPROPERTY()
+	bool bMaterialIsStrata;
+
+	UPROPERTY()
+	bool bDualSourceColorBlendingEnabled;
+
+	UPROPERTY()
+	bool bStrataPremultipliedAlphaOpacityOverridden;
+
+	UPROPERTY()
+	bool bStrataUsesConversionFromLegacy;
+
+	UPROPERTY()
+	bool bStrataMaterialOutputOpaqueRoughRefractions;
+
+	UPROPERTY()
+	int32 StrataMaterialExportType;
+
+	UPROPERTY()
+	int32 StrataMaterialExportContext;
+
+	UPROPERTY()
+	int32 StrataMaterialExportLegacyBlendMode;
+
+	UPROPERTY()
+	bool bStrataOptimizedUnlit;
+
+	UPROPERTY()
+	bool bStrataSinglePath;
+
+	UPROPERTY()
+	bool bStrataFastPath;
+
+	UPROPERTY()
+	uint32 StrataClampedBSDFCount;
+
+	UPROPERTY()
+	bool bStrataComplexSpecialPath;
+
+	UPROPERTY()
+	bool bTextureSampleDebug;
+
+	UPROPERTY()
+	TArray<FString> StrataDefineKeys;
+
+	UPROPERTY()
+	TArray<int32> StrataDefineValues;
+	
+	bool HasShadingModel(EMaterialShadingModel model) const
+	{
+		return (MaterialShadingModelEnabled & (1 << model)) != 0;
+	}
+};
+
+
 class FHLSLMaterialTranslator : public FMaterialCompiler
 {
 	friend class FMaterialDerivativeAutogen;
@@ -277,12 +551,6 @@ protected:
 	FString TranslatedAttributesCodeChunks[SF_NumFrequencies];
 
 	uint64 MaterialAttributesReturned[SF_NumFrequencies];
-
-	/** Line number of the #line in MaterialTemplate.usf */
-	int32 MaterialTemplateLineNumber;
-
-	/** Contents of the MaterialTemplate.usf file */
-	FString MaterialTemplate;
 
 	TArray<int32> ScopeStack;
 
@@ -526,7 +794,7 @@ protected:
 
 		bool StrataGenerateDerivedMaterialOperatorData(FHLSLMaterialTranslator* Compiler);
 
-		void StrataEvaluateSharedLocalBases(FHLSLMaterialTranslator* Compiler, uint8& RequestedSharedLocalBasesCount, FShaderCompilerEnvironment* OutEnvironment);
+		void StrataEvaluateSharedLocalBases(FHLSLMaterialTranslator* Compiler, uint8& RequestedSharedLocalBasesCount, FHLSLMaterialTranslatorEnvironmentDefines* OutEnvironment);
 
 		FStrataSharedLocalBasesInfo StrataCompilationInfoGetMatchingSharedLocalBasisInfo(const FStrataRegisteredSharedLocalBasis& SearchedSharedLocalBasis);
 
@@ -1323,14 +1591,52 @@ protected:
 	/**Experimental access to the EyeAdaptation RT for applying an inverse. */
 	virtual int32 EyeAdaptationInverse(int32 LightValueArg, int32 AlphaArg) override;
 
-	// to only have one piece of code dealing with error handling if the Primitive constant buffer is not used.
-	// @param Name e.g. TEXT("ObjectWorldPositionAndRadius.w")
+	/**
+	 * To only have one piece of code dealing with error handling if the Primitive constant buffer is not used.
+	 * @param Name e.g. TEXT("ObjectWorldPositionAndRadius.w")
+	 */
 	int32 GetPrimitiveProperty(EMaterialValueType Type, const TCHAR* ExpressionName, const TCHAR* HLSLName);
 
-	// The compiler can run in a different state and this affects caching of sub expression, Expressions are different (e.g. View.PrevWorldViewOrigin) when using previous frame's values
+	/**
+	 * The compiler can run in a different state and this affects caching of sub expression, Expressions are different(e.g.View.PrevWorldViewOrigin) when using previous frame's values.
+	 */
 	virtual bool IsCurrentlyCompilingForPreviousFrame() const;
 
 	virtual bool IsDevelopmentFeatureEnabled(const FName& FeatureName) const override;
+
+	/**
+	 * Creates the key hash for this material translation request.
+	 */
+	FIoHash ComputeMaterialTranslationDDCKeyHash();
+
+	/**
+	 * Queries the DDC cache for a cached translation.
+	 * @param DDCKeyHash out the material key hash used to query the DDC.
+	 * @return Whether the speecified key is in the DDC.
+	 */
+	bool QueryDDCCachedTranslationResults(const FIoHash& DDCKeyHash);
+	
+	/**
+	 * Prepares the Environment Defines array based on compilation results.
+	 */
+	void PrepareEnvironmentDefines();
+	
+	/**
+	 * Prepares the material source generation parameters.
+	 */
+	void PrepareMaterialSourceStringParameters();
+	
+	/**
+	 * Pushes the final results to the DDC cache.
+	 * @param DDCKeyHash the hash of the material key use to push the results. Returned by QueryDDCCachedTranslationResults().
+	 */
+	void PushResultsToDDCCache(const FIoHash& DDCKeyHash);
+
+	/** The output material shader defines */
+	FHLSLMaterialTranslatorEnvironmentDefines EnvironmentDefines;
+	
+	/** The material shader source template parameters */
+	TMap<FString, FString> MaterialSourceTemplateParams;
 };
 
 #endif // WITH_EDITORONLY_DATA
