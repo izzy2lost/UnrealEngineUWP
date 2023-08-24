@@ -668,11 +668,6 @@ namespace UnrealBuildTool
 		public WarningLevel DeterministicWarningLevel = WarningLevel.Off;
 
 		/// <summary>
-		/// Emits compilation errors for incorrect UE_LOG format strings.
-		/// </summary>
-		public bool bValidateFormatStrings = true;
-
-		/// <summary>
 		/// Directory where to put crash report files for platforms that support it
 		/// </summary>
 		public string? CrashDiagnosticDirectory;
@@ -784,7 +779,6 @@ namespace UnrealBuildTool
 			bDeterministic = Other.bDeterministic;
 			DeterministicWarningLevel = Other.DeterministicWarningLevel;
 			CrashDiagnosticDirectory = Other.CrashDiagnosticDirectory;
-			bValidateFormatStrings = Other.bValidateFormatStrings;
 		}
 
 		public CppCompileEnvironment(CppCompileEnvironment Other, UnrealArch OverrideArchitecture)

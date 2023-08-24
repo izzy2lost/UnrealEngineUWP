@@ -1637,6 +1637,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Emits compilation errors for incorrect UE_LOG format strings.
 		/// </summary>
+		[RequiresUniqueBuildEnvironment]
 		[XmlConfigFile(Category = "BuildConfiguration")]		
 		public bool bValidateFormatStrings
 		{
@@ -3273,8 +3274,6 @@ namespace UnrealBuildTool
 		public bool bAdaptiveUnityCompilesHeaderFiles => Inner.bAdaptiveUnityCompilesHeaderFiles;
 
 		public int MinGameModuleSourceFilesForUnityBuild => Inner.MinGameModuleSourceFilesForUnityBuild;
-
-		public bool bValidateFormatStrings => Inner.bValidateFormatStrings;
 
 		public WarningLevel DefaultWarningLevel => Inner.DefaultWarningLevel;
 

@@ -4766,7 +4766,6 @@ namespace UnrealBuildTool
 			GlobalCompileEnvironment.bDeterministic = Rules.bDeterministic;
 			GlobalCompileEnvironment.CrashDiagnosticDirectory = Rules.CrashDiagnosticDirectory;
 			GlobalCompileEnvironment.bCodeCoverage = Rules.bCodeCoverage;
-			GlobalCompileEnvironment.bValidateFormatStrings = Rules.bValidateFormatStrings;
 
 			GlobalLinkEnvironment.bUseDebugCRT = bUseDebugCRT;
 			GlobalLinkEnvironment.bUseStaticCRT = Rules.bUseStaticCRT;

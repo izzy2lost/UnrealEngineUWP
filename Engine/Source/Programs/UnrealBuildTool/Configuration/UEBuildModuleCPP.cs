@@ -1022,7 +1022,6 @@ namespace UnrealBuildTool
 			foreach (string Definition in Definitions)
 			{
 				if (Definition.Contains("UE_IS_ENGINE_MODULE") ||
-					Definition.Contains("UE_VALIDATE_FORMAT_STRINGS") ||
 					Definition.Contains("DEPRECATED_FORGAME") ||
 					Definition.Contains("UE_DEPRECATED_FORGAME") ||
 					Definition.Contains("UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_"))
@@ -1095,13 +1094,6 @@ namespace UnrealBuildTool
 						Definitions.Remove(OldDefine);
 					}
 					Definitions.AddRange(EngineIncludeOrderHelper.GetDeprecationDefines(ModuleCompileEnvironment.IncludeOrderVersion));
-				}
-
-				// Modify definitions if we need to create a new shared pch for validating format strings
-				if (ModuleCompileEnvironment.bValidateFormatStrings != Template.BaseCompileEnvironment.bValidateFormatStrings)
-				{
-					Definitions.RemoveAll(x => x.Contains("UE_VALIDATE_FORMAT_STRINGS"));
-					Definitions.Add($"UE_VALIDATE_FORMAT_STRINGS={(ModuleCompileEnvironment.bValidateFormatStrings ? "1" : "0")}");
 				}
 
 				// Create a suffix to distinguish this shared PCH variant from any others. Currently only optimized and non-optimized shared PCHs are supported.
@@ -1227,11 +1219,6 @@ namespace UnrealBuildTool
 			{
 				return false;
 			}
-			
-			if (ModuleCompileEnvironment.bValidateFormatStrings != CompileEnvironment.bValidateFormatStrings)
-			{
-				return false;
-			}
 			return true;
 		}
 
@@ -1275,17 +1262,6 @@ namespace UnrealBuildTool
 				else
 				{
 					Variant += ".NoExceptions";
-				}
-			}
-			if (CompileEnvironment.bValidateFormatStrings != BaseCompileEnvironment.bValidateFormatStrings)
-			{
-				if (CompileEnvironment.bValidateFormatStrings)
-				{
-					Variant += ".ValFmtStr";
-				}
-				else
-				{
-					Variant += ".NoValFmtStr";
 				}
 			}
 
@@ -1349,7 +1325,6 @@ namespace UnrealBuildTool
 			CompileEnvironment.CppStandard = ModuleCompileEnvironment.CppStandard;
 			CompileEnvironment.CStandard = ModuleCompileEnvironment.CStandard;
 			CompileEnvironment.IncludeOrderVersion = ModuleCompileEnvironment.IncludeOrderVersion;
-			CompileEnvironment.bValidateFormatStrings = ModuleCompileEnvironment.bValidateFormatStrings;
 		}
 
 		/// <summary>
@@ -1586,7 +1561,6 @@ namespace UnrealBuildTool
 							if (!Rules.bTreatAsEngineModule)
 							{
 								Writer.AppendLine("#undef UE_IS_ENGINE_MODULE");
-								Writer.AppendLine("#undef UE_VALIDATE_FORMAT_STRINGS");
 								Writer.AppendLine("#undef DEPRECATED_FORGAME");
 								Writer.AppendLine("#define DEPRECATED_FORGAME DEPRECATED");
 								Writer.AppendLine("#undef UE_DEPRECATED_FORGAME");
@@ -1881,7 +1855,7 @@ namespace UnrealBuildTool
 			Result.bEnableUndefinedIdentifierWarnings = Rules.bEnableUndefinedIdentifierWarnings;
 			Result.IncludeOrderVersion = Rules.IncludeOrderVersion;
 			Result.DeterministicWarningLevel = Rules.DeterministicWarningLevel;
-			Result.bValidateFormatStrings = Rules.bValidateFormatStrings;
+
 			Result.bUseAutoRTFMCompiler = Target.bUseAutoRTFMCompiler;
 
 			// Only enable the AutoRTFM flag if we are using the AutoRTFM compiler
@@ -1971,8 +1945,6 @@ namespace UnrealBuildTool
 				Result.Definitions.Add("UE_IS_ENGINE_MODULE=0");
 			}
 
-			Result.Definitions.Add($"UE_VALIDATE_FORMAT_STRINGS={(Rules.bValidateFormatStrings ? "1" : "0")}");
-
 			Result.Definitions.AddRange(EngineIncludeOrderHelper.GetDeprecationDefines(Rules.IncludeOrderVersion));
 
 			// If module intermediate files are under the project folder we can set UE_PROJECT_NAME and friends.
@@ -2019,7 +1991,6 @@ namespace UnrealBuildTool
 			// Use the default optimization setting for
 			CompileEnvironment.bOptimizeCode = ShouldEnableOptimization(ModuleRules.CodeOptimization.Default, Target.Configuration, Rules.bTreatAsEngineModule, Rules.bCodeCoverage);
 			CompileEnvironment.bCodeCoverage = Rules.bCodeCoverage;
-			CompileEnvironment.bValidateFormatStrings = Rules.bValidateFormatStrings;
 
 			// Override compile environment
 			CompileEnvironment.bIsBuildingDLL = !Target.ShouldCompileMonolithic();
@@ -2034,8 +2005,6 @@ namespace UnrealBuildTool
 			{
 				CompileEnvironment.Definitions.Add("UE_IS_ENGINE_MODULE=0");
 			}
-
-			CompileEnvironment.Definitions.Add($"UE_VALIDATE_FORMAT_STRINGS={(Rules.bValidateFormatStrings ? "1" : "0")}");
 
 			CompileEnvironment.Definitions.AddRange(EngineIncludeOrderHelper.GetDeprecationDefines(Rules.IncludeOrderVersion));
 
