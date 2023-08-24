@@ -781,6 +781,16 @@ namespace UnrealBuildTool
 		public bool bTreatAsEngineModule;
 
 		/// <summary>
+		/// Emits compilation errors for incorrect UE_LOG format strings.
+		/// </summary>
+		public bool bValidateFormatStrings
+		{
+			get => bValidateFormatStringsPrivate ?? (bTreatAsEngineModule || Target.bValidateFormatStrings);
+			set => bValidateFormatStringsPrivate = value;
+		}
+		private bool? bValidateFormatStringsPrivate;
+
+		/// <summary>
 		/// Which engine version's build settings to use by default. 
 		/// </summary>
 		public BuildSettingsVersion DefaultBuildSettings
