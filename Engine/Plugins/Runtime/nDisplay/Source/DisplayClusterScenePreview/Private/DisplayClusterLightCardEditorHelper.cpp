@@ -1196,8 +1196,11 @@ void FDisplayClusterLightCardEditorHelper::InternalMoveActorTo(
 	SetActorCoordinates(Actor, FSphericalCoordinates(InverseRotatedPosition));
 	Actor->UpdateStageActorTransform();
 
-	ADisplayClusterRootActor* RootActor = (Actor->IsProxy() || !LevelInstanceRootActor.IsValid()) ? CachedRootActor.Get() : LevelInstanceRootActor.Get();
-	RootActor->MakeStageActorFlushToWall(Actor.AsActor());
+	if (Actor->IsAlwaysFlushToWall())
+	{
+		ADisplayClusterRootActor* RootActor = (Actor->IsProxy() || !LevelInstanceRootActor.IsValid()) ? CachedRootActor.Get() : LevelInstanceRootActor.Get();
+		RootActor->MakeStageActorFlushToWall(Actor.AsActor());
+	}
 
 #if WITH_EDITOR
 	if (!Actor->IsProxy())
