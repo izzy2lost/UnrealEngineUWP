@@ -2859,6 +2859,12 @@ void UContentBrowserAssetDataSource::OnObjectPreSave(UObject* InObject, FObjectP
 
 void UContentBrowserAssetDataSource::OnPathAdded(const FString& InPath)
 {
+	// Completely ignore paths that do not pass the most inclusive filter
+	if (!ContentBrowserDataUtils::PathPassesAttributeFilter(InPath, 0, EContentBrowserItemAttributeFilter::IncludeAll))
+	{
+		return;
+	}
+
 	FName PathName(InPath);
 	RecentlyPopulatedAssetFolders.Empty();
 	
