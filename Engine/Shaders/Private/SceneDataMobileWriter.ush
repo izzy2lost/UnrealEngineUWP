@@ -13,6 +13,9 @@ void WriteDataElementUBO(RWStructuredBuffer<float4> Output, uint Offset, uint Da
 #endif
 }
 
+//
+// Note: layout must match FBatchedPrimitiveShaderData in PrimitiveUniformShaderParameters.cpp
+//
 void WritePrimitiveDataUBO(RWStructuredBuffer<float4> Output, uint Offset, FPrimitiveSceneData PrimitiveData, uint MeshLODIndex)
 {
 	uint DataIdx = 0;

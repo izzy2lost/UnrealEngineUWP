@@ -129,8 +129,7 @@ void FRendererModule::InitializeSystemTextures(FRHICommandListImmediate& RHICmdL
 
 BEGIN_SHADER_PARAMETER_STRUCT(FDrawTileMeshPassParameters, )
 	SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FInstanceCullingGlobalUniforms, InstanceCulling)
+	SHADER_PARAMETER_STRUCT_INCLUDE(FInstanceCullingDrawParams, InstanceCullingDrawParams)
 	SHADER_PARAMETER_STRUCT_REF(FReflectionCaptureShaderData, ReflectionCapture)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FDebugViewModePassUniformParameters, DebugViewMode)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FTranslucentBasePassUniformParameters, TranslucentBasePass)
@@ -213,6 +212,48 @@ FSceneUniformBuffer* FRendererModule::CreateSinglePrimitiveSceneUniformBuffer(FR
 	return &SceneUniforms;
 }
 
+TRDGUniformBufferRef<FBatchedPrimitiveParameters> FRendererModule::CreateSinglePrimitiveUniformView(FRDGBuilder& GraphBuilder, const FViewInfo& SceneView, FMeshBatch& Mesh)
+{
+	check(PlatformGPUSceneUsesUniformBufferView(SceneView.GetShaderPlatform()));
+
+	FBatchedPrimitiveParameters* BatchedPrimitiveParameters = GraphBuilder.AllocParameters<FBatchedPrimitiveParameters>();
+
+	FRDGBufferDesc PrimitiveDataBufferDesc = FRDGBufferDesc::CreateStructuredDesc(16u, (PLATFORM_MAX_UNIFORM_BUFFER_RANGE / 16u));
+	PrimitiveDataBufferDesc.Usage |= EBufferUsageFlags::UniformBuffer;
+	FRDGBufferRef PrimitiveDataBuffer = nullptr;
+	
+	ERHIFeatureLevel::Type FeatureLevel = SceneView.GetFeatureLevel();
+	if (Mesh.VertexFactory->GetPrimitiveIdStreamIndex(FeatureLevel, EVertexInputStreamType::PositionOnly) >= 0)
+	{
+		FMeshBatchElement& MeshElement = Mesh.Elements[0];
+		checkf(Mesh.Elements.Num() == 1, TEXT("Only 1 batch element currently supported by CreateSinglePrimitiveSceneUniformBuffer"));
+		checkf(MeshElement.PrimitiveUniformBuffer == nullptr, TEXT("CreateSinglePrimitiveUniformView does not currently support an explicit primitive uniform buffer on vertex factories which manually fetch primitive data.  Use PrimitiveUniformBufferResource instead."));
+
+		if (MeshElement.PrimitiveUniformBufferResource)
+		{
+			checkf(MeshElement.NumInstances == 1, TEXT("CreateSinglePrimitiveUniformView does not currently support instancing"));
+			// Force PrimitiveId to be 0 in the shader
+			MeshElement.PrimitiveIdMode = PrimID_ForceZero;
+			FPrimitiveUniformShaderParameters PrimitiveParams = *(const FPrimitiveUniformShaderParameters*)MeshElement.PrimitiveUniformBufferResource->GetContents();
+			// Now we just need to fill out the first entry of a batched primitive data in a buffer
+			FBatchedPrimitiveShaderData ShaderData(PrimitiveParams);
+			PrimitiveDataBuffer = GraphBuilder.CreateBuffer(PrimitiveDataBufferDesc, TEXT("SinglePrimitiveUniformView"));
+			GraphBuilder.QueueBufferUpload(PrimitiveDataBuffer, ShaderData.Data.GetData(), ShaderData.Data.Num() * sizeof(FVector4f));
+		}
+	}
+
+	if (PrimitiveDataBuffer == nullptr)
+	{
+		// Upload Identity parameters
+		FBatchedPrimitiveShaderData ShaderData{};
+		PrimitiveDataBuffer = GraphBuilder.CreateBuffer(PrimitiveDataBufferDesc, TEXT("SinglePrimitiveUniformView"));
+		GraphBuilder.QueueBufferUpload(PrimitiveDataBuffer, ShaderData.Data.GetData(), ShaderData.Data.Num() * sizeof(FVector4f));
+	}
+
+	BatchedPrimitiveParameters->Data = GraphBuilder.CreateSRV(PrimitiveDataBuffer);
+	return GraphBuilder.CreateUniformBuffer(BatchedPrimitiveParameters);
+}
+
 void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPassProcessorRenderState& DrawRenderState, const FSceneView& SceneView, FMeshBatch& Mesh, bool bIsHitTesting, const FHitProxyId& HitProxyId, bool bUse128bitRT)
 {
 	if (!GUsingNullRHI)
@@ -279,9 +320,13 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 		auto* PassParameters = GraphBuilder.AllocParameters<FDrawTileMeshPassParameters>();
 		PassParameters->RenderTargets[0] = FRenderTargetBinding(RenderContext.GetRenderTarget(), ERenderTargetLoadAction::ELoad);
 		PassParameters->View = View.GetShaderParameters();
-		PassParameters->Scene = SceneUniforms.GetBuffer(GraphBuilder);
+		PassParameters->InstanceCullingDrawParams.Scene = SceneUniforms.GetBuffer(GraphBuilder);
+		PassParameters->InstanceCullingDrawParams.InstanceCulling = FInstanceCullingContext::CreateDummyInstanceCullingUniformBuffer(GraphBuilder);
+		if (UseGPUScene(View.GetShaderPlatform(), FeatureLevel) && PlatformGPUSceneUsesUniformBufferView(View.GetShaderPlatform()))
+		{
+			PassParameters->InstanceCullingDrawParams.BatchedPrimitive = CreateSinglePrimitiveUniformView(GraphBuilder, View, Mesh);
+		}
 		PassParameters->ReflectionCapture = EmptyReflectionCaptureUniformBuffer;
-		PassParameters->InstanceCulling = FInstanceCullingContext::CreateDummyInstanceCullingUniformBuffer(GraphBuilder);
 
 		// handle translucent material blend modes, not relevant in MaterialTexCoordScalesAnalysis since it outputs the scales.
 		if (ViewFamily->GetDebugViewShaderMode() == DVSM_OutputMaterialTextureScales)

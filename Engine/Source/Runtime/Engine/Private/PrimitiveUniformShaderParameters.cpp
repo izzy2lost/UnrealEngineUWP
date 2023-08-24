@@ -282,3 +282,122 @@ FPrimitiveUniformShaderParameters GetIdentityPrimitiveParameters()
 			.LocalBounds(FBoxSphereBounds(EForceInit::ForceInit))
 		.Build();
 }
+
+
+FBatchedPrimitiveShaderData::FBatchedPrimitiveShaderData(const FPrimitiveSceneProxy* RESTRICT Proxy)
+	: Data(InPlace, NoInit)
+{
+	FPrimitiveUniformShaderParametersBuilder Builder = FPrimitiveUniformShaderParametersBuilder{};
+	Proxy->BuildUniformShaderParameters(Builder);
+	Setup(Builder.Build());
+}
+
+void FBatchedPrimitiveShaderData::Setup(const FPrimitiveUniformShaderParameters& PrimitiveUniformShaderParameters)
+{
+	static_assert(NUM_LIGHTING_CHANNELS == 3, "The FPrimitiveSceneShaderData packing currently assumes a maximum of 3 lighting channels.");
+	
+	// Note: layout must match LoadPrimitiveDataUBO in SceneDataMobileLoader.ush
+	int32 i = 0;
+
+	const bool bAllowStaticLighting = FReadOnlyCVARCache::Get().bAllowStaticLighting;
+	if (bAllowStaticLighting)
+	{
+		FVector4f LightMapUVScaleBias = FVector4f(1, 1, 0, 0);
+		FVector4f ShadowMapUVScaleBias = FVector4f(1, 1, 0, 0);
+		uint32 LightMapDataIdx = 0;
+
+		// FIXME: valid lightmap data
+		Data[i+0] = LightMapUVScaleBias;
+		Data[i+1] = ShadowMapUVScaleBias;
+		Data[i+2] = FVector4f(FMath::AsFloat(LightMapDataIdx), 0.f, 0.f, 0.f);
+		i+=3;
+	}
+
+	// TilePosition, Flags
+	{
+		Data[i].X = PrimitiveUniformShaderParameters.TilePosition.X;
+		Data[i].Y = PrimitiveUniformShaderParameters.TilePosition.Y;
+		Data[i].Z = PrimitiveUniformShaderParameters.TilePosition.Z;
+		Data[i].W = FMath::AsFloat(PrimitiveUniformShaderParameters.Flags);
+		i+=1;
+	}
+	
+	// LocalToWorld
+	{
+		FMatrix44f LocalToRelativeWorldTranspose = PrimitiveUniformShaderParameters.LocalToRelativeWorld.GetTransposed();
+		Data[i+0] = *(const FVector4f*)&LocalToRelativeWorldTranspose.M[0][0];
+		Data[i+1] = *(const FVector4f*)&LocalToRelativeWorldTranspose.M[1][0];
+		Data[i+2] = *(const FVector4f*)&LocalToRelativeWorldTranspose.M[2][0];
+		i+=3;
+	}
+
+	// InvNonUniformScale, TODO .w
+	{
+		Data[i+0] = FVector4f(PrimitiveUniformShaderParameters.InvNonUniformScale, 0.0f);
+		i+=1;
+	}
+
+	// ObjectWorldPosition, Radius
+	{
+		Data[i+0] = PrimitiveUniformShaderParameters.ObjectRelativeWorldPositionAndRadius;
+		i+=1;
+	}
+
+	// ActorWorldPosition, TODO .w
+	{
+		Data[i+0] = FVector4f(PrimitiveUniformShaderParameters.ActorRelativeWorldPosition, 0.0f);
+		i+=1;
+	}
+
+	// ObjectOrientation, ObjectBoundsX
+	{
+		Data[i+0] = FVector4f(PrimitiveUniformShaderParameters.ObjectOrientation, PrimitiveUniformShaderParameters.ObjectBoundsX);
+		i+=1;
+	}
+
+	// LocalObjectBoundsMin, ObjectBoundsY
+	{
+		Data[i+0] = FVector4f(PrimitiveUniformShaderParameters.LocalObjectBoundsMin, PrimitiveUniformShaderParameters.ObjectBoundsY);
+		i+=1;
+	}
+
+	// LocalObjectBoundsMax, ObjectBoundsZ
+	{
+		Data[i+0] = FVector4f(PrimitiveUniformShaderParameters.LocalObjectBoundsMax, PrimitiveUniformShaderParameters.ObjectBoundsZ);
+		i+=1;
+	}
+
+	// WorldToLocal
+	{
+		FMatrix44f RelativeWorldToLocalTranspose = PrimitiveUniformShaderParameters.RelativeWorldToLocal.GetTransposed();
+		Data[i+0] = *(const FVector4f*)&RelativeWorldToLocalTranspose.M[0][0];
+		Data[i+1] = *(const FVector4f*)&RelativeWorldToLocalTranspose.M[1][0];
+		Data[i+2] = *(const FVector4f*)&RelativeWorldToLocalTranspose.M[2][0];
+		i+=3;
+	}
+
+	// PreviousLocalToWorld
+	{
+		FMatrix44f PreviousLocalToRelativeWorldTranspose = PrimitiveUniformShaderParameters.PreviousLocalToRelativeWorld.GetTransposed();
+		Data[i+0] = *(const FVector4f*)&PreviousLocalToRelativeWorldTranspose.M[0][0];
+		Data[i+1] = *(const FVector4f*)&PreviousLocalToRelativeWorldTranspose.M[1][0];
+		Data[i+2] = *(const FVector4f*)&PreviousLocalToRelativeWorldTranspose.M[2][0];
+		i+=3;
+	}
+
+	// PreviousWorldToLocal
+	{
+		FMatrix44f PreviousRelativeWorldToLocalTranspose = PrimitiveUniformShaderParameters.PreviousRelativeWorldToLocal.GetTransposed();
+		Data[i+0] = *(const FVector4f*)&PreviousRelativeWorldToLocalTranspose.M[0][0];
+		Data[i+1] = *(const FVector4f*)&PreviousRelativeWorldToLocalTranspose.M[1][0];
+		Data[i+2] = *(const FVector4f*)&PreviousRelativeWorldToLocalTranspose.M[2][0];
+		i+=3;
+	}
+	
+	// Set all the custom primitive data float4. This matches the loop in SceneData.ush
+	int32 NumCustomData = FMath::Min<int32>(FCustomPrimitiveData::NumCustomPrimitiveDataFloat4s, DataStrideInFloat4s - i);
+	for (int32 DataIndex = 0; DataIndex < FCustomPrimitiveData::NumCustomPrimitiveDataFloat4s; ++DataIndex)
+	{
+		Data[i + DataIndex] = PrimitiveUniformShaderParameters.CustomPrimitiveData[DataIndex];
+	}
+}

@@ -82,7 +82,12 @@ public:
 		PreserveInstanceOrder		= 1 << 2
 	};
 
-	static constexpr uint32 UniformViewInstanceStride[2] = { 256u, 512u }; // One for each BatchProcessingMode
+	static constexpr uint32 UniformViewInstanceStride[2] = 
+	{	// One for each BatchProcessingMode
+		BATCHED_INSTANCE_DATA_STRIDE, 
+		BATCHED_PRIMITIVE_DATA_STRIDE 
+	};
+
 	static constexpr uint32 IndirectArgsNumWords = 5;
 	static constexpr uint32 CompactionBlockNumInstances = 64;
 	RENDERER_API static uint32 GetInstanceIdBufferStride(EShaderPlatform ShaderPlatform);
