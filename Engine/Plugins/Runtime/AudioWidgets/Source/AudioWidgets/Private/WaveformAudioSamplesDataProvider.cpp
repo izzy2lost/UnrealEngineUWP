@@ -112,7 +112,6 @@ namespace AudioWidgets
 	{
 		if (bIsProcessing)
 		{
-			UE_LOG(LogAudioWidgets, Error, TEXT("StartProcessing invoked while having an active processing. Try call StopProcessing before calling StartProcessing."));
 			return;
 		}
 
