@@ -990,30 +990,6 @@ const TCHAR* FGenericPlatformMisc::GetSystemErrorMessage(TCHAR* OutBuffer, int32
 	return OutBuffer;
 }
 
-void FGenericPlatformMisc::ClipboardCopy(const TCHAR* Str)
-{
-	if(ClipboardCopyShim == nullptr)
-	{
-		UE_LOG(LogGenericPlatformMisc, Warning, TEXT("ClipboardCopyShim() is not bound; ignoring."));
-	}
-	else
-	{
-		ClipboardCopyShim(Str);
-	}
-}
-
-void FGenericPlatformMisc:: ClipboardPaste(class FString& Dest)
-{
-	if(ClipboardPasteShim == nullptr)
-	{
-		UE_LOG(LogGenericPlatformMisc, Warning, TEXT("ClipboardPasteShim() is not bound; ignoring."));
-	}
-	else
-	{
-		ClipboardPasteShim(Dest);
-	}
-}
-
 void FGenericPlatformMisc::CreateGuid(FGuid& Guid)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FGenericPlatformMisc_CreateGuid);

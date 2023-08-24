@@ -1055,14 +1055,6 @@ public:
 	 */
 	static CORE_API const TCHAR* GetSystemErrorMessage(TCHAR* OutBuffer, int32 BufferCount, int32 Error);
 
-	/** Copies text to the operating system clipboard. */
-	UE_DEPRECATED(4.18, "FPlatformMisc::ClipboardCopy() has been superseded by FPlatformApplicationMisc::ClipboardCopy()")
-	static CORE_API void ClipboardCopy(const TCHAR* Str);
-
-	/** Pastes in text from the operating system clipboard. */
-	UE_DEPRECATED(4.18, "FPlatformMisc::ClipboardPaste() has been superseded by FPlatformApplicationMisc::ClipboardPaste()")
-	static CORE_API void ClipboardPaste(class FString& Dest);
-
 	/** Create a new globally unique identifier. **/
 	static CORE_API void CreateGuid(struct FGuid& Result);
 
