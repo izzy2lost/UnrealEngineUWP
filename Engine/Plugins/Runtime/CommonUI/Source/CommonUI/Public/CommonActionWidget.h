@@ -106,6 +106,9 @@ protected:
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	FDataTableRowHandle InputActionDataRow_DEPRECATED;
+
+	UPROPERTY(EditAnywhere, Category = "CommonActionWidget")
+	FKey DesignTimeKey;
 #endif
 
 protected:
