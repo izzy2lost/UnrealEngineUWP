@@ -728,7 +728,11 @@ class EdgeBotImpl extends PerforceStatefulBot {
 
 		// try to submit
 		this._log_action(`Submitting CL ${changenum} by ${info.author}`)
-		const result = await this.p4.submit(this.targetBranch.workspace, changenum)
+		const result = await this.p4.submit(
+			pending.change.targetWorkspaceOverride || this.targetBranch.workspace, 
+			changenum,
+			pending.change.edgeServerToHostShelf && pending.change.edgeServerToHostShelf.address)
+			
 		if (typeof result === "string") {
 			// an error occurred while submitting
 			return new EdgeIntegrationDetails('error', result);

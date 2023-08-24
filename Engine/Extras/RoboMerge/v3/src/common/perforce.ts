@@ -1027,11 +1027,11 @@ export class PerforceContext {
 
 	// submit a CL
 	// output format is final CL number or false if changes need more resolution
-	async submit(roboWorkspace: RoboWorkspace, changelist: number): Promise<number | string> {
+	async submit(roboWorkspace: RoboWorkspace, changelist: number, edgeServerAddress?: string): Promise<number | string> {
 		const workspace = coercePerforceWorkspace(roboWorkspace)
 		let rawOutput: string
 		try {
-			rawOutput = await this._execP4(workspace, ['-ztag', 'submit', '-f', 'submitunchanged', '-c', changelist.toString()])
+			rawOutput = await this._execP4(workspace, ['-ztag', 'submit', '-f', 'submitunchanged', '-c', changelist.toString()], {edgeServerAddress})
 		}
 		catch ([errArg, output]) {
 			const err = errArg.toString().trim()
