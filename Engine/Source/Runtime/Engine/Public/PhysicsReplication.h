@@ -94,6 +94,8 @@ struct FReplicatedPhysicsTargetAsync
 		: AccumulatedErrorSeconds(0.0f)
 		, ServerFrame(INDEX_NONE)
 		, ReceiveFrame(INDEX_NONE)
+		, ReceiveInterval(5)
+		, AverageReceiveInterval(5.f)
 	{ }
 
 	/** The target state replicated by server */
@@ -113,6 +115,10 @@ struct FReplicatedPhysicsTargetAsync
 
 	/** The local client frame when receiving this target from the server */
 	int32 ReceiveFrame;
+
+	/** Local physics frames between received targets */
+	uint8 ReceiveInterval;
+	float AverageReceiveInterval;
 
 	/** The replication mode this PhysicsObject should use */
 	EPhysicsReplicationMode RepMode;
