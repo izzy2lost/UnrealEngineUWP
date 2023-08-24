@@ -1,6 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Tasks/SimpleTargetingSelectionTask.h"
+#include "GameFramework/Actor.h"
 
 void USimpleTargetingSelectionTask::Execute(const FTargetingRequestHandle& TargetingHandle) const
 {
