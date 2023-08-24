@@ -4,8 +4,6 @@
 
 #include "PCGSettings.h"
 
-#include "PCGPin.h"
-
 #include "PCGMakeConcreteElement.generated.h"
 
 /** Makes data Concrete, collapsing to Point if necessary. Discards non-Spatial data. */

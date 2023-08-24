@@ -6,7 +6,6 @@
 
 #include "Engine/CollisionProfile.h"
 
-#include "PCGPin.h"
 #include "PCGStaticMeshSpawner.generated.h"
 
 class UPCGInstanceDataPackerBase;

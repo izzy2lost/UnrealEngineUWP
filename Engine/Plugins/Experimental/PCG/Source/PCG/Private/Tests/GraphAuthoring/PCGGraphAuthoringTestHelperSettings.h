@@ -3,8 +3,6 @@
 
 #include "PCGSettings.h"
 
-#include "PCGPin.h"
-
 #include "PCGGraphAuthoringTestHelperSettings.generated.h"
 
 /** Testing helper - generates a node with a single input and output pin of the stipulated type. */

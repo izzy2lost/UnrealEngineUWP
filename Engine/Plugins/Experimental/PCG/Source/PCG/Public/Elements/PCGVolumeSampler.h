@@ -5,7 +5,6 @@
 #include "Math/Box.h"
 #include "PCGSettings.h"
 
-#include "PCGPin.h"
 #include "PCGVolumeSampler.generated.h"
 
 class UPCGPointData;

@@ -5,6 +5,7 @@
 #include "PCGData.h"
 #include "PCGDebug.h"
 #include "PCGElement.h"
+#include "PCGPin.h"
 #include "Elements/PCGActorSelector.h"
 #include "Tests/Determinism/PCGDeterminismSettings.h"
 

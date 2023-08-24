@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "PCGPin.h"
 #include "PCGSettings.h"
 
 #include "PCGDensityRemap.generated.h"

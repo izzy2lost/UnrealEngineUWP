@@ -3,7 +3,6 @@
 #pragma once
 
 #include "PCGContext.h"
-#include "PCGPin.h"
 #include "PCGSettings.h"
 #include "Data/PCGTextureData.h"
 

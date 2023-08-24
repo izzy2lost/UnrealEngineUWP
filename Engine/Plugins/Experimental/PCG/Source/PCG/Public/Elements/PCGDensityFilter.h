@@ -2,8 +2,6 @@
 
 #pragma once
 
-
-#include "PCGPin.h"
 #include "PCGSettings.h"
 
 #include "PCGDensityFilter.generated.h"

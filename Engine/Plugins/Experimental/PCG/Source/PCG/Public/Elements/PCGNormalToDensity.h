@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "PCGPin.h"
 #include "PCGSettings.h"
 #include "Elements/PCGPointProcessingElementBase.h"
 

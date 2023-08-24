@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "PCGPin.h"
 #include "PCGSubgraph.h"
 #include "Metadata/PCGAttributePropertySelector.h"
 

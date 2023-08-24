@@ -6,7 +6,6 @@
 #include "PCGSettings.h"
 #include "Elements/PCGActorSelector.h"
 
-#include "PCGPin.h"
 #include "PCGDataFromActor.generated.h"
 
 UENUM()
