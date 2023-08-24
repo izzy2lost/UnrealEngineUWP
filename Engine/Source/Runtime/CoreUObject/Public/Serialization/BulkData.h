@@ -46,6 +46,7 @@ class IAsyncReadFileHandle;
 class IAsyncReadRequest;
 class UObject;
 struct FTimespan;
+struct FIoOffsetAndLength;
 namespace UE { namespace Serialization { class FEditorBulkData; } }
 enum class EFileRegionType : uint8;
 
@@ -402,6 +403,8 @@ public:
 
 		WriteUInt40(Data + 5, uint64(Offset));
 	}
+
+	FIoOffsetAndLength GetOffsetAndLength() const;
 
 	EBulkDataLockStatus GetLockStatus() const
 	{

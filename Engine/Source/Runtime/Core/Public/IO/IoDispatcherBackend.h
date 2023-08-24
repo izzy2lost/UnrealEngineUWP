@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "IO/IoOffsetLength.h"
 #include "IoDispatcher.h"
 #include "Async/InheritedContext.h"
 #include "Misc/Optional.h"
@@ -115,7 +116,14 @@ struct IIoDispatcherBackend
 	virtual void CancelIoRequest(FIoRequestImpl* Request) = 0;
 	virtual void UpdatePriorityForIoRequest(FIoRequestImpl* Request) = 0;
 	virtual bool DoesChunkExist(const FIoChunkId& ChunkId) const = 0;
+	virtual bool DoesChunkExist(const FIoChunkId& ChunkId, const FIoOffsetAndLength& ChunkRange) const { return DoesChunkExist(ChunkId); }
 	virtual TIoStatusOr<uint64> GetSizeForChunk(const FIoChunkId& ChunkId) const = 0;
+	virtual TIoStatusOr<uint64> GetSizeForChunk(const FIoChunkId& ChunkId, const FIoOffsetAndLength& ChunkRange, uint64& OutAvailable) const
+	{
+		TIoStatusOr<uint64> ChunkSize = GetSizeForChunk(ChunkId);
+		OutAvailable = ChunkSize.IsOk() ? ChunkSize.ValueOrDie() : 0;
+		return ChunkSize;
+	}
 	virtual FIoRequestImpl* GetCompletedRequests() = 0;
 	virtual TIoStatusOr<FIoMappedRegion> OpenMapped(const FIoChunkId& ChunkId, const FIoReadOptions& Options) = 0;
 };

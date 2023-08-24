@@ -4,6 +4,7 @@
 #include "Async/MappedFileHandle.h"
 #include "HAL/IConsoleManager.h"
 #include "IO/IoDispatcher.h"
+#include "IO/IoOffsetLength.h"
 #include "Math/GuardedInt.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/Optional.h"
@@ -87,7 +88,11 @@ bool OpenReadBulkData(
 	TFunction<void(FArchive& Ar)>&& Read);
 
 /** Open async read file handle for the specified bulk data chunk ID. */
-TUniquePtr<IAsyncReadFileHandle> OpenAsyncReadBulkData(const FBulkMetaData& BulkMeta, const FIoChunkId& BulkChunkId);
+TUniquePtr<IAsyncReadFileHandle> OpenAsyncReadBulkData(
+	const FBulkMetaData& BulkMeta,
+	const FIoChunkId& BulkChunkId,
+	uint64 ChunkSize,
+	uint64 AvailableChunkSize);
 
 /** Create bulk data streaming request. */
 TUniquePtr<IBulkDataIORequest> CreateStreamingRequest(
@@ -98,9 +103,6 @@ TUniquePtr<IBulkDataIORequest> CreateStreamingRequest(
 	EAsyncIOPriorityAndFlags Priority,
 	FBulkDataIORequestCallBack* CompleteCallback,
 	uint8* UserSuppliedMemory);
-
-/** Returns whether the bulk data chunk exist or not. */
-bool DoesBulkDataExist(const FIoChunkId& BulkChunkId);
 
 /** Try memory map the chunk specified by the bulk data ID. */
 bool TryMemoryMapBulkData(
@@ -284,6 +286,16 @@ bool FBulkMetaData::FromSerialized(FArchive& Ar, int64 ElementSize, FBulkMetaDat
 	OutDuplicateOffset = Resource.DuplicateOffset;
 
 	return true;
+}
+
+FIoOffsetAndLength FBulkMetaData::GetOffsetAndLength() const
+{
+	const uint64 Offset = GetOffset();
+	const uint64 Size = GetSize();
+
+	return Offset >= 0 && Size > 0
+		? FIoOffsetAndLength(static_cast<int64>(Offset), static_cast<int64>(Size))
+		: FIoOffsetAndLength();
 }
 
 /**
@@ -761,8 +773,7 @@ bool FBulkData::DoesExist() const
 		return false;
 	}
 #endif
-
-	return UE::BulkData::Private::DoesBulkDataExist(BulkChunkId);
+	return FIoDispatcher::Get().DoesChunkExist(BulkChunkId, BulkMeta.GetOffsetAndLength());
 }
 
 /**
@@ -1585,7 +1596,14 @@ int64 FBulkData::SerializePayload(FArchive& Ar, EBulkDataFlags SerializationFlag
 
 IAsyncReadFileHandle* FBulkData::OpenAsyncReadHandle() const
 {
-	return UE::BulkData::Private::OpenAsyncReadBulkData(BulkMeta, BulkChunkId).Release();
+	uint64 AvailableChunkSize = 0;
+	TIoStatusOr<uint64> ChunkSize = FIoDispatcher::Get().GetSizeForChunk(BulkChunkId, BulkMeta.GetOffsetAndLength(), AvailableChunkSize);
+
+	return UE::BulkData::Private::OpenAsyncReadBulkData(
+		BulkMeta,
+		BulkChunkId,
+		ChunkSize.IsOk() ? ChunkSize.ValueOrDie() : 0,
+		AvailableChunkSize).Release();
 }
 
 IBulkDataIORequest* FBulkData::CreateStreamingRequest(EAsyncIOPriorityAndFlags Priority, FBulkDataIORequestCallBack* CompleteCallback, uint8* UserSuppliedMemory) const

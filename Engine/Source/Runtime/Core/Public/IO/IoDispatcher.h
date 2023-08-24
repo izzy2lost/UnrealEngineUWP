@@ -64,6 +64,7 @@ class IMappedFileHandle;
 class IMappedFileRegion;
 struct FFileRegion;
 struct IIoDispatcherBackend;
+struct FIoOffsetAndLength;
 template <typename CharType> class TStringBuilderBase;
 template <typename OptionalType> struct TOptional;
 
@@ -350,11 +351,15 @@ public:
 	static CORE_API FIoDispatcher& Get();
 
 private:
+	CORE_API bool					DoesChunkExist(const FIoChunkId& ChunkId, const FIoOffsetAndLength& ChunkRange) const;
+	CORE_API TIoStatusOr<uint64>	GetSizeForChunk(const FIoChunkId& ChunkId, const FIoOffsetAndLength& ChunkRange, uint64& OutAvailable) const;
+
 	FIoDispatcherImpl* Impl = nullptr;
 
 	friend class FIoRequest;
 	friend class FIoBatch;
 	friend class FIoQueue;
+	friend class FBulkData;
 };
 
 //////////////////////////////////////////////////////////////////////////

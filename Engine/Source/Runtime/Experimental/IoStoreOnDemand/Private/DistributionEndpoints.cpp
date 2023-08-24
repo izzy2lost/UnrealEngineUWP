@@ -16,7 +16,7 @@
 namespace UE::IO::IAS
 {
 
-extern int32 GIoDispatcherMaxHttpRetryCount;
+extern int32 GIasMaxHttpRetryCount;
 
 FDistributionEndpoints::~FDistributionEndpoints()
 {
@@ -101,7 +101,7 @@ void FDistributionEndpoints::IssueEndpointRequests()
 	TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::IssueEndpointRequests);
 	// Currently we need to use the HTTP module in order to resolve service endpoints due to HTTPS
 	FHttpModule& HttpModule = FHttpModule::Get();
-	const int32 MaxAttempts = GIoDispatcherMaxHttpRetryCount;
+	const int32 MaxAttempts = GIasMaxHttpRetryCount;
 
 	TArray<FHttpRequestPtr, TInlineAllocator<2>> HttpRequests;
 	{

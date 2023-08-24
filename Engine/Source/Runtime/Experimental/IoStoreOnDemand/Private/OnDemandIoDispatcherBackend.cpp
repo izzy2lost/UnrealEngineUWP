@@ -24,6 +24,7 @@
 #include "IO/IoStore.h"
 #include "IO/IoStoreOnDemand.h"
 #include "IasCache.h"
+#include "Math/NumericLimits.h"
 #include "Misc/ScopeLock.h"
 #include "Misc/ScopeRWLock.h"
 #include "OnDemandHttpClient.h"
@@ -39,25 +40,39 @@ namespace UE::IO::IAS
 {
 
 ///////////////////////////////////////////////////////////////////////////////
-int32 GIoDispatcherMaxHttpConnectionCount = 8;
-static FAutoConsoleVariableRef CVar_IoDispatcherMaxHttpConnectionCount (
+int32 GIasMaxHttpConnectionCount = 8;
+static FAutoConsoleVariableRef CVar_IasMaxHttpConnectionCount(
 	TEXT("ias.MaxHttpConnectionCount"),
-	GIoDispatcherMaxHttpConnectionCount,
+	GIasMaxHttpConnectionCount,
 	TEXT("Max number of open HTTP connections to the on demand endpoint(s).")
 );
 
-int32 GIoDispatcherMaxHttpRetryCount = 2;
-static FAutoConsoleVariableRef CVar_IoDispatcherMaxHttpRetryCount (
+int32 GIasMaxHttpRetryCount = 2;
+static FAutoConsoleVariableRef CVar_IasMaxHttpRetryCount(
 	TEXT("ias.MaxHttpRetryCount"),
-	GIoDispatcherMaxHttpRetryCount,
+	GIasMaxHttpRetryCount,
 	TEXT("Max number of HTTP request retries before failing the I/O request.")
 );
 
-bool GIoDispatcherBulkOptionalEnabled = true;
-static FAutoConsoleVariableRef CVar_IoDispatcherBulkOptionalEnabled(
-	TEXT("ias.BulkOptionalEnabled"),
-	GIoDispatcherBulkOptionalEnabled,
-	TEXT("Enables bulk optional requests.")
+int32 GIasHttpPollTimeoutMs = 0;
+static FAutoConsoleVariableRef CVar_IasMaxHttpPollTimeoutMs(
+	TEXT("ias.HttpPollTimeout"),
+	GIasHttpPollTimeoutMs,
+	TEXT("Tick() poll timeout in milliseconds")
+);
+
+bool GIasHttpEnabled = true;
+static FAutoConsoleVariableRef CVar_IasHttpEnabled(
+	TEXT("ias.HttpEnabled"),
+	GIasHttpEnabled,
+	TEXT("Enables individual asset streaming via HTTP")
+);
+
+bool GIasHttpOptionalBulkDataEnabled = true;
+static FAutoConsoleVariableRef CVar_IasHttpOptionalBulkDataEnabled(
+	TEXT("ias.HttpOptionalBulkDataEnabled"),
+	GIasHttpOptionalBulkDataEnabled,
+	TEXT("Enables optional bulk data via HTTP")
 );
 
 static TAutoConsoleVariable<bool> CVar_IoReportAnalytics(
@@ -494,20 +509,25 @@ private:
 ///////////////////////////////////////////////////////////////////////////////
 struct FChunkRequestParams
 {
-	static FChunkRequestParams Create(FIoRequestImpl* Request, FOnDemandIoStore::FChunkInfo ChunkInfo)
+	static FChunkRequestParams Create(const FIoOffsetAndLength& OffsetLength, FOnDemandIoStore::FChunkInfo ChunkInfo)
 	{
-		check(Request);
-		check(Request->NextRequest == nullptr);
-		const uint64 RawSize = FMath::Min(Request->Options.GetSize(), ChunkInfo.Entry->RawSize);
+		const uint64 RawSize = FMath::Min(OffsetLength.GetLength(), ChunkInfo.Entry->RawSize);
 		
 		const FIoOffsetAndLength ChunkRange = FIoChunkEncoding::GetChunkRange(
 			ChunkInfo.Entry->RawSize,
 			ChunkInfo.Container->BlockSize,
 			ChunkInfo.GetBlocks(),
-			Request->Options.GetOffset(),
+			OffsetLength.GetOffset(),
 			RawSize).ConsumeValueOrDie();
 
 		return FChunkRequestParams{GetChunkKey(ChunkInfo.Entry->Hash, ChunkRange), ChunkRange, ChunkInfo};
+	}
+
+	static FChunkRequestParams Create(FIoRequestImpl* Request, FOnDemandIoStore::FChunkInfo ChunkInfo)
+	{
+		check(Request);
+		check(Request->NextRequest == nullptr);
+		return Create(FIoOffsetAndLength(Request->Options.GetOffset(), Request->Options.GetSize()), ChunkInfo);
 	}
 
 	const FIoHash& GetUrlHash() const
@@ -632,9 +652,9 @@ struct FChunkRequest
 		return Head;
 	}
 
-	double DurationInSeconds() const
+	const FIoChunkId& GetChunkId()
 	{
-		return FPlatformTime::ToSeconds64(FPlatformTime::Cycles64() - StartTime);
+		return RequestHead->ChunkId;
 	}
 
 	FChunkRequest* NextRequest;
@@ -837,6 +857,7 @@ public:
 	virtual void CancelIoRequest(FIoRequestImpl* Request) override;
 	virtual void UpdatePriorityForIoRequest(FIoRequestImpl* Request) override;
 	virtual bool DoesChunkExist(const FIoChunkId& ChunkId) const override;
+	virtual bool DoesChunkExist(const FIoChunkId& ChunkId, const FIoOffsetAndLength& ChunkRange) const override;
 	virtual TIoStatusOr<uint64> GetSizeForChunk(const FIoChunkId& ChunkId) const override;
 	virtual FIoRequestImpl* GetCompletedRequests() override;
 	virtual TIoStatusOr<FIoMappedRegion> OpenMapped(const FIoChunkId& ChunkId, const FIoReadOptions& Options) override;
@@ -862,6 +883,12 @@ private:
 	FIoStatus MountDeferredEndpoints(const FString& DistributionUrl, const TConstArrayView<FString>& ServiceUrls);
 	static TIoStatusOr<FOnDemandToc> GetToc(const FOnDemandEndpoint& Endpoint);
 	FIoStatus AddToc(const FOnDemandEndpoint& Endpoint);
+	bool IsHttpEnabled() const { return bHttpEnabled && GIasHttpEnabled; }
+	bool IsHttpEnabled(const FIoChunkId& ChunkId) const
+	{ 
+		return (ChunkId.GetChunkType() != EIoChunkType::OptionalBulkData || (bHttpOptionalBulkDataEnabled && GIasHttpOptionalBulkDataEnabled));
+	}
+	virtual TIoStatusOr<uint64> GetSizeForChunk(const FIoChunkId& ChunkId, const FIoOffsetAndLength& ChunkRange, uint64& OutAvailable) const;
 
 	TSharedPtr<IIasCache> Cache;
 	TUniquePtr<FOnDemandIoStore> IoStore;
@@ -877,8 +904,8 @@ private:
 	FOnDemandIoBackendStats Stats;
 	FRWLock Lock;
 	std::atomic_bool bStopRequested{false};
-	std::atomic_bool bEnableBulkOptional{true};
-	std::atomic_bool bEnabled{true};
+	std::atomic_bool bHttpOptionalBulkDataEnabled{true};
+	std::atomic_bool bHttpEnabled{true};
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -898,7 +925,7 @@ void FOnDemandIoBackend::Initialize(TSharedRef<const FIoDispatcherBackendContext
 	TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::Initialize);
 	LLM_SCOPE_BYTAG(Ias);
 	UE_LOG(LogIas, Log, TEXT("Initializing on demand I/O dispatcher backend"));
-	FGenericCrashContext::SetEngineData(TEXT("IAS.Enabled"), bEnabled ? TEXT("true") : TEXT("false"));
+	FGenericCrashContext::SetEngineData(TEXT("IAS.Enabled"), bHttpEnabled.load(std::memory_order_relaxed) ? TEXT("true") : TEXT("false"));
 	BackendContext = Context;
 	DistributionEndpoints.ResolveDeferredEndpoints();
 }
@@ -937,7 +964,8 @@ void FOnDemandIoBackend::CompleteRequest(FChunkRequest* ChunkRequest)
 	FIoBuffer Chunk = MoveTemp(ChunkRequest->Chunk);
 	FIoChunkDecodingParams DecodingParams = ChunkRequest->Params.GetDecodingParams();
 
-	bool bCanCache = Cache.IsValid();
+	// Only cache chunks if HTTP streaming is enabled
+	bool bCanCache = Cache.IsValid() && IsHttpEnabled();
 	FIoRequestImpl* NextRequest = ChunkRequest->DeqeueDispatcherRequests();
 	while (NextRequest)
 	{
@@ -993,25 +1021,25 @@ bool FOnDemandIoBackend::Resolve(FIoRequestImpl* Request)
 {
 	using namespace UE::Tasks;
 
-	if (!bEnabled)
-	{
-		return false;
-	}
-	
 	FOnDemandIoStore::FChunkInfo ChunkInfo = IoStore->GetChunkInfo(Request->ChunkId);
 	if (!ChunkInfo.IsValid())
 	{
 		return false;
 	}
 
-	if ((!GIoDispatcherBulkOptionalEnabled || !bEnableBulkOptional) && Request->ChunkId.GetChunkType() == EIoChunkType::OptionalBulkData)
-	{
-		return false;
+	FChunkRequestParams RequestParams = FChunkRequestParams::Create(Request, ChunkInfo);
+
+	if (IsHttpEnabled() == false || IsHttpEnabled(Request->ChunkId) == false)
+	{ 
+		// Allow reading from the cache only when HTTP streaming is disabled otherwise the chunk may be evicted
+		// before trying to read the cache entry.
+		if (IsHttpEnabled() || Cache.IsValid() == false || Cache->ContainsChunk(RequestParams.ChunkKey) == false)
+		{
+			return false;
+		}
 	}
 
 	Stats.OnIoRequestEnqueue();
-	FChunkRequestParams RequestParams = FChunkRequestParams::Create(Request, ChunkInfo);
-
 	bool bPending = false;
 	bool bUpdatePriority = false;
 	FChunkRequest* ChunkRequest = ChunkRequests.Create(Request, RequestParams, bPending, bUpdatePriority);
@@ -1048,8 +1076,10 @@ bool FOnDemandIoBackend::Resolve(FIoRequestImpl* Request)
 			}
 		}
 
-		if (ChunkRequest->CancellationToken.IsCancelled())
+		const bool bHttpDisabled = IsHttpEnabled() == false || IsHttpEnabled(ChunkRequest->GetChunkId()) == false;
+		if (bHttpDisabled || ChunkRequest->CancellationToken.IsCancelled())
 		{
+			UE_CLOG(bHttpDisabled, LogIas, Log, TEXT("Chunk was not found in the cache and HTTP is disabled"));
 			return CompleteRequest(ChunkRequest);
 		}
 
@@ -1081,28 +1111,56 @@ void FOnDemandIoBackend::UpdatePriorityForIoRequest(FIoRequestImpl* Request)
 
 bool FOnDemandIoBackend::DoesChunkExist(const FIoChunkId& ChunkId) const
 {
-	TIoStatusOr<uint64> ChunkSize = GetSizeForChunk(ChunkId);
+	const TIoStatusOr<uint64> ChunkSize = GetSizeForChunk(ChunkId);
+	return ChunkSize.IsOk();
+}
+
+bool FOnDemandIoBackend::DoesChunkExist(const FIoChunkId& ChunkId, const FIoOffsetAndLength& ChunkRange) const
+{
+	uint64 Unused = 0;
+	const TIoStatusOr<uint64> ChunkSize = GetSizeForChunk(ChunkId, ChunkRange, Unused);
 	return ChunkSize.IsOk();
 }
 
 TIoStatusOr<uint64> FOnDemandIoBackend::GetSizeForChunk(const FIoChunkId& ChunkId) const
 {
-	if (IoStore.IsValid())
+	uint64 Unused = 0;
+	const FIoOffsetAndLength ChunkRange(0, MAX_uint64);
+	return GetSizeForChunk(ChunkId, ChunkRange, Unused);
+}
+
+TIoStatusOr<uint64> FOnDemandIoBackend::GetSizeForChunk(const FIoChunkId& ChunkId, const FIoOffsetAndLength& ChunkRange, uint64& OutAvailable) const
+{
+	OutAvailable = 0;
+
+	const FOnDemandIoStore::FChunkInfo ChunkInfo = IoStore.IsValid() ? IoStore->GetChunkInfo(ChunkId) : FOnDemandIoStore::FChunkInfo();
+	if (ChunkInfo.IsValid() == false)
 	{
-		if (!bEnabled)
-		{
-			return FIoStatus(EIoErrorCode::UnknownChunkID);
-		}
-
-		if ((!GIoDispatcherBulkOptionalEnabled || !bEnableBulkOptional) && ChunkId.GetChunkType() == EIoChunkType::OptionalBulkData)
-		{
-			return FIoStatus(EIoErrorCode::UnknownChunkID);
-		}
-
-		return IoStore->GetChunkSize(ChunkId);
+		return FIoStatus(EIoErrorCode::UnknownChunkID);
 	}
 
-	return FIoStatus(EIoErrorCode::UnknownChunkID);
+	FIoOffsetAndLength RequestedRange(ChunkRange.GetOffset(), FMath::Min(ChunkInfo.Entry->RawSize, ChunkRange.GetLength()));
+	OutAvailable = ChunkInfo.Entry->RawSize;
+
+	if (IsHttpEnabled() == false || IsHttpEnabled(ChunkId) == false)
+	{
+		if (IsHttpEnabled() || Cache.IsValid() == false)
+		{
+			return FIoStatus(EIoErrorCode::UnknownChunkID);
+		}
+
+		// When HTTP streaming is disabled, no cache entries will be evicted. 
+		const FChunkRequestParams RequestParams = FChunkRequestParams::Create(RequestedRange, ChunkInfo);
+		if (Cache->ContainsChunk(RequestParams.ChunkKey) == false)
+		{
+			return FIoStatus(EIoErrorCode::UnknownChunkID);
+		}
+
+		// Only the specified chunk range is available 
+		OutAvailable = RequestedRange.GetLength();
+	}
+
+	return TIoStatusOr<uint64>(ChunkInfo.Entry->RawSize);
 }
 
 FIoRequestImpl* FOnDemandIoBackend::GetCompletedRequests()
@@ -1204,14 +1262,14 @@ void FOnDemandIoBackend::Mount(const FOnDemandEndpoint& Endpoint)
 void FOnDemandIoBackend::SetBulkOptionalEnabled(bool bInEnabled)
 {
 	UE_LOG(LogIas, Log, TEXT("HTTP optional bulk data streaming '%s'"), bInEnabled ? TEXT("Enabled") : TEXT("Disabled"));
-	bEnableBulkOptional = bInEnabled;
+	bHttpOptionalBulkDataEnabled = bInEnabled;
 }
 
 void FOnDemandIoBackend::SetEnabled(bool bInEnabled)
 {
 	UE_LOG(LogIas, Log, TEXT("HTTP streaming '%s'"), bInEnabled ? TEXT("Enabled") : TEXT("Disabled"));
-	bEnabled = bInEnabled;
-	FGenericCrashContext::SetEngineData(TEXT("IAS.Enabled"), bEnabled ? TEXT("true") : TEXT("false"));
+	bHttpEnabled = bInEnabled;
+	FGenericCrashContext::SetEngineData(TEXT("IAS.Enabled"), bHttpEnabled.load(std::memory_order_acquire) ? TEXT("true") : TEXT("false"));
 }
 
 void FOnDemandIoBackend::ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const
@@ -1221,7 +1279,7 @@ void FOnDemandIoBackend::ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAn
 		return;
 	}
 
-	if (bEnabled)
+	if (HttpClient.IsValid())
 	{
 		AppendAnalyticsEventAttributeArray(OutAnalyticsArray, TEXT("IasCDNBackend"), HttpClient->ServiceUrl());
 
@@ -1239,12 +1297,12 @@ TArray<FIoChunkId> FOnDemandIoBackend::GetAllChunkIds()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::GetAllChunkIds);
 
-	if (!IoStore.IsValid() || !bEnabled)
+	if (!IoStore.IsValid() || !IsHttpEnabled())
 	{
 		return TArray<FIoChunkId>();
 	}
 
-	const bool bAllowOptional = GIoDispatcherBulkOptionalEnabled && bEnableBulkOptional;
+	const bool bAllowOptional = GIasHttpOptionalBulkDataEnabled && bHttpOptionalBulkDataEnabled;
 
 	return IoStore->GetAllChunkIds(bAllowOptional);
 }
@@ -1255,9 +1313,9 @@ TIoStatusOr<FOnDemandToc> FOnDemandIoBackend::GetToc(const FOnDemandEndpoint& En
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::GetToc);
 
-	for (int32 Attempt = 0, MaxAttempts = GIoDispatcherMaxHttpRetryCount; Attempt <= MaxAttempts; ++Attempt)
+	for (int32 Attempt = 0, MaxAttempts = GIasMaxHttpRetryCount; Attempt <= MaxAttempts; ++Attempt)
 	{
-		TUniquePtr<FOnDemandHttpClient> HttpClient = MakeUnique<FOnDemandHttpClient>(Endpoint.ServiceUrl, GIoDispatcherMaxHttpConnectionCount);
+		TUniquePtr<FOnDemandHttpClient> HttpClient = MakeUnique<FOnDemandHttpClient>(Endpoint.ServiceUrl, GIasMaxHttpConnectionCount);
 		TAnsiStringBuilder<256> Url;
 
 		Url << "/" << Endpoint.TocPath;
@@ -1289,7 +1347,8 @@ TIoStatusOr<FOnDemandToc> FOnDemandIoBackend::GetToc(const FOnDemandEndpoint& En
 			}
 		});
 
-		while (HttpClient->Tick());
+		const bool bBlock = true;
+		while (HttpClient->Tick(bBlock));
 
 		if (Toc.IsOk())
 		{
@@ -1312,7 +1371,7 @@ FIoStatus FOnDemandIoBackend::AddToc(const FOnDemandEndpoint& Endpoint)
 		FWriteScopeLock _(Lock);
 		if (!HttpClient.IsValid())
 		{
-			HttpClient = MakeUnique<FOnDemandHttpClient>(Endpoint.ServiceUrl, GIoDispatcherMaxHttpConnectionCount);
+			HttpClient = MakeUnique<FOnDemandHttpClient>(Endpoint.ServiceUrl, GIasMaxHttpConnectionCount);
 			BackendThread.Reset(FRunnableThread::Create(this, TEXT("IoStoreOnDemand"), 0, TPri_AboveNormal));
 		}
 	}
@@ -1366,7 +1425,7 @@ uint32 FOnDemandIoBackend::Run()
 
 							if (Status.Status().GetErrorCode() == EIoErrorCode::ReadError)
 							{
-								if (++ChunkRequest->HttpRetryCount <= GIoDispatcherMaxHttpRetryCount)
+								if (++ChunkRequest->HttpRetryCount <= GIasMaxHttpRetryCount)
 								{
 									Stats.OnHttpRetry();
 									Stats.OnHttpEnqueue();

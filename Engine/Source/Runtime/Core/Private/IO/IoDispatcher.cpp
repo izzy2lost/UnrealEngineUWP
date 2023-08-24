@@ -3,6 +3,7 @@
 #include "IO/IoDispatcher.h"
 #include "IO/IoDispatcherPrivate.h"
 #include "IO/IoStore.h"
+#include "IO/IoOffsetLength.h"
 #include "Misc/ScopeRWLock.h"
 #include "Misc/CommandLine.h"
 #include "Misc/CoreDelegates.h"
@@ -468,6 +469,18 @@ public:
 		return false;
 	}
 
+	bool DoesChunkExist(const FIoChunkId& ChunkId, const FIoOffsetAndLength& ChunkRange) const
+	{
+		for (const FBackendAndPriority& Backend : Backends)
+		{
+			if (Backend.Value->DoesChunkExist(ChunkId, ChunkRange))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	TIoStatusOr<uint64> GetSizeForChunk(const FIoChunkId& ChunkId) const
 	{
 		// Only attempt to find the size if the FIoChunkId is valid
@@ -476,6 +489,27 @@ public:
 			for (const FBackendAndPriority& Backend : Backends)
 			{
 				TIoStatusOr<uint64> Result = Backend.Value->GetSizeForChunk(ChunkId);
+				if (Result.IsOk())
+				{
+					return Result;
+				}
+			}
+			return FIoStatus(EIoErrorCode::NotFound);
+		}
+		else
+		{
+			return FIoStatus(EIoErrorCode::InvalidParameter, TEXT("FIoChunkId is not valid"));
+		}	
+	}
+	
+	TIoStatusOr<uint64> GetSizeForChunk(const FIoChunkId& ChunkId, const FIoOffsetAndLength& ChunkRange, uint64& OutAvailable) const
+	{
+		// Only attempt to find the size if the FIoChunkId is valid
+		if (ChunkId.IsValid())
+		{
+			for (const FBackendAndPriority& Backend : Backends)
+			{
+				TIoStatusOr<uint64> Result = Backend.Value->GetSizeForChunk(ChunkId, ChunkRange, OutAvailable);
 				if (Result.IsOk())
 				{
 					return Result;
@@ -902,10 +936,22 @@ FIoDispatcher::DoesChunkExist(const FIoChunkId& ChunkId) const
 	return Impl->DoesChunkExist(ChunkId);
 }
 
+bool
+FIoDispatcher::DoesChunkExist(const FIoChunkId& ChunkId, const FIoOffsetAndLength& ChunkRange) const
+{
+	return Impl->DoesChunkExist(ChunkId, ChunkRange);
+}
+
 TIoStatusOr<uint64>
 FIoDispatcher::GetSizeForChunk(const FIoChunkId& ChunkId) const
 {
 	return Impl->GetSizeForChunk(ChunkId);
+}
+
+TIoStatusOr<uint64>
+FIoDispatcher::GetSizeForChunk(const FIoChunkId& ChunkId, const FIoOffsetAndLength& ChunkRange, uint64& OutAvailable) const
+{
+	return Impl->GetSizeForChunk(ChunkId, ChunkRange, OutAvailable);
 }
 
 int64
