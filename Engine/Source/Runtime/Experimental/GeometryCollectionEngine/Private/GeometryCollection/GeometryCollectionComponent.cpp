@@ -3001,14 +3001,6 @@ void UGeometryCollectionComponent::OnCreatePhysicsState()
 				}
 			}
 			
-			TManagedArray<int32> & CollisionGroupArray = DynamicCollection->CollisionGroup;
-			{
-				for (int i = 0; i < CollisionGroupArray.Num(); i++)
-				{
-					CollisionGroupArray[i] = CollisionGroup;
-				}
-			}
-
 			// there's a code path where Level is not serialized and InitializeSharedCollisionStructures is not being called,
 			// resulting in the attribute missing and causing a crash in CopyAttribute calls later in FGeometryCollectionPhysicsProxy::Initialize
 			// @todo(chaos) we should better handle computation of dependent attribute like level

@@ -789,7 +789,6 @@ void FGeometryCollectionPhysicsProxy::InitializeDynamicCollection(FGeometryDynam
 	KeepFromDynamicCollection.Add(FGeometryCollection::SimulationTypeAttribute);
 	KeepFromDynamicCollection.Add(DynamicCollection.SimplicialsAttribute);
 	KeepFromDynamicCollection.Add(DynamicCollection.ActiveAttribute);
-	KeepFromDynamicCollection.Add(DynamicCollection.CollisionGroupAttribute);
 	DynamicCollection.CopyMatchingAttributesFrom(RestCollection, &SkipList);
 
 
@@ -1034,7 +1033,6 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 
 		const int32 NumTransforms = DynamicCollection.NumElements(FTransformCollection::TransformGroup);
 		const TManagedArray<int32>& DynamicState = DynamicCollection.DynamicState;
-		const TManagedArray<int32>& CollisionGroup = DynamicCollection.CollisionGroup;
 		const TManagedArray<bool>& SimulatableParticles = DynamicCollection.SimulatableParticles;
 		const TManagedArray<FTransform>& MassToLocal = DynamicCollection.MassToLocal;
 		const TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = DynamicCollection.Implicits;
@@ -1108,7 +1106,7 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 					ScaledInertia,
 					Transforms[TransformGroupIndex],
 					AdjustedDynamicState,
-					static_cast<int16>(CollisionGroup[TransformGroupIndex]),
+					static_cast<int16>(Parameters.CollisionGroup),
 					CollisionParticlesPerObjectFraction);
 
 				// initialize anchoring information if available 
@@ -1607,7 +1605,6 @@ Chaos::TPBDGeometryCollectionParticleHandle<Chaos::FReal, 3>* FGeometryCollectio
 {
 	FGeometryDynamicCollection& DynamicCollection = PhysicsThreadCollection;
 	TManagedArray<int32>& DynamicState = DynamicCollection.DynamicState;
-	const TManagedArray<int32>& CollisionGroup = DynamicCollection.CollisionGroup;
 	TManagedArray<int32>& ParentIndex = DynamicCollection.Parent;
 	TManagedArray<TSet<int32>>& Children = DynamicCollection.Children;
 	TManagedArray<FTransform>& Transform = DynamicCollection.Transform;
@@ -1669,8 +1666,8 @@ Chaos::TPBDGeometryCollectionParticleHandle<Chaos::FReal, 3>* FGeometryCollectio
 		Inertia,
 		ParticleTM,
 		static_cast<uint8>(DynamicState[CollectionClusterIndex]),
-		static_cast<int16>(CollisionGroup[CollectionClusterIndex]),
-		CollisionParticlesPerObjectFraction); // CollisionGroup
+		static_cast<int16>(Parameters.CollisionGroup),
+		CollisionParticlesPerObjectFraction);
 
 
 	// initialize anchoring information if available 

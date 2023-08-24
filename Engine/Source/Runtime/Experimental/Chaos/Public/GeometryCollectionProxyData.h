@@ -60,8 +60,6 @@ public:
 	typedef FTransformDynamicCollection Super;
 
 	static CHAOS_API const FName ActiveAttribute;
-	static CHAOS_API const FName CollisionGroupAttribute;
-	static CHAOS_API const FName CollisionMaskAttribute;
 	static CHAOS_API const FName DynamicStateAttribute;
 	static CHAOS_API const FName ImplicitsAttribute;
 	static CHAOS_API const FName ShapesQueryDataAttribute;
@@ -70,16 +68,29 @@ public:
 	static CHAOS_API const FName SimplicialsAttribute;
 	static CHAOS_API const FName SimulatableParticlesAttribute;
 
+	UE_DEPRECATED(5.4, "CollisionMaskAttribute is no longer supported")
+	static CHAOS_API const FName CollisionMaskAttribute;
+
+	UE_DEPRECATED(5.4, "CollisionGroupAttribute is no longer supported")
+	static CHAOS_API const FName CollisionGroupAttribute;
+
 	// Transform Group
 	TManagedArray<bool> Active;
-	TManagedArray<int32> CollisionGroup;
-	TManagedArray<int32> CollisionMask;
-	TManagedArray<int32> CollisionStructureID;
+	
 	TManagedArray<int32> DynamicState;
 	TManagedArray<Chaos::FImplicitObjectPtr> Implicits;
 	TManagedArray<FTransform> MassToLocal;
 	TManagedArray<TUniquePtr<FCollisionStructureManager::FSimplicial>> Simplicials;
 	TManagedArray<bool> SimulatableParticles;
+
+	UE_DEPRECATED(5.4, "CollisionStructureID attribute is no longer supported")
+	TManagedArray<int32> CollisionStructureID;
+
+	UE_DEPRECATED(5.4, "CollisionMask attribute is no longer supported")
+	TManagedArray<int32> CollisionMask;
+
+	UE_DEPRECATED(5.4, "CollisionGroup attribute is no longer supported - you can still set the collision group on the geometry collection")
+	TManagedArray<int32> CollisionGroup;
 
 public:
 	struct FInitialVelocityFacade

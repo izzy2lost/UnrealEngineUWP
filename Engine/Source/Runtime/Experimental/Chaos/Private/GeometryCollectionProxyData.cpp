@@ -36,8 +36,6 @@ void FTransformDynamicCollection::Construct()
 */
 
 const FName FGeometryDynamicCollection::ActiveAttribute("Active");
-const FName FGeometryDynamicCollection::CollisionGroupAttribute("CollisionGroup");
-const FName FGeometryDynamicCollection::CollisionMaskAttribute("CollisionMask");
 const FName FGeometryDynamicCollection::DynamicStateAttribute("DynamicState");
 const FName FGeometryDynamicCollection::ImplicitsAttribute("Implicits");
 const FName FGeometryDynamicCollection::ShapesQueryDataAttribute("ShapesQueryData");
@@ -46,14 +44,15 @@ const FName FGeometryDynamicCollection::SimplicialsAttribute("CollisionParticles
 const FName FGeometryDynamicCollection::SimulatableParticlesAttribute("SimulatableParticlesAttribute");
 const FName FGeometryDynamicCollection::SharedImplicitsAttribute("SharedImplicits");
 
+// Deprecated
+const FName FGeometryDynamicCollection::CollisionMaskAttribute("CollisionMask");
+const FName FGeometryDynamicCollection::CollisionGroupAttribute("CollisionGroup");
+
 FGeometryDynamicCollection::FGeometryDynamicCollection()
 	: FTransformDynamicCollection()
 {
 	// Transform Group
 	AddExternalAttribute<bool>(FGeometryDynamicCollection::ActiveAttribute, FTransformCollection::TransformGroup, Active);
-	AddExternalAttribute<int32>(FGeometryDynamicCollection::CollisionGroupAttribute, FTransformCollection::TransformGroup, CollisionGroup);
-	AddExternalAttribute<int32>(FGeometryDynamicCollection::CollisionMaskAttribute, FTransformCollection::TransformGroup, CollisionMask);
-	AddExternalAttribute("CollisionStructureID", FTransformCollection::TransformGroup, CollisionStructureID);
 	AddExternalAttribute<int32>(FGeometryDynamicCollection::DynamicStateAttribute, FTransformCollection::TransformGroup, DynamicState);
 	AddExternalAttribute(ImplicitsAttribute, FTransformCollection::TransformGroup, Implicits);
 	AddExternalAttribute("MassToLocal", FTransformCollection::TransformGroup, MassToLocal);
