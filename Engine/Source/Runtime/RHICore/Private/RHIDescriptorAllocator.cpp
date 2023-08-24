@@ -242,7 +242,11 @@ FRHIOffsetHeapDescriptorAllocator::FRHIOffsetHeapDescriptorAllocator(ERHIDescrip
 FRHIDescriptorHandle FRHIOffsetHeapDescriptorAllocator::Allocate()
 {
 	const FRHIDescriptorHandle AlocatorHandle = FRHIHeapDescriptorAllocator::Allocate();
-	return FRHIDescriptorHandle(AlocatorHandle.GetType(), AlocatorHandle.GetIndex() + HeapOffset);
+	if (AlocatorHandle.IsValid())
+	{
+		return FRHIDescriptorHandle(AlocatorHandle.GetType(), AlocatorHandle.GetIndex() + HeapOffset);
+	}
+	return FRHIDescriptorHandle();
 }
 
 void FRHIOffsetHeapDescriptorAllocator::Free(const FRHIDescriptorHandle InHandle)
