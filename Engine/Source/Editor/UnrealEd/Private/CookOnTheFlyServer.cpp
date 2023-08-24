@@ -6778,8 +6778,9 @@ void UCookOnTheFlyServer::SetInitializeConfigSettings(UE::Cook::FInitializeConfi
 		}
 	}
 
-	bRandomizeCookOrder = FParse::Param(FCommandLine::Get(), TEXT("RANDOMPACKAGEORDER")) ||
-		(FParse::Param(FCommandLine::Get(), TEXT("DIFFONLY")) && !FParse::Param(FCommandLine::Get(), TEXT("DIFFNORANDCOOK")));
+	bCookFirst = FParse::Param(FCommandLine::Get(), TEXT("CookFirst"));
+	bRandomizeCookOrder = !bCookFirst && (FParse::Param(FCommandLine::Get(), TEXT("RANDOMPACKAGEORDER")) ||
+		(FParse::Param(FCommandLine::Get(), TEXT("DIFFONLY")) && !FParse::Param(FCommandLine::Get(), TEXT("DIFFNORANDCOOK"))));
 
 	ParseCookFilters();
 
@@ -11363,7 +11364,6 @@ void UCookOnTheFlyServer::GenerateInitialRequests(FBeginCookContext& BeginContex
 		GenerateLongPackageNames(FilesInPath, FilesInPathInstigators);
 	}
 	TSet<FName> CookFirstPackages;
-	bool bCookFirst = FParse::Param(FCommandLine::Get(), TEXT("CookFirst"));
 	if (bCookFirst)
 	{
 		for (const FString& CookMap : CookMaps)

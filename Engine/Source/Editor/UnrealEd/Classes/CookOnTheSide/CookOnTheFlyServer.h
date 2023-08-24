@@ -1478,6 +1478,8 @@ private:
 	bool bRandomizeCookOrder = false;
 	/** True if commandline arguments specified that we suppress the cook of packages based on filter criteria. */
 	bool bCookFilter = false;
+	/** True if commandline arguments specify that packages on commandline should be cooked first. */
+	bool bCookFirst = false;
 	/**
 	 * Experimental feature to correctly invoke the BeginCacheForCookedPlatformData contracts for
 	 * objects created by PreSave
