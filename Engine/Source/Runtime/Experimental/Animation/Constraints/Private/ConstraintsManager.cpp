@@ -694,6 +694,13 @@ TArray< TObjectPtr<UTickableConstraint> > FConstraintsManagerController::GetAllC
 		return Empty;
 	}
 
+	// Remove stale constraints. Stale constraints may be caused to due unexpected unloading
+	// of constributing objects, such as a level sequence.
+	Manager->Constraints.RemoveAll([](const TObjectPtr<UTickableConstraint>& ExistingConstraint) -> bool
+	{
+		return !ExistingConstraint;
+	});
+
 	if (!bSorted)
 	{
 		return Manager->Constraints;
