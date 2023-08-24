@@ -10,6 +10,7 @@ namespace unsync {
 struct FCmdQueryOptions
 {
 	std::string Query;
+	std::string Args;
 	FRemoteDesc Remote;
 };
 

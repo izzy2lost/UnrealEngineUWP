@@ -501,6 +501,15 @@ FHttpConnection::CreateDefaultHttps(const std::string_view InHostAddress, uint16
 	return FHttpConnection(InHostAddress, Port, &TlsSettings);
 }
 
+FHttpConnection
+FHttpConnection::CreateDefaultHttps(const FRemoteDesc& RemoteDesc)
+{
+	FTlsClientSettings TlsSettings;
+	TlsSettings.Subject			   = RemoteDesc.HostAddress.data();
+	TlsSettings.bVerifyCertificate = RemoteDesc.bTlsVerifyCertificate;
+	return FHttpConnection(RemoteDesc.HostAddress, RemoteDesc.HostPort, &TlsSettings);
+}
+
 bool
 FHttpConnection::Open()
 {

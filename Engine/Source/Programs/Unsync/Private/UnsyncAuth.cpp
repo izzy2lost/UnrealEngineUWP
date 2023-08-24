@@ -260,10 +260,7 @@ DecodeJwtPayload(std::string JwtDataBase64Url)
 		return AppError(L"Failed to decode Base64 JWT data");
 	}
 
-	if (*JasonData.end() != 0)
-	{
-		JasonData.PushBack(0);
-	}
+	JasonData.PushBack(0);
 
 	std::string JsonErrorString;
 	Json		JsonObject = Json::parse((const char*)JasonData.Data(), JsonErrorString);

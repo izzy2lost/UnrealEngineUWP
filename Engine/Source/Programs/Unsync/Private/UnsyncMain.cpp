@@ -71,6 +71,7 @@ InnerMain(int Argc, char** Argv)
 	std::string				 ProtocolName = "jupiter";
 	std::string				 HttpHeaderFilenameUtf8;
 	std::string				 QueryStringUtf8;
+	std::string				 QueryArgsUtf8;
 	std::string				 ScavengeRootUtf8;
 	bool					 bForceOperation	 = false;
 	bool					 bAllowInsecureTls	 = false;
@@ -261,6 +262,7 @@ InnerMain(int Argc, char** Argv)
 
 	CLI::App* SubQuery = Cli.add_subcommand("query", "Run a query command on the remote server");
 	SubQuery->add_option("QueryString", QueryStringUtf8, "Query")->required();
+	SubQuery->add_option("QueryArgs", QueryArgsUtf8, "Query arguments");
 	AddProxyOptions(SubQuery);
 
 #if UNSYNC_USE_TLS
@@ -779,6 +781,7 @@ InnerMain(int Argc, char** Argv)
 	{
 		FCmdQueryOptions QueryOptions;
 		QueryOptions.Query	= QueryStringUtf8;
+		QueryOptions.Args	= QueryArgsUtf8;
 		QueryOptions.Remote = RemoteDesc;
 		return CmdQuery(QueryOptions);
 	}

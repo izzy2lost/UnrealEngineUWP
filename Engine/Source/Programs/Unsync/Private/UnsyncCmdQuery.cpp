@@ -151,8 +151,7 @@ CmdQueryLogin(const FCmdQueryOptions& Options)
 	if (AuthToken.IsOk())
 	{
 		{
-			FHttpConnection Connection		 = FHttpConnection::CreateDefaultHttps(Options.Remote.HostAddress, Options.Remote.HostPort);
-			Connection.bTlsVerifyCertificate = false;
+			FHttpConnection Connection = FHttpConnection::CreateDefaultHttps(Options.Remote);
 
 			FHttpRequest Request;
 			Request.Url			   = "/api/v1/login";
@@ -170,7 +169,6 @@ CmdQueryLogin(const FCmdQueryOptions& Options)
 				return -1;
 			}
 		}
-
 
 		UNSYNC_LOG(L"Getting user info from authentication server");
 		UNSYNC_LOG_INDENT;
@@ -208,6 +206,56 @@ CmdQueryLogin(const FCmdQueryOptions& Options)
 		return -1;
 	}
 }
+
+int32
+CmdQueryList(const FCmdQueryOptions& Options)
+{
+	TResult<FAuthToken> AuthToken = Authenticate(Options.Remote, 5 * 60);
+	if (!AuthToken.IsOk())
+	{
+		LogError(AuthToken.GetError());
+		return -1;
+	}
+
+	FHttpConnection Connection = FHttpConnection::CreateDefaultHttps(Options.Remote);
+
+	std::string Url = fmt::format("/api/v1/list?{}", Options.Args);
+
+	FHttpRequest Request;
+	Request.Url			   = Url;
+	Request.Method		   = EHttpMethod::GET;
+	Request.BearerToken	   = AuthToken->Access;
+	FHttpResponse Response = HttpRequest(Connection, Request);
+
+	Response.Buffer.PushBack(0);
+
+	std::string	 JsonErrorString;
+	json11::Json JsonObject = json11::Json::parse((const char*)Response.Buffer.Data(), JsonErrorString);
+
+	if (!JsonErrorString.empty())
+	{
+		LogError(AppError(fmt::format("JSON error: {}", JsonErrorString.c_str())));
+		return -1;
+	}
+	/*
+	if (JsonObject.is_array())
+	{
+		int32 NumFiles = int32(JsonObject.array_items().size());
+		UNSYNC_LOG("Found files: %d", NumFiles);
+		for (auto& FileIt : JsonObject.array_items())
+		{
+			if (auto Value = FileIt["path"]; Value.is_string())
+			{
+				UNSYNC_LOG(L" %hs", Value.string_value().c_str());
+			}
+		}
+	}
+	*/
+
+	wprintf(L"%hs\n", Response.Buffer.Data());
+
+	return 0;
+}
 #endif	// UNSYNC_USE_TLS
 
 int32
@@ -221,6 +269,10 @@ CmdQuery(const FCmdQueryOptions& Options)
 	else if (Options.Query == "login")
 	{
 		return CmdQueryLogin(Options);
+	}
+	else if (Options.Query == "list")
+	{
+		return CmdQueryList(Options);
 	}
 #endif	// UNSYNC_USE_TLS
 	else
