@@ -100,6 +100,70 @@ namespace Chaos
 		CHAOS_API virtual FVec3 FindGeometryOpposingNormal(const FVec3& DenormDir, int32 FaceIndex, const FVec3& OriginalNormal) const override;
 
 		/**
+		 * @brief Generate the triangle at the specified index with the specified transform (including scale)
+		 * @note does not correct winding for negative scales
+		*/
+		void GetTransformedTriangle(const int32 TriangleIndex, const FRigidTransform3& Transform, FTriangle& OutTriangle, int32& OutVertexIndex0, int32& OutVertexIndex1, int32& OutVertexIndex2) const
+		{
+			// Convert the triangle index into a cell index and extract the cell row/column
+			// Reverse of FaceIndex0 = CellIndex * 2 + 0|1;
+			const int32 CellIndex = TriangleIndex / 2;
+			const int32 CellRowIndex = CellIndex / (GeomData.NumCols - 1);
+			const int32 CellColIndex = CellIndex % (GeomData.NumCols - 1);
+
+			// Calculate the vertex indices for the 4 cell corners
+			const int32 CellVertexIndex = CellRowIndex * GeomData.NumCols + CellColIndex;
+			const int32 VertexIndex0 = CellVertexIndex;
+			const int32 VertexIndex1 = CellVertexIndex + 1;
+			const int32 VertexIndex2 = CellVertexIndex + GeomData.NumCols;
+			const int32 VertexIndex3 = CellVertexIndex + GeomData.NumCols + 1;
+
+			// Get the vertices
+			const FVec3 Vertex0 = Transform.TransformPosition(GeomData.GetPointScaled(VertexIndex0));
+			const FVec3 Vertex1 = Transform.TransformPosition(GeomData.GetPointScaled(VertexIndex1));
+			const FVec3 Vertex2 = Transform.TransformPosition(GeomData.GetPointScaled(VertexIndex2));
+			const FVec3 Vertex3 = Transform.TransformPosition(GeomData.GetPointScaled(VertexIndex3));
+
+			// Set the output triangle which depends on winding (begative scales) and which of the two triangles in the cell we want
+			const bool bStandardWinding = ((GeomData.Scale.X * GeomData.Scale.Y * GeomData.Scale.Z) >= FReal(0));
+			const bool bIsFirstTriangle = ((TriangleIndex & 1) == 0);
+			if (bIsFirstTriangle)
+			{
+				if (bStandardWinding)
+				{
+					OutTriangle = FTriangle(Vertex0, Vertex1, Vertex3);
+					OutVertexIndex0 = VertexIndex0;
+					OutVertexIndex1 = VertexIndex1;
+					OutVertexIndex2 = VertexIndex3;
+				}
+				else
+				{
+					OutTriangle = FTriangle(Vertex0, Vertex3, Vertex1);
+					OutVertexIndex0 = VertexIndex0;
+					OutVertexIndex1 = VertexIndex3;
+					OutVertexIndex2 = VertexIndex1;
+				}
+			}
+			else
+			{
+				if (bStandardWinding)
+				{
+					OutTriangle = FTriangle(Vertex0, Vertex3, Vertex2);
+					OutVertexIndex0 = VertexIndex0;
+					OutVertexIndex1 = VertexIndex3;
+					OutVertexIndex2 = VertexIndex2;
+				}
+				else
+				{
+					OutTriangle = FTriangle(Vertex0, Vertex2, Vertex3);
+					OutVertexIndex0 = VertexIndex0;
+					OutVertexIndex1 = VertexIndex2;
+					OutVertexIndex2 = VertexIndex3;
+				}
+			}
+		}
+
+		/**
 		 * Visit all triangles transformed into the specified space. Triangles will have standard winding, regardless of heightfield scale.
 		 * 
 		 * @param QueryBounds Bounding box in which we want to produce triangles, in HeightField space

@@ -1070,6 +1070,27 @@ Chaos::FImplicitObjectPtr TImplicitObjectInstanced<TConcrete>::CopyGeometryWithS
 	return Chaos::FImplicitObjectPtr(new TImplicitObjectScaled<TConcrete, true>(MObject, Scale, 0.0));
 }
 
+template<>
+struct TImplicitTypeInfo<FImplicitObjectInstanced>
+{
+	// Is InType derived from FImplicitObjectInstanced
+	static bool IsBaseOf(const EImplicitObjectType InType)
+	{
+		return !!(InType & ImplicitObjectType::IsInstanced);
+	}
+};
+
+template<>
+struct TImplicitTypeInfo<FImplicitObjectScaled>
+{
+	// Is InType derived from FImplicitObjectScaled
+	static bool IsBaseOf(const EImplicitObjectType InType)
+	{
+		return !!(InType & ImplicitObjectType::IsScaled);
+	}
+};
+
+
 /**
  * @brief Remove the Instanced or Scaled wrapper from an ImplicitObject of a known inner type and extract the instance properties
  * @return the inner implicit object or null if the wrong type

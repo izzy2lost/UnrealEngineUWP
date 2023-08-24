@@ -74,8 +74,13 @@ namespace Chaos
 
 	bool CollisionsAllowParticleTracking = true;
 	FAutoConsoleVariableRef CVarCollisionsAllowParticleTracking(TEXT("p.Chaos.Collision.AllowParticleTracking"), CollisionsAllowParticleTracking, TEXT("Allow particles to track their collisions constraints when their DoBufferCollisions flag is enable [def:true]"));
-	
+
+	//	Which edge pruning features to enable (for particle swith EdgeSmoothing enabled)
+	bool bCollisionsEnableEdgeCollisionPruning = false;
+	bool bCollisionsEnableMeshCollisionPruning = true;
 	bool bCollisionsEnableSubSurfaceCollisionPruning = false;
+	FAutoConsoleVariableRef CVarCollisionsEnableEdgeCollisionPruning(TEXT("p.Chaos.Collision.EnableEdgeCollisionPruning"), bCollisionsEnableEdgeCollisionPruning, TEXT(""));
+	FAutoConsoleVariableRef CVarCollisionsEnableMeshCollisionPruning(TEXT("p.Chaos.Collision.EnableMeshCollisionPruning"), bCollisionsEnableMeshCollisionPruning, TEXT(""));
 	FAutoConsoleVariableRef CVarCollisionsEnableSubSurfaceCollisionPruning(TEXT("p.Chaos.Collision.EnableSubSurfaceCollisionPruning"), bCollisionsEnableSubSurfaceCollisionPruning, TEXT(""));
 
 	bool DebugDrawProbeDetection = false;
@@ -700,8 +705,17 @@ namespace Chaos
 			{
 				if ((ParticleHandle.CollisionConstraintFlags() & (uint32)ECollisionConstraintFlags::CCF_SmoothEdgeCollisions) != 0)
 				{
-					FParticleEdgeCollisionPruner EdgePruner(ParticleHandle.Handle());
-					EdgePruner.Prune();
+					if (bCollisionsEnableMeshCollisionPruning)
+					{
+						FParticleMeshCollisionPruner MeshPruner(ParticleHandle.Handle());
+						MeshPruner.Prune();
+					}
+
+					if (bCollisionsEnableEdgeCollisionPruning)
+					{
+						FParticleEdgeCollisionPruner EdgePruner(ParticleHandle.Handle());
+						EdgePruner.Prune();
+					}
 
 					if (bCollisionsEnableSubSurfaceCollisionPruning)
 					{

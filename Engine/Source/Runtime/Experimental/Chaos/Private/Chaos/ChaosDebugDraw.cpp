@@ -1011,12 +1011,11 @@ namespace Chaos
 
 					const bool bIsProbe = Contact.GetIsProbe();
 					const bool bIsActive = ManifoldPointResult.bIsValid && (!ManifoldPointResult.NetPushOut.IsNearlyZero() || !ManifoldPointResult.NetImpulse.IsNearlyZero() || (!Contact.GetUseManifold() && !Contact.AccumulatedImpulse.IsNearlyZero()));
-					if (!bIsActive && !bChaosDebugDebugDrawInactiveContacts)
+					const bool bPruned = ManifoldPoint.Flags.bDisabled;
+					if ((bPruned || !bIsActive) && !bChaosDebugDebugDrawInactiveContacts)
 					{
 						continue;
 					}
-
-					const bool bPruned = ManifoldPoint.Flags.bDisabled;
 
 					const int32 ContactPlaneOwner = 1;
 					const int32 ContactPointOwner = 1 - ContactPlaneOwner;
@@ -1031,32 +1030,41 @@ namespace Chaos
 					// Dynamic friction, restitution = red
 					// Static friction, no restitution = green
 					// Inactive = gray
-					FColor DiscColor = FColor(200, 0, 0);
-					FColor PlaneNormalColor = FColor(200, 0, 0);
-					FColor EdgeNormalColor = FColor(200, 150, 0);
-					FColor ImpulseColor = FColor(0, 0, 200);
-					FColor PushOutColor = FColor(0, 200, 0);
-					FColor PushOutImpusleColor = FColor(0, 200, 200);
+					FColor DiscColor = FColor(250, 0, 0);
+					FColor PhiDiscColor = FColor(128, 128, 0);
+					FColor PlaneNormalColor = FColor(250, 0, 0);
+					FColor EdgeNormalColor = FColor(250, 150, 0);
+					FColor ImpulseColor = FColor(0, 0, 250);
+					FColor PushOutColor = FColor(0, 250, 0);
+					FColor PushOutImpusleColor = FColor(0, 250, 250);
+					FReal ContactLenScale = FReal(1);
 					if (ManifoldPointResult.bInsideStaticFrictionCone)
 					{
 						DiscColor = FColor(150, 200, 0);
+						PhiDiscColor = FColor(150, 200, 0);
 					}
 					if (bIsProbe)
 					{
 						DiscColor = FColor(50, 180, 180);
+						PhiDiscColor = FColor(50, 180, 180);
 						PlaneNormalColor = FColor(50, 180, 180);
-						EdgeNormalColor = FColor(50, 180, 130);
+						EdgeNormalColor = FColor(50, 220, 180);
 					}
 					else if (!bIsActive)
 					{
-						DiscColor = FColor(100, 100, 100);
-						PlaneNormalColor = FColor(100, 0, 0);
-						EdgeNormalColor = FColor(100, 80, 0);
+						DiscColor = FColor(150, 150, 150);
+						PhiDiscColor = FColor(150, 150, 150);
+						PlaneNormalColor = FColor(150, 150, 150);
+						EdgeNormalColor = FColor(150, 180, 150);
+						ContactLenScale = 0.75;
 					}
 					if (bPruned)
 					{
-						PlaneNormalColor = FColor(200, 0, 200);
-						EdgeNormalColor = FColor(200, 0, 200);
+						DiscColor = FColor(50, 50, 50);
+						PhiDiscColor = FColor(50, 50, 50);
+						PlaneNormalColor = FColor(50, 50, 50);
+						EdgeNormalColor = FColor(50, 80, 50);
+						ContactLenScale = 0.5;
 					}
 
 					const FVec3 WorldPointLocation = SpaceTransform.TransformPosition(PointLocation);
@@ -1068,30 +1076,30 @@ namespace Chaos
 					// Pushout
 					if ((Settings.PushOutScale > 0) && ManifoldPointResult.bIsValid && !ManifoldPointResult.NetPushOut.IsNearlyZero())
 					{
-						FColor Color = (ColorScale * PushOutImpusleColor).ToFColor(false);
+						FColor Color = PushOutImpusleColor;
 						FDebugDrawQueue::GetInstance().DrawDebugLine(WorldPointPlaneLocation, WorldPointPlaneLocation + Settings.DrawScale * Settings.PushOutScale * SpaceTransform.TransformVectorNoScale(FVec3(ManifoldPointResult.NetPushOut)), Color, false, Duration, uint8(Settings.DrawPriority), Settings.LineThickness);
 					}
 					if ((Settings.ImpulseScale > 0) && ManifoldPointResult.bIsValid && !ManifoldPointResult.NetImpulse.IsNearlyZero())
 					{
-						FColor Color = (ColorScale * ImpulseColor).ToFColor(false);
+						FColor Color = ImpulseColor;
 						FDebugDrawQueue::GetInstance().DrawDebugLine(WorldPointPlaneLocation, WorldPointPlaneLocation + Settings.DrawScale * Settings.ImpulseScale * SpaceTransform.TransformVectorNoScale(FVec3(ManifoldPointResult.NetImpulse)), Color, false, Duration, uint8(Settings.DrawPriority), Settings.LineThickness);
 					}
 
 					// Manifold plane and normal
 					if (Settings.ContactWidth > 0)
 					{
-						FColor C0 = (ColorScale * DiscColor).ToFColor(false);
+						FColor C0 = DiscColor;
 						FDebugDrawQueue::GetInstance().DrawDebugCircle(WorldPlaneLocation, Settings.DrawScale * Settings.ContactWidth, 12, C0, false, Duration, uint8(Settings.DrawPriority), Settings.LineThickness, Axes.GetUnitAxis(EAxis::Y), Axes.GetUnitAxis(EAxis::Z), false);
 					}
 					if (Settings.ContactLen > 0)
 					{
 						FColor NormalColor = ((ManifoldPoint.ContactPoint.ContactType != EContactPointType::EdgeEdge) ? PlaneNormalColor : EdgeNormalColor);
-						FColor C1 = (ColorScale * NormalColor).ToFColor(false);
-						FDebugDrawQueue::GetInstance().DrawDebugLine(WorldPlaneLocation, WorldPlaneLocation + Settings.DrawScale * Settings.ContactLen * WorldPlaneNormal, C1, false, Duration, uint8(Settings.DrawPriority), Settings.LineThickness);
+						FColor C1 = NormalColor;
+						FDebugDrawQueue::GetInstance().DrawDebugLine(WorldPlaneLocation, WorldPlaneLocation + Settings.DrawScale * Settings.ContactLen * ContactLenScale * WorldPlaneNormal, C1, false, Duration, uint8(Settings.DrawPriority), Settings.LineThickness);
 					}
 					if (Settings.ContactPhiWidth > 0 && (ManifoldPoint.ContactPoint.Phi < FLT_MAX))
 					{
-						FColor C2 = (ColorScale * FColor(128, 128, 0)).ToFColor(false);
+						FColor C2 = PhiDiscColor;
 						FDebugDrawQueue::GetInstance().DrawDebugCircle(WorldPlaneLocation - ManifoldPoint.ContactPoint.Phi * WorldPlaneNormal, Settings.DrawScale * Settings.ContactPhiWidth, 12, C2, false, Duration, uint8(Settings.DrawPriority), Settings.LineThickness, Axes.GetUnitAxis(EAxis::Y), Axes.GetUnitAxis(EAxis::Z), false);
 					}
 
@@ -1132,7 +1140,7 @@ namespace Chaos
 				// AccumulatedImpulse
 				if ((Settings.ImpulseScale > 0) && !Contact.GetAccumulatedImpulse().IsNearlyZero())
 				{
-					FColor Color = (ColorScale * FColor::White).ToFColor(false);
+					FColor Color = FColor::White;
 					const FVec3 ImpulsePos = SpaceTransform.TransformPosition(WorldActorTransform0.GetTranslation());
 					FDebugDrawQueue::GetInstance().DrawDebugLine(ImpulsePos, ImpulsePos + Settings.DrawScale * Settings.ImpulseScale * SpaceTransform.TransformVectorNoScale(Contact.GetAccumulatedImpulse()), Color, false, Duration, uint8(Settings.DrawPriority), Settings.LineThickness);
 				}
@@ -1143,7 +1151,7 @@ namespace Chaos
 				const FVec3 Location = SpaceTransform.TransformPosition(Contact.CalculateWorldContactLocation());
 				const FVec3 Normal = SpaceTransform.TransformVector(Contact.CalculateWorldContactNormal());
 
-				const FColor C3 = (ColorScale * FColor(128, 128, 128)).ToFColor(false);
+				const FColor C3 = FColor(128, 128, 128);
 				const FMatrix Axes = FRotationMatrix::MakeFromX(Normal);
 				const FVec3 P0 = SpaceTransform.TransformPosition(Contact.GetParticle0()->X());
 				const FVec3 P1 = SpaceTransform.TransformPosition(Contact.GetParticle1()->X());
@@ -1938,7 +1946,7 @@ namespace Chaos
 					{
 						DrawCollisionImpl(SpaceTransform, &Collision, ColorScale, ChaosDebugDrawCollisionDuration, GetChaosDebugDrawSettings(Settings));
 						return ECollisionVisitorResult::Continue;
-					});
+					}, ECollisionVisitorFlags::VisitAllCurrent);
 			}
 		}
 

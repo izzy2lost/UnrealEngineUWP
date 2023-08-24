@@ -591,6 +591,7 @@ namespace Chaos
 
 		const FRigidTransform3& GetShapeWorldTransform0() const { return ShapeWorldTransforms[0]; }
 		const FRigidTransform3& GetShapeWorldTransform1() const { return ShapeWorldTransforms[1]; }
+		const FRigidTransform3& GetShapeWorldTransform(const int32 ParticleIndex) const { check((ParticleIndex >= 0) && (ParticleIndex < 2)); return ShapeWorldTransforms[ParticleIndex]; }
 
 		void SetShapeWorldTransforms(const FRigidTransform3& InShapeWorldTransform0, const FRigidTransform3& InShapeWorldTransform1)
 		{

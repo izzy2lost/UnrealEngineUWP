@@ -92,6 +92,12 @@ namespace Chaos
 		return (Type == ImplicitObjectType::Union) || (Type == ImplicitObjectType::UnionClustered);
 	}
 
+	bool FImplicitObject::IsUnderlyingMesh() const
+	{
+		const EImplicitObjectType InnerType = GetInnerType(Type);
+		return (InnerType == ImplicitObjectType::TriangleMesh) || (InnerType == ImplicitObjectType::HeightField);
+	}
+
 	FReal FImplicitObject::SignedDistance(const FVec3& x) const
 	{
 		FVec3 Normal;

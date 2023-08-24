@@ -273,6 +273,9 @@ public:
 	//This is strictly used for optimization purposes
 	CHAOS_API bool IsUnderlyingUnion() const;
 
+	//This is strictly used for optimization purposes
+	CHAOS_API bool IsUnderlyingMesh() const;
+
 	// Explicitly non-virtual.  Must cast to derived types to target their implementation.
 	CHAOS_API FReal SignedDistance(const FVec3& x) const;
 

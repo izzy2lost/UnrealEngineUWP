@@ -9,6 +9,62 @@
 
 namespace Chaos
 {
+	// Given a point and a triangle, check if the point is onan edge or vertex and return vertex indices if so.
+	// If Position is at one of the vertices, OutEdgeVertexIndexA will an index into Vertices
+	// If Position is one one of the edges, both OutEdgeVertexIndexA and OutEdgeVertexIndexB will be an index into Vertices
+	// If both OutEdgeVertexIndexA and OutEdgeVertexIndexB are INDEX_NONE, Position is not on the triangle edges
+	inline bool GetTriangleEdgeVerticesAtPosition(
+		const FVec3& Position, 
+		const FVec3 Vertices[],
+		int32& OutEdgeVertexIndexA, int32& OutEdgeVertexIndexB, 
+		const FReal BaryCentricTolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		OutEdgeVertexIndexA = INDEX_NONE;
+		OutEdgeVertexIndexB = INDEX_NONE;
+
+		const FVec3 BaryCentric = ToBarycentric(Position, Vertices[0], Vertices[1], Vertices[2]);
+
+		// Is it a vertex contact?
+		if (FMath::IsNearlyEqual(BaryCentric.X, FReal(1), BaryCentricTolerance))
+		{
+			OutEdgeVertexIndexA = 0;
+			return true;
+		}
+		if (FMath::IsNearlyEqual(BaryCentric.Y, FReal(1), BaryCentricTolerance))
+		{
+			OutEdgeVertexIndexA = 1;
+			return true;
+		}
+		if (FMath::IsNearlyEqual(BaryCentric.Z, FReal(1), BaryCentricTolerance))
+		{
+			OutEdgeVertexIndexA = 2;
+			return true;
+		}
+
+		// Is it an edge contact?
+		if (FMath::IsNearlyEqual(BaryCentric.X, FReal(0), BaryCentricTolerance))
+		{
+			OutEdgeVertexIndexA = 1;
+			OutEdgeVertexIndexB = 2;
+			return true;
+		}
+		if (FMath::IsNearlyEqual(BaryCentric.Y, FReal(0), BaryCentricTolerance))
+		{
+			OutEdgeVertexIndexA = 2;
+			OutEdgeVertexIndexB = 0;
+			return true;
+		}
+		if (FMath::IsNearlyEqual(BaryCentric.Z, FReal(0), BaryCentricTolerance))
+		{
+			OutEdgeVertexIndexA = 0;
+			OutEdgeVertexIndexB = 1;
+			return true;
+		}
+
+		return false;
+	}
+
+
 	/**
 	 * @brief Data held alongside contact points when generating contacts against a (likely non-convex) mesh of triangles
 	*/
@@ -60,57 +116,25 @@ namespace Chaos
 		}
 
 		// Given a contact point on a triangle, check if it is an edge contact or vertex contact and return vertex indices if so
-		// @todo(chaos): this function should be unnecessary. Collision detection should return the vertex indices for the vertex/edge/face that we collide with
-		inline bool GetEdgeVerticesAtPosition(const FVec3& ContactPosition, FVec3& OutEdgeVertexA, FVec3& OutEdgeVertexB, int32& OutVertexIndexA, int32& OutVertexIndexB, const FReal BaryCentricTolerance = UE_KINDA_SMALL_NUMBER) const
+		// @todo(chaos): this function not should be unnecessary. Collision detection should return the vertex indices for the vertex/edge/face that we collide with
+		inline bool GetEdgeVerticesAtPosition(const FVec3& ContactPosition, FVec3& OutEdgeVertexA, FVec3& OutEdgeVertexB, int32& OutEdgeVertexIndexA, int32& OutEdgeVertexIndexB, const FReal BaryCentricTolerance = UE_KINDA_SMALL_NUMBER) const
 		{
-			OutVertexIndexA = INDEX_NONE;
-			OutVertexIndexB = INDEX_NONE;
+			OutEdgeVertexIndexA = INDEX_NONE;
+			OutEdgeVertexIndexB = INDEX_NONE;
 
-			const FVec3 BaryCentric = ToBarycentric(ContactPosition, Vertices[0], Vertices[1], Vertices[2]);
-
-			// Is it a vertex contact?
-			if (FMath::IsNearlyEqual(BaryCentric.X, FReal(1), BaryCentricTolerance))
+			int32 TriVertexIndexA, TriVertexIndexB;
+			if (GetTriangleEdgeVerticesAtPosition(ContactPosition, Vertices, TriVertexIndexA, TriVertexIndexB, BaryCentricTolerance))
 			{
-				OutVertexIndexA = VertexIndices[0];
-				OutEdgeVertexA = Vertices[0];
-				return true;
-			}
-			if (FMath::IsNearlyEqual(BaryCentric.Y, FReal(1), BaryCentricTolerance))
-			{
-				OutVertexIndexA = VertexIndices[1];
-				OutEdgeVertexA = Vertices[1];
-				return true;
-			}
-			if (FMath::IsNearlyEqual(BaryCentric.Z, FReal(1), BaryCentricTolerance))
-			{
-				OutVertexIndexA = VertexIndices[2];
-				OutEdgeVertexA = Vertices[2];
-				return true;
-			}
-
-			// Is it an edge contact?
-			if (FMath::IsNearlyEqual(BaryCentric.X, FReal(0), BaryCentricTolerance))
-			{
-				OutVertexIndexA = VertexIndices[1];
-				OutVertexIndexB = VertexIndices[2];
-				OutEdgeVertexA = Vertices[1];
-				OutEdgeVertexB = Vertices[2];
-				return true;
-			}
-			if (FMath::IsNearlyEqual(BaryCentric.Y, FReal(0), BaryCentricTolerance))
-			{
-				OutVertexIndexA = VertexIndices[2];
-				OutVertexIndexB = VertexIndices[0];
-				OutEdgeVertexA = Vertices[2];
-				OutEdgeVertexB = Vertices[0];
-				return true;
-			}
-			if (FMath::IsNearlyEqual(BaryCentric.Z, FReal(0), BaryCentricTolerance))
-			{
-				OutVertexIndexA = VertexIndices[0];
-				OutVertexIndexB = VertexIndices[1];
-				OutEdgeVertexA = Vertices[0];
-				OutEdgeVertexB = Vertices[1];
+				if (TriVertexIndexA != INDEX_NONE)
+				{
+					OutEdgeVertexIndexA = VertexIndices[TriVertexIndexA];
+					OutEdgeVertexA = Vertices[TriVertexIndexA];
+				}
+				if (TriVertexIndexB != INDEX_NONE)
+				{
+					OutEdgeVertexIndexB = VertexIndices[TriVertexIndexB];
+					OutEdgeVertexB = Vertices[TriVertexIndexB];
+				}
 				return true;
 			}
 
