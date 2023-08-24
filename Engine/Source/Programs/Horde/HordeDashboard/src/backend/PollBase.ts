@@ -34,6 +34,11 @@ export abstract class PollBase {
 
     abstract poll(): Promise<void>;
 
+    async forceUpdate() {        
+        this.stop(); 
+        this.update();
+    }
+
     async update() {
 
         clearTimeout(this.timeoutId);

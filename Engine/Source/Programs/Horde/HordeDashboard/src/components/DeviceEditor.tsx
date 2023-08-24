@@ -217,7 +217,9 @@ export const DeviceEditor: React.FC<{ handler: DeviceHandler, deviceIn?: GetDevi
         } catch (reason:any) {
             setError(reason.toString());
             setSubmitting(false);
-        }
+       }
+       
+       await handler.forceUpdate();
 
     }
 
@@ -391,7 +393,9 @@ export const DeviceEditor: React.FC<{ handler: DeviceHandler, deviceIn?: GetDevi
                     setError(`Problem modifying device,: ${reason}`);
                     setSubmitting(false);
                 })
-            }
+           }
+           
+           await handler.forceUpdate();
 
         } catch (reason:any) {
             setError(reason.toString());
