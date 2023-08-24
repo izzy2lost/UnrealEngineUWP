@@ -479,7 +479,7 @@ void UHLODSubsystem::UnregisterHLODActor(AWorldPartitionHLOD* InWorldPartitionHL
 	else
 	{
 #if WITH_EDITOR
-		verify(OutdatedHLODActors.Remove(InWorldPartitionHLOD));
+		OutdatedHLODActors.Remove(InWorldPartitionHLOD);
 #endif
 	}
 
