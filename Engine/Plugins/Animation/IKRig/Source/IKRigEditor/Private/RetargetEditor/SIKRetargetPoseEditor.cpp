@@ -176,51 +176,37 @@ TSharedRef<SWidget> SIKRetargetPoseEditor::GenerateResetMenuContent(TSharedPtr<F
 
 TSharedRef<SWidget> SIKRetargetPoseEditor::GenerateNewMenuContent(TSharedPtr<FUICommandList> Commands)
 {
-	FMenuBuilder MenuBuilder(true, Commands);
+	const FName ParentEditorName = EditorController.Pin()->Editor.Pin()->GetToolMenuName();
+	const FName MenuName = FName(ParentEditorName.ToString() + TEXT(".CreateMenu"));
+	UToolMenu* ToolMenu = UToolMenus::Get()->ExtendMenu(MenuName);
 
-	MenuBuilder.BeginSection("Create", LOCTEXT("CreatePoseOperations", "Create New Retarget Pose"));
-	{
-		MenuBuilder.AddMenuEntry(
+	FToolMenuSection& CreateSection = ToolMenu->AddSection("Create", LOCTEXT("CreatePoseOperations", "Create New Retarget Pose"));
+	CreateSection.AddMenuEntry(
 		FIKRetargetCommands::Get().NewRetargetPose,
-		TEXT("Create"),
 		TAttribute<FText>(),
-		TAttribute<FText>());
-
-		MenuBuilder.AddMenuEntry(
-			FIKRetargetCommands::Get().DuplicateRetargetPose,
-			TEXT("Create"),
-			TAttribute<FText>(),
-			TAttribute<FText>());
-	}
-	MenuBuilder.EndSection();
-
-	MenuBuilder.BeginSection("Import",LOCTEXT("ImportPoseOperations", "Import Retarget Pose"));
-	{
-		MenuBuilder.AddMenuEntry(
-		FIKRetargetCommands::Get().ImportRetargetPose,
-		TEXT("Import"),
+        TAttribute<FText>());
+	CreateSection.AddMenuEntry(
+		FIKRetargetCommands::Get().DuplicateRetargetPose,
 		TAttribute<FText>(),
 		TAttribute<FText>());
 	
-		MenuBuilder.AddMenuEntry(
-			FIKRetargetCommands::Get().ImportRetargetPoseFromAnim,
-			TEXT("ImportFromSequence"),
+	FToolMenuSection& ImportSection = ToolMenu->AddSection("Import",LOCTEXT("ImportPoseOperations", "Import Retarget Pose"));
+	ImportSection.AddMenuEntry(
+			FIKRetargetCommands::Get().ImportRetargetPose,
 			TAttribute<FText>(),
 			TAttribute<FText>());
-	}
-	MenuBuilder.EndSection();
+	ImportSection.AddMenuEntry(
+		FIKRetargetCommands::Get().ImportRetargetPoseFromAnim,
+		TAttribute<FText>(),
+		TAttribute<FText>());
 
-	MenuBuilder.BeginSection("Export",LOCTEXT("EmportPoseOperations", "Export Retarget Pose"));
-	{
-		MenuBuilder.AddMenuEntry(
+	FToolMenuSection& ExportSection = ToolMenu->AddSection("Export",LOCTEXT("ExportPoseOperations", "Export Retarget Pose"));
+	ExportSection.AddMenuEntry(
 			FIKRetargetCommands::Get().ExportRetargetPose,
-			TEXT("Export"),
 			TAttribute<FText>(),
 			TAttribute<FText>());
-	}
-	MenuBuilder.EndSection();
 
-	return MenuBuilder.MakeWidget();
+	return UToolMenus::Get()->GenerateWidget(MenuName, FToolMenuContext(Commands));
 }
 
 #undef LOCTEXT_NAMESPACE
