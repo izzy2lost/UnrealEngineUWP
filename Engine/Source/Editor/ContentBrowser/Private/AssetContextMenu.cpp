@@ -254,7 +254,8 @@ TSharedRef<SWidget> FAssetContextMenu::MakeContextMenu(TArrayView<const FContent
 				}
 			}
 
-			if (ensure(CommonClass))
+			// We can have a null common class if an asset is from unloaded plugin or an missing class.
+			if (CommonClass)
 			{
 				MenuName = UToolMenus::JoinMenuPaths(BaseMenuName, CommonClass->GetFName());
 
