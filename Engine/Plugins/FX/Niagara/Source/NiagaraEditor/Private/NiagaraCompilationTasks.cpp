@@ -1794,6 +1794,34 @@ UE::Tasks::FTask FNiagaraSystemCompilationTask::BuildRapidIterationParametersAsy
 	return FTask();
 }
 
+void FNiagaraSystemCompilationTask::BuildAndApplyRapidIterationParameters()
+{
+	check(IsInGameThread());
+	BuildRapidIterationParametersAsync().Wait();
+
+	// see FNiagaraActiveCompilationAsyncTask::Apply() for why we don't allow removal
+	constexpr bool bAllowParameterRemoval = false;
+
+	for (const TMap<TObjectKey<UNiagaraScript>, FScriptInfo>::ElementType& CurrentIt : DigestedScriptInfo)
+	{
+		if (UNiagaraScript* Script = CurrentIt.Key.ResolveObjectPtr())
+		{
+			const FScriptInfo& ScriptInfo = CurrentIt.Value;
+
+			TConstArrayView<FNiagaraVariableWithOffset> SrcRapidIterationParameters = ScriptInfo.RapidIterationParameters.ReadParameterVariables();
+			TArray<FNiagaraVariable> DstRapidIterationParameters;
+			DstRapidIterationParameters.Reserve(SrcRapidIterationParameters.Num());
+			for (const FNiagaraVariableWithOffset& ParamWithOffset : SrcRapidIterationParameters)
+			{
+				FNiagaraVariable& Parameter = DstRapidIterationParameters.Add_GetRef(ParamWithOffset);
+				Parameter.SetData(ScriptInfo.RapidIterationParameters.GetParameterData(ParamWithOffset.Offset));
+			}
+
+			Script->ApplyRapidIterationParameters(DstRapidIterationParameters, bAllowParameterRemoval);
+		}
+	}
+}
+
 void FNiagaraSystemCompilationTask::IssueCompilationTasks()
 {
 	using namespace UE::Tasks;
@@ -1882,30 +1910,61 @@ UE::Tasks::FTask FNiagaraSystemCompilationTask::BeginTasks()
 
 	InitialGetRequestHelper.Launch(this);
 
+	TArray<FTask> SystemTaskPrerequisites;
+	SystemTaskPrerequisites.Add(InitialGetRequestHelper.CompletionEvent);
+
+	// if we are baking rapid iteration parameters then we can rely on the results from the DDC to 
+	// supply everything that we need.  If however we're not baking the rapid iteration parameters
+	// then we need to supplement the results from the DDC with our own collection of the RI so
+	// that we can apply them to the script if something has changed.
+	if (SystemInfo.bUseRapidIterationParams)
+	{
+		// for now we need RI generation to be synchronous to match the behavior of the default
+		// compilation mode.  In the future we need to get RI preparation out of the compilation
+		// and instead we are provided with overridden RI values and don't need to feed back the
+		// entire list of RI parameters.
+		constexpr bool bSyncPrepareRapidIterationParameter = true;
+
+		if (bSyncPrepareRapidIterationParameter)
+		{
+			BuildAndApplyRapidIterationParameters();
+		}
+		else
+		{
+			SystemTaskPrerequisites.Add(BuildRapidIterationParametersAsync());
+		}
+	}
+
 	FTask SystemTask = Launch(UE_SOURCE_LOCATION, [this]
 	{
 		if (HasOutstandingCompileTasks())
 		{
-			FTask BuildRIParamTask = BuildRapidIterationParametersAsync();
+			TArray<FTask> CompilationTaskPrerequisites;
 
-			PostRIParameterGetRequestHelper = MakeUnique<FDispatchAndProcessDataCacheGetRequests>();
-
-			Launch(UE_SOURCE_LOCATION, [this]
+			if (!SystemInfo.bUseRapidIterationParams)
 			{
-				PostRIParameterGetRequestHelper->Launch(this);
-			}, BuildRIParamTask);
+				FTask BuildRIParamTask = BuildRapidIterationParametersAsync();
+				PostRIParameterGetRequestHelper = MakeUnique<FDispatchAndProcessDataCacheGetRequests>();
+
+				Launch(UE_SOURCE_LOCATION, [this]
+				{
+					PostRIParameterGetRequestHelper->Launch(this);
+				}, BuildRIParamTask);
+
+				CompilationTaskPrerequisites.Add(PostRIParameterGetRequestHelper->CompletionEvent);
+			}
 
 			FTask InnerTask = Launch(UE_SOURCE_LOCATION, [this]
 			{
 				IssueCompilationTasks();
-			}, PostRIParameterGetRequestHelper->CompletionEvent);
+			}, CompilationTaskPrerequisites);
 		}
 		else
 		{
 			CompilationState = EState::Completed;
 			CompileCompletionEvent.Trigger();
 		}
-	}, InitialGetRequestHelper.CompletionEvent);
+	}, SystemTaskPrerequisites);
 
 	return SystemTask;
 }

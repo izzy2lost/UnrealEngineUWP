@@ -36,6 +36,7 @@ struct FNiagaraSystemCompilationTask
 	UE::Tasks::FTask BeginTasks();
 
 	UE::Tasks::FTask BuildRapidIterationParametersAsync();
+	void BuildAndApplyRapidIterationParameters();
 	void IssueCompilationTasks();
 	bool HasOutstandingCompileTasks() const;
 
