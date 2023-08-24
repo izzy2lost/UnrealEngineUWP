@@ -717,6 +717,10 @@ export const StepTrendsPanelV2: React.FC<{ jobDetails: JobDetailsV2; stepId: str
       return null;
    }
 
+   if (dataView.initialized && !dataView.history?.length) {
+      return null;
+   }
+
    dataView.set(stepId);
 
    return (<Stack id={sideRail.url} styles={{ root: { paddingTop: 18, paddingRight: 12 } }}>
