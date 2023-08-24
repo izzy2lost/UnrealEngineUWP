@@ -198,6 +198,8 @@ $ MinCpuArchX64 : Direct the compiler to generate AVX instructions wherever SSE 
 
 $ bRequireObjectPtrForAddReferencedObjects : Require TObjectPtr for FReferenceCollector API's. (Needed for compatibility with incremental GC.)
 
+$ bValidateFormatStrings : Emits compilation errors for incorrect UE_LOG format strings.
+
 $ bDeterministic : Set flags require for deterministic compiling and linking. Enabling deterministic mode for msvc disables codegen multithreading so compiling will be slower
 
 $ CppStandardEngine : Which C++ standard to use for compiling this target (for engine modules)

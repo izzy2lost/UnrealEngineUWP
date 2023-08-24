@@ -502,6 +502,8 @@ $ DefaultWarningLevel (WarningLevel): Default treatment of uncategorized warning
 
 $ bRequireObjectPtrForAddReferencedObjects (Boolean): Require TObjectPtr for FReferenceCollector API's. (Needed for compatibility with incremental GC.)
 
+$ bValidateFormatStrings (Boolean): Emits compilation errors for incorrect UE_LOG format strings.
+
 $ DeprecationWarningLevel (WarningLevel): Level to report deprecation warnings as errors
 
 $ bRetainFramePointers (Boolean): Forces frame pointers to be retained this is usually required when you want reliable callstacks e.g. mallocframeprofiler
