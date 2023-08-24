@@ -19,8 +19,13 @@ class BUOYANCY_API IBuoyancyEventInterface
 
 public:
 
+	/**
+	 * Called when part of a submerged simulated actor first comes in
+	 * contact with a water surface. This can be called for multiple parts
+	 * of a complex body.
+	 */
 	UFUNCTION(BlueprintImplementableEvent, Category = WaterBody)
-	void  OnSurfaceTouched(
+	void  OnSurfaceTouchBegin(
 		class AWaterBody* WaterBodyActor,
 		UPrimitiveComponent* WaterComponent,
 		UPrimitiveComponent* SubmergedComponent,
@@ -28,4 +33,29 @@ public:
 		const FVector& SubmergedCenterOfMass,
 		const FVector& SubmergedVelocity);
 
+	/**
+	 * Called continually while objects maintain contact with a water surface.
+	 * May be called multiple times for different parts of an object.
+	 */
+	UFUNCTION(BlueprintImplementableEvent, Category = WaterBody)
+	void  OnSurfaceTouching(
+		class AWaterBody* WaterBodyActor,
+		UPrimitiveComponent* WaterComponent,
+		UPrimitiveComponent* SubmergedComponent,
+		float SubmergedVolume,
+		const FVector& SubmergedCenterOfMass,
+		const FVector& SubmergedVelocity);
+
+	/**
+	 * Called when a submerged body loses contact with all water surfaces. This
+	 * can result from total submersion or from coming completely out of water.
+	 */
+	UFUNCTION(BlueprintImplementableEvent, Category = WaterBody)
+	void  OnSurfaceTouchEnd(
+		class AWaterBody* WaterBodyActor,
+		UPrimitiveComponent* WaterComponent,
+		UPrimitiveComponent* SubmergedComponent,
+		float SubmergedVolume,
+		const FVector& SubmergedCenterOfMass,
+		const FVector& SubmergedVelocity);
 };

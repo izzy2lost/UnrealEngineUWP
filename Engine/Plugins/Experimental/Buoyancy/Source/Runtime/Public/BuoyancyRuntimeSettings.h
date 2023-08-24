@@ -4,6 +4,7 @@
 
 #include "Engine/DeveloperSettings.h"
 #include "Templates/SubclassOf.h"
+#include "BuoyancyEventFlags.h"
 #include "BuoyancyRuntimeSettings.generated.h"
 
 enum ECollisionChannel : int;
@@ -29,35 +30,29 @@ public:
 	bool bKeepFloatingObjectsAwake = false;
 
 	/** Density of water to use in buoyancy calculations. The density of water is approximately 1g/cm3 */
-	UPROPERTY(EditAnywhere, Config, Category = Buoyancy, Meta = (ClampMin = 0, ForceUnits = "g/cm3"))
+	UPROPERTY(EditAnywhere, Config, Category = WaterProperties, Meta = (ClampMin = 0, ForceUnits = "g/cm3"))
 	float WaterDensity = 1.f;
 
 	/** Drag factor for submerged objects. This unitless number approximates the idea of viscosity,
 	    but internally functions identically to the "ether drag" concept. */
-	UPROPERTY(EditAnywhere, Config, Category = Buoyancy, Meta = (ClampMin = 0))
+	UPROPERTY(EditAnywhere, Config, Category = WaterProperties, Meta = (ClampMin = 0))
 	float WaterDrag = 1.f;
 
+	/** Collision channel to use for water ObjectTypes */
+	UPROPERTY(EditAnywhere, Config, Category = WaterProperties)
+	TEnumAsByte<ECollisionChannel> CollisionChannelForWaterObjects;
+
 	/** Maximum number of times that a buoyancy bounds can be split into 8 */
-	UPROPERTY(EditAnywhere, Config, Category = Buoyancy, Meta = (ClampMin = 0))
+	UPROPERTY(EditAnywhere, Config, Category = SubmergedVolumeCalculation, Meta = (ClampMin = 0))
 	int32 MaxNumBoundsSubdivisions = 2;
 
 	/** Minimum volume bounding box which can be produced by a subdivision operation */
-	UPROPERTY(EditAnywhere, Config, Category = Buoyancy)
+	UPROPERTY(EditAnywhere, Config, Category = SubmergedVolumeCalculation)
 	float MinBoundsSubdivisionVol = FMath::Pow(100.f, 3.f); // 1m^3
 
-	/** Collision channel to use for water ObjectTypes */
-	UPROPERTY(EditAnywhere, Config, Category = Collision)
-	TEnumAsByte<ECollisionChannel> CollisionChannelForWaterObjects;
-
-	/** When enabled, a delegate will be enabled which triggers when objects
-	    information for generating splashes and waves. */
-	UPROPERTY(EditAnywhere, Config, Category = Callbacks)
-	bool bSurfaceTouchCallbackOnServer = false;
-
-	/** When enabled, a delegate will be enabled which triggers when objects
-	    are touching the surface of a body of water on client. */
-	UPROPERTY(EditAnywhere, Config, Category = Callbacks)
-	bool bSurfaceTouchCallbackOnClient = true;
+	/** Callback data for water surface contacts will be generated according to these flags */
+	UPROPERTY(EditAnywhere, Config, Category = Callbacks, Meta = (Bitmask, BitmaskEnum = "/Script/Buoyancy.EBuoyancyEventFlags"))
+	uint8 SurfaceTouchCallbackFlags = EBuoyancyEventFlags::Begin | EBuoyancyEventFlags::End;
 
 	/** Minimum velocity of an object relative to a water required in order to trigger
 	    a submersion callback. If this is zero, then the callback will be triggered

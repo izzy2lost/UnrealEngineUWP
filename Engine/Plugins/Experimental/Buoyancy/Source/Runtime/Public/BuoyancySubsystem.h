@@ -8,6 +8,7 @@
 #include "PBDRigidsSolver.h"
 #include "Engine/EngineBaseTypes.h"
 #include "WaterBodyComponent.h"
+#include "BuoyancyEventFlags.h"
 #include "BuoyancySubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogBuoyancySubsystem, Log, All);
@@ -37,24 +38,10 @@ struct FBuoyancySettings
 
 	ECollisionChannel WaterCollisionChannel = ECollisionChannel::ECC_MAX;
 
-	bool bSurfaceTouchCallback = true;
+	uint8 SurfaceTouchCallbackFlags = EBuoyancyEventFlags::None;
 
 	float MinVelocityForSurfaceTouchCallback = 10.f;
 };
-
-
-//
-// Buoyancy Delegate Callback
-//
-
-UDELEGATE()
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_SixParams(FSurfaceTouchedDelegate,
-	class AWaterBody*, WaterBodyActor,
-	UPrimitiveComponent*, WaterComponent,
-	UPrimitiveComponent*, SubmergedComponent,
-	float, SubmergedVolume,
-	const FVector&, SubmergedCenterOfMass,
-	const FVector&, SubmergedVelocity);
 
 
 //
@@ -82,11 +69,6 @@ public:
 	// Return true if subsystem is enabled and running
 	UFUNCTION()
 	bool IsEnabled() const;
-
-	// Give access to a delegate which will trigger when objects
-	// are in water.
-	UPROPERTY(BlueprintAssignable, Category = Buoyancy)
-	FSurfaceTouchedDelegate OnSurfaceTouched;
 
 protected:
 
@@ -159,6 +141,7 @@ struct FBuoyancySubsystemSimCallbackOutput : public Chaos::FSimCallbackOutput
 {
 	struct FSurfaceTouch
 	{
+		uint8 Flag;
 		IPhysicsProxyBase* RigidProxy;
 		IPhysicsProxyBase* WaterProxy;
 		float Vol;
@@ -193,10 +176,12 @@ private:
 	// a member variable and reset every frame, to avoid reallocation of similarly
 	// sized data.
 	TSparseArray<FBuoyancySubmersion> Submersions;
+	TSparseArray<FBuoyancySubmersion> PrevSubmersions;
 
 	// Another sparse array to be kept in sync with Submersions, which will contain
 	// metadata useful for event callbacks
 	TSparseArray<FBuoyancySubmersionMetaData> SubmersionMetaData;
+	TSparseArray<FBuoyancySubmersionMetaData> PrevSubmersionMetaData;
 
 	// This is a sparse array of bit arrays representing which shapes in an object
 	// have already been accounted for when submerging an object. For example, if

@@ -124,13 +124,17 @@ void UBuoyancySubsystem::ApplyRuntimeSettings(const UBuoyancyRuntimeSettings* In
 	BuoyancySettings.MinBoundsSubdivisionVol = InSettings->MinBoundsSubdivisionVol;
 	BuoyancySettings.MinVelocityForSurfaceTouchCallback = InSettings->MinVelocityForSurfaceTouchCallback;
 
-	UWorld* World = GetWorld();
-	BuoyancySettings.bSurfaceTouchCallback =
+	// Based on server/client/editor, determine if we should generate callbacks.
+	// If we're editor, always generate callbacks. If we're not editor, only
+	// generate callbacks on client.	
 #if WITH_EDITOR
-		InSettings->bSurfaceTouchCallbackOnServer || InSettings->bSurfaceTouchCallbackOnClient;
+	BuoyancySettings.SurfaceTouchCallbackFlags = InSettings->SurfaceTouchCallbackFlags;
 #else
-		(World && World->IsNetMode(NM_DedicatedServer) && InSettings->bSurfaceTouchCallbackOnServer) ||
-		(World && World->IsNetMode(NM_Client) && InSettings->bSurfaceTouchCallbackOnClient);
+	UWorld* World = GetWorld();
+	BuoyancySettings.SurfaceTouchCallbackFlags
+		= (World && World->IsNetMode(NM_Client))
+		? InSettings->SurfaceTouchCallbackFlags
+		: EBuoyancyEventFlags::None;
 #endif
 
 	// Enable or disable
@@ -178,7 +182,7 @@ void UBuoyancySubsystem::Tick(float DeltaTime)
 	}
 
 	// Process surface-touched callbacks
-	if (BuoyancySettings.bSurfaceTouchCallback)
+	if (BuoyancySettings.SurfaceTouchCallbackFlags != 0)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_DispatchCallbacks)
 
@@ -186,21 +190,18 @@ void UBuoyancySubsystem::Tick(float DeltaTime)
 		{
 			for (const FBuoyancySubsystemSimCallbackOutput::FSurfaceTouch& SurfaceTouch : AsyncOutput->SurfaceTouches)
 			{
+				// Skip if we mask out this touch type
+				if ((SurfaceTouch.Flag & BuoyancySettings.SurfaceTouchCallbackFlags) == 0)
+				{
+					continue;
+				}
+
 				// Extract primitive components
 				UPrimitiveComponent* WaterComponent = PhysScene->GetOwningComponent<UPrimitiveComponent>(SurfaceTouch.WaterProxy);
 				UPrimitiveComponent* RigidComponent = PhysScene->GetOwningComponent<UPrimitiveComponent>(SurfaceTouch.RigidProxy);
 
 				// Get the parental water body component
-				AWaterBody* WaterBodyActor = WaterComponent->GetOwner<AWaterBody>();
-
-				// Dispatch the delegate
-				OnSurfaceTouched.Broadcast(
-					WaterBodyActor,
-					WaterComponent,
-					RigidComponent,
-					SurfaceTouch.Vol,
-					SurfaceTouch.CoM,
-					SurfaceTouch.Vel);
+				AWaterBody* WaterActor = WaterComponent->GetOwner<AWaterBody>();
 
 				const auto DispatchEvent = [&](AActor* Actor)
 				{
@@ -209,18 +210,30 @@ void UBuoyancySubsystem::Tick(float DeltaTime)
 					// If the actor implements the event interface, call the surface touched callback
 					if (Actor->Implements<UBuoyancyEventInterface>())
 					{
-						IBuoyancyEventInterface::Execute_OnSurfaceTouched(
-							Actor,
-							WaterBodyActor,
-							WaterComponent,
-							RigidComponent,
-							SurfaceTouch.Vol,
-							SurfaceTouch.CoM,
-							SurfaceTouch.Vel);
+						switch (SurfaceTouch.Flag)
+						{
+							case EBuoyancyEventFlags::Begin:
+								IBuoyancyEventInterface::Execute_OnSurfaceTouchBegin(
+									Actor, WaterActor, WaterComponent, RigidComponent,
+									SurfaceTouch.Vol, SurfaceTouch.CoM, SurfaceTouch.Vel);
+								break;
+
+							case EBuoyancyEventFlags::Continue:
+								IBuoyancyEventInterface::Execute_OnSurfaceTouching(
+									Actor, WaterActor, WaterComponent, RigidComponent,
+									SurfaceTouch.Vol, SurfaceTouch.CoM, SurfaceTouch.Vel);
+								break;
+
+							case EBuoyancyEventFlags::End:
+								IBuoyancyEventInterface::Execute_OnSurfaceTouchEnd(
+									Actor, WaterActor, WaterComponent, RigidComponent,
+									SurfaceTouch.Vol, SurfaceTouch.CoM, SurfaceTouch.Vel);
+								break;
+						}
 					}
 				};
-				DispatchEvent(WaterBodyActor);
-				DispatchEvent(WaterComponent->GetOwner());
+				DispatchEvent(WaterActor);
+				DispatchEvent(RigidComponent->GetOwner());
 			}
 		}
 	}
@@ -338,6 +351,12 @@ void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidP
 	// How much time has the sim ticked this frame
 	const FReal DeltaSeconds = GetDeltaTime_Internal();
 
+	// SparseArray implements move semantics, so these swaps should amount to pointer swaps.
+	// This way array memories stick around even when reset/swapped so we don't do many
+	// new allocations.
+	Swap(Submersions, PrevSubmersions);
+	Swap(SubmersionMetaData, PrevSubmersionMetaData);
+
 	// Clear submersions and submerged shapes array, but keep their memory allocated
 	Submersions.Reset();
 	SubmergedShapes.Reset();
@@ -420,7 +439,8 @@ void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidP
 					}
 
 					// If this is a surface touch record it for callback, if 
-					if (BuoyancySettings->bSurfaceTouchCallback && TotalVol > SubmergedVol * (1.f + UE_KINDA_SMALL_NUMBER))
+					if (BuoyancySettings->SurfaceTouchCallbackFlags != 0 &&
+						TotalVol > SubmergedVol * (1.f + UE_KINDA_SMALL_NUMBER))
 					{
 						SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_BuildSubmersionCallbackData)
 
@@ -498,37 +518,84 @@ void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidP
 
 
 	// Generate callback data if we're into that sort of thing
-	if (BuoyancySettings->bSurfaceTouchCallback)
+	const uint8 CallbackFlags = BuoyancySettings->SurfaceTouchCallbackFlags;
+	if (CallbackFlags != 0)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_ProduceSurfaceTouches)
 
 		// Get the async output struct to write to
 		FBuoyancySubsystemSimCallbackOutput& Output = GetProducerOutputData_Internal();
 
-		// Make sure we have metadata for each submersion
-		//ensureAlwaysMsgf(Submersions.Num() == SubmersionMetaData.Num());
-
 		// Process every surface touch and queue up some of them to return
 		// to game thread for callback dispatch
 		Output.SurfaceTouches.Reserve(SubmersionMetaData.Num() * FBuoyancySubmersionMetaData::MaxNumWaterContacts);
 		for (auto Iter = SubmersionMetaData.CreateIterator(); Iter; ++Iter)
 		{
-			//
-			// TODO: Check to see if this is touching surface
-			//
-
 			const FBuoyancySubmersionMetaData& MetaData = *Iter;
-			const FBuoyancySubmersion& Submersion = Submersions[Iter.GetIndex()];
+			const int32 ObjectIndex = Iter.GetIndex();
+			const FBuoyancySubmersion& Submersion = Submersions[ObjectIndex];
 
+			// Mark this as a new or continuing contact based on whether or
+			// not we have a bit from the previous-submersions array.
+			const bool bPrevSubmerged =
+				PrevSubmersionMetaData.IsValidIndex(ObjectIndex) &&
+				PrevSubmersionMetaData.IsAllocated(ObjectIndex);
+			const EBuoyancyEventFlags TouchFlag
+				= bPrevSubmerged
+				? EBuoyancyEventFlags::Continue
+				: EBuoyancyEventFlags::Begin;
+
+			// Clear out the "prev" entry for this one's metadata so that
+			// we can loop over the prev metadata for lost-contacts. Only
+			// bother doing this work if we're tracking removals
+			if (bPrevSubmerged && (CallbackFlags & EBuoyancyEventFlags::End) != 0)
+			{
+				PrevSubmersionMetaData.RemoveAt(ObjectIndex);
+			}
+
+			// Only continue if we're tracking this touch type
+			if ((TouchFlag & CallbackFlags) == 0)
+			{
+				continue;
+			}
+
+			// Build up output of new and continuing surface touches
 			for (const FBuoyancySubmersionMetaData::FWaterContact& WaterContact : MetaData.WaterContacts)
 			{
 				Output.SurfaceTouches.Add({
+					TouchFlag,
 					Submersion.Particle->PhysicsProxy(),
 					WaterContact.Water->PhysicsProxy(),
 					WaterContact.Vol,
 					WaterContact.CoM,
 					WaterContact.Vel
 				});
+			}
+		}
+
+		// The remaining previous submersion metadata will correspond with lost contacts
+		//
+		// NOTE:
+		// At the moment, lost contact callbacks will only occur when an entire object
+		// loses contact, not just when one part of it loses contact.
+		if ((CallbackFlags & EBuoyancyEventFlags::End) != 0)
+		{
+			for (auto Iter = PrevSubmersionMetaData.CreateIterator(); Iter; ++Iter)
+			{
+				const FBuoyancySubmersionMetaData& MetaData = *Iter;
+				const int32 ObjectIndex = Iter.GetIndex();
+				const FBuoyancySubmersion& Submersion = PrevSubmersions[ObjectIndex];
+				for (const FBuoyancySubmersionMetaData::FWaterContact& WaterContact : MetaData.WaterContacts)
+				{
+					Output.SurfaceTouches.Add({
+						EBuoyancyEventFlags::End,
+						Submersion.Particle->PhysicsProxy(),
+						WaterContact.Water->PhysicsProxy(),
+						WaterContact.Vol,
+						WaterContact.CoM,
+						WaterContact.Vel
+					});
+				}
 			}
 		}
 	}
