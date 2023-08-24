@@ -11,7 +11,9 @@
 
 static FName NAME_GLSL_150_ES3_1(TEXT("GLSL_150_ES31"));
 static FName NAME_GLSL_ES3_1_ANDROID(TEXT("GLSL_ES3_1_ANDROID"));
- 
+
+extern void CompileOpenGLShader(const FShaderCompilerInput& Input, FShaderCompilerOutput& Output, const FString& WorkingDirectory, GLSLVersion Version);
+
 class FShaderFormatGLSL : public IShaderFormat
 {
 	enum
@@ -76,9 +78,7 @@ public:
 
 		GLSLVersion Version = TranslateFormatNameToEnum(Format);
 
-		FOpenGLFrontend Frontend;
-		// the frontend will run the cross compiler
-		Frontend.CompileShader(Input, Output, WorkingDirectory, Version);
+		CompileOpenGLShader(Input, Output, WorkingDirectory, Version);
 	}
 
 	virtual const TCHAR* GetPlatformIncludeDirectory() const
