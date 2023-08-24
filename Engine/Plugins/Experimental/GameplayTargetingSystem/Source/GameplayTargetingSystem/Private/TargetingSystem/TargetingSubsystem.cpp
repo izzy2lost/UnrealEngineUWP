@@ -64,6 +64,13 @@ namespace TargetingSystemCVars
 		TotalDebugRecentRequestsTracked,
 		TEXT("Sets the total # of targeting requests that will be tracked upon starting of them (default = 5)")
 	);
+	
+	static float OverrideTargetingLifeTime = 0.f;
+    FAutoConsoleVariableRef CvarOverrideTargetingLifeTime(
+    	TEXT("ts.debug.OverrideTargetingLifeTime"),
+    	OverrideTargetingLifeTime,
+    	TEXT("Overrides the draws life time to ease the debugging")
+    );
 
 #endif // ENABLE_DRAW_DEBUG
 }
@@ -747,6 +754,11 @@ UTargetingTask* UTargetingSubsystem::FindCurrentExecutingTask(FTargetingRequestH
 bool UTargetingSubsystem::IsTargetingDebugEnabled()
 {
 	return TargetingSystemCVars::bEnableTargetingDebugging;
+}
+
+float UTargetingSubsystem::GetOverrideTargetingLifeTime()
+{
+	return TargetingSystemCVars::OverrideTargetingLifeTime;
 }
 
 /* static */

@@ -118,7 +118,7 @@ void UTargetingSelectionTask_AOE::DebugDrawBoundingVolume(const FTargetingReques
 	const FCollisionShape CollisionShape = GetCollisionShape();
 
 	const bool bPersistentLines = false;
-	const float LifeTime = 0.0f;
+	const float LifeTime = UTargetingSubsystem::GetOverrideTargetingLifeTime();
 	const uint8 DepthPriority = 0;
 	const float Thickness = 2.0f;
 
