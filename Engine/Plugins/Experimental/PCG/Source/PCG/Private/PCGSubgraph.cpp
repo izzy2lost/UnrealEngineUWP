@@ -410,7 +410,7 @@ FPCGContext* FPCGSubgraphElement::Initialize(const FPCGDataCollection& InputData
 
 	if (!OverridableParams.IsEmpty() && UserParametersView.IsValid())
 	{
-		bool bHasParamConnected = InputData.GetParamsWithDeprecation(Node) != nullptr;
+		bool bHasParamConnected = !InputData.GetParamsByPin(PCGPinConstants::DefaultParamsLabel).IsEmpty();
 
 		int32 Index = 0;
 		while (!bHasParamConnected && Index < OverridableParams.Num())

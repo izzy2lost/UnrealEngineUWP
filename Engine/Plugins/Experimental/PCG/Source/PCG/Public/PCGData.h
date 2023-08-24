@@ -145,6 +145,7 @@ struct PCG_API FPCGDataCollection
 
 	// Only used as a temporary solution for old graph with nodes that didn't have params pins.
 	// Should NOT be used with new nodes.
+	UE_DEPRECATED(5.4, "Was not supposed to be used anyway, you should query the data per pin using GetParamsByPin")
 	UPCGParamData* GetParamsWithDeprecation(const UPCGNode* Node) const;
 
 	/** Returns the first/only param found on the default params pin */

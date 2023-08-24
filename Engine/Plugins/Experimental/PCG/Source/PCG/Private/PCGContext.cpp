@@ -120,7 +120,7 @@ void FPCGContext::InitializeSettings()
 		const TArray<FPCGSettingsOverridableParam>& OverridableParams = NodeSettings->OverridableParams();
 		if (!OverridableParams.IsEmpty())
 		{
-			bool bHasParamConnected = InputData.GetParamsWithDeprecation(Node) != nullptr;
+			bool bHasParamConnected = !InputData.GetParamsByPin(PCGPinConstants::DefaultParamsLabel).IsEmpty();
 
 			int32 Index = 0;
 			while (!bHasParamConnected && Index < OverridableParams.Num())
