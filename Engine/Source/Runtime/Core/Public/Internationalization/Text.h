@@ -1265,7 +1265,12 @@ public:
 	/**
 	 * Check to see if the builder has any data.
 	 */
-	CORE_API bool IsEmpty();
+	CORE_API bool IsEmpty() const;
+
+	/**
+	 * Returns the number of lines.
+	 */
+	CORE_API int32 GetNumLines() const;
 
 	/**
 	 * Build the current set of input into a FText.

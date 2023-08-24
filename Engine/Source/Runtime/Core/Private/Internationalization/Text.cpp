@@ -1921,9 +1921,14 @@ void FTextBuilder::Clear()
 	Lines.Reset();
 }
 
-bool FTextBuilder::IsEmpty()
+bool FTextBuilder::IsEmpty() const
 {
 	return Lines.Num() == 0;
+}
+
+int32 FTextBuilder::GetNumLines() const
+{
+	return Lines.Num();
 }
 
 FText FTextBuilder::ToText() const
