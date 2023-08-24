@@ -330,6 +330,10 @@ namespace PCGAttributeAccessorHelpers
 			{
 				return Functor(Signature<FPCGPropertyPathAccessor<FSoftClassPath>>{}, InProperty);
 			}
+			else if (StructProperty->Struct->IsA(FPCGAttributePropertySelector::StaticStruct()->GetClass()))
+			{
+				return Functor(Signature<FPCGAttributePropertySelectorAccessor>{}, StructProperty);
+			}
 		}
 
 		return ReturnType{};

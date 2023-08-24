@@ -4,6 +4,8 @@
 
 #include "IPCGAttributeAccessorTpl.h"
 
+#include "Metadata/PCGAttributePropertySelector.h"
+
 #include "Containers/UnrealString.h" // IWYU pragma: keep
 #include "UObject/SoftObjectPath.h" // IWYU pragma: keep
 #include "UObject/UnrealType.h" // IWYU pragma: keep
@@ -334,3 +336,41 @@ public:
 private:
 	const FObjectProperty* Property = nullptr;
 };
+
+/**
+* Special accessor to support attribute selector overrides. Interface with a string.
+* Key supported: All
+*/
+class FPCGAttributePropertySelectorAccessor : public IPCGAttributeAccessorT<FPCGAttributePropertySelectorAccessor>
+{
+public:
+	using Type = FString;
+	using Super = IPCGAttributeAccessorT<FPCGAttributePropertySelectorAccessor>;
+
+	FPCGAttributePropertySelectorAccessor(const FStructProperty* InProperty)
+		: Super(/*bInReadOnly=*/ false)
+		, Property(InProperty)
+	{
+		ensure(InProperty && InProperty->Struct && InProperty->Struct->IsA(FPCGAttributePropertySelector::StaticStruct()->GetClass()));
+	}
+
+	bool GetRangeImpl(TArrayView<FString> OutValues, int32 Index, const IPCGAttributeAccessorKeys& Keys) const
+	{
+		return PCGPropertyAccessor::IterateGet(Property, OutValues, Index, Keys, [this](const void* PropertyAddressData) -> FString
+		{
+			return reinterpret_cast<const FPCGAttributePropertySelector*>(PropertyAddressData)->GetDisplayText().ToString();
+		});
+	}
+
+	bool SetRangeImpl(TArrayView<const FString> InValues, int32 Index, IPCGAttributeAccessorKeys& Keys, EPCGAttributeAccessorFlags Flags)
+	{
+		return PCGPropertyAccessor::IterateSet(Property, InValues, Index, Keys, [this](void* PropertyAddressData, const FString& Value) -> void
+		{
+			reinterpret_cast<FPCGAttributePropertySelector*>(PropertyAddressData)->Update(Value);
+		});
+	}
+
+private:
+	const FStructProperty* Property = nullptr;
+};
+
