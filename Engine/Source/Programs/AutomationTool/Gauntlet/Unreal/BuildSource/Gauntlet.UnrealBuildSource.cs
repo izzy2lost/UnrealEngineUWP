@@ -360,6 +360,7 @@ namespace Gauntlet
 
 							foreach (IBuild Build in Builds)
 							{
+								Log.Info("Adding build {0} with flags {1}", BS.BuildName, Build.Flags);
 								AddBuild(Build);
 							}
 						}
@@ -511,7 +512,7 @@ namespace Gauntlet
             Config.FilesToCopy = new List<UnrealFileToCopy>();
 
 			// new system of retrieving and encapsulating the info needed to install/launch. Android & Mac
-			Config.Build = GetMatchingBuilds(Role.RoleType, Role.Platform, Role.Configuration, Role.RequiredBuildFlags, Role.RequiredFlavor).FirstOrDefault();
+			Config.Build = GetMatchingBuilds(Role.RoleType, Role.Platform, Role.Configuration, Role.RequiredBuildFlags, Role.RequiredFlavor).OrderBy(B => B.PreferenceOrder).FirstOrDefault();
 
 			if (Config.Build == null && Role.IsNullRole() == false)
 			{
