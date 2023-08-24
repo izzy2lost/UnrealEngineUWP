@@ -573,8 +573,10 @@ void UBlueprintGeneratedClass::SerializeDefaultObject(UObject* Object, FStructur
 			if (CookedData.bHasValidCookedData)
 			{
 				// This feature requires EDL at cook time, so ensure that the source template is also fully loaded at this point.
+				// Also ensure that the source template is not a class default object; it must always be a unique archetype object.
 				if (SourceTemplate != nullptr
-					&& ensure(!SourceTemplate->HasAnyFlags(RF_NeedLoad)))
+					&& ensure(!SourceTemplate->HasAnyFlags(RF_NeedLoad))
+					&& ensure(!SourceTemplate->HasAnyFlags(RF_ClassDefaultObject)))
 				{
 					CookedData.BuildCachedPropertyDataFromTemplate(SourceTemplate);
 				}
