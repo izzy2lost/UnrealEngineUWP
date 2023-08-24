@@ -91,6 +91,7 @@ public:
 	ENGINE_API bool IsStreamingCompleted(const IWorldPartitionStreamingSourceProvider* InStreamingSourceProvider = nullptr) const;
 
 	ENGINE_API void DumpStreamingSources(FOutputDevice& OutputDevice) const;
+	ENGINE_API void DumpWorldPartitions(FOutputDevice& OutputDevice) const;
 
 	ENGINE_API TSet<IWorldPartitionStreamingSourceProvider*> GetStreamingSourceProviders() const;
 	ENGINE_API void RegisterStreamingSourceProvider(IWorldPartitionStreamingSourceProvider* StreamingSource);

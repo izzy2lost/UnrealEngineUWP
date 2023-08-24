@@ -541,7 +541,7 @@ void UWorldPartition::Initialize(UWorld* InWorld, const FTransform& InTransform)
 	const bool bIsDedicatedServer = IsRunningDedicatedServer();
 
 	UE_LOG(LogWorldPartition, Log, TEXT("UWorldPartition::Initialize : World = %s, World Type = %s, IsMainWorldPartition = %d, Location = %s, Rotation = %s, IsEditor = %d, IsGame = %d, IsPIEWorldTravel = %d, IsCooking = %d"),
-		*OuterWorld->GetName(),
+		*OuterWorld->GetPathName(),
 		LexToString(World->WorldType),
 		IsMainWorldPartition() ? 1 : 0,
 		*InTransform.GetLocation().ToCompactString(),
@@ -753,6 +753,8 @@ void UWorldPartition::Uninitialize()
 	if (IsInitialized())
 	{
 		check(World);
+
+		UE_LOG(LogWorldPartition, Log, TEXT("UWorldPartition::Uninitialize : World = %s"), *GetTypedOuter<UWorld>()->GetPathName());
 
 		InitState = EWorldPartitionInitState::Uninitializing;
 

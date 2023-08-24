@@ -111,7 +111,7 @@ static FAutoConsoleVariableRef CVarGLevelStreamingContinuouslyIncrementalGCWhile
 );
 
 static FAutoConsoleCommandWithOutputDevice GDumpStreamingSourcesCmd(
-	TEXT("wp.DumpstreamingSources"),
+	TEXT("wp.Runtime.DumpStreamingSources"),
 	TEXT("Dumps active streaming sources to the log"),
 	FConsoleCommandWithOutputDeviceDelegate::CreateStatic([](FOutputDevice& OutputDevice)
 	{
@@ -123,6 +123,25 @@ static FAutoConsoleCommandWithOutputDevice GDumpStreamingSourcesCmd(
 				if (const UWorldPartitionSubsystem* WorldPartitionSubsystem = World->GetSubsystem<UWorldPartitionSubsystem>())
 				{				
 					WorldPartitionSubsystem->DumpStreamingSources(OutputDevice);
+				}
+			}
+		}
+	})
+);
+
+static FAutoConsoleCommandWithOutputDevice GDumpWorldPartitionsCmd(
+	TEXT("wp.Runtime.DumpWorldPartitions"),
+	TEXT("Dumps active world partitions to the log"),
+	FConsoleCommandWithOutputDeviceDelegate::CreateStatic([](FOutputDevice& OutputDevice)
+	{
+		for (const FWorldContext& Context : GEngine->GetWorldContexts())
+		{
+			UWorld* World = Context.World();
+			if (World && World->IsGameWorld())
+			{
+				if (const UWorldPartitionSubsystem* WorldPartitionSubsystem = World->GetSubsystem<UWorldPartitionSubsystem>())
+				{				
+					WorldPartitionSubsystem->DumpWorldPartitions(OutputDevice);
 				}
 			}
 		}
@@ -818,6 +837,18 @@ bool UWorldPartitionSubsystem::IsStreamingCompleted(EWorldPartitionRuntimeCellSt
 	}
 
 	return true;
+}
+
+void UWorldPartitionSubsystem::DumpWorldPartitions(FOutputDevice& OutputDevice) const
+{
+	if (RegisteredWorldPartitions.Num() > 0)
+	{
+		OutputDevice.Logf(TEXT("Registered World Partitions:"));
+		TArray<FString> WorldPartitions;
+		Algo::ForEach(RegisteredWorldPartitions, [&WorldPartitions](const UWorldPartition* WorldPartition) { WorldPartitions.Add(WorldPartition->GetPathName()); });
+		WorldPartitions.Sort();
+		Algo::ForEach(WorldPartitions, [&OutputDevice](const FString& WorldPartition) { OutputDevice.Logf(TEXT("  - %s"), *WorldPartition); });
+	}
 }
 
 void UWorldPartitionSubsystem::DumpStreamingSources(FOutputDevice& OutputDevice) const
