@@ -129,6 +129,12 @@ namespace Chaos
 					const int32 EdgeOtherShapeIndex = (EdgeCollision.GetParticle0() == Particle) ? 1 : 0;
 					const EContactPointType VertexContactType = (EdgeOtherShapeIndex == 0) ? EContactPointType::VertexPlane : EContactPointType::PlaneVertex;
 
+					// We skip meshes - they are handled by FParticleMeshCollisionPruner
+					if (EdgeCollision.GetImplicit(EdgeOtherShapeIndex)->IsUnderlyingMesh())
+					{
+						return ECollisionVisitorResult::Continue;
+					}
+
 					for (const FManifoldPoint& EdgeManifoldPoint : EdgeCollision.GetManifoldPoints())
 					{
 						const bool bIsEdgeContact = (EdgeManifoldPoint.ContactPoint.ContactType == EContactPointType::EdgeEdge);

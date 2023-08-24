@@ -76,7 +76,7 @@ namespace Chaos
 	FAutoConsoleVariableRef CVarCollisionsAllowParticleTracking(TEXT("p.Chaos.Collision.AllowParticleTracking"), CollisionsAllowParticleTracking, TEXT("Allow particles to track their collisions constraints when their DoBufferCollisions flag is enable [def:true]"));
 
 	//	Which edge pruning features to enable (for particle swith EdgeSmoothing enabled)
-	bool bCollisionsEnableEdgeCollisionPruning = false;
+	bool bCollisionsEnableEdgeCollisionPruning = true;
 	bool bCollisionsEnableMeshCollisionPruning = true;
 	bool bCollisionsEnableSubSurfaceCollisionPruning = false;
 	FAutoConsoleVariableRef CVarCollisionsEnableEdgeCollisionPruning(TEXT("p.Chaos.Collision.EnableEdgeCollisionPruning"), bCollisionsEnableEdgeCollisionPruning, TEXT(""));
