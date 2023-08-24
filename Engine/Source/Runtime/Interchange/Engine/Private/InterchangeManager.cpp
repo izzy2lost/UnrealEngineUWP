@@ -30,6 +30,7 @@
 #include "Misc/AssertionMacros.h"
 #include "Misc/AsyncTaskNotification.h"
 #include "Misc/MessageDialog.h"
+#include "Misc/NamePermissionList.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Misc/DateTime.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
@@ -207,6 +208,37 @@ void UE::Interchange::FImportAsyncHelper::AddReferencedObjects(FReferenceCollect
 	Collector.AddReferencedObjects(Translators);
 	Collector.AddReferencedObjects(Pipelines);
 	Collector.AddReferencedObjects(CreatedFactories);
+}
+
+bool UE::Interchange::FImportAsyncHelper::IsClassImportAllowed(UClass* Class)
+{
+#if WITH_EDITOR
+	//Lock the classes
+	FScopeLock Lock(&ClassPermissionLock);
+
+	if (AllowedClasses.Contains(Class))
+	{
+		return true;
+	}
+	else if (DeniedClasses.Contains(Class))
+	{
+		return false;
+	}
+
+	IAssetTools& AssetTools = FAssetToolsModule::GetModule().Get();
+	TSharedPtr<FPathPermissionList> AssetClassPermissionList = AssetTools.GetAssetClassPathPermissionList(EAssetClassAction::ImportAsset);
+	if (AssetClassPermissionList && AssetClassPermissionList->HasFiltering())
+	{
+		if (!AssetClassPermissionList->PassesFilter(Class->GetPathName()))
+		{
+			UE_LOG(LogInterchangeEngine, Display, TEXT("The creation of asset of class '%s' is not allowed in this project."), *Class->GetName());
+			DeniedClasses.Add(Class);
+			return false;
+		}
+	}
+	AllowedClasses.Add(Class);
+#endif //WITH_EDITOR
+	return true;
 }
 
 /*

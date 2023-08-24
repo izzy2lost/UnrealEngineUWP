@@ -1,9 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "InterchangeTaskImportObject.h"
 
-#if WITH_EDITOR
-#include "AssetToolsModule.h"
-#endif //WITH_EDITOR
 #include "AssetCompilingManager.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "CoreMinimal.h"
@@ -15,7 +12,6 @@
 #include "InterchangeResult.h"
 #include "InterchangeSourceData.h"
 #include "InterchangeTranslatorBase.h"
-#include "Misc/NamePermissionList.h"
 #include "Misc/Paths.h"
 #include "PackageUtils/PackageUtils.h"
 #include "Stats/Stats.h"
@@ -122,43 +118,11 @@ namespace UE::Interchange::Private
 
 	bool CanImportClass(UE::Interchange::FImportAsyncHelper& AsyncHelper, UInterchangeFactoryBaseNode& FactoryNode, int32 SourceIndex)
 	{
-	#if WITH_EDITOR
 		if (UClass* Class = FactoryNode.GetObjectClass())
 		{
-			if (AsyncHelper.AllowedClasses.Contains(Class))
-			{
-				return true;
-			}
-			else if (AsyncHelper.DeniedClasses.Contains(Class))
-			{
-				return false;
-			}
-			else
-			{
-				IAssetTools& AssetTools = FAssetToolsModule::GetModule().Get();
-				TSharedPtr<FPathPermissionList> AssetClassPermissionList = AssetTools.GetAssetClassPathPermissionList(EAssetClassAction::ImportAsset);
-				if (AssetClassPermissionList && AssetClassPermissionList->HasFiltering())
-				{
-					if (!AssetClassPermissionList->PassesFilter(Class->GetPathName()))
-					{
-						UE_LOG(LogInterchangeEngine, Display, TEXT("The creation of asset of class '%s' is not allowed in this project."), *Class->GetName());
-						AsyncHelper.DeniedClasses.Add(Class);
-						return false;
-					}
-				}
-
-				AsyncHelper.AllowedClasses.Add(Class);
-
-				return true;
-			}
+			return AsyncHelper.IsClassImportAllowed(Class);
 		}
-		else
-		{
-			return false;
-		}
-	#endif //WITH_EDITOR
-
-		return true;
+		return false;
 	}
 
 	UInterchangeFactoryBase::FImportAssetResult InternalImportObjectStartup(TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper

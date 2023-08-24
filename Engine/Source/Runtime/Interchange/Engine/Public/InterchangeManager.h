@@ -220,17 +220,14 @@ namespace UE
 			// Package where the Pipeline Instances are stored during an import.
 			FString PipelineInstancesPackageName;
 
+			//Return true if we can import this class, false otherwise
+			bool IsClassImportAllowed(UClass* Class);
+
 			UPackage* GetCreatedPackage(const FString& PackageName) const;
 			void AddCreatedPackage(const FString& PackageName, UPackage* Package);
 
 			UInterchangeFactoryBase* GetCreatedFactory(const FString& FactoryNodeUniqueId) const;
 			void AddCreatedFactory(const FString& FactoryNodeUniqueId, UInterchangeFactoryBase* Factory);
-
-			// Set of classes which creation has been denied
-			TSet<UClass*> DeniedClasses;
-
-			// Set of classes which creation is allowed
-			TSet<UClass*> AllowedClasses;
 
 			struct FImportedObjectInfo
 			{
@@ -276,6 +273,12 @@ namespace UE
 			void CleanUp();
 
 		private:
+			FCriticalSection ClassPermissionLock;
+			// Set of classes which creation has been denied
+			TSet<UClass*> DeniedClasses;
+			// Set of classes which creation is allowed
+			TSet<UClass*> AllowedClasses;
+
 			//Create package map, Key is package name. We cannot create package asynchronously so we have to create a game thread task to do this
 			mutable FCriticalSection CreatedPackagesLock;
 			TMap<FString, UPackage*> CreatedPackages;
