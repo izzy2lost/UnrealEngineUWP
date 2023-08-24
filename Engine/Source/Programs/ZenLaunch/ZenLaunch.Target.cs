@@ -15,7 +15,9 @@ public class ZenLaunchTarget : TargetRules
 
 		// Lean and mean
 		bBuildDeveloperTools = false;
-		bBuildWithEditorOnlyData = false;
+
+		// Building with editor-only data is required for accepting a project argument and loading project-specific configuration
+		bBuildWithEditorOnlyData = true;
 
 		// Currently this app is not linking against the engine, so we'll compile out references from Core to the rest of the engine
 		bCompileAgainstEngine = false;
