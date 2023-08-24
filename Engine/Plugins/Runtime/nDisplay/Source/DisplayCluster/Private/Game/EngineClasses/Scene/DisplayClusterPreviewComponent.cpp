@@ -106,13 +106,15 @@ UDisplayClusterDisplayDeviceBaseComponent* UDisplayClusterPreviewComponent::GetD
 	{
 		UDisplayClusterDisplayDeviceBaseComponent* CachedComponent =
 			Cast<UDisplayClusterDisplayDeviceBaseComponent>(CachedDisplayDevice.GetComponent(GetOwner()));
-		if (CachedComponent && CachedComponent->GetName() == ViewportConfig->DisplayDeviceName)
+		if (CachedComponent
+			&& (CachedComponent->GetName() == ViewportConfig->DisplayDeviceName
+				|| (ViewportConfig->DisplayDeviceName.IsEmpty() && bIsUsingDefaultDisplayDevice && CachedComponent == RootActor->GetDefaultDisplayDevice())))
 		{
 			DeviceBaseComponent = CachedComponent;
 		}
 		else
 		{
-			DeviceBaseComponent = UE::DisplayClusterDisplayDeviceUtils::FindAndSyncDisplayDeviceFromViewport(ViewportConfig);
+			DeviceBaseComponent = UE::DisplayClusterDisplayDeviceUtils::FindAndSyncDisplayDeviceFromViewport(ViewportConfig, &bIsUsingDefaultDisplayDevice);
 		}
 	}
 
@@ -221,7 +223,7 @@ bool UDisplayClusterPreviewComponent::UpdatePreviewMesh()
 		// It must have a renderable resource (preview render target or override texture), have a valid viewport configured,
 		// and have that viewport either actively being rendered to by the preview renderer OR have an override texture supplied
 		// externally
-		const bool bHasRenderableResource = RenderTarget != nullptr || RenderTargetPostProcess != nullptr || OverrideTexture != nullptr;
+		const bool bHasRenderableResource = RenderTarget != nullptr || RenderTargetPostProcess != nullptr || OverrideTexture != nullptr || DisplayDeviceRenderTarget != nullptr;
 		const bool bIsViewportValid = Viewport != nullptr && Viewport->GetProjectionPolicy().IsValid();
 		const bool bOutputToPreviewMesh = bHasRenderableResource && bIsViewportValid && (Viewport->GetRenderSettings().bEnable || OverrideTexture);
 		if (bOutputToPreviewMesh)
@@ -314,8 +316,7 @@ void UDisplayClusterPreviewComponent::UpdatePreviewMaterial()
 		}
 		else
 		{
-			PreviewMaterialInstance->SetTextureParameterValue(TEXT("Preview"),
-				RootActor && RootActor->bPreviewEnablePostProcess ? RenderTargetPostProcess : RenderTarget);
+			PreviewMaterialInstance->SetTextureParameterValue(TEXT("Preview"), CurrentPreviewRenderTargetPtr);
 		}
 
 		// Allow display device to perform any processing on the material instance.
@@ -346,6 +347,7 @@ void UDisplayClusterPreviewComponent::ReleasePreviewRenderTarget()
 {
 	ReleaseRenderTargetImpl(&RenderTarget);
 	ReleaseRenderTargetImpl(&RenderTargetPostProcess);
+	ReleaseRenderTargetImpl(&DisplayDeviceRenderTarget);
 }
 
 void UDisplayClusterPreviewComponent::UpdatePreviewRenderTarget()
@@ -359,6 +361,33 @@ void UDisplayClusterPreviewComponent::UpdatePreviewRenderTarget()
 		else
 		{
 			UpdateRenderTargetImpl(&RenderTarget);
+		}
+
+		UTextureRenderTarget2D* DestinationRenderTarget = nullptr;
+		if (UTextureRenderTarget2D* SourceRenderTarget = RootActor->bPreviewEnablePostProcess
+			                                                 ? RenderTargetPostProcess
+			                                                 : RenderTarget)
+		{
+			DestinationRenderTarget = SourceRenderTarget;
+
+			// Perform any render passes on the render target by the display device
+			if (UDisplayClusterDisplayDeviceBaseComponent* CachedComponent =
+			Cast<UDisplayClusterDisplayDeviceBaseComponent>(CachedDisplayDevice.GetComponent(GetOwner())))
+			{
+				if (CachedComponent->IsRenderPassEnabled() && !RootActor->IsTemplate())
+				{
+					UpdateRenderTargetImpl(&DisplayDeviceRenderTarget);
+					CachedComponent->RenderPass_GameThread(SourceRenderTarget, DisplayDeviceRenderTarget);
+					DestinationRenderTarget = DisplayDeviceRenderTarget;
+				}
+			}
+		}
+
+		if (DestinationRenderTarget != CurrentPreviewRenderTargetPtr)
+		{
+			// Preview render target has changed, update the material
+			CurrentPreviewRenderTargetPtr = DestinationRenderTarget;
+			UpdatePreviewMaterial();
 		}
 	}
 }

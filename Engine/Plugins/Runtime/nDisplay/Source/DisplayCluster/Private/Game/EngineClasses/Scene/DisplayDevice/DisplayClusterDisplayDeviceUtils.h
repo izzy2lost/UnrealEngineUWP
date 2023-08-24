@@ -14,8 +14,9 @@ namespace UE::DisplayClusterDisplayDeviceUtils
 	 * viewport on the instance will be synced to the new name.
 	 *
 	 * @param InViewport The viewport object which points to a display device and belongs to a root actor.
+	 * @param bOutIsDefaultDevice If the display device returned is the default display device.
 	 * @return The display device this viewport uses or nullptr.
 	 */
-	UDisplayClusterDisplayDeviceBaseComponent* FindAndSyncDisplayDeviceFromViewport(UDisplayClusterConfigurationViewport* InViewport);
+	UDisplayClusterDisplayDeviceBaseComponent* FindAndSyncDisplayDeviceFromViewport(UDisplayClusterConfigurationViewport* InViewport, bool* bOutIsDefaultDevice = nullptr);
 #endif
 }

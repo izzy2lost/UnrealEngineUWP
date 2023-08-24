@@ -10,7 +10,7 @@
 #if WITH_EDITOR
 
 UDisplayClusterDisplayDeviceBaseComponent* UE::DisplayClusterDisplayDeviceUtils::FindAndSyncDisplayDeviceFromViewport(
-	UDisplayClusterConfigurationViewport* InViewport)
+	UDisplayClusterConfigurationViewport* InViewport, bool* bOutIsDefaultDevice)
 {
 	if (IsValid(InViewport))
 	{
@@ -19,6 +19,10 @@ UDisplayClusterDisplayDeviceBaseComponent* UE::DisplayClusterDisplayDeviceUtils:
 			UDisplayClusterDisplayDeviceBaseComponent* DeviceBaseComponent = nullptr;
 
 			const bool bUseDefaultDevice = InViewport->DisplayDeviceName.IsEmpty();
+			if (bOutIsDefaultDevice)
+			{
+				*bOutIsDefaultDevice = bUseDefaultDevice;
+			}
 			if (bUseDefaultDevice)
 			{
 				DeviceBaseComponent = RootActor->GetDefaultDisplayDevice();
@@ -68,7 +72,7 @@ UDisplayClusterDisplayDeviceBaseComponent* UE::DisplayClusterDisplayDeviceUtils:
 											InViewport->Modify();
 											InViewport->DisplayDeviceName = ViewportCDO->DisplayDeviceName;
 									
-											return FindAndSyncDisplayDeviceFromViewport(InViewport);
+											return FindAndSyncDisplayDeviceFromViewport(InViewport, bOutIsDefaultDevice);
 										}
 									}
 								}

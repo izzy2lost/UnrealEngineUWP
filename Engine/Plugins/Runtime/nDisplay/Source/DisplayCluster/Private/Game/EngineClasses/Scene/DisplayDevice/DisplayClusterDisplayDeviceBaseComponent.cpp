@@ -5,7 +5,6 @@
 #include "DisplayClusterRootActor.h"
 
 #include "Materials/Material.h"
-#include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
 
 UDisplayClusterDisplayDeviceBaseComponent::UDisplayClusterDisplayDeviceBaseComponent()
@@ -38,17 +37,3 @@ void UDisplayClusterDisplayDeviceBaseComponent::PostEditChangeProperty(FProperty
 	}
 }
 #endif
-
-UDisplayClusterDisplayDeviceComponent::UDisplayClusterDisplayDeviceComponent()
-{
-}
-
-void UDisplayClusterDisplayDeviceComponent::OnUpdatePreviewMaterialInstance(UMaterialInstanceDynamic* InMaterialInstance)
-{
-	Super::OnUpdatePreviewMaterialInstance(InMaterialInstance);
-
-	if (InMaterialInstance)
-	{
-		InMaterialInstance->SetScalarParameterValue(TEXT("Exposure"), Exposure);
-	}
-}

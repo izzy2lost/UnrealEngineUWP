@@ -10,7 +10,7 @@
 #include "Components/DisplayClusterSceneComponentSyncParent.h"
 #include "Components/DisplayClusterScreenComponent.h"
 #include "Components/DisplayClusterStageGeometryComponent.h"
-#include "Components/DisplayDevice/DisplayClusterDisplayDeviceBaseComponent.h"
+#include "Components/DisplayDevice/DisplayClusterDisplayDeviceComponent.h"
 #include "Components/LineBatchComponent.h"
 #include "Components/MeshComponent.h"
 #include "Components/SceneComponent.h"

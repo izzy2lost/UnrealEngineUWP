@@ -145,6 +145,17 @@ protected:
 	TObjectPtr<UTextureRenderTarget2D> RenderTargetPostProcess;
 	
 private:
+	/**
+	 * The chosen preview render target to use for the preview material. This could be standard, post processed, or
+	 * processed by the display device
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UTextureRenderTarget2D> CurrentPreviewRenderTargetPtr;
+
+	/** The preview render target processed by the display device */
+	UPROPERTY(Transient)
+	TObjectPtr<UTextureRenderTarget2D> DisplayDeviceRenderTarget;
+	
 	// Saved mesh policy params
 	UPROPERTY(Transient)
 	FDisplayClusterConfigurationProjection WarpMeshSavedProjectionPolicy;
@@ -161,6 +172,10 @@ private:
 	/** The last used display device component */
 	UPROPERTY(Transient)
 	mutable FComponentReference CachedDisplayDevice;
+
+	/** If the display device being used is default */
+	UPROPERTY(Transient)
+	mutable bool bIsUsingDefaultDisplayDevice = false;
 
 	/** If this preview component should utilize the display device component */
 	bool bUseDisplayDevice = true;
