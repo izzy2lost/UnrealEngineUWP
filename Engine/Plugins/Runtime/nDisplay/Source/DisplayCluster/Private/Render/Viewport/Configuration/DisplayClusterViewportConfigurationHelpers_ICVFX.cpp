@@ -807,6 +807,13 @@ void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateLightcardViewportS
 	{
 		BaseViewport.RenderSettingsICVFX.ICVFX.UVLightCard.ViewportId = DstViewport.GetId();
 	}
+
+	if (EnumHasAnyFlags(DstViewport.RenderSettingsICVFX.RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::Lightcard | EDisplayClusterViewportRuntimeICVFXFlags::UVLightcard))
+	{
+		// Set the light card gamma used to linearize the light card textures before blending during final composite
+		// The OCIO pass will have already linearized the light card renders, so set the gamma to 1 if using OCIO on the light cards
+		BaseViewport.RenderSettingsICVFX.ICVFX.LightCardGamma = DstViewport.OpenColorIO.IsValid() ? 1.0 : 2.2;
+	}
 }
 
 void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraCustomFrustum(

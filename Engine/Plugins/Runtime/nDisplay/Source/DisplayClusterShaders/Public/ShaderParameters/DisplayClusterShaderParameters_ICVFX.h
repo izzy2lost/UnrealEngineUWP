@@ -105,6 +105,8 @@ public:
 
 		UVLightCard.Reset();
 		LightCard.Reset();
+
+		LightCardGamma = 2.2;
 	}
 
 	// Implement copy ref and arrays
@@ -119,6 +121,7 @@ public:
 		UVLightCard = InParameters.UVLightCard;
 		LightCard   = InParameters.LightCard;
 		LightCardMode = InParameters.LightCardMode;
+		LightCardGamma = InParameters.LightCardGamma;
 	}
 
 	inline void SortCamerasRenderOrder()
@@ -332,4 +335,7 @@ public:
 	FDisplayClusterShaderParametersICVFX_ViewportResource    UVLightCard;
 	FDisplayClusterShaderParametersICVFX_ViewportResource    LightCard;
 	EDisplayClusterShaderParametersICVFX_LightCardRenderMode LightCardMode = EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Under;
+
+	// The gamma that the light card renders have been encoded with, used to linearize during final composite
+	float LightCardGamma = 2.2;
 };

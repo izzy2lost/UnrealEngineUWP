@@ -182,6 +182,7 @@ void FDisplayClusterViewportLightCardManager::RenderUVLightCard()
 			FDisplayClusterShaderParameters_UVLightCards UVLightCardParameters;
 			UVLightCardParameters.ProjectionPlaneSize = ADisplayClusterLightCardActor::UVPlaneDefaultSize;
 			UVLightCardParameters.bRenderFinalColor = ViewportManager->ShouldRenderFinalColor();
+			UVLightCardParameters.LightCardGamma = 2.2;
 
 			// Store any components that were invisible but forced to be visible so they can be set back to invisible after the render
 			TArray<UPrimitiveComponent*> ComponentsToUnload;

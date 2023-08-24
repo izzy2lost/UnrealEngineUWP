@@ -52,6 +52,7 @@ float4 OverlappedInnerCameraSoftEdges[MAX_INNER_CAMERAS_AMOUNT];
 #define ENABLE_INNER_CAMERA_OVERLAP 0
 #endif
 
+float LightCardGamma;
 float AlphaEmbeddedGamma;
 
 float4 InnerCameraSoftEdge;

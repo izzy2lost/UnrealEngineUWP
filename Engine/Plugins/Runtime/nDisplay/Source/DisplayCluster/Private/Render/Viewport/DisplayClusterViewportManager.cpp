@@ -692,9 +692,10 @@ bool FDisplayClusterViewportManager::BeginNewFrame(FViewport* InViewport, UWorld
 				ContextIt.RenderThreadData.EngineDisplayGamma = ViewportDisplayGamma;
 
 
-				if (DefaultEngineShowFlags)
+				if (DefaultEngineShowFlags && !EnumHasAnyFlags(ViewportIt->RenderSettingsICVFX.RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::UVLightcard))
 				{
 					// Todo: DefaultEngineShowFlags is not the correct value, since each viewport uses its own Engine flags.
+					// UV Light cards should not be set to the default engine flags, since they are rendered using a custom render pass that does not utilize the flags
 					ContextIt.RenderThreadData.EngineShowFlags = *DefaultEngineShowFlags;
 				}
 			}
@@ -1180,6 +1181,26 @@ TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe> FDisplayCluster
 	}
 
 	return nullptr;
+}
+
+TArray<TSharedPtr<IDisplayClusterViewport, ESPMode::ThreadSafe>> FDisplayClusterViewportManager::GetViewportsForWarpPolicy(const TSharedPtr<IDisplayClusterWarpPolicy>& InWarpPolicy) const
+{
+	TArray<TSharedPtr<IDisplayClusterViewport, ESPMode::ThreadSafe>> WarpPolicyViewports;
+
+	for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& Viewport : ImplGetEntireClusterViewports())
+	{
+		bool bViewportValid = Viewport.IsValid();
+		bool bProjectionPolicyValid = Viewport->GetProjectionPolicy().IsValid();
+		IDisplayClusterWarpPolicy* WarpPolicy = Viewport->GetProjectionPolicy()->GetWarpPolicy();
+		bool bIsSameWarpPolicy = WarpPolicy == InWarpPolicy.Get();
+
+		if (Viewport.IsValid() && Viewport->GetProjectionPolicy().IsValid() && Viewport->GetProjectionPolicy()->GetWarpPolicy() == InWarpPolicy.Get())
+		{
+			WarpPolicyViewports.Add(Viewport);
+		}
+	}
+
+	return WarpPolicyViewports;
 }
 
 void FDisplayClusterViewportManager::MarkComponentGeometryDirty(const FName InComponentName)

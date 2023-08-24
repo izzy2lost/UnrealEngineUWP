@@ -296,6 +296,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FIcvfxPixelShaderParameters, )
 	SHADER_PARAMETER(FMatrix44f, OverlayProjectionMatrix)
 	SHADER_PARAMETER(FMatrix44f, InnerCameraProjectionMatrix)
 
+	SHADER_PARAMETER(float, LightCardGamma)
 	SHADER_PARAMETER(float, AlphaEmbeddedGamma)
 
 	SHADER_PARAMETER(FVector4f, InnerCameraSoftEdge)
@@ -623,6 +624,7 @@ public:
 		{
 			RenderPassData.PSParameters.LightCardSampler = TStaticSamplerState<SF_Trilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 			RenderPassData.PSParameters.LightCardTexture = ICVFXParameters.LightCard.Texture;
+			RenderPassData.PSParameters.LightCardGamma = ICVFXParameters.LightCardGamma;
 
 			return true;
 		}
@@ -670,6 +672,7 @@ public:
 		{
 			RenderPassData.PSParameters.UVLightCardSampler = TStaticSamplerState<SF_Trilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 			RenderPassData.PSParameters.UVLightCardTexture = ICVFXParameters.UVLightCard.Texture;
+			RenderPassData.PSParameters.LightCardGamma = ICVFXParameters.LightCardGamma;
 
 			return true;
 		}
