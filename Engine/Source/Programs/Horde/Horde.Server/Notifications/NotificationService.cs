@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Api;
 using EpicGames.Redis;
+using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Configuration;
 using Horde.Server.Devices;
@@ -791,6 +792,22 @@ namespace Horde.Server.Notifications
 			}
 
 			_logger.LogDebug("Finished sending label notifications for label {DashboardName}/{UgsName} in job {JobId}", label.DashboardName, label.UgsName, job.Id);
+		}
+
+		/// <inheritdoc/>
+		public async Task SendAgentReportAsync(AgentReport report)
+		{
+			foreach (INotificationSink sink in _sinks)
+			{
+				try
+				{
+					await sink.SendAgentReportAsync(report);
+				}
+				catch (Exception e)
+				{
+					_logger.LogError(e, "Failed sending agent report to {Channel}", _settings.CurrentValue.AgentNotificationChannel);
+				}
+			}
 		}
 
 		/// <inheritdoc/>

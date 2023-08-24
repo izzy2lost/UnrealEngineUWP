@@ -11,13 +11,13 @@ using Horde.Server.Jobs.Graphs;
 using Horde.Server.Notifications;
 using Horde.Server.Users;
 using Horde.Server.Streams;
-using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using Horde.Server.Logs;
 using Microsoft.Extensions.Caching.Memory;
+using Horde.Server.Agents;
 
 namespace Horde.Server.Tests
 {
@@ -41,6 +41,7 @@ namespace Horde.Server.Tests
 		public Task NotifyConfigUpdateAsync(Exception? ex) => Task.CompletedTask;
 		public Task NotifyConfigUpdateFailureAsync(string errorMessage, string fileName, int? change = null, IUser? author = null, string? description = null) { throw new NotImplementedException(); }
 		public Task NotifyDeviceServiceAsync(string message, IDevice? device = null, IDevicePool? pool = null, StreamConfig? stream = null, IJob? job = null, IJobStep? step = null, INode? node = null, IUser? user = null) { throw new NotImplementedException(); }
+		public Task SendAgentReportAsync(AgentReport report) => throw new NotImplementedException();
 		public Task SendIssueReportAsync(IssueReportGroup report) => throw new NotImplementedException();
 		public Task SendDeviceIssueReportAsync(DeviceIssueReport report) => throw new NotImplementedException();
 	}

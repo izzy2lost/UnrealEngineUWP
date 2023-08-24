@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Horde.Server.Agents;
 using Horde.Server.Configuration;
 using Horde.Server.Devices;
 using Horde.Server.Issues;
@@ -126,6 +127,10 @@ namespace Horde.Server.Notifications
 		/// <returns></returns>
 		Task SendDeviceIssueReportAsync(DeviceIssueReport report);
 
+		/// <summary>
+		/// Notify the status of agents in the farm
+		/// </summary>
+		Task SendAgentReportAsync(AgentReport report);
 	}
 }
 

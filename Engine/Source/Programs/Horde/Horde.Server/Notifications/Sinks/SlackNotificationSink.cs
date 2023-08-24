@@ -43,6 +43,7 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using EpicGames.Horde;
+using Horde.Server.Agents;
 
 namespace Horde.Server.Notifications.Sinks
 {
@@ -2994,6 +2995,40 @@ namespace Horde.Server.Notifications.Sinks
 
 				await _slackClient.OpenViewAsync(triggerId, view);
 				return;
+			}
+		}
+
+		/// <inheritdoc/>
+		public async Task SendAgentReportAsync(AgentReport report)
+		{
+			if (!String.IsNullOrEmpty(_settings.AgentNotificationChannel))
+			{
+				_logger.LogInformation("Sending agent report to {Channel}", _settings.AgentNotificationChannel);
+
+				SlackMessage headerMessage = new SlackMessage();
+				headerMessage.AddHeader($"Agent status");
+				await _slackClient.PostMessageAsync(_settings.AgentNotificationChannel, headerMessage);
+
+				{
+					StringBuilder conformMessage = new StringBuilder("**Conform issues:**\n");
+					if (report.ConformLoop.Count == 0)
+					{
+						conformMessage.Append("None.\n");
+						await _slackClient.PostMessageAsync(_settings.AgentNotificationChannel, conformMessage.ToString());
+					}
+					else
+					{
+						foreach (IReadOnlyList<(AgentId, int)> conformBatch in report.ConformLoop.Batch(10))
+						{
+							foreach ((AgentId agentId, int conformCount) in conformBatch)
+							{
+								Uri agentUrl = new Uri(_settings.DashboardUrl, $"agents?agentId={agentId}");
+								conformMessage.Append($"* **[{agentId}]({agentUrl})** has run conform {conformCount} times\n");
+							}
+							await _slackClient.PostMessageAsync(_settings.AgentNotificationChannel, conformMessage.ToString());
+						}
+					}
+				}
 			}
 		}
 	}

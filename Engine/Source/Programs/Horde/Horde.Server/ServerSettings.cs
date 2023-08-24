@@ -695,6 +695,11 @@ namespace Horde.Server
 		public string? JobNotificationChannel { get; set; }
 
 		/// <summary>
+		/// Slack channel to send agent related notifications to.
+		/// </summary>
+		public string? AgentNotificationChannel { get; set; }
+
+		/// <summary>
 		/// The URl to use for generating links back to the dashboard.
 		/// </summary>
 		public Uri DashboardUrl { get; set; } = new Uri("https://localhost:3000");
@@ -743,7 +748,6 @@ namespace Horde.Server
 		/// Channel to send device reports to
 		/// </summary>
 		public string? DeviceReportChannel { get; set; }
-
 
 		/// <summary>
 		/// Default agent pool sizing strategy for pools that doesn't have one explicitly configured

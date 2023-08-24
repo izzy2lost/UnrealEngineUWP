@@ -12,6 +12,7 @@ using Horde.Server.Issues;
 using Horde.Server.Users;
 using MongoDB.Bson;
 using Horde.Server.Streams;
+using Horde.Server.Agents;
 
 namespace Horde.Server.Notifications
 {
@@ -155,6 +156,12 @@ namespace Horde.Server.Notifications
 		/// </summary>
 		/// <param name="report">The report data to send</param>
 		Task SendDeviceIssueReportAsync(DeviceIssueReport report);
+
+		/// <summary>
+		/// Post a notification for any agents encountering issues
+		/// </summary>
+		/// <param name="report">The report data to send</param>
+		Task SendAgentReportAsync(AgentReport report);
 
 		/// <summary>
 		/// Post a notification for the open issues in a stream
