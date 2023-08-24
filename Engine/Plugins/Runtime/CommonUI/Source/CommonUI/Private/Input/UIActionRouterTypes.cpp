@@ -1196,18 +1196,25 @@ void FActivatableTreeNode::HandleWidgetDeactivated()
 	if (bCanReceiveInput)
 	{
 		SetCanReceiveInput(false);
-		
-		if (Parent.IsValid() && DoesPathSupportActivationFocus())
-		{
-			// Search for the nearest parent that's still receiving input to give it focus
-			if (FActivatableTreeNodePtr NearestActiveParent = GetParentNode())
-			{
-				while (NearestActiveParent && !NearestActiveParent->IsReceivingInput())
-				{
-					NearestActiveParent = NearestActiveParent->GetParentNode();
-				}
 
-				GetActionRouter().UpdateLeafNodeAndConfig(GetRoot(), NearestActiveParent);
+		if (Parent.IsValid())
+		{
+			if (DoesPathSupportActivationFocus())
+			{
+				// Search for the nearest parent that's still receiving input to give it focus
+				if (FActivatableTreeNodePtr NearestActiveParent = GetParentNode())
+				{
+					while (NearestActiveParent && !NearestActiveParent->IsReceivingInput())
+					{
+						NearestActiveParent = NearestActiveParent->GetParentNode();
+					}
+
+					GetActionRouter().UpdateLeafNodeAndConfig(GetRoot(), NearestActiveParent);
+				}
+			}
+			else
+			{
+				GetActionRouter().OnBoundActionsUpdated().Broadcast();
 			}
 		}
 	}
