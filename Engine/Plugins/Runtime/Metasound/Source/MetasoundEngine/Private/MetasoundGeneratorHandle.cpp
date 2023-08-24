@@ -378,6 +378,47 @@ bool UMetasoundGeneratorHandle::WatchOutput(
 	return true;
 }
 
+void UMetasoundGeneratorHandle::EnableRuntimeRenderTiming(bool Enable)
+{
+	bRuntimeRenderTimingShouldBeEnabled = Enable;
+
+	if (!IsValid())
+	{
+		return;
+	}
+
+	if (!CachedMetasoundSource.IsValid())
+	{
+		CacheMetasoundSource();
+	}
+
+	TSharedPtr<Metasound::FMetasoundGenerator> Generator = PinGenerator();
+	if (Generator)
+	{
+		Generator->EnableRuntimeRenderTiming(Enable);
+	}
+}
+
+double UMetasoundGeneratorHandle::GetCPUCoreUtilization()
+{
+	if (!IsValid())
+	{
+		return 0.0;
+	}
+
+	if (!CachedMetasoundSource.IsValid())
+	{
+		CacheMetasoundSource();
+	}
+
+	TSharedPtr<Metasound::FMetasoundGenerator> Generator = PinGenerator();
+	if (!Generator)
+	{
+		return 0.0;
+	}
+	return Generator->GetCPUCoreUtilization();
+}
+
 void UMetasoundGeneratorHandle::RegisterPassthroughAnalyzerForType(FName TypeName, FName AnalyzerName, FName OutputName)
 {
 	check(!PassthroughAnalyzers.Contains(TypeName));
@@ -432,6 +473,8 @@ void UMetasoundGeneratorHandle::OnSourceCreatedAGenerator(uint64 InAudioComponen
 				}
 			}
 			
+			InGenerator->EnableRuntimeRenderTiming(bRuntimeRenderTimingShouldBeEnabled);
+
 			OnGeneratorHandleAttached.Broadcast();
 			// If anyone has told us they are interested in being notified when a generator's 
 			// graph has changed go ahead and set that up now...

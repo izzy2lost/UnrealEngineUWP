@@ -89,6 +89,22 @@ public:
 		FName AnalyzerOutputName = NAME_None);
 
 	/**
+	* Enable the profiling of the MetaSound render for this playing instance. You
+	* must call this before calling "GetRuntimeCPUCoreUtilization" (below) or you will just 
+	* get 0.0 back for core utilization.
+	*/
+	UFUNCTION(BlueprintCallable, Category="MetaSoundPerf", meta=(AdvancedDisplay = "2"))
+	void EnableRuntimeRenderTiming(bool Enable);
+
+	/**
+	* Get the CPU usage as "fraction of real time" used to render this metasound. 
+	* NOTE: The MetasoundSource asset MUST have had its EnableRenderTiming function called
+	* before the metasound is started!
+	*/
+	UFUNCTION(BlueprintCallable, Category="MetaSoundPerf", meta=(AdvancedDisplay = "2"))
+	double GetCPUCoreUtilization();
+
+	/**
 	 * Map a type name to a passthrough analyzer name to use as a default for UMetasoundOutputSubsystem::WatchOutput()
 	 *
 	 * @param TypeName - The type name returned from GetMetasoundDataTypeName()
@@ -201,4 +217,6 @@ private:
 	
 	TSharedRef<TSpscQueue<FOutputPayload>> ChangedOutputs = MakeShared<TSpscQueue<FOutputPayload>>();
 	FDelegateHandle OutputChangedDelegateHandle;
+
+	bool bRuntimeRenderTimingShouldBeEnabled{ false };
 };

@@ -30,9 +30,7 @@ namespace Metasound
 
 	namespace MetasoundGeneratorPrivate
 	{
-#if ENABLE_METASOUND_GENERATOR_RENDER_TIMING
 		struct FRenderTimer;
-#endif // if ENABLE_METASOUND_GENERATOR_RENDER_TIMING
 
 		struct FParameterSetter
 		{
@@ -212,12 +210,15 @@ namespace Metasound
 		bool IsFinished() const override;
 		//~ End FSoundGenerator
 
-#if ENABLE_METASOUND_GENERATOR_RENDER_TIMING
+		/** Enables the performance timing of the metasound rendering process. You
+		 * must call this before "GetCPUCoreUtilization" or the results will
+		 * always be 0.0.
+		 */
+		void EnableRuntimeRenderTiming(bool Enable) { bDoRuntimeRenderTiming = Enable; }
+
 		/** Fraction of a single CPU core used to render audio on a scale of 0.0 to 1.0 */
 		double GetCPUCoreUtilization() const;
 
-#endif // if ENABLE_METASOUND_GENERATOR_RENDER_TIMING
-		
 		// Called when a new graph has been "compiled" and set up as this generator's graph.
 		// Note: We don't allow direct assignment to the FOnSetGraph delegate
 		// because we want to give the Delegate an initial immediate callback if the generator 
@@ -269,6 +270,7 @@ namespace Metasound
 		
 		void ApplyPendingUpdatesToInputs();
 
+		void HandleRenderTimingEnableDisable();
 
 		bool bIsGraphBuilding;
 		bool bIsFinishTriggered;
@@ -329,9 +331,9 @@ namespace Metasound
 
 		FOnSetGraph OnSetGraph;
 
-#if ENABLE_METASOUND_GENERATOR_RENDER_TIMING
+		double RenderTime;
+		bool bDoRuntimeRenderTiming;
 		TUniquePtr<MetasoundGeneratorPrivate::FRenderTimer> RenderTimer;
-#endif // if ENABLE_METASOUND_GENERATOR_RENDER_TIMING
 	};
 
 	/** FMetasoundConstGraphGenerator generates audio from a given metasound IOperator

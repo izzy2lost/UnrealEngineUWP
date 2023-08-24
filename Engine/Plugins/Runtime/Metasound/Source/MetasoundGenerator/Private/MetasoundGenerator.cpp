@@ -80,7 +80,6 @@ namespace Metasound
 		}
 #endif // if ENABLE_METASOUNDGENERATOR_INVALID_SAMPLE_VALUE_LOGGING
 
-#if ENABLE_METASOUND_GENERATOR_RENDER_TIMING
 		struct FRenderTimer
 		{
 			FRenderTimer(const FOperatorSettings& InSettings, double InAnalysisDuration)
@@ -96,16 +95,12 @@ namespace Metasound
 				SecondsOfAudioProducedPerBlock = static_cast<double>(InSettings.GetNumFramesPerBlock()) / FMath::Max(1., static_cast<double>(InSettings.GetSampleRate()));
 			}
 
-			double GetCPUCoreUtilization() const
+			double UpdateCPUCoreUtilization()
 			{
-				return CPUCoreUtilization;
-			}
-
-			void UpdateCPUCoreUtilization(double InCPUSecondsToRenderBlock)
-			{
-				if (InCPUSecondsToRenderBlock > 0.0)
+				double CPUSecondsToRenderBlock = FPlatformTime::ToSeconds64(AccumulatedCycles);
+				if (CPUSecondsToRenderBlock > 0.0)
 				{
-					double NewCPUUtil = InCPUSecondsToRenderBlock / SecondsOfAudioProducedPerBlock;
+					double NewCPUUtil = CPUSecondsToRenderBlock / SecondsOfAudioProducedPerBlock;
 					if (CPUCoreUtilization >= 0.0)
 					{
 						CPUCoreUtilization = SmoothingAlpha * NewCPUUtil + (1. - SmoothingAlpha) * CPUCoreUtilization;
@@ -115,9 +110,17 @@ namespace Metasound
 						CPUCoreUtilization = NewCPUUtil;
 					}
 				}
+				AccumulatedCycles = 0;
+				return CPUCoreUtilization;
+			}
+
+			FORCEINLINE void AccumulateCycles(uint64 Cycles)
+			{
+				AccumulatedCycles += Cycles;
 			}
 
 		private:
+			uint64 AccumulatedCycles = 0;
 			double CPUCoreUtilization = -1.0;
 			double SmoothingAlpha = 1.0;
 			double SecondsOfAudioProducedPerBlock = 0.0;
@@ -125,8 +128,8 @@ namespace Metasound
 
 		struct FBlockRenderScope
 		{
-			FBlockRenderScope(FRenderTimer& InTimer)
-			: Timer(&InTimer)
+			FBlockRenderScope(FRenderTimer* InTimer)
+			: Timer(InTimer)
 			{
 				StartCycle = FPlatformTime::Cycles64();
 			}
@@ -134,17 +137,16 @@ namespace Metasound
 			~FBlockRenderScope()
 			{
 				uint64 EndCycle = FPlatformTime::Cycles64();
-				if (EndCycle > StartCycle)
+				if (Timer)
 				{
-					Timer->UpdateCPUCoreUtilization(FPlatformTime::ToSeconds64(EndCycle - StartCycle));
+					Timer->AccumulateCycles(EndCycle - StartCycle);
 				}
 			}
+			
 		private:
 			uint64 StartCycle = 0;
 			FRenderTimer* Timer = nullptr;
 		};
-
-#endif // if ENABLE_METASOUND_GENERATOR_RENDER_TIMING
 
 #ifndef ENABLE_METASOUND_CONSTANT_OUTPUT_VERTEX_ERROR_LOG
 #define ENABLE_METASOUND_CONSTANT_OUTPUT_VERTEX_ERROR_LOG DO_CHECK
@@ -269,8 +271,11 @@ namespace Metasound
 		, NumFramesPerExecute(InOperatorSettings.GetNumFramesPerBlock())
 		, NumSamplesPerExecute(0)
 		, OnFinishedTriggerRef(FTriggerWriteRef::CreateNew(InOperatorSettings))
+		, RenderTime(0.0)
 #if ENABLE_METASOUND_GENERATOR_RENDER_TIMING
-		, RenderTimer(MakeUnique<MetasoundGeneratorPrivate::FRenderTimer>(InOperatorSettings, 1. /* AnalysisPeriod */))
+		, bDoRuntimeRenderTiming(true)
+#else
+		, bDoRuntimeRenderTiming(false)
 #endif // if ENABLE_METASOUND_GENERATOR_RENDER_TIMING
 
 	{
@@ -536,6 +541,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		UpdateGraphIfPending();
 
+		HandleRenderTimingEnableDisable();
+
 		// Output silent audio if we're still building a graph
 		if (bIsWaitingForFirstGraph)
 		{
@@ -574,58 +581,68 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		while (NumSamplesRemaining > 0)
 		{
-			ApplyPendingUpdatesToInputs();
-
+			// Create a scoped timed section for the bulk of the processing...
 			{
-#if ENABLE_METASOUND_GENERATOR_RENDER_TIMING
-				// Time how long the root executer takes.
-				MetasoundGeneratorPrivate::FBlockRenderScope BlockRenderScope(*RenderTimer);
-#endif // if ENABLE_METASOUND_GENERATOR_RENDER_TIMING
+				MetasoundGeneratorPrivate::FBlockRenderScope RuntimelBlockRenderScope(RenderTimer.Get());
+
+				ApplyPendingUpdatesToInputs();
 
 				// Call metasound graph operator.
 				RootExecuter.Execute();
+				
+				// Check if generated finished during this execute call
+				if (*OnFinishedTriggerRef)
+				{
+					FinishSample = ((*OnFinishedTriggerRef)[0] * NumChannels);
+				}
+
+				// Interleave audio because ISoundGenerator interface expects interleaved audio.
+				InterleaveGeneratedAudio();
+
+
+				// Add audio generated during graph execution to the output buffer.
+				int32 ThisLoopNumSamplesWritten = FillWithBuffer(InterleavedAudioBuffer, &OutAudio[NumSamplesWritten], NumSamplesRemaining);
+
+				NumSamplesRemaining -= ThisLoopNumSamplesWritten;
+				NumSamplesWritten += ThisLoopNumSamplesWritten;
+
+				// If not all the samples were written, then we have to save the 
+				// additional samples to the overflow buffer.
+				if (ThisLoopNumSamplesWritten < InterleavedAudioBuffer.Num())
+				{
+					int32 OverflowCount = InterleavedAudioBuffer.Num() - ThisLoopNumSamplesWritten;
+
+					OverflowBuffer.Reset();
+					OverflowBuffer.AddUninitialized(OverflowCount);
+
+					FMemory::Memcpy(OverflowBuffer.GetData(), &InterleavedAudioBuffer.GetData()[ThisLoopNumSamplesWritten], OverflowCount * sizeof(float));
+				}
+
+				// Execute the output analyzers
+				for (const TUniquePtr<Frontend::IVertexAnalyzer>& Analyzer : OutputAnalyzers)
+				{
+					Analyzer->Execute();
+				}
 			}
+
+			// Don't time the graph analyzer. It is only used for graph visualization.
 
 			if (GraphAnalyzer.IsValid())
 			{
 				GraphAnalyzer->Execute();
 			}
 
-			// Execute the output analyzers
-			for (const TUniquePtr<Frontend::IVertexAnalyzer>& Analyzer : OutputAnalyzers)
+			// Create a scoped timed section for the post processing...
 			{
-				Analyzer->Execute();
+				MetasoundGeneratorPrivate::FBlockRenderScope RuntimelBlockRenderScope(RenderTimer.Get());
+				RootExecuter.PostExecute();
 			}
 
-			// Check if generated finished during this execute call
-			if (*OnFinishedTriggerRef)
+			// Update timer if there is one...
+			if (RenderTimer)
 			{
-				FinishSample = ((*OnFinishedTriggerRef)[0] * NumChannels);
+				RenderTime = RenderTimer->UpdateCPUCoreUtilization();
 			}
-
-			// Interleave audio because ISoundGenerator interface expects interleaved audio.
-			InterleaveGeneratedAudio();
-
-
-			// Add audio generated during graph execution to the output buffer.
-			int32 ThisLoopNumSamplesWritten = FillWithBuffer(InterleavedAudioBuffer, &OutAudio[NumSamplesWritten], NumSamplesRemaining);
-
-			NumSamplesRemaining -= ThisLoopNumSamplesWritten;
-			NumSamplesWritten += ThisLoopNumSamplesWritten;
-
-			// If not all the samples were written, then we have to save the 
-			// additional samples to the overflow buffer.
-			if (ThisLoopNumSamplesWritten < InterleavedAudioBuffer.Num())
-			{
-				int32 OverflowCount = InterleavedAudioBuffer.Num() - ThisLoopNumSamplesWritten;
-
-				OverflowBuffer.Reset();
-				OverflowBuffer.AddUninitialized(OverflowCount);
-
-				FMemory::Memcpy(OverflowBuffer.GetData(), &InterleavedAudioBuffer.GetData()[ThisLoopNumSamplesWritten], OverflowCount * sizeof(float));
-			}
-
-			RootExecuter.PostExecute();
 		}
 
 		return NumSamplesWritten;
@@ -641,12 +658,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return bIsFinished;
 	}
 
-#if ENABLE_METASOUND_GENERATOR_RENDER_TIMING
 	double FMetasoundGenerator::GetCPUCoreUtilization() const
 	{
-		return RenderTimer->GetCPUCoreUtilization();
+		return RenderTime;
 	}
-#endif // if ENABLE_METASOUND_GENERATOR_RENDER_TIMING
 
 	int32 FMetasoundGenerator::FillWithBuffer(const Audio::FAlignedFloatBuffer& InBuffer, float* OutAudio, int32 MaxNumOutputSamples)
 	{
@@ -753,6 +768,19 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		while (ParameterPackQueue.Dequeue(QueuedParameterPack))
 		{
 			ProcessPack(QueuedParameterPack.Get());
+		}
+	}
+
+	void FMetasoundGenerator::HandleRenderTimingEnableDisable()
+	{
+		if (bDoRuntimeRenderTiming && !RenderTimer)
+		{
+			RenderTimer = MakeUnique<MetasoundGeneratorPrivate::FRenderTimer>(OperatorSettings, 1. /* AnalysisPeriod */);
+		}
+		else if (!bDoRuntimeRenderTiming && RenderTimer)
+		{
+			RenderTimer = nullptr;
+			RenderTime = 0.0;
 		}
 	}
 
