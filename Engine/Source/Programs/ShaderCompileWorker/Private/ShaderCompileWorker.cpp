@@ -853,6 +853,7 @@ static void DirectCompile(const TArray<const class IShaderFormat*>& ShaderFormat
 	FName FormatName;
 	FName ShaderPlatformName;
 	FString Entry = TEXT("Main");
+	FString DumpDebugInfoPath;
 	bool bPipeline = false;
 	EShaderFrequency Frequency = SF_Pixel;
 	TArray<FString> UsedOutputs;
@@ -883,6 +884,10 @@ static void DirectCompile(const TArray<const class IShaderFormat*>& ShaderFormat
 			else if (Token.StartsWith(TEXT("cflags=")))
 			{
 				CFlags = FCString::Atoi64(*Token.RightChop(7));
+			}
+			else if (Token.StartsWith(TEXT("DebugInfoPath=")))
+			{
+				DumpDebugInfoPath = Token.RightChop(14);
 			}
 			else if (!FCString::Strcmp(*Token, TEXT("ps")))
 			{
@@ -962,9 +967,8 @@ static void DirectCompile(const TArray<const class IShaderFormat*>& ShaderFormat
 	Job.Input.Target.Platform =  ShaderFormatNameToShaderPlatform(FormatName);
 	Job.Input.Target.Frequency = Frequency;
 	Job.Input.bSkipPreprocessedCache = true;
-
+	Job.Input.DumpDebugInfoPath = DumpDebugInfoPath;
 	Job.Input.Environment.CompilerFlags = FShaderCompilerFlags(CFlags);
-
 	Job.Input.bCompilingForShaderPipeline = bPipeline;
 	Job.Input.bIncludeUsedOutputs = bIncludeUsedOutputs;
 	Job.Input.UsedOutputs = UsedOutputs;
