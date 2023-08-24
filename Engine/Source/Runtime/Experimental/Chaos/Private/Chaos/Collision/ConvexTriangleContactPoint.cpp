@@ -133,6 +133,7 @@ namespace Chaos
 	{
 		const FReal NormalTolerance = FReal(1.e-8);
 		const FReal NormalToleranceSq = NormalTolerance * NormalTolerance;
+		const FReal InvalidPhi = std::numeric_limits<FReal>::lowest();
 
 		// Triangle (same space as convex)
 		const FVec3 TriN = Triangle.GetNormal();
@@ -173,7 +174,7 @@ namespace Chaos
 		// and reject if the separation is more than cull distance.
 		FVec3 ConvexPlaneN = FVec3(0);
 		FVec3 ConvexPlaneX = FVec3(0);
-		FReal ConvexPlaneDMin = std::numeric_limits<FReal>::lowest();
+		FReal ConvexPlaneDMin = InvalidPhi;
 		int32 ConvexPlaneIndexMin = INDEX_NONE;
 		for (int32 PlaneIndex = 0; PlaneIndex < Convex.NumPlanes(); ++PlaneIndex)
 		{
@@ -212,13 +213,13 @@ namespace Chaos
 		FReal TriVertexConvexDMin2 = FVec3::DotProduct(Triangle.GetVertex(2) - ConvexPlaneX, ConvexPlaneN);
 		FReal TriEdgeConvexDMin[3] =
 		{
-			FMath::Max(TriVertexConvexDMin2, TriVertexConvexDMin0),
-			FMath::Max(TriVertexConvexDMin0, TriVertexConvexDMin1),
-			FMath::Max(TriVertexConvexDMin1, TriVertexConvexDMin2),
+			FMath::Min(TriVertexConvexDMin2, TriVertexConvexDMin0),
+			FMath::Min(TriVertexConvexDMin0, TriVertexConvexDMin1),
+			FMath::Min(TriVertexConvexDMin1, TriVertexConvexDMin2),
 		};
 
 		FVec3 EdgeEdgeN = FVec3(0);
-		FReal EdgeEdgeDMin = std::numeric_limits<FReal>::lowest();
+		FReal EdgeEdgeDMin = InvalidPhi;
 		int32 ConvexEdgeIndexMin = INDEX_NONE;
 		int32 TriEdgeIndexMin = INDEX_NONE;
 		for (int32 ConvexEdgeIndex = 0; ConvexEdgeIndex < Convex.NumEdges(); ++ConvexEdgeIndex)
@@ -302,16 +303,39 @@ namespace Chaos
 			}
 		}
 
+		// Determine which of the features we want to use
+		// NOTE: we rely on the fact that all valid Phi values are greater than InvalidPhi here
+		const FReal TriFaceBias = FReal(1.e-2);	// Prevent flip=flip on near parallel cases
+		EContactPointType ContactType = EContactPointType::Unknown;
+		if ((TriPlaneDMin != InvalidPhi) && (TriPlaneDMin + TriFaceBias > ConvexPlaneDMin) && (TriPlaneDMin + TriFaceBias > EdgeEdgeDMin))
+		{
+			// Tri plane is the shallowest penetration
+			ContactType = EContactPointType::VertexPlane;
+		}
+		else if ((ConvexPlaneDMin != InvalidPhi) && (ConvexPlaneDMin > EdgeEdgeDMin))
+		{
+			// Convex plane is the shallowest penetration
+			ContactType = EContactPointType::PlaneVertex;
+		}
+		else if (EdgeEdgeDMin != InvalidPhi)
+		{
+			// Edge-edge is the shallowest penetration
+			ContactType = EContactPointType::EdgeEdge;
+		}
+		else
+		{
+			// No valid features (should not happen - TriPlaneDMin should always be valid)
+			return;
+		}
+
 		// Determine the best features to use for this collision
 		FVec3 SeparatingAxis, ClipAxis;
-		EContactPointType ContactType;
 		bool bClipConvexToTriangle;
 		bool bClipToFaceNormal;
-		const FReal TriFaceBias = FReal(1.e-2);	// Prevent flip=flip on near parallel cases
-		if ((TriPlaneDMin + TriFaceBias > ConvexPlaneDMin) && (TriPlaneDMin + TriFaceBias > EdgeEdgeDMin))
+		if (ContactType == EContactPointType::VertexPlane)
 		{
 			// Triangle face contact - clip the convex vertices to the triangle
-			ContactType = EContactPointType::VertexPlane;
+			
 			bClipConvexToTriangle = true;
 			bClipToFaceNormal = true;
 
@@ -329,10 +353,9 @@ namespace Chaos
 			Convex.GetPlaneNX(ConvexPlaneIndexMin, ConvexPlaneN, ConvexPlaneX);
 
 		}
-		else if (ConvexPlaneDMin > EdgeEdgeDMin)
+		else if (ContactType == EContactPointType::PlaneVertex)
 		{
 			// Convex face contact - clip the triangle to the convex face
-			ContactType = EContactPointType::PlaneVertex;
 			bClipConvexToTriangle = false;
 			bClipToFaceNormal = true;
 
@@ -345,10 +368,9 @@ namespace Chaos
 
 			ClipAxis = ConvexPlaneN;
 		}
-		else
+		else if (ContactType == EContactPointType::EdgeEdge)
 		{
 			// Edge-edge contact - clip triangle vs convex or vice-versa based on most opposing normals
-			ContactType = EContactPointType::EdgeEdge;
 
 			// The separating axis must point from the triangle to the convex
 			SeparatingAxis = EdgeEdgeN;
@@ -382,6 +404,10 @@ namespace Chaos
 				}
 			}
 			bClipToFaceNormal = false;
+		}
+		else
+		{
+			return;
 		}
 
 		// @todo(chaos): scratch or stack allocation of clipped vertex buffers

@@ -11,6 +11,7 @@ namespace Chaos
 	extern bool bChaos_Collision_EnableEdgePrune;
 	extern int32 Chaos_Collision_ReduceMeshManifoldThreshold;
 	extern FRealSingle Chaos_Collision_MeshContactNormalThreshold;
+	extern bool bChaos_Collision_MeshManifoldSortByDistance;
 
 
 	void FContactTriangleCollector::SetNumContacts(const int32 NumContacts)
@@ -150,15 +151,22 @@ namespace Chaos
 			const FContactPoint& ContactPoint = TriangleContactPoints[ContactIndex];
 			const FContactTriangle& ContactTriangle = ContactTriangles[ContactPointData.GetTriangleIndex()];
 
+			// We only use actually penetrating contacts when determining which faces and edges we hit, otherwise
+			// we may reject contacts that are actually required based on non-contacts.
+			const bool bUseForPruning = (ContactPoint.Phi < 0);
+
 			if (ContactPoint.ContactType == EContactPointType::VertexPlane)
 			{
-				// Since we collided with this face, we cannot collide with these edges or vertices
-				ContactEdges.Add(FContactEdgeID(ContactTriangle.VertexIndices[0], ContactTriangle.VertexIndices[1]));
-				ContactEdges.Add(FContactEdgeID(ContactTriangle.VertexIndices[1], ContactTriangle.VertexIndices[2]));
-				ContactEdges.Add(FContactEdgeID(ContactTriangle.VertexIndices[2], ContactTriangle.VertexIndices[0]));
-				ContactVertices.Add(FContactVertexID(ContactTriangle.VertexIndices[0]));
-				ContactVertices.Add(FContactVertexID(ContactTriangle.VertexIndices[1]));
-				ContactVertices.Add(FContactVertexID(ContactTriangle.VertexIndices[2]));
+				if (bUseForPruning)
+				{
+					// Since we collided with this face, we cannot collide with these edges or vertices
+					ContactEdges.Add(FContactEdgeID(ContactTriangle.VertexIndices[0], ContactTriangle.VertexIndices[1]));
+					ContactEdges.Add(FContactEdgeID(ContactTriangle.VertexIndices[1], ContactTriangle.VertexIndices[2]));
+					ContactEdges.Add(FContactEdgeID(ContactTriangle.VertexIndices[2], ContactTriangle.VertexIndices[0]));
+					ContactVertices.Add(FContactVertexID(ContactTriangle.VertexIndices[0]));
+					ContactVertices.Add(FContactVertexID(ContactTriangle.VertexIndices[1]));
+					ContactVertices.Add(FContactVertexID(ContactTriangle.VertexIndices[2]));
+				}
 			}
 			else if ((ContactPoint.ContactType == EContactPointType::EdgeEdge) || (ContactPoint.ContactType == EContactPointType::PlaneVertex))
 			{
@@ -168,9 +176,12 @@ namespace Chaos
 				{
 					if ((VertexIndexA != INDEX_NONE) && (VertexIndexB != INDEX_NONE))
 					{
-						// Since we collided with this edge, we cannot also collide with these verts
-						ContactVertices.Add(FContactVertexID(VertexIndexA));
-						ContactVertices.Add(FContactVertexID(VertexIndexB));
+						if (bUseForPruning)
+						{
+							// Since we collided with this edge, we cannot also collide with these verts
+							ContactVertices.Add(FContactVertexID(VertexIndexA));
+							ContactVertices.Add(FContactVertexID(VertexIndexB));
+						}
 
 						// Store the edge ID so we can see if any other faces add it to the don'tcollide list
 						ContactPointData.SetEdgeID(VertexIndexA, VertexIndexB);
@@ -190,10 +201,10 @@ namespace Chaos
 		// @todo(chaos): Some of the pruning mechanisms don't work very well now that we have support for large manifolds.
 		const bool bEnableFullPruning = ((TriangleContactPoints.Num() - NumDisabledTriangleContactPoints) < Chaos_Collision_ReduceMeshManifoldThreshold);
 
-		DebugDrawContactPoints(FColor::White, 0.2);
-
 		// Build the feature set from the full list of contacts before pruning
 		BuildContactFeatureSets();
+
+		DebugDrawContactPoints(FColor::White, 0.2);
 
 		// Remove edge contacts that should not be possible because we are also colliding with a face that used the edge.
 		if ((TriangleContactPoints.Num() > 1))
@@ -203,7 +214,7 @@ namespace Chaos
 			PruneEdgeAndVertexContactPoints(bPruneEdges, bPruneVertices);
 		}
 
-		DebugDrawContactPoints(FColor::Cyan, 0.35);
+		DebugDrawContactPoints(FColor::Cyan, 0.3);
 
 		// Remove contacts that should not be able to occur if we are a one-sided mesh
 		// NOTE: does not require sorted contacts, and does not maintain array order
@@ -212,11 +223,15 @@ namespace Chaos
 			PruneInfacingContactPoints();
 		}
 
+		DebugDrawContactPoints(FColor::Purple, 0.5);
+
 		// Remove close contacts
 		if (TriangleContactPoints.Num() > 1)
 		{
 			PruneUnnecessaryContactPoints();
 		}
+
+		DebugDrawContactPoints(FColor::Yellow, 0.7);
 
 		// Reduce to only 4 contact points from here
 		// @todo(chaos): A 4 point manifold is often not sufficient when we have low curvature and we end up removing contacts that
@@ -225,12 +240,10 @@ namespace Chaos
 		// smaller objects so we don't impact perf for the most common cases until we do this properly.
 		if (bEnableFullPruning)
 		{
-			DebugDrawContactPoints(FColor::Yellow, 0.5);
-
 			ReduceManifoldContactPointsTriangeMesh();
 		}
 
-		DebugDrawContactPoints(FColor::Green, 0.75);
+		DebugDrawContactPoints(FColor::Green, 0.9);
 
 		// Fix contact normals for edge and vertex collisions
 		if (TriangleContactPoints.Num() > 0)
@@ -297,19 +310,65 @@ namespace Chaos
 			// Reset metadata to ensure we don't access it again
 			TriangleContactPointDatas.Reset();
 
-			// Sort by contact type (in enum order) then phi
-			std::sort(
-				&TriangleContactPoints[0],
-				&TriangleContactPoints[0] + TriangleContactPoints.Num(),
-				[](const FContactPoint& L, const FContactPoint& R)
+			if (bChaos_Collision_MeshManifoldSortByDistance)
+			{
+				// Sort contact points by distance from the center of mass (RxN) so that points closer to the center of
+				// mass are solved first. This produces better solver results for low iterations because, if we were to 
+				// solve the distant points first, we would get extra rotation applied. 
+				//
+				// E.g., consider a box landing on an inclined plane with 5 contact points biassed toward one side. 
+				//
+				// -------------------
+				// |                 |
+				// |                 |
+				// *-*-*-*-*----------
+				//
+				// Solving this left to right would result in extra clockwise rotation after 1 iteration. A subsequent
+				// iteration would partially correct the problem.
+				//
+				TArray<TPair<FReal, int32>> SortKeyValues;
+				SortKeyValues.SetNumUninitialized(TriangleContactPoints.Num());
+				for (int32 ContactIndex = 0; ContactIndex < TriangleContactPoints.Num(); ++ContactIndex)
 				{
-					if (L.ContactType == R.ContactType)
-					{
-						return L.Phi < R.Phi;
-					}
-					return L.ContactType < R.ContactType;
+					const FContactPoint& ContactPoint = TriangleContactPoints[ContactIndex];
+					const FVec3 DeltaTangent = ContactPoint.ShapeContactPoints[1] - FVec3::DotProduct(ContactPoint.ShapeContactPoints[1], ContactPoint.ShapeContactNormal) * ContactPoint.ShapeContactNormal;
+					const FReal DeltaTangentLenSq = DeltaTangent.SizeSquared();
+					SortKeyValues[ContactIndex] = { DeltaTangentLenSq, ContactIndex };
 				}
-			);
+
+				std::sort(
+					&SortKeyValues[0],
+					&SortKeyValues[0] + SortKeyValues.Num(),
+					[](const TPair<FReal, int32>& L, const TPair<FReal, int32>& R)
+					{
+						return L.Key < R.Key;
+					}
+				);
+
+				TArray<FContactPoint> SortedContactPoints;
+				SortedContactPoints.SetNumUninitialized(TriangleContactPoints.Num());
+				for (int32 ContactIndex = 0; ContactIndex < TriangleContactPoints.Num(); ++ContactIndex)
+				{
+					SortedContactPoints[ContactIndex] = TriangleContactPoints[SortKeyValues[ContactIndex].Value];
+				}
+				Swap(SortedContactPoints, TriangleContactPoints);
+			}
+			else
+			{
+				// Sort by contact type (in enum order) then depth (deepest first)
+				std::sort(
+					&TriangleContactPoints[0],
+					&TriangleContactPoints[0] + TriangleContactPoints.Num(),
+					[](const FContactPoint& L, const FContactPoint& R)
+					{
+						if (L.ContactType == R.ContactType)
+						{
+							return L.Phi < R.Phi;
+						}
+						return L.ContactType < R.ContactType;
+					}
+				);
+			}
 		}
 	}
 
@@ -389,28 +448,39 @@ namespace Chaos
 							const FReal ContactDotNormal = FVec3::DotProduct(ContactPoint.ShapeContactNormal, ContactTriangle.FaceNormal);
 							if (ContactDotNormal < MinContactDotNormal)
 							{
-								// We are outside the valid normal range for this edge
-								// Convert the edge collision to a face collision on one of the faces, selected to get the smallest depth
-								// NOTE: We keep the contact depth as it is because we know that the depth is a lower-bound. 
-								// We have to update the ShapeContactPoint[0] because Phi is actually derived from the positions (the value in ContactPoint is just a cache of current state)
-								// @todo(chaos): face selection logic might be better if we knew the contact velocity
-								const FReal OtherContactDotNormal = FVec3::DotProduct(ContactPoint.ShapeContactNormal, ContactTriangle.FaceNormal);		// @todo(chaos): OtherContactTriangle??
-								if (ContactDotNormal >= OtherContactDotNormal)
+								// If we are separated, just ignore this contact
+								if (ContactPoint.Phi > 0)
 								{
-									ContactPoint.ShapeContactNormal = (ContactDotNormal > -SMALL_NUMBER) ? ContactTriangle.FaceNormal : -ContactTriangle.FaceNormal;
-									ContactPoint.ShapeContactPoints[0] = ContactPoint.ShapeContactPoints[1] + ContactPoint.Phi * ContactPoint.ShapeContactNormal;
+									DisableContact(ContactIndex);
 								}
 								else
 								{
-									ContactPoint.ShapeContactNormal = (OtherContactDotNormal > -SMALL_NUMBER) ? OtherContactTriangle.FaceNormal : -OtherContactTriangle.FaceNormal;
-									ContactPoint.ShapeContactPoints[0] = ContactPoint.ShapeContactPoints[1] + ContactPoint.Phi * ContactPoint.ShapeContactNormal;
-									ContactPointData.SetTriangleIndex(OtherContactTriangleIndex);
+									// We are outside the valid normal range for this edge
+									// Convert the edge collision to a face collision on one of the faces, selected to get the smallest depth
+									// NOTE: We keep the contact depth as it is because we know that the depth is a lower-bound. 
+									// We have to update the ShapeContactPoint[0] because Phi is actually derived from the positions (the value in ContactPoint is just a cache of current state)
+									// @todo(chaos): face selection logic might be better if we knew the contact velocity
+									const FReal OtherContactDotNormal = FVec3::DotProduct(ContactPoint.ShapeContactNormal, OtherContactTriangle.FaceNormal);
+									if (ContactDotNormal >= OtherContactDotNormal)
+									{
+										ContactPoint.ShapeContactNormal = (ContactDotNormal > -SMALL_NUMBER) ? ContactTriangle.FaceNormal : -ContactTriangle.FaceNormal;
+										ContactPoint.ShapeContactPoints[0] = ContactPoint.ShapeContactPoints[1] + ContactPoint.Phi * ContactPoint.ShapeContactNormal;
+									}
+									else
+									{
+										ContactPoint.ShapeContactNormal = (OtherContactDotNormal > -SMALL_NUMBER) ? OtherContactTriangle.FaceNormal : -OtherContactTriangle.FaceNormal;
+										ContactPoint.ShapeContactPoints[0] = ContactPoint.ShapeContactPoints[1] + ContactPoint.Phi * ContactPoint.ShapeContactNormal;
+										ContactPointData.SetTriangleIndex(OtherContactTriangleIndex);
+									}
 								}
 							}
 						}
 					}
 					else if (VertexIndexA != INDEX_NONE)
 					{
+						// If VertexIndexA is valid (VertexIndexB is invalid) we have a vertex collision.
+						// Ensure that the contact normal is in a valid range for the vertex based on the
+						// triangles that share the vertex.
 						for (int32 TriangleIndex = 0; TriangleIndex < ContactTriangles.Num(); ++TriangleIndex)
 						{
 							const FContactTriangle& OtherContactTriangle = ContactTriangles[TriangleIndex];
@@ -430,7 +500,14 @@ namespace Chaos
 										const FReal NormalDotCentroid = FVec3::DotProduct(ContactPoint.ShapeContactNormal, Centroid - ContactPoint.ShapeContactPoints[1]);
 										if (NormalDotCentroid > 0)
 										{
-											const FReal OtherContactDotNormal = FVec3::DotProduct(ContactPoint.ShapeContactNormal, ContactTriangle.FaceNormal);	// @todo(chaos): OtherContactTriangle??
+											// If we are separated, just ignore this contact
+											if (ContactPoint.Phi > 0)
+											{
+												DisableContact(ContactIndex);
+												break;
+											}
+
+											const FReal OtherContactDotNormal = FVec3::DotProduct(ContactPoint.ShapeContactNormal, OtherContactTriangle.FaceNormal);
 											ContactPoint.ShapeContactNormal = (OtherContactDotNormal > -SMALL_NUMBER) ? OtherContactTriangle.FaceNormal : -OtherContactTriangle.FaceNormal;
 											ContactPoint.ShapeContactPoints[0] = ContactPoint.ShapeContactPoints[1] + ContactPoint.Phi * ContactPoint.ShapeContactNormal;
 										}
@@ -502,7 +579,7 @@ namespace Chaos
 
 				// Are these two points at the same position? They must be at the same vertex or edge for this to be true.
 				// If both points are from the same triangle vertex, we know they are coincident (but normals may be different)
-				const bool bIsSameVertex = ContactPointData0.IsVertex() && (ContactPointData0.GetVertexID() == ContactPointData1.GetVertexID());
+				const bool bIsSameVertex = (ContactPointData0.IsVertex() && ContactPointData1.IsVertex()) && (ContactPointData0.GetVertexID() == ContactPointData1.GetVertexID());
 				bool bIsSamePosition = bIsSameVertex;
 				if (!bIsSameVertex)
 				{
@@ -515,10 +592,12 @@ namespace Chaos
 
 				if (bIsSamePosition)
 				{
-					// Keep the contact with the normal that is most along the triangle face normal
+					// Keep the contact with the normal that is most along the triangle face normal. If normals are similar, keep the deepest.
 					const FReal NormalDot0 = FVec3::DotProduct(ContactPoint0.ShapeContactNormal, ContactTriangle0.FaceNormal);
 					const FReal NormalDot1 = FVec3::DotProduct(ContactPoint1.ShapeContactNormal, ContactTriangle1.FaceNormal);
-					if (FMath::Abs(NormalDot0) >= FMath::Abs(NormalDot1))
+					const bool bSameNormal = (FMath::Abs(NormalDot0 - NormalDot1) < 0.01);
+					const bool bTake0 = (bSameNormal && (ContactPoint0.Phi < ContactPoint1.Phi)) || (!bSameNormal && (NormalDot0 > NormalDot1));
+					if (bTake0)
 					{
 						DisableContact(ContactIndex1);
 						continue;
