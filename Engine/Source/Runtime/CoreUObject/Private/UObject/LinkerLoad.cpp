@@ -4487,6 +4487,7 @@ void FLinkerLoad::Preload( UObject* Object )
 							// sure to force load this later)
 							check(!GEventDrivenLoaderEnabled || !EVENT_DRIVEN_ASYNC_LOAD_ACTIVE_AT_RUNTIME);
 							Object->SetFlags(RF_NeedLoad);
+							Seek(SavedPos);
 							return;
 						}
 #endif // USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
