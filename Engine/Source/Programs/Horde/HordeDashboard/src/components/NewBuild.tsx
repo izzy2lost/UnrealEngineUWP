@@ -1448,6 +1448,10 @@ export const NewBuild: React.FC<{ streamId: string; show: boolean; onClose: (new
 
                   if (errorReason) {
 
+                     if (errorReason?.trim().endsWith("does not exist")) {
+                        errorReason += ".  Perforce edge server replication for the change may be in progress."
+                     }
+
                      ErrorHandler.set({
 
                         reason: `${errorReason}`,
