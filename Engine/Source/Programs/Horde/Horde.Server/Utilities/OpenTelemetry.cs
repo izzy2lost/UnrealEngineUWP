@@ -14,7 +14,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
-using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
@@ -343,18 +342,6 @@ public static class OpenTelemetrySpanExtensions
 
 		return span;
 	}
-	
-	/// <summary>
-	/// Create a metrics Gauge object.
-	/// </summary>
-	/// <param name="meter">Current meter being extended</param>
-	/// <param name="name">The instrument name. cannot be null.</param>
-	/// <param name="unit">Optional instrument unit of measurements.</param>
-	/// <param name="description">Optional instrument description.</param>
-	/// <remarks>
-	/// Gauge is an Instrument which records absolute values
-	/// </remarks>
-	public static Gauge<T> CreateGauge<T>(this Meter meter, string name, string? unit = null, string? description = null) where T : struct => new (meter, name, unit, description);
 }
 
 /// <summary>
@@ -377,29 +364,4 @@ public static class OpenTelemetryMeters
 	/// Default meter used in Horde
 	/// </summary>
 	public static readonly Meter Horde = new (HordeName);
-}
-
-/// <summary>
-/// A non-observable gauge
-/// </summary>
-/// <typeparam name="T">Type of value being measured</typeparam>
-public sealed class Gauge<T> : Instrument<T> where T : struct
-{
-    internal Gauge(Meter meter, string name, string? unit, string? description) : base(meter, name, unit, description)
-    {
-        Publish();
-    }
-
-    /// <summary>
-    /// Record the current value of the measurement.
-    /// </summary>
-    /// <param name="value">Current value.</param>
-    public void Record(T value) => RecordMeasurement(value);
-
-    /// <summary>
-    /// Record the current value of the measurement.
-    /// </summary>
-    /// <param name="value">The increment measurement.</param>
-    /// <param name="tag">A key-value pair tag associated with the measurement.</param>
-    public void Record(T value, KeyValuePair<string, object?> tag) => RecordMeasurement(value, tag);
 }

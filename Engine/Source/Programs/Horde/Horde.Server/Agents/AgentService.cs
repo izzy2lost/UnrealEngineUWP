@@ -91,7 +91,7 @@ namespace Horde.Server.Agents
 		// All the agents currently performing a long poll for work on this server
 		readonly Dictionary<AgentId, CancellationTokenSource> _waitingAgents = new Dictionary<AgentId, CancellationTokenSource>();
 
-		readonly Gauge<int> _agentTotalCount;
+		IEnumerable<Measurement<int>> _measurements = new List<Measurement<int>>();
 
 		// Subscription for update events
 		IAsyncDisposable? _subscription;
@@ -117,7 +117,7 @@ namespace Horde.Server.Agents
 			_meter = meter;
 			_logger = logger;
 
-			_agentTotalCount = _meter.CreateGauge<int>("horde.agent.count");
+			_meter.CreateObservableGauge("horde.agent.count", () => _measurements);
 		}
 
 		/// <inheritdoc/>
@@ -1087,15 +1087,20 @@ namespace Horde.Server.Agents
 			int numAgentsTotalUnhealthy = agentList.Count(a => a.Enabled && a.Status == AgentStatus.Unhealthy);
 			int numAgentsTotalPaused = agentList.Count(a => a.Enabled && a.Status == AgentStatus.Paused);
 			int numAgentsTotalUnspecified = agentList.Count(a => a.Enabled && a.Status == AgentStatus.Unspecified);
-			
-			_agentTotalCount.Record(numAgentsTotal);
-			_agentTotalCount.Record(numAgentsTotalEnabled, new KeyValuePair<string, object?>("status", "enabled"));
-			_agentTotalCount.Record(numAgentsTotalDisabled, new KeyValuePair<string, object?>("status", "disabled"));
-			_agentTotalCount.Record(numAgentsTotalOk, new KeyValuePair<string, object?>("status", "ok"));
-			_agentTotalCount.Record(numAgentsTotalStopping, new KeyValuePair<string, object?>("status", "stopping"));
-			_agentTotalCount.Record(numAgentsTotalUnhealthy, new KeyValuePair<string, object?>("status", "unhealthy"));
-			_agentTotalCount.Record(numAgentsTotalPaused, new KeyValuePair<string, object?>("status", "paused"));
-			_agentTotalCount.Record(numAgentsTotalUnspecified, new KeyValuePair<string, object?>("status", "unspecified"));
+
+			List<Measurement<int>> newMeasurements = new()
+			{
+				new Measurement<int>(numAgentsTotal),
+				new Measurement<int>(numAgentsTotalEnabled, new KeyValuePair<string, object?>("status", "enabled")),
+				new Measurement<int>(numAgentsTotalDisabled, new KeyValuePair<string, object?>("status", "disabled")),
+				new Measurement<int>(numAgentsTotalOk, new KeyValuePair<string, object?>("status", "ok")),
+				new Measurement<int>(numAgentsTotalStopping, new KeyValuePair<string, object?>("status", "stopping")),
+				new Measurement<int>(numAgentsTotalUnhealthy, new KeyValuePair<string, object?>("status", "unhealthy")),
+				new Measurement<int>(numAgentsTotalPaused, new KeyValuePair<string, object?>("status", "paused")),
+				new Measurement<int>(numAgentsTotalUnspecified, new KeyValuePair<string, object?>("status", "unspecified")),
+			};
+
+			_measurements = newMeasurements;
 		}
 
 		/// <summary>

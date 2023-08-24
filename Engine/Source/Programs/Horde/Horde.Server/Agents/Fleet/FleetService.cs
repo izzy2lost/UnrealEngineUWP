@@ -81,8 +81,6 @@ namespace Horde.Server.Agents.Fleet
 		private readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 		private readonly Tracer _tracer;
 		private readonly ILogger<FleetService> _logger;
-		private readonly Gauge<int> _agentCountCurrentGauge;
-		private readonly Gauge<int> _agentCountTargetGauge;
 		
 		/// <summary>
 		/// Constructor
@@ -123,9 +121,6 @@ namespace Horde.Server.Agents.Fleet
 			_settings = settings;
 			_defaultScaleOutCooldown = TimeSpan.FromSeconds(settings.Value.AgentPoolScaleOutCooldownSeconds);
 			_defaultScaleInCooldown = TimeSpan.FromSeconds(settings.Value.AgentPoolScaleInCooldownSeconds);
-
-			_agentCountCurrentGauge = _meter.CreateGauge<int>("horde.fleet.agentCountCurrent");
-			_agentCountTargetGauge = _meter.CreateGauge<int>("horde.fleet.agentCountTarget");
 		}
 
 		/// <inheritdoc/>
@@ -237,9 +232,6 @@ namespace Horde.Server.Agents.Fleet
 				_logger.LogInformation("{PoolName} Current={Current} Target={Target} Delta={Delta}",
 					pool.Name, currentAgentCount, desiredAgentCount, deltaAgentCount);	
 			}
-
-			_agentCountCurrentGauge.Record(currentAgentCount, KeyValuePair.Create("pool", (object?)pool.Name));
-			_agentCountTargetGauge.Record(desiredAgentCount, KeyValuePair.Create("pool", (object?)pool.Name));
 
 			DateTime? scaleOutTime = null;
 			DateTime? scaleInTime = null;
