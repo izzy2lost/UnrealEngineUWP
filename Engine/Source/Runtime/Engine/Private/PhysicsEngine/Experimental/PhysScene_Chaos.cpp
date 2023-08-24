@@ -2278,10 +2278,17 @@ void FPhysScene_Chaos::OnSyncBodies(Chaos::FPhysicsSolverBase* Solver)
 			{
 				const FRigidTransform3 NewTransform(DirtyParticle->X(), DirtyParticle->R());
 
+				bool bHasMoved = false;
 				if (!NewTransform.EqualsNoScale(ParentComponent->GetComponentTransform()))
 				{
+					bHasMoved = true;
 					const FVector MoveBy = NewTransform.GetLocation() - ParentComponent->GetComponentTransform().GetLocation();
 					PendingTransforms.Add(FPhysScenePendingComponentTransform_Chaos(ParentComponent, MoveBy, NewTransform.GetRotation(), DirtyParticle->GetWakeEvent()));
+				}
+
+				if (DirtyParticle->GetWakeEvent() != Chaos::EWakeEventEntry::None && !bHasMoved)
+				{
+					PendingTransforms.Add(FPhysScenePendingComponentTransform_Chaos(ParentComponent, DirtyParticle->GetWakeEvent()));
 				}
 
 				// make sure we have at least a child to be added to the acceleration structure 
