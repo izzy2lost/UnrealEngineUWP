@@ -192,6 +192,14 @@ int32 FCompiledBindingLibraryCompiler::FBindingHandle::IdGenerator = 0;
 int32 FCompiledBindingLibraryCompiler::FFieldPathHandle::IdGenerator = 0;
 int32 FCompiledBindingLibraryCompiler::FFieldIdHandle::IdGenerator = 0;
 
+/**
+ *
+ */
+FCompiledBindingLibraryCompiler::FCompileResult::FCompileResult(FGuid LibraryId)
+	: Library(LibraryId)
+{
+
+}
 
 /**
  *
@@ -644,7 +652,7 @@ TValueOrError<FCompiledBindingLibraryCompiler::FBindingHandle, FText> FCompiledB
 }
 
 
-TValueOrError<FCompiledBindingLibraryCompiler::FCompileResult, FText> FCompiledBindingLibraryCompiler::Compile()
+TValueOrError<FCompiledBindingLibraryCompiler::FCompileResult, FText> FCompiledBindingLibraryCompiler::Compile(FGuid LibraryId)
 {
 	Impl->bCompiled = false;
 
@@ -710,7 +718,7 @@ TValueOrError<FCompiledBindingLibraryCompiler::FCompileResult, FText> FCompiledB
 		// then: merge the 2 and restart the algo
 
 
-	FCompileResult Result;
+	FCompileResult Result = FCompileResult(LibraryId);
 
 	// Create FMVVMCompiledBindingLibrary::CompiledFields and FMVVMCompiledBindingLibrary::CompiledFieldNames
 	int32 TotalNumberOfProperties = 0;

@@ -135,6 +135,11 @@ public:
 	void AddMessageToBinding(FGuid Id, UE::MVVM::FBindingMessage MessageToAdd);
 	void ResetBindingMessages();
 
+	FGuid GetCompiledBindingLibraryId() const
+	{
+		return CompiledBindingLibraryId;
+	}
+
 #if WITH_EDITOR
 	virtual void PostLoad() override;
 	virtual void PreSave(FObjectPreSaveContext Context) override;
@@ -172,6 +177,9 @@ private:
 
 	UPROPERTY(EditAnywhere, Category = "Viewmodel")
 	TArray<FMVVMBlueprintViewModelContext> AvailableViewModels;
+
+	UPROPERTY(VisibleAnywhere, Category = "Viewmodel", meta = (IgnoreForMemberInitializationTest))
+	FGuid CompiledBindingLibraryId;
 
 	TMap<FGuid, TArray<UE::MVVM::FBindingMessage>> BindingMessages;
 

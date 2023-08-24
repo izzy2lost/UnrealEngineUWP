@@ -64,6 +64,14 @@ FMVVMCompiledBindingLibrary::FMVVMCompiledBindingLibrary()
 
 }
 
+#if WITH_EDITOR
+FMVVMCompiledBindingLibrary::FMVVMCompiledBindingLibrary(FGuid LibraryId)
+	: CompiledBindingLibraryId(LibraryId)
+{
+
+}
+#endif
+
 
 FText FMVVMCompiledBindingLibrary::LexToText(EExecutionFailingReason Reason)
 {

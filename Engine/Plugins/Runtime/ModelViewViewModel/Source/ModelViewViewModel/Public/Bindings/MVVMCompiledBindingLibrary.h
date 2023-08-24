@@ -277,6 +277,9 @@ struct MODELVIEWVIEWMODEL_API FMVVMCompiledBindingLibrary
 
 public:
 	FMVVMCompiledBindingLibrary();
+#if WITH_EDITOR
+	FMVVMCompiledBindingLibrary(FGuid LibraryId);
+#endif
 
 public:
 	/** */

@@ -16,6 +16,7 @@
 UMVVMBlueprintView::UMVVMBlueprintView()
 {
 	Settings = CreateDefaultSubobject<UMVVMBlueprintViewSettings>("Settings");
+	CompiledBindingLibraryId = FGuid::NewGuid();
 }
 
 FMVVMBlueprintViewModelContext* UMVVMBlueprintView::FindViewModel(FGuid ViewModelId)

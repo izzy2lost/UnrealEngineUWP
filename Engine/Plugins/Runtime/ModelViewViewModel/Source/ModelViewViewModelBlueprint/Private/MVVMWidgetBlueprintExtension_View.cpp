@@ -130,6 +130,14 @@ void UMVVMWidgetBlueprintExtension_View::HandleFinishCompilingClass(UWidgetBluep
 		bool bCompiled = false;
 		if (CurrentCompilerContext->PreCompile(Class, BlueprintView))
 		{
+			FName ClassName = "ViewClass";
+			if (UObject* PreviousObj = StaticFindObjectFastInternal(nullptr, Class, ClassName, true))
+			{
+				// Remove previous object.
+				ERenameFlags RenameFlags = REN_ForceNoResetLoaders | REN_NonTransactional | REN_DoNotDirty | REN_DontCreateRedirectors;
+				FName TrashName = MakeUniqueObjectName(GetTransientPackage(), PreviousObj->GetClass(), *FString::Printf(TEXT("TRASH_%s"), *PreviousObj->GetName()));
+				PreviousObj->Rename(*TrashName.ToString(), GetTransientPackage(), RenameFlags);
+			}
 			ViewExtension = NewObject<UMVVMViewClass>(Class);
 			bCompiled = CurrentCompilerContext->Compile(Class, BlueprintView, ViewExtension);
 		}

@@ -175,6 +175,7 @@ public:
 
 	struct FCompileResult
 	{
+		FCompileResult(FGuid LibraryId);
 		FMVVMCompiledBindingLibrary Library;
 		TMap<FFieldPathHandle, FMVVMVCompiledFieldPath> FieldPaths;
 		TMap<FBindingHandle, FMVVMVCompiledBinding> Bindings;
@@ -182,7 +183,7 @@ public:
 	};
 
 	/** */
-	TValueOrError<FCompileResult, FText> Compile();
+	TValueOrError<FCompileResult, FText> Compile(FGuid LibraryId);
 
 private:
 	/** */
