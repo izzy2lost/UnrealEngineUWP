@@ -90,6 +90,24 @@ namespace Gauntlet
 		IAppInstance Run(IAppInstall App);
 
 		string GetPackagedExecutableLocation() { return null; }
+
+		/// <summary>
+		/// Path to the crash dumps on a device
+		/// </summary>
+		string CrashDumpPath
+		{
+			get
+			{
+				return Path.Combine(Globals.TempDir, "CrashDumps", Platform.ToString() + "_" + Name);
+			}
+		}
+
+		/// <summary>
+		/// Ensures the crash dump copy has occurred already - and does the copy if it hasn't happened yet
+		/// Returns true if there were any crash dumps for the run, and false otherwise
+		/// </summary>
+		bool CopyCrashDumps() { return false; }
+		
 	};
 
 	/// <summary>

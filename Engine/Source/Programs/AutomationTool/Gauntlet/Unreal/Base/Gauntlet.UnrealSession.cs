@@ -1225,6 +1225,23 @@ namespace Gauntlet
 						}
 					}
 
+					// Copy any Crash Dumps as well
+					if (InRunningRole.AppInstance.Device.CopyCrashDumps())
+					{
+						string DeviceCrashDumpPath = InRunningRole.AppInstance.Device.CrashDumpPath;
+						if (!string.IsNullOrEmpty(DeviceCrashDumpPath))
+						{
+							string ArtifactCrashDumpDir = Path.Combine(DestSavedDirInfo.FullName, "CrashDumps");
+							Log.Info("Copying any CrashDumps from {0} to {1}", DeviceCrashDumpPath, ArtifactCrashDumpDir);
+							Utils.SystemHelpers.CopyDirectory(DeviceCrashDumpPath, Utils.SystemHelpers.GetFullyQualifiedPath(ArtifactCrashDumpDir), Utils.SystemHelpers.CopyOptions.Default, TruncateLongPathFilter);
+							Log.Info("Cleaning files in {0}", DeviceCrashDumpPath);
+							foreach (FileInfo CrashDumpFile in Utils.SystemHelpers.GetFiles(new DirectoryInfo(DeviceCrashDumpPath), "*", SearchOption.AllDirectories))
+							{
+								Utils.SystemHelpers.Delete(CrashDumpFile);
+							}
+						}
+					}
+
 					// Copy any lose files from the source
 					foreach (string SourceFile in Directory.EnumerateFiles(SourceSavedDir))
 					{
