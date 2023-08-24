@@ -31,7 +31,7 @@ public:
 	 * @return true upon success.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "OpenColorIO")
-	static OPENCOLORIOEDITOR_API bool ApplyColorSpaceTransformToColor(const FOpenColorIOColorConversionSettings& ConversionSettings, FLinearColor& InOutColor);
+	static OPENCOLORIOEDITOR_API bool ApplyColorSpaceTransformToColor(const FOpenColorIOColorConversionSettings& ConversionSettings, const FLinearColor& InColor, FLinearColor& OutColor);
 
 	/**
 	 * Apply a color space transform to a texture asset.
