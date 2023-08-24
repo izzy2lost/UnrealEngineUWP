@@ -63,16 +63,23 @@ protected:
 	void FillAddBrushMenu(FMenuBuilder& MenuBuilder, TArray<ALandscapeBlueprintBrushBase*> Brushes);
 
 	FReply OnToggleVisibility(int32 InBrushIndex);
-	FReply OnToggleAffectsHeightmap(int32 InBrushIndex);
-	FReply OnToggleAffectsWeightmap(int32 InBrushIndex);
-	FReply OnToggleAffectsVisibilityLayer(int32 InBrushIndex);
+	void OnToggleAffectsHeightmap(ECheckBoxState InCheckBoxState, int32 InBrushIndex);
+	void OnToggleAffectsWeightmap(ECheckBoxState InCheckBoxState, int32 InBrushIndex);
+	void OnToggleAffectsVisibilityLayer(ECheckBoxState InCheckBoxState, int32 InBrushIndex);
 
 	void OnToggleVisibility(ALandscapeBlueprintBrushBase* Brush);
 
 	const FSlateBrush* GetAffectsHeightmapBrush(int32 InBrushIndex) const;
+	bool IsAffectingHeightmap(int32 InBrushIndex) const;
+
 	const FSlateBrush* GetAffectsWeightmapBrush(int32 InBrushIndex) const;
+	bool IsAffectingWeightmap(int32 InBrushIndex) const;
+
 	const FSlateBrush* GetAffectsVisibilityLayerBrush(int32 InBrushIndex) const;
+	bool IsAffectingVisibilityLayer(int32 InBrushIndex) const;
+
 	const FSlateBrush* GetVisibilityBrush(int32 InBrushIndex) const;
+	
 	bool IsBrushSelected(int32 InBrushIndex) const;
 	bool IsBrushEnabled(int32 InBrushIndex) const;
 	void OnBrushSelectionChanged(int32 InBrushIndex);

@@ -537,7 +537,7 @@ TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateRow(
 						SNew(STextBlock)
 						.Font(IDetailLayoutBuilder::GetDetailFont())
 						.Text(Target->TargetName)
-						.ShadowOffset(FVector2D::UnitVector)
+						.ColorAndOpacity_Static(&FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetTextColor, Target)
 					]
 				]
 			];
@@ -617,7 +617,7 @@ TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateRow(
 							SNew(STextBlock)
 							.Font(IDetailLayoutBuilder::GetDetailFont())
 							.Text(Target->TargetName)
-							.ShadowOffset(FVector2D::UnitVector)
+							.ColorAndOpacity_Static(&FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetTextColor, Target)
 						]
 						+ SHorizontalBox::Slot()
 						.HAlign(HAlign_Right)
@@ -626,7 +626,7 @@ TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateRow(
 							.Visibility_Lambda([=] { return (Target->LayerInfoObj.IsValid() && Target->LayerInfoObj->bNoWeightBlend) ? EVisibility::Visible : EVisibility::Collapsed; })
 							.Font(IDetailLayoutBuilder::GetDetailFont())
 							.Text(LOCTEXT("NoWeightBlend", "No Weight-Blend"))
-							.ShadowOffset(FVector2D::UnitVector)
+							.ColorAndOpacity_Static(&FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetTextColor, Target)
 						]
 					]
 					+ SVerticalBox::Slot()
@@ -717,6 +717,7 @@ TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateRow(
 							[
 								SNew(STextBlock)
 								.Text(LOCTEXT("SubtractiveBlend", "Subtractive Blend"))
+								.ColorAndOpacity_Static(&FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetTextColor, Target)
 							]
 						]
 					]
@@ -1512,6 +1513,11 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnDebugModeColorChannelChan
 			}
 		}
 	}
+}
+
+FSlateColor FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetTextColor(const TSharedRef<FLandscapeTargetListInfo> InTarget)
+{
+	return FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetLayerIsSelected(InTarget) ? FStyleColors::ForegroundHover : FSlateColor::UseForeground();
 }
 
 //////////////////////////////////////////////////////////////////////////
