@@ -40,7 +40,7 @@ struct FTargetingDebugInfo;
 *	the end user might prefer to make decisions on. Distance (min/max), score rating
 *	etc.
 */
-UCLASS(EditInlineNew, Abstract)
+UCLASS(EditInlineNew, Abstract, Const)
 class TARGETINGSYSTEM_API UTargetingTask : public UObject
 {
 	GENERATED_BODY()

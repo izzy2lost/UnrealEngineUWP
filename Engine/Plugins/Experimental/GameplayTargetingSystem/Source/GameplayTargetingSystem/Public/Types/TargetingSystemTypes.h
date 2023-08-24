@@ -94,7 +94,7 @@ public:
 /**
 *	@struct FTargetingDefaultResultData
 */
-USTRUCT()
+USTRUCT(BlueprintType)
 struct FTargetingDefaultResultData
 {
 	GENERATED_BODY()
@@ -104,10 +104,11 @@ public:
 	{ }
 
 	/** The hit result for this target */
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category=Targeting)
 	FHitResult HitResult;
 
 	/** The score associated w/ this target */
+	UPROPERTY(BlueprintReadOnly, Category=Targeting)
 	float Score = 0.0f;
 };
 
