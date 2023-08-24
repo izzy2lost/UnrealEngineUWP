@@ -11,10 +11,10 @@
 namespace UE::IO::IAS
 {
 
-int32 GIoDispatcherHttpPollTimeoutMs = 0;
-static FAutoConsoleVariableRef CVar_IoDispatcherMaxHttpPollTimeoutMs(
+int32 GIasHttpPollTimeoutMs = 0;
+static FAutoConsoleVariableRef CVar_GIasHttpPollTimeoutMs(
 	TEXT("ias.HttpPollTimeout"),
-	GIoDispatcherHttpPollTimeoutMs,
+	GIasHttpPollTimeoutMs,
 	TEXT("FHttpClient::Tick poll timeout in milliseconds")
 );
 
@@ -107,7 +107,7 @@ void FOnDemandHttpClient::Issue(FAnsiStringView Url, FGetCallback&& Callback, FI
 
 bool FOnDemandHttpClient::Tick(bool Block)
 {
-	int32 TimeoutMs = Block ? -1 : GIoDispatcherHttpPollTimeoutMs;
+	int32 TimeoutMs = Block ? -1 : GIasHttpPollTimeoutMs;
 	return EventLoop.Tick(TimeoutMs) != 0;
 }
 

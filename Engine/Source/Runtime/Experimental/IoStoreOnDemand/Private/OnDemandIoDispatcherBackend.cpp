@@ -54,13 +54,6 @@ static FAutoConsoleVariableRef CVar_IasMaxHttpRetryCount(
 	TEXT("Max number of HTTP request retries before failing the I/O request.")
 );
 
-int32 GIasHttpPollTimeoutMs = 0;
-static FAutoConsoleVariableRef CVar_IasMaxHttpPollTimeoutMs(
-	TEXT("ias.HttpPollTimeout"),
-	GIasHttpPollTimeoutMs,
-	TEXT("Tick() poll timeout in milliseconds")
-);
-
 bool GIasHttpEnabled = true;
 static FAutoConsoleVariableRef CVar_IasHttpEnabled(
 	TEXT("ias.HttpEnabled"),
