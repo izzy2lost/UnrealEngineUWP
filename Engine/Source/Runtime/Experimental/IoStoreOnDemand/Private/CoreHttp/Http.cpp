@@ -2311,7 +2311,7 @@ static void MiscTest()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-COREHTTP_API void CoreHttpTest()
+IOSTOREONDEMAND_API void CoreHttpTest()
 {
 	MiscTest();
 
