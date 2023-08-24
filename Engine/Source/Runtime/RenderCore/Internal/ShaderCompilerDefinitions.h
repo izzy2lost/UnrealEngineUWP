@@ -6,8 +6,6 @@
 // as part of hiding FShaderCompilerDefinitions from public view, and will need to add this include back in.
 // #include "ShaderCore.h"
 
-#define SHADER_COMPILER_FLOAT32_FORMAT_STRING TEXT("%#.9gf")
-
 enum class EShaderCompilerDefineVariant : uint8
 {
 	None = 0,
@@ -282,7 +280,7 @@ public:
 			else if (Defines.ValueTypes[Index] == EShaderCompilerDefineVariant::Float)
 			{
 				// Make sure the printed value perfectly matches the given number
-				FCString::Sprintf(ValueStringBuffer, SHADER_COMPILER_FLOAT32_FORMAT_STRING, Defines.Pairs[Index].ValueFloat);
+				FCString::Sprintf(ValueStringBuffer, TEXT("%#.9gf"), Defines.Pairs[Index].ValueFloat);
 				Result = ValueStringBuffer;
 			}
 			else
