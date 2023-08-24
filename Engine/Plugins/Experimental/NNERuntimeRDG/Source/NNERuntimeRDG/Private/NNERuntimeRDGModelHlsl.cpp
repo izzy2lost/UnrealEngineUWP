@@ -73,7 +73,7 @@ bool FModelInstance::PrepareModelRDG(FRDGBuilder& RDGBuilder)
 		{
 			if (!PooledBuffer.IsValid())
 			{
-				FRDGBufferDesc BufferDesc = FRDGBufferDesc::CreateBufferDesc(Tensor.GetElemByteSize(), Tensor.GetVolume());
+				FRDGBufferDesc BufferDesc = FRDGBufferDesc::CreateBufferDesc(Tensor.GetElementByteSize(), Tensor.GetVolume());
 				const FRDGBufferRef TransientRDGBuffer = RDGBuilder.CreateBuffer(BufferDesc, *Tensor.GetName(), ERDGBufferFlags::None);
 				const uint8* TensorData = Tensor.GetPreparedData<uint8>().GetData();
 				PooledBuffer = RDGBuilder.ConvertToExternalBuffer(TransientRDGBuffer);
@@ -326,7 +326,7 @@ void EnqueueTensorUpload(TArray<TRefCountPtr<FRDGPooledBuffer>>& OutExternalRDGR
 					if (Tensor.HasPreparedData())
 					{
 
-						FRDGBufferDesc BufferDesc = FRDGBufferDesc::CreateBufferDesc(Tensor.GetElemByteSize(), Tensor.GetVolume());
+						FRDGBufferDesc BufferDesc = FRDGBufferDesc::CreateBufferDesc(Tensor.GetElementByteSize(), Tensor.GetVolume());
 						const FRDGBufferRef TransientRDGBuffer = RDGBuilder.CreateBuffer(BufferDesc, *Tensor.GetName(), ERDGBufferFlags::None);
 						const uint8* TensorData = Tensor.GetPreparedData<uint8>().GetData();
 

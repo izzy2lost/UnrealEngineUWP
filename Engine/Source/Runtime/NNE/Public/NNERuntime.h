@@ -20,7 +20,7 @@ class NNE_API UNNERuntime : public UInterface
  *
  * This interface is mainly used internally by UNNEModelData to cook a model given in a file format (e.g. .onnx) into runtime specific model data.
  * The model data is then stored inside UNNEModelData which then can be used in game to create an inferable model.
- * See INNERuntimeCPU and INNERuntimeRDG on how to create a model given a UNNEModelData asset.
+ * See INNERuntimeCPU, INNERuntimeGPU and INNERuntimeRDG on how to create a model given a UNNEModelData asset.
  */
 class NNE_API INNERuntime
 {
@@ -34,16 +34,6 @@ public:
 	 * @return The name of the runtime.
 	 */
 	virtual FString GetRuntimeName() const = 0;
-	
-	/**
-	 * Check if the runtime is supported on a specific platform.
-	 *
-	 * This function is used internally in the cooking process of UNNEModelData.
-	 *
-	 * @param TargetPlatform Interface identifying the target platforms.
-	 * @return True if the platform is supported, false otherwise.
-	 */
-	virtual bool IsPlatformSupported(const ITargetPlatform* TargetPlatform) const = 0;
 
 	/**
 	 * Check if the runtime is able to create model data given some file data representing a neural network.

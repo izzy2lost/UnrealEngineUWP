@@ -31,7 +31,7 @@ namespace UE::NNE::Internal
 			return DataType;
 		}
 
-		uint32 GetElemByteSize() const
+		uint32 GetElementByteSize() const
 		{
 			return GetTensorDataTypeSizeInBytes(DataType);
 		}

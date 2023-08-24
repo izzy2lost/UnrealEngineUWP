@@ -8,7 +8,9 @@
 #include "NNETypes.generated.h"
 
 /**
- * The enum lists all tensor data types used in NNE 
+ * The enum lists all tensor data types used in NNE.
+ *
+ * See UE::NNE::GetTensorDataTypeSizeInBytes(ENNETensorDataType InType) to get the size of each data type in bytes.
  */
 UENUM()
 enum class ENNETensorDataType : uint8
@@ -34,6 +36,13 @@ enum class ENNETensorDataType : uint8
 
 namespace UE::NNE
 {
+	/**
+	 * Return the data size in bytes for a tensor data type.
+	 *
+	 * @param InType the type of the element to consider.
+	 * @return the data size in bytes of an element.
+	 */
+	size_t NNE_API GetTensorDataTypeSizeInBytes(ENNETensorDataType InType);
 
 	/**
 	 * A symbolic tensor shape represents the shape of a tensor with potentially variable dimension.
@@ -217,14 +226,6 @@ namespace UE::NNE
 	};
 
 	/**
-	 * Return the data size in bytes for a tensor data type.
-	 * 
-	 * @param InType the type of the element to consider.
-	 * @return the data size in bytes of an element.
-	 */
-	size_t NNE_API GetTensorDataTypeSizeInBytes(ENNETensorDataType InType);
-
-	/**
 	 * The descriptor for a tensor as model inputs and output.
 	 *
 	 * A tensor is described by its name, the type of data it contains and it's shape.
@@ -232,6 +233,7 @@ namespace UE::NNE
 	 */
 	class NNE_API FTensorDesc
 	{
+	private:
 		FString					Name;
 		ENNETensorDataType		DataType;
 		FSymbolicTensorShape	Shape;
@@ -248,6 +250,7 @@ namespace UE::NNE
 		 * @return a tensor shape with the given dimensions.
 		 */
 		static FTensorDesc Make(const FString& Name, const FSymbolicTensorShape& Shape, ENNETensorDataType DataType);
+
 		/**
 		 * Get the name of the tensor
 		 * 
@@ -267,7 +270,7 @@ namespace UE::NNE
 		 * 
 		 * @return the size in bytes of one element of the tensor.
 		 */
-		inline uint32 GetElemByteSize() const { return GetTensorDataTypeSizeInBytes(DataType); }
+		inline uint32 GetElementByteSize() const { return GetTensorDataTypeSizeInBytes(DataType); }
 
 		/**
 		 * Get the symbolic shape of the tensor.

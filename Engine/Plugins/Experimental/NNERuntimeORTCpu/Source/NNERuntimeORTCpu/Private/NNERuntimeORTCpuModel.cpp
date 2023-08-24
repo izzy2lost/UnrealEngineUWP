@@ -155,7 +155,7 @@ namespace UE::NNERuntimeORTCpu::Private
 			NNE::FSymbolicTensorShape Shape = NNE::FSymbolicTensorShape::Make(ShapeData);
 			NNE::FTensorDesc SymbolicTensorDesc = NNE::FTensorDesc::Make(FString(CurTensorNamePtr), Shape, TypeAndSize.first);
 
-			check(SymbolicTensorDesc.GetElemByteSize() == TypeAndSize.second);
+			check(SymbolicTensorDesc.GetElementByteSize() == TypeAndSize.second);
 			SymbolicTensorDescs.Emplace(SymbolicTensorDesc);
 		}
 

@@ -98,11 +98,11 @@ bool UVertexDeltaModelInstance::GetRDGVertexBufferDesc(TConstArrayView<UE::NNE::
 {
 	if (InOutputTensorDescs.Num() > 0)
 	{
-		const uint32 ElemByteSize = InOutputTensorDescs[0].GetElemByteSize();
+		const uint32 ElemByteSize = InOutputTensorDescs[0].GetElementByteSize();
 		const UE::NNE::FSymbolicTensorShape& SymShape = InOutputTensorDescs[0].GetShape();
 		for (int32 i = 1; i < InOutputTensorDescs.Num(); i++)
 		{
-			if (InOutputTensorDescs[i].GetElemByteSize() != ElemByteSize || SymShape != InOutputTensorDescs[i].GetShape())
+			if (InOutputTensorDescs[i].GetElementByteSize() != ElemByteSize || SymShape != InOutputTensorDescs[i].GetShape())
 			{
 				return false;
 			}
@@ -185,7 +185,7 @@ void UVertexDeltaModelInstance::CreateNNEModel()
 						TConstArrayView<UE::NNE::FTensorDesc> InputTensorDescs = ModelInstanceRDG->GetInputTensorDescs();
 						UE::NNE::FTensorShape InputTensorShape = UE::NNE::FTensorShape::MakeFromSymbolic(InputTensorDescs[0].GetShape());
 						ModelInstanceRDG->SetInputTensorShapes({ InputTensorShape });
-						check(InputTensorDescs[0].GetElemByteSize() == sizeof(float));
+						check(InputTensorDescs[0].GetElementByteSize() == sizeof(float));
 						NNEInputTensorBuffer.SetNumUninitialized(InputTensorShape.Volume());
 
 						// setup outputs
