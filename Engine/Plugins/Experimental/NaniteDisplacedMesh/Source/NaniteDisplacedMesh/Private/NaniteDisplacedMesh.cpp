@@ -745,9 +745,20 @@ bool UNaniteDisplacedMesh::IsCachedCookedPlatformDataLoaded(const ITargetPlatfor
 
 void UNaniteDisplacedMesh::ClearAllCachedCookedPlatformData()
 {
-	// Delete any cache tasks first because the destructor will cancel the cache and build tasks,
-	// and drop their pointers to the data.
-	CacheTasksByKeyHash.Empty();
+	TRACE_CPUPROFILER_EVENT_SCOPE(UNaniteDisplacedMesh::ClearAllCachedCookedPlatformData);
+
+	// This is not ideal because we must wait for the tasks to finish or be canceled. They might work with an ptr to the FNaniteData contained in the DataByPlatformKeyHash map and we can't safely disarm them at moment. 
+	if (!TryCancelAsyncTasks())
+	{
+		FinishAsyncTasks();
+	}
+
+	/**
+	 * TryCancelAsyncTasks or FinishAsyncTasks should have been able to clear all tasks.If any tasks remain
+	 * then they must still be running, and we would crash when attempting to delete them.
+	 */
+	check(CacheTasksByKeyHash.IsEmpty()); 
+
 	DataByPlatformKeyHash.Empty();
 	Super::ClearAllCachedCookedPlatformData();
 }
@@ -889,6 +900,12 @@ bool UNaniteDisplacedMesh::TryCancelAsyncTasks()
 		else
 		{
 			It->Value->Cancel();
+
+			// Try to see if we can remove the task now that it might have been canceled
+			if (It->Value->Poll())
+			{
+				It.RemoveCurrent();
+			}
 		}
 	}
 	
