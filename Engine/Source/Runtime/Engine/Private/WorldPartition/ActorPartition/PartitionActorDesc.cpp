@@ -68,6 +68,7 @@ bool FPartitionActorDesc::Equals(const FWorldPartitionActorDesc* Other) const
 FBox FPartitionActorDesc::GetEditorBounds() const
 {
 	const UActorPartitionSubsystem::FCellCoord CellCoord(GridIndexX, GridIndexY, GridIndexZ, 0);
+	ensureMsgf(GridSize > 1, TEXT("Invalid GridSize. GridSize needs to be set."));
 	return UActorPartitionSubsystem::FCellCoord::GetCellBounds(CellCoord, GridSize);
 }
 
