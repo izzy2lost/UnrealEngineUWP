@@ -168,6 +168,9 @@ public:
 		return CompPtr ? Cast<OwnerType>(*CompPtr) : nullptr;
 	}
 
+	template<>
+	ENGINE_API UPrimitiveComponent* GetOwningComponent(const IPhysicsProxyBase* PhysicsProxy) const;
+
 	/** Given a component, returns its associated solver objects. */
 	const TArray<IPhysicsProxyBase*>* GetOwnedPhysicsProxies(UPrimitiveComponent* Comp) const
 	{
