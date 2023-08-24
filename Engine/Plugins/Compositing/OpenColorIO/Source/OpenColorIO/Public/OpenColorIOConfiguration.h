@@ -47,6 +47,9 @@ public:
 
 #if WITH_EDITOR
 	/** Apply the color transform in-place to the specified image. */
+	bool TransformColor(const FOpenColorIOColorConversionSettings& InSettings, FLinearColor& InOutColor) const;
+
+	/** Apply the color transform in-place to the specified image. */
 	bool TransformImage(const FOpenColorIOColorConversionSettings& InSettings, const FImageView& InOutImage) const;
 
 	/** Apply the color transform from the source image to the destination image. (The destination FImageView is const but what it points at is not.) */

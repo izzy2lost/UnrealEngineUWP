@@ -80,6 +80,9 @@ public:
 	bool IsTransform(const FString& InSourceColorSpace, const FString& InDisplay, const FString& InView, EOpenColorIOViewTransformDirection InDirection) const;
 
 #if WITH_EDITOR
+	/** Apply the color transform in-place to the specified color. */
+	bool TransformColor(FLinearColor& InOutColor);
+		
 	/** Apply the color transform in-place to the specified image. */
 	bool TransformImage(const FImageView& InOutImage) const;
 	

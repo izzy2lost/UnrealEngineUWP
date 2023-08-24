@@ -134,6 +134,16 @@ bool UOpenColorIOConfiguration::Validate() const
 }
 
 #if WITH_EDITOR
+bool UOpenColorIOConfiguration::TransformColor(const FOpenColorIOColorConversionSettings& InSettings, FLinearColor& InOutColor) const
+{
+	if (const TObjectPtr<UOpenColorIOColorTransform>* TransformPtr = FindTransform(InSettings))
+	{
+		return (*TransformPtr)->TransformColor(InOutColor);
+	}
+
+	return false;
+}
+
 bool UOpenColorIOConfiguration::TransformImage(const FOpenColorIOColorConversionSettings& InSettings, const FImageView& InOutImage) const
 {
 	if (const TObjectPtr<UOpenColorIOColorTransform>* TransformPtr = FindTransform(InSettings))

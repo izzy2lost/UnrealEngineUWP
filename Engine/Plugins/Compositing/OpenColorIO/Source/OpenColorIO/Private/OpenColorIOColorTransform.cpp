@@ -628,6 +628,27 @@ bool UOpenColorIOColorTransform::IsTransform(const FString& InSourceColorSpace, 
 }
 
 #if WITH_EDITOR
+bool UOpenColorIOColorTransform::TransformColor(FLinearColor& InOutColor)
+{
+	const UOpenColorIOConfiguration* ConfigurationOwner = Cast<UOpenColorIOConfiguration>(GetOuter());
+	const FOpenColorIOWrapperConfig* ConfigWrapper = GetTransformConfigWrapper(ConfigurationOwner);
+
+	if (ConfigWrapper != nullptr)
+	{
+		const FOpenColorIOWrapperProcessor TransformProcessor = GetTransformProcessor(this, ConfigWrapper);
+		if (TransformProcessor.IsValid())
+		{
+			return TransformProcessor.TransformColor(InOutColor);
+		}
+	}
+	else
+	{
+		UE_LOG(LogOpenColorIO, Error, TEXT("Failed to transform image for color transform %s. Configuration file was invalid."), *GetTransformFriendlyName());
+	}
+
+	return false;
+}
+
 bool UOpenColorIOColorTransform::TransformImage(const FImageView& InOutImage) const
 {
 	const UOpenColorIOConfiguration* ConfigurationOwner = Cast<UOpenColorIOConfiguration>(GetOuter());
