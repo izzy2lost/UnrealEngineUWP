@@ -435,7 +435,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				{
 					CopiedCount += count;
 					CopiedSize += size;
-					if (_timer.Elapsed > TimeSpan.FromSeconds(10.0))
+					if (_timer.Elapsed > TimeSpan.FromSeconds(10.0) || CopiedCount == count)
 					{
 						_progress.Report(this);
 						_timer.Restart();
