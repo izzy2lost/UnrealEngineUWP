@@ -1108,7 +1108,9 @@ FJournaledCache::FJournaledCache(const FIasCacheConfig& Config)
 {
 	TStringBuilder<256> CachePath;
 	CachePath << FPaths::ProjectPersistentDownloadDir();
-	CachePath << TEXT("ias.cache.0");
+	CachePath << TEXT("ias/");
+	CachePath << Config.Name;
+	CachePath << TEXT(".cache.0");
 
 	FCacheInner::FConfig EventualConfig;
 	static_cast<FIasCacheConfig&>(EventualConfig) = Config;

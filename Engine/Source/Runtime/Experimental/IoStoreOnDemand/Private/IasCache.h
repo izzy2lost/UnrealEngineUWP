@@ -42,6 +42,7 @@ struct FIasCacheConfig
 		uint32	Seconds = 60;
 	};
 
+	const TCHAR*Name = TEXT("ias");
 	uint64		DiskQuota = 512ull << 20;
 	uint32		MemoryQuota = 2 << 20;
 	uint32		JournalQuota = 4 << 20; // description in JournalCache.cpp
