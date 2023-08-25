@@ -88,6 +88,11 @@ private:
 	UObject* GetActorContextAsObject() const;
 	bool GetAllowComponentTreeEditing() const;
 
+	/**
+	 * Gets the Visibility of the top of the panel buttons in the details panel
+	 */
+	EVisibility GetComponentEditorButtonsVisibility() const;
+
 	void OnComponentsEditedInWorld();
 	void OnSubobjectEditorTreeViewSelectionChanged(const TArray<TSharedPtr<FSubobjectEditorTreeNode> >& SelectedNodes);
 	void OnSubobjectEditorTreeViewItemDoubleClicked(const TSharedPtr<FSubobjectEditorTreeNode> ClickedNode);

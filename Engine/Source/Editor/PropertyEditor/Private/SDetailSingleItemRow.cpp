@@ -26,6 +26,8 @@
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
+#include "DetailsViewStyle.h"
+#include "SDetailsView.h"
 
 namespace DetailWidgetConstants
 {
@@ -651,15 +653,15 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 		Widget = SNew(SSpacer);
 	}
 
-	TWeakPtr<STableViewBase> OwnerTableViewWeak = InOwnerTableView;
-	auto GetScrollbarWellBrush = [this, OwnerTableViewWeak]()
+	OwnerTableViewWeak = InOwnerTableView;
+	auto GetScrollbarWellBrush = [this]()
 	{
 		return SDetailTableRowBase::IsScrollBarVisible(OwnerTableViewWeak) ?
 			FAppStyle::Get().GetBrush("DetailsView.GridLine") : 
 			FAppStyle::Get().GetBrush("DetailsView.CategoryMiddle");
 	};
 
-	auto GetScrollbarWellTint = [this, OwnerTableViewWeak]()
+	auto GetScrollbarWellTint = [this]()
 	{
 		return SDetailTableRowBase::IsScrollBarVisible(OwnerTableViewWeak) ?
 			FStyleColors::White : 
@@ -671,11 +673,14 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 		return this->IsHighlighted() ? FMargin(1) : FMargin(0);
 	};
 
+	static const FDetailsViewStyleKey& PrimaryKey = SDetailsView::GetPrimaryDetailsViewStyleKey();
+	FDetailsViewStyle ViewStyle = DetailsView ? DetailsView->GetStyleKey() : PrimaryKey;
+	
 	this->ChildSlot
 	[
 		SNew( SBorder )
 		.BorderImage(FAppStyle::Get().GetBrush("DetailsView.GridLine"))
-		.Padding(FMargin(0,0,0,1))
+		.Padding(ViewStyle.GetRowPadding())
 		.Clipping(EWidgetClipping::ClipToBounds)
 		[
 			SNew(SBox)

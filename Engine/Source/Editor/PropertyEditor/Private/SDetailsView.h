@@ -117,6 +117,21 @@ public:
 	{
 		return RootObjectCustomization;
 	}
+	
+	/**
+	 * Gets the Shared pointer which points to the @code const FDetailsViewStyleKey& @endcode which is used for
+	 * @code SDetailsView @endcode instances for which no other @code FDetailsViewStyleKey @endcode has been provided,
+	 * for example through @code FDetailsViewArgs @endcode or an @code FDetailsViewObjectFilter @endcode.
+	 *
+	 * @return the shared pointer for the Primary details style key 
+	 */
+	static PROPERTYEDITOR_API const FDetailsViewStyleKey& GetPrimaryDetailsViewStyleKey();
+
+	/**
+	* Returns a bool indicating whether the given @code FDetailsViewStyleKey @endcode is the default Details View Style 
+	*/
+	bool IsDefaultStyle() const;
+	
 private:
 
 	void SetObjectArrayPrivate(const TArray<UObject*>& InObjects);
@@ -196,7 +211,23 @@ private:
 	/** Get the badge for the view options icon (if there are any options active */
 	const FSlateBrush* GetViewOptionsBadgeIcon() const;
 
+	/**
+	* Updates @code FDetailsViewStyleKey& StyleKey @endcode for the current @code SDetailsView @endcode state
+	*/
+	virtual void UpdateStyleKey() override;
+
+	/**
+	* Gets the @code FDetailsViewStyleKey& @endcode which provides a Key to the current style for a Details View
+	*/
+	virtual const FDetailsViewStyleKey& GetStyleKey() override;
+
 private:
+	/**
+	* The @code FDetailsViewStyle& @endcode shared pointer which provides style
+	* information for this details view.
+	*/
+	TSharedPtr<FDetailsViewStyleKey> StyleKeySP;
+	
 	/** The filter for objects viewed by this details panel */
 	TSharedPtr<FDetailsViewObjectFilter> ObjectFilter;
 

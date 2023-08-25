@@ -719,6 +719,8 @@ void SDetailsView::SetObjectArrayPrivate(const TArray<UObject*>& InObjects)
 	double StartTime = FPlatformTime::Seconds();
 
 	const TArray<FDetailsViewObjectRoot> Roots = ObjectFilter->FilterObjects(InObjects);
+	
+	UpdateStyleKey();
 
 	PreSetObject(Roots.Num());
 
@@ -1469,6 +1471,43 @@ const FSlateBrush* SDetailsView::GetViewOptionsBadgeIcon() const
 					|| (DetailsViewArgs.bShowAnimatedPropertiesOption && IsShowAnimatedChecked() );
 
 	return bHasBadge ? FAppStyle::Get().GetBrush("Icons.BadgeModified") : nullptr;
+}
+
+bool SDetailsView::IsDefaultStyle() const
+{
+	return StyleKeySP.IsValid() && *StyleKeySP.Get() == GetPrimaryDetailsViewStyleKey();
+}
+
+void SDetailsView::UpdateStyleKey()
+{
+	const bool IsDefault = FDetailsViewStyleKeys::IsDefault(ObjectFilter->GetObjectsDetailsViewStyleKey());
+
+	if (IsDefault && DetailsViewArgs.StyleKey.IsValid()) 
+	{
+		StyleKeySP = DetailsViewArgs.StyleKey;
+	}
+	else if (!IsDefault)
+	{
+		FDetailsViewStyleKey Key = ObjectFilter->GetObjectsDetailsViewStyleKey(); 
+		StyleKeySP = MakeShared<FDetailsViewStyleKey>(Key);
+	}
+	else
+	{
+		// convert the const shared pointer value into a non-const the pointer can hold
+		StyleKeySP = MakeShared<FDetailsViewStyleKey>(GetPrimaryDetailsViewStyleKey());
+	} 
+}
+
+const FDetailsViewStyleKey& SDetailsView::GetStyleKey()
+{
+	static FDetailsViewStyleKey PrimaryKey = GetPrimaryDetailsViewStyleKey();
+	return StyleKeySP.IsValid() ? *StyleKeySP.Get() : PrimaryKey;
+}
+
+const FDetailsViewStyleKey& SDetailsView::GetPrimaryDetailsViewStyleKey()
+{
+	static FDetailsViewStyleKey PrimaryKey = FDetailsViewStyleKeys::Classic();
+	return PrimaryKey;
 }
 
 #undef LOCTEXT_NAMESPACE

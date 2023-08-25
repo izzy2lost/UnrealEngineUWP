@@ -103,5 +103,9 @@ private:
 	}
 	
 protected:
+	/**
+	 * A weak pointer to the STableViewBase from which we can get information such as if the scrollbar is showing. 
+	 */
+	TWeakPtr<STableViewBase> OwnerTableViewWeak;
 	TWeakPtr<FDetailTreeNode> OwnerTreeNode;
 };

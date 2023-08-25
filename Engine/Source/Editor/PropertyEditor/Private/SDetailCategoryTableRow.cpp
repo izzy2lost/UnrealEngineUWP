@@ -11,6 +11,8 @@
 #include "ScopedTransaction.h"
 #include "SDetailExpanderArrow.h"
 #include "SDetailRowIndent.h"
+#include "DetailsViewStyle.h"
+#include "SDetailsView.h"
 #include "Serialization/JsonSerializer.h"
 #include "Styling/StyleColors.h"
 #include "UserInterface/PropertyEditor/PropertyEditorConstants.h"
@@ -76,26 +78,23 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 			];
 	}
 
-	TWeakPtr<STableViewBase> OwnerTableViewWeak = InOwnerTableView;
-	auto GetScrollbarWellBrush = [this, OwnerTableViewWeak]()
-	{
-		return SDetailTableRowBase::IsScrollBarVisible(OwnerTableViewWeak) ?
-			FAppStyle::Get().GetBrush("DetailsView.GridLine") :
-			this->GetBackgroundImage();
-	};
-
-	auto GetScrollbarWellTint = [this, OwnerTableViewWeak]()
+	OwnerTableViewWeak = InOwnerTableView;
+	
+	auto GetScrollbarWellTint = [this]()
 	{
 		return SDetailTableRowBase::IsScrollBarVisible(OwnerTableViewWeak) ?
 			FSlateColor(EStyleColor::White) :
 			this->GetInnerBackgroundColor();
 	};
 
+	FDetailsViewStyle ViewStyle = DetailsView->GetStyleKey();
+	ViewStyle.SetIsOuterCategory(!bIsInnerCategory);
+
 	this->ChildSlot
 	[
 		SNew(SBorder)
 		.BorderImage(FAppStyle::Get().GetBrush("DetailsView.GridLine"))
-		.Padding(FMargin(0, 0, 0, 1))
+		.Padding(ViewStyle.GetRowPadding())
 		[
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot()
@@ -117,7 +116,7 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 			.AutoWidth()
 			[
 				SNew(SBorder)
-				.BorderImage_Lambda(GetScrollbarWellBrush)
+				.BorderImage(this, &SDetailCategoryTableRow::GetBackgroundImageForScrollBarWell)
 				.BorderBackgroundColor_Lambda(GetScrollbarWellTint)
 				.Padding(FMargin(0, 0, SDetailTableRowBase::ScrollBarPadding, 0))
 			]
@@ -210,6 +209,7 @@ EVisibility SDetailCategoryTableRow::IsSeparatorVisible() const
 	return bIsInnerCategory || IsItemExpanded() ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
+/* TODO ~ refactor to not require styling of row and scrollbar well separately */
 const FSlateBrush* SDetailCategoryTableRow::GetBackgroundImage() const
 {
 	if (bShowBorder)
@@ -218,11 +218,31 @@ const FSlateBrush* SDetailCategoryTableRow::GetBackgroundImage() const
 		{
 			return FAppStyle::Get().GetBrush("DetailsView.CategoryMiddle");
 		}
-
-		// intentionally no hover on outer categories
-		return FAppStyle::Get().GetBrush("DetailsView.CategoryTop");
+		
+		IDetailsViewPrivate* View = OwnerTreeNode.IsValid() && OwnerTreeNode.Pin()->GetDetailsView() ? OwnerTreeNode.Pin()->GetDetailsView() : nullptr;
+		
+		static FDetailsViewStyleKey PrimaryKey = SDetailsView::GetPrimaryDetailsViewStyleKey();
+		FDetailsViewStyle ViewStyle = View ? View->GetStyleKey() : PrimaryKey;
+		const bool bIsCategoryExpanded = IsItemExpanded();
+		const bool bIsScrollBarVisible = IsScrollBarVisible(OwnerTableViewWeak);
+		
+		return ViewStyle.GetBackgroundImageForCategoryRow(bShowBorder, bIsInnerCategory, bIsCategoryExpanded, bIsScrollBarVisible);
 	}
+	return nullptr;
+}
 
+const FSlateBrush* SDetailCategoryTableRow::GetBackgroundImageForScrollBarWell() const
+{
+	if (bShowBorder)
+	{
+		IDetailsViewPrivate* View = OwnerTreeNode.IsValid() && OwnerTreeNode.Pin()->GetDetailsView() ? OwnerTreeNode.Pin()->GetDetailsView() : nullptr;
+		static FDetailsViewStyleKey PrimaryKey = SDetailsView::GetPrimaryDetailsViewStyleKey();
+		const FDetailsViewStyle ViewStyle = View ? View->GetStyleKey() : PrimaryKey;
+		const bool bIsCategoryExpanded = IsItemExpanded();
+		const bool bIsScrollBarVisible = IsScrollBarVisible(OwnerTableViewWeak);
+
+		return ViewStyle.GetBackgroundImageForScrollBarWell(bShowBorder, bIsInnerCategory, bIsCategoryExpanded, bIsScrollBarVisible);
+	}
 	return nullptr;
 }
 
