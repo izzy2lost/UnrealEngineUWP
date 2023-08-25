@@ -212,12 +212,13 @@ namespace Horde.Server.Agents
 		/// <param name="poolId">The pool containing the agent</param>
 		/// <param name="modifiedAfter">If set, only returns agents modified after this time</param>
 		/// <param name="property">If set, only return agents matching this property</param>
+		/// <param name="includeDeleted">If set, include agents marked as deleted</param>
 		/// <param name="index">Index within the list of results</param>
 		/// <param name="count">Number of results to return</param>
 		/// <returns>List of agents matching the given criteria</returns>
-		public Task<List<IAgent>> FindAgentsAsync(PoolId? poolId, DateTime? modifiedAfter, string? property, int? index, int? count)
+		public Task<List<IAgent>> FindAgentsAsync(PoolId? poolId, DateTime? modifiedAfter, string? property, bool includeDeleted, int? index, int? count)
 		{
-			return Agents.FindAsync(poolId, modifiedAfter, property, null, null, index, count);
+			return Agents.FindAsync(poolId, modifiedAfter, property, null, null, includeDeleted, index, count);
 		}
 
 		/// <summary>

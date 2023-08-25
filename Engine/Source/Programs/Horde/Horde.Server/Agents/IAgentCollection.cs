@@ -63,10 +63,11 @@ namespace Horde.Server.Agents
 		/// <param name="property">Property to look for</param>
 		/// <param name="status">Status to look for</param>
 		/// <param name="enabled">Enabled/disabled status to look for</param>
+		/// <param name="includeDeleted">Whether agents marked as deleted should be included</param>
 		/// <param name="index">Index of the first result</param>
 		/// <param name="count">Number of results to return</param>
 		/// <returns>List of agents matching the given criteria</returns>
-		Task<List<IAgent>> FindAsync(PoolId? poolId = null, DateTime? modifiedAfter = null, string? property = null, AgentStatus? status = null, bool? enabled = null, int? index = null, int? count = null);
+		Task<List<IAgent>> FindAsync(PoolId? poolId = null, DateTime? modifiedAfter = null, string? property = null, AgentStatus? status = null, bool? enabled = null, bool includeDeleted = false, int? index = null, int? count = null);
 
 		/// <summary>
 		/// Finds all agents with an expired session

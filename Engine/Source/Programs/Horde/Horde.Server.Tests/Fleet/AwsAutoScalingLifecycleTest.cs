@@ -71,7 +71,8 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 	{
 		// Arrange
 		LifecycleActionEvent lae = new() { Ec2InstanceId = "i-1234", LifecycleActionToken = "action-token-test", Origin = "AutoScalingGroup" };
-		IAgent agent = await CreateAgentAsync(new PoolId("pool1"), properties: new() { KnownPropertyNames.AwsInstanceId + "=" + lae.Ec2InstanceId });
+		IAgent agent = await CreateAgentAsync(new PoolId("pool1"), properties: new() { KnownPropertyNames.AwsInstanceId + "=" + lae.Ec2InstanceId }, ephemeral: true);
+		await AgentService.DeleteAgentAsync(agent);
 		
 		// Act
 		await _fakeSqs.SendMessageAsync(_queueUrl, JsonSerializer.Serialize(lae));

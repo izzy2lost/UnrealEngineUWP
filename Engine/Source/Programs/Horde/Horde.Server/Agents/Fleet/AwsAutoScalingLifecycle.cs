@@ -231,7 +231,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IDisposable
 		if (e.Origin == OriginAsg)
 		{
 			string instanceIdProp = KnownPropertyNames.AwsInstanceId + "=" + e.Ec2InstanceId;
-			IAgent? agent = (await _agentService.FindAgentsAsync(null, null, instanceIdProp, null, null)).FirstOrDefault();
+			IAgent? agent = (await _agentService.FindAgentsAsync(null, null, instanceIdProp, true, null, null)).FirstOrDefault();
 			if (agent == null)
 			{
 				_logger.LogWarning("Lifecycle action received but no agent with instance ID {InstanceId} found", e.Ec2InstanceId);
@@ -282,7 +282,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IDisposable
 		}
 		
 		List<string> validInstanceIds = new();
-		List<IAgent> agents = await _agentService.FindAgentsAsync(null, null, null, null, null);
+		List<IAgent> agents = await _agentService.FindAgentsAsync(null, null, null, true, null, null);
 		foreach (IAgent agent in agents)
 		{
 			if (IsAgentSuggestedByAsg(agent, out string? instanceId))
