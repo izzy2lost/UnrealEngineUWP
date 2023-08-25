@@ -74,6 +74,13 @@ static TAutoConsoleVariable<float> CVarResolutionLodBiasLocalMoving(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+TAutoConsoleVariable<int32> CVarEnableNewDistantInvalidationLogic(
+	TEXT("r.Shadow.Virtual.EnableNewDistantInvalidationLogic"),
+	1,
+	TEXT("Only intended to allow hotfixing the next release of a certain project."),
+	ECVF_RenderThreadSafe
+);
+
 DECLARE_DWORD_COUNTER_STAT(TEXT("VSM Total Raster Bins"), STAT_VSMNaniteBasePassTotalRasterBins, STATGROUP_ShadowRendering);
 DECLARE_DWORD_COUNTER_STAT(TEXT("VSM Total Shading Draws"), STAT_VSMNaniteBasePassTotalShadingDraws, STATGROUP_ShadowRendering);
 
@@ -92,12 +99,55 @@ FShadowSceneRenderer::FShadowSceneRenderer(FDeferredShadingSceneRenderer& InScen
 	, Scene(*InSceneRenderer.Scene)
 	, ShadowScene(*Scene.ShadowScene)
 	, VirtualShadowMapArray(InSceneRenderer.VirtualShadowMapArray)
+	, bShouldUseNewDistantInvalidationLogic(CVarEnableNewDistantInvalidationLogic.GetValueOnAnyThread() != 0)
 {
 }
 
 float FShadowSceneRenderer::ComputeNaniteShadowsLODScaleFactor()
 {
 	return FMath::Pow(2.0f, -CVarNaniteShadowsLODBias.GetValueOnRenderThread());
+}
+
+void FShadowSceneRenderer::BeginRender(FRDGBuilder& GraphBuilder)
+{
+	// Kick off shadow scene updates.
+	ShadowScene.UpdateForRenderedFrame(GraphBuilder);
+
+	if (bShouldUseNewDistantInvalidationLogic && VirtualShadowMapArray.IsEnabled() && VirtualShadowMapArray.CacheManager->IsCacheEnabled())
+	{
+		RendererSetupTask = GraphBuilder.AddSetupTask([this]()
+		{
+			FVirtualShadowMapArrayCacheManager& CacheManager = *VirtualShadowMapArray.CacheManager;
+			// Priority queue of distant lights to update.
+			int32 SceneFrameNumber = int32(Scene.GetFrameNumber());
+
+			// Build age-based priority queue of fully cached entries.
+			for (auto It = Scene.Lights.CreateConstIterator(); It; ++It)
+			{
+				int32 LightId = It.GetIndex();
+				TSharedPtr<FVirtualShadowMapPerLightCacheEntry> PerLightCacheEntry = CacheManager.FindLightCacheEntry(LightId, 0);
+				if (PerLightCacheEntry && PerLightCacheEntry->IsFullyCached())
+				{
+					int32 FramesSinceLastRender = SceneFrameNumber - int32(PerLightCacheEntry->GetLastScheduledFrameNumber());
+					DistantLightUpdateQueue.Add(-FramesSinceLastRender, LightId);
+				}
+			}
+
+			int32 UpdateBudgetNumLights = CVarMaxDistantLightsPerFrame.GetValueOnRenderThread() < 0 ? int32(DistantLightUpdateQueue.Num()) : FMath::Min(int32(DistantLightUpdateQueue.Num()), CVarMaxDistantLightsPerFrame.GetValueOnRenderThread());
+			for (int32 Index = 0; Index < UpdateBudgetNumLights; ++Index)
+			{
+				const int32 LightId = DistantLightUpdateQueue.Top();
+				//const int32 Age = DistantLightUpdateQueue.GetKey(LocalLightShadowIndex);
+				// UE_LOG(LogTemp, Log, TEXT("Index: %d Age: %d"), LocalLightShadowIndex, Age);
+				DistantLightUpdateQueue.Pop();
+
+				TSharedPtr<FVirtualShadowMapPerLightCacheEntry> PerLightCacheEntry = CacheManager.FindLightCacheEntry(LightId, 0);
+
+				// Mark frame it was scheduled, this is picked up later in AddLocalLightShadow to trigger invalidation 
+				PerLightCacheEntry->Current.ScheduledFrameNumber = SceneFrameNumber;
+			}
+		});
+	}
 }
 
 static float GetResolutionLODBiasLocal(float LightMobilityFactor)
@@ -170,6 +220,13 @@ TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FShadowSceneRenderer::AddLocalLi
 	LocalLightShadowFrameSetup.PerLightCacheEntry = PerLightCacheEntry;
 	bool bIsCached = PerLightCacheEntry->UpdateLocal(ProjectedShadowInitializer, bIsDistantLight, CacheManager->IsCacheEnabled(), !bShouldForceTimeSliceDistantUpdate);
 
+	if (bShouldUseNewDistantInvalidationLogic)
+	{
+		if (bIsCached && bIsDistantLight && PerLightCacheEntry->Prev.ScheduledFrameNumber == Scene.GetFrameNumber())
+		{
+			PerLightCacheEntry->Invalidate();
+		}
+	}
 	// Update info on the ProjectionShadowInfo; eventually this should all move into local data structures here
 	const int32 VirtualShadowMapId = VirtualShadowMapArray.Allocate(bIsDistantLight, NumMaps);
 	ProjectedShadowInfo->VirtualShadowMapId = VirtualShadowMapId;
@@ -185,15 +242,17 @@ TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FShadowSceneRenderer::AddLocalLi
 		VirtualSmCacheEntry.ProjectionData = GetLocalLightProjectionShaderData(ResolutionLODBiasLocal, ProjectedShadowInfo, Index);
 	}
 
-	// Only round-robin those that were not invalidated.
-	if (bIsDistantLight && bIsCached)
+	if (!bShouldUseNewDistantInvalidationLogic)
 	{
-		// This priority could be calculated based also on whether the light has actually been invalidated or not (currently not tracked on host).
-		// E.g., all things being equal update those with an animated mesh in, for example. Plus don't update those the don't need it at all.
-		int32 FramesSinceLastRender = int32(Scene.GetFrameNumber()) - int32(PerLightCacheEntry->GetLastScheduledFrameNumber());
-		DistantLightUpdateQueue.Add(-FramesSinceLastRender, LocalLightShadowIndex);
+		// Only round-robin those that were not invalidated.
+		if (bIsDistantLight && bIsCached)
+		{
+			// This priority could be calculated based also on whether the light has actually been invalidated or not (currently not tracked on host).
+			// E.g., all things being equal update those with an animated mesh in, for example. Plus don't update those the don't need it at all.
+			int32 FramesSinceLastRender = int32(Scene.GetFrameNumber()) - int32(PerLightCacheEntry->GetLastScheduledFrameNumber());
+			DistantLightUpdateQueue.Add(-FramesSinceLastRender, LocalLightShadowIndex);
+		}
 	}
-
 	return PerLightCacheEntry;
 }
 
@@ -205,8 +264,10 @@ void FShadowSceneRenderer::AddDirectionalLightShadow(FProjectedShadowInfo* Proje
 
 void FShadowSceneRenderer::PostInitDynamicShadowsSetup()
 {
-	UpdateDistantLightPriorityRender();
-
+	if (!bShouldUseNewDistantInvalidationLogic)
+	{
+		UpdateDistantLightPriorityRender();
+	}
 	// Dispatch async Nanite culling job if appropriate
 	if (CVarVSMMaterialVisibility.GetValueOnRenderThread() != 0)
 	{

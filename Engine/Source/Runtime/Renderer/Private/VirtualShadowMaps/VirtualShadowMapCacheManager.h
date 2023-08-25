@@ -236,6 +236,11 @@ public:
 	 */
 	TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FindCreateLightCacheEntry(int32 LightSceneId, uint32 ViewUniqueID, uint32 NumShadowMaps);
 
+	/**
+	 * Finds an existing cache entry, returns null if none exists.
+	 */
+	TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FindLightCacheEntry(int32 LightSceneId, uint32 ViewUniqueID);
+
 	bool IsCacheEnabled();
 	bool IsCacheDataAvailable();
 	bool IsHZBDataAvailable();

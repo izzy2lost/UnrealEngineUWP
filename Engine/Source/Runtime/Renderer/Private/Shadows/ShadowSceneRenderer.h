@@ -6,6 +6,7 @@
 #include "Containers/ArrayView.h"
 #include "Containers/BinaryHeap.h"
 #include "Containers/Array.h"
+#include "Tasks/Task.h"
 
 #include "VirtualShadowMaps/VirtualShadowMapArray.h"
 
@@ -29,6 +30,11 @@ public:
 	 * Multiply PackedView.LODScale by return value when rendering Nanite shadows.
 	 */
 	static float ComputeNaniteShadowsLODScaleFactor();
+
+	/**
+	 * Call at the start of the frame to kick off work that can be done early.
+	 */
+	void BeginRender(FRDGBuilder& GraphBuilder);
 
 	/**
 	 * Add a cube/spot light for processing this frame.
@@ -85,8 +91,16 @@ public:
 	{
 		return VirtualShadowMapMaskBits != nullptr;
 	}
+	
+	UE::Tasks::FTask GetRendererSetupTask() const
+	{
+		return RendererSetupTask;
+	}
 
+	bool IsUsingNewDistantInvalidationLogic() const { return bShouldUseNewDistantInvalidationLogic; }
 private:
+	UE::Tasks::FTask RendererSetupTask;
+
 	FVirtualShadowMapProjectionShaderData GetLocalLightProjectionShaderData(float ResolutionLODBiasLocal, const FProjectedShadowInfo* ProjectedShadowInfo, int32 MapIndex) const;
 
 	/**
@@ -127,4 +141,6 @@ private:
 	FNaniteVisibilityQuery* NaniteVisibilityQuery = nullptr;
 	Nanite::FPackedViewArray* VirtualShadowMapViews = nullptr;
 	FSceneInstanceCullingQuery *SceneInstanceCullingQuery = nullptr;
+
+	bool bShouldUseNewDistantInvalidationLogic = true;
 };

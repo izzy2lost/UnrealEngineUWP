@@ -843,6 +843,17 @@ TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FVirtualShadowMapArrayCacheManag
 	return LightEntry;
 }
 
+TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FVirtualShadowMapArrayCacheManager::FindLightCacheEntry(int32 LightSceneId, uint32 ViewUniqueID)
+{
+	const uint64 CacheKey = (uint64(ViewUniqueID) << 32U) | uint64(LightSceneId);
+
+	if (TSharedPtr<FVirtualShadowMapPerLightCacheEntry> *Entry = CacheEntries.Find(CacheKey))
+	{
+		return *Entry;
+	}
+	return TSharedPtr<FVirtualShadowMapPerLightCacheEntry>();
+}
+
 void FVirtualShadowMapPerLightCacheEntry::OnPrimitiveRendered(const FPrimitiveSceneInfo* PrimitiveSceneInfo)
 {
 	// Mark as (potentially present in a cached page somehwere, so we'd need to invalidate if it is removed/moved)

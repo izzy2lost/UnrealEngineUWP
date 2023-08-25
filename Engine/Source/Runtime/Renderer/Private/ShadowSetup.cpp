@@ -4082,12 +4082,9 @@ void FSceneRenderer::CreateWholeSceneProjectedShadow(
 					ProjectedShadowInfo->MeshSelectionMask = EShadowMeshSelection::VSM;
 
 					bool bContainsNaniteSubjects = false;
-					
-					// TODO: Perform no rendering work (command setup etc) if if fully cached, this optimiztion would be nice to get back, however, right now this is tricky
-					//       as the logic to select those that get to re-render must happen when the full set of rendered local lights is known.
-					//       At that point we would need to re-do this logic, which is currently rather tied to this part of the code. 
-					//       After new/persistent shadow setup is done, this should be far easier.
-					//if (!bHasFullyCachedVSM)
+
+					// Skip mesh setup if it won't be rendered anyway
+					if (!ShadowSceneRenderer->IsUsingNewDistantInvalidationLogic() || ProjectedShadowInfo->bShouldRenderVSM)
 					{
 						// Skip convex hull tests for VSM since this causes artifacts due to caching (potentially check if caching is enabled but may lead to race condition).
 						// The interaction setup has already tested the light bounds (by calling FLightSceneProxy::AffectsBounds)
@@ -4943,6 +4940,12 @@ void FSceneRenderer::BeginGatherShadowPrimitives(FDynamicShadowsTaskData* TaskDa
 		ShadowSetupPrerequisites.AddPrerequisites(VisibilityTaskData->GetComputeRelevanceTask());
 		ShadowSetupPrerequisites.AddPrerequisites(VisibilityTaskData->GetLightVisibilityTask());
 	}
+
+	if (ShadowSceneRenderer)
+	{
+		ShadowSetupPrerequisites.AddPrerequisites(ShadowSceneRenderer->GetRendererSetupTask());
+	}
+
 	ShadowSetupPrerequisites.AddPrerequisites(Scene->GetCreateLightPrimitiveInteractionsTask());
 	ShadowSetupPrerequisites.AddPrerequisites(Scene->GetCacheMeshDrawCommandsTask());
 	ShadowSetupPrerequisites.Trigger();

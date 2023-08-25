@@ -2567,7 +2567,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		}
 
 		// kick off dependent scene updates 
-		Scene->ShadowScene->UpdateForRenderedFrame(GraphBuilder);
+		ShadowSceneRenderer->BeginRender(GraphBuilder);
 
 #if RHI_RAYTRACING
 		// Initialize ray tracing flags, in case they weren't initialized in the CreateSceneRenderers code path
