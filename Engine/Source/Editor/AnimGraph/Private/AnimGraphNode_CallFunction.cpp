@@ -131,7 +131,7 @@ void UAnimGraphNode_CallFunction::ExpandNode(FKismetCompilerContext& CompilerCon
 
 		if(EventName != NAME_None)
 		{
-			UK2Node_CustomEvent* CustomEventNode = CompilerContext.SpawnIntermediateEventNode<UK2Node_CustomEvent>(this, nullptr, CompilerContext.ConsolidatedEventGraph);
+			UK2Node_CustomEvent* CustomEventNode = CompilerContext.SpawnIntermediateNode<UK2Node_CustomEvent>(this, CompilerContext.ConsolidatedEventGraph);
 			CustomEventNode->bInternalEvent = true;
 			CustomEventNode->CustomFunctionName = EventName;
 			CustomEventNode->AllocateDefaultPins();
@@ -139,7 +139,7 @@ void UAnimGraphNode_CallFunction::ExpandNode(FKismetCompilerContext& CompilerCon
 			UEdGraphPin* ExecChain = K2Schema->FindExecutionPin(*CustomEventNode, EGPD_Output);
 
 			// Add call function node
-			UK2Node_CallFunction* NewCallFunctionNode = CompilerContext.SpawnIntermediateEventNode<UK2Node_CallFunction>(this, nullptr, CompilerContext.ConsolidatedEventGraph);
+			UK2Node_CallFunction* NewCallFunctionNode = CompilerContext.SpawnIntermediateNode<UK2Node_CallFunction>(this, CompilerContext.ConsolidatedEventGraph);
 			NewCallFunctionNode->FunctionReference = CallFunctionPrototype->FunctionReference;
 			NewCallFunctionNode->AllocateDefaultPins();
 			

@@ -549,7 +549,7 @@ void UAnimBlueprintExtension_Base::CreateEvaluationHandler(IAnimBlueprintCompila
 	HandlerFunctionNames.Add(Record.HandlerFunctionName);
 
 	// Add a custom event in the graph
-	UK2Node_CustomEvent* CustomEventNode = InCompilationContext.SpawnIntermediateEventNode<UK2Node_CustomEvent>(InNode, nullptr, InCompilationContext.GetConsolidatedEventGraph());
+	UK2Node_CustomEvent* CustomEventNode = InCompilationContext.SpawnIntermediateNode<UK2Node_CustomEvent>(InNode, InCompilationContext.GetConsolidatedEventGraph());
 	CustomEventNode->bInternalEvent = true;
 	CustomEventNode->CustomFunctionName = Record.HandlerFunctionName;
 	CustomEventNode->AllocateDefaultPins();

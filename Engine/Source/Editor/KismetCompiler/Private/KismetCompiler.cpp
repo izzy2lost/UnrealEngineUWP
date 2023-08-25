@@ -3251,12 +3251,7 @@ void FKismetCompilerContext::BuildDynamicBindingObjects(UBlueprintGeneratedClass
  */ 
 void FKismetCompilerContext::CreatePinEventNodeForTimelineFunction(UK2Node_Timeline* TimelineNode, UEdGraph* SourceGraph, FName FunctionName, const FName PinName, FName ExecFuncName)
 {
-	UEdGraphPin* SourcePin = nullptr;
-	if (UK2Node_Timeline* SourceNode = Cast<UK2Node_Timeline>(MessageLog.FindSourceObject(TimelineNode)))
-	{
-		SourcePin = SourceNode->FindPin(PinName);
-	}
-	UK2Node_Event* TimelineEventNode = SpawnIntermediateEventNode<UK2Node_Event>(TimelineNode, SourcePin, SourceGraph);
+	UK2Node_Event* TimelineEventNode = SpawnIntermediateNode<UK2Node_Event>(TimelineNode, SourceGraph);
 	TimelineEventNode->EventReference.SetExternalMember(FunctionName, UTimelineComponent::StaticClass());
 	TimelineEventNode->CustomFunctionName = FunctionName; // Make sure we name this function the thing we are expecting
 	TimelineEventNode->bInternalEvent = true;
@@ -4033,7 +4028,7 @@ void FKismetCompilerContext::CreateAndProcessUbergraph()
 				if (!bFoundEntry)
 				{
 					// Create an entry node stub, so that we have a entry point for interfaces to call to
-					UK2Node_Event* EventNode = SpawnIntermediateEventNode<UK2Node_Event>(nullptr, nullptr, ConsolidatedEventGraph);
+					UK2Node_Event* EventNode = SpawnIntermediateNode<UK2Node_Event>(nullptr, ConsolidatedEventGraph);
 					EventNode->EventReference.SetExternalMember(FunctionName, InterfaceDesc.Interface);
 					EventNode->bOverrideFunction = true;
 					EventNode->AllocateDefaultPins();

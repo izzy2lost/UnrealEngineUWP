@@ -74,9 +74,10 @@ public:
 
 	// Spawns an intermediate event node associated with the source node (for error purposes)
 	template <typename NodeType>
+	UE_DEPRECATED(5.4, "SpawnIntermediateEventNode is equivalent to SpawnIntermediateNode, this redundant function has been deprecated.")
 	NodeType* SpawnIntermediateEventNode(UEdGraphNode* SourceNode, UEdGraphPin* SourcePin = nullptr, UEdGraph* ParentGraph = nullptr)
 	{
-		return GetKismetCompiler()->SpawnIntermediateEventNode<NodeType>(SourceNode, SourcePin, ParentGraph);
+		return GetKismetCompiler()->SpawnIntermediateNode<NodeType>(SourceNode, ParentGraph);
 	}
 
 	// Find a property in the currently-compiled class
