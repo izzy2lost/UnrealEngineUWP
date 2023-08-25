@@ -72,8 +72,9 @@ void UTypedElementObjectReinstancingManager::RegisterQueries()
 
 void UTypedElementObjectReinstancingManager::UnregisterQueries()
 {
-	Database->UnregisterQuery(ExternalObjectAddedObserverHandle);
-	Database->UnregisterQuery(UObjectAddedObserverHandle);
+	// TODO: Observer queries cannot be unregistered in Mass
+	// Database->UnregisterQuery(ExternalObjectAddedObserverHandle);
+	// Database->UnregisterQuery(UObjectAddedObserverHandle);
 }
 
 void UTypedElementObjectReinstancingManager::HandleOnObjectsReinstanced(
