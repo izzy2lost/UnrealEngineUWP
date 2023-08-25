@@ -102,6 +102,9 @@ struct FMutableImageReference
 	uint8 LOD = 0;
 	uint8 Component = 0;
 	uint8 Image = 0;
+
+	/** */
+	uint8 BaseMip = 0;
 };
 
 

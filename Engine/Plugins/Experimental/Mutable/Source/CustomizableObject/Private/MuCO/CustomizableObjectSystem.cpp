@@ -1331,6 +1331,7 @@ namespace impl
 							Image.FullImageSizeX = 0;
 							Image.FullImageSizeY = 0;
 							Image.BaseLOD = BaseLODIndex;
+							Image.BaseMip = 0;
 						}
 
 						// Vectors
@@ -1425,7 +1426,10 @@ namespace impl
 
 				if (MaxTextureSizeToGenerate > 0 && MaxSize > MaxTextureSizeToGenerate)
 				{
-					Reduction = MaxSize / MaxTextureSizeToGenerate;
+					// Find the reduction factor, and the BaseMip of the texture.
+					const uint32 NextPowerOfTwo = FMath::RoundUpToPowerOfTwo(FMath::DivideAndRoundUp(MaxSize, MaxTextureSizeToGenerate));
+					Reduction = FMath::Max(NextPowerOfTwo, 2U); // At least divide the texture by a factor of two
+					Image.BaseMip = FMath::FloorLog2(Reduction);
 				}
 
 				Image.FullImageSizeX = ImageDesc.m_size[0] / Reduction;
@@ -1462,7 +1466,7 @@ namespace impl
 				}
 				else
 				{
-					Image.Image = System->GetImage(OperationData->InstanceID, Image.ImageID, MipsToSkip, Image.BaseLOD);
+					Image.Image = System->GetImage(OperationData->InstanceID, Image.ImageID, Image.BaseMip + MipsToSkip, Image.BaseLOD);
 				}
 
 				check(Image.Image);

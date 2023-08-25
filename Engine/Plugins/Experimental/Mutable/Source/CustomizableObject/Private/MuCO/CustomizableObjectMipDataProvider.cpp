@@ -153,31 +153,12 @@ namespace impl
 				// runtime cannot remember all the resources it has built, and only remembers a fixed amount.
 				mu::FResourceID MipImageID = Instance->GetImageId(ImageRef.LOD, ImageRef.Component, SurfaceIndex, ImageRef.Image);
 
-				UCustomizableObjectSystem* COSystem = UCustomizableObjectSystem::GetInstance();
-				FCustomizableObjectSystemPrivate* SystemPrivate = COSystem ? COSystem->GetPrivate() : nullptr;
-				int32 MaxTextureSizeToGenerate = SystemPrivate ? SystemPrivate->MaxTextureSizeToGenerate : 0;
-
-				int32 ExtraMipsToSkip = 0;
-				
-				if (MaxTextureSizeToGenerate > 0)
-				{
-					// TODO: Why do we need to do this again? The full size should be stored in the initial image creation.
-					mu::FImageDesc ImageDesc;
-					System->GetImageDesc(InstanceID, MipImageID, ImageDesc);
-
-					uint16 MaxSize = FMath::Max(ImageDesc.m_size[0], ImageDesc.m_size[1]);
-
-					if (MaxSize > MaxTextureSizeToGenerate)
-					{
-						ExtraMipsToSkip = FMath::CeilLogTwo(MaxSize / MaxTextureSizeToGenerate);
-					}
-				}
 
 				mu::ImagePtrConst Image;
 				{
 					MUTABLE_CPUPROFILER_SCOPE(GetImage);
 
-					Image = System->GetImage(InstanceID, MipImageID, OperationData->MipsToSkip + ExtraMipsToSkip, ImageRef.LOD);
+					Image = System->GetImage(InstanceID, MipImageID, ImageRef.BaseMip + OperationData->MipsToSkip, ImageRef.LOD);
 				}
 
 				check(Image);
