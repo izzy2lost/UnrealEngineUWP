@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ComputeFramework/ComputeGraphComponent.h"
-
+#include "ComputeFramework/ComputeFramework.h"
 #include "ComputeFramework/ComputeGraph.h"
 #include "ComputeWorkerInterface.h"
 #include "GameFramework/Actor.h"
@@ -49,6 +49,11 @@ void UComputeGraphComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 void UComputeGraphComponent::SendRenderDynamicData_Concurrent()
 {
 	Super::SendRenderDynamicData_Concurrent();
-	
-	ComputeGraphInstance.EnqueueWork(ComputeGraph, GetScene(), ComputeTaskExecutionGroup::EndOfFrameUpdate, GetOwner()->GetFName(), FSimpleDelegate());
+
+	ComputeGraphInstance.EnqueueWork(ComputeGraph, GetScene(), ComputeTaskExecutionGroup::EndOfFrameUpdate, GetOwner()->GetFName(), FSimpleDelegate(), this);
+}
+
+void UComputeGraphComponent::DestroyRenderState_Concurrent()
+{
+	ComputeFramework::AbortWork(GetScene(), this);
 }

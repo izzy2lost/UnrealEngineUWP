@@ -269,6 +269,7 @@ private:
 	FCriticalSection GraphsToRunOnNextTickLock;
 
 	FOptimusPersistentBufferPoolPtr BufferPool;
+	FSceneInterface* Scene = nullptr;
 
 	bool bCanBeActive = true;
 };

@@ -29,14 +29,36 @@ void FComputeGraphTaskWorker::Enqueue(
 	uint8 InGraphSortPriority,
 	FComputeGraphRenderProxy const* InGraphRenderProxy, 
 	TArray<FComputeDataProviderRenderProxy*> InDataProviderRenderProxies, 
-	FSimpleDelegate InFallbackDelegate)
+	FSimpleDelegate InFallbackDelegate,
+	const UObject* InOwnerPointer)
 {
 	FGraphInvocation& GraphInvocation = GraphInvocationsPerGroup.FindOrAdd(InExecutionGroupName).AddDefaulted_GetRef();
 	GraphInvocation.OwnerName = InOwnerName;
+	GraphInvocation.OwnerPointer = InOwnerPointer;
 	GraphInvocation.GraphSortPriority = InGraphSortPriority;
 	GraphInvocation.GraphRenderProxy = InGraphRenderProxy;
 	GraphInvocation.DataProviderRenderProxies = MoveTemp(InDataProviderRenderProxies);
 	GraphInvocation.FallbackDelegate = InFallbackDelegate;
+}
+
+void FComputeGraphTaskWorker::Abort(const UObject* InOwnerPointer)
+{
+	for (auto& Pair : GraphInvocationsPerGroup)
+	{
+		TArray<FGraphInvocation>& Invocations = Pair.Value;
+
+		for (int32 Index = 0; Index < Invocations.Num(); ++Index)
+		{
+			if (Invocations[Index].OwnerPointer == InOwnerPointer)
+			{
+				Invocations.RemoveAtSwap(Index);
+			}
+			else
+			{
+				Index++;
+			}
+		}
+	}
 }
 
 bool FComputeGraphTaskWorker::HasWork(FName InExecutionGroupName) const

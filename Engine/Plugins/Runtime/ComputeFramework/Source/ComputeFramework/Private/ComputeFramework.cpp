@@ -98,4 +98,18 @@ namespace ComputeFramework
 				});
 		}
 	}
+
+	void AbortWork(FSceneInterface const* InScene, UObject* InOwnerPointer)
+	{
+		FComputeFrameworkSystem* ComputeSystem = FComputeFrameworkModule::GetComputeSystem();
+		FComputeGraphTaskWorker* ComputeGraphWorker = ComputeSystem != nullptr ? ComputeSystem->GetComputeWorker(InScene) : nullptr;
+		if (ensure(ComputeGraphWorker))
+		{
+			ENQUEUE_RENDER_COMMAND(ComputeFrameworkAbortCommand)(
+				[ComputeGraphWorker, InOwnerPointer](FRHICommandListImmediate& RHICmdList)
+			{
+				ComputeGraphWorker->Abort(InOwnerPointer);
+			});
+		}
+	}
 }

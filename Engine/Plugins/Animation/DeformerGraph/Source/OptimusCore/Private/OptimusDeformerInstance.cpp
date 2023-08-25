@@ -276,7 +276,9 @@ UOptimusComponentSourceBinding const* UOptimusDeformerInstanceSettings::GetCompo
 
 void UOptimusDeformerInstance::SetMeshComponent(UMeshComponent* InMeshComponent)
 { 
+	check(InMeshComponent);
 	MeshComponent = InMeshComponent;
+	Scene = MeshComponent->GetScene();
 }
 
 void UOptimusDeformerInstance::SetInstanceSettings(UOptimusDeformerInstanceSettings* InInstanceSettings)
@@ -516,13 +518,20 @@ void UOptimusDeformerInstance::AllocateResources()
 
 void UOptimusDeformerInstance::ReleaseResources()
 {
-	if (BufferPool)
+	if (Scene || BufferPool)
 	{
-		ENQUEUE_RENDER_COMMAND(FOptimusReleasePoolMemory)(
-			[BufferPool=MoveTemp(BufferPool)](FRHICommandListImmediate& InCmdList)
+		ENQUEUE_RENDER_COMMAND(OptimusReleaseResources)([BufferPool=MoveTemp(BufferPool), Scene = Scene, OwnerPointer = this] (FRHICommandListImmediate& InCmdList)
+		{
+			if (Scene)
+			{
+				ComputeFramework::AbortWork(Scene, OwnerPointer);
+			}
+
+			if (BufferPool)
 			{
 				BufferPool->ReleaseResources();
-			});
+			}
+		});
 	}
 }
 
@@ -559,7 +568,7 @@ void UOptimusDeformerInstance::EnqueueWork(FEnqueueWorkDesc const& InDesc)
 		{
 			if (Info.GraphType == EOptimusNodeGraphType::Update || GraphsToRun.Contains(Info.GraphName))
 			{
-				bIsWorkEnqueued |= Info.ComputeGraphInstance.EnqueueWork(Info.ComputeGraph, InDesc.Scene, ExecutionGroupName, InDesc.OwnerName, InDesc.FallbackDelegate);
+				bIsWorkEnqueued |= Info.ComputeGraphInstance.EnqueueWork(Info.ComputeGraph, InDesc.Scene, ExecutionGroupName, InDesc.OwnerName, InDesc.FallbackDelegate, this);
 			}
 		}
 	}
