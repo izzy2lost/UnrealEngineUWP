@@ -1220,11 +1220,15 @@ static uint64 ReadyCheck(FActivity** Activities, uint32 Num, uint32 TimeoutMs)
 
 		case EWait::Read:
 		case EWait::Write: {
+			// The following looks odd because POLLFD varies subtly from one platform
+			// to the next. To cleanly set members to zero and to not get narrowing
+			// warnings from the compiler, we list-init and don't assume POD types.
 			FSelect& Select = Selects[SelectNum];
+			auto SelectEvent = decltype(FSelect::events)((Activity->SocketWait == EWait::Read) ? POLLIN : POLLOUT);
 			Select = {
 				Activity->Socket,
-				(Activity->SocketWait == EWait::Read) ? POLLIN : POLLOUT,
-				/* 0 */ // list-init so this value zeros with out per-platform hoops
+				SelectEvent,
+				/* 0 */
 			};
 			++SelectNum;
 			} break;

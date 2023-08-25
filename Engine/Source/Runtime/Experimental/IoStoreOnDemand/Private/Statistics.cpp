@@ -129,13 +129,13 @@ public:
 
 		const double TotalPopulation = static_cast<double>(Count + Other.Count);
 		const double MeanDifference = Mean - Other.Mean;
-		const double A = ((Count - 1) * GetVariance()) + ((Other.Count - 1) * Other.GetVariance());
-		const double B = (MeanDifference) * (MeanDifference) * (Count * Other.Count / TotalPopulation);
+		const double A = (double(Count - 1) * GetVariance()) + (double(Other.Count - 1) * Other.GetVariance());
+		const double B = (MeanDifference) * (MeanDifference) * (double(Count) * double(Other.Count) / TotalPopulation);
 		const double MergedVariance = (A + B) / (TotalPopulation - 1);
 
 		const uint64 NewCount = Count + Other.Count;
 		const double NewMean = ((Mean * double(Count)) + (Other.Mean * double(Other.Count))) / double(NewCount);
-		const double NewVarianceAccumulator = MergedVariance * (NewCount - 1);
+		const double NewVarianceAccumulator = MergedVariance * double(NewCount - 1);
 
 		Count = NewCount;
 		Mean = NewMean;
@@ -449,8 +449,8 @@ void FOnDemandIoBackendStats::OnHttpGet(uint64 SizeBytes, uint64 DurationMs)
 
 	GHttpAvgDuration.Increment(static_cast<double>(DurationMs));
 
-	const double SizeMiB = SizeBytes / (1024.0 * 1024.0);
-	const double DurationSeconds = DurationMs / 1000.0;
+	const double SizeMiB = double(SizeBytes) / (1024.0 * 1024.0);
+	const double DurationSeconds = double(DurationMs) / 1000.0;
 
 	GHttpAvgRate.Increment(SizeMiB / DurationSeconds);
 

@@ -16,6 +16,7 @@ public class IoStoreOnDemand : ModuleRules
 		);
 
 		bAllowConfidentialPlatformDefines = true;
+		UnsafeTypeCastWarningLevel = WarningLevel.Error; 
 
 		if (Target.Platform.IsInGroup(UnrealPlatformGroup.Desktop) &&
 			(Target.Type == TargetType.Editor || Target.Type == TargetType.Program))
