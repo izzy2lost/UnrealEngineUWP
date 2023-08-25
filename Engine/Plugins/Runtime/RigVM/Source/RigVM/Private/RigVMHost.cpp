@@ -253,8 +253,14 @@ void URigVMHost::Initialize(bool bRequestInit)
 
 bool URigVMHost::InitializeVM(const FName& InEventName)
 {
+	const TArray<FRigVMExternalVariable> ExternalVariables = GetExternalVariablesImpl(false);
+	if (VM->GetExternalVariableDefs().Num() != ExternalVariables.Num())
+	{
+		return false;	// The rig did compile with errors
+	}
+
 	// update the VM's external variables
-	VM->SetExternalVariablesInstanceData(GetExtendedExecuteContext(), GetExternalVariablesImpl(false));
+	VM->SetExternalVariablesInstanceData(GetExtendedExecuteContext(), ExternalVariables);
 
 	TArray<URigVMMemoryStorage*> LocalMemory = VM->GetLocalMemoryArray(ExtendedExecuteContext);
 	const bool bResult = VM->InitializeInstance(GetExtendedExecuteContext(), LocalMemory);
