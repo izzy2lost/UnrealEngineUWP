@@ -1040,6 +1040,9 @@ namespace UnrealBuildTool
 			ClangSpecificFileActionGraphBuilder GraphBuilder = new(Logger);
 			Action Action = CompileCPPFile(CompileEnvironment, DummyFile, OutputDir, "<Unknown>", GraphBuilder, GlobalArguments, Result);
 			Action.PrerequisiteItems.RemoveWhere(File => File.Name.Contains(DummyName));
+			Action.bCanExecuteRemotely = true;
+			Action.bCanExecuteRemotelyWithSNDBS = Action.bCanExecuteRemotely && !CompileEnvironment.bBuildLocallyWithSNDBS;
+			Action.Weight = CompileActionWeight;
 
 			Graph.AddAction(new ClangSpecificFileAction(SourceDir, OutputDir, Action, GraphBuilder.ContentLines));
 		}

@@ -403,6 +403,7 @@ namespace UnrealBuildTool
 			bCanExecuteRemotely = Reader.ReadBool();
 			bCanExecuteRemotelyWithSNDBS = Reader.ReadBool();
 			bCanExecuteRemotelyWithXGE = Reader.ReadBool();
+			bCanExecuteInBox = Reader.ReadBool();
 			Architecture = UnrealArch.Parse(Reader.ReadString()!);
 			Weight = Reader.ReadDouble();
 
@@ -441,6 +442,7 @@ namespace UnrealBuildTool
 			Writer.WriteBool(bCanExecuteRemotely);
 			Writer.WriteBool(bCanExecuteRemotelyWithSNDBS);
 			Writer.WriteBool(bCanExecuteRemotelyWithXGE);
+			Writer.WriteBool(bCanExecuteInBox);
 			Writer.WriteString(Architecture.ToString());
 			Writer.WriteDouble(Weight);
 

@@ -1403,6 +1403,30 @@ namespace UnrealBuildTool
 					BaseCompileAction.Arguments.Add("/d1reportTime");
 				}
 			}
+
+			// MSVC uses multiple threads when compiling CPP files, so the "weight" is more than 1
+			if (Target.WindowsPlatform.Compiler.IsMSVC())
+			{
+				// If deterministic is enabled, MSVC does not use multiple threads
+				if (!CompileEnvironment.bDeterministic)
+				{
+					BaseCompileAction.Weight = Target.MSVCCompileActionWeight;
+				}
+			}
+			else if (Target.WindowsPlatform.Compiler.IsClang())
+			{
+				BaseCompileAction.Weight = Target.ClangCompileActionWeight;
+			}
+
+			// Don't farm out creation of precompiled headers as it is the critical path task.
+			BaseCompileAction.bCanExecuteRemotely =
+				CompileEnvironment.PrecompiledHeaderAction != PrecompiledHeaderAction.Create ||
+				CompileEnvironment.bAllowRemotelyCompiledPCHs
+				;
+
+			// When compiling with SN-DBS, modules that contain a #import must be built locally
+			BaseCompileAction.bCanExecuteRemotelyWithSNDBS = BaseCompileAction.bCanExecuteRemotely && !CompileEnvironment.bBuildLocallyWithSNDBS;
+
 			return BaseCompileAction;
 		}
 
@@ -1434,20 +1458,6 @@ namespace UnrealBuildTool
 		protected override CPPOutput CompileCPPFiles(CppCompileEnvironment CompileEnvironment, List<FileItem> InputFiles, DirectoryReference OutputDir, string ModuleName, IActionGraphBuilder Graph)
 		{
 			VCCompileAction BaseCompileAction = CreateBaseCompileAction(CompileEnvironment);
-
-			// MSVC uses multiple threads when compiling CPP files, so the "weight" is more than 1
-			if (Target.WindowsPlatform.Compiler.IsMSVC())
-			{
-				// If deterministic is enabled, MSVC does not use multiple threads
-				if (!CompileEnvironment.bDeterministic)
-				{
-					BaseCompileAction.Weight = Target.MSVCCompileActionWeight;
-				}
-			}
-			else if (Target.WindowsPlatform.Compiler.IsClang())
-			{
-				BaseCompileAction.Weight = Target.ClangCompileActionWeight;
-			}
 
 			// Create a compile action for each source file.
 			List<VCCompileAction> Actions = new List<VCCompileAction>();
@@ -1543,12 +1553,6 @@ namespace UnrealBuildTool
 						CompileAction.ArtifactMode |= ArtifactMode.Enabled | ArtifactMode.AbsolutePath; // deps output file contains absolute paths
 					}
 				}
-
-				// Don't farm out creation of precompiled headers as it is the critical path task.
-				CompileAction.bCanExecuteRemotely =
-					CompileEnvironment.PrecompiledHeaderAction != PrecompiledHeaderAction.Create ||
-					CompileEnvironment.bAllowRemotelyCompiledPCHs
-					;
 
 				// Create PDB files if we were configured to do that.
 				if (CompileEnvironment.bUsePDBFiles || CompileEnvironment.bSupportEditAndContinue)
@@ -1707,13 +1711,6 @@ namespace UnrealBuildTool
 				}
 
 				CompileAction.bIsAnalyzing = Target.StaticAnalyzer != StaticAnalyzer.None;
-
-				// When compiling with SN-DBS, modules that contain a #import must be built locally
-				CompileAction.bCanExecuteRemotelyWithSNDBS = CompileAction.bCanExecuteRemotely;
-				if (CompileEnvironment.bBuildLocallyWithSNDBS == true)
-				{
-					CompileAction.bCanExecuteRemotelyWithSNDBS = false;
-				}
 
 				// Update the output
 				Graph.AddAction(CompileAction);
