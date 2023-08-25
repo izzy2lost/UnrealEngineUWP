@@ -16,6 +16,7 @@
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CoreDelegates.h"
+#include "Misc/DateTime.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Modules/ModuleManager.h"
@@ -226,6 +227,38 @@ static FIasCacheConfig GetIasCacheConfig(const TCHAR* CommandLine)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+FArchive& operator<<(FArchive& Ar, FTocMeta& Meta)
+{
+	Ar << Meta.EpochTimestamp;
+	Ar << Meta.BuildVersion;
+	Ar << Meta.TargetPlatform;
+	return Ar;
+}
+
+FCbWriter& operator<<(FCbWriter& Writer, const FTocMeta& Meta)
+{
+	Writer.BeginObject();
+	Writer.AddInteger(UTF8TEXTVIEW("EpochTimestamp"), Meta.EpochTimestamp);
+	Writer.AddString(UTF8TEXTVIEW("BuildVersion"), Meta.BuildVersion);
+	Writer.AddString(UTF8TEXTVIEW("TargetPlatform"), Meta.TargetPlatform);
+	Writer.EndObject();
+
+	return Writer;
+}
+
+bool LoadFromCompactBinary(FCbFieldView Field, FTocMeta& OutMeta)
+{
+	if (FCbObjectView Obj = Field.AsObjectView())
+	{
+		OutMeta.EpochTimestamp = Obj["EpochTimestamp"].AsInt64();
+		OutMeta.BuildVersion = FString(Obj["BuildVersion"].AsString());
+		OutMeta.TargetPlatform = FString(Obj["TargetPlatform"].AsString());
+		return true;
+	}
+	
+	return false;
+}
+
 FArchive& operator<<(FArchive& Ar, FOnDemandTocHeader& Header)
 {
 	if (Ar.IsLoading() && Ar.TotalSize() < sizeof(FOnDemandTocHeader))
@@ -440,6 +473,11 @@ FArchive& operator<<(FArchive& Ar, FOnDemandToc& Toc)
 	}
 
 	Ar.SetCustomVersion(Toc.VersionGuid, int32(Toc.Header.Version), TEXT("OnDemandToc"));
+
+	if (uint32(Toc.Header.Version) >= uint32(EOnDemandTocVersion::Meta))
+	{
+		Ar << Toc.Meta;
+	}
 	Ar << Toc.Containers;
 
 	return Ar;
@@ -470,6 +508,14 @@ bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandToc& OutToc)
 		if (!LoadFromCompactBinary(Obj["Header"], OutToc.Header))
 		{
 			return false;
+		}
+
+		if (uint32(OutToc.Header.Version) >= uint32(EOnDemandTocVersion::Meta))
+		{
+			if (!LoadFromCompactBinary(Obj["Meta"], OutToc.Meta))
+			{
+				return false;
+			}
 		}
 
 		FCbArrayView Containers = Obj["Containers"].AsArrayView();
@@ -638,6 +684,8 @@ TIoStatusOr<FIoStoreUploadParams> FIoStoreUploadParams::Parse(const TCHAR* Comma
 	FParse::Value(CommandLine, TEXT("SessionToken="), Params.SessionToken);
 	FParse::Value(CommandLine, TEXT("CredentialsFile="), Params.CredentialsFile);
 	FParse::Value(CommandLine, TEXT("CredentialsFileKeyName="), Params.CredentialsFileKeyName);
+	FParse::Value(CommandLine, TEXT("BuildVersion="), Params.BuildVersion);
+	FParse::Value(CommandLine, TEXT("TargetPlatform="), Params.TargetPlatform);
 	Params.bDeleteContainerFiles = !FParse::Param(CommandLine, TEXT("KeepContainerFiles"));
 	Params.bDeletePakFiles = !FParse::Param(CommandLine, TEXT("KeepPakFiles"));
 
@@ -899,13 +947,7 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 					<< TEXT("/") << HashString
 					<< TEXT(".iochunk");
 
-				const bool bEnqueued = UploadQueue.Enqueue(Key.ToString(), ReadResult.IoBuffer);
-
-				if (bEnqueued)
-				{
-					UE_LOG(LogIas, Display, TEXT("Uploaded chunk '%s/%s/%s'"), *Client.GetConfig().ServiceUrl, *UploadParams.Bucket, Key.ToString());
-				}
-				else
+				if (UploadQueue.Enqueue(Key.ToString(), ReadResult.IoBuffer) == false)
 				{
 					return FIoStatus(EIoErrorCode::WriteError, TEXT("Failed to upload chunk"));
 				}
@@ -971,6 +1013,10 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 
 	FIoStoreUploadResult UploadResult;
 	{
+		OnDemandToc.Meta.EpochTimestamp = FDateTime::Now().ToUnixTimestamp();
+		OnDemandToc.Meta.BuildVersion = UploadParams.BuildVersion;
+		OnDemandToc.Meta.TargetPlatform = UploadParams.TargetPlatform;
+
 		FLargeMemoryWriter Ar;
 		Ar << OnDemandToc;
 
@@ -1013,6 +1059,8 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 		UE_LOG(LogIas, Display, TEXT("------------------------------------------------- Upload Summary -------------------------------------------------"));
 		UE_LOG(LogIas, Display, TEXT("%-15s: %s"), TEXT("Service URL"), *UploadParams.ServiceUrl);
 		UE_LOG(LogIas, Display, TEXT("%-15s: %s"), TEXT("Bucket"), *UploadParams.Bucket);
+		UE_LOG(LogIas, Display, TEXT("%-15s: %s"), TEXT("TargetPlatform"), *UploadParams.TargetPlatform);
+		UE_LOG(LogIas, Display, TEXT("%-15s: %s"), TEXT("BuildVersion"), *UploadParams.BuildVersion);
 		UE_LOG(LogIas, Display, TEXT("%-15s: %s"), TEXT("TOC path"), *UploadResult.TocPath);
 		UE_LOG(LogIas, Display, TEXT("%-15s: %.2lf KiB"), TEXT("TOC size"), double(UploadResult.TocSize) / 1024.0);
 		UE_LOG(LogIas, Display, TEXT("%-15s: %.2lf second(s)"), TEXT("Duration"), Duration);

@@ -39,6 +39,7 @@ enum class EOnDemandTocVersion : uint32
 	UTocHash		= 2,
 	BlockHash32		= 3,
 	NoRawHash		= 4,
+	Meta			= 5,
 
 	LatestPlusOne,
 	Latest			= (LatestPlusOne - 1)
@@ -52,6 +53,18 @@ enum class EOnDemandChunkVersion : uint32
 	LatestPlusOne,
 	Latest			= (LatestPlusOne - 1)
 };
+
+struct FTocMeta
+{
+	int64 EpochTimestamp = 0;
+	FString BuildVersion;
+	FString TargetPlatform;
+
+	UE_API friend FArchive& operator<<(FArchive& Ar, FTocMeta& Meta);
+	UE_API friend FCbWriter& operator<<(FCbWriter& Writer, const FTocMeta& Meta);
+};
+
+UE_API bool LoadFromCompactBinary(FCbFieldView Field, FTocMeta& OutMeta);
 
 struct FOnDemandTocHeader
 {
@@ -103,6 +116,7 @@ UE_API bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandTocContainerEntry
 struct FOnDemandToc
 {
 	FOnDemandTocHeader Header;
+	FTocMeta Meta;
 	TArray<FOnDemandTocContainerEntry> Containers;
 
 	UE_API friend FArchive& operator<<(FArchive& Ar, FOnDemandToc& Toc);
@@ -127,6 +141,8 @@ struct FIoStoreUploadParams
 	FString SessionToken;
 	FString CredentialsFile;
 	FString CredentialsFileKeyName;
+	FString BuildVersion;
+	FString TargetPlatform;
 	int32 MaxConcurrentUploads = 16;
 	bool bDeleteContainerFiles = true;
 	bool bDeletePakFiles = true;
