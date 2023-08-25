@@ -19,6 +19,11 @@
 
 #define LOCTEXT_NAMESPACE "PCGDataFromActorElement"
 
+namespace PCGDataFromActorConstants
+{
+	static const FName SinglePointPinLabel = TEXT("Single Point");
+}
+
 #if WITH_EDITOR
 void UPCGDataFromActorSettings::GetTrackedActorKeys(FPCGActorSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
 {
@@ -112,6 +117,15 @@ TArray<FPCGPinProperties> UPCGDataFromActorSettings::OutputPinProperties() const
 		for (const FName& Pin : ExpectedPins)
 		{
 			Pins.Emplace(Pin);
+		}
+
+		if (bAlsoOutputSinglePointData)
+		{
+			Pins.Emplace(PCGDataFromActorConstants::SinglePointPinLabel,
+				EPCGDataType::Point,
+				/*bAllowMultipleConnections=*/true,
+				/*bAllowMultiData=*/true,
+				LOCTEXT("SinglePointPinTooltip", "Matching single point associated to the actors from which data has been retrieved"));
 		}
 	}
 
@@ -445,6 +459,18 @@ void FPCGDataFromActorElement::ProcessActor(FPCGContext* Context, const UPCGData
 		const bool bParseActor = (Settings->Mode != EPCGGetDataFromActorMode::GetSinglePoint);
 		FPCGDataCollection Collection = UPCGComponent::CreateActorPCGDataCollection(FoundActor, Context->SourceComponent.Get(), Settings->GetDataFilter(), bParseActor);
 		Outputs += Collection.TaggedData;
+	}
+
+	// Finally, if we're in a case where we need to output the single point data too, let's do it now.
+	if (Settings->bAlsoOutputSinglePointData && (Settings->Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponent || Settings->Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponentOrParseComponents))
+	{
+		const bool bParseActor = false;
+		FPCGDataCollection Collection = UPCGComponent::CreateActorPCGDataCollection(FoundActor, Context->SourceComponent.Get(), EPCGDataType::Any, bParseActor);
+		for (const FPCGTaggedData& SinglePointData : Collection.TaggedData)
+		{
+			FPCGTaggedData& OutSinglePoint = Outputs.Add_GetRef(SinglePointData);
+			OutSinglePoint.Pin = PCGDataFromActorConstants::SinglePointPinLabel;
+		}
 	}
 }
 
