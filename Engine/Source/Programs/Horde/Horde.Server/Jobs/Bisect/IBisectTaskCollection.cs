@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Horde.Server.Perforce;
-using Horde.Server.Users;
 using HordeCommon;
 using EpicGames.Horde.Api;
 
@@ -40,6 +39,7 @@ namespace Horde.Server.Jobs.Bisect
 		/// <summary>
 		/// Finds all bisect tasks for the provided criteria
 		/// </summary>
+		/// <param name="taskIds">array of bisection task ids</param>
 		/// <param name="jobId">jobId of initial bisection</param>
 		/// <param name="ownerId">ownerId of bisection</param>
 		/// <param name="minCreateTime">min creation time of the bisection task</param>
@@ -48,7 +48,7 @@ namespace Horde.Server.Jobs.Bisect
 		/// <param name="count"></param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of bisect tasks</returns>
-		public Task<IReadOnlyList<IBisectTask>> FindAsync(JobId? jobId = null, UserId? ownerId = null, DateTime? minCreateTime = null, DateTime? maxCreateTime = null, int? index = null, int? count = null, CancellationToken cancellationToken = default);
+		public Task<IReadOnlyList<IBisectTask>> FindAsync(BisectTaskId[]? taskIds = null, JobId? jobId = null, UserId? ownerId = null, DateTime? minCreateTime = null, DateTime? maxCreateTime = null, int? index = null, int? count = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets a bisect task by id

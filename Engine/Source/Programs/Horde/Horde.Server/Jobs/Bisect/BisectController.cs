@@ -268,7 +268,15 @@ namespace Horde.Server.Jobs.Bisect
 			options.IgnoreChanges = create.IgnoreChanges;
 			options.IgnoreJobs = create.IgnoreJobs;
 
-			IBisectTask bisectTask = await _bisectTaskCollection.CreateAsync(job, initialBatch.Id, jobStep.Id, create.NodeName, jobStep.Outcome, User.GetUserId() ?? UserId.Empty, options, cancellationToken);
+			UserId? userId = User.GetUserId();
+
+			IBisectTask bisectTask = await _bisectTaskCollection.CreateAsync(job, initialBatch.Id, jobStep.Id, create.NodeName, jobStep.Outcome, userId ?? UserId.Empty, options, cancellationToken);
+
+			if (userId != null)
+			{
+				await _userCollection.UpdateSettingsAsync(userId.Value, addBisectTaskIds: new[] { bisectTask.Id });
+			}
+
 			return new CreateBisectTaskResponse(bisectTask);
 		}
 
@@ -366,7 +374,7 @@ namespace Horde.Server.Jobs.Bisect
 
 			List<IJobStepRef> steps = await _jobStepRefs.GetStepsForNodeAsync(initialJob.StreamId, initialJob.TemplateId, task.NodeName, null, true, 1024, task.Id, cancellationToken);
 			IJobStepRef? initialStep = await _jobStepRefs.FindAsync(task.InitialJobId, task.InitialBatchId, task.InitialStepId);
-			if (initialStep != null) 
+			if (initialStep != null)
 			{
 				steps.Add(initialStep);
 			}
@@ -391,7 +399,7 @@ namespace Horde.Server.Jobs.Bisect
 				return NotFound(jobId);
 			}
 
-			IReadOnlyList<IBisectTask> tasks = await _bisectTaskCollection.FindAsync(jobId, null, null, null, null, null, cancellationToken);
+			IReadOnlyList<IBisectTask> tasks = await _bisectTaskCollection.FindAsync(null, jobId, null, null, null, null, null, cancellationToken);
 
 			List<GetBisectTaskResponse> response = new List<GetBisectTaskResponse>();
 
@@ -421,6 +429,7 @@ namespace Horde.Server.Jobs.Bisect
 		[Route("/api/v1/bisect")]
 		[ProducesResponseType(typeof(List<GetBisectTaskResponse>), 200)]
 		public async Task<ActionResult<List<GetBisectTaskResponse>>> FindBisectTasksAsync(
+		[FromQuery(Name = "id")] string[]? ids = null,
 		[FromQuery] string? ownerId = null,
 		[FromQuery] string? jobId = null,
 		[FromQuery] DateTimeOffset? minCreateTime = null,
@@ -431,12 +440,13 @@ namespace Horde.Server.Jobs.Bisect
 		{
 			List<GetBisectTaskResponse> responses = new List<GetBisectTaskResponse>();
 
+			BisectTaskId[]? bisectTaskIdValues = (ids == null) ? (BisectTaskId[]?)null : Array.ConvertAll(ids, x => BisectTaskId.Parse(x));
 			JobId? JobIdValue = !String.IsNullOrEmpty(jobId) ? JobId.Parse(jobId) : null;
 			UserId? OwnerIdValue = !String.IsNullOrEmpty(ownerId) ? UserId.Parse(ownerId) : null;
 
-			IReadOnlyList<IBisectTask> tasks = await _bisectTaskCollection.FindAsync(JobIdValue, OwnerIdValue, minCreateTime?.UtcDateTime, maxCreateTime?.UtcDateTime, index, count, cancellationToken);
+			IReadOnlyList<IBisectTask> tasks = await _bisectTaskCollection.FindAsync(bisectTaskIdValues, JobIdValue, OwnerIdValue, minCreateTime?.UtcDateTime, maxCreateTime?.UtcDateTime, index, count, cancellationToken);
 
-			if (tasks.Count == 0) 
+			if (tasks.Count == 0)
 			{
 				return responses;
 			}
@@ -445,7 +455,7 @@ namespace Horde.Server.Jobs.Bisect
 
 			for (int i = 0; i < tasks.Count; i++)
 			{
-				IBisectTask task = tasks[i];								
+				IBisectTask task = tasks[i];
 				IJob? job = jobs.FirstOrDefault(x => x.Id == task.InitialJobId);
 				if (job != null)
 				{

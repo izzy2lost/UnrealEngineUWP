@@ -430,8 +430,9 @@ const StepOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: string }> = o
       {!!shown.abortShown && <AbortJobModal stepId={stepId} jobDetails={jobDetails} show={true} onClose={() => { setShown({}); }} />}
       {!!shown.bisectShown && <BisectionCreateModal jobId={jobId} nodeName={node?.name ?? "Unknown Node"} onClose={(response) => {
          if (response) {
-            window.location.reload();
+            jobDetails.bisectionUpdated();            
          }
+
          setShown({});
       }} />}
       <Stack horizontal styles={{ root: { paddingLeft: 0 } }}>

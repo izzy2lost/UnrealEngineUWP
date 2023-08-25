@@ -7,6 +7,7 @@ using Horde.Server.Jobs;
 using Horde.Server.Utilities;
 using MongoDB.Bson;
 using EpicGames.Horde.Api;
+using Horde.Server.Jobs.Bisect;
 
 namespace Horde.Server.Users
 {
@@ -93,8 +94,10 @@ namespace Horde.Server.Users
 		/// <param name="addPinnedJobIds"></param>
 		/// <param name="removePinnedJobIds"></param>
 		/// <param name="templateOptions"></param>
+		/// <param name="addBisectTaskIds"></param>
+		/// <param name="removeBisectTaskIds"></param>
 		/// <returns>Updated user object</returns>
-		Task UpdateSettingsAsync(UserId userId, bool? enableExperimentalFeatures = null, BsonValue? dashboardSettings = null, IEnumerable<JobId>? addPinnedJobIds = null, IEnumerable<JobId>? removePinnedJobIds = null, UpdateUserJobTemplateOptions? templateOptions = null);
+		Task UpdateSettingsAsync(UserId userId, bool? enableExperimentalFeatures = null, BsonValue? dashboardSettings = null, IEnumerable<JobId>? addPinnedJobIds = null, IEnumerable<JobId>? removePinnedJobIds = null, UpdateUserJobTemplateOptions? templateOptions = null, IEnumerable<BisectTaskId>? addBisectTaskIds = null, IEnumerable<BisectTaskId>? removeBisectTaskIds = null);
 	}
 
 	/// <summary>

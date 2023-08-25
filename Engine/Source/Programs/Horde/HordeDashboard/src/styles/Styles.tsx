@@ -134,6 +134,8 @@ registerIcons({
       "ArrowUp": IconContents.ARROW_UP,
       "Repeat": IconContents.REPEAT,
       "FlowReview": IconContents.FLOW_REVIEW,
+      "FastForward": IconContents.FAST_FORWARD,
+      "Play": IconContents.PLAY,
    }
 });
 

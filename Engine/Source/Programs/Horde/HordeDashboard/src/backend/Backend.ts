@@ -1664,6 +1664,17 @@ export class Backend {
         });
     }
 
+    getBisections(query: { id?:string[], ownerId?: string, jobId?: string, minCreateTime?: string, maxCreateTime?: string, index?: number, count?: number }) {
+        
+        return new Promise<GetBisectTaskResponse[]>((resolve, reject) => {
+            this.backend.get(`/api/v1/bisect`, {params: query}).then((value) => {
+                resolve(value.data as GetBisectTaskResponse[]);
+            }).catch(reason => {
+                reject(reason);
+            });
+        });    
+    }
+
     // update a visection task
     updateBisectTask(id: string, request: UpdateBisectTaskRequest): Promise<void> {
         return new Promise<void>((resolve, reject) => {

@@ -7,7 +7,7 @@ import moment from "moment-timezone";
 import { default as React, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import backend, { useBackend } from "../backend";
-import { GetIssueResponse, GetStepResponse, JobData, JobQuery, JobState, JobStepOutcome, LabelData, LabelOutcome, LabelState, ProjectData, StepData, StreamData } from "../backend/Api";
+import { GetBisectTaskResponse, GetIssueResponse, GetStepResponse, JobData, JobQuery, JobState, JobStepOutcome, LabelData, LabelOutcome, LabelState, ProjectData, StepData, StreamData } from "../backend/Api";
 import dashboard, { StatusColor } from "../backend/Dashboard";
 import graphCache, { GraphQuery } from '../backend/GraphCache';
 import { useWindowSize } from '../base/utilities/hooks';
@@ -21,8 +21,9 @@ import { useQuery } from './JobDetailCommon';
 import { JobOperationsContextMenu } from "./JobOperationsContextMenu";
 import { IssueStatusIcon, StepStatusIcon } from "./StatusIcon";
 import { TopNav } from './TopNav';
+import { BisectionList } from './bisection/BisectionList';
+import { PollBase } from '../backend/PollBase';
 import { PreflightConfigModal } from './preflights/PreflightConfigCheck';
-
 
 type JobItem = {
    key: string;
@@ -226,7 +227,7 @@ const HealthPanel: React.FC = observer(() => {
 
    const columns: IColumn[] = [
       { key: 'health_column1', name: 'Summary', minWidth: 600, maxWidth: 600, isResizable: false },
-      { key: 'health_column2', name: 'Workflow', minWidth: 100, maxWidth: 100, isResizable: false},
+      { key: 'health_column2', name: 'Workflow', minWidth: 100, maxWidth: 100, isResizable: false },
       { key: 'health_column3', name: 'Status', minWidth: 320, maxWidth: 320, isResizable: false },
       { key: 'health_column4', name: 'Opened', minWidth: 100, maxWidth: 100, isResizable: false },
    ];
@@ -262,7 +263,7 @@ const HealthPanel: React.FC = observer(() => {
             summary = summary.slice(0, 100) + "...";
          }
 
-         return <Stack style={{padding: 8}} horizontal disableShrink={true}>{<IssueStatusIcon issue={issue} />}<Text>{`Issue ${issue.id} - ${summary}`}</Text></Stack>;
+         return <Stack style={{ padding: 8 }} horizontal disableShrink={true}>{<IssueStatusIcon issue={issue} />}<Text>{`Issue ${issue.id} - ${summary}`}</Text></Stack>;
       }
 
       if (column.name === "Status") {
@@ -271,7 +272,7 @@ const HealthPanel: React.FC = observer(() => {
             status += ` (${ack})`;
          }
 
-         return <Stack style={{padding: 8}} horizontalAlign="end" disableShrink={true}><Text>{status}</Text></Stack>;
+         return <Stack style={{ padding: 8 }} horizontalAlign="end" disableShrink={true}><Text>{status}</Text></Stack>;
       }
 
       if (column.name === "Workflow") {
@@ -279,7 +280,7 @@ const HealthPanel: React.FC = observer(() => {
             return null;
          }
 
-         return <a onClick={(e) => e.stopPropagation()} style={{ fontSize: "13px" }} href={issue.workflowThreadUrl} target="_blank" rel="noreferrer"><Stack style={{padding: 8}} horizontalAlign="start" disableShrink={true}>Slack Thread</Stack></a>;
+         return <a onClick={(e) => e.stopPropagation()} style={{ fontSize: "13px" }} href={issue.workflowThreadUrl} target="_blank" rel="noreferrer"><Stack style={{ padding: 8 }} horizontalAlign="start" disableShrink={true}>Slack Thread</Stack></a>;
       }
 
       if (column.name === "Opened") {
@@ -293,7 +294,7 @@ const HealthPanel: React.FC = observer(() => {
    const classes = mergeStyleSets({
       detailsRow: {
          selectors: {
-            '.ms-DetailsRow-cell': {               
+            '.ms-DetailsRow-cell': {
                overflow: "hidden",
                whiteSpace: "nowrap"
             }
@@ -549,7 +550,7 @@ const JobsPanel: React.FC<{ includeOtherPreflights: boolean }> = observer(({ inc
 
       dashboard.startPolling();
 
-      return () => {         
+      return () => {
          dashboard.stopPolling();
          jobHandler.clear();
       };
@@ -1033,7 +1034,7 @@ const JobsPanel: React.FC<{ includeOtherPreflights: boolean }> = observer(({ inc
                   </Stack>
                </Stack>
                <Stack styles={{ root: { paddingLeft: 4, paddingRight: 0, paddingTop: 8, paddingBottom: 4 } }}>
-                  {!!dashboard.pinnedJobsIds.length && !jobItems.length && <Stack><Spinner size={SpinnerSize.large}/></Stack>}
+                  {!!dashboard.pinnedJobsIds.length && !jobItems.length && <Stack><Spinner size={SpinnerSize.large} /></Stack>}
                   {!!jobItems.length && <DetailsList
                      styles={{ root: { paddingLeft: 8, paddingRight: 8, marginBottom: 18 } }}
                      compact={true}
@@ -1059,13 +1060,83 @@ const JobsPanel: React.FC<{ includeOtherPreflights: boolean }> = observer(({ inc
 
 });
 
+// Bisections
+
+class BisectionHandler extends PollBase {
+
+   constructor(pollTime = 5000) {
+
+      super(pollTime);
+
+   }
+
+   clear() {
+      super.stop();
+   }
+
+   async poll(): Promise<void> {
+
+      try {
+
+         if (dashboard.pinnedBisectTaskIds?.length) {
+            this.bisections = await backend.getBisections({ id: dashboard.pinnedBisectTaskIds });
+         }
+
+         this.setUpdated();
+
+      } catch (err) {
+
+      }
+
+   }
+
+   bisections: GetBisectTaskResponse[] = [];
+}
+
+const bisectionHandler = new BisectionHandler();
+
+const BisectionPanel: React.FC = observer(() => {
+
+   useEffect(() => {
+
+      bisectionHandler.start();
+
+      return () => {
+         bisectionHandler.clear();
+      };
+
+   }, []);
+
+   // subscribe
+   if (dashboard.updated) { };
+   if (bisectionHandler.updated) { };
+
+   if (bisectionHandler.bisections.length === 0) {
+      return null;
+   }
+
+   return (<Stack style={{ width: homeWidth, marginLeft: 4 }}>
+      <Stack className={hordeClasses.raised}>
+         <Stack tokens={{ childrenGap: 12 }}>
+            <Text variant="mediumPlus" styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>Bisections</Text>
+            <Stack styles={{ root: { paddingLeft: 4, paddingRight: 0, paddingTop: 8, paddingBottom: 12 } }}>
+               <div style={{ overflowY: 'auto', overflowX: 'hidden', maxHeight: "384px" }} data-is-scrollable={true}>
+                  <BisectionList bisections={bisectionHandler.bisections} />
+               </div>
+            </Stack>
+         </Stack>
+      </Stack>
+   </Stack>);
+
+});
+
 const UserHomeViewInner: React.FC = () => {
-      
+
    const search = new URLSearchParams(window.location.search);
    const change = !search.get("preflightconfig") ? "" : search.get("preflightconfig")!;
 
    const navigate = useNavigate();
-   
+
 
    useEffect(() => {
 
@@ -1078,13 +1149,14 @@ const UserHomeViewInner: React.FC = () => {
    handler.startPolling();
 
    return <Stack tokens={{ childrenGap: 0 }} styles={{ root: { backgroundColor: modeColors.background, margin: 0, paddingTop: 8 } }}>
-      {(!!change || !!search.has("preflightconfig")) && <PreflightConfigModal onClose={() => {navigate("/index", {replace: true})}}/>}
+      {(!!change || !!search.has("preflightconfig")) && <PreflightConfigModal onClose={() => { navigate("/index", { replace: true }) }} />}
       <Stack style={{ padding: 0 }} className={detailClasses.detailsRow}>
          <FocusZone direction={FocusZoneDirection.vertical} style={{ padding: 0 }}>
             <div className={detailClasses.container} style={{ width: "100%", height: 'calc(100vh - 208px)', position: 'relative' }} data-is-scrollable={true}>
                <ScrollablePane scrollbarVisibility={ScrollbarVisibility.auto} onScroll={() => { }}>
                   <Stack tokens={{ childrenGap: 18 }} style={{ padding: 0 }}>
                      <ProjectsPanel />
+                     <BisectionPanel />
                      <HealthPanel />
                      <JobsPanel includeOtherPreflights={false} />
                   </Stack>

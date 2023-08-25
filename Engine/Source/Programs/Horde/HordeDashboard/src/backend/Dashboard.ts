@@ -69,6 +69,36 @@ export class Dashboard {
         this.setUpdated();
     }
 
+    bisectPinned(id: string | undefined) {
+        return !!this.pinnedBisectTaskIds.find(j => j === id);
+    }
+
+    pinBisect(id: string) {
+
+        if (this.data.pinnedBisectTaskIds!.find(j => j === id)) {
+            return;
+        }
+
+        this.data.pinnedBisectTaskIds!.push(id);
+
+        backend.updateUser({ addPinnedBisectTaskIds: [id] });
+
+        this.setUpdated();
+    }
+
+    unpinBisect(id: string) {
+
+        if (!this.data.pinnedBisectTaskIds!.find(j => j === id)) {
+            return;
+        }
+
+        this.data.pinnedBisectTaskIds = this.data.pinnedBisectTaskIds!.filter(j => j !== id);
+
+        backend.updateUser({ removePinnedBisectTaskIds: [id] });
+
+        this.setUpdated();
+    }
+
     clearPinnedJobs() {
 
         if (!this.data.pinnedJobIds?.length) {
@@ -181,6 +211,12 @@ export class Dashboard {
 
         return this.data.pinnedJobIds ?? [];
     }
+
+    get pinnedBisectTaskIds(): string[] {
+
+        return this.data.pinnedBisectTaskIds ?? [];
+    }
+
 
     getLastJobTemplateSettings(streamId: string, templateIds: string[]): GetJobTemplateSettingsResponse | undefined {
 

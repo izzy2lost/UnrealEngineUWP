@@ -80,6 +80,11 @@ namespace EpicGames.Horde.Api
 		public List<string>? PinnedJobIds { get; set; }
 
 		/// <summary>
+		/// List of pinned bisection task ids
+		/// </summary>
+		public List<string>? PinnedBisectTaskIds { get; set; }
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
 		public GetUserResponse(UserId id, string name)
@@ -269,5 +274,16 @@ namespace EpicGames.Horde.Api
 		/// Jobs ids to remove from the pinned list
 		/// </summary>
 		public List<string>? RemovePinnedJobIds { get; set; }
+
+		/// <summary>
+		/// Bisection task ids to add to the pinned list
+		/// </summary>
+		public List<string>? AddPinnedBisectTaskIds { get; set; }
+
+		/// <summary>
+		/// Bisection task ids to remove from the pinned list
+		/// </summary>
+		public List<string>? RemovePinnedBisectTaskIds { get; set; }
+
 	}
 }

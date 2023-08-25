@@ -60,7 +60,21 @@ export abstract class JobDataView {
    get initialized(): boolean {
       return this._initialized;
    }
-   // may be called more than once with different parameters, though allways initializes
+
+   addRail(link: ISideRailLink) {
+
+      const existing = this._railLinks.find(r => r.text === link.text);
+      if (existing) {
+         return;
+      }
+
+      this._railLinks.push(link);
+      this.details?.externalUpdate();
+      this.details?.setRootUpdated();
+   }
+
+
+   // may be called more than once with different parameters, though always initializes
    initialize(railLinks?: ISideRailLink[]) {
 
       if (this._initialized) {
@@ -522,6 +536,14 @@ export class JobDetailsV2 extends PollBase {
    filterUpdated() {
       this.views.forEach(v => v.filterUpdated());
    }
+
+   bisectionUpdated() {
+      const v = this.views.find(v => v.name === "StepBisectionView") as any;
+      if (v) {
+         v.bisectionUpdated();
+      }
+   }
+
 
    getReportData(placement: ReportPlacement, stepId?: string): string | undefined {
 

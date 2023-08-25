@@ -3,7 +3,7 @@
 import { Point } from '@fluentui/react';
 import { ContextualMenu, ContextualMenuItemType, IContextualMenuItem, Stack, Text } from '@fluentui/react';
 import React, { MutableRefObject, useState } from 'react';
-import { GetChangeSummaryResponse, GetJobResponse, GetJobStepRefResponse, JobData, JobStepBatchError, JobStepBatchState, JobStepOutcome, JobStepState } from '../backend/Api';
+import { GetBatchResponse, GetChangeSummaryResponse, GetJobResponse, GetJobStepRefResponse, GetThinUserInfoResponse, JobData, JobStepBatchError, JobStepBatchState, JobStepOutcome, JobStepState } from '../backend/Api';
 import dashboard, { StatusColor } from "../backend/Dashboard";
 import { projectStore } from '../backend/ProjectStore';
 
@@ -14,7 +14,19 @@ export type ChangeContextMenuTarget = {
 
 }
 
-export const ChangeContextMenu: React.FC<{ target: ChangeContextMenuTarget, onDismiss?: () => void, job?: JobData, stepRef?: GetJobStepRefResponse, commit?: GetChangeSummaryResponse, rangeCL?: number }> = ({ target, onDismiss, job, stepRef, commit, rangeCL }) => {
+// partial JobResponse type, so we don't need full job data when presenting change cl's
+export type JobParameters = {
+   id?: string;
+   streamId: string;
+   change?: number;
+   preflightChange?: number;
+   preflightDescription?: string;   
+   abortedByUserInfo?: GetThinUserInfoResponse;
+   startedByUserInfo?: GetThinUserInfoResponse;
+   batches?: GetBatchResponse[];
+}
+
+export const ChangeContextMenu: React.FC<{ target: ChangeContextMenuTarget, onDismiss?: () => void, job?: JobParameters, stepRef?: GetJobStepRefResponse, commit?: GetChangeSummaryResponse, rangeCL?: number }> = ({ target, onDismiss, job, stepRef, commit, rangeCL }) => {
 
    if (!job) {
       return null;
@@ -101,14 +113,6 @@ export const ChangeContextMenu: React.FC<{ target: ChangeContextMenuTarget, onDi
       onClick: () => copyToClipboard(change.replace("PF ", ""))
    });
 
-   if (job) {
-      menuItems.push({
-         key: 'copy_job_to_clipboard',
-         text: 'Copy Job to Clipboard',
-         onClick: () => copyToClipboard(window.location.protocol + "//" + window.location.hostname + `/job/${job.id}`)
-      });
-   }
-
    menuItems.push({ key: 'open_in_swarm', text: 'Open CL in Swarm', onClick: (ev) => { window.open(`${dashboard.swarmUrl}/changes/${change.replace("PF ", "")}`) } })
 
    // range
@@ -129,6 +133,22 @@ export const ChangeContextMenu: React.FC<{ target: ChangeContextMenuTarget, onDi
       const rangeText = `Open CL Range ${lowCL} - ${highCL}`;
       menuItems.push({ key: 'open_in_swarm_range', text: rangeText, onClick: (ev) => { window.open(url) } })
    }
+
+   if (job) {
+
+      menuItems.push({
+         key: 'view_job',
+         text: 'Open Job Details',
+         href: window.location.protocol + "//" + window.location.hostname + `/job/${job.id}`         
+      });
+
+
+      menuItems.push({
+         key: 'copy_job_to_clipboard',
+         text: 'Copy Job to Clipboard',
+         onClick: () => copyToClipboard(window.location.protocol + "//" + window.location.hostname + `/job/${job.id}`)
+      });
+   }
    
    return (<ContextualMenu
       styles={{ root: {paddingBottom: 12, paddingRight: 24, paddingLeft: 8, paddingTop: 12},list: { selectors: { '.ms-ContextualMenu-itemText': { fontSize: "10px", paddingLeft: 8 } } } }}
@@ -141,7 +161,7 @@ export const ChangeContextMenu: React.FC<{ target: ChangeContextMenuTarget, onDi
 
 }
 
-function getJobSummary(job: GetJobResponse): { text: string, color: string } {
+function getJobSummary(job: JobParameters): { text: string, color: string } {
 
    const colors = dashboard.getStatusColors();
    let color = colors.get(StatusColor.Skipped)!;
@@ -215,7 +235,7 @@ function getJobSummary(job: GetJobResponse): { text: string, color: string } {
 }
 
 
-export const ChangeButton: React.FC<{ job?: JobData, stepRef?: GetJobStepRefResponse, commit?: GetChangeSummaryResponse, hideAborted?: boolean, rangeCL?: number, pinned?: boolean, prefix?: string }> = ({ job, stepRef, commit, hideAborted, rangeCL, pinned, prefix }) => {
+export const ChangeButton: React.FC<{  job?: JobParameters, stepRef?: GetJobStepRefResponse, commit?: GetChangeSummaryResponse, hideAborted?: boolean, rangeCL?: number, pinned?: boolean, prefix?: string, buttonColor?: string }> = ({ job, stepRef, commit, hideAborted, rangeCL, pinned, prefix, buttonColor }) => {
 
    const [menuShown, setMenuShown] = useState(false);
 
@@ -244,7 +264,7 @@ export const ChangeButton: React.FC<{ job?: JobData, stepRef?: GetJobStepRefResp
    
    return (<Stack verticalAlign="center" verticalFill={true} horizontalAlign="start"> <div style={{ paddingBottom: "1px" }}>
       <Stack tokens={{ childrenGap: 4 }}>
-         <span ref={spanRef} style={{ padding: "2px 6px 2px 6px", height: "15px", cursor: "pointer" }} className={job.startedByUserInfo ? "cl-callout-button-user" : "cl-callout-button"} onClick={(ev) => { ev.stopPropagation(); ev.preventDefault(); setMenuShown(!menuShown) }} >{change}</span>
+         <span ref={spanRef} style={{ padding: "2px 6px 2px 6px", height: "15px", cursor: "pointer", background: buttonColor ? `${buttonColor}` : undefined }} className={job.startedByUserInfo ? "cl-callout-button-user" : "cl-callout-button"} onClick={(ev) => { ev.stopPropagation(); ev.preventDefault(); setMenuShown(!menuShown) }} >{change}</span>
          {(!!showStatus) && <span ref={spanRef} style={{ padding: "2px 6px 2px 6px", height: "16px", cursor: "pointer", userSelect: "none", fontFamily: "Horde Open Sans SemiBold", fontSize: "10px", backgroundColor: color, color: "rgb(255, 255, 255)" }} onClick={(ev) => { ev.preventDefault(); setMenuShown(!menuShown) }}>{text}</span>}
       </Stack>
       {menuShown && <ChangeContextMenu target={{ ref: spanRef }} job={job} commit={commit} stepRef={stepRef} rangeCL={rangeCL} onDismiss={() => setMenuShown(false)} />}

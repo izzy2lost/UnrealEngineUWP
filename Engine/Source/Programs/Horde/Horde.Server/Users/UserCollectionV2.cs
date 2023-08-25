@@ -15,6 +15,7 @@ using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using EpicGames.Horde.Api;
+using Horde.Server.Jobs.Bisect;
 
 namespace Horde.Server.Users
 {
@@ -130,9 +131,11 @@ namespace Horde.Server.Users
 
 			public BsonValue DashboardSettings { get; set; } = BsonNull.Value;
 			public List<JobId> PinnedJobIds { get; set; } = new List<JobId>();
+			public List<BisectTaskId> PinnedBisectTaskIds { get; set; } = new List<BisectTaskId>();
 
 			UserId IUserSettings.UserId => Id;
 			IReadOnlyList<JobId> IUserSettings.PinnedJobIds => PinnedJobIds;
+			IReadOnlyList<BisectTaskId> IUserSettings.PinnedBisectTaskIds => PinnedBisectTaskIds;
 
 			public List<JobTemplateSettingsDocument> JobTemplateSettings { get; set; } = new List<JobTemplateSettingsDocument>();
 			IReadOnlyList<IUserJobTemplateSettings>? IUserSettings.JobTemplateSettings => JobTemplateSettings;
@@ -153,6 +156,7 @@ namespace Horde.Server.Users
 				EnableExperimentalFeatures = other.EnableExperimentalFeatures;
 				DashboardSettings = other.DashboardSettings;
 				PinnedJobIds = new List<JobId>(other.PinnedJobIds);
+				PinnedBisectTaskIds = new List<BisectTaskId>(other.PinnedBisectTaskIds);
 			}
 		}
 
@@ -353,7 +357,7 @@ namespace Horde.Server.Users
 		}
 
 		/// <inheritdoc/>
-		public async Task UpdateSettingsAsync(UserId userId, bool? enableExperimentalFeatures = null, BsonValue? dashboardSettings = null, IEnumerable<JobId>? addPinnedJobIds = null, IEnumerable<JobId>? removePinnedJobIds = null, UpdateUserJobTemplateOptions? templateOptions = null)
+		public async Task UpdateSettingsAsync(UserId userId, bool? enableExperimentalFeatures = null, BsonValue? dashboardSettings = null, IEnumerable<JobId>? addPinnedJobIds = null, IEnumerable<JobId>? removePinnedJobIds = null, UpdateUserJobTemplateOptions? templateOptions = null, IEnumerable<BisectTaskId>? addBisectTaskIds = null, IEnumerable<BisectTaskId>? removeBisectTaskIds = null)
 		{
 			List<UpdateDefinition<UserSettingsDocument>> updates = new List<UpdateDefinition<UserSettingsDocument>>();
 			if (enableExperimentalFeatures != null)
@@ -372,6 +376,16 @@ namespace Horde.Server.Users
 			{
 				updates.Add(Builders<UserSettingsDocument>.Update.PullAll(x => x.PinnedJobIds, removePinnedJobIds));
 			}
+
+			if (addBisectTaskIds != null && addBisectTaskIds.Any())
+			{
+				updates.Add(Builders<UserSettingsDocument>.Update.AddToSetEach(x => x.PinnedBisectTaskIds, addBisectTaskIds));
+			}
+			if (removeBisectTaskIds != null && removeBisectTaskIds.Any())
+			{
+				updates.Add(Builders<UserSettingsDocument>.Update.PullAll(x => x.PinnedBisectTaskIds, removeBisectTaskIds));
+			}
+
 
 			if (templateOptions != null)
 			{

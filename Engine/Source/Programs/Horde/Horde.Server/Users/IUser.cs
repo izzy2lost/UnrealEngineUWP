@@ -3,10 +3,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Amazon.S3.Model;
 using EpicGames.Core;
 using EpicGames.Horde.Api;
 using Horde.Server.Jobs;
+using Horde.Server.Jobs.Bisect;
 using Horde.Server.Streams;
 using MongoDB.Bson;
 
@@ -149,6 +149,11 @@ namespace Horde.Server.Users
 		public IReadOnlyList<JobId> PinnedJobIds { get; }
 
 		/// <summary>
+		/// List of pinned bisection tasks
+		/// </summary>
+		public IReadOnlyList<BisectTaskId> PinnedBisectTaskIds { get; }		
+
+		/// <summary>
 		/// List of job template preferences
 		/// </summary>
 		public IReadOnlyList<IUserJobTemplateSettings>? JobTemplateSettings { get; }
@@ -180,6 +185,7 @@ namespace Horde.Server.Users
 
 				response.DashboardSettings = BsonTypeMapper.MapToDotNetValue(settings.DashboardSettings);
 				response.PinnedJobIds = settings.PinnedJobIds.ConvertAll(x => x.ToString());
+				response.PinnedBisectTaskIds = settings.PinnedBisectTaskIds.ConvertAll(x => x.ToString());
 
 				if (settings.JobTemplateSettings != null && settings.JobTemplateSettings.Count > 0)
 				{

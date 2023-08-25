@@ -1075,7 +1075,7 @@ export type GetJobResponse = {
 	/** The user that started this job */
 	abortedByUserInfo?: GetThinUserInfoResponse;
 
-	/** Whether job was created by a bisection task */
+	/** Whether job was created by a bisect task */
 	startedByBisectTaskId?: string;
 
 	/** The roles to impersonate when executing this job */
@@ -3220,6 +3220,9 @@ export type GetUserResponse = {
 	/** List of pinned job ids */
 	pinnedJobIds?: string[];
 
+	/** List of pinned bisect task ids */
+	pinnedBisectTaskIds?: string[];
+
 }
 
 /** Basic information about a user. May be embedded in other responses.*/
@@ -3250,6 +3253,12 @@ export type UpdateUserRequest = {
 
 	/** Job ids to remove from the pinned list */
 	removePinnedJobIds?: string[];
+
+	/** Bisect ids to add to the pinned list */
+	addPinnedBisectTaskIds?: string[];
+
+	/** Bisect ids to remove from the pinned list */
+	removePinnedBisectTaskIds?: string[];
 
 	/** Whether to enable experimental features for this user */
 	enableExperimentalFeatures?: boolean;
@@ -4666,7 +4675,7 @@ export type GetToolSummaryResponse = {
 	version?: string;
 }
 
-/** Job Bisection */
+/** Job Bisect */
 
 /// State of a bisect task
 export enum BisectTaskState {
@@ -4747,10 +4756,10 @@ export type GetBisectTaskResponse = {
 	/// Outcome to search for
 	outcome: JobStepOutcome;
 
-	/// Starting job id for the bisection
+	/// Starting job id for the bisect
 	initialJobId: string;
 
-	/// Starting change for the bisection
+	/// Starting change for the bisect
 	initialChange: number;
 
 	/// First known job id that is broken
@@ -4759,7 +4768,13 @@ export type GetBisectTaskResponse = {
 	/// Changelist number of the first broken job id
 	currentChange: number;
 
-	/// The steps that have been run on bisection
+	/// Next step id of a running bisect
+	nextJobId?: string;
+
+	/// Next step id of a running bisect
+	nextJobChange?: number;
+
+	/// The steps that have been run on bisect
 	steps?: GetJobStepRefResponse[];
 
 }

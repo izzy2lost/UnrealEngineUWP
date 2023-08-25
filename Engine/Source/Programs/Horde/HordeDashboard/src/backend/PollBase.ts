@@ -88,6 +88,10 @@ export abstract class PollBase {
     @observable
     updated: number = 0;
 
+    subscribe() {
+        if (this.updated) { }
+    }
+
     updating = false;
 
     protected timeoutId: any;

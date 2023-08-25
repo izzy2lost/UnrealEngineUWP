@@ -225,7 +225,7 @@ class TimelineDataView extends JobDataView {
       });
 
       if (!batches.length) {
-         console.log("No batches to render in timeline");
+         //console.log("No batches to render in timeline");
          return;
       }
 
