@@ -144,17 +144,10 @@ namespace AutomationTool.Tasks
 				throw new AutomationException("Missing project file - {0}", ProjectFile.FullName);
 			}
 
-			// Get the executable path
-			FileReference ZenExe;
-			if(HostPlatform.Current.HostEditorPlatform == UnrealTargetPlatform.Win64)
-			{
-				ZenExe = ResolveFile("Engine/Binaries/Win64/zen.exe");
-			}
-			else
-			{
-				ZenExe = ResolveFile(String.Format("Engine/Binaries/{0}/zen", HostPlatform.Current.HostEditorPlatform.ToString()));
-			}
+			ZenExportSnapshotTask.ZenLaunch(ProjectFile);
 
+			// Get the Zen executable path
+			FileReference ZenExe = ZenExportSnapshotTask.ZenExeFileReference();
 			{
 				if (String.IsNullOrEmpty(Parameters.RootDir))
 				{
