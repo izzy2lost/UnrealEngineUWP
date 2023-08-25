@@ -26,7 +26,6 @@ public class CoreUObject : ModuleRules
 			{
 				"Core",
 				"TraceLog",
-				"libpas",
 			}
 		);
 
@@ -45,6 +44,7 @@ public class CoreUObject : ModuleRules
 			PublicDependencyModuleNames.AddRange(
 				new string[]
 				{
+					"libpas",
 					"CoreVerseVM",
 				}
 			);
