@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Builders/GLTFBufferBuilder.h"
+#include "Builders/GLTFAnalyticsBuilder.h"
 #include "Converters/GLTFAccessorConverters.h"
 #include "Converters/GLTFMeshConverters.h"
 #include "Converters/GLTFMeshDataConverters.h"
@@ -21,7 +21,7 @@
 class UMeshComponent;
 class UPropertyValue;
 
-class GLTFEXPORTER_API FGLTFConvertBuilder : public FGLTFBufferBuilder
+class GLTFEXPORTER_API FGLTFConvertBuilder : public FGLTFAnalyticsBuilder
 {
 public:
 

@@ -8,7 +8,7 @@
 #include "Engine/TextureRenderTarget2D.h"
 
 FGLTFConvertBuilder::FGLTFConvertBuilder(const FString& FileName, const UGLTFExportOptions* ExportOptions, const TSet<AActor*>& SelectedActors)
-	: FGLTFBufferBuilder(FileName, ExportOptions)
+	: FGLTFAnalyticsBuilder(FileName, ExportOptions)
 	, SelectedActors(SelectedActors)
 {
 }
@@ -111,6 +111,8 @@ FGLTFJsonMesh* FGLTFConvertBuilder::AddUniqueMesh(const UStaticMesh* StaticMesh,
 		return nullptr;
 	}
 
+	RecordStaticMesh(StaticMesh);
+
 	return StaticMeshConverter->GetOrAdd(StaticMesh, nullptr, Materials, LODIndex);
 }
 
@@ -120,6 +122,8 @@ FGLTFJsonMesh* FGLTFConvertBuilder::AddUniqueMesh(const USkeletalMesh* SkeletalM
 	{
 		return nullptr;
 	}
+
+	RecordSkeletalMesh(SkeletalMesh);
 
 	return SkeletalMeshConverter->GetOrAdd(SkeletalMesh, nullptr, Materials, LODIndex);
 }
@@ -152,6 +156,8 @@ FGLTFJsonMesh* FGLTFConvertBuilder::AddUniqueMesh(const UStaticMeshComponent* St
 		return nullptr;
 	}
 
+	RecordStaticMesh(StaticMesh);
+
 	return StaticMeshConverter->GetOrAdd(StaticMesh, StaticMeshComponent, Materials, LODIndex);
 }
 
@@ -168,16 +174,22 @@ FGLTFJsonMesh* FGLTFConvertBuilder::AddUniqueMesh(const USkeletalMeshComponent* 
 		return nullptr;
 	}
 
+	RecordSkeletalMesh(SkeletalMesh);
+
 	return SkeletalMeshConverter->GetOrAdd(SkeletalMesh, SkeletalMeshComponent, Materials, LODIndex);
 }
 
 const FGLTFMeshData* FGLTFConvertBuilder::AddUniqueMeshData(const UStaticMesh* StaticMesh, const UStaticMeshComponent* StaticMeshComponent, int32 LODIndex)
 {
+	RecordStaticMesh(StaticMesh);
+
 	return StaticMeshDataConverter->GetOrAdd(StaticMesh, StaticMeshComponent, LODIndex);
 }
 
 const FGLTFMeshData* FGLTFConvertBuilder::AddUniqueMeshData(const USkeletalMesh* SkeletalMesh, const USkeletalMeshComponent* SkeletalMeshComponent, int32 LODIndex)
 {
+	RecordSkeletalMesh(SkeletalMesh);
+
 	return SkeletalMeshDataConverter->GetOrAdd(SkeletalMesh, SkeletalMeshComponent, LODIndex);
 }
 
@@ -236,6 +248,8 @@ FGLTFJsonMaterial* FGLTFConvertBuilder::AddUniqueMaterial(const UMaterialInterfa
 	{
 		return nullptr;
 	}
+
+	RecordMaterial(Material);
 
 	return MaterialConverter->GetOrAdd(Material, MeshData, SectionIndices);
 }
@@ -297,6 +311,8 @@ FGLTFJsonTexture* FGLTFConvertBuilder::AddUniqueTexture(const UTexture2D* Textur
 		return nullptr;
 	}
 
+	RecordTexture(Texture);
+
 	return Texture2DConverter->GetOrAdd(Texture, bToSRGB);
 }
 
@@ -306,6 +322,8 @@ FGLTFJsonTexture* FGLTFConvertBuilder::AddUniqueTexture(const UTextureRenderTarg
 	{
 		return nullptr;
 	}
+
+	RecordTexture(Texture);
 
 	return TextureRenderTarget2DConverter->GetOrAdd(Texture, bToSRGB);
 }
@@ -349,6 +367,8 @@ FGLTFJsonAnimation* FGLTFConvertBuilder::AddUniqueAnimation(FGLTFJsonNode* RootN
 		return nullptr;
 	}
 
+	RecordAnimSequence(AnimSequence);
+
 	return AnimationConverter->GetOrAdd(RootNode, SkeletalMesh, AnimSequence);
 }
 
@@ -369,6 +389,8 @@ FGLTFJsonAnimation* FGLTFConvertBuilder::AddUniqueAnimation(const ULevel* Level,
 		return nullptr;
 	}
 
+	RecordLevelSequence(LevelSequence);
+
 	return LevelSequenceConverter->GetOrAdd(Level, LevelSequence);
 }
 
@@ -387,6 +409,11 @@ FGLTFJsonNode* FGLTFConvertBuilder::AddUniqueNode(const AActor* Actor)
 	if (Actor == nullptr)
 	{
 		return nullptr;
+	}
+
+	if (IsSelectedActor(Actor))
+	{
+		RecordActor(Actor);
 	}
 
 	return ActorConverter->GetOrAdd(Actor);
@@ -459,6 +486,8 @@ FGLTFJsonCamera* FGLTFConvertBuilder::AddUniqueCamera(const UCameraComponent* Ca
 		return nullptr;
 	}
 
+	RecordCamera(CameraComponent);
+
 	return CameraConverter->GetOrAdd(CameraComponent);
 }
 
@@ -468,6 +497,8 @@ FGLTFJsonLight* FGLTFConvertBuilder::AddUniqueLight(const ULightComponent* Light
 	{
 		return nullptr;
 	}
+
+	RecordLight(LightComponent);
 
 	return LightConverter->GetOrAdd(LightComponent);
 }

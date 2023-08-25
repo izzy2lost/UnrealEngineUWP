@@ -6,20 +6,21 @@
 #include "EngineAnalytics.h"
 #include "Engine/World.h"
 
-FGLTFExporterAnalytics::FGLTFExporterAnalytics(const UObject* Object, const FGLTFConvertBuilder& Builder, bool bInitiatedByTask, bool bExportAutomated, bool bExportSuccessful, uint64 StartTime)
-	: FGLTFExporterAnalytics(Object, Builder, bInitiatedByTask, bExportAutomated, bExportSuccessful, StartTime, FPlatformTime::Cycles64())
+FGLTFExporterAnalytics::FGLTFExporterAnalytics(const UObject* Object, const FGLTFConvertBuilder& InBuilder, bool bInitiatedByTask, bool bExportAutomated, bool bExportSuccessful, uint64 StartTime)
+	: FGLTFExporterAnalytics(Object, InBuilder, bInitiatedByTask, bExportAutomated, bExportSuccessful, StartTime, FPlatformTime::Cycles64())
 {
 }
 
-FGLTFExporterAnalytics::FGLTFExporterAnalytics(const UObject* Object, const FGLTFConvertBuilder& Builder, bool bInitiatedByTask, bool bExportAutomated, bool bExportSuccessful, uint64 StartTime, uint64 EndTime)
+FGLTFExporterAnalytics::FGLTFExporterAnalytics(const UObject* Object, const FGLTFConvertBuilder& InBuilder, bool bInitiatedByTask, bool bExportAutomated, bool bExportSuccessful, uint64 StartTime, uint64 EndTime)
 	: AssetType(Object != nullptr ? Object->GetClass() : nullptr)
-	, ExportOptions(Builder.ExportOptions)
-	, bExportAsGLB(Builder.bIsGLB)
-	, bSelectedOnly(!Builder.SelectedActors.IsEmpty())
+	, ExportOptions(InBuilder.ExportOptions)
+	, bExportAsGLB(InBuilder.bIsGLB)
+	, bSelectedOnly(!InBuilder.SelectedActors.IsEmpty())
 	, bInitiatedByTask(bInitiatedByTask)
 	, bExportAutomated(bExportAutomated)
 	, bExportSuccessful(bExportSuccessful)
 	, ExportDuration(FPlatformTime::ToSeconds64(EndTime - StartTime))
+	, Builder(InBuilder)
 {
 }
 
@@ -42,6 +43,8 @@ void FGLTFExporterAnalytics::Send() const
 
 	EventAttributes.Emplace(TEXT("Platform"), FPlatformProperties::IniPlatformName());
 	EventAttributes.Emplace(TEXT("EngineMode"), FPlatformMisc::GetEngineMode());
+
+	EventAttributes.Append(Builder.GenerateAnalytics());
 
 	const FString EventName = bExportSuccessful ? TEXT("GLTFExporter.Export") : TEXT("GLTFExporter.ExportFailure");
 	FEngineAnalytics::GetProvider().RecordEvent(EventName, EventAttributes);
