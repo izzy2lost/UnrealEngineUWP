@@ -8,35 +8,28 @@
 
 #include "TypedElementMementoSystem.generated.h"
 
-
-
 class ITypedElementDataStorageInterface;
 class IConsoleVariable;
 struct FTypedElementDatabaseCompatibilityObjectTypeInfo;
+class UTypedElementDatabase;
 
 UCLASS()
-class UTypedElementMementoSystemFactory : public UTypedElementDataStorageFactory
+class UTypedElementMementoSystem : public UObject
 {
 	GENERATED_BODY()
-
 public:
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const override;
-	void RegisterTables(ITypedElementDataStorageInterface& DataStorage) const override;
-	void RegisterRegistrationFilters(ITypedElementDataStorageCompatibilityInterface& DataStorageCompatibility) const override;
-private:
 
-	void RegisterWithCompatibilityLayer(ITypedElementDataStorageCompatibilityInterface& DataStorageCompatibility);
-	void HandleObjectAddedToCompatibility(ITypedElementDataStorageInterface* Storage, const void* Object, const FTypedElementDatabaseCompatibilityObjectTypeInfo& TypeInfo, TypedElementRowHandle Row);
-	void HandleObjectPreRemoveFromCompatibility(ITypedElementDataStorageInterface* Storage, const void* Object, const FTypedElementDatabaseCompatibilityObjectTypeInfo& TypeInfo, TypedElementRowHandle Row);
-	void HandleOnObjectsReinstanced(const FCoreUObjectDelegates::FReplacementObjectMap& ObjectReplacementMap);
+	void Initialize(UTypedElementDatabase& DataStorage);
+	void Deinitialize();
+
+	TypedElementRowHandle CreateMemento(ITypedElementDataStorageInterface* DataStorage);
 	
-	mutable TypedElementTableHandle MementoRowBaseTable;
-	FDelegateHandle ObjectAddedDelegateHandle;
-	FDelegateHandle ObjectRemovedDelegateHandle;
+	// Enables the given Row to be mementoized into the Memento row when it is deleted
+	void EnableMementoizeOnDelete(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row, TypedElementRowHandle Memento);
 
-	// Maps existing objects to their Memento
-	TMap<const void*, TypedElementRowHandle> MementoizableObjects;
-
-	// Maps objects that are about to be created to the memento that will be used to reinstance them
-	TMap<const void*, TypedElementRowHandle> NewInstanceToMementoMap;
+private:
+	void RegisterQueries(UTypedElementDatabase& DataStorage) const;
+	void RegisterTables(UTypedElementDatabase& DataStorage);
+	
+	TypedElementTableHandle MementoRowBaseTable;
 };

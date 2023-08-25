@@ -5,6 +5,7 @@
 #include "Containers/Array.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
+#include "Compatibility/TypedElementObjectReinstancingManager.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/WeakObjectPtr.h"
 
@@ -43,9 +44,6 @@ public:
 	TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const UObject* Object) const override;
 	TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const AActor* Actor) const override;
 	TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const void* Object) const override;
-	
-	FTypedElementDatabaseCompatibility_OnObjectAdded& GetOnObjectAddedDelegate() override;
-	FTypedElementDatabaseCompatibility_OnObjectPreDestroy& GetOnObjectPreDestroy() override;
 
 private:
 	void Prepare();
@@ -94,8 +92,6 @@ private:
 	
 	TArray<ObjectRegistrationFilter> ObjectRegistrationFilters;
 	TArray<ObjectToRowDealiaser> ObjectToRowDialiasers;
-	FTypedElementDatabaseCompatibility_OnObjectAdded OnObjectAddedDelegate;
-	FTypedElementDatabaseCompatibility_OnObjectPreDestroy OnObjectPreDestroy;
 
 	TypedElementTableHandle StandardActorTable{ TypedElementInvalidTableHandle };
 	TypedElementTableHandle StandardActorWithTransformTable{ TypedElementInvalidTableHandle };

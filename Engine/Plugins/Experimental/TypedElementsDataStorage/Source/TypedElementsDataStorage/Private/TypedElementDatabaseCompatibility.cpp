@@ -133,17 +133,6 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(UObject*
 		TypedElementRowHandle Row;
 		if (ReverseObjectLookup.RemoveAndCopyValue(Object, Row))
 		{
-			if (OnObjectPreDestroy.IsBound() && Storage->IsRowAvailable(Row))
-			{
-				// This will be null if object has not yet been added (ie. is in UObjectsPendingRegistration)
-				// Don't call it as OnAdded hasn't be called yet
-				const FTypedElementClassTypeInfoColumn* TypeInfo = Storage->GetColumn<FTypedElementClassTypeInfoColumn>(Row);
-				if (TypeInfo != nullptr)
-				{
-					OnObjectPreDestroy.Broadcast(Storage, Object, FTypedElementDatabaseCompatibilityObjectTypeInfo(TypeInfo->TypeInfo.Get()), Row);
-				}
-			}
-			
 			Storage->RemoveRow(Row);
 		}
 	}
@@ -154,18 +143,7 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(void* Ob
 	checkf(Storage, TEXT("Removing compatible objects is not supported before Typed Element's Database compatibility manager has been initialized."));
 	TypedElementRowHandle Row;
 	if (ReverseObjectLookup.RemoveAndCopyValue(Object, Row))
-	{
-		if (OnObjectPreDestroy.IsBound() && Storage->IsRowAvailable(Row))
-		{
-			// This will be null if object has not yet been added (ie. is in ExternalObjectsPendingRegistration)
-			// Don't call it as OnAdded hasn't be called yet
-			const FTypedElementScriptStructTypeInfoColumn* TypeInfo = Storage->GetColumn<FTypedElementScriptStructTypeInfoColumn>(Row);
-			if (TypeInfo != nullptr)
-			{
-				OnObjectPreDestroy.Broadcast(Storage, Object, FTypedElementDatabaseCompatibilityObjectTypeInfo(TypeInfo->TypeInfo.Get()), Row);
-			}
-		}
-		
+	{		
 		Storage->RemoveRow(Row);
 	}
 }
@@ -189,16 +167,6 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(AActor* 
 			if (ActorStore && !ActorStore->IsOwnedByMass()) // Only remove actors that were externally created.
 			{
 				TypedElementRowHandle Row = Entity.AsNumber();
-				if (OnObjectPreDestroy.IsBound() && Storage->IsRowAvailable(Entity.AsNumber()))
-				{
-					// This will be null if object has not yet been added (ie. is in ActorsPendingRegistration)
-					// Don't call it as OnAdded hasn't be called yet
-					const FTypedElementClassTypeInfoColumn* TypeInfo = Storage->GetColumn<FTypedElementClassTypeInfoColumn>(Row);
-					if (TypeInfo != nullptr)
-					{
-						OnObjectPreDestroy.Broadcast(Storage, Actor, FTypedElementDatabaseCompatibilityObjectTypeInfo(TypeInfo->TypeInfo.Get()), Row);
-					}
-				}
 				
 				ActorSubsystem->RemoveHandleForActor(Actor);
 				Storage->RemoveRow(Entity.AsNumber());
@@ -249,16 +217,6 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::FindRowWithCompatibleO
 		return Row ? *Row : TypedElementInvalidRowHandle;
 	}
 	return TypedElementInvalidRowHandle;
-}
-
-FTypedElementDatabaseCompatibility_OnObjectAdded& UTypedElementDatabaseCompatibility::GetOnObjectAddedDelegate()
-{
-	return OnObjectAddedDelegate;
-}
-
-FTypedElementDatabaseCompatibility_OnObjectAdded& UTypedElementDatabaseCompatibility::GetOnObjectPreDestroy()
-{
-	return OnObjectPreDestroy;
 }
 
 void UTypedElementDatabaseCompatibility::Prepare()
@@ -468,8 +426,6 @@ void UTypedElementDatabaseCompatibility::TickPendingActorRegistration(UWorld* Ed
 					
 					// Make sure the new row is tagged for update.
 					Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
-
-					OnObjectAddedDelegate.Broadcast(Storage, Actor, FTypedElementDatabaseCompatibilityObjectTypeInfo(Actor->GetClass()) , Row);
 				});
 		}
 			
@@ -502,8 +458,6 @@ void UTypedElementDatabaseCompatibility::TickPendingUObjectRegistration()
 					Storage->AddOrGetColumn<FTypedElementClassTypeInfoColumn>(Row, FTypedElementClassTypeInfoColumn{ .TypeInfo = Object->GetClass() });
 					// Make sure the new row is tagged for update.
 					Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
-
-					OnObjectAddedDelegate.Broadcast(Storage, Object.Get(), FTypedElementDatabaseCompatibilityObjectTypeInfo(Object->GetClass()), Row);
 				});
 		}
 
@@ -535,8 +489,6 @@ void UTypedElementDatabaseCompatibility::TickPendingExternalObjectRegistration()
 					Storage->AddOrGetColumn<FTypedElementScriptStructTypeInfoColumn>(Row, FTypedElementScriptStructTypeInfoColumn{ .TypeInfo = Object.TypeInfo });
 					// Make sure the new row is tagged for update.
 					Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
-
-					OnObjectAddedDelegate.Broadcast(Storage, Object.Object, FTypedElementDatabaseCompatibilityObjectTypeInfo(Object.TypeInfo.Get()), Row);
 				});
 		}
 

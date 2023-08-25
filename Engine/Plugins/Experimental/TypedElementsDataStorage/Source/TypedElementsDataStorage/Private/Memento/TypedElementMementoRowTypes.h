@@ -20,19 +20,12 @@ struct FTypedElementMementoTag : public FTypedElementDataStorageTag
 };
 
 /**
- * Column for a memento row indicating that the row is populated with memento data
+ * A column added to a memento row which will trigger the process
+ * of converting memento columns to the matching mementoizable columns in
+ * the target row
  */
 USTRUCT()
-struct FTypedElementMementoPopulated : public FTypedElementDataStorageTag
-{
-	GENERATED_BODY()
-};
-
-/**
- * A column added to a memento row which will trigger the reinstantiation process
- */
-USTRUCT()
-struct FTypedElementReinstanceTarget : public FTypedElementDataStorageColumn
+struct FTypedElementMementoReinstanceTarget : public FTypedElementDataStorageColumn
 {
 	GENERATED_BODY()
 	TypedElementRowHandle Target;
