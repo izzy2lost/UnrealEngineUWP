@@ -755,6 +755,7 @@ namespace Horde.Server.Agents
 				IAgent? terminatedAgent = await TryTerminateSessionAsync(agent);
 				if (terminatedAgent != null)
 				{
+					_logger.LogInformation("Terminated session {SessionId} for {AgentId}; agent is stopping", agent.SessionId, agent.Id);
 					agent = terminatedAgent;
 					break;
 				}

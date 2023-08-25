@@ -21,7 +21,7 @@ namespace Horde.Agent.Leases.Handlers
 		/// <inheritdoc/>
 		public override Task<LeaseResult> ExecuteAsync(ISession session, string leaseId, RestartTask task, CancellationToken cancellationToken)
 		{
-			_logger.LogInformation("Scheduling restart task");
+			_logger.LogInformation("Scheduling restart task for agent {AgentId}", session.AgentId);
 			SessionResult result = new SessionResult((logger, ctx) => Shutdown.ExecuteAsync(true, logger, ctx));
 			return Task.FromResult(new LeaseResult(result));
 		}

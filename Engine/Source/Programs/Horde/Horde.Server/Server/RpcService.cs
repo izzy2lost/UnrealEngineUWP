@@ -416,6 +416,7 @@ namespace Horde.Server.Server
 					UpdateSessionResponse response = new UpdateSessionResponse();
 					response.Leases.Add(agent.Leases.Select(x => x.ToRpcMessage()));
 					response.ExpiryTime = (agent.SessionExpiresAt == null) ? new Timestamp() : Timestamp.FromDateTime(agent.SessionExpiresAt.Value);
+					response.Status = agent.Status;
 					await writer.WriteAsync(response);
 				}
 

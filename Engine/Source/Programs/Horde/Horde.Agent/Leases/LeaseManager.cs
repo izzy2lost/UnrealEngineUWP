@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Storage;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Horde.Agent.Services;
@@ -240,13 +241,13 @@ namespace Horde.Agent.Leases
 				Task waitTask = _updateLeasesEvent.Task;
 
 				// Flag for whether the service is stopping
-				bool stopping = false;
-				if (stoppingToken.IsCancellationRequested)
+				if (stoppingToken.IsCancellationRequested && _sessionResult == null)
 				{
-					_logger.LogInformation("Cancellation from token requested");
-					stopping = true;
+					_logger.LogInformation("Cancellation from token requested; setting session result to terminate.");
+					_sessionResult = new SessionResult(SessionOutcome.Terminate);
 				}
 
+				bool stopping = false;
 				if (_sessionResult != null)
 				{
 					_logger.LogInformation("Session termination requested (result: {Result})", _sessionResult.Outcome);
@@ -363,12 +364,19 @@ namespace Horde.Agent.Leases
 									OnLeaseActive?.Invoke(serverLease);
 								}
 							}
+
+							// Update the session result if we've transitioned to stopped
+							if (updateSessionResponse.Status == AgentStatus.Stopped)
+							{
+								_logger.LogInformation("Agent status is stopped; returning from session update loop.");
+								return _sessionResult ?? new SessionResult(SessionOutcome.BackOff);
+							}
 						}
 
 						// If there's nothing still running and cancellation was requested, exit
 						if (_activeLeases.Count == 0 && _sessionResult != null)
 						{
-							_logger.LogInformation("No leases are active. Agent is stopping.");
+							_logger.LogInformation("No leases are active. Agent is stopping."); // TODO: Should not really hit this any more; server should report stopping state in lease update above.
 							return _sessionResult;
 						}
 					}
