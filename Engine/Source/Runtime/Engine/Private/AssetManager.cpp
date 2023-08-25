@@ -52,6 +52,10 @@ LLM_DEFINE_TAG(AssetManager);
 
 DEFINE_LOG_CATEGORY(LogAssetManager);
 
+#ifndef ENABLE_PLATFORM_CHUNK_INSTALL
+	#define ENABLE_PLATFORM_CHUNK_INSTALL (1)
+#endif
+
 /** Structure defining the current loading state of an asset */
 struct FPrimaryAssetLoadState
 {
@@ -2255,7 +2259,9 @@ bool UAssetManager::FindMissingChunkList(const TArray<FSoftObjectPath>& AssetLis
 	TMap<int32, EChunkLocation::Type> ChunkLocationCache;
 
 	// Grab chunk install
+#if ENABLE_PLATFORM_CHUNK_INSTALL
 	IPlatformChunkInstall* ChunkInstall = FPlatformMisc::GetPlatformChunkInstall();
+#endif
 
 	// Grab pak platform file
 	FPakPlatformFile* Pak = (FPakPlatformFile*)FPlatformFileManager::Get().FindPlatformFile(TEXT("PakFile"));
@@ -2271,7 +2277,11 @@ bool UAssetManager::FindMissingChunkList(const TArray<FSoftObjectPath>& AssetLis
 		{
 			if (!ChunkLocationCache.Contains(PakchunkId))
 			{
+#if ENABLE_PLATFORM_CHUNK_INSTALL
 				EChunkLocation::Type Location = ChunkInstall->GetPakchunkLocation(PakchunkId);
+#else
+				EChunkLocation::Type Location = EChunkLocation::LocalFast;
+#endif
 
 				// If chunk install thinks the chunk is available, we need to double check with the pak system that it isn't
 				// pending decryption
@@ -2342,6 +2352,7 @@ bool UAssetManager::FindMissingChunkList(const TArray<FSoftObjectPath>& AssetLis
 
 void UAssetManager::AcquireChunkList(const TArray<int32>& ChunkList, FAssetManagerAcquireResourceDelegate CompleteDelegate, EChunkPriority::Type Priority, TSharedPtr<FStreamableHandle> StalledHandle)
 {
+#if ENABLE_PLATFORM_CHUNK_INSTALL
 	FPendingChunkInstall* PendingChunkInstall = new(PendingChunkInstalls) FPendingChunkInstall;
 	PendingChunkInstall->ManualCallback = MoveTemp(CompleteDelegate);
 	PendingChunkInstall->RequestedChunks = ChunkList;
@@ -2359,6 +2370,7 @@ void UAssetManager::AcquireChunkList(const TArray<int32>& ChunkList, FAssetManag
 	{
 		ChunkInstall->PrioritizePakchunk(MissingChunk, Priority);
 	}
+#endif
 }
 
 void UAssetManager::AcquireResourcesForAssetList(const TArray<FSoftObjectPath>& AssetList, FAssetManagerAcquireResourceDelegate CompleteDelegate, EChunkPriority::Type Priority)
@@ -2445,6 +2457,7 @@ bool UAssetManager::GetResourceAcquireProgress(int32& OutAcquiredCount, int32& O
 
 void UAssetManager::OnChunkDownloaded(uint32 ChunkId, bool bSuccess)
 {
+#if ENABLE_PLATFORM_CHUNK_INSTALL
 	IPlatformChunkInstall* ChunkInstall = FPlatformMisc::GetPlatformChunkInstall();
 
 	// Iterate pending callbacks, in order they were added
@@ -2518,6 +2531,7 @@ void UAssetManager::OnChunkDownloaded(uint32 ChunkId, bool bSuccess)
 			}
 		}
 	}
+#endif
 }
 
 bool UAssetManager::OnAssetRegistryAvailableAfterInitialization(FName InName, FAssetRegistryState& OutNewState)

@@ -164,6 +164,10 @@ static FAutoConsoleVariableRef CVarAssetRegistryMaxSecondsPerFrame(
 	UE::AssetRegistry::Impl::MaxSecondsPerFrame,
 	TEXT("Maximum amount of time allowed for Asset Registry processing, in seconds"));
 
+#ifndef ENABLE_PLATFORM_CHUNK_INSTALL
+	#define ENABLE_PLATFORM_CHUNK_INSTALL (1)
+#endif
+
 /**
  * Implementation of IAssetRegistryInterface; forwards calls from the CoreUObject-accessible IAssetRegistryInterface into the AssetRegistry-accessible IAssetRegistry
  */
@@ -3280,6 +3284,7 @@ namespace UE::AssetRegistry::Utils
 
 EAssetAvailability::Type GetAssetAvailability(const FAssetData& AssetData)
 {
+#if ENABLE_PLATFORM_CHUNK_INSTALL
 	IPlatformChunkInstall* ChunkInstall = FPlatformMisc::GetPlatformChunkInstall();
 
 	EChunkLocation::Type BestLocation = EChunkLocation::DoesNotExist;
@@ -3316,6 +3321,9 @@ EAssetAvailability::Type GetAssetAvailability(const FAssetData& AssetData)
 		check(0);
 		return EAssetAvailability::LocalFast;
 	}
+#else
+	return EAssetAvailability::LocalFast;
+#endif
 }
 
 }
@@ -3330,11 +3338,13 @@ namespace UE::AssetRegistry::Utils
 
 float GetAssetAvailabilityProgress(const FAssetData& AssetData, EAssetAvailabilityProgressReportingType::Type ReportType)
 {
+	check(ReportType == EAssetAvailabilityProgressReportingType::PercentageComplete || ReportType == EAssetAvailabilityProgressReportingType::ETA);
+
+#if ENABLE_PLATFORM_CHUNK_INSTALL
 	IPlatformChunkInstall* ChunkInstall = FPlatformMisc::GetPlatformChunkInstall();
 	EChunkProgressReportingType::Type ChunkReportType = GetChunkAvailabilityProgressType(ReportType);
 
 	bool IsPercentageComplete = (ChunkReportType == EChunkProgressReportingType::PercentageComplete) ? true : false;
-	check(ReportType == EAssetAvailabilityProgressReportingType::PercentageComplete || ReportType == EAssetAvailabilityProgressReportingType::ETA);
 
 	float BestProgress = MAX_FLT;
 
@@ -3367,6 +3377,18 @@ float GetAssetAvailabilityProgress(const FAssetData& AssetData, EAssetAvailabili
 		BestProgress = 100.0f - BestProgress;
 	}
 	return BestProgress;
+
+#else
+	if (ReportType == EAssetAvailabilityProgressReportingType::PercentageComplete)
+	{
+		return 100.0f;
+	}
+	else
+	{
+		return 0.0f;
+	}
+#endif
+
 }
 
 }
@@ -3381,8 +3403,12 @@ namespace UE::AssetRegistry::Utils
 
 bool GetAssetAvailabilityProgressTypeSupported(EAssetAvailabilityProgressReportingType::Type ReportType)
 {
+#if ENABLE_PLATFORM_CHUNK_INSTALL
 	IPlatformChunkInstall* ChunkInstall = FPlatformMisc::GetPlatformChunkInstall();
 	return ChunkInstall->GetProgressReportingTypeSupported(GetChunkAvailabilityProgressType(ReportType));
+#else
+	return true;
+#endif
 }
 
 }
@@ -3397,6 +3423,7 @@ namespace UE::AssetRegistry::Utils
 
 void PrioritizeAssetInstall(const FAssetData& AssetData)
 {
+#if ENABLE_PLATFORM_CHUNK_INSTALL
 	IPlatformChunkInstall* ChunkInstall = FPlatformMisc::GetPlatformChunkInstall();
 
 	const TConstArrayView<int32> ChunkIDs = AssetData.GetChunkIDs();
@@ -3406,6 +3433,7 @@ void PrioritizeAssetInstall(const FAssetData& AssetData)
 	}
 
 	ChunkInstall->PrioritizePakchunk(ChunkIDs[0], EChunkPriority::Immediate);
+#endif
 }
 
 }
