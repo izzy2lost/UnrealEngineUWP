@@ -189,7 +189,7 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 					const float3 WorldPosPrev = mul(float4(LocalPos, 1), InstanceDynamicData.PrevLocalToTranslatedWorld).xyz;
 					const float4 ScreenPosPrev = mul(float4(WorldPosPrev.xyz, 1), NaniteView.PrevTranslatedWorldToClip);
 
-					Velocity[PixelPos.xy] = EncodeVelocityToTexture(Calculate3DVelocity(ScreenPos, ScreenPosPrev));
+					Velocity[PixelPos.xy] = EncodeVelocityToTexture(Calculate3DVelocity(ScreenPos, ScreenPosPrev), (GetPrimitiveData(InstanceData.PrimitiveId).Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_PIXEL_ANIMATION) != 0);
 				}
 				else
 				{

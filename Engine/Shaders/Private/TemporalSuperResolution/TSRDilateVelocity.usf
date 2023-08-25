@@ -257,6 +257,11 @@ void MainCS(
 
 	float4 CenterEncodedVelocity = SceneVelocityTexture[int2(InputBufferUV * InputInfo_Extent)];
 	bool bIsMovingPixel = CenterEncodedVelocity.x > 0.0;
+	
+	bool HasPixelAnimation = false;
+	#if !VELOCITY_ENCODE_HAS_PIXEL_ANIMATION
+		#error TSR requires the bHasPixelAnimation encoded in the velocity buffer.
+	#endif
 
 	// Compute final screen vecocity.
 	#if CONFIG_VELOCITY_EXTRAPOLATION
@@ -282,6 +287,8 @@ void MainCS(
 		float3 ScreenVelocity1 = ComputeStaticVelocity(ScreenPos, ClosestDeviceZ1);
 		float3 ScreenVelocity2 = ComputeStaticVelocity(ScreenPos, ClosestDeviceZ2);
 		
+		HasPixelAnimation = DecodeHasPixelAnimationFromVelocityTexture(EncodedVelocity1);
+
 		#if CONFIG_USE_SCENE_VELOCITY
 		{
 			if (EncodedVelocity1.x > 0.0)
@@ -306,6 +313,8 @@ void MainCS(
 		FinalScreenVelocity = ComputeStaticVelocity(ScreenPos, ClosestDeviceZ);
 		
 		float4 EncodedVelocity = SceneVelocityTexture[uint2(InputBufferUV * InputInfo_Extent) + VelocityPixelOffset];
+
+		HasPixelAnimation = DecodeHasPixelAnimationFromVelocityTexture(EncodedVelocity);
 
 		#if CONFIG_USE_SCENE_VELOCITY
 		{
@@ -346,6 +355,8 @@ void MainCS(
 		IsMovingMask = max(
 			tsr_half(saturate(length(TranslatedWorldPosition - PrevTranslatedWorldPosition) * rcp(StaticWorldRadius) - 1.0)),
 			saturate(PixelParallaxVelocity * tsr_half(InvFlickeringMaxParralaxVelocity) - tsr_half(0.5)));
+
+		IsMovingMask = select(HasPixelAnimation, tsr_half(1.0), IsMovingMask);
 	}
 
 	#if CONFIG_SUBPIXEL_DEPTH

@@ -1554,6 +1554,7 @@ bool FMaterialResource::ShouldWriteOnlyAlpha() const { return Material->bWriteOn
 bool FMaterialResource::ShouldEnableResponsiveAA() const { return Material->bEnableResponsiveAA; }
 bool FMaterialResource::ShouldDoSSR() const { return Material->bScreenSpaceReflections; }
 bool FMaterialResource::ShouldDoContactShadows() const { return Material->bContactShadows; }
+bool FMaterialResource::HasPixelAnimation() const { return Material->HasPixelAnimation() && GetMaterialDomain() == MD_Surface && IsOpaqueOrMaskedBlendMode(GetBlendMode()); }
 bool FMaterialResource::IsWireframe() const { return Material->Wireframe; }
 bool FMaterialResource::IsUIMaterial() const { return Material->MaterialDomain == MD_UI; }
 bool FMaterialResource::IsPostProcessMaterial() const { return Material->MaterialDomain == MD_PostProcess; }

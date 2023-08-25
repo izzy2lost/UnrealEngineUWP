@@ -1871,6 +1871,7 @@ public:
 	virtual	bool ShouldEnableResponsiveAA() const { return false; }
 	virtual bool ShouldDoSSR() const { return false; }
 	virtual bool ShouldDoContactShadows() const { return false; }
+	virtual	bool HasPixelAnimation() const { return false; }
 	virtual bool IsLightFunction() const = 0;
 	virtual bool IsUsedWithEditorCompositing() const { return false; }
 	virtual bool IsDeferredDecal() const = 0;
@@ -2608,6 +2609,7 @@ public:
 	ENGINE_API virtual bool ShouldEnableResponsiveAA() const override;
 	ENGINE_API virtual bool ShouldDoSSR() const override;
 	ENGINE_API virtual bool ShouldDoContactShadows() const override;
+	ENGINE_API virtual bool HasPixelAnimation() const override;
 	ENGINE_API virtual bool IsLightFunction() const override;
 	ENGINE_API virtual bool IsUsedWithEditorCompositing() const override;
 	ENGINE_API virtual bool IsDeferredDecal() const override;

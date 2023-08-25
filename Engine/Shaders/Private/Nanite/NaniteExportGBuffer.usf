@@ -183,7 +183,7 @@ void EmitSceneDepthPS(
 			const float4 ScreenPosPrev = mul(float4(WorldPosPrev, 1), NaniteView.PrevTranslatedWorldToClip);
 		
 			const float3 Velocity = Calculate3DVelocity(ScreenPos, ScreenPosPrev);
-			OutVelocity = EncodeVelocityToTexture(Velocity);
+			OutVelocity = EncodeVelocityToTexture(Velocity, (GetPrimitiveData(InstanceData.PrimitiveId).Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_PIXEL_ANIMATION) != 0);
 		}
 		else
 		{

@@ -1720,10 +1720,13 @@ struct FScreenVertexOutput
 	float4 Position : SV_POSITION;
 };
 
+/** Whether HasPixelAnimation is encoded in the velocity texture. Matches VelocityEncodeHasPixelAnimation() */
+#define VELOCITY_ENCODE_HAS_PIXEL_ANIMATION VELOCITY_ENCODE_DEPTH
+
 // for velocity rendering, motionblur and temporal AA
 // velocity needs to support -2..2 screen space range for x and y
 // texture is 16bit 0..1 range per channel
-ENCODED_VELOCITY_TYPE EncodeVelocityToTexture(float3 V)
+ENCODED_VELOCITY_TYPE EncodeVelocityToTexture(float3 V, bool bHasPixelAnimation)
 {
 	#if VELOCITY_ENCODE_GAMMA
 		V.xy = sign(V.xy) * sqrt(abs(V.xy)) * (2.0 / sqrt(2.0));
@@ -1738,7 +1741,7 @@ ENCODED_VELOCITY_TYPE EncodeVelocityToTexture(float3 V)
 		uint Vz = asuint(V.z);
 
 		EncodedV.z = saturate(float((Vz >> 16) & 0xFFFF) * rcp(65535.0f) + (0.1 / 65535.0f));
-		EncodedV.w = saturate(float((Vz >>  0) & 0xFFFF) * rcp(65535.0f) + (0.1 / 65535.0f));
+		EncodedV.w = saturate(float(((Vz >>  0) & 0xFFFE) | uint(bHasPixelAnimation)) * rcp(65535.0f) + (0.1 / 65535.0f));
 	#else
 		EncodedV.zw = 0.0;
 	#endif
@@ -1749,6 +1752,12 @@ ENCODED_VELOCITY_TYPE EncodeVelocityToTexture(float3 V)
 	return EncodedV;
 #endif
 }
+
+ENCODED_VELOCITY_TYPE EncodeVelocityToTexture(float3 V)
+{
+	return EncodeVelocityToTexture(V, /* bHasPixelAnimation = */ false);
+}
+
 // see EncodeVelocityToTexture()
 float3 DecodeVelocityFromTexture(ENCODED_VELOCITY_TYPE InEncodedV)
 {
@@ -1763,7 +1772,7 @@ float3 DecodeVelocityFromTexture(ENCODED_VELOCITY_TYPE InEncodedV)
 	V.xy = EncodedV.xy * InvDiv - 32767.0f / 65535.0f * InvDiv;
 
 	#if VELOCITY_ENCODE_DEPTH
-		V.z = asfloat((uint(round(EncodedV.z * 65535.0f)) << 16) | uint(round(EncodedV.w * 65535.0f)));
+		V.z = asfloat((uint(round(EncodedV.z * 65535.0f)) << 16) | (uint(round(EncodedV.w * 65535.0f)) & 0xFFFE));
 	#else
 		V.z = 0.0;
 	#endif
@@ -1774,6 +1783,14 @@ float3 DecodeVelocityFromTexture(ENCODED_VELOCITY_TYPE InEncodedV)
 
 	return V;
 }
+
+/** Returns whether the opaque material drawing velocity had the UMaterial::bHasPixelAnimation, which means the geometric velocity might not accurately represent how the pixel moves. */
+#if VELOCITY_ENCODE_HAS_PIXEL_ANIMATION
+bool DecodeHasPixelAnimationFromVelocityTexture(ENCODED_VELOCITY_TYPE EncodedV)
+{
+	return (uint(round(EncodedV.w * 65535.0f)) & 0x1) != 0x0;
+}
+#endif
 
 // Used for the Global Illumination in the GIReplace material expression
 bool GetGIReplaceState()

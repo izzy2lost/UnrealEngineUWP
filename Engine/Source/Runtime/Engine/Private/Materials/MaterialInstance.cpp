@@ -4576,6 +4576,11 @@ bool UMaterialInstance::ShouldAlwaysEvaluateWorldPositionOffset() const
 	return Parent ? Parent->ShouldAlwaysEvaluateWorldPositionOffset() : false;
 }
 
+bool UMaterialInstance::HasPixelAnimation() const
+{
+	return Parent ? Parent->HasPixelAnimation() : false;
+}
+
 bool UMaterialInstance::IsMasked() const
 {
 	return IsMaskedBlendMode(GetBlendMode()) || (IsTranslucentOnlyBlendMode(GetBlendMode()) && GetCastDynamicShadowAsMasked());

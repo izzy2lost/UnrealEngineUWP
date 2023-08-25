@@ -580,10 +580,14 @@ void FSceneProxyBase::OnMaterialsUpdated()
 	MinMaxMaterialDisplacement = FVector2f::Zero();
 	bHasProgrammableRaster = false;
 	bAnyMaterialAlwaysEvaluatesWorldPositionOffset = false;
+	bAnyMaterialHasPixelAnimation = false;
 
 	static const auto TessellationEnabledVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.Tessellation"));
 	const bool bTessellationEnabled = (TessellationEnabledVar && TessellationEnabledVar->GetValueOnAnyThread() != 0);
 	const bool bUseTessellation = bTessellationEnabled && NaniteTessellationSupported();
+
+	EShaderPlatform ShaderPlatform = GetScene().GetShaderPlatform();
+	bool bVelocityEncodeHasPixelAnimation = VelocityEncodeHasPixelAnimation(ShaderPlatform);
 
 	for (auto& MaterialSection : MaterialSections)
 	{
@@ -615,6 +619,9 @@ void FSceneProxyBase::OnMaterialsUpdated()
 		const bool bHasWPO = MaterialSection.MaterialRelevance.bUsesWorldPositionOffset;
 		MaterialSection.bAlwaysEvaluateWPO = bHasWPO && ShadingMaterial->ShouldAlwaysEvaluateWorldPositionOffset();
 		bAnyMaterialAlwaysEvaluatesWorldPositionOffset |= MaterialSection.bAlwaysEvaluateWPO;
+
+		// Determine if has any pixel animation.
+		bAnyMaterialHasPixelAnimation |= ShadingMaterial->HasPixelAnimation() && bVelocityEncodeHasPixelAnimation && IsOpaqueOrMaskedBlendMode(ShadingMaterial->GetBlendMode());
 
 		// Determine max extent of WPO
 		if (MaterialSection.bAlwaysEvaluateWPO || (bEvaluateWorldPositionOffset && bHasWPO))

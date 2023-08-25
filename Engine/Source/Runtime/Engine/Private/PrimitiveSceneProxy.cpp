@@ -474,6 +474,7 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 ,	bHasWorldPositionOffsetVelocity(false)
 ,	bAnyMaterialHasWorldPositionOffset(false)
 ,	bAnyMaterialAlwaysEvaluatesWorldPositionOffset(false)
+,	bAnyMaterialHasPixelAnimation(false)	
 ,	bSupportsDistanceFieldRepresentation(false)
 ,	bSupportsHeightfieldRepresentation(false)
 ,	bSupportsSortedTriangles(false)
@@ -633,6 +634,7 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 #endif
 
 	bAnyMaterialHasWorldPositionOffset = false;
+	bAnyMaterialHasPixelAnimation = false;
 	{
 		// Find if we have any WPO materials.
 		ERHIFeatureLevel::Type FeatureLevel = GetScene().GetFeatureLevel();
@@ -647,6 +649,21 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 				{
 					bAnyMaterialHasWorldPositionOffset = true;
 					break;
+				}
+			}
+		}
+
+		if (VelocityEncodeHasPixelAnimation(GetScene().GetShaderPlatform()))
+		{
+			for (const UMaterialInterface* MaterialInterface : UsedMaterials)
+			{
+				if (MaterialInterface)
+				{
+					if (MaterialInterface->HasPixelAnimation() && IsOpaqueOrMaskedBlendMode(MaterialInterface->GetBlendMode()))
+					{
+						bAnyMaterialHasPixelAnimation = true;
+						break;
+					}
 				}
 			}
 		}
@@ -815,7 +832,8 @@ void FPrimitiveSceneProxy::BuildUniformShaderParameters(FPrimitiveUniformShaderP
 			.ForceHidden(IsForceHidden())
 			.PrimitiveComponentId(GetPrimitiveComponentId().PrimIDValue)
 			.EditorColors(GetWireframeColor(), GetLevelColor())
-			.SplineMesh(IsSplineMesh());
+			.SplineMesh(IsSplineMesh())
+			.HasPixelAnimation(AnyMaterialHasPixelAnimation());
 
 		if (PrimitiveSceneInfo != nullptr)
 		{

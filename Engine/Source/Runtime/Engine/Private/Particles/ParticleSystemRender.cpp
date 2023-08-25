@@ -6918,6 +6918,7 @@ void FParticleSystemSceneProxy::UpdateWorldSpacePrimitiveUniformBuffer(FRHIComma
 				.UseSingleSampleShadowFromStationaryLights(UseSingleSampleShadowFromStationaryLights())
 				.UseVolumetricLightmap(GetScene().HasPrecomputedVolumetricLightmap_RenderThread())
 				.CustomPrimitiveData(GetCustomPrimitiveData())
+				.HasPixelAnimation(AnyMaterialHasPixelAnimation())
 			.Build()
 		);
 	}

@@ -1493,7 +1493,7 @@ void AddPostProcessingPasses(
 		PassInputs.SceneDepth = SceneDepth;
 		PassInputs.SceneVelocity = Velocity;
 
-		SceneColor = AddVisualizeMotionVectorsPass(GraphBuilder, View, PassInputs);
+		SceneColor = AddVisualizeMotionVectorsPass(GraphBuilder, View, PassInputs, EVisualizeMotionVectors::ReprojectionAlignment);
 	}
 
 	if (PassSequence.IsEnabled(EPass::VisualizeTemporalUpscaler))

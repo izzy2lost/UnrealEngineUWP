@@ -343,6 +343,8 @@ RENDERCORE_API bool ForceSimpleSkyDiffuse(const FStaticShaderPlatform Platform);
 
 RENDERCORE_API bool VelocityEncodeDepth(const FStaticShaderPlatform Platform);
 
+RENDERCORE_API bool VelocityEncodeHasPixelAnimation(const FStaticShaderPlatform Platform);
+
 /** Unit cube vertex buffer (VertexDeclarationFVector4) */
 RENDERCORE_API FBufferRHIRef& GetUnitCubeVertexBuffer();
 

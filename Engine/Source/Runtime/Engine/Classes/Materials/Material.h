@@ -539,6 +539,12 @@ public:
 	/** Whether the material should allow outputting negative emissive color values.  Only allowed on unlit materials. */
 	UPROPERTY(EditAnywhere, Category=Material, AdvancedDisplay)
 	uint8 bAllowNegativeEmissiveColor : 1;
+	
+	/** Whether the opaque material has any pixel animations happening, that isn't included in the geometric velocities.
+	 * This allows to disable renderer's heuristics that assumes animation is fully described with motion vector, such as TSR's anti-flickering heuristic.
+	 */
+	UPROPERTY(EditAnywhere, Category=Material, meta=(DisplayName = "Has Pixel Animation"), AdvancedDisplay)
+	uint8 bHasPixelAnimation : 1;
 
 	/**
 	 * Specifies the separate pass in which to render translucency.
@@ -1138,6 +1144,7 @@ public:
 	ENGINE_API virtual FDisplacementScaling GetDisplacementScaling() const override;
 	ENGINE_API virtual float GetMaxWorldPositionOffsetDisplacement() const override;
 	ENGINE_API virtual bool ShouldAlwaysEvaluateWorldPositionOffset() const override;
+	ENGINE_API virtual bool HasPixelAnimation() const override;
 	ENGINE_API virtual bool WritesToRuntimeVirtualTexture() const override;
 
 	ENGINE_API virtual FGraphEventArray PrecachePSOs(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const FPSOPrecacheParams& PreCacheParams, EPSOPrecachePriority Priority, TArray<FMaterialPSOPrecacheRequestID>& OutMaterialPSORequestIDs) override;

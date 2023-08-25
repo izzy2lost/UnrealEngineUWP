@@ -802,6 +802,7 @@ public:
 	inline bool EvaluateWorldPositionOffset() const { return bEvaluateWorldPositionOffset; }
 	inline bool AnyMaterialHasWorldPositionOffset() const { return bAnyMaterialHasWorldPositionOffset; }
 	inline bool AnyMaterialAlwaysEvaluatesWorldPositionOffset() const { return bAnyMaterialAlwaysEvaluatesWorldPositionOffset; }
+	inline bool AnyMaterialHasPixelAnimation() const { return bAnyMaterialHasPixelAnimation; }
 	inline float GetMaxWorldPositionOffsetExtent() const
 	{
 		if ((EvaluateWorldPositionOffset() && AnyMaterialHasWorldPositionOffset())
@@ -827,9 +828,9 @@ public:
 	/** Returns true if this proxy can change transform so that we should cache previous transform for calculating velocity. */
 	inline bool HasDynamicTransform() const { return IsMovable() || bIsBeingMovedByEditor; }
 	/** Returns true if this proxy can write velocity. This is used for setting velocity relevance. */
-	inline bool DrawsVelocity() const { return HasDynamicTransform() || bAlwaysHasVelocity || bHasWorldPositionOffsetVelocity || HasPerInstanceDynamicData(); }
+	inline bool DrawsVelocity() const { return HasDynamicTransform() || bAlwaysHasVelocity || AnyMaterialHasPixelAnimation() || bHasWorldPositionOffsetVelocity || HasPerInstanceDynamicData(); }
 	/** Returns true if this proxy should write velocity even when the transform isn't changing. Usually this is combined with a check for the transform changing. */
-	inline bool AlwaysHasVelocity() const {	return bAlwaysHasVelocity || (bHasWorldPositionOffsetVelocity && EvaluateWorldPositionOffset()) || HasPerInstanceDynamicData(); }
+	inline bool AlwaysHasVelocity() const {	return bAlwaysHasVelocity || AnyMaterialHasPixelAnimation() || (bHasWorldPositionOffsetVelocity && EvaluateWorldPositionOffset()) || HasPerInstanceDynamicData(); }
 
 #if WITH_EDITOR
 	inline int32 GetNumUncachedStaticLightingInteractions() { return NumUncachedStaticLightingInteractions; }
@@ -1426,6 +1427,9 @@ protected:
 
 	/** Whether the primitive has any materials that must ALWAYS evaluate World Position Offset. */
 	uint8 bAnyMaterialAlwaysEvaluatesWorldPositionOffset : 1;
+
+	/** Whether the primitive has any materials that must ALWAYS evaluate World Position Offset. */
+	uint8 bAnyMaterialHasPixelAnimation : 1;
 
 	/** Whether the primitive should always be considered to have velocities, even if it hasn't moved. */
 	uint8 bAlwaysHasVelocity : 1;

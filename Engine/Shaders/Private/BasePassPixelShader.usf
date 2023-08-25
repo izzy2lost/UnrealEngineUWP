@@ -1058,7 +1058,7 @@ void FPixelShaderInOut_MainPS(
 		float3 Velocity = Calculate3DVelocity(MaterialParameters.ScreenPosition, BasePassInterpolants.VelocityPrevScreenPosition);
 	#endif
 
-		float4 EncodedVelocity = EncodeVelocityToTexture(Velocity);
+		float4 EncodedVelocity = EncodeVelocityToTexture(Velocity, (GetPrimitiveData(MaterialParameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_PIXEL_ANIMATION) != 0);
 
 	#if USES_GBUFFER
 		GBuffer.Velocity = EncodedVelocity;

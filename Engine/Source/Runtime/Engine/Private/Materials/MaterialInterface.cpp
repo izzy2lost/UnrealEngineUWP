@@ -1305,6 +1305,11 @@ bool UMaterialInterface::ShouldAlwaysEvaluateWorldPositionOffset() const
 	return false;
 }
 
+bool UMaterialInterface::HasPixelAnimation() const
+{
+	return false;
+}
+
 bool UMaterialInterface::IsDeferredDecal() const
 {
 	return false;

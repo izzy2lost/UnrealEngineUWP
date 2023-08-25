@@ -1486,6 +1486,12 @@ bool VelocityEncodeDepth(const FStaticShaderPlatform Platform)
 	return (GVelocityEncodeDepthPlatformMask[(int)Platform]);
 }
 
+bool VelocityEncodeHasPixelAnimation(const FStaticShaderPlatform Platform)
+{
+	// Matches VELOCITY_ENCODE_HAS_PIXEL_ANIMATION
+	return VelocityEncodeDepth(Platform);
+}
+
 RENDERCORE_API bool AllowTranslucencyPerObjectShadows(const FStaticShaderPlatform Platform)
 {
 	return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5) && GAllowTranslucencyShadowsInProject != 0;

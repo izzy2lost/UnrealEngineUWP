@@ -1006,6 +1006,7 @@ UMaterial::UMaterial(const FObjectInitializer& ObjectInitializer)
 	bCastRayTracedShadows = true;
 	bUseTranslucencyVertexFog = true;
 	bAllowFrontLayerTranslucency = true;
+	bHasPixelAnimation = false;
 	bApplyCloudFogging = false;
 	bIsSky = false;
 	bUsedWithWater = false;
@@ -4493,7 +4494,12 @@ bool UMaterial::CanEditChange(const FProperty* InProperty) const
 		{
 			return bStrataEnabled;
 		}
-	
+
+		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, bHasPixelAnimation))
+		{
+			return MaterialDomain == MD_Surface && IsOpaqueOrMaskedBlendMode(BlendMode);
+		}
+
 		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, TranslucencyPass)
 			|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, bEnableResponsiveAA)
 			|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, bScreenSpaceReflections)
@@ -6657,6 +6663,11 @@ float UMaterial::GetMaxWorldPositionOffsetDisplacement() const
 bool UMaterial::ShouldAlwaysEvaluateWorldPositionOffset() const
 {
 	return bAlwaysEvaluateWorldPositionOffset;
+}
+
+bool UMaterial::HasPixelAnimation() const
+{
+	return bHasPixelAnimation && MaterialDomain == MD_Surface;
 }
 
 void UMaterial::SetShadingModel(EMaterialShadingModel NewModel)

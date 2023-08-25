@@ -123,7 +123,7 @@ FScreenPassTexture AddVisualizeTemporalUpscalerPass(FRDGBuilder& GraphBuilder, c
 			PassInputs.SceneVelocity = Inputs.Inputs.SceneVelocity;
 
 			FVisualizeBufferTile& Tile = Tiles[4 * 2 + 0];
-			Tile.Input = AddVisualizeMotionVectorsPass(GraphBuilder, View, PassInputs);
+			Tile.Input = AddVisualizeMotionVectorsPass(GraphBuilder, View, PassInputs, EVisualizeMotionVectors::ReprojectionAlignment);
 			Tile.Input.ViewRect = CropViewRectToCenter(Tile.Input.ViewRect);
 			Tile.Label = TEXT("show VisualizeReprojection");
 		}
@@ -135,6 +135,20 @@ FScreenPassTexture AddVisualizeTemporalUpscalerPass(FRDGBuilder& GraphBuilder, c
 			Tile.Input = Inputs.Inputs.MoireInputTexture;
 			Tile.Input.ViewRect = CropViewRectToCenter(View.ViewRect);
 			Tile.Label = VisualizeTextureLabel(Inputs.Inputs.MoireInputTexture.Texture);
+		}
+
+		// Display UMaterial::bHasPixelAnimation used to disable TSR's anti-flickering heuristic (r.TSR.ShadingRejection.Flickering) on per pixel basis
+		if (Inputs.TAAConfig == EMainTAAPassConfig::TSR)
+		{
+			FVisualizeMotionVectorsInputs PassInputs;
+			PassInputs.SceneColor = Inputs.SceneColor;
+			PassInputs.SceneDepth = Inputs.Inputs.SceneDepth;
+			PassInputs.SceneVelocity = Inputs.Inputs.SceneVelocity;
+
+			FVisualizeBufferTile& Tile = Tiles[4 * 2 + 3];
+			Tile.Input = AddVisualizeMotionVectorsPass(GraphBuilder, View, PassInputs, EVisualizeMotionVectors::HasPixelAnimationFlag);
+			Tile.Input.ViewRect = CropViewRectToCenter(Tile.Input.ViewRect);
+			Tile.Label = TEXT("UMaterial::bHasPixelAnimation");
 		}
 
 		// Output

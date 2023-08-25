@@ -170,5 +170,5 @@ void MainPixelShader(
 	// 3d velocity, includes camera an object motion
 	float3 Velocity = Calculate3DVelocity(Input.PackedVelocityA, Input.PackedVelocityC);
 
-	OutColor = EncodeVelocityToTexture(Velocity);
+	OutColor = EncodeVelocityToTexture(Velocity, (GetPrimitiveData(MaterialParameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_PIXEL_ANIMATION) != 0);
 }

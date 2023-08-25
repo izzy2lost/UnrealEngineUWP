@@ -51,6 +51,7 @@
 #define PRIMITIVE_SCENE_DATA_FLAG_HOLDOUT								0x400000
 #define PRIMITIVE_SCENE_DATA_FLAG_SPLINE_MESH							0x800000
 #define PRIMITIVE_SCENE_DATA_FLAG_INSTANCE_CULLING_OCCLUSION_QUERIES	0x1000000 // Whether per-instance occlusion queries are allowed when performing GPUScene instance culling
+#define PRIMITIVE_SCENE_DATA_FLAG_HAS_PIXEL_ANIMATION					0x2000000
 
 
 // Primitive visibility flags
