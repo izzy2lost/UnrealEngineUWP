@@ -19,6 +19,28 @@
 class UWorldPartition;
 class FWorldPartitionDraw2DContext;
 
+USTRUCT()
+struct FActivatedCells
+{
+	GENERATED_USTRUCT_BODY()
+
+	void Add(const UWorldPartitionRuntimeCell* InCell);
+	void Remove(const UWorldPartitionRuntimeCell* InCell);
+	bool Contains(const UWorldPartitionRuntimeCell* InCell) const { return Cells.Contains(InCell); }
+	void OnAddedToWorld(const UWorldPartitionRuntimeCell* InCell);
+	void OnRemovedFromWorld(const UWorldPartitionRuntimeCell* InCell);
+
+	const TSet<TObjectPtr<const UWorldPartitionRuntimeCell>>& GetCells() const { return Cells; }
+	const TSet<const UWorldPartitionRuntimeCell*>& GetPendingAddToWorldCells() const { return PendingAddToWorldCells; }
+
+private:
+
+	UPROPERTY(Transient)
+	TSet<TObjectPtr<const UWorldPartitionRuntimeCell>> Cells;
+
+	TSet<const UWorldPartitionRuntimeCell*> PendingAddToWorldCells;
+};
+
 UCLASS(Abstract, Within = WorldPartition)
 class UWorldPartitionStreamingPolicy : public UObject
 {
@@ -80,27 +102,11 @@ protected:
 	bool IsInBlockTillLevelStreamingCompleted(bool bIsCausedByBadStreamingPerformance = false) const;
 
 	const UWorldPartition* WorldPartition;
-	TSet<const UWorldPartitionRuntimeCell*> LoadedCells;
+	UPROPERTY(Transient)
+	TSet<TObjectPtr<const UWorldPartitionRuntimeCell>> LoadedCells;
 
-	struct FActivatedCells
-	{
-		void Add(const UWorldPartitionRuntimeCell* InCell);
-		void Remove(const UWorldPartitionRuntimeCell* InCell);
-		bool Contains(const UWorldPartitionRuntimeCell* InCell) const { return Cells.Contains(InCell); }
-		void OnAddedToWorld(const UWorldPartitionRuntimeCell* InCell);
-		void OnRemovedFromWorld(const UWorldPartitionRuntimeCell* InCell);
-
-		const TSet<const UWorldPartitionRuntimeCell*>& GetCells() const { return Cells; }
-		const TSet<const UWorldPartitionRuntimeCell*>& GetPendingAddToWorldCells() const { return PendingAddToWorldCells; }
-
-	private:
-
-		TSet<const UWorldPartitionRuntimeCell*> Cells;
-		TSet<const UWorldPartitionRuntimeCell*> PendingAddToWorldCells;
-	};
-
+	UPROPERTY(Transient)
 	FActivatedCells ActivatedCells;
-	mutable TArray<const UWorldPartitionRuntimeCell*> SortedAddToWorldCells;
 
 	// Streaming Sources
 	TArray<FWorldPartitionStreamingSource> StreamingSources;
@@ -109,8 +115,10 @@ protected:
 	TSet<const UWorldPartitionRuntimeCell*> FrameLoadCells;
 
 	// Used by UWorldPartitionSubsystem
-	TArray<const UWorldPartitionRuntimeCell*> ToActivateCells;
-	TArray<const UWorldPartitionRuntimeCell*> ToLoadCells;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<const UWorldPartitionRuntimeCell>> ToActivateCells;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<const UWorldPartitionRuntimeCell>> ToLoadCells;
 	int32 ProcessedToActivateCells;
 	int32 ProcessedToLoadCells;
 

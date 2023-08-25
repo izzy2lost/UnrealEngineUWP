@@ -455,13 +455,16 @@ void UWorldPartitionStreamingPolicy::UpdateStreamingState()
 	auto ShouldWaitForClientVisibility = [bIsServer, this, &bUpdateServerEpoch, &ServerClientsVisibleLevelNames](const UWorldPartitionRuntimeCell* Cell)
 	{
 		check(bIsServer);
-		if (ULevel* Level = Cell->GetLevel())
+		if (Cell->ShouldServerWaitForClientLevelVisibility())
 		{
-			if (ServerClientsVisibleLevelNames.Contains(Cell->GetLevel()->GetPackage()->GetFName()))
+			if (ULevel* Level = Cell->GetLevel())
 			{
-				UE_CLOG(bUpdateServerEpoch, LogWorldPartition, Verbose, TEXT("Server epoch update delayed by client visibility"));
-				bUpdateServerEpoch = false;
-				return true;
+				if (ServerClientsVisibleLevelNames.Contains(Level->GetPackage()->GetFName()))
+				{
+					UE_CLOG(bUpdateServerEpoch, LogWorldPartition, Verbose, TEXT("Server epoch update delayed by client visibility"));
+					bUpdateServerEpoch = false;
+					return true;
+				}
 			}
 		}
 		return false;
@@ -539,7 +542,7 @@ void UWorldPartitionStreamingPolicy::UpdateStreamingState()
 	TArray<const UWorldPartitionRuntimeCell*> ToUnloadCells;
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(UWorldPartitionStreamingPolicy::UpdateStreamingState_ToUnloadCells);
-		auto BuildCellsToUnload = [this, &ToUnloadCells, bCanStream, bIsServer, ShouldWaitForClientVisibility](const TSet<const UWorldPartitionRuntimeCell*>& InCells)
+		auto BuildCellsToUnload = [this, &ToUnloadCells, bCanStream, bIsServer, ShouldWaitForClientVisibility](const TSet<TObjectPtr<const UWorldPartitionRuntimeCell>>& InCells)
 		{
 			for (const UWorldPartitionRuntimeCell* Cell : InCells)
 			{
@@ -984,7 +987,7 @@ void UWorldPartitionStreamingPolicy::OnCellHidden(const UWorldPartitionRuntimeCe
 	ActivatedCells.OnRemovedFromWorld(InCell);
 }
 
-void UWorldPartitionStreamingPolicy::FActivatedCells::Add(const UWorldPartitionRuntimeCell* InCell)
+void FActivatedCells::Add(const UWorldPartitionRuntimeCell* InCell)
 {
 	Cells.Add(InCell);
 	if (!InCell->IsAlwaysLoaded())
@@ -993,18 +996,18 @@ void UWorldPartitionStreamingPolicy::FActivatedCells::Add(const UWorldPartitionR
 	}
 }
 
-void UWorldPartitionStreamingPolicy::FActivatedCells::Remove(const UWorldPartitionRuntimeCell* InCell)
+void FActivatedCells::Remove(const UWorldPartitionRuntimeCell* InCell)
 {
 	Cells.Remove(InCell);
 	PendingAddToWorldCells.Remove(InCell);
 }
 
-void UWorldPartitionStreamingPolicy::FActivatedCells::OnAddedToWorld(const UWorldPartitionRuntimeCell* InCell)
+void FActivatedCells::OnAddedToWorld(const UWorldPartitionRuntimeCell* InCell)
 {
 	PendingAddToWorldCells.Remove(InCell);
 }
 
-void UWorldPartitionStreamingPolicy::FActivatedCells::OnRemovedFromWorld(const UWorldPartitionRuntimeCell* InCell)
+void FActivatedCells::OnRemovedFromWorld(const UWorldPartitionRuntimeCell* InCell)
 {
 	if (Cells.Contains(InCell))
 	{

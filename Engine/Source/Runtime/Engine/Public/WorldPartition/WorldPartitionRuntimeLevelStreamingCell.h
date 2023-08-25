@@ -22,8 +22,6 @@ class UWorldPartitionRuntimeLevelStreamingCell : public UWorldPartitionRuntimeCe
 	ENGINE_API virtual bool CanUnload() const override;
 	ENGINE_API virtual void Activate() const override;
 	ENGINE_API virtual void Deactivate() const override;
-	ENGINE_API virtual bool IsAddedToWorld() const override;
-	ENGINE_API virtual bool CanAddToWorld() const override;
 	ENGINE_API virtual ULevel* GetLevel() const override;
 	ENGINE_API virtual EWorldPartitionRuntimeCellState GetCurrentState() const override;
 	ENGINE_API virtual FLinearColor GetDebugColor(EWorldPartitionRuntimeCellVisualizeMode VisualizeMode) const override;

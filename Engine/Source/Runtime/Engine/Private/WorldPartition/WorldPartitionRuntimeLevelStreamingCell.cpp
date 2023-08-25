@@ -452,18 +452,6 @@ void UWorldPartitionRuntimeLevelStreamingCell::Activate() const
 	}
 }
 
-bool UWorldPartitionRuntimeLevelStreamingCell::IsAddedToWorld() const
-{
-	return LevelStreaming && LevelStreaming->GetLoadedLevel() && LevelStreaming->GetLoadedLevel()->bIsVisible;
-}
-
-bool UWorldPartitionRuntimeLevelStreamingCell::CanAddToWorld() const
-{
-	return LevelStreaming &&
-		   LevelStreaming->GetLoadedLevel() &&
-		   (LevelStreaming->GetLevelStreamingState() == ELevelStreamingState::MakingVisible);
-}
-
 void UWorldPartitionRuntimeLevelStreamingCell::SetStreamingPriority(int32 InStreamingPriority) const
 {
 	if (LevelStreaming)

@@ -178,8 +178,10 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell
 	ENGINE_API virtual bool CanUnload() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::CanUnload, return true;);
 	ENGINE_API virtual void Activate() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::Activate,);
 	ENGINE_API virtual void Deactivate() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::Deactivate,);
-	ENGINE_API virtual bool IsAddedToWorld() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::IsAddedToWorld, return false;);
-	ENGINE_API virtual bool CanAddToWorld() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::CanAddToWorld, return false;);
+	UE_DEPRECATED(5.4, "IsAddedToWorld is deprecated.")
+	ENGINE_API virtual bool IsAddedToWorld() const { return false; }
+	UE_DEPRECATED(5.4, "CanAddToWorld is deprecated.")
+	ENGINE_API virtual bool CanAddToWorld() const { return false; }
 	ENGINE_API virtual ULevel* GetLevel() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::GetLevel, return nullptr;);
 	ENGINE_API virtual EWorldPartitionRuntimeCellState GetCurrentState() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::GetCurrentState, return EWorldPartitionRuntimeCellState::Unloaded;);
 	virtual FLinearColor GetDebugColor(EWorldPartitionRuntimeCellVisualizeMode VisualizeMode) const { static const FLinearColor DefaultColor = FLinearColor::Black.CopyWithNewOpacity(0.25f); return DefaultColor; }
@@ -261,6 +263,14 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell
 protected:
 	ENGINE_API FLinearColor GetDebugStreamingPriorityColor() const;
 
+	//@todo_ow: Implement ServerOnlyVisible and refactor ClientOnlyVisible.
+	//          Instead of this function, server would not not wait for client level visibility 
+	//          for server-only visible cells.
+	//          Also, server-only & client-only visible cells should be pre-filtered at 
+	//          world partition initialization to avoid visiting them at runtime.
+	//          The same should be done for injected external streaming objects.
+	ENGINE_API virtual bool ShouldServerWaitForClientLevelVisibility() const { return true; }
+
 	UPROPERTY()
 	bool bIsAlwaysLoaded;
 
@@ -315,4 +325,6 @@ public:
 
 	UPROPERTY()
 	TObjectPtr<UWorldPartitionRuntimeCellData> RuntimeCellData;
+
+	friend class UWorldPartitionStreamingPolicy;
 };
