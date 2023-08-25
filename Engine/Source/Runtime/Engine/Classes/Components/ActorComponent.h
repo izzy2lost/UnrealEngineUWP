@@ -1038,6 +1038,7 @@ public:
 	virtual void SetPackageExternal(bool bExternal, bool bShouldDirty) {}
 	virtual FBox GetStreamingBounds() const { return FBox(ForceInit); }
 	virtual bool ForceActorNonSpatiallyLoaded() const { return false; }
+	virtual bool ForceActorNoDataLayers() const { return false; }
 #endif // WITH_EDITOR
 	//~ End UObject Interface.
 

@@ -1824,11 +1824,23 @@ bool AActor::IsPropertyChangedAffectingDataLayers(FPropertyChangedEvent& Propert
 	return false;
 }
 
+static bool HasComponentForceActorNoDataLayers(const AActor* InActor)
+{
+	bool bHasComponentForceActorNoDataLayers = false;
+	InActor->ForEachComponent(false, [&bHasComponentForceActorNoDataLayers](const UActorComponent* Component)
+	{
+		bHasComponentForceActorNoDataLayers |= Component->ForceActorNoDataLayers();
+	});
+	return bHasComponentForceActorNoDataLayers;
+}
+
 bool AActor::SupportsDataLayerType(TSubclassOf<UDataLayerInstance> InDataLayerType) const
 {
 	ULevel* Level = GetLevel();
 	const bool bIsLevelNotPartitioned = Level ? !Level->bIsPartitioned : false;
-	return (!bIsLevelNotPartitioned &&
+	const bool bHasComponentForceActorNoDataLayers = HasComponentForceActorNoDataLayers(this);
+	return (!bIsLevelNotPartitioned && 
+		!bHasComponentForceActorNoDataLayers &&
 		IsDataLayerTypeSupported(InDataLayerType) &&
 		!FActorEditorUtils::IsABuilderBrush(this) &&
 		!GetClass()->GetDefaultObject<AActor>()->bHiddenEd);
