@@ -252,8 +252,13 @@ GfnRuntimeError GeForceNOWWrapper::GetClientLanguageCode(FString& OutLanguageCod
 {
 	const char* LanguageCode = nullptr;
 	GfnRuntimeError ErrorCode = GfnGetClientLanguageCode(&LanguageCode);
-	OutLanguageCode = FString(LanguageCode);
-	Free(&LanguageCode);
+
+	if (ErrorCode == GfnRuntimeError::gfnSuccess)
+	{
+		OutLanguageCode = FString(LanguageCode);
+		Free(&LanguageCode);
+	}
+	
 	return ErrorCode;
 }
 
@@ -279,8 +284,13 @@ GfnRuntimeError GeForceNOWWrapper::GetPartnerData(FString& OutPartnerData) const
 {
 	const char* PartnerData = nullptr;
 	GfnRuntimeError ErrorCode = GfnGetPartnerData(&PartnerData);
-	OutPartnerData = FString(PartnerData);
-	Free(&PartnerData);
+
+	if (ErrorCode == GfnRuntimeError::gfnSuccess)
+	{
+		OutPartnerData = FString(PartnerData);
+		Free(&PartnerData);
+	}
+	
 	return ErrorCode;
 }	
 
@@ -288,8 +298,13 @@ GfnRuntimeError GeForceNOWWrapper::GetPartnerSecureData(FString& OutPartnerSecur
 {
 	const char* PartnerSecureData = nullptr;
 	GfnRuntimeError ErrorCode = GfnGetPartnerSecureData(&PartnerSecureData);
-	OutPartnerSecureData = FString(PartnerSecureData);
-	Free(&PartnerSecureData);
+
+	if (ErrorCode == GfnRuntimeError::gfnSuccess)
+	{
+		OutPartnerSecureData = FString(PartnerSecureData);
+		Free(&PartnerSecureData);
+	}
+	
 	return ErrorCode;
 }
 
@@ -297,8 +312,13 @@ GfnRuntimeError GeForceNOWWrapper::GetTitlesAvailable(FString& OutAvailableTitle
 {
 	const char* AvailableTitles = nullptr;
 	GfnRuntimeError ErrorCode = GfnGetTitlesAvailable(&AvailableTitles);
-	OutAvailableTitles = FString(AvailableTitles);
-	Free(&AvailableTitles);
+
+	if (ErrorCode == GfnRuntimeError::gfnSuccess)
+	{
+		OutAvailableTitles = FString(AvailableTitles);
+		Free(&AvailableTitles);
+	}
+	
 	return ErrorCode;
 }
 
