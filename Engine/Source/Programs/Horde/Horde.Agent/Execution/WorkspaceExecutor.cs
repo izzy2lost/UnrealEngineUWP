@@ -46,11 +46,8 @@ namespace Horde.Agent.Execution
 
 				autoSdkWorkspaceSettings = await _autoSdkWorkspace.InitializeAsync(logger, cancellationToken);
 
-				// Match change for AutoSDK and actual job change
-				int autoSdkChangeNumber = _batch.Change;
-
 				SyncOptions syncOptions = new();
-				await _autoSdkWorkspace.SyncAsync(autoSdkChangeNumber, -1, syncOptions, cancellationToken);
+				await _autoSdkWorkspace.SyncAsync(IWorkspaceMaterializer.LatestChangeNumber, -1, syncOptions, cancellationToken);
 			}
 			
 			// Sync the regular workspace

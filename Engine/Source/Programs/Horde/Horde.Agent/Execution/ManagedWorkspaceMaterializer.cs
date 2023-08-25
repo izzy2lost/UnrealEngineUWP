@@ -97,6 +97,13 @@ public class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 		{
 			throw new WorkspaceMaterializationException("Workspace not initialized");
 		}
+		
+		if (changeNum == IWorkspaceMaterializer.LatestChangeNumber)
+		{
+			int latestChangeNum = await _workspace.GetLatestChangeAsync(cancellationToken);
+			scope.Span.SetTag("LatestChangeNum", latestChangeNum);
+			changeNum = latestChangeNum;
+		}
 
 		FileReference cacheFile = FileReference.Combine(_workspace.MetadataDir, "Contents.dat");
 		if (_useCacheFile)

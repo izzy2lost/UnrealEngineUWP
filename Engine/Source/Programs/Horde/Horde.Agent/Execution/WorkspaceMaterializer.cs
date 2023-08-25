@@ -108,6 +108,11 @@ public class SyncOptions
 public interface IWorkspaceMaterializer
 {
 	/// <summary>
+	/// Placeholder for resolving the latest available change number of stream during sync
+	/// </summary>
+	public const int LatestChangeNumber = -2;
+	
+	/// <summary>
 	/// Prepare file system for syncing
 	/// </summary>
 	/// <param name="logger">Logger for output</param>

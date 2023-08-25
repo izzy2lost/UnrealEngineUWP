@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -88,6 +89,11 @@ public class FakeWorkspaceMaterializer : IWorkspaceMaterializer
 			throw new Exception("Cannot sync before initialization");
 		}
 
+		if (changeNum == IWorkspaceMaterializer.LatestChangeNumber)
+		{
+			changeNum = _changeToFiles.Keys.Max();
+		}
+		
 		if (!_changeToFiles.ContainsKey(changeNum))
 		{
 			throw new WorkspaceMaterializationException($"Change {changeNum} could not be found");
