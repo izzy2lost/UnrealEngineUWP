@@ -128,6 +128,11 @@ void UCharacterTrajectoryComponent::BeginPlay()
 
 void UCharacterTrajectoryComponent::UpdateTrajectory(float DeltaSeconds)
 {
+	if (LastUpdateFrameNumber != 0 && LastUpdateFrameNumber == GFrameNumber)
+	{
+		return;
+	}
+
 	if (!ensure(CharacterMovementComponent != nullptr && SkelMeshComponent != nullptr))
 	{
 		return;
@@ -144,6 +149,8 @@ void UCharacterTrajectoryComponent::UpdateTrajectory(float DeltaSeconds)
 		
 	UpdateHistory(DeltaSeconds);
 	UpdatePrediction(SkelMeshComponentLocationWS, FacingWS, CharacterMovementComponent->Velocity, CharacterMovementComponent->GetCurrentAcceleration(), ControllerRotationRate);
+
+	LastUpdateFrameNumber = GFrameNumber;
 
 #if ENABLE_ANIM_DEBUG
 	if (CVarCharacterTrajectoryDebug.GetValueOnAnyThread())

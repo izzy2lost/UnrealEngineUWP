@@ -105,6 +105,8 @@ protected:
 	float SecondsPerHistorySample = 0.f;
 	float SecondsPerPredictionSample = 0.f;
 
+	uint32 LastUpdateFrameNumber = 0;
+
 	// Forward axis for the SkeletalMeshComponent. It's common for skeletal mesh and animation data to not be X forward.
 	FQuat ForwardFacingCS = FQuat::Identity;
 
