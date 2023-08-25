@@ -26,6 +26,7 @@
 #include "WorldPartition/WorldPartitionActorDesc.h"
 #include "WorldPartition/IWorldPartitionEditorModule.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
+#include "EditorLoadedActorCache.h"
 #include "ActorFolder.h"
 #include "ActorMode.h"
 
@@ -453,24 +454,30 @@ void FActorHierarchy::CreateUnloadedItems(UWorld* World, TArray<FSceneOutlinerTr
 	{
 		if (UWorldPartitionSubsystem* WorldPartitionSubsystem = UWorld::GetSubsystem<UWorldPartitionSubsystem>(World))
 		{
+			FEditorLoadedActorCache LoadedActorCache;
+			
 			const ULevelInstanceSubsystem* LevelInstanceSubsystem = World->GetSubsystem<ULevelInstanceSubsystem>();
 
-			WorldPartitionSubsystem->ForEachWorldPartition([this, LevelInstanceSubsystem, &OutItems](UWorldPartition* WorldPartition)
+			WorldPartitionSubsystem->ForEachWorldPartition([this, LevelInstanceSubsystem, &LoadedActorCache, &OutItems](UWorldPartition* WorldPartition)
 			{
+				UWorld* OuterWorld = WorldPartition->GetTypedOuter<UWorld>();
+				ULevel* OuterLevel = OuterWorld ? OuterWorld->PersistentLevel : nullptr;
+
 				// Skip unloaded actors if they are part of a non editing level instance and the outliner hides the content of level instances
 				if (!bShowingLevelInstances)
 				{
-					UWorld* OuterWorld = WorldPartition->GetTypedOuter<UWorld>();
-					ULevel* OuterLevel = OuterWorld ? OuterWorld->PersistentLevel : nullptr;
 					ILevelInstanceInterface* LevelInstance = LevelInstanceSubsystem ? LevelInstanceSubsystem->GetOwningLevelInstance(OuterLevel) : nullptr;
 					if (LevelInstance && !LevelInstance->IsEditing())
 					{
 						return true;
 					}
 				}
-				FWorldPartitionHelpers::ForEachActorDesc(WorldPartition, [this, &OutItems](const FWorldPartitionActorDesc* ActorDesc)
+
+				const TSet<FGuid>& LoadedActors = LoadedActorCache.GetLoadedActorsForLevel(OuterLevel);
+				
+				FWorldPartitionHelpers::ForEachActorDesc(WorldPartition, [this, &LoadedActors, &OutItems](const FWorldPartitionActorDesc* ActorDesc)
 				{
-					if (ActorDesc != nullptr && !ActorDesc->IsLoaded(true) && FActorDescTreeItem::ShouldDisplayInOutliner(ActorDesc))
+					if (ActorDesc != nullptr && !LoadedActors.Contains(ActorDesc->GetGuid()) && FActorDescTreeItem::ShouldDisplayInOutliner(ActorDesc))
 					{
 						if (const FSceneOutlinerTreeItemPtr ActorDescItem = Mode->CreateItemFor<FActorDescTreeItem>(FActorDescTreeItem(ActorDesc->GetGuid(), ActorDesc->GetContainer())))
 						{
