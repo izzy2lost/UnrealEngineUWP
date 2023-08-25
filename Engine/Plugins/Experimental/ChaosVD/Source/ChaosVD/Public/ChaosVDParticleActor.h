@@ -66,6 +66,14 @@ public:
 
 	void UpdateGeometryComponentsVisibility();
 
+	/** Changes the active state of this CVD Particle Actor */
+	void SetIsActive(bool bNewActive);
+
+	/** Returns true if this particle actor is active - Inactive Particle actors are still in the world but with outdated data
+	 * and hidden from the viewport and outliner. They represent particles that were destroyed.
+	 */
+	bool IsActive() const { return bIsActive; }
+
 protected:
 
 	void UpdateShapeDataComponents();
@@ -93,4 +101,6 @@ protected:
 	FDelegateHandle GeometryUpdatedDelegate;
 
 	TMap<FStringView, TUniquePtr<FChaosVDDataVisualizerBase>> CVDVisualizers;
+
+	bool bIsActive = false;
 };

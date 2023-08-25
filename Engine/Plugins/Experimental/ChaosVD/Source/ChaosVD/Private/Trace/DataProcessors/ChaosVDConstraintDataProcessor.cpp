@@ -24,8 +24,7 @@ bool FChaosVDConstraintDataProcessor::ProcessRawData(const TArray<uint8>& InData
 	RecordedConstraint.Serialize(MemReader);
 
 	// This can be null if the recording started Mid-Frame. In this case we just discard the data for now
-	FWriteScopeLock WriteLock(ProviderSharedPtr->GetDataLock());
-	if (FChaosVDSolverFrameData* FrameData = ProviderSharedPtr->GetLastSolverFrame_AssumesLocked(RecordedConstraint.SolverID))
+	if (FChaosVDSolverFrameData* FrameData = ProviderSharedPtr->GetCurrentSolverFrame(RecordedConstraint.SolverID))
 	{
 		if (ensureMsgf(FrameData->SolverSteps.Num() > 0, TEXT("A MidPhase was traced without a valid step scope")))
 		{

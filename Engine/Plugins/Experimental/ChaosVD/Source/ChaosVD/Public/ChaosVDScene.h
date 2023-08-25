@@ -24,6 +24,7 @@ struct FTypedElementHandle;
 typedef TMap<int32, AChaosVDParticleActor*> FChaosVDParticlesByIDMap;
 
 DECLARE_MULTICAST_DELEGATE(FChaosVDSceneUpdatedDelegate)
+DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDActorActiveStateUpdateDelegate, AChaosVDParticleActor*)
 DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDOnObjectSelectedDelegate, UObject*)
 
 /** Recreates a UWorld from a recorded Chaos VD Frame */
@@ -94,6 +95,8 @@ public:
 
 	AActor* GetSkySphereActor() const { return SkySphere; }
 
+	FChaosVDActorActiveStateUpdateDelegate& OnActorActiveStateChanged() { return ParticleActorUpdateDelegate; }
+
 	TSharedPtr<FChaosVDRecording> LoadedRecording;
 
 private:
@@ -154,4 +157,6 @@ private:
 	mutable AActor* SkySphere = nullptr;
 
 	bool bIsInitialized = false;
+
+	FChaosVDActorActiveStateUpdateDelegate ParticleActorUpdateDelegate;
 };

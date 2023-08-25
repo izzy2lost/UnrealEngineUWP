@@ -46,6 +46,12 @@ struct FChaosVDQueuedTrackInfoUpdate
 	FGuid InstigatorID;
 };
 
+struct FChaosVDGeometryDataUpdate
+{
+	Chaos::FConstImplicitObjectPtr NewGeometry;
+	uint32 GeometryID;
+};
+
 /** Flags used to control how the unload of a recording is performed */
 enum class EChaosVDUnloadRecordingFlags : uint8
 {
@@ -223,20 +229,23 @@ protected:
 	void UpdateSolverTracksData();
 
 	/** Updates the controlled scene with the loaded data at specified game frame */
-	void GoToRecordedGameFrame_AssumesLocked(int32 FrameNumber, FGuid InstigatorID);
+	void GoToRecordedGameFrame_AssumesLocked(int32 FrameNumber, FGuid InstigatorID, int32 Attempts = 0);
 
 	/** Updates the controlled scene with the loaded data at specified solver frame and solver step */
-	void GoToRecordedSolverStep_AssumesLocked(int32 InTrackID, int32 FrameNumber, int32 Step, FGuid InstigatorID);
+	void GoToRecordedSolverStep_AssumesLocked(int32 InTrackID, int32 FrameNumber, int32 Step, FGuid InstigatorID, int32 Attempts = 0);
 
 	/** Handles any data changes on the loaded recording - Usually called during Trace analysis */
 	void HandleCurrentRecordingUpdated();
 
 	/** Finds the closest Key frame to the provided frame number, and plays all the following frames until the specified frame number (no inclusive) */
-	void PlayFromClosestKeyFrame_AssumesLocked(int32 InTrackID, int32 FrameNumber, FChaosVDScene& InSceneToControl);
+	void PlayFromClosestKeyFrame_AssumesLocked(int32 InTrackID, int32 FrameNumber, FChaosVDScene& InSceneToControl) const;
 
 	/** Add the provided track info update to the queue. The update will be broadcast in the game thread */
 	void EnqueueTrackInfoUpdate(const FChaosVDTrackInfo& InTrackInfo, FGuid InstigatorID);
-	
+
+	/** Add the provided Geometry info data to the queue. The update will be broadcast in the game thread */
+	void EnqueueGeometryDataUpdate(const Chaos::FConstImplicitObjectPtr& NewGeometry, const uint32 GeometryID);
+
 	/** Map containing all track info, by track type*/
 	TMap<EChaosVDTrackType, TrackInfoByIDMap> TrackInfoPerType;
 
@@ -257,6 +266,9 @@ protected:
 
 	/** Queue with a copy of all Track Info Updates that needs to be done in the Game thread */
 	TQueue<FChaosVDQueuedTrackInfoUpdate, EQueueMode::Mpsc> TrackInfoUpdateGTQueue;
+
+	/** Queue with a all the new geometry data that needs to be processed in the Game thread */
+	TQueue<FChaosVDGeometryDataUpdate, EQueueMode::Mpsc> GeometryDataUpdateGTQueue;
 
 	bool bPlayedFirstFrame = false;
 

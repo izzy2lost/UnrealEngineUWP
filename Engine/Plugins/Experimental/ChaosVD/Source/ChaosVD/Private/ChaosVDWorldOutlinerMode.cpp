@@ -4,9 +4,14 @@
 
 #include "ActorTreeItem.h"
 #include "ChaosVDModule.h"
+#include "ChaosVDParticleActor.h"
 #include "ChaosVDScene.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
 
+static FAutoConsoleVariable CVarChaosVDQueueAndCombineSceneOutlinerEvents(
+	TEXT("p.Chaos.VD.Tool.QueueAndCombineSceneOutlinerEvents"),
+	true,
+	TEXT("If set to true, scene outliner events will be queued and sent once per frame. If there was a unprocessed event for an item, the las queued event will replace it"));
 
 FChaosVDWorldOutlinerMode::FChaosVDWorldOutlinerMode(const FActorModeParams& InModeParams, TWeakPtr<FChaosVDScene> InScene)
 	: FActorMode(InModeParams),
@@ -18,6 +23,8 @@ FChaosVDWorldOutlinerMode::FChaosVDWorldOutlinerMode(const FActorModeParams& InM
 		return;
 	}
 
+	ScenePtr->OnActorActiveStateChanged().AddRaw(this, &FChaosVDWorldOutlinerMode::HandleActorActiveStateChanged);
+
 	RegisterSelectionSetObject(ScenePtr->GetElementSelectionSet());
 
 	ActorLabelChangedDelegateHandle = FCoreDelegates::OnActorLabelChanged.AddRaw(this, &FChaosVDWorldOutlinerMode::HandleActorLabelChanged);
@@ -26,6 +33,11 @@ FChaosVDWorldOutlinerMode::FChaosVDWorldOutlinerMode(const FActorModeParams& InM
 FChaosVDWorldOutlinerMode::~FChaosVDWorldOutlinerMode()
 {
 	FCoreDelegates::OnActorLabelChanged.Remove(ActorLabelChangedDelegateHandle);
+
+	if (TSharedPtr<FChaosVDScene> ScenePtr = CVDScene.Pin())
+	{
+		ScenePtr->OnActorActiveStateChanged().RemoveAll(this);
+	}
 }
 
 void FChaosVDWorldOutlinerMode::OnItemSelectionChanged(FSceneOutlinerTreeItemPtr Item, ESelectInfo::Type SelectionType, const FSceneOutlinerItemSelection& Selection)
@@ -67,6 +79,33 @@ void FChaosVDWorldOutlinerMode::OnItemDoubleClick(FSceneOutlinerTreeItemPtr Item
 	}
 }
 
+void FChaosVDWorldOutlinerMode::ProcessPendingHierarchyEvents()
+{
+	for (const TPair<FSceneOutlinerTreeItemID, FSceneOutlinerHierarchyChangedData>& PendingEvent : PendingOutlinerEventsMap)
+	{
+		Hierarchy->OnHierarchyChanged().Broadcast(PendingEvent.Value);
+	}
+
+	PendingOutlinerEventsMap.Reset();
+}
+
+bool FChaosVDWorldOutlinerMode::Tick(float DeltaTime)
+{
+	ProcessPendingHierarchyEvents();
+	return true;
+}
+
+void FChaosVDWorldOutlinerMode::EnqueueAndCombineHierarchyEvent(const FSceneOutlinerTreeItemID& ItemID, const FSceneOutlinerHierarchyChangedData& EnventToProcess)
+{
+	if (FSceneOutlinerHierarchyChangedData* EventData = PendingOutlinerEventsMap.Find(ItemID))
+	{
+		*EventData = EnventToProcess;
+	}
+	else
+	{
+		PendingOutlinerEventsMap.Add(ItemID, EnventToProcess);
+	}	
+}
 void FChaosVDWorldOutlinerMode::HandleActorLabelChanged(AActor* ChangedActor)
 {
 	if (!ensure(ChangedActor))
@@ -80,6 +119,43 @@ void FChaosVDWorldOutlinerMode::HandleActorLabelChanged(AActor* ChangedActor)
 		if (FSceneOutlinerTreeItemPtr Item = CreateItemFor<FActorTreeItem>(ChangedActor, true))
 		{
 			SceneOutliner->OnItemLabelChanged(Item);
+		}
+	}
+}
+
+void FChaosVDWorldOutlinerMode::HandleActorActiveStateChanged(AChaosVDParticleActor* ChangedActor)
+{
+	if (!ChangedActor)
+	{
+		return;
+	}
+
+	if (Hierarchy.IsValid())
+	{
+		FSceneOutlinerHierarchyChangedData EventData;
+
+		if (ChangedActor->IsActive())
+		{
+			EventData.Type = FSceneOutlinerHierarchyChangedData::Added;
+			EventData.Items.Emplace(CreateItemFor<FActorTreeItem>(ChangedActor));
+		}
+		else
+		{
+			EventData.ItemIDs.Emplace(ChangedActor);
+			EventData.Type = FSceneOutlinerHierarchyChangedData::Removed;
+		}
+
+		// There is currently a bug in the Scene Outliner where if opposite events happen multiple times within the same tick, the last ones get dropped
+		// (UE-193877). As our current use case is fairly simple, as a workaround we can just queue the events and process them once per frame
+		// Only taking into account only the last requested event for each item.
+		// Keeping this behind a cvar enabled by default so when the Scene Outliner bug is fixed, we can test it easily.
+		if (CVarChaosVDQueueAndCombineSceneOutlinerEvents->GetBool())
+		{
+			EnqueueAndCombineHierarchyEvent(ChangedActor, EventData);
+		}
+		else
+		{
+			Hierarchy->OnHierarchyChanged().Broadcast(EventData);
 		}
 	}
 }

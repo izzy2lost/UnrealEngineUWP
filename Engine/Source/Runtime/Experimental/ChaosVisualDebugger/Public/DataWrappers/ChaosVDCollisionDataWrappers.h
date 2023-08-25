@@ -341,6 +341,8 @@ struct CHAOSVDRUNTIME_API FChaosVDShapeCollisionData
 	bool bIsValid = false;
 
 	bool Serialize(FArchive& Ar);
+
+	bool operator==(const FChaosVDShapeCollisionData& Other) const;
 };
 
 template<>

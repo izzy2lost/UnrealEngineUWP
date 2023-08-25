@@ -53,10 +53,10 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 			uint8 FrameType = EventData.GetValue<uint8>("FrameType");
 			if (static_cast<ETraceFrameType>(FrameType) == TraceFrameType_Game)
 			{
-				FChaosVDGameFrameData FrameData;
-				FrameData.FirstCycle = EventData.GetValue<uint64>("Cycle");
-				FrameData.StartTime = Context.EventTime.AsSeconds(FrameData.FirstCycle);
-				ChaosVDTraceProvider->AddGameFrame(MoveTemp(FrameData));
+				TSharedPtr<FChaosVDGameFrameData> FrameData = MakeShared<FChaosVDGameFrameData>();
+				FrameData->FirstCycle = EventData.GetValue<uint64>("Cycle");
+				FrameData->StartTime = Context.EventTime.AsSeconds(FrameData->FirstCycle);
+				ChaosVDTraceProvider->StartGameFrame(FrameData);
 			}
 
 			break;
@@ -67,11 +67,10 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 			uint8 FrameType = EventData.GetValue<uint8>("FrameType");
 			if (static_cast<ETraceFrameType>(FrameType) == TraceFrameType_Game)
 			{
-				FWriteScopeLock WriteLock(ChaosVDTraceProvider->GetDataLock());
-				if (FChaosVDGameFrameData* CurrentFrameData = ChaosVDTraceProvider->GetLastGameFrame_AssumesLocked())
+				if (TSharedPtr<FChaosVDGameFrameData> CurrentFrameData = ChaosVDTraceProvider->GetCurrentGameFrame().Pin())
 				{
 					CurrentFrameData->LastCycle = EventData.GetValue<uint64>("Cycle");
-					CurrentFrameData->EndTime = Context.EventTime.AsSeconds(CurrentFrameData->LastCycle);
+					CurrentFrameData->EndTime = Context.EventTime.AsSeconds(CurrentFrameData->LastCycle);	
 				}
 			}
 			break;
@@ -91,15 +90,14 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 
 			// Currently not all solvers have an end frame event, so lets just set the end frame time of the previous frame, with the start of this new one.
 			{
-				FWriteScopeLock WriteLock(ChaosVDTraceProvider->GetDataLock());
-				if (FChaosVDSolverFrameData* PrevFrameData  = ChaosVDTraceProvider->GetLastSolverFrame_AssumesLocked(NewFrameData.SolverID))
+				if (FChaosVDSolverFrameData* PrevFrameData = ChaosVDTraceProvider->GetCurrentSolverFrame(NewFrameData.SolverID))
 				{
 					PrevFrameData->EndTime = NewFrameData.StartTime;
 				}
 			}
 
 			// Add an empty frame. It will be filled out by the solver trace events
-			ChaosVDTraceProvider->AddSolverFrame(NewFrameData.SolverID, MoveTemp(NewFrameData));
+			ChaosVDTraceProvider->StartSolverFrame(NewFrameData.SolverID, MoveTemp(NewFrameData));
 			break;
 		}
 	case RouteId_ChaosVDSolverFrameEnd:
@@ -110,9 +108,8 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 		{
 			const int32 SolverID = EventData.GetValue<int32>("SolverID");
 
-			FWriteScopeLock WriteLock(ChaosVDTraceProvider->GetDataLock());
 			// This can be null if the recording started Mid-Frame. In this case we just discard the data for now
-			if (FChaosVDSolverFrameData* FrameData  = ChaosVDTraceProvider->GetLastSolverFrame_AssumesLocked(SolverID))
+			if (FChaosVDSolverFrameData* FrameData = ChaosVDTraceProvider->GetCurrentSolverFrame(SolverID))
 			{
 				// Add an empty step. It will be filled out by the particle (and later on other objects/elements) events
 				FChaosVDStepData& StepData = FrameData->SolverSteps.AddDefaulted_GetRef();
@@ -132,8 +129,7 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 		{
 			const int32 SolverID = EventData.GetValue<int32>("SolverID");
 
-			FWriteScopeLock WriteLock(ChaosVDTraceProvider->GetDataLock());
-			if (FChaosVDSolverFrameData* FrameData = ChaosVDTraceProvider->GetLastSolverFrame_AssumesLocked(SolverID))
+			if (FChaosVDSolverFrameData* FrameData = ChaosVDTraceProvider->GetCurrentSolverFrame(SolverID))
 			{
 				int32 ParticleDestroyedID = EventData.GetValue<int32>("ParticleID");
 
@@ -198,9 +194,8 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 			FQuat Rotation;
 			CVD_READ_TRACE_QUAT(Rotation, Rotation, float, EventData);
 
-			FWriteScopeLock WriteLock(ChaosVDTraceProvider->GetDataLock());
 			// This can be null if the recording started Mid-Frame. In this case we just discard the data for now
-			if (FChaosVDSolverFrameData* FrameData = ChaosVDTraceProvider->GetLastSolverFrame_AssumesLocked(SolverID))
+			if (FChaosVDSolverFrameData* FrameData = ChaosVDTraceProvider->GetCurrentSolverFrame(SolverID))
 			{
 				FrameData->SimulationTransform.SetLocation(Position);
 				FrameData->SimulationTransform.SetRotation(Rotation);
@@ -214,12 +209,11 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 
 			EventData.GetString("DebugName", TrackedLocation.DebugName);
 			
-			FWriteScopeLock WriteLock(ChaosVDTraceProvider->GetDataLock());
-			if (FChaosVDGameFrameData* CurrentFrameData = ChaosVDTraceProvider->GetLastGameFrame_AssumesLocked())
+			if (TSharedPtr<FChaosVDGameFrameData> CurrentFrameData = ChaosVDTraceProvider->GetCurrentGameFrame().Pin())
 			{
 				CurrentFrameData->RecordedNonSolverLocationsByID.Add(FName(TrackedLocation.DebugName), MoveTemp(TrackedLocation));
 			}
-			
+
 			break;
 		}
 	case RouteId_ChaosVDNonSolverTransform:
@@ -228,14 +222,14 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 			CVD_READ_TRACE_TRANSFORM(TrackedTransform.Transform, float, EventData);
 
 			EventData.GetString("DebugName", TrackedTransform.DebugName);
-			
-			FWriteScopeLock WriteLock(ChaosVDTraceProvider->GetDataLock());
-			if (FChaosVDGameFrameData* CurrentFrameData = ChaosVDTraceProvider->GetLastGameFrame_AssumesLocked())
+			if (TSharedPtr<FChaosVDGameFrameData> CurrentFrameData = ChaosVDTraceProvider->GetCurrentGameFrame().Pin())
 			{
 				CurrentFrameData->RecordedNonSolverTransformsByID.Add(FName(TrackedTransform.DebugName), MoveTemp(TrackedTransform));
 			}
+
 			break;
 		}
+
 	default:
 		break;
 	}

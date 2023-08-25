@@ -105,3 +105,11 @@ bool FChaosVDShapeCollisionData::Serialize(FArchive& Ar)
 
 	return true;
 }
+
+bool FChaosVDShapeCollisionData::operator==(const FChaosVDShapeCollisionData& Other) const
+{
+	return CollisionTraceType == Other.CollisionTraceType
+			&& bSimCollision == Other.bSimCollision
+			&& bQueryCollision == Other.bQueryCollision
+			&& bIsProbe == Other.bIsProbe;
+}

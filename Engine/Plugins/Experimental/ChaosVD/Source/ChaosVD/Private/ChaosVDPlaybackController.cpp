@@ -60,13 +60,7 @@ bool FChaosVDPlaybackController::LoadChaosVDRecordingFromTraceSession(const FCha
 
 	HandleCurrentRecordingUpdated();
 
-	LoadedRecording->OnGeometryDataLoaded().AddLambda([this](const Chaos::FConstImplicitObjectPtr& NewGeometry, const uint32 GeometryID)
-	{
-		if (const TSharedPtr<FChaosVDScene> ScenePtr = SceneToControl.Pin())
-		{
-			ScenePtr->HandleNewGeometryData(NewGeometry, GeometryID);
-		}
-	});
+	LoadedRecording->OnGeometryDataLoaded().AddRaw(this, &FChaosVDPlaybackController::EnqueueGeometryDataUpdate);
 	
 	if (TSharedPtr<FChaosVDScene> ScenePtr = SceneToControl.Pin())
 	{
@@ -106,31 +100,23 @@ void FChaosVDPlaybackController::UnloadCurrentRecording(EChaosVDUnloadRecordingF
 	bPlayedFirstFrame = false;
 }
 
-void FChaosVDPlaybackController::PlayFromClosestKeyFrame_AssumesLocked(const int32 InTrackID, const int32 FrameNumber, FChaosVDScene& InSceneToControl)
+void FChaosVDPlaybackController::PlayFromClosestKeyFrame_AssumesLocked(const int32 InTrackID, const int32 FrameNumber, FChaosVDScene& InSceneToControl) const
 {
 	const int32 KeyFrameNumber = LoadedRecording->FindFirstSolverKeyFrameNumberFromFrame_AssumesLocked(InTrackID, FrameNumber);
-
 	if (!ensure(KeyFrameNumber >= 0))
 	{
 		return;
 	}
 
-	for (int32 CurrentFrameNumber = KeyFrameNumber; CurrentFrameNumber < FrameNumber; CurrentFrameNumber++)
-	{
-		if (const FChaosVDSolverFrameData* SolverFrameData = LoadedRecording->GetSolverFrameData_AssumesLocked(InTrackID, CurrentFrameNumber))
-		{
-			const int32 LastStepNumber = SolverFrameData->SolverSteps.Num() - 1;
+	// Instead of playing back each delta frame since the key frame, generate a new solver frame with all the deltas collapsed in one
+	// This increases the tool performance while scrubbing or live debugging if there are few keyframes
+	const int32 LastFrameToEvaluateIndex = FrameNumber - 1;
+	FChaosVDSolverFrameData CollapsedFrameData;
+	LoadedRecording->CollapseSolverFramesRange_AssumesLocked(InTrackID, KeyFrameNumber, LastFrameToEvaluateIndex, CollapsedFrameData);
 
-			if (SolverFrameData->SolverSteps.IsValidIndex(LastStepNumber))
-			{
-				InSceneToControl.UpdateFromRecordedStepData(InTrackID, SolverFrameData->DebugName, SolverFrameData->SolverSteps[LastStepNumber], *SolverFrameData);
-			}
-		}
-		else
-		{
-			// This is common if we stop PIE, change worlds, and PIE again without stopping the recording
-			UE_LOG(LogChaosVDEditor, Verbose, TEXT("[%s] Failed to read solver frame data for frame [%d] in track [%d]"), ANSI_TO_TCHAR(__FUNCTION__), CurrentFrameNumber, InTrackID);
-		}
+	if (CollapsedFrameData.SolverSteps.Num() > 0)
+	{
+		InSceneToControl.UpdateFromRecordedStepData(InTrackID, CollapsedFrameData.DebugName, CollapsedFrameData.SolverSteps[0], CollapsedFrameData);
 	}
 }
 
@@ -148,7 +134,12 @@ void FChaosVDPlaybackController::EnqueueTrackInfoUpdate(const FChaosVDTrackInfo&
 	TrackInfoUpdateGTQueue.Enqueue(InfoUpdate);
 }
 
-void FChaosVDPlaybackController::GoToRecordedSolverStep_AssumesLocked(const int32 InTrackID, const int32 FrameNumber, const int32 Step, FGuid InstigatorID)
+void FChaosVDPlaybackController::EnqueueGeometryDataUpdate(const Chaos::FConstImplicitObjectPtr& NewGeometry, const uint32 GeometryID)
+{	
+	GeometryDataUpdateGTQueue.Enqueue({NewGeometry, GeometryID });
+}
+
+void FChaosVDPlaybackController::GoToRecordedSolverStep_AssumesLocked(const int32 InTrackID, const int32 FrameNumber, const int32 Step, FGuid InstigatorID, int32 Attempts)
 {
 	if (const TSharedPtr<FChaosVDScene> SceneToControlSharedPtr = SceneToControl.Pin())
 	{
@@ -168,16 +159,16 @@ void FChaosVDPlaybackController::GoToRecordedSolverStep_AssumesLocked(const int3
 				}
 			}
 
-			const int32 FrameDiff = FrameNumber - CurrentTrackInfo->CurrentFrame;
-			constexpr int32 FrameDriftTolerance = 1;
-			if (FMath::Abs(FrameDiff) > FrameDriftTolerance || CurrentTrackInfo->CurrentFrame == 0)
+			if (FChaosVDSolverFrameData* SolverFrameData = LoadedRecording->GetSolverFrameData_AssumesLocked(InTrackID, FrameNumber))
 			{
-				// As Frames are recorded as delta, we need to make sure of playing back all the deltas since the closest keyframe
-				PlayFromClosestKeyFrame_AssumesLocked(InTrackID, FrameNumber, *SceneToControlSharedPtr.Get());
-			}
-			
-			{
-				const FChaosVDSolverFrameData* SolverFrameData = LoadedRecording->GetSolverFrameData_AssumesLocked(InTrackID, FrameNumber);
+				const int32 FrameDiff = FrameNumber - CurrentTrackInfo->CurrentFrame;
+				constexpr int32 FrameDriftTolerance = 1;
+				if (FMath::Abs(FrameDiff) > FrameDriftTolerance || CurrentTrackInfo->CurrentFrame == 0)
+				{
+					// As Frames are recorded as delta, we need to make sure of playing back all the deltas since the closest keyframe
+					PlayFromClosestKeyFrame_AssumesLocked(InTrackID, FrameNumber, *SceneToControlSharedPtr.Get());
+				}
+
 				if (CurrentTrackInfo->LockedOnStep != INDEX_NONE)
 				{
 					// If this track is locked to a specific step, we need to play back the previous steps on the current frame, because not all steps capture the same data.
@@ -208,13 +199,12 @@ void FChaosVDPlaybackController::GoToRecordedSolverStep_AssumesLocked(const int3
 						UE_LOG(LogChaosVDEditor, Verbose, TEXT("[%s] Tried to scrub to an invalid step | Step Number [%d] ..."), ANSI_TO_TCHAR(__FUNCTION__), CurrentTrackInfo->LockedOnStep);
 					}
 				}
-			}
-			
 
-			CurrentTrackInfo->CurrentFrame = FrameNumber;
-			CurrentTrackInfo->CurrentStep = Step;
+				CurrentTrackInfo->CurrentFrame = FrameNumber;
+				CurrentTrackInfo->CurrentStep = Step;
 			
-			EnqueueTrackInfoUpdate(*CurrentTrackInfo.Get(), InstigatorID);
+				EnqueueTrackInfoUpdate(*CurrentTrackInfo.Get(), InstigatorID);
+			}
 		}
 	}
 	else
@@ -223,44 +213,37 @@ void FChaosVDPlaybackController::GoToRecordedSolverStep_AssumesLocked(const int3
 	}
 }
 
-void FChaosVDPlaybackController::GoToRecordedGameFrame_AssumesLocked(const int32 FrameNumber, FGuid InstigatorID)
+void FChaosVDPlaybackController::GoToRecordedGameFrame_AssumesLocked(const int32 FrameNumber, FGuid InstigatorID, int32 Attempts)
 {
 	if (const TSharedPtr<FChaosVDScene> SceneToControlSharedPtr = SceneToControl.Pin())
 	{
 		if (ensure(LoadedRecording.IsValid()))
 		{
-			if (const FChaosVDGameFrameData* FrameData = LoadedRecording->GetGameFrameData_AssumesLocked(FrameNumber))
+			if (TrackInfoByIDMap* TrackInfoByID = TrackInfoPerType.Find(EChaosVDTrackType::Game))
 			{
-				const bool bIsFrameFullyLoaded = FrameData->EndTime > 0;
-				if (!bIsFrameFullyLoaded)
+				if (const TSharedPtr<FChaosVDTrackInfo>& TrackInfoSharedPtr = TrackInfoByID->FindChecked(GameTrackID))
 				{
-					return;
-				}
-
-				if (TrackInfoByIDMap* TrackInfoByID = TrackInfoPerType.Find(EChaosVDTrackType::Game))
-				{
-					TArray<int32> AvailableSolversID;
-					LoadedRecording->GetAvailableSolverIDsAtGameFrameNumber_AssumesLocked(FrameNumber, AvailableSolversID);
-
-					SceneToControlSharedPtr->HandleEnterNewGameFrame(FrameNumber, AvailableSolversID);
-
-					for (int32 SolverID : AvailableSolversID)
+					if (const FChaosVDGameFrameData* FoundGameFrameData = LoadedRecording->GetGameFrameData_AssumesLocked(FrameNumber))
 					{
-						// When Scrubbing the timeline by game frames instead of solvers, try to go to the first solver frame on the first platform cycle of the game frame.
-						// Game Frames are not in sync with Solver Frames and Solver steps.
-						const int32 SolverFrameNumber = LoadedRecording->GetLowestSolverFrameNumberAtCycle_AssumesLocked(SolverID, FrameData->FirstCycle);
+						TArray<int32> AvailableSolversID;
+						LoadedRecording->GetAvailableSolverIDsAtGameFrameNumber_AssumesLocked(FrameNumber, AvailableSolversID);
+
+						SceneToControlSharedPtr->HandleEnterNewGameFrame(FrameNumber, AvailableSolversID);
+
+						for (const int32 SolverID : AvailableSolversID)
+						{
+							// When Scrubbing the timeline by game frames instead of solvers, try to go to the first solver frame on the first platform cycle of the game frame.
+							// Game Frames are not in sync with Solver Frames and Solver steps.
+							const int32 SolverFrameNumber = LoadedRecording->GetLowestSolverFrameNumberAtCycle_AssumesLocked(SolverID, FoundGameFrameData->FirstCycle);
 	
-						const int32 StepNumber = GetTrackLastStepAtFrame(EChaosVDTrackType::Solver, SolverID, SolverFrameNumber);
+							const int32 StepNumber = GetTrackLastStepAtFrame(EChaosVDTrackType::Solver, SolverID, SolverFrameNumber);
 
-						GoToTrackFrame_AssumesLocked(InstigatorID, EChaosVDTrackType::Solver, SolverID, SolverFrameNumber, StepNumber);
+							GoToTrackFrame_AssumesLocked(InstigatorID, EChaosVDTrackType::Solver, SolverID, SolverFrameNumber, StepNumber);
+						}
 					}
-
-					TSharedPtr<FChaosVDTrackInfo>* TrackInfoPtrPtr = TrackInfoByID->Find(GameTrackID);
-					if (TSharedPtr<FChaosVDTrackInfo> TrackInfoSharedPtr = TrackInfoPtrPtr? *TrackInfoPtrPtr : nullptr)
-					{
-						TrackInfoSharedPtr->CurrentFrame = FrameNumber;
-						EnqueueTrackInfoUpdate(*TrackInfoSharedPtr.Get(), InstigatorID);
-					}
+					
+					TrackInfoSharedPtr->CurrentFrame = FrameNumber;
+					EnqueueTrackInfoUpdate(*TrackInfoSharedPtr.Get(), InstigatorID);
 				}
 			}
 		}
@@ -557,7 +540,19 @@ void FChaosVDPlaybackController::GetAvailableTrackInfosAtTrackFrame(EChaosVDTrac
 }
 
 bool FChaosVDPlaybackController::Tick(float DeltaTime)
-{
+{	
+	if (!GeometryDataUpdateGTQueue.IsEmpty())
+	{
+		FChaosVDGeometryDataUpdate GeometryDataUpdate;
+		while (GeometryDataUpdateGTQueue.Dequeue(GeometryDataUpdate))
+		{
+			if (const TSharedPtr<FChaosVDScene> ScenePtr = SceneToControl.Pin())
+			{
+				ScenePtr->HandleNewGeometryData(GeometryDataUpdate.NewGeometry, GeometryDataUpdate.GeometryID);
+			}
+		}
+	}
+
 	const TWeakPtr<FChaosVDPlaybackController> ThisWeakPtr = DoesSharedInstanceExist() ? AsWeak() : nullptr;
 	if (!ThisWeakPtr.IsValid())
 	{
@@ -661,7 +656,7 @@ void FChaosVDPlaybackController::HandleCurrentRecordingUpdated()
 		GameTrackInfo = MakeShared<FChaosVDTrackInfo>();
 		GameTrackInfo->CurrentFrame = 0;
 		GameTrackInfo->CurrentStep = 0;
-	};
+	}
 
 	GameTrackInfo->MaxFrames = LoadedRecording->GetAvailableGameFrames_AssumesLocked().Num();
 	GameTrackInfo->TrackType = EChaosVDTrackType::Game;

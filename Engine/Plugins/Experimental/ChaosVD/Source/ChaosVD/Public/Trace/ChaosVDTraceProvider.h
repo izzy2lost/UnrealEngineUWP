@@ -1,15 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-#include "TraceServices/Model/AnalysisSession.h"
-#include "Templates/SharedPointer.h"
-#include "Chaos/ParticleHandleFwd.h"
-#include "Delegates/Delegate.h"
-#include "Containers/UnrealString.h"
-#include "Containers/Array.h"
 
 #include "Chaos/ChaosArchive.h"
+#include "Chaos/ParticleHandleFwd.h"
+#include "ChaosVDRecording.h"
+#include "Containers/Array.h"
+#include "Containers/Queue.h"
+#include "Containers/UnrealString.h"
 #include "DataProcessors/IChaosVDDataProcessor.h"
+#include "Delegates/Delegate.h"
+#include "Templates/SharedPointer.h"
+#include "TraceServices/Model/AnalysisSession.h"
 
 struct FChaosVDGameFrameData;
 class FChaosVDEngine;
@@ -52,12 +54,13 @@ public:
 
 	void CreateRecordingInstanceForSession(const FString& InSessionName);
 	void DeleteRecordingInstanceForSession();
-	void AddSolverFrame(const int32 InSolverGUID, FChaosVDSolverFrameData&& FrameData);
-	void AddGameFrame(FChaosVDGameFrameData&& FrameData);
-	FChaosVDSolverFrameData* GetSolverFrame_AssumesLocked(const int32 InSolverGUID, const int32 FrameNumber) const;
-	FChaosVDSolverFrameData* GetLastSolverFrame_AssumesLocked(const int32 InSolverGUID) const;
+	void StartSolverFrame(const int32 InSolverGUID, FChaosVDSolverFrameData&& FrameData);
+	void CommitProcessedGameFramesToRecording();
+	void StartGameFrame(const TSharedPtr<FChaosVDGameFrameData>& InFrameData);
+
+	FChaosVDSolverFrameData* GetCurrentSolverFrame(const int32 InSolverGUID);
 	
-	FChaosVDGameFrameData* GetLastGameFrame_AssumesLocked() const;
+	TWeakPtr<FChaosVDGameFrameData> GetCurrentGameFrame();
 
 	FChaosVDBinaryDataContainer& FindOrAddUnprocessedData(const int32 DataID);
 
@@ -67,11 +70,12 @@ public:
 
 	void RegisterDataProcessor(TSharedPtr<IChaosVDDataProcessor> InDataProcessor);
 
-	FRWLock& GetDataLock();
-
 private:
 
 	void RegisterDefaultDataProcessorsIfNeeded();
+
+	void EnqueueGameFrameForProcessing(const TSharedPtr<FChaosVDGameFrameData>& FrameData);
+	void DeQueueGameFrameForProcessing(TSharedPtr<FChaosVDGameFrameData>& OutFrameData);
 	
 	TraceServices::IAnalysisSession& Session;
 
@@ -80,6 +84,14 @@ private:
 	TMap<int32, TSharedPtr<FChaosVDBinaryDataContainer>> UnprocessedDataByID;
 
 	TMap<FStringView, TSharedPtr<IChaosVDDataProcessor>> RegisteredDataProcessors;
+
+	TMap<int32, FChaosVDSolverFrameData> CurrentSolverFramesByID;
+
+	TQueue<TSharedPtr<FChaosVDGameFrameData>> CurrentGameFrameQueue;
+
+	TWeakPtr<FChaosVDGameFrameData> CurrentGameFrame = nullptr;
+
+	int32 CurrentGameFrameQueueSize = 0;
 
 	bool bDefaultDataProcessorsRegistered = false;
 };

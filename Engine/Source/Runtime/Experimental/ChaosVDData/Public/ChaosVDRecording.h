@@ -174,7 +174,7 @@ struct CHAOSVDDATA_API FChaosVDRecording
 	 * Adds a Game Frame Data entry. Creates a solver entry if it does not exist 
 	 * @param InFrameData Reference to the frame data we want to add
 	 */
-	void AddGameFrameData(FChaosVDGameFrameData&& InFrameData);
+	void AddGameFrameData(const FChaosVDGameFrameData& InFrameData);
 
 	/** Called each time the recording changes - Mainly when a new frame is added from the Trace analysis */
 	FChaosVDRecordingUpdated& OnRecordingUpdated() { return RecordingUpdatedDelegate; };
@@ -213,6 +213,11 @@ struct CHAOSVDDATA_API FChaosVDRecording
      */
 	void GetAvailableSolverIDsAtGameFrameNumber(int32 FrameNumber, TArray<int32>& OutSolversID);
 	void GetAvailableSolverIDsAtGameFrameNumber_AssumesLocked(int32 FrameNumber, TArray<int32>& OutSolversID);
+	void GetAvailableSolverIDsAtGameFrame(const FChaosVDGameFrameData& GameFrameData, TArray<int32>& OutSolversID);
+	void GetAvailableSolverIDsAtGameFrame_AssumesLocked(const FChaosVDGameFrameData& GameFrameData, TArray<int32>& OutSolversID);
+
+	/** Collapses the most important frame data from a range of solver frames into a single solver frame data */
+	void CollapseSolverFramesRange_AssumesLocked(int32 SolverID, int32 StartFrame, int32 EndFrame, FChaosVDSolverFrameData& OutCollapsedFrameData);
 
 	/** Returns a reference to the GeometryID-ImplicitObject map of this recording */
 	const TMap<uint32, Chaos::FConstImplicitObjectPtr>& GetGeometryMap() const { return ImplicitObjects; };

@@ -192,9 +192,9 @@ void FChaosVDRecording::AddFrameForSolver(const int32 SolverID, FChaosVDSolverFr
 			SolverFrames->Add(MoveTemp(InFrameData));	
 		}
 		else
-		{	
+		{
 			FrameNumber = 0;
-			RecordedFramesDataPerSolver.Add(SolverID, { MoveTemp(InFrameData) });
+			RecordedFramesDataPerSolver.Add(SolverID, {}).Emplace(MoveTemp(InFrameData));
 		}
 	}
 
@@ -206,10 +206,10 @@ void FChaosVDRecording::AddFrameForSolver(const int32 SolverID, FChaosVDSolverFr
 	OnRecordingUpdated().Broadcast();
 }
 
-void FChaosVDRecording::AddGameFrameData(FChaosVDGameFrameData&& InFrameData)
+void FChaosVDRecording::AddGameFrameData(const FChaosVDGameFrameData& InFrameData)
 {
 	FWriteScopeLock WriteLock(RecordingDataLock);
-	GameFrames.Add(MoveTemp(InFrameData));
+	GameFrames.Add(InFrameData);
 }
 
 FChaosVDGameFrameData* FChaosVDRecording::GetGameFrameDataAtCycle_AssumesLocked(uint64 Cycle)
@@ -254,8 +254,17 @@ void FChaosVDRecording::GetAvailableSolverIDsAtGameFrameNumber_AssumesLocked(int
 		return;
 	}
 	
-	FChaosVDGameFrameData& FrameData = GameFrames[FrameNumber];
+	GetAvailableSolverIDsAtGameFrame_AssumesLocked(GameFrames[FrameNumber], OutSolversID);
+}
 
+void FChaosVDRecording::GetAvailableSolverIDsAtGameFrame(const FChaosVDGameFrameData& GameFrameData, TArray<int32>& OutSolversID)
+{
+	FReadScopeLock ReadLock(RecordingDataLock);
+	GetAvailableSolverIDsAtGameFrame_AssumesLocked(GameFrameData, OutSolversID);
+}
+
+void FChaosVDRecording::GetAvailableSolverIDsAtGameFrame_AssumesLocked(const FChaosVDGameFrameData& GameFrameData, TArray<int32>& OutSolversID)
+{
 	OutSolversID.Reserve(RecordedFramesDataPerSolver.Num());
 
 	for (const TPair<int32, TArray<FChaosVDSolverFrameData>>& SolverFramesWithIDPair : RecordedFramesDataPerSolver)
@@ -265,17 +274,69 @@ void FChaosVDRecording::GetAvailableSolverIDsAtGameFrameNumber_AssumesLocked(int
 			continue;
 		}
 
-		if (SolverFramesWithIDPair.Value.Num() == 1 && SolverFramesWithIDPair.Value[0].FrameCycle < FrameData.FirstCycle)
+		if (SolverFramesWithIDPair.Value.Num() == 1 && SolverFramesWithIDPair.Value[0].FrameCycle < GameFrameData.FirstCycle)
 		{
 			OutSolversID.Add(SolverFramesWithIDPair.Key);
 		}
 		else
 		{
-			if (FrameData.FirstCycle > SolverFramesWithIDPair.Value[0].FrameCycle && FrameData.FirstCycle < SolverFramesWithIDPair.Value.Last().FrameCycle)
+			if (GameFrameData.FirstCycle > SolverFramesWithIDPair.Value[0].FrameCycle && GameFrameData.FirstCycle < SolverFramesWithIDPair.Value.Last().FrameCycle)
 			{
 				OutSolversID.Add(SolverFramesWithIDPair.Key);
 			}
 		}	
+	}
+}
+
+void FChaosVDRecording::CollapseSolverFramesRange_AssumesLocked(int32 SolverID, int32 StartFrame, int32 EndFrame, FChaosVDSolverFrameData& OutCollapsedFrameData)
+{
+	TMap<int32, FChaosVDParticleDataWrapper> TempParticleDataByID;
+	
+	for (int32 CurrentFrameNumber = StartFrame; CurrentFrameNumber <= EndFrame; CurrentFrameNumber++)
+	{
+		if (const FChaosVDSolverFrameData* SolverFrameData = GetSolverFrameData_AssumesLocked(SolverID, CurrentFrameNumber))
+		{
+			OutCollapsedFrameData.ParticlesDestroyedIDs.Append(SolverFrameData->ParticlesDestroyedIDs);
+
+			// Only evaluate the last step as it contains all the particles that changed
+			const int32 LastStepNumber = SolverFrameData->SolverSteps.Num() - 1;
+			if (SolverFrameData->SolverSteps.IsValidIndex(LastStepNumber))
+			{
+				for (const FChaosVDStepData& StepData : SolverFrameData->SolverSteps)
+				{
+					for (const FChaosVDParticleDataWrapper& ParticleData : StepData.RecordedParticlesData)
+					{
+						if (FChaosVDParticleDataWrapper* FoundParticleData = TempParticleDataByID.Find(ParticleData.ParticleIndex))
+						{
+							(*FoundParticleData) = ParticleData;
+						}
+						else
+						{
+							TempParticleDataByID.Add(ParticleData.ParticleIndex, ParticleData);
+						}
+					}
+				}
+			}
+
+			// If this is the end frame, Copy all the "metadata" for the generated frame, and generate the Solver step
+			if (CurrentFrameNumber == EndFrame)
+			{
+				OutCollapsedFrameData.EndTime = SolverFrameData->EndTime;
+				OutCollapsedFrameData.StartTime = SolverFrameData->StartTime;
+				OutCollapsedFrameData.FrameCycle = SolverFrameData->FrameCycle;
+				OutCollapsedFrameData.bIsKeyFrame = true;
+				OutCollapsedFrameData.SolverID = SolverFrameData->SolverID;
+				OutCollapsedFrameData.SimulationTransform = SolverFrameData->SimulationTransform;
+				OutCollapsedFrameData.DebugName = SolverFrameData->DebugName;
+
+				FChaosVDStepData CollapsedStepData;
+				CollapsedStepData.StepName = TEXT("GeneratedStep");
+
+				TempParticleDataByID.GenerateValueArray(CollapsedStepData.RecordedParticlesData);
+				
+				OutCollapsedFrameData.SolverSteps.Add(MoveTemp(CollapsedStepData));
+			}
+		}
 	}
 }
 

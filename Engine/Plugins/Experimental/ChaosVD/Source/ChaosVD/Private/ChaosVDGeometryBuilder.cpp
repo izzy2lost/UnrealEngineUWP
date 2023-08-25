@@ -13,7 +13,7 @@
 
 static FAutoConsoleVariable CVarChaosVDGeometryToProcessPerTick(
 	TEXT("p.Chaos.VD.Tool.GeometryToProcessPerTick"),
-	50,
+	200,
 	TEXT("Number of generated geometry to process each tick when loading a teace file in the CVD tool"));
 
 void FChaosVDGeometryBuilder::AddReferencedObjects(FReferenceCollector& Collector)
@@ -65,10 +65,21 @@ bool FChaosVDGeometryBuilder::HasNegativeScale(const Chaos::FRigidTransform3& In
 	return ScaleSignVector.X * ScaleSignVector.Y * ScaleSignVector.Z < 0;
 }
 
+bool FChaosVDGeometryBuilder::HasGeometryInCache(uint32 GeometryKey)
+{
+	FReadScopeLock ReadLock(GeometryCacheRWLock);
+	return HasGeometryInCache_AssumesLocked(GeometryKey);
+}
+
+bool FChaosVDGeometryBuilder::HasGeometryInCache_AssumesLocked(uint32 GeometryKey) const
+{
+	return StaticMeshCacheMap.Contains(GeometryKey) || DynamicMeshCacheMap.Contains(GeometryKey);
+}
+
 UDynamicMesh* FChaosVDGeometryBuilder::CreateAndCacheDynamicMesh(const uint32 GeometryCacheKey, UE::Geometry::FMeshShapeGenerator& MeshGenerator)
 {
 	{
-		FReadScopeLock ReadLock(RWLock);
+		FReadScopeLock ReadLock(GeometryCacheRWLock);
 		if (TObjectPtr<UDynamicMesh>* DynamicMeshPtrPtr = DynamicMeshCacheMap.Find(GeometryCacheKey))
 		{
 			return *DynamicMeshPtrPtr;
@@ -81,7 +92,7 @@ UDynamicMesh* FChaosVDGeometryBuilder::CreateAndCacheDynamicMesh(const uint32 Ge
 	Mesh->SetMesh(&MeshGenerator.Generate());
 
 	{
-		FWriteScopeLock WriteLock(RWLock);
+		FWriteScopeLock WriteLock(GeometryCacheRWLock);
 		DynamicMeshCacheMap.Add(GeometryCacheKey, Mesh);
 	}
 
@@ -91,7 +102,7 @@ UDynamicMesh* FChaosVDGeometryBuilder::CreateAndCacheDynamicMesh(const uint32 Ge
 UStaticMesh* FChaosVDGeometryBuilder::CreateAndCacheStaticMesh(const uint32 GeometryCacheKey, UE::Geometry::FMeshShapeGenerator& MeshGenerator, const int32 LODsToGenerateNum)
 {
 	{
-		FReadScopeLock ReadLock(RWLock);
+		FReadScopeLock ReadLock(GeometryCacheRWLock);
 		if (TObjectPtr<UStaticMesh>* StaticMeshPtrPtr = StaticMeshCacheMap.Find(GeometryCacheKey))
 		{
 			return *StaticMeshPtrPtr;
@@ -156,7 +167,7 @@ UStaticMesh* FChaosVDGeometryBuilder::CreateAndCacheStaticMesh(const uint32 Geom
 	}
 
 	{
-		FWriteScopeLock WriteLock(RWLock);
+		FWriteScopeLock WriteLock(GeometryCacheRWLock);
 		StaticMeshCacheMap.Add(GeometryCacheKey, MainStaticMesh);
 	}
 
@@ -202,46 +213,49 @@ void FChaosVDGeometryBuilder::ApplyMeshToComponentFromKey(TWeakObjectPtr<UMeshCo
 
 bool FChaosVDGeometryBuilder::GameThreadTick(float DeltaTime)
 {
-	if (bHasPendingJobs)
-	{
-		FReadScopeLock ReadLock(RWLock);
-		int32 PendingJobs = MeshComponentsWaitingForGeometryByKey.Num();
-		GeometryGenerationNotification.Update(PendingJobs);
-		
-		if (PendingJobs == 0)
-		{
-			bHasPendingJobs = false;
-		}
-	}
-	
-	int32 CurrentGeometryProcessed = 0;
-	while (!GeometryReadyToApplyQueue.IsEmpty() && CurrentGeometryProcessed < CVarChaosVDGeometryToProcessPerTick->GetInt())
-	{
-		uint32 GeometryKey = 0;
-		GeometryReadyToApplyQueue.Dequeue(GeometryKey);
+	GeometryGenerationNotification.Update(MeshComponentsWaitingGeometryNum);
 
-		CurrentGeometryProcessed++;
-		
-		TArray<TWeakObjectPtr<UMeshComponent>>* MeshComponentsWaiting = nullptr;
-		{
-			FReadScopeLock ReadLock(RWLock);
-			MeshComponentsWaiting = MeshComponentsWaitingForGeometryByKey.Find(GeometryKey);
-		}
+	{
+		int32 CurrentGeometryProcessedNum = 0;
+		bool bCanContinueProcessing = true;
 
-		if (MeshComponentsWaiting)
+		FWriteScopeLock WaitListWriteLock(GeometryWaitListRWLock);
+		for (FChaosVDWaitListMeshMap::TIterator MeshWaitListRemoveIterator = MeshComponentsWaitingForGeometryByKey.CreateIterator(); MeshWaitListRemoveIterator; ++MeshWaitListRemoveIterator)
 		{
-			for (const TWeakObjectPtr<UMeshComponent>& MeshComponent : *MeshComponentsWaiting)
+			const uint32 GeometryKey = MeshWaitListRemoveIterator.Key();
+
 			{
-				ApplyMeshToComponentFromKey(MeshComponent, GeometryKey);
+				FReadScopeLock CacheReadLocLock(GeometryCacheRWLock);
+				if (HasGeometryInCache_AssumesLocked(GeometryKey))
+				{
+					for (TArray<TWeakObjectPtr<UMeshComponent>>::TIterator MeshRemoveIterator = MeshWaitListRemoveIterator.Value().CreateIterator(); MeshRemoveIterator; ++MeshRemoveIterator)
+					{
+						CurrentGeometryProcessedNum++;
+						MeshComponentsWaitingGeometryNum -=1;
+						bCanContinueProcessing = CurrentGeometryProcessedNum < CVarChaosVDGeometryToProcessPerTick->GetInt();
+						ApplyMeshToComponentFromKey(*MeshRemoveIterator, GeometryKey);
+						MeshRemoveIterator.RemoveCurrent();
+					}
+				
+					if (!bCanContinueProcessing)
+					{
+						break;
+					}	
+				}
+			}
+
+			if (MeshWaitListRemoveIterator.Value().IsEmpty())
+			{
+				MeshWaitListRemoveIterator.RemoveCurrent();
+			}
+
+			if (!bCanContinueProcessing)
+			{
+				break;
 			}
 		}
-		
-		{
-			FWriteScopeLock WriteLock(RWLock);
-			MeshComponentsWaitingForGeometryByKey.Remove(GeometryKey);
-		}
 	}
-	
+
 	return true;
 }
 
@@ -259,7 +273,7 @@ void FChaosVDGeometryBuilder::RegisterMeshComponentWaitingForGeometry(uint32 Geo
 	}
 
 	{
-		FWriteScopeLock WriteLock(RWLock);
+		FWriteScopeLock WriteLock(GeometryWaitListRWLock);
 	
 		if (TArray<TWeakObjectPtr<UMeshComponent>>* MeshComponentsWaiting = MeshComponentsWaitingForGeometryByKey.Find(GeometryKey))
 		{
@@ -268,7 +282,8 @@ void FChaosVDGeometryBuilder::RegisterMeshComponentWaitingForGeometry(uint32 Geo
 		else
 		{
 			MeshComponentsWaitingForGeometryByKey.Add(GeometryKey, {MesComponent});
-			bHasPendingJobs = true;
 		}
+
+		MeshComponentsWaitingGeometryNum += 1;
 	}
 }

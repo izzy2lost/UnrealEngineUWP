@@ -4,6 +4,7 @@
 
 #include "ChaosVDEditorSettings.h"
 #include "ChaosVDGeometryBuilder.h"
+#include "ChaosVDModule.h"
 #include "ChaosVDParticleActor.h"
 #include "Chaos/ImplicitObject.h"
 #include "ChaosVDRecording.h"
@@ -133,6 +134,12 @@ void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FStri
 			{
 				if (AChaosVDParticleActor* ExistingParticleVDInstancePtr = *ExistingParticleVDInstancePtrPtr)
 				{
+					// We have new data for this particle, so re-activate the existing actor
+					if (!ExistingParticleVDInstancePtr->IsActive())
+					{
+						ExistingParticleVDInstancePtr->SetIsActive(true);
+					}
+
 					ExistingParticleVDInstancePtr->UpdateFromRecordedParticleData(Particle, InFrameData.SimulationTransform);
 				}
 				else
@@ -166,27 +173,28 @@ void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FStri
 
 	UpdateParticlesCollisionData(InRecordedStepData, SolverID);
 
-	int32 AmountRemoved = 0;
-	for (FChaosVDParticlesByIDMap::TIterator RemoveIterator = SolverParticlesByID.CreateIterator(); RemoveIterator; ++RemoveIterator)
+	for (const TPair<int32, AChaosVDParticleActor*>& ParticleActorWithID : SolverParticlesByID)
 	{
 		// If we are playing back a keyframe, the scene should only contain what it is in the recorded data
-		const bool bShouldDestroyParticleAnyway = InFrameData.bIsKeyFrame && !ParticlesIDsInRecordedStepData.Contains(RemoveIterator.Key());
+		const bool bShouldDestroyParticleAnyway = InFrameData.bIsKeyFrame && !ParticlesIDsInRecordedStepData.Contains(ParticleActorWithID.Key);
 		
-		if (bShouldDestroyParticleAnyway || InFrameData.ParticlesDestroyedIDs.Contains(RemoveIterator.Key()))
+		if (bShouldDestroyParticleAnyway || InFrameData.ParticlesDestroyedIDs.Contains(ParticleActorWithID.Key))
 		{
-			if (AChaosVDParticleActor* ActorToRemove = RemoveIterator.Value())
+			// In large maps moving at high speed (like when moving on a vehicle), level streaming adds/removes hundreds of actors (and therefore particles) constantly.
+			// Destroying particle actors is expensive, specially if we need to spawn them again sooner as we will nee to rebuild-them.
+			// So, we deactivate them instead.
+
+			// TODO: We need an actor pool system, so we can keep memory under control as well.
+			if (AChaosVDParticleActor* ActorToDeactivate = ParticleActorWithID.Value)
 			{
-				if (IsObjectSelected(ActorToRemove))
+				if (IsObjectSelected(ActorToDeactivate))
 				{
 					ClearSelectionAndNotify();
 				}
 
-				PhysicsVDWorld->DestroyActor(ActorToRemove);
+				ActorToDeactivate->SetIsActive(false);
 			}
 
-			RemoveIterator.RemoveCurrent();
-
-			AmountRemoved++;
 		}
 	}
 	
@@ -269,6 +277,8 @@ void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int3
 	{
 		if (!AvailableSolversSet.Contains(RemoveIterator.Key()))
 		{
+			UE_LOG(LogChaosVDEditor, Log, TEXT("[%s] Removing Solver [%d] as it is no longer present in the recording"), ANSI_TO_TCHAR(__FUNCTION__), RemoveIterator.Key());
+	
 			for (const TPair<int32, AChaosVDParticleActor*>& ParticleVDInstanceWithID : RemoveIterator.Value())
 			{
 				if (IsObjectSelected(ParticleVDInstanceWithID.Value))
@@ -338,6 +348,7 @@ AChaosVDParticleActor* FChaosVDScene::SpawnParticleFromRecordedData(const FChaos
 
 	if (AChaosVDParticleActor* NewActor = PhysicsVDWorld->SpawnActor<AChaosVDParticleActor>(Params))
 	{
+		NewActor->SetIsActive(true);
 		NewActor->UpdateFromRecordedParticleData(InParticleData, InFrameData.SimulationTransform);
 
 		if (!InParticleData.DebugName.IsEmpty())

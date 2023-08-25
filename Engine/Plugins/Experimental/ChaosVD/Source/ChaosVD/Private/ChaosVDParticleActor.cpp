@@ -3,6 +3,7 @@
 #include "ChaosVDParticleActor.h"
 
 #include "ChaosVDGeometryBuilder.h"
+#include "ChaosVDModule.h"
 #include "ChaosVDScene.h"
 #include "Components/ChaosVDInstancedStaticMeshComponent.h"
 #include "Components/ChaosVDStaticMeshComponent.h"
@@ -28,8 +29,17 @@ void AChaosVDParticleActor::UpdateFromRecordedParticleData(const FChaosVDParticl
 
 	if (InRecordedData.ParticlePositionRotation.HasValidData())
 	{
-		// TODO: Only update if the transform (either the simulation or the particle) has changed;
-		SetActorLocationAndRotation(SimulationTransform.TransformPosition(InRecordedData.ParticlePositionRotation.MX), SimulationTransform.GetRotation() * InRecordedData.ParticlePositionRotation.MR, false);
+		const FVector TargetLocation = SimulationTransform.TransformPosition(InRecordedData.ParticlePositionRotation.MX);
+		if (GetActorLocation() != TargetLocation)
+		{
+			SetActorLocation(InRecordedData.ParticlePositionRotation.MX);
+		}
+
+		const FQuat TargetRotation = SimulationTransform.GetRotation() * InRecordedData.ParticlePositionRotation.MR;
+		if (GetActorRotation() != TargetRotation.Rotator())
+		{
+			SetActorRotation(TargetRotation);
+		}
 	}
 
 	if (ParticleDataViewer.GeometryHash != InRecordedData.GeometryHash)
@@ -37,12 +47,19 @@ void AChaosVDParticleActor::UpdateFromRecordedParticleData(const FChaosVDParticl
 		UpdateGeometry(InRecordedData.GeometryHash, EChaosVDActorGeometryUpdateFlags::ForceUpdate);
 	}
 
+	// This is iterating and comparing each element of the array,
+	// We might need to find a faster way of determine if the data changed, but for now this is faster than assuming it changed
+	const bool bShapeDataIsDirty = ParticleDataViewer.CollisionDataPerShape != InRecordedData.CollisionDataPerShape;
+
 	// TODO: We should store a ptr to the data and in our custom details panel draw it
 	ParticleDataViewer = InRecordedData;
 
 	// Now that we have updated particle data, update the Shape data and visibility as needed
-	UpdateShapeDataComponents();
-	UpdateGeometryComponentsVisibility();
+	if (bShapeDataIsDirty)
+	{
+		UpdateShapeDataComponents();
+		UpdateGeometryComponentsVisibility();
+	}
 }
 
 void AChaosVDParticleActor::UpdateCollisionData(const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>& InRecordedMidPhases)
@@ -260,6 +277,27 @@ void AChaosVDParticleActor::UpdateGeometryComponentsVisibility()
 					GeometryDataComponent.UpdateVisibility();
 				});
 			}
+		}
+	}
+}
+
+void AChaosVDParticleActor::SetIsActive(bool bNewActive)
+{
+	if (bIsActive != bNewActive)
+	{
+#if WITH_EDITOR
+		//TODO: We need to add support for this to our Scene Outliner
+		// This will hide the actor and disable it in the outliner but it will still be listed
+		// We need to add a way to unlist inactive particle actors without a full hierarchy rebuild, which would be too costly
+		bEditable = bNewActive;
+		bListedInSceneOutliner = bNewActive;
+		SetIsTemporarilyHiddenInEditor(!bNewActive);
+#endif
+		bIsActive = bNewActive;
+
+		if (const TSharedPtr<FChaosVDScene> ScenePtr = OwningScene.Pin())
+		{
+			ScenePtr->OnActorActiveStateChanged().Broadcast(this);
 		}
 	}
 }
