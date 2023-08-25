@@ -73,7 +73,7 @@ static_assert(sizeof(sockaddr_in::sin_addr) == sizeof(uint32));
 	static_assert(EWOULDBLOCK == EAGAIN);
 #endif
 
-enum : SocketType { InvalidSocket = -1 };
+static const SocketType InvalidSocket = ~SocketType(0);
 
 // }}}
 
