@@ -316,7 +316,7 @@ FProcHandle FMacPlatformProcess::CreateProcInternal(const TCHAR* URL, const TCHA
 		if (![[NSFileManager defaultManager] fileExistsAtPath: nsProcessPath])
 		{
 			NSString* AppName = [[nsProcessPath lastPathComponent] stringByDeletingPathExtension];
-			nsProcessPath = [[NSWorkspace sharedWorkspace] fullPathForApplication:AppName];
+			nsProcessPath = [[[NSWorkspace sharedWorkspace] URLForApplicationWithBundleIdentifier:AppName] path];
 		}
 		
 		if ([[NSFileManager defaultManager] fileExistsAtPath: nsProcessPath])
@@ -1210,7 +1210,7 @@ bool FMacPlatformProcess::LaunchFileInDefaultExternalApplication( const TCHAR* F
 		// Xcode project is a special case where we don't open the project file itself, but the .xcodeproj folder containing it
 		FileToOpen = [FileToOpen stringByDeletingLastPathComponent];
 	}
-	bool Result = [[NSWorkspace sharedWorkspace] openFile: FileToOpen];
+	bool Result = [[NSWorkspace sharedWorkspace] openURL: [NSURL fileURLWithPath:FileToOpen]];
 	CFRelease( CFFileName );
 
 	return Result;

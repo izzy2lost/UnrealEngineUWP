@@ -183,8 +183,13 @@ bool FXCodeSourceCodeAccessor::OpenFileAtLine(const FString& FullPath, int32 Lin
 			FString XcodePath = FPlatformMisc::GetXcodePath();
 			XcodePath.RemoveFromEnd(TEXT("/Contents/Developer"));
 			
-			NSString* ProjectPath = [ProjPath.GetNSString() stringByDeletingLastPathComponent];
-			[[NSWorkspace sharedWorkspace] openFile:ProjectPath withApplication:XcodePath.GetNSString() andDeactivate:YES];
+			NSURL* ProjectPath = [NSURL fileURLWithPath:[ProjPath.GetNSString() stringByDeletingLastPathComponent]];
+			[[NSWorkspace sharedWorkspace]
+				openURLs:[NSArray arrayWithObject: ProjectPath]
+				withApplicationAtURL:[NSURL URLWithString:XcodePath.GetNSString()]
+				configuration: [NSWorkspaceOpenConfiguration configuration]
+				completionHandler:nil
+			];
 			
 			NSAppleScript* AppleScript = nil;
 			

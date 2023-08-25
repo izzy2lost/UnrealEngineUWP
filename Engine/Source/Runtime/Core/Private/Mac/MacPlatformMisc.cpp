@@ -249,7 +249,6 @@ struct FMacApplicationInfo
 		MacPlatformGetOSVersion(OSBuild);
 
 		OSXVersion = FMacPlatformMisc::GetNSOperatingSystemVersion();
-		RunningOnMavericks = OSXVersion.majorVersion == 10 && OSXVersion.minorVersion == 9;
 
 		XcodeVersion.majorVersion = XcodeVersion.minorVersion = XcodeVersion.patchVersion = 0;
 
@@ -487,7 +486,6 @@ struct FMacApplicationInfo
 	bool bIsUnattended;
 	bool bIsSandboxed;
 	bool RunningOnBattery;
-	bool RunningOnMavericks;
 	int32 PowerSourceNotification;
 	int32 NumCores;
 	int64 SystemLogSize;
@@ -1768,11 +1766,6 @@ FText FMacPlatformMisc::GetFileManagerName()
 bool FMacPlatformMisc::IsRunningOnBattery()
 {
 	return GMacAppInfo.RunningOnBattery;
-}
-
-bool FMacPlatformMisc::IsRunningOnMavericks()
-{
-	return GMacAppInfo.RunningOnMavericks;
 }
 
 int32 FMacPlatformMisc::MacOSXVersionCompare(uint8 Major, uint8 Minor, uint8 Revision)

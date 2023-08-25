@@ -17,12 +17,12 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Which version of the Mac OS X to allow at run time
 		/// </summary>
-		public string MacOSVersion = "10.15";
+		public string MacOSVersion = "11.00";
 
 		/// <summary>
 		/// Minimum version of Mac OS X to actually run on, running on earlier versions will display the system minimum version error dialog and exit.
 		/// </summary>
-		public string MinMacOSVersion = "10.15.7";
+		public string MinMacOSVersion = "11.7.9";
 
 		/// <summary>
 		/// Constructor

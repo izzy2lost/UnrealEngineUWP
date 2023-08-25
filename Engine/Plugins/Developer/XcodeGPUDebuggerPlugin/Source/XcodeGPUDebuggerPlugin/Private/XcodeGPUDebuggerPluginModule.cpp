@@ -109,8 +109,17 @@ public:
 		{
 			TGraphTask<FXcodeGPUDebuggerAsyncGraphTask>::CreateTask().ConstructAndDispatchWhenReady(ENamedThreads::GameThread, [DestPath]()
 			{
-				NSString* GPUTracePath = [NSString stringWithFString:DestPath];
-				[[NSWorkspace sharedWorkspace] openFile:GPUTracePath withApplication:@"Xcode"];
+				FString XcodePath = FPlatformMisc::GetXcodePath();
+				XcodePath.RemoveFromEnd(TEXT("/Contents/Developer"));
+
+				NSURL* GPUTracePath = [NSURL fileURLWithPath:[NSString stringWithFString:DestPath]];
+
+				[[NSWorkspace sharedWorkspace]
+					openURLs:[NSArray arrayWithObject: GPUTracePath]
+					withApplicationAtURL:[NSURL URLWithString:XcodePath.GetNSString()]
+					configuration: [NSWorkspaceOpenConfiguration configuration]
+					completionHandler:nil
+				];
 			});
 		}
 #endif
@@ -307,8 +316,17 @@ void FXcodeGPUDebuggerPluginModule::StartXcode(FString LaunchPath)
 		return;
 	}
 
-	NSString* GPUTracePath = [NSString stringWithFString:LaunchPath];
-	[[NSWorkspace sharedWorkspace] openFile:GPUTracePath withApplication:@"Xcode"];
+	FString XcodePath = FPlatformMisc::GetXcodePath();
+	XcodePath.RemoveFromEnd(TEXT("/Contents/Developer"));
+
+	NSURL* GPUTracePath = [NSURL fileURLWithPath:[NSString stringWithFString:LaunchPath]];
+
+	[[NSWorkspace sharedWorkspace]
+		openURLs:[NSArray arrayWithObject: GPUTracePath]
+		withApplicationAtURL:[NSURL URLWithString:XcodePath.GetNSString()]
+		configuration: [NSWorkspaceOpenConfiguration configuration]
+		completionHandler:nil
+	];
 }
 
 void FXcodeGPUDebuggerPluginModule::ShutdownModule()
