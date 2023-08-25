@@ -32,7 +32,9 @@ void FRDGBufferPool::DumpMemoryUsage(FOutputDevice& OutputDevice)
 {
 	OutputDevice.Logf(TEXT("Pooled Buffers:"));
 
+	Mutex.Lock();
 	TArray<TRefCountPtr<FRDGPooledBuffer>> BuffersBySize = AllocatedBuffers;
+	Mutex.Unlock();
 
 	Algo::Sort(BuffersBySize, [](const TRefCountPtr<FRDGPooledBuffer>& LHS, const TRefCountPtr<FRDGPooledBuffer>& RHS)
 	{
@@ -55,10 +57,8 @@ void FRDGBufferPool::DumpMemoryUsage(FOutputDevice& OutputDevice)
 	}
 }
 
-TRefCountPtr<FRDGPooledBuffer> FRDGBufferPool::FindFreeBuffer(const FRDGBufferDesc& Desc, const TCHAR* InDebugName, ERDGPooledBufferAlignment Alignment)
+TRefCountPtr<FRDGPooledBuffer> FRDGBufferPool::FindFreeBuffer(FRHICommandListBase& RHICmdList, const FRDGBufferDesc& Desc, const TCHAR* InDebugName, ERDGPooledBufferAlignment Alignment)
 {
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
-
 	const uint64 BufferPageSize = 64 * 1024;
 
 	FRDGBufferDesc AlignedDesc = Desc;
@@ -80,7 +80,9 @@ TRefCountPtr<FRDGPooledBuffer> FRDGBufferPool::FindFreeBuffer(const FRDGBufferDe
 	}
 
 	const uint32 BufferHash = GetTypeHash(AlignedDesc);
-	
+
+	UE::TScopeLock Lock(Mutex);
+
 	// First find if available.
 	for (int32 Index = 0; Index < AllocatedBufferHashes.Num(); ++Index)
 	{
@@ -159,6 +161,8 @@ void FRDGBufferPool::TickPoolElements()
 	int32 BufferIndex = 0;
 	int32 NumReleasedBuffers = 0;
 	int64 NumReleasedBufferBytes = 0;
+
+	UE::TScopeLock Lock(Mutex);
 
 	while (BufferIndex < AllocatedBuffers.Num())
 	{

@@ -1765,6 +1765,10 @@ void FRDGBuilder::Execute()
 			CSV_SCOPED_TIMING_STAT_EXCLUSIVE(RDG_CollectResources);
 			SCOPED_NAMED_EVENT_TEXT("FRDGBuilder::CollectResources", FColor::Magenta);
 
+			// Take locks on the buffer / texture pools as nothing else should be allocating from them right now and granular locking is expensive.
+			UE::TScopeLock RenderTargetPoolLock(GRenderTargetPool.Mutex);
+			UE::TScopeLock BufferPoolLock(GRenderGraphResourcePool.Mutex);
+
 			UniformBuffersToCreate.Reserve(UniformBuffers.Num());
 
 			EnumerateExtendedLifetimeResources(Textures, [](FRDGTexture* Texture)
@@ -3606,7 +3610,7 @@ void FRDGBuilder::BeginResourceRHI(FRDGPassHandle PassHandle, FRDGTextureRef Tex
 
 	if (!Texture->ResourceRHI)
 	{
-		SetRHI(Texture, GRenderTargetPool.FindFreeElement(Texture->Desc, Texture->Name), PassHandle);
+		SetRHI(Texture, GRenderTargetPool.FindFreeElement(RHICmdList, Texture->Desc, Texture->Name), PassHandle);
 	}
 }
 
@@ -3692,7 +3696,7 @@ void FRDGBuilder::BeginResourceRHI(FRDGPassHandle PassHandle, FRDGBufferRef Buff
 	{
 		const ERDGPooledBufferAlignment Alignment = Buffer->bQueuedForUpload ? ERDGPooledBufferAlignment::PowerOfTwo : ERDGPooledBufferAlignment::Page;
 
-		SetRHI(Buffer, GRenderGraphResourcePool.FindFreeBuffer(Buffer->Desc, Buffer->Name, Alignment), PassHandle);
+		SetRHI(Buffer, GRenderGraphResourcePool.FindFreeBuffer(RHICmdList, Buffer->Desc, Buffer->Name, Alignment), PassHandle);
 	}
 
 #if RHI_ENABLE_RESOURCE_INFO
