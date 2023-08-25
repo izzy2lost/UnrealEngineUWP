@@ -53,8 +53,8 @@ namespace mu
     {
 	    TArray<TCHAR> Data;
     	arch >> Data;
-    	
-    	t = FString(Data);
+
+    	t = FString(Data.GetData()); // Construct from raw pointer to avoid double zero terminating character
     }
 
     //---------------------------------------------------------------------------------------------

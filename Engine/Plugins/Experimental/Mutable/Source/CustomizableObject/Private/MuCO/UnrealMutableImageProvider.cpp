@@ -469,7 +469,7 @@ void FUnrealMutableImageProvider::CacheImage(FName Id, bool bUser)
 {
 	check( IsInGameThread() );
 
-	if (Id == FName())
+	if (Id == NAME_None)
 	{
 		return;	
 	}	
@@ -564,7 +564,7 @@ void FUnrealMutableImageProvider::UnCacheImage(FName Id, bool bUser)
 	// TODO: Review GM
 	//check(IsInGameThread());
 
-	if (Id == FName())
+	if (Id == NAME_None)
 	{
 		return;	
 	}
