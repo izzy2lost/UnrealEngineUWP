@@ -773,7 +773,6 @@ namespace UE::MLDeformer
 					ActiveModel->ClampCurrentTrainingFrameIndex();
 					const int32 CurrentFrameNumber = ActiveModel->GetModel()->GetVizSettings()->GetTrainingFrameNumber();
 					ActiveModel->SetTrainingFrame(CurrentFrameNumber);
-					ActiveModel->GetSampler()->SetVertexDeltaSpace(EVertexDeltaSpace::PostSkinning);
 					ActiveModel->SampleDeltas();
 				}
 				else if (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TestData)

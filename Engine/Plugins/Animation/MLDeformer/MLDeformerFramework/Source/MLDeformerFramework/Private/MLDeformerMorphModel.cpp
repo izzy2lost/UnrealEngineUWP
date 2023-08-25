@@ -127,7 +127,7 @@ void UMLDeformerMorphModel::UpdateStatistics()
 {
 	NumMorphTargets = MorphTargetSet.IsValid() ? MorphTargetSet->MorphBuffers.GetNumMorphs() : 0;
 	CompressedMorphDataSizeInBytes = MorphTargetSet.IsValid() ? MorphTargetSet->MorphBuffers.GetMorphDataSizeInBytes() : 0;
-	UncompressedMorphDataSizeInBytes = GetMorphTargetDeltas().Num() * sizeof(FVector3f);
+	UncompressedMorphDataSizeInBytes = GetMorphTargetDeltas().Num() * GetMorphTargetDeltas().GetTypeSize();
 }
 
 void UMLDeformerMorphModel::SetMorphTargetsMaxWeights(const TArray<float>& MaxWeights)
@@ -187,22 +187,19 @@ void UMLDeformerMorphModel::UpdateMemoryUsage()
 {
 	Super::UpdateMemoryUsage();
 
-	// We strip the deltas when cooking.
-	CookedMemUsageInBytes -= MorphTargetDeltas.GetAllocatedSize();
-
-	// Strip the input item mask buffer from the cooked size.
-	if (GetInputInfo() && GetInputInfo()->IsA<UMLDeformerMorphModelInputInfo>())
-	{
-		const UMLDeformerMorphModelInputInfo* MorphInputInfo = Cast<UMLDeformerMorphModelInputInfo>(GetInputInfo());
-		check(MorphInputInfo);	// Input Info class is expected to be inherited from the UMLDeformerMorphModelInputInfo class.
-		CookedMemUsageInBytes -= MorphInputInfo->GetInputItemMaskBuffer().GetAllocatedSize();
-	}
+	// Remove the raw uncompressed deltas from the cooked size and memory usage, as they are stripped during cook.
+	// This means the game itself won't have this data in the asset or memory.
+	CookedAssetSizeInBytes -= UncompressedMorphDataSizeInBytes;
+	MemUsageInBytes -= UncompressedMorphDataSizeInBytes;
 
 	// Add the compressed morph target data size.
+	// We add this to both the GPU memory, and the cooked asset size.
+	// The morph targets are stored in a compressed way inside the asset.
 	const uint64 GPUMorphSize = GetCompressedMorphDataSizeInBytes();
 	GPUMemUsageInBytes += GPUMorphSize;
-	CookedMemUsageInBytes += GPUMorphSize;
+	CookedAssetSizeInBytes += GPUMorphSize;
 }
 #endif
 
 #undef LOCTEXT_NAMESPACE
+

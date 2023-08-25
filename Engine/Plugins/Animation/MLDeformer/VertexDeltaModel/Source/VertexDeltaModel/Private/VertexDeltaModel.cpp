@@ -62,19 +62,4 @@ void UVertexDeltaModel::PostLoad()
 	Super::PostLoad();
 }
 
-#if WITH_EDITOR
-	void UVertexDeltaModel::UpdateMemoryUsage()
-	{
-		Super::UpdateMemoryUsage();
-
-		if (NNEModel)
-		{
-				const uint64 NeuralNetSize = 0;
-				GPUMemUsageInBytes += NeuralNetSize;
-				MemUsageInBytes -= NeuralNetSize;
-				CookedMemUsageInBytes -= NeuralNetSize;
-		}
-	}
-#endif
-
 #undef LOCTEXT_NAMESPACE

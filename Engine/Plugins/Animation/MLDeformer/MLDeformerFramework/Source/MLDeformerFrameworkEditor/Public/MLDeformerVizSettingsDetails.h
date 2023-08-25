@@ -109,7 +109,11 @@ namespace UE::MLDeformer
 		/** The memory usage group inside the statistics category. */
 		IDetailGroup* StatsMemUsageGroup = nullptr;
 
+		/** The memory usage group inside the statistics category. */
+		IDetailGroup* StatsAssetSizeGroup = nullptr;
+
 		/** Main memory usage subgroup. */
+		UE_DEPRECATED(5.4, "This member will be removed.")
 		IDetailGroup* StatsMainMemUsageGroup = nullptr;
 
 		/** GPU memory usage subgroup. */

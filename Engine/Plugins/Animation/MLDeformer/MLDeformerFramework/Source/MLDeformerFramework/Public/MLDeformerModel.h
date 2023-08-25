@@ -259,10 +259,30 @@ public:
 	 * @param Flags The memory request flags.
 	 * @return The number of bytes that this model uses.
 	 */
-	uint64 GetMemUsageInBytes(UE::MLDeformer::EMemUsageRequestFlags Flags) const;
+	UE_DEPRECATED(5.4, "This method will be removed.")
+	uint64 GetMemUsageInBytes(UE::MLDeformer::EMemUsageRequestFlags Flags) const { return 0; }
 
 	/**
-	 * Get the GPU memory usage for this model.
+	 * Get the estimated size of the asset on disk. This is the uncooked asset, which is larger than the cooked one.
+	 * @return The size in bytes.
+	 */
+	uint64 GetEditorAssetSizeInBytes() const;
+
+	/**
+	 * Get the estimated size of this asset on disk, when cooked.
+	 * So this is the estimated size of the asset that will be packaged inside your project.
+	 * @return The size in bytes.
+	 */
+	uint64 GetCookedAssetSizeInBytes() const;
+
+	/**
+	 * Get the estimated main memory usage for this model.
+	 * @return The number of bytes that this model uses.
+	 */
+	uint64 GetMainMemUsageInBytes() const;
+
+	/**
+	 * Get the estimated GPU memory usage for this model.
 	 * @return The number of bytes that this model uses.
 	 */
 	uint64 GetGPUMemUsageInBytes() const;
@@ -572,13 +592,20 @@ protected:
 	/** Should we recalculate the memory usage? */
 	bool bInvalidateMemUsage = true;
 
-	/** The computed memory usage. */
+	/** Estimated main memory usage. */
 	uint64 MemUsageInBytes = 0;
 
 	/** The cooked memory usage. */
+	UE_DEPRECATED(5.4, "This member will be removed. You most likely want to store this value inside the CookedAssetSize member.")
 	uint64 CookedMemUsageInBytes = 0;
 
-	/** GPU memory usage. */
+	/** Estimated editor asset size. */
+	uint64 EditorAssetSizeInBytes = 0;
+
+	/** Estimated cooked asset size. */
+	uint64 CookedAssetSizeInBytes = 0;
+
+	/** Estimated GPU memory usage. */
 	uint64 GPUMemUsageInBytes = 0;
 #endif
 

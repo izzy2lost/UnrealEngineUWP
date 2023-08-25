@@ -103,32 +103,6 @@ namespace UE::MLDeformer
 				)
 			];
 	}
-
-	void FMLDeformerMorphModelVizSettingsDetails::AddStatistics()
-	{
-		FMLDeformerGeomCacheVizSettingsDetails::AddStatistics();
-
-		StatsGPUMemUsageGroup->AddWidgetRow()
-			.NameContent()
-			[			
-				SNew(STextBlock)
-				.Text(LOCTEXT("MorphTargetsLabel", "Morph Targets"))
-				.Font(IDetailLayoutBuilder::GetDetailFont())
-			]
-			.ValueContent()
-			[
-				SNew(STextBlock)
-				.Text_Lambda
-				(
-					[this]()
-					{
-						const float CompressedMb = MorphModel->GetCompressedMorphDataSizeInBytes() / static_cast<float>(1024 * 1024);
-						return FText::Format(LOCTEXT("MorphTargetsValue", "{0} mb"), FText::AsNumber(CompressedMb, &MemUsageMetricFormat));
-					}
-				)
-				.Font(IDetailLayoutBuilder::GetDetailFont())
-			];
-	}
 }	//namespace UE::MLDeformer
 
 #undef LOCTEXT_NAMESPACE

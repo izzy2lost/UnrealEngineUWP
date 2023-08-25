@@ -214,9 +214,14 @@ void UMLDeformerModel::FloatArrayToVector3Array(const TArray<float>& FloatArray,
 		bInvalidateMemUsage = true;
 	}
 
-	uint64 UMLDeformerModel::GetMemUsageInBytes(UE::MLDeformer::EMemUsageRequestFlags Flags) const
+	uint64 UMLDeformerModel::GetCookedAssetSizeInBytes() const
 	{
-		return (Flags == UE::MLDeformer::EMemUsageRequestFlags::Cooked) ? CookedMemUsageInBytes : MemUsageInBytes;
+		return CookedAssetSizeInBytes;
+	}
+
+	uint64 UMLDeformerModel::GetMainMemUsageInBytes() const
+	{
+		return MemUsageInBytes;
 	}
 
 	uint64 UMLDeformerModel::GetGPUMemUsageInBytes() const
@@ -229,20 +234,31 @@ void UMLDeformerModel::FloatArrayToVector3Array(const TArray<float>& FloatArray,
 		return bInvalidateMemUsage;
 	}
 
+	uint64 UMLDeformerModel::GetEditorAssetSizeInBytes() const
+	{
+		return EditorAssetSizeInBytes;
+	}
+
 	void UMLDeformerModel::UpdateMemoryUsage()
 	{
 		bInvalidateMemUsage = false;
+
+		// Start everything at 0 bytes.
 		MemUsageInBytes = 0;
 		GPUMemUsageInBytes = 0;
+		EditorAssetSizeInBytes = 0;
+		CookedAssetSizeInBytes = 0;
 
-		// Get the size of the model to get an approximate size.
+		// Get the resource size of the ML Deformer model.
 		UMLDeformerModel* Model = const_cast<UMLDeformerModel*>(this);
-		MemUsageInBytes += static_cast<uint64>(Model->GetResourceSizeBytes(EResourceSizeMode::Type::EstimatedTotal));
+		EditorAssetSizeInBytes += static_cast<uint64>(Model->GetResourceSizeBytes(EResourceSizeMode::Type::EstimatedTotal));
 
-		// Init the cooked size. We can subtract bytes from this to simulate a cook.
-		CookedMemUsageInBytes = MemUsageInBytes;
+		// Set the main mem usage and cooked sizes also to this.
+		// We are going to subtract from this later, to simulate a cook, as we know which data we strip at cook time for example.
+		CookedAssetSizeInBytes += EditorAssetSizeInBytes;
+		MemUsageInBytes += EditorAssetSizeInBytes;
 
-		// Add GPU memory.
+		// Add the VertexMap buffer to the GPU memory usage.
 		if (VertexMapBuffer.VertexBufferRHI.IsValid())
 		{
 			GPUMemUsageInBytes += VertexMapBuffer.VertexBufferRHI->GetSize();

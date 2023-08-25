@@ -64,6 +64,26 @@ UMLDeformerInputInfo* UNearestNeighborModel::CreateInputInfo()
 	return NearestNeighborModelInputInfo;
 }
 
+#if WITH_EDITOR
+void UNearestNeighborModel::UpdateMemoryUsage()
+{
+	Super::UpdateMemoryUsage();
+
+	uint64 ClothDataSize = 0;
+	for (const FClothPartData& Part : ClothPartData)
+	{
+		ClothDataSize += Part.PCABasis.GetTypeSize() * Part.PCABasis.Num();
+		ClothDataSize += Part.NeighborOffsets.GetTypeSize() * Part.NeighborOffsets.Num();
+		ClothDataSize += Part.NeighborCoeffs.GetTypeSize() * Part.NeighborCoeffs.Num();
+		ClothDataSize += Part.VertexMean.GetTypeSize() * Part.VertexMean.Num();
+		ClothDataSize += Part.VertexMap.GetTypeSize() * Part.VertexMap.Num();
+	}
+
+	CookedAssetSizeInBytes -= ClothDataSize;
+	MemUsageInBytes -= ClothDataSize;
+}
+#endif
+
 UMLDeformerModelInstance* UNearestNeighborModel::CreateModelInstance(UMLDeformerComponent* Component)
 {
 	return NewObject<UNearestNeighborModelInstance>(Component);
@@ -519,5 +539,6 @@ int32 UNearestNeighborModel::GetOptimizedNetworkNumOutputs() const
 {
 	return OptimizedNetwork ? OptimizedNetwork->GetNumOutputs() : 0;
 }
+
 
 #undef LOCTEXT_NAMESPACE

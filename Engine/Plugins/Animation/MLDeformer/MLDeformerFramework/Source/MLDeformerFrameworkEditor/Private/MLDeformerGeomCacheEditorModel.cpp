@@ -120,7 +120,11 @@ namespace UE::MLDeformer
 
 		// Check if we have any mappings at all.
 		FMLDeformerGeomCacheSampler* GeomCacheSampler = GetGeomCacheSampler();
-		GeomCacheSampler->Init(this);
+		if (!GeomCacheSampler->IsInitialized())
+		{
+			GeomCacheSampler->Init(this);
+		}
+
 		if (GeomCacheSampler->GetMeshMappings().IsEmpty())
 		{
 			return;

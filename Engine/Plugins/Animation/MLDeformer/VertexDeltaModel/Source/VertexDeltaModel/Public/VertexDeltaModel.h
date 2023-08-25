@@ -37,9 +37,6 @@ public:
 	virtual UMLDeformerModelInstance* CreateModelInstance(UMLDeformerComponent* Component) override;
 	virtual bool IsNeuralNetworkOnGPU() const override		{ return true; }	// GPU neural network.
 	virtual FString GetDefaultDeformerGraphAssetPath() const override;
-#if WITH_EDITOR
-	virtual void UpdateMemoryUsage() override;
-#endif
 	// ~END UMLDeformerModel overrides.
 
 #if WITH_EDITORONLY_DATA

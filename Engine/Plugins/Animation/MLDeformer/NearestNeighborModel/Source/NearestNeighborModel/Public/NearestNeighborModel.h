@@ -171,6 +171,9 @@ public:
 	virtual UMLDeformerModelInstance* CreateModelInstance(UMLDeformerComponent* Component) override;
 	virtual UMLDeformerInputInfo* CreateInputInfo() override;
 	virtual FString GetDisplayName() const override { return "Nearest Neighbor Model"; }
+#if WITH_EDITOR
+	virtual void UpdateMemoryUsage() override;
+#endif
 	// ~END UMLDeformerModel overrides.
 
 	friend class UNearestNeighborModelInstance;
