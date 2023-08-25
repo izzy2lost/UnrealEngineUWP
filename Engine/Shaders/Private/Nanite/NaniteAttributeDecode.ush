@@ -529,11 +529,13 @@ void GetRawAttributeDataN(inout FNaniteRawAttributeData RawAttributeData[3],
 	const uint DecodeInfoOffset = Cluster.PageBaseAddress + Cluster.DecodeInfoOffset;
 	const uint AttributeDataOffset = Cluster.PageBaseAddress + Cluster.AttributeOffset;
 
+	float2 TexCoords[NANITE_MAX_UVS];
 	uint i;
 	UNROLL
 	for (i = 0; i < CompileTimeN; i++)
 	{
 		RawAttributeData[i] = (FNaniteRawAttributeData)0;
+		TexCoords[i] = 0.0f;
 	}
 
 #if NANITE_USE_UNCOMPRESSED_VERTEX_DATA
@@ -560,9 +562,15 @@ void GetRawAttributeDataN(inout FNaniteRawAttributeData RawAttributeData[3],
 			UNROLL
 			for (uint i = 0; i < CompileTimeN; i++)
 			{
-				RawAttributeData[i].TexCoords[TexCoordIndex] = asfloat(ClusterPageData.Load2(ReadOffset[i]));
+				TexCoords[i] = asfloat(ClusterPageData.Load2(ReadOffset[i]));
 			}
 			ReadOffset += 8;
+		}
+
+		UNROLL
+		for (uint i = 0; i < CompileTimeN; i++)
+		{
+			RawAttributeData[i].TexCoords[TexCoordIndex] = TexCoords[i];
 		}
 	}
 #else
@@ -621,8 +629,14 @@ void GetRawAttributeDataN(inout FNaniteRawAttributeData RawAttributeData[3],
 			UNROLL
 			for (uint i = 0; i < CompileTimeN; i++)
 			{
-				RawAttributeData[i].TexCoords[TexCoordIndex] = UnpackTexCoord(UVBits[i], UVRange);
+				TexCoords[i] = UnpackTexCoord(UVBits[i], UVRange);
 			}
+		}
+
+		UNROLL
+		for (uint j = 0; j < CompileTimeN; j++)
+		{
+			RawAttributeData[j].TexCoords[TexCoordIndex] = TexCoords[j];
 		}
 	}
 #endif
@@ -694,16 +708,15 @@ FNaniteAttributeData GetAttributeData(
 	}
 #endif
 
+	FTexCoord TexCoord = (FTexCoord)0;
+
 	UNROLL
 	for (uint TexCoordIndex = 0; TexCoordIndex < CompileTimeMaxTexCoords; ++TexCoordIndex)
 	{
 		if (TexCoordIndex < Cluster.NumUVs)
 		{
-			FTexCoord TexCoord = InterpolateTexCoord(RawAttributeData0.TexCoords[TexCoordIndex], RawAttributeData1.TexCoords[TexCoordIndex], RawAttributeData2.TexCoords[TexCoordIndex], Barycentrics);
-			AttributeData.TexCoords[TexCoordIndex] = TexCoord.Value;
-			AttributeData.TexCoords_DDX[TexCoordIndex] = TexCoord.DDX;
-			AttributeData.TexCoords_DDY[TexCoordIndex] = TexCoord.DDY;
-
+			TexCoord = InterpolateTexCoord(RawAttributeData0.TexCoords[TexCoordIndex], RawAttributeData1.TexCoords[TexCoordIndex], RawAttributeData2.TexCoords[TexCoordIndex], Barycentrics);
+			
 			// Generate tangent frame for UV0
 			if (TexCoordIndex == 0)
 			{
@@ -770,20 +783,19 @@ FNaniteAttributeData GetAttributeData(
 				LocalToWorldNoScale[1] *= InvScale.y;
 				LocalToWorldNoScale[2] *= InvScale.z;
 				AttributeData.TangentToWorld = mul(TangentToLocal, LocalToWorldNoScale);
-
-
 			}
 		}
 		else
 		{
-			AttributeData.TexCoords[TexCoordIndex]		= float2(0, 0);
-			AttributeData.TexCoords_DDX[TexCoordIndex]	= float2(0, 0);
-			AttributeData.TexCoords_DDY[TexCoordIndex]	= float2(0, 0);
 			if (TexCoordIndex == 0)
 			{
 				AttributeData.TangentToWorld = float3x3(float3(0, 0, 0), float3(0, 0, 0), LWCMultiplyVector(TangentZ * InstanceData.InvNonUniformScale.z, InstanceData.LocalToWorld));
 			}
 		}
+
+		AttributeData.TexCoords[TexCoordIndex] = TexCoord.Value;
+		AttributeData.TexCoords_DDX[TexCoordIndex] = TexCoord.DDX;
+		AttributeData.TexCoords_DDY[TexCoordIndex] = TexCoord.DDY;
 	}
 
 	return AttributeData;
@@ -830,8 +842,10 @@ FTexCoord GetTexCoord(
 	uint TexCoordIndex
 )
 {
-	if (TexCoordIndex >= Cluster.NumUVs)
+	if (Cluster.NumUVs == 0)
 		return (FTexCoord)0;
+
+	TexCoordIndex = min(TexCoordIndex, Cluster.NumUVs - 1);
 
 	// Unpack and interpolate attributes
 	const uint DecodeInfoOffset = Cluster.PageBaseAddress + Cluster.DecodeInfoOffset;
