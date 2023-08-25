@@ -3867,7 +3867,7 @@ FGuid FSequencer::GetHandleToObject( UObject* Object, bool bCreateHandleIfMissin
 			}
 		}
 
-		if (OwningActor)
+		if (OwningActor && OwningActor != Object)
 		{
 			GetHandleToObject(OwningActor);
 		}
