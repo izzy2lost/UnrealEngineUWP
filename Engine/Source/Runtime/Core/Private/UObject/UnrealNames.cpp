@@ -3315,6 +3315,11 @@ FString FName::ToString() const
 	return Out;
 }
 
+FString LexToString(const FName& Name)
+{
+	return Name.ToString();
+}
+
 void FName::ToString(FString& Out) const
 {
 #if UE_FNAME_OUTLINE_NUMBER
@@ -3527,6 +3532,16 @@ FString FName::SafeString(FNameEntryId InDisplayIndex, int32 InstanceNumber)
 #endif // UE_FNAME_OUTLINE_NUMBER
 }
 
+bool FName::IsValidXName() const
+{
+	return IsValidXName(*this, FString(INVALID_NAME_CHARACTERS), (FText*)nullptr, (const FText*)nullptr);
+}
+
+bool FName::IsValidXName(FText& OutReason) const
+{
+	return IsValidXName(*this, FString(INVALID_NAME_CHARACTERS), &OutReason);
+}
+
 bool FName::IsValidXName(const FName InName, const FString& InInvalidChars, FText* OutReason, const FText* InErrorCtx)
 {
 	return IsValidXName(FNameBuilder(InName), InInvalidChars, OutReason, InErrorCtx);
@@ -3630,6 +3645,16 @@ bool FName::IsValidXName(const FStringView& InName, const FString& InInvalidChar
 	}
 
 	return true;
+}
+
+bool FName::IsValidObjectName(FText& OutReason) const
+{
+	return IsValidXName(*this, INVALID_OBJECTNAME_CHARACTERS, &OutReason);
+}
+
+bool FName::IsValidGroupName(FText& OutReason, bool bIsGroupName) const
+{
+	return IsValidXName(*this, INVALID_LONGPACKAGE_CHARACTERS, &OutReason);
 }
 
 FString FName::SanitizeWhitespace(const FString& FNameString)

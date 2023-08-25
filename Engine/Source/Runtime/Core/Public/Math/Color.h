@@ -409,10 +409,7 @@ struct FLinearColor
 		return FMath::Min( FMath::Min( FMath::Min( R, G ), B ), A );
 	}
 
-	FString ToString() const
-	{
-		return FString::Printf(TEXT("(R=%f,G=%f,B=%f,A=%f)"),R,G,B,A);
-	}
+	CORE_API FString ToString() const;
 
 	/**
 	 * Initialize this Color based on an FString. The String is expected to contain R=, G=, B=, A=.
@@ -421,19 +418,7 @@ struct FLinearColor
 	 * @param InSourceString FString containing the color values.
 	 * @return true if the R,G,B values were read successfully; false otherwise.
 	 */
-	bool InitFromString( const FString& InSourceString )
-	{
-		R = G = B = 0.f;
-		A = 1.f;
-
-		// The initialization is only successful if the R, G, and B values can all be parsed from the string
-		const bool bSuccessful = FParse::Value( *InSourceString, TEXT("R=") , R ) && FParse::Value( *InSourceString, TEXT("G="), G ) && FParse::Value( *InSourceString, TEXT("B="), B );
-		
-		// Alpha is optional, so don't factor in its presence (or lack thereof) in determining initialization success
-		FParse::Value( *InSourceString, TEXT("A="), A );
-		
-		return bSuccessful;
-	}
+	CORE_API bool InitFromString( const FString& InSourceString );
 
 	/**
 	 * Helper for pixel format conversions. Clamps to [0,1], mapping NaNs to 0,
@@ -693,10 +678,7 @@ public:
 	 * @return Hexadecimal string.
 	 * @see FromHex, ToString
 	 */
-	FORCEINLINE FString ToHex() const
-	{
-		return FString::Printf(TEXT("%02X%02X%02X%02X"), R, G, B, A);
-	}
+	CORE_API FString ToHex() const;
 
 	/**
 	 * Converts this color value to a string.
@@ -704,10 +686,7 @@ public:
 	 * @return The string representation.
 	 * @see ToHex
 	 */
-	FORCEINLINE FString ToString() const
-	{
-		return FString::Printf(TEXT("(R=%i,G=%i,B=%i,A=%i)"), R, G, B, A);
-	}
+	CORE_API FString ToString() const;
 
 	/**
 	 * Initialize this Color based on an FString. The String is expected to contain R=, G=, B=, A=.
@@ -716,19 +695,7 @@ public:
 	 * @param	InSourceString	FString containing the color values.
 	 * @return true if the R,G,B values were read successfully; false otherwise.
 	 */
-	bool InitFromString( const FString& InSourceString )
-	{
-		R = G = B = 0;
-		A = 255;
-
-		// The initialization is only successful if the R, G, and B values can all be parsed from the string
-		const bool bSuccessful = FParse::Value( *InSourceString, TEXT("R=") , R ) && FParse::Value( *InSourceString, TEXT("G="), G ) && FParse::Value( *InSourceString, TEXT("B="), B );
-		
-		// Alpha is optional, so don't factor in its presence (or lack thereof) in determining initialization success
-		FParse::Value( *InSourceString, TEXT("A="), A );
-		
-		return bSuccessful;
-	}
+	CORE_API bool InitFromString( const FString& InSourceString );
 
 	/**
 	 * Gets the color in a packed uint32 format packed in the order ARGB.

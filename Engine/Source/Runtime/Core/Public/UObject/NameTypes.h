@@ -760,10 +760,11 @@ public:
 	 *
 	 * @return	true if the name is valid
 	 */
-	bool IsValidXName( const FString& InInvalidChars = INVALID_NAME_CHARACTERS, FText* OutReason = nullptr, const FText* InErrorCtx = nullptr ) const
+	bool IsValidXName( const FString& InInvalidChars, FText* OutReason = nullptr, const FText* InErrorCtx = nullptr ) const
 	{
 		return IsValidXName(*this, InInvalidChars, OutReason, InErrorCtx);
 	}
+	CORE_API bool IsValidXName() const;
 
 	/**
 	 * Takes an FName and checks to see that it follows the rules that Unreal requires.
@@ -773,10 +774,11 @@ public:
 	 *
 	 * @return	true if the name is valid
 	 */
-	bool IsValidXName( FText& OutReason, const FString& InInvalidChars = INVALID_NAME_CHARACTERS ) const
+	bool IsValidXName( FText& OutReason, const FString& InInvalidChars ) const
 	{
 		return IsValidXName(*this, InInvalidChars, &OutReason);
 	}
+	CORE_API bool IsValidXName( FText& OutReason ) const;
 
 	/**
 	 * Takes an FName and checks to see that it follows the rules that Unreal requires for object names.
@@ -785,10 +787,7 @@ public:
 	 *
 	 * @return	true if the name is valid
 	 */
-	bool IsValidObjectName( FText& OutReason ) const
-	{
-		return IsValidXName(*this, INVALID_OBJECTNAME_CHARACTERS, &OutReason);
-	}
+	CORE_API bool IsValidObjectName( FText& OutReason ) const;
 
 	/**
 	 * Takes an FName and checks to see that it follows the rules that Unreal requires for package or group names.
@@ -798,10 +797,7 @@ public:
 	 *
 	 * @return	true if the name is valid
 	 */
-	bool IsValidGroupName( FText& OutReason, bool bIsGroupName=false ) const
-	{
-		return IsValidXName(*this, INVALID_LONGPACKAGE_CHARACTERS, &OutReason);
-	}
+	CORE_API bool IsValidGroupName( FText& OutReason, bool bIsGroupName=false ) const;
 
 	/**
 	 * Printing FNames in logging or on screen can be problematic when they contain Whitespace characters such as \n and \r,
@@ -1500,10 +1496,7 @@ FORCEINLINE FScriptName NameToScriptName(FName InName)
 	return FScriptName(InName);
 }
 
-FORCEINLINE FString LexToString(const FName& Name)
-{
-	return Name.ToString();
-}
+CORE_API FString LexToString(const FName& Name);
 
 FORCEINLINE void LexFromString(FName& Name, const TCHAR* Str)
 {
