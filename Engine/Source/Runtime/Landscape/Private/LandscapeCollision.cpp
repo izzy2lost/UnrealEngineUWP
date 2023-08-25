@@ -799,7 +799,7 @@ FPrimitiveSceneProxy* ULandscapeHeightfieldCollisionComponent::CreateSceneProxy(
 			break;
 
 		default:
-			UE_LOG(LogLandscape, Warning, TEXT("Invalid Value for CVar landscape.ShowCollisionMesh"));
+			UE_LOG(LogLandscape, Warning, TEXT("Invalid Value for CVar landscape.CollisionMesh.Show"));
 		}
 
 		if (LocalHeightfield != nullptr)
