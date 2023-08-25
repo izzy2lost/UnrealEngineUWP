@@ -18,7 +18,7 @@ namespace Chaos
 			, NumPositionFrictionIterations(4)
 			, NumVelocityFrictionIterations(1)
 			, NumPositionShockPropagationIterations(3)
-			, NumVelocityShockPropagationIterations(1)
+			, NumVelocityShockPropagationIterations(2)
 		{
 		}
 

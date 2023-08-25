@@ -58,7 +58,7 @@ namespace Chaos
 
 		// Default iteration counts
 		static constexpr int32 DefaultNumPositionIterations = 8;
-		static constexpr int32 DefaultNumVelocityIterations = 1;
+		static constexpr int32 DefaultNumVelocityIterations = 2;
 		static constexpr int32 DefaultNumProjectionIterations = 1;
 		static constexpr FRealSingle DefaultCollisionMarginFraction = 0.05f;
 		static constexpr FRealSingle DefaultCollisionMarginMax = 10.0f;
