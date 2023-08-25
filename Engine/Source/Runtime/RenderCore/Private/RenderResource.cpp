@@ -558,6 +558,11 @@ FString FVertexBuffer::GetFriendlyName() const
 	return TEXT("FVertexBuffer");
 }
 
+void FVertexBuffer::SetRHI(const FBufferRHIRef& BufferRHI)
+{
+	VertexBufferRHI = BufferRHI;
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // FVertexBufferWithSRV
 
@@ -587,6 +592,10 @@ FString FIndexBuffer::GetFriendlyName() const
 	return TEXT("FIndexBuffer");
 }
 
+void FIndexBuffer::SetRHI(const FBufferRHIRef& BufferRHI)
+{
+	IndexBufferRHI = BufferRHI;
+}
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // FBufferWithRDG
 

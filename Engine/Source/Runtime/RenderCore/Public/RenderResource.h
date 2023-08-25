@@ -476,7 +476,7 @@ public:
 
 	const FBufferRHIRef& GetRHI() const { return VertexBufferRHI; }
 
-	void SetRHI(const FBufferRHIRef& BufferRHI) { VertexBufferRHI = BufferRHI; }
+	RENDERCORE_API void SetRHI(const FBufferRHIRef& BufferRHI);
 
 	FBufferRHIRef VertexBufferRHI;
 };
@@ -509,7 +509,7 @@ public:
 
 	const FBufferRHIRef& GetRHI() const { return IndexBufferRHI; }
 
-	void SetRHI(const FBufferRHIRef& BufferRHI) { IndexBufferRHI = BufferRHI; }
+	RENDERCORE_API void SetRHI(const FBufferRHIRef& BufferRHI);
 
 	FBufferRHIRef IndexBufferRHI;
 };
