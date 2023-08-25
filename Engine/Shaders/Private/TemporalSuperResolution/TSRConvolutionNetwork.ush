@@ -713,6 +713,28 @@ TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Max3x3(TLaneVect
 }
 
 CALL_SITE_DEBUGLOC
+template<typename ScalarType, uint LaneStrideX, uint LaneStrideY>
+TLaneVector2D<ScalarType, 4, LaneStrideX, LaneStrideY> MaxRGBMinA3x3(TLaneVector2D<ScalarType, 4, LaneStrideX, LaneStrideY> Center)
+{
+	TLaneVector2D<ScalarType, 4, LaneStrideX, LaneStrideY> CO = Center;
+	TLaneVector2D<ScalarType, 4, LaneStrideX, LaneStrideY> CP;
+	TLaneVector2D<ScalarType, 4, LaneStrideX, LaneStrideY> CN;
+	AccessNeighborTexels1x3(CO, /* out */ CP, /* out */ CN);
+	
+	TLaneVector2D<ScalarType, 4, LaneStrideX, LaneStrideY> MaxO = max3(CN, CP, CO);
+	MaxO.SetComponent(3, min3(CN[3], CP[3], CO[3]));
+
+	TLaneVector2D<ScalarType, 4, LaneStrideX, LaneStrideY> MaxP;
+	TLaneVector2D<ScalarType, 4, LaneStrideX, LaneStrideY> MaxN;
+	AccessNeighborTexels3x1(MaxO, /* out */ MaxP, /* out */ MaxN);
+	
+	TLaneVector2D<ScalarType, 4, LaneStrideX, LaneStrideY> R = max3(MaxN, MaxP, MaxO);
+	R.SetComponent(3, min3(MaxN[3], MaxP[3], MaxO[3]));
+
+	return R;
+}
+
+CALL_SITE_DEBUGLOC
 template<typename ScalarType, uint VectorSize, uint LaneStrideX, uint LaneStrideY>
 void MinMax3x3(
 	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Center,
