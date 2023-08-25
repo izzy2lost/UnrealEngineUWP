@@ -18,6 +18,7 @@ class FAllocatedVirtualTexture final : public IAllocatedVirtualTexture
 {
 public:
 	FAllocatedVirtualTexture(
+		FRHICommandListBase& RHICmdList,
 		FVirtualTextureSystem* InSystem,
 		uint32 InFrame,
 		const FAllocatedVTDescription& InDesc,

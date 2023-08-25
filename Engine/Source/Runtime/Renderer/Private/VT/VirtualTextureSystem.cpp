@@ -597,7 +597,7 @@ void FVirtualTextureSystem::SaveAllocatorImagesFromConsole()
 }
 #endif // WITH_EDITOR
 
-IAllocatedVirtualTexture* FVirtualTextureSystem::AllocateVirtualTexture(const FAllocatedVTDescription& Desc)
+IAllocatedVirtualTexture* FVirtualTextureSystem::AllocateVirtualTexture(FRHICommandListBase& RHICmdList, const FAllocatedVTDescription& Desc)
 {
 	check(Desc.NumTextureLayers <= VIRTUALTEXTURE_SPACE_MAXLAYERS);
 
@@ -687,7 +687,7 @@ IAllocatedVirtualTexture* FVirtualTextureSystem::AllocateVirtualTexture(const FA
 		DestroyPendingVirtualTextures(true);
 	}
 
-	AllocatedVT = new FAllocatedVirtualTexture(this, Frame, Desc, ProducerForLayer, BlockWidthInTiles, BlockHeightInTiles, WidthInBlocks, HeightInBlocks, DepthInTiles);
+	AllocatedVT = new FAllocatedVirtualTexture(RHICmdList, this, Frame, Desc, ProducerForLayer, BlockWidthInTiles, BlockHeightInTiles, WidthInBlocks, HeightInBlocks, DepthInTiles);
 	AllocatedVT->NumRefs = 1;
 	if (bAnyLayerProducerWantsPersistentHighestMip)
 	{
@@ -773,12 +773,12 @@ void FVirtualTextureSystem::DestroyPendingVirtualTextures(bool bForceDestroyAll)
 	}
 }
 
-IAdaptiveVirtualTexture* FVirtualTextureSystem::AllocateAdaptiveVirtualTexture(const FAdaptiveVTDescription& AdaptiveVTDesc, const FAllocatedVTDescription& AllocatedVTDesc)
+IAdaptiveVirtualTexture* FVirtualTextureSystem::AllocateAdaptiveVirtualTexture(FRHICommandListBase& RHICmdList, const FAdaptiveVTDescription& AdaptiveVTDesc, const FAllocatedVTDescription& AllocatedVTDesc)
 {
 	check(!bUpdating);
 	UE::TScopeLock Lock(Mutex);
 	FAdaptiveVirtualTexture* AdaptiveVT = new FAdaptiveVirtualTexture(AdaptiveVTDesc, AllocatedVTDesc);
-	AdaptiveVT->Init(this);
+	AdaptiveVT->Init(RHICmdList, this);
 	check(AdaptiveVTs[AdaptiveVT->GetSpaceID()] == nullptr);
 	AdaptiveVTs[AdaptiveVT->GetSpaceID()] = AdaptiveVT;
 	return AdaptiveVT;
@@ -793,11 +793,11 @@ void FVirtualTextureSystem::DestroyAdaptiveVirtualTexture(IAdaptiveVirtualTextur
 	AdaptiveVT->Destroy(this);
 }
 
-FVirtualTextureProducerHandle FVirtualTextureSystem::RegisterProducer(const FVTProducerDescription& InDesc, IVirtualTexture* InProducer)
+FVirtualTextureProducerHandle FVirtualTextureSystem::RegisterProducer(FRHICommandListBase& RHICmdList, const FVTProducerDescription& InDesc, IVirtualTexture* InProducer)
 {
 	check(!bUpdating);
 	UE::TScopeLock Lock(Mutex);
-	return Producers.RegisterProducer(this, InDesc, InProducer);
+	return Producers.RegisterProducer(RHICmdList, this, InDesc, InProducer);
 }
 
 void FVirtualTextureSystem::ReleaseProducer(const FVirtualTextureProducerHandle& Handle)
@@ -826,7 +826,7 @@ FVirtualTextureProducer* FVirtualTextureSystem::FindProducer(const FVirtualTextu
 	return Producers.FindProducer(Handle);
 }
 
-FVirtualTextureSpace* FVirtualTextureSystem::AcquireSpace(const FVTSpaceDescription& InDesc, uint8 InForceSpaceID, FAllocatedVirtualTexture* AllocatedVT)
+FVirtualTextureSpace* FVirtualTextureSystem::AcquireSpace(FRHICommandListBase& RHICmdList, const FVTSpaceDescription& InDesc, uint8 InForceSpaceID, FAllocatedVirtualTexture* AllocatedVT)
 {
 	check(!bUpdating);
 	LLM_SCOPE(ELLMTag::VirtualTextureSystem);
@@ -875,7 +875,7 @@ FVirtualTextureSpace* FVirtualTextureSystem::AcquireSpace(const FVTSpaceDescript
 				Spaces[SpaceIndex].Reset(Space);
 				NumAllocatedSpaces++;
 				INC_MEMORY_STAT_BY(STAT_TotalPagetableMemory, Space->GetSizeInBytes());
-				BeginInitResource(Space);
+				Space->InitResource(RHICmdList);
 
 				const uint32 vAddress = Space->AllocateVirtualTexture(AllocatedVT);
 				AllocatedVT->AssignVirtualAddress(vAddress);
@@ -1005,7 +1005,7 @@ void GetPoolInitDescription_Cached(FVTPhysicalSpaceDescription const& InDesc, FV
 	}
 }
 
-FVirtualTexturePhysicalSpace* FVirtualTextureSystem::AcquirePhysicalSpace(const FVTPhysicalSpaceDescription& InDesc)
+FVirtualTexturePhysicalSpace* FVirtualTextureSystem::AcquirePhysicalSpace(FRHICommandListBase& RHICmdList, const FVTPhysicalSpaceDescription& InDesc)
 {
 	LLM_SCOPE(ELLMTag::VirtualTextureSystem);
 
@@ -1053,7 +1053,7 @@ FVirtualTexturePhysicalSpace* FVirtualTextureSystem::AcquirePhysicalSpace(const 
 	PhysicalSpaces[ID] = PhysicalSpace;
 
 	INC_MEMORY_STAT_BY(STAT_TotalPhysicalMemory, PhysicalSpace->GetSizeInBytes());
-	BeginInitResource(PhysicalSpace);
+	PhysicalSpace->InitResource(RHICmdList);
 
 	return PhysicalSpace;
 }

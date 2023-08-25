@@ -8,7 +8,8 @@
 #include "VT/VirtualTexturePhysicalSpace.h"
 #include "Misc/StringBuilder.h"
 
-FAllocatedVirtualTexture::FAllocatedVirtualTexture(FVirtualTextureSystem* InSystem,
+FAllocatedVirtualTexture::FAllocatedVirtualTexture(FRHICommandListBase& RHICmdList,
+	FVirtualTextureSystem* InSystem,
 	uint32 InFrame,
 	const FAllocatedVTDescription& InDesc,
 	FVirtualTextureProducer* const* InProducers,
@@ -93,7 +94,7 @@ FAllocatedVirtualTexture::FAllocatedVirtualTexture(FVirtualTextureSystem* InSyst
 	SpaceDesc.IndirectionTextureSize = InDesc.IndirectionTextureSize;
 	SpaceDesc.PageTableFormat = bSupport16BitPageTable ? EVTPageTableFormat::UInt16 : EVTPageTableFormat::UInt32;
 
-	Space = InSystem->AcquireSpace(SpaceDesc, InDesc.ForceSpaceID, this);
+	Space = InSystem->AcquireSpace(RHICmdList, SpaceDesc, InDesc.ForceSpaceID, this);
 	SpaceID = Space->GetID();
 	PageTableFormat = Space->GetPageTableFormat();
 }

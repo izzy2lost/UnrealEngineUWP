@@ -5053,9 +5053,9 @@ IScenePrimitiveRenderingContext* FRendererModule::BeginScenePrimitiveRendering(F
 }
 
 
-IAllocatedVirtualTexture* FRendererModule::AllocateVirtualTexture(const FAllocatedVTDescription& Desc)
+IAllocatedVirtualTexture* FRendererModule::AllocateVirtualTexture(FRHICommandListBase& RHICmdList, const FAllocatedVTDescription& Desc)
 {
-	return FVirtualTextureSystem::Get().AllocateVirtualTexture(Desc);
+	return FVirtualTextureSystem::Get().AllocateVirtualTexture(RHICmdList, Desc);
 }
 
 void FRendererModule::DestroyVirtualTexture(IAllocatedVirtualTexture* AllocatedVT)
@@ -5063,9 +5063,9 @@ void FRendererModule::DestroyVirtualTexture(IAllocatedVirtualTexture* AllocatedV
 	FVirtualTextureSystem::Get().DestroyVirtualTexture(AllocatedVT);
 }
 
-IAdaptiveVirtualTexture* FRendererModule::AllocateAdaptiveVirtualTexture(const FAdaptiveVTDescription& AdaptiveVTDesc, const FAllocatedVTDescription& AllocatedVTDesc)
+IAdaptiveVirtualTexture* FRendererModule::AllocateAdaptiveVirtualTexture(FRHICommandListBase& RHICmdList, const FAdaptiveVTDescription& AdaptiveVTDesc, const FAllocatedVTDescription& AllocatedVTDesc)
 {
-	return FVirtualTextureSystem::Get().AllocateAdaptiveVirtualTexture(AdaptiveVTDesc, AllocatedVTDesc);
+	return FVirtualTextureSystem::Get().AllocateAdaptiveVirtualTexture(RHICmdList, AdaptiveVTDesc, AllocatedVTDesc);
 }
 
 void FRendererModule::DestroyAdaptiveVirtualTexture(IAdaptiveVirtualTexture* AdaptiveVT)
@@ -5073,9 +5073,9 @@ void FRendererModule::DestroyAdaptiveVirtualTexture(IAdaptiveVirtualTexture* Ada
 	FVirtualTextureSystem::Get().DestroyAdaptiveVirtualTexture(AdaptiveVT);
 }
 
-FVirtualTextureProducerHandle FRendererModule::RegisterVirtualTextureProducer(const FVTProducerDescription& Desc, IVirtualTexture* Producer)
+FVirtualTextureProducerHandle FRendererModule::RegisterVirtualTextureProducer(FRHICommandListBase& RHICmdList, const FVTProducerDescription& Desc, IVirtualTexture* Producer)
 {
-	return FVirtualTextureSystem::Get().RegisterProducer(Desc, Producer);
+	return FVirtualTextureSystem::Get().RegisterProducer(RHICmdList, Desc, Producer);
 }
 
 void FRendererModule::ReleaseVirtualTextureProducer(const FVirtualTextureProducerHandle& Handle)

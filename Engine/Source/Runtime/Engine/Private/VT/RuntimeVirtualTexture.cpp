@@ -160,8 +160,8 @@ public:
 			const bool bAdaptive = FillVTDescriptions(Resource->ProducerHandle, InProducerDesc, InInitDesc, AllocatedVTDesc, AdaptiveVTDesc);
 
 			// Only one or none of these should be allocated...
-			Resource->AllocatedVirtualTexture = !bAdaptive ? AllocateVirtualTexture(AllocatedVTDesc) : nullptr;
-			Resource->AdaptiveVirtualTexture = bAdaptive ? AllocateAdaptiveVirtualTexture(AllocatedVTDesc, AdaptiveVTDesc) : nullptr;
+			Resource->AllocatedVirtualTexture = !bAdaptive ? AllocateVirtualTexture(RHICmdList, AllocatedVTDesc) : nullptr;
+			Resource->AdaptiveVirtualTexture = bAdaptive ? AllocateAdaptiveVirtualTexture(RHICmdList, AllocatedVTDesc, AdaptiveVTDesc) : nullptr;
 
 			// Release old producer after new one is created so that any destroy callbacks can access the new producer
 			GetRendererModule().ReleaseVirtualTextureProducer(OldProducerHandle);
@@ -223,13 +223,13 @@ protected:
 	}
 
 	/** Allocate in the virtual texture system. */
-	static IAllocatedVirtualTexture* AllocateVirtualTexture(FAllocatedVTDescription const& InAllocatedVTDesc)
+	static IAllocatedVirtualTexture* AllocateVirtualTexture(FRHICommandListBase& RHICmdList, FAllocatedVTDescription const& InAllocatedVTDesc)
 	{
 		// Check for NumLayers avoids allocating for the null producer
 		IAllocatedVirtualTexture* OutAllocatedVirtualTexture = nullptr;
 		if (InAllocatedVTDesc.NumTextureLayers > 0)
 		{ 
-			OutAllocatedVirtualTexture = GetRendererModule().AllocateVirtualTexture(InAllocatedVTDesc);
+			OutAllocatedVirtualTexture = GetRendererModule().AllocateVirtualTexture(RHICmdList, InAllocatedVTDesc);
 		}
 		return OutAllocatedVirtualTexture;
 	}
@@ -244,13 +244,13 @@ protected:
 	}
 
 	/** Allocate an adaptive virtual texture in the virtual texture system. */
-	static IAdaptiveVirtualTexture* AllocateAdaptiveVirtualTexture(FAllocatedVTDescription const& InAllocatedVTDesc, FAdaptiveVTDescription const& InAdaptiveVTDesc)
+	static IAdaptiveVirtualTexture* AllocateAdaptiveVirtualTexture(FRHICommandListBase& RHICmdList, FAllocatedVTDescription const& InAllocatedVTDesc, FAdaptiveVTDescription const& InAdaptiveVTDesc)
 	{
 		// Check for NumLayers avoids allocating for the null producer
 		IAdaptiveVirtualTexture* OutAdaptiveVirtualTexture = nullptr;
 		if (InAllocatedVTDesc.NumTextureLayers > 0)
 		{
-			OutAdaptiveVirtualTexture = GetRendererModule().AllocateAdaptiveVirtualTexture(InAdaptiveVTDesc, InAllocatedVTDesc);
+			OutAdaptiveVirtualTexture = GetRendererModule().AllocateAdaptiveVirtualTexture(RHICmdList, InAdaptiveVTDesc, InAllocatedVTDesc);
 		}
 		return OutAdaptiveVirtualTexture;
 	}

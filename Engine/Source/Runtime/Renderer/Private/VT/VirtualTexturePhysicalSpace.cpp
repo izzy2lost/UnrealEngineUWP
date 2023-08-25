@@ -120,10 +120,8 @@ EPixelFormat RemapVirtualTexturePhysicalSpaceFormat(EPixelFormat InFormat)
 	return InFormat;
 }
 
-void FVirtualTexturePhysicalSpace::InitRHI(FRHICommandListBase&)
+void FVirtualTexturePhysicalSpace::InitRHI(FRHICommandListBase& RHICmdList)
 {
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-
 	for (int32 Layer = 0; Layer < Description.NumLayers; ++Layer)
 	{
 		const EPixelFormat FormatSRV = RemapVirtualTexturePhysicalSpaceFormat(Description.Format[Layer]);

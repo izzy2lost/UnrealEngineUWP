@@ -53,7 +53,7 @@ FVirtualTextureProducerCollection::FVirtualTextureProducerCollection() : NumPend
 	}
 }
 
-FVirtualTextureProducerHandle FVirtualTextureProducerCollection::RegisterProducer(FVirtualTextureSystem* System, const FVTProducerDescription& InDesc, IVirtualTexture* InProducer)
+FVirtualTextureProducerHandle FVirtualTextureProducerCollection::RegisterProducer(FRHICommandListBase& RHICmdList, FVirtualTextureSystem* System, const FVTProducerDescription& InDesc, IVirtualTexture* InProducer)
 {
 	const uint32 ProducerWidth = InDesc.BlockWidthInTiles * InDesc.WidthInBlocks * InDesc.TileSize;
 	const uint32 ProducerHeight = InDesc.BlockHeightInTiles * InDesc.HeightInBlocks * InDesc.TileSize;
@@ -90,7 +90,7 @@ FVirtualTextureProducerHandle FVirtualTextureProducerCollection::RegisterProduce
 			}
 		}
 		check(PhysicalSpaceDesc.NumLayers > 0);
-		Entry.Producer.PhysicalGroups[PhysicalGroupIndex].PhysicalSpace = System->AcquirePhysicalSpace(PhysicalSpaceDesc);
+		Entry.Producer.PhysicalGroups[PhysicalGroupIndex].PhysicalSpace = System->AcquirePhysicalSpace(RHICmdList, PhysicalSpaceDesc);
 	}
 
 	const FVirtualTextureProducerHandle Handle(Index, Entry.Magic);

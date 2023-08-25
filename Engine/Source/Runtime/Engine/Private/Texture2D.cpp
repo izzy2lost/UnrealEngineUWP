@@ -1489,7 +1489,7 @@ FVirtualTexture2DResource::~FVirtualTexture2DResource()
 {
 }
 
-void FVirtualTexture2DResource::InitRHI(FRHICommandListBase&)
+void FVirtualTexture2DResource::InitRHI(FRHICommandListBase& RHICmdList)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FVirtualTexture2DResource::InitRHI);
 	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(PackageName, ELLMTagSet::Assets);
@@ -1555,7 +1555,7 @@ void FVirtualTexture2DResource::InitRHI(FRHICommandListBase&)
 	}
 
 	FUploadingVirtualTexture* VirtualTexture = new FUploadingVirtualTexture(ProducerDesc.Name, VTData, FirstMipToUse);
-	ProducerHandle = GetRendererModule().RegisterVirtualTextureProducer(ProducerDesc, VirtualTexture);
+	ProducerHandle = GetRendererModule().RegisterVirtualTextureProducer(RHICmdList, ProducerDesc, VirtualTexture);
 
 	// Only create the miptails mini-texture in-editor.
 #if WITH_EDITOR

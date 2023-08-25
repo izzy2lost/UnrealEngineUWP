@@ -14,6 +14,7 @@
 #include "RenderTimer.h"
 #include "RenderCounters.h"
 #include "RenderingThread.h"
+#include "RendererInterface.h"
 
 void UpdateShaderDevelopmentMode();
 
@@ -1025,4 +1026,19 @@ RENDERCORE_API void ConvertPixelDataToSCRGB(TArray<FLinearColor>& InOutRawPixels
 			CurrentPixel.B = PixelFloat4.Z;
 		}
 	}
+}
+
+FVirtualTextureProducerHandle IRendererModule::RegisterVirtualTextureProducer(const FVTProducerDescription& Desc, IVirtualTexture* Producer)
+{
+	return RegisterVirtualTextureProducer(FRHICommandListImmediate::Get(), Desc, Producer);
+}
+
+IAllocatedVirtualTexture* IRendererModule::AllocateVirtualTexture(const FAllocatedVTDescription& Desc)
+{
+	return AllocateVirtualTexture(FRHICommandListImmediate::Get(), Desc);
+}
+
+IAdaptiveVirtualTexture* IRendererModule::AllocateAdaptiveVirtualTexture(const FAdaptiveVTDescription& AdaptiveVTDesc, const FAllocatedVTDescription& AllocatedVTDesc)
+{
+	return AllocateAdaptiveVirtualTexture(FRHICommandListImmediate::Get(), AdaptiveVTDesc, AllocatedVTDesc);
 }
