@@ -257,6 +257,12 @@ void FRHICommandDispatchShaderBundle::Execute(FRHICommandListBase& CmdList)
 	INTERNAL_DECORATOR_COMPUTE(RHIDispatchShaderBundle)(ShaderBundle, RecordArgBufferSRV, RecordDataBufferSRV, ExecutionBufferUAV, Dispatches, bEmulated);
 }
 
+void FRHICommandSetShaderRootConstants::Execute(FRHICommandListBase& CmdList)
+{
+	RHISTAT(SetShaderRootConstants);
+	INTERNAL_DECORATOR_COMPUTE(RHISetShaderRootConstants)(ComputeShader, Constants);
+}
+
 void FRHICommandBeginUAVOverlap::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(BeginUAVOverlap);

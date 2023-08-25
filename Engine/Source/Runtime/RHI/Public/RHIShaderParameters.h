@@ -189,6 +189,7 @@ struct FRHIShaderBundleDispatch
 	FRHIComputeShader* Shader = nullptr;
 	FRHIComputePipelineState* RHIPipeline = nullptr;
 	FRHIBatchedShaderParameters Parameters;
+	FUint32Vector4 Constants;
 
 	inline bool IsValid() const
 	{

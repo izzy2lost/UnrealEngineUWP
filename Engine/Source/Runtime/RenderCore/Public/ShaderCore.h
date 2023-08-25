@@ -673,6 +673,7 @@ enum class EShaderResourceUsageFlags : uint8
 	GlobalUniformBuffer = 1 << 0,
 	BindlessResources   = 1 << 1,
 	BindlessSamplers    = 1 << 2,
+	RootConstants       = 1 << 3,
 };
 ENUM_CLASS_FLAGS(EShaderResourceUsageFlags)
 

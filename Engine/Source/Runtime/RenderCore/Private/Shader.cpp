@@ -2134,6 +2134,11 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		}
 	}
 
+	if (RHISupportsShaderRootConstants(Platform))
+	{
+		KeyString += TEXT("_SHRC");
+	}
+
 	if (RHISupportsShaderBundleDispatch(Platform))
 	{
 		KeyString += TEXT("_SHBD");

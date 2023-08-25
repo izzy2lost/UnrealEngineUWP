@@ -302,6 +302,7 @@ FD3D12Adapter::FD3D12Adapter(FD3D12AdapterDesc& DescIn)
 #if USE_STATIC_ROOT_SIGNATURE
 	, StaticGraphicsRootSignature(this)
 	, StaticComputeRootSignature(this)
+	, StaticComputeWithConstantsRootSignature(this)
 	, StaticRayTracingGlobalRootSignature(this)
 	, StaticRayTracingLocalRootSignature(this)
 #endif
@@ -1319,6 +1320,7 @@ void FD3D12Adapter::InitializeDevices()
 
 		StaticGraphicsRootSignature.InitStaticGraphicsRootSignature(GraphicsFlags);
 		StaticComputeRootSignature.InitStaticComputeRootSignatureDesc(GraphicsFlags);
+		StaticComputeWithConstantsRootSignature.InitStaticComputeWithConstantsRootSignatureDesc(GraphicsFlags);
 
 #if D3D12_RHI_RAYTRACING
 		ED3D12RootSignatureFlags RayTracingFlags{};

@@ -623,6 +623,10 @@ public:
 	void SetRenderTargets(uint32 NumSimultaneousRenderTargets, const FRHIRenderTargetView* NewRenderTargets, const FRHIDepthRenderTargetView* NewDepthStencilTarget);
 	void SetRenderTargetsAndClear(const FRHISetRenderTargetsInfo& RenderTargetsInfo);
 
+	virtual void RHISetShaderRootConstants(
+		FRHIComputeShader* ComputeShader,
+		const FUint32Vector4& Constants) override;
+
 	virtual void RHIDispatchShaderBundle(
 		FRHIShaderBundle* ShaderBundle,
 		FRHIShaderResourceView* RecordArgBufferSRV,

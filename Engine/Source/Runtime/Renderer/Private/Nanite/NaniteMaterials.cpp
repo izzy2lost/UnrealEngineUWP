@@ -945,7 +945,7 @@ void BuildShadingCommands(
 	}
 
 	// Create Shader Bundle
-	if (!!GRHISupportsDispatchShaderBundle && ShadingCommands.Commands.Num() > 0)
+	if (!!GRHISupportsShaderBundleDispatch && ShadingCommands.Commands.Num() > 0)
 	{
 		const uint32 NumRecords = ShadingCommands.MaxShadingBin + 1u;
 		ShadingCommands.ShaderBundle = RHICreateShaderBundle(NumRecords);
@@ -1021,6 +1021,14 @@ void RecordShadingCommand(
 		OutputTargets,
 		OutputTargetsArray
 	);
+
+	if (GRHISupportsShaderRootConstants)
+	{
+		RHICmdList.SetShaderRootConstants(
+			ComputeShaderRHI,
+			PassData
+		);
+	}
 
 	RHICmdList.SetBatchedShaderParameters(ComputeShaderRHI, BatchedParameters);
 	RHICmdList.DispatchIndirectComputeShader(IndirectArgsBuffer, IndirectOffset);
@@ -1401,7 +1409,7 @@ void DispatchBasePass(
 	);
 
 	const bool bSkipBarriers = GNaniteBarrierTest != 0;
-	const bool bBundleShading = !!GRHISupportsDispatchShaderBundle && GNaniteBundleShading != 0;
+	const bool bBundleShading = !!GRHISupportsShaderBundleDispatch && GNaniteBundleShading != 0;
 	const bool bBundleEmulation = bBundleShading && GNaniteBundleEmulation != 0;
 
 	auto ShadePassWork = []
@@ -1525,6 +1533,7 @@ void DispatchBasePass(
 							Dispatch.RecordIndex = ShadingCommand->ShadingBin;
 							RecordShadingParameters(CommandData, Dispatch.Parameters, *ShadingCommand, ViewRect, OutputTargets, OutputTargetsArray);
 							Dispatch.Shader = ShadingCommand->ComputeShader.GetComputeShader();
+							Dispatch.Constants = CommandData;
 							check(Dispatch.Shader);
 						});
 

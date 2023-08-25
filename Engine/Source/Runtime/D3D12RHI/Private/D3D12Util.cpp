@@ -1064,6 +1064,10 @@ static void SetBoundShaderStateFlags(FD3D12QuantizedBoundShaderState& OutQBSS, c
 		OutQBSS.bUseDirectlyIndexedResourceHeap |= ShaderData->UsesBindlessResources();
 		OutQBSS.bUseDirectlyIndexedSamplerHeap |= ShaderData->UsesBindlessSamplers();
 #endif
+		if (GRHISupportsShaderRootConstants)
+		{
+			OutQBSS.bUseRootConstants |= ShaderData->UsesRootConstants();
+		}
 	}
 }
 
@@ -1174,7 +1178,14 @@ const FD3D12RootSignature* FD3D12Adapter::GetRootSignature(const FD3D12ComputeSh
 {
 #if USE_STATIC_ROOT_SIGNATURE
 
-	return &StaticComputeRootSignature;
+	if (ComputeShader->UsesRootConstants() && GRHISupportsShaderRootConstants)
+	{
+		return &StaticComputeWithConstantsRootSignature;
+	}
+	else
+	{
+		return &StaticComputeRootSignature;
+	}
 
 #else //! USE_STATIC_ROOT_SIGNATURE
 

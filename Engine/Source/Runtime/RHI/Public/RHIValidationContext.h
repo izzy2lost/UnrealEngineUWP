@@ -165,6 +165,13 @@ public:
 		RHIContext->RHIClearUAVUint(UnorderedAccessViewRHI, Values);
 	}
 
+	virtual void RHISetShaderRootConstants(
+		FRHIComputeShader* ComputeShader,
+		const FUint32Vector4& Constants) final override
+	{
+		RHIContext->RHISetShaderRootConstants(ComputeShader, Constants);
+	}
+
 	virtual void RHIDispatchShaderBundle(
 		FRHIShaderBundle* ShaderBundleRHI,
 		FRHIShaderResourceView* RecordArgBufferSRV,
@@ -511,6 +518,13 @@ public:
 		// @todo should we assert here? If the base RHI uses a compute shader via
 		// FRHICommandList_RecursiveHazardous then we might double-assert which breaks the tracking
 		RHIContext->RHIClearUAVUint(UnorderedAccessViewRHI, Values);
+	}
+
+	virtual void RHISetShaderRootConstants(
+		FRHIComputeShader* ComputeShader,
+		const FUint32Vector4& Constants) final override
+	{
+		RHIContext->RHISetShaderRootConstants(ComputeShader, Constants);
 	}
 
 	virtual void RHIDispatchShaderBundle(

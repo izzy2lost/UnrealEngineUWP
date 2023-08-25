@@ -8,10 +8,8 @@
 
 #pragma once
 
-#ifndef RAYTRACINGBUILTINRESOURCES_USH_INCLUDED
-#define RAYTRACINGBUILTINRESOURCES_USH_INCLUDED // Workarround for UE-66460
-
 #include "RayTracingDefinitions.h"
+#include "HLSLReservedSpaces.h"
 
 #if defined(__cplusplus)
 	#define INCLUDED_FROM_CPP_CODE  1
@@ -82,21 +80,14 @@ struct FHitGroupSystemRootConstants
 #endif
 
 #if INCLUDED_FROM_HLSL_CODE && !OVERRIDE_RAY_TRACING_HIT_GROUP_SYSTEM_RESOURCES
-	#define RT_CONCATENATE2(a, b) a##b
-	#define RT_CONCATENATE(a, b) RT_CONCATENATE2(a, b)
-	#define RT_REGISTER(InType, InIndex, InSpace) register(RT_CONCATENATE(InType, InIndex), RT_CONCATENATE(space, InSpace))
 	// Built-in local root parameters that are always bound to all hit shaders
-	ByteAddressBuffer									HitGroupSystemIndexBuffer   : RT_REGISTER(t, RAY_TRACING_SYSTEM_INDEXBUFFER_REGISTER,  RAY_TRACING_REGISTER_SPACE_SYSTEM);
-	ByteAddressBuffer									HitGroupSystemVertexBuffer  : RT_REGISTER(t, RAY_TRACING_SYSTEM_VERTEXBUFFER_REGISTER, RAY_TRACING_REGISTER_SPACE_SYSTEM);
-	ConstantBuffer<FHitGroupSystemRootConstants>		HitGroupSystemRootConstants : RT_REGISTER(b, RAY_TRACING_SYSTEM_ROOTCONSTANT_REGISTER, RAY_TRACING_REGISTER_SPACE_SYSTEM);
-	#undef RT_REGISTER
-	#undef RT_CONCATENATE
-	#undef RT_CONCATENATE2
-#endif // INCLUDED_FROM_HLSL_CODE && !OVERRIDE_RAY_TRACING_HIT_GROUP_SYSTEM_RESOURCES
+	ByteAddressBuffer									HitGroupSystemIndexBuffer   : UE_HLSL_REGISTER(t, RAY_TRACING_SYSTEM_INDEXBUFFER_REGISTER,  UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
+	ByteAddressBuffer									HitGroupSystemVertexBuffer  : UE_HLSL_REGISTER(t, RAY_TRACING_SYSTEM_VERTEXBUFFER_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
+	ConstantBuffer<FHitGroupSystemRootConstants>		HitGroupSystemRootConstants : UE_HLSL_REGISTER(b, RAY_TRACING_SYSTEM_ROOTCONSTANT_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
+#endif
 
 
 #undef INCLUDED_FROM_CPP_CODE
 #undef INCLUDED_FROM_HLSL_CODE
 #undef UINT_TYPE
 
-#endif // RAYTRACINGBUILTINRESOURCES_USH_INCLUDED // Workarround for UE-66460

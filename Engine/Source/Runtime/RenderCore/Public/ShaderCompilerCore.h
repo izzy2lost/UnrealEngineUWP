@@ -150,6 +150,8 @@ enum ECompilerFlags
 	CFLAG_WarpCulling,
 	// Shader should generate minimal symbols info
 	CFLAG_GenerateSymbolsInfo,
+	// Enabled root constants optimization on supported platforms
+	CFLAG_RootConstants,
 	CFLAG_Max,
 };
 static_assert(CFLAG_Max < 64, "Out of bitfield space! Modify FShaderCompilerFlags");

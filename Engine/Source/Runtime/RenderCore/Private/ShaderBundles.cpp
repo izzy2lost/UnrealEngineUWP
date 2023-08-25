@@ -17,6 +17,7 @@ bool FDispatchShaderBundleCS::ShouldCompilePermutation(const FGlobalShaderPermut
 void FDispatchShaderBundleCS::ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 {
 	OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZEX"), ThreadGroupSizeX);
+	OutEnvironment.SetDefine(TEXT("USE_SHADER_ROOT_CONSTANTS"), RHISupportsShaderRootConstants(Parameters.Platform) ? 1 : 0);
 	FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 }
 
@@ -28,7 +29,7 @@ void FDispatchShaderBundle::Dispatch(
 	FRHIUnorderedAccessView* ExecutionBufferUAV
 )
 {
-	check(RHISupportsShaderBundleDispatch(GMaxRHIShaderPlatform) && GRHISupportsDispatchShaderBundle);
+	check(RHISupportsShaderBundleDispatch(GMaxRHIShaderPlatform) && GRHISupportsShaderBundleDispatch);
 	check(ShaderBundle && ShaderBundle->NumRecords > 0);
 
 	RHICmdList.ClearUAVUint(ExecutionBufferUAV, FUintVector4(0, 0, 0, 0));

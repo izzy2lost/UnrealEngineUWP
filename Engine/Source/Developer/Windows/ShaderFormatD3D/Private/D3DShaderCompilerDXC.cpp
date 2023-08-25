@@ -70,11 +70,11 @@ static uint32 GetAutoBindingSpace(const FShaderTarget& Target)
 	switch (Target.Frequency)
 	{
 	case SF_RayGen:
-		return RAY_TRACING_REGISTER_SPACE_GLOBAL;
+		return UE_HLSL_SPACE_RAY_TRACING_GLOBAL;
 	case SF_RayMiss:
 	case SF_RayHitGroup:
 	case SF_RayCallable:
-		return RAY_TRACING_REGISTER_SPACE_LOCAL;
+		return UE_HLSL_SPACE_RAY_TRACING_LOCAL;
 	default:
 		return 0;
 	}
@@ -800,7 +800,12 @@ inline bool IsCompatibleBinding(const D3D12_SHADER_INPUT_BIND_DESC& BindDesc, ui
 	{
 		// #todo: there is currently no common header where a binding space number or buffer name could be defined. See D3DCommon.ush and D3D12RootSignature.cpp.
 		const bool bIsUEDebugBuffer = (FCStringAnsi::Strcmp(BindDesc.Name, "UEDiagnosticBuffer") == 0);
-		bIsCompatibleBinding = bIsUEDebugBuffer && (BindDesc.Space == 999);
+		bIsCompatibleBinding = bIsUEDebugBuffer && (BindDesc.Space == UE_HLSL_SPACE_DIAGNOSTIC);
+	}
+	if (!bIsCompatibleBinding)
+	{
+		const bool bIsUERootConstants = (FCStringAnsi::Strcmp(BindDesc.Name, "UERootConstants") == 0);
+		bIsCompatibleBinding = bIsUERootConstants && (BindDesc.Space == UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS);
 	}
 
 	return bIsCompatibleBinding;
@@ -946,6 +951,7 @@ bool CompileAndProcessD3DShaderDXC(const FShaderPreprocessOutput& PreprocessOutp
 
 		bool bGlobalUniformBufferUsed = false;
 		bool bDiagnosticBufferUsed = false;
+		bool bRootConstants = false;
 		uint32 NumInstructions = 0;
 		uint32 NumSamplers = 0;
 		uint32 NumSRVs = 0;
@@ -965,6 +971,11 @@ bool CompileAndProcessD3DShaderDXC(const FShaderPreprocessOutput& PreprocessOutp
 		DxcBuffer ReflBuffer = { 0 };
 		ReflBuffer.Ptr = ReflectionBlob->GetBufferPointer();
 		ReflBuffer.Size = ReflectionBlob->GetBufferSize();
+
+		if (Input.Environment.CompilerFlags.Contains(CFLAG_RootConstants))
+		{
+			bRootConstants = true;
+		}
 
 		if (bIsRayTracingShader)
 		{
@@ -1117,6 +1128,11 @@ bool CompileAndProcessD3DShaderDXC(const FShaderPreprocessOutput& PreprocessOutp
 			if (bGlobalUniformBufferUsed)
 			{
 				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::GlobalUniformBuffer;
+			}
+
+			if (bRootConstants)
+			{
+				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::RootConstants;
 			}
 
 			if (ShaderRequiresFlags & D3D_SHADER_REQUIRES_RESOURCE_DESCRIPTOR_HEAP_INDEXING)

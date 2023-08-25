@@ -1612,6 +1612,15 @@ void FD3D12CommandContext::CommitComputeResourceTables()
 	SetResourcesFromTables(ComputePSO->GetComputeShader());
 }
 
+void FD3D12CommandContext::RHISetShaderRootConstants(
+	FRHIComputeShader* ComputeShader,
+	const FUint32Vector4& Constants)
+{
+	FD3D12ComputeShader* D3D12ComputeShader = FD3D12DynamicRHI::ResourceCast(ComputeShader);
+	check(EnumHasAnyFlags(D3D12ComputeShader->ResourceCounts.UsageFlags, EShaderResourceUsageFlags::RootConstants));
+	StateCache.SetRootConstants(Constants);
+}
+
 void FD3D12CommandContext::RHIDispatchShaderBundle(
 	FRHIShaderBundle* ShaderBundle,
 	FRHIShaderResourceView* RecordArgBufferSRV,

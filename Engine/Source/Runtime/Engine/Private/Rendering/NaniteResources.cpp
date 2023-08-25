@@ -2529,6 +2529,7 @@ void FNaniteVertexFactory::ModifyCompilationEnvironment(const FVertexFactoryShad
 	}
 
 	OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
+	OutEnvironment.CompilerFlags.Add(CFLAG_RootConstants);
 }
 
 IMPLEMENT_VERTEX_FACTORY_TYPE(FNaniteVertexFactory, "/Engine/Private/Nanite/NaniteVertexFactory.ush",

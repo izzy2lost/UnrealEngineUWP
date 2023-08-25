@@ -284,6 +284,10 @@ public:
 	*/
 	virtual void RHIClearUAVUint(FRHIUnorderedAccessView* UnorderedAccessViewRHI, const FUintVector4& Values) = 0;
 
+	virtual void RHISetShaderRootConstants(
+		FRHIComputeShader* ComputeShader,
+		const FUint32Vector4& Constants) {}
+
 	virtual void RHIDispatchShaderBundle(
 		FRHIShaderBundle* ShaderBundle,
 		FRHIShaderResourceView* RecordArgBufferSRV,
