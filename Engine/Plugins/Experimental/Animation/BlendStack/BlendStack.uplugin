@@ -2,8 +2,8 @@
 	"FileVersion": 3,
 	"Version": 1,
 	"VersionName": "0.1",
-	"FriendlyName": "Pose Search",
-	"Description": "Experimental pose search API",
+	"FriendlyName": "Blend Stack",
+	"Description": "Experimental blend stack API",
 	"Category": "Animation",
 	"CreatedBy": "Epic Games, Inc.",
 	"CreatedByURL": "https://epicgames.com",
@@ -11,36 +11,25 @@
 	"MarketplaceURL": "",
 	"SupportURL": "",
 	"EnabledByDefault": false,
-	"CanContainContent": true,
+	"CanContainContent": false,
 	"IsBetaVersion": false,
 	"IsExperimentalVersion": true,
 	"Installed": false,
 	"Modules": [
 		{
-			"Name": "PoseSearch",
+			"Name": "BlendStack",
 			"Type": "Runtime",
 			"LoadingPhase": "PreDefault"
 		},
 		{
-			"Name": "PoseSearchEditor",
+			"Name": "BlendStackEditor",
 			"Type": "UncookedOnly",
 			"LoadingPhase": "PreDefault"
 		}
 	],
 	"Plugins": [
 		{
-			"Name": "GameplayInsights",
-			"Enabled": true,
-			"TargetAllowList": [
-				"Editor"
-			]
-		},
-		{
 			"Name": "StructUtils",
-			"Enabled": true
-		},
-		{
-			"Name": "BlendStack",
 			"Enabled": true
 		}
 	]

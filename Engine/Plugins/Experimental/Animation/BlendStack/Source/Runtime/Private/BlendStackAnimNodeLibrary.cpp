@@ -1,7 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "PoseSearch/BlendStackAnimNodeLibrary.h"
-#include "PoseSearch/AnimNode_BlendStack.h"
+#include "BlendStack/BlendStackAnimNodeLibrary.h"
+#include "BlendStack/AnimNode_BlendStack.h"
+#include "BlendStack/BlendStackDefines.h"
 
 FBlendStackAnimNodeReference UBlendStackAnimNodeLibrary::ConvertToBlendStackNode(const FAnimNodeReference& Node, EAnimNodeReferenceConversionResult& Result)
 {
@@ -24,7 +25,7 @@ void UBlendStackAnimNodeLibrary::BlendTo(const FAnimUpdateContext& Context,
 		{
 			if (AnimationAsset == nullptr)
 			{
-				UE_LOG(LogPoseSearch, Warning, TEXT("UBlendStackAnimNodeLibrary::BlendTo called with null animation asset."));
+				UE_LOG(LogBlendStack, Warning, TEXT("UBlendStackAnimNodeLibrary::BlendTo called with null animation asset."));
 				return;
 			}
 
@@ -45,12 +46,12 @@ void UBlendStackAnimNodeLibrary::BlendTo(const FAnimUpdateContext& Context,
 		}
 		else
 		{
-			UE_LOG(LogPoseSearch, Warning, TEXT("UBlendStackAnimNodeLibrary::BlendTo called with an invalid context."));
+			UE_LOG(LogBlendStack, Warning, TEXT("UBlendStackAnimNodeLibrary::BlendTo called with an invalid context."));
 		}
 	}
 	else
 	{
-		UE_LOG(LogPoseSearch, Warning, TEXT("UBlendStackAnimNodeLibrary::BlendTo called with an invalid type."));
+		UE_LOG(LogBlendStack, Warning, TEXT("UBlendStackAnimNodeLibrary::BlendTo called with an invalid type."));
 	}
 }
 
@@ -62,6 +63,6 @@ void UBlendStackAnimNodeLibrary::ForceBlendNextUpdate(const FBlendStackAnimNodeR
 	}
 	else
 	{
-		UE_LOG(LogPoseSearch, Warning, TEXT("UBlendStackAnimNodeLibrary::ForceBlendNextUpdate called with an invalid type."));
+		UE_LOG(LogBlendStack, Warning, TEXT("UBlendStackAnimNodeLibrary::ForceBlendNextUpdate called with an invalid type."));
 	}
 }

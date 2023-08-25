@@ -1,15 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "PoseSearch/AnimNode_BlendStack.h"
+#include "BlendStack/AnimNode_BlendStack.h"
 #include "Algo/MaxElement.h"
 #include "Animation/AnimInstanceProxy.h"
 #include "Animation/AnimComposite.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/BlendSpace.h"
 #include "Animation/AnimMontage.h"
-#include "PoseSearch/PoseSearchDefines.h"
-#include "PoseSearch/AnimNode_BlendStackInput.h"
+#include "BlendStack/AnimNode_BlendStackInput.h"
 #include "Animation/AnimNode_Inertialization.h"
+#include "BlendStack/BlendStackDefines.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_BlendStack)
 
@@ -20,13 +20,15 @@ TAutoConsoleVariable<int32> CVarAnimBlendStackPruningEnable(TEXT("a.AnimNode.Ble
 
 #define LOCTEXT_NAMESPACE "AnimNode_BlendStack"
 
+static constexpr FBoneIndexType RootBoneIndexType = 0;
+
 /////////////////////////////////////////////////////
-// FPoseSearchAnimPlayer
-void FPoseSearchAnimPlayer::Initialize(const FAnimationInitializeContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop, bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, float RootBoneBlendTime, const UBlendProfile* BlendProfile, EAlphaBlendOption InBlendOption, FVector BlendParameters, float PlayRate, int32 InPoseLinkIdx)
+// FBlendStackAnimPlayer
+void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop, bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, float RootBoneBlendTime, const UBlendProfile* BlendProfile, EAlphaBlendOption InBlendOption, FVector BlendParameters, float PlayRate, int32 InPoseLinkIdx)
 {
 	if (bMirrored && !MirrorDataTable)
 	{
-		UE_LOG(LogPoseSearch, Error, TEXT("FPoseSearchAnimPlayer failed to Initialize for %s. Mirroring will not work becasue MirrorDataTable is missing"), *GetNameSafe(AnimationAsset));
+		UE_LOG(LogBlendStack, Error, TEXT("FBlendStackAnimPlayer failed to Initialize for %s. Mirroring will not work becasue MirrorDataTable is missing"), *GetNameSafe(AnimationAsset));
 	}
 	
 	check(Context.AnimInstanceProxy);
@@ -38,7 +40,7 @@ void FPoseSearchAnimPlayer::Initialize(const FAnimationInitializeContext& Contex
 	const int32 NumSkeletonBones = RefSkeleton.GetNum();
 	if (NumSkeletonBones <= 0)
 	{
-		UE_LOG(LogPoseSearch, Error, TEXT("FPoseSearchAnimPlayer failed to Initialize for %s. Skeleton has no bones?!"), *GetNameSafe(AnimationAsset));
+		UE_LOG(LogBlendStack, Error, TEXT("FBlendStackAnimPlayer failed to Initialize for %s. Skeleton has no bones?!"), *GetNameSafe(AnimationAsset));
 	}
 	else if (BlendTime > UE_KINDA_SMALL_NUMBER)
 	{
@@ -112,14 +114,14 @@ void FPoseSearchAnimPlayer::Initialize(const FAnimationInitializeContext& Contex
 
 	if (bUnsupportedAnimAsset)
 	{
-		UE_LOG(LogPoseSearch, Error, TEXT("FPoseSearchAnimPlayer unsupported AnimationAsset %s"), *GetNameSafe(AnimationAsset));
+		UE_LOG(LogBlendStack, Error, TEXT("FBlendStackAnimPlayer unsupported AnimationAsset %s"), *GetNameSafe(AnimationAsset));
 	}
 
 	UpdateSourceLinkNode();
 	PoseLinkIndex = InPoseLinkIdx;
 }
 
-void FPoseSearchAnimPlayer::UpdatePlayRate(float PlayRate)
+void FBlendStackAnimPlayer::UpdatePlayRate(float PlayRate)
 {
 	if (SequencePlayerNode.GetSequence())
 	{
@@ -131,7 +133,7 @@ void FPoseSearchAnimPlayer::UpdatePlayRate(float PlayRate)
 	}
 }
 
-void FPoseSearchAnimPlayer::StorePoseContext(const FPoseContext& PoseContext)
+void FBlendStackAnimPlayer::StorePoseContext(const FPoseContext& PoseContext)
 {
 	SequencePlayerNode.SetSequence(nullptr);
 	BlendSpacePlayerNode.SetBlendSpace(nullptr);
@@ -147,7 +149,7 @@ void FPoseSearchAnimPlayer::StorePoseContext(const FPoseContext& PoseContext)
 	StoredAttributes.CopyFrom(PoseContext.CustomAttributes);
 }
 
-void FPoseSearchAnimPlayer::RestorePoseContext(FPoseContext& PoseContext) const
+void FBlendStackAnimPlayer::RestorePoseContext(FPoseContext& PoseContext) const
 {
 	check(!SequencePlayerNode.GetSequence() && !BlendSpacePlayerNode.GetBlendSpace());
 
@@ -191,7 +193,7 @@ void FPoseSearchAnimPlayer::RestorePoseContext(FPoseContext& PoseContext) const
 
 // @todo: maybe implement copy/move constructors and assignment operator do so (or use a list instead of an array)
 // since we're making copies and moving this object in memory, we're using this method to set the MirrorNode SourceLinkNode when necessary
-void FPoseSearchAnimPlayer::UpdateSourceLinkNode()
+void FBlendStackAnimPlayer::UpdateSourceLinkNode()
 {
 	if (SequencePlayerNode.GetSequence())
 	{
@@ -207,7 +209,7 @@ void FPoseSearchAnimPlayer::UpdateSourceLinkNode()
 	}
 }
 
-void FPoseSearchAnimPlayer::Evaluate_AnyThread(FPoseContext& Output)
+void FBlendStackAnimPlayer::Evaluate_AnyThread(FPoseContext& Output)
 {
 	if (SequencePlayerNode.GetSequence() || BlendSpacePlayerNode.GetBlendSpace())
 	{
@@ -220,13 +222,13 @@ void FPoseSearchAnimPlayer::Evaluate_AnyThread(FPoseContext& Output)
 	}
 }
 
-void FPoseSearchAnimPlayer::Update_AnyThread(const FAnimationUpdateContext& Context)
+void FBlendStackAnimPlayer::Update_AnyThread(const FAnimationUpdateContext& Context)
 {
 	UpdateSourceLinkNode();
 	MirrorNode.Update_AnyThread(Context);
 }
 
-float FPoseSearchAnimPlayer::GetAccumulatedTime() const
+float FBlendStackAnimPlayer::GetAccumulatedTime() const
 {
 	if (SequencePlayerNode.GetSequence())
 	{
@@ -243,7 +245,7 @@ float FPoseSearchAnimPlayer::GetAccumulatedTime() const
 	return 0.f;
 }
 
-float FPoseSearchAnimPlayer::GetPlayRate() const
+float FBlendStackAnimPlayer::GetPlayRate() const
 {
 	if (SequencePlayerNode.GetSequence())
 	{
@@ -258,7 +260,7 @@ float FPoseSearchAnimPlayer::GetPlayRate() const
 	return 0.f;
 }
 
-FVector FPoseSearchAnimPlayer::GetBlendParameters() const
+FVector FBlendStackAnimPlayer::GetBlendParameters() const
 {
 	if (BlendSpacePlayerNode.GetBlendSpace())
 	{
@@ -268,7 +270,7 @@ FVector FPoseSearchAnimPlayer::GetBlendParameters() const
 	return FVector::ZeroVector;
 }
 
-FString FPoseSearchAnimPlayer::GetAnimationName() const
+FString FBlendStackAnimPlayer::GetAnimationName() const
 {
 	if (SequencePlayerNode.GetSequence())
 	{
@@ -285,7 +287,7 @@ FString FPoseSearchAnimPlayer::GetAnimationName() const
 	return FString("StoredPose");
 }
 
-const UAnimationAsset* FPoseSearchAnimPlayer::GetAnimationAsset() const
+const UAnimationAsset* FBlendStackAnimPlayer::GetAnimationAsset() const
 {
 	if (SequencePlayerNode.GetSequence())
 	{
@@ -300,7 +302,7 @@ const UAnimationAsset* FPoseSearchAnimPlayer::GetAnimationAsset() const
 	return nullptr;
 }
 
-float FPoseSearchAnimPlayer::GetBlendInPercentage() const
+float FBlendStackAnimPlayer::GetBlendInPercentage() const
 {
 	if (FMath::IsNearlyZero(TotalBlendInTime))
 	{
@@ -310,7 +312,7 @@ float FPoseSearchAnimPlayer::GetBlendInPercentage() const
 	return FMath::Clamp(CurrentBlendInTime / TotalBlendInTime, 0.f, 1.f);
 }
 
-bool FPoseSearchAnimPlayer::GetBlendInWeights(TArray<float>& Weights) const
+bool FBlendStackAnimPlayer::GetBlendInWeights(TArray<float>& Weights) const
 {
 	const int32 NumBones = TotalBlendInTimePerBone.Num();
 	if (NumBones > 0)
@@ -446,7 +448,7 @@ void FAnimNode_BlendStack_Standalone::Evaluate_AnyThread(FPoseContext& Output)
 		const int32 ActiveBlends = AnimPlayers.Num() - 1;
 		if (ActiveBlends > MaxActiveBlends)
 		{
-			UE_LOG(LogPoseSearch, Display, TEXT("FAnimNode_BlendStack_Standalone NumBlends/MaxNumBlends %d / %d"), ActiveBlends, MaxActiveBlends);
+			UE_LOG(LogBlendStack, Display, TEXT("FAnimNode_BlendStack_Standalone NumBlends/MaxNumBlends %d / %d"), ActiveBlends, MaxActiveBlends);
 		}
 	}
 }
@@ -501,7 +503,7 @@ void FAnimNode_BlendStack_Standalone::UpdateAssetPlayer(const FAnimationUpdateCo
 	int32 AnimPlayerIndex = 0;
 	for (; AnimPlayerIndex < BlendStackSize; ++AnimPlayerIndex)
 	{
-		FPoseSearchAnimPlayer& AnimPlayer = AnimPlayers[AnimPlayerIndex];
+		FBlendStackAnimPlayer& AnimPlayer = AnimPlayers[AnimPlayerIndex];
 		const bool bIsLastAnimPlayers = AnimPlayerIndex == BlendStackSize - 1;
 		const float BlendInPercentage = bIsLastAnimPlayers ? 1.f : AnimPlayer.GetBlendInPercentage();
 		const float AnimPlayerBlendWeight = CurrentWeightMultiplier * BlendInPercentage;
@@ -517,8 +519,8 @@ void FAnimNode_BlendStack_Standalone::UpdateAssetPlayer(const FAnimationUpdateCo
 		CurrentWeightMultiplier *= (1.f - BlendInPercentage);
 	}
 
-	// AnimPlayers[AnimPlayerIndex] is the first FPoseSearchAnimPlayer with a weight contribution of zero, so we can discard it and all the successive AnimPlayers as well
-	const int32 WantedAnimPlayersNum = FMath::Max(1, AnimPlayerIndex); // we save at least one FPoseSearchAnimPlayer
+	// AnimPlayers[AnimPlayerIndex] is the first FBlendStackAnimPlayer with a weight contribution of zero, so we can discard it and all the successive AnimPlayers as well
+	const int32 WantedAnimPlayersNum = FMath::Max(1, AnimPlayerIndex); // we save at least one FBlendStackAnimPlayer
 	while (AnimPlayers.Num() > WantedAnimPlayersNum)
 	{
 		AnimPlayers.PopLast();
@@ -534,7 +536,7 @@ bool FAnimNode_BlendStack_Standalone::IsSampleGraphAvailableForPlayer(const int3
 
 void FAnimNode_BlendStack_Standalone::EvaluateSample(FPoseContext& Output, const int32 PlayerIndex)
 {
-	FPoseSearchAnimPlayer& SamplePlayer = AnimPlayers[PlayerIndex];
+	FBlendStackAnimPlayer& SamplePlayer = AnimPlayers[PlayerIndex];
 	// If we have any sample graphs, our player has been assigned a pose link index.
 	// If we are within X most relelvant players, then the graph is available.
 	// If PlayerIndex == MaxActiveBlends, don't evaluate that graph. It's reserved for the stored pose.
@@ -552,7 +554,7 @@ void FAnimNode_BlendStack_Standalone::EvaluateSample(FPoseContext& Output, const
 	PoseLink.EvaluatePlayer(Output, SamplePlayer);
 }
 
-void FBlendStack_SampleGraphPoseLink::EvaluatePlayer(FPoseContext& Output, FPoseSearchAnimPlayer& SamplePlayer)
+void FBlendStack_SampleGraphPoseLink::EvaluatePlayer(FPoseContext& Output, FBlendStackAnimPlayer& SamplePlayer)
 {
 	SetInputPosePlayer(SamplePlayer);
 
@@ -577,7 +579,7 @@ void FBlendStack_SampleGraphPoseLink::ConditionalCacheBones(const FAnimationBase
 
 void FAnimNode_BlendStack_Standalone::UpdateSample(const FAnimationUpdateContext& Context, const int32 PlayerIndex)
 {
-	FPoseSearchAnimPlayer& SamplePlayer = AnimPlayers[PlayerIndex];
+	FBlendStackAnimPlayer& SamplePlayer = AnimPlayers[PlayerIndex];
 
 	// If we have any sample graphs, our player has been assigned a pose link index.
 	// If we are within X most relelvant players, then the graph is available.
@@ -603,7 +605,7 @@ void FAnimNode_BlendStack_Standalone::UpdateSample(const FAnimationUpdateContext
 
 void FAnimNode_BlendStack_Standalone::CacheBonesForSample(const FAnimationCacheBonesContext& Context, const int32 PlayerIndex)
 {
-	FPoseSearchAnimPlayer& SamplePlayer = AnimPlayers[PlayerIndex];
+	FBlendStackAnimPlayer& SamplePlayer = AnimPlayers[PlayerIndex];
 	const bool bHasSampleGraph = !SampleGraphPoseLinks.IsEmpty() && (PlayerIndex <= MaxActiveBlends);
 	if (bHasSampleGraph)
 	{
@@ -612,7 +614,7 @@ void FAnimNode_BlendStack_Standalone::CacheBonesForSample(const FAnimationCacheB
 	}
 }
 
-void FAnimNode_BlendStack_Standalone::InitializeSample(const FAnimationInitializeContext& Context, FPoseSearchAnimPlayer& SamplePlayer)
+void FAnimNode_BlendStack_Standalone::InitializeSample(const FAnimationInitializeContext& Context, FBlendStackAnimPlayer& SamplePlayer)
 {
 	if (SamplePlayer.GetPoseLinkIndex() != INDEX_NONE)
 	{
@@ -663,8 +665,8 @@ void FAnimNode_BlendStack_Standalone::BlendTo(const FAnimationUpdateContext& Con
 		BlendTime = 0.0f;
 	}
 
-	AnimPlayers.PushFirst(FPoseSearchAnimPlayer());
-	FPoseSearchAnimPlayer& AnimPlayer = AnimPlayers.First();
+	AnimPlayers.PushFirst(FBlendStackAnimPlayer());
+	FBlendStackAnimPlayer& AnimPlayer = AnimPlayers.First();
 
 	FAnimationInitializeContext InitContext(Context.AnimInstanceProxy, Context.SharedContext);
 	AnimPlayer.Initialize(InitContext, AnimationAsset, AccumulatedTime, bLoop, bMirrored, MirrorDataTable, BlendTime, RootBoneBlendTime, BlendProfile, BlendOption, BlendParameters, PlayRate, GetNextPoseLinkIndex());
@@ -704,7 +706,7 @@ void FAnimNode_BlendStack_Standalone::GatherDebugData(FNodeDebugData& DebugData)
 	DebugData.AddDebugItem(FString::Printf(TEXT("%s"), *DebugData.GetNodeName(this)));
 	for (int32 i = 0; i < AnimPlayers.Num(); ++i)
 	{
-		const FPoseSearchAnimPlayer& AnimPlayer = AnimPlayers[i];
+		const FBlendStackAnimPlayer& AnimPlayer = AnimPlayers[i];
 		DebugData.AddDebugItem(FString::Printf(TEXT("%d) t:%.2f/%.2f m:%d %s"),
 				i, AnimPlayer.GetCurrentBlendInTime(), AnimPlayer.GetTotalBlendInTime(),
 				AnimPlayer.GetMirror() ? 1 : 0, *AnimPlayer.GetAnimationName()));
@@ -712,7 +714,7 @@ void FAnimNode_BlendStack_Standalone::GatherDebugData(FNodeDebugData& DebugData)
 #endif // ENABLE_ANIM_DEBUG
 
 	// propagating GatherDebugData to the AnimPlayers
-	for (FPoseSearchAnimPlayer& AnimPlayer : AnimPlayers)
+	for (FBlendStackAnimPlayer& AnimPlayer : AnimPlayers)
 	{
 		AnimPlayer.GetMirrorNode().GatherDebugData(DebugData);
 	}
@@ -744,7 +746,7 @@ void FAnimNode_BlendStack::UpdateAssetPlayer(const FAnimationUpdateContext& Cont
 	}
 	else
 	{
-		const FPoseSearchAnimPlayer& MainAnimPlayer = AnimPlayers.First();
+		const FBlendStackAnimPlayer& MainAnimPlayer = AnimPlayers.First();
 		const UAnimationAsset* PlayingAnimationAsset = MainAnimPlayer.GetAnimationAsset();
 
 		if (bForceBlendNextUpdate)
@@ -785,7 +787,7 @@ void FAnimNode_BlendStack::ForceBlendNextUpdate()
 	bForceBlendNextUpdate = true;
 }
 
-void FBlendStack_SampleGraphPoseLink::SetInputPosePlayer(FPoseSearchAnimPlayer& InPlayer)
+void FBlendStack_SampleGraphPoseLink::SetInputPosePlayer(FBlendStackAnimPlayer& InPlayer)
 {
 	// Because our anim players may get reallocated, or change indices due to push/pops,
 	// we must call this before every operation that might end up needing the anim player through the graph's input nodes.

@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "PoseSearch/AnimNode_BlendStackInput.h"
-#include "PoseSearch/AnimNode_BlendStack.h"
+#include "BlendStack/AnimNode_BlendStackInput.h"
+#include "BlendStack/AnimNode_BlendStack.h"
 #include "Animation/AnimInstanceProxy.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_BlendStackInput)

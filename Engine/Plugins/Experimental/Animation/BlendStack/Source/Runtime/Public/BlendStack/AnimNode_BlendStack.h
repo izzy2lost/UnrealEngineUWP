@@ -7,11 +7,10 @@
 #include "AnimNodes/AnimNode_BlendSpacePlayer.h"
 #include "AnimNodes/AnimNode_Mirror.h"
 #include "Containers/Deque.h"
-#include "PoseSearch/PoseSearchIndex.h"
 #include "AnimNode_BlendStack.generated.h"
 
 USTRUCT()
-struct FPoseSearchAnimPlayer
+struct BLENDSTACK_API FBlendStackAnimPlayer
 {
 	GENERATED_BODY()
 	
@@ -48,7 +47,7 @@ public:
 	// Embedded standalone player to play blend spaces
 	FAnimNode_BlendSpacePlayer_Standalone BlendSpacePlayerNode;
 
-	// Embedded mirror node to handle mirroring if the pose search results in a mirrored sequence
+	// Embedded mirror node to handle mirroring
 	FAnimNode_Mirror_Standalone MirrorNode;
 
 	// if SequencePlayerNode.GetSequence() and BlendSpacePlayerNode.GetBlendSpace() are nullptr, 
@@ -77,16 +76,16 @@ struct FBlendStack_SampleGraphPoseLink
 	int32 RootNodeIndex = INDEX_NONE;
 
 	FPoseLink Root;
-	FPoseSearchAnimPlayer* Player = nullptr;
+	FBlendStackAnimPlayer* Player = nullptr;
 	FGraphTraversalCounter CacheBoneCounter;
 
-	void SetInputPosePlayer(FPoseSearchAnimPlayer& InPlayer);
-	void EvaluatePlayer(FPoseContext& Output, FPoseSearchAnimPlayer& SamplePlayer);
+	void SetInputPosePlayer(FBlendStackAnimPlayer& InPlayer);
+	void EvaluatePlayer(FPoseContext& Output, FBlendStackAnimPlayer& SamplePlayer);
 	void ConditionalCacheBones(const FAnimationBaseContext& Output);
 };
 
 USTRUCT(BlueprintInternalUseOnly)
-struct POSESEARCH_API FAnimNode_BlendStack_Standalone : public FAnimNode_AssetPlayerBase
+struct BLENDSTACK_API FAnimNode_BlendStack_Standalone : public FAnimNode_AssetPlayerBase
 {
 	GENERATED_BODY()
 
@@ -94,7 +93,7 @@ struct POSESEARCH_API FAnimNode_BlendStack_Standalone : public FAnimNode_AssetPl
 	TArray<FBlendStack_SampleGraphPoseLink> SampleGraphPoseLinks;
 	int32 CurrentSamplePoseLink = -1;
 
-	TDeque<FPoseSearchAnimPlayer> AnimPlayers;
+	TDeque<FBlendStackAnimPlayer> AnimPlayers;
 
 	// FAnimNode_Base interface
 	virtual void Evaluate_AnyThread(FPoseContext& Output) override;
@@ -123,7 +122,7 @@ protected:
 
 private:
 
-	void InitializeSample(const FAnimationInitializeContext& Context, FPoseSearchAnimPlayer& SamplePlayer);
+	void InitializeSample(const FAnimationInitializeContext& Context, FBlendStackAnimPlayer& SamplePlayer);
 	void EvaluateSample(FPoseContext& Output, const int32 PlayerIndex);
 	void UpdateSample(const FAnimationUpdateContext& Context, const int32 PlayerIndex);
 	void CacheBonesForSample(const FAnimationCacheBonesContext& Context, const int32 PlayerIndex);
@@ -134,7 +133,7 @@ private:
 
 
 USTRUCT(BlueprintInternalUseOnly)
-struct POSESEARCH_API FAnimNode_BlendStack : public FAnimNode_BlendStack_Standalone
+struct BLENDSTACK_API FAnimNode_BlendStack : public FAnimNode_BlendStack_Standalone
 {
 	GENERATED_BODY()
 

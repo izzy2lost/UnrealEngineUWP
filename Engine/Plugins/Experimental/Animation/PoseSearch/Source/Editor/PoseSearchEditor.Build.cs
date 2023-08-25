@@ -12,6 +12,8 @@ public class PoseSearchEditor : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"BlendStackEditor",
+				"BlendStack",
 				"AnimGraph",
 				"AnimGraphRuntime",
 				"AnimationCore",

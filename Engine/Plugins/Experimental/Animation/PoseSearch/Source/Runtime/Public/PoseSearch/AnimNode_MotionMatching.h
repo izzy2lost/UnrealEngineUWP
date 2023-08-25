@@ -4,7 +4,7 @@
 
 #include "Animation/AnimNode_AssetPlayerBase.h"
 #include "GameplayTagContainer.h"
-#include "PoseSearch/AnimNode_BlendStack.h"
+#include "BlendStack/AnimNode_BlendStack.h"
 #include "PoseSearch/PoseSearchLibrary.h"
 #include "PoseSearch/PoseSearchTrajectoryTypes.h"
 #include "AnimNode_MotionMatching.generated.h"

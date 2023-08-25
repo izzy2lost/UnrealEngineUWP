@@ -143,7 +143,7 @@ void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& 
 				DebugInfo += FString::Printf(TEXT("  %s\n"), *GetNameSafe(DatabaseToSearch));
 			}
 			DebugInfo += FString::Printf(TEXT("Blend Stack:\n"));
-			for (const FPoseSearchAnimPlayer& AnimPlayer : AnimPlayers)
+			for (const FBlendStackAnimPlayer& AnimPlayer : AnimPlayers)
 			{
 				DebugInfo += FString::Printf(TEXT("  %s [time:%.2f|playrate:%.2f]\n"), *GetNameSafe(AnimPlayer.GetAnimationAsset()), AnimPlayer.GetAccumulatedTime(), AnimPlayer.GetPlayRate());
 			}

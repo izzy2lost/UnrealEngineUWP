@@ -22,7 +22,8 @@ public class PoseSearch : ModuleRules
 				"AnimationCore",
 				"TraceLog",
 				"AnimGraphRuntime",
-				"StructUtils"
+				"StructUtils",
+				"BlendStack"
 			}
 		);
 

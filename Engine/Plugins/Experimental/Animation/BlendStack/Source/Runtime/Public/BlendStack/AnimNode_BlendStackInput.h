@@ -9,7 +9,7 @@
 *	@Todo: It might be better to reuse FAnimNode_LinkedInputPose, since we will most likely need variable input pins in the future too.
 */
 USTRUCT(BlueprintInternalUseOnly, Experimental)
-struct POSESEARCH_API FAnimNode_BlendStackInput : public FAnimNode_Base
+struct BLENDSTACK_API FAnimNode_BlendStackInput : public FAnimNode_Base
 {
 	GENERATED_BODY()
 	
@@ -25,6 +25,6 @@ public:
 	int32 BlendStackAllocationIndex = INDEX_NONE;
 
 	// The player is guaranteed to be valid for the whole duration of update/eval.
-	struct FPoseSearchAnimPlayer** Player;
+	struct FBlendStackAnimPlayer** Player;
 };
 

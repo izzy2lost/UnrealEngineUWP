@@ -3,13 +3,13 @@
 #pragma once
 
 #include "AnimGraphNode_AssetPlayerBase.h"
-#include "PoseSearch/AnimNode_BlendStack.h"
+#include "BlendStack/AnimNode_BlendStack.h"
 #include "AnimGraphNode_BlendStack.generated.h"
 
 class UAnimGraphNode_BlendStackInput;
 
-UCLASS(MinimalAPI, Abstract, Experimental)
-class UAnimGraphNode_BlendStack_Base : public UAnimGraphNode_AssetPlayerBase
+UCLASS(Abstract, Experimental)
+class BLENDSTACKEDITOR_API UAnimGraphNode_BlendStack_Base : public UAnimGraphNode_AssetPlayerBase
 {
 	GENERATED_BODY()
 

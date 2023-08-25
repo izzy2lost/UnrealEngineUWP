@@ -31,7 +31,7 @@ FText UAnimGraphNode_BlendStack::GetNodeTitle(ENodeTitleType::Type TitleType) co
 
 FText UAnimGraphNode_BlendStack::GetMenuCategory() const
 {
-	return LOCTEXT("NodeCategory", "Pose Search");
+	return LOCTEXT("NodeCategory", "Animation|Blend Stack");
 }
 
 void UAnimGraphNode_BlendStack_Base::GetOutputLinkAttributes(FNodeAttributeArray& OutAttributes) const

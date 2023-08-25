@@ -3,7 +3,7 @@
 #pragma once
 
 #include "AnimGraphNode_Base.h"
-#include "PoseSearch/AnimNode_BlendStackInput.h"
+#include "BlendStack/AnimNode_BlendStackInput.h"
 
 #include "AnimGraphNode_BlendStackInput.generated.h"
 
