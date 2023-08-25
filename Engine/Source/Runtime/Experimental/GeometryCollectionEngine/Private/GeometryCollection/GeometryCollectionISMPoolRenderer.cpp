@@ -15,6 +15,7 @@
 
 void UGeometryCollectionISMPoolRenderer::OnRegisterGeometryCollection(UGeometryCollectionComponent const& InComponent)
 {
+	OwningLevel = InComponent.GetComponentLevel();
 }
 
 void UGeometryCollectionISMPoolRenderer::OnUnregisterGeometryCollection()
@@ -72,7 +73,8 @@ UGeometryCollectionISMPoolComponent* UGeometryCollectionISMPoolRenderer::GetOrCr
 	{
 		if (UGeometryCollectionISMPoolSubSystem* ISMPoolSubSystem = UWorld::GetSubsystem<UGeometryCollectionISMPoolSubSystem>(GetWorld()))
 		{
-			ISMPoolActor = ISMPoolSubSystem->FindISMPoolActor();
+			check(OwningLevel);
+			ISMPoolActor = ISMPoolSubSystem->FindISMPoolActor(OwningLevel);
 		}
 	}
 	return ISMPoolActor != nullptr ? ISMPoolActor->GetISMPoolComp() : nullptr;

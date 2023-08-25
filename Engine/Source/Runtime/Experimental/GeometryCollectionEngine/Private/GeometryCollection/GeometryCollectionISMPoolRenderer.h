@@ -8,6 +8,8 @@
 
 class AGeometryCollectionISMPoolActor;
 class UGeometryCollectionISMPoolComponent;
+class UGeometryCollectionComponent;
+class ULevel;
 
 /** Implementation of a geometry collection custom renderer that pushes AutoInstanceMeshes to an ISMPool. */
 UCLASS()
@@ -42,6 +44,9 @@ protected:
 	/** ISM pool groups per rendering element type. */
 	FISMPoolGroup MergedMeshGroup;
 	FISMPoolGroup InstancesGroup;
+
+	/** level of the owning component of this renderer */
+	ULevel* OwningLevel = nullptr;
 
 private:
 	UGeometryCollectionISMPoolComponent* GetOrCreateISMPoolComponent();
