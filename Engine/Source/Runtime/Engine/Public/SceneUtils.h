@@ -73,6 +73,25 @@ ENGINE_API const TCHAR* GetShortAntiAliasingName(EAntiAliasingMethod AntiAliasin
 
 ENGINE_API uint32 GetDefaultMSAACount(const FStaticFeatureLevel InFeatureLevel, uint32 PlatformMaxSampleCount = 8);
 
+enum class ECustomDepthMode : uint8
+{
+	// Custom depth is disabled.
+	Disabled,
+
+	// Custom depth is enabled.
+	Enabled,
+
+	// Custom depth is enabled and uses stencil.
+	EnabledWithStencil,
+};
+
+ENGINE_API extern ECustomDepthMode GetCustomDepthMode();
+
+inline bool IsCustomDepthPassEnabled()
+{
+	return GetCustomDepthMode() != ECustomDepthMode::Disabled;
+}
+
 // Callback for calling one action (typical use case: delay a clear until it's actually needed)
 class FDelayedRendererAction
 {

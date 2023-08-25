@@ -106,6 +106,11 @@ static TAutoConsoleVariable<int32> CVarApproximateOcclusionQueries(
 	ECVF_RenderThreadSafe
 );
 
+bool FPrimitiveSceneProxy::ShouldRenderCustomDepth() const
+{
+	return IsCustomDepthPassEnabled() && bRenderCustomDepth;
+}
+
 bool IsAllowingApproximateOcclusionQueries()
 {
 	return CVarApproximateOcclusionQueries.GetValueOnAnyThread() != 0;

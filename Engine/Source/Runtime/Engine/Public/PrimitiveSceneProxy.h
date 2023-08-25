@@ -650,7 +650,7 @@ public:
 	inline bool IsEditingLevelInstanceChild() const { return bLevelInstanceEditingState; }
 	inline bool IsSelected() const { return IsParentSelected() || IsIndividuallySelected(); }
 	inline bool WantsSelectionOutline() const { return bWantsSelectionOutline; }
-	inline bool ShouldRenderCustomDepth() const { return bRenderCustomDepth; }
+	ENGINE_API bool ShouldRenderCustomDepth() const;
 	inline bool IsVisibleInSceneCaptureOnly() const { return bVisibleInSceneCaptureOnly; }
 	inline bool IsHiddenInSceneCapture() const { return bHiddenInSceneCapture; }
 	inline uint8 GetCustomDepthStencilValue() const { return CustomDepthStencilValue; }

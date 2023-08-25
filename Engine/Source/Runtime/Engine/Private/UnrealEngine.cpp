@@ -256,6 +256,7 @@ IMPLEMENT_MODULE( FEngineModule, Engine );
 #define LOCTEXT_NAMESPACE "UnrealEngine"
 
 void InitScreenPercentage();
+void InitCustomDepth();
 
 void OnChangeEngineCVarRequiringRecreateRenderState(IConsoleVariable* Var)
 {
@@ -282,6 +283,7 @@ void FEngineModule::StartupModule()
 	ResumeTextureStreamingRenderTasks = &ResumeRenderAssetStreaming;
 
 	InitScreenPercentage();
+	InitCustomDepth();
 
 	FParticleSystemWorldManager::OnStartup();
 
