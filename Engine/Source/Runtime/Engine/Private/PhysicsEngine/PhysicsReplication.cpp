@@ -711,7 +711,8 @@ void FPhysicsReplicationAsync::OnPreSimulate_Internal()
 
 		// Early out if this is a resim frame
 		Chaos::FRewindData* RewindData = RigidsSolver->GetRewindData();
-		if (RewindData && RewindData->IsResim())
+		const bool bRewindDataExist = RewindData != nullptr;
+		if (bRewindDataExist && RewindData->IsResim())
 		{
 			// TODO, Handle the transition from post-resim to interpolation better.
 			if (PhysicsReplicationCVars::PredictiveInterpolationCVars::PostResimWaitForUpdate && RewindData->IsFinalResim())
@@ -740,6 +741,16 @@ void FPhysicsReplicationAsync::OnPreSimulate_Internal()
 				// Remove replication target 
 				ObjectToTarget.Remove(Input.PhysicsObject);
 				continue;
+			}
+
+			if (!bRewindDataExist && Input.RepMode == EPhysicsReplicationMode::Resimulation)
+			{
+				// We don't have rewind data but an actor is set to replicate using resimulation; we need to enable rewind capture.
+				if (ensure(Chaos::FPBDRigidsSolver::IsNetworkPhysicsPredictionEnabled()))
+				{
+					const int32 NumFrames = FMath::Max<int32>(1, Chaos::FPBDRigidsSolver::GetPhysicsHistoryCount());
+					RigidsSolver->EnableRewindCapture(NumFrames, true);
+				}
 			}
 
 			UpdateRewindDataTarget(Input);
@@ -856,12 +867,6 @@ void FPhysicsReplicationAsync::ApplyTargetStatesAsync(const float DeltaSeconds, 
 			if (FPBDRigidParticleHandle* RigidHandle = Handle->CastToRigidParticle())
 			{
 				EPhysicsReplicationMode RepMode = Target.RepMode;
-
-				// TODO, Remove the resim option from project settings, we only need the physics prediction one now
-				if (!Chaos::FPBDRigidsSolver::IsPhysicsResimulationEnabled() && RepMode == EPhysicsReplicationMode::Resimulation)
-				{
-					RepMode = EPhysicsReplicationMode::Default;
-				}
 
 				switch (RepMode)
 				{

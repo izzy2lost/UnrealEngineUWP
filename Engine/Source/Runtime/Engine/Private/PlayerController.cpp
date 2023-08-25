@@ -121,6 +121,9 @@ namespace NetworkPhysicsCvars
 
 	int32 NetworkPhysicsPredictionFrameOffset = 4;
 	FAutoConsoleVariableRef CVarNetworkPhysicsPredictionFrameOffset(TEXT("np2.NetworkPhysicsPredictionFrameOffset"), NetworkPhysicsPredictionFrameOffset, TEXT("Additional frame offset to be added to the local to server offset used by network prediction"));
+
+	int32 TickOffsetUpdateInterval = 10;
+	FAutoConsoleVariableRef CVarTickOffsetUpdateInterval(TEXT("np2.TickOffsetUpdateInterval"), TickOffsetUpdateInterval, TEXT("How many physics ticks to wait between each tick offset update. Lowest viable value = 1, which means update each tick."));
 }
 
 const float RetryClientRestartThrottleTime = 0.5f;
@@ -1673,20 +1676,18 @@ void APlayerController::ClientSetCameraFade_Implementation(bool bEnableFading, F
 
 void APlayerController::SendClientAdjustment()
 {
-	if(!UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction)
+	if (ServerFrameInfo.LastProcessedInputFrame != INDEX_NONE && ServerFrameInfo.LastProcessedInputFrame != ServerFrameInfo.LastSentLocalFrame)
 	{
-		if (ServerFrameInfo.LastProcessedInputFrame != INDEX_NONE && ServerFrameInfo.LastProcessedInputFrame != ServerFrameInfo.LastSentLocalFrame)
-		{
-			ServerFrameInfo.LastSentLocalFrame = ServerFrameInfo.LastProcessedInputFrame;		
-			ClientRecvServerAckFrame(ServerFrameInfo.LastProcessedInputFrame, ServerFrameInfo.LastLocalFrame, ServerFrameInfo.QuantizedTimeDilation);
+		ServerFrameInfo.LastSentLocalFrame = ServerFrameInfo.LastProcessedInputFrame;		
+		ClientRecvServerAckFrame(ServerFrameInfo.LastProcessedInputFrame, ServerFrameInfo.LastLocalFrame, ServerFrameInfo.QuantizedTimeDilation);
 
-			if (NetworkPhysicsCvars::EnableDebugRPC)
-			{
-				ClientRecvServerAckFrameDebug(InputBuffer.HeadFrame() - ServerFrameInfo.LastProcessedInputFrame, ServerFrameInfo.TargetNumBufferedCmds);
-			}
+		if (NetworkPhysicsCvars::EnableDebugRPC)
+		{
+			ClientRecvServerAckFrameDebug(InputBuffer.HeadFrame() - ServerFrameInfo.LastProcessedInputFrame, ServerFrameInfo.TargetNumBufferedCmds);
 		}
 	}
-	else
+
+	if (UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction)
 	{
 		if (ServerLatestTimestampToCorrect.ServerFrame == INDEX_NONE)
 		{
@@ -1718,6 +1719,11 @@ void APlayerController::SendClientAdjustment()
 
 void APlayerController::PushClientInput(int32 InRecvClientInputFrame, TArray<uint8>& Data)
 {
+	if (!bSyncInputsForNetworkedPhysics && !UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsResimulation)
+	{
+		return;
+	}
+
 	InputBuffer.Write(InRecvClientInputFrame) = MoveTemp(Data);
 
 	// Do the RPC right here, including the redundant send. This should probably be time based and managed somewhere else like in Tick eventually
@@ -6137,8 +6143,9 @@ void APlayerController::UpdateServerAsyncPhysicsTickOffset()
 		}
 	}
 	FAsyncPhysicsTimestamp Timestamp = GetAsyncPhysicsTimestamp();
-	if(ClientLatestAsyncPhysicsStepSent == Timestamp.LocalFrame)
+	if(ClientLatestAsyncPhysicsStepSent + NetworkPhysicsCvars::TickOffsetUpdateInterval > Timestamp.LocalFrame)
 	{
+		//Only send a new timestamp if enough physics ticks have passed, based on CVar.
 		//If GT is running faster than physics sim the physics timestep will not have changed, so no need to send another update to server
 		//This ensures monotonic increase
 		return;
@@ -6151,17 +6158,11 @@ void APlayerController::UpdateServerAsyncPhysicsTickOffset()
 void APlayerController::ServerSendLatestAsyncPhysicsTimestamp_Implementation(FAsyncPhysicsTimestamp Timestamp)
 {
 	//This tells the server how the client thinks the async physics tick will line up.
-	//Timestamps could be out of order due to networking, so we make sure they are sorted using the client's local frame which is monotonically increasing
-	int32 Idx;
-	for(Idx = ServerPendingTimestamps.Num() - 1; Idx >= 0; --Idx)
+	//Only cache the most up to date timestamp based on LocalFrame
+	if (Timestamp.LocalFrame > ServerPendingTimestamp.LocalFrame)
 	{
-		ensureMsgf(ServerPendingTimestamps[Idx].LocalFrame != Timestamp.LocalFrame, TEXT("Client should never send duplicate timestamps, something is wrong"));
-		if(ServerPendingTimestamps[Idx].LocalFrame < Timestamp.LocalFrame)
-		{
-			break;
-		}
+		ServerPendingTimestamp = Timestamp;
 	}
-	ServerPendingTimestamps.Insert(Timestamp, Idx + 1);
 }
 
 void APlayerController::ClientCorrectionAsyncPhysicsTimestamp_Implementation(FAsyncPhysicsTimestamp Timestamp)
@@ -6220,19 +6221,21 @@ void APlayerController::AsyncPhysicsTickActor(float DeltaTime, float SimTime)
 	if(UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction)
 	{
 		//TODO: only kick this off if server and using this feature
-		if (IsLocalController()) { return; }
-
-		if (ServerPendingTimestamps.Num() == 0)
+		if (IsLocalController())
 		{
-			//TODO: starved for input user needs to speed up
 			return;
 		}
 
+		// If the client has not sent the correct estimate of which server frame its local frame would correspond to, send back which server frame that local frame actually corresponded to
 		const FAsyncPhysicsTimestamp ActualTimestamp = GetAsyncPhysicsTimestamp();
+		
+		if (ServerPendingTimestamp.ServerFrame != INDEX_NONE && ServerPendingTimestamp.ServerFrame != ActualTimestamp.ServerFrame)
+		{
+			ServerLatestTimestampToCorrect.ServerFrame = ActualTimestamp.ServerFrame;
+			ServerLatestTimestampToCorrect.LocalFrame = ServerPendingTimestamp.LocalFrame;
+			ServerPendingTimestamp.ServerFrame = INDEX_NONE;
+		}
 
-		ServerLatestTimestampToCorrect.ServerFrame = ActualTimestamp.ServerFrame;
-		ServerLatestTimestampToCorrect.LocalFrame = ServerPendingTimestamps[0].LocalFrame;
-		ServerPendingTimestamps.Reset();
 	}
 }
 

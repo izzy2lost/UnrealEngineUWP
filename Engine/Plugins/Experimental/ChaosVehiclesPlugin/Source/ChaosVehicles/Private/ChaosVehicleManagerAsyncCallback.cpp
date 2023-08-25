@@ -207,7 +207,7 @@ void FNetworkVehicleInputs::ApplyDatas(UActorComponent* NetworkComponent) const
 			}
 		}
 
-		if (NetworkComponent->GetWorld()->IsNetMode(NM_ListenServer))
+		if (NetworkComponent->GetWorld()->IsNetMode(NM_ListenServer) || NetworkComponent->GetWorld()->IsNetMode(NM_DedicatedServer))
 		{
 			UE_LOG(LogTemp, Log, TEXT("SERVER | PT | ApplyDatas | Report replicated inputs at frame %d %d: Throttle = %f Brake = %f Roll = %f Pitch = %f Yaw = %f Steering = %f Handbrake = %f Gear = %d | VehicleInputs size = %d | ControlInputs size = %d | NetworkInputs = %d"),
 				LocalFrame, SolverFrame, VehicleInputs.ThrottleInput, VehicleInputs.BrakeInput, VehicleInputs.RollInput, VehicleInputs.PitchInput,
@@ -242,7 +242,7 @@ void FNetworkVehicleInputs::BuildDatas(const UActorComponent* NetworkComponent)
 				}
 			}
 #if DEBUG_NETWORK_PHYSICS
-			if(NetworkComponent->GetWorld()->IsNetMode(NM_ListenServer))
+			if(NetworkComponent->GetWorld()->IsNetMode(NM_ListenServer) || NetworkComponent->GetWorld()->IsNetMode(NM_DedicatedServer))
 			{
 				UE_LOG(LogTemp, Log, TEXT("SERVER | PT | BuildDatas | Extract local inputs at frame %d : Throttle = %f Brake = %f Roll = %f Pitch = %f Yaw = %f Steering = %f Handbrake = %f Gear = %d"),
 					LocalFrame, VehicleInputs.ThrottleInput, VehicleInputs.BrakeInput, VehicleInputs.RollInput, VehicleInputs.PitchInput,
@@ -333,7 +333,7 @@ void FNetworkVehicleStates::ApplyDatas(UActorComponent* NetworkComponent) const
 			Vehicle->GetEngine().SetEngineOmega(EngineOmega);
 
 #if DEBUG_NETWORK_PHYSICS
-			if (NetworkComponent->GetWorld()->IsNetMode(NM_ListenServer))
+			if (NetworkComponent->GetWorld()->IsNetMode(NM_ListenServer) || NetworkComponent->GetWorld()->IsNetMode(NM_DedicatedServer))
 			{
 				UE_LOG(LogTemp, Log, TEXT("SERVER | PT | ApplyDatas | Report replicated states at frame %d %d : Omega = %f"),
 					LocalFrame, ServerFrame, EngineOmega);
@@ -378,7 +378,7 @@ void FNetworkVehicleStates::BuildDatas(const UActorComponent* NetworkComponent)
 			{
 				EngineOmega = Vehicle->GetEngine().GetEngineOmega();
 #if DEBUG_NETWORK_PHYSICS
-				if (NetworkComponent->GetWorld()->IsNetMode(NM_ListenServer))
+				if (NetworkComponent->GetWorld()->IsNetMode(NM_ListenServer) || NetworkComponent->GetWorld()->IsNetMode(NM_DedicatedServer))
 				{
 					UE_LOG(LogTemp, Log, TEXT("SERVER | PT | BuildDatas | Extract local states at frame %d %d : Omega = %f"),
 						LocalFrame, ServerFrame, EngineOmega);

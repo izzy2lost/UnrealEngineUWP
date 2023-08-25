@@ -146,7 +146,7 @@ void UChaosVehicleSimulation::TickVehicle(UWorld* WorldIn, float DeltaTime, cons
 	if (World && RigidHandle)
 	{
 #if DEBUG_NETWORK_PHYSICS
-		if (WorldIn->IsNetMode(NM_ListenServer))
+		if (WorldIn->IsNetMode(NM_ListenServer) || WorldIn->IsNetMode(NM_DedicatedServer))
 		{
 			UE_LOG(LogTemp, Log, TEXT("SERVER | PT | TickVehicle | Async tick vehicle with inputs at frame %d : Throttle = %f Brake = %f Roll = %f Pitch = %f Yaw = %f Steering = %f Handbrake = %f Sleeping = %d"),
 				InputData.PhysicsInputs.NetworkInputs.LocalFrame, VehicleInputs.ThrottleInput, VehicleInputs.BrakeInput, VehicleInputs.RollInput, VehicleInputs.PitchInput,

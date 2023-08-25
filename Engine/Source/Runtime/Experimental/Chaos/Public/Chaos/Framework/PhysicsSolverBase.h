@@ -398,6 +398,11 @@ namespace Chaos
 			return MRewindCallback.Get();
 		}
 
+		bool ShouldApplyRewindCallbacks()
+		{
+			return MRewindCallback.IsValid() && MRewindData.IsValid();
+		}
+
 		//Used as helper for GT to go from unique idx back to gt particle
 		//If GT deletes a particle, this function will return null (that's a good thing when consuming async outputs as GT may have already deleted the particle we care about)
 		//Note: if the physics solver has been advanced after the particle was freed on GT, the index may have been freed and reused.
@@ -662,11 +667,11 @@ namespace Chaos
 			return NetworkPhysicsEnabled;
 		}
 
-		/** Check if resim is enabled for network physics */
-		static bool IsPhysicsResimulationEnabled()
+		/** Get the number of physics history frames to cache */
+		static int32 GetPhysicsHistoryCount()
 		{
-			const bool PhysicsResimulationEnabled = FChaosSolversModule::GetModule()->GetSettingsProvider().GetPhysicsResimulationEnabled();
-			return PhysicsResimulationEnabled;
+			const int32 PhysicsHistoryCount = FChaosSolversModule::GetModule()->GetSettingsProvider().GetPhysicsHistoryCount();
+			return PhysicsHistoryCount;
 		}
 
 		static float ResimulationErrorThreshold()

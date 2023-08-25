@@ -98,7 +98,7 @@ public:
 		}
 
 		const UPhysicsSettings* PhysicsSettings = UPhysicsSettings::Get();
-		const bool bEnableResim = PhysicsSettings->PhysicsPrediction.bEnablePhysicsResimulation;
+		const bool bAllowResim = PhysicsSettings->PhysicsPrediction.bEnablePhysicsPrediction;
 		const int32 NumFrames = PhysicsSettings->GetPhysicsHistoryCount();
 
 		for (int32 Idx = 0; Idx < PendingCommands.Num(); ++Idx)
@@ -108,7 +108,7 @@ public:
 			FPendingAsyncPhysicsCommand* PendingCommand = &PendingCommands[Idx];
 			bool bRemove = PendingCommand->OwningObject.IsStale();
 
-			if (bEnableResim && PendingCommand->bEnableResim && PendingCommands[Idx].PhysicsStep > (CurrentFrame - NumFrames))
+			if (bAllowResim && PendingCommand->bEnableResim && PendingCommands[Idx].PhysicsStep > (CurrentFrame - NumFrames))
 			{
 				if (PendingCommands[Idx].PhysicsStep < CurrentFrame && PendingCommands[Idx].OwningObject.IsValid())
 				{

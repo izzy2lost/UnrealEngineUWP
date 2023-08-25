@@ -172,7 +172,7 @@ int32 FNetworkPhysicsCallback::TriggerRewindIfNeeded_Internal(int32 LatestStepCo
 	}
 
 #if DEBUG_NETWORK_PHYSICS
-	UE_LOG(LogTemp, Log, TEXT("CLIENT | PT | TriggerRewindIfNeeded_Internal | Callbacks Frame = %d"), ResimFrame);
+	UE_LOG(LogTemp, Log, TEXT("COMMON | PT | TriggerRewindIfNeeded_Internal | Callbacks Frame = %d"), ResimFrame);
 #endif
 
 	if (RewindData)
@@ -367,8 +367,7 @@ void UNetworkPhysicsSystem::OnWorldPostInit(UWorld* World, const UWorld::Initial
 			{ 
 				if (Solver->GetRewindCallback() == nullptr)
 				{
-					const int32 NumFrames = FMath::Max<int32>(1, UPhysicsSettings::Get()->GetPhysicsHistoryCount());
-					Solver->EnableRewindCapture(NumFrames, true, MakeUnique<FNetworkPhysicsCallback>(World));
+					Solver->SetRewindCallback(MakeUnique<FNetworkPhysicsCallback>(World));
 				}
 			}
 		}
@@ -416,10 +415,28 @@ void UNetworkPhysicsComponent::BeginPlay()
 		{
 			if (Chaos::FPhysicsSolver* Solver = PhysScene->GetSolver())
 			{
-				if(FNetworkPhysicsCallback* SolverCallback = static_cast<FNetworkPhysicsCallback*>(Solver->GetRewindCallback()))
+				if (UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction)
 				{
-					SolverCallback->PreProcessInputsInternal.AddUObject(this, &UNetworkPhysicsComponent::OnPreProcessInputsInternal);
-					SolverCallback->PostProcessInputsInternal.AddUObject(this, &UNetworkPhysicsComponent::OnPostProcessInputsInternal);
+					if (APlayerController* PlayerController = GetPlayerController())
+					{
+						PlayerController->EnableNetworkedPhysicsInputSync(true);
+					}
+
+					if (Solver->GetRewindData() == nullptr)
+					{
+						const int32 NumFrames = FMath::Max<int32>(1, UPhysicsSettings::Get()->GetPhysicsHistoryCount());
+						Solver->EnableRewindCapture(NumFrames, true);
+					}
+
+					if(FNetworkPhysicsCallback* SolverCallback = static_cast<FNetworkPhysicsCallback*>(Solver->GetRewindCallback()))
+					{
+						SolverCallback->PreProcessInputsInternal.AddUObject(this, &UNetworkPhysicsComponent::OnPreProcessInputsInternal);
+						SolverCallback->PostProcessInputsInternal.AddUObject(this, &UNetworkPhysicsComponent::OnPostProcessInputsInternal);
+					}
+				}
+				else
+				{
+					UE_LOG(LogPhysics, Warning, TEXT("A NetworkPhysicsComponent is trying to set up but 'Project Settings -> Physics -> Physics Prediction' is not enabled. The component might not work as intended."));
 				}
 			}
 		}

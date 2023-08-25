@@ -664,11 +664,11 @@ namespace Chaos
 	{
 		Super::ApplyCallbacks_Internal();
 
-		if (IRewindCallback* RewindCallback = GetRewindCallback())
+		if (MRewindCallback) // Note: Don't use ShouldApplyRewindCallbacks() here since we want this called even if we don't have RewindData enabled.
 		{
-			if(bGameThreadFrozen)
+			if (bGameThreadFrozen)
 			{ 
-				RewindCallback->ApplyCallbacks_Internal(GetCurrentFrame(), SimCallbackObjects);
+				MRewindCallback->ApplyCallbacks_Internal(GetCurrentFrame(), SimCallbackObjects);
 			}
 		}
 	}
@@ -725,7 +725,7 @@ namespace Chaos
 				});
 
 			FGeometryParticleHandle* Handle = Proxy->GetHandle_LowLevel();
-			if(MRewindData)
+			if (MRewindData)
 			{
 				MRewindData->RemoveObject(Handle);
 			}
@@ -989,6 +989,14 @@ namespace Chaos
 
 	void FPBDRigidsSolver::EnableRewindCapture(int32 NumFrames, bool InUseCollisionResimCache, TUniquePtr<IRewindCallback>&& RewindCallback)
 	{
+		SetRewindCallback(MoveTemp(RewindCallback));
+		EnableRewindCapture(NumFrames, InUseCollisionResimCache);
+	}
+
+	void FPBDRigidsSolver::EnableRewindCapture(int32 NumFrames, bool InUseCollisionResimCache)
+	{
+		UE_LOG(LogChaos, Log, TEXT("PBDRigidsSolver::EnableRewindCapture - Starting physics data history caching for rewind / resimulation."));
+
 		//TODO: this function calls both internal and external - sort of assumed during initialization. Should decide what thread it's called on and mark it as either external or internal
 		if (MRewindData.IsValid())
 		{
@@ -999,11 +1007,11 @@ namespace Chaos
 			MRewindData = MakeUnique<FRewindData>(((FPBDRigidsSolver*)this), NumFrames, InUseCollisionResimCache, ((FPBDRigidsSolver*)this)->GetCurrentFrame()); // FIXME
 		}
 		bUseCollisionResimCache = InUseCollisionResimCache;
-		MRewindCallback = MoveTemp(RewindCallback);
 		const int32 NumFramesSet = GetRewindData() != nullptr ? GetRewindData()->Capacity() : NumFrames;
 		MarshallingManager.SetHistoryLength_Internal(NumFramesSet);
 		MEvolution->SetRewindData(GetRewindData());
-		if(MRewindCallback)
+		
+		if (MRewindCallback) 
 		{
 			MRewindCallback->RewindData = MRewindData.Get();
 		}
@@ -1028,12 +1036,11 @@ namespace Chaos
 		//todo: do we need this?
 		//MarshallingManager.Reset();
 
-		const bool PhysicsPredictionEnabled = FChaosSolversModule::GetModule()->GetSettingsProvider().GetPhysicsPredictionEnabled();
 		const int32 PhysicsHistoryLength = FChaosSolversModule::GetModule()->GetSettingsProvider().GetPhysicsHistoryCount();
 
-		if ((PhysicsPredictionEnabled || bUseCollisionResimCache) && PhysicsHistoryLength >= 0)
+		if (bUseCollisionResimCache && PhysicsHistoryLength >= 0)
 		{
-			EnableRewindCapture(PhysicsHistoryLength, bUseCollisionResimCache || PhysicsPredictionEnabled);
+			EnableRewindCapture(PhysicsHistoryLength, true);
 		}
 
 		MEvolution->SetCaptureRewindDataFunction([this](const TParticleView<TPBDRigidParticles<FReal,3>>& ActiveParticles)
@@ -1404,7 +1411,7 @@ namespace Chaos
 
 		GetEvolution()->GetBroadPhase().GetIgnoreCollisionManager().PushProducerStorageData_External(MarshallingManager.GetExternalTimestamp_External());
 
-		if (MRewindCallback && !IsShuttingDown())
+		if (ShouldApplyRewindCallbacks() && !IsShuttingDown())
 		{
 			MRewindCallback->InjectInputs_External(MarshallingManager.GetInternalStep_External(), NumSteps);
 		}
@@ -1668,9 +1675,14 @@ namespace Chaos
 
 			if (SimCallbackObject->HasOption(ESimCallbackOptions::Rewind))
 			{
-				if (MRewindCallback.IsValid())
+				if (MRewindCallback)
 				{
 					MRewindCallback->RegisterRewindableSimCallback_Internal(SimCallbackObject);
+				}
+				else
+				{
+					ensure(!IsNetworkPhysicsPredictionEnabled());
+					UE_LOG(LogChaos, Warning, TEXT("A SimCallbackObject with ESimCallbackOptions::Rewind defined is registering but there is no IRewindCallback set up. Make sure to enable 'Project Settings -> Physics -> Physics Prediction'"));
 				}
 			}
 
@@ -1778,7 +1790,7 @@ namespace Chaos
 		}
 		PushData.SimCommands.Reset();
 
-		if(MRewindCallback && !IsShuttingDown())
+		if(MRewindCallback && MRewindData && !IsShuttingDown())
 		{
 			MRewindCallback->ProcessInputs_Internal(MRewindData->CurrentFrame(), PushData.SimCallbackInputs);
 		}
@@ -1787,7 +1799,7 @@ namespace Chaos
 	void FPBDRigidsSolver::ConditionalApplyRewind_Internal()
 	{
 		// Note: checking MRewindData->IsResim() can lead to recursion into this function on the last resim frame since the call to AdvanceSolver is what advances RewindData's internal frame
-		if(!IsShuttingDown() && MRewindCallback && !GetEvolution()->IsResimming())
+		if(!IsShuttingDown() && ShouldApplyRewindCallbacks() && MRewindData && !GetEvolution()->IsResimming())
 		{
 			const int32 LastStep = MRewindData->CurrentFrame() - 1;
 			const int32 ResimStep = MRewindCallback->TriggerRewindIfNeeded_Internal(LastStep);

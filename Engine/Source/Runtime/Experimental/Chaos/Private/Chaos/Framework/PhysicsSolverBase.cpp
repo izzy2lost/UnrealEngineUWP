@@ -368,8 +368,13 @@ namespace Chaos
 
 	void FPhysicsSolverBase::SetRewindCallback(TUniquePtr<IRewindCallback>&& RewindCallback)
 	{
-		ensure(!RewindCallback || MRewindData);
+		ensure(RewindCallback);
 		MRewindCallback = MoveTemp(RewindCallback);
+
+		if (MRewindData.IsValid())
+		{
+			MRewindCallback->RewindData = MRewindData.Get();
+		}
 	}
 
 	FGraphEventRef FPhysicsSolverBase::AdvanceAndDispatch_External(FReal InDt)
@@ -445,7 +450,7 @@ namespace Chaos
 
 		while(FPushPhysicsData* PushData = MarshallingManager.StepInternalTime_External())
 		{
-			if(MRewindCallback && !bIsShuttingDown)
+			if(ShouldApplyRewindCallbacks() && !bIsShuttingDown)
 			{
 				MRewindCallback->ProcessInputs_External(PushData->InternalStep, PushData->SimCallbackInputs);
 			}

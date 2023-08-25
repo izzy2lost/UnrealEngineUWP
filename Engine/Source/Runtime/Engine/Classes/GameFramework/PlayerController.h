@@ -2291,6 +2291,12 @@ public:
 	UFUNCTION(Server, unreliable)
 	ENGINE_API void ServerRecvClientInputFrame(int32 RecvClientInputFrame, const TArray<uint8>& Data);
 
+	/** When enabled the client will send the last N inputs to the server, N dictated by CVar: np2.NumRedundantCmds 3 */
+	ENGINE_API void EnableNetworkedPhysicsInputSync(bool EnablePrediction)
+	{
+		bSyncInputsForNetworkedPhysics = EnablePrediction;
+	}
+
 	const FClientFrameInfo& GetClientFrameInfo() const { return ClientFrameInfo; }
 	FClientFrameInfo& GetClientFrameInfo() { return ClientFrameInfo; }
 
@@ -2324,6 +2330,9 @@ private:
 	FClientFrameInfo ClientFrameInfo;
 	FServerFrameInfo ServerFrameInfo;
 
+	/** If true, inputs are synced from client to server in a way that's expected for NetworkPhysicsComponent */
+	bool bSyncInputsForNetworkedPhysics = false;
+
 	/** The estimated offset between the local async physics tick frame number and the server's
 	*	This is used to synchronize events that happen in the async physics tick */
 	int32 LocalToServerAsyncPhysicsTickOffset;
@@ -2347,8 +2356,8 @@ private:
 	/** The server records the latest timestamp it has to correct. This is used to update client (which may not happen on every physics step) */
 	FAsyncPhysicsTimestamp ServerLatestTimestampToCorrect;
 
-	/** The set of timestamps the client has sent to the server. Sorted by local frame number */
-	TArray<FAsyncPhysicsTimestamp> ServerPendingTimestamps;
+	/** The latest timestamp the client has sent to the server with prediction of which server frame it corresponds to. */
+	FAsyncPhysicsTimestamp ServerPendingTimestamp;
 
 	/** Update the tick ofsset in between the local client and the server */
 	ENGINE_API void UpdateServerAsyncPhysicsTickOffset();
