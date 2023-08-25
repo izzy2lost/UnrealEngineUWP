@@ -166,7 +166,8 @@ private:
 	/** A list of FNames to represent an object path. Used for fast hashing and comparison of paths */
 	struct FComponentRequestReceiverClassPath
 	{
-		TArray<FName> Path;
+		// Usually only 2 elements long. Ex [UPackage FName, UClass FName]
+		TArray<FName, TInlineAllocator<2>> Path;
 
 		FComponentRequestReceiverClassPath() {}
 
