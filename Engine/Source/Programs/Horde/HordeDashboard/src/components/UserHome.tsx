@@ -1080,6 +1080,8 @@ class BisectionHandler extends PollBase {
 
          if (dashboard.pinnedBisectTaskIds?.length) {
             this.bisections = await backend.getBisections({ id: dashboard.pinnedBisectTaskIds });
+         } else {
+            this.bisections = [];
          }
 
          this.setUpdated();
@@ -1108,7 +1110,8 @@ const BisectionPanel: React.FC = observer(() => {
    }, []);
 
    // subscribe
-   if (dashboard.updated) { };
+   dashboard.subscribe();   
+
    if (bisectionHandler.updated) { };
 
    if (bisectionHandler.bisections.length === 0) {

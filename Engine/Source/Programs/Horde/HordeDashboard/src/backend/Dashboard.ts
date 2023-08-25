@@ -221,7 +221,7 @@ export class Dashboard {
     getLastJobTemplateSettings(streamId: string, templateIds: string[]): GetJobTemplateSettingsResponse | undefined {
 
         try {
-            
+
             const streamTemplates = this.data?.jobTemplateSettings?.filter(t => t.streamId === streamId && templateIds.indexOf(t.templateId) !== -1)
 
             if (!streamTemplates?.length) {
@@ -575,6 +575,10 @@ export class Dashboard {
     setServerSettingsChanged(value: boolean | undefined) {
         this.serverSettingsChanged = value ?? false;
         this.setUpdated();
+    }
+
+    subscribe() {
+        if (this.updated) { }
     }
 
     @observable

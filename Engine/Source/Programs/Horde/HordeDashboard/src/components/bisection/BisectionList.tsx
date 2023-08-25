@@ -406,9 +406,11 @@ const BisectionGraph: React.FC<{ bisection: GetBisectTaskResponse }> = ({ bisect
    </Stack>;
 }
 
-export const BisectionList: React.FC<{ bisections?: GetBisectTaskResponse[] }> = ({ bisections }) => {
+export const BisectionList: React.FC<{ bisections?: GetBisectTaskResponse[] }> = observer(({ bisections }) => {
 
    const [showCancelModal, setShowCancelModal] = useState("");
+
+   dashboard.subscribe();
 
    if (!bisections?.length) {
       return null;
@@ -520,12 +522,14 @@ export const BisectionList: React.FC<{ bisections?: GetBisectTaskResponse[] }> =
                         ev.stopPropagation();
                         dashboard.unpinBisect(bisection.id);
                      }}>
-                        <IconButton iconProps={{ iconName: 'Pin' }} />
+                        <IconButton iconProps={{ iconName: 'Unpin' }} />
                      </Stack>}
-                     {!!dashboard.bisectPinned(bisection.id) && <Stack>
-                        <DefaultButton text="Pin" onClick={() => {
-                           dashboard.pinBisect(bisection.id);
-                        }} />
+                     {!dashboard.bisectPinned(bisection.id) && <Stack verticalAlign="center" verticalFill={true} horizontalAlign={"end"} onClick={(ev) => {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        dashboard.pinBisect(bisection.id);
+                     }}>
+                        <IconButton iconProps={{ iconName: 'Pin' }} style={{color: dashboard.getStatusColors().get(StatusColor.Skipped!)}} />
                      </Stack>}
 
                   </Stack>
@@ -551,7 +555,7 @@ export const BisectionList: React.FC<{ bisections?: GetBisectTaskResponse[] }> =
          onRenderRow={renderRow}
       />
    </Stack>;
-};
+});
 
 
 const customStyles = mergeStyleSets({

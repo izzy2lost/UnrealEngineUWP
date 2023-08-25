@@ -107,6 +107,7 @@ registerIcons({
       "Issue": IconContents.ISSUE,
       "Dot": IconContents.DOT,
       "Pin": IconContents.PIN,
+      "Unpin": IconContents.UNPIN,
       "SearchTemplate": IconContents.SEARCH_TEMPLATE,
       "History": IconContents.HISTORY,
       "Import": IconContents.IMPORT,
