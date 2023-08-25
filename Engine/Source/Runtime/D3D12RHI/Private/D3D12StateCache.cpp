@@ -165,6 +165,7 @@ void FD3D12StateCache::DirtyStateForNewCommandList()
 
 	// Always need to set PSOs and root signatures
 	PipelineState.Common.bNeedSetPSO = true;
+	PipelineState.Common.bNeedSetRootConstants = true;
 	PipelineState.Compute.bNeedSetRootSignature = true;
 	PipelineState.Graphics.bNeedSetRootSignature = true;
 	bNeedSetPrimitiveTopology = true;
@@ -209,6 +210,7 @@ void FD3D12StateCache::DirtyState()
 {
 	// Mark bits dirty so the next call to ApplyState will set all this state again
 	PipelineState.Common.bNeedSetPSO = true;
+	PipelineState.Common.bNeedSetRootConstants = true;
 	PipelineState.Compute.bNeedSetRootSignature = true;
 	PipelineState.Graphics.bNeedSetRootSignature = true;
 	bNeedSetVB = true;
@@ -337,6 +339,7 @@ bool FD3D12StateCache::InternalSetRootSignature(ED3D12PipelineType InPipelineTyp
 			PipelineState.Common.UAVCache.DirtyCompute();
 			PipelineState.Common.SamplerCache.DirtyCompute();
 			PipelineState.Common.CBVCache.DirtyCompute();
+			PipelineState.Common.bNeedSetRootConstants = true;
 
 			bWasRootSignatureChanged = true;
 		}
@@ -354,6 +357,7 @@ bool FD3D12StateCache::InternalSetRootSignature(ED3D12PipelineType InPipelineTyp
 			PipelineState.Common.UAVCache.DirtyGraphics();
 			PipelineState.Common.SamplerCache.DirtyGraphics();
 			PipelineState.Common.CBVCache.DirtyGraphics();
+			PipelineState.Common.bNeedSetRootConstants = true;
 
 			bWasRootSignatureChanged = true;
 		}
@@ -549,6 +553,26 @@ void FD3D12StateCache::ApplyState(ED3D12PipelineType PipelineType)
 	}
 
 	ApplyConstants(PSOCommonData->RootSignature, StartStage, EndStage);
+
+	int8 RootConstantsSlot = PSOCommonData->RootSignature->GetRootConstantsSlot();
+	if (PipelineState.Common.bNeedSetRootConstants && RootConstantsSlot >= 0)
+	{
+		PipelineState.Common.bNeedSetRootConstants = false;
+
+		if (PipelineType == ED3D12PipelineType::Compute)
+		{
+			uint32 UERootConstants[4];
+			UERootConstants[0] = PipelineState.Common.ShaderRootConstants.X;
+			UERootConstants[1] = PipelineState.Common.ShaderRootConstants.Y;
+			UERootConstants[2] = PipelineState.Common.ShaderRootConstants.Z;
+			UERootConstants[3] = PipelineState.Common.ShaderRootConstants.W;
+			CmdContext.GraphicsCommandList()->SetComputeRoot32BitConstants(RootConstantsSlot, 4, &UERootConstants[0], 0);
+		}
+		else
+		{
+			checkNoEntry();
+		}
+	}
 
 	// Flush any needed resource barriers
 	CmdContext.FlushResourceBarriers();
@@ -1114,6 +1138,15 @@ bool FD3D12StateCache::AssertResourceStates(ED3D12PipelineType PipelineType)
 #endif
 }
 #endif
+
+void FD3D12StateCache::SetRootConstants(const FUint32Vector4& Constants)
+{
+	if (Constants != PipelineState.Common.ShaderRootConstants)
+	{
+		PipelineState.Common.ShaderRootConstants = Constants;
+		PipelineState.Common.bNeedSetRootConstants = true;
+	}
+}
 
 void FD3D12StateCache::ClearUAVs(EShaderFrequency ShaderStage)
 {

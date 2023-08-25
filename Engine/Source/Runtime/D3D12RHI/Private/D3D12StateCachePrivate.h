@@ -389,6 +389,10 @@ protected:
 			ID3D12PipelineState* CurrentPipelineStateObject = nullptr;
 			bool bNeedSetPSO;
 
+			// Root Constants
+			bool bNeedSetRootConstants;
+			FUint32Vector4 ShaderRootConstants = FUint32Vector4(0, 0, 0, 0);
+
 			uint32 CurrentShaderSamplerCounts[SF_NumStandardFrequencies] = {};
 			uint32 CurrentShaderSRVCounts    [SF_NumStandardFrequencies] = {};
 			uint32 CurrentShaderCBCounts     [SF_NumStandardFrequencies] = {};
@@ -640,6 +644,7 @@ public:
 		if (LastComputePipelineType != PipelineType)
 		{
 			PipelineState.Common.bNeedSetPSO = true;
+			PipelineState.Common.bNeedSetRootConstants = true;
 			PipelineState.Compute.bNeedSetRootSignature = true;
 
 			LastComputePipelineType = PipelineType;
@@ -674,6 +679,8 @@ public:
 			*DepthStencilTarget = PipelineState.Graphics.CurrentDepthStencilTarget;
 		}
 	}
+
+	void SetRootConstants(const FUint32Vector4& Constants);
 
 	void SetUAV(EShaderFrequency ShaderStage, uint32 SlotIndex, FD3D12UnorderedAccessView* UAV, uint32 InitialCount = -1);
 

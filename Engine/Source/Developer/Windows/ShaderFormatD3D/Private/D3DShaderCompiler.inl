@@ -32,7 +32,8 @@ template <typename ID3D1xShaderReflection, typename D3D1x_SHADER_DESC, typename 
 			ID3D1xShaderReflectionConstantBuffer* ConstantBuffer = Reflector->GetConstantBufferByName(BindDesc.Name);
 			D3D1x_SHADER_BUFFER_DESC CBDesc;
 			ConstantBuffer->GetDesc(&CBDesc);
-			bool bGlobalCB = (FCStringAnsi::Strcmp(CBDesc.Name, "$Globals") == 0);
+			const bool bGlobalCB = (FCStringAnsi::Strcmp(CBDesc.Name, "$Globals") == 0);
+			const bool bRootConstantsCB = (FCStringAnsi::Strcmp(CBDesc.Name, "UERootConstants") == 0);
 			const bool bIsRootCB = FCString::Strcmp(ANSI_TO_TCHAR(CBDesc.Name), FShaderParametersMetadata::kRootUniformBufferBindingName) == 0;
 
 			if (bGlobalCB)
@@ -80,6 +81,11 @@ template <typename ID3D1xShaderReflection, typename D3D1x_SHADER_DESC, typename 
 						}
 					}
 				}
+			}
+			else if (bRootConstantsCB)
+			{
+				// For the UERootConstants root constant CB, we want to fully skip adding it to the parameter map, or
+				// updating the used slots or num CBs (all those assume space0).
 			}
 			else if (bIsRootCB && Input.ShouldUseStableConstantBuffer())
 			{
