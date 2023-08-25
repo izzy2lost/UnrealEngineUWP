@@ -41,7 +41,7 @@ inline uint32 FGovernorExternal::TickAllowance()
 	CycleLast = Cycle;
 
 	IPlatformFile& Ipf = IPlatformFile::GetPlatformPhysical();
-	return Ipf.GetAllowedBytesToWriteThrottledStorage();
+	return uint32(Ipf.GetAllowedBytesToWriteThrottledStorage());
 }
 
 

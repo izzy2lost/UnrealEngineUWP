@@ -189,7 +189,7 @@ bool FPending::Put(uint64 Key, FIoBuffer&& Data)
 		return true;
 	}
 
-	uint32 Size = Data.GetSize();
+	uint32 Size = uint32(Data.GetSize());
 	if (Size == 0 || MaxSize < Size)
 	{
 		return false;
@@ -225,7 +225,7 @@ uint32 FPending::DebugVisit(void* Param, FDebugCacheEntry::Callback* Callback)
 	for (auto& Item : Items)
 	{
 		Out.Key = Item.Key;
-		Out.Size = Item.Data.GetSize();
+		Out.Size = uint32(Item.Data.GetSize());
 		Callback(Param, Out);
 	}
 	return Items.Num();
@@ -246,7 +246,7 @@ int32 FPending::DropImpl(uint32 Size, Lambda&& Callback)
 
 		uint32 Index = n ? (Size * 0x0'a9e0'493) % n : 0;
 
-		Size = Items[Index].Data.GetSize();
+		Size = uint32(Items[Index].Data.GetSize());
 		UsedSize -= Size;
 		DropSize += Size;
 
@@ -476,14 +476,14 @@ bool FJournal::Materialize(EntryHandle Handle, FIoBuffer& Out, uint32 Offset) co
 
 	const FMapEntry& Entry = *(FMapEntry*)Handle;
 
-	uint32 ReadSize = Entry.Size - Offset;
+	uint32 ReadSize = uint32(Entry.Size) - Offset;
 
 	if (Out.GetData() == nullptr)
 	{
 		Out = FIoBuffer(ReadSize);
 	}
 
-	ReadSize = FMath::Min<uint32>(Out.GetSize(), ReadSize);
+	ReadSize = FMath::Min<uint32>(uint32(Out.GetSize()), ReadSize);
 
 	IPlatformFile& Ipf = IPlatformFile::GetPlatformPhysical();
 	TUniquePtr<IFileHandle> File(Ipf.OpenRead(*BinPath, false));
@@ -679,7 +679,7 @@ bool FJournal::Load()
 
 		Out.Phrase = Header;
 		Out.Marker = Header->Marker;
-		Out.DataSize = LastEntry->Offset + LastEntry->Size + sizeof(MarkerType);
+		Out.DataSize = uint32(LastEntry->Offset + LastEntry->Size) + sizeof(MarkerType);
 
 		return Cursor;
 	};
@@ -1202,7 +1202,6 @@ FJournaledCache::GetRetType	FJournaledCache::Get(
 
 		FIoBuffer Buffer;
 
-		uint64 Offset = Options.GetOffset();
 		int64 Size = Options.GetSize();
 		if (void* DestAddr = Options.GetTargetVa(); DestAddr != nullptr)
 		{
@@ -1214,6 +1213,7 @@ FJournaledCache::GetRetType	FJournaledCache::Get(
 			Buffer = FIoBuffer(Size);
 		}
 
+		uint32 Offset = uint32(Options.GetOffset());
 		if (!Entry.Materialize(Buffer, Offset))
 		{
 			return TIoStatusOr<FIoBuffer>(FIoStatus(EIoErrorCode::ReadError));
@@ -1267,7 +1267,7 @@ static uint64 KeyGen(const uint8* Data, uint32 Size)
 
 static uint64 KeyGen(const FIoBuffer& Data)
 {
-	return KeyGen(Data.GetData(), Data.GetSize());
+	return KeyGen(Data.GetData(), uint32(Data.GetSize()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1282,15 +1282,15 @@ IOSTOREONDEMAND_API void Tests()
 	};
 
 	// Some data
-	uint32 WorkingSize = 1_Mi;
+	uint64 WorkingSize = 1_Mi;
 	TUniquePtr<uint8[]> WorkingScope(new uint8[WorkingSize]);
 	uint8* Working = WorkingScope.Get();
 	for (uint32 i = 0; i < WorkingSize; i += 8)
 	{
 		*(uint64*)(Working + i) = MixTh();
 	}
-	auto DummyData = [&] (uint32 Size) {
-		uint32 Offset = MixTh() % (WorkingSize - Size);
+	auto DummyData = [&] (uint64 Size) {
+		uint64 Offset = MixTh() % (WorkingSize - Size);
 		return FIoBuffer(FIoBuffer::Wrap, Working + Offset, Size);
 	};
 
@@ -1355,18 +1355,18 @@ IOSTOREONDEMAND_API void Tests()
 	{
 		FCache::FConfig Config;
 		Config.Path = FPaths::ProjectPersistentDownloadDir() / TEXT("ias_cache_test");
-		Config.MemoryQuota = 512_Ki;
+		Config.MemoryQuota = uint32(512_Ki);
 		Config.DiskQuota = 8_Mi;
-		Config.JournalQuota = 7_Ki;
+		Config.JournalQuota = uint32(7_Ki);
 		Config.JournalFlushInterval = 4;
 		Config.DropCache = true;
 		FCache Cache(MoveTemp(Config));
 
-		auto PrimePuts = [&] (int32 PutMax) {
+		auto PrimePuts = [&] (int64 PutMax) {
 			TMap<uint64, FIoBuffer> Ret;
 			while (true)
 			{
-				uint32 Size = MixTh() & ((128_Ki) - 1);
+				uint64 Size = MixTh() & ((128_Ki) - 1);
 				if ((PutMax -= Size) < 0)
 				{
 					break;
@@ -1382,12 +1382,12 @@ IOSTOREONDEMAND_API void Tests()
 		uint32 WriteAllowance;
 
 		// no-op
-		WriteAllowance = 1_Ki;
+		WriteAllowance = uint32(1_Ki);
 		Cache.Flush(WriteAllowance);
 		Cache.Flush(WriteAllowance);
 		Cache.Reset();
 
-		WriteAllowance = 512_Ki;
+		WriteAllowance = uint32(512_Ki);
 		PrimePuts(WriteAllowance);
 		Cache.Flush(0);
 		Cache.Flush(WriteAllowance);
@@ -1420,7 +1420,7 @@ IOSTOREONDEMAND_API void Tests()
 		};
 		check(Validate() == 0);
 
-		WriteAllowance = 512_Ki;
+		WriteAllowance = uint32(512_Ki);
 
 		// simple
 		for (uint32 i : {1, 2, 4, 7, 11})

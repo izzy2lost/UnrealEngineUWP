@@ -123,7 +123,7 @@ static void EnumerateHeaders(FAnsiStringView Headers, LambdaType&& Lambda)
 			Cursor = Right;
 			for (; Cursor > Left + 1 && IsOws(Cursor[-1]); --Cursor);
 
-			FAnsiStringView Value (Left, ptrdiff_t(Cursor - Left));
+			FAnsiStringView Value (Left, int32(ptrdiff_t(Cursor - Left)));
 
 			if (!Lambda(Name, Value))
 			{
@@ -204,7 +204,7 @@ static int32 ParseMessage(FAnsiStringView Message, FMessageOffsets& Out)
 
 	// Trim left and tightly reject anything adventurous
 	for (int n = 32; Cursor[i] == ' ' && i < n; ++i);
-	Out.StatusCode = i;
+	Out.StatusCode = uint8(i);
 
 	// At least one status line digit. (Note to self; expect exactly three)
 	for (int n = 32; uint32(Cursor[i] - 0x30) <= 9 && i < n; ++i);
@@ -215,7 +215,7 @@ static int32 ParseMessage(FAnsiStringView Message, FMessageOffsets& Out)
 
 	// Trim left
 	for (int n = 32; Cursor[i] == ' ' && i < n; ++i);
-	Out.Message = i;
+	Out.Message = uint8(i);
 
 	// Extra conservative length allowance
 	if (i > 32)
@@ -235,7 +235,7 @@ static int32 ParseMessage(FAnsiStringView Message, FMessageOffsets& Out)
 	{
 		return -1;
 	}
-	Out.Headers = i + 2;
+	Out.Headers = uint16(i + 2);
 
 	return 1;
 }
@@ -245,6 +245,8 @@ struct FUrlOffsets
 {
 	struct Slice
 	{
+						Slice() = default;
+						Slice(int32 l, int32 r) : Left(uint8(l)), Right(uint8(r)) {}
 		FAnsiStringView	Get(FAnsiStringView Url) const { return Url.Mid(Left, Right - Left); }
 						operator bool () const { return Left > 0; }
 		int32			Len() const { return Right - Left; }
@@ -330,14 +332,14 @@ static int32 ParseUrl(FAnsiStringView Url, FUrlOffsets& Out)
 	case 1:
 		if (Seps[0].c == ':')
 		{
-			Out.Port = { uint8(Seps[0].i + 1), uint8(i) };
-			Out.HostName.Right = Seps[0].i;
+			Out.Port = { Seps[0].i + 1, i };
+			Out.HostName.Right = uint8(Seps[0].i);
 		}
 		else
 		{
-			Out.UserInfo = { Out.HostName.Left, uint8(Seps[0].i) };
-			Out.HostName.Left += Seps[0].i + 1;
-			Out.HostName.Right += Seps[0].i + 1;
+			Out.UserInfo = { Out.HostName.Left, Seps[0].i };
+			Out.HostName.Left += uint8(Seps[0].i + 1);
+			Out.HostName.Right += uint8(Seps[0].i + 1);
 		}
 		break;
 
@@ -346,8 +348,8 @@ static int32 ParseUrl(FAnsiStringView Url, FUrlOffsets& Out)
 		{
 			return -1;
 		}
-		Out.UserInfo = { Out.HostName.Left, uint8(Seps[0].i) };
-		Out.Port.Left = Seps[1].i + 1;
+		Out.UserInfo = { Out.HostName.Left, Seps[0].i };
+		Out.Port.Left = uint8(Seps[1].i + 1);
 		Out.Port.Right = Out.HostName.Right;
 		Out.HostName.Left = Out.UserInfo.Right + 1;
 		Out.HostName.Right = Out.Port.Left - 1;
@@ -617,8 +619,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 FSocketPool::FSocketPool(FAnsiStringView InHostName, uint32 InPort, uint32 InMaxLeases)
 : HostName(InHostName)
-, Port(InPort)
-, MaxLeases(InMaxLeases)
+, Port(uint16(InPort))
+, MaxLeases(uint8(InMaxLeases))
 , State(EState::Unresolved)
 {
 	check(MaxLeases == InMaxLeases); // field overflow
@@ -693,7 +695,7 @@ bool FSocketPool::AddIpAddress(uint32 Address)
 ////////////////////////////////////////////////////////////////////////////////
 void FSocketPool::SetBufferSize(EDirection Dir, int32 Size)
 {
-	((Dir == EDirection::Send) ? SendBufKb : RecvBufKb) = Size >> 10;
+	(Dir == EDirection::Send) ? SendBufKb : RecvBufKb = uint16(Size >> 10);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -718,7 +720,7 @@ int32 FConnectionPool::FParams::SetHostFromUrl(FAnsiStringView Url)
 	if (Offsets.Port)
 	{
 		FAnsiStringView PortView = Offsets.Port.Get(Url);
-		Host.Port = CrudeToInt(PortView);
+		Host.Port = uint16(CrudeToInt(PortView));
 	}
 
 	return Offsets.Path;
@@ -1443,7 +1445,7 @@ static int32 DoConnect(FActivity* Activity)
 
 	sockaddr_in AddrInet = { sizeof(sockaddr_in) };
 	AddrInet.sin_family = AF_INET;
-	AddrInet.sin_port = htons(Activity->Pool->GetPort());
+	AddrInet.sin_port = htons(uint16(Activity->Pool->GetPort()));
 	memcpy(&(AddrInet.sin_addr), &IpAddress, sizeof(IpAddress));
 	{
 		int Result = connect(Candidate, &(sockaddr&)AddrInet, sizeof(AddrInet));
@@ -1634,7 +1636,7 @@ static int32 DoRecvMessage(FActivity* Activity)
 
 			if (Name.Equals("Content-Length", ESearchCase::IgnoreCase))
 			{
-				ContentLength = CrudeToInt(Value);
+				ContentLength = int32(CrudeToInt(Value));
 				return true;
 			}
 			
@@ -2260,7 +2262,7 @@ FRequest FEventLoop::Request(
 	if (UrlOffsets.Port)
 	{
 		FAnsiStringView PortView = UrlOffsets.Port.Get(Url);
-		Port = CrudeToInt(PortView);
+		Port = uint32(CrudeToInt(PortView));
 	}
 
 	FAnsiStringView Path;
@@ -2712,7 +2714,7 @@ IOSTOREONDEMAND_API void IasHttpTest()
 		auto ErrorSink = [&] (const FTicketStatus& Status)
 		{
 			FTicket Ticket = Status.GetTicket();
-			uint32 Index = 63 - FMath::CountLeadingZeros64(uint64(Ticket));
+			uint32 Index = uint32(63 - FMath::CountLeadingZeros64(uint64(Ticket)));
 
 			if (Status.GetId() == FTicketStatus::EId::Error)
 			{
