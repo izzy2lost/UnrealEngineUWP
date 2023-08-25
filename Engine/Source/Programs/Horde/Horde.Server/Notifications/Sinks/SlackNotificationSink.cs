@@ -934,7 +934,10 @@ namespace Horde.Server.Notifications.Sinks
 						}
 						catch (SlackException ex)
 						{
-							_logger.LogWarning(ex, "Unable to invite user {UserId} to {Channel} (as admin): {Error}", slackUserId, channel, ex.Code);
+							if (!String.Equals(ex.Code, "already_in_channel", StringComparison.Ordinal))
+							{
+								_logger.LogWarning(ex, "Unable to invite user {UserId} to {Channel} (as admin): {Error}", slackUserId, channel, ex.Code);
+							}
 						}
 					}
 					else
