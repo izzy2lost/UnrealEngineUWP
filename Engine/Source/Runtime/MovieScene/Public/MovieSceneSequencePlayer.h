@@ -13,6 +13,7 @@
 #include "MovieSceneTimeController.h"
 #include "Evaluation/MovieScenePlayback.h"
 #include "Evaluation/MovieScenePlayback.h"
+#include "MovieSceneSequencePlaybackSettings.h"
 #include "MovieSceneSequenceTickManagerClient.h"
 #include "MovieSceneSequencePlaybackSettings.h"
 #include "MovieSceneLatentActionManager.h"
@@ -328,8 +329,16 @@ public:
 	/**
 	 * Restore any changes made by this player to their original state
 	 */
-	UFUNCTION(BlueprintCallable, Category="Game|Cinematic")
+	UFUNCTION(BlueprintCallable, Category = "Game|Cinematic")
 	MOVIESCENE_API void RestoreState();
+
+	/** Set the state of the completion mode override. Note, setting the state to force restore state will only take effect if the sequence hasn't started playing */
+	UFUNCTION(BlueprintCallable, Category = "Game|Cinematic")
+	MOVIESCENE_API void SetCompletionModeOverride(EMovieSceneCompletionModeOverride CompletionModeOverride);
+
+	/** Get the state of the completion mode override */
+	UFUNCTION(BlueprintCallable, Category = "Game|Cinematic")
+	MOVIESCENE_API EMovieSceneCompletionModeOverride GetCompletionModeOverride() const;
 
 public:
 

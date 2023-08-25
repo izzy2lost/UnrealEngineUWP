@@ -644,6 +644,21 @@ void UMovieSceneSequencePlayer::RestoreState()
 	RestorePreAnimatedState();
 }
 
+void UMovieSceneSequencePlayer::SetCompletionModeOverride(EMovieSceneCompletionModeOverride CompletionModeOverride)
+{
+	if (IsPlaying() && PlaybackSettings.FinishCompletionStateOverride != EMovieSceneCompletionModeOverride::ForceRestoreState && CompletionModeOverride == EMovieSceneCompletionModeOverride::ForceRestoreState)
+	{
+		UE_LOG(LogMovieScene, Warning, TEXT("Attempting to set completion mode override to force restore state while the sequence is already playing. Force restore state must be set before starting playback."));
+	}
+
+	PlaybackSettings.FinishCompletionStateOverride = CompletionModeOverride;
+}
+
+EMovieSceneCompletionModeOverride UMovieSceneSequencePlayer::GetCompletionModeOverride() const
+{
+	return PlaybackSettings.FinishCompletionStateOverride;
+}
+
 bool UMovieSceneSequencePlayer::IsPlaying() const
 {
 	return Status == EMovieScenePlayerStatus::Playing;
