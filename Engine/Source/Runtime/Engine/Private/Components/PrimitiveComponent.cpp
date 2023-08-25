@@ -4853,20 +4853,11 @@ FPrimitiveSceneProxy* FActorPrimitiveComponentInterface::CreateSceneProxy()
 }
 
 #if WITH_EDITOR
-
-HHitProxy* FActorPrimitiveComponentInterface::CreateHitProxy(int32 SectionIndex, int32 MaterialIndex) 
+HHitProxy* FActorPrimitiveComponentInterface::CreateMeshHitProxy(int32 SectionIndex, int32 MaterialIndex) 
 {
 	UPrimitiveComponent* Component = UPrimitiveComponent::GetPrimitiveComponent(this);	
-	return Component->CreateHitProxy(SectionIndex, MaterialIndex);	
+	return Component->CreateMeshHitProxy(SectionIndex, MaterialIndex);	
 }
 #endif
-
-HHitProxy* FActorPrimitiveComponentInterface::CreateHitProxies(TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) 
-{
-	// As of now the legacy path in FPrimitiveSceneProxy::CreateHitProxies that takes a UPrimitiveComponent* is used to 
-	// create hit proxies for AActors/UPrimitiveComponent, we'll re-evaluate how we proceed for non-UPrimitiveComponents
-	// when support for this is implemented entirely
-	return nullptr; 
-}
 
 #undef LOCTEXT_NAMESPACE

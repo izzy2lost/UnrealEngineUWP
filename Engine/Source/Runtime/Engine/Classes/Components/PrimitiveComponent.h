@@ -2187,7 +2187,7 @@ public:
 	 * Creates a HHitProxy to represent the component at SectionIndex / MaterialIndex
 	 * @return The proxy object.
 	 */
-	ENGINE_API virtual HHitProxy* CreateHitProxy(int32 SectionIndex, int32 MaterialIndex) const
+	ENGINE_API virtual HHitProxy* CreateMeshHitProxy(int32 SectionIndex, int32 MaterialIndex) const
 	{
 		return nullptr;
 	}

@@ -560,7 +560,7 @@ public:
 	virtual bool SupportsWorldPositionOffsetVelocity() const override { return bWorldPositionOffsetWritesVelocity; }
 	ENGINE_API virtual void GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) const override;	
 #if WITH_EDITOR
-	ENGINE_API virtual HHitProxy* CreateHitProxy(int32 SectionIndex, int32 MaterialIndex) const override;	
+	ENGINE_API virtual HHitProxy* CreateMeshHitProxy(int32 SectionIndex, int32 MaterialIndex) const override;	
 #endif
 //~ End UPrimitiveComponent Interface.
 

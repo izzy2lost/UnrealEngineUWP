@@ -2195,6 +2195,11 @@ void FInstancedStaticMeshSceneProxy::GetDistanceFieldInstanceData(TArray<FRender
 	}
 }
 
+HHitProxy* FInstancedStaticMeshSceneProxy::CreateHitProxies(UPrimitiveComponent* Component,TArray<TRefCountPtr<HHitProxy> >& OutHitProxies)
+{
+	return FInstancedStaticMeshSceneProxy::CreateHitProxies(Component->GetPrimitiveComponentInterface(), OutHitProxies);
+}
+
 HHitProxy* FInstancedStaticMeshSceneProxy::CreateHitProxies(IPrimitiveComponent* Component,TArray<TRefCountPtr<HHitProxy> >& OutHitProxies)
 {
 	if (InstancedRenderData.PerInstanceRenderData.IsValid() && InstancedRenderData.PerInstanceRenderData->HitProxies.Num())

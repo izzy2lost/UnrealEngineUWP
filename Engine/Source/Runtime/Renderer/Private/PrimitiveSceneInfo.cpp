@@ -167,6 +167,23 @@ FPrimitiveSceneInfoCompact::FPrimitiveSceneInfoCompact(FPrimitiveSceneInfo* InPr
 
 struct FPrimitiveSceneInfoAdapter
 {
+	void CreateHitProxies()
+	{
+		if (PrimitiveComponentInterface)
+		{
+			// Support for legacy path for proxy creation, if not handled it'll internally invoke the IPrimitiveComponentInterface path
+			if (UPrimitiveComponent* PrimitiveComponent =  PrimitiveComponentInterface->GetUObject<UPrimitiveComponent>())
+			{		
+				DefaultHitProxy = SceneProxy->CreateHitProxies(PrimitiveComponent, HitProxies);			
+			}
+			else 
+			{
+				// For all other implementers
+				DefaultHitProxy = SceneProxy->CreateHitProxies(PrimitiveComponentInterface, HitProxies);			
+			}
+		}
+	}
+
 	FPrimitiveSceneInfoAdapter(UPrimitiveComponent* InComponent)		
 	{		
 		SceneProxy = InComponent->SceneProxy;
@@ -198,8 +215,7 @@ struct FPrimitiveSceneInfoAdapter
 
 		if (GIsEditor)
 		{
-			// Create a dynamic hit proxy for the primitive. 
-			DefaultHitProxy = SceneProxy->CreateHitProxies(PrimitiveComponentInterface, HitProxies);
+			CreateHitProxies();
 		}
 		
 	}
@@ -222,8 +238,7 @@ struct FPrimitiveSceneInfoAdapter
 		
 		if (GIsEditor && PrimitiveComponentInterface)
 		{
-			// Create a dynamic hit proxy for the primitive. 
-			DefaultHitProxy = SceneProxy->CreateHitProxies(PrimitiveComponentInterface, HitProxies);				
+			CreateHitProxies();
 		}
 
 	}

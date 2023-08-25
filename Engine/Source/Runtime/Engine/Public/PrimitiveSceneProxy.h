@@ -268,6 +268,22 @@ public:
 	/** Returns the LOD that the primitive will render at for this view. */
 	virtual int32 GetLOD(const FSceneView* View) const { return INDEX_NONE; }
 	
+
+
+	
+
+	/** 
+	* All FPrimitiveSceneProxy derived classes can decide to fully override the HHitProxy
+	* creation, or add their own and call any of their base classes to add theirs. 
+	* 
+	* Classes deriving from FPrimitiveSceneProxy which are meant to be used with 
+	* IPrimitiveComponent should override both CreateHitProxies(UPrimitiveComponent*, ...)
+	* and CreateHitProxies(IPrimitiveComponent*, ...) and make the UPrimitiveComponent 
+	* version call into the IPrimitiveComponent one. This allows their derived classes that
+	* are exclusive to UPrimitiveComponent to call into them and to reroute the proxy 
+	* creation to the IPrimitiveComponent path.
+	*/
+
 	/**
 	 * Creates the hit proxies are used when DrawDynamicElements is called.
 	 * Called in the game thread.

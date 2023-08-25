@@ -35,8 +35,7 @@ public:
 	FPrimitiveSceneProxy* CreateSceneProxy() override;	
 
 #if WITH_EDITOR
-	HHitProxy* CreateHitProxy(int32 SectionIndex, int32 MaterialIndex) override;	
+	HHitProxy* CreateMeshHitProxy(int32 SectionIndex, int32 MaterialIndex) override;
 #endif
-
-	HHitProxy* CreateHitProxies(TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) override;
+	HHitProxy* CreatePrimitiveHitProxies(TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) override;
 };

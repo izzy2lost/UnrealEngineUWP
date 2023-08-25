@@ -68,9 +68,9 @@ public:
 	virtual FString GetOwnerName() const = 0;
 	virtual FPrimitiveSceneProxy* CreateSceneProxy() = 0;
 #if WITH_EDITOR
-	virtual HHitProxy* CreateHitProxy(int32 SectionIndex, int32 MaterialIndex) = 0;
+	virtual HHitProxy* CreateMeshHitProxy(int32 SectionIndex, int32 MaterialIndex) = 0;
 #endif
-	virtual HHitProxy* CreateHitProxies(TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) = 0;
+	virtual HHitProxy* CreatePrimitiveHitProxies(TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) = 0;
 };
 
 class IStaticMeshComponent

@@ -683,10 +683,20 @@ FPrimitiveSceneProxy::~FPrimitiveSceneProxy()
 {
 }
 
-// Invoked by SceneProxy types who still create their proxies through the legacy path
+// Potentially invoked by SceneProxy types who still create their proxies through the legacy path
 HHitProxy* FPrimitiveSceneProxy::CreateHitProxies(UPrimitiveComponent* Component,TArray<TRefCountPtr<HHitProxy> >& OutHitProxies)
 {
-	check(Component);
+	return FPrimitiveSceneProxy::CreateHitProxies(Component->GetPrimitiveComponentInterface(), OutHitProxies);
+}
+ 
+HHitProxy* FPrimitiveSceneProxy::CreateHitProxies(IPrimitiveComponent* ComponentInterface,TArray<TRefCountPtr<HHitProxy> >& OutHitProxies)
+{
+	return ComponentInterface->CreatePrimitiveHitProxies(OutHitProxies);
+}
+
+HHitProxy* FActorPrimitiveComponentInterface::CreatePrimitiveHitProxies(TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) 
+{
+	UPrimitiveComponent* Component = UPrimitiveComponent::GetPrimitiveComponent(this);	
 
 	if(Component->GetOwner())
 	{
@@ -711,19 +721,6 @@ HHitProxy* FPrimitiveSceneProxy::CreateHitProxies(UPrimitiveComponent* Component
 	{
 		return NULL;
 	}
-}
-
-HHitProxy* FPrimitiveSceneProxy::CreateHitProxies(IPrimitiveComponent* ComponentInterface,TArray<TRefCountPtr<HHitProxy> >& OutHitProxies)
-{
-	// Support for legacy path for proxy creation, if not handled invoke the IPrimitiveComponentInterface path
-	if (UPrimitiveComponent* PrimitiveComponent =  ComponentInterface->GetUObject<UPrimitiveComponent>())
-	{		
-		HHitProxy* OutProxy = CreateHitProxies(PrimitiveComponent, OutHitProxies);
-		if (OutProxy)
-			return OutProxy;
-	}
-
-	return ComponentInterface->CreateHitProxies(OutHitProxies);
 }
 
 FPrimitiveViewRelevance FPrimitiveSceneProxy::GetViewRelevance(const FSceneView* View) const

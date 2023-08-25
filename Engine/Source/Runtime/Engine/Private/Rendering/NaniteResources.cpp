@@ -503,7 +503,7 @@ void FSceneProxyBase::FMaterialSection::ResetToDefaultMaterial(bool bShading, bo
 #if WITH_EDITOR
 HHitProxy* FSceneProxyBase::CreateHitProxies(UPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy>>& OutHitProxies)
 {
-	return CreateHitProxies(Component->GetPrimitiveComponentInterface(), OutHitProxies);
+	return FSceneProxyBase::CreateHitProxies(Component->GetPrimitiveComponentInterface(), OutHitProxies);
 }
 
 HHitProxy* FSceneProxyBase::CreateHitProxies(IPrimitiveComponent* ComponentInterface,TArray<TRefCountPtr<HHitProxy> >& OutHitProxies)
@@ -1248,7 +1248,12 @@ void FSceneProxy::GetLightRelevance(const FLightSceneProxy* LightSceneProxy, boo
 
 #if WITH_EDITOR
 
-HHitProxy* FSceneProxy::CreateHitProxies(IPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy>>& OutHitProxies)
+FORCENOINLINE HHitProxy* FSceneProxy::CreateHitProxies(UPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy>>& OutHitProxies)
+{
+	return FSceneProxy::CreateHitProxies(Component->GetPrimitiveComponentInterface(), OutHitProxies);
+}
+
+FORCENOINLINE HHitProxy* FSceneProxy::CreateHitProxies(IPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy>>& OutHitProxies)
 {
 	LLM_SCOPE_BYTAG(Nanite);
 
@@ -1262,7 +1267,7 @@ HHitProxy* FSceneProxy::CreateHitProxies(IPrimitiveComponent* Component, TArray<
 				for (int32 SectionIndex = 0; SectionIndex < MaterialSections.Num(); ++SectionIndex)
 				{
 					FMaterialSection& Section = MaterialSections[SectionIndex];					
-					HHitProxy* ActorHitProxy = Component->CreateHitProxy(SectionIndex, SectionIndex);
+					HHitProxy* ActorHitProxy = Component->CreateMeshHitProxy(SectionIndex, SectionIndex);
 
 					if (ActorHitProxy)
 					{

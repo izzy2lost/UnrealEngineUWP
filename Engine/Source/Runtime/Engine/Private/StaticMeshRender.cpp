@@ -1126,7 +1126,7 @@ bool FStaticMeshSceneProxy::IsReversedCullingNeeded(bool bUseReversedIndices) co
 // FPrimitiveSceneProxy interface.
 #if WITH_EDITOR
 
-HHitProxy* UStaticMeshComponent::CreateHitProxy( int32 SectionIndex, int32 MaterialIndex) const
+HHitProxy* UStaticMeshComponent::CreateMeshHitProxy( int32 SectionIndex, int32 MaterialIndex) const
 {
 	HActor* ActorHitProxy = nullptr; 
 
@@ -1136,6 +1136,12 @@ HHitProxy* UStaticMeshComponent::CreateHitProxy( int32 SectionIndex, int32 Mater
 	}
 
 	return ActorHitProxy;
+}
+
+HHitProxy* FStaticMeshSceneProxy::CreateHitProxies(UPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy> >& OutHitProxies)
+{
+	// Dispatch to IPrimitiveComponent version
+	return FStaticMeshSceneProxy::CreateHitProxies(Component->GetPrimitiveComponentInterface(), OutHitProxies);
 }
 
 HHitProxy* FStaticMeshSceneProxy::CreateHitProxies(IPrimitiveComponent* ComponentInterface, TArray<TRefCountPtr<HHitProxy> >& OutHitProxies)
@@ -1163,7 +1169,7 @@ HHitProxy* FStaticMeshSceneProxy::CreateHitProxies(IPrimitiveComponent* Componen
 
 				int32 MaterialIndex = LODModel.Sections[SectionIndex].MaterialIndex;
 				
-				HitProxy  = ComponentInterface->CreateHitProxy(SectionIndex, MaterialIndex);
+				HitProxy  = ComponentInterface->CreateMeshHitProxy(SectionIndex, MaterialIndex);
 
 				if (HitProxy)
 				{

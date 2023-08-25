@@ -577,6 +577,7 @@ public:
 	 * @return The hit proxy to use by default for elements drawn by DrawDynamicElements.
 	 */
 	ENGINE_API virtual HHitProxy* CreateHitProxies(IPrimitiveComponent* Component,TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) override;
+	ENGINE_API virtual HHitProxy* CreateHitProxies(UPrimitiveComponent* Component,TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) override;
 
 	ENGINE_API virtual bool GetInstanceDrawDistanceMinMax(FVector2f& OutDistanceMinMax) const override;
 
