@@ -10,7 +10,6 @@
 //------------------------------------------------------- INCLUDES
 
 #include "TSRCommon.ush"
-#include "/Engine/Public/LaneVectorization.ush"
 
 
 //------------------------------------------------------- CONFIG
@@ -63,6 +62,10 @@
 
 	// Each wave needs to output top and bottom rows of pixels into LDS;
 	#define LDS_SIZE (2 * (LANE_STRIDE_X * LANE_COUNT_X) * (WAVE_COUNT_X * WAVE_COUNT_Y))
+	
+	#ifdef PLATFORM_SPECIFIC_TENSOR_REGISTER_LAYOUT
+		#define TENSOR_REGISTER_LAYOUT PLATFORM_SPECIFIC_TENSOR_REGISTER_LAYOUT
+	#endif
 
 #elif DIM_WAVE_SIZE == 0
 	/** Load an entire 32x32 with 1x1 worth of data by lane, only using LDS. */
@@ -78,6 +81,8 @@
 	#define LANE_STRIDE_Y 1
 
 	#define LDS_SIZE (WAVE_COUNT_X * WAVE_COUNT_Y)
+	
+	#define TENSOR_REGISTER_LAYOUT FRegisters_S_OneVector
 
 #else
 	#error Unknown wave size
@@ -310,10 +315,13 @@ void ComputeMoireError(
 		#endif
 		tsr_half LocalMoireError = (abs(LocalNewTotalVariation * SafeRcp(LocalNewTotalVariationCount)) + LocalNewTotalVariationCount * MoireEncodingError) * LocalCountFadeIn;
 
-		OutMoireHistory.RegisterArray[SimdIndex][0] = FinalFlickeringHistory.GetElement(SimdIndex);
-		OutMoireHistory.RegisterArray[SimdIndex][1] = LocalNewGradient * tsr_half(127.0 / 255.0) + tsr_half(127.0 / 255.0);
-		OutMoireHistory.RegisterArray[SimdIndex][2] = LocalNewTotalVariation;
-		OutMoireHistory.RegisterArray[SimdIndex][3] = LocalQuantizedNewTotalVariationCount * rcp(MaxPrevTotalVariationCount);
+		tsr_half4 PackedMoireHistory = tsr_half4(
+			FinalFlickeringHistory.GetElement(SimdIndex),
+			LocalNewGradient * tsr_half(127.0 / 255.0) + tsr_half(127.0 / 255.0),
+			LocalNewTotalVariation,
+			LocalQuantizedNewTotalVariationCount * rcp(MaxPrevTotalVariationCount));
+
+		OutMoireHistory.SetElement(SimdIndex, PackedMoireHistory);
 
 		OutMoireError.SetElement(SimdIndex, LocalMoireError);
 	}
@@ -515,6 +523,24 @@ void MainCS(
 				#endif
 			#endif
 		}
+		
+		OriginalOpaqueInput.TightenRegisters();
+		#if CONFIG_COMPOSE_TRANSLUCENCY
+			OriginalTranslucencyInput.TightenRegisters();
+		#endif
+		OriginalHistory.TightenRegisters();
+		OriginalHistoryUncertainty.TightenRegisters();
+		VelocityEdge.TightenRegisters();
+		bIsValid.TightenRegisters();
+		#if CONFIG_MOIRE_DETECTION
+			MoireInput.TightenRegisters();
+			PrevMoireHistory.TightenRegisters();
+			bIsStatic.TightenRegisters();
+		#endif
+		#if CONFIG_HISTORY_RESURRECTION
+			OriginalResurrectedHistory.TightenRegisters();
+			OriginalResurrectedHistoryUncertainty.TightenRegisters();
+		#endif
 	}
 	
 	// Compute AA Luma

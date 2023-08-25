@@ -442,8 +442,7 @@ TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> WaveAccessNeighb
 		const int LaneRotation = dot(select(bNeedsLaneRotation, int2(Offset), 0), int2(1, LANE_COUNT_X));
 		
 		// Access the lement.
-		vector<ScalarType, VectorSize> SimdElement = Input.GetElement(NeigborSimdIndex);
-		vector<ScalarType, VectorSize> ReturnSimdElement = SimdElement;
+		vector<ScalarType, VectorSize> ReturnSimdElement;
 		if (LaneRotation != 0)
 		{
 			// Only uses wave intrinsics on platforms that provides RDNA's ds_swizzle because we know the wave size of this platforms. 
@@ -451,11 +450,17 @@ TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> WaveAccessNeighb
 				//#error InitWaveRotateLaneGroup() isn't supported.
 			#endif
 			const FWaveBroadcastSettings BroadcastSettings = InitWaveRotateLaneGroup(/* LaneGroupSize = */ LANE_COUNT, LaneRotation);
-			ReturnSimdElement = WaveBroadcast(BroadcastSettings, SimdElement);
+			ReturnSimdElement = Input.Registers.WaveBroadcastElement(BroadcastSettings, NeigborSimdIndex);
+		}
+		else
+		{
+			ReturnSimdElement = Input.GetElement(NeigborSimdIndex);
 		}
 
 		Return.SetElement(SimdIndex, ReturnSimdElement);
 	}
+
+	Return.TightenRegisters();
 
 	return Return;
 }
@@ -499,6 +504,9 @@ void AccessNeighborTexels3x1(
 		// TODO
 		CP = CN = CO;
 	}
+
+	CP.TightenRegisters();
+	CN.TightenRegisters();
 }
 #else
 {
@@ -574,6 +582,9 @@ void AccessNeighborTexels1x3(
 			CN.SetElement(FirstSimdIndex + SimdIndex, FirstElement);
 		}
 	}
+	
+	CP.TightenRegisters();
+	CN.TightenRegisters();
 }
 #else
 {

@@ -7,6 +7,21 @@
 #pragma once
 
 #include "Platform.ush"
+#include "WaveBroadcastIntrinsics.ush"
+
+
+//------------------------------------------------------- DEFINE
+
+#ifndef TENSOR_REGISTER_LAYOUT
+	#define TENSOR_REGISTER_LAYOUT FRegisters_AoS_VectorArray
+#endif
+
+#ifndef TENSOR_REGISTER_TIGHTENING
+	#define TENSOR_REGISTER_TIGHTENING 0
+#endif
+
+
+//------------------------------------------------------- STANDARD SCALAR OPERATIONS
 
 bool not(bool x)
 {
@@ -14,6 +29,16 @@ bool not(bool x)
 }
 
 bool2 not(bool2 x)
+{
+	return !x;
+}
+
+bool3 not(bool3 x)
+{
+	return !x;
+}
+
+bool4 not(bool4 x)
 {
 	return !x;
 }
@@ -151,230 +176,774 @@ uint16_t2 bit_shift_right(uint16_t2 a, uint16_t2 b)
 #endif
 
 
-template<typename ScalarType, uint InVectorSize, uint InSimdSize>
-struct TLaneVector
+//------------------------------------------------------- TIGHT REGISTERS
+
+bool  PackRegistersTightly(bool v)
 {
+	return v;
+}
+
+bool2 PackRegistersTightly(bool2 v)
+{
+	return v;
+}
+
+bool3 PackRegistersTightly(bool3 v)
+{
+	return v;
+}
+
+bool4 PackRegistersTightly(bool4 v)
+{
+	return v;
+}
+
+float  PackRegistersTightly(float v)
+{
+	return v;
+}
+
+float2 PackRegistersTightly(float2 v)
+{
+	return v;
+}
+
+float3 PackRegistersTightly(float3 v)
+{
+	return v;
+}
+
+float4 PackRegistersTightly(float4 v)
+{
+	return v;
+}
+
+uint  PackRegistersTightly(uint v)
+{
+	return v;
+}
+
+uint2 PackRegistersTightly(uint2 v)
+{
+	return v;
+}
+
+uint3 PackRegistersTightly(uint3 v)
+{
+	return v;
+}
+
+uint4 PackRegistersTightly(uint4 v)
+{
+	return v;
+}
+
+int  PackRegistersTightly(int v)
+{
+	return v;
+}
+
+int2 PackRegistersTightly(int2 v)
+{
+	return v;
+}
+
+int3 PackRegistersTightly(int3 v)
+{
+	return v;
+}
+
+int4 PackRegistersTightly(int4 v)
+{
+	return v;
+}
+
+
+#if PLATFORM_SUPPORTS_REAL_TYPES
+
+half  PackRegistersTightly(half v)
+{
+	return v;
+}
+
+half2 PackRegistersTightly(half2 v)
+{
+	return v_pack_b32_b16(v.x, v.y);
+}
+
+half3 PackRegistersTightly(half3 v)
+{
+	return half3(v_pack_b32_b16(v.x, v.y), v.z);
+}
+
+half4 PackRegistersTightly(half4 v)
+{
+	return half4(v_pack_b32_b16(v.x, v.y), v_pack_b32_b16(v.z, v.w));
+}
+
+uint16_t  PackRegistersTightly(uint16_t v)
+{
+	return v;
+}
+
+uint16_t2 PackRegistersTightly(uint16_t2 v)
+{
+	return v_pack_b32_b16(v.x, v.y);
+}
+
+uint16_t3 PackRegistersTightly(uint16_t3 v)
+{
+	return uint16_t3(v_pack_b32_b16(v.x, v.y), v.z);
+}
+
+uint16_t4 PackRegistersTightly(uint16_t4 v)
+{
+	return uint16_t4(v_pack_b32_b16(v.x, v.y), v_pack_b32_b16(v.z, v.w));
+}
+
+int16_t  PackRegistersTightly(int16_t v)
+{
+	return v;
+}
+
+int16_t2 PackRegistersTightly(int16_t2 v)
+{
+	return v_pack_b32_b16(v.x, v.y);
+}
+
+int16_t3 PackRegistersTightly(int16_t3 v)
+{
+	return int16_t3(v_pack_b32_b16(v.x, v.y), v.z);
+}
+
+int16_t4 PackRegistersTightly(int16_t4 v)
+{
+	return int16_t4(v_pack_b32_b16(v.x, v.y), v_pack_b32_b16(v.z, v.w));
+}
+
+
+#endif // PLATFORM_SUPPORTS_REAL_TYPES
+
+
+//------------------------------------------------------- REGISTERS LAYOUTS
+
+/** Stores one unique vector<>. InElementCount must be == 1  */
+template<typename ScalarType, uint InVectorSize, uint InElementCount>
+struct FRegisters_S_OneVector
+{
+	/** Size of each element. */
 	static const uint VectorSize = InVectorSize;
-	static const uint SimdSize = InSimdSize;
+	
+	/** Number of elememnts */
+	static const uint ElementCount = 1;
+	
+	/** Size and number of register rows */
+	static const uint RegisterRowSize = VectorSize;
+	static const uint RegisterRowCount = 1;
 
-	vector<ScalarType, VectorSize> RegisterArray[SimdSize];
+	vector<ScalarType, VectorSize> E;
+	
 
-	
-	// Access a component of the vector
+	// ------------- register rows
+
 	CALL_SITE_DEBUGLOC
-	TLaneVector<ScalarType, 1, SimdSize> operator [](const uint ComponentIndex)
+	vector<ScalarType, RegisterRowSize> GetRegisterRow(const uint RegisterRowIndex)
 	{
-		TLaneVector<ScalarType, 1, SimdSize> R;
-		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
-		{
-			R.SetElement(SimdIndex, GetElement(SimdIndex)[ComponentIndex]);
-		}
-		return R;
-	}
-	
-	// Access an individual element of the vector.
-	CALL_SITE_DEBUGLOC
-	vector<ScalarType, VectorSize> GetElement(const uint SimdIndex)
-	{
-		return RegisterArray[SimdIndex];
+		return E;
 	}
 	
 	CALL_SITE_DEBUGLOC
-	void SetElement(const uint SimdIndex, vector<ScalarType, VectorSize> Element)
+	void SetRegisterRow(const uint RegisterRowIndex, vector<ScalarType, RegisterRowSize> RegisterRow)
 	{
-		RegisterArray[SimdIndex] = Element;
-	}
-	
-	CALL_SITE_DEBUGLOC
-	void SetAllElements(vector<ScalarType, VectorSize> Element)
-	{
-		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
-		{
-			RegisterArray[SimdIndex] = Element;
-		}
+		E = RegisterRow;
 	}
 	
 	
-	// ------------- binary operator +
+	// ------------- elements
+
 	CALL_SITE_DEBUGLOC
-	TLaneVector<ScalarType, VectorSize, SimdSize> operator + (TLaneVector<ScalarType, VectorSize, SimdSize> B)
+	vector<ScalarType, VectorSize> GetElement(const uint ElementIndex)
 	{
-		TLaneVector<ScalarType, VectorSize, SimdSize> R;
-		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
-		{
-			R.SetElement(SimdIndex, GetElement(SimdIndex) + B.GetElement(SimdIndex));
-		}
-		return R;
+		return E;
 	}
 	
 	CALL_SITE_DEBUGLOC
-	TLaneVector<ScalarType, VectorSize, SimdSize> operator + (vector<ScalarType, VectorSize> B)
+	void SetElement(const uint ElementIndex, vector<ScalarType, VectorSize> Element)
 	{
-		TLaneVector<ScalarType, VectorSize, SimdSize> R;
-		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
-		{
-			R.SetElement(SimdIndex, GetElement(SimdIndex) + B);
-		}
-		return R;
+		E = Element;
 	}
 
-	
-	// ------------- unary operator -
-	CALL_SITE_DEBUGLOC
-	TLaneVector<ScalarType, VectorSize, SimdSize> operator - ()
+	vector<ScalarType, VectorSize> WaveBroadcastElement(const FWaveBroadcastSettings BroadcastSettings, const uint ElementIndex)
 	{
-		TLaneVector<ScalarType, VectorSize, SimdSize> R;
-		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
-		{
-			R.SetElement(SimdIndex, -GetElement(SimdIndex));
-		}
-		return R;
+		return WaveBroadcast(BroadcastSettings, GetElement(ElementIndex));
 	}
 	
-	// ------------- binary operator -
-	CALL_SITE_DEBUGLOC
-	TLaneVector<ScalarType, VectorSize, SimdSize> operator - (TLaneVector<ScalarType, VectorSize, SimdSize> B)
-	{
-		TLaneVector<ScalarType, VectorSize, SimdSize> R;
-		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
-		{
-			R.SetElement(SimdIndex, GetElement(SimdIndex) - B.GetElement(SimdIndex));
-		}
-		return R;
-	}
 	
-	CALL_SITE_DEBUGLOC
-	TLaneVector<ScalarType, VectorSize, SimdSize> operator - (vector<ScalarType, VectorSize> B)
-	{
-		TLaneVector<ScalarType, VectorSize, SimdSize> R;
-		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
-		{
-			R.SetElement(SimdIndex, GetElement(SimdIndex) - B);
-		}
-		return R;
-	}
+	// ------------- elements' components
 
-	
-	// ------------- binary operator *
 	CALL_SITE_DEBUGLOC
-	TLaneVector<ScalarType, VectorSize, SimdSize> operator * (TLaneVector<ScalarType, VectorSize, SimdSize> B)
+	ScalarType GetElementComponent(const uint ElementIndex, const uint ComponentIndex)
 	{
-		TLaneVector<ScalarType, VectorSize, SimdSize> R;
-		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
-		{
-			R.SetElement(SimdIndex, GetElement(SimdIndex) * B.GetElement(SimdIndex));
-		}
-		return R;
+		return E[ComponentIndex];
 	}
 
 	CALL_SITE_DEBUGLOC
-	TLaneVector<ScalarType, VectorSize, SimdSize> operator * (vector<ScalarType, VectorSize> B)
+	void SetElementComponent(const uint ElementIndex, const uint ComponentIndex, ScalarType Component)
 	{
-		TLaneVector<ScalarType, VectorSize, SimdSize> R;
-		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
-		{
-			R.SetElement(SimdIndex, GetElement(SimdIndex) * B);
-		}
-		return R;
+		E[ComponentIndex] = Component;
+	}
+}; // struct FRegisters_S_OneVector
+
+/** Stores an array of vector<> as an array of structure in registers.  */
+template<typename ScalarType, uint InVectorSize, uint InElementCount>
+struct FRegisters_AoS_VectorArray
+{
+	/** Size of each element. */
+	static const uint VectorSize = InVectorSize;
+	
+	/** Number of elememnts */
+	static const uint ElementCount = InElementCount;
+	
+	/** Size and number of register rows */
+	static const uint RegisterRowSize = VectorSize;
+	static const uint RegisterRowCount = ElementCount;
+
+	vector<ScalarType, VectorSize> Array[ElementCount];
+	
+	
+	// ------------- register rows
+	
+	CALL_SITE_DEBUGLOC
+	vector<ScalarType, RegisterRowSize> GetRegisterRow(const uint RegisterRowIndex)
+	{
+		return Array[RegisterRowIndex];
+	}
+	
+	CALL_SITE_DEBUGLOC
+	void SetRegisterRow(const uint RegisterRowIndex, vector<ScalarType, RegisterRowSize> RegisterRow)
+	{
+		Array[RegisterRowIndex] = RegisterRow;
 	}
 	
 
-	// ------------- constructors
+	// ------------- elements
+	
 	CALL_SITE_DEBUGLOC
-	static TLaneVector<ScalarType, VectorSize, SimdSize> Vectorize(
-		TLaneVector<ScalarType, 1, SimdSize> A)
+	vector<ScalarType, VectorSize> GetElement(const uint ElementIndex)
 	{
-		TLaneVector<ScalarType, VectorSize, SimdSize> R;
-		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
-		{
-			R.SetElement(SimdIndex, A.GetElement(SimdIndex));
-		}
-		return R;
+		return Array[ElementIndex];
 	}
 	
 	CALL_SITE_DEBUGLOC
-	static TLaneVector<ScalarType, VectorSize, SimdSize> Const(
-		vector<ScalarType, VectorSize> A)
+	void SetElement(const uint ElementIndex, vector<ScalarType, VectorSize> Element)
 	{
-		TLaneVector<ScalarType, VectorSize, SimdSize> R;
-		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
-		{
-			R.SetElement(SimdIndex, A);
-		}
-		return R;
+		Array[ElementIndex] = Element;
 	}
 
-};
+	vector<ScalarType, VectorSize> WaveBroadcastElement(const FWaveBroadcastSettings BroadcastSettings, const uint ElementIndex)
+	{
+		return WaveBroadcast(BroadcastSettings, GetElement(ElementIndex));
+	}
+	
 
+	// ------------- elements' components
+
+	CALL_SITE_DEBUGLOC
+	ScalarType GetElementComponent(const uint ElementIndex, const uint ComponentIndex)
+	{
+		return Array[ElementIndex][ComponentIndex];
+	}
+
+	CALL_SITE_DEBUGLOC
+	void SetElementComponent(const uint ElementIndex, const uint ComponentIndex, ScalarType Component)
+	{
+		Array[ElementIndex][ComponentIndex] = Component;
+	}
+}; // struct FRegisters_AoS_VectorArray
+
+/** Stores an array of vector<> as an array of structure in registers using a matrix<>. */
+template<typename ScalarType, uint InVectorSize, uint InElementCount>
+struct FRegisters_AoS_Matrix
+{
+	/** Size of each element. */
+	static const uint VectorSize = InVectorSize;
+	
+	/** Number of elememnts */
+	static const uint ElementCount = InElementCount;
+	
+	/** Size and number of register rows */
+	static const uint RegisterRowSize = VectorSize;
+	static const uint RegisterRowCount = ElementCount;
+
+	matrix<ScalarType, ElementCount, VectorSize> M;
+	
+	
+	// ------------- register rows
+	
+	CALL_SITE_DEBUGLOC
+	vector<ScalarType, RegisterRowSize> GetRegisterRow(const uint RegisterRowIndex)
+	{
+		return M[RegisterRowIndex];
+	}
+	
+	CALL_SITE_DEBUGLOC
+	void SetRegisterRow(const uint RegisterRowIndex, vector<ScalarType, RegisterRowSize> RegisterRow)
+	{
+		M[RegisterRowIndex] = RegisterRow;
+	}
+	
+
+	// ------------- elements
+	
+	CALL_SITE_DEBUGLOC
+	vector<ScalarType, VectorSize> GetElement(const uint ElementIndex)
+	{
+		return M[ElementIndex];
+	}
+	
+	CALL_SITE_DEBUGLOC
+	void SetElement(const uint ElementIndex, vector<ScalarType, VectorSize> Element)
+	{
+		M[ElementIndex] = Element;
+	}
+
+	vector<ScalarType, VectorSize> WaveBroadcastElement(const FWaveBroadcastSettings BroadcastSettings, const uint ElementIndex)
+	{
+		return WaveBroadcast(BroadcastSettings, GetElement(ElementIndex));
+	}
+	
+	
+	// ------------- elements' components
+
+	CALL_SITE_DEBUGLOC
+	ScalarType GetElementComponent(const uint ElementIndex, const uint ComponentIndex)
+	{
+		return M[ElementIndex][ComponentIndex];
+	}
+
+	CALL_SITE_DEBUGLOC
+	void SetElementComponent(const uint ElementIndex, const uint ComponentIndex, ScalarType Component)
+	{
+		M[ElementIndex][ComponentIndex] = Component;
+	}
+}; // struct FRegisters_AoS_Matrix
+
+/** Stores an array of vector<> as a structure of array in registers using a matrix<>. Requires InElementCount a pair >= 2 */
+template<typename ScalarType, uint InVectorSize, uint InElementCount>
+struct FRegisters_SoA_Matrix
+{
+	/** Size of each element. */
+	static const uint VectorSize = InVectorSize;
+	
+	/** Number of elememnts */
+	static const uint ElementCount = InElementCount;
+	
+	/** Size and number of register rows */
+	static const uint RegisterRowSize = ElementCount;
+	static const uint RegisterRowCount = VectorSize;
+
+	matrix<ScalarType, VectorSize, ElementCount> M;
+	
+	
+	// ------------- register rows
+	
+	CALL_SITE_DEBUGLOC
+	vector<ScalarType, RegisterRowSize> GetRegisterRow(const uint RegisterRowIndex)
+	{
+		return M[RegisterRowIndex];
+	}
+	
+	CALL_SITE_DEBUGLOC
+	void SetRegisterRow(const uint RegisterRowIndex, vector<ScalarType, RegisterRowSize> RegisterRow)
+	{
+		M[RegisterRowIndex] = RegisterRow;
+	}
+	
+
+	// ------------- elements
+	
+	CALL_SITE_DEBUGLOC
+	vector<ScalarType, VectorSize> GetElement(const uint ElementIndex)
+	{
+		vector<ScalarType, VectorSize> Element;
+		UNROLL
+		for (uint ComponentIndex = 0; ComponentIndex < VectorSize; ComponentIndex++)
+		{
+			Element[ComponentIndex] = M[ComponentIndex][ElementIndex];
+		}
+		return Element;
+	}
+	
+	CALL_SITE_DEBUGLOC
+	void SetElement(const uint ElementIndex, vector<ScalarType, VectorSize> Element)
+	{
+		UNROLL
+		for (uint ComponentIndex = 0; ComponentIndex < VectorSize; ComponentIndex++)
+		{
+			M[ComponentIndex][ElementIndex] = Element[ComponentIndex];
+		}
+	}
+
+	vector<ScalarType, VectorSize> WaveBroadcastElement(const FWaveBroadcastSettings BroadcastSettings, const uint ElementIndex)
+	{
+		vector<ScalarType, VectorSize> Element;
+		UNROLL
+		for (uint ComponentIndex = 0; ComponentIndex < VectorSize; ComponentIndex++)
+		{
+			Element[ComponentIndex] = WaveBroadcast(BroadcastSettings, M[ComponentIndex])[ElementIndex];
+		}
+		return Element;
+	}
+	
+	
+	// ------------- elements' components
+
+	CALL_SITE_DEBUGLOC
+	ScalarType GetElementComponent(const uint ElementIndex, const uint ComponentIndex)
+	{
+		return M[ComponentIndex][ElementIndex];
+	}
+
+	CALL_SITE_DEBUGLOC
+	void SetElementComponent(const uint ElementIndex, const uint ComponentIndex, ScalarType Component)
+	{
+		M[ComponentIndex][ElementIndex] = Component;
+	}
+}; // struct FRegisters_SoA_Matrix
+
+/** Stores an array of vector<> as a structure of array in registers using a matrix<>. Requires InElementCount a pair >= 2 */
+template<typename ScalarType, uint InVectorSize, uint InElementCount>
+struct FRegisters_AoS_PairArray
+{
+	/** Size of each element. */
+	static const uint VectorSize = InVectorSize;
+	
+	/** Number of elememnts */
+	static const uint ElementCount = InElementCount;
+	
+	/** Size and number of register rows */
+	static const uint RegisterRowSize = 2;
+	static const uint RegisterRowCount = (ElementCount * VectorSize) / 2;
+
+	vector<ScalarType, RegisterRowSize> M[RegisterRowCount];
+	
+	
+	// ------------- register rows
+	
+	CALL_SITE_DEBUGLOC
+	vector<ScalarType, RegisterRowSize> GetRegisterRow(const uint RegisterRowIndex)
+	{
+		return M[RegisterRowIndex];
+	}
+	
+	CALL_SITE_DEBUGLOC
+	void SetRegisterRow(const uint RegisterRowIndex, vector<ScalarType, RegisterRowSize> RegisterRow)
+	{
+		M[RegisterRowIndex] = RegisterRow;
+	}
+	
+
+	// ------------- elements
+	
+	CALL_SITE_DEBUGLOC
+	vector<ScalarType, VectorSize> GetElement(const uint ElementIndex)
+	{
+		vector<ScalarType, VectorSize> Element;
+		UNROLL
+		for (uint ComponentIndex = 0; ComponentIndex < VectorSize; ComponentIndex++)
+		{
+			Element[ComponentIndex] = GetElementComponent(ElementIndex, ComponentIndex);
+		}
+		return Element;
+	}
+	
+	CALL_SITE_DEBUGLOC
+	void SetElement(const uint ElementIndex, vector<ScalarType, VectorSize> Element)
+	{
+		UNROLL
+		for (uint ComponentIndex = 0; ComponentIndex < VectorSize; ComponentIndex++)
+		{
+			SetElementComponent(ElementIndex, ComponentIndex, Element[ComponentIndex]);
+		}
+	}
+
+	vector<ScalarType, VectorSize> WaveBroadcastElement(const FWaveBroadcastSettings BroadcastSettings, const uint ElementIndex)
+	{
+		vector<ScalarType, VectorSize> Element;
+		if (sizeof(ScalarType) == 4)
+		{
+			UNROLL
+			for (uint ComponentIndex = 0; ComponentIndex < VectorSize; ComponentIndex++)
+			{
+				const uint ArrayIndex = ComponentIndex + VectorSize * ElementIndex;
+				Element[ComponentIndex] = WaveBroadcast(BroadcastSettings, M[ArrayIndex / 2u][ArrayIndex % 2u]);
+			}
+		}
+		else
+		{
+			const uint FirstArrayIndex = VectorSize * ElementIndex;
+			
+			vector<ScalarType, RegisterRowSize> BroadcastedArray[(VectorSize + 1u) / 2u];
+			UNROLL
+			for (uint BroadcastIndex = 0; BroadcastIndex < ((VectorSize + 1u) / 2u); BroadcastIndex++)
+			{
+				BroadcastedArray[BroadcastIndex] = WaveBroadcast(BroadcastSettings, M[FirstArrayIndex / 2u + BroadcastIndex]);
+			}
+			
+			UNROLL
+			for (uint ComponentIndex = 0; ComponentIndex < VectorSize; ComponentIndex++)
+			{
+				const uint BroadcastedArrayIndex = ComponentIndex + VectorSize * ElementIndex - (FirstArrayIndex / 2u) * 2u;
+				Element[ComponentIndex] = BroadcastedArray[BroadcastedArrayIndex / 2u][BroadcastedArrayIndex % 2u];
+			}
+		}
+		return Element;
+	}
+	
+	
+	// ------------- elements' components
+
+	CALL_SITE_DEBUGLOC
+	ScalarType GetElementComponent(const uint ElementIndex, const uint ComponentIndex)
+	{
+		const uint ArrayIndex = ComponentIndex + VectorSize * ElementIndex;
+		return M[ArrayIndex / 2u][ArrayIndex % 2u];
+	}
+
+	CALL_SITE_DEBUGLOC
+	void SetElementComponent(const uint ElementIndex, const uint ComponentIndex, ScalarType Component)
+	{
+		const uint ArrayIndex = ComponentIndex + VectorSize * ElementIndex;
+		M[ArrayIndex / 2u][ArrayIndex % 2u] = Component;
+	}
+}; // struct FRegisters_AoS_PairArray
+
+/** Stores an array of vector<> as a structure of array in registers using a matrix<>. Requires InElementCount a pair >= 2 */
+template<typename ScalarType, uint InVectorSize, uint InElementCount>
+struct FRegisters_SoA_PairArray
+{
+	/** Size of each element. */
+	static const uint VectorSize = InVectorSize;
+	
+	/** Number of elememnts */
+	static const uint ElementCount = InElementCount;
+	
+	/** Size and number of register rows */
+	static const uint RegisterRowSize = 2;
+	static const uint RegisterRowCount = (ElementCount * VectorSize) / 2;
+
+	vector<ScalarType, RegisterRowSize> M[RegisterRowCount];
+	
+	
+	// ------------- register rows
+	
+	CALL_SITE_DEBUGLOC
+	vector<ScalarType, RegisterRowSize> GetRegisterRow(const uint RegisterRowIndex)
+	{
+		return M[RegisterRowIndex];
+	}
+	
+	CALL_SITE_DEBUGLOC
+	void SetRegisterRow(const uint RegisterRowIndex, vector<ScalarType, RegisterRowSize> RegisterRow)
+	{
+		M[RegisterRowIndex] = RegisterRow;
+	}
+	
+
+	// ------------- elements
+	
+	CALL_SITE_DEBUGLOC
+	vector<ScalarType, VectorSize> GetElement(const uint ElementIndex)
+	{
+		vector<ScalarType, VectorSize> Element;
+		UNROLL
+		for (uint ComponentIndex = 0; ComponentIndex < VectorSize; ComponentIndex++)
+		{
+			Element[ComponentIndex] = GetElementComponent(ElementIndex, ComponentIndex);
+		}
+		return Element;
+	}
+	
+	CALL_SITE_DEBUGLOC
+	void SetElement(const uint ElementIndex, vector<ScalarType, VectorSize> Element)
+	{
+		UNROLL
+		for (uint ComponentIndex = 0; ComponentIndex < VectorSize; ComponentIndex++)
+		{
+			SetElementComponent(ElementIndex, ComponentIndex, Element[ComponentIndex]);
+		}
+	}
+
+	vector<ScalarType, VectorSize> WaveBroadcastElement(const FWaveBroadcastSettings BroadcastSettings, const uint ElementIndex)
+	{
+		vector<ScalarType, VectorSize> Element;
+		UNROLL
+		for (uint ComponentIndex = 0; ComponentIndex < VectorSize; ComponentIndex++)
+		{
+			const uint ArrayIndex = ElementIndex + VectorSize * ComponentIndex;
+			Element[ComponentIndex] = WaveBroadcast(BroadcastSettings, M[ArrayIndex / 2u])[ArrayIndex % 2u];
+		}
+		return Element;
+	}
+	
+	
+	// ------------- elements' components
+
+	CALL_SITE_DEBUGLOC
+	ScalarType GetElementComponent(const uint ElementIndex, const uint ComponentIndex)
+	{
+		const uint ArrayIndex = ElementIndex + VectorSize * ComponentIndex;
+		return M[ArrayIndex / 2u][ArrayIndex % 2u];
+	}
+
+	CALL_SITE_DEBUGLOC
+	void SetElementComponent(const uint ElementIndex, const uint ComponentIndex, ScalarType Component)
+	{
+		const uint ArrayIndex = ElementIndex + VectorSize * ComponentIndex;
+		M[ArrayIndex / 2u][ArrayIndex % 2u] = Component;
+	}
+}; // struct FRegisters_SoA_PairArray
+
+
+//------------------------------------------------------- TENSORS
+
+/** Packs a vector<> in 2 dimension. */
 template<typename ScalarType, uint InVectorSize, uint InSimdSizeX, uint InSimdSizeY>
 struct TLaneVector2D
 {
+	/** Size of each element. */
 	static const uint VectorSize = InVectorSize;
+	
+	/** Number of elememnts */
 	static const uint SimdSize = InSimdSizeX * InSimdSizeY;
 	static const uint SimdSizeX = InSimdSizeX;
 	static const uint SimdSizeY = InSimdSizeY;
+	
+	/** Size and number of register rows */
+	static const uint RegisterRowSize  = TENSOR_REGISTER_LAYOUT<ScalarType, InVectorSize, InSimdSizeX * InSimdSizeY>::RegisterRowSize;
+	static const uint RegisterRowCount = TENSOR_REGISTER_LAYOUT<ScalarType, InVectorSize, InSimdSizeX * InSimdSizeY>::RegisterRowCount;
 
-	vector<ScalarType, VectorSize> RegisterArray[SimdSize];
+	TENSOR_REGISTER_LAYOUT<ScalarType, InVectorSize, InSimdSizeX * InSimdSizeY> Registers;
 
 	
-	// Access a component of the vector
+	// ------------- getting and setting elements and components
+
+	// Access and set individual element of the vector.
 	CALL_SITE_DEBUGLOC
-	TLaneVector2D<ScalarType, 1, SimdSizeX, SimdSizeY> operator [](const uint ComponentIndex)
+	vector<ScalarType, VectorSize> GetElement(const uint ElementIndex)
 	{
-		TLaneVector2D<ScalarType, 1, SimdSizeX, SimdSizeY> R;
-		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
-		{
-			R.SetElement(SimdIndex, GetElement(SimdIndex)[ComponentIndex]);
-		}
-		return R;
-	}
-	
-	// Access an individual element of the vector.
-	CALL_SITE_DEBUGLOC
-	vector<ScalarType, VectorSize> GetElement(const uint SimdIndex)
-	{
-		return RegisterArray[SimdIndex];
+		return Registers.GetElement(ElementIndex);
 	}
 	
 	CALL_SITE_DEBUGLOC
-	void SetElement(const uint SimdIndex, vector<ScalarType, VectorSize> Element)
+	void SetElement(const uint ElementIndex, vector<ScalarType, VectorSize> Element)
 	{
-		RegisterArray[SimdIndex] = Element;
+		Registers.SetElement(ElementIndex, Element);
 	}
 	
 	CALL_SITE_DEBUGLOC
 	void SetAllElements(vector<ScalarType, VectorSize> Element)
 	{
 		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
+		for (uint ElementIndex = 0; ElementIndex < SimdSize; ElementIndex++)
 		{
-			RegisterArray[SimdIndex] = Element;
+			Registers.SetElement(ElementIndex, Element);
 		}
 	}
 	
-	// Set component of the vector
+	
+	//  Access and set a component of the vector
+	CALL_SITE_DEBUGLOC
+	TLaneVector2D<ScalarType, 1, SimdSizeX, SimdSizeY> GetComponent(const uint ComponentIndex)
+	{
+		TLaneVector2D<ScalarType, 1, SimdSizeX, SimdSizeY> R;
+		UNROLL
+		for (uint ElementIndex = 0; ElementIndex < SimdSize; ElementIndex++)
+		{
+			R.SetElement(ElementIndex, Registers.GetElementComponent(ElementIndex, ComponentIndex));
+		}
+		return R;
+	}
+	
 	CALL_SITE_DEBUGLOC
 	void SetComponent(uint ComponentIndex, TLaneVector2D<ScalarType, 1, SimdSizeX, SimdSizeY> Comp)
 	{
 		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
+		for (uint ElementIndex = 0; ElementIndex < SimdSize; ElementIndex++)
 		{
-			RegisterArray[SimdIndex][ComponentIndex] = Comp.RegisterArray[SimdIndex];
+			Registers.SetElementComponent(ElementIndex, ComponentIndex, Comp.GetElement(ElementIndex));
 		}
 	}
+	
+	CALL_SITE_DEBUGLOC
+	TLaneVector2D<ScalarType, 1, SimdSizeX, SimdSizeY> operator [](const uint ComponentIndex)
+	{
+		return GetComponent(ComponentIndex);
+	}
+	
 
+	// ------------- constructors
+
+	/** Casts a scalar into a vector<>. */
+	CALL_SITE_DEBUGLOC
+	static TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> Vectorize(
+		TLaneVector2D<ScalarType, 1, SimdSizeX, SimdSizeY> A)
+	{
+		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
+		UNROLL
+		for (uint ElementIndex = 0; ElementIndex < SimdSize; ElementIndex++)
+		{
+			R.SetElement(ElementIndex, A.GetElement(ElementIndex));
+		}
+		return R;
+	}
+	
+	/** Initialize all elements with a single same vector<>. */
+	CALL_SITE_DEBUGLOC
+	static TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> Const(
+		vector<ScalarType, VectorSize> A)
+	{
+		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
+		UNROLL
+		for (uint ElementIndex = 0; ElementIndex < SimdSize; ElementIndex++)
+		{
+			R.SetElement(ElementIndex, A);
+		}
+		return R;
+	}
+	
+	/** Casts vector<A> to vector<B>. */
+	CALL_SITE_DEBUGLOC
+	template<typename SourceScalarType>
+	static TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> CastFrom(
+		TLaneVector2D<SourceScalarType, 1, SimdSizeX, SimdSizeY> A)
+	{
+		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
+		UNROLL
+		for (uint ElementIndex = 0; ElementIndex < SimdSize; ElementIndex++)
+		{
+			R.SetElement(ElementIndex, vector<ScalarType, VectorSize>(A.GetElement(ElementIndex)));
+		}
+		return R;
+	}
+	
+	/** Force tight register packing. */
+	CALL_SITE_DEBUGLOC
+	void TightenRegisters()
+	#if TENSOR_REGISTER_TIGHTENING
+	{
+		UNROLL
+		for (uint RegisterRowIndex = 0; RegisterRowIndex < RegisterRowCount; RegisterRowIndex++)
+		{
+			Registers.SetRegisterRow(RegisterRowIndex, PackRegistersTightly(Registers.GetRegisterRow(RegisterRowIndex)));
+		}
+	}
+	#else
+	{
+		// NOP
+	}
+	#endif
+	
 	
 	// ------------- binary operator +
 	CALL_SITE_DEBUGLOC
@@ -382,9 +951,9 @@ struct TLaneVector2D
 	{
 		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
 		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
+		for (uint RegisterRowIndex = 0; RegisterRowIndex < RegisterRowCount; RegisterRowIndex++)
 		{
-			R.SetElement(SimdIndex, GetElement(SimdIndex) + B.GetElement(SimdIndex));
+			R.Registers.SetRegisterRow(RegisterRowIndex, Registers.GetRegisterRow(RegisterRowIndex) + B.Registers.GetRegisterRow(RegisterRowIndex));
 		}
 		return R;
 	}
@@ -392,11 +961,14 @@ struct TLaneVector2D
 	CALL_SITE_DEBUGLOC
 	TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> operator + (vector<ScalarType, VectorSize> B)
 	{
+		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> BV;
+		BV.SetAllElements(B);
+
 		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
 		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
+		for (uint RegisterRowIndex = 0; RegisterRowIndex < RegisterRowCount; RegisterRowIndex++)
 		{
-			R.SetElement(SimdIndex, GetElement(SimdIndex) + B);
+			R.Registers.SetRegisterRow(RegisterRowIndex, Registers.GetRegisterRow(RegisterRowIndex) + BV.Registers.GetRegisterRow(RegisterRowIndex));
 		}
 		return R;
 	}
@@ -408,9 +980,9 @@ struct TLaneVector2D
 	{
 		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
 		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
+		for (uint RegisterRowIndex = 0; RegisterRowIndex < RegisterRowCount; RegisterRowIndex++)
 		{
-			R.SetElement(SimdIndex, -GetElement(SimdIndex));
+			R.Registers.SetRegisterRow(RegisterRowIndex, -Registers.GetRegisterRow(RegisterRowIndex));
 		}
 		return R;
 	}
@@ -421,9 +993,9 @@ struct TLaneVector2D
 	{
 		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
 		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
+		for (uint RegisterRowIndex = 0; RegisterRowIndex < RegisterRowCount; RegisterRowIndex++)
 		{
-			R.SetElement(SimdIndex, GetElement(SimdIndex) - B.GetElement(SimdIndex));
+			R.Registers.SetRegisterRow(RegisterRowIndex, Registers.GetRegisterRow(RegisterRowIndex) - B.Registers.GetRegisterRow(RegisterRowIndex));
 		}
 		return R;
 	}
@@ -431,11 +1003,14 @@ struct TLaneVector2D
 	CALL_SITE_DEBUGLOC
 	TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> operator - (vector<ScalarType, VectorSize> B)
 	{
+		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> BV;
+		BV.SetAllElements(B);
+
 		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
 		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
+		for (uint RegisterRowIndex = 0; RegisterRowIndex < RegisterRowCount; RegisterRowIndex++)
 		{
-			R.SetElement(SimdIndex, GetElement(SimdIndex) - B);
+			R.Registers.SetRegisterRow(RegisterRowIndex, Registers.GetRegisterRow(RegisterRowIndex) - BV.Registers.GetRegisterRow(RegisterRowIndex));
 		}
 		return R;
 	}
@@ -447,9 +1022,9 @@ struct TLaneVector2D
 	{
 		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
 		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
+		for (uint RegisterRowIndex = 0; RegisterRowIndex < RegisterRowCount; RegisterRowIndex++)
 		{
-			R.SetElement(SimdIndex, GetElement(SimdIndex) * B.GetElement(SimdIndex));
+			R.Registers.SetRegisterRow(RegisterRowIndex, Registers.GetRegisterRow(RegisterRowIndex) * B.Registers.GetRegisterRow(RegisterRowIndex));
 		}
 		return R;
 	}
@@ -457,11 +1032,14 @@ struct TLaneVector2D
 	CALL_SITE_DEBUGLOC
 	TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> operator * (vector<ScalarType, VectorSize> B)
 	{
+		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> BV;
+		BV.SetAllElements(B);
+
 		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
 		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
+		for (uint RegisterRowIndex = 0; RegisterRowIndex < RegisterRowCount; RegisterRowIndex++)
 		{
-			R.SetElement(SimdIndex, GetElement(SimdIndex) * B);
+			R.Registers.SetRegisterRow(RegisterRowIndex, Registers.GetRegisterRow(RegisterRowIndex) * BV.Registers.GetRegisterRow(RegisterRowIndex));
 		}
 		return R;
 	}
@@ -472,9 +1050,9 @@ struct TLaneVector2D
 	{
 		TLaneVector2D<bool, VectorSize, SimdSizeX, SimdSizeY> R;
 		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
+		for (uint RegisterRowIndex = 0; RegisterRowIndex < RegisterRowCount; RegisterRowIndex++)
 		{
-			R.SetElement(SimdIndex, GetElement(SimdIndex) > B.GetElement(SimdIndex));
+			R.Registers.SetRegisterRow(RegisterRowIndex, Registers.GetRegisterRow(RegisterRowIndex) > B.Registers.GetRegisterRow(RegisterRowIndex));
 		}
 		return R;
 	}
@@ -484,369 +1062,28 @@ struct TLaneVector2D
 	{
 		TLaneVector2D<bool, VectorSize, SimdSizeX, SimdSizeY> R;
 		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
+		for (uint RegisterRowIndex = 0; RegisterRowIndex < RegisterRowCount; RegisterRowIndex++)
 		{
-			R.SetElement(SimdIndex, GetElement(SimdIndex) < B.GetElement(SimdIndex));
+			R.Registers.SetRegisterRow(RegisterRowIndex, Registers.GetRegisterRow(RegisterRowIndex) < B.Registers.GetRegisterRow(RegisterRowIndex));
 		}
 		return R;
 	}
 
 
-	// ------------- constructors
-	CALL_SITE_DEBUGLOC
-	static TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> Vectorize(
-		TLaneVector2D<ScalarType, 1, SimdSizeX, SimdSizeY> A)
-	{
-		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
-		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
-		{
-			R.SetElement(SimdIndex, A.GetElement(SimdIndex));
-		}
-		return R;
-	}
-	
-	CALL_SITE_DEBUGLOC
-	static TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> Const(
-		vector<ScalarType, VectorSize> A)
-	{
-		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
-		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
-		{
-			R.SetElement(SimdIndex, A);
-		}
-		return R;
-	}
-	
-	CALL_SITE_DEBUGLOC
-	template<typename SourceScalarType>
-	static TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> CastFrom(
-		TLaneVector2D<SourceScalarType, 1, SimdSizeX, SimdSizeY> A)
-	{
-		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
-		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
-		{
-			R.SetElement(SimdIndex, vector<ScalarType, VectorSize>(A.GetElement(SimdIndex)));
-		}
-		return R;
-	}
-	
-	CALL_SITE_DEBUGLOC
-	static TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> ForceRegisterPacking(
-		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> A)
-	{
-		return A;
-	}
-	
 }; // TLaneVector2D
-
-/** Work exactly like a TLaneVector2D, except values are packed vector<ScalarType, 2> to better hint the shader compiler to use 16bit packed instructions.  */
-template<typename ScalarType, uint InVectorSize, uint InSimdSizeX, uint InSimdSizeY>
-struct TLanePackedVector2D
-{
-	static const uint VectorSize = InVectorSize;
-	static const uint SimdSize = InSimdSizeX * InSimdSizeY;
-	static const uint SimdSizeX = InSimdSizeX;
-	static const uint SimdSizeY = InSimdSizeY;
-	static const uint ScalarPairSize = (VectorSize * SimdSize) / 2u;
-
-	vector<ScalarType, 2u> RegisterArray[VectorSize][SimdSize / 2u];
-
-	
-	// Access a component of the vector
-	CALL_SITE_DEBUGLOC
-	TLanePackedVector2D<ScalarType, 1, SimdSizeX, SimdSizeY> operator [](const uint ComponentIndex)
-	{
-		TLanePackedVector2D<ScalarType, 1, SimdSizeX, SimdSizeY> R;
-		UNROLL
-		for (uint DestScalarPairIndex = 0; DestScalarPairIndex < (SimdSizeX * SimdSizeY) / 2u; DestScalarPairIndex++)
-		{
-			R.SetScalarPair(DestScalarPairIndex, GetScalarPair(DestScalarPairIndex * VectorSize + ComponentIndex));
-		}
-		return R;
-	}
-	
-	// Access an individual element of the vector.
-	CALL_SITE_DEBUGLOC
-	vector<ScalarType, VectorSize> GetElement(const uint SimdIndex)
-	{
-		vector<ScalarType, VectorSize> Element;
-		UNROLL
-		for (uint ComponentIndex = 0; ComponentIndex < VectorSize; ComponentIndex++)
-		{
-			Element[ComponentIndex] = RegisterArray[ComponentIndex][SimdIndex / 2u][SimdIndex % 2u];
-		}
-		return Element;
-	}
-	
-	CALL_SITE_DEBUGLOC
-	void SetElement(const uint SimdIndex, vector<ScalarType, VectorSize> Element)
-	{
-		UNROLL
-		for (uint ComponentIndex = 0; ComponentIndex < VectorSize; ComponentIndex++)
-		{
-			RegisterArray[ComponentIndex][SimdIndex / 2u][SimdIndex % 2u] = Element[ComponentIndex];
-		}
-	}
-	
-	CALL_SITE_DEBUGLOC
-	void SetAllElements(vector<ScalarType, VectorSize> Element)
-	{
-		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
-		{
-			SetElement(SimdIndex, Element);
-		}
-	}
-	
-	// Access an individual scalair pair.
-	CALL_SITE_DEBUGLOC
-	vector<ScalarType, 2> GetScalarPair(const uint ScalarPairIndex)
-	{
-		return RegisterArray[ScalarPairIndex % VectorSize][ScalarPairIndex / VectorSize];
-	}
-	
-	CALL_SITE_DEBUGLOC
-	void SetScalarPair(const uint ScalarPairIndex, vector<ScalarType, 2> ScalarPair)
-	{
-		RegisterArray[ScalarPairIndex % VectorSize][ScalarPairIndex / VectorSize] = ScalarPair;
-	}
-	
-	// Set component of the vector
-	CALL_SITE_DEBUGLOC
-	void SetComponent(uint ComponentIndex, TLanePackedVector2D<ScalarType, 1, SimdSizeX, SimdSizeY> Comp)
-	{
-		UNROLL
-		for (uint SrcPairIndex = 0; SrcPairIndex < (SimdSizeX * SimdSizeY) / 2u; SrcPairIndex++)
-		{
-			SetScalarPair(SrcPairIndex * VectorSize + ComponentIndex, Comp.GetScalarPair(SrcPairIndex));
-		}
-	}
-	
-	// ------------- binary operator +
-	CALL_SITE_DEBUGLOC
-	TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> operator + (TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> B)
-	{
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
-		UNROLL
-		for (uint ScalarPairIndex = 0; ScalarPairIndex < ScalarPairSize; ScalarPairIndex++)
-		{
-			R.SetScalarPair(ScalarPairIndex, GetScalarPair(ScalarPairIndex) + B.GetScalarPair(ScalarPairIndex));
-		}
-		return R;
-	}
-	
-	CALL_SITE_DEBUGLOC
-	TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> operator + (vector<ScalarType, VectorSize> B)
-	{
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
-		UNROLL
-		for (uint ScalarPairIndex = 0; ScalarPairIndex < ScalarPairSize; ScalarPairIndex++)
-		{
-			R.SetScalarPair(ScalarPairIndex, GetScalarPair(ScalarPairIndex) + B[ScalarPairIndex % VectorSize]);
-		}
-		return R;
-	}
-
-	
-	// ------------- unary operator -
-	CALL_SITE_DEBUGLOC
-	TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> operator - ()
-	{
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
-		UNROLL
-		for (uint ScalarPairIndex = 0; ScalarPairIndex < ScalarPairSize; ScalarPairIndex++)
-		{
-			R.SetScalarPair(ScalarPairIndex, -GetScalarPair(ScalarPairIndex));
-		}
-		return R;
-	}
-	
-	// ------------- binary operator -
-	CALL_SITE_DEBUGLOC
-	TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> operator - (TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> B)
-	{
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
-		UNROLL
-		for (uint ScalarPairIndex = 0; ScalarPairIndex < ScalarPairSize; ScalarPairIndex++)
-		{
-			R.SetScalarPair(ScalarPairIndex, GetScalarPair(ScalarPairIndex) - B.GetScalarPair(ScalarPairIndex));
-		}
-		return R;
-	}
-	
-	CALL_SITE_DEBUGLOC
-	TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> operator - (vector<ScalarType, VectorSize> B)
-	{
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
-		UNROLL
-		for (uint ScalarPairIndex = 0; ScalarPairIndex < ScalarPairSize; ScalarPairIndex++)
-		{
-			R.SetScalarPair(ScalarPairIndex, GetScalarPair(ScalarPairIndex) - B[ScalarPairIndex % VectorSize]);
-		}
-		return R;
-	}
-
-	
-	// ------------- binary operator *
-	CALL_SITE_DEBUGLOC
-	TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> operator * (TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> B)
-	{
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
-		UNROLL
-		for (uint ScalarPairIndex = 0; ScalarPairIndex < ScalarPairSize; ScalarPairIndex++)
-		{
-			R.SetScalarPair(ScalarPairIndex, GetScalarPair(ScalarPairIndex) * B.GetScalarPair(ScalarPairIndex));
-		}
-		return R;
-	}
-
-	CALL_SITE_DEBUGLOC
-	TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> operator * (vector<ScalarType, VectorSize> B)
-	{
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
-		UNROLL
-		for (uint ScalarPairIndex = 0; ScalarPairIndex < ScalarPairSize; ScalarPairIndex++)
-		{
-			R.SetScalarPair(ScalarPairIndex, GetScalarPair(ScalarPairIndex) * B[ScalarPairIndex % VectorSize]);
-		}
-		return R;
-	}
-	
-	// ------------- comparison operators
-	CALL_SITE_DEBUGLOC
-	TLanePackedVector2D<bool, VectorSize, SimdSizeX, SimdSizeY> operator > (TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> B)
-	{
-		TLanePackedVector2D<bool, VectorSize, SimdSizeX, SimdSizeY> R;
-		UNROLL
-		for (uint ScalarPairIndex = 0; ScalarPairIndex < ScalarPairSize; ScalarPairIndex++)
-		{
-			R.SetScalarPair(ScalarPairIndex, GetScalarPair(ScalarPairIndex) > B.GetScalarPair(ScalarPairIndex));
-		}
-		return R;
-	}
-	
-	CALL_SITE_DEBUGLOC
-	TLanePackedVector2D<bool, VectorSize, SimdSizeX, SimdSizeY> operator < (TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> B)
-	{
-		TLanePackedVector2D<bool, VectorSize, SimdSizeX, SimdSizeY> R;
-		UNROLL
-		for (uint ScalarPairIndex = 0; ScalarPairIndex < ScalarPairSize; ScalarPairIndex++)
-		{
-			R.SetScalarPair(ScalarPairIndex, GetScalarPair(ScalarPairIndex) < B.GetScalarPair(ScalarPairIndex));
-		}
-		return R;
-	}
-
-	// ------------- constructors
-	CALL_SITE_DEBUGLOC
-	static TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> Vectorize(
-		TLanePackedVector2D<ScalarType, 1, SimdSizeX, SimdSizeY> A)
-	{
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
-		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
-		{
-			R.SetElement(SimdIndex, A.GetElement(SimdIndex));
-		}
-		return R;
-	}
-	
-	CALL_SITE_DEBUGLOC
-	static TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> Const(
-		vector<ScalarType, VectorSize> A)
-	{
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
-		R.SetAllElements(A);
-		return R;
-	}
-	
-	CALL_SITE_DEBUGLOC
-	template<typename SourceScalarType>
-	static TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> CastFrom(
-		TLanePackedVector2D<SourceScalarType, VectorSize, SimdSizeX, SimdSizeY> A)
-	{
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
-		UNROLL
-		for (uint ScalarPairIndex = 0; ScalarPairIndex < ScalarPairSize; ScalarPairIndex++)
-		{
-			R.SetScalarPair(ScalarPairIndex, vector<ScalarType, 2>(A.GetScalarPair(ScalarPairIndex)));
-		}
-		return R;
-	}
-	
-	CALL_SITE_DEBUGLOC
-	static TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> ForceRegisterPacking(
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> A)
-	{
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
-		UNROLL
-		for (uint ScalarPairIndex = 0; ScalarPairIndex < ScalarPairSize; ScalarPairIndex++)
-		{
-			vector<ScalarType, 2> Pair = A.GetScalarPair(ScalarPairIndex);
-			R.SetScalarPair(ScalarPairIndex, v_pack_b32_b16(Pair.x, Pair.y));
-		}
-		return R;
-	}
-	
-	CALL_SITE_DEBUGLOC
-	static TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> ChangeRegisterOrder(
-		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> A)
-	{
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R;
-		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++)
-		{
-			R.SetElement(SimdIndex, A.GetElement(SimdIndex));
-		}
-		return R;
-	}
-}; // struct TLanePackedVector2D
 
 
 // ------------- 1 parameter
 
 #define TVECTOR_FUNCTION_1PARAMS(ReturnScalarType, FunctionName) \
 	CALL_SITE_DEBUGLOC \
-	template<typename ScalarType, uint VectorSize, uint SimdSize> \
-	TLaneVector<ReturnScalarType, VectorSize, SimdSize> FunctionName( \
-		TLaneVector<ScalarType, VectorSize, SimdSize> A) \
-	{ \
-		TLaneVector<ReturnScalarType, VectorSize, SimdSize> R; \
-		UNROLL \
-		for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++) \
-		{ \
-			R.SetElement(SimdIndex, FunctionName(A.GetElement(SimdIndex))); \
-		} \
-		return R; \
-	} \
-	\
-	CALL_SITE_DEBUGLOC \
 	template<typename ScalarType, uint VectorSize, uint SimdSizeX, uint SimdSizeY> \
 	TLaneVector2D<ReturnScalarType, VectorSize, SimdSizeX, SimdSizeY> FunctionName( \
 		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> A) \
 	{ \
 		TLaneVector2D<ReturnScalarType, VectorSize, SimdSizeX, SimdSizeY> R; \
-		UNROLL \
-		for (uint SimdIndex = 0; SimdIndex < SimdSizeX * SimdSizeY; SimdIndex++) \
-		{ \
-			R.SetElement(SimdIndex, FunctionName(A.GetElement(SimdIndex))); \
-		} \
-		return R; \
-	} \
-	\
-	CALL_SITE_DEBUGLOC \
-	template<typename ScalarType, uint VectorSize, uint SimdSizeX, uint SimdSizeY> \
-	TLanePackedVector2D<ReturnScalarType, VectorSize, SimdSizeX, SimdSizeY> FunctionName( \
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> A) \
-	{ \
-		TLanePackedVector2D<ReturnScalarType, VectorSize, SimdSizeX, SimdSizeY> R; \
-		UNROLL \
-		for (uint ScalarPairIndex = 0; ScalarPairIndex < (VectorSize * SimdSizeX * SimdSizeY) / 2; ScalarPairIndex++) \
-		{ \
-			R.SetScalarPair(ScalarPairIndex, FunctionName(A.GetScalarPair(ScalarPairIndex))); \
+		UNROLL for (uint RegisterRowIndex = 0; RegisterRowIndex < TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY>::RegisterRowCount; RegisterRowIndex++) { \
+			R.Registers.SetRegisterRow(RegisterRowIndex, FunctionName(A.Registers.GetRegisterRow(RegisterRowIndex))); \
 		} \
 		return R; \
 	} \
@@ -869,41 +1106,14 @@ TVECTOR_FUNCTION_1PARAMS(uint, asuint);
 
 #define TVECTOR_FUNCTION_2PARAMS(FunctionName) \
 	CALL_SITE_DEBUGLOC \
-	template<typename ScalarType, uint VectorSize, uint SimdSize> \
-	TLaneVector<ScalarType, VectorSize, SimdSize> FunctionName( \
-		TLaneVector<ScalarType, VectorSize, SimdSize> A, \
-		TLaneVector<ScalarType, VectorSize, SimdSize> B) \
-	{ \
-		TLaneVector<ScalarType, VectorSize, SimdSize> R; \
-		UNROLL for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++) { \
-			R.SetElement(SimdIndex, FunctionName(A.GetElement(SimdIndex), B.GetElement(SimdIndex))); \
-		} \
-		return R; \
-	} \
-	\
-	CALL_SITE_DEBUGLOC \
 	template<typename ScalarType, uint VectorSize, uint SimdSizeX, uint SimdSizeY> \
 	TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> FunctionName( \
 		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> A, \
 		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> B) \
 	{ \
 		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R; \
-		UNROLL for (uint SimdIndex = 0; SimdIndex < SimdSizeX * SimdSizeY; SimdIndex++) { \
-			R.SetElement(SimdIndex, FunctionName(A.GetElement(SimdIndex), B.GetElement(SimdIndex))); \
-		} \
-		return R; \
-	} \
-	\
-	CALL_SITE_DEBUGLOC \
-	template<typename ScalarType, uint VectorSize, uint SimdSizeX, uint SimdSizeY> \
-	TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> FunctionName( \
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> A, \
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> B) \
-	{ \
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R; \
-		UNROLL for (uint ScalarPairIndex = 0; ScalarPairIndex < (VectorSize * SimdSizeX * SimdSizeY) / 2u; ScalarPairIndex++) \
-		{ \
-			R.SetScalarPair(ScalarPairIndex, FunctionName(A.GetScalarPair(ScalarPairIndex), B.GetScalarPair(ScalarPairIndex))); \
+		UNROLL for (uint RegisterRowIndex = 0; RegisterRowIndex < TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY>::RegisterRowCount; RegisterRowIndex++) { \
+			R.Registers.SetRegisterRow(RegisterRowIndex, FunctionName(A.Registers.GetRegisterRow(RegisterRowIndex), B.Registers.GetRegisterRow(RegisterRowIndex))); \
 		} \
 		return R; \
 	} \
@@ -922,40 +1132,14 @@ TVECTOR_FUNCTION_2PARAMS(bit_shift_right);
 
 #define TVECTOR_FUNCTION_2PARAMS_DIFF_RETURN(ReturnVectorSize, FunctionName) \
 	CALL_SITE_DEBUGLOC \
-	template<typename ScalarType, uint VectorSize, uint SimdSize> \
-	TLaneVector<ScalarType, ReturnVectorSize, SimdSize> FunctionName( \
-		TLaneVector<ScalarType, VectorSize, SimdSize> A, \
-		TLaneVector<ScalarType, VectorSize, SimdSize> B) \
-	{ \
-		TLaneVector<ScalarType, ReturnVectorSize, SimdSize> R; \
-		UNROLL for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++) { \
-			R.SetElement(SimdIndex, FunctionName(A.GetElement(SimdIndex), B.GetElement(SimdIndex))); \
-		} \
-		return R; \
-	} \
-	\
-	CALL_SITE_DEBUGLOC \
 	template<typename ScalarType, uint VectorSize, uint SimdSizeX, uint SimdSizeY> \
 	TLaneVector2D<ScalarType, ReturnVectorSize, SimdSizeX, SimdSizeY> FunctionName( \
 		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> A, \
 		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> B) \
 	{ \
 		TLaneVector2D<ScalarType, ReturnVectorSize, SimdSizeX, SimdSizeY> R; \
-		UNROLL for (uint SimdIndex = 0; SimdIndex < SimdSizeX * SimdSizeY; SimdIndex++) { \
-			R.SetElement(SimdIndex, FunctionName(A.GetElement(SimdIndex), B.GetElement(SimdIndex))); \
-		} \
-		return R; \
-	} \
-	\
-	CALL_SITE_DEBUGLOC \
-	template<typename ScalarType, uint VectorSize, uint SimdSizeX, uint SimdSizeY> \
-	TLanePackedVector2D<ScalarType, ReturnVectorSize, SimdSizeX, SimdSizeY> FunctionName( \
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> A, \
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> B) \
-	{ \
-		TLanePackedVector2D<ScalarType, ReturnVectorSize, SimdSizeX, SimdSizeY> R; \
-		UNROLL for (uint SimdIndex = 0; SimdIndex < SimdSizeX * SimdSizeY; SimdIndex++) { \
-			R.SetElement(SimdIndex, FunctionName(A.GetElement(SimdIndex), B.GetElement(SimdIndex))); \
+		UNROLL for (uint ElementIndex = 0; ElementIndex < SimdSizeX * SimdSizeY; ElementIndex++) { \
+			R.SetElement(ElementIndex, FunctionName(A.GetElement(ElementIndex), B.GetElement(ElementIndex))); \
 		} \
 		return R; \
 	} \
@@ -966,20 +1150,6 @@ TVECTOR_FUNCTION_2PARAMS_DIFF_RETURN(/* VectorSize = */ 1, dot);
 // ------------- 3 parameters
 #define TVECTOR_FUNCTION_3PARAMS(FunctionName, ScalarTypeA) \
 	CALL_SITE_DEBUGLOC \
-	template<typename ScalarType, uint VectorSize, uint SimdSize> \
-	TLaneVector<ScalarType, VectorSize, SimdSize> FunctionName( \
-		TLaneVector<ScalarTypeA, VectorSize, SimdSize> A, \
-		TLaneVector<ScalarType, VectorSize, SimdSize> B, \
-		TLaneVector<ScalarType, VectorSize, SimdSize> C) \
-	{ \
-		TLaneVector<ScalarType, VectorSize, SimdSize> R; \
-		UNROLL for (uint SimdIndex = 0; SimdIndex < SimdSize; SimdIndex++) { \
-			R.SetElement(SimdIndex, FunctionName(A.GetElement(SimdIndex), B.GetElement(SimdIndex), C.GetElement(SimdIndex))); \
-		} \
-		return R; \
-	} \
-	\
-	CALL_SITE_DEBUGLOC \
 	template<typename ScalarType, uint VectorSize, uint SimdSizeX, uint SimdSizeY> \
 	TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> FunctionName( \
 		TLaneVector2D<ScalarTypeA, VectorSize, SimdSizeX, SimdSizeY> A, \
@@ -987,23 +1157,8 @@ TVECTOR_FUNCTION_2PARAMS_DIFF_RETURN(/* VectorSize = */ 1, dot);
 		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> C) \
 	{ \
 		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R; \
-		UNROLL for (uint SimdIndex = 0; SimdIndex < SimdSizeX * SimdSizeY; SimdIndex++) { \
-			R.SetElement(SimdIndex, FunctionName(A.GetElement(SimdIndex), B.GetElement(SimdIndex), C.GetElement(SimdIndex))); \
-		} \
-		return R; \
-	} \
-	\
-	CALL_SITE_DEBUGLOC \
-	template<typename ScalarType, uint VectorSize, uint SimdSizeX, uint SimdSizeY> \
-	TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> FunctionName( \
-		TLanePackedVector2D<ScalarTypeA, VectorSize, SimdSizeX, SimdSizeY> A, \
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> B, \
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> C) \
-	{ \
-		TLanePackedVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> R; \
-		UNROLL for (uint ScalarPairIndex = 0; ScalarPairIndex < (VectorSize * SimdSizeX * SimdSizeY) / 2u; ScalarPairIndex++) \
-		{ \
-			R.SetScalarPair(ScalarPairIndex, FunctionName(A.GetScalarPair(ScalarPairIndex), B.GetScalarPair(ScalarPairIndex), C.GetScalarPair(ScalarPairIndex))); \
+		UNROLL for (uint RegisterRowIndex = 0; RegisterRowIndex < TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY>::RegisterRowCount; RegisterRowIndex++) { \
+			R.Registers.SetRegisterRow(RegisterRowIndex, FunctionName(A.Registers.GetRegisterRow(RegisterRowIndex), B.Registers.GetRegisterRow(RegisterRowIndex), C.Registers.GetRegisterRow(RegisterRowIndex))); \
 		} \
 		return R; \
 	} \
