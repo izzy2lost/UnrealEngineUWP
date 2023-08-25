@@ -115,10 +115,7 @@ void UWorldPartitionRuntimeHash::OnEndPlay()
 	ForceExternalActorLevelReference(/*bForceExternalActorLevelReferenceForPIE*/false);
 
 	// Release references (will unload actors that were not already loaded in the Editor)
-	{
-		FWorldPartitionLoadingContext::FDeferred LoadingContext;
-		AlwaysLoadedActorsForPIE.Empty();
-	}
+	AlwaysLoadedActorsForPIE.Empty();
 
 	ModifiedActorDescListForPIE.Empty();
 }
@@ -133,57 +130,59 @@ void UWorldPartitionRuntimeHash::FlushStreaming()
 	PackagesToGenerateForCook.Empty();
 }
 
-bool UWorldPartitionRuntimeHash::PopulateCellActorInstances(const TArray<const IStreamingGenerationContext::FActorSetInstance*>& ActorSetInstances, bool bIsMainWorldPartition, bool bIsCellAlwaysLoaded, TArray<IStreamingGenerationContext::FActorInstance>& OutCellActorInstances)
+// In PIE, Always loaded cell is not generated. Instead, always loaded actors will be added to AlwaysLoadedActorsForPIE.
+// This will trigger loading/registration of these actors in the PersistentLevel (if not already loaded).
+// Then, duplication of world for PIE will duplicate only these actors. 
+// When stopping PIE, WorldPartition will release these FWorldPartitionReferences which 
+// will unload actors that were not already loaded in the non PIE world.
+bool UWorldPartitionRuntimeHash::ConditionalRegisterAlwaysLoadedActorsForPIE(const IStreamingGenerationContext::FActorSetInstance* ActorSetInstance, bool bIsMainWorldPartition, bool bIsMainContainer, bool bIsCellAlwaysLoaded)
 {
-	// In PIE, Always loaded cell is not generated. Instead, always loaded actors will be added to AlwaysLoadedActorsForPIE.
-	// This will trigger loading/registration of these actors in the PersistentLevel (if not already loaded).
-	// Then, duplication of world for PIE will duplicate only these actors. 
-	// When stopping PIE, WorldPartition will release these FWorldPartitionReferences which 
-	// will unload actors that were not already loaded in the non PIE world.
-	TArray<FWorldPartitionReference> AlwaysLoadedReferences;
+	if (bIsMainWorldPartition && bIsMainContainer && bIsCellAlwaysLoaded && !IsRunningCookCommandlet())
 	{
-		FWorldPartitionLoadingContext::FDeferred LoadingContext;
-
-		const bool bForceLoadAlwaysLoadedReferences = bIsMainWorldPartition && bIsCellAlwaysLoaded && !IsRunningCookCommandlet();
-
-		for (const IStreamingGenerationContext::FActorSetInstance* ActorSetInstance : ActorSetInstances)
+		ActorSetInstance->ForEachActor([this, ActorSetInstance](const FGuid& ActorGuid)
 		{
-			ActorSetInstance->ForEachActor([this, ActorSetInstance, &AlwaysLoadedReferences, &OutCellActorInstances, bForceLoadAlwaysLoadedReferences](const FGuid& ActorGuid)
-			{
-				IStreamingGenerationContext::FActorInstance ActorInstance(ActorGuid, ActorSetInstance);
-				const FWorldPartitionActorDescView& ActorDescView = ActorInstance.GetActorDescView();
+			IStreamingGenerationContext::FActorInstance ActorInstance(ActorGuid, ActorSetInstance);
+			const FWorldPartitionActorDescView& ActorDescView = ActorInstance.GetActorDescView();
 
-				// Instanced world partition, ContainerID is the main container, but it's not the main world partition,
-				// so the always loaded actors don't be part of the process of ForceExternalActorLevelReference/AlwaysLoadedActorsForPIE.
-				// In PIE, always loaded actors of an instanced world partition will go in the always loaded cell.
-				if (bForceLoadAlwaysLoadedReferences && ActorSetInstance->ContainerID.IsMainContainer())
-				{
-					// This will load the actor if it isn't already loaded, when the deferred context ends.
-					AlwaysLoadedReferences.Emplace(FWorldPartitionReference(GetOuterUWorldPartition(), ActorDescView.GetGuid()));
-				}
-				else
-				{
-					// Actors that return true to ShouldLevelKeepRefIfExternal will always be part of the partitioned persistent level of a
-					// world partition. In PIE, for an instanced world partition, we don't want this actor to be both in the persistent level
-					// and also part of the always loaded cell level.
-					//
-					// @todo_ow: We need to implement PIE always loaded actors of instanced world partitions to be part
-					//			 of the persistent level and get rid of the always loaded cell (to have the same behavior
-					//			 as non-instanced world partition and as cooked world partition).
-					if (!CastChecked<AActor>(ActorDescView.GetActorNativeClass()->GetDefaultObject())->ShouldLevelKeepRefIfExternal())
-					{
-						OutCellActorInstances.Emplace(ActorInstance);
-					}
-				}
-			});
-		}
+			// This will load the actor if it isn't already loaded
+			FWorldPartitionReference Reference(GetOuterUWorldPartition(), ActorDescView.GetGuid());
+
+			if (AActor* AlwaysLoadedActor = FindObject<AActor>(nullptr, *ActorDescView.GetActorSoftPath().ToString()))
+			{
+				AlwaysLoadedActorsForPIE.Emplace(Reference, AlwaysLoadedActor);
+			}
+		});
+
+		return true;
 	}
 
-	for (FWorldPartitionReference& Reference : AlwaysLoadedReferences)
+	return false;
+}
+
+bool UWorldPartitionRuntimeHash::PopulateCellActorInstances(const TArray<const IStreamingGenerationContext::FActorSetInstance*>& ActorSetInstances, bool bIsMainWorldPartition, bool bIsCellAlwaysLoaded, TArray<IStreamingGenerationContext::FActorInstance>& OutCellActorInstances)
+{
+	for (const IStreamingGenerationContext::FActorSetInstance* ActorSetInstance : ActorSetInstances)
 	{
-		if (AActor* AlwaysLoadedActor = FindObject<AActor>(nullptr, *Reference->GetActorSoftPath().ToString()))
+		// Instanced world partition, ContainerID is the main container, but it's not the main world partition,
+		// so the always loaded actors don't be part of the process of ForceExternalActorLevelReference/AlwaysLoadedActorsForPIE.
+		// In PIE, always loaded actors of an instanced world partition will go in the always loaded cell.
+		if (!ConditionalRegisterAlwaysLoadedActorsForPIE(ActorSetInstance, bIsMainWorldPartition, ActorSetInstance->ContainerID.IsMainContainer(), bIsCellAlwaysLoaded))
 		{
-			AlwaysLoadedActorsForPIE.Emplace(Reference, AlwaysLoadedActor);
+			ActorSetInstance->ForEachActor([this, ActorSetInstance, &OutCellActorInstances](const FGuid& ActorGuid)
+			{
+				// Actors that return true to ShouldLevelKeepRefIfExternal will always be part of the partitioned persistent level of a
+				// world partition. In PIE, for an instanced world partition, we don't want this actor to be both in the persistent level
+				// and also part of the always loaded cell level.
+				//
+				// @todo_ow: We need to implement PIE always loaded actors of instanced world partitions to be part
+				//			 of the persistent level and get rid of the always loaded cell (to have the same behavior
+				//			 as non-instanced world partition and as cooked world partition).
+				IStreamingGenerationContext::FActorInstance ActorInstance(ActorGuid, ActorSetInstance);
+				if (!CastChecked<AActor>(ActorInstance.GetActorDescView().GetActorNativeClass()->GetDefaultObject())->ShouldLevelKeepRefIfExternal())
+				{
+					OutCellActorInstances.Emplace(ActorInstance);
+				}
+			});
 		}
 	}
 
