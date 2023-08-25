@@ -5,7 +5,7 @@ import * as p4util from '../common/p4util';
 
 import { ContextualLogger } from "../common/logger";
 import { Recipients } from "../common/mailer";
-import { Change, ClientSpec, coercePerforceWorkspace, ConflictedResolveNFile, EditChangeOpts, EXCLUSIVE_CHECKOUT_REGEX, getRootDirectoryForBranch, IntegrationSource, IntegrationTarget, isExecP4Error, OpenedFileRecord, PerforceContext } from "../common/perforce";
+import { Change, coercePerforceWorkspace, ConflictedResolveNFile, EditChangeOpts, EXCLUSIVE_CHECKOUT_REGEX, getRootDirectoryForBranch, IntegrationSource, IntegrationTarget, isExecP4Error, OpenedFileRecord, PerforceContext } from "../common/perforce";
 import { VersionReader } from "../common/version";
 import { EdgeBotInterface, IPCControls, ReconsiderArgs } from "./bot-interfaces";
 import { AlreadyIntegrated, Branch, ChangeInfo, ConflictingFile, Failure, MergeAction, PendingChange } from "./branch-interfaces";
@@ -21,16 +21,6 @@ import { SlackMessageStyles } from "./slack";
 import { PauseState } from "./state-interfaces";
 import { BlockagePauseInfo, BlockagePauseInfoMinimal, EdgeStatusFields } from "./status-types";
 import { getIntegrationOwner } from "./targets";
-
-export function matchPrefix(a: string, b: string) {
-	const len = Math.min(a.length, b.length)
-	for (let i = 0; i < len; ++i) {
-		if (a.charAt(i) !== b.charAt(i)) {
-			return i
-		}
-	}
-	return len
-}
 
 const FAILED_CHANGELIST_PAUSE_TIMEOUT_SECONDS = 15 * 60
 const MAX_INTEGRATION_ERRORS_TO_ANALYZE = 5
@@ -860,7 +850,7 @@ class EdgeBotImpl extends PerforceStatefulBot {
 		await this.p4.revert(destRoboWorkspace, changenum, [], edgeServerAddress)
 
 		// figure out what workspace to put it in
-		const branch_stream = this.targetBranch.stream ? this.targetBranch.stream.toLowerCase() : null
+		const branch_stream = this.targetBranch.stream ? this.targetBranch.stream.toLowerCase() : undefined
 		let targetWorkspace: string | undefined = undefined
 		// Check for specified workspace from createShelf operation
 		if (pending.change.targetWorkspaceForShelf) {
@@ -869,30 +859,9 @@ class EdgeBotImpl extends PerforceStatefulBot {
 		// Find a suitable workspace from one of the owner's workspaces
 		else if (!forApproval) {
 			// use p4.find_workspaces to find a workspace (owned by the user) for this change if this is a stream branch
-			const workspaces: ClientSpec[] = await p4util.getWorkspacesForUser(this.p4, owner)
-
-			if (workspaces.length > 0) {
-				// default to the first workspace
-				targetWorkspace = workspaces[0].client
-
-				// if this is a stream branch, do some better match-up
-				if (branch_stream) {
-					// find the stream with the closest match
-					let target_match = 0
-					for (let def of workspaces) {
-						let stream = def.Stream
-						if (stream) {
-							let matchlen = matchPrefix(stream.toLowerCase(), branch_stream)
-							if (matchlen > target_match) {
-								target_match = matchlen
-								targetWorkspace = def.client
-							}
-						}
-					}
-				}
-				this.edgeBotLogger.info(`Chose workspace ${targetWorkspace} (stream? ${branch_stream ? 'yes' : 'no'})`)
-				pending.change.targetWorkspaceForShelf = targetWorkspace
-			}
+			targetWorkspace = await p4util.chooseBestWorkspaceForUser(this.p4, owner, branch_stream)
+			pending.change.targetWorkspaceForShelf = targetWorkspace
+			this.edgeBotLogger.info(`Chose workspace ${targetWorkspace}`)
 		}
 
 		// log if we couldn't find a workspace

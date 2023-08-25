@@ -257,6 +257,7 @@ export type RoboWorkspace = Workspace | string | null;
 
 export interface ClientSpec {
 	client: string
+	Access: number
 	Stream?: string
 	IsUnloaded?: boolean
 }
