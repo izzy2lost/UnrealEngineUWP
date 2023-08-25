@@ -100,6 +100,16 @@ namespace Impl
 		Complete,
 		UnableToProgress,
 	};
+
+	/** Affects how rules are applied to improve loading/runtime performance */
+	enum EPerformanceMode : uint8
+	{
+		// Handling slow async load
+		BulkLoading,
+
+		// Not changing, optimize for runtime queries
+		MostlyStatic,
+	};
 }
 
 /**
@@ -243,6 +253,12 @@ public:
 	uint64 GetClassGeneratorNamesRegisteredClassesVersionNumber() const { return ClassGeneratorNamesRegisteredClassesVersionNumber; }
 	/** Get a copy of the cached serialization options that were parsed from ini */
 	void CopySerializationOptions(FAssetRegistrySerializationOptions& OutOptions, ESerializationTarget Target) const;
+	
+	/** Query the performance mode, which modifies how data structures are loaded */
+	Impl::EPerformanceMode GetPerformanceMode() const { return PerformanceMode; }
+	void SetPerformanceMode(Impl::EPerformanceMode NewMode);
+	bool ShouldSortDependencies() const;
+	bool ShouldSortReferencers() const;
 
 	const FAssetRegistryState& GetState() const;
 	const FPathTree& GetCachedPathTree() const;
@@ -411,6 +427,8 @@ private:
 	bool bPreloadingComplete = false;
 	/** Status of the background search, so we can take actions when it changes to or from idle */
 	Impl::EGatherStatus GatherStatus;
+	/** What kind of performance mode this is in, used to optimize for initial loading vs runtime */
+	Impl::EPerformanceMode PerformanceMode;
 
 	/**
 	 * Enables extra check to make sure path still mounted before adding.
@@ -455,7 +473,7 @@ private:
 	TMultiMap<FString, FName> DirectoryReferencers;
 
 	/** A map of per asset class dependency gatherer called in LoadCalculatedDependencies */
-	TMultiMap<UClass*, UE::AssetDependencyGatherer::Private::FRegisteredAssetDependencyGatherer*> RegisteredDependencyGathererClasses;
+	TMultiMap<FTopLevelAssetPath, UE::AssetDependencyGatherer::Private::FRegisteredAssetDependencyGatherer*> RegisteredDependencyGathererClasses;
 	bool bRegisteredDependencyGathererClassesDirty;
 #endif
 #if WITH_ENGINE && WITH_EDITOR

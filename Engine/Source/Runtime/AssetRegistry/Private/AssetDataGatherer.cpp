@@ -65,16 +65,21 @@ namespace AssetDataGathererConstants
 namespace UE::AssetDataGather::Private
 {
 
-static bool BlockPackagesWithMarkOfTheWeb = false;
+bool bBlockPackagesWithMarkOfTheWeb = false;
 static FAutoConsoleVariableRef CVarBlockPackagesWithMarkOfTheWeb(
 	TEXT("AssetRegistry.BlockPackagesWithMarkOfTheWeb"),
-	BlockPackagesWithMarkOfTheWeb,
-	TEXT("Whether package files with mark of the web are blocked from the asset registry"),
-	ECVF_SetBySystemSettingsIni);
+	bBlockPackagesWithMarkOfTheWeb,
+	TEXT("Whether package files with mark of the web are blocked from the asset registry"));
+
+bool bIgnoreEmptyDirectories = true;
+static FAutoConsoleVariableRef CVarIgnoreEmptyDirectories(
+	TEXT("AssetRegistry.IgnoreEmptyDirectories"),
+	bIgnoreEmptyDirectories,
+	TEXT("If true, completely empty leaf directories are ignored by the asset registry while scanning"));
 
 bool IsPackageBlocked(const FStringView& FilePath)
 {
-	return BlockPackagesWithMarkOfTheWeb && IPlatformFile::GetPlatformPhysical().HasMarkOfTheWeb(*FString(FilePath));
+	return bBlockPackagesWithMarkOfTheWeb && IPlatformFile::GetPlatformPhysical().HasMarkOfTheWeb(*FString(FilePath));
 }
 
 /** A structure to hold serialized cache data from async loads before adding it to the Gatherer's main cache. */
@@ -1461,7 +1466,7 @@ void FAssetDataDiscovery::TickInternal(bool bTickAll)
 							Data.ScanDir->SetScanResults(Data.DirLocalAbsPath, Data.ParentData, LocalSubDirs, LocalDiscoveredFiles);
 							if (!LocalSubDirs.IsEmpty() || !LocalDiscoveredFiles.IsEmpty())
 							{
-								AddDiscovered(Data.DirLocalAbsPath, LocalSubDirs, LocalDiscoveredFiles);
+								AddDiscovered(Data.DirLocalAbsPath, Data.DirLongPackageName, LocalSubDirs, LocalDiscoveredFiles);
 							}
 						}
 						Data.ScanDir->SetScanInFlight(false);
@@ -2433,7 +2438,7 @@ void FAssetDataDiscovery::OnDirectoryCreated(FStringView LocalAbsPath)
 	// The directory may also be scanned in the future because a parent directory is still yet pending to scan,
 	// we do not try to prevent that wasteful rescan because this is a rare event and it does not cause a behavior problem
 	SetIsIdle(false);
-	AddDiscovered(DirData.LocalAbsPath, TConstArrayView<FDiscoveredPathData>(&DirData, 1), TConstArrayView<FDiscoveredPathData>());
+	AddDiscovered(DirData.LocalAbsPath, DirData.LongPackageName, TConstArrayView<FDiscoveredPathData>(&DirData, 1), TConstArrayView<FDiscoveredPathData>());
 }
 
 void FAssetDataDiscovery::OnFilesCreated(TConstArrayView<FString> LocalAbsPaths)
@@ -2563,15 +2568,26 @@ int32 FAssetDataDiscovery::FindLowerBoundMountPoint(FStringView LocalAbsPath) co
 	);
 }
 
-void FAssetDataDiscovery::AddDiscovered(FStringView DirAbsPath, TConstArrayView<FDiscoveredPathData> SubDirs, TConstArrayView<FDiscoveredPathData> Files)
+void FAssetDataDiscovery::AddDiscovered(FStringView DirAbsPath, FStringView DirPackagePath, TConstArrayView<FDiscoveredPathData> SubDirs, TConstArrayView<FDiscoveredPathData> Files)
 {
 	// This function is inside the critical section so we have moved filtering results outside of it
 	// Caller is responsible for filtering SubDirs and Files by ShouldScan and packagename validity
 	FGathererScopeLock ResultsScopeLock(&ResultsLock);
-	for (const FDiscoveredPathData& SubDir : SubDirs)
+
+	if (UE::AssetDataGather::Private::bIgnoreEmptyDirectories)
 	{
-		DiscoveredDirectories.Add(FString(SubDir.LongPackageName));
+		// Only register this directory, this will get called for anything that has files or subdirectories
+		DiscoveredDirectories.Add(FString(DirPackagePath));
 	}
+	else 
+	{
+		// Register all of the subdirectories even if they are empty
+		for (const FDiscoveredPathData& SubDir : SubDirs)
+		{
+			DiscoveredDirectories.Add(FString(SubDir.LongPackageName));
+		}
+	}
+
 	if (Files.Num())
 	{
 		DiscoveredFiles.Emplace(DirAbsPath, Files);

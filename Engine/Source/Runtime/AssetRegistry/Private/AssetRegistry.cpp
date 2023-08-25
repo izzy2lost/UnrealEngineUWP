@@ -154,15 +154,28 @@ namespace UE::AssetRegistry::Impl
 {
 	/** The max time to spend in UAssetRegistryImpl::Tick */
 	float MaxSecondsPerFrame = 0.04f;
+	static FAutoConsoleVariableRef CVarAssetRegistryMaxSecondsPerFrame(
+		TEXT("AssetRegistry.MaxSecondsPerFrame"),
+		UE::AssetRegistry::Impl::MaxSecondsPerFrame,
+		TEXT("Maximum amount of time allowed for Asset Registry processing, in seconds"));
+
+	/** If true, defer sorting of dependencies until loading is complete */
+	bool bDeferDependencySort = false;
+	static FAutoConsoleVariableRef CVarAssetRegistryDeferDependencySort(
+		TEXT("AssetRegistry.DeferDependencySort"),
+		UE::AssetRegistry::Impl::bDeferDependencySort,
+		TEXT("If true, the dependency lists on dependency nodes will not be sorted until after the initial load is complete"));
+
+	/** If true, defer sorting of referencer data until loading is complete, this is enabled by default because of native packages with many referencers */
+	bool bDeferReferencerSort = true;
+	static FAutoConsoleVariableRef CVarAssetRegistryDeferReferencerSort(
+		TEXT("AssetRegistry.DeferReferencerSort"),
+		UE::AssetRegistry::Impl::bDeferReferencerSort,
+		TEXT("If true, the referencer list on dependency nodes will not be sorted until after the initial load is complete"));
 
 	/** Name of UObjectRedirector property */
 	const FName DestinationObjectFName(TEXT("DestinationObject"));
 }
-
-static FAutoConsoleVariableRef CVarAssetRegistryMaxSecondsPerFrame(
-	TEXT("AssetRegistry.MaxSecondsPerFrame"),
-	UE::AssetRegistry::Impl::MaxSecondsPerFrame,
-	TEXT("Maximum amount of time allowed for Asset Registry processing, in seconds"));
 
 #ifndef ENABLE_PLATFORM_CHUNK_INSTALL
 	#define ENABLE_PLATFORM_CHUNK_INSTALL (1)
@@ -831,6 +844,8 @@ void FAssetRegistryImpl::Initialize(Impl::FInitializeContext& Context)
 	bInitialSearchStarted = false;
 	bInitialSearchCompleted = true;
 	GatherStatus = Impl::EGatherStatus::Active;
+	PerformanceMode = Impl::EPerformanceMode::MostlyStatic;
+
 	bSearchAllAssets = false;
 #if NO_LOGGING
 	bVerboseLogging = false;
@@ -941,7 +956,7 @@ void FAssetRegistryImpl::RebuildAssetDependencyGathererMapIfNeeded()
 		{
 			if (UClass* Class = Cast<UClass>(ClassObject); Class && Class->IsChildOf(AssetClass) && !Class->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists))
 			{
-				RegisteredDependencyGathererClasses.Add(Class, RegisteredAssetDependencyGatherer);
+				RegisteredDependencyGathererClasses.Add(FTopLevelAssetPath(Class), RegisteredAssetDependencyGatherer);
 			}
 		}
 	});
@@ -1611,7 +1626,39 @@ void FAssetRegistryImpl::SearchAllAssetsInitialAsync(Impl::FEventContext& EventC
 	InitialSearchStartTime = FPlatformTime::Seconds();
 	bInitialSearchStarted = true;
 	bInitialSearchCompleted = false;
+	SetPerformanceMode(Impl::EPerformanceMode::BulkLoading);
 	SearchAllAssets(EventContext, InheritanceContext, false /* bSynchronousSearch */);
+}
+
+void FAssetRegistryImpl::SetPerformanceMode(Impl::EPerformanceMode NewMode)
+{
+	if (PerformanceMode != NewMode)
+	{
+		const bool bWereDependenciesSorted = ShouldSortDependencies();
+		const bool bWereReferencersSorted = ShouldSortReferencers();
+
+		PerformanceMode = NewMode;
+
+		const bool bShouldSortDependencies = ShouldSortDependencies();
+		const bool bShouldSortReferencers = ShouldSortReferencers();
+
+		if ((bWereDependenciesSorted != bShouldSortDependencies) || (bWereReferencersSorted != bShouldSortReferencers))
+		{
+			State.SetDependencyNodeSorting(bShouldSortDependencies, bShouldSortReferencers);
+		}		
+	}
+}
+
+bool FAssetRegistryImpl::ShouldSortDependencies() const
+{
+	// Always sort in static, sometimes sort during loading
+	return (PerformanceMode == Impl::MostlyStatic || (PerformanceMode == Impl::BulkLoading && !Impl::bDeferDependencySort));
+}
+
+bool FAssetRegistryImpl::ShouldSortReferencers() const
+{
+	// Always sort in static, sometimes sort during loading
+	return (PerformanceMode == Impl::MostlyStatic || (PerformanceMode == Impl::BulkLoading && !Impl::bDeferReferencerSort));
 }
 
 }
@@ -4157,6 +4204,10 @@ Impl::EGatherStatus FAssetRegistryImpl::TickGatherer(Impl::FEventContext& EventC
 			// update redirectors
 			UpdateRedirectCollector();
 #endif
+
+			// Handle any deferred loading operations
+			SetPerformanceMode(Impl::EPerformanceMode::MostlyStatic);
+
 			RecordTimer();
 			LogSearchDiagnostics(InitialSearchStartTime);
 			TRACE_END_REGION(TEXT("Asset Registry Scan"));
@@ -4335,7 +4386,10 @@ void FAssetRegistryImpl::LoadCalculatedDependencies(FName PackageName,
 	for (const FAssetData* AssetData : State.GetAssetsByPackageName(PackageName))
 	{
 		Gatherers.Reset();
-		RegisteredDependencyGathererClasses.MultiFind(AssetData->GetClass(), Gatherers);
+
+		// Check the class name instead of trying to load the actual class as that is slow
+		// This code could be moved somewhere where it doesn't need to re-query the asset data, but it needs to happen after both dependencies and data are handled
+		RegisteredDependencyGathererClasses.MultiFind(AssetData->AssetClassPath, Gatherers);
 		for (UE::AssetDependencyGatherer::Private::FRegisteredAssetDependencyGatherer* Gatherer : Gatherers)
 		{
 			if (!bOutHadActivity)
@@ -4980,6 +5034,15 @@ bool FAssetRegistryImpl::ShouldSkipGatheredAsset(FAssetData& AssetData)
 	// Extra validation for ExternalActors. If duplicate ExternalActors with the same object path exist
 	// then we intermittently will fail to find the correct one and WorldPartition will break.
 	// Validate that the PackageName matches what is expected from the ObjectPath.
+
+#if WITH_EDITORONLY_DATA
+	if (AssetData.GetOptionalOuterPathName().IsNone())
+	{
+		// If no outer path, this can't be an external asset
+		return false;
+	}
+#endif
+
 	FStringView ExternalActorsFolderName(FPackagePath::GetExternalActorsFolderName());
 	TStringBuilder<256> PackageNameStr;
 	AssetData.PackageName.ToString(PackageNameStr);
@@ -5231,6 +5294,8 @@ void FAssetRegistryImpl::DependencyDataGathered(const double TickStartTime, TMul
 				});
 
 			Node->ClearDependencies();
+			Node->SetIsDependencyListSorted(EDependencyCategory::All, ShouldSortDependencies());
+			Node->SetIsReferencersSorted(ShouldSortReferencers());
 
 			// Don't bother registering dependencies on these packages, every package in the game will depend on them
 			static TArray<FName> ScriptPackagesToSkip = TArray<FName>{ TEXT("/Script/CoreUObject"), TEXT("/Script/Engine"), TEXT("/Script/BlueprintGraph"), TEXT("/Script/UnrealEd") };
@@ -5271,6 +5336,9 @@ void FAssetRegistryImpl::DependencyDataGathered(const double TickStartTime, TMul
 				{
 					if (DependsNode->GetConnectionCount() == 0)
 					{
+						DependsNode->SetIsDependencyListSorted(EDependencyCategory::All, ShouldSortDependencies());
+						DependsNode->SetIsReferencersSorted(ShouldSortReferencers());
+
 						// This was newly created, see if we need to read the script package Guid
 						const FNameBuilder DependencyPackageNameStr(DependencyPackageName);
 
@@ -5725,8 +5793,17 @@ void FAssetRegistryImpl::OnDirectoryChanged(Impl::FEventContext& EventContext,
 	{
 		if (FileChangesProcessed[FileIdx].Action == FFileChangeData::FCA_RescanRequired)
 		{
-			OnDirectoryRescanRequired(EventContext, InheritanceContext, FileChangesProcessed[FileIdx].Filename,
-				FileChangesProcessed[FileIdx].TimeStamp);
+			if (bInitialSearchStarted && !bInitialSearchCompleted)
+			{
+				// Ignore rescan request during initial scan as it is probably caused by the scan itself
+				UE_LOG(LogAssetRegistry, Log, TEXT("FAssetRegistry ignoring rescan request for %s during startup"), *FileChangesProcessed[FileIdx].Filename);
+			}
+			else
+			{
+				OnDirectoryRescanRequired(EventContext, InheritanceContext, FileChangesProcessed[FileIdx].Filename,
+					FileChangesProcessed[FileIdx].TimeStamp);
+			}
+
 			continue;
 		}
 		FString LongPackageName;
@@ -6975,12 +7052,7 @@ void FAssetRegistryImpl::SetManageReferences(const TMultiMap<FAssetIdentifier, F
 		ExistingManagedNodes.Add(ManageNode);
 	}
 	// Restore all nodes to manage dependencies sorted and references sorted, so we can efficiently read them in future operations
-	for (const TPair<FAssetIdentifier, FDependsNode*>& Pair : State.CachedDependsNodes)
-	{
-		FDependsNode* DependsNode = Pair.Value;
-		DependsNode->SetIsDependencyListSorted(UE::AssetRegistry::EDependencyCategory::Manage, true);
-		DependsNode->SetIsReferencersSorted(true);
-	}
+	State.SetDependencyNodeSorting(ShouldSortDependencies(), ShouldSortReferencers());
 
 #if WITH_EDITOR
 	if (!GAssetRegistryManagementPathsPackageDebugName.IsEmpty())

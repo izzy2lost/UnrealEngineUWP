@@ -658,7 +658,7 @@ private:
 	void SetIsIdle(bool bInIdle, double& TickStartTime);
 
 	/** Store the given discovered files and directories in the results. */
-	void AddDiscovered(FStringView DirAbsPath, TConstArrayView<FDiscoveredPathData> SubDirs,
+	void AddDiscovered(FStringView DirAbsPath, FStringView DirPackagePath, TConstArrayView<FDiscoveredPathData> SubDirs,
 		TConstArrayView<FDiscoveredPathData> Files);
 	/** Store the given specially reported single file in the results. */
 	void AddDiscoveredFile(FDiscoveredPathData&& File);

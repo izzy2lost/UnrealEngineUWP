@@ -317,12 +317,7 @@ void FAssetRegistryState::InitializeFromExistingAndPrune(const FAssetRegistrySta
 	}
 
 	// Restore the sortedness that we turned off for performance when creating each DependsNode
-	for (TPair<FAssetIdentifier, FDependsNode*> Pair : CachedDependsNodes)
-	{
-		FDependsNode* DependsNode = Pair.Value;
-		DependsNode->SetIsDependencyListSorted(UE::AssetRegistry::EDependencyCategory::All, true);
-		DependsNode->SetIsReferencersSorted(true);
-	}
+	SetDependencyNodeSorting(true, true);
 }
 
 void FAssetRegistryState::InitializeFromExisting(const FAssetDataMap& AssetDataMap, const TMap<FAssetIdentifier, FDependsNode*>& DependsNodeMap, 
@@ -459,12 +454,7 @@ void FAssetRegistryState::InitializeFromExisting(const FAssetDataMap& AssetDataM
 		}
 
 		// Restore the sortedness that we turned off for performance when creating each DependsNode
-		for (TPair<FAssetIdentifier, FDependsNode*> Pair : CachedDependsNodes)
-		{
-			FDependsNode* DependsNode = Pair.Value;
-			DependsNode->SetIsDependencyListSorted(UE::AssetRegistry::EDependencyCategory::All, true);
-			DependsNode->SetIsReferencersSorted(true);
-		}
+		SetDependencyNodeSorting(true, true);
 	}
 }
 
@@ -1888,6 +1878,16 @@ void FAssetRegistryState::SetTagsOnExistingAsset(FAssetData* AssetData, FAssetDa
 		}
 	}
 	AssetData->TagsAndValues = FAssetDataTagMapSharedView(MoveTemp(NewTags));
+}
+
+void FAssetRegistryState::SetDependencyNodeSorting(bool bSortDependencies, bool bSortReferencers)
+{
+	for (TPair<FAssetIdentifier, FDependsNode*>& Pair : CachedDependsNodes)
+	{
+		FDependsNode* DependsNode = Pair.Value;
+		DependsNode->SetIsDependencyListSorted(UE::AssetRegistry::EDependencyCategory::All, bSortDependencies);
+		DependsNode->SetIsReferencersSorted(bSortReferencers);
+	}
 }
 
 void FAssetRegistryState::UpdateAssetData(const FAssetData& NewAssetData, bool bCreateIfNotExists)
