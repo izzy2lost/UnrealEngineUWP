@@ -1742,19 +1742,15 @@ FRHICOMMAND_MACRO(FRHICommandDispatchShaderBundle)
 
 FRHICOMMAND_MACRO(FRHICommandSetShaderRootConstants)
 {
-	FRHIComputeShader* ComputeShader;
 	const FUint32Vector4 Constants;
 	FORCEINLINE_DEBUGGABLE FRHICommandSetShaderRootConstants()
-		: ComputeShader(nullptr)
-		, Constants()
+		: Constants()
 	{
 	}
 	FORCEINLINE_DEBUGGABLE FRHICommandSetShaderRootConstants(
-		FRHIComputeShader* InComputeShader,
 		const FUint32Vector4 InConstants
 	)
-		: ComputeShader(InComputeShader)
-		, Constants(InConstants)
+		: Constants(InConstants)
 	{
 	}
 	RHI_API void Execute(FRHICommandListBase& CmdList);
@@ -2875,17 +2871,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 
-	FORCEINLINE_DEBUGGABLE void SetShaderRootConstants(
-		FRHIComputeShader* ComputeShader,
-		const FUint32Vector4& Constants
-	)
+	FORCEINLINE_DEBUGGABLE void SetShaderRootConstants(const FUint32Vector4& Constants)
 	{
 		if (Bypass())
 		{
-			GetContext().RHISetShaderRootConstants(ComputeShader, Constants);
+			GetContext().RHISetShaderRootConstants(Constants);
 			return;
 		}
-		ALLOC_COMMAND(FRHICommandSetShaderRootConstants)(ComputeShader, Constants);
+		ALLOC_COMMAND(FRHICommandSetShaderRootConstants)(Constants);
 	}
 
 	FORCEINLINE_DEBUGGABLE void DispatchShaderBundle(

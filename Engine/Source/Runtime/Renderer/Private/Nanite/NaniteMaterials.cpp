@@ -1024,10 +1024,7 @@ void RecordShadingCommand(
 
 	if (GRHISupportsShaderRootConstants)
 	{
-		RHICmdList.SetShaderRootConstants(
-			ComputeShaderRHI,
-			PassData
-		);
+		RHICmdList.SetShaderRootConstants(PassData);
 	}
 
 	RHICmdList.SetBatchedShaderParameters(ComputeShaderRHI, BatchedParameters);

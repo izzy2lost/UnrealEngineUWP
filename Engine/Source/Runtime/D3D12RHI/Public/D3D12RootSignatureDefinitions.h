@@ -366,6 +366,12 @@ namespace D3D12ShaderUtils
 #endif
 
 		Creator.AddTable(ERootSignatureVisibility::All, ERootSignatureRangeType::UAV, MAX_UAVS);
+
+		if (EnumHasAnyFlags(InFlags, ED3D12RootSignatureFlags::RootConstants))
+		{
+			const uint32 NumConstants = 4u;
+			Creator.AddConstantsParameter(NumConstants, 0u, UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS); // UERootConstants
+		}
 	}
 
 	// Fat/Static Compute Root Signature
@@ -375,17 +381,12 @@ namespace D3D12ShaderUtils
 		Creator.SetFlags(InFlags);
 		AddAllStandardTablesForVisibility(Creator, ERootSignatureVisibility::All);
 		Creator.AddTable(ERootSignatureVisibility::All, ERootSignatureRangeType::UAV, MAX_UAVS);
-	}
 
-	inline void CreateComputeWithConstantsRootSignature(FRootSignatureCreator& Creator, ED3D12RootSignatureFlags InFlags)
-	{
-		// Ensure the creator starts in a clean state (in cases of creator reuse, etc.).
-		Creator.SetFlags(InFlags);
-		AddAllStandardTablesForVisibility(Creator, ERootSignatureVisibility::All);
-		Creator.AddTable(ERootSignatureVisibility::All, ERootSignatureRangeType::UAV, MAX_UAVS);
-
-		const uint32 NumConstants = 4u;
-		Creator.AddConstantsParameter(NumConstants, 0u, UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS); // UERootConstants
+		if (EnumHasAnyFlags(InFlags, ED3D12RootSignatureFlags::RootConstants))
+		{
+			const uint32 NumConstants = 4u;
+			Creator.AddConstantsParameter(NumConstants, 0u, UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS); // UERootConstants
+		}
 	}
 
 #if !defined(D3D12RHI_TOOLS_RAYTRACING_SHADERS_UNSUPPORTED)
@@ -420,14 +421,7 @@ namespace D3D12ShaderUtils
 		}
 		else if (InFrequency == SF_Compute)
 		{
-			if (EnumHasAnyFlags(InFlags, ED3D12RootSignatureFlags::RootConstants))
-			{
-				D3D12ShaderUtils::CreateComputeWithConstantsRootSignature(Creator, InFlags);
-			}
-			else
-			{
-				D3D12ShaderUtils::CreateComputeRootSignature(Creator, InFlags);
-			}
+			D3D12ShaderUtils::CreateComputeRootSignature(Creator, InFlags);
 		}
 		else
 		{

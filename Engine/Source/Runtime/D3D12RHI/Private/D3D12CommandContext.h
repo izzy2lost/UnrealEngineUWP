@@ -624,7 +624,6 @@ public:
 	void SetRenderTargetsAndClear(const FRHISetRenderTargetsInfo& RenderTargetsInfo);
 
 	virtual void RHISetShaderRootConstants(
-		FRHIComputeShader* ComputeShader,
 		const FUint32Vector4& Constants) override;
 
 	virtual void RHIDispatchShaderBundle(

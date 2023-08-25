@@ -165,11 +165,9 @@ public:
 		RHIContext->RHIClearUAVUint(UnorderedAccessViewRHI, Values);
 	}
 
-	virtual void RHISetShaderRootConstants(
-		FRHIComputeShader* ComputeShader,
-		const FUint32Vector4& Constants) final override
+	virtual void RHISetShaderRootConstants(const FUint32Vector4& Constants) final override
 	{
-		RHIContext->RHISetShaderRootConstants(ComputeShader, Constants);
+		RHIContext->RHISetShaderRootConstants(Constants);
 	}
 
 	virtual void RHIDispatchShaderBundle(
@@ -520,11 +518,9 @@ public:
 		RHIContext->RHIClearUAVUint(UnorderedAccessViewRHI, Values);
 	}
 
-	virtual void RHISetShaderRootConstants(
-		FRHIComputeShader* ComputeShader,
-		const FUint32Vector4& Constants) final override
+	virtual void RHISetShaderRootConstants(const FUint32Vector4& Constants) final override
 	{
-		RHIContext->RHISetShaderRootConstants(ComputeShader, Constants);
+		RHIContext->RHISetShaderRootConstants(Constants);
 	}
 
 	virtual void RHIDispatchShaderBundle(

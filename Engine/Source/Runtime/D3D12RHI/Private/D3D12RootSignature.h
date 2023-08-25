@@ -91,7 +91,6 @@ public:
 
 	void InitStaticGraphicsRootSignature(ED3D12RootSignatureFlags InFlags);
 	void InitStaticComputeRootSignatureDesc(ED3D12RootSignatureFlags InFlags);
-	void InitStaticComputeWithConstantsRootSignatureDesc(ED3D12RootSignatureFlags InFlags);
 #if D3D12_RHI_RAYTRACING
 	void InitStaticRayTracingGlobalRootSignatureDesc(ED3D12RootSignatureFlags InFlags);
 	void InitStaticRayTracingLocalRootSignatureDesc();

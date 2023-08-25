@@ -1108,11 +1108,54 @@ static bool IsCompatibleWithBindlessResources(const FD3D12ShaderData* ShaderData
 	return true;
 }
 
+inline bool BSSUsesRootConstants(const FBoundShaderStateInput& BSS)
+{
+	if (!GRHISupportsShaderRootConstants)
+	{
+		return false;
+	}
+
+	TArray<const FD3D12ShaderData*, TInlineAllocator<5>> ShaderData;
+
+	ShaderData.Add(FD3D12DynamicRHI::ResourceCast(BSS.GetVertexShader()));
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+	ShaderData.Add(FD3D12DynamicRHI::ResourceCast(BSS.GetMeshShader()));
+	ShaderData.Add(FD3D12DynamicRHI::ResourceCast(BSS.GetAmplificationShader()));
+#endif
+	ShaderData.Add(FD3D12DynamicRHI::ResourceCast(BSS.GetPixelShader()));
+	ShaderData.Add(FD3D12DynamicRHI::ResourceCast(BSS.GetGeometryShader()));
+
+	bool bUsesRootConstants = false;
+	for (int32 DataIndex = 0; DataIndex < ShaderData.Num(); ++DataIndex)
+	{
+		if (ShaderData[DataIndex] == nullptr)
+		{
+			continue;
+		}
+
+		bUsesRootConstants = EnumHasAnyFlags(ShaderData[DataIndex]->ResourceCounts.UsageFlags, EShaderResourceUsageFlags::RootConstants);
+
+		if (bUsesRootConstants)
+		{
+			break;
+		}
+	}
+
+	return bUsesRootConstants;
+}
+	
 const FD3D12RootSignature* FD3D12Adapter::GetRootSignature(const FBoundShaderStateInput& BSS)
 {
 #if USE_STATIC_ROOT_SIGNATURE
 
-	return &StaticGraphicsRootSignature;
+	if (BSSUsesRootConstants(BSS))
+	{
+		return &StaticGraphicsWithConstantsRootSignature;
+	}
+	else
+	{
+		return &StaticGraphicsRootSignature;
+	}
 
 #else //! USE_STATIC_ROOT_SIGNATURE
 

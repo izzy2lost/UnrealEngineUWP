@@ -615,6 +615,7 @@ protected:
 
 #if USE_STATIC_ROOT_SIGNATURE
 	FD3D12RootSignature StaticGraphicsRootSignature;
+	FD3D12RootSignature StaticGraphicsWithConstantsRootSignature;
 	FD3D12RootSignature StaticComputeRootSignature;
 	FD3D12RootSignature StaticComputeWithConstantsRootSignature;
 	FD3D12RootSignature StaticRayTracingGlobalRootSignature;

@@ -260,7 +260,7 @@ void FRHICommandDispatchShaderBundle::Execute(FRHICommandListBase& CmdList)
 void FRHICommandSetShaderRootConstants::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(SetShaderRootConstants);
-	INTERNAL_DECORATOR_COMPUTE(RHISetShaderRootConstants)(ComputeShader, Constants);
+	INTERNAL_DECORATOR_COMPUTE(RHISetShaderRootConstants)(Constants);
 }
 
 void FRHICommandBeginUAVOverlap::Execute(FRHICommandListBase& CmdList)

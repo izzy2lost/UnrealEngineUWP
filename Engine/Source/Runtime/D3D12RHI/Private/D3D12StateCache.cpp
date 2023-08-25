@@ -559,14 +559,19 @@ void FD3D12StateCache::ApplyState(ED3D12PipelineType PipelineType)
 	{
 		PipelineState.Common.bNeedSetRootConstants = false;
 
+		uint32 UERootConstants[4];
+		UERootConstants[0] = PipelineState.Common.ShaderRootConstants.X;
+		UERootConstants[1] = PipelineState.Common.ShaderRootConstants.Y;
+		UERootConstants[2] = PipelineState.Common.ShaderRootConstants.Z;
+		UERootConstants[3] = PipelineState.Common.ShaderRootConstants.W;
+
 		if (PipelineType == ED3D12PipelineType::Compute)
 		{
-			uint32 UERootConstants[4];
-			UERootConstants[0] = PipelineState.Common.ShaderRootConstants.X;
-			UERootConstants[1] = PipelineState.Common.ShaderRootConstants.Y;
-			UERootConstants[2] = PipelineState.Common.ShaderRootConstants.Z;
-			UERootConstants[3] = PipelineState.Common.ShaderRootConstants.W;
 			CmdContext.GraphicsCommandList()->SetComputeRoot32BitConstants(RootConstantsSlot, 4, &UERootConstants[0], 0);
+		}
+		else if (PipelineType == ED3D12PipelineType::Graphics)
+		{
+			CmdContext.GraphicsCommandList()->SetGraphicsRoot32BitConstants(RootConstantsSlot, 4, &UERootConstants[0], 0);
 		}
 		else
 		{

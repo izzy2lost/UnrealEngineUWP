@@ -395,6 +395,22 @@ void FD3D12RootSignature::InitStaticGraphicsRootSignature(ED3D12RootSignatureFla
 	D3D12ShaderUtils::FBinaryRootSignatureCreator Creator;
 	D3D12ShaderUtils::CreateGfxRootSignature(Creator, InFlags);
 	Init(Creator.Finalize());
+
+	if (EnumHasAnyFlags(InFlags, ED3D12RootSignatureFlags::RootConstants))
+	{
+		for (int32 ParameterSlot = 0; ParameterSlot < Creator.Parameters.Num(); ++ParameterSlot)
+		{
+			const CD3DX12_ROOT_PARAMETER1 RootParameter = Creator.Parameters[ParameterSlot];
+			if (RootParameter.ParameterType == D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS)
+			{
+				if (RootParameter.Constants.RegisterSpace == UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS && RootParameter.Constants.ShaderRegister == 0)
+				{
+					RootConstantsSlot = int8(ParameterSlot);
+					break;
+				}
+			}
+		}
+	}
 }
 
 void FD3D12RootSignature::InitStaticComputeRootSignatureDesc(ED3D12RootSignatureFlags InFlags)
@@ -402,23 +418,19 @@ void FD3D12RootSignature::InitStaticComputeRootSignatureDesc(ED3D12RootSignature
 	D3D12ShaderUtils::FBinaryRootSignatureCreator Creator;
 	D3D12ShaderUtils::CreateComputeRootSignature(Creator, InFlags);
 	Init(Creator.Finalize());
-}
 
-void FD3D12RootSignature::InitStaticComputeWithConstantsRootSignatureDesc(ED3D12RootSignatureFlags InFlags)
-{
-	D3D12ShaderUtils::FBinaryRootSignatureCreator Creator;
-	D3D12ShaderUtils::CreateComputeWithConstantsRootSignature(Creator, InFlags);
-	Init(Creator.Finalize());
-
-	for (int32 ParameterSlot = 0; ParameterSlot < Creator.Parameters.Num(); ++ParameterSlot)
+	if (EnumHasAnyFlags(InFlags, ED3D12RootSignatureFlags::RootConstants))
 	{
-		const CD3DX12_ROOT_PARAMETER1 RootParameter = Creator.Parameters[ParameterSlot];
-		if (RootParameter.ParameterType == D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS)
+		for (int32 ParameterSlot = 0; ParameterSlot < Creator.Parameters.Num(); ++ParameterSlot)
 		{
-			if (RootParameter.Constants.RegisterSpace == UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS && RootParameter.Constants.ShaderRegister == 0)
+			const CD3DX12_ROOT_PARAMETER1 RootParameter = Creator.Parameters[ParameterSlot];
+			if (RootParameter.ParameterType == D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS)
 			{
-				RootConstantsSlot = int8(ParameterSlot);
-				break;
+				if (RootParameter.Constants.RegisterSpace == UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS && RootParameter.Constants.ShaderRegister == 0)
+				{
+					RootConstantsSlot = int8(ParameterSlot);
+					break;
+				}
 			}
 		}
 	}

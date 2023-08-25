@@ -109,10 +109,7 @@ void DispatchShaderBundleEmulation(
 
 		if (GRHISupportsShaderRootConstants)
 		{
-			InRHICmdList.SetShaderRootConstants(
-				Dispatch.Shader,
-				Dispatch.Constants
-			);
+			InRHICmdList.SetShaderRootConstants(Dispatch.Constants);
 		}
 
 		const uint32 IndirectOffset = (Dispatch.RecordIndex * FRHIShaderBundle::ArgumentByteStride);
