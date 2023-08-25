@@ -33,6 +33,7 @@ class UInterchangeFactoryBase;
 class UInterchangeFactoryBaseNode;
 class UInterchangePipelineBase;
 class UInterchangePythonPipelineBase;
+class ULevel;
 
 /** Some utilities delegates for the automation of interchange */
 DECLARE_DYNAMIC_DELEGATE_OneParam(FOnObjectImportDoneDynamic, UObject*, Object);
@@ -93,6 +94,9 @@ namespace UE
 
 			//True if we are reimporting assets or scene
 			UObject* ReimportObject = nullptr;
+
+			//Level to import into in case of a scene import
+			ULevel* ImportLevel = nullptr;
 		};
 
 		class FImportResult : protected FGCObject
@@ -352,6 +356,10 @@ struct FImportAssetParameters
 	// Adding some override will tell interchange to use the specific custom set pipelines instead of letting the user or the system chose
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interchange|ImportAsset", meta = (AllowedClasses = "/Script/InterchangeCore.InterchangePipelineBase, /Script/InterchangeEngine.InterchangeBlueprintPipelineBase, /Script/InterchangeEngine.InterchangePythonPipelineAsset"))
 	TArray<FSoftObjectPath> OverridePipelines;
+
+	//Level to import into in case of a scene import
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interchange|ImportAsset")
+	TObjectPtr<ULevel> ImportLevel = nullptr;
 
 	/* Delegates used track the imported objects */
 
