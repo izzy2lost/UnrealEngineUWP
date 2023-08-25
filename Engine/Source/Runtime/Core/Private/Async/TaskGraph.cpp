@@ -1037,8 +1037,6 @@ private:
 	**/
 	uint64 ProcessTasks()
 	{
-		LLM_SCOPE_BYNAME(TEXT("Tasks/AnyThread/ProcessTasks"));
-
 		TStatId StallStatId;
 		bool bCountAsStall = true;
 		uint64 ProcessedTasks = 0;
@@ -1951,8 +1949,6 @@ public:
 private:
 	void QueueTask(class FBaseGraphTask* Task, bool bWakeUpWorker, ENamedThreads::Type InThreadToExecuteOn, ENamedThreads::Type InCurrentThreadIfKnown) override
 	{
-		LLM_SCOPE_BYNAME(TEXT("Tasks/QueueTask"));
-
 		if (ENamedThreads::GetThreadIndex(InThreadToExecuteOn) == ENamedThreads::AnyThread)
 		{
 #if TASKGRAPH_NEW_FRONTEND
@@ -2081,7 +2077,6 @@ private:
 
 	void WaitUntilTasksComplete(const FGraphEventArray& Tasks, ENamedThreads::Type CurrentThreadIfKnown = ENamedThreads::AnyThread) final override
 	{
-		LLM_SCOPE_BYNAME(TEXT("Tasks/WaitUntilTasksComplete"));
 		TaskTrace::FWaitingScope WaitingScope(GetTraceIds(Tasks));
 		TRACE_CPUPROFILER_EVENT_SCOPE(WaitUntilTasksComplete);
 
@@ -2431,7 +2426,6 @@ static TLockFreeClassAllocator_TLSCache<FGraphEvent, PLATFORM_CACHE_LINE_SIZE>& 
 
 FGraphEventRef FGraphEvent::CreateGraphEvent()
 {
-	LLM_SCOPE_BYNAME(TEXT("Tasks/FGraphEvent/CreateGraphEvent"));
 	FGraphEvent* Instance = new(GetGraphEventAllocator().Allocate()) FGraphEvent{};
 	return Instance;
 }

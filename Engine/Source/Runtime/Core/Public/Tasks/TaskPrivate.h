@@ -754,7 +754,6 @@ namespace UE::Tasks
 		public:
 			static FTaskEventBase* Create(const TCHAR* DebugName)
 			{
-				LLM_SCOPE_BYNAME(TEXT("Tasks/FTaskEvent/Create"));
 				return new FTaskEventBase(DebugName);
 			}
 
