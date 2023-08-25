@@ -11,7 +11,6 @@
 #include "ScopedTransaction.h"
 #include "Modules/ModuleManager.h"
 #include "StructViewerModule.h"
-#include "StructViewerFilter.h"
 #include "Styling/SlateIconFinder.h"
 #include "Engine/UserDefinedStruct.h"
 #include "InstancedStruct.h"
@@ -162,45 +161,32 @@ protected:
 
 ////////////////////////////////////
 
-class FInstancedStructFilter : public IStructViewerFilter
+bool FInstancedStructFilter::IsStructAllowed(const FStructViewerInitializationOptions& InInitOptions, const UScriptStruct* InStruct, TSharedRef<FStructViewerFilterFuncs> InFilterFuncs)
 {
-public:
-	/** The base struct for the property that classes must be a child-of. */
-	const UScriptStruct* BaseStruct = nullptr;
-
-	// A flag controlling whether we allow UserDefinedStructs
-	bool bAllowUserDefinedStructs = false;
-
-	// A flag controlling whether we allow to select the BaseStruct
-	bool bAllowBaseStruct = true;
-
-	virtual bool IsStructAllowed(const FStructViewerInitializationOptions& InInitOptions, const UScriptStruct* InStruct, TSharedRef<FStructViewerFilterFuncs> InFilterFuncs) override
+	if (InStruct->IsA<UUserDefinedStruct>())
 	{
-		if (InStruct->IsA<UUserDefinedStruct>())
-		{
-			return bAllowUserDefinedStructs;
-		}
-
-		if (InStruct == BaseStruct)
-		{
-			return bAllowBaseStruct;
-		}
-
-		if (InStruct->HasMetaData(TEXT("Hidden")))
-		{
-			return false;
-		}
-
-		// Query the native struct to see if it has the correct parent type (if any)
-		return !BaseStruct || InStruct->IsChildOf(BaseStruct);
-	}
-
-	virtual bool IsUnloadedStructAllowed(const FStructViewerInitializationOptions& InInitOptions, const FSoftObjectPath& InStructPath, TSharedRef<FStructViewerFilterFuncs> InFilterFuncs) override
-	{
-		// User Defined Structs don't support inheritance, so only include them requested
 		return bAllowUserDefinedStructs;
 	}
-};
+
+	if (InStruct == BaseStruct)
+	{
+		return bAllowBaseStruct;
+	}
+
+	if (InStruct->HasMetaData(TEXT("Hidden")))
+	{
+		return false;
+	}
+
+	// Query the native struct to see if it has the correct parent type (if any)
+	return !BaseStruct || InStruct->IsChildOf(BaseStruct);
+}
+
+bool FInstancedStructFilter::IsUnloadedStructAllowed(const FStructViewerInitializationOptions& InInitOptions, const FSoftObjectPath& InStructPath, TSharedRef<FStructViewerFilterFuncs> InFilterFuncs)
+{
+	// User Defined Structs don't support inheritance, so only include them requested
+	return bAllowUserDefinedStructs;
+}
 
 ////////////////////////////////////
 
@@ -351,20 +337,8 @@ FName FInstancedStructDataDetails::GetName() const
 	return Name;
 }
 
-void FInstancedStructDataDetails::PostUndo(bool bSuccess)
-{
-	// Undo; force a sync next Tick
-	LastSyncEditableInstanceFromSourceSeconds = 0.0;
-}
-
-void FInstancedStructDataDetails::PostRedo(bool bSuccess)
-{
-	// Redo; force a sync next Tick
-	LastSyncEditableInstanceFromSourceSeconds = 0.0;
-}
 
 ////////////////////////////////////
-
 
 TSharedRef<IPropertyTypeCustomization> FInstancedStructDetails::MakeInstance()
 {
