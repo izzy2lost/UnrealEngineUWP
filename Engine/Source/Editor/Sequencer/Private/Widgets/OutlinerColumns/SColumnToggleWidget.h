@@ -36,7 +36,7 @@ public:
 public:
 
 	/** Called when a drag or click ends and can be used to refresh the SequencerTree if necessary. */
-	virtual void OnToggleOperationComplete() {};
+	virtual void OnToggleOperationComplete() {}
 
 protected:
 
@@ -91,6 +91,9 @@ protected:
 	/** Process a mouse up message. */
 	virtual FReply OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 
+	/** Tick this widget to update its cached state */
+	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
+
 	/** Called when mouse enters the column widget. */
 	void OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 
@@ -114,18 +117,24 @@ protected:
 
 private:
 
-	/** Whether or not the mouse is directly over the widget. */
-	bool bIsMouseOverWidget;
-
-	/** Whether or not a child of this item is active. */
-	bool bIsChildActive;
-
 	/** Brushes for the various states of active widgets. */
 	const FSlateBrush* ActiveBrush;
 	const FSlateBrush* ChildActiveBrush;
 
 	/** Scoped undo transaction. */
 	TUniquePtr<FScopedTransaction> UndoTransaction;
+
+	/** Whether or not the mouse is directly over the widget. */
+	uint8 bIsMouseOverWidget : 1;
+
+	/** Whether this item is active. */
+	uint8 bIsActive : 1;
+
+	/** Whether or not a child of this item is active. */
+	uint8 bIsChildActive : 1;
+
+	/** Whether this item is active implicitly (as a result of some item's state, not this item explicitly). */
+	uint8 bIsImplicitlyActive : 1;
 };
 
 } // namespace UE::Sequencer

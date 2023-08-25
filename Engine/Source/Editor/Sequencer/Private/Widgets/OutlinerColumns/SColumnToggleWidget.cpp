@@ -71,9 +71,12 @@ void SColumnToggleWidget::Construct(
 	WeakEditor = InParams.Editor->CastThisSharedChecked<FSequencerEditorViewModel>();
 
 	bIsMouseOverWidget = false;
+	bIsActive = false;
 	bIsChildActive = false;
+	bIsImplicitlyActive = false;
 
 	ActiveBrush = GetActiveBrush();
+	SetCanTick(true);
 
 	static const FName NAME_ChildActiveBrush = TEXT("Sequencer.Column.CheckBoxIndeterminate");
 	ChildActiveBrush = FAppStyle::Get().GetBrush(NAME_ChildActiveBrush);
@@ -86,6 +89,12 @@ void SColumnToggleWidget::Construct(
 	);
 }
 
+void SColumnToggleWidget::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+{
+	bIsActive = IsActive();
+	bIsChildActive = IsChildActive();
+	bIsImplicitlyActive = IsImplicitlyActive();
+}
 
 FSlateColor SColumnToggleWidget::GetImageColorAndOpacity() const
 {
@@ -101,12 +110,12 @@ FSlateColor SColumnToggleWidget::GetImageColorAndOpacity() const
 
 	float Opacity = 0.0f;
 
-	if (IsActive())
+	if (bIsActive)
 	{
 		// Directly active, full opacity
 		Opacity = 1.0f;
 	}
-	else if (IsChildActive() && !bIsMouseOverWidget)
+	else if (bIsChildActive && !bIsMouseOverWidget)
 	{
 		// Child is active and mouse is not over widget. Full opacity '-'.
 		Opacity = 1.0f;
@@ -116,7 +125,7 @@ FSlateColor SColumnToggleWidget::GetImageColorAndOpacity() const
 		// Mouse is over widget and it is not directly active.
 		Opacity = .65f;
 	}
-	else if (IsImplicitlyActive())
+	else if (bIsImplicitlyActive)
 	{
 		// Implicitly active through another object and mouse is not over.
 		Opacity = .35f;
@@ -146,8 +155,8 @@ const FSlateBrush* SColumnToggleWidget::GetBrush() const
 		return ActiveBrush;
 	}
 
-	if (IsChildActive()
-		&& !IsActive()
+	if (bIsChildActive
+		&& !bIsActive
 		&& !bIsMouseOverWidget)
 	{
 		return ChildActiveBrush;
@@ -186,8 +195,6 @@ void SColumnToggleWidget::OnDragEnter(const FGeometry& MyGeometry, const FDragDr
 
 FReply SColumnToggleWidget::HandleClick()
 {
-	const bool bIsActive = IsActive();
-
 	TSharedPtr<ISequencerOutlinerColumn> OutlinerColumn = WeakOutlinerColumn.Pin();
 
 	// Open an undo transaction

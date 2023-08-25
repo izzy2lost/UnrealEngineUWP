@@ -86,6 +86,9 @@ public:
 	int32 GetPreRollFrames() const;
 	int32 GetPostRollFrames() const;
 
+	bool IsLocked() const;
+	void SetIsLocked(bool bIsLocked);
+
 public:
 
 	/*~ ILayerBarExtension Interface */
@@ -130,6 +133,8 @@ private:
 	TWeakObjectPtr<UMovieSceneSection> WeakSection;
 	TRange<FFrameNumber> SectionRange;
 	TRange<FFrameNumber> LayerBarRange;
+
+	uint8 bIsLocked : 1;
 };
 
 struct FOverlappingSections

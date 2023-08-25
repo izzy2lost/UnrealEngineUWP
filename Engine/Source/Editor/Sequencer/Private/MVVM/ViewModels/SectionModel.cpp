@@ -54,6 +54,20 @@ FSectionModel::~FSectionModel()
 	WeakSection.Reset();
 }
 
+bool FSectionModel::IsLocked() const
+{
+	return bIsLocked;
+}
+
+void FSectionModel::SetIsLocked(bool bInIsLocked)
+{
+	if (UMovieSceneSection* Section = GetSection())
+	{
+		Section->Modify();
+		Section->SetIsLocked(bInIsLocked);
+	}
+}
+
 TRange<FFrameNumber> FSectionModel::GetRange() const
 {
 	UMovieSceneSection* Section = WeakSection.Get();
@@ -134,6 +148,7 @@ void FSectionModel::OnModifiedDirectly(UMovieSceneSignedObject*)
 
 void FSectionModel::UpdateCachedData()
 {
+	bIsLocked = true;
 	SectionRange = TRange<FFrameNumber>::Empty();
 	LayerBarRange = TRange<FFrameNumber>::Empty();
 
@@ -143,6 +158,7 @@ void FSectionModel::UpdateCachedData()
 		return;
 	}
 
+	bIsLocked = Section->IsLocked();
 	SectionRange = Section->GetRange();
 
 	// Compute the layer bar range from this section's effective key range
