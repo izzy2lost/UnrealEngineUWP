@@ -434,6 +434,13 @@ void FAnimationBlueprintEditor::InitAnimationBlueprintEditor(const EToolkitMode:
 	PersonaToolkit->GetPreviewScene()->SetDefaultAnimationMode(EPreviewSceneDefaultAnimationMode::AnimationBlueprint);
 	PersonaToolkit->GetPreviewScene()->RegisterOnPreviewMeshChanged(FOnPreviewMeshChanged::CreateSP(this, &FAnimationBlueprintEditor::HandlePreviewMeshChanged));
 
+	// leave some metadata on the world used for debug object labeling
+	if(FWorldContext* WorldContext = GEngine->GetWorldContextFromWorld(PersonaToolkit->GetPreviewScene()->GetWorld()))
+	{
+		static constexpr TCHAR Format[] = TEXT("AnimBPEditor (%s)");
+		WorldContext->CustomDescription = FString::Printf(Format, *InAnimBlueprint->GetName());
+	}
+
 	PersonaModule.RecordAssetOpened(InAnimBlueprint);
 
 	if(InAnimBlueprint->BlueprintType != BPTYPE_Interface && !InAnimBlueprint->bIsTemplate)

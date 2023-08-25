@@ -294,7 +294,12 @@ protected:
 	/** Once the log is collected update the graph */
 	void UpdateGraphCompilerErrors();
 
+	/** Returns true if PIE is currently running */
+	static bool IsPIERunning();
+
 private:
+
+	void OnPIEStopped(bool bSimulation);
 
 	/** Our currently running rig vm instance */
 	TObjectPtr<URigVMHost> Host;

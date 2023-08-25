@@ -2581,14 +2581,15 @@ void URigHierarchy::IncrementTopologyVersion()
 FRigPose URigHierarchy::GetPose(
 	bool bInitial,
 	ERigElementType InElementType,
-	const FRigElementKeyCollection& InItems 
+	const FRigElementKeyCollection& InItems,
+	bool bIncludeTransientControls
 ) const
 {
-	return GetPose(bInitial, InElementType, TArrayView<const FRigElementKey>(InItems.Keys.GetData(), InItems.Num()));
+	return GetPose(bInitial, InElementType, TArrayView<const FRigElementKey>(InItems.Keys.GetData(), InItems.Num()), bIncludeTransientControls);
 }
 
 FRigPose URigHierarchy::GetPose(bool bInitial, ERigElementType InElementType,
-	const TArrayView<const FRigElementKey>& InItems) const
+	const TArrayView<const FRigElementKey>& InItems, bool bIncludeTransientControls) const
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));
 	FRigPose Pose;
@@ -2626,6 +2627,11 @@ FRigPose URigHierarchy::GetPose(bool bInitial, ERigElementType InElementType,
 			{
 				PoseElement.PreferredEulerAngle = GetControlPreferredEulerAngles(ControlElement,
 					GetControlPreferredEulerRotationOrder(ControlElement), bInitial);
+
+				if(!bIncludeTransientControls && ControlElement->Settings.bIsTransientControl)
+				{
+					continue;
+				}
 			}
 		}
 		else if(FRigCurveElement* CurveElement = Cast<FRigCurveElement>(Element))

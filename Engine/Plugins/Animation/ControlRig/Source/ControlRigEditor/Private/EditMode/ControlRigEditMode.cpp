@@ -141,6 +141,7 @@ namespace ControlRigSelectionConstants
 
 FControlRigEditMode::FControlRigEditMode()
 	: bIsChangingControlShapeTransform(false)
+	, bIsTracking(false)
 	, bManipulatorMadeChange(false)
 	, bSelecting(false)
 	, bSelectionChanged(false)
@@ -1027,6 +1028,7 @@ bool FControlRigEditMode::EndTracking(FEditorViewportClient* InViewportClient, F
 	const bool bWasInteracting = bManipulatorMadeChange && InteractionType != (uint8)EControlRigInteractionType::None;
 	
 	InteractionType = (uint8)EControlRigInteractionType::None;
+	bIsTracking = false;
 	
 	if (InteractionScopes.Num() > 0)
 	{		
@@ -1075,6 +1077,7 @@ bool FControlRigEditMode::StartTracking(FEditorViewportClient* InViewportClient,
 	}
 
 	InteractionType = GetInteractionType(InViewportClient);
+	bIsTracking = true;
 	
 	if (InteractionScopes.Num() == 0)
 	{
@@ -1851,6 +1854,8 @@ bool FControlRigEditMode::InputDelta(FEditorViewportClient* InViewportClient, FV
 					bool bCalcLocal = bDoLocal;
 					bool bFirstTime = true;
 					FTransform InOutLocal = FTransform::Identity;
+					
+					bool const bJustStartedManipulation = !bManipulatorMadeChange;
 
 					for (AControlRigShapeActor* ShapeActor : Pairs.Value)
 					{
@@ -1871,6 +1876,14 @@ bool FControlRigEditMode::InputDelta(FEditorViewportClient* InViewportClient, FV
 								{
 									bUseLocal = true;
 									bDoLocal = false;
+								}
+							}
+
+							if(bJustStartedManipulation)
+							{
+								if(const FRigControlElement* ControlElement = Pairs.Key->FindControl(ShapeActor->ControlName))
+								{
+									ShapeActor->OffsetTransform = Pairs.Key->GetHierarchy()->GetGlobalControlOffsetTransform(ControlElement->GetKey(), false);
 								}
 							}
 
@@ -4074,6 +4087,13 @@ void FControlRigEditMode::MoveControlShape(AControlRigShapeActor* ShapeActor, co
 				FTransform CurrentTransform  = ControlRig->GetControlGlobalTransform(ShapeActor->ControlName);			// assumes it's attached to actor
 				CurrentTransform = ToWorldTransform * CurrentTransform;
 
+				// make the transform relative to the offset transform again.
+				// first we'll make it relative to the offset used at the time of starting the drag
+				// and then we'll make it absolute again based on the current offset. these two can be
+				// different if we are interacting on a control on an animated character
+				CurrentTransform = CurrentTransform.GetRelativeTransform(ShapeActor->OffsetTransform);
+				CurrentTransform = CurrentTransform * ControlRig->GetHierarchy()->GetGlobalControlOffsetTransform(ShapeActor->GetElementKey(), false);
+				
 				ShapeActor->SetGlobalTransform(CurrentTransform);
 
 				ControlRig->Evaluate_AnyThread();
@@ -4130,10 +4150,30 @@ void FControlRigEditMode::MoveControlShape(AControlRigShapeActor* ShapeActor, co
 					bPrintPythonCommands = World->IsPreviewWorld();
 				}
 
+				bool bIsTransientControl = false;
+				if(const FRigControlElement* ControlElement = ControlRig->FindControl(ShapeActor->ControlName))
+				{
+					bIsTransientControl = ControlElement->Settings.bIsTransientControl;
+				}
+
+				// if we are operating on a PIE instance which is playing we need to reapply the input pose
+				// since the hierarchy will also have been brought into the solved pose. by reapplying the
+				// input pose we avoid double transformation / double forward solve results.
+				if(bIsTransientControl && ControlRig->GetWorld()->IsPlayInEditor() && !ControlRig->GetWorld()->IsPaused())
+				{
+					ControlRig->GetHierarchy()->SetPose(ControlRig->InputPoseOnDebuggedRig);
+				}
+				
 				ControlRig->Evaluate_AnyThread();
 				SetControlShapeTransform(ShapeActor, NewTransform, ToWorldTransform, Context, bPrintPythonCommands);
 				NotifyDrivenControls(ControlRig, ShapeActor->GetElementKey());
-				ControlRig->Evaluate_AnyThread();
+				if(const FRigControlElement* ControlElement = ControlRig->FindControl(ShapeActor->ControlName))
+				{
+					if(!bIsTransientControl)
+					{
+						ControlRig->Evaluate_AnyThread();
+					}
+				}
 				ShapeActor->SetGlobalTransform(CurrentTransform);
 				if (bCalcLocal)
 				{

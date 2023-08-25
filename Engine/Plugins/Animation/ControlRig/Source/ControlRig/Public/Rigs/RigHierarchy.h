@@ -3397,13 +3397,15 @@ public:
 	 * Returns the current / initial pose of the hierarchy
 	 * @param bInitial If set to true the initial pose will be returned
 	 * @return The pose of the hierarchy
+	 * @param bIncludeTransientControls If true the transient controls will be included in the pose
 	 */
 	UFUNCTION(BlueprintCallable, Category = URigHierarchy)
 	FRigPose GetPose(
-		bool bInitial = false
+		bool bInitial = false,
+		bool bIncludeTransientControls = true
 	) const
 	{
-		return GetPose(bInitial, ERigElementType::All, FRigElementKeyCollection());
+		return GetPose(bInitial, ERigElementType::All, FRigElementKeyCollection(), bIncludeTransientControls);
 	}
 
 	/**
@@ -3411,12 +3413,14 @@ public:
 	 * @param bInitial If set to true the initial pose will be returned
 	 * @param InElementType The types of elements to get
 	 * @param InItems An optional list of items to get
+	 * @param bIncludeTransientControls If true the transient controls will be included in the pose
 	 * @return The pose of the hierarchy
 	 */
 	FRigPose GetPose(
 		bool bInitial,
 		ERigElementType InElementType,
-		const FRigElementKeyCollection& InItems 
+		const FRigElementKeyCollection& InItems ,
+		bool bIncludeTransientControls = true
 	) const;
 
 	/**
@@ -3424,12 +3428,14 @@ public:
 	 * @param bInitial If set to true the initial pose will be returned
 	 * @param InElementType The types of elements to get
 	 * @param InItems An optional list of items to get
+	 * @param bIncludeTransientControls If true the transient controls will be included in the pose
 	 * @return The pose of the hierarchy
 	 */
 	FRigPose GetPose(
 		bool bInitial,
 		ERigElementType InElementType,
-		const TArrayView<const FRigElementKey>& InItems 
+		const TArrayView<const FRigElementKey>& InItems,
+		bool bIncludeTransientControls = true
 	) const;
 
 	/**

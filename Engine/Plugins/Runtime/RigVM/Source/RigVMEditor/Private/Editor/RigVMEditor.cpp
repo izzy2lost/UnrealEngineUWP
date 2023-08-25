@@ -76,6 +76,9 @@ FRigVMEditor::~FRigVMEditor()
 	{
 		FCoreUObjectDelegates::OnObjectPropertyChanged.Remove(PropertyChangedHandle);
 	}
+	
+	FEditorDelegates::EndPIE.RemoveAll(this);
+    FEditorDelegates::CancelPIE.RemoveAll(this);
 
 	if (RigVMBlueprint)
 	{
@@ -121,6 +124,9 @@ void FRigVMEditor::InitRigVMEditor(const EToolkitMode::Type Mode, const TSharedP
 	{
 		Toolbar = MakeShareable(new FBlueprintEditorToolbar(SharedThis(this)));
 	}
+
+	FEditorDelegates::EndPIE.AddRaw(this, &FRigVMEditor::OnPIEStopped);
+	FEditorDelegates::CancelPIE.AddRaw(this, &FRigVMEditor::OnPIEStopped, false);
 
 	// Build up a list of objects being edited in this asset editor
 	TArray<UObject*> ObjectsBeingEdited;
@@ -1001,6 +1007,13 @@ void FRigVMEditor::Compile()
 		URigVMBlueprint* RigVMBlueprint = GetRigVMBlueprint();
 		if (RigVMBlueprint == nullptr)
 		{
+			return;
+		}
+
+		// if we are running PIE - only compile the RigVM 
+		if(IsPIERunning())
+		{
+			RigVMBlueprint->RecompileVM();
 			return;
 		}
 
@@ -3287,6 +3300,11 @@ void FRigVMEditor::UpdateGraphCompilerErrors()
 
 }
 
+bool FRigVMEditor::IsPIERunning()
+{
+	return GEditor && (GEditor->PlayWorld != nullptr);
+}
+
 TArray<FName> FRigVMEditor::GetDefaultEventQueue() const
 {
 	return TArray<FName>();
@@ -3450,40 +3468,51 @@ void FRigVMEditor::GetCustomDebugObjects(TArray<FCustomDebugObject>& DebugList) 
 			TArray<UObject*> ArchetypeInstances;
 			DefaultObject->GetArchetypeInstances(ArchetypeInstances);
 
-			for (UObject* Instance : ArchetypeInstances)
+			// run in two passes - find the PIE related objects first
+			for (int32 Pass = 0; Pass < 2 ; Pass++)
 			{
-				URigVMHost* InstancedHost = Cast<URigVMHost>(Instance);
-				if (InstancedHost && IsValid(InstancedHost) && InstancedHost != GetRigVMHost())
+				for (UObject* Instance : ArchetypeInstances)
 				{
-					if (InstancedHost->GetOuter() == nullptr)
+					URigVMHost* InstancedHost = Cast<URigVMHost>(Instance);
+					if (InstancedHost && IsValid(InstancedHost) && InstancedHost != GetRigVMHost())
 					{
-						continue;
-					}
-
-					UWorld* World = InstancedHost->GetWorld();
-					if (World == nullptr)
-					{
-						continue;
-					}
-
-					// ensure to only allow preview actors in preview worlds
-					if (World->IsPreviewWorld())
-					{
-						if (!Local::OuterNameContainsRecursive(InstancedHost, TEXT("Preview")))
+						if (InstancedHost->GetOuter() == nullptr)
 						{
 							continue;
 						}
-					}
 
-					if (Local::IsPendingKillOrUnreachableRecursive(InstancedHost))
-					{
-						continue;
-					}
+						UWorld* World = InstancedHost->GetWorld();
+						if (World == nullptr)
+						{
+							continue;
+						}
 
-					FCustomDebugObject DebugObject;
-					DebugObject.Object = InstancedHost;
-					DebugObject.NameOverride = GetCustomDebugObjectLabel(InstancedHost);
-					DebugList.Add(DebugObject);
+						// during pass 0 only do PIE instances,
+						// and in pass 1 only do non PIE instances
+						if((Pass == 1) == (World->IsPlayInEditor()))
+						{
+							continue;
+						}
+
+						// ensure to only allow preview actors in preview worlds
+						if (World->IsPreviewWorld())
+						{
+							if (!Local::OuterNameContainsRecursive(InstancedHost, TEXT("Preview")))
+							{
+								continue;
+							}
+						}
+
+						if (Local::IsPendingKillOrUnreachableRecursive(InstancedHost))
+						{
+							continue;
+						}
+
+						FCustomDebugObject DebugObject;
+						DebugObject.Object = InstancedHost;
+						DebugObject.NameOverride = GetCustomDebugObjectLabel(InstancedHost);
+						DebugList.Add(DebugObject);
+					}
 				}
 			}
 		}
@@ -3492,6 +3521,14 @@ void FRigVMEditor::GetCustomDebugObjects(TArray<FCustomDebugObject>& DebugList) 
 
 void FRigVMEditor::HandleSetObjectBeingDebugged(UObject* InObject)
 {
+	if(URigVMHost* PreviouslyDebuggedHost = Cast<URigVMHost>(GetBlueprintObj()->GetObjectBeingDebugged()))
+	{
+		if(!PreviouslyDebuggedHost->HasAnyFlags(RF_BeginDestroyed))
+		{
+			PreviouslyDebuggedHost->OnExecuted_AnyThread().RemoveAll(this);
+		}
+	}
+	
 	URigVMHost* DebuggedHost = Cast<URigVMHost>(InObject);
 
 	if (DebuggedHost == nullptr)
@@ -3521,6 +3558,7 @@ void FRigVMEditor::HandleSetObjectBeingDebugged(UObject* InObject)
 	if(DebuggedHost)
 	{
 		DebuggedHost->SetLog(&RigVMLog);
+		DebuggedHost->OnExecuted_AnyThread().AddSP(this, &FRigVMEditor::HandleVMExecutedEvent);
 	}
 
 	RefreshDetailView();
@@ -3539,12 +3577,29 @@ FString FRigVMEditor::GetCustomDebugObjectLabel(UObject* ObjectBeingDebugged) co
 		return TEXT("Editor Preview");
 	}
 
-	if (AActor* ParentActor = ObjectBeingDebugged->GetTypedOuter<AActor>())
+	if (const AActor* ParentActor = ObjectBeingDebugged->GetTypedOuter<AActor>())
 	{
-		return FString::Printf(TEXT("%s in %s"), *GetBlueprintObj()->GetName(), *ParentActor->GetName());
+		if(const UWorld* World = ParentActor->GetWorld())
+		{
+			FString WorldLabel = GetDebugStringForWorld(World);
+			if(World->IsPlayInEditor())
+			{
+				static const FString PIEPrefix = TEXT("PIE");
+				WorldLabel = PIEPrefix;
+			}
+			return FString::Printf(TEXT("%s: %s in %s"), *WorldLabel, *GetBlueprintObj()->GetName(), *ParentActor->GetActorLabel());
+		}
 	}
 
 	return GetBlueprintObj()->GetName();
+}
+
+void FRigVMEditor::OnPIEStopped(bool bSimulation)
+{
+	if(URigVMBlueprint* Blueprint = GetRigVMBlueprint())
+	{
+		Blueprint->SetObjectBeingDebugged(GetRigVMHost());
+	}
 }
 
 #undef LOCTEXT_NAMESPACE 

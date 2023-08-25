@@ -293,6 +293,7 @@ protected:
 	int32 RigHierarchyTabCount;
 	TWeakObjectPtr<AStaticMeshActor> WeakGroundActorPtr;
 
+	void OnPreForwardsSolve_AnyThread(UControlRig* InRig, const FName& InEventName);
 	void OnPreConstruction_AnyThread(UControlRig* InRig, const FName& InEventName);
 	void OnPostConstruction_AnyThread(UControlRig* InRig, const FName& InEventName);
 	FRigPose PreConstructionPose;

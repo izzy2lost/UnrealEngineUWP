@@ -1996,7 +1996,6 @@ FName UControlRig::AddTransientControl(const URigVMUnitNode* InNode, const FRigD
 	Info->ControlKey = ControlKey;
 	RigUnitManipulationInfos.Add(Info);
 	SetTransientControlValue(InNode, Info);
-	Info->bInitialized = true;
 
 	return Info->ControlKey.Name;
 }
@@ -2024,7 +2023,9 @@ bool UControlRig::SetTransientControlValue(const URigVMUnitNode* InNode, TShared
 	}
 
 	FControlRigExecuteContext& PublicContext = GetExtendedExecuteContext().GetPublicDataSafe<FControlRigExecuteContext>();
-	return UnitInstance->UpdateHierarchyForDirectManipulation(InNode, NodeInstance, PublicContext, InInfo);
+	const bool bResult = UnitInstance->UpdateHierarchyForDirectManipulation(InNode, NodeInstance, PublicContext, InInfo);
+	InInfo->bInitialized = true;
+	return bResult;
 }
 
 FName UControlRig::RemoveTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget)

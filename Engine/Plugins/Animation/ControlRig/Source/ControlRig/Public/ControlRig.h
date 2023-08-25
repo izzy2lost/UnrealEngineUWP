@@ -716,6 +716,8 @@ public:
 	bool bRecordSelectionPoseForConstructionMode;
 	TMap<FRigElementKey, FTransform> SelectionPoseForConstructionMode;
 	bool bIsClearingTransientControls;
+
+	FRigPose InputPoseOnDebuggedRig;
 	
 #endif
 	

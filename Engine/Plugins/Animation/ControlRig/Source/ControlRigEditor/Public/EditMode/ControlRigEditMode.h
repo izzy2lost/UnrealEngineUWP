@@ -287,6 +287,9 @@ protected:
 	/** The scope for the interaction, one per manipulated Control rig */
 	TMap<UControlRig*,FControlRigInteractionScope*> InteractionScopes;
 
+	/** True if there's tracking going on right now */
+	bool bIsTracking;
+
 	/** Whether a manipulator actually made a change when transacting */
 	bool bManipulatorMadeChange;
 

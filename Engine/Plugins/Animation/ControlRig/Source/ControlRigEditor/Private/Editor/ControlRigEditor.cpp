@@ -221,7 +221,7 @@ void FControlRigEditor::InitRigVMEditor(const EToolkitMode::Type Mode, const TSh
 		EditMode->OnGetContextMenu() = FOnGetContextMenu::CreateSP(this, &FControlRigEditor::HandleOnGetViewportContextMenuDelegate);
 		EditMode->OnContextMenuCommands() = FNewMenuCommandsDelegate::CreateSP(this, &FControlRigEditor::HandleOnViewportContextMenuCommandsDelegate);
 		EditMode->OnAnimSystemInitialized().Add(FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FControlRigEditor::OnAnimInitialized));
-		
+	
 		PersonaToolkit->GetPreviewScene()->SetRemoveAttachedComponentFilter(FOnRemoveAttachedComponentFilter::CreateSP(EditMode, &FControlRigEditMode::CanRemoveFromPreviewScene));
 	}
 
@@ -802,8 +802,10 @@ void FControlRigEditor::HandleSetObjectBeingDebugged(UObject* InObject)
 		if(!PreviouslyDebuggedControlRig->HasAnyFlags(RF_BeginDestroyed))
 		{
 			PreviouslyDebuggedControlRig->GetHierarchy()->OnModified().RemoveAll(this);
+			PreviouslyDebuggedControlRig->OnPreForwardsSolve_AnyThread().RemoveAll(this);
 			PreviouslyDebuggedControlRig->OnPreConstructionForUI_AnyThread().RemoveAll(this);
 			PreviouslyDebuggedControlRig->OnPostConstruction_AnyThread().RemoveAll(this);
+			PreviouslyDebuggedControlRig->ControlModified().RemoveAll(this);
 		}
 	}
 
@@ -855,8 +857,11 @@ void FControlRigEditor::HandleSetObjectBeingDebugged(UObject* InObject)
 		}
 
 		DebuggedControlRig->GetHierarchy()->OnModified().AddSP(this, &FControlRigEditor::OnHierarchyModified_AnyThread);
+		DebuggedControlRig->OnPreForwardsSolve_AnyThread().AddSP(this, &FControlRigEditor::OnPreForwardsSolve_AnyThread);
 		DebuggedControlRig->OnPreConstructionForUI_AnyThread().AddSP(this, &FControlRigEditor::OnPreConstruction_AnyThread);
 		DebuggedControlRig->OnPostConstruction_AnyThread().AddSP(this, &FControlRigEditor::OnPostConstruction_AnyThread);
+		DebuggedControlRig->ControlModified().AddSP(this, &FControlRigEditor::HandleOnControlModified);
+
 		LastHierarchyHash = INDEX_NONE;
 
 		if(EditorSkelComp)
@@ -1373,9 +1378,19 @@ void FControlRigEditor::HandleVMExecutedEvent(URigVMHost* InHost, const FName& I
 						{
 							continue;
 						}
+
+						// if we are not manipulating right now - reset the info so that it can follow the hierarchy
+						if (FControlRigEditorEditMode* EditMode = GetEditMode())
+						{
+							if(!EditMode->bIsTracking)
+							{
+								ManipulationInfo->Reset();
+							}
+						}
 				
 						FRigUnit* UnitInstance = UControlRig::GetRigUnitInstanceFromScope(NodeInstance);
 						UnitInstance->UpdateHierarchyForDirectManipulation(Node, NodeInstance, ExecuteContext, ManipulationInfo);
+						ManipulationInfo->bInitialized = true;
 						UnitInstance->PerformDebugDrawingForDirectManipulation(Node, NodeInstance, ExecuteContext, ManipulationInfo);
 					}
 				}
@@ -1913,6 +1928,13 @@ void FControlRigEditor::HandlePreviewSceneCreated(const TSharedRef<IPersonaPrevi
 	check(FloorMesh);
 	check(DefaultMaterial);
 
+	// leave some metadata on the world used for debug object labeling
+	if(FWorldContext* WorldContext = GEngine->GetWorldContextFromWorld(InPersonaPreviewScene->GetWorld()))
+	{
+		static constexpr TCHAR Format[] = TEXT("ControlRigEditor (%s)");
+		WorldContext->CustomDescription = FString::Printf(Format, *GetBlueprintObj()->GetName());
+	}
+
 	// create ground mesh actor
 	AStaticMeshActor* GroundActor = InPersonaPreviewScene->GetWorld()->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass(), FTransform::Identity);
 	GroundActor->SetFlags(RF_Transient);
@@ -2005,6 +2027,7 @@ void FControlRigEditor::UpdateRigVMHost()
 				EditMode->SetObjects(ControlRig, EditorSkelComp,nullptr);
 			}
 
+			ControlRig->OnPreForwardsSolve_AnyThread().AddSP(this, &FControlRigEditor::OnPreForwardsSolve_AnyThread);
 			ControlRig->ControlModified().AddSP(this, &FControlRigEditor::HandleOnControlModified);
 		}
 	}
@@ -4004,7 +4027,8 @@ void FControlRigEditor::HandleMakeElementGetterSetter(ERigElementGetterSetterTyp
 
 void FControlRigEditor::HandleOnControlModified(UControlRig* Subject, FRigControlElement* ControlElement, const FRigControlModifiedContext& Context)
 {
-	if (Subject != GetControlRig())
+	UControlRig* DebuggedControlRig = Cast<UControlRig>(GetBlueprintObj()->GetObjectBeingDebugged());
+	if (Subject != DebuggedControlRig)
 	{
 		return;
 	}
@@ -4020,7 +4044,6 @@ void FControlRigEditor::HandleOnControlModified(UControlRig* Subject, FRigContro
 	if (ControlElement->Settings.bIsTransientControl && !GIsTransacting)
 	{
 		const URigVMUnitNode* UnitNode = nullptr;
-		UControlRig* DebuggedControlRig = Cast<UControlRig>(GetBlueprintObj()->GetObjectBeingDebugged());
 		const FString NodeName = UControlRig::GetNodeNameFromTransientControl(ControlElement->GetKey());
 		const FString PoseTarget = UControlRig::GetTargetFromTransientControl(ControlElement->GetKey());
 		TSharedPtr<FStructOnScope> NodeInstance;
@@ -4050,12 +4073,16 @@ void FControlRigEditor::HandleOnControlModified(UControlRig* Subject, FRigContro
 			FRigUnit* UnitInstance = DebuggedControlRig->GetRigUnitInstanceFromScope(NodeInstance);
 			check(UnitInstance);
 
+			const FRigPose Pose = DebuggedControlRig->GetHierarchy()->GetPose();
+
 			// update the node based on the incoming pose. once that is done we'll need to compare the node instance
 			// with the settings on the node in the graph and update them accordingly.
 			FControlRigExecuteContext& ExecuteContext = DebuggedControlRig->GetExtendedExecuteContext().GetPublicDataSafe<FControlRigExecuteContext>();
 			if(UnitInstance->UpdateDirectManipulationFromHierarchy(UnitNode, NodeInstance, ExecuteContext, ManipulationInfo))
 			{
 				UnitNode->UpdateHostFromStructInstance(DebuggedControlRig, NodeInstance);
+				DebuggedControlRig->GetHierarchy()->SetPose(Pose);
+				
 				URigVMController* Controller = Blueprint->GetOrCreateController(UnitNode->GetGraph());
 				TMap<FString, FString> PinPathToNewDefaultValue;
 				UnitNode->ComputePinValueDifferences(NodeInstance, PinPathToNewDefaultValue);
@@ -4175,6 +4202,26 @@ TSharedPtr<FUICommandList> FControlRigEditor::HandleOnViewportContextMenuCommand
 		return OnViewportContextMenuCommandsDelegate.Execute();
 	}
 	return TSharedPtr<FUICommandList>();
+}
+
+void FControlRigEditor::OnPreForwardsSolve_AnyThread(UControlRig* InRig, const FName& InEventName)
+{
+	// if we are debugging a PIE instance, we need to remember the input pose on the
+	// rig so we can perform multiple evaluations. this is to avoid double transforms / double forward solve results.
+	if(InRig->GetWorld()->IsPlayInEditor())
+	{
+		if(!InRig->GetWorld()->IsPaused())
+		{
+			// store the pose while PIE is running
+			InRig->InputPoseOnDebuggedRig = InRig->GetHierarchy()->GetPose(false, false);
+		}
+		else
+		{
+			// reapply the pose as PIE is paused. during pause the rig won't be updated with the input pose
+			// from the animbp / client thus we need to reset the pose to avoid double transformation.
+			InRig->GetHierarchy()->SetPose(InRig->InputPoseOnDebuggedRig);
+		}
+	}
 }
 
 void FControlRigEditor::OnPreConstruction_AnyThread(UControlRig* InRig, const FName& InEventName)
