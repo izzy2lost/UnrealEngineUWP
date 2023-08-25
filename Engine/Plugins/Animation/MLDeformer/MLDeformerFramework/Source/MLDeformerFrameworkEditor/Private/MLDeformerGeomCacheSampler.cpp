@@ -19,6 +19,7 @@
 #include "GeometryCache.h"
 #include "GeometryCacheMeshData.h"
 #include "GeometryCacheTrack.h"
+#include "Async/ParallelFor.h"
 
 namespace UE::MLDeformer
 {
@@ -77,7 +78,7 @@ namespace UE::MLDeformer
 
 				// Sample the mesh data of the geom cache.
 				FGeometryCacheMeshData& GeomCacheMeshData = GeomCacheMeshDatas[MeshMappingIndex];
-				if (!Track->GetMeshDataAtTime(SampleTime, GeomCacheMeshData))
+				if (!Track->GetMeshDataAtSampleIndex(InAnimFrameIndex, GeomCacheMeshData))
 				{
 					continue;
 				}
@@ -85,48 +86,61 @@ namespace UE::MLDeformer
 				// Calculate the vertex deltas.
 				const FSkeletalMeshLODRenderData& SkelMeshLODData = SkeletalMesh->GetResourceForRendering()->LODRenderData[LODIndex];
 				const FSkinWeightVertexBuffer& SkinWeightBuffer = *SkeletalMeshComponent->GetSkinWeightBuffer(LODIndex);
-				for (int32 VertexIndex = 0; VertexIndex < MeshInfo.NumVertices; ++VertexIndex)
+
+				const int32 BatchSize = 500;
+				const int32 NumBatches = (MeshInfo.NumVertices / BatchSize) + 1;
+				ParallelFor(NumBatches, [&](int32 BatchIndex)
 				{
-					const int32 SkinnedVertexIndex = MeshInfo.StartImportedVertex + VertexIndex;
-					const int32 GeomCacheVertexIndex = MeshMapping.SkelMeshToTrackVertexMap[VertexIndex];
-					if (GeomCacheVertexIndex != INDEX_NONE && GeomCacheMeshData.Positions.IsValidIndex(GeomCacheVertexIndex))
+					const int32 StartVertex = BatchIndex * BatchSize;
+					if (StartVertex >= MeshInfo.NumVertices)
 					{
-						FVector3f Delta = FVector3f::ZeroVector;
+						return;
+					}
 
-						const int32 ArrayIndex = 3 * SkinnedVertexIndex;
-						if (VertexDeltaSpace == EVertexDeltaSpace::PreSkinning)
+					const int32 NumVertsInBatch = (StartVertex + BatchSize) < MeshInfo.NumVertices ? BatchSize : FMath::Max(MeshInfo.NumVertices - StartVertex, 0);
+					for (int32 VertexIndex = StartVertex; VertexIndex < StartVertex + NumVertsInBatch; ++VertexIndex)
+					{
+						const int32 SkinnedVertexIndex = MeshInfo.StartImportedVertex + VertexIndex;
+						const int32 GeomCacheVertexIndex = MeshMapping.SkelMeshToTrackVertexMap[VertexIndex];
+						if (GeomCacheVertexIndex != INDEX_NONE && GeomCacheMeshData.Positions.IsValidIndex(GeomCacheVertexIndex))
 						{
-							// Calculate the inverse skinning transform for this vertex.
-							const int32 RenderVertexIndex = MeshMapping.ImportedVertexToRenderVertexMap[VertexIndex];
-							if (RenderVertexIndex != INDEX_NONE)
-							{
-								const FMatrix44f InvSkinningTransform = CalcInverseSkinningTransform(RenderVertexIndex, SkelMeshLODData, SkinWeightBuffer);
+							FVector3f Delta = FVector3f::ZeroVector;
 
-								// Calculate the pre-skinning data.
-								const FSkeletalMeshLODRenderData& LODData = SkeletalMesh->GetResourceForRendering()->LODRenderData[0];
-								const FVector3f UnskinnedPosition = LODData.StaticVertexBuffers.PositionVertexBuffer.VertexPosition(RenderVertexIndex);
+							const int32 ArrayIndex = 3 * SkinnedVertexIndex;
+							if (VertexDeltaSpace == EVertexDeltaSpace::PreSkinning)
+							{
+								// Calculate the inverse skinning transform for this vertex.
+								const int32 RenderVertexIndex = MeshMapping.ImportedVertexToRenderVertexMap[VertexIndex];
+								if (RenderVertexIndex != INDEX_NONE)
+								{
+									const FMatrix44f InvSkinningTransform = CalcInverseSkinningTransform(RenderVertexIndex, SkelMeshLODData, SkinWeightBuffer);
+
+									// Calculate the pre-skinning data.
+									const FSkeletalMeshLODRenderData& LODData = SkeletalMesh->GetResourceForRendering()->LODRenderData[0];
+									const FVector3f UnskinnedPosition = LODData.StaticVertexBuffers.PositionVertexBuffer.VertexPosition(RenderVertexIndex);
+									const FVector3f GeomCacheVertexPos = (FVector3f)AlignmentTransform.TransformPosition((FVector)GeomCacheMeshData.Positions[GeomCacheVertexIndex]);
+									const FVector3f PreSkinningTargetPos = InvSkinningTransform.TransformPosition(GeomCacheVertexPos);
+									Delta = PreSkinningTargetPos - UnskinnedPosition;
+								}
+							}
+							else // We're post skinning.
+							{
+								check(VertexDeltaSpace == EVertexDeltaSpace::PostSkinning);
+								const FVector3f SkinnedVertexPos = SkinnedVertexPositions[SkinnedVertexIndex];
 								const FVector3f GeomCacheVertexPos = (FVector3f)AlignmentTransform.TransformPosition((FVector)GeomCacheMeshData.Positions[GeomCacheVertexIndex]);
-								const FVector3f PreSkinningTargetPos = InvSkinningTransform.TransformPosition(GeomCacheVertexPos);
-								Delta = PreSkinningTargetPos - UnskinnedPosition;
+								Delta = GeomCacheVertexPos - SkinnedVertexPos;
+							}
+
+							// Set the delta.
+							if (Delta.Length() < DeltaCutoffLength)
+							{
+								VertexDeltas[ArrayIndex] = Delta.X;
+								VertexDeltas[ArrayIndex + 1] = Delta.Y;
+								VertexDeltas[ArrayIndex + 2] = Delta.Z;
 							}
 						}
-						else // We're post skinning.
-						{
-							check(VertexDeltaSpace == EVertexDeltaSpace::PostSkinning);
-							const FVector3f SkinnedVertexPos = SkinnedVertexPositions[SkinnedVertexIndex];
-							const FVector3f GeomCacheVertexPos = (FVector3f)AlignmentTransform.TransformPosition((FVector)GeomCacheMeshData.Positions[GeomCacheVertexIndex]);
-							Delta = GeomCacheVertexPos - SkinnedVertexPos;
-						}
-
-						// Set the delta.
-						if (Delta.Length() < DeltaCutoffLength)
-						{
-							VertexDeltas[ArrayIndex] = Delta.X;
-							VertexDeltas[ArrayIndex + 1] = Delta.Y;
-							VertexDeltas[ArrayIndex + 2] = Delta.Z;
-						}
 					}
-				}
+				});	// ParallelFor
 			}
 		}
 		else
@@ -156,7 +170,7 @@ namespace UE::MLDeformer
 
 		if (GeometryCacheComponent.Get())
 		{
-			return  GeometryCacheComponent->GetTimeAtFrame(InAnimFrameIndex);
+			return GeometryCacheComponent->GetTimeAtFrame(InAnimFrameIndex);
 		}
 		return 0.0f;
 	}

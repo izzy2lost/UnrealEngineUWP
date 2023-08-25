@@ -10,6 +10,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "Rendering/SkeletalMeshModel.h"
 #include "Rendering/SkeletalMeshLODModel.h"
+#include "Async/ParallelFor.h"
 
 #define LOCTEXT_NAMESPACE "MLDeformerGeomCacheHelpers"
 
@@ -212,18 +213,30 @@ namespace UE::MLDeformer
 					Mapping.ImportedVertexToRenderVertexMap.AddUninitialized(NumSkelMeshVerts);
 
 					// For all vertices (both skel mesh and geom cache mesh have the same number of verts here).
-					for (int32 VertexIndex = 0; VertexIndex < NumSkelMeshVerts; ++VertexIndex)
+					const int32 BatchSize = 100;
+					const int32 NumBatches = (MeshInfo.NumVertices / BatchSize) + 1;
+					ParallelFor(NumBatches, [&](int32 BatchIndex)
 					{
-						// Find the first vertex with the same dcc vertex in the geom cache mesh.
-						// When there are multiple vertices with the same vertex number here, they are duplicates with different normals or uvs etc.
-						// However they all share the same vertex position, so we can just find the first hit, as we only need the position later on.
-						const int32 GeomCacheVertexIndex = GeomCacheMeshData.ImportedVertexNumbers.Find(VertexIndex);
-						Mapping.SkelMeshToTrackVertexMap[VertexIndex] = GeomCacheVertexIndex;
+						const int32 StartVertex = BatchIndex * BatchSize;
+						if (StartVertex >= NumSkelMeshVerts)
+						{
+							return;
+						}
 
-						// Map the source asset vertex number to a render vertex. This is the first duplicate of that vertex.
-						const int32 RenderVertexIndex = ImportedModel->LODModels[0].MeshToImportVertexMap.Find(MeshInfo.StartImportedVertex + VertexIndex);
-						Mapping.ImportedVertexToRenderVertexMap[VertexIndex] = RenderVertexIndex;
-					}
+						const int32 NumVertsInBatch = (StartVertex + BatchSize) < MeshInfo.NumVertices ? BatchSize : FMath::Max(NumSkelMeshVerts - StartVertex, 0);
+						for (int32 VertexIndex = StartVertex; VertexIndex < StartVertex + NumVertsInBatch; ++VertexIndex)
+						{
+							// Find the first vertex with the same dcc vertex in the geom cache mesh.
+							// When there are multiple vertices with the same vertex number here, they are duplicates with different normals or uvs etc.
+							// However they all share the same vertex position, so we can just find the first hit, as we only need the position later on.
+							const int32 GeomCacheVertexIndex = GeomCacheMeshData.ImportedVertexNumbers.Find(VertexIndex);
+							Mapping.SkelMeshToTrackVertexMap[VertexIndex] = GeomCacheVertexIndex;
+
+							// Map the source asset vertex number to a render vertex. This is the first duplicate of that vertex.
+							const int32 RenderVertexIndex = ImportedModel->LODModels[0].MeshToImportVertexMap.Find(MeshInfo.StartImportedVertex + VertexIndex);
+							Mapping.ImportedVertexToRenderVertexMap[VertexIndex] = RenderVertexIndex;
+						}
+					});
 
 					// We found a match, no need to iterate over more Tracks.
 					bFoundMatch = true;
@@ -342,22 +355,31 @@ namespace UE::MLDeformer
 
 		if (InAnimSequence && InGeomCache)
 		{
+			const int32 NumGeomCacheFrames = InGeomCache->GetEndFrame() - InGeomCache->GetStartFrame() + 1;
+			const int32 NumAnimSeqFrames = InAnimSequence->GetNumberOfSampledKeys();
 			const float AnimSeqDuration = InAnimSequence->GetPlayLength();
 			const float GeomCacheDuration = InGeomCache->CalculateDuration();
-			if (FMath::Abs(AnimSeqDuration - GeomCacheDuration) > 0.001f)
-			{
-				const int32 NumGeomCacheFrames = InGeomCache ? (InGeomCache->GetEndFrame() - InGeomCache->GetStartFrame()) + 1 : 0;
-				const int32 NumAnimSeqFrames = InAnimSequence ? InAnimSequence->GetNumberOfSampledKeys() : 0;
 
+			if (NumGeomCacheFrames != NumAnimSeqFrames)
+			{
+				Result = FText::Format(
+					LOCTEXT("AnimSeqNumFramesMismatch", "Anim sequence has {0} frames, while the geometry cache has {1} frames."),
+					FText::AsNumber(NumAnimSeqFrames),
+					FText::AsNumber(NumGeomCacheFrames));
+			}
+
+			if (FMath::Abs(AnimSeqDuration - GeomCacheDuration) > 0.0001f)
+			{
 				FNumberFormattingOptions Options;
 				Options.SetUseGrouping(false);
-				Options.SetMaximumFractionalDigits(4);
+				Options.SetMaximumFractionalDigits(3);
+
 				Result = FText::Format(
-					LOCTEXT("AnimSeqNumFramesMismatch", "Anim sequence and Geometry Cache durations don't match!\n\nAnimSeq has a duration of {0} seconds ({1} frames}, while GeomCache has a duration of {2} seconds ({3} frames).\n\nThis can produce incorrect results."),
+					LOCTEXT("AnimSeqDurationMismatch", "{0}{1}Anim sequence duration ({2} secs) doesn't match the geometry cache's duration ({3} secs)."),
+					Result,
+					!Result.IsEmpty() ? FText::FromString("\n\n") : FText::GetEmpty(),
 					FText::AsNumber(AnimSeqDuration, &Options),
-					FText::AsNumber(NumAnimSeqFrames),
-					FText::AsNumber(GeomCacheDuration, &Options),
-					FText::AsNumber(NumGeomCacheFrames));
+					FText::AsNumber(GeomCacheDuration, &Options));
 			}
 		}
 
