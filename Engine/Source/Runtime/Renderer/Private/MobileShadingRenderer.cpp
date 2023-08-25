@@ -917,8 +917,8 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	GEngine->GetPreRenderDelegateEx().Broadcast(GraphBuilder);
 
 	// Global dynamic buffers need to be committed before rendering.
-	DynamicIndexBuffer.Commit();
-	DynamicVertexBuffer.Commit();
+	DynamicIndexBuffer.Commit(GraphBuilder.RHICmdList);
+	DynamicVertexBuffer.Commit(GraphBuilder.RHICmdList);
 	DynamicReadBuffer.Commit(GraphBuilder.RHICmdList);
 	
 	GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_SceneSim));

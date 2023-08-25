@@ -474,6 +474,10 @@ public:
 	RENDERCORE_API virtual void ReleaseRHI() override;
 	RENDERCORE_API virtual FString GetFriendlyName() const override;
 
+	const FBufferRHIRef& GetRHI() const { return VertexBufferRHI; }
+
+	void SetRHI(const FBufferRHIRef& BufferRHI) { VertexBufferRHI = BufferRHI; }
+
 	FBufferRHIRef VertexBufferRHI;
 };
 
@@ -502,6 +506,10 @@ public:
 	// FRenderResource interface.
 	RENDERCORE_API virtual void ReleaseRHI() override;
 	RENDERCORE_API virtual FString GetFriendlyName() const override;
+
+	const FBufferRHIRef& GetRHI() const { return IndexBufferRHI; }
+
+	void SetRHI(const FBufferRHIRef& BufferRHI) { IndexBufferRHI = BufferRHI; }
 
 	FBufferRHIRef IndexBufferRHI;
 };

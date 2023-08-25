@@ -156,6 +156,12 @@ extern RENDERCORE_API TGlobalResource<FTwoTrianglesIndexBuffer, FRenderResource:
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // FGlobalDynamicVertexBuffer
 
+template <typename BufferType>
+class TDynamicBuffer;
+
+using FDynamicVertexBuffer = TDynamicBuffer<FVertexBuffer>;
+using FDynamicIndexBuffer  = TDynamicBuffer<FIndexBuffer>;
+
 struct FGlobalDynamicVertexBufferAllocation
 {
 	/** The location of the buffer in main memory. */
@@ -196,15 +202,18 @@ public:
 	 *		remain valid only until the next call to Allocate!
 	 */
 	RENDERCORE_API void Commit(FRHICommandListBase& RHICmdList);
+
+	UE_DEPRECATED(5.4, "Commit requires a command list.")
 	RENDERCORE_API void Commit();
 
-	static RENDERCORE_API void GarbageCollect();
+	UE_DEPRECATED(5.4, "Use GlobalDynamicBuffer::GarbageCollect instead.")
+	void GarbageCollect() {}
 
 	/** Returns true if log statements should be made because we exceeded GMaxVertexBytesAllocatedPerFrame */
 	RENDERCORE_API bool IsRenderAlarmLoggingEnabled() const;
 
 private:
-	TArray<class FDynamicVertexBuffer*> VertexBuffers;
+	TArray<FDynamicVertexBuffer*> VertexBuffers;
 };
 
 struct FGlobalDynamicIndexBufferAllocation
@@ -250,18 +259,13 @@ public:
 	using FAllocation = FGlobalDynamicIndexBufferAllocation;
 	using FAllocationEx = FGlobalDynamicIndexBufferAllocationEx;
 
-	/** Default constructor. */
-	RENDERCORE_API FGlobalDynamicIndexBuffer();
-
-	/** Destructor. */
-	RENDERCORE_API ~FGlobalDynamicIndexBuffer();
-
 	/**
 	 * Allocates space in the global index buffer.
 	 * @param NumIndices - The number of indices to allocate.
 	 * @param IndexStride - The size of an index (2 or 4 bytes).
 	 * @returns An FAllocation with information regarding the allocated memory.
 	 */
+	RENDERCORE_API FAllocation Allocate(FRHICommandListBase& RHICmdList, uint32 NumIndices, uint32 IndexStride);
 	RENDERCORE_API FAllocation Allocate(uint32 NumIndices, uint32 IndexStride);
 
 	/**
@@ -275,14 +279,28 @@ public:
 		return FAllocationEx(Allocate(NumIndices, sizeof(IndexType)), NumIndices, sizeof(IndexType));
 	}
 
+	template <typename IndexType>
+	FORCEINLINE FAllocationEx Allocate(FRHICommandListBase& RHICmdList, uint32 NumIndices)
+	{
+		return FAllocationEx(Allocate(RHICmdList, NumIndices, sizeof(IndexType)), NumIndices, sizeof(IndexType));
+	}
+
 	/**
 	 * Commits allocated memory to the GPU.
 	 *		WARNING: Once this buffer has been committed to the GPU, allocations
 	 *		remain valid only until the next call to Allocate!
 	 */
+	RENDERCORE_API void Commit(FRHICommandListBase& RHICmdList);
+
+	UE_DEPRECATED(5.4, "Commit requires a command list.")
 	RENDERCORE_API void Commit();
 
 private:
-	/** The pool of vertex buffers from which allocations are made. */
-	struct FDynamicIndexBufferPool* Pools[2];
+	TArray<FDynamicIndexBuffer*> IndexBuffers16;
+	TArray<FDynamicIndexBuffer*> IndexBuffers32;
 };
+
+namespace GlobalDynamicBuffer
+{
+	RENDERCORE_API void GarbageCollect();
+}

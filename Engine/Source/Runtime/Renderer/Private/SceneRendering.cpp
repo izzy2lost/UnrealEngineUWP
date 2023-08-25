@@ -4221,7 +4221,7 @@ static void FinishCleanUp(FRHICommandListImmediate& RHICmdList)
 	TRACE_CPUPROFILER_EVENT_SCOPE(FinishCleanUp);
 
 	// Can release only after all mesh pass tasks are finished.
-	FGlobalDynamicVertexBuffer::GarbageCollect();
+	GlobalDynamicBuffer::GarbageCollect();
 	GPrimitiveIdVertexBufferPool.DiscardAll();
 	FGraphicsMinimalPipelineStateId::ResetLocalPipelineIdTableSize();
 }

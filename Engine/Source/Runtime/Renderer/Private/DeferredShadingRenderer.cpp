@@ -2390,8 +2390,8 @@ void FDeferredShadingSceneRenderer::FinishInitDynamicShadows(FRDGBuilder& GraphB
 		}
 
 		SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_FGlobalDynamicVertexBuffer_Commit);
-		DynamicVertexBufferForInitShadows.Commit();
-		DynamicIndexBufferForInitShadows.Commit();
+		DynamicVertexBufferForInitShadows.Commit(GraphBuilder.RHICmdList);
+		DynamicIndexBufferForInitShadows.Commit(GraphBuilder.RHICmdList);
 		DynamicReadBufferForInitShadows.Commit(GraphBuilder.RHICmdList);
 	}
 }
@@ -3000,8 +3000,8 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		// Dynamic vertex and index buffers need to be committed before rendering.
 		{
 			SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_FGlobalDynamicVertexBuffer_Commit);
-			DynamicIndexBufferForInitViews.Commit();
-			DynamicVertexBufferForInitViews.Commit();
+			DynamicIndexBufferForInitViews.Commit(GraphBuilder.RHICmdList);
+			DynamicVertexBufferForInitViews.Commit(GraphBuilder.RHICmdList);
 			DynamicReadBufferForInitViews.Commit(GraphBuilder.RHICmdList);
 		}
 	}
