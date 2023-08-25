@@ -1327,7 +1327,7 @@ namespace UsdSkelRootTranslatorImpl
 				int32 NumRootBones = 0;
 				for (const SkeletalMeshImportData::FBone& Bone : SkeletonBones)
 				{
-					if (Bone.ParentIndex == -1)
+					if (Bone.ParentIndex == INDEX_NONE)
 					{
 						NumRootBones++;
 					}

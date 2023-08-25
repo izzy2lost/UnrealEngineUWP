@@ -2018,7 +2018,10 @@ bool UsdToUnreal::ConvertSkelAnim(
 	const FReferenceSkeleton& RefSkeleton = Skeleton->GetReferenceSkeleton();
 	const TArray<FMeshBoneInfo>& BoneInfo = RefSkeleton.GetRawRefBoneInfo();
 	int32 NumBones = BoneInfo.Num();
-	if ( InUsdSkeletonQuery.GetJointOrder().size() != NumBones )
+	int32 NumSkelQueryJoints = static_cast<int32>(InUsdSkeletonQuery.GetJointOrder().size());
+	// If we have zero bones on our skeleton we'll generate a dummy "Root" bone just so that Unreal can have a USkeleton asset,
+	// so we have to check for that case
+	if ((NumSkelQueryJoints != NumBones) && !(NumSkelQueryJoints == 0 && NumBones == 1 && BoneInfo[0].Name == TEXT("Root")))
 	{
 		return false;
 	}
