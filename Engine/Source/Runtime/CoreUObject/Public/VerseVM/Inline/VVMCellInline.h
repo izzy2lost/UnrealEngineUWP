@@ -1,0 +1,70 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#if !WITH_VERSE_VM
+#error In order to use VerseVM, WITH_VERSE_VM must be set
+#endif
+
+#include "Templates/TypeCompatibleBytes.h"
+#include "VerseVM/VVMCell.h"
+#include "VerseVM/VVMCppClassInfo.h"
+#include "VerseVM/VVMEmergentType.h"
+#include "VerseVM/VVMHeap.h"
+
+namespace Verse
+{
+inline const VEmergentType* VCell::GetEmergentType() const
+{
+	return FHeap::EmergentTypeOffsetToPtr(EmergentTypeOffset);
+}
+
+inline const VCppClassInfo* VCell::GetCppClassInfo() const
+{
+	return GetEmergentType()->CppClassInfo;
+}
+
+template <typename CastType>
+bool VCell::IsA() const
+{
+	static_assert(std::is_base_of_v<VCell, CastType>);
+	return GetCppClassInfo()->IsA(&CastType::StaticCppClassInfo);
+}
+
+template <typename CastType>
+const CastType& VCell::StaticCast() const
+{
+	checkf(IsA<CastType>(),
+		TEXT("Expected object of type %s, but got object of type %s."),
+		*CastType::StaticCppClassInfo.DebugName(),
+		*DebugName());
+	return *static_cast<const CastType*>(this);
+}
+
+template <typename CastType>
+CastType& VCell::StaticCast()
+{
+	checkf(IsA<CastType>(),
+		TEXT("Expected object of type %s, but got object of type %s."),
+		*CastType::StaticCppClassInfo.DebugName(),
+		*DebugName());
+	return *static_cast<CastType*>(this);
+}
+
+template <typename CastType>
+CastType* VCell::DynamicCast()
+{
+	return IsA<CastType>() ? static_cast<CastType*>(this) : nullptr;
+}
+
+template <typename CastType>
+CastType* VCell::DynamicCast() const
+{
+	return IsA<CastType>() ? static_cast<CastType*>(this) : nullptr;
+}
+
+inline uint32 GetTypeHash(VCell& Cell)
+{
+	return Cell.GetEmergentType()->CppClassInfo->GetTypeHash(&Cell);
+}
+} // namespace Verse

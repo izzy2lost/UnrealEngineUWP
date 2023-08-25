@@ -1374,7 +1374,7 @@ namespace UnrealBuildTool
 		/// The subdirectory name is appended to the generated code directory to form a new directory
 		/// that headers are generated inside.
 		/// </summary>
-		public List<Tuple<string, Action<ILogger, DirectoryReference>>> GenerateHeaderFuncs = new List<Tuple<string, Action<ILogger, DirectoryReference>>>();
+		public List<(string, Action<ILogger, DirectoryReference>)> GenerateHeaderFuncs = new();
 
 		/// <summary>
 		///  Control visibility of symbols

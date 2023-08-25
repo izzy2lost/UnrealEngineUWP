@@ -1,27 +1,54 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Linq;
 using UnrealBuildTool;
 
 public class CoreUObject : ModuleRules
 {
 	public CoreUObject(ReadOnlyTargetRules Target) : base(Target)
 	{
+		// Autogenerate headers for our bytecode.
+		GenerateHeaderFuncs.Add(("VerseVMBytecode", VerseVMBytecodeGenerator.Generate));
+
 		PrivatePCHHeaderFile = "Private/CoreUObjectPrivatePCH.h";
 
 		SharedPCHHeaderFile = "Public/CoreUObjectSharedPCH.h";
 
-        PrivateIncludePathModuleNames.AddRange(
-                new string[] 
-			    {
-				    "TargetPlatform",
-			    }
-            );
+		PrivateIncludePathModuleNames.AddRange(
+			new string[]
+			{
+				"TargetPlatform",
+			}
+		);
 
-		PublicDependencyModuleNames.Add("Core");
-        PublicDependencyModuleNames.Add("TraceLog");
+		PublicDependencyModuleNames.AddRange(
+			new string[]
+			{
+				"Core",
+				"TraceLog",
+				"libpas",
+			}
+		);
 
-		PrivateDependencyModuleNames.Add("Projects");
-        PrivateDependencyModuleNames.Add("Json");
+		PrivateDependencyModuleNames.AddRange(
+			new string[]
+			{
+				"Projects",
+				"Json",
+			}
+		);
+
+		// If using the new VM either by default or directly, then add in a dependency to 
+		// the core VerseVM which contains special compile flags not compatible with CoreUObject
+		if (!Target.bUseVerseBPVM || Target.GlobalDefinitions.Contains("WITH_VERSE_VM=1"))
+		{
+			PublicDependencyModuleNames.AddRange(
+				new string[]
+				{
+					"CoreVerseVM",
+				}
+			);
+		}
 
 		UnsafeTypeCastWarningLevel = WarningLevel.Error;
 

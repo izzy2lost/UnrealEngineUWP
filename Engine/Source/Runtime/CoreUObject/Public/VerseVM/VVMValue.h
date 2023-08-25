@@ -1,0 +1,254 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#if !WITH_VERSE_VM
+#error In order to use VerseVM, WITH_VERSE_VM must be set
+#endif
+
+#include "CoreTypes.h"
+#include "Misc/AssertionMacros.h"
+#include "Templates/TypeCompatibleBytes.h"
+#include "VVMMarkStack.h"
+#include "VerseVM/VVMFloat.h"
+#include <cinttypes>
+
+namespace Verse
+{
+struct FPlaceholder;
+struct VCell;
+struct VContext;
+struct VFrame;
+struct VInt;
+struct VRestValue;
+struct FRunningContext;
+struct VPlaceholder;
+struct VSuspension;
+struct FCellFormatter;
+
+struct VValue
+{
+	// Default constructor: initializes to an uninitialized sentry value.
+	VValue()
+		: EncodedBits(UninitializedValue)
+	{
+	}
+
+	// Untagged value coercion constructors.
+	VValue(VCell& Cell);
+
+	VValue(VInt Int);
+	static VValue FromInt32(int32 Int32)
+	{
+		VValue Result;
+		Result.EncodedBits = static_cast<uint32>(Int32) | Int32Tag;
+		checkSlow(Result.IsInt32());
+		return Result;
+	}
+
+	VValue(VFloat Float)
+	{
+		uint64 FloatAsU64 = Float.ReinterpretAsUInt64();
+		EncodedBits = FloatAsU64 + FloatOffset;
+		checkfSlow(FloatAsU64 <= MaxPureNaN, TEXT("Casting impure NaN to VValue: 0x%" PRIx64), FloatAsU64);
+		checkSlow(IsFloat());
+	}
+
+	static VValue FromBool(bool Value);
+
+	static VValue EffectDoneMarker()
+	{
+		return FromInt32(static_cast<int32>(0xeffec7));
+	}
+
+	// Copy constructor/assignment operator
+	VValue(const VValue& Copyee)
+		: EncodedBits(Copyee.EncodedBits)
+	{
+	}
+	VValue& operator=(const VValue& Copyee)
+	{
+		EncodedBits = Copyee.EncodedBits;
+		return *this;
+	}
+
+	// Note: This isn't what you want if you want a deep equality check.
+	bool operator==(const VValue& Other) const { return EncodedBits == Other.EncodedBits; }
+	bool operator!=(const VValue& Other) const { return !(*this == Other); }
+	explicit operator bool() const { return EncodedBits != UninitializedValue; }
+
+	// Note: This is what you want if you want a deep equality check.
+	// This will return true if left and/or right are placeholders.
+	template <typename ContextType, typename HandlePlaceholderFunction>
+	static bool Equal(ContextType Context, VValue Left, VValue Right, HandlePlaceholderFunction HandlePlaceholder);
+
+	static VValue Decode(uint64 EncodedBits)
+	{
+		VValue Result;
+		Result.EncodedBits = EncodedBits;
+		return Result;
+	}
+
+	VValue(VPlaceholder&) = delete;
+	bool IsPlaceholder() const { return (EncodedBits & PlaceholderMask) == PlaceholderTag; }
+	static VValue Placeholder(const VPlaceholder& Placeholder)
+	{
+		VValue Result = VValue::Decode(BitCast<uint64>(&Placeholder) | PlaceholderTag);
+		checkSlow(Result.IsPlaceholder());
+		return Result;
+	}
+
+	VValue Follow();
+	// This assumes we're a placeholder, does Follow(), and assumes we don't point
+	// (even transitively) to a concrete value. So we must be a placeholder and the
+	// placeholder we point at (transitively) isn't resolved.
+	VPlaceholder& GetRootPlaceholder(); // This does Follow()
+	VPlaceholder& AsPlaceholder() const
+	{
+		checkSlow(IsPlaceholder());
+		return *BitCast<VPlaceholder*>(EncodedBits & ~PlaceholderTag);
+	}
+
+	bool IsInt32() const { return (EncodedBits & NumberTagMask) == Int32Tag; }
+
+	// Returns Value as C++ style int32
+	int32 AsInt32() const { return Bits.Payload; }
+
+	bool IsCell() const { return !(EncodedBits & NonCellTagMask) && EncodedBits != UninitializedValue; }
+	VCell& AsCell() const
+	{
+		checkSlow(IsCell());
+		return *Cell;
+	}
+
+	VCell* ExtractCell()
+	{
+		if (IsCell())
+		{
+			return Cell;
+		}
+		if (IsPlaceholder())
+		{
+			return reinterpret_cast<VCell*>(&AsPlaceholder());
+		}
+		else
+		{
+			return nullptr;
+		}
+	}
+
+	template <typename ObjectType>
+	bool IsCellOfType() const;
+
+	template <typename ObjectType>
+	ObjectType& StaticCast() const;
+
+	template <typename ObjectType>
+	ObjectType* DynamicCast() const;
+
+	bool IsInt() const;
+	VInt AsInt() const;
+
+	bool IsLogic() const;
+
+	// Returns Value as C++ style bool
+	bool AsBool() const;
+
+	bool IsFloat() const
+	{
+		return (EncodedBits & NumberTagMask) && (EncodedBits & NumberTagMask) != Int32Tag;
+	}
+	VFloat AsFloat() const
+	{
+		return VFloat(BitCast<double>(EncodedBits - FloatOffset));
+	}
+
+	bool IsUninitialized() const { return EncodedBits == UninitializedValue; }
+
+	uint64 GetEncodedBits() const { return EncodedBits; }
+
+	void EnqueueSuspension(FRunningContext Context, VSuspension& Suspension);
+
+	FString ToString(FRunningContext, const FCellFormatter& Formatter) const;
+
+	void Mark(FMarkStack& MarkStack)
+	{
+		VValue ValueCopy = *this; // Protect ourselves against TOCTOU races in case `this` is in the heap.
+		if (ValueCopy.IsCell())
+		{
+			MarkStack.MarkNonNull(&ValueCopy.AsCell());
+		}
+		else if (ValueCopy.IsPlaceholder())
+		{
+			MarkStack.MarkNonNull(reinterpret_cast<VCell*>(&ValueCopy.AsPlaceholder()));
+		}
+	}
+
+private:
+	friend struct VRestValue;
+	union
+	{
+		uint64 EncodedBits;
+		VCell* Cell;
+
+		struct
+		{
+			int32 Payload;
+			int32 Tag;
+		} Bits;
+	};
+
+	static VValue Root(uint16 SplitDepth)
+	{
+		VValue Result = VValue::Decode(RootTag | (static_cast<uint64>(SplitDepth) << 32));
+		return Result;
+	}
+
+	bool IsRoot() const { return (EncodedBits & VValue::RootMask) == VValue::RootTag; }
+
+	uint16 GetSplitDepth() const
+	{
+		checkSlow(IsRoot());
+		return static_cast<uint16>(EncodedBits >> 32);
+	}
+
+public:
+	// The lower bits of a non-numbered VValue look like this:
+	// - For a Cell:     0b0000
+	// - For a RestValue:   0bXXX1
+	// - For a Placeholder: 0bX010
+	// - Note: This leaves more space available in the lower 4 bits for other immediate values or pointer tagging.
+	//         We'll probably want to steal one of these bit patterns for UObject boxed pointers.
+	// We can distinguish these values like so:
+	// - Their upper 16 bits are zero, so can't be recognized as a number.
+	// - A Cell has its lower 4 bits as zero since we allocate heap cells 16-byte aligned.
+	// - A RestValue has its lowest bit set to 1. This test will fail for both Cell and Placeholder.
+	// - A Placeholder has its lowest two bits set to 0b10. This will fail for both Cell and RestValue.
+
+	// Encoding space by top 16 bits:
+	// 0x0000... cell
+	// 0x0001... \
+	// ...        float
+	// 0xfffc... /
+	// 0xfffd... unused
+	// 0xfffe... unused
+	// 0xffff... int32
+
+	static constexpr uint64 NonCellTagMask = 0xffff'0000'0000'000full;
+	static constexpr uint64 NumberTagMask = 0xffff'0000'0000'0000ull;
+
+	static constexpr uint64 PlaceholderTag = 0x2ull;
+	static constexpr uint64 RootTag = 0x1ull;
+	static constexpr uint64 RootMask = NumberTagMask | RootTag;
+	static constexpr uint64 PlaceholderMask = NumberTagMask | PlaceholderTag | RootTag;
+
+	static constexpr uint64 Int32Tag = 0xffff'0000'0000'0000ull;
+
+	static constexpr uint64 FloatOffset = 0x0001'0000'0000'0000ull;
+	static constexpr uint64 MaxPureNaN = 0xfffb'ffff'ffff'ffffull;
+	static constexpr uint64 MaxFloatTag = 0xfffc'0000'0000'0000ull;
+
+	static constexpr uint64 UninitializedValue = 0;
+};
+
+} // namespace Verse

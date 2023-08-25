@@ -683,6 +683,14 @@ namespace UnrealBuildTool
 				Rules.GlobalDefinitions.Add("UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR=1");
 			}
 			
+			// Until VNI fully supports the new VM, we need the ability to have both the old and new
+			// available in some rare cases.  If we are using the old VM and the target hasn't overridden
+			// the new VM define, then set the define based on the old VM flag.
+			if (!Rules.GlobalDefinitions.Any(x => x.StartsWith("WITH_VERSE_VM=")))
+			{
+				Rules.GlobalDefinitions.Add($"WITH_VERSE_VM={(Rules.bUseVerseBPVM ? 0 : 1)}");
+			}
+
 			// if the Target has opted in only some platforms, disable any plugins of other platforms (there may be editor, etc, modules that
 			// will just add themselves, with no other reference to be able to remove them, other than disabling them here)
 			if (Rules.OptedInModulePlatforms != null)

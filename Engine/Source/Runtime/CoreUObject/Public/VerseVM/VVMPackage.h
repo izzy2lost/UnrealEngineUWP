@@ -1,0 +1,98 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#if !WITH_VERSE_VM
+#error In order to use VerseVM, WITH_VERSE_VM must be set
+#endif
+
+#include "Containers/StringView.h"
+#include "VerseVM/Inline/VVMArrayInline.h"
+#include "VerseVM/Inline/VVMValueInline.h"
+#include "VerseVM/VVMArray.h"
+#include "VerseVM/VVMUTF8String.h"
+
+namespace Verse
+{
+struct VPackage : VHeapValue
+{
+	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+
+	// We keep names at 2*Index and definitions at 2*Index+1
+	TWriteBarrier<VArray> NameAndDefinitions;
+
+	uint32 Num() const
+	{
+		return NameAndDefinitions->Num() / 2;
+	}
+
+	const VUTF8String& GetName(FAllocationContext Context, uint32 Index) const
+	{
+		checkSlow(Index < static_cast<int32>(Num()));
+		VValue Value = NameAndDefinitions->GetValue(2 * Index);
+		check(Value.IsCell());
+		check(Value.AsCell().IsA<VUTF8String>());
+		return Value.AsCell().StaticCast<VUTF8String>();
+	}
+
+	VValue GetDefinition(FAllocationContext Context, uint32 Index) const
+	{
+		checkSlow(Index < static_cast<int32>(Num()));
+		return NameAndDefinitions->GetValue(2 * Index + 1);
+	}
+
+	void AddDefinition(FAllocationContext Context, FUtf8StringView Name, VValue Definition)
+	{
+		NameAndDefinitions->AddValue(Context, VUTF8String::New(Context, Name));
+		NameAndDefinitions->AddValue(Context, Definition);
+	}
+
+	void AddDefinition(FAllocationContext Context, VUTF8String& Name, VValue Definition)
+	{
+		NameAndDefinitions->AddValue(Context, VValue(Name));
+		NameAndDefinitions->AddValue(Context, Definition);
+	}
+
+	VValue Lookup(FAllocationContext Context, FUtf8StringView Name) const
+	{
+		for (uint32 Index = 0, End = Num(); Index < End; ++Index)
+		{
+			if (GetName(Context, Index).Equals(Name))
+			{
+				return GetDefinition(Context, Index);
+			}
+		}
+		return VValue();
+	}
+
+	template <typename CellType>
+	CellType* LookupCell(FAllocationContext Context, FUtf8StringView Name) const
+	{
+		VValue Value = Lookup(Context, Name);
+		if (Value.IsCell())
+		{
+			VCell& Cell = Value.AsCell();
+			if (Cell.IsA<CellType>())
+			{
+				return &Cell.StaticCast<CellType>();
+			}
+		}
+		return nullptr;
+	}
+
+	static VPackage& New(FAllocationContext Context, uint32 Capacity)
+	{
+		return *new (Context.AllocateFastCell(sizeof(VPackage))) VPackage(Context, Capacity);
+	}
+
+	COREUOBJECT_API static void MarkReferencedCellsImpl(VCell* This, FMarkStack&);
+
+private:
+	VPackage(FAllocationContext Context, uint32 Capacity)
+		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))
+		, NameAndDefinitions(Context, &VArray::New(Context, Capacity))
+	{
+	}
+};
+} // namespace Verse

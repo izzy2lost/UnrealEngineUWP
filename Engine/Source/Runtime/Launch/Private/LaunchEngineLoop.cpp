@@ -81,6 +81,10 @@
 
 #include "Compression/OodleDataCompression.h"
 
+#if WITH_VERSE_VM
+#include "VerseVM/VVMVerse.h"
+#endif
+
 #if !(IS_PROGRAM || WITH_EDITOR)
 #include "IPlatformFilePak.h"
 #endif
@@ -3437,7 +3441,11 @@ int32 FEngineLoop::PreInitPreStartupScreen(const TCHAR* CmdLine)
 #if UE_EDITOR || WITH_ENGINE
 	PreInitContext.CommandletCommandLine = CommandletCommandLine;
 #endif // UE_EDITOR || WITH_ENGINE
-	
+
+#if WITH_VERSE_VM
+	Verse::VerseVM::Startup();
+#endif
+
 	return 0;
 }
 
@@ -6777,6 +6785,10 @@ void FEngineLoop::AppPreExit( )
 		delete GShaderCompilerStats;
 		GShaderCompilerStats = nullptr;
 	}
+
+#if WITH_VERSE_VM
+	Verse::VerseVM::Shutdown();
+#endif
 
 #if WITH_ODSC
 	if (GODSCManager)

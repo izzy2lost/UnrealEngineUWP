@@ -1,0 +1,55 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+#pragma once
+
+#if !WITH_VERSE_VM
+#error In order to use VerseVM, WITH_VERSE_VM must be set
+#endif
+
+#include "VVMRestValue.h"
+
+namespace Verse
+{
+struct VEntry;
+struct VUniqueString;
+
+/// A Verse object that may store fields and associated values for those fields on it.
+/// An object points to an emergent type, which in turn points to a "shape".
+/// A "shape" is a dynamic memory layout of fields and their offsets.
+struct VObject : VHeapValue
+{
+	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	static VObject& New(FAllocationContext Context, VEmergentType& InEmergentType);
+
+	const VValue LoadField(FAllocationContext Context, VUniqueString& Name);
+
+	/// Use this when you are retrieving a `var` from an object and not what the `var` points to.
+	/// The data is retrieved from the object, rather than the shape.
+	VRestValue& GetFieldSlot(FAllocationContext Context, VUniqueString& Name);
+
+	void SetField(FAllocationContext Context, VUniqueString& Name, VValue Value);
+
+private:
+	VObject(FAllocationContext Context, VEmergentType& InEmergentType);
+
+	/*
+	 * Mutable variables store their data as a `VRestValue`.
+	 * It's not an array of `VValue`s because you can potentially load a class member before actually defining it. i.e.
+	 *
+	 * ```
+	 * c := class {x:int}
+	 * c := C{}
+	 * Foo(c.X) # allocates a placeholder
+	 * c.X := 1  # This is the first time `c.X` actually gets defined.
+	 * ```
+	 *
+	 * This stores the actual data for individual fields. Some constants and procedures are stored in the shape, not the
+	 * object (since then there's no need to do an unnecessary index lookup).
+	 *
+	 * The mapping of offsets to each field are stored in the emergent type's "shape".  The reason why the object
+	 * doesn't just store the mapping of fields to data itself is that it will eventually help when we implement inline
+	 * caches for retrieving fields on objects. It also helps reduce memory usage because multiple objects can share
+	 * the same hash table that describes their layouts.
+	 */
+	VRestValue Data[];
+};
+} // namespace Verse

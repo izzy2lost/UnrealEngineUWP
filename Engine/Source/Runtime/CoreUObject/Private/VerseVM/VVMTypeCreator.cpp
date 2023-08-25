@@ -1,0 +1,11 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#if WITH_VERSE_VM
+#include "VerseVM/VVMTypeCreator.h"
+#include "VerseVM/VVMUniqueCreator.h"
+
+namespace Verse
+{
+TLazyInitialized<VUniqueCreator<VType>> VTypeCreator::UniqueCreator;
+} // namespace Verse
+#endif // WITH_VERSE_VM

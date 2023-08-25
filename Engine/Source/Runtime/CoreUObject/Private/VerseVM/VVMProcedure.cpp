@@ -1,0 +1,62 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#if WITH_VERSE_VM
+#include "VerseVM/VVMProcedure.h"
+#include "VerseVM/Inline/VVMCellInline.h"
+#include "VerseVM/VVMBytecodeOps.h"
+#include "VerseVM/VVMBytecodesAndCaptures.h"
+#include "VerseVM/VVMCppClassInfo.h"
+#include "VerseVM/VVMLog.h"
+
+namespace Verse
+{
+
+DEFINE_VCPPCLASSINFO(VProcedure, VHeapValue, TEXT("Procedure"));
+TGlobalTrivialEmergentTypePtr<&VProcedure::StaticCppClassInfo> VProcedure::GlobalTrivialEmergentType;
+
+VProcedure::~VProcedure()
+{
+	// NOTE: (yiliang.siew) This could be raised to a location such as in `VProgram` when that
+	// exists and each opcode store only the index + size to index into that array, so that we don't
+	// need to store a separate `TArray` of operand values per-opcode struct.
+	for (const FOp* CurrentOp = GetOpsBegin(); CurrentOp != GetOpsEnd();)
+	{
+		checkf(CurrentOp != nullptr, TEXT("The current opcode was invalid!"));
+		switch (CurrentOp->Opcode)
+		{
+#define VISIT_OP(Name)                                                                \
+	case EOpcode::Name:                                                               \
+	{                                                                                 \
+		const FOp##Name* CurrentDerivedOp = static_cast<const FOp##Name*>(CurrentOp); \
+		CurrentDerivedOp->~FOp##Name();                                               \
+		CurrentOp = BitCast<const FOp*>(CurrentDerivedOp + 1);                        \
+		break;                                                                        \
+	}
+			VERSE_ENUM_OPS(VISIT_OP)
+#undef VISIT_OP
+			default:
+				V_DIE("Invalid opcode encountered: %u during function destruction!", static_cast<FOpcodeInt>(CurrentOp->Opcode));
+				break;
+		}
+	}
+}
+
+void VProcedure::RunDestructorImpl(VCell* This)
+{
+	VProcedure& ThisProcedure = This->StaticCast<VProcedure>();
+	ThisProcedure.~VProcedure();
+}
+
+void VProcedure::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
+{
+	VProcedure* This = static_cast<VProcedure*>(ThisCell);
+	VHeapValue::MarkReferencedCellsImpl(This, MarkStack);
+	for (uint32 Index = This->NumConstants; Index--;)
+	{
+		This->Constants[Index].Mark(MarkStack);
+	}
+}
+
+} // namespace Verse
+
+#endif // WITH_VERSE_VM
