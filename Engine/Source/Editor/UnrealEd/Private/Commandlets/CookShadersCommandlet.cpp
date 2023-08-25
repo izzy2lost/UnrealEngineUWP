@@ -22,6 +22,8 @@ static const TCHAR* GlobalName = TEXT("Global");
 // UnrealEditor-Cmd.exe <proj> -run=CookShaders -targetPlatform=<platform> -infoFile=D:\ShaderSymbols\ShaderSymbols.info -ShaderSymbolsExport=D:\ShaderSymbols\Out -filter=Mannequin
 // UnrealEditor-Cmd.exe <proj> -run=CookShaders -targetPlatform=<platform> -infoFile=D:\ShaderSymbols\ShaderSymbols.info -ShaderSymbolsExport=D:\ShaderSymbols\Out -filter=00FB89F127D2DC10 -noglobals
 // UnrealEditor-Cmd.exe <proj> -run=CookShaders -targetPlatform=<platform> -ShaderSymbolsExport=D:\ShaderSymbols\Out -material=M_UI_Base_BordersAndButtons
+//
+// Use -dpcvars="r.Shaders.Symbols=1" to force on symbols writing from the commandline, or edit Engine\Config\ConsoleVariables.ini and uncomment or add "r.Shaders.Symbols=1" to [Startup]
 
 namespace CookShadersCommandlet {
 
@@ -180,11 +182,12 @@ int32 UCookShadersCommandlet::Main(const FString& Params)
 		UE_LOG(LogCookShadersCommandlet, Log, TEXT("Cook shaders based upon the options, ideal for generating pdbs for shaders you need"));
 		UE_LOG(LogCookShadersCommandlet, Log, TEXT("Options:"));
 		UE_LOG(LogCookShadersCommandlet, Log, TEXT(" Required: -targetPlatform=<platform>     (Which target platform do you want results, e.g. WindowsClient, etc."));
-		UE_LOG(LogCookShadersCommandlet, Log, TEXT(" Required: -ShaderSymbolsExport=<path>    (Force shader symbols on and where to write them."));
+		UE_LOG(LogCookShadersCommandlet, Log, TEXT(" Required: -ShaderSymbolsExport=<path>    (Set shader symbols output location."));
 		UE_LOG(LogCookShadersCommandlet, Log, TEXT(" Optional: -infoFile=<path>               (Path to ShaderSymbols.info file you want to find shaders from."));
 		UE_LOG(LogCookShadersCommandlet, Log, TEXT(" Optional: -filter=<string>               (Recommended! Filter to shaders with <string> in their hash or info data, requires -infoFile)."));
 		UE_LOG(LogCookShadersCommandlet, Log, TEXT(" Optional: -material=<string>             (Cook this material if you don't have a .info file, can be Global for global shaders)."));
 		UE_LOG(LogCookShadersCommandlet, Log, TEXT(" Optional: -noglobals                     (Don't do global shaders, even if they match the filter.)"));
+		UE_LOG(LogCookShadersCommandlet, Log, TEXT(" Optional: -nomaterialinstances           (Don't do material instances, this search is currently slow.)"));
 		return 0;
 	}
 
@@ -197,12 +200,8 @@ int32 UCookShadersCommandlet::Main(const FString& Params)
 	FParse::Value(*Params, TEXT("infoFile="), InfoFilePath, true);
 	FString ExportPath;
 	FParse::Value(*Params, TEXT("ShaderSymbolsExport="), ExportPath, true);
-	const bool bNoGlobals = FParse::Param(FCommandLine::Get(), TEXT("noglobals"));
-
-	if (ExportPath.IsEmpty())
-	{
-		UE_LOG(LogCookShadersCommandlet, Log, TEXT("Note: Providing -ShaderSymbolsExport=<path> is highly recommended to automate activation of shader symbol file creation and set the location to save them!"));
-	}
+	const bool bNoGlobals = Switches.Contains(TEXT("noglobals"));
+	const bool bNoMaterialInstances = Switches.Contains(TEXT("nomaterialinstances"));
 
 	TArray<FInfoRecord> Info;
 
@@ -254,53 +253,63 @@ int32 UCookShadersCommandlet::Main(const FString& Params)
 		}
 	}
 
+	// Find materials, fast, we can load only the ones we are interested in
 	TSet<UMaterial*> MaterialsProcessed;
-	TSet<UMaterialInstance*> MaterialInstancesProcessed;
 	for (const auto& I : MaterialsToFind)
 	{
-		// Find matching materials
-		UMaterialInterface* MatchingMaterial = nullptr;
 		for (const FAssetData& It : MaterialList)
 		{
-			UMaterial* Material = Cast<UMaterial>(It.GetAsset());
-
-			if (Material && Material->GetName() == *I)
+			if (It.AssetName == *I)
 			{
+				UMaterial* Material = Cast<UMaterial>(It.GetAsset());
+				MaterialsRequested.Add(Material->GetPathName());
 				bool bAlreadyInSet = false;
 				MaterialsProcessed.Add(Material, &bAlreadyInSet);
-				if (!bAlreadyInSet)
-				{
-					MaterialsRequested.Add(Material->GetPathName());
-					MatchingMaterial = Material;
-				}
 				break;
 			}
 		}
+	}
 
-		// Locate material instances from the matched material
-		if (MatchingMaterial)
+	// Iterate material instances, slow, but need to find instances which depend upon the base material
+	if (!bNoMaterialInstances && MaterialsProcessed.Num())
+	{
+		int32 Count = 0;
+		double StartTime = FPlatformTime::Seconds();
+		TSet<UMaterialInstance*> MaterialInstancesProcessed;
+		for (const FAssetData& It : MaterialInstanceList)
 		{
-			for (const FAssetData& It : MaterialInstanceList)
+			Count++;
+			if (FPlatformTime::Seconds() > StartTime + 10.0)
 			{
-				UMaterialInstance* MaterialInstance = Cast<UMaterialInstance>(It.GetAsset());
+				StartTime = FPlatformTime::Seconds();
+				UE_LOG(LogCookShadersCommandlet, Display, TEXT("MaterialInstances %d/%d..."), Count, MaterialInstanceList.Num());
+			}
 
-				if (MaterialInstance && MaterialInstance->IsDependent(MatchingMaterial))
+			UMaterialInstance* MaterialInstance = Cast<UMaterialInstance>(It.GetAsset());
+
+			if (MaterialInstance)
+			{
+				for (UMaterial* Material : MaterialsProcessed)
 				{
-					bool bAlreadyInSet = false;
-					MaterialInstancesProcessed.Add(MaterialInstance, &bAlreadyInSet);
-					if (!bAlreadyInSet)
+					if (MaterialInstance->IsDependent(Material))
 					{
-						MaterialsRequested.Add(MaterialInstance->GetPathName());
+						bool bAlreadyInSet = false;
+						MaterialInstancesProcessed.Add(MaterialInstance, &bAlreadyInSet);
+						if (!bAlreadyInSet)
+						{
+							MaterialsRequested.Add(MaterialInstance->GetPathName());
+						}
 					}
 				}
 			}
+
 		}
 	}
 
 	// Did we find anything to do? 
 	if (!bCookGlobals && MaterialsRequested.IsEmpty())
 	{
-		UE_LOG(LogCookShadersCommandlet, Log, TEXT("Couldn't find any globals or materials to process!"));
+		UE_LOG(LogCookShadersCommandlet, Display, TEXT("Couldn't find any globals or materials to process!"));
 		return 0;
 	}
 
@@ -330,7 +339,7 @@ int32 UCookShadersCommandlet::Main(const FString& Params)
 			// Cook global shaders unless disabled
 			if (bCookGlobals && !bNoGlobals)
 			{
-				UE_LOG(LogCookShadersCommandlet, Log, TEXT("Cooking Global Shaders..."));
+				UE_LOG(LogCookShadersCommandlet, Display, TEXT("Cooking Global Shaders..."));
 				Arguments.CommandType = ODSCRecompileCommand::Global;
 				RecompileShadersForRemote(Arguments, OutputDir);
 			}
@@ -338,7 +347,7 @@ int32 UCookShadersCommandlet::Main(const FString& Params)
 			// Cook materials
 			if (!MaterialsRequested.IsEmpty())
 			{
-				UE_LOG(LogCookShadersCommandlet, Log, TEXT("Cooking Materials..."));
+				UE_LOG(LogCookShadersCommandlet, Display, TEXT("Cooking Materials..."));
 				Arguments.CommandType = ODSCRecompileCommand::Material;
 				Arguments.MaterialsToLoad = MaterialsRequested;
 				RecompileShadersForRemote(Arguments, OutputDir);
@@ -346,7 +355,7 @@ int32 UCookShadersCommandlet::Main(const FString& Params)
 		}
 	}
 
-	UE_LOG(LogCookShadersCommandlet, Log, TEXT("Done CookShadersCommandlet"));
+	UE_LOG(LogCookShadersCommandlet, Display, TEXT("Done CookShadersCommandlet"));
 	return 0;
 }
 
