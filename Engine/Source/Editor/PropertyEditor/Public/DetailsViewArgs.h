@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "DetailsViewStyleKey.h"
 #include "Widgets/Layout/SScrollBar.h"
 
 class FDetailsViewObjectFilter;
@@ -10,6 +11,8 @@ class FNotifyHook;
 class FTabManager;
 class FUICommandList;
 class IClassViewerFilter;
+class FDetailsViewStyleKey;
+class FDetailsViewStyleKeys;
 
 enum class EEditDefaultsOnlyNodeVisibility : uint8
 {
@@ -52,7 +55,8 @@ struct FDetailsViewArgs
 	TSharedPtr<SScrollBar> ExternalScrollbar;
 	/** whether to display scrollbar on the left or the right of the panel */
 	EHorizontalAlignment ScrollbarAlignment;
-
+	/** A @code TSharedPtr<FDetailsViewStyleKey> @endcode which provides the key to the Details View's style */
+	TSharedPtr<FDetailsViewStyleKey> StyleKey;
 	/** Identifier for this details view; NAME_None if this view is anonymous */
 	FName ViewIdentifier;
 	/** Notify hook to call when properties are changed */
