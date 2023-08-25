@@ -1350,14 +1350,14 @@ void UGeometryCollectionComponent::SetRestState(TArray<FTransform>&& InRestTrans
 		SetInitialTransforms(RestTransforms);
 	}
 
-	FGeometryCollectionDynamicData* DynamicData = GDynamicDataPool.Allocate();
-	DynamicData->SetPrevTransforms(ComponentSpaceTransforms);
-	CalculateGlobalMatrices();
-	DynamicData->SetTransforms(ComponentSpaceTransforms);
-	DynamicData->IsDynamic = true;
-
 	if (SceneProxy)
 	{
+		FGeometryCollectionDynamicData* DynamicData = GDynamicDataPool.Allocate();
+		DynamicData->SetPrevTransforms(ComponentSpaceTransforms);
+		CalculateGlobalMatrices();
+		DynamicData->SetTransforms(ComponentSpaceTransforms);
+		DynamicData->IsDynamic = true;
+
 #if WITH_EDITOR
 			// We need to do this in case we're controlled by Sequencer in editor, which doesn't invoke PostEditChangeProperty
 			UpdateCachedBounds();
@@ -1383,6 +1383,10 @@ void UGeometryCollectionComponent::SetRestState(TArray<FTransform>&& InRestTrans
 				}
 			);
 		}
+	}
+	else
+	{
+		CalculateGlobalMatrices();
 	}
 
 	RefreshEmbeddedGeometry();
