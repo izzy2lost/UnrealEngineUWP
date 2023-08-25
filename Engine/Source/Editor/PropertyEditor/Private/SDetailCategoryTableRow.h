@@ -37,16 +37,7 @@ protected:
 	
 private:
 	EVisibility IsSeparatorVisible() const;
-
-	/**
-	* Gets the @code const FSlateBrush* @endcode which holds the background image for the Category Row, minus the ScrollBar Well
-	*/
 	const FSlateBrush* GetBackgroundImage() const;
-
-	/**
-	* Gets the @code const FSlateBrush* @endcode which holds the background image for the ScrollBar Well
-	*/
-	const FSlateBrush* GetBackgroundImageForScrollBarWell() const;
 	FSlateColor GetInnerBackgroundColor() const;
 	FSlateColor GetOuterBackgroundColor() const;
 

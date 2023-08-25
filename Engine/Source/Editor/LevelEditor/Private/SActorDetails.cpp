@@ -280,7 +280,7 @@ void SActorDetails::Construct(const FArguments& InArgs, UTypedElementSelectionSe
 	ComponentsBox->SetContent(SubobjectEditor.ToSharedRef());
 
 	TSharedRef<SWidget> SubobjectEditorButtonBox = SubobjectEditor->GetToolButtonsBox().ToSharedRef();
-	SubobjectEditorButtonBox->SetVisibility(MakeAttributeSP(this, &SActorDetails::GetComponentEditorButtonsVisibility));
+	SubobjectEditorButtonBox->SetVisibility(MakeAttributeSP(this, &SActorDetails::GetComponentEditorVisibility));
 
 
 	TFunction<TArray<TTypedElement<ITypedElementDetailsInterface>>()> GetDetailsHandles = [this]()
@@ -879,12 +879,6 @@ void SActorDetails::OnNativeComponentWarningHyperlinkClicked(const FSlateHyperli
 }
 
 EVisibility SActorDetails::GetComponentEditorVisibility() const
-{
-	const bool bHideEditorFromDetailsView = DetailsView.IsValid() &&  !DetailsView->IsDefaultStyle();
-	return GetActorContext() && !bHideEditorFromDetailsView  ? EVisibility::Visible : EVisibility::Collapsed;
-}
-
-EVisibility SActorDetails::GetComponentEditorButtonsVisibility() const
 {
 	return GetActorContext() ? EVisibility::Visible : EVisibility::Collapsed;
 }
