@@ -41,9 +41,12 @@ public:
 
 	bool HasError() const { return ErrorContext.HasError(); }
 	bool HasErrorOrOverflow() const;
-	/** If an error has already been set calling this function again will be a no-op. */
-	void SetError(const FName Error);
+	/** If an error has already been set calling this function again will be a no-op, if bDoOverFlow is true, the function will also mark the current bitstream as overflown */
+	void SetError(const FName Error, bool bDoOverFlow = true);
 	FName GetError() const { return ErrorContext.GetError(); }
+
+	/** There are cases where an error is handled and reported where we want to stay calm, reset the error context and carry on */
+	void ResetErrorContext() { ErrorContext = FNetErrorContext(); }
 
 	void SetIsInitState(bool bInIsInitState) { bIsInitState = bInIsInitState; }
 	bool IsInitState() const { return bIsInitState; }
@@ -149,9 +152,12 @@ inline FNetSerializationContext FNetSerializationContext::MakeSubContext(FNetBit
 	return SubContext;
 }
 
-inline void FNetSerializationContext::SetError(const FName Error)
+inline void FNetSerializationContext::SetError(const FName Error, bool bDoOverFlow)
 {
-	SetBitStreamOverflow();
+	if (bDoOverFlow)
+	{
+		SetBitStreamOverflow();
+	}
 	ErrorContext.SetError(Error);
 }
 

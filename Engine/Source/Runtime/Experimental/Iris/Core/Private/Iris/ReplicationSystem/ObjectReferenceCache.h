@@ -131,6 +131,8 @@ public:
 	void UpdateTrackedQueuedBatchObjectReference(const FNetRefHandle InHandle, const UObject* NewObject);
 	void RemoveTrackedQueuedBatchObjectReference(const FNetRefHandle InHandle);
 
+	FString DescribeObjectReference(const FNetObjectReference Ref, const FNetObjectResolveContext& ResolveContext);
+
 private:
 
 	struct FCachedNetObjectReference

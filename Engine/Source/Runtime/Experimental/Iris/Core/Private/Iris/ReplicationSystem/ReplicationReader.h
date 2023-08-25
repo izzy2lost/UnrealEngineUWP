@@ -270,6 +270,9 @@ private:
 	// We do not expect to have many objects in this state
 	TArray<FPendingBatchData> PendingBatches;
 
+	// We do not expect many objects to be broken
+	TArray<FNetRefHandle> BrokenObjects;
+
 	// Used during receive and processing of pending batches
 	TArray<FNetRefHandle> TempMustBeMappedReferences;
 

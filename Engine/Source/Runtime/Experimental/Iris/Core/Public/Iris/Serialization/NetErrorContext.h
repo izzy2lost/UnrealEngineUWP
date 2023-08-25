@@ -12,6 +12,7 @@ IRISCORE_API extern const FName GNetError_BitStreamOverflow;
 IRISCORE_API extern const FName GNetError_BitStreamError;
 IRISCORE_API extern const FName GNetError_ArraySizeTooLarge;
 IRISCORE_API extern const FName GNetError_InvalidNetHandle;
+IRISCORE_API extern const FName GNetError_BrokenNetHandle;
 IRISCORE_API extern const FName GNetError_InvalidValue;
 
 class FNetErrorContext

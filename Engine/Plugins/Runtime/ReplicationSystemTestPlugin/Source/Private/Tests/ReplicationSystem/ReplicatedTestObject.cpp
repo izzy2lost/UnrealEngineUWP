@@ -104,9 +104,13 @@ bool UReplicatedTestObjectBridge::WriteCreationHeader(UE::Net::FNetSerialization
 	uint16 NumIrisComponentsToSpawn = 0U;
 	uint16 NumDynamicComponentsToSpawn = 0U;
 	uint16 NumConnectionFilteredComponentsToSpawn = 0U;
+	bool bForceFailToInstantiateOnRemote = false;
 
 	const UObject* Object = GetReplicatedObject(Handle);
-	
+	if (const UReplicatedTestObject* ReplicatedTestObject = Cast<UReplicatedTestObject>(Object))
+	{
+		bForceFailToInstantiateOnRemote = ReplicatedTestObject->bForceFailToInstantiateOnRemote;
+	}
 	if (const UTestReplicatedIrisObject* TestReplicatedIrisObject = Cast<UTestReplicatedIrisObject>(Object))
 	{
 		NumComponentsToSpawn = TestReplicatedIrisObject->Components.Num();
@@ -123,6 +127,7 @@ bool UReplicatedTestObjectBridge::WriteCreationHeader(UE::Net::FNetSerialization
 	Writer.WriteBits(NumIrisComponentsToSpawn, 16);
 	Writer.WriteBits(NumDynamicComponentsToSpawn, 16);
 	Writer.WriteBits(NumConnectionFilteredComponentsToSpawn, 16);
+	Writer.WriteBool(bForceFailToInstantiateOnRemote);
 
 	return !Writer.IsOverflown();
 }
@@ -140,6 +145,7 @@ UObjectReplicationBridge::FCreationHeader* UReplicatedTestObjectBridge::ReadCrea
 	Header->NumIrisComponentsToSpawn = Reader.ReadBits(16);
 	Header->NumDynamicComponentsToSpawn = Reader.ReadBits(16);
 	Header->NumConnectionFilteredComponentsToSpawn = Reader.ReadBits(16);
+	Header->bForceFailCreateRemoteInstance = Reader.ReadBool();
 
 	if (Reader.IsOverflown())
 	{
@@ -152,6 +158,12 @@ UObjectReplicationBridge::FCreationHeader* UReplicatedTestObjectBridge::ReadCrea
 FObjectReplicationBridgeInstantiateResult UReplicatedTestObjectBridge::BeginInstantiateFromRemote(FNetRefHandle SubObjectOwnerHandle, const UE::Net::FNetObjectResolveContext& ResolveContext, const FCreationHeader* InHeader)
 {
 	const FReplicationTestObjectCreationHeader* Header = static_cast<const FReplicationTestObjectCreationHeader*>(InHeader);
+
+	// Force fail to create this remote instance
+	if (Header->bForceFailCreateRemoteInstance)
+	{
+		return FObjectReplicationBridgeInstantiateResult();
+	}
 
 	UObject* ArcheType = StaticFindObject(UObject::StaticClass(), nullptr, *Header->ArchetypeName, false);
 

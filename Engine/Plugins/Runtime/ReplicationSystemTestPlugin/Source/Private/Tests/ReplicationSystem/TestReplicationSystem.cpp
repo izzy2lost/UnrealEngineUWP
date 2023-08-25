@@ -4,9 +4,9 @@
 #include "Iris/Serialization/NetBitStreamReader.h"
 #include "Iris/Serialization/NetBitStreamWriter.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
-
 #include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
 #include "Iris/ReplicationSystem/NetTokenStore.h"
+#include "Iris/Core/IrisLog.h"
 
 namespace UE::Net::Private
 {
@@ -1711,5 +1711,91 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestObjectPollFra
 	UE_NET_ASSERT_TRUE(SlowPollObjectHasBeenEqual);
 	UE_NET_ASSERT_TRUE(SlowPollObjectHasBeenInequal);
 }
+
+// Test that broken objects can be skipped by client
+UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestClientCanSkipBrokenObject)
+{
+	UReplicationSystem* ReplicationSystem = Server->ReplicationSystem;
+
+	// Add a client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Spawn objects on server
+	UTestReplicatedIrisObject* ServerObjectA = Server->CreateObject(0,0);
+	UTestReplicatedIrisObject* ServerObjectB = Server->CreateObject(0,0);
+
+	{
+		// Setup client to fail to create next remote object
+		ServerObjectA->bForceFailToInstantiateOnRemote = true;
+
+		// Suppress ensure that will occur due to failing to instantiate the object
+		UReplicatedTestObjectBridge::FSupressCreateInstanceFailedEnsureScope SuppressEnsureScope(*Client->GetReplicationBridge());
+
+		// Disable error logging as we know we will fail.
+		auto IrisLogVerbosity = UE_GET_LOG_VERBOSITY(LogIris);
+		LogIris.SetVerbosity(ELogVerbosity::NoLogging);
+
+		// Send and deliver packet
+		Server->PreSendUpdate();
+		Server->SendAndDeliverTo(Client, true);
+		Server->PostSendUpdate();
+
+		// Restore LogVerbosity
+		LogIris.SetVerbosity(IrisLogVerbosity);
+	}
+
+	// We expect replication of ObjectA to have failed
+	{
+		UTestReplicatedIrisObject* ClientObjectA = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObjectA->NetRefHandle));
+		UE_NET_ASSERT_TRUE(ClientObjectA == nullptr);
+	}
+
+	// ObjectB should have been replicated ok
+	{
+		UTestReplicatedIrisObject* ClientObjectB = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObjectB->NetRefHandle));
+		UE_NET_ASSERT_TRUE(ClientObjectB != nullptr);
+	}
+
+	// Modify both objects to make them replicate again
+	++ServerObjectA->IntA;
+	++ServerObjectB->IntA;
+
+	// Send and deliver packet to verify that client ignores the broken object
+	Server->PreSendUpdate();
+	Server->SendAndDeliverTo(Client, true);
+	Server->PostSendUpdate();
+
+	// We expect replication of ObjectA to have failed
+	{
+		UTestReplicatedIrisObject* ClientObjectA = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObjectA->NetRefHandle));
+		UE_NET_ASSERT_TRUE(ClientObjectA == nullptr);
+	}
+
+	// Filter out ObjectA to tell the client that the object has gone out of scope
+	ReplicationSystem->AddToGroup(ReplicationSystem->GetNotReplicatedNetObjectGroup(), ServerObjectA->NetRefHandle);
+
+	// Send and deliver packet, the client should now remove the broken object from the list of broken objects
+	Server->PreSendUpdate();
+	Server->SendAndDeliverTo(Client, true);
+	Server->PostSendUpdate();
+
+	// Enable replication of ObjectA again to try to replicate it to server now that it should succeed
+	ReplicationSystem->RemoveFromGroup(ReplicationSystem->GetNotReplicatedNetObjectGroup(), ServerObjectA->NetRefHandle);
+
+	// Set ObjectA to be able instantiate on client again
+	ServerObjectA->bForceFailToInstantiateOnRemote = false;
+
+	// Client should now be able to instantiate the object
+	Server->PreSendUpdate();
+	Server->SendAndDeliverTo(Client, true);
+	Server->PostSendUpdate();
+
+	// We expect replication of ObjectA to have succeeded this time
+	{
+		UTestReplicatedIrisObject* ClientObjectA = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObjectA->NetRefHandle));
+		UE_NET_ASSERT_TRUE(ClientObjectA == nullptr);
+	}
+}
+
 
 }

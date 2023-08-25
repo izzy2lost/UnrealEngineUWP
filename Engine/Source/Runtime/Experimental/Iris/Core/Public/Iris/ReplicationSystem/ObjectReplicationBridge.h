@@ -80,6 +80,9 @@ public:
 	/** Try to resolve UObject from NetObjectReference, this function tries to resolve the object by loading if necessary. */
 	IRISCORE_API UObject* ResolveObjectReference(const UE::Net::FNetObjectReference& ObjectRef, const UE::Net::FNetObjectResolveContext& ResolveContext);
 
+	/** Describe the NetObjectReference */
+	IRISCORE_API FString DescribeObjectReference(const UE::Net::FNetObjectReference& ObjectRef, const UE::Net::FNetObjectResolveContext& ResolveContext);
+
 	/** Get or create NetObjectReference for object instance. */
 	IRISCORE_API UE::Net::FNetObjectReference GetOrCreateObjectReference(const UObject* Instance) const;
 
@@ -341,6 +344,9 @@ private:
 
 	bool bHasPollOverrides = false;
 	bool bHasDirtyClassesInPollPeriodOverrides = false;
+
+protected:
+	bool bSuppressCreateInstanceFailedEnsure = false;
 };
 
 

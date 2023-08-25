@@ -36,6 +36,9 @@ public:
 
 	/** Cached NetRefHandle to simplify testing. DO NOT use this for multi-system tests. */
 	UE::Net::FNetRefHandle NetRefHandle;
+
+	/** If this is set to true, this instance will fail to instantiate on remote end. */
+	bool bForceFailToInstantiateOnRemote = false;
 };
 
 USTRUCT()
@@ -452,6 +455,25 @@ public:
 
 	float GetMaxTickRate() const { return Super::GetMaxTickRate(); }
 
+	// Scope to suppress ensure when testing instantiation failure on clients
+	class FSupressCreateInstanceFailedEnsureScope
+	{
+	public:
+		explicit FSupressCreateInstanceFailedEnsureScope(UReplicatedTestObjectBridge& BridgeIn) : Bridge(BridgeIn), bSuppressCreateInstanceFailedEnsure(Bridge.bSuppressCreateInstanceFailedEnsure)
+		{
+			Bridge.bSuppressCreateInstanceFailedEnsure = true;
+		}
+		~FSupressCreateInstanceFailedEnsureScope()
+		{
+			// Restore
+			Bridge.bSuppressCreateInstanceFailedEnsure = bSuppressCreateInstanceFailedEnsure;			
+		}
+			
+	private:
+		UReplicatedTestObjectBridge& Bridge;
+		bool bSuppressCreateInstanceFailedEnsure;
+	};
+
 protected:
 	// Type specifics for serializing creation data this will most likely be made into a separate interface to support different types of header data for different types
 	// But if we can avoid having custom data per type for instantiating remote objects as we would like to be able to fully express the state of a replicated object using the define protocol alone. 
@@ -463,6 +485,7 @@ protected:
 		uint32 NumIrisComponentsToSpawn;
 		uint32 NumDynamicComponentsToSpawn;
 		uint32 NumConnectionFilteredComponentsToSpawn;
+		bool bForceFailCreateRemoteInstance;
 	};
 
 	virtual bool WriteCreationHeader(UE::Net::FNetSerializationContext& Context, FNetRefHandle Handle) override;
@@ -476,6 +499,7 @@ protected:
 	TArray<TStrongObjectPtr<UObject>>* CreatedObjectsOnNode;
 
 	TFunction<void(FNetRefHandle NetHandle, const UObject* ReplicatedObject, FVector& OutLocation, float& OutCullDistance)> WorldLocationUpdateFunc;
+	bool bForceFailCreateRemoteInstance = false;
 };
 
 extern const UE::Net::FRepTag RepTag_FakeGeneratedReplicationState_IntB;

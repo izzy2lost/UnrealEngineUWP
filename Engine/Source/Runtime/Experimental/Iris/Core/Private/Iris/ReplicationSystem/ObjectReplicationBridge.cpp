@@ -154,6 +154,11 @@ UObject* UObjectReplicationBridge::ResolveObjectReference(const UE::Net::FNetObj
 	return GetObjectReferenceCache()->ResolveObjectReference(Reference, ResolveContext);
 }
 
+FString UObjectReplicationBridge::DescribeObjectReference(const UE::Net::FNetObjectReference& Reference, const UE::Net::FNetObjectResolveContext& ResolveContext)
+{
+	return GetObjectReferenceCache()->DescribeObjectReference(Reference, ResolveContext);
+}
+
 UE::Net::FNetObjectReference UObjectReplicationBridge::GetOrCreateObjectReference(const UObject* Instance) const
 {
 	return GetObjectReferenceCache()->GetOrCreateObjectReference(Instance);
@@ -581,8 +586,9 @@ FReplicationBridgeCreateNetRefHandleResult UObjectReplicationBridge::CreateNetRe
 	// https://jira.it.epicgames.com/browse/UE-127369	
 	FObjectReplicationBridgeInstantiateResult InstantiateResult = BeginInstantiateFromRemote(SubObjectOwnerNetHandle, Context.SerializationContext.GetInternalContext()->ResolveContext, Header.Get());
 	UObject* InstancePtr = InstantiateResult.Object;
-	if (!ensureAlwaysMsgf(InstancePtr, TEXT("Failed to instantiate Handle: %s"), *WantedNetHandle.ToString()))
+	if (!InstancePtr)
 	{
+		ensureAlwaysMsgf(bSuppressCreateInstanceFailedEnsure, TEXT("Failed to instantiate Handle: %s"), *WantedNetHandle.ToString());
 		return CreateResult;
 	}
 

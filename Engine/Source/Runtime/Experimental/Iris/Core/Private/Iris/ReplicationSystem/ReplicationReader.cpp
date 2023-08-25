@@ -24,6 +24,7 @@
 #include "Iris/Serialization/NetSerializer.h"
 #include "HAL/IConsoleManager.h"
 #include "UObject/Class.h"
+#include "Algo/RemoveIf.h"
 
 #if UE_NET_ENABLE_REPLICATIONREADER_LOG
 #	define UE_LOG_REPLICATIONREADER(Format, ...)  UE_LOG(LogIris, Log, Format, ##__VA_ARGS__)
@@ -650,6 +651,19 @@ uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
 		Reader.Seek(ReturnPos);
 	}
 
+	// Skip over broken objects
+	const bool bIsBroken = BrokenObjects.FindByPredicate([IncompleteHandle](const FNetRefHandle& Entry) { return Entry.GetId() == IncompleteHandle.GetId(); } ) != nullptr;
+	if (bIsBroken)
+	{
+		UE_NET_TRACE_OBJECT_SCOPE(IncompleteHandle, Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
+		UE_NET_TRACE_SCOPE(SkippedData, Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
+
+		Reader.Seek(BatchEndPos);
+		return 0U;
+	}
+
+	FPendingBatchData* PendingBatch = PendingBatches.FindByPredicate([&IncompleteHandle](const FPendingBatchData& Entry) { return Entry.Handle == IncompleteHandle; });
+
 	// This object has pending must be mapped references that must be resolved before we can process the data.
 	FPendingBatchData* PendingBatchData = ObjectReferenceCache->ShouldAsyncLoad() ? UpdateUnresolvedMustBeMappedReferences(IncompleteHandle, TempMustBeMappedReferences) : nullptr;
 	if (PendingBatchData)
@@ -689,6 +703,24 @@ uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
 
 		if (Context.HasErrorOrOverflow())
 		{
+			if (Context.GetError() == GNetError_BrokenNetHandle)
+			{
+				// $TODO: Report this to the server so it knows that the state of data in the batch is unknown
+
+				// Log error and try to recover, if get more incoming data for an object in the broken state we will skip it.
+				UE_LOG_REPLICATIONREADER_ERROR(TEXT("FReplicationReader::ReadObject Failed to read object batch handle: %s skipping batch data"), ToCStr(IncompleteHandle.ToString()));
+					
+				BrokenObjects.AddUnique(IncompleteHandle);
+
+				Context.ResetErrorContext();
+
+				UE_NET_TRACE_OBJECT_SCOPE(IncompleteHandle, Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
+				UE_NET_TRACE_SCOPE(SkippedData, Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
+
+				// Skip this batch
+				Reader.Seek(BatchEndPos);
+			}
+			
 			return 0U;
 		}
 	}
@@ -782,7 +814,10 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 		if (!NetRefHandle.IsValid())
 		{	
 			UE_LOG_REPLICATIONREADER_ERROR(TEXT("FReplicationReader::ReadObject Unable to create handle for %s."), *IncompleteHandle.ToString());
-			Context.SetError(GNetError_InvalidNetHandle);
+
+			// Mark error, but do not mark the bitstream as overflown as we want to handle this error.
+			Context.SetError(GNetError_BrokenNetHandle, false);
+
 			bHasErrors = true;
 			goto ErrorHandling;
 		}
@@ -1745,7 +1780,7 @@ void FReplicationReader::ProcessQueuedBatches()
 		TempMustBeMappedReferences.Reset();
 		UpdateUnresolvedMustBeMappedReferences(PendingBatchData.Handle, TempMustBeMappedReferences);
 
-		// If we have no more pending must be referenes we can apply the received state
+		// If we have no more pending must be references we can apply the received state
 		if (PendingBatchData.PendingMustBeMappedReferences.IsEmpty())		
 		{
 			UE_LOG(LogIris, Verbose, TEXT("ProcessQueuedBatches processing %d queued batches for Handle %s "), PendingBatchData.QueuedDataChunks.Num(), *PendingBatchData.Handle.ToString());
@@ -1772,7 +1807,20 @@ void FReplicationReader::ProcessQueuedBatches()
 						EndReplication(InternalIndex, false, bShouldDestroyInstance);
 					}
 
+					// Remove from broken list
+					BrokenObjects.SetNum(Algo::RemoveIf(BrokenObjects, [&NetRefHandleToEndReplication](const FNetRefHandle& Handle)
+					{
+						return Handle.GetId() == NetRefHandleToEndReplication.GetId();
+					}));
+
 					UE_LOG(LogIris, Verbose, TEXT("FReplicationReader::ProcessQueuedBatches EndReplication for %s while processing queued batches for %s"), *NetRefHandleToEndReplication.ToString(), *PendingBatchData.Handle.ToString());
+					continue;
+				}
+
+				// Skip over broken objects, we still process remaining chunk if the object has been destroyed.
+				const bool bIsBroken = (BrokenObjects.FindByPredicate([&PendingBatchData](const FNetRefHandle& Entry) { return Entry.GetId() == PendingBatchData.Handle.GetId(); }) != nullptr);
+				if (bIsBroken)
+				{
 					continue;
 				}
 
@@ -1788,8 +1836,20 @@ void FReplicationReader::ProcessQueuedBatches()
 				// $IRIS: $TODO: Implement special dispatch to defer RepNotifies if we are processing multiple batches for the same object.
 				ReadObjectsInBatch(Context, PendingBatchData.Handle, CurrentChunk.bHasBatchOwnerData, CurrentChunk.NumBits);
 
-				// $IRIS: $TODO: What to do if we fail to process this batch? Just delete it? Might need to report this to server as a broken object and build logic to reset replication of the object
-				ensureAlwaysMsgf(!Context.HasErrorOrOverflow(), TEXT("FReplicationReader::ProcessQueuedBatches - Failed to process enqueued batch for %s - %s"), *PendingBatchData.Handle.ToString(), *Context.GetError().ToString());
+				if (Context.HasErrorOrOverflow())
+				{
+					if (Context.GetError() == GNetError_BrokenNetHandle)
+					{
+						// $TODO: Report this to the server so it knows that the state of data in the batch is unknown
+
+						// Log error and try to recover, if get more incoming data for an object in the broken state we will skip it.
+						UE_LOG_REPLICATIONREADER_ERROR(TEXT("FReplicationReader::ProcessQueuedBatches Failed to process object batch handle: %s skipping batch data"), ToCStr(PendingBatchData.Handle.ToString()));
+					
+						BrokenObjects.AddUnique(PendingBatchData.Handle);
+
+						Context.ResetErrorContext();
+					}
+				}
 			
 				// Apply received data and resolve dependencies
 				DispatchStateData(Context);

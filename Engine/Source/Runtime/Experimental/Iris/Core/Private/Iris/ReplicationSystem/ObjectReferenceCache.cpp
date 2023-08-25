@@ -119,7 +119,7 @@ bool FObjectReferenceCache::SupportsObjectInternal(const UObject* Object) const
 // $IRIS: $TODO: refactor into utility methods as this is coped from GUIDCache
 bool FObjectReferenceCache::IsDynamicObject(const UObject* Object) const
 {
-	checkSlow(Object != NULL);
+	checkSlow(Object != nullptr);
 	checkSlow(Object->IsSupportedForNetworking());
 
 	// Any non net addressable object is dynamic
@@ -241,42 +241,42 @@ bool FObjectReferenceCache::CreateObjectReferenceInternal(const UObject* Object,
 		if (FCachedNetObjectReference* CachedObjectPtr = ReferenceHandleToCachedReference.Find(RefHandle))
 		{
 			FCachedNetObjectReference& CachedObject = *CachedObjectPtr;
-		if (CachedObject.Object.Get() == Object)
-		{
+			if (CachedObject.Object.Get() == Object)
+			{
 				UE_LOG_REFERENCECACHE(VeryVerbose, TEXT("ObjectReferenceCache::CreateObjectReferenceHandle Found existing %s for ObjectPath %s Object: %s (0x%p), OuterNetRefHandle: %s"),
 				*CachedObject.NetRefHandle.ToString(), ToCStr(Object->GetPathName()), *GetNameSafe(Object), Object, *CachedObject.OuterNetRefHandle.ToString());
 				OutReference = MakeNetObjectReference(CachedObject);
-			return true;
-		}
-		else
-		{
-				UE_LOG_REFERENCECACHE(Verbose, TEXT("ObjectReferenceCache::CreateObjectReferenceHandle Removed %s from ObjectToNetReferenceHandle due to stale cache. Cached Object (0x%p).  New object %s (0x%p)"),
-					*CachedObject.NetRefHandle.ToString(), CachedObject.ObjectKey, *GetNameSafe(Object), Object);
-
-			ObjectToNetReferenceHandle.Remove(CachedObject.ObjectKey);
-			ObjectToNetReferenceHandle.Remove(Object);
-				RefHandlePtr = nullptr;
-
-			if (RefHandle.IsStatic())
-			{
-					UE_LOG_REFERENCECACHE(Verbose, TEXT("ObjectReferenceCache::CreateObjectReferenceHandle clearing stale cache for static handle %s. Cached Object (0x%p).  New object %s (0x%p)"),
-						*CachedObject.NetRefHandle.ToString(), CachedObject.ObjectKey, *GetNameSafe(Object), Object);
-
-				// Note we only cleanse the object reference
-				// we still keep the cachedObject data around in order to be able to serialize static destruction infos
-				CachedObject.ObjectKey = nullptr;
-				CachedObject.Object = nullptr;
-
+				return true;
 			}
 			else
 			{
+				UE_LOG_REFERENCECACHE(Verbose, TEXT("ObjectReferenceCache::CreateObjectReferenceHandle Removed %s from ObjectToNetReferenceHandle due to stale cache. Cached Object (0x%p).  New object %s (0x%p)"),
+					*CachedObject.NetRefHandle.ToString(), CachedObject.ObjectKey, *GetNameSafe(Object), Object);
+
+				ObjectToNetReferenceHandle.Remove(CachedObject.ObjectKey);
+				ObjectToNetReferenceHandle.Remove(Object);
+				RefHandlePtr = nullptr;
+
+				if (RefHandle.IsStatic())
+				{
+					UE_LOG_REFERENCECACHE(Verbose, TEXT("ObjectReferenceCache::CreateObjectReferenceHandle clearing stale cache for static handle %s. Cached Object (0x%p).  New object %s (0x%p)"),
+						*CachedObject.NetRefHandle.ToString(), CachedObject.ObjectKey, *GetNameSafe(Object), Object);
+
+					// Note we only cleanse the object reference
+					// we still keep the cachedObject data around in order to be able to serialize static destruction infos
+					CachedObject.ObjectKey = nullptr;
+					CachedObject.Object = nullptr;
+
+				}
+				else
+				{
 					UE_LOG_REFERENCECACHE(Verbose, TEXT("ObjectReferenceCache::CreateObjectReferenceHandle removing cache for handle %s. Cached Object (0x%p). New object %s (0x%p)"),
 						*CachedObject.NetRefHandle.ToString(), CachedObject.ObjectKey, *GetNameSafe(Object), Object);
 
-				ReferenceHandleToCachedReference.Remove(RefHandle);
+					ReferenceHandleToCachedReference.Remove(RefHandle);
+				}
 			}
 		}
-	}
 		else
 		{
 			UE_LOG_REFERENCECACHE(Warning, TEXT("ObjectReferenceCache::CreateObjectReferenceInternal removed %s from ObjectToNetReferenceHandle due to mismatch with cache. Object %s (0x%p) "), *RefHandle.ToString(), *GetNameSafe(Object), Object);
@@ -799,7 +799,7 @@ UObject* FObjectReferenceCache::ResolveObjectReferenceHandleInternal(FNetRefHand
 				}
 
 				// There is nothing else to do except wait on the delegate to tell us this package is done loading
-				return NULL;
+				return nullptr;
 			}
 			else
 			{
@@ -1680,6 +1680,34 @@ void FObjectReferenceCache::ReadMustBeMappedExports(FNetSerializationContext& Co
 			MustBeMappedExports->Add(MustBeMappedHandle);
 		}
 	}
+}
+
+FString FObjectReferenceCache::DescribeObjectReference(const FNetObjectReference Ref, const FNetObjectResolveContext& ResolveContext)
+{
+	FString FullPath;
+
+	GenerateFullPath_r(Ref.GetRefHandle(), ResolveContext, FullPath);
+
+	// Only client assigned FNetObjectReferences has a path stored directly
+	if (Ref.PathToken.IsValid())
+	{
+		// This path is only used by Client to Server references
+		const TCHAR* ResolvedToken = StringTokenStore->ResolveRemoteToken(Ref.PathToken, *ResolveContext.RemoteNetTokenStoreState);
+		if (ResolvedToken)
+		{
+			if (!FullPath.IsEmpty())
+			{
+				FullPath += TEXT(".");
+			}
+
+			FString ObjectPath(ResolvedToken);
+			constexpr bool bReading = true;
+			RenamePathForPie(ResolveContext.ConnectionId, ObjectPath, bReading);
+			FullPath += FString::Printf(TEXT("%s"), ResolvedToken);
+		}
+	}
+
+	return FullPath;
 }
 
 FString FObjectReferenceCache::FullPath(FNetRefHandle RefHandle, const FNetObjectResolveContext& ResolveContext) const
