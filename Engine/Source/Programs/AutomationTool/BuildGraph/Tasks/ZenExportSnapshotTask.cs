@@ -207,6 +207,7 @@ namespace AutomationTool.Tasks
 			}
 
 			// Get the Zen executable path
+			FileReference ZenExe = ResolveFile(String.Format("Engine/Binaries/{0}/zen{1}", HostPlatform.Current.HostEditorPlatform.ToString(), RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : ""));
 			FileReference ZenExe = ZenExeFileReference();
 
 			// Format the command lines
