@@ -91,8 +91,6 @@ float2 BufferUVBilinearCorrection;
 
 float4 PrevSceneBufferUVToScreenPosition;
 
-float WorldDepthToPixelWorldRadius;
-
 Texture2D PrevDepthBuffer;
 Texture2D PrevGBufferA;
 Texture2D PrevGBufferB;
@@ -197,7 +195,7 @@ float ComputeAnisotropyInvFactor(FSSDSampleSceneInfos SceneMetadata)
 float ComputeWorldBluringRadiusCausedByPixelSize(FSSDSampleSceneInfos SceneMetadata)
 {
 	// Should be multiplied 0.5* for the diameter to radius, and by 2.0 because GetTanHalfFieldOfView() cover only half of the pixels.
-	return WorldDepthToPixelWorldRadius * GetWorldDepth(SceneMetadata);
+	return GetDepthPixelRadiusForProjectionType(GetWorldDepth(SceneMetadata));
 }
 
 /** Convert to bilateral world distance. */

@@ -44,7 +44,6 @@ static const int2 kOffsets[4] = {
 float4x4 RotationalClipToPrevClip;
 float2 PrevOutputBufferUVMin;
 float2 PrevOutputBufferUVMax;
-float WorldDepthToDepthError;
 float VelocityExtrapolationMultiplier;
 float InvFlickeringMaxParralaxVelocity;
 uint bOutputIsMovingTexture;
@@ -178,7 +177,7 @@ void MainCS(
 		float DeviceZError;
 		{
 			float Depth = ConvertFromDeviceZ(CenterSubpixelDeviceZ);
-			float ErrorCorrectedDeviceZ = ConvertToDeviceZ(Depth + Depth * WorldDepthToDepthError);
+			float ErrorCorrectedDeviceZ = ConvertToDeviceZ(GetDepthPixelRadiusForProjectionType(Depth) * 2.0f + Depth);
 			DeviceZError = abs(ErrorCorrectedDeviceZ - CenterSubpixelDeviceZ);
 		}
 		#endif
@@ -335,15 +334,14 @@ void MainCS(
 			
 		tsr_half PixelParallaxVelocity = tsr_half(0.5) * length(tsr_half2(RotationalPrevScreen - PrevScreen) * tsr_half2(InputInfo_ViewportSize));
 			
-		float4 ClipPosition = float4(ScreenPos * (View.ViewToClip[3][3] < 1.0f ? Depth : 1.0f), Depth, 1);
-		float4 PrevClipPosition = float4(PrevScreenPos * (View.ViewToClip[3][3] < 1.0f ? PrevDepth : 1.0f), PrevDepth, 1);
+		float4 ClipPosition = float4(GetScreenPositionForProjectionType(ScreenPos,Depth), Depth, 1);
+		float4 PrevClipPosition = float4(GetScreenPositionForProjectionType(PrevScreenPos, PrevDepth), PrevDepth, 1);
 		
 		float3 PreViewTranslationOffset = LWCToFloat(LWCSubtract(PrimaryView.PreViewTranslation, PrimaryView.PrevPreViewTranslation));
 		float3 TranslatedWorldPosition = mul(ClipPosition, View.ScreenToTranslatedWorld).xyz;
 		float3 PrevTranslatedWorldPosition = mul(PrevClipPosition, View.PrevScreenToTranslatedWorld).xyz + PreViewTranslationOffset;
 		
-		float WorldDepthToPixelWorldRadius = 2.0 * GetTanHalfFieldOfView().x * View.ViewSizeAndInvSize.z;
-		float StaticWorldRadius = Depth * WorldDepthToPixelWorldRadius;
+		float StaticWorldRadius = GetDepthPixelRadiusForProjectionType(Depth) * 2.0f;
 
 		IsMovingMask = max(
 			tsr_half(saturate(length(TranslatedWorldPosition - PrevTranslatedWorldPosition) * rcp(StaticWorldRadius) - 1.0)),

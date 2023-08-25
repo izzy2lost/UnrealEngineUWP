@@ -1312,11 +1312,6 @@ void Denoiser::SetupCommonShaderParameters(
 		float(DenoiserViewport.Min.Y + 0.5f) / float(DenoiserBufferExtent.Y),
 		float(DenoiserViewport.Max.X - 0.5f) / float(DenoiserBufferExtent.X),
 		float(DenoiserViewport.Max.Y - 0.5f) / float(DenoiserBufferExtent.Y));
-
-	float TanHalfFieldOfView = View.ViewMatrices.GetInvProjectionMatrix().M[0][0];
-
-	// Should be multiplied 0.5* for the diameter to radius, and by 2.0 because GetTanHalfFieldOfView() cover only half of the pixels.
-	OutPublicCommonParameters->WorldDepthToPixelWorldRadius = TanHalfFieldOfView / float(View.ViewRect.Width());
 }
 
 

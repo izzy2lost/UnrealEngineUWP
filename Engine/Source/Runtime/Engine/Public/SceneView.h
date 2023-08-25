@@ -518,8 +518,16 @@ public:
 
 		TemporalAAProjectionJitter = InTemporalAAProjectionJitter;
 
-		ProjectionMatrix.M[2][0] += TemporalAAProjectionJitter.X;
-		ProjectionMatrix.M[2][1] += TemporalAAProjectionJitter.Y;
+		if (IsPerspectiveProjection())
+		{
+			ProjectionMatrix.M[2][0] += TemporalAAProjectionJitter.X;
+			ProjectionMatrix.M[2][1] += TemporalAAProjectionJitter.Y;
+		}
+		else
+		{
+			ProjectionMatrix.M[3][0] += TemporalAAProjectionJitter.X;
+			ProjectionMatrix.M[3][1] += TemporalAAProjectionJitter.Y;
+		}
 		InvProjectionMatrix = InvertProjectionMatrix(ProjectionMatrix);
 
 		RecomputeDerivedMatrices();
@@ -527,8 +535,16 @@ public:
 
 	void HackRemoveTemporalAAProjectionJitter()
 	{
-		ProjectionMatrix.M[2][0] -= TemporalAAProjectionJitter.X;
-		ProjectionMatrix.M[2][1] -= TemporalAAProjectionJitter.Y;
+		if (IsPerspectiveProjection())
+		{
+			ProjectionMatrix.M[2][0] -= TemporalAAProjectionJitter.X;
+			ProjectionMatrix.M[2][1] -= TemporalAAProjectionJitter.Y;
+		}
+		else
+		{
+			ProjectionMatrix.M[3][0] -= TemporalAAProjectionJitter.X;
+			ProjectionMatrix.M[3][1] -= TemporalAAProjectionJitter.Y;
+		}
 		InvProjectionMatrix = InvertProjectionMatrix(ProjectionMatrix);
 
 		TemporalAAProjectionJitter = FVector2D::ZeroVector;
@@ -539,8 +555,16 @@ public:
 	{
 		FMatrix ProjNoAAMatrix = ProjectionMatrix;
 
-		ProjNoAAMatrix.M[2][0] -= TemporalAAProjectionJitter.X;
-		ProjNoAAMatrix.M[2][1] -= TemporalAAProjectionJitter.Y;
+		if (IsPerspectiveProjection())
+		{
+			ProjNoAAMatrix.M[2][0] -= TemporalAAProjectionJitter.X;
+			ProjNoAAMatrix.M[2][1] -= TemporalAAProjectionJitter.Y;
+		}
+		else
+		{
+			ProjNoAAMatrix.M[3][0] -= TemporalAAProjectionJitter.X;
+			ProjNoAAMatrix.M[3][1] -= TemporalAAProjectionJitter.Y;
+		}
 
 		return ProjNoAAMatrix;
 	}
@@ -901,6 +925,8 @@ enum ETranslucencyVolumeCascade
 	VIEW_UNIFORM_BUFFER_MEMBER(float, SubSurfaceColorAsTransmittanceAtDistanceInMeters) \
 	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW(FVector4f, TanAndInvTanHalfFOV) \
 	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW(FVector4f, PrevTanAndInvTanHalfFOV) \
+	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW(float, WorldDepthToPixelWorldRadius) \
+	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW(float, PixelWorldRadiusOffset) \
 	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW(FVector4f, GlintLUTParameters0) \
 	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW(FVector4f, GlintLUTParameters1) \
 

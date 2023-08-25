@@ -333,7 +333,7 @@ static TAutoConsoleVariable<int32> CVarEnableTemporalUpsample(
 	ECVF_Default);
 
 float GOrthographicDepthThicknessScale = 0.01;
-static FAutoConsoleVariableRef CVarOrthographicDepthThicknessScal(
+static FAutoConsoleVariableRef CVarOrthographicDepthThicknessScale(
 	TEXT("r.OrthographicDepthThicknessScale"),
 	GOrthographicDepthThicknessScale,
 	TEXT("Orthographic scene depth scales proportionally lower than perspective, typically on a scale of 1/100")
@@ -2403,6 +2403,17 @@ void FSceneView::SetupViewRectUniformBufferParameters(FViewUniformShaderParamete
 
 		ViewUniformShaderParameters.TanAndInvTanHalfFOV = InViewMatrices.GetTanAndInvTanHalfFOV();
 		ViewUniformShaderParameters.PrevTanAndInvTanHalfFOV = InPrevViewMatrices.GetTanAndInvTanHalfFOV();
+
+		if (IsPerspectiveProjection())
+		{
+			ViewUniformShaderParameters.WorldDepthToPixelWorldRadius = InViewMatrices.GetTanAndInvTanHalfFOV().X / float(EffectiveViewRect.Width());
+			ViewUniformShaderParameters.PixelWorldRadiusOffset = 0;
+		}
+		else
+		{
+			ViewUniformShaderParameters.WorldDepthToPixelWorldRadius = 0;
+			ViewUniformShaderParameters.PixelWorldRadiusOffset = InViewMatrices.GetTanAndInvTanHalfFOV().X / float(EffectiveViewRect.Width());
+		}
 	}
 	
 	float FovFixX = ViewUniformShaderParameters.TanAndInvTanHalfFOV.X;

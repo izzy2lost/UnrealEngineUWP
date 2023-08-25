@@ -195,7 +195,7 @@ FSSDSampleSceneInfos UncompressSampleSceneInfo(
 
 	// Compute translated world position.
 	{
-		float4 ClipPosition = float4(ScreenPosition * (View.ViewToClip[3][3] < 1.0f ? Infos.WorldDepth : 1.0f), Infos.WorldDepth, 1);
+		float4 ClipPosition = float4(GetScreenPositionForProjectionType(ScreenPosition, Infos.WorldDepth), Infos.WorldDepth, 1);
 
 		if (bIsPrevFrame)
 		{

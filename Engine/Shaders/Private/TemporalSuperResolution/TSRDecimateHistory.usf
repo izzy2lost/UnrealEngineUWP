@@ -310,11 +310,9 @@ void ProcessPrevAtomicTexturesSamples(
 
 		tsr_half DepthRejection;
 		{
-			const float WorldDepthToPixelWorldRadius = GetTanHalfFieldOfView().x * InputInfo_ViewportSizeInverse.x;
 			const float PixelDepthError = 3.0;
-			const float RadiusToDiamater = 2.0;
-			
-			float WorldDepthEpsilon = (WorldDepthToPixelWorldRadius * RadiusToDiamater * PixelDepthError) * HistoryClosestWorldDepth; 
+			const float RadiusToDiameter = 2.0;
+			float WorldDepthEpsilon = GetDepthPixelRadiusForProjectionType(HistoryClosestDeviceZ) * PixelDepthError * RadiusToDiameter;
 			float DeltaDepth = abs(HistoryClosestWorldDepth - WorldDepth);
 
 			DepthRejection = saturate(tsr_half(2.0) - tsr_half(DeltaDepth / WorldDepthEpsilon));

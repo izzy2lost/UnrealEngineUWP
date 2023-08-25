@@ -694,7 +694,6 @@ void EngineShowFlagOrthographicOverride(bool bIsPerspective, FEngineShowFlags& E
 	// Disable post processing that doesn't work in ortho viewports.
 	if (!bIsPerspective)
 	{
-		EngineShowFlags.SetTemporalAA(false);
 		EngineShowFlags.SetMotionBlur(false);
 	}
 }

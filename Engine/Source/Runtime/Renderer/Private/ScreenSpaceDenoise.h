@@ -26,7 +26,6 @@ BEGIN_SHADER_PARAMETER_STRUCT(FCommonShaderParameters, )
 	SHADER_PARAMETER(FVector4f, DenoiserBufferSizeAndInvSize)
 	SHADER_PARAMETER(FVector4f, DenoiserBufferBilinearUVMinMax)
 	SHADER_PARAMETER(FVector4f, SceneBufferUVToScreenPosition) // TODO: move to view uniform buffer
-	SHADER_PARAMETER(float, WorldDepthToPixelWorldRadius)
 END_SHADER_PARAMETER_STRUCT()
 
 void SetupCommonShaderParameters(

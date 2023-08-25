@@ -1247,6 +1247,11 @@ float2 GetScreenPositionForProjectionType(float2 ScreenPosition, float SceneDept
 	return select(IsOrthoProjection(), ScreenPosition, ScreenPosition * SceneDepth);
 }
 
+float GetDepthPixelRadiusForProjectionType(float SceneDepth)
+{
+	return View.WorldDepthToPixelWorldRadius * SceneDepth + View.PixelWorldRadiusOffset;
+}
+
 float2 SvPositionToBufferUV(float4 SvPosition)
 {
 	return SvPosition.xy * View.BufferSizeAndInvSize.zw;
