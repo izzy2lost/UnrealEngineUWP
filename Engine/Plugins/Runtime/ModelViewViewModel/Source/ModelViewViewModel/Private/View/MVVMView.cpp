@@ -59,6 +59,10 @@ void UMVVMView::Construct()
 	InitializeEvents();
 
 	bConstructed = true;
+
+#if UE_WITH_MVVM_DEBUGGING
+	UE::MVVM::FDebugging::BroadcastViewConstructed(this);
+#endif
 }
 
 
@@ -114,14 +118,14 @@ void UMVVMView::InitializeSources()
 				}
 			}
 			ViewSource.Source = NewSource;
+
+#if UE_WITH_MVVM_DEBUGGING
+			UE::MVVM::FDebugging::BroadcastViewSourceValueChanged(this, ViewSource);
+#endif
 		}
 	}
 
 	bSourcesInitialized = true;
-
-#if UE_WITH_MVVM_DEBUGGING
-	UE::MVVM::FDebugging::BroadcastViewConstructed(this);
-#endif
 
 	if (ClassExtension->InitializeBindingsOnConstruct())
 	{
@@ -210,30 +214,34 @@ void UMVVMView::UninitializeInternal(bool bUninitializeSources)
 	for (int32 Index = 0; Index < AllViewModelCreators.Num(); ++Index)
 	{
 		const FMVVMViewClass_SourceCreator& Item = AllViewModelCreators[Index];
-		FMVVMViewSource& Source = Sources[Index];
+		FMVVMViewSource& ViewSource = Sources[Index];
 
-		if (Source.RegisteredCount > 0 && Source.Source && bUninitializeBindings)
+		if (ViewSource.RegisteredCount > 0 && ViewSource.Source && bUninitializeBindings)
 		{
-			TScriptInterface<INotifyFieldValueChanged> SourceAsInterface = Source.Source;
+			TScriptInterface<INotifyFieldValueChanged> SourceAsInterface = ViewSource.Source;
 			checkf(SourceAsInterface.GetInterface(), TEXT("It was added as a INotifyFieldValueChanged. It should still be."));
 			SourceAsInterface->RemoveAllFieldValueChangedDelegates(this);
 		}
 
 		// For GC release any object used by the view
-		if (!Source.bSetManually && bUninitializeSources)
+		if (!ViewSource.bSetManually && bUninitializeSources)
 		{
-			Item.DestroyInstance(Source.Source, this);
+			Item.DestroyInstance(ViewSource.Source, this);
 
-			Source.Source = nullptr;
-			if (Source.bAssignedToUserWidgetProperty)
+			ViewSource.Source = nullptr;
+			if (ViewSource.bAssignedToUserWidgetProperty)
 			{
-				FObjectPropertyBase* FoundObjectProperty = FindFProperty<FObjectPropertyBase>(UserWidget->GetClass(), Source.SourceName);
+				FObjectPropertyBase* FoundObjectProperty = FindFProperty<FObjectPropertyBase>(UserWidget->GetClass(), ViewSource.SourceName);
 				if (ensureAlwaysMsgf(FoundObjectProperty, TEXT("The compiler should have added the property")))
 				{
 					FoundObjectProperty->SetObjectPropertyValue_InContainer(UserWidget, nullptr);
 				}
-				Source.bAssignedToUserWidgetProperty = false;
+				ViewSource.bAssignedToUserWidgetProperty = false;
 			}
+
+#if UE_WITH_MVVM_DEBUGGING
+			UE::MVVM::FDebugging::BroadcastViewSourceValueChanged(this, ViewSource);
+#endif
 		}
 	}
 
@@ -496,6 +504,10 @@ bool UMVVMView::SetSourceInternal(FName ViewModelName, TScriptInterface<INotifyF
 				GEngine->GetEngineSubsystem<UMVVMBindingSubsystem>()->RemoveViewWithEveryTickBinding(this);
 			}
 		}
+
+#if UE_WITH_MVVM_DEBUGGING
+		UE::MVVM::FDebugging::BroadcastViewSourceValueChanged(this, ViewSource);
+#endif
 	}
 	return true;
 }

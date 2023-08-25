@@ -2,11 +2,13 @@
 
 #pragma once
 
+#include "Debugging/MVVMDebugging.h"
 #include "Widgets/SCompoundWidget.h"
 
 class STableViewBase;
 class ITableRow;
 class FWidgetBlueprintEditor;
+class UMVVMView;
 class UUserWidget;
 
 namespace UE::MVVM::Private { class SPreviewSourceView; }
@@ -30,8 +32,10 @@ private:
 	void HandlePreviewWidgetChanged();
 	void HandleSelectedObjectChanged();
 	void HandleSourceSelectionChanged(TSharedPtr<Private::SPreviewSourceEntry> Entry, ESelectInfo::Type SelectionType) const;
+	void HandleViewChanged(const FDebugging::FView&, const FDebugging::FViewSourceValueArgs&);
 	TSharedRef<ITableRow> GenerateWidget(TSharedPtr<Private::SPreviewSourceEntry> Entry, const TSharedRef<STableViewBase>& OwnerTable) const;
 
+	TWeakObjectPtr<UMVVMView> WeakView;
 	TWeakPtr<FWidgetBlueprintEditor> WeakEditor;
 	TSharedPtr<Private::SPreviewSourceView> SourceListView;
 	TArray<TSharedPtr<Private::SPreviewSourceEntry>> SourceList;
