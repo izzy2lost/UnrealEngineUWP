@@ -1109,7 +1109,10 @@ namespace AutomationScripts
 					}
 				}
 
-				ThisPlatform.GetFilesToStageForDLC(Params, SC);
+				if (SC.CustomDeployment == null || !SC.CustomDeployment.GetFilesToStageForDLC(Params, SC))
+				{
+					ThisPlatform.GetFilesToStageForDLC(Params, SC);
+				}
 
 				bCreatePluginManifest = true;
 			}
@@ -1117,7 +1120,11 @@ namespace AutomationScripts
 			{
 				if (!Params.IterateSharedBuildUsePrecompiledExe)
 				{
-					ThisPlatform.GetFilesToDeployOrStage(Params, SC);
+					if (SC.CustomDeployment == null || !SC.CustomDeployment.PreGetFilesToDeployOrStage(Params, SC))
+					{
+						ThisPlatform.GetFilesToDeployOrStage(Params, SC);
+					}
+					SC.CustomDeployment?.PostGetFilesToDeployOrStage(Params, SC);
 
 					// Stage any extra runtime dependencies from the receipts
 					foreach (StageTarget Target in SC.StageTargets)
@@ -2797,8 +2804,9 @@ namespace AutomationScripts
 		/// <param name="PakName"></param>
 		private static void CreatePaks(ProjectParams Params, DeploymentContext SC, List<CreatePakParams> PakParamsList, EncryptionAndSigning.CryptoSettings CryptoSettings, FileReference CryptoKeysCacheFilename)
 		{
+			bool? bCustomDeploymentNeedsDiffPak = SC.CustomDeployment?.GetPlatformPatchesWithDiffPak(Params, SC);
 			bool bShouldCreateIoStoreContainerFiles = ShouldCreateIoStoreContainerFiles(Params, SC);
-			bool bShouldGeneratePatch = Params.IsGeneratingPatch && SC.StageTargetPlatform.GetPlatformPatchesWithDiffPak(Params, SC);
+			bool bShouldGeneratePatch = Params.IsGeneratingPatch && (bCustomDeploymentNeedsDiffPak ?? SC.StageTargetPlatform.GetPlatformPatchesWithDiffPak(Params, SC));
 
 			if (bShouldGeneratePatch && !Params.HasBasedOnReleaseVersion)
 			{
@@ -3202,7 +3210,12 @@ namespace AutomationScripts
 				SecondaryOrderFiles = OrderFiles.FindAll(x => x.OrderType == OrderFile.OrderFileType.Cooker);
 			}
 
-			string CommonAdditionalArgs = SC.StageTargetPlatform.GetPlatformPakCommandLine(Params, SC) + BulkOption + PatchOptions + CompressionFormats + " " + Params.AdditionalPakOptions;
+			string PlatformPakCmdLine = "";
+			if (SC.CustomDeployment == null || !SC.CustomDeployment.GetPlatformPakCommandLine(Params, SC, ref PlatformPakCmdLine))
+			{
+				PlatformPakCmdLine += SC.StageTargetPlatform.GetPlatformPakCommandLine(Params, SC);
+			}
+			string CommonAdditionalArgs = PlatformPakCmdLine + BulkOption + PatchOptions + CompressionFormats + " " + Params.AdditionalPakOptions;
 
 			bool bPakFallbackOrderForNonUassetFiles = false;
 			PlatformGameConfig.GetBool("/Script/UnrealEd.ProjectPackagingSettings", "bPakFallbackOrderForNonUassetFiles", out bPakFallbackOrderForNonUassetFiles);
@@ -3484,9 +3497,21 @@ namespace AutomationScripts
 					FinalOrderFiles.AddRange(OrderFiles.FindAll(x => x.OrderType == OrderFile.OrderFileType.Cooker));
 				}
 
+				string AdditionalPlatformPakCmdLine = "";
+				if (SC.CustomDeployment == null || !SC.CustomDeployment.GetPlatformPakCommandLine(Params, SC, ref AdditionalPlatformPakCmdLine))
+				{
+					PlatformPakCmdLine += SC.StageTargetPlatform.GetPlatformPakCommandLine(Params, SC);
+				}
+
+				string AdditionalPlatformIoStoreCmdLine = "";
+				if (SC.CustomDeployment == null || !SC.CustomDeployment.GetPlatformIoStoreCommandLine(Params, SC, ref AdditionalPlatformIoStoreCmdLine))
+				{
+					AdditionalPlatformIoStoreCmdLine += SC.StageTargetPlatform.GetPlatformIoStoreCommandLine(Params, SC);
+				}
+
 				string AdditionalArgs =
-					SC.StageTargetPlatform.GetPlatformPakCommandLine(Params, SC)
-					+ SC.StageTargetPlatform.GetPlatformIoStoreCommandLine(Params, SC)
+					AdditionalPlatformPakCmdLine
+					+ AdditionalPlatformIoStoreCmdLine
 					+ BulkOption
 					+ CompressionFormats
 					+ " " + AdditionalCompressionOptionsOnCommandLine

@@ -148,6 +148,11 @@ public class DeploymentContext //: ProjectParams
 	public string CustomConfig;
 
 	/// <summary>
+	/// Allows a platform to change how it is packaged, staged and deployed - for example, when packaging for a specific game store
+	/// </summary>
+	public CustomDeploymentHandler CustomDeployment = null;
+
+	/// <summary>
 	/// This is the root directory that contains the engine: d:\a\UE\
 	/// </summary>
 	public DirectoryReference LocalRoot;

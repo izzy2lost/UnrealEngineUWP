@@ -47,6 +47,24 @@ public class Win64Platform : Platform
 		return Devices.ToArray();
 	}
 
+	public override void PlatformSetupParams(ref ProjectParams Params)
+	{
+		base.PlatformSetupParams(ref Params);
+
+		// use a custom deployment handler if one is requested
+		Params.PreModifyDeploymentContextCallback = new Action<ProjectParams, DeploymentContext>((ProjectParams Params, DeploymentContext SC) =>
+		{
+			if (SC.CustomDeployment == null)
+			{			
+				ConfigHierarchy EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, Params.RawProjectPath.Directory, PlatformType, SC.CustomConfig);
+				if (EngineIni.GetString("/Script/WindowsTargetPlatform.WindowsTargetSettings", "CustomDeployment", out string CustomDeploymentName))
+				{
+					SC.CustomDeployment = CustomDeploymentHandler.Create(CustomDeploymentName, this);
+				}
+			}			
+		});
+	}
+
 	public override void Deploy(ProjectParams Params, DeploymentContext SC)
 	{
 		// We only care about deploying for SteamDeck
