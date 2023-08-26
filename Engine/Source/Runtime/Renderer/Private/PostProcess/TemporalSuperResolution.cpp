@@ -542,7 +542,6 @@ class FTSRDilateVelocityCS : public FTSRShader
 		{
 			return false;
 		}
-		ensureMsgf(VelocityEncodeHasPixelAnimation(Parameters.Platform), TEXT("Platform did not return true from VelocityEncodeHasPixelAnimation().  TSR requires encoding UMaterial::bHasPixelAnimation in the velocity buffer."));
 		return true;
 	}
 }; // class FTSRDilateVelocityCS
