@@ -285,7 +285,7 @@ namespace Horde.Server.Storage
 
 			// Parse the range header
 			int offset = 0;
-			int? length = null;
+			int length = 0;
 
 			if (headers.Range.Count > 0)
 			{
@@ -317,21 +317,16 @@ namespace Horde.Server.Storage
 					{
 						return new BadRequestObjectResult(LogEvent.Create(LogLevel.Error, "Unable to parse end for range: {Value}", value));
 					}
+
+					if (length == 0)
+					{
+						return new FileStreamResult(new MemoryStream(Array.Empty<byte>()), "application/octet-stream");
+					}
 				}
 			}
 
 #pragma warning disable CA2000 // Dispose objects before losing scope
-			Stream stream;
-			if (offset == 0 && length == null)
-			{
-				Bundle bundle = await storageClient.ReadBundleAsync(locator, cancellationToken);
-				stream = new ReadOnlySequenceStream(bundle.AsSequence());
-			}
-			else
-			{
-				ReadOnlyMemory<byte> memory = await storageClient.ReadBundleRangeAsync(locator, offset, length, cancellationToken);
-				stream = new ReadOnlyMemoryStream(memory);
-			}
+			Stream stream = await storageClient.OpenAsync(locator, offset, length, cancellationToken);
 			return new FileStreamResult(stream, "application/octet-stream");
 #pragma warning restore CA2000 // Dispose objects before losing scope
 		}

@@ -11,6 +11,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis;
 using System.Diagnostics;
+using System.IO;
 
 namespace EpicGames.Horde.Storage.Bundles
 {
@@ -228,14 +229,14 @@ namespace EpicGames.Horde.Storage.Bundles
 			int prefetchSize = _cache != null ? DefaultFetchSize : DefaultUncachedFetchSize;
 			for (; ; )
 			{
-				using (IMemoryOwner<byte> owner = MemoryPool<byte>.Shared.Rent(prefetchSize))
+				await using (Stream stream = await _store.OpenAsync(queuedHeader.Blob, 0, prefetchSize, cancellationToken))
 				{
-					// Read the prefetch size from the blob
-					Memory<byte> memory = owner.Memory.Slice(0, prefetchSize);
-					memory = await _store.ReadBundleRangeAsync(queuedHeader.Blob, 0, memory, cancellationToken);
+					// Read the header data
+					byte[] prelude = new byte[BundleHeader.PreludeLength];
+					await stream.ReadFixedLengthBytesAsync(prelude, cancellationToken);
 
-					// Make sure it's large enough to hold the header
-					int headerSize = BundleHeader.ReadPrelude(memory.Span);
+					// Make sure we've read enough to hold the header
+					int headerSize = BundleHeader.ReadPrelude(prelude);
 					if (headerSize > prefetchSize)
 					{
 						prefetchSize = headerSize;
@@ -243,7 +244,7 @@ namespace EpicGames.Horde.Storage.Bundles
 					}
 
 					// Parse the header and construct the bundle info from it
-					BundleHeader header = BundleHeader.Read(memory.ToArray());
+					BundleHeader header = await ReadHeaderAsync(prelude, stream, headerSize, cancellationToken);
 
 					// Construct the bundle info
 					BundleInfo bundleInfo = new BundleInfo(queuedHeader.Blob, header, headerSize);
@@ -251,20 +252,18 @@ namespace EpicGames.Horde.Storage.Bundles
 					if (_cache != null)
 					{
 						// Also add any encoded packets we prefetched
-						List<ReadOnlyMemory<byte>> packets = new List<ReadOnlyMemory<byte>>();
-						for (int packetOffset = headerSize; packets.Count < header.Packets.Count;)
+						int packetOffset = headerSize;
+						for (int packetIdx = 0; packetIdx < header.Packets.Count; packetIdx++)
 						{
-							int packetIdx = packets.Count;
-
 							int packetLength = header.Packets[packetIdx].EncodedLength;
-							if (packetOffset + packetLength > memory.Length)
+							if (packetOffset + packetLength > prefetchSize)
 							{
 								break;
 							}
 
-							ReadOnlyMemory<byte> packetData = memory.Slice(packetOffset, packetLength).ToArray();
+							byte[] packetData = await ReadPacketAsync(stream, packetLength, cancellationToken);
 							AddToCache(GetEncodedPacketCacheKey(queuedHeader.Blob, packetIdx), packetData, packetData.Length);
-							packets.Add(packetData);
+
 							packetOffset += packetLength;
 						}
 
@@ -327,19 +326,16 @@ namespace EpicGames.Horde.Storage.Bundles
 				readLength = nextReadLength;
 			}
 
-			using (IMemoryOwner<byte> owner = MemoryPool<byte>.Shared.Rent(readLength))
+			await using (Stream stream = await _store.OpenAsync(bundleInfo.Locator, bundleInfo.HeaderLength + bundleInfo.Header.Packets[minPacketIdx].EncodedOffset, readLength, cancellationToken))
 			{
-				Memory<byte> buffer = owner.Memory.Slice(0, readLength);
-				buffer = await _store.ReadBundleRangeAsync(bundleInfo.Locator, bundleInfo.HeaderLength + bundleInfo.Header.Packets[minPacketIdx].EncodedOffset, buffer, cancellationToken);
-
 				// Copy all the packets that have been read into separate buffers, so we can cache them individually.
-				ReadOnlyMemory<byte>?[] packets = new ReadOnlyMemory<byte>?[maxPacketIdx - minPacketIdx];
+				ReadOnlyMemory<byte>[] packets = new ReadOnlyMemory<byte>[maxPacketIdx - minPacketIdx];
 				if (_cache != null)
 				{
 					for (int idx = minPacketIdx; idx < maxPacketIdx; idx++)
 					{
 						string cacheKey = GetEncodedPacketCacheKey(bundleInfo.Locator, idx);
-						ReadOnlyMemory<byte> data = buffer.Slice(bundleInfo.Header.Packets[idx].EncodedOffset - bundleInfo.Header.Packets[minPacketIdx].EncodedOffset, bundleInfo.Header.Packets[idx].EncodedLength).ToArray();
+						byte[] data = await ReadPacketAsync(stream, bundleInfo.Header.Packets[idx].EncodedLength, cancellationToken);
 						packets[idx - minPacketIdx] = data;
 						AddToCache(cacheKey, data, data.Length);
 					}
@@ -355,13 +351,9 @@ namespace EpicGames.Horde.Storage.Bundles
 				// Mark them all as complete
 				foreach (QueuedPacket updatePacket in updatePackets)
 				{
-					ReadOnlyMemory<byte>? data = packets[updatePacket.PacketIdx - minPacketIdx];
-					if (data == null)
-					{
-						data = buffer.Slice(bundleInfo.Header.Packets[updatePacket.PacketIdx].EncodedOffset - bundleInfo.Header.Packets[minPacketIdx].EncodedOffset, bundleInfo.Header.Packets[updatePacket.PacketIdx].EncodedLength).ToArray();
+					ReadOnlyMemory<byte> data = packets[updatePacket.PacketIdx - minPacketIdx];
+					updatePacket.CompletionSource.SetResult(data);
 					}
-					updatePacket.CompletionSource.SetResult((ReadOnlyMemory<byte>)data);
-				}
 
 				// Remove all the completed packets from the queue
 				lock (_queueLock)
@@ -369,6 +361,21 @@ namespace EpicGames.Horde.Storage.Bundles
 					_queuedPackets.RemoveAll(x => updatePackets.Contains(x));
 				}
 			}
+		}
+
+		static async Task<BundleHeader> ReadHeaderAsync(byte[] prelude, Stream stream, int headerSize, CancellationToken cancellationToken)
+		{
+			byte[] header = new byte[headerSize];
+			prelude.CopyTo(header, 0);
+			await stream.ReadFixedLengthBytesAsync(header.AsMemory(prelude.Length), cancellationToken);
+			return BundleHeader.Read(header);
+		}
+
+		static async Task<byte[]> ReadPacketAsync(Stream stream, int packetSize, CancellationToken cancellationToken)
+		{
+			byte[] packet = new byte[packetSize];
+			await stream.ReadAsync(packet, cancellationToken);
+			return packet;
 		}
 
 		/// <summary>

@@ -142,31 +142,18 @@ namespace Horde.Server.Storage
 			#region Blobs
 
 			/// <inheritdoc/>
-			public override async Task<Bundle> ReadBundleAsync(BundleLocator locator, CancellationToken cancellationToken = default)
-			{
-				using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(StorageClientImpl)}.{nameof(ReadBundleAsync)}");
-				span.SetAttribute("locator", locator.ToString());
-
-				string path = GetBlobPath(locator);
-				await using Stream stream = await Backend.ReadAsync(path, cancellationToken);
-				return await Bundle.FromStreamAsync(stream, cancellationToken);
-			}
-
-			/// <inheritdoc/>
 			public override ValueTask<Uri?> GetReadRedirectAsync(BundleLocator locator, CancellationToken cancellationToken = default) => Backend.TryGetReadRedirectAsync(GetBlobPath(locator), cancellationToken);
 
 			/// <inheritdoc/>
-			public override async Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BundleLocator locator, int offset, int? length, CancellationToken cancellationToken = default)
+			public override async Task<Stream> OpenAsync(BundleLocator locator, int offset, int length, CancellationToken cancellationToken = default)
 			{
-				using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(StorageClientImpl)}.{nameof(ReadBundleRangeAsync)}");
+				using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(StorageClientImpl)}.{nameof(OpenAsync)}");
 				span.SetAttribute("locator", locator.ToString());
 				span.SetAttribute("offset", offset);
 				span.SetAttribute("length", length);
 
 				string path = GetBlobPath(locator);
-				await using Stream stream = await Backend.ReadAsync(path, offset, length, cancellationToken);
-
-				return await stream.ReadAllBytesAsync(cancellationToken);
+				return await Backend.ReadAsync(path, offset, length, cancellationToken);
 			}
 
 			/// <inheritdoc/>
@@ -1067,18 +1054,19 @@ namespace Horde.Server.Storage
 			for (; ; )
 			{
 				// Read the start of the blob
-				ReadOnlyMemory<byte> memory = await store.ReadBundleRangeAsync(locator, 0, fetchSize, cancellationToken);
-				if (memory.Length < BundleHeader.PreludeLength)
-				{
-					_logger.LogError("Blob {Blob} does not have a valid prelude", locator);
-					return null;
-				}
+				Stream stream = await store.OpenAsync(locator, 0, fetchSize, cancellationToken);
+
+				byte[] prelude = new byte[BundleHeader.PreludeLength];
+				await stream.ReadFixedLengthBytesAsync(prelude, cancellationToken);
 
 				// Make sure it's large enough to hold the header
-				int headerSize = BundleHeader.ReadPrelude(memory.Span);
+				int headerSize = BundleHeader.ReadPrelude(prelude);
 				if (headerSize <= fetchSize)
 				{
-					return BundleHeader.Read(memory);
+					byte[] header = new byte[headerSize];
+					prelude.AsSpan().CopyTo(header);
+					await stream.ReadFixedLengthBytesAsync(header.AsMemory(BundleHeader.PreludeLength), cancellationToken);
+					return BundleHeader.Read(header);
 				}
 
 				// Increase the fetch size and retry

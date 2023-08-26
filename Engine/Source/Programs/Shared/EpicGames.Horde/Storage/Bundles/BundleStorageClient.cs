@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -31,25 +32,27 @@ namespace EpicGames.Horde.Storage.Bundles
 
 		#region Blobs
 
-		/// <inheritdoc/>
-		public abstract Task<Bundle> ReadBundleAsync(BundleLocator locator, CancellationToken cancellationToken = default);
+		/// <summary>
+		/// Opens a bundle stream for reading
+		/// </summary>
+		/// <param name="locator">Locator for the bundle</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Stream for reading from the bundle</returns>
+		public Task<Stream> OpenAsync(BundleLocator locator, CancellationToken cancellationToken = default) => OpenAsync(locator, 0, 0, cancellationToken);
 
 		/// <inheritdoc/>
-		public abstract Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BundleLocator locator, int offset, int? length, CancellationToken cancellationToken = default);
+		public abstract Task<Stream> OpenAsync(BundleLocator locator, int offset, int length = 0, CancellationToken cancellationToken = default);
 
 		/// <summary>
-		/// Utility method to read a blob into a buffer
+		/// Reads an entire bundle into memory
 		/// </summary>
-		/// <param name="locator">Blob location</param>
-		/// <param name="offset">Offset within the blob</param>
-		/// <param name="memory">Buffer to read into</param>
+		/// <param name="locator">Locator for the bundle</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>The data that was read</returns>
-		public async Task<Memory<byte>> ReadBundleRangeAsync(BundleLocator locator, int offset, Memory<byte> memory, CancellationToken cancellationToken = default)
+		/// <returns>Bundle that was read</returns>
+		public async Task<Bundle> ReadBundleAsync(BundleLocator locator, CancellationToken cancellationToken = default)
 		{
-			ReadOnlyMemory<byte> buffer = await ReadBundleRangeAsync(locator, offset, memory.Length, cancellationToken);
-			buffer.CopyTo(memory);
-			return memory.Slice(0, buffer.Length);
+			using Stream stream = await OpenAsync(locator, cancellationToken);
+			return await Bundle.FromStreamAsync(stream, cancellationToken);
 		}
 
 		/// <inheritdoc/>

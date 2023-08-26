@@ -2,18 +2,15 @@
 
 using EpicGames.Core;
 using K4os.Compression.LZ4;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -118,7 +115,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <param name="stream">Stream to read from</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Bundle that was read</returns>
-		public static async Task<Bundle> FromStreamAsync(Stream stream, CancellationToken cancellationToken)
+		public static async Task<Bundle> FromStreamAsync(Stream stream, CancellationToken cancellationToken = default)
 		{
 			BundleHeader header = await BundleHeader.FromStreamAsync(stream, cancellationToken);
 

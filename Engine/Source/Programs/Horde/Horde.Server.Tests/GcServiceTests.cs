@@ -47,7 +47,7 @@ namespace Horde.Server.Tests
 				}
 			}
 
-			HashSet<BundleLocator> nodes = await FindNodes(store, roots);
+			HashSet<BundleLocator> nodes = await FindNodesAsync(store, roots);
 
 			await Clock.AdvanceAsync(TimeSpan.FromDays(1.0));
 
@@ -56,21 +56,21 @@ namespace Horde.Server.Tests
 			Assert.IsTrue(remaining.All(x => nodes.Contains(x)));
 		}
 
-		async Task<HashSet<BundleLocator>> FindNodes(BundleStorageClient store, IEnumerable<BundleLocator> roots)
+		async Task<HashSet<BundleLocator>> FindNodesAsync(BundleStorageClient store, IEnumerable<BundleLocator> roots)
 		{
 			HashSet<BundleLocator> nodes = new HashSet<BundleLocator>();
-			await FindNodes(store, roots, nodes);
+			await FindNodesAsync(store, roots, nodes);
 			return nodes;
 		}
 
-		async Task FindNodes(BundleStorageClient store, IEnumerable<BundleLocator> roots, HashSet<BundleLocator> nodes)
+		async Task FindNodesAsync(BundleStorageClient store, IEnumerable<BundleLocator> roots, HashSet<BundleLocator> nodes)
 		{
 			foreach (BundleLocator root in roots)
 			{
 				if (nodes.Add(root))
 				{
 					Bundle bundle = await store.ReadBundleAsync(root);
-					await FindNodes(store, bundle.Header.Imports, nodes);
+					await FindNodesAsync(store, bundle.Header.Imports, nodes);
 				}
 			}
 		}

@@ -103,36 +103,33 @@ namespace EpicGames.Horde.Storage.Backends
 		#region Blobs
 
 		/// <inheritdoc/>
-		public override async Task<Bundle> ReadBundleAsync(BundleLocator locator, CancellationToken cancellationToken = default)
+		public override async Task<Stream> OpenAsync(BundleLocator locator, int offset, int length, CancellationToken cancellationToken = default)
 		{
-			_logger.LogDebug("Reading {Locator}", locator);
-			using (HttpClient httpClient = _createClient())
+			if (offset == 0 && length == 0)
 			{
-				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"blobs/{locator}"))
-				{
-					HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
-					response.EnsureSuccessStatusCode();
-
-					byte[] data = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-					return new Bundle(data);
-				}
+				_logger.LogDebug("Reading {Locator}", locator);
 			}
-		}
+			else if (length == 0)
+			{
+				_logger.LogDebug("Reading {Locator} ({Offset}..)", locator, offset);
+			}
+			else
+			{
+				_logger.LogDebug("Reading {Locator} ({Offset}+{Length})", locator, offset, length);
+			}
 
-		/// <inheritdoc/>
-		public override async Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BundleLocator locator, int offset, int? length, CancellationToken cancellationToken = default)
-		{
-			_logger.LogDebug("Reading {Locator} ({Offset}+{Length})", locator, offset, length);
 			using (HttpClient httpClient = _createClient())
 			{
 				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"blobs/{locator}"))
 				{
-					request.Headers.Range = new RangeHeaderValue(offset, (length == null)? null : (offset + (length.Value - 1)));
+					if (offset != 0 || length != 0)
+					{
+						request.Headers.Range = new RangeHeaderValue(offset, (length == 0) ? null : (offset + (length - 1)));
+					}
 
 					HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
 					response.EnsureSuccessStatusCode();
-
-					return await response.Content.ReadAsByteArrayAsync(cancellationToken);
+					return await response.Content.ReadAsStreamAsync(cancellationToken);
 				}
 			}
 		}
