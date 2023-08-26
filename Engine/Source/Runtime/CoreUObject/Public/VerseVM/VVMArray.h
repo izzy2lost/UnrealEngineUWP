@@ -47,16 +47,26 @@ public:
 	void Append(FAllocationContext Context, VArray& Array);
 
 	// Capacity is initial capacity
-	static VArray& New(FAllocationContext Context, uint32 Capacity = 1)
+	static VArray& New(FAllocationContext Context, uint32 InitialCapacity = 1)
 	{
-		return *new (Context.AllocateFastCell(sizeof(VArray))) VArray(Context, Capacity);
+		return *new (Context.AllocateFastCell(sizeof(VArray))) VArray(Context, InitialCapacity);
 	}
 
 	static VArray& New(FAllocationContext Context, VArray& Array)
 	{
-		VArray* NewArray = new (Context.AllocateFastCell(sizeof(VArray))) VArray(Context, Array.Num());
-		NewArray->Append(Context, Array);
-		return *NewArray;
+		VArray& NewArray = *new (Context.AllocateFastCell(sizeof(VArray))) VArray(Context, Array.Num());
+		NewArray.Append(Context, Array);
+		return NewArray;
+	}
+
+	static VArray& New(FAllocationContext Context, std::initializer_list<VValue> InitList)
+	{
+		VArray& NewArray = *new (Context.AllocateFastCell(sizeof(VArray))) VArray(Context, static_cast<uint32>(InitList.size()));
+		for (const VValue& Value : InitList)
+		{
+			NewArray.AddValue(Context, Value);
+		}
+		return NewArray;
 	}
 
 	static VArray& Concat(FAllocationContext Context, VArray& Lhs, VArray& Rhs);
@@ -67,8 +77,30 @@ public:
 
 	COREUOBJECT_API static uint32 GetTypeHashImpl(VCell* ThisCell);
 
+	// C++ ranged-based iteration
+	class FConstIterator
+	{
+	public:
+		FORCEINLINE VValue operator*() const { return CurrentValue->Get(); }
+		FORCEINLINE bool operator==(const FConstIterator& Rhs) const { return CurrentValue == Rhs.CurrentValue; }
+		FORCEINLINE bool operator!=(const FConstIterator& Rhs) const { return CurrentValue != Rhs.CurrentValue; }
+		FORCEINLINE FConstIterator& operator++()
+		{
+			++CurrentValue;
+			return *this;
+		}
+
+	private:
+		friend struct VArray;
+		FORCEINLINE FConstIterator(const TWriteBarrier<VValue>* InCurrentValue)
+			: CurrentValue(InCurrentValue) {}
+		const TWriteBarrier<VValue>* CurrentValue;
+	};
+	COREUOBJECT_API FConstIterator begin() const;
+	COREUOBJECT_API FConstIterator end() const;
+
 private:
-	COREUOBJECT_API VArray(FAllocationContext Context, uint32 Capacity);
+	COREUOBJECT_API VArray(FAllocationContext Context, uint32 InitialCapacity);
 };
 
 } // namespace Verse

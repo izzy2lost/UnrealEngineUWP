@@ -41,11 +41,21 @@ uint32 VArray::GetTypeHashImpl(VCell* ThisCell)
 	return ::GetArrayHash(Ptr, Size);
 }
 
-VArray::VArray(FAllocationContext Context, uint32 Capacity)
+VArray::FConstIterator VArray::begin() const
+{
+	return Tuple.Get()->Values;
+}
+
+VArray::FConstIterator VArray::end() const
+{
+	return Tuple.Get()->Values + NumValues;
+}
+
+VArray::VArray(FAllocationContext Context, uint32 InitialCapacity)
 	: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))
 	, NumValues(0)
 {
-	Tuple.Set(Context, &VTuple::New(Context, Capacity));
+	Tuple.Set(Context, &VTuple::New(Context, InitialCapacity));
 }
 
 } // namespace Verse

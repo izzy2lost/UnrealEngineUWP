@@ -80,11 +80,21 @@ struct VMap : VHeapValue
 	// This lock should be acquired whenever the Map is mutating to prevent the GC from attempting to mark during mutation.
 	UE::FMutex MapMutex;
 
-	static VMap& New(FAllocationContext Context)
+	static VMap& New(FAllocationContext Context, uint32 InitialCapacity = 0)
 	{
-		VMap* ThisMap = new (Context.Allocate(Verse::FHeap::DestructorSpace, sizeof(VMap))) VMap(Context);
-		FHeap::ReportAllocatedNativeBytes(ThisMap->GetAllocatedSize());
-		return *ThisMap;
+		VMap& NewMap = *new (Context.Allocate(Verse::FHeap::DestructorSpace, sizeof(VMap))) VMap(Context, InitialCapacity);
+		FHeap::ReportAllocatedNativeBytes(NewMap.GetAllocatedSize());
+		return NewMap;
+	}
+
+	static VMap& New(FAllocationContext Context, std::initializer_list<TPair<VValue, VValue>> InitList)
+	{
+		VMap& NewMap = *new (Context.Allocate(Verse::FHeap::DestructorSpace, sizeof(VMap))) VMap(Context, static_cast<uint32>(InitList.size()));
+		for (const TPair<VValue, VValue>& Pair : InitList)
+		{
+			NewMap.Add(Context, Pair.Key, Pair.Value);
+		}
+		return NewMap;
 	}
 
 	int32 Num() const
@@ -116,10 +126,33 @@ struct VMap : VHeapValue
 
 	COREUOBJECT_API static void RunDestructorImpl(VCell* This);
 
+	// C++ ranged-based iteration
+	class FConstIterator
+	{
+	public:
+		FORCEINLINE TPair<VValue, VValue> operator*() const { return {CurrentValue->Key.Get(), CurrentValue->Value.Get()}; }
+		FORCEINLINE bool operator==(const FConstIterator& Rhs) const { return CurrentValue == Rhs.CurrentValue; }
+		FORCEINLINE bool operator!=(const FConstIterator& Rhs) const { return CurrentValue != Rhs.CurrentValue; }
+		FORCEINLINE FConstIterator& operator++()
+		{
+			++CurrentValue;
+			return *this;
+		}
+
+	private:
+		friend struct VMap;
+		FORCEINLINE FConstIterator(VMapInternal::TRangedForConstIterator InCurrentValue)
+			: CurrentValue(InCurrentValue) {}
+		VMapInternal::TRangedForConstIterator CurrentValue;
+	};
+	FORCEINLINE FConstIterator begin() const { return InternalMap.begin(); }
+	FORCEINLINE FConstIterator end() const { return InternalMap.end(); }
+
 private:
-	VMap(FAllocationContext Context)
+	VMap(FAllocationContext Context, uint32 InitialCapacity)
 		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))
 	{
+		InternalMap.Reserve(InitialCapacity);
 	}
 };
 
