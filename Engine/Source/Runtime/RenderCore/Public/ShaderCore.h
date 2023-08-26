@@ -774,6 +774,16 @@ inline FArchive& operator<<(FArchive& Ar, FShaderCodeValidationStride& ShaderCod
 	return Ar << ShaderCodeValidationStride.BindPoint << ShaderCodeValidationStride.Stride;
 }
 
+inline FArchive& operator<<(FArchive& Ar, FShaderCodeValidationType& ShaderCodeValidationType)
+{
+	return Ar << ShaderCodeValidationType.BindPoint << ShaderCodeValidationType.Type;
+}
+
+inline FArchive& operator<<(FArchive& Ar, FShaderCodeValidationUBSize& ShaderCodeValidationSize)
+{
+	return Ar << ShaderCodeValidationSize.BindPoint << ShaderCodeValidationSize.Size;
+}
+
 struct FShaderCodeValidationExtension
 {
 	// for FindOptionalData() and AddOptionalData()
@@ -781,12 +791,18 @@ struct FShaderCodeValidationExtension
 	static constexpr uint16 StaticVersion = 0;
 
 	TArray<FShaderCodeValidationStride> ShaderCodeValidationStride;
+	TArray<FShaderCodeValidationType> ShaderCodeValidationSRVType;
+	TArray<FShaderCodeValidationType> ShaderCodeValidationUAVType;
+	TArray<FShaderCodeValidationUBSize> ShaderCodeValidationUBSize;
 	uint16 Version = StaticVersion;
 
 	friend FArchive& operator<<(FArchive& Ar, FShaderCodeValidationExtension& Extension)
 	{
 		Ar << Extension.Version;
 		Ar << Extension.ShaderCodeValidationStride;
+		Ar << Extension.ShaderCodeValidationSRVType;
+		Ar << Extension.ShaderCodeValidationUAVType;
+		Ar << Extension.ShaderCodeValidationUBSize;
 		return Ar;
 	}
 };

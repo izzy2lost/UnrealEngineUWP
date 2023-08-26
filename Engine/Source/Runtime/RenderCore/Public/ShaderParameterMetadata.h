@@ -83,9 +83,6 @@ struct FUniformBufferEntry
 /** Parse the shader resource binding from the binding type used in shader code. */
 EShaderCodeResourceBindingType ParseShaderResourceBindingType(const TCHAR* ShaderType);
 
-const TCHAR* GetShaderCodeResourceBindingTypeName(EShaderCodeResourceBindingType BindingType);
-
-
 /** Simple class that registers a uniform buffer static slot in the constructor. */
 class FUniformBufferStaticSlotRegistrar
 {

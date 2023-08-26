@@ -782,6 +782,9 @@ public:
 	}
 
 	TArray<FShaderCodeValidationStride> DebugStrideValidationData;
+	TArray<FShaderCodeValidationType> DebugSRVTypeValidationData;
+	TArray<FShaderCodeValidationType> DebugUAVTypeValidationData;
+	TArray<FShaderCodeValidationUBSize> DebugUBSizeValidationData;
 
 #else
 
@@ -2270,6 +2273,9 @@ struct FRHIViewDesc
 		FMemory::Memzero(*this);
 	}
 
+	static const TCHAR* GetBufferTypeString(EBufferType BufferType);
+	static const TCHAR* GetTextureDimensionString(EDimension Dimension);
+
 protected:
 	FRHIViewDesc(EViewType ViewType)
 	{
@@ -2738,7 +2744,7 @@ public:
 	bool IsTexture() const { return ViewDesc.IsTexture(); }
 
 #if ENABLE_RHI_VALIDATION
-	RHIValidation::FViewIdentity GetViewIdentity()
+	RHIValidation::FViewIdentity GetViewIdentity() const
 	{
 		return RHIValidation::FViewIdentity(Resource, ViewDesc);
 	}

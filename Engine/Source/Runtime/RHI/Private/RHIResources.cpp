@@ -83,6 +83,34 @@ void FRHITexture::SetName(const FName& InName)
 #endif
 }
 
+const TCHAR* FRHIViewDesc::GetBufferTypeString(FRHIViewDesc::EBufferType BufferType)
+{
+	switch (BufferType)
+	{
+	case FRHIViewDesc::EBufferType::Unknown:				return TEXT("Unknown");
+	case FRHIViewDesc::EBufferType::Typed:					return TEXT("Typed");
+	case FRHIViewDesc::EBufferType::Structured:				return TEXT("Structured");
+	case FRHIViewDesc::EBufferType::AccelerationStructure:	return TEXT("AccelerationStructure");
+	case FRHIViewDesc::EBufferType::Raw:					return TEXT("Raw");
+	default:												checkf(false, TEXT("Missing FRHIViewDesc::EBufferType %d"), BufferType);
+	}
+	return TEXT("");
+}
+
+const TCHAR* FRHIViewDesc::GetTextureDimensionString(FRHIViewDesc::EDimension Dimension)
+{
+	switch (Dimension)
+	{
+	case EDimension::Texture2D:				return TEXT("Texture2D");
+	case EDimension::Texture2DArray:		return TEXT("Texture2DArray");
+	case EDimension::Texture3D:				return TEXT("Texture3D");
+	case EDimension::TextureCube:			return TEXT("TextureCube");
+	case EDimension::TextureCubeArray:		return TEXT("TextureCubeArray");
+	default:								checkf(false, TEXT("Missing FRHIViewDesc::EDimension %d"), Dimension);
+	}
+
+	return TEXT("");
+}
 FRHIViewDesc::FBuffer::FViewInfo FRHIViewDesc::FBuffer::GetViewInfo(FRHIBuffer* TargetBuffer) const
 {
 	check(TargetBuffer);

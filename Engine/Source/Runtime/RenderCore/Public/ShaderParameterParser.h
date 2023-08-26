@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "ShaderParameterMetadata.h"
+#include "ShaderCore.h"
 
 class FShaderCompilerFlags;
 struct FShaderCompilerInput;
@@ -31,6 +32,19 @@ namespace VulkanBindless
 	// Prefix used to declare arrays of samplers/resources for bindless
 	static constexpr const TCHAR* kBindlessResourceArrayPrefix = TEXT("ResourceDescriptorHeap_");
 	static constexpr const TCHAR* kBindlessSamplerArrayPrefix = TEXT("SamplerDescriptorHeap_");
+}
+
+inline FStringView StripTemplateFromType(const FStringView& Input)
+{
+	FStringView UntemplatedType = FStringView(Input);
+	if (int32 Index = Input.Find(TEXT("<")); Index != INDEX_NONE)
+	{
+		// Remove the template argument but don't forget to clean up the type name
+		const int32 NumChars = Input.Len() - Index;
+		UntemplatedType = Input.LeftChop(NumChars).TrimEnd();
+	}
+
+	return UntemplatedType;
 }
 
 /** Validates and moves all the shader loose data parameter defined in the root scope of the shader into the root uniform buffer. */
@@ -73,6 +87,8 @@ public:
 
 		bool bGloballyCoherent = false;
 		bool bIsBindable = false;
+
+		EShaderCodeResourceBindingType ParsedTypeDecl = EShaderCodeResourceBindingType::Invalid;
 
 		friend class FShaderParameterParser;
 	};
@@ -134,6 +150,11 @@ public:
 	const FParsedShaderParameter& FindParameterInfos(const FString& ParameterName) const
 	{
 		return ParsedParameters.FindChecked(ParameterName);
+	}
+
+	const FParsedShaderParameter* FindParameterInfosUnsafe(const FString& ParameterName) const
+	{
+		return ParsedParameters.Find(ParameterName);
 	}
 
 	/** Validates the shader parameter in code is compatible with the shader parameter structure. */

@@ -5,7 +5,8 @@
 =============================================================================*/
 
 #include "ShaderParameterStruct.h"
-
+#include "RenderGraphPrivate.h"
+#include "RHIValidationCommon.h"
 
 /** Context of binding a map. */
 struct FShaderParameterStructBindingContext
@@ -491,7 +492,7 @@ struct FShaderParameterReader
 
 #if DO_CHECK
 
-void ValidateShaderParameters(const TShaderRef<FShader>& Shader, const FShaderParametersMetadata* ParametersMetadata, const void* ParametersData)
+void ValidateShaderParameters(const TShaderRef<FShader>& Shader, const FShaderParametersMetadata* ParametersMetadata, const void* ParametersData, bool bValidateRHI)
 {
 	const FShaderParameterBindings& Bindings = Shader->Bindings;
 
@@ -504,6 +505,8 @@ void ValidateShaderParameters(const TShaderRef<FShader>& Shader, const FShaderPa
 
 	const TCHAR* ShaderClassName = Shader.GetType()->GetName();
 	const TCHAR* ShaderParameterStructName = ParametersMetadata->GetStructTypeName();
+
+	FRHIShader* RHIShader = Shader.GetRHIShaderBase(Shader->GetFrequency());
 
 	for (const FShaderParameterBindings::FResourceParameter& Parameter : Bindings.ResourceParameters)
 	{
@@ -520,8 +523,28 @@ void ValidateShaderParameters(const TShaderRef<FShader>& Shader, const FShaderPa
 				{
 					EmitNullShaderParameterFatalError(Shader, ParametersMetadata, Parameter.ByteOffset);
 				}
+
+#if ENABLE_RHI_VALIDATION
+				if (GRHIValidationEnabled && bValidateRHI)
+				{
+					if (BaseType == UBMT_SRV)
+					{
+						if (const FRHIShaderResourceView* SRV = static_cast<const FRHIShaderResourceView*>(Resource))
+						{
+							RHIValidation::ValidateShaderResourceView(RHIShader, Parameter.BaseIndex, SRV);
+						}
+					}
+					else if (BaseType == UBMT_UAV)
+					{
+						if (const FRHIUnorderedAccessView* UAV = static_cast<const FRHIUnorderedAccessView*>(Resource))
+						{
+							RHIValidation::ValidateUnorderedAccessView(RHIShader, Parameter.BaseIndex, UAV);
+						}
+					}
+				}
+#endif 
+				break;
 			}
-			break;
 			case UBMT_RDG_TEXTURE:
 			{
 				const FRDGTexture* GraphTexture = Reader.Read<const FRDGTexture*>(Parameter);
@@ -529,21 +552,40 @@ void ValidateShaderParameters(const TShaderRef<FShader>& Shader, const FShaderPa
 				{
 					EmitNullShaderParameterFatalError(Shader, ParametersMetadata, Parameter.ByteOffset);
 				}
+				break;
 			}
-			break;
 			case UBMT_RDG_TEXTURE_SRV:
-			case UBMT_RDG_TEXTURE_UAV:
 			case UBMT_RDG_BUFFER_SRV:
+			case UBMT_RDG_TEXTURE_UAV:
 			case UBMT_RDG_BUFFER_UAV:
 			case UBMT_RDG_UNIFORM_BLOCK_SRV:
 			{
 				const FRDGResource* GraphResource = Reader.Read<const FRDGResource*>(Parameter);
+
 				if (!GraphResource)
 				{
 					EmitNullShaderParameterFatalError(Shader, ParametersMetadata, Parameter.ByteOffset);
 				}
+
+#if ENABLE_RHI_VALIDATION
+				if (GRHIValidationEnabled && bValidateRHI)
+				{
+					RDG_ALLOW_RHI_ACCESS_SCOPE();
+					if (BaseType == UBMT_RDG_TEXTURE_SRV || BaseType == UBMT_RDG_BUFFER_SRV)
+					{
+						const FRHIShaderResourceView* SRV = static_cast<const FRHIShaderResourceView*>(GraphResource->GetRHI());
+						RHIValidation::ValidateShaderResourceView(RHIShader, Parameter.BaseIndex, SRV);
+
+					}
+					else if (BaseType == UBMT_RDG_TEXTURE_UAV || BaseType == UBMT_RDG_BUFFER_UAV)
+					{
+						const FRHIUnorderedAccessView* UAV = static_cast<const FRHIUnorderedAccessView*>(GraphResource->GetRHI());
+						RHIValidation::ValidateUnorderedAccessView(RHIShader, Parameter.BaseIndex, UAV);
+					}
+				}
+#endif
+				break;
 			}
-			break;
 			default:
 				break;
 		}

@@ -11,6 +11,7 @@
 #include "Serialization/MemoryReader.h"
 #include "VulkanLLM.h"
 #include "VulkanDescriptorSets.h"
+#include "RHICoreShader.h"
 
 TAutoConsoleVariable<int32> GDynamicGlobalUBs(
 	TEXT("r.Vulkan.DynamicGlobalUBs"),
@@ -88,6 +89,7 @@ ShaderType* FVulkanShaderFactory::CreateShader(TArrayView<const uint8> Code, FVu
 				FShaderCodeReader ShaderCode(Code);
 				RetShader->Debug.ShaderName = ShaderCode.FindOptionalData(FShaderCodeName::Key);
 #endif
+				UE::RHICore::SetupShaderCodeValidationData(RetShader, ShaderCode);
 			}
 		}
 	}
@@ -173,6 +175,7 @@ FVulkanRayTracingShader* FVulkanShaderFactory::CreateRayTracingShader(TArrayView
 				FShaderCodeReader ShaderCode(Code);
 				RetShader->Debug.ShaderName = ShaderCode.FindOptionalData(FShaderCodeName::Key);
 #endif
+				UE::RHICore::SetupShaderCodeValidationData(RetShader, ShaderCode);
 			}
 		}
 	}

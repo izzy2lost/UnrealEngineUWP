@@ -299,40 +299,6 @@ EShaderCodeResourceBindingType ParseShaderResourceBindingType(const TCHAR* Shade
 	return BindingType;
 }
 
-const TCHAR* const kShaderCodeResourceBindingTypeNames[] = {
-	TEXT("Invalid"),
-	TEXT("SamplerState"),
-	TEXT("Texture2D"),
-	TEXT("Texture2DArray"),
-	TEXT("Texture2DMS"),
-	TEXT("Texture3D"),
-	TEXT("TextureCube"),
-	TEXT("TextureCubeArray"),
-	TEXT("TextureMetadata"),
-	TEXT("Buffer"),
-	TEXT("StructuredBuffer"),
-	TEXT("ByteAddressBuffer"),
-	TEXT("RaytracingAccelerationStructure"),
-	TEXT("RWTexture2D"),
-	TEXT("RWTexture2DArray"),
-	TEXT("RWTexture3D"),
-	TEXT("RWTextureCube"),
-	TEXT("RWTextureMetadata"),
-	TEXT("RWBuffer"),
-	TEXT("RWStructuredBuffer"),
-	TEXT("RWByteAddressBuffer"),
-	TEXT("RasterizerOrderedTexture2D"),
-};
-
-static_assert(UE_ARRAY_COUNT(kShaderCodeResourceBindingTypeNames) == int32(EShaderCodeResourceBindingType::MAX), "TODO.");
-
-const TCHAR* GetShaderCodeResourceBindingTypeName(EShaderCodeResourceBindingType BindingType)
-{
-	check(BindingType != EShaderCodeResourceBindingType::Invalid);
-	check(int32(BindingType) < int32(EShaderCodeResourceBindingType::MAX));
-	return kShaderCodeResourceBindingTypeNames[int32(BindingType)];
-}
-
 class FUniformBufferMemberAndOffset
 {
 public:

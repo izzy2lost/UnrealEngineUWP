@@ -249,6 +249,21 @@ extern SHADERCOMPILERCOMMON_API void UpdateStructuredBufferStride(
 	FShaderCompilerOutput& CompilerOutput
 );
 
+extern SHADERCOMPILERCOMMON_API void AddShaderValidationSRVType(
+	uint16 BindPoint,
+	EShaderCodeResourceBindingType TypeDecl,
+	FShaderCompilerOutput& CompilerOutput);
+
+extern SHADERCOMPILERCOMMON_API void AddShaderValidationUAVType(
+	uint16 BindPoint,
+	EShaderCodeResourceBindingType TypeDecl,
+	FShaderCompilerOutput& CompilerOutput);
+
+extern SHADERCOMPILERCOMMON_API void AddShaderValidationUBSize(
+	uint16 BindPoint,
+	uint32_t Size,
+	FShaderCompilerOutput& CompilerOutput);
+
 inline void HandleReflectedShaderResource(const FString& ResourceName, int32 ReflectionSlot, int32 BindCount, FShaderCompilerOutput& CompilerOutput)
 {
 	HandleReflectedShaderResource(ResourceName, 0, ReflectionSlot, BindCount, CompilerOutput);

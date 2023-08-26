@@ -596,6 +596,9 @@ struct FShaderCompilerOutput
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	TArray<FShaderCodeValidationStride> ParametersStrideToValidate;
+	TArray<FShaderCodeValidationType> ParametersSRVTypeToValidate;
+	TArray<FShaderCodeValidationType> ParametersUAVTypeToValidate;
+	TArray<FShaderCodeValidationUBSize> ParametersUBSizeToValidate;
 
 	TArray<FShaderDiagnosticData> ShaderDiagnosticDatas;
 

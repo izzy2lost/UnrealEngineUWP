@@ -773,6 +773,36 @@ void UpdateStructuredBufferStride(
 	}
 }
 
+void AddShaderValidationSRVType(uint16 BindPoint,
+							EShaderCodeResourceBindingType TypeDecl,
+							FShaderCompilerOutput& CompilerOutput)
+{
+	if (BindPoint <= UINT16_MAX)
+	{
+		CompilerOutput.ParametersSRVTypeToValidate.Add(FShaderCodeValidationType{ BindPoint, TypeDecl });
+	}
+}
+
+void AddShaderValidationUAVType(uint16 BindPoint,
+							EShaderCodeResourceBindingType TypeDecl,
+							FShaderCompilerOutput& CompilerOutput)
+{
+	if (BindPoint <= UINT16_MAX)
+	{
+		CompilerOutput.ParametersUAVTypeToValidate.Add(FShaderCodeValidationType{ BindPoint, TypeDecl });
+	}
+}
+
+void AddShaderValidationUBSize(uint16 BindPoint,
+							uint32_t Size,
+							FShaderCompilerOutput& CompilerOutput)
+{
+	if (BindPoint <= UINT16_MAX)
+	{
+		CompilerOutput.ParametersUBSizeToValidate.Add(FShaderCodeValidationUBSize{ BindPoint, Size });
+	}
+}
+ 
 void HandleReflectedShaderUAV(
 	const FString& UAVName,
 	int32 BindOffset,

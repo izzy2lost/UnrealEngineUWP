@@ -246,8 +246,9 @@ static const FString kHitGroupSystemRootConstantsSymbolName = TEXT("HitGroupSyst
 // A collection of states and data that is locked in at the top level call and doesn't change throughout the compilation process
 struct FVulkanShaderCompilerInternalState
 {
-	FVulkanShaderCompilerInternalState(const FShaderCompilerInput& InInput)
+	FVulkanShaderCompilerInternalState(const FShaderCompilerInput& InInput, const FShaderParameterParser& InParameterParser)
 		: Input(InInput)
+		, ParameterParser(InParameterParser)
 		, Version(FormatToVersion(Input.ShaderFormat))
 		, MinimumTargetEnvironment(GetMinimumTargetEnvironment(InInput))
 		, bStripReflect(InInput.IsRayTracingShader() || (IsAndroidShaderFormat(Input.ShaderFormat) && InInput.Environment.GetCompileArgument(TEXT("STRIP_REFLECT_ANDROID"), true)))
@@ -264,6 +265,7 @@ struct FVulkanShaderCompilerInternalState
 	}
 
 	const FShaderCompilerInput& Input;
+	const FShaderParameterParser& ParameterParser;
 
 	const EVulkanShaderVersion Version;
 	const CrossCompiler::FShaderConductorOptions::ETargetEnvironment MinimumTargetEnvironment;
@@ -1419,6 +1421,21 @@ static bool BuildShaderOutputFromSpirv(
 				check(SpvResult == SPV_REFLECT_RESULT_SUCCESS);
 
 				const int32 VulkanBindingIndex = SerializedOutput.Spirv.ReflectionInfo.Add(FVulkanSpirv::FEntry(ResourceName, BindingIndex));
+				const FShaderParameterParser::FParsedShaderParameter* ParsedParam = InternalState.ParameterParser.FindParameterInfosUnsafe(ResourceName);
+
+				auto AddShaderValidationType = [] (uint32_t VulkanBindingIndex, const FShaderParameterParser::FParsedShaderParameter* ParsedParam, FShaderCompilerOutput& Output) {
+					/*if (ParsedParam)
+					{
+						if (IsResourceBindingTypeSRV(ParsedParam->ParsedTypeDecl))
+						{
+							AddShaderValidationSRVType(VulkanBindingIndex, ParsedParam->ParsedTypeDecl, Output);
+						}
+						else
+						{
+							AddShaderValidationUAVType(VulkanBindingIndex, ParsedParam->ParsedTypeDecl, Output);
+						}
+					}*/
+				};
 
 				switch (BindingType)
 				{
@@ -1427,6 +1444,8 @@ static bool BuildShaderOutputFromSpirv(
 				case EVulkanBindingType::StorageImage:
 					HandleReflectedShaderUAV(ResourceName, BindingOffset, VulkanBindingIndex, 1, Output);
 					EntryTypes.Add(ResourceName, FVulkanShaderHeader::Global);
+
+					AddShaderValidationType(BindingOffset, ParsedParam, Output);
 					break;
 
 				case EVulkanBindingType::Image:
@@ -1441,6 +1460,8 @@ static bool BuildShaderOutputFromSpirv(
 				case EVulkanBindingType::UniformTexelBuffer:
 					HandleReflectedShaderResource(ResourceName, BindingOffset, VulkanBindingIndex, 1, Output);
 					EntryTypes.Add(ResourceName, FVulkanShaderHeader::Global);
+
+					AddShaderValidationType(BindingOffset, ParsedParam, Output);
 					break;
 
 				case EVulkanBindingType::Sampler:
@@ -1452,6 +1473,8 @@ static bool BuildShaderOutputFromSpirv(
 				case EVulkanBindingType::AccelerationStructure:
 					HandleReflectedShaderResource(ResourceName, BindingOffset, VulkanBindingIndex, 1, Output);
 					EntryTypes.Add(ResourceName, FVulkanShaderHeader::Global);
+
+					AddShaderValidationType(BindingOffset, ParsedParam, Output);
 					break;
 
 				case EVulkanBindingType::InputAttachment:
@@ -1505,6 +1528,8 @@ static bool BuildShaderOutputFromSpirv(
 						UsedUniformBufferSlots[VulkanBindingIndex] = true;
 						HandleReflectedUniformBuffer(ResourceName, VulkanBindingIndex, Output);
 						EntryTypes.Add(ResourceName, FVulkanShaderHeader::UniformBuffer);
+
+						AddShaderValidationUBSize(BindingOffset, Binding->block.padded_size, Output);
 					}
 					break;
 
@@ -2126,7 +2151,7 @@ static void RemoveUnusedBindlessHeaps(FString& PreprocessedShaderSource, const T
 
 bool PreprocessVulkanShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& PreprocessOutput)
 {
-	const FVulkanShaderCompilerInternalState InternalState(Input);
+	const FVulkanShaderCompilerInternalState InternalState(Input, PreprocessOutput.GetParameterParser());
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 
@@ -2505,7 +2530,7 @@ void CompileVulkanShader(const FShaderCompilerInput& Input, const FShaderPreproc
 {
 	check(IsVulkanShaderFormat(Input.ShaderFormat));
 
-	FVulkanShaderCompilerInternalState InternalState(Input);
+	FVulkanShaderCompilerInternalState InternalState(Input, PreprocessOutput.GetParameterParser());
 
 	const EHlslShaderFrequency HlslFrequency = InternalState.GetHlslShaderFrequency();
 	if (HlslFrequency == HSF_InvalidFrequency)
@@ -2556,6 +2581,8 @@ void CompileVulkanShader(const FShaderCompilerInput& Input, const FShaderPreproc
 	{
 		Output.ShaderCode.AddOptionalData(FShaderCodeName::Key, TCHAR_TO_UTF8(*Input.GenerateShaderName()));
 	}
+
+	Output.SerializeShaderCodeValidation();
 
 	PreprocessOutput.GetParameterParser().ValidateShaderParameterTypes(Input, InternalState.IsMobileES31(), Output);
 	

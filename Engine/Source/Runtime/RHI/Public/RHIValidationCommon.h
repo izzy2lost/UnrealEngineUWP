@@ -979,7 +979,13 @@ namespace RHIValidation
 	extern RHI_API void* CaptureBacktrace();
 
 	/** Validates that the SRV is conform to what the shader expects */
-	extern RHI_API void ValidateShaderResourceView(const FRHIShader* RHIShaderBase, uint32 BindIndex, FRHIShaderResourceView* SRV);
+	extern RHI_API void ValidateShaderResourceView(const FRHIShader* RHIShaderBase, uint32 BindIndex, const FRHIShaderResourceView* SRV);
+
+	/** Validates that the UAV conforms to what the shader expects */
+	extern RHI_API void ValidateUnorderedAccessView(const FRHIShader* RHIShaderBase, uint32 BindIndex, const FRHIUnorderedAccessView* SRV);
+
+	/** Validates that the UB conforms to what the shader expects */
+	extern RHI_API void ValidateUniformBuffer(const FRHIShader* RHIShaderBase, uint32 BindIndex, FRHIUniformBuffer* SRV);
 
 }
 

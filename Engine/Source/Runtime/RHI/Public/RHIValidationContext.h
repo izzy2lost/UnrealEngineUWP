@@ -42,13 +42,27 @@ inline void ValidateShaderParameters(FRHIShader* RHIShader, RHIValidation::FTrac
 			}
 			break;
 		case FRHIShaderParameterResource::EType::UnorderedAccessView:
-			Tracker->AssertUAV(static_cast<FRHIUnorderedAccessView*>(Parameter.Resource), InRequiredUAVMode, Parameter.Index);
+			if (FRHIUnorderedAccessView* UAV = static_cast<FRHIUnorderedAccessView*>(Parameter.Resource))
+			{
+				if (GRHIValidationEnabled)
+				{
+					RHIValidation::ValidateUnorderedAccessView(RHIShader, Parameter.Index, UAV);
+				}
+				Tracker->AssertUAV(static_cast<FRHIUnorderedAccessView*>(Parameter.Resource), InRequiredUAVMode, Parameter.Index);
+			}
 			break;
 		case FRHIShaderParameterResource::EType::Sampler:
 			// No validation
 			break;
 		case FRHIShaderParameterResource::EType::UniformBuffer:
-			StaticUniformBuffers.ValidateSetShaderUniformBuffer(static_cast<FRHIUniformBuffer*>(Parameter.Resource));
+			if (FRHIUniformBuffer* UniformBuffer = static_cast<FRHIUniformBuffer*>(Parameter.Resource))
+			{
+				if (GRHIValidationEnabled)
+				{
+					RHIValidation::ValidateUniformBuffer(RHIShader, Parameter.Index, UniformBuffer);
+				}
+				StaticUniformBuffers.ValidateSetShaderUniformBuffer(UniformBuffer);
+			}
 			break;
 		default:
 			checkf(false, TEXT("Unhandled resource type?"));

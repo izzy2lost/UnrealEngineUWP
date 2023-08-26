@@ -214,13 +214,7 @@ EShaderParameterType FShaderParameterParser::ParseParameterType(
 		return EShaderParameterType::Sampler;
 	}
 
-	FStringView UntemplatedType = InType;
-	if (int32 Index = InType.Find(TEXT("<")); Index != INDEX_NONE)
-	{
-		// Remove the template argument but don't forget to clean up the type name
-		const int32 NumChars = InType.Len() - Index;
-		UntemplatedType = InType.LeftChop(NumChars).TrimEnd();
-	}
+	FStringView UntemplatedType = StripTemplateFromType(InType);
 
 	if (AllSRVTypes.Contains(UntemplatedType) || InExtraSRVTypes.Contains(UntemplatedType))
 	{
@@ -419,6 +413,10 @@ bool FShaderParameterParser::ParseParameters(
 					}
 				}
 
+				FStringView StrippedTypeStringView = StripTemplateFromType(Type);
+				FString StrippedTypeString(StrippedTypeStringView);
+				EShaderCodeResourceBindingType TypeDecl = ParseShaderResourceBindingType(*StrippedTypeString);
+
 				FParsedShaderParameter ParsedParameter;
 
 				EShaderParameterType ConstantBufferParameterType = EShaderParameterType::Num;
@@ -474,6 +472,7 @@ bool FShaderParameterParser::ParseParameters(
 					ParsedParameter.BindlessConversionType = BindlessConversionType;
 					ParsedParameter.ConstantBufferParameterType = ConstantBufferParameterType;
 					ParsedParameter.bGloballyCoherent = bGloballyCoherent;
+					ParsedParameter.ParsedTypeDecl = TypeDecl;
 
 					if (ArrayStartPos != -1 && ArrayEndPos != -1)
 					{
@@ -1364,6 +1363,7 @@ void SerializeParam(FArchive& Ar, FShaderParameterParser::FParsedShaderParameter
 	Ar << Param.ConstantBufferParameterType;
 	Ar << Param.bGloballyCoherent;
 	Ar << Param.bIsBindable;
+	Ar << Param.ParsedTypeDecl;
 }
 FArchive& operator<<(FArchive& Ar, FShaderParameterParser& Parser)
 {

@@ -31,6 +31,9 @@ struct FShaderCompilerEnvironment;
 enum class EShaderParameterType : uint8;
 DECLARE_INTRINSIC_TYPE_LAYOUT(EShaderParameterType);
 
+enum class EShaderCodeResourceBindingType : uint8;
+DECLARE_INTRINSIC_TYPE_LAYOUT(EShaderCodeResourceBindingType);
+
 #if WITH_EDITOR
 namespace UE::ShaderParameters
 {

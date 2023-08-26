@@ -471,6 +471,37 @@ enum class EShaderCodeResourceBindingType : uint8
 	MAX
 };
 
+inline bool IsResourceBindingTypeSRV(EShaderCodeResourceBindingType Type)
+{
+	switch (Type)
+	{
+	case EShaderCodeResourceBindingType::Texture2D:
+	case EShaderCodeResourceBindingType::Texture2DArray:
+	case EShaderCodeResourceBindingType::Texture2DMS:
+	case EShaderCodeResourceBindingType::TextureCube:
+	case EShaderCodeResourceBindingType::TextureCubeArray:
+	case EShaderCodeResourceBindingType::Texture3D:
+	case EShaderCodeResourceBindingType::ByteAddressBuffer:
+	case EShaderCodeResourceBindingType::StructuredBuffer:
+	case EShaderCodeResourceBindingType::Buffer:
+	case EShaderCodeResourceBindingType::RaytracingAccelerationStructure:
+		return true;
+	case EShaderCodeResourceBindingType::RWTexture2D:
+	case EShaderCodeResourceBindingType::RWTexture2DArray:
+	case EShaderCodeResourceBindingType::RWTextureCube:
+	case EShaderCodeResourceBindingType::RWTexture3D:
+	case EShaderCodeResourceBindingType::RWByteAddressBuffer:
+	case EShaderCodeResourceBindingType::RWStructuredBuffer:
+	case EShaderCodeResourceBindingType::RWBuffer:
+	case EShaderCodeResourceBindingType::RasterizerOrderedTexture2D:
+		return false;
+	default:
+		ensureMsgf(0, TEXT("Missing or invalid SRV or UAV Type"));
+	}
+
+	return false;
+}
+
 /** The base type of a value in a shader parameter structure. */
 enum EUniformBufferBaseType : uint8
 {
@@ -1377,6 +1408,18 @@ struct FShaderCodeValidationStride
 {
 	uint16 BindPoint;
 	uint16 Stride;
+};
+
+struct FShaderCodeValidationType
+{
+	uint16 BindPoint;
+	EShaderCodeResourceBindingType Type;
+};
+
+struct FShaderCodeValidationUBSize
+{
+	uint16 BindPoint;
+	uint32 Size;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

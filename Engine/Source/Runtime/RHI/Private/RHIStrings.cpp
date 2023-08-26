@@ -717,3 +717,34 @@ const TCHAR* GetUniformBufferBaseTypeString(EUniformBufferBaseType BaseType)
 	}
 	return TEXT("");
 }
+
+const TCHAR* GetShaderCodeResourceBindingTypeName(EShaderCodeResourceBindingType BindingType)
+{
+	switch (BindingType)
+	{
+	case EShaderCodeResourceBindingType::Invalid:							return TEXT("Invalid");
+	case EShaderCodeResourceBindingType::SamplerState:						return TEXT("SamplerState");
+	case EShaderCodeResourceBindingType::Texture2D:							return TEXT("Texture2D");
+	case EShaderCodeResourceBindingType::Texture2DArray:					return TEXT("Texture2DArray");
+	case EShaderCodeResourceBindingType::Texture2DMS:						return TEXT("Texture2DMS");
+	case EShaderCodeResourceBindingType::Texture3D:							return TEXT("Texture3D");
+	case EShaderCodeResourceBindingType::TextureCube:						return TEXT("TextureCube");
+	case EShaderCodeResourceBindingType::TextureCubeArray:					return TEXT("TextureCubeArray");
+	case EShaderCodeResourceBindingType::TextureMetadata:					return TEXT("TextureMetadata");
+	case EShaderCodeResourceBindingType::Buffer:							return TEXT("Buffer");
+	case EShaderCodeResourceBindingType::StructuredBuffer:					return TEXT("StructuredBuffer");
+	case EShaderCodeResourceBindingType::ByteAddressBuffer:					return TEXT("ByteAddressBuffer");
+	case EShaderCodeResourceBindingType::RaytracingAccelerationStructure:	return TEXT("RaytracingAccelerationStructure");
+	case EShaderCodeResourceBindingType::RWTexture2D:						return TEXT("RWTexture2D");
+	case EShaderCodeResourceBindingType::RWTexture2DArray:					return TEXT("RWTexture2DArray");
+	case EShaderCodeResourceBindingType::RWTexture3D:						return TEXT("RWTexture3D");
+	case EShaderCodeResourceBindingType::RWTextureCube:						return TEXT("RWTextureCube");
+	case EShaderCodeResourceBindingType::RWTextureMetadata:					return TEXT("RWTextureMetadata");
+	case EShaderCodeResourceBindingType::RWBuffer:							return TEXT("RWBuffer");
+	case EShaderCodeResourceBindingType::RWStructuredBuffer:				return TEXT("RWStructuredBuffer");
+	case EShaderCodeResourceBindingType::RWByteAddressBuffer:				return TEXT("RWByteAddressBuffer");
+	case EShaderCodeResourceBindingType::RasterizerOrderedTexture2D:		return TEXT("RasterizerOrderedTexture2D");
+	default:																checkf(false, TEXT("Missing EShaderCodeResourceBindingType %d"), BindingType);
+	}
+	return TEXT("");
+}
