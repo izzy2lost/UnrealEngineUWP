@@ -56,9 +56,9 @@ namespace EpicGames.Core
 		/// <summary>
 		/// Read the contents of a file async using double buffering
 		/// </summary>
-		/// <param name="stream">Data to compute the hash for</param>
+		/// <param name="stream">Stream to read from</param>
 		/// <param name="cancellationToken">Cancellation token used to terminate processing</param>
-		/// <returns>New content hash instance containing the hash of the data</returns>
+		/// <returns>Contents of the stream</returns>
 		public static async Task<byte[]> ReadAllBytesAsync(this Stream stream, CancellationToken cancellationToken = default)
 		{
 			using MemoryStream memoryStream = new MemoryStream();
@@ -69,13 +69,13 @@ namespace EpicGames.Core
 		/// <summary>
 		/// Read the contents of a file async using double buffering
 		/// </summary>
-		/// <param name="stream">Data to compute the hash for</param>
+		/// <param name="stream">Stream to read from</param>
 		/// <param name="fileSizeHint">If available, the file size so an appropriate buffer size can be used</param>
 		/// <param name="minBufferSize">Minimum size of the buffer</param>
 		/// <param name="maxBufferSize">Maximum size of the buffer</param>
 		/// <param name="callback">Callback used to send read data back to the caller</param>
 		/// <param name="cancellationToken">Cancellation token used to terminate processing</param>
-		/// <returns>New content hash instance containing the hash of the data</returns>
+		/// <returns>Contents of the stream</returns>
 		public static async Task ReadAllBytesAsync(this Stream stream, long fileSizeHint, int minBufferSize, int maxBufferSize, Func<ReadOnlyMemory<byte>, Task> callback, CancellationToken cancellationToken = default)
 		{
 			int bufferLength = minBufferSize;

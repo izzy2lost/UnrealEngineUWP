@@ -39,7 +39,7 @@ namespace Horde.Agent.Utility
 			IStorageClient client;
 			if (_settings.Value.UseLocalStorageClient)
 			{
-				client = new FileStorageClient(DirectoryReference.Combine(Program.DataDir, "Storage", namespaceId.ToString()), _logger);
+				client = new FileStorageClient(DirectoryReference.Combine(Program.DataDir, "Storage", namespaceId.ToString()), _memoryCache, _logger);
 			}
 			else
 			{

@@ -5,6 +5,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Nodes;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Commands.Bundles
@@ -26,11 +27,13 @@ namespace Horde.Commands.Bundles
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
+			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 256 * 1024 * 1024 });
+
 			// Create the storage client
 			IStorageClient store;
 			if (File != null)
 			{
-				store = new FileStorageClient(File.Directory, logger);
+				store = new FileStorageClient(File.Directory, cache, logger);
 			}
 			else if (!String.IsNullOrEmpty(Ref))
 			{

@@ -18,6 +18,7 @@ using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Nodes;
 using Horde.Server.Agents;
 using Horde.Server.Utilities;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 
@@ -66,7 +67,9 @@ namespace Horde.Server.Commands.Install
 
 			RefName refName = new RefName("latest");
 
-			FileStorageClient client = new FileStorageClient(bundleDir, logger);
+			using IMemoryCache memoryCache = new MemoryCache(new MemoryCacheOptions());
+
+			FileStorageClient client = new FileStorageClient(bundleDir, memoryCache, logger);
 			await using (IStorageWriter writer = client.CreateWriter(refName))
 			{
 				DirectoryNode dirNode = new DirectoryNode();

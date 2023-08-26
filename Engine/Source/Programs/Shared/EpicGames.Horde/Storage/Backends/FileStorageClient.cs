@@ -14,7 +14,6 @@ using EpicGames.Core;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using EpicGames.Horde.Storage.Bundles;
-using Microsoft.CodeAnalysis.FlowAnalysis;
 
 namespace EpicGames.Horde.Storage.Backends
 {
@@ -30,9 +29,10 @@ namespace EpicGames.Horde.Storage.Backends
 		/// Constructor
 		/// </summary>
 		/// <param name="rootDir">Root directory for storing blobs</param>
+		/// <param name="cache">Memory cache for read data</param>
 		/// <param name="logger">Logger interface</param>
-		public FileStorageClient(DirectoryReference rootDir, ILogger logger)
-			: base(null, logger)
+		public FileStorageClient(DirectoryReference rootDir, IMemoryCache? cache, ILogger logger)
+			: base(cache, logger)
 		{
 			_rootDir = rootDir;
 			_logger = logger;

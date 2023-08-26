@@ -8,6 +8,7 @@ using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Nodes;
 using Horde.Server.Perforce;
 using Horde.Server.Storage;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -50,7 +51,7 @@ namespace Horde.Server.Commands.Bundles
 			}
 			else
 			{
-				FileStorageClient fileStorageClient = new FileStorageClient(OutputDir, logger);
+				FileStorageClient fileStorageClient = new FileStorageClient(OutputDir, serviceProvider.GetRequiredService<IMemoryCache>(), logger);
 				storageClient = fileStorageClient;
 			}
 		

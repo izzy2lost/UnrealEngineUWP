@@ -24,11 +24,13 @@ namespace Horde.Commands.Bundles
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
+			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 256 * 1024 * 1024 });
+
 			IStorageClient store;
 			BlobHandle handle;
 			if (File != null)
 			{
-				store = new FileStorageClient(File.Directory, logger);
+				store = new FileStorageClient(File.Directory, cache, logger);
 				handle = await ((FileStorageClient)store).ReadRefAsync(File);
 			}
 			else if (Ref != null)
@@ -40,8 +42,6 @@ namespace Horde.Commands.Bundles
 			{
 				throw new CommandLineArgumentException("Either -File=... or -Ref=... must be specified");
 			}
-
-			using MemoryCache cache = new MemoryCache(new MemoryCacheOptions());
 
 			Stopwatch timer = Stopwatch.StartNew();
 
