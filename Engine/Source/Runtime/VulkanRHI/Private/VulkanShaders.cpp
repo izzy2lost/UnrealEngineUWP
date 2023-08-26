@@ -174,8 +174,8 @@ FVulkanRayTracingShader* FVulkanShaderFactory::CreateRayTracingShader(TArrayView
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 				FShaderCodeReader ShaderCode(Code);
 				RetShader->Debug.ShaderName = ShaderCode.FindOptionalData(FShaderCodeName::Key);
+                UE::RHICore::SetupShaderCodeValidationData(RetShader, ShaderCode);
 #endif
-				UE::RHICore::SetupShaderCodeValidationData(RetShader, ShaderCode);
 			}
 		}
 	}
