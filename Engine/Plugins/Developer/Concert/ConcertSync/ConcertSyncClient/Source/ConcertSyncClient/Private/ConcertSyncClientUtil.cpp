@@ -269,11 +269,15 @@ FGetObjectResult GetObject(const FConcertObjectId& InObjectId, const FName InNew
 			// Find the existing object through the outer and potentially load if not loaded
 			if (ExistingObjectOuter->ResolveSubobject(*ObjectNameToFind.ToString(), ExistingObject, /*bLoadIfExists*/true))
 			{
-				ObjectClass = FindOrLoadClass(InObjectId.ObjectClassPathName);
-
-				if (!ObjectClass || (ExistingObject->GetClass() != ObjectClass))
+				// Test for null here because UWorldPartition::ResolveSubobject returns true if FWorldPartitionActorDesc exists even if object not in memory (FORT-647612)
+				if (ExistingObject)
 				{
-					ExistingObject = nullptr;
+					ObjectClass = FindOrLoadClass(InObjectId.ObjectClassPathName);
+
+					if (!ObjectClass || (ExistingObject->GetClass() != ObjectClass))
+					{
+						ExistingObject = nullptr;
+					}
 				}
 			}
 		}
