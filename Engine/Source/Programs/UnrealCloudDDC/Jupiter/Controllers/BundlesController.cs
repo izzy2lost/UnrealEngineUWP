@@ -270,8 +270,7 @@ namespace Jupiter.Controllers
 			}
 			else if (offset != null && length != null)
 			{
-				ReadOnlyMemory<byte> memory = await client.ReadBundleRangeAsync(locator, offset.Value, length.Value, cancellationToken);
-				stream = new ReadOnlyMemoryStream(memory);
+				stream = await client.OpenAsync(locator, offset.Value, length.Value, cancellationToken);
 			}
 			else
 			{

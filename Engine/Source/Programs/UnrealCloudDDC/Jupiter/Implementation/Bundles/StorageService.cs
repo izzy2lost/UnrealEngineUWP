@@ -4,6 +4,7 @@ using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -122,25 +123,11 @@ public class StorageClient : BundleStorageClient
 		return redirectUri;
 	}
 
-	public override async Task<Bundle> ReadBundleAsync(BundleLocator locator, CancellationToken cancellationToken)
+	public override async Task<Stream> OpenAsync(BundleLocator locator, int offset, int length = 0, CancellationToken cancellationToken = default)
 	{
 		BlobId blobIdentifier = BlobId.FromBlobLocator(locator);
 		BlobContents blobContents = await _blobService.GetObjectAsync(_namespaceId, blobIdentifier);
-		return await Bundle.FromStreamAsync(blobContents.Stream, cancellationToken);
-	}
-
-	public override async Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BundleLocator locator, int offset, int? length, CancellationToken cancellationToken)
-	{
-		Bundle bundle = await ReadBundleAsync(locator, cancellationToken);
-		ReadOnlySequence<byte> sequence = bundle.AsSequence();
-		sequence = sequence.Slice(offset);
-
-		if(length != null && sequence.Length > length.Value)
-		{
-			sequence = sequence.Slice(0, length.Value);
-		}
-
-		return sequence.AsSingleSegment();
+		return blobContents.Stream;
 	}
 
 	public override async Task<BundleNodeHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
