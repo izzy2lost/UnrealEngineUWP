@@ -357,7 +357,7 @@ namespace EpicGames.Horde.Storage
 		public NodeWriter(IStorageWriter treeWriter)
 		{
 			_treeWriter = treeWriter;
-			_memory = treeWriter.GetOutputBuffer(0, 256 * 1024);
+			_memory = treeWriter.GetOutputBuffer(0, 2 * 1024);
 		}
 
 		/// <summary>
