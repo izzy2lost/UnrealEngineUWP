@@ -9,7 +9,7 @@ namespace Chaos
 		extern int32 ChaosSolverDebugDrawMeshContacts;
 	}
 	extern bool bChaos_Collision_EnableEdgePrune;
-	extern int32 Chaos_Collision_ReduceMeshManifoldThreshold;
+	extern bool bChaos_Collision_EnableLargeMeshManifolds;
 	extern FRealSingle Chaos_Collision_MeshContactNormalThreshold;
 	extern bool bChaos_Collision_MeshManifoldSortByDistance;
 
@@ -198,9 +198,6 @@ namespace Chaos
 
 	void FContactTriangleCollector::ProcessContacts(const FRigidTransform3& MeshToConvexTransform)
 	{
-		// @todo(chaos): Some of the pruning mechanisms don't work very well now that we have support for large manifolds.
-		const bool bEnableFullPruning = ((TriangleContactPoints.Num() - NumDisabledTriangleContactPoints) < Chaos_Collision_ReduceMeshManifoldThreshold);
-
 		// Build the feature set from the full list of contacts before pruning
 		BuildContactFeatureSets();
 
@@ -210,7 +207,7 @@ namespace Chaos
 		if ((TriangleContactPoints.Num() > 1))
 		{
 			const bool bPruneEdges = true;
-			const bool bPruneVertices = bEnableFullPruning;	// @todo(chaos): fix - when set, removes too many interior contacts
+			const bool bPruneVertices = !bChaos_Collision_EnableLargeMeshManifolds;	// @todo(chaos): fix - when set, removes too many interior contacts
 			PruneEdgeAndVertexContactPoints(bPruneEdges, bPruneVertices);
 		}
 
@@ -233,13 +230,9 @@ namespace Chaos
 
 		DebugDrawContactPoints(FColor::Yellow, 0.7);
 
-		// Reduce to only 4 contact points from here
-		// @todo(chaos): A 4 point manifold is often not sufficient when we have low curvature and we end up removing contacts that
-		// would be required during the solve to prevent jitter. For now we disable the reduction when we are colliding
-		// with "lots" of triangles (large objects relative to triangle size), but keep the original behaviour for 
-		// smaller objects so we don't impact perf for the most common cases until we do this properly.
-		if (bEnableFullPruning)
+		if (!bChaos_Collision_EnableLargeMeshManifolds)
 		{
+			// Reduce to 4 contact points from here
 			ReduceManifoldContactPointsTriangeMesh();
 		}
 

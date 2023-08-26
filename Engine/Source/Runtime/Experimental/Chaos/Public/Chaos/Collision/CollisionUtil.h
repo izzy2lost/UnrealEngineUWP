@@ -8,6 +8,7 @@
 namespace Chaos
 {
 	extern bool bChaos_Collision_EnableBoundsChecks;
+	extern bool bChaos_Collision_EnableLargeMeshManifolds;
 
 	namespace Private
 	{
@@ -50,8 +51,8 @@ namespace Chaos
 			const bool bIsSphere1 = (ImplicitType1 == ImplicitObjectType::Sphere);
 			const bool bIsCapsule0 = (ImplicitType0 == ImplicitObjectType::Capsule);
 			const bool bIsCapsule1 = (ImplicitType1 == ImplicitObjectType::Capsule);
-			const bool bIsTriangle0 = (ImplicitType0 == ImplicitObjectType::TriangleMesh) || (ImplicitType0 == ImplicitObjectType::HeightField);
-			const bool bIsTriangle1 = (ImplicitType1 == ImplicitObjectType::TriangleMesh) || (ImplicitType1 == ImplicitObjectType::HeightField);
+			const bool bIsMesh0 = (ImplicitType0 == ImplicitObjectType::TriangleMesh) || (ImplicitType0 == ImplicitObjectType::HeightField);
+			const bool bIsMesh1 = (ImplicitType1 == ImplicitObjectType::TriangleMesh) || (ImplicitType1 == ImplicitObjectType::HeightField);
 			const bool bIsLevelSet = ((ImplicitType0 == ImplicitObjectType::LevelSet) || (ImplicitType1 == ImplicitObjectType::LevelSet));
 
 			const bool bHasBounds0 = (Implicit0 != nullptr) && Implicit0->HasBoundingBox();
@@ -67,7 +68,14 @@ namespace Chaos
 
 			// Do not try to reuse manifold points for capsules or spheres (against anything)
 			// NOTE: This can also be disabled for all shape types by the solver (see GenerateCollisionImpl and the Context)
-			Flags.bEnableManifoldUpdate = !bIsSphere0 && !bIsSphere1 && !bIsCapsule0 && !bIsCapsule1 && !bIsTriangle0 && !bIsTriangle1 && !bIsLevelSet;
+			Flags.bEnableManifoldUpdate = !bIsSphere0 && !bIsSphere1 && !bIsCapsule0 && !bIsCapsule1 && !bIsLevelSet;
+
+			// If we don't allow large mesh manifolds we can't reuse manifolds for meshes because we may have 
+			// thrown away some points that we needed at the new transform
+			if (!bChaos_Collision_EnableLargeMeshManifolds)
+			{
+				Flags.bEnableManifoldUpdate = Flags.bEnableManifoldUpdate && !bIsMesh0 && !bIsMesh1;
+			}
 
 			// Mark probe flag now so we know which GenerateCollisions to use
 			// @todo(chaos): it looks like this can be changed by a collision modifier so we should not be caching it

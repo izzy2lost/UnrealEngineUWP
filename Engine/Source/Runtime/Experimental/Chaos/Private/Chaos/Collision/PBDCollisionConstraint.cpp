@@ -691,10 +691,6 @@ namespace Chaos
 
 		// Reset current closest point
 		ClosestManifoldPointIndex = INDEX_NONE;
-
-		// How many manifold points we expect. E.g., for Box-box this will be 4 or 1 depending on whether
-		// we have a face or edge contact. We don't reuse the manifold if we lose points after culling here
-		ExpectedNumManifoldPoints = ManifoldPoints.Num();
 		Flags.bWasManifoldRestored = false;
 
 		if (!Flags.bCanRestoreManifold)
@@ -730,16 +726,22 @@ namespace Chaos
 
 		// Either update or remove each manifold point depending on how far it has moved from its initial relative point
 		// NOTE: We do not reset if we have 0 points - we can still "restore" a zero point manifold if the bodies have not moved
-		int32 ManifoldPointToRemove = INDEX_NONE;
 		if (ManifoldPoints.Num() > 0)
 		{
 			const FRigidTransform3 Shape0ToShape1Transform = ShapeWorldTransforms[0].GetRelativeTransformNoScale(ShapeWorldTransforms[1]);
 			
-			// Update or prune manifold points. If we would end up removing more than 1 point, we just throw the 
-			// whole manifold away because it will get rebuilt in the narrow phasee anyway.
+			// Update or prune manifold points
+			int32 NumActiveManifoldPoints = ManifoldPoints.Num();
 			for (int32 ManifoldPointIndex = 0; ManifoldPointIndex < ManifoldPoints.Num(); ++ManifoldPointIndex)
 			{
 				FManifoldPoint& ManifoldPoint = ManifoldPoints[ManifoldPointIndex];
+				
+				// Point may have been disabled on a previous tick
+				if (ManifoldPoint.Flags.bDisabled)
+				{
+					--NumActiveManifoldPoints;
+					continue;
+				}
 
 				// Calculate the world-space contact location and separation at the current shape transforms
 				// @todo(chaos): this should use the normal owner. Currently we assume body 1 is the owner
@@ -780,27 +782,24 @@ namespace Chaos
 						ClosestManifoldPointIndex = ManifoldPointIndex;
 					}
 				}
-				else if ((ManifoldPointToRemove == INDEX_NONE) && (bChaos_Collision_EnableManifoldGJKReplace || bChaos_Collision_EnableManifoldGJKInject))
-				{
-					// We can reject up to 1 point (if we have GJK point injection enabled)
-					ManifoldPointToRemove = ManifoldPointIndex;
-				}
 				else
 				{
-					// We want to remove a(nother) point, but we will never reuse the manifold now so throw it away
-					return false;
+					// This point moved too far - disable it
+					ManifoldPoint.Flags.bDisabled = true;
+					ManifoldPoint.Flags.bWasRestored = false;
+					ManifoldPoint.Flags.bWasReplaced = false;
+					--NumActiveManifoldPoints;
 				}
 			}
 
-			// Remove points - only one point removal support required (see above)
-			if (ManifoldPointToRemove != INDEX_NONE)
+			// We want to retain a stable supporting manifold, so at least 4 points. Unless we started with less than that, 
+			// in which case make sure it doesn't go any lower.
+			ExpectedNumManifoldPoints = FMath::Min(ManifoldPoints.Num(), 4);
+
+			// If we removed too many points, we must rebuild the manifold
+			// NOTE: We can only add up to one point
+			if (NumActiveManifoldPoints < ExpectedNumManifoldPoints)
 			{
-				ManifoldPoints.RemoveAt(ManifoldPointToRemove);
-				if ((ManifoldPointToRemove < ClosestManifoldPointIndex) && (ClosestManifoldPointIndex != INDEX_NONE))
-				{
-					--ClosestManifoldPointIndex;
-					check(ClosestManifoldPointIndex >= 0);
-				}
 				return false;
 			}
 		}

@@ -82,8 +82,8 @@ namespace Chaos
 	FAutoConsoleVariableRef CVarChaos_Collision_EnableEdgePrune(TEXT("p.Chaos.Collision.EnableEdgePrune"), bChaos_Collision_EnableEdgePrune, TEXT(""));
 	FAutoConsoleVariableRef CVarChaos_Collision_EdgePrunePlaneDistance(TEXT("p.Chaos.Collision.EdgePrunePlaneDistance"), Chaos_Collision_EdgePrunePlaneDistance, TEXT(""));
 
-	int32 Chaos_Collision_ReduceMeshManifoldThreshold = 20;
-	FAutoConsoleVariableRef CVarChaos_Collision_ReduceMeshManifoldThreshold(TEXT("p.Chaos.Collision.ReduceMeshManifoldThreshold"), Chaos_Collision_ReduceMeshManifoldThreshold, TEXT("If an object has more contacts with a mesh than this, do not attempt to reduce the manifold"));
+	bool bChaos_Collision_EnableLargeMeshManifolds = 1;
+	FAutoConsoleVariableRef CVarChaos_Collision_EnableLargeMeshManifolds(TEXT("p.Chaos.Collision.EnableLargeMeshManifolds"), bChaos_Collision_EnableLargeMeshManifolds, TEXT("Whether to allow large mesh manifolds for collisions against meshes (required for good behaviour)"));
 
 	FRealSingle Chaos_Collision_MeshContactNormalThreshold = 0.98f;	// ~10deg
 	FAutoConsoleVariableRef CVarChaos_Collision_MeshContactNormalThreshold(TEXT("p.Chaos.Collision.MeshContactNormalThreshold"), Chaos_Collision_MeshContactNormalThreshold, TEXT("Treat contact with a dot product between the normal and the triangle face greater than this as face collisions"));
