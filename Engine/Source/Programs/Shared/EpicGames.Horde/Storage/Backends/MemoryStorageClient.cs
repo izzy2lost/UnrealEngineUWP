@@ -124,7 +124,7 @@ namespace EpicGames.Horde.Storage.Backends
 			BundleNodeLocator hashedLocator;
 			if (_refs.TryGetValue(name, out hashedLocator))
 			{
-				return Task.FromResult<BundleNodeHandle?>(new FlushedNodeHandle(TreeReader, hashedLocator)); 
+				return Task.FromResult<BundleNodeHandle?>(new FlushedNodeHandle(BundleReader, hashedLocator)); 
 			}
 			else
 			{

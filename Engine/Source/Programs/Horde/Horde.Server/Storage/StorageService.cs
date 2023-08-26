@@ -233,7 +233,7 @@ namespace Horde.Server.Storage
 			{
 				await foreach (BundleNodeLocator locator in _outer.FindAliasesAsync(NamespaceId, alias, cancellationToken))
 				{
-					yield return new FlushedNodeHandle(TreeReader, locator);
+					yield return new FlushedNodeHandle(BundleReader, locator);
 				}
 			}
 
@@ -249,7 +249,7 @@ namespace Horde.Server.Storage
 				{
 					return null;
 				}
-				return new FlushedNodeHandle(TreeReader, locator.Value);
+				return new FlushedNodeHandle(BundleReader, locator.Value);
 			}
 
 			/// <inheritdoc/>

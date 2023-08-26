@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,14 +19,14 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <summary>
 		/// Reader for node data
 		/// </summary>
-		protected BundleReader TreeReader { get; }
+		protected BundleReader BundleReader { get; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		protected BundleStorageClient(IMemoryCache? memoryCache, ILogger logger)
 		{
-			TreeReader = new BundleReader(this, memoryCache, logger);
+			BundleReader = new BundleReader(this, memoryCache, logger);
 		}
 
 		#region Blobs
@@ -63,7 +62,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <inheritdoc/>
 		public BundleWriter CreateWriter(RefName refName = default, BundleOptions? options = null)
 		{
-			return new BundleWriter(this, TreeReader, refName, options);
+			return new BundleWriter(this, BundleReader, refName, options);
 		}
 
 		/// <inheritdoc/>

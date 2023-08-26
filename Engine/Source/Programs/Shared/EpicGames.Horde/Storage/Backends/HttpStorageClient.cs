@@ -226,7 +226,7 @@ namespace EpicGames.Horde.Storage.Backends
 						FindNodesResponse? message = await response.Content.ReadFromJsonAsync<FindNodesResponse>(cancellationToken: cancellationToken);
 						foreach (FindNodeResponse node in message!.Nodes)
 						{
-							yield return new FlushedNodeHandle(TreeReader, new BundleNodeLocator(node.Hash, node.Blob, node.ExportIdx));
+							yield return new FlushedNodeHandle(BundleReader, new BundleNodeLocator(node.Hash, node.Blob, node.ExportIdx));
 						}
 					}
 				}
@@ -292,7 +292,7 @@ namespace EpicGames.Horde.Storage.Backends
 							response.EnsureSuccessStatusCode();
 							ReadRefResponse? data = await response.Content.ReadFromJsonAsync<ReadRefResponse>(cancellationToken: cancellationToken);
 							_logger.LogDebug("Read ref {RefName} -> {Blob}#{ExportIdx}", name, data!.Blob, data!.ExportIdx);
-							return new FlushedNodeHandle(TreeReader, new BundleNodeLocator(data.Hash, data!.Blob, data!.ExportIdx));
+							return new FlushedNodeHandle(BundleReader, new BundleNodeLocator(data.Hash, data!.Blob, data!.ExportIdx));
 						}
 					}
 				}
