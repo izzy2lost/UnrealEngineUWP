@@ -389,10 +389,13 @@ namespace Jupiter
 			}
 
 			string keyspace = replicatedSession.Keyspace;
-			replicatedSession.Execute(new SimpleStatement("CREATE TYPE IF NOT EXISTS blob_identifier (hash blob)"));
-			replicatedSession.UserDefinedTypes.Define(UdtMap.For<ScyllaBlobIdentifier>("blob_identifier", keyspace));
+			if (!settings.AvoidSchemaChanges)
+			{
+				replicatedSession.Execute(new SimpleStatement("CREATE TYPE IF NOT EXISTS blob_identifier (hash blob)"));
+				replicatedSession.Execute(new SimpleStatement("CREATE TYPE IF NOT EXISTS object_reference (bucket text, key text)"));
+			}
 
-			replicatedSession.Execute(new SimpleStatement("CREATE TYPE IF NOT EXISTS object_reference (bucket text, key text)"));
+			replicatedSession.UserDefinedTypes.Define(UdtMap.For<ScyllaBlobIdentifier>("blob_identifier", keyspace));
 			replicatedSession.UserDefinedTypes.Define(UdtMap.For<ScyllaObjectReference>("object_reference", keyspace));
 
 			string localKeyspaceName = $"{keyspace}_local_{settings.LocalKeyspaceSuffix}";
@@ -408,7 +411,10 @@ namespace Jupiter
 			replicatedSession.CreateKeyspaceIfNotExists(localKeyspaceName, replicationStrategyLocal);
 			ISession localSession = cluster.Connect(localKeyspaceName);
 
-			localSession.Execute(new SimpleStatement("CREATE TYPE IF NOT EXISTS blob_identifier (hash blob)"));
+			if (!settings.AvoidSchemaChanges)
+			{
+				localSession.Execute(new SimpleStatement("CREATE TYPE IF NOT EXISTS blob_identifier (hash blob)"));
+			}
 			localSession.UserDefinedTypes.Define(UdtMap.For<ScyllaBlobIdentifier>("blob_identifier", localKeyspaceName));
 
 			bool isScylla = !settings.UseAzureCosmosDB;

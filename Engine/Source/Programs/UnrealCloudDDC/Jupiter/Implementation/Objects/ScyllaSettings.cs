@@ -101,6 +101,11 @@ public class ScyllaSettings : IValidatableObject
 	/// </summary>
 	public bool ListObjectsFromOldNamespaceTable { get; set; } = false;
 
+	/// <summary>
+	/// Set to disable any modifications to cassandra schema from Unreal Cloud DDC
+	/// </summary>
+	public bool AvoidSchemaChanges { get; set; } = false;
+
 	public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
 	{
 		List<ValidationResult> results = new List<ValidationResult>();
