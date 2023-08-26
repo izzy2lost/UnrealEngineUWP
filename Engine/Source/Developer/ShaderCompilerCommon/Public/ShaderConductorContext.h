@@ -81,7 +81,7 @@ namespace CrossCompiler
 		bool bEnableFMAPass = false;
 
 		/** Disables scalar block layout for structured buffers. True for Vulkan mobile due to low coverage of 'VK_EXT_scalar_block_layout' extension. */
-		bool bDisableScalarBlockLayout = false;
+		bool bDisableScalarBlockLayout = true;
 
 		/** Enables separate samplers in GLSL via extensions. */
 		bool bEnableSeparateSamplersInGlsl = false;
