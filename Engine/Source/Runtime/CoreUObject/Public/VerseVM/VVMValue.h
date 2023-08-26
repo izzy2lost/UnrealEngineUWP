@@ -213,8 +213,24 @@ private:
 	}
 
 public:
+	// VValue is a NaN-boxed 64-bit payload representing the fundamental value type in the
+	// Verse VM. NaN-boxing allows us to represent immediates like int32s and floats,
+	// and also pointers like VCell, all in a 64-bit payload. We do this by encoding
+	// non-floats in the IEEE754 NaN space. E.g, all non-double VValues will be NaN when
+	// you subtract FloatOffset from them. This means we need to be careful with the
+	// actual set of values we use to store NaN. The NaNs that are safe to be boxed
+	// as a float we call PureNaNs.
+	//
+	// On x86-64 and arm64, doing math on PureNaNs has the following properties:
+	// - When doing binary operations involving one PureNaN, the output is again a PureNaN.
+	// - The exact value you get on newly indefinite results (e.g, Inf - Inf) may vary in the sign, but is a PureNaN.
+	// This means that when doing arithmetic on VFloats, which can't be an impure NaN,
+	// we don't need to purify the result of the arithmetic operation when boxing them
+	// as a VValue. However, when boxing an unknown double value as a VValue, we need to
+	// purify any incoming NaNs.
+
 	// The lower bits of a non-numbered VValue look like this:
-	// - For a Cell:     0b0000
+	// - For a Cell:        0b0000
 	// - For a RestValue:   0bXXX1
 	// - For a Placeholder: 0bX010
 	// - Note: This leaves more space available in the lower 4 bits for other immediate values or pointer tagging.
@@ -225,8 +241,10 @@ public:
 	// - A RestValue has its lowest bit set to 1. This test will fail for both Cell and Placeholder.
 	// - A Placeholder has its lowest two bits set to 0b10. This will fail for both Cell and RestValue.
 
+	// VValue assumes a 48-bit address space for pointers.
+
 	// Encoding space by top 16 bits:
-	// 0x0000... cell
+	// 0x0000... cell or placeholder
 	// 0x0001... \
 	// ...        float
 	// 0xfffc... /
