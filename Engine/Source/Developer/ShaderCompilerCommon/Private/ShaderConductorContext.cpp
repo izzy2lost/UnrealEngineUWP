@@ -375,9 +375,9 @@ namespace CrossCompiler
 		}
 
 		// Add additional DXC arguments that are not exposed by ShaderConductor API directly
-		if (InOptions.bDisableScalarBlockLayout)
+		if (!InOptions.bDisableScalarBlockLayout)
 		{
-			DxcArgRefs.Add("-fspv-no-scalar-block-layout");
+			DxcArgRefs.Add("-fvk-use-scalar-layout");
 		}
 		if (InOptions.bPreserveStorageInput)
 		{
