@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Cassandra;
 using Cassandra.Mapping;
 using EpicGames.Horde.Storage;
+using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 
 namespace Jupiter.Implementation
@@ -18,7 +19,7 @@ namespace Jupiter.Implementation
 		private readonly Mapper _mapper;
 		private readonly IScyllaSessionManager _scyllaSessionManager;
 
-		public ScyllaContentIdStore(IScyllaSessionManager scyllaSessionManager, IBlobService blobStore, Tracer tracer)
+		public ScyllaContentIdStore(IScyllaSessionManager scyllaSessionManager, IBlobService blobStore, Tracer tracer, IOptionsMonitor<ScyllaSettings> scyllaSettings)
 		{
 			_scyllaSessionManager = scyllaSessionManager;
 			_session = scyllaSessionManager.GetSessionForReplicatedKeyspace();
@@ -27,14 +28,17 @@ namespace Jupiter.Implementation
 
 			_mapper = new Mapper(_session);
 
-			string blobType = scyllaSessionManager.IsCassandra ? "blob" : "frozen<blob_identifier>";
-			_session.Execute(new SimpleStatement(@$"CREATE TABLE IF NOT EXISTS content_id (
-				content_id {blobType},
-				content_weight int, 
-				chunks set<{blobType}>, 
-				PRIMARY KEY ((content_id), content_weight)
-			);"
-			));
+			if (!scyllaSettings.CurrentValue.AvoidSchemaChanges)
+			{
+				string blobType = scyllaSessionManager.IsCassandra ? "blob" : "frozen<blob_identifier>";
+				_session.Execute(new SimpleStatement(@$"CREATE TABLE IF NOT EXISTS content_id (
+					content_id {blobType},
+					content_weight int, 
+					chunks set<{blobType}>, 
+					PRIMARY KEY ((content_id), content_weight)
+				);"
+				));
+			}
 		}
 
 		public async Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId)

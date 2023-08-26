@@ -41,40 +41,43 @@ namespace Jupiter.Implementation
 
 			_mapper = new Mapper(_session);
 
-			_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS objects (
-				namespace text, 
-				bucket text, 
-				name text, 
-				payload_hash blob_identifier, 
-				inline_payload blob, 
-				is_finalized boolean,
-				last_access_time timestamp,
-				PRIMARY KEY ((namespace, bucket, name))
-			);"
-			));
+			if (!_settings.CurrentValue.AvoidSchemaChanges)
+			{
+				_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS objects (
+					namespace text, 
+					bucket text, 
+					name text, 
+					payload_hash blob_identifier, 
+					inline_payload blob, 
+					is_finalized boolean,
+					last_access_time timestamp,
+					PRIMARY KEY ((namespace, bucket, name))
+				);"
+				));
 
-			_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS object_last_access_v2 (
-				namespace text, 
-				bucket text, 
-				name text, 
-				last_access_time timestamp,
-				PRIMARY KEY ((namespace, bucket, name))
-			);"
-			));
-			
-			_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS buckets_v2 (
-				namespace text, 
-				bucket text, 
-				PRIMARY KEY ((namespace), bucket)
-			);"
-			));
+				_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS object_last_access_v2 (
+					namespace text, 
+					bucket text, 
+					name text, 
+					last_access_time timestamp,
+					PRIMARY KEY ((namespace, bucket, name))
+				);"
+				));
+				
+				_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS buckets_v2 (
+					namespace text, 
+					bucket text, 
+					PRIMARY KEY ((namespace), bucket)
+				);"
+				));
 
-			_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS buckets (
-				namespace text, 
-				bucket set<text>, 
-				PRIMARY KEY (namespace)
-			);"
-			));
+				_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS buckets (
+					namespace text, 
+					bucket set<text>, 
+					PRIMARY KEY (namespace)
+				);"
+				));
+			}
 
 			// BYPASS CACHE is a scylla specific extension to disable populating the cache, should be ignored by other cassandra dbs
 			string cqlOptions = scyllaSessionManager.IsScylla ? "BYPASS CACHE" : "";

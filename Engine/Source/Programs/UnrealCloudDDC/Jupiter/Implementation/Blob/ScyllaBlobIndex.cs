@@ -30,33 +30,36 @@ public class ScyllaBlobIndex : IBlobIndex
 		_session = scyllaSessionManager.GetSessionForReplicatedKeyspace();
 		_mapper = new Mapper(_session);
 
-		string blobType = scyllaSessionManager.IsCassandra ? "blob" : "frozen<blob_identifier>";
-		_session.Execute(new SimpleStatement(@$"CREATE TABLE IF NOT EXISTS blob_index (
-			namespace text,
-			blob_id {blobType},
-			regions set<text>,
-			references set<frozen<object_reference>>,
-			PRIMARY KEY ((namespace, blob_id))
-		);"
-		));
+		if (!scyllaSettings.CurrentValue.AvoidSchemaChanges)
+		{
+			string blobType = scyllaSessionManager.IsCassandra ? "blob" : "frozen<blob_identifier>";
+			_session.Execute(new SimpleStatement(@$"CREATE TABLE IF NOT EXISTS blob_index (
+				namespace text,
+				blob_id {blobType},
+				regions set<text>,
+				references set<frozen<object_reference>>,
+				PRIMARY KEY ((namespace, blob_id))
+			);"
+			));
 
-		_session.Execute(new SimpleStatement(@$"CREATE TABLE IF NOT EXISTS blob_index_v2 (
-			namespace text,
-			blob_id blob,
-			region text,
-			PRIMARY KEY ((namespace, blob_id), region)
-		);"
-		));
+			_session.Execute(new SimpleStatement(@$"CREATE TABLE IF NOT EXISTS blob_index_v2 (
+				namespace text,
+				blob_id blob,
+				region text,
+				PRIMARY KEY ((namespace, blob_id), region)
+			);"
+			));
 
-		_session.Execute(new SimpleStatement(@$"CREATE TABLE IF NOT EXISTS blob_incoming_references (
-			namespace text,
-			blob_id blob,
-			reference_id blob,
-			reference_type smallint,
-			bucket_id text,
-			PRIMARY KEY ((namespace, blob_id), reference_id)
-		);"
-		));
+			_session.Execute(new SimpleStatement(@$"CREATE TABLE IF NOT EXISTS blob_incoming_references (
+				namespace text,
+				blob_id blob,
+				reference_id blob,
+				reference_type smallint,
+				bucket_id text,
+				PRIMARY KEY ((namespace, blob_id), reference_id)
+			);"
+			));
+		}
 	}
 
 	public async Task AddBlobToIndexAsync(NamespaceId ns, BlobId id, string? region = null)

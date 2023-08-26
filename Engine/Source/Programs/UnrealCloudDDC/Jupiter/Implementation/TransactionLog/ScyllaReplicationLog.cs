@@ -27,41 +27,44 @@ namespace Jupiter.Implementation
 			_session = scyllaSessionManager.GetSessionForLocalKeyspace();
 			_mapper = new Mapper(_session);
 
-			_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS replication_log (
-				namespace varchar,
-				replication_bucket bigint,
-				replication_id timeuuid,
-				bucket varchar, 
-				key varchar, 
-				type int,
-				object_identifier blob_identifier,
-				PRIMARY KEY ((namespace, replication_bucket), replication_id)
-			);"
-			));
+			if (!settings.CurrentValue.AvoidSchemaChanges)
+			{
+				_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS replication_log (
+					namespace varchar,
+					replication_bucket bigint,
+					replication_id timeuuid,
+					bucket varchar, 
+					key varchar, 
+					type int,
+					object_identifier blob_identifier,
+					PRIMARY KEY ((namespace, replication_bucket), replication_id)
+				);"
+				));
 
-			_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS replication_snapshot (
-				namespace varchar,
-				id timeuuid,
-				blob_snapshot blob_identifier,
-				blob_namespace varchar,
-				PRIMARY KEY ((namespace), id)
-			) WITH CLUSTERING ORDER BY (id DESC);"  
-			));
+				_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS replication_snapshot (
+					namespace varchar,
+					id timeuuid,
+					blob_snapshot blob_identifier,
+					blob_namespace varchar,
+					PRIMARY KEY ((namespace), id)
+				) WITH CLUSTERING ORDER BY (id DESC);"  
+				));
 
-			_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS replication_namespace (
-				namespace varchar,
-				PRIMARY KEY ((namespace))
-			);"  
-			));
+				_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS replication_namespace (
+					namespace varchar,
+					PRIMARY KEY ((namespace))
+				);"  
+				));
 
-			_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS replication_state (
-				namespace varchar,
-				name varchar,
-				last_bucket varchar,
-				last_event uuid,
-				PRIMARY KEY ((namespace), name)
-			);"  
-			));
+				_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS replication_state (
+					namespace varchar,
+					name varchar,
+					last_bucket varchar,
+					last_event uuid,
+					PRIMARY KEY ((namespace), name)
+				);"  
+				));
+			}
 		}
 
 		public async IAsyncEnumerable<NamespaceId> GetNamespacesAsync()
