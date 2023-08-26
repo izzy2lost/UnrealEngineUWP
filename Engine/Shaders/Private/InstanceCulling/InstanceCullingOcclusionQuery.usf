@@ -46,7 +46,7 @@ EInstanceVisibilityStatus GetInstanceDataAndVisibility(uint InstanceId, out FIns
 	const FInstanceSceneData InstanceData = GetInstanceSceneData(InstanceId, InstanceSceneDataSOAStride);
 
 	OutInstanceData = InstanceData;
-	
+
 	if (!InstanceData.ValidInstance)
 	{
 		return IVS_Hidden;
@@ -126,6 +126,9 @@ groupshared uint GroupOutputBaseIndex;
 RWBuffer<uint> OutIndirectArgsBuffer;
 RWBuffer<uint> OutInstanceIdBuffer;
 
+// Remap linear visible index to a visible GPUScene instance index
+Buffer<uint> InstanceIdBuffer;
+
 [numthreads(NUM_THREADS_PER_GROUP, 1, 1)]
 void MainCS(uint3 GroupId : SV_GroupID, uint GroupThreadIndex : SV_GroupIndex, uint DispatchThreadId : SV_DispatchThreadID)
 {
@@ -138,7 +141,8 @@ void MainCS(uint3 GroupId : SV_GroupID, uint GroupThreadIndex : SV_GroupIndex, u
 
 	const bool bValidInvocation = DispatchThreadId < NumInstances;
 
-	uint InstanceId = min(DispatchThreadId, NumInstances);
+	uint ClampedThreadId = min(DispatchThreadId, NumInstances-1);
+	uint InstanceId = InstanceIdBuffer[ClampedThreadId];
 
 	GroupMemoryBarrierWithGroupSync();
 
@@ -195,9 +199,6 @@ void MainCS(uint3 GroupId : SV_GroupID, uint GroupThreadIndex : SV_GroupIndex, u
 		OutInstanceIdBuffer[GroupOutputBaseIndex + GroupThreadIndex] = GroupVisibleInstances[GroupThreadIndex];
 	}
 }
-
-// Remap linear visible index to a visible GPUScene instance index
-Buffer<uint> InstanceIdBuffer;
 
 void MainVS(
 	float3 InPosition : ATTRIBUTE0,

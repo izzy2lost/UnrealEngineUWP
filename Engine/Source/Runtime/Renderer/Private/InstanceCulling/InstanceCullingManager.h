@@ -98,6 +98,7 @@ public:
 
 	// Reference to a buffer owned by FInstanceCullingOcclusionQueryRenderer
 	FRDGBufferRef InstanceOcclusionQueryBuffer = {};
+	EPixelFormat InstanceOcclusionQueryBufferFormat = PF_Unknown;
 
 private:
 

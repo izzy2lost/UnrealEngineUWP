@@ -863,7 +863,9 @@ void FInstanceCullingContext::BuildRenderingCommandsInternal(
 
 	if (InstanceCullingManager && InstanceCullingManager->InstanceOcclusionQueryBuffer)
 	{
-		PassParametersTmp.InstanceOcclusionQueryBuffer = GraphBuilder.CreateSRV(InstanceCullingManager->InstanceOcclusionQueryBuffer, PF_R32_UINT);
+		PassParametersTmp.InstanceOcclusionQueryBuffer = GraphBuilder.CreateSRV(
+			InstanceCullingManager->InstanceOcclusionQueryBuffer, 
+			InstanceCullingManager->InstanceOcclusionQueryBufferFormat);
 	}
 	else
 	{
@@ -1186,7 +1188,9 @@ FInstanceCullingDeferredContext *FInstanceCullingContext::CreateDeferredContext(
 
 	if (InstanceCullingManager.InstanceOcclusionQueryBuffer)
 	{
-		PassParametersTmp.InstanceOcclusionQueryBuffer = GraphBuilder.CreateSRV(InstanceCullingManager.InstanceOcclusionQueryBuffer, PF_R32_UINT);
+		PassParametersTmp.InstanceOcclusionQueryBuffer = GraphBuilder.CreateSRV(
+			InstanceCullingManager.InstanceOcclusionQueryBuffer,
+			InstanceCullingManager.InstanceOcclusionQueryBufferFormat);
 	}
 	else
 	{

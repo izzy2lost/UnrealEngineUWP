@@ -164,7 +164,7 @@ public:
 	/**
 	 * Sync with setup task.
 	 */
-	void WaitForSetupTask();
+	void WaitForSetupTask() const;
 
 	/**
 	 * Dispatch visible mesh draw command draw task.
@@ -182,6 +182,13 @@ public:
 
 	FInstanceCullingContext* GetInstanceCullingContext() { return &TaskContext.InstanceCullingContext; }
 	const FGraphEventRef& GetTaskEvent() const { return TaskEventRef; }
+
+	// NOTE: It is only safe to access mesh draw commands after the setup task is complete (use WaitForSetupTask). 
+	// Only access the data late in the frame to allow as much time as possible for async tasks to complete.
+	const FMeshCommandOneFrameArray& GetMeshDrawCommands() const
+	{
+		return TaskContext.MeshDrawCommands;
+	}
 
 private:
 	FMeshDrawCommandPassSetupTaskContext TaskContext;

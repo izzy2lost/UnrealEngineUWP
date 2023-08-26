@@ -46,11 +46,17 @@ public:
 	void EndFrame(FRDGBuilder& GraphBuilder);
 
 	/**
-	* One uint32 per instance in GPUScene, with 1 bit per view (see GetOcclusionQueryMaskForView)
+	* One uint8 per instance in GPUScene, with 1 bit per view
 	* Available when when instance culling is enabled and r.InstanceCulling.OcclusionQueries=1.
 	* Contains data for *previous* frame. Assumes that GPUScene instance indices are consistent.
 	*/
 	TRefCountPtr<FRDGPooledBuffer> InstanceOcclusionQueryBuffer;
+
+	/*
+	* Format that should be used to create views for InstanceOcclusionQueryBuffer.
+	* May be R8_UINT or R32_UINT, basd on current hardware capability.
+	*/
+	EPixelFormat InstanceOcclusionQueryBufferFormat = PF_Unknown;
 
 	/*
 	* Returns true if per-instance occlusion queries can be rendered for the view.
@@ -68,7 +74,7 @@ private:
 
 	FRDGBufferRef CurrentInstanceOcclusionQueryBuffer = {};
 
-	static constexpr uint32 MaxViews = 1; // 32; -- YURIY_TODO: we could theoretically support up to 32 views
+	static constexpr uint32 MaxViews = 1; // -- YURIY_TODO: we could theoretically support up to 8 views for uint8 or 32 for uint32 mask
 	TArray<uint32> CurrentRenderedViewIDs;
 
 	uint32 AllocatedNumInstances = 0;

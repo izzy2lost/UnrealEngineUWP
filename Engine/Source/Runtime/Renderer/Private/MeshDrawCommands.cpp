@@ -1608,7 +1608,7 @@ void FParallelMeshDrawCommandPass::BuildRenderingCommands(
 
 
 
-void FParallelMeshDrawCommandPass::WaitForSetupTask()
+void FParallelMeshDrawCommandPass::WaitForSetupTask() const
 {
 	WaitForMeshPassSetupTask();
 }
