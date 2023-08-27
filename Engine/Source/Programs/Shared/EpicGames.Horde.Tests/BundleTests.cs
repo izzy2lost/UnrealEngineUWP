@@ -156,7 +156,7 @@ namespace EpicGames.Horde.Tests
 				oldHeader = BundleHeader.Create(types, imports, exports, packets);
 			}
 
-			byte[] serializedData = oldHeader.Data.ToArray();
+			byte[] serializedData = oldHeader.ToByteArray();
 
 			BundleHeader newHeader = BundleHeader.Read(serializedData);
 				
