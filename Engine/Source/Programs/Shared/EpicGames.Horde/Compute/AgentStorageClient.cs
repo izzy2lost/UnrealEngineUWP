@@ -40,12 +40,20 @@ namespace EpicGames.Horde.Compute
 		#region Blobs
 
 		/// <inheritdoc/>
-		public override async Task<Stream> OpenAsync(BundleLocator locator, int offset, int length, CancellationToken cancellationToken = default)
+		public override async Task<Stream> OpenAsync(BundleLocator locator, int offset, int? length, CancellationToken cancellationToken = default)
 		{
 			await _semaphore.WaitAsync(cancellationToken);
 			try
 			{
-				ReadOnlyMemory<byte> data = await _channel.ReadBlobAsync(locator, offset, length, cancellationToken);
+				ReadOnlyMemory<byte> data;
+				if (length.HasValue && length.Value == 0)
+				{
+					data = ReadOnlyMemory<byte>.Empty;
+				}
+				else
+				{
+					data = await _channel.ReadBlobAsync(locator, offset, length ?? 0, cancellationToken);
+				}
 				return new ReadOnlyMemoryStream(data);
 			}
 			finally

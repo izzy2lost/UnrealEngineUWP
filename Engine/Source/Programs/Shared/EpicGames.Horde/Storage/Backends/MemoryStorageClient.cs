@@ -55,12 +55,12 @@ namespace EpicGames.Horde.Storage.Backends
 		#region Blobs
 
 		/// <inheritdoc/>
-		public override Task<Stream> OpenAsync(BundleLocator locator, int offset, int length, CancellationToken cancellationToken = default)
+		public override Task<Stream> OpenAsync(BundleLocator locator, int offset, int? length, CancellationToken cancellationToken = default)
 		{
 			ReadOnlySequence<byte> sequence = _bundles[locator].AsSequence().Slice(offset);
-			if (length > 0 && sequence.Length > length)
+			if (length != null && sequence.Length > length)
 			{
-				sequence = sequence.Slice(0, length);
+				sequence = sequence.Slice(0, length.Value);
 			}
 			return Task.FromResult<Stream>(new ReadOnlySequenceStream(sequence));
 		}

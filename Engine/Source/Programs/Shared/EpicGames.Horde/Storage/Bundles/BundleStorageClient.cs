@@ -38,10 +38,10 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <param name="locator">Locator for the bundle</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Stream for reading from the bundle</returns>
-		public Task<Stream> OpenAsync(BundleLocator locator, CancellationToken cancellationToken = default) => OpenAsync(locator, 0, 0, cancellationToken);
+		public Task<Stream> OpenAsync(BundleLocator locator, CancellationToken cancellationToken = default) => OpenAsync(locator, 0, null, cancellationToken);
 
 		/// <inheritdoc/>
-		public abstract Task<Stream> OpenAsync(BundleLocator locator, int offset, int length = 0, CancellationToken cancellationToken = default);
+		public abstract Task<Stream> OpenAsync(BundleLocator locator, int offset, int? length = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Reads an entire bundle into memory

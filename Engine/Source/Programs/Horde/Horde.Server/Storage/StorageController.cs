@@ -285,7 +285,7 @@ namespace Horde.Server.Storage
 
 			// Parse the range header
 			int offset = 0;
-			int length = 0;
+			int? length = null;
 
 			if (headers.Range.Count > 0)
 			{
@@ -316,11 +316,6 @@ namespace Horde.Server.Storage
 					else
 					{
 						return new BadRequestObjectResult(LogEvent.Create(LogLevel.Error, "Unable to parse end for range: {Value}", value));
-					}
-
-					if (length == 0)
-					{
-						return new FileStreamResult(new MemoryStream(Array.Empty<byte>()), "application/octet-stream");
 					}
 				}
 			}

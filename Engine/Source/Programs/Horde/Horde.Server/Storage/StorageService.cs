@@ -145,12 +145,17 @@ namespace Horde.Server.Storage
 			public override ValueTask<Uri?> GetReadRedirectAsync(BundleLocator locator, CancellationToken cancellationToken = default) => Backend.TryGetReadRedirectAsync(GetBlobPath(locator), cancellationToken);
 
 			/// <inheritdoc/>
-			public override async Task<Stream> OpenAsync(BundleLocator locator, int offset, int length, CancellationToken cancellationToken = default)
+			public override async Task<Stream> OpenAsync(BundleLocator locator, int offset, int? length, CancellationToken cancellationToken = default)
 			{
 				using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(StorageClientImpl)}.{nameof(OpenAsync)}");
 				span.SetAttribute("locator", locator.ToString());
 				span.SetAttribute("offset", offset);
 				span.SetAttribute("length", length);
+
+				if (length.HasValue && length.Value == 0)
+				{
+					return new MemoryStream(Array.Empty<byte>());
+				}
 
 				string path = GetBlobPath(locator);
 				return await Backend.ReadAsync(path, offset, length, cancellationToken);

@@ -103,13 +103,13 @@ namespace EpicGames.Horde.Storage.Backends
 		#region Blobs
 
 		/// <inheritdoc/>
-		public override async Task<Stream> OpenAsync(BundleLocator locator, int offset, int length, CancellationToken cancellationToken = default)
+		public override async Task<Stream> OpenAsync(BundleLocator locator, int offset, int? length, CancellationToken cancellationToken = default)
 		{
-			if (offset == 0 && length == 0)
+			if (offset == 0 && length == null)
 			{
 				_logger.LogDebug("Reading {Locator}", locator);
 			}
-			else if (length == 0)
+			else if (length == null)
 			{
 				_logger.LogDebug("Reading {Locator} ({Offset}..)", locator, offset);
 			}
@@ -122,7 +122,7 @@ namespace EpicGames.Horde.Storage.Backends
 			{
 				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"blobs/{locator}"))
 				{
-					if (offset != 0 || length != 0)
+					if (offset != 0 || length != null)
 					{
 						request.Headers.Range = new RangeHeaderValue(offset, (length == 0) ? null : (offset + (length - 1)));
 					}
