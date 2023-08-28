@@ -40,6 +40,19 @@ void FDebugging::BroadcastViewBeginDestruction(const UMVVMView* InView)
 }
 
 /** */
+FDebugging::FViewSourceValueArgs::FViewSourceValueArgs(const FMVVMViewSource& InViewSource)
+	: ViewSource(InViewSource)
+{
+}
+
+FDebugging::FViewSourceValueChanged FDebugging::OnViewSourceValueChanged;
+
+void FDebugging::BroadcastViewSourceValueChanged(const UMVVMView* InView, const FMVVMViewSource& ViewSource)
+{
+	OnViewSourceValueChanged.Broadcast(InView, FViewSourceValueArgs(ViewSource));
+}
+
+/** */
 FDebugging::FLibraryBindingRegisteredArgs::FLibraryBindingRegisteredArgs(const FMVVMViewClass_CompiledBinding& InBinding, ERegisterLibraryBindingResult InResult)
 	: Binding(InBinding)
 	, Result(InResult)

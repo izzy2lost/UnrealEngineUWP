@@ -5,7 +5,7 @@
 #include "HAL/Platform.h" // IWYU pragma: keep
 
 #ifndef UE_WITH_MVVM_DEBUGGING
-#define UE_WITH_MVVM_DEBUGGING !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+#define UE_WITH_MVVM_DEBUGGING (!(UE_BUILD_SHIPPING || UE_BUILD_TEST)) || WITH_EDITOR
 #endif
 
 
@@ -15,6 +15,7 @@
 
 class UMVVMView;
 struct FMVVMViewClass_CompiledBinding;
+struct FMVVMViewSource;
 class UUserWidget;
 
 namespace UE::MVVM
@@ -63,6 +64,19 @@ public:
 	/** Broadcast before a view is destroyed. */
 	static FViewDestructing OnViewBeginDestruction;
 	static void BroadcastViewBeginDestruction(const UMVVMView* View);
+
+public:
+	struct FViewSourceValueArgs
+	{
+		FViewSourceValueArgs() = delete;
+		FViewSourceValueArgs(const FMVVMViewSource& ViewSource);
+		const FMVVMViewSource& ViewSource;
+	};
+
+	DECLARE_EVENT_TwoParams(FDebugging, FViewSourceValueChanged, const FView&, const FViewSourceValueArgs&);
+	/** Broadcast when a source changes. */
+	static FViewSourceValueChanged OnViewSourceValueChanged;
+	static void BroadcastViewSourceValueChanged(const UMVVMView* View, const FMVVMViewSource& ViewSource);
 
 public:
 	enum class ERegisterLibraryBindingResult : uint8
