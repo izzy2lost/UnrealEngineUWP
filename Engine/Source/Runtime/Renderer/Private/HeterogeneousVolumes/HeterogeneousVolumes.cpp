@@ -192,6 +192,18 @@ bool ShouldRenderHeterogeneousVolumes(
 		&& DoesPlatformSupportHeterogeneousVolumes(Scene->GetShaderPlatform());
 }
 
+bool ShouldRenderHeterogeneousVolumesForAnyView(
+	const TArray<FViewInfo>& Views
+)
+{
+	bool Result = false;
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+	{
+		Result |= ShouldRenderHeterogeneousVolumesForView(Views[ViewIndex]);
+	}
+	return Result;
+}
+
 bool ShouldRenderHeterogeneousVolumesForView(
 	const FViewInfo& View
 )
