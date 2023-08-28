@@ -26,7 +26,7 @@ static TAutoConsoleVariable<int32> CVarInstanceCullingOcclusionQueries(
 	TEXT("r.InstanceCulling.OcclusionQueries"),
 	0,
 	TEXT("EXPERIMENTAL: Use per-instance software occlusion queries to perform less conservative visibility test than what's possible with HZB alone"),
-	ECVF_RenderThreadSafe);
+	ECVF_RenderThreadSafe | ECVF_Preview);
 
 struct FInstanceCullingOcclusionQueryDeferredContext;
 
