@@ -331,24 +331,21 @@ struct FNDILandscapeData_RenderThread
 			{
 				if (IAllocatedVirtualTexture* AllocatedTexture = VirtualTexture->GetAllocatedVirtualTexture())
 				{
-					if (FRHITexture* PageTable = AllocatedTexture->GetPageTableTexture(PageTableIndex))
+					PageTableRef = AllocatedTexture->GetPageTableTexture(PageTableIndex);
+					if (PageTableRef.IsValid())
 					{
-						if (FRHITextureReference* TextureReference = PageTable->GetTextureReference())
+						AllocatedTexture->GetPackedPageTableUniform(PageTableUniforms);
+
+						if (bIncludeWorldToUv)
 						{
-							PageTableRef = TextureReference->GetReferencedTexture();
-							AllocatedTexture->GetPackedPageTableUniform(PageTableUniforms);
+							WorldToUvParameters[0] = VirtualTexture->GetUniformParameter(ERuntimeVirtualTextureShaderUniform_WorldToUVTransform0);
+							WorldToUvParameters[1] = VirtualTexture->GetUniformParameter(ERuntimeVirtualTextureShaderUniform_WorldToUVTransform1);
+							WorldToUvParameters[2] = VirtualTexture->GetUniformParameter(ERuntimeVirtualTextureShaderUniform_WorldToUVTransform2);
+						}
 
-							if (bIncludeWorldToUv)
-							{
-								WorldToUvParameters[0] = VirtualTexture->GetUniformParameter(ERuntimeVirtualTextureShaderUniform_WorldToUVTransform0);
-								WorldToUvParameters[1] = VirtualTexture->GetUniformParameter(ERuntimeVirtualTextureShaderUniform_WorldToUVTransform1);
-								WorldToUvParameters[2] = VirtualTexture->GetUniformParameter(ERuntimeVirtualTextureShaderUniform_WorldToUVTransform2);
-							}
-
-							if (bIncludeHeightUnpack)
-							{
-								WorldToUvParameters[3] = VirtualTexture->GetUniformParameter(ERuntimeVirtualTextureShaderUniform_WorldHeightUnpack);
-							}
+						if (bIncludeHeightUnpack)
+						{
+							WorldToUvParameters[3] = VirtualTexture->GetUniformParameter(ERuntimeVirtualTextureShaderUniform_WorldHeightUnpack);
 						}
 					}
 				}
