@@ -1887,25 +1887,20 @@ void FVulkanCommandListContext::RHIRayTraceDispatchIndirect(
 static void SetSystemParametersUB(FVulkanHitGroupSystemParameters& OutSystemParameters, uint32 InNumUniformBuffers, FRHIUniformBuffer* const* InUniformBuffers, const FVulkanRayTracingShader* InShader)
 {
 	// Plug the shaders in the right slots using LayoutHash comparisons
-	// :todo-jn: Find a more direct approach
+	check(InShader->GetCodeHeader().UniformBuffers.Num() == InNumUniformBuffers);
 	for (uint32 UBIndex = 0; UBIndex < InNumUniformBuffers; ++UBIndex)
 	{
 		FVulkanUniformBuffer* UniformBuffer = ResourceCast(InUniformBuffers[UBIndex]);
-		if (UniformBuffer)
-		{
-			const uint32 LayoutHash = UniformBuffer->GetLayout().GetHash();
+		check(UniformBuffer);
 
-			for (int32 TargetIndex = 0; TargetIndex < InShader->GetCodeHeader().UniformBuffers.Num(); ++TargetIndex)
-			{
-				if (InShader->GetCodeHeader().UniformBuffers[TargetIndex].LayoutHash == LayoutHash)
-				{
-					const FRHIDescriptorHandle BindlessHandle = UniformBuffer->GetBindlessHandle();
-					check(BindlessHandle.IsValid());
-					OutSystemParameters.BindlessUniformBuffers[TargetIndex] = BindlessHandle.GetIndex();
-					break;
-				}
-			}
-		}
+		const FVulkanShaderHeader::FUniformBufferInfo& UniformBufferInfo = InShader->GetCodeHeader().UniformBuffers[UBIndex];
+		check((UniformBufferInfo.LayoutHash == 0) || (UniformBufferInfo.LayoutHash == UniformBuffer->GetLayout().GetHash()));
+		check(UniformBufferInfo.ConstantDataOriginalBindingIndex != UINT16_MAX);
+
+
+		const FRHIDescriptorHandle BindlessHandle = UniformBuffer->GetBindlessHandle();
+		check(BindlessHandle.IsValid());
+		OutSystemParameters.BindlessUniformBuffers[UniformBufferInfo.ConstantDataOriginalBindingIndex] = BindlessHandle.GetIndex();
 	}
 }
 
