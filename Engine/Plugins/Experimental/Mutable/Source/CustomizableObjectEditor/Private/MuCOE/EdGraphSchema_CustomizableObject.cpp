@@ -228,73 +228,6 @@ const FName UEdGraphSchema_CustomizableObject::PC_MaterialAsset("materialAsset")
 const FName UEdGraphSchema_CustomizableObject::PC_Wildcard("wildcard");
 
 
-UEdGraphSchema_CustomizableObject::UEdGraphSchema_CustomizableObject()
-{
-	NodeTypes.Add(UCustomizableObjectNodeAnimationPose::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeColorArithmeticOp::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeColorConstant::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeColorFromFloats::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeColorParameter::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeColorSwitch::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeColorVariation::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeCopyMaterial::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeCurve::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeEditMaterial::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeEnumParameter::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeExtendMaterial::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeFloatConstant::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeFloatParameter::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeFloatSwitch::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeFloatVariation::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeGroupProjectorParameter::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeMaterial::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeMaterialVariation::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeMeshClipDeform::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeMeshClipMorph::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeMeshClipWithMesh::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeMeshGeometryOperation::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeMeshMorph::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeMeshMorphStackApplication::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeMeshMorphStackDefinition::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeMeshReshape::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeMeshSwitch::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeMeshVariation::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeMorphMaterial::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeObject::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeObjectGroup::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeProjectorConstant::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeProjectorParameter::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeRemoveMesh::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeRemoveMeshBlocks::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeSkeletalMesh::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeStaticMesh::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeTable::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeTexture::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeTextureBinarise::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeTextureColourMap::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeTextureFromChannels::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeTextureInterpolate::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeTextureInvert::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeTextureLayer::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeTextureParameter::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeTextureProject::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeTextureSample::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeTextureSaturate::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeTextureSwitch::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeTextureToChannels::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeTextureTransform::StaticClass());
-	NodeTypes.Add(UCustomizableObjectNodeTextureVariation::StaticClass());
-
-	NodeTypes.Sort([](UClass& A, UClass& B) -> bool
-	{
-		const UCustomizableObjectNode* NodeA = CastChecked<UCustomizableObjectNode>(A.GetDefaultObject());
-		const UCustomizableObjectNode* NodeB = CastChecked<UCustomizableObjectNode>(B.GetDefaultObject());
-		
-		return NodeA->GetNodeTitle(ENodeTitleType::ListView).CompareTo(NodeB->GetNodeTitle(ENodeTitleType::ListView)) < 0;
-	});
-}
-
-
 TSharedPtr<FCustomizableObjectSchemaAction_NewNode> UEdGraphSchema_CustomizableObject::AddNewNodeAction(FGraphActionListBuilderBase& ContextMenuBuilder, const FString& Category, const FText& MenuDesc, const FText& Tooltip, const int32 Grouping, const FString& Keywords)
 {
 	TSharedPtr<FCustomizableObjectSchemaAction_NewNode> NewActionNode = TSharedPtr<FCustomizableObjectSchemaAction_NewNode>(new FCustomizableObjectSchemaAction_NewNode(Category, MenuDesc, Tooltip, Grouping, FText::FromString(Keywords)));
@@ -793,6 +726,33 @@ bool UEdGraphSchema_CustomizableObject::ShouldHidePinDefaultValue(UEdGraphPin* P
 void UEdGraphSchema_CustomizableObject::GetContextMenuActionsReconstructAllChildNodes(UToolMenu* Menu, TWeakObjectPtr<UGraphNodeContextMenuContext> WeakContext) const
 {
 	FToolMenuSection& SubSection = Menu->AddSection("Section");
+
+	TArray<UClass*> NodeTypes;
+
+	for (TObjectIterator<UCustomizableObjectNode> It(RF_NoFlags); It; ++It)
+	{
+		const UCustomizableObjectNode* Node = *It;
+		if (!Node->HasAllFlags(RF_ClassDefaultObject))
+		{
+			continue; // Only interested in CDOs
+		}
+
+		UClass* Class = Node->GetClass();
+		if (Class->HasAnyClassFlags(CLASS_Abstract))
+		{
+			continue;
+		}
+		
+		NodeTypes.Add(Class);
+	}
+	
+	NodeTypes.Sort([](UClass& A, UClass& B) -> bool
+	{
+		const UCustomizableObjectNode* NodeA = CastChecked<UCustomizableObjectNode>(A.GetDefaultObject());
+		const UCustomizableObjectNode* NodeB = CastChecked<UCustomizableObjectNode>(B.GetDefaultObject());
+		
+		return NodeA->GetNodeTitle(ENodeTitleType::ListView).CompareTo(NodeB->GetNodeTitle(ENodeTitleType::ListView)) < 0;
+	});
 	
 	for (UClass* NodeType : NodeTypes)
 	{

@@ -1219,7 +1219,7 @@ bool AffectsCurrentComponent(const UEdGraphPin* Pin, FMutableGraphGenerationCont
 			bAffectsCurrentComponent = true;
 		}
 
-		for (int VariationIndex = 0; VariationIndex < TypedNodeVar->Variations.Num(); ++VariationIndex)
+		for (int VariationIndex = 0; VariationIndex < TypedNodeVar->GetNumVariations(); ++VariationIndex)
 		{
 			if (UEdGraphPin* VariationPin = TypedNodeVar->VariationPin(VariationIndex))
 			{

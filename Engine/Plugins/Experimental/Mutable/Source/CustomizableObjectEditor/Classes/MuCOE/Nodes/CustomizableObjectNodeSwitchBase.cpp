@@ -65,7 +65,7 @@ void UCustomizableObjectNodeSwitchBase::AllocateDefaultPins(UCustomizableObjectN
 {
 	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
 
-	UEdGraphPin* OutputPin = CustomCreatePin(EGPD_Output, GetCategory(), FName(GetOutputPinName()));
+	UEdGraphPin* OutputPin = CustomCreatePin(EGPD_Output, GetCategory(), FName(UEdGraphSchema_CustomizableObject::GetPinCategoryName(GetCategory()).ToString()));
 	OutputPin->bDefaultValueIsIgnored = true;
 
 	OutputPinReference = FEdGraphPinReference(OutputPin);
@@ -199,6 +199,19 @@ void UCustomizableObjectNodeSwitchBase::LinkPostEditChangePropertyDelegate(const
 		}
 	}
 }
+
+
+FString UCustomizableObjectNodeSwitchBase::GetOutputPinName() const
+{
+	return FString();
+}
+
+
+FString UCustomizableObjectNodeSwitchBase::GetPinPrefix() const
+{
+	return UEdGraphSchema_CustomizableObject::GetPinCategoryName(GetCategory()).ToString() + " ";
+}
+
 
 #undef LOCTEXT_NAMESPACE
 

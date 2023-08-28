@@ -92,6 +92,8 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectCustomVersion
 
 		MeshReshapeVertexColorUsageSelection,
 
+		DeduplicateNodeVariant,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
