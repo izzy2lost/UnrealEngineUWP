@@ -2432,7 +2432,7 @@ class SDefaultPropertyButtonWidgets : public SCompoundWidget
 			.AutoWidth()
 			.HAlign(HAlign_Center)
 			.VAlign(VAlign_Center)
-			.Padding(2.0f, 1.0f)
+			.Padding(2.0f, 0.0f)
 			[
 				RequiredButton
 			];

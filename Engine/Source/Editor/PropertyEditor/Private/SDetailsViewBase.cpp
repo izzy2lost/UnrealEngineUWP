@@ -324,6 +324,34 @@ void SDetailsViewBase::HighlightProperty(const FPropertyPath& Property)
 	CurrentlyHighlightedNode = TreeNode;
 }
 
+void SDetailsViewBase::ScrollPropertyIntoView(const FPropertyPath& Property, const bool bExpandProperty)
+{
+	if (!Property.IsValid())
+	{
+		return;
+	}
+
+	const TSharedPtr<FDetailTreeNode> TreeNode = FindBestFitTreeNodeFromProperty(RootTreeNodes, Property);
+	if (TreeNode.IsValid())
+	{
+		// make sure all ancestors are expanded so we can see the found node
+		TSharedPtr<FDetailTreeNode> Ancestor = TreeNode;
+		while(Ancestor->GetParentNode().IsValid())
+		{
+			Ancestor = Ancestor->GetParentNode().Pin();
+			DetailTree->SetItemExpansion(Ancestor.ToSharedRef(), true);
+		}
+
+		if (bExpandProperty)
+		{
+			DetailTree->SetItemExpansion(TreeNode.ToSharedRef(), true);
+		}
+		
+		// scroll to the found node
+		DetailTree->RequestScrollIntoView(TreeNode.ToSharedRef());
+	}
+}
+
 static void ExpandPaintSpacePropertyBoundsRecursive(const TArray<TSharedRef<FDetailTreeNode>>& TreeNodes, TSharedPtr<SDetailTree> DetailTree, FSlateRect& InOutRect)
 {
 	for(const TSharedRef<FDetailTreeNode>& TreeNode : TreeNodes)

@@ -220,7 +220,12 @@ public:
 	 * Creates a box around the treenode corresponding to Property and scrolls the treenode into view
 	 */
 	virtual void HighlightProperty(const FPropertyPath& Property) = 0;
-	
+
+	/**
+	 * Scrolls the treenode for the specific property into view
+	 */
+	virtual void ScrollPropertyIntoView(const FPropertyPath& Property, bool bExpandProperty = false) = 0;
+
 	/**
 	 * Forces all advanced property sections to be in expanded state:
 	 */
