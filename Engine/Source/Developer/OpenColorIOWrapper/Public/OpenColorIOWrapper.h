@@ -155,6 +155,12 @@ public:
 class FOpenColorIOWrapperProcessor final
 {
 public:
+
+	/**
+	* Empty constructor.
+	*/
+	OPENCOLORIOWRAPPER_API FOpenColorIOWrapperProcessor();
+
 	/**
 	* Constructor.
 	*
@@ -242,8 +248,6 @@ public:
 private:
 
 	TPimplPtr<struct FOpenColorIOProcessorPimpl, EPimplPtrMode::DeepCopy> Pimpl;
-
-	const FOpenColorIOWrapperConfig* OwnerConfig;
 
 	EOpenColorIOWorkingColorSpaceTransform WorkingColorSpaceTransformType;
 

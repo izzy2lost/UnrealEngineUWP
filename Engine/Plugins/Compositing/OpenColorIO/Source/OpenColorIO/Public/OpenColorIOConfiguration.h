@@ -58,7 +58,7 @@ public:
 
 	/** This forces to reload colorspaces and corresponding shaders if those are not loaded already. */
 	UFUNCTION(BlueprintCallable, Category = "OpenColorIO")
-	void ReloadExistingColorspaces();
+	void ReloadExistingColorspaces(bool bForce = false);
 
 	/*
 	* This method is called by directory watcher when any file or folder is changed in the 
@@ -68,10 +68,12 @@ public:
 
 	/** Internal only: Replacement for previous `GetNativeConfig_Internal()`, `GetLoadedConfiguration()` and `GetLoadedConfigurationFile()` functions, returning the private implementation of the native OCIO config. */
 	FOpenColorIOWrapperConfig* GetConfigWrapper() const;
+	
+	/** Find the color transform object that corresponds to the specified settings, nullptr if not found. */
+	TObjectPtr<const UOpenColorIOColorTransform> FindTransform(const FOpenColorIOColorConversionSettings& InSettings) const;
 
 protected:
 
-	const TObjectPtr<UOpenColorIOColorTransform>* FindTransform(const FOpenColorIOColorConversionSettings& InSettings) const;
 #if WITH_EDITOR
 	void CreateColorTransform(const FString& InSourceColorSpace, const FString& InDestinationColorSpace);
 	void CreateColorTransform(const FString& InSourceColorSpace, const FString& InDisplay, const FString& InView, EOpenColorIOViewTransformDirection InDirection);

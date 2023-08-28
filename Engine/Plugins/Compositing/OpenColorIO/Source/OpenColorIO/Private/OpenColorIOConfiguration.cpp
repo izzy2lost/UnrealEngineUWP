@@ -60,9 +60,10 @@ void UOpenColorIOConfiguration::BeginDestroy()
 
 bool UOpenColorIOConfiguration::IsTransformReady(const FOpenColorIOColorConversionSettings& InSettings)
 {
-	if (const TObjectPtr<UOpenColorIOColorTransform>* TransformPtr = FindTransform(InSettings))
+	TObjectPtr<const UOpenColorIOColorTransform> Transform = FindTransform(InSettings);
+	if (IsValid(Transform))
 	{
-		return (*TransformPtr)->AreRenderResourcesReady();
+		return Transform->AreRenderResourcesReady();
 	}
 
 	return false;
@@ -70,9 +71,10 @@ bool UOpenColorIOConfiguration::IsTransformReady(const FOpenColorIOColorConversi
 
 bool UOpenColorIOConfiguration::GetRenderResources(ERHIFeatureLevel::Type InFeatureLevel, const FOpenColorIOColorConversionSettings& InSettings, FOpenColorIOTransformResource*& OutShaderResource, TSortedMap<int32, FTextureResource*>& OutTextureResources)
 {
-	if (const TObjectPtr<UOpenColorIOColorTransform>* TransformPtr = FindTransform(InSettings))
+	TObjectPtr<const UOpenColorIOColorTransform> Transform = FindTransform(InSettings);
+	if (IsValid(Transform))
 	{
-		return (*TransformPtr)->GetRenderResources(InFeatureLevel, OutShaderResource, OutTextureResources);
+		return Transform->GetRenderResources(InFeatureLevel, OutShaderResource, OutTextureResources);
 	}
 
 	return false;
@@ -136,9 +138,10 @@ bool UOpenColorIOConfiguration::Validate() const
 #if WITH_EDITOR
 bool UOpenColorIOConfiguration::TransformColor(const FOpenColorIOColorConversionSettings& InSettings, FLinearColor& InOutColor) const
 {
-	if (const TObjectPtr<UOpenColorIOColorTransform>* TransformPtr = FindTransform(InSettings))
+	TObjectPtr<const UOpenColorIOColorTransform> Transform = FindTransform(InSettings);
+	if (IsValid(Transform))
 	{
-		return (*TransformPtr)->TransformColor(InOutColor);
+		return Transform->TransformColor(InOutColor);
 	}
 
 	return false;
@@ -146,9 +149,10 @@ bool UOpenColorIOConfiguration::TransformColor(const FOpenColorIOColorConversion
 
 bool UOpenColorIOConfiguration::TransformImage(const FOpenColorIOColorConversionSettings& InSettings, const FImageView& InOutImage) const
 {
-	if (const TObjectPtr<UOpenColorIOColorTransform>* TransformPtr = FindTransform(InSettings))
+	TObjectPtr<const UOpenColorIOColorTransform> Transform = FindTransform(InSettings);
+	if (IsValid(Transform))
 	{
-		return (*TransformPtr)->TransformImage(InOutImage);
+		return Transform->TransformImage(InOutImage);
 	}
 
 	return false;
@@ -156,16 +160,17 @@ bool UOpenColorIOConfiguration::TransformImage(const FOpenColorIOColorConversion
 
 bool UOpenColorIOConfiguration::TransformImage(const FOpenColorIOColorConversionSettings& InSettings, const FImageView& SrcImage, const FImageView& DestImage) const
 {
-	if (const TObjectPtr<UOpenColorIOColorTransform>* TransformPtr = FindTransform(InSettings))
+	TObjectPtr<const UOpenColorIOColorTransform> Transform = FindTransform(InSettings);
+	if (IsValid(Transform))
 	{
-		return (*TransformPtr)->TransformImage(SrcImage, DestImage);
+		return Transform->TransformImage(SrcImage, DestImage);
 	}
 
 	return false;
 }
 #endif
 
-void UOpenColorIOConfiguration::ReloadExistingColorspaces()
+void UOpenColorIOConfiguration::ReloadExistingColorspaces(bool bForce)
 {
 #if WITH_EDITOR
 	LoadConfiguration();
@@ -181,7 +186,7 @@ void UOpenColorIOConfiguration::ReloadExistingColorspaces()
 		}
 
 		// Hash is different, proceed with the regeneration...
-		if (ConfigHash != LoadedConfigHash)
+		if (ConfigHash != LoadedConfigHash || bForce)
 		{
 			ConfigHash = LoadedConfigHash;
 
@@ -369,9 +374,9 @@ void UOpenColorIOConfiguration::StopDirectoryWatch()
 #endif
 }
 
-const TObjectPtr<UOpenColorIOColorTransform>* UOpenColorIOConfiguration::FindTransform(const FOpenColorIOColorConversionSettings& InSettings) const
+TObjectPtr<const UOpenColorIOColorTransform> UOpenColorIOConfiguration::FindTransform(const FOpenColorIOColorConversionSettings& InSettings) const
 {
-	return ColorTransforms.FindByPredicate([&](const UOpenColorIOColorTransform* InTransform)
+	const TObjectPtr<UOpenColorIOColorTransform>* TransformPtr = ColorTransforms.FindByPredicate([&](const UOpenColorIOColorTransform* InTransform)
 		{
 			EOpenColorIOViewTransformDirection DisplayViewDirection;
 			
@@ -384,6 +389,8 @@ const TObjectPtr<UOpenColorIOColorTransform>* UOpenColorIOConfiguration::FindTra
 				return InTransform->SourceColorSpace == InSettings.SourceColorSpace.ColorSpaceName && InTransform->DestinationColorSpace == InSettings.DestinationColorSpace.ColorSpaceName;
 			}
 		});
+
+	return (TransformPtr != nullptr) ? *TransformPtr : nullptr;
 }
 
 #if WITH_EDITOR

@@ -16,6 +16,7 @@
 
 
 struct FImageView;
+class FOpenColorIOWrapperProcessor;
 class UOpenColorIOConfiguration;
 
 
@@ -69,19 +70,33 @@ public:
 	/**
 	 * Returns the desired resources required to apply this transform during rendering.
 	 */
-	bool GetRenderResources(ERHIFeatureLevel::Type InFeatureLevel, FOpenColorIOTransformResource*& OutShaderResource, TSortedMap<int32, FTextureResource*>& OutTextureResources);
+	bool GetRenderResources(ERHIFeatureLevel::Type InFeatureLevel, FOpenColorIOTransformResource*& OutShaderResource, TSortedMap<int32, FTextureResource*>& OutTextureResources) const;
 
 	/**
 	 * Returns true if shader/texture resources have finished compiling and are ready for use (to be called on the game thread).
 	 */
 	bool AreRenderResourcesReady() const;
 
+	/**
+	 * Returns true if the current transform corresponds to the specified color spaces.
+	 */
 	bool IsTransform(const FString& InSourceColorSpace, const FString& InDestinationColorSpace) const;
+
+	/**
+	 * Returns true if the current transform corresponds to the specified color space and display/view & direction.
+	 */
 	bool IsTransform(const FString& InSourceColorSpace, const FString& InDisplay, const FString& InView, EOpenColorIOViewTransformDirection InDirection) const;
 
 #if WITH_EDITOR
+	/**
+	 * Get the transform processor.
+	 *
+	 * @return True if the processor was created and is valid.
+	 */
+	bool GetTransformProcessor(FOpenColorIOWrapperProcessor& OutProcessor) const;
+
 	/** Apply the color transform in-place to the specified color. */
-	bool TransformColor(FLinearColor& InOutColor);
+	bool TransformColor(FLinearColor& InOutColor) const;
 		
 	/** Apply the color transform in-place to the specified image. */
 	bool TransformImage(const FImageView& InOutImage) const;
