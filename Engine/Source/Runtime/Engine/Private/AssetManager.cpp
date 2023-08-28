@@ -1844,12 +1844,12 @@ TSharedPtr<FStreamableHandle> UAssetManager::ChangeBundleStateForPrimaryAssets(c
 		// Call delegate or bind to meta handle
 		if (ReturnHandle->HasLoadCompleted())
 		{
-			FStreamableHandle::ExecuteDelegate(DelegateToCall);
+			FStreamableHandle::ExecuteDelegate(MoveTemp(DelegateToCall));
 		}
 		else
 		{
 			// Call external callback when completed
-			ReturnHandle->BindCompleteDelegate(DelegateToCall);
+			ReturnHandle->BindCompleteDelegate(MoveTemp(DelegateToCall));
 		}
 	}
 	else if (NewHandles.Num() == 1)
@@ -1860,18 +1860,18 @@ TSharedPtr<FStreamableHandle> UAssetManager::ChangeBundleStateForPrimaryAssets(c
 		// If only one handle, return it and add callback
 		if (ReturnHandle->HasLoadCompleted())
 		{
-			FStreamableHandle::ExecuteDelegate(DelegateToCall);
+			FStreamableHandle::ExecuteDelegate(MoveTemp(DelegateToCall));
 		}
 		else
 		{
 			// Call internal callback and external callback when it finishes
-			ReturnHandle->BindCompleteDelegate(FStreamableDelegate::CreateUObject(this, &UAssetManager::OnAssetStateChangeCompleted, NewAssets[0], ReturnHandle, DelegateToCall));
+			ReturnHandle->BindCompleteDelegate(FStreamableDelegate::CreateUObject(this, &UAssetManager::OnAssetStateChangeCompleted, NewAssets[0], ReturnHandle, MoveTemp(DelegateToCall)));
 		}
 	}
 	else
 	{
 		// Call completion callback, nothing to do
-		FStreamableHandle::ExecuteDelegate(DelegateToCall);
+		FStreamableHandle::ExecuteDelegate(MoveTemp(DelegateToCall));
 	}
 
 	return ReturnHandle;
@@ -2206,7 +2206,7 @@ TSharedPtr<FStreamableHandle> UAssetManager::LoadAssetList(const TArray<FSoftObj
 	if (bShouldUseSynchronousLoad && MissingChunks.Num() == 0)
 	{
 		NewHandle = StreamableManager.RequestSyncLoad(AssetList, false, DebugName);
-		FStreamableHandle::ExecuteDelegate(DelegateToCall);
+		FStreamableHandle::ExecuteDelegate(MoveTemp(DelegateToCall));
 	}
 	else
 	{
@@ -2386,13 +2386,13 @@ void UAssetManager::AcquireResourcesForAssetList(const TArray<FSoftObjectPath>& 
 	{
 		// At least one chunk doesn't exist, fail
 		FStreamableDelegate TempDelegate = FStreamableDelegate::CreateLambda([CompleteDelegate = MoveTemp(CompleteDelegate), MissingChunks]() { CompleteDelegate.ExecuteIfBound(false, MissingChunks); });
-		FStreamableHandle::ExecuteDelegate(TempDelegate);
+		FStreamableHandle::ExecuteDelegate(MoveTemp(TempDelegate));
 	}
 	else if (MissingChunks.Num() == 0)
 	{
 		// All here, schedule the callback
 		FStreamableDelegate TempDelegate = FStreamableDelegate::CreateLambda([CompleteDelegate = MoveTemp(CompleteDelegate)]() { CompleteDelegate.ExecuteIfBound(true, TArray<int32>()); });
-		FStreamableHandle::ExecuteDelegate(TempDelegate);
+		FStreamableHandle::ExecuteDelegate(MoveTemp(TempDelegate));
 	}
 	else
 	{
