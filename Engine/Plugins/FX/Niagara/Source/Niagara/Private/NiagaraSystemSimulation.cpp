@@ -995,8 +995,15 @@ void FNiagaraSystemSimulation::FlushTickBatch(FNiagaraSystemSimulationTickContex
 
 			for (FNiagaraSystemInstance* Inst : TickBatch)
 			{
-				Inst->ConcurrentTickGraphEvent = nullptr;
 				Inst->ConcurrentTickBatchGraphEvent = InstanceAsyncGraphEvent;
+			}
+
+			// Ensure ConcurrentTickBatchGraphEvent is visible before we clear ConcurrentTickGraphEvent
+			FPlatformMisc::MemoryBarrier();
+
+			for (FNiagaraSystemInstance* Inst : TickBatch)
+			{
+				Inst->ConcurrentTickGraphEvent = nullptr;
 			}
 
 			// Queue finalize task which will run after the instances are complete, track with our all completion event
