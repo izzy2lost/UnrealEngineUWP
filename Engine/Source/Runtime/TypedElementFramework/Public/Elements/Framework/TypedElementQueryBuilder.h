@@ -116,7 +116,7 @@ namespace TypedElementQueryBuilder
 	
 	protected:
 		FColumnBase() = default;
-		TYPEDELEMENTFRAMEWORK_API constexpr explicit FColumnBase(TWeakObjectPtr<const UScriptStruct> ColumnTypeInfo);
+		constexpr explicit FColumnBase(TWeakObjectPtr<const UScriptStruct> ColumnTypeInfo) : TypeInfo(ColumnTypeInfo) {}
 	};
 
 	template<typename T = void>

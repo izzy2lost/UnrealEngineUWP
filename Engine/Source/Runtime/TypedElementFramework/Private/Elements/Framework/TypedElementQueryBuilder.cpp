@@ -32,16 +32,6 @@ namespace TypedElementQueryBuilder
 	}
 
 
-	//
-	// FColumnBase
-	//
-
-	constexpr FColumnBase::FColumnBase(TWeakObjectPtr<const UScriptStruct> ColumnTypeInfo)
-		: TypeInfo(ColumnTypeInfo)
-	{
-	}
-
-
 
 	//
 	// FQueryConditions
