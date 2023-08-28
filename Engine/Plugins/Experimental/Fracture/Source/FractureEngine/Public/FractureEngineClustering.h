@@ -144,6 +144,13 @@ public:
 		FGeometryCollection& GeometryCollection,
 		TArray<int32>& InOutSelection
 	);
+
+	// Merge neighbors, and neighbors of neighbors (out to the Iterations number) to the selected clusters.
+	static bool ClusterMagnet(
+		FGeometryCollection& GeometryCollection,
+		TArray<int32>& InOutSelection,
+		int32 Iterations
+	);
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

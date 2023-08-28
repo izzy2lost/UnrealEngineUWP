@@ -844,3 +844,181 @@ bool FFractureEngineClustering::MergeSelectedClusters(FGeometryCollection& Geome
 
 	return false;
 }
+
+namespace UE::Private::ClusterMagnet
+{
+	struct FClusterMagnet
+	{
+		TSet<int32> ClusteredNodes;
+		TSet<int32> Connections;
+	};
+
+	TMap<int32, TSet<int32>> InitializeConnectivity(const TSet<int32>& TopNodes, FGeometryCollection* GeometryCollection, int32 OperatingLevel);
+	void CollectTopNodeConnections(FGeometryCollection* GeometryCollection, int32 Index, int32 OperatingLevel, TSet<int32>& OutConnections);
+	void SeparateClusterMagnets(const TSet<int32>& TopNodes, const TArray<int32>& Selection, const TMap<int32, TSet<int32>>& TopNodeConnectivity, TArray<FClusterMagnet>& OutClusterMagnets, TSet<int32>& OutRemainingPool);
+	bool AbsorbClusterNeighbors(const TMap<int32, TSet<int32>> TopNodeConnectivity, FClusterMagnet& OutClusterMagnets, TSet<int32>& OutRemainingPool);
+
+
+	TMap<int32, TSet<int32>> InitializeConnectivity(const TSet<int32>& TopNodes, FGeometryCollection* GeometryCollection, int32 OperatingLevel)
+	{
+		FGeometryCollectionProximityUtility ProximityUtility(GeometryCollection);
+		ProximityUtility.RequireProximity();
+
+		TMap<int32, TSet<int32>> ConnectivityMap;
+		for (int32 Index : TopNodes)
+		{
+			// Collect the proximity indices of all the leaf nodes under this top node,
+			// traced back up to its parent top node, so that all connectivity describes
+			// relationships only between top nodes.
+			TSet<int32> Connections;
+			CollectTopNodeConnections(GeometryCollection, Index, OperatingLevel, Connections);
+			Connections.Remove(Index);
+
+			// Remove any connections outside the current operating branch.
+			ConnectivityMap.Add(Index, Connections.Intersect(TopNodes));
+		}
+
+		return ConnectivityMap;
+	}
+
+	void CollectTopNodeConnections(FGeometryCollection* GeometryCollection, int32 Index, int32 OperatingLevel, TSet<int32>& OutConnections)
+	{
+		const TManagedArray<int32>& TransformToGeometryIndex = GeometryCollection->TransformToGeometryIndex;
+		if (GeometryCollection->SimulationType[Index] == FGeometryCollection::ESimulationTypes::FST_Rigid
+			&& TransformToGeometryIndex[Index] != INDEX_NONE) // rigid node with geometry, leaf of the simulated part
+		{
+			const TManagedArray<TSet<int32>>& Proximity = GeometryCollection->GetAttribute<TSet<int32>>("Proximity", FGeometryCollection::GeometryGroup);
+			const TManagedArray<int32>& GeometryToTransformIndex = GeometryCollection->TransformIndex;
+
+
+			for (int32 Neighbor : Proximity[TransformToGeometryIndex[Index]])
+			{
+				int32 NeighborTransformIndex = GeometryToTransformIndex[Neighbor];
+				OutConnections.Add(FGeometryCollectionClusteringUtility::GetParentOfBoneAtSpecifiedLevel(GeometryCollection, NeighborTransformIndex, OperatingLevel));
+			}
+		}
+		else
+		{
+			const TManagedArray<TSet<int32>>& Children = GeometryCollection->Children;
+			for (int32 ChildIndex : Children[Index])
+			{
+				CollectTopNodeConnections(GeometryCollection, ChildIndex, OperatingLevel, OutConnections);
+			}
+		}
+	}
+
+	void SeparateClusterMagnets(
+		const TSet<int32>& TopNodes,
+		const TArray<int32>& Selection,
+		const TMap<int32, TSet<int32>>& TopNodeConnectivity,
+		TArray<FClusterMagnet>& OutClusterMagnets,
+		TSet<int32>& OutRemainingPool)
+	{
+		OutClusterMagnets.Reserve(TopNodes.Num());
+		OutRemainingPool.Reserve(TopNodes.Num());
+
+		for (int32 Index : TopNodes)
+		{
+			if (Selection.Contains(Index))
+			{
+				OutClusterMagnets.AddDefaulted();
+				FClusterMagnet& NewMagnet = OutClusterMagnets.Last();
+				NewMagnet.ClusteredNodes.Add(Index);
+				NewMagnet.Connections = TopNodeConnectivity[Index];
+			}
+			else
+			{
+				OutRemainingPool.Add(Index);
+			}
+		}
+	}
+
+	bool AbsorbClusterNeighbors(const TMap<int32, TSet<int32>> TopNodeConnectivity, FClusterMagnet& OutClusterMagnet, TSet<int32>& OutRemainingPool)
+	{
+		// Return true if neighbors were absorbed.
+		bool bNeighborsAbsorbed = false;
+
+		TSet<int32> NewConnections;
+		for (int32 NeighborIndex : OutClusterMagnet.Connections)
+		{
+			// If the neighbor is still in the pool, absorb it and its connections.
+			if (OutRemainingPool.Contains(NeighborIndex))
+			{
+				OutClusterMagnet.ClusteredNodes.Add(NeighborIndex);
+				NewConnections.Append(TopNodeConnectivity[NeighborIndex]);
+				OutRemainingPool.Remove(NeighborIndex);
+				bNeighborsAbsorbed = true;
+			}
+		}
+		OutClusterMagnet.Connections.Append(NewConnections);
+
+		return bNeighborsAbsorbed;
+	}
+}
+
+bool FFractureEngineClustering::ClusterMagnet(
+	FGeometryCollection& GeometryCollection,
+	TArray<int32>& InOutSelection,
+	int32 Iterations
+)
+{
+	using namespace UE::Private::ClusterMagnet;
+
+	Chaos::Facades::FCollectionHierarchyFacade HierarchyFacade(GeometryCollection);
+	HierarchyFacade.GenerateLevelAttribute();
+	const TManagedArray<int32>& Levels = GeometryCollection.GetAttribute<int32>("Level", FGeometryCollection::TransformGroup);
+
+	GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(GeometryCollection);
+	SelectionFacade.Sanitize(InOutSelection);
+	SelectionFacade.ConvertEmbeddedSelectionToParents(InOutSelection); // embedded geo must stay attached to parent
+
+	const TManagedArray<TSet<int32>>& Children = GeometryCollection.Children;
+	TMap<int32, TArray<int32>> ClusteredSelection = SelectionFacade.GetClusteredSelections(InOutSelection);
+	
+	for (TPair<int32, TArray<int32>>& Group : ClusteredSelection)
+	{
+		if (Group.Key == INDEX_NONE) // Group is top level
+		{
+			continue;
+		}
+
+		// We have the connections for the leaf nodes of our geometry collection. We want to percolate those up to the top nodes.
+		TMap<int32, TSet<int32>> TopNodeConnectivity = InitializeConnectivity(Children[Group.Key], &GeometryCollection, Levels[Group.Key]+1);
+
+		// Separate the top nodes into cluster magnets and a pool of available nodes.
+		TArray<FClusterMagnet> ClusterMagnets;
+		TSet<int32> RemainingPool;
+		SeparateClusterMagnets(Children[Group.Key], Group.Value, TopNodeConnectivity, ClusterMagnets, RemainingPool);
+
+		for (int32 Iteration = 0; Iteration < Iterations; ++Iteration)
+		{
+			bool bNeighborsAbsorbed = false;
+
+			// each cluster gathers adjacent nodes from the pool
+			for (FClusterMagnet& ClusterMagnet : ClusterMagnets)
+			{
+				bNeighborsAbsorbed |= AbsorbClusterNeighbors(TopNodeConnectivity, ClusterMagnet, RemainingPool);
+			}
+
+			// early termination
+			if (!bNeighborsAbsorbed)
+			{
+				break;
+			}
+		}
+
+		// Create new clusters from the cluster magnets
+		for (const FClusterMagnet& ClusterMagnet : ClusterMagnets)
+		{
+			if (ClusterMagnet.ClusteredNodes.Num() > 1)
+			{
+				TArray<int32> NewChildren = ClusterMagnet.ClusteredNodes.Array();
+				NewChildren.Sort();
+				FGeometryCollectionClusteringUtility::ClusterBonesUnderNewNode(&GeometryCollection, NewChildren[0], NewChildren, false, false);
+			}
+		}
+	}
+
+	return true;
+}
+

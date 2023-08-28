@@ -125,6 +125,9 @@ namespace GeometryCollection::Facades
 		/**  */
 		CHAOS_API TArray<int32> SelectByVolume(float VolumeMin, float VolumeMax, bool bInclusive, bool bInsideRange) const;
 
+		/** Return a map from parent of bone to the selected bones with that parent */
+		CHAOS_API TMap<int32, TArray<int32>> GetClusteredSelections(const TArray<int32>& InSelection) const;
+
 		/** 
 		* Returns indices of bones where all the vertices or at least one vertex of the bone is inside InBox 
 		*/

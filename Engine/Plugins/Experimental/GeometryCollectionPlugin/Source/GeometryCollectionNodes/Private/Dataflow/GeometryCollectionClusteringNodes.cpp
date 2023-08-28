@@ -46,6 +46,7 @@ namespace Dataflow
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FClusterMergeToNeighborsDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FClusterMergeDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FClusterIsolatedRootsDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FClusterMagnetDataflowNode);
 
 		// GeometryCollection|Cluster
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY_NODE_COLORS_BY_CATEGORY("GeometryCollection|Cluster", FLinearColor(.25f, 0.45f, 0.8f), CDefaultNodeBodyTintColor);
@@ -239,6 +240,26 @@ void FClusterIsolatedRootsDataflowNode::Evaluate(Dataflow::FContext& Context, co
 			if (TUniquePtr<FGeometryCollection> GeomCollection = TUniquePtr<FGeometryCollection>(InCollection.NewCopy<FGeometryCollection>()))
 			{
 				FGeometryCollectionClusteringUtility::ClusterAllBonesUnderNewRoot(GeomCollection.Get());
+				SetValue(Context, (const FManagedArrayCollection&)(*GeomCollection), &Collection);
+				return;
+			}
+		}
+		SetValue(Context, InCollection, &Collection);
+	}
+}
+
+void FClusterMagnetDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA(&Collection))
+	{
+		const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
+		if (TUniquePtr<FGeometryCollection> GeomCollection = TUniquePtr<FGeometryCollection>(InCollection.NewCopy<FGeometryCollection>()))
+		{
+			FDataflowTransformSelection InTransformSelection = GetValue(Context, &TransformSelection);
+			int32 InIterations = FMath::Max(1, GetValue(Context, &Iterations));
+			TArray<int32> InSelection = InTransformSelection.AsArray();
+			if (FFractureEngineClustering::ClusterMagnet(*GeomCollection, InSelection, InIterations))
+			{
 				SetValue(Context, (const FManagedArrayCollection&)(*GeomCollection), &Collection);
 				return;
 			}

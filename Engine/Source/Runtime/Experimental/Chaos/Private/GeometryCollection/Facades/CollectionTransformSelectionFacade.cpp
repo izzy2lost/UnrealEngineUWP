@@ -756,6 +756,21 @@ namespace GeometryCollection::Facades
 		return OutSelection;
 	}
 
+	TMap<int32, TArray<int32>> FCollectionTransformSelectionFacade::GetClusteredSelections(const TArray<int32>& InSelection) const
+	{
+		TMap<int32, TArray<int32>> SiblingGroups;
+
+		// Bin the selection indices by parent index
+		const TManagedArray<int32>& Parents = ParentAttribute.Get();
+		for (int32 Index : InSelection)
+		{
+			TArray<int32>& SiblingIndices = SiblingGroups.FindOrAdd(Parents[Index]);
+			SiblingIndices.Add(Index);
+		}
+
+		return SiblingGroups;
+	}
+
 	TArray<int32> FCollectionTransformSelectionFacade::SelectVerticesInBox(const FBox& InBox, const FTransform& InBoxTransform, bool bAllVerticesInBox) const
 	{
 		TArray<int32> OutSelection;
