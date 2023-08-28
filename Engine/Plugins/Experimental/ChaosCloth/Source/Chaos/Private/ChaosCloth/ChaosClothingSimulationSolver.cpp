@@ -417,6 +417,11 @@ void FClothingSimulationSolver::ResetStartPose(int32 Offset, int32 NumParticles)
 	}
 }
 
+const TArray<Softs::FPAndInvM>& FClothingSimulationSolver::GetParticlePandInvMs() const
+{
+	return Evolution->Particles().GetPAndInvM();
+}
+
 const Softs::FPAndInvM* FClothingSimulationSolver::GetParticlePandInvMs(int32 Offset) const
 {
 	return &Evolution->Particles().PAndInvM(Offset);
@@ -425,6 +430,11 @@ const Softs::FPAndInvM* FClothingSimulationSolver::GetParticlePandInvMs(int32 Of
 Softs::FPAndInvM* FClothingSimulationSolver::GetParticlePandInvMs(int32 Offset)
 {
 	return &Evolution->Particles().PAndInvM(Offset);
+}
+
+const TArray<Softs::FSolverVec3>& FClothingSimulationSolver::GetParticleXs() const
+{
+	return Evolution->Particles().XArray();
 }
 
 const Softs::FSolverVec3* FClothingSimulationSolver::GetParticleXs(int32 Offset) const
@@ -437,6 +447,11 @@ Softs::FSolverVec3* FClothingSimulationSolver::GetParticleXs(int32 Offset)
 	return &Evolution->Particles().X(Offset);
 }
 
+const TArray<Softs::FSolverVec3>& FClothingSimulationSolver::GetParticleVs() const
+{
+	return Evolution->Particles().GetV();
+}
+
 const Softs::FSolverVec3* FClothingSimulationSolver::GetParticleVs(int32 Offset) const
 {
 	return &Evolution->Particles().V(Offset);
@@ -445,6 +460,11 @@ const Softs::FSolverVec3* FClothingSimulationSolver::GetParticleVs(int32 Offset)
 Softs::FSolverVec3* FClothingSimulationSolver::GetParticleVs(int32 Offset)
 {
 	return &Evolution->Particles().V(Offset);
+}
+
+const TArray<Softs::FSolverReal>& FClothingSimulationSolver::GetParticleInvMasses() const
+{
+	return Evolution->Particles().GetInvM();
 }
 
 const Softs::FSolverReal* FClothingSimulationSolver::GetParticleInvMasses(int32 Offset) const

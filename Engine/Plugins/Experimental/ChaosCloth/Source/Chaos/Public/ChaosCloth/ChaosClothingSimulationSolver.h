@@ -181,28 +181,41 @@ namespace Chaos
 		// Add external forces to the particles
 		CHAOSCLOTH_API void AddExternalForces(uint32 GroupId, bool bUseLegacyWind);
 
+		const TArray<Softs::FSolverVec3>& GetOldAnimationPositions() const { return OldAnimationPositions; }
 		const Softs::FSolverVec3* GetOldAnimationPositions(int32 Offset) const { return OldAnimationPositions.GetData() + Offset; }
 		Softs::FSolverVec3* GetOldAnimationPositions(int32 Offset) { return OldAnimationPositions.GetData() + Offset; }
+		const TArray<Softs::FSolverVec3>& GetAnimationPositions() const { return AnimationPositions; }
 		const Softs::FSolverVec3* GetAnimationPositions(int32 Offset) const { return AnimationPositions.GetData() + Offset; }
 		Softs::FSolverVec3* GetAnimationPositions(int32 Offset) { return AnimationPositions.GetData() + Offset; }
+		const TArray<Softs::FSolverVec3>& GetInterpolatedAnimationPositions() const { return InterpolatedAnimationPositions; }
 		const Softs::FSolverVec3* GetInterpolatedAnimationPositions(int32 Offset) const { return InterpolatedAnimationPositions.GetData() + Offset; }
 		Softs::FSolverVec3* GetInterpolatedAnimationPositions(int32 Offset) { return InterpolatedAnimationPositions.GetData() + Offset; }
+		const TArray<Softs::FSolverVec3>& GetOldAnimationNormals() const { return OldAnimationNormals; }
 		const Softs::FSolverVec3* GetOldAnimationNormals(int32 Offset) const { return OldAnimationNormals.GetData() + Offset; }
 		Softs::FSolverVec3* GetOldAnimationNormals(int32 Offset) { return OldAnimationNormals.GetData() + Offset; }
+		const TArray<Softs::FSolverVec3>& GetAnimationNormals() const { return AnimationNormals; }
 		const Softs::FSolverVec3* GetAnimationNormals(int32 Offset) const { return AnimationNormals.GetData() + Offset; }
 		Softs::FSolverVec3* GetAnimationNormals(int32 Offset) { return AnimationNormals.GetData() + Offset; }
+		const TArray<Softs::FSolverVec3>& GetInterpolatedAnimationNormals() const { return InterpolatedAnimationNormals; }
 		const Softs::FSolverVec3* GetInterpolatedAnimationNormals(int32 Offset) const { return InterpolatedAnimationNormals.GetData() + Offset; }
 		Softs::FSolverVec3* GetInterpolatedAnimationNormals(int32 Offset) { return InterpolatedAnimationNormals.GetData() + Offset; }
+		const TArray<Softs::FSolverVec3>& GetNormals() const { return Normals; }
 		const Softs::FSolverVec3* GetNormals(int32 Offset) const { return Normals.GetData() + Offset; }
+		Softs::FSolverVec3* GetNormals(int32 Offset) { return Normals.GetData() + Offset; }
+		const TArray<FSolverVec3>& GetAnimationVelocities() const { return AnimationVelocities; }
 		const Softs::FSolverVec3* GetAnimationVelocities(int32 Offset) const { return AnimationVelocities.GetData() + Offset; }
 		Softs::FSolverVec3* GetAnimationVelocities(int32 Offset) { return AnimationVelocities.GetData() + Offset; }
-		Softs::FSolverVec3* GetNormals(int32 Offset) { return Normals.GetData() + Offset; }
+
+		CHAOSCLOTH_API const TArray<Softs::FPAndInvM>& GetParticlePandInvMs() const;
 		CHAOSCLOTH_API const Softs::FPAndInvM* GetParticlePandInvMs(int32 Offset) const;
-		CHAOSCLOTH_API Softs::FPAndInvM* GetParticlePandInvMs(int32 Offset);
+		CHAOSCLOTH_API Softs::FPAndInvM* GetParticlePandInvMs(int32 Offset);		
+		CHAOSCLOTH_API const TArray<Softs::FSolverVec3>& GetParticleXs() const;
 		CHAOSCLOTH_API const Softs::FSolverVec3* GetParticleXs(int32 Offset) const;
 		CHAOSCLOTH_API Softs::FSolverVec3* GetParticleXs(int32 Offset);
+		CHAOSCLOTH_API const TArray<Softs::FSolverVec3>& GetParticleVs() const;
 		CHAOSCLOTH_API const Softs::FSolverVec3* GetParticleVs(int32 Offset) const;
 		CHAOSCLOTH_API Softs::FSolverVec3* GetParticleVs(int32 Offset);
+		CHAOSCLOTH_API const TArray<Softs::FSolverReal>& GetParticleInvMasses() const;
 		CHAOSCLOTH_API const Softs::FSolverReal* GetParticleInvMasses(int32 Offset) const;
 		const FClothConstraints& GetClothConstraints(int32 Offset) const { return *ClothsConstraints.FindChecked(Offset); }
 		FClothConstraints& GetClothConstraints(int32 Offset) { return *ClothsConstraints.FindChecked(Offset); }
