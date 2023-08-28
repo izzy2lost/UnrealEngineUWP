@@ -328,7 +328,7 @@ namespace CrossCompiler
 		{
 			if (IsConstant())
 			{
-				checkf(Identifier, TEXT("Null identifier, literaltype %d"), (int32)LiteralType);
+				checkf(Identifier!=nullptr, TEXT("Null identifier, literaltype %d"), (int32)LiteralType);
 				OutValue = (int32)FCString::Atoi(Identifier);
 				return true;
 			}

@@ -296,7 +296,7 @@ void FRDGUserValidation::ValidateRegisterExternalTexture(
 		return;
 	}
 
-	checkf(Name, TEXT("Attempted to register external texture with NULL name."));
+	checkf(Name!=nullptr, TEXT("Attempted to register external texture with NULL name."));
 	checkf(ExternalPooledTexture.IsValid(), TEXT("Attempted to register NULL external texture."));
 	ExecuteGuard(TEXT("RegisterExternalTexture"), Name);
 }
@@ -308,7 +308,7 @@ void FRDGUserValidation::ValidateRegisterExternalBuffer(const TRefCountPtr<FRDGP
 		return;
 	}
 
-	checkf(Name, TEXT("Attempted to register external buffer with NULL name."));
+	checkf(Name!=nullptr, TEXT("Attempted to register external buffer with NULL name."));
 	checkf(ExternalPooledBuffer.IsValid(), TEXT("Attempted to register NULL external buffer."));
 	ExecuteGuard(TEXT("RegisterExternalBuffer"), Name);
 }
@@ -340,7 +340,7 @@ void FRDGUserValidation::ValidateCreateTexture(const FRDGTextureDesc& Desc, cons
 		return;
 	}
 
-	checkf(Name, TEXT("Creating a texture requires a valid debug name."));
+	checkf(Name!=nullptr, TEXT("Creating a texture requires a valid debug name."));
 	ExecuteGuard(TEXT("CreateTexture"), Name);
 
 	// Make sure the descriptor is supported by the RHI.
@@ -366,7 +366,7 @@ void FRDGUserValidation::ValidateCreateBuffer(const FRDGBufferDesc& Desc, const 
 		return;
 	}
 
-	checkf(Name, TEXT("Creating a buffer requires a valid debug name."));
+	checkf(Name!=nullptr, TEXT("Creating a buffer requires a valid debug name."));
 	ExecuteGuard(TEXT("CreateBuffer"), Name);
 
 	if (EnumHasAllFlags(Desc.Usage, EBufferUsageFlags::StructuredBuffer | EBufferUsageFlags::ByteAddressBuffer))

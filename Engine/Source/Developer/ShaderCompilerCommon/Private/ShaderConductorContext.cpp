@@ -176,7 +176,7 @@ namespace CrossCompiler
 	{
 		OutTargetDesc.language = ShaderConductor::ShadingLanguage::Hlsl;
 		OutTargetDesc.version = GetHlslVersionString(InTarget.Version);
-		checkf(OutTargetDesc.version, TEXT("Unsupported target shader version for HLSL: SM%d.%d"), InTarget.Version / 10, InTarget.Version % 10);
+		checkf(OutTargetDesc.version!=nullptr, TEXT("Unsupported target shader version for HLSL: SM%d.%d"), InTarget.Version / 10, InTarget.Version % 10);
 	}
 
 	static const ANSICHAR* GetGlslFamilyVersionString(int32 Version)
@@ -200,7 +200,7 @@ namespace CrossCompiler
 	{
 		OutTargetDesc.language = (InTarget.Language == EShaderConductorLanguage::Glsl ? ShaderConductor::ShadingLanguage::Glsl : ShaderConductor::ShadingLanguage::Essl);
 		OutTargetDesc.version = GetGlslFamilyVersionString(InTarget.Version);
-		checkf(OutTargetDesc.version, TEXT("Unsupported target shader version for GLSL family: %d"), InTarget.Version);
+		checkf(OutTargetDesc.version!=nullptr, TEXT("Unsupported target shader version for GLSL family: %d"), InTarget.Version);
 	}
 
 	static const ANSICHAR* GetMetalFamilyVersionString(int32 Version)
@@ -224,7 +224,7 @@ namespace CrossCompiler
 	{
 		OutTargetDesc.language = (InTarget.Language == EShaderConductorLanguage::Metal_macOS ? ShaderConductor::ShadingLanguage::Msl_macOS : ShaderConductor::ShadingLanguage::Msl_iOS);
 		OutTargetDesc.version = GetMetalFamilyVersionString(InTarget.Version);
-		checkf(OutTargetDesc.version, TEXT("Unsupported target shader version for Metal family: %d"), InTarget.Version);
+		checkf(OutTargetDesc.version!=nullptr, TEXT("Unsupported target shader version for Metal family: %d"), InTarget.Version);
 	}
 
 	// Converts an array of FString to a C-style array of char* pointers

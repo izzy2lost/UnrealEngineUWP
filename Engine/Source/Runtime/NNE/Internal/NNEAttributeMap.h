@@ -13,7 +13,10 @@ public:
 	//Set attribute
 	void SetAttribute(const FString& Name, const FNNEAttributeValue& Value)
 	{
-		checkf(nullptr == Attributes.FindByPredicate([Name](const FEntry& Other) { return Other.Name == Name; }), TEXT("Attribute name should be unique"));
+#if DO_CHECK
+		const bool bIsUnique = (nullptr == Attributes.FindByPredicate([Name](const FEntry& Other) { return Other.Name == Name; }));
+		checkf(bIsUnique, TEXT("Attribute name should be unique"));
+#endif
 		Attributes.Emplace(Name, Value);
 	}
 
