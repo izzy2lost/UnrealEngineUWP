@@ -195,9 +195,6 @@ public:
 	/** Delegate handler for determining whether to display the current state */
 	bool HandleGetDisplayCurrentState() const;
 
-	/** Delegate handler for when a blackboard key changes (added, removed, renamed) */
-	void HandleBlackboardKeyChanged(UBlackboardData* InBlackboardData, FBlackboardEntry* const InKey);
-
 	/** Check whether blackboard mode is current */
 	bool HandleIsBlackboardModeActive() const;
 

@@ -282,7 +282,6 @@ void FBehaviorTreeEditor::InitBehaviorTreeEditor( const EToolkitMode::Type Mode,
 
 		Debugger = MakeShareable(new FBehaviorTreeDebugger);
 		Debugger->Setup(BehaviorTree, SharedThis(this));
-		Debugger->OnDebuggedBlackboardChanged().AddSP(this, &FBehaviorTreeEditor::HandleDebuggedBlackboardChanged);
 		BindDebuggerToolbarCommands();
 
 		FBehaviorTreeEditorModule& BehaviorTreeEditorModule = FModuleManager::LoadModuleChecked<FBehaviorTreeEditorModule>( "BehaviorTreeEditor" );
@@ -306,7 +305,6 @@ void FBehaviorTreeEditor::InitBehaviorTreeEditor( const EToolkitMode::Type Mode,
 				.OnIsDebuggerPaused(this, &FBehaviorTreeEditor::IsDebuggerPaused)
 				.OnGetDebugTimeStamp(this, &FBehaviorTreeEditor::HandleGetDebugTimeStamp)
 				.OnGetDisplayCurrentState(this, &FBehaviorTreeEditor::HandleGetDisplayCurrentState)
-				.OnBlackboardKeyChanged(this, &FBehaviorTreeEditor::HandleBlackboardKeyChanged)
 				.OnIsBlackboardModeActive(this, &FBehaviorTreeEditor::HandleIsBlackboardModeActive);
 	}
 	else
@@ -454,15 +452,6 @@ bool FBehaviorTreeEditor::HandleGetDisplayCurrentState() const
 	}
 
 	return false;
-}
-
-void FBehaviorTreeEditor::HandleBlackboardKeyChanged(UBlackboardData* InBlackboardData, FBlackboardEntry* const InKey)
-{
-	if(BlackboardView.IsValid())
-	{
-		// re-set object in blackboard view to keep it up to date
-		BlackboardView->SetObject(InBlackboardData);
-	}
 }
 
 bool FBehaviorTreeEditor::HandleIsBlackboardModeActive() const
