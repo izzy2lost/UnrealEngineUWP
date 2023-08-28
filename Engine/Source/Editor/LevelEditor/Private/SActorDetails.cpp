@@ -880,7 +880,11 @@ void SActorDetails::OnNativeComponentWarningHyperlinkClicked(const FSlateHyperli
 
 EVisibility SActorDetails::GetComponentEditorVisibility() const
 {
-	const bool bHideEditorFromDetailsView = DetailsView.IsValid() &&  !DetailsView->IsDefaultStyle();
+	IConsoleVariable* ForceShow = IConsoleManager::Get().FindConsoleVariable(TEXT("CoreEntity.UI.ForceShowComponentEditor"));
+
+	// force hide it if the style is not default and the ForceShowComponentEditor CVar is not set to true
+	const bool bHideEditorFromDetailsView = (DetailsView.IsValid() &&  !DetailsView->IsDefaultStyle()) &&
+		                                    (!ForceShow || !ForceShow->GetBool());
 	return GetActorContext() && !bHideEditorFromDetailsView  ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
