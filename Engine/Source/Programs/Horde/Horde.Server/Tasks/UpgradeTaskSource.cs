@@ -51,7 +51,7 @@ namespace Horde.Server.Tasks
 				return Skip(cancellationToken);
 			}
 
-			(ITool, IToolDeployment)? required = await GetRequiredSoftwareVersion(agent);
+			(ITool, IToolDeployment)? required = await GetRequiredSoftwareVersionAsync(agent);
 			if (required == null)
 			{
 				return Skip(cancellationToken);
@@ -85,7 +85,7 @@ namespace Horde.Server.Tasks
 		/// </summary>
 		/// <param name="agent">The agent instance</param>
 		/// <returns>Unique id of the client version this agent should be running</returns>
-		public async Task<(ITool, IToolDeployment)?> GetRequiredSoftwareVersion(IAgent agent)
+		public async Task<(ITool, IToolDeployment)?> GetRequiredSoftwareVersionAsync(IAgent agent)
 		{
 			GlobalConfig globalConfig = _globalConfig.CurrentValue;
 

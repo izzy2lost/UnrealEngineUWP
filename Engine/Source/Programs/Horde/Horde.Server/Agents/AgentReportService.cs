@@ -48,21 +48,17 @@ namespace Horde.Server.Agents
 		readonly INotificationService _notificationService;
 		readonly IClock _clock;
 		readonly ITicker _ticker;
-		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
-		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public AgentReportService(MongoService mongoService, IAgentCollection agentCollection, INotificationService notificationService, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<AgentReportService> logger)
+		public AgentReportService(MongoService mongoService, IAgentCollection agentCollection, INotificationService notificationService, IClock clock, ILogger<AgentReportService> logger)
 		{
 			_state = new SingletonDocument<AgentReportState>(mongoService);
 			_agentCollection = agentCollection;
 			_notificationService = notificationService;
 			_clock = clock;
 			_ticker = clock.AddSharedTicker<AgentReportService>(TimeSpan.FromMinutes(5.0), TickAsync, logger);
-			_globalConfig = globalConfig;
-			_logger = logger;
 		}
 
 		/// <inheritdoc/>
@@ -90,7 +86,7 @@ namespace Horde.Server.Agents
 
 			TimeSpan agentReportTime = TimeSpan.FromHours(9.0); // 9am
 
-			DateTime nextUpdateTime = state.LastUpdateUtc + TimeSpan.FromHours(1.0);//_clock.TimeZone.GetStartOfDayUtc(state.LastUpdateUtc + TimeSpan.FromHours(24.0)) + agentReportTime;
+			DateTime nextUpdateTime = _clock.TimeZone.GetStartOfDayUtc(state.LastUpdateUtc + TimeSpan.FromHours(24.0)) + agentReportTime;
 			if (utcNow > nextUpdateTime)
 			{
 				AgentReport report = new AgentReport();
