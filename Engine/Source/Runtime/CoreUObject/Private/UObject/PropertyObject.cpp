@@ -139,7 +139,7 @@ void FObjectProperty::PostSerializeObjectItem(FArchive& SerializingArchive, void
 		UE_LOG(LogProperty, Warning,
 			TEXT("Failed to serialize value for non-nullable property %s. Reference will be defaulted to %s."),
 			*GetFullName(),
-			*DefaultValue->GetFullName()
+			DefaultValue ? *DefaultValue->GetFullName() : TEXT("None")
 		);
 
 		SetObjectPropertyValue(Value, DefaultValue);
