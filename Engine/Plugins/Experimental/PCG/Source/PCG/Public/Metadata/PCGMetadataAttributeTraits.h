@@ -107,6 +107,23 @@ namespace PCG
 			return PCGDataTypeEnum ? PCGDataTypeEnum->GetNameStringByValue(InType) : FString(TEXT("Unknown"));
 		}
 
+		template <typename T>
+		FString GetTypeName()
+		{
+			return GetTypeName(MetadataTypes<T>::Id);
+		}
+
+		inline FText GetTypeNameText(uint16 InType)
+		{
+			return FText::FromString(GetTypeName(InType));
+		}
+
+		template <typename T>
+		FText GetTypeNameText()
+		{
+			return FText::FromString(GetTypeName<T>());
+		}
+
 		// Wrapper around a standard 2-dimensional CArray that is constexpr, to know if a type is broadcastable to another.
 		// First index is the original type, second index is the wanted type. Returns true if we can broadcast first type into second type.
 		struct UBroadcastableTypes
