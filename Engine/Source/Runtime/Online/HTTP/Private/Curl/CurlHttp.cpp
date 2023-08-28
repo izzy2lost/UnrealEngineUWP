@@ -1141,7 +1141,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FCurlHttpRequest::BroadcastNewlyReceivedHeaders()
 {
-	check(IsInGameThread());
+	if (!OnHeaderReceived().IsBound())
+	{
+		return;
+	}
 
 	if (Response.IsValid())
 	{
@@ -1177,8 +1180,6 @@ void FCurlHttpRequest::BroadcastNewlyReceivedHeader(const FString& HeaderKey, co
 
 void FCurlHttpRequest::FinishRequest()
 {
-	check(IsInGameThread() || DelegateThreadPolicy == EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
-
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FCurlHttpRequest_FinishRequest);
 
 	curl_easy_setopt(EasyHandle, CURLOPT_SHARE, nullptr);
