@@ -331,6 +331,7 @@ UGeometryCollectionComponent::UGeometryCollectionComponent(const FObjectInitiali
 	, MaxSimulatedLevel(100)
 	, DamageThreshold({ 500000.f, 50000.f, 5000.f })
 	, bUseSizeSpecificDamageThreshold(false)
+	, bUseMaterialDamageModifiers(false)
 	, bEnableDamageFromCollision(true)
 	, bAllowRemovalOnSleep(true)
 	, bAllowRemovalOnBreak(true)
@@ -3068,7 +3069,6 @@ void UGeometryCollectionComponent::RegisterAndInitializePhysicsProxy()
 #endif
 		EClusterConnectionTypeEnum ClusterCollectionType = ClusterConnectionType_DEPRECATED;
 		float ConnectionGraphBoundsFilteringMargin = 0;
-		bool bUseMaterialDamageModifiers = false;
 		if (RestCollection)
 		{
 			RestCollection->GetSharedSimulationParams(SimulationParameters.Shared);
@@ -3076,7 +3076,6 @@ void UGeometryCollectionComponent::RegisterAndInitializePhysicsProxy()
 			SimulationParameters.InitialRootIndex = RestCollection->GetRootIndex();
 			ClusterCollectionType = RestCollection->ClusterConnectionType;
 			ConnectionGraphBoundsFilteringMargin = RestCollection->ConnectionGraphBoundsFilteringMargin;
-			bUseMaterialDamageModifiers = RestCollection->bUseMaterialDamageModifiers;
 		}
 		SimulationParameters.Simulating = BodyInstance.bSimulatePhysics;
 		SimulationParameters.EnableClustering = EnableClustering;
@@ -3689,6 +3688,7 @@ void UGeometryCollectionComponent::ApplyAssetDefaults()
 		DamageModel = RestCollection->DamageModel;
 		DamageThreshold = RestCollection->DamageThreshold;
 		bUseSizeSpecificDamageThreshold = RestCollection->bUseSizeSpecificDamageThreshold;
+		bUseMaterialDamageModifiers = RestCollection->bUseMaterialDamageModifiers;
 
 		// initialize the component damage progataion data from the asset defaults 
 		DamagePropagationData = RestCollection->DamagePropagationData;
