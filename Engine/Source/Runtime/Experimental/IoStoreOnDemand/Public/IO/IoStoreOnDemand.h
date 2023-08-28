@@ -127,6 +127,8 @@ struct FOnDemandToc
 
 UE_API bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandToc& OutToc);
 
+TIoStatusOr<FOnDemandToc> LoadTocFromUrl(const FString& ServiceURL, const FString& TocPath, int32 RetryCount);
+
 #if (IS_PROGRAM || WITH_EDITOR)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -182,7 +184,6 @@ struct FIoStoreDownloadParams
 UE_API FIoStatus DownloadContainerFiles(const FIoStoreDownloadParams& DownloadParams, const FString& TocPath);
 
 UE_API FIoStatus PrimeEndPoint(FStringView IoStoreOnDemandIniPath);
-
 #endif // (IS_PROGRAM || WITH_EDITOR)
 
 class IOnDemandIoDispatcherBackend;

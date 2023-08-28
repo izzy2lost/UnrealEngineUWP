@@ -1306,59 +1306,9 @@ TArray<FIoChunkId> FOnDemandIoBackend::GetAllChunkIds()
 
 #endif // IS_PROGRAM || WITH_EDITOR
 
-TIoStatusOr<FOnDemandToc> FOnDemandIoBackend::GetToc(const FOnDemandEndpoint& Endpoint)
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::GetToc);
-
-	for (int32 Attempt = 0, MaxAttempts = GIasMaxHttpRetryCount; Attempt <= MaxAttempts; ++Attempt)
-	{
-		TUniquePtr<FOnDemandHttpClient> HttpClient = MakeUnique<FOnDemandHttpClient>(Endpoint.ServiceUrl, GIasMaxHttpConnectionCount);
-		TAnsiStringBuilder<256> Url;
-
-		Url << "/" << Endpoint.TocPath;
-		UE_LOG(LogIas, Log, TEXT("Fetching TOC '%s/%s' (#%d/%d)"), *HttpClient->ServiceUrl(), *Endpoint.TocPath, Attempt + 1, MaxAttempts);
-		
-		TIoStatusOr<FOnDemandToc> Toc;
-		HttpClient->Get(Url.ToView(), [&Toc](TIoStatusOr<FIoBuffer> Response, uint64 DurationMs)
-		{
-			if (Response.IsOk())
-			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::SerializeToc);
-				FIoBuffer Buffer = Response.ConsumeValueOrDie();
-				FOnDemandToc NewToc;	
-
-				FMemoryReaderView Ar(Buffer.GetView());
-				Ar << NewToc;
-				if (!Ar.IsError())
-				{
-					Toc = TIoStatusOr<FOnDemandToc>(MoveTemp(NewToc));
-				}
-				else
-				{
-					UE_LOG(LogIas, Error, TEXT("Failed loading on demand TOC from compact binary"));
-				}
-			}
-			else
-			{
-				UE_LOG(LogIas, Error, TEXT("Failed fetching TOC, reason '%s'"), *Response.Status().ToString());
-			}
-		});
-
-		const bool bBlock = true;
-		while (HttpClient->Tick(bBlock));
-
-		if (Toc.IsOk())
-		{
-			return Toc;
-		}
-	}
-
-	return TIoStatusOr<FOnDemandToc>(FIoStatus(EIoErrorCode::NotFound));
-}
-
 FIoStatus FOnDemandIoBackend::AddToc(const FOnDemandEndpoint& Endpoint)
 {
-	TIoStatusOr<FOnDemandToc> Toc = GetToc(Endpoint);
+	TIoStatusOr<FOnDemandToc> Toc = LoadTocFromUrl(Endpoint.ServiceUrl, Endpoint.TocPath, GIasMaxHttpRetryCount);
 	if (!Toc.IsOk())
 	{
 		return FIoStatus(Toc.Status());

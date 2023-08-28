@@ -3,15 +3,12 @@
 #include "IO/IoStoreOnDemand.h"
 
 #include "EncryptionKeyManager.h"
-#include "IasCache.h"
-#include "LatencyInjector.h"
-#include "OnDemandIoDispatcherBackend.h"
-#include "Statistics.h"
-
+#include "HAL/FileManager.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "HAL/PlatformMisc.h"
 #include "HAL/PlatformTime.h"
-#include "HAL/FileManager.h"
+#include "IasCache.h"
+#include "LatencyInjector.h"
 #include "Misc/Base64.h"
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
@@ -20,11 +17,14 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Modules/ModuleManager.h"
+#include "OnDemandHttpClient.h"
+#include "OnDemandIoDispatcherBackend.h"
 #include "Serialization/Archive.h"
-#include "Serialization/CompactBinaryWriter.h"
 #include "Serialization/CompactBinarySerialization.h"
+#include "Serialization/CompactBinaryWriter.h"
 #include "Serialization/LargeMemoryWriter.h"
 #include "Serialization/MemoryReader.h"
+#include "Statistics.h"
 #include "String/LexFromString.h"
 
 #if (PLATFORM_DESKTOP && (IS_PROGRAM || WITH_EDITOR))
@@ -532,6 +532,59 @@ bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandToc& OutToc)
 	}
 
 	return false;
+}
+
+TIoStatusOr<FOnDemandToc> LoadTocFromUrl(const FString& ServiceURL, const FString& TocPath, int32 RetryCount)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(LoadTocFromUrl);
+
+	FString ErrorMsg;
+
+	for (int32 Attempt = 0; Attempt <= RetryCount; ++Attempt)
+	{
+		TUniquePtr<FOnDemandHttpClient> HttpClient = MakeUnique<FOnDemandHttpClient>(ServiceURL, 1);
+		TAnsiStringBuilder<256> Url;
+
+		Url << "/" << TocPath;
+		UE_LOG(LogIas, Log, TEXT("Fetching TOC '%s/%s' (#%d/%d)"), *HttpClient->ServiceUrl(), *TocPath, Attempt + 1, RetryCount);
+
+		TIoStatusOr<FOnDemandToc> Toc;
+		HttpClient->Get(Url.ToView(), [&Toc, &ErrorMsg](TIoStatusOr<FIoBuffer> Response, uint64 DurationMs)
+			{
+				if (Response.IsOk())
+				{
+					TRACE_CPUPROFILER_EVENT_SCOPE(LoadTocFromEndpoint);
+					FIoBuffer Buffer = Response.ConsumeValueOrDie();
+					FOnDemandToc NewToc;
+
+					FMemoryReaderView Ar(Buffer.GetView());
+					Ar << NewToc;
+					if (!Ar.IsError())
+					{
+						Toc = TIoStatusOr<FOnDemandToc>(MoveTemp(NewToc));
+					}
+					else
+					{
+						ErrorMsg = TEXT("Failed loading on demand TOC from compact binary");
+					}
+				}
+				else
+				{
+					ErrorMsg = FString::Printf(TEXT("Failed fetching TOC, reason '%s'"), *Response.Status().ToString());
+				}
+			});
+
+		while (HttpClient->Tick());
+
+		if (Toc.IsOk())
+		{
+			return Toc;
+		}
+	}
+
+	UE_LOG(LogIas, Error, TEXT("%s"), *ErrorMsg);
+
+	return TIoStatusOr<FOnDemandToc>(FIoStatus(EIoErrorCode::NotFound));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
