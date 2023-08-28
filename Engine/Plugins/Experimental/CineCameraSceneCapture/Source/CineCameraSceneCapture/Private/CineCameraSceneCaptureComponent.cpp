@@ -211,8 +211,11 @@ void UCineCaptureComponent2D::OnRegister()
 
 #if WITH_EDITORONLY_DATA
 	// Remove mesh created by Scene Capture Component.
-	ProxyMeshComponent->DestroyComponent();
-	ProxyMeshComponent = nullptr;
+	if (ProxyMeshComponent)
+	{
+		ProxyMeshComponent->DestroyComponent();
+		ProxyMeshComponent = nullptr;
+	}
 #endif
 
 	if (!CineCaptureSVE.IsValid())
