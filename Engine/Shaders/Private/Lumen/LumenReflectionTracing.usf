@@ -412,6 +412,9 @@ void SetupCompactedTracesIndirectArgsCS()
 	// THREADGROUP_SIZE_32
 	WriteDispatchIndirectArgs(RWReflectionCompactTracingIndirectArgs, 1, (CompactedTraceTexelAllocator[0] + 32 - 1) / 32, 1, 1);
 
+	// THREADGROUP_SIZE_256
+	WriteDispatchIndirectArgs(RWReflectionCompactTracingIndirectArgs, 2, (CompactedTraceTexelAllocator[0] + 256 - 1) / 256, 1, 1);
+
 	// Ray tracing dispatch dimensions are defined simply in terms of threads/rays, not thread groups.
 	WriteDispatchIndirectArgs(RWReflectionCompactRayTraceDispatchIndirectArgs, 0, CompactedTraceTexelAllocator[0], 1, 1);
 }
@@ -420,12 +423,23 @@ void SetupCompactedTracesIndirectArgsCS()
 	#define THREADGROUP_SIZE_1D 1
 #endif
 #define NUM_BINS (THREADGROUP_SIZE_1D / 2)
-groupshared uint BinSize[NUM_BINS];
-groupshared uint BinOffset[NUM_BINS];
+groupshared uint Bins[NUM_BINS];
+
+#if DIM_WAVE_OPS
+#define MIN_SUPPORTED_WAVE_SIZE 32
+#define NUM_WAVE_SUMS ((NUM_BINS+MIN_SUPPORTED_WAVE_SIZE-1) / MIN_SUPPORTED_WAVE_SIZE)
+groupshared uint WaveSums[NUM_WAVE_SUMS];
+#define Offsets Bins // No need for a separate array of offsets as prefix sum is computed in-place
+#else // DIM_WAVE_OPS
+groupshared uint Offsets[NUM_BINS];
+#endif // DIM_WAVE_OPS
 
 #define ELEMENTS_PER_THREAD 16
 #define NUM_ELEMENTS THREADGROUP_SIZE_1D * ELEMENTS_PER_THREAD
 
+#if COMPILER_SUPPORTS_WAVE_SIZE && WAVE_OPS
+	WAVESIZE(32)
+#endif
 [numthreads(THREADGROUP_SIZE_1D, 1, 1)]
 void ReflectionSortTracesByMaterialCS(
 	uint GroupId : SV_GroupID,
@@ -435,8 +449,8 @@ void ReflectionSortTracesByMaterialCS(
 
 	if (GroupThreadId < NUM_BINS)
 	{
-		BinSize[GroupThreadId] = 0;
-		BinOffset[GroupThreadId] = 0;
+		Bins[GroupThreadId] = 0;
+		Offsets[GroupThreadId] = 0;
 	}
 
 	GroupMemoryBarrierWithGroupSync();
@@ -458,19 +472,46 @@ void ReflectionSortTracesByMaterialCS(
 			TraceDataCache[i / THREADGROUP_SIZE_1D] = PackedTraceData;
 			TraceBinCache[i / THREADGROUP_SIZE_1D] = BinIndex;
 
-			InterlockedAdd(BinSize[BinIndex], 1, Hash[i / THREADGROUP_SIZE_1D]);
+			InterlockedAdd(Bins[BinIndex], 1, Hash[i / THREADGROUP_SIZE_1D]);
 		}
 	}
 
 	GroupMemoryBarrierWithGroupSync();
 
+#if DIM_WAVE_OPS
+	{
+		const uint WaveIndex = GroupThreadId / WaveGetLaneCount();
+		const uint LaneIndex = WaveGetLaneIndex();
+		uint Value = 0;
+		if (GroupThreadId < NUM_BINS)
+		{
+			Value = Bins[GroupThreadId];
+			uint ThisWaveSum = WaveActiveSum(Value);
+			if (LaneIndex == 0)
+			{
+				WaveSums[WaveIndex] = ThisWaveSum;
+			}
+		}
+		GroupMemoryBarrierWithGroupSync();
+		if (WaveIndex == 0 && LaneIndex < NUM_WAVE_SUMS)
+		{
+			WaveSums[LaneIndex] = WavePrefixSum(WaveSums[LaneIndex]);
+		}
+		GroupMemoryBarrierWithGroupSync();
+		if (GroupThreadId < NUM_BINS)
+		{
+			Offsets[GroupThreadId] = WaveSums[WaveIndex] + WavePrefixSum(Value);
+		}
+	}
+#else // DIM_WAVE_OPS
 	if (GroupThreadId < NUM_BINS)
 	{
 		for (int i = 0; i < GroupThreadId; ++i)
 		{
-			BinOffset[GroupThreadId] += BinSize[i];
+			Offsets[GroupThreadId] += Bins[i];
 		}
 	}
+#endif // DIM_WAVE_OPS
 
 	GroupMemoryBarrierWithGroupSync();
 
@@ -480,7 +521,7 @@ void ReflectionSortTracesByMaterialCS(
 		if (RayIndex < CompactedTraceTexelAllocator[0])
 		{
 			uint BinIndex = TraceBinCache[i / THREADGROUP_SIZE_1D];
-			uint OutputIndex = GroupOffset + BinOffset[BinIndex] + Hash[i / THREADGROUP_SIZE_1D];
+			uint OutputIndex = GroupOffset + Offsets[BinIndex] + Hash[i / THREADGROUP_SIZE_1D];
 
 			RWCompactedTraceTexelData[OutputIndex] = TraceDataCache[i / THREADGROUP_SIZE_1D];
 		}

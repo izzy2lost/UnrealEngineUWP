@@ -344,6 +344,9 @@ class FReflectionSortTracesByMaterialCS : public FGlobalShader
 	DECLARE_GLOBAL_SHADER(FReflectionSortTracesByMaterialCS)
 	SHADER_USE_PARAMETER_STRUCT(FReflectionSortTracesByMaterialCS, FGlobalShader);
 
+	class FWaveOps : SHADER_PERMUTATION_BOOL("DIM_WAVE_OPS");
+	using FPermutationDomain = TShaderPermutationDomain<FWaveOps>;
+
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenReflectionTracingParameters, ReflectionTracingParameters)
@@ -355,12 +358,23 @@ class FReflectionSortTracesByMaterialCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FWaveOps>() && !RHISupportsWaveOperations(Parameters.Platform))
+		{
+			return false;
+		}
 		return DoesPlatformSupportLumenGI(Parameters.Platform);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		if (PermutationVector.Get<FWaveOps>())
+		{
+			OutEnvironment.CompilerFlags.Add(CFLAG_WaveOperations);
+		}
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE_1D"), GetThreadGroupSize1D());
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE_2D"), GetThreadGroupSize2D());
 	}
@@ -546,7 +560,8 @@ enum class ECompactedReflectionTracingIndirectArgs
 {
 	NumTracesDiv64 = 0 * sizeof(FRHIDispatchIndirectParameters),
 	NumTracesDiv32 = 1 * sizeof(FRHIDispatchIndirectParameters),
-	MAX = 2,
+	NumTracesDiv256 = 2 * sizeof(FRHIDispatchIndirectParameters),
+	MAX = 3,
 };
 
 FCompactedReflectionTraceParameters LumenReflections::CompactTraces(
@@ -662,7 +677,10 @@ FCompactedReflectionTraceParameters LumenReflections::CompactTraces(
 		PassParameters->RWCompactedTraceTexelData = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(SortedCompactedTraceTexelData, PF_R32_UINT));
 		PassParameters->Strata = Strata::BindStrataGlobalUniformParameters(View);
 
-		TShaderRef<FReflectionSortTracesByMaterialCS> ComputeShader = View.ShaderMap->GetShader<FReflectionSortTracesByMaterialCS>();
+		FReflectionSortTracesByMaterialCS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FReflectionSortTracesByMaterialCS::FWaveOps>(bWaveOps);
+
+		TShaderRef<FReflectionSortTracesByMaterialCS> ComputeShader = View.ShaderMap->GetShader<FReflectionSortTracesByMaterialCS>(PermutationVector);
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
 			RDG_EVENT_NAME("SortTracesByMaterialCS"),
@@ -670,7 +688,7 @@ FCompactedReflectionTraceParameters LumenReflections::CompactTraces(
 			ComputeShader,
 			PassParameters,
 			PassParameters->IndirectArgs,
-			0);
+			(uint32)ECompactedReflectionTracingIndirectArgs::NumTracesDiv256);
 
 		CompactedTraceTexelData = SortedCompactedTraceTexelData;
 	}
