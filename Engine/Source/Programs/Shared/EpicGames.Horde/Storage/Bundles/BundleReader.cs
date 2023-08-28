@@ -244,7 +244,7 @@ namespace EpicGames.Horde.Storage.Bundles
 					}
 
 					// Parse the header and construct the bundle info from it
-					BundleHeader header = await ReadHeaderAsync(prelude, stream, headerSize, cancellationToken);
+					BundleHeader header = await BundleHeader.ReadAsync(prelude, stream, cancellationToken);
 
 					// Construct the bundle info
 					BundleInfo bundleInfo = new BundleInfo(queuedHeader.Blob, header, headerSize);
@@ -361,14 +361,6 @@ namespace EpicGames.Horde.Storage.Bundles
 					_queuedPackets.RemoveAll(x => updatePackets.Contains(x));
 				}
 			}
-		}
-
-		static async Task<BundleHeader> ReadHeaderAsync(byte[] prelude, Stream stream, int headerSize, CancellationToken cancellationToken)
-		{
-			byte[] header = new byte[headerSize];
-			prelude.CopyTo(header, 0);
-			await stream.ReadFixedLengthBytesAsync(header.AsMemory(prelude.Length), cancellationToken);
-			return BundleHeader.Read(header);
 		}
 
 		static async Task<byte[]> ReadPacketAsync(Stream stream, int packetSize, CancellationToken cancellationToken)
