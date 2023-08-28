@@ -657,7 +657,9 @@ bool URigVMHost::Execute_Internal(const FName& InEventName)
 		if(!VM->IsContextValidForExecution(Context) ||
 			!IsValidLowLevel() ||
 			!VM->IsValidLowLevel() ||
-			!VM->GetLiteralMemory()->IsValidLowLevel() ||
+			!GetLiteralMemory() ||
+			!GetLiteralMemory()->IsValidLowLevel() ||
+			!GetWorkMemory() ||
 			!GetWorkMemory()->IsValidLowLevel())
 		{
 			UE_LOG(LogRigVM, Warning, InvalidatedVMFormat, *GetClass()->GetName());

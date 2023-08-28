@@ -1215,7 +1215,9 @@ bool UControlRig::Execute_Internal(const FName& InEventName)
 			if(!VM->IsContextValidForExecution(Context) ||
 				!IsValidLowLevel() ||
 				!VM->IsValidLowLevel() ||
+				!GetLiteralMemory() ||
 				!GetLiteralMemory()->IsValidLowLevel() ||
+				!GetWorkMemory() ||
 				!GetWorkMemory()->IsValidLowLevel())
 			{
 				UE_LOG(LogControlRig, Warning, InvalidatedVMFormat, *GetClass()->GetName());
