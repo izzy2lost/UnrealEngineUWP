@@ -539,8 +539,16 @@ namespace Horde.Server.Agents
 				}
 				else if (payload.TryUnpack(out UpgradeTask upgradeTask))
 				{
+					string newVersion = upgradeTask.SoftwareId;
+
+					int versionIdx = newVersion.IndexOf(':');
+					if (versionIdx != -1)
+					{
+						newVersion = newVersion.Substring(versionIdx + 1);
+					}
+
 					int newUpgradeAttemptCount = (agent.UpgradeAttemptCount ?? 0) + 1;
-					updates.Add(Builders<AgentDocument>.Update.Set(x => x.LastUpgradeVersion, upgradeTask.SoftwareId));
+					updates.Add(Builders<AgentDocument>.Update.Set(x => x.LastUpgradeVersion, newVersion));
 					updates.Add(Builders<AgentDocument>.Update.Set(x => x.UpgradeAttemptCount, newUpgradeAttemptCount));
 					updates.Add(Builders<AgentDocument>.Update.Set(x => x.LastUpgradeTime, DateTime.UtcNow));
 				}
