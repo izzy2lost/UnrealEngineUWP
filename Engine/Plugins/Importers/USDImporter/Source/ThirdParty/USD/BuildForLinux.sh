@@ -2,24 +2,24 @@
 
 set -e
 
-USD_VERSION=23.05
+USD_VERSION=23.08
 
 # This path may be adjusted to point to wherever the USD source is located.
 # It is typically obtained by either downloading a zip/tarball of the source
 # code, or more commonly by cloning the GitHub repository, e.g. for the
 # current engine USD version:
-#     git clone --branch v23.05 https://github.com/PixarAnimationStudios/USD.git USD_src
+#     git clone --branch v23.08 https://github.com/PixarAnimationStudios/OpenUSD.git OpenUSD_src
 # We apply a patch for the usdMtlx plugin to ensure that we do not
 # bake a hard-coded path to the MaterialX standard data libraries into the
 # built plugin:
-#     git apply USD_v2305_usdMtlx_undef_stdlib_dir.patch
+#     git apply USD_v2308_usdMtlx_undef_stdlib_dir.patch
 # Specifically for Linux when building with clang, an additional patch is
 # needed to ensure that type comparisons work correctly across shared library
 # boundaries:
-#     git apply USD_v2305_Linux_clang_TfSafeTypeCompare.patch
+#     git apply USD_v2308_Linux_clang_TfSafeTypeCompare.patch
 # Note also that this path may be emitted as part of USD error messages, so
 # it is suggested that it not reveal any sensitive information.
-SOURCE_LOCATION="/tmp/USD_src"
+SOURCE_LOCATION="/tmp/OpenUSD_src"
 
 ARCH_NAME=x86_64-unknown-linux-gnu
 
@@ -37,7 +37,7 @@ BOOST_LIB_LOCATION="$BOOST_LOCATION/lib/Unix/$ARCH_NAME"
 IMATH_LOCATION="$UE_THIRD_PARTY_LOCATION/Imath/Deploy/Imath-3.1.3"
 IMATH_LIB_LOCATION="$IMATH_LOCATION/Unix/$ARCH_NAME"
 IMATH_CMAKE_LOCATION="$IMATH_LIB_LOCATION/lib/cmake/Imath"
-OPENSUBDIV_LOCATION="$UE_THIRD_PARTY_LOCATION/OpenSubdiv/Deploy/OpenSubdiv-3.4.4"
+OPENSUBDIV_LOCATION="$UE_THIRD_PARTY_LOCATION/OpenSubdiv/Deploy/OpenSubdiv-3.5.0"
 OPENSUBDIV_INCLUDE_DIR="$OPENSUBDIV_LOCATION/include"
 OPENSUBDIV_LIB_LOCATION="$OPENSUBDIV_LOCATION/Unix/$ARCH_NAME/lib"
 ALEMBIC_LOCATION="$UE_THIRD_PARTY_LOCATION/Alembic/Deploy/alembic-1.8.2"
@@ -68,7 +68,7 @@ pushd $BUILD_LOCATION > /dev/null
 
 # Run Engine/Build/BatchFiles/Linux/SetupToolchain.sh first to ensure
 # that the toolchain is setup and verify that this name matches.
-TOOLCHAIN_NAME=v21_clang-15.0.1-centos7
+TOOLCHAIN_NAME=v22_clang-16.0.6-centos7
 
 UE_TOOLCHAIN_LOCATION="$UE_ENGINE_LOCATION/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/$TOOLCHAIN_NAME/$ARCH_NAME"
 
@@ -177,17 +177,27 @@ rmdir "$INSTALL_LOCATION/lib/python"
 echo Removing share directory...
 rm -rf "$INSTALL_LOCATION/share"
 
-echo Cleaning @rpath entries for shared libraries...
 # The locations of the shared libraries where they will live when ultimately
-# deployed are used to generate relative paths for use as rpaths.
-# The USD Python module shared libraries all exist at the same directory level,
-# so any of them can be used to generate a relative path.
+# deployed are used to generate relative paths for use as rpaths and as
+# LibraryPaths in plugInfo.json files.
+# The USD Python module shared libraries and USD plugins all exist at the same
+# directory level, so any of them can be used to generate a relative path.
+USD_PLUGIN_LOCATION="$UE_ENGINE_LOCATION/Plugins/Importers/USDImporter/Resources/UsdResources/Linux/plugins/usd"
 USD_PYTHON_MODULE_LOCATION="$UE_ENGINE_LOCATION/Plugins/Importers/USDImporter/Content/Python/Lib/Linux/site-packages/pxr/Usd"
 USD_LIBS_LOCATION="$UE_ENGINE_LOCATION/Plugins/Importers/USDImporter/Source/ThirdParty/Linux/bin/$ARCH_NAME"
-ENGINE_BINARIES_LOCATION="$UE_ENGINE_LOCATION/Binaries/Linux"
 
+echo Adjusting plugInfo.json LibraryPath fields...
+USD_PLUGIN_TO_USD_LIBS_REL_PATH=`python -c "import os.path; print(os.path.relpath('$USD_LIBS_LOCATION', '$USD_PLUGIN_LOCATION'))"`
+
+for PLUG_INFO_FILE in `find $INSTALL_RESOURCES_LOCATION -name plugInfo.json | xargs grep LibraryPath -l`
+do
+    sed -i "s|\"LibraryPath\": \"[\./]\+\(.*\)\"|\"LibraryPath\": \"$USD_PLUGIN_TO_USD_LIBS_REL_PATH/\1\"|" $PLUG_INFO_FILE
+done
+
+echo Cleaning @rpath entries for shared libraries...
 # The USD Python modules link first against the USD libraries within the plugin
 # directory followed by libraries in the engine binaries.
+ENGINE_BINARIES_LOCATION="$UE_ENGINE_LOCATION/Binaries/Linux"
 PYTHON_TO_USD_LIBS_REL_PATH=`python -c "import os.path; print(os.path.relpath('$USD_LIBS_LOCATION', '$USD_PYTHON_MODULE_LOCATION'))"`
 PYTHON_TO_ENGINE_BINARIES_REL_PATH=`python -c "import os.path; print(os.path.relpath('$ENGINE_BINARIES_LOCATION', '$USD_PYTHON_MODULE_LOCATION'))"`
 

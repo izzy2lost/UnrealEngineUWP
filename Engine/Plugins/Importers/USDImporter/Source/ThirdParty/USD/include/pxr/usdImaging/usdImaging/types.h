@@ -1,5 +1,5 @@
 //
-// Copyright 2016 Pixar
+// Copyright 2022 Pixar
 //
 // Licensed under the Apache License, Version 2.0 (the "Apache License")
 // with the following modification; you may not use this file except in
@@ -21,58 +21,22 @@
 // KIND, either express or implied. See the Apache License for the specific
 // language governing permissions and limitations under the Apache License.
 //
-#ifndef PXR_IMAGING_HD_RESOURCE_H
-#define PXR_IMAGING_HD_RESOURCE_H
+#ifndef PXR_USD_IMAGING_USD_IMAGING_TYPES_H
+#define PXR_USD_IMAGING_USD_IMAGING_TYPES_H
 
 #include "pxr/pxr.h"
-#include "pxr/imaging/hd/api.h"
-#include "pxr/imaging/hd/version.h"
-#include "pxr/base/tf/token.h"
-
-#include <cstddef>
-#include <memory>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
-
-using HdResourceSharedPtr = std::shared_ptr<class HdResource>;
-
-/// \class HdResource
+/// Given to an invalidation call to indicate whether the property was
+/// added or removed or whether one of its fields changed.
 ///
-/// Base class for all GPU resource objects.
-///
-class HdResource
+enum class UsdImagingPropertyInvalidationType
 {
-public:
-    HD_API
-    HdResource(TfToken const & role);
-    HD_API
-    virtual ~HdResource();
-
-    /// Returns the role of the GPU data in this resource.
-    TfToken const & GetRole() const {return _role;}
-
-    /// Returns the size of the resource allocated in the GPU
-    HD_API
-    size_t GetSize() const {return _size;}
-
-protected:
-    /// Stores the size of the resource allocated in the GPU
-    HD_API
-    void SetSize(size_t size);
-
-private:
-
-    // Don't allow copies.
-    HdResource(const HdResource &) = delete;
-    HdResource &operator=(const HdResource &) = delete;
-
-
-    const TfToken _role;
-    size_t _size;
+    Update,
+    Resync
 };
-
 
 PXR_NAMESPACE_CLOSE_SCOPE
 
-#endif //PXR_IMAGING_HD_RESOURCE_H
+#endif

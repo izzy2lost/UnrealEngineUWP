@@ -2,16 +2,16 @@
 
 set -e
 
-USD_VERSION=23.05
+USD_VERSION=23.08
 
 # This path may be adjusted to point to wherever the USD source is located.
 # It is typically obtained by either downloading a zip/tarball of the source
 # code, or more commonly by cloning the GitHub repository, e.g. for the
 # current engine USD version:
-#     git clone --branch v23.05 https://github.com/PixarAnimationStudios/USD.git USD_src
+#     git clone --branch v23.08 https://github.com/PixarAnimationStudios/OpenUSD.git OpenUSD_src
 # Note also that this path may be emitted as part of USD error messages, so
 # it is suggested that it not reveal any sensitive information.
-SOURCE_LOCATION="/tmp/USD_src"
+SOURCE_LOCATION="/tmp/OpenUSD_src"
 
 SCRIPT_DIR=`cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd`
 
@@ -27,7 +27,7 @@ BOOST_LIB_LOCATION="$BOOST_LOCATION/lib/Mac"
 IMATH_LOCATION="$UE_THIRD_PARTY_LOCATION/Imath/Deploy/Imath-3.1.3"
 IMATH_LIB_LOCATION="$IMATH_LOCATION/Mac"
 IMATH_CMAKE_LOCATION="$IMATH_LIB_LOCATION/lib/cmake/Imath"
-OPENSUBDIV_LOCATION="$UE_THIRD_PARTY_LOCATION/OpenSubdiv/Deploy/OpenSubdiv-3.4.4"
+OPENSUBDIV_LOCATION="$UE_THIRD_PARTY_LOCATION/OpenSubdiv/Deploy/OpenSubdiv-3.5.0"
 OPENSUBDIV_INCLUDE_DIR="$OPENSUBDIV_LOCATION/include"
 OPENSUBDIV_LIB_LOCATION="$OPENSUBDIV_LOCATION/Mac/lib"
 ALEMBIC_LOCATION="$UE_THIRD_PARTY_LOCATION/Alembic/Deploy/alembic-1.8.2"
@@ -143,6 +143,22 @@ rmdir "$INSTALL_LOCATION/lib/python"
 
 echo Removing share directory...
 rm -rf "$INSTALL_LOCATION/share"
+
+# The locations of the shared libraries where they will live when ultimately
+# deployed are used to generate relative paths for use as LibraryPaths in
+# plugInfo.json files.
+# The USD plugins all exist at the same directory level, so any of them can be
+# used to generate a relative path.
+USD_PLUGIN_LOCATION="$UE_ENGINE_LOCATION/Plugins/Importers/USDImporter/Resources/UsdResources/Mac/plugins/usd"
+USD_LIBS_LOCATION="$UE_ENGINE_LOCATION/Plugins/Importers/USDImporter/Source/ThirdParty/Mac/bin"
+
+echo Adjusting plugInfo.json LibraryPath fields...
+USD_PLUGIN_TO_USD_LIBS_REL_PATH=`python3 -c "import os.path; print(os.path.relpath('$USD_LIBS_LOCATION', '$USD_PLUGIN_LOCATION'))"`
+
+for PLUG_INFO_FILE in `find $INSTALL_RESOURCES_LOCATION -name plugInfo.json | xargs grep LibraryPath -l`
+do
+    sed -E -e "s|\"LibraryPath\": \"[\./]+(.*)\"|\"LibraryPath\": \"$USD_PLUGIN_TO_USD_LIBS_REL_PATH/\1\"|" -i "" $PLUG_INFO_FILE
+done
 
 echo Cleaning @rpath entries for shared libraries...
 for SHARED_LIB in `find $INSTALL_LOCATION -name '*.so' -o -name '*.dylib'`

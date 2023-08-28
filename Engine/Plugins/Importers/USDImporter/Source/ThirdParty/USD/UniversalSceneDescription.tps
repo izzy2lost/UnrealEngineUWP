@@ -2,8 +2,8 @@
 <TpsData xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <Name>Universal Scene Description</Name>
   <Location>Engine/Plugins/Importers/USDImporter/Source/ThirdParty/USD</Location>
-  <Function>Universal Scene Description, or USD, is an interchange format for transferring geometry, materials, and other elements of CG scenes between software packages.</Function>
-  <Eula>https://github.com/PixarAnimationStudios/USD/blob/v23.05/LICENSE.txt</Eula>
+  <Function>Universal Scene Description, or OpenUSD, is an interchange format for transferring geometry, materials, and other elements of CG scenes between software packages.</Function>
+  <Eula>https://github.com/PixarAnimationStudios/OpenUSD/blob/v23.08/LICENSE.txt</Eula>
   <RedistributeTo>
     <EndUserGroup>Licensees</EndUserGroup>
     <EndUserGroup>Git</EndUserGroup>

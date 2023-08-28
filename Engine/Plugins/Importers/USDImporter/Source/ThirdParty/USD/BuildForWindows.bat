@@ -1,20 +1,20 @@
 @echo off
 setlocal
 
-set USD_VERSION=23.05
+set USD_VERSION=23.08
 
 rem This path may be adjusted to point to wherever the USD source is located.
 rem It is typically obtained by either downloading a zip/tarball of the source
 rem code, or more commonly by cloning the GitHub repository, e.g. for the
 rem current engine USD version:
-rem     git clone --branch v23.05 https://github.com/PixarAnimationStudios/USD.git USD_src
+rem     git clone --branch v23.08 https://github.com/PixarAnimationStudios/OpenUSD.git OpenUSD_src
 rem We apply a patch for the usdMtlx plugin to ensure that we do not
 rem bake a hard-coded path to the MaterialX standard data libraries into the
 rem built plugin:
-rem     git apply USD_v2305_usdMtlx_undef_stdlib_dir.patch
+rem     git apply USD_v2308_usdMtlx_undef_stdlib_dir.patch
 rem Note also that this path may be emitted as part of USD error messages, so
 rem it is suggested that it not reveal any sensitive information.
-set USD_SOURCE_LOCATION=C:\USD_src
+set USD_SOURCE_LOCATION=C:\OpenUSD_src
 
 rem Set as VS2015 for backwards compatibility even though VS2022 is used
 rem when building.
@@ -34,7 +34,7 @@ set BOOST_LIB_LOCATION=%BOOST_LOCATION%\lib\Win64
 set IMATH_LOCATION=%UE_THIRD_PARTY_LOCATION%\Imath\Deploy\Imath-3.1.3
 set IMATH_LIB_LOCATION=%IMATH_LOCATION%\%COMPILER_VERSION_NAME%\%ARCH_NAME%
 set IMATH_CMAKE_LOCATION=%IMATH_LIB_LOCATION%\lib\cmake\Imath
-set OPENSUBDIV_LOCATION=%UE_THIRD_PARTY_LOCATION%\OpenSubdiv\Deploy\OpenSubdiv-3.4.4
+set OPENSUBDIV_LOCATION=%UE_THIRD_PARTY_LOCATION%\OpenSubdiv\Deploy\OpenSubdiv-3.5.0
 set OPENSUBDIV_INCLUDE_DIR=%OPENSUBDIV_LOCATION%\include
 set OPENSUBDIV_LIB_LOCATION=%OPENSUBDIV_LOCATION%\%COMPILER_VERSION_NAME%\%ARCH_NAME%\lib
 set ALEMBIC_LOCATION=%UE_THIRD_PARTY_LOCATION%\Alembic\Deploy\alembic-1.8.2

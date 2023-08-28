@@ -21,44 +21,70 @@
 // KIND, either express or implied. See the Apache License for the specific
 // language governing permissions and limitations under the Apache License.
 //
-#ifndef PXR_USD_IMAGING_USD_IMAGING_SAMPLE_FILTER_ADAPTER_H
-#define PXR_USD_IMAGING_USD_IMAGING_SAMPLE_FILTER_ADAPTER_H
+#ifndef PXR_USD_IMAGING_USD_RI_IMAGING_PXR_DISPLAY_FILTER_ADAPTER_H
+#define PXR_USD_IMAGING_USD_RI_IMAGING_PXR_DISPLAY_FILTER_ADAPTER_H
 
-/// \file usdImaging/sampleFilterAdapter.h
+/// \file usdRiImaging/pxrDisplayFilterAdapter.h
 
 #include "pxr/pxr.h"
-#include "pxr/usdImaging/usdImaging/api.h"
+#include "pxr/usdImaging/usdRiImaging/api.h"
 #include "pxr/usdImaging/usdImaging/primAdapter.h"
 
 PXR_NAMESPACE_OPEN_SCOPE
 
 
-/// \class UsdImagingSampleFilterAdapter
+/// \class UsdRiImagingPxrDisplayFilterAdapter
 ///
-/// Delegate support for Sample Filter Prims.
+/// Delegate support for Display Filter Prims.
 ///
-class UsdImagingSampleFilterAdapter : public UsdImagingPrimAdapter {
+class UsdRiImagingPxrDisplayFilterAdapter : public UsdImagingPrimAdapter
+{
 public:
     using BaseAdapter = UsdImagingPrimAdapter;
 
-    UsdImagingSampleFilterAdapter()
+    UsdRiImagingPxrDisplayFilterAdapter()
         : UsdImagingPrimAdapter()
     {}
 
+    USDRIIMAGING_API
+    ~UsdRiImagingPxrDisplayFilterAdapter() override;
+
+    // ---------------------------------------------------------------------- //
+    /// \name Scene Index Support
+    // ---------------------------------------------------------------------- //
+
     USDIMAGING_API
-    ~UsdImagingSampleFilterAdapter() override;
+    TfTokenVector GetImagingSubprims(UsdPrim const& prim) override;
+
+    USDIMAGING_API
+    TfToken GetImagingSubprimType(
+            UsdPrim const& prim,
+            TfToken const& subprim) override;
+
+    USDIMAGING_API
+    HdContainerDataSourceHandle GetImagingSubprimData(
+            UsdPrim const& prim,
+            TfToken const& subprim,
+            const UsdImagingDataSourceStageGlobals &stageGlobals) override;
+
+    USDIMAGING_API
+    HdDataSourceLocatorSet InvalidateImagingSubprim(
+            UsdPrim const& prim,
+            TfToken const& subprim,
+            TfTokenVector const& properties,
+            UsdImagingPropertyInvalidationType invalidationType) override;
 
     // ---------------------------------------------------------------------- //
     /// \name Initialization
     // ---------------------------------------------------------------------- //
 
-    USDIMAGING_API
+    USDRIIMAGING_API
     SdfPath Populate(UsdPrim const& prim,
                      UsdImagingIndexProxy* index,
                      UsdImagingInstancerContext const*
                      instancerContext = nullptr) override;
 
-    USDIMAGING_API
+    USDRIIMAGING_API
     bool IsSupported(UsdImagingIndexProxy const* index) const override;
 
     // ---------------------------------------------------------------------- //
@@ -66,7 +92,7 @@ public:
     // ---------------------------------------------------------------------- //
 
     /// Thread Safe.
-    USDIMAGING_API
+    USDRIIMAGING_API
     void TrackVariability(UsdPrim const& prim,
                           SdfPath const& cachePath,
                           HdDirtyBits* timeVaryingBits,
@@ -75,7 +101,7 @@ public:
 
 
     /// Thread Safe.
-    USDIMAGING_API
+    USDRIIMAGING_API
     void UpdateForTime(UsdPrim const& prim,
                        SdfPath const& cachePath,
                        UsdTimeCode time,
@@ -89,12 +115,12 @@ public:
 
     /// Returns a bit mask of attributes to be udpated, or
     /// HdChangeTracker::AllDirty if the entire prim must be resynchronized.
-    USDIMAGING_API
+    USDRIIMAGING_API
     HdDirtyBits ProcessPropertyChange(UsdPrim const& prim,
                                       SdfPath const& cachePath,
                                       TfToken const& propertyName) override;
 
-    USDIMAGING_API
+    USDRIIMAGING_API
     void MarkDirty(UsdPrim const& prim,
                    SdfPath const& cachePath,
                    HdDirtyBits dirty,
@@ -104,7 +130,7 @@ public:
     /// \name Data access
     // ---------------------------------------------------------------------- //
 
-    USDIMAGING_API
+    USDRIIMAGING_API
     VtValue Get(UsdPrim const& prim,
                 SdfPath const& cachePath,
                 TfToken const& key,
@@ -112,7 +138,7 @@ public:
                 VtIntArray *outIndices) const override;
 
 protected:
-    USDIMAGING_API
+    USDRIIMAGING_API
     void _RemovePrim(SdfPath const& cachePath,
                      UsdImagingIndexProxy* index) override;
 
@@ -121,4 +147,4 @@ protected:
 
 PXR_NAMESPACE_CLOSE_SCOPE
 
-#endif // PXR_USD_IMAGING_USD_IMAGING_SAMPLE_FILTER_ADAPTER_H
+#endif // PXR_USD_IMAGING_USD_RI_IMAGING_PXR_DISPLAY_FILTER_ADAPTER_H
