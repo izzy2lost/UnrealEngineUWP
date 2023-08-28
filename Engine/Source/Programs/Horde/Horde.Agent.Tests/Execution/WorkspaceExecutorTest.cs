@@ -86,7 +86,7 @@ public sealed class WorkspaceExecutorTest : IDisposable
 	[TestMethod]
 	public async Task EnvVarsAsync()
 	{
-		BeginBatchResponse batch = new BeginBatchResponse { Change = 1 };
+		BeginBatchResponse batch = new BeginBatchResponse { Change = 1, StreamName = "//UE5/Main" };
 		JobExecutorOptions executorOptions = new JobExecutorOptions(_session, null!, JobId, "batch1", batch, default, "", null!, new JobOptions());
 		WorkspaceExecutor executor = new (executorOptions, _workspace, _autoSdkWorkspace, NullLogger.Instance);
 		await executor.InitializeAsync(_logger, CancellationToken.None);
@@ -96,8 +96,8 @@ public sealed class WorkspaceExecutorTest : IDisposable
 		IReadOnlyDictionary<string, string> envVars = executor.GetEnvVars();
 		Assert.AreEqual("1", envVars["IsBuildMachine"]);
 		Assert.AreEqual(settings.DirectoryPath.FullName, envVars["uebp_LOCAL_ROOT"]);
-		Assert.AreEqual(settings.StreamRoot, envVars["uebp_BuildRoot_P4"]);
-		Assert.AreEqual(settings.StreamRoot, envVars["uebp_BuildRoot_Escaped"]);
+		Assert.AreEqual(batch.StreamName, envVars["uebp_BuildRoot_P4"]);
+		Assert.AreEqual("++UE5+Main", envVars["uebp_BuildRoot_Escaped"]);
 		Assert.AreEqual("1", envVars["uebp_CL"]);
 		Assert.AreEqual("0", envVars["uebp_CodeCL"]);
 		Assert.AreEqual(autoSdkSettings.DirectoryPath.FullName, envVars["UE_SDKS_ROOT"]);

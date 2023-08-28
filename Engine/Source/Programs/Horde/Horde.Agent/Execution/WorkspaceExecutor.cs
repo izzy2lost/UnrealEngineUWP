@@ -79,8 +79,8 @@ namespace Horde.Agent.Execution
 			// Set any non-materializer specific environment variables for jobs
 			_envVars["IsBuildMachine"] = "1";
 			_envVars["uebp_LOCAL_ROOT"] = workspaceSettings.DirectoryPath.FullName;
-			_envVars["uebp_BuildRoot_P4"] = workspaceSettings.StreamRoot;
-			_envVars["uebp_BuildRoot_Escaped"] = workspaceSettings.StreamRoot.Replace('/', '+');
+			_envVars["uebp_BuildRoot_P4"] = _batch.StreamName;
+			_envVars["uebp_BuildRoot_Escaped"] = _batch.StreamName.Replace('/', '+');
 			_envVars["uebp_CL"] = _batch.Change.ToString();
 			_envVars["uebp_CodeCL"] = _batch.CodeChange.ToString();
 
