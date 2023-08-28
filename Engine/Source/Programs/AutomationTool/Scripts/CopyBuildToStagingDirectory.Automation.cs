@@ -3500,7 +3500,7 @@ namespace AutomationScripts
 				string AdditionalPlatformPakCmdLine = "";
 				if (SC.CustomDeployment == null || !SC.CustomDeployment.GetPlatformPakCommandLine(Params, SC, ref AdditionalPlatformPakCmdLine))
 				{
-					PlatformPakCmdLine += SC.StageTargetPlatform.GetPlatformPakCommandLine(Params, SC);
+					AdditionalPlatformPakCmdLine += SC.StageTargetPlatform.GetPlatformPakCommandLine(Params, SC);
 				}
 
 				string AdditionalPlatformIoStoreCmdLine = "";
