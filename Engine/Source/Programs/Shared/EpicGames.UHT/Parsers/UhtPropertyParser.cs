@@ -898,17 +898,23 @@ namespace EpicGames.UHT.Parsers
 				{
 					tokenReader.Require(',');
 					RequireArray(tokenReader, propertySettings, ref nameToken, ')');
+					tokenReader.Require(')');
 				}
 				else if (layoutMacroType.IsBitfield())
 				{
 					tokenReader.Require(',');
 					RequireBitfield(tokenReader, propertySettings, ref nameToken);
+					tokenReader.Require(')');
 				}
 				else if (layoutMacroType.HasInitializer())
 				{
-					tokenReader.SkipBrackets('(', ')', 1);
+					tokenReader.Require(',');
+					tokenReader.SkipBrackets('(', ')', 1); // consumes ending ) too
 				}
-				tokenReader.Require(')');
+				else
+				{
+					tokenReader.Require(')');
+				}
 
 				Finalize(topScope, specifierContext, ref nameToken, new ReadOnlyMemory<UhtToken>(_currentTypeTokens.ToArray()), layoutMacroType, propertyDelegate);
 			}
