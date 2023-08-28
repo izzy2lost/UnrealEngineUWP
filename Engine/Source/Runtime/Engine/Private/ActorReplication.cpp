@@ -640,7 +640,7 @@ void AActor::AddReplicatedSubObject(UObject* SubObject, ELifetimeCondition NetCo
 {
 	if( !IsValid(SubObject) )
 	{
-		ensureMsgf(TEXT("Ignoring AddReplicatedSubObject for %s. Invalid pointer received."), *GetNameSafe(this));
+		ensureMsgf(false, TEXT("Ignoring AddReplicatedSubObject for %s. Invalid pointer received."), *GetNameSafe(this));
 		return;
 	}
 
@@ -806,7 +806,7 @@ void AActor::AddActorComponentReplicatedSubObject(UActorComponent* OwnerComponen
 
 	if (!IsValid(SubObject))
 	{
-		ensureMsgf(TEXT("Ignoring AddReplicatedSubObject for %s::%s. Invalid pointer received."), *GetNameSafe(this), *GetNameSafe(OwnerComponent));
+		ensureMsgf(false, TEXT("Ignoring AddReplicatedSubObject for %s::%s. Invalid pointer received."), *GetNameSafe(this), *GetNameSafe(OwnerComponent));
 		return;
 	}
 	

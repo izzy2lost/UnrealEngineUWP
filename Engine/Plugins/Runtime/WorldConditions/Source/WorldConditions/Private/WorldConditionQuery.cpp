@@ -459,7 +459,7 @@ FText FWorldConditionQueryDefinition::GetDescription() const
 		}
 		else
 		{
-			ensureMsgf(TEXT("Unhandled operator %s\n"), *UEnum::GetValueAsString(Condition.GetOperator()));
+			ensureMsgf(false, TEXT("Unhandled operator %s\n"), *UEnum::GetValueAsString(Condition.GetOperator()));
 			break;
 		}
 		Builder.Append(Operator.ToString());

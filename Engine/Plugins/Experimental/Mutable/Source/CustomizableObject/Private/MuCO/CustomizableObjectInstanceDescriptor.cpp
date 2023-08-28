@@ -1144,7 +1144,7 @@ void LogParameterNotFoundWarning(const FString& ParameterName, const int32 Objec
 	// Ensuring to help make sure we catch these critical data mismatches, but since we can handle these gracefully,
 	// don't ensure in Shipping builds.  We need to always log an error afterwards since the ensure will only fire
 	// once per session, and we don't want to always ensure since that might interfere with unrelated debugging.
-	ensureMsgf(
+	ensureMsgf(false,
 		TEXT("Failed to find parameter (%s) on CO (%s). CO parameter index: (%d). COI parameter index: (%d)"),
 		*ParameterName, *GetNameSafe(CustomizableObject), ObjectParameterIndex, InstanceParameterIndex
 	);
