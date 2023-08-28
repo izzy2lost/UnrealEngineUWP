@@ -733,6 +733,8 @@ public:
 		{
 			ExternalVariables.Add(ExternalVariable);
 		}
+
+		RefreshExternalPropertyPaths();
 	}
 
 	// Sets the external variables instance data required for execution
@@ -756,8 +758,6 @@ public:
 			ExternalVariableDef.Property = ExternalVariableDef.Property;
 			Context.ExternalVariableRuntimeData.Add(FRigVMExternalVariableRuntimeData(InExternalVariable.Memory));
 		}
-
-		RefreshExternalPropertyPaths();
 	}
 
 	// Adds a new external / unowned variable to the VM
