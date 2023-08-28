@@ -95,6 +95,7 @@ private:
 	bool HandleCanDeleteViewModel() const;
 	void HandleRenameViewModel();
 	bool HandleCanRenameViewModel() const;
+	TSharedRef<SWidget> HandleAddViewModelContextMenu();
 
 	EVisibility GetWarningPanelVisibility() const;
 	FReply HandleDisableWarningPanel();

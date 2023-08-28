@@ -37,7 +37,10 @@ public:
 	UMVVMBlueprintView* GetView(const UWidgetBlueprint* WidgetBlueprint) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
-	FName AddViewModel(UWidgetBlueprint* WidgetBlueprint, const UClass* ViewModel);
+	FGuid AddViewModel(UWidgetBlueprint* WidgetBlueprint, const UClass* ViewModel);
+
+	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
+	FGuid AddInstancedViewModel(UWidgetBlueprint* WidgetBlueprint);
 	
 	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
 	void RemoveViewModel(UWidgetBlueprint* WidgetBlueprint, FName ViewModel);

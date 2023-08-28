@@ -131,6 +131,10 @@ public:
 	/** When binding to a multicast delegate property, allow to create an event. */
 	UPROPERTY(EditAnywhere, config, Category = "Viewmodel")
 	bool bAllowBindingEvent = true;
+	
+	/** Allow to create an instanced viewmodel directly in the view editor. */
+	UPROPERTY(EditAnywhere, config, Category = "Viewmodel")
+	bool bCanCreateViewModelInView = false;
 
 	/** Permission list for filtering which execution mode is allowed. */
 	UPROPERTY(EditAnywhere, config, Category = "Viewmodel")

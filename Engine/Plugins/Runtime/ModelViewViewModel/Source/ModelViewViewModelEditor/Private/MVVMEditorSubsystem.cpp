@@ -16,6 +16,7 @@
 #include "K2Node_FunctionEntry.h"
 #include "K2Node_FunctionResult.h"
 #include "K2Node_VariableGet.h"
+#include "MVVMBlueprintInstancedViewModel.h"
 #include "MVVMBlueprintView.h"
 #include "MVVMBlueprintViewConversionFunction.h"
 #include "MVVMBlueprintViewEvent.h"
@@ -152,9 +153,9 @@ UMVVMBlueprintView* UMVVMEditorSubsystem::GetView(const UWidgetBlueprint* Widget
 	return nullptr;
 }
 
-FName UMVVMEditorSubsystem::AddViewModel(UWidgetBlueprint* WidgetBlueprint, const UClass* ViewModelClass)
+FGuid UMVVMEditorSubsystem::AddViewModel(UWidgetBlueprint* WidgetBlueprint, const UClass* ViewModelClass)
 {
-	FName Result;
+	FGuid Result;
 	if (ViewModelClass)
 	{
 		if (UMVVMBlueprintView* View = GetView(WidgetBlueprint))
@@ -176,20 +177,59 @@ FName UMVVMEditorSubsystem::AddViewModel(UWidgetBlueprint* WidgetBlueprint, cons
 				++Index;
 			}
 
-			Result = *ViewModelName;
-			FMVVMBlueprintViewModelContext Context = FMVVMBlueprintViewModelContext(ViewModelClass, Result);
+			FMVVMBlueprintViewModelContext Context = FMVVMBlueprintViewModelContext(ViewModelClass, *ViewModelName);
 			if (Context.IsValid())
 			{
 				const FScopedTransaction Transaction(LOCTEXT("AddViewModel", "Add viewmodel"));
 				View->Modify();
 				View->AddViewModel(Context);
-			}
-			else
-			{
-				Result = FName();
+				Result = Context.GetViewModelId();
 			}
 		}
 	}
+	return Result;
+}
+
+FGuid UMVVMEditorSubsystem::AddInstancedViewModel(UWidgetBlueprint* WidgetBlueprint)
+{
+	UMVVMWidgetBlueprintExtension_View* ExtensionView = UMVVMWidgetBlueprintExtension_View::GetExtension<UMVVMWidgetBlueprintExtension_View>(WidgetBlueprint);
+	UMVVMBlueprintView* View = ExtensionView ? ExtensionView->GetBlueprintView() : nullptr;
+
+	if (!View)
+	{
+		return FGuid();
+	}
+
+	const FScopedTransaction Transaction(LOCTEXT("AddInstancedViewModel", "Add instanced viewmodel"));
+
+	FGuid Result;
+
+	FName UniqueName = MakeUniqueObjectName(View, UMVVMBlueprintInstancedViewModel::StaticClass(), "InstancedViewmodel");
+	UMVVMBlueprintInstancedViewModel* NewInstancedViewModel = NewObject<UMVVMBlueprintInstancedViewModel>(View, UniqueName);
+	NewInstancedViewModel->GenerateClass();
+	FMVVMBlueprintViewModelContext Context = FMVVMBlueprintViewModelContext(NewInstancedViewModel->GetGeneratedClass(), UniqueName);
+	if (Context.IsValid())
+	{
+		Context.InstancedViewModel = NewInstancedViewModel;
+		Context.CreationType = EMVVMBlueprintViewModelContextCreationType::CreateInstance;
+		View->Modify();
+		View->AddViewModel(Context);
+		Result = Context.GetViewModelId();
+	}
+	else
+	{
+		auto RenameToTransient = [](UObject* ObjectToRename)
+		{
+			FName TrashName = MakeUniqueObjectName(GetTransientPackage(), ObjectToRename->GetClass(), *FString::Printf(TEXT("TRASH_%s"), *ObjectToRename->GetName()));
+			ObjectToRename->Rename(*TrashName.ToString(), GetTransientPackage());
+		};
+		if (NewInstancedViewModel->GetGeneratedClass())
+		{
+			RenameToTransient(NewInstancedViewModel->GetGeneratedClass());
+		}
+		RenameToTransient(NewInstancedViewModel);
+	}
+
 	return Result;
 }
 
@@ -199,7 +239,7 @@ void UMVVMEditorSubsystem::RemoveViewModel(UWidgetBlueprint* WidgetBlueprint, FN
 	{
 		if (const FMVVMBlueprintViewModelContext* ViewModelContext = View->FindViewModel(ViewModel))
 		{
-			if (ViewModelContext->bCanRemove)
+			if (ViewModelContext->bCanRemove && ViewModelContext->InstancedViewModel)
 			{
 				View->RemoveViewModel(ViewModelContext->GetViewModelId());
 			}
@@ -329,6 +369,7 @@ void UMVVMEditorSubsystem::SetSourceToDestinationConversionFunction(UWidgetBluep
 			}
 
 			UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, Conversion));
+			FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBlueprint);
 		}
 	}
 }
@@ -359,6 +400,7 @@ void UMVVMEditorSubsystem::SetDestinationToSourceConversionFunction(UWidgetBluep
 			}
 
 			UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, Conversion));
+			FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBlueprint);
 		}
 	}
 }
@@ -389,6 +431,7 @@ void UMVVMEditorSubsystem::SetDestinationPathForBinding(UWidgetBlueprint* Widget
 		}
 
 		UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, DestinationPath));
+		FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBlueprint);
 	}
 }
 
@@ -403,6 +446,7 @@ void UMVVMEditorSubsystem::SetSourcePathForBinding(UWidgetBlueprint* WidgetBluep
 		Binding.SourcePath = Field;
 
 		UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, SourcePath));
+		FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBlueprint);
 	}
 }
 
@@ -420,6 +464,7 @@ void UMVVMEditorSubsystem::OverrideExecutionModeForBinding(UWidgetBlueprint* Wid
 			Binding.OverrideExecutionMode = Mode;
 
 			UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, OverrideExecutionMode));
+			FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBlueprint);
 		}
 	}
 }
@@ -437,6 +482,7 @@ void UMVVMEditorSubsystem::ResetExecutionModeForBinding(UWidgetBlueprint* Widget
 			Binding.bOverrideExecutionMode = false;
 
 			UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, OverrideExecutionMode));
+			FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBlueprint);
 		}
 	}
 }
@@ -454,6 +500,7 @@ void UMVVMEditorSubsystem::SetBindingTypeForBinding(UWidgetBlueprint* WidgetBlue
 			Binding.BindingType = Type;
 
 			UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, BindingType));
+			FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBlueprint);
 		}
 	}
 }
@@ -471,6 +518,7 @@ void UMVVMEditorSubsystem::SetEnabledForBinding(UWidgetBlueprint* WidgetBlueprin
 			Binding.bEnabled = bEnabled;
 
 			UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, bEnabled));
+			FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBlueprint);
 		}
 	}
 }
@@ -488,6 +536,7 @@ void UMVVMEditorSubsystem::SetCompileForBinding(UWidgetBlueprint* WidgetBlueprin
 			Binding.bCompile = bCompile;
 
 			UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, bCompile));
+			FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBlueprint);
 		}
 	}
 }
@@ -832,6 +881,7 @@ void UMVVMEditorSubsystem::SetPathForConversionFunctionArgument(UWidgetBlueprint
 		check(ConversionFunction);
 		ConversionFunction->SetGraphPin(WidgetBlueprint, ArgumentName, Path);
 	}
+	FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBlueprint);
 }
 
 TArray<UE::MVVM::FBindingSource> UMVVMEditorSubsystem::GetBindableWidgets(const UWidgetBlueprint* WidgetBlueprint) const

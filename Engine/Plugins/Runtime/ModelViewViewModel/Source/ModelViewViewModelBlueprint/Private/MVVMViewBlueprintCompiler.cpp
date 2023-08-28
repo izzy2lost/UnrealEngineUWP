@@ -312,10 +312,10 @@ void FMVVMViewBlueprintCompiler::CreateVariables(const FWidgetBlueprintCompilerC
 			{
 				NewProperty->SetMetaData(FBlueprintMetadata::MD_ExposeOnSpawn, TEXT("true"));
 			}
-			//if (!SourceContext.bPublicGetter)
-			//{
-			//	NewProperty->SetMetaData(FBlueprintMetadata::MD_Private, TEXT("true"));
-			//}
+			if (SourceContext.bPrivate)
+			{
+				NewProperty->SetMetaData(FBlueprintMetadata::MD_Private, TEXT("true"));
+			}
 #endif
 		}
 		return NewProperty;
@@ -471,7 +471,7 @@ void FMVVMViewBlueprintCompiler::CreateSourceLists(const FWidgetBlueprintCompile
 		SourceVariable.DisplayName = ViewModelContext.GetDisplayName();
 		SourceVariable.CategoryName = TEXT("Viewmodel");
 		SourceVariable.bExposeOnSpawn = bCreateSetterFunction;
-		//SourceVariable.bPublicGetter = ViewModelContext.bCreateGetterFunction;
+		SourceVariable.bPrivate = ViewModelContext.InstancedViewModel != nullptr;
 		SourceVariable.BlueprintSetter = CompilerSourceCreatorContexts[FoundSourceCreatorContextIndex].SetterFunctionName;
 		SourceVariable.ViewModelId = ViewModelContext.GetViewModelId();
 		CompilerUserWidgetPropertyContexts.Emplace(MoveTemp(SourceVariable));
@@ -510,7 +510,7 @@ void FMVVMViewBlueprintCompiler::CreateSourceLists(const FWidgetBlueprintCompile
 				SourceVariable.DisplayName = FText::FromString(Widget->GetDisplayLabel());
 				SourceVariable.CategoryName = TEXT("Widget");
 				SourceVariable.ViewModelId = FGuid();
-				SourceVariable.bPublicGetter = false;
+				SourceVariable.bPrivate = false;
 				Self->CompilerUserWidgetPropertyContexts.Emplace(MoveTemp(SourceVariable));
 			}
 		}

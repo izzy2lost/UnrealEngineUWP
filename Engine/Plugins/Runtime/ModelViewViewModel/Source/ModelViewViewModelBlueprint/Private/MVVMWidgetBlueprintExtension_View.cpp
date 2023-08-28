@@ -1,12 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MVVMWidgetBlueprintExtension_View.h"
+
+#include "FindInBlueprintManager.h"
+#include "MVVMBlueprintInstancedViewModel.h"
 #include "MVVMBlueprintView.h"
+#include "MVVMBlueprintViewModel.h"
 #include "MVVMBlueprintViewConversionFunction.h"
 #include "MVVMViewBlueprintCompiler.h"
 #include "View/MVVMViewClass.h"
+#include "Kismet2/BlueprintEditorUtils.h"
+#include "Kismet2/KismetEditorUtilities.h"
 
-#include "FindInBlueprintManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MVVMWidgetBlueprintExtension_View)
 
@@ -27,6 +32,7 @@ void UMVVMWidgetBlueprintExtension_View::CreateBlueprintViewInstance()
 {
 	BlueprintView = NewObject<UMVVMBlueprintView>(this, FName(), RF_Transactional);
 	BlueprintViewChangedDelegate.Broadcast();
+	FBlueprintEditorUtils::MarkBlueprintAsModified(GetWidgetBlueprint());
 }
 
 
@@ -51,6 +57,14 @@ void UMVVMWidgetBlueprintExtension_View::HandlePreloadObjectsForCompilation(UBlu
 
 		for (const FMVVMBlueprintViewModelContext& AvailableViewModel : BlueprintView->GetViewModels())
 		{
+			if (AvailableViewModel.InstancedViewModel)
+			{
+				UBlueprint::ForceLoad(AvailableViewModel.InstancedViewModel);
+				if (AvailableViewModel.InstancedViewModel->GetGeneratedClass())
+				{
+					AvailableViewModel.InstancedViewModel->GetGeneratedClass()->ConditionalPostLoad();
+				}
+			}
 			if (AvailableViewModel.GetViewModelClass())
 			{
 				UBlueprint::ForceLoad(AvailableViewModel.GetViewModelClass());
@@ -73,6 +87,14 @@ void UMVVMWidgetBlueprintExtension_View::HandlePreloadObjectsForCompilation(UBlu
 
 void UMVVMWidgetBlueprintExtension_View::HandleBeginCompilation(FWidgetBlueprintCompilerContext& InCreationContext)
 {
+	for (const FMVVMBlueprintViewModelContext& AvailableViewModel : BlueprintView->GetViewModels())
+	{
+		if (AvailableViewModel.InstancedViewModel)
+		{
+			AvailableViewModel.InstancedViewModel->GenerateClass();
+		}
+	}
+
 	CurrentCompilerContext.Reset();
 	if (BlueprintView)
 	{

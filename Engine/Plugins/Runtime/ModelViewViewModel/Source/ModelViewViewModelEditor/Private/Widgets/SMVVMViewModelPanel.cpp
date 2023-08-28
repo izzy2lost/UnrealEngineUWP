@@ -6,6 +6,7 @@
 #include "Dialogs/Dialogs.h"
 #include "IStructureDetailsView.h"
 #include "MVVMBlueprintView.h"
+#include "MVVMBlueprintInstancedViewModel.h"
 #include "MVVMDeveloperProjectSettings.h"
 #include "MVVMEditorSubsystem.h"
 #include "MVVMWidgetBlueprintExtension_View.h"
@@ -20,6 +21,7 @@
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Styling/MVVMEditorStyle.h"
+#include "Styling/ToolBarStyle.h"
 
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
@@ -75,6 +77,21 @@ void SetSelectObjectsToView(TWeakPtr<FWidgetBlueprintEditor> WeakEditor)
 	}
 }
 
+void CreateViewModelInstance(TWeakPtr<FWidgetBlueprintEditor> WeakEditor)
+{
+	if (TSharedPtr<FWidgetBlueprintEditor> Editor = WeakEditor.Pin())
+	{
+		UMVVMEditorSubsystem* MVVMEditorSubsystem = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>();
+		if (!MVVMEditorSubsystem)
+		{
+			return;
+		}
+
+		UMVVMBlueprintView* BlueprintView = MVVMEditorSubsystem->RequestView(Editor->GetWidgetBlueprintObj());
+		MVVMEditorSubsystem->AddInstancedViewModel(Editor->GetWidgetBlueprintObj());
+	}
+}
+
 } //namespace UE::MVVM::Private
 
 namespace UE::MVVM
@@ -96,10 +113,29 @@ void SMVVMViewModelPanel::RegisterMenu()
 					}
 				}
 			}));
+	} {
+		UToolMenu* Menu = UToolMenus::Get()->RegisterMenu("MVVM.Viewmodels.Add");
+		FToolMenuSection& Section = Menu->FindOrAddSection("Main");
+		Section.AddDynamicEntry("Main", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
+			{
+				if (const UWidgetBlueprintToolMenuContext* Context = InSection.FindContext<UWidgetBlueprintToolMenuContext>())
+				{
+					if (GetDefault<UMVVMDeveloperProjectSettings>()->bCanCreateViewModelInView)
+					{
+						InSection.AddMenuEntry(
+							"CreateViewmodel"
+							, LOCTEXT("CreateViewmodel", "Instanced Viewmodel")
+							, LOCTEXT("CreateViewmodelTooltip", "Create a Viewmodel inside the View. The Viewmodel is not accessible from outside the View.")
+							, FSlateIcon(FMVVMEditorStyle::Get().GetStyleSetName(), "BlueprintView.TabIcon")
+							, FUIAction(FExecuteAction::CreateStatic(UE::MVVM::Private::CreateViewModelInstance, Context->WidgetBlueprintEditor))
+							, EUserInterfaceActionType::Button
+						);
+					}
+				}
+			}));
 	}
 	{
 		UToolMenu* Menu = UToolMenus::Get()->RegisterMenu("MVVM.Viewmodels.Settings");
-		//Menu->MenuType = EMultiBoxType::Menu;
 		FToolMenuSection& Section = Menu->FindOrAddSection("Main");
 		Section.AddDynamicEntry("Main", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
 			{
@@ -124,15 +160,37 @@ void SMVVMViewModelPanel::RegisterMenu()
 
 void SMVVMViewModelPanel::BuildContextMenu(FToolMenuSection& InSection)
 {
-	if (!AddMenuButton.IsValid())
-	{
-		SAssignNew(AddMenuButton, SPositiveActionButton)
-			.OnGetMenuContent(this, &SMVVMViewModelPanel::MakeAddMenu)
-			.Text(LOCTEXT("Viewmodel", "Viewmodel"))
-			.IsEnabled(this, &SMVVMViewModelPanel::HandleCanEditViewmodelList);
-	}
-	
+	SAssignNew(AddMenuButton, SPositiveActionButton)
+		.OnGetMenuContent(this, &SMVVMViewModelPanel::MakeAddMenu)
+		.Text(LOCTEXT("Viewmodel", "Viewmodel"))
+		.IsEnabled(this, &SMVVMViewModelPanel::HandleCanEditViewmodelList);
+
 	InSection.AddEntry(FToolMenuEntry::InitWidget("AddViewmodel", AddMenuButton.ToSharedRef(), FText()));
+
+	const FToolBarStyle& ToolBarStyle = FCoreStyle::Get().GetWidgetStyle<FToolBarStyle>("CalloutToolbar");
+	const FVector2f IconSize = ToolBarStyle.IconSize;
+	const FComboButtonStyle* ComboStyle = &ToolBarStyle.SettingsComboButton;
+	const FButtonStyle* ButtonStyle = &ComboStyle->ButtonStyle;
+	FSlateColor OpenForegroundColor = ButtonStyle->HoveredForeground;
+
+	TWeakPtr<SComboButton> WeakComboBox;
+	TSharedRef<SWidget> ComboBottom = SAssignNew(WeakComboBox, SComboButton)
+		.ContentPadding(0.f)
+		.ComboButtonStyle(ComboStyle)
+		.ButtonStyle(ButtonStyle)
+		.ForegroundColor_Lambda([WeakComboBox, OpenForegroundColor]()
+		{
+			TSharedPtr<SComboButton> LocalComboButton = WeakComboBox.Pin();
+			return LocalComboButton ? OpenForegroundColor : FSlateColor::UseStyle();
+		})
+		// Route the content generator event
+		.OnGetMenuContent(this, &SMVVMViewModelPanel::HandleAddViewModelContextMenu)
+		.IsEnabled(this, &SMVVMViewModelPanel::HandleCanEditViewmodelList)
+		.ButtonContent()
+		[
+			SNullWidget::NullWidget
+		];
+	InSection.AddEntry(FToolMenuEntry::InitWidget("AddViewmodelContext", ComboBottom, FText()));
 }
 
 
@@ -410,6 +468,23 @@ bool SMVVMViewModelPanel::HandleCanEditViewmodelList() const
 }
 
 
+TSharedRef<SWidget> SMVVMViewModelPanel::HandleAddViewModelContextMenu()
+{
+	FToolMenuContext GenerateWidgetContext;
+	{
+		UWidgetBlueprintToolMenuContext* WidgetBlueprintMenuContext = NewObject<UWidgetBlueprintToolMenuContext>();
+		WidgetBlueprintMenuContext->WidgetBlueprintEditor = WeakBlueprintEditor;
+		GenerateWidgetContext.AddObject(WidgetBlueprintMenuContext);
+
+		UMVVMViewModelPanelToolMenuContext* ViewModelPanelToolMenuContext = NewObject<UMVVMViewModelPanelToolMenuContext>();
+		ViewModelPanelToolMenuContext->ViewModelPanel = SharedThis(this);
+		GenerateWidgetContext.AddObject(ViewModelPanelToolMenuContext);
+	}
+
+	return UToolMenus::Get()->GenerateWidget("MVVM.Viewmodels.Add", GenerateWidgetContext);
+}
+
+
 TSharedPtr<SWidget> SMVVMViewModelPanel::HandleGetPreSlot(UE::PropertyViewer::SPropertyViewer::FHandle Handle, TArrayView<const FFieldVariant> FieldPath)
 {
 	if (FieldPath.Num() > 0)
@@ -440,7 +515,7 @@ TSharedRef<SWidget> SMVVMViewModelPanel::HandleGenerateContainer(UE::PropertyVie
 				{
 					TSharedRef<SInlineEditableTextBlock> EditableTextBlock = SNew(SInlineEditableTextBlock)
 						.Text(ViewModelContext->GetDisplayName())
-						.IsReadOnly(this, &SMVVMViewModelPanel::HandleCanRename, VMGuid)
+						.IsReadOnly_Lambda([this, VMGuid]() { return !HandleCanRename(VMGuid); })
 						.OnVerifyTextChanged(this, &SMVVMViewModelPanel::HandleVerifyNameTextChanged, VMGuid)
 						.OnTextCommitted(this, &SMVVMViewModelPanel::HandleNameTextCommited, VMGuid);
 					EditableTextBlocks.Add(VMGuid, EditableTextBlock);
@@ -620,9 +695,9 @@ void SMVVMViewModelPanel::HandleDeleteViewModel()
 							return;
 						}
 					}
-				}
 
-				BlueprintView->RemoveViewModel(*VMGuidPtr);
+					GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>()->RemoveViewModel(WidgetBP, ViewModelContext->GetViewModelName());
+				}
 			}
 		}
 	}

@@ -112,7 +112,7 @@ private:
 		FGuid ViewModelId;
 
 		bool bExposeOnSpawn = false;
-		bool bPublicGetter = false;
+		bool bPrivate = false;
 	};
 	TArray<FCompilerUserWidgetPropertyContext> CompilerUserWidgetPropertyContexts;
 

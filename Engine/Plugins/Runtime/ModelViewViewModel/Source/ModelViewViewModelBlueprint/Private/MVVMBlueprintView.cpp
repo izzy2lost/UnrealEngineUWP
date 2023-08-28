@@ -4,6 +4,7 @@
 
 #include "Components/Widget.h"
 #include "Kismet2/BlueprintEditorUtils.h"
+#include "MVVMBlueprintInstancedViewModel.h"
 #include "MVVMBlueprintViewConversionFunction.h"
 #include "MVVMBlueprintViewEvent.h"
 #include "MVVMWidgetBlueprintExtension_View.h"
@@ -47,20 +48,47 @@ void UMVVMBlueprintView::AddViewModel(const FMVVMBlueprintViewModelContext& NewC
 	OnViewModelsUpdated.Broadcast();
 }
 
+namespace UE::MVVM::Private
+{
+	bool RemoveViewModelInternal(FGuid ViewModelId, TArray<FMVVMBlueprintViewModelContext>& ViewModelContexts)
+	{
+		bool bResult = false;
+		for (int32 Index = ViewModelContexts.Num() - 1; Index >= 0; --Index)
+		{
+			if (ViewModelContexts[Index].GetViewModelId() == ViewModelId)
+			{
+				UMVVMBlueprintInstancedViewModelBase* InstancedViewModel = ViewModelContexts[Index].InstancedViewModel;
+				if (InstancedViewModel)
+				{
+					auto RenameToTransient = [](UObject* ObjectToRename)
+					{
+						FName TrashName = MakeUniqueObjectName(GetTransientPackage(), ObjectToRename->GetClass(), *FString::Printf(TEXT("TRASH_%s"), *ObjectToRename->GetName()));
+						ObjectToRename->Rename(*TrashName.ToString(), GetTransientPackage());
+					};
+					if (InstancedViewModel->GetGeneratedClass())
+					{
+						RenameToTransient(InstancedViewModel->GetGeneratedClass());
+					}
+					RenameToTransient(InstancedViewModel);
+				}
+
+				ViewModelContexts.RemoveAt(Index);
+				bResult = true;
+			}
+		}
+		return bResult;
+	}
+}
 
 bool UMVVMBlueprintView::RemoveViewModel(FGuid ViewModelId)
 {
-	int32 Count = AvailableViewModels.RemoveAll([ViewModelId](const FMVVMBlueprintViewModelContext& VM)
-		{
-			return VM.GetViewModelId() == ViewModelId;
-		});
-
-	if (Count > 0)
+	bool bRemoved = UE::MVVM::Private::RemoveViewModelInternal(ViewModelId, AvailableViewModels);
+	if (bRemoved)
 	{
 		FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(GetOuterUMVVMWidgetBlueprintExtension_View()->GetWidgetBlueprint());
 		OnViewModelsUpdated.Broadcast();
 	}
-	return Count > 0;
+	return bRemoved;
 }
 
 int32 UMVVMBlueprintView::RemoveViewModels(const TArrayView<FGuid> ViewModelIds)
@@ -68,10 +96,10 @@ int32 UMVVMBlueprintView::RemoveViewModels(const TArrayView<FGuid> ViewModelIds)
 	int32 Count = 0;
 	for (const FGuid& ViewModelId : ViewModelIds)
 	{
-		Count += AvailableViewModels.RemoveAll([ViewModelId](const FMVVMBlueprintViewModelContext& VM)
-			{
-				return VM.GetViewModelId() == ViewModelId;
-			});
+		if (UE::MVVM::Private::RemoveViewModelInternal(ViewModelId, AvailableViewModels))
+		{
+			++Count;
+		}
 	}
 
 	if (Count > 0)
@@ -131,6 +159,8 @@ void UMVVMBlueprintView::RemoveBindingAt(int32 Index)
 
 		Bindings.RemoveAt(Index);
 		OnBindingsUpdated.Broadcast();
+
+		FBlueprintEditorUtils::MarkBlueprintAsModified(GetOuterUMVVMWidgetBlueprintExtension_View()->GetWidgetBlueprint());
 	}
 }
 
@@ -157,6 +187,9 @@ FMVVMBlueprintViewBinding& UMVVMBlueprintView::AddBinding(const UWidget* Widget,
 
 	OnBindingsAdded.Broadcast();
 	OnBindingsUpdated.Broadcast();
+
+	FBlueprintEditorUtils::MarkBlueprintAsModified(GetOuterUMVVMWidgetBlueprintExtension_View()->GetWidgetBlueprint());
+
 	return NewBinding;
 }
 
@@ -167,6 +200,9 @@ FMVVMBlueprintViewBinding& UMVVMBlueprintView::AddDefaultBinding()
 
 	OnBindingsAdded.Broadcast();
 	OnBindingsUpdated.Broadcast();
+
+	FBlueprintEditorUtils::MarkBlueprintAsModified(GetOuterUMVVMWidgetBlueprintExtension_View()->GetWidgetBlueprint());
+
 	return NewBinding;
 }
 
