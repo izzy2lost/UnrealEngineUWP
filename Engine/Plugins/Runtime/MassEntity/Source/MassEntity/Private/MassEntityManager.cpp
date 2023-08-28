@@ -583,23 +583,23 @@ TSharedRef<FMassEntityManager::FEntityCreationContext> FMassEntityManager::Inter
 {
 	// Functions calling into this one are required to verify that the archetype handle is valid
 	FMassArchetypeData* ArchetypeData = FMassArchetypeHelper::ArchetypeDataFromHandle(ArchetypeHandle);
+	checkf(ArchetypeData, TEXT("Functions calling into this one are required to verify that the archetype handle is valid"));
 
-	// @todo optimize
 	for (FMassEntityHandle Entity : ReservedEntities)
 	{
-		checkf(!IsEntityBuilt(Entity), TEXT("Batch creating reserved entities can only use entities that have not been constructed yet."));
-
+		check(IsEntityValid(Entity));
 		FEntityData& EntityData = Entities[Entity.Index];
+		checkf(!EntityData.CurrentArchetype.IsValid(), TEXT("Batch creating reserved entities can only use entities that have not been constructed yet."));
 		EntityData.CurrentArchetype = ArchetypeHandle.DataPtr;
 		EntityData.SerialNumber = Entity.SerialNumber;
-
-		ArchetypeData->AddEntity(Entity, SharedFragmentValues);
 	}
 
+	FMassArchetypeEntityCollection::FEntityRangeArray TargetArchetypeEntityRanges;
+	ArchetypeData->BatchAddEntities(ReservedEntities, SharedFragmentValues, TargetArchetypeEntityRanges);
+
 	FEntityCreationContext* CreationContext = new FEntityCreationContext(ReservedEntities.Num());
-	// @todo this could probably be optimized since one would assume we're adding elements to OutEntities in order.
-	// Then again, if that's the case, the sorting will be almost instant
-	new (&CreationContext->EntityCollection) FMassArchetypeEntityCollection(ArchetypeHandle, ReservedEntities, FMassArchetypeEntityCollection::NoDuplicates);
+	new (&CreationContext->EntityCollection) FMassArchetypeEntityCollection(ArchetypeHandle, MoveTemp(TargetArchetypeEntityRanges));
+
 	if (ObserverManager.HasObserversForBitSet(ArchetypeData->GetCompositionDescriptor().Fragments, EMassObservedOperation::Add)
 		|| ObserverManager.HasObserversForBitSet(ArchetypeData->GetCompositionDescriptor().Tags, EMassObservedOperation::Add))
 	{
