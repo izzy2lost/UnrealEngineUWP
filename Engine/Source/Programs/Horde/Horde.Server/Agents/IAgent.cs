@@ -524,6 +524,11 @@ namespace Horde.Server.Agents
 		public DateTime? LastUpgradeTime { get; }
 
 		/// <summary>
+		/// Number of times an upgrade job has failed
+		/// </summary>
+		public int? UpgradeAttemptCount { get; }
+
+		/// <summary>
 		/// Dynamically applied pools
 		/// </summary>
 		public IReadOnlyList<PoolId> DynamicPools { get; }

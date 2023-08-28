@@ -25,6 +25,11 @@ namespace Horde.Server.Agents
 		/// List of agents stuck in a conform loop, plus the number of times they've attempted to conform
 		/// </summary>
 		public List<(AgentId, int)> ConformLoop { get; } = new List<(AgentId, int)>();
+
+		/// <summary>
+		/// List of agents stuck in a upgrade loop, plus the number of times they've attempted to upgrade
+		/// </summary>
+		public List<(AgentId, int)> UpgradeLoop { get; } = new List<(AgentId, int)>();
 	}
 
 	[SingletonDocument("agent-report-state", "6268871c211d05611b3e4fd8")]
@@ -85,7 +90,7 @@ namespace Horde.Server.Agents
 
 			TimeSpan agentReportTime = TimeSpan.FromHours(9.0); // 9am
 
-			DateTime nextUpdateTime = _clock.TimeZone.GetStartOfDayUtc(state.LastUpdateUtc + TimeSpan.FromHours(24.0)) + agentReportTime;
+			DateTime nextUpdateTime = state.LastUpdateUtc + TimeSpan.FromHours(1.0);//_clock.TimeZone.GetStartOfDayUtc(state.LastUpdateUtc + TimeSpan.FromHours(24.0)) + agentReportTime;
 			if (utcNow > nextUpdateTime)
 			{
 				AgentReport report = new AgentReport();
@@ -96,6 +101,10 @@ namespace Horde.Server.Agents
 					if (agent.ConformAttemptCount.HasValue && agent.ConformAttemptCount.Value > 3)
 					{
 						report.ConformLoop.Add((agent.Id, agent.ConformAttemptCount.Value));
+					}
+					if (agent.UpgradeAttemptCount.HasValue && agent.UpgradeAttemptCount.Value > 3)
+					{
+						report.UpgradeLoop.Add((agent.Id, agent.UpgradeAttemptCount.Value));
 					}
 				}
 

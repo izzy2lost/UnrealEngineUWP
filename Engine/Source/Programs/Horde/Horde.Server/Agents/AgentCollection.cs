@@ -85,6 +85,9 @@ namespace Horde.Server.Agents
 			[BsonIgnoreIfNull]
 			public DateTime? LastUpgradeTime { get; set; }
 
+			[BsonIgnoreIfNull]
+			public int? UpgradeAttemptCount { get; set; }
+
 			public List<PoolId> DynamicPools { get; set; } = new List<PoolId>();
 			public List<PoolId> Pools { get; set; } = new List<PoolId>();
 
@@ -395,7 +398,9 @@ namespace Horde.Server.Agents
 						}
 						else if (payload.TryUnpack(out UpgradeTask upgradeTask))
 						{
+							int newUpgradeAttemptCount = (agent.UpgradeAttemptCount ?? 0) + 1;
 							updates.Add(updateBuilder.Set(x => x.LastUpgradeVersion, upgradeTask.SoftwareId));
+							updates.Add(updateBuilder.Set(x => x.UpgradeAttemptCount, newUpgradeAttemptCount));
 							updates.Add(updateBuilder.Set(x => x.LastUpgradeTime, DateTime.UtcNow));
 						}
 					}
@@ -479,6 +484,11 @@ namespace Horde.Server.Agents
 			updates.Add(updateBuilder.Unset(x => x.RequestRestart));
 			updates.Add(updateBuilder.Unset(x => x.RequestShutdown));
 			updates.Add(updateBuilder.Set(x => x.LastShutdownReason, "Unexpected"));
+
+			if (String.Equals(agent.Version, agent.LastUpgradeVersion, StringComparison.Ordinal))
+			{
+				updates.Add(updateBuilder.Unset(x => x.UpgradeAttemptCount));
+			}
 
 			if (agent.Status != status)
 			{

@@ -3037,6 +3037,27 @@ namespace Horde.Server.Notifications.Sinks
 						}
 					}
 				}
+
+				{
+					StringBuilder upgradeMessage = new StringBuilder("*Upgrade issues:*\n");
+					if (report.UpgradeLoop.Count == 0)
+					{
+						upgradeMessage.Append("None.\n");
+						await _slackClient.PostMessageAsync(_settings.AgentNotificationChannel, upgradeMessage.ToString());
+					}
+					else
+					{
+						foreach (IReadOnlyList<(AgentId, int)> upgradeBatch in report.UpgradeLoop.Batch(10))
+						{
+							foreach ((AgentId agentId, int upgradeCount) in upgradeBatch)
+							{
+								Uri agentUrl = new Uri(_settings.DashboardUrl, $"agents?agentId={agentId}");
+								upgradeMessage.Append($"* *[{agentId}]({agentUrl})* has attempted to upgrade {upgradeCount} times\n");
+							}
+							await _slackClient.PostMessageAsync(_settings.AgentNotificationChannel, upgradeMessage.ToString());
+						}
+					}
+				}
 			}
 		}
 	}
