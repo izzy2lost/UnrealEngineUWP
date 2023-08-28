@@ -2526,6 +2526,15 @@ UE::Tasks::FTask FRDGBuilder::SubmitBufferUploads()
 					UploadedBuffer.DataFreeCallback(UploadedBuffer.Data);
 				}
 			}
+			else if (UploadedBuffer.DataFillCallback)
+			{
+				const uint32 BufferSize = UploadedBuffer.Buffer->Desc.GetSize();
+				check(BufferSize > 0);
+
+				void* DestPtr = RHICmdListUpload.LockBuffer(UploadedBuffer.Buffer->GetRHIUnchecked(), 0, BufferSize, RLM_WriteOnly);
+				UploadedBuffer.DataFillCallback(DestPtr, BufferSize);
+				RHICmdListUpload.UnlockBuffer(UploadedBuffer.Buffer->GetRHIUnchecked());
+			}
 		}
 
 		UploadedBuffers.Reset();

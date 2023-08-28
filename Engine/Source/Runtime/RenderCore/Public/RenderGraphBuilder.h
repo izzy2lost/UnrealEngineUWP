@@ -259,7 +259,7 @@ public:
 	RENDERCORE_API void SetFlushResourcesRHI();
 
 	/** Queues a buffer upload operation prior to execution. The resource lifetime is extended and the data is uploaded prior to executing passes. */
-	RENDERCORE_API void QueueBufferUpload(FRDGBufferRef Buffer, const void* InitialData, uint64 InitialDataSize, ERDGInitialDataFlags InitialDataFlags = ERDGInitialDataFlags::None);
+	void QueueBufferUpload(FRDGBufferRef Buffer, const void* InitialData, uint64 InitialDataSize, ERDGInitialDataFlags InitialDataFlags = ERDGInitialDataFlags::None);
 
 	template <typename ElementType>
 	inline void QueueBufferUpload(FRDGBufferRef Buffer, TArrayView<ElementType, int32> Container, ERDGInitialDataFlags InitialDataFlags = ERDGInitialDataFlags::None)
@@ -268,7 +268,7 @@ public:
 	}
 
 	/** Queues a buffer upload operation prior to execution. The resource lifetime is extended and the data is uploaded prior to executing passes. */
-	RENDERCORE_API void QueueBufferUpload(FRDGBufferRef Buffer, const void* InitialData, uint64 InitialDataSize, FRDGBufferInitialDataFreeCallback&& InitialDataFreeCallback);
+	void QueueBufferUpload(FRDGBufferRef Buffer, const void* InitialData, uint64 InitialDataSize, FRDGBufferInitialDataFreeCallback&& InitialDataFreeCallback);
 
 	template <typename ElementType>
 	inline void QueueBufferUpload(FRDGBufferRef Buffer, TArrayView<ElementType, int32> Container, FRDGBufferInitialDataFreeCallback&& InitialDataFreeCallback)
@@ -276,11 +276,14 @@ public:
 		QueueBufferUpload(Buffer, Container.GetData(), Container.Num() * sizeof(ElementType), InitialDataFreeCallback);
 	}
 
+	/** A variant where the buffer is mapped and the pointer / size is provided to the callback to fill the buffer pointer. */
+	void QueueBufferUpload(FRDGBufferRef Buffer, FRDGBufferInitialDataFillCallback&& InitialDataFillCallback);
+
 	/** A variant where InitialData and InitialDataSize are supplied through callbacks. This allows queuing an upload with information unknown at
 	 *  creation time. The callbacks are called before RDG pass execution so data must be ready before that.
 	 */
-	RENDERCORE_API void QueueBufferUpload(FRDGBufferRef Buffer, FRDGBufferInitialDataCallback&& InitialDataCallback, FRDGBufferInitialDataSizeCallback&& InitialDataSizeCallback);
-	RENDERCORE_API void QueueBufferUpload(FRDGBufferRef Buffer, FRDGBufferInitialDataCallback&& InitialDataCallback, FRDGBufferInitialDataSizeCallback&& InitialDataSizeCallback, FRDGBufferInitialDataFreeCallback&& InitialDataFreeCallback);
+	void QueueBufferUpload(FRDGBufferRef Buffer, FRDGBufferInitialDataCallback&& InitialDataCallback, FRDGBufferInitialDataSizeCallback&& InitialDataSizeCallback);
+	void QueueBufferUpload(FRDGBufferRef Buffer, FRDGBufferInitialDataCallback&& InitialDataCallback, FRDGBufferInitialDataSizeCallback&& InitialDataSizeCallback, FRDGBufferInitialDataFreeCallback&& InitialDataFreeCallback);
 
 	/** Queues a pooled render target extraction to happen at the end of graph execution. For graph-created textures, this extends
 	 *  the lifetime of the GPU resource until execution, at which point the pointer is filled. If specified, the texture is transitioned
@@ -603,16 +606,18 @@ private:
 		FUploadedBuffer() = default;
 
 		FUploadedBuffer(FRDGBuffer* InBuffer, const void* InData, uint64 InDataSize)
-			: bUseDataCallbacks(false)
-			, bUseFreeCallbacks(false)
-			, Buffer(InBuffer)
+			: Buffer(InBuffer)
 			, Data(InData)
 			, DataSize(InDataSize)
 		{}
 
+		FUploadedBuffer(FRDGBuffer* InBuffer, FRDGBufferInitialDataFillCallback&& InDataFillCallback)
+			: Buffer(InBuffer)
+			, DataFillCallback(MoveTemp(InDataFillCallback))
+		{}
+
 		FUploadedBuffer(FRDGBuffer* InBuffer, const void* InData, uint64 InDataSize, FRDGBufferInitialDataFreeCallback&& InDataFreeCallback)
-			: bUseDataCallbacks(false)
-			, bUseFreeCallbacks(true)
+			: bUseFreeCallbacks(true)
 			, Buffer(InBuffer)
 			, Data(InData)
 			, DataSize(InDataSize)
@@ -621,7 +626,6 @@ private:
 
 		FUploadedBuffer(FRDGBuffer* InBuffer, FRDGBufferInitialDataCallback&& InDataCallback, FRDGBufferInitialDataSizeCallback&& InDataSizeCallback)
 			: bUseDataCallbacks(true)
-			, bUseFreeCallbacks(false)
 			, Buffer(InBuffer)
 			, DataCallback(MoveTemp(InDataCallback))
 			, DataSizeCallback(MoveTemp(InDataSizeCallback))
@@ -641,9 +645,14 @@ private:
 		FRDGBuffer* Buffer{};
 		const void* Data{};
 		uint64 DataSize{};
+
+		// User provided data callbacks
 		FRDGBufferInitialDataCallback DataCallback;
 		FRDGBufferInitialDataSizeCallback DataSizeCallback;
 		FRDGBufferInitialDataFreeCallback DataFreeCallback;
+
+		// RDG provided buffer pointer callback.
+		FRDGBufferInitialDataFillCallback DataFillCallback;
 	};
 
 	TArray<FUploadedBuffer, FRDGArrayAllocator> UploadedBuffers;
