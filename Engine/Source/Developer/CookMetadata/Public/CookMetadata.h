@@ -159,9 +159,7 @@ struct COOKMETADATA_API FCookMetadataPluginEntry
 
 struct COOKMETADATA_API FCookMetadataPluginHierarchy
 {
-	// The list of plugins that were enabled during the cook that generated the FCookMetadataState,
-	// pruned to remove plugins that aren't enabled on the cook platform. If the cook was DLC, this
-	// is further pruned to only the DLC plugin and its dependencies.
+	// The list of plugins that were enabled during the cook that generated the FCookMetadataState
 	TArray<FCookMetadataPluginEntry> PluginsEnabledAtCook;
 
 	// The list of plugin dependencies. FCookMetadataPluginEntry::DependencyIndexStart indexes into this
