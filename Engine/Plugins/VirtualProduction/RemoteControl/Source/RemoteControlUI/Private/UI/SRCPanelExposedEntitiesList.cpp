@@ -200,7 +200,7 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 
 	// Major Panel
 	TSharedPtr<SRCMajorPanel> ExposePanel = SNew(SRCMajorPanel)
-		.HeaderLabel(LOCTEXT("ExposePanelHeader", "EXPOSE"))
+		.EnableHeader(false)
 		.EnableFooter(false);
 
 	// Groups List

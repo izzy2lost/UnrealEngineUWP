@@ -543,7 +543,7 @@ void SRemoteControlPanel::Construct(const FArguments& InArgs, URemoteControlPres
 
 	// Make 3 Columns with Controllers + Behaviours + Actions
 	TSharedRef<SRCMajorPanel> LogicPanel = SNew(SRCMajorPanel)
-		.HeaderLabel(LOCTEXT("LogicPanelHeader", "LOGIC"))
+		.EnableHeader(false)
 		.EnableFooter(false);
 
 	// Controllers with Behaviours panel
