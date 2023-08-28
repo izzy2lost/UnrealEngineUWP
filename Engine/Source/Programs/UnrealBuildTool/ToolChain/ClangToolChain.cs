@@ -112,6 +112,13 @@ namespace UnrealBuildTool
 		/// Enable LibFuzzer
 		/// </summary>
 		EnableLibFuzzer = 1 << 18,
+
+		/// <summary>
+		/// Modify code generation to help with debugging optimized builds e.g. by extending lifetimes of local variables.
+		/// It may slightly reduce performance. Thus, it's meant to be used during development only.
+		/// Supported only on some platforms.
+		/// </summary>
+		OptimizeForDebugging = 1 << 19,
 	}
 
 	abstract class ClangToolChain : ISPCToolChain
@@ -180,6 +187,8 @@ namespace UnrealBuildTool
 		protected ClangToolChainInfo Info => LazyInfo.Value;
 
 		protected ClangToolChainOptions Options;
+
+		protected bool bOptimizeForDebugging => Options.HasFlag(ClangToolChainOptions.OptimizeForDebugging);
 
 		// Dummy define to work around clang compilation related to the windows maximum path length limitation
 		protected static string ClangDummyDefine;
@@ -649,6 +658,11 @@ namespace UnrealBuildTool
 			{
 				Arguments.Add("-fno-exceptions");
 				Arguments.Add("-DPLATFORM_EXCEPTIONS_DISABLED=1");
+			}
+
+			if (bOptimizeForDebugging)
+			{
+				Arguments.Add("-fextend-lifetimes");
 			}
 		}
 
