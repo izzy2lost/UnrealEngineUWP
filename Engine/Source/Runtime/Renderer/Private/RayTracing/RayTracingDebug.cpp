@@ -89,6 +89,12 @@ static TAutoConsoleVariable<float> CVarRayTracingDebugTraversalTriangleScale(
 	TEXT("Scaling factor for triangle traversal heat map visualization. (default = 30)\n")
 );
 
+static TAutoConsoleVariable<int32> CVarRayTracingDebugHitCountMaxThreshold(
+	TEXT("r.RayTracing.DebugTriangleHitCount.MaxThreshold"),
+	6,
+	TEXT("Maximum hit count threshold for debug ray tracing triangle hit count heat map visualization. (default = 6)\n")
+);
+
 static int32 GVisualizeProceduralPrimitives = 0;
 static FAutoConsoleVariableRef CVarVisualizeProceduralPrimitives(
 	TEXT("r.RayTracing.DebugVisualizationMode.ProceduralPrimitives"),
@@ -98,7 +104,7 @@ static FAutoConsoleVariableRef CVarVisualizeProceduralPrimitives(
 	ECVF_RenderThreadSafe
 );
 
-IMPLEMENT_RT_PAYLOAD_TYPE(ERayTracingPayloadType::RayTracingDebug, 36);
+IMPLEMENT_RT_PAYLOAD_TYPE(ERayTracingPayloadType::RayTracingDebug, 40);
 
 class FRayTracingDebugRGS : public FGlobalShader
 {
@@ -118,6 +124,7 @@ class FRayTracingDebugRGS : public FGlobalShader
 		SHADER_PARAMETER(float, FarFieldMaxTraceDistance)
 		SHADER_PARAMETER(FVector3f, FarFieldReferencePos)
 		SHADER_PARAMETER(int32, OpaqueOnly)
+		SHADER_PARAMETER(float, TriangleHitCountMaxThreshold)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(RaytracingAccelerationStructure, TLAS)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, Output)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, OutputDepth)
@@ -182,7 +189,7 @@ public:
 		return ERayTracingPayloadType::RayTracingDebug;
 	}
 };
-IMPLEMENT_GLOBAL_SHADER(FRayTracingDebugCHS, "/Engine/Private/RayTracing/RayTracingDebugCHS.usf", "RayTracingDebugMainCHS", SF_RayHitGroup);
+IMPLEMENT_GLOBAL_SHADER(FRayTracingDebugCHS, "/Engine/Private/RayTracing/RayTracingDebugCHS.usf", "closesthit=RayTracingDebugMainCHS anyhit=RayTracingDebugAHS", SF_RayHitGroup);
 
 class FRayTracingDebugMS : public FGlobalShader
 {
@@ -211,7 +218,6 @@ public:
 	}
 };
 IMPLEMENT_GLOBAL_SHADER(FRayTracingDebugMS, "/Engine/Private/RayTracing/RayTracingDebugMS.usf", "RayTracingDebugMS", SF_RayMiss);
-
 
 class FRayTracingDebugTraversalCS : public FGlobalShader
 {
@@ -449,7 +455,6 @@ struct FRayTracingDebugResources : public FRenderResource
 				PickingBuffers[BufferIndex] = nullptr;
 			}
 		}
-
 		PickingBuffers.Reset();
 	}
 };
@@ -550,12 +555,13 @@ void BindRayTracingDebugCHSMaterialBindings(FRHICommandList& RHICmdList, const F
 
 static bool RequiresRayTracingDebugCHS(uint32 DebugVisualizationMode)
 {
-	return DebugVisualizationMode == RAY_TRACING_DEBUG_VIZ_INSTANCES || 
+	return DebugVisualizationMode == RAY_TRACING_DEBUG_VIZ_INSTANCES ||
 		DebugVisualizationMode == RAY_TRACING_DEBUG_VIZ_TRIANGLES ||
 		DebugVisualizationMode == RAY_TRACING_DEBUG_VIZ_DYNAMIC_INSTANCES ||
 		DebugVisualizationMode == RAY_TRACING_DEBUG_VIZ_PROXY_TYPE ||
 		DebugVisualizationMode == RAY_TRACING_DEBUG_VIZ_PICKER ||
-		DebugVisualizationMode == RAY_TRACING_DEBUG_VIZ_INSTANCE_OVERLAP;
+		DebugVisualizationMode == RAY_TRACING_DEBUG_VIZ_INSTANCE_OVERLAP ||
+		DebugVisualizationMode == RAY_TRACING_DEBUG_VIZ_TRIANGLE_HITCOUNT;
 }
 
 static bool IsRayTracingDebugTraversalMode(uint32 DebugVisualizationMode)
@@ -857,6 +863,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 		RayTracingDebugVisualizationModes.Emplace(FName(*LOCTEXT("Proxy Type", "Proxy Type").ToString()),										RAY_TRACING_DEBUG_VIZ_PROXY_TYPE);
 		RayTracingDebugVisualizationModes.Emplace(FName(*LOCTEXT("Picker", "Picker").ToString()),												RAY_TRACING_DEBUG_VIZ_PICKER);
 		RayTracingDebugVisualizationModes.Emplace(FName(*LOCTEXT("Instance Overlap", "Instance Overlap").ToString()),							RAY_TRACING_DEBUG_VIZ_INSTANCE_OVERLAP);
+		RayTracingDebugVisualizationModes.Emplace(FName(*LOCTEXT("Triangle Hit Count", "Triangle Hit Count").ToString()),						RAY_TRACING_DEBUG_VIZ_TRIANGLE_HITCOUNT);
 	}
 
 	uint32 DebugVisualizationMode;
@@ -994,7 +1001,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 		PermutationVectorCHS.Set<FRayTracingDebugCHS::FNaniteRayTracing>(true);
 		auto HitGroupShaderNaniteRT = View.ShaderMap->GetShader<FRayTracingDebugCHS>(PermutationVectorCHS);
 
-		FRHIRayTracingShader* HitGroupTable[] = { HitGroupShader.GetRayTracingShader(), HitGroupShaderNaniteRT.GetRayTracingShader() };
+		FRHIRayTracingShader* HitGroupTable[] = { HitGroupShader.GetRayTracingShader(), HitGroupShaderNaniteRT.GetRayTracingShader()};
 		Initializer.SetHitGroupTable(HitGroupTable);
 		Initializer.bAllowHitGroupIndexing = true; // Required for stable output using GetBaseInstanceIndex().
 
@@ -1013,6 +1020,8 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 	RayGenParameters->ShouldUsePreExposure = View.Family->EngineShowFlags.Tonemapper;
 	RayGenParameters->TimingScale = CVarRayTracingDebugTimingScale.GetValueOnAnyThread() / 25000.0f;
 	RayGenParameters->OpaqueOnly = CVarRayTracingDebugModeOpaqueOnly.GetValueOnRenderThread();
+	RayGenParameters->TriangleHitCountMaxThreshold = FMath::Clamp((float)CVarRayTracingDebugHitCountMaxThreshold.GetValueOnRenderThread(), 1, 100000);
+
 	
 	// If we don't output depth, create dummy 1x1 texture
 	const bool bOutputDepth = DebugVisualizationMode == RAY_TRACING_DEBUG_VIZ_INSTANCE_OVERLAP;

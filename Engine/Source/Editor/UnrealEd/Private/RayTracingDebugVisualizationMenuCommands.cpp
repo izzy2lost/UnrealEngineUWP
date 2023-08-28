@@ -55,7 +55,7 @@ void FRayTracingDebugVisualizationMenuCommands::CreateRayTracingDebugVisualizati
 	RayTracingDebugModeNames.Add(LOCTEXT("Anisotropy", "Anisotropy"));
 	RayTracingDebugModeNames.Add(LOCTEXT("Instances", "Instances"));
 	RayTracingDebugModeNames.Add(LOCTEXT("Instance Overlap", "Instance Overlap"));
-
+	RayTracingDebugModeNames.Add(LOCTEXT("Triangle Hit Count", "Triangle Hit Count"));
 	if (GRHISupportsShaderTimestamp)
 	{
 		RayTracingDebugModeNames.Add(LOCTEXT("Performance", "Performance"));

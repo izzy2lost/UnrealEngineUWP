@@ -29,6 +29,8 @@ float MaxTraceDistance;
 float FarFieldMaxTraceDistance;
 float3 FarFieldReferencePos;
 
+float TriangleHitCountMaxThreshold;
+
 StructuredBuffer<FRayTracingInstanceDebugData> InstancesDebugData;
 StructuredBuffer<FRayTracingPickingFeedback> PickingBuffer;
 
@@ -168,9 +170,16 @@ float4 DebugRayTracingInstance(FRayDesc Ray, uint2 PixelCoord, out float OutDept
 	FRayTracingDebugPayload Payload = (FRayTracingDebugPayload)0;
 	Payload.SetMiss();
 
-	const uint RayFlags = RAY_FLAG_CULL_BACK_FACING_TRIANGLES;
+	uint RayFlags = RAY_FLAG_CULL_BACK_FACING_TRIANGLES;
 	const uint InstanceInclusionMask = (OpaqueOnly ? RAY_TRACING_MASK_OPAQUE : RAY_TRACING_MASK_ALL);
-
+	if (VisualizationMode == RAY_TRACING_DEBUG_VIZ_TRIANGLE_HITCOUNT)
+	{
+		RayFlags |= RAY_FLAG_FORCE_NON_OPAQUE;
+	}
+	else
+	{
+		RayFlags |= RAY_FLAG_FORCE_OPAQUE;
+	}
 	TraceRay(
 		TLAS,
 		RayFlags  /*RayFlags*/,
@@ -191,6 +200,9 @@ float4 DebugRayTracingInstance(FRayDesc Ray, uint2 PixelCoord, out float OutDept
 		default:
 		case RAY_TRACING_DEBUG_VIZ_INSTANCES:
 			Result.rgb = InstanceColor;
+			break;
+		case RAY_TRACING_DEBUG_VIZ_TRIANGLE_HITCOUNT:
+			Result.rgb = ColorMapTurbo(Payload.TriangleHitCountPerRay / TriangleHitCountMaxThreshold);
 			break;
 		case RAY_TRACING_DEBUG_VIZ_INSTANCE_OVERLAP:
 			Result.rgb = 1.0; // We only use fake lighting as instance heatmap is blended in
@@ -234,8 +246,12 @@ float4 DebugRayTracingInstance(FRayDesc Ray, uint2 PixelCoord, out float OutDept
 		const float FakeLighting = dot(Payload.WorldNormal, normalize(float3(1.0f, 1.0f, 1.0f)));
 		const float FakeLightingScale = (VisualizationMode == RAY_TRACING_DEBUG_VIZ_INSTANCE_OVERLAP) ? 0.5f : 0.125f;
 		const float FakeLightingBias = (VisualizationMode == RAY_TRACING_DEBUG_VIZ_INSTANCE_OVERLAP) ? 0.5f : 0.875f;
+		const int NoFakeLighting = (VisualizationMode == RAY_TRACING_DEBUG_VIZ_TRIANGLE_HITCOUNT);
 
-		Result.rgb *= FakeLighting * FakeLightingScale + FakeLightingBias;
+		if (!NoFakeLighting)
+		{
+			Result.rgb *= FakeLighting * FakeLightingScale + FakeLightingBias;
+		}
 
 		float3 TranslatedWorldPosition = Ray.Origin + Payload.HitT * Ray.Direction;
 		float4 ClipPosition = mul(float4(TranslatedWorldPosition, 1.0), View.TranslatedWorldToClip);
