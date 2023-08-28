@@ -345,6 +345,9 @@ public:
 	UPROPERTY(Transient, Replicated)
 	TWeakObjectPtr<UObject> WeakObjectPtrObjectRef;
 
+	UPROPERTY(Transient, Replicated)
+	TSoftObjectPtr<UObject> SoftObjectPtrRef;
+
 public:
 	// Network data only for test
 	TArray<UE::Net::FReplicationFragment*> ReplicationFragments;

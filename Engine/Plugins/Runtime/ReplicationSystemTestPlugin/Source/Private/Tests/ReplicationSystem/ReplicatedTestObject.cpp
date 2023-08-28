@@ -449,6 +449,7 @@ void UTestReplicatedIrisObjectWithObjectReference::GetLifetimeReplicatedProps( T
 	DOREPLIFETIME(ThisClass, IntC);
 	DOREPLIFETIME(ThisClass, RawObjectPtrRef);
 	DOREPLIFETIME(ThisClass, WeakObjectPtrObjectRef);
+	DOREPLIFETIME(ThisClass, SoftObjectPtrRef);
 }
 
 UTestReplicatedIrisObjectWithObjectReference::UTestReplicatedIrisObjectWithObjectReference()

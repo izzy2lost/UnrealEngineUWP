@@ -97,17 +97,10 @@ void FTestSoftObjectNetSerializer::TearDown()
 
 void FTestSoftObjectNetSerializer::SetUpTestValues()
 {
-	CreatedObjects.Add(TStrongObjectPtr<UObject>(NewObject<UTestReplicatedIrisObject>()));
-	CreatedObjects.Add(TStrongObjectPtr<UObject>(NewObject<UTestReplicatedIrisObject>()));
-
 	TestValues.Add(FSoftObjectPtr());
 	TestValues.Add(FSoftObjectPtr(FSoftObjectPath(TEXT("/Script/NonExistingPlugin.NonExistingClass:NonExistingInstance"))));
 
-	for (const TStrongObjectPtr<UObject>& Object : CreatedObjects)
-	{
-		TestValues.Add(FSoftObjectPtr(Object.Get()));
-		check(TestValues[TestValues.Num() - 1].Get() != nullptr);
-	}
+	// Non-stably named objects are tested in TestObjectNetSerializer.cpp.
 }
 
 void FTestSoftObjectNetSerializer::TestValidate()
