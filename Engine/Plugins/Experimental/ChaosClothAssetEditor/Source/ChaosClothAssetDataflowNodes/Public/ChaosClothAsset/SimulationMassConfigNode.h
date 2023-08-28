@@ -44,6 +44,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Mass Properties", meta = (UIMin = "0.001", UIMax = "1", ClampMin = "0", EditCondition = "MassMode == EClothMassMode::Density"))
 	float Density = 0.35f;
 
+	/** Calculated particle masses will be clamped to this minimum value (or 1e-8, whichever is larger). */
+	UPROPERTY(EditAnywhere, Category = "Mass Properties", meta = (ClampMin = "0"))
+	float MinPerParticleMass = 0.0001f;
+
 	FChaosClothAssetSimulationMassConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
