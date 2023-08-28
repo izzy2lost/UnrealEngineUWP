@@ -239,7 +239,7 @@ void UMVVMEditorSubsystem::RemoveViewModel(UWidgetBlueprint* WidgetBlueprint, FN
 	{
 		if (const FMVVMBlueprintViewModelContext* ViewModelContext = View->FindViewModel(ViewModel))
 		{
-			if (ViewModelContext->bCanRemove && ViewModelContext->InstancedViewModel)
+			if (ViewModelContext->bCanRemove)
 			{
 				View->RemoveViewModel(ViewModelContext->GetViewModelId());
 			}
