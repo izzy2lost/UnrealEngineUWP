@@ -177,17 +177,18 @@ namespace mu
 		Ptr<ASTOp> at;
 
 		// Plain masks optimization
-		if (!at && mask.child())
+		if (mask.child() && !(Flags & OP::ImageLayerArgs::F_USE_MASK_FROM_BLENDED) )
 		{
 			FVector4f colour;
 			if (mask.child()->IsImagePlainConstant(colour))
 			{
-				if (colour.IsNearlyZero3(UE_SMALL_NUMBER))
+				// For masks we only use one channel
+				if (FMath::IsNearlyZero(colour[0]))
 				{
 					// If the mask is black, we can skip the entire operation
 					at = base.child();
 				}
-				else if (colour.Equals(FVector4f(1, 1, 1, 1), UE_SMALL_NUMBER))
+				else if (FMath::IsNearlyEqual(colour[0], 1, UE_SMALL_NUMBER))
 				{
 					// If the mask is white, we can remove it
 					Ptr<ASTOpImageLayerColor> NewOp = mu::Clone<ASTOpImageLayerColor>(this);
@@ -230,18 +231,35 @@ namespace mu
 					{
 						switch (blendType)
 						{
-						case EBlendType::BT_LIGHTEN: bRGBUnchanged = FMath::IsNearlyEqual(ColorConst[3],0.0f); break;
+						case EBlendType::BT_LIGHTEN: bRGBUnchanged = FMath::IsNearlyZero(ColorConst[3]); break;
 						case EBlendType::BT_MULTIPLY: bRGBUnchanged = FMath::IsNearlyEqual(ColorConst[3],1.0f); break;
 						default: break;
 						}
 					}
 					else
 					{
-						switch (blendType)
+						// How many channels are there in the base?
+						FImageDesc BaseDesc = base->GetImageDesc();
+						const FImageFormatData& FormatDesc = GetImageFormatData(BaseDesc.m_format);
+						if (FormatDesc.Channels == 1)
 						{
-						case EBlendType::BT_LIGHTEN: bRGBUnchanged = ColorConst.IsNearlyZero3(UE_SMALL_NUMBER); break;
-						case EBlendType::BT_MULTIPLY: bRGBUnchanged = ColorConst.Equals(FVector4f(1, 1, 1, 1)); break;
-						default: break;
+							// We only need to check R
+							switch (blendType)
+							{
+							case EBlendType::BT_LIGHTEN: bRGBUnchanged = FMath::IsNearlyZero(ColorConst[0]); break;
+							case EBlendType::BT_MULTIPLY: bRGBUnchanged = FMath::IsNearlyEqual(ColorConst[0],1.0); break;
+							default: break;
+							}
+						}
+						else
+						{
+							// Check RGB
+							switch (blendType)
+							{
+							case EBlendType::BT_LIGHTEN: bRGBUnchanged = ColorConst.IsNearlyZero3(UE_SMALL_NUMBER); break;
+							case EBlendType::BT_MULTIPLY: bRGBUnchanged = FVector3f(ColorConst).Equals(FVector3f(1, 1, 1)); break;
+							default: break;
+							}
 						}
 					}
 				}

@@ -5396,7 +5396,7 @@ namespace mu
 
             case 1:
             {
-				FVector4f Result = FVector4f(1, 1, 1, 1);
+				FVector4f Result = FVector4f(0, 0, 0, 1);
 
 				for (int32 t = 0; t < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++t)
 				{

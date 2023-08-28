@@ -187,7 +187,7 @@ namespace mu
 		// Convert to image layer color if blend is plain
 		if (!at && blendAt && blendAt->GetOpType() == OP_TYPE::IM_PLAINCOLOUR)
 		{
-			// TODO: May some blags be supported?
+			// TODO: May some flags be supported?
 			if (Flags == 0)
 			{
 				const ASTOpFixed* BlendPlainColor = dynamic_cast<const ASTOpFixed*>(blendAt.get());
@@ -209,17 +209,18 @@ namespace mu
 			FVector4f colour;
 			if (maskAt->IsImagePlainConstant(colour))
 			{
-				if (colour.IsNearlyZero3(UE_SMALL_NUMBER))
+				// For masks we only use one channel
+				if (FMath::IsNearlyZero(colour[0]))
 				{
 					// If the mask is black, we can skip the entire operation
 					at = base.child();
 				}
-				else if (colour.Equals(FVector4f(1, 1, 1, 1), UE_SMALL_NUMBER))
+				else if (FMath::IsNearlyEqual(colour[0], 1, UE_SMALL_NUMBER))
 				{
 					// If the mask is white, we can remove it
-					Ptr<ASTOpImageLayer> nop = mu::Clone<ASTOpImageLayer>(this);
-					nop->mask = nullptr;
-					at = nop;
+					Ptr<ASTOpImageLayerColor> NewOp = mu::Clone<ASTOpImageLayerColor>(this);
+					NewOp->mask = nullptr;
+					at = NewOp;
 				}
 			}
 		}
@@ -464,6 +465,7 @@ namespace mu
 			if (validUsageRect)
 			{
 				// Adjust for compressed blocks (4), and some extra mips (2 more mips, which is 4)
+				// \TODO: block size may be different in ASTC
 				constexpr int blockSize = 4 * 4;
 
 				FImageRect maskUsage;
