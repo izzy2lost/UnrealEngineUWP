@@ -34,7 +34,15 @@
 #include "TextureResource.h"
 #include "SceneInterface.h"
 
+#include "NiagaraDataInterfaceGrid3DCollection.h"
+#include "NiagaraDataInterfaceRenderTargetVolume.h"
+
+#include "SparseVolumeTexture/SparseVolumeTexture.h"
+#include "Components/HeterogeneousVolumeComponent.h"
+
 //////////////////////////////////////////////////////////////////////////
+
+DEFINE_LOG_CATEGORY(LogNiagaraBaker);
 
 const FString FNiagaraBakerOutputBindingHelper::STRING_SceneCaptureSource("SceneCaptureSource");
 const FString FNiagaraBakerOutputBindingHelper::STRING_BufferVisualization("BufferVisualization");
@@ -285,6 +293,18 @@ FNiagaraBakerRenderer::~FNiagaraBakerRenderer()
 {
 	DestroyPreviewScene(PreviewComponent, AdvancedPreviewScene);
 	DestroyPreviewScene(SimCachePreviewComponent, SimCacheAdvancedPreviewScene);
+
+	// Clean up SVT preview scene
+	if (SVTPreviewScene && SVTPreviewComponent)
+	{
+		SVTPreviewScene->RemoveComponent(SVTPreviewComponent);
+		SVTPreviewScene = nullptr;
+	}
+	if (SVTPreviewComponent)
+	{
+		SVTPreviewComponent->DestroyComponent();
+		SVTPreviewComponent = nullptr;
+	}
 }
 
 void FNiagaraBakerRenderer::SetAbsoluteTime(float AbsoluteTime, bool bShouldTickComponent)
@@ -324,16 +344,16 @@ void FNiagaraBakerRenderer::RenderSceneCapture(UTextureRenderTarget2D* RenderTar
 	RenderSceneCapture(RenderTarget, PreviewComponent, CaptureSource);
 }
 
-void FNiagaraBakerRenderer::RenderSceneCapture(UTextureRenderTarget2D* RenderTarget, UNiagaraComponent* NiagaraComponent, ESceneCaptureSource CaptureSource) const
+void FNiagaraBakerRenderer::RenderSceneCapture(UTextureRenderTarget2D* RenderTarget, UPrimitiveComponent* BakedDataComponent, ESceneCaptureSource CaptureSource) const
 {
 	UNiagaraBakerSettings* BakerSettings = GetBakerSettings();
-	if (!NiagaraComponent || !RenderTarget || !BakerSettings)
+	if (!BakedDataComponent || !RenderTarget || !BakerSettings)
 	{
 		return;
 	}
 
 	const float WorldTime = GetWorldTime();
-	UWorld* World = NiagaraComponent->GetWorld();
+	UWorld* World = BakedDataComponent->GetWorld();
 
 	FCanvas Canvas(RenderTarget->GameThread_GetRenderTargetResource(), nullptr, FGameTime::CreateUndilated(WorldTime, FApp::GetDeltaTime()), GetFeatureLevel());
 	Canvas.Clear(FLinearColor::Black);
@@ -366,7 +386,7 @@ void FNiagaraBakerRenderer::RenderSceneCapture(UTextureRenderTarget2D* RenderTar
 	{
 		SceneCaptureComponent->PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_UseShowOnlyList;
 		SceneCaptureComponent->ShowOnlyComponents.Empty(1);
-		SceneCaptureComponent->ShowOnlyComponents.Add(NiagaraComponent);
+		SceneCaptureComponent->ShowOnlyComponents.Add(BakedDataComponent);
 	}
 	else
 	{
@@ -623,6 +643,70 @@ void FNiagaraBakerRenderer::RenderSimCache(UTextureRenderTarget2D* RenderTarget,
 	SimCachePreviewComponent->SetSimCache(nullptr);
 }
 
+void FNiagaraBakerRenderer::RenderSparseVolumeTexture(UTextureRenderTarget2D* RenderTarget, const FNiagaraBakerOutputFrameIndices Indices, UAnimatedSparseVolumeTexture* SVT) const
+{
+	UNiagaraBakerSettings* BakerSettings = GetBakerSettings();
+	if (!SVT)
+	{
+		return;
+	}
+
+	bool CreatePreviewComponent = SVTPreviewComponent == nullptr;
+	if (CreatePreviewComponent)
+	{
+		SVTPreviewComponent = NewObject<UHeterogeneousVolumeComponent>(GetTransientPackage(), NAME_None, RF_Transient);
+				
+		// create HV component and wire all the things
+		UMaterialInterface* MaterialInterface = LoadObject<UMaterialInterface>(NULL, TEXT("/Engine/EngineMaterials/SparseVolumeMaterial"), NULL, LOAD_None, NULL);
+		
+		UMaterial *Mat = MaterialInterface->GetMaterial();
+
+		// #todo(dmp): we had to duplicate the material itself because we cannot make a mid and send that to HV
+		// HV internally makes a MID from whatever is bound, and the MID of a MID workflow appears broken	
+		UMaterial *DuplicateMat = DuplicateObject<UMaterial>(Mat, SVTPreviewComponent);
+
+		FGuid ExprGuid;
+		DuplicateMat->SetStaticComponentMaskParameterValueEditorOnly("Temperature Mask", false, true, false, false, ExprGuid);
+
+		FGuid SwitchGuid;
+		DuplicateMat->SetStaticSwitchParameterValueEditorOnly("Temperature (Attributes B)", false, SwitchGuid);
+
+		DuplicateMat->SetSparseVolumeTextureParameterValueEditorOnly("SparseVolumeTexture", SVT);
+
+		SVTPreviewComponent->OverrideMaterials.Add(DuplicateMat);
+
+		SVTPreviewComponent->bIssueBlockingRequests = true;
+		SVTPreviewComponent->PostLoad();
+
+		SVTPreviewScene = MakeShareable(new FAdvancedPreviewScene(FPreviewScene::ConstructionValues()));
+		SVTPreviewScene->SetFloorVisibility(false);
+		SVTPreviewScene->AddComponent(SVTPreviewComponent, SVTPreviewComponent->GetRelativeTransform());
+	}
+	
+	TArray<FMaterialParameterInfo> ParameterInfo;
+	TArray<FGuid> ParameterIds;
+	SVTPreviewComponent->OverrideMaterials[0]->GetAllSparseVolumeTextureParameterInfo(ParameterInfo, ParameterIds);
+	USparseVolumeTexture* OldSVT;
+	SVTPreviewComponent->OverrideMaterials[0]->GetSparseVolumeTextureParameterValue(ParameterInfo[0], OldSVT);
+	
+	if (OldSVT != SVT)
+	{
+		SVTPreviewComponent->OverrideMaterials[0]->GetMaterial()->SetSparseVolumeTextureParameterValueEditorOnly("SparseVolumeTexture", SVT);
+	}
+	SVTPreviewComponent->SetFrame(Indices.FrameIndexA);
+	
+	// #todo(dmp): apply world scale and pivot to HV actor
+
+	const float SeekDelta = BakerSettings->GetSeekDelta();
+	SVTPreviewComponent->TickComponent(SeekDelta, ELevelTick::LEVELTICK_All, nullptr);
+
+	SVTPreviewComponent->MarkRenderDynamicDataDirty();
+	UWorld* World = SVTPreviewComponent->GetWorld();
+	World->SendAllEndOfFrameUpdates();
+
+	RenderSceneCapture(RenderTarget, SVTPreviewComponent, ESceneCaptureSource::SCS_SceneColorHDR);
+}
+
 UWorld* FNiagaraBakerRenderer::GetWorld() const
 {
 	return PreviewComponent->GetWorld();
@@ -649,6 +733,7 @@ void FNiagaraBakerRenderer::AddReferencedObjects(FReferenceCollector& Collector)
 	Collector.AddReferencedObject(PreviewComponent);
 	Collector.AddReferencedObject(SceneCaptureComponent);
 	Collector.AddReferencedObject(SimCachePreviewComponent);
+	Collector.AddReferencedObject(SVTPreviewComponent);
 }
 
 FNiagaraBakerOutputRenderer* FNiagaraBakerRenderer::GetOutputRenderer(UClass* Class)
@@ -751,4 +836,76 @@ bool FNiagaraBakerRenderer::ExportVolume(FStringView FilePath, FIntVector ImageS
 	{
 		return ExportImage(FilePath, FIntPoint(ImageSize.X, ImageSize.Y * ImageSize.Z), ImageData);
 	}
+}
+
+
+
+bool FVolumeDataInterfaceHelper::Initialize(const TArray<FString>& InputDataInterfacePath, UNiagaraComponent* InNiagaraComponent)
+{
+	NiagaraComponent = InNiagaraComponent;
+
+	DataInterfacePath = InputDataInterfacePath;
+	
+	if (DataInterfacePath.Num() < 2)
+	{
+		return false;
+	}
+
+	const FName DataInterfaceName(DataInterfacePath[0] + "." + DataInterfacePath[1]);
+	UNiagaraDataInterface* DataInterface = FNiagaraBakerOutputBindingHelper::GetDataInterface(NiagaraComponent, DataInterfaceName);
+	if (DataInterface == nullptr)
+	{
+		return false;
+	}
+
+	// Guaranteed since we got a data interface
+	SystemInstance = NiagaraComponent->GetSystemInstanceController()->GetSoloSystemInstance();
+
+	// Render Target Volume
+	if (DataInterface->IsA<UNiagaraDataInterfaceRenderTargetVolume>())
+	{
+		VolumeRenderTargetDataInterface = CastChecked<UNiagaraDataInterfaceRenderTargetVolume>(DataInterface);
+		VolumeRenderTargetProxy = static_cast<FNiagaraDataInterfaceProxyRenderTargetVolumeProxy*>(VolumeRenderTargetDataInterface->GetProxy());
+		VolumeRenderTargetInstanceData_GameThread = reinterpret_cast<FRenderTargetVolumeRWInstanceData_GameThread*>(SystemInstance->FindDataInterfaceInstanceData(VolumeRenderTargetDataInterface));
+		if (VolumeRenderTargetInstanceData_GameThread == nullptr)
+		{
+			return false;
+		}
+	}
+	// Grid 3D
+	else if (DataInterface->IsA<UNiagaraDataInterfaceGrid3DCollection>())
+	{
+		Grid3DDataInterface = CastChecked<UNiagaraDataInterfaceGrid3DCollection>(DataInterface);
+		Grid3DProxy = static_cast<FNiagaraDataInterfaceProxyGrid3DCollectionProxy*>(Grid3DDataInterface->GetProxy());
+		Grid3DInstanceData_GameThread = reinterpret_cast<FGrid3DCollectionRWInstanceData_GameThread*>(SystemInstance->FindDataInterfaceInstanceData(Grid3DDataInterface));
+		if (Grid3DInstanceData_GameThread == nullptr)
+		{
+			return false;
+		}
+
+		if (DataInterfacePath.Num() != 3)
+		{
+			// Perhaps a path to pull all attributes, i.e. whole texture?
+			return false;
+		}
+
+		Grid3DAttributeName = FName(DataInterfacePath[2]);
+		Grid3DVariableIndex = Grid3DInstanceData_GameThread->Vars.IndexOfByPredicate([&](const FNiagaraVariableBase& VariableBase) { return VariableBase.GetName() == Grid3DAttributeName; });
+		if (Grid3DVariableIndex == INDEX_NONE)
+		{
+			return false;
+		}
+		Grid3DAttributeStart = Grid3DInstanceData_GameThread->Offsets[Grid3DVariableIndex];
+		Grid3DAttributeChannels = Grid3DInstanceData_GameThread->Vars[Grid3DVariableIndex].GetType().GetSize() / sizeof(float);
+		Grid3DTextureSize.X = Grid3DInstanceData_GameThread->NumCells.X * Grid3DInstanceData_GameThread->NumTiles.X;
+		Grid3DTextureSize.Y = Grid3DInstanceData_GameThread->NumCells.Y * Grid3DInstanceData_GameThread->NumTiles.Y;
+		Grid3DTextureSize.Z = Grid3DInstanceData_GameThread->NumCells.Z * Grid3DInstanceData_GameThread->NumTiles.Z;
+	}
+	// Unsupported type
+	else
+	{
+		return false;
+	}
+
+	return true;
 }

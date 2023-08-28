@@ -49,6 +49,7 @@ public class NiagaraEditor : ModuleRules
 				"ToolWidgets",
 				"AssetTools",
 				"LevelSequence",
+				"SparseVolumeTexture",
 			}
 		);
 
