@@ -508,7 +508,6 @@ void FFractureEditorModeToolkit::RequestModeUITabs()
 		{ 
 			return;
 		}
-		TSharedRef<FWorkspaceItem> MenuGroup = MenuModeCategoryPtr.ToSharedRef();
 		HierarchyTabInfo.OnSpawnTab = FOnSpawnTab::CreateSP(SharedThis(this), &FFractureEditorModeToolkit::CreateHierarchyTab);
 		HierarchyTabInfo.TabLabel = LOCTEXT("FractureHierarchy", "Fracture Hierarchy");
 		HierarchyTabInfo.TabTooltip = LOCTEXT("ModesToolboxTabTooltipText", "Open the  Modes tab, which contains the active editor mode's settings.");

@@ -1751,8 +1751,6 @@ void SLevelEditor::RefreshEditorModeCommands()
 	{
 		FLevelEditorModesCommands::Register();
 	}
-	const IWorkspaceMenuStructure& MenuStructure = WorkspaceMenu::GetMenuStructure();
-	TSharedPtr<FTabManager> LevelEditorTabManager = LevelEditorModule.GetLevelEditorTabManager();
 
 	// We need to remap all the actions to commands.
 	const FLevelEditorModesCommands& Commands = FLevelEditorModesCommands::Get();
