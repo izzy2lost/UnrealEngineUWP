@@ -356,7 +356,7 @@ namespace EpicGames.Horde.Storage.Bundles
 						string cacheKey = GetEncodedPacketCacheKey(bundleInfo.Locator, idx);
 						byte[] data = await ReadPacketAsync(stream, bundleInfo.Header.Packets[idx].EncodedLength, cancellationToken);
 						packets[idx - minPacketIdx] = data;
-						AddToCache(cacheKey, data, data.Length);
+						AddToCache(cacheKey, (ReadOnlyMemory<byte>)data, data.Length);
 					}
 				}
 
