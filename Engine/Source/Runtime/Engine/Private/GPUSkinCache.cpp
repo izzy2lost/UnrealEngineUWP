@@ -9,6 +9,7 @@ GPUSkinCache.cpp: Performs skinning on a compute shader into a buffer to avoid v
 #include "CanvasTypes.h"
 #include "Engine/Engine.h"
 #include "Engine/SkeletalMesh.h"
+#include "Rendering/RenderCommandPipes.h"
 #include "SkeletalRenderGPUSkin.h"
 #include "MeshDrawShaderBindings.h"
 #include "ShaderParameterUtils.h"
@@ -2282,7 +2283,7 @@ void FGPUSkinCache::CVarSinkFunction()
 	if (NewGPUSkinCacheValue != GEnableGPUSkinCache || NewRecomputeTangentsValue != GSkinCacheRecomputeTangents
 		|| NewSceneMaxSizeInMb != GSkinCacheSceneMemoryLimitInMB || NewNumTangentIntermediateBuffers != GNumTangentIntermediateBuffers)
 	{
-		ENQUEUE_RENDER_COMMAND(DoEnableSkinCaching)(
+		ENQUEUE_RENDER_COMMAND(DoEnableSkinCaching)(UE::RenderCommandPipe::SkeletalMesh,
 			[NewRecomputeTangentsValue, NewGPUSkinCacheValue, NewSceneMaxSizeInMb, NewNumTangentIntermediateBuffers](FRHICommandList& RHICmdList)
 		{
 			GNumTangentIntermediateBuffers = FMath::Max(NewNumTangentIntermediateBuffers, 1);

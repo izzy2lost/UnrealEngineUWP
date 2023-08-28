@@ -284,6 +284,16 @@ enum class ERenderCommandPipeMode
 	All
 };
 
+enum class ERenderCommandPipeFlags : uint8
+{
+	None = 0,
+
+	/** Initializes the render command pipe in a disabled state. */
+	Disabled = 1 << 0
+};
+
+ENUM_CLASS_FLAGS(ERenderCommandPipeFlags);
+
 namespace UE::RenderCommandPipe
 {
 	// [Game Thread] Initializes all statically initialized render command pipes.
@@ -404,7 +414,7 @@ public:
 	using FCommandListFunction = TUniqueFunction<void(FRHICommandList&)>;
 	using FEmptyFunction = TUniqueFunction<void()>;
 
-	RENDERCORE_API FRenderCommandPipe(const TCHAR* Name);
+	RENDERCORE_API FRenderCommandPipe(const TCHAR* Name, ERenderCommandPipeFlags Flags, const TCHAR* CVarName, const TCHAR* CVarDescription);
 	RENDERCORE_API ~FRenderCommandPipe();
 
 	FORCEINLINE const TCHAR* GetName() const
@@ -529,6 +539,7 @@ private:
 	FFrame* Frame_GameThread = nullptr;
 	FFrame* Frame_RenderThread = nullptr;
 	TLinkedList<FRenderCommandPipe*> GlobalListLink;
+	FAutoConsoleVariable ConsoleVariable;
 	bool bEnabled = true;
 };
 
@@ -537,23 +548,17 @@ private:
 	namespace UE::RenderCommandPipe { extern PrefixKeywords FRenderCommandPipe Name; }
 
 /** Defines a render command pipe. */
-#define DEFINE_RENDER_COMMAND_PIPE(Name) \
+#define DEFINE_RENDER_COMMAND_PIPE(Name, Flags) \
 	namespace UE::RenderCommandPipe \
 	{ \
-		FRenderCommandPipe Name(TEXT(#Name)); \
-		namespace \
-		{ \
-			FAutoConsoleVariable CVar_##Name( \
-				TEXT("r.RenderCommandPipe." #Name), true, \
-				TEXT("Whether to enable the " #Name " Render Command Pipe") \
-				TEXT(" 0: off;") \
-				TEXT(" 1: on (default)"), \
-				FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* Variable) \
-			{ \
-				UE::RenderCommandPipe::Name.SetEnabled(Variable->GetBool()); \
-			}), \
-			ECVF_Default); \
-		} \
+		FRenderCommandPipe Name( \
+			TEXT(#Name), \
+			Flags, \
+			TEXT("r.RenderCommandPipe." #Name), \
+			TEXT("Whether to enable the " #Name " Render Command Pipe") \
+			TEXT(" 0: off;") \
+			TEXT(" 1: on (default)") \
+		); \
 	}
 
 /** Enqueues a render command to a render pipe. The default implementation takes a lambda and schedules on the render thread.

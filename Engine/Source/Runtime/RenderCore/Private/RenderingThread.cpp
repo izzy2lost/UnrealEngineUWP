@@ -1540,7 +1540,7 @@ inline ERenderCommandPipeMode GetValidatedRenderCommandPipeMode(int32 CVarValue)
 ERenderCommandPipeMode GRenderCommandPipeMode = ERenderCommandPipeMode::None;
 FAutoConsoleVariable CVarRenderCommandPipeMode(
 	TEXT("r.RenderCommandPipeMode"),
-	1,
+	2,
 	TEXT("Controls behavior of the main render thread command pipe.")
 	TEXT(" 0: Render commands are launched individually as tasks;\n")
 	TEXT(" 1: Render commands are enqueued into a render command pipe for the render thread only.;\n")
@@ -1600,6 +1600,9 @@ public:
 
 		for (TLinkedList<FRenderCommandPipe*>::TIterator PipeIt(GlobalList); PipeIt; PipeIt.Next())
 		{
+			FRenderCommandPipe* Pipe = *PipeIt;
+			Pipe->SetEnabled(Pipe->ConsoleVariable->GetBool());
+
 			Pipes.Emplace(*PipeIt);
 		}
 #endif // !UE_SERVER
@@ -1773,9 +1776,13 @@ namespace UE::RenderCommandPipe
 	}
 }
 
-FRenderCommandPipe::FRenderCommandPipe(const TCHAR* InName)
+FRenderCommandPipe::FRenderCommandPipe(const TCHAR* InName, ERenderCommandPipeFlags Flags, const TCHAR* CVarName, const TCHAR* CVarDescription)
 	: Name(InName)
 	, GlobalListLink(this)
+	, ConsoleVariable(CVarName, !EnumHasAnyFlags(Flags, ERenderCommandPipeFlags::Disabled), CVarDescription, FConsoleVariableDelegate::CreateLambda([this](IConsoleVariable* Variable)
+	{
+		SetEnabled(Variable->GetBool());
+	}))
 {
 	GlobalListLink.LinkHead(GRenderCommandPipeRegistry.GlobalList);
 }
@@ -1832,6 +1839,8 @@ void FRenderCommandPipe::EnqueueAndLaunch(FFunctionVariant&& FunctionVariant, co
 			{
 				Command.Function.Get<FEmptyFunction>()();
 			}
+
+			Command.Function = {};
 		}
 
 	}, Frame_GameThread->TaskEvent);

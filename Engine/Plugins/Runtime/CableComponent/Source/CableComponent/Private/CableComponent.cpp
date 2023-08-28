@@ -14,7 +14,7 @@
 #include "StaticMeshResources.h"
 #include "SceneInterface.h"
 
-DEFINE_RENDER_COMMAND_PIPE(Cable);
+DEFINE_RENDER_COMMAND_PIPE(Cable, ERenderCommandPipeFlags::None);
 
 static TAutoConsoleVariable<int32> CVarRayTracingCableMeshes(
 	TEXT("r.RayTracing.Geometry.Cable"),

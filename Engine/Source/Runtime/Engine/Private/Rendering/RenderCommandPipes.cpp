@@ -2,4 +2,4 @@
 
 #include "Rendering/RenderCommandPipes.h"
 
-DEFINE_RENDER_COMMAND_PIPE(SkeletalMesh);
+DEFINE_RENDER_COMMAND_PIPE(SkeletalMesh, ERenderCommandPipeFlags::None);

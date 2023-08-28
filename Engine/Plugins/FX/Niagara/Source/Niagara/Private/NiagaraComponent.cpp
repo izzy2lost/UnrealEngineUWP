@@ -43,7 +43,7 @@ DECLARE_CYCLE_STAT(TEXT("Get Dynamic Mesh Elements (RT)"), STAT_NiagaraComponent
 
 DEFINE_LOG_CATEGORY(LogNiagara);
 
-DEFINE_RENDER_COMMAND_PIPE(NiagaraDynamicData);
+DEFINE_RENDER_COMMAND_PIPE(NiagaraDynamicData, ERenderCommandPipeFlags::None);
 
 static int GNiagaraSoloTickEarly = 1;
 static FAutoConsoleVariableRef CVarNiagaraSoloTickEarly(

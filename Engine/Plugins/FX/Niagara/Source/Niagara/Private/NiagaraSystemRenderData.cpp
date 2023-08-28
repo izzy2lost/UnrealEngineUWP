@@ -8,6 +8,8 @@
 #include "PrimitiveViewRelevance.h"
 #include "SceneView.h"
 
+DECLARE_RENDER_COMMAND_PIPE(NiagaraDynamicData, );
+
 void FNiagaraSystemRenderData::ExecuteDynamicDataCommands_RenderThread(const FSetDynamicDataCommandList& Commands)
 {
 	for (auto& Command : Commands)
@@ -298,12 +300,21 @@ void FNiagaraSystemRenderData::RecacheRenderers(const FNiagaraSystemInstance& Sy
 
 	// If we have renderers then the draw order on the system should match, when compiling the number of renderers can be zero
 	checkf((EmitterRenderers_GT.Num() == 0) || (EmitterRenderers_GT.Num() == RendererDrawOrder.Num()), TEXT("EmitterRenderers Num %d does not match System DrawOrder %d"), EmitterRenderers_GT.Num(), RendererDrawOrder.Num());
-	
+
+	UE::Tasks::FTaskEvent TaskEvent{ UE_SOURCE_LOCATION };
+
+	ENQUEUE_RENDER_COMMAND(SignalFence)(UE::RenderCommandPipe::NiagaraDynamicData, [TaskEvent] () mutable
+	{
+		TaskEvent.Trigger();
+	});
+
 	// NOTE: Since this object and its render thread resources may be concurrently accessed on the render thread, we have to create the renderers and pass them off to
 	// replace the current ones on the render thread's time line
 	ENQUEUE_RENDER_COMMAND(NiagaraRecacheRenderers)(
-		[this, EmitterRenderers_Copy=EmitterRenderers_GT](FRHICommandListImmediate& RHICmdList) mutable
+		[this, EmitterRenderers_Copy=EmitterRenderers_GT, TaskEvent = MoveTemp(TaskEvent)](FRHICommandListImmediate& RHICmdList) mutable
 		{
+			TaskEvent.Wait();
+
 			// Release/destroy the current renderers
 			Destroy_RenderThread();
 
