@@ -3,6 +3,7 @@
 #include "StructView.h"
 #include "Serialization/CustomVersion.h"
 #include "Serialization/PropertyLocalizationDataGathering.h"
+#include "Serialization/CustomVersion.h"
 #include "StructUtilsTypes.h"
 
 #if WITH_ENGINE
