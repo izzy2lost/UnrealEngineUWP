@@ -442,9 +442,12 @@ UPCGGraph* FPCGSubgraphHelpers::CollapseIntoSubgraph(UPCGGraph* InOriginalGraph,
 	Algo::Transform(CollapseInfo.GraphParametersUsed, GraphParametersUsed, [](const FPropertyBagPropertyDesc* In) { check(In); return *In; });
 	NewPCGGraph->AddUserParameters(GraphParametersUsed, InOriginalGraph);
 
-	// 6. Create subgraph and delete old nodes and superfluous nodes
+	// 6. Create subgraph and delete old nodes, extra nodes and superfluous nodes
 	UPCGNode* SubgraphNode = nullptr;
 	{
+		TArray<UPCGNode*> NodesToRemove;
+		NodesToRemove.Reserve(CollapseInfo.ValidNodesToCollapse.Num());
+
 		for (UPCGNode* PCGNode : CollapseInfo.ValidNodesToCollapse)
 		{
 			const UPCGSettings* NodeSettings = PCGNode->GetSettings();
@@ -455,7 +458,7 @@ UPCGGraph* FPCGSubgraphHelpers::CollapseIntoSubgraph(UPCGGraph* InOriginalGraph,
 				continue;
 			}
 
-			InOriginalGraph->RemoveNode(PCGNode);
+			NodesToRemove.Add(PCGNode);
 		}
 
 #if WITH_EDITOR
@@ -474,9 +477,12 @@ UPCGGraph* FPCGSubgraphHelpers::CollapseIntoSubgraph(UPCGGraph* InOriginalGraph,
 
 			if (!bHasAnyEdges)
 			{
-				InOriginalGraph->RemoveNode(SuperfluousNode);
+				NodesToRemove.Add(SuperfluousNode);
 			}
 		}
+
+		// Finally remove them all in one go
+		InOriginalGraph->RemoveNodes(NodesToRemove);
 
 		UPCGSettings* DefaultNodeSettings = nullptr;
 		SubgraphNode = InOriginalGraph->AddNodeOfType(UPCGSubgraphSettings::StaticClass(), DefaultNodeSettings);

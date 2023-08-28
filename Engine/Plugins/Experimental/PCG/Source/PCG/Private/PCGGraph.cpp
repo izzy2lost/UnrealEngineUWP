@@ -452,20 +452,41 @@ UPCGNode* UPCGGraph::AddNodeCopy(UPCGSettings* InSettings, UPCGSettings*& Defaul
 
 void UPCGGraph::OnNodeAdded(UPCGNode* InNode)
 {
+	OnNodesAdded(MakeArrayView<UPCGNode*>(&InNode, 1));
+}
+
+void UPCGGraph::OnNodesAdded(TArrayView<UPCGNode*> InNodes)
+{
 #if WITH_EDITOR
-	InNode->OnNodeChangedDelegate.AddUObject(this, &UPCGGraph::OnNodeChanged);
+	for (UPCGNode* Node : InNodes)
+	{
+		if (Node)
+		{
+			Node->OnNodeChangedDelegate.AddUObject(this, &UPCGGraph::OnNodeChanged);
+		}
+	}
+
 	NotifyGraphChanged(EPCGChangeType::Structural);
 #endif
 }
 
 void UPCGGraph::OnNodeRemoved(UPCGNode* InNode)
 {
+	OnNodesRemoved(MakeArrayView<UPCGNode*>(&InNode, 1));
+}
+
+void UPCGGraph::OnNodesRemoved(TArrayView<UPCGNode*> InNodes)
+{
 #if WITH_EDITOR
-	if (InNode)
+	for (UPCGNode* Node : InNodes)
 	{
-		InNode->OnNodeChangedDelegate.RemoveAll(this);
-		NotifyGraphChanged(EPCGChangeType::Structural);
+		if (Node)
+		{
+			Node->OnNodeChangedDelegate.RemoveAll(this);
+		}
 	}
+
+	NotifyGraphChanged(EPCGChangeType::Structural); 
 #endif
 }
 
@@ -540,50 +561,87 @@ bool UPCGGraph::Contains(UPCGNode* Node) const
 
 void UPCGGraph::AddNode(UPCGNode* InNode)
 {
-	check(InNode);
+	AddNodes_Internal(MakeArrayView<UPCGNode*>(&InNode, 1));
+}
+
+void UPCGGraph::AddNodes(TArray<UPCGNode*>& InNodes)
+{
+	AddNodes_Internal(InNodes);
+}
+
+void UPCGGraph::AddNodes_Internal(TArrayView<UPCGNode*> InNodes)
+{
+	if (InNodes.IsEmpty())
+	{
+		return;
+	}
 
 	Modify();
 
-	InNode->Rename(nullptr, this);
+	for (UPCGNode* Node : InNodes)
+	{
+		check(Node);
+		Node->Rename(nullptr, this);
 
 #if WITH_EDITOR
-	const FName DefaultNodeName = InNode->GetSettings()->GetDefaultNodeName();
-	if (DefaultNodeName != NAME_None)
-	{
-		FName NodeName = MakeUniqueObjectName(this, UPCGNode::StaticClass(), DefaultNodeName);
-		InNode->Rename(*NodeName.ToString());
-	}
+		const FName DefaultNodeName = Node->GetSettings()->GetDefaultNodeName();
+		if (DefaultNodeName != NAME_None)
+		{
+			FName NodeName = MakeUniqueObjectName(this, UPCGNode::StaticClass(), DefaultNodeName);
+			Node->Rename(*NodeName.ToString());
+		}
 #endif
 
-	Nodes.Add(InNode);
-	OnNodeAdded(InNode);
+		Nodes.Add(Node);
+	}
+
+	OnNodesAdded(InNodes);
 }
 
 void UPCGGraph::RemoveNode(UPCGNode* InNode)
 {
-	check(InNode);
+	RemoveNodes_Internal(MakeArrayView<UPCGNode*>(&InNode, 1));
+}
+
+void UPCGGraph::RemoveNodes(TArray<UPCGNode*>& InNodes)
+{
+	RemoveNodes_Internal(InNodes);
+}
+
+void UPCGGraph::RemoveNodes_Internal(TArrayView<UPCGNode*> InNodes)
+{
+	if (InNodes.IsEmpty())
+	{
+		return;
+	}
 
 	Modify();
 	
 	TSet<UPCGNode*> TouchedNodes;
 
-	for (UPCGPin* InputPin : InNode->InputPins)
+	for (UPCGNode* Node : InNodes)
 	{
-		InputPin->BreakAllEdges(&TouchedNodes);
-	}
+		check(Node);
 
-	for (UPCGPin* OutputPin : InNode->OutputPins)
-	{
-		OutputPin->BreakAllEdges(&TouchedNodes);
-	}
+		for (UPCGPin* InputPin : Node->InputPins)
+		{
+			InputPin->BreakAllEdges(&TouchedNodes);
+		}
 
-	// We're about to remove InNode, so don't bother triggering updates
-	TouchedNodes.Remove(InNode);
+		for (UPCGPin* OutputPin : Node->OutputPins)
+		{
+			OutputPin->BreakAllEdges(&TouchedNodes);
+		}
+
+		// We're about to remove InNode, so don't bother triggering updates
+		TouchedNodes.Remove(Node);
+
+		Nodes.Remove(Node);
+	}
 
 	PCGGraphUtils::NotifyTouchedNodes(TouchedNodes);
 
-	Nodes.Remove(InNode);
-	OnNodeRemoved(InNode);
+	OnNodesRemoved(InNodes);
 }
 
 bool UPCGGraph::RemoveEdge(UPCGNode* From, const FName& FromLabel, UPCGNode* To, const FName& ToLabel)

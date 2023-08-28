@@ -1490,6 +1490,7 @@ void FPCGEditor::DeleteSelectedNodes()
 		check(PCGEditorGraph && PCGGraph);
 
 		bool bChanged = false;
+		TArray<UPCGNode*> NodesToRemove;
 		{
 			const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorDeleteTransactionMessage", "PCG Editor: Delete"), nullptr);
 			PCGEditorGraph->Modify();
@@ -1503,7 +1504,8 @@ void FPCGEditor::DeleteSelectedNodes()
 						UPCGNode* PCGNode = PCGEditorGraphNode->GetPCGNode();
 						check(PCGNode);
 
-						PCGGraph->RemoveNode(PCGNode);
+						NodesToRemove.Add(PCGNode);
+
 						PCGEditorGraphNode->DestroyNode();
 						bChanged = true;
 					}
@@ -1523,9 +1525,9 @@ void FPCGEditor::DeleteSelectedNodes()
 
 		if (bChanged)
 		{
+			PCGGraph->RemoveNodes(NodesToRemove);
 			GraphEditorWidget->ClearSelectionSet();
 			GraphEditorWidget->NotifyGraphChanged();
-			PCGGraphBeingEdited->NotifyGraphChanged(EPCGChangeType::Structural);
 		}
 	}
 }
@@ -1657,6 +1659,8 @@ void FPCGEditor::PasteNodesHere(const FVector2D& Location)
 		AvgNodePosition.Y *= InvNumNodes;
 	}
 
+	TArray<UPCGNode*> NodesToPaste;
+
 	for (UEdGraphNode* PastedNode : PastedNodes)
 	{
 		GraphEditorWidget->SetNodeSelection(PastedNode, true);
@@ -1671,9 +1675,11 @@ void FPCGEditor::PasteNodesHere(const FVector2D& Location)
 		UPCGEditorGraphNodeBase* PastedPCGGraphNode = Cast<UPCGEditorGraphNodeBase>(PastedNode);
 		if (UPCGNode* PastedPCGNode = PastedPCGGraphNode ? PastedPCGGraphNode->GetPCGNode() : nullptr)
 		{
-			PCGGraphBeingEdited->AddNode(PastedPCGNode);
+			NodesToPaste.Add(PastedPCGNode);
 		}
 	}
+
+	PCGGraphBeingEdited->AddNodes(NodesToPaste);
 
 	for (UEdGraphNode* PastedNode : PastedNodes)
 	{

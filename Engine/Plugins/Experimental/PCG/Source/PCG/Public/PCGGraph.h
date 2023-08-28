@@ -185,6 +185,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = Graph)
 	void RemoveNode(UPCGNode* InNode);
 
+	/** Bulk removal of nodes, to avoid notifying the world everytime. */
+	UFUNCTION(BlueprintCallable, Category = Graph)
+	void RemoveNodes(TArray<UPCGNode*>& InNodes);
+
 	/** Adds a directed edge in the graph. Returns the "To" node for easy chaining */
 	UFUNCTION(BlueprintCallable, Category = Graph)
 	UPCGNode* AddEdge(UPCGNode* From, const FName& FromPinLabel, UPCGNode* To, const FName& ToPinLabel);
@@ -210,6 +214,7 @@ public:
 	bool Contains(UPCGNode* Node) const;
 	const TArray<UPCGNode*>& GetNodes() const { return Nodes; }
 	void AddNode(UPCGNode* InNode);
+	void AddNodes(TArray<UPCGNode*>& InNodes);
 
 	/** Calls the lambda on every node in graph. */
 	void ForEachNode(const TFunction<void(UPCGNode*)>& Action);
@@ -252,7 +257,12 @@ public:
 
 protected:
 	void OnNodeAdded(UPCGNode* InNode);
+	void OnNodesAdded(TArrayView<UPCGNode*> InNodes);
 	void OnNodeRemoved(UPCGNode* InNode);
+	void OnNodesRemoved(TArrayView<UPCGNode*> InNodes);
+
+	void RemoveNodes_Internal(TArrayView<UPCGNode*> InNodes);
+	void AddNodes_Internal(TArrayView<UPCGNode*> InNodes);
 
 	/** Calculates node grid size. Not thread safe, called within write lock. */
 	uint32 CalculateNodeGridSizeRecursive_Unsafe(const UPCGNode* InNode, uint32 InDefaultGridSize) const;
