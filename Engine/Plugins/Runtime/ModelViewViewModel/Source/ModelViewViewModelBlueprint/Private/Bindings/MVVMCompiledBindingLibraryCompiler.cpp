@@ -751,7 +751,7 @@ TValueOrError<FCompiledBindingLibraryCompiler::FCompileResult, FText> FCompiledB
 			{
 				check(Field.IsFunction());
 				// N.B. no need to translate from skeletal to generated, we only use the the name or the index.
-				Result.Library.LoadedFunctions.Add(const_cast<UFunction*>(Field.GetFunction()));
+				Result.Library.LoadedFunctions.Emplace(Field.GetFunction());
 				FunctionNames.Add(Field.GetName());
 				RawField.LoadedPropertyOrFunctionIndex = TotalNumberOfFunctions;
 				++TotalNumberOfFunctions;

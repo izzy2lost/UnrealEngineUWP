@@ -20,7 +20,7 @@ DECLARE_CYCLE_STAT(TEXT("Load Library"), STAT_UMG_Viewmodel_LoadLibrary, STATGRO
 
 namespace UE::MVVM::Private
 {
-	bool IsFunctionVirtual(UFunction* Function)
+	bool IsFunctionVirtual(const UFunction* Function)
 	{
 		return !Function->HasAnyFunctionFlags(FUNC_Static | FUNC_Final);
 	}
@@ -52,6 +52,44 @@ UE::FieldNotification::FFieldId FMVVMVCompiledFields::GetFieldId(FName FieldName
 	return Interface->GetFieldNotificationDescriptor().GetField(Class, FieldName);
 }
 
+
+/**
+ *
+ */
+FMVVMCompiledBindingLibrary::FLoadedFunction::FLoadedFunction(const UFunction* Function)
+{
+	if (Function)
+	{
+		ClassOwner = Function->GetOwnerClass();
+		FunctionName = Function->GetFName();
+		bIsFunctionVirtual = UE::MVVM::Private::IsFunctionVirtual(Function);
+	}
+}
+
+UFunction* FMVVMCompiledBindingLibrary::FLoadedFunction::GetFunction() const
+{
+	const UClass* ClassPtr = ClassOwner.Get();
+	if (ClassPtr)
+	{
+		check(!FunctionName.IsNone());
+		return ClassPtr->FindFunctionByName(FunctionName);
+	}
+	return nullptr;
+}
+
+UFunction* FMVVMCompiledBindingLibrary::FLoadedFunction::GetFunction(const UObject* CallingContext) const
+{
+	if (bIsFunctionVirtual)
+	{
+		check(!FunctionName.IsNone());
+		if (CallingContext)
+		{
+			return CallingContext->GetClass()->FindFunctionByName(FunctionName);
+		}
+		return nullptr;
+	}
+	return GetFunction();
+}
 
 /**
  *
@@ -118,8 +156,9 @@ void FMVVMCompiledBindingLibrary::Load()
 			{
 				FName FieldName = Field.GetFunctionName(CompiledFieldNames, Index);
 				UFunction* LoadedFunction = Field.GetFunction(FieldName);
-				LoadedFunctions.Add(LoadedFunction); // add it even if none to keep the index valid
 				ensureAlwaysMsgf(LoadedFunction != nullptr, TEXT("The function '%s:%s' could not be loaded."), (Field.GetStruct() ? *Field.GetStruct()->GetName() : TEXT("None")), *FieldName.ToString());
+
+				LoadedFunctions.Emplace(LoadedFunction); // add it even if none to keep the index valid
 			}
 		}
 		{
@@ -378,12 +417,8 @@ TValueOrError<UE::MVVM::FFieldContext, void> FMVVMCompiledBindingLibrary::Evalua
 		else
 		{
 			check(LoadedFunctions.IsValidIndex(PathIndex.Index));
-			UFunction* Function = LoadedFunctions[PathIndex.Index];
-			if (Function && UE::MVVM::Private::IsFunctionVirtual(Function) && CurrentContainer.IsUObject())
-			{
-				Function = CurrentContainer.GetUObject()->GetClass()->FindFunctionByName(Function->GetFName());
-			}
-
+			const FLoadedFunction& LoadedFunction = LoadedFunctions[PathIndex.Index];
+			UFunction* Function = CurrentContainer.IsUObject() ? LoadedFunction.GetFunction(CurrentContainer.GetUObject()) : LoadedFunction.GetFunction();
 			if (!Function)
 			{
 				return MakeError();
@@ -448,12 +483,8 @@ TValueOrError<UE::MVVM::FMVVMFieldVariant, void> FMVVMCompiledBindingLibrary::Ge
 	else
 	{
 		check(LoadedFunctions.IsValidIndex(FinalPathIndex.Index));
-		UFunction* Function = LoadedFunctions[FinalPathIndex.Index];
-		if (Function && UE::MVVM::Private::IsFunctionVirtual(Function) && CurrentContainer.IsUObject())
-		{
-			Function = CurrentContainer.GetUObject()->GetClass()->FindFunctionByName(Function->GetFName());
-		}
-
+		const FLoadedFunction& LoadedFunction = LoadedFunctions[FinalPathIndex.Index];
+		UFunction* Function = CurrentContainer.IsUObject() ? LoadedFunction.GetFunction(CurrentContainer.GetUObject()) : LoadedFunction.GetFunction();
 		if (!Function)
 		{
 			return MakeError();
@@ -523,7 +554,8 @@ TValueOrError<FString, FString> FMVVMCompiledBindingLibrary::FieldPathToString(F
 		{
 			if (LoadedFunctions.IsValidIndex(PathIndex.Index))
 			{
-				const UFunction* Function = LoadedFunctions[PathIndex.Index];
+				const FLoadedFunction& LoadedFunction = LoadedFunctions[PathIndex.Index];
+				const UFunction* Function = LoadedFunction.GetFunction();
 				if (!Function)
 				{
 					StringBuilder << TEXT("<Invalid>");

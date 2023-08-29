@@ -339,11 +339,21 @@ private:
 	TValueOrError<UE::MVVM::FMVVMFieldVariant, void> GetFinalFieldFromPathImpl(UE::MVVM::FObjectVariant CurrentContainer, const FMVVMVCompiledFieldPath& FieldPath) const;
 
 private:
+	struct FLoadedFunction
+	{
+		FLoadedFunction() = default;
+		MODELVIEWVIEWMODEL_API FLoadedFunction(const UFunction* Function);
+
+		TWeakObjectPtr<const UClass> ClassOwner;
+		FName FunctionName;
+		bool bIsFunctionVirtual = false;
+
+		UFunction* GetFunction() const;
+		UFunction* GetFunction(const UObject* CallingContext) const;
+	};
+
 	TArray<FProperty*> LoadedProperties;
-
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UFunction>> LoadedFunctions;
-
+	TArray<FLoadedFunction> LoadedFunctions;
 	TArray<UE::FieldNotification::FFieldId> LoadedFieldIds;
 
 	UPROPERTY()
