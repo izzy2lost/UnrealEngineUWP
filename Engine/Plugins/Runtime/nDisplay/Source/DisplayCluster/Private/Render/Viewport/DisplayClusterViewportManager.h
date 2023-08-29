@@ -105,6 +105,8 @@ public:
 		return TArrayView<TSharedPtr<IDisplayClusterViewport, ESPMode::ThreadSafe>>((TSharedPtr<IDisplayClusterViewport, ESPMode::ThreadSafe>*)(EntireClusterViewports.GetData()), EntireClusterViewports.Num());
 	}
 
+	virtual TArray<TSharedPtr<IDisplayClusterViewport, ESPMode::ThreadSafe>> GetViewportsForWarpPolicy(const TSharedPtr<IDisplayClusterWarpPolicy>& InWarpPolicy) const override;
+
 	virtual void MarkComponentGeometryDirty(const FName InComponentName = NAME_None) override;
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 

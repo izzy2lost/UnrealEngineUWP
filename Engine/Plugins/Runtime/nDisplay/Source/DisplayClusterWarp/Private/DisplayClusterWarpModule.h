@@ -54,4 +54,8 @@ public:
 	{
 		return FDisplayClusterWarpBlendLoader_MPCDI::ReadMPCDFileStructure(InMPCDIFileName, OutMPCDIFileStructure);
 	}
+
+private:
+	// Available factories
+	TMap<FString, TSharedPtr<IDisplayClusterWarpPolicyFactory>> WarpPolicyFactories;
 };

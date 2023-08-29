@@ -42,6 +42,10 @@ UDisplayClusterPreviewComponent::UDisplayClusterPreviewComponent(const FObjectIn
 	: Super(ObjectInitializer)
 {
 #if WITH_EDITOR
+	static ConstructorHelpers::FObjectFinder<UMaterial> PreviewMaterialObj(TEXT("/nDisplay/Materials/Preview/M_ProjPolicyPreview"));
+	check(PreviewMaterialObj.Object);
+	MovablePreviewMaterial = PreviewMaterialObj.Object;
+
 	bWantsInitializeComponent = true;
 #endif
 }
@@ -171,12 +175,26 @@ void UDisplayClusterPreviewComponent::SetPreviewMeshMaterial(UMaterial* InMateri
 		{
 			PreviewMaterialInstance = UMaterialInstanceDynamic::Create(InMaterial, this);
 		}
+
+		if (MovablePreviewMesh && MovablePreviewMaterial && MovablePreviewMaterialInstance == nullptr)
+		{
+			MovablePreviewMaterialInstance = UMaterialInstanceDynamic::Create(MovablePreviewMaterial, this);
+		}
+
 		UpdatePreviewMaterial();
 
 		// Set preview material
 		if (PreviewMaterialInstance)
 		{
 			PreviewMesh->SetMaterial(0, PreviewMaterialInstance);
+		}
+
+		if (MovablePreviewMaterialInstance)
+		{
+			if (MovablePreviewMesh)
+			{
+				MovablePreviewMesh->SetMaterial(0, MovablePreviewMaterialInstance);
+			}
 		}
 	}
 }
@@ -195,7 +213,8 @@ UMaterial* UDisplayClusterPreviewComponent::GetMeshMaterialFromDisplayDevice() c
 
 void UDisplayClusterPreviewComponent::UpdatePreviewMeshReference()
 {
-	if (PreviewMesh && PreviewMesh->GetName().Find(TEXT("TRASH_")) != INDEX_NONE)
+	if ((PreviewMesh && PreviewMesh->GetName().Find(TEXT("TRASH_")) != INDEX_NONE) ||
+		(MovablePreviewMesh && MovablePreviewMesh->GetName().Find(TEXT("TRASH_")) != INDEX_NONE))
 	{
 		// Screen components are regenerated from construction scripts, but preview components are added in dynamically. This preview component may end up
 		// pointing to invalid data on reconstruction.
@@ -246,6 +265,18 @@ bool UDisplayClusterPreviewComponent::UpdatePreviewMesh()
 					// Get new mesh ptr
 					PreviewMesh = Viewport->GetProjectionPolicy()->GetOrCreatePreviewMeshComponent(Viewport, bIsRootActorPreviewMesh);
 
+					if (Viewport->GetProjectionPolicy()->HasPreviewMovableMesh())
+					{
+						// Get new movable mesh ptr
+						MovablePreviewMesh = Viewport->GetProjectionPolicy()->GetOrCreatePreviewMovableMeshComponent(Viewport);
+
+						if (MovablePreviewMesh)
+						{
+							// Make the movable preview mesh invisible by default
+							MovablePreviewMesh->SetVisibility(false);
+						}
+					}
+
 					// Update saved proj policy parameters
 					WarpMeshSavedProjectionPolicy = ViewportConfig->ProjectionPolicy;
 				}
@@ -254,6 +285,11 @@ bool UDisplayClusterPreviewComponent::UpdatePreviewMesh()
 				if (PreviewMesh != nullptr)
 				{
 					PreviewMesh->SetCastShadow(false);
+				}
+
+				if (MovablePreviewMesh != nullptr)
+				{
+					MovablePreviewMesh->SetCastShadow(false);
 				}
 
 				UMaterial* PreviewMaterial = GetPreviewMaterialFromDisplayDevice();
@@ -291,6 +327,7 @@ void UDisplayClusterPreviewComponent::ReleasePreviewMesh()
 
 	// Forget old mesh with material
 	PreviewMesh = nullptr;
+	MovablePreviewMesh = nullptr;
 	CurrentMeshMaterial = nullptr;
 }
 
@@ -326,6 +363,21 @@ void UDisplayClusterPreviewComponent::UpdatePreviewMaterial()
 			CachedComponent->OnUpdatePreviewMaterialInstance(PreviewMaterialInstance);
 		}
 	}
+
+	if (MovablePreviewMaterialInstance)
+	{
+		MovablePreviewMaterialInstance->SetScalarParameterValue(TEXT("Opacity"), 1.0);
+
+		if (OverrideTexture)
+		{
+			MovablePreviewMaterialInstance->SetTextureParameterValue(TEXT("Preview"), OverrideTexture);
+		}
+		else
+		{
+			MovablePreviewMaterialInstance->SetTextureParameterValue(TEXT("Preview"),
+				RootActor && RootActor->bPreviewEnablePostProcess ? RenderTargetPostProcess : RenderTarget);
+		}
+	}
 }
 
 void UDisplayClusterPreviewComponent::ReleasePreviewMaterial()
@@ -340,6 +392,16 @@ void UDisplayClusterPreviewComponent::ReleasePreviewMaterial()
 		}
 
 		PreviewMaterialInstance = nullptr;
+	}
+
+	if (MovablePreviewMaterialInstance != nullptr)
+	{
+		if (!MovablePreviewMaterialInstance->HasAnyFlags(RF_BeginDestroyed))
+		{
+			MovablePreviewMaterialInstance->ClearParameterValues();
+		}
+
+		MovablePreviewMaterialInstance = nullptr;
 	}
 }
 

@@ -10,6 +10,7 @@
 
 #include "SceneView.h"
 
+class IDisplayClusterWarpPolicy;
 class UWorld;
 class FViewport;
 class FSceneViewFamilyContext;
@@ -195,6 +196,15 @@ public:
 	* @return - arrays with viewport objects refs
 	*/
 	virtual const TArrayView<TSharedPtr<IDisplayClusterViewport, ESPMode::ThreadSafe>> GetEntireClusterViewports() const = 0;
+
+	/**
+	 * Return all viewports associated with the specified warp policy
+	 * [Game thread func]
+	 *
+	 * @param InWarpPolicy - The warp policy to get viewports for
+	 * @return - A list of viewports associated with the warp policy
+	 */
+	virtual TArray<TSharedPtr<IDisplayClusterViewport, ESPMode::ThreadSafe>> GetViewportsForWarpPolicy(const TSharedPtr<IDisplayClusterWarpPolicy>& InWarpPolicy) const = 0;
 
 	/**
 	* Mark the geometry of the referenced component(s) as dirty (ProceduralMesh, etc)

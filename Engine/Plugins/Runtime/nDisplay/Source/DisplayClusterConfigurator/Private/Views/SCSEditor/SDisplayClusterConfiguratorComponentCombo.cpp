@@ -7,6 +7,7 @@
 #include "Components/DisplayClusterScreenComponent.h"
 #include "Components/DisplayClusterXformComponent.h"
 #include "Components/DisplayDevice/DisplayClusterDisplayDeviceBaseComponent.h"
+#include "Components/DisplayClusterInFrustumFitCameraComponent.h"
 
 #include "Widgets/Layout/SSpacer.h"
 #include "Widgets/Images/SImage.h"
@@ -456,6 +457,7 @@ void SDisplayClusterConfiguratorComponentClassCombo::GenerateComponentClassList(
 	AddDCComp(UDisplayClusterXformComponent::StaticClass());
 	AddDCComp(UDisplayClusterScreenComponent::StaticClass());
 	AddDCComp(UDisplayClusterCameraComponent::StaticClass());
+	AddDCComp(UDisplayClusterInFrustumFitCameraComponent::StaticClass());
 
 	AddHeader("nDisplay ICVFX Components");
 	AddDCComp(UDisplayClusterICVFXCameraComponent::StaticClass());

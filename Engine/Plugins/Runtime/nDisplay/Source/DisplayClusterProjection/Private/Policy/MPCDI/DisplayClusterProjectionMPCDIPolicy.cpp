@@ -449,6 +449,42 @@ UMeshComponent* FDisplayClusterProjectionMPCDIPolicy::GetOrCreatePreviewMeshComp
 	return (bIsPreviewMeshEnabled && WarpBlendInterface.IsValid()) ? WarpBlendInterface->GetOrCreateMeshComponent(InViewport, bOutIsRootActorComponent) : nullptr;
 }
 
+UMeshComponent* FDisplayClusterProjectionMPCDIPolicy::GetOrCreatePreviewMovableMeshComponent(IDisplayClusterViewport* InViewport)
+{
+#if WITH_EDITOR
+	// If we have already created a preview mesh component before, return that component
+	if (UMeshComponent* MovableMeshComp = Cast<UMeshComponent>(MovablePreviewMeshComponentRef.GetOrFindSceneComponent()))
+	{
+		return MovableMeshComp;
+	}
+	// Create a new mesh component. Best option is to simply create a duplicate of the static preview component by passing a template into NewObject
+	// Attach the movable mesh component to the DCRA's root component, since we don't care about hierarchy here
+	if (ADisplayClusterRootActor* RootActor = InViewport->GetRootActor())
+	{
+		USceneComponent* RootComponent = RootActor->GetRootComponent();
+		bool bIsRootActorComponent = false;
+		if (UMeshComponent* PreviewMeshComponent = GetOrCreatePreviewMeshComponent(InViewport, bIsRootActorComponent))
+		{
+			const FString CompName = FString::Printf(TEXT("MPCDI_%s_movable_impl"), *GetId());
+			const EObjectFlags ObjectFlags = EObjectFlags::RF_DuplicateTransient | RF_Transient | RF_TextExportTransient;
+			UMeshComponent* NewMovableMeshComp = NewObject<UMeshComponent>(RootComponent, PreviewMeshComponent->GetClass(), *CompName, ObjectFlags, PreviewMeshComponent);
+			if (NewMovableMeshComp)
+			{
+				NewMovableMeshComp->RegisterComponent();
+				NewMovableMeshComp->AttachToComponent(RootComponent, FAttachmentTransformRules(EAttachmentRule::KeepRelative, false));
+				NewMovableMeshComp->SetIsVisualizationComponent(true);
+				NewMovableMeshComp->SetHiddenInGame(true);
+				// Store reference to mesh component
+				MovablePreviewMeshComponentRef.SetSceneComponent(NewMovableMeshComp);
+				return NewMovableMeshComp;
+			}
+		}
+	}
+#endif
+
+	return nullptr;
+}
+
 bool FDisplayClusterProjectionMPCDIPolicy::CreateWarpBlendFromConfig(IDisplayClusterViewport* InViewport)
 {
 	check(IsInGameThread());

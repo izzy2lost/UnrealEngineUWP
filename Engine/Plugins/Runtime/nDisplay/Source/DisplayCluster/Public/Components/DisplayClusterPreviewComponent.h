@@ -77,6 +77,12 @@ public:
 		return PreviewMesh;
 	}
 
+	UMeshComponent* GetMovablePreviewMesh()
+	{
+		UpdatePreviewMeshReference();
+		return MovablePreviewMesh;
+	}
+
 	UTexture* GetOverrideTexture() const
 	{
 		return OverrideTexture;
@@ -189,12 +195,21 @@ private:
 	/** The current material assigned to the preview mesh */
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterial> CurrentMeshMaterial = nullptr;
-	
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterial> MovablePreviewMaterial = nullptr;
+
 	UPROPERTY(Transient)
 	bool bIsRootActorPreviewMesh = false;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UMeshComponent> MovablePreviewMesh = nullptr;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> PreviewMaterialInstance = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> MovablePreviewMaterialInstance = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture> OverrideTexture = nullptr;

@@ -15,18 +15,20 @@
 UENUM()
 enum class EDisplayClusterWarpCameraProjectionMode : uint8
 {
-	/** Use camera as source of image.Preserving the camera aspect ratio.
-	 * The camera frame touches the geometry inside
-	 */
-	TouchInside UMETA(DisplayName = "Touch Inside"),
+	/** Fit the stage geometry entirely within the camera's frustum */
+	Fit UMETA(DisplayName = "Fit"),
 
-	/** Use camera as source of image.Preserving the camera aspect ratio.
-	 * The camera frame touches the geometry outside
-	 */
-	TouchOutside  UMETA(DisplayName = "Touch Outside"),
+	/** Fill the camera's frustum entire with the stage geometry */
+	Fill  UMETA(DisplayName = "Fill"),
+};
 
-	/** Use camera as source of image.
-	 * Stretch the camera image to geometry (the camera aspect ratio will be lost)
-	 */
-	Stretch  UMETA(DisplayName = "Stretch"),
+/** A set of modes used to determine the view target of the stage's geometry frustum */
+UENUM()
+enum class EDisplayClusterWarpCameraViewTarget
+{
+	/** The camera will point in the direction of the geometric center of the stage's geometry */
+	GeometricCenter UMETA(DisplayName = "Geometric Center"),
+
+	/** The camera will point in the same direction as the frustum fit view origin */
+	MatchViewOrigin UMETA(DisplayName = "Match View Origin")
 };

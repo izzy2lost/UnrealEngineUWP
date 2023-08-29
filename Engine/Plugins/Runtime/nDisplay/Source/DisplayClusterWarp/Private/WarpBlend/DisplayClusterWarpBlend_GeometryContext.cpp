@@ -19,8 +19,12 @@ bool FDisplayClusterWarpBlend_GeometryContext::UpdateGeometryContext(const doubl
 	Context.SurfaceViewNormal = Context.GeometryToOrigin.TransformVector(GeometryProxy.GeometryCache.SurfaceViewNormal);
 	Context.SurfaceViewPlane = Context.GeometryToOrigin.TransformVector(GeometryProxy.GeometryCache.SurfaceViewPlane);
 
-	Context.AABBox.Max = Context.GeometryToOrigin.TransformPosition(GeometryProxy.GeometryCache.AABBox.Max) * InWorldScale;
-	Context.AABBox.Min = Context.GeometryToOrigin.TransformPosition(GeometryProxy.GeometryCache.AABBox.Min) * InWorldScale;
+	// Use the built in bounding box transform method, which will correctly transform the box using origin and extent instead
+	// of just transforming the min and max properties, which will not correctly transform the box
+	FBox TransformedBox = GeometryProxy.GeometryCache.AABBox.TransformBy(Context.GeometryToOrigin);
+
+	Context.AABBox.Max = TransformedBox.Max * InWorldScale;
+	Context.AABBox.Min = TransformedBox.Min * InWorldScale;
 
 	return true;
 }

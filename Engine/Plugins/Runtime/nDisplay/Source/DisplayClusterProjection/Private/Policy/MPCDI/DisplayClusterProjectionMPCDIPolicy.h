@@ -84,5 +84,11 @@ protected:
 		return true;
 	}
 
+	virtual bool HasPreviewMovableMesh() override { return true; }
+
 	virtual class UMeshComponent* GetOrCreatePreviewMeshComponent(IDisplayClusterViewport* InViewport, bool& bOutIsRootActorComponent) override;
+	virtual class UMeshComponent* GetOrCreatePreviewMovableMeshComponent(IDisplayClusterViewport* InViewport) override;
+
+private:
+	FDisplayClusterSceneComponentRef MovablePreviewMeshComponentRef;
 };
