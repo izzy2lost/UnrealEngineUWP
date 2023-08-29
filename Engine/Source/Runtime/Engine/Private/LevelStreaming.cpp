@@ -2548,11 +2548,31 @@ ULevelStreamingDynamic* ULevelStreamingDynamic::LoadLevelInstance_Internal(const
 			ModifiedLevelPackageName = FName(*UWorld::ConvertToPIEPackageName(LevelPackageNameStr, PIEInstance));
 		}
 #endif
-		if (Params.World->GetStreamingLevels().ContainsByPredicate([&ModifiedLevelPackageName](ULevelStreaming* LS) { return LS && LS->GetWorldAssetPackageFName() == ModifiedLevelPackageName; }))
+		// Test if the streaming level already exists
+		if (ULevelStreaming* const* ExistingLevelStreaming = Params.World->GetStreamingLevels().FindByPredicate([&ModifiedLevelPackageName](ULevelStreaming* LS) { return LS && LS->GetWorldAssetPackageFName() == ModifiedLevelPackageName; }))
 		{
-			// The streaming level already exists, error and return.
-			UE_LOG(LogLevelStreaming, Error, TEXT("LoadLevelInstance called with a name that already exists, returning nullptr. LevelPackageName:%s"), *ModifiedLevelPackageName.ToString());
-			return nullptr;
+			// Allow reusing a streaming level only if :
+			// - Params.bAllowReuseExitingLevelStreaming is true
+			// - Params.World is a game world
+			// - Existing LevelStreaming has the same Class
+			// - Existing LevelStreaming has the same Level Transform
+			ULevelStreamingDynamic* StreamingLevel = Params.bAllowReuseExitingLevelStreaming && Params.World->IsGameWorld() ? Cast<ULevelStreamingDynamic>(*ExistingLevelStreaming) : nullptr;
+			if (StreamingLevel && 
+				StreamingLevel->GetClass() == LevelStreamingClass &&
+				StreamingLevel->LevelTransform.Equals(Params.LevelTransform))
+			{
+				bOutSuccess = true;
+				StreamingLevel->SetShouldBeLoaded(true);
+				StreamingLevel->SetShouldBeVisible(Params.bInitiallyVisible);
+				StreamingLevel->SetIsRequestingUnloadAndRemoval(false);
+				UE_LOG(LogLevelStreaming, Verbose, TEXT("LoadLevelInstance found existing StreamingLevel for LevelPackageName:%s"), *ModifiedLevelPackageName.ToString());
+				return StreamingLevel;
+			}
+			else
+			{
+				UE_LOG(LogLevelStreaming, Error, TEXT("LoadLevelInstance called with a name that already exists, returning nullptr. LevelPackageName:%s"), *ModifiedLevelPackageName.ToString());
+				return nullptr;
+			}
 		}
 	}
     

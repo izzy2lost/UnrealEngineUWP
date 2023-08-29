@@ -247,6 +247,7 @@ ULevelStreamingLevelInstance* ULevelStreamingLevelInstance::LoadInstance(ILevelI
 	if (World->IsGameWorld())
 	{
 		Params.bInitiallyVisible = LevelInstance->IsInitiallyVisible();
+		Params.bAllowReuseExitingLevelStreaming = true;
 	}
 
 	const FString LevelInstancePackageName = ULevelStreamingDynamic::GetLevelInstancePackageName(Params);

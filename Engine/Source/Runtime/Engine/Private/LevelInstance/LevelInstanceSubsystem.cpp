@@ -451,6 +451,14 @@ void ULevelInstanceSubsystem::LoadLevelInstance(ILevelInstanceInterface* LevelIn
 #if WITH_EDITOR
 		check(LevelInstanceActor->GetWorld()->IsGameWorld() || LoadedLevelInstances.Contains(LevelInstanceID));
 #endif
+		// If still considered loading but level streaming was reused and its level is loaded
+		if (GetWorld()->IsGameWorld() && IsLoading(LevelInstance) && LevelStreaming->GetLoadedLevel())
+		{
+			// Register the loaded level instance
+			RegisterLoadedLevelStreamingLevelInstance(LevelStreaming);
+			check(!IsLoading(LevelInstance));
+			check(IsLoaded(LevelInstance));
+		}
 	}
 	else
 	{
@@ -576,7 +584,11 @@ ILevelInstanceInterface* ULevelInstanceSubsystem::GetOwningLevelInstance(const U
 		}
 		else if (UWorldPartitionLevelStreamingDynamic* WorldPartitionLevelStreaming = Cast<UWorldPartitionLevelStreamingDynamic>(BaseLevelStreaming))
 		{
-			return GetOwningLevelInstance(WorldPartitionLevelStreaming->GetStreamingWorld()->PersistentLevel);
+			// Instanced world partition might be uninitialized here, can't resolved if it's the case.
+			if (UWorld* StreamingWorld = WorldPartitionLevelStreaming->GetStreamingWorld())
+			{
+				return GetOwningLevelInstance(StreamingWorld->PersistentLevel);
+			}
 		}
 	}
 
