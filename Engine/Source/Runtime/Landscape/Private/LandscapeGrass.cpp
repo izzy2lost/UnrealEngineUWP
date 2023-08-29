@@ -1312,7 +1312,7 @@ public:
 							          FPlane(0.0f, 0.0f, -1.0f, 0.0f),
 							          FPlane(0.0f, 0.0f, 0.0f, 1.0f));
 
-		const float ZOffset = WORLD_MAX;
+		const float ZOffset = UE_OLD_WORLD_MAX;
 		ProjectionMatrix = FReversedZOrthoMatrix(
 			TargetExtent.X,
 			TargetExtent.Y,
