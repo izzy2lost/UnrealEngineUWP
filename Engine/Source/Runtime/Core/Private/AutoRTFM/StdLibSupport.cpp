@@ -305,6 +305,10 @@ BOOL RTFM_TlsSetValue(DWORD dwTlsIndex, LPVOID lpTlsValue)
 UE_AUTORTFM_REGISTER_OPEN_FUNCTION(TlsSetValue);
 #endif // PLATFORM_WINDOWS
 
+#if PLATFORM_LINUX
+UE_AUTORTFM_REGISTER_SELF_FUNCTION(clock_gettime);
+#endif // PLATFORM_LINUX
+
 wchar_t* RTFM_wcsncpy(wchar_t* Dst, const wchar_t* Src, size_t Count)
 {
 	AutoRTFM::Unreachable();

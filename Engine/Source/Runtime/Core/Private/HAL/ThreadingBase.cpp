@@ -1361,14 +1361,19 @@ FTlsAutoCleanup* FThreadSingletonInitializer::Get( TFunctionRef<FTlsAutoCleanup*
 			}
 		}
 	});
-	
-	FTlsAutoCleanup* ThreadSingleton = (FTlsAutoCleanup*)FPlatformTLS::GetTlsValue( TlsSlot );
-	if( !ThreadSingleton )
+
+	FTlsAutoCleanup* ThreadSingleton = nullptr;
+	UE_AUTORTFM_OPEN(
 	{
-		ThreadSingleton = CreateInstance();
-		ThreadSingleton->Register();
-		FPlatformTLS::SetTlsValue( TlsSlot, ThreadSingleton );
-	}
+		ThreadSingleton = (FTlsAutoCleanup*)FPlatformTLS::GetTlsValue( TlsSlot );
+		if( !ThreadSingleton )
+		{
+			// these are generally left open and only get cleaned up on thread exit so avoiding dealing with an OPENABORT here to clean this up
+			ThreadSingleton = CreateInstance();
+			ThreadSingleton->Register();
+			FPlatformTLS::SetTlsValue( TlsSlot, ThreadSingleton );
+		}
+	});
 	return ThreadSingleton;
 }
 
