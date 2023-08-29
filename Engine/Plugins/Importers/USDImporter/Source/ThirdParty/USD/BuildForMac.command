@@ -9,6 +9,10 @@ USD_VERSION=23.08
 # code, or more commonly by cloning the GitHub repository, e.g. for the
 # current engine USD version:
 #     git clone --branch v23.08 https://github.com/PixarAnimationStudios/OpenUSD.git OpenUSD_src
+# We apply a patch for the usdMtlx plugin to ensure that we do not
+# bake a hard-coded path to the MaterialX standard data libraries into the
+# built plugin:
+#     git apply USD_v2308_usdMtlx_undef_stdlib_dir.patch
 # Note also that this path may be emitted as part of USD error messages, so
 # it is suggested that it not reveal any sensitive information.
 SOURCE_LOCATION="/tmp/OpenUSD_src"
@@ -33,6 +37,9 @@ OPENSUBDIV_LIB_LOCATION="$OPENSUBDIV_LOCATION/Mac/lib"
 ALEMBIC_LOCATION="$UE_THIRD_PARTY_LOCATION/Alembic/Deploy/alembic-1.8.2"
 ALEMBIC_INCLUDE_LOCATION="$ALEMBIC_LOCATION/include"
 ALEMBIC_LIB_LOCATION="$ALEMBIC_LOCATION/Mac"
+MATERIALX_LOCATION="$UE_THIRD_PARTY_LOCATION/MaterialX/Deploy/MaterialX-1.38.5"
+MATERIALX_LIB_LOCATION="$MATERIALX_LOCATION/Mac/lib"
+MATERIALX_CMAKE_LOCATION="$MATERIALX_LIB_LOCATION/cmake/MaterialX"
 
 PYTHON_BINARIES_LOCATION="$UE_ENGINE_LOCATION/Binaries/ThirdParty/Python3/Mac"
 PYTHON_EXECUTABLE_LOCATION="$PYTHON_BINARIES_LOCATION/bin/python3"
@@ -55,7 +62,7 @@ pushd $BUILD_LOCATION > /dev/null
 
 CMAKE_ARGS=(
     -DCMAKE_INSTALL_PREFIX="$INSTALL_LOCATION"
-    -DCMAKE_PREFIX_PATH="$IMATH_CMAKE_LOCATION"
+    -DCMAKE_PREFIX_PATH="$IMATH_CMAKE_LOCATION;$MATERIALX_CMAKE_LOCATION"
     -DCMAKE_OSX_DEPLOYMENT_TARGET="10.15"
     -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
     -DTBB_INCLUDE_DIR="$TBB_INCLUDE_LOCATION"
@@ -75,6 +82,7 @@ CMAKE_ARGS=(
     -DOPENSUBDIV_ROOT_DIR="$OPENSUBDIV_LIB_LOCATION"
     -DALEMBIC_INCLUDE_DIR="$ALEMBIC_INCLUDE_LOCATION"
     -DALEMBIC_DIR="$ALEMBIC_LIB_LOCATION"
+    -DPXR_ENABLE_MATERIALX_SUPPORT=ON
     -DBUILD_SHARED_LIBS=ON
     -DPXR_BUILD_TESTS=OFF
     -DPXR_BUILD_EXAMPLES=OFF
