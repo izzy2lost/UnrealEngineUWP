@@ -536,9 +536,6 @@ void UCommonSessionSubsystem::CreateOnlineSessionInternalOSSv1(ULocalPlayer* Loc
 		HostSettings->Set(SETTING_SESSION_TEMPLATE_NAME, FString(TEXT("GameSession")), EOnlineDataAdvertisementType::DontAdvertise);
 		HostSettings->Set(SETTING_ONLINESUBSYSTEM_VERSION, true, EOnlineDataAdvertisementType::ViaOnlineService);
 
-		FSessionSettings& UserSettings = HostSettings->MemberSettings.Add(UserId.ToSharedRef(), FSessionSettings());
-		UserSettings.Add(SETTING_GAMEMODE, FOnlineSessionSetting(FString("GameSession"), EOnlineDataAdvertisementType::ViaOnlineService));
-
 		Sessions->CreateSession(*UserId, SessionName, *HostSettings);
 	}
 	else
