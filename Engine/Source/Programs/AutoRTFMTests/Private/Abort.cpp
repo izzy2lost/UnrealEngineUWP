@@ -56,25 +56,73 @@ TEST_CASE("Abort.NestedAbortOrder")
 	unsigned Orderer = 0;
 
 	AutoRTFM::Commit([&]
-		{
-			InnerResult = AutoRTFM::Transact([&]
-				{
-					AutoRTFM::OpenAbort([&]
-						{
-							REQUIRE(1 == Orderer);
-							Orderer += 1;
-						});
+	{
+		InnerResult = AutoRTFM::Transact([&]
+			{
+				AutoRTFM::OpenAbort([&]
+					{
+						REQUIRE(1 == Orderer);
+						Orderer += 1;
+					});
 
-					AutoRTFM::OpenAbort([&]
-						{
-							REQUIRE(0 == Orderer);
-							Orderer += 1;
-						});
+				AutoRTFM::OpenAbort([&]
+					{
+						REQUIRE(0 == Orderer);
+						Orderer += 1;
+					});
 
-					AutoRTFM::AbortTransaction();
-				});
-		});
+				AutoRTFM::AbortTransaction();
+			});
+	});
 
 	REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == InnerResult);
 	REQUIRE(2 == Orderer);
+}
+
+TEST_CASE("Abort.TransactionInOpenCommit")
+{
+	AutoRTFM::ETransactionResult InnerResult;
+
+	AutoRTFM::Commit([&]
+	{
+		AutoRTFM::OpenCommit([&]
+		{
+			bool bDidSomething = false;
+
+			InnerResult = AutoRTFM::Transact([&]
+			{
+				bDidSomething = true;
+			});
+
+			REQUIRE(false == bDidSomething);
+		});
+	});
+
+	REQUIRE(AutoRTFM::ETransactionResult::AbortedByTransactInOpenCommit == InnerResult);
+}
+
+TEST_CASE("Abort.TransactionInOpenAbort")
+{
+	AutoRTFM::ETransactionResult Result;
+	AutoRTFM::ETransactionResult InnerResult;
+
+	Result = AutoRTFM::Transact([&]
+	{
+		AutoRTFM::OpenAbort([&]
+		{
+			bool bDidSomething = false;
+
+			InnerResult = AutoRTFM::Transact([&]
+			{
+				bDidSomething = true;
+			});
+
+			REQUIRE(false == bDidSomething);
+		});
+
+		AutoRTFM::AbortTransaction();
+	});
+
+	REQUIRE(AutoRTFM::ETransactionResult::AbortedByTransactInOpenAbort == InnerResult);
+	REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
 }

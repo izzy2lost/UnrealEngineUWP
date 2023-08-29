@@ -67,7 +67,9 @@ typedef enum
 {
     autortfm_aborted_by_request,
     autortfm_aborted_by_language,
-    autortfm_committed
+    autortfm_committed,
+	autortfm_aborted_by_transact_in_open_commit,
+	autortfm_aborted_by_transact_in_open_abort
 } autortfm_result;
 
 // This must match AutoRTFM::EContextStatus.
@@ -77,7 +79,8 @@ typedef enum
 	autortfm_status_ontrack,
 	autortfm_status_aborted_by_failed_lock_aquisition,
 	autortfm_status_aborted_by_language,
-	autortfm_status_aborted_by_request
+	autortfm_status_aborted_by_request,
+	autortfm_status_committing
 } autortfm_status;
 
 // Tells if we are currently running in a transaction. This will return true in an
@@ -358,7 +361,9 @@ enum class ETransactionResult
 {
     AbortedByRequest = autortfm_aborted_by_request,
     AbortedByLanguage = autortfm_aborted_by_language,
-    Committed = autortfm_committed
+    Committed = autortfm_committed,
+	AbortedByTransactInOpenCommit = autortfm_aborted_by_transact_in_open_commit,
+	AbortedByTransactInOpenAbort = autortfm_aborted_by_transact_in_open_abort
 };
 
 enum class EContextStatus
@@ -367,7 +372,8 @@ enum class EContextStatus
 	OnTrack = autortfm_status_ontrack,
 	AbortedByFailedLockAcquisition = autortfm_status_aborted_by_failed_lock_aquisition,
 	AbortedByLanguage = autortfm_status_aborted_by_language,
-	AbortedByRequest = autortfm_status_aborted_by_request
+	AbortedByRequest = autortfm_status_aborted_by_request,
+	Committing = autortfm_status_committing,
 };
 
 UE_AUTORTFM_FORCEINLINE bool IsTransactional() { return autortfm_is_transactional(); }

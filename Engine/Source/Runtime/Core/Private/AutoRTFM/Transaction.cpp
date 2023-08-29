@@ -55,7 +55,7 @@ void FTransaction::AbortAndThrow()
 
 bool FTransaction::AttemptToCommit()
 {
-    ASSERT(Context->GetStatus() == EContextStatus::OnTrack);
+    ASSERT(Context->GetStatus() == EContextStatus::Committing);
     ASSERT(Context->GetCurrentTransaction() == this);
 
     Stats.Collect<EStatsKind::Commit>();

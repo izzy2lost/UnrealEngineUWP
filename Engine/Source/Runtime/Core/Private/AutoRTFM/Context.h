@@ -68,6 +68,7 @@ private:
 	void PopTransaction();
 
 	ETransactionResult ResolveNestedTransaction(FTransaction* NewTransaction);
+	bool AttemptToCommitTransaction(FTransaction* const Transaction);
 
     void Set();
     

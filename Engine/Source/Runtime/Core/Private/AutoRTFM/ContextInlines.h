@@ -34,4 +34,20 @@ UE_AUTORTFM_FORCEINLINE void FContext::DidAllocate(void* LogicalAddress, size_t 
     CurrentTransaction->DidAllocate(LogicalAddress, Size);
 }
 
+UE_AUTORTFM_FORCEINLINE bool FContext::AttemptToCommitTransaction(FTransaction* const Transaction)
+{
+    ASSERT(EContextStatus::OnTrack == Status);
+
+    Status = EContextStatus::Committing;
+
+    const bool bResult = Transaction->AttemptToCommit();
+
+    if (bResult)
+    {
+        Status = EContextStatus::OnTrack;    
+    }
+
+    return bResult;
+}
+
 } // namespace AutoRTFM

@@ -100,7 +100,7 @@ ETransactionResult FContext::CommitTransaction()
 		DumpState();
 		UE_LOG(LogAutoRTFM, Verbose, TEXT("Committing..."));
 
-		if (CurrentTransaction->AttemptToCommit())
+		if (AttemptToCommitTransaction(CurrentTransaction))
 		{
 			Result = ETransactionResult::Committed;
 		}
@@ -146,7 +146,15 @@ ETransactionResult FContext::AbortTransaction(bool bIsClosed)
 
 bool FContext::IsAborting() const
 {
-	return Status != EContextStatus::OnTrack && Status != EContextStatus::Idle;
+	switch (Status)
+	{
+	default:
+		return true;
+	case EContextStatus::OnTrack:
+	case EContextStatus::Idle:
+	case EContextStatus::Committing:
+		return false;
+	}
 }
 
 EContextStatus FContext::CallClosedNest(void (*ClosedFunction)(void* Arg), void* Arg)
@@ -230,7 +238,7 @@ ETransactionResult FContext::ResolveNestedTransaction(FTransaction* NewTransacti
 
 	if (Status == EContextStatus::OnTrack)
 	{
-		bool bCommitResult = NewTransaction->AttemptToCommit();
+		bool bCommitResult = AttemptToCommitTransaction(NewTransaction);
 		ASSERT(bCommitResult);
 		ASSERT(Status == EContextStatus::OnTrack);
 		return ETransactionResult::Committed;
@@ -251,6 +259,16 @@ ETransactionResult FContext::ResolveNestedTransaction(FTransaction* NewTransacti
 ETransactionResult FContext::Transact(void (*Function)(void* Arg), void* Arg)
 {
     constexpr bool bVerbose = false;
+
+    if (UNLIKELY(EContextStatus::Committing == Status))
+    {
+    	return ETransactionResult::AbortedByTransactInOpenCommit;
+    }
+
+    if (UNLIKELY(IsAborting()))
+    {
+    	return ETransactionResult::AbortedByTransactInOpenAbort;
+    }
     
     ASSERT(Status == EContextStatus::Idle || Status == EContextStatus::OnTrack);
 
@@ -297,7 +315,7 @@ ETransactionResult FContext::Transact(void (*Function)(void* Arg), void* Arg)
 				DumpState();
 				UE_LOG(LogAutoRTFM, Verbose, TEXT("Committing..."));
 
-                if (CurrentTransaction->AttemptToCommit())
+                if (AttemptToCommitTransaction(CurrentTransaction))
                 {
                     Result = ETransactionResult::Committed;
                     break;
