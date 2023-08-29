@@ -1,14 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "HAL/Platform.h"
-
-#if PLATFORM_WINDOWS
-
 #include "Async/MappedFileHandle.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "Common/PagedArray.h"
 #include "HAL/CriticalSection.h"
+#include "HAL/Platform.h"
 #include "TraceServices/Model/AnalysisSession.h"
 #include "TraceServices/Model/Modules.h"
 #include <atomic>
@@ -130,4 +127,3 @@ private:
 
 } // namespace TraceServices
 
-#endif // PLATFORM_WINDOWS

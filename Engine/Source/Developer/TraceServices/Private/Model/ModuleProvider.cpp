@@ -515,12 +515,12 @@ TSharedPtr<IModuleAnalysisProvider> CreateModuleProvider(IAnalysisSession& InSes
 {
 	TSharedPtr<IModuleAnalysisProvider> Provider;
 
-#if PLATFORM_WINDOWS && USE_SYMSLIB
+#if USE_SYMSLIB
 	if (!Provider && (InSymbolFormat.Equals("pdb") || InSymbolFormat.Equals("dwarf")))
 	{
 		Provider = MakeShared<TModuleProvider<FSymslibResolver>>(InSession);
 	}
-#endif // PLATFORM_WINDOWS && USE_SYMSLIB
+#endif //USE_SYMSLIB
 #if PLATFORM_WINDOWS && USE_DBGHELP
 	if (!Provider && InSymbolFormat.Equals("pdb"))
 	{
