@@ -863,6 +863,8 @@ namespace UE::NearestNeighborModel
 			MorphTarget->ConditionalBeginDestroy();
 		}
 
+		NearestNeighborModel->UpdateStatistics();
+
 		NearestNeighborModel->SetMorphTargetDeltas(Deltas);
 		return Result;
 	}
