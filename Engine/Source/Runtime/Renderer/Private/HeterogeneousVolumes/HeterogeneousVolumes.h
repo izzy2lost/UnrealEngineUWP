@@ -27,7 +27,7 @@ struct FSceneTextures;
 //
 
 bool ShouldRenderHeterogeneousVolumes(const FScene* Scene);
-bool ShouldRenderHeterogeneousVolumesForAnyView(const TArray<FViewInfo>& Views);
+bool ShouldRenderHeterogeneousVolumesForAnyView(const TArrayView<FViewInfo>& Views);
 bool ShouldRenderHeterogeneousVolumesForView(const FViewInfo& View);
 bool DoesPlatformSupportHeterogeneousVolumes(EShaderPlatform Platform);
 bool DoesMaterialShaderSupportHeterogeneousVolumes(const FMaterialShaderParameters& Parameters);

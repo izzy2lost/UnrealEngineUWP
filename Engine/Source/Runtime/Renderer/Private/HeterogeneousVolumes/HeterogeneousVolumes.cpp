@@ -193,13 +193,13 @@ bool ShouldRenderHeterogeneousVolumes(
 }
 
 bool ShouldRenderHeterogeneousVolumesForAnyView(
-	const TArray<FViewInfo>& Views
+	const TArrayView<FViewInfo>& Views
 )
 {
 	bool Result = false;
-	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+	for (FViewInfo& View : Views)
 	{
-		Result |= ShouldRenderHeterogeneousVolumesForView(Views[ViewIndex]);
+		Result |= ShouldRenderHeterogeneousVolumesForView(View);
 	}
 	return Result;
 }
