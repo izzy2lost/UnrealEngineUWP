@@ -378,7 +378,7 @@ void UHLODSubsystem::OnExternalStreamingObjectInjected(URuntimeHashExternalStrea
 
 void UHLODSubsystem::OnExternalStreamingObjectRemoved(URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject)
 {
-	UWorldPartition* OwnerPartition = ExternalStreamingObject->GetOuterWorld()->GetWorldPartition();
+	UWorldPartition* OwnerPartition = ExternalStreamingObject->GetOuterWorld() ? ExternalStreamingObject->GetOuterWorld()->GetWorldPartition() : ExternalStreamingObject->GetTypedOuter<UWorldPartition>();
 	FWorldPartitionHLODRuntimeData* WorldPartitionHLODRuntimeData = WorldPartitionsHLODRuntimeData.Find(OwnerPartition);
 	if (WorldPartitionHLODRuntimeData)
 	{
