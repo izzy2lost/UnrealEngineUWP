@@ -644,6 +644,12 @@ void AActor::AddReplicatedSubObject(UObject* SubObject, ELifetimeCondition NetCo
 		return;
 	}
 
+	if (SubObject->HasAnyFlags(RF_ArchetypeObject | RF_ClassDefaultObject))
+	{
+		ensureMsgf(false, TEXT("AddReplicatedSubObject cannot replicate %s for %s. Archetypes or CDO's cannot be replicated subobject's."), *GetNameSafe(SubObject), *GetNameSafe(this));
+		return;
+	}
+
 	ensureMsgf(IsUsingRegisteredSubObjectList(), TEXT("%s is registering subobjects but bReplicateUsingRegisteredSubObjectList is false. Without the flag set to true the registered subobjects will not be replicated."), *GetName());
 
 	FSubObjectRegistry::EResult Result = ReplicatedSubObjects.AddSubObjectUnique(SubObject, NetCondition);
@@ -807,6 +813,12 @@ void AActor::AddActorComponentReplicatedSubObject(UActorComponent* OwnerComponen
 	if (!IsValid(SubObject))
 	{
 		ensureMsgf(false, TEXT("Ignoring AddReplicatedSubObject for %s::%s. Invalid pointer received."), *GetNameSafe(this), *GetNameSafe(OwnerComponent));
+		return;
+	}
+
+	if (SubObject->HasAnyFlags(RF_ArchetypeObject | RF_ClassDefaultObject))
+	{
+		ensureMsgf(false, TEXT("AddReplicatedSubObject cannot replicate %s for %s::%s. Archetypes or CDO's cannot be replicated subobject's."), *GetNameSafe(SubObject), *GetNameSafe(this), *GetNameSafe(OwnerComponent));
 		return;
 	}
 	
