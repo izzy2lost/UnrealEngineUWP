@@ -7,12 +7,15 @@
 class IPropertyHandle;
 class IPropertyUtilities;
 class USmartObjectDefinition;
+class SComboButton;
+class SWidget;
+class FSmartObjectViewModel;
 
 /**
- * Type customization for FSmartObjectSlotDefinition.
+ * Type customization for FSmartObjectSlotDefinitionDataProxy.
  */
 
-class FSmartObjectSlotDefinitionDetails : public IPropertyTypeCustomization
+class FSmartObjectSlotDefinitionDataProxyDetails : public IPropertyTypeCustomization
 {
 public:
 	/** Makes a new instance of this detail layout class for a specific detail view requesting it */
@@ -24,15 +27,17 @@ public:
 
 private:
 
-	FText GetSlotName() const;
-	void OnSlotNameCommitted(const FText& NewText, ETextCommit::Type InTextCommit) const;
+	FText GetDefinitionDataName() const;
 	void OnCopy() const;
 	void OnPaste() const;
-	void CacheOuterDefinition();
+	TSharedPtr<FSmartObjectViewModel> GetViewModel() const;
+	FGuid GetItemID() const;
 
-	USmartObjectDefinition* Definition = nullptr;
-	IPropertyUtilities* PropUtils = nullptr;
+	TSharedRef<SWidget> GenerateStructPicker();
+	void OnStructPicked(const UScriptStruct* InStruct);
+
+	TSharedPtr<IPropertyUtilities> PropUtils;
 	TSharedPtr<IPropertyHandle> StructProperty;
-	TSharedPtr<IPropertyHandle> NamePropertyHandle;
-	TSharedPtr<IPropertyHandle> DefinitionDataPropertyHandle;
+	TSharedPtr<IPropertyHandle> DataPropertyHandle;
+	TSharedPtr<SComboButton> ComboButton;
 };

@@ -7,6 +7,7 @@
 #include "Math/Box.h"
 #include "WorldConditionQuery.h"
 #include "WorldConditions/SmartObjectWorldConditionSchema.h"
+#include "SmartObjectTypes.h"
 #include "SmartObjectDefinition.generated.h"
 
 struct FSmartObjectSlotIndex;
@@ -33,6 +34,34 @@ class SMARTOBJECTSMODULE_API USmartObjectBehaviorDefinition : public UObject
 	GENERATED_BODY()
 };
 
+/** Helper struct for definition data, which allows to identify items based on GUID in editor (even empty ones). */
+USTRUCT()
+struct SMARTOBJECTSMODULE_API FSmartObjectSlotDefinitionDataProxy
+{
+	GENERATED_BODY()
+
+	FSmartObjectSlotDefinitionDataProxy() = default;
+
+	template<typename T, typename = std::enable_if_t<std::is_base_of_v<FSmartObjectSlotDefinitionData, std::decay_t<T>>>>
+	static FSmartObjectSlotDefinitionDataProxy Make(const T& Struct)
+	{
+		FSmartObjectSlotDefinitionDataProxy NewProxy;
+		NewProxy.Data.InitializeAsScriptStruct(TBaseStructure<T>::Get(), reinterpret_cast<const uint8*>(&Struct));
+#if WITH_EDITORONLY_DATA
+		NewProxy.ID = FGuid::NewGuid();
+#endif
+		return NewProxy;
+	}
+	
+	UPROPERTY(EditDefaultsOnly, Category = "Slot", meta = (ExcludeBaseStruct))
+	TInstancedStruct<FSmartObjectSlotDefinitionData> Data;
+	
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(EditDefaultsOnly, Category = "Slot", meta = (Hidden))
+	FGuid ID;
+#endif	
+};
+
 /**
  * Persistent and sharable definition of a smart object slot.
  */
@@ -41,33 +70,46 @@ struct SMARTOBJECTSMODULE_API FSmartObjectSlotDefinition
 {
 	GENERATED_BODY()
 
+	// Macro needed to avoid deprecation errors with "Data" being copied or created in the default methods
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FSmartObjectSlotDefinition() = default;
+	FSmartObjectSlotDefinition(const FSmartObjectSlotDefinition&) = default;
+	FSmartObjectSlotDefinition(FSmartObjectSlotDefinition&&) = default;
+	FSmartObjectSlotDefinition& operator=(const FSmartObjectSlotDefinition&) = default;
+	FSmartObjectSlotDefinition& operator=(FSmartObjectSlotDefinition&&) = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditDefaultsOnly, Category = "SmartObject")
+	UPROPERTY(EditDefaultsOnly, Category = "Slot")
 	FName Name;
 
-	UPROPERTY(EditAnywhere, Category = "SmartObject", meta = (DisplayName = "Color"))
+	UPROPERTY(EditAnywhere, Category = "Slot", meta = (DisplayName = "Color"))
 	FColor DEBUG_DrawColor = FColor::Yellow;
 
-	UPROPERTY(EditAnywhere, Category = "SmartObject", meta = (DisplayName = "Shape"))
+	UPROPERTY(EditAnywhere, Category = "Slot", meta = (DisplayName = "Shape"))
 	ESmartObjectSlotShape DEBUG_DrawShape = ESmartObjectSlotShape::Circle;
 	
-	UPROPERTY(EditAnywhere, Category = "SmartObject", meta = (DisplayName = "Size"))
+	UPROPERTY(EditAnywhere, Category = "Slot", meta = (DisplayName = "Size"))
 	float DEBUG_DrawSize = 40.0f;
 
-	UPROPERTY(EditAnywhere, Category = "SmartObject", meta = (Hidden))
+	UPROPERTY(EditAnywhere, Category = "Slot", meta = (Hidden))
 	FGuid ID;
 #endif // WITH_EDITORONLY_DATA
 
+	/** Offset relative to the parent object where the slot is located. */
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "Slot")
+	FVector3f Offset = FVector3f::ZeroVector;
+
+	/** Rotation relative to the parent object. */
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "Slot")
+	FRotator3f Rotation = FRotator3f::ZeroRotator;
+	
 	/** Whether the slot is enable initially. */
-	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "SmartObject")
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "Slot")
 	bool bEnabled = true;
 
-	/** Initial runtime tags. */
-	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "SmartObject")
-	FGameplayTagContainer RuntimeTags;
-
 	/** This slot is available only for users matching this query. */
-	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "SmartObject")
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "Slot")
 	FGameplayTagQuery UserTagFilter;
 
 	/**
@@ -75,32 +117,34 @@ struct SMARTOBJECTSMODULE_API FSmartObjectSlotDefinition
 	 * Depending on the tag filtering policy these tags can override the parent object's tags
 	 * or be combined with them while applying filters from requests.
 	 */
-	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "SmartObject")
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "Slot")
 	FGameplayTagContainer ActivityTags;
 
+	/** Initial runtime tags. */
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "Slot")
+	FGameplayTagContainer RuntimeTags;
+
 	/** Preconditions that must pass for the slot to be selected. */
-	UPROPERTY(EditDefaultsOnly, Category = "SmartObject")
+	UPROPERTY(EditDefaultsOnly, Category = "Slot")
 	FWorldConditionQueryDefinition SelectionPreconditions;
-
-	/** Offset relative to the parent object where the slot is located. */
-	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "SmartObject")
-	FVector3f Offset = FVector3f::ZeroVector;
-
-	/** Rotation relative to the parent object. */
-	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "SmartObject")
-	FRotator3f Rotation = FRotator3f::ZeroRotator;
-
-	/** Custom data (struct inheriting from SmartObjectSlotDefinitionData) that can be added to the slot definition and accessed through a FSmartObjectSlotView */
-	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "SmartObject", meta = (BaseStruct = "/Script/SmartObjectsModule.SmartObjectSlotDefinitionData", ExcludeBaseStruct))
-	TArray<FInstancedStruct> Data;
 
 	/**
 	 * All available definitions associated to this slot.
 	 * This allows multiple frameworks to provide their specific behavior definition to the slot.
 	 * Note that there should be only one definition of each type since the first one will be selected.
 	 */
-	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "SmartObject", Instanced)
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "Slot", Instanced)
 	TArray<TObjectPtr<USmartObjectBehaviorDefinition>> BehaviorDefinitions;
+
+	/** Custom definition data items (struct inheriting from SmartObjectSlotDefinitionData) that can be added to the slot definition and accessed through a FSmartObjectSlotView */
+	UPROPERTY(EditDefaultsOnly, Category = "Slot")
+	TArray<FSmartObjectSlotDefinitionDataProxy> DefinitionData;
+	
+#if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.4, "Use DefinitionData instead.")
+	UPROPERTY()
+	TArray<FInstancedStruct> Data_DEPRECATED;
+#endif	
 };
 
 
@@ -181,6 +225,16 @@ public:
 	/** @return validation filter class for preview. */
 	TSubclassOf<USmartObjectSlotValidationFilter> GetPreviewValidationFilterClass() const;
 
+	/** @return Index of the slot that has the specified ID, or INDEX_NONE if not found. */
+	int32 FindSlotByID(const FGuid ID) const;
+
+	/**
+	 * Returns slot and definition data indices the ID represents.
+	 * @param ID ID of the slots or definition data to find
+	 * @param OutSlotIndex Index of the slot the ID points to
+	 * @param OutDefinitionDataIndex Index of the definition data the ID points to, or INDEX_NONE, if ID points directly to a slot.
+	 * @return true if ID matches data in the definition. */
+	bool FindSlotAndDefinitionDataIndexByID(const FGuid ID, int32& OutSlotIndex, int32& OutDefinitionDataIndex) const;
 #endif
 
 	/** Return bounds encapsulating all slots */
@@ -195,7 +249,7 @@ public:
 	 * @param OwnerTransform Transform (in world space) of the slot owner.
 	 * @param SlotIndex Index within the list of slots.
 	 * @return Transform (in world space) of the slot associated to SlotIndex.
-	 * @note Method will ensure on invalid invalid index.
+	 * @note Method will ensure on invalid slot index.
 	 */
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	UE_DEPRECATED(5.3, "Please use GetSlotWorldTransform() instead.")
@@ -207,7 +261,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 * @param OwnerTransform Transform (in world space) of the slot owner.
 	 * @param SlotIndex Index within the list of slots.
 	 * @return Transform (in world space) of the slot associated to SlotIndex, or OwnerTransform if index is invalid.
-	 * @note Method will ensure on invalid invalid index.
+	 * @note Method will ensure on invalid slot index.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="SmartObject")
 	FTransform GetSlotWorldTransform(const int32 SlotIndex, const FTransform& OwnerTransform) const;
@@ -308,9 +362,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 protected:
 
 #if WITH_EDITOR
-	/** @return Index of the slot that has the specified ID, or INDEX_NONE if not found. */
-	int32 FindSlotByID(const FGuid ID) const;
-
 	void UpdateSlotReferences();
 
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
@@ -369,6 +420,8 @@ private:
 	mutable TOptional<bool> bValid;
 
 	friend class FSmartObjectSlotReferenceDetails;
+	friend class FSmartObjectViewModel;
+	friend class FSmartObjectAssetToolkit;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

@@ -441,11 +441,11 @@ public:
 					"Given struct doesn't represent a valid definition data type. Make sure to inherit from FSmartObjectSlotDefinitionData or one of its child-types.");
 
 		const FSmartObjectSlotDefinition& SlotDefinition = GetDefinition();
-		for (const FInstancedStruct& Data : SlotDefinition.Data)
+		for (const FSmartObjectSlotDefinitionDataProxy& DataProxy : SlotDefinition.DefinitionData)
 		{
-			if (Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
+			if (DataProxy.Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
 			{
-				return Data.Get<T>();
+				return DataProxy.Data.Get<T>();
 			}
 		}
 
@@ -463,11 +463,11 @@ public:
 					"Given struct doesn't represent a valid definition data type. Make sure to inherit from FSmartObjectSlotDefinitionData or one of its child-types.");
 
 		const FSmartObjectSlotDefinition& SlotDefinition = GetDefinition();
-		for (const FInstancedStruct& Data : SlotDefinition.Data)
+		for (const FSmartObjectSlotDefinitionDataProxy& DataProxy : SlotDefinition.DefinitionData)
 		{
-			if (Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
+			if (DataProxy.Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
 			{
-				return Data.GetPtr<T>();
+				return DataProxy.Data.GetPtr<T>();
 			}
 		}
 

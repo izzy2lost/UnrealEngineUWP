@@ -28,7 +28,8 @@ namespace UnrealBuildTool.Rules
 				"SourceControl",
 				"UnrealEd",
 				"StructUtils",
-				"WorldConditions"
+				"WorldConditions",
+				"ToolWidgets",
 			}
 			);
 

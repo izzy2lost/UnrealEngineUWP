@@ -1711,8 +1711,8 @@ bool USmartObjectSubsystem::FindEntranceLocationInternal(
 	Result = {};
 
 	const FSmartObjectRuntime* SmartObjectRuntime = nullptr;
-	const FSmartObjectRuntimeSlot* Slot = nullptr;
-	if (!GetValidatedRuntimeAndSlot(SlotHandle, SmartObjectRuntime, Slot, ANSI_TO_TCHAR(__FUNCTION__)))
+	const FSmartObjectRuntimeSlot* RuntimeSlot = nullptr;
+	if (!GetValidatedRuntimeAndSlot(SlotHandle, SmartObjectRuntime, RuntimeSlot, ANSI_TO_TCHAR(__FUNCTION__)))
 	{
 		return false;
 	}
@@ -1726,7 +1726,7 @@ bool USmartObjectSubsystem::FindEntranceLocationInternal(
 	}
 	
 	const FSmartObjectSlotDefinition& SlotDefinition = SmartObjectRuntime->GetDefinition().GetSlot(SlotHandle.GetSlotIndex());
-	const FTransform& SlotTransform = Slot->GetSlotWorldTransform(SmartObjectRuntime->Transform);
+	const FTransform& SlotTransform = RuntimeSlot->GetSlotWorldTransform(SmartObjectRuntime->Transform);
 
 	bool bHasResult = false;
 	
@@ -1809,13 +1809,13 @@ void USmartObjectSubsystem::QueryValidatedSlotEntranceLocationsInternal(
 	const bool bIncludeEntries = Request.LocationType == ESmartObjectSlotNavigationLocationType::Entry;
 	const bool bIncludeExits = Request.LocationType == ESmartObjectSlotNavigationLocationType::Exit;
 
-	for (TConstEnumerateRef<const FInstancedStruct> Data : EnumerateRange(SlotDefinition.Data))
+	for (TConstEnumerateRef<const FSmartObjectSlotDefinitionDataProxy> DataProxy : EnumerateRange(SlotDefinition.DefinitionData))
 	{
-		if (const FSmartObjectSlotEntranceAnnotation* EntranceAnnotation = Data->GetPtr<FSmartObjectSlotEntranceAnnotation>())
+		if (const FSmartObjectSlotEntranceAnnotation* EntranceAnnotation = DataProxy->Data.GetPtr<FSmartObjectSlotEntranceAnnotation>())
 		{
 			// If specific entry location was requested and this is not the one, skip it.
 			if (SlotEntranceHandle.Type == FSmartObjectSlotEntranceHandle::EType::Entrance
-				&& SlotEntranceHandle.Index != Data.GetIndex())
+				&& SlotEntranceHandle.Index != DataProxy.GetIndex())
 			{
 				continue;
 			}
@@ -1832,10 +1832,10 @@ void USmartObjectSubsystem::QueryValidatedSlotEntranceLocationsInternal(
 				Candidate.bTraceGroundLocation = EntranceAnnotation->bTraceGroundLocation;
 				Candidate.bCheckTransitionTrajectory = EntranceAnnotation->bCheckTransitionTrajectory;
 				Candidate.SelectionPriority = EntranceAnnotation->SelectionPriority;
-				Candidate.Handle = FSmartObjectSlotEntranceHandle(SlotHandle, FSmartObjectSlotEntranceHandle::EType::Entrance, Data.GetIndex());
+				Candidate.Handle = FSmartObjectSlotEntranceHandle(SlotHandle, FSmartObjectSlotEntranceHandle::EType::Entrance, DataProxy.GetIndex());
 			}
 		}
-		else if (const FSmartObjectAnnotation_SlotUserCollision* UserCollisionAnnotation = Data->GetPtr<FSmartObjectAnnotation_SlotUserCollision>())
+		else if (const FSmartObjectAnnotation_SlotUserCollision* UserCollisionAnnotation = DataProxy->Data.GetPtr<FSmartObjectAnnotation_SlotUserCollision>())
 		{
 			UserCollisionAnnotation->GetColliders(ValidationContext.UserCapsuleParams, SlotTransform, SlotColliders);
 		}

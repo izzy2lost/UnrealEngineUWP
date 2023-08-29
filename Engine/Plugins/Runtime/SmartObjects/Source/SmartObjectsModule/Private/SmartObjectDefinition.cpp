@@ -2,6 +2,7 @@
 
 #include "SmartObjectDefinition.h"
 #include "SmartObjectSettings.h"
+#include "Misc/EnumerateRange.h"
 #if WITH_EDITOR
 #include "UObject/ObjectSaveContext.h"
 #include "WorldConditions/WorldCondition_SmartObjectActorTagQuery.h"
@@ -9,6 +10,7 @@
 #include "SmartObjectUserComponent.h"
 #include "Engine/SCS_Node.h"
 #include "Misc/DataValidation.h"
+#include "SmartObjectPropertyHelpers.h"
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SmartObjectDefinition)
@@ -239,49 +241,91 @@ int32 USmartObjectDefinition::FindSlotByID(const FGuid ID) const
 	return Slot;
 }
 
+bool USmartObjectDefinition::FindSlotAndDefinitionDataIndexByID(const FGuid ID, int32& OutSlotIndex, int32& OutDefinitionDataIndex) const
+{
+	OutSlotIndex = INDEX_NONE;
+	OutDefinitionDataIndex = INDEX_NONE;
+	
+	// First try to find direct match on a slot.
+	for (TConstEnumerateRef<const FSmartObjectSlotDefinition> SlotDefinition : EnumerateRange(Slots))
+	{
+		if (SlotDefinition->ID == ID)
+		{
+			OutSlotIndex = SlotDefinition.GetIndex();
+			return true;
+		}
+
+		// Next try to find slot index based on definition data.
+		const int32 DefinitionDataIndex = SlotDefinition->DefinitionData.IndexOfByPredicate([&ID](const FSmartObjectSlotDefinitionDataProxy& DataProxy)
+		{
+			return DataProxy.ID == ID;
+		});
+		if (DefinitionDataIndex != INDEX_NONE)
+		{
+			OutSlotIndex = SlotDefinition.GetIndex();
+			OutDefinitionDataIndex = DefinitionDataIndex;
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void USmartObjectDefinition::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeChainProperty(PropertyChangedEvent);
 
-	const FProperty* Property = PropertyChangedEvent.Property;
-	if (Property == nullptr)
-	{
-		return;
-	}
-	const FProperty* MemberProperty = nullptr;
-	if (PropertyChangedEvent.PropertyChain.GetActiveMemberNode())
-	{
-		MemberProperty = PropertyChangedEvent.PropertyChain.GetActiveMemberNode()->GetValue();
-	}
-	if (MemberProperty == nullptr)
-	{
-		return;
-	}
+	const FSmartObjectEditPropertyPath ChangePropertyPath(PropertyChangedEvent);
+
+	static const FSmartObjectEditPropertyPath SlotsPath(USmartObjectDefinition::StaticClass(), TEXT("Slots"));
+	static const FSmartObjectEditPropertyPath WorldConditionSchemaClassPath(USmartObjectDefinition::StaticClass(), TEXT("WorldConditionSchemaClass"));
+	static const FSmartObjectEditPropertyPath SlotsDefinitionDataPath(USmartObjectDefinition::StaticClass(), TEXT("Slots.DefinitionData"));
 
 	// Ensure unique Slot ID on added or duplicated items.
 	if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayAdd
 		|| PropertyChangedEvent.ChangeType == EPropertyChangeType::Duplicate)
 	{
-		if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(USmartObjectDefinition, Slots))
+		if (ChangePropertyPath.IsPathExact(SlotsPath))
 		{
-			const int32 ArrayIndex = PropertyChangedEvent.GetArrayIndex(MemberProperty->GetFName().ToString());
-			if (Slots.IsValidIndex(ArrayIndex))
+			const int32 SlotIndex = ChangePropertyPath.GetPropertyArrayIndex(SlotsPath);
+			if (Slots.IsValidIndex(SlotIndex))
 			{
-				FSmartObjectSlotDefinition& Slot = Slots[ArrayIndex];
-				Slot.ID = FGuid::NewGuid();
-				Slot.SelectionPreconditions.SetSchemaClass(WorldConditionSchemaClass);
+				FSmartObjectSlotDefinition& SlotDefinition = Slots[SlotIndex];
+				SlotDefinition.ID = FGuid::NewGuid();
+				SlotDefinition.SelectionPreconditions.SetSchemaClass(WorldConditionSchemaClass);
+				
+				// Set new IDs to all duplicated data too
+				for (FSmartObjectSlotDefinitionDataProxy& DataProxy : SlotDefinition.DefinitionData)
+				{
+					DataProxy.ID = FGuid::NewGuid();
+				}
+			}
+		}
+
+		if (ChangePropertyPath.IsPathExact(SlotsDefinitionDataPath))
+		{
+			const int32 SlotIndex = ChangePropertyPath.GetPropertyArrayIndex(SlotsPath);
+			if (Slots.IsValidIndex(SlotIndex))
+			{
+				FSmartObjectSlotDefinition& SlotDefinition = Slots[SlotIndex];
+				const int32 DataIndex = ChangePropertyPath.GetPropertyArrayIndex(SlotsDefinitionDataPath);
+				if (SlotDefinition.DefinitionData.IsValidIndex(DataIndex))
+				{
+					FSmartObjectSlotDefinitionDataProxy& DataProxy = SlotDefinition.DefinitionData[DataIndex];
+					DataProxy.ID = FGuid::NewGuid();
+				}
 			}
 		}
 	}
 
 	// Anything in the slots changed, update references.
-	if (MemberProperty->GetFName() == GET_MEMBER_NAME_CHECKED(USmartObjectDefinition, Slots))
+	if (ChangePropertyPath.ContainsPath(SlotsPath))
 	{
 		UpdateSlotReferences();
 	}
 
 	// If schema changes, update preconditions too.
-	if (MemberProperty->GetFName() == GET_MEMBER_NAME_CHECKED(USmartObjectDefinition, WorldConditionSchemaClass))
+	if (ChangePropertyPath.IsPathExact(WorldConditionSchemaClassPath))
 	{
 		for (FSmartObjectSlotDefinition& Slot : Slots)
 		{
@@ -308,14 +352,14 @@ void USmartObjectDefinition::UpdateSlotReferences()
 {
 	for (FSmartObjectSlotDefinition& Slot : Slots)
 	{
-		for (FInstancedStruct& Data : Slot.Data)
+		for (FSmartObjectSlotDefinitionDataProxy& DataProxy : Slot.DefinitionData)
 		{
-			if (!Data.IsValid())
+			if (!DataProxy.Data.IsValid())
 			{
 				continue;
 			}
-			const UScriptStruct* ScriptStruct = Data.GetScriptStruct();
-			uint8* Memory = Data.GetMutableMemory();
+			const UScriptStruct* ScriptStruct = DataProxy.Data.GetScriptStruct();
+			uint8* Memory = DataProxy.Data.GetMutableMemory();
 			
 			for (TFieldIterator<FProperty> It(ScriptStruct); It; ++It)
 			{
@@ -374,6 +418,23 @@ void USmartObjectDefinition::PostLoad()
 		PreviewData.ObjectMeshPath = PreviewMeshPath_DEPRECATED;
 		PreviewMeshPath_DEPRECATED.Reset();
 	}
+
+	for (FSmartObjectSlotDefinition& Slot : Slots)
+	{
+		if (Slot.Data_DEPRECATED.Num() > 0)
+		{
+			Slot.DefinitionData.Reserve(Slot.Data_DEPRECATED.Num());
+
+			for (const FInstancedStruct& Data : Slot.Data_DEPRECATED)
+			{
+				FSmartObjectSlotDefinitionDataProxy& DataProxy = Slot.DefinitionData.AddDefaulted_GetRef();
+				DataProxy.Data.InitializeAsScriptStruct(Data.GetScriptStruct(), Data.GetMemory());
+				DataProxy.ID = FGuid::NewGuid();
+			}
+
+			Slot.Data_DEPRECATED.Reset();
+		}
+	}	
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif	
 

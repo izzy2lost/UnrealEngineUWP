@@ -10,16 +10,15 @@ class USmartObjectAssetEditorTool;
 class USmartObjectSubsystem;
 
 /**
- * Hit proxy for Smart Object slots.
+ * Hit proxy for Smart Object slots and annotations.
  */
-struct SMARTOBJECTSEDITORMODULE_API HSmartObjectSlotProxy : public HComponentVisProxy
+struct SMARTOBJECTSEDITORMODULE_API HSmartObjectItemProxy : public HComponentVisProxy
 {
 	DECLARE_HIT_PROXY();
 
-	HSmartObjectSlotProxy(const UActorComponent* InComponent, const FGuid InSlotID, const int32 InAnnotationIndex = INDEX_NONE)
+	HSmartObjectItemProxy(const UActorComponent* InComponent, const FGuid InID)
 		: HComponentVisProxy(InComponent, HPP_Foreground)
-		, SlotID(InSlotID)
-		, AnnotationIndex(InAnnotationIndex)
+		, ItemID(InID)
 	{}
 
 	virtual EMouseCursor::Type GetMouseCursor() override
@@ -27,8 +26,7 @@ struct SMARTOBJECTSEDITORMODULE_API HSmartObjectSlotProxy : public HComponentVis
 		return EMouseCursor::CardinalCross;
 	}
 
-	FGuid SlotID;
-	int32 AnnotationIndex = INDEX_NONE;
+	FGuid ItemID;
 };
 
 /**
@@ -36,28 +34,8 @@ struct SMARTOBJECTSEDITORMODULE_API HSmartObjectSlotProxy : public HComponentVis
  */
 namespace UE::SmartObjects::Editor
 {
-	// @todo: move this to more suitable header.
-	struct FSelectedItem
-	{
-		FSelectedItem() = default;
-
-		FSelectedItem(const FGuid InSlotID, const int32 InAnnotationIndex = INDEX_NONE)
-			: SlotID(InSlotID)
-			, AnnotationIndex(InAnnotationIndex)
-		{
-		}
-
-		bool operator==(const FSelectedItem& Other) const
-		{
-			return SlotID == Other.SlotID && AnnotationIndex == Other.AnnotationIndex;
-		}
-			
-		FGuid SlotID;
-		int32 AnnotationIndex = INDEX_NONE; // @todo: consider guid for this too.
-	};
-
-	void Draw(const USmartObjectDefinition& Definition, TConstArrayView<FSelectedItem> Selection, const FTransform& OwnerLocalToWorld, const FSceneView& View, FPrimitiveDrawInterface& PDI, const UWorld& World, const AActor* PreviewActor);
-	void DrawCanvas(const USmartObjectDefinition& Definition, TConstArrayView<FSelectedItem> Selection, const FTransform& OwnerLocalToWorld, const FSceneView& View, FCanvas& Canvas, const UWorld& World, const AActor* PreviewActor);
+	void Draw(const USmartObjectDefinition& Definition, TConstArrayView<FGuid> Selection, const FTransform& OwnerLocalToWorld, const FSceneView& View, FPrimitiveDrawInterface& PDI, const UWorld& World, const AActor* PreviewActor);
+	void DrawCanvas(const USmartObjectDefinition& Definition, TConstArrayView<FGuid> Selection, const FTransform& OwnerLocalToWorld, const FSceneView& View, FCanvas& Canvas, const UWorld& World, const AActor* PreviewActor);
 }; // UE::SmartObjects::Editor
 
 
