@@ -1862,6 +1862,18 @@ void SStructViewer::Populate()
 		// Sort the list alphabetically.
 		RootTreeItems.Sort(&FStructViewerNode::SortPredicate);
 
+		// Scroll to selected struct
+		for (const TSharedPtr<FStructViewerNode>& Node : RootTreeItems)
+		{
+			if (Node.IsValid())
+			{
+				if (InitOptions.SelectedStruct == Node->GetStruct())
+				{
+					StructList->RequestScrollIntoView(Node);
+				}
+			}
+		}
+
 		// Only display this option if the user wants it and in Picker Mode.
 		if (InitOptions.bShowNoneOption && InitOptions.Mode == EStructViewerMode::StructPicker)
 		{

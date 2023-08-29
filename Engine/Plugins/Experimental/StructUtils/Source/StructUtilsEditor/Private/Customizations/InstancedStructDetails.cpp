@@ -491,13 +491,17 @@ TSharedRef<SWidget> FInstancedStructDetails::GenerateStructPicker()
 	StructFilter->bAllowUserDefinedStructs = BaseScriptStruct == nullptr; // Only allow user defined structs when BaseStruct is not set.
 	StructFilter->bAllowBaseStruct = !bExcludeBaseStruct;
 
+	const UScriptStruct* SelectedStruct = nullptr;
+	const FPropertyAccess::Result Result = UE::StructUtils::Private::GetCommonScriptStruct(StructProperty, SelectedStruct);
+	
 	FStructViewerInitializationOptions Options;
 	Options.bShowNoneOption = bAllowNone;
 	Options.StructFilter = StructFilter;
 	Options.NameTypeToDisplay = EStructViewerNameTypeToDisplay::DisplayName;
 	Options.DisplayMode = bShowTreeView ? EStructViewerDisplayMode::TreeView : EStructViewerDisplayMode::ListView;
 	Options.bAllowViewOptions = !bHideViewOptions;
-
+	Options.SelectedStruct = SelectedStruct;
+	
 	FOnStructPicked OnPicked(FOnStructPicked::CreateSP(this, &FInstancedStructDetails::OnStructPicked));
 
 	return SNew(SBox)
