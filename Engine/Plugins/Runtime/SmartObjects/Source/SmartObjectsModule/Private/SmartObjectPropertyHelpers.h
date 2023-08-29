@@ -60,7 +60,7 @@ public:
 			}
 			else
 			{
-				checkf(TEXT("Path %s id not part of type %s."), *InPath, *GetNameSafe(BaseStruct));
+				checkf(false, TEXT("Path %s id not part of type %s."), *InPath, *GetNameSafe(BaseStruct));
 				Path.Reset();
 				break;
 			}
