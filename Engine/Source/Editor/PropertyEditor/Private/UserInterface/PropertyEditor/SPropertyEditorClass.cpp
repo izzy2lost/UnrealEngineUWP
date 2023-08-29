@@ -70,7 +70,10 @@ private:
 	}
 };
 
-static UClass* FindOrLoadClass(const FString& ClassName)
+namespace UE::PropertyEditor::Class::Private
+{
+
+UClass* FindOrLoadClass(const FString& ClassName)
 {
 	UClass* Class = UClass::TryFindTypeSlow<UClass>(ClassName, EFindFirstObjectOptions::EnsureIfAmbiguous);
 
@@ -81,6 +84,8 @@ static UClass* FindOrLoadClass(const FString& ClassName)
 
 	return Class;
 }
+
+} // namespace UE::PropertyEditor::Class::Private
 
 void SPropertyEditorClass::GetDesiredWidth(float& OutMinDesiredWidth, float& OutMaxDesiredWidth)
 {
@@ -144,6 +149,8 @@ void SPropertyEditorClass::Construct(const FArguments& InArgs, const TSharedPtr<
 		// Filter based on UPROPERTY meta data
 		AllowedClassFilters = PropertyCustomizationHelpers::GetClassesFromMetadataString(Property->GetOwnerProperty()->GetMetaData("AllowedClasses"));
 		DisallowedClassFilters = PropertyCustomizationHelpers::GetClassesFromMetadataString(Property->GetOwnerProperty()->GetMetaData("DisallowedClasses"));
+
+		using namespace UE::PropertyEditor::Class::Private;
 
 		// Filter based on restrictions
 		for (const TSharedRef<const FPropertyRestriction>& ClassRestriction : PropertyNode->GetRestrictions())
@@ -327,7 +334,7 @@ void SPropertyEditorClass::SendToObjects(const FString& NewValue)
 	}
 	else if (!NewValue.IsEmpty() && NewValue != TEXT("None"))
 	{
-		const UClass* NewClass = FindOrLoadClass(NewValue);
+		const UClass* NewClass = UE::PropertyEditor::Class::Private::FindOrLoadClass(NewValue);
 		OnSetClass.Execute(NewClass);
 	}
 	else
