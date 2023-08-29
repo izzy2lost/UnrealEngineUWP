@@ -2,6 +2,7 @@
 
 #include "PixelStreamingVideoInputBackBufferComposited.h"
 
+#include "Async/Async.h"
 #include "EngineModule.h"
 #include "Framework/Application/SlateApplication.h"
 #include "MediaShaders.h"
@@ -32,7 +33,7 @@ TSharedPtr<FPixelStreamingVideoInputBackBufferComposited> FPixelStreamingVideoIn
 	TSharedPtr<FPixelStreamingVideoInputBackBufferComposited> NewInput = TSharedPtr<FPixelStreamingVideoInputBackBufferComposited>(new FPixelStreamingVideoInputBackBufferComposited());
 	TWeakPtr<FPixelStreamingVideoInputBackBufferComposited> WeakInput = NewInput;
 	// Set up the callback on the game thread since FSlateApplication::Get() can only be used there
-	UE::PixelStreaming::DoOnGameThread([WeakInput]() {
+	AsyncTask(ENamedThreads::GameThread, [WeakInput]() {
 		if (TSharedPtr<FPixelStreamingVideoInputBackBufferComposited> Input = WeakInput.Pin())
 		{
 			FSlateRenderer* Renderer = FSlateApplication::Get().GetRenderer();
@@ -45,7 +46,7 @@ TSharedPtr<FPixelStreamingVideoInputBackBufferComposited> FPixelStreamingVideoIn
 FPixelStreamingVideoInputBackBufferComposited::FPixelStreamingVideoInputBackBufferComposited()
 {
 	SharedFrameRect = MakeShared<FIntRect>();
-	UE::PixelStreaming::DoOnGameThread([this]() { FSlateApplication::Get().OnPreTick().AddLambda([this](float DeltaTime) {
+	AsyncTask(ENamedThreads::GameThread, [this]() { FSlateApplication::Get().OnPreTick().AddLambda([this](float DeltaTime) {
 			FScopeLock Lock(&TopLevelWindowsCriticalSection);
 			TArray<TSharedRef<SWindow>> TopLevelSlateWindows;
 			FSlateApplication::Get().GetAllVisibleWindowsOrdered(TopLevelSlateWindows);
@@ -92,7 +93,7 @@ FPixelStreamingVideoInputBackBufferComposited::~FPixelStreamingVideoInputBackBuf
 {
 	if (!IsEngineExitRequested())
 	{
-		UE::PixelStreaming::DoOnGameThread([HandleCopy = DelegateHandle]() { FSlateApplication::Get().GetRenderer()->OnBackBufferReadyToPresent().Remove(HandleCopy); });
+		AsyncTask(ENamedThreads::GameThread, [HandleCopy = DelegateHandle]() { FSlateApplication::Get().GetRenderer()->OnBackBufferReadyToPresent().Remove(HandleCopy); });
 	}
 }
 

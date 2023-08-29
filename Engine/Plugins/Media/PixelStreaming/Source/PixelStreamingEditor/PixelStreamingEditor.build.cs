@@ -10,12 +10,6 @@ namespace UnrealBuildTool.Rules
 		{
 			var EngineDir = Path.GetFullPath(Target.RelativeEnginePath);
 
-			// NOTE: General rule is not to access the private folder of another module
-			PrivateIncludePaths.AddRange(new string[]
-			{
-				Path.Combine(EngineDir, "Plugins/Media/PixelStreaming/Source/PixelStreaming/Private"),
-			});
-
 			PrivateDependencyModuleNames.AddRange(new string[]
 			{
 				"Core",

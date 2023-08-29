@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PixelStreamingVideoInputViewport.h"
+
+#include "Async/Async.h"
 #include "Settings.h"
 #include "Utils.h"
 #include "PixelCaptureInputFrameRHI.h"
@@ -22,7 +24,7 @@ TSharedPtr<FPixelStreamingVideoInputViewport> FPixelStreamingVideoInputViewport:
 	TWeakPtr<FPixelStreamingVideoInputViewport> WeakInput = NewInput;
 
 	// Set up the callback on the game thread since FSlateApplication::Get() can only be used there
-	UE::PixelStreaming::DoOnGameThread([WeakInput]() {
+	AsyncTask(ENamedThreads::GameThread, [WeakInput]() {
 		if (TSharedPtr<FPixelStreamingVideoInputViewport> Input = WeakInput.Pin())
 		{
 			Input->DelegateHandle = UGameViewportClient::OnViewportRendered().AddSP(Input.ToSharedRef(), &FPixelStreamingVideoInputViewport::OnViewportRendered);
@@ -36,7 +38,7 @@ FPixelStreamingVideoInputViewport::~FPixelStreamingVideoInputViewport()
 {
 	if (!IsEngineExitRequested())
 	{
-		UE::PixelStreaming::DoOnGameThread([HandleCopy = DelegateHandle]() {
+		AsyncTask(ENamedThreads::GameThread, [HandleCopy = DelegateHandle]() {
 			UGameViewportClient::OnViewportRendered().Remove(HandleCopy);
 		});
 	}
