@@ -119,7 +119,7 @@ private:
 namespace UE::PropertyEditor::EditInline::Private
 {
 
-UClass* FindOrLoadClass(const FString& ClassName)
+static UClass* FindOrLoadClass(const FString& ClassName)
 {
 	UClass* Class = UClass::TryFindTypeSlow<UClass>(ClassName, EFindFirstObjectOptions::EnsureIfAmbiguous);
 
