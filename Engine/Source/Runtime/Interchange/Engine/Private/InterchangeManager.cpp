@@ -1885,7 +1885,14 @@ void UInterchangeManager::ReleaseAsyncHelper(TWeakPtr<UE::Interchange::FImportAs
 			}
 			else
 			{
-				TitleText = NSLOCTEXT("Interchange", "Asynchronous_import_end", "Import Done");
+				if(bSucceeded)
+				{
+					TitleText = NSLOCTEXT("Interchange", "Asynchronous_import_end", "Import Done");
+				}
+				else
+				{
+					TitleText = NSLOCTEXT("Interchange", "Asynchronous_import_failed", "Import Failed");
+				}
 			}
 
 			Notification->SetComplete(TitleText, FText::GetEmpty(), bSucceeded);
