@@ -152,6 +152,7 @@ void UMVVMBlueprintInstancedViewModelBase::GenerateClass()
 		FromPropertyToCreatedProperty.Empty();
 	}
 
+	// Find a way to call DestroyPropertiesPendingDestruction but after everyone had the time to update.
 	//GeneratedClass->DestroyPropertiesPendingDestruction();
 }
 
@@ -234,7 +235,6 @@ void UMVVMBlueprintInstancedViewModelBase::SetDefaultValue(const FProperty* Prop
 
 	if (NewProperty)
 	{
-		//void* DestinationPtr = reinterpret_cast<uint8*>(GeneratedClass->GetDefaultObject()) + NewProperty->GetOffset_ForInternal();
 		void* DestinationPtr = NewProperty->ContainerPtrToValuePtr<void>(GeneratedClass->GetDefaultObject());
 		NewProperty->CopyCompleteValue(DestinationPtr, ValuePtr);
 	}

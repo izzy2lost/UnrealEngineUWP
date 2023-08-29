@@ -63,7 +63,6 @@ private:
 	FText GetAddBindingToolTip() const;
 	TSharedRef<SWidget> HandleAddDefaultBindingContextMenu();
 	void HandleAddDefaultBindingButtonClick(EAddBindingMode NewMode);
-	void HandleAddDefaultEventButtonClick(EAddBindingMode NewMode);
 
 	TSharedRef<SWidget> GenerateSettingsMenu();
 

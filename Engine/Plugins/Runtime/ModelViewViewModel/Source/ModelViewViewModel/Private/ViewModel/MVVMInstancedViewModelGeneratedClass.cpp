@@ -39,8 +39,7 @@ DEFINE_FUNCTION(UMVVMInstancedViewModelGeneratedClass::K2_CallNativeOnRep)
 		return;
 	}
 	UMVVMInstancedViewModelGeneratedClass* GeneratedClass = Cast<UMVVMInstancedViewModelGeneratedClass>(CallingObject->GetClass());
-	ensure(GeneratedClass);
-	if (!GeneratedClass)
+	if (!ensure(GeneratedClass))
 	{
 		return;
 	}

@@ -351,24 +351,6 @@ TSharedRef<SWidget> SBindingsPanel::HandleAddDefaultBindingContextMenu()
 			FCanExecuteAction::CreateSP(this, &SBindingsPanel::CanAddBinding)
 		));
 
-	MenuBuilder.AddMenuEntry(
-		LOCTEXT("AddSelectedWidgetEvent", "Add Selected Widget(s) event"),
-		FText::GetEmpty(),
-		FSlateIcon(),
-		FUIAction(
-			FExecuteAction::CreateSP(this, &SBindingsPanel::HandleAddDefaultEventButtonClick, EAddBindingMode::Selected),
-			FCanExecuteAction::CreateSP(this, &SBindingsPanel::CanAddBinding)
-		));
-
-	MenuBuilder.AddMenuEntry(
-		LOCTEXT("AddEmptyWidgetEvent", "Add Empty event"),
-		FText::GetEmpty(),
-		FSlateIcon(),
-		FUIAction(
-			FExecuteAction::CreateSP(this, &SBindingsPanel::HandleAddDefaultEventButtonClick, EAddBindingMode::Empty),
-			FCanExecuteAction::CreateSP(this, &SBindingsPanel::CanAddBinding)
-		));
-
 	return MenuBuilder.MakeWidget();
 }
 
@@ -380,41 +362,6 @@ void SBindingsPanel::HandleAddDefaultBindingButtonClick(EAddBindingMode NewMode)
 		SaveSettings();
 	}
 	AddDefaultBinding();
-}
-
-void SBindingsPanel::HandleAddDefaultEventButtonClick(EAddBindingMode NewMode)
-{
-	if (UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get())
-	{
-		UMVVMEditorSubsystem* EditorSubsystem = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>();
-		if (TSharedPtr<FWidgetBlueprintEditor> BlueprintEditor = WeakBlueprintEditor.Pin())
-		{
-			UMVVMBlueprintViewEvent* NewEvent = nullptr;
-			if (AddBindingMode == EAddBindingMode::Selected)
-			{
-				for (const FWidgetReference& WidgetReference : BlueprintEditor->GetSelectedWidgets())
-				{
-					if (WidgetReference.IsValid() && WidgetReference.GetTemplate())
-					{
-						NewEvent = EditorSubsystem->AddEvent(MVVMExtensionPtr->GetWidgetBlueprint());
-						FMVVMBlueprintPropertyPath Path;
-						Path.SetWidgetName(WidgetReference.GetTemplate()->GetFName());
-						EditorSubsystem->SetEventPath(NewEvent, Path);
-					}
-				}
-			}
-
-			if (!NewEvent)
-			{
-				NewEvent = EditorSubsystem->AddEvent(MVVMExtensionPtr->GetWidgetBlueprint());
-			}
-
-			if (NewEvent && BindingsList)
-			{
-				BindingsList->RequestNavigateToEvent(NewEvent);
-			}
-		}
-	}
 }
 
 TSharedRef<SWidget> SBindingsPanel::CreateDrawerDockButton()

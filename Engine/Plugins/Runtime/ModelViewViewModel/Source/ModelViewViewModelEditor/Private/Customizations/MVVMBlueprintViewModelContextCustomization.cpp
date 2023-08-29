@@ -317,7 +317,8 @@ void FBlueprintViewModelContextDetailCustomization::CustomizeChildren(TSharedRef
 				.Visibility(MakeAttributeLambda([ContextPtr]()
 					{
 						bool bResult = ContextPtr->CreationType == EMVVMBlueprintViewModelContextCreationType::GlobalViewModelCollection
-						 || ContextPtr->CreationType == EMVVMBlueprintViewModelContextCreationType::PropertyPath;
+						 || ContextPtr->CreationType == EMVVMBlueprintViewModelContextCreationType::PropertyPath
+						 || ContextPtr->CreationType == EMVVMBlueprintViewModelContextCreationType::Resolver;
 						return bResult ? EVisibility::Visible : EVisibility::Collapsed;
 					}));
 		}
