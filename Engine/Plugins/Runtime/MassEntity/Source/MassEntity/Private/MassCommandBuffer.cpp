@@ -10,6 +10,7 @@
 
 CSV_DEFINE_CATEGORY(MassEntities, true);
 CSV_DEFINE_CATEGORY(MassEntitiesCounters, true);
+DECLARE_CYCLE_STAT(TEXT("Mass Flush Commands"), STAT_Mass_FlushCommands, STATGROUP_Mass);
 
 namespace UE::Mass::Command {
 
@@ -97,6 +98,7 @@ void FMassCommandBuffer::Flush(FMassEntityManager& EntityManager)
 	{
 		UE_MT_SCOPED_WRITE_ACCESS(PendingBatchCommandsDetector);
 		LLM_SCOPE_BYNAME(TEXT("Mass/FlushCommands"));
+		SCOPE_CYCLE_COUNTER(STAT_Mass_FlushCommands);
 
 		// array used to group commands depending on their operations. Based on EMassCommandOperationType
 		constexpr int32 CommandTypeOrder[] =

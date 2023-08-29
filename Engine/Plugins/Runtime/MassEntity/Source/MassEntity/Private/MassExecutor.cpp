@@ -156,6 +156,7 @@ struct FMassExecutorDoneTask
 	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("Flush Deferred Commands Parallel");
+		SCOPE_CYCLE_COUNTER(STAT_Mass_Total);
 
 		FMassEntityManager& EntityManagerRef = ExecutionContext.GetEntityManagerChecked();
 

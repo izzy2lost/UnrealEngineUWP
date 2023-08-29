@@ -11,6 +11,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MassProcessor)
 
 DECLARE_CYCLE_STAT(TEXT("MassProcessor Group Completed"), Mass_GroupCompletedTask, STATGROUP_TaskGraphTasks);
+DECLARE_CYCLE_STAT(TEXT("Mass Processor Task"), STAT_Mass_DoTask, STATGROUP_Mass);
 
 #if WITH_MASSENTITY_DEBUG
 namespace UE::Mass::Debug
@@ -61,6 +62,8 @@ public:
 		checkf(Processor, TEXT("Expecting a valid processor to execute"));
 
 		PROCESSOR_TASK_LOG(TEXT("+--+ Task %s started on %u"), *Processor->GetProcessorName(), FPlatformTLS::GetCurrentThreadId());
+		SCOPE_CYCLE_COUNTER(STAT_Mass_DoTask);
+		SCOPE_CYCLE_COUNTER(STAT_Mass_Total);
 
 		check(EntityManager);
 		FMassEntityManager& EntityManagerRef = *EntityManager.Get();

@@ -15,7 +15,7 @@
 #include "MassExecutionContext.h"
 
 
-DECLARE_CYCLE_STAT(TEXT("Visualization Processor Execute"), STAT_Mass_VisProcessor_Execute, STATGROUP_Mass);
+DECLARE_CYCLE_STAT(TEXT("Mass Visualization Execute"), STAT_Mass_VisProcessor_Execute, STATGROUP_Mass);
 
 namespace UE::Mass::Representation
 {

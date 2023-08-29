@@ -57,6 +57,7 @@ void FMassProcessingPhase::ExecuteTick(float DeltaTime, ELevelTick TickType, ENa
 	}
 
 	SCOPE_CYCLE_COUNTER(STAT_Mass_PhaseTick);
+	SCOPE_CYCLE_COUNTER(STAT_Mass_Total);
 
 	checkf(PhaseManager, TEXT("Manager is null which is not a supported case. Either this FMassProcessingPhase has not been initialized properly or it's been left dangling after the FMassProcessingPhase owner got destroyed."));
 
