@@ -15,6 +15,7 @@ class ULevel;
 class ULevelStreaming;
 class UWorldPartition;
 class UActorDescContainer;
+class UWorldPartitionLevelStreamingDynamic;
 class FWorldPartitionActorDesc;
 class FWorldPartitionDraw2DContext;
 
@@ -218,7 +219,7 @@ private:
 	int32 LevelStreamingForceGCAfterLevelStreamedOut;
 
 	// Tracks streaming levels of uninitialized world partition used to delay next initialization until they're done being removed
-	TMap<FSoftObjectPath, TSet<TWeakObjectPtr<ULevelStreaming>>> WorldPartitionUninitializationPendingStreamingLevels;
+	TMap<FSoftObjectPath, TSet<TWeakObjectPtr<UWorldPartitionLevelStreamingDynamic>>> WorldPartitionUninitializationPendingStreamingLevels;
 
 	// Tracks world partition loading and pending loads
 	TSet<TWeakObjectPtr<const ULevelStreaming>> WorldPartitionLoadingAndPendingLoadStreamingLevels;

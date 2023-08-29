@@ -654,8 +654,7 @@ UWorld* UWorldPartitionLevelStreamingDynamic::GetStreamingWorld() const
 {
 	// For UWorldPartitionLevelStreamingDynamic the StreamingWorld is the world to which the OuterWorldPartition is outered.
 	// This World can be used to resolved SoftObjectPaths between cells.
-	check(OuterWorldPartition.IsValid());
-	return OuterWorldPartition->GetTypedOuter<UWorld>();
+	return OuterWorldPartition.IsValid() ? OuterWorldPartition->GetTypedOuter<UWorld>() : nullptr;
 }
 
 bool UWorldPartitionLevelStreamingDynamic::CanChangeVisibility(bool bMakeVisible) const

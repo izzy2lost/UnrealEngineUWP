@@ -11,6 +11,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
+#include "UObject/SoftObjectPtr.h"
 #include "Engine/LevelStreaming.h"
 #include "Engine/LevelStreamingDynamic.h"
 #include "WorldPartition/WorldPartition.h"
@@ -45,6 +46,7 @@ class UWorldPartitionLevelStreamingDynamic : public ULevelStreamingDynamic
 
 	ENGINE_API void Initialize(const UWorldPartitionRuntimeLevelStreamingCell& InCell);
 	ENGINE_API void SetLevelTransform(const FTransform& InLevelTransform);
+	ENGINE_API const FSoftObjectPath& GetOuterWorldPartition() const { return OuterWorldPartition.ToSoftObjectPath(); }
 
 	virtual bool CanReplicateStreamingStatus() const override { return false; }
 
@@ -105,5 +107,5 @@ private:
 	TWeakObjectPtr<const UWorldPartitionRuntimeLevelStreamingCell> StreamingCell;
 
 	UPROPERTY()
-	TWeakObjectPtr<UWorldPartition> OuterWorldPartition;
+	TSoftObjectPtr<UWorldPartition> OuterWorldPartition;
 };

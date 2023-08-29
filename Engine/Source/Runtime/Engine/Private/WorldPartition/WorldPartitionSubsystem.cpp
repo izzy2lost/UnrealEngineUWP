@@ -547,8 +547,8 @@ void UWorldPartitionSubsystem::OnWorldPartitionUninitialized(UWorldPartition* In
 	const UWorld* OwningWorld = GetWorld();
 	if (OwningWorld->IsGameWorld())
 	{
-		TOptional<TSet<TWeakObjectPtr<ULevelStreaming>>*> PendingStreamingLevels;
-		auto GetPendingStreamingLevels = [this, InWorldPartition, &PendingStreamingLevels]() -> TSet<TWeakObjectPtr<ULevelStreaming>>&
+		TOptional<TSet<TWeakObjectPtr<UWorldPartitionLevelStreamingDynamic>>*> PendingStreamingLevels;
+		auto GetPendingStreamingLevels = [this, InWorldPartition, &PendingStreamingLevels]() -> TSet<TWeakObjectPtr<UWorldPartitionLevelStreamingDynamic>>&
 		{
 			if (!PendingStreamingLevels.IsSet())
 			{
@@ -557,14 +557,15 @@ void UWorldPartitionSubsystem::OnWorldPartitionUninitialized(UWorldPartition* In
 			return *PendingStreamingLevels.GetValue();
 		};
 
-		const UWorld* WorldPartitionOuterWorld = InWorldPartition->GetTypedOuter<UWorld>();
-		if (WorldPartitionOuterWorld != OwningWorld)
+		if (InWorldPartition->GetTypedOuter<UWorld>() != OwningWorld)
 		{
+			const FSoftObjectPath WorldPartition(InWorldPartition);
 			for (ULevelStreaming* StreamingLevel : OwningWorld->GetStreamingLevels())
 			{
-				if (StreamingLevel->GetStreamingWorld() == WorldPartitionOuterWorld)
+				UWorldPartitionLevelStreamingDynamic* WorldPartitionStreamingLevel = Cast<UWorldPartitionLevelStreamingDynamic>(StreamingLevel);
+				if (WorldPartitionStreamingLevel && (WorldPartitionStreamingLevel->GetOuterWorldPartition() == WorldPartition))
 				{
-					GetPendingStreamingLevels().Add(StreamingLevel);
+					GetPendingStreamingLevels().Add(WorldPartitionStreamingLevel);
 				}
 			}
 		}
@@ -590,7 +591,7 @@ void UWorldPartitionSubsystem::OnWorldPartitionUninitialized(UWorldPartition* In
 
 bool UWorldPartitionSubsystem::HasUninitializationPendingStreamingLevels(const UWorldPartition* InWorldPartition) const
 {
-	if (const TSet<TWeakObjectPtr<ULevelStreaming>>* PendingStreamingLevels = InWorldPartition ? WorldPartitionUninitializationPendingStreamingLevels.Find(FSoftObjectPath(InWorldPartition)) : nullptr)
+	if (const TSet<TWeakObjectPtr<UWorldPartitionLevelStreamingDynamic>>* PendingStreamingLevels = InWorldPartition ? WorldPartitionUninitializationPendingStreamingLevels.Find(FSoftObjectPath(InWorldPartition)) : nullptr)
 	{
 		if (ensure(!PendingStreamingLevels->IsEmpty()))
 		{
@@ -663,16 +664,17 @@ void UWorldPartitionSubsystem::OnLevelStreamingStateChanged(UWorld* InWorld, con
 
 	if (NewState == ELevelStreamingState::Removed)
 	{
-		const UWorld* OuterWorld = InStreamingLevel->GetStreamingWorld();
-		if (const UWorldPartition* OuterWorldPartition = OuterWorld && OuterWorld->IsGameWorld() ? OuterWorld->GetWorldPartition() : nullptr)
+		if (const UWorldPartitionLevelStreamingDynamic* WorldPartitionStreamingLevel = Cast<const UWorldPartitionLevelStreamingDynamic>(InStreamingLevel))
 		{
-			if (TSet<TWeakObjectPtr<ULevelStreaming>>* PendingStreamingLevels = WorldPartitionUninitializationPendingStreamingLevels.Find(FSoftObjectPath(OuterWorldPartition)))
+			check(InWorld->IsGameWorld());
+			const FSoftObjectPath& WorldPartition = WorldPartitionStreamingLevel->GetOuterWorldPartition();
+			if (TSet<TWeakObjectPtr<UWorldPartitionLevelStreamingDynamic>>* PendingStreamingLevels = WorldPartitionUninitializationPendingStreamingLevels.Find(WorldPartition))
 			{
-				if (PendingStreamingLevels->Remove(InStreamingLevel))
+				if (PendingStreamingLevels->Remove(WorldPartitionStreamingLevel))
 				{
 					if (PendingStreamingLevels->IsEmpty())
 					{
-						WorldPartitionUninitializationPendingStreamingLevels.Remove(OuterWorldPartition);
+						WorldPartitionUninitializationPendingStreamingLevels.Remove(WorldPartition);
 					}
 				}
 			}
@@ -843,7 +845,7 @@ void UWorldPartitionSubsystem::DumpWorldPartitions(FOutputDevice& OutputDevice) 
 {
 	if (RegisteredWorldPartitions.Num() > 0)
 	{
-		OutputDevice.Logf(TEXT("Registered World Partitions:"));
+		OutputDevice.Logf(TEXT("Registered World Partitions for %s:"), *GetWorld()->GetPathName());
 		TArray<FString> WorldPartitions;
 		Algo::ForEach(RegisteredWorldPartitions, [&WorldPartitions](const UWorldPartition* WorldPartition) { WorldPartitions.Add(WorldPartition->GetPathName()); });
 		WorldPartitions.Sort();
@@ -855,7 +857,7 @@ void UWorldPartitionSubsystem::DumpStreamingSources(FOutputDevice& OutputDevice)
 {
 	if (StreamingSources.Num() > 0)
 	{
-		OutputDevice.Logf(TEXT("Streaming Sources:"));
+		OutputDevice.Logf(TEXT("Streaming Sources for %s:"), *GetWorld()->GetPathName());
 		for (const FWorldPartitionStreamingSource& StreamingSource : StreamingSources)
 		{
 			OutputDevice.Logf(TEXT("  - %s: %s"), *StreamingSource.Name.ToString(), *StreamingSource.ToString());
