@@ -40,7 +40,7 @@ struct FTargetingDebugInfo;
 *	the end user might prefer to make decisions on. Distance (min/max), score rating
 *	etc.
 */
-UCLASS(EditInlineNew, Abstract, Const)
+UCLASS(EditInlineNew, Abstract, Const, meta=(ShowWorldContextPin="true"))
 class TARGETINGSYSTEM_API UTargetingTask : public UObject
 {
 	GENERATED_BODY()
@@ -69,6 +69,10 @@ protected:
 
 	/** Helper method to get the world from the source context (if possible, returns nullptr if one cannot be found) */
 	UWorld* GetSourceContextWorld(const FTargetingRequestHandle& TargetingHandle) const;
+
+	/** Helper method to get the Targeting Subsystem in TargetingTask Blueprint Types */
+	UFUNCTION(BlueprintPure, Category="Targeting")
+	UTargetingSubsystem* GetTargetingSubsystem(const FTargetingRequestHandle& TargetingHandle) const;
 
 	/** Debug Helper Methods */
 #if ENABLE_DRAW_DEBUG

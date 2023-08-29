@@ -355,7 +355,7 @@ void UTargetingSubsystem::ExecuteTargetingRequestWithHandle(FTargetingRequestHan
 	if (bTickingAsycnRequests)
 	{
 		FTargetingRequestData& RequestData = PendingTargetingRequests.FindOrAdd(TargetingHandle);
-		RequestData.Initialize(CompletionDelegate, CompletionDynamicDelegate);
+		RequestData.Initialize(CompletionDelegate, CompletionDynamicDelegate, this);
 		return;
 	}
 
@@ -393,7 +393,7 @@ void UTargetingSubsystem::ExecuteTargetingRequest(const UTargetingPreset* Target
 		if (bTickingAsycnRequests)
 		{
 			FTargetingRequestData& RequestData = PendingTargetingRequests.FindOrAdd(RequestHandle);
-			RequestData.Initialize(CompletionDelegate, CompletionDynamicDelegate);
+			RequestData.Initialize(CompletionDelegate, CompletionDynamicDelegate, this);
 			return;
 		}
 
@@ -408,7 +408,7 @@ void UTargetingSubsystem::StartAsyncTargetingRequestWithHandle(FTargetingRequest
 	if (bTickingAsycnRequests)
 	{
 		FTargetingRequestData& RequestData = PendingAsyncTargetingRequests.FindOrAdd(TargetingHandle);
-		RequestData.Initialize(CompletionDelegate, CompletionDynamicDelegate);
+		RequestData.Initialize(CompletionDelegate, CompletionDynamicDelegate, this);
 		return;
 	}
 
@@ -486,7 +486,7 @@ FTargetingRequestHandle UTargetingSubsystem::StartAsyncTargetingRequest(const UT
 		if (bTickingAsycnRequests)
 		{
 			FTargetingRequestData& RequestData = PendingAsyncTargetingRequests.FindOrAdd(RequestHandle);
-			RequestData.Initialize(CompletionDelegate, CompletionDynamicDelegate);
+			RequestData.Initialize(CompletionDelegate, CompletionDynamicDelegate, this);
 			return RequestHandle;
 		}
 
@@ -496,13 +496,13 @@ FTargetingRequestHandle UTargetingSubsystem::StartAsyncTargetingRequest(const UT
 	return RequestHandle;
 }
 
-void UTargetingSubsystem::ExecuteTargetingRequestWithHandleInternal(FTargetingRequestHandle TargetingHandle, FTargetingRequestDelegate CompletionDelegate, FTargetingRequestDynamicDelegate CompletionDynamicDelegate) const
+void UTargetingSubsystem::ExecuteTargetingRequestWithHandleInternal(FTargetingRequestHandle TargetingHandle, FTargetingRequestDelegate CompletionDelegate, FTargetingRequestDynamicDelegate CompletionDynamicDelegate)
 {
 	if (ensure(TargetingHandle.IsValid()))
 	{
 		// store the request data
 		FTargetingRequestData& RequestData = FTargetingRequestData::FindOrAdd(TargetingHandle);
-		RequestData.Initialize(CompletionDelegate, CompletionDynamicDelegate);
+		RequestData.Initialize(CompletionDelegate, CompletionDynamicDelegate, this);
 
 #if ENABLE_DRAW_DEBUG
 		if (IsTargetingDebugEnabled())
@@ -547,7 +547,7 @@ void UTargetingSubsystem::StartAsyncTargetingRequestWithHandleInternal(FTargetin
 {
 	// store the request data
 	FTargetingRequestData& RequestData = FTargetingRequestData::FindOrAdd(TargetingHandle);
-	RequestData.Initialize(CompletionDelegate, CompletionDynamicDelegate);
+	RequestData.Initialize(CompletionDelegate, CompletionDynamicDelegate, this);
 
 	// initialize the request data for async processing
 	FTargetingAsyncTaskData& AsyncTaskData = FTargetingAsyncTaskData::FindOrAdd(TargetingHandle);

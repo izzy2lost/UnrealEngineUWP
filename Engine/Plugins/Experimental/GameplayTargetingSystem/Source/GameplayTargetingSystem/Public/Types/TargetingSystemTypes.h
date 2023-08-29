@@ -17,6 +17,7 @@ class FArchive;
 class UTargetingPreset;
 class UTargetingTask;
 class UPackageMap;
+class UTargetingSubsystem;
 
 
 /**
@@ -200,10 +201,13 @@ public:
 	TARGETINGSYSTEM_API static FTargetingRequestData* Find(FTargetingRequestHandle Handle);
 
 	/** Initializes the targeting request data for async processing */
-	void Initialize(FTargetingRequestDelegate CompletionDelegate, FTargetingRequestDynamicDelegate CompletionDynamicDelegate);
+	void Initialize(FTargetingRequestDelegate CompletionDelegate, FTargetingRequestDynamicDelegate CompletionDynamicDelegate, UTargetingSubsystem* Subsystem);
 
 	/** Broadcasts the targeting request delegate */
 	void BroadcastTargetingRequestDelegate(FTargetingRequestHandle TargetingRequestHandle);
+
+	/** Ref to the TargetingSubsystem object processing this request */
+	UTargetingSubsystem* TargetingSubsystem;
 
 	/** Indicates this handle has completed all the targeting request */
 	uint8 bComplete : 1;

@@ -73,8 +73,9 @@ FTargetingRequestData* FTargetingRequestData::Find(FTargetingRequestHandle Handl
 	return UE::TargetingSystem::GTargetingRequestDataStore.Find(Handle);
 }
 
-void FTargetingRequestData::Initialize(FTargetingRequestDelegate CompletionDelegate, FTargetingRequestDynamicDelegate CompletionDynamicDelegate)
+void FTargetingRequestData::Initialize(FTargetingRequestDelegate CompletionDelegate, FTargetingRequestDynamicDelegate CompletionDynamicDelegate, UTargetingSubsystem* Subsystem)
 {
+	TargetingSubsystem = Subsystem;
 	bComplete = false;
 	TargetingRequestDelegate = CompletionDelegate;
 	TargetingRequestDynamicDelegate = CompletionDynamicDelegate;

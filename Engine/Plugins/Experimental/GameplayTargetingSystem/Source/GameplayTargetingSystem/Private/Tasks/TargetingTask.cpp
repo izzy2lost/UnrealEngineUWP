@@ -3,6 +3,7 @@
 
 #include "GameFramework/Actor.h"
 #include "Types/TargetingSystemTypes.h"
+#include "TargetingSystem/TargetingSubsystem.h"
 
 
 UTargetingTask::UTargetingTask(const FObjectInitializer& ObjectInitializer)
@@ -93,4 +94,13 @@ UWorld* UTargetingTask::GetSourceContextWorld(const FTargetingRequestHandle& Tar
 	}
 
 	return GetWorld();
+}
+
+UTargetingSubsystem* UTargetingTask::GetTargetingSubsystem(const FTargetingRequestHandle& TargetingHandle) const
+{
+	if (const FTargetingRequestData* RequestData = FTargetingRequestData::Find(TargetingHandle))
+	{
+		return RequestData->TargetingSubsystem;
+	}
+	return nullptr;
 }
