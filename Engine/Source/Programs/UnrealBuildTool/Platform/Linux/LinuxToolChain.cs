@@ -310,7 +310,7 @@ namespace UnrealBuildTool
 				{
 					if (bForLinker)
 					{
-						Arguments.Add(String.Format("-flto=thin -Wl,--thinlto-jobs={0}, -Wl,-mllvm,-disable-auto-upgrade-debug-info", Utils.GetPhysicalProcessorCount()));
+						Arguments.Add(String.Format("-flto=thin -Wl,--thinlto-jobs={0}, -Wl,-mllvm,-disable-auto-upgrade-debug-info, -Wl,-mllvm,-enable-ext-tsp-block-placement=1", Utils.GetPhysicalProcessorCount()));
 					}
 					else
 					{
