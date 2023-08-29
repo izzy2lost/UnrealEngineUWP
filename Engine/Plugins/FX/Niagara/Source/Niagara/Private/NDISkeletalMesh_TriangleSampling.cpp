@@ -1452,19 +1452,19 @@ void UNiagaraDataInterfaceSkeletalMesh::GetTriCoordSkinnedData(FVectorVMExternal
 
 			if (Output.bNeedsNorm)
 			{
-				TransformHandler.TransformVector(TangentZ, Transform);
+				TransformHandler.TransformUnitVector(TangentZ, Transform);
 				Output.Normal.SetAndAdvance(TangentZ.GetSafeNormal());
 			}
 
 			if (Output.bNeedsBinorm)
 			{
-				TransformHandler.TransformVector(TangentY, Transform);
+				TransformHandler.TransformUnitVector(TangentY, Transform);
 				Output.Binormal.SetAndAdvance(TangentY.GetSafeNormal());
 			}
 
 			if (Output.bNeedsTangent)
 			{
-				TransformHandler.TransformVector(TangentX, Transform);
+				TransformHandler.TransformUnitVector(TangentX, Transform);
 				Output.Tangent.SetAndAdvance(TangentX.GetSafeNormal());
 			}
 		}

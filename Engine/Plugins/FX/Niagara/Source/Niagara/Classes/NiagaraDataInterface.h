@@ -30,24 +30,34 @@ struct FNDITransformHandlerNoop
 {
 	FORCEINLINE void TransformPosition(FVector3f& V, const FMatrix44f& M) const { }
 	FORCEINLINE void TransformPosition(FVector3d& V, const FMatrix44d& M) const { }
-	FORCEINLINE void TransformVector(FVector3f& V, const FMatrix44f& M) const { }
-	FORCEINLINE void TransformVector(FVector3d& V, const FMatrix44d& M) const { }
+	FORCEINLINE void TransformUnitVector(FVector3f& V, const FMatrix44f& M) const { }
+	FORCEINLINE void TransformUnitVector(FVector3d& V, const FMatrix44d& M) const { }
 	FORCEINLINE void TransformNotUnitVector(FVector3f& V, const FMatrix44f& M) const { }
 	FORCEINLINE void TransformNotUnitVector(FVector3d& V, const FMatrix44d& M) const { }
 	FORCEINLINE void TransformRotation(FQuat4f& Q1, const FQuat4f& Q2) const { }
 	FORCEINLINE void TransformRotation(FQuat4d& Q1, const FQuat4d& Q2) const { }
+
+	UE_DEPRECATED(5.4, "Please update your code to use TransformUnitVector")
+	FORCEINLINE void TransformVector(FVector3f& V, const FMatrix44f& M) const { }
+	UE_DEPRECATED(5.4, "Please update your code to use TransformUnitVector")
+	FORCEINLINE void TransformVector(FVector3d& V, const FMatrix44d& M) const { }
 };
 
 struct FNDITransformHandler
 {
 	FORCEINLINE void TransformPosition(FVector3f& P, const FMatrix44f& M) const { P = M.TransformPosition(P); }
 	FORCEINLINE void TransformPosition(FVector3d& P, const FMatrix44d& M) const { P = M.TransformPosition(P); }
-	FORCEINLINE void TransformVector(FVector3f& V, const FMatrix44f& M) const { V = M.TransformVector(V).GetUnsafeNormal3(); }
-	FORCEINLINE void TransformVector(FVector3d& V, const FMatrix44d& M) const { V = M.TransformVector(V).GetUnsafeNormal3(); }
+	FORCEINLINE void TransformUnitVector(FVector3f& V, const FMatrix44f& M) const { V = M.TransformVector(V).GetUnsafeNormal3(); }
+	FORCEINLINE void TransformUnitVector(FVector3d& V, const FMatrix44d& M) const { V = M.TransformVector(V).GetUnsafeNormal3(); }
 	FORCEINLINE void TransformNotUnitVector(FVector3f& V, const FMatrix44f& M) const { V = M.TransformVector(V); }
 	FORCEINLINE void TransformNotUnitVector(FVector3d& V, const FMatrix44d& M) const { V = M.TransformVector(V); }
 	FORCEINLINE void TransformRotation(FQuat4f& Q1, const FQuat4f& Q2) const { Q1 = Q2 * Q1; }
 	FORCEINLINE void TransformRotation(FQuat4d& Q1, const FQuat4d& Q2) const { Q1 = Q2 * Q1; }
+
+	UE_DEPRECATED(5.4, "Please update your code to use TransformUnitVector")
+	FORCEINLINE void TransformVector(FVector3f& V, const FMatrix44f& M) const { V = M.TransformVector(V).GetUnsafeNormal3(); }
+	UE_DEPRECATED(5.4, "Please update your code to use TransformUnitVector")
+	FORCEINLINE void TransformVector(FVector3d& V, const FMatrix44d& M) const { V = M.TransformVector(V).GetUnsafeNormal3(); }
 };
 
 // FNiagaraDataInterfaceProxy should always outlive any ticks, etc, that are on the rendering thread.

@@ -762,11 +762,11 @@ void UNiagaraDataInterfaceSkeletalMesh::GetSkinnedBoneData(FVectorVMExternalFunc
 				if (Output.bNeedsScale)
 				{
 					FVector3f Scale = CurrSocketTransform.GetScale3D();
-					TransformHandler.TransformVector(Scale, InstanceTransform);
+					TransformHandler.TransformNotUnitVector(Scale, InstanceTransform);
 					if (bInterpolated::Value)
 					{
 						FVector3f PrevScale = PrevSocketTransform.GetScale3D();
-						TransformHandler.TransformVector(PrevScale, PrevInstanceTransform);
+						TransformHandler.TransformNotUnitVector(PrevScale, PrevInstanceTransform);
 						Scale = FMath::Lerp(PrevScale, Scale, Interp);
 					}
 					Output.Scale.SetAndAdvance(Scale);

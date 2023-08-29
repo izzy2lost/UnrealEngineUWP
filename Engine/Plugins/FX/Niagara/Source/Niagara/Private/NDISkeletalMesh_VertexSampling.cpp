@@ -806,19 +806,19 @@ void UNiagaraDataInterfaceSkeletalMesh::GetVertexSkinnedData(FVectorVMExternalFu
 
 					if (Output.bNeedsTangentX)
 					{
-						TransformHandler.TransformVector(TangentX, Transform);
+						TransformHandler.TransformUnitVector(TangentX, Transform);
 						Output.TangentX.SetAndAdvance(TangentX);
 					}
 
 					if (Output.bNeedsTangentY)
 					{
-						TransformHandler.TransformVector(TangentY, Transform);
+						TransformHandler.TransformUnitVector(TangentY, Transform);
 						Output.TangentY.SetAndAdvance(TangentY);
 					}
 
 					if (Output.bNeedsTangentZ)
 					{
-						TransformHandler.TransformVector(TangentZ, Transform);
+						TransformHandler.TransformUnitVector(TangentZ, Transform);
 						Output.TangentZ.SetAndAdvance(TangentZ);
 					}
 				}
