@@ -23,6 +23,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, export, Category=Shape)
 	FVector BoxExtent;
 
+	/** Used to control the line thickness when rendering */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, export, Category=Shape)
+	float LineThickness;
+
 public:
 	/** 
 	 * Change the box extent size. This is the unscaled size, before component scale is applied.
@@ -31,6 +35,10 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category="Components|Box")
 	ENGINE_API void SetBoxExtent(FVector InBoxExtent, bool bUpdateOverlaps=true);
+
+	// Set the LineThickness
+	UFUNCTION(BlueprintCallable, Category="Components|Box")
+	ENGINE_API void SetLineThickness(float Thickness);
 
 	// @return the box extent, scaled by the component scale.
 	UFUNCTION(BlueprintCallable, Category="Components|Box")
