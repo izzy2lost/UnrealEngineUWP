@@ -632,6 +632,8 @@ void RenderSingleScatteringWithLiveShading(
 		}
 		else
 		{
+			PassParameters->LightingCache.LightingCacheResolution = FIntVector::ZeroValue;
+			PassParameters->LightingCache.LightingCacheVoxelBias = 0.0f;
 			PassParameters->LightingCache.LightingCacheTexture = FRDGSystemTextures::Get(GraphBuilder).VolumetricBlack;
 		}
 

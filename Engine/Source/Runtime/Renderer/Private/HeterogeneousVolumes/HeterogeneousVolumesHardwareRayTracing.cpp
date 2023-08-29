@@ -798,6 +798,12 @@ void RenderSingleScatteringWithPreshadingHardwareRayTracing(
 			PassParameters->LightingCache.LightingCacheVoxelBias = HeterogeneousVolumeInterface->GetShadowBiasFactor();
 			PassParameters->LightingCache.LightingCacheTexture = LightingCacheTexture;
 		}
+		else
+		{
+			PassParameters->LightingCache.LightingCacheResolution = FIntVector::ZeroValue;
+			PassParameters->LightingCache.LightingCacheVoxelBias = 0.0f;
+			PassParameters->LightingCache.LightingCacheTexture = FRDGSystemTextures::Get(GraphBuilder).VolumetricBlack;
+		}
 
 		// Ray data
 		PassParameters->MaxTraceDistance = HeterogeneousVolumes::GetMaxTraceDistance();

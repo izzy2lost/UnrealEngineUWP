@@ -122,11 +122,16 @@ float CalcShadowStepSize(float3 LocalRayDirection)
 
 float CalcShadowBias()
 {
-	float3 VolumeBounds = 2.0f * GetLocalBoundsExtent();
-	float3 VoxelSize = VolumeBounds / float3(GetLightingCacheResolution());
-	float3 WorldVoxelSize = mul(float4(VoxelSize, 0), GetLocalToWorld()).xyz;
-	float VoxelDiagonal = length(WorldVoxelSize);
-	float WorldShadowBias = VoxelDiagonal * GetLightingCacheVoxelBias();
+	float WorldShadowBias = 0.0f;
+	float3 LightingCacheResolutionAsFloat3 = GetLightingCacheResolution();
+	if (all(LightingCacheResolutionAsFloat3 > 0))
+	{
+		float3 VolumeBounds = 2.0f * GetLocalBoundsExtent();
+		float3 VoxelSize = VolumeBounds * rcp(LightingCacheResolutionAsFloat3);
+		float3 WorldVoxelSize = mul(float4(VoxelSize, 0), GetLocalToWorld()).xyz;
+		float VoxelDiagonal = length(WorldVoxelSize);
+		float WorldShadowBias = VoxelDiagonal * GetLightingCacheVoxelBias();
+	}
 	return WorldShadowBias;
 }
 
