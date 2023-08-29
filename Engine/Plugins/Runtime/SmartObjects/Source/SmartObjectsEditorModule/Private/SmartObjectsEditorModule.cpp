@@ -10,7 +10,7 @@
 #include "UnrealEdGlobals.h"
 #include "Editor/UnrealEdEngine.h"
 #include "Customizations/SmartObjectSlotDefinitionDetails.h"
-#include "Customizations\SmartObjectSlotDefinitionDataProxyDetails.h"
+#include "Customizations/SmartObjectSlotDefinitionDataProxyDetails.h"
 #include "Customizations/SmartObjectSlotReferenceDetails.h"
 #include "Customizations/SmartObjectDefinitionDetails.h"
 #include "WorldPartitionSmartObjectCollectionBuilder.h"
