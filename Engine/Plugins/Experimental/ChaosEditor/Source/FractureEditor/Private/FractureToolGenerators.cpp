@@ -723,8 +723,7 @@ AGeometryCollectionActor* UFractureToolGenerateAsset::ConvertActorsToGeometryCol
 				// Record the contributing source on the asset.
 				FSoftObjectPath SourceSoftObjectPath(RestCollection);
 
-				// We're not interested in recording the final material of the collection since it's inevitably the Selection material.
-				int32 NumMaterials = GeometryCollectionComponent->GetNumMaterials() - 1;
+				int32 NumMaterials = GeometryCollectionComponent->GetNumMaterials();
 				TArray<TObjectPtr<UMaterialInterface>> SourceMaterials;
 				SourceMaterials.SetNum(NumMaterials);
 				for (int32 MaterialIndex = 0; MaterialIndex < NumMaterials; ++MaterialIndex)
