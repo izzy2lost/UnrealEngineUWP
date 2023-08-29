@@ -66,5 +66,14 @@ protected:
 	TWeakPtr<const IVideoDecoderColorimetry, ESPMode::ThreadSafe> Colorimetry;
 
 	/** YUV matrix, adjusted to compensate for decoder output specific scale */
-	FMatrix44f YuvToRgbMtx;
+	FMatrix44f SampleToRgbMtx;
+
+	/** YUV to RGB matrix without any adjustments for decoder output specifics */
+	const FMatrix* YuvToRgbMtx;
+
+	/** Precomputed colorimetric data */
+	EDisplayColorGamut ColorGamut;
+	UE::Color::EEncoding ColorEncoding;
+	FVector2d WhitePoint;
+	FVector2d DisplayPrimaries[3];
 };

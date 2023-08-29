@@ -277,9 +277,15 @@ namespace MediaTextureResourceHelpers
 		case EMediaTextureSampleFormat::ARGB16_BIG:
 			return PF_A16B16G16R16;
 
-		// Everything else maps to 8-bit RGB...
+		// Everything else maps to 8-bit RGB if it is linear or sRGB (we use sRGB encoding in HW). Otherwise: half floats...
 		default:
+		{
+			if (Sample->GetEncodingType() != UE::Color::EEncoding::Linear && Sample->GetEncodingType() != UE::Color::EEncoding::sRGB)
+			{
+				return PF_FloatRGB;
+			}
 			return PF_B8G8R8A8;
+		}
 		}
 	}
 
