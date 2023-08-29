@@ -71,7 +71,7 @@ void FProxyRowDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 	UProxyRowDetails* Row = Cast<UProxyRowDetails>(Objects[0]);
 	UProxyTable* ProxyTable = Row->ProxyTable;
 	
-	if (ProxyTable->Entries.Num() > Row->Row)
+	if (ProxyTable->Entries.IsValidIndex(Row->Row))
 	{
 		IDetailCategoryBuilder& PropertiesCategory = DetailBuilder.EditCategory("Row Properties");
 
