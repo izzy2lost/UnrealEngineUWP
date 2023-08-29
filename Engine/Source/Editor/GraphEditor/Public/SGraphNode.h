@@ -318,6 +318,9 @@ protected:
 	// Override this to add widgets below the pins but above advanced view arrow
 	virtual void CreateBelowPinControls(TSharedPtr<SVerticalBox> MainBox) {}
 
+	/** Determines how the node title overflow is handled */
+	virtual TOptional<ETextOverflowPolicy> GetNameOverflowPolicy() const { return {}; }
+
 	/* Helper function to check if node can be renamed */
 	virtual bool IsNameReadOnly () const;
 

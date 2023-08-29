@@ -810,7 +810,8 @@ TSharedRef<SWidget> SGraphNode::CreateTitleWidget(TSharedPtr<SNodeTitle> NodeTit
 		.OnVerifyTextChanged(this, &SGraphNode::OnVerifyNameTextChanged)
 		.OnTextCommitted(this, &SGraphNode::OnNameTextCommited)
 		.IsReadOnly(this, &SGraphNode::IsNameReadOnly)
-		.IsSelected(this, &SGraphNode::IsSelectedExclusively);
+		.IsSelected(this, &SGraphNode::IsSelectedExclusively)
+		.OverflowPolicy(GetNameOverflowPolicy());
 	InlineEditableText->SetColorAndOpacity(TAttribute<FLinearColor>::Create(TAttribute<FLinearColor>::FGetter::CreateSP(this, &SGraphNode::GetNodeTitleTextColor)));
 
 	return InlineEditableText.ToSharedRef();
