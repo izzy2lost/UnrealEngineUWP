@@ -3206,6 +3206,9 @@ export type GetUserResponse = {
 	/** Whether to enable experimental features for this user */
 	enableExperimentalFeatures?: boolean;
 
+	/** Whether to always tag preflight changelists */
+	alwaysTagPreflightCL?: boolean;
+
 	/**  Settings for the dashboard */
 	dashboardSettings?: DashboardSettings;
 
@@ -3262,6 +3265,9 @@ export type UpdateUserRequest = {
 
 	/** Whether to enable experimental features for this user */
 	enableExperimentalFeatures?: boolean;
+
+	/** Whether to always tag preflight changelists */
+	alwaysTagPreflightCL?: boolean;
 
 }
 

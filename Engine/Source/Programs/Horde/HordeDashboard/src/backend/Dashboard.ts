@@ -259,7 +259,21 @@ export class Dashboard {
             this.setUpdated();
 
         });
+    }
 
+    get alwaysTagPreflightCL(): boolean {
+
+        return this.data.alwaysTagPreflightCL!;
+    }
+
+    set alwaysTagPreflightCL(value: boolean) {
+
+        backend.updateUser({ alwaysTagPreflightCL: value }).then(() => {
+
+            this.data.alwaysTagPreflightCL = value;
+            this.setUpdated();
+
+        });
     }
 
     get roles(): UserClaim[] {
@@ -631,7 +645,7 @@ export class Dashboard {
 
     serverSettingsChanged: boolean = false;
 
-    private data: GetUserResponse = { id: "", name: "", enableExperimentalFeatures: false, claims: [], pinnedJobIds: [], dashboardSettings: { preferences: new Map() } };
+    private data: GetUserResponse = { id: "", name: "", enableExperimentalFeatures: false, alwaysTagPreflightCL: false, claims: [], pinnedJobIds: [], dashboardSettings: { preferences: new Map() } };
 
     private updateTimeoutId: any = undefined;
 

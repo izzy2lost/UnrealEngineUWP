@@ -364,6 +364,9 @@ const GeneralPanel: React.FC = observer(() => {
                         <Toggle label="Show All Preflights" inlineLabel={true} defaultChecked={dashboard.showPreflights} onChange={(ev, checked) => {
                            dashboard.setShowPreflights(checked ? true : false);
                         }} />
+                        <Toggle label="Always Tag Preflight Changelists" inlineLabel={true} defaultChecked={dashboard.alwaysTagPreflightCL} onChange={(ev, checked) => {
+                           dashboard.alwaysTagPreflightCL = checked ? true : false;
+                        }} />
                         <Toggle label="Prefer Compact Views" inlineLabel={true} defaultChecked={dashboard.compactViews} onChange={(ev, checked) => {
                            dashboard.setCompactViews(checked ? true : false);
                         }} />
