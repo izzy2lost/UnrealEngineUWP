@@ -69,7 +69,6 @@ FUnsyncProtocolImpl::FUnsyncProtocolImpl(const FRemoteDesc&				RemoteDesc,
 : FRemoteProtocolBase(RemoteDesc, InRequestMap)
 , Features(InFeatures)
 {
-#if UNSYNC_USE_TLS
 	if (RemoteDesc.bTlsEnable && TlsSettings)
 	{
 		FSocketHandle RawSocketHandle = SocketConnectTcp(RemoteDesc.HostAddress.c_str(), RemoteDesc.HostPort);
@@ -86,7 +85,6 @@ FUnsyncProtocolImpl::FUnsyncProtocolImpl(const FRemoteDesc&				RemoteDesc,
 			}
 		}
 	}
-#endif	// UNSYNC_USE_TLS
 
 	if (!SocketHandle)
 	{

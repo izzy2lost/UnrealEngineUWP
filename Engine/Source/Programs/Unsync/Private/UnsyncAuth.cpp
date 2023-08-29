@@ -10,16 +10,11 @@
 #include <ctime>
 #include <json11.hpp>
 
-#if UNSYNC_USE_TLS
+#include <openssl/err.h>
+#include <openssl/evp.h>  // Base64 encoding
+#include <openssl/rand.h>
+#include <openssl/sha.h>
 
-#	include <openssl/err.h>
-#	include <openssl/rand.h>
-#	include <openssl/sha.h>
-#	include <openssl/evp.h>  // Base64 encoding
-
-#endif	// UNSYNC_USE_TLS
-
-#if UNSYNC_USE_TLS
 namespace unsync {
 
 std::string
@@ -444,9 +439,9 @@ GetUserInfo(FHttpConnection& HttpConnection, const FAuthDesc& AuthDesc, const FA
 	}
 
 	FHttpRequest Request;
-	Request.Url			  = AuthDesc.UserInfoEndpoint;
-	Request.Method		  = EHttpMethod::GET;
-	Request.BearerToken	  = AuthToken.Access;
+	Request.Url			= AuthDesc.UserInfoEndpoint;
+	Request.Method		= EHttpMethod::GET;
+	Request.BearerToken = AuthToken.Access;
 
 	FHttpResponse Response = HttpRequest(HttpConnection, Request);
 
@@ -856,5 +851,3 @@ GetSecondsFromUnixEpoch()
 }
 
 }  // namespace unsync
-
-#endif	// UNSYNC_USE_TLS

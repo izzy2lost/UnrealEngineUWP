@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "UnsyncAuth.h"
 #include "UnsyncCmdDiff.h"
 #include "UnsyncCmdHash.h"
+#include "UnsyncCmdLogin.h"
 #include "UnsyncCmdMount.h"
 #include "UnsyncCmdPatch.h"
 #include "UnsyncCmdPush.h"
@@ -14,7 +16,6 @@
 #include "UnsyncTest.h"
 #include "UnsyncThread.h"
 #include "UnsyncUtil.h"
-#include "UnsyncAuth.h"
 
 UNSYNC_THIRD_PARTY_INCLUDES_START
 #if UNSYNC_PLATFORM_WINDOWS
@@ -85,6 +86,9 @@ InnerMain(int Argc, char** Argv)
 	bool					 bFullDifference	 = false;
 	bool					 bInfoFiles			 = false;
 	bool					 bNoProxySelect		 = false;
+	bool					 bInteractive		 = false;
+	bool					 bDecode			 = false;
+	bool					 bPrint				 = false;
 	int32					 CompressionLevel	 = 3;
 	uint32					 DiffBlockSize		 = uint32(4_KB);
 	uint32					 HashOrSyncBlockSize = uint32(64_KB);
@@ -98,13 +102,11 @@ InnerMain(int Argc, char** Argv)
 
 	const std::string HiddenGroupId;  // CLI11 uses an empty string group name to mark arguments that should be hidden
 
-#if UNSYNC_USE_TLS
 	auto AddTlsOptions = [&CacertFilenameUtf8, &bUseTls, &bAllowInsecureTls](CLI::App* App) {
 		App->add_option("--cacert", CacertFilenameUtf8, "Certificate authority file to use for TLS validation (.pem)");
 		App->add_flag("--tls", bUseTls, "Use TLS when connecting to remote server");
 		App->add_flag("--insecure", bAllowInsecureTls, "Skip remote server TLS certificate validation");
 	};
-#endif	// UNSYNC_USE_TLS
 
 	auto AddProxyOptions = [&RemoteAddressUtf8, &bNoProxySelect](CLI::App* App) {
 		App->add_option("--proxy, --remote, --server",
@@ -114,6 +116,8 @@ InnerMain(int Argc, char** Argv)
 					  bNoProxySelect,
 					  "Skip automatic server selection and use the exact one specified by command line or environment variable");
 	};
+
+	// Configure hash
 
 	CLI::App* SubHash = Cli.add_subcommand("hash", "Generate hash manifest for a file or directory");
 	SubHash->add_option("Input", InputFilenameUtf8, "Input file or directory path")->required();
@@ -139,6 +143,8 @@ InnerMain(int Argc, char** Argv)
 		"Create a directory manifest incrementally, by updating an existing manifest if one exists (only process changed files)");
 	SubCommands.push_back(SubHash);
 
+	// Configure push
+
 	CLI::App* SubPush = Cli.add_subcommand("push", "Loads a manifest from a directory and uploads referenced blocks to the remote server");
 	SubPush->add_option("Input", InputFilenameUtf8, "Input file or directory path")->required();
 	SubPush
@@ -149,9 +155,7 @@ InnerMain(int Argc, char** Argv)
 	SubPush->add_option("--http-header-file",
 						HttpHeaderFilenameUtf8,
 						"Text file that contains any extra HTTP headers to pass to the remote server (auth tokens, etc.)");
-#if UNSYNC_USE_TLS
 	SubPush->add_flag("--insecure", bAllowInsecureTls, "Skip remote server TLS certificate validation");
-#endif
 	SubCommands.push_back(SubPush);
 
 	CLI::App* SubInfo = Cli.add_subcommand("info", "Display information about a manifest file or diff two manifests");
@@ -167,6 +171,8 @@ InnerMain(int Argc, char** Argv)
 						"Exclude filenames that contain specified words (comma separated). Filter is run after --include.");
 	SubCommands.push_back(SubInfo);
 
+	// Configure diff
+
 	CLI::App* SubDiff = Cli.add_subcommand("diff", "Compute difference required to transform BaseFile into SourceFile");
 	SubDiff->add_option("Base", BaseFilenameUtf8, "Base file name (local data)")->required();
 	SubDiff->add_option("Source", SourceFilenameUtf8, "Source file name (remote data)")->required();
@@ -174,6 +180,8 @@ InnerMain(int Argc, char** Argv)
 	SubDiff->add_option("--level", CompressionLevel, "ZSTD compression level (default=3)");
 	SubDiff->add_option("-b, --block", DiffBlockSize, "Block size in bytes (default=4KB)");
 	SubCommands.push_back(SubDiff);
+
+	// Configure sync
 
 	CLI::App* SubSync = Cli.add_subcommand("sync", "Synchronize files, transforming target file/directory into source");
 	SubSync
@@ -196,11 +204,8 @@ InnerMain(int Argc, char** Argv)
 	SubSync->add_option("--exclude",
 						ExcludeFilterArrayUtf8,
 						"Exclude filenames that contain specified words (comma separated). Filter is run after --include.");
-#if UNSYNC_USE_TLS
 	AddTlsOptions(SubSync);
-#else
-	UNSYNC_UNUSED(bUseTls);
-#endif	// UNSYNC_USE_TLS
+
 	SubSync->add_option("--http-header-file",
 						HttpHeaderFilenameUtf8,
 						"Text file that contains any extra HTTP headers to pass to the remote server (auth tokens, etc.)");
@@ -260,15 +265,27 @@ InnerMain(int Argc, char** Argv)
 	SubTest->add_option("--preset", PresetUtf8, "Test preset")->default_str(PresetUtf8);
 	SubCommands.push_back(SubTest);
 
+	// Configure query
+
 	CLI::App* SubQuery = Cli.add_subcommand("query", "Run a query command on the remote server");
-	SubQuery->add_option("QueryString", QueryStringUtf8, "Query")->required();
+	SubQuery->add_option("QueryString", QueryStringUtf8, "Query to run: mirrors, login, list")->required();
 	SubQuery->add_option("QueryArgs", QueryArgsUtf8, "Query arguments");
 	AddProxyOptions(SubQuery);
 
-#if UNSYNC_USE_TLS
 	AddTlsOptions(SubQuery);
-#endif	// UNSYNC_USE_TLS
 	SubCommands.push_back(SubQuery);
+
+	// Configure login
+
+	CLI::App* SubLogin = Cli.add_subcommand("login", "Authenticate with the remote server (acquire access and refresh tokens)");
+	SubLogin->add_flag("--interactive", bInteractive, "Allow user interaction through modal dialogs");
+	SubLogin->add_flag("--decode", bDecode, "Decode authentication token (implies --print)");
+	SubLogin->add_flag("--print", bPrint, "Print authentication token to standard output");
+	AddTlsOptions(SubLogin);
+	AddProxyOptions(SubLogin);
+	SubCommands.push_back(SubLogin);
+
+	// Configure mount
 
 	CLI::App* SubMount = Cli.add_subcommand("mount", "Mount directory manifest as a virtual file system (EXPERIMENTAL)");
 	SubMount
@@ -290,6 +307,8 @@ InnerMain(int Argc, char** Argv)
 		Subcommand->add_flag("--debug", bUseDebugMode, "Enable extra debugging features, such as extra memory safety validation");
 	}
 
+	// Run the command
+
 #if UNSYNC_PLATFORM_WINDOWS
 	_setmode(_fileno(stdout), _O_TEXT);
 #endif	// UNSYNC_PLATFORM_WINDOWS
@@ -304,6 +323,11 @@ InnerMain(int Argc, char** Argv)
 #if UNSYNC_PLATFORM_WINDOWS
 	_setmode(_fileno(stdout), _O_U8TEXT);
 #endif	// UNSYNC_PLATFORM_WINDOWS
+
+	if (Cli.got_subcommand(SubQuery) || Cli.got_subcommand(SubLogin))
+	{
+		GLogMachineReadable = true;
+	}
 
 	if (GLogVeryVerbose)
 	{
@@ -655,7 +679,8 @@ InnerMain(int Argc, char** Argv)
 		}
 	}
 
-	if (!bNoProxySelect && !Cli.got_subcommand(SubQuery)
+	if (!bNoProxySelect
+		&& Cli.got_subcommand(SubSync)
 		&& RemoteDesc.IsValid() && RemoteDesc.Protocol == EProtocolFlavor::Unsync)
 	{
 		UNSYNC_LOG(L"Selecting server using root '%hs'", RemoteDesc.HostAddress.c_str());
@@ -710,7 +735,6 @@ InnerMain(int Argc, char** Argv)
 			ScavengeRoot = FPath{};
 		}
 
-#if UNSYNC_USE_TLS
 		{
 			UNSYNC_VERBOSE(L"Attempting to authenticate");
 			UNSYNC_LOG_INDENT;
@@ -720,7 +744,6 @@ InnerMain(int Argc, char** Argv)
 				UNSYNC_VERBOSE(L"Authentication enabled");
 			}
 		}
-#endif	// UNSYNC_USE_TLS
 
 		FCmdSyncOptions SyncOptions;
 
@@ -784,6 +807,20 @@ InnerMain(int Argc, char** Argv)
 		QueryOptions.Args	= QueryArgsUtf8;
 		QueryOptions.Remote = RemoteDesc;
 		return CmdQuery(QueryOptions);
+	}
+	else if (Cli.got_subcommand(SubLogin))
+	{
+		if (bDecode)
+		{
+			bPrint = true;
+		}
+
+		FCmdLoginOptions LoginOptions;
+		LoginOptions.Remote		  = RemoteDesc;
+		LoginOptions.bInteractive = bInteractive;
+		LoginOptions.bDecode	  = bDecode;
+		LoginOptions.bPrint		  = bPrint;
+		return CmdLogin(LoginOptions);
 	}
 	else if (Cli.got_subcommand(SubMount))
 	{

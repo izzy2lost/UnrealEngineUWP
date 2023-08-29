@@ -11,7 +11,8 @@ extern bool				   GLogVeryVerbose;
 extern bool				   GBreakOnError;
 extern bool				   GBreakOnWarning;
 extern thread_local uint32 GLogIndent;
-extern bool				   GLogProgress;
+extern bool				   GLogProgress;		 // Whether to output @progress and @status markers to stdout
+extern bool				   GLogMachineReadable;	 // Whether output is intended for other programs rather than humans
 
 struct FError;
 
@@ -63,6 +64,10 @@ enum class ELogLevel
 	Info	= 2,
 	Debug	= 3,
 	Trace	= 4,
+
+	// Special log level to signify output that's intended to be machine-readable.
+	// This is always written to stdout, while other modes may be written to stderr in some cases.
+	MachineReadable = 5,
 };
 
 void LogFlush();

@@ -6,16 +6,13 @@
 #include "UnsyncProxy.h"
 #include "UnsyncThread.h"
 #include "UnsyncUtil.h"
+#include "UnsyncAuth.h"
 
 #include <float.h>
 #include <algorithm>
 #include <json11.hpp>
 
 #include <fmt/format.h>
-
-#if UNSYNC_USE_TLS
-#	include "UnsyncAuth.h"
-#endif	// UNSYNC_USE_TLS
 
 namespace unsync {
 
@@ -121,13 +118,13 @@ CmdQueryMirrors(const FCmdQueryOptions& Options)
 		return A < B;
 	});
 
-	LogPrintf(ELogLevel::Info, L"[\n");
+	LogPrintf(ELogLevel::MachineReadable, L"[\n");
 
 	for (size_t I = 0; I < Mirrors.size(); ++I)
 	{
 		const FMirrorInfo& Mirror = Mirrors[I];
 
-		LogPrintf(ELogLevel::Info,
+		LogPrintf(ELogLevel::MachineReadable,
 				  L"  {\"address\":\"%hs\", \"port\":%d, \"ok\":%hs, \"ping\":%d, \"name\":\"%hs\"}%hs\n",
 				  Mirror.Address.c_str(),
 				  Mirror.Port,
@@ -137,74 +134,9 @@ CmdQueryMirrors(const FCmdQueryOptions& Options)
 				  I + 1 == Mirrors.size() ? "" : ",");
 	}
 
-	LogPrintf(ELogLevel::Info, L"]\n");
+	LogPrintf(ELogLevel::MachineReadable, L"]\n");
 
 	return 0;
-}
-
-#if UNSYNC_USE_TLS
-int32
-CmdQueryLogin(const FCmdQueryOptions& Options)
-{
-	TResult<FAuthToken> AuthToken = Authenticate(Options.Remote, 5 * 60);
-
-	if (AuthToken.IsOk())
-	{
-		{
-			FHttpConnection Connection = FHttpConnection::CreateDefaultHttps(Options.Remote);
-
-			FHttpRequest Request;
-			Request.Url			   = "/api/v1/login";
-			Request.Method		   = EHttpMethod::GET;
-			Request.BearerToken	   = AuthToken->Access;
-			FHttpResponse Response = HttpRequest(Connection, Request);
-
-			if (Response.Success())
-			{
-				UNSYNC_LOG("Login successful");
-			}
-			else
-			{
-				LogError(HttpError(Response.Code));
-				return -1;
-			}
-		}
-
-		UNSYNC_LOG(L"Getting user info from authentication server");
-		UNSYNC_LOG_INDENT;
-
-		TResult<FAuthDesc> AuthDescResult = GetAuthenticationDesc(Options.Remote);
-		if (AuthDescResult.IsError())
-		{
-			LogError(AuthDescResult.GetError());
-			return -1;
-		}
-
-		const FAuthDesc& AuthDesc = AuthDescResult.GetData();
-
-		FHttpConnection AuthConnection = FHttpConnection::CreateDefaultHttps(AuthDesc.ServerHost);
-
-		TResult<FAuthUserInfo> UserInfoResult = GetUserInfo(AuthConnection, AuthDesc, AuthToken.GetData());
-
-		if (const FAuthUserInfo* UserInfo = UserInfoResult.TryData())
-		{
-			if (UserInfo->Email.length() && UserInfo->Name.length())
-			{
-				UNSYNC_VERBOSE(L"Authenticated user: %hs (%hs)", UserInfo->Name.c_str(), UserInfo->Email.c_str());
-			}
-			else if (UserInfo->Name.length())
-			{
-				UNSYNC_VERBOSE(L"Authenticated user: %hs", UserInfo->Name.c_str());
-			}
-		}
-
-		return 0;
-	}
-	else
-	{
-		LogError(AuthToken.GetError());
-		return -1;
-	}
 }
 
 int32
@@ -256,7 +188,6 @@ CmdQueryList(const FCmdQueryOptions& Options)
 
 	return 0;
 }
-#endif	// UNSYNC_USE_TLS
 
 int32
 CmdQuery(const FCmdQueryOptions& Options)
@@ -265,16 +196,10 @@ CmdQuery(const FCmdQueryOptions& Options)
 	{
 		return CmdQueryMirrors(Options);
 	}
-#if UNSYNC_USE_TLS
-	else if (Options.Query == "login")
-	{
-		return CmdQueryLogin(Options);
-	}
 	else if (Options.Query == "list")
 	{
 		return CmdQueryList(Options);
 	}
-#endif	// UNSYNC_USE_TLS
 	else
 	{
 		UNSYNC_ERROR(L"Unknown query command");

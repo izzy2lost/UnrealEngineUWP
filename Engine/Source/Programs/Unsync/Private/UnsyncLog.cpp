@@ -35,12 +35,13 @@ IsDebuggerPresent()
 }
 #endif
 
-thread_local bool	GLogVerbose		= false;
-bool				GLogVeryVerbose = false;
-bool				GBreakOnError	= IsDebuggerPresent();
-bool				GBreakOnWarning = false;
-thread_local uint32 GLogIndent		= 0;
-bool				GLogProgress	= false;
+thread_local bool	GLogVerbose			= false;
+bool				GLogVeryVerbose		= false;
+bool				GBreakOnError		= IsDebuggerPresent();
+bool				GBreakOnWarning		= false;
+thread_local uint32 GLogIndent			= 0;
+bool				GLogProgress		= false;
+bool				GLogMachineReadable = false;
 
 std::mutex GLogMutex;
 
@@ -48,6 +49,27 @@ std::atomic<uint32> GLogThreadIndexCounter;
 thread_local uint32 GLogThreadIndex = ~0u;
 
 FTimePoint GNextFlushTime = TimePointNow();
+
+static FILE*
+GetLogStream(ELogLevel LogLevel)
+{
+	if (GLogMachineReadable)
+	{
+		if (LogLevel == ELogLevel::MachineReadable)
+		{
+			return stdout;
+		}
+		else
+		{
+			return stderr;
+		}
+	}
+	else
+	{
+		return stdout;
+	}
+}
+
 static void
 LogConditionalFlush(FILE* Stream)
 {
@@ -58,6 +80,12 @@ LogConditionalFlush(FILE* Stream)
 		GNextFlushTime = CurrentTime + std::chrono::milliseconds(1000);
 		fflush(Stream);
 	}
+}
+
+static void
+LogConditionalFlush(ELogLevel LogLevel)
+{
+	LogConditionalFlush(GetLogStream(LogLevel));
 }
 
 static uint32
@@ -143,7 +171,7 @@ LogProgress(const wchar_t* ItemName, uint64 Current, uint64 Total)
 	}
 	wprintf(L"@progress [%ls] %llu / %llu\n", ItemName, Current, Total);
 
-	LogConditionalFlush(stdout);
+	LogConditionalFlush(stdout); // progress is always reported to stdout
 }
 
 void
@@ -161,7 +189,7 @@ LogStatus(const wchar_t* InItemName, const wchar_t* Status)
 
 	if (InItemName)
 	{
-		LogConditionalFlush(stdout);
+		LogConditionalFlush(stdout); // status is always reported to stdout
 	}
 	else
 	{
@@ -174,6 +202,7 @@ LogFlush()
 {
 	std::lock_guard<std::mutex> LockGuard(GLogMutex);
 	fflush(stdout);
+	fflush(stderr);
 	if (GLogFile && GLogFile->Handle)
 	{
 		FILE* F = GLogFile->Handle;
@@ -217,49 +246,51 @@ LogPrintf(ELogLevel Level, const wchar_t* Str, ...)
 		}
 	}
 
-	if (Level <= MaxDisplayLevel)
+	FILE* LogStream = GetLogStream(Level);
+
+	if (Level <= MaxDisplayLevel || Level == ELogLevel::MachineReadable)
 	{
 		if (Prefix)
 		{
-			wprintf(Prefix);
+			fwprintf(LogStream, Prefix);
 		}
 
 		if (bShouldIndent)
 		{
-			wprintf(L"%*c", GLogIndent, L' ');
+			fwprintf(LogStream, L"%*c", GLogIndent, L' ');
 		}
 
 		va_list Va;
 		va_start(Va, Str);
-		vwprintf(Str, Va);
+		vfwprintf(LogStream, Str, Va);
 		va_end(Va);
 
-		LogConditionalFlush(stdout);
+		LogConditionalFlush(Level);
 	}
 
 	if (GLogFile && GLogFile->Handle)
 	{
-		FILE* F = GLogFile->Handle;
+		FILE* LogFileStream = GLogFile->Handle;
 
 		uint32 ThreadIndex = GetLogThreadIndex();
-		fwprintf(F, L"[%3d] ", ThreadIndex);
+		fwprintf(LogFileStream, L"[%3d] ", ThreadIndex);
 
 		switch (Level)
 		{
 			case ELogLevel::Error:
-				fwprintf(F, L"[ERROR] ");
+				fwprintf(LogFileStream, L"[ERROR] ");
 				break;
 			case ELogLevel::Warning:
-				fwprintf(F, L"[WARN] ");
+				fwprintf(LogFileStream, L"[WARN] ");
 				break;
 			case ELogLevel::Info:
-				fwprintf(F, L"[INFO] ");
+				fwprintf(LogFileStream, L"[INFO] ");
 				break;
 			case ELogLevel::Debug:
-				fwprintf(F, L"[DEBUG] ");
+				fwprintf(LogFileStream, L"[DEBUG] ");
 				break;
 			case ELogLevel::Trace:
-				fwprintf(F, L"[TRACE] ");
+				fwprintf(LogFileStream, L"[TRACE] ");
 				break;
 			default:
 				break;
@@ -267,12 +298,12 @@ LogPrintf(ELogLevel Level, const wchar_t* Str, ...)
 
 		va_list Va;
 		va_start(Va, Str);
-		vfwprintf(F, Str, Va);
+		vfwprintf(LogFileStream, Str, Va);
 		va_end(Va);
 
 		if (Level == ELogLevel::Error || Level == ELogLevel::Warning)
 		{
-			fflush(F);
+			fflush(LogFileStream);
 		}
 	}
 }

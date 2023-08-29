@@ -65,10 +65,8 @@ SocketRecvT(FSocketHandle Socket, T& Data)
 enum class ESocketSecurity
 {
 	None,
-#if UNSYNC_USE_TLS
 	TLSv1_2,
 	TLSv1_3,
-#endif	// UNSYNC_USE_TLS
 	Unknown
 };
 
@@ -107,7 +105,6 @@ struct FTlsClientSettings
 	uint64		 CacertSize			= 0;
 };
 
-#if UNSYNC_USE_TLS
 struct FSocketTls : FSocketBase
 {
 	FSocketTls(FSocketHandle InHandle, FTlsClientSettings ClientSettings);
@@ -121,7 +118,6 @@ struct FSocketTls : FSocketBase
 
 	tls* TlsCtx = {};
 };
-#endif	// UNSYNC_USE_TLS
 
 template<typename T>
 bool

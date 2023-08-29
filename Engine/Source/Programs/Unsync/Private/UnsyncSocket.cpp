@@ -26,9 +26,7 @@ UNSYNC_THIRD_PARTY_INCLUDES_START
 #include <unordered_set>
 #include <limits>
 
-#if UNSYNC_USE_TLS
-#	include <tls.h>
-#endif	// UNSYNC_USE_TLS
+#include <tls.h>
 
 UNSYNC_THIRD_PARTY_INCLUDES_END
 
@@ -55,9 +53,7 @@ struct FSocketInitHelper
 		}
 #endif	// UNSYNC_PLATFORM_WINDOWS
 
-#if UNSYNC_USE_TLS
 		tls_init();
-#endif	// UNSYNC_USE_TLS
 	}
 	~FSocketInitHelper()
 	{
@@ -294,7 +290,6 @@ FSocketRaw::RecvAny(void* Data, size_t DataSize)
 	return SocketRecvAny(Handle, Data, DataSize);
 }
 
-#if UNSYNC_USE_TLS
 FSocketTls::FSocketTls(FSocketHandle InHandle, FTlsClientSettings ClientSettings) : FSocketBase(InHandle)
 {
 	Security = ESocketSecurity::Unknown;
@@ -441,7 +436,6 @@ FSocketTls::RecvAny(void* Data, size_t DataSize)
 
 	return ProcessedBytes;
 }
-#endif	// UNSYNC_USE_TLS
 
 FSocketBase::~FSocketBase()
 {
@@ -455,12 +449,10 @@ ToString(ESocketSecurity Security)
 	{
 		case ESocketSecurity::None:
 			return "None";
-#if UNSYNC_USE_TLS
 		case ESocketSecurity::TLSv1_2:
 			return "TLS 1.2";
 		case ESocketSecurity::TLSv1_3:
 			return "TLS 1.3";
-#endif	// UNSYNC_USE_TLS
 		default:
 			return "Unknown";
 	}

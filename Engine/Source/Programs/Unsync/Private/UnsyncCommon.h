@@ -22,10 +22,6 @@ using int64 = int64_t;
 
 using FPath = std::filesystem::path;
 
-#ifndef UNSYNC_USE_TLS
-#	define UNSYNC_USE_TLS 0
-#endif
-
 #define UNSYNC_DISALLOW_COPY_ASSIGN(T) \
 	T(const T&) = delete;              \
 	T& operator=(const T&) = delete;

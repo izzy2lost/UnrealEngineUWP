@@ -15,7 +15,6 @@ endif()
 
 project(unsync)
 
-option(UNSYNC_USE_TLS "Include TLS support for encrypted connections via libretls" ON)
 option(UNSYNC_USE_DEBUG_HEAP "Include support for debug memory allocator" ON)
 
 # Validate compiler
@@ -39,6 +38,8 @@ set(src
 	Private/UnsyncCmdDiff.h
 	Private/UnsyncCmdHash.cpp
 	Private/UnsyncCmdHash.h
+	Private/UnsyncCmdLogin.cpp
+	Private/UnsyncCmdLogin.h
 	Private/UnsyncCmdMount.cpp
 	Private/UnsyncCmdMount.h
 	Private/UnsyncCmdPatch.cpp
@@ -138,13 +139,9 @@ find_path(BLAKE3_INCLUDE_DIR blake3.h REQUIRED)
 target_include_directories(unsync PRIVATE ${BLAKE3_INCLUDE_DIR})
 target_link_libraries(unsync PRIVATE blake3)
 
-if (UNSYNC_USE_TLS)
-	find_path(LIBRESSL_INCLUDE_DIR tls.h)
-	target_include_directories(unsync PRIVATE ${LIBRESSL_INCLUDE_DIR})
-	target_link_libraries(unsync PRIVATE tls ssl crypto)
-	target_compile_definitions(unsync PRIVATE UNSYNC_USE_TLS=1)
-	message(STATUS "TLS support enabled")
-endif(UNSYNC_USE_TLS)
+find_path(LIBRESSL_INCLUDE_DIR tls.h)
+target_include_directories(unsync PRIVATE ${LIBRESSL_INCLUDE_DIR})
+target_link_libraries(unsync PRIVATE tls ssl crypto)
 
 if (UNSYNC_USE_DEBUG_HEAP)
 	target_compile_definitions(unsync PRIVATE UNSYNC_USE_DEBUG_HEAP=1)

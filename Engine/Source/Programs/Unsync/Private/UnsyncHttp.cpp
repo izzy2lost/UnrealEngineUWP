@@ -530,7 +530,6 @@ FHttpConnection::Open()
 
 	if (bUseTls)
 	{
-#if UNSYNC_USE_TLS
 		FTlsClientSettings ClientSettings;
 		ClientSettings.bVerifyCertificate = bTlsVerifyCertificate;
 
@@ -554,9 +553,6 @@ FHttpConnection::Open()
 		{
 			delete TlsSocket;
 		}
-#else	// UNSYNC_USE_TLS
-		UNSYNC_ERROR(L"Unsync is not compiled with TLS support");
-#endif	// UNSYNC_USE_TLS
 	}
 	else
 	{

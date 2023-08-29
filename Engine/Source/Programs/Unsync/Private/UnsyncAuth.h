@@ -9,8 +9,6 @@
 
 #include <string>
 
-#if UNSYNC_USE_TLS
-
 namespace unsync {
 
 struct FHttpConnection;
@@ -97,5 +95,3 @@ bool TryAddAuthentication(FRemoteDesc& InOutRemoteDesc);
 int64 GetSecondsFromUnixEpoch();
 
 }  // namespace unsync
-
-#endif	// UNSYNC_USE_TLS
