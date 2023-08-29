@@ -129,6 +129,9 @@ namespace Horde.Server.Users
 			[BsonDefaultValue(false), BsonIgnoreIfDefault]
 			public bool EnableExperimentalFeatures { get; set; }
 
+			[BsonDefaultValue(false), BsonIgnoreIfDefault]
+			public bool AlwaysTagPreflightCL { get; set; }
+
 			public BsonValue DashboardSettings { get; set; } = BsonNull.Value;
 			public List<JobId> PinnedJobIds { get; set; } = new List<JobId>();
 			public List<BisectTaskId> PinnedBisectTaskIds { get; set; } = new List<BisectTaskId>();
@@ -357,12 +360,16 @@ namespace Horde.Server.Users
 		}
 
 		/// <inheritdoc/>
-		public async Task UpdateSettingsAsync(UserId userId, bool? enableExperimentalFeatures = null, BsonValue? dashboardSettings = null, IEnumerable<JobId>? addPinnedJobIds = null, IEnumerable<JobId>? removePinnedJobIds = null, UpdateUserJobTemplateOptions? templateOptions = null, IEnumerable<BisectTaskId>? addBisectTaskIds = null, IEnumerable<BisectTaskId>? removeBisectTaskIds = null)
+		public async Task UpdateSettingsAsync(UserId userId, bool? enableExperimentalFeatures = null, bool? alwaysTagPreflightCL = null, BsonValue ? dashboardSettings = null, IEnumerable<JobId>? addPinnedJobIds = null, IEnumerable<JobId>? removePinnedJobIds = null, UpdateUserJobTemplateOptions? templateOptions = null, IEnumerable<BisectTaskId>? addBisectTaskIds = null, IEnumerable<BisectTaskId>? removeBisectTaskIds = null)
 		{
 			List<UpdateDefinition<UserSettingsDocument>> updates = new List<UpdateDefinition<UserSettingsDocument>>();
 			if (enableExperimentalFeatures != null)
 			{
 				updates.Add(Builders<UserSettingsDocument>.Update.SetOrUnsetNull(x => x.EnableExperimentalFeatures, enableExperimentalFeatures));
+			}
+			if (alwaysTagPreflightCL != null)
+			{
+				updates.Add(Builders<UserSettingsDocument>.Update.SetOrUnsetNull(x => x.AlwaysTagPreflightCL, alwaysTagPreflightCL));
 			}
 			if (dashboardSettings != null)
 			{
@@ -385,7 +392,6 @@ namespace Horde.Server.Users
 			{
 				updates.Add(Builders<UserSettingsDocument>.Update.PullAll(x => x.PinnedBisectTaskIds, removeBisectTaskIds));
 			}
-
 
 			if (templateOptions != null)
 			{

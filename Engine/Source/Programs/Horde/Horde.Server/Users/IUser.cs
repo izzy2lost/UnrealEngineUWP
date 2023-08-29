@@ -139,6 +139,11 @@ namespace Horde.Server.Users
 		public bool EnableExperimentalFeatures { get; }
 
 		/// <summary>
+		/// Whether to always tag CL descriptions for preflights
+		/// </summary>
+		public bool AlwaysTagPreflightCL { get; }
+
+		/// <summary>
 		/// Opaque settings dictionary for the dashboard
 		/// </summary>
 		public BsonValue DashboardSettings { get; }
@@ -182,6 +187,7 @@ namespace Horde.Server.Users
 			if (settings != null)
 			{
 				response.EnableExperimentalFeatures = settings.EnableExperimentalFeatures;
+				response.AlwaysTagPreflightCL = settings.AlwaysTagPreflightCL;
 
 				response.DashboardSettings = BsonTypeMapper.MapToDotNetValue(settings.DashboardSettings);
 				response.PinnedJobIds = settings.PinnedJobIds.ConvertAll(x => x.ToString());

@@ -90,6 +90,7 @@ namespace Horde.Server.Users
 		/// </summary>
 		/// <param name="userId">The user to update</param>
 		/// <param name="enableExperimentalFeatures"></param>
+		/// <param name="alwaysTagPreflightCL"></param>
 		/// <param name="dashboardSettings">Opaque settings object for the dashboard</param>
 		/// <param name="addPinnedJobIds"></param>
 		/// <param name="removePinnedJobIds"></param>
@@ -97,7 +98,7 @@ namespace Horde.Server.Users
 		/// <param name="addBisectTaskIds"></param>
 		/// <param name="removeBisectTaskIds"></param>
 		/// <returns>Updated user object</returns>
-		Task UpdateSettingsAsync(UserId userId, bool? enableExperimentalFeatures = null, BsonValue? dashboardSettings = null, IEnumerable<JobId>? addPinnedJobIds = null, IEnumerable<JobId>? removePinnedJobIds = null, UpdateUserJobTemplateOptions? templateOptions = null, IEnumerable<BisectTaskId>? addBisectTaskIds = null, IEnumerable<BisectTaskId>? removeBisectTaskIds = null);
+		Task UpdateSettingsAsync(UserId userId, bool? enableExperimentalFeatures = null, bool? alwaysTagPreflightCL = null, BsonValue? dashboardSettings = null, IEnumerable<JobId>? addPinnedJobIds = null, IEnumerable<JobId>? removePinnedJobIds = null, UpdateUserJobTemplateOptions? templateOptions = null, IEnumerable<BisectTaskId>? addBisectTaskIds = null, IEnumerable<BisectTaskId>? removeBisectTaskIds = null);
 	}
 
 	/// <summary>

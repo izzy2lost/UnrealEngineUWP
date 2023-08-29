@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
 
 #pragma warning disable CA2227
@@ -58,6 +57,11 @@ namespace EpicGames.Horde.Api
 		/// Whether to enable experimental features for this user
 		/// </summary>
 		public bool? EnableExperimentalFeatures { get; set; }
+
+		/// <summary>
+		/// Whether to always tag preflight changelists
+		/// </summary>
+		public bool? AlwaysTagPreflightCL { get; set; }
 
 		/// <summary>
 		/// Settings for the dashboard
@@ -261,6 +265,11 @@ namespace EpicGames.Horde.Api
 		public bool? EnableExperimentalFeatures { get; set; }
 
 		/// <summary>
+		/// Whether to always tag preflight CL
+		/// </summary>
+		public bool? AlwaysTagPreflightCL { get; set; }
+
+		/// <summary>
 		/// New dashboard settings
 		/// </summary>
 		public JsonElement? DashboardSettings { get; set; }
@@ -284,6 +293,5 @@ namespace EpicGames.Horde.Api
 		/// Bisection task ids to remove from the pinned list
 		/// </summary>
 		public List<string>? RemovePinnedBisectTaskIds { get; set; }
-
 	}
 }

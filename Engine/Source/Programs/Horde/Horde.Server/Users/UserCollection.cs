@@ -32,6 +32,9 @@ namespace Horde.Server.Users
 			[BsonDefaultValue(false), BsonIgnoreIfDefault]
 			public bool EnableExperimentalFeatures { get; set; }
 
+			[BsonDefaultValue(false), BsonIgnoreIfDefault]
+			public bool AlwaysTagPreflightCL { get; set; }
+
 			public BsonValue DashboardSettings { get; set; } = BsonNull.Value;
 			public List<JobId> PinnedJobIds { get; set; } = new List<JobId>();
 			public List<BisectTaskId> PinnedBisectTaskIds { get; set; } = new List<BisectTaskId>();
@@ -161,7 +164,7 @@ namespace Horde.Server.Users
 		}
 
 		/// <inheritdoc/>
-		public async Task UpdateSettingsAsync(UserId userId, bool? enableExperimentalFeatures, BsonValue? dashboardSettings = null, IEnumerable<JobId>? addPinnedJobIds = null, IEnumerable<JobId>? removePinnedJobIds = null, UpdateUserJobTemplateOptions? templateOptions = null, IEnumerable<BisectTaskId>? addBisectTaskIds = null, IEnumerable<BisectTaskId>? removeBisectTaskIds = null)
+		public async Task UpdateSettingsAsync(UserId userId, bool? enableExperimentalFeatures, bool? alwaysTagPreflightCL = null, BsonValue ? dashboardSettings = null, IEnumerable<JobId>? addPinnedJobIds = null, IEnumerable<JobId>? removePinnedJobIds = null, UpdateUserJobTemplateOptions? templateOptions = null, IEnumerable<BisectTaskId>? addBisectTaskIds = null, IEnumerable<BisectTaskId>? removeBisectTaskIds = null)
 		{
 			if (addPinnedJobIds != null)
 			{
@@ -177,6 +180,10 @@ namespace Horde.Server.Users
 			if (enableExperimentalFeatures != null)
 			{
 				updates.Add(Builders<UserDocument>.Update.SetOrUnsetNull(x => x.EnableExperimentalFeatures, enableExperimentalFeatures));
+			}
+			if (alwaysTagPreflightCL != null)
+			{
+				updates.Add(Builders<UserDocument>.Update.SetOrUnsetNull(x => x.AlwaysTagPreflightCL, alwaysTagPreflightCL));
 			}
 			if (dashboardSettings != null)
 			{
