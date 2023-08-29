@@ -18,6 +18,7 @@
 #include "Templates/UnrealTemplate.h"
 #include "UObject/Class.h"
 #include "UObject/ObjectMacros.h"
+#include "Curves/RealCurve.h"
 
 #include "MovieSceneBoolChannel.generated.h"
 
