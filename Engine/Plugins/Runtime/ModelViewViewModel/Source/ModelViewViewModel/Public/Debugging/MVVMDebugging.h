@@ -24,7 +24,7 @@ namespace UE::MVVM
 class MODELVIEWVIEWMODEL_API FDebugging
 {
 public:
-	struct FView
+	struct MODELVIEWVIEWMODEL_API FView
 	{
 	public:
 		FView() = default;
