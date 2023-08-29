@@ -727,6 +727,11 @@ void IStreamingManager::Tick( float DeltaTime, bool bProcessEverything/*=false*/
 	bPendingRemoveViews = true;
 }
 
+int32 IStreamingManager::StreamAllResources(float TimeLimit)
+{
+	return 0;
+}
+
 /*-----------------------------------------------------------------------------
 	IRenderAssetStreamingManager implementation.
 -----------------------------------------------------------------------------*/

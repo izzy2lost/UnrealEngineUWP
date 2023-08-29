@@ -690,8 +690,17 @@ private:
 			}
 		}
 
+
 		// Force all mip maps to load before baking the materials
-		UTexture::ForceUpdateTextureStreaming();
+		{
+			const double STREAMING_WAIT_DT = 0.1;
+			while (IStreamingManager::Get().StreamAllResources(STREAMING_WAIT_DT) > 0)
+			{
+				// Application tick.
+				FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread);
+				FTSTicker::GetCoreTicker().Tick(FApp::GetDeltaTime());
+			}
+		}
 	}
 
 	void BakeMaterialProperty(const FMaterialDataEx& CurrentMaterialSettings, const FMaterialPropertyEx& Property, FMeshMaterialRenderItem* RenderItem, UTextureRenderTarget2D* RenderTarget, FExportMaterialProxy* ExportMaterialProxy, FBakeOutputEx& CurrentOutput)

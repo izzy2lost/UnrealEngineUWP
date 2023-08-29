@@ -200,11 +200,8 @@ struct IStreamingManager
 	 * @param TimeLimit					Maximum number of seconds to wait for streaming I/O. If zero, uses .ini setting
 	 * @return							Number of streaming requests still in flight, if the time limit was reached before they were finished.
 	 */
-	virtual int32 StreamAllResources(float TimeLimit = 0.0f)
-	{
-		return 0;
-	}
-
+	ENGINE_API virtual int32 StreamAllResources(float TimeLimit = 0.0f);
+	
 	/**
 	 * Blocks till all pending requests are fulfilled.
 	 *

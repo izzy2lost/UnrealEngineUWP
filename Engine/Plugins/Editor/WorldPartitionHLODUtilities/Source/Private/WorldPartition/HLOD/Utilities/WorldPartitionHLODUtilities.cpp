@@ -20,6 +20,7 @@
 #include "WorldPartition/HLOD/HLODStats.h"
 #include "WorldPartition/HLOD/HLODSourceActorsFromCell.h"
 #include "WorldPartition/ContentBundle/ContentBundleActivationScope.h"
+#include "WorldPartition/WorldPartitionHelpers.h"
 
 #include "WorldPartition/HLOD/Builders/HLODBuilderInstancing.h"
 #include "WorldPartition/HLOD/Builders/HLODBuilderMeshMerge.h"
@@ -38,6 +39,7 @@
 #include "TextureCompiler.h"
 #include "UObject/MetaData.h"
 #include "UObject/GCObjectScopeGuard.h"
+#include "ContentStreaming.h"
 
 static uint32 ComputeHLODHash(AWorldPartitionHLOD* InHLODActor, const TArray<UActorComponent*>& InSourceComponents)
 {
@@ -590,6 +592,14 @@ ULevelStreaming* LoadSourceActors(AWorldPartitionHLOD* InHLODActor, bool& bOutIs
 
 		// Ensure all deferred construction scripts are executed
 		FAssetCompilingManager::Get().ProcessAsyncTasks();
+
+		// Ensure streaming requests are completed
+		// Some requests require the main thread to be ticked in order to run to completion.
+		const double STREAMING_WAIT_DT = 0.1;
+		while (IStreamingManager::Get().StreamAllResources(STREAMING_WAIT_DT) > 0)
+		{
+			FWorldPartitionHelpers::FakeEngineTick(InHLODActor->GetWorld());
+		}
 	}
 
 	return LevelStreaming;
