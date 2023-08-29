@@ -5,6 +5,7 @@
 #include "Containers/ContainersFwd.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Framework/TypedElementMetaData.h"
+#include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Templates/UnrealTypeTraits.h"
 #include "UObject/Interface.h"
 
@@ -146,11 +147,30 @@ public:
 	 * This version registers a generic type. Construction using these are typically cheaper as they can avoid
 	 * copying the Constructor and take up less memory. The downside is that they can't store additional configuration
 	 * options. If the purpose has not been registered the factory will not be recorded and a warning will be printed.
+	 * If registration is successful true will be returned otherwise false.
+	 */
+	template<typename ConstructorType>
+	bool RegisterWidgetFactory(FName Purpose);
+	/**
+	 * Registers a widget factory that will be called when the purpose it's registered under is requested.
+	 * This version registers a generic type. Construction using these are typically cheaper as they can avoid
+	 * copying the Constructor and take up less memory. The downside is that they can't store additional configuration
+	 * options. If the purpose has not been registered the factory will not be recorded and a warning will be printed.
 	 * The provided columns will be used when matching the factory during widget construction.
 	 * If registration is successful true will be returned otherwise false.
 	 */
 	virtual bool RegisterWidgetFactory(FName Purpose, const UScriptStruct* Constructor,
-		TArray<TWeakObjectPtr<const UScriptStruct>> Columns) = 0;
+		TypedElementQueryBuilder::FQueryConditions Columns) = 0;
+	/**
+	 * Registers a widget factory that will be called when the purpose it's registered under is requested.
+	 * This version registers a generic type. Construction using these are typically cheaper as they can avoid
+	 * copying the Constructor and take up less memory. The downside is that they can't store additional configuration
+	 * options. If the purpose has not been registered the factory will not be recorded and a warning will be printed.
+	 * The provided columns will be used when matching the factory during widget construction.
+	 * If registration is successful true will be returned otherwise false.
+	 */
+	template<typename ConstructorType>
+	bool RegisterWidgetFactory(FName Purpose, TypedElementQueryBuilder::FQueryConditions Columns);
 	/**
 	 * Registers a widget factory that will be called when the purpose it's registered under is requested.
 	 * This version uses a previously created instance of the Constructor. The benefit of this is that it store
@@ -168,7 +188,7 @@ public:
 	 * If registration is successful true will be returned otherwise false.
 	 */
 	virtual bool RegisterWidgetFactory(FName Purpose, TUniquePtr<FTypedElementWidgetConstructor>&& Constructor, 
-		TArray<TWeakObjectPtr<const UScriptStruct>> Columns) = 0;
+		TypedElementQueryBuilder::FQueryConditions Columns) = 0;
 	
 	/** Creates widget constructors for the requested purpose. */
 	virtual void CreateWidgetConstructors(FName Purpose, 
@@ -195,3 +215,20 @@ public:
 	/** Calls the provided callback for all known registered widget purposes. */
 	virtual void ListWidgetPurposes(const WidgetPurposeCallback& Callback) const = 0;
 };
+
+
+//
+// Implementations
+//
+
+template<typename ConstructorType>
+bool ITypedElementDataStorageUiInterface::RegisterWidgetFactory(FName Purpose)
+{
+	return this->RegisterWidgetFactory(Purpose, ConstructorType::StaticStruct());
+}
+
+template<typename ConstructorType>
+bool ITypedElementDataStorageUiInterface::RegisterWidgetFactory(FName Purpose, TypedElementQueryBuilder::FQueryConditions Columns)
+{
+	return this->RegisterWidgetFactory(Purpose, ConstructorType::StaticStruct(), Columns);
+}

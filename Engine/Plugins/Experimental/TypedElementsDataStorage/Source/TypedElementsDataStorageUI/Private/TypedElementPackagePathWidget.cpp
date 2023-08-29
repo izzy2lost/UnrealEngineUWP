@@ -17,10 +17,12 @@
 void UTypedElementPackagePathWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
-	DataStorageUi.RegisterWidgetFactory(FName(TEXT("General.Cell")), FTypedElementPackagePathWidgetConstructor::StaticStruct(),
-		{ FTypedElementPackagePathColumn::StaticStruct() });
-	DataStorageUi.RegisterWidgetFactory(FName(TEXT("General.Cell")), FTypedElementLoadedPackagePathWidgetConstructor::StaticStruct(),
-		{ FTypedElementPackageLoadedPathColumn::StaticStruct() });
+	using namespace TypedElementQueryBuilder;
+
+	DataStorageUi.RegisterWidgetFactory<FTypedElementPackagePathWidgetConstructor>(FName(TEXT("General.Cell")), 
+		FColumn<FTypedElementPackagePathColumn>());
+	DataStorageUi.RegisterWidgetFactory<FTypedElementLoadedPackagePathWidgetConstructor>(FName(TEXT("General.Cell")),
+		FColumn<FTypedElementPackageLoadedPathColumn>());
 }
 
 

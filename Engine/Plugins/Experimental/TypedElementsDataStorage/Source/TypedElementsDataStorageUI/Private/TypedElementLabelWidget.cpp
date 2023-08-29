@@ -119,10 +119,12 @@ void UTypedElementLabelWidgetFactory::RegisterQueries(ITypedElementDataStorageIn
 void UTypedElementLabelWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
-	 DataStorageUi.RegisterWidgetFactory(FName(TEXT("General.Cell")), FTypedElementLabelWidgetConstructor::StaticStruct(),
-		{ FTypedElementLabelColumn::StaticStruct() });
-	DataStorageUi.RegisterWidgetFactory(FName(TEXT("General.Cell")), FTypedElementLabelWithHashTooltipWidgetConstructor::StaticStruct(),
-		{ FTypedElementLabelColumn::StaticStruct(), FTypedElementLabelHashColumn::StaticStruct() });
+	using namespace TypedElementQueryBuilder;
+
+	DataStorageUi.RegisterWidgetFactory<FTypedElementLabelWidgetConstructor>(FName(TEXT("General.Cell")), 
+		FColumn<FTypedElementLabelColumn>());
+	DataStorageUi.RegisterWidgetFactory<FTypedElementLabelWithHashTooltipWidgetConstructor>(FName(TEXT("General.Cell")),
+		FColumn<FTypedElementLabelColumn>() && FColumn<FTypedElementLabelHashColumn>());
 }
 
 

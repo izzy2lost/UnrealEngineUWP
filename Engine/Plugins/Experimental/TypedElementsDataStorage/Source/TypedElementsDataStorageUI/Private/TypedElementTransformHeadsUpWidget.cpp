@@ -191,8 +191,10 @@ void UTypedElementTransformHeadsUpWidgetFactory::RegisterQueries(ITypedElementDa
 void UTypedElementTransformHeadsUpWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
-	DataStorageUi.RegisterWidgetFactory(FName(TEXT("SceneOutliner.Cell")), FTypedElementTransformHeadsUpWidgetConstructor::StaticStruct(),
-		{ FTypedElementLocalTransformColumn::StaticStruct() });
+	using namespace TypedElementQueryBuilder;
+
+	DataStorageUi.RegisterWidgetFactory<FTypedElementTransformHeadsUpWidgetConstructor>(FName(TEXT("SceneOutliner.Cell")),
+		FColumn<FTypedElementLocalTransformColumn>());
 }
 
 

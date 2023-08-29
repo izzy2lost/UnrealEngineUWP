@@ -34,10 +34,10 @@ public:
 
 	bool RegisterWidgetFactory(FName Purpose, const UScriptStruct* Constructor) override;
 	bool RegisterWidgetFactory(FName Purpose, const UScriptStruct* Constructor,
-		TArray<TWeakObjectPtr<const UScriptStruct>> Columns) override;
+		TypedElementQueryBuilder::FQueryConditions Columns) override;
 	bool RegisterWidgetFactory(FName Purpose, TUniquePtr<FTypedElementWidgetConstructor>&& Constructor) override;
 	bool RegisterWidgetFactory(FName Purpose, TUniquePtr<FTypedElementWidgetConstructor>&& Constructor,
-		TArray<TWeakObjectPtr<const UScriptStruct>> Columns) override;
+		TypedElementQueryBuilder::FQueryConditions Columns) override;
 
 	void CreateWidgetConstructors(FName Purpose,
 		TypedElementDataStorage::FMetaDataView Arguments, const WidgetConstructorCallback& Callback) override;
@@ -56,14 +56,14 @@ private:
 	{
 		using ConstructorType = std::variant<const UScriptStruct*, TUniquePtr<FTypedElementWidgetConstructor>>;
 
-		TArray<TWeakObjectPtr<const UScriptStruct>> Columns;
+		TypedElementQueryBuilder::FQueryConditions Columns;
 		ConstructorType Constructor;
 
 		FWidgetFactory() = default;
 		explicit FWidgetFactory(const UScriptStruct* InConstructor);
 		explicit FWidgetFactory(TUniquePtr<FTypedElementWidgetConstructor>&& InConstructor);
-		FWidgetFactory(const UScriptStruct* InConstructor, TArray<TWeakObjectPtr<const UScriptStruct>>&& InColumns);
-		FWidgetFactory(TUniquePtr<FTypedElementWidgetConstructor>&& InConstructor, TArray<TWeakObjectPtr<const UScriptStruct>>&& InColumns);
+		FWidgetFactory(const UScriptStruct* InConstructor, TypedElementQueryBuilder::FQueryConditions&& InColumns);
+		FWidgetFactory(TUniquePtr<FTypedElementWidgetConstructor>&& InConstructor, TypedElementQueryBuilder::FQueryConditions&& InColumns);
 	};
 
 	struct FPurposeInfo
@@ -96,8 +96,6 @@ private:
 		FTypedElementWidgetConstructor& Constructor,
 		TypedElementDataStorage::FMetaDataView Arguments,
 		const WidgetCreatedCallback& ConstructionCallback);
-
-	static bool PrepareColumnsList(TArray<TWeakObjectPtr<const UScriptStruct>>& Columns);
 
 	void CreateWidgetConstructors_LongestMatch(
 		const TArray<FWidgetFactory>& WidgetFactories, 
