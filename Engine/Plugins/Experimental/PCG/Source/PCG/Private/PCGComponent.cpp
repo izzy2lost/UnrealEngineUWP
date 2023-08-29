@@ -595,7 +595,7 @@ AActor* UPCGComponent::ClearPCGLink(UClass* TemplateActor)
 	UWorld* World = GetWorld();
 
 	// First create a new actor that will be the new owner of all the resources
-	AActor* NewActor = UPCGActorHelpers::SpawnDefaultActor(World, TemplateActor ? TemplateActor : AActor::StaticClass(), TEXT("PCGStamp"), GetOwner()->GetTransform());
+	AActor* NewActor = UPCGActorHelpers::SpawnDefaultActor(World, GetOwner()->GetLevel(), TemplateActor ? TemplateActor : AActor::StaticClass(), TEXT("PCGStamp"), GetOwner()->GetTransform(), GetOwner());
 
 	// Then move all resources linked to this component to this actor
 	bool bHasMovedResources = MoveResourcesToNewActor(NewActor, /*bCreateChild=*/false);
@@ -712,7 +712,7 @@ bool UPCGComponent::MoveResourcesToNewActor(AActor* InNewActor, bool bCreateChil
 
 	if (bCreateChild)
 	{
-		NewActor = UPCGActorHelpers::SpawnDefaultActor(GetWorld(), NewActor->GetClass(), TEXT("PCGStampChild"), Owner->GetTransform());
+		NewActor = UPCGActorHelpers::SpawnDefaultActor(GetWorld(), GetOwner()->GetLevel(), NewActor->GetClass(), TEXT("PCGStampChild"), Owner->GetTransform());
 		NewActor->AttachToActor(InNewActor, FAttachmentTransformRules::KeepWorldTransform);
 		check(NewActor);
 	}
@@ -2372,6 +2372,9 @@ void FPCGComponentInstanceData::ApplyToComponent(UActorComponent* Component, con
 #if WITH_EDITOR
 			// bDirtyGenerated is transient.
 			PCGComponent->bDirtyGenerated = SourceComponent->bDirtyGenerated; 
+
+			// While this is serialized, it is not properly copied because it is not visible. This is needed otherwise a refresh can retoggle from not generated to generated
+			PCGComponent->bForceGenerateOnBPAddedToWorld = SourceComponent->bForceGenerateOnBPAddedToWorld;
 #endif // WITH_EDITOR
 
 			// Non-critical but should be done: transient data, tracked actors cache, landscape tracking

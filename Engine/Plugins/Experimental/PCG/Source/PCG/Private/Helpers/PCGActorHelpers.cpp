@@ -286,7 +286,7 @@ void UPCGActorHelpers::ForEachActorInWorld(UWorld* World, TSubclassOf<AActor> Ac
 	}
 }
 
-AActor* UPCGActorHelpers::SpawnDefaultActor(UWorld* World, TSubclassOf<AActor> ActorClass, FName BaseName, const FTransform& Transform, AActor* Parent)
+AActor* UPCGActorHelpers::SpawnDefaultActor(UWorld* World, ULevel* Level, TSubclassOf<AActor> ActorClass, FName BaseName, const FTransform& Transform, AActor* Parent)
 {
 	if (!World || !ActorClass)
 	{
@@ -294,21 +294,27 @@ AActor* UPCGActorHelpers::SpawnDefaultActor(UWorld* World, TSubclassOf<AActor> A
 	}
 
 	FActorSpawnParameters SpawnParams;
-	SpawnParams.Name = MakeUniqueObjectName(World->GetCurrentLevel(), ActorClass, BaseName);
+	SpawnParams.Name = MakeUniqueObjectName(Level ? Level : World->GetCurrentLevel(), ActorClass, BaseName);
 
-	if (PCGHelpers::IsRuntimeOrPIE())
-	{
-		SpawnParams.ObjectFlags |= RF_Transient;
-	}
-
-	return SpawnDefaultActor(World, ActorClass, Transform, SpawnParams, Parent);
+	return SpawnDefaultActor(World, Level, ActorClass, Transform, SpawnParams, Parent);
 }
 
-AActor* UPCGActorHelpers::SpawnDefaultActor(UWorld* World, TSubclassOf<AActor> ActorClass, const FTransform& Transform, const FActorSpawnParameters& SpawnParams, AActor* Parent)
+AActor* UPCGActorHelpers::SpawnDefaultActor(UWorld* World, ULevel* Level, TSubclassOf<AActor> ActorClass, const FTransform& Transform, const FActorSpawnParameters& InSpawnParams, AActor* Parent)
 {
 	if (!World || !ActorClass)
 	{
 		return nullptr;
+	}
+
+	FActorSpawnParameters SpawnParams = InSpawnParams;
+	if (Level)
+	{
+		SpawnParams.OverrideLevel = Level;
+	}
+
+	if (PCGHelpers::IsRuntimeOrPIE())
+	{
+		SpawnParams.ObjectFlags |= RF_Transient;
 	}
 
 	AActor* NewActor = World->SpawnActor(*ActorClass, &Transform, SpawnParams);

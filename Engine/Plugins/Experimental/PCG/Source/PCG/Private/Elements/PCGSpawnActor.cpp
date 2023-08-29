@@ -843,6 +843,7 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.Template = TemplateActor;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	SpawnParams.OverrideLevel = TargetActor->GetLevel();
 
 	if (PCGHelpers::IsRuntimeOrPIE())
 	{

@@ -9,6 +9,7 @@
 #include "PCGPin.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSplineData.h"
+#include "Helpers/PCGActorHelpers.h"
 #include "Helpers/PCGHelpers.h"
 #include "Metadata/PCGMetadata.h"
 #include "Metadata/PCGMetadataAttributeTpl.h"
@@ -138,15 +139,10 @@ bool FPCGCreateSplineElement::ExecuteInternal(FPCGContext* Context) const
 		}
 		else if(Settings->Mode == EPCGCreateSplineMode::CreateNewActor)
 		{
-			FActorSpawnParameters SpawnParams;
-			if (PCGHelpers::IsRuntimeOrPIE())
-			{
-				SpawnParams.ObjectFlags |= RF_Transient;
-			}
-
 			// TODO: check ownership of target actor like in the spawn actor?
 			// TODO: allow template?
-			SplineActor = TargetActor->GetWorld()->SpawnActor(AActor::StaticClass(), &TargetActor->GetTransform(), SpawnParams);
+			FActorSpawnParameters ActorSpawnParams;
+			SplineActor = UPCGActorHelpers::SpawnDefaultActor(TargetActor->GetWorld(), TargetActor->GetLevel(), AActor::StaticClass(), TargetActor->GetTransform(), ActorSpawnParams);
 
 			if (!SplineActor)
 			{

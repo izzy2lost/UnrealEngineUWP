@@ -15,8 +15,12 @@
 #include "StaticMeshCompiler.h"
 #include "TextureCompiler.h"
 #include "Engine/Engine.h"
+#include "Engine/Level.h"
 #include "Engine/StaticMesh.h"
 #include "Kismet/GameplayStatics.h"
+#include "LevelInstance/LevelInstanceInterface.h"
+#include "LevelInstance/LevelInstanceSubsystem.h"
+#include "LevelInstance/LevelInstanceEditorInstanceActor.h"
 
 namespace PCGActorAndComponentMapping
 {
@@ -48,6 +52,24 @@ namespace PCGActorAndComponentMapping
 		TEXT("pcg.DisableDelayedUnregister"),
 		false,
 		TEXT("If delayed unregister for all is introducing bad behavior, disables it, allowing people to continue working while we investigate."));
+
+#if WITH_EDITOR
+	void PropagateToLevelInstanceActors(AActor* InActor, UPCGSubsystem* PCGSubsystem, TFunctionRef<bool(AActor* LevelActor)> InFunc)
+	{
+		if (!PCGSubsystem || !PCGSubsystem->GetWorld())
+		{
+			return;
+		}
+
+		if (ILevelInstanceInterface* LevelInstance = Cast<ILevelInstanceInterface>(InActor))
+		{
+			if (const ULevelInstanceSubsystem* LevelInstanceSubsystem = PCGSubsystem->GetWorld()->GetSubsystem<ULevelInstanceSubsystem>())
+			{
+				LevelInstanceSubsystem->ForEachActorInLevelInstance(LevelInstance, InFunc);
+			}
+		}
+	}
+#endif
 }
 
 UPCGActorAndComponentMapping::UPCGActorAndComponentMapping(UPCGSubsystem* InPCGSubsystem)
@@ -712,7 +734,6 @@ void UPCGActorAndComponentMapping::RegisterOrUpdateTracking(UPCGComponent* InCom
 		InComponent->OnPCGGraphGeneratedDelegate.AddRaw(this, &UPCGActorAndComponentMapping::OnPCGGraphGeneratedOrCleaned);
 		InComponent->OnPCGGraphCleanedDelegate.AddRaw(this, &UPCGActorAndComponentMapping::OnPCGGraphGeneratedOrCleaned);
 	}
-
 }
 
 void UPCGActorAndComponentMapping::RemapTracking(const UPCGComponent* InOldComponent, UPCGComponent* InNewComponent)
@@ -847,7 +868,8 @@ void UPCGActorAndComponentMapping::AddDelayedActors()
 		}
 		else
 		{
-			OnActorAdded_Internal(Actor, ActorPtrAndShouldDirty.Get<1>());
+			// Implementation note: since the delayed actors list is built from top-level actors (e.g. directly in the level) then depth here is 0.
+			OnActorAdded_Internal(Actor, ActorPtrAndShouldDirty.Get<1>(), 0);
 		}
 	}
 
@@ -856,10 +878,11 @@ void UPCGActorAndComponentMapping::AddDelayedActors()
 
 void UPCGActorAndComponentMapping::OnActorAdded(AActor* InActor)
 {
-	OnActorAdded_Internal(InActor);
+	// Implementation note: since this is called only for actors directly in the current level, the depth here is 0.
+	OnActorAdded_Internal(InActor, true, 0);
 }
 
-void UPCGActorAndComponentMapping::OnActorAdded_Internal(AActor* InActor, bool bShouldDirty)
+void UPCGActorAndComponentMapping::OnActorAdded_Internal(AActor* InActor, bool bShouldDirty, int32 LevelInstanceDepth)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGActorAndComponentMapping::OnActorAdded);
 
@@ -883,10 +906,42 @@ void UPCGActorAndComponentMapping::OnActorAdded_Internal(AActor* InActor, bool b
 		return;
 	}
 
+#if WITH_EDITOR
+	// When a level instance is added to the level (or loaded), the Level Instance Editor Instance will be spawned
+	// but when we get the callback, it is not initialized yet (and does not contain the actors) hence adding it to the delayed actors.
+	// Note that while conceptually we'd want a callback when a level instance is loaded, it's a bit tricky vs. what world we want to do our changes in.
+	if (ALevelInstanceEditorInstanceActor* LevelInstanceEditorInstance = Cast<ALevelInstanceEditorInstanceActor>(InActor))
+	{
+		const FLevelInstanceID& LevelInstanceId = LevelInstanceEditorInstance->GetLevelInstanceID();
+		const ULevelInstanceSubsystem* LevelInstanceSubsystem = PCGSubsystem->GetWorld()->GetSubsystem<ULevelInstanceSubsystem>();
+
+		if (LevelInstanceId.IsValid() && LevelInstanceSubsystem)
+		{
+			if (ILevelInstanceInterface* LevelInstance = LevelInstanceSubsystem->GetLevelInstance(LevelInstanceId))
+			{
+				LevelInstanceSubsystem->ForEachActorInLevelInstance(LevelInstance, [this, bShouldDirty, LevelInstanceDepth, LevelInstanceEditorInstance](AActor* LevelActor)
+				{
+					if (LevelActor != LevelInstanceEditorInstance)
+					{
+						OnActorAdded_Internal(LevelActor, bShouldDirty, LevelInstanceDepth + 1);
+					}
+					
+					return true;
+				});
+			}
+		}
+		else
+		{
+			DelayedAddedActors.Emplace({ InActor, bShouldDirty });
+			return;
+		}
+	}
+#endif
+
 	if (AddOrUpdateTrackedActor(InActor) && bShouldDirty)
 	{
 		// Finally notify them all
-		OnActorChanged(InActor, /*bInHasMoved=*/ false);
+		OnActorChanged(InActor, /*bInHasMoved=*/ false, nullptr, LevelInstanceDepth);
 	}
 }
 
@@ -1018,6 +1073,12 @@ bool UPCGActorAndComponentMapping::UnregisterActor(AActor* InActor)
 
 void UPCGActorAndComponentMapping::OnActorDeleted(AActor* InActor)
 {
+	// Implementation note: since this is called only for actors directly in the current level, the depth here is 0.
+	OnActorDeleted_Internal(InActor, 0);
+}
+
+void UPCGActorAndComponentMapping::OnActorDeleted_Internal(AActor* InActor, int32 LevelInstanceDepth)
+{
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGActorAndComponentMapping::OnActorDeleted);
 
 	if (!InActor || !PCGSubsystem || InActor->GetWorld() != PCGSubsystem->GetWorld())
@@ -1030,6 +1091,35 @@ void UPCGActorAndComponentMapping::OnActorDeleted(AActor* InActor)
 	{
 		return;
 	}
+
+	// When editing/deleting/replacing a level instance, this will allow us to first remove the previously tracked actors that were under the level instance
+	if (ALevelInstanceEditorInstanceActor* LevelInstanceEditorInstance = Cast<ALevelInstanceEditorInstanceActor>(InActor))
+	{
+		const FLevelInstanceID& LevelInstanceId = LevelInstanceEditorInstance->GetLevelInstanceID();
+		const ULevelInstanceSubsystem* LevelInstanceSubsystem = PCGSubsystem->GetWorld()->GetSubsystem<ULevelInstanceSubsystem>();
+
+		if (LevelInstanceId.IsValid() && LevelInstanceSubsystem)
+		{
+			if (ILevelInstanceInterface* LevelInstance = LevelInstanceSubsystem->GetLevelInstance(LevelInstanceId))
+			{
+				LevelInstanceSubsystem->ForEachActorInLevelInstance(LevelInstance, [this, LevelInstanceDepth, LevelInstanceEditorInstance](AActor* LevelActor)
+				{
+					if (LevelActor != LevelInstanceEditorInstance)
+					{
+						OnActorDeleted_Internal(LevelActor, LevelInstanceDepth + 1);
+					}
+
+					return true;
+				});
+			}
+		}
+	}
+
+	PCGActorAndComponentMapping::PropagateToLevelInstanceActors(InActor, PCGSubsystem, [this, LevelInstanceDepth](AActor* LevelActor)
+	{
+		OnActorDeleted_Internal(LevelActor, LevelInstanceDepth + 1);
+		return true;
+	});
 #endif
 
 	if (!IsActorTracked(InActor))
@@ -1038,7 +1128,7 @@ void UPCGActorAndComponentMapping::OnActorDeleted(AActor* InActor)
 	}
 
 	// Notify all components that the actor has changed (was removed), but the Refresh will only happen AFTER the actor was actually removed from the world (because of delayed refresh).
-	OnActorChanged(InActor, /*bInHasMoved=*/ false);
+	OnActorChanged(InActor, /*bInHasMoved=*/ false, nullptr, LevelInstanceDepth);
 
 	// And then delete everything
 	UnregisterActor(InActor);
@@ -1046,9 +1136,14 @@ void UPCGActorAndComponentMapping::OnActorDeleted(AActor* InActor)
 
 void UPCGActorAndComponentMapping::OnActorMoved(AActor* InActor)
 {
+	OnActorMoved_Internal(InActor, /*LevelInstanceDepth=*/0);
+}
+
+void UPCGActorAndComponentMapping::OnActorMoved_Internal(AActor* InActor, int32 LevelInstanceDepth)
+{
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGActorAndComponentMapping::OnActorMoved);
 
-	if (!InActor || (PCGSubsystem && InActor->GetWorld() != PCGSubsystem->GetWorld()) || !IsActorTracked(InActor))
+	if (!InActor || (PCGSubsystem && InActor->GetWorld() != PCGSubsystem->GetWorld()))
 	{
 		return;
 	}
@@ -1058,10 +1153,23 @@ void UPCGActorAndComponentMapping::OnActorMoved(AActor* InActor)
 	{
 		return;
 	}
+
+	// If we've moved a level instance actor, we instead "push" forward the notification while making sure this will
+	//  trigger changes at this "level" in the world hierarchy
+	PCGActorAndComponentMapping::PropagateToLevelInstanceActors(InActor, PCGSubsystem, [this, LevelInstanceDepth](AActor* LevelActor)
+	{
+		OnActorMoved_Internal(LevelActor, LevelInstanceDepth + 1);
+		return true;
+	});
 #endif
 
+	if (!IsActorTracked(InActor))
+	{
+		return;
+	}
+
 	// Notify all components
-	OnActorChanged(InActor, /*bInHasMoved=*/ true);
+	OnActorChanged(InActor, /*bInHasMoved=*/ true, nullptr, LevelInstanceDepth);
 
 	// Update Actor position
 	if (FBox* ActorBounds = TrackedActorToPositionMap.Find(InActor))
@@ -1173,7 +1281,7 @@ void UPCGActorAndComponentMapping::OnObjectPropertyChanged(UObject* InObject, FP
 	}
 }
 
-void UPCGActorAndComponentMapping::OnActorChanged(AActor* InActor, bool bInHasMoved, const UObject* InOriginatingChangeObject)
+void UPCGActorAndComponentMapping::OnActorChanged(AActor* InActor, bool bInHasMoved, const UObject* InOriginatingChangeObject, int32 LevelInstanceDepth)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGActorAndComponentMapping::OnActorChanged);
 
@@ -1321,11 +1429,38 @@ void UPCGActorAndComponentMapping::OnActorChanged(AActor* InActor, bool bInHasMo
 		}
 	}
 
+	ULevelInstanceSubsystem* LevelInstanceSubsystem = (PCGSubsystem && PCGSubsystem->GetWorld()) ? PCGSubsystem->GetWorld()->GetSubsystem<ULevelInstanceSubsystem>() : nullptr;
+
 	// And refresh all dirtied components
 	for (UPCGComponent* Component : DirtyComponents)
 	{
 		if (Component)
 		{
+			// When an object changes, we need to make sure that we don't trigger a refresh on PCG components that are "higher" in the
+			// level hierarchy, otherwise we will end up generating in the Level Instance level, which is wrong.
+			// Note that in some instances (e.g. when something happens at the Level Instance level) we need to make sure that the
+			// PCG components higher-up are properly updated, hence the level instance depth
+			if (LevelInstanceSubsystem)
+			{
+				const ILevelInstanceInterface* ActorLevelInstance = LevelInstanceSubsystem->GetParentLevelInstance(InActor);
+				int LocalDepth = LevelInstanceDepth;
+				while (ActorLevelInstance && LocalDepth-- > 0)
+				{
+					ActorLevelInstance = LevelInstanceSubsystem->GetParentLevelInstance(CastChecked<AActor>(ActorLevelInstance));
+				}
+
+				const ILevelInstanceInterface* ComponentLevelInstance = LevelInstanceSubsystem->GetParentLevelInstance(Component->GetOwner());
+				while (ComponentLevelInstance && ComponentLevelInstance != ActorLevelInstance)
+				{
+					ComponentLevelInstance = LevelInstanceSubsystem->GetParentLevelInstance(CastChecked<AActor>(ComponentLevelInstance));
+				}
+
+				if (ActorLevelInstance != ComponentLevelInstance)
+				{
+					continue;
+				}
+			}
+			
 			Component->Refresh();
 		}
 	}

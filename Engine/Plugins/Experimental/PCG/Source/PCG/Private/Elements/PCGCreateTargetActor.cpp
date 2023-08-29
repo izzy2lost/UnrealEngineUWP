@@ -263,7 +263,7 @@ bool FPCGCreateTargetActorElement::ExecuteInternal(FPCGContext* Context) const
 		Transform = Settings->ActorPivot;
 	}
 
-	AActor* GeneratedActor = UPCGActorHelpers::SpawnDefaultActor(TargetActor->GetWorld(), Settings->TemplateActorClass, Transform, SpawnParams);
+	AActor* GeneratedActor = UPCGActorHelpers::SpawnDefaultActor(TargetActor->GetWorld(), TargetActor->GetLevel(), Settings->TemplateActorClass, Transform, SpawnParams);
 
 	if (!GeneratedActor)
 	{

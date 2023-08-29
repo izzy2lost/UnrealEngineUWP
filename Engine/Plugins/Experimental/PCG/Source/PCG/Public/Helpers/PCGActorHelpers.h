@@ -74,35 +74,38 @@ public:
 	/**
 	* Spawn a new actor of type T and attach it to the parent (if not null)
 	* @param World The world
+	* @param Level The level to spawn into
 	* @param BaseName Base name for the actor, will have a unique name
 	* @param Transform The transform for the new actor
 	* @param Parent Optional parent to attach to.
 	*/
 	template <typename T = AActor, typename = typename std::enable_if_t<std::is_base_of_v<AActor, T>>>
-	inline static AActor* SpawnDefaultActor(UWorld* World, FName BaseName, const FTransform& Transform, AActor* Parent = nullptr)
+	inline static AActor* SpawnDefaultActor(UWorld* World, ULevel* Level, FName BaseName, const FTransform& Transform, AActor* Parent = nullptr)
 	{
-		return SpawnDefaultActor(World, T::StaticClass(), BaseName, Transform, Parent);
+		return SpawnDefaultActor(World, Level, T::StaticClass(), BaseName, Transform, Parent);
 	}
 
 	/**
 	* Spawn a new actor and attach it to the parent (if not null)
 	* @param World The world
+	* @param Level The level to spawn into
 	* @param ActorClass Class of the actor to spawn
 	* @param BaseName Base name for the actor, will have a unique name
 	* @param Transform The transform for the new actor
 	* @param Parent Optional parent to attach to.
 	*/
-	static AActor* SpawnDefaultActor(UWorld* World, TSubclassOf<AActor> ActorClass, FName BaseName, const FTransform& Transform, AActor* Parent = nullptr);
+	static AActor* SpawnDefaultActor(UWorld* World, ULevel* Level, TSubclassOf<AActor> ActorClass, FName BaseName, const FTransform& Transform, AActor* Parent = nullptr);
 
 	/**
 	* Spawn a new actor and attach it to the parent (if not null)
 	* @param World The world
+	* @param Level The level to spawn into
 	* @param ActorClass Class of the actor to spawn
 	* @param Transform The transform for the new actor
 	* @param SpawnParams The spawn parameters
 	* @param Parent Optional parent to attach to.
 	*/
-	static AActor* SpawnDefaultActor(UWorld* World, TSubclassOf<AActor> ActorClass, const FTransform& Transform, const FActorSpawnParameters& SpawnParams, AActor* Parent = nullptr);
+	static AActor* SpawnDefaultActor(UWorld* World, ULevel* Level, TSubclassOf<AActor> ActorClass, const FTransform& Transform, const FActorSpawnParameters& SpawnParams, AActor* Parent = nullptr);
 
 	/**
 	 * Return the grid cell coordinates on the PCG partition grid given a position and the grid size.
