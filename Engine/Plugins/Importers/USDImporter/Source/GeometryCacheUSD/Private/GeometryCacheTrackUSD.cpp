@@ -27,7 +27,7 @@ void UGeometryCacheTrackUsd::BeginDestroy()
 {
 	UnloadUsdStage();
 
-	IGeometryCacheStreamer::Get().UnregisterTrack(this);
+	UnregisterStream();
 	UsdStream.Reset();
 
 	Super::BeginDestroy();
@@ -37,25 +37,11 @@ void UGeometryCacheTrackUsd::GetResourceSizeEx(FResourceSizeEx& CumulativeResour
 {
 	Super::GetResourceSizeEx(CumulativeResourceSize);
 
+	// Include only memory usage for data that is part of the track itself
+	// Stream data should only be relevant for the streamer, not the asset cache
+
 	// This is an additional copy that lives on the track
 	MeshData.GetResourceSizeEx(CumulativeResourceSize);
-
-	if (FGeometryCacheUsdStream* UsdStreamPtr = UsdStream.Get())
-	{
-		const FGeometryCacheStreamStats& Stats = UsdStreamPtr->GetStreamStats();
-
-		int32 NumFramesFullyLoaded = Stats.NumCachedFrames;
-		float TotalMemoryForLoadedFramesMB = Stats.MemoryUsed;
-		float MemoryPerFrameMB = TotalMemoryForLoadedFramesMB / NumFramesFullyLoaded;
-
-		// Also account for frames we're going to prefetch
-		uint32 NumRemainingFrames = UsdStreamPtr->GetNumFramesNeeded();
-		float TotalMemoryMB = TotalMemoryForLoadedFramesMB + NumRemainingFrames * MemoryPerFrameMB;
-
-		// Using 1048576 instead of 1000000 for megabyte as that's what's used by FGeometryCacheStreamBase memory stats
-		double TotalMemoryBytes = TotalMemoryMB * 1048576;
-		CumulativeResourceSize.AddDedicatedSystemMemoryBytes(static_cast<SIZE_T>(TotalMemoryBytes + 0.5));
-	}
 
 	CumulativeResourceSize.AddDedicatedSystemMemoryBytes(SampleInfos.GetAllocatedSize());
 }
@@ -264,8 +250,6 @@ void UGeometryCacheTrackUsd::Initialize(
 	Duration = NumFrames / FramesPerSecond;
 
 	UsdStream.Reset(new FGeometryCacheUsdStream(this, InReadFunc));
-	IGeometryCacheStreamer::Get().RegisterTrack(this, UsdStream.Get());
-	UsdStream->Prefetch(StartFrameIndex);
 }
 
 void UGeometryCacheTrackUsd::Initialize(
@@ -288,4 +272,19 @@ void UGeometryCacheTrackUsd::UpdateTime(float Time, bool bLooping)
 		int32 FrameIndex = FindSampleIndexFromTime(Time, bLooping);
 		UsdStream->UpdateCurrentFrameIndex(FrameIndex);
 	}
+}
+
+void UGeometryCacheTrackUsd::RegisterStream()
+{
+	const bool bNeedPrefetch = !IGeometryCacheStreamer::Get().IsTrackRegistered(this);
+	IGeometryCacheStreamer::Get().RegisterTrack(this, UsdStream.Get());
+	if (bNeedPrefetch)
+	{
+		UsdStream->Prefetch(StartFrameIndex);
+	}
+}
+
+void UGeometryCacheTrackUsd::UnregisterStream()
+{
+	IGeometryCacheStreamer::Get().UnregisterTrack(this);
 }

@@ -65,6 +65,9 @@ public:
 	// Discards our CurrentStagePinned to release the stage
 	void UnloadUsdStage();
 
+	void RegisterStream();
+	void UnregisterStream();
+
 public:
 	double FramesPerSecond;
 	int32 StartFrameIndex;
