@@ -19,6 +19,7 @@ namespace UnrealBuildTool.Rules
 				"ComponentVisualizers",
 				"EditorInteractiveToolsFramework",
 				"Engine",
+				"GameplayTags",
 				"InputCore",
 				"InteractiveToolsFramework",
 				"PropertyEditor",

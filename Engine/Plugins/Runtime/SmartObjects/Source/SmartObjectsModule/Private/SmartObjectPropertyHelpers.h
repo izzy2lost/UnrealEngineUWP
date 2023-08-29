@@ -39,6 +39,7 @@ public:
 		const UStruct* CurrBase = BaseStruct;
 		for (const FString& Segment : PathSegments)
 		{
+			check(CurrBase);
 			const FName PropertyName(Segment);
 			if (const FProperty* Property = CurrBase->FindPropertyByName(PropertyName))
 			{

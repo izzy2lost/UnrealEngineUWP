@@ -4,7 +4,6 @@
 
 #include "EditorUndoClient.h"
 #include "SmartObjectDefinition.h"
-#include "SmartObjectViewModel.h"
 
 class USmartObjectDefinition;
 
