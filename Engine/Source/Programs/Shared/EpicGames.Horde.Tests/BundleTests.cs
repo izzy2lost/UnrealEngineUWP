@@ -153,7 +153,7 @@ namespace EpicGames.Horde.Tests
 				packets.Add(new BundlePacket(BundleCompressionFormat.LZ4, 0, 20, 40));
 				packets.Add(new BundlePacket(BundleCompressionFormat.LZ4, 20, 10, 20));
 
-				oldHeader = BundleHeader.Create(types, imports, exports, packets);
+				oldHeader = new BundleHeader(types.ToArray(), imports.ToArray(), exports.ToArray(), packets.ToArray());
 			}
 
 			byte[] serializedData = oldHeader.ToByteArray();

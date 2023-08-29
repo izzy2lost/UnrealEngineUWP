@@ -20,7 +20,7 @@ namespace Horde.Server.Tests
 	public class StorageServiceTests : TestSetup
 	{
 		[TestMethod]
-		public async Task BlobCollectionTest()
+		public async Task BlobCollectionTestAsync()
 		{
 			StorageService storageService = ServiceProvider.GetRequiredService<StorageService>();
 			StorageClient client = await storageService.GetClientAsync(new NamespaceId("memory"), default);
@@ -41,7 +41,7 @@ namespace Horde.Server.Tests
 			exports.Add(new BundleExport(0, hash1, 0, 0, data1.Length, Array.Empty<BundleExportRef>()));
 			exports.Add(new BundleExport(0, hash2, 0, data1.Length, data2.Length, Array.Empty<BundleExportRef>()));
 
-			BundleHeader header = BundleHeader.Create(types, Array.Empty<BundleLocator>(), exports, new BundlePacket[1]);
+			BundleHeader header = new BundleHeader(types.ToArray(), Array.Empty<BundleLocator>(), exports.ToArray(), new BundlePacket[1]);
 			Bundle bundle = new Bundle(header, Array.Empty<ReadOnlyMemory<byte>>());
 			BundleLocator locator = await client.WriteBundleAsync(bundle);
 

@@ -252,21 +252,21 @@ namespace EpicGames.Core
 	/// <summary>
 	/// Class for building byte sequences, similar to StringBuilder. Allocates memory in chunks to avoid copying data.
 	/// </summary>
-	public sealed class ChunkedMemoryWriter : IMemoryWriter, IDisposable
+	public abstract class ChunkedMemoryWriterBase : IMemoryWriter
 	{
-		class Chunk
+		protected class Chunk
 		{
-			public readonly int RunningIndex;
-			public readonly IMemoryOwner<byte> Owner;
-			public readonly Memory<byte> Data;
-			public int Length;
+			public int RunningIndex { get; }
+			public Memory<byte> Data { get; }
+			public int Length { get; set; }
 
-			public Chunk(int runningIndex, int size)
+			public Chunk(int runningIndex, Memory<byte> data)
 			{
 				RunningIndex = runningIndex;
-				Owner = MemoryPool<byte>.Shared.Rent(size);
-				Data = Owner.Memory;
+				Data = data;
 			}
+
+			public virtual void Release() { }
 
 			public ReadOnlySpan<byte> WrittenSpan => WrittenMemory.Span;
 			public ReadOnlyMemory<byte> WrittenMemory => Data.Slice(0, Length);
@@ -285,28 +285,17 @@ namespace EpicGames.Core
 		/// Constructor
 		/// </summary>
 		/// <param name="chunkSize"></param>
-		public ChunkedMemoryWriter(int chunkSize)
-			: this(chunkSize, chunkSize)
+		protected ChunkedMemoryWriterBase(Chunk initialChunk, int chunkSize)
 		{
-		}
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="initialSize">Size of the initial chunk</param>
-		/// <param name="chunkSize">Default size for subsequent chunks</param>
-		public ChunkedMemoryWriter(int initialSize = 4096, int chunkSize = 4096)
-		{
-			_currentChunk = new Chunk(0, initialSize);
-			_chunks.Add(_currentChunk);
+			_currentChunk = initialChunk;
+			_chunks.Add(initialChunk);
 			_chunkSize = chunkSize;
 		}
 
-		/// <inheritdoc/>
-		public void Dispose()
-		{
-			Clear();
-		}
+		/// <summary>
+		/// Creates a new chunk for the buffer
+		/// </summary>
+		protected abstract Chunk CreateChunk(int runningIndex, int size);
 
 		/// <summary>
 		/// Clear the current builder
@@ -315,7 +304,7 @@ namespace EpicGames.Core
 		{
 			foreach (Chunk chunk in _chunks)
 			{
-				chunk.Owner.Dispose();
+				chunk.Release();
 			}
 
 			_chunks.Clear();
@@ -331,7 +320,7 @@ namespace EpicGames.Core
 			int requiredSize = _currentChunk.Length + Math.Max(sizeHint, 1);
 			if (requiredSize > _currentChunk.Data.Length)
 			{
-				_currentChunk = new Chunk(_currentChunk.RunningIndex + _currentChunk.Length, Math.Max(sizeHint, _chunkSize));
+				_currentChunk = CreateChunk(_currentChunk.RunningIndex + _currentChunk.Length, Math.Max(sizeHint, _chunkSize));
 				_chunks.Add(_currentChunk);
 			}
 			return _currentChunk.Data.Slice(_currentChunk.Length);
@@ -417,6 +406,83 @@ namespace EpicGames.Core
 			byte[] data = new byte[Length];
 			CopyTo(data);
 			return data;
+		}
+	}
+
+	/// <summary>
+	/// Class for building byte sequences, similar to StringBuilder. Allocates memory in chunks to avoid copying data.
+	/// </summary>
+	public sealed class ChunkedArrayMemoryWriter : ChunkedMemoryWriterBase
+	{
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="chunkSize">Size of each chunk</param>
+		public ChunkedArrayMemoryWriter(int chunkSize = 4096)
+			: this(chunkSize, chunkSize)
+		{ }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="initialChunkSize">Size of the initial chunk</param>
+		/// <param name="nextChunkSize">Size of subsequent chunks</param>
+		public ChunkedArrayMemoryWriter(int initialChunkSize, int nextChunkSize)
+			: base(new Chunk(0, new byte[initialChunkSize]), nextChunkSize)
+		{ }
+
+		/// <inheritdoc/>
+		protected override Chunk CreateChunk(int runningIndex, int size) => new Chunk(runningIndex, new byte[size]);
+	}
+
+	/// <summary>
+	/// Class for building byte sequences, similar to StringBuilder. Allocates memory in chunks using a pool allocator to avoid copying data.
+	/// </summary>
+	public sealed class ChunkedMemoryWriter : ChunkedMemoryWriterBase, IDisposable
+	{
+		class PooledChunk : Chunk
+		{
+			public readonly IMemoryOwner<byte> Owner;
+
+			public PooledChunk(int runningIndex, int size)
+				: this(runningIndex, MemoryPool<byte>.Shared.Rent(size))
+			{
+			}
+
+			private PooledChunk(int runningIndex, IMemoryOwner<byte> owner)
+				: base(runningIndex, owner.Memory)
+			{
+				Owner = owner;
+			}
+
+			public override void Release() => Owner.Dispose();
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="chunkSize"></param>
+		public ChunkedMemoryWriter(int chunkSize)
+			: this(chunkSize, chunkSize)
+		{ }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="initialSize">Size of the initial chunk</param>
+		/// <param name="chunkSize">Default size for subsequent chunks</param>
+		public ChunkedMemoryWriter(int initialSize = 4096, int chunkSize = 4096)
+			: base(new PooledChunk(0, initialSize), chunkSize)
+		{
+		}
+
+		/// <inheritdoc/>
+		protected override Chunk CreateChunk(int runningIndex, int size) => new PooledChunk(runningIndex, size);
+
+		/// <inheritdoc/>
+		public void Dispose()
+		{
+			Clear();
 		}
 	}
 

@@ -636,7 +636,7 @@ namespace EpicGames.Horde.Storage.Bundles
 				}
 
 				// Create the bundle
-				BundleHeader header = BundleHeader.Create(types, imports, exports, _packets);
+				BundleHeader header = new BundleHeader(types.ToArray(), imports.ToArray(), exports.ToArray(), _packets.ToArray());
 				return new Bundle(header, packetData);
 			}
 

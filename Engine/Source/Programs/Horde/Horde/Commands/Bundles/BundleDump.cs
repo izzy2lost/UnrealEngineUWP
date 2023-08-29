@@ -22,8 +22,11 @@ namespace Horde.Commands.Bundles
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			byte[] bytes = await FileReference.ReadAllBytesAsync(Input);
-			Bundle bundle = new Bundle(bytes);
+			Bundle bundle;
+			using (FileStream stream = FileReference.Open(Input, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
+			{
+				bundle = await Bundle.FromStreamAsync(stream);
+			}
 			logger.LogInformation("Summary for blob {Location}", Input);
 
 			BundleHeader header = bundle.Header;

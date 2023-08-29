@@ -104,7 +104,7 @@ namespace Horde.Server.Tests
 			{
 				List<BlobType> types = new List<BlobType> { new BlobType(Guid.Parse("{AFDF76A7-5333-4DEE-B837-B5F5CA511245}"), 0) };
 				List<BundleLocator> imports = children[idx].ConvertAll(x => locators[x]);
-				BundleHeader header = BundleHeader.Create(types, imports, Array.Empty<BundleExport>(), Array.Empty<BundlePacket>());
+				BundleHeader header = new BundleHeader(types.ToArray(), imports.ToArray(), Array.Empty<BundleExport>(), Array.Empty<BundlePacket>());
 				Bundle bundle = new Bundle(header, Array.Empty<ReadOnlyMemory<byte>>());
 				locators[idx] = await store.WriteBundleAsync(bundle, prefix: "gctest");
 			}

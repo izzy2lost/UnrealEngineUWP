@@ -66,11 +66,12 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public override Task<BundleLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default)
+		public override async Task<BundleLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default)
 		{
 			BundleLocator locator = BundleLocator.CreateUnique(prefix);
-			_bundles[locator] = new Bundle(bundle.AsSequence().ToArray());
-			return Task.FromResult(locator);
+			byte[] data = bundle.AsSequence().ToArray();
+			_bundles[locator] = await Bundle.FromStreamAsync(new MemoryStream(data), cancellationToken);
+			return locator;
 		}
 
 		#endregion
