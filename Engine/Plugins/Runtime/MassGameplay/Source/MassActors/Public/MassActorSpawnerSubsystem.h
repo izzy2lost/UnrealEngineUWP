@@ -171,6 +171,11 @@ public:
 		return SpawnRequests[SpawnRequestHandle.GetIndex()].GetMutable<T>();
 	}
 
+	bool IsSpawnRequestHandleValid(const FMassActorSpawnRequestHandle SpawnRequestHandle) const
+	{
+		return SpawnRequestHandleManager.IsValidHandle(SpawnRequestHandle);
+	}
+
 	/**
 	 * Destroy an actor 
 	 * @param Actor to destroy
