@@ -28,7 +28,7 @@ struct PCG_API FPCGWeightedByCategoryEntryList
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	bool IsDefault = false;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (TitleProperty = "DisplayName"))
 	TArray<FPCGMeshSelectorWeightedEntry> WeightedMeshEntries;
 };
 
@@ -45,7 +45,18 @@ public:
 		TArray<FPCGMeshInstanceList>& OutMeshInstances,
 		UPCGPointData* OutPointData) const override;
 
-	void PostLoad();
+	// ~Begin UObject interface
+	virtual void PostLoad() override;
+	virtual void PostDuplicate(bool bDuplicateForPIE) override;
+	virtual void PostEditImport() override;
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	// ~End UObject interface
+
+protected:
+	// Refresh MeshEntries display names
+	void RefreshDisplayNames();
+#endif // WITH_EDITOR
 
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)

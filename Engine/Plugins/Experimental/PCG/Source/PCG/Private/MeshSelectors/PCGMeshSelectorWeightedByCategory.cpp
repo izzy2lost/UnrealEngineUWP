@@ -26,18 +26,6 @@ void FPCGWeightedByCategoryEntryList::ApplyDeprecation()
 }
 #endif
 
-void UPCGMeshSelectorWeightedByCategory::PostLoad()
-{
-	Super::PostLoad();
-
-#if WITH_EDITOR
-	for (FPCGWeightedByCategoryEntryList& Entry : Entries)
-	{
-		Entry.ApplyDeprecation();
-	}
-#endif
-}
-
 bool UPCGMeshSelectorWeightedByCategory::SelectInstances(
 	FPCGStaticMeshSpawnerContext& Context,
 	const UPCGStaticMeshSpawnerSettings* Settings,
@@ -312,5 +300,60 @@ bool UPCGMeshSelectorWeightedByCategory::SelectInstances(
 		return false;
 	}
 }
+
+void UPCGMeshSelectorWeightedByCategory::PostLoad()
+{
+	Super::PostLoad();
+
+#if WITH_EDITOR
+	for (FPCGWeightedByCategoryEntryList& Entry : Entries)
+	{
+		Entry.ApplyDeprecation();
+	}
+
+	RefreshDisplayNames();
+#endif // WITH_EDITOR
+}
+
+void UPCGMeshSelectorWeightedByCategory::PostDuplicate(bool bDuplicateForPIE)
+{
+	Super::PostDuplicate(bDuplicateForPIE);
+
+#if WITH_EDITOR
+	RefreshDisplayNames();
+#endif // WITH_EDITOR
+}
+
+void UPCGMeshSelectorWeightedByCategory::PostEditImport()
+{
+	Super::PostEditImport();
+
+#if WITH_EDITOR
+	RefreshDisplayNames();
+#endif // WITH_EDITOR
+}
+
+#if WITH_EDITOR
+void UPCGMeshSelectorWeightedByCategory::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FSoftISMComponentDescriptor, StaticMesh))
+	{
+		RefreshDisplayNames();
+	}
+}
+
+void UPCGMeshSelectorWeightedByCategory::RefreshDisplayNames()
+{
+	for (FPCGWeightedByCategoryEntryList& Entry : Entries)
+	{
+		for (FPCGMeshSelectorWeightedEntry& WeightedEntry : Entry.WeightedMeshEntries)
+		{
+			WeightedEntry.DisplayName = WeightedEntry.Descriptor.StaticMesh.ToSoftObjectPath().GetAssetFName();
+		}
+	}
+}
+#endif // WITH_EDITOR
 
 #undef LOCTEXT_NAMESPACE

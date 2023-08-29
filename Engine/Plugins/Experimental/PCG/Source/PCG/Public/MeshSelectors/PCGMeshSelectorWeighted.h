@@ -26,13 +26,18 @@ struct PCG_API FPCGMeshSelectorWeightedEntry
 
 #if WITH_EDITOR
 	void ApplyDeprecation();
-#endif
+#endif // WITH_EDITOR
 
 	UPROPERTY(EditAnywhere, Category = Settings)
 	FSoftISMComponentDescriptor Descriptor;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ClampMin = "0"))
 	int Weight = 1;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(Transient, VisibleAnywhere, Category = Settings)
+	FName DisplayName = NAME_None;
+#endif
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
@@ -76,10 +81,21 @@ public:
 		TArray<FPCGMeshInstanceList>& OutMeshInstances,
 		UPCGPointData* OutPointData) const override;
 
-	void PostLoad();
+	// ~Begin UObject interface
+	virtual void PostLoad() override;
+	virtual void PostDuplicate(bool bDuplicateForPIE) override;
+	virtual void PostEditImport() override;
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	// ~End UObject interface
+
+protected:
+	/** Refresh MeshEntries display names */
+	void RefreshDisplayNames();
+#endif // WITH_EDITOR
 
 public:
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (TitleProperty = "DisplayName"))
 	TArray<FPCGMeshSelectorWeightedEntry> MeshEntries;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (InlineEditConditionToggle))

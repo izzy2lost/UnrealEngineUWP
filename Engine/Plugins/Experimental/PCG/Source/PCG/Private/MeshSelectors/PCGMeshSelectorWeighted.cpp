@@ -56,6 +56,9 @@ FPCGMeshSelectorWeightedEntry::FPCGMeshSelectorWeightedEntry(TSoftObjectPtr<USta
 	: Weight(InWeight)
 {
 	Descriptor.StaticMesh = InMesh;
+#if WITH_EDITOR
+	DisplayName = InMesh.ToSoftObjectPath().GetAssetFName();
+#endif // WITH_EDITOR
 }
 
 #if WITH_EDITOR
@@ -102,18 +105,6 @@ void FPCGMeshSelectorWeightedEntry::ApplyDeprecation()
 	}
 }
 #endif
-
-void UPCGMeshSelectorWeighted::PostLoad()
-{
-	Super::PostLoad();
-
-#if WITH_EDITOR
-	for (FPCGMeshSelectorWeightedEntry& Entry : MeshEntries)
-	{
-		Entry.ApplyDeprecation();
-	}
-#endif
-}
 
 bool UPCGMeshSelectorWeighted::SelectInstances(
 	FPCGStaticMeshSpawnerContext& Context,
@@ -300,5 +291,57 @@ bool UPCGMeshSelectorWeighted::SelectInstances(
 		return false;
 	}
 }
+
+void UPCGMeshSelectorWeighted::PostLoad()
+{
+	Super::PostLoad();
+
+#if WITH_EDITOR
+	for (FPCGMeshSelectorWeightedEntry& Entry : MeshEntries)
+	{
+		Entry.ApplyDeprecation();
+	}
+
+	RefreshDisplayNames();
+#endif // WITH_EDITOR
+}
+
+void UPCGMeshSelectorWeighted::PostDuplicate(bool bDuplicateForPIE)
+{
+	Super::PostDuplicate(bDuplicateForPIE);
+
+#if WITH_EDITOR
+	RefreshDisplayNames();
+#endif // WITH_EDITOR
+}
+
+void UPCGMeshSelectorWeighted::PostEditImport()
+{
+	Super::PostEditImport();
+
+#if WITH_EDITOR
+	RefreshDisplayNames();
+#endif // WITH_EDITOR
+}
+
+#if WITH_EDITOR
+void UPCGMeshSelectorWeighted::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FSoftISMComponentDescriptor, StaticMesh))
+	{
+		RefreshDisplayNames();
+	}
+}
+
+void UPCGMeshSelectorWeighted::RefreshDisplayNames()
+{
+	for (FPCGMeshSelectorWeightedEntry& Entry : MeshEntries)
+	{
+		Entry.DisplayName = Entry.Descriptor.StaticMesh.ToSoftObjectPath().GetAssetFName();
+	}
+}
+#endif // WITH_EDITOR
 
 #undef LOCTEXT_NAMESPACE
