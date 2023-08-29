@@ -1080,11 +1080,16 @@ void FNavMeshSceneProxyData::GatherData(const ARecastNavMesh* NavMesh, int32 InN
 				TArray<uint32> CollidingIndices;
 
 				FBox CurrentNodeBoundsBox;
-				NavOctree->FindElementsWithPredicate([bGatherOctree, bGatherPathCollidingGeometry, this, &CurrentNodeBoundsBox](FNavigationOctree::FNodeIndex /*ParentNodeIndex*/, FNavigationOctree::FNodeIndex /*NodeIndex*/, const FBoxCenterAndExtent& NodeBounds)
+				NavOctree->FindElementsWithPredicate([bGatherOctree, bGatherOctreeDetails, bGatherPathCollidingGeometry, this, &CurrentNodeBoundsBox, NavOctree](FNavigationOctree::FNodeIndex /*ParentNodeIndex*/, FNavigationOctree::FNodeIndex NodeIndex, const FBoxCenterAndExtent& NodeBounds)
 				{
 					if (bGatherOctree)
 					{
 						OctreeBounds.Add(NodeBounds);
+
+						if (bGatherOctreeDetails)
+						{
+							DebugLabels.Emplace(NodeBounds.Center, FString::Printf(TEXT("%d elements"), NavOctree->GetElementsForNode(NodeIndex).Num()));
+						}
 					}
 
 					if (bGatherPathCollidingGeometry)

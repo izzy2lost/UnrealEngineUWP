@@ -237,6 +237,16 @@ void FNavMeshTileData::MakeUnique()
 	}
 }
 
+static FAutoConsoleCommandWithWorldAndArgs CmdNavMeshDrawDistance(
+	TEXT("ai.debug.nav.DrawDistance"),
+	TEXT("Sets the culling distance used by the navmesh rendering for lines and labels."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld*)
+		{
+			const FVector::FReal DrawDistance = (Args.Num() == 0) ? GetDefault<ARecastNavMesh>()->DefaultDrawDistance : FCString::Atof(*Args[0]);
+			ARecastNavMesh::SetDrawDistance(DrawDistance);
+		}
+	));
+
 FVector::FReal ARecastNavMesh::DrawDistanceSq = 0.;
 float ARecastNavMesh::MinimumSizeForChaosNavMeshInfluenceSq = 0.0f;
 #if !WITH_RECAST
