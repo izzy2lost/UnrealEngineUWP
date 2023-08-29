@@ -304,6 +304,17 @@ struct TStaticDeprecateExpression
 	}; \
 	enum class PREPROCESSOR_JOIN(EDeprecationMsg_, __LINE__) { Value = PREPROCESSOR_JOIN(FDeprecationMsg_, __LINE__)::condition(TStaticDeprecateExpression<!!(bExpression)>()) }
 
+/**
+ * Can be used in the same contexts as static_assert but gives a warning rather than an error
+ */
+#define UE_STATIC_ASSERT_WARN(bExpression, Message) \
+	struct PREPROCESSOR_JOIN(FStaticWarningMsg_, __LINE__) { \
+		[[deprecated(Message)]] \
+		static constexpr int condition(TStaticDeprecateExpression<true>) { return 1; } \
+		static constexpr int condition(TStaticDeprecateExpression<false>) { return 1; } \
+	}; \
+	enum class PREPROCESSOR_JOIN(EStaticWarningMsg_, __LINE__) { Value = PREPROCESSOR_JOIN(FStaticWarningMsg_, __LINE__)::condition(TStaticDeprecateExpression<!(bExpression)>()) }
+
 // These defines are used to mark a difference between two pointers as expected to fit into the specified range
 // while still leaving something searchable if the surrounding code is updated to work with a 64 bit count/range
 // in the future
