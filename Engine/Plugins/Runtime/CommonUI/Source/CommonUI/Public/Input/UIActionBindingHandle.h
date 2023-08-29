@@ -28,6 +28,11 @@ public:
 	/** Should not be called often as broadcasts UCommonUIActionRouterBase::OnBoundActionsUpdated event */
 	void SetDisplayName(const FText& DisplayName);
 
+	bool GetDisplayInActionBar() const;
+
+	/** Should not be called often as broadcasts UCommonUIActionRouterBase::OnBoundActionsUpdated event */
+	void SetDisplayInActionBar(const bool bDisplayInActionBar);
+
 	const UWidget* GetBoundWidget() const;
 
 	FUIActionBindingHandle() {}

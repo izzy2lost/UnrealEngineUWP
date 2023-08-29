@@ -530,6 +530,36 @@ void FUIActionBindingHandle::SetDisplayName(const FText& DisplayName)
 	}
 }
 
+bool FUIActionBindingHandle::GetDisplayInActionBar() const
+{
+	bool bDisplayInActionBar = false;
+
+	if (const FUIActionBinding* Binding = FUIActionBinding::FindBinding(*this).Get())
+	{
+		bDisplayInActionBar = Binding->bDisplayInActionBar;
+	}
+
+	return bDisplayInActionBar;
+}
+
+void FUIActionBindingHandle::SetDisplayInActionBar(const bool bDisplayInActionBar)
+{
+	FUIActionBinding* Binding = FUIActionBinding::FindBinding(*this).Get();
+
+	if (Binding && Binding->bDisplayInActionBar != bDisplayInActionBar)
+	{
+		Binding->bDisplayInActionBar = bDisplayInActionBar;
+
+		if (const UWidget* BoundWidget = Binding->BoundWidget.Get())
+		{
+			if (const UCommonUIActionRouterBase* ActionRouter = UCommonUIActionRouterBase::Get(*BoundWidget))
+			{
+				ActionRouter->OnBoundActionsUpdated().Broadcast();
+			}
+		}
+	}
+}
+
 const UWidget* FUIActionBindingHandle::GetBoundWidget() const
 {
 	if (TSharedPtr<const FUIActionBinding> Binding = FUIActionBinding::FindBinding(*this))
