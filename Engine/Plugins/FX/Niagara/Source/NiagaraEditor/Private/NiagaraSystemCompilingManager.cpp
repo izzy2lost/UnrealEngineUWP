@@ -66,6 +66,21 @@ void FNiagaraSystemCompilingManager::Shutdown()
 
 void FNiagaraSystemCompilingManager::ProcessAsyncTasks(bool bLimitExecutionTime)
 {
+	// process any pending GameThreadTasks
+	{
+		TArray<FGameThreadFunction> PendingFunctions;
+
+		{
+			FWriteScopeLock Write(GameThreadFunctionLock);
+			PendingFunctions = MoveTemp(GameThreadFunctions);
+		}
+
+		for (FGameThreadFunction& PendingFunction : PendingFunctions)
+		{
+			PendingFunction();
+		}
+	}
+
 	{
 		FReadScopeLock ReadScope(QueueLock);
 		if (ActiveTasks.IsEmpty())
@@ -293,6 +308,13 @@ void FNiagaraSystemCompilingManager::AbortSystemCompile(FNiagaraCompilationTaskH
 	{
 		TaskPtr->Abort();
 	}
+}
+
+void FNiagaraSystemCompilingManager::QueueGameThreadFunction(FGameThreadFunction GameThreadTask)
+{
+	FWriteScopeLock Write(GameThreadFunctionLock);
+
+	GameThreadFunctions.Add(GameThreadTask);
 }
 
 bool FNiagaraSystemCompilingManager::ConditionalLaunchTask()

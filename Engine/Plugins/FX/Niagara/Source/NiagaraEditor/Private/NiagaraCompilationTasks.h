@@ -126,6 +126,7 @@ struct FNiagaraSystemCompilationTask
 		FNiagaraTranslatorOutput TranslateOutput;
 		FString TranslatedHlsl;
 		TSharedPtr<FHlslNiagaraCompiler> Compiler;
+		FUniqueBuffer PendingDDCData;
 		TSharedPtr<FNiagaraVMExecutableData> ExeData;
 		TWeakObjectPtr<UNiagaraScript> SourceScript;
 		TObjectKey<UNiagaraScript> ScriptKey;

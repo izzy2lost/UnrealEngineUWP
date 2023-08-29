@@ -13,6 +13,7 @@
 #include "NiagaraShader.h"
 #include "NiagaraSimulationStageBase.h"
 #include "NiagaraSystem.h"
+#include "NiagaraSystemCompilingManager.h"
 #include "Serialization/ObjectAndNameAsStringProxyArchive.h"
 
 // needed for AsType...pretty ugly
@@ -774,27 +775,41 @@ void FNiagaraSystemCompilationTask::FDispatchAndProcessDataCacheGetRequests::Lau
 				FNiagaraSystemCompilationTask::FCompileTaskInfo& CompileTask = SystemCompileTask->CompileTasks[Response.UserData];
 				if (Response.Status == EStatus::Ok)
 				{
-					FSharedBuffer DDCData = Response.Value.GetData().Decompress();
-					FNiagaraVMExecutableData ExeData;
-					if (NiagaraCompilationCopyImpl::BinaryToExecData(CompileTask.SourceScript.Get(), DDCData, ExeData))
-					{
-						CompileTask.ExeData = MakeShared<FNiagaraVMExecutableData>(MoveTemp(ExeData));
-					}
-				}
-
-				if (!CompileTask.ExeData.IsValid())
-				{
-					CompileTask.DataCachePutKeys.Add(CompileTask.DataCacheGetKey);
-				}
-				else
-				{
-					CompileTask.bFromDerivedDataCache = true;
+					CompileTask.PendingDDCData = Response.Value.GetData().Decompress().MoveToUnique();
 				}
 			}
 
 			if (PendingGetRequestCount.fetch_sub(1, std::memory_order_relaxed) == 1)
 			{
-				CompletionEvent.Trigger();
+				// in order to make sure that processing the binary data from the DDC can properly serialize
+				// objects (based on their path name) we must run BinaryToExecData() on the game thread (to
+				// avoid conflicts with GC or async loading).
+				FNiagaraSystemCompilingManager::Get().QueueGameThreadFunction([CompletionEvent = this->CompletionEvent, SystemCompileTask]() mutable
+				{
+					check(IsInGameThread());
+					for (FNiagaraSystemCompilationTask::FCompileTaskInfo& CompileTask : SystemCompileTask->CompileTasks)
+					{
+						if (!CompileTask.PendingDDCData.IsNull())
+						{
+							FNiagaraVMExecutableData ExeData;
+							if (NiagaraCompilationCopyImpl::BinaryToExecData(CompileTask.SourceScript.Get(), CompileTask.PendingDDCData.MoveToShared(), ExeData))
+							{
+								CompileTask.ExeData = MakeShared<FNiagaraVMExecutableData>(MoveTemp(ExeData));
+							}
+
+							if (!CompileTask.ExeData.IsValid())
+							{
+								CompileTask.DataCachePutKeys.Add(CompileTask.DataCacheGetKey);
+							}
+							else
+							{
+								CompileTask.bFromDerivedDataCache = true;
+							}
+						}
+					}
+
+					CompletionEvent.Trigger();
+				});
 			}
 		});
 	}

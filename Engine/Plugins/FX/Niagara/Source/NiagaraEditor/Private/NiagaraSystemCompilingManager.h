@@ -25,6 +25,9 @@ public:
 	bool PollSystemCompile(FNiagaraCompilationTaskHandle TaskHandle, bool bPeek, bool bWait, FNiagaraSystemAsyncCompileResults& Results);
 	void AbortSystemCompile(FNiagaraCompilationTaskHandle TaskHandle);
 
+	using FGameThreadFunction = TFunction<void()>;
+	void QueueGameThreadFunction(FGameThreadFunction GameThreadTask);
+
 protected:
 	// Begin - IAssetCompilingManager
 	virtual FName GetAssetTypeName() const override;
@@ -48,4 +51,7 @@ protected:
 	TArray<FNiagaraCompilationTaskHandle> RequestsAwaitingRetrieval;
 
 	std::atomic<FNiagaraCompilationTaskHandle> NextTaskHandle = { 0 };
+
+	mutable FRWLock GameThreadFunctionLock;
+	TArray<FGameThreadFunction> GameThreadFunctions;
 };
