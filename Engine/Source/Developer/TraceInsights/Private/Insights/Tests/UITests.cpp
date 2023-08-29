@@ -2,6 +2,9 @@
 
 #include "UITests.h"
 
+#include "Algo/Find.h"
+
+#include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
 
 #include "Insights/Common/Stopwatch.h"
