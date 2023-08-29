@@ -27,6 +27,9 @@ struct FFortniteValkyrieBranchObjectVersion
 		// improved UX of the exclusion volumes by adding a new mode enum
 		WaterBodyExclusionVolumeMode,
 
+		// Fix rest transforms wrongly stored in geometry collection components
+		FixRestTransformsInGeometryCollectionComponent,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

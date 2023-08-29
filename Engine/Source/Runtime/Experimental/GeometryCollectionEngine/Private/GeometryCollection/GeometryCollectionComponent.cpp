@@ -42,6 +42,7 @@
 #include "PhysicsField/PhysicsFieldComponent.h"
 #include "PhysicsProxy/GeometryCollectionPhysicsProxy.h"
 #include "PhysicsSolver.h"
+#include "UObject/FortniteValkyrieBranchObjectVersion.h"
 #include "Chaos/PBDRigidClusteringAlgo.h"
 
 #include "Algo/RemoveIf.h"
@@ -2917,13 +2918,7 @@ void UGeometryCollectionComponent::ResetDynamicCollection()
 		DynamicCollection.Reset();
 	}
 
-	// make sure we have the RestTransforms up to date, other wise, otherwise there may be case where they do not match the Restcollection ones
-	// can happen if the RestCollection asset has been changed without the component knowing about it 
-	if (RestCollection && RestCollection->GetGeometryCollection())
-	{
-		RestTransforms = RestCollection->GetGeometryCollection()->Transform.GetConstArray();
-	}
-
+	// if Rest transform have been overriden uses them to initialize the dynamic collection transforms
 	if (RestTransforms.Num() > 0)
 	{
 		SetInitialTransforms(RestTransforms);
@@ -3708,6 +3703,10 @@ void UGeometryCollectionComponent::SetRestCollection(const UGeometryCollection* 
 	if (RestCollectionIn)
 	{
 		RestCollection = RestCollectionIn;
+
+		// if the geometry collection changes we need to clear the rest override rest transforms
+		// otherwise this may cause mismatch issues and make the geometry collection look wrong 
+		RestTransforms.Reset();
 
 		ResetDynamicCollection();
 
@@ -4655,7 +4654,8 @@ void UGeometryCollectionComponent::CalculateGlobalMatrices()
 		RestTransforms.Empty();
 	}
 
-	if (!DynamicCollection && RestTransforms.Num() > 0)
+	const bool bRestTransformsOverriden = (RestTransforms.Num() > 0);
+	if (!DynamicCollection && bRestTransformsOverriden)
 	{
 		GeometryCollectionAlgo::GlobalMatrices(RestTransforms, GetParentArray(), ComponentSpaceTransforms);
 	}
@@ -5335,10 +5335,12 @@ FTransform UGeometryCollectionComponent::GetRootInitialTransform() const
 	FTransform RootInitialTransform{ FTransform::Identity };
 	if (RestCollection && RestCollection->GetGeometryCollection())
 	{
+		const FGeometryCollection& RestGeometryCollection = *RestCollection->GetGeometryCollection();
+
 		const int32 RootIndex = RestCollection->GetRootIndex();
-		if (RestTransforms.IsValidIndex(RootIndex))
+		if (RestGeometryCollection.Transform.IsValidIndex(RootIndex))
 		{
-			const FTransform LocalSpaceTransform = GeometryCollectionAlgo::GlobalMatrix(RestTransforms, RestCollection->GetGeometryCollection()->Parent, RootIndex);
+			const FTransform LocalSpaceTransform = GeometryCollectionAlgo::GlobalMatrix(RestGeometryCollection.Transform, RestGeometryCollection.Parent, RootIndex);
 			RootInitialTransform = LocalSpaceTransform * GetComponentTransform();
 		}
 	}
@@ -5365,11 +5367,11 @@ TArray<FTransform> UGeometryCollectionComponent::GetInitialLocalRestTransforms()
 
 	if (RestCollection && RestCollection->GetGeometryCollection())
 	{
-		FGeometryCollection& GeometryCollection = *RestCollection->GetGeometryCollection();
+		const FGeometryCollection& RestGeometryCollection = *RestCollection->GetGeometryCollection();
 
-		GeometryCollectionAlgo::GlobalMatrices(RestTransforms, RestCollection->GetGeometryCollection()->Parent, InitialLocalTransforms);
+		GeometryCollectionAlgo::GlobalMatrices(RestGeometryCollection.Transform, RestGeometryCollection.Parent, InitialLocalTransforms);
 
-		const TManagedArray<FTransform>* MassToLocal = GeometryCollection.FindAttribute<FTransform>("MassToLocal", FGeometryCollection::TransformGroup);
+		const TManagedArray<FTransform>* MassToLocal = RestGeometryCollection.FindAttribute<FTransform>("MassToLocal", FGeometryCollection::TransformGroup);
 		if (MassToLocal && InitialLocalTransforms.Num() == MassToLocal->Num())
 		{
 			for (int32 TransformIndex = 0; TransformIndex < InitialLocalTransforms.Num(); TransformIndex++)
@@ -5601,6 +5603,48 @@ bool UGeometryCollectionComponent::CalculateInnerSphere(int32 TransformIndex, UE
 	}
 	// Likely an embedded geometry or missing inner radius attribute , which doesn't count towards volume.
 	return false;
+}
+
+void UGeometryCollectionComponent::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+
+	Ar.UsingCustomVersion(FFortniteValkyrieBranchObjectVersion::GUID);
+
+#if WITH_EDITOR
+	// Fix rest transforms
+	// Prior to this change, it is possible for the RestTransforms to be set with the original rest collection transforms or have outdated rest transforms
+	// this is a waste of memory and performance cost with serialization at runtime since FTransform can not be bulk serialized
+	// so if they are no longer matching the rest collection let's clear them 
+	if (Ar.IsLoading() && RestTransforms.Num() > 0)
+	{
+		if (Ar.CustomVer(FFortniteValkyrieBranchObjectVersion::GUID) < FFortniteValkyrieBranchObjectVersion::FixRestTransformsInGeometryCollectionComponent)
+		{
+			bool bNeedToRestRestTransform = false;
+			bool bIsRestCollectionValid = (RestCollection && RestCollection->GetGeometryCollection());
+			if (!bIsRestCollectionValid || RestTransforms.Num() != RestCollection->GetGeometryCollection()->Transform.Num())
+			{
+				bNeedToRestRestTransform = true;
+			}
+			else
+			{
+				const TArray<FTransform>& RestCollectionTransforms = RestCollection->GetGeometryCollection()->Transform.GetConstArray();
+				for (int32 Index = 0; Index < RestTransforms.Num(); Index++)
+				{
+					if (!RestTransforms[Index].Equals(RestCollectionTransforms[Index]))
+					{
+						bNeedToRestRestTransform = true;
+						break;
+					}
+				}
+			}
+			if (bNeedToRestRestTransform)
+			{
+				RestTransforms.Reset();
+			}
+		}
+	}
+#endif
 }
 
 void UGeometryCollectionComponent::PostLoad()

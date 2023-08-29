@@ -455,6 +455,10 @@ public:
 	// Collision profile name that indicates we should use the geometry collection's default collision profile.
 	GEOMETRYCOLLECTIONENGINE_API static FName DefaultCollisionProfileName;
 
+	//~ Begin UObject Interface.
+	GEOMETRYCOLLECTIONENGINE_API virtual void Serialize(FArchive& Ar) override;
+	//~ End UObject Interface.
+
 	//~ Begin UActorComponent Interface.
 	GEOMETRYCOLLECTIONENGINE_API virtual void CreateRenderState_Concurrent(FRegisterComponentContext* Context) override;
 	GEOMETRYCOLLECTIONENGINE_API virtual void SendRenderDynamicData_Concurrent() override;
