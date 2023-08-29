@@ -1952,6 +1952,18 @@ class UKismetSystemLibrary : public UBlueprintFunctionLibrary
     static ENGINE_API bool SetEditorProperty(UObject* Object, const FName PropertyName, const int32& PropertyValue, const EPropertyAccessChangeNotifyMode ChangeNotifyMode);
 	static ENGINE_API bool Generic_SetEditorProperty(UObject* Object, const FName PropertyName, const void* ValuePtr, const FProperty* ValueProp, const EPropertyAccessChangeNotifyMode ChangeNotifyMode);
 	DECLARE_FUNCTION(execSetEditorProperty);
+
+	/**
+	 * Attempts to reset the value of a named property on the given object so that it matches the value of the archetype.
+	 *
+	 * @param Object The object you want to reset a property value on.
+	 * @param PropertyName The name of the object property to reset the value of.
+	 * @param ChangeNotifyMode When to emit property change notifications.
+	 *
+	 * @return Whether the property value was found and correctly reset.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Utilities", meta=(ScriptMethod))
+	static ENGINE_API bool ResetEditorProperty(UObject* Object, const FName PropertyName, const EPropertyAccessChangeNotifyMode ChangeNotifyMode = EPropertyAccessChangeNotifyMode::Default);
 #endif
 
 	// --- Transactions ------------------------------

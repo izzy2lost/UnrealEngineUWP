@@ -3328,6 +3328,60 @@ DEFINE_FUNCTION(UKismetSystemLibrary::execSetEditorProperty)
 	*(bool*)RESULT_PARAM = bResult;
 }
 
+bool UKismetSystemLibrary::ResetEditorProperty(UObject* Object, const FName PropertyName, const EPropertyAccessChangeNotifyMode ChangeNotifyMode)
+{
+	if (!Object)
+	{
+		LogRuntimeError(NSLOCTEXT("KismetSystemLibrary", "ResetEditorProperty_AccessNone", "Accessed None attempting to call ResetEditorProperty."));
+		return false;
+	}
+
+	auto FindArchetypeValue = [Object, PropertyName](const FProperty*& OutArchetypeProperty, const void*& OutArchetypeValuePtr)
+	{
+		OutArchetypeProperty = nullptr;
+		OutArchetypeValuePtr = nullptr;
+
+		const FProperty* ObjectProp = PropertyAccessUtil::FindPropertyByName(PropertyName, Object->GetClass());
+		if ((!ObjectProp || ObjectProp->HasAnyPropertyFlags(CPF_Deprecated)) && Object->HasAllFlags(RF_ClassDefaultObject))
+		{
+			// look for a sparse member of the same name - the sparse data is treated as an extension
+			// of the class default object by the details panel:
+			if (const UScriptStruct* SparseDataStruct = Object->GetClass()->GetSparseClassDataStruct())
+			{
+				if (const FProperty* SparseProp = PropertyAccessUtil::FindPropertyByName(PropertyName, SparseDataStruct))
+				{
+					if (UScriptStruct* SparseDataArchetypeStruct = Object->GetClass()->GetSparseClassDataArchetypeStruct())
+					{
+						OutArchetypeProperty = SparseProp;
+						OutArchetypeValuePtr = SparseProp->ContainerPtrToValuePtrForDefaults<const void>(SparseDataArchetypeStruct, Object->GetClass()->GetArchetypeForSparseClassData());
+					}
+					return;
+				}
+			}
+		}
+
+		if (ObjectProp)
+		{
+			if (const UObject* ObjectArchetype = Object->GetArchetype())
+			{
+				OutArchetypeProperty = ObjectProp;
+				OutArchetypeValuePtr = ObjectProp->ContainerPtrToValuePtrForDefaults<const void>(ObjectArchetype->GetClass(), ObjectArchetype);
+			}
+		}
+	};
+
+	const FProperty* ArchetypeProperty = nullptr;
+	const void* ArchetypeValuePtr = nullptr;
+	FindArchetypeValue(ArchetypeProperty, ArchetypeValuePtr);
+	if (!ArchetypeValuePtr)
+	{
+		FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Property '%s' on '%s' (%s) had no archetype value to reset to"), *PropertyName.ToString(), *Object->GetPathName(), *Object->GetClass()->GetName()), ELogVerbosity::Warning, UE::Blueprint::Private::PropertySetFailedWarning);
+		return false;
+	}
+
+	return Generic_SetEditorProperty(Object, PropertyName, ArchetypeValuePtr, ArchetypeProperty, ChangeNotifyMode);
+}
+
 #endif	// WITH_EDITOR
 
 int32 UKismetSystemLibrary::BeginTransaction(const FString& Context, FText Description, UObject* PrimaryObject)
