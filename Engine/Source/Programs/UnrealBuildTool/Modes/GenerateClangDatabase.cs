@@ -33,6 +33,13 @@ namespace UnrealBuildTool
 		public bool bExecCodeGenActions = false;
 
 		/// <summary>
+		/// Used for generating a compilation database against the legacy/new VM for Verse. We default to `true`, since
+		/// in the general case the compilation database generated against the legacy VM is not very useful.
+		/// </summary>
+		[CommandLine("-NoUseVerseBPVM")]
+		public bool bNoUseVerseBPVM = true;
+
+		/// <summary>
 		/// This ActionGraphBuilder captures the build output from a UEBuildModuleCPP so it can be consumed later.
 		/// </summary>
 		private class CaptureActionGraphBuilder : IActionGraphBuilder
@@ -148,6 +155,10 @@ namespace UnrealBuildTool
 					TargetDescriptor.bUseUnityBuild = false;
 					TargetDescriptor.IntermediateEnvironment = UnrealIntermediateEnvironment.GenerateClangDatabase;
 					TargetDescriptor.AdditionalArguments = TargetDescriptor.AdditionalArguments.Append(new string[] { "-NoPCH" });
+					if (bNoUseVerseBPVM)
+					{
+						TargetDescriptor.AdditionalArguments = TargetDescriptor.AdditionalArguments.Append(new string[] { "-NoUseVerseBPVM" });
+					}
 
 					// Create a makefile for the target
 					UEBuildTarget Target = UEBuildTarget.Create(TargetDescriptor, BuildConfiguration, Logger);
