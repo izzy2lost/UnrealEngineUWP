@@ -716,6 +716,10 @@ void SIKRigRetargetChainList::MirrorSelectedChains() const
 	const UIKRigController* AssetController = Controller.AssetController;
 	const FIKRigSkeleton& IKRigSkeleton = AssetController->GetIKRigSkeleton();
 
+	FScopedTransaction Transaction(LOCTEXT("MirrorRetargetChain_Label", "Mirror Retarget Chains"));
+	FScopedReinitializeIKRig Reinitialize(AssetController, true /*bGoalsChanged*/);
+	AssetController->GetAsset()->Modify();
+
 	for (const FName& SelectedChainName : SelectedChainNames)
 	{
 		const FBoneChain* Chain = AssetController->GetRetargetChainByName(SelectedChainName);

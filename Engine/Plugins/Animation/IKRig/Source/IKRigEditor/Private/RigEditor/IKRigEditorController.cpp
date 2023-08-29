@@ -312,60 +312,6 @@ void FIKRigEditorController::Close() const
 	AssetController->OnIKRigNeedsInitialized().Remove(ReinitializeDelegateHandle);
 }
 
-void FIKRigEditorController::PromptUserToAssignMesh()
-{
-	// do we already have a skeletal mesh assigned?
-	if (AssetController->GetSkeletalMesh())
-	{
-		return;
-	}
-
-	// is there already an imported hierarchy of bones?
-	if (!AssetController->GetIKRigSkeleton().BoneNames.IsEmpty())
-	{
-		return;
-	}
-
-	// no skeletal mesh imported yet... so let's prompt the user to pick one...
-	
-	// Load the content browser module to display an asset picker
-	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
-	FAssetPickerConfig AssetPickerConfig;
-	// must set the parent UObject so that the resulting list filters correctly in multi-project environments
-	AssetPickerConfig.AdditionalReferencingAssets.Add(AssetController->GetAsset());
-	// the asset picker will only show skeletal meshes
-	AssetPickerConfig.Filter.ClassPaths.Add(USkeletalMesh::StaticClass()->GetClassPathName());
-	// the delegate that fires when an asset is selected
-	AssetPickerConfig.OnAssetSelected = FOnAssetSelected::CreateLambda([this](const FAssetData& AssetData)
-	{
-		MeshPickerWindow->RequestDestroyWindow();
-		
-		if (const TObjectPtr<USkeletalMesh> SkeletalMesh = Cast<USkeletalMesh>(AssetData.GetAsset()))
-		{
-			// import the skeleton data into the IK Rig
-			AssetController->SetSkeletalMesh(SkeletalMesh.Get());
-		}
-		
-	});
-	// the default view mode should be a list view
-	AssetPickerConfig.InitialAssetViewType = EAssetViewType::List;
-
-	MeshPickerWindow = SNew(SWindow)
-	.Title(LOCTEXT("CreateIKRigOptions", "Assign Skeletal Mesh to IK Rig"))
-	.ClientSize(FVector2D(500, 600))
-	.SupportsMinimize(false) .SupportsMaximize(false)
-	[
-		SNew(SBorder)
-		.BorderImage( FAppStyle::GetBrush("Menu.Background") )
-		[
-			ContentBrowserModule.Get().CreateAssetPicker(AssetPickerConfig)
-		]
-	];
-
-	GEditor->EditorAddModalWindow(MeshPickerWindow.ToSharedRef());
-	MeshPickerWindow.Reset();
-}
-
 UIKRigProcessor* FIKRigEditorController::GetIKRigProcessor() const
 {
 	if (AnimInstance)
@@ -419,47 +365,68 @@ void FIKRigEditorController::HandleIKRigNeedsInitialized(UIKRigDefinition* Modif
 		SkelMeshComponent->EnablePreview(true, nullptr);
 	}
 
-
 	// update the bone details so it can pull on the current data
 	BoneDetails->AnimInstancePtr = AnimInstance;
 	BoneDetails->AssetPtr = ModifiedIKRig;
 
-	RefreshAllViews();
+	// refresh all views
+	{
+		if (SolverStackView.IsValid())
+		{
+			SolverStackView->RefreshStackView();
+		}
+
+		if (SkeletonView.IsValid())
+		{
+			SkeletonView->RefreshTreeView();
+		}
+
+		if (DetailsView.IsValid())
+		{
+			DetailsView->ForceRefresh();
+		}
+
+		if (RetargetingView.IsValid())
+		{
+			RetargetingView->RefreshView();
+		}
+		
+		if (AssetBrowserView.IsValid())
+		{
+			AssetBrowserView.Get()->RefreshView(); // refresh the asset browser to ensure it shows compatible sequences
+		}
+	}
+}
+
+void FIKRigEditorController::HandleDeleteSelectedElements()
+{
+	FScopedTransaction Transaction(LOCTEXT("DeleteSelectedIKRigElements_Label", "Delete Selected IK Rig Elements"));
+	FScopedReinitializeIKRig Reinitialize(AssetController);
+	
+	TArray<TSharedPtr<FIKRigTreeElement>> SelectedItems = SkeletonView->GetSelectedItems();
+	for (const TSharedPtr<FIKRigTreeElement>& SelectedItem : SelectedItems)
+	{
+		switch(SelectedItem->ElementType)
+		{
+		case IKRigTreeElementType::GOAL:
+			AssetController->RemoveGoal(SelectedItem->GoalName);
+			break;
+		case IKRigTreeElementType::SOLVERGOAL:
+			AssetController->DisconnectGoalFromSolver(SelectedItem->EffectorGoalName, SelectedItem->EffectorIndex);
+			break;
+		case IKRigTreeElementType::BONE_SETTINGS:
+			AssetController->RemoveBoneSetting(SelectedItem->BoneSettingBoneName, SelectedItem->BoneSettingsSolverIndex);
+			break;
+		default:
+			break; // can't delete anything else
+		}
+	}
 }
 
 void FIKRigEditorController::Reset() const
 {
 	SkelMeshComponent->ShowReferencePose(true);
 	AssetController->ResetGoalTransforms();
-}
-
-void FIKRigEditorController::RefreshAllViews() const
-{
-	if (SolverStackView.IsValid())
-	{
-		SolverStackView->RefreshStackView();
-	}
-
-	if (SkeletonView.IsValid())
-	{
-		SkeletonView->RefreshTreeView();
-	}
-
-	if (DetailsView.IsValid())
-	{
-		DetailsView->ForceRefresh();
-	}
-
-	if (RetargetingView.IsValid())
-	{
-		RetargetingView->RefreshView();
-	}
-
-	// refresh the asset browser to ensure it shows compatible sequences
-	if (AssetBrowserView.IsValid())
-	{
-		AssetBrowserView.Get()->RefreshView();
-	}
 }
 
 void FIKRigEditorController::RefreshTreeView() const
@@ -485,6 +452,10 @@ void FIKRigEditorController::ClearOutputLog() const
 void FIKRigEditorController::AddNewGoals(const TArray<FName>& GoalNames, const TArray<FName>& BoneNames)
 {
 	check(GoalNames.Num() == BoneNames.Num());
+
+	FScopedTransaction Transaction(LOCTEXT("AddNewGoals_Label", "Add New Goals"));
+	FScopedReinitializeIKRig Reinitialize(AssetController);
+	AssetController->GetAsset()->Modify();
 
 	// add a default solver if there isn't one already
 	PromptToAddDefaultSolver();
@@ -517,13 +488,10 @@ void FIKRigEditorController::AddNewGoals(const TArray<FName>& GoalNames, const T
 		LastCreatedGoalName = GoalName;
 	}
 	
-	// were any goals created?
+	// show last created goal in details view
 	if (LastCreatedGoalName != NAME_None)
 	{
-		// show last created goal in details view
 		ShowDetailsForGoal(LastCreatedGoalName);
-		// update all views
-		RefreshAllViews();
 	}
 }
 
@@ -673,15 +641,16 @@ void FIKRigEditorController::CreateNewRetargetChains()
 	{
 		SkeletonView->GetSelectedBoneChains(SelectedBoneChains);
 	}
-
-	const FIKRigSkeleton& IKRigSkeleton = AssetController->GetIKRigSkeleton();
+	
+	FScopedTransaction Transaction(LOCTEXT("AddMultipleRetargetChains_Label", "Add Retarget Chain(s)"));
+	FScopedReinitializeIKRig Reinitialize(AssetController);
 	
 	if (!SelectedBoneChains.IsEmpty())
 	{
 		// create a chain for each selected chain in hierarchy
 		for (FBoneChain& BoneChain : SelectedBoneChains)
 		{
-			ChainAnalyzer.AssignBestGuessName(BoneChain, IKRigSkeleton);
+			ChainAnalyzer.AssignBestGuessName(BoneChain, AssetController->GetIKRigSkeleton());
 			PromptToAddNewRetargetChain(BoneChain);
 		}
 	}
@@ -691,8 +660,6 @@ void FIKRigEditorController::CreateNewRetargetChains()
 		FBoneChain Chain(FRetargetChainAnalyzer::GetDefaultChainName(), NAME_None, NAME_None, NAME_None);
 		PromptToAddNewRetargetChain(Chain);
 	}
-	
-	RefreshAllViews();
 }
 
 bool FIKRigEditorController::PromptToAddDefaultSolver() const
@@ -739,7 +706,7 @@ bool FIKRigEditorController::PromptToAddDefaultSolver() const
 		}
 	}
 	
-	TSharedRef<SComboBox<TSharedPtr<FIKRigSolverTypeAndName>>> SolverOptionBox = SNew(SComboBox<TSharedPtr<FIKRigSolverTypeAndName>>)
+	const TSharedRef<SComboBox<TSharedPtr<FIKRigSolverTypeAndName>>> SolverOptionBox = SNew(SComboBox<TSharedPtr<FIKRigSolverTypeAndName>>)
 	.OptionsSource(&SolverTypes)
 	.OnGenerateWidget_Lambda([](TSharedPtr<FIKRigSolverTypeAndName> Item)
 	{
@@ -777,9 +744,12 @@ bool FIKRigEditorController::PromptToAddDefaultSolver() const
 
 	if (SelectedSolver->SolverType != nullptr && SolverStackView.IsValid())
 	{
-		SolverStackView->AddNewSolver(SelectedSolver->SolverType);
+		AssetController->AddSolver(SelectedSolver->SolverType);
 	}
 
+	// must refresh the view so that subsequent goal operations see a selected solver to connect to
+	SolverStackView->RefreshStackView();
+	
 	return true;
 }
 
@@ -933,7 +903,7 @@ void FIKRigEditorController::PromptToAssignGoalToChain(const FName NewGoalName) 
 	{
 		return; // cancel button pressed, or window closed
 	}
-
+	
 	AssetController->SetRetargetChainGoal(ChainToAddGoalTo, NewGoal->GoalName);
 }
 
@@ -1058,12 +1028,12 @@ FName FIKRigEditorController::PromptToAddNewRetargetChain(FBoneChain& BoneChain)
 	}
 
 	// add the retarget chain
-	const FName NewChainName = AssetController->AddRetargetChain(BoneChain);
-
+	const FName NewChainName = AssetController->AddRetargetChainInternal(BoneChain);
+	
 	// did user choose to assign a goal
 	if (UserChoice == 1)
 	{
-		FName GoalName = NAME_None;
+		FName GoalName;
 		if (bHasExistingGoal)
 		{
 			// use the existing goal
@@ -1089,8 +1059,6 @@ FName FIKRigEditorController::PromptToAddNewRetargetChain(FBoneChain& BoneChain)
 		// assign the existing goal to it
 		AssetController->SetRetargetChainGoal(NewChainName, GoalName);
 	}
-
-	RefreshAllViews();
 	
 	return NewChainName;
 }

@@ -180,64 +180,6 @@ void FIKRetargetEditorController::Close()
 	}
 }
 
-void FIKRetargetEditorController::PromptUserToAssignIKRig(const ERetargetSourceOrTarget SourceOrTarget)
-{
-	// early out if we already have an IK Rig assigned or is unattended
-	if (AssetController->GetIKRig(SourceOrTarget) || FApp::IsUnattended())
-	{
-		return;
-	}
-	
-	// Load the content browser module to display an asset picker
-	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
-	FAssetPickerConfig AssetPickerConfig;
-	// must set the parent UObject so that the resulting list filters correctly in multi-project environments
-	AssetPickerConfig.AdditionalReferencingAssets.Add(AssetController->GetAsset());
-	/** The asset picker will only show skeletal meshes */
-	AssetPickerConfig.Filter.ClassPaths.Add(UIKRigDefinition::StaticClass()->GetClassPathName());
-	AssetPickerConfig.Filter.bRecursiveClasses = true;
-	/** The delegate that fires when an asset was selected */
-	AssetPickerConfig.OnAssetSelected =  FOnAssetSelected::CreateLambda([this, &SourceOrTarget](const FAssetData& AssetData)
-	{
-		IKRigPickerWindow->RequestDestroyWindow();
-
-		// set the IK Rig
-		if (const TObjectPtr<UIKRigDefinition> IKRigAsset = Cast<UIKRigDefinition>(AssetData.GetAsset()))
-		{
-			AssetController->SetIKRig(SourceOrTarget, IKRigAsset.Get());
-		}
-	});
-	/** The default view mode should be a list view */
-	AssetPickerConfig.InitialAssetViewType = EAssetViewType::List;
-
-	// change title depending on if we're picking a source or target IK Rig
-	FText TitleText;
-	if (SourceOrTarget == ERetargetSourceOrTarget::Source)
-	{
-		TitleText = LOCTEXT("SelectSourceIKRig", "Select Source IK Rig (To Copy Animation From)");
-	}
-	else
-	{
-		TitleText = LOCTEXT("SelectTargetIKRig", "Select Target IK Rig (To Copy Animation To)");
-	}
-
-	// show an asset browser in a pop-up modal dialog
-	IKRigPickerWindow = SNew(SWindow)
-	.Title(TitleText)
-	.ClientSize(FVector2D(500, 600))
-	.SupportsMinimize(false).SupportsMaximize(false)
-	[
-		SNew(SBorder)
-		.BorderImage( FAppStyle::GetBrush("Menu.Background") )
-		[
-			ContentBrowserModule.Get().CreateAssetPicker(AssetPickerConfig)
-		]
-	];
-
-	GEditor->EditorAddModalWindow(IKRigPickerWindow.ToSharedRef());
-	IKRigPickerWindow.Reset();
-}
-
 void FIKRetargetEditorController::BindToIKRigAssets()
 {
 	const UIKRetargeter* Asset = AssetController->GetAsset();

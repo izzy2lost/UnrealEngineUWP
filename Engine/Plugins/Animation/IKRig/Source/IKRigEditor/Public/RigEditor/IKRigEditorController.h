@@ -113,9 +113,6 @@ public:
 	// cleanup when editor closed 
 	void Close() const;
 
-	// initial setup, used when asset is empty (no hierarchy, no mesh assigned)
-	void PromptUserToAssignMesh();
-
 	// get the currently active processor running the IK Rig in the editor 
 	UIKRigProcessor* GetIKRigProcessor() const;
 	// get the currently running IKRig skeleton (if there is a running processor) 
@@ -123,6 +120,9 @@ public:
 
 	// callback when IK Rig requires re-initialization 
 	void HandleIKRigNeedsInitialized(UIKRigDefinition* ModifiedIKRig) const;
+
+	// delete key pressed (in either viewport or tree view)
+	void HandleDeleteSelectedElements();
 
 	// create goals 
 	void AddNewGoals(const TArray<FName>& GoalNames, const TArray<FName>& BoneNames);
@@ -134,8 +134,6 @@ public:
 	void HandleBoneSelectedInViewport(const FName& BoneName, bool bReplace) const;
 	// reset all goals to initial transforms 
 	void Reset() const;
-	// refresh all views 
-	void RefreshAllViews() const;
 	// refresh just the skeleton tree view 
 	void RefreshTreeView() const;
 	// clear the output log 

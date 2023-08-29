@@ -376,7 +376,7 @@ void SIKRigSolverStack::RefreshStackView()
 	}
 
 	// record/restore selection
-	int32 IndexToSelect = -1; // default to nothing selected
+	int32 IndexToSelect = 0; // default to first solver selected
 	const TArray<TSharedPtr<FSolverStackElement>> SelectedItems = ListView.Get()->GetSelectedItems();
 	if (!SelectedItems.IsEmpty())
 	{
@@ -443,7 +443,10 @@ FReply SIKRigSolverStack::OnDragDetected(
 
 void SIKRigSolverStack::OnSelectionChanged(TSharedPtr<FSolverStackElement> InItem, ESelectInfo::Type SelectInfo)
 {
-	ShowDetailsForItem(InItem);
+	if (SelectInfo != ESelectInfo::Direct)
+	{
+		ShowDetailsForItem(InItem);	
+	}
 }
 
 void SIKRigSolverStack::OnItemClicked(TSharedPtr<FSolverStackElement> InItem)

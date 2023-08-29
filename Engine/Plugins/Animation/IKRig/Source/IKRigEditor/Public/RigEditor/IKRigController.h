@@ -43,7 +43,7 @@ public:
 	// Sets the preview mesh to use. Loads the hierarchy into the asset's IKRigSkeleton.
 	// Returns true if the mesh was able to be set. False if it was incompatible for any reason. 
 	UFUNCTION(BlueprintCallable, BlueprintPure=false, Category=IKRig)
-	bool SetSkeletalMesh(USkeletalMesh* SkeletalMesh, bool bTransact=false) const;
+	bool SetSkeletalMesh(USkeletalMesh* SkeletalMesh) const;
 
 	// Get the skeletal mesh this asset is initialized with 
 	UFUNCTION(BlueprintCallable, Category=IKRig)
@@ -318,8 +318,8 @@ public:
 	// RETARGETING C++ ONLY API
 	//
 	
-	// Add a Chain with the given BoneChain settings. Returns newly created chain name. 
-	FName AddRetargetChain(const FBoneChain& BoneChain) const;
+	// Add a Chain with the given BoneChain settings. Returns newly created chain name.
+	FName AddRetargetChainInternal(const FBoneChain& BoneChain) const;
 	
 	// Get read-only access to a single retarget chain with the given name 
 	const FBoneChain* GetRetargetChainByName(const FName ChainName) const;
@@ -334,7 +334,7 @@ public:
 	void SortRetargetChains() const;
 
 	// Make unique name for a retargeting bone chain. Adds a numbered suffix to make it unique.
-	FName GetUniqueRetargetChainName(const FName NameToMakeUnique) const;
+	FName GetUniqueRetargetChainName(FName NameToMakeUnique) const;
 
 	// Returns true if this is a valid chain. Produces array of bone indices between start and end (inclusive).
 	// Optionally provide a runtime skeleton from an IKRigProcessor to get indices for a running instance (otherwise uses stored hierarchy in asset)
@@ -367,6 +367,10 @@ public:
 
 private:
 
+	// prevent reinitializing from inner operations
+	mutable int32 ReinitializeScopeCounter = 0;
+	mutable bool bGoalsChangedInScope = false;
+
 	// The actual IKRigDefinition asset that this Controller modifies. 
 	UPROPERTY(transient)
 	TObjectPtr<UIKRigDefinition> Asset = nullptr;
@@ -378,4 +382,30 @@ private:
 	void BroadcastGoalsChange() const;
 	
 	friend class UIKRigDefinition;
+	friend struct FScopedReinitializeIKRig;
+};
+
+struct FScopedReinitializeIKRig
+{
+	FScopedReinitializeIKRig(const UIKRigController *InController, const bool bGoalsChanged=false)
+	{
+		InController->ReinitializeScopeCounter++;
+		InController->bGoalsChangedInScope = bGoalsChanged ? true : InController->bGoalsChangedInScope;
+		Controller = InController;
+	}
+	~FScopedReinitializeIKRig()
+	{
+		if (--Controller->ReinitializeScopeCounter == 0)
+		{
+			Controller->BroadcastNeedsReinitialized();
+			
+			if (Controller->bGoalsChangedInScope)
+			{
+				Controller->bGoalsChangedInScope = false;
+				Controller->BroadcastGoalsChange();
+			}
+		}
+	};
+
+	const UIKRigController* Controller;
 };

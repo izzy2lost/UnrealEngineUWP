@@ -188,12 +188,12 @@ void FIKRigEditorToolkit::HandleOnPreviewSceneSettingsCustomized(IDetailLayoutBu
 
 void FIKRigEditorToolkit::PostUndo(bool bSuccess)
 {
-	EditorController->AssetController->BroadcastNeedsReinitialized();
+	FScopedReinitializeIKRig Reinitialize(EditorController->AssetController);
 }
 
 void FIKRigEditorToolkit::PostRedo(bool bSuccess)
 {
-	EditorController->AssetController->BroadcastNeedsReinitialized();
+	FScopedReinitializeIKRig Reinitialize(EditorController->AssetController);
 }
 
 void FIKRigEditorToolkit::HandlePreviewSceneCreated(const TSharedRef<IPersonaPreviewScene>& InPersonaPreviewScene)

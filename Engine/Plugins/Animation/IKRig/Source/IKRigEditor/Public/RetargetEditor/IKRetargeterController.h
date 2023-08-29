@@ -286,6 +286,9 @@ private:
 
 	// only allow modifications to data model from one thread at a time
 	mutable FCriticalSection ControllerLock;
+
+	// prevent reinitializing from inner operations
+	mutable int32 ReinitializeScopeCounter = 0;
 	
 public:
 
@@ -299,4 +302,24 @@ public:
 	FOnRetargeterNeedsInitialized& OnRetargeterNeedsInitialized(){ return RetargeterNeedsInitialized; };
 	
 	friend class UIKRetargeter;
+	friend struct FScopedReinitializeIKRetargeter;
 };
+
+struct FScopedReinitializeIKRetargeter
+{
+	FScopedReinitializeIKRetargeter(const UIKRetargeterController *InController)
+	{
+		InController->ReinitializeScopeCounter++;
+		Controller = InController;
+	}
+	~FScopedReinitializeIKRetargeter()
+	{
+		if (--Controller->ReinitializeScopeCounter == 0)
+		{
+			Controller->BroadcastNeedsReinitialized();
+		}
+	};
+
+	const UIKRetargeterController* Controller;
+};
+

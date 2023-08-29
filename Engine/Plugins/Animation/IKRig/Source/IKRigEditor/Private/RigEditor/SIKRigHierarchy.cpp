@@ -229,7 +229,6 @@ void SIKRigHierarchyItem::OnNameCommitted(const FText& InText, ETextCommit::Type
 		WeakTreeElement.Pin()->GoalName = NewName;
 	}
 	
-	Controller->RefreshAllViews();
 	HierarchyView.Pin()->ReplaceItemInSelection(OldText, WeakTreeElement.Pin()->Key);
 }
 
@@ -373,11 +372,7 @@ FReply SIKRigSkeletonRow::HandleAcceptDrop(
 
 	// re-parent the goal to a different bone
 	const UIKRigController* AssetController = Controller->AssetController;
-	const bool bWasReparented = AssetController->SetGoalBone(DraggedElement.GoalName, TargetItem.Get()->BoneName);
-	if (bWasReparented)
-	{
-		Controller->RefreshAllViews();
-	}
+	AssetController->SetGoalBone(DraggedElement.GoalName, TargetItem.Get()->BoneName);
 	
 	return FReply::Handled();
 }
@@ -713,7 +708,7 @@ void SIKRigHierarchy::BindCommands()
         FCanExecuteAction::CreateSP(this, &SIKRigHierarchy::CanAddNewGoal));
 	
 	CommandList->MapAction(Commands.DeleteElement,
-        FExecuteAction::CreateSP(this, &SIKRigHierarchy::HandleDeleteElement),
+        FExecuteAction::CreateSP(this, &SIKRigHierarchy::HandleDeleteElements),
         FCanExecuteAction::CreateSP(this, &SIKRigHierarchy::CanDeleteElement));
 
 	CommandList->MapAction(Commands.ConnectGoalToSolver,
@@ -862,7 +857,7 @@ bool SIKRigHierarchy::CanAddNewGoal() const
 	return true;
 }
 
-void SIKRigHierarchy::HandleDeleteElement()
+void SIKRigHierarchy::HandleDeleteElements()
 {
 	const TSharedPtr<FIKRigEditorController> Controller = EditorController.Pin();
 	if (!Controller.IsValid())
@@ -870,30 +865,7 @@ void SIKRigHierarchy::HandleDeleteElement()
 		return; 
 	}
 
-	TArray<TSharedPtr<FIKRigTreeElement>> SelectedItems = TreeView->GetSelectedItems();
-	for (const TSharedPtr<FIKRigTreeElement>& SelectedItem : SelectedItems)
-	{
-		switch(SelectedItem->ElementType)
-		{
-			case IKRigTreeElementType::GOAL:
-				Controller->AssetController->RemoveGoal(SelectedItem->GoalName);
-				break;
-			case IKRigTreeElementType::SOLVERGOAL:
-				Controller->AssetController->DisconnectGoalFromSolver(SelectedItem->EffectorGoalName, SelectedItem->EffectorIndex);
-				break;
-			case IKRigTreeElementType::BONE_SETTINGS:
-				Controller->AssetController->RemoveBoneSetting(SelectedItem->BoneSettingBoneName, SelectedItem->BoneSettingsSolverIndex);
-				break;
-			default:
-				break; // can't delete anything else
-		}
-	}
-	
-	RefreshTreeView();
-
-	Controller->ShowEmptyDetails();
-	// update all views
-	Controller->RefreshAllViews();
+	Controller->HandleDeleteSelectedElements();
 }
 bool SIKRigHierarchy::CanDeleteElement() const
 {
@@ -956,27 +928,26 @@ void SIKRigHierarchy::ConnectSelectedGoalsToSelectedSolvers(bool bConnect)
 	TArray<TSharedPtr<FSolverStackElement>> SelectedSolvers;
 	Controller->GetSelectedSolvers(SelectedSolvers);
 
-	UIKRigController* AssetController = Controller->AssetController;
+	FScopedTransaction Transaction(LOCTEXT("ConnectGoalsToSolver_Label", "Connect/Disconnect Goal(s) to Solver"));
+	FScopedReinitializeIKRig Reinitialize(Controller->AssetController);
+	
 	for (const TSharedPtr<FIKRigTreeElement>& GoalElement : SelectedGoals)
 	{
 		const FName GoalName = GoalElement->GoalName;
-		const UIKRigEffectorGoal* Goal = AssetController->GetGoal(GoalName);
+		const UIKRigEffectorGoal* Goal = Controller->AssetController->GetGoal(GoalName);
 		check(Goal);
 		for (const TSharedPtr<FSolverStackElement>& SolverElement : SelectedSolvers)
 		{
 			if (bConnect)
 			{
-				AssetController->ConnectGoalToSolver(Goal->GoalName, SolverElement->IndexInStack);	
+				Controller->AssetController->ConnectGoalToSolver(Goal->GoalName, SolverElement->IndexInStack);	
 			}
 			else
 			{
-				AssetController->DisconnectGoalFromSolver(Goal->GoalName, SolverElement->IndexInStack);	
+				Controller->AssetController->DisconnectGoalFromSolver(Goal->GoalName, SolverElement->IndexInStack);	
 			}
 		}
 	}
-
-	// add/remove new effector under goal in skeleton view
-	RefreshTreeView();
 }
 
 int32 SIKRigHierarchy::GetNumSelectedGoalToSolverConnections(bool bCountOnlyConnected) const
@@ -1216,9 +1187,11 @@ void SIKRigHierarchy::HandleRemoveBoneSettings()
 	// get selected bones
 	TArray<TSharedPtr<FIKRigTreeElement>> SelectedBones;
 	GetSelectedBones(SelectedBones);
+
+	FScopedTransaction Transaction(LOCTEXT("RemoveBoneSettings_Label", "Remove Bone Settings"));
+	FScopedReinitializeIKRig Reinitialize(Controller->AssetController);
 	
-	// add settings for bone on all selected solvers (ignored if already present)
-	UIKRigController* AssetController = Controller->AssetController;
+	// remove settings for bone on all selected solvers
 	TArray<TSharedPtr<FSolverStackElement>> SelectedSolvers;
 	Controller->GetSelectedSolvers(SelectedSolvers);
 	FName BoneToShowInDetailsView;
@@ -1226,15 +1199,12 @@ void SIKRigHierarchy::HandleRemoveBoneSettings()
 	{
 		for (const TSharedPtr<FSolverStackElement>& Solver : SelectedSolvers)
 		{
-			AssetController->RemoveBoneSetting(BoneItem->BoneName, Solver->IndexInStack);
+			Controller->AssetController->RemoveBoneSetting(BoneItem->BoneName, Solver->IndexInStack);
 			BoneToShowInDetailsView = BoneItem->BoneName;
 		}
 	}
-
-	Controller->ShowDetailsForBone(BoneToShowInDetailsView);
 	
-	// show new icon when bone has settings applied
-	RefreshTreeView();
+	Controller->ShowDetailsForBone(BoneToShowInDetailsView);
 }
 
 bool SIKRigHierarchy::CanRemoveBoneSettings()
@@ -1393,9 +1363,6 @@ void SIKRigHierarchy::HandleSetRetargetRoot()
 
 	// set the first selected bone as the retarget root
 	Controller->AssetController->SetRetargetRoot(SelectedBones[0]->BoneName);
-
-	// show root bone after being set
-	Controller->RefreshAllViews();
 }
 
 bool SIKRigHierarchy::CanSetRetargetRoot()
@@ -1414,7 +1381,6 @@ void SIKRigHierarchy::HandleClearRetargetRoot()
 	}
 	
 	Controller->AssetController->SetRetargetRoot(NAME_None);
-	Controller->RefreshAllViews();
 }
 
 bool SIKRigHierarchy::CanClearRetargetRoot()

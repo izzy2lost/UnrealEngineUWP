@@ -90,9 +90,6 @@ public:
 	/** Close the editor */
 	void Close();
 	
-	// prompt user to assign an IK Rig to this retargeter (either source or target), returns true if an IK Rig was assigned
-	void PromptUserToAssignIKRig(const ERetargetSourceOrTarget SourceOrTarget);
-	
 	/** Bind callbacks to this IK Rig */
 	void BindToIKRigAssets();
 	/** callback when IK Rig asset requires reinitialization */

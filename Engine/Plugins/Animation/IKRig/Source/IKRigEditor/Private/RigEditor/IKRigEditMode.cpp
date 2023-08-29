@@ -516,26 +516,11 @@ bool FIKRigEditMode::InputKey(FEditorViewportClient* ViewportClient, FViewport* 
 		
 	if (Key == EKeys::Delete || Key == EKeys::BackSpace)
 	{
-		const TSharedPtr<FIKRigEditorController> Controller = EditorController.Pin();
-		if (!Controller.IsValid())
+		if (EditorController.IsValid())
 		{
-			return false;
+			EditorController.Pin()->HandleDeleteSelectedElements();
+			return true;
 		}
-	
-		TArray<FName> SelectedGoalNames;
-		Controller->GetSelectedGoalNames(SelectedGoalNames);
-		if (SelectedGoalNames.IsEmpty())
-		{
-			return false; // nothing selected to manipulate
-		}
-
-		for (const FName& GoalName : SelectedGoalNames)
-		{
-			Controller->AssetController->RemoveGoal(GoalName);
-		}
-
-		Controller->RefreshAllViews();
-		return true;
 	}
 
 	return false;
