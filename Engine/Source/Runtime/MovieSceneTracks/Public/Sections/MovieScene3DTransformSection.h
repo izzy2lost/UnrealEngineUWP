@@ -222,6 +222,8 @@ class UMovieScene3DTransformSection
 
 public:
 
+	virtual void PostLoad() override;
+
 #if WITH_EDITOR
 	/* From UObject*/
 	virtual bool Modify(bool bAlwaysMarkDirty = true) override;

@@ -1015,6 +1015,20 @@ TArray<FConstraintAndActiveChannel>& UMovieScene3DTransformSection::GetConstrain
 	}
 	return EmptyChannels;
 }
+
+void UMovieScene3DTransformSection::PostLoad()
+{
+	Super::PostLoad();
+	//for spawnables the control rig saved in our channels may have changed so we need to update thaem
+	if (Constraints)
+	{
+		for (FConstraintAndActiveChannel& ConstraintChannel : Constraints->ConstraintsChannels)
+		{
+			ConstraintChannel.Constraint.Reset(); //clear it out may be referencing wrong level
+		}
+	}
+}
+
 #if WITH_EDITOR
 bool UMovieScene3DTransformSection::Modify(bool bAlwaysMarkDirty)
 {
