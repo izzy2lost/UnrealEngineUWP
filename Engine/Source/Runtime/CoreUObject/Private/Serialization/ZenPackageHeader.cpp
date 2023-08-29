@@ -29,6 +29,10 @@ FZenPackageHeader FZenPackageHeader::MakeView(FMemoryView Memory)
 	if (LocalVersioningInfo == nullptr || LocalVersioningInfo->PackageVersion >= EUnrealEngineObjectUE5Version::DATA_RESOURCES)
 	{
 		int64 BulkDataMapSize = 0;
+		uint64 BulkDataPad = 0;
+		PackageHeaderDataReader << BulkDataPad;
+		uint8 PadBytes[sizeof(uint64)] = {};
+		PackageHeaderDataReader.Serialize(PadBytes, BulkDataPad);
 		PackageHeaderDataReader << BulkDataMapSize;
 		const uint8* BulkDataMapData = PackageHeaderDataPtr + sizeof(FZenPackageSummary) + PackageHeaderDataReader.Tell();
 		PackageHeader.BulkDataMap = MakeArrayView(reinterpret_cast<const FBulkDataMapEntry*>(BulkDataMapData), BulkDataMapSize / sizeof(FBulkDataMapEntry));
