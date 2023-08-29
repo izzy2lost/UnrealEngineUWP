@@ -2,6 +2,8 @@
 
 #include "SymslibResolver.h"
 
+#if UE_SYMSLIB_AVAILABLE
+
 #include "Algo/ForEach.h"
 #include "Algo/Sort.h"
 #include "Async/MappedFileHandle.h"
@@ -1249,3 +1251,5 @@ void FSymslibResolver::WaitForTasks()
 /////////////////////////////////////////////////////////////////////
 
 } // namespace TraceServices
+
+#endif // UE_SYMSLIB_AVAILABLE

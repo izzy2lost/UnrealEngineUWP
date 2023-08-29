@@ -515,7 +515,7 @@ TSharedPtr<IModuleAnalysisProvider> CreateModuleProvider(IAnalysisSession& InSes
 {
 	TSharedPtr<IModuleAnalysisProvider> Provider;
 
-#if USE_SYMSLIB
+#if USE_SYMSLIB && UE_SYMSLIB_AVAILABLE
 	if (!Provider && (InSymbolFormat.Equals("pdb") || InSymbolFormat.Equals("dwarf")))
 	{
 		Provider = MakeShared<TModuleProvider<FSymslibResolver>>(InSession);

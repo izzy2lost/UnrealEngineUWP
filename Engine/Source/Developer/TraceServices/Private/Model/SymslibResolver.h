@@ -1,6 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+// We currently only have symslib available on selected platforms.
+#if PLATFORM_WINDOWS || PLATFORM_LINUX
+	#define UE_SYMSLIB_AVAILABLE 1
+#else
+	#define UE_SYMSLIB_AVAILABLE 0
+#endif
+
+#if UE_SYMSLIB_AVAILABLE
+
 #include "Async/MappedFileHandle.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "Common/PagedArray.h"
@@ -127,3 +136,4 @@ private:
 
 } // namespace TraceServices
 
+#endif //UE_SYMSLIB_AVAILABLE
