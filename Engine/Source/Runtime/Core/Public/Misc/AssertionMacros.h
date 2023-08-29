@@ -12,6 +12,7 @@
 #include "Templates/IsValidVariadicFunctionArg.h"
 #include "Traits/IsCharEncodingCompatibleWith.h"
 #include "Misc/VarArgs.h"
+#include "String/FormatStringSan.h"
 
 #if (DO_CHECK || DO_GUARD_SLOW || DO_ENSURE) && !PLATFORM_CPU_ARM_FAMILY
 	// We'll put all assert implementation code into a separate section in the linked
@@ -252,6 +253,7 @@ RetType FORCENOINLINE UE_DEBUG_SECTION DispatchCheckVerify(InnerType&& Inner, Ar
 
 	#define UE_CHECK_F_IMPL(expr, format, ...) \
 		{ \
+			static_assert(!UE::Core::Private::FormatStringSan::bIsAConstString<decltype(expr)>, "The checkf condition cannot be a const string. Use != nullptr if it's intentional"); \
 			if(UNLIKELY(!(expr))) \
 			{ \
 				if (FDebug::CheckVerifyFailedImpl(#expr, __FILE__, __LINE__, PLATFORM_RETURN_ADDRESS(), format, ##__VA_ARGS__)) \
@@ -373,6 +375,7 @@ RetType FORCENOINLINE UE_DEBUG_SECTION DispatchCheckVerify(InnerType&& Inner, Ar
 	#define UE_ENSURE_IMPL2(Capture, Always, InExpression, ...) \
 		(LIKELY(!!(InExpression)) || (DispatchCheckVerify<bool>([Capture] () UE_DEBUG_SECTION \
 		{ \
+			static_assert(!UE::Core::Private::FormatStringSan::bIsAConstString<decltype(InExpression)>, "The ensureMsgf condition cannot be a const string. Use != nullptr if it's intentional"); \
 			static bool bExecuted = false; \
 			FValidateArgsInternal(__VA_ARGS__); \
 			return CheckVerifyImpl(bExecuted, Always, __FILE__, __LINE__, PLATFORM_RETURN_ADDRESS(), #InExpression, ##__VA_ARGS__); \

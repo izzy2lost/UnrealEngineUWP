@@ -95,6 +95,109 @@ TEST_CASE_NAMED(FFormatStringValidatorTest, "Core::String::FormatStringSan", "[C
 	}
 }
 
+TEST_CASE_NAMED(FFormatStringConstStringValidationTest, "Core::String::FormatStringSan::ConstString", "[Core][String][FormatStringSan]")
+{
+	using namespace UE::Core::Private::FormatStringSan;
+
+	SECTION("Valid Const String Conditions")
+	{
+		STATIC_CHECK(bIsAConstString<decltype("Raw CString")>);
+		STATIC_CHECK(bIsAConstString<decltype(TEXT("Raw WString"))>);
+
+		{
+			const char Array[] = "CString";
+			STATIC_CHECK(bIsAConstString<decltype(Array)>);
+		}
+
+		{
+			const TCHAR Array[] = TEXT("WString");
+			STATIC_CHECK(bIsAConstString<decltype(Array)>);
+		}
+
+		{
+			const char* ConstPtr = "CString";
+			STATIC_CHECK(bIsAConstString<decltype(ConstPtr)>);
+		}
+
+		{
+			const TCHAR* ConstPtr = TEXT("WString");
+			STATIC_CHECK(bIsAConstString<decltype(ConstPtr)>);
+		}
+
+		{
+			const char* const ConstPtrConst = "CString";
+			STATIC_CHECK(bIsAConstString<decltype(ConstPtrConst)>);
+		}
+
+		{
+			const TCHAR* const ConstPtrConst = TEXT("WString");
+			STATIC_CHECK(bIsAConstString<decltype(ConstPtrConst)>);
+		}
+		
+		{
+			struct FImplicitConvertToChar
+			{
+				operator const char*() const { return (const char*)this; }
+			};
+			FImplicitConvertToChar ToChar;
+			STATIC_CHECK(bIsAConstString<decltype(ToChar)>);
+		}
+
+		{
+			struct FImplicitConvertToTChar
+			{
+				operator const TCHAR* () const { return (const TCHAR*)this; }
+			};
+			FImplicitConvertToTChar ToTChar;
+			STATIC_CHECK(bIsAConstString<decltype(ToTChar)>);
+		}
+	}
+
+	SECTION("Invalid Const String Conditions")
+	{
+		bool bBool = true;
+		STATIC_CHECK_FALSE(bIsAConstString<decltype(bBool)>);
+
+		{
+			char* Ptr = nullptr;
+			STATIC_CHECK_FALSE(bIsAConstString<decltype(Ptr)>);
+		}
+
+		{
+			TCHAR* Ptr = nullptr;
+			STATIC_CHECK_FALSE(bIsAConstString<decltype(Ptr)>);
+		}
+
+		{
+			char* const Ptr = nullptr;
+			STATIC_CHECK_FALSE(bIsAConstString<decltype(Ptr)>);
+		}
+
+		{
+			TCHAR* const Ptr = nullptr;
+			STATIC_CHECK_FALSE(bIsAConstString<decltype(Ptr)>);
+		}
+
+		{
+			struct FExplicitConvertToChar
+			{
+				explicit operator const char* () const { return (const char*)this; }
+			};
+			FExplicitConvertToChar ToChar;
+			STATIC_CHECK_FALSE(bIsAConstString<decltype(ToChar)>);
+		}
+
+		{
+			struct FExplicitConvertToTChar
+			{
+				explicit operator const TCHAR* () const { return (const TCHAR*)this; }
+			};
+			FExplicitConvertToTChar ToTChar;
+			STATIC_CHECK_FALSE(bIsAConstString<decltype(ToTChar)>);
+		}
+	}
+}
+
 } // namespace UE
 
 #endif // WITH_TESTS

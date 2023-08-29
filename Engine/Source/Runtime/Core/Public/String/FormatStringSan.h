@@ -20,6 +20,10 @@ namespace UE::Core::Private
 {
 	namespace FormatStringSan
 	{
+		// Returns true when the type is a const char*, const TCHAR*, const char[] or const TCHAR[]
+		template<typename T>
+		inline constexpr bool bIsAConstString = !(std::is_convertible_v<std::decay_t<T>, char*> || std::is_convertible_v<std::decay_t<T>, TCHAR*>) && (std::is_convertible_v<std::decay_t<T>, const char*> || std::is_convertible_v<std::decay_t<T>, const TCHAR*>);
+
 		enum EFormatStringSanStatus
 		{
 			StatusOk,
