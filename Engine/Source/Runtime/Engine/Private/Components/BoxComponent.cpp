@@ -42,12 +42,6 @@ void UBoxComponent::SetBoxExtent(FVector NewBoxExtent, bool bUpdateOverlaps)
 	}
 }
 
-void UBoxComponent::SetLineThickness(float Thickness)
-{
-	LineThickness = Thickness;
-	MarkRenderStateDirty();
-}
-
 template <EShapeBodySetupHelper UpdateBodySetupAction, typename BodySetupType>
 bool InvalidateOrUpdateBoxBodySetup(BodySetupType& ShapeBodySetup, bool bUseArchetypeBodySetup, FVector BoxExtent)
 {
@@ -183,7 +177,7 @@ FPrimitiveSceneProxy* UBoxComponent::CreateSceneProxy()
 		const uint32	bDrawOnlyIfSelected:1;
 		const FVector	BoxExtents;
 		const FColor	BoxColor;
-		const float LineThickness;
+		const float		LineThickness;
 	};
 
 	return new FBoxSceneProxy( this );

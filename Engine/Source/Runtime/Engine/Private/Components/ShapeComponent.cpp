@@ -254,6 +254,12 @@ void UShapeComponent::CreateShapeBodySetupIfNeeded()
 	}
 }
 
+void UShapeComponent::SetLineThickness(float Thickness)
+{
+	LineThickness = Thickness;
+	MarkRenderStateDirty();
+}
+
 //Explicit instantiation of the different shape components
 template ENGINE_API void UShapeComponent::CreateShapeBodySetupIfNeeded<FKSphylElem>();
 template ENGINE_API void UShapeComponent::CreateShapeBodySetupIfNeeded<FKBoxElem>();

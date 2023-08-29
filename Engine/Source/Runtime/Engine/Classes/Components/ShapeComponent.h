@@ -43,6 +43,10 @@ class UShapeComponent : public UPrimitiveComponent
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Shape)
 	FColor ShapeColor;
 
+	/** Used to control the line thickness when rendering */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, export, Category=Shape)
+	float LineThickness;
+	
 	/** Only show this component if the actor is selected */
 	UPROPERTY()
 	uint8 bDrawOnlyIfSelected:1;
@@ -126,6 +130,10 @@ public:
 	ENGINE_API TSubclassOf<class UNavAreaBase> GetDesiredAreaClass() const;
 	ENGINE_API void SetAreaClassOverride(TSubclassOf<class UNavAreaBase> InAreaClassOverride);
 	ENGINE_API void SetUseSystemDefaultObstacleAreaClass();
+
+	// Set the LineThickness
+    UFUNCTION(BlueprintCallable, Category="Components|Shape")
+    ENGINE_API void SetLineThickness(float Thickness);
 };
 
 enum class EShapeBodySetupHelper
