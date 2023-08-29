@@ -179,26 +179,32 @@ void UMassLODSubsystem::SynchronizeViewers()
 
 	if (World)
 	{
-		// Now go through all current player controllers and add if they do not exist
-		for (FConstPlayerControllerIterator PlayerIterator = World->GetPlayerControllerIterator(); PlayerIterator; ++PlayerIterator)
+		if (bGatherPlayerControllers)
 		{
-			APlayerController* PlayerController = (*PlayerIterator).Get();
-			check(PlayerController);
-
-			// Check if the controller already exists by trying to remove it from the map which was filled up with controllers we were tracking
-			if (LocalViewerMap.Remove(GetTypeHash(PlayerController->GetFName())) == 0)
+			// Now go through all current player controllers and add if they do not exist
+			for (FConstPlayerControllerIterator PlayerIterator = World->GetPlayerControllerIterator(); PlayerIterator; ++PlayerIterator)
 			{
-				// If not add it to the list
-				AddPlayerViewer(*PlayerController);
+				APlayerController* PlayerController = (*PlayerIterator).Get();
+				check(PlayerController);
+
+				// Check if the controller already exists by trying to remove it from the map which was filled up with controllers we were tracking
+				if (LocalViewerMap.Remove(GetTypeHash(PlayerController->GetFName())) == 0)
+				{
+					// If not add it to the list
+					AddPlayerViewer(*PlayerController);
+				}
 			}
 		}
 
-		// Now go through all current streaming source and add if they do not exist
-		for (const FWorldPartitionStreamingSource& StreamingSource : StreamingSources)
+		if (bGatherStreamingSources)
 		{
-			if (LocalViewerMap.Remove(GetTypeHash(StreamingSource.Name)) == 0)
+			// Now go through all current streaming source and add if they do not exist
+			for (const FWorldPartitionStreamingSource& StreamingSource : StreamingSources)
 			{
-				AddStreamingSourceViewer(StreamingSource.Name);
+				if (LocalViewerMap.Remove(GetTypeHash(StreamingSource.Name)) == 0)
+				{
+					AddStreamingSourceViewer(StreamingSource.Name);
+				}
 			}
 		}
 	}

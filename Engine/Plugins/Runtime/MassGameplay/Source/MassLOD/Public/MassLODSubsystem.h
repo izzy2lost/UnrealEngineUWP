@@ -60,7 +60,7 @@ DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnViewerRemoved, FMassViewerHandle Viewe
 /*
  * Manager responsible to manage and synchronized available viewers
  */
-UCLASS()
+UCLASS(config = Mass, defaultconfig)
 class MASSLOD_API UMassLODSubsystem : public UTickableWorldSubsystem
 {
 	GENERATED_BODY()
@@ -130,6 +130,15 @@ protected:
 	/** Player controller EndPlay callback, removing viewers from the list */
 	UFUNCTION()
 	void OnPlayerControllerEndPlay(AActor* Actor, EEndPlayReason::Type EndPlayReason);
+
+protected:
+	/** If true, all PlayerControllers will be gathered as viewers for LOD calcuations. */
+	UPROPERTY(EditDefaultsOnly, Category = "Mass|LOD", config)
+	uint8 bGatherPlayerControllers : 1 = true;
+
+	/** If true, all streaming sources will be gathered as viewers for LOD calcuations. */
+	UPROPERTY(EditDefaultsOnly, Category = "Mass|LOD", config)
+	uint8 bGatherStreamingSources : 1 = true;
 
 private:
 	/** Removes a viewer to the list and send notification about removal */
