@@ -173,7 +173,7 @@ ENGINE_API FArchive& operator<<(FArchive& Ar, FPerQualityLevelProperty<_StructTy
 template<typename _StructType, typename _ValueType, EName _BasePropertyName>
 ENGINE_API void operator<<(FStructuredArchive::FSlot Slot, FPerQualityLevelProperty<_StructType, _ValueType, _BasePropertyName>& Property);
 
-USTRUCT()
+USTRUCT(BlueprintType)
 struct FPerQualityLevelInt 
 #if CPP
 	:	public FPerQualityLevelProperty<FPerQualityLevelInt, int32, NAME_IntProperty>
@@ -181,7 +181,7 @@ struct FPerQualityLevelInt
 {
 	GENERATED_USTRUCT_BODY()
 
-	UPROPERTY(EditAnywhere, Category = PerQualityLevel)
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = PerQualityLevel)
 	int32 Default;
 
 	UPROPERTY(EditAnywhere, Category = PerQualityLevel)
@@ -216,7 +216,7 @@ struct TStructOpsTypeTraits<FPerQualityLevelInt>
 	static constexpr EPropertyObjectReferenceType WithSerializerObjectReferences = EPropertyObjectReferenceType::None;
 };
 
-USTRUCT()
+USTRUCT(BlueprintType)
 struct FPerQualityLevelFloat
 #if CPP
 	:	public FPerQualityLevelProperty<FPerQualityLevelFloat, float, NAME_FloatProperty>
@@ -224,7 +224,7 @@ struct FPerQualityLevelFloat
 {
 	GENERATED_USTRUCT_BODY()
 
-	UPROPERTY(EditAnywhere, Category = PerQualityLevel)
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = PerQualityLevel)
 	float Default;
 
 	UPROPERTY(EditAnywhere, Category = PerQualityLevel)
