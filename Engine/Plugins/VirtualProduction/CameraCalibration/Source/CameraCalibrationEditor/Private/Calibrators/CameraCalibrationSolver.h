@@ -33,7 +33,6 @@ enum class ECalibrationFlags : uint32
   */
 class FCameraCalibrationSolver
 {
-#if WITH_OPENCV
 public:
 	/** 
 	  * Calibrate camera intrinsics and distortion parameters using a set of input 3D and 2D point correspondences
@@ -42,15 +41,25 @@ public:
 	static double CalibrateCamera(
 		const TSubclassOf<ULensModel> LensModel,
 		const TArray<TArray<FVector>>& InObjectPoints,
-		const TArray<TArray<FVector2D>>& InImagePoints,
+		const TArray<TArray<FVector2f>>& InImagePoints,
 		const FIntPoint ImageSize,
-		FVector2f& InOutFocalLength,
-		FVector2f& InOutImageCenter,
+		FVector2D& InOutFocalLength,
+		FVector2D& InOutImageCenter,
 		TArray<float>& OutDistCoeffs,
 		TArray<FTransform>& InOutCameraPoses,
 		double PixelAspect = 1.0,
 		ECalibrationFlags SolverFlags = ECalibrationFlags::None);
 
+	/** Optimize the input nodal offset transform by running a downhill solver that attempts to minimize the reprojection error of the input points */
+	static double OptimizeNodalOffset(
+		const TArray<TArray<FVector>>& InObjectPoints, 
+		const TArray<TArray<FVector2f>>& InImagePoints, 
+		const FVector2D& InFocalLength,
+		const FVector2D& InImageCenter,
+		const TArray<FTransform>& InCameraPoses,
+		FTransform& InOutNodalOffset);
+
+#if WITH_OPENCV
 private:
 	/** Initialize the camera matrix of intrinsic parameters using linear algebra techniques */
 	static void InitCameraIntrinsics(
@@ -122,7 +131,7 @@ private:
 	/** Copy the input 3D and 2D points to OpenCV matrices for ease of use with the solver */
 	static void GatherPoints(
 		const TArray<TArray<FVector>>& ObjectPoints,
-		const TArray<TArray<FVector2D>>& ImagePoints,
+		const TArray<TArray<FVector2f>>& ImagePoints,
 		cv::Mat& ObjectPointsMat,
 		cv::Mat& ImagePointsMat);
 
@@ -218,6 +227,24 @@ private:
 	ESymmetryMode SymmMode;
 
 	int LambdaLog10 = -3;
+};
+
+class FOptimizeNodalOffsetSolver : public cv::MinProblemSolver::Function
+{
+public:
+
+	//~ Begin cv::MinProblemSolver::Function interface
+	int getDims() const;
+	double calc(const double* x) const;
+	//~ End cv::MinProblemSolver::Function interface
+
+public:
+	FVector2D FocalLength;
+	FVector2D ImageCenter;
+
+	TArray<FTransform> CameraPoses;
+	TArray<TArray<FVector>> Points3d;
+	TArray<TArray<FVector2f>> Points2d;
 };
 
 #endif // WITH_OPENCV

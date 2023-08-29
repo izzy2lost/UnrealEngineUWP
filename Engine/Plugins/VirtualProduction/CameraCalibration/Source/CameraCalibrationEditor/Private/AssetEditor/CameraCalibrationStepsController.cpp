@@ -50,11 +50,6 @@
 #include "Widgets/SWidget.h"
 
 
-#if WITH_OPENCV
-#include "OpenCVHelper.h"
-#endif
-
-
 #define LOCTEXT_NAMESPACE "CameraCalibrationStepsController"
 
 namespace CameraCalibrationStepsController
@@ -1638,7 +1633,7 @@ UTextureRenderTarget2D* FCameraCalibrationStepsController::GetMediaPlateRenderTa
 	return MediaPlateRenderTarget.Get();
 }
 
-bool FCameraCalibrationStepsController::CalculateNormalizedMouseClickPosition(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent, FVector2D& OutPosition, ESimulcamViewportPortion ViewportPortion) const
+bool FCameraCalibrationStepsController::CalculateNormalizedMouseClickPosition(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent, FVector2f& OutPosition, ESimulcamViewportPortion ViewportPortion) const
 {
 	// Reject viewports with no area
 	if (FMath::IsNearlyZero(MyGeometry.Size.X) || FMath::IsNearlyZero(MyGeometry.Size.Y))
@@ -1653,7 +1648,7 @@ bool FCameraCalibrationStepsController::CalculateNormalizedMouseClickPosition(co
 	// * MyGeometry.AbsolutePosition        : Position of the top-left corner of viewport within screen
 	// * MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition()) gives you the pixel coordinates local to the viewport.
 
-	const FVector2D LocalInPixels = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
+	const FVector2f LocalInPixels = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
 
 	float XNormalized = LocalInPixels.X / MyGeometry.Size.X;
 	float YNormalized = LocalInPixels.Y / MyGeometry.Size.Y;
@@ -1683,7 +1678,7 @@ bool FCameraCalibrationStepsController::CalculateNormalizedMouseClickPosition(co
 	}
 
 	// Position 0~1. Origin at top-left corner of the viewport.
-	OutPosition = FVector2D(XNormalized, YNormalized);
+	OutPosition = FVector2f(XNormalized, YNormalized);
 
 	return true;
 }

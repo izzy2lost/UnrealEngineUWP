@@ -3,21 +3,7 @@
 #pragma once
 
 #include "CameraLensDistortionAlgo.h"
-
-#include "LensFile.h"
-
-#if WITH_OPENCV
-
-#include <vector>
-
-#include "OpenCVHelper.h"
-#include "PreOpenCVHeaders.h"
-#include "opencv2/calib3d.hpp"
-#include "opencv2/imgproc.hpp"
-#include "PostOpenCVHeaders.h"
-
-#endif //WITH_OPENCV
-
+#include "ImageCore.h"
 
 #include "CameraLensDistortionAlgoCheckerboard.generated.h"
 
@@ -90,7 +76,7 @@ struct FLensDistortionCheckerboardRowData
 
 	// Checkerboard corners in 2d image pixel coordinates.
 	UPROPERTY()
-	TArray<FVector2D> Points2d;
+	TArray<FVector2f> Points2d;
 
 	// Checkerboard corners in 3d local space.
 	UPROPERTY()
@@ -201,7 +187,7 @@ private:
 	bool bFixImageCenter = false;
 
 	/** Estimated focal length to initialize the distortion solver */
-	float FocalLengthEstimate = 0.0f;
+	double FocalLengthEstimate = 0.0;
 
 	/** If true, the solver will use the current camera pose to initialize the camera extrinsic parameters for each image */
 	bool bUseExtrinsicsGuess = false;
@@ -211,11 +197,6 @@ private:
 
 	/** Texture into which detected chessboard corners from each calibration row are drawn */
 	TObjectPtr<UTexture2D> CoverageTexture;
-
-#if WITH_OPENCV
-	/** OpenCV matrix used to draw chessboard corners */
-	cv::Mat CvCoverage;
-#endif
 
 private:
 
