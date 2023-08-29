@@ -44,7 +44,55 @@ struct FKeyMoveEventItem
 	int32 NewIndex;
 	FFrameNumber NewFrame;
 };
+/*
+*  Class to help with pre/post cycling of values
+*/
+namespace UE
+{
+namespace MovieScene
+{
+struct FCycleParams
+{
+	double ValueOffset;
+	FFrameTime Time;
+	int32 CycleCount;
+	int32 Duration;
+	bool bMirrorCurve;
 
+	FCycleParams(FFrameTime InTime, int32 InDuration)
+		: ValueOffset(0.0)
+		, Time(InTime)
+		, CycleCount(0)
+		, Duration(InDuration)
+		, bMirrorCurve(false)
+	{}
+
+	FORCEINLINE void ComputePreValueOffset(double FirstValue, double LastValue)
+	{
+		// CycleCount is negative for pre-extrap
+		ValueOffset = (LastValue - FirstValue) * CycleCount;
+	}
+	FORCEINLINE void ComputePostValueOffset(double FirstValue, double LastValue)
+	{
+		ValueOffset = (LastValue - FirstValue) * CycleCount;
+	}
+	FORCEINLINE bool ShouldMirrorCurve() const
+	{
+		return bMirrorCurve;
+	}
+	FORCEINLINE void Oscillate(int32 MinFrame, int32 MaxFrame)
+	{
+		if (FMath::Abs(CycleCount) % 2 == 1)
+		{
+			bMirrorCurve = true;
+			Time = MinFrame + (FFrameTime(MaxFrame) - Time);
+		}
+	}
+};
+MOVIESCENE_API  FCycleParams CycleTime(FFrameNumber MinFrame, FFrameNumber MaxFrame, FFrameTime InTime);
+
+} // namespace MovieScene
+} // namespace UE
 /*
 * Note if any Channel uses these delegate's they need a custom serializer to make sure they stick around on undo/redo. Dynamic delegates are too heavy.
 */

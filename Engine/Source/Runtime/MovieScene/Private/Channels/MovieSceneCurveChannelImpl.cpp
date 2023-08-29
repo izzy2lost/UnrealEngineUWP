@@ -51,7 +51,7 @@ static FAutoConsoleVariableRef CVarEnableCachedChannelEvaluation(
 
 template<typename ChannelType>
 static typename ChannelType::CurveValueType
-EvalForTwoKeys(
+	EvalForTwoKeys(
 		const typename ChannelType::ChannelValueType& Key1, FFrameNumber Key1Time,
 		const typename ChannelType::ChannelValueType& Key2, FFrameNumber Key2Time,
 		FFrameNumber InTime,
@@ -100,45 +100,6 @@ EvalForTwoKeys(
 	}
 }
 
-struct FCycleParams
-{
-	double ValueOffset;
-	FFrameTime Time;
-	int32 CycleCount;
-	int32 Duration;
-	bool bMirrorCurve;
-
-	FCycleParams(FFrameTime InTime, int32 InDuration)
-		: ValueOffset(0.0)
-		, Time(InTime)
-		, CycleCount(0)
-		, Duration(InDuration)
-		, bMirrorCurve(false)
-	{}
-
-	FORCEINLINE void ComputePreValueOffset(double FirstValue, double LastValue)
-	{
-		// CycleCount is negative for pre-extrap
-		ValueOffset = (LastValue-FirstValue) * CycleCount;
-	}
-	FORCEINLINE void ComputePostValueOffset(double FirstValue, double LastValue)
-	{
-		ValueOffset = (LastValue-FirstValue) * CycleCount;
-	}
-	FORCEINLINE bool ShouldMirrorCurve() const
-	{
-		return bMirrorCurve;
-	}
-	FORCEINLINE void Oscillate(int32 MinFrame, int32 MaxFrame)
-	{
-		if (FMath::Abs(CycleCount) % 2 == 1)
-		{
-			bMirrorCurve = true;
-			Time = MinFrame + (FFrameTime(MaxFrame) - Time);
-		}
-	}
-};
-
 FCycleParams CycleTime(FFrameNumber MinFrame, FFrameNumber MaxFrame, FFrameTime InTime)
 {
 	FCycleParams Params(InTime, MaxFrame.Value - MinFrame.Value);
@@ -152,21 +113,21 @@ FCycleParams CycleTime(FFrameNumber MinFrame, FFrameNumber MaxFrame, FFrameTime 
 		const int32 CycleCount = ((MaxFrame - InTime) / Params.Duration).FloorToFrame().Value;
 
 		Params.CycleCount = -CycleCount;
-		Params.Time = InTime + FFrameTime(Params.Duration*CycleCount);
+		Params.Time = InTime + FFrameTime(Params.Duration * CycleCount);
 	}
 	else if (InTime > MaxFrame)
 	{
 		const int32 CycleCount = ((InTime - MinFrame) / Params.Duration).FloorToFrame().Value;
 
 		Params.CycleCount = CycleCount;
-		Params.Time = InTime - FFrameTime(Params.Duration*CycleCount);
+		Params.Time = InTime - FFrameTime(Params.Duration * CycleCount);
 	}
 
 	return Params;
 }
 
-} // namespace MovieScene
-} // namespace UE
+}
+}
 
 
 template<typename ChannelType>

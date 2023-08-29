@@ -33,7 +33,7 @@ struct FMovieSceneIntegerChannel : public FMovieSceneChannel
 	GENERATED_BODY()
 
 	FMovieSceneIntegerChannel()
-		: DefaultValue(0), bHasDefaultValue(false)
+		: PreInfinityExtrap(RCCE_Constant), PostInfinityExtrap(RCCE_Constant), DefaultValue(0), bHasDefaultValue(false)
 	{}
 
 	/**
@@ -175,7 +175,14 @@ public:
 	{
 		bHasDefaultValue = false;
 	}
+public:
+	/** Pre-infinity extrapolation state, integer channel supports them all but linear since that requires a tangent*/
+	UPROPERTY()
+	TEnumAsByte<ERichCurveExtrapolation> PreInfinityExtrap;
 
+	/** Post-infinity extrapolation state, integer channel supports them all but linear since that requires a tangent*/
+	UPROPERTY()
+	TEnumAsByte<ERichCurveExtrapolation> PostInfinityExtrap;
 private:
 
 	UPROPERTY(meta=(KeyTimes))

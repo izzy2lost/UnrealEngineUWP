@@ -32,7 +32,7 @@ struct FMovieSceneBoolChannel : public FMovieSceneChannel
 	GENERATED_BODY()
 
 	FMovieSceneBoolChannel()
-		: DefaultValue(false), bHasDefaultValue(false)
+		: PreInfinityExtrap(RCCE_Constant), PostInfinityExtrap(RCCE_Constant), DefaultValue(false), bHasDefaultValue(false)
 	{}
 
 	/**
@@ -152,6 +152,14 @@ public:
 	{
 		bHasDefaultValue = false;
 	}
+public:
+	/** Pre-infinity extrapolation state, bool channel only supports constant, cycle and oscillate */
+	UPROPERTY()
+	TEnumAsByte<ERichCurveExtrapolation> PreInfinityExtrap;
+
+	/** Post-infinity extrapolation state, bool channel only supports  constant, cycle and oscillate */
+	UPROPERTY()
+	TEnumAsByte<ERichCurveExtrapolation> PostInfinityExtrap;
 
 protected:
 
