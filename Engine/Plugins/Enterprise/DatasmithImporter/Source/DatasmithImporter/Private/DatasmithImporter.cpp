@@ -1158,6 +1158,11 @@ AActor* FDatasmithImporter::ImportActor( FDatasmithImportContext& ImportContext,
 		ImportMetaDataForObject(ImportContext, ActorElement, ImportedActor);
 
 		ImportContext.AddImportedActor(ImportedActor);
+
+		if (ADatasmithSceneActor* DatasmithSceneActor = ImportContext.ActorsContext.ImportSceneActor)
+		{
+			DatasmithSceneActor->RelatedActors.FindOrAdd(ActorElement->GetName()) = ImportedActor;
+		}
 	}
 	else
 	{

@@ -135,11 +135,6 @@ AActor* FDatasmithActorImporter::ImportActor( UClass* ActorClass, const TSharedR
 
 		SetupActorProperties( ImportedActor, ActorElement, ImportContext ) ;
 		SetupSceneComponent( ImportedActor->GetRootComponent(), ActorElement, ImportContext.Hierarchy.Num() > 0 ? ImportContext.Hierarchy.Top() : nullptr );
-
-		if ( DatasmithSceneActor )
-		{
-			DatasmithSceneActor->RelatedActors.FindOrAdd( ActorElement->GetName() ) = ImportedActor;
-		}
 	}
 
 	return ImportedActor;
