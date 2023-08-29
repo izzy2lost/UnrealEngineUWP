@@ -101,7 +101,7 @@ bool UNNERuntimeRDGDmlImpl::CanCreateModelData(FString FileType, TConstArrayView
 	return FileType.Compare("onnx", ESearchCase::IgnoreCase) == 0;
 }
 
-TArray<uint8> UNNERuntimeRDGDmlImpl::CreateModelData(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform)
+TArray<uint8> UNNERuntimeRDGDmlImpl::CreateModelData(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform, uint32& OutMemoryAlignment)
 {
 	if (!CanCreateModelData(FileType, FileData, FileId, TargetPlatform))
 	{
@@ -132,6 +132,8 @@ TArray<uint8> UNNERuntimeRDGDmlImpl::CreateModelData(FString FileType, TConstArr
 	Writer << Guid;
 	Writer << Version;
 	Writer.Serialize(OutputModel.Data.GetData(), OutputModel.Data.Num());
+
+	OutMemoryAlignment = 0;
 	return Result;
 };
 

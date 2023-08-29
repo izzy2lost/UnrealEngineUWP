@@ -23,7 +23,7 @@ bool UNNERuntimeORTGpuImpl::CanCreateModelData(FString FileType, TConstArrayView
 	return FileType.Compare("onnx", ESearchCase::IgnoreCase) == 0;
 }
 
-TArray<uint8> UNNERuntimeORTGpuImpl::CreateModelData(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform)
+TArray<uint8> UNNERuntimeORTGpuImpl::CreateModelData(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform, uint32& OutMemoryAlignment)
 {
 	if (!CanCreateModelData(FileType, FileData, FileId, TargetPlatform))
 	{
@@ -49,6 +49,8 @@ TArray<uint8> UNNERuntimeORTGpuImpl::CreateModelData(FString FileType, TConstArr
 	Writer << UNNERuntimeORTGpuImpl::GUID;
 	Writer << UNNERuntimeORTGpuImpl::Version;
 	Writer.Serialize(OutputModel.Data.GetData(), OutputModel.Data.Num());
+
+	OutMemoryAlignment = 0;
 	return Result;
 }
 

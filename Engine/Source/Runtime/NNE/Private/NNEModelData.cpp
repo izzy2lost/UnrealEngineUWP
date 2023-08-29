@@ -2,305 +2,39 @@
 
 #include "NNEModelData.h"
 
+#include "EditorFramework/AssetImportData.h"
 #include "NNE.h"
 #include "NNEAttributeMap.h"
 #include "NNEModelOptimizerInterface.h"
 #include "NNERuntimeFormat.h"
 #include "Serialization/CustomVersion.h"
 #include "UObject/WeakInterfacePtr.h"
-#include "EditorFramework/AssetImportData.h"
 
 #if WITH_EDITOR
 #include "Containers/StringFwd.h"
-#include "DerivedDataCacheKey.h"
 #include "DerivedDataCache.h"
+#include "DerivedDataCacheKey.h"
 #include "DerivedDataRequestOwner.h"
-#include "Internationalization/TextLocalizationResource.h"
-#include "Misc/Guid.h"
-#endif
+#include "Memory/CompositeBuffer.h"
+#endif // WITH_EDITOR
 
-enum Type
+namespace UE::NNE::ModelData
 {
-	Initial = 0,
-	TargetRuntimesAndAssetImportData = 1,
-	// -----<new versions can be added before this line>-------------------------------------------------
-	// - this needs to be the last line (see note below)
-	VersionPlusOne,
-	LatestVersion = VersionPlusOne - 1
-};
-
-const FGuid UNNEModelData::GUID(0x9513202e, 0xeba1b279, 0xf17fe5ba, 0xab90c3f2);
-FCustomVersionRegistration NNEModelDataVersion(UNNEModelData::GUID, LatestVersion, TEXT("NNEModelDataVersion"));//Always save with the latest version
-
-#if WITH_EDITOR
-
-inline FString GetDDCRequestId(const FString& FileId, const FString& RuntimeName, const FString& ModelDataIdentifier)
-{
-	//RuntimeName and FileId are embedded to the id to ensure no potential collision between the runtime/assets
-	return RuntimeName + "-" + FileId + "-" + ModelDataIdentifier;
-}
-
-inline UE::DerivedData::FCacheKey CreateCacheKey(const FString& FileId, const FString& RequestId)
-{
-	return { UE::DerivedData::FCacheBucket(FWideStringView(*FileId)), FIoHash::HashBuffer(MakeMemoryView(FTCHARToUTF8(RequestId))) };
-}
-
-inline FSharedBuffer GetFromDDC(const FGuid& FileId, const FString& RuntimeName, const FString& ModelDataIdentifier)
-{
-	FString FileIdStr = FileId.ToString(EGuidFormats::Digits);
-	FString RequestId = GetDDCRequestId(FileIdStr, RuntimeName, ModelDataIdentifier);
-
-	UE::DerivedData::FCacheGetValueRequest GetRequest;
-	GetRequest.Name = FString("Get-") + RequestId;
-	GetRequest.Key = CreateCacheKey(FileIdStr, RequestId);
-	FSharedBuffer RawDerivedData;
-	UE::DerivedData::FRequestOwner BlockingGetOwner(UE::DerivedData::EPriority::Blocking);
-	UE::DerivedData::GetCache().GetValue({ GetRequest }, BlockingGetOwner, [&RawDerivedData](UE::DerivedData::FCacheGetValueResponse&& Response)
-		{
-			RawDerivedData = Response.Value.GetData().Decompress();
-		});
-	BlockingGetOwner.Wait();
-	return RawDerivedData;
-}
-
-inline void PutIntoDDC(const FGuid& FileId, const FString& RuntimeName, const FString& ModelDataIdentifier, FSharedBuffer& Data)
-{
-	FString FileIdStr = FileId.ToString(EGuidFormats::Digits);
-	FString RequestId = GetDDCRequestId(FileIdStr, RuntimeName, ModelDataIdentifier);
-
-	UE::DerivedData::FCachePutValueRequest PutRequest;
-	PutRequest.Name = FString("Put-") + RequestId;
-	PutRequest.Key = CreateCacheKey(FileIdStr, RequestId);
-	PutRequest.Value = UE::DerivedData::FValue::Compress(Data);
-	UE::DerivedData::FRequestOwner BlockingPutOwner(UE::DerivedData::EPriority::Blocking);
-	UE::DerivedData::GetCache().PutValue({ PutRequest }, BlockingPutOwner);
-	BlockingPutOwner.Wait();
-}
-
-#endif
-
-inline TArray<uint8> CreateRuntimeDataBlob(const FString& RuntimeName, FString FileType, const TArray<uint8>& FileData, FGuid FileId, const ITargetPlatform* TargetPlatform)
-{
-	TWeakInterfacePtr<INNERuntime> NNERuntime = UE::NNE::GetRuntime<INNERuntime>(RuntimeName);
-	if (NNERuntime.IsValid())
+	enum Version : uint32
 	{
-		return NNERuntime->CreateModelData(FileType, FileData, FileId, TargetPlatform);
-	}
-	else
-	{
-		UE_LOG(LogNNE, Error, TEXT("UNNEModelData: No runtime '%s' found. Valid runtimes are: "), *RuntimeName);
-		TArrayView<TWeakInterfacePtr<INNERuntime>> Runtimes = UE::NNE::GetAllRuntimes();
-		for (int i = 0; i < Runtimes.Num(); i++)
-		{
-			UE_LOG(LogNNE, Error, TEXT("- %s"), *Runtimes[i]->GetRuntimeName());
-		}
-		return {};
-	}
-}
+		V0 = 0, // Initial
+		V1 = 1, // TargetRuntimes and AssetImportData
+		V2 = 2, // Re-arrange fields and store only ModelData in cooked assets
+		// New versions can be added above this line
+		VersionPlusOne,
+		Latest = VersionPlusOne - 1
+	};
 
-void UNNEModelData::Init(const FString& Type, TConstArrayView<uint8> Buffer)
-{
-	FileType = Type;
-	FileData = Buffer;
-	FPlatformMisc::CreateGuid(FileId);
-	ModelData.Empty();
-}
+	const FGuid GUID(0x9513202e, 0xeba1b279, 0xf17fe5ba, 0xab90c3f2);
+	FCustomVersionRegistration NNEModelDataVersion(GUID, Version::Latest, TEXT("NNEModelDataVersion"));// Always save with the latest version
 
-FString UNNEModelData::GetFileType()
-{
-	return FileType;
-}
+	const uint32 DDCAssetVersion = 0; // Increase this value to force rebuilding cache entries
 
-TConstArrayView<uint8> UNNEModelData::GetFileData()
-{
-	return FileData;
-}
-
-FGuid UNNEModelData::GetFileId()
-{
-	return FileId;
-}
-
-TSharedPtr<UE::NNE::FSharedModelData> UNNEModelData::GetModelData(const FString& RuntimeName)
-{
-#if WITH_EDITORONLY_DATA
-	// Check model data is supporting the requested target runtime
-	TArrayView<const FString> TargetRuntimesNames = GetTargetRuntimes();
-	if (!TargetRuntimesNames.IsEmpty() && !TargetRuntimesNames.Contains(RuntimeName))
-	{
-		UE_LOG(LogNNE, Error, TEXT("UNNEModelData: Runtime '%s' is not among the target runtimes. Target runtimes are: "), *RuntimeName);
-		for (const FString& TargetRuntimesName : TargetRuntimesNames)
-		{
-			UE_LOG(LogNNE, Error, TEXT("- %s"), *TargetRuntimesName);
-		}
-		return TSharedPtr<UE::NNE::FSharedModelData>();
-	}
-#endif //WITH_EDITORONLY_DATA
-
-	// Check if we have a local cache hit
-	FSharedBuffer* LocalData = ModelData.Find(RuntimeName);
-	if (LocalData)
-	{
-		return MakeShared<UE::NNE::FSharedModelData>(*LocalData);
-	}
-	
-#if WITH_EDITOR
-	TWeakInterfacePtr<INNERuntime> NNERuntime = UE::NNE::GetRuntime<INNERuntime>(RuntimeName);
-	if (!NNERuntime.IsValid())
-	{
-		UE_LOG(LogNNE, Error, TEXT("UNNEModelData: Runtime '%s' is among the target runtimes but instance is invalid."), *RuntimeName);
-		return TSharedPtr<UE::NNE::FSharedModelData>();
-	}
-
-	FString ModelDataIdentifier = NNERuntime->GetModelDataIdentifier(FileType, FileData, FileId, nullptr);
-	if (ModelDataIdentifier.Len() == 0)
-	{
-		UE_LOG(LogNNE, Error, TEXT("UNNEModelData: Runtime '%s' returned an empty string as a ModelDataIdentifier. GetModelDataIdentifier should always return a valid identifier."), *RuntimeName);
-		return TSharedPtr<UE::NNE::FSharedModelData>();
-	}
-	
-	// Check if we have a DDC cache hit
-	FSharedBuffer RemoteData = GetFromDDC(FileId, RuntimeName, ModelDataIdentifier);
-	if (RemoteData.GetSize() > 0)
-	{
-		ModelData.Add(RuntimeName, RemoteData);
-		
-		return MakeShared<UE::NNE::FSharedModelData>(RemoteData);
-	}
-#endif //WITH_EDITOR
-
-	// Try to create the model
-	TArray<uint8> RuntimeDataBlob = CreateRuntimeDataBlob(RuntimeName, FileType, FileData, FileId, nullptr);
-	FSharedBuffer CreatedData = MakeSharedBufferFromArray(MoveTemp(RuntimeDataBlob));
-	if (CreatedData.GetSize() < 1)
-	{
-		
-		return TSharedPtr<UE::NNE::FSharedModelData>();
-	}
-
-	// Cache the model
-	ModelData.Add(RuntimeName, CreatedData);
-
-#if WITH_EDITOR
-	// And put it into DDC
-	PutIntoDDC(FileId, RuntimeName, ModelDataIdentifier, CreatedData);
-#endif //WITH_EDITOR
-	
-	return MakeShared<UE::NNE::FSharedModelData>(CreatedData);
-}
-
-void UNNEModelData::Serialize(FArchive& Ar)
-{
-	// Store the asset version (no effect in load)
-	Ar.UsingCustomVersion(UNNEModelData::GUID);
-
-#if WITH_EDITORONLY_DATA
-	// Recreate each model data when cooking
-	if (Ar.IsCooking() && Ar.IsSaving())
-	{
-		ModelData.Reset();
-
-		TArray<FString, TInlineAllocator<10>> CookedRuntimeNames;
-		CookedRuntimeNames.Append(GetTargetRuntimes());
-
-		//No target runtime means all currently registered ones.
-		if (GetTargetRuntimes().IsEmpty())
-		{
-			for (const TWeakInterfacePtr<INNERuntime>& Runtime : UE::NNE::GetAllRuntimes())
-			{
-				CookedRuntimeNames.Add(Runtime->GetRuntimeName());
-			}
-		}
-
-		for (const FString& RuntimeName : CookedRuntimeNames)
-		{
-			TArray RuntimeDataBlob = CreateRuntimeDataBlob(RuntimeName, FileType, FileData, FileId, Ar.GetArchiveState().CookingTarget());
-			if (RuntimeDataBlob.Num() > 0)
-			{
-				FSharedBuffer CreatedData = MakeSharedBufferFromArray(MoveTemp(RuntimeDataBlob));
-				ModelData.Add(RuntimeName, CreatedData);
-#if WITH_EDITOR
-				TWeakInterfacePtr<INNERuntime> NNERuntime = UE::NNE::GetRuntime<INNERuntime>(RuntimeName);
-				if (NNERuntime.IsValid())
-				{
-					FString ModelDataIdentifier = NNERuntime->GetModelDataIdentifier(FileType, FileData, FileId, Ar.GetArchiveState().CookingTarget());
-					if (ModelDataIdentifier.Len() > 0)
-					{
-						PutIntoDDC(FileId, RuntimeName, ModelDataIdentifier, CreatedData);
-					}
-					else
-					{
-						UE_LOG(LogNNE, Warning, TEXT("UNNEModelData: Runtime '%s' returned an empty string as a ModelDataIdentifier while cooking. GetModelDataIdentifier should always return a valid identifier."), *RuntimeName);
-					}
-				}
-				else
-				{
-					UE_LOG(LogNNE, Warning, TEXT("UNNEModelData: Runtime '%s' is among the cooked runtimes but instance is invalid."), *RuntimeName);
-				}
-#endif //WITH_EDITOR
-			}
-		}
-
-		// Dummy data for fields not required in the game
-		TArray<uint8> EmptyData;
-		TArray<FString> RuntimeNames;
-		ModelData.GetKeys(RuntimeNames);
-		int32 NumItems = RuntimeNames.Num();
-
-		Ar << FileType;
-		Ar << EmptyData;
-		Ar << FileId;
-		Ar << NumItems;
-
-		for (int i = 0; i < NumItems; i++)
-		{
-			Ar << RuntimeNames[i];
-			FSharedBuffer Data = ModelData[RuntimeNames[i]];
-			TArray<uint8> DataToSerialize(static_cast<const uint8*>(Data.GetData()), Data.GetSize());
-			Ar << DataToSerialize;
-		}
-	}
-	else
-#endif //WITH_EDITORONLY_DATA
-	{
-		int32 NumItems = 0;
-
-#if WITH_EDITORONLY_DATA
-		if (Ar.CustomVer(UNNEModelData::GUID) >= TargetRuntimesAndAssetImportData)
-		{
-			Ar << TargetRuntimes;
-			Ar << AssetImportData;
-		}
-		else 
-		{
-			// AssetImportData should always be valid
-			AssetImportData = NewObject<UAssetImportData>(this, TEXT("AssetImportData"));
-		}
-#endif //WITH_EDITORONLY_DATA
-
-		Ar << FileType;
-		Ar << FileData;
-		Ar << FileId;
-		Ar << NumItems;
-
-		if (Ar.IsLoading())
-		{
-			for (int i = 0; i < NumItems; i++)
-			{
-				FString Name;
-				Ar << Name;
-				TArray<uint8> Data;
-				Ar << Data;
-				FSharedBuffer SharedData = MakeSharedBufferFromArray(MoveTemp(Data));
-				ModelData.Add(Name, SharedData);
-			}
-		}
-	}
-}
-
-#if WITH_EDITORONLY_DATA
-namespace UE::NNE::ModelDataHelpers
-{
 	FString GetRuntimesAsString(TArrayView<const FString> Runtimes)
 	{
 		if (Runtimes.Num() == 0)
@@ -322,43 +56,426 @@ namespace UE::NNE::ModelDataHelpers
 		}
 		return RuntimesAsOneString;
 	}
-} // UE::NNE::ModelDataHelpers
 
-void UNNEModelData::PostInitProperties()
-{
-	if (!HasAnyFlags(RF_ClassDefaultObject))
+#if WITH_EDITOR
+
+	inline FString GetDDCRequestId(const FString& FileId, const FString& RuntimeName, const FString& ModelDataIdentifier)
 	{
-		AssetImportData = NewObject<UAssetImportData>(this, TEXT("AssetImportData"));
+		// RuntimeName and FileId are embedded to the id to ensure no potential collision between the runtime/assets
+		return RuntimeName + "-" + FileId + "-DDCv" + FString::FromInt(DDCAssetVersion) + "-" + ModelDataIdentifier;
 	}
-	Super::PostInitProperties();
-}
+
+	inline UE::DerivedData::FCacheKey CreateCacheKey(const FString& FileId, const FString& RequestId)
+	{
+		return { UE::DerivedData::FCacheBucket(FWideStringView(*FileId)), FIoHash::HashBuffer(MakeMemoryView(FTCHARToUTF8(RequestId))) };
+	}
+
+	inline void PutIntoDDC(const FGuid& FileId, const FString& RuntimeName, const FString& ModelDataIdentifier, FSharedBuffer& Data, uint32 MemoryAlignment)
+	{
+		FString FileIdStr = FileId.ToString(EGuidFormats::Digits);
+		FString RequestId = GetDDCRequestId(FileIdStr, RuntimeName, ModelDataIdentifier);
+
+		TArray<UE::DerivedData::FCachePutValueRequest> Requests;
+		Requests.SetNum(1);
+
+		Requests[0].Name = FString("Put-") + RequestId;
+		Requests[0].Key = CreateCacheKey(FileIdStr, RequestId);
+		Requests[0].Value = UE::DerivedData::FValue::Compress(FCompositeBuffer(MakeSharedBufferFromArray(TArray<uint32>({ MemoryAlignment })), Data));
+
+		UE::DerivedData::FRequestOwner BlockingPutOwner(UE::DerivedData::EPriority::Blocking);
+		UE::DerivedData::GetCache().PutValue(Requests, BlockingPutOwner);
+		BlockingPutOwner.Wait();
+	}
+
+	inline FSharedBuffer GetFromDDC(const FGuid& FileId, const FString& RuntimeName, const FString& ModelDataIdentifier, uint32& OutMemoryAlignment)
+	{
+		FString FileIdStr = FileId.ToString(EGuidFormats::Digits);
+		FString RequestId = GetDDCRequestId(FileIdStr, RuntimeName, ModelDataIdentifier);
+
+		TArray<UE::DerivedData::FCacheGetValueRequest> Requests;
+		Requests.SetNum(1);
+
+		Requests[0].Name = FString("Get-") + RequestId;
+		Requests[0].Key = CreateCacheKey(FileIdStr, RequestId);
+
+		FSharedBuffer Result;
+		UE::DerivedData::FRequestOwner BlockingGetOwner(UE::DerivedData::EPriority::Blocking);
+		UE::DerivedData::GetCache().GetValue(Requests, BlockingGetOwner, [&Result, &OutMemoryAlignment](UE::DerivedData::FCacheGetValueResponse&& Response)
+		{
+			if (Response.Value.HasData() && Response.Value.GetRawSize() > sizeof(uint32))
+			{
+				FCompressedBufferReader Reader(Response.Value.GetData());
+				uint32 MemoryAlignment = ((uint32*)Reader.Decompress(0, sizeof(uint32)).GetData())[0];
+				uint64 DataSize = Response.Value.GetRawSize() - sizeof(uint32);
+
+				void* Data = FMemory::Malloc(DataSize, MemoryAlignment);
+				if (Reader.TryDecompressTo(FMutableMemoryView(Data, DataSize), sizeof(uint32)))
+				{
+					OutMemoryAlignment = MemoryAlignment;
+					Result = FSharedBuffer::TakeOwnership(Data, DataSize, FMemory::Free);
+				}
+				else
+				{
+					FMemory::Free(Data);
+				}
+			}
+		});
+		BlockingGetOwner.Wait();
+		return Result;
+	}
+
+#endif // WITH_EDITOR
+
+	inline FSharedBuffer CreateModelData(const FString& RuntimeName, FString FileType, const TArray<uint8>& FileData, FGuid FileId, const ITargetPlatform* TargetPlatform, uint32& OutMemoryAlignment)
+	{
+		TWeakInterfacePtr<INNERuntime> NNERuntime = UE::NNE::GetRuntime<INNERuntime>(RuntimeName);
+		if (NNERuntime.IsValid())
+		{
+			if (NNERuntime->CanCreateModelData(FileType, FileData, FileId, TargetPlatform))
+			{
+				uint32 TmpOutMemoryAlignment = 0;
+				TArray<uint8> ModelData = NNERuntime->CreateModelData(FileType, FileData, FileId, TargetPlatform, TmpOutMemoryAlignment);
+
+				// Make sure a runtime does fulfill its own alignment requirement
+				checkf(TmpOutMemoryAlignment <= 1 || (((uintptr_t)(const void *)(ModelData.GetData())) % TmpOutMemoryAlignment == 0), TEXT("Runtimes must return ModelData that is aligned with OutMemoryAlignment!"))
+
+				if (ModelData.Num() > 0)
+				{
+					OutMemoryAlignment = TmpOutMemoryAlignment;
+					return MakeSharedBufferFromArray(MoveTemp(ModelData));
+				}
+			}
+		}
+		else
+		{
+			UE_LOG(LogNNE, Error, TEXT("UNNEModelData: No runtime '%s' found. Valid runtimes are: "), *RuntimeName);
+			TArrayView<TWeakInterfacePtr<INNERuntime>> Runtimes = UE::NNE::GetAllRuntimes();
+			for (int32 i = 0; i < Runtimes.Num(); i++)
+			{
+				UE_LOG(LogNNE, Error, TEXT("- %s"), *Runtimes[i]->GetRuntimeName());
+			}
+		}
+		return {};
+	}
+
+} // UE::NNE::ModelData
 
 void UNNEModelData::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
-	if (AssetImportData)
-	{
-		OutTags.Add(FAssetRegistryTag(SourceFileTagName(), AssetImportData->GetSourceData().ToJson(), FAssetRegistryTag::TT_Hidden));
-	}
-
-	OutTags.Add(FAssetRegistryTag("TargetRuntimes", UE::NNE::ModelDataHelpers::GetRuntimesAsString(GetTargetRuntimes()), FAssetRegistryTag::TT_Alphabetical));
-
+	OutTags.Add(FAssetRegistryTag("TargetRuntimes", UE::NNE::ModelData::GetRuntimesAsString(GetTargetRuntimes()), FAssetRegistryTag::TT_Alphabetical));
 	Super::GetAssetRegistryTags(OutTags);
+}
+
+void UNNEModelData::Serialize(FArchive& Ar)
+{
+	// Store the asset version (no effect in load)
+	Ar.UsingCustomVersion(UE::NNE::ModelData::GUID);
+
+	if (Ar.IsSaving())
+	{
+		bool bWriteModelData = true;
+		if (Ar.IsCooking())
+		{
+			// Optimize storage: FileData is not required anymore because we have the model and can cook it for every runtime
+			TArray<FString> TmpTargetRuntimes;
+			Ar << TmpTargetRuntimes;
+			FString TmpFileType;
+			Ar << TmpFileType;
+			TArray<uint8> TmpFileData;
+			Ar << TmpFileData;
+			Ar << FileId;
+
+			// Cooking must recreate all model data but only if file data is still available
+			if (FileData.Num() > 0)
+			{
+				ModelData.Reset();
+
+				// No target runtime means all currently registered ones
+				TArray<FString, TInlineAllocator<10>> CookRuntimeNames;
+				if (GetTargetRuntimes().IsEmpty())
+				{
+					for (const TWeakInterfacePtr<INNERuntime>& Runtime : UE::NNE::GetAllRuntimes())
+					{
+						CookRuntimeNames.Add(Runtime->GetRuntimeName());
+					}
+				}
+				else
+				{
+					CookRuntimeNames.Append(GetTargetRuntimes());
+				}
+
+				for (const FString& RuntimeName : CookRuntimeNames)
+				{
+					uint32 MemoryAlignment = 0;
+					FSharedBuffer CreatedData = UE::NNE::ModelData::CreateModelData(RuntimeName, FileType, FileData, FileId, Ar.GetArchiveState().CookingTarget(), MemoryAlignment);
+					if (CreatedData.GetSize() > 0)
+					{
+						ModelData.Add(RuntimeName, MakeTuple(CreatedData, MemoryAlignment));
+#if WITH_EDITOR
+						TWeakInterfacePtr<INNERuntime> NNERuntime = UE::NNE::GetRuntime<INNERuntime>(RuntimeName);
+						if (NNERuntime.IsValid())
+						{
+							FString ModelDataIdentifier = NNERuntime->GetModelDataIdentifier(FileType, FileData, FileId, Ar.GetArchiveState().CookingTarget());
+							if (ModelDataIdentifier.Len() > 0)
+							{
+								UE::NNE::ModelData::PutIntoDDC(FileId, RuntimeName, ModelDataIdentifier, CreatedData, MemoryAlignment);
+							}
+							else
+							{
+								UE_LOG(LogNNE, Warning, TEXT("UNNEModelData: Runtime '%s' returned an empty string as a ModelDataIdentifier while cooking. GetModelDataIdentifier should always return a valid identifier."), *RuntimeName);
+							}
+						}
+						else
+						{
+							UE_LOG(LogNNE, Warning, TEXT("UNNEModelData: Runtime '%s' is among the cooked runtimes but instance is invalid."), *RuntimeName);
+						}
+#endif //WITH_EDITOR
+					}
+				}
+			}
+		}
+		else
+		{
+			// Only cooked assets optimize storage
+			Ar << TargetRuntimes;
+			Ar << FileType;
+			Ar << FileData;
+			Ar << FileId;
+
+#if WITH_EDITOR
+			// In editor (when not cooking), no model data is stored as model data can always be recreated and unnecessary data in subversion control should be avoided
+			bWriteModelData = false;
+#endif //WITH_EDITOR
+		}
+
+		if (bWriteModelData)
+		{
+			TArray<FString> RuntimeNames;
+			ModelData.GetKeys(RuntimeNames);
+			int32 NumItems = RuntimeNames.Num();
+
+			Ar << NumItems;
+			for (int32 i = 0; i < NumItems; i++)
+			{
+				Ar << RuntimeNames[i];
+
+				uint32 MemoryAlignment = ModelData[RuntimeNames[i]].Get<1>();
+				Ar << MemoryAlignment;
+
+				uint64 DataSize = ModelData[RuntimeNames[i]].Get<0>().GetSize();
+				Ar << DataSize;
+
+				Ar.Serialize((void*)ModelData[RuntimeNames[i]].Get<0>().GetData(), DataSize);
+			}
+		}
+		else
+		{
+			int32 NumItems = 0;
+			Ar << NumItems;
+		}
+	}
+	else
+	{
+		// Read the archive
+
+		TObjectPtr<class UAssetImportData> AssetImportData;
+		int32 NumItems;
+		FString Name;
+		uint32 MemoryAlignment;
+		uint64 DataSize;
+		TArray<uint8> Data;
+		void* RawData;
+		int32 Index;
+
+		switch (Ar.CustomVer(UE::NNE::ModelData::GUID))
+		{
+		case UE::NNE::ModelData::Version::V0:
+			TargetRuntimes.Empty();
+			Ar << FileType;
+			Ar << FileData;
+			Ar << FileId;
+			Ar << NumItems;
+			for (Index = 0; Index < NumItems; Index++)
+			{
+				Ar << Name;
+				Ar << Data;
+				ModelData.Add(Name, MakeTuple(MakeSharedBufferFromArray(MoveTemp(Data)), 0));
+			}
+			UE_LOG(LogNNE, Warning, TEXT("[DEPRECATION] UNNEModelData: The asset %s (v0) is deprecated. Please right-click the asset and select 'Save' to update it to the latest version."), *this->GetName());
+			break;
+
+		case UE::NNE::ModelData::Version::V1:
+			TargetRuntimes.Empty();
+			if (!Ar.IsLoadingFromCookedPackage())
+			{
+				Ar << TargetRuntimes;
+				Ar << AssetImportData;
+			}
+			Ar << FileType;
+			Ar << FileData;
+			Ar << FileId;
+			Ar << NumItems;
+			for (Index = 0; Index < NumItems; Index++)
+			{
+				Ar << Name;
+				Ar << Data;
+				ModelData.Add(Name, MakeTuple(MakeSharedBufferFromArray(MoveTemp(Data)), 0));
+			}
+			UE_LOG(LogNNE, Warning, TEXT("[DEPRECATION] UNNEModelData: The asset %s (v1) is deprecated. Please right-click the asset and select 'Save' to update it to the latest version."), *this->GetName());
+			break;
+
+		case UE::NNE::ModelData::Version::V2:
+			Ar << TargetRuntimes;
+			Ar << FileType;
+			Ar << FileData;
+			Ar << FileId;
+			Ar << NumItems;
+			for (Index = 0; Index < NumItems; Index++)
+			{
+				Ar << Name;
+				Ar << MemoryAlignment;
+				Ar << DataSize;
+				RawData = FMemory::Malloc(DataSize, MemoryAlignment);
+				Ar.Serialize(RawData, DataSize);
+				ModelData.Add(Name, MakeTuple(FSharedBuffer::TakeOwnership(RawData, DataSize, FMemory::Free), MemoryAlignment));
+			}
+			break;
+
+		default:
+			UE_LOG(LogNNE, Error, TEXT("UNNEModelData: Unknown asset version %d: Deserialisation failed, please reimport the original model."), Ar.CustomVer(UE::NNE::ModelData::GUID));
+			break;
+		}
+	}
+}
+
+void UNNEModelData::Init(const FString& Type, TConstArrayView<uint8> Buffer)
+{
+	TargetRuntimes.Empty();
+	FileType = Type;
+	FileData = Buffer;
+	FPlatformMisc::CreateGuid(FileId);
+	ModelData.Empty();
+}
+
+TArrayView<const FString> UNNEModelData::GetTargetRuntimes() const 
+{ 
+	return TargetRuntimes;
 }
 
 void UNNEModelData::SetTargetRuntimes(TArrayView<const FString> RuntimeNames)
 {
 	TargetRuntimes = RuntimeNames;
 
-	TArray<FString, TInlineAllocator<10>> CookedRuntimes;
-	ModelData.GetKeys(CookedRuntimes);
-	for (const FString& Runtime : CookedRuntimes)
+	if (RuntimeNames.Num() > 0)
 	{
-		if (!TargetRuntimes.Contains(Runtime))
+		TArray<FString, TInlineAllocator<10>> CookedRuntimes;
+		ModelData.GetKeys(CookedRuntimes);
+		for (const FString& Runtime : CookedRuntimes)
 		{
-			ModelData.Remove(Runtime);
+			if (!TargetRuntimes.Contains(Runtime))
+			{
+				ModelData.Remove(Runtime);
+			}
 		}
+		ModelData.Compact();
 	}
-	ModelData.Compact();
 }
 
-#endif //WITH_EDITORONLY_DATA
+FString UNNEModelData::GetFileType()
+{
+	return FileType;
+}
+
+TConstArrayView<uint8> UNNEModelData::GetFileData()
+{
+	return FileData;
+}
+
+void UNNEModelData::ClearFileDataAndFileType()
+{
+	FileType = "";
+	FileData.Empty();
+}
+
+FGuid UNNEModelData::GetFileId()
+{
+	return FileId;
+}
+
+TSharedPtr<UE::NNE::FSharedModelData> UNNEModelData::GetModelData(const FString& RuntimeName)
+{
+	// Check model data is supporting the requested target runtime
+	TArrayView<const FString> TargetRuntimesNames = GetTargetRuntimes();
+	if (!TargetRuntimesNames.IsEmpty() && !TargetRuntimesNames.Contains(RuntimeName))
+	{
+		UE_LOG(LogNNE, Error, TEXT("UNNEModelData: Runtime '%s' is not among the target runtimes. Target runtimes are: "), *RuntimeName);
+		for (const FString& TargetRuntimesName : TargetRuntimesNames)
+		{
+			UE_LOG(LogNNE, Error, TEXT("- %s"), *TargetRuntimesName);
+		}
+		return TSharedPtr<UE::NNE::FSharedModelData>();
+	}
+
+	// Check if we have a local cache hit
+	TTuple<FSharedBuffer, uint32>* LocalData = ModelData.Find(RuntimeName);
+	if (LocalData)
+	{
+		return MakeShared<UE::NNE::FSharedModelData>(LocalData->Get<0>());
+	}
+
+	// After this point FileData is required to either get the cache id or recreate it from scratch
+	if (FileData.Num() < 1)
+	{
+		UE_LOG(LogNNE, Error, TEXT("UNNEModelData: Cannot create model data from empty file data."));
+		return TSharedPtr<UE::NNE::FSharedModelData>();
+	}
+
+#if WITH_EDITOR
+	TWeakInterfacePtr<INNERuntime> NNERuntime = UE::NNE::GetRuntime<INNERuntime>(RuntimeName);
+	if (!NNERuntime.IsValid())
+	{
+		UE_LOG(LogNNE, Error, TEXT("UNNEModelData: Runtime '%s' is among the target runtimes but instance is invalid."), *RuntimeName);
+		return TSharedPtr<UE::NNE::FSharedModelData>();
+	}
+
+	FString ModelDataIdentifier = NNERuntime->GetModelDataIdentifier(FileType, FileData, FileId, nullptr);
+	if (ModelDataIdentifier.Len() == 0)
+	{
+		UE_LOG(LogNNE, Error, TEXT("UNNEModelData: Runtime '%s' returned an empty string as a ModelDataIdentifier. GetModelDataIdentifier should always return a valid identifier."), *RuntimeName);
+		return TSharedPtr<UE::NNE::FSharedModelData>();
+	}
+
+	// Check if we have a DDC cache hit
+	uint32 RemoteMemoryAlignment = 0;
+	FSharedBuffer RemoteData = UE::NNE::ModelData::GetFromDDC(FileId, RuntimeName, ModelDataIdentifier, RemoteMemoryAlignment);
+	if (RemoteData.GetSize() > 0)
+	{
+		ModelData.Add(RuntimeName, MakeTuple(RemoteData, RemoteMemoryAlignment));
+
+		return MakeShared<UE::NNE::FSharedModelData>(RemoteData);
+	}
+#endif //WITH_EDITOR
+
+	// Try to create the model
+	uint32 CreatedMemoryAlignment = 0;
+	FSharedBuffer CreatedData = UE::NNE::ModelData::CreateModelData(RuntimeName, FileType, FileData, FileId, nullptr, CreatedMemoryAlignment);
+	if (CreatedData.GetSize() < 1)
+	{
+		return TSharedPtr<UE::NNE::FSharedModelData>();
+	}
+
+	// Cache the model
+	ModelData.Add(RuntimeName, MakeTuple(CreatedData, CreatedMemoryAlignment));
+
+#if WITH_EDITOR
+	// And put it into DDC
+	UE::NNE::ModelData::PutIntoDDC(FileId, RuntimeName, ModelDataIdentifier, CreatedData, CreatedMemoryAlignment);
+#endif //WITH_EDITOR
+
+	return MakeShared<UE::NNE::FSharedModelData>(CreatedData);
+}
+
+void UNNEModelData::ClearModelData()
+{
+	ModelData.Empty();
+}

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Memory/SharedBuffer.h"
+#include "Misc/Guid.h"
 #include "Templates/SharedPointer.h"
 
 #include "NNEModelData.generated.h"
@@ -23,6 +24,11 @@ namespace UE::NNE
 		FSharedModelData(FSharedBuffer InData) : Data(InData) {}
 		FSharedModelData() {}
 
+		/**
+		 * Get a const array view on the shared data which is guaranteed to remain valid as long as this objects exists.
+		 *
+		 * @return A const array view of the shared data.
+		 */
 		TConstArrayView<uint8> GetView() const
 		{
 			return MakeArrayView(static_cast<const uint8*>(Data.GetData()), Data.GetSize());
@@ -44,6 +50,11 @@ class NNE_API UNNEModelData : public UObject
 
 public:
 
+	// UObject interface
+	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
+	virtual void Serialize(FArchive& Ar) override;
+	// End of UObject interface
+
 	/**
 	 * Initialize the model data with a copy of the data inside Buffer.
 	 *
@@ -53,6 +64,20 @@ public:
 	 * @param Buffer The raw binary file data of the imported model to be copied into this asset.
 	 */
 	void Init(const FString& Type, TConstArrayView<uint8> Buffer);
+
+	/**
+	 * Get the target runtimes this model data will be cooked for. An empty list means all runtimes.
+	 *
+	 * @return The target runtimes names.
+	 */
+	TArrayView<const FString> GetTargetRuntimes() const;
+
+	/**
+	 * Set the target runtimes this model data will be cooked for. An empty list means all runtimes.
+	 *
+	 * @param RuntimeNames The target runtimes names.
+	 */
+	void SetTargetRuntimes(TArrayView<const FString> RuntimeNames);
 
 	/**
 	 * Get the type of data inside FileData.
@@ -73,6 +98,13 @@ public:
 	TConstArrayView<uint8> GetFileData();
 
 	/**
+	 * Clears the FileData and the FileType.
+	 *
+	 * Caution, if the FileData is cleared, no more models can be created on runtimes that do not already have ModelData inside this asset.
+	 */
+	void ClearFileDataAndFileType();
+
+	/**
 	 * Get the FGuid identifying the FileData.
 	 *
 	 * The FileId is created on import of an asset. It can be used to identify the FileData, e.g. when putting corresponding data into the DDC or caching data locally.
@@ -84,7 +116,7 @@ public:
 	/**
 	 * Get the cached (editor) or cooked (game) optimized model data for a given runtime.
 	 *
-	 * This function is used by runtimes when creating a model. In editor, the function will create the optimized model data with the passed runtime in case it has not been cached in the DCC yet. In game, the cooked data is accessed.
+	 * This function is used by runtimes when creating a model. In editor, the function will create the optimized model data with the passed runtime in case it has not been cached in the DCC yet. In game, the cooked data is accessed. The returned model data is aligned in memory as requested by the runtime.
 	 *
 	 * @param RuntimeName The name of the runtime for which the data should be returned.
 	 * @return The optimized and runtime specific model data or an invalid TSharedPtr in case of failure.
@@ -92,50 +124,17 @@ public:
 	TSharedPtr<UE::NNE::FSharedModelData> GetModelData(const FString& RuntimeName);
 
 	/**
-	 * Implements custom serialization of this asset.
-	 * @param Ar The archive to serialize from/to.
-	 */
-	virtual void Serialize(FArchive& Ar) override;
-
-	/**
-	 * A Guid used for asset versioning.
-	 */
-	const static FGuid GUID;
-
-#if WITH_EDITORONLY_DATA
-	// UObject interface
-	virtual void PostInitProperties() override;
-	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
-	// End of UObject interface
-
-	/**
-	 * Get the target runtimes this model data will be cooked for. An empty list mean all runtimes.
+	 * Clears the ModelData.
 	 *
-	 * @return The target runtimes names.
+	 * Caution, if the ModelData is cleared, only runtimes that support cooking on the current platform can create new models from this asset.
 	 */
-	TArrayView<const FString> GetTargetRuntimes() const { return TargetRuntimes; }
-
-	/**
-	 * Set the target runtimes this model data will be cooked for. An empty list mean all runtimes.
-	 *
-	 * @param RuntimeNames The target runtimes names.
-	 */
-	void SetTargetRuntimes(TArrayView<const FString> RuntimeNames);
-
-	/**
-	 * Importing data used for this asset.
-	 */
-	UPROPERTY(VisibleAnywhere, Instanced, Category = ImportSettings)
-	TObjectPtr<class UAssetImportData> AssetImportData;
+	void ClearModelData();
 
 private:
 	/**
 	 * A list of string of the supported runtime, empty to support them all.
 	 */
 	TArray<FString> TargetRuntimes;
-#endif // WITH_EDITORONLY_DATA
-
-private:
 
 	/**
 	 * A string identifying the type of data inside this asset. Corresponds to the extension of the imported file.
@@ -155,6 +154,5 @@ private:
 	/**
 	 * The processed / optimized model data for the different runtimes.
 	 */
-	TMap<FString, FSharedBuffer> ModelData;
-
+	TMap<FString, TTuple<FSharedBuffer, uint32>> ModelData;
 };

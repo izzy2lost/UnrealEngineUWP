@@ -27,7 +27,6 @@ namespace UE::NNEEditor::Private
 		void OnEntryChanged(ECheckBoxState CheckType, int32 Index);
 		ECheckBoxState IsEntryChecked(int32 Index) const;
 
-		void AddCheckBox(const FString& RuntimeName, int32 Index);
 		void InitCheckBoxNames();
 
 		TArray<FString> CheckBoxNames;

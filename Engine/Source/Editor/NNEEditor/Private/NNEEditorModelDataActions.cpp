@@ -2,7 +2,6 @@
 
 #include "NNEEditorModelDataActions.h"
 
-#include "EditorFramework/AssetImportData.h"
 #include "NNEEditorModelDataEditorToolkit.h"
 #include "NNEModelData.h"
 
@@ -39,18 +38,6 @@ namespace UE::NNEEditor::Private
 			if (ModelData != nullptr)
 			{
 				MakeShared<FModelDataEditorToolkit>()->InitEditor(ModelData);
-			}
-		}
-	}
-
-	void FModelDataAssetTypeActions::GetResolvedSourceFilePaths(const TArray<UObject*>& TypeAssets, TArray<FString>& OutSourceFilePaths) const
-	{
-		for (UObject* Asset : TypeAssets)
-		{
-			const UNNEModelData* ModelData = CastChecked<UNNEModelData>(Asset);
-			if (ModelData->AssetImportData)
-			{
-				ModelData->AssetImportData->ExtractFilenames(OutSourceFilePaths);
 			}
 		}
 	}

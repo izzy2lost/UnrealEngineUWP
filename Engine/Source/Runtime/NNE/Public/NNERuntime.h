@@ -53,9 +53,10 @@ public:
 	 * @param FileData The raw binary file of a neural network model.
 	 * @param FileId The unique identifier representing FileData.
 	 * @param TargetPlatform The Interface identifying the target platform for which the data needs to be created. A null pointer indicates the currently compiled/running platform.
-	 * @return Data representing the runtime specific representation of the model to be stored by UNNEModelData on success or an empty array otherwise.
+	 * @param OutMemoryAlignment Output argument of the runtime telling the caller how the returned data must be aligned in memory. A value < 1 indicates that any memory alignment will work with this model data. The variable is only set when the function succeeds.
+	 * @return Data representing the runtime specific representation of the model to be stored by UNNEModelData on success or an empty array otherwise. The data is memory aligned with OutMemoryAlignment if OutMemoryAlignment > 0.
 	 */
-	virtual TArray<uint8> CreateModelData(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform) = 0;
+	virtual TArray<uint8> CreateModelData(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform, uint32& OutMemoryAlignment) = 0;
 
 	/**
 	 * Get an id uniquely identifying the model data. This is used by UNNEModelData to create a FCacheKey to get and add the model data from and to a DDC.

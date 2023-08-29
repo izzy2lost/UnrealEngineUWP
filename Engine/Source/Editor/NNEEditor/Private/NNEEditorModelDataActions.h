@@ -17,8 +17,6 @@ namespace UE::NNEEditor::Private
 		virtual FColor GetTypeColor() const override;
 		virtual UClass* GetSupportedClass() const override;
 		virtual uint32 GetCategories() override;
-		virtual bool IsImportedAsset() const override { return true; }
-		virtual void GetResolvedSourceFilePaths(const TArray<UObject*>& TypeAssets, TArray<FString>& OutSourceFilePaths) const override;
 		virtual void OpenAssetEditor(const TArray<UObject*>& InObjects, TSharedPtr<class IToolkitHost> EditWithinLevelEditor) override;
 		// End of IAssetTypeActions interface
 	};
