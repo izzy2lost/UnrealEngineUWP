@@ -207,17 +207,26 @@ BEGIN_DEFINE_SPEC(FWebAPIOpenAPI3Spec,
 		const TObjectPtr<OutputModelType>* FoundModel = InModels.FindByPredicate([InName](const TObjectPtr<OutputModelType> InModelBase)
 		{
 			// @note: order matters!
-			if(const TObjectPtr<UWebAPIParameter> Parameter = Cast<UWebAPIParameter>(InModelBase))
+			if constexpr (std::is_base_of_v<UWebAPIParameter, OutputModelType>)
 			{
-				return Parameter->Name.ToString(true).Equals(InName);
+				if(const TObjectPtr<UWebAPIParameter> Parameter = Cast<UWebAPIParameter>(InModelBase))
+				{
+					return Parameter->Name.ToString(true).Equals(InName);
+				}
 			}
-			else if(const TObjectPtr<UWebAPIModel> Model = Cast<UWebAPIModel>(InModelBase))
+			if constexpr (std::is_base_of_v<UWebAPIModel, OutputModelType>)
 			{
-				return Model->Name.ToString(true).Equals(InName);
+				if(const TObjectPtr<UWebAPIModel> Model = Cast<UWebAPIModel>(InModelBase))
+				{
+					return Model->Name.ToString(true).Equals(InName);
+				}
 			}
-			else if(const TObjectPtr<UWebAPIEnum> Enum = Cast<UWebAPIEnum>(InModelBase))
+			if constexpr (std::is_base_of_v<UWebAPIEnum, OutputModelType>)
 			{
-				return Enum->Name.ToString(true).Equals(InName);
+				if(const TObjectPtr<UWebAPIEnum> Enum = Cast<UWebAPIEnum>(InModelBase))
+                {
+                	return Enum->Name.ToString(true).Equals(InName);
+                }
 			}
 
 			return false;
