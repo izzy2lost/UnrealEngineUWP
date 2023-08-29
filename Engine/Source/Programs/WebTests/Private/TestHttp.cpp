@@ -6,7 +6,6 @@
 #include "HAL/Runnable.h"
 #include "HAL/RunnableThread.h"
 #include "HttpManager.h"
-#include "HttpRetrySystem.h"
 #include "Http.h"
 #include "Misc/CommandLine.h"
 #include "TestHarness.h"
@@ -177,7 +176,7 @@ public:
 
 	void WaitUntilAllHttpRequestsComplete()
 	{
-		while (OngoingRequests != 0)
+		while (!bRunningThreadRequest && OngoingRequests != 0)
 		{
 			HttpModule->GetHttpManager().Tick(TickFrequency);
 			FPlatformProcess::Sleep(TickFrequency);
@@ -186,6 +185,7 @@ public:
 
 	uint32 OngoingRequests = 0;
 	float TickFrequency = 1.0f / 60; /*60 FPS*/;
+	bool bRunningThreadRequest = false;
 };
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http Methods", HTTP_TAG)
@@ -594,61 +594,38 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Redirect enabled by default and
 	HttpRequest->ProcessRequest();
 }
 
-class FThreadedHttpRunnable : public FRunnable
+class FWaitThreadedHttpFixture : public FWaitUntilCompleteHttpFixture, public FRunnable
 {
 public:
 	DECLARE_DELEGATE(FRunActualTestCodeDelegate);
 
-	FRunActualTestCodeDelegate& OnRunFromThread()
+	FWaitThreadedHttpFixture()
 	{
-		return ThreadCallback;
+		bRunningThreadRequest = true;
 	}
 
 	// FRunnable interface
 	virtual uint32 Run() override
 	{
 		ThreadCallback.ExecuteIfBound();
+		bRunningThreadRequest = false;
 		return 0;
 	}
 
-	void StartTestHttpThread(bool bBlockGameThread)
+	void StartTestHttpThread()
 	{
-		bBlockingGameThreadTick = bBlockGameThread;
-
 		RunnableThread = TSharedPtr<FRunnableThread>(FRunnableThread::Create(this, TEXT("Test Http Thread")));
-
-		while (bBlockingGameThreadTick)
-		{
-			float TickFrequency = 1.0f / 60; /*60 FPS*/;
-			FPlatformProcess::Sleep(TickFrequency);
-		}
 	}
 
-	void UnblockGameThread()
-	{
-		bBlockingGameThreadTick = false;
-	}
-
-private:
 	FRunActualTestCodeDelegate ThreadCallback;
 	TSharedPtr<FRunnableThread> RunnableThread;
-	std::atomic<bool> bBlockingGameThreadTick = true;
-};
-
-class FWaitThreadedHttpFixture : public FWaitUntilCompleteHttpFixture
-{
-public:
-	~FWaitThreadedHttpFixture()
-	{
-		WaitUntilAllHttpRequestsComplete();
-	}
-
-	FThreadedHttpRunnable ThreadedHttpRunnable;
 };
 
 TEST_CASE_METHOD(FWaitThreadedHttpFixture, "Http streaming download request can work in non game thread", HTTP_TAG)
 {
-	ThreadedHttpRunnable.OnRunFromThread().BindLambda([this]() {
+	// TODO: Block main thread here to verify
+
+	ThreadCallback.BindLambda([this]() {
 		TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
 		HttpRequest->SetURL(UrlStreamDownload(3/*Chunks*/, 1024/*ChunkSize*/));
 		HttpRequest->SetVerb(TEXT("GET"));
@@ -665,18 +642,17 @@ TEST_CASE_METHOD(FWaitThreadedHttpFixture, "Http streaming download request can 
 		};
 		CHECK(HttpRequest->SetResponseBodyReceiveStream(MakeShared<FTestHttpReceiveStream>()));
 
-		HttpRequest->OnProcessRequestComplete().BindLambda([this](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 			// EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread was used, so not in game thread here
 			CHECK(!IsInGameThread());
 			CHECK(bSucceeded);
 			CHECK(HttpResponse->GetResponseCode() == 200);
-			ThreadedHttpRunnable.UnblockGameThread();
 		});
 
 		HttpRequest->ProcessRequest();
 	});
 
-	ThreadedHttpRunnable.StartTestHttpThread(true/*bBlockGameThread*/);
+	StartTestHttpThread();
 }
 
 namespace UE
@@ -726,7 +702,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request pre check will fai
 
 TEST_CASE_METHOD(FWaitThreadedHttpFixture, "Threaded http request pre check will fail", HTTP_TAG)
 {
-	ThreadedHttpRunnable.OnRunFromThread().BindLambda([this]() {
+	ThreadCallback.BindLambda([this]() {
 		// Pre check will fail when domain is not allowed
 		UE::TestHttp::SetupURLRequestFilter(HttpModule);
 
@@ -753,8 +729,9 @@ TEST_CASE_METHOD(FWaitThreadedHttpFixture, "Threaded http request pre check will
 		HttpRequest->ProcessRequest();
 	});
 
-	ThreadedHttpRunnable.StartTestHttpThread(false/*bBlockGameThread*/);
+	StartTestHttpThread();
 }
+
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Cancel http request connect before timeout", HTTP_TAG)
 {
@@ -774,102 +751,4 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Cancel http request connect bef
 	FPlatformProcess::Sleep(0.5);
 	HttpRequest->CancelRequest();
 }
-
-class FMockRetryManager : public FHttpRetrySystem::FManager
-{
-public:
-	using FHttpRetrySystem::FManager::FManager;
-	using FHttpRetrySystem::FManager::RequestList;
-	using FHttpRetrySystem::FManager::FHttpRetryRequestEntry;
-	using FHttpRetrySystem::FManager::RetryTimeoutRelativeSecondsDefault;
-};
-
-class FRetryHttpFixture : public FWaitUntilCompleteHttpFixture
-{
-public:
-	FRetryHttpFixture()
-	{
-		HttpRetryManager = MakeShared<FMockRetryManager>(FHttpRetrySystem::FRetryLimitCountSetting(RetryLimitCount), FHttpRetrySystem::FRetryTimeoutRelativeSecondsSetting(/*RetryTimeoutRelativeSeconds*/));
-		HttpRetryManager->RetryTimeoutRelativeSecondsDefault = 2.0f; // Value is set so that retry system will use it at high level, will no longer wait for ever for HTTP code
-	}
-
-	~FRetryHttpFixture()
-	{
-		// Make sure not destroy retry manager before waiting in FWaitUntilCompleteHttpFixture
-		while (HttpRetryManager->RequestList.Num())
-		{
-			HttpRetryManager->Update();
-			HttpModule->GetHttpManager().Tick(TickFrequency);
-			FPlatformProcess::Sleep(TickFrequency);
-		}
-	}
-
-	TSharedPtr<FMockRetryManager> HttpRetryManager;
-	uint32 RetryLimitCount = 2;
-
-	FThreadedHttpRunnable ThreadedHttpRunnable;
-};
-
-// TODO: Currently broken, will fix this in retry system
-//TEST_CASE_METHOD(FRetryHttpFixture, "Http request adaptor in retry system can work in non game thread", HTTP_TAG)
-//{
-//	ThreadedHttpRunnable.OnRunFromThread().BindLambda([this]() {
-//		TSharedRef<IHttpRequest> HttpRequest = HttpRetryManager->CreateRequest();
-//		HttpRequest->SetURL(UrlStreamDownload(3/*Chunks*/, 1024/*ChunkSize*/));
-//		HttpRequest->SetVerb(TEXT("GET"));
-//		HttpRequest->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
-//
-//		class FTestHttpReceiveStream final : public FArchive
-//		{
-//		public:
-//			virtual void Serialize(void* V, int64 Length) override
-//			{
-//				// No matter what's the thread policy, Serialize always get called in http thread.
-//				CHECK(!IsInGameThread());
-//			}
-//		};
-//		CHECK(HttpRequest->SetResponseBodyReceiveStream(MakeShared<FTestHttpReceiveStream>()));
-//
-//		HttpRequest->OnProcessRequestComplete().BindLambda([this](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
-//			// EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread was used, so not in game thread here
-//			CHECK(!IsInGameThread());
-//			CHECK(bSucceeded);
-//			CHECK(HttpResponse->GetResponseCode() == 200);
-//			ThreadedHttpRunnable.UnblockGameThread();
-//		});
-//
-//		HttpRequest->ProcessRequest();
-//	});
-//
-//	ThreadedHttpRunnable.StartTestHttpThread(true/*bBlockGameThread*/);
-//}
-
-class FRetryHttpManagerThreadedRequestsFixture : public FRetryHttpFixture
-{
-public:
-	void LaunchDownloadRequests()
-	{
-		for (int32 i = 0; i < 10; ++i)
-		{
-			TSharedRef<IHttpRequest> HttpRequest = HttpRetryManager->CreateRequest();
-			HttpRequest->SetURL(UrlStreamDownload(3, 1024*1024));
-			HttpRequest->SetVerb(TEXT("GET"));
-			HttpRequest->ProcessRequest();
-		}
-	}
-};
-
-TEST_CASE_METHOD(FRetryHttpManagerThreadedRequestsFixture, "Retry manager is thread safe", HTTP_TAG)
-{
-	ThreadedHttpRunnable.OnRunFromThread().BindLambda([this]() {
-		LaunchDownloadRequests();
-		HttpRetryManager->BlockUntilFlushed(5.0);
-	});
-	ThreadedHttpRunnable.StartTestHttpThread(false/*bBlockGameThread*/);
-
-	LaunchDownloadRequests();
-	HttpRetryManager->BlockUntilFlushed(5.0);
-}
-
-
 // TODO: Add cancel test, with multiple cancel calls

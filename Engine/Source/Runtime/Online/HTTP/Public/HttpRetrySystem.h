@@ -27,14 +27,14 @@ namespace FHttpRetrySystem
 	typedef uint32 RetryLimitCountType;
 	typedef double RetryTimeoutRelativeSecondsType;
 
-	inline RetryLimitCountType             RetryLimitCount(uint32 Value) { return Value; }
+	inline RetryLimitCountType             RetryLimitCount(uint32 Value)             { return Value; }
 	inline RetryTimeoutRelativeSecondsType RetryTimeoutRelativeSeconds(double Value) { return Value; }
 
 	template <typename  IntrinsicType>
 	IntrinsicType TZero();
 
-	template <> inline float                           TZero<float>() { return 0.0f; }
-	template <> inline RetryLimitCountType             TZero<RetryLimitCountType>() { return RetryLimitCount(0); }
+	template <> inline float                           TZero<float>()                           { return 0.0f; }
+	template <> inline RetryLimitCountType             TZero<RetryLimitCountType>()             { return RetryLimitCount(0); }
 	template <> inline RetryTimeoutRelativeSecondsType TZero<RetryTimeoutRelativeSecondsType>() { return RetryTimeoutRelativeSeconds(0.0); }
 
 	typedef TOptional<float>                           FRandomFailureRateSetting;
@@ -45,7 +45,7 @@ namespace FHttpRetrySystem
 
 	struct FRetryDomains
 	{
-		FRetryDomains(TArray<FString>&& InDomains)
+		FRetryDomains(TArray<FString>&& InDomains) 
 			: Domains(MoveTemp(InDomains))
 			, ActiveIndex(0)
 		{}
@@ -71,36 +71,36 @@ namespace FHttpRetrySystem
 
 namespace FHttpRetrySystem
 {
-	/**
-	 * class FRequest is what the retry system accepts as inputs
-	 */
-	class FRequest
+    /**
+     * class FRequest is what the retry system accepts as inputs
+     */
+    class FRequest 
 		: public FHttpRequestAdapterBase
-	{
-	public:
-		struct EStatus
-		{
-			enum Type
-			{
-				NotStarted = 0,
-				Processing,
-				ProcessingLockout,
-				Cancelled,
-				FailedRetry,
-				FailedTimeout,
-				Succeeded
-			};
-		};
+    {
+    public:
+        struct EStatus
+        {
+            enum Type
+            {
+                NotStarted = 0,
+                Processing,
+                ProcessingLockout,
+                Cancelled,
+                FailedRetry,
+                FailedTimeout,
+                Succeeded
+            };
+        };
 
-	public:
+    public:
 		// IHttpRequest interface
 		HTTP_API virtual bool ProcessRequest() override;
 		HTTP_API virtual void CancelRequest() override;
-
+		
 		// FRequest
 		EStatus::Type GetRetryStatus() const { return Status; }
 
-	protected:
+    protected:
 		friend class FManager;
 
 		HTTP_API FRequest(
@@ -108,10 +108,10 @@ namespace FHttpRetrySystem
 			const TSharedRef<IHttpRequest, ESPMode::ThreadSafe>& HttpRequest,
 			const FRetryLimitCountSetting& InRetryLimitCountOverride = FRetryLimitCountSetting(),
 			const FRetryTimeoutRelativeSecondsSetting& InRetryTimeoutRelativeSecondsOverride = FRetryTimeoutRelativeSecondsSetting(),
-			const FRetryResponseCodes& InRetryResponseCodes = FRetryResponseCodes(),
-			const FRetryVerbs& InRetryVerbs = FRetryVerbs(),
+            const FRetryResponseCodes& InRetryResponseCodes = FRetryResponseCodes(),
+            const FRetryVerbs& InRetryVerbs = FRetryVerbs(),
 			const FRetryDomainsPtr& InRetryDomains = FRetryDomainsPtr()
-		);
+			);
 
 		void HttpOnRequestProgress(FHttpRequestPtr InHttpRequest, uint64 BytesSent, uint64 BytesRcv);
 
@@ -122,10 +122,10 @@ namespace FHttpRetrySystem
 
 		EStatus::Type                        Status;
 
-		FRetryLimitCountSetting              RetryLimitCountOverride;
-		FRetryTimeoutRelativeSecondsSetting  RetryTimeoutRelativeSecondsOverride;
+        FRetryLimitCountSetting              RetryLimitCountOverride;
+        FRetryTimeoutRelativeSecondsSetting  RetryTimeoutRelativeSecondsOverride;
 		FRetryResponseCodes					 RetryResponseCodes;
-		FRetryVerbs                          RetryVerbs;
+        FRetryVerbs                          RetryVerbs;
 		FRetryDomainsPtr					 RetryDomains;
 		/** The current index in RetryDomains we are attempting */
 		int32								 RetryDomainsIndex = 0;
@@ -133,116 +133,113 @@ namespace FHttpRetrySystem
 		FString								 OriginalUrl;
 
 		FManager& RetryManager;
-	};
+    };
 }
 
 namespace FHttpRetrySystem
 {
+    class FManager
+    {
+    public:
+        // FManager
+		HTTP_API FManager(const FRetryLimitCountSetting& InRetryLimitCountDefault, const FRetryTimeoutRelativeSecondsSetting& InRetryTimeoutRelativeSecondsDefault);
 
-class FManager
-{
-public:
-	// FManager
-	HTTP_API FManager(const FRetryLimitCountSetting& InRetryLimitCountDefault, const FRetryTimeoutRelativeSecondsSetting& InRetryTimeoutRelativeSecondsDefault);
+		/**
+		 * Create a new http request with retries
+		 */
+		HTTP_API TSharedRef<class FHttpRetrySystem::FRequest, ESPMode::ThreadSafe> CreateRequest(
+			const FRetryLimitCountSetting& InRetryLimitCountOverride = FRetryLimitCountSetting(),
+			const FRetryTimeoutRelativeSecondsSetting& InRetryTimeoutRelativeSecondsOverride = FRetryTimeoutRelativeSecondsSetting(),
+			const FRetryResponseCodes& InRetryResponseCodes = FRetryResponseCodes(),
+			const FRetryVerbs& InRetryVerbs = FRetryVerbs(),
+			const FRetryDomainsPtr& InRetryDomains = FRetryDomainsPtr()
+			);
 
-	/**
-	 * Create a new http request with retries
-	 */
-	HTTP_API TSharedRef<class FHttpRetrySystem::FRequest, ESPMode::ThreadSafe> CreateRequest(
-		const FRetryLimitCountSetting& InRetryLimitCountOverride = FRetryLimitCountSetting(),
-		const FRetryTimeoutRelativeSecondsSetting& InRetryTimeoutRelativeSecondsOverride = FRetryTimeoutRelativeSecondsSetting(),
-		const FRetryResponseCodes& InRetryResponseCodes = FRetryResponseCodes(),
-		const FRetryVerbs& InRetryVerbs = FRetryVerbs(),
-		const FRetryDomainsPtr& InRetryDomains = FRetryDomainsPtr()
-	);
+		HTTP_API virtual ~FManager();
 
-	HTTP_API virtual ~FManager();
+        /**
+         * Updates the entries in the list of retry requests. Optional parameters are for future connection health assessment
+         *
+         * @param FileCount       optional parameter that will be filled with the total files updated
+         * @param FailingCount    optional parameter that will be filled with the total files that have are in a retrying state
+         * @param FailedCount     optional parameter that will be filled with the total files that have failed
+         * @param CompletedCount  optional parameter that will be filled with the total files that have completed
+         *
+         * @return                true if there are no failures or retries
+         */
+        HTTP_API bool Update(uint32* FileCount = NULL, uint32* FailingCount = NULL, uint32* FailedCount = NULL, uint32* CompletedCount = NULL);
+		void SetRandomFailureRate(float Value) { RandomFailureRate = FRandomFailureRateSetting(Value); }
+		void SetDefaultRetryLimit(uint32 Value) { RetryLimitCountDefault = FRetryLimitCountSetting(Value); }
+		
+		// @return Block the current process until all requests are flushed, or timeout has elapsed
+		HTTP_API void BlockUntilFlushed(float TimeoutSec);
 
-	/**
-	 * Updates the entries in the list of retry requests. Optional parameters are for future connection health assessment
-	 *
-	 * @param FileCount       optional parameter that will be filled with the total files updated
-	 * @param FailingCount    optional parameter that will be filled with the total files that have are in a retrying state
-	 * @param FailedCount     optional parameter that will be filled with the total files that have failed
-	 * @param CompletedCount  optional parameter that will be filled with the total files that have completed
-	 *
-	 * @return                true if there are no failures or retries
-	 */
-	HTTP_API bool Update(uint32* FileCount = NULL, uint32* FailingCount = NULL, uint32* FailedCount = NULL, uint32* CompletedCount = NULL);
-	void SetRandomFailureRate(float Value) { RandomFailureRate = FRandomFailureRateSetting(Value); }
-	void SetDefaultRetryLimit(uint32 Value) { RetryLimitCountDefault = FRetryLimitCountSetting(Value); }
+    protected:
+		friend class FRequest;
 
-	// @return Block the current process until all requests are flushed, or timeout has elapsed
-	HTTP_API void BlockUntilFlushed(float TimeoutSec);
+        struct FHttpRetryRequestEntry
+        {
+            FHttpRetryRequestEntry(TSharedRef<FRequest, ESPMode::ThreadSafe>& InRequest);
 
-protected:
-	friend class FRequest;
+            bool                    bShouldCancel;
+            uint32                  CurrentRetryCount;
+            double                  RequestStartTimeAbsoluteSeconds;
+            double                  LockoutEndTimeAbsoluteSeconds;
 
-	struct FHttpRetryRequestEntry
-	{
-		FHttpRetryRequestEntry(TSharedRef<FRequest, ESPMode::ThreadSafe>& InRequest);
+            TSharedRef<FRequest, ESPMode::ThreadSafe>	Request;
+        };
 
-		bool                    bShouldCancel;
-		uint32                  CurrentRetryCount;
-		double                  RequestStartTimeAbsoluteSeconds;
-		double                  LockoutEndTimeAbsoluteSeconds;
+		class FHttpLogVerbosityTracker
+		{
+		public:
+			FHttpLogVerbosityTracker();
+			~FHttpLogVerbosityTracker();
 
-		TSharedRef<FRequest, ESPMode::ThreadSafe>	Request;
-	};
+			/** Mark that a request is being retried */
+			void IncrementRetriedRequests();
+			/** Mark that a retried request is no longer being retried */
+			void DecrementRetriedRequests();
+			static FHttpLogVerbosityTracker& Get();
+		protected:
+			/** Update settings from config */
+			void UpdateSettingsFromConfig();
+			void OnConfigSectionsChanged(const FString& IniFilename, const TSet<FString>& SectionName);
 
-	class FHttpLogVerbosityTracker
-	{
-	public:
-		FHttpLogVerbosityTracker();
-		~FHttpLogVerbosityTracker();
+			/** Number of requests that are in a retried state.  When this is non-zero, verbosity will be adjusted. */
+			int32 NumRetriedRequests = 0;
+			/** Verbosity to restore to when there are no requests being retried */
+			ELogVerbosity::Type OriginalVerbosity = ELogVerbosity::Error;
+			/** Config driven target verbosity to set to when requests are being retried.  NoLogging means the verbosity will not be modified. */
+			ELogVerbosity::Type TargetVerbosity = ELogVerbosity::NoLogging;
+		};
 
-		/** Mark that a request is being retried */
-		void IncrementRetriedRequests();
-		/** Mark that a retried request is no longer being retried */
-		void DecrementRetriedRequests();
-		static FHttpLogVerbosityTracker& Get();
-	protected:
-		/** Update settings from config */
-		void UpdateSettingsFromConfig();
-		void OnConfigSectionsChanged(const FString& IniFilename, const TSet<FString>& SectionName);
+		bool ProcessRequest(TSharedRef<FRequest, ESPMode::ThreadSafe>& HttpRequest);
+		void CancelRequest(TSharedRef<FRequest, ESPMode::ThreadSafe>& HttpRequest);
 
-		/** Number of requests that are in a retried state.  When this is non-zero, verbosity will be adjusted. */
-		int32 NumRetriedRequests = 0;
-		/** Verbosity to restore to when there are no requests being retried */
-		ELogVerbosity::Type OriginalVerbosity = ELogVerbosity::Error;
-		/** Config driven target verbosity to set to when requests are being retried.  NoLogging means the verbosity will not be modified. */
-		ELogVerbosity::Type TargetVerbosity = ELogVerbosity::NoLogging;
-	};
+        // @return true if there is a no formal response to the request
+        // @TODO return true if a variety of 5xx errors are the result of a formal response
+        bool ShouldRetry(const FHttpRetryRequestEntry& HttpRetryRequestEntry);
 
-	bool ProcessRequest(TSharedRef<FRequest, ESPMode::ThreadSafe>& HttpRequest);
-	void CancelRequest(TSharedRef<FRequest, ESPMode::ThreadSafe>& HttpRequest);
+        // @return true if retry chances have not been exhausted
+        bool CanRetry(const FHttpRetryRequestEntry& HttpRetryRequestEntry);
 
-	// @return true if there is a no formal response to the request
-	// @TODO return true if a variety of 5xx errors are the result of a formal response
-	bool ShouldRetry(const FHttpRetryRequestEntry& HttpRetryRequestEntry);
+        // @return true if the retry request has timed out
+        bool HasTimedOut(const FHttpRetryRequestEntry& HttpRetryRequestEntry, const double NowAbsoluteSeconds);
 
-	// @return true if retry chances have not been exhausted
-	bool CanRetry(const FHttpRetryRequestEntry& HttpRetryRequestEntry);
+		/**
+		 * Retry an HTTP request
+		 * @param RequestEntry request to retry
+		 */
+		void RetryHttpRequest(FHttpRetryRequestEntry& RequestEntry);
 
-	// @return true if the retry request has timed out
-	bool HasTimedOut(const FHttpRetryRequestEntry& HttpRetryRequestEntry, const double NowAbsoluteSeconds);
+        // @return number of seconds to lockout for
+        float GetLockoutPeriodSeconds(const FHttpRetryRequestEntry& HttpRetryRequestEntry);
 
-	/**
-	 * Retry an HTTP request
-	 * @param RequestEntry request to retry
-	 */
-	void RetryHttpRequest(FHttpRetryRequestEntry& RequestEntry);
+        // Default configuration for the retry system
+        FRandomFailureRateSetting            RandomFailureRate;
+        FRetryLimitCountSetting              RetryLimitCountDefault;
+        FRetryTimeoutRelativeSecondsSetting  RetryTimeoutRelativeSecondsDefault;
 
-	// @return number of seconds to lockout for
-	float GetLockoutPeriodSeconds(const FHttpRetryRequestEntry& HttpRetryRequestEntry);
-
-	// Default configuration for the retry system
-	FRandomFailureRateSetting RandomFailureRate;
-	FRetryLimitCountSetting RetryLimitCountDefault;
-	FRetryTimeoutRelativeSecondsSetting RetryTimeoutRelativeSecondsDefault;
-
-	TArray<FHttpRetryRequestEntry> RequestList;
-	FCriticalSection RequestListLock;
-};
-
+        TArray<FHttpRetryRequestEntry>       RequestList;
+    };
 }
