@@ -1068,6 +1068,12 @@ int32 FWindowsApplication::ProcessMessage( HWND hwnd, uint32 msg, WPARAM wParam,
 			}
 			break;
 
+		case WM_CLIPBOARDUPDATE:
+			{
+				OnClipboardContentChangedEvent.Broadcast();
+			}
+			break;
+		
 		case WM_KEYDOWN:
 		case WM_SYSKEYUP:
 		case WM_KEYUP:
