@@ -42,10 +42,10 @@ protected:
 	using FTaskPtr = TSharedPtr<FNiagaraSystemCompilationTask, ESPMode::ThreadSafe>;
 
 	mutable FRWLock QueueLock;
-	TArray<FNiagaraCompilationTaskHandle> QueuedRequests;
 	TMap<FNiagaraCompilationTaskHandle, FTaskPtr> SystemRequestMap;
+	TArray<FNiagaraCompilationTaskHandle> ActiveTasks;
+	TArray<FNiagaraCompilationTaskHandle> QueuedRequests;
+	TArray<FNiagaraCompilationTaskHandle> RequestsAwaitingRetrieval;
 
 	std::atomic<FNiagaraCompilationTaskHandle> NextTaskHandle = { 0 };
-
-	TArray<FNiagaraCompilationTaskHandle> ActiveTasks;
 };

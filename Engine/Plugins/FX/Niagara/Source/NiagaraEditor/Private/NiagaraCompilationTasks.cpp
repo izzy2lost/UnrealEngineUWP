@@ -1169,6 +1169,11 @@ bool FNiagaraSystemCompilationTask::CanRemove() const
 		|| (CompilationState == EState::Aborted);
 }
 
+bool FNiagaraSystemCompilationTask::AreResultsPending() const
+{
+	return CompilationState == EState::Completed && !ResultsRetrieved;
+}
+
 void FNiagaraSystemCompilationTask::WaitTillCompileCompletion()
 {
 	const FTimespan WaitTimeout = FTimespan::FromMilliseconds(50.0);

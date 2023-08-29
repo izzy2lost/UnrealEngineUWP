@@ -11,7 +11,7 @@
 
 #define LOCTEXT_NAMESPACE "NiagaraCompilationManager"
 
-static int GNiagaraCompilationMaxActiveTaskCount = 4;
+static int GNiagaraCompilationMaxActiveTaskCount = 16;
 static FAutoConsoleVariableRef CVarNiagaraCompilationMaxActiveTaskCount(
 	TEXT("fx.Niagara.Compilation.MaxActiveTaskCount"),
 	GNiagaraCompilationMaxActiveTaskCount,
@@ -46,7 +46,7 @@ int32 FNiagaraSystemCompilingManager::GetNumRemainingAssets() const
 
 	{
 		FReadScopeLock Read(QueueLock);
-		RemainingAssetCount = QueuedRequests.Num() + ActiveTasks.Num();
+		RemainingAssetCount = QueuedRequests.Num() + ActiveTasks.Num() + RequestsAwaitingRetrieval.Num();
 	}
 
 	return RemainingAssetCount;
@@ -88,7 +88,36 @@ void FNiagaraSystemCompilingManager::ProcessAsyncTasks(bool bLimitExecutionTime)
 
 		// find the list of tasks that we can remove
 		TArray<FNiagaraCompilationTaskHandle> TasksToRemove;
+		TArray<FNiagaraCompilationTaskHandle> TasksToRetrieve;
 		for (TArray<FNiagaraCompilationTaskHandle>::TIterator TaskIt(ActiveTasks); TaskIt; ++TaskIt)
+		{
+			FTaskPtr TaskPtr = SystemRequestMap.FindRef(*TaskIt);
+
+			bool bRemoveCurrent = true;
+			if (TaskPtr.IsValid())
+			{
+				if (TaskPtr->AreResultsPending())
+				{
+					TasksToRetrieve.Add(*TaskIt);
+				}
+				else if (TaskPtr->CanRemove())
+				{
+					TasksToRemove.Add(*TaskIt);
+				}
+				else
+				{
+					bRemoveCurrent = false;
+				}
+			}
+
+			if (bRemoveCurrent)
+			{
+				TaskIt.RemoveCurrent();
+			}
+		}
+
+		// go through the entries that are awaiting retrieval and clean up any that have been retrieved
+		for (TArray<FNiagaraCompilationTaskHandle>::TIterator TaskIt(RequestsAwaitingRetrieval); TaskIt; ++TaskIt)
 		{
 			FTaskPtr TaskPtr = SystemRequestMap.FindRef(*TaskIt);
 			if (!TaskPtr.IsValid() || TaskPtr->CanRemove())
@@ -98,14 +127,20 @@ void FNiagaraSystemCompilingManager::ProcessAsyncTasks(bool bLimitExecutionTime)
 			}
 		}
 
-		// remove our found tasks
+		// remove tasks that can be erased
 		for (FNiagaraCompilationTaskHandle TaskToRemove : TasksToRemove)
 		{
-			QueuedRequests.RemoveSingle(TaskToRemove);
+			ensure(!QueuedRequests.Contains(TaskToRemove));
 			SystemRequestMap.Remove(TaskToRemove);
 		}
-	}
 
+		// finally populate RequestsAwaitingRetrieval with any new entries
+		for (FNiagaraCompilationTaskHandle TaskToRetrieve : TasksToRetrieve)
+		{
+			ensure(!QueuedRequests.Contains(TaskToRetrieve));
+			RequestsAwaitingRetrieval.Add(TaskToRetrieve);
+		}
+	}
 
 	// queue up as many tasks as we can
 	while (ConditionalLaunchTask())

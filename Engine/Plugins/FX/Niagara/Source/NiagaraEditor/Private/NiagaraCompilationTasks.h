@@ -172,6 +172,7 @@ struct FNiagaraSystemCompilationTask
 	void Tick();
 	bool Poll(FNiagaraSystemAsyncCompileResults& Results) const;
 	bool CanRemove() const;
+	bool AreResultsPending() const;
 
 	void WaitTillCompileCompletion();
 	void WaitTillCachePutCompletion();
