@@ -17,6 +17,7 @@
 #include "SKismetInspector.h"
 #include "Animation/DebugSkelMeshComponent.h"
 #include "Dialog/SCustomDialog.h"
+#include "ScopedTransaction.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(IKRigEditorController)
 

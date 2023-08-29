@@ -19,6 +19,7 @@
 #include "Animation/MirrorDataTable.h"
 #include "Engine/SkeletalMesh.h"
 #include "Widgets/Input/SSearchBox.h"
+#include "ScopedTransaction.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SIKRigRetargetChainList)
 

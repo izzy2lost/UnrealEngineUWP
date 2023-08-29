@@ -19,6 +19,7 @@
 #include "Framework/Commands/UICommandList.h"
 #include "Preferences/PersonaOptions.h"
 #include "Widgets/Input/SSearchBox.h"
+#include "ScopedTransaction.h"
 
 #define LOCTEXT_NAMESPACE "SIKRigHierarchy"
 
