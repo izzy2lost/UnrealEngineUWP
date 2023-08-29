@@ -320,6 +320,20 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	private static final int CONFIGRULES_STATE_EXECFALSE = 3;
 	private static final int CONFIGRULES_STATE_FINDEND = 4;
 
+	// Same as EDeviceScreenOrientation
+	/** The orientation is not known */
+	private static final int DEVICE_ORIENTATION_UNKNOWN = 0;
+	/** The orientation is portrait with the home button at the bottom */
+	private static final int DEVICE_ORIENTATION_PORTRAIT = 1;
+	/** The orientation is portrait with the home button at the top */
+	private static final int DEVICE_ORIENTATION_PORTRAIT_UPSIDEDOWN = 2;
+	/** The orientation is landscape with the home button at the right side */
+	private static final int DEVICE_ORIENTATION_LANDSCAPE_LEFT = 3;
+	/** The orientation is landscape with the home button at the left side */
+	private static final int DEVICE_ORIENTATION_LANDSCAPE_RIGHT = 4;
+	/** The device screen orientation */
+	public static int deviceScreenOrientation = DEVICE_ORIENTATION_UNKNOWN;
+
 	public static enum VirtualKeyboardCommand { VK_CMD_NONE, VK_CMD_SHOW, VK_CMD_HIDE };
 	public static VirtualKeyboardCommand lastVirtualKeyboardCommand = VirtualKeyboardCommand.VK_CMD_NONE;
 	public static final int lastVirtualKeyboardCommandDelay = 200;
@@ -2940,7 +2954,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		nativeSetGlobalActivity(UseExternalFilesDir, PublicLogFiles, getFilesDir().getPath(), getExternalFilesDir(null).getPath(), PackageDataInsideApkValue==1, APKPath);
 
 		// tell the engine if this is a portrait app
-		nativeSetWindowInfo(getResources().getConfiguration().orientation, DepthBufferPreference, PropagateAlpha);
+		nativeSetWindowInfo(getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT, DepthBufferPreference, PropagateAlpha);
 
 		// get the full language code, like en-US
 		// note: this may need to be Locale.getDefault().getLanguage()
@@ -3383,7 +3397,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		}
 
 		// invalidate window cache
-		nativeSetWindowInfo(getResources().getConfiguration().orientation, DepthBufferPreference, PropagateAlpha);
+		nativeSetWindowInfo(getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT, DepthBufferPreference, PropagateAlpha);
 
 		// only do this on KitKat and above
 		if (ShouldHideUI)
@@ -3878,7 +3892,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		super.onConfigurationChanged(newConfig);
 		//$${gameActivityonConfigurationChangedAdditions}$$
 		// forward the orientation
-		nativeOnConfigurationChanged(newConfig.orientation);
+		nativeOnOrientationChanged(newConfig.orientation);
 	}
 
 	public void surfaceChanged(SurfaceHolder holder, int format, int width, int height)
@@ -6790,9 +6804,39 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		return getWindowManager().getDefaultDisplay().getRotation();
 	}
 
-	public int AndroidThunkJava_GetConfigurationOrientation()
+	public int AndroidThunkJava_GetDeviceOrientation()
 	{
-		return getResources().getConfiguration().orientation;
+		int currentScreenOrientation = DEVICE_ORIENTATION_UNKNOWN;
+		int rotation = getWindowManager().getDefaultDisplay().getRotation();
+		if ( getDeviceDefaultOrientation() == Configuration.ORIENTATION_LANDSCAPE )
+		{
+			switch (rotation)
+			{
+				case android.view.Surface.ROTATION_0:	currentScreenOrientation = DEVICE_ORIENTATION_LANDSCAPE_LEFT;            break;
+				case android.view.Surface.ROTATION_90:	currentScreenOrientation = DEVICE_ORIENTATION_PORTRAIT_UPSIDEDOWN;       break;
+				case android.view.Surface.ROTATION_180:	currentScreenOrientation = DEVICE_ORIENTATION_LANDSCAPE_RIGHT;			break;
+				case android.view.Surface.ROTATION_270:	currentScreenOrientation = DEVICE_ORIENTATION_PORTRAIT;					break;
+			}
+		}
+		else
+		{
+			switch (rotation)
+			{
+				case android.view.Surface.ROTATION_0:	currentScreenOrientation = DEVICE_ORIENTATION_PORTRAIT;					break;
+				case android.view.Surface.ROTATION_90:	currentScreenOrientation = DEVICE_ORIENTATION_LANDSCAPE_LEFT;			break;
+				case android.view.Surface.ROTATION_180:	currentScreenOrientation = DEVICE_ORIENTATION_PORTRAIT_UPSIDEDOWN;		break;
+				case android.view.Surface.ROTATION_270:	currentScreenOrientation = DEVICE_ORIENTATION_LANDSCAPE_RIGHT;			break;
+			}
+		}
+
+		if (deviceScreenOrientation != currentScreenOrientation)
+		{
+			deviceScreenOrientation = currentScreenOrientation;
+			Log.debug("==============> onSensorChanged: orientation : " + deviceScreenOrientation);
+			nativeOnOrientationChanged(deviceScreenOrientation);
+		}
+
+		return deviceScreenOrientation;
 	}
 
 	@SuppressWarnings("deprecation")
@@ -6925,7 +6969,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	public native void nativeSetAndroidStartupState(boolean bDebuggerAttached);
 	public native void nativeSetGlobalActivity(boolean bUseExternalFilesDir, boolean bPublicLogFiles, String internalFilePath, String externalFilePath, boolean bOBBInAPK, String APKPath);
 	public native void nativeSetObbFilePaths(String OBBMainFilePath, String OBBPatchFilePath, String OBBOverflow1FilePath, String OBBOverflow2FilePath);
-	public native void nativeSetWindowInfo(int orientation, int DepthBufferPreference, int PropagateAlpha);
+	public native void nativeSetWindowInfo(boolean bIsPortrait, int DepthBufferPreference, int PropagateAlpha);
 	public native void nativeSetObbInfo(String ProjectName, String PackageName, int Version, int PatchVersion, String AppType);
 	public native void nativeSetAndroidVersionInformation( String AndroidVersion, int TargetSDK, String PhoneMake, String PhoneModel, String PhoneBuildNumber, String OSLanguage );
 
@@ -6950,7 +6994,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	public native void nativeVirtualKeyboardShown(int left, int top, int right, int bottom);
 	public native void nativeVirtualKeyboardVisible(boolean bShown);
 
-	public native void nativeOnConfigurationChanged(int orientation);
+	public native void nativeOnOrientationChanged(int orientation);
 		
 	public native void nativeOnInitialDownloadStarted();
 	public native void nativeOnInitialDownloadCompleted();

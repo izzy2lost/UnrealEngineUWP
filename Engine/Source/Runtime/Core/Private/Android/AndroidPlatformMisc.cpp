@@ -618,44 +618,21 @@ void FAndroidMisc::UpdateDeviceOrientation()
 	JNIEnv* JEnv = AndroidJavaEnv::GetJavaEnv();
 	if (JEnv)
 	{
-		static jmethodID getRotationMethod = 0;
 		static jmethodID getOrientationMethod = 0;
 
-		if (getRotationMethod == 0 || getOrientationMethod == 0)
+		if (getOrientationMethod == 0)
 		{
 			jclass MainClass = AndroidJavaEnv::FindJavaClassGlobalRef("com/epicgames/unreal/GameActivity");
 			if (MainClass != nullptr)
 			{
-				getRotationMethod = JEnv->GetMethodID(MainClass, "AndroidThunkJava_GetDeviceRotation", "()I");
-				getOrientationMethod = JEnv->GetMethodID(MainClass, "AndroidThunkJava_GetConfigurationOrientation", "()I");
+				getOrientationMethod = JEnv->GetMethodID(MainClass, "AndroidThunkJava_GetDeviceOrientation", "()I");
 				JEnv->DeleteGlobalRef(MainClass);
 			}
 		}
 
-		if (getRotationMethod != 0 && getOrientationMethod != 0)
+		if (getOrientationMethod != 0)
 		{
-			const int Rotation = JEnv->CallIntMethod(AndroidJavaEnv::GetGameActivityThis(), getRotationMethod);
-			const int Orientation = JEnv->CallIntMethod(AndroidJavaEnv::GetGameActivityThis(), getOrientationMethod);
-			if (Orientation == EAndroidConfigurationOrientation::ORIENTATION_PORTRAIT)
-			{
-				switch (Rotation)
-				{
-				case EAndroidSurfaceRotation::ROTATION_0:	DeviceOrientation = EDeviceScreenOrientation::Portrait;             break;
-				case EAndroidSurfaceRotation::ROTATION_90:	DeviceOrientation = EDeviceScreenOrientation::LandscapeLeft;        break;
-				case EAndroidSurfaceRotation::ROTATION_180:	DeviceOrientation = EDeviceScreenOrientation::PortraitUpsideDown;   break;
-				case EAndroidSurfaceRotation::ROTATION_270:	DeviceOrientation = EDeviceScreenOrientation::LandscapeRight;       break;
-				}
-			}
-			else if (Orientation == EAndroidConfigurationOrientation::ORIENTATION_LANDSCAPE)
-			{
-				switch (Rotation)
-				{
-				case EAndroidSurfaceRotation::ROTATION_0:	DeviceOrientation = EDeviceScreenOrientation::LandscapeLeft;        break;
-				case EAndroidSurfaceRotation::ROTATION_90:	DeviceOrientation = EDeviceScreenOrientation::PortraitUpsideDown;				break;
-				case EAndroidSurfaceRotation::ROTATION_180:	DeviceOrientation = EDeviceScreenOrientation::LandscapeRight;		break;
-				case EAndroidSurfaceRotation::ROTATION_270:	DeviceOrientation = EDeviceScreenOrientation::Portrait;   break;
-				}
-			}
+			DeviceOrientation = (EDeviceScreenOrientation)JEnv->CallIntMethod(AndroidJavaEnv::GetGameActivityThis(), getOrientationMethod);
 		}
 	}
 #endif

@@ -138,17 +138,14 @@ void FAndroidWindow::SetOSWindowHandle(void* InWindow)
 
 //This function is declared in the Java-defined class, GameActivity.java: "public native void nativeSetObbInfo(String PackageName, int Version, int PatchVersion);"
 static bool GAndroidIsPortrait = false;
-static int GWindowOrientation = -1;
-static std::atomic<bool> GAndroidSafezoneRequiresUpdate = false;
+static EDeviceScreenOrientation GDeviceScreenOrientation = EDeviceScreenOrientation::Unknown;
 static int GAndroidDepthBufferPreference = 0;
 static FVector4 GAndroidPortraitSafezone = FVector4(-1.0f, -1.0f, -1.0f, -1.0f);
 static FVector4 GAndroidLandscapeSafezone = FVector4(-1.0f, -1.0f, -1.0f, -1.0f);
 #if USE_ANDROID_JNI
-JNI_METHOD void Java_com_epicgames_unreal_GameActivity_nativeSetWindowInfo(JNIEnv* jenv, jobject thiz, jint orientation, jint DepthBufferPreference, jint PropagateAlpha)
+JNI_METHOD void Java_com_epicgames_unreal_GameActivity_nativeSetWindowInfo(JNIEnv* jenv, jobject thiz, jboolean bIsPortrait, jint DepthBufferPreference, jint PropagateAlpha)
 {
 	ClearCachedWindowRects();
-	GWindowOrientation = orientation;
-	bool bIsPortrait = GWindowOrientation == EAndroidConfigurationOrientation::ORIENTATION_PORTRAIT;
 	GAndroidIsPortrait = bIsPortrait == JNI_TRUE;
 	GAndroidDepthBufferPreference = DepthBufferPreference;
 	GAndroidPropagateAlpha = PropagateAlpha;
@@ -179,8 +176,9 @@ JNI_METHOD void Java_com_epicgames_unreal_GameActivity_nativeSetSafezoneInfo(JNI
 		GAndroidLandscapeSafezone.Z = right;
 		GAndroidLandscapeSafezone.W = bottom;
 	}
-
-	GAndroidSafezoneRequiresUpdate = true;
+#if USE_ANDROID_EVENTS
+	FAppEventManager::GetInstance()->EnqueueAppEvent(APP_EVENT_STATE_SAFE_ZONE_UPDATED);
+#endif
 	UE_LOG(LogAndroid, Log, TEXT("nativeSetSafezoneInfo bIsPortrait=%d, left=%f, top=%f, right=%f, bottom=%f"), bIsPortrait ? 1 : 0, left, top, right, bottom);
 }
 #endif
@@ -197,12 +195,6 @@ bool FAndroidWindow::IsPortraitOrientation()
 FVector4 FAndroidWindow::GetSafezone(bool bPortrait)
 {
 	return bPortrait ? GAndroidPortraitSafezone : GAndroidLandscapeSafezone;
-}
-
-bool FAndroidWindow::SafezoneUpdated()
-{
-	bool bRequiresUpdate = true;
-	return GAndroidSafezoneRequiresUpdate.compare_exchange_weak(bRequiresUpdate, false);
 }
 
 int32 FAndroidWindow::GetDepthBufferPreference()
@@ -570,13 +562,13 @@ void FAndroidWindow::CalculateSurfaceSize(int32_t& SurfaceWidth, int32_t& Surfac
 #endif
 }
 
-bool FAndroidWindow::OnWindowOrientationChanged(int Orientation)
+bool FAndroidWindow::OnWindowOrientationChanged(EDeviceScreenOrientation DeviceScreenOrientation)
 {
-	if (GWindowOrientation != Orientation)
+	if (GDeviceScreenOrientation != DeviceScreenOrientation)
 	{
-		GWindowOrientation = Orientation;
-		bool bIsPortrait = GWindowOrientation == EAndroidConfigurationOrientation::ORIENTATION_PORTRAIT;
-		UE_LOG(LogAndroid, Log, TEXT("Window orientation changed: %s"), bIsPortrait ? TEXT("Portrait") : TEXT("Landscape"));
+		GDeviceScreenOrientation = DeviceScreenOrientation;
+		bool bIsPortrait = GDeviceScreenOrientation == EDeviceScreenOrientation::Portrait || GDeviceScreenOrientation == EDeviceScreenOrientation::PortraitUpsideDown;
+		UE_LOG(LogAndroid, Log, TEXT("Window orientation changed: %s, GDeviceScreenOrientation=%d"), bIsPortrait ? TEXT("Portrait") : TEXT("Landscape"), GDeviceScreenOrientation);
 		GAndroidIsPortrait = bIsPortrait;
 		return true;
 	}
