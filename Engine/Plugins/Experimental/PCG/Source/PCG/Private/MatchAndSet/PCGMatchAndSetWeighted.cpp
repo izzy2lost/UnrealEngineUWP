@@ -121,7 +121,7 @@ void UPCGMatchAndSetWeighted::MatchAndSet_Implementation(
 	{
 		const FPCGPoint& Point = InPoints[Index];
 
-		FRandomStream RandomSource = UPCGBlueprintHelpers::GetRandomStream(Point, InSettings, SourceComponent);
+		FRandomStream RandomSource = UPCGBlueprintHelpers::GetRandomStreamFromPoint(Point, InSettings, SourceComponent);
 		int RandomWeightedPick = RandomSource.RandRange(0, TotalWeight - 1);
 
 		int RandomPick = 0;

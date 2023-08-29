@@ -213,7 +213,7 @@ bool UPCGMeshSelectorWeighted::SelectInstances(
 		{
 			const FPCGPoint& Point = Points[CurrentPointIndex++];
 
-			FRandomStream RandomSource = UPCGBlueprintHelpers::GetRandomStream(Point, Settings, Context.SourceComponent.Get());
+			FRandomStream RandomSource = UPCGBlueprintHelpers::GetRandomStreamFromPoint(Point, Settings, Context.SourceComponent.Get());
 			const int RandomWeightedPick = RandomSource.RandRange(0, TotalWeight - 1);
 
 			int RandomPick = 0;

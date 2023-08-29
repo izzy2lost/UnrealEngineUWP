@@ -435,7 +435,7 @@ public:
 
 			if (PartitionDataIndex != INDEX_NONE)
 			{
-				AttributeSetKey = AttributeSetPartition.GetWeightedEntry(PartitionDataIndex, UPCGBlueprintHelpers::GetRandomStream(Point, Settings, SourceComponent));
+				AttributeSetKey = AttributeSetPartition.GetWeightedEntry(PartitionDataIndex, UPCGBlueprintHelpers::GetRandomStreamFromPoint(Point, Settings, SourceComponent));
 			}
 
 			if (Settings->bKeepUnmatched || AttributeSetKey != PCGInvalidEntryKey)

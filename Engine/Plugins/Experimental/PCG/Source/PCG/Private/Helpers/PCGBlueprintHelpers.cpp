@@ -28,21 +28,41 @@ void UPCGBlueprintHelpers::SetSeedFromPosition(FPCGPoint& InPoint)
 	InPoint.Seed = ComputeSeedFromPosition(InPoint.Transform.GetLocation());
 }
 
-FRandomStream UPCGBlueprintHelpers::GetRandomStream(const FPCGPoint& InPoint, const UPCGSettings* OptionalSettings, const UPCGComponent* OptionalComponent)
+FRandomStream UPCGBlueprintHelpers::GetRandomStreamFromPoint(const FPCGPoint& InPoint, const UPCGSettings* OptionalSettings, const UPCGComponent* OptionalComponent)
 {
 	int Seed = InPoint.Seed;
 
 	if (OptionalSettings && OptionalComponent)
 	{
-		Seed = PCGHelpers::ComputeSeed(InPoint.Seed, OptionalSettings->Seed, OptionalComponent->Seed);
+		Seed = PCGHelpers::ComputeSeed(Seed, OptionalSettings->Seed, OptionalComponent->Seed);
 	}
 	else if (OptionalSettings)
 	{
-		Seed = PCGHelpers::ComputeSeed(InPoint.Seed, OptionalSettings->Seed);
+		Seed = PCGHelpers::ComputeSeed(Seed, OptionalSettings->Seed);
 	}
 	else if (OptionalComponent)
 	{
-		Seed = PCGHelpers::ComputeSeed(InPoint.Seed, OptionalComponent->Seed);
+		Seed = PCGHelpers::ComputeSeed(Seed, OptionalComponent->Seed);
+	}
+
+	return FRandomStream(Seed);
+}
+
+FRandomStream UPCGBlueprintHelpers::GetRandomStreamFromTwoPoints(const FPCGPoint& InPointA, const FPCGPoint& InPointB, const UPCGSettings* OptionalSettings, const UPCGComponent* OptionalComponent)
+{
+	int Seed = PCGHelpers::ComputeSeed(InPointA.Seed, InPointB.Seed);
+
+	if (OptionalSettings && OptionalComponent)
+	{
+		Seed = PCGHelpers::ComputeSeed(Seed, OptionalSettings->Seed, OptionalComponent->Seed);
+	}
+	else if (OptionalSettings)
+	{
+		Seed = PCGHelpers::ComputeSeed(Seed, OptionalSettings->Seed);
+	}
+	else if (OptionalComponent)
+	{
+		Seed = PCGHelpers::ComputeSeed(Seed, OptionalComponent->Seed);
 	}
 
 	return FRandomStream(Seed);
