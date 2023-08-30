@@ -1350,14 +1350,23 @@ void UAbilitySystemComponent::GetActivatableGameplayAbilitySpecsByAllMatchingTag
 
 bool UAbilitySystemComponent::TryActivateAbilitiesByTag(const FGameplayTagContainer& GameplayTagContainer, bool bAllowRemoteActivation)
 {
-	TArray<FGameplayAbilitySpec*> AbilitiesToActivate;
-	GetActivatableGameplayAbilitySpecsByAllMatchingTags(GameplayTagContainer, AbilitiesToActivate);
+	TArray<FGameplayAbilitySpec*> AbilitiesToActivatePtrs;
+	GetActivatableGameplayAbilitySpecsByAllMatchingTags(GameplayTagContainer, AbilitiesToActivatePtrs);
+	if (AbilitiesToActivatePtrs.Num() < 1)
+	{
+		return false;
+	}
+
+	// Convert from pointers (which can be reallocated, since they point to internal data) to copies of that data
+	TArray<FGameplayAbilitySpec> AbilitiesToActivate;
+	AbilitiesToActivate.Reserve(AbilitiesToActivatePtrs.Num());
+	Algo::Transform(AbilitiesToActivatePtrs, AbilitiesToActivate, [](FGameplayAbilitySpec* SpecPtr) { return *SpecPtr; });
 
 	bool bSuccess = false;
-
-	for (auto GameplayAbilitySpec : AbilitiesToActivate)
+	for (const FGameplayAbilitySpec& GameplayAbilitySpec : AbilitiesToActivate)
 	{
-		bSuccess |= TryActivateAbility(GameplayAbilitySpec->Handle, bAllowRemoteActivation);
+		ensure(IsValid(GameplayAbilitySpec.Ability));
+		bSuccess |= TryActivateAbility(GameplayAbilitySpec.Handle, bAllowRemoteActivation);
 	}
 
 	return bSuccess;
