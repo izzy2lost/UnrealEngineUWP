@@ -20,7 +20,7 @@
 DECLARE_CYCLE_STAT(TEXT("DiscoverInvalidatedProperties"), MovieSceneEval_DiscoverInvalidatedProperties, STATGROUP_MovieSceneECS);
 DECLARE_CYCLE_STAT(TEXT("ProcessInvalidatedProperties"), MovieSceneEval_ProcessInvalidatedProperties, STATGROUP_MovieSceneECS);
 DECLARE_CYCLE_STAT(TEXT("InitializePropertyMetaData"), MovieSceneEval_InitializePropertyMetaData, STATGROUP_MovieSceneECS);
-UE_DISABLE_OPTIMIZATION
+
 namespace UE::MovieScene
 {
 
@@ -1214,4 +1214,4 @@ void UMovieScenePropertyInstantiatorSystem::FPropertyParameters::MakeOutputCompo
 		OutComponentType.Remove(FBuiltInComponentTypes::Get()->Tags.RestoreState);
 	}
 }
-UE_ENABLE_OPTIMIZATION
+

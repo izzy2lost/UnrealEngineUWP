@@ -9,7 +9,7 @@
 #include "EntitySystem/MovieSceneEntityIDs.h"
 #include "EntitySystem/MovieSceneEntityMutations.h"
 #include "EntitySystem/MovieSceneEntitySystemLinker.h"
-UE_DISABLE_OPTIMIZATION
+
 namespace UE::MovieScene
 {
 
@@ -321,4 +321,4 @@ TArrayView<const UE::MovieScene::FMovieSceneEntityID> UMovieSceneEntityGroupingS
 	}
 	return TArrayView<const UE::MovieScene::FMovieSceneEntityID>();
 }
-UE_ENABLE_OPTIMIZATION
+
