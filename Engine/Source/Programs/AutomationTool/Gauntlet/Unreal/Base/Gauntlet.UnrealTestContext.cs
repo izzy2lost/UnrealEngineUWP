@@ -203,6 +203,12 @@ namespace Gauntlet
 		public string CustomModuleRoles { get; set; }
 
 		/// <summary>
+		/// Set the target name of the module name to identify a custom project target executable
+		/// </summary>
+		[AutoParam("")]
+		public string Target { get; set; }
+
+		/// <summary>
 		/// Less logging
 		/// </summary>
 		[AutoParamWithNames(false, "Verbose", "Gauntlet.Verbose")]
@@ -381,6 +387,12 @@ namespace Gauntlet
 						Gauntlet.Log.Warning("CustomModuleRoles is poorly formatted. Expected <name>:<role> pair. Got '{0}'", Pair);
 					}
 				}
+			}
+			if(!string.IsNullOrEmpty(Target) && Target != Project)
+			{
+				bool IsEditor = Build.Equals("Editor", StringComparison.InvariantCultureIgnoreCase) || Globals.Params.ParseParam("editor");
+				UnrealTargetRole Role = IsEditor? UnrealTargetRole.Editor : UnrealTargetRole.Client;
+				UnrealHelpers.AddCustomModuleName(IsEditor? string.Format("{0}Editor", Target): Target, Role);
 			}
 		}
 	}
