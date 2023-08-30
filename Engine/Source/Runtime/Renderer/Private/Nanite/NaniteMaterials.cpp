@@ -2017,7 +2017,7 @@ void EmitDepthTargets(
 		SceneTexturesExtent,
 		PF_DepthStencil,
 		DefaultDepthStencil,
-		TexCreate_DepthStencilTargetable | TexCreate_ShaderResource | TexCreate_InputAttachmentRead | (UseComputeDepthExport() ? TexCreate_UAV : TexCreate_NoFastClear));
+		TexCreate_DepthStencilTargetable | TexCreate_ShaderResource | TexCreate_InputAttachmentRead | (UseComputeDepthExport() ? TexCreate_UAV : TexCreate_None));
 
 	RasterResults.ShadingMask = GraphBuilder.CreateTexture(ShadingMaskDesc, TEXT("Nanite.ShadingMask"));
 	RasterResults.MaterialDepth = UseLegacyCulling() ? GraphBuilder.CreateTexture(MaterialDepthDesc, TEXT("Nanite.MaterialDepth")) : nullptr;
