@@ -2,6 +2,8 @@
 //
 
 #include "ShaderFormatOpenGL.h"
+
+#include "ShaderCompilerCommon.h"
 #include "HAL/FileManager.h"
 #include "Modules/ModuleManager.h"
 #include "Interfaces/IShaderFormat.h"
@@ -12,9 +14,19 @@
 static FName NAME_GLSL_150_ES3_1(TEXT("GLSL_150_ES31"));
 static FName NAME_GLSL_ES3_1_ANDROID(TEXT("GLSL_ES3_1_ANDROID"));
 
-extern void CompileOpenGLShader(const FShaderCompilerInput& Input, FShaderCompilerOutput& Output, const FString& WorkingDirectory, GLSLVersion Version);
+extern bool PreprocessOpenGLShader(
+	const FShaderCompilerInput& Input,
+	const FShaderCompilerEnvironment& Environment,
+	FShaderPreprocessOutput& Output,
+	GLSLVersion Version);
+extern void CompileOpenGLShader(
+	const FShaderCompilerInput& Input,
+	const FShaderPreprocessOutput& PreprocessOutput,
+	FShaderCompilerOutput& Output,
+	const FString& WorkingDirectory,
+	GLSLVersion Version);
 
-class FShaderFormatGLSL : public IShaderFormat
+class FShaderFormatGLSL : public UE::ShaderCompilerCommon::FBaseShaderFormat 
 {
 	enum
 	{
@@ -22,7 +34,7 @@ class FShaderFormatGLSL : public IShaderFormat
 		UE_SHADER_GLSL_VER = 107,
 	};
 
-	void CheckFormat(FName Format) const
+	static void CheckFormat(FName Format)
 	{
 		check(Format == NAME_GLSL_150_ES3_1 || Format == NAME_GLSL_ES3_1_ANDROID);
 	}
@@ -72,16 +84,24 @@ public:
 		}
 	}
 
-	virtual void CompileShader(FName Format, const struct FShaderCompilerInput& Input, struct FShaderCompilerOutput& Output,const FString& WorkingDirectory) const override
+	virtual bool SupportsIndependentPreprocessing() const override
 	{
-		CheckFormat(Format);
-
-		GLSLVersion Version = TranslateFormatNameToEnum(Format);
-
-		CompileOpenGLShader(Input, Output, WorkingDirectory, Version);
+		return true;
 	}
 
-	virtual const TCHAR* GetPlatformIncludeDirectory() const
+	virtual bool PreprocessShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& PreprocessOutput) const override
+	{
+		CheckFormat(Input.ShaderFormat);
+		return PreprocessOpenGLShader(Input, Environment, PreprocessOutput, TranslateFormatNameToEnum(Input.ShaderFormat));
+	}
+
+	virtual void CompilePreprocessedShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, FShaderCompilerOutput& Output, const FString& WorkingDirectory) const override
+	{
+		CheckFormat(Input.ShaderFormat);
+		CompileOpenGLShader(Input, PreprocessOutput, Output, WorkingDirectory, TranslateFormatNameToEnum(Input.ShaderFormat));		
+	}
+
+	virtual const TCHAR* GetPlatformIncludeDirectory() const override
 	{
 		return TEXT("GL");
 	}
@@ -91,17 +111,17 @@ public:
  * Module for OpenGL shaders
  */
 
-static IShaderFormat* Singleton = NULL;
+static IShaderFormat* Singleton = nullptr;
 
 class FShaderFormatOpenGLModule : public IShaderFormatModule
 {
 public:
-	virtual ~FShaderFormatOpenGLModule()
+	virtual ~FShaderFormatOpenGLModule() override
 	{
 		delete Singleton;
-		Singleton = NULL;
+		Singleton = nullptr;
 	}
-	virtual IShaderFormat* GetShaderFormat()
+	virtual IShaderFormat* GetShaderFormat() override
 	{
 		if (!Singleton)
 		{
