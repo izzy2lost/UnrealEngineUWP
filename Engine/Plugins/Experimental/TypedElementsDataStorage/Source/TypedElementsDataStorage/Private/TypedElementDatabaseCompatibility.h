@@ -15,6 +15,9 @@ class AActor;
 class ITypedElementDataStorageInterface;
 struct FMassActorManager;
 
+enum class ETypedElementDatabaseCompatibilityObjectType : uint8;
+struct FTypedElementDatabaseCompatibilityObjectTypeInfo;
+
 UCLASS()
 class TYPEDELEMENTSDATASTORAGE_API UTypedElementDatabaseCompatibility
 	: public UObject
@@ -22,6 +25,9 @@ class TYPEDELEMENTSDATASTORAGE_API UTypedElementDatabaseCompatibility
 {
 	GENERATED_BODY()
 public:
+	using ObjectAddedCallback = TFunction<void(const void* /*Object*/, const FTypedElementDatabaseCompatibilityObjectTypeInfo&, TypedElementRowHandle /*Row*/)>;
+	using ObjectRemovedCallback = TFunction<void(const void* /*Object*/, const FTypedElementDatabaseCompatibilityObjectTypeInfo&, TypedElementRowHandle /*Row*/)>;
+	
 	~UTypedElementDatabaseCompatibility() override = default;
 
 	void Initialize(ITypedElementDataStorageInterface* StorageInterface);
@@ -29,7 +35,11 @@ public:
 
 	void RegisterRegistrationFilter(ObjectRegistrationFilter Filter) override;
 	void RegisterDealiaserCallback(ObjectToRowDealiaser Dealiaser) override;
-
+	FDelegateHandle RegisterObjectAddedCallback(ObjectAddedCallback&& OnObjectAdded);
+	void UnregisterObjectAddedCallback(FDelegateHandle Handle);
+	FDelegateHandle RegisterObjectRemovedCallback(ObjectRemovedCallback&& OnObjectRemoved);
+	void UnregisterObjectRemovedCallback(FDelegateHandle Handle);
+	
 	TypedElementRowHandle AddCompatibleObjectExplicit(UObject* Object) override;
 	TypedElementRowHandle AddCompatibleObjectExplicit(UObject* Object, TypedElementTableHandle Table) override;
 	TypedElementRowHandle AddCompatibleObjectExplicit(AActor* Actor) override;
@@ -61,6 +71,8 @@ private:
 
 	void OnPostEditChangeProperty(UObject* Object, FPropertyChangedEvent& PropertyChangedEvent);
 	void OnObjectModified(UObject* Object);
+	void OnObjectAdded(const void* Object, FTypedElementDatabaseCompatibilityObjectTypeInfo TypeInfo, TypedElementRowHandle Row) const;
+	void OnPreObjectRemoved(const void* Object, FTypedElementDatabaseCompatibilityObjectTypeInfo TypeInfo, TypedElementRowHandle Row) const;
 	
 	template<typename AddressType>
 	struct PendingRegistration
@@ -92,6 +104,8 @@ private:
 	
 	TArray<ObjectRegistrationFilter> ObjectRegistrationFilters;
 	TArray<ObjectToRowDealiaser> ObjectToRowDialiasers;
+	TArray<TPair<ObjectAddedCallback, FDelegateHandle>> ObjectAddedCallbackList;
+	TArray<TPair<ObjectRemovedCallback, FDelegateHandle>> PreObjectRemovedCallbackList;
 
 	TypedElementTableHandle StandardActorTable{ TypedElementInvalidTableHandle };
 	TypedElementTableHandle StandardActorWithTransformTable{ TypedElementInvalidTableHandle };
@@ -111,3 +125,47 @@ private:
 	FDelegateHandle PostEditChangePropertyDelegateHandle;
 	FDelegateHandle ObjectModifiedDelegateHandle;
 };
+
+enum class ETypedElementDatabaseCompatibilityObjectType : uint8
+{
+	Struct,
+	Class
+};
+
+/**
+ * Objects with type info defined in either UScriptStruct or UClass can be stored into TEDS via the
+ * ITypedElementDataStorageCompatibilityInterface
+ * This is a discriminated union which aids with callbacks made when objects are added
+ */
+struct FTypedElementDatabaseCompatibilityObjectTypeInfo
+{
+	ETypedElementDatabaseCompatibilityObjectType TypeInfoType;
+
+	union
+	{
+		const UScriptStruct* ScriptStruct;
+		const UClass* Class;
+	};
+
+	FTypedElementDatabaseCompatibilityObjectTypeInfo(const UScriptStruct* InScriptStruct)
+		: TypeInfoType(ETypedElementDatabaseCompatibilityObjectType::Struct)
+		, ScriptStruct(InScriptStruct)
+	{}
+
+	FTypedElementDatabaseCompatibilityObjectTypeInfo(const UClass* InClass)
+	: TypeInfoType(ETypedElementDatabaseCompatibilityObjectType::Class)
+	, Class(InClass)
+	{}
+
+	FName GetFName() const;
+};
+
+inline FName FTypedElementDatabaseCompatibilityObjectTypeInfo::GetFName() const
+{
+	switch(TypeInfoType)
+	{
+	case ETypedElementDatabaseCompatibilityObjectType::Struct: return ScriptStruct->GetFName();
+	case ETypedElementDatabaseCompatibilityObjectType::Class: return Class->GetFName();
+	default: return FName();
+	}
+}

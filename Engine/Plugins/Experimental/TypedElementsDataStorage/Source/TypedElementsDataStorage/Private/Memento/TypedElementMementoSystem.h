@@ -23,9 +23,6 @@ public:
 	void Deinitialize();
 
 	TypedElementRowHandle CreateMemento(ITypedElementDataStorageInterface* DataStorage);
-	
-	// Enables the given Row to be mementoized into the Memento row when it is deleted
-	void EnableMementoizeOnDelete(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row, TypedElementRowHandle Memento);
 
 private:
 	void RegisterQueries(UTypedElementDatabase& DataStorage) const;

@@ -23,11 +23,6 @@ TypedElementRowHandle UTypedElementMementoSystem::CreateMemento(ITypedElementDat
 	return DataStorage->AddRow(MementoRowBaseTable);
 }
 
-void UTypedElementMementoSystem::EnableMementoizeOnDelete(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row, TypedElementRowHandle Memento)
-{
-	DataStorage->AddOrGetColumn<FTypedElementMementoOnDelete>(Row, FTypedElementMementoOnDelete{ .Memento = Memento });
-}
-
 void UTypedElementMementoSystem::RegisterTables(UTypedElementDatabase& DataStorage)
 {
 	// Register tables that will be used by reinstancing
@@ -86,6 +81,19 @@ void UTypedElementMementoSystem::RegisterQueries(UTypedElementDatabase& DataStor
 				})
 				.ReadOnly(MementoizedColumn)
 				.Compile());
+		check(QueryHandle != TypedElementInvalidQueryHandle);
+	}
+
+	{
+		const TypedElementQueryHandle QueryHandle = DataStorage.RegisterQuery(
+			Select(
+				TEXT("Add Populated To Memento"),
+				FObserver::OnRemove<FTypedElementMementoOnDelete>(),
+				[](TypedElementDataStorage::IQueryContext& Context, TypedElementRowHandle Memento, const FTypedElementMementoOnDelete& MementoRow)
+				{
+					Context.AddColumns(MementoRow.Memento, TConstArrayView<const UScriptStruct*>({FTypedElementMementoPopulated::StaticStruct()}));
+				})
+		.Compile());
 		check(QueryHandle != TypedElementInvalidQueryHandle);
 	}
 

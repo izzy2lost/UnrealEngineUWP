@@ -17,3 +17,12 @@ struct FTypedElementMementoOnDelete : public FTypedElementDataStorageColumn
 	GENERATED_BODY()
 	TypedElementRowHandle Memento;
 };
+
+/**
+ * When a memento is populated, this column will be present
+ */
+USTRUCT()
+struct FTypedElementMementoPopulated : public FTypedElementDataStorageColumn
+{
+	GENERATED_BODY()
+};

@@ -13,7 +13,6 @@
 #include "MassActorEditorSubsystem.h"
 #include "MassActorSubsystem.h"
 #include "TypedElementDataStorageProfilingMacros.h"
-#include "Memento/TypedElementMementoInterface.h"
 
 void UTypedElementDatabaseCompatibility::Initialize(ITypedElementDataStorageInterface* StorageInterface)
 {
@@ -44,6 +43,36 @@ void UTypedElementDatabaseCompatibility::RegisterRegistrationFilter(ObjectRegist
 void UTypedElementDatabaseCompatibility::RegisterDealiaserCallback(ObjectToRowDealiaser Dealiaser)
 {
 	ObjectToRowDialiasers.Add(MoveTemp(Dealiaser));
+}
+
+FDelegateHandle UTypedElementDatabaseCompatibility::RegisterObjectAddedCallback(ObjectAddedCallback&& OnObjectAdded)
+{
+	FDelegateHandle Handle(FDelegateHandle::GenerateNewHandle);
+	ObjectAddedCallbackList.Emplace(MoveTemp(OnObjectAdded), Handle);
+	return Handle;
+}
+
+void UTypedElementDatabaseCompatibility::UnregisterObjectAddedCallback(FDelegateHandle Handle)
+{
+	ObjectAddedCallbackList.RemoveAll([Handle](const TPair<ObjectAddedCallback, FDelegateHandle>& Element)->bool
+	{
+		return Element.Value == Handle;
+	});
+}
+
+FDelegateHandle UTypedElementDatabaseCompatibility::RegisterObjectRemovedCallback(ObjectRemovedCallback&& OnObjectAdded)
+{
+	FDelegateHandle Handle(FDelegateHandle::GenerateNewHandle);
+	PreObjectRemovedCallbackList.Emplace(MoveTemp(OnObjectAdded), Handle);
+	return Handle;
+}
+
+void UTypedElementDatabaseCompatibility::UnregisterObjectRemovedCallback(FDelegateHandle Handle)
+{
+	PreObjectRemovedCallbackList.RemoveAll([Handle](const TPair<ObjectRemovedCallback, FDelegateHandle>& Element)->bool
+	{
+		return Element.Value == Handle;
+	});
 }
 
 TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExplicit(UObject* Object)
@@ -133,6 +162,11 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(UObject*
 		TypedElementRowHandle Row;
 		if (ReverseObjectLookup.RemoveAndCopyValue(Object, Row))
 		{
+			const FTypedElementClassTypeInfoColumn* TypeInfoColumn = Storage->GetColumn<FTypedElementClassTypeInfoColumn>(Row);
+			if (Storage->HasRowBeenAssigned(Row) && ensureMsgf(TypeInfoColumn, TEXT("Missing type information for removed UObject at ptr 0x%p [%s]"), Object, *Object->GetName()))
+			{
+				OnPreObjectRemoved(Object, TypeInfoColumn->TypeInfo.Get(), Row);
+			}
 			Storage->RemoveRow(Row);
 		}
 	}
@@ -143,7 +177,12 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(void* Ob
 	checkf(Storage, TEXT("Removing compatible objects is not supported before Typed Element's Database compatibility manager has been initialized."));
 	TypedElementRowHandle Row;
 	if (ReverseObjectLookup.RemoveAndCopyValue(Object, Row))
-	{		
+	{
+		const FTypedElementScriptStructTypeInfoColumn* TypeInfoColumn = Storage->GetColumn<FTypedElementScriptStructTypeInfoColumn>(Row);
+		if (Storage->HasRowBeenAssigned(Row) && ensureMsgf(TypeInfoColumn, TEXT("Missing type information for removed void* object at ptr 0x%p"), Object))
+		{
+			OnPreObjectRemoved(Object, TypeInfoColumn->TypeInfo.Get(), Row);
+		}
 		Storage->RemoveRow(Row);
 	}
 }
@@ -167,6 +206,12 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(AActor* 
 			if (ActorStore && !ActorStore->IsOwnedByMass()) // Only remove actors that were externally created.
 			{
 				TypedElementRowHandle Row = Entity.AsNumber();
+
+				const FTypedElementClassTypeInfoColumn* TypeInfoColumn = Storage->GetColumn<FTypedElementClassTypeInfoColumn>(Row);
+				if (Storage->HasRowBeenAssigned(Row) && ensureMsgf(TypeInfoColumn, TEXT("Missing type information for removed actor at ptr 0x%p [%s]"), Actor, *Actor->GetName()))
+				{
+					OnPreObjectRemoved(Actor, TypeInfoColumn->TypeInfo.Get(), Row);
+				}
 				
 				ActorSubsystem->RemoveHandleForActor(Actor);
 				Storage->RemoveRow(Entity.AsNumber());
@@ -426,6 +471,8 @@ void UTypedElementDatabaseCompatibility::TickPendingActorRegistration(UWorld* Ed
 					
 					// Make sure the new row is tagged for update.
 					Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
+
+					OnObjectAdded(ActorPtr.Get(), Actor->GetClass(), Row);
 				});
 		}
 			
@@ -458,6 +505,8 @@ void UTypedElementDatabaseCompatibility::TickPendingUObjectRegistration()
 					Storage->AddOrGetColumn<FTypedElementClassTypeInfoColumn>(Row, FTypedElementClassTypeInfoColumn{ .TypeInfo = Object->GetClass() });
 					// Make sure the new row is tagged for update.
 					Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
+					
+					OnObjectAdded(Object.Get(), Object->GetClass(), Row);
 				});
 		}
 
@@ -489,6 +538,8 @@ void UTypedElementDatabaseCompatibility::TickPendingExternalObjectRegistration()
 					Storage->AddOrGetColumn<FTypedElementScriptStructTypeInfoColumn>(Row, FTypedElementScriptStructTypeInfoColumn{ .TypeInfo = Object.TypeInfo });
 					// Make sure the new row is tagged for update.
 					Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
+
+					OnObjectAdded(Object.Object, Object.TypeInfo.Get(), Row);
 				});
 		}
 
@@ -553,4 +604,22 @@ void UTypedElementDatabaseCompatibility::OnObjectModified(UObject* Object)
 	// It would also add a small bit of performance overhead as access the lookup table can be done faster as a
 	// batch operation during the tick step.
 	ObjectsNeedingFullSync.FindOrAdd(Object);
+}
+
+void UTypedElementDatabaseCompatibility::OnObjectAdded(const void* Object, FTypedElementDatabaseCompatibilityObjectTypeInfo TypeInfo, TypedElementRowHandle Row) const
+{
+	for (const TPair<ObjectAddedCallback, FDelegateHandle>& CallbackPair : ObjectAddedCallbackList)
+	{
+		const ObjectAddedCallback& Callback = CallbackPair.Key;
+		Callback(Object, TypeInfo, Row);
+	}
+}
+
+void UTypedElementDatabaseCompatibility::OnPreObjectRemoved(const void* Object, FTypedElementDatabaseCompatibilityObjectTypeInfo TypeInfo, TypedElementRowHandle Row) const
+{
+	for (const TPair<ObjectRemovedCallback, FDelegateHandle>& CallbackPair : PreObjectRemovedCallbackList)
+	{
+		const ObjectRemovedCallback& Callback = CallbackPair.Key;
+		Callback(Object, TypeInfo, Row);
+	}
 }
