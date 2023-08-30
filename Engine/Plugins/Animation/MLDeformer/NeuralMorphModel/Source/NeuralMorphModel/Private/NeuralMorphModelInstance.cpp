@@ -37,13 +37,12 @@ void UNeuralMorphModelInstance::FillNetworkInputs()
 
 	// Write the input bone transforms.
 	float* MainInputs = NetworkInstance->GetInputs().GetData();
-	const UNeuralMorphMLP* MainMLP = MorphNetwork->GetMainMLP();
-	const int32 NumMainMLPInputs = MainMLP->GetNumInputs();
-	Super::SetBoneTransforms(MainInputs, NumMainMLPInputs, 0);
+	const int32 NumMainNeuralNetworkInputs = MorphNetwork->GetNumMainInputs();
+	Super::SetBoneTransforms(MainInputs, NumMainNeuralNetworkInputs, 0);
 
 	// Write the curve input values, start writing after the bone inputs.
 	const int32 CurveWriteOffset = Model->GetInputInfo()->GetNumBones() * Model->GetNumFloatsPerBone();
-	SetCurveValues(MainInputs, NumMainMLPInputs, CurveWriteOffset);
+	SetCurveValues(MainInputs, NumMainNeuralNetworkInputs, CurveWriteOffset);
 
 	// Normalize the inputs.
 	const float* Means = MorphNetwork->GetInputMeans().GetData();
@@ -54,11 +53,10 @@ void UNeuralMorphModelInstance::FillNetworkInputs()
 		MainInputs[Index] = (MainInputs[Index] - Means[Index]) / Stds[Index];
 	}
 
-	// Write the input transforms for the group MLP.
+	// Write the input transforms for the group Neural Network.
 	// We reuse the same input values from the main network, and those values just got normalized.
 	// So there is no need to normalize them again.
-	const UNeuralMorphMLP* GroupMLP = MorphNetwork->GetGroupMLP();
-	if (GroupMLP)
+	if (MorphNetwork->GetGroupModel())
 	{
 		const int32 NumFloatsPerBone = Model->GetNumFloatsPerBone();
 
@@ -187,7 +185,7 @@ bool UNeuralMorphModelInstance::SetupInputs()
 	// Make sure we have a valid network.
 	UNeuralMorphModel* MorphModel = Cast<UNeuralMorphModel>(Model);
 	UNeuralMorphNetwork* MorphNetwork = MorphModel->GetNeuralMorphNetwork();
-	if (MorphNetwork == nullptr || MorphNetwork->GetMainMLP() == nullptr)
+	if (MorphNetwork == nullptr || MorphNetwork->GetMainModel() == nullptr)
 	{		
 		return false;
 	}

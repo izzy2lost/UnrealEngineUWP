@@ -42,6 +42,10 @@
 		{
 			"Name": "MLDeformerFramework",
 			"Enabled": true
+		},
+		{
+			"Name": "NNERuntimeBasicCpu",
+			"Enabled": true
 		}
 	]
 }

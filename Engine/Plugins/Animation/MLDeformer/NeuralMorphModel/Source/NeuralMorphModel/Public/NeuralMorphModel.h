@@ -17,15 +17,6 @@ class UMLDeformerModelInstance;
 class USkeleton;
 struct FExternalMorphSet;
 
-/** 
- * Specify whether we want to use ISPC if available.
- * You can comment out this line, to force disable the use of ISPC in this plugin.
- */
-#define NEURALMORPHMODEL_USE_ISPC INTEL_ISPC
-#if !defined(NEURALMORPHMODEL_USE_ISPC)
-	#define NEURALMORPHMODEL_USE_ISPC 0
-#endif
-
 // Declare our log category.
 NEURALMORPHMODEL_API DECLARE_LOG_CATEGORY_EXTERN(LogNeuralMorphModel, Log, All);
 

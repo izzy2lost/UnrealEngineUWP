@@ -93,7 +93,7 @@ namespace UE::NeuralMorphModel
 	bool FNeuralMorphEditorModel::IsTrained() const
 	{
 		UNeuralMorphNetwork* MorphNetwork = GetNeuralMorphModel()->GetNeuralMorphNetwork();
-		if (MorphNetwork != nullptr && MorphNetwork->GetMainMLP() != nullptr)
+		if (MorphNetwork != nullptr && MorphNetwork->GetMainModel() != nullptr)
 		{
 			return true;
 		}
