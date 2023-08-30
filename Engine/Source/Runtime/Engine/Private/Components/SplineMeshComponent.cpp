@@ -193,8 +193,10 @@ void FSplineMeshVertexFactoryShaderParameters::GetElementShaderBindings(
 	{
 		ShaderBindings.Add(Shader->GetUniformBufferParameter<FLocalVertexFactoryUniformShaderParameters>(), LocalVertexFactory->GetUniformBuffer());
 	}
-
-	if (!bUseGPUScene)
+	
+	// If we can't use GPU Scene instance data, we have to bind the params to the VS loosely
+	// NOTE: Mobile GPU scene can't support loading the spline params from instance data in VS
+	if (!bUseGPUScene || FeatureLevel == ERHIFeatureLevel::ES3_1)
 	{
 		checkSlow(BatchElement.bIsSplineProxy);
 		const FSplineMeshSceneProxy* SplineProxy = BatchElement.SplineMeshSceneProxy;

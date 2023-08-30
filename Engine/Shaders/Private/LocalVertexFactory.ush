@@ -352,14 +352,14 @@ FInstanceSceneData GetInstanceData(FVertexFactoryIntermediates Intermediates)
 
 #if USE_SPLINEDEFORM
 
-#if VF_USE_PRIMITIVE_SCENE_DATA
+#if VF_USE_PRIMITIVE_SCENE_DATA && FEATURE_LEVEL > FEATURE_LEVEL_ES3_1
 
 FSplineMeshShaderParams GetSplineMeshParams(FInstanceSceneData InstanceData)
 {
 	return SplineMeshLoadParamsFromInstancePayload(InstanceData);
 }
 
-#else // !VF_USE_PRIMITIVE_SCENE_DATA
+#else
 
 // These currently still need to be bound loosely when not using GPUScene
 float4 SplineParams[SPLINE_MESH_PARAMS_FLOAT4_SIZE];
@@ -368,7 +368,7 @@ FSplineMeshShaderParams GetSplineMeshParams(FInstanceSceneData InstanceData)
 	return UnpackSplineMeshParams(SplineParams);
 }
 
-#endif // VF_USE_PRIMITIVE_SCENE_DATA
+#endif // VF_USE_PRIMITIVE_SCENE_DATA && FEATURE_LEVEL > FEATURE_LEVEL_ES3_1
 
 #endif // USE_SPLINEDEFORM
 
