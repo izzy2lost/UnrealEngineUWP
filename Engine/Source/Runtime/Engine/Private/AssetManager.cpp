@@ -52,9 +52,6 @@ LLM_DEFINE_TAG(AssetManager);
 
 DEFINE_LOG_CATEGORY(LogAssetManager);
 
-#ifndef ENABLE_PLATFORM_CHUNK_INSTALL
-	#define ENABLE_PLATFORM_CHUNK_INSTALL (1)
-#endif
 
 /** Structure defining the current loading state of an asset */
 struct FPrimaryAssetLoadState

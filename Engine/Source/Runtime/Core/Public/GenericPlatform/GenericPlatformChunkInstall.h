@@ -21,6 +21,10 @@ class IPlatformChunkInstall;
 
 CORE_API DECLARE_LOG_CATEGORY_EXTERN(LogChunkInstaller, Log, All);
 
+#ifndef ENABLE_PLATFORM_CHUNK_INSTALL
+	#define ENABLE_PLATFORM_CHUNK_INSTALL (1)
+#endif
+
 namespace EChunkLocation
 {
 	enum Type

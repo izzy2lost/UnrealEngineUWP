@@ -177,10 +177,6 @@ namespace UE::AssetRegistry::Impl
 	const FName DestinationObjectFName(TEXT("DestinationObject"));
 }
 
-#ifndef ENABLE_PLATFORM_CHUNK_INSTALL
-	#define ENABLE_PLATFORM_CHUNK_INSTALL (1)
-#endif
-
 /**
  * Implementation of IAssetRegistryInterface; forwards calls from the CoreUObject-accessible IAssetRegistryInterface into the AssetRegistry-accessible IAssetRegistry
  */
