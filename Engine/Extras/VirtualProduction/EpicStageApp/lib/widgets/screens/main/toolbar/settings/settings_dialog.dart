@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../../../../models/navigator_keys.dart';
 import '../../../../elements/modal.dart';
+import 'pages/settings_advanced_view.dart';
+import 'pages/settings_compression_picker.dart';
 import 'pages/settings_dialog_main.dart';
 import 'pages/settings_log_list.dart';
 import 'pages/settings_log_view.dart';
@@ -62,6 +64,14 @@ class _SettingsDialogState extends State<SettingsDialog> with RouteAware {
 
                 case SettingsLogView.route:
                   page = const SettingsLogView();
+                  break;
+
+                case SettingsAdvancedView.route:
+                  page = const SettingsAdvancedView();
+                  break;
+
+                case SettingsCompressionPicker.route:
+                  page = const SettingsCompressionPicker();
                   break;
 
                 default:

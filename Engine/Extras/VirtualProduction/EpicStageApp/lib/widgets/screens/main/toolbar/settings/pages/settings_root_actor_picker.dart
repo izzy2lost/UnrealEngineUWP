@@ -53,7 +53,7 @@ class _SettingsDialogRootActorPickerState extends State<SettingsDialogRootActorP
               SettingsMenuItem(
                 title: actor.name,
                 iconPath: 'assets/images/icons/ndisplay.svg',
-                trailingIconPath: rootActorPath == actor.path ? 'assets/images/icons/check.svg' : null,
+                trailingIconPath: rootActorPath.data == actor.path ? 'assets/images/icons/check.svg' : null,
                 onTap: () => selectedActorSettings.displayClusterRootPath.setValue(actor.path),
               ),
           ],

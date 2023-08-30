@@ -83,7 +83,7 @@ class SettingsMenuItem extends StatelessWidget {
   const SettingsMenuItem({
     Key? key,
     required this.title,
-    required this.iconPath,
+    this.iconPath,
     this.onTap,
     this.trailingIconPath = 'assets/images/icons/chevron_right.svg',
     this.trailing,
@@ -92,8 +92,8 @@ class SettingsMenuItem extends StatelessWidget {
   /// The title to display for this item.
   final String title;
 
-  /// The path of the icon asset to show next to the title.
-  final String iconPath;
+  /// The path of the icon asset to show next to the title, or null to leave an empty space.
+  final String? iconPath;
 
   /// Function to call when the user taps on this item.
   final void Function()? onTap;
@@ -113,7 +113,7 @@ class SettingsMenuItem extends StatelessWidget {
       child: ListTile(
         leading: SizedBox.square(
           dimension: 24,
-          child: AssetIcon(path: iconPath),
+          child: iconPath != null ? AssetIcon(path: iconPath!) : null,
         ),
         title: Text(
           title,

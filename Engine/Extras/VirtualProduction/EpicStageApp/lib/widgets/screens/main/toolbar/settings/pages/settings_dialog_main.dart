@@ -13,6 +13,7 @@ import '../../../../../../utilities/unreal_colors.dart';
 import '../../../../../elements/asset_icon.dart';
 import '../../../../eula/eula_screen.dart';
 import '../settings_generic.dart';
+import 'settings_advanced_view.dart';
 import 'settings_log_list.dart';
 import 'settings_root_actor_picker.dart';
 
@@ -53,6 +54,11 @@ class SettingsDialogMain extends StatelessWidget {
             title: localizations.settingsDialogApplicationLogLabel,
             iconPath: 'assets/images/icons/log.svg',
             onTap: () => Navigator.of(context).pushNamed(SettingsLogList.route),
+          ),
+          SettingsMenuItem(
+            title: localizations.settingsDialogAdvancedLabel,
+            iconPath: 'assets/images/icons/advanced.svg',
+            onTap: () => Navigator.of(context).pushNamed(SettingsAdvancedView.route),
           ),
           const SettingsMenuDivider(),
           SettingsMenuItem(

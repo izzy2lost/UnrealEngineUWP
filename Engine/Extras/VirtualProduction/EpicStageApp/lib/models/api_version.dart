@@ -78,4 +78,7 @@ class EpicStageAppAPIVersion implements Comparable<EpicStageAppAPIVersion> {
 
   /// Whether the initial actor position passed to the ndisplay.preview.actor.create route is applied correctly.
   bool get bIsNewActorOverridePositionAccurate => this >= const EpicStageAppAPIVersion(1, 8, 0);
+
+  /// Whether compression of WebSocket traffic can be enabled in the engine.
+  bool get bIsWebSocketCompressionAvailable => this >= const EpicStageAppAPIVersion(1, 9, 0);
 }

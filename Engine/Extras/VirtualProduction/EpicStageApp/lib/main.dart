@@ -15,6 +15,7 @@ import 'models/engine_connection.dart';
 import 'models/engine_passphrase_manager.dart';
 import 'models/navigator_keys.dart';
 import 'models/preview_render_manager.dart';
+import 'models/settings/connection_settings.dart';
 import 'models/settings/delta_widget_settings.dart';
 import 'models/settings/main_screen_settings.dart';
 import 'models/settings/recent_actor_settings.dart';
@@ -221,6 +222,7 @@ class _EpicStageAppState extends State<EpicStageApp> with TickerProviderStateMix
       providers: [
         Provider<EnginePassphraseManager>(create: (_) => EnginePassphraseManager()),
         Provider<PreferencesBundle>(create: (_) => _preferenceBundle),
+        Provider<ConnectionSettings>(create: (_) => ConnectionSettings(_preferenceBundle)),
         Provider<SelectedActorSettings>(create: (_) => SelectedActorSettings(_preferenceBundle)),
         Provider<StageMapSettings>(create: (_) => StageMapSettings(_preferenceBundle)),
         Provider<RecentActorSettings>(create: (_) => RecentActorSettings(_preferenceBundle)),
