@@ -36,7 +36,7 @@ public:
 
 protected:
 	explicit FTypedElementLabelWidgetConstructor(const UScriptStruct* InTypeInfo);
-	TSharedPtr<SWidget> CreateWidget(TypedElementDataStorage::FMetaDataView Arguments) override;
+	TSharedPtr<SWidget> CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments) override;
 	bool SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row) override;
 	bool FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi,
 		TypedElementRowHandle Row, const TSharedPtr<SWidget>& Widget) override;

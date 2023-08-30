@@ -154,7 +154,7 @@ TConstArrayView<const UScriptStruct*> FTypedElementCounterWidgetConstructor::Get
 	return Columns;
 }
 
-TSharedPtr<SWidget> FTypedElementCounterWidgetConstructor::CreateWidget(TypedElementDataStorage::FMetaDataView Arguments)
+TSharedPtr<SWidget> FTypedElementCounterWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
 {
 	return SNew(STextBlock)
 		.Text(FText::Format(LabelText, 0))

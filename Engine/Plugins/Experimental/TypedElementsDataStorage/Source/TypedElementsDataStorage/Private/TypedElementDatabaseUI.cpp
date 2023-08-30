@@ -262,7 +262,7 @@ bool UTypedElementDatabaseUi::RegisterWidgetFactory(FName Purpose, TUniquePtr<FT
 }
 
 void UTypedElementDatabaseUi::CreateWidgetConstructors(FName Purpose,
-	TypedElementDataStorage::FMetaDataView Arguments, const WidgetConstructorCallback& Callback)
+	const TypedElementDataStorage::FMetaDataView& Arguments, const WidgetConstructorCallback& Callback)
 {
 	if (FPurposeInfo* PurposeInfo = WidgetPurposes.Find(Purpose))
 	{
@@ -277,7 +277,7 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors(FName Purpose,
 }
 
 void UTypedElementDatabaseUi::CreateWidgetConstructors(FName Purpose, EMatchApproach MatchApproach, 
-	TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, TypedElementDataStorage::FMetaDataView Arguments,
+	TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, const TypedElementDataStorage::FMetaDataView& Arguments,
 	const WidgetConstructorCallback& Callback)
 {
 	if (FPurposeInfo* PurposeInfo = WidgetPurposes.Find(Purpose))
@@ -323,7 +323,7 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors(FName Purpose, EMatchAppr
 	}
 }
 
-void UTypedElementDatabaseUi::ConstructWidgets(FName Purpose, TypedElementDataStorage::FMetaDataView Arguments,
+void UTypedElementDatabaseUi::ConstructWidgets(FName Purpose, const TypedElementDataStorage::FMetaDataView& Arguments,
 	const WidgetCreatedCallback& ConstructionCallback)
 {
 	if (FPurposeInfo* PurposeInfo = WidgetPurposes.Find(Purpose))
@@ -347,7 +347,7 @@ void UTypedElementDatabaseUi::ConstructWidgets(FName Purpose, TypedElementDataSt
 
 bool UTypedElementDatabaseUi::CreateSingleWidgetConstructor(
 	const FWidgetFactory::ConstructorType& Constructor,
-	TypedElementDataStorage::FMetaDataView Arguments,
+	const TypedElementDataStorage::FMetaDataView& Arguments,
 	TConstArrayView<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes, 
 	const WidgetConstructorCallback& Callback)
 {
@@ -383,7 +383,7 @@ bool UTypedElementDatabaseUi::CreateSingleWidgetConstructor(
 
 void UTypedElementDatabaseUi::CreateWidgetInstanceFromDescription(
 	const UScriptStruct* Target,
-	TypedElementDataStorage::FMetaDataView Arguments,
+	const TypedElementDataStorage::FMetaDataView& Arguments,
 	const WidgetCreatedCallback& ConstructionCallback)
 {
 	FTypedElementWidgetConstructor* Constructor = reinterpret_cast<FTypedElementWidgetConstructor*>(
@@ -402,7 +402,7 @@ void UTypedElementDatabaseUi::CreateWidgetInstanceFromDescription(
 
 void UTypedElementDatabaseUi::CreateWidgetInstanceFromInstance(
 	FTypedElementWidgetConstructor* SourceConstructor,
-	TypedElementDataStorage::FMetaDataView Arguments,
+	const TypedElementDataStorage::FMetaDataView& Arguments,
 	const WidgetCreatedCallback& ConstructionCallback)
 {
 	if (SourceConstructor->CanBeReused())
@@ -431,7 +431,7 @@ void UTypedElementDatabaseUi::CreateWidgetInstanceFromInstance(
 
 void UTypedElementDatabaseUi::CreateWidgetInstance(
 	FTypedElementWidgetConstructor& Constructor, 
-	TypedElementDataStorage::FMetaDataView Arguments,
+	const TypedElementDataStorage::FMetaDataView& Arguments,
 	const WidgetCreatedCallback& ConstructionCallback)
 {
 	TypedElementRowHandle Row = Storage->AddRow(WidgetTable);
@@ -448,7 +448,7 @@ void UTypedElementDatabaseUi::CreateWidgetInstance(
 }
 
 TSharedPtr<SWidget> UTypedElementDatabaseUi::ConstructWidget(TypedElementRowHandle Row, FTypedElementWidgetConstructor& Constructor,
-	TypedElementDataStorage::FMetaDataView Arguments)
+	const TypedElementDataStorage::FMetaDataView& Arguments)
 {
 	if (Constructor.CanBeReused())
 	{
@@ -494,7 +494,7 @@ void UTypedElementDatabaseUi::CreateStandardArchetypes()
 }
 
 void UTypedElementDatabaseUi::CreateWidgetConstructors_LongestMatch(const TArray<FWidgetFactory>& WidgetFactories,
-	TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, TypedElementDataStorage::FMetaDataView Arguments,
+	TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, const TypedElementDataStorage::FMetaDataView& Arguments,
 	const WidgetConstructorCallback& Callback)
 {
 	TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumns;
@@ -543,7 +543,7 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors_LongestMatch(const TArray
 }
 
 void UTypedElementDatabaseUi::CreateWidgetConstructors_ExactMatch(const TArray<FWidgetFactory>& WidgetFactories,
-	TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, TypedElementDataStorage::FMetaDataView Arguments,
+	TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, const TypedElementDataStorage::FMetaDataView& Arguments,
 	const WidgetConstructorCallback& Callback)
 {
 	int32 ColumnCount = Columns.Num();
@@ -592,7 +592,7 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors_ExactMatch(const TArray<F
 }
 
 void UTypedElementDatabaseUi::CreateWidgetConstructors_SingleMatch(const TArray<FWidgetFactory>& WidgetFactories,
-	TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, TypedElementDataStorage::FMetaDataView Arguments,
+	TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, const TypedElementDataStorage::FMetaDataView& Arguments,
 	const WidgetConstructorCallback& Callback)
 {
 	auto FactoryIt = WidgetFactories.rbegin();

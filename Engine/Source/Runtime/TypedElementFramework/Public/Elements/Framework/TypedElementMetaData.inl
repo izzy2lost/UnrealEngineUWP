@@ -99,8 +99,68 @@ namespace TypedElementDataStorage
 	//
 
 	template<typename Column>
-	FMetaDataEntryView FMetaDataView::FindForColumn(FName AttributeName, ESearchScope Scope) const
+	FMetaDataEntryView FMetaDataView::FindForColumn(FName AttributeName) const
 	{
-		return FindForColumn(Column::StaticStruct(), AttributeName, Scope);
+		return FindForColumn(Column::StaticStruct(), AttributeName);
+	}
+
+
+
+	//
+	// FComboMetaDataView
+	//
+
+	template<typename... ViewTypes>
+	FComboMetaDataView<ViewTypes...>::FComboMetaDataView(const ViewTypes&... InViews)
+		: Views(InViews...)
+	{
+	}
+
+	template<typename... ViewTypes>
+	FComboMetaDataView<ViewTypes...>::FComboMetaDataView(ViewTypes&&... InViews)
+		: Views(Forward<ViewTypes>(InViews)...)
+	{
+	}
+
+	template<typename... ViewTypes>
+	template<typename NextViewType>
+	FComboMetaDataView<ViewTypes..., NextViewType> FComboMetaDataView<ViewTypes...>::Next(NextViewType&& NextView)
+	{
+		return Views.ApplyBefore([](const ViewTypes&... InViews, const NextViewType& InNextView)
+			{
+				return FComboMetaDataView<ViewTypes..., NextViewType>(InViews..., InNextView);
+			}, Forward<NextViewType>(NextView));
+	}
+
+	template<typename... ViewTypes>
+	FMetaDataEntryView FComboMetaDataView<ViewTypes...>::FindGeneric(FName AttributeName) const
+	{
+		return Views.ApplyAfter([&AttributeName](const ViewTypes&... InViews)
+			{
+				FMetaDataEntryView Result;
+				auto Run = [](FName AttributeName, FMetaDataEntryView& Result, const auto& View)
+				{
+					Result = View.FindGeneric(AttributeName);
+					return Result.IsSet();
+				};
+				(Run(AttributeName, Result, InViews) || ...);
+				return Result;
+			});
+	}
+
+	template<typename... ViewTypes>
+	FMetaDataEntryView FComboMetaDataView<ViewTypes...>::FindForColumn(TWeakObjectPtr<const UScriptStruct> Column, FName AttributeName) const
+	{
+		return Views.ApplyAfter([&Column, &AttributeName](const ViewTypes&... InViews)
+			{
+				FMetaDataEntryView Result;
+				auto Run = [](TWeakObjectPtr<const UScriptStruct> Column, FName AttributeName, FMetaDataEntryView& Result, const auto& View)
+				{
+					Result = View.FindForColumn(Column, AttributeName);
+					return Result.IsSet();
+				};
+				(Run(Column, AttributeName, Result, InViews) || ...);
+				return Result;
+			});
 	}
 } // namespace TypedElementDataStorage

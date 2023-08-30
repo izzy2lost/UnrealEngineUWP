@@ -28,7 +28,7 @@ TSharedPtr<SWidget> FTypedElementWidgetConstructor::Construct(
 	TypedElementRowHandle Row,
 	ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi,
-	TypedElementDataStorage::FMetaDataView Arguments)
+	const TypedElementDataStorage::FMetaDataView& Arguments)
 {
 	TSharedPtr<SWidget> Widget = CreateWidget(Arguments);
 	if (Widget)

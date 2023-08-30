@@ -36,7 +36,7 @@ public:
 	TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const override;
 
 protected:
-	TSharedPtr<SWidget> CreateWidget(TypedElementDataStorage::FMetaDataView Arguments) override;
+	TSharedPtr<SWidget> CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments) override;
 	bool FinalizeWidget(
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,

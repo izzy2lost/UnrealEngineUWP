@@ -118,43 +118,112 @@ namespace TypedElementDataStorage
 	//
 	// FMetaDataView
 	//
-
-	FMetaDataView::FMetaDataView(const TypedElementDataStorage::FQueryDescription& InQuery)
-		: Query(&InQuery)
-	{}
-
-	FMetaDataView::FMetaDataView(const FMetaData& InQueryWideMetaData)
-		: QueryWideMetaData(&InQueryWideMetaData)
-	{}
-
-	FMetaDataView::FMetaDataView(const TypedElementDataStorage::FQueryDescription& InQuery, const FMetaData& InQueryWideMetaData)
-		: Query(&InQuery)
-		, QueryWideMetaData(&InQueryWideMetaData)
-	{}
-
+	
 	FMetaDataEntryView FMetaDataView::FindGeneric(FName AttributeName) const
 	{
-		return QueryWideMetaData ? QueryWideMetaData->Find(AttributeName) : FMetaDataEntryView();
+		return FMetaDataEntryView();
 	}
 
-	FMetaDataEntryView FMetaDataView::FindForColumn(TWeakObjectPtr<const UScriptStruct> Column, FName AttributeName, ESearchScope Scope) const
+	FMetaDataEntryView FMetaDataView::FindForColumn(TWeakObjectPtr<const UScriptStruct> Column, FName AttributeName) const
 	{
-		if (Query)
+		return FMetaDataEntryView();
+	}
+
+
+
+	//
+	// FQueryMetaDataView
+	//
+
+	FQueryMetaDataView::FQueryMetaDataView(const TypedElementDataStorage::FQueryDescription& InQuery)
+		:Query(InQuery)
+	{
+	}
+
+	FMetaDataEntryView FQueryMetaDataView::FindGeneric(FName AttributeName) const
+	{
+		return Query.MetaData.Find(AttributeName);
+	}
+
+	FMetaDataEntryView FQueryMetaDataView::FindForColumn(
+		TWeakObjectPtr<const UScriptStruct> Column, FName AttributeName) const
+	{
+		int32 Index = 0;
+		if (Query.SelectionTypes.Find(Column, Index))
 		{
-			// There are typically a small number of columns in a query, so a linear search if often fast enough and can even
-			// be faster than a map.
-			int32 Index = 0;
-			if (Query->SelectionTypes.Find(Column, Index))
+			FMetaDataEntryView Result = Query.SelectionMetaData[Index].Find(AttributeName);
+			if (Result.IsSet())
 			{
-				FMetaDataEntryView Result = Query->SelectionMetaData[Index].Find(AttributeName);
-				if (Result.IsSet())
+				return Result;
+			}
+		}
+
+		return FMetaDataEntryView();
+	}
+
+
+
+	//
+	// FColumnsMetaDataView
+	//
+
+	FColumnsMetaDataView::FColumnsMetaDataView(TConstArrayView<TWeakObjectPtr<const UScriptStruct>> InColumns)
+		: Columns(InColumns)
+	{
+	}
+
+	FMetaDataEntryView FColumnsMetaDataView::FindForColumn(
+		TWeakObjectPtr<const UScriptStruct> Column, FName AttributeName) const
+	{
+#if WITH_EDITORONLY_DATA
+		if (Columns.Find(Column) != INDEX_NONE)
+		{
+			if (const UScriptStruct* ColumnType = Column.Get())
+			{
+				if (const FString* FoundMetaData = ColumnType->FindMetaData(AttributeName))
 				{
-					return Result;
+					return FMetaDataEntryView(*FoundMetaData);
 				}
 			}
 		}
-		return Scope == ESearchScope::FallbackOnGeneric && QueryWideMetaData
-			? QueryWideMetaData->Find(AttributeName)
-			: FMetaDataEntryView();
+#endif
+		return FMetaDataEntryView();
+	}
+
+	
+
+	//
+	// FForwardingMetaDataView
+	//
+
+	FForwardingMetaDataView::FForwardingMetaDataView(const FMetaDataView& InView)
+		: View(InView)
+	{
+	}
+
+	FMetaDataEntryView FForwardingMetaDataView::FindGeneric(FName AttributeName) const
+	{
+		return View.FindGeneric(AttributeName);
+	}
+
+	FMetaDataEntryView FForwardingMetaDataView::FindForColumn(
+		TWeakObjectPtr<const UScriptStruct> Column, FName AttributeName) const
+	{
+		return View.FindForColumn(Column, AttributeName);
+	}
+
+	
+	
+	//
+	// FGenericMetaDataView
+	//
+	FGenericMetaDataView::FGenericMetaDataView(const FMetaData& InMetaData)
+		: MetaData(InMetaData)
+	{
+	}
+	
+	FMetaDataEntryView FGenericMetaDataView::FindGeneric(FName AttributeName) const
+	{
+		return MetaData.Find(AttributeName);
 	}
 } // namespace TypedElementDataStorage

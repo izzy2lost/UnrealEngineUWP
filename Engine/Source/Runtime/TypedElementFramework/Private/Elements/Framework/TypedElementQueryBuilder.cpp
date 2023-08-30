@@ -680,6 +680,7 @@ namespace TypedElementQueryBuilder
 		Query->DependencyFlags.Shrink();
 		Query->CachedDependencies.Shrink();
 		Query->Subqueries.Shrink();
+		Query->MetaData.Shrink();
 		return MoveTemp(*Query);
 	}
 

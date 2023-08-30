@@ -152,7 +152,7 @@ TConstArrayView<const UScriptStruct*> FTypedElementLabelWidgetConstructor::GetAd
 	return Columns;
 }
 
-TSharedPtr<SWidget> FTypedElementLabelWidgetConstructor::CreateWidget(TypedElementDataStorage::FMetaDataView Arguments)
+TSharedPtr<SWidget> FTypedElementLabelWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
 {
 	const bool* IsEditable = Arguments.FindForColumn<FTypedElementLabelColumn>(TypedElementDataStorage::IsEditableName).TryGetExact<bool>();
 	return SNew(STextBlock).IsEnabled(IsEditable ? *IsEditable : false);

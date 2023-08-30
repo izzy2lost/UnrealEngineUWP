@@ -8,6 +8,7 @@
 #include "Containers/Map.h"
 #include "Misc/EnumClassFlags.h"
 #include "Misc/TVariant.h"
+#include "Templates/Tuple.h"
 
 class UScriptStruct;
 
@@ -100,33 +101,105 @@ namespace TypedElementDataStorage
 	};
 
 	/**
-	 * Short lived view of a meta data container optionally associated with a query.
+	 * Short lived view of a meta data container.
 	 */
-	class FMetaDataView final
+	class FMetaDataView
 	{
 	public:
-		enum class ESearchScope
-		{
-			FallbackOnGeneric, // If the attribute isn't found on the column or the column isn't found, search the generic meta data for the attribute.
-			ColumnOnly // Only use the data on the column.
-		};
+		virtual ~FMetaDataView() = default;
 
-		FMetaDataView() = default;
-		TYPEDELEMENTFRAMEWORK_API FMetaDataView(const TypedElementDataStorage::FQueryDescription& InQuery); // Deliberately avoided "explicit".
-		TYPEDELEMENTFRAMEWORK_API FMetaDataView(const FMetaData& InQueryWideMetaData); // Deliberately avoided "explicit".
-		TYPEDELEMENTFRAMEWORK_API FMetaDataView(
-			const TypedElementDataStorage::FQueryDescription& InQuery, const FMetaData& InQueryWideMetaData);
-
-		TYPEDELEMENTFRAMEWORK_API FMetaDataEntryView FindGeneric(FName AttributeName) const;
-		TYPEDELEMENTFRAMEWORK_API FMetaDataEntryView FindForColumn(
-			TWeakObjectPtr<const UScriptStruct> Column, FName AttributeName, ESearchScope Scope = ESearchScope::ColumnOnly) const;
+		TYPEDELEMENTFRAMEWORK_API virtual FMetaDataEntryView FindGeneric(FName AttributeName) const;
+		TYPEDELEMENTFRAMEWORK_API virtual FMetaDataEntryView FindForColumn(
+			TWeakObjectPtr<const UScriptStruct> Column, FName AttributeName) const;
 		template<typename Column>
-		FMetaDataEntryView FindForColumn(FName AttributeName, ESearchScope Scope = ESearchScope::ColumnOnly) const;
+		FMetaDataEntryView FindForColumn(FName AttributeName) const;
+	};
+
+	/**
+	 * Short lived view of a meta data container that wraps a query.
+	 */
+	class FQueryMetaDataView final : public FMetaDataView
+	{
+	public:
+		~FQueryMetaDataView() override = default;
+
+		TYPEDELEMENTFRAMEWORK_API explicit FQueryMetaDataView(const TypedElementDataStorage::FQueryDescription& InQuery);
+		
+		TYPEDELEMENTFRAMEWORK_API FMetaDataEntryView FindGeneric(FName AttributeName) const override;
+		TYPEDELEMENTFRAMEWORK_API FMetaDataEntryView FindForColumn(
+			TWeakObjectPtr<const UScriptStruct> Column, FName AttributeName) const override;
 
 	private:
-		const TypedElementDataStorage::FQueryDescription* Query{ nullptr };
-		const FMetaData* QueryWideMetaData{ nullptr };
+		const TypedElementDataStorage::FQueryDescription& Query;
 	};
+
+	/**
+	 * Short lived view of a meta data container that wraps a list of columns.
+	 */
+	class FColumnsMetaDataView final : public FMetaDataView
+	{
+	public:
+		~FColumnsMetaDataView() override = default;
+
+		TYPEDELEMENTFRAMEWORK_API explicit FColumnsMetaDataView(TConstArrayView<TWeakObjectPtr<const UScriptStruct>> InColumns);
+		TYPEDELEMENTFRAMEWORK_API FMetaDataEntryView FindForColumn(
+			TWeakObjectPtr<const UScriptStruct> Column, FName AttributeName) const override;
+
+	private:
+		TConstArrayView<TWeakObjectPtr<const UScriptStruct>> Columns;
+	};
+
+	/**
+	 * Short lived view of a meta data container that wraps generic meta data.
+	 */
+	class FGenericMetaDataView final : public FMetaDataView
+	{
+	public:
+		~FGenericMetaDataView() override = default;
+
+		TYPEDELEMENTFRAMEWORK_API explicit FGenericMetaDataView(const FMetaData& InMetaData);
+		TYPEDELEMENTFRAMEWORK_API FMetaDataEntryView FindGeneric(FName AttributeName) const override;
+
+	private:
+		const FMetaData& MetaData;
+	};
+
+	/**
+	 * Short lived view of a meta data container that wraps around another meta data view so they can be chained.
+	 */
+	class FForwardingMetaDataView final : public FMetaDataView
+	{
+	public:
+		~FForwardingMetaDataView() override = default;
+
+		TYPEDELEMENTFRAMEWORK_API explicit FForwardingMetaDataView(const FMetaDataView& InView);
+		TYPEDELEMENTFRAMEWORK_API FMetaDataEntryView FindGeneric(FName AttributeName) const override;
+		TYPEDELEMENTFRAMEWORK_API FMetaDataEntryView FindForColumn(
+			TWeakObjectPtr<const UScriptStruct> Column, FName AttributeName) const override;
+
+	private:
+		const FMetaDataView& View;
+	};
+
+	/**
+	 * Short lived view of a meta data container.
+	 */
+	template<typename... ViewTypes>
+	class FComboMetaDataView final : public FMetaDataView
+	{
+	public:
+		FComboMetaDataView(const ViewTypes&... InViews);
+		FComboMetaDataView(ViewTypes&&... InViews);
+
+		template<typename NextViewType>
+		FComboMetaDataView<ViewTypes..., NextViewType> Next(NextViewType&& NextView);
+
+		FMetaDataEntryView FindGeneric(FName AttributeName) const override;
+		FMetaDataEntryView FindForColumn(TWeakObjectPtr<const UScriptStruct> Column, FName AttributeName) const;
+
+		TTuple<ViewTypes...> Views;
+	};
+
 } // TypedElementDataStorage
 
 #include "Elements/Framework/TypedElementMetaData.inl"

@@ -41,7 +41,7 @@ FTypedElementPackagePathWidgetConstructor::FTypedElementPackagePathWidgetConstru
 {
 }
 
-TSharedPtr<SWidget> FTypedElementPackagePathWidgetConstructor::CreateWidget(TypedElementDataStorage::FMetaDataView Arguments)
+TSharedPtr<SWidget> FTypedElementPackagePathWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
 {
 	return SNew(STextBlock)
 		.OverflowPolicy(ETextOverflowPolicy::Ellipsis)

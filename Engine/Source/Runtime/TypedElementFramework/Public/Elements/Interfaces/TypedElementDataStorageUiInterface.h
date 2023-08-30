@@ -53,12 +53,12 @@ public:
 		TypedElementRowHandle Row, /** The row the widget will be stored in. */
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,
-		TypedElementDataStorage::FMetaDataView Arguments);
+		const TypedElementDataStorage::FMetaDataView& Arguments);
 
 protected:
 	/** Create a new instance of the target widget. This is a required function. */
 	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> CreateWidget(
-		TypedElementDataStorage::FMetaDataView Arguments) PURE_VIRTUAL(FTypedElementWidgetConstructor::CreateWidget, return nullptr; );
+		const TypedElementDataStorage::FMetaDataView& Arguments) PURE_VIRTUAL(FTypedElementWidgetConstructor::CreateWidget, return nullptr; );
 	/** Set any values in columns if needed. The columns provided through GetAdditionalColumnsList() will have already been created. */
 	TYPEDELEMENTFRAMEWORK_API virtual bool SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row);
 	/** 
@@ -192,25 +192,25 @@ public:
 	
 	/** Creates widget constructors for the requested purpose. */
 	virtual void CreateWidgetConstructors(FName Purpose, 
-		TypedElementDataStorage::FMetaDataView Arguments, const WidgetConstructorCallback& Callback) = 0;
+		const TypedElementDataStorage::FMetaDataView& Arguments, const WidgetConstructorCallback& Callback) = 0;
 	/** 
 	 * Finds matching widget constructors for provided columns, preferring longer matches over shorter matches.
 	 * The provided list of columns will be updated to contain all columns that couldn't be matched.
 	 */
 	virtual void CreateWidgetConstructors(FName Purpose, EMatchApproach MatchApproach, TArray<TWeakObjectPtr<const UScriptStruct>>& Columns,
-		TypedElementDataStorage::FMetaDataView Arguments, const WidgetConstructorCallback& Callback) = 0;
+		const TypedElementDataStorage::FMetaDataView& Arguments, const WidgetConstructorCallback& Callback) = 0;
 
 	/**
 	 * Creates all the widgets registered under the provided name. This may be a large number of widgets for a wide name
 	 * or exactly one when the exact name of the widget is registered. Arguments can be provided, but widgets are free
 	 * to ignore them.
 	 */
-	virtual void ConstructWidgets(FName Purpose, TypedElementDataStorage::FMetaDataView Arguments,
+	virtual void ConstructWidgets(FName Purpose, const TypedElementDataStorage::FMetaDataView& Arguments,
 		const WidgetCreatedCallback& ConstructionCallback) = 0;
 
 	/** Creates a single widget using the provided constructor. Arguments can optionally be used to intialize the constructor. */
 	virtual TSharedPtr<SWidget> ConstructWidget(TypedElementRowHandle Row, FTypedElementWidgetConstructor& Constructor,
-		TypedElementDataStorage::FMetaDataView Arguments) = 0;
+		const TypedElementDataStorage::FMetaDataView& Arguments) = 0;
 
 	/** Calls the provided callback for all known registered widget purposes. */
 	virtual void ListWidgetPurposes(const WidgetPurposeCallback& Callback) const = 0;

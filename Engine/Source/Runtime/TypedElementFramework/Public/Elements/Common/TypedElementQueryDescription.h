@@ -98,6 +98,7 @@ namespace TypedElementDataStorage
 		/** Cached instances of the dependencies. This will always match the count of the other Dependency*Types, but may contain null pointers. */
 		TArray<TWeakObjectPtr<UObject>, TInlineAllocator<NumInlineDependencies>> CachedDependencies;
 		TArray<QueryHandle> Subqueries;
+		FMetaData MetaData;
 
 		EActionType Action;
 		/** If true, this query only has simple operations and is guaranteed to be executed fully and at optimal performance. */
