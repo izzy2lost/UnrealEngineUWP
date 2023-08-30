@@ -96,6 +96,8 @@ void UAnimGraphNode_CallFunction::ReallocatePinsDuringReconstruction(TArray<UEdG
 	Super::ReallocatePinsDuringReconstruction(InOldPins);
 	
 	AllocateFunctionPins();
+
+	RestoreSplitPins(InOldPins);
 }
 
 void UAnimGraphNode_CallFunction::AllocateDefaultPins()
