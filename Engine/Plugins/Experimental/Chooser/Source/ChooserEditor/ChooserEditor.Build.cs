@@ -30,7 +30,7 @@ namespace UnrealBuildTool.Rules
 					"GameplayTags",
 					"GameplayTagsEditor",
 					"StructUtils",
-					"KismetCompiler"
+					"KismetCompiler",
 					// ... add private dependencies that you statically link with here ...
 				}
 			);

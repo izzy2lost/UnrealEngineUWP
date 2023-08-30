@@ -13,6 +13,7 @@ class BLENDSTACKEDITOR_API UAnimGraphNode_BlendStack_Base : public UAnimGraphNod
 {
 	GENERATED_BODY()
 
+	public:
 	virtual void GetOutputLinkAttributes(FNodeAttributeArray& OutAttributes) const override;
 	virtual void OnProcessDuringCompilation(IAnimBlueprintCompilationContext& InCompilationContext, IAnimBlueprintGeneratedClassCompiledData& OutCompiledData) override;
 
@@ -28,6 +29,9 @@ class BLENDSTACKEDITOR_API UAnimGraphNode_BlendStack_Base : public UAnimGraphNod
 	virtual void PostPasteNode() override;
 	virtual void Serialize(FArchive& Ar) override;
 
+	virtual TArray<UEdGraph*> GetSubGraphs() const override;
+
+protected:
 	// Helper function for compilation
 	void ExpandGraphAndProcessNodes(
 		UEdGraph* SourceGraph, 
@@ -35,9 +39,6 @@ class BLENDSTACKEDITOR_API UAnimGraphNode_BlendStack_Base : public UAnimGraphNod
 		IAnimBlueprintCompilationContext& InCompilationContext, IAnimBlueprintGeneratedClassCompiledData& OutCompiledData,
 		UAnimGraphNode_Base*& OutRootNode, TArrayView<UAnimGraphNode_BlendStackInput*> OutInputNodes);
 
-	virtual TArray<UEdGraph*> GetSubGraphs() const override;
-
-protected:
 	virtual FAnimNode_BlendStack_Standalone* GetBlendStackNode() const PURE_VIRTUAL(UAnimGraphNode_BlendStack_Base::GetBlendStackNode, return nullptr;);
 	int32 GetMaxActiveBlends() const;
 

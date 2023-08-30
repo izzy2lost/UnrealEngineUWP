@@ -1,0 +1,271 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "AnimNode_ChooserPlayer.h"
+
+#include "IObjectChooser.h"
+#include "../../../../Animation/BlendStack/Source/Runtime/Public/BlendStack/AnimNode_BlendStack.h"
+#include "Animation/AnimInstanceProxy.h"
+#include "Animation/AnimSequence.h"
+#include "Animation/AnimTrace.h"
+#include "Animation/AnimStats.h"
+#include "Animation/AnimSyncScope.h"
+#include "Animation/BlendSpace.h"
+
+#include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_ChooserPlayer)
+
+FAnimNode_ChooserPlayer::FAnimNode_ChooserPlayer()
+{
+}
+
+UAnimationAsset* FAnimNode_ChooserPlayer::ChooseAsset(const FAnimationUpdateContext& Context)
+{
+	if (Chooser.IsValid())
+	{
+		// reset settings to default
+		FChooserPlayerSettings& Settings = ChooserContext.Params[1].GetMutable<FChooserPlayerSettings>();
+		Settings = DefaultSettings;
+		UAnimationAsset* Result = Cast<UAnimationAsset>(Chooser.Get<FObjectChooserBase>().ChooseObject(ChooserContext));
+	
+		return Result;
+	}
+	return nullptr;
+}
+
+void FAnimNode_ChooserPlayer::Initialize_AnyThread(const FAnimationInitializeContext& Context)
+{
+	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(Initialize_AnyThread)
+	FAnimNode_BlendStack_Standalone::Initialize_AnyThread(Context);
+
+	FInstancedStruct This;
+	This.InitializeAs(FChooserEvaluationInputObject::StaticStruct());
+	This.GetMutable<FChooserEvaluationInputObject>().Object = Context.AnimInstanceProxy->GetAnimInstanceObject();
+	ChooserContext.Params.Add(This);
+	ChooserContext.Params.Add(FInstancedStruct(FChooserPlayerSettings::StaticStruct()));
+}
+
+
+void FAnimNode_ChooserPlayer::UpdateAssetPlayer(const FAnimationUpdateContext& Context)
+{
+	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(UpdateAassetPlayer)
+	GetEvaluateGraphExposedInputs().Execute(Context);
+
+	if (!Chooser.IsValid())
+	{
+		// We don't have any entries, play data will be invalid - early out
+		return;
+	}
+	
+	const bool bJustBecameRelevant = !UpdateCounter.WasSynchronizedCounter(Context.AnimInstanceProxy->GetUpdateCounter());
+	UpdateCounter.SynchronizeWith(Context.AnimInstanceProxy->GetUpdateCounter());
+
+	UAnimationAsset* NewAsset = CurrentAsset;
+
+	if (EvaluationFrequency == EChooserEvaluationFrequency::OnUpdate || CurrentAsset == nullptr)
+	{
+		NewAsset = ChooseAsset(Context);
+	}
+	else if (EvaluationFrequency == EChooserEvaluationFrequency::OnLoop)
+	{
+		if (!AnimPlayers.IsEmpty())
+		{
+			FBlendStackAnimPlayer& Player = AnimPlayers.First();
+			if (Player.GetPlayRate() * Context.GetDeltaTime() + Player.GetAccumulatedTime() > CurrentAsset->GetPlayLength())
+			{
+				NewAsset = ChooseAsset(Context);
+			}
+		}
+	}
+	else if (EvaluationFrequency == EChooserEvaluationFrequency::OnBecomeRelevant && bJustBecameRelevant)
+	{
+		NewAsset = ChooseAsset(Context);
+	}
+
+	if (bJustBecameRelevant || NewAsset != CurrentAsset)
+	{
+		const FChooserPlayerSettings& Settings = ChooserContext.Params[1].Get<FChooserPlayerSettings>();
+			
+		CurveOverridesIndex = (CurveOverridesIndex + 1) % 2;
+		OverrideCurves[CurveOverridesIndex].Empty();
+		if (!Settings.CurveOverrides.Values.IsEmpty())
+		{
+			OverrideCurves[CurveOverridesIndex].Reserve(Settings.CurveOverrides.Values.Num());
+			for (const FAnimCurveOverride& CurveOverride : Settings.CurveOverrides.Values)
+			{
+				OverrideCurves[CurveOverridesIndex].Add(CurveOverride.CurveName, CurveOverride.CurveValue);
+			}
+		}
+
+		float BlendTime = bJustBecameRelevant ? 0 : Settings.BlendTime;
+
+		bool bLoop = Settings.bForceLooping;
+		if (!bLoop)
+		{
+			if (const UAnimSequenceBase* Sequence = Cast<UAnimSequenceBase>(NewAsset))
+			{
+				bLoop = Sequence->bLoop;				
+			}
+			else if (const UBlendSpace* BlendSpace = Cast<UBlendSpace>(NewAsset))
+			{
+				bLoop = BlendSpace->bLoop;
+			}
+		}
+		
+		FAnimNode_BlendStack_Standalone::BlendTo(Context, NewAsset, Settings.StartTime,
+			bLoop, Settings.bMirror, MirrorDataTable,
+			Settings.BlendTime, Settings.BlendTime, Settings.BlendProfile, Settings.BlendOption, Settings.bUseInertialBlend, FVector::Zero(), Settings.PlaybackRate,
+			GetGroupName(), GetGroupRole(), GetGroupMethod());
+		
+		CurrentAsset = NewAsset;
+	}
+
+	// Update blend space parameters
+	if (bUpdateAllActiveBlendSpaces)
+	{
+		// apply blend space parameters to all blendspaces that are playing, including ones that are blending out
+		for(FBlendStackAnimPlayer& Player : AnimPlayers)
+		{
+			if (Cast<UBlendSpace>(Player.GetAnimationAsset()))
+			{
+				Player.BlendSpacePlayerNode.SetPosition(FVector(BlendSpaceX,BlendSpaceY,0));
+			}
+		}
+	}
+	else
+	{
+		// apply blend space parameters only to the blendspace that is playing/blending in
+		if (!AnimPlayers.IsEmpty())
+		{
+			FBlendStackAnimPlayer& Player = AnimPlayers.First();
+			if (Cast<UBlendSpace>(Player.GetAnimationAsset()))
+			{
+				Player.BlendSpacePlayerNode.SetPosition(FVector(BlendSpaceX,BlendSpaceY,0));
+			}
+		}
+	}
+
+	FAnimNode_BlendStack_Standalone::UpdateAssetPlayer(Context);
+}
+
+void FAnimNode_ChooserPlayer::Evaluate_AnyThread(FPoseContext& Output)
+{
+	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(Evaluate_AnyThread);
+	ANIM_MT_SCOPE_CYCLE_COUNTER_VERBOSE(MotionMatching, !IsInGameThread());
+
+	FAnimNode_BlendStack_Standalone::Evaluate_AnyThread(Output);
+
+	const FChooserPlayerSettings& Settings = ChooserContext.Params[1].Get<FChooserPlayerSettings>();
+
+
+	
+	if (AnimPlayers.Num() == 1)
+	{
+		UE::Anim::FNamedValueArrayUtils::Union(Output.Curve, OverrideCurves[CurveOverridesIndex]);	
+	}
+	if (AnimPlayers.Num() > 1)
+	{
+		const float Weight = FAlphaBlend::AlphaToBlendOption(AnimPlayers[0].GetBlendInPercentage(), AnimPlayers[0].GetBlendOption());
+		const uint32 PrevCurveOverridesIndex = (CurveOverridesIndex + 1) % 2;
+		UE::Anim::FNamedValueArrayUtils::Union(Output.Curve, OverrideCurves[PrevCurveOverridesIndex]);
+		Output.Curve.LerpTo(OverrideCurves[CurveOverridesIndex], Weight);
+	}
+
+	
+}
+
+FName FAnimNode_ChooserPlayer::GetGroupName() const
+{
+	return GET_ANIM_NODE_DATA(FName, GroupName);
+}
+
+EAnimGroupRole::Type FAnimNode_ChooserPlayer::GetGroupRole() const
+{
+	return GET_ANIM_NODE_DATA(TEnumAsByte<EAnimGroupRole::Type>, GroupRole);
+}
+
+EAnimSyncMethod FAnimNode_ChooserPlayer::GetGroupMethod() const
+{
+	return GET_ANIM_NODE_DATA(EAnimSyncMethod, Method);
+}
+
+bool FAnimNode_ChooserPlayer::GetIgnoreForRelevancyTest() const
+{
+	return GET_ANIM_NODE_DATA(bool, bIgnoreForRelevancyTest);
+}
+
+bool FAnimNode_ChooserPlayer::SetGroupName(FName InGroupName)
+{
+#if WITH_EDITORONLY_DATA
+	GroupName = InGroupName;
+#endif
+
+	if(FName* GroupNamePtr = GET_INSTANCE_ANIM_NODE_DATA_PTR(FName, GroupName))
+	{
+		*GroupNamePtr = InGroupName;
+		return true;
+	}
+
+	return false;
+}
+
+bool FAnimNode_ChooserPlayer::SetGroupRole(EAnimGroupRole::Type InRole)
+{
+#if WITH_EDITORONLY_DATA
+	GroupRole = InRole;
+#endif
+	
+	if(TEnumAsByte<EAnimGroupRole::Type>* GroupRolePtr = GET_INSTANCE_ANIM_NODE_DATA_PTR(TEnumAsByte<EAnimGroupRole::Type>, GroupRole))
+	{
+		*GroupRolePtr = InRole;
+		return true;
+	}
+
+	return false;
+}
+
+bool FAnimNode_ChooserPlayer::SetGroupMethod(EAnimSyncMethod InMethod)
+{
+#if WITH_EDITORONLY_DATA
+	Method = InMethod;
+#endif
+
+	if(EAnimSyncMethod* MethodPtr = GET_INSTANCE_ANIM_NODE_DATA_PTR(EAnimSyncMethod, Method))
+	{
+		*MethodPtr = InMethod;
+		return true;
+	}
+
+	return false;
+}
+
+bool FAnimNode_ChooserPlayer::IsLooping() const
+{
+	if (!AnimPlayers.IsEmpty())
+	{
+		const FBlendStackAnimPlayer& AnimPlayer = AnimPlayers.First();
+		if (Cast<UBlendSpace>(AnimPlayer.GetAnimationAsset()))
+		{
+			return AnimPlayer.BlendSpacePlayerNode.IsLooping();
+		}
+		else
+		{
+			return AnimPlayer.SequencePlayerNode.IsLooping();
+		}
+	}
+	return false;
+}
+
+
+bool FAnimNode_ChooserPlayer::SetIgnoreForRelevancyTest(bool bInIgnoreForRelevancyTest)
+{
+#if WITH_EDITORONLY_DATA
+	bIgnoreForRelevancyTest = bInIgnoreForRelevancyTest;
+#endif
+
+	if (bool* bIgnoreForRelevancyTestPtr = GET_INSTANCE_ANIM_NODE_DATA_PTR(bool, bIgnoreForRelevancyTest))
+	{
+		*bIgnoreForRelevancyTestPtr = bInIgnoreForRelevancyTest;
+		return true;
+	}
+
+	return false;
+}

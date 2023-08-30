@@ -21,6 +21,7 @@ namespace UnrealBuildTool.Rules
 					"CoreUObject",
 					"Engine",
 					"GameplayTags",
+					"BlendStack"
 					// ... add private dependencies that you statically link with here ...
 				}
 			);

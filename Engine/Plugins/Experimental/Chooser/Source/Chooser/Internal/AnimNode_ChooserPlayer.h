@@ -1,0 +1,215 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "AlphaBlend.h"
+#include "Animation/AnimNode_RelevantAssetPlayerBase.h"
+#include "Animation/AnimationAsset.h"
+#include "CoreMinimal.h"
+#include "InstancedStruct.h"
+#include "IObjectChooser.h"
+#include "BlendStack/AnimNode_BlendStack.h"
+#include "Styling/SlateBrush.h"
+
+#include "AnimNode_ChooserPlayer.generated.h"
+
+UENUM()
+enum class EChooserEvaluationFrequency
+{
+	OnInitialUpdate,
+	OnBecomeRelevant,
+	OnLoop,
+	OnUpdate
+};
+
+/** The random player node holds a list of sequences and parameter ranges which will be played continuously
+  * In a random order. If shuffle mode is enabled then each entry will be played once before repeating any
+  */
+USTRUCT(BlueprintInternalUseOnly)
+struct FChooserPlayerSequenceEntry
+{
+	GENERATED_BODY()
+
+	FChooserPlayerSequenceEntry()
+	    : Sequence(nullptr)
+	    , ChanceToPlay(1.0f)
+	    , MinLoopCount(0)
+	    , MaxLoopCount(0)
+	    , MinPlayRate(1.0f)
+	    , MaxPlayRate(1.0f)
+	{
+	}
+
+	/** Sequence to play when this entry is picked */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (DisallowedClasses = "/Script/Engine.AnimMontage"))
+	TObjectPtr<UAnimSequenceBase> Sequence;
+
+	/** When not in shuffle mode, this is the chance this entry will play (normalized against all other sample chances) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (UIMin = "0", ClampMin = "0"))
+	float ChanceToPlay;
+
+	/** Minimum number of times this entry will loop before ending */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (UIMin = "0", ClampMin = "0"))
+	int32 MinLoopCount;
+
+	/** Maximum number of times this entry will loop before ending */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (UIMin = "0", ClampMin = "0"))
+	int32 MaxLoopCount;
+
+	/** Minimum playrate for this entry */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (UIMin = "0", ClampMin = "0"))
+	float MinPlayRate;
+
+	/** Maximum playrate for this entry */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (UIMin = "0", ClampMin = "0"))
+	float MaxPlayRate;
+
+	/** Blending properties used when this entry is blending in ontop of another entry */
+	UPROPERTY(EditAnywhere, Category = "Settings")
+	FAlphaBlend BlendIn;
+};
+
+USTRUCT(BlueprintType)
+struct FAnimCurveOverride
+{
+	GENERATED_BODY()
+	// Name of curve to override
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "CurveValue")
+	FName CurveName;
+	// Value to set to the curve
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "CurveValue")
+	float CurveValue;
+};
+
+USTRUCT(BlueprintType)
+struct FAnimCurveOverrideList
+{
+	GENERATED_BODY()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Values")
+	TArray<FAnimCurveOverride> Values;
+};
+
+USTRUCT(BlueprintType)
+struct FChooserPlayerSettings
+{
+	GENERATED_BODY()
+
+	// Set this value to mirror animations - the MirrorDataTable must also be set on the AnimNode
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	bool bMirror = false;
+	
+	// Start offset when starting the Animation Asset
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+    float StartTime = 0;
+
+	// Loop the animation asset, even if the asset is not set as looping
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+    bool bForceLooping = false;
+
+	// playback rate modifier
+	UPROPERTY(EditAnywhere, BlueprintReadWrite ,Category = "Settings")
+    float PlaybackRate = 1.0;
+
+	// List of curve values to set 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FAnimCurveOverrideList CurveOverrides;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Blending")
+	float BlendTime = 0.2;
+	
+	// Set Blend Profiles (editable in the skeleton) to determine how the blending is distributed among your character's bones. It could be used to differentiate between upper body and lower body to blend timing.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Blending, meta = (UseAsBlendProfile = true))
+	TObjectPtr<UBlendProfile> BlendProfile;
+ 
+	// How the blend is applied over time to the bones. Common selections are linear, ease in, ease out, and ease in and out.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Blending)
+	EAlphaBlendOption BlendOption = EAlphaBlendOption::Linear;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Blending)
+	bool bUseInertialBlend = false;
+};
+
+USTRUCT(BlueprintInternalUseOnly)
+struct FAnimNode_ChooserPlayer : public FAnimNode_BlendStack_Standalone
+{
+	GENERATED_BODY()
+
+	CHOOSER_API FAnimNode_ChooserPlayer();
+
+public:
+	// How often the chooser should be evaluated
+	UPROPERTY(EditAnywhere, Category = "Chooser")
+	EChooserEvaluationFrequency EvaluationFrequency = EChooserEvaluationFrequency::OnBecomeRelevant;
+	
+	// Type of chooser logic to use: Use "Evaluate Chooser" for chooser table evaluation, and "Lookup Proxy" for proxy table lookups
+	UPROPERTY(EditAnywhere, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ObjectChooserBase"), Category = "Chooser")
+	FInstancedStruct Chooser;
+
+	// if set and bMirrored MirrorDataTable will be used for mirroring the aniamtion
+	UPROPERTY(EditAnywhere, Category = "Settings")
+	TObjectPtr<UMirrorDataTable> MirrorDataTable;
+
+	// requested blend space blend X parameter (if AnimationAsset is a blend space)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PinHiddenByDefault))
+	float BlendSpaceX = 0;
+	
+	// requested blend space blend Y parameter (if AnimationAsset is a blend space)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PinHiddenByDefault))
+	float BlendSpaceY = 0;
+
+	// Should BlendSpaceParameters be applied to all blend spaces, including ones that are in the process of blending out.
+	bool bUpdateAllActiveBlendSpaces = true;
+	
+	// Settings when starting an animation - these can be overridden per animation asset by the chooser itself
+	UPROPERTY(EditAnywhere, Category = Settings)
+	FChooserPlayerSettings DefaultSettings;
+	
+	UPROPERTY()
+	TArray<FInstancedStruct> ChooserContextDefinition;
+
+	// FAnimNode_Base interface
+	virtual void Initialize_AnyThread(const FAnimationInitializeContext& Context) override;
+	virtual void Evaluate_AnyThread(FPoseContext& Output) override;
+	// End of FAnimNode_Base interface
+	
+	// FAnimNode_AssetPlayerBase interface
+	virtual void UpdateAssetPlayer(const FAnimationUpdateContext& Context) override;
+	virtual FName GetGroupName() const override;
+	virtual EAnimGroupRole::Type GetGroupRole() const override;
+	virtual EAnimSyncMethod GetGroupMethod() const override;
+	virtual bool GetIgnoreForRelevancyTest() const override;
+	virtual bool IsLooping() const override;
+	virtual bool SetGroupName(FName InGroupName) override;
+	virtual bool SetGroupRole(EAnimGroupRole::Type InRole) override;
+	virtual bool SetGroupMethod(EAnimSyncMethod InMethod) override;
+	virtual bool SetIgnoreForRelevancyTest(bool bInIgnoreForRelevancyTest) override;
+	// End of FAnimNode_AssetPlayerBase interface
+	
+private:
+	UAnimationAsset* ChooseAsset(const FAnimationUpdateContext& Context);
+	FChooserEvaluationContext ChooserContext;
+	UAnimationAsset* CurrentAsset = nullptr;
+	uint32 CurveOverridesIndex = 0;
+	TBaseBlendedCurve<FDefaultAllocator, UE::Anim::FCurveElement> OverrideCurves[2]; 
+	
+	// Update Counter for detecting being relevant
+	FGraphTraversalCounter UpdateCounter;
+	
+#if WITH_EDITORONLY_DATA
+	// The group name (NAME_None if it is not part of any group)
+	UPROPERTY(EditAnywhere, Category = Sync, meta = (FoldProperty))
+	FName GroupName = NAME_None;
+
+	// The role this player can assume within the group (ignored if GroupIndex is INDEX_NONE)
+	UPROPERTY(EditAnywhere, Category = Sync, meta = (FoldProperty))
+	TEnumAsByte<EAnimGroupRole::Type> GroupRole = EAnimGroupRole::CanBeLeader;
+
+	// How synchronization is determined
+	UPROPERTY(EditAnywhere, Category = Sync, meta = (FoldProperty))
+	EAnimSyncMethod Method = EAnimSyncMethod::DoNotSync;
+
+	// If true, "Relevant anim" nodes that look for the highest weighted animation in a state will ignore this node
+	UPROPERTY(EditAnywhere, Category = Relevancy, meta = (FoldProperty, PinHiddenByDefault))
+	bool bIgnoreForRelevancyTest = false;
+#endif // WITH_EDITORONLY_DATA
+};
