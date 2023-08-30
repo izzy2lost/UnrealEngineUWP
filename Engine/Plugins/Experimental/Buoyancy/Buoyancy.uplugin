@@ -26,9 +26,5 @@
 			"Name": "Water",
 			"Enabled": true
 		},
-		{
-			"Name": "ChaosUserDataPT",
-			"Enabled": true
-		}
 	]
 }

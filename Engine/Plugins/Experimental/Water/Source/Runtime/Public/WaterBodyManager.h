@@ -2,15 +2,11 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Templates/SharedPointer.h"
 
 class UWaterBodyComponent;
 class AWaterZone;
 class FWaterViewExtension;
-
-DECLARE_MULTICAST_DELEGATE_OneParam(FWaterBodyEvent, UWaterBodyComponent*);
-
 
 class WATER_API FWaterBodyManager
 {
@@ -56,10 +52,6 @@ public:
 	int32 NumWaterZones() const { return WaterZones.Num; }
 
 	FWaterViewExtension* GetWaterViewExtension() { return WaterViewExtension.Get(); }
-
-	FWaterBodyEvent OnWaterBodyAdded;
-
-	FWaterBodyEvent OnWaterBodyRemoved;
 
 private:
 

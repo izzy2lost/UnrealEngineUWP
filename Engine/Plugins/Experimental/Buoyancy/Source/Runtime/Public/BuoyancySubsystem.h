@@ -5,51 +5,13 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "Chaos/SimCallbackObject.h"
 #include "Chaos/Framework/PhysicsProxyBase.h"
-#include "Chaos/PBDRigidsEvolutionFwd.h"
 #include "PBDRigidsSolver.h"
 #include "Engine/EngineBaseTypes.h"
 #include "WaterBodyComponent.h"
 #include "BuoyancyEventFlags.h"
-#include "ChaosUserDataPT.h"
 #include "BuoyancySubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogBuoyancySubsystem, Log, All);
-
-//
-// Callback object for keeping water splines up to date on the physics thread
-//
-// NOTE: We use shared ptr here because a single water spline might have many
-// particles associated with it, but we'd like to only store a single copy
-// of the spline.
-//
-
-struct FBuoyancyWaterSplineData
-{
-	FBuoyancyWaterSplineData() { }
-	FBuoyancyWaterSplineData(
-		const Chaos::FRigidTransform3& InTransform,
-		const FInterpCurveVector& InPosition,
-		const TOptional<FInterpCurveFloat>& InVelocity)
-		: Transform(InTransform)
-		, Position(InPosition)
-		, Velocity(InVelocity)
-	{ }
-
-	Chaos::FRigidTransform3 Transform;
-	FInterpCurveVector Position;
-
-	// There might not be any velocity parameter, so keep this one optional
-	TOptional<FInterpCurveFloat> Velocity;
-};
-
-class FBuoyancyWaterSplineDataManager : public Chaos::TUserDataManagerPT< TSharedPtr<FBuoyancyWaterSplineData> > { };
-
-namespace Chaos
-{
-	class FMidPhaseModifierAccessor;
-	class FMidPhaseModifier;
-}
-
 
 //
 // Buoyancy Settings
@@ -93,10 +55,8 @@ class BUOYANCY_API UBuoyancySubsystem : public UTickableWorldSubsystem
 
 		UBuoyancySubsystem()
 		: UTickableWorldSubsystem()
-		, bWaterObjectsChanged(false)
 		, bBuoyancySettingsChanged(false)
 		, BuoyancySettings(FBuoyancySettings())
-		, SplineData(nullptr)
 		, SimCallback(nullptr)
 	{ }
 
@@ -119,28 +79,19 @@ protected:
 	virtual TStatId GetStatId() const override;
 	// UTickableWorldSubsystem end interface
 
-	// FWaterBodyManager delegate begin callbacks
-	void OnWaterBodyAdded(UWaterBodyComponent* WaterBodyComponent);
-	void OnWaterBodyRemoved(UWaterBodyComponent* WaterBodyComponent);
-	// FWaterBodyManager delegate end callbacks
-
 private:
 
-	void CreateSimCallback();
-	void DestroySimCallback();
+	bool CreateSimCallback();
+	bool DestroySimCallback();
 
 	Chaos::FPhysicsSolver* GetSolver() const;
 
 	// When water plugin settings change, this callback will apply changes
 	void ApplyRuntimeSettings(const class UBuoyancyRuntimeSettings* InSettings, EPropertyChangeType::Type ChangeType);
 
-	bool bWaterObjectsChanged;
-
 	bool bBuoyancySettingsChanged;
 
 	FBuoyancySettings BuoyancySettings;
-
-	FBuoyancyWaterSplineDataManager* SplineData;
 
 	class FBuoyancySubsystemSimCallback* SimCallback;
 };
@@ -173,20 +124,10 @@ struct FBuoyancySubmersion
 	Chaos::FPBDRigidParticleHandle* Particle;
 	float Vol;
 	FVector CoM;
-	FVector Vel;
 };
 
 struct FBuoyancySubsystemSimCallbackInput : public Chaos::FSimCallbackInput
 {
-	// If this array is set, then we need to update our internal list of
-	// water body physics objects to this one. This should occur very
-	// infrequently, if more than once.
-	TOptional<TArray<Chaos::FPhysicsObjectHandle>> WaterObjects;
-
-	// If this ptr is set, then we have a new spline data manager...
-	// That should only probably happen one time
-	TOptional<FBuoyancyWaterSplineDataManager*> SplineData = nullptr;
-
 	// Here we use a unique ptr so that it is possible to provide an async
 	// input _without_ buoyancy settings (which may be eventually desirable
 	// when we eventually are passing lists of water bodies or water wave
@@ -224,18 +165,6 @@ private:
 
 	virtual void OnPreSimulate_Internal() override;
 	virtual void OnMidPhaseModification_Internal(Chaos::FMidPhaseModifierAccessor& Modifier) override;
-
-	void ProcessMidPhases(Chaos::FPBDRigidsEvolution& Evolution, Chaos::FMidPhaseModifierAccessor& MidPhaseAccessor);
-	void ProcessMidPhase(Chaos::FPBDRigidsEvolution& Evolution, Chaos::FGeometryParticleHandle* WaterParticle, Chaos::FMidPhaseModifier& MidPhase);
-	void ApplyBuoyantForces(Chaos::FPBDRigidsEvolution& Evolution);
-	void GenerateCallbackData();
-
-	// Internal array of physics objects that were created by water components
-	TArray<Chaos::FPhysicsObjectHandle> WaterObjects;
-
-	// Reference to UserDataPT sim callback which manages synchronization of
-	// water spline data
-	FBuoyancyWaterSplineDataManager* SplineData;
 
 	// Initially we won't have any settings - they have to get passed down
 	// via async input. I used TUniquePtr to control access to the same
