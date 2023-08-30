@@ -222,6 +222,5 @@ protected:
 	/** The value won;t be updated while editing */
 	bool bDontUpdateWhileEditing;
 
-
-	
+	TOptional<int32> TransactionIndex;	
 };

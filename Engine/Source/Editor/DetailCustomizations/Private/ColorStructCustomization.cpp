@@ -108,6 +108,10 @@ void FColorStructCustomization::MakeHeaderRow(TSharedRef<class IPropertyHandle>&
 
 FColorStructCustomization::~FColorStructCustomization()
 {
+	if (TransactionIndex.IsSet())
+	{
+		GEditor->EndTransaction();
+	}
 }
 
 TSharedRef<SWidget> FColorStructCustomization::CreateColorWidget(TWeakPtr<IPropertyHandle> StructWeakHandlePtr)
@@ -229,7 +233,7 @@ void FColorStructCustomization::GatherSavedPreColorPickerColors()
 
 void FColorStructCustomization::CreateColorPicker(bool bUseAlpha)
 {
-	GEditor->BeginTransaction(FText::Format(LOCTEXT("SetColorProperty", "Edit {0}"), StructPropertyHandle->GetPropertyDisplayName()));
+	TransactionIndex = GEditor->BeginTransaction(FText::Format(LOCTEXT("SetColorProperty", "Edit {0}"), StructPropertyHandle->GetPropertyDisplayName()));
 
 	GatherSavedPreColorPickerColors();
 
@@ -267,7 +271,7 @@ void FColorStructCustomization::CreateColorPicker(bool bUseAlpha)
 
 TSharedRef<SColorPicker> FColorStructCustomization::CreateInlineColorPicker(TWeakPtr<IPropertyHandle> StructWeakHandlePtr)
 {
-	GEditor->BeginTransaction(FText::Format(LOCTEXT("SetColorProperty", "Edit {0}"), StructPropertyHandle->GetPropertyDisplayName()));
+	TransactionIndex = GEditor->BeginTransaction(FText::Format(LOCTEXT("SetColorProperty", "Edit {0}"), StructPropertyHandle->GetPropertyDisplayName()));
 
 	GatherSavedPreColorPickerColors();
 
@@ -354,6 +358,7 @@ void FColorStructCustomization::OnColorPickerCancelled(FLinearColor OriginalColo
 	LastPickerColorString.Reset();
 
 	GEditor->CancelTransaction(0);
+	TransactionIndex.Reset();
 }
 
 void FColorStructCustomization::OnColorPickerWindowClosed(const TSharedRef<SWindow>& Window)
@@ -371,6 +376,7 @@ void FColorStructCustomization::OnColorPickerWindowClosed(const TSharedRef<SWind
 	}
 
 	GEditor->EndTransaction();
+	TransactionIndex.Reset();
 }
 
 
