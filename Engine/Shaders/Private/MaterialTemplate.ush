@@ -2,10 +2,6 @@
 
 /**
  * MaterialTemplate.usf: Filled in by FHLSLMaterialTranslator::GetMaterialShaderCode for each material being compiled.
- 
-  $TemplateVersion{1}
-	Bump this number up when you make a change to this file that requires the material
-	translation DDC cache to be invalidated, forcing all materials to re-translate.
  */
 
 #ifndef ENABLE_NEW_HLSL_GENERATOR
@@ -79,13 +75,13 @@
 
 //////////////////////////////////////////////////////////////////////////
 
-#define NUM_MATERIAL_TEXCOORDS_VERTEX %{num_material_texcoords_vertex}
-#define NUM_MATERIAL_TEXCOORDS %{num_material_texcoords}
-#define NUM_CUSTOM_VERTEX_INTERPOLATORS %{num_custom_vertex_interpolators}
-#define NUM_TEX_COORD_INTERPOLATORS %{num_tex_coord_interpolators}
+#define NUM_MATERIAL_TEXCOORDS_VERTEX %s
+#define NUM_MATERIAL_TEXCOORDS %s
+#define NUM_CUSTOM_VERTEX_INTERPOLATORS %s
+#define NUM_TEX_COORD_INTERPOLATORS %s
 
 // Vertex interpolators offsets definition
-%{vertex_interpolators_offsets_definition}
+%s
 
 #if NUM_VIRTUALTEXTURE_SAMPLES || LIGHTMAP_VT_ENABLED
 	#include "/Engine/Private/VirtualTextureCommon.ush"
@@ -297,17 +293,17 @@ float4 GetDynamicParameter(FMaterialParticleParameters Parameters, float4 Defaul
 }
 
 /** Material declarations */
-%{material_declarations}
+%s
 
 /** FMaterialAttributes utilities */
-%{material_attributes_utilities}
+%s
 
 /** 
  * Parameters calculated from the pixel material inputs.
  */
 struct FPixelMaterialInputs
 {
-%{pixel_material_inputs}
+%s
 
 #if TEMPLATE_USES_STRATA
 FStrataData GetFrontStrataData()
@@ -2725,7 +2721,7 @@ float4 MaterialExpressionPathTracingBufferTextureLookup(FMaterialPixelParameters
 #define SwizzleDeriv4(_V, _MASK) ConstructFloatDeriv4(_V.Value._MASK, _V.Ddx._MASK, _V.Ddy._MASK)
 
 // Uniform material expressions.
-%{uniform_material_expressions}
+%s
 
 #if USE_ANALYTIC_DERIVATIVES && TEXTURE_SAMPLE_DEBUG
 MaterialFloat4 DebugTextureCommon(const int Mode, float2 UV, MaterialFloat2 DDX, MaterialFloat2 DDY, MaterialFloat Scale)
@@ -2848,7 +2844,7 @@ half3 GetMaterialEmissive(FPixelMaterialInputs PixelMaterialInputs)
 
 half3 GetMaterialEmissiveForCS(FMaterialPixelParameters Parameters)
 {
-%{get_material_emissive_for_cs};
+%s;
 }
 
 // Shading Model is an uint and represents a SHADINGMODELID_* in ShadingCommon.ush 
@@ -2921,55 +2917,55 @@ half GetMaterialAnisotropy(FPixelMaterialInputs PixelMaterialInputs)
 
 half GetMaterialTranslucencyDirectionalLightingIntensity()
 {
-%{get_material_translucency_directional_lighting_intensity};
+%s;
 }
 
 half GetMaterialTranslucentShadowDensityScale()
 {
-%{get_material_translucent_shadow_density_scale};
+%s;
 }
 
 half GetMaterialTranslucentSelfShadowDensityScale()
 {
-%{get_material_translucent_self_shadow_density_scale};
+%s;
 }
 
 half GetMaterialTranslucentSelfShadowSecondDensityScale()
 {
-%{get_material_translucent_self_shadow_second_density_scale};
+%s;
 }
 
 half GetMaterialTranslucentSelfShadowSecondOpacity()
 {
-%{get_material_translucent_self_shadow_second_opacity};
+%s;
 }
 
 half GetMaterialTranslucentBackscatteringExponent()
 {
-%{get_material_translucent_backscattering_exponent};
+%s;
 }
 
 half3 GetMaterialTranslucentMultipleScatteringExtinction()
 {
-%{get_material_translucent_multiple_scattering_extinction};
+%s;
 }
 
 // This is the clip value constant that is defined in the material (range 0..1)
 // Use GetMaterialMask() to get the Material Mask combined with this.
 half GetMaterialOpacityMaskClipValue()
 {
-%{get_material_opacity_mask_clip_value};
+%s;
 }
 
 #if USES_DISPLACEMENT && IS_NANITE_PASS
 float GetMaterialDisplacementMagnitude()
 {
-%{get_material_displacement_magnitude};
+%s;
 }
 
 float GetMaterialDisplacementCenter()
 {
-%{get_material_displacement_center};
+%s;
 }
 
 float GetMaterialDisplacement(FPixelMaterialInputs PixelMaterialInputs)
@@ -3051,7 +3047,7 @@ float3 ClampWorldPositionOffset(FMaterialVertexParameters Parameters, float3 InO
 
 float3 GetMaterialWorldPositionOffsetRaw(FMaterialVertexParameters Parameters)
 {
-%{get_material_world_position_offset_raw};
+%s;
 }
 
 float3 GetMaterialWorldPositionOffset(FMaterialVertexParameters Parameters)
@@ -3066,7 +3062,7 @@ float3 GetMaterialWorldPositionOffset(FMaterialVertexParameters Parameters)
 
 float3 GetMaterialPreviousWorldPositionOffsetRaw(FMaterialVertexParameters Parameters)
 {
-%{get_material_previous_world_position_offset_raw};
+%s;
 }
 
 float3 GetMaterialPreviousWorldPositionOffset(FMaterialVertexParameters Parameters)
@@ -3094,12 +3090,12 @@ half4 GetMaterialSubsurfaceData(FPixelMaterialInputs PixelMaterialInputs)
 
 half GetMaterialCustomData0(in out FMaterialPixelParameters Parameters)
 {
-%{get_material_custom_data0};
+%s;
 }
 
 half GetMaterialCustomData1(in out FMaterialPixelParameters Parameters)
 {
-%{get_material_custom_data1};
+%s;
 }
 
 half GetMaterialAmbientOcclusionRaw(FPixelMaterialInputs PixelMaterialInputs)
@@ -3156,12 +3152,12 @@ FMaterialRefractionData GetMaterialRefraction(FPixelMaterialInputs PixelMaterial
 #if NUM_TEX_COORD_INTERPOLATORS
 void GetMaterialCustomizedUVs(FMaterialVertexParameters Parameters, inout float2 OutTexCoords[NUM_TEX_COORD_INTERPOLATORS])
 {
-%{get_material_customized_u_vs}
+%s
 }
 
 void GetCustomInterpolators(FMaterialVertexParameters Parameters, inout float2 OutTexCoords[NUM_TEX_COORD_INTERPOLATORS])
 {
-%{get_custom_interpolators}
+%s
 }
 #endif
 
@@ -3243,7 +3239,7 @@ float GetRoughnessFromNormalCurvature(FMaterialPixelParameters InMaterialParamet
 }
 
 // EvaluateMaterialAttributes
-%{evaluate_material_attributes}
+%s
 
 // Be very, very careful about changing CalcPixelMaterialInputs() or CalcPixelMaterialInputsAnalyticDerivatives(). They apply the same basic calculation,
 // but CalcPixelMaterialInputs() uses finite difference derivates from hardware whereas CalcPixelMaterialInputsAnalyticDerivatives() uses analytic
@@ -3251,9 +3247,9 @@ float GetRoughnessFromNormalCurvature(FMaterialPixelParameters InMaterialParamet
 void CalcPixelMaterialInputs(in out FMaterialPixelParameters Parameters, in out FPixelMaterialInputs PixelMaterialInputs)
 {
 	// Initial calculations (required for Normal)
-%{calc_pixel_material_inputs_initial_calculations}
+%s
 	// The Normal is a special case as it might have its own expressions and also be used to calculate other inputs, so perform the assignment here
-%{calc_pixel_material_inputs_normal}
+%s
 
 #if TEMPLATE_USES_STRATA
 	Parameters.StrataPixelFootprint = StrataGetPixelFootprint(Parameters.WorldPosition_CamRelative, GetRoughnessFromNormalCurvature(Parameters));
@@ -3297,7 +3293,7 @@ void CalcPixelMaterialInputs(in out FMaterialPixelParameters Parameters, in out 
 #endif // !PARTICLE_SPRITE_FACTORY
 
 	// Now the rest of the inputs
-%{calc_pixel_material_inputs_other_inputs}
+%s
 
 #if MATERIAL_USES_ANISOTROPY
 	Parameters.WorldTangent = CalculateAnisotropyTangent(Parameters, PixelMaterialInputs);
@@ -3313,9 +3309,9 @@ void CalcPixelMaterialInputs(in out FMaterialPixelParameters Parameters, in out 
 void CalcPixelMaterialInputsAnalyticDerivatives(in out FMaterialPixelParameters Parameters, in out FPixelMaterialInputs PixelMaterialInputs)
 {
 	// Initial calculations (required for Normal)
-%{calc_pixel_material_inputs_analytic_derivatives_initial}
+%s
 	// The Normal is a special case as it might have its own expressions and also be used to calculate other inputs, so perform the assignment here
-%{calc_pixel_material_inputs_analytic_derivatives_normal}
+%s
 
 #if TEMPLATE_USES_STRATA
 	Parameters.StrataPixelFootprint = StrataGetPixelFootprint(Parameters.WorldPosition_CamRelative, GetRoughnessFromNormalCurvature(Parameters));
@@ -3359,7 +3355,7 @@ void CalcPixelMaterialInputsAnalyticDerivatives(in out FMaterialPixelParameters 
 #endif // !PARTICLE_SPRITE_FACTORY
 
 	// Now the rest of the inputs
-%{calc_pixel_material_inputs_analytic_derivatives_other_inputs}
+%s
 
 #if MATERIAL_USES_ANISOTROPY
 	Parameters.WorldTangent = CalculateAnisotropyTangent(Parameters, PixelMaterialInputs);
@@ -3372,7 +3368,7 @@ void CalcPixelMaterialInputsAnalyticDerivatives(in out FMaterialPixelParameters 
 
 // Programmatically set the line number after all the material inputs which have a variable number of line endings
 // This allows shader error line numbers after this point to be the same regardless of which material is being compiled
-#line %{line_number}
+#line %s
 
 void ClipLODTransition(float2 SvPosition, float DitherFactor)
 {

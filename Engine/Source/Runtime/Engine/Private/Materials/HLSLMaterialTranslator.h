@@ -33,7 +33,6 @@
 #include "Containers/Map.h"
 #include "Shader/ShaderTypes.h"
 #include "SparseVolumeTexture/SparseVolumeTexture.h"
-#include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
 
 #if WITH_EDITORONLY_DATA
 #include "Materials/MaterialExpressionSceneTexture.h"
@@ -233,8 +232,6 @@ enum EStrataCompilationContext : uint8
 	SCC_MAX = 2u
 };
 
-struct FHLSLMaterialTranslatorEnvironmentDefines;
-
 class FHLSLMaterialTranslator : public FMaterialCompiler
 {
 	friend class FMaterialDerivativeAutogen;
@@ -280,6 +277,12 @@ protected:
 	FString TranslatedAttributesCodeChunks[SF_NumFrequencies];
 
 	uint64 MaterialAttributesReturned[SF_NumFrequencies];
+
+	/** Line number of the #line in MaterialTemplate.usf */
+	int32 MaterialTemplateLineNumber;
+
+	/** Contents of the MaterialTemplate.usf file */
+	FString MaterialTemplate;
 
 	TArray<int32> ScopeStack;
 
@@ -523,7 +526,7 @@ protected:
 
 		bool StrataGenerateDerivedMaterialOperatorData(FHLSLMaterialTranslator* Compiler);
 
-		void StrataEvaluateSharedLocalBases(FHLSLMaterialTranslator* Compiler, uint8& RequestedSharedLocalBasesCount, FHLSLMaterialTranslatorEnvironmentDefines* OutEnvironment);
+		void StrataEvaluateSharedLocalBases(FHLSLMaterialTranslator* Compiler, uint8& RequestedSharedLocalBasesCount, FShaderCompilerEnvironment* OutEnvironment);
 
 		FStrataSharedLocalBasesInfo StrataCompilationInfoGetMatchingSharedLocalBasisInfo(const FStrataRegisteredSharedLocalBasis& SearchedSharedLocalBasis);
 
@@ -1320,52 +1323,14 @@ protected:
 	/**Experimental access to the EyeAdaptation RT for applying an inverse. */
 	virtual int32 EyeAdaptationInverse(int32 LightValueArg, int32 AlphaArg) override;
 
-	/**
-	 * To only have one piece of code dealing with error handling if the Primitive constant buffer is not used.
-	 * @param Name e.g. TEXT("ObjectWorldPositionAndRadius.w")
-	 */
+	// to only have one piece of code dealing with error handling if the Primitive constant buffer is not used.
+	// @param Name e.g. TEXT("ObjectWorldPositionAndRadius.w")
 	int32 GetPrimitiveProperty(EMaterialValueType Type, const TCHAR* ExpressionName, const TCHAR* HLSLName);
 
-	/**
-	 * The compiler can run in a different state and this affects caching of sub expression, Expressions are different(e.g.View.PrevWorldViewOrigin) when using previous frame's values.
-	 */
+	// The compiler can run in a different state and this affects caching of sub expression, Expressions are different (e.g. View.PrevWorldViewOrigin) when using previous frame's values
 	virtual bool IsCurrentlyCompilingForPreviousFrame() const;
 
 	virtual bool IsDevelopmentFeatureEnabled(const FName& FeatureName) const override;
-
-	/**
-	 * Creates the key hash for this material translation request.
-	 */
-	FIoHash ComputeMaterialTranslationDDCKeyHash();
-
-	/**
-	 * Queries the DDC cache for a cached translation.
-	 * @param DDCKeyHash out the material key hash used to query the DDC.
-	 * @return Whether the speecified key is in the DDC.
-	 */
-	bool QueryDDCCachedTranslationResults(const FIoHash& DDCKeyHash);
-	
-	/**
-	 * Prepares the Environment Defines array based on compilation results.
-	 */
-	void PrepareEnvironmentDefines();
-	
-	/**
-	 * Prepares the material source generation parameters.
-	 */
-	void PrepareMaterialSourceStringParameters();
-	
-	/**
-	 * Pushes the final results to the DDC cache.
-	 * @param DDCKeyHash the hash of the material key use to push the results. Returned by QueryDDCCachedTranslationResults().
-	 */
-	void PushResultsToDDCCache(const FIoHash& DDCKeyHash);
-
-	/** The output material shader defines */
-	TUniquePtr<FHLSLMaterialTranslatorEnvironmentDefines> EnvironmentDefines;
-	
-	/** The material shader source template parameters */
-	TMap<FString, FString> MaterialSourceTemplateParams;
 };
 
 #endif // WITH_EDITORONLY_DATA
