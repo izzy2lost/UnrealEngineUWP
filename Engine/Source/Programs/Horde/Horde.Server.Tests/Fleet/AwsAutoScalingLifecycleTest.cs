@@ -31,7 +31,8 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 	private Mock<IAmazonAutoScaling> _asgMock = default!;
 	private readonly List<CompleteLifecycleActionRequest> _lifecycleUpdates = new();
 	private readonly FakeAmazonSqs _fakeSqs = new();
-	private readonly string _queueUrl = "https://sqs.us-east-1.amazonaws.com/123456789/MyQueue";
+	private readonly string _queueUrl1 = "https://sqs.us-east-1.amazonaws.com/123456789/MyQueue-1";
+	private readonly string _queueUrl2 = "https://sqs.us-east-1.amazonaws.com/123456789/MyQueue-2";
 
 	protected override void Dispose(bool disposing)
 	{
@@ -60,7 +61,7 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 			.Setup(x => x.CompleteLifecycleActionAsync(It.IsAny<CompleteLifecycleActionRequest>(), It.IsAny<CancellationToken>()))
 			.Returns(OnCompleteLifecycleActionAsync);
 		
-		ServerSettings ss = new () { AwsAutoScalingQueueUrl = _queueUrl };
+		ServerSettings ss = new () { AwsAutoScalingQueueUrls = new [] { _queueUrl1, _queueUrl2 } };
 		_asgLifecycleService = new AwsAutoScalingLifecycleService(AgentService, GetRedisServiceSingleton(), AgentCollection, Clock, new TestOptionsMonitor<ServerSettings>(ss), ServiceProvider, Tracer, logger);
 		_asgLifecycleService.SetAmazonClientsTesting(_asgMock.Object, _fakeSqs);
 		await _asgLifecycleService.StartAsync(CancellationToken.None);
@@ -75,8 +76,8 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 		await AgentService.DeleteAgentAsync(agent);
 		
 		// Act
-		await _fakeSqs.SendMessageAsync(_queueUrl, JsonSerializer.Serialize(lae));
-		await _asgLifecycleService.ReceiveLifecycleEventsAsync(CancellationToken.None);
+		await _fakeSqs.SendMessageAsync(_queueUrl1, JsonSerializer.Serialize(lae));
+		await _asgLifecycleService.ReceiveLifecycleEventsAsync(_queueUrl1, CancellationToken.None);
 
 		// Assert
 		agent = (await AgentService.GetAgentAsync(agent.Id))!;

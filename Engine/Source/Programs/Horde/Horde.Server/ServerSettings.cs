@@ -634,10 +634,10 @@ namespace Horde.Server
 		public string? FleetManagerV2Config { get; set; }
 		
 		/// <summary>
-		/// AWS SQS queue URL where lifecycle events from EC2 auto-scaling are received
+		/// AWS SQS queue URLs where lifecycle events from EC2 auto-scaling are received
 		/// <see cref="AwsAutoScalingLifecycleService" />
 		/// </summary>
-		public string? AwsAutoScalingQueueUrl { get; set; }
+		public string[] AwsAutoScalingQueueUrls { get; set; } = Array.Empty<string>();
 
 		/// <summary>
 		/// Whether to run scheduled jobs.
