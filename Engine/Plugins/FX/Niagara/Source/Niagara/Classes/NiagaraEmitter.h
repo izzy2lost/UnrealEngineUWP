@@ -978,7 +978,11 @@ private:
 	FOnEventHandlersChanged OnEventHandlersChangedDelegate;
 #endif
 
-	void GenerateStatID()const;
+
+public:
+	void UpdateStatID() const;
+private:
+	void GenerateStatID() const;
 #if STATS
 	mutable TStatId StatID_GT;
 	mutable TStatId StatID_GT_CNC;

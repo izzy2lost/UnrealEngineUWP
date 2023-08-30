@@ -848,6 +848,24 @@ void UNiagaraSystem::ResolveWarmupTickCount()
 }
 
 #if WITH_EDITOR
+void UNiagaraSystem::PostRename(UObject* OldOuter, const FName OldName)
+{
+	Super::PostRename(OldOuter, OldName);
+
+#if STATS
+	UpdateStatID();
+	for (const FNiagaraEmitterHandle& Handle : EmitterHandles)
+	{
+		if (UNiagaraEmitter* Emitter = Handle.GetInstance().Emitter)
+		{
+			Emitter->UpdateStatID();
+		}
+	}
+
+	// Recreate any scene proxies
+	FNiagaraSystemUpdateContext UpdateCtx(this, true);
+#endif
+}
 
 void UNiagaraSystem::PreEditChange(FProperty* PropertyThatWillChange)
 {
@@ -3378,7 +3396,17 @@ FGraphEventRef UNiagaraSystem::GetScriptOptimizationCompletionEvent()
 	return nullptr;
 }
 
-void UNiagaraSystem::GenerateStatID()const
+void UNiagaraSystem::UpdateStatID() const
+{
+#if STATS
+	if (StatID_GT.IsValidStat())
+	{
+		GenerateStatID();
+	}
+#endif
+}
+
+void UNiagaraSystem::GenerateStatID() const
 {
 #if STATS
 	StatID_GT = FDynamicStats::CreateStatId<FStatGroup_STATGROUP_NiagaraSystems>(GetPathName() + TEXT(" [GT]"));

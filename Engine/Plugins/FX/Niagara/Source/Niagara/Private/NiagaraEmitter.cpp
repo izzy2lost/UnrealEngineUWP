@@ -1181,6 +1181,7 @@ void UNiagaraEmitter::PostRename(UObject* OldOuter, const FName OldName)
 	{
 		SetUniqueEmitterName(GetFName().GetPlainNameString());
 	}
+	UpdateStatID();
 }
 
 void UNiagaraEmitter::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
@@ -3408,7 +3409,17 @@ void FMemoryRuntimeEstimation::Init()
 	EstimationCriticalSection = MakeShared<FCriticalSection>();
 }
 
-void UNiagaraEmitter::GenerateStatID()const
+void UNiagaraEmitter::UpdateStatID() const
+{
+#if STATS
+	if (StatID_GT.IsValidStat())
+	{
+		GenerateStatID();
+	}
+#endif
+}
+
+void UNiagaraEmitter::GenerateStatID() const
 {
 #if STATS
 	FString Name = GetOuter() ? GetOuter()->GetFName().ToString() : TEXT("");
