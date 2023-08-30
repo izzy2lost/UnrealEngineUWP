@@ -437,10 +437,13 @@ private:
 	 */
 	UNREALED_API void ExportLevelSequenceBaked3DTransformTrack(IAnimTrackAdapter& AnimTrackAdapter, FbxNode* FbxActor, IMovieScenePlayer* MovieScenePlayer, FMovieSceneSequenceIDRef InSequenceID, TArray<TWeakObjectPtr<UMovieScene3DTransformTrack> > TransformTracks, UObject* BoundObject, const TRange<FFrameNumber>& InPlaybackRange, const FMovieSceneSequenceTransform& RootToLocalTransform);
 
-	/** 
+	/**
 	 * Exports a level sequence property track into the FBX animation stack. 
 	 */
-	UNREALED_API void ExportLevelSequenceTrackChannels( FbxNode* FbxActor, UMovieSceneTrack& Track, const TRange<FFrameNumber>& InPlaybackRange, const FMovieSceneSequenceTransform& RootToLocalTransform);
+	UNREALED_API void ExportLevelSequenceTrackChannels( FbxNode* FbxActor, UMovieSceneTrack& Track, const TRange<FFrameNumber>& InPlaybackRange, const FMovieSceneSequenceTransform& RootToLocalTransform, bool bBakeBezierCurves);
+
+	UE_DEPRECATED(5.4, "Use ExportLevelSequenceTrackChannels that indicates whether bezier channels should be baked")
+	UNREALED_API void ExportLevelSequenceTrackChannels(FbxNode* FbxActor, UMovieSceneTrack& Track, const TRange<FFrameNumber>& InPlaybackRange, const FMovieSceneSequenceTransform& RootToLocalTransform) { ExportLevelSequenceTrackChannels(FbxActor, Track, InPlaybackRange, RootToLocalTransform, false); }
 
 	/** Defines value export modes for the EportRichCurveToFbxCurve method. */
 	enum class ERichCurveValueMode
@@ -450,6 +453,10 @@ private:
 		/** Export fov values which get processed to focal length. */
 		Fov
 	};
+
+	/** Generic implementation of exporting a movie scene bezier curve channel to an fbx animation curve, baked per frame */
+	template<typename ChannelType>
+	void ExportBezierChannelToFbxCurveBaked(FbxAnimCurve& InFbxCurve, const ChannelType& InChannel, FFrameRate TickResolution, const UMovieSceneTrack* Track, ERichCurveValueMode ValueMode, bool bNegative, const FMovieSceneSequenceTransform& RootToLocalTransform);
 
 	/** Generic implementation of exporting a movie scene bezier curve channel to an fbx animation curve */
 	template<typename ChannelType>

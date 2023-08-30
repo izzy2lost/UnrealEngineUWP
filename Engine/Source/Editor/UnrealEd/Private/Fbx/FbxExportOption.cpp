@@ -28,6 +28,8 @@ UFbxExportOption::UFbxExportOption(const FObjectInitializer& ObjectInitializer)
 	VertexColor = true;
 	MapSkeletalMotionToRoot = false;
 	bExportLocalTime = true;
+	BakeCameraAndLightAnimation = EMovieSceneBakeType::BakeTransforms;
+	BakeActorAnimation = EMovieSceneBakeType::None;
 }
 
 void UFbxExportOption::ResetToDefault()
