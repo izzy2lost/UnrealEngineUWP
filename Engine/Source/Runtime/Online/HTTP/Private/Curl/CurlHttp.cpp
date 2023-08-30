@@ -1141,7 +1141,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FCurlHttpRequest::BroadcastNewlyReceivedHeaders()
 {
-	check(IsInGameThread() || DelegateThreadPolicy == EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
 	if (Response.IsValid())
 	{
 		// Process the headers received on the HTTP thread and merge them into the response's list of headers and then broadcast the new headers
@@ -1176,8 +1175,6 @@ void FCurlHttpRequest::BroadcastNewlyReceivedHeader(const FString& HeaderKey, co
 
 void FCurlHttpRequest::FinishRequest()
 {
-	check(IsInGameThread() || DelegateThreadPolicy == EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
-
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FCurlHttpRequest_FinishRequest);
 
 	curl_easy_setopt(EasyHandle, CURLOPT_SHARE, nullptr);

@@ -88,7 +88,6 @@ void FHttpThreadBase::CancelRequest(IHttpThreadedRequest* Request)
 
 void FHttpThreadBase::GetCompletedRequests(TArray<IHttpThreadedRequest*>& OutCompletedRequests)
 {
-	check(IsInGameThread());
 	IHttpThreadedRequest* Request = nullptr;
 	while (CompletedThreadedRequests.Dequeue(Request))
 	{

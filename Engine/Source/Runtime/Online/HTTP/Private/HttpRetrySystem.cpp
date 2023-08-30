@@ -158,6 +158,8 @@ FHttpRetrySystem::FManager::FManager(const FRetryLimitCountSetting& InRetryLimit
 
 FHttpRetrySystem::FManager::~FManager()
 {
+	FScopeLock ScopeLock(&RequestListLock);
+
 	// Decrement retried request for log verbosity tracker
 	for (const FHttpRetryRequestEntry& Request : RequestList)
 	{
@@ -341,6 +343,8 @@ bool FHttpRetrySystem::FManager::Update(uint32* FileCount, uint32* FailingCount,
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FHttpRetrySystem_FManager_Update);
 	LLM_SCOPE_BYTAG(HTTP);
+
+	FScopeLock ScopeLock(&RequestListLock);
 
 	bool bIsGreen = true;
 
@@ -589,6 +593,7 @@ bool FHttpRetrySystem::FManager::ProcessRequest(TSharedRef<FHttpRetrySystem::FRe
 
 	if (bResult)
 	{
+		FScopeLock ScopeLock(&RequestListLock);
 		RequestList.Add(FHttpRetryRequestEntry(HttpRetryRequest));
 	}
 
@@ -598,6 +603,8 @@ bool FHttpRetrySystem::FManager::ProcessRequest(TSharedRef<FHttpRetrySystem::FRe
 void FHttpRetrySystem::FManager::CancelRequest(TSharedRef<FHttpRetrySystem::FRequest, ESPMode::ThreadSafe>& HttpRetryRequest)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FHttpRetrySystem_FManager_CancelRequest);
+
+	FScopeLock ScopeLock(&RequestListLock);
 
 	// Find the existing request entry if is was previously processed.
 	bool bFound = false;
@@ -629,6 +636,10 @@ void FHttpRetrySystem::FManager::BlockUntilFlushed(float InTimeoutSec)
 	const float SleepInterval = 0.016;
 	float TimeElapsed = 0.0f;
 	uint32 FileCount, FailingCount, FailedCount, CompleteCount;
+
+	FScopeLock ScopeLock(&RequestListLock);
+
+	// TODO: Cache completed request adaptors and trigger the delegates in expected thread
 	while (RequestList.Num() > 0 && TimeElapsed < InTimeoutSec)
 	{
 		FHttpModule::Get().GetHttpManager().Tick(SleepInterval);
