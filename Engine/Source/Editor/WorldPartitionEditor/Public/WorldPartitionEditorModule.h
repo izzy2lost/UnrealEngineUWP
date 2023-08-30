@@ -2,6 +2,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Async/AsyncWork.h"
 #include "WorldPartition/IWorldPartitionEditorModule.h"
 
 class FTabManager;
@@ -124,7 +125,13 @@ private:
 
 	/** Inserts world partition tabs into the level editor layout */
 	void RegisterWorldPartitionLayout(FLayoutExtender& Extender);
-	
+
+	/** Perform cleanup of empty folders for external objects paths */
+	void CleanupExternalObjectsEmptyFolders();
+
+	/** Wait for rmpty folders cleanup async task to complete */
+	void WaitForCleanupExternalObjectsEmptyFolders();
+
 	/** Spawns the world partition tab */
 	TSharedRef<SDockTab> SpawnWorldPartitionTab(const FSpawnTabArgs& Args);
 
@@ -155,4 +162,17 @@ private:
 	FOnPreExecuteCommandlet OnPreExecuteCommandletEvent;
 	FOnExecuteCommandlet OnExecuteCommandletEvent;
 	FOnPostExecuteCommandlet OnPostExecuteCommandletEvent;
+
+	class FCleanupExternalObjectsEmptyFoldersWorker : public FNonAbandonableTask
+	{
+	public:
+		void DoWork();
+
+		FORCEINLINE TStatId GetStatId() const
+		{
+			RETURN_QUICK_DECLARE_CYCLE_STAT(FCleanupExternalObjectsEmptyFoldersWorker, STATGROUP_ThreadPoolAsyncTasks);
+		}
+	};
+
+	TUniquePtr<FAsyncTask<FCleanupExternalObjectsEmptyFoldersWorker>> CleanupExternalObjectsEmptyFoldersWorkerAsyncTask;
 };
