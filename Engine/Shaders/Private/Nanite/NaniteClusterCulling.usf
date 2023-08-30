@@ -83,7 +83,6 @@ RWStructuredBuffer<FNaniteStats>		OutStatsBuffer;
 #endif
 
 uint									LargePageRectThreshold;
-uint									StreamingRequestsBufferVersion;
 
 RWStructuredBuffer<uint>				OutDirtyPageFlags;
 

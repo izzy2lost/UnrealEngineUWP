@@ -261,6 +261,8 @@ private:
 
 	uint32					StreamingRequestsBufferVersion;
 	uint32					MaxStreamingPages;
+	uint32					MaxRootPages;
+	uint32					NumInitialRootPages;
 	uint32					MaxPendingPages;
 	uint32					MaxPageInstallsPerUpdate;
 	uint32					MaxStreamingReadbackBuffers;
@@ -356,6 +358,7 @@ private:
 	uint32 GPUPageIndexToGPUOffset(uint32 PageIndex) const;
 
 	void ProcessNewResources(FRDGBuilder& GraphBuilder);
+	FRDGBuffer* GrowPoolAllocationIfNeeded(FRDGBuilder& GraphBuilder);
 	
 	uint32 DetermineReadyPages(uint32& TotalPageSize);
 	void InstallReadyPages(uint32 NumReadyPages);

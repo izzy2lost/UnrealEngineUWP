@@ -153,6 +153,7 @@ DECLARE_DWORD_ACCUMULATOR_STAT(	TEXT("Imposters"),							STAT_NaniteStreaming01_
 DECLARE_DWORD_ACCUMULATOR_STAT( TEXT("Root Pages"),							STAT_NaniteStreaming02_RootPages,						STATGROUP_NaniteStreaming);
 DECLARE_DWORD_ACCUMULATOR_STAT(	TEXT("    Peak"),							STAT_NaniteStreaming03_PeakRootPages,					STATGROUP_NaniteStreaming);
 DECLARE_DWORD_ACCUMULATOR_STAT(	TEXT("    Allocated"),						STAT_NaniteStreaming04_AllocatedRootPages,				STATGROUP_NaniteStreaming);
+DECLARE_DWORD_ACCUMULATOR_STAT(	TEXT("    Max"),							STAT_NaniteStreaming05_MaxRootPages,					STATGROUP_NaniteStreaming);
 DECLARE_DWORD_ACCUMULATOR_STAT(	TEXT("Streaming Pool Pages"),				STAT_NaniteStreaming06_StreamingPoolPages,				STATGROUP_NaniteStreaming);
 DECLARE_DWORD_ACCUMULATOR_STAT(	TEXT("Total Streaming Pages"),				STAT_NaniteStreaming07_TotalStreamingPages,				STATGROUP_NaniteStreaming);
 DECLARE_DWORD_ACCUMULATOR_STAT( TEXT("Max Hierarchy Levels"),				STAT_NaniteStreaming08_MaxHierarchyLevels,				STATGROUP_NaniteStreaming);
@@ -160,6 +161,7 @@ DECLARE_DWORD_ACCUMULATOR_STAT( TEXT("Max Hierarchy Levels"),				STAT_NaniteStre
 DECLARE_FLOAT_ACCUMULATOR_STAT(	TEXT("Total Pool Size (MB)"),				STAT_NaniteStreaming10_TotalPoolSizeMB,					STATGROUP_NaniteStreaming);
 DECLARE_FLOAT_ACCUMULATOR_STAT(	TEXT("    Root Pool Size (MB)"),			STAT_NaniteStreaming11_AllocatedRootPagesSizeMB,		STATGROUP_NaniteStreaming);
 DECLARE_FLOAT_ACCUMULATOR_STAT(	TEXT("    Streaming Pool Size (MB)"),		STAT_NaniteStreaming12_StreamingPoolSizeMB,				STATGROUP_NaniteStreaming);
+DECLARE_FLOAT_ACCUMULATOR_STAT(	TEXT("Max Total Pool Size (MB)"),			STAT_NaniteStreaming13_MaxTotalPoolSizeMB,				STATGROUP_NaniteStreaming);
 
 DECLARE_DWORD_COUNTER_STAT(		TEXT("Page Requests"),						STAT_NaniteStreaming20_PageRequests,					STATGROUP_NaniteStreaming);
 DECLARE_DWORD_COUNTER_STAT(		TEXT("    GPU"),							STAT_NaniteStreaming21_PageRequestsGPU,					STATGROUP_NaniteStreaming);
@@ -225,6 +227,18 @@ static uint32 RoundUpToSignificantBits(uint32 x, uint32 NumSignificantBits)
 	const int32_t Shift = FMath::Max((int32)FMath::CeilLogTwo(x) - (int32)NumSignificantBits, 0);
 	const uint32 Mask = (1u << Shift) - 1u;
 	return (x + Mask) & ~Mask;
+}
+
+static uint32 GetMaxPagePoolSizeInMB()
+{
+	if (IsRHIDeviceAMD())
+	{
+		return 4095;
+	}
+	else
+	{
+		return 2048;
+	}
 }
 
 class FTranscodePageToGPU_CS : public FGlobalShader
@@ -768,8 +782,29 @@ void FStreamingManager::InitRHI(FRHICommandListBase&)
 
 	LLM_SCOPE_BYTAG(Nanite);
 
-	MaxStreamingPages = (uint32)((uint64)GNaniteStreamingPoolSize * 1024 * 1024 / NANITE_STREAMING_PAGE_GPU_SIZE);
-	check(MaxStreamingPages + GNaniteStreamingNumInitialRootPages <= NANITE_MAX_GPU_PAGES);
+	const uint32 MaxPoolSizeInMB		= GetMaxPagePoolSizeInMB();
+	const uint32 StreamingPoolSizeInMB	= GNaniteStreamingPoolSize;
+	if (StreamingPoolSizeInMB >= MaxPoolSizeInMB)
+	{
+		UE_LOG(LogNaniteStreaming, Fatal, TEXT("Streaming pool size (%dMB) must be smaller than the largest allocation supported by the graphics hardware (%dMB)"), StreamingPoolSizeInMB, MaxPoolSizeInMB);
+	}
+	
+	const uint64 MaxRootPoolSizeInMB	= MaxPoolSizeInMB - StreamingPoolSizeInMB;
+	MaxStreamingPages					= uint32((uint64(StreamingPoolSizeInMB) << 20) >> NANITE_STREAMING_PAGE_GPU_SIZE_BITS);
+	MaxRootPages						= uint32((uint64(MaxRootPoolSizeInMB) << 20) >> NANITE_ROOT_PAGE_GPU_SIZE_BITS);
+
+	check(MaxStreamingPages + MaxRootPages <= NANITE_MAX_GPU_PAGES);
+	check((MaxStreamingPages << NANITE_STREAMING_PAGE_MAX_CLUSTERS_BITS) + (MaxRootPages << NANITE_ROOT_PAGE_MAX_CLUSTERS_BITS) <= (1u << NANITE_POOL_CLUSTER_REF_BITS));
+
+	NumInitialRootPages = GNaniteStreamingNumInitialRootPages;
+	if (NumInitialRootPages > MaxRootPages)
+	{
+		UE_LOG(LogNaniteStreaming, Log, TEXT("r.Nanite.Streaming.NumInitialRootPages clamped from %d to %d.\n"
+											"Graphics hardware max buffer size: %dMB, Streaming pool size: %dMB, Max root pool size: %dMB (%d pages)."),
+											NumInitialRootPages, MaxRootPages,
+											MaxPoolSizeInMB, StreamingPoolSizeInMB, MaxRootPoolSizeInMB, MaxRootPages);
+		NumInitialRootPages = MaxRootPages;
+	}
 
 	MaxPendingPages = GNaniteStreamingMaxPendingPages;
 	MaxPageInstallsPerUpdate = (uint32)FMath::Min(GNaniteStreamingMaxPageInstallsPerFrame, GNaniteStreamingMaxPendingPages);
@@ -866,7 +901,7 @@ void FStreamingManager::Add( FResources* Resources )
 		INC_DWORD_STAT_BY( STAT_NaniteStreaming02_RootPages, Resources->NumRootPages );
 
 		Resources->RootPageIndex = ClusterPageData.Allocator.Allocate( Resources->NumRootPages );
-		if (GNaniteStreamingDynamicallyGrowAllocations == 0 && ClusterPageData.Allocator.GetMaxSize() > GNaniteStreamingNumInitialRootPages)
+		if (GNaniteStreamingDynamicallyGrowAllocations == 0 && (uint32)ClusterPageData.Allocator.GetMaxSize() > NumInitialRootPages)
 		{
 			UE_LOG(LogNaniteStreaming, Fatal, TEXT("Out of root pages. Increase the initial root page allocation (r.Nanite.Streaming.NumInitialRootPages) or allow it to grow dynamically (r.Nanite.Streaming.DynamicallyGrowAllocations)."));
 		}
@@ -889,9 +924,13 @@ void FStreamingManager::Add( FResources* Resources )
 			INC_DWORD_STAT_BY( STAT_NaniteStreaming01_Imposters, 1 );
 		}
 
-		// Version root pages so we can disregard invalid streaming requests.
-		// TODO: We only need enough versions to cover the frame delay from the GPU, so most of the version bits can be reclaimed.
-		check(Resources->RootPageIndex < NANITE_MAX_GPU_PAGES);
+		if ((uint32)Resources->RootPageIndex >= MaxRootPages)
+		{
+			const uint32 MaxPagePoolSize = GetMaxPagePoolSizeInMB();
+			UE_LOG(LogNaniteStreaming, Fatal, TEXT(	"Cannot allocate more root pages %d/%d. Pool resource has grown to maximum size of %dMB.\n"
+													"%dMB is spent on streaming data, leaving %dMB for %d root pages."),
+													MaxRootPages, MaxRootPages, MaxPagePoolSize, GNaniteStreamingPoolSize, MaxPagePoolSize - GNaniteStreamingPoolSize, MaxRootPages);
+		}
 		RootPageInfos.SetNum(ClusterPageData.Allocator.GetMaxSize());
 		
 		const uint32 NumResourcePages = Resources->PageStreamingStates.Num();
@@ -904,6 +943,8 @@ void FStreamingManager::Add( FResources* Resources )
 		uint32 RuntimeResourceID;
 		{
 			FRootPageInfo& RootPageInfo = RootPageInfos[Resources->RootPageIndex];
+			// Version root pages so we can disregard invalid streaming requests.
+			// TODO: We only need enough versions to cover the frame delay from the GPU, so most of the version bits can be reclaimed.
 			RuntimeResourceID = (RootPageInfo.NextVersion << NANITE_MAX_GPU_PAGES_BITS) | Resources->RootPageIndex;
 			RootPageInfo.NextVersion = (RootPageInfo.NextVersion + 1u) & MAX_RUNTIME_RESOURCE_VERSIONS_MASK;
 		}
@@ -1241,8 +1282,8 @@ void FStreamingManager::ApplyFixups( const FFixupChunk& FixupChunk, const FResou
 			const uint32 ClusterIndex = Fixup.GetClusterIndex();
 			const uint32 FlagsOffset = offsetof( FPackedCluster, Flags );
 			const uint32 Offset = GPUPageIndexToGPUOffset( TargetGPUPageIndex ) + NANITE_GPU_PAGE_HEADER_SIZE + ( ( FlagsOffset >> 4 ) * NumTargetPageClusters + ClusterIndex ) * 16 + ( FlagsOffset & 15 );
-			check(Offset < (1u << 31));
-			ClusterLeafFlagUpdates.Add((Offset << 1) | (bUninstall ? 1u : 0u));
+			check((Offset & 3u) == 0);
+			ClusterLeafFlagUpdates.Add( Offset | (bUninstall ? 1u : 0u) );
 		}
 	}
 
@@ -1544,6 +1585,49 @@ void FStreamingManager::InstallReadyPages( uint32 NumReadyPages )
 #endif
 }
 
+FRDGBuffer* FStreamingManager::GrowPoolAllocationIfNeeded(FRDGBuilder& GraphBuilder)
+{
+	uint32 NumAllocatedRootPages;
+	if(GNaniteStreamingDynamicallyGrowAllocations)
+	{
+		if((uint32)ClusterPageData.Allocator.GetMaxSize() <= NumInitialRootPages)
+		{
+			NumAllocatedRootPages = NumInitialRootPages;	// Don't round up initial allocation
+		}
+		else
+		{
+			NumAllocatedRootPages = FMath::Clamp(RoundUpToSignificantBits(ClusterPageData.Allocator.GetMaxSize(), 2), (uint32)NumInitialRootPages, MaxRootPages);
+		}
+	}
+	else
+	{
+		NumAllocatedRootPages = NumInitialRootPages;
+	}
+
+	check(NumAllocatedRootPages >= (uint32)ClusterPageData.Allocator.GetMaxSize());	// Root pages just don't fit!
+	StatNumAllocatedRootPages = NumAllocatedRootPages;
+
+	SET_DWORD_STAT(STAT_NaniteStreaming04_AllocatedRootPages, NumAllocatedRootPages);
+	SET_DWORD_STAT(STAT_NaniteStreaming05_MaxRootPages, MaxRootPages);
+	SET_FLOAT_STAT(STAT_NaniteStreaming11_AllocatedRootPagesSizeMB, NumAllocatedRootPages * (NANITE_ROOT_PAGE_GPU_SIZE / 1048576.0f));
+	
+
+	const uint32 NumAllocatedPages = MaxStreamingPages + NumAllocatedRootPages;
+	const uint64 AllocatedPagesSize = GPUPageIndexToGPUOffset(NumAllocatedPages);
+	check(NumAllocatedPages <= NANITE_MAX_GPU_PAGES);
+	check(AllocatedPagesSize <= (uint64(GetMaxPagePoolSizeInMB()) << 20));
+
+	SET_DWORD_STAT(STAT_NaniteStreaming06_StreamingPoolPages, MaxStreamingPages);
+	SET_FLOAT_STAT(STAT_NaniteStreaming12_StreamingPoolSizeMB, MaxStreamingPages * (NANITE_STREAMING_PAGE_GPU_SIZE / 1048576.0f));
+	SET_FLOAT_STAT(STAT_NaniteStreaming10_TotalPoolSizeMB, AllocatedPagesSize / 1048576.0f);
+	SET_FLOAT_STAT(STAT_NaniteStreaming13_MaxTotalPoolSizeMB, (float)GetMaxPagePoolSizeInMB());
+
+	FRDGBuffer* ClusterPageDataBuffer = ResizeByteAddressBufferIfNeeded(GraphBuilder, ClusterPageData.DataBuffer, AllocatedPagesSize, TEXT("Nanite.StreamingManager.ClusterPageData"));
+	RootPageInfos.SetNum(NumAllocatedRootPages);
+
+	return ClusterPageDataBuffer;
+}
+
 void FStreamingManager::ProcessNewResources( FRDGBuilder& GraphBuilder)
 {
 	LLM_SCOPE_BYTAG(Nanite);
@@ -1555,48 +1639,10 @@ void FStreamingManager::ProcessNewResources( FRDGBuilder& GraphBuilder)
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(FStreamingManager::ProcessNewResources);
 
+	FRDGBuffer* ClusterPageDataBuffer = GrowPoolAllocationIfNeeded(GraphBuilder);
+
 	// Upload hierarchy for pending resources
 	FRDGBuffer* HierarchyDataBuffer = ResizeByteAddressBufferIfNeeded(GraphBuilder, Hierarchy.DataBuffer, FMath::RoundUpToPowerOfTwo(Hierarchy.Allocator.GetMaxSize()) * sizeof(FPackedHierarchyNode), TEXT("Nanite.StreamingManager.Hierarchy"));
-
-	check(MaxStreamingPages <= NANITE_MAX_GPU_PAGES);
-	uint32 MaxRootPages = NANITE_MAX_GPU_PAGES - MaxStreamingPages;
-	
-	uint32 NumAllocatedRootPages;	
-	if(GNaniteStreamingDynamicallyGrowAllocations)
-	{
-		if(ClusterPageData.Allocator.GetMaxSize() <= GNaniteStreamingNumInitialRootPages)
-		{
-			NumAllocatedRootPages = GNaniteStreamingNumInitialRootPages;	// Don't round up initial allocation
-		}
-		else
-		{
-			NumAllocatedRootPages = FMath::Clamp( RoundUpToSignificantBits( ClusterPageData.Allocator.GetMaxSize(), 2 ), (uint32)GNaniteStreamingNumInitialRootPages, MaxRootPages);
-		}
-	}
-	else
-	{
-		NumAllocatedRootPages = GNaniteStreamingNumInitialRootPages;
-	}
-
-	check( NumAllocatedRootPages >= (uint32)ClusterPageData.Allocator.GetMaxSize() );	// Root pages just don't fit!
-	StatNumAllocatedRootPages = NumAllocatedRootPages;
-
-	SET_DWORD_STAT(STAT_NaniteStreaming04_AllocatedRootPages, NumAllocatedRootPages);
-	SET_FLOAT_STAT(STAT_NaniteStreaming11_AllocatedRootPagesSizeMB, NumAllocatedRootPages * (NANITE_ROOT_PAGE_GPU_SIZE / 1048576.0f));
-	
-	const uint32 NumAllocatedPages = MaxStreamingPages + NumAllocatedRootPages;
-	const uint32 AllocatedPagesSize = GPUPageIndexToGPUOffset( NumAllocatedPages );
-	check(NumAllocatedPages <= NANITE_MAX_GPU_PAGES);
-
-	SET_DWORD_STAT(STAT_NaniteStreaming06_StreamingPoolPages, MaxStreamingPages);
-	SET_FLOAT_STAT(STAT_NaniteStreaming12_StreamingPoolSizeMB, MaxStreamingPages * (NANITE_STREAMING_PAGE_GPU_SIZE / 1048576.0f));
-	SET_FLOAT_STAT(STAT_NaniteStreaming10_TotalPoolSizeMB, AllocatedPagesSize / 1048576.0f);
-
-	FRDGBuffer* ClusterPageDataBuffer = ResizeByteAddressBufferIfNeeded(GraphBuilder, ClusterPageData.DataBuffer, AllocatedPagesSize, TEXT("Nanite.StreamingManager.ClusterPageData"));
-	RootPageInfos.SetNum( NumAllocatedRootPages );
-
-	check( AllocatedPagesSize <= ( 1u << 31 ) );	// 2GB seems to be some sort of limit.
-													// TODO: Is it a GPU/API limit or is it a signed integer bug on our end?
 
 	FRDGBuffer* ImposterDataBuffer = nullptr;
 
@@ -2052,9 +2098,9 @@ void FStreamingManager::SanityCheckStreamingRequests(const FGPUStreamingRequest*
 		const FGPUStreamingRequest& GPURequest = StreamingRequestsPtr[Index];
 
 		// Validate request magics
-		if ((GPURequest.RuntimeResourceID_Magic & 0xF0) != 0xA0 ||
-			(GPURequest.PageIndex_NumPages_Magic & 0xF0) != 0xB0 ||
-			(GPURequest.Priority_Magic & 0xF0) != 0xC0)
+		if ((GPURequest.RuntimeResourceID_Magic & 0x30) != 0x10 ||
+			(GPURequest.PageIndex_NumPages_Magic & 0x30) != 0x20 ||
+			(GPURequest.Priority_Magic & 0x30) != 0x30)
 		{
 			UE_LOG(LogNaniteStreaming, Fatal, TEXT("Validation of Nanite streaming request failed! The magic doesn't match. This likely indicates an issue with the GPU readback."));
 		}
@@ -2084,9 +2130,9 @@ void FStreamingManager::SanityCheckStreamingRequests(const FGPUStreamingRequest*
 			// Resource could have been uninstalled in the meantime, which is ok. The request is ignored.
 			// We don't have to worry about RuntimeResourceIDs being reused because MAX_RUNTIME_RESOURCE_VERSIONS is high enough to never have two resources with the same ID in flight.
 			const uint32 MaxPageIndex = PageStartIndex + NumPages - 1;
-			if (MaxPageIndex >= (uint32)(*Resources)->PageStreamingStates.Num())
+			if (MaxPageIndex >= (uint32)Resources->PageStreamingStates.Num())
 			{
-				UE_LOG(LogNaniteStreaming, Fatal, TEXT("Validation of Nanite streaming request failed! Page range out of bounds. Start: %d Num: %d Total: %d"), PageStartIndex, NumPages, (*Resources)->PageStreamingStates.Num());
+				UE_LOG(LogNaniteStreaming, Fatal, TEXT("Validation of Nanite streaming request failed! Page range out of bounds. Start: %d Num: %d Total: %d"), PageStartIndex, NumPages, Resources->PageStreamingStates.Num());
 			}
 		}
 	}

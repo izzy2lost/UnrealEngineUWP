@@ -212,15 +212,44 @@ struct FNaniteFullscreenVSToPS
 	StructuredBuffer<uint>			RayTracingDataBuffer;
 #endif
 
+// Packs a (PageIndex, ClusterIndex) pair into a flat index based on max clusters per page.
+uint PackPoolClusterRef(uint PageIndex, uint ClusterIndex)
+{
+	const uint MaxStreamingPages = PageConstants.y;
+	return	(min(PageIndex, MaxStreamingPages) << NANITE_STREAMING_PAGE_MAX_CLUSTERS_BITS) +
+			((uint)max((int)PageIndex - (int)MaxStreamingPages, 0) << NANITE_ROOT_PAGE_MAX_CLUSTERS_BITS) +
+			ClusterIndex;
+}
+
+void UnpackPoolClusterRef(uint PackedClusterRef, inout uint PageIndex, inout uint ClusterIndex)
+{
+	const uint MaxStreamingPages = PageConstants.y;
+	const uint MaxStreamingClusters = MaxStreamingPages << NANITE_STREAMING_PAGE_MAX_CLUSTERS_BITS;
+	if (PackedClusterRef < MaxStreamingClusters)
+	{
+		PageIndex		= PackedClusterRef >> NANITE_STREAMING_PAGE_MAX_CLUSTERS_BITS;
+		ClusterIndex	= PackedClusterRef & ((1u << NANITE_STREAMING_PAGE_MAX_CLUSTERS_BITS) - 1u);
+	}
+	else
+	{
+		PackedClusterRef -= MaxStreamingClusters;
+		PageIndex		= MaxStreamingPages + (PackedClusterRef >> NANITE_ROOT_PAGE_MAX_CLUSTERS_BITS);
+		ClusterIndex	= PackedClusterRef & ((1u << NANITE_ROOT_PAGE_MAX_CLUSTERS_BITS) - 1u);
+	}
+}
+
 uint4 PackVisibleCluster(FVisibleCluster VisibleCluster, bool bHasPageData)
 {
 	uint4 RawData = 0;
 	uint BitPos = 0;
+
+	const uint PackedClusterRef = PackPoolClusterRef(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
+
 	WriteBits(RawData, BitPos, VisibleCluster.Flags,		NANITE_NUM_CULLING_FLAG_BITS);
 	WriteBits(RawData, BitPos, VisibleCluster.ViewId,		NANITE_MAX_VIEWS_PER_CULL_RASTERIZE_PASS_BITS);
-	WriteBits(RawData, BitPos, VisibleCluster.PageIndex,	NANITE_MAX_GPU_PAGES_BITS);
 	WriteBits(RawData, BitPos, VisibleCluster.InstanceId,	NANITE_MAX_INSTANCES_BITS);
-	WriteBits(RawData, BitPos, VisibleCluster.ClusterIndex, NANITE_MAX_CLUSTERS_PER_PAGE_BITS);
+	WriteBits(RawData, BitPos, PackedClusterRef,			NANITE_POOL_CLUSTER_REF_BITS);
+
 	if (bHasPageData)
 	{
 		WriteBits(RawData, BitPos, VisibleCluster.vPage.x, 13);
@@ -238,16 +267,17 @@ FVisibleCluster UnpackVisibleCluster(uint4 RawData, bool bHasPageData = false)
 	FVisibleCluster VisibleCluster;
 	VisibleCluster.Flags		= ReadBits( RawData, BitPos, NANITE_NUM_CULLING_FLAG_BITS );
 	VisibleCluster.ViewId		= ReadBits( RawData, BitPos, NANITE_MAX_VIEWS_PER_CULL_RASTERIZE_PASS_BITS );
-	VisibleCluster.PageIndex	= ReadBits( RawData, BitPos, NANITE_MAX_GPU_PAGES_BITS );
 	VisibleCluster.InstanceId	= ReadBits( RawData, BitPos, NANITE_MAX_INSTANCES_BITS );
-	VisibleCluster.ClusterIndex	= ReadBits( RawData, BitPos, NANITE_MAX_CLUSTERS_PER_PAGE_BITS );
+	const uint PackedClusterRef = ReadBits( RawData, BitPos, NANITE_POOL_CLUSTER_REF_BITS );
+	UnpackPoolClusterRef( PackedClusterRef, VisibleCluster.PageIndex, VisibleCluster.ClusterIndex );
+
 	if( bHasPageData )
 	{
-		VisibleCluster.vPage.x	= ReadBits( RawData, BitPos, 13 );
-		VisibleCluster.vPage.y	= ReadBits( RawData, BitPos, 13 );
+		VisibleCluster.vPage.x		= ReadBits( RawData, BitPos, 13 );
+		VisibleCluster.vPage.y		= ReadBits( RawData, BitPos, 13 );
 		VisibleCluster.vPageEnd.x	= ReadBits( RawData, BitPos, 3 );
 		VisibleCluster.vPageEnd.y	= ReadBits( RawData, BitPos, 3 );
-		VisibleCluster.vPageEnd += VisibleCluster.vPage;
+		VisibleCluster.vPageEnd		+= VisibleCluster.vPage;
 	}
 	else
 	{

@@ -1675,7 +1675,8 @@ static void AssignClustersToPages(
 			// Add to page
 			FPage* Page = &Pages.Top();
 			bool bRootPage =  (Pages.Num() - 1u) < MaxRootPages;
-			if (Page->GpuSizes.GetTotal() + EncodingInfo.GpuSizes.GetTotal() > (bRootPage ? NANITE_ROOT_PAGE_GPU_SIZE : NANITE_STREAMING_PAGE_GPU_SIZE) || Page->NumClusters + 1 > NANITE_MAX_CLUSTERS_PER_PAGE)
+			if (Page->GpuSizes.GetTotal() + EncodingInfo.GpuSizes.GetTotal() > (bRootPage ? NANITE_ROOT_PAGE_GPU_SIZE : NANITE_STREAMING_PAGE_GPU_SIZE) ||
+				Page->NumClusters + 1 > (bRootPage ? NANITE_ROOT_PAGE_MAX_CLUSTERS : NANITE_STREAMING_PAGE_MAX_CLUSTERS))
 			{
 				// Page is full. Need to start a new one
 				Pages.AddDefaulted();
