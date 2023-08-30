@@ -2274,11 +2274,13 @@ EPropertyBagResult FPropertyBagArrayRef::SetValueSoftPath(const int32 Index, con
 //  UPropertyBag
 //----------------------------------------------------------------//
 
-const UPropertyBag* UPropertyBag::GetOrCreateFromDescs(const TConstArrayView<FPropertyBagPropertyDesc> PropertyDescs)
+const UPropertyBag* UPropertyBag::GetOrCreateFromDescs(const TConstArrayView<FPropertyBagPropertyDesc> PropertyDescs, const TCHAR* PrefixName)
 {
 	const uint64 BagHash = UE::StructUtils::Private::CalcPropertyDescArrayHash(PropertyDescs);
-	const FString ScriptStructName = FString::Printf(TEXT("PropertyBag_%llx"), BagHash);
-
+	const FString ScriptStructName = PrefixName == nullptr
+		? FString::Printf(TEXT("PropertyBag_%llx"), BagHash)
+		: FString::Printf(TEXT("%s_%llx"), PrefixName, BagHash);
+	
 	if (const UPropertyBag* ExistingBag = FindObject<UPropertyBag>(GetTransientPackage(), *ScriptStructName))
 	{
 		return ExistingBag;

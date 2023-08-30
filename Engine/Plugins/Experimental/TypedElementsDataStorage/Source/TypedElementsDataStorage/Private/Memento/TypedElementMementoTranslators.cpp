@@ -30,10 +30,9 @@ void UTypedElementDefaultMementoTranslator::PostInitProperties()
 	{
 		PropertyDescs.Add(FPropertyBagPropertyDesc(Property->GetFName(), Property));
 	}
-
-	// Note: The name of the memento will be an unhelpful "PropertyBag_<hash>"
-	// May wish to revisit property bag interface to allow name to be specified for debug purposes
-	const UPropertyBag* PropertyBag = UPropertyBag::GetOrCreateFromDescs(PropertyDescs);
+	
+	const FString GeneratedMementoStructName = FString::Printf(TEXT("%s_Memento"), *SourceColumnType->GetName());
+	const UPropertyBag* PropertyBag = UPropertyBag::GetOrCreateFromDescs(PropertyDescs, *GeneratedMementoStructName);
 	MementoType = PropertyBag;
 
 	// Need to change the type to a FTypedElementDataStorageColumn to appease TEDS/Mass
