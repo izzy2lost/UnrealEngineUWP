@@ -3,11 +3,14 @@
 
 #include "CoreMinimal.h"
 
+class UInterchangeBaseNodeContainer;
 struct FMeshDescription;
 
 namespace GLTF
 {
 	struct FAsset;
+	struct FAnimation;
+	struct FNode;
 }
 
 namespace UE::Interchange
@@ -34,5 +37,11 @@ namespace UE::Interchange
 		bool GetStaticMeshPayloadDataForPayLoadKey(const GLTF::FAsset& GltfAsset, const FString& PayLoadKey, const FTransform& MeshGlobalTransform
 		, FMeshDescription& MeshDescription);
 		//
+
+		//Process/Handle GLTF Animations:
+		void HandleGLTFAnimations(UInterchangeBaseNodeContainer& NodeContainer,
+			TArray<GLTF::FAnimation> Animations,
+			const TArray<GLTF::FNode>& GLTFNodes,
+			const TMap<const GLTF::FNode*, FString>& GLTFNodeToInterchangeUidMap);
 	}
 }

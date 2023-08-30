@@ -443,6 +443,8 @@ namespace GLTF
 	{
 		FNode& Node = Asset->Nodes.Emplace_GetRef();
 
+		Node.Index = Asset->Nodes.Num() - 1;
+
 		Node.Name = GetString(Object, TEXT("name"));
 
 		if (Object.HasField(TEXT("matrix")))
