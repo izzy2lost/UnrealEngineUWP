@@ -1554,9 +1554,6 @@ FRenderThreadCommandPipe FRenderThreadCommandPipe::Instance;
 
 void FRenderThreadCommandPipe::EnqueueAndLaunch(const TCHAR* Name, uint32& SpecId, TStatId StatId, TUniqueFunction<void(FRHICommandListImmediate&)>&& Function)
 {
-	ensureMsgf(!FTaskTagScope::IsCurrentTag(ETaskTag::EParallelRenderingThread) && !FTaskTagScope::IsCurrentTag(ETaskTag::ERenderingThread),
-		TEXT("Attempted to enqueue a render command from the rendering thread timeline which a pipeline violation. Render commands can only be enqueued from the game thread timeline."));
-
 	Mutex.Lock();
 	bool bWasEmpty = Queues[ProduceIndex].IsEmpty();
 	Queues[ProduceIndex].Emplace(Name, SpecId, StatId, MoveTemp(Function));
