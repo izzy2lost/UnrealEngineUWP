@@ -16,6 +16,15 @@
 
 #define LOCTEXT_NAMESPACE "PCGTextureSamplerElement"
 
+#if WITH_EDITOR
+FText UPCGTextureSamplerSettings::GetNodeTooltipText() const
+{
+	return LOCTEXT("NodeTooltip", "Generates points by sampling the given texture.\n"
+		"If the texture is CPU-accessible, the sampler will prefer the CPU version of the texture.\n"
+		"Otherwise, the texture will be read back from the GPU if one is present.");
+}
+#endif // WITH_EDITOR
+
 TArray<FPCGPinProperties> UPCGTextureSamplerSettings::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> Properties;
@@ -58,12 +67,6 @@ bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 	if (!Texture)
 	{
 		PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("CouldNotResolveTexture", "Texture at path '{0}' could not be loaded"), FText::FromString(Settings->Texture.ToString())));
-		return true;
-	}
-
-	if (!UPCGTextureData::IsSupported(Texture))
-	{
-		PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("UnsupportedTextureFormat", "Texture '{0}' has unsupported settings"), FText::FromName(Texture->GetFName())));
 		return true;
 	}
 

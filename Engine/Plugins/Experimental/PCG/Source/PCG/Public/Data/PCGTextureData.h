@@ -106,13 +106,20 @@ public:
 
 	void Initialize(UTexture2D* InTexture, const FTransform& InTransform, const TFunction<void()>& PostInitializeCallback);
 
-	/** Returns true if the format of InTexture is compatible and can be loaded. Will load texture if not already loaded. */
-	static bool IsSupported(UTexture2D* InTexture);
-
 	//~Begin UPCGSpatialData interface
 protected:
 	virtual UPCGSpatialData* CopyInternal() const override;
 	//~End UPCGSpatialData interface
+
+private:
+	/** Attempts to initialize the UPCGTextureData from a CPU-accessible texture. Returns true if CPU initialization succeeds. */
+	bool InitializeFromCPUTexture();
+
+	/** 
+	* Attempts to initialize the UPCGTextureData from a GPU-accessible texture. Returns true if GPU texture readback can be dispatched. 
+	* The PostInitializeCallback is only executed if this function succeeds.
+	*/
+	bool InitializeFromGPUTexture(const TFunction<void()>& PostInitializeCallback);
 
 public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Properties)
