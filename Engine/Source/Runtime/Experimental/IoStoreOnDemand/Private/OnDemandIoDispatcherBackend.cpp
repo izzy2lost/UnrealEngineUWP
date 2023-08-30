@@ -5,6 +5,7 @@
 #include "AnalyticsEventAttribute.h"
 #include "CancellationToken.h"
 #include "Containers/StringView.h"
+#include "CoreHttp/LatencyTesting.h"
 #include "DistributionEndpoints.h"
 #include "EncryptionKeyManager.h"
 #include "GenericPlatform/GenericPlatformCrashContext.h"
@@ -77,50 +78,8 @@ static TAutoConsoleVariable<bool> CVar_IoReportAnalytics(
 #if !UE_BUILD_SHIPPING
 static void LatencyTest(FStringView InUrl, FStringView InPath)
 {
-	auto AnsiUrl = StringCast<ANSICHAR>(InUrl.GetData(), InUrl.Len());
-
-	using namespace UE::IO::IAS::HTTP;
-
-	FConnectionPool::FParams PoolParams;
-	PoolParams.SetHostFromUrl(AnsiUrl);
-	PoolParams.ConnectionCount = 1;
-	FConnectionPool Pool(PoolParams);
-
-	TAnsiStringBuilder<256> AnsiPath;
-	AnsiPath << "/";
-	AnsiPath << InPath;
-
-	FEventLoop Loop;
 	int32 Results[4] = {};
-	for (uint32 i = 0; i < UE_ARRAY_COUNT(Results); ++i)
-	{
-		bool Ok = false;
-
-		FRequest Request = Loop.Request("HEAD", AnsiPath, Pool);
-		Loop.Send(MoveTemp(Request), [&] (const FTicketStatus& Status)
-		{
-			if (Status.GetId() != FTicketStatus::EId::Response)
-				return;
-
-			const FResponse& Response = Status.GetResponse();
-			Ok = (Response.GetStatus() == EStatusCodeClass::Successful);
-		});
-
-		uint64 Cycles = FPlatformTime::Cycles64();
-		while (Loop.Tick(-1) != 0);
-		Cycles = FPlatformTime::Cycles64() - Cycles;
-
-		Results[i] = Ok ? int32(Cycles) : -1;
-	}
-
-	int64 Freq = int64(1.0 / FPlatformTime::GetSecondsPerCycle());
-	for (int32& Result : Results)
-	{
-		if (Result == -1)
-			continue;
-
-		Result = int32((int64(Result) * 1000) / Freq);
-	}
+	UE::IO::IAS::HTTP::LatencyTest(InUrl, InPath, MakeArrayView(Results));
 
 	UE_LOG(LogIas, VeryVerbose, TEXT("HEAD latencies (ms); %d %d %d %d (%s)"),
 		Results[0], Results[1], Results[2], Results[3], InUrl.GetData());

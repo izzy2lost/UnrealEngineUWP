@@ -1,0 +1,65 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "LatencyTesting.h"
+
+#include "Client.h"
+#include "Containers/StringConv.h"
+#include "Containers/StringView.h"
+#include "HAL/PlatformTime.h"
+#include "Misc/StringBuilder.h"
+#include "Templates/Function.h"
+
+#if !UE_BUILD_SHIPPING
+
+namespace UE::IO::IAS::HTTP
+{
+
+void LatencyTest(FStringView InUrl, FStringView InPath, TArrayView<int32> OutResults)
+{
+	auto AnsiUrl = StringCast<ANSICHAR>(InUrl.GetData(), InUrl.Len());
+
+	FConnectionPool::FParams PoolParams;
+	PoolParams.SetHostFromUrl(AnsiUrl);
+	PoolParams.ConnectionCount = 1;
+	FConnectionPool Pool(PoolParams);
+
+	TAnsiStringBuilder<256> AnsiPath;
+	AnsiPath << "/";
+	AnsiPath << InPath;
+
+	FEventLoop Loop;
+
+	for (int32& Result : OutResults)
+	{
+		bool Ok = false;
+
+		FRequest Request = Loop.Request("HEAD", AnsiPath, Pool);
+		Loop.Send(MoveTemp(Request), [&](const FTicketStatus& Status)
+			{
+				if (Status.GetId() != FTicketStatus::EId::Response)
+					return;
+
+				const FResponse& Response = Status.GetResponse();
+				Ok = (Response.GetStatus() == EStatusCodeClass::Successful);
+			});
+
+		uint64 Cycles = FPlatformTime::Cycles64();
+		while (Loop.Tick(-1) != 0);
+		Cycles = FPlatformTime::Cycles64() - Cycles;
+
+		Result = Ok ? int32(Cycles) : -1;
+	}
+
+	int64 Freq = int64(1.0 / FPlatformTime::GetSecondsPerCycle());
+	for (int32& Result : OutResults)
+	{
+		if (Result == -1)
+			continue;
+
+		Result = int32((int64(Result) * 1000) / Freq);
+	}
+}
+
+} // namespace UE::IO::IAS::HTTP
+
+#endif // !UE_BUILD_SHIPPING
