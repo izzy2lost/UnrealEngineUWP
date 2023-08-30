@@ -134,10 +134,9 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 		// Generate one string that puts the directory combined with the filename format.
 		FString FileNameFormatString = OutputSettingNode->OutputDirectory.Path / OutputSettingNode->FileNameFormat;
 
-		// ToDo: Validate the string, ie: ensure it has {render_pass} in there somewhere there are multiple render passes
-		// in the output data, include {camera_name} if there are multiple cameras for that render pass, etc. Validation
-		// should insert {file_dup} tokens so it can put them at a logical place (ie: before frame numbers?)
-		FileNameFormatString += TEXT(".{ext}");
+		constexpr bool bIncludeRenderPass = false;
+		constexpr bool bTestFrameNumber = true;
+		UE::MoviePipeline::ValidateOutputFormatString(FileNameFormatString, bIncludeRenderPass, bTestFrameNumber);
 
 		// Map the .ext to be specific to our output data.
 		TMap<FString, FString> AdditionalFormatArgs;
@@ -425,7 +424,6 @@ FString UMovieGraphImageSequenceOutputNode_EXR::ResolveOutputFilename(
 	
 	// If we have more than one resolution we'll store it as "_Add" / "_Add(1)" etc via {ExtraTag}.
 	FString FileNameFormatString = OutputSettings->FileNameFormat + "{ExtraTag}";
-	FileNameFormatString += TEXT(".{ext}");
 
 	const FString FilePathFormatString = OutputSettings->OutputDirectory.Path / FileNameFormatString;
 	

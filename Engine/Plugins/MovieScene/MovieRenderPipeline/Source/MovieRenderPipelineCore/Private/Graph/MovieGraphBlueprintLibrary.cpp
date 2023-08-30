@@ -166,22 +166,21 @@ FString UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(const FStrin
 
 	// Fix-up slashes
 	FPaths::NormalizeFilename(BaseFilename);
+	FPaths::RemoveDuplicateSlashes(BaseFilename);
 
+	// If we end with a "." character, remove it. The extension will put it back on. We can end up with this sometimes
+	// after resolving file format strings, ie: {sequence_name}.{frame_number} becomes {sequence_name}. for
+	// videos (which can't use frame_numbers).
+	BaseFilename.RemoveFromEnd(TEXT("."));
+
+	FString Extension = FString::Format(TEXT(".{ext}"), NamedArgs);
+	FString ThisTry = BaseFilename + Extension;
 	
 	// Check that it's a valid path that we can write to.
-	if (UE::MoviePipeline::CanWriteToFile(*BaseFilename, bOverwriteExisting))
+	if (UE::MoviePipeline::CanWriteToFile(*ThisTry, bOverwriteExisting))
 	{
-		return BaseFilename;
+		return ThisTry;
 	}
-
-	// The base filename must contain {file_dup} at this point, otherwise we're going to
-	// be stuck in an infinite loop of never resolving names as we'd just keep checking the
-	// base name!
-	if (!BaseFilename.Contains(TEXT("{file_dup}")))
-	{
-		BaseFilename.Append(TEXT("{file_dup}"));
-	}
-	FString ThisTry = BaseFilename;
 
 	// If we got here it means that there was already a file there with that name and bOverwriteExisting was false.
 	// So we start by swapping in _(2) where the file_dup token is, and try again. If that fails, _(3), etc. We start

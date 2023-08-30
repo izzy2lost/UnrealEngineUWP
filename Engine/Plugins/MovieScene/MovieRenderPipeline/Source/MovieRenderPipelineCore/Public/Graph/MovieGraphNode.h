@@ -21,6 +21,7 @@ class UMovieGraphInput;
 class UMovieGraphMember;
 class UMovieGraphOutput;
 class UMovieGraphPin;
+class UMovieGraphPipeline;
 class UMovieGraphVariable;
 struct FMovieGraphEvaluationContext;
 struct FMovieGraphTraversalContext;
@@ -350,4 +351,20 @@ public:
 	* resolving the settings of the graph, the node only needs to read its own values.
 	*/
 	virtual void GetFormatResolveArgs(FMovieGraphResolveArgs& OutMergedFormatArgs) const {}
+};
+
+/**
+ * A node which runs after all renders have completed.
+ */
+UCLASS(Abstract)
+class MOVIERENDERPIPELINECORE_API UMovieGraphPostRenderNode : public UMovieGraphSettingNode
+{
+	GENERATED_BODY()
+
+public:
+	/** Begins the export process for this node. */
+	virtual void BeginExport(UMovieGraphPipeline* InMoviePipeline, const FName& InBranchName) PURE_VIRTUAL(UMovieGraphPostRenderNode::BeginExport, );
+
+	/** Returns true if this node has finished its export process, else false. */
+	virtual bool HasFinishedExporting() PURE_VIRTUAL(UMovieGraphPostRenderNode::HasFinishedExporting, return true; );
 };

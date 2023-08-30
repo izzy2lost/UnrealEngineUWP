@@ -14,6 +14,7 @@ class UMoviePipelineExecutorJob;
 class UMoviePipelineExecutorShot;
 class UMovieGraphFileOutputNode;
 class IImageWriteQueue;
+struct FMovieGraphRenderOutputData;
 
 namespace UE::MovieGraph
 {
@@ -63,25 +64,40 @@ public:
 
 	/** Get the Active Shot list, which is the full shot list generated from the external data source, with disabled shots removed. */
 	const TArray<TObjectPtr<UMoviePipelineExecutorShot>>& GetActiveShotList() const { return ActiveShotList; }
+	
 	/** Which index of the Active Shot List are we currently on */
 	int32 GetCurrentShotIndex() const { return CurrentShotIndex; }
+	
 	/** Called by the TimeStepInstance when it's time to set up for another shot. Don't call this unless you know what you're doing. */
 	void SetupShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot);
+	
 	/** Called by the TimeStepInstance when it's time to tear down the current shot. Don't call this unless you know what you're doing. */
 	void TeardownShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot);
+	
 	/** Used occasionally to cross-reference other components. Don't call this unless you know what you're doing. */
 	UMovieGraphTimeStepBase* GetTimeStepInstance() const;
+	
 	/** Used occasionally to cross-reference other components. Don't call this unless you know what you're doing. */
 	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	UMovieGraphRendererBase* GetRendererInstance() const { return GraphRendererInstance; }
+	
 	/** Used occasionally to cross-reference other components. Don't call this unless you know what you're doing. */
 	UMovieGraphDataSourceBase* GetDataSourceInstance() const { return GraphDataSourceInstance; }
+	
 	/** Gets the Output Merger for this Movie Pipeline which is responsible for gathering all of the data coming in for a given output frame, before making it available to the MovieGraphPipeline. */
 	TSharedPtr<UE::MovieGraph::IMovieGraphOutputMerger> GetOutputMerger() const { return OutputMerger; }
+	
 	/** Writing images to disk is an async process. When you start writing, declare a future with the filename you will eventually write to, and complete the future once it is on disk. */
 	void AddOutputFuture(TFuture<bool>&& InOutputFuture, const UE::MovieGraph::FMovieGraphOutputFutureData& InData);
+	
 	/** Used by the Renderer Instance to disable the preview widget before rendering so it isn't baked into the UI Renderer. */
 	void SetPreviewWidgetVisible(bool bInIsVisible) { SetPreviewWidgetVisibleImpl(bInIsVisible); }
+
+	/**
+	 * Gets render data that was generated for each shot. This data is mutable, so processes that run after renders
+	 * complete can add their additional outputs to the generated data. Care should be taken when removing output data.
+	 */
+	TArray<FMovieGraphRenderOutputData>& GetGeneratedOutputData();
 
 	/**
 	 * Resets the render layer subsystem and updates it to reflect the render layers that are present in the evaluated
@@ -113,17 +129,23 @@ protected:
 	virtual void TransitionToState(const EMovieRenderPipelineState InNewState);
 	virtual const TSet<TObjectPtr<UMovieGraphFileOutputNode>> GetOutputNodesUsed() const;
 	virtual void BeginFinalize();
+	virtual void BeginExport();
 	virtual void LoadPreviewWidget();
 	virtual void SetPreviewWidgetVisibleImpl(bool bInIsVisible);
 
 	// Update our data source to isolate the shot we're currently working on, so that expanded shots don't interfere with each other.
 	virtual void SetSoloShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot);
+	
 	/*
 	* Expand our data source (for a specific shot) for various rendering features (such as handle frames). Gets called twice, once where it 
 	* expands the ranges, and again later to actually expand the tracks. This is required due to wanting "Handle Frames" to get counted in total frame counts.
 	*/
 	virtual void ExpandShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot, const int32 InNumHandleFrames, const bool bInHasMultipleTemporalSamples, const bool bIsPrePass,
 		const FFrameRate& InDisplayRate, const FFrameRate& InTickResolution, const int32 InWarmUpFrames);
+
+	/** Gets a setting across all active render layers. Key = branch name, value = node object. */
+	template<typename T>
+	TArray<TPair<FName, T*>> GetSettingForActiveRenderLayers(const bool bIncludeCDOs, const bool bExactMatch);
 
 	// UMoviePipelineBase Interface
 	virtual void RequestShutdownImpl(bool bIsError) override;

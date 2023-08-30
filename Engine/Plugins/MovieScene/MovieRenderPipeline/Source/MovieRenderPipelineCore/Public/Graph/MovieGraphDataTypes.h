@@ -59,7 +59,7 @@ struct MOVIERENDERPIPELINECORE_API FMovieGraphInitConfig
 };
 
 USTRUCT(BlueprintType)
-struct FMovieGraphRenderPassOutputData
+struct FMovieGraphRenderLayerOutputData
 {
 	GENERATED_BODY()
 public:
@@ -78,11 +78,11 @@ public:
 	TWeakObjectPtr<UMoviePipelineExecutorShot> Shot;
 
 	/**
-	* A mapping between render passes (such as "beauty") and an array containing the files written for that shot.
-	* Will be multiple files if using image sequences
+	* A mapping between render layers (such as "beauty") and an array containing the files written for that shot.
+	* Will be multiple files if using image sequences.
 	*/
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movie Graph")
-	TMap<FMovieGraphRenderDataIdentifier, FMovieGraphRenderPassOutputData> RenderPassData;
+	TMap<FMovieGraphRenderDataIdentifier, FMovieGraphRenderLayerOutputData> RenderLayerData;
 };
 
 

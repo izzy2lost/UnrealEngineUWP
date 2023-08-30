@@ -10,6 +10,7 @@
 #include "Graph/Nodes/MovieGraphCollectionNode.h"
 #include "Graph/Nodes/MovieGraphFileOutputNode.h"
 #include "Graph/Nodes/MovieGraphModifierNode.h"
+#include "Graph/Nodes/MovieGraphRenderLayerNode.h"
 #include "Graph/Nodes/MovieGraphSamplingMethodNode.h"
 #include "Graph/Nodes/MovieGraphOutputSettingNode.h"
 #include "Graph/Nodes/MovieGraphWarmUpSettingNode.h"
@@ -169,6 +170,11 @@ void UMovieGraphPipeline::SetPreviewWidgetVisibleImpl(bool bInIsVisible)
 	}
 }
 
+TArray<FMovieGraphRenderOutputData>& UMovieGraphPipeline::GetGeneratedOutputData()
+{
+	return GeneratedOutputData;
+}
+
 void UMovieGraphPipeline::CreateLayersInRenderLayerSubsystem(const UMovieGraphEvaluatedConfig* EvaluatedConfig) const
 {
 	UMoviePipelineRenderLayerSubsystem* LayerSubsystem = GetWorld()->GetSubsystem<UMoviePipelineRenderLayerSubsystem>();
@@ -182,9 +188,18 @@ void UMovieGraphPipeline::CreateLayersInRenderLayerSubsystem(const UMovieGraphEv
 	// One render layer is generated per branch
 	for (const FName& BranchName : EvaluatedConfig->GetBranchNames())
 	{
-		UMoviePipelineRenderLayer* RenderLayer = NewObject<UMoviePipelineRenderLayer>();
-		RenderLayer->SetRenderLayerName(BranchName);
-		LayerSubsystem->AddRenderLayer(RenderLayer);
+		// Don't add the branch unless it has an active Render Layer node
+		constexpr bool bIncludeCDOs = false;
+		constexpr bool bExactMatch = true;
+		const UMovieGraphRenderLayerNode* RenderLayerNode =
+			EvaluatedConfig->GetSettingForBranch<UMovieGraphRenderLayerNode>(BranchName, bIncludeCDOs, bExactMatch);
+		
+		if (RenderLayerNode && !RenderLayerNode->IsDisabled())
+		{
+			UMoviePipelineRenderLayer* RenderLayer = NewObject<UMoviePipelineRenderLayer>();
+			RenderLayer->SetRenderLayerName(BranchName);
+			LayerSubsystem->AddRenderLayer(RenderLayer);
+		}
 	}
 }
 
@@ -406,7 +421,6 @@ void UMovieGraphPipeline::TickFinalizeOutputContainers(const bool bInForceFinish
 		for (const TObjectPtr<UMovieGraphFileOutputNode>& Node : GetOutputNodesUsed())
 		{
 			bAllContainsFinishedProcessing &= Node->IsFinishedWritingToDisk();
-
 		}
 	
 		// If we aren't forcing a finish, early out after one loop to keep
@@ -419,7 +433,6 @@ void UMovieGraphPipeline::TickFinalizeOutputContainers(const bool bInForceFinish
 		// If they've reached here, they're forcing them to finish so we'll sleep for a touch to give
 		// everyone a chance to actually do work before asking them if they're done.
 		FPlatformProcess::Sleep(0.1f);
-	
 	}
 
 	// If an output container is still working, we'll early out to keep the UI responsive.
@@ -446,33 +459,33 @@ void UMovieGraphPipeline::TickPostFinalizeExport(const bool bInForceFinish)
 	check(PipelineState == EMovieRenderPipelineState::Export);
 	UE_LOG(LogMovieRenderPipeline, Verbose, TEXT("[%d] PostFinalize Export (Start)."), GFrameCounter);
 
-	// ToDo: Loop through any extensions (such as XML export) and let them export using all of the
+	// Loop through any extensions (such as XML export) and let them export using all of the
 	// data that was generated during this run such as containers, output names and lengths.
 	// Tick all containers until they all report that they have finalized.
 	bool bAllContainsFinishedProcessing = true;
 
-	//do
-	//{
-	//	bAllContainsFinishedProcessing = true;
-	//
-	//	// Ask the containers if they're all done processing.
-	//	for (UMoviePipelineSetting* Setting : GetPipelinePrimaryConfig()->GetAllSettings())
-	//	{
-	//		bAllContainsFinishedProcessing &= Setting->HasFinishedExporting();
-	//	}
-	//
-	//	// If we aren't forcing a finish, early out after one loop to keep
-	//	// the editor/ui responsive.
-	//	if (!bInForceFinish || bAllContainsFinishedProcessing)
-	//	{
-	//		break;
-	//	}
-	//
-	//	// If they've reached here, they're forcing them to finish so we'll sleep for a touch to give
-	//	// everyone a chance to actually do work before asking them if they're done.
-	//	FPlatformProcess::Sleep(1.f);
-	//
-	//} while (true);
+	do
+	{
+		bAllContainsFinishedProcessing = true;
+
+		// Ask the nodes if they're all done processing.
+		constexpr bool bIncludeCDOs = false;
+		constexpr bool bExactMatch = false;
+		for (const TPair<FName, UMovieGraphPostRenderNode*>& Pair : GetSettingForActiveRenderLayers<UMovieGraphPostRenderNode>(bIncludeCDOs, bExactMatch))
+		{
+			bAllContainsFinishedProcessing &= Pair.Value->HasFinishedExporting();
+		}
+	
+		// If we aren't forcing a finish, early out after one loop to keep the editor/ui responsive.
+		if (!bInForceFinish || bAllContainsFinishedProcessing)
+		{
+			break;
+		}
+	
+		// If they've reached here, they're forcing them to finish so we'll sleep for a touch to give
+		// everyone a chance to actually do work before asking them if they're done.
+		FPlatformProcess::Sleep(1.f);
+	} while (true);
 
 	UE_LOG(LogMovieRenderPipeline, Verbose, TEXT("[%d] PostFinalize Export (End)."), GFrameCounter);
 
@@ -493,6 +506,20 @@ void UMovieGraphPipeline::BeginFinalize()
 	for (const TObjectPtr<UMovieGraphFileOutputNode>& Node : GetOutputNodesUsed())
 	{
 		Node->OnAllFramesSubmitted();
+	}
+}
+
+void UMovieGraphPipeline::BeginExport()
+{
+	constexpr bool bIncludeCDOs = false;
+	constexpr bool bExactMatch = false;
+	TArray<TPair<FName, UMovieGraphPostRenderNode*>> PostRenderNodes = GetSettingForActiveRenderLayers<UMovieGraphPostRenderNode>(bIncludeCDOs, bExactMatch);
+	for (TPair<FName, UMovieGraphPostRenderNode*>& Pair : PostRenderNodes)
+	{
+		UMovieGraphPostRenderNode* PostRenderNode = Pair.Value;
+		FName& BranchName = Pair.Key;
+		
+		PostRenderNode->BeginExport(this, BranchName);
 	}
 }
 
@@ -599,8 +626,6 @@ void UMovieGraphPipeline::SetSoloShot(const TObjectPtr<UMoviePipelineExecutorSho
 	}
 }
 
-
-
 void UMovieGraphPipeline::ExpandShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot, const int32 InNumHandleFrames, const bool bInHasMultipleTemporalSamples, const bool bIsPrePass,
 	const FFrameRate& InDisplayRate, const FFrameRate& InTickResolution, const int32 InWarmUpFrames)
 {
@@ -651,6 +676,27 @@ void UMovieGraphPipeline::ExpandShot(const TObjectPtr<UMoviePipelineExecutorShot
 
 		InShot->ShotInfo.TotalOutputRangeRoot = UE::MovieScene::DilateRange(InShot->ShotInfo.TotalOutputRangeRoot, -LeftHandleTicks, RightHandleTicks);
 	}
+}
+
+template<typename T>
+TArray<TPair<FName, T*>> UMovieGraphPipeline::GetSettingForActiveRenderLayers(const bool bIncludeCDOs, const bool bExactMatch)
+{
+	TArray<TPair<FName, T*>> FoundSettings;
+	
+	UMoviePipelineRenderLayerSubsystem* LayerSubsystem = GetWorld()->GetSubsystem<UMoviePipelineRenderLayerSubsystem>();
+	const FMovieGraphTimeStepData& TimeStepData = GetTimeStepInstance()->GetCalculatedTimeData();
+	const TObjectPtr<UMovieGraphEvaluatedConfig> EvaluatedConfig = TimeStepData.EvaluatedConfig;
+
+	for (const UMoviePipelineRenderLayer* RenderLayer : LayerSubsystem->GetRenderLayers())
+	{
+		FName LayerName = RenderLayer->GetRenderLayerName();
+		for (T* SettingNode : EvaluatedConfig->GetSettingsForBranch<T>(LayerName, bIncludeCDOs, bExactMatch))
+		{
+			FoundSettings.Add({LayerName, SettingNode});
+		}
+	}
+
+	return FoundSettings;
 }
 
 UMovieGraphTimeStepBase* UMovieGraphPipeline::GetTimeStepInstance() const
@@ -770,7 +816,7 @@ void UMovieGraphPipeline::ShutdownImpl(bool bIsError)
 	{
 		// All frames have been written to disk but we're doing a post-export step (such as encoding). Flush this operation as well.
 		// Export automatically switches our state to Finished so no need to manually transition afterwards.
-		//TickPostFinalizeExport(true);
+		TickPostFinalizeExport(true);
 	}
 }
 
@@ -847,7 +893,7 @@ void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNe
 			// after finalize finishes, because the futures won't be available until actually written to disk.
 			ProcessOutstandingFutures();
 
-			//BeginExport();
+			BeginExport();
 		}
 		break;
 	case EMovieRenderPipelineState::Export:
@@ -1081,8 +1127,8 @@ void UMovieGraphPipeline::ProcessOutstandingFutures()
 			ShotOutputData->Shot = FutureData.Shot;
 		}
 
-		// Add the filepath to the renderpass data.
-		ShotOutputData->RenderPassData.FindOrAdd(FutureData.DataIdentifier).FilePaths.Add(FutureData.FilePath);
+		// Add the filepath to the render layer data.
+		ShotOutputData->RenderLayerData.FindOrAdd(FutureData.DataIdentifier).FilePaths.Add(FutureData.FilePath);
 
 		// Sometime futures can be completed, but will be set to an error state (such as we couldn't write to the specified disk path.)
 		if (!OutputFuture.Get<0>().Get())
