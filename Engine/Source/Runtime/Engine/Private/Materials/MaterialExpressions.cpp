@@ -23355,7 +23355,7 @@ void UMaterialExpressionStrataLegacyConversion::PostEditChangeProperty(FProperty
 
 void UMaterialExpressionStrataLegacyConversion::GetCaption(TArray<FString>& OutCaptions) const
 {
-	OutCaptions.Add(TEXT("Substrate Legacy Conversion"));
+	OutCaptions.Add(TEXT("Substrate Shading Models"));
 }
 
 uint32 UMaterialExpressionStrataLegacyConversion::GetOutputType(int32 OutputIndex)
