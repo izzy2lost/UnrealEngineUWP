@@ -21,6 +21,7 @@ namespace UnrealBuildTool.Rules
 					"BlueprintGraph",
 					"KismetCompiler",
 					"AnimGraph",
+					"AnimGraphRuntime",
 					"BlendStackEditor",
 					"BlendStack"
 					// ... add private dependencies that you statically link with here ...
