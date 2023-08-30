@@ -62,4 +62,12 @@ public:
 		static const FDetailsViewStyleKey Default = FDetailsViewStyleKeys::Default();
 		return Default;
 	}
+
+	/**
+	 * Returns a boolean indicating if the Component Editor should be hidden for these object(s)
+	 */
+	virtual bool ShouldHideComponentEditor()
+	{
+		return false;
+	}
 };

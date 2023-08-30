@@ -617,9 +617,10 @@ FString SActorDetails::GetReferencerName() const
 	return TEXT("SActorDetails");
 }
 
-void SActorDetails::SetActorDetailsRootCustomization(TSharedPtr<FDetailsViewObjectFilter> ActorDetailsObjectFilter, TSharedPtr<IDetailRootObjectCustomization> ActorDetailsRootCustomization)
+void SActorDetails::SetActorDetailsRootCustomization(TSharedPtr<FDetailsViewObjectFilter> InActorDetailsObjectFilter, TSharedPtr<IDetailRootObjectCustomization> ActorDetailsRootCustomization)
 {
-	DetailsView->SetObjectFilter(ActorDetailsObjectFilter);
+	ActorDetailsObjectFilter = InActorDetailsObjectFilter.ToWeakPtr();
+	DetailsView->SetObjectFilter(InActorDetailsObjectFilter);
 	DetailsView->SetRootObjectCustomizationInstance(ActorDetailsRootCustomization);
 	DetailsView->ForceRefresh();
 }
@@ -883,8 +884,9 @@ EVisibility SActorDetails::GetComponentEditorVisibility() const
 	IConsoleVariable* ForceShow = IConsoleManager::Get().FindConsoleVariable(TEXT("CoreEntity.UI.ForceShowComponentEditor"));
 
 	// force hide it if the style is not default and the ForceShowComponentEditor CVar is not set to true
-	const bool bHideEditorFromDetailsView = (DetailsView.IsValid() &&  !DetailsView->IsDefaultStyle()) &&
-		                                    (!ForceShow || !ForceShow->GetBool());
+	const bool bHideEditorFromDetailsView = (ActorDetailsObjectFilter.IsValid() &&
+							                 ActorDetailsObjectFilter.Pin()->ShouldHideComponentEditor()) &&
+		                    (!ForceShow || !ForceShow->GetBool());
 	return GetActorContext() && !bHideEditorFromDetailsView  ? EVisibility::Visible : EVisibility::Collapsed;
 }
 

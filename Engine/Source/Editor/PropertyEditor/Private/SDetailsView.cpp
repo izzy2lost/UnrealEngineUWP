@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "SDetailsView.h"
 
 #include "CategoryPropertyNode.h"
@@ -31,6 +30,12 @@
 #include "Widgets/Images/SLayeredImage.h"
 
 #define LOCTEXT_NAMESPACE "SDetailsView"
+
+static TAutoConsoleVariable<bool> CVarDetailsPanelEnableCardLayout(
+	TEXT("DetailsPanel.Style.EnableCardLayout"),
+	false,
+	TEXT("Specifies whether the card layout is in effect for the Details View."),
+	ECVF_Default);
 
 SDetailsView::~SDetailsView()
 {
@@ -1500,14 +1505,17 @@ void SDetailsView::UpdateStyleKey()
 
 const FDetailsViewStyleKey& SDetailsView::GetStyleKey()
 {
-	static FDetailsViewStyleKey PrimaryKey = GetPrimaryDetailsViewStyleKey();
+	const FDetailsViewStyleKey& PrimaryKey = GetPrimaryDetailsViewStyleKey();
 	return StyleKeySP.IsValid() ? *StyleKeySP.Get() : PrimaryKey;
 }
 
 const FDetailsViewStyleKey& SDetailsView::GetPrimaryDetailsViewStyleKey()
 {
-	static FDetailsViewStyleKey PrimaryKey = FDetailsViewStyleKeys::Classic();
-	return PrimaryKey;
+	if (CVarDetailsPanelEnableCardLayout.GetValueOnAnyThread())
+	{
+		return FDetailsViewStyleKeys::Card();
+	}
+	return FDetailsViewStyleKeys::Classic();
 }
 
 #undef LOCTEXT_NAMESPACE
