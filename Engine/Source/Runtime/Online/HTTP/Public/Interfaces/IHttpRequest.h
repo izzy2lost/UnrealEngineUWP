@@ -387,7 +387,14 @@ public:
 	virtual float GetElapsedTime() const = 0;
 
 	/**
-	 * Set thread policy about which thread to complete this request
+	 * Set thread policy about which thread to trigger the delegates, set by FHttpManager::SetRequestCompletedDelegate, 
+	 * IHttpRequest::OnHeaderReceived, IHttpRequest::OnRequestProgress64 and IHttpRequest::OnProcessRequestComplete.
+	 *
+	 * Note that when set it as CompleteOnHttpThread, the thread to trigger delegates could be any thread 
+	 * depends on the implementation. User code should make the delegate thread-safe and shouldn't assume 
+	 * it's triggered by the thread where this request get created.
+	 * 
+	 * @param InThreadPolicy - The thread policy to indicate which thread to trigger the delegates
 	 */
 	virtual void SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy InThreadPolicy) = 0;
 

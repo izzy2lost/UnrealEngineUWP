@@ -103,10 +103,10 @@ public:
 
 	~FWaitUntilQuitFromTestFixture()
 	{
-		WaitUntilAllHttpRequestsComplete();
+		WaitUntilQuitFromTest();
 	}
 
-	void WaitUntilAllHttpRequestsComplete()
+	void WaitUntilQuitFromTest()
 	{
 		while (!bQuitRequested)
 		{
@@ -169,10 +169,7 @@ public:
 
 	void OnRequestCompleted(const FHttpRequestRef& Request)
 	{
-		if (ensure(OngoingRequests > 0))
-		{
-			--OngoingRequests;
-		}
+		ensure(--OngoingRequests >= 0);
 	}
 
 	void WaitUntilAllHttpRequestsComplete()
@@ -184,7 +181,7 @@ public:
 		}
 	}
 
-	uint32 OngoingRequests = 0;
+	std::atomic<int32> OngoingRequests = 0;
 	float TickFrequency = 1.0f / 60; /*60 FPS*/;
 };
 
@@ -685,6 +682,39 @@ TEST_CASE_METHOD(FWaitThreadedHttpFixture, "Http streaming download request can 
 	ThreadedHttpRunnable.StartTestHttpThread(true/*bBlockGameThread*/);
 }
 
+TEST_CASE_METHOD(FWaitThreadedHttpFixture, "Http download request progress callback can be received in http thread", HTTP_TAG)
+{
+	std::atomic<bool> bRequestProgressTriggered = false;
+	ThreadedHttpRunnable.OnRunFromThread().BindLambda([this, &bRequestProgressTriggered]() {
+		TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
+		HttpRequest->SetURL(UrlStreamDownload(10/*Chunks*/, 1024*1024/*ChunkSize*/));
+		HttpRequest->SetVerb(TEXT("GET"));
+
+		HttpRequest->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
+		HttpRequest->OnRequestProgress64().BindLambda([this, &bRequestProgressTriggered](FHttpRequestPtr Request, uint64 /*BytesSent*/, uint64 BytesReceived) {
+			if (!bRequestProgressTriggered)
+			{
+				// Only do these checks once, because when http request complete, this callback also get triggered
+				CHECK(BytesReceived > 0);
+				CHECK(BytesReceived < 10/*Chunks*/ * 1024*1024/*ChunkSize*/);
+				CHECK(!IsInGameThread());
+				CHECK(Request->GetStatus() == EHttpRequestStatus::Processing);
+				bRequestProgressTriggered = true;
+			}
+		});
+		HttpRequest->OnProcessRequestComplete().BindLambda([this](FHttpRequestPtr /*HttpRequest*/, FHttpResponsePtr /*HttpResponse */, bool bSucceeded) {
+			CHECK(bSucceeded);
+			ThreadedHttpRunnable.UnblockGameThread();
+		});
+
+		HttpRequest->ProcessRequest();
+	});
+
+	ThreadedHttpRunnable.StartTestHttpThread(true/*bBlockGameThread*/);
+
+	CHECK(bRequestProgressTriggered);
+}
+
 namespace UE
 {
 namespace TestHttp
@@ -879,3 +909,7 @@ TEST_CASE_METHOD(FRetryHttpManagerThreadedRequestsFixture, "Retry manager is thr
 
 
 // TODO: Add cancel test, with multiple cancel calls
+
+// TODO: Add a test case to make sure once Request completed and destroyed, if the user code still keeps the shared ptr of Response, any call to Response shouldn't have dependency to Request
+
+// TODO: Add test case to validate header received callback can be received in http/game thread, and can be received before the request complete

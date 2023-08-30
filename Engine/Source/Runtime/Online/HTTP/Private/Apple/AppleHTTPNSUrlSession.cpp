@@ -812,6 +812,14 @@ const FHttpResponsePtr FAppleHttpNSUrlSessionRequest::GetResponse() const
 
 void FAppleHttpNSUrlSessionRequest::Tick(float DeltaSeconds)
 {
+	if (DelegateThreadPolicy == EHttpRequestDelegateThreadPolicy::CompleteOnGameThread)
+	{
+		CheckProgressDelegate();
+	}
+}
+
+void FAppleHttpNSUrlSessionRequest::CheckProgressDelegate()
+{
 	if (Response.IsValid() && (CompletionStatus == EHttpRequestStatus::Processing || Response->HadError()))
 	{
 		const uint64 BytesWritten = Response->GetNumBytesWritten();
@@ -847,6 +855,11 @@ bool FAppleHttpNSUrlSessionRequest::IsThreadedRequestComplete()
 void FAppleHttpNSUrlSessionRequest::TickThreadedRequest(float DeltaSeconds)
 {
 	ElapsedTime += DeltaSeconds;
+
+	if (DelegateThreadPolicy == EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread)
+	{
+		CheckProgressDelegate();
+	}
 }
 
 /****************************************************************************

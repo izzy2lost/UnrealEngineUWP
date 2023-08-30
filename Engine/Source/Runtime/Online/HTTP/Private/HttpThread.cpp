@@ -5,6 +5,7 @@
 #include "HAL/PlatformTime.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/RunnableThread.h"
+#include "HttpManager.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Fork.h"
@@ -296,6 +297,7 @@ void FHttpThreadBase::Process(TArray<IHttpThreadedRequest*>& RequestsToCancel, T
 			if (Request->GetDelegateThreadPolicy() == EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread)
 			{
 				Request->FinishRequest();
+				FHttpModule::Get().GetHttpManager().BroadcastHttpRequestCompleted(Request->AsShared());
 			}
 
 			CompletedThreadedRequests.Enqueue(Request);

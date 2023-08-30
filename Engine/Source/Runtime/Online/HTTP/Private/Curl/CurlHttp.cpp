@@ -471,7 +471,15 @@ size_t FCurlHttpRequest::StaticReceiveResponseBodyCallback(void* Ptr, size_t Siz
 
 	// dispatch
 	FCurlHttpRequest* Request = reinterpret_cast<FCurlHttpRequest*>(UserData);
-	return Request->ReceiveResponseBodyCallback(Ptr, SizeInBlocks, BlockSizeInBytes);	
+
+	size_t Result = Request->ReceiveResponseBodyCallback(Ptr, SizeInBlocks, BlockSizeInBytes);	
+
+	if (Request->DelegateThreadPolicy == EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread)
+	{
+		Request->CheckProgressDelegate();
+	}
+
+	return Result;
 }
 
 size_t FCurlHttpRequest::StaticDebugCallback(CURL * Handle, curl_infotype DebugInfoType, char * DebugInfo, size_t DebugInfoSize, void* UserData)
@@ -1106,10 +1114,9 @@ const FHttpResponsePtr FCurlHttpRequest::GetResponse() const
 
 void FCurlHttpRequest::Tick(float DeltaSeconds)
 {
-	CheckProgressDelegate();
-
 	if (DelegateThreadPolicy == EHttpRequestDelegateThreadPolicy::CompleteOnGameThread)
 	{
+		CheckProgressDelegate();
 		BroadcastNewlyReceivedHeaders();
 	}
 }
@@ -1154,7 +1161,6 @@ void FCurlHttpRequest::BroadcastNewlyReceivedHeaders()
 
 void FCurlHttpRequest::BroadcastNewlyReceivedHeader(const FString& HeaderKey, const FString& HeaderValue)
 {
-	check(IsInGameThread() || DelegateThreadPolicy == EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
 	check(Response);
 
 	const constexpr FStringView Seperator(TEXTVIEW(", "));

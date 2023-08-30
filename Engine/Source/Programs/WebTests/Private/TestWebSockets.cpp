@@ -2,6 +2,7 @@
 #include "Containers/BackgroundableTicker.h"
 #include "CoreMinimal.h"
 #include "HAL/PlatformProcess.h"
+#include "Http.h"
 #include "Misc/CommandLine.h"
 #include "WebSocketsModule.h"
 #include "IWebSocket.h"
@@ -30,6 +31,11 @@ public:
 	{
 		ParseSettingsFromCommandLine();
 
+		// Init HTTP module because websockets module has dependency on it when get proxy
+		HttpModule = new FHttpModule();
+		IModuleInterface* HttpModuleInterface = HttpModule;
+		HttpModuleInterface->StartupModule();
+
 		WebSocketsModule = new FWebSocketsModule();
 		IModuleInterface* Module = WebSocketsModule;
 		Module->StartupModule();
@@ -37,9 +43,13 @@ public:
 
 	virtual ~FWebSocketsModuleTestFixture()
 	{
-		IModuleInterface* Module = WebSocketsModule;
-		Module->ShutdownModule();
-		delete Module;
+		IModuleInterface* WebSocketsModuleInterface = WebSocketsModule;
+		WebSocketsModuleInterface->ShutdownModule();
+		delete WebSocketsModuleInterface;
+
+		IModuleInterface* HttpModuleInterface = HttpModule;
+		HttpModuleInterface->ShutdownModule();
+		delete HttpModuleInterface;
 	}
 
 	void ParseSettingsFromCommandLine()
@@ -54,6 +64,7 @@ public:
 	FString WebServerIp;
 	uint32 WebServerWebSocketsPort;
 	FWebSocketsModule* WebSocketsModule;
+	FHttpModule* HttpModule;
 };
 
 class FRunUntilQuitRequestedFixture : public FWebSocketsModuleTestFixture

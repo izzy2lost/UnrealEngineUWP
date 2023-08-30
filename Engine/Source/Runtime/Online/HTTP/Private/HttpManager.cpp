@@ -433,8 +433,8 @@ bool FHttpManager::Tick(float DeltaSeconds)
 			if (CompletedRequest->GetDelegateThreadPolicy() == EHttpRequestDelegateThreadPolicy::CompleteOnGameThread)
 			{
 				CompletedRequest->FinishRequest();
+				BroadcastHttpRequestCompleted(CompletedRequestRef);
 			}
-			BroadcastHttpRequestCompleted(CompletedRequestRef);
 		}
 	}
 	else
@@ -454,9 +454,9 @@ bool FHttpManager::Tick(float DeltaSeconds)
 
 		for (const FHttpRequestRef& CompletedRequest: CompletedRequests)
 		{
-            Requests.Remove(CompletedRequest);
-            BroadcastHttpRequestCompleted(CompletedRequest);
-        }		
+			Requests.Remove(CompletedRequest);
+			BroadcastHttpRequestCompleted(CompletedRequest);
+		}
 	}
 	// keep ticking
 	return true;

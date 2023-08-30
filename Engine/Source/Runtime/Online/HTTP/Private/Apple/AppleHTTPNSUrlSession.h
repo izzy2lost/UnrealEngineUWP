@@ -77,6 +77,10 @@ public:
 
 
 private:
+	/**
+	 * Trigger the request progress delegate if progress has changed
+	 */
+	void CheckProgressDelegate();
 
 	/**
 	 * Create the session connection and initiate the web request

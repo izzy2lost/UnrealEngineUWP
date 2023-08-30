@@ -87,7 +87,18 @@ public:
 	 */
 	HTTP_API void AddRequest(const FHttpRequestRef& Request);
 
+	/**
+	 * Set a delegate to be triggered when an http request added to http manager. 
+	 * NOTE: The delegate can be triggered from different threads, depends on which
+	 * thread the request created. So make sure the delegate set here is thread-safe.
+	 */
 	HTTP_API void SetRequestAddedDelegate(const FHttpManagerRequestAddedDelegate& Delegate);
+
+	/**
+	 * Set a delegate to be triggered when an http request completed. 
+	 * NOTE: The delegate can be triggered from different threads, it depends on the delegate policy set 
+	 * to each http request. So make sure the delegate set here is thread-safe.
+	 */
 	HTTP_API void SetRequestCompletedDelegate(const FHttpManagerRequestCompletedDelegate& Delegate);
 
 	/**
