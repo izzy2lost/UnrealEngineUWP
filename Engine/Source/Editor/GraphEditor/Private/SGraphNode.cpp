@@ -877,9 +877,7 @@ void SGraphNode::UpdateGraphNode()
 			[
 				SNew(SBorder)
 				.BorderImage( FAppStyle::GetBrush("Graph.Node.ColorSpill") )
-				// The extra margin on the right
-				// is for making the color spill stretch well past the node title
-				.Padding( FMargin(10,5,30,3) )
+				.Padding(TitleBorderMargin)
 				.BorderBackgroundColor( this, &SGraphNode::GetNodeTitleColor )
 				[
 					SNew(SHorizontalBox)

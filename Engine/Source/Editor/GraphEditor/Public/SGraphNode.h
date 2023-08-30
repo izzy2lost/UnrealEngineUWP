@@ -443,6 +443,10 @@ protected:
 	FCurveHandle ZoomCurve;
 	FCurveHandle FadeCurve;
 
+	/* The margin used by the border containing the title. Can be changed by child classes if necessary.
+	*  The extra padding on the right is for making the color spill stretch well past the node title */
+	FMargin TitleBorderMargin = FMargin(10.f, 5.f, 30.f, 3.f);
+
 	/** Is this node editable */
 	TAttribute<bool> IsEditable;
 
