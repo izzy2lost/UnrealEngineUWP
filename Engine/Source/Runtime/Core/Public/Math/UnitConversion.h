@@ -28,6 +28,9 @@ enum class EUnit : uint8
 	/** Speed units */
 	CentimetersPerSecond, MetersPerSecond, KilometersPerHour, MilesPerHour,
 
+	/** Angular speed units */
+	DegreesPerSecond, RadiansPerSecond,
+
 	/** Temperature units */
 	Celsius, Farenheit, Kelvin,
 
@@ -72,7 +75,7 @@ enum class EUnit : uint8
 /** Enumeration that specifies particular classes of unit */
 enum class EUnitType
 {
-	Distance, Angle, Speed, Temperature, Mass, Density, Force, Torque, Frequency, DataSize, LuminousFlux, LuminousIntensity, Illuminance, Luminance, Time, PixelDensity, Multipliers, ExposureValue, Stress,
+	Distance, Angle, Speed, AngularSpeed, Temperature, Mass, Density, Force, Torque, Frequency, DataSize, LuminousFlux, LuminousIntensity, Illuminance, Luminance, Time, PixelDensity, Multipliers, ExposureValue, Stress,
 
 	// Symbolic entry - do not use directly
 	NumberOf,

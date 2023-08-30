@@ -47,6 +47,9 @@ FParseCandidate ParseCandidates[] = {
 	{ TEXT("MetersPerSecond"),		EUnit::MetersPerSecond },		{ TEXT("m/s"),		EUnit::MetersPerSecond },
 	{ TEXT("KilometersPerHour"),	EUnit::KilometersPerHour },		{ TEXT("km/h"),		EUnit::KilometersPerHour },		{ TEXT("kmph"),		EUnit::KilometersPerHour },
 	{ TEXT("MilesPerHour"),			EUnit::MilesPerHour },			{ TEXT("mi/h"),		EUnit::MilesPerHour },			{ TEXT("mph"),		EUnit::MilesPerHour },
+
+	{ TEXT("DegreesPerSecond"),		EUnit::DegreesPerSecond },		{ TEXT("deg/s"),	EUnit::DegreesPerSecond },
+	{ TEXT("RadiansPerSecond"),		EUnit::RadiansPerSecond },		{ TEXT("rad/s"),	EUnit::RadiansPerSecond },
 		
 	{ TEXT("Celsius"),				EUnit::Celsius },				{ TEXT("C"),		EUnit::Celsius },				{ TEXT("degC"),		EUnit::Celsius },			{ TEXT("\u00B0C"),		EUnit::Celsius },
 	{ TEXT("Farenheit"),			EUnit::Farenheit },				{ TEXT("F"),		EUnit::Farenheit },				{ TEXT("degF"),		EUnit::Farenheit },			{ TEXT("\u00B0F"),		EUnit::Farenheit },
@@ -124,6 +127,8 @@ const TCHAR* const DisplayStrings[] = {
 
 	TEXT("cm/s"), TEXT("m/s"), TEXT("km/h"), TEXT("mi/h"),
 
+	TEXT("deg/s"), TEXT("rad/s"),
+
 	TEXT("\u00B0C"), TEXT("\u00B0F"), TEXT("K"),
 
 	TEXT("\u00B5g"), TEXT("mg"), TEXT("g"), TEXT("kg"), TEXT("t"),
@@ -160,6 +165,8 @@ const EUnitType UnitTypes[] = {
 	EUnitType::Angle,		EUnitType::Angle,
 
 	EUnitType::Speed,		EUnitType::Speed,		EUnitType::Speed, 		EUnitType::Speed,
+
+	EUnitType::AngularSpeed, EUnitType::AngularSpeed,
 
 	EUnitType::Temperature,	EUnitType::Temperature,	EUnitType::Temperature,
 
@@ -451,6 +458,7 @@ FUnitSettings::FUnitSettings()
 	DisplayUnits[(uint8)EUnitType::Distance].Add(EUnit::Centimeters);
 	DisplayUnits[(uint8)EUnitType::Angle].Add(EUnit::Degrees);
 	DisplayUnits[(uint8)EUnitType::Speed].Add(EUnit::MetersPerSecond);
+	DisplayUnits[(uint8)EUnitType::AngularSpeed].Add(EUnit::DegreesPerSecond);
 	DisplayUnits[(uint8)EUnitType::Temperature].Add(EUnit::Celsius);
 	DisplayUnits[(uint8)EUnitType::Mass].Add(EUnit::Kilograms);
 	DisplayUnits[(uint8)EUnitType::Density].Add(EUnit::GramsPerCubicCentimeter);
@@ -615,6 +623,17 @@ namespace UnitConversion
 			case EUnit::MetersPerSecond:		return 3.6;
 			case EUnit::MilesPerHour:			return DistanceUnificationFactor(EUnit::Miles) / 1000;
 			default: 							return 1;
+		}
+	}
+
+
+	double AngularSpeedUnificationFactor(EUnit From)
+	{
+		// Convert to degrees/second
+		switch (From)
+		{
+			case EUnit::RadiansPerSecond:	return (180.0 / UE_DOUBLE_PI);
+			default: 						return 1.0;
 		}
 	}
 
