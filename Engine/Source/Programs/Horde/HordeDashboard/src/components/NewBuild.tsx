@@ -13,6 +13,7 @@ import { hordeClasses, modeColors } from '../styles/Styles';
 import { useQuery } from './JobDetailCommon';
 import { JobDetailsV2 } from './jobDetailsV2/JobDetailsViewCommon';
 import dashboard from '../backend/Dashboard';
+import { Markdown } from '../base/components/Markdown';
 
 let toolTipId = 0;
 
@@ -802,7 +803,7 @@ export const NewBuild: React.FC<{ streamId: string; show: boolean; onClose: (new
                   reason: `${errorReason}`,
                   title: `Preflight Template Error`,
                   message: `There was an issue with the specified preflight template.\n\nReason: ${errorReason}\n\nTime: ${moment.utc().format("MMM Do, HH:mm z")}`
-               }, true);   
+               }, true);
             }
          }
 
@@ -1652,6 +1653,14 @@ export const NewBuild: React.FC<{ streamId: string; show: boolean; onClose: (new
 
                      </Stack>
                   </Stack>
+                  {!!template?.description && <Stack>
+                     <Label style={{ padding: 0, paddingBottom: 4 }}>{`Description:`}</Label>
+                     <Stack style={{ border: "1px solid #605e5c", width: 767 }}>
+                        <Stack style={{padding: "8px 12px"}}>
+                           <Markdown styles={{ root: { maxHeight: 240, overflow: "auto", th: { fontSize: 12 } } }}>{template.description}</Markdown>
+                        </Stack>
+                     </Stack>
+                  </Stack>}
 
                   <Stack>
 

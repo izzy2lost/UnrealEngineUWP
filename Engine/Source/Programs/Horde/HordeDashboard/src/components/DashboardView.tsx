@@ -9,6 +9,7 @@ import { useWindowSize } from '../base/utilities/hooks';
 import { hordeClasses, modeColors } from '../styles/Styles';
 import { Breadcrumbs } from './Breadcrumbs';
 import { TopNav } from './TopNav';
+import { getSiteConfig } from '../backend/Config';
 
 
 
@@ -234,7 +235,7 @@ const ColorPreferenceDialog: React.FC<{ shown: boolean, statusIn: StatusColor, o
 const GeneralPanel: React.FC = observer(() => {
 
    let [colorState, setColorState] = useState<{ status?: StatusColor }>({});
-
+   const config = getSiteConfig();
    const defaultStatusColors = dashboard.getDefaultStatusColors();
 
    type GeneralItem = {
@@ -364,9 +365,9 @@ const GeneralPanel: React.FC = observer(() => {
                         <Toggle label="Show All Preflights" inlineLabel={true} defaultChecked={dashboard.showPreflights} onChange={(ev, checked) => {
                            dashboard.setShowPreflights(checked ? true : false);
                         }} />
-                        <Toggle label="Always Tag Preflight Changelists" inlineLabel={true} defaultChecked={dashboard.alwaysTagPreflightCL} onChange={(ev, checked) => {
+                        {config.environment !== "production" && <Toggle label="Always Tag Preflight Changelists" inlineLabel={true} defaultChecked={dashboard.alwaysTagPreflightCL} onChange={(ev, checked) => {
                            dashboard.alwaysTagPreflightCL = checked ? true : false;
-                        }} />
+                        }} />}
                         <Toggle label="Prefer Compact Views" inlineLabel={true} defaultChecked={dashboard.compactViews} onChange={(ev, checked) => {
                            dashboard.setCompactViews(checked ? true : false);
                         }} />

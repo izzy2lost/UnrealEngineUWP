@@ -2013,6 +2013,9 @@ export type GetTemplateResponseBase = {
 
 	/// List of parameters for this template
 	parameters: ParameterData[];
+
+	/// Description for the template, supports markdown
+	description?: string;
 }
 
 /// Query selecting the base changelist to use
