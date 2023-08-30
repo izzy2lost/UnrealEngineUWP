@@ -14,6 +14,7 @@ public class Buoyancy : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"Water",
+				"ChaosUserDataPT",
 			}
 		);
 
