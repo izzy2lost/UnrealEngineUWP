@@ -146,6 +146,20 @@ void SPropertyEditorClass::Construct(const FArguments& InArgs, const TSharedPtr<
 		bShowTree = Property->GetOwnerProperty()->HasMetaData(TEXT("ShowTreeView"));
 		bShowDisplayNames = Property->GetOwnerProperty()->HasMetaData(TEXT("ShowDisplayNames"));
 
+		if (RequiredInterface != nullptr)
+		{
+			if (!RequiredInterface->HasAnyClassFlags(CLASS_Interface))
+			{
+				UE_LOG(LogPropertyNode, Warning, TEXT("Property (%s) specifies a MustImplement class which isn't an interface (%s), clearing filter."), *Property->GetFullName(), *RequiredInterface->GetPathName());
+				RequiredInterface = nullptr;
+			}
+			else if (RequiredInterface == UInterface::StaticClass())
+			{
+				UE_LOG(LogPropertyNode, Warning, TEXT("Property (%s) specifies a MustImplement class which isn't valid (UInterface), clearing filter."), *Property->GetFullName());
+				RequiredInterface = nullptr;
+			}
+		}
+
 		// Filter based on UPROPERTY meta data
 		AllowedClassFilters = PropertyCustomizationHelpers::GetClassesFromMetadataString(Property->GetOwnerProperty()->GetMetaData("AllowedClasses"));
 		DisallowedClassFilters = PropertyCustomizationHelpers::GetClassesFromMetadataString(Property->GetOwnerProperty()->GetMetaData("DisallowedClasses"));

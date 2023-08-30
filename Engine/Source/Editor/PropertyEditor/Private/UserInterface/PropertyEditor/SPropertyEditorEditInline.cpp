@@ -252,6 +252,20 @@ TSharedRef<SWidget> SPropertyEditorEditInline::GenerateClassPicker()
 	static const FName NAME_MustImplement(ANSITEXTVIEW("MustImplement"));
 	ClassFilter->InterfaceThatMustBeImplemented = MetadataProperty->GetClassMetaData(NAME_MustImplement);
 
+	if (ClassFilter->InterfaceThatMustBeImplemented != nullptr)
+	{
+		if (!ClassFilter->InterfaceThatMustBeImplemented->HasAnyClassFlags(CLASS_Interface))
+		{
+			UE_LOG(LogPropertyNode, Warning, TEXT("Property (%s) specifies a MustImplement class which isn't an interface (%s), clearing filter."), *Property->GetFullName(), *ClassFilter->InterfaceThatMustBeImplemented->GetPathName());
+			ClassFilter->InterfaceThatMustBeImplemented = nullptr;
+		}
+		else if (ClassFilter->InterfaceThatMustBeImplemented == UInterface::StaticClass())
+		{
+			UE_LOG(LogPropertyNode, Warning, TEXT("Property (%s) specifies a MustImplement class which isn't valid (UInterface), clearing filter."), *Property->GetFullName());
+			ClassFilter->InterfaceThatMustBeImplemented = nullptr;
+		}
+	}
+
 	static const FName NAME_AllowedClasses(ANSITEXTVIEW("AllowedClasses"));
 	TArray<const UClass*> AllowedClassFilters = PropertyCustomizationHelpers::GetClassesFromMetadataString(MetadataProperty->GetMetaData(NAME_AllowedClasses));
 
