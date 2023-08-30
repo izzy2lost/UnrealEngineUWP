@@ -94,7 +94,7 @@ void FNNERuntimeORTModule::ShutdownModule()
 
 		UE::NNE::UnregisterRuntime(RuntimeDmlInterface);
 		NNERuntimeORTDml->RemoveFromRoot();
-		NNERuntimeORTDml = TWeakObjectPtr<UNNERuntimeORTGpuImpl>(nullptr);
+		NNERuntimeORTDml.Reset();
 	}
 
 	// NNE runtime ORT Cuda shutdown
@@ -104,7 +104,7 @@ void FNNERuntimeORTModule::ShutdownModule()
 
 		UE::NNE::UnregisterRuntime(RuntimeCudaInterface);
 		NNERuntimeORTCuda->RemoveFromRoot();
-		NNERuntimeORTCuda = TWeakObjectPtr<UNNERuntimeORTGpuImpl>(nullptr);
+		NNERuntimeORTCuda.Reset();
 	}
 
 	// Free the dll handles

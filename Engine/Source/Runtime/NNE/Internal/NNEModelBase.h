@@ -18,7 +18,7 @@ namespace UE::NNE::Internal
 		virtual TConstArrayView<NNE::FTensorDesc> GetOutputTensorDescs() const override;
 		virtual TConstArrayView<NNE::FTensorShape> GetInputTensorShapes() const override;
 		virtual TConstArrayView<NNE::FTensorShape> GetOutputTensorShapes() const override;
-		virtual int SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
+		virtual int32 SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
 
 	protected:
 
@@ -50,7 +50,7 @@ namespace UE::NNE::Internal
 		return OutputTensorShapes;
 	}
 
-	template <class T> int FModelInstanceBase<T>::SetInputTensorShapes(TConstArrayView<FTensorShape> InInputShapes)
+	template <class T> int32 FModelInstanceBase<T>::SetInputTensorShapes(TConstArrayView<FTensorShape> InInputShapes)
 	{
 		InputTensorShapes.Reset(InInputShapes.Num());
 

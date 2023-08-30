@@ -96,7 +96,7 @@ bool FModelInstanceRDG::LoadModel(TConstArrayView<uint8> ModelData, FNNERuntimeF
 
 
 
-int FModelInstanceRDG::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes)
+int32 FModelInstanceRDG::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes)
 {
 	OutputTensorShapes.Reset(OutputTensorIndices.Num());
 
@@ -150,7 +150,7 @@ int FModelInstanceRDG::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> I
 	}
 
 	checkCode(
-		for (int i = 0; i < AllTensorRDGRefs.Num(); ++i)
+		for (int32 i = 0; i < AllTensorRDGRefs.Num(); ++i)
 		{
 			checkf(AllTensorRDGRefs[i] != nullptr, TEXT("Tensor at index %d, was not allocated for model preparation."), i);
 		};
@@ -163,7 +163,7 @@ int FModelInstanceRDG::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> I
 	}
 
 	checkCode(
-		for (int i = 0; i < AllTensorRDGRefs.Num(); ++i)
+		for (int32 i = 0; i < AllTensorRDGRefs.Num(); ++i)
 		{
 			checkf(AllTensorRDGRefs[i] != nullptr, TEXT("Tensor at index %d, was not allocated after model preparation."), i);
 			checkf(AllTensorRDGRefs[i]->GetShape().IsCompatibleWith(AllSymbolicTensorDescs[i].GetShape()), TEXT("Tensor at index %d have a shape incompatible with model definition."), i);
@@ -197,11 +197,11 @@ FRDGBufferDesc CreateRDGBufferDescForTensorRDG(const FTensorRDG& Tensor)
 /**
  * Enqueue operators to RDG, the caller will run the GraphBuilder.Execute()
  */
-int FModelInstanceRDG::EnqueueRDG(FRDGBuilder& RDGBuilder, TConstArrayView<NNE::FTensorBindingRDG> InInputBindings, TConstArrayView<NNE::FTensorBindingRDG> InOutputBindings)
+int32 FModelInstanceRDG::EnqueueRDG(FRDGBuilder& RDGBuilder, TConstArrayView<NNE::FTensorBindingRDG> InInputBindings, TConstArrayView<NNE::FTensorBindingRDG> InOutputBindings)
 {
 	check(IsInRenderingThread());
 
-	int Res;
+	int32 Res;
 
 	// Verify the model inputs were prepared
 	if (InputTensorShapes.Num() == 0)
@@ -253,7 +253,7 @@ int FModelInstanceRDG::EnqueueRDG(FRDGBuilder& RDGBuilder, TConstArrayView<NNE::
 	return 0;
 }
 
-int FModelInstanceRDG::SetTensors(FRDGBuilder& GraphBuilder, FTensorRDGArray& InTensorRDGs, TConstArrayView<NNE::FTensorBindingRDG> InBindings)
+int32 FModelInstanceRDG::SetTensors(FRDGBuilder& GraphBuilder, FTensorRDGArray& InTensorRDGs, TConstArrayView<NNE::FTensorBindingRDG> InBindings)
 {
 	check(InBindings.Num() == InTensorRDGs.Num());
 	

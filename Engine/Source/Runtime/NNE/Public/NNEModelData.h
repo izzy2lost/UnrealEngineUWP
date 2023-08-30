@@ -12,27 +12,52 @@
 namespace UE::NNE
 {
 	/**
-	 * This class present a ref counted view on an immutable memory buffer. 
-	 * Allowing runtime to reference result of GetModelData() even if they outlive UNNEModelData.
+	 * This class implements a reference counted view on an immutable memory buffer representing model data.
+	 * 
+	 * It allows runtimes to reference results of GetModelData() even if they outlive UNNEModelData.
 	 */
-	class FSharedModelData
+	class NNE_API FSharedModelData
 	{
-	private:
-		FSharedBuffer Data;
 
 	public:
-		FSharedModelData(FSharedBuffer InData) : Data(InData) {}
-		FSharedModelData() {}
+		/**
+		 * Constructor to shared model data.
+		 * 
+		 * @param InData The shared buffer containing the model data. InData must be owned and the memory aligned with InMemoryAlignment.
+		 * @param InMemoryAlignment The memory alignment with which InData has been aligned. A value <= 1 indicates arbitrary memory alignment.
+		 */
+		FSharedModelData(FSharedBuffer InData, uint32 InMemoryAlignment);
+
+		/**
+		 * Constructor to create empty data.
+		 */
+		FSharedModelData();
 
 		/**
 		 * Get a const array view on the shared data which is guaranteed to remain valid as long as this objects exists.
 		 *
 		 * @return A const array view of the shared data.
 		 */
-		TConstArrayView<uint8> GetView() const
-		{
-			return MakeArrayView(static_cast<const uint8*>(Data.GetData()), Data.GetSize());
-		}
+		TConstArrayView<uint8> GetView() const;
+
+		/**
+		 * Get the memory alignment with which the data has been aligned.
+		 *
+		 * @return Memory alignment with which the data has been aligned. A value <= 1 indicates arbitrary memory alignment.
+		 */
+		uint32 GetMemoryAlignment() const;
+
+	private:
+
+		/**
+		 * The shared buffer containing the model data. Data must be aligned with MemoryAlignment.
+		 */
+		FSharedBuffer Data;
+		
+		/**
+		 * The memory alignment with which Data has been aligned. A value <= 1 indicates arbitrary memory alignment.
+		 */
+		uint32 MemoryAlignment;
 	};
 }
 
@@ -86,7 +111,7 @@ public:
 	 *
 	 * @return The FileType.
 	 */
-	FString GetFileType();
+	FString GetFileType() const;
 
 	/**
 	 * Get read only access to FileData.
@@ -95,7 +120,7 @@ public:
 	 *
 	 * @return The FileData.
 	 */
-	TConstArrayView<uint8> GetFileData();
+	TConstArrayView<uint8> GetFileData() const;
 
 	/**
 	 * Clears the FileData and the FileType.
@@ -111,7 +136,7 @@ public:
 	 *
 	 * @return The FileId.
 	 */
-	FGuid GetFileId();
+	FGuid GetFileId() const;
 
 	/**
 	 * Get the cached (editor) or cooked (game) optimized model data for a given runtime.
@@ -154,5 +179,5 @@ private:
 	/**
 	 * The processed / optimized model data for the different runtimes.
 	 */
-	TMap<FString, TTuple<FSharedBuffer, uint32>> ModelData;
+	TMap<FString, TSharedPtr<UE::NNE::FSharedModelData>> ModelData;
 };

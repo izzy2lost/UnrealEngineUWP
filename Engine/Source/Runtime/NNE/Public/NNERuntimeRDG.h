@@ -80,7 +80,7 @@ public:
 	 * @param InInputShapes The input shapes to prepare the model with.
 	 * @return 0 on success or a non-zero number otherwise.
 	 */
-	virtual int SetInputTensorShapes(TConstArrayView<FTensorShape> InInputShapes) = 0;
+	virtual int32 SetInputTensorShapes(TConstArrayView<FTensorShape> InInputShapes) = 0;
 
 	/**
 	 * Enqueue the model graph to a FRDGBuilder.
@@ -94,7 +94,7 @@ public:
 	 * @param InOutputTensors An array containing tensor bindings for each output tensor with caller owned memory big enough to contain the results on success.
 	 * @return 0 on success or a non-zero number otherwise.
 	 */
-	virtual int EnqueueRDG(FRDGBuilder& RDGBuilder, TConstArrayView<FTensorBindingRDG> Inputs, TConstArrayView<FTensorBindingRDG> Outputs) = 0;
+	virtual int32 EnqueueRDG(FRDGBuilder& RDGBuilder, TConstArrayView<FTensorBindingRDG> Inputs, TConstArrayView<FTensorBindingRDG> Outputs) = 0;
 };
 
 /**

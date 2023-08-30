@@ -27,7 +27,7 @@ void FNNERuntimeORTCpuModule::ShutdownModule()
 		
 		UE::NNE::UnregisterRuntime(RuntimeCPUInterface);
 		NNERuntimeORTCpu->RemoveFromRoot();
-		NNERuntimeORTCpu = TWeakObjectPtr<UNNERuntimeORTCpuImpl>(nullptr);
+		NNERuntimeORTCpu.Reset();
 	}
 }
 

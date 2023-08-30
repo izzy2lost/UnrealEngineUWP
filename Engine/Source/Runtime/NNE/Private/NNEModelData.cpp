@@ -70,8 +70,11 @@ namespace UE::NNE::ModelData
 		return { UE::DerivedData::FCacheBucket(FWideStringView(*FileId)), FIoHash::HashBuffer(MakeMemoryView(FTCHARToUTF8(RequestId))) };
 	}
 
-	inline void PutIntoDDC(const FGuid& FileId, const FString& RuntimeName, const FString& ModelDataIdentifier, FSharedBuffer& Data, uint32 MemoryAlignment)
+	inline void PutIntoDDC(const FGuid& FileId, const FString& RuntimeName, const FString& ModelDataIdentifier, TSharedPtr<UE::NNE::FSharedModelData> Data)
 	{
+		check(Data.IsValid());
+		check(Data->GetView().Num() > 0);
+
 		FString FileIdStr = FileId.ToString(EGuidFormats::Digits);
 		FString RequestId = GetDDCRequestId(FileIdStr, RuntimeName, ModelDataIdentifier);
 
@@ -80,14 +83,14 @@ namespace UE::NNE::ModelData
 
 		Requests[0].Name = FString("Put-") + RequestId;
 		Requests[0].Key = CreateCacheKey(FileIdStr, RequestId);
-		Requests[0].Value = UE::DerivedData::FValue::Compress(FCompositeBuffer(MakeSharedBufferFromArray(TArray<uint32>({ MemoryAlignment })), Data));
+		Requests[0].Value = UE::DerivedData::FValue::Compress(FCompositeBuffer(MakeSharedBufferFromArray(TArray<uint32>({ Data->GetMemoryAlignment() })), FSharedBuffer::MakeView(Data->GetView().GetData(), Data->GetView().Num())));
 
 		UE::DerivedData::FRequestOwner BlockingPutOwner(UE::DerivedData::EPriority::Blocking);
 		UE::DerivedData::GetCache().PutValue(Requests, BlockingPutOwner);
 		BlockingPutOwner.Wait();
 	}
 
-	inline FSharedBuffer GetFromDDC(const FGuid& FileId, const FString& RuntimeName, const FString& ModelDataIdentifier, uint32& OutMemoryAlignment)
+	inline TSharedPtr<UE::NNE::FSharedModelData> GetFromDDC(const FGuid& FileId, const FString& RuntimeName, const FString& ModelDataIdentifier)
 	{
 		FString FileIdStr = FileId.ToString(EGuidFormats::Digits);
 		FString RequestId = GetDDCRequestId(FileIdStr, RuntimeName, ModelDataIdentifier);
@@ -98,9 +101,9 @@ namespace UE::NNE::ModelData
 		Requests[0].Name = FString("Get-") + RequestId;
 		Requests[0].Key = CreateCacheKey(FileIdStr, RequestId);
 
-		FSharedBuffer Result;
+		TSharedPtr<UE::NNE::FSharedModelData> Result;
 		UE::DerivedData::FRequestOwner BlockingGetOwner(UE::DerivedData::EPriority::Blocking);
-		UE::DerivedData::GetCache().GetValue(Requests, BlockingGetOwner, [&Result, &OutMemoryAlignment](UE::DerivedData::FCacheGetValueResponse&& Response)
+		UE::DerivedData::GetCache().GetValue(Requests, BlockingGetOwner, [&Result](UE::DerivedData::FCacheGetValueResponse&& Response)
 		{
 			if (Response.Value.HasData() && Response.Value.GetRawSize() > sizeof(uint32))
 			{
@@ -111,8 +114,7 @@ namespace UE::NNE::ModelData
 				void* Data = FMemory::Malloc(DataSize, MemoryAlignment);
 				if (Reader.TryDecompressTo(FMutableMemoryView(Data, DataSize), sizeof(uint32)))
 				{
-					OutMemoryAlignment = MemoryAlignment;
-					Result = FSharedBuffer::TakeOwnership(Data, DataSize, FMemory::Free);
+					Result = MakeShared<UE::NNE::FSharedModelData>(FSharedBuffer::TakeOwnership(Data, DataSize, FMemory::Free), MemoryAlignment);
 				}
 				else
 				{
@@ -126,24 +128,14 @@ namespace UE::NNE::ModelData
 
 #endif // WITH_EDITOR
 
-	inline FSharedBuffer CreateModelData(const FString& RuntimeName, FString FileType, const TArray<uint8>& FileData, FGuid FileId, const ITargetPlatform* TargetPlatform, uint32& OutMemoryAlignment)
+	inline TSharedPtr<UE::NNE::FSharedModelData> CreateModelData(const FString& RuntimeName, FString FileType, const TArray<uint8>& FileData, FGuid FileId, const ITargetPlatform* TargetPlatform)
 	{
 		TWeakInterfacePtr<INNERuntime> NNERuntime = UE::NNE::GetRuntime<INNERuntime>(RuntimeName);
 		if (NNERuntime.IsValid())
 		{
 			if (NNERuntime->CanCreateModelData(FileType, FileData, FileId, TargetPlatform))
 			{
-				uint32 TmpOutMemoryAlignment = 0;
-				TArray<uint8> ModelData = NNERuntime->CreateModelData(FileType, FileData, FileId, TargetPlatform, TmpOutMemoryAlignment);
-
-				// Make sure a runtime does fulfill its own alignment requirement
-				checkf(TmpOutMemoryAlignment <= 1 || (((uintptr_t)(const void *)(ModelData.GetData())) % TmpOutMemoryAlignment == 0), TEXT("Runtimes must return ModelData that is aligned with OutMemoryAlignment!"))
-
-				if (ModelData.Num() > 0)
-				{
-					OutMemoryAlignment = TmpOutMemoryAlignment;
-					return MakeSharedBufferFromArray(MoveTemp(ModelData));
-				}
+				return NNERuntime->CreateModelData(FileType, FileData, FileId, TargetPlatform);
 			}
 		}
 		else
@@ -155,10 +147,34 @@ namespace UE::NNE::ModelData
 				UE_LOG(LogNNE, Error, TEXT("- %s"), *Runtimes[i]->GetRuntimeName());
 			}
 		}
-		return {};
+		return TSharedPtr<UE::NNE::FSharedModelData>();
 	}
 
 } // UE::NNE::ModelData
+
+namespace UE::NNE
+{
+	FSharedModelData::FSharedModelData(FSharedBuffer InData, uint32 InMemoryAlignment) : Data(InData), MemoryAlignment(InMemoryAlignment)
+	{
+		checkf(Data.IsOwned(), TEXT("InData data must be ownned!"));
+		checkf(MemoryAlignment <= 1 || (((uintptr_t)(const void*)(InData.GetData())) % MemoryAlignment == 0), TEXT("InData must be aligned with InMemoryAlignment!"))
+	}
+
+	FSharedModelData::FSharedModelData()
+	{
+		MemoryAlignment = 0;
+	}
+
+	TConstArrayView<uint8> FSharedModelData::GetView() const
+	{
+		return MakeArrayView(static_cast<const uint8*>(Data.GetData()), Data.GetSize());
+	}
+
+	uint32 FSharedModelData::GetMemoryAlignment() const
+	{
+		return MemoryAlignment;
+	}
+} // UE::NNE
 
 void UNNEModelData::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
@@ -206,11 +222,10 @@ void UNNEModelData::Serialize(FArchive& Ar)
 
 				for (const FString& RuntimeName : CookRuntimeNames)
 				{
-					uint32 MemoryAlignment = 0;
-					FSharedBuffer CreatedData = UE::NNE::ModelData::CreateModelData(RuntimeName, FileType, FileData, FileId, Ar.GetArchiveState().CookingTarget(), MemoryAlignment);
-					if (CreatedData.GetSize() > 0)
+					TSharedPtr<UE::NNE::FSharedModelData> CreatedData = UE::NNE::ModelData::CreateModelData(RuntimeName, FileType, FileData, FileId, Ar.GetArchiveState().CookingTarget());
+					if (CreatedData.IsValid() && CreatedData->GetView().Num() > 0)
 					{
-						ModelData.Add(RuntimeName, MakeTuple(CreatedData, MemoryAlignment));
+						ModelData.Add(RuntimeName, CreatedData);
 #if WITH_EDITOR
 						TWeakInterfacePtr<INNERuntime> NNERuntime = UE::NNE::GetRuntime<INNERuntime>(RuntimeName);
 						if (NNERuntime.IsValid())
@@ -218,7 +233,7 @@ void UNNEModelData::Serialize(FArchive& Ar)
 							FString ModelDataIdentifier = NNERuntime->GetModelDataIdentifier(FileType, FileData, FileId, Ar.GetArchiveState().CookingTarget());
 							if (ModelDataIdentifier.Len() > 0)
 							{
-								UE::NNE::ModelData::PutIntoDDC(FileId, RuntimeName, ModelDataIdentifier, CreatedData, MemoryAlignment);
+								UE::NNE::ModelData::PutIntoDDC(FileId, RuntimeName, ModelDataIdentifier, CreatedData);
 							}
 							else
 							{
@@ -259,13 +274,13 @@ void UNNEModelData::Serialize(FArchive& Ar)
 			{
 				Ar << RuntimeNames[i];
 
-				uint32 MemoryAlignment = ModelData[RuntimeNames[i]].Get<1>();
+				uint32 MemoryAlignment = ModelData[RuntimeNames[i]]->GetMemoryAlignment();
 				Ar << MemoryAlignment;
 
-				uint64 DataSize = ModelData[RuntimeNames[i]].Get<0>().GetSize();
+				uint64 DataSize = ModelData[RuntimeNames[i]]->GetView().Num();
 				Ar << DataSize;
 
-				Ar.Serialize((void*)ModelData[RuntimeNames[i]].Get<0>().GetData(), DataSize);
+				Ar.Serialize((void*)ModelData[RuntimeNames[i]]->GetView().GetData(), DataSize);
 			}
 		}
 		else
@@ -299,7 +314,7 @@ void UNNEModelData::Serialize(FArchive& Ar)
 			{
 				Ar << Name;
 				Ar << Data;
-				ModelData.Add(Name, MakeTuple(MakeSharedBufferFromArray(MoveTemp(Data)), 0));
+				ModelData.Add(Name, MakeShared<UE::NNE::FSharedModelData>(MakeSharedBufferFromArray(MoveTemp(Data)), 0));
 			}
 			UE_LOG(LogNNE, Warning, TEXT("[DEPRECATION] UNNEModelData: The asset %s (v0) is deprecated. Please right-click the asset and select 'Save' to update it to the latest version."), *this->GetName());
 			break;
@@ -319,7 +334,7 @@ void UNNEModelData::Serialize(FArchive& Ar)
 			{
 				Ar << Name;
 				Ar << Data;
-				ModelData.Add(Name, MakeTuple(MakeSharedBufferFromArray(MoveTemp(Data)), 0));
+				ModelData.Add(Name, MakeShared<UE::NNE::FSharedModelData>(MakeSharedBufferFromArray(MoveTemp(Data)), 0));
 			}
 			UE_LOG(LogNNE, Warning, TEXT("[DEPRECATION] UNNEModelData: The asset %s (v1) is deprecated. Please right-click the asset and select 'Save' to update it to the latest version."), *this->GetName());
 			break;
@@ -337,7 +352,7 @@ void UNNEModelData::Serialize(FArchive& Ar)
 				Ar << DataSize;
 				RawData = FMemory::Malloc(DataSize, MemoryAlignment);
 				Ar.Serialize(RawData, DataSize);
-				ModelData.Add(Name, MakeTuple(FSharedBuffer::TakeOwnership(RawData, DataSize, FMemory::Free), MemoryAlignment));
+				ModelData.Add(Name, MakeShared<UE::NNE::FSharedModelData>(FSharedBuffer::TakeOwnership(RawData, DataSize, FMemory::Free), MemoryAlignment));
 			}
 			break;
 
@@ -381,12 +396,12 @@ void UNNEModelData::SetTargetRuntimes(TArrayView<const FString> RuntimeNames)
 	}
 }
 
-FString UNNEModelData::GetFileType()
+FString UNNEModelData::GetFileType() const
 {
 	return FileType;
 }
 
-TConstArrayView<uint8> UNNEModelData::GetFileData()
+TConstArrayView<uint8> UNNEModelData::GetFileData() const
 {
 	return FileData;
 }
@@ -397,7 +412,7 @@ void UNNEModelData::ClearFileDataAndFileType()
 	FileData.Empty();
 }
 
-FGuid UNNEModelData::GetFileId()
+FGuid UNNEModelData::GetFileId() const
 {
 	return FileId;
 }
@@ -417,10 +432,10 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNEModelData::GetModelData(const FString&
 	}
 
 	// Check if we have a local cache hit
-	TTuple<FSharedBuffer, uint32>* LocalData = ModelData.Find(RuntimeName);
-	if (LocalData)
+	TSharedPtr<UE::NNE::FSharedModelData>* LocalDataPtr = ModelData.Find(RuntimeName);
+	if (LocalDataPtr)
 	{
-		return MakeShared<UE::NNE::FSharedModelData>(LocalData->Get<0>());
+		return *LocalDataPtr;
 	}
 
 	// After this point FileData is required to either get the cache id or recreate it from scratch
@@ -446,33 +461,30 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNEModelData::GetModelData(const FString&
 	}
 
 	// Check if we have a DDC cache hit
-	uint32 RemoteMemoryAlignment = 0;
-	FSharedBuffer RemoteData = UE::NNE::ModelData::GetFromDDC(FileId, RuntimeName, ModelDataIdentifier, RemoteMemoryAlignment);
-	if (RemoteData.GetSize() > 0)
+	TSharedPtr<UE::NNE::FSharedModelData> RemoteData = UE::NNE::ModelData::GetFromDDC(FileId, RuntimeName, ModelDataIdentifier);
+	if (RemoteData.IsValid() && RemoteData->GetView().Num() > 0)
 	{
-		ModelData.Add(RuntimeName, MakeTuple(RemoteData, RemoteMemoryAlignment));
-
-		return MakeShared<UE::NNE::FSharedModelData>(RemoteData);
+		ModelData.Add(RuntimeName, RemoteData);
+		return RemoteData;
 	}
 #endif //WITH_EDITOR
 
 	// Try to create the model
-	uint32 CreatedMemoryAlignment = 0;
-	FSharedBuffer CreatedData = UE::NNE::ModelData::CreateModelData(RuntimeName, FileType, FileData, FileId, nullptr, CreatedMemoryAlignment);
-	if (CreatedData.GetSize() < 1)
+	TSharedPtr<UE::NNE::FSharedModelData> CreatedData = UE::NNE::ModelData::CreateModelData(RuntimeName, FileType, FileData, FileId, nullptr);
+	if (!CreatedData.IsValid() || CreatedData->GetView().Num() < 1)
 	{
 		return TSharedPtr<UE::NNE::FSharedModelData>();
 	}
 
 	// Cache the model
-	ModelData.Add(RuntimeName, MakeTuple(CreatedData, CreatedMemoryAlignment));
+	ModelData.Add(RuntimeName, CreatedData);
 
 #if WITH_EDITOR
 	// And put it into DDC
-	UE::NNE::ModelData::PutIntoDDC(FileId, RuntimeName, ModelDataIdentifier, CreatedData, CreatedMemoryAlignment);
+	UE::NNE::ModelData::PutIntoDDC(FileId, RuntimeName, ModelDataIdentifier, CreatedData);
 #endif //WITH_EDITOR
 
-	return MakeShared<UE::NNE::FSharedModelData>(CreatedData);
+	return CreatedData;
 }
 
 void UNNEModelData::ClearModelData()

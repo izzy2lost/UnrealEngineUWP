@@ -162,7 +162,7 @@ namespace UE::NNERuntimeORTCpu::Private
 		return true;
 	}
 	
-	int FModelInstanceCPU::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes)
+	int32 FModelInstanceCPU::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes)
 	{
 		InputTensors.Reset();
 		OutputTensors.Reset();
@@ -175,7 +175,7 @@ namespace UE::NNERuntimeORTCpu::Private
 		}
 
 		// Setup concrete input tensor
-		for (int i = 0; i < InputSymbolicTensors.Num(); ++i)
+		for (int32 i = 0; i < InputSymbolicTensors.Num(); ++i)
 		{
 			NNE::Internal::FTensor Tensor = NNE::Internal::FTensor::Make(InputSymbolicTensors[i].GetName(), InInputShapes[i], InputSymbolicTensors[i].GetDataType());
 			InputTensors.Emplace(Tensor);
@@ -203,7 +203,7 @@ namespace UE::NNERuntimeORTCpu::Private
 		return 0;
 	}
 
-	int FModelInstanceCPU::RunSync(TConstArrayView<NNE::FTensorBindingCPU> InInputBindings, TConstArrayView<NNE::FTensorBindingCPU> InOutputBindings)
+	int32 FModelInstanceCPU::RunSync(TConstArrayView<NNE::FTensorBindingCPU> InInputBindings, TConstArrayView<NNE::FTensorBindingCPU> InOutputBindings)
 	{
 		DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FModelInstanceCPU_Run"), STAT_FModelInstanceCPU_Run, STATGROUP_NNE);
 
@@ -249,7 +249,7 @@ namespace UE::NNERuntimeORTCpu::Private
 			else
 			{
 				TArray<Ort::Value> OutputOrtTensors;
-				for (int i = 0; i < InOutputBindings.Num(); ++i)
+				for (int32 i = 0; i < InOutputBindings.Num(); ++i)
 				{
 					OutputOrtTensors.Emplace(nullptr);
 				}
@@ -261,7 +261,7 @@ namespace UE::NNERuntimeORTCpu::Private
 				// Output shapes were resolved during inference: Copy the data back to bindings and expose output tensor shapes
 				CopyFromORTToBindings(OutputOrtTensors, InOutputBindings, OutputSymbolicTensors, OutputTensors);
 				check(OutputTensorShapes.IsEmpty());
-				for (int i = 0; i < OutputTensors.Num(); ++i)
+				for (int32 i = 0; i < OutputTensors.Num(); ++i)
 				{
 					OutputTensorShapes.Emplace(OutputTensors[i].GetShape());
 				}

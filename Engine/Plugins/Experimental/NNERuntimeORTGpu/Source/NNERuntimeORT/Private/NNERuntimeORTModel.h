@@ -34,8 +34,8 @@ namespace UE::NNERuntimeORT::Private
 		FModelInstanceORT(Ort::Env* InORTEnvironment, const FRuntimeConf& InRuntimeConf);
 		virtual ~FModelInstanceORT() = default;
 
-		virtual int SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
-		virtual int RunSync(TConstArrayView<NNE::FTensorBindingGPU> InInputBindings, TConstArrayView<NNE::FTensorBindingGPU> InOutputBindings) override;
+		virtual int32 SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
+		virtual int32 RunSync(TConstArrayView<NNE::FTensorBindingGPU> InInputBindings, TConstArrayView<NNE::FTensorBindingGPU> InOutputBindings) override;
 
 		bool Init(TConstArrayView<uint8> ModelData);
 		bool IsLoaded() const;
