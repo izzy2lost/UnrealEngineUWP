@@ -13,6 +13,8 @@
 #include "VerseVM/VVMFloat.h"
 #include <cinttypes>
 
+class UObject;
+
 namespace Verse
 {
 struct FPlaceholder;
@@ -20,7 +22,6 @@ struct VCell;
 struct VContext;
 struct VFrame;
 struct VInt;
-struct VRestValue;
 struct FRunningContext;
 struct VPlaceholder;
 struct VSuspension;
@@ -36,6 +37,8 @@ struct VValue
 
 	// Untagged value coercion constructors.
 	VValue(VCell& Cell);
+
+	VValue(UObject* Object);
 
 	VValue(VInt Int);
 	static VValue FromInt32(int32 Int32)
@@ -90,7 +93,7 @@ struct VValue
 	}
 
 	VValue(VPlaceholder&) = delete;
-	bool IsPlaceholder() const { return (EncodedBits & PlaceholderMask) == PlaceholderTag; }
+	bool IsPlaceholder() const { return (EncodedBits & NonCellTagMask) == PlaceholderTag; }
 	static VValue Placeholder(const VPlaceholder& Placeholder)
 	{
 		VValue Result = VValue::Decode(BitCast<uint64>(&Placeholder) | PlaceholderTag);
@@ -146,6 +149,13 @@ struct VValue
 	template <typename ObjectType>
 	ObjectType* DynamicCast() const;
 
+	bool IsUObject() const { return (EncodedBits & NonCellTagMask) == UObjectTag; }
+	UObject* AsUObject() const
+	{
+		checkSlow(IsUObject());
+		return BitCast<UObject*>(EncodedBits & ~UObjectTag);
+	}
+
 	bool IsInt() const;
 	VInt AsInt() const;
 
@@ -186,6 +196,7 @@ struct VValue
 
 private:
 	friend struct VRestValue;
+
 	union
 	{
 		uint64 EncodedBits;
@@ -204,7 +215,7 @@ private:
 		return Result;
 	}
 
-	bool IsRoot() const { return (EncodedBits & VValue::RootMask) == VValue::RootTag; }
+	bool IsRoot() const { return (EncodedBits & VValue::NonCellTagMask) == VValue::RootTag; }
 
 	uint16 GetSplitDepth() const
 	{
@@ -229,22 +240,8 @@ public:
 	// as a VValue. However, when boxing an unknown double value as a VValue, we need to
 	// purify any incoming NaNs.
 
-	// The lower bits of a non-numbered VValue look like this:
-	// - For a Cell:        0b0000
-	// - For a RestValue:   0bXXX1
-	// - For a Placeholder: 0bX010
-	// - Note: This leaves more space available in the lower 4 bits for other immediate values or pointer tagging.
-	//         We'll probably want to steal one of these bit patterns for UObject boxed pointers.
-	// We can distinguish these values like so:
-	// - Their upper 16 bits are zero, so can't be recognized as a number.
-	// - A Cell has its lower 4 bits as zero since we allocate heap cells 16-byte aligned.
-	// - A RestValue has its lowest bit set to 1. This test will fail for both Cell and Placeholder.
-	// - A Placeholder has its lowest two bits set to 0b10. This will fail for both Cell and RestValue.
-
-	// VValue assumes a 48-bit address space for pointers.
-
 	// Encoding space by top 16 bits:
-	// 0x0000... cell or placeholder
+	// 0x0000... Cell/Placeholder/UObject/Root (see below)
 	// 0x0001... \
 	// ...        float
 	// 0xfffc... /
@@ -252,21 +249,31 @@ public:
 	// 0xfffe... unused
 	// 0xffff... int32
 
-	static constexpr uint64 NonCellTagMask = 0xffff'0000'0000'000full;
+	// If the top 16 bits are 0000, the lower 4 bits encode as follows:
+	// 0b0000... Cell
+	// 0b0001... Placeholder
+	// 0b0010... Root
+	// 0b0011... UObject
+	// 0b01XX... unused
+	// 0b1XXX... unused
+
+	// VValue assumes a 48-bit address space for pointers.
+
+	// Special code which means this VValue is uninitialized
+	static constexpr uint64 UninitializedValue = 0;
+
+	// Number-related constants
 	static constexpr uint64 NumberTagMask = 0xffff'0000'0000'0000ull;
-
-	static constexpr uint64 PlaceholderTag = 0x2ull;
-	static constexpr uint64 RootTag = 0x1ull;
-	static constexpr uint64 RootMask = NumberTagMask | RootTag;
-	static constexpr uint64 PlaceholderMask = NumberTagMask | PlaceholderTag | RootTag;
-
 	static constexpr uint64 Int32Tag = 0xffff'0000'0000'0000ull;
-
 	static constexpr uint64 FloatOffset = 0x0001'0000'0000'0000ull;
 	static constexpr uint64 MaxPureNaN = 0xfffb'ffff'ffff'ffffull;
 	static constexpr uint64 MaxFloatTag = 0xfffc'0000'0000'0000ull;
 
-	static constexpr uint64 UninitializedValue = 0;
+	// Non-number related constants
+	static constexpr uint64 NonCellTagMask = NumberTagMask | 0xfull; // Used for Cell, Placeholder, Root, UObject
+	static constexpr uint64 PlaceholderTag = 0x1ull;
+	static constexpr uint64 RootTag = 0x2ull;
+	static constexpr uint64 UObjectTag = 0x3ull;
 };
 
 } // namespace Verse

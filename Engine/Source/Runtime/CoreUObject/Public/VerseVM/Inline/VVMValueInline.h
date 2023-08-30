@@ -35,6 +35,12 @@ inline VValue::VValue(VCell& Cell)
 	checkSlow(!IsCellOfType<VPlaceholder>());
 }
 
+inline VValue::VValue(UObject* Object)
+	: EncodedBits(BitCast<uint64>(Object) | UObjectTag)
+{
+	checkSlow(IsUObject());
+}
+
 inline VValue::VValue(VInt Int)
 	: VValue(Int.Value)
 {
