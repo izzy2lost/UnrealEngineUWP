@@ -16,19 +16,30 @@ namespace ConcertSyncUtil
 
 bool CanExportProperty(const FProperty* Property, const bool InIncludeEditorOnlyData)
 {
-	auto PropertyIsInList = [Property](const TArray<TFieldPath<FProperty>>& PropertyList)
+	auto PropertyPathIsInList = [Property](const TArray<TFieldPath<FProperty>>& PropertyPaths)
 	{
-		return PropertyList.ContainsByPredicate([Property](const TFieldPath<FProperty>& PropertyFieldPath)
+		return PropertyPaths.ContainsByPredicate([Property](const TFieldPath<FProperty>& PropertyFieldPath)
 		{
-			FProperty* FilterProperty = PropertyFieldPath.Get();
+			const FProperty* FilterProperty = PropertyFieldPath.Get();
 			return Property == FilterProperty;
 		});
 	};
+
+	auto PropertyTypeIsInList = [Property](const TArray<FName>& PropertyTypes)
+	{
+		return PropertyTypes.ContainsByPredicate([Property](const FName PropertyType)
+		{
+			const FFieldClass* FilterPropertyClass = FFieldClass::GetNameToFieldClassMap().FindRef(PropertyType);
+			return FilterPropertyClass && Property->GetClass()->IsChildOf(FilterPropertyClass);
+		});
+	};
+
 	const UConcertSyncConfig* SyncConfig = GetDefault<UConcertSyncConfig>();
 	return (!Property->IsEditorOnlyProperty() || InIncludeEditorOnlyData)
 		&& (!Property->HasAnyPropertyFlags(CPF_NonTransactional))
-		&& (!Property->HasAnyPropertyFlags(CPF_Transient) || PropertyIsInList(SyncConfig->AllowedTransientProperties))
-		&& (!PropertyIsInList(SyncConfig->ExcludedProperties));
+		&& (!Property->HasAnyPropertyFlags(CPF_Transient) || PropertyPathIsInList(SyncConfig->AllowedTransientProperties))
+		&& (!PropertyPathIsInList(SyncConfig->ExcludedProperties))
+		&& (!PropertyTypeIsInList(SyncConfig->ExcludedPropertyTypes));
 }
 
 void GatherDefaultSubobjectPaths(const UObject* Obj, TSet<FSoftObjectPath>& OutSubobjects)
