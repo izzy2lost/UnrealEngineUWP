@@ -44,7 +44,7 @@ void SNewEmitterDialog::Construct(const FArguments& InArgs)
 		{
 			SNiagaraNewAssetDialog::FNiagaraNewAssetDialogOption(
 				LOCTEXT("CreateFromEmitterLabel", "New emitter"),
-				LOCTEXT("CreateFromEmitterDescription", "Create a new emitter from a template or behavior emitter (no inheritance) or from a parent (inheritance)"),
+				LOCTEXT("CreateFromEmitterDescription", "Create a new emitter from a template or learning emitter (no inheritance) or from a parent (inheritance)"),
 				LOCTEXT("EmitterPickerHeader", "Select an Emitter"),
 				SNiagaraNewAssetDialog::FOnGetSelectedAssetsFromPicker::CreateSP(this, &SNewEmitterDialog::GetSelectedEmitterAssets_NewAssets),
 				SNiagaraNewAssetDialog::FOnSelectionConfirmed::CreateSP(this, &SNewEmitterDialog::CheckUseInheritance),

@@ -63,7 +63,7 @@ void SNewSystemDialog::Construct(const FArguments& InArgs)
 		{
 			SNiagaraNewAssetDialog::FNiagaraNewAssetDialogOption(
 				LOCTEXT("CreateFromSelectedEmittersLabel", "New system from selected emitter(s)"),
-				LOCTEXT("CreateFromSelectedEmittersDescription", "Choose a mix of emitters (inherited) and emitter templates/behavior examples (no inheritance)"),
+				LOCTEXT("CreateFromSelectedEmittersDescription", "Choose a mix of emitters (inherited) and emitter templates/learning examples (no inheritance)"),
 				LOCTEXT("ProjectEmittersLabel", "Select Emitters to Add"),
 				SNiagaraNewAssetDialog::FOnGetSelectedAssetsFromPicker::CreateSP(this, &SNewSystemDialog::GetSelectedProjectEmiterAssets),
 				SNiagaraNewAssetDialog::FOnSelectionConfirmed(),
@@ -120,8 +120,8 @@ void SNewSystemDialog::Construct(const FArguments& InArgs)
 				EmitterAssetPicker->GetSearchBox()
 				),
 			SNiagaraNewAssetDialog::FNiagaraNewAssetDialogOption(
-				LOCTEXT("CreateFromTemplateLabel", "New system from a template or behavior example"),
-				LOCTEXT("CreateFromTemplateDescription", "The new system will be derived from a system template or behavior example"),
+				LOCTEXT("CreateFromTemplateLabel", "New system from a template or learning example"),
+				LOCTEXT("CreateFromTemplateDescription", "The new system will be derived from a system template or learning example"),
 				LOCTEXT("TemplateLabel", "Select a System Template"),
 				SNiagaraNewAssetDialog::FOnGetSelectedAssetsFromPicker::CreateSP(this, &SNewSystemDialog::GetSelectedSystemTemplateAssets),
 				SNiagaraNewAssetDialog::FOnSelectionConfirmed(),
