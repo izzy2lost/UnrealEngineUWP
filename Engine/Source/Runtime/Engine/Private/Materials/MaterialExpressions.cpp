@@ -329,8 +329,7 @@ bool IsAllowedExpressionType(const UClass* const Class, const bool bMaterialFunc
 	const bool bSharedAllowed = Class != UMaterialExpressionComment::StaticClass() 
 		&& Class != UMaterialExpressionPinBase::StaticClass()
 		&& Class != UMaterialExpressionParameter::StaticClass()
-		&& (Class != UMaterialExpressionTextureSampleParameter2DArray::StaticClass() || AllowTextureArrayAssetCreationVar->GetValueOnGameThread() != 0)
-		&& Class != UMaterialExpressionStrataLegacyConversion::StaticClass();
+		&& (Class != UMaterialExpressionTextureSampleParameter2DArray::StaticClass() || AllowTextureArrayAssetCreationVar->GetValueOnGameThread() != 0);
 
 	if (bMaterialFunction)
 	{
@@ -23290,7 +23289,6 @@ int32 UMaterialExpressionStrataLegacyConversion::Compile(class FMaterialCompiler
 	FStrataOperator& StrataOperator = Compiler->StrataCompilationGetOperator(Compiler->StrataTreeStackGetPathUniqueId());
 	StrataOperator.BSDFRegisteredSharedLocalBasis = NewRegisteredSharedLocalBasis;
 
-	int32 ShadingModelCount = ConvertedStrataMaterialInfo.CountShadingModels();
 	int32 OpacityCodeChunk = INDEX_NONE;
 	if (!Compiler->StrataSkipsOpacityEvaluation())
 	{
@@ -23303,6 +23301,8 @@ int32 UMaterialExpressionStrataLegacyConversion::Compile(class FMaterialCompiler
 		OpacityCodeChunk = Compiler->Constant(1.0f);
 	}
 
+	int32 ShadingModelCodeChunk = ShadingModel.IsConnected() ? CompileWithDefaultFloat1(Compiler, ShadingModel, float(MSM_DefaultLit)) : Compiler->Constant(float(ShadingModelOverride));
+	int32 ShadingModelCount = Compiler->GetMaterialShadingModels().CountShadingModels();
 	const bool bHasDynamicShadingModels = ShadingModelCount > 1;
 	// We probably need to do something along these line as well :::
 	int32 OutputCodeChunk = Compiler->StrataConversionFromLegacy(
@@ -23330,7 +23330,7 @@ int32 UMaterialExpressionStrataLegacyConversion::Compile(class FMaterialCompiler
 		CompileWithDefaultFloat1(Compiler, WaterPhaseG, 0.0f),
 		CompileWithDefaultFloat3(Compiler, ColorScaleBehindWater, 1.0f, 1.0f, 1.0f),
 		// Shading model
-		CompileWithDefaultFloat1(Compiler, ShadingModel, 0.0f),
+		ShadingModelCodeChunk,
 		NormalCodeChunk,
 		TangentCodeChunk,
 		BasisIndexMacro,
@@ -23411,7 +23411,7 @@ FName UMaterialExpressionStrataLegacyConversion::GetInputName(int32 InputIndex) 
 	else if (InputIndex == 16)	return TEXT("Color Scale BehindWater");
 	else if (InputIndex == 17)	return TEXT("Clear Coat Normal");
 	else if (InputIndex == 18)	return TEXT("Custom Tangent");
-	else if (InputIndex == 19)	return TEXT("Shading Model");
+	else if (InputIndex == 19)	return TEXT("Shading Model From Expression");
 	return TEXT("Unknown");
 }
 
@@ -23445,19 +23445,30 @@ void UMaterialExpressionStrataLegacyConversion::GatherStrataMaterialInfo(FStrata
 	if (ClearCoat.IsConnected())			{ StrataMaterialInfo.AddPropertyConnected(MP_CustomData0); }
 	if (ClearCoatRoughness.IsConnected())	{ StrataMaterialInfo.AddPropertyConnected(MP_CustomData1); }
 	if (Opacity.IsConnected())				{ StrataMaterialInfo.AddPropertyConnected(MP_Opacity); }
-	if (ShadingModel.IsConnected())			{ StrataMaterialInfo.AddPropertyConnected(MP_ShadingModel); }
 
-	if (ConvertedStrataMaterialInfo.HasShadingModel(SSM_Unlit))					{ StrataMaterialInfo.AddShadingModel(SSM_Unlit); }
-	if (ConvertedStrataMaterialInfo.HasShadingModel(SSM_DefaultLit))			{ StrataMaterialInfo.AddShadingModel(SSM_DefaultLit); }
-	if (ConvertedStrataMaterialInfo.HasShadingModel(SSM_SubsurfaceLit))			{ StrataMaterialInfo.AddShadingModel(SSM_SubsurfaceLit); }
-	if (ConvertedStrataMaterialInfo.HasShadingModel(SSM_VolumetricFogCloud))	{ StrataMaterialInfo.AddShadingModel(SSM_VolumetricFogCloud); }
-	if (ConvertedStrataMaterialInfo.HasShadingModel(SSM_Hair))					{ StrataMaterialInfo.AddShadingModel(SSM_Hair); }
-	if (ConvertedStrataMaterialInfo.HasShadingModel(SSM_Eye))					{ StrataMaterialInfo.AddShadingModel(SSM_Eye); }
-	if (ConvertedStrataMaterialInfo.HasShadingModel(SSM_Cloth))					{ StrataMaterialInfo.AddShadingModel(SSM_Cloth); }
-	if (ConvertedStrataMaterialInfo.HasShadingModel(SSM_ClearCoat))				{ StrataMaterialInfo.AddShadingModel(SSM_ClearCoat); }
-	if (ConvertedStrataMaterialInfo.HasShadingModel(SSM_SingleLayerWater))		{ StrataMaterialInfo.AddShadingModel(SSM_SingleLayerWater); }
-	if (SubsurfaceProfile)														{ StrataMaterialInfo.AddSubsurfaceProfile(SubsurfaceProfile); }
-	if (ConvertedStrataMaterialInfo.HasShadingModelFromExpression())			{ StrataMaterialInfo.SetShadingModelFromExpression(true); }
+	if (ShadingModel.IsConnected())
+	{
+		StrataMaterialInfo.AddPropertyConnected(MP_ShadingModel);
+
+		// If the ShadingModel pin is plugged in, we must use a shading model from expression path.
+		StrataMaterialInfo.SetShadingModelFromExpression(true);
+	}
+	else
+	{
+		// If the ShadingModel pin is NOT plugged in, we simply use the shading model selected on the root node drop box.
+		if (ShadingModelOverride == MSM_Unlit)				{ StrataMaterialInfo.AddShadingModel(EStrataShadingModel::SSM_Unlit); }
+		if (ShadingModelOverride == MSM_DefaultLit)			{ StrataMaterialInfo.AddShadingModel(EStrataShadingModel::SSM_DefaultLit); }
+		if (ShadingModelOverride == MSM_Subsurface)			{ StrataMaterialInfo.AddShadingModel(EStrataShadingModel::SSM_SubsurfaceWrap); }
+		if (ShadingModelOverride == MSM_PreintegratedSkin)	{ StrataMaterialInfo.AddShadingModel(EStrataShadingModel::SSM_SubsurfaceWrap); }
+		if (ShadingModelOverride == MSM_ClearCoat)			{ StrataMaterialInfo.AddShadingModel(EStrataShadingModel::SSM_ClearCoat); }
+		if (ShadingModelOverride == MSM_SubsurfaceProfile)	{ StrataMaterialInfo.AddShadingModel(EStrataShadingModel::SSM_SubsurfaceProfile); }
+		if (ShadingModelOverride == MSM_TwoSidedFoliage)	{ StrataMaterialInfo.AddShadingModel(EStrataShadingModel::SSM_SubsurfaceThinTwoSided); }
+		if (ShadingModelOverride == MSM_Hair)				{ StrataMaterialInfo.AddShadingModel(EStrataShadingModel::SSM_Hair); }
+		if (ShadingModelOverride == MSM_Cloth)				{ StrataMaterialInfo.AddShadingModel(EStrataShadingModel::SSM_Cloth); }
+		if (ShadingModelOverride == MSM_Eye)				{ StrataMaterialInfo.AddShadingModel(EStrataShadingModel::SSM_Eye); }
+		if (ShadingModelOverride == MSM_SingleLayerWater)	{ StrataMaterialInfo.AddShadingModel(EStrataShadingModel::SSM_SingleLayerWater); }
+		if (ShadingModelOverride == MSM_ThinTranslucent)	{ StrataMaterialInfo.AddShadingModel(EStrataShadingModel::SSM_ThinTranslucent); }
+	}
 }
 
 FStrataOperator* UMaterialExpressionStrataLegacyConversion::StrataGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex)
@@ -23478,35 +23489,55 @@ FStrataOperator* UMaterialExpressionStrataLegacyConversion::StrataGenerateMateri
 		return &SlabOperator;
 	};
 
+	// Get the shading models resulting from the UMaterial::RebuildShadingModelField().
+	FMaterialShadingModelField ShadingModels = Compiler->GetMaterialShadingModels();
+
 	// Logic about shading models and complexity should match UMaterialExpressionStrataLegacyConversion::Compile.
-	if (ConvertedStrataMaterialInfo.CountShadingModels() > 1 || ConvertedStrataMaterialInfo.HasShadingModelFromExpression())
+	const bool bHasShadingModelFromExpression = ShadingModel.IsConnected(); // We keep HasShadingModelFromExpression in case all shading models cannot be safely recovered from material functions.
+	if ((ShadingModels.CountShadingModels() > 1) || bHasShadingModelFromExpression) 
 	{
 		return AddDefaultWorstCase(true, true);
 	}
 	// else
 	{
-		check(ConvertedStrataMaterialInfo.CountShadingModels() == 1);
+		check(ShadingModels.CountShadingModels() == 1);
 
-		if (ConvertedStrataMaterialInfo.HasShadingModel(SSM_Unlit))
+		if (ShadingModels.HasShadingModel(MSM_Unlit))
 		{
 			FStrataOperator& Operator = Compiler->StrataCompilationRegisterOperator(STRATA_OPERATOR_BSDF_LEGACY, Compiler->StrataTreeStackGetPathUniqueId(), this, Parent, Compiler->StrataTreeStackGetParentPathUniqueId());
 			Operator.BSDFType = STRATA_BSDF_TYPE_UNLIT;
 			Operator.ThicknessIndex = ThicknessIndex;
 			return &Operator;
 		}
-		else if (ConvertedStrataMaterialInfo.HasShadingModel(SSM_DefaultLit))
+		else if (ShadingModels.HasShadingModel(MSM_DefaultLit))
 		{
 			return AddDefaultWorstCase(false, false);
 		}
-		else if (ConvertedStrataMaterialInfo.HasShadingModel(SSM_SubsurfaceLit))
+		else if (ShadingModels.HasShadingModel(MSM_ThinTranslucent))
+		{
+			return AddDefaultWorstCase(false, false);
+		}
+		else if (ShadingModels.HasShadingModel(MSM_SubsurfaceProfile))
 		{
 			return AddDefaultWorstCase(true, false);
 		}
-		else if (ConvertedStrataMaterialInfo.HasShadingModel(SSM_Cloth))
+		else if (ShadingModels.HasShadingModel(MSM_Subsurface))
+		{
+			return AddDefaultWorstCase(true, false);
+		}
+		else if (ShadingModels.HasShadingModel(MSM_TwoSidedFoliage))
+		{
+			return AddDefaultWorstCase(true, false);
+		}
+		else if (ShadingModels.HasShadingModel(MSM_PreintegratedSkin))
+		{
+			return AddDefaultWorstCase(true, false);
+		}
+		else if (ShadingModels.HasShadingModel(MSM_Cloth))
 		{
 			return AddDefaultWorstCase(false, true);
 		}
-		else if (ConvertedStrataMaterialInfo.HasShadingModel(SSM_ClearCoat))
+		else if (ShadingModels.HasShadingModel(MSM_ClearCoat))
 		{
 			FStrataOperator& Operator = Compiler->StrataCompilationRegisterOperator(STRATA_OPERATOR_BSDF_LEGACY, Compiler->StrataTreeStackGetPathUniqueId(), this, Parent, Compiler->StrataTreeStackGetParentPathUniqueId());
 			Operator.BSDFType = STRATA_BSDF_TYPE_SLAB;
@@ -23515,21 +23546,21 @@ FStrataOperator* UMaterialExpressionStrataLegacyConversion::StrataGenerateMateri
 			Operator.bBSDFHasAnisotropy = Anisotropy.IsConnected();
 			return &Operator;
 		}
-		else if (ConvertedStrataMaterialInfo.HasShadingModel(SSM_Hair))
+		else if (ShadingModels.HasShadingModel(MSM_Hair))
 		{
 			FStrataOperator& Operator = Compiler->StrataCompilationRegisterOperator(STRATA_OPERATOR_BSDF_LEGACY, Compiler->StrataTreeStackGetPathUniqueId(), this, Parent, Compiler->StrataTreeStackGetParentPathUniqueId());
 			Operator.BSDFType = STRATA_BSDF_TYPE_HAIR;
 			Operator.ThicknessIndex = ThicknessIndex;
 			return &Operator;
 		}
-		else if (ConvertedStrataMaterialInfo.HasShadingModel(SSM_Eye))
+		else if (ShadingModels.HasShadingModel(MSM_Eye))
 		{
 			FStrataOperator& Operator = Compiler->StrataCompilationRegisterOperator(STRATA_OPERATOR_BSDF_LEGACY, Compiler->StrataTreeStackGetPathUniqueId(), this, Parent, Compiler->StrataTreeStackGetParentPathUniqueId());
 			Operator.BSDFType = STRATA_BSDF_TYPE_EYE;
 			Operator.ThicknessIndex = ThicknessIndex;
 			return &Operator;
 		}
-		else if (ConvertedStrataMaterialInfo.HasShadingModel(SSM_SingleLayerWater))
+		else if (ShadingModels.HasShadingModel(MSM_SingleLayerWater))
 		{
 			FStrataOperator& Operator = Compiler->StrataCompilationRegisterOperator(STRATA_OPERATOR_BSDF_LEGACY, Compiler->StrataTreeStackGetPathUniqueId(), this, Parent, Compiler->StrataTreeStackGetParentPathUniqueId());
 			Operator.BSDFType = STRATA_BSDF_TYPE_SINGLELAYERWATER;
@@ -23952,10 +23983,14 @@ void UMaterialExpressionStrataSlabBSDF::GatherStrataMaterialInfo(FStrataMaterial
 	if (HasSSS())
 	{
 		// We still do not know if this is going to be a real SSS node because it is only possible for BSDF at the bottom of the stack. Nevertheless, we take the worst case into account.
-		StrataMaterialInfo.AddShadingModel(SSM_SubsurfaceLit);
 		if (SubsurfaceProfile)
 		{
+			StrataMaterialInfo.AddShadingModel(SSM_SubsurfaceProfile);
 			StrataMaterialInfo.AddSubsurfaceProfile(SubsurfaceProfile);
+		}
+		else
+		{
+			StrataMaterialInfo.AddShadingModel(SSM_SubsurfaceMFP);
 		}
 	}
 	else

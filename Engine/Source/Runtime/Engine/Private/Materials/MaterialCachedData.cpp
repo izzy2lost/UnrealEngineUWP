@@ -1100,27 +1100,10 @@ void FMaterialCachedExpressionData::GetParameterValueByIndex(EMaterialParameterT
 	}
 }
 
-bool FStrataMaterialInfo::Serialize(FArchive& Ar)
-{
-	Ar.UsingCustomVersion(FUE5MainStreamObjectVersion::GUID);
-	return false;
-}
-
 bool FMaterialCachedExpressionData::Serialize(FArchive& Ar)
 {
 	Ar.UsingCustomVersion(FUE5MainStreamObjectVersion::GUID);
 	return false;
-}
-
-void FStrataMaterialInfo::PostSerialize(const FArchive& Ar)
-{
-	if (Ar.IsLoading())
-	{
-		if (Ar.CustomVer(FUE5MainStreamObjectVersion::GUID) < FUE5MainStreamObjectVersion::IncreaseMaterialAttributesInputMask)
-		{
-			ConnectedPropertyMask = uint64(ConnectedProperties_DEPRECATED);
-		}
-	}
 }
 
 void FMaterialCachedExpressionData::PostSerialize(const FArchive& Ar)

@@ -8,7 +8,7 @@
 #pragma once
 
 // Change this to force recompilation of all strata dependent shaders (use https://www.random.org/cgi-bin/randbyte?nbytes=4&format=h)
-#define STRATA_SHADER_VERSION 0x56F06029 
+#define STRATA_SHADER_VERSION 0x72C8A053
 
 // BSDF offsets are packed into 32bits, each entry using STRATA_BSDF_OFFSET_BIT_COUNT bits
 #define STRATA_MAX_BSDF_COUNT_FOR_BDSFOFFSET	8u

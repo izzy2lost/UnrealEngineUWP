@@ -683,43 +683,42 @@ private:
 
 /**
  * Specifies the Substrate runtime shading model summarized from the material graph
+ * Not exposed in UI, only used in code.
+ * Those states are deducted from the material graph and map to a specific domain/shading state.
  */
-UENUM()
 enum EStrataShadingModel : int
 {
-	SSM_Unlit					UMETA(DisplayName = "Unlit"),
-	SSM_DefaultLit				UMETA(DisplayName = "DefaultLit"),
-	SSM_SubsurfaceLit			UMETA(DisplayName = "SubsurfaceLit"),
-	SSM_VolumetricFogCloud		UMETA(DisplayName = "VolumetricFogCloud"),
-	SSM_Hair					UMETA(DisplayName = "Hair"),
-	SSM_Eye						UMETA(DisplayName = "Eye"),
-	SSM_Cloth					UMETA(DisplayName = "Cloth"),
-	SSM_ClearCoat				UMETA(DisplayName = "ClearCoat"),
-	SSM_SingleLayerWater		UMETA(DisplayName = "SingleLayerWater"),
-	SSM_LightFunction			UMETA(DisplayName = "LightFunction"),
-	SSM_PostProcess				UMETA(DisplayName = "PostProcess"),
-	SSM_Decal					UMETA(DisplayName = "Decal"),
-	SSM_UI						UMETA(DisplayName = "UI"),
+	SSM_Unlit,
+	SSM_DefaultLit,
+	SSM_ThinTranslucent,
+	SSM_SubsurfaceMFP,
+	SSM_SubsurfaceProfile,
+	SSM_SubsurfaceWrap,
+	SSM_SubsurfaceThinTwoSided,
+	SSM_VolumetricFogCloud,
+	SSM_Hair,
+	SSM_Eye,
+	SSM_Cloth,
+	SSM_ClearCoat,
+	SSM_SingleLayerWater,
+	SSM_LightFunction,
+	SSM_PostProcess,
+	SSM_Decal,
+	SSM_UI,
 	/** Number of unique shading models. */
-	SSM_NUM						UMETA(Hidden),
+	SSM_NUM,
 };
-static_assert(SSM_NUM <= 16, "Do not exceed 16 shading models without expanding FStrataMaterialShadingModelField to support uint32 instead of uint16!");
+static_assert(SSM_NUM <= 32, "Do not exceed 32 shading models without expanding FStrataMaterialInfo::ShadingModelField to support more bits!");
 
 // This used to track cyclic graph which we do not support. We only support acyclic graph and a depth of 128 is already too high for a realistic use case.
 #define STRATA_TREE_MAX_DEPTH 48
 
 /** Gather information from the Substrate material graph to setup material for runtime. */
-USTRUCT()
 struct FStrataMaterialInfo
 {
-	GENERATED_USTRUCT_BODY()
-
 public:
 	FStrataMaterialInfo() {}
 	FStrataMaterialInfo(EStrataShadingModel InShadingModel) { AddShadingModel(InShadingModel); }
-
-	ENGINE_API bool Serialize(FArchive& Ar);
-	ENGINE_API void PostSerialize(const FArchive& Ar);
 
 	// Shading model
 	void AddShadingModel(EStrataShadingModel InShadingModel) { check(InShadingModel < SSM_NUM); ShadingModelField |= (uint16)(1 << (uint16)InShadingModel); }
@@ -772,24 +771,16 @@ public:
 #endif
 
 private:
-	UPROPERTY()
-	uint16 ShadingModelField = 0;
+	uint32 ShadingModelField = 0;
 
 	/* Indicates if the shading model is constant or data-driven from the shader graph */
-	UPROPERTY()
 	uint8 bHasShadingModelFromExpression = 0;
 
-	UPROPERTY()
-	uint32 ConnectedProperties_DEPRECATED = 0;
-
 	/* Indicates which (legacy) inputs are connected */
-	UPROPERTY()
 	uint64 ConnectedPropertyMask = 0;
 
-	UPROPERTY()
 	TArray<TObjectPtr<USubsurfaceProfile>> SubsurfaceProfiles;
 
-	UPROPERTY()
 	TArray<TObjectPtr<USpecularProfile>> SpecularProfiles;
 
 #if WITH_EDITOR

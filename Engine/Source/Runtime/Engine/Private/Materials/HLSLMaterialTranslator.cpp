@@ -12534,7 +12534,7 @@ int32 FHLSLMaterialTranslator::StrataConversionFromLegacy(
 	int32 Opacity,
 	int32 TransmittanceColor,
 	int32 WaterScatteringCoefficients, int32 WaterAbsorptionCoefficients, int32 WaterPhaseG, int32 ColorScaleBehindWater,
-	int32 ShadingModel,
+	int32 InShadingModel,
 	int32 Normal, int32 Tangent, const FString& SharedLocalBasisIndexMacro,
 	int32 ClearCoat_Normal, int32 ClearCoat_Tangent, const FString& ClearCoat_SharedLocalBasisIndexMacro,
 	int32 CustomTangent_Tangent,
@@ -12546,6 +12546,24 @@ int32 FHLSLMaterialTranslator::StrataConversionFromLegacy(
 
 	const FString ClearCoat_NormalCode = GetParameterCode(ClearCoat_Normal);
 	const FString ClearCoat_TangentCode = Tangent != INDEX_NONE ? *GetParameterCode(ClearCoat_Tangent) : TEXT("NONE");
+
+	UMaterial* BaseMaterial = Material->GetMaterialInterface()->GetBaseMaterial();
+	// Material is probably an instanced material, so we check that this is the case before potentially overriding the ShadingModel from the material instance.
+	UMaterialInterface* BaseMaterialInterface = static_cast<UMaterialInterface*>(BaseMaterial);
+	UMaterialInterface*     MaterialInterface = Material->GetMaterialInterface();
+	if (BaseMaterial && (BaseMaterialInterface != MaterialInterface))
+	{
+		FMaterialShadingModelField BaseMaterialShadingModels	= BaseMaterial->GetShadingModels();
+		FMaterialShadingModelField MaterialShadingModels		= Material->GetShadingModels();
+
+		// If the potentially instanced material does not have the same shading model as the instance material, this means it would have overridden the shading model.
+		// From the UI, only a single shading model is selectable, so we simply apply the one coming form the material instance.
+		if (MaterialShadingModels.IsValid() && MaterialShadingModels.CountShadingModels()==1 && MaterialShadingModels != BaseMaterialShadingModels)
+		{
+			bHasDynamicShadingModels = false;	// No need to go dynamic when there is only a single shading model selected.
+			InShadingModel = ShadingModel(MaterialShadingModels.GetFirstShadingModel());
+		}
+	}
 
 	if (PromoteToOperator)
 	{
@@ -12575,7 +12593,7 @@ int32 FHLSLMaterialTranslator::StrataConversionFromLegacy(
 			*StrataGetCastParameterCode(WaterAbsorptionCoefficients,	MCT_Float3),
 			*StrataGetCastParameterCode(WaterPhaseG,					MCT_Float),
 			*StrataGetCastParameterCode(ColorScaleBehindWater,			MCT_Float3),
-			*GetParameterCode(ShadingModel),
+			*GetParameterCode(InShadingModel),
 			// Raw access to Normal/Tangent/ClearCoatNormal/CustomTangent for conversion purpose
 			*StrataGetCastParameterCode(Normal,							MCT_Float3),
 			*StrataGetCastParameterCode(RawTangent,						MCT_Float3),
@@ -12616,7 +12634,7 @@ int32 FHLSLMaterialTranslator::StrataConversionFromLegacy(
 		*StrataGetCastParameterCode(WaterAbsorptionCoefficients,	MCT_Float3),
 		*StrataGetCastParameterCode(WaterPhaseG,					MCT_Float),
 		*StrataGetCastParameterCode(ColorScaleBehindWater,			MCT_Float3),
-		*GetParameterCode(ShadingModel),
+		*GetParameterCode(InShadingModel),
 		// Raw access to Normal/Tangent/ClearCoatNormal/CustomTangent for conversion purpose
 		*StrataGetCastParameterCode(Normal,							MCT_Float3),
 		*StrataGetCastParameterCode(RawTangent,						MCT_Float3),

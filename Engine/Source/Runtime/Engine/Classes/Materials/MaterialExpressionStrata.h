@@ -170,9 +170,8 @@ class UMaterialExpressionStrataLegacyConversion : public UMaterialExpressionStra
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Material, meta = (DisplayName = "Subsurface Profile"))
 	TObjectPtr<class USubsurfaceProfile> SubsurfaceProfile;
 
-	/** Store converted material models. */
-	UPROPERTY()
-	FStrataMaterialInfo ConvertedStrataMaterialInfo;
+	UPROPERTY(EditAnywhere, Category = ShadingModel, meta = (ShowAsInputPin = "Primary", DisplayName = "Single Shading Model"))
+	TEnumAsByte<enum EMaterialShadingModel> ShadingModelOverride = MSM_DefaultLit;
 
 	//~ Begin UMaterialExpression Interface
 #if WITH_EDITOR

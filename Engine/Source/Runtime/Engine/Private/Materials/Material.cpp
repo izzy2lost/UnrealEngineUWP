@@ -3110,20 +3110,30 @@ void UMaterial::BackwardsCompatibilityDecalConversion()
 #endif // WITH_EDITOR
 }
 
-static void AddStrataShadingModelFromMaterialShadingModel(FStrataMaterialInfo& OutInfo, const FMaterialShadingModelField& InShadingModels)
+static void AddSurfaceStrataShadingModelFromMaterialShadingModels(FStrataMaterialInfo& OutInfo, const FMaterialShadingModelField& InShadingModels)
 {
 	if (InShadingModels.HasShadingModel(MSM_Unlit))				{ OutInfo.AddShadingModel(EStrataShadingModel::SSM_Unlit); }
 	if (InShadingModels.HasShadingModel(MSM_DefaultLit))		{ OutInfo.AddShadingModel(EStrataShadingModel::SSM_DefaultLit); }
-	if (InShadingModels.HasShadingModel(MSM_Subsurface))		{ OutInfo.AddShadingModel(EStrataShadingModel::SSM_SubsurfaceLit); }
-	if (InShadingModels.HasShadingModel(MSM_PreintegratedSkin))	{ OutInfo.AddShadingModel(EStrataShadingModel::SSM_SubsurfaceLit); }
+	if (InShadingModels.HasShadingModel(MSM_Subsurface))		{ OutInfo.AddShadingModel(EStrataShadingModel::SSM_SubsurfaceWrap); }
+	if (InShadingModels.HasShadingModel(MSM_PreintegratedSkin))	{ OutInfo.AddShadingModel(EStrataShadingModel::SSM_SubsurfaceMFP); }
 	if (InShadingModels.HasShadingModel(MSM_ClearCoat))			{ OutInfo.AddShadingModel(EStrataShadingModel::SSM_ClearCoat); }
-	if (InShadingModels.HasShadingModel(MSM_SubsurfaceProfile))	{ OutInfo.AddShadingModel(EStrataShadingModel::SSM_SubsurfaceLit); }
-	if (InShadingModels.HasShadingModel(MSM_TwoSidedFoliage))	{ OutInfo.AddShadingModel(EStrataShadingModel::SSM_SubsurfaceLit); }
+	if (InShadingModels.HasShadingModel(MSM_SubsurfaceProfile))	{ OutInfo.AddShadingModel(EStrataShadingModel::SSM_SubsurfaceProfile); }
+	if (InShadingModels.HasShadingModel(MSM_TwoSidedFoliage))	{ OutInfo.AddShadingModel(EStrataShadingModel::SSM_SubsurfaceThinTwoSided); }
 	if (InShadingModels.HasShadingModel(MSM_Hair))				{ OutInfo.AddShadingModel(EStrataShadingModel::SSM_Hair); }
 	if (InShadingModels.HasShadingModel(MSM_Cloth))				{ OutInfo.AddShadingModel(EStrataShadingModel::SSM_Cloth); }
 	if (InShadingModels.HasShadingModel(MSM_Eye))				{ OutInfo.AddShadingModel(EStrataShadingModel::SSM_Eye); }
 	if (InShadingModels.HasShadingModel(MSM_SingleLayerWater))	{ OutInfo.AddShadingModel(EStrataShadingModel::SSM_SingleLayerWater); }
-	if (InShadingModels.HasShadingModel(MSM_ThinTranslucent))	{ OutInfo.AddShadingModel(EStrataShadingModel::SSM_DefaultLit); }
+	if (InShadingModels.HasShadingModel(MSM_ThinTranslucent))	{ OutInfo.AddShadingModel(EStrataShadingModel::SSM_ThinTranslucent); }
+}
+
+static void AddSurfaceStrataShadingModelFromMaterialShadingModel(FStrataMaterialInfo& OutInfo, const EMaterialShadingModel& InShadingModel)
+{
+	if (InShadingModel < MSM_NUM)
+	{
+		FMaterialShadingModelField ShadingModel;
+		ShadingModel.AddShadingModel(InShadingModel);
+		AddSurfaceStrataShadingModelFromMaterialShadingModels(OutInfo, ShadingModel);
+	}
 }
 
 EBlendMode ConvertLegacyBlendMode(EBlendMode InBlendMode, FMaterialShadingModelField InShadingModels)
@@ -3141,6 +3151,22 @@ EBlendMode ConvertLegacyBlendMode(EBlendMode InBlendMode, FMaterialShadingModelF
 
 void UMaterial::ConvertMaterialToStrataMaterial()
 {
+	/*
+	* The data flow for legacy material conversion node that can be used in isolation is as such:
+	*
+	* --- Conversion time - UMaterial::ConvertMaterialToStrataMaterial()
+	*     Shading model => legacy node setup (shading model from expression? relink input : otherwise set the shading model on the conversion node itself)
+	*
+	* --- GatherStrataMaterialInfo
+	*     Send back what is the shading model used, or if it is "from expression"
+	*
+	* --- UMaterial::RebuildShadingModelField()
+	*     Set material Domain, ShadingModel and ShadingModels according to the returned value from GatherStrataMaterialInfo gathered from the graph.
+	*     Those values are not authorable but do enable shading models via defines from the HLSLTranslator. Seeing them being correct also helps to understand and debug.
+	*
+	* --- Material instance shading model override
+	*     Overridden from the HLSLTranslator when detected by comparing base and instanced materials.
+	*/
 #if WITH_EDITOR
 	if (!Strata::IsStrataEnabled())
 	{
@@ -3303,7 +3329,6 @@ void UMaterial::ConvertMaterialToStrataMaterial()
 		ConvertNode->ClearCoat.Connect(12, BreakMatAtt);
 		ConvertNode->ClearCoatRoughness.Connect(13, BreakMatAtt);
 		ConvertNode->Opacity.Connect(6, BreakMatAtt);
-		ConvertNode->ShadingModel.Connect(25, BreakMatAtt);
 		ConvertNode->SubsurfaceProfile = bRequireNoSubsurfaceProfile ? nullptr : SubsurfaceProfile;
 		bRelinkCustomOutputNodes = true;
 
@@ -3322,23 +3347,14 @@ void UMaterial::ConvertMaterialToStrataMaterial()
 
 		if (ShadingModel == MSM_FromMaterialExpression)
 		{
-			ConvertNode->ConvertedStrataMaterialInfo.SetShadingModelFromExpression(true);
-			AddStrataShadingModelFromMaterialShadingModel(ConvertNode->ConvertedStrataMaterialInfo, ShadingModels);
-			check(ConvertNode->ConvertedStrataMaterialInfo.CountShadingModels() >= 1);
+			check(ShadingModels.CountShadingModels() >= 1);
+			ConvertNode->ShadingModel.Connect(25, BreakMatAtt);
 		}
 		else
 		{
-			check(!bHasShadingModelMixture);
-
-			// Add shading model node
-			UMaterialExpressionShadingModel* ShadingModelNode = NewObject<UMaterialExpressionShadingModel>(this);
-			ReplaceNodeAndMoveToTheRight(ConvertNode, ShadingModelNode);
-			ShadingModelNode->ShadingModel = ShadingModel;
-			ConvertNode->ShadingModel.Connect(0, ShadingModelNode);
-
 			// Store strata shading model of the converted material. 
-			AddStrataShadingModelFromMaterialShadingModel(ConvertNode->ConvertedStrataMaterialInfo, ShadingModels);
-			check(ConvertNode->ConvertedStrataMaterialInfo.CountShadingModels() == 1);
+			check(ShadingModels.CountShadingModels() == 1);
+			ConvertNode->ShadingModelOverride = ShadingModel;
 		}
 
 		if (MaterialDomain == MD_DeferredDecal)
@@ -3495,17 +3511,11 @@ void UMaterial::ConvertMaterialToStrataMaterial()
 				// Shading Model
 				// * either use the shader graph expression 
 				// * or add a constant shading model
-				// 
-				// Note: store this conversion type(s) into ConvertedStrataMaterialInfo for having more context when 
-				// rebuilding the final Shading model (see RebuildShadingModelField())
 				if (ShadingModel == MSM_FromMaterialExpression)
 				{
 					if (!EditorOnly->ShadingModelFromMaterialExpression.IsConnected())
 					{
-						UMaterialExpressionShadingModel* ShadingModelNode = NewObject<UMaterialExpressionShadingModel>(this);
-						ReplaceNodeAndMoveToTheRight(ConvertNode, ShadingModelNode);
-						ShadingModelNode->ShadingModel = MSM_DefaultLit;
-						ConvertNode->ShadingModel.Connect(0, ShadingModelNode);
+						ConvertNode->ShadingModelOverride = MSM_DefaultLit;
 					}
 					else
 					{
@@ -3518,24 +3528,15 @@ void UMaterial::ConvertMaterialToStrataMaterial()
 					GatherCustomNodes();
 					if (SingleLayerWaterOutput)
 					{
-						ConvertNode->ConvertedStrataMaterialInfo.AddShadingModel(SSM_SingleLayerWater);
+						ShadingModels.AddShadingModel(MSM_SingleLayerWater);
 					}
 
-					ConvertNode->ConvertedStrataMaterialInfo.SetShadingModelFromExpression(true);
-					AddStrataShadingModelFromMaterialShadingModel(ConvertNode->ConvertedStrataMaterialInfo, ShadingModels);
-					check(ConvertNode->ConvertedStrataMaterialInfo.CountShadingModels() >= 1);
+					check(ShadingModels.CountShadingModels() >= 1);
 				}
 				else
 				{
-					check(!bHasShadingModelMixture);
-
-					UMaterialExpressionShadingModel* ShadingModelNode = NewObject<UMaterialExpressionShadingModel>(this);
-					ReplaceNodeAndMoveToTheRight(ConvertNode, ShadingModelNode);
-					ShadingModelNode->ShadingModel = ShadingModel;
-					ConvertNode->ShadingModel.Connect(0, ShadingModelNode);
-
-					AddStrataShadingModelFromMaterialShadingModel(ConvertNode->ConvertedStrataMaterialInfo, ShadingModels);
-					check(ConvertNode->ConvertedStrataMaterialInfo.CountShadingModels() == 1);
+					ConvertNode->ShadingModelOverride = ShadingModel;
+					check(ShadingModels.CountShadingModels() == 1);
 				}
 
 				EditorOnly->FrontMaterial.Connect(0, ConvertNode);
@@ -3615,13 +3616,8 @@ void UMaterial::ConvertMaterialToStrataMaterial()
 			CopyConnectionTo(EditorOnly->Opacity, ConvertNode, 11);	// We only copy, to keep Opacity on the root node in case BLEND_AlphaComposite is selected.
 
 			// Add constant for the Unlit shading model
-			UMaterialExpressionShadingModel* ShadingModelNode = NewObject<UMaterialExpressionShadingModel>(this);
-			ReplaceNodeAndMoveToTheRight(ConvertNode, ShadingModelNode);
-			ShadingModelNode->ShadingModel = ShadingModel;
-			ConvertNode->ShadingModel.Connect(0, ShadingModelNode);
-
-			AddStrataShadingModelFromMaterialShadingModel(ConvertNode->ConvertedStrataMaterialInfo, ShadingModels);
-			check(ConvertNode->ConvertedStrataMaterialInfo.CountShadingModels() == 1);
+			ConvertNode->ShadingModelOverride = ShadingModel;
+			check(ShadingModels.CountShadingModels() == 1);
 
 			// Now pass through the convert to decal node, which flag the material as SSM_Decal, which will set the domain to Decal.
 			UMaterialExpressionStrataConvertToDecal* ConvertToDecalNode= NewObject<UMaterialExpressionStrataConvertToDecal>(this);
@@ -4878,11 +4874,12 @@ void UMaterial::RebuildShadingModelField()
 		}
 
 		bool bSanitizeMaterial = false;
-		if (!StrataMaterialInfo.IsValid())
+		if (!StrataMaterialInfo.IsValid() && !StrataMaterialInfo.HasShadingModelFromExpression() )
 		{
 			bSanitizeMaterial = true;
 			UE_LOG(LogMaterial, Error, TEXT("%s: Material information is invalid."), *GetName());
 		}
+
 		if (StrataMaterialInfo.CountShadingModels() > 1)
 		{
 			if (StrataMaterialInfo.HasShadingModel(SSM_Decal))
@@ -4903,29 +4900,53 @@ void UMaterial::RebuildShadingModelField()
 					bSanitizeMaterial = true;
 				}
 			}
-			else if (StrataMaterialInfo.CountShadingModels() == 2 && StrataMaterialInfo.HasShadingModel(EStrataShadingModel::SSM_DefaultLit) && StrataMaterialInfo.HasShadingModel(EStrataShadingModel::SSM_SubsurfaceLit))
+			else if (StrataMaterialInfo.CountShadingModels() == 2 && StrataMaterialInfo.HasShadingModel(EStrataShadingModel::SSM_DefaultLit) && StrataMaterialInfo.HasShadingModel(EStrataShadingModel::SSM_SubsurfaceMFP))
 			{
-				if (BlendMode == EBlendMode::BLEND_Opaque || BlendMode == EBlendMode::BLEND_Masked) 
+				if (BlendMode == EBlendMode::BLEND_Opaque || BlendMode == EBlendMode::BLEND_Masked)
 				{
-					// We only consider SSS subsurface post process for opaque materials.
-					// STRATA_TODO what does this case cover?
-					StrataMaterialInfo.SetSingleShadingModel(SSM_SubsurfaceLit);
+					StrataMaterialInfo.SetSingleShadingModel(SSM_SubsurfaceMFP);	// We only consider SSS subsurface post process for opaque materials.
 				}
 				else
 				{
-					// For transparent, we will fall back to use DefaultLit with simple volumetric
-					bSanitizeMaterial = true;
+					bSanitizeMaterial = true;										// For transparent, we will fall back to use DefaultLit with simple volumetric
 				}
 			}
-			else if (StrataMaterialInfo.CountShadingModels() > 1 && StrataMaterialInfo.HasShadingModel(EStrataShadingModel::SSM_SubsurfaceLit))
+			else if (StrataMaterialInfo.CountShadingModels() == 2 && StrataMaterialInfo.HasShadingModel(EStrataShadingModel::SSM_DefaultLit) && StrataMaterialInfo.HasShadingModel(EStrataShadingModel::SSM_SubsurfaceProfile))
+			{
+				if (BlendMode == EBlendMode::BLEND_Opaque || BlendMode == EBlendMode::BLEND_Masked)
+				{
+					StrataMaterialInfo.SetSingleShadingModel(SSM_SubsurfaceProfile);// We only consider SSS subsurface post process for opaque materials.
+				}
+				else
+				{
+					bSanitizeMaterial = true;										// For transparent, we will fall back to use DefaultLit with simple volumetric
+				}
+			}
+			else if (StrataMaterialInfo.CountShadingModels() > 1 && StrataMaterialInfo.HasShadingModel(EStrataShadingModel::SSM_SubsurfaceMFP))
 			{
 				// When we gather the worst case slab material, we can hit multiple shading models when gathering from multiple BSDF possibilities of switch nodes.
 				// We do not want to sanitize the material in this case, but only keep the worst case: subsurface with all potential features on a slab.
-				if (BlendMode == EBlendMode::BLEND_Opaque || BlendMode == EBlendMode::BLEND_Masked) 
+				if (BlendMode == EBlendMode::BLEND_Opaque || BlendMode == EBlendMode::BLEND_Masked)
 				{
 					// We only consider SSS subsurface post process for opaque materials. This can also be triggered by switch node accumulating multiple slab node.
 					// We still keep all the other material info to consider the worst case when encountering multiple shading models. And we also keep around the encountered subsurface profiles.
-					StrataMaterialInfo.SetSingleShadingModel(SSM_SubsurfaceLit);
+					StrataMaterialInfo.SetSingleShadingModel(SSM_SubsurfaceMFP);
+				}
+				else
+				{
+					// For transparent, we will fall back to use DefaultLit worst case with simple volumetric.
+					bSanitizeMaterial = true;
+				}
+			}
+			else if (StrataMaterialInfo.CountShadingModels() > 1 && StrataMaterialInfo.HasShadingModel(EStrataShadingModel::SSM_SubsurfaceProfile))
+			{
+				// When we gather the worst case slab material, we can hit multiple shading models when gathering from multiple BSDF possibilities of switch nodes.
+				// We do not want to sanitize the material in this case, but only keep the worst case: subsurface with all potential features on a slab.
+				if (BlendMode == EBlendMode::BLEND_Opaque || BlendMode == EBlendMode::BLEND_Masked)
+				{
+					// We only consider SSS subsurface post process for opaque materials. This can also be triggered by switch node accumulating multiple slab node.
+					// We still keep all the other material info to consider the worst case when encountering multiple shading models. And we also keep around the encountered subsurface profiles.
+					StrataMaterialInfo.SetSingleShadingModel(SSM_SubsurfaceProfile);
 				}
 				else
 				{
@@ -4940,20 +4961,55 @@ void UMaterial::RebuildShadingModelField()
 				UE_LOG(LogMaterial, Error, TEXT("%s: Material has more than a single material represented."), *GetName());
 			}
 		}
-		if (StrataMaterialInfo.HasOnlyShadingModel(SSM_SubsurfaceLit) && (BlendMode != EBlendMode::BLEND_Opaque && BlendMode != EBlendMode::BLEND_Masked))
+
+		if ((StrataMaterialInfo.HasOnlyShadingModel(SSM_SubsurfaceMFP) || StrataMaterialInfo.HasOnlyShadingModel(SSM_SubsurfaceProfile)) 
+			&& (BlendMode != EBlendMode::BLEND_Opaque && BlendMode != EBlendMode::BLEND_Masked))
 		{
 			// For transparent, we will fall back to use DefaultLit with simple volumetric
 			bSanitizeMaterial = true;
 		}
+
 		if (bSanitizeMaterial)
 		{
 			StrataMaterialInfo = FStrataMaterialInfo();
 			StrataMaterialInfo.AddShadingModel(SSM_DefaultLit);
+
+			if (MaterialDomain == MD_Surface)
+			{
+				// Nothing to do, the node should have added its own type. And if not type but from expression, we are going to generate that below.
+				//AddSurfaceStrataShadingModelFromMaterialShadingModel(StrataMaterialInfo, ShadingModel);
+			}
+			else if (MaterialDomain == MD_DeferredDecal)
+			{
+				StrataMaterialInfo.AddShadingModel(SSM_Decal);
+			}
+			else if (MaterialDomain == MD_LightFunction)
+			{
+				StrataMaterialInfo.AddShadingModel(SSM_VolumetricFogCloud);
+			}
+			else if (MaterialDomain == MD_Volume)
+			{
+				StrataMaterialInfo.AddShadingModel(SSM_LightFunction);
+			}
+			else if (MaterialDomain == MD_PostProcess)
+			{
+				StrataMaterialInfo.AddShadingModel(SSM_PostProcess);
+			}
+			else if (MaterialDomain == MD_UI)
+			{
+				StrataMaterialInfo.AddShadingModel(SSM_UI);
+			}
+			else if (MaterialDomain == MD_RuntimeVirtualTexture)
+			{
+				// TODO
+			}
 		}
 		
 		if (StrataMaterialInfo.HasShadingModelFromExpression())
 		{
 			MaterialDomain = EMaterialDomain::MD_Surface;
+			ShadingModel = MSM_FromMaterialExpression;
+
 			{
 				TArray<UMaterialExpressionShadingModel*> ShadingModelExpressions;
 				GetAllExpressionsInMaterialAndFunctionsOfType(ShadingModelExpressions);
@@ -4964,6 +5020,7 @@ void UMaterial::RebuildShadingModelField()
 					if (MatExpr->ShadingModel < MSM_NUM)
 					{
 						ShadingModels.AddShadingModel(MatExpr->ShadingModel);
+						AddSurfaceStrataShadingModelFromMaterialShadingModel(StrataMaterialInfo, MatExpr->ShadingModel);
 					}
 				}
 
@@ -4971,18 +5028,24 @@ void UMaterial::RebuildShadingModelField()
 				if (!ShadingModels.IsValid())
 				{
 					ShadingModels.AddShadingModel(MSM_DefaultLit);
+					AddSurfaceStrataShadingModelFromMaterialShadingModel(StrataMaterialInfo, MSM_DefaultLit);
 				}
 			}
 		}
 		else
 		{
-			// Now derive some properties from the material
+			// Now derive some properties from the material into the legacy fields
 			if (StrataMaterialInfo.HasOnlyShadingModel(SSM_Unlit))
 			{
 				MaterialDomain = EMaterialDomain::MD_Surface;
 				ShadingModel = MSM_Unlit;
 			}
-			else if (StrataMaterialInfo.HasOnlyShadingModel(SSM_SubsurfaceLit))
+			else if (StrataMaterialInfo.HasOnlyShadingModel(SSM_DefaultLit))
+			{
+				MaterialDomain = EMaterialDomain::MD_Surface;
+				ShadingModel = MSM_DefaultLit;
+			}
+			else if (StrataMaterialInfo.HasOnlyShadingModel(SSM_SubsurfaceProfile))
 			{
 				MaterialDomain = EMaterialDomain::MD_Surface;
 				ShadingModel = MSM_SubsurfaceProfile;
@@ -4992,10 +5055,25 @@ void UMaterial::RebuildShadingModelField()
 					BlendMode = EBlendMode::BLEND_Opaque;
 				}
 			}
-			else if (StrataMaterialInfo.HasOnlyShadingModel(SSM_DefaultLit))
+			else if (StrataMaterialInfo.HasOnlyShadingModel(SSM_SubsurfaceWrap))
 			{
 				MaterialDomain = EMaterialDomain::MD_Surface;
-				ShadingModel = MSM_DefaultLit;
+				ShadingModel = MSM_Subsurface;
+				if (BlendMode != EBlendMode::BLEND_Opaque && BlendMode != EBlendMode::BLEND_Masked)
+				{
+					UE_LOG(LogMaterial, Error, TEXT("%s: Material has subsurface data, and its blending mode is not set to Opaque or Masked. Forcing blend mode to Opaque."), *GetName());
+					BlendMode = EBlendMode::BLEND_Opaque;
+				}
+			}
+			else if (StrataMaterialInfo.HasOnlyShadingModel(SSM_SubsurfaceThinTwoSided))
+			{
+				MaterialDomain = EMaterialDomain::MD_Surface;
+				ShadingModel = MSM_TwoSidedFoliage;
+			}
+			else if (StrataMaterialInfo.HasOnlyShadingModel(SSM_ThinTranslucent))
+			{
+				MaterialDomain = EMaterialDomain::MD_Surface;
+				ShadingModel = MSM_ThinTranslucent;
 			}
 			else if (StrataMaterialInfo.HasOnlyShadingModel(SSM_VolumetricFogCloud))
 			{
@@ -5067,12 +5145,8 @@ void UMaterial::RebuildShadingModelField()
 
 		// Now, reset the subsurface profile (in case it has been removed from any slab before) and set it only if needed.
 		SubsurfaceProfile = nullptr;
-		if ((StrataMaterialInfo.HasOnlyShadingModel(SSM_Eye) || StrataMaterialInfo.HasOnlyShadingModel(SSM_SubsurfaceLit)) && StrataMaterialInfo.CountSubsurfaceProfiles() > 0)
+		if ((StrataMaterialInfo.HasOnlyShadingModel(SSM_Eye) || StrataMaterialInfo.HasOnlyShadingModel(SSM_SubsurfaceProfile)) && StrataMaterialInfo.CountSubsurfaceProfiles() > 0)
 		{
-			if (StrataMaterialInfo.CountSubsurfaceProfiles() > 1)
-			{
-				UE_LOG(LogMaterial, Error, TEXT("%s: Material has more than a single sub-surface profile used."), *GetName());
-			}
 			SubsurfaceProfile = StrataMaterialInfo.GetSubsurfaceProfile();
 		}
 
@@ -5089,6 +5163,8 @@ void UMaterial::RebuildShadingModelField()
 	{
 		TArray<UMaterialExpressionShadingModel*> ShadingModelExpressions;
 		GetAllExpressionsInMaterialAndFunctionsOfType(ShadingModelExpressions);
+
+		ShadingModel = MSM_FromMaterialExpression;
 
 		for (UMaterialExpressionShadingModel* MatExpr : ShadingModelExpressions)
 		{
