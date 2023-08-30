@@ -69,7 +69,7 @@ void SPreviewSourcePanel::Construct(const FArguments& InArgs, TSharedPtr<FWidget
 		HandlePreviewWidgetChanged();
 		Context->OnPreviewWidgetChanged().AddSP(this, &SPreviewSourcePanel::HandlePreviewWidgetChanged);
 		Context->OnSelectedObjectChanged().AddSP(this, &SPreviewSourcePanel::HandleSelectedObjectChanged);
-		FDebugging::OnViewSourceValueChanged.AddSP(this, &SPreviewSourcePanel::HandleViewChanged);
+		//FDebugging::OnViewSourceValueChanged.AddSP(this, &SPreviewSourcePanel::HandleViewChanged);
 	}
 
 	ChildSlot
@@ -172,16 +172,16 @@ void SPreviewSourcePanel::HandleSourceSelectionChanged(TSharedPtr<Private::SPrev
 }
 
 
-void SPreviewSourcePanel::HandleViewChanged(const FDebugging::FView& View, const FDebugging::FViewSourceValueArgs& Args)
-{
-	if (SourceListView)
-	{
-		if (View.GetView() == WeakView.Get())
-		{
-			SourceListView->RebuildList(); // to prevent access to invalid class, rebuild everything.
-		}
-	}
-}
+//void SPreviewSourcePanel::HandleViewChanged(const FDebugging::FView& View, const FDebugging::FViewSourceValueArgs& Args)
+//{
+//	if (SourceListView)
+//	{
+//		if (View.GetView() == WeakView.Get())
+//		{
+//			SourceListView->RebuildList(); // to prevent access to invalid class, rebuild everything.
+//		}
+//	}
+//}
 
 
 TSharedRef<ITableRow> SPreviewSourcePanel::GenerateWidget(TSharedPtr<Private::SPreviewSourceEntry> Entry, const TSharedRef<STableViewBase>& OwnerTable) const
