@@ -469,6 +469,9 @@ void FBuoyancySubsystemSimCallback::ProcessMidPhase(
 
 	using namespace Chaos;
 
+	// Always disable midphases with water
+	MidPhase.Disable();
+
 	// Get midphase particles
 	FGeometryParticleHandle* Particle0;
 	FGeometryParticleHandle* Particle1;
