@@ -111,7 +111,7 @@ namespace BuoyancyAlgorithms
 {
 	using namespace Chaos;
 
-	FRealSingle ComputeParticleVolume(const FPBDRigidsEvolutionGBF* Evolution, const FGeometryParticleHandle* Particle)
+	FRealSingle ComputeParticleVolume(const FPBDRigidsEvolutionGBF& Evolution, const FGeometryParticleHandle* Particle)
 	{
 		const FPBDRigidParticleHandle* Rigid = Particle->CastToRigidParticle();
 		if (Rigid == nullptr)
@@ -119,7 +119,7 @@ namespace BuoyancyAlgorithms
 			return -1.f;
 		}
 
-		const FChaosPhysicsMaterial* ParticleMaterial = Evolution->GetFirstClusteredPhysicsMaterial(Particle);
+		const FChaosPhysicsMaterial* ParticleMaterial = Evolution.GetFirstClusteredPhysicsMaterial(Particle);
 		if (ParticleMaterial == nullptr)
 		{
 			return -1.f;
@@ -204,37 +204,41 @@ namespace BuoyancyAlgorithms
 		return ShapeVol;
 	}
 
-	bool ComputeSubmergedVolume(const FPBDRigidsEvolutionGBF* Evolution, const FGeometryParticleHandle* ParticleA, const FGeometryParticleHandle* ParticleB, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM, float& TotalVol)
+	void ScaleSubmergedVolume(const FPBDRigidsEvolutionGBF& Evolution, const FGeometryParticleHandle* Particle, FRealSingle& SubmergedVol, FRealSingle& TotalVol)
+	{
+		// Get submerged object's "particle" volume and "shape" volume.
+		//
+		// The particle volume is the theoretical volume of the particle,
+		// derived from its mass and density.
+		//
+		// The shape volume is the volume of all shape bounds which can
+		// possibly count as submerged volumes.
+		const FRealSingle ParticleVol = ComputeParticleVolume(Evolution, Particle);
+		const FRealSingle ShapeVol = ComputeShapeVolume(Particle);
+		TotalVol = ParticleVol;
+
+		// If the submerged vol somehow exceeded the max shape vol, clamp it
+		if (SubmergedVol - ShapeVol > UE_SMALL_NUMBER)
+		{
+			SubmergedVol = ShapeVol;
+		}
+
+		// Adjust the output volume based on the ratio of the material volume and the shape volume.
+		// We expect the shape volume to have overestimated the submerged volume for most shapes,
+		// especially those which are hollow.
+		if (ParticleVol > UE_SMALL_NUMBER &&
+			ParticleVol < ShapeVol)
+		{
+			const float VolRatio = ParticleVol / ShapeVol;
+			SubmergedVol *= VolRatio;
+		}
+	}
+
+	bool ComputeSubmergedVolume(const FPBDRigidsEvolutionGBF& Evolution, const FGeometryParticleHandle* ParticleA, const FGeometryParticleHandle* ParticleB, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM, float& TotalVol)
 	{
 		if (ComputeSubmergedVolume(ParticleA, ParticleB, NumSubdivisions, MinVolume, SubmergedShapes, SubmergedVol, SubmergedCoM))
 		{
-			// Get submerged object's "particle" volume and "shape" volume.
-			//
-			// The particle volume is the theoretical volume of the particle,
-			// derived from its mass and density.
-			//
-			// The shape volume is the volume of all shape bounds which can
-			// possibly count as submerged volumes.
-			const FRealSingle ParticleVolB = ComputeParticleVolume(Evolution, ParticleB);
-			const FRealSingle ShapeVolB = ComputeShapeVolume(ParticleB);
-			TotalVol = ParticleVolB;
-
-			// If the submerged vol somehow exceeded the max shape vol, clamp it
-			if (SubmergedVol - ShapeVolB > UE_SMALL_NUMBER)
-			{
-				SubmergedVol = ShapeVolB;
-			}
-
-			// Adjust the output volume based on the ratio of the material volume and the shape volume.
-			// We expect the shape volume to have overestimated the submerged volume for most shapes,
-			// especially those which are hollow.
-			if (ParticleVolB > UE_SMALL_NUMBER &&
-				ParticleVolB < ShapeVolB)
-			{
-				const float VolRatio = ParticleVolB / ShapeVolB;
-				SubmergedVol *= VolRatio;
-			}
-
+			ScaleSubmergedVolume(Evolution, ParticleB, SubmergedVol, TotalVol);
 			return true;
 		}
 
@@ -434,6 +438,142 @@ namespace BuoyancyAlgorithms
 		}
 	}
 
+	bool ComputeSubmergedVolume(const FPBDRigidsEvolutionGBF& Evolution, const FGeometryParticleHandle* SubmergedParticle, const FGeometryParticleHandle* WaterParticle, const float WaterZ, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM, float& TotalVol)
+	{
+		if (ComputeSubmergedVolume(SubmergedParticle, WaterParticle, WaterZ, NumSubdivisions, MinVolume, SubmergedShapes, SubmergedVol, SubmergedCoM))
+		{
+			ScaleSubmergedVolume(Evolution, SubmergedParticle, SubmergedVol, TotalVol);
+
+
+#if ENABLE_DRAW_DEBUG
+			if (bBuoyancyDebugDraw)
+			{
+				Chaos::FDebugDrawQueue::GetInstance().DrawDebugPoint(SubmergedCoM, FColor::Yellow, false, -1.f, -1, 15.f);
+			}
+#endif
+
+
+			return true;
+		}
+
+		return false;
+	}
+
+	bool ComputeSubmergedVolume(const FGeometryParticleHandle* SubmergedParticle, const FGeometryParticleHandle* WaterParticle, const float WaterZ, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM)
+	{
+		// Get some initial data about the submerged particle
+		const FImplicitObject* RootImplicit = SubmergedParticle->GetGeometry();
+		const FShapeInstanceArray& ShapeInstances = SubmergedParticle->ShapeInstances();
+		const FConstGenericParticleHandle SubmergedGeneric = SubmergedParticle;
+		const FRigidTransform3 ParticleWorldTransform = SubmergedGeneric->GetTransformPQ();
+		const int32 ParticleIndex = SubmergedParticle->UniqueIdx().Idx;
+
+		// Some info about the water
+		const FImplicitObject* WaterRootImplicit = WaterParticle->GetGeometry();
+		const EImplicitObjectType WaterShapeType = Private::GetImplicitCollisionType(WaterParticle, WaterRootImplicit);
+		const FShapeInstanceArray& WaterShapeInstances = WaterParticle->ShapeInstances();
+		const FShapeInstance* WaterShapeInstance = ShapeInstances[0].Get();
+
+		// Initialize submersion values
+		SubmergedVol = 0.f;
+		SubmergedCoM = FVec3::ZeroVector;
+
+		// Traverse the submerged particle's leaves
+		RootImplicit->VisitLeafObjects(
+			[SubmergedParticle, ParticleIndex, &ShapeInstances, WaterShapeType, WaterShapeInstance, &ParticleWorldTransform, WaterZ, &NumSubdivisions, &MinVolume, &SubmergedShapes, &SubmergedVol, &SubmergedCoM]
+			(const FImplicitObject* Implicit, const FRigidTransform3& RelativeTransform, const int32 RootObjectIndex, const int32 ObjectIndex, const int32 LeafObjectIndex)
+		{
+			const FAABB3 RelativeBounds = Implicit->CalculateTransformedBounds(RelativeTransform);
+			const int32 ShapeIndex = (ShapeInstances.IsValidIndex(RootObjectIndex)) ? RootObjectIndex : 0;
+			const FShapeInstance* ShapeInstance = ShapeInstances[ShapeIndex].Get();
+			const EImplicitObjectType ShapeType = Private::GetImplicitCollisionType(SubmergedParticle, Implicit);
+
+			// If this shape pair doesn't pass a narrow phase test then skip it
+			if (!ShapePairNarrowPhaseFilter(ShapeType, ShapeInstance, WaterShapeType, WaterShapeInstance))
+			{
+				return;
+			}
+
+			// If this shape has already been submerged, skip it to avoid double-counting
+			// any buoyancy contributions.
+			if (IsShapeSubmerged_Internal(SubmergedShapes, ParticleIndex, ObjectIndex))
+			{
+				return;
+			}
+
+			// Get the world-space bounds of shape A
+			const FRigidTransform3 ShapeWorldTransform = RelativeTransform * ParticleWorldTransform;
+			const FAABB3 LocalBox = Implicit->BoundingBox();
+			const FAABB3 WorldBox = LocalBox.TransformedAABB(ShapeWorldTransform);
+
+#if ENABLE_DRAW_DEBUG
+			if (bBuoyancyDebugDraw)
+			{
+				Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(
+					ShapeWorldTransform.TransformPosition(LocalBox.GetCenter()),
+					LocalBox.Extents() * .5f,
+					ShapeWorldTransform.GetRotation(),
+					FColor::Green, false, -1.f, SDPG_Foreground, 1.f);
+			}
+#endif
+
+
+			// Generate subdivided bounds list
+			TArray<FAABB3> SubmergedBoxes;
+			SubdivideBounds(LocalBox, NumSubdivisions, MinVolume, SubmergedBoxes);
+
+			// Loop over every subdivision of the shape bounds, counting up submerged portions
+			bool bSubmerged = false;
+			for (const FAABB3& Box : SubmergedBoxes)
+			{
+				// Compute the portion of the object bounds that are submerged
+				FAABB3 SubmergedBox;
+				if (ComputeSubmergedBounds(WaterZ, Box, ShapeWorldTransform, SubmergedBox))
+				{
+					// At this point we know that the shape is submerged
+					bSubmerged = true;
+
+					// This bounds box is submerged. Compute it's volume and center of mass
+					// in world space, and add those contributions to the submerged quantity.
+					const FVec3 LeafSubmergedCoM = ShapeWorldTransform.TransformPosition(SubmergedBox.GetCenter());
+					const float LeafSubmergedVol = SubmergedBox.GetVolume();
+					SubmergedVol += LeafSubmergedVol;
+					SubmergedCoM += LeafSubmergedCoM * LeafSubmergedVol;
+
+					// Make sure the volume of the submerged portion never exceeds the total
+					// volume of the leaf bounds
+					const float LeafMaxVol = LocalBox.GetVolume() + UE_SMALL_NUMBER;
+					ensureAlwaysMsgf(LeafSubmergedVol <= LeafMaxVol, TEXT("BuoyancyAlgorithms::ComputeSubmergedVolume: The volume of the submerged portion of the leaf bounds has somehow exceeded the volume of the overall leaf bounds."));
+
+
+
+#if ENABLE_DRAW_DEBUG
+					if (bBuoyancyDebugDraw)
+					{
+						Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(
+							ShapeWorldTransform.TransformPosition(SubmergedBox.GetCenter()),
+							SubmergedBox.Extents() * .5f,
+							ShapeWorldTransform.GetRotation(),
+							FColor::Red, false, -1.f, SDPG_Foreground, 1.f);
+					}
+#endif
+				}
+			}
+
+			if (bSubmerged)
+			{
+				SubmergeShape_Internal(SubmergedShapes, ParticleIndex, ObjectIndex);
+			}
+		});
+
+		if (SubmergedVol > SMALL_NUMBER)
+		{
+			SubmergedCoM /= SubmergedVol;
+			return true;
+		}
+
+		return false;
+	}
 
 	bool ComputeSubmergedBounds(float WaterZ, const FAABB3& RigidBox, const FRigidTransform3& RigidTransform, FAABB3& OutSubmergedBounds)
 	{
@@ -562,7 +702,7 @@ namespace BuoyancyAlgorithms
 		return false;
 	}
 
-	bool ComputeBuoyantForce(const FPBDRigidParticleHandle* RigidParticle, const float DeltaSeconds, const float WaterDensity, const float WaterDrag, const FVec3& GravityAccelVec, const FVec3& SubmergedCoM, const float SubmergedVol, FVec3& OutDeltaV, FVec3& OutDeltaW)
+	bool ComputeBuoyantForce(const FPBDRigidParticleHandle* RigidParticle, const float DeltaSeconds, const float WaterDensity, const float WaterDrag, const FVec3& GravityAccelVec, const FVec3& SubmergedCoM, const float SubmergedVol, const FVec3& WaterVel, FVec3& OutDeltaV, FVec3& OutDeltaW)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_BuoyancyAlgorithms_ComputeBuoyantForces)
 
@@ -607,6 +747,11 @@ namespace BuoyancyAlgorithms
 		OutDeltaV = LinearAccel * DeltaSeconds;
 		OutDeltaW = AngularAccel * DeltaSeconds;
 
+		// Get the velocities of the submerged portion relative to the water - We want the
+		// drag force to bring these values to zero
+		const FVec3 SubmergedV = RigidParticle->V() + FVec3::CrossProduct(RigidParticle->W(), CoMDiff);
+		const FVec3 RelativeV = SubmergedV - WaterVel;
+
 		// Compute water drag force
 		//
 		// NOTE: This is a very approximate "ether drag" style model here, probably 
@@ -616,7 +761,7 @@ namespace BuoyancyAlgorithms
 		const float DragFactor = FMath::Max(0.f, 1.f - (WaterDrag * DeltaSeconds));
 
 		// Account for water drag in deltas
-		OutDeltaV = (DragFactor * OutDeltaV) + (DragFactor - 1.f) * RigidParticle->V();
+		OutDeltaV = (DragFactor * OutDeltaV) + (DragFactor - 1.f) * RelativeV;
 		OutDeltaW = (DragFactor * OutDeltaW) + (DragFactor - 1.f) * RigidParticle->W();
 
 		//

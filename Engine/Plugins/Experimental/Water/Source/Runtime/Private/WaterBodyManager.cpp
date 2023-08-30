@@ -23,13 +23,16 @@ void FWaterBodyManager::Deinitialize()
 int32 FWaterBodyManager::AddWaterBodyComponent(UWaterBodyComponent* InWaterBodyComponent)
 {
 	RequestWaveDataRebuild();
-	return WaterBodyComponents.Register(InWaterBodyComponent);
+	const int32 WaterIndex = WaterBodyComponents.Register(InWaterBodyComponent);
+	OnWaterBodyAdded.Broadcast(InWaterBodyComponent);
+	return WaterIndex;
 }
 
 void FWaterBodyManager::RemoveWaterBodyComponent(UWaterBodyComponent* InWaterBodyComponent)
 {
 	RequestWaveDataRebuild();
 	WaterBodyComponents.Unregister(InWaterBodyComponent, InWaterBodyComponent->GetWaterBodyIndex());
+	OnWaterBodyRemoved.Broadcast(InWaterBodyComponent);
 }
 
 int32 FWaterBodyManager::AddWaterZone(AWaterZone* InWaterZone)
