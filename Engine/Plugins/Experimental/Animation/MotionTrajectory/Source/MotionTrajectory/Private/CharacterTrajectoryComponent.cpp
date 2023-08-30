@@ -138,7 +138,7 @@ void UCharacterTrajectoryComponent::UpdateTrajectory(float DeltaSeconds)
 		return;
 	}
 
-	if (!ensure(DeltaSeconds > 0.f))
+	if (DeltaSeconds <= 0.f)
 	{
 		return;
 	}
