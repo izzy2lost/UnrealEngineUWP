@@ -656,6 +656,10 @@ void UOpenColorIOConfiguration::LoadConfiguration()
 	{
 		bIsBuiltIn = true;
 	}
+	else if (ConfigurationFile.FilePath.Equals(TEXT("$OCIO")) || ConfigurationFile.FilePath.Equals(TEXT("%OCIO%")))
+	{
+		FilePath = FPlatformMisc::GetEnvironmentVariable(TEXT("OCIO"));
+	}
 	else if(ConfigurationFile.FilePath.Contains(TEXT("{Engine}")))
 	{
 		FilePath = FPaths::ConvertRelativePathToFull(ConfigurationFile.FilePath.Replace(TEXT("{Engine}"), *FPaths::EngineDir()));
