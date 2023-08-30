@@ -24,6 +24,7 @@
 #include "Chaos/DebugDrawQueue.h"
 #include "Chaos/PhysicsObjectInternalInterface.h"
 #include "Chaos/PhysicsObject.h"
+#include "Templates/SharedPointer.h"
 
 //
 // CVars

@@ -25,6 +25,16 @@ DECLARE_LOG_CATEGORY_EXTERN(LogBuoyancySubsystem, Log, All);
 
 struct FBuoyancyWaterSplineData
 {
+	FBuoyancyWaterSplineData() { }
+	FBuoyancyWaterSplineData(
+		const Chaos::FRigidTransform3& InTransform,
+		const FInterpCurveVector& InPosition,
+		const TOptional<FInterpCurveFloat>& InVelocity)
+		: Transform(InTransform)
+		, Position(InPosition)
+		, Velocity(InVelocity)
+	{ }
+
 	Chaos::FRigidTransform3 Transform;
 	FInterpCurveVector Position;
 
@@ -32,7 +42,7 @@ struct FBuoyancyWaterSplineData
 	TOptional<FInterpCurveFloat> Velocity;
 };
 
-class FBuoyancyWaterSplineDataManager : public Chaos::TUserDataManagerPT< TSharedPtr<struct FBuoyancyWaterSplineData> > { };
+class FBuoyancyWaterSplineDataManager : public Chaos::TUserDataManagerPT< TSharedPtr<FBuoyancyWaterSplineData> > { };
 
 namespace Chaos
 {
