@@ -1752,7 +1752,6 @@ void FInstancedStaticMeshSceneProxyDesc::InitializeFrom(const UInstancedStaticMe
 	InstanceLODDistanceScale = InComponent->InstanceLODDistanceScale;
 
 	bUseGpuLodSelection = InComponent->bUseGpuLodSelection;
-	bHasPerInstanceHitProxies = InComponent->bHasPerInstanceHitProxies;
 }
 
 /** Initialization constructor. */

@@ -890,7 +890,7 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FInstancedSt
 	check(PerInstanceRenderData.IsValid());
 
 #if WITH_EDITOR
-	const bool bSupportInstancePicking = InProxyDesc.bHasPerInstanceHitProxies && SMInstanceElementDataUtil::SMInstanceElementsEnabled();
+	const bool bSupportInstancePicking = HasPerInstanceHitProxies() && SMInstanceElementDataUtil::SMInstanceElementsEnabled();
 	HitProxyMode = bSupportInstancePicking ? EHitProxyMode::PerInstance : EHitProxyMode::MaterialSection;
 
 	if (HitProxyMode == EHitProxyMode::PerInstance)

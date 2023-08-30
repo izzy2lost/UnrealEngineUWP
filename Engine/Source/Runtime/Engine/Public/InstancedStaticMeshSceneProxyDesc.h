@@ -32,7 +32,6 @@ struct FInstancedStaticMeshSceneProxyDesc : public FStaticMeshSceneProxyDesc
 	float InstanceLODDistanceScale = 1.0f;
 
 	bool bUseGpuLodSelection = false;
-	bool bHasPerInstanceHitProxies = false;
 
 	const FInstanceUpdateCmdBuffer& GetInstanceUpdateCmdBuffer() const { check(InstanceUpdateCmdBuffer); return *InstanceUpdateCmdBuffer; } 
 	
