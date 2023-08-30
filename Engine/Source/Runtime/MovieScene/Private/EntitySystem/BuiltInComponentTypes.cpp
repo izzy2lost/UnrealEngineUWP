@@ -72,6 +72,8 @@ FBuiltInComponentTypes::FBuiltInComponentTypes()
 	ComponentRegistry->NewComponentType(&EvalTime,              TEXT("Eval Time"));
 	ComponentRegistry->NewComponentType(&EvalSeconds,           TEXT("Eval Seconds"));
 
+	ComponentRegistry->NewComponentType(&Group,					TEXT("Entity Group"));
+
 	ComponentRegistry->NewComponentType(&BoundObjectKey,        TEXT("Bound Object Key"));
 	// Intentionally hidden from the reference graph because they are always accompanied by a BoundObjectKey which is used for garbage collection
 	ComponentRegistry->NewComponentTypeNoAddReferencedObjects(&BoundObject, TEXT("Bound Object"));

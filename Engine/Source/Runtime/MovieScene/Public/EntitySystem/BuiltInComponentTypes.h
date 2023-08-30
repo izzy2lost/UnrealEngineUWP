@@ -327,6 +327,68 @@ private:
 };
 
 /**
+ * The key to a grouping policy registered on the grouping system (see UMovieSceneEntityGroupingSystem)
+ */
+struct FEntityGroupingPolicyKey
+{
+	static const FEntityGroupingPolicyKey Invalid() { return FEntityGroupingPolicyKey(); }
+
+	FEntityGroupingPolicyKey() {}
+	FEntityGroupingPolicyKey(int32 FromIndex) : Index(FromIndex) {}
+
+	bool IsValid() const
+	{
+		return Index != INDEX_NONE;
+	}
+
+	friend uint32 GetTypeHash(const FEntityGroupingPolicyKey& Key)
+	{
+		return GetTypeHash(Key.Index);
+	}
+
+	friend bool operator==(const FEntityGroupingPolicyKey& A, const FEntityGroupingPolicyKey& B)
+	{
+		return A.Index == B.Index;
+	}
+
+	int32 Index = INDEX_NONE;
+};
+
+/**
+ * The component data for describing what group an entity belongs to (see UMovieSceneEntityGroupingSystem)
+ */
+struct FEntityGroupID
+{
+	static const FEntityGroupID Invalid() { return FEntityGroupID(); }
+
+	FEntityGroupingPolicyKey PolicyKey;
+	int32 GroupIndex = INDEX_NONE;
+
+	FEntityGroupID() {}
+	FEntityGroupID(const FEntityGroupingPolicyKey InPolicyKey, int32 InGroupIndex) : PolicyKey(InPolicyKey), GroupIndex(InGroupIndex) {}
+
+	bool IsValid() const
+	{
+		return PolicyKey.IsValid() && GroupIndex != INDEX_NONE;
+	}
+
+	bool HasGroup() const
+	{
+		return GroupIndex != INDEX_NONE;
+	}
+
+	friend uint32 GetTypeHash(const FEntityGroupID& GroupID)
+	{
+		return HashCombine(GetTypeHash(GroupID.PolicyKey.Index), GetTypeHash(GroupID.GroupIndex));
+	}
+
+	friend bool operator==(const FEntityGroupID& A, const FEntityGroupID& B)
+	{
+		return A.PolicyKey == B.PolicyKey && A.GroupIndex == B.GroupIndex;
+	}
+};
+
+/**
  * Pre-defined built in component types
  */
 struct FBuiltInComponentTypes
@@ -363,6 +425,8 @@ public:
 	TComponentTypeID<FFrameTime>          EvalTime;
 
 	TComponentTypeID<double>              EvalSeconds;
+
+	TComponentTypeID<FEntityGroupID>	  Group;
 
 public:
 
@@ -571,6 +635,9 @@ private:
 	TMap<FComponentTypeID, FComponentTypeID> ResultToBase;
 };
 
+#if UE_MOVIESCENE_ENTITY_DEBUG
+template<> struct TComponentDebugType<FEntityGroupID> { static const EComponentDebugType Type = EComponentDebugType::GroupID; };
+#endif
 
 } // namespace MovieScene
 } // namespace UE
