@@ -93,7 +93,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|LODSettings", meta = (PCG_Overridable))
 	EGeometryScriptLODType RequestedLODType = EGeometryScriptLODType::RenderData;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|LODSettings", meta = (PCG_Overridable))
 	int32 RequestedLODIndex = 0;
 
 	// Poisson Sampling parameters
