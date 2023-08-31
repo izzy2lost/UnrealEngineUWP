@@ -330,21 +330,21 @@ InnerMain(int Argc, char** Argv)
 	_setmode(_fileno(stdout), _O_U8TEXT);
 #endif	// UNSYNC_PLATFORM_WINDOWS
 
-	UNSYNC_VERBOSE(L"UNSYNC %hs", GetVersionString().c_str());
-
-	if (bUseDebugMode)
-	{
-		UNSYNC_LOG(L"*** Debug mode enabled ***");
-	}
-
-	UnsyncMallocInit(bUseDebugMode ? EMallocType::Debug : EMallocType::Default);
-
 	// Configure default output mehtod based on subcommand.
 	// In machine-readable mode, all verbose logging is directed to stderr.
 
 	if (Cli.got_subcommand(SubQuery) || Cli.got_subcommand(SubLogin))
 	{
 		GLogMachineReadable = true;
+	}
+
+	UNSYNC_VERBOSE(L"UNSYNC %hs", GetVersionString().c_str());
+
+	UnsyncMallocInit(bUseDebugMode ? EMallocType::Debug : EMallocType::Default);
+
+	if (bUseDebugMode)
+	{
+		UNSYNC_LOG(L"*** Debug mode enabled ***");
 	}
 
 	// Augment configuration based on environment variables if corresponding command line arguments are missing.

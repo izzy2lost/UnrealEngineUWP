@@ -3176,6 +3176,53 @@ struct FFileSyncTaskBatch
 	}
 };
 
+static void
+DeleteOldFilesInDirectory(FPath& Path, uint32 MaxFilesToKeep)
+{
+	struct FEntry
+	{
+		FPath  Path;
+		uint64 Mtime;
+	};
+
+	std::vector<FEntry> Entries;
+
+	FPath ExtendedPath = MakeExtendedAbsolutePath(Path);
+	for (const std::filesystem::directory_entry& It : std::filesystem::directory_iterator(ExtendedPath))
+	{
+		if (It.is_regular_file())
+		{
+			FEntry Entry;
+			Entry.Mtime = ToWindowsFileTime(It.last_write_time());
+			Entry.Path	= It.path();
+			Entries.push_back(Entry);
+		}
+	}
+
+	// reverse sort
+	std::sort(Entries.begin(), Entries.end(), [](const FEntry& A, const FEntry& B) { return A.Mtime > B.Mtime; });
+
+	while (Entries.size() > MaxFilesToKeep)
+	{
+		const FEntry& Oldest = Entries.back();
+
+		std::wstring PathStr = RemoveExtendedPathPrefix(Oldest.Path).wstring();
+
+		if (GDryRun)
+		{
+			UNSYNC_VERBOSE(L"Deleting '%ls'(skipped due to dry run mode)", PathStr.c_str());
+		}
+		else
+		{
+			UNSYNC_VERBOSE(L"Deleting '%ls'", PathStr.c_str());
+			std::error_code ErrorCode = {};
+			FileRemove(Oldest.Path, ErrorCode);
+		}
+
+		Entries.pop_back();
+	}
+}
+
 bool  // TODO: return a TResult
 SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 {
@@ -3219,6 +3266,14 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 	{
 		UNSYNC_ERROR(L"Failed to create temporary working directory");
 		return false;
+	}
+
+	// Delete oldest cached manifest files if there are more than N
+	{
+		UNSYNC_VERBOSE(L"Cleaning temporary directory");
+		UNSYNC_LOG_INDENT;
+		const uint32 MaxFilesToKeep = uint32(5 + SyncOptions.Overlays.size());
+		DeleteOldFilesInDirectory(TargetTempPath, MaxFilesToKeep);
 	}
 
 	FPath		  LogFilePath = TargetManifestRoot / L"unsync.log";
