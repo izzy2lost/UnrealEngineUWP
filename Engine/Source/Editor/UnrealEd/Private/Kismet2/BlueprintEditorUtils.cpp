@@ -7466,22 +7466,6 @@ void FBlueprintEditorUtils::UpdateComponentTemplates(UBlueprint* Blueprint)
 			ReferencedTemplates.Add(ActorComp);
 		}
 	}
-
-	for (UObject* ActorComp : Blueprint->ComponentTemplates)
-	{
-		if (ensure(ActorComp))
-		{
-			// The most common case of an invalid component is a rogue LinkerPlaceholderExport object, 
-			// which are outered to the transient package.
-			// These can occur if we update our components prior to resolving placeholder objects.
-			// Typically, these are the result of underlying loader issues.
-			
-			const bool bIsValidComponentEntry = !FBlueprintSupport::IsDeferredDependencyPlaceholder(ActorComp);
-
-			ensureAlwaysMsgf(bIsValidComponentEntry, TEXT("Invalid component found in Blueprint's component template! Blueprint: %s. Component: %s"), *Blueprint->GetName(), *ActorComp->GetName());
-		}
-	}
-
 	Blueprint->ComponentTemplates.Empty();
 	Blueprint->ComponentTemplates.Append(ReferencedTemplates);
 }
