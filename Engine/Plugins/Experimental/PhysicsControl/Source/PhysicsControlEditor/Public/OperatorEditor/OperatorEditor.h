@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "OperatorEditor/IPhysicsControlOperatorEditorInterface.h"
+#include "IPhysicsControlOperatorEditorInterface.h"
 #include "Containers/Ticker.h"
 
 class FSpawnTabArgs;

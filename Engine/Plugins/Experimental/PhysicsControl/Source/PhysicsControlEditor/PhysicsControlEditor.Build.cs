@@ -27,7 +27,6 @@ public class PhysicsControlEditor : ModuleRules
 			new string[]
 			{
 				"Core",
-				"PhysicsControlUncookedOnly",
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
@@ -50,6 +49,7 @@ public class PhysicsControlEditor : ModuleRules
 				"InputCore",
 				"Persona",
 				"PhysicsControl",
+				"PhysicsControlUncookedOnly",
 				"Slate",
 				"SlateCore",
 				"ToolMenus",
