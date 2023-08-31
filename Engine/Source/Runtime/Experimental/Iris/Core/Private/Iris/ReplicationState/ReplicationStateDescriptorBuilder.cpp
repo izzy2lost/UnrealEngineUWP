@@ -2723,10 +2723,10 @@ SIZE_T FReplicationStateDescriptorBuilder::CreateDescriptorsForClass(FResult& Cr
 				FPropertyReplicationStateDescriptorBuilder::GetSerializerTraits(NetCullDistanceSqrMemberProperty, NetCullDistanceSquaredProperty, NetCullDistanceSqrMemberProperty.SerializerInfo);
 
 				// These needs to be set/fixed after the Traits calls.
-				NetCullDistanceSqrMemberProperty.Traits |= EMemberPropertyTraits::InitOnly;
-				NetCullDistanceSqrMemberProperty.ReplicationCondition = COND_InitialOnly;
+				NetCullDistanceSqrMemberProperty.Traits |= EMemberPropertyTraits::HasLifetimeConditionals | EMemberPropertyTraits::HasPushBasedDirtiness;
+				NetCullDistanceSqrMemberProperty.ReplicationCondition = COND_Never;
 
-				Builders[InitPropertyReplicationStateBuilderIndex].AddMemberProperty(NetCullDistanceSqrMemberProperty);
+				Builders[LifetimeConditionalsReplicationStateBuilderIndex].AddMemberProperty(NetCullDistanceSqrMemberProperty);
 			}
 		}
 	}
