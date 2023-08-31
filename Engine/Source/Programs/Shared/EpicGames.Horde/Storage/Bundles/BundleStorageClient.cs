@@ -20,7 +20,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <summary>
 		/// Reader for node data
 		/// </summary>
-		protected BundleReader BundleReader { get; }
+		public BundleReader BundleReader { get; }
 
 		/// <summary>
 		/// Constructor

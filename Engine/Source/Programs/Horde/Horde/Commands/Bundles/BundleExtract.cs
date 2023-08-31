@@ -4,6 +4,7 @@ using System.Diagnostics;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
+using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -18,6 +19,9 @@ namespace Horde.Commands.Bundles
 
 		[CommandLine("-Ref=")]
 		public string? Ref { get; set; }
+
+		[CommandLine("-Stats")]
+		public bool Stats { get; set; }
 
 		[CommandLine("-OutputDir=", Required = true)]
 		public DirectoryReference OutputDir { get; set; } = null!;
@@ -49,6 +53,17 @@ namespace Horde.Commands.Bundles
 			await node.CopyToDirectoryAsync(OutputDir.ToDirectoryInfo(), logger, CancellationToken.None);
 
 			logger.LogInformation("Elapsed: {Time}s", timer.Elapsed.TotalSeconds);
+
+			if (Stats)
+			{
+				BundleStorageClient? bundleStorageClient = store as BundleStorageClient;
+				if (bundleStorageClient != null)
+				{
+					logger.LogInformation("Num header reads: {NumReads:n0}", bundleStorageClient.BundleReader.NumHeaderReads);
+					logger.LogInformation("Num packet reads: {NumReads:n0}", bundleStorageClient.BundleReader.NumPacketReads);
+				}
+			}
+
 			return 0;
 		}
 	}
