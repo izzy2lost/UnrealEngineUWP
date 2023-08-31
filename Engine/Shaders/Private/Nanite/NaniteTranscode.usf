@@ -2,6 +2,7 @@
 
 #include "../Common.ush"
 #include "../SceneData.ush"
+#include "../ComputeShaderUtils.ush"
 #include "NaniteDataDecode.ush"
 #include "NaniteAttributeDecode.ush"
 
@@ -50,6 +51,7 @@ struct FClusterDiskHeader
 #define SIZEOF_CLUSTER_DISK_HEADER	(9*4)
 
 uint										StartClusterIndex;
+uint										NumClusters;
 uint										ZeroUniform;
 StructuredBuffer<FPackedClusterInstallInfo>	ClusterInstallInfoBuffer;
 StructuredBuffer<uint>						PageDependenciesBuffer;
@@ -666,10 +668,15 @@ WAVESIZE(GROUP_SIZE)
 #endif
 
 [numthreads(GROUP_SIZE, 1, 1)]
-void TranscodePageToGPU(uint ClusterInstallIndex : SV_GroupID, uint GroupIndex : SV_GroupIndex)
+void TranscodePageToGPU(uint3 GroupID : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 {
-	ClusterInstallIndex += StartClusterIndex;
+	const uint FlatGroupID = GetUnWrappedDispatchGroupId(GroupID);
+	if (FlatGroupID >= NumClusters)
+	{
+		return;
+	}
 
+	const uint ClusterInstallIndex = StartClusterIndex + FlatGroupID;
 	if (GroupIndex >= WaveGetLaneCount())
 	{
 		// Workaround for any platform that might not support setting the wave size explicitly

@@ -252,6 +252,7 @@ class FTranscodePageToGPU_CS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(uint32,													StartClusterIndex)
+		SHADER_PARAMETER(uint32,													NumClusters)
 		SHADER_PARAMETER(uint32,													ZeroUniform)
 		SHADER_PARAMETER(FIntVector4,												PageConstants)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FPackedClusterInstallInfo>,ClusterInstallInfoBuffer)
@@ -593,6 +594,7 @@ public:
 			PassParameters->SrcPageBuffer				= PageUploadBufferSRV;
 			PassParameters->DstPageBuffer				= DstBufferUAV;
 			PassParameters->StartClusterIndex			= 0;
+			PassParameters->NumClusters					= NextClusterIndex;
 			PassParameters->ZeroUniform					= 0;
 			PassParameters->PageConstants				= FIntVector4(0, MaxStreamingPages, 0, 0);
 
@@ -605,7 +607,7 @@ public:
 				bAsyncCompute ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute,
 				ComputeShader,
 				PassParameters,
-				FIntVector(NextClusterIndex, 1, 1));
+				FComputeShaderUtils::GetGroupCountWrapped(NextClusterIndex));
 		}
 
 		// Parent-dependent transcode
@@ -622,6 +624,7 @@ public:
 			PassParameters->SrcPageBuffer				= PageUploadBufferSRV;
 			PassParameters->DstPageBuffer				= DstBufferUAV;
 			PassParameters->StartClusterIndex			= StartClusterIndex;
+			PassParameters->NumClusters					= PassInfo.NumClusters;
 			PassParameters->ZeroUniform					= 0;
 			PassParameters->PageConstants				= FIntVector4(0, MaxStreamingPages, 0, 0);
 			
@@ -634,7 +637,7 @@ public:
 				bAsyncCompute ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute,
 				ComputeShader,
 				PassParameters,
-				FIntVector(PassInfo.NumClusters, 1, 1));
+				FComputeShaderUtils::GetGroupCountWrapped(PassInfo.NumClusters));
 
 			StartClusterIndex += PassInfo.NumClusters;
 		}	
