@@ -56,6 +56,11 @@ void IElectraTextureSampleBase::Initialize(FVideoDecoderOutput* InVideoDecoderOu
 	FVector Off = FVector::Zero();
 	const FMatrix* Mtx = nullptr;
 
+	DisplayMasteringLuminanceMin = -1.0f;
+	DisplayMasteringLuminanceMax = -1.0f;
+	MaxCLL = 0;
+	MaxFALL = 0;
+
 	// Do we have specific HDR information, so we can assume a standard?
 	if (auto PinnedHDRInfo = HDRInfo.Pin())
 	{
@@ -65,40 +70,24 @@ void IElectraTextureSampleBase::Initialize(FVideoDecoderOutput* InVideoDecoderOu
 
 		if (auto ColorVolume = PinnedHDRInfo->GetMasteringDisplayColourVolume())
 		{
-			WhitePoint = FVector2d(ColorVolume->white_point_x, ColorVolume->white_point_y);
-			for (uint32 I = 0; I < 3; ++I)
-			{
-				DisplayPrimaries[I] = FVector2d(ColorVolume->display_primaries_x[I], ColorVolume->display_primaries_y[I]);
-			}
+			SampleColorSpace = UE::Color::FColorSpace(FVector2d(ColorVolume->display_primaries_x[0], ColorVolume->display_primaries_y[0]),
+													  FVector2d(ColorVolume->display_primaries_x[1], ColorVolume->display_primaries_y[1]),
+													  FVector2d(ColorVolume->display_primaries_x[2], ColorVolume->display_primaries_y[2]),
+													  FVector2d(ColorVolume->white_point_x, ColorVolume->white_point_y));
+
+			DisplayMasteringLuminanceMin = ColorVolume->min_display_mastering_luminance;
+			DisplayMasteringLuminanceMax = ColorVolume->max_display_mastering_luminance;
 		}
 		else
 		{
-			WhitePoint = FVector2d(UE::Color::GetWhitePoint(UE::Color::EWhitePoint::CIE1931_D65));
-
-			const FVector2d* DPs = ElectraColorimetryUtils::GetColorPrimaries(UE::Color::EColorSpace::Rec2020);
-			DisplayPrimaries[0] = DPs[0];
-			DisplayPrimaries[1] = DPs[1];
-			DisplayPrimaries[2] = DPs[2];
+			SampleColorSpace = UE::Color::FColorSpace(ElectraColorimetryUtils::TranslateMPEGColorPrimaries(ColorPrimaries));
 		}
 
-		switch (PinnedHDRInfo->GetHDRType())
+		if (auto ContentLightLevelInfo = PinnedHDRInfo->GetContentLightLevelInfo())
 		{
-		case IVideoDecoderHDRInformation::EType::PQ10:
-		case IVideoDecoderHDRInformation::EType::HDR10:
-			ColorEncoding = UE::Color::EEncoding::ST2084;
-			break;
-		case IVideoDecoderHDRInformation::EType::HLG10:
-			UE_LOG(LogElectraSamples, Warning, TEXT("Detected use of HLG EOTF in video material. Mapping to Rec709/sRGB as HLG is not supported."));
-			ColorEncoding = UE::Color::EEncoding::sRGB;	// using sRGB in place of HLG for now
-			break;
-		default:
-			check(!"Unknown HDR type!");
-			ColorEncoding = UE::Color::EEncoding::sRGB;
-			break;
+			MaxCLL = ContentLightLevelInfo->max_content_light_level;
+			MaxFALL =  ContentLightLevelInfo->max_pic_average_light_level;
 		}
-
-		ColorGamut = EDisplayColorGamut::Rec2020_D65;
-		Mtx = bFullRange ? &MediaShaders::YuvToRgbRec2020Unscaled : &MediaShaders::YuvToRgbRec2020Scaled;
 	}
 	else
 	{
@@ -106,35 +95,26 @@ void IElectraTextureSampleBase::Initialize(FVideoDecoderOutput* InVideoDecoderOu
 		// No HDR information present
 		//
 
-		const FVector2d* DPs = ElectraColorimetryUtils::GetColorPrimaries(ElectraColorimetryUtils::TranslateMPEGColorPrimaries(ColorPrimaries));
-		DisplayPrimaries[0] = DPs[0];
-		DisplayPrimaries[1] = DPs[1];
-		DisplayPrimaries[2] = DPs[2];
-
-		switch (ElectraColorimetryUtils::TranslateMPEGMatrixCoefficients(MatrixCoefficients))
-		{
-			case UE::Color::EColorSpace::None:	// ID (RGB)
-				// no conversion, data is RGB
-				break;
-			case UE::Color::EColorSpace::sRGB:
-				Mtx = bFullRange ? &MediaShaders::YuvToRgbRec709Unscaled : &MediaShaders::YuvToRgbRec709Scaled;
-				ColorGamut = EDisplayColorGamut::sRGB_D65;
-				break;
-			case UE::Color::EColorSpace::Rec2020:
-				Mtx = bFullRange ? &MediaShaders::YuvToRgbRec2020Unscaled : &MediaShaders::YuvToRgbRec2020Scaled;
-				ColorGamut = EDisplayColorGamut::Rec2020_D65;
-				break;
-			default:
-				check(!"*** Unexpected matrix coefficients!");
-				Mtx = bFullRange ? &MediaShaders::YuvToRgbRec709Unscaled : &MediaShaders::YuvToRgbRec709Scaled;
-				ColorGamut = EDisplayColorGamut::sRGB_D65;
-		}
-
-		ColorEncoding = ElectraColorimetryUtils::TranslateMPEGTransferCharacteristics(TransferCharacteristics);
-
-		// No matter what: we will have the D65 white point (for now at least)
-		WhitePoint = FVector2d(UE::Color::GetWhitePoint(UE::Color::EWhitePoint::CIE1931_D65));
+		SampleColorSpace = UE::Color::FColorSpace(ElectraColorimetryUtils::TranslateMPEGColorPrimaries(ColorPrimaries));
 	}
+
+	switch (ElectraColorimetryUtils::TranslateMPEGMatrixCoefficients(MatrixCoefficients))
+	{
+		case UE::Color::EColorSpace::None:	// ID (RGB)
+			// no conversion, data is RGB
+			break;
+		case UE::Color::EColorSpace::sRGB:
+			Mtx = bFullRange ? &MediaShaders::YuvToRgbRec709Unscaled : &MediaShaders::YuvToRgbRec709Scaled;
+			break;
+		case UE::Color::EColorSpace::Rec2020:
+			Mtx = bFullRange ? &MediaShaders::YuvToRgbRec2020Unscaled : &MediaShaders::YuvToRgbRec2020Scaled;
+			break;
+		default:
+			check(!"*** Unexpected matrix coefficients!");
+			Mtx = bFullRange ? &MediaShaders::YuvToRgbRec709Unscaled : &MediaShaders::YuvToRgbRec709Scaled;
+	}
+
+	ColorEncoding = ElectraColorimetryUtils::TranslateMPEGTransferCharacteristics(TransferCharacteristics);
 
 	if (Mtx)
 	{
@@ -245,34 +225,58 @@ FMatrix44f IElectraTextureSampleBase::GetSampleToRGBMatrix() const
 	return SampleToRgbMtx;
 }
 
-FMatrix44f IElectraTextureSampleBase::GetGamutToXYZMatrix() const
+FMatrix44d IElectraTextureSampleBase::GetGamutToXYZMatrix() const
 {
-	return GamutToXYZMatrix(ColorGamut);
+	return SampleColorSpace.GetRgbToXYZ().GetTransposed();
 }
 
-FVector2f IElectraTextureSampleBase::GetWhitePoint() const
+FVector2d IElectraTextureSampleBase::GetWhitePoint() const
 {
-	return FVector2f(WhitePoint);
+	return SampleColorSpace.GetWhiteChromaticity();
 }
 
-FVector2f IElectraTextureSampleBase::GetDisplayPrimaryRed() const
+FVector2d IElectraTextureSampleBase::GetDisplayPrimaryRed() const
 {
-	return FVector2f(DisplayPrimaries[0]);
+	return SampleColorSpace.GetRedChromaticity();
 }
 
-FVector2f IElectraTextureSampleBase::GetDisplayPrimaryGreen() const
+FVector2d IElectraTextureSampleBase::GetDisplayPrimaryGreen() const
 {
-	return FVector2f(DisplayPrimaries[1]);
+	return SampleColorSpace.GetGreenChromaticity();
 }
 
-FVector2f IElectraTextureSampleBase::GetDisplayPrimaryBlue() const
+FVector2d IElectraTextureSampleBase::GetDisplayPrimaryBlue() const
 {
-	return FVector2f(DisplayPrimaries[2]);
+	return SampleColorSpace.GetBlueChromaticity();
 }
 
 UE::Color::EEncoding IElectraTextureSampleBase::GetEncodingType() const
 {
 	return ColorEncoding;
+}
+
+bool IElectraTextureSampleBase::GetDisplayMasteringLuminance(float& OutMin, float& OutMax) const
+{
+	if (DisplayMasteringLuminanceMin < 0.0f && DisplayMasteringLuminanceMax < 0.0f)
+	{
+		return false;
+	}
+
+	OutMin = DisplayMasteringLuminanceMin;
+	OutMax = DisplayMasteringLuminanceMax;
+	return true;
+}
+
+bool IElectraTextureSampleBase::GetMaxLuminanceLevels(uint16& OutCLL, uint16& OutFALL) const
+{
+	if (MaxCLL == 0 && MaxFALL == 0)
+	{
+		return false;
+	}
+
+	OutCLL = MaxCLL;
+	OutFALL = MaxFALL;
+	return true;
 }
 
 #endif

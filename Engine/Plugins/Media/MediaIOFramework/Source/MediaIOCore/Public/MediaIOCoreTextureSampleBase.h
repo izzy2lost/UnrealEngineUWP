@@ -315,11 +315,11 @@ public:
 
 	virtual bool IsOutputSrgb() const override;
 	
-	virtual FMatrix44f GetGamutToXYZMatrix() const override;
-	virtual FVector2f GetWhitePoint() const override;
-	virtual FVector2f GetDisplayPrimaryRed() const override;
-	virtual FVector2f GetDisplayPrimaryGreen() const override;
-	virtual FVector2f GetDisplayPrimaryBlue() const override;
+	virtual FMatrix44d GetGamutToXYZMatrix() const override;
+	virtual FVector2d GetWhitePoint() const override;
+	virtual FVector2d GetDisplayPrimaryRed() const override;
+	virtual FVector2d GetDisplayPrimaryGreen() const override;
+	virtual FVector2d GetDisplayPrimaryBlue() const override;
 	virtual UE::Color::EEncoding GetEncodingType() const override;
 	virtual float GetHDRNitsNormalizationFactor() const override;
 

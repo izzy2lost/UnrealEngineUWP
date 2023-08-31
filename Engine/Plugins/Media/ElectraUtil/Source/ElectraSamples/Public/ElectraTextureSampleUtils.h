@@ -64,21 +64,4 @@ namespace ElectraColorimetryUtils
 		}
 		return UE::Color::EEncoding::sRGB;
 	}
-
-	const FVector2d* GetColorPrimaries(UE::Color::EColorSpace InColorSpace)
-	{
-		static const FVector2d DP_sRGB[3] = { {0.64, 0.33} , {0.30, 0.60}, {0.15, 0.06} };
-		static const FVector2d DP_Rec2020[3] = { {0.708, 0.292} , {0.170, 0.797}, {0.131, 0.046} };
-
-		switch (InColorSpace)
-		{
-		case UE::Color::EColorSpace::sRGB:
-			return DP_sRGB;
-		case UE::Color::EColorSpace::Rec2020:
-			return DP_Rec2020;
-		default:
-			check(!"*** Unexpected color primaries!");
-		}
-		return DP_sRGB;
-	}
 };

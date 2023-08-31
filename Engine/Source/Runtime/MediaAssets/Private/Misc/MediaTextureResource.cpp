@@ -887,7 +887,7 @@ bool FMediaTextureResource::RequiresConversion(const TSharedPtr<IMediaTextureSam
 	//
 	// Some reasons this could trigger:
 	//	- Cropping
-	//  - NV12's 1.5x heigth factor -> but the format would need conversion to RGB anyway
+	//  - NV12's 1.5x height factor -> but the format would need conversion to RGB anyway
 	//	- Various YCbCr formats will be stored with different widths as the final RGB output data -> a conversion is needed anyway
 	//
 	if (Sample->GetDim() != Sample->GetOutputDim())
@@ -898,10 +898,10 @@ bool FMediaTextureResource::RequiresConversion(const TSharedPtr<IMediaTextureSam
 	// Color space different?
 	const UE::Color::FColorSpace& Working = OverrideColorSpace.IsValid() ? *OverrideColorSpace : UE::Color::FColorSpace::GetWorking();
 	const float Tollerance = 1.e-7f;
-	if (!Sample->GetDisplayPrimaryRed().Equals(FVector2f(Working.GetRedChromaticity()), Tollerance) ||
-		!Sample->GetDisplayPrimaryGreen().Equals(FVector2f(Working.GetGreenChromaticity()), Tollerance) ||
-		!Sample->GetDisplayPrimaryBlue().Equals(FVector2f(Working.GetBlueChromaticity()), Tollerance) ||
-		!Sample->GetWhitePoint().Equals(FVector2f(Working.GetWhiteChromaticity()), Tollerance))
+	if (!Sample->GetDisplayPrimaryRed().Equals(Working.GetRedChromaticity(), Tollerance) ||
+		!Sample->GetDisplayPrimaryGreen().Equals(Working.GetGreenChromaticity(), Tollerance) ||
+		!Sample->GetDisplayPrimaryBlue().Equals(Working.GetBlueChromaticity(), Tollerance) ||
+		!Sample->GetWhitePoint().Equals(Working.GetWhiteChromaticity(), Tollerance))
 	{
 		// Yes! We need to convert...
 		return true;
@@ -1028,7 +1028,7 @@ void FMediaTextureResource::GetColorSpaceConversionMatrixForSample(const TShared
 	}
 	else
 	{
-		ColorSpaceMtx = UE::Color::Transpose<float>(Working.GetXYZToRgb()) * Sample->GetGamutToXYZMatrix();
+		ColorSpaceMtx = FMatrix44f(Working.GetXYZToRgb().GetTransposed() * Sample->GetGamutToXYZMatrix());
 	}
 	
 	float NF = Sample->GetHDRNitsNormalizationFactor();
