@@ -361,7 +361,7 @@ bool FCurlHttpRequest::SetContentAsStreamedFile(const FString& Filename)
 	FArchive* File = IFileManager::Get().CreateFileReader(*Filename);
 	if (File)
 	{
-		RequestPayload = MakeUnique<FRequestPayloadInFileStream>(MakeShareable(File));
+		RequestPayload = MakeUnique<FRequestPayloadInFileStream>(MakeShareable(File), true/*bInCloseWhenComplete*/);
 	}
 	else
 	{
@@ -1182,6 +1182,11 @@ void FCurlHttpRequest::BroadcastNewlyReceivedHeader(const FString& HeaderKey, co
 void FCurlHttpRequest::FinishRequest()
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FCurlHttpRequest_FinishRequest);
+
+	if (RequestPayload.IsValid())
+	{
+		RequestPayload->Close();
+	}
 
 	curl_easy_setopt(EasyHandle, CURLOPT_SHARE, nullptr);
 	

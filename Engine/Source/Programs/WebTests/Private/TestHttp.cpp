@@ -35,6 +35,7 @@ public:
 		: WebServerIp(TEXT("127.0.0.1"))
 		, WebServerHttpPort(8000)
 		, bRunHeavyTests(false)
+		, OldVerbosity(LogHttp.GetVerbosity())
 	{
 		ParseSettingsFromCommandLine();
 
@@ -48,12 +49,22 @@ public:
 		IModuleInterface* Module = HttpModule;
 		Module->ShutdownModule();
 		delete Module;
+
+		if (OldVerbosity != LogHttp.GetVerbosity())
+		{
+			LogHttp.SetVerbosity(OldVerbosity);
+		}
 	}
 
 	void ParseSettingsFromCommandLine()
 	{
 		FParse::Value(FCommandLine::Get(), TEXT("web_server_ip"), WebServerIp);
 		FParse::Bool(FCommandLine::Get(), TEXT("run_heavy_tests"), bRunHeavyTests);
+	}
+
+	void DisableWarningsInThisTest()
+	{
+		LogHttp.SetVerbosity(ELogVerbosity::Error);
 	}
 
 	const FString UrlWithInvalidPortToTestConnectTimeout() const { return FString::Format(TEXT("http://{0}:{1}"), { *WebServerIp, 8765 }); }
@@ -67,10 +78,13 @@ public:
 	FHttpModule* HttpModule;
 
 	bool bRunHeavyTests;
+	ELogVerbosity::Type OldVerbosity;
 };
 
 TEST_CASE_METHOD(FHttpModuleTestFixture, "Shutdown http module without issue when there are ongoing http requests.", HTTP_TAG)
 {
+	DisableWarningsInThisTest();
+
 	uint32 ChunkSize = 1024 * 1024;
 	TArray<uint8> DataChunk;
 	DataChunk.SetNum(ChunkSize);
@@ -322,6 +336,8 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Streaming http download", HTTP_
 	}
 	SECTION("Use customized stream to receive response body but failed when serialize")
 	{
+		DisableWarningsInThisTest();
+
 		class FTestHttpReceiveStream final : public FArchive
 		{
 		public:
@@ -350,6 +366,8 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Streaming http download", HTTP_
 	}
 	SECTION("Use customized stream delegate to receive response body but failed when call")
 	{
+		DisableWarningsInThisTest();
+
 		FHttpRequestStreamDelegate Delegate;
 		Delegate.BindLambda([TotalBytesReceived](void* Ptr, int64 Length) {
 			*TotalBytesReceived += Length;
@@ -384,6 +402,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Streaming http download", HTTP_
 
 			TSharedRef<FArchive> FileToRead = MakeShareable(IFileManager::Get().CreateFileReader(*Filename));
 			CHECK(FileToRead->TotalSize() == Chunks * ChunkSize);
+			FileToRead->Close();
 
 			IFileManager::Get().Delete(*Filename);
 		});
@@ -734,6 +753,8 @@ void SetupURLRequestFilter(FHttpModule* HttpModule)
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request pre check will fail", HTTP_TAG)
 {
+	DisableWarningsInThisTest();
+
 	// Pre check will fail when domain is not allowed
 	UE::TestHttp::SetupURLRequestFilter(HttpModule);
 
@@ -762,6 +783,8 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request pre check will fai
 
 TEST_CASE_METHOD(FWaitThreadedHttpFixture, "Threaded http request pre check will fail", HTTP_TAG)
 {
+	DisableWarningsInThisTest();
+
 	ThreadedHttpRunnable.OnRunFromThread().BindLambda([this]() {
 		// Pre check will fail when domain is not allowed
 		UE::TestHttp::SetupURLRequestFilter(HttpModule);
@@ -808,6 +831,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Cancel http request connect bef
 	});
 	HttpRequest->ProcessRequest();
 	FPlatformProcess::Sleep(0.5);
+	DisableWarningsInThisTest();
 	HttpRequest->CancelRequest();
 }
 

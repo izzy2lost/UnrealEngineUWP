@@ -33,7 +33,9 @@ bool FGenericPlatformHttp::IsURLEncoded(const TArray<uint8>& Payload)
 	return true;
 }
 
-FRequestPayloadInFileStream::FRequestPayloadInFileStream(TSharedRef<FArchive, ESPMode::ThreadSafe> InFile) : File(InFile)
+FRequestPayloadInFileStream::FRequestPayloadInFileStream(TSharedRef<FArchive, ESPMode::ThreadSafe> InFile, bool bInCloseWhenComplete) 
+	: File(InFile)
+	, bCloseWhenComplete(bInCloseWhenComplete)
 {
 }
 
@@ -82,6 +84,14 @@ size_t FRequestPayloadInFileStream::FillOutputBuffer(TArrayView<uint8> OutputBuf
 	return SizeToSendThisTime;
 }
 
+void FRequestPayloadInFileStream::Close()
+{
+	if (bCloseWhenComplete)
+	{
+		File->Close();
+	}
+}
+
 FRequestPayloadInMemory::FRequestPayloadInMemory(const TArray<uint8>& Array) : Buffer(Array)
 {
 }
@@ -125,4 +135,8 @@ size_t FRequestPayloadInMemory::FillOutputBuffer(TArrayView<uint8> OutputBuffer,
 		FMemory::Memcpy(OutputBuffer.GetData(), Buffer.GetData() + SizeAlreadySent, SizeToSendThisTime);
 	}
 	return SizeToSendThisTime;
+}
+
+void FRequestPayloadInMemory::Close()
+{
 }
