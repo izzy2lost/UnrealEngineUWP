@@ -84,31 +84,39 @@ namespace
 	{
 		using namespace Chaos;
 
-		if (ParticleHandle == nullptr)
+		float FalloffStrength = 0.f;
+
+		if (ParticleHandle)
 		{
-			return 0.0f;
+			const FVec3 ParticleToOrigin = ParticleHandle->X() - Origin;
+			const float DistanceSquared = (float)ParticleToOrigin.SizeSquared();
+			const float RadiusSquared = Radius * Radius;
+
+			if (DistanceSquared < RadiusSquared)
+			{
+				// by default we are within the radius so strength is maximum
+				// equivalent to ERadialImpulseFalloff::RIF_Constant
+				FalloffStrength = Strength;
+
+				if (Falloff == ERadialImpulseFalloff::RIF_Linear)
+				{
+					const float Distance = FMath::Sqrt(DistanceSquared);
+					FalloffStrength = static_cast<float>(FalloffStrength * (1.0f - Distance / Radius));
+				}
+
+				// if the strength was still strong enough to consider
+				if (FalloffStrength > 0)
+				{
+					const FVec3 Normal = ParticleToOrigin.GetSafeNormal();
+					const FVec3 Impulse = Normal * FalloffStrength;
+					const FVec3 Velocity = Impulse * ParticleHandle->InvM() * VelocityRatio;
+
+					const FVec3 CurrentImpulseVelocity = ParticleHandle->LinearImpulseVelocity();
+
+					ParticleHandle->SetLinearImpulseVelocity(CurrentImpulseVelocity + Velocity, bInvalidate);
+				}
+			}
 		}
-
-		const FVec3 CurrentImpulseVelocity = ParticleHandle->LinearImpulseVelocity();
-
-		float FalloffStrength = Strength;
-		if (Falloff == ERadialImpulseFalloff::RIF_Linear)
-		{
-			//Radius should always be greater than distance - if we get here and it's not, something has gone
-			//wrong with detection
-			double Distance = FVec3::Distance(ParticleHandle->X(), Origin);
-			FalloffStrength = static_cast<float>(FalloffStrength * (1.0f - FMath::Min(1.0f, Distance / Radius)));
-		}
-
-		FVec3 Impulse = ParticleHandle->X() - Origin;
-		Impulse = Impulse.GetSafeNormal();
-		Impulse = Impulse * FalloffStrength;
-		FVec3 Velocity = Impulse * ParticleHandle->InvM() * VelocityRatio;
-
-		FVec3 FinalVeloc = CurrentImpulseVelocity + Velocity;
-
-		ParticleHandle->SetLinearImpulseVelocity(CurrentImpulseVelocity + Velocity, bInvalidate);
-
 		return FalloffStrength;
 	}
 }
@@ -909,8 +917,10 @@ namespace Chaos
 
 									//to do: remove cvar when material system is in place and densities are updated
 									FalloffStrength = PhysicsObjectInterfaceCVars::StrainModifier * FalloffStrength;
-
-									Clustering.SetExternalStrain(ChildHandle->CastToClustered(), FalloffStrength);
+									if (FalloffStrength > 0)
+									{
+										Clustering.SetExternalStrain(ChildHandle->CastToClustered(), FalloffStrength);
+									}
 								}
 							}
 							else
