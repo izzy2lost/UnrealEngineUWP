@@ -14,6 +14,7 @@
 #include "Styling/StyleColors.h"
 #include "SubstrateDefinitions.h"
 #include "Widgets/SBoxPanel.h"
+#include "MaterialValueType.h"
 
 enum class ESubstrateWidgetOutputType : uint8
 {
