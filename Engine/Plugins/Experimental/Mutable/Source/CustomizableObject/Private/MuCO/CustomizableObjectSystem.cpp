@@ -637,6 +637,9 @@ void FinishUpdateGlobal(UCustomizableObjectInstance* Instance, EUpdateResult Upd
 	}
 
 	UCustomizableObjectSystem::GetInstance()->GetPrivate()->MutableTaskGraph.AllowLaunchingMutableTaskLowPriority(true, false);
+
+	const uint32 InstanceId = Instance ? Instance->GetUniqueID() : 0;
+	UE_LOG(LogMutable, Log, TEXT("Finished UpdateSkeletalMesh Async. of Instance %d , frame=%d"), InstanceId, GFrameNumber);
 }
 
 
