@@ -5547,6 +5547,23 @@ void UCustomizableInstancePrivateData::BuildMaterials(const TSharedPtr<FMutableO
 			continue;
 		}
 
+		{
+			// TEMP: Keep a reference to the previous materials for n frames to avoid GC of materials in use in the render thread.
+			// TODO: MTBL-1632 - Implement a proper fix to replace this hotfix
+			const TArray<FSkeletalMaterial>& Materials = SkeletalMesh->GetMaterials();
+			const int32 NumMaterials = Materials.Num();
+			
+			TArray<TObjectPtr<UMaterialInterface>> MaterialsToRelease;
+			MaterialsToRelease.Reserve(NumMaterials);
+
+			for (const FSkeletalMaterial& Material : Materials)
+			{
+				MaterialsToRelease.Add(Material.MaterialInterface);
+			}
+			
+			UCustomizableObjectSystem::GetInstance()->AddPendingReleaseMaterials(MaterialsToRelease);
+		}
+
 		SkeletalMesh->GetMaterials().Reset();
 
 		// Maps serializations of FMutableMaterialPlaceholder to Created Dynamic Material instances, used to reuse materials across LODs

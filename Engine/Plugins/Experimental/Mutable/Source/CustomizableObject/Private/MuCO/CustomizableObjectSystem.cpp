@@ -1030,6 +1030,35 @@ void UCustomizableObjectSystem::PurgePendingReleaseSkeletalMesh()
 	}
 }
 
+static int32 TicksUntilMaterialRelease = 4;
+
+static FAutoConsoleVariableRef CVarTicksUntilMaterialRelease(
+	TEXT("mutable.TicksUntilMaterialRelease"), TicksUntilMaterialRelease,
+	TEXT("If higher than zero, the number of ticks to keep discarded materials guarded from being GCed."),
+	ECVF_Default);
+
+void UCustomizableObjectSystem::AddPendingReleaseMaterials(TArray<TObjectPtr<UMaterialInterface>>& InMaterials)
+{
+	if (TicksUntilMaterialRelease > 0)
+	{
+		FPendingReleaseMaterialsInfo& PendingMaterials = PendingReleaseMaterials.AddDefaulted_GetRef();
+		PendingMaterials.Materials = InMaterials;
+		PendingMaterials.TicksUntilRelease = TicksUntilMaterialRelease;
+	}
+}
+
+
+void UCustomizableObjectSystem::TickPendingReleaseMaterials()
+{
+	for (TArray<FPendingReleaseMaterialsInfo>::TIterator PendingRelease = PendingReleaseMaterials.CreateIterator(); PendingRelease; PendingRelease++)
+	{
+		if (--PendingRelease->TicksUntilRelease <= 0)
+		{
+			PendingRelease.RemoveCurrent();
+		}
+	}
+}
+
 
 void UCustomizableObjectSystem::AddPendingReleaseSkeletalMesh(USkeletalMesh* SkeletalMesh)
 {
@@ -2437,6 +2466,8 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 	}
 #endif
 	
+	TickPendingReleaseMaterials();
+
 	// Get a new operation if we aren't working on one
 	if (!Private->CurrentMutableOperation)
 	{

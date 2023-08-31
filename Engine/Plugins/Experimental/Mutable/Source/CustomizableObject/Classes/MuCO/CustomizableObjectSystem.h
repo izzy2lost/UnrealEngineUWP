@@ -85,6 +85,21 @@ public:
 };
 
 
+USTRUCT()
+struct FPendingReleaseMaterialsInfo
+{
+public:
+	GENERATED_USTRUCT_BODY()
+
+public:
+	UPROPERTY()
+	TArray<TObjectPtr<UMaterialInterface>> Materials;
+
+	UPROPERTY()
+	int32 TicksUntilRelease = 0;
+};
+
+
 
 /** Key to identify an image inside a generated mutable runtime instance. */
 struct FMutableImageReference
@@ -246,10 +261,16 @@ public:
 
 	void PurgePendingReleaseSkeletalMesh();
 
+	void AddPendingReleaseMaterials(TArray<TObjectPtr<UMaterialInterface>>& InMaterials);
+	void TickPendingReleaseMaterials();
+
 private:
 
 	UPROPERTY()
 	TArray<FPendingReleaseSkeletalMeshInfo> PendingReleaseSkeletalMesh;
+
+	UPROPERTY(Transient)
+	TArray<FPendingReleaseMaterialsInfo> PendingReleaseMaterials;
 
 public:
 
