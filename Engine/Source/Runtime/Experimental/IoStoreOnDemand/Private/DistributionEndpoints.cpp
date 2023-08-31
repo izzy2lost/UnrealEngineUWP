@@ -29,6 +29,11 @@ bool FDistributionEndpoints::Flush(double TimeOut)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDistributionEndpoints::Flush);
 
+	if (!bInitialized)
+	{
+		ResolveDeferredEndpoints();
+	}
+
 	FHttpManager& HttpManager = FHttpModule::Get().GetHttpManager();
 
 	const double StartTime = FPlatformTime::Seconds();

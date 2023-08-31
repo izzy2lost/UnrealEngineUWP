@@ -25,11 +25,16 @@ class IIoStoreWriter;
 struct FAnalyticsEventAttribute;
 struct FIoContainerSettings;
 struct FIoStoreWriterSettings;
+namespace UE::IO::IAS { struct FOnDemandEndpoint; }
 
 UE_API DECLARE_LOG_CATEGORY_EXTERN(LogIas, VeryVerbose, All);
 
 namespace UE::IO::IAS
 {
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TryParseConfigFile(const FString& ConfigPath, FOnDemandEndpoint& OutEndpoint);
 
 ////////////////////////////////////////////////////////////////////////////////
 enum class EOnDemandTocVersion : uint32

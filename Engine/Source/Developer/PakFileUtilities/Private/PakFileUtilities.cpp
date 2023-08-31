@@ -5458,19 +5458,22 @@ bool ExecuteUnrealPak(const TCHAR* CmdLine)
 			return CreateIoStoreContainerFiles(CmdLine) == 0;
 		}
 
-		if (FParse::Value(CmdLine, TEXT("-Upload="), IoStoreArg))
+		// IAS commands
 		{
-			return UploadIoStoreContainerFiles(*IoStoreArg) == 0;
-		}
+			if (FParse::Value(CmdLine, TEXT("-Upload="), IoStoreArg))
+			{
+				return UploadIoStoreContainerFiles(*IoStoreArg) == 0;
+			}
 
-		if (FParse::Value(CmdLine, TEXT("-Download="), IoStoreArg))
-		{
-			return DownloadIoStoreContainerFiles(*IoStoreArg) == 0;
-		}
+			if (FParse::Value(CmdLine, TEXT("-Download="), IoStoreArg))
+			{
+				return DownloadIoStoreContainerFiles(*IoStoreArg) == 0;
+			}
 
-		if (FParse::Value(CmdLine, TEXT("-PrimeEndPoint="), IoStoreArg))
-		{
-			return PrimeEndPoint(*IoStoreArg) == 0;
+			if (FParse::Value(CmdLine, TEXT("-PrimeEndPoint="), IoStoreArg))
+			{
+				return PrimeEndPoint(*IoStoreArg);
+			}
 		}
 	}
 

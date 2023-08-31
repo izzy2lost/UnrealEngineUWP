@@ -8782,10 +8782,13 @@ bool DownloadIoStoreContainerFiles(const TCHAR* TocPath)
 bool PrimeEndPoint(FStringView IoStoreOnDemandIniPath)
 {
 	FIoStatus Status = UE::IO::IAS::PrimeEndPoint(IoStoreOnDemandIniPath);
-	if (Status.IsOk() == false)
+	if (Status.IsOk())
 	{
-		UE_LOG(LogIoStore, Error, TEXT("Failed to prime end points, reason '%s'"), *Status.ToString());
+		return true;
 	}
-
-	return Status.IsOk();
+	else
+	{
+		UE_LOG(LogIoStore, Error, TEXT("PrimeEndPoint command failed due to: %s"), *Status.ToString());
+		return false;
+	}
 }

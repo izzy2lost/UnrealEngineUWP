@@ -19,6 +19,7 @@
 #include "Modules/ModuleManager.h"
 #include "OnDemandHttpClient.h"
 #include "OnDemandIoDispatcherBackend.h"
+#include "PrimeEndpoint.h"
 #include "Serialization/Archive.h"
 #include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/CompactBinaryWriter.h"
@@ -160,7 +161,7 @@ static bool TryParseConfigFileFromPlatformPackage(FOnDemandEndpoint& OutEndpoint
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool TryParseConfigFile(const FString& ConfigPath, FOnDemandEndpoint& OutEndpoint)
+bool TryParseConfigFile(const FString& ConfigPath, FOnDemandEndpoint& OutEndpoint)
 {
 	const FString ConfigFileName = TEXT("IoStoreOnDemand.ini");
 	FString ConfigContent; 
@@ -1464,66 +1465,9 @@ FIoStatus DownloadContainerFiles(const FIoStoreDownloadParams& DownloadParams, c
 
 FIoStatus PrimeEndPoint(FStringView IoStoreOnDemandIniPath)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(PrimeEndPoint);
-
-	FOnDemandEndpoint EndPoint;
-	if (!TryParseConfigFile(FString(IoStoreOnDemandIniPath), EndPoint))
-	{
-		return FIoStatus(EIoErrorCode::Unknown, TEXT("Failed to parse config file"));
-	}
-
-	EndPoint.EndpointType = EOnDemandEndpointType::CDN;
-
-	TSharedPtr <IOnDemandIoDispatcherBackend> Backend = MakeOnDemandIoDispatcherBackend(nullptr);
-	Backend->Mount(EndPoint);
-
-	check(!FIoDispatcher::IsInitialized()); // Assume this is only run in standalone programs that have not
-											// yet setup the IoDispatcher
-	FIoDispatcher::Initialize();
-	FIoDispatcher::InitializePostSettings();
-	ON_SCOPE_EXIT
-	{
-		FIoDispatcher::Shutdown();
-	};
-
-	FIoDispatcher::Get().Mount(Backend.ToSharedRef(), MAX_int32);
-
-	if (!Backend->FlushDeferedEndPoints(30.0))
-	{
-		// TODO: Real error value
-		return FIoStatus(EIoErrorCode::Unknown, TEXT("Unable to connect to endpoint, timed out..."));
-	}
-
-	UE_LOG(LogIas, Display, TEXT("Finding on demand chunks..."));
-	TArray<FIoChunkId> Chunks = Backend->GetAllChunkIds();
-	
-	UE_LOG(LogIas, Display, TEXT("Found %d chunks"), Chunks.Num());
-
-	std::atomic<int32> CompletedRequests = 0;
-	FIoBatch Batch;
-	for (const FIoChunkId& ChunkId : Chunks)
-	{
-		Batch.ReadWithCallback(ChunkId, FIoReadOptions(), IoDispatcherPriority_Medium,
-			[&](TIoStatusOr<FIoBuffer> Result)
-			{
-				CompletedRequests++;
-			});
-	}
-
-	UE_LOG(LogIas, Display, TEXT("Priming all chunks for endpoint..."));
-
-	FEventRef BatchCompleted;
-	Batch.IssueAndTriggerEvent(BatchCompleted.Get());
-	
-	while (!BatchCompleted->Wait(FTimespan::FromSeconds(5.0)))
-	{
-		UE_LOG(LogIas, Display, TEXT("Completed %d/%d"), CompletedRequests.load(), Chunks.Num());
-	}
-
-	UE_LOG(LogIas, Display, TEXT("All chunks primed!"));
-
-	return FIoStatus::Ok;
+	return UE::IO::IAS::PrimeEndpointInternal(FString(IoStoreOnDemandIniPath));
 }
+
 #endif // (PLATFORM_DESKTOP && (IS_PROGRAM || WITH_EDITOR))
 
 
