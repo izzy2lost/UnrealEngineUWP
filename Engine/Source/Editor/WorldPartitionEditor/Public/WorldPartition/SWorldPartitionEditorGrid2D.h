@@ -9,6 +9,8 @@
 #include "Layout/ArrangedChildren.h"
 #include "SWorldPartitionEditorGrid.h"
 #include "SWorldPartitionViewportWidget.h"
+#include "Widgets/Text/STextBlock.h"
+#include "SViewportToolBar.h"
 #include "WorldPartition/WorldPartitionActorLoaderInterface.h"
 
 class SWorldPartitionEditorGrid2D : public SWorldPartitionEditorGrid
@@ -19,6 +21,7 @@ protected:
 	public:
 		FEditorCommands();
 	
+		// Context Menu
 		TSharedPtr<FUICommandInfo> CreateRegionFromSelection;
 		TSharedPtr<FUICommandInfo> LoadSelectedRegions;
 		TSharedPtr<FUICommandInfo> UnloadSelectedRegions;
@@ -29,11 +32,48 @@ protected:
 		TSharedPtr<FUICommandInfo> LoadFromHere;
 		TSharedPtr<FUICommandInfo> BugItHere;
 
+		// Toolbar
+		// Options
+		TSharedPtr<FUICommandInfo> FollowPlayerInPIE;
+		TSharedPtr<FUICommandInfo> BugItGoLoadRegion;
+
+		// Show toggles
+		TSharedPtr<FUICommandInfo> ShowActors;
+		TSharedPtr<FUICommandInfo> ShowGrid;
+		TSharedPtr<FUICommandInfo> ShowMiniMap;
+		TSharedPtr<FUICommandInfo> ShowCoords;
+
+		// Quick Actions
+		TSharedPtr<FUICommandInfo> FocusSelection;
+		TSharedPtr<FUICommandInfo> FocusLoadedRegions;
+		TSharedPtr<FUICommandInfo> FocusWorld;
+		
+
 		/**
 		 * Initialize commands
 		 */
 		virtual void RegisterCommands() override;
 	};
+
+
+	// In-viewport toolbar widget used in the world partition editor
+	class SToolBar : public SViewportToolBar
+	{
+		public:
+			SLATE_BEGIN_ARGS(SToolBar) {}
+				SLATE_ARGUMENT(TSharedPtr<FUICommandList>, CommandList)
+			SLATE_END_ARGS()
+
+			void Construct(const FArguments& InArgs);
+
+	private:
+		TSharedRef<SWidget> GenerateOptionsMenu() const;
+		TSharedRef<SWidget> GenerateShowMenu() const;
+		TSharedRef<SWidget> GenerateBuildMenu() const;
+		
+		TSharedPtr<FUICommandList> CommandList;
+	};
+
 
 public:
 	SWorldPartitionEditorGrid2D();
@@ -41,6 +81,7 @@ public:
 
 protected:
 	void Construct(const FArguments& InArgs);
+	void BindCommands();
 
 	void CreateRegionFromSelection();
 	void LoadSelectedRegions();
@@ -76,9 +117,10 @@ protected:
 	virtual int32 PaintMeasureTool(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId) const;
 
 	int32 DrawTextLabel(FSlateWindowElementList& OutDrawElements, int32 LayerId, const FGeometry& AllottedGeometry, const FString& Label, const FVector2D& Pos, const FLinearColor& Color, const FSlateFontInfo& Font) const;
-
-	virtual FReply FocusSelection();
-	virtual FReply FocusLoadedRegions();
+	
+	void FocusSelection();
+	void FocusLoadedRegions();
+	void FocusWorld();
 
 	void UpdateTransform() const;
 	void UpdateSelectionBox(bool bSnap);
@@ -112,6 +154,7 @@ protected:
 	bool bIsMeasuring;
 	bool bShowActors;
 	bool bShowGrid;
+	bool bShowMiniMap;
 	bool bFollowPlayerInPIE;
 	FVector2D MouseCursorPos;
 	FVector2D MouseCursorPosWorld;
@@ -167,4 +210,6 @@ protected:
 	mutable double PaintTime;
 
 	TSharedPtr<SWorldPartitionViewportWidget> ViewportWidget;
+	TSharedPtr<STextBlock> TextWorldBoundsInKMWidget;
+	TSharedPtr<STextBlock> TextRulerWidget;
 };

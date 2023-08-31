@@ -75,6 +75,7 @@ int32 SWorldPartitionEditorGridSpatialHash::PaintGrid(const FGeometry& AllottedG
 	);
 
 	// Paint minimap
+	if (bShowMiniMap)
 	{
 		const FBox VisibleMinimapRectWorld(
 			FVector(

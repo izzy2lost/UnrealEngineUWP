@@ -2002,7 +2002,6 @@ void FStarshipEditorStyle::FStyle::SetupLevelGeneralStyles()
 
 void FStarshipEditorStyle::FStyle::SetupWorldBrowserStyles()
 {
-
 	// World Browser
 	{
 		Set("WorldBrowser.AddLayer", new IMAGE_BRUSH("Icons/icon_levels_addlayer_16x", Icon16x16));
@@ -2039,9 +2038,19 @@ void FStarshipEditorStyle::FStyle::SetupWorldBrowserStyles()
 void FStarshipEditorStyle::FStyle::SetupWorldPartitionStyles()
 {
 	// World Partition
-	Set("WorldPartition.PartiallyLoadedCell", new IMAGE_BRUSH("WorldPartition/PartiallyLoadedCell", Icon32x32));
-	Set("WorldPartition.GridBackground", new BOX_BRUSH("WorldPartition/GridBackground", FMargin(0.f)));
 	Set("WorldPartition.SimulationViewPosition", new IMAGE_BRUSH("Icons/icon_levels_simulationviewpos_16x", Icon16x16));
+
+	Set("WorldPartition.FollowPlayerInPIE", new IMAGE_BRUSH_SVG("WorldPartition//Developer_20", Icon16x16));
+	Set("WorldPartition.BugItGoLoadRegion", new IMAGE_BRUSH_SVG("WorldPartition//Bug_20", Icon16x16)); 
+
+	Set("WorldPartition.ShowActors", new IMAGE_BRUSH_SVG("WorldPartition/Actor_20", Icon16x16));
+	Set("WorldPartition.ShowGrid", new IMAGE_BRUSH_SVG("Starship/EditorViewport/grid", Icon16x16));
+	Set("WorldPartition.ShowMiniMap", new IMAGE_BRUSH_SVG("Starship/AssetIcons/Texture2D_16", Icon16x16)); 
+	Set("WorldPartition.ShowCoords", new IMAGE_BRUSH_SVG("WorldPartition/Coordinate_20", Icon16x16));
+
+	Set("WorldPartition.FocusSelection", new IMAGE_BRUSH_SVG("WorldPartition/FramingSelection_20", Icon16x16));
+	Set("WorldPartition.FocusLoadedRegions", new IMAGE_BRUSH_SVG("WorldPartition/FrameRegions_20", Icon16x16));
+	Set("WorldPartition.FocusWorld", new IMAGE_BRUSH_SVG("WorldPartition/FrameWorld_20", Icon16x16));
 }
 
 void FStarshipEditorStyle::FStyle::SetupSequencerStyles()
