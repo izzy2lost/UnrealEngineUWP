@@ -70,7 +70,7 @@ namespace AutoRTFM
 		// Clear out the data stored in the set, but does not reduce the capacity.
 		void Reset()
 		{
-			memset(Payload, 0, sizeof(uintptr_t) * Capacity);
+			memset(Payload, 0, sizeof(uintptr_t) * (Capacity + LinearProbeDepth));
 			Size = 0;
 		}
 

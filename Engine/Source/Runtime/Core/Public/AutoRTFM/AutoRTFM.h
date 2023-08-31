@@ -325,6 +325,16 @@ UE_AUTORTFM_FORCEINLINE void* autortfm_did_allocate(void* ptr, size_t size)
 }
 #endif
 
+// Inform the runtime that we have free'd a given memory location.
+#if UE_AUTORTFM
+UE_AUTORTFM_API void autortfm_did_free(void* ptr);
+#else
+UE_AUTORTFM_FORCEINLINE void autortfm_did_free(void* ptr)
+{
+	UE_AUTORTFM_UNUSED(ptr);
+}
+#endif
+
 // If running in a transaction, then perform a consistency check of the
 // transaction's read-write set. If possible, this compares the read-write set's
 // expected values with the actual values in global memory. Does nothing when
@@ -539,6 +549,11 @@ UE_AUTORTFM_FORCEINLINE void OpenAbort(const TFunctor& Work) { }
 UE_AUTORTFM_FORCEINLINE void* DidAllocate(void* Ptr, size_t Size)
 {
     return autortfm_did_allocate(Ptr, Size);
+}
+
+UE_AUTORTFM_FORCEINLINE void DidFree(void* Ptr)
+{
+    autortfm_did_free(Ptr);
 }
 
 UE_AUTORTFM_FORCEINLINE void CheckConsistencyAssumingNoRaces()

@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "AutoRTFM/AutoRTFM.h"
+#include "CoreGlobals.h"
 #include "HAL/IConsoleManager.h"
 
 #if UE_AUTORTFM
@@ -24,6 +24,7 @@ static constexpr bool GAutoRTFMRuntimeEnabled = false;
 #include "ContextStatus.h"
 #include "FunctionMapInlines.h"
 #include "TransactionInlines.h"
+#include "Toggles.h"
 #include "Utils.h"
 
 #include "Templates/Tuple.h"
@@ -152,7 +153,7 @@ extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_close") autortfm_status autortfm_
 	{
 		UE_CLOG(!FContext::IsTransactional(), LogAutoRTFM, Fatal, TEXT("Close called from an outside a transaction."));
 
-		FContext* Context = FContext::Get();
+		FContext* const Context = FContext::Get();
 		void (*WorkClone)(void* Arg) = FunctionMapLookup(Work, "autortfm_close");
 		if (WorkClone)
 		{
@@ -169,8 +170,10 @@ extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_close") autortfm_status autortfm_
 
 extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_record_open_write") void autortfm_record_open_write(void* Ptr, size_t Size)
 {
-    FContext::Get()->CheckOpenRecordWrite(Ptr);
-	FContext::Get()->RecordWrite(Ptr, Size);
+	FContext* const Context = FContext::Get();
+
+    Context->CheckOpenRecordWrite(Ptr);
+	Context->RecordWrite(Ptr, Size);
 }
 
 extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_register_open_function(void* OriginalFunction, void* NewFunction)
@@ -201,6 +204,32 @@ extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_did_allocate") void* autortfm_did
 {
     return Ptr;
 }
+
+UE_DISABLE_OPTIMIZATION
+extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_did_free") void autortfm_did_free(void* Ptr)
+{
+	// We only need to process did free if we need to track allocation locations.
+	if constexpr (bTrackAllocationLocations)
+	{
+		if (UNLIKELY(GIsCriticalError))
+		{
+			return;
+		}
+
+		if (FContext::IsTransactional())
+		{
+			FContext* const Context = FContext::Get();
+
+		    // We only care about frees that are occuring when the transaction
+		    // is in an on-going state (it's not committing or aborting).
+		    if (EContextStatus::OnTrack == Context->GetStatus())
+		    {
+		    	Context->DidFree(Ptr);
+		    }
+		}
+	}
+}
+UE_ENABLE_OPTIMIZATION
 
 extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_check_consistency_assuming_no_races") void autortfm_check_consistency_assuming_no_races()
 {
@@ -384,6 +413,13 @@ extern "C" UE_AUTORTFM_NOAUTORTFM void* RTFM_autortfm_did_allocate(void* Ptr, si
 	FContext* Context = FContext::Get();
     Context->DidAllocate(Ptr, Size);
     return Ptr;
+}
+
+extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_did_free(void* Ptr)
+{
+	// We should never-ever-ever actually free memory from within closed code of
+	// a transaction.
+	AutoRTFM::Unreachable();
 }
 
 extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_check_consistency_assuming_no_races()

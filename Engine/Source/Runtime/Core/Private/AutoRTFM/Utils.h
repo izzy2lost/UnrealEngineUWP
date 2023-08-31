@@ -45,4 +45,4 @@ template<size_t A, size_t B> struct PrettyStaticAssert final
 
 } // namespace AutoRTFM
 
-#define ASSERT(exp) do { if (UNLIKELY(!(exp))) PrettyAbort(__FILE__, __LINE__, __PRETTY_FUNCTION__, #exp); } while (false)
+#define ASSERT(exp) do { if (UNLIKELY(!(exp))) { UE_DEBUG_BREAK(); PrettyAbort(__FILE__, __LINE__, __PRETTY_FUNCTION__, #exp); } } while (false)

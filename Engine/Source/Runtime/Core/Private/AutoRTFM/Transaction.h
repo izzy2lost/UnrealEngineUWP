@@ -74,6 +74,7 @@ public:
     template<unsigned SIZE> void RecordWrite(void* LogicalAddress);
 
     void DidAllocate(void* LogicalAddress, size_t Size);
+    void DidFree(void* LogicalAddress);
 
 private:
     void Undo();

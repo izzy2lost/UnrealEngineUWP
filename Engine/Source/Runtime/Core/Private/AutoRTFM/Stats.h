@@ -2,12 +2,11 @@
 
 #pragma once
 
+#include "Toggles.h"
 #include "Utils.h"
 
 namespace AutoRTFM
 {
-
-static constexpr bool bCollectStats = false;
 
 enum class EStatsKind : uint8_t
 {

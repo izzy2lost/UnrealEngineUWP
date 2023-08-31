@@ -186,6 +186,8 @@ void FTransaction::CommitNested()
 
     Parent->CommitTasks.AddAll(MoveTemp(CommitTasks));
     Parent->AbortTasks.AddAll(MoveTemp(AbortTasks));
+
+    Parent->NewMemoryTracker.Merge(NewMemoryTracker);
 }
 
 bool FTransaction::AttemptToCommitOuterNest()

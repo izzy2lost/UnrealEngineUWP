@@ -1725,7 +1725,15 @@ FUNCTION_NON_NULL_RETURN_END
 	Params.bCopyTransientsFromClassDefaults = bCopyTransientsFromClassDefaults;
 	Params.InstanceGraph = InInstanceGraph;
 	Params.ExternalPackage = ExternalPackage;
-	return static_cast<T*>(StaticConstructObject_Internal(Params));
+
+	T* Result = nullptr;
+
+	UE_AUTORTFM_OPEN(
+	{
+		Result = static_cast<T*>(StaticConstructObject_Internal(Params));
+	});
+
+	return Result;
 }
 
 template< class T >

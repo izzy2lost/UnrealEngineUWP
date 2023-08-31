@@ -105,6 +105,13 @@ FMEMORY_INLINE_FUNCTION_DECORATOR void* FMemory::Realloc(void* Original, SIZE_T 
 		Ptr = FMEMORY_INLINE_GMalloc->Realloc(Original, Count, Alignment);
 	}
 
+	if (Ptr != Original)
+	{
+		// If the pointer we've got back from realloc is new memory, we are
+		// assuming the old memory was free'd.
+		AutoRTFM::DidFree(Original);
+	}
+
 	// optional tracking of every allocation - a realloc with a Count of zero is equivalent to a call 
 	// to free() and will return a null pointer which does not require tracking. If realloc returns null
 	// for some other reason (like failure to allocate) there's also no reason to track it
@@ -137,6 +144,8 @@ FMEMORY_INLINE_FUNCTION_DECORATOR void FMemory::Free(void* Original)
 		DoGamethreadHook(2);
 		FScopedMallocTimer Timer(2);
 		FMEMORY_INLINE_GMalloc->Free(Original);
+
+		AutoRTFM::DidFree(Original);
 	});
 }
 

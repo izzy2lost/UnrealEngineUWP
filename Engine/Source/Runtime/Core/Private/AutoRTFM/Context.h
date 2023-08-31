@@ -42,6 +42,7 @@ public:
     template<unsigned SIZE> void RecordWrite(void* LogicalAddress);
 
     void DidAllocate(void* LogicalAddress, size_t Size);
+    void DidFree(void* LogicalAddress);
 
     // The rest of this is internalish.
     void AbortByLanguageAndThrow();

@@ -100,19 +100,32 @@ UE_AUTORTFM_FORCEINLINE void FTransaction::DidAllocate(void* LogicalAddress, con
 	{
 		return;
 	}
-	else if (Size <= FWriteLogBumpAllocator::MaxSize)
+
+    const bool bUseHitSet = Size <= FWriteLogBumpAllocator::MaxSize;
+
+	if (bUseHitSet)
     {
         FMemoryLocation Key(LogicalAddress);
         Key.SetTopTag(static_cast<uint16_t>(Size));
         // Otherwise we need to record the write.
         const bool DidInsert = HitSet.Insert(Key);
-        ASSERT(DidInsert); 
+        ASSERT(DidInsert);
     }
-    else
+    
+    if (bTrackAllocationLocations || !bUseHitSet)
     {
         const bool DidInsert = NewMemoryTracker.Insert(LogicalAddress, Size);
         ASSERT(DidInsert);
     }
+}
+
+UE_AUTORTFM_FORCEINLINE void FTransaction::DidFree(void* LogicalAddress)
+{
+    ASSERT(bTrackAllocationLocations);
+    
+    // Checking if one byte is in the interval map is enough to ascertain if it
+    // is new memory and we should be worried.
+    ASSERT(!NewMemoryTracker.Contains(LogicalAddress, 1));
 }
 
 UE_AUTORTFM_FORCEINLINE void FTransaction::DeferUntilCommit(TFunction<void()>&& Callback)

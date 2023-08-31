@@ -34,6 +34,18 @@ UE_AUTORTFM_FORCEINLINE void FContext::DidAllocate(void* LogicalAddress, size_t 
     CurrentTransaction->DidAllocate(LogicalAddress, Size);
 }
 
+UE_AUTORTFM_FORCEINLINE void FContext::DidFree(void* LogicalAddress)
+{
+    // We can do free's in the open within a transaction *during* when the
+    // transaction itself is being destroyed, so we need to check for that case.
+	if (UNLIKELY(!CurrentTransaction))
+	{
+		return;
+	}
+
+    CurrentTransaction->DidFree(LogicalAddress);
+}
+
 UE_AUTORTFM_FORCEINLINE bool FContext::AttemptToCommitTransaction(FTransaction* const Transaction)
 {
     ASSERT(EContextStatus::OnTrack == Status);
