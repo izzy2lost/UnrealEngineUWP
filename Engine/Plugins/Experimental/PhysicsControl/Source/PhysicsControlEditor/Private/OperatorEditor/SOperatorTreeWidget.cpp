@@ -143,6 +143,7 @@ void SOperatorTreeWidget::Construct_Internal()
 		.OnGetChildren(this, &SOperatorTreeWidget::OnItemGetChildren)
 		.OnGenerateRow(this, &SOperatorTreeWidget::GenerateItemRow)
 		.SelectionMode(ESelectionMode::Multi)
+		.OnContextMenuOpening(this, &SOperatorTreeWidget::CreateContextMenu)
 		.OnKeyDownHandler(this, &SOperatorTreeWidget::OnKeyDown)
 		.OnMouseButtonDoubleClick(this, &SOperatorTreeWidget::OnItemDoubleClicked);
 
@@ -158,7 +159,7 @@ void SOperatorTreeWidget::Construct_Internal()
 		];
 }
 
-void SOperatorTreeWidget::PushContextMenu(const FVector2D& Position)
+TSharedPtr<SWidget> SOperatorTreeWidget::CreateContextMenu()
 {
 	FMenuBuilder MenuBuilder(true, nullptr, nullptr);
 	MenuBuilder.BeginSection(NAME_None, LOCTEXT("ChannelDrawStyle", "Draw Style"));
@@ -177,12 +178,7 @@ void SOperatorTreeWidget::PushContextMenu(const FVector2D& Position)
 	}
 	MenuBuilder.EndSection();
 
-	FSlateApplication::Get().PushMenu(
-		SharedThis(this),
-		FWidgetPath(),
-		MenuBuilder.MakeWidget(),
-		Position,
-		FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));
+	return MenuBuilder.MakeWidget();
 }
 
 TSharedRef<ITableRow> SOperatorTreeWidget::GenerateItemRow(ItemType InItem, const TSharedRef<STableViewBase>& OwnerTable)
@@ -232,17 +228,6 @@ FReply SOperatorTreeWidget::OnKeyDown(const FGeometry& MyGeometry, const FKeyEve
 	if (InKeyEvent.IsControlDown() && (InKeyEvent.GetKey() == EKeys::C))
 	{
 		CopySelectedItemsNamesToClipboard();
-		return FReply::Handled();
-	}
-
-	return FReply::Unhandled();
-}
-
-FReply SOperatorTreeWidget::OnMouseButtonDown(const FGeometry& SenderGeometry, const FPointerEvent& MouseEvent)
-{
-	if (MouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
-	{
-		PushContextMenu(MouseEvent.GetScreenSpacePosition());
 		return FReply::Handled();
 	}
 

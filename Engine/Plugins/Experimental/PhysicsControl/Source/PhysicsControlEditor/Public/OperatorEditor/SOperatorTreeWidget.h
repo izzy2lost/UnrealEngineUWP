@@ -49,10 +49,10 @@ public:
 	bool HasTag(const ItemType Item, const FName Tag);
 
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
-	virtual FReply OnMouseButtonDown(const FGeometry& SenderGeometry, const FPointerEvent& MouseEvent) override;
 
 	void OnItemDoubleClicked(ItemType InItem);
-	void PushContextMenu(const FVector2D& Position);
+	TSharedPtr<SWidget> CreateContextMenu();
+
 	void RequestRefresh();
 
 	void CopySelectedItemsNamesToClipboard() const;
