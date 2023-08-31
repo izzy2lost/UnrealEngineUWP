@@ -1682,7 +1682,6 @@ namespace Chaos
 				else
 				{
 					ensure(!IsNetworkPhysicsPredictionEnabled());
-					UE_LOG(LogChaos, Warning, TEXT("A SimCallbackObject with ESimCallbackOptions::Rewind defined is registering but there is no IRewindCallback set up. Make sure to enable 'Project Settings -> Physics -> Physics Prediction'"));
 				}
 			}
 
