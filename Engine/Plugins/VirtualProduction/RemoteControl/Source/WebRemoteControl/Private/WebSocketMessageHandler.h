@@ -9,6 +9,7 @@
 #include "RemoteControlField.h"
 #include "RemoteControlModels.h"
 #include "RemoteControlPreset.h"
+#include "RemoteControlRequest.h"
 #include "RemoteControlResponse.h"
 
 
@@ -111,6 +112,9 @@ private:
 
 	/** Handles ending a manual editor transaction. */
 	void HandleWebSocketEndEditorTransaction(const FRemoteControlWebSocketMessage& WebSocketMessage);
+
+	/** Handles changing the compression mode of WebSocket data */
+	void HandleWebSocketCompressionChange(const FRemoteControlWebSocketMessage& WebSocketMessage);
 
 	//Preset callbacks
 	void OnPresetExposedPropertiesModified(URemoteControlPreset* Owner, const TSet<FGuid>& ModifiedPropertyIds);

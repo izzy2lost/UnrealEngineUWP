@@ -153,6 +153,16 @@ enum class ERCModifyOperation : uint8
 };
 
 /**
+ * Type of compression applied to WebSocket traffic
+ */
+UENUM()
+enum class ERCWebSocketCompressionMode : uint8
+{
+	NONE,
+	ZLIB
+};
+
+/**
  * Reference to a UObject or one of its properties
  */
 struct FRCObjectReference

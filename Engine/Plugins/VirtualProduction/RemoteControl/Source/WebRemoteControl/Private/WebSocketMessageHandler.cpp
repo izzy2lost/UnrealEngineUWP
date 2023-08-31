@@ -12,7 +12,6 @@
 #include "RCVirtualProperty.h"
 #include "GameFramework/Actor.h"
 #include "RemoteControlPreset.h"
-#include "RemoteControlRequest.h"
 #include "RemoteControlRoute.h"
 #include "RemoteControlReflectionUtils.h"
 #include "RemoteControlWebsocketRoute.h"
@@ -372,6 +371,12 @@ void FWebSocketMessageHandler::RegisterRoutes(FWebRemoteControlModule* WebRemote
 		TEXT("End a manual editor transaction"),
 		TEXT("transaction.end"),
 		FWebSocketMessageDelegate::CreateRaw(this, &FWebSocketMessageHandler::HandleWebSocketEndEditorTransaction)
+	));
+
+	RegisterRoute(WebRemoteControl, MakeUnique<FRemoteControlWebsocketRoute>(
+		TEXT("Change the compression method this client will use to communicate with Unreal Engine"),
+		TEXT("compression.change"),
+		FWebSocketMessageDelegate::CreateRaw(this, &FWebSocketMessageHandler::HandleWebSocketCompressionChange)
 	));
 }
 
@@ -835,6 +840,26 @@ void FWebSocketMessageHandler::HandleWebSocketEndEditorTransaction(const FRemote
 
 	EndClientTransaction(WebSocketMessage.ClientId, Body.TransactionId);
 #endif
+}
+
+void FWebSocketMessageHandler::HandleWebSocketCompressionChange(const FRemoteControlWebSocketMessage& WebSocketMessage)
+{
+	FRCWebSocketCompressionChangeBody Body;
+	if (!WebRemoteControlInternalUtils::DeserializeRequestPayload(WebSocketMessage.RequestPayload, nullptr, Body))
+	{
+		return;
+	}
+
+	// First, reply to the client confirming the new mode so it can continue with its old decompression method until it receives this message
+	FRCCompressionChangedEvent Event;
+	Event.Mode = Body.Mode;
+
+	TArray<uint8> Payload;
+	WebRemoteControlUtils::SerializeMessage(Event, Payload);
+	Server->Send(WebSocketMessage.ClientId, Payload);
+
+	// Now update the compression method for all future messages
+	Server->SetClientCompressionMode(WebSocketMessage.ClientId, Body.Mode);
 }
 
 void FWebSocketMessageHandler::ProcessChangedControllers()
@@ -1417,7 +1442,7 @@ void FWebSocketMessageHandler::TimeOutTransactions()
 	}
 
 	// Do this as a separate step since it may remove entries from the map during iteration
-	for (auto TransactionIterator : TransactionsToEnd)
+	for (const auto& TransactionIterator : TransactionsToEnd)
 	{
 		EndClientTransaction(TransactionIterator.Key, TransactionIterator.Value);
 	}
