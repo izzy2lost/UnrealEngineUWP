@@ -7,8 +7,8 @@
 #include "Common.ush"
 #include "PostProcessCommon.ush"
 #include "PostProcessHistogramCommon.ush"
-#include "Strata/Strata.ush"
-#include "Strata/StrataEvaluation.ush"
+#include "Substrate/Substrate.ush"
+#include "Substrate/SubstrateEvaluation.ush"
 
 #if COMPUTESHADER
 

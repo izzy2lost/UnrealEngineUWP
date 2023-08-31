@@ -11,7 +11,7 @@
 #include "SHCommon.ush"
 #include "VolumetricLightmapShared.ush"
 #include "ReflectionEnvironmentShared.ush"
-#include "Strata/Strata.ush"
+#include "Substrate/Substrate.ush"
 
 #ifndef THREADGROUP_SIZEX
 #define THREADGROUP_SIZEX 1

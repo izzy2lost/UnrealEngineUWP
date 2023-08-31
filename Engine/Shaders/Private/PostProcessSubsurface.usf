@@ -5,7 +5,7 @@
 =============================================================================*/
 
 #include "Common.ush"
-#include "Strata/Strata.ush"
+#include "Substrate/Substrate.ush"
 #include "PostProcessCommon.ush"
 #include "DeferredShadingCommon.ush"
 #include "SubsurfaceProfileCommon.ush"

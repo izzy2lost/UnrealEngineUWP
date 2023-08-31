@@ -56,7 +56,7 @@ class FOpaqueRoughRefractionPS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FOpaqueRoughRefractionPS, "/Engine/Private/Strata/StrataRoughRefraction.usf", "OpaqueRoughRefractionPS", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(FOpaqueRoughRefractionPS, "/Engine/Private/Substrate/SubstrateRoughRefraction.usf", "OpaqueRoughRefractionPS", SF_Pixel);
 
 
 void AddStrataOpaqueRoughRefractionPasses(
@@ -320,7 +320,7 @@ class FEvaluateRoughRefractionLobeCS : public FGlobalShader
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), ThreadGroupSize);
 	}
 };
-IMPLEMENT_GLOBAL_SHADER(FEvaluateRoughRefractionLobeCS, "/Engine/Private/Strata/StrataRoughRefraction.usf", "EvaluateRoughRefractionLobeCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FEvaluateRoughRefractionLobeCS, "/Engine/Private/Substrate/SubstrateRoughRefraction.usf", "EvaluateRoughRefractionLobeCS", SF_Compute);
 
 
 
@@ -360,7 +360,7 @@ class FVisualizeRoughRefractionPS : public FGlobalShader
 		OutEnvironment.SetDefine(TEXT("VISUALIZE_ROUGH_REFRACTION_PS"), 1);
 	}
 };
-IMPLEMENT_GLOBAL_SHADER(FVisualizeRoughRefractionPS, "/Engine/Private/Strata/StrataRoughRefraction.usf", "VisualizeRoughRefractionPS", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(FVisualizeRoughRefractionPS, "/Engine/Private/Substrate/SubstrateRoughRefraction.usf", "VisualizeRoughRefractionPS", SF_Pixel);
 
 
 
@@ -401,7 +401,7 @@ class FRoughRefracDataCS : public FGlobalShader
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), ThreadGroupSize);
 	}
 };
-IMPLEMENT_GLOBAL_SHADER(FRoughRefracDataCS, "/Engine/Private/Strata/StrataRoughRefraction.usf", "RoughRefracDataCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FRoughRefracDataCS, "/Engine/Private/Substrate/SubstrateRoughRefraction.usf", "RoughRefracDataCS", SF_Compute);
 
 #endif // STRATA_ROUGH_REFRACTION_RND
 

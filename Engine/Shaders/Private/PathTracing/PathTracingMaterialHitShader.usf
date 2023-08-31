@@ -40,7 +40,7 @@
 #include "/Engine/Private/PathTracing/Material/PathTracingFresnel.ush"
 #if STRATA_ENABLED
 #define MATERIAL_STRATA_OPAQUE_PRECOMPUTED_LIGHTING 0
-#include "/Engine/Private/Strata/StrataExport.ush"
+#include "/Engine/Private/Substrate/SubstrateExport.ush"
 #endif
 
 float AdjustMaterialRoughness(float Roughness, float PathRoughness)

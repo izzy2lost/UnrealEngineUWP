@@ -23,8 +23,8 @@
 #include "../BurleyNormalizedSSSCommon.ush"
 #include "../GammaCorrectionCommon.ush"
 #include "/Engine/Shared/StrataDefinitions.h"
-#include "/Engine/Private/Strata/StrataStatisticalOperators.ush"
-#include "/Engine/Private/Strata/StrataSubsurface.ush"
+#include "/Engine/Private/Substrate/SubstrateStatisticalOperators.ush"
+#include "/Engine/Private/Substrate/SubstrateSubsurface.ush"
 
 // DXC has issue with unrolling certain part of the code. To address temporarly the warning-as-error issues, 
 // we redefine the unroll function and fall back to loop on DXC

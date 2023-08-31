@@ -5,8 +5,8 @@
 #define STRATA_INLINE_SHADING 0
 #define STRATA_SSS_MATERIAL_OVERRIDE 0
 #define STRATA_COMPLEXSPECIALPATH 1
-#include "/Engine/Private/Strata/Strata.ush"
-#include "StrataTile.ush"
+#include "/Engine/Private/Substrate/Substrate.ush"
+#include "SubstrateTile.ush"
 
 #define GROUP_THREAD_COUNT (STRATA_TILE_SIZE * STRATA_TILE_SIZE)
 

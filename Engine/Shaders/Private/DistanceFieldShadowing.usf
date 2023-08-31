@@ -9,7 +9,7 @@
 #include "DeferredShadingCommon.ush"
 #include "DistanceFieldLightingShared.ush"
 #include "DistanceFieldShadowingShared.ush"
-#include "Strata/Strata.ush"
+#include "Substrate/Substrate.ush"
 
 #define SCATTER_TILE_CULLING (CULLING_TYPE == 0)
 #define POINT_LIGHT (CULLING_TYPE == 2)

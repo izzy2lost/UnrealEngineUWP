@@ -5,7 +5,7 @@
 #include "DistanceFieldLightingShared.ush"
 #include "DistanceFieldAOShared.ush"
 #include "DistanceField/GlobalDistanceFieldShared.ush"
-#include "Strata/Strata.ush"
+#include "Substrate/Substrate.ush"
 
 // Pass a debug value through the pipeline instead of a bent normal
 #define PASS_THROUGH_DEBUG_VALUE 0

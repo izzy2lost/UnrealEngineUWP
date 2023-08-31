@@ -6,7 +6,7 @@
 #include "../SceneTextureParameters.ush"
 #include "../PathTracing/Utilities/PathTracingRandomSequence.ush"
 #include "../SphericalGaussian.ush"
-#include "../Strata/Strata.ush"
+#include "../Substrate/Substrate.ush"
 #include "RayTracingCommon.ush"
 #include "RayTracingDeferredShadingCommon.ush"
 

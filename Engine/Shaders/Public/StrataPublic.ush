@@ -6,7 +6,7 @@
 	StrataPublic.ush: Public facing API for external users of Strata.
 =============================================================================*/
 
-#include "/Engine/Private/Strata/Strata.ush"
+#include "/Engine/Private/Substrate/Substrate.ush"
 
 #if STRATA_ENABLED
 

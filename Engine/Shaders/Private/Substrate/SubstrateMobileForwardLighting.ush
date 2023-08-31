@@ -3,7 +3,7 @@
 #pragma once
 
 #define USE_STRATA_FORWARD_LIGHTING_COMMON 1
-#include "StrataLightingCommon.ush"
+#include "SubstrateLightingCommon.ush"
 #include "../LightData.ush"
 #include "../MobileLightingCommon.ush"
 

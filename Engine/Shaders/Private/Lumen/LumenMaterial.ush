@@ -8,9 +8,9 @@
 
 #if STRATA_ENABLED 
 #define STRATA_INLINE_SHADING 0
-#include "/Engine/Private/Strata/Strata.ush"
-#include "/Engine/Private/Strata/StrataEvaluation.ush"
-#include "/Engine/Private/Strata/StrataTile.ush"
+#include "/Engine/Private/Substrate/Substrate.ush"
+#include "/Engine/Private/Substrate/SubstrateEvaluation.ush"
+#include "/Engine/Private/Substrate/SubstrateTile.ush"
 #endif
 
 // Currently Substrate does not support direct lighting at it implies pre-blending rough specular, 

@@ -27,7 +27,7 @@
 
 #include "LargeWorldCoordinates.ush"
 
-#include "Strata/Strata.ush"
+#include "Substrate/Substrate.ush"
 #include "DeferredShadingCommon.ush"
 #include "DeferredLightingCommon.ush"
 #include "LightDataUniforms.ush"
@@ -48,8 +48,8 @@
 #include "VolumetricCloudCommon.ush"
 #endif
 
-#include "Strata/StrataEvaluation.ush"
-#include "Strata/StrataDeferredLighting.ush"
+#include "Substrate/SubstrateEvaluation.ush"
+#include "Substrate/SubstrateDeferredLighting.ush"
 
 #if USE_VIRTUAL_SHADOW_MAP_MASK
 #include "VirtualShadowMaps/VirtualShadowMapMaskBitsCommon.ush"

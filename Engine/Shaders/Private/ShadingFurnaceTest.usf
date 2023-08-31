@@ -9,7 +9,7 @@
 #define USE_SOURCE_TEXTURE 0
 #define DEBUG_ENABLE 0
 #define STRATA_SSS_TRANSMISSION USE_TRANSMISSION
-#include "Strata/Strata.ush"
+#include "Substrate/Substrate.ush"
 #include "DeferredShadingCommon.ush"
 #include "DeferredLightingCommon.ush"
 #include "MonteCarlo.ush" 
@@ -19,8 +19,8 @@
 #include "ColorMap.ush"
 #endif 
 
-#include "Strata/StrataEvaluation.ush"
-#include "Strata/StrataDeferredLighting.ush"
+#include "Substrate/SubstrateEvaluation.ush"
+#include "Substrate/SubstrateDeferredLighting.ush"
 
 #if SHADER_FURNACE_ANALYTIC
 

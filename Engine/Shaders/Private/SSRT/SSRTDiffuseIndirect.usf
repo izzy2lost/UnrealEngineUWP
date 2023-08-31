@@ -106,7 +106,7 @@
 #include "../BRDF.ush"
 #include "../MonteCarlo.ush"
 #include "../SceneTextureParameters.ush"
-#include "../Strata/Strata.ush"
+#include "../Substrate/Substrate.ush"
 
 //------------------------------------------------------- PARAMETERS
 

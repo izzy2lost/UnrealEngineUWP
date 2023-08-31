@@ -9,7 +9,7 @@
 #define PreIntegratedGF				ReflectionStruct.PreIntegratedGF
 #define PreIntegratedGFSampler		GlobalBilinearClampedSampler
 
-#include "../Strata/StrataEvaluation.ush"
+#include "../Substrate/SubstrateEvaluation.ush"
 
 #include "../SceneData.ush"
 #include "../RayTracing/RayTracingCommon.ush"

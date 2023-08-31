@@ -10,7 +10,7 @@
 
 #if STRATA_ENABLED
 
-#include "Strata.ush"
+#include "Substrate.ush"
 
 #ifndef STRATA_GLINT_IS
 #define STRATA_GLINT_IS 0 

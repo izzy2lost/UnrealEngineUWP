@@ -25,7 +25,7 @@
 #define STRATA_INLINE_SHADING 1
 #endif
 
-#include "../Strata/Strata.ush"
+#include "../Substrate/Substrate.ush"
 
 #ifdef OVERRIDE_RAYTRACING_USH
 #include "/Platform/Private/RayTracing.ush"

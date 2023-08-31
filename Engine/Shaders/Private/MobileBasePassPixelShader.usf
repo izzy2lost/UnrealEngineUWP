@@ -118,13 +118,13 @@
 #define MATERIAL_STRATA_OPAQUE_PRECOMPUTED_LIGHTING 0
 
 #if STRATA_TRANSLUCENT_FORWARD || STRATA_FORWARD_SHADING || MATERIAL_STRATA_OPAQUE_PRECOMPUTED_LIGHTING || STRATA_MATERIAL_EXPORT_EXECUTED
-#include "/Engine/Private/Strata/StrataEvaluation.ush"
+#include "/Engine/Private/Substrate/SubstrateEvaluation.ush"
 #endif
 #if STRATA_TRANSLUCENT_FORWARD || STRATA_FORWARD_SHADING
-#include "/Engine/Private/Strata/StrataMobileForwardLighting.ush"
+#include "/Engine/Private/Substrate/SubstrateMobileForwardLighting.ush"
 #endif
 #if MATERIAL_STRATA_OPAQUE_PRECOMPUTED_LIGHTING || STRATA_MATERIAL_EXPORT_EXECUTED
-#include "/Engine/Private/Strata/StrataExport.ush"
+#include "/Engine/Private/Substrate/SubstrateExport.ush"
 #endif
 
 #if MATERIAL_SHADINGMODEL_HAIR

@@ -1,7 +1,7 @@
 
 #pragma once
 
-#include "/Engine/Private/Strata/StrataEvaluation.ush"
+#include "/Engine/Private/Substrate/SubstrateEvaluation.ush"
 #include "/Engine/Private/ShadingCommon.ush"
 
 #ifndef STRATA_OPAQUE_MATERIAL

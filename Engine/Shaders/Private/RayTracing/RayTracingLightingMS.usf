@@ -24,14 +24,14 @@
 // Include continuous
 
 #if STRATA_ENABLED
-#include "../Strata/Strata.ush"
-#include "../Strata/StrataEvaluation.ush"
+#include "../Substrate/Substrate.ush"
+#include "../Substrate/SubstrateEvaluation.ush"
 #endif
 
 #include "RayTracingDeferredShadingCommon.ush"
 #include "RayTracingLightingCommon.ush" 
 #if STRATA_ENABLED
-#include "../Strata/StrataDeferredLighting.ush"
+#include "../Substrate/SubstrateDeferredLighting.ush"
 #endif
 
 #if SUPPORT_LIGHT_FUNCTION

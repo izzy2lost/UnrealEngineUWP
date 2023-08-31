@@ -13,7 +13,7 @@
 #include "../DeferredShadingCommon.ush"
 #include "../HairStrands/HairStrandsVisibilityCommon.ush"
 #include "../HairStrands/HairStrandsTileCommon.ush"
-#include "../Strata/Strata.ush"
+#include "../Substrate/Substrate.ush"
 #include "VirtualShadowMapProjectionDirectional.ush"
 #include "VirtualShadowMapProjectionSpot.ush"
 #include "VirtualShadowMapProjectionCommon.ush"

@@ -11,7 +11,7 @@
 #include "IESLightProfilesCommon.ush"
 #include "CapsuleLightIntegrate.ush"
 #include "RectLightIntegrate.ush"
-#include "Strata/Strata.ush"
+#include "Substrate/Substrate.ush"
 #include "LightData.ush"
 
 // This Strata include assumes that if inline shading is required, it needs to 

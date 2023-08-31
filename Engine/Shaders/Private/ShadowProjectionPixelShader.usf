@@ -93,7 +93,7 @@ float ApplyPCFOverBlurCorrection(float Shadow)
 float2 ShadowNearAndFarDepth;
 #endif
 
-#include "Strata/Strata.ush"
+#include "Substrate/Substrate.ush"
 
 /**
 * Entry point for uniform manual PCF that supports lights using normal shadows.

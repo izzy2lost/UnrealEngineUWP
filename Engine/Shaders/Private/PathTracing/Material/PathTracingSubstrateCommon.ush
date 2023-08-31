@@ -13,7 +13,7 @@
 #define STRATA_PATH_TRACING_GLINTS (STRATA_COMPLEXSPECIALPATH && PLATFORM_ENABLES_STRATA_GLINTS)
 
 #if STRATA_PATH_TRACING_GLINTS
-#include "/Engine/Private/Strata/Glint/GlintThirdParty.ush"
+#include "/Engine/Private/Substrate/Glint/GlintThirdParty.ush"
 #endif
 
 float3 SubstrateLobeWeight(FPathTracingPayload Payload, float SatNoL)

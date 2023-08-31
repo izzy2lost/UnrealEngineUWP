@@ -34,8 +34,8 @@
 #define REFLECTION_COMPOSITE_USE_BLENDED_REFLECTION_CAPTURES 1
 #define REFLECTION_COMPOSITE_SUPPORT_SKYLIGHT_BLEND 1
 #include "ReflectionEnvironmentComposite.ush"
-#include "/Engine/Private/Strata/StrataEvaluation.ush"
-#include "/Engine/Private/Strata/StrataEnvironmentLighting.ush"
+#include "/Engine/Private/Substrate/SubstrateEvaluation.ush"
+#include "/Engine/Private/Substrate/SubstrateEnvironmentLighting.ush"
 #include "Lumen/LumenReflectionsCombine.ush"
 
 Texture2D ReflectionTexture;

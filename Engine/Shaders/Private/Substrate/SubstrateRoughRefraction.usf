@@ -26,7 +26,7 @@ float GaussianFunction(float2 P, float2 Mean, float Variance)
 
 #if OPAQUE_ROUGH_REFRACTION_PS
 
-#include "/Engine/Private/Strata/Strata.ush"
+#include "/Engine/Private/Substrate/Substrate.ush"
 
 Texture2D<float4> SeparatedOpaqueRoughRefractionSceneColor;
 float2 BlurDirection;
@@ -143,7 +143,7 @@ void OpaqueRoughRefractionPS(
 #include "/Engine/Private/PathTracing/Material/PathTracingFresnel.ush"
 #include "/Engine/Private/PathTracing/Material/PathTracingGlossy.ush"
 
-#include "/Engine/Private/Strata/StrataStatisticalOperators.ush"
+#include "/Engine/Private/Substrate/SubstrateStatisticalOperators.ush"
 
 #define MODE_REFLECTION 0
 

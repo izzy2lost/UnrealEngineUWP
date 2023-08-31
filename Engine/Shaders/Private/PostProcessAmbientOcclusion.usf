@@ -8,7 +8,7 @@
 #include "ScreenPass.ush"
 #include "PostProcessCommon.ush"				
 #include "DeferredShadingCommon.ush"
-#include "Strata/Strata.ush"
+#include "Substrate/Substrate.ush"
 
 // set by C++:
 //

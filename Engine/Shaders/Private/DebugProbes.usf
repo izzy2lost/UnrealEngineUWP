@@ -5,10 +5,10 @@
 // Mention that we are going to use a single slab
 #define STRATA_CLAMPED_BSDF_COUNT 1
 #define STRATA_INLINE_SHADING 1
-#include "Strata/Strata.ush"
+#include "Substrate/Substrate.ush"
 
 #define MATERIAL_STRATA_OPAQUE_PRECOMPUTED_LIGHTING 0
-#include "Strata/StrataExport.ush"
+#include "Substrate/SubstrateExport.ush"
 
 #include "DeferredShadingCommon.ush"
 #include "VelocityCommon.ush"

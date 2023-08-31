@@ -6,7 +6,7 @@
 #include "../MonteCarlo.ush"
 #include "../SceneTextureParameters.ush"
 #include "../ScreenSpaceDenoise/SSDPublic.ush"
-#include "../Strata/Strata.ush"
+#include "../Substrate/Substrate.ush"
 
 // Generate vector truncation warnings to errors.
 #pragma warning(error: 3206)

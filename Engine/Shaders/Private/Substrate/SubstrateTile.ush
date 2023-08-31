@@ -4,7 +4,7 @@
 
 #include "/Engine/Private/Common.ush"
 #include "/Engine/Shared/StrataDefinitions.h"   
-#include "Strata.ush"
+#include "Substrate.ush"
 
 #if STRATA_ENABLED
 

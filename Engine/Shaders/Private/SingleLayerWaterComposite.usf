@@ -19,7 +19,7 @@
 #define REFLECTION_COMPOSITE_USE_BLENDED_REFLECTION_CAPTURES (FEATURE_LEVEL >= FEATURE_LEVEL_SM5)
 #define REFLECTION_COMPOSITE_SUPPORT_SKYLIGHT_BLEND 0
 #include "ReflectionEnvironmentComposite.ush"
-#include "Strata/StrataEvaluation.ush"
+#include "Substrate/SubstrateEvaluation.ush"
 
 #ifndef THREADGROUP_SIZE
 	#define THREADGROUP_SIZE 1

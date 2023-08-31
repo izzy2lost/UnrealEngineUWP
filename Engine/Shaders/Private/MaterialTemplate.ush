@@ -164,7 +164,7 @@
 #endif
 
 #if STRATA_ENABLED
-#include "/Engine/Private/Strata/Strata.ush"
+#include "/Engine/Private/Substrate/Substrate.ush"
 #else
 struct FStrataData
 {
@@ -174,8 +174,8 @@ FStrataData GetInitialisedStrataData() { return (FStrataData)0; }
 #endif
 
 #if TEMPLATE_USES_STRATA
-#include "/Engine/Private/Strata/StrataTree.ush"
-#include "/Engine/Private/Strata/StrataLegacyConversion.ush"	// This can only included here due to interaction between STRATA_MATERIAL_EXPORT_EXECUTED and STRATA_LEGACY_MATERIAL_APPLIES_FINAL_WEIGHT
+#include "/Engine/Private/Substrate/SubstrateTree.ush"
+#include "/Engine/Private/Substrate/SubstrateLegacyConversion.ush"	// This can only included here due to interaction between STRATA_MATERIAL_EXPORT_EXECUTED and STRATA_LEGACY_MATERIAL_APPLIES_FINAL_WEIGHT
 #endif
 
 #include "/Engine/Private/DBufferDecalShared.ush"

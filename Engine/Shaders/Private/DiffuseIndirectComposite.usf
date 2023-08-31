@@ -75,8 +75,8 @@ RWTexture2D<float3> OutSubSurfaceSceneColor;
 #include "FastMath.ush"
 #include "Lumen/LumenMaterial.ush"
 #include "Lumen/LumenReflectionsCombine.ush"
-#include "Strata/Strata.ush"
-#include "Strata/StrataEvaluation.ush"
+#include "Substrate/Substrate.ush"
+#include "Substrate/SubstrateEvaluation.ush"
 #include "HairStrands/HairStrandsEnvironmentLightingCommon.ush"
 
 #if DIM_APPLY_DIFFUSE_INDIRECT

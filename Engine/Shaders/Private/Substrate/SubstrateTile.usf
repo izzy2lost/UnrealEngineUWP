@@ -2,7 +2,7 @@
 
 #include "/Engine/Private/Common.ush"
 #include "/Engine/Shared/StrataDefinitions.h"   
-#include "StrataTile.ush"
+#include "SubstrateTile.ush"
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////

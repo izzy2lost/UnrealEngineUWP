@@ -63,7 +63,7 @@ class FMaterialPrintInfoCS : public FGlobalShader
 		OutEnvironment.SetDefine(TEXT("SHADER_MATERIALPRINT"), 1);
 	}
 };
-IMPLEMENT_GLOBAL_SHADER(FMaterialPrintInfoCS, "/Engine/Private/Strata/StrataVisualize.usf", "MaterialPrintInfoCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FMaterialPrintInfoCS, "/Engine/Private/Substrate/SubstrateVisualize.usf", "MaterialPrintInfoCS", SF_Compute);
 
 class FVisualizeMaterialCountPS : public FGlobalShader
 {
@@ -100,7 +100,7 @@ class FVisualizeMaterialCountPS : public FGlobalShader
 		OutEnvironment.SetDefine(TEXT("SHADER_MATERIALCOUNT"), 1);
 	}
 };
-IMPLEMENT_GLOBAL_SHADER(FVisualizeMaterialCountPS, "/Engine/Private/Strata/StrataVisualize.usf", "VisualizeMaterialPS", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(FVisualizeMaterialCountPS, "/Engine/Private/Substrate/SubstrateVisualize.usf", "VisualizeMaterialPS", SF_Pixel);
 
 
 class FStrataSystemInfoCS : public FGlobalShader
@@ -151,7 +151,7 @@ class FStrataSystemInfoCS : public FGlobalShader
 		OutEnvironment.SetDefine(TEXT("SHADER_SYSTEMINFO"), 1);
 	}
 };
-IMPLEMENT_GLOBAL_SHADER(FStrataSystemInfoCS, "/Engine/Private/Strata/StrataVisualize.usf", "MainCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FStrataSystemInfoCS, "/Engine/Private/Substrate/SubstrateVisualize.usf", "MainCS", SF_Compute);
 
 class FMaterialDebugStrataTreeCS : public FGlobalShader
 {
@@ -185,7 +185,7 @@ class FMaterialDebugStrataTreeCS : public FGlobalShader
 		OutEnvironment.SetDefine(TEXT("SHADER_DEBUGSTRATATREE_CS"), 1);
 	}
 };
-IMPLEMENT_GLOBAL_SHADER(FMaterialDebugStrataTreeCS, "/Engine/Private/Strata/StrataVisualize.usf", "MaterialDebugStrataTreeCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FMaterialDebugStrataTreeCS, "/Engine/Private/Substrate/SubstrateVisualize.usf", "MaterialDebugStrataTreeCS", SF_Compute);
 
 class FMaterialDebugStrataTreePS : public FGlobalShader
 {
@@ -223,7 +223,7 @@ class FMaterialDebugStrataTreePS : public FGlobalShader
 		OutEnvironment.SetDefine(TEXT("SHADER_DEBUGSTRATATREE_PS"), 1);
 	}
 };
-IMPLEMENT_GLOBAL_SHADER(FMaterialDebugStrataTreePS, "/Engine/Private/Strata/StrataVisualize.usf", "MaterialDebugStrataTreePS", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(FMaterialDebugStrataTreePS, "/Engine/Private/Substrate/SubstrateVisualize.usf", "MaterialDebugStrataTreePS", SF_Pixel);
 
 static void AddVisualizeMaterialPropertiesPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, FScreenPassTexture& ScreenPassSceneColor, EShaderPlatform Platform)
 {

@@ -11,7 +11,7 @@
 #if STRATA_ENABLED
 
 #define USE_STRATA_ENV_LIGHTING_COMMON 1
-#include "StrataLightingCommon.ush"
+#include "SubstrateLightingCommon.ush"
 
 // Env. lighting evaluation for strata material.
 // Unpack BSDF on-the-fly

@@ -10,7 +10,7 @@ VirtualShadowMaps/VirtualShadowMapTransmissionCommon.ush:
 #include "../DeferredShadingCommon.ush"
 #include "../TransmissionCommon.ush"
 #include "VirtualShadowMapProjectionCommon.ush"
-#include "../Strata/StrataSubsurface.ush"
+#include "../Substrate/SubstrateSubsurface.ush"
 
 FSubsurfaceOpacityMFP GetSubsurfaceOpacityFromGbuffer(uint2 PixelPos)
 {

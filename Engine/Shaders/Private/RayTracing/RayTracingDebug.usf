@@ -7,7 +7,7 @@
 #include "../ColorMap.ush"
 #include "../Hash.ush"
 #include "../Visualization.ush"
-#include "../Strata/Strata.ush"
+#include "../Substrate/Substrate.ush"
 
 #include "RayTracingDebugUtils.ush"
 

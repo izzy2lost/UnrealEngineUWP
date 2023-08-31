@@ -8,7 +8,7 @@
 #include "DeferredShadingCommon.ush"
 #include "PlanarReflectionShared.ush"
 #include "SceneTextureParameters.ush"
-#include "Strata/Strata.ush"
+#include "Substrate/Substrate.ush"
 
 Texture2D SceneColorInputTexture;
 SamplerState SceneColorInputSampler;

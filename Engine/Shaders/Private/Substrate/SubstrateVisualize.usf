@@ -12,8 +12,8 @@
 #define STRATA_SSS_MATERIAL_OVERRIDE 0
 #define STRATA_SSS_TRANSMISSION 0				// Disable for now, as the SSS profile texture need to be bound
 #define STRATA_COMPLEXSPECIALPATH 1				// Allow to read data from complex special path
-#include "/Engine/Private/Strata/StrataEvaluation.ush"
-#include "/Engine/Private/Strata/StrataTile.ush"
+#include "/Engine/Private/Substrate/SubstrateEvaluation.ush"
+#include "/Engine/Private/Substrate/SubstrateTile.ush"
 
 #include "/Engine/Private/ShaderPrint.ush"
 #include "../ColorMap.ush"
@@ -1118,7 +1118,7 @@ void MaterialDebugStrataTreeCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 #define SUPPORT_CONTACT_SHADOWS 0
 #include "../DeferredLightingCommon.ush"
 
-#include "StrataEvaluation.ush"
+#include "SubstrateEvaluation.ush"
 
 // These defines are needed for environment lighting in StrataLightingCommon
 #define ENABLE_DYNAMIC_SKY_LIGHT 1
@@ -1132,7 +1132,7 @@ void MaterialDebugStrataTreeCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 
 #define USE_STRATA_ENV_LIGHTING_COMMON 1
 #define USE_STRATA_FORWARD_LIGHTING_COMMON 1
-#include "StrataLightingCommon.ush"
+#include "SubstrateLightingCommon.ush"
 
 float4 GetBackgroundCheckboardColor(float2 UV)
 {

@@ -27,7 +27,7 @@
 #endif
 
 #if STRATA_ENABLED
-#include "Strata/StrataEvaluation.ush"
+#include "Substrate/SubstrateEvaluation.ush"
 #endif
 
 void ClipOccludedPixel(float PixelZ, float SceneZ)
