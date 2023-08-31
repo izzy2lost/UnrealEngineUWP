@@ -155,7 +155,7 @@
 #include "MaterialEditorModes.h"
 #include "Materials/MaterialExpression.h"
 #include "MaterialCachedHLSLTree.h"
-#include "SMaterialEditorStrataWidget.h"
+#include "SMaterialEditorSubstrateWidget.h"
 #include "SGraphSubstrateMaterial.h"
 
 #include "SMaterialParametersOverviewWidget.h"

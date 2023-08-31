@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SMaterialEditorStrataWidget.h"
+#include "SMaterialEditorSubstrateWidget.h"
 
 #include "EditorWidgetsModule.h"
 #include "AssetRegistry/AssetRegistryModule.h"

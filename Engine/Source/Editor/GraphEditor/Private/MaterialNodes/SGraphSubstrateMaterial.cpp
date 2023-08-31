@@ -3,7 +3,7 @@
 #include "SGraphSubstrateMaterial.h"
 #include "Internationalization/Text.h"
 #include "Rendering/RenderingCommon.h"
-#include "Rendering/StrataMaterialShared.h"
+#include "Rendering/SubstrateMaterialShared.h"
 #include "MaterialGraph/MaterialGraphNode.h"
 #include "MaterialGraph/MaterialGraphNode_Root.h"
 #include "Materials/MaterialExpression.h"

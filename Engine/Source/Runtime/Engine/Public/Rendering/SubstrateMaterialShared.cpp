@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "StrataMaterialShared.h"
+#include "SubstrateMaterialShared.h"
 
 
 IMPLEMENT_TYPE_LAYOUT(FStrataMaterialCompilationOutput);

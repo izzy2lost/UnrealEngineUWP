@@ -61,7 +61,7 @@
 #include "Widgets/SOverlay.h"
 #include "Widgets/SViewport.h"
 #include "Widgets/Text/STextBlock.h"
-#include "Rendering/StrataMaterialShared.h"
+#include "Rendering/SubstrateMaterialShared.h"
 #include "SGraphSubstrateMaterial.h"
 #include "MaterialShared.h"
 
