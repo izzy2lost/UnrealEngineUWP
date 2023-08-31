@@ -20,7 +20,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Size of the packet cache
 		/// </summary>
-		public long PacketCacheSize { get; set; } = 256 * 1024 * 1024;
+		public long PacketCacheSize { get; set; } = 192 * 1024 * 1024;
 	}
 
 	/// <summary>

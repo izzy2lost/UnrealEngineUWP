@@ -502,7 +502,7 @@ namespace Horde.Server.Storage
 
 			BundleReader reader = new BundleReader(storageClient, _storageCache, _logger);
 
-			BundleHeader header = await reader.ReadBundleHeaderAsync(locator, cancellationToken);
+			BundleHeader header = await reader.ReadHeaderAsync(locator, cancellationToken);
 
 			string linkBase = $"/api/v1/storage/{namespaceId}";
 
@@ -582,7 +582,7 @@ namespace Horde.Server.Storage
 			StorageClient storageClient = await _storageService.GetClientAsync(namespaceId, cancellationToken);
 			BundleReader reader = new BundleReader(storageClient, _storageCache, _logger);
 
-			BundleHeader header = await reader.ReadBundleHeaderAsync(locator, cancellationToken);
+			BundleHeader header = await reader.ReadHeaderAsync(locator, cancellationToken);
 			BundleExport export = header.Exports[exportIdx];
 
 			string linkBase = $"/api/v1/storage/{namespaceId}";
