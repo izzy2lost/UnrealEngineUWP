@@ -8,6 +8,7 @@
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedStorageID.inl"
 
 #include "Systems/FloatChannelEvaluatorSystem.h"
+#include "Systems/MovieSceneHierarchicalBiasSystem.h"
 #include "Systems/MovieScenePiecewiseDoubleBlenderSystem.h"
 
 #include "Materials/MaterialInstanceDynamic.h"
@@ -191,8 +192,11 @@ UMovieSceneComponentMaterialSystem::UMovieSceneComponentMaterialSystem(const FOb
 	{
 		DefineComponentConsumer(GetClass(), BuiltInComponents->ObjectResult);
 		DefineComponentConsumer(GetClass(), BuiltInComponents->BoundObject);
+
 		DefineComponentProducer(GetClass(), TracksComponents->BoundMaterial);
+
 		DefineImplicitPrerequisite(UMovieSceneCachePreAnimatedStateSystem::StaticClass(), GetClass());
+		DefineImplicitPrerequisite(UMovieSceneHierarchicalBiasSystem::StaticClass(), GetClass());
 	}
 }
 

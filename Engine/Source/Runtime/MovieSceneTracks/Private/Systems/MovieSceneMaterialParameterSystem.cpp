@@ -341,9 +341,9 @@ template<typename Mixin>
 struct TOverlappingMaterialParameterHandler : Mixin
 {
 	UMovieSceneEntitySystemLinker* Linker;
-	UMovieSceneMaterialParameterSystem* System;
+	UMovieSceneMaterialParameterInstantiatorSystem* System;
 
-	TOverlappingMaterialParameterHandler(UMovieSceneMaterialParameterSystem* InSystem)
+	TOverlappingMaterialParameterHandler(UMovieSceneMaterialParameterInstantiatorSystem* InSystem)
 		: Linker(InSystem->GetLinker())
 		, System(InSystem)
 	{}
@@ -483,7 +483,7 @@ struct TOverlappingMaterialParameterHandler : Mixin
 
 } // namespace UE::MovieScene
 
-UMovieSceneMaterialParameterSystem::UMovieSceneMaterialParameterSystem(const FObjectInitializer& ObjInit)
+UMovieSceneMaterialParameterInstantiatorSystem::UMovieSceneMaterialParameterInstantiatorSystem(const FObjectInitializer& ObjInit)
 	: Super(ObjInit)
 {
 	using namespace UE::MovieScene;
@@ -492,29 +492,19 @@ UMovieSceneMaterialParameterSystem::UMovieSceneMaterialParameterSystem(const FOb
 	FMovieSceneTracksComponentTypes* TracksComponents = FMovieSceneTracksComponentTypes::Get();
 
 	RelevantComponent = TracksComponents->BoundMaterial;
-	Phase = ESystemPhase::Instantiation | ESystemPhase::Scheduling;
 
 	if (HasAnyFlags(RF_ClassDefaultObject))
 	{
 		DefineComponentConsumer(GetClass(), TracksComponents->BoundMaterial);
+
 		DefineComponentProducer(GetClass(), BuiltInComponents->HierarchicalBlendTarget);
 
-		DefineImplicitPrerequisite(UFloatChannelEvaluatorSystem::StaticClass(), GetClass());
-		DefineImplicitPrerequisite(UDoubleChannelEvaluatorSystem::StaticClass(), GetClass());
-
-		for (int32 Index = 0; Index < UE_ARRAY_COUNT(BuiltInComponents->DoubleResult); ++Index)
-		{
-			DefineComponentConsumer(GetClass(), BuiltInComponents->DoubleResult[Index]);
-		}
-
 		DefineImplicitPrerequisite(UMovieSceneHierarchicalEasingInstantiatorSystem::StaticClass(), GetClass());
-		DefineImplicitPrerequisite(UMovieScenePiecewiseDoubleBlenderSystem::StaticClass(), GetClass());
-		DefineImplicitPrerequisite(GetClass(), UMovieSceneHierarchicalBiasSystem::StaticClass());
 		DefineImplicitPrerequisite(GetClass(), UMovieSceneInitialValueSystem::StaticClass());
 	}
 }
 
-void UMovieSceneMaterialParameterSystem::OnLink()
+void UMovieSceneMaterialParameterInstantiatorSystem::OnLink()
 {
 	using namespace UE::MovieScene;
 
@@ -525,7 +515,7 @@ void UMovieSceneMaterialParameterSystem::OnLink()
 	VectorParameterStorage = Linker->PreAnimatedState.GetOrCreateStorage<FPreAnimatedVectorMaterialParameterStorage>();
 }
 
-void UMovieSceneMaterialParameterSystem::OnUnlink()
+void UMovieSceneMaterialParameterInstantiatorSystem::OnUnlink()
 {
 	using namespace UE::MovieScene;
 
@@ -536,29 +526,7 @@ void UMovieSceneMaterialParameterSystem::OnUnlink()
 	VectorParameterTracker.Destroy(TOverlappingMaterialParameterHandler<FVectorMixin>(this));
 }
 
-void UMovieSceneMaterialParameterSystem::OnRun(FSystemTaskPrerequisites& InPrerequisites, FSystemSubsequentTasks& Subsequents)
-{
-	using namespace UE::MovieScene;
-
-	FMovieSceneEntitySystemRunner* ActiveRunner = Linker->GetActiveRunner();
-	if (!ensure(ActiveRunner))
-	{
-		return;
-	}
-
-	ESystemPhase CurrentPhase = ActiveRunner->GetCurrentPhase();
-	if (CurrentPhase == ESystemPhase::Instantiation)
-	{
-		OnInstantiation();
-	}
-	else if (CurrentPhase == ESystemPhase::Evaluation)
-	{
-		OnEvaluation(InPrerequisites, Subsequents);
-	}
-}
-
-
-void UMovieSceneMaterialParameterSystem::OnInstantiation()
+void UMovieSceneMaterialParameterInstantiatorSystem::OnRun(FSystemTaskPrerequisites& InPrerequisites, FSystemSubsequentTasks& Subsequents)
 {
 	using namespace UE::MovieScene;
 
@@ -644,7 +612,31 @@ void UMovieSceneMaterialParameterSystem::OnInstantiation()
 	}
 }
 
-void UMovieSceneMaterialParameterSystem::OnSchedulePersistentTasks(UE::MovieScene::IEntitySystemScheduler* TaskScheduler)
+UMovieSceneMaterialParameterEvaluationSystem::UMovieSceneMaterialParameterEvaluationSystem(const FObjectInitializer& ObjInit)
+	: Super(ObjInit)
+{
+	using namespace UE::MovieScene;
+
+	FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
+	FMovieSceneTracksComponentTypes* TracksComponents = FMovieSceneTracksComponentTypes::Get();
+
+	RelevantComponent = TracksComponents->BoundMaterial;
+	Phase = ESystemPhase::Scheduling;
+
+	if (HasAnyFlags(RF_ClassDefaultObject))
+	{
+		DefineComponentConsumer(GetClass(), TracksComponents->BoundMaterial);
+
+		for (int32 Index = 0; Index < UE_ARRAY_COUNT(BuiltInComponents->DoubleResult); ++Index)
+		{
+			DefineComponentConsumer(GetClass(), BuiltInComponents->DoubleResult[Index]);
+		}
+
+		DefineImplicitPrerequisite(UMovieScenePiecewiseDoubleBlenderSystem::StaticClass(), GetClass());
+	}
+}
+
+void UMovieSceneMaterialParameterEvaluationSystem::OnSchedulePersistentTasks(UE::MovieScene::IEntitySystemScheduler* TaskScheduler)
 {
 	using namespace UE::MovieScene;
 
@@ -671,7 +663,7 @@ void UMovieSceneMaterialParameterSystem::OnSchedulePersistentTasks(UE::MovieScen
 	.Fork_PerAllocation<FApplyVectorParameters>(&Linker->EntityManager, TaskScheduler);
 }
 
-void UMovieSceneMaterialParameterSystem::OnEvaluation(FSystemTaskPrerequisites& InPrerequisites, FSystemSubsequentTasks& Subsequents)
+void UMovieSceneMaterialParameterEvaluationSystem::OnRun(FSystemTaskPrerequisites& InPrerequisites, FSystemSubsequentTasks& Subsequents)
 {
 	using namespace UE::MovieScene;
 
