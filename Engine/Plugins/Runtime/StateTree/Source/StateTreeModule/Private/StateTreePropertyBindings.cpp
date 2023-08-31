@@ -424,7 +424,17 @@ bool FStateTreePropertyBindings::ResolveCopyType(const FStateTreePropertyPathInd
 		}
 		else if (CastField<FObjectPropertyBase>(TargetProperty))
 		{
-			OutCopy.Type = EStateTreePropertyCopyType::CopyObject;
+			if (SourceProperty->IsA<FSoftObjectProperty>()
+				&& TargetProperty->IsA<FSoftObjectProperty>())
+			{
+				// Use CopyComplex when copying soft object to another soft object so that we do not try to dereference the object (just copies the path).
+				// This handles soft class too.
+				OutCopy.Type = EStateTreePropertyCopyType::CopyComplex;
+			}
+			else
+			{
+				OutCopy.Type = EStateTreePropertyCopyType::CopyObject;
+			}
 			return true;
 		}
 		else if (CastField<FArrayProperty>(TargetProperty) && TargetProperty->HasAnyPropertyFlags(CPF_EditFixedSize))

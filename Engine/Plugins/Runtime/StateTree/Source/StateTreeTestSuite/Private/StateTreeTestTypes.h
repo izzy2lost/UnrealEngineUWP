@@ -396,6 +396,13 @@ public:
 	TArray<FStateTreeTest_PropertyStruct> ArrayOfStruct;
 };
 
+UCLASS(HideDropdown)
+class UStateTreeTest_PropertyObject2 : public UObject
+{
+	GENERATED_BODY()
+public:
+};
+
 USTRUCT()
 struct FStateTreeTest_PropertyCopy
 {
@@ -406,4 +413,22 @@ struct FStateTreeTest_PropertyCopy
 
 	UPROPERTY(EditAnywhere, Category = "")
 	TArray<FStateTreeTest_PropertyStruct> Array;
+};
+
+USTRUCT()
+struct FStateTreeTest_PropertyCopyObjects
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "")
+	TObjectPtr<UObject> Object;
+
+	UPROPERTY(EditAnywhere, Category = "")
+	TSubclassOf<UObject> Class;
+
+	UPROPERTY(EditAnywhere, Category = "")
+	TSoftObjectPtr<UObject> SoftObject;
+
+	UPROPERTY(EditAnywhere, Category = "")
+	TSoftClassPtr<UObject> SoftClass;
 };
