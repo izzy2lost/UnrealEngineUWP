@@ -25,7 +25,7 @@
 #include "eos_metrics.h"
 #include "eos_lobby.h"
 
-#define USES_PRESENCE_ATTRIBUTE_KEY FName("USES_PRESENCE")
+#define USES_PRESENCE_ATTRIBUTE_KEY FName("USESPRESENCE")
 
 FString MakeStringFromAttributeValue(const EOS_Sessions_AttributeData* Attribute)
 {
