@@ -370,10 +370,21 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 	FLumenMinimalPayload Payload = (FLumenMinimalPayload)0;
 	FLumenMinimalRayResult MinimalRayResult = InitLumenMinimalRayResult();
 
-	uint RayFlags = RAY_FLAG_FORCE_NON_OPAQUE; // Run any-hit shader
+	uint RayFlags = 0;
 	RayFlags |= Context.CullingMode;
 	RayFlags |= Context.bAcceptFirstHitAndEndSearch ? RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH : 0;
 	RayFlags |= Context.bSkipClosestHitShader ? RAY_FLAG_SKIP_CLOSEST_HIT_SHADER : 0;
+
+	// If needed force any-hit shader for handling "avoid self intersection" in Lumen minimal AHS
+	#if AVOID_SELF_INTERSECTIONS
+	{
+		const float AvoidSelfIntersectionsDistance = max(LumenHardwareRayTracingUniformBuffer.SkipTwoSidedHitDistance, LumenHardwareRayTracingUniformBuffer.SkipBackFaceHitDistance);
+		if (Ray.TMin < AvoidSelfIntersectionsDistance)
+		{
+			RayFlags = RAY_FLAG_FORCE_NON_OPAQUE;
+		}
+	}
+	#endif
 
 	#if LUMEN_HARDWARE_INLINE_RAYTRACING
 	{
