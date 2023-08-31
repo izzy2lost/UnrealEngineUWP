@@ -1048,7 +1048,7 @@ void USoundWave::Serialize( FArchive& Ar )
 			const ISoundWaveLoadingBehaviorUtil::FClassData OwnerBehavior = GetOwnerLoadingBehavior(Ar.CookingTarget());
 			if (OwnerBehavior.LoadingBehavior != ESoundWaveLoadingBehavior::Uninitialized)
 			{
-				UE_LOG(LogAudio, Display, TEXT("Saving Owners Loading Behavior: %s, %s"), 
+				UE_LOG(LogAudio, VeryVerbose, TEXT("Saving Owners Loading Behavior: %s, %s"), 
 				       EnumToString(OwnerBehavior.LoadingBehavior), *GetFullName());
 				
 				Flags |= HasOwnerLoadingBehaviorFlag;
@@ -2303,25 +2303,39 @@ float USoundWave::GetSizeOfFirstAudioChunkInSeconds(const ITargetPlatform* InPla
 	
 	ensure(InPlatform);
 
+	// This is the most important function for determining the size of chunk 1
+
 	// We need to walk up the hierarchy of sound classes to first determine our FirstAudioChunkSize.
 	if (SoundWaveDataPtr->LoadingBehavior == ESoundWaveLoadingBehavior::Uninitialized)
 	{
 		CacheInheritedLoadingBehavior();
 	}
 
-	// Use owner loading behavior if we have it.
-	ISoundWaveLoadingBehaviorUtil::FClassData Behavior = GetOwnerLoadingBehavior(InPlatform);
-	if (Behavior.LoadingBehavior == ESoundWaveLoadingBehavior::Uninitialized)
+	// Order of importance for where we get this setting.
+	// Wave -> Owner -> Class
+
+	// If Wave has a non-inherited Behavior set, use that.
+	ISoundWaveLoadingBehaviorUtil::FClassData Behavior;
+	if (LoadingBehavior != ESoundWaveLoadingBehavior::Inherited)
 	{
-		// Otherwise use what we've been tagged
+		Behavior.LoadingBehavior = LoadingBehavior;
+		Behavior.LengthOfFirstChunkInSeconds = SizeOfFirstAudioChunkInSeconds;
+	}
+	else // ... if we are inherited, try the owner first.
+	{
+		Behavior = GetOwnerLoadingBehavior(InPlatform);
+	}
+
+	// ... otherwise (or if we failed above) use this soundwave resolved behavior,
+	if (Behavior.LoadingBehavior == ESoundWaveLoadingBehavior::Uninitialized)		
+	{
 		Behavior.LoadingBehavior = SoundWaveDataPtr->LoadingBehavior;
 		Behavior.LengthOfFirstChunkInSeconds = SoundWaveDataPtr->SizeOfFirstAudioChunkInSeconds;
 	}
 
-	// We only allow setting the first chunk size if we're planning on retaining it.
-	// This could be relaxed later once we have a better format that wouldn't cause a huge delta
-	// on tuning the size (all assets etc). By using just retained, we expect a smaller set.
-	if (Behavior.LoadingBehavior == ESoundWaveLoadingBehavior::RetainOnLoad)
+	// Only give values if the behavior is Retain/Prime.
+	if (Behavior.LoadingBehavior == ESoundWaveLoadingBehavior::RetainOnLoad ||
+		Behavior.LoadingBehavior == ESoundWaveLoadingBehavior::PrimeOnLoad)
 	{
 		// See if we have an override for this platform on the SoundClass hierarchy.
 		const FName PlatformName = InPlatform ? InPlatform->GetPlatformInfo().IniPlatformName : FName();
@@ -4108,16 +4122,21 @@ void USoundWave::OverrideLoadingBehavior(ESoundWaveLoadingBehavior InLoadingBeha
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(USoundWave::OverrideLoadingBehavior);
 
+	// Don't allow when running the cook commandlet.
+	if (IsRunningCookCommandlet())
+	{
+		return;
+	}
+
 	const bool bCanOverrideLoadingBehavior = (LoadingBehavior != ESoundWaveLoadingBehavior::ForceInline);
 
 	if (bCanOverrideLoadingBehavior)
 	{
 		const ESoundWaveLoadingBehavior OldBehavior = GetLoadingBehavior(false);
-		const bool bAlreadySetToRetained = (OldBehavior == ESoundWaveLoadingBehavior::RetainOnLoad);
 		const bool bAlreadyLoaded = !HasAnyFlags(RF_NeedLoad);
 
-		// already set to the most aggressive (non-inline) option
-		if (bAlreadySetToRetained)
+		// Already set to a higher setting (lower enum values are more important)
+		if (InLoadingBehavior > OldBehavior)
 		{
 			return;
 		}

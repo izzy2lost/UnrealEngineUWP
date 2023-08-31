@@ -721,8 +721,8 @@ public:
 
 #if WITH_EDITORONLY_DATA
 public:
-   	/** How much audio to add to First Audio Chunk (in seconds), (only for RetainOnLoad) */
-   	UPROPERTY(EditAnywhere, Category = Loading, meta = (UIMin = 0, UIMax = 10, EditCondition = "LoadingBehavior == ESoundWaveLoadingBehavior::RetainOnLoad"), DisplayName="Size of First Audio Chunk (seconds)")
+   	/** How much audio to add to First Audio Chunk (in seconds) */
+	UPROPERTY(EditAnywhere, Category = Loading, meta = (UIMin = 0, UIMax = 10, EditCondition = "LoadingBehavior == ESoundWaveLoadingBehavior::RetainOnLoad || LoadingBehavior == ESoundWaveLoadingBehavior::PrimeOnLoad"), DisplayName="Size of First Audio Chunk (seconds)")
    	FPerPlatformFloat SizeOfFirstAudioChunkInSeconds = 0.0f;
 #endif //WITH_EDITOR_ONLY_DATA
 

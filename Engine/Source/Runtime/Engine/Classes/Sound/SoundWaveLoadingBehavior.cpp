@@ -13,25 +13,16 @@
 #include "SoundWave.h"
 #include "UObject/LinkerLoad.h"
 
+#ifndef CASE_ENUM_TO_TEXT
+#define CASE_ENUM_TO_TEXT(TXT) case TXT: return TEXT(#TXT);
+#endif
 
-const TCHAR* EnumToString(ESoundWaveLoadingBehavior InCurrentState)
+const TCHAR* EnumToString(const ESoundWaveLoadingBehavior InCurrentState)
 {
-	switch (InCurrentState)
+	switch(InCurrentState)
 	{
-	case ESoundWaveLoadingBehavior::Inherited:
-		return TEXT("Inherited");
-	case ESoundWaveLoadingBehavior::RetainOnLoad:
-		return TEXT("RetainOnLoad");
-	case ESoundWaveLoadingBehavior::PrimeOnLoad:
-		return TEXT("PrimeOnLoad");
-	case ESoundWaveLoadingBehavior::LoadOnDemand:
-		return TEXT("LoadOnDemand");
-	case ESoundWaveLoadingBehavior::ForceInline:
-		return TEXT("ForceInline");
-	case ESoundWaveLoadingBehavior::Uninitialized:
-		return TEXT("Uninitialized");
-	}
-	ensure(false);
+		FOREACH_ENUM_ESOUNDWAVELOADINGBEHAVIOR(CASE_ENUM_TO_TEXT)
+	} 
 	return TEXT("Unknown");
 }
 
@@ -70,13 +61,12 @@ public:
 private:
 	void CacheAllClassLoadingBehaviors()
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(LoadAndCacheAllSoundClassLoadingBehaviors);
-
-		ensureMsgf(!AssetRegistry.IsSearchAsync() || !AssetRegistry.IsLoadingAssets(), 
-		           TEXT("Function must not be called until after cook has started and waited on the AssetRegistry already."));
+		const bool bAssetRegistryInStartup = AssetRegistry.IsSearchAsync() && AssetRegistry.IsLoadingAssets();
+		if (!ensureMsgf(!bAssetRegistryInStartup,TEXT("Function must not be called until after cook has started and waited on the AssetRegistry already.")))
+		{
+			AssetRegistry.WaitForCompletion();
+		}
 		
-		AssetRegistry.SearchAllAssets(true);
-
 		TArray<FAssetData> SoundClasses;
 		AssetRegistry.GetAssetsByClass(USoundClass::StaticClass()->GetClassPathName(), SoundClasses, true);
 		
@@ -124,7 +114,7 @@ private:
 		return {};
 	}
 	
-	virtual FClassData FindOwningLoadingBehavior(const USoundWave* InWave, const ITargetPlatform* InTargetPlatform) const 
+	virtual FClassData FindOwningLoadingBehavior(const USoundWave* InWave, const ITargetPlatform* InTargetPlatform) const override
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FindOwningLoadingBehavior);
 
@@ -132,6 +122,15 @@ private:
 		// Then finds the SoundClasses those cues use, traverses the heirarchy (from lookup) to determine the loading behavior.
 		// Then stack ranks the most important behavior. (RetainOnLoad (Highest), PrimeOnLoad (Medium), LoadOnDemand (Lowest))
 		// Which ever wins, we also capture the "SizeOfFirstChunk" to use for that wave.
+
+		const bool bIsAssetRegistryStartup = AssetRegistry.IsSearchAsync() && AssetRegistry.IsLoadingAssets();
+
+		// Disallow during startup of registry (cookers will have already done this)
+		if (bIsAssetRegistryStartup)
+		{
+			UE_LOG(LogAudio, Warning, TEXT("FindOwningLoadingBehavior called before AssetRegistry is ready. SoundWave=%s"), *InWave->GetName());
+			return {};
+		}
 
 		if (!InWave)
 		{
@@ -238,15 +237,13 @@ ISoundWaveLoadingBehaviorUtil* ISoundWaveLoadingBehaviorUtil::Get()
 	{
 		return nullptr;
 	}
-	
-	static bool bAllowOutsideOfCookCommandlet = FParse::Param(FCommandLine::Get(), TEXT("AllowSoundWaveOwnerLoadingBehaviorInEditor"));
-	
+		
 	// Only run while the cooker is active.
-	if (!IsRunningCookCommandlet() && !bAllowOutsideOfCookCommandlet)
-	{
+	if (!IsRunningCookCommandlet())
+	{		
 		return nullptr;
 	}
-	
+		
 	static FSoundWaveLoadingBehaviorUtil Instance;
 	return &Instance;
 }
@@ -266,8 +263,9 @@ bool ISoundWaveLoadingBehaviorUtil::FClassData::CompareGreater(const FClassData&
 	}
 	else 
 	{
-		// If we are using Retain, use one with the higher Length.
-		if (LoadingBehavior == ESoundWaveLoadingBehavior::RetainOnLoad)
+		// If we are using Prime/Retain, use one with the higher Length.
+		if (LoadingBehavior == ESoundWaveLoadingBehavior::RetainOnLoad ||
+			LoadingBehavior == ESoundWaveLoadingBehavior::PrimeOnLoad )
 		{
 			const float Length = LengthOfFirstChunkInSeconds.GetValueForPlatform(*InPlatform->PlatformName());
 			const float OtherLength = InOther.LengthOfFirstChunkInSeconds.GetValueForPlatform(*InPlatform->PlatformName());
