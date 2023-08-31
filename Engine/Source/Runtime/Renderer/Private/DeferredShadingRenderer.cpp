@@ -3252,6 +3252,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	const EShaderPlatform Platform = GetViewFamilyInfo(Views).GetShaderPlatform();
 	const bool bBasePassCanOutputVelocity = FVelocityRendering::BasePassCanOutputVelocity(Platform);
 	const bool bHairStrandsEnable = HairStrandsBookmarkParameters.HasInstances() && Views.Num() > 0 && IsHairStrandsEnabled(EHairStrandsShaderType::Strands, Platform);
+	const bool bForceVelocityOutput = bHairStrandsEnable || ShouldRenderDistortion();
 
 	auto RenderPrepassAndVelocity = [&](auto& InViews, auto& InNaniteBasePassVisibility, auto& NaniteRasterResults, auto& PrimaryNaniteViews)
 	{
@@ -3285,7 +3286,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			{
 				// Render the velocities of movable objects
 				GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_Velocity));
-				RenderVelocities(GraphBuilder, InViews, SceneTextures, EVelocityPass::Opaque, bHairStrandsEnable);
+				RenderVelocities(GraphBuilder, InViews, SceneTextures, EVelocityPass::Opaque, bForceVelocityOutput);
 				GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_AfterVelocity));
 			}
 		}
