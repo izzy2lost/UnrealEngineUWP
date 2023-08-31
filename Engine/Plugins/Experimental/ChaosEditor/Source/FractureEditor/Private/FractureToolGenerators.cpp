@@ -904,6 +904,25 @@ AActor* UFractureToolGenerateAsset::AddActor(ULevel* InLevel, UClass* Class)
 }
 
 
+UFractureToolResetAsset::UFractureToolResetAsset(const FObjectInitializer& ObjInit) : Super(ObjInit)
+{
+	ResetSettings = NewObject<UGeometryCollectionResetSettings>(GetTransientPackage(), UGeometryCollectionResetSettings::StaticClass());
+	ResetSettings->OwnerTool = this;
+}
+
+FText UFractureToolResetAsset::GetApplyText() const
+{ 
+	return FText(NSLOCTEXT("FractureToolReset", "FractureToolResetAction", "Reset")); 
+}
+
+TArray<UObject*> UFractureToolResetAsset::GetSettingsObjects() const
+{
+	TArray<UObject*> Settings;
+	Settings.Add(ResetSettings);
+	return Settings;
+}
+
+
 FText UFractureToolResetAsset::GetDisplayText() const
 {
 	return FText(NSLOCTEXT("Fracture", "FractureToolReset", "Reset"));
@@ -950,7 +969,7 @@ void UFractureToolResetAsset::Execute(TWeakPtr<FFractureEditorModeToolkit> InToo
 			TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> GeometryCollectionPtr = GeometryCollectionObject->GetGeometryCollection();
 			if (FGeometryCollection* GeometryCollection = GeometryCollectionPtr.Get())
 			{
-				constexpr bool bKeepPreviousMaterials = true; // written as a flag in case we want to make this optional later
+				bool bKeepPreviousMaterials = !ResetSettings->bResetMaterials;
 				TArray<TObjectPtr<UMaterialInterface>> OldMaterials;
 				if (bKeepPreviousMaterials)
 				{
@@ -982,10 +1001,10 @@ void UFractureToolResetAsset::Execute(TWeakPtr<FFractureEditorModeToolkit> InToo
 				constexpr bool bHasInternalMaterials = false;
 				GeometryCollectionObject->InitializeMaterials(bHasInternalMaterials);
 
-				// attempt to keep previously-set materials (as long as the source doesn't have even more materials)
-				int32 NewMatNum = GeometryCollectionObject->Materials.Num(), OldMatNum = OldMaterials.Num();
-				if (bKeepPreviousMaterials && NewMatNum <= OldMatNum)
+				// attempt to keep previously-set materials if requested
+				if (bKeepPreviousMaterials)
 				{
+					int32 NewMatNum = GeometryCollectionObject->Materials.Num(), OldMatNum = OldMaterials.Num();
 					GeometryCollectionObject->Materials.SetNum(OldMatNum);
 					for (int32 MatIdx = 0; MatIdx < OldMatNum; MatIdx++)
 					{
