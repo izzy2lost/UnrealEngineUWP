@@ -132,10 +132,12 @@ namespace Metasound
 						AudioBusSubsystem->StartAudioBus(AudioBusKey, AudioBusChannels, false);
 
 						InterleavedBuffer.Reset();
-						InterleavedBuffer.AddZeroed(BlockSizeFrames * AudioBusChannels);
+						InterleavedBuffer.AddZeroed(NumBlocksToNumSamples(1));
 
 						// Create a bus patch input with enough room for the number of samples we expect and some buffering
 						AudioBusPatchInput = AudioBusSubsystem->AddPatchInputForAudioBus(AudioBusKey, BlockSizeFrames, AudioBusChannels);
+
+						ConnectionState = EConnectionState::Disconnected;
 					}
 				}
 			}
@@ -164,7 +166,6 @@ namespace Metasound
 			BlockSizeFrames = InParams.OperatorSettings.GetNumFramesPerBlock();
 
 			CreatePatchInput();
-			bFirstBlock = true;
 		}
 
 
@@ -256,13 +257,34 @@ namespace Metasound
 				}
 			}
 
-			if (bFirstBlock)
+			if (ConnectionState != EConnectionState::Connected)
 			{
-				bFirstBlock = false;
+				int32 InitialNumBlocks = 1;
 				if (AudioMixerOutputFrames != BlockSizeFrames)
 				{
-					// Ensure there will be enough samples in the patch input to support the maximum metasound executions the mixer requires to fill its output frames after the next push.
-					AudioBusPatchInput.PushAudio(nullptr, (FMath::DivideAndRoundUp(FMath::Max(AudioMixerOutputFrames, BlockSizeFrames), FMath::Min(AudioMixerOutputFrames, BlockSizeFrames)) - 1) * BlockSizeFrames * AudioBusChannels);
+					InitialNumBlocks = FMath::DivideAndRoundUp(FMath::Max(AudioMixerOutputFrames, BlockSizeFrames), FMath::Min(AudioMixerOutputFrames, BlockSizeFrames));
+				}
+
+				if (ConnectionState == EConnectionState::Disconnected)
+				{
+					if (InitialNumBlocks > 1)
+					{
+						// Ensure there will be enough samples in the patch input to support the maximum metasound executions the mixer requires to fill its output frames after the next push.
+						AudioBusPatchInput.PushAudio(nullptr, NumBlocksToNumSamples(InitialNumBlocks - 1));
+					}
+
+					ConnectionState = EConnectionState::ConnectionPending;
+				}
+				else
+				{
+					// Determine if the pending connection has been established, by detecting if samples have been consumed.
+					if (AudioBusPatchInput.GetNumSamplesAvailable() == NumBlocksToNumSamples(InitialNumBlocks))
+					{
+						UE_LOG(LogMetaSound, Verbose, TEXT("Writer node executed before mixer patch connection established."));
+						return;
+					}
+
+					ConnectionState = EConnectionState::Connected;
 				}
 			}
 
@@ -275,6 +297,11 @@ namespace Metasound
 		}
 
 	private:
+		int32 NumBlocksToNumSamples(int32 NumBlocks) const
+		{
+			return NumBlocks * BlockSizeFrames * AudioBusChannels;
+		}
+
 		FAudioBusAssetReadRef AudioBusAsset;
 		TArray<FAudioBufferReadRef> AudioInputs;
 
@@ -286,7 +313,13 @@ namespace Metasound
 		uint32 AudioBusChannels = INDEX_NONE;
 		uint32 AudioBusId = 0;
 		int32 BlockSizeFrames = 0;
-		bool bFirstBlock = true;
+		enum class EConnectionState : uint8
+		{
+			Disconnected,
+			ConnectionPending,
+			Connected
+		}
+		ConnectionState = EConnectionState::Disconnected;
 	};
 
 	template<uint32 NumChannels>

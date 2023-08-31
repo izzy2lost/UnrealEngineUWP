@@ -298,6 +298,17 @@ namespace Audio
 		return SamplesPushed;
 	}
 
+	/** Returns the current number of samples buffered in this input. */
+	int32 FPatchInput::GetNumSamplesAvailable() const
+	{
+		if (!OutputHandle.IsValid())
+		{
+			return 0;
+		}
+
+		return OutputHandle->GetNumSamplesAvailable();
+	}
+
 	void FPatchInput::SetGain(float InGain)
 	{
 		if (!OutputHandle.IsValid())
