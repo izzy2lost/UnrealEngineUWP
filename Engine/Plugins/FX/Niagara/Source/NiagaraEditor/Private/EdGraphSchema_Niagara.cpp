@@ -14,6 +14,7 @@
 #include "NiagaraEditorModule.h"
 #include "NiagaraEditorUtilities.h"
 #include "NiagaraEmitter.h"
+#include "NiagaraFunctionLibrary.h"
 #include "NiagaraGraph.h"
 #include "NiagaraHlslTranslator.h"
 #include "NiagaraNodeConvert.h"
@@ -546,6 +547,18 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		for (const FAssetData& FunctionScriptAsset : FunctionScriptAssets)
 		{
 			AddScriptFunctionAction({LOCTEXT("Function Menu Title", "Functions").ToString()}, FunctionScriptAsset);
+		}
+
+		// Insert fast path function nodes here (visible with fx.AllowFastPathFunctionLibrary)...
+		const TArray<FNiagaraFunctionSignature>& VMFastPathOps = UNiagaraFunctionLibrary::GetVectorVMFastPathOps();
+		for (const FNiagaraFunctionSignature& Sig : VMFastPathOps)
+		{
+			UNiagaraNodeFunctionCall* FunctionCallNode = NewObject<UNiagaraNodeFunctionCall>(OwnerOfTemporaries);
+			FunctionCallNode->Signature = Sig;
+
+			const FText MenuDesc = FText::FromString(FName::NameToDisplayString(Sig.Name.ToString(), false));
+			TSharedPtr<FNiagaraAction_NewNode> FunctionCallAction = AddNewNodeMenuAction(NewActions, FunctionCallNode, MenuDesc, ENiagaraMenuSections::General, TArray<FString>(), MenuDesc);
+			FunctionCallAction->NodeTemplate = FunctionCallNode;
 		}
 	}
 
