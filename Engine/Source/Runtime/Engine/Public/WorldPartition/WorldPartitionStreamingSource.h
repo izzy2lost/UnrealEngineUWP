@@ -125,6 +125,8 @@ struct FStreamingSourceShape
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Streaming)
 	FRotator Rotation;
 
+	FString ToString() const;
+
 	friend uint32 GetTypeHash(const FStreamingSourceShape& InShape)
 	{
 		uint32 Hash = GetTypeHash(InShape.bUseGridLoadingRange);
@@ -492,20 +494,7 @@ struct FWorldPartitionStreamingSource
 		}
 	}
 
-	FString ToString() const
-	{
-		return FString::Printf(
-			TEXT("Priority: %d | %s | %s | %s | Pos: X=%lld,Y=%lld,Z=%lld | Rot: %s | Vel: %3.2f m/s (%d mph)"), 
-			Priority, 
-			bRemote ? TEXT("Remote") : TEXT("Local"),
-			GetStreamingSourceTargetStateName(TargetState),
-			bBlockOnSlowLoading ? TEXT("Blocking") : TEXT("NonBlocking"),
-			(int64)Location.X, (int64)Location.Y, (int64)Location.Z, 
-			*Rotation.ToCompactString(),
-			Velocity, 
-			(int32)(Velocity*2.23694f)
-		);
-	}
+	FString ToString() const;
 
 	static int32 GetLocationQuantization() { return LocationQuantization; }
 	static int32 GetRotationQuantization() { return RotationQuantization; }
