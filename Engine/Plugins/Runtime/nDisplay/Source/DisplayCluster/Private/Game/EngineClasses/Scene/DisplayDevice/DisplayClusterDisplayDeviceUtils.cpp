@@ -96,4 +96,26 @@ UDisplayClusterDisplayDeviceBaseComponent* UE::DisplayClusterDisplayDeviceUtils:
 	return nullptr;
 }
 
+void UE::DisplayClusterDisplayDeviceUtils::ConfigureTechVizForMesh(UMeshComponent* InMeshComponent,
+	bool bIsTechVizEnabled)
+{
+	check(InMeshComponent);
+	
+	if (bIsTechVizEnabled)
+	{
+		InMeshComponent->bAffectDynamicIndirectLighting = true;
+		InMeshComponent->bAffectIndirectLightingWhileHidden = true;
+	}
+	else
+	{
+		// When disabling just revert to the archetype values. The original values at the time of enabling
+		// techviz aren't saved, and techviz is enabled by default so they'll always be set to true on new meshes.
+		if (const UMeshComponent* MeshArchetype = Cast<UMeshComponent>(InMeshComponent->GetArchetype()))
+		{
+			InMeshComponent->bAffectDynamicIndirectLighting = MeshArchetype->bAffectDynamicIndirectLighting;
+			InMeshComponent->bAffectIndirectLightingWhileHidden = MeshArchetype->bAffectIndirectLightingWhileHidden;
+		}
+	}
+}
+
 #endif

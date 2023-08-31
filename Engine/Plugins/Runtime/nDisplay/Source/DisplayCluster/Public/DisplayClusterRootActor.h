@@ -384,6 +384,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview", meta = (DisplayName = "Enable Post Process"), BlueprintSetter = SetPreviewEnablePostProcess)
 	bool bPreviewEnablePostProcess = false;
 
+	/** Configure the root actor for tech viz rendering with preview components. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview")
+	bool bEnablePreviewTechViz = true;
+	
 	/** Freeze preview render.  This will impact editor performance. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview", meta = (DisplayName = "Freeze Editor Preview"))
 	bool bFreezePreviewRender = false;
@@ -552,10 +556,16 @@ public:
 
 	/** Retrieve the default display device, creating it if it doesn't exist */
 	UDisplayClusterDisplayDeviceBaseComponent* GetDefaultDisplayDevice();
+
+	/** If the preview should use techviz rendering. */
+	bool IsTechVizPreviewRenderingEnabled() const { return bEnablePreviewTechViz; }
 	
 protected:
 	FString GeneratePreviewComponentName_Editor(const FString& NodeId, const FString& ViewportId) const;
 	void ResetPreviewInternals_Editor();
+
+	/** Configure preview components for techviz rendering. */
+	void ConfigureTechViz_Editor();
 
 	bool ImplUpdatePreviewConfiguration_Editor(const FString& InClusterNodeId);
 

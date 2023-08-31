@@ -285,6 +285,14 @@ bool UDisplayClusterPreviewComponent::UpdatePreviewMesh()
 				if (PreviewMesh != nullptr)
 				{
 					PreviewMesh->SetCastShadow(false);
+
+					if (RootActor && RootActor->IsTechVizPreviewRenderingEnabled())
+					{
+						// Force set these properties to on with techviz rendering enabled. It won't work properly
+						// with them off. We don't need to force them off when techviz rendering is disabled, PostEditChangeProperty
+						// on the root actor will take care of that.
+						UE::DisplayClusterDisplayDeviceUtils::ConfigureTechVizForMesh(PreviewMesh, true);
+					}
 				}
 
 				if (MovablePreviewMesh != nullptr)
@@ -357,10 +365,13 @@ void UDisplayClusterPreviewComponent::UpdatePreviewMaterial()
 		}
 
 		// Allow display device to perform any processing on the material instance.
-		if (UDisplayClusterDisplayDeviceBaseComponent* CachedComponent =
-			Cast<UDisplayClusterDisplayDeviceBaseComponent>(CachedDisplayDevice.GetComponent(GetOwner())))
+		if (RootActor && RootActor->IsTechVizPreviewRenderingEnabled())
 		{
-			CachedComponent->OnUpdatePreviewMaterialInstance(PreviewMaterialInstance);
+			if (UDisplayClusterDisplayDeviceBaseComponent* CachedComponent =
+				Cast<UDisplayClusterDisplayDeviceBaseComponent>(CachedDisplayDevice.GetComponent(GetOwner())))
+			{
+				CachedComponent->OnUpdatePreviewMaterialInstance(PreviewMaterialInstance);
+			}
 		}
 	}
 
@@ -433,14 +444,17 @@ void UDisplayClusterPreviewComponent::UpdatePreviewRenderTarget()
 			DestinationRenderTarget = SourceRenderTarget;
 
 			// Perform any render passes on the render target by the display device
-			if (UDisplayClusterDisplayDeviceBaseComponent* CachedComponent =
-			Cast<UDisplayClusterDisplayDeviceBaseComponent>(CachedDisplayDevice.GetComponent(GetOwner())))
+			if (RootActor->IsTechVizPreviewRenderingEnabled())
 			{
-				if (CachedComponent->IsRenderPassEnabled() && !RootActor->IsTemplate())
+				if (UDisplayClusterDisplayDeviceBaseComponent* CachedComponent =
+				Cast<UDisplayClusterDisplayDeviceBaseComponent>(CachedDisplayDevice.GetComponent(GetOwner())))
 				{
-					UpdateRenderTargetImpl(&DisplayDeviceRenderTarget);
-					CachedComponent->RenderPass_GameThread(SourceRenderTarget, DisplayDeviceRenderTarget);
-					DestinationRenderTarget = DisplayDeviceRenderTarget;
+					if (CachedComponent->IsRenderPassEnabled() && !RootActor->IsTemplate())
+					{
+						UpdateRenderTargetImpl(&DisplayDeviceRenderTarget);
+						CachedComponent->RenderPass_GameThread(SourceRenderTarget, DisplayDeviceRenderTarget);
+						DestinationRenderTarget = DisplayDeviceRenderTarget;
+					}
 				}
 			}
 		}

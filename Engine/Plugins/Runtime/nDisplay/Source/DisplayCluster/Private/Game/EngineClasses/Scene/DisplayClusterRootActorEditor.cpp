@@ -101,6 +101,20 @@ void ADisplayClusterRootActor::ResetPreviewInternals_Editor()
 	ResetClusterNodePreviewRendering_Editor();
 }
 
+void ADisplayClusterRootActor::ConfigureTechViz_Editor()
+{
+	TArray<UDisplayClusterPreviewComponent*> Components;
+	GetComponents(Components);
+
+	for (UDisplayClusterPreviewComponent* PreviewComponent : Components)
+	{
+		if (UMeshComponent* Mesh = PreviewComponent->GetPreviewMesh())
+		{
+			UE::DisplayClusterDisplayDeviceUtils::ConfigureTechVizForMesh(Mesh, bEnablePreviewTechViz);
+		}
+	}
+}
+
 void ADisplayClusterRootActor::Constructor_Editor()
 {
 	// Allow tick in editor for preview rendering
@@ -898,6 +912,11 @@ void ADisplayClusterRootActor::PostEditChangeProperty(FPropertyChangedEvent& Pro
 		PreviewRenderFrame.Reset();
 		bReinitializeActor = false;
 	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(ADisplayClusterRootActor, bEnablePreviewTechViz))
+	{
+		ConfigureTechViz_Editor();
+	}
+	
 	if (bReinitializeActor)
 	{
 		InitializeRootActor();
