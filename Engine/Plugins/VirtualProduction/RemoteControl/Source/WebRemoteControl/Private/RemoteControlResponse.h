@@ -3,6 +3,7 @@
 
 #include "AssetRegistry/AssetData.h"
 #include "CoreMinimal.h"
+#include "IRemoteControlModule.h"
 #include "RemoteControlField.h"
 #include "RemoteControlModels.h"
 #include "RemoteControlPreset.h"
