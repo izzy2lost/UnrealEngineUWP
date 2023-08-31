@@ -202,3 +202,4 @@ void LumenSceneDirectLightingNonRayTracedShadowsCS(
 		RWShadowMaskTiles[SHADOW_MASK_CARD_TILE_DWORDS * LightTileIndex + ShadowMaskSize * ShadowMaskOffset + LinearGroupThreadId] = SharedShadowMask[LinearGroupThreadId];
 	}
 }
+
