@@ -1540,7 +1540,7 @@ void UCommonUserSubsystem::ProcessLoginRequest(TSharedRef<FUserLoginRequest> Req
 	}
 
 	// Check for overall success
-	if (CurrentStatus != ELoginStatusType::NotLoggedIn && CurrentId.IsValid())
+	if (bHasRequiredStatus && CurrentId.IsValid())
 	{
 		// Stall if we're waiting for the login UI to close
 		if (Request->LoginUIState == ECommonUserAsyncTaskState::InProgress)
