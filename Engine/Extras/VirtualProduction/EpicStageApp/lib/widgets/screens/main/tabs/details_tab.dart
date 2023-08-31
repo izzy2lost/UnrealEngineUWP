@@ -369,6 +369,7 @@ class _DetailsTabState extends State<DetailsTab> with GuardedRefreshState {
       ),
       UnrealDeltaSlider(
         unrealProperties: _getPropertiesOnValidActors('Falloff'),
+        hardMax: 1,
       ),
     ]);
   }
