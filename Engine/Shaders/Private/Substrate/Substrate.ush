@@ -22,7 +22,7 @@
 #include "../SubsurfaceProfileCommon.ush"
 #include "../BurleyNormalizedSSSCommon.ush"
 #include "../GammaCorrectionCommon.ush"
-#include "/Engine/Shared/StrataDefinitions.h"
+#include "/Engine/Shared/SubstrateDefinitions.h"
 #include "/Engine/Private/Substrate/SubstrateStatisticalOperators.ush"
 #include "/Engine/Private/Substrate/SubstrateSubsurface.ush"
 
@@ -292,7 +292,7 @@ struct FStrataBSDF
 #define HEADER_MASK_HASSUBSURFACE					(1u << 7)
 #define HEADER_MASK_BIT_COUNT						8
 
-// For HEADER_BIT_BSDF_COUNT and  HEADER_BIT_SHAREDLOCALBASES_X, please refer to values in StrataDefinitions.h
+// For HEADER_BIT_BSDF_COUNT and  HEADER_BIT_SHAREDLOCALBASES_X, please refer to values in SubstrateDefinitions.h
 #define HEADER_BIT_COUNT_STATE						HEADER_MASK_BIT_COUNT
 #define HEADER_BIT_COUNT_IRRADIANCE_AO				8
 // The remaining header bits are only available for the complex path.

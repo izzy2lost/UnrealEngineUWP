@@ -3,7 +3,7 @@
 #pragma once
 
 #include "/Engine/Private/Common.ush"
-#include "/Engine/Public/StrataPublic.ush"
+#include "/Engine/Public/SubstratePublic.ush"
 
 #define NDICOLLISIONQUERY_USE_GBUFFER_NORMAL    (FEATURE_LEVEL >= FEATURE_LEVEL_SM5)
 

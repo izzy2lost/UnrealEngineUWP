@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "StrataDefinitions.h"
+#include "SubstrateDefinitions.h"
 #include "Serialization/MemoryImage.h"
 
 

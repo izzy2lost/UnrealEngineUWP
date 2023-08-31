@@ -36,18 +36,18 @@
 #include "Materials/MaterialExpressionViewProperty.h"
 #include "Materials/MaterialExpressionVolumetricAdvancedMaterialOutput.h"
 #include "Materials/MaterialExpressionWorldPosition.h"
-#include "Materials/StrataMaterial.h"
+#include "Materials/SubstrateMaterial.h"
 #include "ParameterCollection.h"
 #include "RenderUtils.h"
 #include "Stats/StatsMisc.h"
 #include "Stats/StatsTrace.h"
-#include "StrataDefinitions.h"
+#include "SubstrateDefinitions.h"
 #include "VT/RuntimeVirtualTexture.h"
 #include <memory>
 #include <tuple>
 
 #if WITH_EDITORONLY_DATA
-#include "Materials/MaterialExpressionStrata.h"
+#include "Materials/MaterialExpressionSubstrate.h"
 #include "ShaderPlatformCachedIniValue.h"
 #endif
 

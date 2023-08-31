@@ -15,7 +15,7 @@
 #include "ShaderPlatformCachedIniValue.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "RenderCore.h"
-#include "StrataDefinitions.h"
+#include "SubstrateDefinitions.h"
 
 #if WITH_EDITOR
 #include "Interfaces/ITargetPlatform.h"

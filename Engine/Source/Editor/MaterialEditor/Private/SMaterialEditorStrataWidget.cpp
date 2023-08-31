@@ -5,7 +5,7 @@
 #include "EditorWidgetsModule.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "MaterialEditor.h"
-#include "StrataDefinitions.h"
+#include "SubstrateDefinitions.h"
 #include <functional>
 
 #include "Widgets/Input/SButton.h"

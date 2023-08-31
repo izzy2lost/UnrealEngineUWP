@@ -6,8 +6,8 @@
 #include "MaterialDomain.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialExpressionShadingModel.h"
-#include "Materials/MaterialExpressionStrata.h"
-#include "StrataDefinitions.h"
+#include "Materials/MaterialExpressionSubstrate.h"
+#include "SubstrateDefinitions.h"
 
 #define LOCTEXT_NAMESPACE "MaterialShared"
 

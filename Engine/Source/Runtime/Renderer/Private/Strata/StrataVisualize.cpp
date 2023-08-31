@@ -9,7 +9,7 @@
 #include "PixelShaderUtils.h"
 #include "BasePassRendering.h"
 #include "IndirectLightRendering.h"
-#include "StrataVisualizationData.h"
+#include "SubstrateVisualizationData.h"
 
 namespace Strata
 {
@@ -368,7 +368,7 @@ static FStrataViewMode GetStrataVisualizeMode(const FViewInfo & View)
 	FStrataViewMode Out = FStrataViewMode::None;
 	if (IsStrataEnabled() && StrataDebugVisualizationCanRunOnPlatform(View.GetShaderPlatform()))
 	{
-		// Variable defined in StrataVisualizationData.h/.cpp
+		// Variable defined in SubstrateVisualizationData.h/.cpp
 		static const auto CVar = IConsoleManager::Get().FindConsoleVariable(FStrataVisualizationData::GetVisualizeConsoleCommandName());
 		const uint32 ViewMode = CVar && CVar->AsVariableInt() ? CVar->AsVariableInt()->GetValueOnRenderThread() : 0;
 		switch (ViewMode)

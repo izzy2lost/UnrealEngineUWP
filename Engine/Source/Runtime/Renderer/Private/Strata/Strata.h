@@ -7,7 +7,7 @@
 #include "MeshPassProcessor.h"
 #include "UnifiedBuffer.h"
 #include "RHIUtilities.h"
-#include "StrataDefinitions.h"
+#include "SubstrateDefinitions.h"
 #include "GBufferInfo.h"
 #include "RendererUtils.h"
 #include "ShaderParameterStruct.h"

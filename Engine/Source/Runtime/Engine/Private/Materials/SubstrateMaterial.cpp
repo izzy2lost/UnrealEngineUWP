@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "StrataMaterial.h"
+#include "SubstrateMaterial.h"
 #include "MaterialCompiler.h"
 #include "Materials/MaterialInterface.h"
-#include "StrataDefinitions.h"
+#include "SubstrateDefinitions.h"
 #include "RenderUtils.h"
 
 FString GetStrataBSDFName(uint8 BSDFType)

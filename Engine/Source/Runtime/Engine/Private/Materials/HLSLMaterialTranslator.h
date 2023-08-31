@@ -49,7 +49,7 @@
 #include "Containers/LazyPrintf.h"
 #include "Containers/HashTable.h"
 #include "Engine/Texture2D.h"
-#include "StrataMaterial.h"
+#include "SubstrateMaterial.h"
 #include "HLSLMaterialDerivativeAutogen.h"
 #endif
 

@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Engine/EngineTypes.h"
 #include "Materials/MaterialExpression.h"
-#include "MaterialExpressionStrata.generated.h"
+#include "MaterialExpressionSubstrate.generated.h"
 
 class FMaterialCompiler;
 

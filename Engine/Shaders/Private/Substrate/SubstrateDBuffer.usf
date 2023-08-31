@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "/Engine/Private/Common.ush"
-#include "/Engine/Shared/StrataDefinitions.h"   
+#include "/Engine/Shared/SubstrateDefinitions.h"   
 
 #if PERMUTATION_TILETYPE == 0
 #define STRATA_FASTPATH 1

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "/Engine/Private/Common.ush"
-#include "/Engine/Shared/StrataDefinitions.h"   
+#include "/Engine/Shared/SubstrateDefinitions.h"   
 #include "Substrate.ush"
 
 #if STRATA_ENABLED

@@ -64,7 +64,7 @@
 #include "BufferVisualizationData.h"
 #include "NaniteVisualizationData.h"
 #include "LumenVisualizationData.h"
-#include "StrataVisualizationData.h"
+#include "SubstrateVisualizationData.h"
 #include "GroomVisualizationData.h"
 #include "VirtualShadowMapVisualizationData.h"
 #include "Framework/Notifications/NotificationManager.h"

@@ -3,7 +3,7 @@
 #pragma once
 
 /*=============================================================================
-	StrataPublic.ush: Public facing API for external users of Strata.
+	SubstratePublic.ush: Public facing API for external users of Strata.
 =============================================================================*/
 
 #include "/Engine/Private/Substrate/Substrate.ush"

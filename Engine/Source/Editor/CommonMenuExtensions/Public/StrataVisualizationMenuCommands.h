@@ -9,7 +9,7 @@
 #include "HAL/Platform.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/NameTypes.h"
-#include "StrataVisualizationData.h"
+#include "SubstrateVisualizationData.h"
 
 class FEditorViewportClient;
 class FMenuBuilder;

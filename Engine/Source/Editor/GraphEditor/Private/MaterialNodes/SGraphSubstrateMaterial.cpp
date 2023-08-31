@@ -7,11 +7,11 @@
 #include "MaterialGraph/MaterialGraphNode.h"
 #include "MaterialGraph/MaterialGraphNode_Root.h"
 #include "Materials/MaterialExpression.h"
-#include "Materials/MaterialExpressionStrata.h"
+#include "Materials/MaterialExpressionSubstrate.h"
 #include "SGraphPin.h"
 #include "Math/Color.h"
 #include "Styling/StyleColors.h"
-#include "StrataDefinitions.h"
+#include "SubstrateDefinitions.h"
 #include "Widgets/SBoxPanel.h"
 
 enum class ESubstrateWidgetOutputType : uint8

@@ -11,7 +11,7 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Internationalization/Internationalization.h"
 #include "Internationalization/Text.h"
-#include "StrataVisualizationData.h"
+#include "SubstrateVisualizationData.h"
 #include "Misc/AssertionMacros.h"
 #include "Styling/AppStyle.h"
 #include "UObject/UnrealNames.h"

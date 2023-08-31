@@ -3,7 +3,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "StrataDefinitions.h"
 #include "Containers/Map.h"
 #include "MaterialCompiler.h"
 

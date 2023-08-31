@@ -52,7 +52,7 @@
 #endif
 #include "ProfilingDebugging/CountersTrace.h"
 #include "RenderCore.h"
-#include "StrataDefinitions.h"
+#include "SubstrateDefinitions.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "ProfilingDebugging/CookStats.h"
 
