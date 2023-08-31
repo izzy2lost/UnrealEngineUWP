@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Math/Range.h"
 #include "Math/Transform.h"
 #include "EntitySystem/BuiltInComponentTypes.h"
 #include "EntitySystem/MovieSceneEntityIDs.h"
@@ -598,6 +599,7 @@ struct FMovieSceneTracksComponentTypes
 	{
 		FComponentTypeID BoundMaterialChanged;
 		FComponentTypeID CustomPrimitiveData;
+		FComponentTypeID Slomo;
 	} Tags;
 
 	TComponentTypeID<FLevelVisibilityComponentData> LevelVisibility;
