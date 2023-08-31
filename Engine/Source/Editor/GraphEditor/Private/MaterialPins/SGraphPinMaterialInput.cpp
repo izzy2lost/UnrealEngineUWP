@@ -10,6 +10,7 @@
 #include "Misc/AssertionMacros.h"
 #include "Templates/Casts.h"
 #include "SGraphSubstrateMaterial.h"
+#include "MaterialValueType.h"
 
 void SGraphPinMaterialInput::Construct(const FArguments& InArgs, UEdGraphPin* InGraphPinObj)
 {
