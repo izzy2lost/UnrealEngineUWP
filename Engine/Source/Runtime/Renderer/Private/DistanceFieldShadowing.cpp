@@ -29,7 +29,7 @@
 #include "DistanceFieldAmbientOcclusion.h"
 #include "PipelineStateCache.h"
 #include "ClearQuad.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 #include "PixelShaderUtils.h"
 
 int32 GDistanceFieldShadowing = 1;

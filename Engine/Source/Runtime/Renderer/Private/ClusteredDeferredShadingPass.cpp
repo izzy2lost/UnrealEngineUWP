@@ -27,7 +27,7 @@
 #include "VirtualShadowMaps/VirtualShadowMapArray.h"
 #include "PostProcess/SceneFilterRendering.h"
 #include "PostProcess/PostProcessing.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 
 // This is used to switch on and off the clustered deferred shading implementation, that uses the light grid to perform shading.
 int32 GUseClusteredDeferredShading = 0;

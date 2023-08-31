@@ -14,7 +14,7 @@
 #include "VariableRateShadingImageManager.h"
 #include "Lumen/LumenTranslucencyVolumeLighting.h"
 #include "VirtualShadowMaps/VirtualShadowMapArray.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 #include "HairStrands/HairStrandsUtils.h"
 #include "PixelShaderUtils.h"
 #include "OIT/OIT.h"

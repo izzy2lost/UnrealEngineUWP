@@ -8,7 +8,7 @@
 #include "RayTracing/RayTracingLighting.h"
 #include "RayTracingPayloadType.h"
 #include "SceneTextureParameters.h"
-#include "Strata/Strata.h" 
+#include "Substrate/Substrate.h" 
 
 namespace LumenHardwareRayTracing
 {

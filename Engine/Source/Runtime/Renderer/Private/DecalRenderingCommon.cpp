@@ -4,7 +4,7 @@
 #include "RHIStaticStates.h"
 #include "RenderUtils.h"
 #include "DataDrivenShaderPlatformInfo.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 
 namespace DecalRendering
 {

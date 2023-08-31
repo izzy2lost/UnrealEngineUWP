@@ -7,7 +7,7 @@
 #include "ScreenPass.h"
 #include "ScenePrivate.h"
 #include "SceneTextureParameters.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 #include "SystemTextures.h"
 #include "VariableRateShadingImageManager.h"
 

@@ -63,7 +63,7 @@
 #include "SceneViewExtension.h"
 #include "FXSystem.h"
 #include "SkyAtmosphereRendering.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 #include "TemporalUpscaler.h"
 #include "VirtualShadowMaps/VirtualShadowMapArray.h"
 #include "Lumen/LumenVisualize.h"

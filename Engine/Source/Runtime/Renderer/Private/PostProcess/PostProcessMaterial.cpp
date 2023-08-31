@@ -25,7 +25,7 @@
 #include "BufferVisualizationData.h"
 #include "SceneTextureParameters.h"
 #include "SystemTextures.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 #include "SingleLayerWaterRendering.h"
 
 namespace

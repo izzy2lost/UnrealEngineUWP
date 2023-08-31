@@ -4,7 +4,7 @@
 
 #include "Engine/Texture.h"
 #include "TranslucentLighting.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 
 #include "BufferVisualizationData.h"
 #include "SceneTextureParameters.h"

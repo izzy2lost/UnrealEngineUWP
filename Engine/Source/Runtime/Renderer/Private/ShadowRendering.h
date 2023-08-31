@@ -31,7 +31,7 @@
 #include "ShaderParameterUtils.h"
 #include "LightRendering.h"
 #include "HairStrands/HairStrandsRendering.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 #include "SimpleMeshDrawCommandPass.h"
 #include "Engine/SubsurfaceProfile.h"
 

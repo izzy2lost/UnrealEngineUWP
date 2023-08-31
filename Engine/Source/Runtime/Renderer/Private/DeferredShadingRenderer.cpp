@@ -63,7 +63,7 @@
 #include "Rendering/NaniteCoarseMeshStreamingManager.h"
 #include "SceneTextureReductions.h"
 #include "VirtualShadowMaps/VirtualShadowMapCacheManager.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 #include "Lumen/Lumen.h"
 #include "Experimental/Containers/SherwoodHashTable.h"
 #include "RayTracingGeometryManager.h"

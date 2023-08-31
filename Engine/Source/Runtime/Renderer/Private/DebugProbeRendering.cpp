@@ -6,7 +6,7 @@
 #include "SceneRendering.h"
 #include "SceneTextures.h"
 #include "SceneTextureParameters.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 #include "DataDrivenShaderPlatformInfo.h"
 
 // We do not want such debug in shipping build or when the editor is not available.

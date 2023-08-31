@@ -35,7 +35,7 @@
 #include "VirtualShadowMaps/VirtualShadowMapProjection.h"
 #include "Lumen/LumenTranslucencyVolumeLighting.h"
 #include "HairStrands/HairStrandsData.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 #include "TemporalUpscaler.h"
 #include "GPUScene.h"
 #include "RenderCore.h"

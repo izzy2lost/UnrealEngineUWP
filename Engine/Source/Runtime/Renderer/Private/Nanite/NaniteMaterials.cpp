@@ -21,7 +21,7 @@
 #include "RendererModule.h"
 #include "PixelShaderUtils.h"
 #include "Lumen/LumenSceneCardCapture.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 #include "SystemTextures.h"
 #include "BasePassRendering.h"
 #include "VariableRateShadingImageManager.h"

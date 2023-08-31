@@ -24,7 +24,7 @@
 #include "Lumen/LumenSceneData.h"
 #include "Math/Halton.h"
 #include "DistanceFieldAmbientOcclusion.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 #include "RendererUtils.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Lumen/LumenTracingUtils.h"

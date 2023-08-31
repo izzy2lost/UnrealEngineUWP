@@ -20,7 +20,7 @@
 #include "ScreenPass.h"
 #include "SkyAtmosphereRendering.h"
 #include "VolumetricCloudRendering.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 #include "VirtualShadowMaps/VirtualShadowMapProjection.h"
 #include "HairStrands/HairStrandsData.h"
 #include "AnisotropyRendering.h"

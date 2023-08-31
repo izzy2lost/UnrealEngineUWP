@@ -17,7 +17,7 @@
 #include "SceneRendering.h"
 #include "ScreenSpaceRayTracing.h"
 #include "SceneTextureParameters.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 #include "VirtualShadowMaps/VirtualShadowMapArray.h"
 #include "VirtualShadowMaps/VirtualShadowMapProjection.h"
 #include "Lumen/LumenSceneData.h"

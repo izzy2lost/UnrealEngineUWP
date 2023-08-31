@@ -5,7 +5,7 @@
 #include "CoreTypes.h"
 #include "SceneTextureParameters.h"
 #include "ShaderParameterMacros.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 
 class FSkyLightSceneProxy;
 

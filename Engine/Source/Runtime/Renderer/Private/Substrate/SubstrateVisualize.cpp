@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Strata.h"
+#include "Substrate.h"
 #include "SceneTextureParameters.h"
 #include "ScenePrivate.h"
 #include "SceneRendering.h"

@@ -4,7 +4,7 @@
 
 #include "ScreenPass.h"
 #include "OverridePassSequence.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 
 #include "PostProcess/PostProcessMaterialInputs.h"
 

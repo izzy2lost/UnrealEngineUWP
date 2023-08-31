@@ -61,7 +61,7 @@
 #include "VariableRateShadingImageManager.h"
 #include "SceneTextureReductions.h"
 #include "GPUMessaging.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 #include "RenderCore.h"
 #include "RectLightTextureManager.h"
 #include "IESTextureManager.h"

@@ -27,7 +27,7 @@
 #include "PlanarReflectionRendering.h"
 #include "UnrealEngine.h"
 #include "ReflectionEnvironment.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 #include "OIT/OITParameters.h"
 #include "VirtualShadowMaps/VirtualShadowMapArray.h"
 #include "VolumetricCloudRendering.h"

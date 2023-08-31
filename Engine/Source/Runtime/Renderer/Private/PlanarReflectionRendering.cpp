@@ -35,7 +35,7 @@
 #include "ClearQuad.h"
 #include "SceneTextureParameters.h"
 #include "SceneViewExtension.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 
 void SetupPlanarReflectionUniformParameters(const class FSceneView& View, const FPlanarReflectionSceneProxy* ReflectionSceneProxy, FPlanarReflectionUniformParameters& OutParameters)
 {

@@ -28,7 +28,7 @@
 #include "PipelineStateCache.h"
 #include "ClearQuad.h"
 #include "RendererPrivateUtils.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 
 DECLARE_GPU_STAT_NAMED(CapsuleShadows, TEXT("Capsule Shadows"));
 

@@ -14,7 +14,7 @@
 #include "ScreenSpaceDenoise.h"
 #include "HairStrands/HairStrandsEnvironment.h"
 #include "ShaderPrint.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 #include "LumenReflections.h"
 #include "DepthCopy.h"
 

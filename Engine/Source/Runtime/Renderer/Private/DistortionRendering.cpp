@@ -14,7 +14,7 @@
 #include "ScenePrivate.h"
 #include "ScreenPass.h"
 #include "MeshPassProcessor.inl"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 #include "ScreenRendering.h"
 #include "PostProcess/TemporalAA.h"
 #include "ShaderPlatformCachedIniValue.h"

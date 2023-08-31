@@ -10,7 +10,7 @@
 #include "SceneRendering.h"
 #include "ScenePrivate.h"
 #include "PixelShaderUtils.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 
 static TAutoConsoleVariable<int32> CVarShadingEnergyConservation(
 	TEXT("r.Shading.EnergyConservation"),

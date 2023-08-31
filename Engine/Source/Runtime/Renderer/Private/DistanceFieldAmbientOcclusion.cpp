@@ -21,7 +21,7 @@
 #include "RayTracing/RaytracingOptions.h"
 #include "Lumen/Lumen.h"
 #include "ScenePrivate.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 
 DEFINE_LOG_CATEGORY(LogDistanceField);
 

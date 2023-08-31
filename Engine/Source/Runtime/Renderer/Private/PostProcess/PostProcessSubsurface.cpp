@@ -19,7 +19,7 @@
 #include "ScenePrivate.h"
 #include "GenerateMips.h"
 #include "ClearQuad.h"
-#include "Strata/Strata.h"
+#include "Substrate/Substrate.h"
 #include "PostProcess/TemporalAA.h"
 #include "SubsurfaceTiles.h"
 #include "UnrealEngine.h"
