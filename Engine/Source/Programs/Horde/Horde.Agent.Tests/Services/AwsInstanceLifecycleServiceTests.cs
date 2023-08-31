@@ -52,17 +52,11 @@ public class FakeAwsImds
 	{
 		switch (request.RequestUri!.ToString())
 		{
-			case $"{BaseUrl}/autoscaling/target-lifecycle-state":
-				return Task.FromResult(CreateResponse(HttpStatusCode.OK, TargetLifecycleState));
-
-			case $"{BaseUrl}/spot/instance-action":
-				return Task.FromResult(CreateResponse(HttpStatusCode.OK, SpotInstanceAction));
-
-			case $"{BaseUrl}/instance-life-cycle":
-				return Task.FromResult(CreateResponse(HttpStatusCode.OK, InstanceLifeCycle));
-
-			default:
-				return Task.FromResult(CreateResponse(HttpStatusCode.InternalServerError, "Invalid state"));
+			case $"{BaseUrl}/": return Task.FromResult(CreateResponse(HttpStatusCode.OK, "(list of sub-paths)"));
+			case $"{BaseUrl}/autoscaling/target-lifecycle-state": return Task.FromResult(CreateResponse(HttpStatusCode.OK, TargetLifecycleState));
+			case $"{BaseUrl}/spot/instance-action": return Task.FromResult(CreateResponse(HttpStatusCode.OK, SpotInstanceAction));
+			case $"{BaseUrl}/instance-life-cycle": return Task.FromResult(CreateResponse(HttpStatusCode.OK, InstanceLifeCycle));
+			default: return Task.FromResult(CreateResponse(HttpStatusCode.InternalServerError, "Invalid state"));
 		}
 	}
 	
@@ -100,7 +94,7 @@ public sealed class AwsInstanceLifecycleServiceTests : System.IDisposable
 	public async Task Terminate_Asg_CallbackHasCorrectParameters()
 	{
 		_fakeImds.TargetLifecycleState = "Terminated";
-		await _service.MonitorInstanceLifecycle(CancellationToken.None);
+		await _service.MonitorInstanceLifecycleAsync(CancellationToken.None);
 		Assert.AreEqual(Ec2InstanceState.TerminatingAsg, _terminationState);
 		Assert.IsFalse(_terminationIsSpot);
 	}
@@ -110,11 +104,11 @@ public sealed class AwsInstanceLifecycleServiceTests : System.IDisposable
 	{
 		_fakeImds.SpotInstanceAction = FakeAwsImds.SpotInstanceData;
 		_fakeImds.InstanceLifeCycle = FakeAwsImds.Spot;
-		await _service.MonitorInstanceLifecycle(CancellationToken.None);
+		await _service.MonitorInstanceLifecycleAsync(CancellationToken.None);
 		Assert.AreEqual(Ec2InstanceState.TerminatingSpot, _terminationState);
 		Assert.IsTrue(_terminationIsSpot);
 	}
-
+	
 	public void Dispose()
 	{
 		_loggerFactory.Dispose();

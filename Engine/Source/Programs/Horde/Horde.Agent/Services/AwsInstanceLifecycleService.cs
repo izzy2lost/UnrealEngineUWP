@@ -94,8 +94,28 @@ class AwsInstanceLifecycleService : BackgroundService
 		return false;
 	}
 	
-	internal async Task MonitorInstanceLifecycle(CancellationToken cancellationToken)
+	private async Task<bool> IsImdsAvailableAsync(CancellationToken cancellationToken)
 	{
+		try
+		{
+			HttpResponseMessage res = await _httpClient.GetAsync(new Uri(BaseUri + "/"), cancellationToken);
+			return res.StatusCode == HttpStatusCode.OK;
+		}
+		catch (Exception)
+		{
+			// Timed out or other error. Can safely assume the metadata server is not available.
+			return false;
+		}
+	}
+	
+	internal async Task MonitorInstanceLifecycleAsync(CancellationToken cancellationToken)
+	{
+		if (!await IsImdsAvailableAsync(cancellationToken))
+		{
+			_logger.LogInformation("EC2 metadata server (IMDS) not available. Will not monitor EC2 lifecycle state");
+			return;
+		}
+		
 		_logger.LogInformation("Monitoring EC2 instance lifecycle state...");
 		while (!cancellationToken.IsCancellationRequested)
 		{
@@ -132,7 +152,7 @@ class AwsInstanceLifecycleService : BackgroundService
 
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
-		await MonitorInstanceLifecycle(stoppingToken);
+		await MonitorInstanceLifecycleAsync(stoppingToken);
 	}
 }
 
