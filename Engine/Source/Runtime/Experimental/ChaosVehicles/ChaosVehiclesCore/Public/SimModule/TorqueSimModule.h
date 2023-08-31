@@ -73,6 +73,8 @@ public:
 		);
 	}
 
+	virtual eSimType GetSimType() const { return eSimType::TorqueSim; }
+
 	void SetDriveTorque(float TorqueIn) { DriveTorque = TorqueIn; }
 	float GetDriveTorque() const { return DriveTorque; }
 
