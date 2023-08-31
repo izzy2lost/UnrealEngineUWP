@@ -1094,63 +1094,8 @@ void SPCGEditorGraphAttributeListView::RefreshSorting()
 	{
 		if (ColumnData->DataAccessor.IsValid() && ColumnData->DataKeys.IsValid())
 		{
-			auto Callback = [this, &ColumnData](auto Dummy)
-			{
-				using ValueType = decltype(Dummy);
-
-				if constexpr (PCG::Private::MetadataTraits<ValueType>::CanCompare)
-				{
-					TArray<ValueType> CachedValues;
-					// Strings need initialized values for later assignment
-					if constexpr (PCG::Private::MetadataTraits<ValueType>::NeedsConstruction)
-					{
-						CachedValues.SetNum(ListViewItems.Num());
-					}
-					else
-					{
-						CachedValues.SetNumUninitialized(ListViewItems.Num());
-					}
-
-					ColumnData->DataAccessor->GetRange(TArrayView<ValueType>(CachedValues), 0, *ColumnData->DataKeys);
-
-					auto SortAscending = [&CachedValues] (const PCGListviewItemPtr& LHS, const PCGListviewItemPtr& RHS)
-					{
-						const ValueType& LHSValue = CachedValues[LHS->Index];
-						const ValueType& RHSValue = CachedValues[RHS->Index];
-
-						if (PCG::Private::MetadataTraits<ValueType>::Equal(LHSValue, RHSValue))
-						{
-							return LHS->Index < RHS->Index;
-						}
-
-						return PCG::Private::MetadataTraits<ValueType>::Less(LHSValue, RHSValue);
-					};
-
-					auto SortDescending = [&CachedValues] (const PCGListviewItemPtr& LHS, const PCGListviewItemPtr& RHS)
-					{
-						const ValueType& LHSValue = CachedValues[LHS->Index];
-						const ValueType& RHSValue = CachedValues[RHS->Index];
-
-						if (PCG::Private::MetadataTraits<ValueType>::Equal(LHSValue, RHSValue))
-						{
-							return LHS->Index > RHS->Index;
-						}
-
-						return PCG::Private::MetadataTraits<ValueType>::Greater(LHSValue, RHSValue);
-					};
-
-					if (SortMode == EColumnSortMode::Ascending)
-					{
-						ListViewItems.Sort(SortAscending);
-					}
-					else if (SortMode == EColumnSortMode::Descending)
-					{
-						ListViewItems.Sort(SortDescending);
-					}
-				}
-			};
-
-			PCGMetadataAttribute::CallbackWithRightType(ColumnData->DataAccessor->GetUnderlyingType(), Callback);
+			//lambda used here to get the index value of an item in the array for sorting
+			PCGAttributeAccessorHelpers::SortByAttribute(*ColumnData->DataAccessor, *ColumnData->DataKeys, ListViewItems, SortMode == EColumnSortMode::Ascending, [this](int Index) { return ListViewItems[Index]->Index; });
 		}
 	}
 

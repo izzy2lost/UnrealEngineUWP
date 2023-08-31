@@ -131,8 +131,8 @@ namespace PCGTestsCommon
 		return SinglePointData;
 	}
 
-	/** Creates a point data with PointCount many points, and randomizes the Transform and Color */
-	UPCGPointData* CreateRandomPointData(int32 PointCount, int32 Seed)
+	/** Creates a point data with PointCount many points, and randomizes the Transform, Color, and Density */
+	UPCGPointData* CreateRandomPointData(int32 PointCount, int32 Seed, bool bRandomDensity)
 	{
 		TObjectPtr<UPCGPointData> PointData = PCGTestsCommon::CreateEmptyPointData();
 		TArray<FPCGPoint>& Points = PointData->GetMutablePoints();
@@ -148,7 +148,8 @@ namespace PCGTestsCommon
 
 			FPCGPoint& Point = Points.Emplace_GetRef(FTransform(Rotation, Location, Scale), 1.f, I);
 			Point.Color = RandomSource.VRand();
-			Point.Density = 1.f;
+			Point.Density = bRandomDensity ? RandomSource.GetFraction() : 1.0f;
+			
 			Point.Seed = I;
 		}
 

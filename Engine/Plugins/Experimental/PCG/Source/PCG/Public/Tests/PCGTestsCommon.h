@@ -56,8 +56,8 @@ namespace PCGTestsCommon
 	/** Creates a PointData with a single point at the provided location */
 	PCG_API UPCGPointData* CreatePointData(const FVector& InLocation);
 
-	/** Creates a PointData with PointCount many points, and randomizes the Transform and Color */
-	PCG_API UPCGPointData* CreateRandomPointData(int32 PointCount, int32 Seed);
+	/** Creates a PointData with PointCount many points, and randomizes the Transform, Color, and Density */
+	PCG_API UPCGPointData* CreateRandomPointData(int32 PointCount, int32 Seed, bool RandomDensity = false);
 
 	PCG_API UPCGPolyLineData* CreatePolyLineData();
 	PCG_API UPCGSurfaceData* CreateSurfaceData();
