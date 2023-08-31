@@ -14,4 +14,6 @@ struct GRAPHEDITOR_API FSubstrateWidget
 	static const TSharedRef<SWidget> ProcessOperator(const FStrataMaterialCompilationOutput& CompilationOutput);
 	static const TSharedRef<SWidget> ProcessOperator(const FStrataMaterialCompilationOutput& CompilationOutput, const FGuid& InGuid);
 	static void GetPinColor(TSharedPtr<SGraphPin>& Out, const UMaterialGraphNode* InNode);
+	static FLinearColor GetConnectionColor();
+	static bool HasSubstrateType(const UEdGraphPin* InPin);
 };

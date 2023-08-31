@@ -5,6 +5,7 @@
 #include "Rendering/RenderingCommon.h"
 #include "Rendering/StrataMaterialShared.h"
 #include "MaterialGraph/MaterialGraphNode.h"
+#include "MaterialGraph/MaterialGraphNode_Root.h"
 #include "Materials/MaterialExpression.h"
 #include "Materials/MaterialExpressionStrata.h"
 #include "SGraphPin.h"
@@ -21,6 +22,45 @@ enum class ESubstrateWidgetOutputType : uint8
 
 static EStyleColor GetSubstrateWidgetColor0() { return EStyleColor::AccentBlue;  }
 static EStyleColor GetSubstrateWidgetColor1() { return EStyleColor::AccentGreen;  }
+FLinearColor FSubstrateWidget::GetConnectionColor() { return FLinearColor(0.16, 0.015, 0.24) * 4.f; }
+
+bool FSubstrateWidget::HasSubstrateType(const UEdGraphPin* InPin)
+{
+	if (InPin == nullptr) return false;
+
+	if (UMaterialGraphNode_Root* RootPinNode = Cast<UMaterialGraphNode_Root>(InPin->GetOwningNode()))
+	{
+		EMaterialProperty propertyId = (EMaterialProperty)FCString::Atoi(*InPin->PinType.PinSubCategory.ToString());
+		switch (propertyId)
+		{
+			case MP_FrontMaterial:
+				return true;
+		}
+	}
+	if (UMaterialGraphNode* PinNode = Cast<UMaterialGraphNode>(InPin->GetOwningNode()))
+	{
+		TArrayView<FExpressionInput*> ExpressionInputs = PinNode->MaterialExpression->GetInputsView();
+		FName TargetPinName = PinNode->GetShortenPinName(InPin->PinName);
+
+		for (int32 Index = 0; Index < ExpressionInputs.Num(); ++Index)
+		{
+			FExpressionInput* Input = ExpressionInputs[Index];
+			FName InputName = PinNode->MaterialExpression->GetInputName(Index);
+			InputName = PinNode->GetShortenPinName(InputName);
+
+			if (InputName == TargetPinName)
+			{
+				switch (PinNode->MaterialExpression->GetInputType(Index))
+				{
+					case MCT_Strata:
+						return true;
+				}
+				break;
+			}
+		}
+	}
+	return false;
+}
 
 static const TSharedRef<SWidget> InternalProcessOperator(
 	const FStrataMaterialCompilationOutput& CompilationOutput, 

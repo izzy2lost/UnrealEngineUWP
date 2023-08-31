@@ -156,6 +156,7 @@
 #include "Materials/MaterialExpression.h"
 #include "MaterialCachedHLSLTree.h"
 #include "SMaterialEditorStrataWidget.h"
+#include "SGraphSubstrateMaterial.h"
 
 #include "SMaterialParametersOverviewWidget.h"
 #include "SMaterialEditorCustomPrimitiveDataWidget.h"
@@ -168,6 +169,8 @@
 #include "MaterialEditorContext.h"
 #include "UObject/MetaData.h"
 #include "ToolMenus.h"
+
+
 
 #define LOCTEXT_NAMESPACE "MaterialEditor"
 
@@ -4895,37 +4898,7 @@ bool FMaterialEditor::OnCanCreateStrataNodeForPin(const FToolMenuContext& InMenu
 
 	if ((TargetPin->Direction == EEdGraphPinDirection::EGPD_Input) && (TargetPin->LinkedTo.Num() == 0))
 	{
-		if (RootPinNode != nullptr)
-		{
-			EMaterialProperty propertyId = (EMaterialProperty)FCString::Atoi(*TargetPin->PinType.PinSubCategory.ToString());
-			switch (propertyId)
-			{
-			case MP_FrontMaterial:
-				return true;
-			}
-		}
-		else if (OtherPinNode)
-		{
-			TArrayView<FExpressionInput*> ExpressionInputs = OtherPinNode->MaterialExpression->GetInputsView();
-			FName TargetPinName = OtherPinNode->GetShortenPinName(TargetPin->PinName);
-
-			for (int32 Index = 0; Index < ExpressionInputs.Num(); ++Index)
-			{
-				FExpressionInput* Input = ExpressionInputs[Index];
-				FName InputName = OtherPinNode->MaterialExpression->GetInputName(Index);
-				InputName = OtherPinNode->GetShortenPinName(InputName);
-
-				if (InputName == TargetPinName)
-				{
-					switch (OtherPinNode->MaterialExpression->GetInputType(Index))
-					{
-					case MCT_Strata:
-						return true;
-					}
-					break;
-				}
-			}
-		}
+		return FSubstrateWidget::HasSubstrateType(TargetPin);
 	}
 	else if (TargetPin && (TargetPin->Direction == EEdGraphPinDirection::EGPD_Output) && (TargetPin->LinkedTo.Num() == 0) && NodeForPin != EStrataNodeForPin::Slab)
 	{

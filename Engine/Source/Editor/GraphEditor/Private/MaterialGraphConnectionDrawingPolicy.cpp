@@ -17,6 +17,7 @@
 #include "Templates/Casts.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/NameTypes.h"
+#include "SGraphSubstrateMaterial.h"
 
 class FSlateRect;
 
@@ -123,6 +124,11 @@ void FMaterialGraphConnectionDrawingPolicy::DetermineWiringStyle(UEdGraphPin* Ou
 	Params.AssociatedPin1 = OutputPin;
 	Params.AssociatedPin2 = InputPin;
 	Params.WireColor = MaterialGraphSchema->ActivePinColor;
+
+	if (Strata::IsStrataEnabled() && (FSubstrateWidget::HasSubstrateType(OutputPin) || FSubstrateWidget::HasSubstrateType(InputPin)))
+	{
+		Params.WireColor = FSubstrateWidget::GetConnectionColor();
+	}
 
 	UE::Shader::EValueType InputType = UE::Shader::EValueType::Void;
 	UE::Shader::EValueType OutputType = UE::Shader::EValueType::Void;
