@@ -3384,6 +3384,7 @@ void UNiagaraDataInterfaceSkeletalMesh::OnSourceEndPlay(AActor* InSource, EEndPl
 {
 	// Increment change id in case we're able to find a new source component 
 	++ChangeId;
+	UnbindSourceDelegates();
 	SoftSourceActor = nullptr;
 	SourceComponent = nullptr;
 }
