@@ -412,6 +412,9 @@ struct FMeshBatch
 	 */
 	uint32 bViewDependentArguments : 1;
 
+	/** Whether the mesh batch should be used in the depth-only passes of rendering the water info texture for the water plugin */
+	uint32 bUseForWaterInfoTextureDepth : 1;
+
 #if UE_ENABLE_DEBUG_DRAWING
 	/** Conceptual HLOD index used for the HLOD Coloration visualization. */
 	int8 VisualizeHLODIndex;
@@ -491,6 +494,7 @@ struct FMeshBatch
 	,	CastRayTracedShadow(true)
 #endif
 	,	bViewDependentArguments(false)
+	,	bUseForWaterInfoTextureDepth(false)
 #if (!(UE_BUILD_SHIPPING || UE_BUILD_TEST) || WITH_EDITOR)
 	,	VisualizeHLODIndex(INDEX_NONE)
 #endif

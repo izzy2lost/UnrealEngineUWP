@@ -1079,6 +1079,9 @@ void ULandscapeComponent::PostLoad()
 		// we need the fixed grid vertex factory for both virtual texturing and grass
 		ERHIFeatureLevel::Type FeatureLevel = GMaxRHIFeatureLevel;
 		bool bNeedsFixedGridVertexFactory = UseVirtualTexturing(FeatureLevel);
+		// This cvar is defined in the water plugin and searching for it should return nullptr if the plugin is not loaded
+		const bool bWaterPluginLoaded = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Water.WaterInfo.RenderMethod")) != nullptr;
+		bNeedsFixedGridVertexFactory |= bWaterPluginLoaded;
 		if (bNeedsFixedGridVertexFactory)
 		{
 			VertexFactoryDataList.Add(FPSOPrecacheVertexFactoryData(&FLandscapeFixedGridVertexFactory::StaticType));

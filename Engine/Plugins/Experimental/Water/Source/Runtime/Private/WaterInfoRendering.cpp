@@ -40,16 +40,6 @@ static FAutoConsoleVariableRef CVarWaterInfoRenderLandscapeMinimumMipLevel(
 	WaterInfoRenderLandscapeMinimumMipLevel,
 	TEXT("Clamps the minimum allowed mip level for the landscape when rendering the water info texture. Used on the lowest end platforms which cannot support rendering all the landscape vertices at the highest LOD."));
 
-static TAutoConsoleVariable<float> CVarWaterInfoUndergroundDilationDepthOffset(
-		TEXT("r.Water.WaterInfo.UndergroundDilationDepthOffset"),
-		64.f,
-		TEXT("The minimum distance below the ground when we allow dilation to write on top of water"));
-
-static TAutoConsoleVariable<float> CVarWaterInfoDilationOverwriteMinimumDistance(
-		TEXT("r.Water.WaterInfo.DilationOverwriteMinimumDistance"),
-		128.f,
-		TEXT("The minimum distance below the ground when we allow dilation to write on top of water"));
-
 namespace UE::WaterInfo
 {
 
@@ -129,6 +119,9 @@ static void MergeWaterInfoAndDepth(
 	GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
 
 	{
+		static auto* CVarDilationOverwriteMinimumDistance = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("r.Water.WaterInfo.DilationOverwriteMinimumDistance"));
+		static auto* CVarUndergroundDilationDepthOffset = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("r.Water.WaterInfo.UndergroundDilationDepthOffset"));
+
 		FWaterInfoMergePS::FParameters* PassParameters = GraphBuilder.AllocParameters<FWaterInfoMergePS::FParameters>();
 		PassParameters->View = View.ViewUniformBuffer;
 		PassParameters->RenderTargets[0] = FRenderTargetBinding(OutputTexture, ERenderTargetLoadAction::ENoAction);
@@ -142,8 +135,8 @@ static void MergeWaterInfoAndDepth(
 		PassParameters->CaptureZ = Params.CaptureZ;
 		PassParameters->WaterHeightExtents = Params.WaterHeightExtents;
 		PassParameters->GroundZMin = Params.GroundZMin;
-		PassParameters->DilationOverwriteMinimumDistance = CVarWaterInfoDilationOverwriteMinimumDistance.GetValueOnRenderThread();
-		PassParameters->UndergroundDilationDepthOffset = CVarWaterInfoUndergroundDilationDepthOffset.GetValueOnRenderThread();
+		PassParameters->DilationOverwriteMinimumDistance = CVarDilationOverwriteMinimumDistance ? CVarDilationOverwriteMinimumDistance->GetValueOnRenderThread() : 128.0f;
+		PassParameters->UndergroundDilationDepthOffset = CVarUndergroundDilationDepthOffset ? CVarUndergroundDilationDepthOffset->GetValueOnRenderThread() : 64.0f;
 
 		TShaderMapRef<FScreenVS> VertexShader(ShaderMap);
 		TShaderMapRef<FWaterInfoMergePS> PixelShader(ShaderMap);
@@ -827,6 +820,81 @@ void UpdateWaterInfoRendering(
 
 			UpdateWaterInfoRendering_RenderThread(RHICmdList, Params);
 		});
+}
+
+void UpdateWaterInfoRendering2(FSceneView& InView, const TMap<AWaterZone*, UE::WaterInfo::FRenderingContext>& WaterInfoContexts)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(WaterInfo::UpdateWaterInfoRendering2);
+
+	InView.WaterInfoTextureRenderingParams.Reset();
+	for (const TPair<AWaterZone*, UE::WaterInfo::FRenderingContext>& Pair : WaterInfoContexts)
+	{
+		const UE::WaterInfo::FRenderingContext& Context(Pair.Value);
+
+		RenderCaptureInterface::FScopedCapture RenderCapture((RenderCaptureNextWaterInfoDraws != 0), TEXT("RenderWaterInfo"));
+		RenderCaptureNextWaterInfoDraws = FMath::Max(0, RenderCaptureNextWaterInfoDraws - 1);
+
+		if (!IsValid(Context.TextureRenderTarget))
+		{
+			continue;
+		}
+		const FVector ZoneExtent = Context.ZoneToRender->GetDynamicWaterInfoExtent();
+
+		FVector ViewLocation = Context.ZoneToRender->GetDynamicWaterInfoCenter();
+		ViewLocation.Z = Context.CaptureZ;
+
+		const FBox2D CaptureBounds(FVector2D(ViewLocation - ZoneExtent), FVector2D(ViewLocation + ZoneExtent));
+
+		// Zone rendering always happens facing towards negative z.
+		const FVector LookAt = ViewLocation - FVector(0.f, 0.f, 1.f);
+
+		FSceneView::FWaterInfoTextureRenderingParams RenderingParams;
+		RenderingParams.RenderTarget = Context.TextureRenderTarget->GameThread_GetRenderTargetResource();
+		RenderingParams.ViewLocation = ViewLocation;
+		RenderingParams.ViewRotationMatrix = FLookAtMatrix(ViewLocation, LookAt, FVector(0.f, -1.f, 0.f));
+		RenderingParams.ViewRotationMatrix = RenderingParams.ViewRotationMatrix.RemoveTranslation();
+		RenderingParams.ViewRotationMatrix.RemoveScaling();
+		RenderingParams.ProjectionMatrix = BuildOrthoMatrix(ZoneExtent.X, ZoneExtent.Y);
+		RenderingParams.CaptureZ = ViewLocation.Z;
+		RenderingParams.WaterHeightExtents = Context.ZoneToRender->GetWaterHeightExtents();
+		RenderingParams.GroundZMin = Context.ZoneToRender->GetGroundZMin();
+		RenderingParams.VelocityBlurRadius = Context.ZoneToRender->GetVelocityBlurRadius();
+		RenderingParams.WaterZoneExtents = ZoneExtent;
+
+		if (Context.GroundPrimitiveComponents.Num() > 0)
+		{
+			RenderingParams.TerrainComponentIds.Reserve(Context.GroundPrimitiveComponents.Num());
+			for (TWeakObjectPtr<UPrimitiveComponent> GroundPrimComp : Context.GroundPrimitiveComponents)
+			{
+				if (GroundPrimComp.IsValid())
+				{
+					RenderingParams.TerrainComponentIds.Add(GroundPrimComp.Get()->GetPrimitiveSceneId());
+				}
+			}
+		}
+		if (Context.WaterBodies.Num() > 0)
+		{
+			RenderingParams.WaterBodyComponentIds.Reserve(Context.WaterBodies.Num());
+			RenderingParams.DilatedWaterBodyComponentIds.Reserve(Context.WaterBodies.Num());
+			for (const UWaterBodyComponent* WaterBodyToRender : Context.WaterBodies)
+			{
+				if (!IsValid(WaterBodyToRender))
+				{
+					continue;
+				}
+
+				// Perform our own simple culling based on the known Capture bounds:
+				const FBox WaterBodyBounds = WaterBodyToRender->Bounds.GetBox();
+				if (CaptureBounds.Intersect(FBox2D(FVector2D(WaterBodyBounds.Min), FVector2D(WaterBodyBounds.Max))))
+				{
+					RenderingParams.WaterBodyComponentIds.Add(WaterBodyToRender->GetWaterInfoMeshComponent()->GetPrimitiveSceneId());
+					RenderingParams.DilatedWaterBodyComponentIds.Add(WaterBodyToRender->GetDilatedWaterInfoMeshComponent()->GetPrimitiveSceneId());
+				}
+			}
+		}
+
+		InView.WaterInfoTextureRenderingParams.Add(MoveTemp(RenderingParams));
+	}
 }
 
 } // namespace WaterInfo

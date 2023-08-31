@@ -1376,8 +1376,11 @@ void FLandscapeComponentSceneProxy::CreateRenderThreadResources(FRHICommandListB
 			SharedBuffers->VertexFactory = LandscapeXYOffsetVertexFactory;
 		}
 
-		// we need the fixed grid vertex factory for both virtual texturing and grass : 
+		// We need the fixed grid vertex factory for virtual texturing, grass and for rendering the water info texture : 
 		bool bNeedsFixedGridVertexFactory = UseVirtualTexturing(FeatureLevel);
+		// This cvar is defined in the water plugin and searching for it should return nullptr if the plugin is not loaded
+		const bool bWaterPluginLoaded = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Water.WaterInfo.RenderMethod")) != nullptr;
+		bNeedsFixedGridVertexFactory |= bWaterPluginLoaded;
 
 #if WITH_EDITOR
 		bNeedsFixedGridVertexFactory |= (SharedBuffers->GrassIndexBuffer != nullptr);
@@ -1998,8 +2001,8 @@ void FLandscapeComponentSceneProxy::OnTransformChanged(FRHICommandListBase& RHIC
 	UpdateDefaultInstanceSceneData();
 }
 
-/** Creates a mesh batch for virtual texture rendering. Will render a simple fixed grid with combined subsections. */
-bool FLandscapeComponentSceneProxy::GetMeshElementForVirtualTexture(int32 InLodIndex, ERuntimeVirtualTextureMaterialType MaterialType, FMaterialRenderProxy* InMaterialInterface, FMeshBatch& OutMeshBatch, TArray<FLandscapeBatchElementParams>& OutStaticBatchParamArray) const
+/** Creates a mesh batch for virtual texture or water info texture rendering. The caller is responsible for setting the required flags (bRenderToVirtualTexture, bUseForWaterInfoTextureDepth). Will render a simple fixed grid with combined subsections. */
+bool FLandscapeComponentSceneProxy::GetMeshElementForFixedGrid(int32 InLodIndex, FMaterialRenderProxy* InMaterialInterface, FMeshBatch& OutMeshBatch, TArray<FLandscapeBatchElementParams>& OutStaticBatchParamArray) const
 {
 	if (InMaterialInterface == nullptr)
 	{
@@ -2017,8 +2020,6 @@ bool FLandscapeComponentSceneProxy::GetMeshElementForVirtualTexture(int32 InLodI
 	OutMeshBatch.DepthPriorityGroup = SDPG_World;
 	OutMeshBatch.LODIndex = static_cast<int8>(InLodIndex);
 	OutMeshBatch.bDitheredLODTransition = false;
-	OutMeshBatch.bRenderToVirtualTexture = true;
-	OutMeshBatch.RuntimeVirtualTextureMaterialType = (uint32)MaterialType;
 
 	OutMeshBatch.Elements.Empty(1);
 
@@ -2133,6 +2134,7 @@ void FLandscapeComponentSceneProxy::DrawStaticElements(FStaticPrimitiveDrawInter
 
 	int32 TotalBatchCount = 1 + LastLOD - FirstLOD;
 	TotalBatchCount += (1 + LastVirtualTextureLOD - FirstVirtualTextureLOD) * RuntimeVirtualTextureMaterialTypes.Num();
+	TotalBatchCount += 1; // TODO: Currently we always add a single LOD0 fixed grid landscape mesh batch for rendering the water info texture. Higher LODs might be better and we might not always need to do this.
 
 	StaticBatchParamArray.Empty(TotalBatchCount);
 	PDI->ReserveMemoryForMeshes(TotalBatchCount);
@@ -2145,10 +2147,25 @@ void FLandscapeComponentSceneProxy::DrawStaticElements(FStaticPrimitiveDrawInter
 		for (int32 LODIndex = FirstVirtualTextureLOD; LODIndex <= LastVirtualTextureLOD; ++LODIndex)
 		{
 			FMeshBatch RuntimeVirtualTextureMeshBatch;
-			if (GetMeshElementForVirtualTexture(LODIndex, MaterialType, AvailableMaterials[MaterialIndex], RuntimeVirtualTextureMeshBatch, StaticBatchParamArray))
+			if (GetMeshElementForFixedGrid(LODIndex, AvailableMaterials[MaterialIndex], RuntimeVirtualTextureMeshBatch, StaticBatchParamArray))
 			{
+				RuntimeVirtualTextureMeshBatch.bRenderToVirtualTexture = true;
+				RuntimeVirtualTextureMeshBatch.RuntimeVirtualTextureMaterialType = (uint32)MaterialType;
 				PDI->DrawMesh(RuntimeVirtualTextureMeshBatch, FLT_MAX);
 			}
+		}
+	}
+
+	// Add fixed grid mesh batch for rendering the water info texture
+	{
+		int32 LODIndex = 0;
+		int32 MaterialIndex = LODIndexToMaterialIndex[LODIndex];
+
+		FMeshBatch MeshBatch;
+		if (GetMeshElementForFixedGrid(LODIndex, AvailableMaterials[MaterialIndex], MeshBatch, StaticBatchParamArray))
+		{
+			MeshBatch.bUseForWaterInfoTextureDepth = true;
+			PDI->DrawMesh(MeshBatch, FLT_MAX);
 		}
 	}
 

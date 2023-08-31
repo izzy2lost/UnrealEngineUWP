@@ -122,6 +122,7 @@ public:
 			bool bUseAnisotropy = Material.GetShadingModels().HasAnyShadingModel({MSM_DefaultLit, MSM_ClearCoat}) && Material.MaterialUsesAnisotropy_RenderThread();
 			bool bSupportsNaniteRendering = SupportsNaniteRendering(StaticMesh->VertexFactory, PrimitiveSceneProxy, Mesh.MaterialRenderProxy, FeatureLevel);
 			bool bSupportsGPUScene = StaticMesh->VertexFactory->SupportsGPUScene(FeatureLevel);
+			bool bUseForWaterInfoTextureDepth = Mesh.bUseForWaterInfoTextureDepth;
 
 			FStaticMeshBatchRelevance* StaticMeshRelevance = new(PrimitiveSceneInfo->StaticMeshRelevances) FStaticMeshBatchRelevance(
 				*StaticMesh, 
@@ -132,6 +133,7 @@ public:
 				bUseAnisotropy,
 				bSupportsNaniteRendering,
 				bSupportsGPUScene,
+				bUseForWaterInfoTextureDepth,
 				FeatureLevel
 				);
 		}

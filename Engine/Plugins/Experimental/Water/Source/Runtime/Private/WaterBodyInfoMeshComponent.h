@@ -23,12 +23,26 @@ public:
 	virtual FPrimitiveSceneProxy* CreateSceneProxy() override;
 	
 	virtual bool IsHLODRelevant() const { return false; }
+
+	// Whether the water body mesh has been enlarged/dilated past the shoreline of the actual water body.
+	// For every water body, there is a dilated and non-dilated mesh. Both are needed for generating the water info texture.
+	UPROPERTY()
+	bool bIsDilatedMesh = false;
 };
 
 struct FWaterBodyInfoMeshSceneProxy : public FStaticMeshSceneProxy
 {
 public:
-	FWaterBodyInfoMeshSceneProxy(UWaterBodyInfoMeshComponent* Component);
+	FWaterBodyInfoMeshSceneProxy(UWaterBodyInfoMeshComponent* Component, bool InbIsDilatedMesh);
+
+	virtual bool GetMeshElement(
+		int32 LODIndex,
+		int32 BatchIndex,
+		int32 ElementIndex,
+		uint8 InDepthPriorityGroup,
+		bool bUseSelectionOutline,
+		bool bAllowPreCulledIndices,
+		FMeshBatch& OutMeshBatch) const override;
 
 	SIZE_T GetTypeHash() const
 	{
@@ -37,5 +51,8 @@ public:
 	}
 
 	void SetEnabled(bool bInEnabled);
+
+private:
+	bool bIsDilatedMesh = false;
 };
 

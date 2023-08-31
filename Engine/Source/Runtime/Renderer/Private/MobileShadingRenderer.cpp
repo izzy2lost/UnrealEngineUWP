@@ -69,6 +69,7 @@
 #include "Engine/SpecularProfile.h"
 #include "LocalFogVolumeRendering.h"
 #include "SceneCaptureRendering.h"
+#include "WaterInfoTextureRendering.h"
 
 uint32 GetShadowQuality();
 
@@ -1030,6 +1031,8 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	FRDGTextureRef ViewFamilyTexture = TryCreateViewFamilyTexture(GraphBuilder, ViewFamily);
 
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
+
+	RenderWaterInfoTexture(GraphBuilder, *this, Scene);
 	
 	for (int32 i = 0; i < SceneCaptureRenderPassInfos.Num(); ++i)
 	{

@@ -1531,6 +1531,23 @@ public:
 	FShaderResourceViewRHIRef WaterIndirectionBuffer;
 	FShaderResourceViewRHIRef WaterDataBuffer;
 
+	struct FWaterInfoTextureRenderingParams
+	{
+		FRenderTarget* RenderTarget = nullptr;
+		FVector ViewLocation = FVector::Zero();
+		FMatrix ViewRotationMatrix = FMatrix(EForceInit::ForceInit);
+		FMatrix ProjectionMatrix = FMatrix(EForceInit::ForceInit);
+		TSet<FPrimitiveComponentId> TerrainComponentIds;
+		TSet<FPrimitiveComponentId> WaterBodyComponentIds;
+		TSet<FPrimitiveComponentId> DilatedWaterBodyComponentIds;
+		FVector WaterZoneExtents = FVector::Zero();
+		FVector2f WaterHeightExtents = FVector2f::ZeroVector;
+		float GroundZMin = 0.0f;
+		float CaptureZ = 0.0f;
+		int32 VelocityBlurRadius = 0;
+	};
+	TArray<FWaterInfoTextureRenderingParams> WaterInfoTextureRenderingParams;
+
 	/** Landscape rendering related data */
 	FShaderResourceViewRHIRef LandscapeIndirectionBuffer;
 	FShaderResourceViewRHIRef LandscapePerComponentDataBuffer;

@@ -9,6 +9,7 @@ class UWaterBodyComponent;
 class FSceneInterface;
 class UTextureRenderTarget2D;
 class UPrimitiveComponent;
+class FSceneView;
 
 namespace UE::WaterInfo
 {
@@ -24,4 +25,8 @@ namespace UE::WaterInfo
 void UpdateWaterInfoRendering(
 	FSceneInterface* Scene,
 	const FRenderingContext& Context);
+
+void UpdateWaterInfoRendering2(
+	FSceneView& InView, 
+	const TMap<AWaterZone*, UE::WaterInfo::FRenderingContext>& WaterInfoContexts);
 }

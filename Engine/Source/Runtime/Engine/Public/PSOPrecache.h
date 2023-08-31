@@ -276,7 +276,7 @@ class FPSOCollectorCreateManager
 {
 public:
 
-	constexpr static uint32 MaxPSOCollectorCount = 34;
+	constexpr static uint32 MaxPSOCollectorCount = 36;
 
 	static PSOCollectorCreateFunction GetCreateFunction(EShadingPath ShadingPath, uint32 Index)
 	{

@@ -38,17 +38,28 @@ FPrimitiveSceneProxy* UWaterBodyInfoMeshComponent::CreateSceneProxy()
 	{
 		return nullptr;
 	}
-	return new FWaterBodyInfoMeshSceneProxy(this);
+	return new FWaterBodyInfoMeshSceneProxy(this, bIsDilatedMesh);
 }
 
-FWaterBodyInfoMeshSceneProxy::FWaterBodyInfoMeshSceneProxy(UWaterBodyInfoMeshComponent* Component)
-	: FStaticMeshSceneProxy(Component, true)
+FWaterBodyInfoMeshSceneProxy::FWaterBodyInfoMeshSceneProxy(UWaterBodyInfoMeshComponent* Component, bool InbIsDilatedMesh)
+	: FStaticMeshSceneProxy(Component, true),
+	bIsDilatedMesh(InbIsDilatedMesh)
 {
 	// Disable Notify on WorldAddRemove. This prevents the component from being unhidden in FPrimitiveSceneProxy::OnLevelAddedToWorld_RenderThread if it was part of a streamed level.
 	// WaterInfo proxies should only be unhidden during WaterInfo passes.
 	bShouldNotifyOnWorldAddRemove = false;
 
 	SetEnabled(false);
+}
+
+bool FWaterBodyInfoMeshSceneProxy::GetMeshElement(int32 LODIndex, int32 BatchIndex, int32 ElementIndex, uint8 InDepthPriorityGroup, bool bUseSelectionOutline, bool bAllowPreCulledIndices, FMeshBatch& OutMeshBatch) const
+{
+	bool bResult = FStaticMeshSceneProxy::GetMeshElement(LODIndex, BatchIndex, ElementIndex, InDepthPriorityGroup, bUseSelectionOutline, bAllowPreCulledIndices, OutMeshBatch);
+	if (bResult)
+	{
+		OutMeshBatch.bUseForWaterInfoTextureDepth = bIsDilatedMesh; // The dilated mesh is drawn in the water info texture depth-only pass
+	}
+	return bResult;
 }
 
 void FWaterBodyInfoMeshSceneProxy::SetEnabled(bool bInEnabled)
