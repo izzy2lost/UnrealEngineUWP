@@ -599,12 +599,8 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors_SingleMatch(const TArray<
 	auto FactoryEnd = WidgetFactories.rend();
 
 	// Start from the back as the widgets with lower counts will be last.
-	int32 ColumnIndex = Columns.Num() - 1;
-
-	auto ColumnEnd = Columns.rend();
-	for (auto ColumnIt = Columns.rbegin(); ColumnIt != ColumnEnd; ++ColumnIt, --ColumnIndex)
+	for (int32 ColumnIndex = Columns.Num() - 1; ColumnIndex >= 0; --ColumnIndex)
 	{
-		const UScriptStruct* ColumnType = (*ColumnIt).Get();
 		for (; FactoryIt != FactoryEnd; ++FactoryIt)
 		{
 			TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnData = (*FactoryIt).Columns.GetColumns();
@@ -619,7 +615,7 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors_SingleMatch(const TArray<
 				continue;
 			}
 
-			if (ColumnData[0] == *ColumnIt)
+			if (ColumnData[0] == Columns[ColumnIndex])
 			{
 				Columns.RemoveAt(ColumnIndex);
 				CreateSingleWidgetConstructor((*FactoryIt).Constructor, Arguments, ColumnData, Callback);

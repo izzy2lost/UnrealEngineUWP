@@ -11,7 +11,11 @@ namespace TypedElementDataStorage
 
 			if constexpr (std::is_arithmetic_v<BaseType>)
 			{
-				if constexpr (std::is_integral_v<BaseType>)
+				if constexpr (std::is_same_v<bool, BaseType>)
+				{
+					Container.Add(Name, MetaDataType(TInPlaceType<bool>(), static_cast<bool>(Value)));
+				}
+				else if constexpr (std::is_integral_v<BaseType>)
 				{
 					if constexpr (std::is_signed_v<BaseType>)
 					{
@@ -25,10 +29,6 @@ namespace TypedElementDataStorage
 				else if constexpr (std::is_floating_point_v<BaseType>)
 				{
 					Container.Add(Name, MetaDataType(TInPlaceType<double>(), static_cast<double>(Value)));
-				}
-				else
-				{
-					Container.Add(Name, MetaDataType(TInPlaceType<bool>(), static_cast<bool>(Value)));
 				}
 			}
 			else if constexpr (std::is_convertible_v<BaseType, FString>)
