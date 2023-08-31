@@ -14,6 +14,8 @@
 #include "Engine/StaticMeshActor.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Misc/Change.h"
+#include "Misc/MessageDialog.h"
+#include "Misc/ScopedSlowTask.h"
 
 #include "FractureModeSettings.h"
 
