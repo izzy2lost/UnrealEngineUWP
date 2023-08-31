@@ -40,6 +40,7 @@
 #include "Templates/Tuple.h"
 #include "Trace/Detail/Channel.h"
 #include "ProfilingDebugging/CountersTrace.h"
+#include "Async/Fundamental/Scheduler.h"
 
 
 DECLARE_CYCLE_STAT(TEXT("MutableCoreTask"), STAT_MutableCoreTask, STATGROUP_Game);
@@ -51,6 +52,15 @@ static FAutoConsoleVariableRef CVarCoreRunnerTaskPriority(
 	TEXT("mutable.CoreRunnerTaskPriority"),
 	CoreRunnerTaskPriority,
 	TEXT("0 AnyThread. 1 to 6, from hight to low priority."),
+	ECVF_Default);
+
+
+bool bBusyWait = false;
+
+static FAutoConsoleVariableRef CVarCodeRunnerTaskGraphBusyWait(
+	TEXT("mutable.CodeRunnerTaskGraphBusyWait"),
+	bBusyWait,
+	TEXT("Use TaskGraph BusyWait instead of simple Wait. Required to avoid hangs on platforms with low number of cores."),
 	ECVF_Default);
 
 
@@ -547,14 +557,34 @@ namespace mu
 					if (IssuedTasks[IssuedIndex]->Event.IsValid())
 					{
 #ifdef MUTABLE_USE_NEW_TASKGRAPH
-						IssuedTasks[IssuedIndex]->Event.Wait();
+						if (CVarCodeRunnerTaskGraphBusyWait->GetBool())
+						{
+							IssuedTasks[IssuedIndex]->Event.BusyWait();							
+						}
+						else
+						{
+							IssuedTasks[IssuedIndex]->Event.Wait();
+						}
 #else
-						IssuedTasks[IssuedIndex]->Event->Wait();
+						if (CVarCodeRunnerTaskGraphBusyWait->GetBool())
+						{
+							FGraphEventRef Task = IssuedTasks[IssuedIndex]->Event;
+							
+							LowLevelTasks::BusyWaitUntil(
+								[Task]()
+								{
+									return Task->IsComplete();
+								}
+							);
+						}
+						else 
+						{
+							IssuedTasks[IssuedIndex]->Event->Wait();
+						}
 #endif
 						break;
 					}
 				}
-
 			}
 		}
 
