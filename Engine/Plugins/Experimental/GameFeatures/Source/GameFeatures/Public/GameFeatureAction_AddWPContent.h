@@ -27,8 +27,6 @@ public:
 	virtual void OnGameFeatureDeactivating(FGameFeatureDeactivatingContext& Context) override;
 	//~ End UGameFeatureAction interface
 
-	UGameFeatureData* GetGameFeatureData() const;
-
 	const UContentBundleDescriptor* GetContentBundleDescriptor() const { return ContentBundleDescriptor; }
 
 private:

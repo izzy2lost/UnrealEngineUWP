@@ -4,6 +4,7 @@
 
 #include "GameFeatureAction.generated.h"
 
+class UGameFeatureData;
 struct FGameFeatureActivatingContext;
 struct FGameFeatureDeactivatingContext;
 struct FAssetBundleData;
@@ -15,6 +16,7 @@ class GAMEFEATURES_API UGameFeatureAction : public UObject
 	GENERATED_BODY()
 
 public:
+	virtual UGameFeatureData* GetGameFeatureData() const;
 
 	/** Called when the object owning the action is registered for possible activation, this is called even if a feature never activates */
 	virtual void OnGameFeatureRegistering() {}
