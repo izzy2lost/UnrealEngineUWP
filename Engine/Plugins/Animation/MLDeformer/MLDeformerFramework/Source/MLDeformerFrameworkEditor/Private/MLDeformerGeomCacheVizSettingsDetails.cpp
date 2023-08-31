@@ -19,6 +19,14 @@
 
 namespace UE::MLDeformer
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	//UE_DEPRECATED(5.4)
+	FMLDeformerVizSettingsDetails::FMLDeformerVizSettingsDetails(const FMLDeformerVizSettingsDetails&) = default;
+	FMLDeformerVizSettingsDetails::FMLDeformerVizSettingsDetails(FMLDeformerVizSettingsDetails&&) = default;
+	FMLDeformerVizSettingsDetails& FMLDeformerVizSettingsDetails::operator=(const FMLDeformerVizSettingsDetails&) = default;
+	FMLDeformerVizSettingsDetails& FMLDeformerVizSettingsDetails::operator=(FMLDeformerVizSettingsDetails&&) = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	bool FMLDeformerGeomCacheVizSettingsDetails::UpdateMemberPointers(const TArray<TWeakObjectPtr<UObject>>& Objects)
 	{
 		if (!FMLDeformerVizSettingsDetails::UpdateMemberPointers(Objects))

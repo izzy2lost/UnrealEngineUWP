@@ -33,6 +33,12 @@ namespace UE::MLDeformer
 		/** Get a pointer to the detail layout builder. */
 		IDetailLayoutBuilder* GetDetailLayoutBuilder() const { return DetailLayoutBuilder; }
 
+		// UE_DEPRECATED(5.4)
+		FMLDeformerVizSettingsDetails(const FMLDeformerVizSettingsDetails&);
+		FMLDeformerVizSettingsDetails(FMLDeformerVizSettingsDetails&&);
+		FMLDeformerVizSettingsDetails& operator=(const FMLDeformerVizSettingsDetails&);
+		FMLDeformerVizSettingsDetails& operator=(FMLDeformerVizSettingsDetails&&);
+
 	protected:
 		/** The filter that only shows anim sequences that are compatible with the given skeleton. */
 		bool FilterAnimSequences(const FAssetData& AssetData, USkeleton* Skeleton);
