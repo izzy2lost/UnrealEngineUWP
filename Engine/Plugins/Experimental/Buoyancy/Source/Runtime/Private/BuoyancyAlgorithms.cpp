@@ -25,7 +25,8 @@ extern bool bBuoyancyDebugDraw;
 
 namespace
 {
-	using namespace Chaos;
+	using Chaos::FVec3;
+	using Chaos::FAABB3;
 
 	// Check to see if an object's shape is marked as already submerged
 	bool IsShapeSubmerged_Internal(const TSparseArray<TBitArray<>>& SubmergedShapes, const int32 ParticleIndex, const int32 ShapeIndex)
@@ -109,7 +110,21 @@ namespace
 
 namespace BuoyancyAlgorithms
 {
-	using namespace Chaos;
+	using Chaos::FVec3;
+	using Chaos::FAABB3;
+	using Chaos::FAABBEdge;
+	using Chaos::FRealSingle;
+	using Chaos::FPBDRigidsEvolutionGBF;
+	using Chaos::FGeometryParticleHandle;
+	using Chaos::FPBDRigidParticleHandle;
+	using Chaos::FImplicitObject;
+	using Chaos::FRigidTransform3;
+	using Chaos::FMatrix33;
+	using Chaos::FChaosPhysicsMaterial;
+	using Chaos::FShapeInstance;
+	using Chaos::FShapeInstanceArray;
+	using Chaos::EImplicitObjectType;
+	using Chaos::FConstGenericParticleHandle;
 
 	FRealSingle ComputeParticleVolume(const FPBDRigidsEvolutionGBF& Evolution, const FGeometryParticleHandle* Particle)
 	{
@@ -175,10 +190,10 @@ namespace BuoyancyAlgorithms
 			(const FImplicitObject* InnerImplicitObject, const FRigidTransform3&, const int32 RootObjectIndex, const int32, const int32)
 		{
 			const int32 ShapeIndex = ShapeInstances.IsValidIndex(RootObjectIndex) ? RootObjectIndex : 0;
-			const EImplicitObjectType ShapeType = Private::GetImplicitCollisionType(Particle, InnerImplicitObject);
+			const EImplicitObjectType ShapeType = Chaos::Private::GetImplicitCollisionType(Particle, InnerImplicitObject);
 			if (DoCollide(ShapeType, ShapeInstances[ShapeIndex].Get()))
 			{
-				Utilities::CastHelper(*InnerImplicitObject, [&ShapeVol](const auto& Geom)
+				Chaos::Utilities::CastHelper(*InnerImplicitObject, [&ShapeVol](const auto& Geom)
 				{
 					ShapeVol += Geom.BoundingBox().GetVolume();
 				});
@@ -280,8 +295,8 @@ namespace BuoyancyAlgorithms
 			const FAABB3 RelativeBoundsA = ImplicitA->CalculateTransformedBounds(RelativeTransformA);
 			const FAABB3 ShapeBoundsAInB = RelativeBoundsA.TransformedAABB(ParticleTransformAToB);
 			const int32 ShapeIndexA = (ShapeInstancesA.IsValidIndex(RootObjectIndexA)) ? RootObjectIndexA : 0;
-			const FShapeInstance* ShapeInstanceA = ShapeInstancesA[ShapeIndexA].Get();
-			const EImplicitObjectType ShapeTypeA = Private::GetImplicitCollisionType(ParticleA, ImplicitA);
+			const Chaos::FShapeInstance* ShapeInstanceA = ShapeInstancesA[ShapeIndexA].Get();
+			const Chaos::EImplicitObjectType ShapeTypeA = Chaos::Private::GetImplicitCollisionType(ParticleA, ImplicitA);
 
 			// Get the world-space bounds of shape A
 			const FRigidTransform3 ShapeWorldTransformA = RelativeTransformA * ParticleWorldTransformA;
@@ -305,7 +320,7 @@ namespace BuoyancyAlgorithms
 				// Get shape instance data for shape B
 				const int32 ShapeIndexB = (ShapeInstancesB.IsValidIndex(RootObjectIndexB)) ? RootObjectIndexB : 0;
 				const FShapeInstance* ShapeInstanceB = ShapeInstancesB[ShapeIndexB].Get();
-				const EImplicitObjectType ShapeTypeB = Private::GetImplicitCollisionType(ParticleB, ImplicitB);
+				const EImplicitObjectType ShapeTypeB = Chaos::Private::GetImplicitCollisionType(ParticleB, ImplicitB);
 
 				// If this shape pair doesn't pass a narrow phase test then skip it
 				if (!ShapePairNarrowPhaseFilter(ShapeTypeA, ShapeInstanceA, ShapeTypeB, ShapeInstanceB))
@@ -470,7 +485,7 @@ namespace BuoyancyAlgorithms
 
 		// Some info about the water
 		const FImplicitObject* WaterRootImplicit = WaterParticle->GetGeometry();
-		const EImplicitObjectType WaterShapeType = Private::GetImplicitCollisionType(WaterParticle, WaterRootImplicit);
+		const EImplicitObjectType WaterShapeType = Chaos::Private::GetImplicitCollisionType(WaterParticle, WaterRootImplicit);
 		const FShapeInstanceArray& WaterShapeInstances = WaterParticle->ShapeInstances();
 		const FShapeInstance* WaterShapeInstance = ShapeInstances[0].Get();
 
@@ -486,7 +501,7 @@ namespace BuoyancyAlgorithms
 			const FAABB3 RelativeBounds = Implicit->CalculateTransformedBounds(RelativeTransform);
 			const int32 ShapeIndex = (ShapeInstances.IsValidIndex(RootObjectIndex)) ? RootObjectIndex : 0;
 			const FShapeInstance* ShapeInstance = ShapeInstances[ShapeIndex].Get();
-			const EImplicitObjectType ShapeType = Private::GetImplicitCollisionType(SubmergedParticle, Implicit);
+			const EImplicitObjectType ShapeType = Chaos::Private::GetImplicitCollisionType(SubmergedParticle, Implicit);
 
 			// If this shape pair doesn't pass a narrow phase test then skip it
 			if (!ShapePairNarrowPhaseFilter(ShapeType, ShapeInstance, WaterShapeType, WaterShapeInstance))
@@ -733,7 +748,7 @@ namespace BuoyancyAlgorithms
 		// Get inverse inertia data to compute world space accelerations
 		const FVec3 WorldCoM = RigidGeneric->PCom();
 		const FVec3 CoMDiff = SubmergedCoM - WorldCoM;
-		const FMatrix33 WorldInvI = Utilities::ComputeWorldSpaceInertia(RigidGeneric->RCom(), RigidGeneric->ConditionedInvI());
+		const FMatrix33 WorldInvI = Chaos::Utilities::ComputeWorldSpaceInertia(RigidGeneric->RCom(), RigidGeneric->ConditionedInvI());
 
 		// Compute world buoyant force and torque
 		const FVec3 WorldForce = -GravityDir * BuoyantForce;

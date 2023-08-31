@@ -356,8 +356,6 @@ void FBuoyancySubsystemSimCallbackOutput::Reset()
 
 void FBuoyancySubsystemSimCallback::OnPreSimulate_Internal()
 {
-	using namespace Chaos;
-
 	SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_OnPreSimulate)
 
 	// If we were sent new buoyancy settings or data, update our local sim copy
@@ -388,8 +386,6 @@ void FBuoyancySubsystemSimCallback::OnPreSimulate_Internal()
 
 void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidPhaseModifierAccessor& MidPhaseAccessor)
 {
-	using namespace Chaos;
-
 	SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_OnMidPhaseModification)
 
 	// If we don't have a spline data manager, early out
@@ -405,12 +401,12 @@ void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidP
 	}
 
 	// Get the evolution
-	FPBDRigidsEvolution* Evolution = nullptr;
-	if (FPhysicsSolverBase* SolverBase = GetSolver())
+	Chaos::FPBDRigidsEvolution* Evolution = nullptr;
+	if (Chaos::FPhysicsSolverBase* SolverBase = GetSolver())
 	{
 		// Why does cast-checked return a ref? That makes me think
 		// it's not actually doing a check...
-		FPBDRigidsSolver& PBDSolver = SolverBase->CastChecked();
+		Chaos::FPBDRigidsSolver& PBDSolver = SolverBase->CastChecked();
 		Evolution = PBDSolver.GetEvolution();
 	}
 	if (Evolution == nullptr)
@@ -468,14 +464,12 @@ void FBuoyancySubsystemSimCallback::ProcessMidPhase(
 {
 	SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_ProcessMidphase)
 
-	using namespace Chaos;
-
 	// Always disable midphases with water
 	MidPhase.Disable();
 
 	// Get midphase particles
-	FGeometryParticleHandle* Particle0;
-	FGeometryParticleHandle* Particle1;
+	Chaos::FGeometryParticleHandle* Particle0;
+	Chaos::FGeometryParticleHandle* Particle1;
 	MidPhase.GetParticles(&Particle0, &Particle1);
 	if (Particle0 == nullptr || Particle1 == nullptr)
 	{
@@ -491,7 +485,7 @@ void FBuoyancySubsystemSimCallback::ProcessMidPhase(
 	}
 
 	// Select & cast the rigid particle
-	FPBDRigidParticleHandle* RigidParticle = (Particle0 == WaterParticle ? Particle1 : Particle0)->CastToRigidParticle();
+	Chaos::FPBDRigidParticleHandle* RigidParticle = (Particle0 == WaterParticle ? Particle1 : Particle0)->CastToRigidParticle();
 
 	// Find water surface at the nearest point on the spline
 	const FVector ParticlePos = RigidParticle->XCom();
@@ -502,10 +496,10 @@ void FBuoyancySubsystemSimCallback::ProcessMidPhase(
 	const float WaterZ = ClosestSplinePoint.Z;
 
 	// Get the water velocity at this point
-	const FVec3 WaterVel
+	const Chaos::FVec3 WaterVel
 		= WaterSpline->Velocity.IsSet()
 		? WaterSpline->Velocity->Eval(ClosestSplineKey) * WaterSpline->Position.EvalDerivative(ClosestSplineKey).GetSafeNormal()
-		: FVec3::ZeroVector;
+		: Chaos::FVec3::ZeroVector;
 
 #if ENABLE_DRAW_DEBUG
 	if (bBuoyancyDebugDraw)
@@ -514,12 +508,12 @@ void FBuoyancySubsystemSimCallback::ProcessMidPhase(
 		const FColor SplineColor = FColor::Cyan;
 
 		// Draw projection onto the line
-		const FVec3 SurfacePoint(ParticlePos.X, ParticlePos.Y, WaterZ);
+		const Chaos::FVec3 SurfacePoint(ParticlePos.X, ParticlePos.Y, WaterZ);
 		Chaos::FDebugDrawQueue::GetInstance().DrawDebugLine(ParticlePos, SurfacePoint, SplineColor, false, -1.f, -1, 6.f);
 		Chaos::FDebugDrawQueue::GetInstance().DrawDebugLine(SurfacePoint, ClosestSplinePoint, SplineColor, false, -1.f, -1, 3.f);
 
 		// Draw a section of the spline near the spline key
-		FVec3 PrevPoint;
+		Chaos::FVec3 PrevPoint;
 		bool bFirst = true;
 		for (float SplineKey = ClosestSplineKey - .1f; SplineKey <= ClosestSplineKey + .1f; SplineKey += .05f)
 		{
@@ -541,7 +535,7 @@ void FBuoyancySubsystemSimCallback::ProcessMidPhase(
 
 	// Compute submerged volume and CoM
 	float SubmergedVol;
-	FVec3 SubmergedCoM;
+	Chaos::FVec3 SubmergedCoM;
 	float TotalVol;
 	if (BuoyancyAlgorithms::ComputeSubmergedVolume(Evolution, RigidParticle, WaterParticle, WaterZ, BuoyancySettings->MaxNumBoundsSubdivisions, BuoyancySettings->MinBoundsSubdivisionVol, SubmergedShapes, SubmergedVol, SubmergedCoM, TotalVol))
 	{
@@ -582,9 +576,9 @@ void FBuoyancySubsystemSimCallback::ProcessMidPhase(
 
 				// Proceed only if this CoM is moving fast enough to generate events
 				const FBuoyancySubmersion& Submersion = Submersions[RigidParticleIndex];
-				const FVec3 CoMDiff = Submersion.CoM - RigidParticle->XCom();
-				const FVec3 CoMVel = RigidParticle->V() + FVec3::CrossProduct(RigidParticle->W(), CoMDiff);
-				const float CoMVelSq = FVec3::DotProduct(CoMVel, CoMVel);
+				const Chaos::FVec3 CoMDiff = Submersion.CoM - RigidParticle->XCom();
+				const Chaos::FVec3 CoMVel = RigidParticle->V() + Chaos::FVec3::CrossProduct(RigidParticle->W(), CoMDiff);
+				const float CoMVelSq = Chaos::FVec3::DotProduct(CoMVel, CoMVel);
 				const float MinVel = BuoyancySettings->MinVelocityForSurfaceTouchCallback;
 				const float MinVelSq = MinVel * MinVel;
 
@@ -612,27 +606,25 @@ void FBuoyancySubsystemSimCallback::ApplyBuoyantForces(Chaos::FPBDRigidsEvolutio
 {
 	SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_ApplyBuoyantForces)
 
-	using namespace Chaos;
-
 	// How much time has the sim ticked this frame
-	const FReal DeltaSeconds = GetDeltaTime_Internal();
+	const Chaos::FReal DeltaSeconds = GetDeltaTime_Internal();
 
 	// Get perparticle gravity rule, for figuring out the effective gravity on buoyant objects
-	const FPerParticleGravity* PerParticleGravity = &Evolution.GetGravityForces();
+	const Chaos::FPerParticleGravity* PerParticleGravity = &Evolution.GetGravityForces();
 
 	// Apply all buoyant forces
 	for (const FBuoyancySubmersion& Submersion : Submersions)
 	{
 		// Figure out the gravity level of the particle
 		const int32 GravityGroupIndex = Submersion.Particle->GravityGroupIndex();
-		const FVec3 GravityAccel
+		const Chaos::FVec3 GravityAccel
 			= PerParticleGravity != nullptr && GravityGroupIndex != INDEX_NONE
-			? (FVec3)PerParticleGravity->GetAcceleration(GravityGroupIndex)
-			: FVec3::DownVector * 980.f; // Default to "regular" gravity
+			? (Chaos::FVec3)PerParticleGravity->GetAcceleration(GravityGroupIndex)
+			: Chaos::FVec3::DownVector * 980.f; // Default to "regular" gravity
 
 		// Compute delta linear and angular velocities due to buoyancy. If they're big enough to
 		// matter, apply them
-		FVec3 DeltaV, DeltaW;
+		Chaos::FVec3 DeltaV, DeltaW;
 		if (BuoyancyAlgorithms::ComputeBuoyantForce(Submersion.Particle, DeltaSeconds, BuoyancySettings->WaterDensity, BuoyancySettings->WaterDrag, GravityAccel, Submersion.CoM, Submersion.Vol, Submersion.Vel, DeltaV, DeltaW))
 		{
 			// Clamp delta velocities
@@ -646,7 +638,7 @@ void FBuoyancySubsystemSimCallback::ApplyBuoyantForces(Chaos::FPBDRigidsEvolutio
 			// Wake up the body??
 			if (BuoyancySettings->bKeepAwake)
 			{
-				Evolution.SetParticleObjectState(Submersion.Particle, EObjectStateType::Dynamic);
+				Evolution.SetParticleObjectState(Submersion.Particle, Chaos::EObjectStateType::Dynamic);
 			}
 		}
 	}
