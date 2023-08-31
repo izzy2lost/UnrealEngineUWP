@@ -185,6 +185,12 @@ namespace Horde.Agent
 				{
 					return builder.WaitAndRetryAsync(new[] { TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10) });
 				});
+			services.AddHttpClient(AwsInstanceLifecycleService.HttpClientName);
+			services.AddSingleton<AwsInstanceLifecycleService>();
+			if (settings.EnableAwsEc2Support)
+			{
+				services.AddHostedService(sp => sp.GetRequiredService<AwsInstanceLifecycleService>());
+			}
 
 			services.AddSingleton<GrpcService>();
 			services.AddSingleton<TelemetryService>();
