@@ -18,11 +18,14 @@ struct VFunction : VCell
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
+	using Args = TArray<VValue, TInlineAllocator<8>>;
+
 	TWriteBarrier<VProcedure> Procedure;
 	const uint32 NumCaptures;
 	TWriteBarrier<VValue> Captures[];
 
 	COREUOBJECT_API VValue InvokeInTransaction(FRunningContext Context, VValue Argument);
+	COREUOBJECT_API VValue InvokeInTransaction(FRunningContext Context, Args&& Args);
 
 	static VFunction& New(FAllocationContext Context, VProcedure& Procedure, uint32 NumCaptures)
 	{

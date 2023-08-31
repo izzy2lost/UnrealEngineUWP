@@ -23,7 +23,7 @@ namespace UnrealBuildTool
 			ClobberDef,
 		}
 
-		internal enum ArgArity
+		internal enum Arity
 		{
 			Fixed,
 			Variadic,
@@ -75,16 +75,16 @@ namespace UnrealBuildTool
 		{
 			public string Name;
 			public Role Role;
-			public ArgArity ArgArity;
+			public Arity Arity;
 
-			public Argument(in string _Name, in Role _Role, in ArgArity _ArgArity)
+			public Argument(in string _Name, in Role _Role, in Arity _Arity)
 			{
 				Name = _Name;
 				Role = _Role;
-				ArgArity = _ArgArity;
+				Arity = _Arity;
 			}
 
-			public Argument(in string _Name, in Role _Role) : this(_Name, _Role, ArgArity.Fixed)
+			public Argument(in string _Name, in Role _Role) : this(_Name, _Role, Arity.Fixed)
 			{ }
 		}
 
@@ -124,15 +124,15 @@ namespace UnrealBuildTool
 
 			public string CppCapturesName => $"F{Name}SuspensionCaptures";
 
-			public Instruction Arg(in string Name, in Role InRole, in ArgArity InArgArity)
+			public Instruction Arg(in string Name, in Role InRole, in Arity InArity)
 			{
-				Args.Add(new Argument(Name, InRole, InArgArity));
+				Args.Add(new Argument(Name, InRole, InArity));
 				return this;
 			}
 
 			public Instruction Arg(in string Name, in Role InRole)
 			{
-				return Arg(Name, InRole, ArgArity.Fixed);
+				return Arg(Name, InRole, Arity.Fixed);
 			}
 
 			public Instruction Const(string Name, CppType Type)
@@ -222,7 +222,7 @@ namespace UnrealBuildTool
 			{
 				string ArgString = bIsSuspensionCapture ? $"{Arg.Name}.Get()" : $"{Arg.Name}";
 				string OperandString = bIsSuspensionCapture ? "Operand.Get()" : "Operand";
-				if (Arg.ArgArity == ArgArity.Variadic)
+				if (Arg.Arity == Arity.Variadic)
 				{
 					S.Append($"        for (const auto& Operand : {Arg.Name})\n");
 					S.Append("        {\n");
@@ -242,7 +242,7 @@ namespace UnrealBuildTool
 			{
 				string ArgString = bIsSuspensionCapture ? $"{Arg.Name}.Get()" : $"{Arg.Name}";
 				string OperandString = bIsSuspensionCapture ? "Operand.Get()" : "Operand";
-				if (Arg.ArgArity == ArgArity.Variadic)
+				if (Arg.Arity == Arity.Variadic)
 				{
 					S.Append($"        for (int32 Index = 0; Index < {Arg.Name}.Num(); ++Index)\n");
 					S.Append("        {\n");
@@ -283,15 +283,15 @@ namespace UnrealBuildTool
 				// Define fields
 				foreach (Argument Arg in Inst.Args)
 				{
-					switch (Arg.ArgArity)
+					switch (Arg.Arity)
 					{
-						case ArgArity.Variadic:
+						case Arity.Variadic:
 							// NOTE: (yiliang.siew) This could be raised to a location such as in `VProgram` when that
 							// exists and each opcode store only the index + size to index into that array, so that we don't
 							// need to store a separate `TArray` of operand values per-opcode struct.
 							S.Append($"    TArray<{Arg.Role.DefCppType()}> {Arg.Name};  // Variadic argument.\n");
 							break;
-						case ArgArity.Fixed:
+						case Arity.Fixed:
 							S.Append($"    {Arg.Role.DefCppType()} {Arg.Name};\n");
 							break;
 						default:
@@ -309,7 +309,7 @@ namespace UnrealBuildTool
 
 				// Constructor
 				S.Append($"    {Inst.CppName}(");
-				string ArgumentsList = string.Join(", ", Inst.Args.Select(Arg => Arg.ArgArity == ArgArity.Variadic ? $"TArray<{Arg.Role.DefCppType()}>&& {Arg.Name}" : $"const {Arg.Role.DefCppType()} {Arg.Name}"));
+				string ArgumentsList = string.Join(", ", Inst.Args.Select(Arg => Arg.Arity == Arity.Variadic ? $"TArray<{Arg.Role.DefCppType()}>&& {Arg.Name}" : $"const {Arg.Role.DefCppType()} {Arg.Name}"));
 				S.Append(ArgumentsList);
 				string ConstantsList = string.Join(", ", Inst.Consts.Select(Const => $"{Const.Type.ToCpp()} {Const.Name}"));
 				S.Append(ConstantsList);
@@ -317,7 +317,7 @@ namespace UnrealBuildTool
 				S.Append("        : FOp(StaticOpcode)\n");
 				foreach (Argument Arg in Inst.Args)
 				{
-					if (Arg.ArgArity == ArgArity.Variadic)
+					if (Arg.Arity == Arity.Variadic)
 					{
 						S.Append($"        , {Arg.Name}(MoveTemp({Arg.Name}))\n");
 					}
@@ -365,7 +365,7 @@ namespace UnrealBuildTool
 				// Generate the fields.
 				foreach (Argument Arg in Inst.Args)
 				{
-					if (Arg.ArgArity == ArgArity.Variadic)
+					if (Arg.Arity == Arity.Variadic)
 					{
 						S.Append($"    TArray<TWriteBarrier<VValue>> {Arg.Name};  // Captured variadic arguments.\n");
 					}
@@ -390,7 +390,7 @@ namespace UnrealBuildTool
 					S.Append($"    {Name}(FAccessContext Context");
 					foreach (Argument Arg in Inst.Args)
 					{
-						if (Arg.ArgArity == ArgArity.Variadic)
+						if (Arg.Arity == Arity.Variadic)
 						{
 							// Avoid variable shadowing.
 							S.Append($", TArray<TWriteBarrier<VValue>>&& In{Arg.Name}");
@@ -412,7 +412,7 @@ namespace UnrealBuildTool
 					string Prefix = ":";
 					foreach (Argument Arg in Inst.Args)
 					{
-						if (Arg.ArgArity == ArgArity.Variadic)
+						if (Arg.Arity == Arity.Variadic)
 						{
 							S.Append($"        {Prefix} {Arg.Name}(MoveTemp(In{Arg.Name}))\n");
 						}
@@ -443,7 +443,7 @@ namespace UnrealBuildTool
 					string Prefix = ":";
 					foreach (Argument Arg in Inst.Args)
 					{
-						if (Arg.ArgArity == ArgArity.Variadic)
+						if (Arg.Arity == Arity.Variadic)
 						{
 							S.Append($"        {Prefix} {Arg.Name}(Other.{Arg.Name})\n");
 						}
@@ -496,7 +496,7 @@ namespace UnrealBuildTool
 				}
 				foreach (Argument Arg in Inst.Args)
 				{
-					if (Arg.ArgArity == ArgArity.Variadic)
+					if (Arg.Arity == Arity.Variadic)
 					{
 						S.Append($"    TArray<TWriteBarrier<VValue>> Array{Arg.Name};\n");
 						S.Append($"    for (auto& CurrentValue : Op.{Arg.Name})\n");
@@ -508,7 +508,7 @@ namespace UnrealBuildTool
 				S.Append($"    return {Inst.CppCapturesName}(Context");
 				foreach (Argument Arg in Inst.Args)
 				{
-					if (Arg.ArgArity == ArgArity.Variadic)
+					if (Arg.Arity == Arity.Variadic)
 					{
 						S.Append($", MoveTemp(Array{Arg.Name})");
 					}
@@ -645,7 +645,7 @@ namespace UnrealBuildTool
 			Inst("Call")
 				.Arg("Dest", Role.UnifyDef)
 				.Arg("Callee", Role.Use)
-				.Arg("Argument", Role.Use)
+				.Arg("Arguments", Role.Use, Arity.Variadic)
 				.CapturesEffectToken()
 				.CreatesNewReturnEffectToken()
 				.Suspends();
@@ -668,7 +668,7 @@ namespace UnrealBuildTool
 
 			Inst("NewTuple")
 				.Arg("Dest", Role.UnifyDef)
-				.Arg("Values", Role.Use, ArgArity.Variadic);
+				.Arg("Values", Role.Use, Arity.Variadic);
 
 			Inst("Length")
 				.Arg("Dest", Role.UnifyDef)
@@ -689,7 +689,7 @@ namespace UnrealBuildTool
 
 			Inst("NewArray")
 				.Arg("Dest", Role.UnifyDef)
-				.Arg("Values", Role.Use, ArgArity.Variadic);
+				.Arg("Values", Role.Use, Arity.Variadic);
 
 			Inst("NewOption")
 				.Arg("Dest", Role.UnifyDef)
@@ -698,8 +698,8 @@ namespace UnrealBuildTool
 
 			Inst("NewMap")
 				.Arg("Dest", Role.UnifyDef)
-				.Arg("Keys", Role.Use, ArgArity.Variadic)
-				.Arg("Values", Role.Use, ArgArity.Variadic)
+				.Arg("Keys", Role.Use, Arity.Variadic)
+				.Arg("Values", Role.Use, Arity.Variadic)
 				.Suspends();
 
 			string[] ComparisonOps =

@@ -113,18 +113,67 @@ struct FExecutionState
 };
 } // namespace
 
-static VFrame& MakeFrameForCallee(FRunningContext Context, VFrame* CallerFrame, FOp* CallerPC, VValue Argument, VValue ReturnSlot, VFunction& Function)
+template <typename ArgFunction>
+static VFrame& MakeFrameForCallee(FRunningContext Context, VFrame* CallerFrame, FOp* CallerPC, VValue ReturnSlot, VFunction& Function, uint32 NumArgs, ArgFunction GetArg)
 {
 	VProcedure& Procedure = Function.GetProcedure();
 	VFrame& Frame = VFrame::New(Context, Procedure.NumRegisters, CallerFrame, CallerPC, Procedure, ReturnSlot);
 
-	check(Function.NumCaptures + 1 <= Procedure.NumRegisters);
-	for (uint32 CaptureIndex = 0; CaptureIndex < Function.NumCaptures; ++CaptureIndex)
+	check(Function.NumCaptures + Procedure.NumParameters <= Procedure.NumRegisters);
+
+	if (Procedure.NumParameters == NumArgs)
 	{
-		Frame.Registers[CaptureIndex + 1].Set(Context, Function.Captures[CaptureIndex].Get());
+		for (uint32 Arg = 0; Arg < NumArgs; ++Arg)
+		{
+			Frame.Registers[Arg].Set(Context, GetArg(Arg));
+		}
+	}
+	else if (Procedure.NumParameters)
+	{
+		if (NumArgs > Procedure.NumParameters)
+		{
+			V_DIE_UNLESS(Procedure.NumParameters == 1);
+
+			VTuple& ArgTuple = VTuple::New(Context, NumArgs);
+			for (uint32 Arg = 0; Arg < NumArgs; ++Arg)
+			{
+				ArgTuple.SetValue(Context, Arg, GetArg(Arg));
+			}
+
+			Frame.Registers[0].Set(Context, ArgTuple);
+		}
+		else
+		{
+			V_DIE_UNLESS(NumArgs < Procedure.NumParameters);
+			V_DIE_UNLESS(NumArgs == 1);
+
+			VValue IncomingArg = GetArg(0);
+			VTuple* Args = nullptr;
+			if (VArray* ArgArray = IncomingArg.DynamicCast<VArray>())
+			{
+				Args = &ArgArray->GetTuple();
+			}
+			else
+			{
+				Args = &IncomingArg.StaticCast<VTuple>();
+			}
+
+			V_DIE_UNLESS(Args->Num() == Procedure.NumParameters);
+			for (uint32 Arg = 0; Arg < Procedure.NumParameters; ++Arg)
+			{
+				Frame.Registers[Arg].Set(Context, Args->GetValue(Arg));
+			}
+		}
+	}
+	else
+	{
+		V_DIE_UNLESS(NumArgs == 0);
 	}
 
-	Frame.Registers[0].Set(Context, Argument);
+	for (uint32 CaptureIndex = 0; CaptureIndex < Function.NumCaptures; ++CaptureIndex)
+	{
+		Frame.Registers[CaptureIndex + Procedure.NumParameters].Set(Context, Function.Captures[CaptureIndex].Get());
+	}
 
 	return Frame;
 }
@@ -585,6 +634,26 @@ class FInterpreter
 		FOpResult::ShouldSuspend, Value \
 	}
 
+#define OP_RESULT_HELPER(Result)                                                            \
+	if (Result.Kind != FOpResult::Normal)                                                   \
+	{                                                                                       \
+		if (Result.Kind == FOpResult::Failed)                                               \
+		{                                                                                   \
+			FAIL();                                                                         \
+		}                                                                                   \
+		else if (Result.Kind == FOpResult::ShouldSuspend)                                   \
+		{                                                                                   \
+			check(Result.Value.IsPlaceholder());                                            \
+			ENQUEUE_SUSPENSION(Result.Value);                                               \
+		}                                                                                   \
+		else                                                                                \
+		{                                                                                   \
+			check(Result.Kind == FOpResult::RuntimeError);                                  \
+			/* TODO: SOL-4563 Implement proper handling of runtime errors */                \
+			V_DIE("%s", UTF8_TO_TCHAR(Result.Value.StaticCast<VUTF8String>().AsCString())); \
+		}                                                                                   \
+	}
+
 	VRational& PrepareRationalSourceHelper(VValue& Source)
 	{
 		if (VRational* RationalSource = Source.DynamicCast<VRational>())
@@ -964,6 +1033,60 @@ class FInterpreter
 	}
 
 	template <typename OpType>
+	FOpResult CallImpl(OpType& Op, VValue Callee)
+	{
+		// Handles FOpCall for all cases except VFunction calls which
+		// are handled differently for lenient and non-lenient calls.
+		check(!Callee.IsPlaceholder());
+
+		V_DIE_UNLESS(Op.Arguments.Num() == 1);
+
+		VValue Argument = GetOperand(Op.Arguments[0]);
+		// Special cases for known container types.
+		if (VTuple* Tuple = Callee.DynamicCast<VTuple>())
+		{
+			REQUIRE_CONCRETE(Argument);
+			// Bounds check since this index access in Verse is failable.
+			if (Argument.IsInt() && Tuple->IsInBounds(Argument.AsInt()))
+			{
+				DEF(Op.Dest, Tuple->GetValue(Argument.AsInt32()));
+			}
+			else
+			{
+				FAIL();
+			}
+		}
+		else if (VArray* Array = Callee.DynamicCast<VArray>())
+		{
+			REQUIRE_CONCRETE(Argument);
+			// Bounds check since this index access in Verse is failable.
+			if (Argument.IsInt() && Array->IsInBounds(Argument.AsInt()))
+			{
+				DEF(Op.Dest, Array->GetValue(Argument.AsInt32()));
+			}
+			else
+			{
+				FAIL();
+			}
+		}
+		else if (VNativeFunction* NativeFunction = Callee.DynamicCast<VNativeFunction>())
+		{
+			// TODO SOL-5113: We can't have VNI calls with multiple args to box their parameters
+			// in a tuple. Since we emit just one Call opcode for all calls, this needs
+			// to follow the same calling convention we have for invoking VFunction.
+			FNativeCallResult Result = (*NativeFunction->Thunk)(Context, Argument);
+			OP_RESULT_HELPER(Result);
+			DEF(Op.Dest, Result.Value);
+		}
+		else
+		{
+			V_DIE("Unknown callee");
+		}
+
+		return {FOpResult::Normal};
+	}
+
+	template <typename OpType>
 	FOpResult NewArrayWithCapacityImpl(OpType& Op)
 	{
 		const VValue Size = GetOperand(Op.Size);
@@ -1178,28 +1301,8 @@ class FInterpreter
 #undef FAIL
 #undef ENQUEUE_SUSPENSION
 
-#define OP_RESULT_HELPER(Result)                                                            \
-	if (Result.Kind != FOpResult::Normal)                                                   \
-	{                                                                                       \
-		if (Result.Kind == FOpResult::Failed)                                               \
-		{                                                                                   \
-			FAIL();                                                                         \
-		}                                                                                   \
-		else if (Result.Kind == FOpResult::ShouldSuspend)                                   \
-		{                                                                                   \
-			check(Result.Value.IsPlaceholder());                                            \
-			ENQUEUE_SUSPENSION(Result.Value);                                               \
-		}                                                                                   \
-		else                                                                                \
-		{                                                                                   \
-			check(Result.Kind == FOpResult::RuntimeError);                                  \
-			/* TODO: SOL-4563 Implement proper handling of runtime errors */                \
-			V_DIE("%s", UTF8_TO_TCHAR(Result.Value.StaticCast<VUTF8String>().AsCString())); \
-		}                                                                                   \
-	}
-
-#define OP_IMPL_HELPER(OpName)           \
-	FOpResult Result = OpName##Impl(Op); \
+#define OP_IMPL_HELPER(OpName, ...)                     \
+	FOpResult Result = OpName##Impl(Op, ##__VA_ARGS__); \
 	OP_RESULT_HELPER(Result)
 
 /// Use this macro for defining a new opcode implementation if it can possibly
@@ -1432,60 +1535,19 @@ class FInterpreter
 					VValue Callee = GetOperand(Op.Callee);
 					REQUIRE_CONCRETE(Callee);
 
-					VValue Argument = GetOperand(Op.Argument);
-					// Special case for known container types.
-					if (VTuple* Tuple = Callee.DynamicCast<VTuple>())
+					if (VFunction* Function = Callee.DynamicCast<VFunction>())
 					{
-						REQUIRE_CONCRETE(Argument);
-						// Bounds check since this index access in Verse is failable.
-						if (Argument.IsInt() && Tuple->IsInBounds(Argument.AsInt()))
-						{
-							DEF(Op.Dest, Tuple->GetValue(Argument.AsInt32()));
-						}
-						else
-						{
-							FAIL();
-						}
-					}
-					else if (VArray* Array = Callee.DynamicCast<VArray>())
-					{
-						REQUIRE_CONCRETE(Argument);
-						// Bounds check since this index access in Verse is failable.
-						if (Argument.IsInt() && Array->IsInBounds(Argument.AsInt()))
-						{
-							DEF(Op.Dest, Array->GetValue(Argument.AsInt32()));
-						}
-						else
-						{
-							FAIL();
-						}
-					}
-					else if (VMap* Map = Callee.DynamicCast<VMap>())
-					{
-						REQUIRE_CONCRETE(Argument);
-						if (VValue FoundValue = Map->Find(Argument))
-						{
-							DEF(Op.Dest, FoundValue);
-						}
-						else
-						{
-							FAIL();
-						}
-					}
-					else if (VNativeFunction* NativeFunction = Callee.DynamicCast<VNativeFunction>())
-					{
-						FNativeCallResult Result = (*NativeFunction->Thunk)(Context, Argument);
-						OP_RESULT_HELPER(Result);
-						DEF(Op.Dest, Result.Value);
+						// TODO: It shouldn't be hard to figure out a way to avoid the heap
+						// allocation for the return slot here when we don't encounter leniency.
+						VFrame& NewFrame = MakeFrameForCallee(Context, State.Frame, NextPC, GetOperand(Op.Dest), *Function, Op.Arguments.Num(),
+							[&](uint32 Arg) {
+								return GetOperand(Op.Arguments[Arg]);
+							});
+						UpdateExecutionState(&NewFrame, Function->GetProcedure().GetOpsBegin(), *State.FailureContext);
 					}
 					else
 					{
-						check(Callee.IsCell());
-						VFunction& Function = Callee.StaticCast<VFunction>();
-						// TODO: It shouldn't be hard to figure out a way to avoid the heap
-						// allocation for the return slot here when we don't encounter leniency.
-						VFrame& NewFrame = MakeFrameForCallee(Context, State.Frame, NextPC, Argument, GetOperand(Op.Dest), Function);
-						UpdateExecutionState(&NewFrame, Function.GetProcedure().GetOpsBegin(), *State.FailureContext);
+						OP_IMPL_HELPER(Call, Callee);
 					}
 				}
 				END_OP_CASE()
@@ -1626,55 +1688,23 @@ class FInterpreter
 							VValue Callee = GetOperand(Op.Callee);
 							REQUIRE_CONCRETE(Callee);
 
-							VValue Argument = GetOperand(Op.Argument);
-							// Special cases for known container types.
-							if (VTuple* Tuple = Callee.DynamicCast<VTuple>())
+							if (VFunction* Function = Callee.DynamicCast<VFunction>())
 							{
-								REQUIRE_CONCRETE(Argument);
-								// Bounds check since this index access in Verse is failable.
-								if (Argument.IsInt() && Tuple->IsInBounds(Argument.AsInt()))
-								{
-									DEF(Op.Dest, Tuple->GetValue(Argument.AsInt32()));
-									DEF(Op.ReturnEffectToken, GetOperand(Op.EffectToken));
-								}
-								else
-								{
-									FAIL();
-								}
-							}
-							else if (VArray* Array = Callee.DynamicCast<VArray>())
-							{
-								REQUIRE_CONCRETE(Argument);
-								// Bounds check since this index access in Verse is failable.
-								if (Argument.IsInt() && Array->IsInBounds(Argument.AsInt()))
-								{
-									DEF(Op.Dest, Array->GetValue(Argument.AsInt32()));
-									DEF(Op.ReturnEffectToken, GetOperand(Op.EffectToken));
-								}
-								else
-								{
-									FAIL();
-								}
-							}
-							else if (VNativeFunction* NativeFunction = Callee.DynamicCast<VNativeFunction>())
-							{
-								FNativeCallResult Result = (*NativeFunction->Thunk)(Context, Argument);
-								OP_RESULT_HELPER(Result);
-								DEF(Op.Dest, Result.Value);
-							}
-							else
-							{
-								check(Callee.IsCell());
-								VFunction& Function = Callee.StaticCast<VFunction>();
-
 								VFrame* CallerFrame = nullptr;
 								FOp* CallerPC = nullptr;
-								VFrame& NewFrame = MakeFrameForCallee(Context, CallerFrame, CallerPC, GetOperand(Op.Argument), GetOperand(Op.Dest), Function);
+								VFrame& NewFrame = MakeFrameForCallee(Context, CallerFrame, CallerPC, GetOperand(Op.Dest), *Function, Op.Arguments.Num(),
+									[&](uint32 Arg) {
+										return GetOperand(Op.Arguments[Arg]);
+									});
 								NewFrame.ReturnEffectToken.Set(Context, GetOperand(Op.ReturnEffectToken));
 								// TODO SOL-4435: Enact some recursion limit here since we're using the machine stack.
 								VFailureContext& FailureContext = *CurrentSuspension->FailureContext.Get();
-								FInterpreter::InvokeFunction(Context, NewFrame, FailureContext, Function, GetOperand(Op.EffectToken));
-								// TODO: Propagate failure to the failure context of the suspension.
+								FInterpreter::InvokeFunction(Context, NewFrame, FailureContext, *Function, GetOperand(Op.EffectToken));
+							}
+							else
+							{
+								OP_IMPL_HELPER(Call, Callee);
+								DEF(Op.ReturnEffectToken, GetOperand(Op.EffectToken));
 							}
 						}
 						END_OP_CASE()
@@ -1754,13 +1784,18 @@ public:
 		Interpreter.Execute();
 	}
 
-	static VValue InvokeInTransaction(FRunningContext Context, VValue Argument, VFunction& Function)
+	static VValue InvokeInTransaction(FRunningContext Context, VFunction::Args&& IncomingArguments, VFunction& Function)
 	{
 		VRestValue ReturnSlot(0);
 
+		VFunction::Args Arguments = MoveTemp(IncomingArguments);
+
 		VFrame* CallerFrame = nullptr;
 		FOp* CallerPC = nullptr;
-		VFrame& Frame = MakeFrameForCallee(Context, CallerFrame, CallerPC, Argument, ReturnSlot.Get(Context), Function);
+		VFrame& Frame = MakeFrameForCallee(Context, CallerFrame, CallerPC, ReturnSlot.Get(Context), Function, Arguments.Num(),
+			[&](uint32 Arg) {
+				return Arguments[Arg];
+			});
 		VFailureContext& FailureContext = VFailureContext::New(
 			Context,
 			/*Parent*/ nullptr,
@@ -1789,9 +1824,16 @@ public:
 	}
 };
 
+VValue VFunction::InvokeInTransaction(FRunningContext Context, VFunction::Args&& Args)
+{
+	VValue Result = FInterpreter::InvokeInTransaction(Context, MoveTemp(Args), *this);
+	check(!Result.IsPlaceholder());
+	return Result;
+}
+
 VValue VFunction::InvokeInTransaction(FRunningContext Context, VValue Argument)
 {
-	VValue Result = FInterpreter::InvokeInTransaction(Context, Argument, *this);
+	VValue Result = FInterpreter::InvokeInTransaction(Context, VFunction::Args{Argument}, *this);
 	check(!Result.IsPlaceholder());
 	return Result;
 }

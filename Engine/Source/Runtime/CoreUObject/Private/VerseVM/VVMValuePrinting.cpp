@@ -7,9 +7,11 @@
 #include "VerseVM/Inline/VVMIntInline.h"
 #include "VerseVM/Inline/VVMTupleInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
+#include "VerseVM/VVMFunction.h"
 #include "VerseVM/VVMInt.h"
 #include "VerseVM/VVMLog.h"
 #include "VerseVM/VVMPlaceholder.h"
+#include "VerseVM/VVMProcedure.h"
 #include "VerseVM/VVMRational.h"
 #include "VerseVM/VVMRestValue.h"
 #include "VerseVM/VVMTuple.h"
@@ -51,6 +53,16 @@ FString FDefaultCellFormatter::ToString(FRunningContext Context, VCell& Cell) co
 	if (const ::Verse::VUTF8String* String = Cell.DynamicCast<VUTF8String>())
 	{
 		return FString::Printf(TEXT("String(\"%hs\")"), String->AsCString());
+	}
+
+	if (VValue Logic(Cell); Logic.IsLogic())
+	{
+		return Logic.AsBool() ? TEXT("true") : TEXT("false");
+	}
+
+	if (VFunction* Function = Cell.DynamicCast<VFunction>())
+	{
+		return FString::Printf(TEXT("Function(Procedure=%s)"), *ToString(Context, *Function->Procedure.Get()));
 	}
 
 	return FString::Printf(TEXT("Cell(0x%" PRIxPTR ")"), BitCast<uintptr_t>(&Cell));

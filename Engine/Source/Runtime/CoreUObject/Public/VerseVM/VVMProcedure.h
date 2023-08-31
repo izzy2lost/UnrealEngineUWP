@@ -18,6 +18,7 @@ struct VProcedure : VHeapValue
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
+	const uint32 NumParameters;
 	const uint32 NumRegisters;
 	const uint32 NumOpBytes;
 
@@ -55,19 +56,20 @@ struct VProcedure : VHeapValue
 		return Constants[ConstantIndex.Index].Get();
 	}
 
-	static VProcedure& New(FAllocationContext Context, uint32 NumRegisters, uint32 NumConstants, size_t NumOpBytes)
+	static VProcedure& New(FAllocationContext Context, uint32 NumParameters, uint32 NumRegisters, uint32 NumConstants, size_t NumOpBytes)
 	{
 		const size_t NumBytes = offsetof(VProcedure, Constants)
 							  + sizeof(Constants[0]) * NumConstants
 							  + NumOpBytes;
-		return *new (Context.Allocate(Verse::FHeap::DestructorSpace, NumBytes)) VProcedure(Context, NumRegisters, NumConstants, NumOpBytes);
+		return *new (Context.Allocate(Verse::FHeap::DestructorSpace, NumBytes)) VProcedure(Context, NumParameters, NumRegisters, NumConstants, NumOpBytes);
 	}
 
 	COREUOBJECT_API static void MarkReferencedCellsImpl(VCell* This, FMarkStack&);
 
 private:
-	VProcedure(FAllocationContext Context, uint32 InNumRegisters, uint32 InNumConstants, uint32 InNumOpBytes)
+	VProcedure(FAllocationContext Context, uint32 InNumArguments, uint32 InNumRegisters, uint32 InNumConstants, uint32 InNumOpBytes)
 		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))
+		, NumParameters(InNumArguments)
 		, NumRegisters(InNumRegisters)
 		, NumOpBytes(InNumOpBytes)
 		, NumConstants(InNumConstants)
