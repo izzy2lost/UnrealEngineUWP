@@ -294,7 +294,7 @@ FString FBlendStackAnimPlayer::GetAnimationName() const
 	return FString("StoredPose");
 }
 
-const UAnimationAsset* FBlendStackAnimPlayer::GetAnimationAsset() const
+UAnimationAsset* FBlendStackAnimPlayer::GetAnimationAsset() const
 {
 	if (SequencePlayerNode.GetSequence())
 	{
@@ -630,6 +630,11 @@ void FAnimNode_BlendStack_Standalone::InitializeSample(const FAnimationInitializ
 		PoseLink.Root.Initialize(Context);
 		PoseLink.ConditionalCacheBones(Context);
 	}
+}
+
+UAnimationAsset* FAnimNode_BlendStack_Standalone::GetAnimAsset() const
+{
+	return AnimPlayers.IsEmpty() ? nullptr : AnimPlayers.First().GetAnimationAsset();
 }
 
 float FAnimNode_BlendStack_Standalone::GetAccumulatedTime() const

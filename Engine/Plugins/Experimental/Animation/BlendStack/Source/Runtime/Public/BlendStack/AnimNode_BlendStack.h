@@ -34,7 +34,7 @@ struct BLENDSTACK_API FBlendStackAnimPlayer
 	bool GetMirror() const { return MirrorNode.GetMirror(); }
 	FVector GetBlendParameters() const;
 	FString GetAnimationName() const;
-	const UAnimationAsset* GetAnimationAsset() const;
+	UAnimationAsset* GetAnimationAsset() const;
 
 	FAnimNode_Mirror_Standalone& GetMirrorNode() { return MirrorNode; }
 	int32 GetPoseLinkIndex() const { return PoseLinkIndex; }
@@ -110,6 +110,7 @@ struct BLENDSTACK_API FAnimNode_BlendStack_Standalone : public FAnimNode_AssetPl
 	void Reset();
 
 	// FAnimNode_AssetPlayerBase interface
+	virtual UAnimationAsset* GetAnimAsset() const;
 	virtual float GetAccumulatedTime() const override;
 	virtual void UpdateAssetPlayer(const FAnimationUpdateContext& Context) override;
 	// End of FAnimNode_AssetPlayerBase interface
