@@ -2802,7 +2802,7 @@ void UGeometryCollectionComponent::OnRegister()
 	UClass* Type = bOverrideCustomRenderer ? CustomRendererType : (RestCollection ? RestCollection->CustomRendererType : nullptr);
 	if (Type && Type->ImplementsInterface(UGeometryCollectionExternalRenderInterface::StaticClass()))
 	{
-		CustomRenderer = (UGeometryCollectionExternalRenderInterface*)NewObject<UObject>(this, Type);
+		CustomRenderer = NewObject<UObject>(this, Type);
 		RegisterCustomRenderer();
 	}
 
@@ -2823,7 +2823,7 @@ void UGeometryCollectionComponent::OnUnregister()
 
 void UGeometryCollectionComponent::RegisterCustomRenderer()
 {
-	if (IGeometryCollectionExternalRenderInterface* RendererInterface = Cast<IGeometryCollectionExternalRenderInterface>(CustomRenderer))
+	if (IGeometryCollectionExternalRenderInterface* RendererInterface = CustomRenderer.GetInterface())
 	{
 		RendererInterface->OnRegisterGeometryCollection(*this);
 	}
@@ -2831,7 +2831,7 @@ void UGeometryCollectionComponent::RegisterCustomRenderer()
 
 void UGeometryCollectionComponent::UnregisterCustomRenderer()
 {
-	if (IGeometryCollectionExternalRenderInterface* RendererInterface = Cast<IGeometryCollectionExternalRenderInterface>(CustomRenderer))
+	if (IGeometryCollectionExternalRenderInterface* RendererInterface = CustomRenderer.GetInterface())
 	{
 		RendererInterface->OnUnregisterGeometryCollection();
 	}
@@ -4902,7 +4902,7 @@ void UGeometryCollectionComponent::RefreshCustomRenderer()
 		// Don't refresh the custom renderer on the server but we still need to do the work of computing component space transforms.
 		const bool bUpdateRenderer = !IsNetMode(NM_DedicatedServer);
 
-		if (IGeometryCollectionExternalRenderInterface* RendererInterface = Cast<IGeometryCollectionExternalRenderInterface>(CustomRenderer))
+		if (IGeometryCollectionExternalRenderInterface* RendererInterface = CustomRenderer.GetInterface())
 		{
 			if (RestCollection != nullptr)
 			{

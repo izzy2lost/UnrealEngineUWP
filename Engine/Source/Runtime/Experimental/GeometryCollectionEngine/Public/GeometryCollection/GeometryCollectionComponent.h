@@ -48,7 +48,7 @@ struct FGeometryCollectionSection;
 struct FDamageCollector;
 class FPhysScene_Chaos;
 class AGeometryCollectionISMPoolActor;
-class UGeometryCollectionExternalRenderInterface;
+class IGeometryCollectionExternalRenderInterface;
 enum ESimulationInitializationState : uint8;
 enum class EClusterConnectionTypeEnum : uint8;
 enum class EInitialVelocityTypeEnum : uint8;
@@ -1217,7 +1217,7 @@ protected:
 
 	/** A custom renderer object created from CustomRenderType. */
 	UPROPERTY(Transient)
-	TObjectPtr<UGeometryCollectionExternalRenderInterface> CustomRenderer;
+	TScriptInterface<IGeometryCollectionExternalRenderInterface> CustomRenderer;
 
 	/** Populate the dynamic particle data for the render thread. */
 	GEOMETRYCOLLECTIONENGINE_API FGeometryCollectionDynamicData* InitDynamicData(bool bInitialization);
