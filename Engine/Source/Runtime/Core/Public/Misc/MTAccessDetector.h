@@ -365,7 +365,7 @@ private:
 		const SIZE_T StackTraceSize = 65536;
 		ANSICHAR StackTrace[StackTraceSize] = { 0 };
 		FPlatformStackWalk::StackWalkAndDump(StackTrace, StackTraceSize, 0);
-		return StackTrace;
+		return ANSI_TO_TCHAR(StackTrace);
 	}
 
 	static FString GetThreadCallstack(uint32 ThreadId)
@@ -384,7 +384,7 @@ private:
 		const SIZE_T StackTraceSize = 65536;
 		ANSICHAR StackTrace[StackTraceSize] = { 0 };
 		FPlatformStackWalk::ThreadStackWalkAndDump(StackTrace, StackTraceSize, 0, ThreadId);
-		return StackTrace;
+		return ANSI_TO_TCHAR(StackTrace);
 	}
 
 //////////////////////////////////////////////////////////////////////
@@ -622,9 +622,10 @@ public:
 
 		ensureMsgf(LocalState == PrevState,
 			TEXT("Data race detected: other thread(s) activity during releasing write access on thread %d: %u -> %u readers, %u -> %u writers on thread %u -> %u\nCurrent thread %u callstack:\n%s\nWriter thread %u callstack:\n%s"),
+			FPlatformTLS::GetCurrentThreadId(),
 			LocalState.ReaderNum, PrevState.ReaderNum,
-			LocalState.WriterNum, PrevState.WriterNum,
-			LocalState.GetWriterThreadId(), PrevState.GetWriterThreadId(), 
+			LocalState.WriterNum, PrevState.WriterNum, 
+			LocalState.GetWriterThreadId(), PrevState.GetWriterThreadId(),
 			FPlatformTLS::GetCurrentThreadId(), *GetCurrentThreadCallstack(),
 			PrevState.GetWriterThreadId(), *GetThreadCallstack(PrevState.GetWriterThreadId()));
 	}
