@@ -222,7 +222,7 @@ FScavengeDatabase::IsSourceValid(FScavengeBlockSource SourceId) const
 
 	const FFileManifest& FileManifest = FileIt->second;
 
-	FileAttributes Attrib = GetFileAttrib(FullFilePath);
+	FFileAttributes Attrib = GetFileAttrib(FullFilePath);
 
 	return Attrib.bValid && Attrib.Mtime == FileManifest.Mtime && Attrib.Size == FileManifest.Size;
 }

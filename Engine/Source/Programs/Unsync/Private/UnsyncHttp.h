@@ -110,7 +110,8 @@ HttpRequest(FHttpConnection& Connection,
 			std::string_view Url,
 			EHttpContentType ContentType,
 			FBufferView		 Payload,
-			std::string_view CustomHeaders = {})
+			std::string_view CustomHeaders = {},
+			std::string_view BearerToken = {})
 {
 	FHttpRequest Request;
 
@@ -119,25 +120,35 @@ HttpRequest(FHttpConnection& Connection,
 	Request.PayloadContentType = ContentType;
 	Request.Payload			   = Payload;
 	Request.CustomHeaders	   = CustomHeaders;
+	Request.BearerToken		   = BearerToken;
 
 	return HttpRequest(Connection, Request);
 }
 
 inline FHttpResponse
-HttpRequest(FHttpConnection& Connection, EHttpMethod Method, std::string_view Url, std::string_view CustomHeaders = {})
+HttpRequest(FHttpConnection& Connection,
+			EHttpMethod		 Method,
+			std::string_view Url,
+			std::string_view CustomHeaders = {},
+			std::string_view BearerToken   = {})
 {
 	FHttpRequest Request;
 	Request.Method		  = Method;
 	Request.Url			  = Url;
 	Request.CustomHeaders = CustomHeaders;
+	Request.BearerToken	  = BearerToken;
 	return HttpRequest(Connection, Request);
 }
 
 FHttpResponse
-HttpRequest(const FRemoteDesc& RemoteDesc, EHttpMethod Method, std::string_view RequestUrl);
+HttpRequest(const FRemoteDesc& RemoteDesc, EHttpMethod Method, std::string_view RequestUrl, std::string_view BearerToken = {});
 
-FHttpResponse
-HttpRequest(const FRemoteDesc& RemoteDesc, EHttpMethod Method, std::string_view RequestUrl, EHttpContentType PayloadContentType, FBufferView Payload);
+FHttpResponse HttpRequest(const FRemoteDesc& RemoteDesc,
+						  EHttpMethod		 Method,
+						  std::string_view	 RequestUrl,
+						  EHttpContentType	 PayloadContentType,
+						  FBufferView		 Payload,
+						  std::string_view	 BearerToken = {});
 
 // Pipelined HTTP request API
 

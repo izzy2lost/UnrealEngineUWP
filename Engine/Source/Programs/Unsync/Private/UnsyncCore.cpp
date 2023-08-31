@@ -6,13 +6,13 @@
 #include "UnsyncCore.h"
 #include "UnsyncFile.h"
 #include "UnsyncHashTable.h"
+#include "UnsyncProgress.h"
 #include "UnsyncProxy.h"
 #include "UnsyncScan.h"
 #include "UnsyncScavenger.h"
 #include "UnsyncSerialization.h"
 #include "UnsyncThread.h"
 #include "UnsyncUtil.h"
-#include "UnsyncProgress.h"
 
 #include <condition_variable>
 #include <deque>
@@ -2346,7 +2346,7 @@ SyncFile(const FNeedList&		   NeedList,
 	uint64 NeedFromBase	  = ComputeSize(NeedList.Base);
 	UNSYNC_VERBOSE(L"Need from source %.2f MB, from base: %.2f MB", SizeMb(NeedFromSource), SizeMb(NeedFromBase));
 
-	const FileAttributes TargetFileAttributes = GetFileAttrib(TargetFilePath);
+	const FFileAttributes TargetFileAttributes = GetFileAttrib(TargetFilePath);
 
 	if (!TargetFileAttributes.bValid && NeedList.Sequence.empty())
 	{
@@ -2493,8 +2493,8 @@ SyncFile(const FNeedList&		   NeedList,
 			}
 		}
 
-		const uint64 ExpectedSourceBytes	= ComputeSize(NeedList.Source);
-		const uint64 ExpectedBaseBytes		= ComputeSize(NeedList.Base);
+		const uint64 ExpectedSourceBytes = ComputeSize(NeedList.Source);
+		const uint64 ExpectedBaseBytes	 = ComputeSize(NeedList.Base);
 
 		const uint64 ActualProcessedBytes	= BuildResult.SourceBytes + BuildResult.BaseBytes;
 		const uint64 ExpectedProcessedBytes = ExpectedSourceBytes + ExpectedBaseBytes;
@@ -2602,8 +2602,8 @@ SyncFile(const FPath& SourceFilePath, const FPath& BaseFilePath, const FPath& Ta
 std::error_code
 CopyFileIfNewer(const FPath& Source, const FPath& Target)
 {
-	FileAttributes	SourceAttr = GetFileAttrib(Source);
-	FileAttributes	TargetAttr = GetFileAttrib(Target);
+	FFileAttributes SourceAttr = GetFileAttrib(Source);
+	FFileAttributes TargetAttr = GetFileAttrib(Target);
 	std::error_code Ec;
 	if (SourceAttr.Size != TargetAttr.Size || SourceAttr.Mtime != TargetAttr.Mtime)
 	{
@@ -2914,8 +2914,89 @@ ToPath(const std::wstring_view& Str)
 #endif	// UNSYNC_PLATFORM_UNIX
 }
 
+struct FPooledProxy
+{
+	FPooledProxy(FProxyPool& InProxyPool) : ProxyPool(InProxyPool) { Proxy = ProxyPool.Alloc(); }
+	~FPooledProxy() { ProxyPool.Dealloc(std::move(Proxy)); }
+	const FProxy&			operator->() const { return *Proxy; }
+	FProxyPool&				ProxyPool;
+	std::unique_ptr<FProxy> Proxy;
+};
+
+static bool
+DownloadFileIfNewer(const FRemoteDesc& RemoteDesc, const FPath& Source, const FPath& Target)
+{
+	using FDirectoryListing		 = ProxyQuery::FDirectoryListing;
+	using FDirectoryListingEntry = ProxyQuery::FDirectoryListingEntry;
+
+	FPath SourceParent = Source.parent_path();
+	FPath SourceFileName = Source.filename().string();
+
+	std::string SourceUtf8		   = ConvertWideToUtf8(Source.wstring());
+	std::string SourceParentUtf8   = ConvertWideToUtf8(SourceParent.wstring());
+	std::string SourceFileNameUtf8 = ConvertWideToUtf8(SourceFileName.wstring());
+
+	// TODO: could have a dedicated single file stat query 
+	TResult<FDirectoryListing> DirectoryListingResult = ProxyQuery::ListDirectory(RemoteDesc, SourceParentUtf8);
+	if (DirectoryListingResult.IsError())
+	{
+		LogError(DirectoryListingResult.GetError());
+		return false;
+	}
+
+	const FDirectoryListing&	  DirectoryListing = DirectoryListingResult.GetData();
+	const FDirectoryListingEntry* SourceEntry	   = nullptr;
+	for (const FDirectoryListingEntry& Entry : DirectoryListing.Entries)
+	{
+		if (Entry.Name == SourceFileNameUtf8 && !Entry.bDirectory)
+		{
+			SourceEntry = &Entry;
+			break;
+		}
+	}
+
+	if (!SourceEntry)
+	{
+		UNSYNC_ERROR(L"Remote file '%ls' does not exist", Source.wstring().c_str());
+		return false;
+	}
+
+	FFileAttributes TargetAttr = GetFileAttrib(Target);
+	if (SourceEntry->Size != TargetAttr.Size || SourceEntry->Mtime != TargetAttr.Mtime)
+	{
+		UNSYNC_VERBOSE(L"Downloading '%ls'", Source.wstring().c_str());
+		TResult<FBuffer> DownloadResult = ProxyQuery::DownloadFile(RemoteDesc, SourceUtf8);
+		if (DownloadResult.IsError())
+		{
+			LogError(DownloadResult.GetError());
+			return false;
+		}
+
+		const FBuffer& bFileBuffer = DownloadResult.GetData();
+		if (bFileBuffer.Size() != SourceEntry->Size)
+		{
+			UNSYNC_ERROR(L"Downloaded file size mismatch. Expected %llu, actual %llu.",
+						 llu(SourceEntry->Size),
+						 llu(bFileBuffer.Size()));
+			return false;
+		}
+
+		bool bFileWritten = WriteBufferToFile(Target, bFileBuffer);
+		if (!bFileWritten)
+		{
+			UNSYNC_ERROR(L"Failed to write downloaded file file '%ls'", Target.wstring().c_str());
+			return false;
+		}
+
+		SetFileMtime(Target, SourceEntry->Mtime);
+	}
+
+	return true;
+}
+
 static bool
 LoadAndMergeSourceManifest(FDirectoryManifest& Output,
+						   FProxyPool&		   ProxyPool,
 						   const FPath&		   SourcePath,
 						   const FPath&		   TempPath,
 						   FSyncFilter*		   SyncFilter,
@@ -2923,6 +3004,11 @@ LoadAndMergeSourceManifest(FDirectoryManifest& Output,
 						   bool				   bCaseSensitiveTargetFileSystem)
 {
 	auto ResolvePath = [SyncFilter](const FPath& Filename) -> FPath { return SyncFilter ? SyncFilter->Resolve(Filename) : Filename; };
+
+	const FRemoteProtocolFeatures& ProxyFeatures = ProxyPool.GetFeatures();
+
+	const bool bDownloadManifestFromProxy =
+		ProxyPool.RemoteDesc.Protocol == EProtocolFlavor::Unsync && ProxyFeatures.bDirectoryListing && ProxyFeatures.bFileDownload;
 
 	FDirectoryManifest LoadedManifest;
 
@@ -2942,25 +3028,40 @@ LoadAndMergeSourceManifest(FDirectoryManifest& Output,
 	std::string SourcePathHashStr	   = BytesToHexString(SourcePathHash.Data, sizeof(SourcePathHash.Data));
 	FPath		SourceManifestTempPath = TempPath / SourcePathHashStr;
 
-	if (!PathExists(SourceManifestPath))
-	{
-		UNSYNC_ERROR(L"Source manifest '%ls' does not exist", SourceManifestPath.wstring().c_str());
-		return false;
-	}
-
 	LogGlobalStatus(L"Caching source manifest");
-
 	UNSYNC_VERBOSE(L"Caching source manifest");
+
 	UNSYNC_VERBOSE(L" Source '%ls'", SourceManifestPath.wstring().c_str());
 	UNSYNC_VERBOSE(L" Target '%ls'", SourceManifestTempPath.wstring().c_str());
-	std::error_code CopyErrorCode = CopyFileIfNewer(SourceManifestPath, SourceManifestTempPath);
-	if (CopyErrorCode)
+
+	if (bDownloadManifestFromProxy)
 	{
-		UNSYNC_LOG(L"Failed to copy manifest '%ls' to '%ls'",
-				   SourceManifestPath.wstring().c_str(),
-				   SourceManifestTempPath.wstring().c_str());
-		UNSYNC_ERROR(L"%hs (%d)", CopyErrorCode.message().c_str(), CopyErrorCode.value());
-		return false;
+		UNSYNC_LOG_INDENT;
+		bool bDownloadedOk = DownloadFileIfNewer(ProxyPool.RemoteDesc, SourceManifestPath, SourceManifestTempPath);
+		if (!bDownloadedOk)
+		{
+			UNSYNC_ERROR(L"Failed to download manifest file '%ls'", SourceManifestPath.wstring().c_str());
+			return false;
+		}
+	}
+	else
+	{
+		UNSYNC_LOG_INDENT;
+		if (!PathExists(SourceManifestPath))
+		{
+			UNSYNC_ERROR(L"Source manifest '%ls' does not exist", SourceManifestPath.wstring().c_str());
+			return false;
+		}
+
+		std::error_code CopyErrorCode = CopyFileIfNewer(SourceManifestPath, SourceManifestTempPath);
+		if (CopyErrorCode)
+		{
+			UNSYNC_LOG(L"Failed to copy manifest '%ls' to '%ls'",
+					   SourceManifestPath.wstring().c_str(),
+					   SourceManifestTempPath.wstring().c_str());
+			UNSYNC_ERROR(L"%hs (%d)", CopyErrorCode.message().c_str(), CopyErrorCode.value());
+			return false;
+		}
 	}
 
 	if (!LoadDirectoryManifest(LoadedManifest, SourcePath, SourceManifestTempPath))
@@ -3078,10 +3179,14 @@ struct FFileSyncTaskBatch
 bool  // TODO: return a TResult
 SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 {
+	FProxyPool	DummyProxyPool;
+	FProxyPool& ProxyPool = SyncOptions.ProxyPool ? *SyncOptions.ProxyPool : DummyProxyPool;
+
 	FTimePoint TimeBegin = TimePointNow();
 
 	const bool bFileSystemSource = SyncOptions.SourceType == ESyncSourceType::FileSystem;
-	const bool bServerSource	 = SyncOptions.SourceType == ESyncSourceType::Server;
+	const bool bServerSource =
+		SyncOptions.SourceType == ESyncSourceType::Server || SyncOptions.SourceType == ESyncSourceType::ServerWithManifestHash;
 
 	UNSYNC_ASSERT(bFileSystemSource || bServerSource);
 
@@ -3133,37 +3238,12 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 	auto ResolvePath = [SyncFilter](const FPath& Filename) -> FPath { return SyncFilter ? SyncFilter->Resolve(Filename) : Filename; };
 
-	FRemoteDesc ProxySettings = SyncOptions.Remote ? *SyncOptions.Remote : FRemoteDesc();
-	FProxyPool	ProxyPool(ProxySettings);
-
 	FDirectoryManifest SourceDirectoryManifest;
 	FPath			   SourceManifestTempPath;
 
 	const bool bCaseSensitiveTargetFileSystem = IsCaseSensitiveFileSystem(TargetTempPath);
 
-	if (bFileSystemSource || !SourceManifestOverride.empty())
-	{
-		std::vector<FPath> AllSources;
-		AllSources.push_back(SourcePath);
-		for (const FPath& OverlayPath : SyncOptions.Overlays)
-		{
-			AllSources.push_back(OverlayPath);
-		}
-
-		for (const FPath& ThisSourcePath : AllSources)
-		{
-			if (!LoadAndMergeSourceManifest(SourceDirectoryManifest,
-											ThisSourcePath,
-											TargetTempPath,
-											SyncFilter,
-											SourceManifestOverride,
-											bCaseSensitiveTargetFileSystem))
-			{
-				return false;
-			}
-		}
-	}
-	else
+	if (SyncOptions.SourceType == ESyncSourceType::ServerWithManifestHash)
 	{
 		if (!ProxyPool.IsValid())
 		{
@@ -3191,13 +3271,36 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 			return false;
 		}
 	}
+	else
+	{
+		std::vector<FPath> AllSources;
+		AllSources.push_back(SourcePath);
+		for (const FPath& OverlayPath : SyncOptions.Overlays)
+		{
+			AllSources.push_back(OverlayPath);
+		}
+
+		for (const FPath& ThisSourcePath : AllSources)
+		{
+			if (!LoadAndMergeSourceManifest(SourceDirectoryManifest,
+											ProxyPool,
+											ThisSourcePath,
+											TargetTempPath,
+											SyncFilter,
+											SourceManifestOverride,
+											bCaseSensitiveTargetFileSystem))
+			{
+				return false;
+			}
+		}
+	}
 
 	{
 		UNSYNC_VERBOSE(L"Loaded manifest properties:");
 		UNSYNC_LOG_INDENT;
 		FDirectoryManifestInfo ManifestInfo = GetManifestInfo(SourceDirectoryManifest);
 		LogManifestInfo(ELogLevel::Debug, ManifestInfo);
-		if (SyncOptions.Remote->Protocol == EProtocolFlavor::Jupiter && ManifestInfo.NumMacroBlocks == 0)
+		if (ProxyPool.RemoteDesc.Protocol == EProtocolFlavor::Jupiter && ManifestInfo.NumMacroBlocks == 0)
 		{
 			UNSYNC_ERROR(L"Manifest must contain macro blocks when using Jupiter");
 			return false;
@@ -3313,7 +3416,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 		if (bFileSystemSource && SyncOptions.bValidateSourceFiles)
 		{
-			FileAttributes SourceFileAttrib = GetFileAttrib(ResolvedSourceFilePath, &SourceAttribCache);
+			FFileAttributes SourceFileAttrib = GetFileAttrib(ResolvedSourceFilePath, &SourceAttribCache);
 
 			if (!SourceFileAttrib.bValid)
 			{
@@ -3345,7 +3448,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 		if (bSourceManifestOk)
 		{
-			FileAttributes BaseFileAttrib = GetFileAttrib(BaseFilePath, &BaseAttribCache);
+			FFileAttributes BaseFileAttrib = GetFileAttrib(BaseFilePath, &BaseAttribCache);
 
 			if (!BaseFileAttrib.bValid)
 			{
@@ -3534,13 +3637,13 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 	LogGlobalProgress();
 
-	if (ProxySettings.IsValid() && ProxyPool.IsValid())
+	if (ProxyPool.IsValid())
 	{
 		LogGlobalStatus(L"Connecting to server");
 		UNSYNC_VERBOSE(L"Connecting to %hs server '%hs:%d' ...",
-					   ToString(ProxySettings.Protocol),
-					   ProxySettings.HostAddress.c_str(),
-					   ProxySettings.HostPort);
+					   ToString(ProxyPool.RemoteDesc.Protocol),
+					   ProxyPool.RemoteDesc.HostAddress.c_str(),
+					   ProxyPool.RemoteDesc.HostPort);
 		UNSYNC_LOG_INDENT;
 
 		std::unique_ptr<FProxy> Proxy = ProxyPool.Alloc();
@@ -3580,7 +3683,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 		}
 	}
 
-	if (ProxySettings.IsValid() && !ProxyPool.IsValid())
+	if (!ProxyPool.IsValid())
 	{
 		// TODO: bail out if remote connection is required for the download,
 		// such as when downloading data purely from Jupiter.

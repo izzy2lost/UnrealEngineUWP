@@ -13,6 +13,7 @@ struct FCmdLoginOptions
 	bool		bInteractive = false;
 	bool		bPrint		 = false;
 	bool		bDecode		 = false;
+	bool		bForceRefresh = false;
 };
 
 int32 CmdLogin(const FCmdLoginOptions& Options);

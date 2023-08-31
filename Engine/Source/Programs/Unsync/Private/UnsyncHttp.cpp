@@ -4,6 +4,7 @@
 #include "UnsyncCore.h"
 #include "UnsyncUtil.h"
 #include "UnsyncRemote.h"
+#include "UnsyncAuth.h"
 
 #include <http_parser.h>
 #include <string.h>
@@ -239,7 +240,8 @@ HttpRequest(const FRemoteDesc& RemoteDesc,
 			EHttpMethod		   Method,
 			std::string_view   RequestUrl,
 			EHttpContentType   PayloadContentType,
-			FBufferView		   Payload)
+			FBufferView		   Payload,
+			std::string_view   BearerToken)
 {
 	FTlsClientSettings TlsSettings = RemoteDesc.GetTlsClientSettings();
 	FHttpConnection	   Connection(RemoteDesc.HostAddress, RemoteDesc.HostPort, RemoteDesc.bTlsEnable ? &TlsSettings : nullptr);
@@ -251,6 +253,7 @@ HttpRequest(const FRemoteDesc& RemoteDesc,
 	Request.Url				   = RequestUrl;
 	Request.PayloadContentType = PayloadContentType;
 	Request.Payload			   = Payload;
+	Request.BearerToken		   = BearerToken;
 
 	FHttpResponse Response = HttpRequest(Connection, Request);
 
@@ -258,9 +261,9 @@ HttpRequest(const FRemoteDesc& RemoteDesc,
 }
 
 FHttpResponse
-HttpRequest(const FRemoteDesc& RemoteDesc, EHttpMethod Method, std::string_view RequestUrl)
+HttpRequest(const FRemoteDesc& RemoteDesc, EHttpMethod Method, std::string_view RequestUrl, std::string_view BearerToken)
 {
-	return HttpRequest(RemoteDesc, Method, RequestUrl, EHttpContentType::Unknown, {});
+	return HttpRequest(RemoteDesc, Method, RequestUrl, EHttpContentType::Unknown, /*Payload*/ {}, BearerToken);
 }
 
 bool

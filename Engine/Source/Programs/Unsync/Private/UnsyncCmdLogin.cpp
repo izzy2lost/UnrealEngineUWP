@@ -33,7 +33,9 @@ GetJwtPayload(std::string_view JwtData)
 int32
 CmdLogin(const FCmdLoginOptions& Options)
 {
-	TResult<FAuthToken> AuthTokenResult = Authenticate(Options.Remote, 5 * 60);
+	const int32 RefreshThreshold = Options.bForceRefresh ? INT_MAX : 5 * 60;
+
+	TResult<FAuthToken> AuthTokenResult = Authenticate(Options.Remote, RefreshThreshold);
 
 	if (AuthTokenResult.IsOk())
 	{

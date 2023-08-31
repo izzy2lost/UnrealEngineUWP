@@ -9,6 +9,7 @@
 #include <fmt/format.h>
 #include <ctime>
 #include <json11.hpp>
+#include <optional>
 
 #include <openssl/err.h>
 #include <openssl/evp.h>  // Base64 encoding
@@ -570,15 +571,82 @@ GenerateTokenId(const FRemoteDesc& RemoteDesc)
 	return HashToHexString(Hash);
 }
 
+// Keeps last loaded token in memory
+struct FAuthTokenCache
+{
+	std::mutex Mutex;
+
+	struct FEntry
+	{
+		FPath			Path;
+		FFileAttributes Attrib;
+		FAuthToken		Token;
+	};
+
+	// Only keep the most recent token now, but could extend to N recent tokens in the future
+	FEntry MostRecent;
+
+	void Add(const FPath& Path, const FFileAttributes& Attrib, const FAuthToken& AuthToken)
+	{
+		std::lock_guard<std::mutex> LockGuard(Mutex);
+
+		MostRecent.Path	  = Path;
+		MostRecent.Attrib = Attrib;
+		MostRecent.Token  = AuthToken;
+	}
+
+	std::optional<FAuthToken> Get(const FPath& Path, bool bCheckFileAttributes = false)
+	{
+		std::lock_guard<std::mutex> LockGuard(Mutex);
+
+		if (MostRecent.Path == Path)
+		{
+			if (bCheckFileAttributes)
+			{
+				FFileAttributes Attrib = GetFileAttrib(Path);
+				if (Attrib.Mtime != MostRecent.Attrib.Mtime || Attrib.Size != MostRecent.Attrib.Size)
+				{
+					return {};
+				}
+			}
+
+			return std::optional<FAuthToken>(MostRecent.Token);
+		}
+
+		return {};
+	}
+};
+
+static FAuthTokenCache GAuthTokenCache;
+
 bool
 SaveAuthToken(const FPath& Path, const FAuthToken& AuthToken)
 {
-	return WriteBufferToFile(Path, (const uint8*)AuthToken.Raw.data(), AuthToken.Raw.length());
+	bool bWrittenOk = WriteBufferToFile(Path, (const uint8*)AuthToken.Raw.data(), AuthToken.Raw.length());
+	if (!bWrittenOk)
+	{
+		return false;
+	}
+
+	FFileAttributes Attrib = GetFileAttrib(Path);
+	if (!Attrib.bValid)
+	{
+		return false;
+	}
+
+	GAuthTokenCache.Add(Path, Attrib, AuthToken);
+
+	return true;
 }
 
 TResult<FAuthToken>
 LoadAuthToken(const FPath& Path)
 {
+	if (std::optional<FAuthToken> CachedToken = GAuthTokenCache.Get(Path, /*bCheckFileAttributes*/ false))
+	{
+		return ResultOk(std::move(CachedToken.value()));
+	}
+
 	FBuffer FileBuffer = ReadFileToBuffer(Path);
 	if (FileBuffer.Size())
 	{
@@ -608,7 +676,7 @@ LoadAuthToken(const FPath& Path)
 			}
 		}
 
-		return ResultOk(AuthToken);
+		return ResultOk(std::move(AuthToken));
 	}
 	else
 	{
@@ -684,16 +752,33 @@ Authenticate(const FRemoteDesc& RemoteDesc, int32 RefreshThreshold)
 		TResult<FAuthToken> LoadResult = LoadAuthToken(*TokenCachePath);
 		if (FAuthToken* LoadedToken = LoadResult.TryData())
 		{
-			UNSYNC_VERBOSE2(L"Loaded cached authentication token");
 			PreviousToken = std::move(*LoadedToken);
 		}
+	}
+
+	static FHash128 LastLoggedTokenHash;
+	FHash128		TokenHash = HashBlake3String<FHash128>(PreviousToken.Raw);
+	bool			bShouldLog = false;
+	if (LastLoggedTokenHash != TokenHash)
+	{
+		bShouldLog			= true;
+		LastLoggedTokenHash = TokenHash;
+	}
+
+	if (bShouldLog && !PreviousToken.Raw.empty())
+	{
+		UNSYNC_VERBOSE(L"Loaded cached authentication token");
 	}
 
 	int64 CurrentTime	   = GetSecondsFromUnixEpoch();
 	int64 ExpiresInSeconds = PreviousToken.ExirationTime - CurrentTime;
 	if (ExpiresInSeconds > RefreshThreshold)
 	{
-		LogAuthTokenExpiration(PreviousToken);
+		if (bShouldLog)
+		{
+			LogAuthTokenExpiration(PreviousToken);
+		}
+
 		return ResultOk(PreviousToken);
 	}
 
@@ -765,7 +850,7 @@ GetAuthenticationDesc(const FRemoteDesc& RemoteDesc)
 		return AppError(L"Authentication is only implemented for UNSYNC protocol");
 	}
 
-	TResult<ProxyQuery::FHelloResponse> HelloResponseResult = ProxyQuery::Hello(RemoteDesc);
+	TResult<ProxyQuery::FHelloResponse> HelloResponseResult = ProxyQuery::Hello(RemoteDesc, /*bAnonymous*/ true);
 	if (HelloResponseResult.IsError())
 	{
 		return MoveError<FAuthDesc>(HelloResponseResult);

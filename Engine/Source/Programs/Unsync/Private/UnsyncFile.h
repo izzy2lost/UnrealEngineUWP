@@ -425,7 +425,7 @@ FBuffer ReadFileToBuffer(const FPath& Filename);
 bool	WriteBufferToFile(const FPath& Filename, const uint8* Data, uint64 Size);
 bool	WriteBufferToFile(const FPath& Filename, const FBuffer& Buffer);
 
-struct FileAttributes
+struct FFileAttributes
 {
 	uint64 Mtime	  = 0;	// Windows file time (100ns ticks since 1601-01-01T00:00:00Z)
 	uint64 Size		  = 0;
@@ -436,22 +436,22 @@ struct FileAttributes
 
 struct FFileAttributeCache
 {
-	std::unordered_map<FPath::string_type, FileAttributes> Map;
+	std::unordered_map<FPath::string_type, FFileAttributes> Map;
 
 	const bool Exists(const FPath& Path) const;
 };
 
-FileAttributes GetFileAttrib(const FPath& Path, FFileAttributeCache* AttribCache = nullptr);
-bool		   SetFileMtime(const FPath& Path, uint64 Mtime);
-bool		   SetFileReadOnly(const FPath& Path, bool ReadOnly);
-bool		   IsDirectory(const FPath& Path);
-bool		   PathExists(const FPath& Path);
-bool		   PathExists(const FPath& Path, std::error_code& OutErrorCode);
-bool		   CreateDirectories(const FPath& Path);
-bool		   FileRename(const FPath& From, const FPath& To, std::error_code& OutErrorCode);
-bool		   FileCopy(const FPath& From, const FPath& To, std::error_code& OutErrorCode);
-bool		   FileCopyOverwrite(const FPath& From, const FPath& To, std::error_code& OutErrorCode);
-bool		   FileRemove(const FPath& Path, std::error_code& OutErrorCode);
+FFileAttributes GetFileAttrib(const FPath& Path, FFileAttributeCache* AttribCache = nullptr);
+bool			SetFileMtime(const FPath& Path, uint64 Mtime);
+bool			SetFileReadOnly(const FPath& Path, bool ReadOnly);
+bool			IsDirectory(const FPath& Path);
+bool			PathExists(const FPath& Path);
+bool			PathExists(const FPath& Path, std::error_code& OutErrorCode);
+bool			CreateDirectories(const FPath& Path);
+bool			FileRename(const FPath& From, const FPath& To, std::error_code& OutErrorCode);
+bool			FileCopy(const FPath& From, const FPath& To, std::error_code& OutErrorCode);
+bool			FileCopyOverwrite(const FPath& From, const FPath& To, std::error_code& OutErrorCode);
+bool			FileRemove(const FPath& Path, std::error_code& OutErrorCode);
 
 // Returns number of bytes that can be written to the given path.
 // Returns ~0ull if the available space could not be determined.

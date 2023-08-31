@@ -378,10 +378,22 @@ FUnsyncProtocolImpl::GetSocketSecurity() const
 }
 
 namespace ProxyQuery {
-TResult<FHelloResponse> Hello(const FRemoteDesc& RemoteDesc)
+TResult<FHelloResponse> Hello(const FRemoteDesc& RemoteDesc, bool bAnonymous)
 {
 	const char* Url = "/api/v1/hello";
-	FHttpResponse Response = HttpRequest(RemoteDesc, EHttpMethod::GET, Url);
+
+	std::string BearerToken;
+	if (RemoteDesc.bAuthenticationRequired && !bAnonymous)
+	{
+		TResult<FAuthToken> AuthTokenResult = Authenticate(RemoteDesc, 15 * 60);
+		if (AuthTokenResult.IsOk())
+		{
+			BearerToken = std::move(AuthTokenResult.GetData().Access);
+		}
+	}
+	
+	FHttpResponse Response = HttpRequest(RemoteDesc, EHttpMethod::GET, Url, BearerToken);
+
 	if (!Response.Success())
 	{
 		UNSYNC_ERROR(L"Failed to establish connection to UNSYNC server. Error code: %d.", Response.Code);
@@ -459,12 +471,111 @@ TResult<FHelloResponse> Hello(const FRemoteDesc& RemoteDesc)
 				{
 					Result.Features.bAuthentication = true;
 				}
+				else if (Elem.string_value() == "list")
+				{
+					Result.Features.bDirectoryListing = true;
+				}
+				else if (Elem.string_value() == "file")
+				{
+					Result.Features.bFileDownload = true;
+				}
 			}
 		}
 	}
 
 	return ResultOk(std::move(Result));
 }
+
+TResult<FDirectoryListing> ListDirectory(const FRemoteDesc& Remote, const std::string& Path)
+{
+	FDirectoryListing Result;
+
+	TResult<FAuthToken> AuthToken = Authenticate(Remote, 5 * 60);
+	if (!AuthToken.IsOk())
+	{
+		return MoveError<FDirectoryListing>(AuthToken);
+	}
+
+	FHttpConnection Connection = FHttpConnection::CreateDefaultHttps(Remote);
+
+	std::string Url = fmt::format("/api/v1/list?{}", Path);
+
+	FHttpRequest Request;
+	Request.Url			= Url;
+	Request.Method		= EHttpMethod::GET;
+	Request.BearerToken = AuthToken->Access;
+
+	FHttpResponse Response = HttpRequest(Connection, Request);
+
+	Response.Buffer.PushBack(0);
+
+	std::string	 JsonErrorString;
+	json11::Json JsonObject = json11::Json::parse((const char*)Response.Buffer.Data(), JsonErrorString);
+
+	if (!JsonErrorString.empty())
+	{
+		return AppError(fmt::format("JSON error: {}", JsonErrorString.c_str()));
+	}
+
+	const json11::Json& EntriesObject = JsonObject["entries"];
+
+	if (EntriesObject.is_array())
+	{
+		for (const auto& Elem : EntriesObject.array_items())
+		{
+			FDirectoryListingEntry Entry;
+			for (const auto& Field : Elem.object_items())
+			{
+				if (Field.first == "name" && Field.second.is_string())
+				{
+					Entry.Name = Field.second.string_value();
+				}
+				else if (Field.first == "is_directory" && Field.second.is_bool())
+				{
+					Entry.bDirectory = Field.second.bool_value();
+				}
+				else if (Field.first == "mtime" && Field.second.is_number())
+				{
+					Entry.Mtime = uint64(Field.second.number_value());
+				}
+				else if (Field.first == "size" && Field.second.is_number())
+				{
+					Entry.Size = uint64(Field.second.number_value());
+				}
+			}
+			Result.Entries.push_back(Entry);
+		}
+	}
+
+	return ResultOk(std::move(Result));
+}
+
+TResult<FBuffer> DownloadFile(const FRemoteDesc& Remote, const std::string& Path)
+{
+	TResult<FAuthToken> AuthToken = Authenticate(Remote, 5 * 60);
+	if (!AuthToken.IsOk())
+	{
+		return MoveError<FBuffer>(AuthToken);
+	}
+
+	FHttpConnection Connection = FHttpConnection::CreateDefaultHttps(Remote);
+
+	std::string Url = fmt::format("/api/v1/file?{}", Path);
+
+	FHttpRequest Request;
+	Request.Url			   = Url;
+	Request.Method		   = EHttpMethod::GET;
+	Request.BearerToken	   = AuthToken->Access;
+	FHttpResponse Response = HttpRequest(Connection, Request);
+
+	if (!Response.Success())
+	{
+		return HttpError(Response.Code);
+	}
+
+	return ResultOk(std::move(Response.Buffer));
+}
+
 }  // namespace ProxyQuery
 
 void
@@ -624,17 +735,27 @@ FBlockRequestMap::GetMacroBlockRequest(const FGenericHash& BlockHash) const
 	return Result;
 }
 
+FProxyPool::FProxyPool()
+: FProxyPool(FRemoteDesc())
+{
+}
+
 FProxyPool::FProxyPool(const FRemoteDesc& InRemoteDesc)
 : ParallelDownloadSemaphore(InRemoteDesc.MaxConnections)
 , RemoteDesc(InRemoteDesc)
 , bValid(InRemoteDesc.IsValid())
 {
-	if (bValid && RemoteDesc.Protocol == EProtocolFlavor::Unsync)
+	if (!bValid)
+	{
+		return;
+	}
+
+	if (RemoteDesc.Protocol == EProtocolFlavor::Unsync)
 	{
 		UNSYNC_VERBOSE(L"Connecting to %hs server '%hs:%d' ...",
-			ToString(RemoteDesc.Protocol),
-			RemoteDesc.HostAddress.c_str(),
-			RemoteDesc.HostPort);
+					   ToString(RemoteDesc.Protocol),
+					   RemoteDesc.HostAddress.c_str(),
+					   RemoteDesc.HostPort);
 
 		TResult<ProxyQuery::FHelloResponse> Response = ProxyQuery::Hello(RemoteDesc);
 
@@ -645,16 +766,21 @@ FProxyPool::FProxyPool(const FRemoteDesc& InRemoteDesc)
 		else
 		{
 			const ProxyQuery::FHelloResponse& Data = Response.GetData();
-			UNSYNC_VERBOSE(L"Connection established. Server name: %hs, version: %hs, git: %hs.", 
-				Data.Name.empty() ? "unknown" : Data.Name.c_str(),
-				Data.VersionNumber.empty() ? "unknown" : Data.VersionNumber.c_str(),
-				Data.VersionGit.empty() ? "unknown" : Data.VersionGit.c_str());
+			UNSYNC_VERBOSE(L"Connection established. Server name: %hs, version: %hs, git: %hs.",
+						   Data.Name.empty() ? "unknown" : Data.Name.c_str(),
+						   Data.VersionNumber.empty() ? "unknown" : Data.VersionNumber.c_str(),
+						   Data.VersionGit.empty() ? "unknown" : Data.VersionGit.c_str());
 
-			Features = Data.Features;
+			Features  = Data.Features;
 			SessionId = Data.SessionId;
 		}
 
 		bValid = Response.IsOk();
+	}
+	else if (RemoteDesc.Protocol == EProtocolFlavor::Jupiter)
+	{
+		Features.bAuthentication = true;
+		Features.bDownloadByHash = true;
 	}
 }
 

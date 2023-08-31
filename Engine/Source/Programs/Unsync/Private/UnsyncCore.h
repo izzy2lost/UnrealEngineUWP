@@ -385,20 +385,21 @@ enum class ESyncSourceType
 	Unknown,
 	FileSystem,
 	Server,
+	ServerWithManifestHash,
 };
 
 struct FSyncDirectoryOptions
 {
 	ESyncSourceType	   SourceType;
-	FPath			   Source;	  // remote data location
-	FPath			   Target;	  // output target location
-	FPath			   Base;	  // base data location, which typically is the same as sync target
-	FPath			   ScavengeRoot; // base directory where we may want to find reusable blocks
-	uint32			   ScavengeDepth = 5; // how deep to look for unsync manifests
-	std::vector<FPath> Overlays;  // extra source directories to overlay over primary (add extra files, replace existing files)
+	FPath			   Source;			   // remote data location
+	FPath			   Target;			   // output target location
+	FPath			   Base;			   // base data location, which typically is the same as sync target
+	FPath			   ScavengeRoot;	   // base directory where we may want to find reusable blocks
+	uint32			   ScavengeDepth = 5;  // how deep to look for unsync manifests
+	std::vector<FPath> Overlays;		   // extra source directories to overlay over primary (add extra files, replace existing files)
 	FPath			   SourceManifestOverride;	// force the manifest to be read from a specified file instead of source directory
 	FSyncFilter*	   SyncFilter = nullptr;	// filter callback for partial sync support
-	const FRemoteDesc* Remote	  = nullptr;	// unsync proxy server connection settings
+	FProxyPool*		   ProxyPool  = nullptr;
 	bool			   bCleanup	  = false;	// whether to cleanup any files in the target directory that are not in the source manifest file
 	bool			   bValidateSourceFiles = true;	 // whether to check that all source files declared in the manifest are present/valid
 	bool			   bValidateTargetFiles = true;	 // WARNING: turning this off is intended only for testing/profiling

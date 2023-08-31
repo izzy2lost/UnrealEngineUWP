@@ -572,10 +572,10 @@ FWindowsFile::FlushOne()
 	Cmd.Callback = {};
 }
 
-FileAttributes
+FFileAttributes
 GetFileAttrib(const FPath& Path, FFileAttributeCache* AttribCache)
 {
-	FileAttributes Result;
+	FFileAttributes Result;
 
 	FPath ExtendedPath = MakeExtendedAbsolutePath(Path);
 
@@ -772,10 +772,10 @@ FUnixFile::Write(const void* data, uint64 DestOffset, uint64 WriteSize)
 	return wrote_bytes;
 }
 
-FileAttributes
+FFileAttributes
 GetFileAttrib(const FPath& path, FFileAttributeCache* AttribCache)
 {
-	FileAttributes result;
+	FFileAttributes result;
 
 	if (AttribCache)
 	{
@@ -1075,7 +1075,7 @@ CreateFileAttributeCache(const FPath& Root, const FSyncFilter* SyncFilter)
 			continue;
 		}
 
-		FileAttributes Attr = {};
+		FFileAttributes Attr = {};
 
 		Attr.Mtime	= ToWindowsFileTime(Dir.last_write_time());
 		Attr.Size	= Dir.file_size();
@@ -1094,7 +1094,7 @@ CreateFileAttributeCache(const FPath& Root, const FSyncFilter* SyncFilter)
 bool
 IsDirectory(const FPath& Path)
 {
-	FileAttributes Attr = GetFileAttrib(Path);
+	FFileAttributes Attr = GetFileAttrib(Path);
 	return Attr.bValid && Attr.bDirectory;
 }
 

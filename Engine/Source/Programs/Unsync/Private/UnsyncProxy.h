@@ -85,9 +85,12 @@ private:
 
 struct FRemoteProtocolFeatures
 {
-	bool bTelemetry = false;
-	bool bMirrors = false;
-	bool bAuthentication = false;
+	bool bTelemetry		   = false;
+	bool bMirrors		   = false;
+	bool bAuthentication   = false;
+	bool bDirectoryListing = false;
+	bool bFileDownload	   = false;
+	bool bDownloadByHash   = false;
 };
 
 struct FTelemetryEventSyncComplete
@@ -149,6 +152,7 @@ private:
 class FProxyPool
 {
 public:
+	FProxyPool();
 	FProxyPool(const FRemoteDesc& InRemoteDesc);
 
 	std::unique_ptr<FProxy> Alloc();
@@ -181,8 +185,7 @@ private:
 	std::mutex Mutex;
 };
 
-namespace ProxyQuery
-{
+namespace ProxyQuery {
 
 struct FHelloResponse
 {
@@ -199,18 +202,25 @@ struct FHelloResponse
 	std::vector<std::string> FeatureNames;
 	FRemoteProtocolFeatures	 Features;
 
-	bool SupportsAuthentication() const
-	{
-		return Features.bAuthentication && !AuthServerUri.empty() && !AuthClientId.empty();
-	}
+	bool SupportsAuthentication() const { return Features.bAuthentication && !AuthServerUri.empty() && !AuthClientId.empty(); }
 };
-TResult<FHelloResponse> Hello(const FRemoteDesc& RemoteDesc);
+TResult<FHelloResponse> Hello(const FRemoteDesc& RemoteDesc, bool bAnonymous = false);
 
-struct FLoginResponse
+struct FDirectoryListingEntry
 {
-	std::shared_ptr<FBuffer> Authentication;
+	std::string Name;
+	uint64		Mtime	   = 0;
+	uint64		Size	   = 0;
+	bool		bDirectory = false;
 };
-TResult<FLoginResponse> QueryLogin(const FRemoteDesc& RemoteDesc);
+
+struct FDirectoryListing
+{
+	std::vector<FDirectoryListingEntry> Entries;
+};
+
+TResult<FDirectoryListing> ListDirectory(const FRemoteDesc& Remote, const std::string& Path);
+TResult<FBuffer>		   DownloadFile(const FRemoteDesc& Remote, const std::string& Path);
 
 } 
 

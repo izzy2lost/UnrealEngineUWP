@@ -169,22 +169,40 @@ CmdQueryList(const FCmdQueryOptions& Options)
 		LogError(AppError(fmt::format("JSON error: {}", JsonErrorString.c_str())));
 		return -1;
 	}
-	/*
-	if (JsonObject.is_array())
+
+	LogPrintf(ELogLevel::MachineReadable, L"%hs\n", Response.Buffer.Data());
+
+	return 0;
+}
+
+int32
+CmdQueryFile(const FCmdQueryOptions& Options)
+{
+	TResult<FBuffer> Response = ProxyQuery::DownloadFile(Options.Remote, Options.Args);
+
+	if (Response.IsOk())
 	{
-		int32 NumFiles = int32(JsonObject.array_items().size());
-		UNSYNC_LOG("Found files: %d", NumFiles);
-		for (auto& FileIt : JsonObject.array_items())
+		FBuffer& Buffer = Response.GetData();
+
+		UNSYNC_LOG(L"Downloaded file size: %llu bytes", llu(Buffer.Size()));
+
+		if (!Options.OutputPath.empty())
 		{
-			if (auto Value = FileIt["path"]; Value.is_string())
+			bool bWriteOk = WriteBufferToFile(Options.OutputPath, Buffer);
+			if (bWriteOk)
 			{
-				UNSYNC_LOG(L" %hs", Value.string_value().c_str());
+				UNSYNC_LOG(L"Output written to file '%s'", Options.OutputPath.wstring().c_str());
+			}
+			else
+			{
+				UNSYNC_ERROR(L"Failed to write output file '%s'", Options.OutputPath.wstring().c_str());
 			}
 		}
 	}
-	*/
-
-	wprintf(L"%hs\n", Response.Buffer.Data());
+	else
+	{
+		LogError(Response.GetError());
+	}
 
 	return 0;
 }
@@ -199,6 +217,10 @@ CmdQuery(const FCmdQueryOptions& Options)
 	else if (Options.Query == "list")
 	{
 		return CmdQueryList(Options);
+	}
+	else if (Options.Query == "file")
+	{
+		return CmdQueryFile(Options);
 	}
 	else
 	{

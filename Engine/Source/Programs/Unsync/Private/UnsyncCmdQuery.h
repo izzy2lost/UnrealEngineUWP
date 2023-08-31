@@ -11,6 +11,7 @@ struct FCmdQueryOptions
 {
 	std::string Query;
 	std::string Args;
+	FPath		OutputPath;
 	FRemoteDesc Remote;
 };
 

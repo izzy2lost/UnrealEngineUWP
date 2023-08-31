@@ -89,6 +89,8 @@ InnerMain(int Argc, char** Argv)
 	bool					 bInteractive		 = false;
 	bool					 bDecode			 = false;
 	bool					 bPrint				 = false;
+	bool					 bShouldLogin		 = false;
+	bool					 bForceRefreshAuthentication = false;
 	int32					 CompressionLevel	 = 3;
 	uint32					 DiffBlockSize		 = uint32(4_KB);
 	uint32					 HashOrSyncBlockSize = uint32(64_KB);
@@ -250,8 +252,8 @@ InnerMain(int Argc, char** Argv)
 	SubSync->add_flag("--no-output-validation", bNoOutputValidation, "Skip final patched file block hash validation (DANGEROUS)");
 	SubSync->add_flag("--no-space-validation", bNoSpaceValidation, "Skip checking available disk space before sync (DANGEROUS)");
 	SubSync->add_option("-b, --block", HashOrSyncBlockSize, "Block size in bytes (default=64KB)");
-
 	SubSync->add_option("--scavenge", ScavengeRootUtf8, "Search for unsync manifests and reusable blocks in this directory (EXPERIMENTAL)");
+	SubSync->add_flag("--login", bShouldLogin, "Use user authentication when accessing unsync server");
 
 	SubCommands.push_back(SubSync);
 
@@ -270,6 +272,7 @@ InnerMain(int Argc, char** Argv)
 	CLI::App* SubQuery = Cli.add_subcommand("query", "Run a query command on the remote server");
 	SubQuery->add_option("QueryString", QueryStringUtf8, "Query to run: mirrors, login, list")->required();
 	SubQuery->add_option("QueryArgs", QueryArgsUtf8, "Query arguments");
+	SubQuery->add_option("-o", OutputFilenameUtf8, "Output file name");
 	AddProxyOptions(SubQuery);
 
 	AddTlsOptions(SubQuery);
@@ -281,6 +284,7 @@ InnerMain(int Argc, char** Argv)
 	SubLogin->add_flag("--interactive", bInteractive, "Allow user interaction through modal dialogs");
 	SubLogin->add_flag("--decode", bDecode, "Decode authentication token (implies --print)");
 	SubLogin->add_flag("--print", bPrint, "Print authentication token to standard output");
+	SubLogin->add_flag("--refresh", bForceRefreshAuthentication, "Force authentication refresh even if access token has not yet expired");
 	AddTlsOptions(SubLogin);
 	AddProxyOptions(SubLogin);
 	SubCommands.push_back(SubLogin);
@@ -483,7 +487,7 @@ InnerMain(int Argc, char** Argv)
 	}
 
 	GMaxThreads = std::max(1u, GMaxThreads);
-	UNSYNC_VERBOSE(L"Using threads: %d", GMaxThreads);
+	UNSYNC_VERBOSE2(L"Using threads: %d", GMaxThreads);
 	FConcurrencyPolicyScope ConcurrencyLimitScope(GMaxThreads);
 
 	if (Cli.got_subcommand(SubHash) || Cli.got_subcommand(SubSync))
@@ -679,6 +683,8 @@ InnerMain(int Argc, char** Argv)
 		}
 	}
 
+	FRemoteDesc RootRemoteDesc = RemoteDesc;
+
 	if (!bNoProxySelect
 		&& Cli.got_subcommand(SubSync)
 		&& RemoteDesc.IsValid() && RemoteDesc.Protocol == EProtocolFlavor::Unsync)
@@ -735,6 +741,7 @@ InnerMain(int Argc, char** Argv)
 			ScavengeRoot = FPath{};
 		}
 
+		if (bShouldLogin)
 		{
 			UNSYNC_VERBOSE(L"Attempting to authenticate");
 			UNSYNC_LOG_INDENT;
@@ -803,9 +810,10 @@ InnerMain(int Argc, char** Argv)
 	else if (Cli.got_subcommand(SubQuery))
 	{
 		FCmdQueryOptions QueryOptions;
-		QueryOptions.Query	= QueryStringUtf8;
-		QueryOptions.Args	= QueryArgsUtf8;
-		QueryOptions.Remote = RemoteDesc;
+		QueryOptions.Query		= QueryStringUtf8;
+		QueryOptions.Args		= QueryArgsUtf8;
+		QueryOptions.Remote		= RemoteDesc;
+		QueryOptions.OutputPath = OutputFilename;
 		return CmdQuery(QueryOptions);
 	}
 	else if (Cli.got_subcommand(SubLogin))
@@ -816,10 +824,11 @@ InnerMain(int Argc, char** Argv)
 		}
 
 		FCmdLoginOptions LoginOptions;
-		LoginOptions.Remote		  = RemoteDesc;
-		LoginOptions.bInteractive = bInteractive;
-		LoginOptions.bDecode	  = bDecode;
-		LoginOptions.bPrint		  = bPrint;
+		LoginOptions.Remote		   = RemoteDesc;
+		LoginOptions.bInteractive  = bInteractive;
+		LoginOptions.bDecode	   = bDecode;
+		LoginOptions.bPrint		   = bPrint;
+		LoginOptions.bForceRefresh = bForceRefreshAuthentication;
 		return CmdLogin(LoginOptions);
 	}
 	else if (Cli.got_subcommand(SubMount))

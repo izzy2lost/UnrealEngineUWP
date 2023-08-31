@@ -21,6 +21,8 @@ CmdSync(const FCmdSyncOptions& Options)
 		return Options.Filter ? Options.Filter->Resolve(Path) : Path;
 	};
 
+	FProxyPool ProxyPool(Options.Remote);
+
 	std::error_code ErrorCode	   = {};
 	FPath			ResolvedSource = ResolvePath(Options.Source);
 
@@ -36,25 +38,47 @@ CmdSync(const FCmdSyncOptions& Options)
 	if (!Options.Filter->SyncIncludedWords.empty())
 	{
 		UNSYNC_VERBOSE(L"Include filter: ");
+		UNSYNC_LOG_INDENT;
 		for( const std::wstring& include : Options.Filter->SyncIncludedWords)
 		{ 
-			UNSYNC_VERBOSE(L"\t%s", include.c_str());
+			UNSYNC_VERBOSE(L" %s", include.c_str());
 		}
 	}
 	if(!Options.Filter->SyncExcludedWords.empty())
 	{
 		UNSYNC_VERBOSE(L"Exclude filter: ");
+		UNSYNC_LOG_INDENT;
 		for( const std::wstring& exclude : Options.Filter->SyncExcludedWords)
 		{ 
-			UNSYNC_VERBOSE(L"\t%s", exclude.c_str());
+			UNSYNC_VERBOSE(L"%s", exclude.c_str());
 		}
 	}
 
-	const bool bSourcePathExists	 = PathExists(ResolvedSource, ErrorCode);
-	const bool bSourceIsDirectory	 = bSourcePathExists && unsync::IsDirectory(ResolvedSource);
-	const bool bSourceIsManifestHash = !bSourcePathExists && LooksLikeHash160(Options.Source.native());
+	bool bSourceFileSystemRequired = true;
+	bool bSourcePathExists		   = false;
+	bool bSourceIsDirectory		   = false;
+	bool bSourceIsManifestHash	   = LooksLikeHash160(Options.Source.native());
 
-	bool bSourceFileSystemRequired = !bSourceIsManifestHash;
+	if (ProxyPool.IsValid())
+	{
+		const FRemoteProtocolFeatures& Features = ProxyPool.GetFeatures();
+		if (Features.bFileDownload && Features.bDirectoryListing)
+		{
+			UNSYNC_VERBOSE(L"Server supports direct file access");
+			bSourceFileSystemRequired = false;
+		}
+		else if (Features.bDownloadByHash && bSourceIsManifestHash)
+		{
+			UNSYNC_VERBOSE(L"Server supports access by manifest hash");
+			bSourceFileSystemRequired = false;
+		}
+	}
+
+	if (bSourceFileSystemRequired)
+	{
+		bSourcePathExists  = PathExists(ResolvedSource, ErrorCode);
+		bSourceIsDirectory = bSourcePathExists && unsync::IsDirectory(ResolvedSource);
+	}
 
 	std::vector<FPath> ResolvedOverlays;
 
@@ -74,15 +98,22 @@ CmdSync(const FCmdSyncOptions& Options)
 			ResolvedOverlays.push_back(ResolvedEntry);
 		}
 
-		bSourceFileSystemRequired = true;
-
-		if (!bSourcePathExists || !bSourceIsDirectory)
+		if (bSourceFileSystemRequired)
 		{
-			UNSYNC_ERROR(L"Sync overlay option requires sync source to be a directory that exists on disk.");
+			if (!bSourcePathExists || !bSourceIsDirectory)
+			{
+				UNSYNC_ERROR(L"Sync overlay option requires sync source to be a directory that exists on disk.");
+				return 1;
+			}
+		}
+		
+		if (bSourceIsManifestHash)
+		{
+			UNSYNC_ERROR(L"Sync overlay option is not compatible with sync by manifest hash.");
 			return 1;
 		}
 
-		if (bSourceIsManifestHash)
+		if (!Options.SourceManifestOverride.empty())
 		{
 			UNSYNC_ERROR(L"Sync overlay option is not compatible with manifest override.");
 			return 1;
@@ -118,13 +149,17 @@ CmdSync(const FCmdSyncOptions& Options)
 
 			FSyncDirectoryOptions SyncOptions;
 
-			if (bSourceIsManifestHash || !bSourceFileSystemRequired)
+			if (bSourceFileSystemRequired)
 			{
-				SyncOptions.SourceType = ESyncSourceType::Server;
+				SyncOptions.SourceType = ESyncSourceType::FileSystem;
+			}
+			else if (bSourceIsManifestHash)
+			{
+				SyncOptions.SourceType = ESyncSourceType::ServerWithManifestHash;
 			}
 			else
 			{
-				SyncOptions.SourceType = ESyncSourceType::FileSystem;
+				SyncOptions.SourceType = ESyncSourceType::Server;
 			}
 
 			SyncOptions.Source				   = ResolvedSource;
@@ -134,7 +169,7 @@ CmdSync(const FCmdSyncOptions& Options)
 			SyncOptions.ScavengeDepth		   = Options.ScavengeDepth;
 			SyncOptions.Overlays			   = ResolvedOverlays;
 			SyncOptions.SourceManifestOverride = Options.SourceManifestOverride;
-			SyncOptions.Remote				   = &Options.Remote;
+			SyncOptions.ProxyPool			   = &ProxyPool;
 			SyncOptions.SyncFilter			   = Options.Filter;
 			SyncOptions.bCleanup			   = Options.bCleanup;
 			SyncOptions.bValidateSourceFiles   = Options.bFullSourceScan;
