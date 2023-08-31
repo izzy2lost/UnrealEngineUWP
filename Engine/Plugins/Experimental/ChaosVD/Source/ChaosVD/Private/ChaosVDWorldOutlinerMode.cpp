@@ -53,7 +53,7 @@ void FChaosVDWorldOutlinerMode::OnItemSelectionChanged(FSceneOutlinerTreeItemPtr
 	if (const UTypedElementSelectionSet* SelectionSet = GetSelectionSetObject())
 	{
 		TArray<AActor*> SceneSelectedActors = SelectionSet->GetSelectedObjects<AActor>();
-		ensureMsgf(SceneSelectedActors.Num() < 2, TEXT("Multi Selection is not supported, but [%s] Actors are selected... Choosing the first one"));
+		ensureMsgf(SceneSelectedActors.Num() < 2, TEXT("Multi Selection is not supported, but [%d] Actors are selected... Choosing the first one"), SceneSelectedActors.Num());
 
 		AActor* SelectedActor = OutlinerSelectedActors.IsEmpty() ? nullptr : OutlinerSelectedActors[0];
 

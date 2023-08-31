@@ -84,7 +84,7 @@ namespace CrossCompiler
 		case SHADER_STAGE_COMPUTE:	return 'c';
 		default: break;
 		}
-		checkf(0, TEXT("invalid value: ShaderStageIndexToTypeName(ShaderStage = '%c')"), (ANSICHAR)ShaderStage);
+		checkf(0, TEXT("invalid value: ShaderStageIndexToTypeName(ShaderStage = '%u')"), ShaderStage);
 		return 0;
 	}
 

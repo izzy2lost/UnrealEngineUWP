@@ -81,7 +81,7 @@ void FMassArchetypeData::Initialize(const FMassArchetypeCompositionDescriptor& I
 
 void FMassArchetypeData::InitializeWithSimilar(const FMassArchetypeData& BaseArchetype, FMassArchetypeCompositionDescriptor&& NewComposition, const uint32 ArchetypeDataVersion)
 {
-	checkf(IsInitialized() == false, TEXT("Trying to %s but this archetype has already been initialized"));
+	checkf(IsInitialized() == false, TEXT("Trying to InitializeWithSimilar but this archetype has already been initialized"));
 
 	CreatedArchetypeDataVersion = ArchetypeDataVersion;
 

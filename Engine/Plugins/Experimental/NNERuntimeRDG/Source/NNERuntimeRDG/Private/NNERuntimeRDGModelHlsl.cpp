@@ -276,7 +276,7 @@ int FModelInstance::PrepareTensorShapesAndData()
 	checkCode(
 		for (int i = 0; i < AllInitializedTensors.Num(); ++i)
 		{
-			checkf(AllInitializedTensors[i], TEXT("Tensor at index %d, was not initialized by model preparation."));
+			checkf(AllInitializedTensors[i], TEXT("Tensor at index %d, was not initialized by model preparation."), i);
 		};
 	);
 

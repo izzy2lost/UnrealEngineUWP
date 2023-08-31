@@ -3216,7 +3216,7 @@ void FStreamingLevelActorListCollection::AddActor(const FNewReplicatedActorInfo&
 
 	if (CVar_RepGraph_Verify)
 	{
-		ensureMsgf(Item->ReplicationActorList.Contains(ActorInfo.Actor) == false, TEXT("%s being added to %s twice! Streaming level: %s"), *GetActorRepListTypeDebugString(ActorInfo.Actor), *ActorInfo.StreamingLevelName.ToString() );
+		ensureMsgf(Item->ReplicationActorList.Contains(ActorInfo.Actor) == false, TEXT("%s being added to a list twice! Streaming level: %s"), *GetActorRepListTypeDebugString(ActorInfo.Actor), *ActorInfo.StreamingLevelName.ToString() );
 	}
 
 	Item->ReplicationActorList.Add(ActorInfo.Actor);
@@ -3237,7 +3237,7 @@ bool FStreamingLevelActorListCollection::RemoveActor(const FNewReplicatedActorIn
 
 			if (CVar_RepGraph_Verify)
 			{
-				ensureMsgf(StreamingList.ReplicationActorList.Contains(ActorInfo.Actor) == false, TEXT("Actor %s is still in %s after removal. Streaming Level: %s"), *GetActorRepListTypeDebugString(ActorInfo.Actor), *GetPathNameSafe(Outer));
+				ensureMsgf(StreamingList.ReplicationActorList.Contains(ActorInfo.Actor) == false, TEXT("Actor %s is still in list after removal. Streaming Level: %s"), *GetActorRepListTypeDebugString(ActorInfo.Actor), *GetPathNameSafe(Outer));
 			}
 			break;
 		}
@@ -3379,7 +3379,7 @@ void UReplicationGraphNode_ActorList::NotifyAddNetworkActor(const FNewReplicated
 	{
 		if (CVar_RepGraph_Verify)
 		{
-			ensureMsgf(ReplicationActorList.Contains(ActorInfo.Actor) == false, TEXT("%s being added to %s twice!"), *GetActorRepListTypeDebugString(ActorInfo.Actor) );
+			ensureMsgf(ReplicationActorList.Contains(ActorInfo.Actor) == false, TEXT("%s being added to %s twice!"), *GetActorRepListTypeDebugString(ActorInfo.Actor), *GetPathName());
 		}
 
 		ReplicationActorList.Add(ActorInfo.Actor);
@@ -3571,7 +3571,7 @@ void UReplicationGraphNode_ActorListFrequencyBuckets::NotifyAddNetworkActor(cons
 
 			if (CVar_RepGraph_Verify)
 			{
-				ensureMsgf(List.Contains(ActorInfo.Actor) == false, TEXT("%s being added to %s twice!"), *GetActorRepListTypeDebugString(ActorInfo.Actor) );
+				ensureMsgf(List.Contains(ActorInfo.Actor) == false, TEXT("%s being added to %s twice!"), *GetActorRepListTypeDebugString(ActorInfo.Actor), *GetPathName());
 			}
 		}
 

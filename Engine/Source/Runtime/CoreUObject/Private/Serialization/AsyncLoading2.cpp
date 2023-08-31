@@ -1287,10 +1287,11 @@ public:
 			{
 				UObject* Object = static_cast<UObject*>(GUObjectArray.IndexToObject(ObjectIndex)->Object);
 				ensureMsgf(!Object->HasAnyInternalFlags(EInternalObjectFlags::LoaderImport) || GUObjectArray.IsDisregardForGC(Object),
-						TEXT("FGlobalImportStore::VerifyPackageForRemoval: The loaded public export object '%s' with flags (ObjectFlags=%x, InternalObjectFlags=%x) and id 0x%llX:0x%llX is probably still referenced by the loader."),
+						TEXT("FGlobalImportStore::VerifyPackageForRemoval: The loaded public export object '%s' with flags (ObjectFlags=%x, InternalObjectFlags=%x) and id 0x%llX is probably still referenced by the loader."),
 						*Object->GetFullName(),
 						Object->GetFlags(),
-						Object->GetInternalFlags());
+						Object->GetInternalFlags(),
+						PackageId.ValueForDebugging());
 
 				FPublicExportKey* PublicExportKey = ObjectIndexToPublicExport.Find(ObjectIndex);
 				UE_CLOG(!PublicExportKey, LogStreaming, Fatal,

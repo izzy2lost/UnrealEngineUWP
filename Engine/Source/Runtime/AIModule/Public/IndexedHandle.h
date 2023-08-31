@@ -253,7 +253,7 @@ public:
 	bool IsValidHandle(TIndexedHandle IndexedHandle) const
 	{
 #if UE_DO_INDEXED_HANDLE_MANAGER_ID
-		if (!ensureMsgf(ManagerID == IndexedHandle.ManagerID, TEXT("ManagerID %d does not match IndexedHandle.ManagerID %d, handles must only be used by the same manager they were created by!"), IndexedHandle.ManagerID))
+		if (!ensureMsgf(ManagerID == IndexedHandle.ManagerID, TEXT("ManagerID %d does not match IndexedHandle.ManagerID %d, handles must only be used by the same manager they were created by!"), ManagerID, IndexedHandle.ManagerID))
 		{
 			return false;
 		}

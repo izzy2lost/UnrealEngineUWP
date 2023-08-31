@@ -710,7 +710,7 @@ bool UGeometryCollection::RemoveLastMaterialSlot()
 /** Returns true if there is anything to render */
 bool UGeometryCollection::HasVisibleGeometry() const
 {
-	if(ensureMsgf(GeometryCollection.IsValid(), TEXT("Geometry Collection %s has an invalid internal collection")))
+	if(ensureMsgf(GeometryCollection.IsValid(), TEXT("Geometry Collection has an invalid internal collection")))
 	{
 		return ( (EnableNanite && RenderData && RenderData->bHasNaniteData) || GeometryCollection->HasVisibleGeometry());
 	}

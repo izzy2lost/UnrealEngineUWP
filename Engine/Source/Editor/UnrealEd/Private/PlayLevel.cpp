@@ -211,7 +211,7 @@ private:
 			FMessageLog(NAME_CategoryPIE).SuppressLoggingToOutputLog(true).Error(Line.Message);
 			break;
 		case ELogVerbosity::Fatal:
-			checkf(false, *Line.Message.ToString());
+			checkf(false, TEXT("%s"), *Line.Message.ToString());
 			break;
 		}
 	}
@@ -513,7 +513,7 @@ void UEditorEngine::EndPlayMap()
 		// We cannot safely recover from this.
 		if (UObjectBaseUtility::IsPendingKillEnabled())
 		{
-			checkf(false, *FText::Format(
+			checkf(false, TEXT("%s"), *FText::Format(
 				LOCTEXT("PIEObjectStillReferenced", "Object '{Object}' from PIE level still referenced. Shortest path from root: {Path}"), Arguments).ToString());
 		}
 		else

@@ -78,7 +78,7 @@ public:
 
 	~FSemaphore()
 	{
-		checkf(DebugCount == 0, TEXT("'%d' threads are still waiting on the UE::Virtualization::FSemaphore being destroyed"));
+		checkf(DebugCount == 0, TEXT("'%d' threads are still waiting on the UE::Virtualization::FSemaphore being destroyed"), DebugCount.load());
 	}
 
 	/** Will block until the calling thread can pass through the semaphore. Note that it might return an error if the WaitEvent fails */

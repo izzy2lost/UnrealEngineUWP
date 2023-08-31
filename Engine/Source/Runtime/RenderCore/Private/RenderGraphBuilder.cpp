@@ -3585,7 +3585,7 @@ void FRDGBuilder::BeginResourceRHI(FRDGPassHandle PassHandle, FRDGTextureRef Tex
 
 		// Cannot begin a resource within a merged render pass region.
 		checkf(GetPrologueBarrierPassHandle(PassHandle) == PassHandle,
-			TEXT("Cannot begin a resource within a merged render pass. Pass (Handle: %d, Name: %s), Resource %s"), PassHandle, Pass->GetName(), Texture->Name);
+			TEXT("Cannot begin a resource within a merged render pass. Pass (Handle: %d, Name: %s), Resource %s"), PassHandle.GetIndex(), Pass->GetName(), Texture->Name);
 	}
 #endif
 
@@ -3675,7 +3675,7 @@ void FRDGBuilder::BeginResourceRHI(FRDGPassHandle PassHandle, FRDGBufferRef Buff
 
 		// Cannot begin a resource within a merged render pass region.
 		checkf(GetPrologueBarrierPassHandle(PassHandle) == PassHandle,
-			TEXT("Cannot begin a resource within a merged render pass. Pass (Handle: %d, Name: %s), Resource %s"), PassHandle, Pass->GetName(), Buffer->Name);
+			TEXT("Cannot begin a resource within a merged render pass. Pass (Handle: %d, Name: %s), Resource %s"), PassHandle.GetIndex(), Pass->GetName(), Buffer->Name);
 	}
 #endif
 	Buffer->FinalizeDesc();

@@ -201,7 +201,7 @@ bool FStateTreeTraceAnalyzer::OnEvent(const uint16 RouteId, EStyle Style, const 
 			break;
 		}
 	default:
-		ensureMsgf(false, TEXT("Unhandle route id: %s"), RouteId);
+		ensureMsgf(false, TEXT("Unhandle route id: %u"), RouteId);
 	}
 
 	return true;

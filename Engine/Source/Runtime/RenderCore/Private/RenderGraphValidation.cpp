@@ -748,10 +748,10 @@ void FRDGUserValidation::ValidateAddPass(const void* ParameterStruct, const FSha
 		TEXT("Pass %s specified both Raster and AsyncCompute. They are mutually exclusive."), Name.GetTCHAR());
 
 	checkf(!EnumHasAllFlags(Flags, ERDGPassFlags::SkipRenderPass) || EnumHasAllFlags(Flags, ERDGPassFlags::Raster),
-		TEXT("Pass %s specified SkipRenderPass without Raster. Only raster passes support this flag."));
+		TEXT("Pass %s specified SkipRenderPass without Raster. Only raster passes support this flag."), Name.GetTCHAR());
 
 	checkf(!EnumHasAllFlags(Flags, ERDGPassFlags::NeverMerge) || EnumHasAllFlags(Flags, ERDGPassFlags::Raster),
-		TEXT("Pass %s specified NeverMerge without Raster. Only raster passes support this flag."));
+		TEXT("Pass %s specified NeverMerge without Raster. Only raster passes support this flag."), Name.GetTCHAR());
 }
 
 void FRDGUserValidation::ValidateAddPass(const FRDGPass* Pass, bool bSkipPassAccessMarking)

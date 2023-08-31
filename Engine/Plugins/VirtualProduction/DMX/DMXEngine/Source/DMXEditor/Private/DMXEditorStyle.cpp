@@ -203,7 +203,7 @@ void FDMXEditorStyle::Initialize()
 void FDMXEditorStyle::Shutdown()
 {
 	// DEPRECATED 5.0
-	ensureMsgf(StyleInstance_DEPRECATED.IsValid(), TEXT("%S called, but StyleInstance wasn't initialized"));
+	ensureMsgf(StyleInstance_DEPRECATED.IsValid(), TEXT("FDMXEditorStyle::Shutdown called, but StyleInstance wasn't initialized"));
 	FSlateStyleRegistry::UnRegisterSlateStyle(*StyleInstance_DEPRECATED);
 	ensure(StyleInstance_DEPRECATED.IsUnique());
 	StyleInstance_DEPRECATED.Reset();

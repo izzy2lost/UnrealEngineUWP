@@ -1680,7 +1680,7 @@ TSharedRef<SWidget> SLevelEditor::RestoreContentArea( const TSharedRef<SDockTab>
 		// Warn user/developer
 		const FString WarningMessage = FString::Format(TEXT("Level editor layout could not be loaded from the config file {0}, trying to reset this config file to the default one."), { *GEditorLayoutIni });
 		UE_LOG(LogTemp, Warning, TEXT("%s"), *WarningMessage);
-		ensureMsgf(false, TEXT("%s Some additional testing of that layout file should be done."));
+		ensureMsgf(false, TEXT("Some additional testing of that layout file should be done."));
 	}
 	check(ContentAreaWidget.IsValid());
 	return ContentAreaWidget.ToSharedRef();

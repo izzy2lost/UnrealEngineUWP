@@ -35,7 +35,7 @@ public:
 			{
 				if (Passes[PassIndex].bEnabled)
 				{
-					checkf(Passes[PassIndex].bAccepted, TEXT("Pass was enabled but not accepted: %s."), Passes[PassIndex].bAccepted);
+					checkf(Passes[PassIndex].bAccepted, TEXT("Pass was enabled but not accepted: %s."), Passes[PassIndex].Name);
 				}
 			}
 		}

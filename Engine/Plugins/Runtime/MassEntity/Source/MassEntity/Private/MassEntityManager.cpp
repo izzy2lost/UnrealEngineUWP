@@ -1220,7 +1220,7 @@ void FMassEntityManager::CheckIfEntityIsValid(FMassEntityHandle Entity) const
 
 void FMassEntityManager::CheckIfEntityIsActive(FMassEntityHandle Entity) const
 {
-	checkf(IsEntityBuilt(Entity), TEXT("Entity not yet created(ID: %d, SN:%d)"));
+	checkf(IsEntityBuilt(Entity), TEXT("Entity not yet created(ID: %d, SN:%d)"), Entity.Index, Entity.SerialNumber);
 }
 
 void FMassEntityManager::GetMatchingArchetypes(const FMassFragmentRequirements& Requirements, TArray<FMassArchetypeHandle>& OutValidArchetypes, const uint32 FromArchetypeDataVersion) const

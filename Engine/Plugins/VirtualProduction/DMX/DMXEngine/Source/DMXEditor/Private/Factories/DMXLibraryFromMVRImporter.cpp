@@ -112,7 +112,7 @@ namespace UE::DMX::DMXLibraryFromMVRImporter::Private
 bool FDMXLibraryFromMVRImporter::LoadMVRFile(const FString& InFilename)
 {
 	Filename = InFilename;
-	if (!ensureAlwaysMsgf(FPaths::FileExists(InFilename), TEXT("Cannot import MVR File '%s'. File does not exist.")))
+	if (!ensureAlwaysMsgf(FPaths::FileExists(InFilename), TEXT("Cannot import MVR File '%s'. File does not exist."), *InFilename))
 	{
 		return false;
 	}

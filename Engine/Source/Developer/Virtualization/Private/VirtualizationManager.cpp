@@ -803,7 +803,7 @@ bool FVirtualizationManager::PullData(TArrayView<FPullRequest> Requests)
 
 		if (Request.IsSuccess())
 		{
-			checkf(Request.GetIdentifier() == Request.GetPayload().GetRawHash(), TEXT("[%s] Invalid payload for '%s'"), *LexToString(Request.GetIdentifier()));
+			checkf(Request.GetIdentifier() == Request.GetPayload().GetRawHash(), TEXT("Invalid payload for '%s'"), *LexToString(Request.GetIdentifier()));
 		}
 	}	
 

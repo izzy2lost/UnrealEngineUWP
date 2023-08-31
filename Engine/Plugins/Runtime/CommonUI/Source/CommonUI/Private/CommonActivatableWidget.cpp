@@ -250,7 +250,7 @@ void UCommonActivatableWidget::ReleaseSlateResources(bool bReleaseChildren)
 
 void UCommonActivatableWidget::NativeOnActivated()
 {
-	if (ensureMsgf(bIsActive, TEXT("[%s] has called NativeOnActivated, but isn't actually activated! Never call this directly - call ActivateWidget()")))
+	if (ensureMsgf(bIsActive, TEXT("[%s] has called NativeOnActivated, but isn't actually activated! Never call this directly - call ActivateWidget()"), *GetName()))
 	{
 		if (bSetVisibilityOnActivated)
 		{
