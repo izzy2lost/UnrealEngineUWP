@@ -48,6 +48,8 @@ namespace UE::NearestNeighborModel
 		virtual bool LoadTrainedNetwork() const override;
 		virtual void OnPropertyChanged(FPropertyChangedEvent& PropertyChangedEvent) override;
 		virtual void OnPostTraining(ETrainingResult TrainingResult, bool bUsePartiallyTrainedWhenAborted) override;
+		
+		UE_DEPRECATED(5.4, "Onnx file no longer used for training network.")
 		virtual FString GetTrainedNetworkOnnxFile() const override;
 		virtual int32 GetNumTrainingFrames() const override;
 		// ~END FMLDeformerGeomCacheEditorModel overrides.

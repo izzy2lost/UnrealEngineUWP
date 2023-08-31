@@ -437,11 +437,7 @@ FString UNearestNeighborModel::GetModelDir() const
 
 bool UNearestNeighborModel::ShouldUseOptimizedNetwork() const
 {
-#if NEARESTNEIGHBORMODEL_USE_ISPC
 	return UE::NearestNeighborModel::bNearestNeighborModelUseOptimizedNetwork;
-#else
-	return false;
-#endif
 }
 
 void UNearestNeighborModel::SetUseOptimizedNetwork(bool bInUseOptimizedNetwork)
@@ -534,6 +530,37 @@ bool UNearestNeighborModel::LoadOptimizedNetwork(const FString& OnnxPath)
 
 	return false;
 }
+
+bool UNearestNeighborModel::LoadOptimizedNetworkFromFile(const FString& Filename)
+{
+	const FString FullPath = FPaths::ConvertRelativePathToFull(Filename);
+	if (FPaths::FileExists(FullPath))
+	{
+		UE_LOG(LogNearestNeighborModel, Display, TEXT("Loading Network file '%s'..."), *FullPath);
+
+		// When we create a new UNearestNeighborOptimizedNetwork object we need to set the input
+		// and output sizes as it cannot get them from the model on load.
+		UNearestNeighborOptimizedNetwork* Result = NewObject<UNearestNeighborOptimizedNetwork>(this);
+		Result->SetNumInputs(InputDim);
+		Result->SetNumOutputs(OutputDim);
+		const bool bSuccess = Result->Load(FullPath);
+		
+		if (bSuccess)
+		{
+			// Clear optimized network to avoid error messages in SetOptimizedNetwork. 
+			OptimizedNetwork = nullptr;
+			SetOptimizedNetwork(Result);
+			return true;
+		}
+	}
+	else
+	{
+		UE_LOG(LogNearestNeighborModel, Error, TEXT("Network file '%s' does not exist!"), *FullPath);
+	}
+
+	return false;
+}
+
 
 int32 UNearestNeighborModel::GetOptimizedNetworkNumOutputs() const
 {

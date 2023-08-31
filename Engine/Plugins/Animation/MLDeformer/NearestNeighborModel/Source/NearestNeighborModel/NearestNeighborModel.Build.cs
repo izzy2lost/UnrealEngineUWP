@@ -43,6 +43,8 @@ public class NearestNeighborModel : ModuleRules
 				"RenderCore",
 				"RHI",
 				"MLDeformerFramework",
+				"NNE",
+				"NNERuntimeBasicCpu",
 			}
 			);
 		

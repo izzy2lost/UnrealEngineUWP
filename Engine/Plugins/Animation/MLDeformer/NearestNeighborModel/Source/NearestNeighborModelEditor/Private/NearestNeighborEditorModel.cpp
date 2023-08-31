@@ -99,10 +99,10 @@ namespace UE::NearestNeighborModel
 		UNearestNeighborModel* NearestNeighborModel = GetNearestNeighborModel();
 		if (NearestNeighborModel)
 		{	
-			const FString OnnxFile = GetTrainedNetworkOnnxFile();
+			const FString File = GetNearestNeighborModel()->GetModelDir() / TEXT("NearestNeighborModel.ubnne");
 			if (NearestNeighborModel->ShouldUseOptimizedNetwork())
 			{
-				const bool bSuccess = NearestNeighborModel->LoadOptimizedNetwork(OnnxFile);
+				const bool bSuccess = NearestNeighborModel->LoadOptimizedNetworkFromFile(File);
 				if (bSuccess)
 				{
 					UNearestNeighborModelInstance* ModelInstance = static_cast<UNearestNeighborModelInstance*>(GetTestMLDeformerModelInstance());

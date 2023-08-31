@@ -261,7 +261,11 @@ private:
 	UNearestNeighborOptimizedNetwork* GetOptimizedNetwork() const { return OptimizedNetwork.Get(); }
 	int32 GetOptimizedNetworkNumOutputs() const;
 	void SetOptimizedNetwork(UNearestNeighborOptimizedNetwork* InOptimizedNetwork);
+	
+	UE_DEPRECATED(5.4, "Onnx file no longer used for training network. Use LoadOptimizedNetworkFromFile instead.")
 	bool LoadOptimizedNetwork(const FString& OnnxPath);
+
+	bool LoadOptimizedNetworkFromFile(const FString& Filename);
 
 #if WITH_EDITORONLY_DATA
 	TObjectPtr<UAnimSequence> GetNearestNeighborSkeletons(int32 PartId);
@@ -347,15 +351,16 @@ private:
 #endif
 
 protected:
-#if WITH_EDITORONLY_DATA
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Training Settings")
 	int32 InputDim = 0;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings")
-	TArray<int32> HiddenLayerDims;
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Training Settings")
 	int32 OutputDim = 0;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings")
+	TArray<int32> HiddenLayerDims;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings", meta = (ClampMin = "1"))
 	int32 NumEpochs = 10000;
