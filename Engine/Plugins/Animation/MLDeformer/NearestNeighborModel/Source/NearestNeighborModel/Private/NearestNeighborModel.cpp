@@ -250,6 +250,12 @@ void UNearestNeighborModel::UpdateInputMultipliers()
 	}
 }
 
+bool UNearestNeighborModel::CheckPCAData(int32 PartId) const
+{
+	const FClothPartData& Data = ClothPartData[PartId];
+	return Data.VertexMap.Num() > 0 && Data.PCABasis.Num() == Data.VertexMap.Num() * 3 * Data.PCACoeffNum;
+}
+
 UE::NearestNeighborModel::EUpdateResult UNearestNeighborModel::UpdateVertexMap(int32 PartId, const FString& VertexMapPath, const FSkelMeshImportedMeshInfo& Info)
 {
 	using namespace UE::NearestNeighborModel;
@@ -463,12 +469,6 @@ void UNearestNeighborModel::InitInputInfo()
 #if WITH_EDITORONLY_DATA
 	NearestNeighborModelInputInfo->InitRefBoneRotations(GetSkeletalMesh());
 #endif
-}
-
-bool UNearestNeighborModel::CheckPCAData(int32 PartId) const
-{
-	const FClothPartData& Data = ClothPartData[PartId];
-	return Data.VertexMap.Num() > 0 && Data.PCABasis.Num() == Data.VertexMap.Num() * 3 * Data.PCACoeffNum;
 }
 
 void UNearestNeighborModel::SetOptimizedNetwork(UNearestNeighborOptimizedNetwork* InOptimizedNetwork)
