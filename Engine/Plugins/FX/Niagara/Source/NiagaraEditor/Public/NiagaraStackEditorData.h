@@ -3,6 +3,8 @@
 #pragma once
 
 #include "NiagaraEditorDataBase.h"
+#include "NiagaraMessages.h"
+#include "NiagaraNodeFunctionCall.h"
 
 #include "NiagaraStackEditorData.generated.h"
 struct FStackIssue;
@@ -79,6 +81,14 @@ public:
 	 * @param bWasExpandedPreSearch Whether or not the entry was expanded pre-search.
 	 */
 	void SetStackEntryWasExpandedPreSearch(const FString& StackEntryKey, bool bWasExpandedPreSearch);
+
+	const TMap<FString, FNiagaraStackNoteData>& GetAllStackNotes();
+	NIAGARAEDITOR_API TOptional<FNiagaraStackNoteData> GetStackNote(const FString& StackEntryKey);
+	NIAGARAEDITOR_API bool HasStackNote(const FString& StackEntryKey);
+	NIAGARAEDITOR_API void AddOrReplaceStackNote(const FString& StackEntryKey, FNiagaraStackNoteData NewStackMessage, bool bBroadcast = true);
+	NIAGARAEDITOR_API void DeleteStackNote(const FString& StackEntryKey);
+	
+	void TransferDeprecatedStackNotes(const UNiagaraNodeFunctionCall& FunctionCallNode);
 
 	/*
 	 * Gets whether or not this entry should display all of its content inline. 
@@ -197,6 +207,9 @@ private:
 	TMap<FString, bool> StackEntryKeyToExpandedOverviewMap;
 
 	TMap<FString, FText> StackEntryKeyToActiveSectionMap;
+
+	UPROPERTY()
+	TMap<FString, FNiagaraStackNoteData> StackNotes;
 
 	/* Marking those FTexts explicitly as editoronly_data will make localization not pick these up.
 	 * This is a workaround. EditorDataBase in system & emitter is already flagged as editor only, but it doesn't propagate properly */

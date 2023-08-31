@@ -26,6 +26,8 @@ public:
 
 	NIAGARAEDITOR_API virtual bool IsExpandedByDefault() const override;
 
+	virtual bool SupportsStackNotes() override { return true; }
+	
 	NIAGARAEDITOR_API virtual bool CanDrag() const override;
 
 	void SetOwnerGuid(TOptional<FGuid> InGuid) { OwnerGuid = InGuid; }

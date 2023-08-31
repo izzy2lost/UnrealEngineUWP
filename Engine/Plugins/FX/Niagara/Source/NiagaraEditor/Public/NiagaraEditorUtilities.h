@@ -48,6 +48,8 @@ struct FNiagaraScriptVersionUpgradeContext;
 struct FNiagaraScriptConversionContext;
 class UUpgradeNiagaraEmitterContext;
 struct FNiagaraMessageStore;
+class UNiagaraStackNote;
+class SToolTip;
 
 enum class ENiagaraFunctionDebugState : uint8;
 
@@ -414,6 +416,11 @@ namespace FNiagaraEditorUtilities
 
 	NIAGARAEDITOR_API UNiagaraDataInterface* GetResolvedRuntimeInstanceForEditorDataInterfaceInstance(const UNiagaraSystem& OwningSystem, UNiagaraDataInterface& EditorDataInterfaceInstance);
 
+	namespace Tooltips
+	{
+		NIAGARAEDITOR_API TSharedRef<SToolTip> CreateStackNoteTooltip(UNiagaraStackNote& StackNote);
+	}
+	
 	namespace Scripts
 	{
 		namespace Validation

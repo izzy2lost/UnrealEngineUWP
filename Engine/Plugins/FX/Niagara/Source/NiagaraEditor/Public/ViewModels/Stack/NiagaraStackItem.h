@@ -38,6 +38,8 @@ public:
 	virtual bool TestCanResetToBaseWithMessage(FText& OutCanResetToBaseMessage) const { return false; }
 	virtual void ResetToBase() { }
 
+	virtual bool SupportsStackNotes() override { return true; }
+	
 	virtual bool SupportsEditMode() const { return false; }
 	virtual void OnEditButtonClicked() { }
 	virtual TOptional<FText> GetEditModeButtonText() const { return TOptional<FText>(); }

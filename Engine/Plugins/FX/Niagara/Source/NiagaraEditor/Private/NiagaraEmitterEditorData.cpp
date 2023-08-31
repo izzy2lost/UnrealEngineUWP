@@ -367,6 +367,38 @@ void UNiagaraEmitterEditorData::PostLoad_TransferSummaryDataToNewFormat()
 	}
 }
 
+void UNiagaraEmitterEditorData::PostLoad_TransferModuleStackNotesToNewFormat(UObject* Owner)
+{
+	// since we lack graph context during post load, we do this workaround to find the emitter graph
+	UNiagaraEmitter* Emitter = Cast<UNiagaraEmitter>(Owner);
+	TArray<FNiagaraAssetVersion> AssetVersions = Emitter->GetAllAvailableVersions();
+	UNiagaraGraph* EmitterGraph = nullptr;
+	for(FNiagaraAssetVersion& AssetVersion : AssetVersions)
+	{
+		FVersionedNiagaraEmitterData* EmitterData = Emitter->GetEmitterData(AssetVersion.VersionGuid);
+		if(EmitterData->GetEditorData() == this)
+		{
+			EmitterGraph = Cast<UNiagaraScriptSource>(EmitterData->GraphSource)->NodeGraph;
+		}
+	}
+
+	if(EmitterGraph == nullptr)
+	{
+		return;
+	}
+
+	TArray<UNiagaraNodeFunctionCall*> FunctionCallNodes;
+	EmitterGraph->GetNodesOfClass(FunctionCallNodes);
+
+	for(UNiagaraNodeFunctionCall* FunctionCallNode : FunctionCallNodes)
+	{
+		if(FunctionCallNode->GetDeprecatedCustomNotes().Num() > 0)
+		{
+			StackEditorData->TransferDeprecatedStackNotes(*FunctionCallNode);
+		}
+	}
+}
+
 void UNiagaraEmitterEditorData::PostLoad()
 {
 	Super::PostLoad();
@@ -386,6 +418,7 @@ void UNiagaraEmitterEditorData::PostLoad()
 void UNiagaraEmitterEditorData::PostLoadFromOwner(UObject* InOwner)
 {
 	PostLoad_TransferSummaryDataToNewFormat();
+	PostLoad_TransferModuleStackNotesToNewFormat(InOwner);
 }
 
 #if WITH_EDITORONLY_DATA

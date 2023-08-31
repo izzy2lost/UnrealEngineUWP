@@ -158,11 +158,18 @@ void UNiagaraStackRenderItemGroup::Paste(const UNiagaraClipboardContent* Clipboa
 	if (EmitterWeak.IsValid())
 	{
 		UNiagaraEmitter* Emitter = EmitterWeak.Emitter.Get();
-		for (const UNiagaraRendererProperties* ClipboardRenderer : ClipboardContent->Renderers)
+		for (const UNiagaraClipboardRenderer* ClipboardRenderer : ClipboardContent->Renderers)
 		{
-			if (ClipboardRenderer != nullptr)
+			if (ClipboardRenderer != nullptr && ClipboardRenderer->RendererProperties != nullptr)
 			{
-				EmitterWeak.Emitter->AddRenderer(ClipboardRenderer->StaticDuplicateWithNewMergeId(Emitter), EmitterWeak.Version);
+				UNiagaraRendererProperties* NewRenderer = ClipboardRenderer->RendererProperties->StaticDuplicateWithNewMergeId(Emitter);
+				
+				if(ClipboardRenderer->StackNoteData.IsValid())
+				{
+					GetStackEditorData().AddOrReplaceStackNote(FNiagaraStackGraphUtilities::StackKeys::GenerateStackRendererEditorDataKey(*NewRenderer), ClipboardRenderer->StackNoteData);
+				}
+				
+				EmitterWeak.Emitter->AddRenderer(NewRenderer, EmitterWeak.Version);
 			}
 		}
 	}

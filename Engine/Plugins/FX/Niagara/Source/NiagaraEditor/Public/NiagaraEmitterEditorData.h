@@ -74,6 +74,7 @@ private:
 	void StackEditorDataChanged();
 
 	void PostLoad_TransferSummaryDataToNewFormat();
+	void PostLoad_TransferModuleStackNotesToNewFormat(UObject* Owner);
 };
 
 

@@ -357,7 +357,7 @@ private:
 		FNiagaraStackGraphUtilities::GetStackFunctionInputs(*NewAssignmentModule, InputVariables, FNiagaraStackGraphUtilities::ENiagaraGetStackFunctionInputPinsOptions::AllInputs);
 		if (InputVariables.Num() == 1)
 		{
-			FString FunctionInputEditorDataKey = FNiagaraStackGraphUtilities::GenerateStackFunctionInputEditorDataKey(*NewAssignmentModule, InputVariables[0].GetName());
+			FString FunctionInputEditorDataKey = FNiagaraStackGraphUtilities::StackKeys::GenerateStackFunctionInputEditorDataKey(*NewAssignmentModule, InputVariables[0].GetName());
 			if (bRenameParameterOnAdd)
 			{
 				StackEditorData.SetStackEntryIsRenamePending(FunctionInputEditorDataKey, true);
@@ -1406,9 +1406,10 @@ void UNiagaraStackScriptItemGroup::PasteModules(const UNiagaraClipboardContent* 
 
 			if (NewFunctionCallNode != nullptr)
 			{
-				for(const auto& Message : ClipboardFunction->Messages)
+				if(ClipboardFunction->StackNoteData.IsValid())
 				{
-					NewFunctionCallNode->AddCustomNote(Message);	
+					FString NewModuleStackEditorDataKey = FNiagaraStackGraphUtilities::StackKeys::GenerateStackModuleEditorDataKey(*NewFunctionCallNode);
+					GetStackEditorData().AddOrReplaceStackNote(NewModuleStackEditorDataKey, ClipboardFunction->StackNoteData);	
 				}
 				
 				ClipboardFunction->OnPastedFunctionCallNodeDelegate.ExecuteIfBound(NewFunctionCallNode);

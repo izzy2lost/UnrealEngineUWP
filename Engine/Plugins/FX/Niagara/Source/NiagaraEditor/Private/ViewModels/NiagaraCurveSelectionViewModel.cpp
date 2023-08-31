@@ -593,7 +593,7 @@ TSharedPtr<FNiagaraCurveSelectionTreeNode> UNiagaraCurveSelectionViewModel::Crea
 		}
 		else
 		{
-			const FText* DisplayName = StackEditorData.GetStackEntryDisplayName(FNiagaraStackGraphUtilities::GenerateStackModuleEditorDataKey(FunctionCallNode));
+			const FText* DisplayName = StackEditorData.GetStackEntryDisplayName(FNiagaraStackGraphUtilities::StackKeys::GenerateStackModuleEditorDataKey(FunctionCallNode));
 			if(DisplayName != nullptr)
 			{
 				NewFunctionNode->SetDisplayName(*DisplayName);

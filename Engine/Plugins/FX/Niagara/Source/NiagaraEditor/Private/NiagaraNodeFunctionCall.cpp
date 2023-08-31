@@ -226,40 +226,6 @@ TSharedPtr<SGraphNode> UNiagaraNodeFunctionCall::CreateVisualWidget()
 	}
 }
 
-void UNiagaraNodeFunctionCall::AddCustomNote(const FNiagaraStackMessage& StackMessage)
-{
-	StackMessages.Add(StackMessage);
-    OnCustomNotesChangedDelegate.ExecuteIfBound();
-    GetNiagaraGraph()->NotifyGraphChanged();
-}
-
-void UNiagaraNodeFunctionCall::RemoveCustomNote(const FGuid& MessageKey)
-{
-	StackMessages.RemoveAll([&](const FNiagaraStackMessage& Message)
-	{
-		return Message.Guid == MessageKey;
-	});
-		
-	OnCustomNotesChangedDelegate.ExecuteIfBound();
-	GetNiagaraGraph()->NotifyGraphChanged();
-}
-
-void UNiagaraNodeFunctionCall::RemoveCustomNoteViaDelegate(const FGuid MessageKey)
-{
-	const bool bContainsMessage = StackMessages.ContainsByPredicate([&](const FNiagaraStackMessage& Message)
-	{
-		return Message.Guid == MessageKey;
-	});
-
-	if(bContainsMessage)
-	{
-		FScopedTransaction Transaction(LOCTEXT("NoteRemoved", "Note Removed"));
-		Modify();
-			
-		RemoveCustomNote(MessageKey);
-	}
-}
-
 void UNiagaraNodeFunctionCall::AddOrphanedStaticSwitchPinForDataRetention(FNiagaraVariableBase StaticSwitchVariable, const FString& StaticSwitchPinDefault)
 {
 	UEdGraphPin* NewPin = AddStaticSwitchInputPin(StaticSwitchVariable);

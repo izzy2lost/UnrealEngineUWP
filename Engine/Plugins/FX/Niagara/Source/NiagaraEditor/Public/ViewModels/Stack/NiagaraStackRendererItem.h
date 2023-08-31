@@ -56,6 +56,8 @@ public:
 	
 	virtual bool SupportsRename() const override { return true; }
 
+	virtual bool SupportsStackNotes() override { return true; }
+
 	NIAGARAEDITOR_API bool HasBaseRenderer() const;
 
 	virtual bool SupportsChangeEnabled() const override { return true; }

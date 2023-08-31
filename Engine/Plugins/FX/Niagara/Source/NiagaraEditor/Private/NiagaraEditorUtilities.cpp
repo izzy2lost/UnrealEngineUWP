@@ -44,6 +44,7 @@
 #include "ViewModels/NiagaraScratchPadUtilities.h"
 #include "ViewModels/NiagaraScriptViewModel.h"
 #include "ViewModels/Stack/NiagaraParameterHandle.h"
+#include "ViewModels/Stack/NiagaraStackNote.h"
 #include "Widgets/SNiagaraParameterName.h"
 
 #include "EdGraph/EdGraphPin.h"
@@ -75,6 +76,7 @@
 #include "ViewModels/NiagaraEmitterHandleViewModel.h"
 #include "ViewModels/NiagaraEmitterViewModel.h"
 #include "ViewModels/NiagaraParameterPanelViewModel.h"
+#include "Widgets/SToolTip.h"
 
 #define LOCTEXT_NAMESPACE "FNiagaraEditorUtilities"
 
@@ -4571,6 +4573,66 @@ UNiagaraDataInterface* FNiagaraEditorUtilities::GetResolvedRuntimeInstanceForEdi
 		}
 	}
 	return nullptr;
+}
+
+TSharedRef<SToolTip> FNiagaraEditorUtilities::Tooltips::CreateStackNoteTooltip(UNiagaraStackNote& StackNote)
+{
+	if(StackNote.GetTargetStackNoteData().IsSet() == false)
+	{
+		return SNew(SToolTip);
+	}
+
+	TSharedRef<SVerticalBox> TooltipContent = SNew(SVerticalBox)
+	+ SVerticalBox::Slot()
+	.AutoHeight()
+	.Padding(3.f)
+	[
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.Padding(2.f)
+		[
+			SNew(SBox)
+			.HeightOverride(16.f)
+			.WidthOverride(16.f)
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SImage)
+				.Image(FNiagaraEditorStyle::Get().GetBrush("NiagaraEditor.Message.CustomNote"))
+			]
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.Padding(2.f)
+		[
+			SNew(STextBlock)
+			.Text(StackNote.GetTargetStackNoteData().GetValue().MessageHeader)
+			.TextStyle(&FNiagaraEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("NiagaraEditor.Stack.Note.HeaderText"))
+		]
+	];
+
+	if(StackNote.GetTargetStackNoteData().GetValue().Message.IsEmpty() == false)
+	{
+		TooltipContent->AddSlot()
+		.AutoHeight()
+		.Padding(5.f)
+		[
+			SNew(STextBlock)
+			.Text(StackNote.GetTargetStackNoteData().GetValue().Message)
+			.AutoWrapText(true)
+		];
+	}
+	
+	return SNew(SToolTip)
+	.Content()
+	[
+		SNew(SBox)
+		.MaxDesiredWidth(750.f)
+		[
+			TooltipContent
+		]
+	];
 }
 
 TMap<FGuid, TArray<FNiagaraVariableBase>> FNiagaraEditorUtilities::Scripts::Validation::ValidateScriptVariableIds(UNiagaraScript* Script, FGuid VersionGuid)

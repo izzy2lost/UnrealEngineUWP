@@ -956,14 +956,19 @@ void FNiagaraStackGraphUtilities::InitializeStackFunctionInput(TSharedRef<FNiaga
 	InitializeStackFunctionInputsInternal(SystemViewModel, EmitterViewModel, StackEditorData, ModuleNode, InputFunctionCallNode, InputSelector);
 }
 
-FString FNiagaraStackGraphUtilities::GenerateStackFunctionInputEditorDataKey(UNiagaraNodeFunctionCall& FunctionCallNode, FNiagaraParameterHandle InputParameterHandle)
+FString FNiagaraStackGraphUtilities::StackKeys::GenerateStackFunctionInputEditorDataKey(const UNiagaraNodeFunctionCall& FunctionCallNode, FNiagaraParameterHandle InputParameterHandle)
 {
 	return FunctionCallNode.GetFunctionName() + InputParameterHandle.GetParameterHandleString().ToString();
 }
 
-FString FNiagaraStackGraphUtilities::GenerateStackModuleEditorDataKey(UNiagaraNodeFunctionCall& ModuleNode)
+FString FNiagaraStackGraphUtilities::StackKeys::GenerateStackModuleEditorDataKey(const UNiagaraNodeFunctionCall& ModuleNode)
 {
 	return ModuleNode.NodeGuid.ToString(EGuidFormats::DigitsWithHyphens);
+}
+
+FString FNiagaraStackGraphUtilities::StackKeys::GenerateStackRendererEditorDataKey(const UNiagaraRendererProperties& Renderer)
+{
+	return FString::Printf(TEXT("Renderer-%s"), *Renderer.GetName());
 }
 
 void ExtractInputPinsFromHistory(FNiagaraParameterMapHistory& History, UEdGraph* FunctionGraph, FNiagaraStackGraphUtilities::ENiagaraGetStackFunctionInputPinsOptions Options, TArray<const UEdGraphPin*>& OutPins)
@@ -3795,7 +3800,7 @@ void FNiagaraStackGraphUtilities::RenameAssignmentTarget(
 	}
 
 	bool bIsCurrentlyExpanded = StackEditorData != nullptr 
-		? StackEditorData->GetStackEntryIsExpanded(GenerateStackModuleEditorDataKey(OwningAssignmentNode), false) 
+		? StackEditorData->GetStackEntryIsExpanded(StackKeys::GenerateStackModuleEditorDataKey(OwningAssignmentNode), false) 
 		: false;
 
 	if (ensureMsgf(OwningAssignmentNode.RenameAssignmentTarget(CurrentAssignmentTarget.GetName(), NewAssignmentTargetName), TEXT("Failed to rename assignment node input.")))
@@ -3829,7 +3834,7 @@ void FNiagaraStackGraphUtilities::RenameAssignmentTarget(
 		if (StackEditorData != nullptr)
 		{
 			// Restore the expanded state with the new editor data key.
-			FString NewStackEditorDataKey = GenerateStackFunctionInputEditorDataKey(OwningAssignmentNode, NewInputParameterHandle);
+			FString NewStackEditorDataKey = StackKeys::GenerateStackFunctionInputEditorDataKey(OwningAssignmentNode, NewInputParameterHandle);
 			StackEditorData->SetStackEntryIsExpanded(NewStackEditorDataKey, bIsCurrentlyExpanded);
 		}
 

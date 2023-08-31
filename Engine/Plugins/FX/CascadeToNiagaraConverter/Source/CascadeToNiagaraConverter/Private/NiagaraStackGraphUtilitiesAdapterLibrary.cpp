@@ -1994,7 +1994,7 @@ void UNiagaraEmitterConversionContext::InternalFinalizeStackEntryAddActions()
 			UNiagaraRendererProperties* NewRendererProperties = It.Value();
 
 			UNiagaraClipboardContent* ClipboardContent = UNiagaraClipboardContent::Create();
-			ClipboardContent->Renderers.Add(NewRendererProperties);
+			ClipboardContent->Renderers.Add(UNiagaraClipboardRenderer::CreateRenderer(ClipboardContent, NewRendererProperties));
 
 			FText PasteWarning = FText();
 			UNiagaraStackItemGroup* RendererStackItemGroup = *RendererStackItemGroupPtr;

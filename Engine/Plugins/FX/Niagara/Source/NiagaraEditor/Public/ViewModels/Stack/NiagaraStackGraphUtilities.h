@@ -35,6 +35,7 @@ struct FNiagaraEventScriptProperties;
 struct FNiagaraStackModuleData;
 struct FNiagaraModuleDependency;
 struct FNiagaraEmitterHandle;
+class UNiagaraRendererProperties;
 
 namespace FNiagaraStackGraphUtilities
 {
@@ -88,9 +89,13 @@ namespace FNiagaraStackGraphUtilities
 
 	void InitializeStackFunctionInput(TSharedRef<FNiagaraSystemViewModel> SystemViewModel, TSharedPtr<FNiagaraEmitterViewModel> EmitterViewModel, UNiagaraStackEditorData& StackEditorData, UNiagaraNodeFunctionCall& ModuleNode, UNiagaraNodeFunctionCall& InputFunctionCallNode, FName InputName);
 
-	FString GenerateStackFunctionInputEditorDataKey(UNiagaraNodeFunctionCall& FunctionCallNode, FNiagaraParameterHandle InputParameterHandle);
+	namespace StackKeys
+	{
+		FString GenerateStackFunctionInputEditorDataKey(const UNiagaraNodeFunctionCall& FunctionCallNode, FNiagaraParameterHandle InputParameterHandle);
+		FString GenerateStackModuleEditorDataKey(const UNiagaraNodeFunctionCall& ModuleNode);
+		FString GenerateStackRendererEditorDataKey(const UNiagaraRendererProperties& Renderer);
+	}
 
-	FString GenerateStackModuleEditorDataKey(UNiagaraNodeFunctionCall& ModuleNode);
 
 	TArray<FName> StackContextResolution(FVersionedNiagaraEmitter OwningEmitter, UNiagaraNodeOutput* OutputNodeInChain);
 	void BuildParameterMapHistoryWithStackContextResolution(FVersionedNiagaraEmitter OwningEmitter, UNiagaraNodeOutput* OutputNodeInChain, UNiagaraNode* NodeToVisit, TArray<FNiagaraParameterMapHistory>& OutHistories, bool bRecursive = true, bool bFilterForCompilation = true);

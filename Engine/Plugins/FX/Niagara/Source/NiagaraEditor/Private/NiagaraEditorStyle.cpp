@@ -500,6 +500,22 @@ void FNiagaraEditorStyle::InitStackWidgets()
 	
 	Set("NiagaraEditor.Stack.NumericDropdownInput", EditableTextBoxStyle);
 	Set("NiagaraEditor.Stack.IntegerAsEnum", NormalText.SetFont(FAppStyle::Get().GetFontStyle("PropertyWindow.NormalFont")));
+
+	// Notes
+	FInlineEditableTextBlockStyle DefaultInlineEditableTextBlockStyle = FAppStyle::GetWidgetStyle<FInlineEditableTextBlockStyle>("InlineEditableTextBlockStyle");
+	
+	FTextBlockStyle NoteHeaderStyle;
+	
+	FFontOutlineSettings NoteHeaderOutlineSettings;
+	NoteHeaderOutlineSettings.OutlineSize = 1.f;
+	NoteHeaderStyle.SetFont(DEFAULT_FONT("Regular", 12.f, NoteHeaderOutlineSettings));
+	NoteHeaderStyle.SetColorAndOpacity(FSlateColor(FStyleColors::White));
+	FInlineEditableTextBlockStyle NoteHeaderInlineEditableStyle;
+	NoteHeaderInlineEditableStyle.SetTextStyle(NoteHeaderStyle);
+	NoteHeaderInlineEditableStyle.SetEditableTextBoxStyle(DefaultInlineEditableTextBlockStyle.EditableTextBoxStyle);
+
+	Set("NiagaraEditor.Stack.Note.HeaderText", NoteHeaderStyle);
+	Set("NiagaraEditor.Stack.Note.HeaderEditableText", NoteHeaderInlineEditableStyle);
 }
 
 void FNiagaraEditorStyle::InitNiagaraSequence()

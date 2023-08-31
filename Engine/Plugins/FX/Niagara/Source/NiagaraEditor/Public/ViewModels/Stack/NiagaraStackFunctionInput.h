@@ -105,6 +105,7 @@ public:
 	NIAGARAEDITOR_API virtual FText GetTooltipText() const override;
 	NIAGARAEDITOR_API virtual bool GetIsEnabled() const override;
 	NIAGARAEDITOR_API virtual UObject* GetExternalAsset() const override;
+	virtual bool SupportsStackNotes() override { return true; }
 	virtual bool SupportsCut() const override { return true; }
 	NIAGARAEDITOR_API virtual bool TestCanCutWithMessage(FText& OutMessage) const override;
 	NIAGARAEDITOR_API virtual FText GetCutTransactionText() const override;

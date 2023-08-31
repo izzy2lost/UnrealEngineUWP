@@ -52,6 +52,7 @@
 #include "NiagaraEditorStyle.h"
 #include "NiagaraEditorUtilities.h"
 #include "ScopedTransaction.h"
+#include "SNiagaraStackNote.h"
 #include "Styling/StyleColors.h"
 #include "ViewModels/Stack/NiagaraStackRendererItem.h"
 #include "ViewModels/Stack/NiagaraStackSystemSettingsGroup.h"
@@ -320,7 +321,16 @@ private:
 	{
 		return StackEntry->GetIsExpandedInOverview() ? ExpandedImage : CollapsedImage;
 	}
-	
+
+	EVisibility GetNoteVisibility() const
+	{
+		if(StackEntry->GetStackNote() == nullptr)
+		{
+			return EVisibility::Collapsed;
+		}
+		
+		return EVisibility::Visible;
+	}
 
 	uint32 GetOverviewChildrenCount() const
 	{
@@ -361,10 +371,6 @@ private:
 			else if (StackEntry->GetTotalNumberOfInfoIssues() > 0)
 			{
 				IssueHighlightColor = FStyleColors::AccentBlue.GetSpecifiedColor().Desaturate(DesaturateAmount);
-			}
-			else if (StackEntry->GetTotalNumberOfCustomNotes() > 0)
-			{
-				IssueHighlightColor = FStyleColors::AccentWhite.GetSpecifiedColor().Desaturate(DesaturateAmount);
 			}
 			else
 			{
@@ -977,10 +983,33 @@ TSharedRef<ITableRow> SNiagaraOverviewStack::OnGenerateRowForEntry(UNiagaraStack
 
 		TSharedRef<SHorizontalBox> OptionsBox = SNew(SHorizontalBox);
 		
-		UNiagaraStackModuleItem* StackModuleItem = Cast<UNiagaraStackModuleItem>(StackItem);
-
-		if (StackModuleItem)
+		if(StackItem->SupportsStackNotes())
 		{
+			// Stack note
+			OptionsBox->AddSlot()
+			.AutoWidth()
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.Padding(2.f)
+			[
+				SNew(SNiagaraStackInlineNote, StackItem)
+				.bInteractable(false)
+				.Visibility_Lambda([StackItem]()
+				{
+					if(StackItem->GetStackNote() == nullptr)
+					{
+						return EVisibility::Collapsed;
+					}
+	
+					return EVisibility::Visible;
+				})
+			];
+		}
+		
+		UNiagaraStackModuleItem* StackModuleItem = Cast<UNiagaraStackModuleItem>(StackItem);
+		
+		if (StackModuleItem)
+		{			
 			// Scratch icon
 			if(StackModuleItem->IsScratchModule())
 			{

@@ -353,12 +353,6 @@ void ToggleShouldDebugDraw(TWeakObjectPtr<UNiagaraStackItem> StackItemWeak)
 	}
 }
 
-void EnableNoteMode(TWeakObjectPtr<UNiagaraStackModuleItem> ModuleItem)
-{
-	ModuleItem->GetSystemViewModel()->GetSelectionViewModel()->UpdateSelectedEntries({ModuleItem.Get()}, {}, true);
-	ModuleItem->SetNoteMode(true);
-}
-
 bool FNiagaraStackEditorWidgetsUtilities::AddStackItemContextMenuActions(FMenuBuilder& MenuBuilder, UNiagaraStackItem& StackItem)
 {
 	if (StackItem.SupportsChangeEnabled())
@@ -399,12 +393,6 @@ bool FNiagaraStackEditorWidgetsUtilities::AddStackItemContextMenuActions(FMenuBu
 						NAME_None,
 						EUserInterfaceActionType::Check);
 				}
-
-				MenuBuilder.AddMenuEntry(
-					LOCTEXT("AddNote", "Add Note"),
-					LOCTEXT("AddNoteToolTip", "Add a note to this module item."),
-					FSlateIcon(),
-					FUIAction(FExecuteAction::CreateStatic(&EnableNoteMode, TWeakObjectPtr<UNiagaraStackModuleItem>(ModuleItem))));
 			}
 
 			if (UNiagaraStackRendererItem* RendererItem = Cast<UNiagaraStackRendererItem>(&StackItem))

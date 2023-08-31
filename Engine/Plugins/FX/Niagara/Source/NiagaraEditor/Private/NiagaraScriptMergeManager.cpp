@@ -430,18 +430,13 @@ void FNiagaraStackFunctionMergeAdapter::GatherFunctionCallNodes(TArray<UNiagaraN
 	}
 }
 
-const TArray<FNiagaraStackMessage>& FNiagaraStackFunctionMergeAdapter::GetMessages() const
-{
-	return FunctionCallNode->GetCustomNotes();
-}
-
 FNiagaraScriptStackMergeAdapter::FNiagaraScriptStackMergeAdapter(const FVersionedNiagaraEmitter& InOwningEmitter, UNiagaraNodeOutput& InOutputNode, UNiagaraScript& InScript)
 {
 	OutputNode = &InOutputNode;
 	InputNode.Reset();
 	Script = &InScript;
 	UniqueEmitterName = InOwningEmitter.Emitter->GetUniqueEmitterName();
-
+	
 	TArray<FNiagaraStackGraphUtilities::FStackNodeGroup> StackGroups;
 	GetStackNodeGroups(*OutputNode, StackGroups);
 
@@ -1124,8 +1119,6 @@ bool FNiagaraScriptStackDiffResults::IsEmpty() const
 		ChangedVersionOtherModules.Num() == 0 &&
 		EnabledChangedBaseModules.Num() == 0 &&
 		EnabledChangedOtherModules.Num() == 0 &&
-		AddedOtherMessages.Num() == 0 &&
-		RemovedBaseMessagesInOther.Num() == 0 &&
 		RemovedBaseInputOverrides.Num() == 0 &&
 		AddedOtherInputOverrides.Num() == 0 &&
 		ModifiedOtherInputOverrides.Num() == 0 &&
@@ -1204,6 +1197,7 @@ bool FNiagaraEmitterDiffResults::IsEmpty() const
 		AddedSummaryEntriesInOther.Num() == 0 &&
 		AddedSummarySectionsInOther.Num() == 0 &&
 		ModifiedStackEntryDisplayNames.Num() == 0 &&
+		AddedOrModifiedStackNotesInOther.Num() == 0 &&
 		bScratchPadModified == false &&
 		NewShouldShowSummaryViewValue.IsSet() == false;
 }
@@ -1737,6 +1731,14 @@ INiagaraMergeManager::FMergeEmitterResults FNiagaraScriptMergeManager::MergeEmit
 		MergeResults.bModifiedGraph |= StackEntryDisplayNameDiffs.bModifiedGraph;
 		MergeResults.ErrorMessages.Append(StackEntryDisplayNameDiffs.ErrorMessages);
 
+		FApplyDiffResults StackNotesDiffs = ApplyStackNoteDiffs(VersionedMergedInstance, DiffResults);
+		if (StackNotesDiffs.bSucceeded == false)
+		{
+			MergeResults.MergeResult = EMergeEmitterResult::FailedToMerge;
+		}
+		MergeResults.bModifiedGraph |= StackNotesDiffs.bModifiedGraph;
+		MergeResults.ErrorMessages.Append(StackNotesDiffs.ErrorMessages);
+
 #if 0
 		UE_LOG(LogNiagaraEditor, Log, TEXT("A"));
 		//for (FNiagaraEmitterHandle& EmitterHandle : EmitterHandles)
@@ -2236,7 +2238,8 @@ FNiagaraEmitterDiffResults FNiagaraScriptMergeManager::DiffEmitters(const FVersi
 	DiffEmitterSummary(BaseEmitterAdapter->GetEditorData(), OtherEmitterAdapter->GetEditorData(), EmitterDiffResults);
 	DiffEditableProperties(BaseEmitterData, OtherEmitterData, *FVersionedNiagaraEmitterData::StaticStruct(), EmitterDiffResults.DifferentEmitterProperties);
 	DiffStackEntryDisplayNames(BaseEmitterAdapter->GetEditorData(), OtherEmitterAdapter->GetEditorData(), EmitterDiffResults.ModifiedStackEntryDisplayNames);
-
+	DiffStackNotes(BaseEmitterAdapter->GetEditorData(), OtherEmitterAdapter->GetEditorData(), EmitterDiffResults);
+	
 	TArray<UNiagaraScript*> BaseScratchPadScripts;
 	BaseScratchPadScripts.Append(BaseEmitterData->ParentScratchPads->Scripts);
 	BaseScratchPadScripts.Append(BaseEmitterData->ScratchPads->Scripts);
@@ -2543,31 +2546,6 @@ void FNiagaraScriptMergeManager::DiffScriptStacks(TSharedRef<FNiagaraScriptStack
 			DiffResults.EnabledChangedOtherModules.Add(CommonValuePair.OtherValue);
 		}
 
-		const TArray<FNiagaraStackMessage>& BaseMessages = CommonValuePair.BaseValue->GetMessages();
-		const TArray<FNiagaraStackMessage>& OtherMessages = CommonValuePair.OtherValue->GetMessages();
-
-		for(const FNiagaraStackMessage& OtherMessage : OtherMessages)
-		{
-			if(!BaseMessages.ContainsByPredicate([&](const FNiagaraStackMessage& Message)
-			{
-				return Message.Guid == OtherMessage.Guid;
-			}))
-			{
-				DiffResults.AddedOtherMessages.Add({CommonValuePair.OtherValue, OtherMessage});
-			}
-		}
-
-		for(const FNiagaraStackMessage& BaseMessage : BaseMessages)
-		{
-			if(!OtherMessages.ContainsByPredicate([&](const FNiagaraStackMessage& Message)
-			{
-				return Message.Guid == BaseMessage.Guid;
-			}))
-			{
-				DiffResults.RemovedBaseMessagesInOther.Add({CommonValuePair.BaseValue, BaseMessage});
-			}
-		}
-
 		if (CommonValuePair.BaseValue->GetFunctionCallNode()->SelectedScriptVersion != CommonValuePair.OtherValue->GetFunctionCallNode()->SelectedScriptVersion)
 		{
 			DiffResults.ChangedVersionBaseModules.Add(CommonValuePair.BaseValue);
@@ -2664,6 +2642,24 @@ void FNiagaraScriptMergeManager::DiffStackEntryDisplayNames(const UNiagaraEmitte
 				OutModifiedStackEntryDisplayNames.Add(Pair.Key, Pair.Value);
 			}
 		}
+	}
+}
+
+void FNiagaraScriptMergeManager::DiffStackNotes(const UNiagaraEmitterEditorData* BaseEditorData, const UNiagaraEmitterEditorData* OtherEditorData, FNiagaraEmitterDiffResults& DiffResults) const
+{
+	if (BaseEditorData != nullptr && OtherEditorData != nullptr)
+	{
+		const TMap<FString, FNiagaraStackNoteData>& OtherStackNotes = OtherEditorData->GetStackEditorData().GetAllStackNotes();
+		for(const auto& Pair : OtherStackNotes)
+		{
+			// if the other stack notes differ in any way, we will overwrite base with other
+			TOptional<FNiagaraStackNoteData> BaseStackNote = BaseEditorData->GetStackEditorData().GetStackNote(Pair.Key);
+			
+			if(BaseStackNote.Get(FNiagaraStackNoteData()) != Pair.Value)
+			{
+				DiffResults.AddedOrModifiedStackNotesInOther.Add(Pair.Key, Pair.Value);
+			}
+		}		
 	}
 }
 
@@ -3334,26 +3330,6 @@ FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::ApplyS
 			}
 		}
 	}
-
-	for(const FNiagaraStackFunctionMessageData& AddedMessage : DiffResults.AddedOtherMessages)
-	{
-		TSharedPtr<FNiagaraStackFunctionMergeAdapter> MatchingModuleAdapter = BaseScriptStackAdapter->GetModuleFunctionById(AddedMessage.Function->GetFunctionCallNode()->NodeGuid);
-
-		if(MatchingModuleAdapter.IsValid())
-		{
-			MatchingModuleAdapter->GetFunctionCallNode()->AddCustomNote(AddedMessage.StackMessage);
-		}
-	}
-
-	for(const FNiagaraStackFunctionMessageData& RemovedMessage : DiffResults.RemovedBaseMessagesInOther)
-	{
-		TSharedPtr<FNiagaraStackFunctionMergeAdapter> MatchingModuleAdapter = BaseScriptStackAdapter->GetModuleFunctionById(RemovedMessage.Function->GetFunctionCallNode()->NodeGuid);
-
-		if(MatchingModuleAdapter.IsValid())
-		{
-			MatchingModuleAdapter->GetFunctionCallNode()->RemoveCustomNote(RemovedMessage.StackMessage.Guid);
-		}
-	}
 	
 	// Update the usage if different
 	if (DiffResults.ChangedOtherUsage.IsSet())
@@ -3796,6 +3772,25 @@ FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::ApplyS
 		for (auto& Pair : DiffResults.ModifiedStackEntryDisplayNames)
 		{
 			EditorData->GetStackEditorData().SetStackEntryDisplayName(Pair.Key, Pair.Value);
+		}
+	}
+
+	FApplyDiffResults Results;
+	Results.bSucceeded = true;
+	Results.bModifiedGraph = false;
+	return Results;
+}
+
+FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::ApplyStackNoteDiffs(FVersionedNiagaraEmitter BaseEmitter, const FNiagaraEmitterDiffResults& DiffResults) const
+{
+	if(DiffResults.AddedOrModifiedStackNotesInOther.Num() > 0)
+	{
+		if(UNiagaraEmitterEditorData* EmitterEditorData = Cast<UNiagaraEmitterEditorData>(BaseEmitter.GetEmitterData()->GetEditorData()))
+		{
+			for(const auto& Pair : DiffResults.AddedOrModifiedStackNotesInOther)
+			{
+				EmitterEditorData->GetStackEditorData().AddOrReplaceStackNote(Pair.Key, Pair.Value, false);
+			}
 		}
 	}
 

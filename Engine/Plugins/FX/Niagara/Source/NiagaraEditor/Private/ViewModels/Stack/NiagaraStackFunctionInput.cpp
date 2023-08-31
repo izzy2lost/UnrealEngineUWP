@@ -163,7 +163,7 @@ void UNiagaraStackFunctionInput::Initialize(
 	DisplayName = FText::FromName(InputParameterHandle.GetName());
 
 	InputType = InInputType;
-	StackEditorDataKey = FNiagaraStackGraphUtilities::GenerateStackFunctionInputEditorDataKey(*OwningFunctionCallNode.Get(), InputParameterHandle);
+	StackEditorDataKey = FNiagaraStackGraphUtilities::StackKeys::GenerateStackFunctionInputEditorDataKey(*OwningFunctionCallNode.Get(), InputParameterHandle);
 
 	TArray<UNiagaraScript*> AffectedScriptsNotWeak;
 	for (TWeakObjectPtr<UNiagaraScript> AffectedScript : AffectedScripts)
