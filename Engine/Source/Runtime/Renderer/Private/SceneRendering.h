@@ -2020,6 +2020,16 @@ public:
 	/** The views being rendered. */
 	TArray<FViewInfo> Views;
 
+	/** Information of a scene capture that renders as part of the main renderer. */
+	struct FSceneCaptureRenderPassInfo
+	{
+		TArray<FViewInfo> Views;
+	};
+	TArray<FSceneCaptureRenderPassInfo> SceneCaptureRenderPassInfos;
+
+	/** All views include main camera views and scene capture views. */
+	TArray<FViewInfo*> AllViews;
+
 	/** Views across all view families (may contain additional views if rendering multiple families together). */
 	TArray<const FSceneView*> AllFamilyViews;
 	TArray<const FSceneViewFamily*> AllFamilies;
@@ -2493,6 +2503,7 @@ protected:
 
 	void RenderVelocities(
 		FRDGBuilder& GraphBuilder,
+		TArrayView<FViewInfo> InViews,
 		const FSceneTextures& SceneTextures,
 		EVelocityPass VelocityPass,
 		bool bForceVelocity);
@@ -2636,7 +2647,7 @@ protected:
 
 	void RenderPrePass(FRHICommandList& RHICmdList, const FViewInfo& View, const FInstanceCullingDrawParams* InstanceCullingDrawParams);
 	void RenderMaskedPrePass(FRHICommandList& RHICmdList, const FViewInfo& View);
-	void RenderFullDepthPrepass(FRDGBuilder& GraphBuilder, FSceneTextures& SceneTextures);
+	void RenderFullDepthPrepass(FRDGBuilder& GraphBuilder, TArrayView<FViewInfo> InViews, FSceneTextures& SceneTextures, bool bIsSceneCaptureRenderPass=false);
 
 	void RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuilder, FSceneTextures& SceneTextures, bool bIsPrepass);
 

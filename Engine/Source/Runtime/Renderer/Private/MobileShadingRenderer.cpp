@@ -68,6 +68,7 @@
 #include "SceneUniformBuffer.h"
 #include "Engine/SpecularProfile.h"
 #include "LocalFogVolumeRendering.h"
+#include "SceneCaptureRendering.h"
 
 uint32 GetShadowQuality();
 
@@ -239,7 +240,7 @@ struct FRenderViewContext
 };
 using FRenderViewContextArray = TArray<FRenderViewContext, TInlineAllocator<2, SceneRenderingAllocator>>;
 
-static void GetRenderViews(TArray<FViewInfo>& InViews, FRenderViewContextArray& RenderViews)
+static void GetRenderViews(TArrayView<FViewInfo> InViews, FRenderViewContextArray& RenderViews)
 {
 	for (int32 ViewIndex = 0; ViewIndex < InViews.Num(); ViewIndex++)
 	{
@@ -631,13 +632,21 @@ void FMobileSceneRenderer::InitViews(
 		View.InitRHIResources();
 	}
 
+	for (int32 i = 0; i < SceneCaptureRenderPassInfos.Num(); ++i)
+	{
+		for (FViewInfo& View : SceneCaptureRenderPassInfos[i].Views)
+		{
+			View.InitRHIResources();
+		}		
+	}
+
 	{
 		RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, UpdateGPUScene);
 
 		Scene->GPUScene.Update(GraphBuilder, GetSceneUniforms(), *Scene, ExternalAccessQueue);
-		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+		for (int32 ViewIndex = 0; ViewIndex < AllViews.Num(); ViewIndex++)
 		{
-			Scene->GPUScene.UploadDynamicPrimitiveShaderDataForView(GraphBuilder, *Scene, Views[ViewIndex], ExternalAccessQueue);
+			Scene->GPUScene.UploadDynamicPrimitiveShaderDataForView(GraphBuilder, *Scene, *AllViews[ViewIndex], ExternalAccessQueue);
 		}
 	}
 
@@ -730,14 +739,15 @@ static void EndOcclusionScope(FRDGBuilder& GraphBuilder, TArray<FViewInfo>& View
 /*
 * Renders the Full Depth Prepass
 */
-void FMobileSceneRenderer::RenderFullDepthPrepass(FRDGBuilder& GraphBuilder, FSceneTextures& SceneTextures)
+void FMobileSceneRenderer::RenderFullDepthPrepass(FRDGBuilder& GraphBuilder, TArrayView<FViewInfo> InViews, FSceneTextures& SceneTextures, bool bIsSceneCaptureRenderPass)
 {
 	FRenderTargetBindingSlots BasePassRenderTargets;
 	BasePassRenderTargets.DepthStencil = FDepthStencilBinding(SceneTextures.Depth.Target, ERenderTargetLoadAction::EClear, ERenderTargetLoadAction::EClear, FExclusiveDepthStencil::DepthWrite_StencilWrite);
-	BasePassRenderTargets.NumOcclusionQueries = ComputeNumOcclusionQueriesToBatch();
+	// If this is scene capture render pass, don't render occlusion
+	BasePassRenderTargets.NumOcclusionQueries = bIsSceneCaptureRenderPass ? 0 : ComputeNumOcclusionQueriesToBatch();
 
 	FRenderViewContextArray RenderViews;
-	GetRenderViews(Views, RenderViews);
+	GetRenderViews(InViews, RenderViews);
 
 	for (FRenderViewContext& ViewContext : RenderViews)
 	{
@@ -760,7 +770,8 @@ void FMobileSceneRenderer::RenderFullDepthPrepass(FRDGBuilder& GraphBuilder, FSc
 		View.ParallelMeshDrawCommandPasses[EMeshPass::DepthPass].BuildRenderingCommands(GraphBuilder, Scene->GPUScene, PassParameters->InstanceCullingDrawParams);
 
 		// Render occlusion at the last view pass only, as they already loop through all views
-		bool bDoOcclusionQueries = (ViewContext.bIsLastView && DoOcclusionQueries());
+		// If this is scene capture render pass, don't render occlusion.
+		bool bDoOcclusionQueries = (ViewContext.bIsLastView && DoOcclusionQueries() && !bIsSceneCaptureRenderPass);
 
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("FullDepthPrepass"),
@@ -1020,9 +1031,20 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
 	
+	for (int32 i = 0; i < SceneCaptureRenderPassInfos.Num(); ++i)
+	{
+		FSceneCaptureRenderPassInfo& PassInfo = SceneCaptureRenderPassInfos[i];
+		RenderFullDepthPrepass(GraphBuilder, PassInfo.Views, SceneTextures, true);
+		AddResolveSceneDepthPass(GraphBuilder, PassInfo.Views, SceneTextures.Depth);
+
+		SceneTextures.MobileSetupMode = EMobileSceneTextureSetupMode::SceneDepth;
+		SceneTextures.MobileUniformBuffer = CreateMobileSceneTextureUniformBuffer(GraphBuilder, &SceneTextures, SceneTextures.MobileSetupMode);
+		CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, nullptr, ViewFamily, PassInfo.Views);
+	}
+
 	if (bIsFullDepthPrepassEnabled)
 	{
-		RenderFullDepthPrepass(GraphBuilder, SceneTextures);
+		RenderFullDepthPrepass(GraphBuilder, Views, SceneTextures);
 
 		if (!bRequiresSceneDepthAux)
 		{
@@ -1086,10 +1108,10 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		{
 			// Render the velocities of movable objects
 			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_Velocity));
-			RenderVelocities(GraphBuilder, SceneTextures, EVelocityPass::Opaque, false);
+			RenderVelocities(GraphBuilder, Views, SceneTextures, EVelocityPass::Opaque, false);
 
 			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_TranslucentVelocity));
-			RenderVelocities(GraphBuilder, SceneTextures, EVelocityPass::Translucent, false);
+			RenderVelocities(GraphBuilder, Views, SceneTextures, EVelocityPass::Translucent, false);
 
 			SceneTextures.MobileSetupMode = EMobileSceneTextureSetupMode::All;
 			SceneTextures.MobileUniformBuffer = CreateMobileSceneTextureUniformBuffer(GraphBuilder, &SceneTextures, SceneTextures.MobileSetupMode);

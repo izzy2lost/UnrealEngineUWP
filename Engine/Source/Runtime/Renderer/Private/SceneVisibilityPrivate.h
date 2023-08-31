@@ -248,7 +248,7 @@ enum class EVisibilityTaskSchedule
 class FVisibilityTaskConfig
 {
 public:
-	FVisibilityTaskConfig(const FScene& Scene, TConstArrayView<FViewInfo> Views);
+	FVisibilityTaskConfig(const FScene& Scene, TConstArrayView<FViewInfo*> Views);
 
 	EVisibilityTaskSchedule Schedule;
 
@@ -451,7 +451,7 @@ private:
 	FRHICommandListImmediate& RHICmdList;
 	FSceneRenderer& SceneRenderer;
 	FScene& Scene;
-	TArrayView<FViewInfo> Views;
+	TArrayView<FViewInfo*> Views;
 	FViewFamilyInfo& ViewFamily;
 	EShadingPath ShadingPath;
 	FGlobalDynamicBuffers GlobalDynamicBuffers;

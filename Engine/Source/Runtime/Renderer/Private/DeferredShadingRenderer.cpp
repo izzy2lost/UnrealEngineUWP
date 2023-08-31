@@ -510,7 +510,7 @@ FDeferredShadingSceneRenderer::FDeferredShadingSceneRenderer(const FSceneViewFam
 	, SceneCullingRenderer(*Scene->SceneCulling)
 	, bAreLightsInLightGrid(false)
 {
-	ViewPipelineStates.SetNum(Views.Num());
+	ViewPipelineStates.SetNum(AllViews.Num());
 
 	ShadowSceneRenderer = MakeUnique<FShadowSceneRenderer>(*this);
 }
@@ -2455,6 +2455,222 @@ bool FDeferredShadingSceneRenderer::IsNaniteEnabled() const
 	return UseNanite(ShaderPlatform) && ViewFamily.EngineShowFlags.NaniteMeshes && Nanite::GStreamingManager.HasResourceEntries();
 }
 
+void FDeferredShadingSceneRenderer::RenderNanite(FRDGBuilder& GraphBuilder, const TArray<FViewInfo>& InViews, FSceneTextures& SceneTextures, bool bIsEarlyDepthComplete,
+	FNaniteBasePassVisibility& InNaniteBasePassVisibility,
+	TArray<Nanite::FRasterResults, TInlineAllocator<2>>& NaniteRasterResults,
+	TArray<Nanite::FPackedView, SceneRenderingAllocator>& PrimaryNaniteViews)
+{
+	LLM_SCOPE_BYTAG(Nanite);
+	TRACE_CPUPROFILER_EVENT_SCOPE(InitNaniteRaster);
+
+	NaniteRasterResults.AddDefaulted(InViews.Num());
+	if (InNaniteBasePassVisibility.Query != nullptr)
+	{
+		InNaniteBasePassVisibility.Visibility->FinishVisibilityQuery(InNaniteBasePassVisibility.Query, NaniteRasterResults[0].VisibilityResults);
+
+		// For now we'll share the same visibility results across all views
+		for (int32 ViewIndex = 1; ViewIndex < NaniteRasterResults.Num(); ++ViewIndex)
+		{
+			NaniteRasterResults[ViewIndex].VisibilityResults = NaniteRasterResults[0].VisibilityResults;
+		}
+
+		uint32 TotalRasterBins = 0;
+		uint32 VisibleRasterBins = 0;
+		NaniteRasterResults[0].VisibilityResults.GetRasterBinStats(VisibleRasterBins, TotalRasterBins);
+
+		uint32 TotalShadingDraws = 0;
+		uint32 VisibleShadingDraws = 0;
+		NaniteRasterResults[0].VisibilityResults.GetShadingDrawStats(VisibleShadingDraws, TotalShadingDraws);
+
+		SET_DWORD_STAT(STAT_NaniteBasePassTotalRasterBins, TotalRasterBins);
+		SET_DWORD_STAT(STAT_NaniteBasePassTotalShadingDraws, TotalShadingDraws);
+
+		SET_DWORD_STAT(STAT_NaniteBasePassVisibleRasterBins, VisibleRasterBins);
+		SET_DWORD_STAT(STAT_NaniteBasePassVisibleShadingDraws, VisibleShadingDraws);
+	}
+
+	const FIntPoint RasterTextureSize = SceneTextures.Depth.Target->Desc.Extent;
+
+	// Primary raster view
+	{
+		Nanite::FSharedContext SharedContext{};
+		SharedContext.FeatureLevel = Scene->GetFeatureLevel();
+		SharedContext.ShaderMap = GetGlobalShaderMap(SharedContext.FeatureLevel);
+		SharedContext.Pipeline = Nanite::EPipeline::Primary;
+
+		FIntRect RasterTextureRect(0, 0, RasterTextureSize.X, RasterTextureSize.Y);
+		if (InViews.Num() == 1)
+		{
+			const FViewInfo& View = InViews[0];
+			if (View.ViewRect.Min.X == 0 && View.ViewRect.Min.Y == 0)
+			{
+				RasterTextureRect = View.ViewRect;
+			}
+		}
+
+		Nanite::FRasterContext RasterContext;
+
+		// Nanite::VisBuffer (Visibility Buffer Clear)
+		{
+			RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteVisBuffer);
+			RasterContext = Nanite::InitRasterContext(
+				GraphBuilder,
+				SharedContext,
+				ViewFamily,
+				RasterTextureSize,
+				RasterTextureRect,
+				ViewFamily.EngineShowFlags.VisualizeNanite
+			);
+		}
+
+		Nanite::FConfiguration CullingConfig = { 0 };
+		CullingConfig.bTwoPassOcclusion = true;
+		CullingConfig.bUpdateStreaming = true;
+		CullingConfig.bPrimaryContext = true;
+
+		static FString EmptyFilterName = TEXT(""); // Empty filter represents primary view.
+		CullingConfig.bExtractStats = Nanite::IsStatFilterActive(EmptyFilterName);
+
+		const bool bDrawSceneViewsInOneNanitePass = InViews.Num() > 1 && Nanite::ShouldDrawSceneViewsInOneNanitePass(InViews[0]);
+
+		// creates one or more Nanite views (normally one per view unless drawing multiple views together - e.g. Stereo ISR views)
+		auto CreateNaniteViews = [bDrawSceneViewsInOneNanitePass, &InViews, &PrimaryNaniteViews, &GraphBuilder](const FViewInfo& View, int32 ViewIndex, const FIntPoint& RasterTextureSize, float MaxPixelsPerEdgeMultipler) -> Nanite::FPackedViewArray*
+		{
+			Nanite::FPackedViewArray::ArrayType OutViews;
+
+			// always add the primary view. In case of bDrawSceneViewsInOneNanitePass HZB is built from all views so using viewrects
+			// to account for a rare case when the primary view doesn't start from 0, 0 (maybe can happen in splitscreen?)
+			FIntRect HZBTestRect = bDrawSceneViewsInOneNanitePass ?
+				View.PrevViewInfo.ViewRect :
+				FIntRect(0, 0, View.PrevViewInfo.ViewRect.Width(), View.PrevViewInfo.ViewRect.Height());
+
+			Nanite::FPackedView PackedView = Nanite::CreatePackedViewFromViewInfo(
+				View,
+				RasterTextureSize,
+				NANITE_VIEW_FLAG_HZBTEST | NANITE_VIEW_FLAG_NEAR_CLIP,
+				/* StreamingPriorityCategory = */ 3,
+				/* MinBoundsRadius = */ 0.0f,
+				MaxPixelsPerEdgeMultipler,
+				&HZBTestRect
+			);
+			OutViews.Add(PackedView);
+			PrimaryNaniteViews.Add(PackedView);
+
+			if (bDrawSceneViewsInOneNanitePass)
+			{
+				// All other views in the family will need to be rendered in one go, to cover both ISR and (later) split-screen
+				for (int32 ViewIdx = 1, NumViews = InViews.Num(); ViewIdx < NumViews; ++ViewIdx)
+				{
+					const FViewInfo& SecondaryViewInfo = InViews[ViewIdx];
+
+					/* viewport rect in HZB space. For instanced stereo passes HZB is built for all atlased views */
+					FIntRect SecondaryHZBTestRect = SecondaryViewInfo.PrevViewInfo.ViewRect;
+					Nanite::FPackedView SecondaryPackedView = Nanite::CreatePackedViewFromViewInfo(
+						SecondaryViewInfo,
+						RasterTextureSize,
+						NANITE_VIEW_FLAG_HZBTEST | NANITE_VIEW_FLAG_NEAR_CLIP,
+						/* StreamingPriorityCategory = */ 3,
+						/* MinBoundsRadius = */ 0.0f,
+						MaxPixelsPerEdgeMultipler,
+						&SecondaryHZBTestRect
+					);
+
+					OutViews.Add(SecondaryPackedView);
+				}
+			}
+
+			return Nanite::FPackedViewArray::Create(GraphBuilder, OutViews.Num(), 1, MoveTemp(OutViews));
+		};
+
+		// in case of bDrawSceneViewsInOneNanitePass we only need one iteration
+		uint32 ViewsToRender = (bDrawSceneViewsInOneNanitePass ? 1u : (uint32)InViews.Num());
+		for (uint32 ViewIndex = 0; ViewIndex < ViewsToRender; ++ViewIndex)
+		{
+			Nanite::FRasterResults& RasterResults = NaniteRasterResults[ViewIndex];
+			const FViewInfo& View = InViews[ViewIndex];
+			// We don't check View.ShouldRenderView() since this is already taken care of by bDrawSceneViewsInOneNanitePass.
+			// If bDrawSceneViewsInOneNanitePass is false, we need to render the secondary view even if ShouldRenderView() is false
+
+			RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, InViews.Num() > 1 && !bDrawSceneViewsInOneNanitePass, "View%u", ViewIndex);
+			RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, InViews.Num() > 1 && bDrawSceneViewsInOneNanitePass, "View%u (together with %d more)", ViewIndex, InViews.Num() - 1);
+
+			FIntRect ViewRect = bDrawSceneViewsInOneNanitePass ? FIntRect(0, 0, FamilySize.X, FamilySize.Y) : View.ViewRect;
+			CullingConfig.SetViewFlags(View);
+
+			float LODScaleFactor = 1.0f;
+			if (View.PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::TemporalUpscale &&
+				CVarNaniteViewMeshLODBiasEnable.GetValueOnRenderThread() != 0)
+			{
+				float TemporalUpscaleFactor = float(View.GetSecondaryViewRectSize().X) / float(ViewRect.Width());
+
+				LODScaleFactor = TemporalUpscaleFactor * FMath::Exp2(-CVarNaniteViewMeshLODBiasOffset.GetValueOnRenderThread());
+				LODScaleFactor = FMath::Min(LODScaleFactor, FMath::Exp2(-CVarNaniteViewMeshLODBiasMin.GetValueOnRenderThread()));
+			}
+
+			float MaxPixelsPerEdgeMultipler = 1.0f / LODScaleFactor;
+			if (GDynamicNaniteScalingPrimary.GetSettings().IsEnabled())
+			{
+				MaxPixelsPerEdgeMultipler *= 1.0f / DynamicResolutionFractions[GDynamicNaniteScalingPrimary];
+			}
+
+			Nanite::FPackedViewArray* NaniteViewsToRender = CreateNaniteViews(View, ViewIndex, RasterTextureSize, MaxPixelsPerEdgeMultipler);
+
+			TUniquePtr< Nanite::IRenderer > NaniteRenderer;
+
+			// Nanite::VisBuffer (Culling and Rasterization)
+			{
+				DynamicRenderScaling::FRDGScope DynamicScalingScope(GraphBuilder, GDynamicNaniteScalingPrimary);
+
+				RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteVisBuffer);
+				RDG_EVENT_SCOPE(GraphBuilder, "Nanite::VisBuffer");
+
+				NaniteRenderer = Nanite::IRenderer::Create(
+					GraphBuilder,
+					*Scene,
+					View,
+					GetSceneUniforms(),
+					SharedContext,
+					RasterContext,
+					CullingConfig,
+					ViewRect,
+					!bIsEarlyDepthComplete ? View.PrevViewInfo.NaniteHZB : View.PrevViewInfo.HZB
+				);
+
+				FSceneInstanceCullingQuery *SceneInstanceCullQuery = SceneCullingRenderer.CullInstances(GraphBuilder, View.ViewFrustum);
+				NaniteRenderer->DrawGeometry(
+					Scene->NaniteRasterPipelines[ENaniteMeshPass::BasePass],
+					RasterResults.VisibilityResults,
+					*NaniteViewsToRender,
+					SceneInstanceCullQuery
+				);
+
+				NaniteRenderer->ExtractResults( RasterResults );
+			}
+
+			// Nanite::BasePass (Depth Pre-Pass and HZB Build)
+			{
+				RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteBasePass);
+
+				// Emit velocity with depth if not writing it in base pass.
+				FRDGTexture* VelocityBuffer = !IsUsingBasePassVelocity(ShaderPlatform) ? SceneTextures.Velocity : nullptr;
+
+				Nanite::EmitDepthTargets(
+					GraphBuilder,
+					*Scene,
+					InViews[ViewIndex],
+					bDrawSceneViewsInOneNanitePass,
+					RasterResults,
+					SceneTextures.Depth.Target,
+					VelocityBuffer
+				);
+				
+				// Sanity check (always force Z prepass)
+				check(bIsEarlyDepthComplete);
+			}
+		}
+	}
+}
+
 void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 {
 	if (!ViewFamily.EngineShowFlags.Rendering)
@@ -2873,9 +3089,9 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		Scene->GPUScene.Update(GraphBuilder, GetSceneUniforms(), *Scene, ExternalAccessQueue);
 
-		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+		for (int32 ViewIndex = 0; ViewIndex < AllViews.Num(); ViewIndex++)
 		{
-			FViewInfo& View = Views[ViewIndex];
+			FViewInfo& View = *AllViews[ViewIndex];
 			RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
 
 			Scene->GPUScene.UploadDynamicPrimitiveShaderDataForView(GraphBuilder, *Scene, View, ExternalAccessQueue);
@@ -3037,274 +3253,83 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	const bool bBasePassCanOutputVelocity = FVelocityRendering::BasePassCanOutputVelocity(Platform);
 	const bool bHairStrandsEnable = HairStrandsBookmarkParameters.HasInstances() && Views.Num() > 0 && IsHairStrandsEnabled(EHairStrandsShaderType::Strands, Platform);
 
-	FRDGTextureRef FirstStageDepthBuffer = nullptr;
+	auto RenderPrepassAndVelocity = [&](auto& InViews, auto& InNaniteBasePassVisibility, auto& NaniteRasterResults, auto& PrimaryNaniteViews)
 	{
-		GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_PrePass));
-
-		// Both compute approaches run earlier, so skip clearing stencil here, just load existing.
-		const ERenderTargetLoadAction StencilLoadAction = DepthPass.IsComputeStencilDitherEnabled()
-			? ERenderTargetLoadAction::ELoad
-			: ERenderTargetLoadAction::EClear;
-
-		const ERenderTargetLoadAction DepthLoadAction = ERenderTargetLoadAction::EClear;
-		AddClearDepthStencilPass(GraphBuilder, SceneTextures.Depth.Target, DepthLoadAction, StencilLoadAction);
-
-		// Draw the scene pre-pass / early z pass, populating the scene depth buffer and HiZ
-		if (bNeedsPrePass)
+		FRDGTextureRef FirstStageDepthBuffer = nullptr;
 		{
-			RenderPrePass(GraphBuilder, SceneTextures.Depth.Target, InstanceCullingManager, &FirstStageDepthBuffer);
+			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_PrePass));
+
+			// Both compute approaches run earlier, so skip clearing stencil here, just load existing.
+			const ERenderTargetLoadAction StencilLoadAction = DepthPass.IsComputeStencilDitherEnabled()
+				? ERenderTargetLoadAction::ELoad
+				: ERenderTargetLoadAction::EClear;
+
+			const ERenderTargetLoadAction DepthLoadAction = ERenderTargetLoadAction::EClear;
+			AddClearDepthStencilPass(GraphBuilder, SceneTextures.Depth.Target, DepthLoadAction, StencilLoadAction);
+
+			// Draw the scene pre-pass / early z pass, populating the scene depth buffer and HiZ
+			if (bNeedsPrePass)
+			{
+				RenderPrePass(GraphBuilder, InViews, SceneTextures.Depth.Target, InstanceCullingManager, &FirstStageDepthBuffer);
+			}
+			else
+			{
+				// We didn't do the prepass, but we still want the HMD mask if there is one
+				RenderPrePassHMD(GraphBuilder, InViews, SceneTextures.Depth.Target);
+			}
+
+			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_AfterPrePass));
+
+			// special pass for DDM_AllOpaqueNoVelocity, which uses the velocity pass to finish the early depth pass write
+			if (bShouldRenderVelocities && Scene->EarlyZPassMode == DDM_AllOpaqueNoVelocity && RendererOutput == ERendererOutput::FinalSceneColor)
+			{
+				// Render the velocities of movable objects
+				GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_Velocity));
+				RenderVelocities(GraphBuilder, InViews, SceneTextures, EVelocityPass::Opaque, bHairStrandsEnable);
+				GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_AfterVelocity));
+			}
+		}
+
+		{
+			Scene->WaitForCacheNaniteDrawCommandsTask();
+
+			if (bNaniteEnabled && InViews.Num() > 0)
+			{
+				RenderNanite(GraphBuilder, InViews, SceneTextures, bIsEarlyDepthComplete, InNaniteBasePassVisibility, NaniteRasterResults, PrimaryNaniteViews);
+			}
+		}
+
+		if (FirstStageDepthBuffer)
+		{
+			SceneTextures.PartialDepth = FirstStageDepthBuffer;
+			AddResolveSceneDepthPass(GraphBuilder, InViews, SceneTextures.PartialDepth);
 		}
 		else
 		{
-			// We didn't do the prepass, but we still want the HMD mask if there is one
-			RenderPrePassHMD(GraphBuilder, SceneTextures.Depth.Target);
+			// Setup default partial depth to be scene depth so that it also works on transparent emitter when partial depth has not been generated.
+			SceneTextures.PartialDepth = SceneTextures.Depth;
 		}
+		SceneTextures.SetupMode = ESceneTextureSetupMode::SceneDepth;
+		SceneTextures.UniformBuffer = CreateSceneTextureUniformBuffer(GraphBuilder, &SceneTextures, FeatureLevel, SceneTextures.SetupMode);
 
-		GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_AfterPrePass));
+		AddResolveSceneDepthPass(GraphBuilder, InViews, SceneTextures.Depth);
+	};
 
-		// special pass for DDM_AllOpaqueNoVelocity, which uses the velocity pass to finish the early depth pass write
-		if (bShouldRenderVelocities && Scene->EarlyZPassMode == DDM_AllOpaqueNoVelocity && RendererOutput == ERendererOutput::FinalSceneColor)
-		{
-			// Render the velocities of movable objects
-			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_Velocity));
-			RenderVelocities(GraphBuilder, SceneTextures, EVelocityPass::Opaque, bHairStrandsEnable);
-			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_AfterVelocity));
-		}
+	for (int32 i = 0; i < SceneCaptureRenderPassInfos.Num(); ++i)
+	{
+		FSceneCaptureRenderPassInfo& PassInfo = SceneCaptureRenderPassInfos[i];
+
+		TArray<Nanite::FRasterResults, TInlineAllocator<2>> NaniteRasterResults;
+		TArray<Nanite::FPackedView, SceneRenderingAllocator> PrimaryNaniteViews;
+		FNaniteBasePassVisibility DummyNaniteBasePassVisibility;
+		RenderPrepassAndVelocity(PassInfo.Views, DummyNaniteBasePassVisibility, NaniteRasterResults, PrimaryNaniteViews);
+
+		CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, nullptr, ViewFamily, PassInfo.Views);
 	}
 
 	TArray<Nanite::FRasterResults, TInlineAllocator<2>> NaniteRasterResults;
 	TArray<Nanite::FPackedView, SceneRenderingAllocator> PrimaryNaniteViews;
-	{
-		Scene->WaitForCacheNaniteDrawCommandsTask();
-
-		if (bNaniteEnabled && Views.Num() > 0)
-		{
-			LLM_SCOPE_BYTAG(Nanite);
-			TRACE_CPUPROFILER_EVENT_SCOPE(InitNaniteRaster);
-
-			NaniteRasterResults.AddDefaulted(Views.Num());
-			if (NaniteBasePassVisibility.Query != nullptr)
-			{
-				NaniteBasePassVisibility.Visibility->FinishVisibilityQuery(NaniteBasePassVisibility.Query, NaniteRasterResults[0].VisibilityResults);
-
-				// For now we'll share the same visibility results across all views
-				for (int32 ViewIndex = 1; ViewIndex < NaniteRasterResults.Num(); ++ViewIndex)
-				{
-					NaniteRasterResults[ViewIndex].VisibilityResults = NaniteRasterResults[0].VisibilityResults;
-				}
-
-				uint32 TotalRasterBins = 0;
-				uint32 VisibleRasterBins = 0;
-				NaniteRasterResults[0].VisibilityResults.GetRasterBinStats(VisibleRasterBins, TotalRasterBins);
-
-				uint32 TotalShadingDraws = 0;
-				uint32 VisibleShadingDraws = 0;
-				NaniteRasterResults[0].VisibilityResults.GetShadingDrawStats(VisibleShadingDraws, TotalShadingDraws);
-
-				SET_DWORD_STAT(STAT_NaniteBasePassTotalRasterBins, TotalRasterBins);
-				SET_DWORD_STAT(STAT_NaniteBasePassTotalShadingDraws, TotalShadingDraws);
-
-				SET_DWORD_STAT(STAT_NaniteBasePassVisibleRasterBins, VisibleRasterBins);
-				SET_DWORD_STAT(STAT_NaniteBasePassVisibleShadingDraws, VisibleShadingDraws);
-			}
-
-			const FIntPoint RasterTextureSize = SceneTextures.Depth.Target->Desc.Extent;
-
-			// Primary raster view
-			{
-				Nanite::FSharedContext SharedContext{};
-				SharedContext.FeatureLevel = Scene->GetFeatureLevel();
-				SharedContext.ShaderMap = GetGlobalShaderMap(SharedContext.FeatureLevel);
-				SharedContext.Pipeline = Nanite::EPipeline::Primary;
-
-				FIntRect RasterTextureRect(0, 0, RasterTextureSize.X, RasterTextureSize.Y);
-				if (Views.Num() == 1)
-				{
-					const FViewInfo& View = Views[0];
-					if (View.ViewRect.Min.X == 0 && View.ViewRect.Min.Y == 0)
-					{
-						RasterTextureRect = View.ViewRect;
-					}
-				}
-
-				Nanite::FRasterContext RasterContext;
-
-				// Nanite::VisBuffer (Visibility Buffer Clear)
-				{
-					RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteVisBuffer);
-					RasterContext = Nanite::InitRasterContext(
-						GraphBuilder,
-						SharedContext,
-						ViewFamily,
-						RasterTextureSize,
-						RasterTextureRect,
-						ViewFamily.EngineShowFlags.VisualizeNanite
-					);
-				}
-
-				Nanite::FConfiguration CullingConfig = { 0 };
-				CullingConfig.bTwoPassOcclusion = true;
-				CullingConfig.bUpdateStreaming = true;
-				CullingConfig.bPrimaryContext = true;
-
-				static FString EmptyFilterName = TEXT(""); // Empty filter represents primary view.
-				CullingConfig.bExtractStats = Nanite::IsStatFilterActive(EmptyFilterName);
-
-				const bool bDrawSceneViewsInOneNanitePass = Views.Num() > 1 && Nanite::ShouldDrawSceneViewsInOneNanitePass(Views[0]);
-
-				// creates one or more Nanite views (normally one per view unless drawing multiple views together - e.g. Stereo ISR views)
-				auto CreateNaniteViews = [bDrawSceneViewsInOneNanitePass, &PrimaryNaniteViews, &GraphBuilder](const FViewInfo& View, int32 ViewIndex, const FIntPoint& RasterTextureSize, float MaxPixelsPerEdgeMultipler) -> Nanite::FPackedViewArray*
-				{
-					Nanite::FPackedViewArray::ArrayType OutViews;
-
-					// always add the primary view. In case of bDrawSceneViewsInOneNanitePass HZB is built from all views so using viewrects
-					// to account for a rare case when the primary view doesn't start from 0, 0 (maybe can happen in splitscreen?)
-					FIntRect HZBTestRect = bDrawSceneViewsInOneNanitePass ?
-						View.PrevViewInfo.ViewRect :
-						FIntRect(0, 0, View.PrevViewInfo.ViewRect.Width(), View.PrevViewInfo.ViewRect.Height());
-
-					Nanite::FPackedView PackedView = Nanite::CreatePackedViewFromViewInfo(
-						View,
-						RasterTextureSize,
-						NANITE_VIEW_FLAG_HZBTEST | NANITE_VIEW_FLAG_NEAR_CLIP,
-						/* StreamingPriorityCategory = */ 3,
-						/* MinBoundsRadius = */ 0.0f,
-						MaxPixelsPerEdgeMultipler,
-						&HZBTestRect
-					);
-					OutViews.Add(PackedView);
-					PrimaryNaniteViews.Add(PackedView);
-
-					if (bDrawSceneViewsInOneNanitePass)
-					{
-						// All other views in the family will need to be rendered in one go, to cover both ISR and (later) split-screen
-						for (int32 ViewIdx = 1, NumViews = View.Family->Views.Num(); ViewIdx < NumViews; ++ViewIdx)
-						{
-							const FViewInfo& SecondaryViewInfo = static_cast<const FViewInfo&>(*View.Family->Views[ViewIdx]);
-
-							/* viewport rect in HZB space. For instanced stereo passes HZB is built for all atlased views */
-							FIntRect SecondaryHZBTestRect = SecondaryViewInfo.PrevViewInfo.ViewRect;
-							Nanite::FPackedView SecondaryPackedView = Nanite::CreatePackedViewFromViewInfo(
-								SecondaryViewInfo,
-								RasterTextureSize,
-								NANITE_VIEW_FLAG_HZBTEST | NANITE_VIEW_FLAG_NEAR_CLIP,
-								/* StreamingPriorityCategory = */ 3,
-								/* MinBoundsRadius = */ 0.0f,
-								MaxPixelsPerEdgeMultipler,
-								&SecondaryHZBTestRect
-							);
-
-							OutViews.Add(SecondaryPackedView);
-						}
-					}
-
-					return Nanite::FPackedViewArray::Create(GraphBuilder, OutViews.Num(), 1, MoveTemp(OutViews));
-				};
-
-				// in case of bDrawSceneViewsInOneNanitePass we only need one iteration
-				uint32 ViewsToRender = (bDrawSceneViewsInOneNanitePass ? 1u : (uint32)Views.Num());
-				for (uint32 ViewIndex = 0; ViewIndex < ViewsToRender; ++ViewIndex)
-				{
-					Nanite::FRasterResults& RasterResults = NaniteRasterResults[ViewIndex];
-					const FViewInfo& View = Views[ViewIndex];
-					// We don't check View.ShouldRenderView() since this is already taken care of by bDrawSceneViewsInOneNanitePass.
-					// If bDrawSceneViewsInOneNanitePass is false, we need to render the secondary view even if ShouldRenderView() is false
-
-					RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, Views.Num() > 1 && !bDrawSceneViewsInOneNanitePass, "View%u", ViewIndex);
-					RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, Views.Num() > 1 && bDrawSceneViewsInOneNanitePass, "View%u (together with %d more)", ViewIndex, Views.Num() - 1);
-
-					FIntRect ViewRect = bDrawSceneViewsInOneNanitePass ? FIntRect(0, 0, FamilySize.X, FamilySize.Y) : View.ViewRect;
-					CullingConfig.SetViewFlags(View);
-
-					float LODScaleFactor = 1.0f;
-					if (View.PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::TemporalUpscale &&
-						CVarNaniteViewMeshLODBiasEnable.GetValueOnRenderThread() != 0)
-					{
-						float TemporalUpscaleFactor = float(View.GetSecondaryViewRectSize().X) / float(ViewRect.Width());
-
-						LODScaleFactor = TemporalUpscaleFactor * FMath::Exp2(-CVarNaniteViewMeshLODBiasOffset.GetValueOnRenderThread());
-						LODScaleFactor = FMath::Min(LODScaleFactor, FMath::Exp2(-CVarNaniteViewMeshLODBiasMin.GetValueOnRenderThread()));
-					}
-
-					float MaxPixelsPerEdgeMultipler = 1.0f / LODScaleFactor;
-					if (GDynamicNaniteScalingPrimary.GetSettings().IsEnabled())
-					{
-						MaxPixelsPerEdgeMultipler *= 1.0f / DynamicResolutionFractions[GDynamicNaniteScalingPrimary];
-					}
-
-					Nanite::FPackedViewArray* NaniteViewsToRender = CreateNaniteViews(View, ViewIndex, RasterTextureSize, MaxPixelsPerEdgeMultipler);
-
-					TUniquePtr< Nanite::IRenderer > NaniteRenderer;
-
-					// Nanite::VisBuffer (Culling and Rasterization)
-					{
-						DynamicRenderScaling::FRDGScope DynamicScalingScope(GraphBuilder, GDynamicNaniteScalingPrimary);
-
-						RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteVisBuffer);
-						RDG_EVENT_SCOPE(GraphBuilder, "Nanite::VisBuffer");
-
-						NaniteRenderer = Nanite::IRenderer::Create(
-							GraphBuilder,
-							*Scene,
-							View,
-							GetSceneUniforms(),
-							SharedContext,
-							RasterContext,
-							CullingConfig,
-							ViewRect,
-							!bIsEarlyDepthComplete ? View.PrevViewInfo.NaniteHZB : View.PrevViewInfo.HZB
-						);
-
-						FSceneInstanceCullingQuery *SceneInstanceCullQuery = SceneCullingRenderer.CullInstances(GraphBuilder, View.ViewFrustum);
-						NaniteRenderer->DrawGeometry(
-							Scene->NaniteRasterPipelines[ENaniteMeshPass::BasePass],
-							RasterResults.VisibilityResults,
-							*NaniteViewsToRender,
-							SceneInstanceCullQuery
-						);
-
-						NaniteRenderer->ExtractResults( RasterResults );
-					}
-
-					// Nanite::BasePass (Depth Pre-Pass and HZB Build)
-					{
-						RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteBasePass);
-
-						// Emit velocity with depth if not writing it in base pass.
-						FRDGTexture* VelocityBuffer = !IsUsingBasePassVelocity(ShaderPlatform) ? SceneTextures.Velocity : nullptr;
-
-						Nanite::EmitDepthTargets(
-							GraphBuilder,
-							*Scene,
-							Views[ViewIndex],
-							bDrawSceneViewsInOneNanitePass,
-							RasterResults,
-							SceneTextures.Depth.Target,
-							VelocityBuffer
-						);
-						
-						// Sanity check (always force Z prepass)
-						check(bIsEarlyDepthComplete);
-					}
-				}
-			}
-		}
-	}
-
-	if (FirstStageDepthBuffer)
-	{
-		SceneTextures.PartialDepth = FirstStageDepthBuffer;
-		AddResolveSceneDepthPass(GraphBuilder, Views, SceneTextures.PartialDepth);
-	}
-	else
-	{
-		// Setup default partial depth to be scene depth so that it also works on transparent emitter when partial depth has not been generated.
-		SceneTextures.PartialDepth = SceneTextures.Depth;
-	}
-	SceneTextures.SetupMode = ESceneTextureSetupMode::SceneDepth;
-	SceneTextures.UniformBuffer = CreateSceneTextureUniformBuffer(GraphBuilder, &SceneTextures, FeatureLevel, SceneTextures.SetupMode);
-
-	AddResolveSceneDepthPass(GraphBuilder, Views, SceneTextures.Depth);
+	RenderPrepassAndVelocity(Views, NaniteBasePassVisibility, NaniteRasterResults, PrimaryNaniteViews);
 
 	FComputeLightGridOutput ComputeLightGridOutput = {};
 
@@ -3810,7 +3835,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		if (bShouldRenderVelocities && !bBasePassCanOutputVelocity && (Scene->EarlyZPassMode != DDM_AllOpaqueNoVelocity))
 		{
 			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_Velocity));
-			RenderVelocities(GraphBuilder, SceneTextures, EVelocityPass::Opaque, bHairStrandsEnable);
+			RenderVelocities(GraphBuilder, Views, SceneTextures, EVelocityPass::Opaque, bHairStrandsEnable);
 			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_AfterVelocity));
 		}
 
@@ -4178,7 +4203,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				const bool bRecreateSceneTextures = !HasBeenProduced(SceneTextures.Velocity);
 
 				GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_TranslucentVelocity));
-				RenderVelocities(GraphBuilder, SceneTextures, EVelocityPass::Translucent, false);
+				RenderVelocities(GraphBuilder, Views, SceneTextures, EVelocityPass::Translucent, false);
 
 				if (bRecreateSceneTextures)
 				{

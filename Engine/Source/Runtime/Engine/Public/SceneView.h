@@ -189,6 +189,12 @@ struct FSceneViewInitOptions : public FSceneViewProjectionData
 	/** In case of ortho, generate a fake view position that has a non-zero W component. The view position will be derived based on the view matrix. */
 	bool bUseFauxOrthoViewPos;
 
+	/** The render target of scene capture associated with this view. If used it takes priority over view family RT. */
+	FRenderTarget* SceneCaptureRenderTarget = nullptr;
+
+	/** Which component of the scene rendering this view should output for scene capture. If used it takes priority over view family SceneCaptureSource. */
+	ESceneCaptureSource SceneCaptureSource;
+
 	/** Whether this view is being used to render a scene capture. */
 	bool bIsSceneCapture;
 
@@ -1378,6 +1384,12 @@ public:
 	/** For sanity checking casts that are assumed to be safe. */
 	bool bIsViewInfo;
 
+	/** The render target of scene capture associated with this view. If used it takes priority over view family RT. */
+	FRenderTarget* SceneCaptureRenderTarget = nullptr;
+
+	/** Which component of the scene rendering this view should output for scene capture. If used it takes priority over view family SceneCaptureSource. */
+	ESceneCaptureSource SceneCaptureSource;
+
 	/** Whether this view is being used to render a scene capture. */
 	bool bIsSceneCapture;
 
@@ -1979,6 +1991,9 @@ public:
 	
 	/** The views which make up the family. */
 	TArray<const FSceneView*> Views;
+
+	/** All views include main camera views and scene capture views. */
+	TArray<const FSceneView*> AllViews;
 
 	/** View mode of the family. */
 	EViewModeIndex ViewMode;

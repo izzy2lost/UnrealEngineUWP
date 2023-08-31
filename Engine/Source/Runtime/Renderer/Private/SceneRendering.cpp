@@ -2745,6 +2745,56 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 		}
 	}
 
+	SceneCaptureRenderPassInfos.Empty(Scene->SceneCaptureInfos.Num());
+	SceneCaptureRenderPassInfos.AddDefaulted(Scene->SceneCaptureInfos.Num());
+
+	int32 NumSceneCaptureViews = 0;
+	for (int32 i = 0; i < Scene->SceneCaptureInfos.Num(); i++)
+	{
+		const FScene::FSceneCaptureInfo& CaptureInfo = Scene->SceneCaptureInfos[i];
+
+		FSceneViewInitOptions ViewInitOptions;
+		FIntPoint RenderTargetSize = CaptureInfo.RenderTarget->GetSizeXY();
+		ViewInitOptions.SetViewRectangle(FIntRect(0, 0, RenderTargetSize.X, RenderTargetSize.Y));
+		ViewInitOptions.ViewOrigin = CaptureInfo.ViewLocation;
+		ViewInitOptions.ViewRotationMatrix = CaptureInfo.ViewRotationMatrix;
+		ViewInitOptions.ProjectionMatrix = CaptureInfo.ProjectionMatrix;
+		ViewInitOptions.SceneCaptureRenderTarget = CaptureInfo.RenderTarget;
+		ViewInitOptions.bIsSceneCapture = true;
+		ViewInitOptions.SceneCaptureSource = CaptureInfo.SceneCaptureSource;
+		ViewInitOptions.ViewFamily = &ViewFamily;
+		ViewInitOptions.ViewActor = CaptureInfo.ViewActor;
+		ViewInitOptions.ShowOnlyPrimitives = CaptureInfo.ShowOnlyPrimitives;
+		ViewInitOptions.HiddenPrimitives = CaptureInfo.HiddenPrimitives;
+
+		FSceneView NewView(ViewInitOptions);
+		FViewInfo* ViewInfo = &SceneCaptureRenderPassInfos[i].Views.Emplace_GetRef(&NewView);
+		// Must initialize to have a GPUScene connected to be able to collect dynamic primitives.
+		ViewInfo->DynamicPrimitiveCollector = FGPUScenePrimitiveCollector(&GPUSceneDynamicContext);
+		ViewInfo->bDisableQuerySubmissions = true;
+		ViewInfo->bIgnoreExistingQueries = true;
+
+		NumSceneCaptureViews++;
+	}
+
+	AllViews.Empty(Views.Num() + NumSceneCaptureViews);
+	for (int32 i = 0; i < Views.Num(); ++i)
+	{
+		AllViews.Add(&Views[i]);
+	}
+	for (FSceneCaptureRenderPassInfo& PassInfo : SceneCaptureRenderPassInfos)
+	{
+		for (FViewInfo& View : PassInfo.Views)
+		{
+			AllViews.Add(&View);
+		}
+	}
+
+	check(!ViewFamily.AllViews.Num());
+	ViewFamily.AllViews.Append(AllViews);
+
+	Scene->SceneCaptureInfos.Reset();
+
 	FeatureLevel = Scene->GetFeatureLevel();
 	ShaderPlatform = Scene->GetShaderPlatform();
 
@@ -3036,6 +3086,14 @@ void FSceneRenderer::PrepareViewRectsForRendering(FRHICommandListImmediate& RHIC
 
 			GEngine->StereoRenderingDevice->SetFinalViewRect(RHICmdList, View.StereoViewIndex, OutputViewRect);
 		}
+	}
+
+	for (FSceneCaptureRenderPassInfo& PassInfo : SceneCaptureRenderPassInfos)
+	{
+		for (FViewInfo& View : PassInfo.Views)
+		{
+			View.ViewRect = View.UnscaledViewRect;
+		}	
 	}
 }
 
@@ -3374,9 +3432,9 @@ IVisibilityTaskData* FSceneRenderer::OnRenderBegin(FRDGBuilder& GraphBuilder, FG
 			for (int32 ViewExt = 0; ViewExt < ViewFamily.ViewExtensions.Num(); ViewExt++)
 			{
 				ViewFamily.ViewExtensions[ViewExt]->PreRenderViewFamily_RenderThread(GraphBuilder, ViewFamily);
-				for (int32 ViewIndex = 0; ViewIndex < ViewFamily.Views.Num(); ViewIndex++)
+				for (int32 ViewIndex = 0; ViewIndex < AllViews.Num(); ViewIndex++)
 				{
-					ViewFamily.ViewExtensions[ViewExt]->PreRenderView_RenderThread(GraphBuilder, Views[ViewIndex]);
+					ViewFamily.ViewExtensions[ViewExt]->PreRenderView_RenderThread(GraphBuilder, *AllViews[ViewIndex]);
 				}
 			}
 		}
@@ -4238,9 +4296,9 @@ static void DeleteSceneRenderers(const TArray<FSceneRenderer*>& SceneRenderers, 
 			SceneRenderer->DispatchedShadowDepthPasses[PassIndex]->WaitForTasksAndEmpty(WaitThread);
 		}
 
-		for (FViewInfo& View : SceneRenderer->Views)
+		for (FViewInfo* View : SceneRenderer->AllViews)
 		{
-			View.WaitForTasks(WaitThread);
+			View->WaitForTasks(WaitThread);
 		}
 	}
 
@@ -4801,8 +4859,6 @@ void FRendererModule::BeginRenderingViewFamilies(FCanvas* Canvas, TArrayView<FSc
 			ViewFamiliesConst.Add(ViewFamily);
 		}
 
-		FSceneRenderer::CreateSceneRenderers(ViewFamiliesConst, Canvas->GetHitProxyConsumer(), SceneRenderers);
-
 		bool bShowHitProxies = false;
 		for (FSceneRenderer* SceneRenderer : SceneRenderers)
 		{
@@ -4816,7 +4872,12 @@ void FRendererModule::BeginRenderingViewFamilies(FCanvas* Canvas, TArrayView<FSc
 		if (!bShowHitProxies)
 		{
 			USceneCaptureComponent::UpdateDeferredCaptures(Scene);
+		}
 
+		FSceneRenderer::CreateSceneRenderers(ViewFamiliesConst, Canvas->GetHitProxyConsumer(), SceneRenderers);
+
+		if (!bShowHitProxies)
+		{
 			for (int32 ReflectionIndex = 0; ReflectionIndex < Scene->PlanarReflections_GameThread.Num(); ReflectionIndex++)
 			{
 				UPlanarReflectionComponent* ReflectionComponent = Scene->PlanarReflections_GameThread[ReflectionIndex];

@@ -7,6 +7,8 @@
 #include "Math/MathFwd.h"
 #include "Misc/EnumClassFlags.h"
 #include "RenderGraphFwd.h"
+#include "Engine/EngineTypes.h"
+#include "PrimitiveComponentId.h"
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "CoreMinimal.h"
@@ -26,7 +28,6 @@ class FMaterial;
 class FMaterialShaderMap;
 class FName;
 class FOutputDevice;
-class FPrimitiveComponentId;
 class FPrimitiveSceneInfo;
 class FRDGBuilder;
 class FRDGExternalAccessQueue;
@@ -680,6 +681,20 @@ public:
 	virtual bool RequestUniformBufferUpdate(FPrimitiveSceneInfo& PrimitiveSceneInfo) { return false; }
 
 	virtual void RefreshNaniteRasterBins(FPrimitiveSceneInfo& PrimitiveSceneInfo) { }
+
+	/** Scene capture info is used to collect scene capture settings and passing to scene views during the renderer construction. */
+	struct FSceneCaptureInfo
+	{
+		FRenderTarget* RenderTarget = nullptr;
+		FVector ViewLocation;
+		FMatrix ViewRotationMatrix;
+		FMatrix ProjectionMatrix;
+		TSet<FPrimitiveComponentId> HiddenPrimitives;
+		TOptional<TSet<FPrimitiveComponentId>> ShowOnlyPrimitives;
+		ESceneCaptureSource SceneCaptureSource;
+		const AActor* ViewActor = nullptr;
+	};
+	TArray<FSceneCaptureInfo> SceneCaptureInfos;
 
 protected:
 	virtual ~FSceneInterface() {}

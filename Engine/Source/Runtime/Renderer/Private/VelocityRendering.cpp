@@ -246,6 +246,7 @@ END_SHADER_PARAMETER_STRUCT()
 
 void FSceneRenderer::RenderVelocities(
 	FRDGBuilder& GraphBuilder,
+	TArrayView<FViewInfo> InViews,
 	const FSceneTextures& SceneTextures,
 	EVelocityPass VelocityPass,
 	bool bForceVelocity)
@@ -271,9 +272,9 @@ void FSceneRenderer::RenderVelocities(
 														? FExclusiveDepthStencil::DepthRead_StencilWrite
 														: FExclusiveDepthStencil::DepthWrite_StencilWrite;
 
-	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	for (int32 ViewIndex = 0; ViewIndex < InViews.Num(); ViewIndex++)
 	{
-		FViewInfo& View = Views[ViewIndex];
+		FViewInfo& View = InViews[ViewIndex];
 
 		if (View.ShouldRenderView())
 		{
@@ -361,7 +362,7 @@ void FSceneRenderer::RenderVelocities(
 			ERenderTargetLoadAction::ELoad,
 			ExclusiveDepthStencil);
 
-		StampDeferredDebugProbeVelocityPS(GraphBuilder, Views, VelocityRenderTargets);
+		StampDeferredDebugProbeVelocityPS(GraphBuilder, InViews, VelocityRenderTargets);
 	}
 #endif
 

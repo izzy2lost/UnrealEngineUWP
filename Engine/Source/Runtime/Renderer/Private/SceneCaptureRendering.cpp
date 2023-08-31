@@ -43,6 +43,15 @@
 #include "RectLightTexture.h"
 #include "Materials/MaterialRenderProxy.h"
 
+bool GSceneCaptureAllowRenderInMainRenderer = true;
+static FAutoConsoleVariableRef CVarSceneCaptureAllowRenderInMainRenderer(
+	TEXT("r.SceneCapture.AllowRenderInMainRenderer"),
+	GSceneCaptureAllowRenderInMainRenderer,
+	TEXT("Whether to allow SceneDepth & DeviceDepth scene capture to render in the main renderer as an optimization.\n")
+	TEXT("0: render as an independent renderer.\n")
+	TEXT("1: render as part of the main renderer if Render in Main Renderer is enabled on scene capture component.\n"),
+	ECVF_Scalability);
+
 #if WITH_EDITOR
 // All scene captures on the given render thread frame will be dumped
 uint32 GDumpSceneCaptureMemoryFrame = INDEX_NONE;
@@ -181,20 +190,49 @@ void CopySceneCaptureComponentToTarget(
 	const FSceneViewFamily& ViewFamily,
 	TConstArrayView<FViewInfo> Views)
 {
-	ESceneCaptureSource SceneCaptureSource = ViewFamily.SceneCaptureSource;
-
-	if (IsForwardShadingEnabled(ViewFamily.GetShaderPlatform()) && (SceneCaptureSource == SCS_Normal || SceneCaptureSource == SCS_BaseColor))
+	TArray<const FViewInfo*> ViewPtrArray;
+	for (const FViewInfo& View : Views)
 	{
-		SceneCaptureSource = SCS_SceneColorHDR;
+		ViewPtrArray.Add(&View);
 	}
+	CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, ViewFamilyTexture, ViewFamily, ViewPtrArray);
+}
 
-	if (CaptureNeedsSceneColor(SceneCaptureSource))
+void CopySceneCaptureComponentToTarget(
+	FRDGBuilder& GraphBuilder,
+	const FMinimalSceneTextures& SceneTextures,
+	FRDGTextureRef ViewFamilyTexture,
+	const FSceneViewFamily& ViewFamily,
+	const TArray<const FViewInfo*>& Views)
+{
+	FGraphicsPipelineStateInitializer GraphicsPSOInit;
+	GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
+	GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
+
+	const bool bForwardShadingEnabled = IsForwardShadingEnabled(ViewFamily.GetShaderPlatform());
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
-		RDG_EVENT_SCOPE(GraphBuilder, "CaptureSceneComponent[%d]", SceneCaptureSource);
+		const FViewInfo& View = *Views[ViewIndex];
 
-		FGraphicsPipelineStateInitializer GraphicsPSOInit;
-		GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
-		GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
+		// If view has its own scene capture RT, it takes priority over view family RT
+		FRDGTextureRef RenderTarget = View.SceneCaptureRenderTarget ? View.SceneCaptureRenderTarget->GetRenderTargetTexture(GraphBuilder) : ViewFamilyTexture;
+		if (!RenderTarget)
+		{
+			continue;
+		}
+
+		// If view has its own scene capture setting, use it over view family setting
+		ESceneCaptureSource SceneCaptureSource = View.SceneCaptureRenderTarget ? View.SceneCaptureSource : ViewFamily.SceneCaptureSource;
+		if (bForwardShadingEnabled && (SceneCaptureSource == SCS_Normal || SceneCaptureSource == SCS_BaseColor))
+		{
+			SceneCaptureSource = SCS_SceneColorHDR;
+		}
+		if (!CaptureNeedsSceneColor(SceneCaptureSource))
+		{
+			continue;
+		}
+
+		RDG_EVENT_SCOPE(GraphBuilder, "CaptureSceneComponent_View[%d]", SceneCaptureSource);
 
 		bool bIsCompositing = false;
 		if (SceneCaptureSource == SCS_SceneColorHDR && ViewFamily.SceneCaptureCompositeMode == SCCM_Composite)
@@ -214,51 +252,46 @@ void CopySceneCaptureComponentToTarget(
 			GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
 		}
 
-		const bool bUse128BitRT = PlatformRequires128bitRT(ViewFamilyTexture->Desc.Format);
+		const bool bUse128BitRT = PlatformRequires128bitRT(RenderTarget->Desc.Format);
 		const FSceneCapturePS::FPermutationDomain PixelPermutationVector = FSceneCapturePS::GetPermutationVector(SceneCaptureSource, bUse128BitRT, IsMobilePlatform(ViewFamily.GetShaderPlatform()));
 
-		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+		FSceneCapturePS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSceneCapturePS::FParameters>();
+		PassParameters->View = View.ViewUniformBuffer;
+		PassParameters->SceneTextures = SceneTextures.GetSceneTextureShaderParameters(ViewFamily.GetFeatureLevel());
+		PassParameters->RenderTargets[0] = FRenderTargetBinding(RenderTarget, bIsCompositing ? ERenderTargetLoadAction::ELoad : ERenderTargetLoadAction::ENoAction);
+
+		TShaderMapRef<FScreenVS> VertexShader(View.ShaderMap);
+		TShaderMapRef<FSceneCapturePS> PixelShader(View.ShaderMap, PixelPermutationVector);
+
+		GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI;
+		GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
+		GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
+		GraphicsPSOInit.PrimitiveType = PT_TriangleList;
+
+		GraphBuilder.AddPass(
+			RDG_EVENT_NAME("View(%d)", ViewIndex),
+			PassParameters,
+			ERDGPassFlags::Raster,
+			[PassParameters, GraphicsPSOInit, VertexShader, PixelShader, &View] (FRHICommandList& RHICmdList)
 		{
-			const FViewInfo& View = Views[ViewIndex];
+			FGraphicsPipelineStateInitializer LocalGraphicsPSOInit = GraphicsPSOInit;
+			RHICmdList.ApplyCachedRenderTargets(LocalGraphicsPSOInit);
+			SetGraphicsPipelineState(RHICmdList, LocalGraphicsPSOInit, 0);
+			SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), *PassParameters);
+			
+			CopyCaptureToTargetSetViewportFn(RHICmdList);
 
-			FSceneCapturePS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSceneCapturePS::FParameters>();
-			PassParameters->View = View.ViewUniformBuffer;
-			PassParameters->SceneTextures = SceneTextures.GetSceneTextureShaderParameters(ViewFamily.GetFeatureLevel());
-			PassParameters->RenderTargets[0] = FRenderTargetBinding(ViewFamilyTexture, bIsCompositing ? ERenderTargetLoadAction::ELoad : ERenderTargetLoadAction::ENoAction);
-
-			TShaderMapRef<FScreenVS> VertexShader(View.ShaderMap);
-			TShaderMapRef<FSceneCapturePS> PixelShader(View.ShaderMap, PixelPermutationVector);
-
-			GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI;
-			GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
-			GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
-			GraphicsPSOInit.PrimitiveType = PT_TriangleList;
-
-			GraphBuilder.AddPass(
-				RDG_EVENT_NAME("View(%d)", ViewIndex),
-				PassParameters,
-				ERDGPassFlags::Raster,
-				[PassParameters, GraphicsPSOInit, VertexShader, PixelShader, &View] (FRHICommandList& RHICmdList)
-			{
-				FGraphicsPipelineStateInitializer LocalGraphicsPSOInit = GraphicsPSOInit;
-				RHICmdList.ApplyCachedRenderTargets(LocalGraphicsPSOInit);
-				SetGraphicsPipelineState(RHICmdList, LocalGraphicsPSOInit, 0);
-				SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), *PassParameters);
-				
-				CopyCaptureToTargetSetViewportFn(RHICmdList);
-
-				DrawRectangle(
-					RHICmdList,
-					View.ViewRect.Min.X, View.ViewRect.Min.Y,
-					View.ViewRect.Width(), View.ViewRect.Height(),
-					View.ViewRect.Min.X, View.ViewRect.Min.Y,
-					View.ViewRect.Width(), View.ViewRect.Height(),
-					View.UnconstrainedViewRect.Size(),
-					View.GetSceneTexturesConfig().Extent,
-					VertexShader,
-					EDRF_UseTriangleOptimization);
-			});
-		}
+			DrawRectangle(
+				RHICmdList,
+				View.ViewRect.Min.X, View.ViewRect.Min.Y,
+				View.ViewRect.Width(), View.ViewRect.Height(),
+				View.ViewRect.Min.X, View.ViewRect.Min.Y,
+				View.ViewRect.Width(), View.ViewRect.Height(),
+				View.UnconstrainedViewRect.Size(),
+				View.GetSceneTexturesConfig().Extent,
+				VertexShader,
+				EDRF_UseTriangleOptimization);
+		});
 	}
 }
 
@@ -593,6 +626,77 @@ void BuildProjectionMatrix(FIntPoint InRenderTargetSize, float InFOV, float InNe
 	}
 }
 
+void GetShowOnlyAndHiddenComponents(USceneCaptureComponent* SceneCaptureComponent, TSet<FPrimitiveComponentId>& HiddenPrimitives, TOptional<TSet<FPrimitiveComponentId>>& ShowOnlyPrimitives)
+{
+	check(SceneCaptureComponent);
+	for (auto It = SceneCaptureComponent->HiddenComponents.CreateConstIterator(); It; ++It)
+	{
+		// If the primitive component was destroyed, the weak pointer will return NULL.
+		UPrimitiveComponent* PrimitiveComponent = It->Get();
+		if (PrimitiveComponent)
+		{
+			HiddenPrimitives.Add(PrimitiveComponent->GetPrimitiveSceneId());
+		}
+	}
+
+	for (auto It = SceneCaptureComponent->HiddenActors.CreateConstIterator(); It; ++It)
+	{
+		AActor* Actor = *It;
+
+		if (Actor)
+		{
+			for (UActorComponent* Component : Actor->GetComponents())
+			{
+				if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(Component))
+				{
+					HiddenPrimitives.Add(PrimComp->GetPrimitiveSceneId());
+				}
+			}
+		}
+	}
+
+	if (SceneCaptureComponent->PrimitiveRenderMode == ESceneCapturePrimitiveRenderMode::PRM_UseShowOnlyList)
+	{
+		ShowOnlyPrimitives.Emplace();
+
+		for (auto It = SceneCaptureComponent->ShowOnlyComponents.CreateConstIterator(); It; ++It)
+		{
+			// If the primitive component was destroyed, the weak pointer will return NULL.
+			UPrimitiveComponent* PrimitiveComponent = It->Get();
+			if (PrimitiveComponent)
+			{
+				ShowOnlyPrimitives->Add(PrimitiveComponent->GetPrimitiveSceneId());
+			}
+		}
+
+		for (auto It = SceneCaptureComponent->ShowOnlyActors.CreateConstIterator(); It; ++It)
+		{
+			AActor* Actor = *It;
+
+			if (Actor)
+			{
+				for (UActorComponent* Component : Actor->GetComponents())
+				{
+					if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(Component))
+					{
+						ShowOnlyPrimitives->Add(PrimComp->GetPrimitiveSceneId());
+					}
+				}
+			}
+		}
+	}
+	else if (SceneCaptureComponent->ShowOnlyComponents.Num() > 0 || SceneCaptureComponent->ShowOnlyActors.Num() > 0)
+	{
+		static bool bWarned = false;
+
+		if (!bWarned)
+		{
+			UE_LOG(LogRenderer, Log, TEXT("Scene Capture has ShowOnlyComponents or ShowOnlyActors ignored by the PrimitiveRenderMode setting! %s"), *SceneCaptureComponent->GetPathName());
+			bWarned = true;
+		}
+	}
+}
+
 void SetupViewFamilyForSceneCapture(
 	FSceneViewFamily& ViewFamily,
 	USceneCaptureComponent* SceneCaptureComponent,
@@ -653,73 +757,7 @@ void SetupViewFamilyForSceneCapture(
 
 		FSceneView* View = new FSceneView(ViewInitOptions);
 
-		check(SceneCaptureComponent);
-		for (auto It = SceneCaptureComponent->HiddenComponents.CreateConstIterator(); It; ++It)
-		{
-			// If the primitive component was destroyed, the weak pointer will return NULL.
-			UPrimitiveComponent* PrimitiveComponent = It->Get();
-			if (PrimitiveComponent)
-			{
-				View->HiddenPrimitives.Add(PrimitiveComponent->GetPrimitiveSceneId());
-			}
-		}
-
-		for (auto It = SceneCaptureComponent->HiddenActors.CreateConstIterator(); It; ++It)
-		{
-			AActor* Actor = *It;
-
-			if (Actor)
-			{
-				for (UActorComponent* Component : Actor->GetComponents())
-				{
-					if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(Component))
-					{
-						View->HiddenPrimitives.Add(PrimComp->GetPrimitiveSceneId());
-					}
-				}
-			}
-		}
-
-		if (SceneCaptureComponent->PrimitiveRenderMode == ESceneCapturePrimitiveRenderMode::PRM_UseShowOnlyList)
-		{
-				View->ShowOnlyPrimitives.Emplace();
-
-			for (auto It = SceneCaptureComponent->ShowOnlyComponents.CreateConstIterator(); It; ++It)
-			{
-				// If the primitive component was destroyed, the weak pointer will return NULL.
-				UPrimitiveComponent* PrimitiveComponent = It->Get();
-				if (PrimitiveComponent)
-				{
-					View->ShowOnlyPrimitives->Add(PrimitiveComponent->GetPrimitiveSceneId());
-				}
-			}
-
-			for (auto It = SceneCaptureComponent->ShowOnlyActors.CreateConstIterator(); It; ++It)
-			{
-				AActor* Actor = *It;
-
-				if (Actor)
-				{
-					for (UActorComponent* Component : Actor->GetComponents())
-					{
-						if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(Component))
-						{
-							View->ShowOnlyPrimitives->Add(PrimComp->GetPrimitiveSceneId());
-						}
-					}
-				}
-			}
-		}
-		else if (SceneCaptureComponent->ShowOnlyComponents.Num() > 0 || SceneCaptureComponent->ShowOnlyActors.Num() > 0)
-		{
-			static bool bWarned = false;
-
-			if (!bWarned)
-			{
-				UE_LOG(LogRenderer, Log, TEXT("Scene Capture has ShowOnlyComponents or ShowOnlyActors ignored by the PrimitiveRenderMode setting! %s"), *SceneCaptureComponent->GetPathName());
-				bWarned = true;
-			}
-		}
+		GetShowOnlyAndHiddenComponents(SceneCaptureComponent, View->HiddenPrimitives, View->ShowOnlyPrimitives);
 
 		ViewFamily.Views.Add(View);
 
@@ -855,6 +893,24 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 					BuildOrthoMatrix(CaptureSize, CaptureComponent->OrthoWidth, -1, 0, 0, ProjectionMatrix);
 				}
 			}
+		}
+
+		// As optimization for depth capture modes, render scene capture as additional render passes inside the main renderer.
+		if (GSceneCaptureAllowRenderInMainRenderer && CaptureComponent->bRenderInMainRenderer && (CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_SceneDepth || CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_DeviceDepth))
+		{
+			FSceneCaptureInfo CaptureInfo;
+			CaptureInfo.ViewLocation = ViewLocation;
+			CaptureInfo.ViewRotationMatrix = ViewRotationMatrix;
+			CaptureInfo.ProjectionMatrix = ProjectionMatrix;
+			CaptureInfo.RenderTarget = TextureRenderTarget->GameThread_GetRenderTargetResource();
+			CaptureInfo.SceneCaptureSource = CaptureComponent->CaptureSource;
+			CaptureInfo.ViewActor = CaptureComponent->GetViewOwner();
+
+			GetShowOnlyAndHiddenComponents(CaptureComponent, CaptureInfo.HiddenPrimitives, CaptureInfo.ShowOnlyPrimitives);
+
+			// Caching scene capture info to be passed to the scene renderer.
+			SceneCaptureInfos.Add(CaptureInfo);
+			return;
 		}
 
 		FSceneRenderer* SceneRenderer = CreateSceneRendererForSceneCapture(
