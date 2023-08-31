@@ -197,12 +197,11 @@ void UMassVisualizationComponent::ConstructStaticMeshComponents()
 				{
 					SharedData->SetISMComponent(*ISMC);
 				}
-			}
 
-			check(ISMC);
-			const uint32 ISMComponentPathHash = GetTypeHash(ISMC->GetPathName());
-			ensureMsgf(ISMComponentMap.Find(ISMComponentPathHash) == nullptr, TEXT("We've just created the ISMC that's being used here, so this check failing indicates hash-clash."));
-			ISMComponentMap.Add(ISMComponentPathHash, VisualIndex); 
+				const uint32 ISMComponentPathHash = GetTypeHash(ISMC->GetPathName());
+				ensureMsgf(ISMComponentMap.Find(ISMComponentPathHash) == nullptr, TEXT("We've just created the ISMC that's being used here, so this check failing indicates hash-clash."));
+				ISMComponentMap.Add(ISMComponentPathHash, VisualIndex);
+			}
 
 			check(SharedData);
 			Info.AddISMComponent(*SharedData);
