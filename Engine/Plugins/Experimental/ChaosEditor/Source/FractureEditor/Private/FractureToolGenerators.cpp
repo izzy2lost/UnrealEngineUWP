@@ -26,6 +26,7 @@
 #include "GeometryCollection/GeometryCollectionUtility.h"
 #include "GeometryCollection/GeometryCollectionProximityUtility.h"
 #include "FractureToolContext.h"
+#include "FractureToolBackgroundTask.h"
 
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Input/Reply.h"
@@ -606,9 +607,13 @@ void UFractureToolGenerateAsset::OnGenerateAssetPathChosen(const FString& InAsse
 	{
 		AActor* FirstActor = Actors[0];
 
-		AGeometryCollectionActor* GeometryCollectionActor = Cast<AGeometryCollectionActor>(FirstActor);
+		AGeometryCollectionActor* GeometryCollectionActor = nullptr;
 		
 		GeometryCollectionActor = ConvertActorsToGeometryCollection(InAssetPath, false/*bAddInternalMaterials*/, bSplitComponents, Actors, bFromToMeshTool);
+		if (!GeometryCollectionActor)
+		{
+			return;
+		}
 
 		GeometryCollectionComponent = GeometryCollectionActor->GetGeometryCollectionComponent();
 
@@ -662,6 +667,57 @@ AGeometryCollectionActor* UFractureToolGenerateAsset::ConvertActorsToGeometryCol
 	const FString& Name = FirstActor->GetActorLabel();
 	const FVector FirstActorLocation(FirstActor->GetActorLocation());
 
+	using FGeometryCollectionSharedPtr = TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe>;
+
+	// Count the total triangles of all input sources
+	int32 SourceTriCount = 0;
+	{
+		for (AActor* Actor : Actors)
+		{
+			TArray<UStaticMeshComponent*> StaticMeshComponents;
+			Actor->GetComponents(StaticMeshComponents, true);
+			for (int32 ii = 0, ni = StaticMeshComponents.Num(); ii < ni; ++ii)
+			{
+				if (UStaticMeshComponent* StaticMeshComponent = StaticMeshComponents[ii])
+				{
+					if (UStaticMesh* StaticMesh = StaticMeshComponent->GetStaticMesh())
+					{
+						SourceTriCount += StaticMesh->GetNumTriangles(0);
+					}
+				}
+			}
+
+			TArray<UGeometryCollectionComponent*> GeometryCollectionComponents;
+			Actor->GetComponents(GeometryCollectionComponents, true);
+			for (int32 ii = 0, ni = GeometryCollectionComponents.Num(); ii < ni; ++ii)
+			{
+				if (UGeometryCollectionComponent* GeometryCollectionComponent = GeometryCollectionComponents[ii])
+				{
+					if (const UGeometryCollection* RestCollection = GeometryCollectionComponent->GetRestCollection())
+					{
+						if (const FGeometryCollectionSharedPtr Collection = RestCollection->GetGeometryCollection())
+						{
+							SourceTriCount += Collection->Indices.Num();
+						}
+					}
+				}
+			}
+		}
+	}
+	constexpr int32 ThresholdToCautionAboutLargeInput = 1000000;
+	if (SourceTriCount > ThresholdToCautionAboutLargeInput)
+	{
+		EAppReturnType::Type Ret = FMessageDialog::Open(EAppMsgType::YesNo,
+			FText::Format(LOCTEXT("FractureLargeInputQuestion", "Sources with a large number of triangles ({0}) may take time to convert to Geometry Collection. Continue?"), SourceTriCount),
+			LOCTEXT("FractureLargeInputTitle", "Process large input?"));
+		if (Ret == EAppReturnType::No)
+		{
+			return nullptr;
+		}
+	}
+
+	FScopedSlowTask SlowTask(SourceTriCount, LOCTEXT("FractureCreateNewGeometryCollection", "Creating new Geometry Collection"));
+	SlowTask.MakeDialog();
 
 	AGeometryCollectionActor* NewActor = CreateNewGeometryActor(InAssetPath, FTransform(), true);
 
@@ -687,6 +743,7 @@ AGeometryCollectionActor* UFractureToolGenerateAsset::ConvertActorsToGeometryCol
 				{
 					// If any of the static meshes have Nanite enabled, also enable on the new geometry collection asset for convenience.
 					FracturedGeometryCollection->EnableNanite |= ComponentStaticMesh->IsNaniteEnabled();
+					SlowTask.EnterProgressFrame(ComponentStaticMesh->GetNumTriangles(0));
 				}
 
 				FTransform ComponentTransform(StaticMeshComponent->GetComponentTransform());
@@ -715,6 +772,11 @@ AGeometryCollectionActor* UFractureToolGenerateAsset::ConvertActorsToGeometryCol
 				{
 					// If any of the static meshes have Nanite enabled, also enable on the new geometry collection asset for convenience.
 					FracturedGeometryCollection->EnableNanite |= RestCollection->EnableNanite;
+
+					if (const FGeometryCollectionSharedPtr Collection = RestCollection->GetGeometryCollection())
+					{
+						SlowTask.EnterProgressFrame(Collection->Indices.Num());
+					}
 				}
 
 				FTransform ComponentTransform(GeometryCollectionComponent->GetComponentTransform());

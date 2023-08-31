@@ -25,6 +25,7 @@
 #include "Materials/Material.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "MeshDescription.h"
+#include "Misc/ScopedSlowTask.h"
 #include "StaticMeshAttributes.h"
 #include "StaticMeshOperations.h"
 #include "Physics/Experimental/ChaosInterfaceUtils.h"
@@ -35,6 +36,8 @@
 
 
 DEFINE_LOG_CATEGORY_STATIC(UGeometryCollectionConversionLogging, Log, All);
+
+#define LOCTEXT_NAMESPACE "GeometryCollectionConversion"
 
 struct FUniqueVertex
 {
@@ -104,6 +107,13 @@ void FGeometryCollectionEngineConversion::AppendMeshDescription(
 
 	check(GeometryCollection);
 
+	// prepare to tick progress per 100k vertices
+	const int32 ReportProgressSpacing = 100000;
+	int32 NumVertProgressSteps = int32(MeshDescription->Vertices().GetArraySize() / ReportProgressSpacing);
+
+	FScopedSlowTask AppendMeshDescriptionTask(6 + 2*NumVertProgressSteps, LOCTEXT("AppendMeshDescriptionTask", "Appending Mesh Description Data"));
+	AppendMeshDescriptionTask.EnterProgressFrame(1);
+
 	// source vertex information
 	FStaticMeshConstAttributes Attributes(*MeshDescription);
 	TArrayView<const FVector3f> SourcePosition = Attributes.GetVertexPositions().GetRawArray();
@@ -145,9 +155,17 @@ void FGeometryCollectionEngineConversion::AppendMeshDescription(
 	// A new mapping of MeshDescription vertex instances to the split vertices is maintained.
 	TMap<FVertexInstanceID, int32> VertexInstanceToGeometryCollectionVertex;
 	VertexInstanceToGeometryCollectionVertex.Reserve(Attributes.GetVertexInstanceNormals().GetNumElements());
-		
+
+
+	int32 LastProgress = 0;		
 	for (const FVertexID VertexIndex : MeshDescription->Vertices().GetElementIDs())
-	{		
+	{
+		int32 Progress = int32(VertexIndex / ReportProgressSpacing);
+		if (Progress > LastProgress)
+		{
+			AppendMeshDescriptionTask.EnterProgressFrame(Progress - LastProgress);
+			LastProgress = Progress;
+		}
 		TArrayView<const FVertexInstanceID> ReferencingVertexInstances = MeshDescription->GetVertexVertexInstanceIDs(VertexIndex);
 
 		// Generate per instance hash of splittable attributes.
@@ -202,6 +220,16 @@ void FGeometryCollectionEngineConversion::AppendMeshDescription(
 		}
 	}
 
+	if (LastProgress < NumVertProgressSteps)
+	{
+		AppendMeshDescriptionTask.EnterProgressFrame(NumVertProgressSteps - LastProgress);
+		LastProgress = NumVertProgressSteps;
+	}
+
+	// enter a progress frame for triangle processing w/ size equivalent to the vertex processing (as a heuristic)
+	// (note: could instead tick this per 100k triangles as we do with vertices above, if more responsive progress tracking is desired)
+	AppendMeshDescriptionTask.EnterProgressFrame(NumVertProgressSteps);
+
 	// target triangle indices
 	TManagedArray<FIntVector>& TargetIndices = GeometryCollection->Indices;
 	TManagedArray<bool>& TargetVisible = GeometryCollection->Visible;
@@ -242,6 +270,8 @@ void FGeometryCollectionEngineConversion::AppendMeshDescription(
 
 		++TargetIndex;
 	}
+
+	AppendMeshDescriptionTask.EnterProgressFrame(1);
 
 	// Geometry transform
 	TManagedArray<FTransform>& Transform = GeometryCollection->Transform;
@@ -331,6 +361,8 @@ void FGeometryCollectionEngineConversion::AppendMeshDescription(
 	}
 	if (VertexCount) Center /= VertexCount;
 
+	AppendMeshDescriptionTask.EnterProgressFrame(1);
+
 	// Inner/Outer edges, bounding box
 	BoundingBox[GeometryIndex] = FBox(ForceInitToZero);
 	InnerRadius[GeometryIndex] = FLT_MAX;
@@ -343,6 +375,8 @@ void FGeometryCollectionEngineConversion::AppendMeshDescription(
 		InnerRadius[GeometryIndex] = FMath::Min(InnerRadius[GeometryIndex], Delta);
 		OuterRadius[GeometryIndex] = FMath::Max(OuterRadius[GeometryIndex], Delta);
 	}
+
+	AppendMeshDescriptionTask.EnterProgressFrame(1);
 
 	// Inner/Outer centroid
 	for (int fdx = IndicesStart; fdx < IndicesStart + IndicesCount; fdx++)
@@ -359,6 +393,8 @@ void FGeometryCollectionEngineConversion::AppendMeshDescription(
 		OuterRadius[GeometryIndex] = FMath::Max(OuterRadius[GeometryIndex], Delta);
 	}
 
+	AppendMeshDescriptionTask.EnterProgressFrame(1);
+
 	// Inner/Outer edges
 	for (int fdx = IndicesStart; fdx < IndicesStart + IndicesCount; fdx++)
 	{
@@ -371,6 +407,8 @@ void FGeometryCollectionEngineConversion::AppendMeshDescription(
 			OuterRadius[GeometryIndex] = FMath::Max(OuterRadius[GeometryIndex], Delta);
 		}
 	}
+
+	AppendMeshDescriptionTask.EnterProgressFrame(1);
 
 	if (ReindexMaterials) {
 		GeometryCollection->ReindexMaterials();
@@ -554,8 +592,11 @@ bool FGeometryCollectionEngineConversion::AppendStaticMesh(const UStaticMesh* St
 	FGeometryCollection* GeometryCollection, bool bReindexMaterials, bool bAddInternalMaterials, bool bSplitComponents, bool bSetInternalFromMaterialIndex)
 {
 #if WITH_EDITORONLY_DATA
+	FScopedSlowTask AppendStaticMeshTask(bSplitComponents ? 3 : 2, LOCTEXT("AppendStaticMeshTask", "Appending Static Mesh"));
+
 	if (StaticMesh)
 	{
+		AppendStaticMeshTask.EnterProgressFrame(1);
 		FMeshDescription* MeshDescription = GetMaxResMeshDescriptionWithNormalsAndTangents(StaticMesh);
 
 		check(GeometryCollection);
@@ -571,6 +612,8 @@ bool FGeometryCollectionEngineConversion::AppendStaticMesh(const UStaticMesh* St
 
 			if (bSplitComponents)
 			{
+				AppendStaticMeshTask.EnterProgressFrame(1);
+
 				int32 MaxVID = MeshDescription->Vertices().Num();
 				UE::Geometry::FVertexConnectedComponents Components(MaxVID);
 				for (const FTriangleID TriangleID : MeshDescription->Triangles().GetElementIDs())
@@ -695,6 +738,7 @@ bool FGeometryCollectionEngineConversion::AppendStaticMesh(const UStaticMesh* St
 				// else only one component -- fall back to just using the original mesh description
 			}
 
+			AppendStaticMeshTask.EnterProgressFrame(1);
 			AppendMeshDescription(MeshDescription, StaticMesh->GetName(), StartMaterialIndex, MeshTransform, GeometryCollection, StaticMesh->GetBodySetup(), bReindexMaterials, bAddInternalMaterials, bSetInternalFromMaterialIndex);
 			return true;
 		}
@@ -1416,3 +1460,5 @@ void FGeometryCollectionEngineConversion::AppendGeometryCollectionSource(const F
 		}
 	}
 }
+
+#undef LOCTEXT_NAMESPACE 
