@@ -65,9 +65,9 @@ public:
 	/** LOD of the mesh associated with this ray tracing geometry object (-1 if unknown) */
 	int8 LODIndex = -1;
 
-	void SetInitializer(const FRayTracingGeometryInitializer& InInitializer)
+	void SetInitializer(FRayTracingGeometryInitializer InInitializer)
 	{
-		Initializer = InInitializer;
+		Initializer = MoveTemp(InInitializer);
 	}
 
 	RENDERCORE_API bool IsValid() const;
@@ -102,9 +102,7 @@ public:
 	RENDERCORE_API void InitRHIForStreaming(FRHIRayTracingGeometry* IntermediateGeometry, FRHIResourceUpdateBatcher& Batcher);
 	RENDERCORE_API void ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher);
 
-	RENDERCORE_API void CreateRayTracingGeometryFromCPUData(FRHICommandList& RHICmdList, TResourceArray<uint8>& OfflineData);
-
-	UE_DEPRECATED(5.4, "CreateRayTracingGeometryFromCPUData now requires a command list.")
+	UE_DEPRECATED(5.4, "Use FStaticMeshStreamIn::FIntermediateRayTracingGeometry instead.")
 	RENDERCORE_API void CreateRayTracingGeometryFromCPUData(TResourceArray<uint8>& OfflineData);
 
 	RENDERCORE_API void RequestBuildIfNeeded(FRHICommandList& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority);

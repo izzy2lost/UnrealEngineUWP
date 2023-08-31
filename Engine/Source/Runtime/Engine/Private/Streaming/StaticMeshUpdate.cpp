@@ -140,6 +140,50 @@ void FStaticMeshStreamIn::FIntermediateBuffers::CheckIsNull() const
 		&& !WireframeIndexBuffer);
 }
 
+#if RHI_RAYTRACING
+
+void FStaticMeshStreamIn::FIntermediateRayTracingGeometry::CreateFromCPUData(FRHICommandList& RHICmdList, FRayTracingGeometryInitializer InInitializer, TResourceArray<uint8>& OfflineData)
+{
+	Initializer = MoveTemp(InInitializer);
+
+	if (OfflineData.Num())
+	{
+		check(Initializer.OfflineData == nullptr);
+		Initializer.OfflineData = &OfflineData;
+	}
+
+	static const auto CVarDebugForceRuntimeBLAS = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Raytracing.DebugForceRuntimeBLAS"));
+	const bool bDebugForceRuntimeBLAS = (!CVarDebugForceRuntimeBLAS) || (CVarDebugForceRuntimeBLAS->GetValueOnAnyThread() != 0);
+
+	if (bDebugForceRuntimeBLAS && Initializer.OfflineData != nullptr)
+	{
+		Initializer.OfflineData->Discard();
+		Initializer.OfflineData = nullptr;
+	}
+
+	RayTracingGeometryRHI = RHICmdList.CreateRayTracingGeometry(Initializer);
+	bRequiresBuild = Initializer.OfflineData == nullptr || RayTracingGeometryRHI->IsCompressed();
+}
+
+void FStaticMeshStreamIn::FIntermediateRayTracingGeometry::SafeRelease()
+{
+	Initializer = {};
+	RayTracingGeometryRHI.SafeRelease();
+}
+
+void FStaticMeshStreamIn::FIntermediateRayTracingGeometry::TransferRayTracingGeometry(FRayTracingGeometry& RayTracingGeometry, FRHIResourceUpdateBatcher& Batcher)
+{
+	check(RayTracingGeometryRHI != nullptr);
+
+	// Should also set initializer?? ie: RayTracingGeometry.SetInitializer(Initializer);
+	RayTracingGeometry.InitRHIForStreaming(RayTracingGeometryRHI, Batcher);
+	RayTracingGeometry.SetRequiresBuild(bRequiresBuild);
+
+	SafeRelease();
+}
+
+#endif
+
 FStaticMeshStreamIn::FStaticMeshStreamIn(const UStaticMesh* InMesh)
 	: FStaticMeshUpdate(InMesh)
 {}
@@ -191,12 +235,11 @@ void FStaticMeshStreamIn::CreateBuffers_Internal(const FContext& Context)
 					Context.LODResourcesView[LODIdx]->SetupRayTracingGeometryInitializer(Initializer, Context.Mesh->GetFName(), OwnerName);
 				}
 				Initializer.Type = ERayTracingGeometryInitializerType::StreamingSource;
-				IntermediateRayTracingGeometry[LODIdx].SetInitializer(Initializer);
-
 
 				FRHIAsyncCommandList AsyncCommandList;
 				FRHICommandList& RHICmdList = bRenderThread ? FRHICommandListImmediate::Get() : *AsyncCommandList;
-				IntermediateRayTracingGeometry[LODIdx].CreateRayTracingGeometryFromCPUData(RHICmdList, LODResource.RayTracingGeometry.RawData);
+
+				IntermediateRayTracingGeometry[LODIdx].CreateFromCPUData(RHICmdList, MoveTemp(Initializer), LODResource.RayTracingGeometry.RawData);
 			}
 #endif
 		}
@@ -245,16 +288,11 @@ void FStaticMeshStreamIn::DoFinishUpdate(const FContext& Context)
 				IntermediateBuffersArray[LODIdx].TransferBuffers(LODResource, Batcher);
 
 #if RHI_RAYTRACING
-				if (IsRayTracingEnabled() && Context.Mesh->bSupportRayTracing &&
-					LODResource.VertexBuffers.StaticMeshVertexBuffer.GetNumVertices() > 0)
-				{					
-					check(IntermediateRayTracingGeometry[LODIdx].RayTracingGeometryRHI != nullptr);
-					LODResource.RayTracingGeometry.InitRHIForStreaming(IntermediateRayTracingGeometry[LODIdx].RayTracingGeometryRHI, Batcher);
-
-					LODResource.RayTracingGeometry.SetRequiresBuild(IntermediateRayTracingGeometry[LODIdx].GetRequiresBuild());
-
-					IntermediateRayTracingGeometry[LODIdx].Initializer = {};
-					IntermediateRayTracingGeometry[LODIdx].RayTracingGeometryRHI.SafeRelease();				
+				if (IsRayTracingEnabled()
+					&& Context.Mesh->bSupportRayTracing
+					&& LODResource.VertexBuffers.StaticMeshVertexBuffer.GetNumVertices() > 0)
+				{
+					IntermediateRayTracingGeometry[LODIdx].TransferRayTracingGeometry(LODResource.RayTracingGeometry, Batcher);
 				}
 #endif
 			}
@@ -308,8 +346,7 @@ void FStaticMeshStreamIn::DoFinishUpdate(const FContext& Context)
 			IntermediateBuffersArray[LODIdx].SafeRelease();
 
 #if RHI_RAYTRACING
-			IntermediateRayTracingGeometry[LODIdx].Initializer = {};
-			IntermediateRayTracingGeometry[LODIdx].RayTracingGeometryRHI.SafeRelease();
+			IntermediateRayTracingGeometry[LODIdx].SafeRelease();
 #endif
 		}
 	}

@@ -8,10 +8,9 @@
 #include "RHIResourceUpdates.h"
 #include "RHITextureReference.h" // IWYU pragma: keep
 
-int32 GVarDebugForceRuntimeBLAS = 0;
-FAutoConsoleVariableRef CVarDebugForceRuntimeBLAS(
+static TAutoConsoleVariable<int32> CVarDebugForceRuntimeBLAS(
 	TEXT("r.Raytracing.DebugForceRuntimeBLAS"),
-	GVarDebugForceRuntimeBLAS,
+	0,
 	TEXT("Force building BLAS at runtime."),
 	ECVF_ReadOnly);
 
@@ -47,7 +46,7 @@ void FRayTracingGeometry::ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batc
 	}
 }
 
-void FRayTracingGeometry::CreateRayTracingGeometryFromCPUData(FRHICommandList& RHICmdList, TResourceArray<uint8>& OfflineData)
+void FRayTracingGeometry::CreateRayTracingGeometryFromCPUData(TResourceArray<uint8>& OfflineData)
 {
 	check(OfflineData.Num() == 0 || Initializer.OfflineData == nullptr);
 	if (OfflineData.Num())
@@ -55,19 +54,15 @@ void FRayTracingGeometry::CreateRayTracingGeometryFromCPUData(FRHICommandList& R
 		Initializer.OfflineData = &OfflineData;
 	}
 
-	if (GVarDebugForceRuntimeBLAS && Initializer.OfflineData != nullptr)
+	if (CVarDebugForceRuntimeBLAS.GetValueOnAnyThread() && Initializer.OfflineData != nullptr)
 	{
 		Initializer.OfflineData->Discard();
 		Initializer.OfflineData = nullptr;
 	}
 	
+	FRHICommandList& RHICmdList = FRHICommandListImmediate::Get();
 	RayTracingGeometryRHI = RHICmdList.CreateRayTracingGeometry(Initializer);
 	SetRequiresBuild(Initializer.OfflineData == nullptr || RayTracingGeometryRHI->IsCompressed());
-}
-
-void FRayTracingGeometry::CreateRayTracingGeometryFromCPUData(TResourceArray<uint8>& OfflineData)
-{
-	CreateRayTracingGeometryFromCPUData(FRHICommandListImmediate::Get(), OfflineData);
 }
 
 void FRayTracingGeometry::RequestBuildIfNeeded(FRHICommandList& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority)
@@ -137,13 +132,13 @@ void FRayTracingGeometry::CreateRayTracingGeometry(FRHICommandList& RHICmdList, 
 	// Release previous RHI object if any
 	ReleaseRHI();
 
-	check(RawData.Num() == 0 || Initializer.OfflineData == nullptr);
 	if (RawData.Num())
 	{
+		check(Initializer.OfflineData == nullptr);
 		Initializer.OfflineData = &RawData;
 	}
 
-	if (GVarDebugForceRuntimeBLAS && Initializer.OfflineData != nullptr)
+	if (CVarDebugForceRuntimeBLAS.GetValueOnAnyThread() && Initializer.OfflineData != nullptr)
 	{
 		Initializer.OfflineData->Discard();
 		Initializer.OfflineData = nullptr;
