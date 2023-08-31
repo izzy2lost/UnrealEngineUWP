@@ -11,9 +11,68 @@
 #include "Graph/MovieGraphBlueprintLibrary.h"
 #include "Modules/ModuleManager.h"
 #include "MoviePipelineUtils.h"
+#include "MovieRenderPipelineCoreModule.h"
 #include "ImageWriteQueue.h"
 #include "Misc/Paths.h"
 #include "Async/TaskGraphInterfaces.h"
+
+#if WITH_EDITOR
+#include "ImageCore.h" // For GetImageView()
+#include "OpenColorIOConfiguration.h"
+#include "OpenColorIOColorTransform.h"
+#include "OpenColorIOWrapper.h"
+
+namespace UE::MovieGraph::Private
+{
+	struct FOpenColorIOPixelPreProcessor
+	{
+		FOpenColorIOPixelPreProcessor(FOpenColorIOWrapperProcessor&& InProcessor)
+			: Processor(InProcessor)
+		{ }
+
+		void operator()(FImagePixelData* PixelData)
+		{
+			check(PixelData);
+			Processor.TransformImage(PixelData->GetImageView());
+		}
+
+		FOpenColorIOWrapperProcessor Processor;
+	};
+
+	/**
+	 * Convenience function to create an OpenColorIO CPU processor based on the specified conversion settings. Editor-only.
+	 *
+	 * @return The pixel preprocessor if successful, nullptr otherwise.
+	*/
+	static FPixelPreProcessor CreateOpenColorIOPixelPreProcessor(const FOpenColorIOColorConversionSettings& InConversionSettings)
+	{
+		const TObjectPtr<UOpenColorIOConfiguration>& ConfigurationSource = InConversionSettings.ConfigurationSource;
+		if (IsValid(ConfigurationSource))
+		{
+			TObjectPtr<const UOpenColorIOColorTransform> ColorTransform = ConfigurationSource->FindTransform(InConversionSettings);
+			if (IsValid(ColorTransform))
+			{
+				FOpenColorIOWrapperProcessor Processor;
+				if (ColorTransform->GetTransformProcessor(Processor))
+				{
+					return FOpenColorIOPixelPreProcessor(MoveTemp(Processor));
+				}
+			}
+			else
+			{
+				UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Invalid conversion settings, bypassing OpenColorIO transform."));
+			}
+		}
+		else
+		{
+			UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Invalid configuration source, bypassing OpenColorIO transform."));
+		}
+
+		return {};
+	}
+} //end namespace UE::MovieGraph::Private
+
+#endif
 
 UMovieGraphImageSequenceOutputNode::UMovieGraphImageSequenceOutputNode()
 {
@@ -177,6 +236,17 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 		TileImageTask->CompressionQuality = 100;
 		TileImageTask->Filename = FileName;
 		TileImageTask->PixelData = RenderData.Value->CopyImageData();
+
+#if WITH_EDITOR
+		if (OutputSettingNode->OCIOConfiguration.bIsEnabled)
+		{
+			FPixelPreProcessor OCIOPixelPreProcessor = UE::MovieGraph::Private::CreateOpenColorIOPixelPreProcessor(OutputSettingNode->OCIOConfiguration.ColorConfiguration);
+			if (OCIOPixelPreProcessor)
+			{
+				TileImageTask->PixelPreProcessors.Emplace(MoveTemp(OCIOPixelPreProcessor));
+			}
+		}
+#endif
 
 		EImagePixelType PixelType = TileImageTask->PixelData->GetType();
 
