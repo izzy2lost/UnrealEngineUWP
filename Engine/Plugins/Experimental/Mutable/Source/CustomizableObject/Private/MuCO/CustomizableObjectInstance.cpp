@@ -5791,7 +5791,11 @@ void UCustomizableInstancePrivateData::BuildMaterials(const TSharedPtr<FMutableO
 									}
 									else
 									{
-										UE_LOG(LogMutable, Error, TEXT("Required image was not generated in the mutable thread, and it is not cached."));
+										UE_LOG(LogMutable, Error, TEXT("Required image [%s] with ID [%lld] was not generated in the mutable thread, and it is not cached. LOD [%d]. Component [%d]"),
+											*Props.TextureParameterName,
+											Image.ImageID,
+											LODIndex, ComponentIndex);
+										continue;
 									}
 
 									if (bNeverStream)
