@@ -79,6 +79,7 @@ void UMoviePipelineMaterialModifier::UndoModifier()
 
 UMoviePipelineVisibilityModifier::UMoviePipelineVisibilityModifier()
 	: bIsHidden(false)
+	, bCastsShadows(true)
 	, bCastShadowWhileHidden(false)
 	, bAffectIndirectLightingWhileHidden(false)
 	, bHoldout(false)
@@ -94,6 +95,7 @@ void UMoviePipelineVisibilityModifier::ApplyModifier(const UWorld* World)
 	// a differing actor), so create one copy to prevent constantly re-creating structs.
 	FActorVisibilityState NewVisibilityState;
 	NewVisibilityState.bIsHidden = bIsHidden;
+	NewVisibilityState.bCastsShadows = bCastsShadows;
 	NewVisibilityState.bCastShadowWhileHidden = bCastShadowWhileHidden;
 	NewVisibilityState.bAffectIndirectLightingWhileHidden = bAffectIndirectLightingWhileHidden;
 	NewVisibilityState.bHoldout = bHoldout;
@@ -118,6 +120,7 @@ void UMoviePipelineVisibilityModifier::ApplyModifier(const UWorld* World)
 			OriginalVisibilityState.bIsHidden = Actor->IsHidden();
 			if (const UPrimitiveComponent* PrimitiveComponent = Actor->GetComponentByClass<UPrimitiveComponent>())
 			{
+				OriginalVisibilityState.bCastsShadows = PrimitiveComponent->CastShadow;
 				OriginalVisibilityState.bCastShadowWhileHidden = PrimitiveComponent->bCastHiddenShadow;
 				OriginalVisibilityState.bAffectIndirectLightingWhileHidden = PrimitiveComponent->bAffectIndirectLightingWhileHidden;
 				OriginalVisibilityState.bHoldout = PrimitiveComponent->bHoldout;
@@ -158,9 +161,12 @@ void UMoviePipelineVisibilityModifier::SetActorVisibilityState(const FActorVisib
 
 	if (UPrimitiveComponent* PrimitiveComponent = Actor->GetComponentByClass<UPrimitiveComponent>())
 	{
-		PrimitiveComponent->bCastHiddenShadow = NewVisibilityState.bCastShadowWhileHidden;
-		PrimitiveComponent->bAffectIndirectLightingWhileHidden = NewVisibilityState.bAffectIndirectLightingWhileHidden;
-		PrimitiveComponent->bHoldout = NewVisibilityState.bHoldout;
+		// TODO: These could potentially cause a large rendering penalty due to dirtying the render state; investigate potential
+		// ways to optimize this
+		PrimitiveComponent->SetCastShadow(NewVisibilityState.bCastsShadows);
+		PrimitiveComponent->SetCastHiddenShadow(NewVisibilityState.bCastShadowWhileHidden);
+		PrimitiveComponent->SetAffectIndirectLightingWhileHidden(NewVisibilityState.bAffectIndirectLightingWhileHidden);
+		PrimitiveComponent->SetHoldout(NewVisibilityState.bHoldout);
 	}
 }
 

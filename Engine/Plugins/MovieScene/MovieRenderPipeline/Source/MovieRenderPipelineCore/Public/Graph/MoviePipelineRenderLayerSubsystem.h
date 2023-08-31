@@ -133,6 +133,7 @@ private:
 	{
 		TSoftObjectPtr<AActor> Actor = nullptr;
 		uint8 bIsHidden : 1 = false;
+		uint8 bCastsShadows : 1 = true;
 		uint8 bCastShadowWhileHidden : 1 = false;
 		uint8 bAffectIndirectLightingWhileHidden : 1 = false;
 		uint8 bHoldout : 1 = false;
@@ -152,6 +153,10 @@ public:
 	 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
 	uint8 bIsHidden : 1;
+	
+	/** If true, the primitive will cast shadows. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Primitive")
+	uint8 bCastsShadows : 1;
 
 	/** If true, the primitive will cast shadows even if it is hidden. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Primitive")
