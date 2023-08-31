@@ -2325,7 +2325,7 @@ namespace UnrealBuildTool
 			CppCompileEnvironment GlobalCompileEnvironment = new CppCompileEnvironment(Platform, CppConfiguration, Architectures, MetadataCache);
 			LinkEnvironment GlobalLinkEnvironment = new LinkEnvironment(GlobalCompileEnvironment.Platform, GlobalCompileEnvironment.Configuration, GlobalCompileEnvironment.Architectures);
 
-			UEToolChain TargetToolChain = CreateToolchain(Platform);
+			UEToolChain TargetToolChain = CreateToolchain(Platform, Logger);
 			SetupGlobalEnvironment(TargetToolChain, GlobalCompileEnvironment, GlobalLinkEnvironment);
 
 			FindSharedPCHs(Binaries, GlobalCompileEnvironment, Logger);
@@ -2345,7 +2345,7 @@ namespace UnrealBuildTool
 			CppCompileEnvironment GlobalCompileEnvironment = new CppCompileEnvironment(Platform, CppConfiguration, Architectures, MetadataCache);
 			LinkEnvironment GlobalLinkEnvironment = new LinkEnvironment(GlobalCompileEnvironment.Platform, GlobalCompileEnvironment.Configuration, GlobalCompileEnvironment.Architectures);
 
-			UEToolChain TargetToolChain = CreateToolchain(Platform);
+			UEToolChain TargetToolChain = CreateToolchain(Platform, Logger);
 			TargetToolChain.SetEnvironmentVariables();
 			SetupGlobalEnvironment(TargetToolChain, GlobalCompileEnvironment, GlobalLinkEnvironment);
 
@@ -3131,7 +3131,7 @@ namespace UnrealBuildTool
 		/// Creates a toolchain for the current target. May be overridden by the target rules.
 		/// </summary>
 		/// <returns>New toolchain instance</returns>
-		public UEToolChain CreateToolchain(UnrealTargetPlatform Platform)
+		public UEToolChain CreateToolchain(UnrealTargetPlatform Platform, ILogger Logger)
 		{
 			if (Rules.ToolChainName == null)
 			{
@@ -3144,7 +3144,7 @@ namespace UnrealBuildTool
 				{
 					throw new BuildException("Unable to create toolchain '{0}'. Check that the name is correct.", Rules.ToolChainName);
 				}
-				return (UEToolChain)Activator.CreateInstance(ToolchainType, Rules)!;
+				return (UEToolChain)Activator.CreateInstance(ToolchainType, Rules, Logger)!;
 			}
 		}
 

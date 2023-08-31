@@ -162,7 +162,7 @@ namespace UnrealBuildTool
 
 					// Create a makefile for the target
 					UEBuildTarget Target = UEBuildTarget.Create(TargetDescriptor, BuildConfiguration, Logger);
-					UEToolChain TargetToolChain = Target.CreateToolchain(Target.Platform);
+					UEToolChain TargetToolChain = Target.CreateToolchain(Target.Platform, Logger);
 
 					// Execute code generation actions
 					if (bExecCodeGenActions)
