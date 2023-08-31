@@ -1089,7 +1089,7 @@ void UPCGGraph::OnGraphParametersChanged(EPCGGraphParameterEvent InChangeType, F
 	NotifyGraphParametersChanged(InChangeType, InChangedPropertyName);
 }
 
-bool UPCGGraph::UserParametersIsPinTypeAccepted(FEdGraphPinType InPinType)
+bool UPCGGraph::UserParametersIsPinTypeAccepted(FEdGraphPinType InPinType, bool bIsChild)
 {
 	// Text and interface not supported
 	if (InPinType.PinCategory == TEXT("text") || InPinType.PinCategory == TEXT("interface"))
@@ -1098,10 +1098,24 @@ bool UPCGGraph::UserParametersIsPinTypeAccepted(FEdGraphPinType InPinType)
 	}
 	else if (InPinType.PinCategory == TEXT("struct"))
 	{
-		// Structs other than Vector/Transform/Rotator not supported
-		return InPinType.PinSubCategoryObject == TBaseStructure<FVector>::Get() 
-			|| InPinType.PinSubCategoryObject == TBaseStructure<FTransform>::Get()
-			|| InPinType.PinSubCategoryObject == TBaseStructure<FRotator>::Get();
+		// Vector/Transform/Rotator are "explicitly" defined. Also return true for a "null" PinSubCategoryObject
+		// to mark it as "valid" so the system will call this function back on all available structures.
+		if (!bIsChild)
+		{
+			return InPinType.PinSubCategoryObject.IsExplicitlyNull()
+				|| InPinType.PinSubCategoryObject == TBaseStructure<FVector>::Get()
+				|| InPinType.PinSubCategoryObject == TBaseStructure<FTransform>::Get()
+				|| InPinType.PinSubCategoryObject == TBaseStructure<FRotator>::Get();
+		}
+		else
+		{
+			// Since we are not supporting all the structures by default, only show the ones that we are supporting with PCG.
+			return InPinType.PinSubCategoryObject == TBaseStructure<FVector2D>::Get()
+				|| InPinType.PinSubCategoryObject == TBaseStructure<FVector4>::Get()
+				|| InPinType.PinSubCategoryObject == TBaseStructure<FQuat>::Get()
+				|| InPinType.PinSubCategoryObject == TBaseStructure<FSoftObjectPath>::Get()
+				|| InPinType.PinSubCategoryObject == TBaseStructure<FSoftClassPath>::Get();
+		}
 	}
 	else
 	{

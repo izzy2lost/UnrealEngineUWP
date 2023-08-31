@@ -289,7 +289,7 @@ protected:
 
 #if WITH_EDITOR
 	UFUNCTION(BlueprintInternalUseOnly)
-	bool UserParametersIsPinTypeAccepted(FEdGraphPinType InPinType);
+	bool UserParametersIsPinTypeAccepted(FEdGraphPinType InPinType, bool bIsChild);
 	
 	UFUNCTION(BlueprintInternalUseOnly)
 	bool UserParametersCanRemoveProperty(FGuid InPropertyID, FName InPropertyName);
