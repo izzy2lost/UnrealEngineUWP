@@ -81,7 +81,6 @@ void SDMXControlConsoleEditorView::Construct(const FArguments& InArgs)
 	EditorConsoleModel.GetOnControlConsoleForceRefresh().AddSP(this, &SDMXControlConsoleEditorView::OnConsoleRefreshed);
 
 	UDMXControlConsoleData::GetOnDMXLibraryChanged().AddSP(this, &SDMXControlConsoleEditorView::OnDMXLibraryChanged);
-
 	if (UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel.GetEditorConsoleLayouts())
 	{
 		EditorConsoleLayouts->GetOnActiveLayoutChanged().AddSP(this, &SDMXControlConsoleEditorView::UpdateLayout);
@@ -91,9 +90,10 @@ void SDMXControlConsoleEditorView::Construct(const FArguments& InArgs)
 	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorConsoleModel.GetSelectionHandler();
 	SelectionHandler->GetOnSelectionChanged().AddSP(this, &SDMXControlConsoleEditorView::RequestUpdateDetailsViews);
 
-	OnActiveTabChangedDelegateHandle = FGlobalTabmanager::Get()->OnActiveTabChanged_Subscribe(FOnActiveTabChanged::FDelegate::CreateSP(this, &SDMXControlConsoleEditorView::OnActiveTabChanged));
+	using namespace UE::DMXControlConsoleEditor::FilterModel::Private;
+	FFilterModel::Get().OnFilterChanged.AddSP(this, &SDMXControlConsoleEditorView::RequestUpdateDetailsViews);
 
-	FPropertyEditorModule& PropertyEditor = FModuleManager::Get().GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	OnActiveTabChangedDelegateHandle = FGlobalTabmanager::Get()->OnActiveTabChanged_Subscribe(FOnActiveTabChanged::FDelegate::CreateSP(this, &SDMXControlConsoleEditorView::OnActiveTabChanged));
 
 	FDetailsViewArgs DetailsViewArgs;
 	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
@@ -101,6 +101,7 @@ void SDMXControlConsoleEditorView::Construct(const FArguments& InArgs)
 	DetailsViewArgs.bHideSelectionTip = true;
 	DetailsViewArgs.DefaultsOnlyVisibility = EEditDefaultsOnlyNodeVisibility::Automatic;
 	
+	FPropertyEditorModule& PropertyEditor = FModuleManager::Get().GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	ControlConsoleDataDetailsView = PropertyEditor.CreateDetailView(DetailsViewArgs);
 	FaderGroupsDetailsView = PropertyEditor.CreateDetailView(DetailsViewArgs);
 	FadersDetailsView = PropertyEditor.CreateDetailView(DetailsViewArgs);

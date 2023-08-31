@@ -115,7 +115,7 @@ namespace UE::DMXControlConsole
 	{
 		for (UDMXControlConsoleFaderBase* Fader : GetValidFadersBeingEdited())
 		{
-			if (!Fader || !Fader->IsMatchingFilter())
+			if (!Fader)
 			{
 				continue;
 			}
@@ -129,7 +129,7 @@ namespace UE::DMXControlConsole
 	{
 		for (UDMXControlConsoleFaderBase* Fader : GetValidFadersBeingEdited())
 		{
-			if (!Fader || !Fader->IsMatchingFilter())
+			if (!Fader)
 			{
 				continue;
 			}
@@ -143,7 +143,7 @@ namespace UE::DMXControlConsole
 	{
 		for (UDMXControlConsoleFaderBase* Fader : GetValidFadersBeingEdited())
 		{
-			if (!Fader || !Fader->IsMatchingFilter())
+			if (!Fader)
 			{
 				continue;
 			}
@@ -157,7 +157,7 @@ namespace UE::DMXControlConsole
 	{
 		for (UDMXControlConsoleFaderBase* Fader : GetValidFadersBeingEdited())
 		{
-			if (!Fader || !Fader->IsMatchingFilter())
+			if (!Fader)
 			{
 				continue;
 			}
@@ -173,7 +173,7 @@ namespace UE::DMXControlConsole
 	{
 		for (UDMXControlConsoleFaderBase* Fader : GetValidFadersBeingEdited())
 		{
-			if (!Fader || !Fader->IsMatchingFilter())
+			if (!Fader)
 			{
 				continue;
 			}
@@ -192,7 +192,7 @@ namespace UE::DMXControlConsole
 		for (UDMXControlConsoleFaderBase* Fader : GetValidFadersBeingEdited())
 		{
 			UDMXControlConsoleRawFader* RawFader = Cast<UDMXControlConsoleRawFader>(Fader);
-			if (!RawFader || !RawFader->IsMatchingFilter())
+			if (!RawFader)
 			{
 				continue;
 			}
@@ -207,7 +207,7 @@ namespace UE::DMXControlConsole
 		for (UDMXControlConsoleFaderBase* Fader : GetValidFadersBeingEdited())
 		{
 			UDMXControlConsoleRawFader* RawFader = Cast<UDMXControlConsoleRawFader>(Fader);
-			if (!RawFader || !RawFader->IsMatchingFilter())
+			if (!RawFader)
 			{
 				continue;
 			}

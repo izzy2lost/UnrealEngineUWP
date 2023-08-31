@@ -246,11 +246,7 @@ FReply SDMXControlConsoleEditorFader::OnMouseButtonDown(const FGeometry& MyGeome
 			}
 		}
 
-		// Let the spin box capture the mouse to change values interactively, prevent throttling
 		return FReply::Handled()
-			.CaptureMouse(FaderSpinBox.ToSharedRef())
-			.UseHighPrecisionMouseMovement(FaderSpinBox.ToSharedRef())
-			.SetUserFocus(FaderSpinBox.ToSharedRef(), EFocusCause::Mouse)
 			.PreventThrottling();
 	}
 

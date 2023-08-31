@@ -347,7 +347,10 @@ public:
 		}
 
 		// Don't handle the mouse event, instead propagonate the event to allow selection in the outer widget, in case this was clicked directly.
-		return FReply::Unhandled();
+		return FReply::Unhandled()
+			.CaptureMouse(SharedThis(this))
+			.UseHighPrecisionMouseMovement(SharedThis(this))
+			.SetUserFocus(SharedThis(this), EFocusCause::Mouse);
 	}
 	
 	/**
