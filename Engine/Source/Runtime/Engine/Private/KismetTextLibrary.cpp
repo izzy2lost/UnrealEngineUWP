@@ -317,6 +317,18 @@ bool UKismetTextLibrary::StringTableIdAndKeyFromText(FText Text, FName& OutTable
 	return FTextInspector::GetTableIdAndKey(Text, OutTableId, OutKey);
 }
 
+bool UKismetTextLibrary::GetTextId(FText Text, FString& OutNamespace, FString& OutKey)
+{
+	const FTextId TextId = FTextInspector::GetTextId(Text);
+	if (!TextId.IsEmpty())
+	{
+		OutNamespace = TextId.GetNamespace().GetChars();
+		OutKey = TextId.GetKey().GetChars();
+		return true;
+	}
+	return false;
+}
+
 void UKismetTextLibrary::IsPolyglotDataValid(const FPolyglotTextData& PolyglotData, bool& IsValid, FText& ErrorMessage)
 {
 	IsValid = PolyglotData.IsValid(&ErrorMessage);

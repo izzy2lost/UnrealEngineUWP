@@ -287,11 +287,18 @@ class UKismetTextLibrary : public UBlueprintFunctionLibrary
 	static ENGINE_API FText TextFromStringTable(const FName TableId, const FString& Key);
 
 	/**
-	 * Attempts to find the String Table ID and key used by the given text.
+	 * Attempts to get the String Table ID and key used by the given text.
 	 * @return True if the String Table ID and key were found, false otherwise.
 	 */
-	UFUNCTION(BlueprintPure, Category="Utilities|Text", meta=(DisplayName="Find String Table ID and Key from Text"))
+	UFUNCTION(BlueprintPure, Category="Utilities|Text", meta=(DisplayName="Get String Table ID and Key from Text"))
 	static ENGINE_API bool StringTableIdAndKeyFromText(FText Text, FName& OutTableId, FString& OutKey);
+
+	/**
+	 * Attempts to get the ID (namespace and key) used by the given text.
+	 * @return True if the namespace (which may be empty) and key were found, false otherwise.
+	 */
+	UFUNCTION(BlueprintPure, Category="Utilities|Text", meta=(DisplayName="Get ID from Text"))
+	static ENGINE_API bool GetTextId(FText Text, FString& OutNamespace, FString& OutKey);
 
 	/**
 	 * Check whether the given polyglot data is valid.
