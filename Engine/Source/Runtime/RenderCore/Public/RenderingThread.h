@@ -314,6 +314,12 @@ namespace UE::RenderCommandPipe
 	// [Game Thread] Stops recording commands into pipes and syncs all remaining pipe work to the render thread.
 	extern RENDERCORE_API void StopRecording();
 
+	// [Game Thread] Enables validation that will issue an ensure if recording is stopped.
+	extern RENDERCORE_API void StartParallelRecordingValidation();
+
+	// [Game Thread] Disables validation that will issue an ensure if recording is stopped.
+	extern RENDERCORE_API void StopParallelRecordingValidation();
+
 	// [Game Thread] Stops render command pipe recording during the duration of the scope and restarts recording once the scope is complete.
 	class FSyncScope
 	{

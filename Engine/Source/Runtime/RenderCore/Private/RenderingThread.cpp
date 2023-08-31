@@ -1611,6 +1611,7 @@ public:
 	{
 #if !UE_SERVER
 		check(IsInGameThread());
+		ensureMsgf(!bParallelRecordingValidation, TEXT("StartRecording has been called within a region designated for issuing parallel render thread commands. This is a race condition."));
 		SCOPED_NAMED_EVENT(FRenderCommandPipe_StartRecording, FColor::Magenta);
 
 		if (bRecording || UE::RenderCommandPipe::GetMode() != ERenderCommandPipeMode::All || Pipes.IsEmpty() || !ShouldExecuteOnRenderThread())
@@ -1663,6 +1664,7 @@ public:
 	{
 #if !UE_SERVER
 		check(IsInGameThread());
+		ensureMsgf(!bParallelRecordingValidation, TEXT("StopRecording has been called within a region designated for issuing parallel render thread commands. This is a race condition."));
 		SCOPED_NAMED_EVENT(FRenderCommandPipe_StopRecording, FColor::Magenta);
 
 		if (!bRecording)
@@ -1708,6 +1710,22 @@ public:
 #endif // !UE_SERVER
 	}
 
+	void StartParallelRecordingValidation()
+	{
+#if !UE_SERVER
+		check(!bParallelRecordingValidation);
+		bParallelRecordingValidation = true;
+#endif
+	}
+
+	void StopParallelRecordingValidation()
+	{
+#if !UE_SERVER
+		check(bParallelRecordingValidation);
+		bParallelRecordingValidation = false;
+#endif
+	}
+
 	bool IsRecording() const
 	{
 #if !UE_SERVER
@@ -1735,6 +1753,7 @@ private:
 	TArray<FRenderCommandPipe*> Pipes;
 	bool bRecording = false;
 	bool bReplaying = false;
+	bool bParallelRecordingValidation = false;
 #endif // !UE_SERVER
 };
 
@@ -1770,6 +1789,16 @@ namespace UE::RenderCommandPipe
 	void StopRecording()
 	{
 		GRenderCommandPipeRegistry.StopRecording();
+	}
+
+	void StartParallelRecordingValidation()
+	{
+		GRenderCommandPipeRegistry.StartParallelRecordingValidation();
+	}
+
+	void StopParallelRecordingValidation()
+	{
+		GRenderCommandPipeRegistry.StopParallelRecordingValidation();
 	}
 }
 

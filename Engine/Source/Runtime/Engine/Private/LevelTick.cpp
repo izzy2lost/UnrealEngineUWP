@@ -975,6 +975,8 @@ void BeginSendEndOfFrameUpdatesDrawEvent(FSendAllEndOfFrameUpdates& SendAllEndOf
 {
 	BEGIN_DRAW_EVENTF_GAMETHREAD(SendAllEndOfFrameUpdates, SendAllEndOfFrameUpdates.DrawEvent, TEXT("SendAllEndOfFrameUpdates"));
 
+	UE::RenderCommandPipe::StartParallelRecordingValidation();
+
 	ENQUEUE_RENDER_COMMAND(BeginDrawEventCommand)(UE::RenderCommandPipe::SkeletalMesh,
 		[GPUSkinCache = SendAllEndOfFrameUpdates.GPUSkinCache]
 	{
@@ -997,6 +999,8 @@ void EndSendEndOfFrameUpdatesDrawEvent(FSendAllEndOfFrameUpdates& SendAllEndOfFr
 			GPUSkinCache->EndBatchDispatch();
 		}
 	});
+
+	UE::RenderCommandPipe::StopParallelRecordingValidation();
 
 	STOP_DRAW_EVENT_GAMETHREAD(SendAllEndOfFrameUpdates.DrawEvent);
 }
