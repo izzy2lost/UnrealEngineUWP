@@ -6,7 +6,8 @@ PathTracing.usf: Reference path tracing
 
 #define PATH_TRACING  1
 
-#define PATH_TRACING_SHADER_VERSION 0x51478b68 // Bump to force-compile this shader
+// Bump to force-compile this shader
+#pragma message("UESHADERMETADATA_VERSION 8535C2EF-E5D9-4ABB-A0AF-F8FA45BBB08B")
 
 // Ensure specular profile and glints are supported
 #if STRATA_ENABLED && PATH_TRACER_USE_STRATA_SPECIAL_COMPLEX_MATERIAL

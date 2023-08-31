@@ -189,7 +189,7 @@ typedef struct pp_context
 	ifdef_info* ifdef_stack;
 
 	pp_where* include_stack;
-	pp_diagnostic* error;
+	pp_diagnostic* diagnostics;
 	int stop;  // if we hit an error that causes us to stop processing
 
 	int num_lines;
@@ -498,7 +498,7 @@ static int error_explicit(parse_state* ps, int code, int line_number, char* text
 		stack = stack->parent;
 	}
 
-	arrpush(ps->context->error, d);
+	arrpush(ps->context->diagnostics, d);
 
 	if (d.error_level == PP_RESULT_MODE_error)
 		ps->context->stop = 1;
@@ -3076,7 +3076,7 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 			s = p;
 		}
 
-		if (c->error)
+		if (c->diagnostics && c->stop)
 		{
 			arrfree(arguments);
 			return;
@@ -3688,7 +3688,7 @@ static void process_directive(parse_state* cs, conditional_state* cons)
 						diag.message[len - 1] = 0;
 						diag.where = 0;
 
-						arrpush(cs->context->error, diag);
+						arrpush(cs->context->diagnostics, diag);
 						goto handled;
 					}
 				}
@@ -4594,8 +4594,8 @@ char* preprocess_file(char* output_autobuffer,
 		ps.src_line_number = 0;
 		ps.context = &c;
 		do_error(&ps, "Couldn't open '%s'.", filename);
-		*pd = c.error;
-		*num_pd = (int)arrlen(c.error);
+		*pd = c.diagnostics;
+		*num_pd = (int)arrlen(c.diagnostics);
 		return NULL;
 	}
 
@@ -4663,9 +4663,9 @@ char* preprocess_file(char* output_autobuffer,
 	STB_COMMON_FREE(c.macro_name_filter);
 	stb_arena_free(&c.macro_arena);
 
-	if (c.error)
+	if (c.diagnostics)
 	{
-		*pd = c.error;
+		*pd = c.diagnostics;
 		*num_pd = (int)arrlen(*pd);
 		if (c.stop)
 		{

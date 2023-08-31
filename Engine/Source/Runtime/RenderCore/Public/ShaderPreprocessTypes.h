@@ -78,16 +78,29 @@ public:
 
 	inline bool HasDirective(const FString& Directive) const
 	{
-		int32 NumberOfDirectives = PragmaDirectives.Num();
+		const int32 NumberOfDirectives = PragmaDirectives.Num();
 		for (int32 i = 0; i < NumberOfDirectives; i++)
 		{
-			FString CurrentDirective = PragmaDirectives[i];
+			const FString& CurrentDirective = PragmaDirectives[i];
 			if (CurrentDirective.Equals(Directive))
 			{
 				return true;
 			}
 		}
 		return false;
+	}
+
+	inline void VisitDirectivesWithPrefix(const TCHAR* Prefix, TFunction<void(const FString*)> Action) const
+	{
+		const int32 NumberOfDirectives = PragmaDirectives.Num();
+		for (int32 i = 0; i < NumberOfDirectives; i++)
+		{
+			const FString& CurrentDirective = PragmaDirectives[i];
+			if (CurrentDirective.StartsWith(Prefix))
+			{
+				Action(&CurrentDirective);
+			}
+		}
 	}
 
 	inline void AddDirective(FString&& Directive)

@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-// Just used to trigger shader recomplies, can be anything but should be regenerated on merge conflicts
-// Version GUID = C869E4C3-E041-4849-A611-6C11A6392EBC
+// Just used to trigger shader recompiles, guid should be regenerated on merge conflicts
+#pragma message("UESHADERMETADATA_VERSION DC8F4920-57F0-41EF-ACC0-B6643D1D80C7")
 
 // TODO: should this be 1 by default so compute always has access to it?
 #ifndef USES_PER_INSTANCE_RANDOM

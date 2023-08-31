@@ -3,4 +3,4 @@
 // in the DDC key, it will automatically invalidate.
 // 
 // If you are merging streams and there is a conflict with this GUID you should make a new GUID rather than taking one or the other.
-// GUID = 22B2FD1A565942EAB86A4B4A6FB56DEC
+#pragma message("UESHADERMETADATA_VERSION 8AD2A031-4003-F761-9953-E48FB28BC4AE")

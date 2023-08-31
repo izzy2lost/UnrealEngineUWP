@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 // Bump to force a rebuild of this shader (when changing related C++ code). Generate unique value on merge conflict.
-#define RAY_TRACING_OCCLUSION_RGS_VERSION 0x8219847B
+#pragma message("UESHADERMETADATA_VERSION 42D4CD2F-D217-4305-81AB-F113F7114047")
 
 // Strata use view's resources to read & trace shadow ray
 #define STRATA_MATERIALCONTAINER_IS_VIEWRESOURCE 1
