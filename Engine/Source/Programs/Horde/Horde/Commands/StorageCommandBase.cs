@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
+using EpicGames.Horde.Storage.Bundles;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Commands
@@ -24,6 +25,19 @@ namespace Horde.Commands
 		/// </summary>
 		[CommandLine("-Path=", Description = "Relative path on the server for the store to write to/from (eg. api/v1/storage/default)")]
 		public string? Path { get; set; }
+
+		/// <summary>
+		/// Cache for storage
+		/// </summary>
+		public StorageCache StorageCache { get; }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public StorageCommandBase(StorageCache storageCache)
+		{
+			StorageCache = storageCache;
+		}
 
 		/// <summary>
 		/// Creates a new client instance
@@ -54,7 +68,7 @@ namespace Horde.Commands
 			}
 
 			server = new Uri(server, Path);
-			return new HttpStorageClient(() => CreateDefaultHttpClient(server, token), () => new HttpClient(), null, logger);
+			return new HttpStorageClient(() => CreateDefaultHttpClient(server, token), () => new HttpClient(), StorageCache, logger);
 		}
 
 		static HttpClient CreateDefaultHttpClient(Uri server, string token)

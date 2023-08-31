@@ -6,7 +6,6 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Commands.Bundles
@@ -26,15 +25,18 @@ namespace Horde.Commands.Bundles
 		[CommandLine("-OutputDir=", Required = true)]
 		public DirectoryReference OutputDir { get; set; } = null!;
 
+		public BundleExtract(StorageCache storageCache)
+			: base(storageCache)
+		{
+		}
+
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 256 * 1024 * 1024 });
-
 			IStorageClient store;
 			BlobHandle handle;
 			if (File != null)
 			{
-				store = new FileStorageClient(File.Directory, cache, logger);
+				store = new FileStorageClient(File.Directory, StorageCache, logger);
 				handle = await ((FileStorageClient)store).ReadRefAsync(File);
 			}
 			else if (Ref != null)

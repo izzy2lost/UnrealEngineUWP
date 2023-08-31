@@ -6,37 +6,49 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis;
 using System.Diagnostics;
 using System.IO;
-using System.Diagnostics.CodeAnalysis;
 
 namespace EpicGames.Horde.Storage.Bundles
 {
+	/// <summary>
+	/// Computed information about a bundle
+	/// </summary>
+	public class BundleInfo
+	{
+		/// <summary>
+		/// Locator for the bundle
+		/// </summary>
+		public BundleLocator Locator { get; }
+
+		/// <summary>
+		/// Bundle header
+		/// </summary>
+		public BundleHeader Header { get; }
+		
+		/// <summary>
+		/// Length of the header. Required to offset packets from the start of the bundle
+		/// </summary>
+		public int HeaderLength { get; }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public BundleInfo(BundleLocator locator, BundleHeader header, int headerLength)
+		{
+			Locator = locator;
+			Header = header;
+			HeaderLength = headerLength;
+		}
+	}
+
 	/// <summary>
 	/// Writes nodes from bundles in an <see cref="IStorageClient"/> instance.
 	/// </summary>
 	public class BundleReader
 	{
-		/// <summary>
-		/// Computed information about a bundle
-		/// </summary>
-		class BundleInfo
-		{
-			public readonly BundleLocator Locator;
-			public readonly BundleHeader Header;
-			public readonly int HeaderLength;
-
-			public BundleInfo(BundleLocator locator, BundleHeader header, int headerLength)
-			{
-				Locator = locator;
-				Header = header;
-				HeaderLength = headerLength;
-			}
-		}
-
 		/// <summary>
 		/// Bundle header queued to be read
 		/// </summary>
@@ -78,7 +90,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		const int DefaultUncachedFetchSize = 1 * 1024 * 1024;
 
 		readonly BundleStorageClient _store;
-		readonly IMemoryCache? _cache;
+		readonly StorageCache _cache;
 		readonly ILogger _logger;
 
 		readonly object _queueLock = new object();
@@ -106,51 +118,12 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <param name="store"></param>
 		/// <param name="cache">Cache for data</param>
 		/// <param name="logger">Logger for output</param>
-		public BundleReader(BundleStorageClient store, IMemoryCache? cache, ILogger logger)
+		public BundleReader(BundleStorageClient store, StorageCache cache, ILogger logger)
 		{
 			_store = store;
 			_cache = cache;
 			_logger = logger;
 		}
-
-		#region Cache
-
-		static void AddCachedValue(IMemoryCache? cache, string cacheKey, object value, int size)
-		{
-			if (cache != null)
-			{
-				using (ICacheEntry entry = cache.CreateEntry(cacheKey))
-				{
-					entry.SetValue(value);
-					entry.SetSize(size);
-				}
-			}
-		}
-
-		static bool TryGetCachedValue<T>(IMemoryCache? cache, string cacheKey, [MaybeNull, NotNullWhen(true)] out T value)
-		{
-			if (cache == null)
-			{
-				value = default;
-				return false;
-			}
-			return cache.TryGetValue(cacheKey, out value);
-		}
-
-		static string GetBundleInfoCacheKey(BundleLocator locator) => $"bundle:{locator}";
-		static string GetEncodedPacketCacheKey(BundleLocator locator, int packetIdx) => $"encoded-packet:{locator}#{packetIdx}";
-		static string GetDecodedPacketCacheKey(BundleLocator locator, int packetIdx) => $"decoded-packet:{locator}#{packetIdx}";
-
-		void AddCachedBundleInfo(BundleLocator locator, BundleInfo bundleInfo) => AddCachedValue(_cache, GetBundleInfoCacheKey(locator), bundleInfo, bundleInfo.HeaderLength);
-		bool TryGetCachedBundleInfo(BundleLocator locator, [NotNullWhen(true)] out BundleInfo? bundleInfo) => TryGetCachedValue(_cache, GetBundleInfoCacheKey(locator), out bundleInfo);
-
-		void AddCachedEncodedPacket(BundleLocator locator, int packetIdx, ReadOnlyMemory<byte> data) => AddCachedValue(_cache, GetEncodedPacketCacheKey(locator, packetIdx), data, data.Length);
-		bool TryGetCachedEncodedPacket(BundleLocator locator, int packetIdx, out ReadOnlyMemory<byte> data) => TryGetCachedValue(_cache, GetEncodedPacketCacheKey(locator, packetIdx), out data);
-
-		void AddCachedDecodedPacket(BundleLocator locator, int packetIdx, ReadOnlyMemory<byte> data) => AddCachedValue(_cache, GetDecodedPacketCacheKey(locator, packetIdx), data, data.Length);
-		bool TryGetCachedDecodedPacket(BundleLocator locator, int packetIdx, out ReadOnlyMemory<byte> data) => TryGetCachedValue(_cache, GetDecodedPacketCacheKey(locator, packetIdx), out data);
-
-		#endregion
 
 		#region Bundles
 
@@ -258,7 +231,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		{
 			Interlocked.Increment(ref _numHeaderReads);
 
-			int prefetchSize = _cache != null ? DefaultFetchSize : DefaultUncachedFetchSize;
+			int prefetchSize = _cache.HasPacketCache ? DefaultFetchSize : DefaultUncachedFetchSize;
 			for (; ; )
 			{
 				await using (Stream stream = await _store.OpenAsync(queuedHeader.Blob, 0, prefetchSize, cancellationToken))
@@ -282,7 +255,7 @@ namespace EpicGames.Horde.Storage.Bundles
 					BundleInfo bundleInfo = new BundleInfo(queuedHeader.Blob, header, headerSize);
 
 					List<ReadOnlyMemory<byte>> packets = new List<ReadOnlyMemory<byte>>();
-					if (_cache != null)
+					if (_cache.HasPacketCache)
 					{
 						// Also add any encoded packets we prefetched
 						int packetOffset = headerSize;
@@ -295,15 +268,13 @@ namespace EpicGames.Horde.Storage.Bundles
 							}
 
 							byte[] packetData = await ReadPacketAsync(stream, packetLength, cancellationToken);
-							AddCachedEncodedPacket(queuedHeader.Blob, packetIdx, packetData);
+							_cache.AddCachedEncodedPacket(queuedHeader.Blob, packetIdx, packetData);
 							packets.Add(packetData);
 
 							packetOffset += packetLength;
 						}
-
-						// Add the info to the cache
-						AddCachedBundleInfo(queuedHeader.Blob, bundleInfo);
 					}
+					_cache.AddCachedHeader(queuedHeader.Blob, bundleInfo);
 
 					// Update any packets that now have a cached value
 					lock (_queueLock)
@@ -365,7 +336,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			int readLength = packet.EncodedLength;
 
 			int maxPacketIdx = minPacketIdx + 1;
-			if(_cache != null)
+			if(_cache.HasPacketCache)
 			{
 				for (; maxPacketIdx < bundleInfo.Header.Packets.Count; maxPacketIdx++)
 				{
@@ -388,13 +359,13 @@ namespace EpicGames.Horde.Storage.Bundles
 					packets[idx - minPacketIdx] = data;
 				}
 
-				// Add any complete packets
-				if (_cache != null)
+				// Add any complete packets to the cache
+				if (_cache.HasPacketCache)
 				{
 					for (int idx = minPacketIdx; idx < maxPacketIdx; idx++)
 					{
 						ReadOnlyMemory<byte> data = packets[idx - minPacketIdx];
-						AddCachedEncodedPacket(bundleInfo.Locator, idx, data);
+						_cache.AddCachedEncodedPacket(bundleInfo.Locator, idx, data);
 					}
 				}
 
@@ -430,22 +401,16 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <returns></returns>
 		public async Task<BundleHeader> ReadBundleHeaderAsync(BundleLocator locator, CancellationToken cancellationToken = default)
 		{
-			BundleInfo info = await GetBundleInfoAsync(locator, cancellationToken);
-			return info.Header;
+			BundleInfo bundleInfo = await GetBundleInfoAsync(locator, cancellationToken);
+			return bundleInfo.Header;
 		}
 
-		/// <summary>
-		/// Reads the header and structural metadata about the bundle
-		/// </summary>
-		/// <param name="locator">The bundle location</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Information about the bundle</returns>
-		async ValueTask<BundleInfo> GetBundleInfoAsync(BundleLocator locator, CancellationToken cancellationToken = default)
+		async Task<BundleInfo> GetBundleInfoAsync(BundleLocator locator, CancellationToken cancellationToken = default)
 		{
 			Debug.Assert(locator.IsValid());
 
 			BundleInfo? bundleInfo;
-			if (TryGetCachedBundleInfo(locator, out bundleInfo))
+			if (_cache.TryGetCachedHeader(locator, out bundleInfo))
 			{
 				return bundleInfo;
 			}
@@ -454,7 +419,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			lock (_queueLock)
 			{
 				// Check the cache again inside lock scope to avoid races
-				if (TryGetCachedBundleInfo(locator, out bundleInfo))
+				if (_cache.TryGetCachedHeader(locator, out bundleInfo))
 				{
 					return bundleInfo;
 				}
@@ -471,6 +436,8 @@ namespace EpicGames.Horde.Storage.Bundles
 			return await queuedHeader.CompletionSource.Task.WaitAsync(cancellationToken);
 		}
 
+		static string GetDecodeTaskKey(BundleLocator locator, int packetIdx) => $"{locator}:{packetIdx}";
+
 		/// <summary>
 		/// Gets a decoded block from the store
 		/// </summary>
@@ -486,7 +453,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			}
 
 			ReadOnlyMemory<byte> decodedPacket;
-			if (TryGetCachedDecodedPacket(bundleInfo.Locator, packetIdx, out decodedPacket))
+			if (_cache.TryGetCachedDecodedPacket(bundleInfo.Locator, packetIdx, out decodedPacket))
 			{
 				return decodedPacket;
 			}
@@ -495,13 +462,13 @@ namespace EpicGames.Horde.Storage.Bundles
 			lock (_queueLock)
 			{
 				// Query the cache again, to eliminate races between cache checks and decode tasks finishing.
-				if (TryGetCachedDecodedPacket(bundleInfo.Locator, packetIdx, out decodedPacket))
+				if (_cache.TryGetCachedDecodedPacket(bundleInfo.Locator, packetIdx, out decodedPacket))
 				{
 					return decodedPacket;
 				}
 
 				// Create an async task to read the data
-				string decodedCacheKey = GetDecodedPacketCacheKey(bundleInfo.Locator, packetIdx);
+				string decodedCacheKey = GetDecodeTaskKey(bundleInfo.Locator, packetIdx);
 				if (!_decodeTasks.TryGetValue(decodedCacheKey, out decodeTask))
 				{
 					decodeTask = Task.Run(() => ReadAndDecodePacketAsync(bundleInfo, packetIdx), CancellationToken.None);
@@ -525,11 +492,11 @@ namespace EpicGames.Horde.Storage.Bundles
 			byte[] decodedPacket = new byte[packet.DecodedLength];
 
 			BundleData.Decompress(packet.CompressionFormat, encodedPacket, decodedPacket);
-			AddCachedDecodedPacket(bundleInfo.Locator, packetIdx, decodedPacket);
+			_cache.AddCachedDecodedPacket(bundleInfo.Locator, packetIdx, decodedPacket);
 
 			lock (_queueLock)
 			{
-				string decodedCacheKey = GetDecodedPacketCacheKey(bundleInfo.Locator, packetIdx);
+				string decodedCacheKey = GetDecodeTaskKey(bundleInfo.Locator, packetIdx);
 				_decodeTasks.Remove(decodedCacheKey);
 			}
 
@@ -550,7 +517,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			}
 
 			ReadOnlyMemory<byte> encodedPacket;
-			if (TryGetCachedEncodedPacket(bundleInfo.Locator, packetIdx, out encodedPacket))
+			if (_cache.TryGetCachedEncodedPacket(bundleInfo.Locator, packetIdx, out encodedPacket))
 			{
 				return encodedPacket;
 			}
@@ -559,7 +526,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			lock (_queueLock)
 			{
 				// Query the cache again, to eliminate races between cache checks and decode tasks finishing.
-				if (TryGetCachedEncodedPacket(bundleInfo.Locator, packetIdx, out encodedPacket))
+				if (_cache.TryGetCachedEncodedPacket(bundleInfo.Locator, packetIdx, out encodedPacket))
 				{
 					return encodedPacket;
 				}

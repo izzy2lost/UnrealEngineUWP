@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 using Serilog.Sinks.SystemConsole.Themes;
 using Serilog;
 using Serilog.Formatting.Json;
+using EpicGames.Horde.Storage;
 
 namespace Horde
 {
@@ -32,9 +33,10 @@ namespace Horde
 			services.AddSingleton(loggerFactory);
 			services.AddLogging();
 			services.AddMemoryCache();
+			services.AddSingleton<StorageCache>();
 
 			// Execute all the commands
-			IServiceProvider serviceProvider = services.BuildServiceProvider();
+			await using ServiceProvider serviceProvider = services.BuildServiceProvider();
 			return await CommandHost.RunAsync(arguments, serviceProvider, null);
 		}
 
@@ -50,7 +52,7 @@ namespace Horde
 				DirectoryReference? programDataDir = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.CommonApplicationData);
 				if (programDataDir != null)
 				{
-					return DirectoryReference.Combine(programDataDir, "HordeAgent");
+					return DirectoryReference.Combine(programDataDir, "Horde");
 				}
 			}
 			return GetAppDir();

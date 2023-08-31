@@ -523,11 +523,12 @@ namespace Horde.Server
 				services.AddSingleton<IAvatarService, NullAvatarService>();
 			}
 
-			services.AddSingleton<DeviceService>();						
+			services.AddSingleton<DeviceService>();
 			services.AddSingleton<NoticeService>();
 			services.AddSingleton<StorageService>();
 			services.AddSingleton<IStorageClientFactory>(sp => sp.GetRequiredService<StorageService>());
 			services.AddSingleton<TestDataService>();
+			services.AddSingleton<StorageCache>();
 
 			if (settings.JiraUrl != null)
 			{
@@ -1256,7 +1257,7 @@ namespace Horde.Server
 			serviceCollection.AddSingleton<IHostApplicationLifetime, HostApplicationLifetime>();
 		}
 
-		public static IServiceProvider CreateServiceProvider(IConfiguration configuration)
+		public static ServiceProvider CreateServiceProvider(IConfiguration configuration)
 		{
 			IServiceCollection serviceCollection = new ServiceCollection();
 			AddServices(serviceCollection, configuration);

@@ -8,7 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Compute.Transports;
-using Microsoft.Extensions.Caching.Memory;
+using EpicGames.Horde.Storage;
 using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Compute.Clients
@@ -111,11 +111,11 @@ namespace EpicGames.Horde.Compute.Clients
 		{
 			using Socket tcpSocket = await listener.AcceptAsync(cancellationToken);
 
-			using MemoryCache memoryCache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 10 * 1024 * 1024 });
+			using StorageCache storageCache = new StorageCache();
 
 			await using (RemoteComputeSocket socket = new RemoteComputeSocket(new TcpTransport(tcpSocket), logger))
 			{
-				AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, memoryCache, null, executeInProcess, null, logger);
+				AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, storageCache, null, executeInProcess, null, logger);
 				await worker.RunAsync(socket, cancellationToken);
 				await socket.CloseAsync(cancellationToken);
 			}

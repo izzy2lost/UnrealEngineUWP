@@ -4,8 +4,8 @@ using System.Diagnostics;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
+using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Commands.Bundles
@@ -25,15 +25,18 @@ namespace Horde.Commands.Bundles
 		[CommandLine("-Filter=", Description = "Filter for files to include, in P4 syntax (eg. Foo/...).")]
 		public string Filter { get; set; } = "...";
 
+		public BundleCreate(StorageCache storageCache)
+			: base(storageCache)
+		{
+		}
+
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 256 * 1024 * 1024 });
-
 			// Create the storage client
 			IStorageClient store;
 			if (File != null)
 			{
-				store = new FileStorageClient(File.Directory, cache, logger);
+				store = new FileStorageClient(File.Directory, StorageCache, logger);
 			}
 			else if (!String.IsNullOrEmpty(Ref))
 			{

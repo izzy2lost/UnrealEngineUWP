@@ -69,7 +69,7 @@ namespace EpicGames.Horde.Tests
 		public async Task BasicChunkingTests()
 		{
 			RefName refName = new RefName("test");
-			BundleReader reader = new BundleReader(_storage, null, NullLogger.Instance);
+			BundleReader reader = new BundleReader(_storage, StorageCache.None, NullLogger.Instance);
 			await using IStorageWriter writer = _storage.CreateWriter(refName);
 
 			ChunkingOptions options = new ChunkingOptions();

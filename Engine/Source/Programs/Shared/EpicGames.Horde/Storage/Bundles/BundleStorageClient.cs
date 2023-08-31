@@ -25,9 +25,9 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		protected BundleStorageClient(IMemoryCache? memoryCache, ILogger logger)
+		protected BundleStorageClient(StorageCache cache, ILogger logger)
 		{
-			BundleReader = new BundleReader(this, memoryCache, logger);
+			BundleReader = new BundleReader(this, cache, logger);
 		}
 
 		#region Blobs

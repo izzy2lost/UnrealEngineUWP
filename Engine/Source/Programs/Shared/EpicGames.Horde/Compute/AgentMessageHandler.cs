@@ -9,11 +9,11 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Compute.Buffers;
 using EpicGames.Horde.Storage.Nodes;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
-using EpicGames.Horde.Storage.Bundles;
+using EpicGames.Horde.Storage;
 using System.IO;
 using System.Linq;
+using EpicGames.Horde.Storage.Bundles;
 
 namespace EpicGames.Horde.Compute
 {
@@ -23,7 +23,7 @@ namespace EpicGames.Horde.Compute
 	public class AgentMessageHandler
 	{
 		readonly DirectoryReference _sandboxDir;
-		readonly IMemoryCache _memoryCache;
+		readonly StorageCache _cache;
 		readonly Dictionary<string, string?> _envVars;
 		readonly bool _executeInProcess;
 		readonly string? _wineExecutablePath;
@@ -33,15 +33,15 @@ namespace EpicGames.Horde.Compute
 		/// Constructor
 		/// </summary>
 		/// <param name="sandboxDir">Directory to use for reading/writing files</param>
-		/// <param name="memoryCache">Cache for nodes read from storage</param>
+		/// <param name="cache">Cache for nodes read from storage</param>
 		/// <param name="envVars">Environment variables to set for any child processes</param>
 		/// <param name="executeInProcess">Whether to execute any external assemblies in the current process</param>
 		/// <param name="wineExecutablePath">Path to Wine executable. If null, execution under Wine is disabled</param>
 		/// <param name="logger">Logger for diagnostics</param>
-		public AgentMessageHandler(DirectoryReference sandboxDir, IMemoryCache memoryCache, Dictionary<string, string?>? envVars, bool executeInProcess, string? wineExecutablePath, ILogger logger)
+		public AgentMessageHandler(DirectoryReference sandboxDir, StorageCache cache, Dictionary<string, string?>? envVars, bool executeInProcess, string? wineExecutablePath, ILogger logger)
 		{
 			_sandboxDir = sandboxDir;
-			_memoryCache = memoryCache;
+			_cache = cache;
 			_envVars = envVars ?? new Dictionary<string, string?>();
 			_executeInProcess = executeInProcess;
 			_wineExecutablePath = wineExecutablePath;
@@ -139,7 +139,7 @@ namespace EpicGames.Horde.Compute
 		async Task WriteFilesAsync(AgentMessageChannel channel, string path, BundleNodeLocator locator, CancellationToken cancellationToken)
 		{
 			using AgentStorageClient store = new AgentStorageClient(channel);
-			BundleReader reader = new BundleReader(store, _memoryCache, _logger);
+			BundleReader reader = new BundleReader(store, _cache, _logger);
 
 			DirectoryNode directoryNode = await reader.ReadNodeAsync<DirectoryNode>(locator, cancellationToken);
 

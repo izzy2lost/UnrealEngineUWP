@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 using EpicGames.Core;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Caching.Memory;
+using EpicGames.Horde.Storage.Bundles;
 
 namespace Horde.Agent.Utility
 {
@@ -20,13 +20,13 @@ namespace Horde.Agent.Utility
 	class StorageClientFactory : IStorageClientFactory
 	{
 		readonly IOptions<AgentSettings> _settings;
-		readonly IMemoryCache _memoryCache;
+		readonly StorageCache _memoryCache;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageClientFactory(IOptions<AgentSettings> settings, IMemoryCache memoryCache, ILogger<IStorageClient> logger)
+		public StorageClientFactory(IOptions<AgentSettings> settings, StorageCache memoryCache, ILogger<IStorageClient> logger)
 		{
 			_settings = settings;
 			_memoryCache = memoryCache;

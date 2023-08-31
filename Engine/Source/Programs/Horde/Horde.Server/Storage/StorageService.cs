@@ -75,10 +75,10 @@ namespace Horde.Server.Storage
 		/// </summary>
 		/// <param name="config">Namespace configuration</param>
 		/// <param name="backend">Backend store</param>
-		/// <param name="memoryCache">Memory cache</param>
+		/// <param name="storageCache">Storage cache</param>
 		/// <param name="logger">Logger instance</param>
-		protected StorageClient(NamespaceConfig config, IStorageBackend backend, IMemoryCache? memoryCache, ILogger logger)
-			: base(memoryCache, logger)
+		protected StorageClient(NamespaceConfig config, IStorageBackend backend, StorageCache storageCache, ILogger logger)
+			: base(storageCache, logger)
 		{
 			Config = config;
 			Backend = backend;
@@ -123,8 +123,8 @@ namespace Horde.Server.Storage
 			readonly Tracer _tracer;
 			readonly ILogger _logger;
 
-			public StorageClientImpl(StorageService outer, NamespaceConfig config, IStorageBackend backend, IMemoryCache? memoryCache, Tracer tracer, ILogger logger)
-				: base(config, backend, memoryCache, logger)
+			public StorageClientImpl(StorageService outer, NamespaceConfig config, IStorageBackend backend, StorageCache storageCache, Tracer tracer, ILogger logger)
+				: base(config, backend, storageCache, logger)
 			{
 				_outer = outer;
 				_tracer = tracer;
@@ -433,7 +433,8 @@ namespace Horde.Server.Storage
 
 		readonly RedisService _redisService;
 		readonly IClock _clock;
-		readonly IMemoryCache _cache;
+		readonly StorageCache _storageCache;
+		readonly IMemoryCache _memoryCache;
 		readonly IStorageBackendProvider _storageBackendProvider;
 		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 		readonly Tracer _tracer;
@@ -456,11 +457,12 @@ namespace Horde.Server.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageService(MongoService mongoService, RedisService redisService, IClock clock, IMemoryCache cache, IStorageBackendProvider storageBackendProvider, IOptionsMonitor<GlobalConfig> globalConfig, Tracer tracer, ILogger<StorageService> logger)
+		public StorageService(MongoService mongoService, RedisService redisService, IClock clock, StorageCache storageCache, IMemoryCache memoryCache, IStorageBackendProvider storageBackendProvider, IOptionsMonitor<GlobalConfig> globalConfig, Tracer tracer, ILogger<StorageService> logger)
 		{
 			_redisService = redisService;
 			_clock = clock;
-			_cache = cache;
+			_storageCache = storageCache;
+			_memoryCache = memoryCache;
 			_storageBackendProvider = storageBackendProvider;
 			_cachedState = new AsyncCachedValue<State>(() => Task.FromResult(GetNextState()), TimeSpan.FromMinutes(1.0));
 			_globalConfig = globalConfig;
@@ -586,7 +588,7 @@ namespace Horde.Server.Storage
 					foreach (NamespaceConfig namespaceConfig in storageConfig.Namespaces)
 					{
 						IStorageBackend backend = _storageBackendProvider.CreateBackend(namespaceConfig.BackendConfig);
-						StorageClientImpl client = new StorageClientImpl(this, namespaceConfig, backend, _cache, _tracer, _logger);
+						StorageClientImpl client = new StorageClientImpl(this, namespaceConfig, backend, _storageCache, _tracer, _logger);
 						nextState.Namespaces.Add(namespaceConfig.Id, new NamespaceInfo(namespaceConfig, client, backend));
 					}
 				}
@@ -787,7 +789,7 @@ namespace Horde.Server.Storage
 		RefCacheValue AddRefToCache(NamespaceId namespaceId, RefName name, RefInfo? value)
 		{
 			RefCacheValue cacheValue = new RefCacheValue(value, DateTime.UtcNow);
-			using (ICacheEntry newEntry = _cache.CreateEntry(new RefCacheKey(namespaceId, name)))
+			using (ICacheEntry newEntry = _memoryCache.CreateEntry(new RefCacheKey(namespaceId, name)))
 			{
 				newEntry.Value = cacheValue;
 				newEntry.SetSize(name.Text.Length);
@@ -862,7 +864,7 @@ namespace Horde.Server.Storage
 		async Task<BundleNodeLocator?> TryReadRefTargetAsync(NamespaceId namespaceId, RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
 			RefCacheValue entry;
-			if (!_cache.TryGetValue(name, out entry) || RefCacheTime.IsStaleCacheEntry(entry.Time, cacheTime))
+			if (!_memoryCache.TryGetValue(name, out entry) || RefCacheTime.IsStaleCacheEntry(entry.Time, cacheTime))
 			{
 				RefInfo? refDocument = await _refCollection.Find(x => x.NamespaceId == namespaceId && x.Name == name).FirstOrDefaultAsync(cancellationToken);
 				entry = AddRefToCache(namespaceId, name, refDocument);

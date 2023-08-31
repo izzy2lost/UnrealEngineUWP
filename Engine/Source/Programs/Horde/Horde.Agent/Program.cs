@@ -222,6 +222,7 @@ namespace Horde.Agent
 			services.AddHostedService(sp => sp.GetRequiredService<WorkerService>());
 
 			services.AddSingleton<IStorageClientFactory, StorageClientFactory>();
+			services.AddSingleton<StorageCache>();
 
 			services.AddSingleton<ComputeListenerService>();
 			services.AddHostedService(sp => sp.GetRequiredService<ComputeListenerService>());
@@ -232,7 +233,7 @@ namespace Horde.Agent
 			services.AddSingleton<DefaultServices>(x => new DefaultServices(configuration, services));
 
 			// Execute all the commands
-			IServiceProvider serviceProvider = services.BuildServiceProvider();
+			await using ServiceProvider serviceProvider = services.BuildServiceProvider();
 			return await CommandHost.RunAsync(arguments, serviceProvider, typeof(Horde.Agent.Modes.Service.RunCommand));
 		}
 

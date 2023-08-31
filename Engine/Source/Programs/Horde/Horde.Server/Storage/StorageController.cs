@@ -164,17 +164,17 @@ namespace Horde.Server.Storage
 	public class StorageController : HordeControllerBase
 	{
 		readonly StorageService _storageService;
-		readonly IMemoryCache _memoryCache;
+		readonly StorageCache _storageCache;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageController(StorageService storageService, IMemoryCache memoryCache, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<StorageController> logger)
+		public StorageController(StorageService storageService, StorageCache storageCache, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<StorageController> logger)
 		{
 			_storageService = storageService;
-			_memoryCache = memoryCache;
+			_storageCache = storageCache;
 			_globalConfig = globalConfig;
 			_logger = logger;
 		}
@@ -500,7 +500,7 @@ namespace Horde.Server.Storage
 				return Forbid(StorageAclAction.ReadBlobs, namespaceId);
 			}
 
-			BundleReader reader = new BundleReader(storageClient, _memoryCache, _logger);
+			BundleReader reader = new BundleReader(storageClient, _storageCache, _logger);
 
 			BundleHeader header = await reader.ReadBundleHeaderAsync(locator, cancellationToken);
 
@@ -580,7 +580,7 @@ namespace Horde.Server.Storage
 			}
 
 			StorageClient storageClient = await _storageService.GetClientAsync(namespaceId, cancellationToken);
-			BundleReader reader = new BundleReader(storageClient, _memoryCache, _logger);
+			BundleReader reader = new BundleReader(storageClient, _storageCache, _logger);
 
 			BundleHeader header = await reader.ReadBundleHeaderAsync(locator, cancellationToken);
 			BundleExport export = header.Exports[exportIdx];

@@ -31,7 +31,7 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <param name="rootDir">Root directory for storing blobs</param>
 		/// <param name="cache">Memory cache for read data</param>
 		/// <param name="logger">Logger interface</param>
-		public FileStorageClient(DirectoryReference rootDir, IMemoryCache? cache, ILogger logger)
+		public FileStorageClient(DirectoryReference rootDir, StorageCache cache, ILogger logger)
 			: base(cache, logger)
 		{
 			_rootDir = rootDir;
@@ -58,7 +58,7 @@ namespace EpicGames.Horde.Storage.Backends
 		public override Task<Stream> OpenAsync(BundleLocator id, int offset, int? length, CancellationToken cancellationToken = default)
 		{
 			FileReference file = GetBlobFile(id);
-			_logger.LogInformation("Reading {File}", file);
+			_logger.LogInformation("Reading {File} ({Offset}-{Length})", file, offset, length);
 
 			Stream stream = FileReference.Open(file, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
 			if (offset > 0)

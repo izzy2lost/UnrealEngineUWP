@@ -25,7 +25,7 @@ namespace EpicGames.Horde.Compute
 		/// </summary>
 		/// <param name="channel"></param>
 		public AgentStorageClient(AgentMessageChannel channel)
-			: base(null, NullLogger.Instance)
+			: base(StorageCache.None, NullLogger.Instance)
 		{
 			_channel = channel;
 			_semaphore = new SemaphoreSlim(1);
