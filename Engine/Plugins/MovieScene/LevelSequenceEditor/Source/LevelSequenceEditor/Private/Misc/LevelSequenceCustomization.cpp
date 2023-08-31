@@ -10,7 +10,7 @@
 #include "ISequencer.h"
 #include "ISequencerModule.h"
 #include "LevelSequenceEditorCommands.h"
-#include "Misc/LevelSequenceFBXInterop.h"
+#include "LevelSequenceFBXInterop.h"
 #include "Modules/ModuleManager.h"
 #include "MovieScene.h"
 #include "MVVM/Extensions/IObjectBindingExtension.h"

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Misc/LevelSequenceFBXInterop.h"
+#include "LevelSequenceFBXInterop.h"
 
 #include "DesktopPlatformModule.h"
 #include "EditorDirectories.h"

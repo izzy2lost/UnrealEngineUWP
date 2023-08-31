@@ -4,7 +4,7 @@
 
 #include "ISequencer.h"
 
-class FLevelSequenceFBXInterop
+class MOVIESCENETOOLS_API FLevelSequenceFBXInterop
 {
 public:
 
