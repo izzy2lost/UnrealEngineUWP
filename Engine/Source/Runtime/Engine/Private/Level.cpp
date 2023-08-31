@@ -428,6 +428,14 @@ void ULevel::CleanupLevel(bool bCleanupResources, bool bUnloadFromEditor)
 {
 	OnCleanupLevel.Broadcast();
 
+	if (bCleanupResources)
+	{
+		if (UWorldPartition* WorldPartition = GetWorldPartition(); WorldPartition && WorldPartition->IsInitialized())
+		{
+			WorldPartition->Uninitialize();
+		}
+	}
+
 	const bool bTrashPackage = !ULevelStreaming::ShouldReuseUnloadedButStillAroundLevels(this);
 	TSet<UPackage*> ProcessedPackages;
 	auto ProcessPackage = [&ProcessedPackages, bTrashPackage](UPackage* InPackage, bool bInClearStandaloneFlag = false)
@@ -472,14 +480,6 @@ void ULevel::CleanupLevel(bool bCleanupResources, bool bUnloadFromEditor)
 		}, false);
 	}
 #endif
-
-	if (bCleanupResources)
-	{
-		if (UWorldPartition* WorldPartition = GetWorldPartition(); WorldPartition && WorldPartition->IsInitialized())
-		{
-			WorldPartition->Uninitialize();
-		}
-	}
 }
 
 void ULevel::CleanupReferences()
