@@ -35,6 +35,9 @@ public:
 	ENGINE_API void SetParentClusterUnion(UClusterUnionComponent* InComponent);
 
 	UFUNCTION()
+	ENGINE_API UPrimitiveComponent* GetChildClusteredComponent() const { return ChildClusteredComponent.Get(); }
+
+	UFUNCTION()
 	ENGINE_API void SetChildClusteredComponent(UPrimitiveComponent* InComponent);
 
 	UFUNCTION()
