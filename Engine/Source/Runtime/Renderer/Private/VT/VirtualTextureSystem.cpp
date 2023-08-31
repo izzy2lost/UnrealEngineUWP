@@ -2630,8 +2630,6 @@ void FVirtualTextureSystem::BeginUpdate(FRDGBuilder& GraphBuilder, FVirtualTextu
 
 		const bool bContinousUpdates = false;
 
-		UE::TScopeLock Lock(Mutex);
-
 		Updater->MergedRequestList = Allocator.Create<FUniqueRequestList>(Allocator);
 		Updater->MergedRequestList->Initialize();
 
@@ -2658,8 +2656,6 @@ TUniquePtr<FVirtualTextureUpdater> FVirtualTextureSystem::BeginUpdate(FRDGBuilde
 {
 	check(IsInRenderingThread());
 	check(!bUpdating);
-
-	UE::TScopeLock Lock(Mutex);
 
 	checkf(Producers.HasPendingCallbacks() == false, TEXT("FVirtualTextureSystem::CallPendingCallbacks(), called in UpdateAllPrimitiveSceneInfos(), must run before FVirtualTextureSystem::BeginUpdate()"));
 
@@ -2786,8 +2782,6 @@ void FVirtualTextureSystem::EndUpdate(FRDGBuilder& GraphBuilder, TUniquePtr<FVir
 		BeginUpdate(GraphBuilder, Updater.Get());
 	}
 	bUpdating = false;
-
-	UE::TScopeLock Lock(Mutex);
 
 	if (Updater->FeedbackMapResult.Data)
 	{
