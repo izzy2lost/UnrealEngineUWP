@@ -2,6 +2,8 @@
 
 #include "TypedElementSCCProcessors.h"
 
+#include "HAL/IConsoleManager.h"
+
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementRevisionControlColumns.h"
 #include "Elements/Columns/TypedElementSelectionColumns.h"
