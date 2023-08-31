@@ -3260,7 +3260,7 @@ void UMaterial::ConvertMaterialToStrataMaterial()
 
 	bool bInvalidateShader = false;
 	bool bRelinkCustomOutputNodes = false;
-	UMaterialExpressionStrataLegacyConversion* ConvertNode = nullptr;
+	UMaterialExpressionSubstrateShadingModels* ConvertNode = nullptr;
 	// Connect all the legacy pin into the conversion node
 	if (bUseMaterialAttributes && EditorOnly->MaterialAttributes.Expression && !EditorOnly->MaterialAttributes.Expression->IsResultStrataMaterial(EditorOnly->MaterialAttributes.OutputIndex)) // M_Rifle cause issues there
 	{
@@ -3312,7 +3312,7 @@ void UMaterial::ConvertMaterialToStrataMaterial()
 			}
 		}
 
-		ConvertNode = NewObject<UMaterialExpressionStrataLegacyConversion>(this);
+		ConvertNode = NewObject<UMaterialExpressionSubstrateShadingModels>(this);
 		SetPosXAndMoveReferenceToTheRight(ConvertNode);
 		ConvertNode->BaseColor.Connect(0, BreakMatAtt);
 		ConvertNode->Metallic.Connect(1, BreakMatAtt);
@@ -3363,7 +3363,7 @@ void UMaterial::ConvertMaterialToStrataMaterial()
 			// control on this, but only DefaultLit should be supported.
 
 			// Now pass through the convert to decal node, which flag the material as SSM_Decal, which will set the domain to Decal.
-			UMaterialExpressionStrataConvertToDecal* ConvertToDecalNode = NewObject<UMaterialExpressionStrataConvertToDecal>(this);
+			UMaterialExpressionSubstrateConvertToDecal* ConvertToDecalNode = NewObject<UMaterialExpressionSubstrateConvertToDecal>(this);
 			ReplaceNodeAndMoveToTheRight(ConvertNode, ConvertToDecalNode);
 			ConvertToDecalNode->DecalMaterial.Connect(0, ConvertNode);
 
@@ -3401,7 +3401,7 @@ void UMaterial::ConvertMaterialToStrataMaterial()
 		else
 		{
 			// Or if it cannot be found, a slab node
-			UMaterialExpressionStrataSlabBSDF* SlabNode = NewObject<UMaterialExpressionStrataSlabBSDF>(this);
+			UMaterialExpressionSubstrateSlabBSDF* SlabNode = NewObject<UMaterialExpressionSubstrateSlabBSDF>(this);
 			SetPosXAndMoveReferenceToTheRight(SlabNode);
 			EditorOnly->FrontMaterial.Connect(0, SlabNode);
 		}
@@ -3421,14 +3421,14 @@ void UMaterial::ConvertMaterialToStrataMaterial()
 					// For this special case, using two slabs to create a clear coat material with separated top and bottom normal. 
 
 					// Create metalness to Slab parameterisation conveersion node
-					UMaterialExpressionStrataMetalnessToDiffuseAlbedoF0* StrataMetalnessToDiffuseAlbedoF0 = NewObject<UMaterialExpressionStrataMetalnessToDiffuseAlbedoF0>(this);
+					UMaterialExpressionSubstrateMetalnessToDiffuseAlbedoF0* StrataMetalnessToDiffuseAlbedoF0 = NewObject<UMaterialExpressionSubstrateMetalnessToDiffuseAlbedoF0>(this);
 					SetPosXAndMoveReferenceToTheRight(StrataMetalnessToDiffuseAlbedoF0);
 					MoveConnectionTo(EditorOnly->BaseColor, StrataMetalnessToDiffuseAlbedoF0, 0);					// BaseColor
 					MoveConnectionTo(EditorOnly->Metallic, StrataMetalnessToDiffuseAlbedoF0, 1);					// Metallic
 					MoveConnectionTo(EditorOnly->Specular, StrataMetalnessToDiffuseAlbedoF0, 2);					// Specular
 					
 					// Top slab BSDF as a simple Disney material
-					UMaterialExpressionStrataSlabBSDF* BottomSlabBSDF = NewObject<UMaterialExpressionStrataSlabBSDF>(this);
+					UMaterialExpressionSubstrateSlabBSDF* BottomSlabBSDF = NewObject<UMaterialExpressionSubstrateSlabBSDF>(this);
 					SetPosXAndMoveReferenceToTheRight(BottomSlabBSDF);
 					BottomSlabBSDF->GetInput(0)->Connect(0, StrataMetalnessToDiffuseAlbedoF0);
 					BottomSlabBSDF->GetInput(1)->Connect(1, StrataMetalnessToDiffuseAlbedoF0);
@@ -3441,7 +3441,7 @@ void UMaterial::ConvertMaterialToStrataMaterial()
 					CopyConnectionTo(*ClearCoatBottomNormalOutput->GetInput(0), BottomSlabBSDF, 5);// ClearColorBottomNormal -> BottomSlabBSDF.Normal
 
 					// Now weight the top base material by opacity.
-					UMaterialExpressionStrataSlabBSDF* TopSlabBSDF = NewObject<UMaterialExpressionStrataSlabBSDF>(this);
+					UMaterialExpressionSubstrateSlabBSDF* TopSlabBSDF = NewObject<UMaterialExpressionSubstrateSlabBSDF>(this);
 					TopSlabBSDF->MaterialExpressionEditorX = BottomSlabBSDF->MaterialExpressionEditorX;
 					TopSlabBSDF->MaterialExpressionEditorY = BottomSlabBSDF->MaterialExpressionEditorY + 650;
 					MoveConnectionTo(EditorOnly->EmissiveColor, TopSlabBSDF, 10);				// Emissive
@@ -3466,19 +3466,19 @@ void UMaterial::ConvertMaterialToStrataMaterial()
 					UMaterialExpressionConstant* Constant075 = NewObject<UMaterialExpressionConstant>(this);
 					ReplaceNodeAndMoveToTheRight(TopSlabBSDF, Constant075);
 					Constant075->R = 0.75f;
-					UMaterialExpressionStrataTransmittanceToMFP* TransToMDFP = NewObject<UMaterialExpressionStrataTransmittanceToMFP>(this);
+					UMaterialExpressionSubstrateTransmittanceToMFP* TransToMDFP = NewObject<UMaterialExpressionSubstrateTransmittanceToMFP>(this);
 					ReplaceNodeAndMoveToTheRight(TopSlabBSDF, TransToMDFP);
 					TransToMDFP->GetInput(0)->Connect(0, Constant075);
 					TopSlabBSDF->GetInput(7)->Connect(0, TransToMDFP);							// MFP -> MFP
 					TopSlabBSDF->GetInput(13)->Connect(1, TransToMDFP);							// Thickness -> Thickness
 
 					// Now weight the top base material by ClearCoat
-					UMaterialExpressionStrataWeight* TopSlabBSDFWithCoverage = NewObject<UMaterialExpressionStrataWeight>(this);
+					UMaterialExpressionSubstrateWeight* TopSlabBSDFWithCoverage = NewObject<UMaterialExpressionSubstrateWeight>(this);
 					SetPosXAndMoveReferenceToTheRight(TopSlabBSDFWithCoverage);
 					TopSlabBSDFWithCoverage->GetInput(0)->Connect(0, TopSlabBSDF);				// TopSlabBSDF -> A
 					MoveConnectionTo(EditorOnly->ClearCoat, TopSlabBSDFWithCoverage, 1);		// ClearCoat -> Weight
 
-					UMaterialExpressionStrataVerticalLayering* VerticalLayering = NewObject<UMaterialExpressionStrataVerticalLayering>(this);
+					UMaterialExpressionSubstrateVerticalLayering* VerticalLayering = NewObject<UMaterialExpressionSubstrateVerticalLayering>(this);
 					SetPosXAndMoveReferenceToTheRight(VerticalLayering);
 					VerticalLayering->GetInput(0)->Connect(0, TopSlabBSDFWithCoverage);			// Top -> Top
 					VerticalLayering->GetInput(1)->Connect(0, BottomSlabBSDF);					// Bottom -> Base
@@ -3491,7 +3491,7 @@ void UMaterial::ConvertMaterialToStrataMaterial()
 			
 			if (!bClearCoatConversionDone)
 			{
-				ConvertNode = NewObject<UMaterialExpressionStrataLegacyConversion>(this);
+				ConvertNode = NewObject<UMaterialExpressionSubstrateShadingModels>(this);
 				SetPosXAndMoveReferenceToTheRight(ConvertNode);
 				ConvertNode->SubsurfaceProfile = bRequireNoSubsurfaceProfile ? nullptr : SubsurfaceProfile;
 				MoveConnectionTo(EditorOnly->BaseColor, ConvertNode, 0);
@@ -3546,7 +3546,7 @@ void UMaterial::ConvertMaterialToStrataMaterial()
 		}
 		else if (MaterialDomain == MD_Volume)
 		{
-			UMaterialExpressionStrataVolumetricFogCloudBSDF* VolBSDF = NewObject<UMaterialExpressionStrataVolumetricFogCloudBSDF>(this);
+			UMaterialExpressionSubstrateVolumetricFogCloudBSDF* VolBSDF = NewObject<UMaterialExpressionSubstrateVolumetricFogCloudBSDF>(this);
 			SetPosXAndMoveReferenceToTheRight(VolBSDF);
 			MoveConnectionTo(EditorOnly->BaseColor, VolBSDF, 0);		// Albedo
 			MoveConnectionTo(EditorOnly->SubsurfaceColor, VolBSDF, 1);	// Extinction
@@ -3565,7 +3565,7 @@ void UMaterial::ConvertMaterialToStrataMaterial()
 			ShadingModels.AddShadingModel(MSM_Unlit);
 
 			// Only Emissive & Opacity are valid input for PostProcess material
-			UMaterialExpressionStrataLightFunction* LightFunctionNode = NewObject<UMaterialExpressionStrataLightFunction>(this);
+			UMaterialExpressionSubstrateLightFunction* LightFunctionNode = NewObject<UMaterialExpressionSubstrateLightFunction>(this);
 			SetPosXAndMoveReferenceToTheRight(LightFunctionNode);
 			MoveConnectionTo(EditorOnly->EmissiveColor, LightFunctionNode, 0);
 
@@ -3584,7 +3584,7 @@ void UMaterial::ConvertMaterialToStrataMaterial()
 				BlendMode = BLEND_Opaque;
 			}
 
-			UMaterialExpressionStrataPostProcess* PostProcNode = NewObject<UMaterialExpressionStrataPostProcess>(this);
+			UMaterialExpressionSubstratePostProcess* PostProcNode = NewObject<UMaterialExpressionSubstratePostProcess>(this);
 			SetPosXAndMoveReferenceToTheRight(PostProcNode);
 
 			MoveConnectionTo(EditorOnly->EmissiveColor, PostProcNode, 0);
@@ -3600,7 +3600,7 @@ void UMaterial::ConvertMaterialToStrataMaterial()
 			ShadingModels.ClearShadingModels();
 			ShadingModels.AddShadingModel(MSM_DefaultLit);
 
-			ConvertNode = NewObject<UMaterialExpressionStrataLegacyConversion>(this);
+			ConvertNode = NewObject<UMaterialExpressionSubstrateShadingModels>(this);
 			SetPosXAndMoveReferenceToTheRight(ConvertNode);
 			MoveConnectionTo(EditorOnly->BaseColor, ConvertNode, 0);
 			MoveConnectionTo(EditorOnly->Metallic, ConvertNode, 1);
@@ -3620,7 +3620,7 @@ void UMaterial::ConvertMaterialToStrataMaterial()
 			check(ShadingModels.CountShadingModels() == 1);
 
 			// Now pass through the convert to decal node, which flag the material as SSM_Decal, which will set the domain to Decal.
-			UMaterialExpressionStrataConvertToDecal* ConvertToDecalNode= NewObject<UMaterialExpressionStrataConvertToDecal>(this);
+			UMaterialExpressionSubstrateConvertToDecal* ConvertToDecalNode= NewObject<UMaterialExpressionSubstrateConvertToDecal>(this);
 			ReplaceNodeAndMoveToTheRight(ConvertNode, ConvertToDecalNode);
 			ConvertToDecalNode->DecalMaterial.Connect(0, ConvertNode);
 
@@ -3634,7 +3634,7 @@ void UMaterial::ConvertMaterialToStrataMaterial()
 			ShadingModels.ClearShadingModels();
 			ShadingModels.AddShadingModel(MSM_Unlit);
 
-			UMaterialExpressionStrataUI* UINode = NewObject<UMaterialExpressionStrataUI>(this);
+			UMaterialExpressionSubstrateUI* UINode = NewObject<UMaterialExpressionSubstrateUI>(this);
 			SetPosXAndMoveReferenceToTheRight(UINode);
 			MoveConnectionTo(EditorOnly->EmissiveColor, UINode, 0);
 			CopyConnectionTo(EditorOnly->Opacity, UINode, 1);	// We only copy, to keep Opacity on the root node in case BLEND_AlphaComposite is selected.

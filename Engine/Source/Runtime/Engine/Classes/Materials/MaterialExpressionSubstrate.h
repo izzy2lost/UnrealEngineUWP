@@ -24,9 +24,9 @@ extern int32 CompileStrataBlendFunction(FMaterialCompiler* Compiler, const int32
 ///////////////////////////////////////////////////////////////////////////////
 // BSDF nodes
 
-// UMaterialExpressionStrataBSDF can only be used for Substrate nodes ouputing StrataData that would need a preview,
+// UMaterialExpressionSubstrateBSDF can only be used for Substrate nodes ouputing StrataData that would need a preview,
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, Abstract, DisplayName = "Substrate Expression")
-class UMaterialExpressionStrataBSDF : public UMaterialExpression
+class UMaterialExpressionSubstrateBSDF : public UMaterialExpression
 {
 	GENERATED_UCLASS_BODY()
 
@@ -42,7 +42,7 @@ class UMaterialExpressionStrataBSDF : public UMaterialExpression
 
 
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate Shading Models")
-class UMaterialExpressionStrataLegacyConversion : public UMaterialExpressionStrataBSDF
+class UMaterialExpressionSubstrateShadingModels : public UMaterialExpressionSubstrateBSDF
 {
 	GENERATED_UCLASS_BODY()
 
@@ -194,7 +194,7 @@ class UMaterialExpressionStrataLegacyConversion : public UMaterialExpressionStra
 };
 
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate Slab")
-class UMaterialExpressionStrataSlabBSDF : public UMaterialExpressionStrataBSDF
+class UMaterialExpressionSubstrateSlabBSDF : public UMaterialExpressionSubstrateBSDF
 {
 	GENERATED_UCLASS_BODY()
 
@@ -355,7 +355,7 @@ class UMaterialExpressionStrataSlabBSDF : public UMaterialExpressionStrataBSDF
 };
 
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate Simple Clear Coat")
-class UMaterialExpressionStrataSimpleClearCoatBSDF : public UMaterialExpressionStrataBSDF
+class UMaterialExpressionSubstrateSimpleClearCoatBSDF : public UMaterialExpressionSubstrateBSDF
 {
 	GENERATED_UCLASS_BODY()
 
@@ -416,7 +416,7 @@ class UMaterialExpressionStrataSimpleClearCoatBSDF : public UMaterialExpressionS
 };
 
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate Volumetric-Fog-Cloud BSDF")
-class UMaterialExpressionStrataVolumetricFogCloudBSDF : public UMaterialExpressionStrataBSDF
+class UMaterialExpressionSubstrateVolumetricFogCloudBSDF : public UMaterialExpressionSubstrateBSDF
 {
 	GENERATED_UCLASS_BODY()
 
@@ -458,7 +458,7 @@ class UMaterialExpressionStrataVolumetricFogCloudBSDF : public UMaterialExpressi
 };
 
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate Unlit BSDF")
-class UMaterialExpressionStrataUnlitBSDF : public UMaterialExpressionStrataBSDF
+class UMaterialExpressionSubstrateUnlitBSDF : public UMaterialExpressionSubstrateBSDF
 {
 	GENERATED_UCLASS_BODY()
 
@@ -494,7 +494,7 @@ class UMaterialExpressionStrataUnlitBSDF : public UMaterialExpressionStrataBSDF
 };
 
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate Hair BSDF")
-class UMaterialExpressionStrataHairBSDF : public UMaterialExpressionStrataBSDF
+class UMaterialExpressionSubstrateHairBSDF : public UMaterialExpressionSubstrateBSDF
 {
 	GENERATED_UCLASS_BODY()
 		
@@ -554,7 +554,7 @@ class UMaterialExpressionStrataHairBSDF : public UMaterialExpressionStrataBSDF
 };
 
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate Eye BSDF")
-class UMaterialExpressionStrataEyeBSDF : public UMaterialExpressionStrataBSDF
+class UMaterialExpressionSubstrateEyeBSDF : public UMaterialExpressionSubstrateBSDF
 {
 	GENERATED_UCLASS_BODY()
 		
@@ -624,7 +624,7 @@ class UMaterialExpressionStrataEyeBSDF : public UMaterialExpressionStrataBSDF
 };
 
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate Single Layer Water BSDF")
-class UMaterialExpressionStrataSingleLayerWaterBSDF : public UMaterialExpressionStrataBSDF
+class UMaterialExpressionSubstrateSingleLayerWaterBSDF : public UMaterialExpressionSubstrateBSDF
 {
 	GENERATED_UCLASS_BODY()
 
@@ -708,7 +708,7 @@ class UMaterialExpressionStrataSingleLayerWaterBSDF : public UMaterialExpression
 };
 
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate Light Function")
-class UMaterialExpressionStrataLightFunction : public UMaterialExpressionStrataBSDF
+class UMaterialExpressionSubstrateLightFunction : public UMaterialExpressionSubstrateBSDF
 {
 	GENERATED_UCLASS_BODY()
 
@@ -732,7 +732,7 @@ class UMaterialExpressionStrataLightFunction : public UMaterialExpressionStrataB
 };
 
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate Post Process")
-class UMaterialExpressionStrataPostProcess : public UMaterialExpressionStrataBSDF
+class UMaterialExpressionSubstratePostProcess : public UMaterialExpressionSubstrateBSDF
 {
 	GENERATED_UCLASS_BODY()
 
@@ -762,7 +762,7 @@ class UMaterialExpressionStrataPostProcess : public UMaterialExpressionStrataBSD
 };
 
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate UI")
-class UMaterialExpressionStrataUI : public UMaterialExpressionStrataBSDF
+class UMaterialExpressionSubstrateUI : public UMaterialExpressionSubstrateBSDF
 {
 	GENERATED_UCLASS_BODY()
 
@@ -792,7 +792,7 @@ class UMaterialExpressionStrataUI : public UMaterialExpressionStrataBSDF
 };
 
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate Convert To Decal")
-class UMaterialExpressionStrataConvertToDecal : public UMaterialExpressionStrataBSDF
+class UMaterialExpressionSubstrateConvertToDecal : public UMaterialExpressionSubstrateBSDF
 {
 	GENERATED_UCLASS_BODY()
 
@@ -827,7 +827,7 @@ class UMaterialExpressionStrataConvertToDecal : public UMaterialExpressionStrata
 // Operator nodes
 
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate Horizontal Blend")
-class UMaterialExpressionStrataHorizontalMixing : public UMaterialExpressionStrataBSDF
+class UMaterialExpressionSubstrateHorizontalMixing : public UMaterialExpressionSubstrateBSDF
 {
 	GENERATED_UCLASS_BODY()
 		
@@ -869,7 +869,7 @@ class UMaterialExpressionStrataHorizontalMixing : public UMaterialExpressionStra
 };
 
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate Vertical Layer")
-class UMaterialExpressionStrataVerticalLayering : public UMaterialExpressionStrataBSDF
+class UMaterialExpressionSubstrateVerticalLayering : public UMaterialExpressionSubstrateBSDF
 {
 	GENERATED_UCLASS_BODY()
 
@@ -912,7 +912,7 @@ class UMaterialExpressionStrataVerticalLayering : public UMaterialExpressionStra
 };
 
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate Add")
-class UMaterialExpressionStrataAdd : public UMaterialExpressionStrataBSDF
+class UMaterialExpressionSubstrateAdd : public UMaterialExpressionSubstrateBSDF
 {
 	GENERATED_UCLASS_BODY()
 
@@ -948,7 +948,7 @@ class UMaterialExpressionStrataAdd : public UMaterialExpressionStrataBSDF
 };
 
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate Coverage Weight")
-class UMaterialExpressionStrataWeight : public UMaterialExpressionStrataBSDF
+class UMaterialExpressionSubstrateWeight : public UMaterialExpressionSubstrateBSDF
 {
 	GENERATED_UCLASS_BODY()
 
@@ -982,13 +982,13 @@ class UMaterialExpressionStrataWeight : public UMaterialExpressionStrataBSDF
 // Utilities
 
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, Abstract, DisplayName = "Substrate Utility Base Class")
-class UMaterialExpressionStrataUtilityBase : public UMaterialExpression
+class UMaterialExpressionSubstrateUtilityBase : public UMaterialExpression
 {
 	GENERATED_UCLASS_BODY()
 };
 
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate Transmittance-To-MeanFreePath")
-class UMaterialExpressionStrataTransmittanceToMFP : public UMaterialExpressionStrataUtilityBase
+class UMaterialExpressionSubstrateTransmittanceToMFP : public UMaterialExpressionSubstrateUtilityBase
 {
 	GENERATED_UCLASS_BODY()
 
@@ -1018,7 +1018,7 @@ class UMaterialExpressionStrataTransmittanceToMFP : public UMaterialExpressionSt
 };
 
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate Metalness-To-DiffuseColorF0")
-class UMaterialExpressionStrataMetalnessToDiffuseAlbedoF0 : public UMaterialExpressionStrataUtilityBase
+class UMaterialExpressionSubstrateMetalnessToDiffuseAlbedoF0 : public UMaterialExpressionSubstrateUtilityBase
 {
 	GENERATED_UCLASS_BODY()
 
@@ -1053,7 +1053,7 @@ class UMaterialExpressionStrataMetalnessToDiffuseAlbedoF0 : public UMaterialExpr
 };
 
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate Haziness-To-Secondary-Roughness")
-class UMaterialExpressionStrataHazinessToSecondaryRoughness : public UMaterialExpressionStrataUtilityBase
+class UMaterialExpressionSubstrateHazinessToSecondaryRoughness : public UMaterialExpressionSubstrateUtilityBase
 {
 	GENERATED_UCLASS_BODY()
 
@@ -1082,7 +1082,7 @@ class UMaterialExpressionStrataHazinessToSecondaryRoughness : public UMaterialEx
 };
 
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate Thin-Film")
-class UMaterialExpressionStrataThinFilm : public UMaterialExpressionStrataUtilityBase
+class UMaterialExpressionSubstrateThinFilm : public UMaterialExpressionSubstrateUtilityBase
 {
 	GENERATED_UCLASS_BODY()
 

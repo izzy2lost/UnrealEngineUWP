@@ -227,7 +227,7 @@ void FSubstrateWidget::GetPinColor(TSharedPtr<SGraphPin>& Out, const UMaterialGr
 	// Strata operator override pin color to ease material topology visualization
 	const UEdGraphPin* Pin = Out->SGraphPin::GetPinObj();
 	const FName PinName = Pin->PinName;
-	if (InNode->MaterialExpression->IsA(UMaterialExpressionStrataVerticalLayering::StaticClass()))
+	if (InNode->MaterialExpression->IsA(UMaterialExpressionSubstrateVerticalLayering::StaticClass()))
 	{			
 		if (PinName == InNode->MaterialExpression->GetInputName(0)) // Top
 		{
@@ -240,7 +240,7 @@ void FSubstrateWidget::GetPinColor(TSharedPtr<SGraphPin>& Out, const UMaterialGr
 			ColorModifier = Color1;
 		}
 	}
-	else if (InNode->MaterialExpression->IsA(UMaterialExpressionStrataHorizontalMixing::StaticClass()))
+	else if (InNode->MaterialExpression->IsA(UMaterialExpressionSubstrateHorizontalMixing::StaticClass()))
 	{
 		if (PinName == InNode->MaterialExpression->GetInputName(1)) // Foreground
 		{
@@ -253,7 +253,7 @@ void FSubstrateWidget::GetPinColor(TSharedPtr<SGraphPin>& Out, const UMaterialGr
 			ColorModifier = Color0;
 		}
 	}
-	else if (InNode->MaterialExpression->IsA(UMaterialExpressionStrataAdd::StaticClass()))
+	else if (InNode->MaterialExpression->IsA(UMaterialExpressionSubstrateAdd::StaticClass()))
 	{
 		if (PinName == InNode->MaterialExpression->GetInputName(0)) // A
 		{
@@ -267,7 +267,7 @@ void FSubstrateWidget::GetPinColor(TSharedPtr<SGraphPin>& Out, const UMaterialGr
 		}
 	}
 
-	if (InNode->MaterialExpression->IsA(UMaterialExpressionStrataBSDF::StaticClass()) && Out->GetDirection() == EGPD_Output)
+	if (InNode->MaterialExpression->IsA(UMaterialExpressionSubstrateBSDF::StaticClass()) && Out->GetDirection() == EGPD_Output)
 	{
 		bHasColorModifier = true;
 		ColorModifier = FSubstrateWidget::GetConnectionColor();

@@ -4835,18 +4835,18 @@ void FMaterialEditor::OnCreateStrataNodeForPin(const FToolMenuContext& InMenuCon
 	const bool bTargetPinIsInput = TargetPin->Direction == EEdGraphPinDirection::EGPD_Input;
 
 	FMaterialGraphSchemaAction_NewNode Action;
-	Action.MaterialExpressionClass = UMaterialExpressionStrataSlabBSDF::StaticClass();
+	Action.MaterialExpressionClass = UMaterialExpressionSubstrateSlabBSDF::StaticClass();
 	if (NodeForPin == EStrataNodeForPin::HorizontalMix)
 	{
-		Action.MaterialExpressionClass = UMaterialExpressionStrataHorizontalMixing::StaticClass();
+		Action.MaterialExpressionClass = UMaterialExpressionSubstrateHorizontalMixing::StaticClass();
 	}
 	else if (NodeForPin == EStrataNodeForPin::VerticalLayer)
 	{
-		Action.MaterialExpressionClass = UMaterialExpressionStrataVerticalLayering::StaticClass();
+		Action.MaterialExpressionClass = UMaterialExpressionSubstrateVerticalLayering::StaticClass();
 	}
 	else if (NodeForPin == EStrataNodeForPin::Weight)
 	{
-		Action.MaterialExpressionClass = UMaterialExpressionStrataWeight::StaticClass();
+		Action.MaterialExpressionClass = UMaterialExpressionSubstrateWeight::StaticClass();
 	}
 
 	check(PinNode);
@@ -6097,7 +6097,7 @@ void FMaterialEditor::UpdateStrataTopologyPreview()
 		for (int32 Index = 0; Index < Material->MaterialGraph->Nodes.Num(); ++Index)
 		{
 			UMaterialGraphNode* MaterialNode = Cast<UMaterialGraphNode>(Material->MaterialGraph->Nodes[Index]);
-			if (MaterialNode && MaterialNode->MaterialExpression && MaterialNode->MaterialExpression->IsA(UMaterialExpressionStrataBSDF::StaticClass()))
+			if (MaterialNode && MaterialNode->MaterialExpression && MaterialNode->MaterialExpression->IsA(UMaterialExpressionSubstrateBSDF::StaticClass()))
 			{
 				UEdGraph* Graph = MaterialNode->GetGraph();
 				if (Graph)

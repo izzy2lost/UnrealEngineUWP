@@ -483,9 +483,9 @@ void SGraphNodeMaterialBase::CreateBelowPinControls(TSharedPtr<SVerticalBox> Mai
 	}
 
 	// Preview of Substrate nodes topology
-	if (Strata::IsStrataEnabled() && MaterialNode && MaterialNode->MaterialExpression->IsA(UMaterialExpressionStrataBSDF::StaticClass()))
+	if (Strata::IsStrataEnabled() && MaterialNode && MaterialNode->MaterialExpression->IsA(UMaterialExpressionSubstrateBSDF::StaticClass()))
 	{
-		if (const UMaterialExpressionStrataBSDF* StrataExpression = (const UMaterialExpressionStrataBSDF*)MaterialNode->MaterialExpression)
+		if (const UMaterialExpressionSubstrateBSDF* StrataExpression = (const UMaterialExpressionSubstrateBSDF*)MaterialNode->MaterialExpression)
 		{		
 			if (UMaterial* MaterialForStats = StrataExpression->Material)
 			{
