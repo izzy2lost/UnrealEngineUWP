@@ -311,7 +311,6 @@ namespace EpicGames.Core
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="chunkSize"></param>
 		protected ChunkedMemoryWriterBase(Chunk initialChunk, int chunkSize)
 		{
 			_currentChunk = initialChunk;
