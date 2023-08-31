@@ -40,8 +40,17 @@ public:
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 
+	virtual void PostPlacedNewNode() override;
+	virtual void PostPasteNode() override;
+	virtual void DestroyNode() override;
+
 	void ToggleBodyVisibility();
 	void ToggleConstraintVisibility();
+	void ToggleControlEditorTab();
+
+	TArray<TPair<FName, TArray<FName>>> GenerateControlsAndBodyModifierNames() const;
+
+	USkeleton* GetSkeleton() const;
 
 protected:
 	// UAnimGraphNode_SkeletalControlBase interface
@@ -51,6 +60,9 @@ protected:
 
 	bool AreAnyBodiesHidden() const;
 	bool AreAnyConstraintsHidden() const;
+	bool IsControlEditorTabOpen() const;
+
+	void PostChange();
 
 private:
 	TWeakObjectPtr<UPoseWatchElement> PoseWatchElementBodies;

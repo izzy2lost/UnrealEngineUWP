@@ -111,7 +111,7 @@ void FRigidBodyNameRecords::Reset()
 }
 
 //======================================================================================================================
-TArray<FName> ExpandSetName(const FName InName, const TMap<FName, TArray<FName>>& SetNames)
+TArray<FName> ExpandName(const FName InName, const TMap<FName, TArray<FName>>& SetNames)
 {
 	TArray<FName> OutputNames;
 	if (const TArray<FName>* const FoundSet = SetNames.Find(InName))
@@ -120,19 +120,19 @@ TArray<FName> ExpandSetName(const FName InName, const TMap<FName, TArray<FName>>
 	}
 	else
 	{
-		OutputNames.AddUnique(InName);
+		OutputNames.Add(InName);
 	}
 	return OutputNames;
 }
 
 //======================================================================================================================
-TArray<FName> ExpandSetNames(const TArray<FName>& InNames, const TMap<FName, TArray<FName>>& SetNames)
+TArray<FName> ExpandName(const TArray<FName>& InNames, const TMap<FName, TArray<FName>>& SetNames)
 {
 	TArray<FName> OutputNames;
 
 	for (const FName Name : InNames)
 	{
-		OutputNames.Append(ExpandSetName(Name, SetNames));
+		OutputNames.Append(ExpandName(Name, SetNames));
 	}
 
 	return OutputNames;

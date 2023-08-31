@@ -16,7 +16,9 @@
 #include "AnimNode_RigidBodyWithControl.h"
 #include "EditorModeManager.h"
 #include "IPhysicsAssetRenderInterface.h"
-// #include "IAnimNodeEditMode.h" <- removed as it can't be found during build and doesn't appear to be necessary
+#include "OperatorEditor/IPhysicsControlOperatorEditorInterface.h"
+#include "Kismet2/BlueprintEditorUtils.h"
+#include "PhysicsControlOperatorNameGeneration.h"
 
 // Details includes
 #include "PropertyHandle.h"
@@ -25,9 +27,9 @@
 #include "DetailCategoryBuilder.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Text/STextBlock.h"
-
-
 #include "SceneManagement.h"
+
+// UE_DISABLE_OPTIMIZATION;
 
 /////////////////////////////////////////////////////
 // UAnimGraphNode_RigidBodyWithControl
@@ -147,43 +149,76 @@ void UAnimGraphNode_RigidBodyWithControl::CustomizeDetails(IDetailLayoutBuilder&
 	Super::CustomizeDetails(DetailBuilder);
 
 	IDetailCategoryBuilder& ViewportCategory = DetailBuilder.EditCategory(TEXT("Debug Visualization"));
-	FDetailWidgetRow& WidgetRow = ViewportCategory.AddCustomRow(LOCTEXT("ToggleDebugVisualizationButtonRow", "DebugVisualization"));
+	
 	FAnimNode_RigidBodyWithControl* const RigidBodyNode = static_cast<FAnimNode_RigidBodyWithControl*>(GetDebuggedAnimNode());
+	
+	{
+		FDetailWidgetRow& ControlsEditorWidgetRow = ViewportCategory.AddCustomRow(LOCTEXT("ToggleControlsEditorWidgetRowButtonRow", "ControlsEditor"));
 
-	WidgetRow
-		[
-			SNew(SHorizontalBox)
-			// Show/Hide Bodies button.
-			+ SHorizontalBox::Slot()
+		ControlsEditorWidgetRow
 			[
-				SNew(SButton)
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
-				.OnClicked_Lambda([this](){ this->ToggleBodyVisibility(); return FReply::Handled(); })
-				.ButtonColorAndOpacity_Lambda([this](){ return (AreAnyBodiesHidden()) ? FAppStyle::Get().GetSlateColor("Colors.AccentRed") : FAppStyle::Get().GetSlateColor("Colors.AccentGreen"); })
-				.Content()
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
 				[
-					SNew(STextBlock)
-					.Text_Lambda([this]() { return (AreAnyBodiesHidden()) ? LOCTEXT("ShowAllBodiesButtonText", "Show All Bodies") : LOCTEXT("HideAllBodiesButtonText", "Hide All Bodies"); })
-					.ToolTipText(LOCTEXT("ToggleBodyVisibilityButtonToolTip", "Toggle debug visualization of all physics bodies"))
+					SNew(SButton)
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					.OnClicked_Lambda([this]() { this->ToggleControlEditorTab(); return FReply::Handled(); })
+					.ButtonColorAndOpacity_Lambda([this]() { return (IsControlEditorTabOpen()) ? FAppStyle::Get().GetSlateColor("Colors.AccentRed") : FAppStyle::Get().GetSlateColor("Colors.AccentGreen"); })
+					.Content()
+					[
+						SNew(STextBlock)
+						.Text_Lambda([this]() { return (IsControlEditorTabOpen()) ? LOCTEXT("CloseControlEditorTabButtonText", "Close Control Editor") : LOCTEXT("OpenControlEditorTabButtonText", "Open Control Editor"); })
+						.ToolTipText(LOCTEXT("ToggleControlEditorTabButtonToolTip", "Toggle Control Editor Tab"))
+					]
 				]
-			]
-			// Show/Hide Constraints button.
-			+ SHorizontalBox::Slot()
+			];
+	}
+
+	{
+		FDetailWidgetRow& DebugVisualizationWidgetRow = ViewportCategory.AddCustomRow(LOCTEXT("ToggleDebugVisualizationButtonRow", "DebugVisualization"));
+
+		DebugVisualizationWidgetRow
 			[
-				SNew(SButton)
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
-				.OnClicked_Lambda([this](){ this->ToggleConstraintVisibility(); return FReply::Handled(); })
-				.ButtonColorAndOpacity_Lambda([this]() { return (AreAnyConstraintsHidden()) ? FAppStyle::Get().GetSlateColor("Colors.AccentRed") : FAppStyle::Get().GetSlateColor("Colors.AccentGreen"); })
-				.Content()
+				SNew(SHorizontalBox)
+				// Show/Hide Bodies button.
+				+ SHorizontalBox::Slot()
 				[
-					SNew(STextBlock)
-					.Text_Lambda([this]() { return (AreAnyConstraintsHidden()) ? LOCTEXT("ShowAllConstraintsButtonText", "Show All Constraints") : LOCTEXT("HideAllConstraintsButtonText", "Hide All Constraints"); })
-					.ToolTipText(LOCTEXT("ToggleConstraintVisibilityButtonToolTip", "Toggle debug visualization of all physics constriants"))
+					SNew(SButton)
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					.OnClicked_Lambda([this]() { this->ToggleBodyVisibility(); return FReply::Handled(); })
+					.ButtonColorAndOpacity_Lambda([this]() { return (AreAnyBodiesHidden()) ? FAppStyle::Get().GetSlateColor("Colors.AccentRed") : FAppStyle::Get().GetSlateColor("Colors.AccentGreen"); })
+					.Content()
+					[
+						SNew(STextBlock)
+						.Text_Lambda([this]() { return (AreAnyBodiesHidden()) ? LOCTEXT("ShowAllBodiesButtonText", "Show All Bodies") : LOCTEXT("HideAllBodiesButtonText", "Hide All Bodies"); })
+						.ToolTipText(LOCTEXT("ToggleBodyVisibilityButtonToolTip", "Toggle debug visualization of all physics bodies"))
+					]
 				]
-			]
-		];
+				// Show/Hide Constraints button.
+				+ SHorizontalBox::Slot()
+				[
+					SNew(SButton)
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					.OnClicked_Lambda([this]() { this->ToggleConstraintVisibility(); return FReply::Handled(); })
+					.ButtonColorAndOpacity_Lambda([this]() { return (AreAnyConstraintsHidden()) ? FAppStyle::Get().GetSlateColor("Colors.AccentRed") : FAppStyle::Get().GetSlateColor("Colors.AccentGreen"); })
+					.Content()
+					[
+						SNew(STextBlock)
+						.Text_Lambda([this]() { return (AreAnyConstraintsHidden()) ? LOCTEXT("ShowAllConstraintsButtonText", "Show All Constraints") : LOCTEXT("HideAllConstraintsButtonText", "Hide All Constraints"); })
+						.ToolTipText(LOCTEXT("ToggleConstraintVisibilityButtonToolTip", "Toggle debug visualization of all physics constriants"))
+					]
+				]
+			];
+	}
+}
+
+void UAnimGraphNode_RigidBodyWithControl::PostChange()
+{
+	IPhysicsControlOperatorEditorInterface& PhysicsControlEditorInterface = IModularFeatures::Get().GetModularFeature<IPhysicsControlOperatorEditorInterface>("PhysicsControlEditorInterface");
+	PhysicsControlEditorInterface.RequestRefresh();
 }
 
 void UAnimGraphNode_RigidBodyWithControl::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
@@ -192,6 +227,26 @@ void UAnimGraphNode_RigidBodyWithControl::PostEditChangeProperty(struct FPropert
 
 	IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
 	PhysicsAssetRenderInterface.SaveConfig();
+
+	PostChange();
+}
+
+void UAnimGraphNode_RigidBodyWithControl::PostPlacedNewNode()
+{
+	Super::PostPlacedNewNode();
+	PostChange();
+}
+
+void UAnimGraphNode_RigidBodyWithControl::PostPasteNode()
+{
+	Super::PostPasteNode();
+	PostChange();
+}
+
+void UAnimGraphNode_RigidBodyWithControl::DestroyNode()
+{
+	Super::DestroyNode();
+	PostChange();
 }
 
 void UAnimGraphNode_RigidBodyWithControl::ToggleBodyVisibility()
@@ -241,6 +296,81 @@ bool UAnimGraphNode_RigidBodyWithControl::AreAnyConstraintsHidden() const
 	}
 
 	return false;
+}
+
+void UAnimGraphNode_RigidBodyWithControl::ToggleControlEditorTab()
+{
+	IPhysicsControlOperatorEditorInterface& PhysicsControlEditorInterface = IModularFeatures::Get().GetModularFeature<IPhysicsControlOperatorEditorInterface>("PhysicsControlEditorInterface");
+	PhysicsControlEditorInterface.ToggleOperatorNamesTab();
+}
+
+bool UAnimGraphNode_RigidBodyWithControl::IsControlEditorTabOpen() const
+{
+	IPhysicsControlOperatorEditorInterface& PhysicsControlEditorInterface = IModularFeatures::Get().GetModularFeature<IPhysicsControlOperatorEditorInterface>("PhysicsControlEditorInterface");
+	return PhysicsControlEditorInterface.IsOperatorNamesTabOpen();
+}
+
+TArray<TPair<FName, TArray<FName>>> UAnimGraphNode_RigidBodyWithControl::GenerateControlsAndBodyModifierNames() const
+{
+	using OperatorNameAndTags = TPair<FName, TArray<FName>>;
+
+	TArray<OperatorNameAndTags> GeneratedOperatorNames;
+
+	if (USkeleton* const Skeleton = GetSkeleton())
+	{
+		const FReferenceSkeleton& RefSkeleton = Skeleton->GetReferenceSkeleton();
+
+		// These functions will create the base set of controls and modifiers from SetupData
+		TMap<FName, FPhysicsControlLimbBones> AllLimbBones =
+			GetLimbBones(Node.SetupData.LimbSetupData, RefSkeleton, Node.OverridePhysicsAsset);
+
+		TSet<FName> BodyModifierNames;
+		TSet<FName> ControlNames;
+		FRigidBodyNameRecords NameRecords;
+
+		CollectOperatorNames(&Node, AllLimbBones, RefSkeleton, Node.OverridePhysicsAsset, BodyModifierNames, ControlNames, NameRecords);
+
+		// Create any additional sets that have been requested
+		CreateAdditionalSets(Node.AdditionalSets, BodyModifierNames, ControlNames, NameRecords);
+
+		auto TransformOperatorNamesAndTags = [&GeneratedOperatorNames](const FName TypeTag, const TSet<FName>& Names, const TMap<FName, TArray<FName>>& SetToOperatorNameMap)
+		{
+			for (const FName OperatorName : Names)
+			{
+				OperatorNameAndTags NameAndTagsPair;
+
+				NameAndTagsPair.Key = OperatorName;
+				NameAndTagsPair.Value.Add(TypeTag);
+
+				for (const TMap<FName, TArray<FName>>::ElementType& Set : SetToOperatorNameMap)
+				{
+					if (Set.Value.Contains(OperatorName))
+					{
+						NameAndTagsPair.Value.Add(Set.Key);
+					}
+				}
+
+				GeneratedOperatorNames.Add(NameAndTagsPair);
+			}
+		};
+
+		TransformOperatorNamesAndTags(FName("Modifier"), BodyModifierNames, NameRecords.BodyModifierSets);
+		TransformOperatorNamesAndTags(FName("Control"), ControlNames, NameRecords.ControlSets);
+	}
+
+	return GeneratedOperatorNames;
+}
+
+USkeleton* UAnimGraphNode_RigidBodyWithControl::GetSkeleton() const
+{
+	USkeleton* Skeleton = nullptr;
+
+	if (UAnimBlueprint* const AnimBlueprint = Cast<UAnimBlueprint>(FBlueprintEditorUtils::FindBlueprintForNode(this)))
+	{
+		Skeleton = AnimBlueprint->TargetSkeleton;
+	}
+
+	return Skeleton;
 }
 
 #undef LOCTEXT_NAMESPACE

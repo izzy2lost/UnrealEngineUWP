@@ -14,6 +14,7 @@
 #include "PhysicsEngine/PhysicsSettings.h"
 #include "Chaos/ChaosConstraintSettings.h"
 #include "PhysicsControlLog.h"
+#include "PhysicsControlOperatorNameGeneration.h"
 
 //UE_DISABLE_OPTIMIZATION;
 
@@ -22,10 +23,13 @@ DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_LogControlsModifiersAndSets"),
 DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_ApplyControlAndModifierUpdatesAndParametersToRecords"), STAT_RigidBodyNodeWithControl_ApplyControlAndModifierUpdatesAndParametersToRecords, STATGROUP_Anim);
 DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_ApplyControlsAndModifierDatas"), STAT_RigidBodyNodeWithControl_ApplyControlsAndModifierDatas, STATGROUP_Anim);
 DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_ApplyControlsAndModifiers"), STAT_RigidBodyNodeWithControl_ApplyControlsAndModifiers, STATGROUP_Anim);
+
+DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_ApplyControls"), STAT_RigidBodyNodeWithControl_ApplyControls, STATGROUP_Anim);
+DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_ApplyModifiers"), STAT_RigidBodyNodeWithControl_ApplyModifiers, STATGROUP_Anim);
+DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_SetConstraintEnabled"), STAT_RigidBodyNodeWithControl_SetConstraintEnabled, STATGROUP_Anim);
+
 DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_ApplyKinematicTargets"), STAT_RigidBodyNodeWithControl_ApplyKinematicTargets, STATGROUP_Anim);
 DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_ApplyCurrentConstraintProfile"), STAT_RigidBodyNodeWithControl_ApplyCurrentConstraintProfile, STATGROUP_Anim);
-
-int32 MaxNumControlsOrModifiersPerName = 16;
 
 constexpr int32 ConstraintChildIndex = 0;
 constexpr int32 ConstraintParentIndex = 1;
@@ -33,6 +37,8 @@ constexpr int32 ConstraintParentIndex = 1;
 //======================================================================================================================
 static void SetConstraintEnabled(ImmediatePhysics::FJointHandle* const JointHandle, const bool bIsEnabled)
 {
+	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_SetConstraintEnabled);
+
 	if (JointHandle)
 	{
 		if (ImmediatePhysics::FJointHandle::FChaosConstraintHandle* ConstraintHandle = JointHandle->GetConstraint())
@@ -197,24 +203,6 @@ ImmediatePhysics::FActorHandle* FAnimNode_RigidBodyWithControl::FindBodyFromBone
 }
 
 //======================================================================================================================
-FName FAnimNode_RigidBodyWithControl::FindParentBoneNameFromBoneName(const FName BoneName) const
-{
-	// TODO - would be better if we didn't need to access the physics structures to find the parent bone name.
-	FName ParentName;
-	const int32 JointIndex = FindBodyIndexFromBoneName(BoneName);
-	if (JointIndex != INDEX_NONE)
-	{
-		ImmediatePhysics::FJointHandle* const JointHandle = Joints[JointIndex];
-
-		if (JointHandle && JointHandle->GetActorHandles()[ConstraintParentIndex])
-		{
-			ParentName = JointHandle->GetActorHandles()[ConstraintParentIndex]->GetName();
-		}
-	}
-	return ParentName;
-}
-
-//======================================================================================================================
 FName FAnimNode_RigidBodyWithControl::CreateControl(
 	const FName ParentBoneName, const FName ChildBoneName, const FPhysicsControlData& ControlData)
 {
@@ -224,7 +212,6 @@ FName FAnimNode_RigidBodyWithControl::CreateControl(
 	Control.ControlData = ControlData;
 
 	ImmediatePhysics::FJointHandle* JointHandle = nullptr;
-
 	ImmediatePhysics::FActorHandle* ParentBodyHandle;
 
 	if (ParentBoneName.IsNone())
@@ -244,49 +231,11 @@ FName FAnimNode_RigidBodyWithControl::CreateControl(
 			TEXT("Unable to create world space control constraint for bone %s"), *ChildBoneName.ToString());
 		return FName();
 	}
-	
+
 	FName ControlName = GetUniqueControlName(Control.ParentBoneName, Control.ChildBoneName);
 	ControlRecords.Add(ControlName, FRigidBodyControlRecord(Control, JointHandle));
 
 	return ControlName;
-}
-
-//======================================================================================================================
-void FAnimNode_RigidBodyWithControl::CreateControlsFromLimbBones(
-	const FName                     LimbName,
-	const FPhysicsControlLimbBones& LimbBones,
-	const EPhysicsControlType       ControlType,
-	const FPhysicsControlData&      ControlData)
-{
-	for (const FName ChildBoneName : LimbBones.BoneNames)
-	{
-		FName ParentBoneName;
-
-		if (ControlType == EPhysicsControlType::ParentSpace)
-		{
-			ParentBoneName = FindParentBoneNameFromBoneName(ChildBoneName);
-			if (ParentBoneName.IsNone())
-			{
-				// This happens for the pelvis, for example - we only create parent space
-				// controls if there's a parent!
-				continue;
-			}
-		}
-
-		FName ControlName = CreateControl(ParentBoneName, ChildBoneName, ControlData);
-		if (ControlName.IsNone())
-		{
-			UE_LOG(LogRigidBodyWithControl, Warning,
-				TEXT("Failed to make control for %s"), *ChildBoneName.ToString());
-		}
-		else
-		{
-			NameRecords.AddControl(ControlName, LimbName);
-			NameRecords.AddControl(ControlName, GetPhysicsControlTypeName(ControlType));
-			NameRecords.AddControl(ControlName, FName(
-				GetPhysicsControlTypeName(ControlType).ToString().Append("_").Append(LimbName.ToString())));
-		}
-	}
 }
 
 //======================================================================================================================
@@ -300,86 +249,37 @@ FName FAnimNode_RigidBodyWithControl::GetBodyFromBoneName(const FName BoneName) 
 }
 
 //======================================================================================================================
-FName FAnimNode_RigidBodyWithControl::GetUniqueBodyModifierName(const FName BoneName)
+FName FAnimNode_RigidBodyWithControl::GetUniqueBodyModifierName(const FName BoneName) const
 {
-	FName BodyName = GetBodyFromBoneName(BoneName);
-
-	FString NameBase = TEXT("");
-	if (!BodyName.IsNone())
-	{
-		NameBase += BodyName.ToString();
-	}
-	else
-	{
-		NameBase = TEXT("Body");
-	}
-
 	TSet<FName> Keys;
 	ModifierRecords.GetKeys(Keys);
+	const FName UniqueName = FindUniqueBodyModifierName(GetBodyFromBoneName(BoneName), Keys);
 
-	if (!Keys.Find(FName(NameBase)))
+	if (UniqueName.IsNone())
 	{
-		return FName(NameBase);
+		UE_LOG(LogRigidBodyWithControl, Warning,
+			TEXT("Unable to find a suitable Body Modifier name - the limit of MaxNumControlsOrModifiersPerName (%d) has been exceeded"),
+			MaxNumControlsOrModifiersPerName);
 	}
 
-	// If the number gets too large, almost certainly we're in some nasty situation where this is
-	// getting called in a loop. Better to quit and fail, rather than allow the modifier set to
-	// increase without bound. 
-	for (int32 Index = 0; Index != MaxNumControlsOrModifiersPerName; ++Index)
-	{
-		FString NameStr = FString::Format(TEXT("{0}_{1}"), { NameBase, Index });
-		FName Name(NameStr);
-		if (!Keys.Find(Name))
-		{
-			return Name;
-		}
-	}
-	UE_LOG(LogRigidBodyWithControl, Warning,
-		TEXT("Unable to find a suitable Body Modifier name - the limit of MaxNumControlsOrModifiersPerName (%d) has been exceeded"),
-		MaxNumControlsOrModifiersPerName);
-	return FName();
+	return UniqueName;
 }
 
 //======================================================================================================================
-FName FAnimNode_RigidBodyWithControl::GetUniqueControlName(const FName ParentBoneName, const FName ChildBoneName)
+FName FAnimNode_RigidBodyWithControl::GetUniqueControlName(const FName ParentBoneName, const FName ChildBoneName) const
 {
-	FName ParentBodyName = GetBodyFromBoneName(ParentBoneName);
-	FName ChildBodyName = GetBodyFromBoneName(ChildBoneName);
-
-	FString NameBase = TEXT("");
-	if (!ParentBodyName.IsNone())
-	{
-		NameBase += ParentBodyName.ToString() + TEXT("_");
-	}
-	if (!ChildBodyName.IsNone())
-	{
-		NameBase += ChildBodyName.ToString();
-	}
-
 	TSet<FName> Keys;
 	ControlRecords.GetKeys(Keys);
+	const FName UniqueName = FindUniqueControlName(GetBodyFromBoneName(ParentBoneName), GetBodyFromBoneName(ChildBoneName), Keys);
 
-	if (!Keys.Find(FName(NameBase)))
+	if (UniqueName.IsNone())
 	{
-		return FName(NameBase);
+		UE_LOG(LogRigidBodyWithControl, Warning,
+			TEXT("Unable to find a suitable Control name - the limit of MaxNumControlsOrModifiersPerName (%d) has been exceeded"),
+			MaxNumControlsOrModifiersPerName);
 	}
 
-	// If the number gets too large, almost certainly we're in some nasty situation where this is
-	// getting called in a loop. Better to quit and fail, rather than allow the constraint set to
-	// increase without bound. 
-	for (int32 Index = 0; Index < MaxNumControlsOrModifiersPerName; ++Index)
-	{
-		FString NameStr = FString::Format(TEXT("{0}_{1}"), { NameBase, Index });
-		FName Name(NameStr);
-		if (!Keys.Find(Name))
-		{
-			return Name;
-		}
-	}
-	UE_LOG(LogRigidBodyWithControl, Warning,
-		TEXT("Unable to find a suitable Control name - the limit of MaxNumControlsOrModifiersPerName (%d) has been exceeded"),
-		MaxNumControlsOrModifiersPerName);
-	return FName();
+	return UniqueName;
 }
 
 //======================================================================================================================
@@ -402,105 +302,7 @@ FName FAnimNode_RigidBodyWithControl::CreateBodyModifier(FName BoneName, const F
 }
 
 //======================================================================================================================
-void FAnimNode_RigidBodyWithControl::CreateBodyModifiersFromLimbBones(
-	const FName                        LimbName,
-	const FPhysicsControlLimbBones&    LimbBones,
-	const FPhysicsControlModifierData& DefaultModifierData)
-{
-	for (const FName BoneName : LimbBones.BoneNames)
-	{
-		const FName BodyModifierName = CreateBodyModifier(BoneName, DefaultModifierData);
-		if (BodyModifierName.IsNone())
-		{
-			UE_LOG(LogRigidBodyWithControl, Warning,
-				TEXT("Failed to make body modifier for %s"), *BoneName.ToString());
-		}
-		else
-		{
-			NameRecords.AddBodyModifier(BodyModifierName, LimbName);
-		}
-	}
-}
-
-//======================================================================================================================
-TMap<FName, FPhysicsControlLimbBones> FAnimNode_RigidBodyWithControl::GetLimbBonesFromSkeletalMesh(
-	const TArray<FPhysicsControlLimbSetupData>& LimbSetupData,
-	USkeletalMeshComponent* const               SkeletalMeshComponent) const
-{
-	// Parse the skeleton tree to figure out which bones are associated with which limbs. 
-	
-	// TODO - Output limb bones are not in the order specified in the skeleton - would be better if they were
-	
-	TMap<FName, FPhysicsControlLimbBones> Result;
-
-	UPhysicsAsset* const PhysicsAsset = GetPhysicsAsset();
-
-	if (!PhysicsAsset)
-	{
-		UE_LOG(LogRigidBodyWithControl, Warning, TEXT("Physics asset missing"));
-		return Result;
-	}
-
-	if (!SkeletalMeshComponent)
-	{
-		UE_LOG(LogRigidBodyWithControl, Warning, TEXT("Invalid Skeletal Mesh Component"));
-		return Result;
-	}
-
-	USkeletalMesh* const SkelMesh = SkeletalMeshComponent->GetSkeletalMeshAsset();
-
-	TSet<FName> AllBones;
-
-	for (const FPhysicsControlLimbSetupData& LimbSetup : LimbSetupData)
-	{
-		FPhysicsControlLimbBones& LimbBones = Result.Add(LimbSetup.LimbName);
-
-		LimbBones.bFirstBoneIsAdditional = false;
-		LimbBones.bCreateWorldSpaceControls = LimbSetup.bCreateWorldSpaceControls;
-		LimbBones.bCreateParentSpaceControls = LimbSetup.bCreateParentSpaceControls;
-		LimbBones.bCreateBodyModifiers = LimbSetup.bCreateBodyModifiers;
-
-		if (LimbSetup.bIncludeParentBone)
-		{		
-			const int32 StartBoneIndex = SkelMesh->GetRefSkeleton().FindBoneIndex(LimbSetup.StartBone);
-			const int32 ParentBodyIndex = PhysicsAsset->FindParentBodyIndex(SkelMesh, StartBoneIndex);
-			
-			FName ParentBoneName;
-
-			if (PhysicsAsset->SkeletalBodySetups.IsValidIndex(ParentBodyIndex) && 
-				PhysicsAsset->SkeletalBodySetups[ParentBodyIndex])
-			{
-				ParentBoneName = PhysicsAsset->SkeletalBodySetups[ParentBodyIndex]->BoneName;
-			}
-
-			if (!ParentBoneName.IsNone())
-			{
-				LimbBones.BoneNames.Add(ParentBoneName);
-				AllBones.Add(ParentBoneName);
-				LimbBones.bFirstBoneIsAdditional = true;
-			}
-		}
-
-		TArray<int32> ChildBodyIndices;
-		PhysicsAsset->GetBodyIndicesBelow(ChildBodyIndices, LimbSetup.StartBone, SkelMesh);
-
-		for (int32 ChildBodyIndex : ChildBodyIndices)
-		{
-			const FName BoneName = PhysicsAsset->SkeletalBodySetups[ChildBodyIndex]->BoneName;
-
-			if (!AllBones.Find(BoneName))
-			{
-				LimbBones.BoneNames.Add(BoneName);
-				AllBones.Add(BoneName);
-			}
-		}
-	}
-
-	return Result;
-}
-
-//======================================================================================================================
-void FAnimNode_RigidBodyWithControl::InitControlsAndBodyModifiers(USkeletalMeshComponent* const SkeletalMeshComponent)
+void FAnimNode_RigidBodyWithControl::InitControlsAndBodyModifiers(const FReferenceSkeleton& RefSkeleton)
 {
 	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_InitControlsAndBodyModifiers);
 
@@ -508,33 +310,12 @@ void FAnimNode_RigidBodyWithControl::InitControlsAndBodyModifiers(USkeletalMeshC
 
 	// These functions will create the base set of controls and modifiers from SetupData
 	TMap<FName, FPhysicsControlLimbBones> AllLimbBones =
-		GetLimbBonesFromSkeletalMesh(SetupData.LimbSetupData, SkeletalMeshComponent);
+		GetLimbBones(SetupData.LimbSetupData, RefSkeleton, GetPhysicsAsset());
 
-	for (const TMap<FName, FPhysicsControlLimbBones>::ElementType& LimbBoneEntry : AllLimbBones)
-	{
-		const FName LimbName = LimbBoneEntry.Key;
-		const FPhysicsControlLimbBones& LimbBones = LimbBoneEntry.Value;
-		if (LimbBones.bCreateWorldSpaceControls)
-		{
-			CreateControlsFromLimbBones(
-				LimbName, LimbBones, EPhysicsControlType::WorldSpace, SetupData.DefaultWorldSpaceControlData);
-		}
-		if (LimbBones.bCreateParentSpaceControls)
-		{
-			CreateControlsFromLimbBones(
-				LimbName, LimbBones, EPhysicsControlType::ParentSpace, SetupData.DefaultParentSpaceControlData);
-		}
-		if (LimbBones.bCreateBodyModifiers)
-		{
-			CreateBodyModifiersFromLimbBones(LimbName, LimbBones, SetupData.DefaultBodyModifierData);
-		}
-	}
-
-	// Create any additional controls that have been requested
-	CreateAdditionalControls();
+	CreateOperatorsForNode(this, AllLimbBones, RefSkeleton, GetPhysicsAsset(), NameRecords);
 
 	// Create any additional sets that have been requested
-	CreateAdditionalSets();
+	CreateAdditionalSets(AdditionalSets, ModifierRecords, ControlRecords, NameRecords);
 
 	// Apply control and modifier parameters on a single-use basis
 	ApplyControlAndBodyModifierDatas(
@@ -554,7 +335,7 @@ void FAnimNode_RigidBodyWithControl::DestroyControlsAndBodyModifiers()
 	ModifierRecords.Reset();
 	NameRecords.Reset();
 
-	bHaveRunControlSeup = false;
+	bHaveSetupControls = false;
 }
 
 //======================================================================================================================
@@ -619,94 +400,6 @@ void FAnimNode_RigidBodyWithControl::LogControlsModifiersAndSets()
 	}
 #undef RBWC_LOG_LEVEL
 }
-
-
-//======================================================================================================================
-void FAnimNode_RigidBodyWithControl::CreateAdditionalControls()
-{
-	// Create additional controls.
-	for (const FRigidBodyControlCreation& Control : AdditionalControlsAndBodyModifiers.Controls)
-	{	
-		FName ControlName = CreateControl(
-			Control.Control.ParentBoneName, Control.Control.ChildBoneName, Control.Control.ControlData);
-		if (ControlName.IsNone())
-		{
-			UE_LOG(LogRigidBodyWithControl, Warning,
-				TEXT("CreateAdditionalControls: Failed to make control between %s and %s"), 
-				*Control.Control.ParentBoneName.ToString(), *Control.Control.ChildBoneName.ToString());
-		}
-		else
-		{
-			UE_LOG(LogRigidBodyWithControl, Verbose,
-				TEXT("Made control %s between %s and %s"),
-				*ControlName.ToString(), 
-				*Control.Control.ParentBoneName.ToString(), 
-				*Control.Control.ChildBoneName.ToString());
-			NameRecords.AddControl(ControlName, Control.Sets);
-		}
-	}
-
-	// Create additional modifiers.
-	for (const FRigidBodyModifierCreation& Modifier : AdditionalControlsAndBodyModifiers.Modifiers)
-	{
-		FName ModifierName = CreateBodyModifier(Modifier.Modifier.BoneName, Modifier.Modifier.ModifierData);
-		if (ModifierName.IsNone())
-		{
-			UE_LOG(LogRigidBodyWithControl, Warning,
-				TEXT("CreateAdditionalControls: Failed to make body modifier for %s"), *Modifier.Modifier.BoneName.ToString());
-		}
-		else
-		{
-			UE_LOG(LogRigidBodyWithControl, Verbose,
-				TEXT("Made modifier %s for %s"),
-				*ModifierName.ToString(),
-				*Modifier.Modifier.BoneName.ToString());
-			NameRecords.AddControl(ModifierName, Modifier.Sets);
-		}
-	}
-}
-
-//======================================================================================================================
-// Slightly annoying to have to add the names individually, but we want to check they exist
-void FAnimNode_RigidBodyWithControl::CreateAdditionalSets()
-{
-	for (const FPhysicsControlSetUpdate& Set : AdditionalSets.ControlSetUpdates)
-	{
-		TArray<FName> Names = ExpandSetNames(Set.Names, NameRecords.ControlSets);
-		for (FName Name : Names)
-		{
-			if (ControlRecords.Find(Name))
-			{
-				NameRecords.AddControl(Name, Set.SetName);
-			}
-			else
-			{
-				UE_LOG(LogRigidBodyWithControl, Warning,
-					TEXT("CreateAdditionalSets: Failed to find control with name %s to add to set %s"), 
-					*Name.ToString(), *Set.SetName.ToString());
-			}
-		}
-	}
-
-	for (const FPhysicsControlSetUpdate& Set : AdditionalSets.ModifierSetUpdates)
-	{
-		TArray<FName> Names = ExpandSetNames(Set.Names, NameRecords.BodyModifierSets);
-		for (FName Name : Names)
-		{
-			if (ModifierRecords.Find(Name))
-			{
-				NameRecords.AddBodyModifier(Name, Set.SetName);
-			}
-			else
-			{
-				UE_LOG(LogRigidBodyWithControl, Warning,
-					TEXT("CreateAdditionalSets: Failed to find body modifier with name %s to add to set %s"),
-					*Name.ToString(), *Set.SetName.ToString());
-			}
-		}
-	}
-}
-
 
 //======================================================================================================================
 template<typename TOut>
@@ -930,7 +623,7 @@ void FAnimNode_RigidBodyWithControl::ApplyControlAndBodyModifierDatas(
 	// This updates the "original" controls and modifiers based on the parameters.
 	for (const FPhysicsControlNamedControlParameters& ControlParameters : InControlParameters)
 	{
-		TArray<FName> Names = ExpandSetName(ControlParameters.Name, NameRecords.ControlSets);
+		TArray<FName> Names = ExpandName(ControlParameters.Name, NameRecords.ControlSets);
 		for (FName Name : Names)
 		{
 			const FPhysicsControlSparseData& ControlData = ControlParameters.Data;
@@ -948,7 +641,7 @@ void FAnimNode_RigidBodyWithControl::ApplyControlAndBodyModifierDatas(
 
 	for (const FPhysicsControlNamedModifierParameters& ModifierParameters : InModifierParameters)
 	{
-		TArray<FName> Names = ExpandSetName(ModifierParameters.Name, NameRecords.BodyModifierSets);
+		TArray<FName> Names = ExpandName(ModifierParameters.Name, NameRecords.BodyModifierSets);
 		for (FName Name : Names)
 		{
 			const FPhysicsControlModifierSparseData& ModifierData = ModifierParameters.Data;
@@ -990,21 +683,28 @@ void FAnimNode_RigidBodyWithControl::ApplyControlsAndModifiers(const FVector& Si
 	if (!PoseData.IsEmpty())
 	{
 		// Apply Controls.
-		for (TMap<FName, FRigidBodyControlRecord>::ElementType& NameRecordPair : ControlRecords)
 		{
-			FRigidBodyControlRecord& ControlRecord = NameRecordPair.Value;
-			if (ControlRecord.IsEnabled())
-			{
-				ApplyControl(ControlRecord, DeltaTime);
-			}
+			SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_ApplyControls);
 
-			SetConstraintEnabled(ControlRecord.JointHandle, ControlRecord.IsEnabled());
+			for (TMap<FName, FRigidBodyControlRecord>::ElementType& NameRecordPair : ControlRecords)
+			{
+				FRigidBodyControlRecord& ControlRecord = NameRecordPair.Value;
+				if (ControlRecord.IsEnabled())
+				{
+					ApplyControl(ControlRecord, DeltaTime);
+				}
+
+				SetConstraintEnabled(ControlRecord.JointHandle, ControlRecord.IsEnabled());
+			}
 		}
 
 		// Apply Body Modifiers.
-		for (const TMap<FName, FRigidBodyModifierRecord>::ElementType& NameRecordPair : ModifierRecords)
 		{
-			ApplyModifier(NameRecordPair.Value, SimSpaceGravity);
+			SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_ApplyModifiers);
+			for (const TMap<FName, FRigidBodyModifierRecord>::ElementType& NameRecordPair : ModifierRecords)
+			{
+				ApplyModifier(NameRecordPair.Value, SimSpaceGravity);
+			}
 		}
 	}
 }

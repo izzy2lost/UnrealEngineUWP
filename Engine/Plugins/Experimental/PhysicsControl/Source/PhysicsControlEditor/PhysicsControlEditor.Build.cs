@@ -39,15 +39,20 @@ public class PhysicsControlEditor : ModuleRules
 				"AnimationEditMode",
 				"AnimGraph",
 				"AnimGraphRuntime",
+				"ApplicationCore",
+				"BlueprintGraph",
 				"ComponentVisualizers",
 				"Core",
 				"CoreUObject",
 				"EditorFramework",
 				"Engine",
+				"InputCore",
 				"Persona",
 				"PhysicsControl",
 				"Slate",
 				"SlateCore",
+				"ToolMenus",
+				"ToolWidgets",
 				"UnrealEd",
 			}
 			);
@@ -62,6 +67,7 @@ public class PhysicsControlEditor : ModuleRules
 						"BlueprintGraph",
 						"EditorFramework",
 						"Kismet",
+						"PhysicsControlUncookedOnly",
 						"UnrealEd",
 				}
 			);

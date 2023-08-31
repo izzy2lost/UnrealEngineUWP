@@ -143,7 +143,7 @@ FAnimNode_RigidBodyWithControl::FAnimNode_RigidBodyWithControl()
 	, bEnabled(false)
 	, bSimulationStarted(false)
 	, bCheckForBodyTransformInit(false)
-	, bHaveRunControlSeup(false)
+	, bHaveSetupControls(false)
 	, SimulationTiming(ESimulationTiming::Default)
 	, WorldTimeSeconds(0.0f)
 	, LastEvalTimeSeconds(0.0f)
@@ -489,6 +489,29 @@ static FTransform CalculateJointTargetTransform(
 	return ParentConnectorTM.Inverse() * ChildConnectorTM;
 }
 
+void FAnimNode_RigidBodyWithControl::SetupControls(USkeletalMeshComponent* const SkeletalMeshComponent)
+{
+	bool bSuccess = false;
+
+	if (SkeletalMeshComponent)
+	{
+		if (USkeletalMesh* const SkeletalMesh = SkeletalMeshComponent->GetSkeletalMeshAsset())
+		{
+			CreateWorldSpaceControlRootBody(PhysicsAssetToUse);
+			InitControlsAndBodyModifiers(SkeletalMesh->GetRefSkeleton());
+			bHaveSetupControls = true;
+		}
+		else
+		{
+			UE_LOG(LogRigidBodyWithControl, Warning, TEXT("Invalid Skeletal Mesh"));
+		}
+	}
+	else
+	{
+		UE_LOG(LogRigidBodyWithControl, Warning, TEXT("Invalid Skeletal Mesh Component"));
+	}
+}
+
 
 void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponentSpacePoseContext& Output, TArray<FBoneTransform>& OutBoneTransforms)
 {
@@ -511,11 +534,9 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 		FlushDeferredSimulationTask();
 
 		// Handle deferred control creation
-		if (!bHaveRunControlSeup && bEnableControls)
+		if (!bHaveSetupControls && bEnableControls)
 		{
-			CreateWorldSpaceControlRootBody(PhysicsAssetToUse);
-			bHaveRunControlSeup = true;
-			InitControlsAndBodyModifiers(Output.AnimInstanceProxy->GetSkelMeshComponent());
+			SetupControls(Output.AnimInstanceProxy->GetSkelMeshComponent());
 		}
 
 		const FBoneContainer& BoneContainer = Output.Pose.GetPose().GetBoneContainer();
@@ -1234,11 +1255,9 @@ void FAnimNode_RigidBodyWithControl::InitPhysics(const UAnimInstance* InAnimInst
 
 		//== WithControl ==================================
 
-		if (!bHaveRunControlSeup && bEnableControls)
+		if (!bHaveSetupControls && bEnableControls)
 		{
-			CreateWorldSpaceControlRootBody(PhysicsAssetToUse);
-			bHaveRunControlSeup = true;
-			InitControlsAndBodyModifiers(InAnimInstance->GetSkelMeshComponent());
+			SetupControls(InAnimInstance->GetSkelMeshComponent());
 		}
 
 		//== WithControl ==================================

@@ -18,6 +18,7 @@ public class PhysicsControlUncookedOnly : ModuleRules
 				"Engine",
 				"Persona",
 				"PhysicsControl",
+				"PhysicsControlEditor",
 				"Slate",
 				"SlateCore",
 			}

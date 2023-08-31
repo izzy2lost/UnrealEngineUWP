@@ -12,7 +12,7 @@
  * 3. Sets of control/modifiers - the obvious ones are limbs (e.g. a set of world-space controls on the leg)
  *    but users might want to make other sets - e.g. "UpperBody"
  */
-struct FRigidBodyNameRecords
+struct PHYSICSCONTROL_API FRigidBodyNameRecords
 {
 	/** Adds Name to SetName as well as adding it to the set "All" */
 	void AddControl(FName Name, FName SetName);
@@ -51,5 +51,5 @@ struct FRigidBodyNameRecords
 };
 
 /** Returns a copy of the supplied list of names in which any names that match keys in the supplied 'Sets' map are replaced with all the names in the array associated with that key. */
-TArray<FName> ExpandSetName(const FName InName, const TMap<FName, TArray<FName>>& Sets);
-TArray<FName> ExpandSetNames(const TArray<FName>& InNames, const TMap<FName, TArray<FName>>& Sets);
+PHYSICSCONTROL_API TArray<FName> ExpandName(const FName InName, const TMap<FName, TArray<FName>>& Sets);
+PHYSICSCONTROL_API TArray<FName> ExpandName(const TArray<FName>& InNames, const TMap<FName, TArray<FName>>& Sets);

@@ -268,7 +268,7 @@ private:
 	uint8 bEnabled : 1;
 	uint8 bSimulationStarted : 1;
 	uint8 bCheckForBodyTransformInit : 1;
-	uint8 bHaveRunControlSeup : 1;
+	uint8 bHaveSetupControls : 1;
 
 public:
 	void PostSerialize(const FArchive& Ar);
@@ -291,12 +291,15 @@ public:
 	const FTransform GetBodyTransform(const int32 BodyIndex) const;
 	const FTransform GetWorldSpaceControlRootTransform() const;
 
+	FName CreateControl(const FName ParentBoneName, const FName ChildBoneName, const FPhysicsControlData& ControlData);
+
+	FName CreateBodyModifier(const FName BoneName, const FPhysicsControlModifierData& ModifierData);
+
 private:
 
 	// Add a new physics body and update the body name to index map
 	int32 AddBody(ImmediatePhysics::FActorHandle* const BodyHandle); 
 	int32 FindBodyIndexFromBoneName(const FName BoneName) const;
-	FName FindParentBoneNameFromBoneName(const FName BoneName) const;
 	ImmediatePhysics::FActorHandle* FindBodyFromBoneName(const FName BoneName) const;
 
 	ImmediatePhysics::FJointHandle* CreateConstraint(
@@ -322,42 +325,19 @@ private:
 
 	FName GetBodyFromBoneName(const FName BoneName) const;
 
-	FName GetUniqueBodyModifierName(const FName BoneName);
+	FName GetUniqueBodyModifierName(const FName BoneName) const;
 
-	FName GetUniqueControlName(const FName ParentBoneName, const FName ChildBoneName);
+	FName GetUniqueControlName(const FName ParentBoneName, const FName ChildBoneName) const;
 
-	FName CreateControl(const FName ParentBoneName, const FName ChildBoneName, const FPhysicsControlData& ControlData);
-
-	FName CreateBodyModifier(const FName BoneName, const FPhysicsControlModifierData& ModifierData);
-
-	void CreateControlsFromLimbBones(
-		const FName                     LimbName,
-		const FPhysicsControlLimbBones& LimbBones,
-		const EPhysicsControlType       ControlType,
-		const FPhysicsControlData&      ControlData);
-
-	void CreateBodyModifiersFromLimbBones(
-		const FName                        LimbName,
-		const FPhysicsControlLimbBones&    LimbBones,
-		const FPhysicsControlModifierData& DefaultModifierData);
-
-	TMap<FName, FPhysicsControlLimbBones> GetLimbBonesFromSkeletalMesh(
-		const TArray<FPhysicsControlLimbSetupData>& LimbSetupData,
-		USkeletalMeshComponent* const               SkeletalMeshComponent) const;
+	void SetupControls(USkeletalMeshComponent* const SkeletalMeshComponent);
 
 	// This will walk through the skeleton, create controls and body modifiers, and create the sets.
-	void InitControlsAndBodyModifiers(USkeletalMeshComponent* const SkeletalMeshComponent);
+	void InitControlsAndBodyModifiers(const FReferenceSkeleton& RefSkeleton);
 
 	void DestroyControlsAndBodyModifiers();
 
 	// Helper to log overything that has been created to help the user
 	void LogControlsModifiersAndSets();
-
-	// Creates any controls as set in AdditionalControls
-	void CreateAdditionalControls();
-	
-	// Creates/updates sets - possibly making new ones, or adding to existing ones
-	void CreateAdditionalSets();
 
 	// Applies the overrides to the underlying controls and modifiers
 	void ApplyControlAndBodyModifierDatas(
