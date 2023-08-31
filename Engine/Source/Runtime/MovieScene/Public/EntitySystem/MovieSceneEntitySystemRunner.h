@@ -28,19 +28,20 @@ struct FInstanceRegistry;
 /** Bit-mask enumeration that defines tasks that need running */
 enum class ERunnerFlushState
 {
-	None           = 0,				// Signifies no evaluation is currently underway
-	Start          = 1 << 0,		// Sets up initial evaluation flags for external players and listeners
-	Import         = 1 << 1,		// Update sequence instances and import entities into the entity manager
-	Spawn          = 1 << 2,		// Perform the Spawn phase in the Entity System Graph
-	Instantiation  = 1 << 3,		// Perform the Instantiation phase in the Entity System Graph
-	Evaluation     = 1 << 4,		// Perform the Evaluation phase in the Entity System Graph
-	Finalization   = 1 << 5,		// Perform the Finalization phase in the Entity System Graph and trigger any external events
-	EventTriggers  = 1 << 6,		// (re-entrant) Triggers any bound event triggers - skipped by Finalization if the delegate is not bound
-	PostEvaluation = 1 << 7,		// (re-entrant) Call post evaluation callbacks on sequence instances
-	End            = 1 << 8,		// Counterpart for Start - resets external players and listeners
+	None                 = 0,			// Signifies no evaluation is currently underway
+	Start                = 1 << 0,		// Sets up initial evaluation flags for external players and listeners
+	ConditionalRecompile = 1 << 1,		// Conditional recompile of dirtied sequences.
+	Import               = 1 << 2,		// Update sequence instances and import entities into the entity manager
+	Spawn                = 1 << 3,		// Perform the Spawn phase in the Entity System Graph
+	Instantiation        = 1 << 4,		// Perform the Instantiation phase in the Entity System Graph
+	Evaluation           = 1 << 5,		// Perform the Evaluation phase in the Entity System Graph
+	Finalization         = 1 << 6,		// Perform the Finalization phase in the Entity System Graph and trigger any external events
+	EventTriggers        = 1 << 7,		// (re-entrant) Triggers any bound event triggers - skipped by Finalization if the delegate is not bound
+	PostEvaluation       = 1 << 8,		// (re-entrant) Call post evaluation callbacks on sequence instances
+	End                  = 1 << 9,		// Counterpart for Start - resets external players and listeners
 
 	// Signifies that, during the Finalization task, there were still outstanding tasks and we need to perform another iteration
-	LoopEval       = Import | Spawn | Instantiation | Evaluation | Finalization | EventTriggers | PostEvaluation | End,
+	LoopEval       = ConditionalRecompile | Import | Spawn | Instantiation | Evaluation | Finalization | EventTriggers | PostEvaluation | End,
 
 	// Initial flush state
 	Everything     = Start | LoopEval,
@@ -192,6 +193,8 @@ private:
 	 */
 	MOVIESCENE_API bool StartEvaluation(UMovieSceneEntitySystemLinker* Linker);
 
+	/** Execute any pending conditional recompiles on the currently queued update requests */
+	MOVIESCENE_API bool GameThread_ConditionalRecompile(UMovieSceneEntitySystemLinker* Linker);
 	/** Update sequence instances based on currently queued update requests, or outstanding dissected updates */
 	MOVIESCENE_API bool GameThread_UpdateSequenceInstances(UMovieSceneEntitySystemLinker* Linker);
 	/** Execute the spawn phase of the entity system graph, if there is anything to do */

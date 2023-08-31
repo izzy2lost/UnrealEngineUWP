@@ -345,7 +345,14 @@ bool FMovieSceneEntitySystemRunner::FlushNext(UMovieSceneEntitySystemLinker* Lin
 		return StartEvaluation(Linker);
 	}
 
-	// Step 2: Update sequence instances and import entities
+	// Step 2: Execute any conditional recompiles for dirtied sequences.
+	if (EnumHasAnyFlags(FlushState, ERunnerFlushState::ConditionalRecompile))
+	{
+		EnterFlushState(ERunnerFlushState::ConditionalRecompile);
+		return GameThread_ConditionalRecompile(Linker);
+	}
+
+	// Step 3: Update sequence instances and import entities
 	//         This is the entry-point for for each iteration
 	if (EnumHasAnyFlags(FlushState, ERunnerFlushState::Import))
 	{
@@ -353,7 +360,7 @@ bool FMovieSceneEntitySystemRunner::FlushNext(UMovieSceneEntitySystemLinker* Lin
 		return GameThread_UpdateSequenceInstances(Linker);
 	}
 
-	// Step 3: Conditionally run the spawn phase of the system graph
+	// Step 4: Conditionally run the spawn phase of the system graph
 	//
 	if (EnumHasAnyFlags(FlushState, ERunnerFlushState::Spawn))
 	{
@@ -361,7 +368,7 @@ bool FMovieSceneEntitySystemRunner::FlushNext(UMovieSceneEntitySystemLinker* Lin
 		return GameThread_SpawnPhase(Linker);
 	}
 
-	// Step 4: Conditionally run the instantiation phase of the system graph
+	// Step 5: Conditionally run the instantiation phase of the system graph
 	//
 	if (EnumHasAnyFlags(FlushState, ERunnerFlushState::Instantiation))
 	{
@@ -369,7 +376,7 @@ bool FMovieSceneEntitySystemRunner::FlushNext(UMovieSceneEntitySystemLinker* Lin
 		return GameThread_InstantiationPhase(Linker);
 	}
 
-	// Step 5: Run the evaluation phase of the system graph
+	// Step 6: Run the evaluation phase of the system graph
 	//
 	if (EnumHasAnyFlags(FlushState, ERunnerFlushState::Evaluation))
 	{
@@ -377,7 +384,7 @@ bool FMovieSceneEntitySystemRunner::FlushNext(UMovieSceneEntitySystemLinker* Lin
 		return GameThread_EvaluationPhase(Linker);
 	}
 
-	// Step 6: Run the finalization phase of the system graph, including legacy templates
+	// Step 7: Run the finalization phase of the system graph, including legacy templates
 	//
 	if (EnumHasAnyFlags(FlushState, ERunnerFlushState::Finalization))
 	{
@@ -386,7 +393,7 @@ bool FMovieSceneEntitySystemRunner::FlushNext(UMovieSceneEntitySystemLinker* Lin
 		return true;
 	}
 
-	// Step 7: Trigger events
+	// Step 8: Trigger events
 	//
 	if (EnumHasAnyFlags(FlushState, ERunnerFlushState::EventTriggers))
 	{
@@ -395,7 +402,7 @@ bool FMovieSceneEntitySystemRunner::FlushNext(UMovieSceneEntitySystemLinker* Lin
 		return true;
 	}
 
-	// Step 7: Call PostEvaluation on all current sequence instances
+	// Step 9: Call PostEvaluation on all current sequence instances
 	//
 	if (EnumHasAnyFlags(FlushState, ERunnerFlushState::PostEvaluation))
 	{
@@ -404,8 +411,8 @@ bool FMovieSceneEntitySystemRunner::FlushNext(UMovieSceneEntitySystemLinker* Lin
 		return true;
 	}
 
-	// Step 7: Perform any clean up and broadcast 'end eval' events
-	//         NOTE: Only ever called once regardless of how many iterations we perform
+	// Step 10: Perform any clean up and broadcast 'end eval' events
+	//          NOTE: Only ever called once regardless of how many iterations we perform
 	if (EnumHasAnyFlags(FlushState, ERunnerFlushState::End))
 	{
 		EnterFlushState(ERunnerFlushState::End);
@@ -504,14 +511,14 @@ void FMovieSceneEntitySystemRunner::ResetFlushState()
 	using namespace UE::MovieScene;
 
 	constexpr ERunnerFlushState StatesThatTriggerReset = ERunnerFlushState::Instantiation | ERunnerFlushState::Evaluation | ERunnerFlushState::Finalization | ERunnerFlushState::EventTriggers;
-	constexpr ERunnerFlushState StatesThatDontTriggerReset = ERunnerFlushState::Import | ERunnerFlushState::Spawn;
+	constexpr ERunnerFlushState StatesThatDontTriggerReset = ERunnerFlushState::ConditionalRecompile | ERunnerFlushState::Import | ERunnerFlushState::Spawn;
 
 	// We only need to reset the flush state if we are far enough through an evaluation
 	if (EnumHasAnyFlags(FlushState, StatesThatTriggerReset) && !EnumHasAnyFlags(FlushState, StatesThatDontTriggerReset))
 	{
 		// When resetting - we don't need to (or want to) re-import anything, we just want to re-run the current
 		// frame of updates 
-		FlushState = UE::MovieScene::ERunnerFlushState::LoopEval & ~UE::MovieScene::ERunnerFlushState::Import;
+		FlushState = UE::MovieScene::ERunnerFlushState::LoopEval & ~(UE::MovieScene::ERunnerFlushState::ConditionalRecompile | UE::MovieScene::ERunnerFlushState::Import);
 	}
 }
 
@@ -554,6 +561,34 @@ void FMovieSceneEntitySystemRunner::EnterFlushState(UE::MovieScene::ERunnerFlush
 void FMovieSceneEntitySystemRunner::SkipFlushState(UE::MovieScene::ERunnerFlushState FlushStateToSkip)
 {
 	FlushState &= ~FlushStateToSkip;
+}
+
+bool FMovieSceneEntitySystemRunner::GameThread_ConditionalRecompile(UMovieSceneEntitySystemLinker* Linker)
+{
+	using namespace UE::MovieScene;
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(FMovieSceneEntitySystemRunner::GameThread_ConditionalRecompile);
+
+	FInstanceRegistry* InstanceRegistry = GetInstanceRegistry();
+
+	for (int32 UpdateIndex = 0; UpdateIndex < UpdateQueue.Num(); ++UpdateIndex)
+	{
+		const FUpdateParamsAndContext& Request = UpdateQueue[UpdateIndex];
+		if (!InstanceRegistry->IsHandleValid(Request.Params.InstanceHandle))
+		{
+			continue;
+		}
+
+		FSequenceInstance& Instance = InstanceRegistry->MutateInstance(Request.Params.InstanceHandle);
+		if (!Instance.IsRootSequence())
+		{
+			continue;
+		}
+
+		Instance.ConditionalRecompile(Linker);
+	}
+
+	return true;
 }
 
 bool FMovieSceneEntitySystemRunner::GameThread_UpdateSequenceInstances(UMovieSceneEntitySystemLinker* Linker)
@@ -623,7 +658,6 @@ bool FMovieSceneEntitySystemRunner::GameThread_UpdateSequenceInstances(UMovieSce
 				continue;
 			}
 
-			Instance.ConditionalRecompile(Linker);
 			Instance.DissectContext(Linker, Request.Context, Dissections);
 
 			if (Dissections.Num() != 0)
