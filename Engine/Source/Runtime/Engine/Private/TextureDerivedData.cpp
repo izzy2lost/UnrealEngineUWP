@@ -3959,4 +3959,12 @@ bool UTexture::DownsizeImageUsingTextureSettings(const ITargetPlatform* TargetPl
 
 	return true;
 }
+
+
+void UTexture::GetTargetPlatformBuildSettings(const ITargetPlatform* TargetPlatform, TArray<FTextureBuildSettings>& OutSettings )
+{
+	GetBuildSettingsForTargetPlatform(*this, TargetPlatform, ETextureEncodeSpeed::Final, OutSettings, nullptr);
+}
+
+
 #endif

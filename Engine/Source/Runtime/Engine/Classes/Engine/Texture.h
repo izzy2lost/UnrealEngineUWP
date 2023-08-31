@@ -1919,6 +1919,11 @@ public:
 	 * Try to get as close as it can to the target resolution but it will stay above it if it can't reach it
 	 */
 	ENGINE_API bool DownsizeImageUsingTextureSettings(const ITargetPlatform* TargetPlatform, FImage& InOutImage, int32 TargetSize, int32 LayerIndex);
+
+	/*
+	*/
+	ENGINE_API void GetTargetPlatformBuildSettings(const ITargetPlatform* TargetPlatform, TArray<FTextureBuildSettings>& OutSettings);
+
 #endif
 
 protected:
