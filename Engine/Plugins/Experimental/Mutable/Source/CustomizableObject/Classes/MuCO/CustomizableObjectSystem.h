@@ -24,6 +24,7 @@ class SNotificationItem;
 class UCustomizableObject;
 class UDefaultImageProvider;
 class USkeletalMesh;
+class UMaterialInterface;
 class UTexture2D;
 struct FFrame;
 struct FGuid;

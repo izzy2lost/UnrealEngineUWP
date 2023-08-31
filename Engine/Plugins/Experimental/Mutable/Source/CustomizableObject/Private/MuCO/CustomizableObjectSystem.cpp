@@ -43,7 +43,6 @@
 
 class AActor;
 class UAnimInstance;
-class UMaterialInterface;
 
 namespace impl
 {
@@ -603,6 +602,12 @@ FAutoConsoleVariableRef CVarMaxTextureSizeToGenerate(
 	TEXT("Max texture size on Mutable textures. Mip 0 will be the first mip with max size equal or less than MaxTextureSizeToGenerate."
 		"If a texture doesn't have small enough mips, mip 0 will be the last mip available."));
 
+static bool bApplyFixPrepareSkeletons = true;
+
+static FAutoConsoleVariableRef CVarApplyFixPrepareSkeletons(
+	TEXT("mutable.ApplyFixPrepareSkeletons"), bApplyFixPrepareSkeletons,
+	TEXT("If true, Fix missing SkeletonsData when FirstLODToGenerate is greater than 0. If false, There may be a crash when generating meshes on platform that skip LODs."),
+	ECVF_Default);
 
 void FinishUpdateGlobal(UCustomizableObjectInstance* Instance, EUpdateResult UpdateResult, FInstanceUpdateDelegate* UpdateCallback, const FDescriptorRuntimeHash InUpdatedHash)
 {
@@ -1584,6 +1589,61 @@ namespace impl
 	void Subtask_Mutable_PrepareSkeletonData(const TSharedPtr<FMutableOperationData>& OperationData)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(Subtask_Mutable_PrepareSkeletonData)
+
+		if (bApplyFixPrepareSkeletons)
+		{
+			for (FInstanceUpdateData::FComponent& Component : OperationData->InstanceUpdateData.Components)
+			{
+				if (!OperationData->InstanceUpdateData.Skeletons.IsValidIndex(Component.Id))
+				{
+					OperationData->InstanceUpdateData.Skeletons.SetNum(Component.Id + 1);
+				}
+
+				FInstanceUpdateData::FSkeletonData& SkeletonData = OperationData->InstanceUpdateData.Skeletons[Component.Id];
+				SkeletonData.ComponentIndex = Component.Id;
+
+				mu::MeshPtrConst Mesh = Component.Mesh;
+				if (!Mesh)
+				{
+					continue;
+				}
+
+				// Add SkeletonIds 
+				const int32 SkeletonIDsCount = Mesh->GetSkeletonIDsCount();
+				for (int32 SkeletonIndex = 0; SkeletonIndex < SkeletonIDsCount; ++SkeletonIndex)
+				{
+					SkeletonData.SkeletonIds.AddUnique(Mesh->GetSkeletonID(SkeletonIndex));
+				}
+
+				// Append BoneMap to the array of BoneMaps
+				const TArray<uint16>& BoneMap = Mesh->GetBoneMap();
+				Component.FirstBoneMap = OperationData->InstanceUpdateData.BoneMaps.Num();
+				Component.BoneMapCount = BoneMap.Num();
+				OperationData->InstanceUpdateData.BoneMaps.Append(BoneMap);
+
+				// Add active bone indices and poses
+				const int32 MaxBoneIndex = Mesh->GetBonePoseCount();
+				Component.ActiveBones.Reserve(MaxBoneIndex);
+				for (int32 BonePoseIndex = 0; BonePoseIndex < MaxBoneIndex; ++BonePoseIndex)
+				{
+					const uint16 BoneId = Mesh->GetBonePoseBoneId(BonePoseIndex);
+
+					Component.ActiveBones.Add(BoneId);
+
+					if (SkeletonData.BoneIds.Find(BoneId) == INDEX_NONE)
+					{
+						SkeletonData.BoneIds.Add(BoneId);
+
+						FTransform3f Transform;
+						Mesh->GetBoneTransform(BonePoseIndex, Transform);
+						SkeletonData.BoneMatricesWithScale.Emplace(Transform.Inverse().ToMatrixWithScale());
+					}
+				}
+			}
+		
+			return;
+		}
+
 
 		check(OperationData);
 		const int32 LODCount = OperationData->InstanceUpdateData.LODs.Num();

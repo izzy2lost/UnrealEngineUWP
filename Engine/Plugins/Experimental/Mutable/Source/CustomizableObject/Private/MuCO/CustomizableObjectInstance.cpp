@@ -63,20 +63,30 @@ UTexture2D* UCustomizableInstancePrivateData::CreateTexture()
 mu::FResourceID UCustomizableInstancePrivateData::GetLastMeshId(int32 ComponentIndex, int32 LODIndex) const
 {
 	const FCustomizableInstanceComponentData* ComponentData = GetComponentData(ComponentIndex);
+
+	if (ComponentData && ComponentData->LastMeshIdPerLOD.IsValidIndex(LODIndex))
+	{
+		return ComponentData->LastMeshIdPerLOD[LODIndex];
+	}
+
 	check(ComponentData);
 	check(ComponentData->LastMeshIdPerLOD.IsValidIndex(LODIndex));
 		
-	return ComponentsData[ComponentIndex].LastMeshIdPerLOD[LODIndex];
+	return MAX_uint64;
 }
 
 
 void UCustomizableInstancePrivateData::SetLastMeshId(int32 ComponentIndex, int32 LODIndex, mu::FResourceID MeshId)
 {
 	FCustomizableInstanceComponentData* ComponentData = GetComponentData(ComponentIndex);
-	check(ComponentData);
-	check(ComponentData->LastMeshIdPerLOD.IsValidIndex(LODIndex));
-
-	ComponentData->LastMeshIdPerLOD[LODIndex] = MeshId;
+	if (ComponentData && ComponentData->LastMeshIdPerLOD.IsValidIndex(LODIndex))
+	{
+		ComponentData->LastMeshIdPerLOD[LODIndex] = MeshId;
+	}
+	else
+	{
+		check(false);
+	}
 }
 
 
@@ -179,7 +189,7 @@ void UCustomizableInstancePrivateData::PrepareForUpdate(const TSharedPtr<FMutabl
 
 		for (uint16 ComponentIndex = 0; ComponentIndex < LOD.ComponentCount; ++ComponentIndex)
 		{
-			const FInstanceUpdateData::FComponent& Component = Components[ComponentIndex];
+			const FInstanceUpdateData::FComponent& Component = Components[LOD.FirstComponent + ComponentIndex];
 			ComponentIds.Add(Component.Id);
 
 			if (FCustomizableInstanceComponentData* ComponentData = GetComponentData(Component.Id))
