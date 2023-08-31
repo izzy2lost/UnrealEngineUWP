@@ -380,6 +380,18 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 			return;
 		}
 
+		if (!bPackageWasCreated && !AsyncHelper->TaskData.bReplaceExisting)
+		{
+			//Do not replace existing asset, the option tell us to not override it. Skip this asset witha display message
+			UInterchangeResultWarning_Generic* Message = Factory->AddMessage<UInterchangeResultWarning_Generic>();
+			Message->SourceAssetName = AsyncHelper->SourceDatas[SourceIndex]->GetFilename();
+			Message->DestinationAssetName = AssetName;
+			Message->AssetType = FactoryNode->GetObjectClass();
+			Message->Text = FText::Format(NSLOCTEXT("FTaskImportObject_GameThread", "CouldntReplaceExistingAsset", "The option bReplaceExisting is false so we are not overriding the asset named '{0}'.")
+				, FText::FromString(AssetName));
+			return;
+		}
+
 		if (!bPackageWasCreated && AsyncHelper->TaskData.bFollowRedirectors)
 		{
 			if (UObjectRedirector* Redirector = FindObject<UObjectRedirector>(Pkg, *AssetName))

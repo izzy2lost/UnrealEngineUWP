@@ -742,7 +742,14 @@ void UInterchangeGenericMaterialPipeline::ExecutePipeline(UInterchangeBaseNodeCo
 		}
 	}
 
-	if (IsStandAlonePipeline() && !AssetName.IsEmpty())
+	//If we have a valid override name
+	FString OverrideAssetName = IsStandAlonePipeline() ? DestinationName : FString();
+	if (OverrideAssetName.IsEmpty() && IsStandAlonePipeline())
+	{
+		OverrideAssetName = AssetName;
+	}
+
+	if (IsStandAlonePipeline() && !OverrideAssetName.IsEmpty())
 	{
 		TArray<UInterchangeBaseMaterialFactoryNode*> BaseMaterialNodes;
 		BaseNodeContainer->IterateNodesOfType<UInterchangeBaseMaterialFactoryNode>([&BaseMaterialNodes](const FString& NodeUid, UInterchangeBaseMaterialFactoryNode* MaterialNode)
@@ -752,8 +759,8 @@ void UInterchangeGenericMaterialPipeline::ExecutePipeline(UInterchangeBaseNodeCo
 
 		if(BaseMaterialNodes.Num() == 1)
 		{
-			BaseMaterialNodes[0]->SetAssetName(AssetName);
-			BaseMaterialNodes[0]->SetDisplayLabel(AssetName);
+			BaseMaterialNodes[0]->SetAssetName(OverrideAssetName);
+			BaseMaterialNodes[0]->SetDisplayLabel(OverrideAssetName);
 		}
 	}
 }

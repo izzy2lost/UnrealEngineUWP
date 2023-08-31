@@ -1341,6 +1341,11 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 		}
 		const bool bIsPipelineOverride = ImportAssetParameters.OverridePipelines.Num() > 0;
 		Attribs.Add(FAnalyticsEventAttribute(TEXT("Parameters.IsPipelineOverrided"), bIsPipelineOverride));
+		Attribs.Add(FAnalyticsEventAttribute(TEXT("Parameters.bReplaceExisting"), ImportAssetParameters.bReplaceExisting));
+		if(!ImportAssetParameters.DestinationName.IsEmpty())
+		{
+			Attribs.Add(FAnalyticsEventAttribute(TEXT("Parameters.DestinationName"), ImportAssetParameters.DestinationName));
+		}
 	}
 
 	if (!ensure(IsInGameThread()))
@@ -1410,6 +1415,8 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 	TaskData.ImportType = ImportType;
 	TaskData.ReimportObject = ImportAssetParameters.ReimportAsset;
 	TaskData.ImportLevel = ImportAssetParameters.ImportLevel;
+	TaskData.DestinationName = ImportAssetParameters.DestinationName;
+	TaskData.bReplaceExisting = ImportAssetParameters.bReplaceExisting;
 
 	TSharedRef<UE::Interchange::FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = CreateAsyncHelper(TaskData, ImportAssetParameters);
 	AsyncHelper->UniqueId = UniqueId;
@@ -1462,6 +1469,7 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 		}
 
 		Pipeline->AdjustSettingsForContext(Context, TaskData.ReimportObject);
+		Pipeline->DestinationName = TaskData.DestinationName;
 	};
 
 	// Use counter to guarantee uniqueness of packages on each call to ImportInternal

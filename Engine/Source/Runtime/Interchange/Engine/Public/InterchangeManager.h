@@ -97,6 +97,12 @@ namespace UE
 
 			//Level to import into in case of a scene import
 			ULevel* ImportLevel = nullptr;
+
+			/** Optional custom name to import as */
+			FString DestinationName;
+
+			/** Overwrite existing assets */
+			bool bReplaceExisting = true;
 		};
 
 		class FImportResult : protected FGCObject
@@ -360,6 +366,14 @@ struct FImportAssetParameters
 	//Level to import into in case of a scene import
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interchange|ImportAsset")
 	TObjectPtr<ULevel> ImportLevel = nullptr;
+
+	/** Optional custom name to import as */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interchange|ImportAsset")
+	FString DestinationName;
+
+	/** Overwrite existing assets */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interchange|ImportAsset")
+	bool bReplaceExisting = true;
 
 	/* Delegates used track the imported objects */
 

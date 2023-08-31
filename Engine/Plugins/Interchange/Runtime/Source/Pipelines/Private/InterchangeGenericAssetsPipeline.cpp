@@ -553,7 +553,12 @@ void UInterchangeGenericAssetsPipeline::ImplementUseSourceNameForAssetOption()
 	//If we import only one mesh, we want to rename the mesh using the file name.
 	const int32 MeshesImportedNodeCount = SkeletalMeshNodeUids.Num() + StaticMeshNodeUids.Num();
 
-	FString OverrideAssetName = IsStandAlonePipeline() ? AssetName : FString();
+	FString OverrideAssetName = IsStandAlonePipeline() ? DestinationName : FString();
+	if(OverrideAssetName.IsEmpty() && IsStandAlonePipeline())
+	{
+		OverrideAssetName = AssetName;
+	}
+
 	//SkeletalMesh it must always be run even if there is no rename option, skeleton and physics asset will be rename properly
 	MeshPipeline->ImplementUseSourceNameForAssetOptionSkeletalMesh(MeshesImportedNodeCount, bUseSourceNameForAsset, OverrideAssetName);
 

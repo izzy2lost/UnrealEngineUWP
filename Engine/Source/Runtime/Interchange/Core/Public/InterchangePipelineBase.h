@@ -340,6 +340,12 @@ public:
 	 */
 	INTERCHANGECORE_API virtual bool SupportReimport() const { return true; }
 
+	/*
+	 * The Unreal import system have an option to force a name if we import only one main asset (one texture, one mesh or one animation).
+	 * The generic asset pipeline is using this information to behave like expected.
+	 */
+	FString DestinationName;
+
 protected:
 
 	UE_DEPRECATED(5.2, "This function is replace by ExecutePipeline.")

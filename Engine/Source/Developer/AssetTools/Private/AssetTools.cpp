@@ -3315,11 +3315,11 @@ TArray<UObject*> UAssetToolsImpl::ImportAssetsInternal(const TArray<FString>& Fi
 				ImportAssetParameters.bIsAutomated = bAutomatedImport;
 				ImportAssetParameters.bFollowRedirectors = UE::AssetTools::Private::bFollowRedirectorsWhenImporting;
 				ImportAssetParameters.ReimportAsset = nullptr;
+				ImportAssetParameters.bReplaceExisting = bForceOverrideExisting;
 				if (Params.AssetImportTask && !Params.AssetImportTask->DestinationName.IsEmpty())
 				{
-					UE_LOG(LogAssetTools, Warning, TEXT("Interchange do not use the DestinationName parameter. Users must specify the destination name in a pipeline through the Options parameter."));
+					ImportAssetParameters.DestinationName = Params.AssetImportTask->DestinationName;
 				}
-
 
 				TFunction<void(UE::Interchange::FImportResult&)> AppendImportResult =
 					// Note: ImportStatus captured by value so that the lambda keeps the shared ptr alive
