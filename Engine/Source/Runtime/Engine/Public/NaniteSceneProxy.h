@@ -486,6 +486,9 @@ protected:
 
 	uint32 EndCullDistance = 0;
 
+	/** Minimum LOD index to use.  Clamped to valid range [0, NumLODs - 1]. */
+	int32 ClampedMinLOD;
+
 #if RHI_RAYTRACING
 	bool bHasRayTracingInstances = false;
 	bool bCachedRayTracingInstanceTransformsValid = false;
@@ -510,9 +513,6 @@ protected:
 
 	/** Collision Response of this component */
 	FCollisionResponseContainer CollisionResponse;
-
-	/** Minimum LOD index to use.  Clamped to valid range [0, NumLODs - 1]. */
-	int32 ClampedMinLOD;
 
 	/**
 	 * The ForcedLOD set in the static mesh editor, copied from the mesh component

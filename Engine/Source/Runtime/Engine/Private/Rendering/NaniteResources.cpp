@@ -798,6 +798,20 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 	// Nanite supports distance field representation for fully opaque meshes.
 	bSupportsDistanceFieldRepresentation = CombinedMaterialRelevance.bOpaque && DistanceFieldData && DistanceFieldData->IsValid();;
 
+	// Find the first LOD with any vertices (ie that haven't been stripped)
+	int32 FirstAvailableLOD = 0;
+	for (; FirstAvailableLOD < RenderData->LODResources.Num(); FirstAvailableLOD++)
+	{
+		if (RenderData->LODResources[FirstAvailableLOD].GetNumVertices() > 0)
+		{
+			break;
+		}
+	}
+
+	const int32 SMCurrentMinLOD = ProxyDesc.GetStaticMesh()->GetMinLODIdx();
+	int32 EffectiveMinLOD = ProxyDesc.bOverrideMinLOD ? ProxyDesc.MinLOD : SMCurrentMinLOD;
+	ClampedMinLOD = FMath::Clamp(EffectiveMinLOD, FirstAvailableLOD, RenderData->LODResources.Num() - 1);
+
 #if RHI_RAYTRACING
 	RayTracingMaterialProxiesPerLOD.SetNumZeroed(RenderData->LODResources.Num());
 	for (int32 LODIndex = 0; LODIndex < RenderData->LODResources.Num(); LODIndex++)
@@ -837,22 +851,8 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 	}
 #endif
 
+
 #if NANITE_ENABLE_DEBUG_RENDERING
-	// Find the first LOD with any vertices (ie that haven't been stripped)
-	int32 FirstAvailableLOD = 0;
-	for (; FirstAvailableLOD < RenderData->LODResources.Num(); FirstAvailableLOD++)
-	{
-		if (RenderData->LODResources[FirstAvailableLOD].GetNumVertices() > 0)
-		{
-			break;
-		}
-	}
-
-	const int32 SMCurrentMinLOD = ProxyDesc.GetStaticMesh()->GetMinLODIdx();
-	int32 EffectiveMinLOD = ProxyDesc.bOverrideMinLOD ? ProxyDesc.MinLOD : SMCurrentMinLOD; 
-	
-	ClampedMinLOD = FMath::Clamp(EffectiveMinLOD, FirstAvailableLOD, RenderData->LODResources.Num() - 1);
-
 	// Pre-allocate FallbackLODs. Dynamic resize is unsafe as the FFallbackLODInfo constructor queues up a rendering command with a reference to itself.
 	FallbackLODs.SetNumUninitialized(RenderData->LODResources.Num());
 
@@ -1878,7 +1878,7 @@ int32 FSceneProxy::GetFirstValidRaytracingGeometryLODIndex() const
 	}
 
 	int32 NumLODs = RenderData->LODResources.Num();
-	int LODIndex = 0;
+	int LODIndex = ClampedMinLOD;
 
 #if WITH_EDITOR
 	// If coarse mesh streaming mode is set to 2 then we force use the lowest LOD to visualize streamed out coarse meshes
