@@ -39,6 +39,25 @@ enum class EMediaPlateEventState : uint8
 };
 
 /**
+ * This struct is used to expose Media Texture settings via Media Plate Component and is a mirror of some
+ * of the settings.
+ */
+USTRUCT()
+struct FMediaTextureResourceSettings
+{
+	GENERATED_USTRUCT_BODY()
+
+	/** Enable mips generation */
+	UPROPERTY(EditAnywhere, Category = "Media Texture Resource Settings")
+	bool bEnableGenMips;
+
+	/** Current number of mips to be generated as output */
+	UPROPERTY(EditAnywhere, Category = "Media Texture Resource Settings")
+	uint8 CurrentNumMips;
+};
+
+
+/**
  * This is a component for AMediaPlate that can play and show media in the world.
  */
 UCLASS()
@@ -372,6 +391,10 @@ private:
 	/** Holds the media textures. */
 	UPROPERTY(Instanced)
 	TArray<TObjectPtr<UMediaTexture>> MediaTextures;
+
+	/** Exposes Media Texture settings via Media Plate component. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "MediaPlate")
+	FMediaTextureResourceSettings MediaTextureSettings;
 
 	/** This component's media player */
 	UPROPERTY(Instanced)
