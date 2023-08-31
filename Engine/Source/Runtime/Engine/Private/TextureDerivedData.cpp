@@ -3902,15 +3902,28 @@ bool UTexture::DownsizeImageUsingTextureSettings(const ITargetPlatform* TargetPl
 {
 	// resize so that the largest dimension is <= TargetSize
 
+	if (TargetSize < 1 || LayerIndex < 0 || InOutImage.IsImageInfoValid() == false)
+	{
+		UE_LOG(LogTexture, Error, TEXT("Invalid parameter supplied to DownsizeImageUsingTextureSettings target size = %d layer index = %d image valid: %s"),
+			TargetSize, LayerIndex, InOutImage.IsImageInfoValid() ? TEXT("true") : TEXT("false"));
+		return false;
+	}
+
 	if (TargetSize >= InOutImage.SizeX && TargetSize >= InOutImage.SizeY)
 	{
 		// both dimensions already small enough, early out
-		return false;
+		return true;
 	}
 
 	// Ideally this code wouldn't live here but at the moment of writing this code the coupling between the texture and the texture compressor make it hard to move that logic elsewhere
 	TArray<FTextureBuildSettings> SettingPerLayer;
 	GetBuildSettingsForTargetPlatform(*this, TargetPlatform, ETextureEncodeSpeed::Final, SettingPerLayer, nullptr);
+
+	if (LayerIndex >= SettingPerLayer.Num())
+	{
+		UE_LOG(LogTexture, Error, TEXT("Invalid layer supplied to DownsizeImageUsingTextureSettings, layer index = %d"), LayerIndex);
+		return false;
+	}
 
 	// Teak the build setting to generate a mip for our image
 	FTextureBuildSettings& BuildSettings = SettingPerLayer[LayerIndex];

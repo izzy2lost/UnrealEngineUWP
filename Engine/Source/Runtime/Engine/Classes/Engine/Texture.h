@@ -1915,8 +1915,9 @@ public:
 	ENGINE_API static int32 GetMaximumDimensionOfNonVT();
 
 	/*
-	 * Downsize the 2D Image with the build setting of the texture.
-	 * Try to get as close as it can to the target resolution but it will stay above it if it can't reach it
+	 * Downsize the 2D Image with the build settings for the texture until all dimensions are <= TargetSize.
+	 * This downsizes using the mip generation system and so will only cut sizes in half. Return false
+	 * if a parameter is invalid. Returns true if the output is <= TargetSize, whether or not downsizing occurred.
 	 */
 	ENGINE_API bool DownsizeImageUsingTextureSettings(const ITargetPlatform* TargetPlatform, FImage& InOutImage, int32 TargetSize, int32 LayerIndex);
 
