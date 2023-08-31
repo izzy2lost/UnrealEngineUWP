@@ -564,7 +564,7 @@ URigVMMemoryStorageGeneratorClass* URigVMMemoryStorageGeneratorClass::CreateStor
 	URigVMMemoryStorageGeneratorClass* Class = NewObject<URigVMMemoryStorageGeneratorClass>(
 		Package,
 		*ClassName,
-		RF_Standalone
+		RF_Standalone | RF_Public
 	);
 
 	// clear the class (sets relevant flags)
