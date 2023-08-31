@@ -547,6 +547,16 @@ void SScalabilitySettings::Construct( const FArguments& InArgs )
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("PerformanceWarningEnableDisableCheckbox", "Monitor Editor Performance?"))
+					.ToolTipText_Lambda([this]()
+						{
+							FProperty* Property = UEditorPerformanceSettings::StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UEditorPerformanceSettings, bMonitorEditorPerformance));
+							if (Property)
+							{
+								return Property->GetToolTipText();
+							}
+							
+							return FText::GetEmpty();
+						})
 				]
 			]
 
