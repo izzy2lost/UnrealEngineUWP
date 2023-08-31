@@ -180,6 +180,8 @@ CmdQueryFile(const FCmdQueryOptions& Options)
 {
 	TResult<FBuffer> Response = ProxyQuery::DownloadFile(Options.Remote, Options.Args);
 
+	UNSYNC_LOG(L"Downloading file: '%hs'", Options.Args.c_str());
+
 	if (Response.IsOk())
 	{
 		FBuffer& Buffer = Response.GetData();

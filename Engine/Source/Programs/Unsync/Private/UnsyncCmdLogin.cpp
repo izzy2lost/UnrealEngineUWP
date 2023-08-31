@@ -39,6 +39,7 @@ CmdLogin(const FCmdLoginOptions& Options)
 
 	if (AuthTokenResult.IsOk())
 	{
+		if (!Options.bQuick)
 		{
 			FHttpConnection Connection = FHttpConnection::CreateDefaultHttps(Options.Remote);
 

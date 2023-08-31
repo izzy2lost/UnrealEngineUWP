@@ -90,7 +90,8 @@ InnerMain(int Argc, char** Argv)
 	bool					 bDecode			 = false;
 	bool					 bPrint				 = false;
 	bool					 bShouldLogin		 = false;
-	bool					 bForceRefreshAuthentication = false;
+	bool					 bQuickLogin		 = false;
+	bool					 bForceRefreshAuth	 = false;
 	int32					 CompressionLevel	 = 3;
 	uint32					 DiffBlockSize		 = uint32(4_KB);
 	uint32					 HashOrSyncBlockSize = uint32(64_KB);
@@ -284,7 +285,8 @@ InnerMain(int Argc, char** Argv)
 	SubLogin->add_flag("--interactive", bInteractive, "Allow user interaction through modal dialogs");
 	SubLogin->add_flag("--decode", bDecode, "Decode authentication token (implies --print)");
 	SubLogin->add_flag("--print", bPrint, "Print authentication token to standard output");
-	SubLogin->add_flag("--refresh", bForceRefreshAuthentication, "Force authentication refresh even if access token has not yet expired");
+	SubLogin->add_flag("--refresh", bForceRefreshAuth, "Force authentication refresh even if access token has not yet expired");
+	SubLogin->add_flag("--quick", bQuickLogin, "Skip token validation using remote server (fast path when cached acess token is expected to be valid)");
 	AddTlsOptions(SubLogin);
 	AddProxyOptions(SubLogin);
 	SubCommands.push_back(SubLogin);
@@ -328,9 +330,69 @@ InnerMain(int Argc, char** Argv)
 	_setmode(_fileno(stdout), _O_U8TEXT);
 #endif	// UNSYNC_PLATFORM_WINDOWS
 
+	UNSYNC_VERBOSE(L"UNSYNC %hs", GetVersionString().c_str());
+
+	if (bUseDebugMode)
+	{
+		UNSYNC_LOG(L"*** Debug mode enabled ***");
+	}
+
+	UnsyncMallocInit(bUseDebugMode ? EMallocType::Debug : EMallocType::Default);
+
+	// Configure default output mehtod based on subcommand.
+	// In machine-readable mode, all verbose logging is directed to stderr.
+
 	if (Cli.got_subcommand(SubQuery) || Cli.got_subcommand(SubLogin))
 	{
 		GLogMachineReadable = true;
+	}
+
+	// Augment configuration based on environment variables if corresponding command line arguments are missing.
+
+	if (const char* EnvCleanupExclude = getenv("UNSYNC_CLEANUP_EXCLUDE"))
+	{
+		UNSYNC_VERBOSE(L"Using UNSYNC_CLEANUP_EXCLUDE environment: '%hs'", EnvCleanupExclude);
+		CleanupExcludeFilterArrayUtf8.push_back(EnvCleanupExclude);
+	}
+
+	if (PreferredDfsUtf8.empty())
+	{
+		const char* EnvDfs = getenv("UNSYNC_DFS");
+		if (EnvDfs)
+		{
+			UNSYNC_VERBOSE(L"Using UNSYNC_DFS environment: '%hs'", EnvDfs);
+			PreferredDfsUtf8 = std::string(EnvDfs);
+		}
+	}
+
+	if (RemoteAddressUtf8.empty())
+	{
+		const char* EnvProxy = getenv("UNSYNC_PROXY");
+		if (EnvProxy)
+		{
+			UNSYNC_VERBOSE(L"Using UNSYNC_PROXY environment: '%hs'", EnvProxy);
+			RemoteAddressUtf8 = std::string(EnvProxy);
+		}
+	}
+
+	if (CacertFilenameUtf8.empty())
+	{
+		const char* EnvCacert = getenv("UNSYNC_CACERT");
+		if (EnvCacert)
+		{
+			UNSYNC_VERBOSE(L"Using UNSYNC_CACERT environment: '%hs'", EnvCacert);
+			CacertFilenameUtf8 = std::string(EnvCacert);
+		}
+	}
+
+	if (HttpHeaderFilenameUtf8.empty())
+	{
+		const char* EnvHttpHeaderFile = getenv("UNSYNC_HTTP_HEADER_FILE");
+		if (EnvHttpHeaderFile)
+		{
+			UNSYNC_VERBOSE(L"Using UNSYNC_HTTP_HEADER_FILE environment: '%hs'", EnvHttpHeaderFile);
+			HttpHeaderFilenameUtf8 = std::string(EnvHttpHeaderFile);
+		}
 	}
 
 	if (GLogVeryVerbose)
@@ -359,13 +421,6 @@ InnerMain(int Argc, char** Argv)
 			L"Quick mode is now the default and --quick-difference flag is deprecated. Use --full-diff to enable legacy behavior performs "
 			L"full binary difference of local files even if timestamps and sizes match.");
 	}
-
-	if (bUseDebugMode)
-	{
-		UNSYNC_LOG(L"*** Debug mode enabled ***");
-	}
-
-	UnsyncMallocInit(bUseDebugMode ? EMallocType::Debug : EMallocType::Default);
 
 	EWeakHashAlgorithmID DefaultWeakHasher = EWeakHashAlgorithmID::BuzHash;
 	if (WeakHashUtf8 == "naive")
@@ -465,8 +520,6 @@ InnerMain(int Argc, char** Argv)
 	FPath ScavengeRoot			 = NormalizeFilenameUtf8(ScavengeRootUtf8);
 	FPath SourceManifestFilename = NormalizeFilenameUtf8(SourceManifestFilenameUtf8);
 
-	UNSYNC_VERBOSE(L"UNSYNC %hs", GetVersionString().c_str());
-
 	if (GLogVeryVerbose)
 	{
 		UNSYNC_VERBOSE(L"Very verbose logging is enabled");
@@ -532,55 +585,9 @@ InnerMain(int Argc, char** Argv)
 		SyncFilter.IncludeInSync(ConvertUtf8ToWide(Str));
 	}
 
-	if (const char* EnvCleanupExclude = getenv("UNSYNC_CLEANUP_EXCLUDE"))
-	{
-		UNSYNC_VERBOSE(L"Using UNSYNC_CLEANUP_EXCLUDE environment: '%hs'", EnvCleanupExclude);
-		CleanupExcludeFilterArrayUtf8.push_back(EnvCleanupExclude);
-	}
-
 	for (const std::string& Str : CleanupExcludeFilterArrayUtf8)
 	{
 		SyncFilter.ExcludeFromCleanup(ConvertUtf8ToWide(Str));
-	}
-
-	if (PreferredDfsUtf8.empty())
-	{
-		const char* EnvDfs = getenv("UNSYNC_DFS");
-		if (EnvDfs)
-		{
-			UNSYNC_VERBOSE(L"Using UNSYNC_DFS environment: '%hs'", EnvDfs);
-			PreferredDfsUtf8 = std::string(EnvDfs);
-		}
-	}
-
-	if (RemoteAddressUtf8.empty() && Cli.got_subcommand(SubSync))
-	{
-		const char* EnvProxy = getenv("UNSYNC_PROXY");
-		if (EnvProxy)
-		{
-			UNSYNC_VERBOSE(L"Using UNSYNC_PROXY environment: '%hs'", EnvProxy);
-			RemoteAddressUtf8 = std::string(EnvProxy);
-		}
-	}
-
-	if (CacertFilenameUtf8.empty())
-	{
-		const char* EnvCacert = getenv("UNSYNC_CACERT");
-		if (EnvCacert)
-		{
-			UNSYNC_VERBOSE(L"Using UNSYNC_CACERT environment: '%hs'", EnvCacert);
-			CacertFilenameUtf8 = std::string(EnvCacert);
-		}
-	}
-
-	if (HttpHeaderFilenameUtf8.empty())
-	{
-		const char* EnvHttpHeaderFile = getenv("UNSYNC_HTTP_HEADER_FILE");
-		if (EnvHttpHeaderFile)
-		{
-			UNSYNC_VERBOSE(L"Using UNSYNC_HTTP_HEADER_FILE environment: '%hs'", EnvHttpHeaderFile);
-			HttpHeaderFilenameUtf8 = std::string(EnvHttpHeaderFile);
-		}
 	}
 
 	if (!PreferredDfsUtf8.empty() && !SourceFilenameUtf8.empty())
@@ -828,7 +835,8 @@ InnerMain(int Argc, char** Argv)
 		LoginOptions.bInteractive  = bInteractive;
 		LoginOptions.bDecode	   = bDecode;
 		LoginOptions.bPrint		   = bPrint;
-		LoginOptions.bForceRefresh = bForceRefreshAuthentication;
+		LoginOptions.bForceRefresh = bForceRefreshAuth;
+		LoginOptions.bQuick		   = bQuickLogin;
 		return CmdLogin(LoginOptions);
 	}
 	else if (Cli.got_subcommand(SubMount))

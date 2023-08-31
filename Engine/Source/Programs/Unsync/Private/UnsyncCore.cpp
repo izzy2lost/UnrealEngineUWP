@@ -2972,19 +2972,19 @@ DownloadFileIfNewer(const FRemoteDesc& RemoteDesc, const FPath& Source, const FP
 			return false;
 		}
 
-		const FBuffer& bFileBuffer = DownloadResult.GetData();
-		if (bFileBuffer.Size() != SourceEntry->Size)
+		const FBuffer& FileBuffer = DownloadResult.GetData();
+		if (FileBuffer.Size() != SourceEntry->Size)
 		{
 			UNSYNC_ERROR(L"Downloaded file size mismatch. Expected %llu, actual %llu.",
 						 llu(SourceEntry->Size),
-						 llu(bFileBuffer.Size()));
+						 llu(FileBuffer.Size()));
 			return false;
 		}
 
-		bool bFileWritten = WriteBufferToFile(Target, bFileBuffer);
+		bool bFileWritten = WriteBufferToFile(Target, FileBuffer);
 		if (!bFileWritten)
 		{
-			UNSYNC_ERROR(L"Failed to write downloaded file file '%ls'", Target.wstring().c_str());
+			UNSYNC_ERROR(L"Failed to write downloaded file '%ls'", Target.wstring().c_str());
 			return false;
 		}
 
