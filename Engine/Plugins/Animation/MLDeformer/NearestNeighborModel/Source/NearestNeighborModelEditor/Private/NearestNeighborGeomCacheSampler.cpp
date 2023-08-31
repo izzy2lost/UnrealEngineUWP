@@ -231,7 +231,7 @@ namespace UE::NearestNeighborModel
 		}
 	}
 
-	// Write a function to get the animation of a skeletal mesh component
+	
 
 	bool FNearestNeighborGeomCacheSampler::SampleKMeansFrame(const int32 Frame)
 	{
