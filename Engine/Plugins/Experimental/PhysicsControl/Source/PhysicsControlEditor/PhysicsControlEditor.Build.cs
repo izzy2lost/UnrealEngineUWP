@@ -26,7 +26,8 @@ public class PhysicsControlEditor : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"Core"
+				"Core",
+				"PhysicsControlUncookedOnly",
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
@@ -67,7 +68,6 @@ public class PhysicsControlEditor : ModuleRules
 						"BlueprintGraph",
 						"EditorFramework",
 						"Kismet",
-						"PhysicsControlUncookedOnly",
 						"UnrealEd",
 				}
 			);
