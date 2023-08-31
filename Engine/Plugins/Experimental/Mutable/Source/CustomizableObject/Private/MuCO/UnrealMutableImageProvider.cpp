@@ -699,13 +699,32 @@ mu::FImageDesc FUnrealMutableImageProvider::CreateDummyDesc()
 }
 
 
+TAutoConsoleVariable<bool> CVarMutableLockExternalImagesDuringGC(
+	TEXT("Mutable.LockExternalImagesDuringGC"),
+	true,
+	TEXT("If true, GlobalExternalImages where all texture parameters are stored will be locked from concurrent access during the AddReferencedObjects phase of GC."),
+	ECVF_Default);
+
+
 void FUnrealMutableImageProvider::AddReferencedObjects(FReferenceCollector& Collector)
 {
+	bool bDoLock = CVarMutableLockExternalImagesDuringGC.GetValueOnAnyThread();
+
+	if (bDoLock)
+	{
+		ExternalImagesLock.Lock();
+	}
+
 	for (TPair<FName, FUnrealMutableImageInfo>& Image : GlobalExternalImages)
 	{
 		if (Image.Value.TextureToLoad)
 		{
 			Collector.AddReferencedObject(Image.Value.TextureToLoad);
 		}
+	}
+
+	if (bDoLock)
+	{
+		ExternalImagesLock.Unlock();
 	}
 }
