@@ -257,6 +257,13 @@ FAutoConsoleVariableRef CVarForceOfflineMode(
 	TEXT("True if it should fail faked network queries and act like an offline system"),
 	ECVF_Default | ECVF_Cheat);
 
+bool FOnlineSubsystemNull::bOnlineRequiresSecondLogin = false;
+FAutoConsoleVariableRef CVarOnlineRequiresSecondLogin(
+	TEXT("OSSNull.OnlineRequiresSecondLogin"),
+	FOnlineSubsystemNull::bOnlineRequiresSecondLogin,
+	TEXT("True if the first login only counts as local login, a second is required for online access"),
+	ECVF_Default | ECVF_Cheat);
+
 bool FOnlineSubsystemNull::Init()
 {
 	const bool bNullInit = true;
@@ -276,6 +283,7 @@ bool FOnlineSubsystemNull::Init()
 			GConfig->GetBool(TEXT("OnlineSubsystemNull"), TEXT("bAddUserNumToNullId"), bAddUserNumToNullId, GEngineIni);
 			GConfig->GetBool(TEXT("OnlineSubsystemNull"), TEXT("bForceStableNullId"), bForceStableNullId, GEngineIni);
 			GConfig->GetBool(TEXT("OnlineSubsystemNull"), TEXT("bForceOfflineMode"), bForceOfflineMode, GEngineIni);
+			GConfig->GetBool(TEXT("OnlineSubsystemNull"), TEXT("bOnlineRequiresSecondLogin"), bOnlineRequiresSecondLogin, GEngineIni);
 
 			if (FParse::Param(FCommandLine::Get(), TEXT("StableNullID")))
 			{
