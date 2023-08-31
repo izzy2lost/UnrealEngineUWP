@@ -125,7 +125,7 @@ void FMaterialGraphConnectionDrawingPolicy::DetermineWiringStyle(UEdGraphPin* Ou
 	Params.AssociatedPin2 = InputPin;
 	Params.WireColor = MaterialGraphSchema->ActivePinColor;
 
-	if (Strata::IsStrataEnabled() && (FSubstrateWidget::HasSubstrateType(OutputPin) || FSubstrateWidget::HasSubstrateType(InputPin)))
+	if (Strata::IsStrataEnabled() && (FSubstrateWidget::HasOutputSubstrateType(OutputPin) || FSubstrateWidget::HasInputSubstrateType(InputPin) || FSubstrateWidget::HasInputSubstrateType(OutputPin)))
 	{
 		Params.WireColor = FSubstrateWidget::GetConnectionColor();
 	}

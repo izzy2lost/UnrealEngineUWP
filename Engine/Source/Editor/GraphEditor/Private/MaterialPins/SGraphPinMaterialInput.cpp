@@ -9,10 +9,19 @@
 #include "MaterialGraph/MaterialGraphSchema.h"
 #include "Misc/AssertionMacros.h"
 #include "Templates/Casts.h"
+#include "SGraphSubstrateMaterial.h"
 
 void SGraphPinMaterialInput::Construct(const FArguments& InArgs, UEdGraphPin* InGraphPinObj)
 {
-	SGraphPin::Construct(SGraphPin::FArguments().UsePinColorForText(true), InGraphPinObj);
+	bool bUsePinColor = true;
+	if (Strata::IsStrataEnabled())
+	{
+		if (UMaterialGraphSchema::GetMaterialValueType(InGraphPinObj) == MCT_Strata)
+		{
+			bUsePinColor = false;
+		}			
+	}
+	SGraphPin::Construct(SGraphPin::FArguments().UsePinColorForText(bUsePinColor), InGraphPinObj);
 }
 
 FSlateColor SGraphPinMaterialInput::GetPinColor() const
@@ -23,6 +32,13 @@ FSlateColor SGraphPinMaterialInput::GetPinColor() const
 
 	if (MaterialGraph->IsInputActive(GraphPinObj))
 	{
+		if (Strata::IsStrataEnabled())
+		{
+			if (UMaterialGraphSchema::GetMaterialValueType(GraphPinObj) == MCT_Strata)
+			{
+				return FSlateColor(FSubstrateWidget::GetConnectionColor());
+			}			
+		}
 		return Schema->ActivePinColor;
 	}
 	else

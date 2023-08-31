@@ -6,6 +6,7 @@
 #include "Rendering/SubstrateMaterialShared.h"
 #include "MaterialGraph/MaterialGraphNode.h"
 #include "MaterialGraph/MaterialGraphNode_Root.h"
+#include "MaterialGraph/MaterialGraphSchema.h"
 #include "Materials/MaterialExpression.h"
 #include "Materials/MaterialExpressionSubstrate.h"
 #include "SGraphPin.h"
@@ -24,7 +25,7 @@ static EStyleColor GetSubstrateWidgetColor0() { return EStyleColor::AccentBlue; 
 static EStyleColor GetSubstrateWidgetColor1() { return EStyleColor::AccentGreen;  }
 FLinearColor FSubstrateWidget::GetConnectionColor() { return FLinearColor(0.16, 0.015, 0.24) * 4.f; }
 
-bool FSubstrateWidget::HasSubstrateType(const UEdGraphPin* InPin)
+bool FSubstrateWidget::HasInputSubstrateType(const UEdGraphPin* InPin)
 {
 	if (InPin == nullptr) return false;
 
@@ -57,6 +58,21 @@ bool FSubstrateWidget::HasSubstrateType(const UEdGraphPin* InPin)
 				}
 				break;
 			}
+		}
+	}
+	return false;
+}
+
+bool FSubstrateWidget::HasOutputSubstrateType(const UEdGraphPin* InPin)
+{
+	if (InPin == nullptr || InPin->Direction != EGPD_Output) return false;
+
+	if (UMaterialGraphNode* PinNode = Cast<UMaterialGraphNode>(InPin->GetOwningNode()))
+	{
+		const TArray<FExpressionOutput>& ExpressionOutputs = PinNode->MaterialExpression->GetOutputs();
+		if (InPin->SourceIndex < ExpressionOutputs.Num() && PinNode->MaterialExpression->GetOutputType(InPin->SourceIndex) == MCT_Strata)
+		{
+			return true;
 		}
 	}
 	return false;
@@ -208,7 +224,8 @@ void FSubstrateWidget::GetPinColor(TSharedPtr<SGraphPin>& Out, const UMaterialGr
 	FLinearColor ColorModifier;
 	bool bHasColorModifier = false;
 	// Strata operator override pin color to ease material topology visualization
-	const FName PinName = Out->GetPinObj()->PinName;
+	const UEdGraphPin* Pin = Out->SGraphPin::GetPinObj();
+	const FName PinName = Pin->PinName;
 	if (InNode->MaterialExpression->IsA(UMaterialExpressionStrataVerticalLayering::StaticClass()))
 	{			
 		if (PinName == InNode->MaterialExpression->GetInputName(0)) // Top
@@ -249,6 +266,20 @@ void FSubstrateWidget::GetPinColor(TSharedPtr<SGraphPin>& Out, const UMaterialGr
 		}
 	}
 
+	if (InNode->MaterialExpression->IsA(UMaterialExpressionStrataBSDF::StaticClass()) && Out->GetDirection() == EGPD_Output)
+	{
+		bHasColorModifier = true;
+		ColorModifier = FSubstrateWidget::GetConnectionColor();
+	}
+	else if (Pin && UMaterialGraphSchema::GetMaterialValueType(Pin) == MCT_Strata)
+	{
+		if (!Out->IsConnected())
+		{
+			bHasColorModifier = true;
+			ColorModifier = FSubstrateWidget::GetConnectionColor();
+		}
+	}	
+	
 	if (bHasColorModifier)
 	{
 		Out->SetPinColorModifier(ColorModifier);

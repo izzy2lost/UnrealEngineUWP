@@ -4898,19 +4898,11 @@ bool FMaterialEditor::OnCanCreateStrataNodeForPin(const FToolMenuContext& InMenu
 
 	if ((TargetPin->Direction == EEdGraphPinDirection::EGPD_Input) && (TargetPin->LinkedTo.Num() == 0))
 	{
-		return FSubstrateWidget::HasSubstrateType(TargetPin);
+		return FSubstrateWidget::HasInputSubstrateType(TargetPin);
 	}
 	else if (TargetPin && (TargetPin->Direction == EEdGraphPinDirection::EGPD_Output) && (TargetPin->LinkedTo.Num() == 0) && NodeForPin != EStrataNodeForPin::Slab)
 	{
-		if (OtherPinNode)
-		{
-			const TArray<FExpressionOutput>& ExpressionOutputs = OtherPinNode->MaterialExpression->GetOutputs();
-			check(TargetPin->SourceIndex < ExpressionOutputs.Num());
-			if (OtherPinNode->MaterialExpression->GetOutputType(TargetPin->SourceIndex) == MCT_Strata)
-			{
-				return true;
-			}
-		}
+		return FSubstrateWidget::HasOutputSubstrateType(TargetPin);
 	}
 
 	return false;
