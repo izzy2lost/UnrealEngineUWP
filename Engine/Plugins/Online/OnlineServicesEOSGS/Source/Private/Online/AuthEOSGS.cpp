@@ -544,13 +544,14 @@ void FAuthEOSGS::Initialize()
 {
 	Super::Initialize();
 
-	RegisterHandlers();
-
 	AuthHandle = EOS_Platform_GetAuthInterface(static_cast<FOnlineServicesEOSGS&>(GetServices()).GetEOSPlatformHandle());
 	check(AuthHandle != nullptr);
 
 	ConnectHandle = EOS_Platform_GetConnectInterface(static_cast<FOnlineServicesEOSGS&>(GetServices()).GetEOSPlatformHandle());
 	check(ConnectHandle != nullptr);
+
+	RegisterHandlers();
+
 }
 
 void FAuthEOSGS::PreShutdown()
