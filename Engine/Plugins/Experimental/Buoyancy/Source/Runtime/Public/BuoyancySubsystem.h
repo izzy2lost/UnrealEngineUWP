@@ -11,6 +11,7 @@
 #include "WaterBodyComponent.h"
 #include "BuoyancyEventFlags.h"
 #include "ChaosUserDataPT.h"
+#include "PhysicsProxy/SingleParticlePhysicsProxyFwd.h"
 #include "BuoyancySubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogBuoyancySubsystem, Log, All);
@@ -129,6 +130,15 @@ private:
 	void CreateSimCallback();
 	void DestroySimCallback();
 
+	// Update PT spline data structs for each waterbody in the map
+	void UpdateSplineData();
+
+	// Put updated settings struct onto async input to be sent to sim callback
+	void UpdateBuoyancySettings();
+
+	// Process async outputs which hold data for triggering callbacks
+	void ProcessSurfaceTouchCallbacks();
+
 	Chaos::FPhysicsSolver* GetSolver() const;
 
 	// When water plugin settings change, this callback will apply changes
@@ -178,11 +188,6 @@ struct FBuoyancySubmersion
 
 struct FBuoyancySubsystemSimCallbackInput : public Chaos::FSimCallbackInput
 {
-	// If this array is set, then we need to update our internal list of
-	// water body physics objects to this one. This should occur very
-	// infrequently, if more than once.
-	TOptional<TArray<Chaos::FPhysicsObjectHandle>> WaterObjects;
-
 	// If this ptr is set, then we have a new spline data manager...
 	// That should only probably happen one time
 	TOptional<FBuoyancyWaterSplineDataManager*> SplineData = nullptr;
@@ -226,12 +231,9 @@ private:
 	virtual void OnMidPhaseModification_Internal(Chaos::FMidPhaseModifierAccessor& Modifier) override;
 
 	void ProcessMidPhases(Chaos::FPBDRigidsEvolution& Evolution, Chaos::FMidPhaseModifierAccessor& MidPhaseAccessor);
-	void ProcessMidPhase(Chaos::FPBDRigidsEvolution& Evolution, Chaos::FGeometryParticleHandle* WaterParticle, Chaos::FMidPhaseModifier& MidPhase);
+	void ProcessMidPhase(Chaos::FPBDRigidsEvolution& Evolution, Chaos::FGeometryParticleHandle* WaterParticle, Chaos::FPBDRigidParticleHandle* RigidParticle, const FBuoyancyWaterSplineData& WaterSpline, Chaos::FMidPhaseModifier& MidPhase);
 	void ApplyBuoyantForces(Chaos::FPBDRigidsEvolution& Evolution);
 	void GenerateCallbackData();
-
-	// Internal array of physics objects that were created by water components
-	TArray<Chaos::FPhysicsObjectHandle> WaterObjects;
 
 	// Reference to UserDataPT sim callback which manages synchronization of
 	// water spline data
