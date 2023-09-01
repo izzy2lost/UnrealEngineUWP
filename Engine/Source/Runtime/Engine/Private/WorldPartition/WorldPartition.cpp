@@ -18,6 +18,7 @@
 #include "GameFramework/WorldSettings.h"
 #include "ProfilingDebugging/ScopedTimers.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
+#include "UObject/FortniteMainBranchObjectVersion.h"
 #include "LandscapeProxy.h"
 #include "Engine/LevelStreaming.h"
 
