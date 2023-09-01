@@ -19,6 +19,7 @@
 #include "Engine/LevelScriptActor.h"
 #include "Engine/SCS_Node.h"
 #include "Engine/InheritableComponentHandler.h"
+#include "IAssetRegistryTagProviderInterface.h"
 #include "IFieldNotificationClassDescriptor.h"
 #include "INotifyFieldValueChanged.h"
 #include "Misc/ConfigCacheIni.h"
@@ -375,6 +376,17 @@ void UBlueprintGeneratedClass::GetAssetRegistryTags(TArray<FAssetRegistryTag>& O
 	for (const auto& EditorTag : *EditorTagsToAdd)
 	{
 		OutTags.Add(FAssetRegistryTag(EditorTag.Key, EditorTag.Value, FAssetRegistryTag::TT_Hidden));
+	}
+
+	if (const UObject* CDO = GetDefaultObject())
+	{
+		if (const IAssetRegistryTagProviderInterface* AssetRegistryProvider = Cast<IAssetRegistryTagProviderInterface>(CDO))
+		{
+			if (AssetRegistryProvider->ShouldAddCDOTagsToBlueprintClass())
+			{
+				CDO->GetAssetRegistryTags(OutTags);
+			}
+		}
 	}
 #endif //#if WITH_EDITORONLY_DATA
 
