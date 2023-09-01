@@ -156,6 +156,8 @@ public:
 	// Executed for all jobs (including those read from cache) on completion.
 	virtual void OnComplete() = 0;
 
+	virtual void AppendDebugName(FStringBuilderBase& OutName) const = 0;
+	
 	bool Equals(const FShaderCommonCompileJob& Rhs) const;
 
 	/** Calls the specified predicate for each single compile job, i.e. FShaderCompileJob and each stage of FShaderPipelineCompileJob. */
@@ -249,6 +251,8 @@ public:
 	virtual RENDERCORE_API void SerializeOutput(FArchive& Ar) override;
 
 	virtual RENDERCORE_API void OnComplete() override;
+	
+	virtual RENDERCORE_API void AppendDebugName(FStringBuilderBase& OutName) const override;
 
 	// Serializes only the subset of data written by SCW/read back from ShaderCompiler when using worker processes.
 	RENDERCORE_API void SerializeWorkerOutput(FArchive& Ar);
@@ -302,6 +306,7 @@ public:
 	virtual RENDERCORE_API FInputHash GetInputHash() override;
 	virtual RENDERCORE_API void SerializeOutput(FArchive& Ar) override;
 	virtual RENDERCORE_API void OnComplete() override;
+	virtual RENDERCORE_API void AppendDebugName(FStringBuilderBase& OutName) const override;
 
 	RENDERCORE_API FShaderPipelineCompileJob(int32 NumStages);
 	RENDERCORE_API FShaderPipelineCompileJob(uint32 InHash, uint32 InId, EShaderCompileJobPriority InPriroity, const FShaderPipelineCompileJobKey& InKey);

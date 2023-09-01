@@ -835,6 +835,8 @@ private:
 	/* A lot of outputs can be duplicated, so they are deduplicated before storing */
 	TMap<FJobOutputHash, FStoredOutput*> Outputs;
 
+	TMap<FJobOutputHash, FString> CachedJobNames;
+
 	/** Map of input hashes to job data (in flight jobs and output) */
 	FShaderJobDataMap InputHashToJobData;
 
@@ -984,6 +986,7 @@ void FShaderJobCache::CullOutputsToMemoryBudget(uint64 TargetBudgetBytes)
 					if (StoredOutput->Release() == 0)
 					{
 						Outputs.Remove(JobData.OutputHash);
+						CachedJobNames.Remove(JobData.OutputHash);
 						CurrentlyAllocatedMemory -= OutputSize;
 					}
 				}
@@ -1417,12 +1420,12 @@ void FShaderJobCache::SubmitJob(FShaderCommonCompileJobPtr Job)
 
 	const int32 PriorityIndex = (int32)Job->Priority;
 	bool bNewJob = true;
-	bool bCacheEnabled = false;
+	bool bJobCacheLocked = false;
 
 	// check caches unless we're running in validation mode (which runs _all_ jobs and compares hashes of outputs)
 	if (ShaderCompiler::IsJobCacheEnabled() && !ShaderCompiler::IsJobCacheDebugValidateEnabled())
 	{
-		bCacheEnabled = true;
+		bJobCacheLocked = true;
 
 		const FShaderCommonCompileJob::FInputHash& InputHash = Job->GetInputHash();
 
@@ -1485,6 +1488,15 @@ void FShaderJobCache::SubmitJob(FShaderCommonCompileJobPtr Job)
 			}
 		}
 	}
+	else if (ShaderCompiler::IsJobCacheDebugValidateEnabled())
+	{
+		FSharedBuffer* ExistingOutput;
+		const FShaderCommonCompileJob::FInputHash& InputHash = Job->GetInputHash();
+		const bool bCheckDDC = !(Job->bIsDefaultMaterial || Job->bIsGlobalShader);
+		JobLock.WriteLock();
+		Job->JobCacheRef = FindOrAdd(InputHash, bCheckDDC, ExistingOutput);
+		bJobCacheLocked = true;
+	}
 
 	// new job
 	if (bNewJob)
@@ -1493,13 +1505,17 @@ void FShaderJobCache::SubmitJob(FShaderCommonCompileJobPtr Job)
 		ensure(!ShaderCompiler::IsJobCacheEnabled() || Job->bInputHashSet);
 
 		// If cache is disabled, we skipped the code that grabs the write lock above, so we need to do it here, before modifying the pending queue
-		if (bCacheEnabled == false)
+		if (bJobCacheLocked == false)
 		{
+			bJobCacheLocked = true;
 			JobLock.WriteLock();
 		}
 
 		LinkJobWithPriority(*Job);
+	}
 
+	if (bJobCacheLocked)
+	{
 		JobLock.WriteUnlock();
 	}
 }
@@ -10121,31 +10137,31 @@ void FShaderJobCache::AddJobOutput(FShaderJobData& JobData, const FShaderCommonC
 	{
 		if (OutputHash != JobData.OutputHash)
 		{
-			FString OriginalFilename = 
-				GShaderCompilingManager->GetAbsoluteShaderDebugInfoDirectory() / 
-				TEXT("CacheMismatches") / 
-				FString::Printf(TEXT("shaderoutput-%s.orig"), *LexToString(Hash));
-			FString NewFilename = 
-				GShaderCompilingManager->GetAbsoluteShaderDebugInfoDirectory() / 
-				TEXT("CacheMismatches") / 
-				FString::Printf(TEXT("shaderoutput-%s.mismatch"), *LexToString(Hash));
+			TStringBuilder<1024> FinishedJobName;
+			FinishedJob->AppendDebugName(FinishedJobName);
 
+			const FString* CachedJobName = CachedJobNames.Find(JobData.OutputHash);
+			check(CachedJobName);
 			UE_LOG(
 				LogShaderCompilers,
 				Warning,
-				TEXT("Job cache validation found output mismatch. Mismatching outputs dumped to %s and %s"),
-				*OriginalFilename, *NewFilename);
+				TEXT("Job cache validation found output mismatch!\n")
+				TEXT("Cached job: %s\n")
+				TEXT("Original job: %s\n"),
+				**CachedJobName, FinishedJobName.ToString());
 
-			FFileHelper::SaveArrayToFile(
-				TArrayView<const uint8>((const uint8*)Contents.GetData(), Contents.GetSize()), 
-				*NewFilename);
-
-			FStoredOutput** StoredOutput = Outputs.Find(JobData.OutputHash);
-			check(StoredOutput);
-
-			FFileHelper::SaveArrayToFile(
-				TArrayView<const uint8>((const uint8*)(*StoredOutput)->JobOutput.GetData(), (*StoredOutput)->JobOutput.GetSize()),
-				*OriginalFilename);
+			if (GDumpShaderDebugInfo != FShaderCompilingManager::EDumpShaderDebugInfo::Always)
+			{
+				static bool bOnce = false;
+				if (!bOnce)
+				{
+					UE_LOG(
+						LogShaderCompilers,
+						Warning,
+						TEXT("Enable r.DumpShaderDebugInfo=1 to get debug info paths for the mismatching jobs instead of group names (to allow diffing debug artifacts)"));
+					bOnce = true;
+				}
+			}
 		}
 		return;
 	}
@@ -10214,6 +10230,14 @@ void FShaderJobCache::AddJobOutput(FShaderJobData& JobData, const FShaderCommonC
 			NewStoredOutput->CachedDebugInfoPath = InputDebugInfoPath;
 			NewStoredOutput->AddRef();
 			Outputs.Add(OutputHash, NewStoredOutput);
+
+			if (ShaderCompiler::IsJobCacheDebugValidateEnabled())
+			{
+				TStringBuilder<1024> NameBuilder;
+				FinishedJob->AppendDebugName(NameBuilder);
+
+				CachedJobNames.Add(OutputHash, NameBuilder.ToString());
+			}
 
 			CurrentlyAllocatedMemory += NewStoredOutput->GetAllocatedSize() + Outputs.GetAllocatedSize() - OutputsOriginalSize;
 		}
