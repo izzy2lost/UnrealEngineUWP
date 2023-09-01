@@ -135,6 +135,9 @@ class FNullInstallBundleManager : public IInstallBundleManager
 
 	}
 
+	virtual void SetCacheSize(FName CacheName, uint64 CacheSize) override
+	{}
+
 	virtual bool SupportsEarlyStartupPatching() const override
 	{
 		return false;

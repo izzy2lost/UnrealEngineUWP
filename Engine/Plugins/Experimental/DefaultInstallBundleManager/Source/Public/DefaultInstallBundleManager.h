@@ -653,6 +653,8 @@ public:
 	virtual EInstallBundleRequestFlags GetModifyableContentRequestFlags() const override;
 	virtual void UpdateContentRequestFlags(TArrayView<const FName> BundleNames, EInstallBundleRequestFlags AddFlags, EInstallBundleRequestFlags RemoveFlags) override;
 
+	virtual void SetCacheSize(FName CacheName, uint64 CacheSize) override;
+
 	virtual void StartPatchCheck() override;
 	virtual void AddEnvironmentWantsPatchCheckBackCompatDelegate(FName Tag, FInstallBundleManagerEnvironmentWantsPatchCheck Delegate) override;
 	virtual void RemoveEnvironmentWantsPatchCheckBackCompatDelegate(FName Tag) override;
@@ -712,6 +714,7 @@ protected:
 
 	TMap<FName, TSharedRef<FInstallBundleCache>> BundleCaches;
 	TMap<EInstallBundleSourceType, FName> BundleSourceCaches;
+	TMap<FName, uint64> BundleCacheSizeOverrides;
 
 	TMap<TTuple<EInstallBundleSourceType, FName>, TArray<FCacheEvictionRequestorRef>> PendingCacheEvictions; // (Source, Bundle) -> List of requestors
 	TMap<TTuple<FName, FName>, TArray<EInstallBundleSourceType>> CachesPendingEvictToSources; // (Cache, Bundle) -> List of Sources

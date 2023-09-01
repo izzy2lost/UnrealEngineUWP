@@ -3932,6 +3932,14 @@ void FDefaultInstallBundleManager::UpdateContentRequestFlags(TArrayView<const FN
 	}
 }
 
+void FDefaultInstallBundleManager::SetCacheSize(FName CacheName, uint64 CacheSize)
+{
+	if (ensureMsgf(!BundleCaches.Contains(CacheName), TEXT("FDefaultInstallBundleManager::SetCacheSize is only supported prior to initialization, for now")))
+	{
+		BundleCacheSizeOverrides.Add(CacheName, CacheSize);
+	}
+}
+
 void FDefaultInstallBundleManager::StartPatchCheck()
 {
 	if (bIsCheckingForPatch)
@@ -4347,6 +4355,16 @@ void FDefaultInstallBundleManager::AsyncInit_InitBundleCaches()
 		FInstallBundleCacheInitInfo& InitInfo = BundleCacheInitInfo.Emplace(CacheName);
 		InitInfo.CacheName = CacheName;
 		InitInfo.Size = CacheSize;
+	}
+
+	// Apply cache size runtime overrides
+	for (const TPair<FName, uint64>& BundleCacheSizeOverride : BundleCacheSizeOverrides)
+	{
+		FInstallBundleCacheInitInfo* InitInfo = BundleCacheInitInfo.Find(BundleCacheSizeOverride.Key);
+		if (ensureMsgf(InitInfo, TEXT("Size override cannot be applied on cache '%s' because it doesn't exist"), *BundleCacheSizeOverride.Key.ToString()))
+		{
+			InitInfo->Size = BundleCacheSizeOverride.Value;
+		}
 	}
 
 	// Check to override cache size from command line
