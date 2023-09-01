@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "AudioBusSubsystem.h"
 #include "AudioMixer.h"
 #include "AudioDefines.h"
 #include "CoreMinimal.h"
@@ -131,6 +132,12 @@ namespace Audio
 
 		// Removes the given submix from this submix's children
 		AUDIOMIXER_API void RemoveChildSubmix(TWeakPtr<FMixerSubmix, ESPMode::ThreadSafe> SubmixWeakPtr);
+
+		// Registers the given audiobus to this submix
+		AUDIOMIXER_API void RegisterAudioBus(const Audio::FAudioBusKey& InAudioBusKey, Audio::FPatchInput&& InPatchInput);
+
+		// Unregisters a registered audiobus from this submix (if any)
+		AUDIOMIXER_API void UnregisterAudioBus(const Audio::FAudioBusKey& InAudioBusKey);
 
 		// Sets the output level of the submix in linear gain
 		AUDIOMIXER_API void SetOutputVolume(float InOutputLevel);
@@ -671,5 +678,11 @@ namespace Audio
 		TUniquePtr<IAudioLink> AudioLinkInstance;
 
 		friend class FMixerDevice;
+
+	private:
+		AUDIOMIXER_API void SendAudioToRegisteredAudioBuses(FAlignedFloatBuffer& OutAudioBuffer);
+
+		// Registered audio buses
+		TMap<Audio::FAudioBusKey, Audio::FPatchInput> AudioBuses;
 	};
 }

@@ -45,8 +45,8 @@ FAutoConsoleVariableRef CVarLogSubmixEnablement(
 	ECVF_Default);
 
 // Define profiling categories for submixes. 
-DEFINE_STAT(STAT_AudioMixerSubmixes);
 DEFINE_STAT(STAT_AudioMixerEndpointSubmixes);
+DEFINE_STAT(STAT_AudioMixerSubmixes);
 DEFINE_STAT(STAT_AudioMixerSubmixChildren);
 DEFINE_STAT(STAT_AudioMixerSubmixSource);
 DEFINE_STAT(STAT_AudioMixerSubmixEffectProcessing);
@@ -495,6 +495,32 @@ namespace Audio
 			AUDIO_MIXER_CHECK_AUDIO_PLAT_THREAD(MixerDevice);
 
 			ChildSubmixes.Remove(OldIdToRemove);
+		});
+	}
+
+	void FMixerSubmix::RegisterAudioBus(const Audio::FAudioBusKey& InAudioBusKey, Audio::FPatchInput&& InPatchInput)
+	{
+		check(IsInAudioThread());
+
+		SubmixCommand([this, InAudioBusKey, InPatchInput = MoveTemp(InPatchInput)]()
+		{
+			if (!AudioBuses.Contains(InAudioBusKey))
+			{
+				AudioBuses.Emplace(InAudioBusKey, InPatchInput);
+			}
+		});
+	}
+
+	void FMixerSubmix::UnregisterAudioBus(const Audio::FAudioBusKey& InAudioBusKey)
+	{
+		check(IsInAudioThread());
+
+		SubmixCommand([this, InAudioBusKey]()
+		{
+			if (AudioBuses.Contains(InAudioBusKey))
+			{
+				AudioBuses.Remove(InAudioBusKey);
+			}
 		});
 	}
 
@@ -1242,6 +1268,7 @@ namespace Audio
 
 			// Even though we're silent, broadcast the buffer to any listeners (will be a silent buffer)
 			SendAudioToSubmixBufferListeners(InputBuffer);
+			SendAudioToRegisteredAudioBuses(InputBuffer);
 			return;
 		}
 
@@ -1524,6 +1551,7 @@ namespace Audio
 		}
 
 		SendAudioToSubmixBufferListeners(InputBuffer);
+		SendAudioToRegisteredAudioBuses(InputBuffer);
 
 		// Mix the audio buffer of this submix with the audio buffer of the output buffer (i.e. with other submixes)
 		Audio::ArrayMixIn(InputBuffer, OutAudioBuffer);
@@ -1575,6 +1603,16 @@ namespace Audio
 			}
 
 			PatchSplitter.PushAudio(OutAudioBuffer.GetData(), OutAudioBuffer.Num());
+		}
+	}
+
+	void FMixerSubmix::SendAudioToRegisteredAudioBuses(FAlignedFloatBuffer& OutAudioBuffer)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FMixerSubmix::SendAudioToRegisteredAudioBuses);
+
+		for (auto& [AudioBusKey, PatchInput] : AudioBuses)
+		{
+			PatchInput.PushAudio(OutAudioBuffer.GetData(), OutAudioBuffer.Num());
 		}
 	}
 
