@@ -35,7 +35,7 @@ namespace UE::Learning
 				RowNum,
 				ColNum);
 #else
-			for (const int32 BatchIdx = BatchOffset; BatchIdx < BatchOffset + BatchNum; BatchIdx++)
+			for (int32 BatchIdx = BatchOffset; BatchIdx < BatchOffset + BatchNum; BatchIdx++)
 			{
 				for (int32 ColIdx = 0; ColIdx < ColNum; ColIdx++)
 				{

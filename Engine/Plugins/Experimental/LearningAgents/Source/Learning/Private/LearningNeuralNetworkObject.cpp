@@ -10,7 +10,7 @@
 
 namespace UE::Learning
 {
-	namespace NeuralNetworkPolicyFunction
+	namespace NeuralNetworkPolicyFunction::Private
 	{
 		static inline float Sigmoid(const float X)
 		{
