@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Subsystems/EngineSubsystem.h"
+#include "UObject/ObjectKey.h"
 
 #include "MVVMBindingSubsystem.generated.h"
 
@@ -54,7 +55,7 @@ private:
 	void HandlePreTick(float DeltaTIme);
 
 	using FDelayedBindingList = TArray<FMVVMViewDelayedBinding, TInlineAllocator<8>>;
-	using FDelayedMap = TMap<TWeakObjectPtr<const UMVVMView>, FDelayedBindingList>;
+	using FDelayedMap = TMap<TObjectKey<const UMVVMView>, FDelayedBindingList>;
 	FDelayedMap DelayedBindings;
 	TArray<TWeakObjectPtr<const UMVVMView>> EveryTickBindings;
 };
