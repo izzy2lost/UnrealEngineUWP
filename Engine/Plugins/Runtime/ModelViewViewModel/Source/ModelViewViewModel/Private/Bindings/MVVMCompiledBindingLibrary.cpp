@@ -45,7 +45,7 @@ UFunction* FMVVMVCompiledFields::GetFunction(FName FunctionName) const
 UE::FieldNotification::FFieldId FMVVMVCompiledFields::GetFieldId(FName FieldName) const
 {
 	// ScriptStruct can't implements UNotifyFieldValueChanged
-	UClass* Class = CastChecked<UClass>(ClassOrScriptStruct);
+	const UClass* Class = CastChecked<UClass>(ClassOrScriptStruct);
 	check(Class->ImplementsInterface(UNotifyFieldValueChanged::StaticClass()));
 
 	TScriptInterface<INotifyFieldValueChanged> Interface = Class->GetDefaultObject();
