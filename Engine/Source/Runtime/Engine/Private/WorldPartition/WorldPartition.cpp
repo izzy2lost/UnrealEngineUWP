@@ -1478,6 +1478,7 @@ bool UWorldPartition::IsStreamingEnabledInEditor() const
 void UWorldPartition::Serialize(FArchive& Ar)
 {
 	Ar.UsingCustomVersion(FUE5MainStreamObjectVersion::GUID);
+	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
 
 	Super::Serialize(Ar);
 
