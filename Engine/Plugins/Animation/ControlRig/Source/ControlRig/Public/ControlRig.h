@@ -467,25 +467,43 @@ private:
 
 	const FRigInfluenceMap* FindInfluenceMap(const FName& InEventName);
 
-	UPROPERTY(transient, BlueprintGetter = GetInteractionRig, BlueprintSetter = SetInteractionRig, Category = "Interaction")
-	TObjectPtr<UControlRig> InteractionRig;
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	TObjectPtr<UControlRig> InteractionRig_DEPRECATED;
 
-	UPROPERTY(EditInstanceOnly, transient, BlueprintGetter = GetInteractionRigClass, BlueprintSetter = SetInteractionRigClass, Category = "Interaction", Meta=(DisplayName="Interaction Rig"))
-	TSubclassOf<UControlRig> InteractionRigClass;
+	UPROPERTY()
+	TSubclassOf<UControlRig> InteractionRigClass_DEPRECATED;
+#endif
 
 public:
 
-	UFUNCTION(BlueprintGetter)
-	UControlRig* GetInteractionRig() const { return InteractionRig; }
+	UE_DEPRECATED(5.4, "InteractionRig is no longer used")
+	UFUNCTION(BlueprintGetter, meta = (DeprecatedFunction, DeprecationMessage = "InteractionRig is no longer used"))
+	UControlRig* GetInteractionRig() const 
+	{
+#if WITH_EDITORONLY_DATA
+		return InteractionRig_DEPRECATED;
+#endif
+		return nullptr;
+	}
 
-	UFUNCTION(BlueprintSetter)
-	void SetInteractionRig(UControlRig* InInteractionRig);
+	UE_DEPRECATED(5.4, "InteractionRig is no longer used")
+	UFUNCTION(BlueprintSetter, meta = (DeprecatedFunction, DeprecationMessage = "InteractionRig is no longer used"))
+	void SetInteractionRig(UControlRig* InInteractionRig) {}
 
-	UFUNCTION(BlueprintGetter)
-	TSubclassOf<UControlRig> GetInteractionRigClass() const { return InteractionRigClass; }
+	UE_DEPRECATED(5.4, "InteractionRig is no longer used")
+	UFUNCTION(BlueprintGetter, meta = (DeprecatedFunction, DeprecationMessage = "InteractionRig is no longer used"))
+	TSubclassOf<UControlRig> GetInteractionRigClass() const 
+	{ 
+#if WITH_EDITORONLY_DATA
+		return InteractionRigClass_DEPRECATED;
+#endif
+		return nullptr;
+	}
 
-	UFUNCTION(BlueprintSetter)
-	void SetInteractionRigClass(TSubclassOf<UControlRig> InInteractionRigClass);
+	UE_DEPRECATED(5.4, "InteractionRig is no longer used")
+	UFUNCTION(BlueprintSetter, meta = (DeprecatedFunction, DeprecationMessage = "InteractionRig is no longer used"))
+	void SetInteractionRigClass(TSubclassOf<UControlRig> InInteractionRigClass) {}
 
 	// UObject interface
 #if WITH_EDITOR
@@ -506,11 +524,6 @@ protected:
 private:
 
 	void CopyPoseFromOtherRig(UControlRig* Subject);
-	void HandleInteractionRigControlModified(UControlRig* Subject, FRigControlElement* Control, const FRigControlModifiedContext& Context);
-	void HandleInteractionRigInitialized(URigVMHost* Subject, const FName& EventName);
-	void HandleInteractionRigExecuted(URigVMHost* Subject, const FName& EventName);
-	void HandleInteractionRigControlSelected(UControlRig* Subject, FRigControlElement* InControl, bool bSelected, bool bInverted);
-
 
 protected:
 	bool bCopyHierarchyBeforeConstruction;
