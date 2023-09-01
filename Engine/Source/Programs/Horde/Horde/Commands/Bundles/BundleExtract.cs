@@ -19,6 +19,9 @@ namespace Horde.Commands.Bundles
 		[CommandLine("-Ref=")]
 		public string? Ref { get; set; }
 
+		[CommandLine("-Node=")]
+		public string? Node { get; set; }
+
 		[CommandLine("-Stats")]
 		public bool Stats { get; set; }
 
@@ -43,6 +46,11 @@ namespace Horde.Commands.Bundles
 			{
 				store = await CreateStorageClientAsync(logger);
 				handle = await store.ReadRefTargetAsync(new RefName(Ref));
+			}
+			else if (Node != null)
+			{
+				store = await CreateStorageClientAsync(logger);
+				handle = ((BundleStorageClient)store).CreateNodeHandle(BundleNodeLocator.Parse(Node));
 			}
 			else
 			{
