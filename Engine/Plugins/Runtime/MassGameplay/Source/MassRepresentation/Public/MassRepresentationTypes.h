@@ -279,9 +279,14 @@ struct FMassISMCSharedDataMap
 			return Container.GetAtIndex(It.GetIndex());
 		}
 
+		void ClearDirtyFlag()
+		{
+			It.GetValue() = false;
+		}
+
 	private:
 		FMassISMCSharedDataMap& Container;
-		TBitArray<>::FConstIterator It;
+		TBitArray<>::FIterator It;
 		static constexpr bool bValueToCheck = true;
 	};
 
@@ -317,11 +322,12 @@ struct FMassISMCSharedDataMap
 		if (DataIndex == Data.Num())
 		{
 			DirtyData.Add(false, DataIndex - DirtyData.Num() + 1);
+			DirtyData[DataIndex] = true;
 			return Data.Add_GetRef(NewData);
 		}
 		else
 		{
-			DirtyData[DataIndex] = false;
+			DirtyData[DataIndex] = true;
 			Data[DataIndex] = NewData;
 			return Data[DataIndex];
 		}
@@ -343,7 +349,7 @@ struct FMassISMCSharedDataMap
 		return Data[DataIndex];
 	}
 	
-	const TBitArray<>& GetDirtyArray() const 
+	TBitArray<>& GetDirtyArray()
 	{ 
 		return DirtyData;
 	}
@@ -363,11 +369,6 @@ struct FMassISMCSharedDataMap
 	bool IsDirty(const int32 DataIndex) const
 	{
 		return DirtyData[DataIndex];
-	}
-
-	void ResetAllDirtyFlags()
-	{
-		DirtyData.SetRange(0, DirtyData.Num(), false);
 	}
 
 	void Reset()

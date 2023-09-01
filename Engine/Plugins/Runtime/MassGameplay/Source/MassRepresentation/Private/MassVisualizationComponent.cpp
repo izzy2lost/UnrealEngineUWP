@@ -315,8 +315,10 @@ void UMassVisualizationComponent::HandleChangesWithExternalIDTracking(UInstanced
 {
 	constexpr float EqualTolerance = 1e-6;
 
-	if (!ensureMsgf(SharedData.HasUpdatesToApply(), TEXT("We're not expected to call this function for SharedData that needs no instance work, as per FMassISMCSharedData::FDirtyIterator used to iterate over data.")))
+	if (SharedData.HasUpdatesToApply() == false)
 	{
+		// nothing to do here. We most probably were called as the part of the very first tick of this given SharedData
+		// since all the SharedData starts off as `dirty`.
 		return;
 	}
 
@@ -575,6 +577,7 @@ void UMassVisualizationComponent::EndVisualChanges()
 			if (SharedData.RequiresExternalInstanceIDTracking())
 			{
 				HandleChangesWithExternalIDTracking(*InstancedStaticMeshComponent, SharedData);
+				It.ClearDirtyFlag();
 			}
 			else
 			{
@@ -634,13 +637,12 @@ void UMassVisualizationComponent::EndVisualChanges()
 					// Dirty render state
 					InstancedStaticMeshComponent->MarkRenderStateDirty();
 				}
+				// note that we're not clearing the dirty flag on purpose - these components require constant updates
 			}
 		}
 		
 		SharedData.ResetAccumulatedData();
 	}
-
-	ISMCSharedData.ResetAllDirtyFlags();
 }
 
 //---------------------------------------------------------------
