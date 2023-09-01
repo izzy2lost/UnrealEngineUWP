@@ -94,7 +94,7 @@ namespace Chaos::Private
 		template <typename... ArgsType>
 		FORCEINLINE void Emplace(const FIDType ID, ArgsType&&... Args)
 		{
-			checkSlow(Find(Key) == nullptr);
+			checkSlow(Find(ID) == nullptr);
 
 			const int32 Index = Elements.Emplace(Forward<ArgsType>(Args)...);
 			const FHashType Key = FIDTraits::HashID(ID);
