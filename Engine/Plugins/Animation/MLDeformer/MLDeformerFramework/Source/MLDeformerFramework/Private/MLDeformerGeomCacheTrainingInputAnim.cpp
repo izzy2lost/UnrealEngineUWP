@@ -1,3 +1,5 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
 #include "MLDeformerGeomCacheTrainingInputAnim.h"
 
 #if WITH_EDITORONLY_DATA
