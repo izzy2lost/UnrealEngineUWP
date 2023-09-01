@@ -1237,7 +1237,15 @@ void FOnDemandIoBackend::ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAn
 
 	if (HttpClient.IsValid())
 	{
-		AppendAnalyticsEventAttributeArray(OutAnalyticsArray, TEXT("IasCDNBackend"), HttpClient->ServiceUrl());
+		FString CdnUrl = HttpClient->ServiceUrl();
+
+		// Strip the prefix from the url as some analytics systems may have trouble dealing with it
+		if (!CdnUrl.RemoveFromStart(TEXT("http://")))
+		{
+			CdnUrl.RemoveFromStart(TEXT("https://"));
+		}
+
+		AppendAnalyticsEventAttributeArray(OutAnalyticsArray, TEXT("IasCdnUrl"), MoveTemp(CdnUrl));
 
 		Stats.ReportAnalytics(OutAnalyticsArray);
 	}

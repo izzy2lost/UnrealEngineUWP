@@ -213,7 +213,6 @@ int64					GHttpHistoryTotalDuration = 0;
 int64					GHttpHistoryTotalBytes = 0;
 int64 					GHttpHistoryIndex = 0;
 FIncrementalVariance	GHttpAvgDuration; // Duration of the http requests, in milliseconds
-FIncrementalVariance	GHttpAvgRate; // The download rate of the http requests, in MiB/s
 
 ////////////////////////////////////////////////////////////////////////////////
 // 
@@ -317,8 +316,6 @@ void FOnDemandIoBackendStats::ReportAnalytics(TArray<FAnalyticsEventAttribute>& 
 			TEXT("IasHttpDownloadedBytes"), GHttpDownloadedBytes.Get(),
 			TEXT("IasHttpDurationMeanAvg"), GHttpAvgDuration.GetMean(),
 			TEXT("IasHttpDurationStdDev"), GHttpAvgDuration.GetDeviation(),
-			TEXT("IasHttpRateMeanAvg"), GHttpAvgRate.GetMean(),
-			TEXT("IasHttpRateStdDev"), GHttpAvgRate.GetDeviation(),
 
 			TEXT("IasHttpDuration0"), GHttpDurationBuckets[0],
 			TEXT("IasHttpDuration1"), GHttpDurationBuckets[1],
@@ -448,11 +445,6 @@ void FOnDemandIoBackendStats::OnHttpGet(uint64 SizeBytes, uint64 DurationMs)
 	GHttpHistoryIndex = (GHttpHistoryIndex + 1) % GHttpHistoryCount;
 
 	GHttpAvgDuration.Increment(static_cast<double>(DurationMs));
-
-	const double SizeMiB = double(SizeBytes) / (1024.0 * 1024.0);
-	const double DurationSeconds = double(DurationMs) / 1000.0;
-
-	GHttpAvgRate.Increment(SizeMiB / DurationSeconds);
 
 	GHttpDurationBuckets[FindDurationBucket(DurationMs)]++;
 }
