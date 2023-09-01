@@ -1113,7 +1113,7 @@ bool UMovieScenePropertyInstantiatorSystem::ResolveProperty(UE::MovieScene::FCus
 #if !UE_BUILD_SHIPPING
 		const FObjectPropertyInfo& ResolvedProperty = ResolvedProperties[GroupID.GroupIndex];
 		ensure(ResolvedProperty.BoundObject == Object);
-		ensure(ResolvedProperty.PropertyBinding == PropertyBinding);
+		ensure(ResolvedProperty.PropertyBinding.PropertyPath == PropertyBinding.PropertyPath);
 #endif
 		return true;
 	}
