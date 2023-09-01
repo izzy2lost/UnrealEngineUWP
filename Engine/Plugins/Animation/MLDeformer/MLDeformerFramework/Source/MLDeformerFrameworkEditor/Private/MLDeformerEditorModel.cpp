@@ -14,8 +14,11 @@
 #include "MLDeformerInputInfo.h"
 #include "MLDeformerSampler.h"
 #include "MLDeformerModelInstance.h"
+#include "MLDeformerTrainingInputAnim.h"
 #include "AnimationEditorPreviewActor.h"
 #include "AnimationEditorViewportClient.h"
+#include "EditorModeManager.h"
+#include "Selection.h"
 #include "AnimPreviewInstance.h"
 #include "Animation/MeshDeformer.h"
 #include "Animation/DebugSkelMeshComponent.h"
@@ -39,6 +42,7 @@
 #include "Animation/AnimData/IAnimationDataModel.h"
 #include "Engine/SkinnedAssetCommon.h"
 #include "SMLDeformerInputWidget.h"
+#include "SMLDeformerTimeline.h"
 
 #define LOCTEXT_NAMESPACE "MLDeformerEditorModel"
 
@@ -63,6 +67,15 @@ namespace UE::MLDeformer
 
 		ClearWorld();
 
+		// Delete the samplers.
+		for (int32 Index = 0; Index < Samplers.Num(); ++Index)
+		{
+			Samplers[Index].Reset();
+		}
+		Samplers.Empty();
+
+		Editor->GetPersonaToolkit()->GetPreviewScene()->DeselectAll();
+
 		FMLDeformerEditorModule& EditorModule = FModuleManager::LoadModuleChecked<FMLDeformerEditorModule>("MLDeformerFrameworkEditor");
 		EditorModule.GetModelRegistry().RemoveEditorModelInstance(this);
 	}
@@ -78,9 +91,7 @@ namespace UE::MLDeformer
 		EditorInputInfo = Model->CreateInputInfo();
 		check(EditorInputInfo);
 
-		Sampler = CreateSampler();
-		check(Sampler);
-		Sampler->Init(this);
+		CreateSamplers();
 
 		ViewRange = TRange<double>(0.0, 100.0);
 		WorkingRange = TRange<double>(0.0, 100.0);
@@ -105,17 +116,31 @@ namespace UE::MLDeformer
 		);
 	}
 
+	void FMLDeformerEditorModel::CreateSamplers()
+	{
+		// First get rid of the existing samplers.
+		for (int32 Index = 0; Index < Samplers.Num(); ++Index)
+		{
+			Samplers[Index].Reset();
+		}
+		Samplers.Reset();
+
+		// Create a sampler for each training input anim entry.
+		const int32 NumAnims = GetNumTrainingInputAnims();
+		for (int32 AnimIndex = 0; AnimIndex < NumAnims; ++AnimIndex)
+		{
+			TSharedPtr<FMLDeformerSampler> Sampler = CreateSamplerObject();
+			check(Sampler.IsValid());
+			Sampler->Init(this, AnimIndex);
+			Samplers.Add(Sampler);
+		}
+	}
+
 	void FMLDeformerEditorModel::OnObjectModified(UObject* Object)
 	{
 		if (Model->GetSkeletalMesh() == Object || Model->GetInputInfo()->GetSkeletalMesh() == Object)
 		{
 			UE_LOG(LogMLDeformer, Display, TEXT("Detected a modification in skeletal mesh %s, reinitializing inputs."), *Object->GetName());
-			bNeedsAssetReinit = true;
-		}
-
-		if (Model->GetAnimSequence() == Object)
-		{
-			UE_LOG(LogMLDeformer, Display, TEXT("Detected a modification in training anim sequence %s, reinitializing inputs."), *Object->GetName());
 			bNeedsAssetReinit = true;
 		}
 
@@ -142,11 +167,6 @@ namespace UE::MLDeformer
 		return Editor->GetPersonaToolkit()->GetPreviewScene()->GetWorld();
 	}
 
-	FMLDeformerSampler* FMLDeformerEditorModel::CreateSampler() const
-	{
-		return new FMLDeformerSampler();
-	}
-
 	void FMLDeformerEditorModel::CreateTrainingLinearSkinnedActor(const TSharedRef<IPersonaPreviewScene>& InPersonaPreviewScene)
 	{
 		UWorld* World = InPersonaPreviewScene->GetWorld();
@@ -168,11 +188,11 @@ namespace UE::MLDeformer
 		// NOTE: This must be done AFTER setting the AnimInstance so that the correct root anim node is loaded.
 		USkeletalMesh* Mesh = Model->GetSkeletalMesh();
 		SkelMeshComponent->SetSkeletalMesh(Mesh);
+		SkelMeshComponent->RegisterComponent();
 
 		// Update the persona scene.
 		InPersonaPreviewScene->SetActor(Actor);
 		InPersonaPreviewScene->SetPreviewMeshComponent(SkelMeshComponent);
-		InPersonaPreviewScene->AddComponent(SkelMeshComponent, FTransform::Identity);
 		InPersonaPreviewScene->SetAdditionalMeshesSelectable(false);
 		InPersonaPreviewScene->SetPreviewMesh(Mesh);
 		if (SkelMeshComponent->GetAnimInstance())
@@ -205,10 +225,10 @@ namespace UE::MLDeformer
 		UDebugSkelMeshComponent* SkelMeshComponent = NewObject<UDebugSkelMeshComponent>(Actor);
 		SkelMeshComponent->SetWireframeMeshOverlayColor(BaseWireColor);
 		SkelMeshComponent->SetSkeletalMesh(Model->GetSkeletalMesh());
-		Actor->SetRootComponent(SkelMeshComponent);
 		SkelMeshComponent->RegisterComponent();
 		SkelMeshComponent->SetVisibility(false);
 		SkelMeshComponent->MarkRenderStateDirty();
+		Actor->SetRootComponent(SkelMeshComponent);
 
 		// Register the editor actor.
 		const FLinearColor LabelColor = FMLDeformerEditorStyle::Get().GetColor("MLDeformer.BaseMesh.LabelColor");
@@ -301,7 +321,6 @@ namespace UE::MLDeformer
 		{
 			if (EditorActor)
 			{				
-				World->RemoveActor(EditorActor->GetActor(), true);
 				ActorsToDestroy.Add(EditorActor->GetActor());
 			}
 		}
@@ -311,6 +330,7 @@ namespace UE::MLDeformer
 
 		for (AActor* Actor : ActorsToDestroy)
 		{
+			World->EditorDestroyActor(Actor, true);
 			Actor->Destroy();
 		}
 	}
@@ -321,15 +341,31 @@ namespace UE::MLDeformer
 		UWorld* World = PreviewScene->GetWorld();
 
 		PreviewScene->DeselectAll();
+
+		if (GetEditor()->GetEditorModeManager().GetSelectedComponents())
+		{
+			GetEditor()->GetEditorModeManager().GetSelectedComponents()->DeselectAll();
+		}
+
+		for (FMLDeformerEditorActor* EditorActor : EditorActors)
+		{
+			USkeletalMeshComponent* SkelMeshComponent = EditorActor->GetSkeletalMeshComponent();
+			if (SkelMeshComponent)
+			{
+				PreviewScene->RemoveComponent(SkelMeshComponent);
+			}
+		}
+
 		PreviewScene->SetPreviewAnimationAsset(nullptr);
+		PreviewScene->SetPreviewMesh(nullptr);
 		PreviewScene->SetPreviewMeshComponent(nullptr);
 		PreviewScene->SetActor(nullptr);
 	}
 
 	void FMLDeformerEditorModel::ClearWorldAndPersonaPreviewScene()
 	{
-		ClearWorld();
 		ClearPersonaPreviewScene();
+		ClearWorld();
 	}
 
 	FMLDeformerEditorActor* FMLDeformerEditorModel::CreateEditorActor(const FMLDeformerEditorActor::FConstructSettings& Settings) const
@@ -369,15 +405,7 @@ namespace UE::MLDeformer
 			bNeedsAssetReinit = false;
 		}
 
-		// Force the training sequence to use Step interpolation.
-		// We do this in the Tick, as this is reset to false in the engine sometimes.
-		UAnimSequence* TrainingAnimSequence = Model->GetAnimSequence();
-		if (TrainingAnimSequence)
-		{
-			TrainingAnimSequence->Interpolation = EAnimInterpolationType::Step;
-		}
-
-		// Use raw data for everything.
+		// Make sure we use raw data for everything.
 		for (FMLDeformerEditorActor* Actor : EditorActors)
 		{
 			if (Actor && Actor->GetSkeletalMeshComponent())
@@ -386,24 +414,6 @@ namespace UE::MLDeformer
 				if (SkelMeshComp->GetAnimInstance())
 				{
 					SkelMeshComp->GetAnimInstance()->GetRequiredBones().SetUseRAWData(true);
-				}
-			}
-		}
-
-		// Do the same for the test anim sequence.
-		UMLDeformerVizSettings* VizSettings = Model->GetVizSettings();
-		{
-			UAnimSequence* TestAnimSequence = VizSettings->GetTestAnimSequence();
-			if (TestAnimSequence)
-			{			
-				// Enable step interpolation when doing showing a heatmap vs ground truth.
-				if (VizSettings->HasTestGroundTruth() && VizSettings->GetShowHeatMap() && VizSettings->GetHeatMapMode() == EMLDeformerHeatMapMode::GroundTruth)
-				{
-					TestAnimSequence->Interpolation = EAnimInterpolationType::Step;
-				}
-				else
-				{
-					TestAnimSequence->Interpolation = EAnimInterpolationType::Linear;
 				}
 			}
 		}
@@ -419,6 +429,7 @@ namespace UE::MLDeformer
 			UMLDeformerComponent* DeformerComponent = EditorActor->GetMLDeformerComponent();
 			if (DeformerComponent)
 			{		
+				const UMLDeformerVizSettings* VizSettings = Model->GetVizSettings();
 				DeformerComponent->SetWeight(VizSettings->GetWeight());
 				DeformerComponent->SetQualityLevel(VizSettings->GetQualityLevel());
 			}
@@ -536,13 +547,6 @@ namespace UE::MLDeformer
 
 	void FMLDeformerEditorModel::OnInputAssetsChanged()
 	{
-		// Force the training sequence to use Step interpolation and sample raw animation data.
-		UAnimSequence* TrainingAnimSequence = Model->GetAnimSequence();
-		if (TrainingAnimSequence)
-		{
-			TrainingAnimSequence->Interpolation = EAnimInterpolationType::Step;
-		}
-
 		// Update the training base actor.
 		UMLDeformerVizSettings* VizSettings = Model->GetVizSettings();
 		UAnimSequence* TestAnimSequence = VizSettings->GetTestAnimSequence();
@@ -557,6 +561,7 @@ namespace UE::MLDeformer
 			{
 				GetEditor()->GetPersonaToolkit()->GetPreviewScene()->SetPreviewMesh(Model->GetSkeletalMesh());
 			}
+			UAnimSequence* TrainingAnimSequence = GetActiveTrainingInputAnimSequence();
 			SkeletalMeshComponent->SetAnimationMode(EAnimationMode::AnimationSingleNode);
 			const float CurrentPlayTime = SkeletalMeshComponent->GetPosition();
 			SkeletalMeshComponent->SetAnimation(TrainingAnimSequence);
@@ -601,10 +606,13 @@ namespace UE::MLDeformer
 	void FMLDeformerEditorModel::OnPostInputAssetChanged()
 	{
 		CurrentTrainingFrame = -1;
+		UpdateTimelineTrainingAnimList();
 		Editor->UpdateTimeSliderRange();
 		Model->UpdateCachedNumVertices();
+		UpdateNumTrainingFrames();
 		UpdateDeformerGraph();
 		RefreshMLDeformerComponents();
+		CreateSamplers();
 		UpdateIsReadyForTrainingState();
 
 		const int32 TrainingFrame = Model->GetVizSettings()->GetTrainingFrameNumber();
@@ -670,7 +678,7 @@ namespace UE::MLDeformer
 
 	double FMLDeformerEditorModel::GetTrainingTimeAtFrame(int32 FrameNumber) const
 	{
-		UAnimSequence* AnimSequence = Model->GetAnimSequence();
+		UAnimSequence* AnimSequence = GetActiveTrainingInputAnimSequence();
 		if (AnimSequence)
 		{
 			const FFrameRate FrameRate = AnimSequence->GetSamplingFrameRate();
@@ -683,7 +691,8 @@ namespace UE::MLDeformer
 
 	int32 FMLDeformerEditorModel::GetTrainingFrameAtTime(double TimeInSeconds) const
 	{
-		return Model->GetAnimSequence() ? Model->GetAnimSequence()->GetFrameAtTime(TimeInSeconds) : 0;
+		const UAnimSequence* Anim = GetActiveTrainingInputAnimSequence();
+		return Anim ? Anim->GetFrameAtTime(TimeInSeconds) : 0;
 	}
 
 	double FMLDeformerEditorModel::GetTestTimeAtFrame(int32 FrameNumber) const
@@ -734,15 +743,14 @@ namespace UE::MLDeformer
 			Model->InitVertexMap();
 			Model->InitGPUData();
 			UpdateDeformerGraph();
+			if (GetEditor())
+			{
+				GetEditor()->ZoomOnActors();
+			}
 		}
 		else if (Property->GetFName() == UMLDeformerVizSettings::GetTestAnimSequencePropertyName())
 		{
 			TriggerInputAssetChanged(true);
-		}
-		else if (Property->GetFName() == UMLDeformerModel::GetAnimSequencePropertyName())
-		{
-			TriggerInputAssetChanged();
-			SetResamplingInputOutputsNeeded(true);
 		}
 		if (Property->GetFName() == UMLDeformerModel::GetAlignmentTransformPropertyName() ||
 		    Property->GetFName() == UMLDeformerModel::GetDeltaCutoffLengthPropertyName())
@@ -802,7 +810,7 @@ namespace UE::MLDeformer
 		{
 			UpdateDeformerGraph();
 			GetEditor()->GetVizSettingsDetailsView()->ForceRefresh();
-		};
+		}
 	}
 
 	FMLDeformerEditorActor* FMLDeformerEditorModel::GetVisualizationModeBaseActor() const
@@ -918,9 +926,12 @@ namespace UE::MLDeformer
 	void FMLDeformerEditorModel::ClampCurrentTrainingFrameIndex()
 	{
 		UMLDeformerVizSettings* VizSettings = Model->GetVizSettings();
-		if (GetNumTrainingFrames() > 0)
+		const int32 ActiveAnimIndex = GetActiveTrainingInputAnimIndex();
+		if (ActiveAnimIndex != INDEX_NONE)
 		{
-			const int32 ClampedNumber = FMath::Min(VizSettings->GetTrainingFrameNumber(), GetNumTrainingFrames() - 1);
+			const int32 AnimNumFrames = GetTrainingInputAnim(ActiveAnimIndex)->ExtractNumAnimFrames();
+			const int32 MaxFrameIndex = (AnimNumFrames > 0) ? AnimNumFrames - 1 : 0;
+			const int32 ClampedNumber = FMath::Min(VizSettings->GetTrainingFrameNumber(), MaxFrameIndex);
 			VizSettings->SetTrainingFrameNumber(ClampedNumber);
 		}
 		else
@@ -954,7 +965,7 @@ namespace UE::MLDeformer
 	}
 
 	int32 FMLDeformerEditorModel::GetNumFramesForTraining() const 
-	{ 
+	{
 		return FMath::Min(GetNumTrainingFrames(), Model->GetTrainingFrameLimit());
 	}
 
@@ -1040,7 +1051,7 @@ namespace UE::MLDeformer
 		return FText();
 	}
 
-	FText FMLDeformerEditorModel::GetIncompatibleSkeletonErrorText(USkeletalMesh* InSkelMesh, UAnimSequence* InAnimSeq) const
+	FText FMLDeformerEditorModel::GetIncompatibleSkeletonErrorText(const USkeletalMesh* InSkelMesh, const UAnimSequence* InAnimSeq) const
 	{
 		FText Result;
 		if (InSkelMesh && InAnimSeq)
@@ -1073,37 +1084,24 @@ namespace UE::MLDeformer
 		return Result;
 	}
 
-	void FMLDeformerEditorModel::AddAnimatedBonesToBonesIncludeList()
+	void FMLDeformerEditorModel::AddAnimatedBonesToBonesIncludeList(const UAnimSequence* AnimSequence)
 	{
-		if (!Model->GetAnimSequence())
+		if (AnimSequence == nullptr)
 		{
 			UE_LOG(LogMLDeformer, Warning, TEXT("Cannot initialize bone list as no Anim Sequence has been picked."));
-			UpdateEditorInputInfo();
 			return;
 		}
 
-		const IAnimationDataModel* DataModel = Model->GetAnimSequence()->GetDataModel();
+		const IAnimationDataModel* DataModel = AnimSequence->GetDataModel();
 		if (!DataModel)
 		{
 			UE_LOG(LogMLDeformer, Warning, TEXT("Anim sequence has no data model."));
-			UpdateEditorInputInfo();
 			return;
 		}
 
-		if (!Model->GetSkeletalMesh())
-		{
-			UE_LOG(LogMLDeformer, Warning, TEXT("Skeletal Mesh has not been set."));
-			UpdateEditorInputInfo();
-			return;
-		}
-
+		check(Model->GetSkeletalMesh());
 		USkeleton* Skeleton = Model->GetSkeletalMesh()->GetSkeleton();
-		if (!Skeleton)
-		{
-			UE_LOG(LogMLDeformer, Warning, TEXT("Skeletal Mesh has no skeleton."));
-			UpdateEditorInputInfo();
-			return;
-		}
+		check(Skeleton);
 
 		// Iterate over all bones that are both in the skeleton and the animation.
 		TArray<FName> AnimatedBoneList;
@@ -1155,27 +1153,10 @@ namespace UE::MLDeformer
 		{
 			BoneList.AddUnique(FBoneReference(BoneName));
 		}
-
-		UpdateEditorInputInfo();
 	}
 
-	void FMLDeformerEditorModel::AddAnimatedCurvesToCurvesIncludeList()
+	void FMLDeformerEditorModel::AddAnimatedBonesToBonesIncludeList()
 	{
-		if (!Model->GetAnimSequence())
-		{
-			UE_LOG(LogMLDeformer, Warning, TEXT("Cannot initialize curve list as no Anim Sequence has been picked."));
-			UpdateEditorInputInfo();
-			return;
-		}
-
-		const IAnimationDataModel* DataModel = Model->GetAnimSequence()->GetDataModel();
-		if (!DataModel)
-		{
-			UE_LOG(LogMLDeformer, Warning, TEXT("Anim sequence has no data model."));
-			UpdateEditorInputInfo();
-			return;
-		}
-
 		if (!Model->GetSkeletalMesh())
 		{
 			UE_LOG(LogMLDeformer, Warning, TEXT("Skeletal Mesh has not been set."));
@@ -1190,6 +1171,39 @@ namespace UE::MLDeformer
 			UpdateEditorInputInfo();
 			return;
 		}
+
+		// Add animated bones from all animations.
+		const int32 NumAnims = GetNumTrainingInputAnims();
+		for (int32 Index = 0; Index < NumAnims; ++Index)
+		{
+			FMLDeformerTrainingInputAnim* Anim = GetTrainingInputAnim(Index);
+			if (Anim && Anim->IsEnabled())
+			{
+				AddAnimatedBonesToBonesIncludeList(Anim->GetAnimSequence());
+			}
+		}
+
+		UpdateEditorInputInfo();
+	}
+
+	void FMLDeformerEditorModel::AddAnimatedCurvesToCurvesIncludeList(const UAnimSequence* AnimSequence)
+	{
+		if (AnimSequence == nullptr)
+		{
+			UE_LOG(LogMLDeformer, Warning, TEXT("Cannot initialize curve list as no Anim Sequence has been picked."));
+			return;
+		}
+
+		const IAnimationDataModel* DataModel = AnimSequence->GetDataModel();
+		if (!DataModel)
+		{
+			UE_LOG(LogMLDeformer, Warning, TEXT("Anim sequence has no data model."));
+			return;
+		}
+
+		check(Model->GetSkeletalMesh());
+		USkeleton* Skeleton = Model->GetSkeletalMesh()->GetSkeleton();
+		check(Skeleton);
 
 		TArray<FName> AnimatedCurveList;
 		TArray<FName> SkeletonCurveNames;
@@ -1226,6 +1240,36 @@ namespace UE::MLDeformer
 		{
 			CurveList.AddUnique(FMLDeformerCurveReference(CurveName));
 		}
+	}
+
+	void FMLDeformerEditorModel::AddAnimatedCurvesToCurvesIncludeList()
+	{
+		if (!Model->GetSkeletalMesh())
+		{
+			UE_LOG(LogMLDeformer, Warning, TEXT("Skeletal Mesh has not been set."));
+			UpdateEditorInputInfo();
+			return;
+		}
+
+		USkeleton* Skeleton = Model->GetSkeletalMesh()->GetSkeleton();
+		if (!Skeleton)
+		{
+			UE_LOG(LogMLDeformer, Warning, TEXT("Skeletal Mesh has no skeleton."));
+			UpdateEditorInputInfo();
+			return;
+		}
+
+		// Add animated curves from all animations.
+		const int32 NumAnims = GetNumTrainingInputAnims();
+		for (int32 Index = 0; Index < NumAnims; ++Index)
+		{
+			FMLDeformerTrainingInputAnim* Anim = GetTrainingInputAnim(Index);
+			if (Anim && Anim->IsEnabled())
+			{
+				AddAnimatedCurvesToCurvesIncludeList(Anim->GetAnimSequence());
+			}
+		}
+
 		UpdateEditorInputInfo();
 	}
 
@@ -1299,12 +1343,27 @@ namespace UE::MLDeformer
 		AddAnimatedCurvesToCurvesIncludeList();
 	}
 
+	FMLDeformerSampler* FMLDeformerEditorModel::GetSamplerForActiveAnim() const
+	{
+		const int32 ActiveAnimIndex = GetActiveTrainingInputAnimIndex();
+		return (ActiveAnimIndex != INDEX_NONE && Samplers.IsValidIndex(ActiveAnimIndex)) ? Samplers[ActiveAnimIndex].Get() : nullptr;
+	}
+
+	void FMLDeformerEditorModel::SetActiveTrainingInputAnimIndex(int32 Index)
+	{
+		check(FMath::IsWithinInclusive<int32>(Index, 0, GetNumTrainingInputAnims()));
+		ActiveTrainingInputAnimIndex = Index;
+	}
+
 	void FMLDeformerEditorModel::Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI)
 	{
+		FMLDeformerSampler* Sampler = GetSamplerForActiveAnim();
+
 		// Make sure that before we render anything, that our sampler is ready.
-		if (!Sampler->IsInitialized())
+		if (Sampler && !Sampler->IsInitialized())
 		{
-			Sampler->Init(this); // This can still fail.
+			const int32 ActiveAnimIndex = GetActiveTrainingInputAnimIndex();
+			Sampler->Init(this, ActiveAnimIndex); // This can still fail.
 			Sampler->SetVertexDeltaSpace(EVertexDeltaSpace::PostSkinning);
 			if (Sampler->IsInitialized()) // If we actually managed to initialize this frame.
 			{
@@ -1313,7 +1372,7 @@ namespace UE::MLDeformer
 		}
 
 		const UMLDeformerVizSettings* VizSettings = Model->GetVizSettings();
-		if (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TrainingData)
+		if (Sampler && Sampler->IsInitialized() && VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TrainingData)
 		{
 			const TArray<float>& VertexDeltas = Sampler->GetVertexDeltas();
 			const TArray<FVector3f>& LinearSkinnedPositions = Sampler->GetSkinnedVertexPositions();
@@ -1352,13 +1411,16 @@ namespace UE::MLDeformer
 		UMLDeformerVizSettings* VizSettings = Model->GetVizSettings();
 		ClampCurrentTrainingFrameIndex();
 
+		FMLDeformerSampler* Sampler = GetSamplerForActiveAnim();
+
 		// If we have no Persona toolkit yet, then it is not yet safe to init the sampler.
-		if (Editor->GetPersonaToolkitPointer() != nullptr && !Sampler->IsInitialized())
+		if (Editor->GetPersonaToolkitPointer() != nullptr && Sampler && !Sampler->IsInitialized())
 		{
-			Sampler->Init(this);
+			const int32 ActiveAnimIndex = GetActiveTrainingInputAnimIndex();
+			Sampler->Init(this, ActiveAnimIndex);
 		}
 
-		if (Sampler->IsInitialized())
+		if (Sampler && Sampler->IsInitialized())
 		{
 			Sampler->SetVertexDeltaSpace(EVertexDeltaSpace::PostSkinning);
 			Sampler->Sample(VizSettings->GetTrainingFrameNumber());
@@ -1533,7 +1595,11 @@ namespace UE::MLDeformer
 
 	void FMLDeformerEditorModel::OnPostTraining(ETrainingResult TrainingResult, bool bUsePartiallyTrainedWhenAborted)
 	{
-		Sampler->SetVertexDeltaSpace(EVertexDeltaSpace::PostSkinning);
+		FMLDeformerSampler* Sampler = GetSamplerForActiveAnim();
+		if (Sampler)
+		{
+			Sampler->SetVertexDeltaSpace(EVertexDeltaSpace::PostSkinning);
+		}
 		SampleDeltas();
 		Model->InitGPUData();
 		UpdateMemoryUsage();
@@ -1555,9 +1621,24 @@ namespace UE::MLDeformer
 
 	bool FMLDeformerEditorModel::IsEditorReadyForTrainingBasicChecks()
 	{
+		bool bHasTrainingAnim = false;
+		const int32 NumAnims = GetNumTrainingInputAnims();
+		for (int32 AnimIndex = 0; AnimIndex < NumAnims; ++AnimIndex)
+		{
+			const FMLDeformerTrainingInputAnim* Anim = this->GetTrainingInputAnim(AnimIndex);
+			if (Anim && Anim->IsEnabled())
+			{
+				if (Anim->IsValid())
+				{
+					bHasTrainingAnim = true;
+					break;
+				}
+			}
+		}
+
 		// Make sure we have picked required assets.
 		if (!Model->HasTrainingGroundTruth() ||
-			Model->GetAnimSequence() == nullptr ||
+			!bHasTrainingAnim ||
 			Model->GetSkeletalMesh() == nullptr ||
 			GetNumTrainingFrames() == 0)
 		{
@@ -1578,6 +1659,20 @@ namespace UE::MLDeformer
 	void FMLDeformerEditorModel::UpdateMemoryUsage()
 	{
 		Model->InvalidateMemUsage();
+	}
+
+	UAnimSequence* FMLDeformerEditorModel::GetActiveTrainingInputAnimSequence() const
+	{
+		const int32 ActiveIndex = GetActiveTrainingInputAnimIndex();
+		if (ActiveIndex != INDEX_NONE)
+		{
+			FMLDeformerTrainingInputAnim* Anim = GetTrainingInputAnim(ActiveIndex);
+			if (Anim)
+			{
+				return Anim->GetAnimSequence();
+			}
+		}
+		return nullptr;
 	}
 
 	void FMLDeformerEditorModel::TriggerInputAssetChanged(bool bRefreshVizSettings)
@@ -1722,6 +1817,10 @@ namespace UE::MLDeformer
 		check(RenderData);
 		check(!RenderData->LODRenderData.IsEmpty());
 		const int32 NumRenderVertices = RenderData->LODRenderData[LOD].GetNumVertices();
+
+		FMLDeformerSampler* Sampler = GetSamplerForActiveAnim();
+		check(Sampler);
+		check(Sampler->IsInitialized());
 
 		// Calculate the normals for the base mesh.
 		const FSkeletalMeshModel* ImportedModel = SkelMesh->GetImportedModel();
@@ -1885,6 +1984,10 @@ namespace UE::MLDeformer
 			const int32 NumVerts = Model->GetNumBaseMeshVerts();
 			check(MorphDeltas.Num() % NumVerts == 0);
 
+			FMLDeformerSampler* Sampler = GetSamplerForActiveAnim();
+			check(Sampler);
+			check(Sampler->IsInitialized());
+
 			const TArray<FVector3f>& UnskinnedPositions = Sampler->GetUnskinnedVertexPositions();
 			check(NumVerts == UnskinnedPositions.Num());
 
@@ -1958,7 +2061,7 @@ namespace UE::MLDeformer
 			const UMLDeformerVizSettings* VizSettings = GetModel()->GetVizSettings();
 			if (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TrainingData)
 			{
-				return GetModel()->GetAnimSequence();
+				return GetActiveTrainingInputAnimSequence();
 			}
 			else if (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TestData)
 			{
@@ -2005,7 +2108,7 @@ namespace UE::MLDeformer
 		if (Mode == EMLDeformerVizMode::TrainingData)
 		{
 			EditorActor = FindEditorActor(ActorID_Train_Base);
-			AnimAsset = Model->GetAnimSequence();
+			AnimAsset = this->GetActiveTrainingInputAnimSequence();
 		}
 		else if (Mode == EMLDeformerVizMode::TestData)
 		{
@@ -2203,8 +2306,13 @@ namespace UE::MLDeformer
 
 	int32 FMLDeformerEditorModel::GetNumTrainingFrames() const
 	{ 
-		UE_LOG(LogMLDeformer, Warning, TEXT("Please override the FMLDeformerEditorModel::GetNumTrainingFrames() method inside your derived editor model class."));
-		return 0;
+		return NumTrainingFrames;
+	}
+
+	void FMLDeformerEditorModel::UpdateNumTrainingFrames()
+	{
+		NumTrainingFrames = 0;
+		UE_LOG(LogMLDeformer, Warning, TEXT("Please override the FMLDeformerEditorModel::UpdateNumTrainingFrames() inside your model."));
 	}
 
 	UMLDeformerComponent* FMLDeformerEditorModel::FindMLDeformerComponent(int32 ActorID) const
@@ -2215,6 +2323,68 @@ namespace UE::MLDeformer
 			return EditorActor->GetMLDeformerComponent();
 		}
 		return nullptr;
+	}
+
+	int32 FMLDeformerEditorModel::GetActiveTrainingInputAnimIndex() const
+	{
+		return ActiveTrainingInputAnimIndex;
+	}
+
+	TSharedPtr<FMLDeformerSampler> FMLDeformerEditorModel::CreateSamplerObject() const
+	{
+		return MakeShared<FMLDeformerSampler>();
+	}
+
+	int32 FMLDeformerEditorModel::GetNumTrainingInputAnims() const
+	{
+		UE_LOG(LogMLDeformer, Warning, TEXT("Please override the FMLDeformerEditorModel::GetNumTrainingInputAnims() method inside your derived editor model class."));
+		return 0;
+	}
+
+	FMLDeformerTrainingInputAnim* FMLDeformerEditorModel::GetTrainingInputAnim(int32 Index) const
+	{
+		UE_LOG(LogMLDeformer, Warning, TEXT("Please override the FMLDeformerEditorModel::GetTrainingInputAnim(int32) method inside your derived editor model class."));
+		return nullptr;
+	}
+
+	FMLDeformerSampler* FMLDeformerEditorModel::GetSampler() const
+	{ 
+		return GetSamplerForActiveAnim();
+	}
+
+	void FMLDeformerEditorModel::UpdateTimelineTrainingAnimList()
+	{
+		TArray<TSharedPtr<FMLDeformerTrainingInputAnimName>> NameList;
+
+		// Build the list of names, based on the training inputs.
+		const int32 NumAnims = GetNumTrainingInputAnims();
+		for (int32 AnimIndex = 0; AnimIndex < NumAnims; ++AnimIndex)
+		{
+			const FMLDeformerTrainingInputAnim* Anim = GetTrainingInputAnim(AnimIndex);
+			if (Anim)
+			{
+				if (Anim->IsValid())
+				{
+					TSharedPtr<FMLDeformerTrainingInputAnimName> AnimName = MakeShared<FMLDeformerTrainingInputAnimName>();
+					AnimName->TrainingInputAnimIndex = AnimIndex;
+					AnimName->Name = FString::Printf(TEXT("[#%d] %s"), AnimIndex, *Anim->GetAnimSequence()->GetName());
+					NameList.Emplace(AnimName);
+				}
+			}
+		}
+
+		// Pass this to the timeline.
+		SMLDeformerTimeline* Timeline = GetEditor()->GetTimeSlider();
+		if (Timeline)
+		{
+			Timeline->SetTrainingAnimNames(NameList);
+		}
+	}
+
+	void FMLDeformerEditorModel::InvalidateDeltas()
+	{
+		// Set the current training frame to -1, which will cause the deltas to get updated next frame.
+		CurrentTrainingFrame = -1;
 	}
 }	// namespace UE::MLDeformer
 

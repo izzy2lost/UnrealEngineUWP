@@ -10,6 +10,7 @@
 #include "MLDeformerGeomCacheSampler.h"
 #include "MLDeformerGeomCacheHelpers.h"
 #include "MLDeformerGeomCacheModel.h"
+#include "SMLDeformerTimeline.h"
 #include "GeometryCache.h"
 #include "GeometryCacheComponent.h"
 #include "Animation/DebugSkelMeshComponent.h"
@@ -22,11 +23,21 @@
 
 namespace UE::MLDeformer
 {
-	FMLDeformerSampler* FMLDeformerGeomCacheEditorModel::CreateSampler() const
+	void FMLDeformerGeomCacheEditorModel::Init(const InitSettings& Settings)
 	{
-		FMLDeformerGeomCacheSampler* NewSampler = new FMLDeformerGeomCacheSampler();
-		NewSampler->OnGetGeometryCache().BindLambda([this] { return GetGeomCacheModel()->GetGeometryCache(); });
-		return NewSampler;
+		FMLDeformerEditorModel::Init(Settings);
+
+		// Create an initial training input animation entry.
+		if (GetGeomCacheModel()->GetTrainingInputAnims().IsEmpty())
+		{
+			GetGeomCacheModel()->GetTrainingInputAnims().AddDefaulted();
+			CreateSamplers();
+		}
+	}
+
+	TSharedPtr<FMLDeformerSampler> FMLDeformerGeomCacheEditorModel::CreateSamplerObject() const
+	{
+		return MakeShared<FMLDeformerGeomCacheSampler>();
 	}
 
 	FMLDeformerEditorActor* FMLDeformerGeomCacheEditorModel::CreateEditorActor(const FMLDeformerEditorActor::FConstructSettings& Settings) const
@@ -37,11 +48,6 @@ namespace UE::MLDeformer
 	UMLDeformerGeomCacheVizSettings* FMLDeformerGeomCacheEditorModel::GetGeomCacheVizSettings() const 
 	{ 
 		return Cast<UMLDeformerGeomCacheVizSettings>(Model->GetVizSettings());
-	}
-
-	FMLDeformerGeomCacheSampler* FMLDeformerGeomCacheEditorModel::GetGeomCacheSampler() const
-	{ 
-		return static_cast<FMLDeformerGeomCacheSampler*>(Sampler);
 	}
 
 	UMLDeformerGeomCacheModel* FMLDeformerGeomCacheEditorModel::GetGeomCacheModel() const
@@ -77,16 +83,30 @@ namespace UE::MLDeformer
 		return FMLDeformerEditorModel::GetTestFrameAtTime(TimeInSeconds);
 	}
 
-	int32 FMLDeformerGeomCacheEditorModel::GetNumTrainingFrames() const
+	UGeometryCache* FMLDeformerGeomCacheEditorModel::GetActiveGeometryCache() const
 	{
-		const UGeometryCache* GeometryCache = GetGeomCacheModel()->GetGeometryCache();
-		if (GeometryCache == nullptr)
+		const int32 ActiveAnimIndex = GetActiveTrainingInputAnimIndex();
+		if (ActiveAnimIndex == INDEX_NONE || ActiveAnimIndex >= GetNumTrainingInputAnims())
 		{
-			return 0;
+			return nullptr;
 		}
-		const int32 StartFrame = GeometryCache->GetStartFrame();
-		const int32 EndFrame = GeometryCache->GetEndFrame();
-		return (EndFrame - StartFrame) + 1;
+
+		FMLDeformerGeomCacheTrainingInputAnim* ActiveAnim = static_cast<FMLDeformerGeomCacheTrainingInputAnim*>(GetTrainingInputAnim(ActiveAnimIndex));
+		return ActiveAnim ? ActiveAnim->GetGeometryCache() : nullptr;
+	}
+
+	void FMLDeformerGeomCacheEditorModel::UpdateNumTrainingFrames()
+	{
+		NumTrainingFrames = 0;
+
+		const TArray<FMLDeformerGeomCacheTrainingInputAnim>& TrainingInputAnims = GetGeomCacheModel()->GetTrainingInputAnims();
+		for (const FMLDeformerGeomCacheTrainingInputAnim& InputAnim : TrainingInputAnims)
+		{
+			if (InputAnim.IsEnabled() && InputAnim.IsValid())
+			{
+				NumTrainingFrames += InputAnim.GetNumFramesToSample();
+			}
+		}
 	}
 
 	void FMLDeformerGeomCacheEditorModel::UpdateIsReadyForTrainingState()
@@ -99,35 +119,47 @@ namespace UE::MLDeformer
 			return;
 		}
 
-		// Now make sure the assets are compatible.
+		// Now make sure the geom caches have no errors.
 		UMLDeformerGeomCacheModel* GeomCacheModel = GetGeomCacheModel();
-		UGeometryCache* GeomCache = GeomCacheModel->GetGeometryCache();
 		USkeletalMesh* SkeletalMesh = GeomCacheModel->GetSkeletalMesh();
-		if (!GetGeomCacheErrorText(SkeletalMesh, GeomCache).IsEmpty())
+		const int32 NumAnims = GetNumTrainingInputAnims();
+		for (int32 AnimIndex = 0; AnimIndex < NumAnims; ++AnimIndex)
 		{
-			return;
-		}
-
-		// Make sure every skeletal imported mesh has some geometry track.
-		const int32 NumGeomCacheTracks = GeomCache ? GeomCache->Tracks.Num() : 0;
-		int32 NumSkelMeshes = 0;
-		check(SkeletalMesh);
-		FSkeletalMeshModel* ImportedModel = SkeletalMesh->GetImportedModel();
-		if (ImportedModel)
-		{
-			NumSkelMeshes = ImportedModel->LODModels[0].ImportedMeshInfos.Num();
+			FMLDeformerGeomCacheTrainingInputAnim* Anim = static_cast<FMLDeformerGeomCacheTrainingInputAnim*>(GetTrainingInputAnim(AnimIndex));
+			if (Anim && Anim->IsEnabled())
+			{
+				UGeometryCache* GeomCache = Anim->GetGeometryCache();
+				if (!GetGeomCacheErrorText(SkeletalMesh, GeomCache).IsEmpty())
+				{
+					return;
+				}
+			}
 		}
 
 		// Check if we have any mappings at all.
-		FMLDeformerGeomCacheSampler* GeomCacheSampler = GetGeomCacheSampler();
-		if (!GeomCacheSampler->IsInitialized())
+		for (int32 AnimIndex = 0; AnimIndex < NumAnims; ++AnimIndex)
 		{
-			GeomCacheSampler->Init(this);
-		}
+			FMLDeformerGeomCacheTrainingInputAnim* Anim = static_cast<FMLDeformerGeomCacheTrainingInputAnim*>(GetTrainingInputAnim(AnimIndex));
+			if (!Anim->IsEnabled())
+			{
+				continue;
+			}
 
-		if (GeomCacheSampler->GetMeshMappings().IsEmpty())
-		{
-			return;
+			FMLDeformerGeomCacheSampler* GeomCacheSampler = static_cast<FMLDeformerGeomCacheSampler*>(GetSamplerForTrainingAnim(AnimIndex));
+			if (GeomCacheSampler == nullptr)
+			{
+				return;
+			}
+
+			if (!GeomCacheSampler->IsInitialized())
+			{
+				GeomCacheSampler->Init(this, AnimIndex);
+			}
+
+			if (GeomCacheSampler->GetMeshMappings().IsEmpty())
+			{
+				return;
+			}
 		}
 
 		bIsReadyForTraining = true;
@@ -135,7 +167,17 @@ namespace UE::MLDeformer
 
 	void FMLDeformerGeomCacheEditorModel::CreateTrainingGroundTruthActor(UWorld* World)
 	{
-		UGeometryCache* GeomCache = GetGeomCacheModel()->GetGeometryCache();
+		const int32 ActiveAnimIndex = GetActiveTrainingInputAnimIndex();
+		UGeometryCache* GeomCache = nullptr;
+		if (ActiveAnimIndex != INDEX_NONE)
+		{
+			if (ActiveAnimIndex < GetNumTrainingInputAnims())
+			{
+				FMLDeformerGeomCacheTrainingInputAnim* Anim = static_cast<FMLDeformerGeomCacheTrainingInputAnim*>(GetTrainingInputAnim(ActiveAnimIndex));
+				GeomCache = Anim ? Anim->GetGeometryCache() : nullptr;
+			}
+		}
+
 		const FLinearColor LabelColor = FMLDeformerEditorStyle::Get().GetColor("MLDeformer.TargetMesh.LabelColor");
 		const FLinearColor WireframeColor = FMLDeformerEditorStyle::Get().GetColor("MLDeformer.TargetMesh.WireframeColor");
 		CreateGeomCacheActor(
@@ -211,9 +253,46 @@ namespace UE::MLDeformer
 		// Handle base class property changes.
 		FMLDeformerEditorModel::OnPropertyChanged(PropertyChangedEvent);
 
-		// Properties specific to the geometry cache editor model.
-		if (Property->GetFName() == UMLDeformerGeomCacheModel::GetGeometryCachePropertyName())
+		// Start frame changed.
+		if (PropertyChangedEvent.GetMemberPropertyName() == TEXT("TrainingInputAnims") && 
+			Property->GetFName() == FMLDeformerTrainingInputAnim::GetStartFramePropertyName())
 		{
+			for (FMLDeformerGeomCacheTrainingInputAnim& InputAnim : GetGeomCacheModel()->GetTrainingInputAnims())
+			{
+				if (InputAnim.GetStartFrame() > InputAnim.GetEndFrame())
+				{
+					InputAnim.SetEndFrame(InputAnim.GetStartFrame());
+				}
+			}
+			SetResamplingInputOutputsNeeded(true);
+			TriggerInputAssetChanged(true);
+		}
+		else // End Frame changed.
+		if (PropertyChangedEvent.GetMemberPropertyName() == TEXT("TrainingInputAnims") && 
+		Property->GetFName() == FMLDeformerTrainingInputAnim::GetEndFramePropertyName())
+		{
+			for (FMLDeformerGeomCacheTrainingInputAnim& InputAnim : GetGeomCacheModel()->GetTrainingInputAnims())
+			{
+				if (InputAnim.GetEndFrame() < InputAnim.GetStartFrame())
+				{
+					InputAnim.SetStartFrame(InputAnim.GetEndFrame());
+				}
+			}
+			SetResamplingInputOutputsNeeded(true);
+			TriggerInputAssetChanged(true);
+		}
+		else
+		if (Property->GetFName() == UMLDeformerGeomCacheModel::GetTrainingInputAnimsPropertyName() ||
+		    PropertyChangedEvent.GetMemberPropertyName() == TEXT("TrainingInputAnims"))
+		{
+			if (GetEditor() && GetEditor()->GetTimeSlider())
+			{
+				if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayRemove)
+				{
+					const int32 ArrayIndex = PropertyChangedEvent.GetArrayIndex(PropertyChangedEvent.GetMemberPropertyName().ToString());
+					GetEditor()->GetTimeSlider()->OnDeletedTrainingInputAnim(ArrayIndex);
+				}
+			}
 			SetResamplingInputOutputsNeeded(true);
 			TriggerInputAssetChanged(true);
 		}
@@ -238,7 +317,7 @@ namespace UE::MLDeformer
 		UGeometryCacheComponent* GeometryCacheComponent = TrainGroundTruthActor ? TrainGroundTruthActor->GetGeometryCacheComponent() : nullptr;
 		if (GeometryCacheComponent)
 		{
-			GeometryCacheComponent->SetGeometryCache(GetGeomCacheModel()->GetGeometryCache());
+			GeometryCacheComponent->SetGeometryCache(GetActiveGeometryCache());
 			GeometryCacheComponent->SetLooping(false);
 			GeometryCacheComponent->SetManualTick(true);
 			GeometryCacheComponent->SetPlaybackSpeed(TestAnimSpeed);
@@ -265,11 +344,21 @@ namespace UE::MLDeformer
 		// Handle changes for the skeletal mesh and anim sequence.
 		FMLDeformerEditorModel::OnObjectModified(Object);
 
-		// Check if the object is our training geometry cache.
-		if (GetGeomCacheModel()->GetGeometryCache() == Object)
+		const int32 NumAnims = GetGeomCacheModel()->GetTrainingInputAnims().Num();
+		for (int32 AnimIndex = 0; AnimIndex < NumAnims; ++AnimIndex)
 		{
-			UE_LOG(LogMLDeformer, Display, TEXT("Detected a modification in training geometry cache %s, reinitializing inputs."), *Object->GetName());
-			bNeedsAssetReinit = true;
+			const FMLDeformerGeomCacheTrainingInputAnim& Anim = GetGeomCacheModel()->GetTrainingInputAnims()[AnimIndex];
+			if (Anim.GetAnimSequence() == Object)
+			{
+				UE_LOG(LogMLDeformer, Display, TEXT("Detected a modification in training anim sequence %s, reinitializing inputs."), *Object->GetName());
+				bNeedsAssetReinit = true;
+			}
+
+			if (Anim.GetGeometryCache() == Object)
+			{
+				UE_LOG(LogMLDeformer, Display, TEXT("Detected a modification in training geometry cache %s, reinitializing inputs."), *Object->GetName());
+				bNeedsAssetReinit = true;
+			}
 		}
 
 		// Check if it is the ground truth test geom cache.
@@ -278,6 +367,21 @@ namespace UE::MLDeformer
 			UE_LOG(LogMLDeformer, Display, TEXT("Detected a modification in test ground truth geometry cache %s, reinitializing inputs."), *Object->GetName());
 			bNeedsAssetReinit = true;
 		}
+	}
+
+	int32 FMLDeformerGeomCacheEditorModel::GetNumTrainingInputAnims() const
+	{
+		return GetGeomCacheModel()->GetTrainingInputAnims().Num();
+	}
+
+	FMLDeformerTrainingInputAnim* FMLDeformerGeomCacheEditorModel::GetTrainingInputAnim(int32 Index) const
+	{
+		if (GetGeomCacheModel()->GetTrainingInputAnims().IsValidIndex(Index))
+		{
+			return &GetGeomCacheModel()->GetTrainingInputAnims()[Index];
+		}
+		
+		return nullptr;
 	}
 }	// namespace UE::MLDeformer
 

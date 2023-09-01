@@ -7,6 +7,7 @@
 #include "MLDeformerEditorModule.h"
 #include "MLDeformerEditorToolkit.h"
 #include "MLDeformerGeomCacheHelpers.h"
+#include "MLDeformerGeomCacheModel.h"
 #include "Animation/DebugSkelMeshComponent.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/AnimSingleNodeInstance.h"
@@ -23,8 +24,15 @@
 
 namespace UE::MLDeformer
 {
-	void FMLDeformerGeomCacheSampler::RegisterTargetComponents()
+	void FMLDeformerGeomCacheSampler::Init(FMLDeformerEditorModel* InModel, int32 InAnimIndex)
 	{
+		FMLDeformerSampler::Init(InModel, InAnimIndex);
+
+		if (!TargetMeshActor)
+		{
+			return;
+		}
+
 		// Create the geometry cache component.
 		if (GeometryCacheComponent.Get() == nullptr)
 		{
@@ -33,7 +41,10 @@ namespace UE::MLDeformer
 			TargetMeshActor->SetRootComponent(GeometryCacheComponent);
 		}
 
-		UGeometryCache* GeomCache = OnGetGeometryCache().IsBound() ? OnGetGeometryCache().Execute() : nullptr;
+		UMLDeformerGeomCacheModel* GeomCacheModel = Cast<UMLDeformerGeomCacheModel>(InModel->GetModel());
+		check(GeomCacheModel);
+
+		UGeometryCache* GeomCache = GeomCacheModel->GetTrainingInputAnims()[InAnimIndex].GetGeometryCache();
 		GeometryCacheComponent->SetGeometryCache(GeomCache);
 		GeometryCacheComponent->SetManualTick(true);
 		GeometryCacheComponent->SetVisibility(false);

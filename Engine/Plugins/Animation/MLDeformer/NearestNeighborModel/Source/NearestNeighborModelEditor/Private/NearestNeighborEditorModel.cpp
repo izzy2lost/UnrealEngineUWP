@@ -39,15 +39,13 @@ namespace UE::NearestNeighborModel
 
 	void FNearestNeighborEditorModel::Init(const InitSettings& InitSettings)
 	{
-		FMLDeformerEditorModel::Init(InitSettings);
+		FMLDeformerGeomCacheEditorModel::Init(InitSettings);
 		InitInputInfo(Model->GetInputInfo());
 	}
 
-	FMLDeformerSampler* FNearestNeighborEditorModel::CreateSampler() const
+	TSharedPtr<FMLDeformerSampler> FNearestNeighborEditorModel::CreateSamplerObject() const
 	{
-		FNearestNeighborGeomCacheSampler* NewSampler = new FNearestNeighborGeomCacheSampler();
-		NewSampler->OnGetGeometryCache().BindLambda([this] { return GetGeomCacheModel()->GetGeometryCache(); });
-		return NewSampler;
+		return MakeShared<FNearestNeighborGeomCacheSampler>();
 	}
 
 	void FNearestNeighborEditorModel::OnPropertyChanged(FPropertyChangedEvent& PropertyChangedEvent)
@@ -61,10 +59,10 @@ namespace UE::NearestNeighborModel
 		FMLDeformerMorphModelEditorModel::OnPropertyChanged(PropertyChangedEvent);
 
 		if (Property->GetFName() == UMLDeformerModel::GetSkeletalMeshPropertyName() ||
-			Property->GetFName() == UMLDeformerModel::GetAnimSequencePropertyName() ||
-			Property->GetFName() == UMLDeformerGeomCacheModel::GetGeometryCachePropertyName() ||
-			Property->GetFName() == UNearestNeighborModel::GetClothPartEditorDataPropertyName()
-			|| (PropertyChangedEvent.MemberProperty != nullptr && PropertyChangedEvent.MemberProperty->GetFName() == UNearestNeighborModel::GetClothPartEditorDataPropertyName()))
+			Property->GetFName() == UNearestNeighborModel::GetClothPartEditorDataPropertyName() ||
+		    Property->GetFName() == UMLDeformerGeomCacheModel::GetTrainingInputAnimsPropertyName() ||
+		    PropertyChangedEvent.GetMemberPropertyName() == TEXT("TrainingInputAnims") ||
+			PropertyChangedEvent.GetMemberPropertyName() == UNearestNeighborModel::GetClothPartEditorDataPropertyName())
 		{
 			GetNearestNeighborModel()->InvalidateClothPartData();
 			GetEditor()->GetModelDetailsView()->ForceRefresh();
@@ -257,7 +255,8 @@ namespace UE::NearestNeighborModel
 
 	uint8 FNearestNeighborEditorModel::SetSamplerPartData(const int32 PartId)
 	{
-		FNearestNeighborGeomCacheSampler* GeomCacheSampler = static_cast<FNearestNeighborGeomCacheSampler*>(GetGeomCacheSampler());
+		FMLDeformerSampler* Sampler = GetNumTrainingInputAnims() > 0 ? GetSamplerForTrainingAnim(0) : nullptr;
+		FNearestNeighborGeomCacheSampler* GeomCacheSampler = static_cast<FNearestNeighborGeomCacheSampler*>(Sampler);
 		UNearestNeighborModel* NearestNeighborModel = GetNearestNeighborModel();
 		if (GeomCacheSampler && NearestNeighborModel && PartId < NearestNeighborModel->GetNumParts())
 		{
@@ -346,12 +345,13 @@ namespace UE::NearestNeighborModel
 
 	void FNearestNeighborEditorModel::ResetSamplerData()
 	{
-		FNearestNeighborGeomCacheSampler* GeomCacheSampler = static_cast<FNearestNeighborGeomCacheSampler*>(GetGeomCacheSampler());
+		FMLDeformerSampler* Sampler = GetNumTrainingInputAnims() > 0 ? GetSamplerForTrainingAnim(0) : nullptr;
+		FNearestNeighborGeomCacheSampler* GeomCacheSampler = static_cast<FNearestNeighborGeomCacheSampler*>(Sampler);
 		UNearestNeighborModel* NearestNeighborModel = GetNearestNeighborModel();
 		if (GeomCacheSampler && NearestNeighborModel)
 		{
 			TObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent = GeomCacheSampler->GetSkeletalMeshComponent();
-			const TObjectPtr<UAnimSequence> AnimSequence = NearestNeighborModel->GetAnimSequence();
+			const TObjectPtr<UAnimSequence> AnimSequence = GetTrainingInputAnim(0)->GetAnimSequence();
 
 			if (SkeletalMeshComponent && AnimSequence)
 			{
@@ -363,7 +363,6 @@ namespace UE::NearestNeighborModel
 				SkeletalMeshComponent->RefreshBoneTransforms();
 			}
 			NumTrainingFramesOverride = -1;
-			GeomCacheSampler->RegisterTargetComponents();
 		}
 	}
 
@@ -407,7 +406,8 @@ namespace UE::NearestNeighborModel
 			return EUpdateResult::SUCCESS;
 		}
 
-		FNearestNeighborGeomCacheSampler* GeomCacheSampler = static_cast<FNearestNeighborGeomCacheSampler*>(GetGeomCacheSampler());
+		FMLDeformerSampler* Sampler = GetNumTrainingInputAnims() > 0 ? GetSamplerForTrainingAnim(0) : nullptr;
+		FNearestNeighborGeomCacheSampler* GeomCacheSampler = static_cast<FNearestNeighborGeomCacheSampler*>(Sampler);
 		if (GeomCacheSampler)
 		{
 			TObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent = GeomCacheSampler->GetSkeletalMeshComponent();

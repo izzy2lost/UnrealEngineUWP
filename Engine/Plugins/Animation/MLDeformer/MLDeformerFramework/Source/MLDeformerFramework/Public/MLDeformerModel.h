@@ -20,6 +20,7 @@ class UMLDeformerModelInstance;
 class UMLDeformerComponent;
 class UMLDeformerInputInfo;
 
+
 /** The channel to get the mask data from. */
 UENUM()
 enum class EMLDeformerMaskChannel : uint8
@@ -431,15 +432,19 @@ public:
 	 * Each frame of this anim sequence will contain a training pose.
 	 * @return A pointer to the animation sequence used for training.
 	 */
-	const UAnimSequence* GetAnimSequence() const				{ return AnimSequence.LoadSynchronous();  }
-	UAnimSequence* GetAnimSequence()							{ return AnimSequence.LoadSynchronous(); }
+	UE_DEPRECATED(5.4, "This method will be removed. Please look at FMLDeformerEditorModel::GetActiveTrainingInputAnimIndex().")
+	const UAnimSequence* GetAnimSequence() const				{ return nullptr; }
+
+	UE_DEPRECATED(5.4, "This method will be removed. Please look at FMLDeformerEditorModel::GetActiveTrainingInputAnimIndex().")
+	UAnimSequence* GetAnimSequence()							{ return nullptr; }
 
 	/**
 	 * Set the animation sequence object to use for training.
 	 * Keep in mind that the editor still needs to handle a change of this property for things to be initialized correctly.
 	 * @param AnimSeq The animation sequence to use for training.
 	 */
-	void SetAnimSequence(UAnimSequence* AnimSeq)				{ AnimSequence = AnimSeq; }
+	UE_DEPRECATED(5.4, "This method will be removed.")
+	void SetAnimSequence(UAnimSequence* AnimSeq)				{}
 
 	/**
 	 * Get the maximum number of training frames to use during training.
@@ -539,8 +544,10 @@ public:
 	void SetVizSettings(UMLDeformerVizSettings* VizSettingsObject)			{ VizSettings = VizSettingsObject; }
 
 	// Get property names.
+	UE_DEPRECATED(5.4, "This method will be removed.")
+	static FName GetAnimSequencePropertyName()			{ return GET_MEMBER_NAME_CHECKED(UMLDeformerModel, AnimSequence_DEPRECATED); }
+
 	static FName GetSkeletalMeshPropertyName()			{ return GET_MEMBER_NAME_CHECKED(UMLDeformerModel, SkeletalMesh); }
-	static FName GetAnimSequencePropertyName()			{ return GET_MEMBER_NAME_CHECKED(UMLDeformerModel, AnimSequence); }
 	static FName GetAlignmentTransformPropertyName()	{ return GET_MEMBER_NAME_CHECKED(UMLDeformerModel, AlignmentTransform); }
 	static FName GetBoneIncludeListPropertyName()		{ return GET_MEMBER_NAME_CHECKED(UMLDeformerModel, BoneIncludeList); }
 	static FName GetCurveIncludeListPropertyName()		{ return GET_MEMBER_NAME_CHECKED(UMLDeformerModel, CurveIncludeList); }
@@ -552,7 +559,6 @@ public:
 
 	UE_DEPRECATED(5.3, "This property has been removed and shouldn't be used anymore.")
 	static FName GetShouldIncludeCurvesPropertyName()	{ return GET_MEMBER_NAME_CHECKED(UMLDeformerModel, bIncludeCurves_DEPRECATED); }
-
 #endif	// #if WITH_EDITORONLY_DATA
 
 protected:
@@ -607,6 +613,15 @@ protected:
 
 	/** Estimated GPU memory usage. */
 	uint64 GPUMemUsageInBytes = 0;
+#endif
+
+#if WITH_EDITORONLY_DATA
+	/**
+	 * The animation sequence to apply to the base mesh. This has to match the animation of the target mesh's geometry cache. 
+	 * Internally we force the Interpolation property for this motion to be "Step".
+	 */
+	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="Use the training input anims instead."))
+	TSoftObjectPtr<UAnimSequence> AnimSequence_DEPRECATED;
 #endif
 
 private:
@@ -670,15 +685,8 @@ private:
 	UPROPERTY()
 	bool bIncludeCurves_DEPRECATED = false;
 
-	/**
-	 * The animation sequence to apply to the base mesh. This has to match the animation of the target mesh's geometry cache. 
-	 * Internally we force the Interpolation property for this motion to be "Step".
-	 */
-	UPROPERTY(EditAnywhere, Category = "Base Mesh")
-	TSoftObjectPtr<UAnimSequence> AnimSequence = nullptr;
-
 	/** The transform that aligns the Geometry Cache to the SkeletalMesh. This will mostly apply some scale and a rotation, but no translation. */
-	UPROPERTY(EditAnywhere, Category = "Target Mesh")
+	UPROPERTY(EditAnywhere, Category = "Inputs", DisplayName = "Target Alignment Transform")
 	FTransform AlignmentTransform = FTransform::Identity;
 
 	/** The bones to include during training. When none are provided, all bones of the Skeleton will be included. */
@@ -690,14 +698,14 @@ private:
 	TArray<FMLDeformerCurveReference> CurveIncludeList;
 
 	/** The maximum numer of training frames (samples) to train on. Use this to train on a sub-section of your full training data. */
-	UPROPERTY(EditAnywhere, Category = "Inputs", meta = (ClampMin = "1"))
+	UPROPERTY(EditAnywhere, Category = "Training Settings", meta = (ClampMin = "1"))
 	int32 MaxTrainingFrames = 1000000;
 
 	/**
 	 * Sometimes there can be some vertices that cause some issues that cause deltas to be very long. We can ignore these deltas by setting a cutoff value. 
 	 * Deltas that are longer than the cutoff value (in units), will be ignored and set to zero length. 
 	 */
-	UPROPERTY(EditAnywhere, Category = "Inputs", meta = (ClampMin = "0.01", ForceUnits="cm"))
+	UPROPERTY(EditAnywhere, Category = "Training Settings", meta = (ClampMin = "0.01", ForceUnits="cm"))
 	float DeltaCutoffLength = 30.0f;
 #endif
 };

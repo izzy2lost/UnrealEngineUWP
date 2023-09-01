@@ -23,12 +23,7 @@ namespace UE::MLDeformer
 	{
 		if (LabelComponent)
 		{
-			Actor->RemoveOwnedComponent(LabelComponent);
-		}
-
-		if (SkeletalMeshComponent)
-		{
-			Actor->RemoveOwnedComponent(SkeletalMeshComponent);
+			LabelComponent->UnregisterComponent();
 		}
 	}
 

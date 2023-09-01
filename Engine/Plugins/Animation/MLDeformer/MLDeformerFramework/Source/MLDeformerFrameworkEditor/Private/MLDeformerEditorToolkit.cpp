@@ -106,6 +106,7 @@ namespace UE::MLDeformer
 			ActiveModel->UpdateIsReadyForTrainingState();
 			ActiveModel->SetTrainingFrame(ActiveModel->GetModel()->GetVizSettings()->GetTrainingFrameNumber());
 			ActiveModel->SetTestFrame(ActiveModel->GetModel()->GetVizSettings()->GetTestingFrameNumber());
+			ActiveModel->InvalidateDeltas();
 		}
 
 		if (DeformerModel)
@@ -269,7 +270,7 @@ namespace UE::MLDeformer
 		{
 			const EAppReturnType::Type ReturnType = FMessageDialog::Open(
 				EAppMsgType::YesNo, 
-				LOCTEXT("SwitchModelConfirmMessage", "Are you sure you want to switch the current model?\nYou will lose your current setup."),
+				LOCTEXT("SwitchModelConfirmMessage", "Are you sure you want to switch the current model?\nYou will lose your current setup.\n"),
 				LOCTEXT("SwitchModelConfirmTitle", "Switch current model?"));
 
 			if (ReturnType == EAppReturnType::No)
@@ -285,6 +286,19 @@ namespace UE::MLDeformer
 		if (ActiveModel)
 		{
 			ActiveModel->ClearWorldAndPersonaPreviewScene();
+			ActiveModel.Reset();
+
+			if (ModelDetailsView)
+			{
+				ModelDetailsView->SetObject(nullptr);
+				ModelDetailsView->ForceRefresh();
+			}
+
+			if (VizSettingsDetailsView)
+			{
+				VizSettingsDetailsView->SetObject(nullptr);
+				VizSettingsDetailsView->ForceRefresh();
+			}
 		}
 
 		// Get the runtime model type based on the index, and create an instance of it.
@@ -303,11 +317,10 @@ namespace UE::MLDeformer
 		EditorModel->Init(InitSettings);
 
 		// Tell the editor we use this model now.
-		FMLDeformerEditorModel* OldActiveModel = ActiveModel.Get();
 		ActiveModel = TSharedPtr<FMLDeformerEditorModel>(EditorModel);
 
 		// Create the new scene for this model.
-		if (OldActiveModel)
+		if (PersonaToolkit)
 		{
 			HandlePreviewSceneCreated(PersonaToolkit->GetPreviewScene());
 		}
@@ -389,7 +402,7 @@ namespace UE::MLDeformer
 		{
 			const EAppReturnType::Type ConfirmReturnType = FMessageDialog::Open(
 				EAppMsgType::YesNo, 
-				LOCTEXT("RetrainConfirmationMessage", "This asset already has been trained.\n\nAre you sure you would like to re-train the network with your current settings?"),
+				LOCTEXT("RetrainConfirmationMessage", "This asset already has been trained.\n\nAre you sure you would like to re-train the network with your current settings?\n"),
 				LOCTEXT("RetrainConfirmationTitle", "Re-train the network?"));
 
 			if (ConfirmReturnType == EAppReturnType::No || ConfirmReturnType == EAppReturnType::Cancel)
@@ -402,12 +415,6 @@ namespace UE::MLDeformer
 		ShowNotification(LOCTEXT("StartTraining", "Starting training process"), SNotificationItem::ECompletionState::CS_Pending, true);
 
 		ActiveModel->OnPreTraining();
-
-		// Change the interpolation type for the training sequence to step.
-		if (UAnimSequence* AnimSequence = Model->GetAnimSequence())
-		{
-			AnimSequence->Interpolation = EAnimInterpolationType::Step;
-		}
 
 		// Initialize the training inputs.
 		ActiveModel->UpdateEditorInputInfo();
@@ -484,7 +491,7 @@ namespace UE::MLDeformer
 				FUIAction(),
 				FOnGetContent::CreateRaw(this, &FMLDeformerEditorToolkit::GenerateVizModeButtonContents, CommandList.ToSharedRef()),
 				TAttribute<FText>::CreateRaw(this, &FMLDeformerEditorToolkit::GetCurrentVizModeName),			
-				LOCTEXT("VizModeModeTooltip", "The visualization mode, specifying whether you are working on training on testing."),
+				LOCTEXT("VizModeModeTooltip", "The visualization mode, specifying whether you are working on training or testing."),
 				FSlateIcon(FMLDeformerEditorStyle::Get().GetStyleSetName(), "MLDeformer.VizSettings.TabIcon")
 			);
 		}
@@ -548,14 +555,14 @@ namespace UE::MLDeformer
 				if (!ActiveModel->LoadTrainedNetwork())
 				{
 					GEditor->PlayEditorSound(TEXT("/Engine/EditorSounds/Notifications/CompileFailed_Cue.CompileFailed_Cue"));
-					WindowMessage = LOCTEXT("TrainingOnnxLoadFailed", "Training completed but resulting network couldn't be loaded!");
+					WindowMessage = LOCTEXT("TrainingOnnxLoadFailed", "Training completed but resulting network couldn't be loaded!\n");
 				}
 				else
 				{
 					GEditor->PlayEditorSound(TEXT("/Engine/EditorSounds/Notifications/CompileSuccess_Cue.CompileSuccess_Cue"));
 					FFormatNamedArguments SuccessArgs;
 					SuccessArgs.Add(TEXT("Duration"), TrainingDurationText);
-					WindowMessage = FText::Format(LOCTEXT("TrainingSuccess", "Training completed successfully!\n\nTraining time: {Duration}"), SuccessArgs);
+					WindowMessage = FText::Format(LOCTEXT("TrainingSuccess", "Training completed successfully!\n\nTraining time: {Duration}\n"), SuccessArgs);
 					ActiveModel->InitInputInfo(ActiveModel->GetModel()->GetInputInfo());
 					bMarkDirty = true;
 					bOutSuccess = true;
@@ -573,7 +580,7 @@ namespace UE::MLDeformer
 				{
 					ReturnType = FMessageDialog::Open(
 						EAppMsgType::YesNo, 
-						LOCTEXT("TrainingAbortedMessage", "Training has been aborted.\nThe neural network has only been partially trained.\nWould you like to use this partially trained network?"),
+						LOCTEXT("TrainingAbortedMessage", "Training has been aborted.\nThe neural network has only been partially trained.\nWould you like to use this partially trained network?\n"),
 						LOCTEXT("TrainingAbortedMessageTitle", "Use partially trained network?"));
 				}
 
@@ -604,7 +611,7 @@ namespace UE::MLDeformer
 			case ETrainingResult::AbortedCantUse:
 			{
 				ShowNotification(LOCTEXT("TrainingAborted", "Training aborted!"), SNotificationItem::ECompletionState::CS_None, true);
-				WindowMessage = LOCTEXT("TrainingAbortedCantUse", "Training aborted by user.");
+				WindowMessage = LOCTEXT("TrainingAbortedCantUse", "Training aborted by user.\n");
 			}
 			break;
 
@@ -612,7 +619,7 @@ namespace UE::MLDeformer
 			case ETrainingResult::FailOnData:
 			{
 				GEditor->PlayEditorSound(TEXT("/Engine/EditorSounds/Notifications/CompileFailed_Cue.CompileFailed_Cue"));
-				WindowMessage = LOCTEXT("TrainingFailedOnData", "Training failed!\nCheck input parameters or sequence length.");
+				WindowMessage = LOCTEXT("TrainingFailedOnData", "Training failed!\nCheck input parameters or sequence length.\n");
 			}
 			break;
 
@@ -620,7 +627,7 @@ namespace UE::MLDeformer
 			case ETrainingResult::FailPythonError:
 			{
 				GEditor->PlayEditorSound(TEXT("/Engine/EditorSounds/Notifications/CompileFailed_Cue.CompileFailed_Cue"));
-				WindowMessage = LOCTEXT("TrainingPythonError", "Training failed!\nThere is a python error, please check the output log.");
+				WindowMessage = LOCTEXT("TrainingPythonError", "Training failed!\nThere is a python error, please check the output log.\n");
 			}
 			break;
 
@@ -888,7 +895,7 @@ namespace UE::MLDeformer
 		const UMLDeformerVizSettings* VizSettings = ActiveModel->GetModel()->GetVizSettings();
 		if (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TrainingData)
 		{
-			const UAnimSequence* AnimSeq = ActiveModel.Get() ? ActiveModel->GetModel()->GetAnimSequence() : nullptr;
+			const UAnimSequence* AnimSeq = ActiveModel.Get() ? ActiveModel->GetActiveTrainingInputAnimSequence() : nullptr;
 			const double Duration = AnimSeq ? AnimSeq->GetPlayLength() : 0.0;
 			SetTimeSliderRange(0.0, Duration);
 		}

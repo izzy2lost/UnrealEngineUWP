@@ -672,12 +672,15 @@ namespace UE::NeuralMorphModel
 
 	void FNeuralMorphEditorModel::DebugDrawItemMask(FPrimitiveDrawInterface* PDI, int32 MaskItemIndex, const FVector& DrawOffset)
 	{
+		FMLDeformerSampler* Sampler = GetSamplerForActiveAnim();
+
 		UMLDeformerMorphModelVizSettings* VizSettings = Cast<UMLDeformerMorphModelVizSettings>(Model->GetVizSettings());
 		const int32 NumVerts = Model->GetNumBaseMeshVerts();
 		const TArray<FVector3f>& UnskinnedPositions = Sampler->GetUnskinnedVertexPositions();
 		if (MaskVizItemIndex == INDEX_NONE ||
 			NumVerts != Model->GetInputInfo()->GetNumBaseMeshVertices() ||
-			UnskinnedPositions.Num() != NumVerts)
+			UnskinnedPositions.Num() != NumVerts ||
+			Sampler == nullptr)
 		{
 			return;
 		}

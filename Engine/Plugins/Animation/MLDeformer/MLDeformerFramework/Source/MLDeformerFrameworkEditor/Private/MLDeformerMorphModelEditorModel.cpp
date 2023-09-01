@@ -402,8 +402,10 @@ namespace UE::MLDeformer
 		EMLDeformerMaskChannel MaskChannel,
 		bool bInvertMaskChannel)
 	{
+		FMLDeformerSampler* Sampler = GetSamplerForActiveAnim();
+
 		OutMorphTargets.Reset();
-		if (Deltas.IsEmpty())
+		if (Deltas.IsEmpty() || Sampler == nullptr)
 		{
 			return;
 		}
@@ -566,6 +568,12 @@ namespace UE::MLDeformer
 
 	void FMLDeformerMorphModelEditorModel::DebugDrawMorphTarget(FPrimitiveDrawInterface* PDI, const TArray<FVector3f>& MorphDeltas, float DeltaThreshold, int32 MorphTargetIndex, const FVector& DrawOffset)
 	{
+		FMLDeformerSampler* Sampler = GetSamplerForActiveAnim();
+		if (Sampler == nullptr)
+		{
+			return;
+		}
+
 		UMLDeformerVizSettings* VizSettings = Model->GetVizSettings();
 		const int32 NumVerts = Model->GetNumBaseMeshVerts();
 		const TArray<FVector3f>& UnskinnedPositions = Sampler->GetUnskinnedVertexPositions();

@@ -349,7 +349,7 @@ namespace UE::MLDeformer
 		return NumGeomCacheImportedVerts;
 	}
 
-	FText GetGeomCacheAnimSequenceErrorText(UGeometryCache* InGeomCache, UAnimSequence* InAnimSequence)
+	FText GetGeomCacheAnimSequenceErrorText(const UGeometryCache* InGeomCache, const UAnimSequence* InAnimSequence)
 	{
 		FText Result;
 

@@ -129,6 +129,8 @@ namespace UE::MLDeformer
 		bool IsTrainButtonEnabled() const;
 		bool IsTraining() const;
 
+		void ZoomOnActors();
+
 		static void AddToolsMenuExtender(TUniquePtr<FToolsMenuExtender> Extender);
 		static TConstArrayView<TUniquePtr<FToolsMenuExtender>> GetToolsMenuExtenders();
 	private:
@@ -157,7 +159,6 @@ namespace UE::MLDeformer
 		FText GetActiveModelName() const;
 		FText GetCurrentVizModeName() const;
 		FText GetVizModeName(EMLDeformerVizMode Mode) const;
-		void ZoomOnActors();
 		void ShowNoModelsWarningIfNeeded();
 
 		TSharedRef<SWidget> GenerateModelButtonContents(TSharedRef<FUICommandList> InCommandList);

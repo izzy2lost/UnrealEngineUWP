@@ -76,7 +76,7 @@ void UMLDeformerModel::Serialize(FArchive& Archive)
 		{
 			if (Archive.IsCooking())
 			{
-				AnimSequence = nullptr;
+				AnimSequence_DEPRECATED = nullptr;
 				VizSettings = nullptr;
 			}
 

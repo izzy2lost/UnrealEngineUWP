@@ -37,7 +37,7 @@ namespace UE::NearestNeighborModel
 	
 		// FMLDeformerGeomCacheEditorModel overrides.
 		virtual void Init(const InitSettings& Settings) override;
-		virtual FMLDeformerSampler* CreateSampler() const override;
+		virtual TSharedPtr<FMLDeformerSampler> CreateSamplerObject() const override;
 		virtual void CreateActors(const TSharedRef<IPersonaPreviewScene>& InPersonaPreviewScene) override;
 		virtual void Tick(FEditorViewportClient* ViewportClient, float DeltaTime) override;
 		virtual FMLDeformerEditorActor* CreateEditorActor(const FMLDeformerEditorActor::FConstructSettings& Settings) const override;

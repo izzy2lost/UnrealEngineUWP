@@ -46,13 +46,25 @@ int32 UNearestNeighborTrainingModel::GetPartNumNeighbors(const int32 PartId) con
 
 bool UNearestNeighborTrainingModel::SampleKmeansAnim(const int32 SkeletonId)
 {
-	FNearestNeighborGeomCacheSampler* Sampler = static_cast<FNearestNeighborGeomCacheSampler*>(EditorModel->GetSampler());
+	FMLDeformerSampler* BaseSampler = EditorModel->GetNumTrainingInputAnims() > 0 ? EditorModel->GetSamplerForTrainingAnim(0) : nullptr;
+	FNearestNeighborGeomCacheSampler* Sampler = static_cast<FNearestNeighborGeomCacheSampler*>(BaseSampler);
+	if (Sampler == nullptr)
+	{
+		return false;
+	}
+
 	return Sampler->SampleKMeansAnim(SkeletonId);
 }
 
 bool UNearestNeighborTrainingModel::SampleKmeansFrame(const int32 Frame)
 {
-	FNearestNeighborGeomCacheSampler* Sampler = static_cast<FNearestNeighborGeomCacheSampler*>(EditorModel->GetSampler());
+	FMLDeformerSampler* BaseSampler = EditorModel->GetNumTrainingInputAnims() > 0 ? EditorModel->GetSamplerForTrainingAnim(0) : nullptr;
+	FNearestNeighborGeomCacheSampler* Sampler = static_cast<FNearestNeighborGeomCacheSampler*>(BaseSampler);
+	if (Sampler == nullptr)
+	{
+		return false;
+	}
+
 	const bool bSampleExist = Sampler->SampleKMeansFrame(Frame);
 	if (bSampleExist)
 	{
@@ -84,7 +96,14 @@ int32 UNearestNeighborTrainingModel::GetKmeansNumClusters() const
 
 const TArray<float> UNearestNeighborTrainingModel::GetUnskinnedVertexPositions() const
 {
-	const TArray<FVector3f>& PositionsVec = EditorModel->GetSampler()->GetUnskinnedVertexPositions();
+	FMLDeformerSampler* BaseSampler = EditorModel->GetNumTrainingInputAnims() > 0 ? EditorModel->GetSamplerForTrainingAnim(0) : nullptr;
+	FNearestNeighborGeomCacheSampler* Sampler = static_cast<FNearestNeighborGeomCacheSampler*>(BaseSampler);
+	if (Sampler == nullptr)
+	{
+		return TArray<float>();
+	}
+
+	const TArray<FVector3f>& PositionsVec = Sampler->GetUnskinnedVertexPositions();
 	TArray<float> PositionsFloat; 
 	PositionsFloat.SetNumUninitialized(PositionsVec.Num() * 3);
 	for (int32 i = 0; i < PositionsVec.Num(); i++)
@@ -98,7 +117,13 @@ const TArray<float> UNearestNeighborTrainingModel::GetUnskinnedVertexPositions()
 
 const TArray<int32> UNearestNeighborTrainingModel::GetMeshIndexBuffer() const
 {
-	FNearestNeighborGeomCacheSampler* Sampler = static_cast<FNearestNeighborGeomCacheSampler*>(EditorModel->GetSampler());
+	FMLDeformerSampler* BaseSampler = EditorModel->GetNumTrainingInputAnims() > 0 ? EditorModel->GetSamplerForTrainingAnim(0) : nullptr;
+	FNearestNeighborGeomCacheSampler* Sampler = static_cast<FNearestNeighborGeomCacheSampler*>(BaseSampler);
+	if (Sampler == nullptr)
+	{
+		return TArray<int32>();
+	}
+
 	TArray<uint32> UIndexBuffer = Sampler->GetMeshIndexBuffer();
 	return TArray<int32>((int32*)UIndexBuffer.GetData(), UIndexBuffer.Num());
 }

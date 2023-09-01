@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreTypes.h"
-#include "MLDeformerTrainingModel.h"
+#include "MLDeformerGeomCacheTrainingModel.h"
 #include "NearestNeighborTrainingModel.generated.h"
 
 namespace UE::NearestNeighborModel
@@ -16,7 +16,7 @@ class UNearestNeighborModelInstance;
 
 UCLASS(Blueprintable)
 class NEARESTNEIGHBORMODELEDITOR_API UNearestNeighborTrainingModel
-	: public UMLDeformerTrainingModel
+	: public UMLDeformerGeomCacheTrainingModel
 {
 	GENERATED_BODY()
 
