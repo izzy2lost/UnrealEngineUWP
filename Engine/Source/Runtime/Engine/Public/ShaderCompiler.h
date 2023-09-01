@@ -480,6 +480,9 @@ private:
 		/** Total number of hits in the job cache (i.e. input hashes seen >1 time) */
 		uint64 TotalCacheHits = 0;
 
+		/** Total number of DDC hits in the job cache (per shader DDC, as opposed to shader map DDC stats above). */
+		uint32 TotalCacheDDCHits = 0;
+
 		/** Total number of unique input hashes seen in job cache queries */
 		uint64 UniqueCacheInputHashes = 0;
 
@@ -523,6 +526,7 @@ private:
 			ShaderMapDDCHits += Other.ShaderMapDDCHits;
 			TotalCacheSearchAttempts += Other.TotalCacheSearchAttempts;
 			TotalCacheHits += Other.TotalCacheHits;
+			TotalCacheDDCHits += Other.TotalCacheDDCHits;
 			UniqueCacheInputHashes += Other.UniqueCacheInputHashes;
 			UniqueCacheOutputs += Other.UniqueCacheOutputs;
 			CacheMemUsed += Other.CacheMemUsed;

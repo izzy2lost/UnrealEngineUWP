@@ -14,6 +14,8 @@ class FShaderCommonCompileJob;
 class FShaderCompileJob;
 class FShaderPipelineCompileJob;
 
+namespace UE::DerivedData { class FRequestOwner; }
+
 /** Results for a single compiled shader map. */
 struct FShaderMapCompileResults
 {
@@ -92,6 +94,8 @@ public:
 	EShaderCompileJobPriority Priority;
 	EShaderCompileJobPriority PendingPriority;
 	EShaderCompilerWorkerType CurrentWorker;
+
+	TPimplPtr<UE::DerivedData::FRequestOwner> RequestOwner;
 
 	/** true if the results of the shader compile have been processed. */
 	uint8 bFinalized : 1;

@@ -169,6 +169,28 @@ static TAutoConsoleVariable<bool> CVarCompileParallelInProcess(
 	TEXT("EXPERIMENTAL- If true, shader compilation will be executed in-process in parallel. Note that this will serialize if the legacy preprocessor is enabled."),
 	ECVF_ReadOnly);
 
+static TAutoConsoleVariable<bool> CVarShaderCompilerPerShaderDDCAsync(
+	TEXT("r.ShaderCompiler.PerShaderDDCAsync"),
+	true,
+	TEXT("if != 0, Per-shader DDC queries will run async, instead of in the SubmitJobs task."),
+	ECVF_Default
+);
+
+int32 GShaderCompilerPerShaderDDCGlobal = 1;
+static FAutoConsoleVariableRef CVarShaderCompilerPerShaderDDCGlobal(
+	TEXT("r.ShaderCompiler.PerShaderDDCGlobal"),
+	GShaderCompilerPerShaderDDCGlobal,
+	TEXT("if != 0, Per-shader DDC queries enabled for global and default shaders."),
+	ECVF_Default
+);
+
+static TAutoConsoleVariable<bool> CVarShaderCompilerPerShaderDDCCook(
+	TEXT("r.ShaderCompiler.PerShaderDDCCook"),
+	true,
+	TEXT("if != 0, Per-shader DDC queries enabled during cooks (requires r.ShaderCompiler.PreprocessedJobCache to also be enabled)."),
+	ECVF_Default
+);
+
 static bool IsShaderJobCacheDDCRemotePolicyEnabled()
 {
 	return CVarJobCacheDDCPolicy.GetValueOnAnyThread();
@@ -178,7 +200,8 @@ static bool IsShaderJobCacheDDCRemotePolicyEnabled()
 bool IsShaderJobCacheDDCEnabled()
 {
 #if WITH_EDITOR
-	static const bool bForceAllowShaderCompilerJobCache = FParse::Param(FCommandLine::Get(), TEXT("forceAllowShaderCompilerJobCache"));
+	static const bool bForceAllowShaderCompilerJobCache = FParse::Param(FCommandLine::Get(), TEXT("forceAllowShaderCompilerJobCache")) ||
+		(CVarShaderCompilerPerShaderDDCCook.GetValueOnAnyThread() && CVarPreprocessedJobCache.GetValueOnAnyThread());
 #else
 	const bool bForceAllowShaderCompilerJobCache = false;
 #endif
@@ -246,6 +269,22 @@ static FAutoConsoleVariableRef CVarShaderCompilerParallelSubmitJobs(
 	TEXT("r.ShaderCompiler.ParallelSubmitJobs"),
 	GShaderCompilerParallelSubmitJobs,
 	TEXT("if != 0, FShaderJobCache::SubmitJobs will run in multiple parallel tasks, instead of the game thread."),
+	ECVF_Default
+);
+
+int32 GShaderCompilerDebugStallSubmitJob = 0;
+static FAutoConsoleVariableRef CVarShaderCompilerDebugStallSubmitJob(
+	TEXT("r.ShaderCompiler.DebugStallSubmitJob"),
+	GShaderCompilerDebugStallSubmitJob,
+	TEXT("For debugging, a value in milliseconds to stall in SubmitJob, to help reproduce threading bugs."),
+	ECVF_Default
+);
+
+int32 GShaderCompilerDebugStallDDCQuery = 0;
+static FAutoConsoleVariableRef CVarShaderCompilerDebugStallDCCQuery(
+	TEXT("r.ShaderCompiler.DebugStallDDCQuery"),
+	GShaderCompilerDebugStallDDCQuery,
+	TEXT("For debugging, a value in milliseconds to stall in the DDC completion callback, to help reproduce threading bugs, or simulate higher latency DDC for perf testing."),
 	ECVF_Default
 );
 
@@ -317,8 +356,13 @@ struct FShaderJobData
 	/** Output hash will be zero if output data has not been written yet, or can be cleared if output data has been removed */
 	FJobOutputHash OutputHash;
 
-	/** In-flight job with the given input hash */
-	FShaderCommonCompileJob* JobInFlight = nullptr;
+	/**
+	 * In-flight job with the given input hash.  Needs to be a reference pointer to handle cancelling of jobs, where an async DDC query
+	 * (which receives a pointer to FShaderJobData) may be in-flight that still references a job that has otherwise been deleted.
+	 * Cancelled jobs will have been unlinked from the PendingSubmitJobTaskJobs list in RemoveAllPendingJobsWithId, which can be
+	 * detected in the callback, and further processing on the job skipped.
+	 */
+	FShaderCommonCompileJobPtr JobInFlight;
 
 	/** Head of a linked list of duplicate jobs */
 	FShaderCommonCompileJob* DuplicateJobsWaitList = nullptr;
@@ -636,7 +680,7 @@ public:
 
 	int32 RemoveAllPendingJobsWithId(uint32 InId);
 
-	void SubmitJob(FShaderCommonCompileJobPtr Job);
+	void SubmitJob(FShaderCommonCompileJob* Job);
 	void SubmitJobs(const TArray<FShaderCommonCompileJobPtr>& InJobs);
 
 	/** This is an entry point for all jobs that have finished the compilation (whether real or cached). Can be called from multiple threads. Returns mutex stall time. */
@@ -672,8 +716,8 @@ private:
 
 	void InternalSetPriority(FShaderCommonCompileJob* Job, EShaderCompileJobPriority InPriority);
 
-	/** Looks for or adds an entry for the given hash in the cache.  Returns cached output if it exists. */
-	FShaderJobCacheRef FindOrAdd(const FJobInputHash& Hash, const bool bCheckDDC, FJobCachedOutput*& OutCachedOutput);
+	/** Looks for or adds an entry for the given hash in the cache.  Returns cached output if it exists, or may initialize DDC request if one has been issued. */
+	FShaderJobCacheRef FindOrAdd(const FJobInputHash& Hash, EShaderCompileJobPriority JobPriority, const bool bCheckDDC, TPimplPtr<UE::DerivedData::FRequestOwner>& InoutRequestOwner, FJobCachedOutput*& OutCachedOutput);
 
 	/** Find an existing item in the cache. */
 	FShaderJobData* Find(const FJobInputHash& Hash);
@@ -727,6 +771,19 @@ private:
 			Tail = Job.PrevLink;
 		}
 		Unlink(Job);
+	}
+
+	/** Copied from TLinkedListBase::LinkHead */
+	FORCEINLINE void LinkHead(FShaderCommonCompileJob& Job, FShaderCommonCompileJob*& Head)
+	{
+		if (Head != NULL)
+		{
+			Head->PrevLink = &Job.NextLink;
+		}
+
+		Job.NextLink = Head;
+		Job.PrevLink = &Head;
+		Head = &Job;
 	}
 
 	/** Copied from TLinkedListBase::LinkAfter */
@@ -819,6 +876,9 @@ private:
 	/** Guards access to the structure */
 	mutable FRWLock JobLock;
 
+	/** List of jobs waiting on SubmitJob task or DDC query (not yet added to a pending queue). */
+	FShaderCommonCompileJob* PendingSubmitJobTaskJobs = nullptr;
+
 	/** Queue of tasks that haven't been assigned to a worker yet. */
 	FShaderCommonCompileJob* PendingJobsHead[NumShaderCompileJobPriorities];
 	std::atomic_int32_t NumPendingJobs[NumShaderCompileJobPriorities];
@@ -848,6 +908,9 @@ private:
 
 	/** Statistics - total number of times we succeded in Find()ing output for some input hash */
 	uint64 TotalCacheHits = 0;
+
+	/** Statistics - total number of times a per-shader DDC query succeeded for some input hash */
+	uint64 TotalCacheDDCHits = 0;
 
 	/** Statistics - allocated memory. If the number is non-zero, we can trust it as accurate. Otherwise, recalculate. */
 	uint64 CurrentlyAllocatedMemory = 0;
@@ -1312,6 +1375,47 @@ void FShaderJobCache::InternalSetPriority(FShaderCommonCompileJob* Job, EShaderC
 int32 FShaderJobCache::RemoveAllPendingJobsWithId(uint32 InId)
 {
 	int32 NumRemoved = 0;
+
+#if WITH_EDITOR
+	TArray<FShaderCommonCompileJobPtr> JobsWithRequestsToCancel;
+#endif
+	{
+		// Look for jobs that are waiting on a SubmitJob task or async DDC query.  These can just be unlinked which will cause them to be
+		// discarded in SubmitJob or the DDC completion callback.  We also need to get a list of jobs with DDC requests to cancel.  We
+		// can't cancel the requests inside the loop, as the response callback uses JobLock, and it will deadlock.  We also need a
+		// reference pointer to the jobs, so the jobs (and the TPimplPtr<UE::DerivedData::FRequestOwner> contained therein) can't be
+		// deleted while a DDC completion callback is in flight, which also leads to a deadlock.
+		FWriteScopeLock Locker(JobLock);
+		for (FShaderCommonCompileJobIterator It(PendingSubmitJobTaskJobs); It;)
+		{
+			FShaderCommonCompileJob& Job = *It;
+			It.Next();
+
+			if (Job.Id == InId)
+			{
+				Unlink(Job);		// from PendingSubmitJobTaskJobs
+				RemoveJob(&Job);
+				++NumRemoved;
+
+#if WITH_EDITOR
+				if (Job.RequestOwner)
+				{
+					JobsWithRequestsToCancel.Add(&Job);
+				}
+#endif
+			}
+		}
+	}
+
+#if WITH_EDITOR
+	for (FShaderCommonCompileJobPtr JobWithRequestToCancel : JobsWithRequestsToCancel)
+	{
+		// Cancelling should short circuit the request, and make "Wait" finish immediately
+		JobWithRequestToCancel->RequestOwner->Cancel();
+		JobWithRequestToCancel->RequestOwner->Wait();
+	}
+#endif
+
 	{
 		FWriteScopeLock Locker(JobLock);
 		for (int32 PriorityIndex = 0; PriorityIndex < NumShaderCompileJobPriorities; ++PriorityIndex)
@@ -1412,9 +1516,8 @@ int32 FShaderJobCache::RemoveAllPendingJobsWithId(uint32 InId)
 	return NumRemoved;
 }
 
-void FShaderJobCache::SubmitJob(FShaderCommonCompileJobPtr Job)
+void FShaderJobCache::SubmitJob(FShaderCommonCompileJob* Job)
 {
-	check(Job->JobIndex != INDEX_NONE);
 	check(Job->Priority != EShaderCompileJobPriority::None);
 	check(Job->PendingPriority == EShaderCompileJobPriority::None);
 
@@ -1429,7 +1532,7 @@ void FShaderJobCache::SubmitJob(FShaderCommonCompileJobPtr Job)
 
 		const FShaderCommonCompileJob::FInputHash& InputHash = Job->GetInputHash();
 
-		const bool bCheckDDC = !(Job->bIsDefaultMaterial || Job->bIsGlobalShader);
+		const bool bCheckDDC = GShaderCompilerPerShaderDDCGlobal || !(Job->bIsDefaultMaterial || Job->bIsGlobalShader);
 
 		// We don't use a scope here, because we need to release this lock before calling ProcessFinishedJob, which needs to acquire
 		// CompileQueueSection.  It's not safe to acquire CompileQueueSection where JobLock is locked first, as it will cause
@@ -1439,12 +1542,25 @@ void FShaderJobCache::SubmitJob(FShaderCommonCompileJobPtr Job)
 		JobLock.WriteLock();
 		Job->TimeTaskSubmitJobsStall += FPlatformTime::Seconds() - StallStart;
 
+		// Job was linked in PendingSubmitJobTaskJobs before calling SubmitJob -- if it's not linked now, it means it was cancelled via
+		// call to RemoveAllPendingJobsWithId, so we can ignore it and just return.
+		if (!Job->PrevLink)
+		{
+			UE_LOG(LogShaderCompilers, Log, TEXT("Cancelled job 0x%p with pending SubmitJob call."), Job);
+
+			JobLock.WriteUnlock();
+			return;
+		}
+		check(Job->JobIndex != INDEX_NONE);
+
 		FSharedBuffer* ExistingOutput;
-		FShaderJobCacheRef JobCacheRef = FindOrAdd(InputHash, bCheckDDC, ExistingOutput);
+		FShaderJobCacheRef JobCacheRef = FindOrAdd(InputHash, Job->Priority, bCheckDDC, Job->RequestOwner, ExistingOutput);
 
 		// see if there are already cached results for this job
 		if (ExistingOutput)
 		{
+			Unlink(*Job);		// from PendingSubmitJobTaskJobs
+
 			// Need to release the lock before calling ProcessFinishedJob, as mentioned above (and it's also good for performance to 
 			// release the lock before the relatively costly "SerializeOutput" call).
 			JobLock.WriteUnlock();
@@ -1467,6 +1583,8 @@ void FShaderJobCache::SubmitJob(FShaderCommonCompileJobPtr Job)
 			if (JobData.JobInFlight)
 			{
 				UE_LOG(LogShaderCompilers, UE_SHADERCACHE_LOG_LEVEL, TEXT("There is an outstanding job with the ihash %s, not submitting another one (adding to wait list)."), *LexToString(InputHash));
+
+				Unlink(*Job);		// from PendingSubmitJobTaskJobs
 
 				// because of the cloned jobs, we need to maintain a separate mapping
 				FShaderCommonCompileJob** WaitListHead = &JobData.DuplicateJobsWaitList;
@@ -1511,10 +1629,35 @@ void FShaderJobCache::SubmitJob(FShaderCommonCompileJobPtr Job)
 		{
 			bJobCacheLocked = true;
 			JobLock.WriteLock();
+
+			// Job was linked in PendingSubmitJobTaskJobs before calling SubmitJob -- if it's not linked now, it means it was cancelled via
+			// call to RemoveAllPendingJobsWithId, so we can ignore it and just return.
+			if (!Job->PrevLink)
+			{
+				UE_LOG(LogShaderCompilers, Log, TEXT("Cancelled job 0x%p with pending SubmitJob call."), Job);
+
+				JobLock.WriteUnlock();
+				return;
+			}
+			check(Job->JobIndex != INDEX_NONE);
 		}
 
+>>>> ORIGINAL //Fortnite/Dev-Rendering-Shaderwork/Engine/Source/Runtime/Engine/Private/ShaderCompiler/ShaderCompiler.cpp#52
+		LinkJobWithPriority(*Job);
+==== THEIRS //Fortnite/Dev-Rendering-Shaderwork/Engine/Source/Runtime/Engine/Private/ShaderCompiler/ShaderCompiler.cpp#53
+		// If an async DDC request is in flight, that will add the job to the pending queue for processing when the request completes,
+		// if the request didn't find a result.  Otherwise we add it to the pending queue immediately.
+		if (Job->RequestOwner.IsValid() == false)
+		{
+			check(Job->PrevLink);
+			Unlink(*Job);		// from PendingSubmitJobTaskJobs
+
+			LinkJobWithPriority(*Job);
+		}
+==== YOURS //Marc.Audy_Fortnite/Engine/Source/Runtime/Engine/Private/ShaderCompiler/ShaderCompiler.cpp
 		LinkJobWithPriority(*Job);
 	}
+<<<<
 
 	if (bJobCacheLocked)
 	{
@@ -1530,18 +1673,33 @@ void FShaderJobCache::SubmitJobs(const TArray<FShaderCommonCompileJobPtr>& InJob
 		// we may fulfill some of the jobs from the cache (and we will be subtracting them)
 		NumOutstandingJobs.Add(InJobs.Num());
 
+		{
+			// Add pending jobs to a list to support cancelling while SubmitJob tasks or async DDC queries are in flight
+			FWriteScopeLock JobLocker(JobLock);
+			for (FShaderCommonCompileJob* Job : InJobs)
+			{
+				LinkHead(*Job, PendingSubmitJobTaskJobs);
+			}
+		}
+
 		if (GShaderCompilerParallelSubmitJobs)
 		{
-			for (FShaderCommonCompileJob* Job : InJobs)
+			for (FShaderCommonCompileJobPtr Job : InJobs)
 			{
 				UE::Tasks::Launch(UE_SOURCE_LOCATION, [Job, this]()
 				{
 					TRACE_CPUPROFILER_EVENT_SCOPE(ShaderJobTask);
 					double TimeStart = FPlatformTime::Seconds();
 
+					if (GShaderCompilerDebugStallSubmitJob > 0)
+					{
+						FPlatformProcess::Sleep(GShaderCompilerDebugStallSubmitJob * 0.001f);
+					}
+
 					if (ShaderCompiler::IsJobCacheEnabled())
 					{
 						ConditionalPreprocessShader(Job);
+						Job->GetInputHash();
 					}
 					SubmitJob(Job);
 
@@ -1658,7 +1816,7 @@ void FShaderJobCache::AddToCacheAndProcessPending(FShaderCommonCompileJob* Finis
 
 		if (FinishedJob->bSucceeded)
 		{
-			const bool bAddToDDC = !(FinishedJob->bIsDefaultMaterial || FinishedJob->bIsGlobalShader);
+			const bool bAddToDDC = GShaderCompilerPerShaderDDCGlobal || !(FinishedJob->bIsDefaultMaterial || FinishedJob->bIsGlobalShader);
 			// we only cache jobs that succeded
 			AddJobOutput(JobData, FinishedJob, InputHash, Buffer, FinishedDuplicateJobs.Num(), bAddToDDC);
 		}
@@ -4261,10 +4419,12 @@ void FShaderCompilerStats::WriteStatSummary()
 	if (Counters.TotalCacheSearchAttempts > 0)
 	{
 		UE_LOG(LogShaderCompilers, Display, TEXT("=== FShaderJobCache stats%s ==="), AggregatedSuffix);
-		UE_LOG(LogShaderCompilers, Display, TEXT("Total job queries %s, among them cache hits %s (%.2f%%)"),
+		UE_LOG(LogShaderCompilers, Display, TEXT("Total job queries %s, among them cache hits %s (%.2f%%), DDC hits %s (%.2f%%)"),
 			*FormatNumber(Counters.TotalCacheSearchAttempts),
 			*FormatNumber(Counters.TotalCacheHits),
-			(Counters.TotalCacheSearchAttempts > 0) ? 100.0 * static_cast<double>(Counters.TotalCacheHits) / static_cast<double>(Counters.TotalCacheSearchAttempts) : 0.0);
+			100.0 * static_cast<double>(Counters.TotalCacheHits) / static_cast<double>(Counters.TotalCacheSearchAttempts),
+			*FormatNumber(Counters.TotalCacheDDCHits),
+			100.0 * static_cast<double>(Counters.TotalCacheDDCHits) / static_cast<double>(Counters.TotalCacheSearchAttempts));
 
 		UE_LOG(LogShaderCompilers, Display, TEXT("Tracking %s distinct input hashes that result in %s distinct outputs (%.2f%%)"),
 			*FormatNumber(Counters.UniqueCacheInputHashes),
@@ -4476,6 +4636,11 @@ void FShaderCompilerStats::GatherAnalytics(const FString& BaseName, TArray<FAnal
 		{
 			FString AttrName = BaseName + ChildName + TEXT("Hits");
 			Attributes.Emplace(MoveTemp(AttrName), Counters.TotalCacheHits);
+		}
+
+		{
+			FString AttrName = BaseName + ChildName + TEXT("DDCHits");
+			Attributes.Emplace(MoveTemp(AttrName), Counters.TotalCacheDDCHits);
 		}
 
 		{
@@ -9953,7 +10118,7 @@ namespace
 }
 #endif
 
-FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FJobInputHash& Hash, const bool bCheckDDC, FJobCachedOutput*& OutCachedOutput)
+FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FJobInputHash& Hash, EShaderCompileJobPriority JobPriority, const bool bCheckDDC, TPimplPtr<UE::DerivedData::FRequestOwner>& InoutRequestOwner, FJobCachedOutput*& OutCachedOutput)
 {
 	check(ShaderCompiler::IsJobCacheEnabled());
 
@@ -9987,14 +10152,32 @@ FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FJobInputHash& Hash, const b
 	else
 	{
 		// If we didn't find it in memory search the DDC if it's enabled.
+		// Don't search if this isn't the first job with this hash (JobInFlight already set), or there's already a request in flight.
 		const bool bCachePerShaderDDC = IsShaderJobCacheDDCEnabled() && bCheckDDC;
-		if (bCachePerShaderDDC)
+		if (bCachePerShaderDDC && (JobData.JobInFlight == nullptr) && !InoutRequestOwner)
 		{
-			FSharedBuffer Results;
-
 			TRACE_COUNTER_INCREMENT(Shaders_JobCacheDDCRequests);
 
-			UE::DerivedData::FRequestOwner RequestOwner(UE::DerivedData::EPriority::Blocking);
+			UE::DerivedData::EPriority DerivedDataPriority;
+			UE::DerivedData::FRequestOwner* RequestOwner;
+
+			static const bool PerShaderDDCAsync = CVarShaderCompilerPerShaderDDCAsync.GetValueOnAnyThread();
+			if (PerShaderDDCAsync)
+			{
+				switch (JobPriority)
+				{
+				case EShaderCompileJobPriority::Low:		DerivedDataPriority = UE::DerivedData::EPriority::Low;		break;
+				case EShaderCompileJobPriority::Normal:		DerivedDataPriority = UE::DerivedData::EPriority::Normal;	break;
+				default:									DerivedDataPriority = UE::DerivedData::EPriority::Highest;	break;
+				}
+				InoutRequestOwner = MakePimpl<UE::DerivedData::FRequestOwner>(DerivedDataPriority);
+				RequestOwner = InoutRequestOwner.Get();
+			}
+			else
+			{
+				DerivedDataPriority = UE::DerivedData::EPriority::Blocking;
+				RequestOwner = new UE::DerivedData::FRequestOwner(DerivedDataPriority);
+			}
 
 			UE::DerivedData::FCacheGetRequest Request;
 			Request.Name = TEXT("FShaderJobCache");
@@ -10003,52 +10186,142 @@ FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FJobInputHash& Hash, const b
 			Request.Key.Hash = Hash;
 			Request.Policy = IsShaderJobCacheDDCRemotePolicyEnabled() ? UE::DerivedData::ECachePolicy::Default : UE::DerivedData::ECachePolicy::Local;
 
+			// If blocking, we'll read the cached output back to the main thread
+			FJobCachedOutput** OutCachedOutputPtr = DerivedDataPriority == UE::DerivedData::EPriority::Blocking ? &OutCachedOutput : nullptr;
+
 			UE::DerivedData::GetCache().Get(
 				{ Request },
-				RequestOwner,
-				[&Results](UE::DerivedData::FCacheGetResponse&& Response)
+				*RequestOwner,
+				[this, JobDataPtr = &JobData, OutCachedOutputPtr, DerivedDataPriority](UE::DerivedData::FCacheGetResponse&& Response)
 				{
-					switch (Response.Status)
+					if (GShaderCompilerDebugStallDDCQuery > 0)
 					{
-						case UE::DerivedData::EStatus::Ok:
-						{
-							Results = Response.Record.GetValue(ShaderJobCacheId).GetData().Decompress();
+						FPlatformProcess::Sleep(GShaderCompilerDebugStallDDCQuery * 0.001f);
+					}
 
-							TRACE_COUNTER_INCREMENT(Shaders_JobCacheDDCHits);
+					if (Response.Status == UE::DerivedData::EStatus::Ok)
+					{
+						// Create a new entry to store in the FShaderJobCache
+						FStoredOutput* NewStoredOutput = new FStoredOutput();
+						NewStoredOutput->JobOutput = Response.Record.GetValue(ShaderJobCacheId).GetData().Decompress();
 
-							break;
-						}
-						case UE::DerivedData::EStatus::Error:
+						TRACE_COUNTER_ADD(Shaders_JobCacheDDCBytesReceived, NewStoredOutput->JobOutput.GetSize());
+						TRACE_COUNTER_INCREMENT(Shaders_JobCacheDDCHits);
+
+						// Generate an output hash
+						FJobOutputHash NewOutputHash = FBlake3::HashBuffer(NewStoredOutput->JobOutput.GetData(), NewStoredOutput->JobOutput.GetSize());
+
+						// If we are running the cache logic async (not blocking in the main thread), we need a lock before writing to the job cache.
+						// Otherwise, the lock will already be held by the main thread (and trying to lock here would just deadlock).
+						if (DerivedDataPriority != UE::DerivedData::EPriority::Blocking)
 						{
-							break;
+							JobLock.WriteLock();
+							check(JobDataPtr->JobInFlight);
+
+							// If job was cancelled, it will have been unlinked from PendingSubmitJobTaskJobs, and we can ignore the results.
+							if (!JobDataPtr->JobInFlight->PrevLink)
+							{
+								UE_LOG(LogShaderCompilers, Log, TEXT("Cancelled job 0x%p with pending DDC hit."), JobDataPtr->JobInFlight.GetReference());
+
+								delete NewStoredOutput;
+								JobDataPtr->JobInFlight = nullptr;
+								JobLock.WriteUnlock();
+								return;
+							}
+							else
+							{
+								Unlink(*JobDataPtr->JobInFlight);		// from PendingSubmitJobTaskJobs
+							}
 						}
-						case UE::DerivedData::EStatus::Canceled:
+
+						// Add a DDC hit
+						++TotalCacheDDCHits;
+
+						// Cache the result in the FShaderJobCache
+						NewStoredOutput->AddRef();
+						Outputs.Add(NewOutputHash, NewStoredOutput);
+						JobDataPtr->OutputHash = NewOutputHash;
+
+						CurrentlyAllocatedMemory += NewStoredOutput->GetAllocatedSize();
+
+						// Optionally send results back to the main thread
+						if (OutCachedOutputPtr)
 						{
-							break;
+							*OutCachedOutputPtr = &NewStoredOutput->JobOutput;
+						}
+
+						// If non-blocking, add processed results to output.  For the blocking case, this is handled back in the main thread.
+						if (DerivedDataPriority != UE::DerivedData::EPriority::Blocking)
+						{
+							check(JobDataPtr->JobInFlight);
+							FShaderCommonCompileJobPtr Job = JobDataPtr->JobInFlight;
+
+							UE_LOG(LogShaderCompilers, UE_SHADERCACHE_LOG_LEVEL, TEXT("Found an async DDC result for job with ihash %s."), *LexToString(Job->InputHash));
+
+							// Get list of finished jobs -- JobInFlight, plus any duplicates -- and clear the job cache data
+							TArray<FShaderCommonCompileJob*> FinishedJobs;
+							FinishedJobs.Add(Job);
+								
+							FShaderCommonCompileJob* CurHead = JobDataPtr->DuplicateJobsWaitList;
+							while (CurHead)
+							{
+								FinishedJobs.Add(CurHead);
+								RemoveDuplicateJob(CurHead);
+								CurHead = CurHead->NextLink;
+							}
+							JobDataPtr->DuplicateJobsWaitList = nullptr;
+							JobDataPtr->JobInFlight = nullptr;
+							Job->JobCacheRef.Clear();
+
+							// Need to release the lock before calling ProcessFinishedJobs
+							JobLock.WriteUnlock();
+
+							// Call ProcessFinishedJob on main job and duplicates
+							for (FShaderCommonCompileJob* FinishedJob : FinishedJobs)
+							{
+								FMemoryReaderView MemReader(NewStoredOutput->JobOutput);
+								FinishedJob->SerializeOutput(MemReader);
+								ProcessFinishedJob(FinishedJob, true);
+							}
+
+							if (FinishedJobs.Num() > 1)
+							{
+								UE_LOG(LogShaderCompilers, UE_SHADERCACHE_LOG_LEVEL, TEXT("Processed %d outstanding jobs with the same ihash %s."), FinishedJobs.Num() - 1, *LexToString(Job->InputHash));
+							}
+						}
+					}
+					else
+					{
+						// If non-blocking, add job to pending queue.  For the blocking case, this is handled back in the main thread.
+						if (DerivedDataPriority != UE::DerivedData::EPriority::Blocking)
+						{
+							FWriteScopeLock Locker(JobLock);
+							FShaderCommonCompileJob* Job = JobDataPtr->JobInFlight;
+							check(Job);
+
+							// If job was cancelled, it will have been unlinked from PendingSubmitJobTaskJobs, and we can ignore it.
+							if (!Job->PrevLink)
+							{
+								UE_LOG(LogShaderCompilers, Log, TEXT("Cancelled job 0x%p with pending DDC miss."), Job);
+
+								JobDataPtr->JobInFlight = nullptr;
+								return;
+							}
+							else
+							{
+								Unlink(*Job);		// from PendingSubmitJobTaskJobs
+							}
+
+							LinkJobWithPriority(*Job);
 						}
 					}
 				});
 
-			RequestOwner.Wait();
-			if (!Results.IsNull())
+			// For blocking requests, wait on the results, and delete the request
+			if (RequestOwner->GetPriority() == UE::DerivedData::EPriority::Blocking)
 			{
-				// Create a new entry to store in the FShaderJobCache
-				FStoredOutput* NewStoredOutput = new FStoredOutput();
-				NewStoredOutput->JobOutput = Results;
-
-				TRACE_COUNTER_ADD(Shaders_JobCacheDDCBytesReceived, Results.GetSize());
-
-				// Generate an output hash and cache the result in the FShaderJobCache
-				FJobOutputHash NewOutputHash = FBlake3::HashBuffer(NewStoredOutput->JobOutput.GetData(), NewStoredOutput->JobOutput.GetSize());
-
-				NewStoredOutput->AddRef();
-				Outputs.Add(NewOutputHash, NewStoredOutput);
-				JobData.OutputHash = NewOutputHash;
-
-				CurrentlyAllocatedMemory += NewStoredOutput->GetAllocatedSize();
-
-				// return the results.
-				OutCachedOutput = &NewStoredOutput->JobOutput;
+				RequestOwner->Wait();
+				delete RequestOwner;
 			}
 		}
 	}
@@ -10322,6 +10595,7 @@ void FShaderJobCache::GetStats(FShaderCompilerStats& OutStats) const
 	FReadScopeLock Locker(JobLock);
 	OutStats.Counters.TotalCacheSearchAttempts = TotalSearchAttempts;
 	OutStats.Counters.TotalCacheHits = TotalCacheHits;
+	OutStats.Counters.TotalCacheDDCHits = TotalCacheDDCHits;
 	OutStats.Counters.UniqueCacheInputHashes = InputHashToJobData.Num();
 	OutStats.Counters.UniqueCacheOutputs = Outputs.Num();
 	OutStats.Counters.CacheMemUsed = GetAllocatedMemory();
