@@ -77,12 +77,13 @@ public:
 	virtual UWidgetEditingProjectSettings* GetRelevantSettings() override;
 	virtual const UWidgetEditingProjectSettings* GetRelevantSettings() const override;
 
+public:
+	static void MarkTransientRecursive(UEditorUtilityWidget* UtilityWidget);
+
 private:
 	bool IsWidgetEnabled() const;
 
 	void ChangeTabWorld(UWorld* World, EMapChangeType MapChangeType);
-
-	void MarkTransientRecursive(UEditorUtilityWidget* UtilityWidget);
 
 private:
 	// Should the widget be enabled when running PIE

@@ -4,6 +4,7 @@
 
 #include "AssetActionUtility.h"
 #include "EditorUtilityBlueprint.h"
+#include "Engine/BlueprintGeneratedClass.h"
 #include "JsonObjectConverter.h"
 #include "AssetRegistry/AssetData.h"
 #include "Serialization/JsonSerializerMacros.h"
@@ -24,6 +25,10 @@ UObject* FAssetActionUtilityPrototype::LoadUtilityAsset() const
 		{
 			return BPClass->GetDefaultObject();
 		}
+	}
+	else if (const UBlueprintGeneratedClass* BPClass = Cast<UBlueprintGeneratedClass>(UtilityBlueprintAsset.GetAsset()))
+	{
+		return BPClass->GetDefaultObject();
 	}
 
 	return nullptr;

@@ -84,6 +84,9 @@ void UEditorUtilitySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 	FEditorDelegates::BeginPIE.AddUObject(this, &UEditorUtilitySubsystem::HandleOnBeginPIE);
 	FEditorDelegates::EndPIE.AddUObject(this, &UEditorUtilitySubsystem::HandleOnEndPIE);
+
+	FLevelEditorModule& LevelEditor = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
+	LevelEditor.OnMapChanged().AddUObject(this, &UEditorUtilitySubsystem::OnMapChanged);
 }
 
 void UEditorUtilitySubsystem::Deinitialize()
@@ -99,6 +102,11 @@ void UEditorUtilitySubsystem::Deinitialize()
 
 	FEditorDelegates::BeginPIE.RemoveAll(this);
 	FEditorDelegates::EndPIE.RemoveAll(this);
+
+	if (FLevelEditorModule* LevelEditor = FModuleManager::GetModulePtr<FLevelEditorModule>("LevelEditor"))
+	{
+		LevelEditor->OnMapChanged().RemoveAll(this);
+	}
 }
 
 void UEditorUtilitySubsystem::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
@@ -158,7 +166,7 @@ bool UEditorUtilitySubsystem::TryRun(UObject* Asset)
 
 	static const FName RunFunctionName("Run");
 	UFunction* RunFunction = ObjectClass->FindFunctionByName(RunFunctionName);
-	if (RunFunction)
+	if (RunFunction && RunFunction->ParmsSize == 0)
 	{
 		UObject* Instance = NewObject<UObject>(this, ObjectClass);
 		ObjectInstances.Add(Asset, Instance);
@@ -169,7 +177,28 @@ bool UEditorUtilitySubsystem::TryRun(UObject* Asset)
 	}
 	else
 	{
-		UE_LOG(LogEditorUtilityBlueprint, Warning, TEXT("Missing function named 'Run': %s"), *Asset->GetPathName());
+		UE_LOG(LogEditorUtilityBlueprint, Warning, TEXT("Missing 0 param function named 'Run': %s"), *Asset->GetPathName());
+	}
+
+	return false;
+}
+
+bool UEditorUtilitySubsystem::TryRunClass(UClass* ObjectClass)
+{
+	static const FName RunFunctionName("Run");
+	UFunction* RunFunction = ObjectClass->FindFunctionByName(RunFunctionName);
+	if (RunFunction && RunFunction->ParmsSize == 0)
+	{
+		UObject* Instance = NewObject<UObject>(this, ObjectClass);
+		ObjectInstances.Add(ObjectClass, Instance);
+
+		FEditorScriptExecutionGuard ScriptGuard;
+		Instance->ProcessEvent(RunFunction, nullptr);
+		return true;
+	}
+	else
+	{
+		UE_LOG(LogEditorUtilityBlueprint, Warning, TEXT("Missing 0 param function named 'Run': %s"), *ObjectClass->GetPathName());
 	}
 
 	return false;
@@ -218,7 +247,7 @@ UEditorUtilityWidget* UEditorUtilitySubsystem::SpawnAndRegisterTab(class UEditor
 
 UEditorUtilityWidget* UEditorUtilitySubsystem::SpawnAndRegisterTabWithId(class UEditorUtilityWidgetBlueprint* InBlueprint, FName InTabID)
 {
-	return SpawnAndRegisterTabAndGetID(InBlueprint, InTabID);;
+	return SpawnAndRegisterTabAndGetID(InBlueprint, InTabID);
 }
 
 void UEditorUtilitySubsystem::RegisterTabAndGetID(class UEditorUtilityWidgetBlueprint* InBlueprint, FName& NewTabID)
@@ -239,6 +268,72 @@ void UEditorUtilitySubsystem::RegisterTabAndGetID(class UEditorUtilityWidgetBlue
 				InBlueprint->SetRegistrationName(RegistrationName);
 			}
 			RegisteredTabs.Add(RegistrationName, InBlueprint);
+			NewTabID = RegistrationName;
+		}
+	}
+}
+
+UEditorUtilityWidget* UEditorUtilitySubsystem::SpawnAndRegisterTabAndGetIDGeneratedClass(UWidgetBlueprintGeneratedClass* InGeneratedWidgetBlueprint, FName& NewTabID)
+{
+	FName TabID;
+	RegisterTabAndGetIDGeneratedClass(InGeneratedWidgetBlueprint, TabID);
+	SpawnRegisteredTabByID(TabID);
+	NewTabID = TabID;
+
+	FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>(TEXT("LevelEditor"));
+	if (TSharedPtr<FTabManager> LevelEditorTabManager = LevelEditorModule.GetLevelEditorTabManager())
+	{
+		if (TSharedPtr<SDockTab> FoundTab = LevelEditorTabManager->FindExistingLiveTab(NewTabID))
+		{
+			if (UEditorUtilityWidget **CreatedUMGWidget = SpawnedFromGeneratedClassTabs.Find(FoundTab.ToSharedRef()))
+			{
+				return *CreatedUMGWidget;
+			}
+		}
+	}
+	return nullptr;
+}
+
+UEditorUtilityWidget* UEditorUtilitySubsystem::SpawnAndRegisterTabGeneratedClass(UWidgetBlueprintGeneratedClass* InGeneratedWidgetBlueprint)
+{
+	FName InTabID;
+	return SpawnAndRegisterTabAndGetIDGeneratedClass(InGeneratedWidgetBlueprint, InTabID);
+}
+
+UEditorUtilityWidget* UEditorUtilitySubsystem::SpawnAndRegisterTabWithIdGeneratedClass(UWidgetBlueprintGeneratedClass* InGeneratedWidgetBlueprint, FName InTabID)
+{
+	return SpawnAndRegisterTabAndGetIDGeneratedClass(InGeneratedWidgetBlueprint, InTabID);
+}
+
+void UEditorUtilitySubsystem::RegisterTabAndGetIDGeneratedClass(UWidgetBlueprintGeneratedClass* InGeneratedWidgetBlueprint, FName& NewTabID)
+{
+	if (InGeneratedWidgetBlueprint && !IsRunningCommandlet())
+	{
+		FName RegistrationName = NewTabID.IsNone() ? FName(*(InGeneratedWidgetBlueprint->GetPathName() + LOCTEXT("ActiveTabSuffix", "_ActiveTab").ToString())) : FName(*(InGeneratedWidgetBlueprint->GetPathName() + NewTabID.ToString()));
+		FText DisplayName;
+		const UEditorUtilityWidget* EditorUtilityWidget = InGeneratedWidgetBlueprint->GetDefaultObject<UEditorUtilityWidget>();
+
+		if (EditorUtilityWidget && !EditorUtilityWidget->GetTabDisplayName().IsEmpty())
+		{
+			DisplayName = EditorUtilityWidget->GetTabDisplayName();
+		}
+		else
+		{
+			DisplayName = FText::FromString(FName::NameToDisplayString(InGeneratedWidgetBlueprint->GetName(), false));
+		}
+
+		FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>(TEXT("LevelEditor"));
+		if (TSharedPtr<FTabManager> LevelEditorTabManager = LevelEditorModule.GetLevelEditorTabManager())
+		{
+			if (!LevelEditorTabManager->HasTabSpawner(RegistrationName))
+			{
+				IBlutilityModule* BlutilityModule = FModuleManager::GetModulePtr<IBlutilityModule>("Blutility");
+				LevelEditorTabManager->RegisterTabSpawner(RegistrationName, FOnSpawnTab::CreateUObject(this, &UEditorUtilitySubsystem::SpawnEditorUITabFromGeneratedClass, InGeneratedWidgetBlueprint))
+					.SetDisplayName(DisplayName)
+					.SetGroup(BlutilityModule->GetMenuGroup().ToSharedRef());
+			}
+
+			RegisteredTabsByGeneratedClass.Add(RegistrationName, InGeneratedWidgetBlueprint);
 			NewTabID = RegistrationName;
 		}
 	}
@@ -568,6 +663,80 @@ void UEditorUtilitySubsystem::HandleOnBeginPIE(const bool bIsSimulating)
 void UEditorUtilitySubsystem::HandleOnEndPIE(const bool bIsSimulating)
 {
 	OnEndPIE.Broadcast(bIsSimulating);
+}
+
+TSharedRef<SDockTab> UEditorUtilitySubsystem::SpawnEditorUITabFromGeneratedClass(const FSpawnTabArgs& SpawnTabArgs, UWidgetBlueprintGeneratedClass* InGeneratedWidgetBlueprint)
+{
+	TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab);
+	UEditorUtilityWidget* CreatedUMGWidget = nullptr;
+
+	auto CreateUtilityWidgetFromGeneratedClass = [&CreatedUMGWidget](UWidgetBlueprintGeneratedClass* InGeneratedWidgetBlueprint)
+	{
+		TSharedRef<SWidget> TabWidget = SNullWidget::NullWidget;
+
+		UClass* BlueprintClass = InGeneratedWidgetBlueprint;
+		TSubclassOf<UEditorUtilityWidget> WidgetClass = BlueprintClass;
+
+		if (UWorld* World = GEditor->GetEditorWorldContext().World())
+		{
+			CreatedUMGWidget = CreateWidget<UEditorUtilityWidget>(World, WidgetClass);
+			if (CreatedUMGWidget)
+			{
+				// Editor Utility is flagged as transient to prevent from dirty the World it's created in when a property added to the Utility Widget is changed
+				// Also need to recursively mark nested utility widgets as transient to prevent them from dirtying the world (since they'll be created via CreateWidget and not CreateUtilityWidget)
+				UEditorUtilityWidgetBlueprint::MarkTransientRecursive(CreatedUMGWidget);
+			}
+		}
+
+		if (CreatedUMGWidget)
+		{
+			TabWidget = SNew(SVerticalBox)
+				+ SVerticalBox::Slot()
+				.HAlign(HAlign_Fill)
+				[
+					CreatedUMGWidget->TakeWidget()
+				];
+		}
+		return TabWidget;
+	};
+
+	TSharedRef<SWidget> TabWidget = CreateUtilityWidgetFromGeneratedClass(InGeneratedWidgetBlueprint);
+	SpawnedTab->SetContent(TabWidget);
+
+	SpawnedTab->SetOnTabClosed(SDockTab::FOnTabClosedCallback::CreateUObject(this, &UEditorUtilitySubsystem::OnSpawnedFromGeneratedClassTabClosed));
+	SpawnedFromGeneratedClassTabs.Add(SpawnedTab, CreatedUMGWidget);
+
+	return SpawnedTab;
+}
+
+void UEditorUtilitySubsystem::OnSpawnedFromGeneratedClassTabClosed(TSharedRef<SDockTab> TabBeingClosed)
+{
+	if (UEditorUtilityWidget** Widget = SpawnedFromGeneratedClassTabs.Find(TabBeingClosed))
+	{
+		(*Widget)->Rename(nullptr, GetTransientPackage());
+	}
+
+	SpawnedFromGeneratedClassTabs.Remove(TabBeingClosed);
+}
+
+void UEditorUtilitySubsystem::OnMapChanged(UWorld* World, EMapChangeType MapChangeType)
+{
+	if (MapChangeType != EMapChangeType::SaveMap)
+	{
+		// We need to Delete the UMG widget if we are tearing down the World it was built with.
+		for (TPair<TSharedRef<SDockTab>, UEditorUtilityWidget*> SpawnedFromGeneratedClassTab : SpawnedFromGeneratedClassTabs)
+		{
+			TSharedRef<SDockTab> CreatedTab = SpawnedFromGeneratedClassTab.Key;
+			UEditorUtilityWidget* CreatedUMGWidget = SpawnedFromGeneratedClassTab.Value;
+			if (CreatedUMGWidget && World == CreatedUMGWidget->GetWorld())
+			{
+				CreatedTab->SetContent(SNullWidget::NullWidget);
+
+				CreatedUMGWidget->Rename(nullptr, GetTransientPackage());
+			}
+		}
+		SpawnedFromGeneratedClassTabs.Empty();
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

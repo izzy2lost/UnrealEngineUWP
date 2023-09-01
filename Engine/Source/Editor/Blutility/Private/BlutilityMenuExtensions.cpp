@@ -2,6 +2,8 @@
 
 #include "BlutilityMenuExtensions.h"
 
+#include "ActorActionUtility.h"
+#include "AssetActionUtility.h"
 #include "AssetRegistry/ARFilter.h"
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetDataTagMap.h"
@@ -17,8 +19,10 @@
 #include "EditorUtilityAssetPrototype.h"
 #include "Editor/EditorEngine.h"
 #include "EditorUtilityBlueprint.h"
+#include "EditorUtilityWidgetProjectSettings.h"
 #include "FrontendFilters.h"
 #include "Engine/Blueprint.h"
+#include "Engine/BlueprintGeneratedClass.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Commands/UIAction.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -601,7 +605,48 @@ void FBlutilityMenuExtensions::GetBlutilityClasses(TArray<FAssetData>& OutAssets
 			}
 		}
 	}
+
+	const UEditorUtilityWidgetProjectSettings* EditorUtilitySettings = GetDefault<UEditorUtilityWidgetProjectSettings>();
+
+	if (EditorUtilitySettings->bSearchGeneratedClassesForScriptedActions)
+	{
+		auto FilterAssets = [&AssetRegistry, &OutAssets](const FNamePermissionList& PermissionList)
+		{
+			FARFilter GeneratedFilter;
+			GeneratedFilter.ClassPaths.Add(UBlueprintGeneratedClass::StaticClass()->GetClassPathName());
+			GeneratedFilter.bRecursiveClasses = true;
+			GeneratedFilter.bRecursivePaths = true;
+
+			TArray<FAssetData> GeneratedAssetList;
+			AssetRegistry.GetAssets(GeneratedFilter, GeneratedAssetList);
+
+			for (const FAssetData& Asset : GeneratedAssetList)
+			{
+				// Abstract or deprecated blutilities should not be included.
+				const EClassFlags BPFlags = static_cast<EClassFlags>(Asset.GetTagValueRef<uint32>(FBlueprintTags::ClassFlags));
+				if (EnumHasAnyFlags(BPFlags, CLASS_Abstract | CLASS_Deprecated))
+				{
+					continue;
+				}
+
+				if (PermissionList.PassesFilter(FName(Asset.GetObjectPathString())))
+				{
+					OutAssets.Add(Asset);
+				}
+			}
+		};
+
+		if (InClassName == UAssetActionUtility::StaticClass()->GetClassPathName())
+		{
+			FilterAssets(EditorUtilitySettings->GetAllowedEditorUtilityAssetActions());
+		}
+		else if (InClassName == UActorActionUtility::StaticClass()->GetClassPathName())
+		{
+			FilterAssets(EditorUtilitySettings->GetAllowedEditorUtilityActorActions());
+		}
+	}
 }
+
 void FBlutilityMenuExtensions::CreateActorBlutilityActionsMenu(FMenuBuilder& MenuBuilder, TMap<TSharedRef<FAssetActionUtilityPrototype>, TSet<int32>> Utils, const TArray<AActor*> SelectedSupportedActors)
 {
 	CreateBlutilityActionsMenu<AActor*>(MenuBuilder, Utils,
@@ -737,7 +782,11 @@ void FBlutilityMenuExtensions::CreateBlutilityActionsMenu(FMenuBuilder& MenuBuil
 			
 			FText TooltipText;
 
-			if (FilterFailureMessage.IsEmpty())
+			if (FunctionAndUtil.Util->GetUtilityBlueprintAsset().AssetClassPath == UBlueprintGeneratedClass::StaticClass()->GetClassPathName())
+			{
+				TooltipText = LOCTEXT("AssetUtilTooltip", "Click to execute");
+			}
+			else if (FilterFailureMessage.IsEmpty())
 			{
 				TooltipText = FText::Format(LOCTEXT("AssetUtilTooltipFormat", "{0}\n\n(Shift-click to edit script)"), FunctionAndUtil.FunctionData.TooltipText);	
 			}
