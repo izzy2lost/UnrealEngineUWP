@@ -592,6 +592,9 @@ protected:
 	void BP_OnDoubleClicked();
 	virtual void NativeOnDoubleClicked();
 
+	UFUNCTION(BlueprintImplementableEvent, Category = CommonButton, meta = (DisplayName = "On Input Action Triggered"))
+	void BP_OnInputActionTriggered();
+
 	/** Unless this is called, we will assume the double click should be converted into a normal click. */
 	UFUNCTION(BlueprintCallable, Category = CommonButton)
 	void StopDoubleClickPropagation();
@@ -867,6 +870,9 @@ protected:
 	
     /** Current hold time for this button */
     float CurrentHoldTime;
+
+	/** Current hold progress % for this button */
+	float CurrentHoldProgress;
 	
     /** Handle for ticker spawned for press and hold */
     FTSTicker::FDelegateHandle HoldTickerHandle;
