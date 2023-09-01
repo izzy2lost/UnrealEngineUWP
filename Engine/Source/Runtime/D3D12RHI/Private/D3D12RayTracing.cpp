@@ -2981,27 +2981,27 @@ void FD3D12RayTracingGeometry::ReleaseUnderlyingResource()
 		UnregisterAsRenameListener(GPUIndex);
 	}
 
-	if (Initializer.Type != ERayTracingGeometryInitializerType::StreamingSource)
+	for (TRefCountPtr<FD3D12Buffer>& Buffer : AccelerationStructureBuffers)
 	{
-		for (TRefCountPtr<FD3D12Buffer>& Buffer : AccelerationStructureBuffers)
+		if (Buffer)
 		{
-			if (Buffer)
-			{
-				DEC_MEMORY_STAT_BY(STAT_D3D12RayTracingUsedVideoMemory, Buffer->GetSize());
-				DEC_MEMORY_STAT_BY(STAT_D3D12RayTracingBLASMemory, Buffer->GetSize());
+			DEC_MEMORY_STAT_BY(STAT_D3D12RayTracingUsedVideoMemory, Buffer->GetSize());
+			DEC_MEMORY_STAT_BY(STAT_D3D12RayTracingBLASMemory, Buffer->GetSize());
 
-				ERayTracingAccelerationStructureFlags BuildFlags = GetRayTracingAccelerationStructureBuildFlags(Initializer);
-				if (EnumHasAllFlags(BuildFlags, ERayTracingAccelerationStructureFlags::AllowUpdate))
-				{
-					DEC_MEMORY_STAT_BY(STAT_D3D12RayTracingDynamicBLASMemory, Buffer->GetSize());
-				}
-				else
-				{
-					DEC_MEMORY_STAT_BY(STAT_D3D12RayTracingStaticBLASMemory, Buffer->GetSize());
-				}
+			ERayTracingAccelerationStructureFlags BuildFlags = GetRayTracingAccelerationStructureBuildFlags(Initializer);
+			if (EnumHasAllFlags(BuildFlags, ERayTracingAccelerationStructureFlags::AllowUpdate))
+			{
+				DEC_MEMORY_STAT_BY(STAT_D3D12RayTracingDynamicBLASMemory, Buffer->GetSize());
+			}
+			else
+			{
+				DEC_MEMORY_STAT_BY(STAT_D3D12RayTracingStaticBLASMemory, Buffer->GetSize());
 			}
 		}
+	}
 
+	if (Initializer.Type != ERayTracingGeometryInitializerType::StreamingSource)
+	{
 		DEC_DWORD_STAT_BY(STAT_D3D12RayTracingTrianglesBLAS, Initializer.TotalPrimitiveCount);
 		DEC_DWORD_STAT(STAT_D3D12RayTracingAllocatedBLAS);
 	}
