@@ -21,8 +21,11 @@ static FAnimNode_BlendStack_Standalone* GetBlendStackNodeFromIndex(const FAnimat
 	return LinkedProperty->ContainerPtrToValuePtr<FAnimNode_BlendStack_Standalone>(Context.AnimInstanceProxy->GetAnimInstanceObject());
 }
 
+
 void FAnimNode_BlendStackInput::Update_AnyThread(const FAnimationUpdateContext& Context)
 {
+	GetEvaluateGraphExposedInputs().Execute(Context);
+
 	// If there's no player, use the allocated blend stack index to get a reference to it.
 	// This should only happen on the first ever update of this node.
 	if (Player == nullptr)
@@ -36,7 +39,14 @@ void FAnimNode_BlendStackInput::Update_AnyThread(const FAnimationUpdateContext& 
 		Player = &BlendStackNode->SampleGraphPoseLinks[SampleIndex].Player;
 	}
 
-	check(Player && *Player);
+	check(Player && *Player)
+
+	if (bOverridePlayRate)
+	{
+		(*Player)->UpdatePlayRate(PlayRate);
+	}
+	
 	(*Player)->Update_AnyThread(Context);
 }
+
 

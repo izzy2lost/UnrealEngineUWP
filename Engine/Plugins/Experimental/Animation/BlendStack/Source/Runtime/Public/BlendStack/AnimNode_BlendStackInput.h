@@ -17,12 +17,20 @@ public:
 
 	virtual void Update_AnyThread(const FAnimationUpdateContext& Context) override;
 	virtual void Evaluate_AnyThread(FPoseContext& Output) override;
-
+	
 	UPROPERTY()
 	int32 SampleIndex = INDEX_NONE;
 
 	UPROPERTY()
 	int32 BlendStackAllocationIndex = INDEX_NONE;
+
+	// If true, the PlayRate input from thos node will override the SequencePlayer or BlendSpacePlayer playrate each frame
+	UPROPERTY(EditAnywhere, Category=Settings, meta = (NeverAsPin))
+	bool bOverridePlayRate = false;
+	
+	// The play rate multiplier. Can be negative, which will cause the animation to play in reverse.
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault))
+	float PlayRate = 0.0f;	
 
 	// The player is guaranteed to be valid for the whole duration of update/eval.
 	struct FBlendStackAnimPlayer** Player;
