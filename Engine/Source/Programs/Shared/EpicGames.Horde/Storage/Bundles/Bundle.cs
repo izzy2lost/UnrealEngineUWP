@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Compression;
 using EpicGames.Core;
 using K4os.Compression.LZ4;
 using System;
@@ -1288,17 +1289,13 @@ namespace EpicGames.Horde.Storage.Bundles
 					}
 				case BundleCompressionFormat.Oodle:
 					{
-#if WITH_OODLE
 						int maxSize = Oodle.MaximumOutputSize(OodleCompressorType.Selkie, input.Length);
 
-						Span<byte> outputSpan = builder.GetSpan(maxSize);
-						int encodedLength = Oodle.Compress(OodleCompressorType.Selkie, input.Span, outputSpan, OodleCompressionLevel.HyperFast);
-						builder.Advance(encodedLength);
+						Span<byte> outputSpan = writer.GetSpan(maxSize);
+						int encodedLength = Oodle.Compress(OodleCompressorType.Selkie, input.Span, outputSpan, OodleCompressionLevel.Normal);
+						writer.Advance(encodedLength);
 
 						return encodedLength;
-#else
-						throw new NotSupportedException("Oodle is not compiled into this build.");
-#endif
 					}
 				case BundleCompressionFormat.Brotli:
 					{
