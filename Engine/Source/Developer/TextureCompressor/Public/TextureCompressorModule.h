@@ -200,6 +200,9 @@ struct FTextureBuildSettings
 	// which version of Oodle Texture to encode with
 	FName OodleTextureSdkVersion;
 
+	/** If set to true, then Oodle encoder preserves 0 and 255 (0.0 and 1.0) values exactly in alpha channel for BC3/BC7 and in all channels for BC4/BC5. */
+	bool bOodlePreserveExtremes;
+
 	/** Encoding settings resolved from fast/final.
 	* Enums aren't accessible from this module:
 	* ETextureEncodeEffort, ETextureUniversalTiling. */	
@@ -297,6 +300,7 @@ struct FTextureBuildSettings
 		, CompressionQuality(-1)
 		, LossyCompressionAmount(0 /* TLCA_Default */)
 		, OodleTextureSdkVersion() // FName() == NAME_None
+		, bOodlePreserveExtremes(false)
 		, OodleRDO(30)
 		, OodleEncodeEffort(0 /* ETextureEncodeEffort::Default */)
 		, OodleUniversalTiling(0 /* ETextureUniversalTiling::Disabled */)

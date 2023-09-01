@@ -1339,6 +1339,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Compression, AdvancedDisplay)
 	TEnumAsByte<enum TextureCookPlatformTilingSettings> CookPlatformTilingSettings;
 
+	/** If set to true, then Oodle encoder preserves 0 and 255 (0.0 and 1.0) values exactly in alpha channel for BC3/BC7 and in all channels for BC4/BC5. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Compression, meta = (DisplayName = "Preserve Extremes When Compressing With Oodle"), AdvancedDisplay)
+	bool bOodlePreserveExtremes = false;
+
 	/** Texture group this texture belongs to */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=LevelOfDetail, meta=(DisplayName="Texture Group"), AssetRegistrySearchable)
 	TEnumAsByte<enum TextureGroup> LODGroup;

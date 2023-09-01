@@ -599,7 +599,7 @@ public:
 		return Writer.Save().AsObject();
 	}
 
-	void GetOodleCompressParameters(EPixelFormat * OutCompressedPixelFormat,int * OutRDOLambda, OodleTex_EncodeEffortLevel * OutEffortLevel, bool * bOutDebugColor, OodleTex_RDO_UniversalTiling* OutRDOUniversalTiling, const struct FTextureBuildSettings& InBuildSettings, bool bHasAlpha) const
+	void GetOodleCompressParameters(EPixelFormat * OutCompressedPixelFormat,int * OutRDOLambda, OodleTex_EncodeEffortLevel * OutEffortLevel, bool * bOutDebugColor, OodleTex_RDO_UniversalTiling* OutRDOUniversalTiling, OodleTex_BCNFlags* OutBCNFlags, const struct FTextureBuildSettings& InBuildSettings, bool bHasAlpha) const
 	{
 		//TRACE_CPUPROFILER_EVENT_SCOPE(Texture.GetOodleCompressParameters);
 
@@ -711,6 +711,12 @@ public:
 			UniversalTiling = OodleTex_RDO_UniversalTiling_Disable;
 		}
 
+		OodleTex_BCNFlags BCNFlags = OodleTex_BCNFlags_None;
+		if (InBuildSettings.bOodlePreserveExtremes)
+		{
+			BCNFlags = (OodleTex_BCNFlags)((uint32)BCNFlags | (uint32)OodleTex_BCNFlag_PreserveExtremes_BC3457);
+		}
+
 		if (RDOLambda == 0)
 		{
 			// Universal tiling doesn't make sense without RDO.
@@ -731,6 +737,7 @@ public:
 		*OutRDOLambda = RDOLambda;
 		*OutEffortLevel = EffortLevel;
 		*OutRDOUniversalTiling = UniversalTiling;
+		*OutBCNFlags = BCNFlags;
 	}
 
 private:
@@ -880,6 +887,7 @@ public:
 		int RDOLambda;
 		OodleTex_EncodeEffortLevel EffortLevel;
 		OodleTex_RDO_UniversalTiling RDOUniversalTiling;
+		OodleTex_BCNFlags BCNFlags;
 		EPixelFormat CompressedPixelFormat;
 		bool bDebugColor;
 
@@ -889,7 +897,7 @@ public:
 		// do go ahead and read bForceNoAlphaChannel/CompressionNoAlpha so that we invalidate DDC when that changes
 		bool bHasAlpha = !InBuildSettings.bForceNoAlphaChannel; 
 		
-		GlobalFormatConfig.GetOodleCompressParameters(&CompressedPixelFormat,&RDOLambda,&EffortLevel,&bDebugColor,&RDOUniversalTiling,InBuildSettings,bHasAlpha);
+		GlobalFormatConfig.GetOodleCompressParameters(&CompressedPixelFormat, &RDOLambda, &EffortLevel, &bDebugColor, &RDOUniversalTiling, &BCNFlags, InBuildSettings, bHasAlpha);
 
 		int icpf = (int)CompressedPixelFormat;
 
@@ -909,6 +917,10 @@ public:
 		if (RDOUniversalTiling != OodleTex_RDO_UniversalTiling_Disable)
 		{
 			DDCString += FString::Printf(TEXT("_UT%d"), (int)RDOUniversalTiling);
+		}
+		if (BCNFlags != OodleTex_BCNFlags_None)
+		{
+			DDCString += FString::Printf(TEXT("_BCNF%ud"), (uint32)BCNFlags);
 		}
 
 		// OodleTextureSdkVersion was added ; keys where OodleTextureSdkVersion is none are unchanged
@@ -967,10 +979,11 @@ public:
 		int RDOLambda;
 		OodleTex_EncodeEffortLevel EffortLevel;
 		OodleTex_RDO_UniversalTiling RDOUniversalTiling;
+		OodleTex_BCNFlags BCNFlags;
 		EPixelFormat CompressedPixelFormat;
 		bool bDebugColor;
 
-		GlobalFormatConfig.GetOodleCompressParameters(&CompressedPixelFormat, &RDOLambda, &EffortLevel, &bDebugColor, &RDOUniversalTiling, InBuildSettings, bImageHasAlphaChannel);
+		GlobalFormatConfig.GetOodleCompressParameters(&CompressedPixelFormat, &RDOLambda, &EffortLevel, &bDebugColor, &RDOUniversalTiling, &BCNFlags, InBuildSettings, bImageHasAlphaChannel);
 		return CompressedPixelFormat;
 	}
 
@@ -1085,9 +1098,10 @@ public:
 		int RDOLambda;
 		OodleTex_EncodeEffortLevel EffortLevel;
 		OodleTex_RDO_UniversalTiling RDOUniversalTiling;
+		OodleTex_BCNFlags BCNFlags;
 		EPixelFormat CompressedPixelFormat;
 		bool bDebugColor;
-		GlobalFormatConfig.GetOodleCompressParameters(&CompressedPixelFormat,&RDOLambda,&EffortLevel,&bDebugColor,&RDOUniversalTiling,InBuildSettings,bHasAlpha);
+		GlobalFormatConfig.GetOodleCompressParameters(&CompressedPixelFormat, &RDOLambda, &EffortLevel, &bDebugColor, &RDOUniversalTiling, &BCNFlags, InBuildSettings, bHasAlpha);
 
 		OodleTex_BC OodleBCN = OodleTex_BC_Invalid;
 		if ( CompressedPixelFormat == PF_DXT1 ) { OodleBCN = OodleTex_BC1_WithTransparency; bHasAlpha = false; }
@@ -1512,7 +1526,7 @@ public:
 				OodleTex_RDO_Options OodleOptions = { };
 				OodleOptions.effort = EffortLevel;
 				OodleOptions.metric = OodleTex_RDO_ErrorMetric_Default;
-				OodleOptions.bcn_flags = OodleTex_BCNFlags_None;
+				OodleOptions.bcn_flags = BCNFlags;
 				OodleOptions.universal_tiling = RDOUniversalTiling;
 
 				if (bImageDump)

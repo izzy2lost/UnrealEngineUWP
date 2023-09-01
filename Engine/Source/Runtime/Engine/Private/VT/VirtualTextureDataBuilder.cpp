@@ -648,6 +648,7 @@ void FVirtualTextureDataBuilder::BuildBlockTiles(uint32 LayerIndex, uint32 Block
 		TBSettings.OodleUniversalTiling = BuildSettingsForLayer.OodleUniversalTiling;
 		TBSettings.bOodleUsesRDO = BuildSettingsForLayer.bOodleUsesRDO;
 		TBSettings.OodleRDO = BuildSettingsForLayer.OodleRDO;
+		TBSettings.bOodlePreserveExtremes = BuildSettingsForLayer.bOodlePreserveExtremes;
 		TBSettings.OodleTextureSdkVersion = BuildSettingsForLayer.OodleTextureSdkVersion;
 
 		check(TBSettings.GetDestGammaSpace() == BuildSettingsForLayer.GetDestGammaSpace());
