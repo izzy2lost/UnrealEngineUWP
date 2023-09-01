@@ -243,6 +243,7 @@ struct FRigVMExecuteContext
 		: EventName(NAME_None)
 		, FunctionName(NAME_None)
 		, InstructionIndex(0)
+		, NumExecutions(0)
 		, DeltaTime(0.0)
 		, AbsoluteTime(0.0)
 		, FramesPerSecond(1.0 / 60.0)
@@ -292,6 +293,8 @@ struct FRigVMExecuteContext
 	}
 
 	uint16 GetInstructionIndex() const { return InstructionIndex; }
+
+	uint32 GetNumExecutions() const { return NumExecutions; }
 
 	FName GetFunctionName() const { return FunctionName; }
 	
@@ -403,6 +406,7 @@ struct FRigVMExecuteContext
 		EventName = InOtherContext->EventName;
 		FunctionName = InOtherContext->FunctionName;
 		InstructionIndex = InOtherContext->InstructionIndex;
+		NumExecutions = InOtherContext->NumExecutions;
 		RuntimeSettings = InOtherContext->RuntimeSettings;
 		NameCache = InOtherContext->NameCache;
 	}
@@ -424,6 +428,8 @@ protected:
 	FName FunctionName;
 	
 	uint16 InstructionIndex;
+
+	uint32 NumExecutions;
 
 	double DeltaTime;
 
@@ -694,7 +700,11 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 
 	uint32 GetNumExecutions() const
 	{
-		return NumExecutions;
+		if(PublicDataScope.IsValid())
+		{
+			return GetPublicData<>().GetNumExecutions();
+		}
+		return 0;
 	}
 
 	UPROPERTY()
@@ -713,9 +723,6 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 	double LastExecutionMicroSeconds = 0.0;
 	const FRigVMDispatchFactory* Factory = nullptr;
 	FRigVMNameCache NameCache;
-
-	UPROPERTY(transient)
-	uint32 NumExecutions = 0;
 
 	TArray<FRigVMMemoryHandle> CachedMemoryHandles;
 	// changes to the layout of cached memory array should be reflected in GetContainerIndex()

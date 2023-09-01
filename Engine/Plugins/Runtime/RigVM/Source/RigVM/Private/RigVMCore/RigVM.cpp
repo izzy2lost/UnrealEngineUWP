@@ -1562,7 +1562,7 @@ ERigVMExecuteResult URigVM::Execute(FRigVMExtendedExecuteContext& Context, TArra
 
 	if(bIsRootEntry)
 	{
-		Context.NumExecutions++;
+		ContextPublicData.NumExecutions++;
 	}
 
 #if WITH_EDITOR
@@ -2091,7 +2091,7 @@ ERigVMExecuteResult URigVM::ExecuteBranch(FRigVMExtendedExecuteContext& Context,
 	// Maintain all settings on the context - to be reset once the branch has executed. 
 	FRigVMExecuteContext& PublicContext = Context.GetPublicData<>();
 	TGuardValue<double> LastExecutionMicroSecondsGuard(Context.LastExecutionMicroSeconds, Context.LastExecutionMicroSeconds);
-	TGuardValue<uint32> NumExecutionsGuard(Context.NumExecutions, Context.NumExecutions);
+	TGuardValue<uint32> NumExecutionsGuard(PublicContext.NumExecutions, PublicContext.NumExecutions);
 	TGuardValue<ERigVMExecuteResult> CurrentExecuteResultGuard(Context.CurrentExecuteResult, Context.CurrentExecuteResult);
 	TGuardValue<FName> CurrentEntryNameGuard(Context.CurrentEntryName, Context.CurrentEntryName);
 	TGuardValue<bool> bCurrentlyRunningRootEntryGuard(Context.bCurrentlyRunningRootEntry, Context.bCurrentlyRunningRootEntry);

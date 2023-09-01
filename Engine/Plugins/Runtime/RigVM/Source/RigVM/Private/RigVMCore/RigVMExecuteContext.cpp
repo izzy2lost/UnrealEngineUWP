@@ -74,7 +74,10 @@ void FRigVMExtendedExecuteContext::Reset()
 	LazyBranchInstanceData.Reset();
 	ExternalVariableRuntimeData.Reset();
 
-	NumExecutions = 0;
+	if(PublicDataScope.IsValid())
+	{
+		GetPublicData<>().NumExecutions = 0;
+	}
 
 	ExecutingThreadId = INDEX_NONE;
 

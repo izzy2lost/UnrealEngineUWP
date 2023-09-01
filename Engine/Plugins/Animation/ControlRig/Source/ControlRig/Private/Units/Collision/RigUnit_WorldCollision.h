@@ -6,6 +6,37 @@
 #include "Units/RigUnit.h"
 #include "RigUnit_WorldCollision.generated.h"
 
+USTRUCT()
+struct CONTROLRIG_API FRigUnit_SphereTrace_WorkData
+{
+	GENERATED_BODY()
+
+	FRigUnit_SphereTrace_WorkData()
+	: Hash(INDEX_NONE)
+	, bHit(false)
+	, HitLocation(EForceInit::ForceInitToZero)
+	, HitNormal(0.f, 0.f, 1.f)
+	{
+	}
+
+	void Reset()
+	{
+		Hash = INDEX_NONE;
+	}
+
+	UPROPERTY()
+	uint32 Hash;
+
+	UPROPERTY()
+	bool bHit;
+
+	UPROPERTY()
+	FVector HitLocation;
+	
+	UPROPERTY()
+	FVector HitNormal;
+};
+
 /**
  * Sweeps a sphere against the world and return the first blocking hit using a specific channel
  */
@@ -56,6 +87,10 @@ struct CONTROLRIG_API FRigUnit_SphereTraceWorld : public FRigUnit
 	/** Hit normal in rig / global Space */
 	UPROPERTY(meta = (Output))
 	FVector HitNormal;
+
+	/** Cache / workstate */
+	UPROPERTY()
+	FRigUnit_SphereTrace_WorkData WorkData;
 
 	RIGVM_METHOD()
 	virtual FRigVMStructUpgradeInfo GetUpgradeInfo() const override;
@@ -112,6 +147,10 @@ struct CONTROLRIG_API FRigUnit_SphereTraceByTraceChannel : public FRigUnit
 	/** Hit normal in rig / global Space */
 	UPROPERTY(meta = (Output))
 	FVector HitNormal;
+	
+	/** Cache / workstate */
+	UPROPERTY()
+	FRigUnit_SphereTrace_WorkData WorkData;
 };
 
 /**
@@ -165,4 +204,8 @@ struct CONTROLRIG_API FRigUnit_SphereTraceByObjectTypes : public FRigUnit
 	/** Hit normal in rig / global Space */
 	UPROPERTY(meta = (Output))
 	FVector HitNormal;
+	
+	/** Cache / workstate */
+	UPROPERTY()
+	FRigUnit_SphereTrace_WorkData WorkData;
 };

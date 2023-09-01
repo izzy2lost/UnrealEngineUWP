@@ -176,7 +176,7 @@ protected:
 		{
 			Context.ExecutionReachedExit().Broadcast(Context.GetPublicData<>().GetEventName());
 		}
-		Context.NumExecutions++;
+		Context.GetPublicDataSafe<>().NumExecutions++;
 	}
 
 	template<typename T>
