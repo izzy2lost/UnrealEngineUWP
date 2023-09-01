@@ -28,5 +28,13 @@ public class SymsLib : ModuleRules
 
 			PublicAdditionalLibraries.Add(Path.Combine(LibPath, LibName));
 		}
+		else if (Target.Platform.IsInGroup(UnrealPlatformGroup.Apple))
+		{
+			bool bUseDebug = Target.Configuration == UnrealTargetConfiguration.Debug;
+			string LibName = bUseDebug ? "libsymsd.a" : "libsyms.a";
+			string LibPath = Path.Combine(LibPathBase, "Mac", Target.Architecture.AppleName);
+
+			PublicAdditionalLibraries.Add(Path.Combine(LibPath, LibName));
+		}
 	}
 }
