@@ -23,6 +23,7 @@ public class LevelSnapshotsEditor : ModuleRules
 				"ApplicationCore",
 				"AssetRegistry",
 				"AssetTools",
+				"BlueprintGraph",
 				"CoreUObject",
 				"ContentBrowser",
 				"Engine",
