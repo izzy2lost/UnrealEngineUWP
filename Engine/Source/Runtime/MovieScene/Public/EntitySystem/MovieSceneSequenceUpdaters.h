@@ -117,8 +117,9 @@ public:
 	 * Invalidate any cached information that depends on the compiled sequence data due to the compiled data changing
 	 *
 	 * @param InLinker         The linker that is evaluating this sequence
+	 * @param InInstanceHandle The instance handle for the top level sequence instance that this updater belongs to
 	 */
-	virtual void InvalidateCachedData(UMovieSceneEntitySystemLinker* InLinker) = 0;
+	virtual void InvalidateCachedData(UMovieSceneEntitySystemLinker* InLinker, FRootInstanceHandle InInstanceHandle) = 0;
 
 
 	/**

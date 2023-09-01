@@ -182,7 +182,7 @@ void FSequenceInstance::InvalidateCachedData(UMovieSceneEntitySystemLinker* Link
 
 		ISequenceUpdater::FactoryInstance(SequenceUpdater, CompiledDataManager, RootCompiledDataID);
 
-		SequenceUpdater->InvalidateCachedData(Linker);
+		SequenceUpdater->InvalidateCachedData(Linker, RootInstanceHandle);
 		SequenceUpdater->PopulateUpdateFlags(Linker, Player, UpdateFlags);
 
 		if (LegacyEvaluator)
