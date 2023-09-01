@@ -940,7 +940,7 @@ bool FStateTreeCompiler::ResolveTransitionState(const UStateTreeState* SourceSta
 		// Warn if goto state points to another subtree.
 		if (const UStateTreeState* TargetState = GetState(Link.ID))
 		{
-			if (TargetState->GetRootState() != SourceState->GetRootState())
+			if (SourceState && TargetState->GetRootState() != SourceState->GetRootState())
 			{
 				Log.Reportf(EMessageSeverity::Warning,
 					TEXT("Target state '%s' is in different subtree. Verify that this is intentional."),
