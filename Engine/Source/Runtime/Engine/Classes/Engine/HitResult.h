@@ -90,7 +90,7 @@ struct FHitResult
 	float PenetrationDepth;
 
 	/** If the hit result is from a collision this will have extra info about the item that hit the second item. */
-	UPROPERTY()
+	UPROPERTY(NotReplicated)
 	int32 MyItem;
 
 	/** Extra data about item that was hit (hit primitive specific). */
@@ -134,7 +134,7 @@ struct FHitResult
 	FName BoneName;
 
 	/** Name of the _my_ bone which took part in hit event (in case of two skeletal meshes colliding). */
-	UPROPERTY()
+	UPROPERTY(NotReplicated)
 	FName MyBoneName;
 
 
