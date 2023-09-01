@@ -1456,7 +1456,14 @@ uint64 FJournaledCache::ReduceKey(const FIoHash& Key)
 	return (Ret[0] + Ret[2]) ^ Ret[1];
 }
 
-// }}}
+
+
+////////////////////////////////////////////////////////////////////////////////
+TUniquePtr<IIasCache> MakeIasCache(const FIasCacheConfig& Config)
+{
+	LLM_SCOPE_BYTAG(Ias);
+	return MakeUnique<FJournaledCache>(Config);
+}
 
 
 
@@ -1713,13 +1720,6 @@ IOSTOREONDEMAND_API void Tests()
 #endif // IAS_JOURNALED_CACHE_TEST
 
 // }}}
-
-////////////////////////////////////////////////////////////////////////////////
-TUniquePtr<IIasCache> MakeIasCache(const FIasCacheConfig& Config)
-{
-	LLM_SCOPE_BYTAG(Ias);
-	return MakeUnique<FJournaledCache>(Config);
-}
 
 } // namespace UE::IO::IAS
 
