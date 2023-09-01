@@ -9,6 +9,7 @@
 #include "Misc/EnumClassFlags.h"
 #include "Misc/TVariant.h"
 #include "Templates/Tuple.h"
+#include "UObject/WeakObjectPtr.h"
 
 class UScriptStruct;
 
