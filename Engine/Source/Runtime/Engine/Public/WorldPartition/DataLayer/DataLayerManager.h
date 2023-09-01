@@ -91,6 +91,7 @@ public:
 	ENGINE_API const TSet<FName>& GetEffectiveActiveDataLayerNames() const;
 	ENGINE_API const TSet<FName>& GetEffectiveLoadedDataLayerNames() const;
 	ENGINE_API bool IsAnyDataLayerInEffectiveRuntimeState(const TArray<FName>& InDataLayerNames, EDataLayerRuntimeState InState) const;
+	ENGINE_API bool IsAllDataLayerInEffectiveRuntimeState(const TArray<FName>& InDataLayerNames, EDataLayerRuntimeState InState) const;
 	//~ End Runtime State
 
 private:

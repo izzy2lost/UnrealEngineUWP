@@ -76,6 +76,14 @@ enum class EWorldPartitionServerStreamingOutMode : uint8
 	Enabled = 2 UMETA(ToolTip = "Server streaming out is enabled"),
 };
 
+UENUM()
+enum class EWorldPartitionDataLayersLogicOperator : uint8
+{
+	ProjectDefault,
+	Or,
+	And
+};
+
 #if WITH_EDITOR
 /**
  * Interface for the world partition editor
@@ -422,6 +430,8 @@ public:
 
 	ENGINE_API UDataLayerManager* GetDataLayerManager() const;
 
+	ENGINE_API EWorldPartitionDataLayersLogicOperator GetDataLayersLogicOperator() const;
+
 	UE_DEPRECATED(5.3, "UpdateStreamingState is deprecated, use UWorldPartitionSubsystem::UpdateStreamingState instead.")
 	void UpdateStreamingState() {}
 	UE_DEPRECATED(5.3, "CanAddLoadedLevelToWorld is deprecated, use CanAddCellToWorld instead.")
@@ -470,6 +480,9 @@ public:
 	EWorldPartitionServerStreamingOutMode ServerStreamingOutMode;
 
 private:
+	UPROPERTY(EditAnywhere, Category = WorldPartitionSetup, AdvancedDisplay)
+	EWorldPartitionDataLayersLogicOperator DataLayersLogicOperator;
+
 	TObjectPtr<UWorld> World;
 
 #if WITH_EDITOR

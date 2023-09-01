@@ -263,22 +263,29 @@ void FSpatialHashStreamingGrid::GetCells(const TArray<FWorldPartitionStreamingSo
 						
 						if (bIncludeCell)
 						{
-							if (!Cell->HasDataLayers() || Cell->HasAnyDataLayerInEffectiveRuntimeState(EDataLayerRuntimeState::Activated))
+							switch (Cell->GetCellEffectiveWantedState())
 							{
-								if (Source.TargetState == EStreamingSourceTargetState::Loaded)
+							case EDataLayerRuntimeState::Loaded:
+								OutLoadCells.AddCell(Cell, Source, Shape);
+								break;
+							case EDataLayerRuntimeState::Activated:
+								switch (Source.TargetState)
 								{
+								case EStreamingSourceTargetState::Loaded:
 									OutLoadCells.AddCell(Cell, Source, Shape);
-								}
-								else
-								{
-									check(Source.TargetState == EStreamingSourceTargetState::Activated);
+									break;
+								case EStreamingSourceTargetState::Activated:
 									OutActivateCells.AddCell(Cell, Source, Shape);
 									bAddedActivatedCell = !GRuntimeSpatialHashUseAlignedGridLevelsEffective && GRuntimeSpatialHashSnapNonAlignedGridLevelsToLowerLevelsEffective;
+									break;
+								default:
+									checkNoEntry();
 								}
-							}
-							else if (Cell->HasAnyDataLayerInEffectiveRuntimeState(EDataLayerRuntimeState::Loaded))
-							{
-								OutLoadCells.AddCell(Cell, Source, Shape);
+								break;
+							case EDataLayerRuntimeState::Unloaded:
+								break;
+							default:
+								checkNoEntry();
 							}
 						}
 					});
@@ -348,12 +355,20 @@ void FSpatialHashStreamingGrid::GetCells(const TArray<FWorldPartitionStreamingSo
 		{
 			ForEachRuntimeCell(ParentCell.Key, [&](const UWorldPartitionRuntimeCell* Cell)
 			{
-				if (!Cell->HasDataLayers() || Cell->HasAnyDataLayerInEffectiveRuntimeState(EDataLayerRuntimeState::Activated))
+				switch (Cell->GetCellEffectiveWantedState())
 				{
+				case EDataLayerRuntimeState::Loaded:
+					break;
+				case EDataLayerRuntimeState::Activated:
 					for (const auto& Info : ParentCell.Value)
 					{
 						OutActivateCells.AddCell(Cell, Info.Source, Info.SourceShape);
 					}
+					break;
+				case EDataLayerRuntimeState::Unloaded:
+					break;
+				default:
+					checkNoEntry();
 				}
 			});
 		}
@@ -581,15 +596,20 @@ void FSpatialHashStreamingGrid::GetNonSpatiallyLoadedCells(TSet<const UWorldPart
 			{
 				for (const UWorldPartitionRuntimeCell* Cell : LayerCell.GridCells)
 				{
-					if (!Cell->HasDataLayers() || Cell->HasAnyDataLayerInEffectiveRuntimeState(EDataLayerRuntimeState::Activated))
+					switch (Cell->GetCellEffectiveWantedState())
 					{
-						check(Cell->IsAlwaysLoaded() || Cell->HasDataLayers() || Cell->GetContentBundleID().IsValid());
-						OutActivateCells.Add(Cell);
-					}
-					else if (Cell->HasAnyDataLayerInEffectiveRuntimeState(EDataLayerRuntimeState::Loaded))
-					{
+					case EDataLayerRuntimeState::Loaded:
 						check(Cell->HasDataLayers());
 						OutLoadCells.Add(Cell);
+						break;
+					case EDataLayerRuntimeState::Activated:
+						check(Cell->IsAlwaysLoaded() || Cell->HasDataLayers() || Cell->GetContentBundleID().IsValid());
+						OutActivateCells.Add(Cell);
+						break;
+					case EDataLayerRuntimeState::Unloaded:
+						break;
+					default:
+						checkNoEntry();
 					}
 				}
 			}
@@ -614,10 +634,19 @@ void FSpatialHashStreamingGrid::GetFilteredCellsForDebugDraw(const FSpatialHashS
 			{
 				EStreamingStatus StreamingStatus = Cell->GetStreamingStatus();
 				const TArray<FName>& DataLayers = Cell->GetDataLayers();
-				return (!Cell->HasDataLayers() ||
-					Cell->HasAnyDataLayerInEffectiveRuntimeState(EDataLayerRuntimeState::Loaded) ||
-					Cell->HasAnyDataLayerInEffectiveRuntimeState(EDataLayerRuntimeState::Activated) ||
-					((StreamingStatus != LEVEL_Unloaded) && (StreamingStatus != LEVEL_UnloadedButStillAround)));
+
+				switch (Cell->GetCellEffectiveWantedState())
+				{
+				case EDataLayerRuntimeState::Loaded:
+				case EDataLayerRuntimeState::Activated:
+					return true;
+				case EDataLayerRuntimeState::Unloaded:
+					break;
+				default:
+					checkNoEntry();
+				}
+
+				return (StreamingStatus != LEVEL_Unloaded) && (StreamingStatus != LEVEL_UnloadedButStillAround);
 			}
 			return false;
 		});

@@ -14,6 +14,7 @@
 #include "WorldPartition/WorldPartitionSubsystem.h"
 #include "WorldPartition/HLOD/HLODSubsystem.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
+#include "WorldPartition/WorldPartitionSettings.h"
 #include "GameFramework/WorldSettings.h"
 #include "ProfilingDebugging/ScopedTimers.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
@@ -293,6 +294,7 @@ UWorldPartition::UWorldPartition(const FObjectInitializer& ObjectInitializer)
 	bEnableStreaming = true;
 	ServerStreamingMode = EWorldPartitionServerStreamingMode::ProjectDefault;
 	ServerStreamingOutMode = EWorldPartitionServerStreamingOutMode::ProjectDefault;
+	DataLayersLogicOperator = EWorldPartitionDataLayersLogicOperator::ProjectDefault;
 	StreamingStateEpoch = 0;
 
 #if WITH_EDITOR
@@ -836,6 +838,24 @@ void UWorldPartition::Uninitialize()
 UDataLayerManager* UWorldPartition::GetDataLayerManager() const
 {
 	return DataLayerManager;
+}
+
+EWorldPartitionDataLayersLogicOperator UWorldPartition::GetDataLayersLogicOperator() const
+{
+	if (DataLayersLogicOperator == EWorldPartitionDataLayersLogicOperator::ProjectDefault)
+	{
+		switch (UWorldPartitionSettings::Get()->GetDefaultDataLayerOperator())
+		{
+		case EDataLayerLogicOperator::Or:
+			return EWorldPartitionDataLayersLogicOperator::Or;
+		case EDataLayerLogicOperator::And:
+			return EWorldPartitionDataLayersLogicOperator::And;
+		default:
+			checkNoEntry();
+		}
+	}
+
+	return DataLayersLogicOperator;
 }
 
 bool UWorldPartition::IsInitialized() const

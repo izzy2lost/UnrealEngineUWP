@@ -394,20 +394,28 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FW
 					{
 						if (IsCellRelevantFor(Cell->GetClientOnlyVisible()))
 						{
-							if (!Cell->HasDataLayers() || Cell->HasAnyDataLayerInEffectiveRuntimeState(EDataLayerRuntimeState::Activated))
+							switch (Cell->GetCellEffectiveWantedState())
 							{
-								if (Source.TargetState == EStreamingSourceTargetState::Loaded)
-								{
-									LoadStreamingSourceCells.AddCell(Cell, Source, Shape);
-								}
-								else
-								{
-									ActivateStreamingSourceCells.AddCell(Cell, Source, Shape);
-								}
-							}
-							else if (Cell->HasAnyDataLayerInEffectiveRuntimeState(EDataLayerRuntimeState::Loaded))
-							{
+							case EDataLayerRuntimeState::Loaded:
 								LoadStreamingSourceCells.AddCell(Cell, Source, Shape);
+								break;
+							case EDataLayerRuntimeState::Activated:
+								switch (Source.TargetState)
+								{
+								case EStreamingSourceTargetState::Loaded:
+									LoadStreamingSourceCells.AddCell(Cell, Source, Shape);
+									break;
+								case EStreamingSourceTargetState::Activated:
+									ActivateStreamingSourceCells.AddCell(Cell, Source, Shape);
+									break;
+								default:
+									checkNoEntry();
+								}
+								break;
+							case EDataLayerRuntimeState::Unloaded:
+								break;
+							default:
+								checkNoEntry();
 							}
 						}
 					});
@@ -422,13 +430,18 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FW
 		{
 			if (IsCellRelevantFor(Cell->GetClientOnlyVisible()))
 			{
-				if (!Cell->HasDataLayers() || Cell->HasAnyDataLayerInEffectiveRuntimeState(EDataLayerRuntimeState::Activated))
+				switch (Cell->GetCellEffectiveWantedState())
 				{
-					ActivateStreamingSourceCells.GetCells().Add(Cell);
-				}
-				else if (Cell->HasAnyDataLayerInEffectiveRuntimeState(EDataLayerRuntimeState::Loaded))
-				{
+				case EDataLayerRuntimeState::Loaded:
 					LoadStreamingSourceCells.GetCells().Add(Cell);
+					break;
+				case EDataLayerRuntimeState::Activated:
+					ActivateStreamingSourceCells.GetCells().Add(Cell);
+					break;
+				case EDataLayerRuntimeState::Unloaded:
+					break;
+				default:
+					checkNoEntry();
 				}
 			}
 		}

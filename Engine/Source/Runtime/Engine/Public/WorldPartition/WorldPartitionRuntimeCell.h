@@ -22,6 +22,8 @@ class UWorldPartition;
 class UDataLayerManager;
 struct FHierarchicalLogArchive;
 
+enum class EWorldPartitionDataLayersLogicOperator : uint8;
+
 enum class EWorldPartitionRuntimeCellVisualizeMode
 {
 	StreamingPriority,
@@ -215,7 +217,7 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell
 	inline bool HasDataLayers() const { return !DataLayers.IsEmpty(); }
 
 	ENGINE_API UDataLayerManager* GetDataLayerManager() const;
-	ENGINE_API bool HasAnyDataLayerInEffectiveRuntimeState(EDataLayerRuntimeState InState) const;
+	ENGINE_API EDataLayerRuntimeState GetCellEffectiveWantedState() const;
 
 	void SetBlockOnSlowLoading(bool bInBlockOnSlowLoading) { bBlockOnSlowLoading = bInBlockOnSlowLoading; }
 	bool GetBlockOnSlowLoading() const { return bBlockOnSlowLoading; }

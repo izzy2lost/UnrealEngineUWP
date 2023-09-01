@@ -365,6 +365,34 @@ bool UDataLayerManager::IsAnyDataLayerInEffectiveRuntimeState(const TArray<FName
 	return false;
 }
 
+bool UDataLayerManager::IsAllDataLayerInEffectiveRuntimeState(const TArray<FName>& InDataLayerNames, EDataLayerRuntimeState InState) const
+{
+	const TSet<FName>& Activated = GetEffectiveActiveDataLayerNames();
+
+	if (InState == EDataLayerRuntimeState::Activated)
+	{
+		for (const FName& DataLayerName : InDataLayerNames)
+		{
+			if (!Activated.Contains(DataLayerName))
+			{
+				return false;
+			}
+		}
+	}
+	else if (InState == EDataLayerRuntimeState::Loaded)
+	{
+		const TSet<FName>& Loaded = GetEffectiveLoadedDataLayerNames();
+		for (const FName& DataLayerName : InDataLayerNames)
+		{
+			if (!Loaded.Contains(DataLayerName) && !Activated.Contains(DataLayerName))
+			{
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
 void UDataLayerManager::DumpDataLayers(FOutputDevice& OutputDevice) const
 {
 	if (AWorldDataLayers* WorldDataLayers = GetWorldDataLayers())
