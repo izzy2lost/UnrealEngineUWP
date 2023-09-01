@@ -34,7 +34,7 @@ CSV_DECLARE_CATEGORY_MODULE_EXTERN(CORE_API, Basic);
 CSV_DEFINE_CATEGORY(TextureStreaming, true);
 
 #ifndef UE_STREAMINGRENDERASSETS_ARRAY_DEFAULT_RESERVED_SIZE
-// The default size will reserve ~4MB, the element size is ~208 bytes.
+// The default size will reserve ~3MB, the element size is 168 bytes.
 #define UE_STREAMINGRENDERASSETS_ARRAY_DEFAULT_RESERVED_SIZE 20000
 #endif
 
