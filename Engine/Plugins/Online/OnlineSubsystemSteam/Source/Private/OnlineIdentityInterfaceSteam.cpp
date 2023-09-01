@@ -3,6 +3,7 @@
 #include "OnlineIdentityInterfaceSteam.h"
 
 #include "Misc/ConfigCacheIni.h"
+#include "OnlineAuthInterfaceSteam.h"
 #include "OnlineEncryptedAppTicketInterfaceSteam.h"
 #include "OnlineSubsystemSteam.h"
 #include "OnlineSubsystemSteamTypes.h"
@@ -189,7 +190,7 @@ FString FOnlineIdentitySteam::GetAuthToken(int32 LocalUserNum) const
 		{
 			uint8 AuthToken[1024];
 			uint32 AuthTokenSize = 0;
-			if (SteamUserPtr->GetAuthSessionTicket(AuthToken, UE_ARRAY_COUNT(AuthToken), &AuthTokenSize) != k_HAuthTicketInvalid &&
+			if (SteamUserPtr->GetAuthSessionTicket(AuthToken, UE_ARRAY_COUNT(AuthToken), &AuthTokenSize, nullptr) != k_HAuthTicketInvalid &&
 				AuthTokenSize > 0)
 			{
 				ResultToken = BytesToHex(AuthToken, AuthTokenSize);
@@ -246,6 +247,7 @@ void FOnlineIdentitySteam::GetLinkedAccountAuthToken(int32 LocalUserNum, const F
 {
 	const TCHAR* AppTokenType = TEXT("App");
 	const TCHAR* SessionTokenType = TEXT("Session");
+	const TCHAR* WebAPITokenType = TEXT("WebAPI");
 
 	FString TokenType = InTokenType;
 	if (TokenType.IsEmpty())
@@ -277,9 +279,37 @@ void FOnlineIdentitySteam::GetLinkedAccountAuthToken(int32 LocalUserNum, const F
 		AuthToken.TokenString = GetAuthToken(LocalUserNum);
 		Delegate.ExecuteIfBound(LocalUserNum, AuthToken.HasTokenString(), AuthToken);
 	}
+	else if (TokenType.StartsWith(WebAPITokenType))
+	{
+		if (SteamUserPtr != NULL && SteamUserPtr->BLoggedOn())
+		{
+			// Split on ':' to allow client to specify web service; if not set use default specified in config
+			FString RemoteServiceIdentity;
+			if (!TokenType.Split(TEXT(":"), nullptr, &RemoteServiceIdentity))
+			{
+				GConfig->GetString(TEXT("OnlineSubsystemSteam"), TEXT("DefaultRemoteServiceIdentity"), RemoteServiceIdentity, GEngineIni);
+			}
+
+			if (RemoteServiceIdentity.IsEmpty())
+			{
+				UE_LOG_ONLINE_IDENTITY(Warning, TEXT("FOnlineIdentitySteam::GetLinkedAccountAuthToken DefaultRemoteServiceIdentity not set"), *TokenType);
+				Delegate.ExecuteIfBound(LocalUserNum, false, FExternalAuthToken());
+				return;
+			}
+			
+			SteamSubsystem->GetAuthInterface()->GetAuthTicketForWebApi(RemoteServiceIdentity, FOnGetAuthTicketForWebApiCompleteDelegate::CreateLambda(
+				[this, LocalUserNum, OnComplete = Delegate](uint32 AuthTicketHandle, const FString& TicketString)
+				{
+					FExternalAuthToken AuthToken;
+					AuthToken.TokenString = TicketString;
+					OnComplete.ExecuteIfBound(LocalUserNum, AuthToken.HasTokenString(), AuthToken);
+				}));
+		}
+	}
 	else
 	{	
 		UE_LOG_ONLINE_IDENTITY(Warning, TEXT("FOnlineIdentitySteam::GetLinkedAccountAuthToken TokenType=[%s] unknown"), *TokenType);
 		Delegate.ExecuteIfBound(LocalUserNum, false, FExternalAuthToken());
 	}
 }
+
