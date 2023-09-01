@@ -313,6 +313,9 @@ protected:
 	FName LevelPackageName;
 #endif
 
+	mutable EDataLayerRuntimeState EffectiveWantedState;
+	mutable int32 EffectiveWantedStateEpoch;
+
 public:
 	//~Begin UWorldPartitionRuntimeCellData Proxy
 	inline bool ShouldResetStreamingSourceInfo() const { return RuntimeCellData->ShouldResetStreamingSourceInfo(); }

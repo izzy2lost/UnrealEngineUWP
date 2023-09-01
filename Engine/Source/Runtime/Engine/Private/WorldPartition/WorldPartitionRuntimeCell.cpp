@@ -22,7 +22,10 @@ UWorldPartitionRuntimeCell::UWorldPartitionRuntimeCell(const FObjectInitializer&
 	, DebugStreamingPriority(-1.f)
 #endif
 	, RuntimeCellData(nullptr)
-{}
+{
+	EffectiveWantedState = EDataLayerRuntimeState::Unloaded;
+	EffectiveWantedStateEpoch = MAX_int32;
+}
 
 UWorld* UWorldPartitionRuntimeCell::GetOwningWorld() const
 {
@@ -127,43 +130,51 @@ UDataLayerManager* UWorldPartitionRuntimeCell::GetDataLayerManager() const
 
 EDataLayerRuntimeState UWorldPartitionRuntimeCell::GetCellEffectiveWantedState() const
 {
-	if (!HasDataLayers())
+	if (EffectiveWantedStateEpoch != AWorldDataLayers::GetDataLayersStateEpoch())
 	{
-		return EDataLayerRuntimeState::Activated;
-	}
-
-	UWorldPartition* WorldPartition = GetOuterWorld()->GetWorldPartition();
-
-	if (const UDataLayerManager* DataLayerManager = WorldPartition->GetDataLayerManager())
-	{
-		switch (WorldPartition->GetDataLayersLogicOperator())
+		if (!HasDataLayers())
 		{
-		case EWorldPartitionDataLayersLogicOperator::Or:
-			if (DataLayerManager->IsAnyDataLayerInEffectiveRuntimeState(GetDataLayers(), EDataLayerRuntimeState::Activated))
-			{
-				return EDataLayerRuntimeState::Activated;
-			}
-			else if (DataLayerManager->IsAnyDataLayerInEffectiveRuntimeState(GetDataLayers(), EDataLayerRuntimeState::Loaded))
-			{
-				return EDataLayerRuntimeState::Loaded;
-			}
-			break;
-		case EWorldPartitionDataLayersLogicOperator::And:
-			if (DataLayerManager->IsAllDataLayerInEffectiveRuntimeState(GetDataLayers(), EDataLayerRuntimeState::Activated))
-			{
-				return EDataLayerRuntimeState::Activated;
-			}
-			else if (DataLayerManager->IsAllDataLayerInEffectiveRuntimeState(GetDataLayers(), EDataLayerRuntimeState::Loaded))
-			{
-				return EDataLayerRuntimeState::Loaded;
-			}
-			break;
-		default:
-			checkNoEntry();
+			EffectiveWantedState = EDataLayerRuntimeState::Activated;
 		}
+		else
+		{
+			EffectiveWantedState = EDataLayerRuntimeState::Unloaded;
+
+			UWorldPartition* WorldPartition = GetOuterWorld()->GetWorldPartition();
+			if (const UDataLayerManager* DataLayerManager = WorldPartition->GetDataLayerManager())
+			{
+				switch (WorldPartition->GetDataLayersLogicOperator())
+				{
+				case EWorldPartitionDataLayersLogicOperator::Or:
+					if (DataLayerManager->IsAnyDataLayerInEffectiveRuntimeState(GetDataLayers(), EDataLayerRuntimeState::Activated))
+					{
+						EffectiveWantedState = EDataLayerRuntimeState::Activated;
+					}
+					else if (DataLayerManager->IsAnyDataLayerInEffectiveRuntimeState(GetDataLayers(), EDataLayerRuntimeState::Loaded))
+					{
+						EffectiveWantedState = EDataLayerRuntimeState::Loaded;
+					}
+					break;
+				case EWorldPartitionDataLayersLogicOperator::And:
+					if (DataLayerManager->IsAllDataLayerInEffectiveRuntimeState(GetDataLayers(), EDataLayerRuntimeState::Activated))
+					{
+						EffectiveWantedState = EDataLayerRuntimeState::Activated;
+					}
+					else if (DataLayerManager->IsAllDataLayerInEffectiveRuntimeState(GetDataLayers(), EDataLayerRuntimeState::Loaded))
+					{
+						EffectiveWantedState = EDataLayerRuntimeState::Loaded;
+					}
+					break;
+				default:
+					checkNoEntry();
+				}
+			}
+		}
+
+		EffectiveWantedStateEpoch = AWorldDataLayers::GetDataLayersStateEpoch();
 	}
 
-	return EDataLayerRuntimeState::Unloaded;
+	return EffectiveWantedState;
 }
 
 TArray<const UDataLayerInstance*> UWorldPartitionRuntimeCell::GetDataLayerInstances() const
