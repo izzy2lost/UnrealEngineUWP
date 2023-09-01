@@ -242,6 +242,8 @@ private:
 	FCallbackBase* LobbyMemberUpdateReceivedCallback;
 	EOS_NotificationId LobbyMemberStatusReceivedId;
 	FCallbackBase* LobbyMemberStatusReceivedCallback;
+	EOS_NotificationId LobbyInviteReceivedId;
+	FCallbackBase* LobbyInviteReceivedCallback;
 	EOS_NotificationId LobbyInviteAcceptedId;
 	FCallbackBase* LobbyInviteAcceptedCallback;
 	EOS_NotificationId JoinLobbyAcceptedId;
@@ -250,8 +252,9 @@ private:
 	void OnLobbyUpdateReceived(const EOS_LobbyId& LobbyId);
 	void OnLobbyMemberUpdateReceived(const EOS_LobbyId& LobbyId, const EOS_ProductUserId& TargetUserId);
 	void OnMemberStatusReceived(const EOS_LobbyId& LobbyId, const EOS_ProductUserId& TargetUserId, EOS_ELobbyMemberStatus CurrentStatus);
-	void OnLobbyInviteAccepted(const char* InviteId, const EOS_ProductUserId& LocalUserId, const EOS_ProductUserId& TargetUserId);
-	void OnJoinLobbyAccepted(const EOS_ProductUserId& LocalUserId, const EOS_UI_EventId& UiEventId);
+	void OnLobbyInviteReceived(const EOS_Lobby_LobbyInviteReceivedCallbackInfo* Data);
+	void OnLobbyInviteAccepted(const EOS_Lobby_LobbyInviteAcceptedCallbackInfo* Data);
+	void OnJoinLobbyAccepted(const EOS_Lobby_JoinLobbyAcceptedCallbackInfo* Data);
 
 	// Methods to update an API Lobby from an OSS Lobby
 	void SetLobbyPermissionLevel(EOS_HLobbyModification LobbyModificationHandle, FNamedOnlineSession* Session);
@@ -273,6 +276,11 @@ private:
 
 	// Helper methods
 	typedef TFunction<void(const EOS_ProductUserId& ProductUserId, EOS_EpicAccountId& EpicAccountId)> GetEpicAccountIdAsyncCallback;
+
+	void RegisterSessionNotifications();
+	void OnSessionInviteReceived(const EOS_Sessions_SessionInviteReceivedCallbackInfo* Data);
+	void OnSessionInviteAccepted(const EOS_Sessions_SessionInviteAcceptedCallbackInfo* Data);
+	void OnJoinSessionAccepted(const EOS_Sessions_JoinSessionAcceptedCallbackInfo* Data);
 
 	void RegisterLobbyNotifications();
 	FNamedOnlineSession* GetNamedSessionFromLobbyId(const FUniqueNetIdEOSLobby& LobbyId);
@@ -341,8 +349,12 @@ private:
 	TSharedPtr<FOnlineSessionSearch> LastInviteSearch;
 
 	/** Notification state for SDK events */
+	EOS_NotificationId SessionInviteReceivedId;
+	FCallbackBase* SessionInviteReceivedCallback;
 	EOS_NotificationId SessionInviteAcceptedId;
 	FCallbackBase* SessionInviteAcceptedCallback;
+	EOS_NotificationId JoinSessionAcceptedId;
+	FCallbackBase* JoinSessionAcceptedCallback;
 
 	bool bIsUsingP2PSockets;
 };
