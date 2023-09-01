@@ -121,8 +121,7 @@ namespace UE::MLDeformer
 		IDetailGroup* StatsAssetSizeGroup = nullptr;
 
 		/** Main memory usage subgroup. */
-		UE_DEPRECATED(5.4, "This member will be removed.")
-		IDetailGroup* StatsMainMemUsageGroup = nullptr;
+		IDetailGroup* StatsMainMemUsageGroup_DEPRECATED = nullptr;
 
 		/** GPU memory usage subgroup. */
 		IDetailGroup* StatsGPUMemUsageGroup = nullptr;

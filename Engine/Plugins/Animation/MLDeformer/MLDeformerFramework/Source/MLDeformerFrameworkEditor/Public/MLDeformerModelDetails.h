@@ -115,8 +115,7 @@ namespace UE::MLDeformer
 		IDetailCategoryBuilder* BaseMeshCategoryBuilder = nullptr;
 
 		/** The category related to the target mesh. */
-		UE_DEPRECATED(5.4, "This category will be removed. You most likely want to use the InputOutputCategory.")
-		IDetailCategoryBuilder* TargetMeshCategoryBuilder = nullptr;
+		IDetailCategoryBuilder* TargetMeshCategoryBuilder_DEPRECATED = nullptr;
 
 		/** The category related to the inputs and outputs. */
 		IDetailCategoryBuilder* InputOutputCategoryBuilder = nullptr;
