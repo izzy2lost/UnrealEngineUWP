@@ -2,9 +2,6 @@
 
 #pragma once
 
-#include <cstddef>
-#include <utility>
-
 namespace trimd {
 
 namespace fallback {

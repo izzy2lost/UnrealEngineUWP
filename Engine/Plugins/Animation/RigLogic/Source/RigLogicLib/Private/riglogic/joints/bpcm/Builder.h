@@ -9,6 +9,7 @@
 #include "riglogic/joints/bpcm/BPCMOutputInstance.h"
 #include "riglogic/joints/bpcm/Storage.h"
 #include "riglogic/joints/bpcm/StorageSize.h"
+#include "riglogic/joints/bpcm/strategies/Traits.h"
 #include "riglogic/riglogic/RigMetrics.h"
 #include "riglogic/types/Aliases.h"
 #include "riglogic/types/bpcm/Optimizer.h"
@@ -32,59 +33,57 @@ namespace rl4 {
 
 namespace bpcm {
 
-template<typename TValue, std::uint32_t BlockHeight, std::uint32_t PadTo, typename TFVec>
-class JointsBuilderCommon : public JointsBuilder {
-    protected:
-        using CalculationStrategy = JointCalculationStrategy<TValue>;
-        using CalculationStrategyPtr = std::unique_ptr<CalculationStrategy, std::function<void (CalculationStrategy*)> >;
-
-    protected:
-        JointsBuilderCommon(CalculationStrategyPtr strategy_, MemoryResource* memRes_);
-
+template<typename TValue, typename TFVec>
+class BPCMJointsBuilder : public JointsBuilder {
     public:
+        explicit BPCMJointsBuilder(MemoryResource* memRes_);
+
         void computeStorageRequirements(const RigMetrics& source) override;
         void computeStorageRequirements(const dna::BehaviorReader* source) override;
         void allocateStorage(const dna::BehaviorReader* source) override;
         void fillStorage(const dna::BehaviorReader* source) override;
         JointsEvaluator::Pointer build() override;
 
-    protected:
+    private:
         void setValues(const dna::BehaviorReader* source);
         void setInputIndices(const dna::BehaviorReader* source);
         void setOutputIndices(const dna::BehaviorReader* source);
         void setLODs(const dna::BehaviorReader* source);
+        static constexpr std::uint32_t BlockHeight() {
+            return static_cast<std::uint32_t>(TFVec::size() * 2ul);
+        }
 
-    protected:
+        static constexpr std::uint32_t PadTo() {
+            return static_cast<std::uint32_t>(TFVec::size());
+        }
+
+    private:
         MemoryResource* memRes;
         StorageSize sizeReqs;
-
         JointStorage<TValue> storage;
-        CalculationStrategyPtr strategy;
 };
 
-template<typename TValue, std::uint32_t BlockHeight, std::uint32_t PadTo, typename TFVec>
-JointsBuilderCommon<TValue, BlockHeight, PadTo, TFVec>::JointsBuilderCommon(CalculationStrategyPtr strategy_,
-                                                                            MemoryResource* memRes_) :
+template<typename TValue, typename TFVec>
+BPCMJointsBuilder<TValue, TFVec>::BPCMJointsBuilder(MemoryResource* memRes_) :
     memRes{memRes_},
     sizeReqs{memRes},
-    storage{memRes},
-    strategy{std::move(strategy_)} {
+    storage{memRes} {
 }
 
-template<typename TValue, std::uint32_t BlockHeight, std::uint32_t PadTo, typename TFVec>
-void JointsBuilderCommon<TValue, BlockHeight, PadTo, TFVec>::computeStorageRequirements(const RigMetrics& source) {
+template<typename TValue, typename TFVec>
+void BPCMJointsBuilder<TValue, TFVec>::computeStorageRequirements(const RigMetrics& source) {
     // This is incomplete, but enough to create valid joint output instances when restoring from a dump.
     // Joint attribute count is the only needed data by the instance factory.
     sizeReqs.attributeCount = source.jointAttributeCount;
 }
 
-template<typename TValue, std::uint32_t BlockHeight, std::uint32_t PadTo, typename TFVec>
-void JointsBuilderCommon<TValue, BlockHeight, PadTo, TFVec>::computeStorageRequirements(const dna::BehaviorReader* source) {
-    sizeReqs.computeFrom(source, PadTo);
+template<typename TValue, typename TFVec>
+void BPCMJointsBuilder<TValue, TFVec>::computeStorageRequirements(const dna::BehaviorReader* source) {
+    sizeReqs.computeFrom(source, PadTo());
 }
 
-template<typename TValue, std::uint32_t BlockHeight, std::uint32_t PadTo, typename TFVec>
-void JointsBuilderCommon<TValue, BlockHeight, PadTo, TFVec>::allocateStorage(const dna::BehaviorReader*  /*unused*/) {
+template<typename TValue, typename TFVec>
+void BPCMJointsBuilder<TValue, TFVec>::allocateStorage(const dna::BehaviorReader*  /*unused*/) {
     storage.values.resize(sizeReqs.valueCount);
     storage.inputIndices.resize(sizeReqs.inputIndexCount);
     storage.outputIndices.resize(sizeReqs.outputIndexCount);
@@ -92,30 +91,30 @@ void JointsBuilderCommon<TValue, BlockHeight, PadTo, TFVec>::allocateStorage(con
     storage.jointGroups.resize(sizeReqs.jointGroups.size());
 }
 
-template<typename TValue, std::uint32_t BlockHeight, std::uint32_t PadTo, typename TFVec>
-void JointsBuilderCommon<TValue, BlockHeight, PadTo, TFVec>::fillStorage(const dna::BehaviorReader* source) {
+template<typename TValue, typename TFVec>
+void BPCMJointsBuilder<TValue, TFVec>::fillStorage(const dna::BehaviorReader* source) {
     setValues(source);
     setInputIndices(source);
     setOutputIndices(source);
     setLODs(source);
 }
 
-template<typename TValue, std::uint32_t BlockHeight, std::uint32_t PadTo, typename TFVec>
-void JointsBuilderCommon<TValue, BlockHeight, PadTo, TFVec>::setValues(const dna::BehaviorReader* source) {
+template<typename TValue, typename TFVec>
+void BPCMJointsBuilder<TValue, TFVec>::setValues(const dna::BehaviorReader* source) {
     std::uint32_t offset = 0ul;
     for (std::uint16_t i = 0u; i < source->getJointGroupCount(); ++i) {
         const auto values = source->getJointGroupValues(i);
         const auto jointGroupSize = sizeReqs.getJointGroupSize(i);
         storage.jointGroups[i].valuesOffset = offset;
         storage.jointGroups[i].valuesSize = jointGroupSize.padded.size();
-        offset += Optimizer<TFVec, BlockHeight, PadTo>::optimize(storage.values.data() + offset,
-                                                                 values.data(),
-                                                                 jointGroupSize.original);
+        offset += Optimizer<TFVec, BlockHeight(), PadTo()>::optimize(storage.values.data() + offset,
+                                                                     values.data(),
+                                                                     jointGroupSize.original);
     }
 }
 
-template<typename TValue, std::uint32_t BlockHeight, std::uint32_t PadTo, typename TFVec>
-void JointsBuilderCommon<TValue, BlockHeight, PadTo, TFVec>::setInputIndices(const dna::BehaviorReader* source) {
+template<typename TValue, typename TFVec>
+void BPCMJointsBuilder<TValue, TFVec>::setInputIndices(const dna::BehaviorReader* source) {
     std::uint32_t offset = 0ul;
     for (std::uint16_t i = 0u; i < source->getJointGroupCount(); ++i) {
         const auto jointGroupSize = sizeReqs.getJointGroupSize(i);
@@ -129,8 +128,8 @@ void JointsBuilderCommon<TValue, BlockHeight, PadTo, TFVec>::setInputIndices(con
     }
 }
 
-template<typename TValue, std::uint32_t BlockHeight, std::uint32_t PadTo, typename TFVec>
-void JointsBuilderCommon<TValue, BlockHeight, PadTo, TFVec>::setOutputIndices(const dna::BehaviorReader* source) {
+template<typename TValue, typename TFVec>
+void BPCMJointsBuilder<TValue, TFVec>::setOutputIndices(const dna::BehaviorReader* source) {
     std::uint32_t offset = 0ul;
     for (std::uint16_t i = 0u; i < source->getJointGroupCount(); ++i) {
         const auto jointGroupSize = sizeReqs.getJointGroupSize(i);
@@ -141,14 +140,14 @@ void JointsBuilderCommon<TValue, BlockHeight, PadTo, TFVec>::setOutputIndices(co
     }
 }
 
-template<typename TValue, std::uint32_t BlockHeight, std::uint32_t PadTo, typename TFVec>
-void JointsBuilderCommon<TValue, BlockHeight, PadTo, TFVec>::setLODs(const dna::BehaviorReader* source) {
+template<typename TValue, typename TFVec>
+void BPCMJointsBuilder<TValue, TFVec>::setLODs(const dna::BehaviorReader* source) {
     std::uint32_t offset = 0ul;
     for (std::uint16_t i = 0u; i < source->getJointGroupCount(); ++i) {
         const auto jointGroupSize = sizeReqs.getJointGroupSize(i);
         const auto dstRowCount = jointGroupSize.padded.rows;
         auto makeLODRegion = [dstRowCount](std::uint16_t lodRowCount) {
-                return LODRegion{lodRowCount, dstRowCount, BlockHeight, PadTo};
+                return LODRegion{lodRowCount, dstRowCount, BlockHeight(), PadTo()};
             };
         const auto lods = source->getJointGroupLODs(i);
         std::transform(lods.begin(), lods.end(), std::back_inserter(storage.lodRegions), makeLODRegion);
@@ -157,13 +156,18 @@ void JointsBuilderCommon<TValue, BlockHeight, PadTo, TFVec>::setLODs(const dna::
     }
 }
 
-template<typename TValue, std::uint32_t BlockHeight, std::uint32_t PadTo, typename TFVec>
-JointsEvaluator::Pointer JointsBuilderCommon<TValue, BlockHeight, PadTo, TFVec>::build() {
+template<typename TValue, typename TFVec>
+JointsEvaluator::Pointer BPCMJointsBuilder<TValue, TFVec>::build() {
     const auto attributeCount = static_cast<std::uint16_t>(sizeReqs.attributeCount);
     auto instanceFactory = [attributeCount](MemoryResource* instanceMemRes) {
             return UniqueInstance<OutputInstance, JointsOutputInstance>::with(instanceMemRes).create(attributeCount,
                                                                                                      instanceMemRes);
         };
+
+    using CalculationStrategyBase = JointCalculationStrategy<TValue>;
+    using CalculationStrategy = typename Strategy<TFVec::size()>::template Type<TValue, TFVec>;
+    auto strategy = UniqueInstance<CalculationStrategy, CalculationStrategyBase>::with(memRes).create();
+
     auto factory = UniqueInstance<Evaluator<TValue>, JointsEvaluator>::with(memRes);
     return factory.create(std::move(storage), std::move(strategy), instanceFactory, memRes);
 }
