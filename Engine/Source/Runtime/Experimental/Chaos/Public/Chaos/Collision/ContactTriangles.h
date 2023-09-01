@@ -9,20 +9,20 @@
 
 namespace Chaos
 {
-	// Given a point and a triangle, check if the point is onan edge or vertex and return vertex indices if so.
+	// Given a point and a triangle, check if the point is on an edge or vertex and return vertex indices if so.
 	// If Position is at one of the vertices, OutEdgeVertexIndexA will an index into Vertices
 	// If Position is one one of the edges, both OutEdgeVertexIndexA and OutEdgeVertexIndexB will be an index into Vertices
 	// If both OutEdgeVertexIndexA and OutEdgeVertexIndexB are INDEX_NONE, Position is not on the triangle edges
 	inline bool GetTriangleEdgeVerticesAtPosition(
 		const FVec3& Position, 
-		const FVec3 Vertices[],
+		const FVec3 VertexA, const FVec3 VertexB, const FVec3 VertexC,
 		int32& OutEdgeVertexIndexA, int32& OutEdgeVertexIndexB, 
 		const FReal BaryCentricTolerance = UE_KINDA_SMALL_NUMBER)
 	{
 		OutEdgeVertexIndexA = INDEX_NONE;
 		OutEdgeVertexIndexB = INDEX_NONE;
 
-		const FVec3 BaryCentric = ToBarycentric(Position, Vertices[0], Vertices[1], Vertices[2]);
+		const FVec3 BaryCentric = ToBarycentric(Position, VertexA, VertexB, VertexC);
 
 		// Is it a vertex contact?
 		if (FMath::IsNearlyEqual(BaryCentric.X, FReal(1), BaryCentricTolerance))
@@ -62,6 +62,19 @@ namespace Chaos
 		}
 
 		return false;
+	}
+
+	inline bool GetTriangleEdgeVerticesAtPosition(
+		const FVec3& Position,
+		const FVec3 Vertices[],
+		int32& OutEdgeVertexIndexA, int32& OutEdgeVertexIndexB,
+		const FReal BaryCentricTolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		return GetTriangleEdgeVerticesAtPosition(
+			Position, 
+			Vertices[0], Vertices[1], Vertices[2], 
+			OutEdgeVertexIndexA, OutEdgeVertexIndexB, 
+			BaryCentricTolerance);
 	}
 
 
@@ -156,7 +169,8 @@ namespace Chaos
 		FORCEINLINE FContactEdgeID(const FContactVertexID VertexIndexA, const FContactVertexID VertexIndexB)
 		{
 			// EdgeID is the same if we swap the vertex indices
-			if (VertexIndexA < VertexIndexB)
+			// The check for INDEX_NONE allows us to use an EdgeID as a VertexID without swapping order
+			if ((VertexIndexA < VertexIndexB) || (VertexIndexB == INDEX_NONE))
 			{
 				VertexIDs[0] = VertexIndexA;
 				VertexIDs[1] = VertexIndexB;
@@ -201,30 +215,30 @@ namespace Chaos
 	};
 
 	
-	class UE_DEPRECATED(5.4, "No longer used") FTriangleContactPoint : public FContactPoint
-	{
-	public:
-		FTriangleContactPoint()
-			: FContactPoint()
-			, EdgeID(INDEX_NONE, INDEX_NONE)
-			, VertexID(INDEX_NONE)
-			, ContactTriangleIndex(INDEX_NONE)
-		{
-		}
+	//class UE_DEPRECATED(5.4, "No longer used") FTriangleContactPoint : public FContactPoint
+	//{
+	//public:
+	//	FTriangleContactPoint()
+	//		: FContactPoint()
+	//		, EdgeID(INDEX_NONE, INDEX_NONE)
+	//		, VertexID(INDEX_NONE)
+	//		, ContactTriangleIndex(INDEX_NONE)
+	//	{
+	//	}
 
-		FTriangleContactPoint(const FContactPoint& InContactPoint)
-			: FContactPoint(InContactPoint)
-			, EdgeID(INDEX_NONE, INDEX_NONE)
-			, VertexID(INDEX_NONE)
-			, ContactTriangleIndex(INDEX_NONE)
-		{
-		}
+	//	FTriangleContactPoint(const FContactPoint& InContactPoint)
+	//		: FContactPoint(InContactPoint)
+	//		, EdgeID(INDEX_NONE, INDEX_NONE)
+	//		, VertexID(INDEX_NONE)
+	//		, ContactTriangleIndex(INDEX_NONE)
+	//	{
+	//	}
 
-		FContactEdgeID EdgeID;
-		FContactVertexID VertexID;
+	//	FContactEdgeID EdgeID;
+	//	FContactVertexID VertexID;
 
-		int32 ContactTriangleIndex;
-	};
+	//	int32 ContactTriangleIndex;
+	//};
 
 	/**
 	* An ID for an Edge or Vertex in a triangle mesh.
@@ -322,6 +336,11 @@ namespace Chaos
 		FORCEINLINE void SetEdgeID(const FContactVertexID InVertexIDA, const FContactVertexID InVertexIDB)
 		{
 			EdgeOrVertexID = FContactEdgeOrVertexID(InVertexIDA, InVertexIDB);
+		}
+
+		FORCEINLINE void SetEdgeOrVertexID(const FContactEdgeOrVertexID InEdgeOrVertexID)
+		{
+			EdgeOrVertexID = InEdgeOrVertexID;
 		}
 
 		FORCEINLINE void SetTriangleIndex(const int32 InTriangleIndex)

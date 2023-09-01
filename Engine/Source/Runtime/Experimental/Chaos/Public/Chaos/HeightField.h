@@ -21,6 +21,11 @@ namespace Chaos
 	struct FMTDInfo;
 }
 
+namespace Chaos::Private
+{
+	class FMeshContactGenerator;
+}
+
 namespace Chaos
 {
 	class FHeightField final : public FImplicitObject
@@ -238,6 +243,9 @@ namespace Chaos
 				}
 			}
 		}
+
+		// Internal: do not use - this API will change as we optimize mesh collision
+		void CollectTriangles(const FAABB3& QueryBounds, const FRigidTransform3& QueryTransform, const FAABB3& ObjectBounds, Private::FMeshContactGenerator& Collector) const;
 
 		virtual void VisitOverlappingLeafObjectsImpl(
 			const FAABB3& QueryBounds,
@@ -1077,6 +1085,10 @@ namespace Chaos
 		CHAOS_API bool GetGridIntersections(FBounds2D InFlatBounds, TArray<TVec2<int32>>& OutInterssctions) const;
 		CHAOS_API bool GetGridIntersectionsBatch(FBounds2D InFlatBounds, TArray<TVec2<int32>>& OutIntersections, const FAABBVectorized& Bounds) const;
 		
+		// Get the cell range that overlaps the QueryBounds (local space). NOTE: OutEndCell is like an end iterator (i.e., BeginCell==EndCell is an empty range)
+		// NOTE: This is a 2D overlap, ignoring height
+		CHAOS_API bool GetOverlappingCellRange(const FAABB3& QueryBounds, TVec2<int32>& OutBeginCell, TVec2<int32>& OutEndCell) const;
+
 		CHAOS_API FBounds2D GetFlatBounds() const;
 
 		// Grid for queries, faster than bounding volumes for heightfields

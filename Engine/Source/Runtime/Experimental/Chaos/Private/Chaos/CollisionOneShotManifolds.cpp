@@ -91,6 +91,13 @@ namespace Chaos
 	bool bChaos_Collision_MeshManifoldSortByDistance = false;
 	FAutoConsoleVariableRef CVarChaos_Collision_LargeMeshManifoldSortByDistance(TEXT("p.Chaos.Collision.SortMeshManifoldByDistance"), bChaos_Collision_MeshManifoldSortByDistance, TEXT("Sort large mesh manifold points by |RxN| for improved solver stability (less rotation in first iteration)"));
 
+	int32 Chaos_Collision_MeshManifoldHashSize = 256;
+	FAutoConsoleVariableRef CVarChaos_Collision_MeshManifoldHashSize(TEXT("p.Chaos.Collision.MeshManifoldHashSize"), Chaos_Collision_MeshManifoldHashSize, TEXT("Hash table size to use in vertex and edge maps in convex-mesh collision"));
+
+	// @todo(chaos): Temp while we test the new convex-mesh collision optimizations
+	bool bChaos_Collision_EnableMeshManifoldOptimizedLoop = true;
+	FAutoConsoleVariableRef CVarChaos_Collision_EnableMeshManifoldOptimizedLoop(TEXT("p.Chaos.Collision.EnableMeshManifoldOptimizedLoop"), bChaos_Collision_EnableMeshManifoldOptimizedLoop, TEXT(""));
+
 	// Whether to use the new index-less GJK. 
 	// @todo(chaos): This should be removed once soaked for a bit (enabled 7 June 2022)
 	bool bChaos_Collision_UseGJK2 = false;

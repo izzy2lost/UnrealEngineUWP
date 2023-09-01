@@ -673,7 +673,8 @@ namespace Chaos
 		FORCEINLINE void ResetSolverResults()
 		{
 			// NOTE: does not initalize any data. All properties will be written to in SetSolverResults
-			SavedManifoldPoints.SetNum(ManifoldPoints.Num());
+			//SavedManifoldPoints.SetNum(ManifoldPoints.Num());
+			SavedManifoldPoints.Reset(ManifoldPoints.Num());
 			ManifoldPointResults.SetNum(ManifoldPoints.Num());
 		}
 
@@ -689,7 +690,6 @@ namespace Chaos
 		{
 			FManifoldPoint& ManifoldPoint = ManifoldPoints[ManifoldPointIndex];
 			FManifoldPointResult& ManifoldPointResult = ManifoldPointResults[ManifoldPointIndex];
-			FSavedManifoldPoint& SavedManifoldPoint = SavedManifoldPoints[ManifoldPointIndex];
 
 			ManifoldPointResult.NetPushOut = NetPushOut;
 			ManifoldPointResult.NetImpulse = NetImpulse;
@@ -704,17 +704,26 @@ namespace Chaos
 			if (StaticFrictionRatio >= FReal(1.0f - UE_KINDA_SMALL_NUMBER))
 			{
 				// StaticFrictionRatio ~= 1: Static friction held - we keep the same contacts points as-is for use next frame
+				FSavedManifoldPoint& SavedManifoldPoint = SavedManifoldPoints[SavedManifoldPoints.AddUninitialized()];
 				SavedManifoldPoint.ShapeContactPoints[0] = ManifoldPoint.ShapeAnchorPoints[0];
 				SavedManifoldPoint.ShapeContactPoints[1] = ManifoldPoint.ShapeAnchorPoints[1];
 				ManifoldPointResult.bInsideStaticFrictionCone = true;
 			}
 			else if (StaticFrictionRatio < FReal(UE_KINDA_SMALL_NUMBER))
 			{
-				// StaticFrictionRatio ~= 0: No friction (or no contact) - discard the friction anchors
-				const FVec3 Anchor0 = ManifoldPoint.ContactPoint.ShapeContactPoints[0];
-				const FVec3 Anchor1 = ManifoldPoint.ContactPoint.ShapeContactPoints[1];
-				SavedManifoldPoint.ShapeContactPoints[0] = Anchor0;
-				SavedManifoldPoint.ShapeContactPoints[1] = Anchor1;
+				// StaticFrictionRatio ~= 0: No friction (or no contact/impulse) - discard the friction anchors
+				// If we have a lot of manifold points, we don't store the previous position for these contacts because we assume
+				// that there will be others that actually applied an impulse and will fall into the other two branches.
+				// This is an optimization when we have to match the new contacts with the saved ones (see AssignSavedManifoldPoints)
+				const int32 SmallNumManifoldPoints = 8;
+				if (ManifoldPoints.Num() < SmallNumManifoldPoints)
+				{
+					const FVec3 Anchor0 = ManifoldPoint.ContactPoint.ShapeContactPoints[0];
+					const FVec3 Anchor1 = ManifoldPoint.ContactPoint.ShapeContactPoints[1];
+					FSavedManifoldPoint& SavedManifoldPoint = SavedManifoldPoints[SavedManifoldPoints.AddUninitialized()];
+					SavedManifoldPoint.ShapeContactPoints[0] = Anchor0;
+					SavedManifoldPoint.ShapeContactPoints[1] = Anchor1;
+				}
 			}
 			else
 			{
@@ -722,6 +731,7 @@ namespace Chaos
 				// toward the last-detected contact position so that it sits at the edge of the friction cone.
 				const FVec3 Anchor0 = FVec3::Lerp(ManifoldPoint.ContactPoint.ShapeContactPoints[0], ManifoldPoint.ShapeAnchorPoints[0], StaticFrictionRatio);
 				const FVec3 Anchor1 = FVec3::Lerp(ManifoldPoint.ContactPoint.ShapeContactPoints[1], ManifoldPoint.ShapeAnchorPoints[1], StaticFrictionRatio);
+				FSavedManifoldPoint& SavedManifoldPoint = SavedManifoldPoints[SavedManifoldPoints.AddUninitialized()];
 				SavedManifoldPoint.ShapeContactPoints[0] = Anchor0;
 				SavedManifoldPoint.ShapeContactPoints[1] = Anchor1;
 			}

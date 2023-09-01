@@ -9,7 +9,12 @@
 #include "Chaos/Triangle.h"
 #include "Misc/MemStack.h"
 
-//PRAGMA_DISABLE_OPTIMIZATION
+//UE_DISABLE_OPTIMIZATION
+
+// Method to use when checking edge pairs in convex-triangle SAT
+// 0: Iterate over convex edges, use IsMinkowskiSumConvexTriangle to skip invalid edge pairs
+// 1: Iterate over convex faces, then their edges. This has the advantage we don't need the edge list on FConvex
+#define CHAOS_CONVEX_TRIANGLE_EDGEEDGE_METHOD 0
 
 namespace Chaos
 {
@@ -206,7 +211,8 @@ namespace Chaos
 		//
 		// SAT: Convex edges vs triangle edges
 		//
-		
+
+#if (CHAOS_CONVEX_TRIANGLE_EDGEEDGE_METHOD == 0)
 		// Calculate the distance of triangle each edge to the convex separating plane
 		FReal TriVertexConvexDMin0 = FVec3::DotProduct(Triangle.GetVertex(0) - ConvexPlaneX, ConvexPlaneN);
 		FReal TriVertexConvexDMin1 = FVec3::DotProduct(Triangle.GetVertex(1) - ConvexPlaneX, ConvexPlaneN);
@@ -217,7 +223,7 @@ namespace Chaos
 			FMath::Min(TriVertexConvexDMin0, TriVertexConvexDMin1),
 			FMath::Min(TriVertexConvexDMin1, TriVertexConvexDMin2),
 		};
-
+		
 		FVec3 EdgeEdgeN = FVec3(0);
 		FReal EdgeEdgeDMin = InvalidPhi;
 		int32 ConvexEdgeIndexMin = INDEX_NONE;
@@ -302,10 +308,107 @@ namespace Chaos
 				}
 			}
 		}
+#elif (CHAOS_CONVEX_TRIANGLE_EDGEEDGE_METHOD == 1)
+		// Loop over all the convex planes and then its edges, and check the separating axis defined by the convex edge and each tri edge
+		// NOTE: This performs duplicate work as each edge is shared with 2 convex faces, but we also reject half the planes (for most
+		// convexes, although it depends) so it ends up faster than using IsMinkowskiSumConvexTriangle on all the edge pairs
+		FVec3 EdgeEdgeN = FVec3(0);
+		FReal EdgeEdgeDMin = InvalidPhi;
+		int32 ConvexEdgeIndexMin = INDEX_NONE;
+		int32 TriEdgeIndexMin = INDEX_NONE;
+		for (int32 PlaneIndex = 0; PlaneIndex < Convex.NumPlanes(); ++PlaneIndex)
+		{
+			FVec3 ConN, ConX;
+			Convex.GetPlaneNX(PlaneIndex, ConN, ConX);
+
+			// Ignore faces with normals in same direction as triangle
+			const FReal NormalDot = FVec3::DotProduct(ConN, TriN);
+			if (NormalDot > 0)
+			{
+				continue;
+			}
+
+			// Check all the edges on this face
+			const int32 NumPlaneVerts = Convex.NumPlaneVertices(PlaneIndex);
+			int32 ConvexEdgeVertexIndex = Convex.GetPlaneVertex(PlaneIndex, NumPlaneVerts - 1);
+			FVec3 ConvexEdgeV0 = Convex.GetVertex(ConvexEdgeVertexIndex);
+			for (int32 PlaneVertexIndex = 0; PlaneVertexIndex < NumPlaneVerts; ++PlaneVertexIndex)
+			{
+				ConvexEdgeVertexIndex = Convex.GetPlaneVertex(PlaneIndex, PlaneVertexIndex);
+				const FVec3 ConvexEdgeV1 = Convex.GetVertex(ConvexEdgeVertexIndex);
+
+				FVec3 TriEdgeV0 = Triangle.GetVertex(2);
+				for (int32 TriVertexIndex = 0; TriVertexIndex < 3; ++TriVertexIndex)
+				{
+					const FVec3 TriEdgeV1 = Triangle.GetVertex(TriVertexIndex);
+
+					FVec3 EdgeN = FVec3::CrossProduct(ConvexEdgeV1 - ConvexEdgeV0, TriEdgeV1 - TriEdgeV0);
+
+					// Ignore parallel edge pairs
+					const FReal EdgeNLenSq = EdgeN.SizeSquared();
+					if (EdgeNLenSq < NormalToleranceSq)
+					{
+						continue;
+					}
+
+					// Project the convex and triangle onto the edge axis
+					// NOTE: EdgeN is not normalized yet, so these projections will be scaled by EdgeN.Size()
+					FReal ThisConvexEdgeDMin, ThisConvexEdgeDMax, ThisTriEdgeDMin, ThisTriEdgeDMax;;
+					int32 ThisConvexEdgeIndexMin, ThisConvexEdgeIndexMax, ThisTriEdgeIndexMin, ThisTriEdgeIndexMax;
+					ProjectOntoAxis(Convex, EdgeN, ConvexEdgeV0, ThisConvexEdgeDMin, ThisConvexEdgeDMax, ThisConvexEdgeIndexMin, ThisConvexEdgeIndexMax, nullptr);
+					ProjectOntoAxis(Triangle, EdgeN, ConvexEdgeV0, ThisTriEdgeDMin, ThisTriEdgeDMax, ThisTriEdgeIndexMin, ThisTriEdgeIndexMax);
+
+					// Separation will be the larger of these
+					// NOTE: these separations are scaled by EdgeN.Size()
+					const FReal ScaledPhi0 = ThisConvexEdgeDMin - ThisTriEdgeDMax;
+					const FReal ScaledPhi1 = ThisTriEdgeDMin - ThisConvexEdgeDMax;
+
+					// Ignore separations greater than cull distance (taking the non-noemlized edge axis into account)
+					const FReal ScaledCullDistanceSq = FMath::Square(CullDistance) * EdgeNLenSq;
+					if (FMath::Square(ScaledPhi0) > ScaledCullDistanceSq)
+					{
+						continue;
+					}
+					if (FMath::Square(ScaledPhi1) > ScaledCullDistanceSq)
+					{
+						continue;
+					}
+
+					// Normalize the edge axis
+					const FReal InvEdgeNLen = FMath::InvSqrt(EdgeNLenSq);
+					const FReal Phi0 = ScaledPhi0 * InvEdgeNLen;
+					const FReal Phi1 = ScaledPhi1 * InvEdgeNLen;
+					EdgeN = EdgeN * InvEdgeNLen;
+
+					// See if we have a new shallowest overlap
+					if ((Phi0 >= Phi1) && (Phi0 > EdgeEdgeDMin))
+					{
+						EdgeEdgeN = EdgeN;
+						EdgeEdgeDMin = Phi0;
+						ConvexEdgeIndexMin = ThisConvexEdgeIndexMin;
+						TriEdgeIndexMin = ThisTriEdgeIndexMax;
+					}
+					else if (Phi1 > EdgeEdgeDMin)
+					{
+						EdgeEdgeN = EdgeN;
+						EdgeEdgeDMin = Phi1;
+						ConvexEdgeIndexMin = ThisConvexEdgeIndexMax;
+						TriEdgeIndexMin = ThisTriEdgeIndexMin;
+					}
+
+					TriEdgeV0 = TriEdgeV1;
+				}
+
+				ConvexEdgeV0 = ConvexEdgeV1;
+			}
+		}
+#else
+		#error Invalid CHAOS_CONVEX_TRIANGLE_EDGEEDGE_METHOD
+#endif
 
 		// Determine which of the features we want to use
 		// NOTE: we rely on the fact that all valid Phi values are greater than InvalidPhi here
-		const FReal TriFaceBias = FReal(1.e-2);	// Prevent flip=flip on near parallel cases
+		const FReal TriFaceBias = FReal(1.e-2);	// Prevent flip-flop on near-parallel cases
 		EContactPointType ContactType = EContactPointType::Unknown;
 		if ((TriPlaneDMin != InvalidPhi) && (TriPlaneDMin + TriFaceBias > ConvexPlaneDMin) && (TriPlaneDMin + TriFaceBias > EdgeEdgeDMin))
 		{
