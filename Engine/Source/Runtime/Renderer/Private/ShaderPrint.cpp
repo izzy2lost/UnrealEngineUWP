@@ -303,6 +303,60 @@ namespace ShaderPrint
 	}
 
 	//////////////////////////////////////////////////////////////////////////////////////////////////
+	// Common Shaders
+
+	// Upload ShaderPrint parmeters into diagnostic buffer
+	class FShaderPrintUploadCS: public FGlobalShader
+	{
+	public:
+		DECLARE_GLOBAL_SHADER(FShaderPrintUploadCS);
+		SHADER_USE_PARAMETER_STRUCT(FShaderPrintUploadCS, FGlobalShader);
+
+		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+			SHADER_PARAMETER_STRUCT_REF(FShaderPrintCommonParameters, Common)
+		END_SHADER_PARAMETER_STRUCT()
+
+
+		static bool ShouldCompilePermutation(FGlobalShaderPermutationParameters const& Parameters)
+		{
+			return IsSupported(Parameters.Platform);
+		}
+		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+		{
+			FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+			OutEnvironment.SetDefine(TEXT("SHADER_UPLOAD"), 1);
+		}
+	};
+
+	IMPLEMENT_GLOBAL_SHADER(FShaderPrintUploadCS, "/Engine/Private/ShaderPrintDraw.usf", "UploadCS", SF_Compute);
+
+	
+	// Upload ShaderPrint parmeters into diagnostic buffer
+	class FShaderPrintCopyCS: public FGlobalShader
+	{
+	public:
+		DECLARE_GLOBAL_SHADER(FShaderPrintCopyCS);
+		SHADER_USE_PARAMETER_STRUCT(FShaderPrintCopyCS, FGlobalShader);
+
+		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+			SHADER_PARAMETER_STRUCT_REF(FShaderPrintCommonParameters, Common)
+			SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWValuesBuffer)
+		END_SHADER_PARAMETER_STRUCT()
+
+		static bool ShouldCompilePermutation(FGlobalShaderPermutationParameters const& Parameters)
+		{
+			return IsSupported(Parameters.Platform);
+		}
+		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+		{
+			FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+			OutEnvironment.SetDefine(TEXT("SHADER_COPY"), 1);
+		}
+	};
+
+	IMPLEMENT_GLOBAL_SHADER(FShaderPrintCopyCS, "/Engine/Private/ShaderPrintDraw.usf", "CopyCS", SF_Compute);
+
+	//////////////////////////////////////////////////////////////////////////////////////////////////
 	// Widget/Characters Shaders
 	 
 	// Shader to initialize the output value buffer
@@ -586,6 +640,11 @@ namespace ShaderPrint
 		{
 			return IsSupported(Parameters.Platform);
 		}
+		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+		{
+			FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+			OutEnvironment.SetDefine(TEXT("SHADER_ZOOM"), 1);
+		}
 	};
 
 	IMPLEMENT_GLOBAL_SHADER(FShaderZoomCS, "/Engine/Private/ShaderPrintDraw.usf", "DrawZoomCS", SF_Compute);
@@ -626,6 +685,16 @@ namespace ShaderPrint
 		bIsDrawLocked = View.State ? ((const FSceneViewState*)View.State)->ShaderPrintStateData.bIsLocked : false;
 	}
 
+	static uint32 GetRequestedEntryBufferSizeInUint(const FShaderPrintSetup& In)
+	{
+		const uint32 UintElementCount = 
+			GetCountersUintSize() + 
+			GetPackedSymbolUintSize() * In.MaxValueCount +
+			GetPackedLineUintSize() * In.MaxLineCount + 
+			GetPackedTriangleUintSize() * In.MaxTriangleCount;
+		return UintElementCount;
+	}
+
 	FShaderPrintData CreateShaderPrintData(FRDGBuilder& GraphBuilder, FShaderPrintSetup const& InSetup, FSceneViewState* InViewState)
 	{
 		FShaderPrintData ShaderPrintData;
@@ -649,11 +718,7 @@ namespace ShaderPrint
 			const bool bLockBufferThisFrame = IsDrawLocked() && InViewState != nullptr && !InViewState->ShaderPrintStateData.bIsLocked;
 			ERDGBufferFlags Flags = bLockBufferThisFrame ? ERDGBufferFlags::MultiFrame : ERDGBufferFlags::None;
 
-			const uint32 UintElementCount = 
-				GetCountersUintSize() + 
-				GetPackedSymbolUintSize() * InSetup.MaxValueCount +
-				GetPackedLineUintSize() * InSetup.MaxLineCount + 
-				GetPackedTriangleUintSize() * InSetup.MaxTriangleCount;
+			const uint32 UintElementCount = GetRequestedEntryBufferSizeInUint(InSetup);
 			ShaderPrintData.ShaderPrintEntryBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(4, UintElementCount), TEXT("ShaderPrint.EntryBuffer"), Flags);
 
 			// State buffer is retrieved from the view state, or created if it does not exist
@@ -748,6 +813,33 @@ namespace ShaderPrint
 	//////////////////////////////////////////////////////////////////////////////////////////////////
 	// Drawing/Rendering API
 
+	static void InternalUploadParameters(FRDGBuilder& GraphBuilder, const FShaderPrintData& ShaderPrintData)
+	{
+		FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
+		TShaderMapRef<FShaderPrintUploadCS> ComputeShader(GlobalShaderMap);
+		FShaderPrintUploadCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShaderPrintUploadCS::FParameters>();
+		PassParameters->Common = ShaderPrintData.UniformBuffer;
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("ShaderPrint::UploadParameters"),
+			ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
+			ComputeShader, PassParameters, FIntVector(1,1,1));
+	}
+
+	static void InternalCopyParameters(FRDGBuilder& GraphBuilder, const FShaderPrintData& ShaderPrintData)
+	{
+		FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
+		TShaderMapRef<FShaderPrintCopyCS> ComputeShader(GlobalShaderMap);
+		FShaderPrintCopyCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShaderPrintCopyCS::FParameters>();
+		PassParameters->Common = ShaderPrintData.UniformBuffer;
+		PassParameters->RWValuesBuffer = GraphBuilder.CreateUAV(ShaderPrintData.ShaderPrintEntryBuffer);;
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("ShaderPrint::CopyParameters"),
+			ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
+			ComputeShader, PassParameters, FIntVector(1,1,1));
+	}
+
 	void BeginView(FRDGBuilder& GraphBuilder, FViewInfo& View)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(ShaderPrint::BeginView);
@@ -761,6 +853,9 @@ namespace ShaderPrint
 		// Create the render data and store on the view.
 		FShaderPrintSetup ShaderPrintSetup(View);
 		View.ShaderPrintData = CreateShaderPrintData(GraphBuilder, ShaderPrintSetup, View.ViewState);
+
+		// Upload/Copy ShaderPrint parameters into UEDiagnostic buffer
+		InternalUploadParameters(GraphBuilder, View.ShaderPrintData);
 	}
 
 	void BeginViews(FRDGBuilder& GraphBuilder, TArrayView<FViewInfo> Views)
@@ -1058,6 +1153,11 @@ namespace ShaderPrint
 		const FIntRect SourceViewRect = View.ViewRect;
 		const FIntRect OutputViewRect = OutputTexture.ViewRect;
 		const FVector PreViewTranslation = View.ViewMatrices.GetPreViewTranslation() - ShaderPrintData.Setup.PreViewTranslation;
+
+		// Copy/merge data (when using UEDiagnostic buffer as storage)
+		{
+			InternalCopyParameters(GraphBuilder, View.ShaderPrintData);
+		}
 
 		// Lines
 		{
