@@ -107,6 +107,7 @@ public:
 	const FResponse&		GetResponse() const;
 	bool					Connect(const TCHAR* Host, uint16 Port);
 	bool					GetStatus();
+	bool					GetVersion();
 	bool					GetTraceCount();
 	bool					GetTraceInfo(uint32 Index);
 	bool					GetTraceInfoById(uint32 Id);
@@ -280,6 +281,14 @@ bool FStoreCborClient::GetStatus()
 	return Communicate(Payload);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+bool FStoreCborClient::GetVersion()
+{
+	TPayloadBuilder<32> Builder("v1/version");
+	FPayload Payload = Builder.Done();
+	return Communicate(Payload);
+}
+	
 ////////////////////////////////////////////////////////////////////////////////
 bool FStoreCborClient::GetTraceCount()
 {
@@ -455,6 +464,26 @@ void FStoreClient::FStatus::GetWatchDirectories(TArray<FString>& OutDirs) const
 	Response->GetStringArray("watch_dirs", OutDirs);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+uint32 FStoreClient::FVersion::GetMajorVersion() const
+{
+	const auto* Response = (const FResponse*)this;
+	return Response->GetInteger("major", 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint32 FStoreClient::FVersion::GetMinorVersion() const
+{
+	const auto* Response = (const FResponse*)this;
+	return Response->GetInteger("minor", 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+FUtf8StringView FStoreClient::FVersion::GetConfiguration() const
+{
+	const auto* Response = (const FResponse*)this;
+	return Response->GetString("configuration", "unknown");
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 uint32 FStoreClient::FTraceInfo::GetId() const
@@ -584,6 +613,20 @@ const FStoreClient::FStatus* FStoreClient::GetStatus()
 
 	const FResponse& Response = Self->GetResponse();
 	return (FStatus*)(&Response);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const FStoreClient::FVersion* FStoreClient::GetVersion()
+{
+	
+	auto* Self = (FStoreCborClient*)this;
+	if (!Self->GetVersion())
+	{
+		return nullptr;
+	}
+
+	const FResponse& Response = Self->GetResponse();
+	return (FVersion*)(&Response);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

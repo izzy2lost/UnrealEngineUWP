@@ -156,6 +156,27 @@ void FStoreBrowser::UpdateTraces()
 		{
 			FScopeLock Lock(&TracesCriticalSection);
 			Host = FInsightsManager::Get()->GetLastStoreHost();
+
+			// Get the server version
+			{
+				FScopeLock StoreClientLock(&GetStoreClientCriticalSection());
+				const auto VersionResult = StoreClient->GetVersion();
+
+				if (VersionResult)
+				{
+					TStringBuilder<128> VersionString;
+					VersionString << VersionResult->GetMajorVersion() << TEXT(".") << VersionResult->GetMinorVersion();
+					if (!VersionResult->GetConfiguration().Equals("Release"))
+					{
+						VersionString << TEXT(" (") << VersionResult->GetConfiguration() << TEXT(")");
+					}
+					Version = VersionString.ToString();
+				}
+				else
+				{
+					Version = TEXT("Unknown");
+				}
+			}
 		}
 	}
 

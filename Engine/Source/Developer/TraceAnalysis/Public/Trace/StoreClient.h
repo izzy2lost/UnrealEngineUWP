@@ -26,6 +26,13 @@ public:
 		void			GetWatchDirectories(TArray<FString>& OutDirs) const;
 	};
 
+	struct TRACEANALYSIS_API FVersion
+	{
+		uint32			GetMajorVersion() const;
+		uint32			GetMinorVersion() const;
+		FUtf8StringView GetConfiguration() const;
+	};
+
 	struct TRACEANALYSIS_API FTraceInfo
 	{
 		FUtf8StringView	GetName() const;
@@ -51,6 +58,7 @@ public:
 	uint32				GetStoreAddress() const;
 	uint32				GetStorePort() const;
 	const FStatus*		GetStatus();
+	const FVersion*		GetVersion();
 	uint32				GetTraceCount();
 	const FTraceInfo*	GetTraceInfo(uint32 Index);
 	const FTraceInfo*	GetTraceInfoById(uint32 Id);

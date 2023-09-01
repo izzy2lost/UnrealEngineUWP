@@ -1897,16 +1897,17 @@ FText STraceStoreWindow::GetConnectionStatusTooltip() const
 {
 	using Insights::FStoreBrowser;
 
-	static FText Connected    = LOCTEXT("Connected",    "Connected to the trace server.");
+	static FText Connected    = LOCTEXT("Connected",    "Connected to the trace server.\nServer version: {0}");
 	static FText NotConnected = LOCTEXT("NoConnection", "Unable to connect to trace server.");
 	static FText Connecting   = LOCTEXT("Connecting",   "Trying to connect to trace server.");
 	static FText Disconnected = LOCTEXT("Disconnected", "Connection to trace server has been lost. Attempting to reconnect in {0} seconds.");
 
 	const FStoreBrowser::EConnectionStatus Status = StoreBrowser->GetConnectionStatus();
+	const FString& Version = StoreBrowser->GetVersion();
 	switch (Status)
 	{
 		case FStoreBrowser::EConnectionStatus::Connected:
-			return Connected;
+			return FText::Format(Connected, FText::FromString(Version));
 
 		case FStoreBrowser::EConnectionStatus::NoConnection:
 			return NotConnected;

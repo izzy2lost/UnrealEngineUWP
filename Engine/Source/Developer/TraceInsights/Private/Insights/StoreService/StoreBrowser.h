@@ -106,6 +106,7 @@ public:
 	const TArray<FString>& GetLockedWatchDirectories() const { check(bTracesLocked); return WatchDirectories; }
 	const FString& GetLockedStoreDirectory() const { check(bTracesLocked); return StoreDirectory; }
 	const FString& GetLockedHost() const { check(bTracesLocked); return Host; }
+	const FString& GetVersion() const { return Version; }
 	void Unlock() { check(bTracesLocked); bTracesLocked = false; TracesCriticalSection.Unlock(); }
 	void Refresh();
 
@@ -137,6 +138,7 @@ private:
 	TArray<FString> WatchDirectories;
 	FString StoreDirectory;
 	FString Host;
+	FString Version;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
