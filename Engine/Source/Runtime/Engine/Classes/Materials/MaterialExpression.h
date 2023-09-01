@@ -20,8 +20,8 @@ class UTexture;
 struct FPropertyChangedEvent;
 struct FMaterialParameterMetadata;
 struct FMaterialShadingModelField;
-struct FStrataMaterialInfo;
-struct FStrataOperator;
+struct FSubstrateMaterialInfo;
+struct FSubstrateOperator;
 
 class UMaterialExpression;
 class UMaterialExpressionComment;
@@ -444,21 +444,21 @@ class UMaterialExpression : public UObject
 	virtual bool IsResultMaterialAttributes(int32 OutputIndex) { return false; }
 
 	/**
-	 * Marks certain expression types as outputting Strata material. Allows the material functions to directly return a Strata material as output pin.
+	 * Marks certain expression types as outputting Substrate material. Allows the material functions to directly return a Substrate material as output pin.
 	 */
-	virtual bool IsResultStrataMaterial(int32 OutputIndex) { return false; }
+	virtual bool IsResultSubstrateMaterial(int32 OutputIndex) { return false; }
 
 	/**
-	 * Recursively parse nodes outputing strata material in order to gather all the possible shading models used in a material graph output a Strata material.
+	 * Recursively parse nodes outputing Substrate material in order to gather all the possible shading models used in a material graph output a Substrate material.
 	 */
-	virtual void GatherStrataMaterialInfo(FStrataMaterialInfo& StrataMaterialInfo, int32 OutputIndex) { }
+	virtual void GatherSubstrateMaterialInfo(FSubstrateMaterialInfo& SubstrateMaterialInfo, int32 OutputIndex) { }
 
 	/**
 	 * A starta material is a tree with FrontMateiral being its root and BSDF being leaves, with operators in the middle.
-	 * This recursively parse nodes outputing strata material in order to gather the maximum distance to any leaves. 
+	 * This recursively parse nodes outputing Substrate material in order to gather the maximum distance to any leaves. 
 	 * This is used to drive the bottom up order processing of those nodes.
 	 */
-	ENGINE_API virtual FStrataOperator* StrataGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex);
+	ENGINE_API virtual FSubstrateOperator* SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex);
 
 	/**
 	 * If true, discards the output index when caching this expression which allows more cases to re-use the output instead of adding a separate instruction

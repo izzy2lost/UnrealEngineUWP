@@ -233,13 +233,13 @@ void URendererSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 			}
 		}
 
-		if (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(URendererSettings, StrataDebugAdvancedVisualizationShaders)
-			&& StrataDebugAdvancedVisualizationShaders)
+		if (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(URendererSettings, SubstrateDebugAdvancedVisualizationShaders)
+			&& SubstrateDebugAdvancedVisualizationShaders)
 		{
 			if (FMessageDialog::Open(EAppMsgType::YesNo, LOCTEXT("Substrate advanced visualization shaders", "This will make the rendering slower and allocate more memory.\nPlease do not check-in.\nInstead you could add `r.Substrate.Debug.AdvancedVisualizationShaders=1` to your ConsoleVariables.ini.\nAre you sure you want to enable that feature now?")) == EAppReturnType::No)
 			{
-				StrataDebugAdvancedVisualizationShaders = false;
-				UpdateDependentPropertyInConfigFile(this, GET_MEMBER_NAME_CHECKED(URendererSettings, StrataDebugAdvancedVisualizationShaders));
+				SubstrateDebugAdvancedVisualizationShaders = false;
+				UpdateDependentPropertyInConfigFile(this, GET_MEMBER_NAME_CHECKED(URendererSettings, SubstrateDebugAdvancedVisualizationShaders));
 			}
 		}
 
@@ -269,9 +269,9 @@ void URendererSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 			}
 		}
 
-		if ((PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(URendererSettings, bEnableStrata)))
+		if ((PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(URendererSettings, bEnableSubstrate)))
 		{
-			if (bEnableStrata)
+			if (bEnableSubstrate)
 			{
 				FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("Substrate Experimental", "Warning: Substrate is experimental. Be aware that any materials saved when Substrate is enabled won't be rendered correctly if Substrate is disabled later on."));
 			}

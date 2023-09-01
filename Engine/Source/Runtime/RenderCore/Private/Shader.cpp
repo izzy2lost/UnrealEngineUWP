@@ -467,7 +467,7 @@ void FShaderType::ModifyCompilationEnvironment(const FShaderPermutationParameter
 			// If any payload requires a fully simplified material, we force fully simplified material all the way.
 			// That is used to have material ray tracing shaders compressed to single slab.
 			// Smaller payload means faster performance and for some tracing this will be enough, e.g. reflected materials, lightmass diffuse interactions.
-			OutEnvironment.SetDefine(TEXT("STRATA_USE_FULLYSIMPLIFIED_MATERIAL"), 1);
+			OutEnvironment.SetDefine(TEXT("SUBSTRATE_USE_FULLYSIMPLIFIED_MATERIAL"), 1);
 		}
 	}
 #endif
@@ -1979,55 +1979,55 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		}
 	}
 
-	if (Strata::IsStrataEnabled())
+	if (Substrate::IsSubstrateEnabled())
 	{
 		{
-			KeyString += TEXT("_STRATA");
+			KeyString += TEXT("_SUBSTRATE");
 		}
 
 		{
-			KeyString += FString::Printf(TEXT("_BUDGET%u"), Strata::GetBytePerPixel(Platform));
+			KeyString += FString::Printf(TEXT("_BUDGET%u"), Substrate::GetBytePerPixel(Platform));
 		}
 
-		if (Strata::IsDBufferPassEnabled(Platform))
+		if (Substrate::IsDBufferPassEnabled(Platform))
 		{
 			KeyString += FString::Printf(TEXT("_DBUFFERPASS"));
 		}
 
-		if (Strata::IsBackCompatibilityEnabled())
+		if (Substrate::IsBackCompatibilityEnabled())
 		{
 			KeyString += FString::Printf(TEXT("_BACKCOMPAT"));
 		}
 
-		if (Strata::IsOpaqueRoughRefractionEnabled())
+		if (Substrate::IsOpaqueRoughRefractionEnabled())
 		{
 			KeyString += FString::Printf(TEXT("_ROUGHDIFF"));
 		}
 
-		if (Strata::GetNormalQuality() > 0)
+		if (Substrate::GetNormalQuality() > 0)
 		{
 			KeyString += FString::Printf(TEXT("_STRTNRMQ"));
 		}
 
-		if (Strata::IsAdvancedVisualizationEnabled())
+		if (Substrate::IsAdvancedVisualizationEnabled())
 		{
 			KeyString += FString::Printf(TEXT("_ADVDEBUG"));
 		}
 
 		{
-			KeyString += FString::Printf(TEXT("_STSHQL%u"), Strata::GetShadingQuality(Platform));
+			KeyString += FString::Printf(TEXT("_STSHQL%u"), Substrate::GetShadingQuality(Platform));
 		}
 
 		{
-			KeyString += FString::Printf(TEXT("_SSHEEN%u"), Strata::GetSheenQuality());
+			KeyString += FString::Printf(TEXT("_SSHEEN%u"), Substrate::GetSheenQuality());
 		}
 
-		if (Strata::IsGlintEnabled())
+		if (Substrate::IsGlintEnabled())
 		{
 			KeyString += FString::Printf(TEXT("_STRTGLT"));
 		}
 
-		if (Strata::IsSpecularProfileEnabled())
+		if (Substrate::IsSpecularProfileEnabled())
 		{
 			KeyString += FString::Printf(TEXT("_STRTSP"));
 		}

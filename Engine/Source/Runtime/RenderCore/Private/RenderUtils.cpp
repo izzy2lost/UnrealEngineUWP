@@ -1128,15 +1128,15 @@ RENDERCORE_API FBufferRHIRef& GetUnitCubeAABBVertexBuffer()
 
 RENDERCORE_API void QuantizeSceneBufferSize(const FIntPoint& InBufferSize, FIntPoint& OutBufferSize)
 {
-	// Ensure sizes are dividable by STRATA_TILE_SIZE (==8) 2d tiles to make it more convenient.
-	const uint32 StrataDividableBy = 8;
-	static_assert(StrataDividableBy % 8 == 0, "A lot of graphic algorithms where previously assuming DividableBy >= 4");
+	// Ensure sizes are dividable by SUBSTRATE_TILE_SIZE (==8) 2d tiles to make it more convenient.
+	const uint32 SubstrateDividableBy = 8;
+	static_assert(SubstrateDividableBy % 8 == 0, "A lot of graphic algorithms where previously assuming DividableBy >= 4");
 
 	// Ensure sizes are dividable by the ideal group size for 2d tiles to make it more convenient.
 	const uint32 LegacyDividableBy = 4;
 	static_assert(LegacyDividableBy % 4 == 0, "A lot of graphic algorithms where previously assuming DividableBy == 4");
 
-	const uint32 DividableBy = Strata::IsStrataEnabled() ? StrataDividableBy : LegacyDividableBy;
+	const uint32 DividableBy = Substrate::IsSubstrateEnabled() ? SubstrateDividableBy : LegacyDividableBy;
 
 	const uint32 Mask = ~(DividableBy - 1);
 	OutBufferSize.X = (InBufferSize.X + DividableBy - 1) & Mask;
@@ -1584,7 +1584,7 @@ bool IsStaticLightingAllowed()
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// Strata settings interface
+// Substrate settings interface
 
 static TAutoConsoleVariable<int32> CVarSubstrate(
 	TEXT("r.Substrate"),
@@ -1644,7 +1644,7 @@ static TAutoConsoleVariable<int32> CVarSubstrateRoughDiffuse(
 static TAutoConsoleVariable<int32> CVarSubstrateGlints(
 	TEXT("r.Substrate.Glints"),
 	1,
-	TEXT("Enable Glint support for Strata slabs. If changed, shaders needs to be recompiled."),
+	TEXT("Enable Glint support for Substrate slabs. If changed, shaders needs to be recompiled."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarSubstrateGlintsLUT(
@@ -1668,7 +1668,7 @@ static TAutoConsoleVariable<float> CVarSubstrateGlintsLevelMin(
 static TAutoConsoleVariable<int32> CVarSubstrateSpecularProfile(
 	TEXT("r.Substrate.SpecularProfile"),
 	1,
-	TEXT("Enable Specular Profile support for Strata slabs. If changed, shaders needs to be recompiled."),
+	TEXT("Enable Specular Profile support for Substrate slabs. If changed, shaders needs to be recompiled."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarSubstrateDebugAdvancedVisualizationShaders(
@@ -1683,9 +1683,9 @@ static TAutoConsoleVariable<int32> CVarSubstrateTileCoord8Bits(
 	TEXT("Format of tile coord. This variable is read-only."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
-namespace Strata
+namespace Substrate
 {
-	bool IsStrataEnabled()
+	bool IsSubstrateEnabled()
 	{
 		return CVarSubstrate.GetValueOnAnyThread() > 0;
 	}
@@ -1698,14 +1698,14 @@ namespace Strata
 			return  FMath::DivideAndRoundUp<uint32>(Value, Divisor) * Divisor;
 		};
 
-		// We enforce at least 20 bytes per pixel because this is the minimal Strata GBuffer footprint of the simplest material.
-		const uint32 MinStrataBytePerPixel = 20u;
-		const uint32 MaxStrataBytePerPixel = /*IsMobilePlatform(GMaxRHI InPlatform) ? 24u : */256u; // STRATA_TODO
+		// We enforce at least 20 bytes per pixel because this is the minimal Substrate GBuffer footprint of the simplest material.
+		const uint32 MinSubstrateBytePerPixel = 20u;
+		const uint32 MaxSubstrateBytePerPixel = /*IsMobilePlatform(GMaxRHI InPlatform) ? 24u : */256u; // SUBSTRATE_TODO
 		// Align byte per pixel count to 4 because the read/write unit is uint32
-		check(MinStrataBytePerPixel == RoundUpValueToUInt(MinStrataBytePerPixel));
-		check(MaxStrataBytePerPixel == RoundUpValueToUInt(MaxStrataBytePerPixel));
+		check(MinSubstrateBytePerPixel == RoundUpValueToUInt(MinSubstrateBytePerPixel));
+		check(MaxSubstrateBytePerPixel == RoundUpValueToUInt(MaxSubstrateBytePerPixel));
 		InBytePerPixel = RoundUpValueToUInt(InBytePerPixel);
-		return FMath::Clamp(InBytePerPixel, MinStrataBytePerPixel, MaxStrataBytePerPixel);
+		return FMath::Clamp(InBytePerPixel, MinSubstrateBytePerPixel, MaxSubstrateBytePerPixel);
 	}
 
 	uint32 GetBytePerPixel()
@@ -1728,16 +1728,16 @@ namespace Strata
 
 	uint32 GetRayTracingMaterialPayloadSizeInBytes(bool bFullySimplifiedMaterial)
 	{
-		// The payload size represents FPackedMaterialClosestHitPayload containing FStrataRaytracingPayload composed of 
-		//  (1)- top layer data using a count of STRATA_TOP_LAYER_TYPE uints
-		//  (2)- packed data in a uint32 array of size STRATA_RT_PAYLOAD_NUM_UINTS
+		// The payload size represents FPackedMaterialClosestHitPayload containing FSubstrateRaytracingPayload composed of 
+		//  (1)- top layer data using a count of SUBSTRATE_TOP_LAYER_TYPE uints
+		//  (2)- packed data in a uint32 array of size SUBSTRATE_RT_PAYLOAD_NUM_UINTS
 
 		uint32 PayloadSizeBytes = 0;
 
 		// Account for (1)
-		const uint32 StrataNormalQuality = Strata::GetNormalQuality();
-		check(StrataNormalQuality >= 0 && StrataNormalQuality <= 1);
-		switch (StrataNormalQuality)
+		const uint32 SubstrateNormalQuality = Substrate::GetNormalQuality();
+		check(SubstrateNormalQuality >= 0 && SubstrateNormalQuality <= 1);
+		switch (SubstrateNormalQuality)
 		{
 		case 0:
 			PayloadSizeBytes += 1 * sizeof(uint32);
@@ -1750,11 +1750,11 @@ namespace Strata
 		// Account for (2)
 		if (bFullySimplifiedMaterial)
 		{
-			PayloadSizeBytes += STRATA_FULLY_SIMPLIFIED_NUM_UINTS * sizeof(uint32);
+			PayloadSizeBytes += SUBSTRATE_FULLY_SIMPLIFIED_NUM_UINTS * sizeof(uint32);
 		}
 		else
 		{
-			PayloadSizeBytes += Strata::GetBytePerPixel();
+			PayloadSizeBytes += Substrate::GetBytePerPixel();
 		}
 
 		return PayloadSizeBytes;
@@ -1772,7 +1772,7 @@ namespace Strata
 
 	bool IsGlintEnabled()
 	{
-		return IsStrataEnabled() && CVarSubstrateGlints.GetValueOnAnyThread() > 0;
+		return IsSubstrateEnabled() && CVarSubstrateGlints.GetValueOnAnyThread() > 0;
 	}
 
 	uint32 GlintLUTIndex()
@@ -1793,7 +1793,7 @@ namespace Strata
 
 	bool IsSpecularProfileEnabled()
 	{
-		return IsStrataEnabled() && CVarSubstrateSpecularProfile.GetValueOnAnyThread() > 0;
+		return IsSubstrateEnabled() && CVarSubstrateSpecularProfile.GetValueOnAnyThread() > 0;
 	}
 
 	bool Is8bitTileCoordEnabled()
@@ -1827,12 +1827,12 @@ namespace Strata
 		const bool bDBufferPassSupported = NormalQuality == 0 || (NormalQuality > 0 && IsConsolePlatform(InPlatform));
 		
 		static FShaderPlatformCachedIniValue<int32> CVarSubstrateDBufferPassPlatform(TEXT("r.Substrate.DBufferPass"));
-		return IsStrataEnabled() && IsUsingDBuffers(InPlatform) && bDBufferPassSupported && CVarSubstrateDBufferPassPlatform.Get(InPlatform) > 0;
+		return IsSubstrateEnabled() && IsUsingDBuffers(InPlatform) && bDBufferPassSupported && CVarSubstrateDBufferPassPlatform.Get(InPlatform) > 0;
 	}
 
 	bool IsOpaqueRoughRefractionEnabled()
 	{
-		return IsStrataEnabled() && CVarSubstrateOpaqueMaterialRoughRefraction.GetValueOnAnyThread() > 0;
+		return IsSubstrateEnabled() && CVarSubstrateOpaqueMaterialRoughRefraction.GetValueOnAnyThread() > 0;
 	}
 
 	bool IsAdvancedVisualizationEnabled()

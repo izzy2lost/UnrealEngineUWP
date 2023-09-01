@@ -5,20 +5,20 @@
 =============================================================================*/
  
 #define SUPPORT_CONTACT_SHADOWS 1
-#define STRATA_SSS_TRANSMISSION USE_TRANSMISSION
+#define SUBSTRATE_SSS_TRANSMISSION USE_TRANSMISSION
 
-#if STRATA_ENABLED 
-  #if STRATA_TILETYPE == 0
-	#define STRATA_FASTPATH 1
-  #elif STRATA_TILETYPE == 1
-	#define STRATA_SINGLEPATH 1
-  #elif STRATA_TILETYPE == 2
+#if SUBSTRATE_ENABLED 
+  #if SUBSTRATE_TILETYPE == 0
+	#define SUBSTRATE_FASTPATH 1
+  #elif SUBSTRATE_TILETYPE == 1
+	#define SUBSTRATE_SINGLEPATH 1
+  #elif SUBSTRATE_TILETYPE == 2
 	// COMPLEX PATH
-  #elif STRATA_TILETYPE == 3
+  #elif SUBSTRATE_TILETYPE == 3
 	// COMPLEX PATH
-	#define STRATA_COMPLEXSPECIALPATH 1
+	#define SUBSTRATE_COMPLEXSPECIALPATH 1
   #else
-	#error Strata tile type non-implemented
+	#error Substrate tile type non-implemented
   #endif
 #endif
 
@@ -183,11 +183,11 @@ float3 GetStableTranslatedLargeWorldPosition(float2 SVPos, float DeviceZ)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 
-float4 StrataReadPrecomputedShadowFactors(FStrataPixelHeader StrataPixelHeader, int2 PixelPos)
+float4 SubstrateReadPrecomputedShadowFactors(FSubstratePixelHeader SubstratePixelHeader, int2 PixelPos)
 {
-	if (StrataPixelHeader.HasPrecShadowMask())
+	if (SubstratePixelHeader.HasPrecShadowMask())
 	{
 #if ALLOW_STATIC_LIGHTING
 		float4 GBufferE = SceneTexturesStruct.GBufferETexture.Load(int3(PixelPos, 0));
@@ -196,10 +196,10 @@ float4 StrataReadPrecomputedShadowFactors(FStrataPixelHeader StrataPixelHeader, 
 #endif
 		return GBufferE;
 	}
-	return StrataPixelHeader.HasZeroPrecShadowMask() ? 0.0f : 1.0f;
+	return SubstratePixelHeader.HasZeroPrecShadowMask() ? 0.0f : 1.0f;
 }
 
-#endif // STRATA_ENABLED
+#endif // SUBSTRATE_ENABLED
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -224,7 +224,7 @@ void DeferredLightPixelMain(
 #endif
 	float4 SVPos			: SV_POSITION,
 	out float4 OutColor		: SV_Target0
-#if STRATA_OPAQUE_ROUGH_REFRACTION_ENABLED
+#if SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED
 	, out float3 OutOpaqueRoughRefractionSceneColor : SV_Target1
 	, out float3 OutSubSurfaceSceneColor : SV_Target2
 #endif
@@ -232,7 +232,7 @@ void DeferredLightPixelMain(
 {
 	const float2 PixelPos = SVPos.xy;
 	OutColor = 0;
-#if STRATA_OPAQUE_ROUGH_REFRACTION_ENABLED
+#if SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED
 	OutOpaqueRoughRefractionSceneColor = 0;
 	OutSubSurfaceSceneColor = 0;
 #endif
@@ -250,13 +250,13 @@ void DeferredLightPixelMain(
 	InputParams.ScreenVector	= ScreenVector;
 #endif
 
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 
-	FStrataAddressing StrataAddressing = GetStrataPixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Strata.MaxBytesPerPixel);
-	FStrataPixelHeader StrataPixelHeader = UnpackStrataHeaderIn(Strata.MaterialTextureArray, StrataAddressing, Strata.TopLayerTexture);
+	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
+	FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
 
 	BRANCH
-	if (StrataPixelHeader.BSDFCount > 0	// This test is also enough to exclude sky pixels
+	if (SubstratePixelHeader.BSDFCount > 0	// This test is also enough to exclude sky pixels
 #if USE_LIGHTING_CHANNELS
 		&& (GetLightingChannelMask(InputParams.ScreenUV) & DeferredLightUniforms.LightingChannelMask)
 #endif
@@ -279,36 +279,36 @@ void DeferredLightPixelMain(
 
 		if (LightMask > 0)
 		{
-			FShadowTerms ShadowTerms = { StrataGetAO(StrataPixelHeader), 1.0, 1.0, InitHairTransmittanceData() };
+			FShadowTerms ShadowTerms = { SubstrateGetAO(SubstratePixelHeader), 1.0, 1.0, InitHairTransmittanceData() };
 			float4 LightAttenuation = GetLightAttenuationFromShadow(InputParams, SceneDepth);
 
 			float Dither = InterleavedGradientNoise(InputParams.PixelPos, View.StateFrameIndexMod8);
 			const uint FakeShadingModelID = 0;
 			const float FakeContactShadowOpacity = 1.0f;
-			float4 PrecomputedShadowFactors = StrataReadPrecomputedShadowFactors(StrataPixelHeader, PixelPos, SceneTexturesStruct.GBufferETexture);
+			float4 PrecomputedShadowFactors = SubstrateReadPrecomputedShadowFactors(SubstratePixelHeader, PixelPos, SceneTexturesStruct.GBufferETexture);
 			GetShadowTerms(SceneDepth, PrecomputedShadowFactors, FakeShadingModelID, FakeContactShadowOpacity,
 				LightData, DerivedParams.TranslatedWorldPosition, L, LightAttenuation, Dither, ShadowTerms);
 
-			FStrataDeferredLighting StrataLighting = StrataDeferredLighting(
+			FSubstrateDeferredLighting SubstrateLighting = SubstrateDeferredLighting(
 				LightData,
 				V,
 				L,
 				ToLight,
 				LightMask,
 				ShadowTerms,
-				Strata.MaterialTextureArray,
-				StrataAddressing,
-				StrataPixelHeader);
+				Substrate.MaterialTextureArray,
+				SubstrateAddressing,
+				SubstratePixelHeader);
 
-			OutColor += StrataLighting.SceneColor;
-#if STRATA_OPAQUE_ROUGH_REFRACTION_ENABLED
-			OutOpaqueRoughRefractionSceneColor += StrataLighting.OpaqueRoughRefractionSceneColor;
-			OutSubSurfaceSceneColor += StrataLighting.SubSurfaceSceneColor;
+			OutColor += SubstrateLighting.SceneColor;
+#if SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED
+			OutOpaqueRoughRefractionSceneColor += SubstrateLighting.OpaqueRoughRefractionSceneColor;
+			OutSubSurfaceSceneColor += SubstrateLighting.SubSurfaceSceneColor;
 #endif
 		}
 	}
 
-#else // STRATA_ENABLED
+#else // SUBSTRATE_ENABLED
 
 	FScreenSpaceData ScreenSpaceData = GetScreenSpaceData(InputParams.ScreenUV);
 	// Only light pixels marked as using deferred shading
@@ -341,13 +341,13 @@ void DeferredLightPixelMain(
 		OutColor += Radiance;
 	}
 
-#endif // STRATA_ENABLED
+#endif // SUBSTRATE_ENABLED
 
 	// RGB:SceneColor Specular and Diffuse
 	// A:Non Specular SceneColor Luminance
 	// So we need PreExposure for both color and alpha
 	OutColor.rgba *= GetExposure();
-#if STRATA_OPAQUE_ROUGH_REFRACTION_ENABLED 
+#if SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED 
 	// Idem
 	OutOpaqueRoughRefractionSceneColor *= GetExposure();
 	OutSubSurfaceSceneColor *= GetExposure();

@@ -1319,24 +1319,24 @@ public:
 	UNREALED_API FText GetCurrentLumenVisualizationModeDisplayName() const;
 
 	/**
-	 * Changes the Strata visualization mode for this viewport.
+	 * Changes the Substrate visualization mode for this viewport.
 	 *
 	 * @param InName	The ID of the required visualization mode
 	 */
-	UNREALED_API void ChangeStrataVisualizationMode(FName InName);
+	UNREALED_API void ChangeSubstrateVisualizationMode(FName InName);
 
 	/**
-	 * Checks if a Strata visualization mode is selected.
+	 * Checks if a Substrate visualization mode is selected.
 	 *
 	 * @param InName	The ID of the required visualization mode
-	 * @return	true if the supplied Strata visualization mode is checked
+	 * @return	true if the supplied Substrate visualization mode is checked
 	 */
-	UNREALED_API bool IsStrataVisualizationModeSelected(FName InName) const;
+	UNREALED_API bool IsSubstrateVisualizationModeSelected(FName InName) const;
 
 	/**
-	 * Returns the FText display name associated with CurrentStrataVisualizationMode.
+	 * Returns the FText display name associated with CurrentSubstrateVisualizationMode.
 	 */
-	UNREALED_API FText GetCurrentStrataVisualizationModeDisplayName() const;
+	UNREALED_API FText GetCurrentSubstrateVisualizationModeDisplayName() const;
 
 	/**
 	 * Changes the Groom visualization mode for this viewport.
@@ -1733,7 +1733,7 @@ public:
 	FName CurrentBufferVisualizationMode;
 	FName CurrentNaniteVisualizationMode;
 	FName CurrentLumenVisualizationMode;
-	FName CurrentStrataVisualizationMode;
+	FName CurrentSubstrateVisualizationMode;
 	FName CurrentGroomVisualizationMode;
 	FName CurrentVirtualShadowMapVisualizationMode;
 

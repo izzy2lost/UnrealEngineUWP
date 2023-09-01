@@ -16,20 +16,20 @@ class FMenuBuilder;
 class FUICommandInfo;
 class FUICommandList;
 
-class COMMONMENUEXTENSIONS_API FStrataVisualizationMenuCommands : public TCommands<FStrataVisualizationMenuCommands>
+class COMMONMENUEXTENSIONS_API FSubstrateVisualizationMenuCommands : public TCommands<FSubstrateVisualizationMenuCommands>
 {
 public:
-	struct FStrataVisualizationRecord
+	struct FSubstrateVisualizationRecord
 	{
 		FName Name;
 		TSharedPtr<FUICommandInfo> Command;
-		FStrataViewMode ViewMode = FStrataViewMode::MaterialProperties;
+		FSubstrateViewMode ViewMode = FSubstrateViewMode::MaterialProperties;
 	};
 
-	typedef TMultiMap<FName, FStrataVisualizationRecord> TStrataVisualizationModeCommandMap;
-	typedef TStrataVisualizationModeCommandMap::TConstIterator TCommandConstIterator;
+	typedef TMultiMap<FName, FSubstrateVisualizationRecord> TSubstrateVisualizationModeCommandMap;
+	typedef TSubstrateVisualizationModeCommandMap::TConstIterator TCommandConstIterator;
 
-	FStrataVisualizationMenuCommands();
+	FSubstrateVisualizationMenuCommands();
 
 	TCommandConstIterator CreateCommandConstIterator() const;
 
@@ -46,11 +46,11 @@ public:
 
 private:
 	void BuildCommandMap();
-	bool AddCommandTypeToMenu(FMenuBuilder& Menu, const FStrataViewMode ViewMode) const;
+	bool AddCommandTypeToMenu(FMenuBuilder& Menu, const FSubstrateViewMode ViewMode) const;
 
-	static void ChangeStrataVisualizationMode(TWeakPtr<FEditorViewportClient> WeakClient, FName InName);
-	static bool IsStrataVisualizationModeSelected(TWeakPtr<FEditorViewportClient> WeakClient, FName InName);
+	static void ChangeSubstrateVisualizationMode(TWeakPtr<FEditorViewportClient> WeakClient, FName InName);
+	static bool IsSubstrateVisualizationModeSelected(TWeakPtr<FEditorViewportClient> WeakClient, FName InName);
 
 private:
-	TStrataVisualizationModeCommandMap CommandMap;
+	TSubstrateVisualizationModeCommandMap CommandMap;
 };

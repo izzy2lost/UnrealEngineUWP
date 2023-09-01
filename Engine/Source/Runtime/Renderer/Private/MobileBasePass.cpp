@@ -548,7 +548,7 @@ void MobileBasePass::SetTranslucentRenderState(FMeshPassProcessorRenderState& Dr
 	const bool bIsDualSourceBlending = RHISupportsDualSourceBlending(ShaderPlatform);
 	const EShaderPlatform Platform = GetFeatureLevelShaderPlatform(Material.GetFeatureLevel());
 
-	if (Strata::IsStrataEnabled())
+	if (Substrate::IsSubstrateEnabled())
 	{
 		if (Material.IsDualBlendingEnabled(Platform))
 		{

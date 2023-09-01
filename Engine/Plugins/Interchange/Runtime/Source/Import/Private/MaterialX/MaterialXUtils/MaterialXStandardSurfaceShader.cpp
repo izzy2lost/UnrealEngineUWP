@@ -25,7 +25,7 @@ void FMaterialXStandardSurfaceShader::Translate(mx::NodePtr StandardSurfaceNode)
 	
 	using namespace UE::Interchange::Materials;
 
-	bool bIsSubstrateEnabled = GetDefault<URendererSettings>()->bEnableStrata;
+	bool bIsSubstrateEnabled = GetDefault<URendererSettings>()->bEnableSubstrate;
 
 	if(bIsSubstrateEnabled)
 	{
@@ -326,14 +326,14 @@ void FMaterialXStandardSurfaceShader::ConnectToSubstrateStandardSurface()
 		StandardSurfaceShaderNode->SetCustomMaterialFunction(TEXT("/Interchange/Substrate/MX_TransmissionSurface.MX_TransmissionSurface"));
 		ShaderGraphNode->SetCustomBlendMode(EBlendMode::BLEND_TranslucentColoredTransmittance);
 		UInterchangeShaderPortsAPI::ConnectOuputToInputByName(ShaderGraphNode, PBRMR::Parameters::Opacity.ToString(), StandardSurfaceShaderNode->GetUniqueID(), PBRMR::Parameters::Opacity.ToString());
-		UInterchangeShaderPortsAPI::ConnectOuputToInputByName(ShaderGraphNode, Substrate::Parameters::FrontMaterial.ToString(), StandardSurfaceShaderNode->GetUniqueID(), StandardSurface::Substrate::Outputs::Translucent.ToString());
+		UInterchangeShaderPortsAPI::ConnectOuputToInputByName(ShaderGraphNode, SubstrateMaterial::Parameters::FrontMaterial.ToString(), StandardSurfaceShaderNode->GetUniqueID(), StandardSurface::SubstrateMaterial::Outputs::Translucent.ToString());
 	}
 	else
 	{
-		UInterchangeShaderPortsAPI::ConnectOuputToInputByName(ShaderGraphNode, Substrate::Parameters::FrontMaterial.ToString(), StandardSurfaceShaderNode->GetUniqueID(), StandardSurface::Substrate::Outputs::Opaque.ToString());
+		UInterchangeShaderPortsAPI::ConnectOuputToInputByName(ShaderGraphNode, SubstrateMaterial::Parameters::FrontMaterial.ToString(), StandardSurfaceShaderNode->GetUniqueID(), StandardSurface::SubstrateMaterial::Outputs::Opaque.ToString());
 		if(UInterchangeShaderPortsAPI::HasInput(StandardSurfaceShaderNode, StandardSurface::Parameters::Opacity))
 		{
-			UInterchangeShaderPortsAPI::ConnectOuputToInputByName(ShaderGraphNode, Substrate::Parameters::OpacityMask.ToString(), StandardSurfaceShaderNode->GetUniqueID(), StandardSurface::Substrate::Outputs::Opacity.ToString());
+			UInterchangeShaderPortsAPI::ConnectOuputToInputByName(ShaderGraphNode, SubstrateMaterial::Parameters::OpacityMask.ToString(), StandardSurfaceShaderNode->GetUniqueID(), StandardSurface::SubstrateMaterial::Outputs::Opacity.ToString());
 		}
 	}
 }

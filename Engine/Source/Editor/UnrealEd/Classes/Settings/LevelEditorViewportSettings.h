@@ -99,7 +99,7 @@ struct FLevelEditorViewportInstanceSettings
 		, BufferVisualizationMode()
 		, NaniteVisualizationMode()
 		, LumenVisualizationMode()
-		, StrataVisualizationMode()
+		, SubstrateVisualizationMode()
 		, GroomVisualizationMode()
 		, VirtualShadowMapVisualizationMode()
 		, GPUSkinCacheVisualizationMode()
@@ -151,9 +151,9 @@ struct FLevelEditorViewportInstanceSettings
 	UPROPERTY(config)
 	FName LumenVisualizationMode;
 
-	/** The Strata visualization mode for the viewport. */
+	/** The Substrate visualization mode for the viewport. */
 	UPROPERTY(config)
-	FName StrataVisualizationMode;
+	FName SubstrateVisualizationMode;
 
 	/** The Groom visualization mode for the viewport. */
 	UPROPERTY(config)

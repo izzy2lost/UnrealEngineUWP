@@ -516,8 +516,8 @@ void AddDeferredDecalPass(
 
 	const auto RenderDecals = [&](uint32 DecalIndexBegin, uint32 DecalIndexEnd, EDecalRenderTargetMode RenderTargetMode)
 	{
-		// Sanity check - Strata only support DBuffer, SceneColor, or AO decals
-		if (Strata::IsStrataEnabled())
+		// Sanity check - Substrate only support DBuffer, SceneColor, or AO decals
+		if (Substrate::IsSubstrateEnabled())
 		{
 			const bool bSupported = RenderTargetMode == EDecalRenderTargetMode::DBuffer || RenderTargetMode == EDecalRenderTargetMode::SceneColor || RenderTargetMode == EDecalRenderTargetMode::AmbientOcclusion;
 			if (!bSupported)

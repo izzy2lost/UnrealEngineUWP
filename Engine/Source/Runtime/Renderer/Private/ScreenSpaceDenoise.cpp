@@ -803,7 +803,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FSSDCommonParameters, )
 	SHADER_PARAMETER(FVector2f, BufferUVBilinearCorrection)
 
 	SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FStrataGlobalUniformParameters, Strata)
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
 
 	SHADER_PARAMETER_RDG_TEXTURE_ARRAY(Texture2D<uint>, CompressedMetadata, [kCompressedMetadataTextures])
 
@@ -1538,7 +1538,7 @@ static void DenoiseSignalAtConstantPixelDensity(
 		CommonParameters.ViewportMax = Viewport.Max;
 
 		CommonParameters.SceneTextures = SceneTextures;
-		CommonParameters.Strata = Strata::BindStrataGlobalUniformParameters(View);
+		CommonParameters.Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 		CommonParameters.ViewUniformBuffer = View.ViewUniformBuffer;
 		CommonParameters.EyeAdaptationBuffer = GraphBuilder.CreateSRV(GetEyeAdaptationBuffer(GraphBuilder, View));
 

@@ -280,10 +280,10 @@ int32 FMatExpressionPreview::CompilePropertyAndSetMaterialProperty(EMaterialProp
 	// needs to be called in this function!!
 	Compiler->SetMaterialProperty(Property, OverrideShaderFrequency, bUsePreviousFrameTime);
 
-	if(Strata::IsStrataEnabled())
+	if(Substrate::IsSubstrateEnabled())
 	{
-		// Set the Strata export mode to material preview
-		Compiler->SetStrataMaterialExportType(SME_MaterialPreview, EStrataMaterialExportContext::SMEC_Opaque, 0);
+		// Set the Substrate export mode to material preview
+		Compiler->SetSubstrateMaterialExportType(SME_MaterialPreview, ESubstrateMaterialExportContext::SMEC_Opaque, 0);
 	}
 
 	int32 Ret = INDEX_NONE;
@@ -316,9 +316,9 @@ int32 FMatExpressionPreview::CompilePropertyAndSetMaterialProperty(EMaterialProp
 	else if (Property == MP_FrontMaterial)
 	{
 		// No need to compile the front material: when previewing a node, the FrontMaterial is plugged into the emissive color.
-		// Then CompilePreview is called, and this is where we convert the strata material to a single color for preview.
+		// Then CompilePreview is called, and this is where we convert the Substrate material to a single color for preview.
 		// That single color is then scheduled to be output thanks to setting the compiler as SME_MaterialPreview. 
-		return Compiler->StrataCreateAndRegisterNullMaterial();
+		return Compiler->SubstrateCreateAndRegisterNullMaterial();
 	}
 	else
 	{
@@ -447,10 +447,10 @@ void FMaterialEditor::RegisterToolbarTab(const TSharedRef<class FTabManager>& In
 		.SetGroup(WorkspaceMenuCategoryRef)
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Layers"));
 
-	InTabManager->RegisterTabSpawner(FMaterialEditorTabs::StrataTabId, FOnSpawnTab::CreateSP(this, &FMaterialEditor::SpawnTab_Strata))
+	InTabManager->RegisterTabSpawner(FMaterialEditorTabs::SubstrateTabId, FOnSpawnTab::CreateSP(this, &FMaterialEditor::SpawnTab_Substrate))
 		.SetDisplayName(LOCTEXT("SubstrateTab", "Substrate"))
 		.SetGroup(WorkspaceMenuCategoryRef)
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Kismet.Tabs.Palette"));	// STRATA_TODO a strata icon
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Kismet.Tabs.Palette"));	// SUBSTRATE_TODO a Substrate icon
 
 	MaterialStatsManager->RegisterTabs();
 
@@ -475,7 +475,7 @@ void FMaterialEditor::UnregisterTabSpawners(const TSharedRef<class FTabManager>&
 	InTabManager->UnregisterTabSpawner(FMaterialEditorTabs::ParameterDefaultsTabId);
 	InTabManager->UnregisterTabSpawner(FMaterialEditorTabs::CustomPrimitiveTabId);
 	InTabManager->UnregisterTabSpawner(FMaterialEditorTabs::LayerPropertiesTabId);
-	InTabManager->UnregisterTabSpawner(FMaterialEditorTabs::StrataTabId);
+	InTabManager->UnregisterTabSpawner(FMaterialEditorTabs::SubstrateTabId);
 
 	MaterialStatsManager->UnregisterTabs();
 
@@ -1598,7 +1598,7 @@ void FMaterialEditor::CreateInternalWidgets()
 	FindResults =
 		SNew(SFindInMaterial, SharedThis(this));
 
-	StrataWidget = SNew(SMaterialEditorStrataWidget, SharedThis(this));
+	SubstrateWidget = SNew(SMaterialEditorSubstrateWidget, SharedThis(this));
 
 	RegenerateCodeView();
 }
@@ -2116,11 +2116,11 @@ void FMaterialEditor::AddGraphEditorPinActionsToContextMenu(FToolMenuSection& In
 	}
 
 	{
-		auto AddStrataContextualMenu = [&](TSharedPtr<FUICommandInfo> CreateNodeCommand, EStrataNodeForPin StrataNodeForPin)
+		auto AddSubstrateContextualMenu = [&](TSharedPtr<FUICommandInfo> CreateNodeCommand, ESubstrateNodeForPin SubstrateNodeForPin)
 		{
 			FToolUIAction CreateNodeAction;
-			CreateNodeAction.ExecuteAction = FToolMenuExecuteAction::CreateSP(this, &FMaterialEditor::OnCreateStrataNodeForPin, StrataNodeForPin);
-			CreateNodeAction.IsActionVisibleDelegate = FToolMenuIsActionButtonVisible::CreateSP(this, &FMaterialEditor::OnCanCreateStrataNodeForPin, StrataNodeForPin);
+			CreateNodeAction.ExecuteAction = FToolMenuExecuteAction::CreateSP(this, &FMaterialEditor::OnCreateSubstrateNodeForPin, SubstrateNodeForPin);
+			CreateNodeAction.IsActionVisibleDelegate = FToolMenuIsActionButtonVisible::CreateSP(this, &FMaterialEditor::OnCanCreateSubstrateNodeForPin, SubstrateNodeForPin);
 
 			InSection.AddMenuEntry(
 				CreateNodeCommand->GetCommandName(),
@@ -2130,10 +2130,10 @@ void FMaterialEditor::AddGraphEditorPinActionsToContextMenu(FToolMenuSection& In
 				CreateNodeAction
 			);
 		};
-		AddStrataContextualMenu(FMaterialEditorCommands::Get().CreateSlabNode, EStrataNodeForPin::Slab);
-		AddStrataContextualMenu(FMaterialEditorCommands::Get().CreateHorizontalMixNode, EStrataNodeForPin::HorizontalMix);
-		AddStrataContextualMenu(FMaterialEditorCommands::Get().CreateVerticalLayerNode, EStrataNodeForPin::VerticalLayer);
-		AddStrataContextualMenu(FMaterialEditorCommands::Get().CreateWeightNode, EStrataNodeForPin::Weight);
+		AddSubstrateContextualMenu(FMaterialEditorCommands::Get().CreateSlabNode, ESubstrateNodeForPin::Slab);
+		AddSubstrateContextualMenu(FMaterialEditorCommands::Get().CreateHorizontalMixNode, ESubstrateNodeForPin::HorizontalMix);
+		AddSubstrateContextualMenu(FMaterialEditorCommands::Get().CreateVerticalLayerNode, ESubstrateNodeForPin::VerticalLayer);
+		AddSubstrateContextualMenu(FMaterialEditorCommands::Get().CreateWeightNode, ESubstrateNodeForPin::Weight);
 	}
 }
 
@@ -4827,7 +4827,7 @@ bool FMaterialEditor::OnCanPromoteToParameter(const FToolMenuContext& InMenuCont
 	return false;
 }
 
-void FMaterialEditor::OnCreateStrataNodeForPin(const FToolMenuContext& InMenuContext, EStrataNodeForPin NodeForPin) const
+void FMaterialEditor::OnCreateSubstrateNodeForPin(const FToolMenuContext& InMenuContext, ESubstrateNodeForPin NodeForPin) const
 {
 	UGraphNodeContextMenuContext* NodeContext = InMenuContext.FindContext<UGraphNodeContextMenuContext>();
 	const UEdGraphPin* TargetPin = NodeContext->Pin;
@@ -4836,15 +4836,15 @@ void FMaterialEditor::OnCreateStrataNodeForPin(const FToolMenuContext& InMenuCon
 
 	FMaterialGraphSchemaAction_NewNode Action;
 	Action.MaterialExpressionClass = UMaterialExpressionSubstrateSlabBSDF::StaticClass();
-	if (NodeForPin == EStrataNodeForPin::HorizontalMix)
+	if (NodeForPin == ESubstrateNodeForPin::HorizontalMix)
 	{
 		Action.MaterialExpressionClass = UMaterialExpressionSubstrateHorizontalMixing::StaticClass();
 	}
-	else if (NodeForPin == EStrataNodeForPin::VerticalLayer)
+	else if (NodeForPin == ESubstrateNodeForPin::VerticalLayer)
 	{
 		Action.MaterialExpressionClass = UMaterialExpressionSubstrateVerticalLayering::StaticClass();
 	}
-	else if (NodeForPin == EStrataNodeForPin::Weight)
+	else if (NodeForPin == ESubstrateNodeForPin::Weight)
 	{
 		Action.MaterialExpressionClass = UMaterialExpressionSubstrateWeight::StaticClass();
 	}
@@ -4853,7 +4853,7 @@ void FMaterialEditor::OnCreateStrataNodeForPin(const FToolMenuContext& InMenuCon
 	UEdGraph* GraphObj = PinNode->GetGraph();
 	check(GraphObj);
 
-	const FScopedTransaction Transaction(LOCTEXT("CreateStrataNode", "Create Strata Node"));
+	const FScopedTransaction Transaction(LOCTEXT("CreateSubstrateNode", "Create Substrate Node"));
 	GraphObj->Modify();
 
 	// Set position of new node to be close to node we clicked on
@@ -4889,7 +4889,7 @@ void FMaterialEditor::OnCreateStrataNodeForPin(const FToolMenuContext& InMenuCon
 	}
 }
 
-bool FMaterialEditor::OnCanCreateStrataNodeForPin(const FToolMenuContext& InMenuContext, EStrataNodeForPin NodeForPin) const
+bool FMaterialEditor::OnCanCreateSubstrateNodeForPin(const FToolMenuContext& InMenuContext, ESubstrateNodeForPin NodeForPin) const
 {
 	UGraphNodeContextMenuContext* NodeContext = InMenuContext.FindContext<UGraphNodeContextMenuContext>();
 	const UEdGraphPin* TargetPin = NodeContext->Pin;
@@ -4900,7 +4900,7 @@ bool FMaterialEditor::OnCanCreateStrataNodeForPin(const FToolMenuContext& InMenu
 	{
 		return FSubstrateWidget::HasInputSubstrateType(TargetPin);
 	}
-	else if (TargetPin && (TargetPin->Direction == EEdGraphPinDirection::EGPD_Output) && (TargetPin->LinkedTo.Num() == 0) && NodeForPin != EStrataNodeForPin::Slab)
+	else if (TargetPin && (TargetPin->Direction == EEdGraphPinDirection::EGPD_Output) && (TargetPin->LinkedTo.Num() == 0) && NodeForPin != ESubstrateNodeForPin::Slab)
 	{
 		return FSubstrateWidget::HasOutputSubstrateType(TargetPin);
 	}
@@ -5222,20 +5222,20 @@ TSharedRef<SDockTab> FMaterialEditor::SpawnTab_LayerProperties(const FSpawnTabAr
 	return SpawnedTab;
 }
 
-TSharedRef<SDockTab> FMaterialEditor::SpawnTab_Strata(const FSpawnTabArgs& Args)
+TSharedRef<SDockTab> FMaterialEditor::SpawnTab_Substrate(const FSpawnTabArgs& Args)
 {
-	check(Args.GetTabId() == FMaterialEditorTabs::StrataTabId);
+	check(Args.GetTabId() == FMaterialEditorTabs::SubstrateTabId);
 
-	TSharedRef<SDockTab> StrataTab = SNew(SDockTab)
+	TSharedRef<SDockTab> SubstrateTab = SNew(SDockTab)
 		.Label(LOCTEXT("MaterialSubstrateTabTitle", "Substrate"))
 		[
 			SNew(SBox)
 			[
-				StrataWidget.ToSharedRef()
+				SubstrateWidget.ToSharedRef()
 			]
 		];
 
-	return StrataTab;
+	return SubstrateTab;
 }
 
 void FMaterialEditor::SetPreviewExpression(UMaterialExpression* NewPreviewExpression)
@@ -6089,11 +6089,11 @@ FText FMaterialEditor::GetOriginalObjectName() const
 	return FText::FromString(GetEditingObjects()[0]->GetName());
 }
 
-void FMaterialEditor::UpdateStrataTopologyPreview()
+void FMaterialEditor::UpdateSubstrateTopologyPreview()
 {
-	if (Strata::IsStrataEnabled())
+	if (Substrate::IsSubstrateEnabled())
 	{
-		// Update all Strata node which have a preview.
+		// Update all Substrate node which have a preview.
 		for (int32 Index = 0; Index < Material->MaterialGraph->Nodes.Num(); ++Index)
 		{
 			UMaterialGraphNode* MaterialNode = Cast<UMaterialGraphNode>(Material->MaterialGraph->Nodes[Index]);
@@ -6140,7 +6140,7 @@ void FMaterialEditor::UpdateMaterialAfterGraphChange()
 
 	Material->MaterialGraph->UpdatePinTypes();
 
-	UpdateStrataTopologyPreview();
+	UpdateSubstrateTopologyPreview();
 }
 
 void FMaterialEditor::MarkMaterialDirty()
@@ -7145,7 +7145,7 @@ FGraphAppearanceInfo FMaterialEditor::GetGraphAppearance() const
 		AppearanceInfo.CornerText = LOCTEXT("AppearanceCornerText_Material", "MATERIAL"); 
 	}
 
-	if (Strata::IsStrataEnabled())
+	if (Substrate::IsSubstrateEnabled())
 	{
 		UMaterial* MaterialForStats = this->bStatsFromPreviewMaterial ? this->Material : this->OriginalMaterial;
 		const FMaterialResource* MaterialResource = MaterialForStats->GetMaterialResource(GMaxRHIFeatureLevel);
@@ -7156,7 +7156,7 @@ FGraphAppearanceInfo FMaterialEditor::GetGraphAppearance() const
 			FMaterialShaderMap* ShaderMap = MaterialResource->GetGameThreadShaderMap();
 			if (ShaderMap)
 			{
-				const FStrataMaterialCompilationOutput& CompilationOutput = ShaderMap->GetStrataMaterialCompilationOutput();
+				const FSubstrateMaterialCompilationOutput& CompilationOutput = ShaderMap->GetSubstrateMaterialCompilationOutput();
 				if (CompilationOutput.bMaterialOutOfBudgetHasBeenSimplified)
 				{
 					AppearanceInfo.WarningText = LOCTEXT("AppearanceWarningText_Material", "Substrate material was out of budget and has been simplified.");
@@ -7638,7 +7638,7 @@ void FMaterialEditor::UpdateStatsMaterials()
 	}
 
 	// Also request to update the Substrate slab.
-	StrataWidget->UpdateFromMaterial();
+	SubstrateWidget->UpdateFromMaterial();
 }
 
 void FMaterialEditor::NotifyExternalMaterialChange()

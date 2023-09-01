@@ -26,9 +26,9 @@ RAY_TRACING_ENTRY_RAYGEN(LumenShortRangeAOHardwareRayTracing)
 	const uint2 PixelCoord = DispatchRaysIndex().xy + View.ViewRectMin.xy;
 	const float2 ScreenUV = (float2(PixelCoord) + .5f) * View.BufferSizeAndInvSize.zw;
 
-#if STRATA_ENABLED
-	const FStrataTopLayerData TopLayerData = StrataUnpackTopLayerData(Strata.TopLayerTexture.Load(uint3(PixelCoord, 0)));
-	const bool bIsValid = IsStrataMaterial(TopLayerData);
+#if SUBSTRATE_ENABLED
+	const FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData(Substrate.TopLayerTexture.Load(uint3(PixelCoord, 0)));
+	const bool bIsValid = IsSubstrateMaterial(TopLayerData);
 	const float3 WorldNormal = TopLayerData.WorldNormal;
 	const float Depth = ConvertFromDeviceZ(SceneDepthTexture.Load(int3(PixelCoord, 0)).r);
 #else

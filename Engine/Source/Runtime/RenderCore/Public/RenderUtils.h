@@ -481,9 +481,9 @@ extern RENDERCORE_API ERayTracingMode GetRayTracingMode();
 // Returns 'true' when static lighting is enabled for the project
 extern RENDERCORE_API bool IsStaticLightingAllowed();
 
-namespace Strata
+namespace Substrate
 {
-	RENDERCORE_API bool IsStrataEnabled();
+	RENDERCORE_API bool IsSubstrateEnabled();
 	RENDERCORE_API bool IsRoughDiffuseEnabled();
 	RENDERCORE_API bool IsGlintEnabled();
 	RENDERCORE_API uint32 GlintLUTIndex();

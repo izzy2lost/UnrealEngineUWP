@@ -324,7 +324,7 @@ FLinearColor UMaterialGraphNode::GetNodeTitleColor() const
 			return FColor( 0, 128, 128 );
 		}
 	}
-	else if (const UMaterialExpressionSubstrateBSDF* StrataBSDF = Cast<UMaterialExpressionSubstrateBSDF>(MaterialExpression))
+	else if (const UMaterialExpressionSubstrateBSDF* SubstrateBSDF = Cast<UMaterialExpressionSubstrateBSDF>(MaterialExpression))
 	{
 		return FColor(181, 29, 230);
 	}

@@ -1051,14 +1051,14 @@ void UInterchangeMaterialFactory::SetupMaterial(UMaterial* Material, const FImpo
 	FMaterialExpressionBuilder Builder(Material, nullptr, Arguments, *Results.Get());
 
 	// Substrate
-	if(UInterchangeShaderPortsAPI::HasInput(MaterialFactoryNode, Substrate::Parameters::FrontMaterial))
+	if(UInterchangeShaderPortsAPI::HasInput(MaterialFactoryNode, SubstrateMaterial::Parameters::FrontMaterial))
 	{
 		// Front Material
 		{
 			FString ExpressionNodeUid;
 			FString OutputName;
 
-			UInterchangeShaderPortsAPI::GetInputConnection(MaterialFactoryNode, Substrate::Parameters::FrontMaterial.ToString(), ExpressionNodeUid, OutputName);
+			UInterchangeShaderPortsAPI::GetInputConnection(MaterialFactoryNode, SubstrateMaterial::Parameters::FrontMaterial.ToString(), ExpressionNodeUid, OutputName);
 
 			const UInterchangeMaterialExpressionFactoryNode* FrontMaterial = Cast<UInterchangeMaterialExpressionFactoryNode>(Arguments.NodeContainer->GetNode(ExpressionNodeUid));
 
@@ -1075,12 +1075,12 @@ void UInterchangeMaterialFactory::SetupMaterial(UMaterial* Material, const FImpo
 		}
 
 		// Opacity Mask
-		if(UInterchangeShaderPortsAPI::HasInput(MaterialFactoryNode, Substrate::Parameters::OpacityMask))
+		if(UInterchangeShaderPortsAPI::HasInput(MaterialFactoryNode, SubstrateMaterial::Parameters::OpacityMask))
 		{
 			FString ExpressionNodeUid;
 			FString OutputName;
 
-			UInterchangeShaderPortsAPI::GetInputConnection(MaterialFactoryNode, Substrate::Parameters::OpacityMask.ToString(), ExpressionNodeUid, OutputName);
+			UInterchangeShaderPortsAPI::GetInputConnection(MaterialFactoryNode, SubstrateMaterial::Parameters::OpacityMask.ToString(), ExpressionNodeUid, OutputName);
 
 			const UInterchangeMaterialExpressionFactoryNode* OpacityMask = Cast<UInterchangeMaterialExpressionFactoryNode>(Arguments.NodeContainer->GetNode(ExpressionNodeUid));
 

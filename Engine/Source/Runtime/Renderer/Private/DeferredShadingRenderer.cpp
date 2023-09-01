@@ -2963,7 +2963,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	FInstanceCullingManager& InstanceCullingManager = *GraphBuilder.AllocObject<FInstanceCullingManager>(GetSceneUniforms(), Scene->GPUScene.IsEnabled(), GraphBuilder);
 
-	::Strata::PreInitViews(*Scene);
+	::Substrate::PreInitViews(*Scene);
 
 	{
 		RDG_GPU_STAT_SCOPE(GraphBuilder, VisibilityCommands);
@@ -3182,9 +3182,9 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	GEngine->GetPreRenderDelegateEx().Broadcast(GraphBuilder);
 
-	// Strata initialisation is always run even when not enabled.
-	const bool bStrataEnabled = Strata::IsStrataEnabled();
-	Strata::InitialiseStrataFrameSceneData(GraphBuilder, *this);
+	// Substrate initialisation is always run even when not enabled.
+	const bool bSubstrateEnabled = Substrate::IsSubstrateEnabled();
+	Substrate::InitialiseSubstrateFrameSceneData(GraphBuilder, *this);
 
 	if (DepthPass.IsComputeStencilDitherEnabled())
 	{
@@ -3700,10 +3700,10 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		// Post base pass for material classification
 		// This needs to run before virtual shadow map, in order to have ready&cleared classified SSS data
-		if (Strata::IsStrataEnabled())
+		if (Substrate::IsSubstrateEnabled())
 		{
-			Strata::AddStrataMaterialClassificationPass(GraphBuilder, SceneTextures, DBufferTextures, Views);
-			Strata::AddStrataDBufferPass(GraphBuilder, SceneTextures, DBufferTextures, Views);
+			Substrate::AddSubstrateMaterialClassificationPass(GraphBuilder, SceneTextures, DBufferTextures, Views);
+			Substrate::AddSubstrateDBufferPass(GraphBuilder, SceneTextures, DBufferTextures, Views);
 		}
 
 		// Copy lighting channels out of stencil before deferred decals which overwrite those values
@@ -3950,7 +3950,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 			AddSubsurfacePass(GraphBuilder, SceneTextures, Views);
 
-			Strata::AddStrataOpaqueRoughRefractionPasses(GraphBuilder, SceneTextures, Views);
+			Substrate::AddSubstrateOpaqueRoughRefractionPasses(GraphBuilder, SceneTextures, Views);
 
 			{
 				RenderHairStrandsSceneColorScattering(GraphBuilder, SceneTextures.Color.Target, Scene, Views);
@@ -3969,9 +3969,9 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			}
 		#endif
 
-			if (Strata::IsStrataEnabled())
+			if (Substrate::IsSubstrateEnabled())
 			{
-				// Now remove all the Strata tile stencil tags used by deferred tiled light passes. Make later marks such as responssive AA works.
+				// Now remove all the Substrate tile stencil tags used by deferred tiled light passes. Make later marks such as responssive AA works.
 				AddClearStencilPass(GraphBuilder, SceneTextures.Depth.Target);
 			}
 		}
@@ -4512,7 +4512,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	QueueSceneTextureExtractions(GraphBuilder, SceneTextures);
 
-	::Strata::PostRender(*Scene);
+	::Substrate::PostRender(*Scene);
 
 	// Release the view's previous frame histories so that their memory can be reused at the graph's execution.
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)

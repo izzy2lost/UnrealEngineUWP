@@ -287,7 +287,7 @@ IPooledRenderTarget* FSpecularProfileTextureManager::GetAtlasTexture()
 
 IPooledRenderTarget* FSpecularProfileTextureManager::GetAtlasTexture(FRDGBuilder& GraphBuilder, EShaderPlatform ShaderPlatform)
 {
-	if (!Strata::IsStrataEnabled())
+	if (!Substrate::IsSubstrateEnabled())
 	{
 		return nullptr;
 	}

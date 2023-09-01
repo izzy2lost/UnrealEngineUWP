@@ -461,7 +461,7 @@ namespace Interchange
 			}
 
 			// These outputs are only used for Substrate
-			namespace Substrate
+			namespace SubstrateMaterial
 			{
 				namespace Outputs
 				{
@@ -516,7 +516,7 @@ namespace Interchange
 			}
 		}
 
-		namespace Substrate
+		namespace SubstrateMaterial
 		{
 			namespace Parameters
 			{

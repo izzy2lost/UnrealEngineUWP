@@ -694,7 +694,7 @@ public:
 		NumUsedUVScalars(0),
 		NumUsedCustomInterpolatorScalars(0),
 #endif
-		StrataMaterialCompilationOutput(),
+		SubstrateMaterialCompilationOutput(),
 		UsedDBufferTextures(0),
 		RuntimeVirtualTextureOutputAttributeMask(0),
 		bNeedsSceneTextures(false),
@@ -782,8 +782,8 @@ public:
 	/** Number of used custom vertex interpolation scalars. */
 	LAYOUT_FIELD_EDITORONLY(uint8, NumUsedCustomInterpolatorScalars);
 
-	/** The Strata material layout */
-	LAYOUT_FIELD(FStrataMaterialCompilationOutput, StrataMaterialCompilationOutput);
+	/** The Substrate material layout */
+	LAYOUT_FIELD(FSubstrateMaterialCompilationOutput, SubstrateMaterialCompilationOutput);
 
 	/** Bitfield of used DBuffer textures . */
 	LAYOUT_FIELD(uint8, UsedDBufferTextures);
@@ -958,8 +958,8 @@ public:
 	/** Is the material using the new HLSL generator? */
 	bool bUsingNewHLSLGenerator;
 
-	/** The Strata configuration used when compiling this material, can be tweaked in the material editor for live visualization of simplification. */
-	FStrataCompilationConfig StrataCompilationConfig;
+	/** The Substrate configuration used when compiling this material, can be tweaked in the material editor for live visualization of simplification. */
+	FSubstrateCompilationConfig SubstrateCompilationConfig;
 
 #endif // WITH_EDITOR
 
@@ -975,7 +975,7 @@ public:
 		, Usage(EMaterialShaderMapUsage::Default)
 		, bIsCookedId(false)
 		, bUsingNewHLSLGenerator(false)
-		, StrataCompilationConfig()
+		, SubstrateCompilationConfig()
 #endif
 	{ }
 
@@ -1393,11 +1393,11 @@ public:
 	bool UsesDistanceCullFade() const { return GetContent()->MaterialCompilationOutput.bUsesDistanceCullFade; }
 	bool UsesAnisotropy() const { return GetContent()->MaterialCompilationOutput.bUsesAnisotropy; }
 
-	const FStrataMaterialCompilationOutput& GetStrataMaterialCompilationOutput() const { return GetContent()->MaterialCompilationOutput.StrataMaterialCompilationOutput; }
-	uint8 GetStrataMaterialType() const { return GetStrataMaterialCompilationOutput().StrataMaterialType; }
-	uint8 GetStrataBSDFCount() const { return GetStrataMaterialCompilationOutput().StrataBSDFCount; }
-	uint8 GetStrataUintPerPixel() const { return GetStrataMaterialCompilationOutput().StrataUintPerPixel; }
-	bool GetStrataUsesComplexSpecialRenderPath() const { return GetStrataMaterialCompilationOutput().bUsesComplexSpecialRenderPath; }
+	const FSubstrateMaterialCompilationOutput& GetSubstrateMaterialCompilationOutput() const { return GetContent()->MaterialCompilationOutput.SubstrateMaterialCompilationOutput; }
+	uint8 GetSubstrateMaterialType() const { return GetSubstrateMaterialCompilationOutput().SubstrateMaterialType; }
+	uint8 GetSubstrateBSDFCount() const { return GetSubstrateMaterialCompilationOutput().SubstrateBSDFCount; }
+	uint8 GetSubstrateUintPerPixel() const { return GetSubstrateMaterialCompilationOutput().SubstrateUintPerPixel; }
+	bool GetSubstrateUsesComplexSpecialRenderPath() const { return GetSubstrateMaterialCompilationOutput().bUsesComplexSpecialRenderPath; }
 	
 #if WITH_EDITOR
 	uint32 GetNumUsedUVScalars() const { return GetContent()->MaterialCompilationOutput.NumUsedUVScalars; }
@@ -1972,7 +1972,7 @@ public:
 	virtual bool HasAmbientOcclusionConnected() const { return false; }
 	virtual bool HasMaterialPropertyConnected(EMaterialProperty In) const { return false; }
 	virtual bool HasDisplacementConnected() const { return false; }
-	virtual bool IsStrataMaterial() const { return false; }
+	virtual bool IsSubstrateMaterial() const { return false; }
 	virtual bool RequiresSynchronousCompilation() const { return false; };
 	virtual bool IsDefaultMaterial() const { return false; };
 	virtual int32 GetNumCustomizedUVs() const { return 0; }
@@ -2039,10 +2039,10 @@ public:
 	/** Is the material using the new (WIP) HLSL generator? */
 	ENGINE_API virtual bool IsUsingNewHLSLGenerator() const;
 
-	/** Get to the strata compilation config */
-	ENGINE_API virtual const FStrataCompilationConfig& GetStrataCompilationConfig() const;
-	/** Set the strata compilation config */
-	ENGINE_API virtual void SetStrataCompilationConfig(FStrataCompilationConfig& StrataCompilationConfig);
+	/** Get to the Substrate compilation config */
+	ENGINE_API virtual const FSubstrateCompilationConfig& GetSubstrateCompilationConfig() const;
+	/** Set the Substrate compilation config */
+	ENGINE_API virtual void SetSubstrateCompilationConfig(FSubstrateCompilationConfig& SubstrateCompilationConfig);
 
 #endif // WITH_EDITOR
 
@@ -2153,21 +2153,21 @@ public:
 	ENGINE_API bool MaterialUsesAnisotropy_GameThread() const;
 	ENGINE_API bool MaterialUsesAnisotropy_RenderThread() const;
 
-	/** Get Strata material type (single, single, complex slab). */
-	ENGINE_API uint8 MaterialGetStrataMaterialType_GameThread() const;
-	ENGINE_API uint8 MaterialGetStrataMaterialType_RenderThread() const;
+	/** Get Substrate material type (single, single, complex slab). */
+	ENGINE_API uint8 MaterialGetSubstrateMaterialType_GameThread() const;
+	ENGINE_API uint8 MaterialGetSubstrateMaterialType_RenderThread() const;
 
-	/** Get Strata material BSDF count. */
-	ENGINE_API uint8 MaterialGetStrataBSDFCount_GameThread() const;
-	ENGINE_API uint8 MaterialGetStrataBSDFCount_RenderThread() const;
+	/** Get Substrate material BSDF count. */
+	ENGINE_API uint8 MaterialGetSubstrateBSDFCount_GameThread() const;
+	ENGINE_API uint8 MaterialGetSubstrateBSDFCount_RenderThread() const;
 
-	/** Get Strata material uint count per pixel. */
-	ENGINE_API uint8 MaterialGetStrataUintPerPixel_GameThread() const;
-	ENGINE_API uint8 MaterialGetStrataUintPerPixel_RenderThread() const;
+	/** Get Substrate material uint count per pixel. */
+	ENGINE_API uint8 MaterialGetSubstrateUintPerPixel_GameThread() const;
+	ENGINE_API uint8 MaterialGetSubstrateUintPerPixel_RenderThread() const;
 
-	/** Get Strata material special path requirement (for more expenssive features such as Glints or SpecularLUT). */
-	ENGINE_API bool MaterialGetStrataUsesComplexSpecialRenderPath_GameThread() const;
-	ENGINE_API bool MaterialGetStrataUsesComplexSpecialRenderPath_RenderThread() const;
+	/** Get Substrate material special path requirement (for more expenssive features such as Glints or SpecularLUT). */
+	ENGINE_API bool MaterialGetSubstrateUsesComplexSpecialRenderPath_GameThread() const;
+	ENGINE_API bool MaterialGetSubstrateUsesComplexSpecialRenderPath_RenderThread() const;
 
 	class FMaterialShaderMap* GetGameThreadShaderMap() const 
 	{ 
@@ -2385,7 +2385,7 @@ protected:
 	void SetCompilingShaderMap(FMaterialShaderMap* InMaterialShaderMap);
 
 	/**
-	 * The returned value is not const because the expression is used to build the Strata tree and this requires to execute multiple such as link function caller, compile expression, etc.
+	 * The returned value is not const because the expression is used to build the Substrate tree and this requires to execute multiple such as link function caller, compile expression, etc.
 	 * See HLSLTranslator.cpp for the single use case.
 	 * @return Nullptr if this is not a material used to generate a preview of a node of a material graph.
 	 */
@@ -2666,7 +2666,7 @@ public:
 	ENGINE_API virtual bool HasAnisotropyConnected() const override;
 	ENGINE_API virtual bool HasAmbientOcclusionConnected() const override;
 	ENGINE_API virtual bool HasDisplacementConnected() const override;
-	ENGINE_API virtual bool IsStrataMaterial() const override;
+	ENGINE_API virtual bool IsSubstrateMaterial() const override;
 	ENGINE_API virtual bool HasMaterialPropertyConnected(EMaterialProperty In) const override;
 	ENGINE_API virtual FMaterialShadingModelField GetShadingModels() const override;
 	ENGINE_API virtual bool IsShadingModelFromMaterialExpression() const override;

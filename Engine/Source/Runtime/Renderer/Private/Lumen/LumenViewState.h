@@ -58,7 +58,7 @@ public:
 	FIntPoint HistoryEffectiveResolution;
 	FIntPoint HistoryOverflowTileOffset;
 	FIntPoint HistoryOverflowTileCount;
-	uint32 HistoryStrataMaxBSDFCount;
+	uint32 HistorySubstrateMaxBSDFCount;
 
 	FScreenProbeGatherTemporalState()
 	{
@@ -70,7 +70,7 @@ public:
 		HistoryEffectiveResolution = FIntPoint(0,0);
 		HistoryOverflowTileOffset = FIntPoint(0, 0);
 		HistoryOverflowTileCount = FIntPoint(0, 0);
-		HistoryStrataMaxBSDFCount = 0;
+		HistorySubstrateMaxBSDFCount = 0;
 	}
 
 	void SafeRelease()
@@ -123,7 +123,7 @@ public:
 	FIntPoint HistoryEffectiveResolution;
 	FIntPoint HistoryOverflowTileOffset;
 	FIntPoint HistoryOverflowTileCount;
-	uint32 HistoryStrataMaxBSDFCount;
+	uint32 HistorySubstrateMaxBSDFCount;
 
 	TRefCountPtr<IPooledRenderTarget> SpecularIndirectHistoryRT;
 	TRefCountPtr<IPooledRenderTarget> NumFramesAccumulatedRT;
@@ -141,7 +141,7 @@ public:
 		HistoryEffectiveResolution = FIntPoint(0,0);
 		HistoryOverflowTileOffset = FIntPoint(0, 0);
 		HistoryOverflowTileCount = FIntPoint(0,0);
-		HistoryStrataMaxBSDFCount = 0;
+		HistorySubstrateMaxBSDFCount = 0;
 	}
 
 	void SafeRelease()

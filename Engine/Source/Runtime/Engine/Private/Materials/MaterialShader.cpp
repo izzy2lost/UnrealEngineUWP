@@ -574,7 +574,7 @@ void FStaticParameterSet::SetStaticComponentMaskParameterValue(const FMaterialPa
 
 
 #if WITH_EDITOR
-FString FStrataCompilationConfig::GetShaderMapKeyString() const
+FString FSubstrateCompilationConfig::GetShaderMapKeyString() const
 {
 	if (bFullSimplify)
 	{
@@ -583,13 +583,13 @@ FString FStrataCompilationConfig::GetShaderMapKeyString() const
 	return TEXT("");
 }
 
-void FStrataCompilationConfig::UpdateHash(FSHA1& Hasher) const
+void FSubstrateCompilationConfig::UpdateHash(FSHA1& Hasher) const
 {
 	Hasher.Update((const uint8*)(&bFullSimplify), sizeof(bFullSimplify));
 	Hasher.Update((const uint8*)(&BytesPerPixelOverride), sizeof(BytesPerPixelOverride));
 }
 
-void FStrataCompilationConfig::Serialize(FArchive& Ar)
+void FSubstrateCompilationConfig::Serialize(FArchive& Ar)
 {
 	Ar << bFullSimplify;
 	Ar << BytesPerPixelOverride;
@@ -723,7 +723,7 @@ void FMaterialShaderMapId::Serialize(FArchive& Ar, bool bLoadedByCookedMaterial)
 			bUsingNewHLSLGenerator = false;
 		}
 
-		// STRATA_TODO We do not need to serialize FStrataCompilationConfig for now since this is only used when debugging in the editor.
+		// SUBSTRATE_TODO We do not need to serialize FSubstrateCompilationConfig for now since this is only used when debugging in the editor.
 		// However we might want to do that when compilation config will change between raster and path tracing for instance.
 		// So currently, the shader map DDC key string won't be changing, but if the user toggles simplification on via the Material Editor it will cache a new map. 
 		// In other words we only cache the simplified shader map version of the material in the editor (and not during cooks).
@@ -822,7 +822,7 @@ void FMaterialShaderMapId::GetMaterialHash(FSHAHash& OutHash, bool bWithStaticPa
 
 	HashState.Update((const uint8*)&bUsingNewHLSLGenerator, sizeof(bUsingNewHLSLGenerator));
 
-	StrataCompilationConfig.UpdateHash(HashState);
+	SubstrateCompilationConfig.UpdateHash(HashState);
 
 	HashState.Final();
 	HashState.GetHash(&OutHash.Hash[0]);
@@ -851,7 +851,7 @@ bool FMaterialShaderMapId::Equals(const FMaterialShaderMapId& ReferenceSet, bool
 		return false;
 	}
 
-	if (StrataCompilationConfig != ReferenceSet.StrataCompilationConfig)
+	if (SubstrateCompilationConfig != ReferenceSet.SubstrateCompilationConfig)
 	{
 		return false;
 	}
@@ -1152,7 +1152,7 @@ void FMaterialShaderMapId::AppendKeyString(FString& KeyString, bool bIncludeSour
 		KeyString += FString::Printf(TEXT("_NewHLSL%d"), FMaterialHLSLGenerator::Version);
 	}
 
-	KeyString += StrataCompilationConfig.GetShaderMapKeyString();
+	KeyString += SubstrateCompilationConfig.GetShaderMapKeyString();
 }
 
 void FMaterialShaderMapId::SetShaderDependencies(const TArray<FShaderType*>& ShaderTypes, const TArray<const FShaderPipelineType*>& ShaderPipelineTypes, const TArray<FVertexFactoryType*>& VFTypes, EShaderPlatform ShaderPlatform)

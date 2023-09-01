@@ -21,8 +21,8 @@
 #include "/Engine/Shared/RayTracingPayloadType.h"
 #include "RayTracingRayCone.ush"
 
-#if STRATA_ENABLED && MATERIAL_IS_STRATA
-#define STRATA_INLINE_SHADING 1
+#if SUBSTRATE_ENABLED && MATERIAL_IS_SUBSTRATE
+#define SUBSTRATE_INLINE_SHADING 1
 #endif
 
 #include "../Substrate/Substrate.ush"
@@ -533,7 +533,7 @@ uint TranslateRayTracingInstanceFlags(uint InFlags)
 
 #if !COMPUTESHADER || PLATFORM_SUPPORTS_INLINE_RAY_TRACING
 
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 
 struct FMaterialClosestHitPayload : FMinimalPayload
 {
@@ -553,7 +553,7 @@ struct FMaterialClosestHitPayload : FMinimalPayload
 	// It is not packed in FRayHitInfoPacked
 	float3 TranslatedWorldPos;			
 	uint Flags;							
-	FStrataRaytracingPayload StrataData; 
+	FSubstrateRaytracingPayload SubstrateData; 
 
 	void SetFrontFace()						{ Flags |= RAY_TRACING_PAYLOAD_OUTPUT_FLAG_FRONT_FACE; }
 	bool IsFrontFace()						{ return (Flags & RAY_TRACING_PAYLOAD_OUTPUT_FLAG_FRONT_FACE) != 0; }
@@ -579,7 +579,7 @@ struct FPackedMaterialClosestHitPayload : FMinimalPayload
 	uint PackedGeometryNormal;							 // 4  bytes
 	uint SceneInstanceIndex;                             // 4  bytes - GPUSceneInstanceIndex
 														 //=24 bytes - must be in sync with InternalGetRayTracingMaterialPayloadSizeInBytes()
-	FStrataRaytracingPayload StrataData;				 //  ? bytes - must be in sync with GetRaytracingMaterialPayloadSize (see FStrataRaytracingPayload)
+	FSubstrateRaytracingPayload SubstrateData;				 //  ? bytes - must be in sync with GetRaytracingMaterialPayloadSize (see FSubstrateRaytracingPayload)
 														 //=24+? bytes total
 
 	void SetMinimalPayloadMode()			{ Flags |= RAY_TRACING_PAYLOAD_INPUT_FLAG_MINIMAL_PAYLOAD; }
@@ -603,10 +603,10 @@ struct FPackedMaterialClosestHitPayload : FMinimalPayload
 	void SetRadiance(in float3 In)			{ Radiance = PackR11G11B10F(In); }
 	float3 GetRadiance()					{ return UnpackR11G11B10F(Radiance); }
 
-	void SetIndirectIrradiance(float3 In)	{ /* Used for transferring sky-lighting irradiance. Not supported with Strata */ }
+	void SetIndirectIrradiance(float3 In)	{ /* Used for transferring sky-lighting irradiance. Not supported with Substrate */ }
 	float3 GetIndirectIrradiance()			{ return 0.f; }
 
-	float3 GetWorldNormal()					{ return StrataUnpackTopLayerData(StrataData.PackedTopLayerData).WorldNormal; }
+	float3 GetWorldNormal()					{ return SubstrateUnpackTopLayerData(SubstrateData.PackedTopLayerData).WorldNormal; }
 
 	void SetGeometryNormal(float3 GeometryNormal) 
 	{
@@ -618,8 +618,8 @@ struct FPackedMaterialClosestHitPayload : FMinimalPayload
 		return UnpackNormalFromUInt32(PackedGeometryNormal); 
 	}
 
-	bool IsValid()							{ return any(StrataData.PackedTopLayerData != 0); }
-	uint  GetShadingModelID()				{ return IsValid() ? SHADINGMODELID_STRATA : SHADINGMODELID_UNLIT; }
+	bool IsValid()							{ return any(SubstrateData.PackedTopLayerData != 0); }
+	uint  GetShadingModelID()				{ return IsValid() ? SHADINGMODELID_SUBSTRATE : SHADINGMODELID_UNLIT; }
 	uint  GetFlags()						{ return (Flags & 0xFF); }
 	bool IsTwoSided()						{ return (Flags & RAY_TRACING_PAYLOAD_OUTPUT_FLAG_TWO_SIDED) != 0; }
 	bool IsFrontFace()						{ return (Flags & RAY_TRACING_PAYLOAD_OUTPUT_FLAG_FRONT_FACE) != 0; }
@@ -632,15 +632,15 @@ struct FPackedMaterialClosestHitPayload : FMinimalPayload
 	void SetPrimitiveLightingChannelMask(uint In)	{ Flags |= ((In & 0x7)<<19u); }
 	void SetOpacity(float In)						{ Flags |= PackR8(In) << 24u; }
 
-	void SetRayDirection(float3 In)			{ PackedRayCone = StrataPackNormal(In); }
-	float3 GetRayDirection()				{ return StrataUnpackNormal(PackedRayCone); }
+	void SetRayDirection(float3 In)			{ PackedRayCone = SubstratePackNormal(In); }
+	float3 GetRayDirection()				{ return SubstrateUnpackNormal(PackedRayCone); }
 
 	// Member function for (IsLumenPayload() == 1)
 	void SetSceneInstanceIndex(uint In)		{ SceneInstanceIndex = In; }
 	int GetSceneInstanceIndex()				{ return SceneInstanceIndex; }
 
 	// (Placeholder) Accessors used by the legacy refleciton API
-#if STRATA_LEGACY_REFLECTION_API
+#if SUBSTRATE_LEGACY_REFLECTION_API
 	float3 GetWorldTangent()				{ return float3(1,0,0); }
 	float3 GetBaseColor()					{ return 1.f; }
 	float4 GetCustomData()					{ return 0.f; }
@@ -663,7 +663,7 @@ FPackedMaterialClosestHitPayload PackRayTracingPayload(FMaterialClosestHitPayloa
 	Out.SetBlendingMode(In.BlendingMode);
 	Out.SetPrimitiveLightingChannelMask(In.PrimitiveLightingChannelMask);
 	Out.SetRadiance(In.Radiance);
-	Out.StrataData = In.StrataData;
+	Out.SubstrateData = In.SubstrateData;
 	Out.SetOpacity(In.Opacity);
 
 	return Out;
@@ -681,14 +681,14 @@ FMaterialClosestHitPayload UnpackRayTracingPayload(FPackedMaterialClosestHitPayl
 	Out.WorldNormal = In.GetWorldNormal();
 	Out.ShadingModelID = In.GetShadingModelID();
 	Out.IndirectIrradiance = In.GetIndirectIrradiance();
-	Out.StrataData = In.StrataData;
+	Out.SubstrateData = In.SubstrateData;
 	Out.TranslatedWorldPos = Ray.Origin + Out.HitT * Ray.Direction;
 	Out.RayDirection = In.GetRayDirection();
 	Out.Opacity = In.GetOpacity();
 	return Out;
 }
 
-#else // STRATA_ENABLED
+#else // SUBSTRATE_ENABLED
 
 struct FMaterialClosestHitPayload : FMinimalPayload
 {
@@ -949,7 +949,7 @@ FMaterialClosestHitPayload UnpackRayTracingPayload(FPackedMaterialClosestHitPayl
 	return Output;
 }
 
-#endif // STRATA_ENABLED
+#endif // SUBSTRATE_ENABLED
 
 #if IS_PAYLOAD_ENABLED(RT_PAYLOAD_TYPE_RAYTRACING_MATERIAL)
 CHECK_RT_PAYLOAD_SIZE(FPackedMaterialClosestHitPayload)

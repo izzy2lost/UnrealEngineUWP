@@ -10,9 +10,9 @@
 
 #include "Common.ush"
 
-#if STRATA_ENABLED && !MATERIAL_IS_STRATA
-#undef STRATA_ENABLED
-#define STRATA_ENABLED 0
+#if SUBSTRATE_ENABLED && !MATERIAL_IS_SUBSTRATE
+#undef SUBSTRATE_ENABLED
+#define SUBSTRATE_ENABLED 0
 #endif
 
 #define SceneTexturesStruct VoxelizeVolumePass.SceneTextures 
@@ -29,8 +29,8 @@ uint VoxelizationPassIndex;
 float SampleExtinctionCoefficients(in FPixelMaterialInputs PixelMaterialInputs)
 {
 	float Extinction = 0.0f;
-#if STRATA_ENABLED
-	FStrataBSDF BSDF = PixelMaterialInputs.FrontMaterial.InlinedBSDF;
+#if SUBSTRATE_ENABLED
+	FSubstrateBSDF BSDF = PixelMaterialInputs.FrontMaterial.InlinedBSDF;
 	Extinction = VOLUMETRICFOGCLOUD_EXTINCTION(BSDF).r;
 #else
 	#if !MATERIAL_SHADINGMODEL_UNLIT
@@ -43,8 +43,8 @@ float SampleExtinctionCoefficients(in FPixelMaterialInputs PixelMaterialInputs)
 float3 SampleEmissive(in FPixelMaterialInputs PixelMaterialInputs)
 {
 	float3 EmissiveColor = 0.0f;
-#if STRATA_ENABLED
-	FStrataBSDF BSDF = PixelMaterialInputs.FrontMaterial.InlinedBSDF;
+#if SUBSTRATE_ENABLED
+	FSubstrateBSDF BSDF = PixelMaterialInputs.FrontMaterial.InlinedBSDF;
 	EmissiveColor = BSDF_GETEMISSIVE(BSDF);
 #else
 	EmissiveColor = GetMaterialEmissiveRaw(PixelMaterialInputs);
@@ -55,8 +55,8 @@ float3 SampleEmissive(in FPixelMaterialInputs PixelMaterialInputs)
 float3 SampleAlbedo(in FPixelMaterialInputs PixelMaterialInputs, in ViewState InputView)
 {
 	float3 Albedo = 0.0f;
-#if STRATA_ENABLED
-	FStrataBSDF BSDF = PixelMaterialInputs.FrontMaterial.InlinedBSDF;
+#if SUBSTRATE_ENABLED
+	FSubstrateBSDF BSDF = PixelMaterialInputs.FrontMaterial.InlinedBSDF;
 	Albedo = VOLUMETRICFOGCLOUD_ALBEDO(BSDF);
 #else
 	#if !MATERIAL_SHADINGMODEL_UNLIT

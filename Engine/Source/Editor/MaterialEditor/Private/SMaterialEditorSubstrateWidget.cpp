@@ -18,17 +18,17 @@
 #include "SGraphSubstrateMaterial.h"
 #include "RHIShaderPlatform.h"
 
-#define LOCTEXT_NAMESPACE "SMaterialEditorStrataWidget"
+#define LOCTEXT_NAMESPACE "SMaterialEditorSubstrateWidget"
 
-DEFINE_LOG_CATEGORY_STATIC(LogMaterialEditorStrataWidget, Log, All);
+DEFINE_LOG_CATEGORY_STATIC(LogMaterialEditorSubstrateWidget, Log, All);
 
-void SMaterialEditorStrataWidget::Construct(const FArguments& InArgs, TWeakPtr<FMaterialEditor> InMaterialEditorPtr)
+void SMaterialEditorSubstrateWidget::Construct(const FArguments& InArgs, TWeakPtr<FMaterialEditor> InMaterialEditorPtr)
 {
 	MaterialEditorPtr = InMaterialEditorPtr;
 
 	ButtonApplyToPreview = SNew(SButton)
 		.HAlign(HAlign_Center)
-		.OnClicked(this, &SMaterialEditorStrataWidget::OnButtonApplyToPreview)
+		.OnClicked(this, &SMaterialEditorSubstrateWidget::OnButtonApplyToPreview)
 		.Text(LOCTEXT("ButtonApplyToPreview", "Apply to preview"));
 
 	CheckBoxForceFullSimplification = SNew(SCheckBox)
@@ -42,27 +42,27 @@ void SMaterialEditorStrataWidget::Construct(const FArguments& InArgs, TWeakPtr<F
 		.ShadowOffset(FVector2D::UnitVector)
 		.Text(LOCTEXT("DescriptionTextBlock_Default", "Shader is compiling"));
 
-	BytesPerPixelOverride = Strata::GetBytePerPixel(SP_PCD3D_SM5);
+	BytesPerPixelOverride = Substrate::GetBytePerPixel(SP_PCD3D_SM5);
 	BytesPerPixelOverrideInput = SNew(SNumericEntryBox<uint32>)
 		.MinDesiredValueWidth(150.0f)
 		.MinValue(12)
 		.MaxValue(BytesPerPixelOverride)
 		.MinSliderValue(12)
 		.MaxSliderValue(BytesPerPixelOverride)
-		.OnBeginSliderMovement(this, &SMaterialEditorStrataWidget::OnBeginBytesPerPixelSliderMovement)
-		.OnEndSliderMovement(this, &SMaterialEditorStrataWidget::OnEndBytesPerPixelSliderMovement)
+		.OnBeginSliderMovement(this, &SMaterialEditorSubstrateWidget::OnBeginBytesPerPixelSliderMovement)
+		.OnEndSliderMovement(this, &SMaterialEditorSubstrateWidget::OnEndBytesPerPixelSliderMovement)
 		.AllowSpin(true)
-		.OnValueChanged(this, &SMaterialEditorStrataWidget::OnBytesPerPixelChanged)
-		.OnValueCommitted(this, &SMaterialEditorStrataWidget::OnBytesPerPixelCommitted)
-		.Value(this, &SMaterialEditorStrataWidget::GetBytesPerPixelValue)
+		.OnValueChanged(this, &SMaterialEditorSubstrateWidget::OnBytesPerPixelChanged)
+		.OnValueCommitted(this, &SMaterialEditorSubstrateWidget::OnBytesPerPixelCommitted)
+		.Value(this, &SMaterialEditorSubstrateWidget::GetBytesPerPixelValue)
 		.IsEnabled(false);
 
 	CheckBoxBytesPerPixelOverride = SNew(SCheckBox)
 		.Padding(5.0f)
 		.ToolTipText(LOCTEXT("CheckBoxBytesPerPixelOverride", "This will force the byte per pixel count for the preview material. It cannot go higher than the current project setting."))
-		.OnCheckStateChanged(this, &SMaterialEditorStrataWidget::OnCheckBoxBytesPerPixelChanged);
+		.OnCheckStateChanged(this, &SMaterialEditorSubstrateWidget::OnCheckBoxBytesPerPixelChanged);
 
-	if (Strata::IsStrataEnabled())
+	if (Substrate::IsSubstrateEnabled())
 	{
 		this->ChildSlot
 		[
@@ -305,31 +305,31 @@ void SMaterialEditorStrataWidget::Construct(const FArguments& InArgs, TWeakPtr<F
 	}
 }
 
-TSharedRef<SWidget> SMaterialEditorStrataWidget::GetContent()
+TSharedRef<SWidget> SMaterialEditorSubstrateWidget::GetContent()
 {
 	return SharedThis(this);
 }
 
-SMaterialEditorStrataWidget::~SMaterialEditorStrataWidget()
+SMaterialEditorSubstrateWidget::~SMaterialEditorSubstrateWidget()
 {
 }
 
-void SMaterialEditorStrataWidget::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+void SMaterialEditorSubstrateWidget::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
-	if (!bUpdateRequested || !Strata::IsStrataEnabled())
+	if (!bUpdateRequested || !Substrate::IsSubstrateEnabled())
 	{
 		return;
 	}
 	bUpdateRequested = false;
 
-	FText StrataMaterialDescription;
+	FText SubstrateMaterialDescription;
 	if (MaterialEditorPtr.IsValid())
 	{
 		auto MaterialEditor = MaterialEditorPtr.Pin();
 
 		UMaterial* MaterialForStats = MaterialEditor->bStatsFromPreviewMaterial ? MaterialEditor->Material : MaterialEditor->OriginalMaterial;
 
-		StrataMaterialDescription = FText::FromString(FString(TEXT("StrataMaterialDescription")));
+		SubstrateMaterialDescription = FText::FromString(FString(TEXT("SubstrateMaterialDescription")));
 
 		const FMaterialResource* MaterialResource = MaterialForStats->GetMaterialResource(GMaxRHIFeatureLevel);
 		if (MaterialResource)
@@ -339,8 +339,8 @@ void SMaterialEditorStrataWidget::Tick(const FGeometry& AllottedGeometry, const 
 			FMaterialShaderMap* ShaderMap = MaterialResource->GetGameThreadShaderMap();
 			if (ShaderMap)
 			{
-				const FStrataMaterialCompilationOutput& CompilationOutput = ShaderMap->GetStrataMaterialCompilationOutput();
-				const uint32 FinalPixelByteCount = CompilationOutput.StrataUintPerPixel * sizeof(uint32);
+				const FSubstrateMaterialCompilationOutput& CompilationOutput = ShaderMap->GetSubstrateMaterialCompilationOutput();
+				const uint32 FinalPixelByteCount = CompilationOutput.SubstrateUintPerPixel * sizeof(uint32);
 
 				if (CompilationOutput.bMaterialOutOfBudgetHasBeenSimplified)
 				{
@@ -354,10 +354,10 @@ void SMaterialEditorStrataWidget::Tick(const FGeometry& AllottedGeometry, const 
 					MaterialDescription += FString::Printf(TEXT("Material per pixel byte count= %i / budget = %i\r\n"),
 						FinalPixelByteCount, CompilationOutput.PlatformBytePixePixel);
 				}
-				MaterialDescription += FString::Printf(TEXT("BSDF Count	                  = %i\r\n"), CompilationOutput.StrataBSDFCount);
+				MaterialDescription += FString::Printf(TEXT("BSDF Count	                  = %i\r\n"), CompilationOutput.SubstrateBSDFCount);
 				MaterialDescription += FString::Printf(TEXT("Local bases Count            = %i\r\n"), CompilationOutput.SharedLocalBasesCount);
 
-				switch (CompilationOutput.StrataMaterialType)
+				switch (CompilationOutput.SubstrateMaterialType)
 				{
 				case 0:
 					MaterialDescription += FString::Printf(TEXT("Material complexity          = SIMPLE (diffuse, albedo, roughness)\r\n"));
@@ -377,26 +377,26 @@ void SMaterialEditorStrataWidget::Tick(const FGeometry& AllottedGeometry, const 
 
 				MaterialDescription += FString::Printf(TEXT("Root Node Is Thin            = %i\r\n"), CompilationOutput.bIsThin);
 
-				//if (CompilationOutput.StrataBSDFCount == 1)
+				//if (CompilationOutput.SubstrateBSDFCount == 1)
 				//{
-				//	auto GetSingleOperatorBSDF = [&](const FStrataOperator& Op)
+				//	auto GetSingleOperatorBSDF = [&](const FSubstrateOperator& Op)
 				//	{
 				//		switch (Op.OperatorType)
 				//		{
-				//		case STRATA_OPERATOR_WEIGHT:
+				//		case SUBSTRATE_OPERATOR_WEIGHT:
 				//		{
 				//			return ProcessOperator(CompilationOutput.Operators[Op.LeftIndex]);	// Continue walking the tree
 				//			break;
 				//		}
-				//		case STRATA_OPERATOR_VERTICAL:
-				//		case STRATA_OPERATOR_HORIZONTAL:
-				//		case STRATA_OPERATOR_ADD:
+				//		case SUBSTRATE_OPERATOR_VERTICAL:
+				//		case SUBSTRATE_OPERATOR_HORIZONTAL:
+				//		case SUBSTRATE_OPERATOR_ADD:
 				//		{
-				//			return nullptr;	// A operator with multiple entries must use slabs and so should be a Strata material made of slabs
+				//			return nullptr;	// A operator with multiple entries must use slabs and so should be a Substrate material made of slabs
 				//			break;
 				//		}
-				//		case STRATA_OPERATOR_BSDF_LEGACY:
-				//		case STRATA_OPERATOR_BSDF:
+				//		case SUBSTRATE_OPERATOR_BSDF_LEGACY:
+				//		case SUBSTRATE_OPERATOR_BSDF:
 				//		{
 				//			return Op;
 				//			break;
@@ -404,12 +404,12 @@ void SMaterialEditorStrataWidget::Tick(const FGeometry& AllottedGeometry, const 
 				//		}
 				//		return nullptr;
 				//	};
-				//	const FStrataOperator& RootOperator = CompilationOutput.Operators[CompilationOutput.RootOperatorIndex];
-				//	const FStrataOperator* OpBSDF = GetSingleOperatorBSDF(RootOperator);
+				//	const FSubstrateOperator& RootOperator = CompilationOutput.Operators[CompilationOutput.RootOperatorIndex];
+				//	const FSubstrateOperator* OpBSDF = GetSingleOperatorBSDF(RootOperator);
 				//
 				//	if (OpBSDF)
 				//	{
-				//		// STRATA_TODO gather information about SSSPRofile, subsurface, two sided, etc?
+				//		// SUBSTRATE_TODO gather information about SSSPRofile, subsurface, two sided, etc?
 				//	}
 				//}
 
@@ -442,7 +442,7 @@ void SMaterialEditorStrataWidget::Tick(const FGeometry& AllottedGeometry, const 
 				MaterialDescription += FString::Printf(TEXT("================================================================================\r\n"));
 				MaterialDescription += FString::Printf(TEXT("================================Detailed Output=================================\r\n"));
 				MaterialDescription += FString::Printf(TEXT("================================================================================\r\n"));
-				MaterialDescription += CompilationOutput.StrataMaterialDescription;
+				MaterialDescription += CompilationOutput.SubstrateMaterialDescription;
 
 				// Now generate a visual representation of the material from the topology tree of operators.
 				{
@@ -473,12 +473,12 @@ void SMaterialEditorStrataWidget::Tick(const FGeometry& AllottedGeometry, const 
 	}
 }
 
-void SMaterialEditorStrataWidget::OnBytesPerPixelChanged(uint32 NewValue)
+void SMaterialEditorSubstrateWidget::OnBytesPerPixelChanged(uint32 NewValue)
 {
 	BytesPerPixelOverride = NewValue;
 }
 
-void SMaterialEditorStrataWidget::OnBytesPerPixelCommitted(uint32 NewValue, ETextCommit::Type InCommitType)
+void SMaterialEditorSubstrateWidget::OnBytesPerPixelCommitted(uint32 NewValue, ETextCommit::Type InCommitType)
 {
 	if (InCommitType == ETextCommit::OnEnter)
 	{
@@ -486,7 +486,7 @@ void SMaterialEditorStrataWidget::OnBytesPerPixelCommitted(uint32 NewValue, ETex
 	}
 }
 
-void SMaterialEditorStrataWidget::OnBeginBytesPerPixelSliderMovement()
+void SMaterialEditorSubstrateWidget::OnBeginBytesPerPixelSliderMovement()
 {
 	if (bBytesPerPixelStartedTransaction == false)
 	{
@@ -494,7 +494,7 @@ void SMaterialEditorStrataWidget::OnBeginBytesPerPixelSliderMovement()
 		GEditor->BeginTransaction(LOCTEXT("PastePoseTransation", "Paste Pose"));
 	}
 }
-void SMaterialEditorStrataWidget::OnEndBytesPerPixelSliderMovement(uint32 NewValue)
+void SMaterialEditorSubstrateWidget::OnEndBytesPerPixelSliderMovement(uint32 NewValue)
 {
 	if (bBytesPerPixelStartedTransaction)
 	{
@@ -504,29 +504,29 @@ void SMaterialEditorStrataWidget::OnEndBytesPerPixelSliderMovement(uint32 NewVal
 	}
 }
 
-TOptional<uint32> SMaterialEditorStrataWidget::GetBytesPerPixelValue() const
+TOptional<uint32> SMaterialEditorSubstrateWidget::GetBytesPerPixelValue() const
 {
 	return BytesPerPixelOverride;
 }
 
-void SMaterialEditorStrataWidget::OnCheckBoxBytesPerPixelChanged(ECheckBoxState InCheckBoxState)
+void SMaterialEditorSubstrateWidget::OnCheckBoxBytesPerPixelChanged(ECheckBoxState InCheckBoxState)
 {
 	BytesPerPixelOverrideInput->SetEnabled(InCheckBoxState == ECheckBoxState::Checked);
 }
 
-FReply SMaterialEditorStrataWidget::OnButtonApplyToPreview()
+FReply SMaterialEditorSubstrateWidget::OnButtonApplyToPreview()
 {
 	if (MaterialEditorPtr.IsValid())
 	{
 		UMaterialInterface* MaterialInterface = MaterialEditorPtr.Pin()->GetMaterialInterface();
 
-		FStrataCompilationConfig StrataCompilationConfig;
-		StrataCompilationConfig.bFullSimplify = CheckBoxForceFullSimplification->IsChecked();
+		FSubstrateCompilationConfig SubstrateCompilationConfig;
+		SubstrateCompilationConfig.bFullSimplify = CheckBoxForceFullSimplification->IsChecked();
 
 		// Have a look at MaterialStats.cpp when we want to visualise a specific platform.
-		StrataCompilationConfig.BytesPerPixelOverride = CheckBoxBytesPerPixelOverride->IsChecked() ? FMath::Clamp(BytesPerPixelOverride, 12, Strata::GetBytePerPixel(GMaxRHIShaderPlatform)) : -1;
+		SubstrateCompilationConfig.BytesPerPixelOverride = CheckBoxBytesPerPixelOverride->IsChecked() ? FMath::Clamp(BytesPerPixelOverride, 12, Substrate::GetBytePerPixel(GMaxRHIShaderPlatform)) : -1;
 
-		MaterialInterface->SetStrataCompilationConfig(StrataCompilationConfig);
+		MaterialInterface->SetSubstrateCompilationConfig(SubstrateCompilationConfig);
 
 		MaterialInterface->ForceRecompileForRendering();
 	}

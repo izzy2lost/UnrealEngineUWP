@@ -509,8 +509,8 @@ void MarkRadianceProbesUsedByHairStrandsCS(uint3 DispatchThreadId : SV_DispatchT
 }
 
 #define INTEGRATE_TILE_SIZE 8
-#if STRATA_ENABLED && (INTEGRATE_TILE_SIZE != STRATA_TILE_SIZE)
-#error Lumen diffuse integrate tile size needs to have the same size as the Strata tiles
+#if SUBSTRATE_ENABLED && (INTEGRATE_TILE_SIZE != SUBSTRATE_TILE_SIZE)
+#error Lumen diffuse integrate tile size needs to have the same size as the Substrate tiles
 #endif
 
 #define TILE_CLASSIFICATION_SIMPLE_DIFFUSE 0
@@ -571,26 +571,26 @@ uint GetDiffuseIntegrationMethod(FLumenMaterialData In)
 FLumenMaterialCoord GetLumenMaterialCoordForScreenProbeGather(uint2 DispatchThreadId, uint2 GroupId, inout bool bIsValid, inout uint2 FlattenTileCoord)
 {
 	FLumenMaterialCoord Out = (FLumenMaterialCoord)0;
-#if STRATA_ENABLED && PERMUTATION_OVERFLOW_TILE
-	const uint2 TileCoord = DispatchThreadId >> STRATA_TILE_SIZE_DIV_AS_SHIFT;
-	const bool bIsInOverflowRect = all(TileCoord < uint2(Strata.OverflowTileCount));
-	const bool bIsInTileRange = (TileCoord.x + TileCoord.y * Strata.OverflowTileCount.x) < Strata.BSDFTileCountBuffer[0];
+#if SUBSTRATE_ENABLED && PERMUTATION_OVERFLOW_TILE
+	const uint2 TileCoord = DispatchThreadId >> SUBSTRATE_TILE_SIZE_DIV_AS_SHIFT;
+	const bool bIsInOverflowRect = all(TileCoord < uint2(Substrate.OverflowTileCount));
+	const bool bIsInTileRange = (TileCoord.x + TileCoord.y * Substrate.OverflowTileCount.x) < Substrate.BSDFTileCountBuffer[0];
 	bIsValid = bIsInOverflowRect && bIsInTileRange;
-	Out = GetLumenMaterialCoord(DispatchThreadId + (Strata.OverflowTileOffset * STRATA_TILE_SIZE), true);
-	FlattenTileCoord = Out.SvPositionFlatten >> STRATA_TILE_SIZE_DIV_AS_SHIFT;
+	Out = GetLumenMaterialCoord(DispatchThreadId + (Substrate.OverflowTileOffset * SUBSTRATE_TILE_SIZE), true);
+	FlattenTileCoord = Out.SvPositionFlatten >> SUBSTRATE_TILE_SIZE_DIV_AS_SHIFT;
 #else
 	bIsValid = all(DispatchThreadId < View.ViewRectMinAndSize.zw);
 	Out = GetLumenMaterialCoord(DispatchThreadId + View.ViewRectMinAndSize.xy, false);
-	FlattenTileCoord = GroupId; // LUMEN_TODO: This should be: Coord.SvPositionFlatten >> STRATA_TILE_SIZE_DIV_AS_SHIFT in order to support multi-view in same texture/buffer
+	FlattenTileCoord = GroupId; // LUMEN_TODO: This should be: Coord.SvPositionFlatten >> SUBSTRATE_TILE_SIZE_DIV_AS_SHIFT in order to support multi-view in same texture/buffer
 #endif
 	return Out;
 }
 
 FLumenMaterialCoord GetLumenMaterialCoordForScreenProbeGather(uint2 DispatchThreadId, bool bIncludeTileOffset)
 {
-#if STRATA_ENABLED && PERMUTATION_OVERFLOW_TILE
+#if SUBSTRATE_ENABLED && PERMUTATION_OVERFLOW_TILE
 	// If bIncludeTileOffset is false, then it means that DispatchThreadId/TileCoord already contains +OverflowTileOffset
-	return GetLumenMaterialCoord(DispatchThreadId + (bIncludeTileOffset ? (Strata.OverflowTileOffset * STRATA_TILE_SIZE) : 0), true);
+	return GetLumenMaterialCoord(DispatchThreadId + (bIncludeTileOffset ? (Substrate.OverflowTileOffset * SUBSTRATE_TILE_SIZE) : 0), true);
 #else
 	return GetLumenMaterialCoord(DispatchThreadId + View.ViewRectMinAndSize.xy, false);
 #endif
@@ -721,7 +721,7 @@ void ScreenProbeTileClassificationBuildListsCS(
 	if (GroupThreadId == 0)
 	{
 		#if PERMUTATION_OVERFLOW_TILE		
-		const uint TileCount = Strata.BSDFTileCountBuffer[0];
+		const uint TileCount = Substrate.BSDFTileCountBuffer[0];
 		#endif
 
 		UNROLL
@@ -736,15 +736,15 @@ void ScreenProbeTileClassificationBuildListsCS(
 			uint2 TileCoordinate = GroupId * 8 + ThreadOffset;
 
 			#if PERMUTATION_OVERFLOW_TILE
-			const bool bIsInOverflowRect = all(TileCoordinate < Strata.OverflowTileCount);
-			const uint TileIndex = TileCoordinate.x + TileCoordinate.y * Strata.OverflowTileCount.x;
+			const bool bIsInOverflowRect = all(TileCoordinate < Substrate.OverflowTileCount);
+			const uint TileIndex = TileCoordinate.x + TileCoordinate.y * Substrate.OverflowTileCount.x;
 			const bool bIsValid = bIsInOverflowRect && TileIndex < TileCount;
 			#else
 			const bool bIsValid = all(TileCoordinate < ViewportTileDimensions);
 			#endif
 
 			// Translate tile into its effective location (i.e., dispatch thread -> SvPosition)
-			TileCoordinate += PERMUTATION_OVERFLOW_TILE ? Strata.OverflowTileOffset : int2(0, 0);
+			TileCoordinate += PERMUTATION_OVERFLOW_TILE ? Substrate.OverflowTileOffset : int2(0, 0);
 
 			if (bIsValid)
 			{
@@ -923,8 +923,8 @@ float FullResolutionJitterWidth;
 FBxDFSample SampleBxDFWrapper(const uint TermMask, FLumenMaterialData MaterialData, float3 V, float4 E)
 {
 #if INTEGRATE_TILE_CLASSIFICATION_MODE == TILE_CLASSIFICATION_SIMPLE_DIFFUSE || INTEGRATE_TILE_CLASSIFICATION_MODE == TILE_CLASSIFICATION_SUPPORT_IMPORTANCE_SAMPLE_BRDF
-  #if STRATA_ENABLED
-	return SampleStrataBxDF(TermMask, MaterialData, V, E);
+  #if SUBSTRATE_ENABLED
+	return SampleSubstrateBxDF(TermMask, MaterialData, V, E);
   #else
 	return SampleDefaultLitBxDF(TermMask, MaterialData.WorldNormal, GetTangentBasis(MaterialData), MaterialData.Anisotropy, MaterialData.Roughness, V, E);
   #endif
@@ -1132,9 +1132,9 @@ void ScreenProbeIntegrateCS(
 #endif
 
 	// In Screen probe reference mode (i.e. without classification, the full overflow space is dispatched.
-	// We add Strata.OverflowTileOffset, as GetLumenMaterialCoordForScreenProbeGather() expects DispatchThreadId to be PixelCoord in 'Flatten' space.
-#if INTEGRATE_TILE_CLASSIFICATION_MODE == TILE_CLASSIFICATION_DISABLED && STRATA_ENABLED && PERMUTATION_OVERFLOW_TILE
-	DispatchThreadId += Strata.OverflowTileOffset * INTEGRATE_TILE_SIZE;
+	// We add Substrate.OverflowTileOffset, as GetLumenMaterialCoordForScreenProbeGather() expects DispatchThreadId to be PixelCoord in 'Flatten' space.
+#if INTEGRATE_TILE_CLASSIFICATION_MODE == TILE_CLASSIFICATION_DISABLED && SUBSTRATE_ENABLED && PERMUTATION_OVERFLOW_TILE
+	DispatchThreadId += Substrate.OverflowTileOffset * INTEGRATE_TILE_SIZE;
 #endif
 
 	const FLumenMaterialCoord Coord = GetLumenMaterialCoordForScreenProbeGather(DispatchThreadId, false /* Does not add offset as DispatchThreadId/TileCoord already contains +OverflowTileOffset */);
@@ -1351,7 +1351,7 @@ void ScreenProbeIntegrateCS(
 
 							if (bHasBackfaceDiffuse)
 							{
-								// STRATA_TODO: this sampling routine only match the 'wrap' case, but not the other routine. Need to revist this.
+								// SUBSTRATE_TODO: this sampling routine only match the 'wrap' case, but not the other routine. Need to revist this.
 								// Match TwoSidedBxDF
 								half Wrap = 0.5;
 								half WrapNoL = saturate((-dot(Material.WorldNormal, WorldConeDirection) + Wrap) / Square(1 + Wrap));
@@ -1385,7 +1385,7 @@ void ScreenProbeIntegrateCS(
 			}
 			#endif
 
-			#if SHORT_RANGE_AO && !STRATA_ENABLED // STRATA_TODO: Need to extract an average base color value?
+			#if SHORT_RANGE_AO && !SUBSTRATE_ENABLED // SUBSTRATE_TODO: Need to extract an average base color value?
 			{
 				DiffuseLighting *= DistantIlluminationRescale(min(Material.GBufferData.BaseColor, MaxAOMultibounceAlbedo), AO);
 			}
@@ -1468,24 +1468,24 @@ void ScreenProbeIntegrateCS(
 				// Clamp to ~2x2 fooprint in a 16x16 probe
 				Material.Roughness = max(Material.Roughness, 0.2f);
 
-			#if STRATA_ENABLED
-				// STRATA_TODO: Abstract this more
-				FStrataAddressing StrataAddressing = GetStrataPixelDataByteOffset(Coord.SvPosition, uint2(View.BufferSizeAndInvSize.xy), Strata.MaxBytesPerPixel);
-				const FStrataPixelHeader StrataPixelHeader = UnpackStrataHeaderIn(Strata.MaterialTextureArray, StrataAddressing, Strata.TopLayerTexture);
-				const uint OffsetAddress = UnpackBSDFOffsetAtIndex(Strata.BSDFOffsetTexture[Coord.SvPosition], Coord.TileBSDFIndex, Coord.TileBSDFCount);
-				StrataSeekBSDF(StrataAddressing, OffsetAddress);
-				FStrataBSDF BSDF = UnpackStrataBSDFIn(Strata.MaterialTextureArray, StrataAddressing, StrataPixelHeader);
+			#if SUBSTRATE_ENABLED
+				// SUBSTRATE_TODO: Abstract this more
+				FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(Coord.SvPosition, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
+				const FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
+				const uint OffsetAddress = UnpackBSDFOffsetAtIndex(Substrate.BSDFOffsetTexture[Coord.SvPosition], Coord.TileBSDFIndex, Coord.TileBSDFCount);
+				SubstrateSeekBSDF(SubstrateAddressing, OffsetAddress);
+				FSubstrateBSDF BSDF = UnpackSubstrateBSDFIn(Substrate.MaterialTextureArray, SubstrateAddressing, SubstratePixelHeader);
 
 				// We set slabs BSDFs as having a single specular lob without haziness.
 				// This is to ensure the pdf is computed from a single lobe in order to be able to compute a matching cone angle.
-				BSDF.StrataSetBSDFRoughness(Material.Roughness);
-				if (StrataGetBSDFType(BSDF) == STRATA_BSDF_TYPE_SLAB)
+				BSDF.SubstrateSetBSDFRoughness(Material.Roughness);
+				if (SubstrateGetBSDFType(BSDF) == SUBSTRATE_BSDF_TYPE_SLAB)
 				{
 					BSDF_SETHASHAZINESS(BSDF, 0);
 				}
 
-				FStrataBSDFContext BSDFContext = StrataCreateBSDFContext(StrataPixelHeader, BSDF, StrataAddressing, V);
-				const FStrataIntegrationSettings Settings = InitStrataIntegrationSettings(false /*bForceFullyRough*/, Strata.bRoughDiffuse, Strata.PeelLayersAboveDepth, Strata.bRoughnessTracking);
+				FSubstrateBSDFContext BSDFContext = SubstrateCreateBSDFContext(SubstratePixelHeader, BSDF, SubstrateAddressing, V);
+				const FSubstrateIntegrationSettings Settings = InitSubstrateIntegrationSettings(false /*bForceFullyRough*/, Substrate.bRoughDiffuse, Substrate.PeelLayersAboveDepth, Substrate.bRoughnessTracking);
 			#else
 				// For clear coat materials, screen probes are always providing the bottom layer reflections
 				Material.WorldNormal = GetClearCoatBottomNormal(Material.GBufferData, Material.WorldNormal);
@@ -1510,9 +1510,9 @@ void ScreenProbeIntegrateCS(
 				
 					E = BiasBSDFImportantSample(E);
 
-					// STRATA_TODO: Abstract this more
-				#if STRATA_ENABLED
-					FBxDFSample BxDFSample = StrataImportanceSampleBSDF(BSDFContext, E.xy, SHADING_TERM_SPECULAR, Settings);
+					// SUBSTRATE_TODO: Abstract this more
+				#if SUBSTRATE_ENABLED
+					FBxDFSample BxDFSample = SubstrateImportanceSampleBSDF(BSDFContext, E.xy, SHADING_TERM_SPECULAR, Settings);
 					BxDFSample.Weight = 1.0f;
 				#else
 					FBxDFSample BxDFSample = SampleBxDFWrapper(SHADING_TERM_SPECULAR, Material, V, E);
@@ -1582,8 +1582,8 @@ Texture2D RoughSpecularIndirectHistory;
 Texture2D DiffuseIndirectDepthHistory;
 Texture2D HistoryNumFramesAccumulated;
 Texture2D FastUpdateModeHistory;
-#if STRATA_ENABLED
-Texture2D<STRATA_TOP_LAYER_TYPE> NormalHistory;
+#if SUBSTRATE_ENABLED
+Texture2D<SUBSTRATE_TOP_LAYER_TYPE> NormalHistory;
 #else
 Texture2D NormalHistory;
 #endif 
@@ -1605,13 +1605,13 @@ float InvFractionOfLightingMovingForFastUpdateMode;
 float MaxFastUpdateModeAmount;
 float MaxFramesAccumulated;
 float HistoryNormalCosThreshold;
-uint  bIsStrataTileHistoryValid;
+uint  bIsSubstrateTileHistoryValid;
 
 // Return the 'flatten' SvPosition/ScreenCoord of particular BSDF layer
 uint2 GetNeighborFlattenCoord(uint2 InScreenCoord, uint InBSDFIndex)
 {
-#if STRATA_ENABLED && PERMUTATION_OVERFLOW_TILE
-	return GetBSDFPositionFlatten(InScreenCoord, InBSDFIndex, Strata.BSDFTileTexture, Strata.OverflowTileCount);
+#if SUBSTRATE_ENABLED && PERMUTATION_OVERFLOW_TILE
+	return GetBSDFPositionFlatten(InScreenCoord, InBSDFIndex, Substrate.BSDFTileTexture, Substrate.OverflowTileCount);
 #else
 	return InScreenCoord;
 #endif
@@ -1621,7 +1621,7 @@ uint2 GetNeighborFlattenCoord(uint2 InScreenCoord, uint InBSDFIndex)
 float2 GetPrevUV(const float2 InPrevScreenCoordUV, uint InBSDFIndex)
 {
 	float2 Out = InPrevScreenCoordUV;
-#if STRATA_ENABLED && PERMUTATION_OVERFLOW_TILE
+#if SUBSTRATE_ENABLED && PERMUTATION_OVERFLOW_TILE
 	if (InBSDFIndex > 0)
 	{
 		const float2 fPrevScreenCoord = InPrevScreenCoordUV * HistoryEffectiveResolution.xy;
@@ -1766,9 +1766,9 @@ FGatherUV GetGatherUV(Bilinear In, float2 InTexelSize)
 
 float3 GetHistoryNormal(float2 InUV)
 {
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 	const uint2 PixelPos = InUV * View.BufferSizeAndInvSize.xy;
-	return StrataUnpackTopLayerData(NormalHistory.Load(uint3(PixelPos, 0))).WorldNormal;
+	return SubstrateUnpackTopLayerData(NormalHistory.Load(uint3(PixelPos, 0))).WorldNormal;
 #else
 	return DecodeNormal(Texture2DSampleLevel(NormalHistory, GlobalPointClampedSampler, InUV, 0).xyz);
 #endif
@@ -1821,7 +1821,7 @@ void ScreenProbeTemporalReprojectionCS(
 	// HistoryGather                  are UV in 'extented' screen space (dimensions: HistoryEffectiveResolution) 
 
 	FGatherUV HistoryGather_Primary  = GetGatherUV(BilinearFilterAtHistoryScreenUV, View.BufferSizeAndInvSize.zw);
-#if !STRATA_ENABLED
+#if !SUBSTRATE_ENABLED
 	FGatherUV HistoryGather_Extended = HistoryGather_Primary;
 #else
 	FGatherUV HistoryGather_Extended = GetGatherUV(BilinearFilterAtHistoryScreenUV, HistoryEffectiveResolution.zw);
@@ -1835,8 +1835,8 @@ void ScreenProbeTemporalReprojectionCS(
 	HistoryGather_Extended.UV11 = GetPrevUV(HistoryGather_Extended.UV11, Coord.TileBSDFIndex);
 	#endif
 
-	// When Strata is enabled: use top layer normal instead of the BSDF normal, since it is used for occlusion rejection, and needs to be stable during reprojection.
-	WorldNormal = StrataUnpackTopLayerData(Strata.TopLayerTexture.Load(uint3(Coord.SvPosition, 0))).WorldNormal;
+	// When Substrate is enabled: use top layer normal instead of the BSDF normal, since it is used for occlusion rejection, and needs to be stable during reprojection.
+	WorldNormal = SubstrateUnpackTopLayerData(Substrate.TopLayerTexture.Load(uint3(Coord.SvPosition, 0))).WorldNormal;
 #endif
 
 #define PLANE_DISOCCLUSION_WEIGHTS 0
@@ -1941,7 +1941,7 @@ void ScreenProbeTemporalReprojectionCS(
 		HistoryRoughSpecularIndirect = WeightedAverage(HistoryRoughSpecularIndirect00, HistoryRoughSpecularIndirect10, HistoryRoughSpecularIndirect01, HistoryRoughSpecularIndirect11, FinalWeights) * PrevSceneColorPreExposureCorrection;
 	}
 #else
-	// STRATA_TODO: This path is not active, but if it becomes active, this is incorrect. HistoryScreenUV is in 'primary' space, while the history 
+	// SUBSTRATE_TODO: This path is not active, but if it becomes active, this is incorrect. HistoryScreenUV is in 'primary' space, while the history 
 	// should be fetch from 'extented' space (i.e., something similar to HistoryGatherUV with a 0.5f offset)
 	HistoryDiffuseIndirect = Texture2DSampleLevel(DiffuseIndirectHistory, GlobalBilinearClampedSampler, HistoryScreenUV_Primary, 0).xyz * PrevSceneColorPreExposureCorrection;
 	HistoryRoughSpecularIndirect = Texture2DSampleLevel(RoughSpecularIndirectHistory, GlobalBilinearClampedSampler, HistoryScreenUV_Primary, 0).xyz * PrevSceneColorPreExposureCorrection;
@@ -2014,7 +2014,7 @@ void ScreenProbeTemporalReprojectionCS(
 
 		const float3 HistoryBackfaceDiffuseIndirect = WeightedAverage(HistoryDiffuseIndirect00, HistoryDiffuseIndirect10, HistoryDiffuseIndirect01, HistoryDiffuseIndirect11, FinalWeights) * PrevSceneColorPreExposureCorrection;
 #else
-		// STRATA_TODO: This path is not active, but if it becomes active, this is incorrect. HistoryScreenUV is in 'primary' space, while the history 
+		// SUBSTRATE_TODO: This path is not active, but if it becomes active, this is incorrect. HistoryScreenUV is in 'primary' space, while the history 
 		// should be fetch from 'extented' space (i.e., something similar to HistoryGatherUV with a 0.5f offset)
 		const float3 HistoryBackfaceDiffuseIndirect = Texture2DSampleLevel(BackfaceDiffuseIndirectHistory, GlobalBilinearClampedSampler, HistoryScreenUV_Primary, 0).xyz * PrevSceneColorPreExposureCorrection;
 #endif
@@ -2043,14 +2043,14 @@ uint GetTileCount(uint InMode, bool bOverflow)
 	return IntegrateIndirectArgs[Offset];
 }
 
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 uint2 TranslateTileCoordIntoPrimarySpace(uint2 TileNCoord, bool bOverflow, inout uint TileIndex)
 {
 	uint2 Out = TileNCoord;
 	TileIndex = 0;
 	if (bOverflow)
 	{
-		const FStrataBSDFTile BSDFNTile = UnpackBSDFTile(Strata.BSDFTileTexture[TileNCoord]);
+		const FSubstrateBSDFTile BSDFNTile = UnpackBSDFTile(Substrate.BSDFTileTexture[TileNCoord]);
 		TileIndex = BSDFNTile.Index;
 		Out = BSDFNTile.TileCoord;
 	}
@@ -2072,12 +2072,12 @@ void PrintTile(inout FShaderPrintContext Context, uint LinearCoord, uint InMode,
 		const uint TileDataOffset = LinearCoord + GetTileDataOffset(ViewportIntegrateTileDimensions, InMode, bOverflow);
 		uint2 TileCoord = UnpackTileData(IntegrateTileData[TileDataOffset]);
 		uint TileIndex = 0;
-	#if STRATA_ENABLED
+	#if SUBSTRATE_ENABLED
 		if (bOverflow)
 		{
 			if (bOverflowLinear)
 			{
-				TileCoord.y -= Strata.OverflowTileOffset.y;
+				TileCoord.y -= Substrate.OverflowTileOffset.y;
 			}
 			else
 			{
@@ -2127,8 +2127,8 @@ void PrintTileStats(inout FShaderPrintContext Context, bool bOverflow)
 [numthreads(1, 1, 1)]
 void ScreenProbeDebugMain(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
-	#if STRATA_ENABLED
-	const bool bOverflowValid = Strata.BSDFTileCountBuffer[0] > 0;
+	#if SUBSTRATE_ENABLED
+	const bool bOverflowValid = Substrate.BSDFTileCountBuffer[0] > 0;
 	#else
 	const bool bOverflowValid = false;
 	#endif
@@ -2141,9 +2141,9 @@ void ScreenProbeDebugMain(uint3 DispatchThreadId : SV_DispatchThreadID)
 
 		const FFontColor PrimaryResColor = GetValidColor(true);
 		const FFontColor OverflowResColor = GetValidColor(bOverflowValid);
-	#if STRATA_ENABLED
-		uint2 TileRes_Primary = Strata.TileCount;
-		uint2 TileRes_Overflow = Strata.OverflowTileCount;
+	#if SUBSTRATE_ENABLED
+		uint2 TileRes_Primary = Substrate.TileCount;
+		uint2 TileRes_Overflow = Substrate.OverflowTileCount;
 	#else
 		uint2 TileRes_Primary = ViewportIntegrateTileDimensions;
 		uint2 TileRes_Overflow = 0;
@@ -2176,7 +2176,7 @@ void ScreenProbeDebugMain(uint3 DispatchThreadId : SV_DispatchThreadID)
 	bool bOverflowLinear = true;
 	int TileIndexFilter = -1;
 
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 	bPrimaryEnable = AddCheckbox(Context, TEXT("Primary Tiles"), true, FontOrange); Newline(Context);
 	bOverflowEnable = AddCheckbox(Context, TEXT("Overflow Tiles"), true, FontOrange); Newline(Context);
 	bOverflowLinear = AddCheckbox(Context, TEXT("Overflow Tiles as Linear"), true, FontSilver); Newline(Context);

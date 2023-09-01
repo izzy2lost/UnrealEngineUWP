@@ -1029,8 +1029,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = WorldPositionOffset)
 	bool bAlwaysEvaluateWorldPositionOffset;
 
-	/** Not a UPROPERTY, used to propagate editor only strata material simplification options for preview. */
-	FStrataCompilationConfig StrataCompilationConfig;
+	/** Not a UPROPERTY, used to propagate editor only Substrate material simplification options for preview. */
+	FSubstrateCompilationConfig SubstrateCompilationConfig;
 
 	/** 
 	 * Guid that uniquely identifies this material. 
@@ -1307,7 +1307,7 @@ private:
 	void BackwardsCompatibilityInputConversion();
 	void BackwardsCompatibilityVirtualTextureOutputConversion();
 	void BackwardsCompatibilityDecalConversion();
-	void ConvertMaterialToStrataMaterial();
+	void ConvertMaterialToSubstrateMaterial();
 
 	/** Handles setting up an annotation for this object if a flag has changed value */
 	void MarkUsageFlagDirty(EMaterialUsage Usage, bool CurrentValue, bool NewValue);
@@ -1778,7 +1778,7 @@ public:
 	ENGINE_API bool HasEmissiveColorConnected() const;
 	ENGINE_API bool HasAnisotropyConnected() const;
 	ENGINE_API bool HasSurfaceThicknessConnected() const;
-	ENGINE_API bool HasStrataFrontMaterialConnected() const;
+	ENGINE_API bool HasSubstrateFrontMaterialConnected() const;
 	ENGINE_API bool HasVertexPositionOffsetConnected() const;
 	ENGINE_API bool HasDisplacementConnected() const;
 	ENGINE_API bool HasPixelDepthOffsetConnected() const;

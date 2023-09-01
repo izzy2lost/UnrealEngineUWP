@@ -70,21 +70,21 @@ void ScreenSpaceReflectionsStencilPS(
 {
 	float2 UV = SvPosition.xy * View.BufferSizeAndInvSize.zw;
 	
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 
 	uint2 PixelCoord = SvPosition.xy;
-	const FStrataTopLayerData TopLayerData = StrataUnpackTopLayerData(Strata.TopLayerTexture.Load(uint3(PixelCoord, 0)));
+	const FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData(Substrate.TopLayerTexture.Load(uint3(PixelCoord, 0)));
 
 	const float Roughness = TopLayerData.Roughness;
-	const bool bNoMaterial = !IsStrataMaterial(TopLayerData);
+	const bool bNoMaterial = !IsSubstrateMaterial(TopLayerData);
 
-#else // STRATA_ENABLED
+#else // SUBSTRATE_ENABLED
 
 	FGBufferData GBuffer = GetGBufferDataFromSceneTextures(UV);
 	const float Roughness = GetRoughness(GBuffer);
 	const bool bNoMaterial = GBuffer.ShadingModelID == 0;
 
-#endif // STRATA_ENABLED
+#endif // SUBSTRATE_ENABLED
 
 	const float RoughnessFade = GetRoughnessFade(Roughness);
 
@@ -126,7 +126,7 @@ void ScreenSpaceReflections(
 		OutClosestHitDistance = -2.0;
 	#endif
 
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 
 	uint2 PixelCoord = SvPosition.xy;
 
@@ -134,12 +134,12 @@ void ScreenSpaceReflections(
 	float Roughness = 0.0;
 	bool bNoMaterial = true;
 
-	const FStrataTopLayerData TopLayerData = StrataUnpackTopLayerData(Strata.TopLayerTexture.Load(uint3(PixelCoord, 0)));
+	const FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData(Substrate.TopLayerTexture.Load(uint3(PixelCoord, 0)));
 
 	// For now, SSR is only used to trace the top material layer.
 	N = TopLayerData.WorldNormal;
 	Roughness = TopLayerData.Roughness;
-	bNoMaterial = ShouldReflectOnlyWater ? !IsSingleLayerWaterMaterial(TopLayerData) : !IsStrataMaterial(TopLayerData);
+	bNoMaterial = ShouldReflectOnlyWater ? !IsSingleLayerWaterMaterial(TopLayerData) : !IsSubstrateMaterial(TopLayerData);
 
 	float DeviceZ = SampleDeviceZFromSceneTextures(UV);
 	float SceneDepth = ConvertFromDeviceZ(DeviceZ);
@@ -147,10 +147,10 @@ void ScreenSpaceReflections(
 	const float3 PositionTranslatedWorld = mul(float4(GetScreenPositionForProjectionType(ScreenPos, SceneDepth), SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
 	const float3 V = normalize(View.TranslatedWorldCameraOrigin - PositionTranslatedWorld);
 
-	// STRATA_TODO Handle anisotropy using ModifyGGXAnisotropicNormalRoughness or similar approach. 
+	// SUBSTRATE_TODO Handle anisotropy using ModifyGGXAnisotropicNormalRoughness or similar approach. 
 	// Although the pass will be more expenssive if reading the material data itself, so this will need to be carefully measured on console.
 
-#else // STRATA_ENABLED
+#else // SUBSTRATE_ENABLED
 
 	FGBufferData GBuffer = GetGBufferDataFromSceneTextures(UV);
 
@@ -172,7 +172,7 @@ void ScreenSpaceReflections(
 	float Roughness = GetRoughness(GBuffer);
 	const bool bNoMaterial = GBuffer.ShadingModelID == 0;
 
-#endif // STRATA_ENABLED
+#endif // SUBSTRATE_ENABLED
 
 	float RoughnessFade = GetRoughnessFade(Roughness);
 

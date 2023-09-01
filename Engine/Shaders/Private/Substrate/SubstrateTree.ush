@@ -4,11 +4,11 @@
 #include "/Engine/Private/Substrate/SubstrateEvaluation.ush"
 #include "/Engine/Private/ShadingCommon.ush"
 
-#ifndef STRATA_OPAQUE_MATERIAL
-#error STRATA_OPAQUE_MATERIAL not defined
+#ifndef SUBSTRATE_OPAQUE_MATERIAL
+#error SUBSTRATE_OPAQUE_MATERIAL not defined
 #endif
 
-// STRATA_TODO We assume layers all have the same IOR. But we should take into account the material later.
+// SUBSTRATE_TODO We assume layers all have the same IOR. But we should take into account the material later.
 // For now, we suppose no IOR changes at interface until they are tracked properly
 #define WATER_IOR		1.0f 
 #define AIR_IOR			1.0f
@@ -16,13 +16,13 @@
 ///////////////////////////////////////////////////////////////////////////////
 // Tree processing functions
 
-void FStrataTree::UpdateSingleBSDFOperatorCoverageTransmittance(
-	FStrataPixelHeader StrataPixelHeader,
+void FSubstrateTree::UpdateSingleBSDFOperatorCoverageTransmittance(
+	FSubstratePixelHeader SubstratePixelHeader,
 	int BSDFIndex,
-	FStrataIntegrationSettings Settings,
+	FSubstrateIntegrationSettings Settings,
 	float3 V)
 {
-#if STRATA_INLINE_SHADING
+#if SUBSTRATE_INLINE_SHADING
 
 	
 #define CurrentBSDF this.BSDFs[BSDFIndex]
@@ -35,18 +35,18 @@ void FStrataTree::UpdateSingleBSDFOperatorCoverageTransmittance(
 #endif
 
 	float CurrentBSDFCoverage = CurrentBSDF.Coverage;
-	float Roughness = StrataGetBSDFRoughness(CurrentBSDF);
-	float3x3 TangentBasis = StrataGetBSDFSharedBasis_InlineShading(StrataPixelHeader, CurrentBSDF);
+	float Roughness = SubstrateGetBSDFRoughness(CurrentBSDF);
+	float3x3 TangentBasis = SubstrateGetBSDFSharedBasis_InlineShading(SubstratePixelHeader, CurrentBSDF);
 
 #if USE_DEVELOPMENT_SHADERS
 	Roughness = Settings.bRoughnessTracking ? Roughness : 0.0;
 #endif
 
 	// Sanitize BSDF before it is used for forward shading or exported to GBuffer
-	CurrentBSDF.StrataSanitizeBSDF();
+	CurrentBSDF.SubstrateSanitizeBSDF();
 
 	// Distortion and translucency passes accumnulate pass calls for colored transmittance, coverage and TopDownRefractionLobeStat to be setup correctly.
-#if (STRATA_FASTPATH==0 || MATERIALBLENDING_ANY_TRANSLUCENT) && !STRATA_OPTIMIZED_UNLIT // !Fast path or rendering translucent materials
+#if (SUBSTRATE_FASTPATH==0 || MATERIALBLENDING_ANY_TRANSLUCENT) && !SUBSTRATE_OPTIMIZED_UNLIT // !Fast path or rendering translucent materials
 
 	// Extract the true thickness of the BSDF before it is cast into the normalised Slab thickness we used.
 	// for opaque rough refraction, we are only interested in thickness of non bottom layers.
@@ -54,14 +54,14 @@ void FStrataTree::UpdateSingleBSDFOperatorCoverageTransmittance(
 	Op.OpaqueRoughRefractCoverage	  = CurrentBSDF.bIsTop    ? CurrentBSDF.Coverage	: 0.0f;
 	Op.OpaqueRoughRefractTopRoughness = CurrentBSDF.bIsTop    ? Roughness				: 0.0f;
 
-	const bool bIsStrataOpaqueMaterial = STRATA_OPAQUE_MATERIAL > 0;
-	CurrentBSDF.PostProcessBSDFBeforeLighting(bIsStrataOpaqueMaterial);
+	const bool bIsSubstrateOpaqueMaterial = SUBSTRATE_OPAQUE_MATERIAL > 0;
+	CurrentBSDF.PostProcessBSDFBeforeLighting(bIsSubstrateOpaqueMaterial);
 
 	// Compute current BSDF transmittance
 	float3 LEqualN = TangentBasis[2];
-	FStrataAddressing NullStrataAddressing = (FStrataAddressing)0;
-	FStrataBSDFContext StrataBSDFContext = StrataCreateBSDFContext(StrataPixelHeader, CurrentBSDF, NullStrataAddressing, V, LEqualN);
-	FStrataEvaluateResult BSDFEvaluate = StrataEvaluateBSDF(StrataBSDFContext, Settings);
+	FSubstrateAddressing NullSubstrateAddressing = (FSubstrateAddressing)0;
+	FSubstrateBSDFContext SubstrateBSDFContext = SubstrateCreateBSDFContext(SubstratePixelHeader, CurrentBSDF, NullSubstrateAddressing, V, LEqualN);
+	FSubstrateEvaluateResult BSDFEvaluate = SubstrateEvaluateBSDF(SubstrateBSDFContext, Settings);
 
 	// We multiply this weight with coverage:
 	//  - Because when coming from parameter blending, we need to scale the output down according to coverage resulting from parameter blending.
@@ -81,14 +81,14 @@ void FStrataTree::UpdateSingleBSDFOperatorCoverageTransmittance(
 	Op.TransmittanceAlongN	= BSDFEvaluate.TransmittanceAlongN;
 
 	// Evaluate refraction lobes.
-	const FBxDFEnergyTerms EnergyTerms = ComputeGGXSpecEnergyTerms(Roughness, StrataBSDFContext.SatNoV, StrataGetBSDFSpecularColor(CurrentBSDF), StrataGetBSDFSpecularF90(CurrentBSDF));
+	const FBxDFEnergyTerms EnergyTerms = ComputeGGXSpecEnergyTerms(Roughness, SubstrateBSDFContext.SatNoV, SubstrateGetBSDFSpecularColor(CurrentBSDF), SubstrateGetBSDFSpecularF90(CurrentBSDF));
 	{
 		const float TopDownInterfaceEta = CurrentBSDF.bIsTop ? AIR_IOR / WATER_IOR : 1.0f;
-		FStrataLobeStatistic RefractedLobe = StrataGetRefractedLobe(StrataGetDiracLobe(V), EnergyTerms.E, Roughness, TopDownInterfaceEta);
+		FSubstrateLobeStatistic RefractedLobe = SubstrateGetRefractedLobe(SubstrateGetDiracLobe(V), EnergyTerms.E, Roughness, TopDownInterfaceEta);
 		// Account for transmittance of the medium (but ignoring scattering for now)
 		RefractedLobe.E *= BSDFEvaluate.ThroughputV;
 		// Reduce according to coverage. It is a approximation to handle rough refraction reduction according to coverage when relying on a single lob.
-		RefractedLobe = StrataWeightLobe(RefractedLobe, CurrentBSDFCoverage);
+		RefractedLobe = SubstrateWeightLobe(RefractedLobe, CurrentBSDFCoverage);
 		Op.TopDownRefractionLobeStat = RefractedLobe;
 	}
 
@@ -96,15 +96,15 @@ void FStrataTree::UpdateSingleBSDFOperatorCoverageTransmittance(
 	{
 		const float BottomUpInterfaceEta = CurrentBSDF.bIsTop ? WATER_IOR / AIR_IOR : 1.0f;
 		const float3 NormalDown = float3(0, 0, -1);
-		FStrataLobeStatistic RefractedLobe = StrataGetRefractedLobe(StrataGetDiracLobe(NormalDown), EnergyTerms.E, Roughness, BottomUpInterfaceEta);
+		FSubstrateLobeStatistic RefractedLobe = SubstrateGetRefractedLobe(SubstrateGetDiracLobe(NormalDown), EnergyTerms.E, Roughness, BottomUpInterfaceEta);
 		// Account for transmittance of the medium (but ignoring scattering for now)
 		RefractedLobe.E *= BSDFEvaluate.ThroughputV;
 		// Reduce according to coverage. It is a approximation to handle rough refraction reduction according to coverage when relying on a single lob.
-		RefractedLobe = StrataWeightLobe(RefractedLobe, CurrentBSDFCoverage);
+		RefractedLobe = SubstrateWeightLobe(RefractedLobe, CurrentBSDFCoverage);
 		Op.BottomUpRefractionLobeStat = RefractedLobe;
 	}
 
-#elif STRATA_OPTIMIZED_UNLIT
+#elif SUBSTRATE_OPTIMIZED_UNLIT
 
 	CurrentBSDF.LuminanceWeightV		= CurrentBSDFCoverage;
 	CurrentBSDF.CoverageAboveAlongN		= 0.0f;
@@ -119,8 +119,8 @@ void FStrataTree::UpdateSingleBSDFOperatorCoverageTransmittance(
 	Op.ThroughputAlongV		= UNLIT_TRANSMITTANCE(CurrentBSDF);
 	Op.TransmittanceAlongN	= UNLIT_TRANSMITTANCE(CurrentBSDF);
 
-	Op.TopDownRefractionLobeStat = StrataGetNullLobe();
-	Op.BottomUpRefractionLobeStat = StrataGetNullLobe();
+	Op.TopDownRefractionLobeStat = SubstrateGetNullLobe();
+	Op.BottomUpRefractionLobeStat = SubstrateGetNullLobe();
 
 #else //
 
@@ -137,23 +137,23 @@ void FStrataTree::UpdateSingleBSDFOperatorCoverageTransmittance(
 	Op.ThroughputAlongV		= 1.0f;
 	Op.TransmittanceAlongN	= 1.0f;
 
-	Op.TopDownRefractionLobeStat = StrataGetNullLobe();
-	Op.BottomUpRefractionLobeStat = StrataGetNullLobe();
+	Op.TopDownRefractionLobeStat = SubstrateGetNullLobe();
+	Op.BottomUpRefractionLobeStat = SubstrateGetNullLobe();
 
-#endif // STRATA_COMPLEXPATH
+#endif // SUBSTRATE_COMPLEXPATH
 	
 	Op.TopDownRefractionWorldNormal = TangentBasis[2];
 
 #undef Op
 #undef CurrentBSDF
 
-#endif // STRATA_INLINE_SHADING
+#endif // SUBSTRATE_INLINE_SHADING
 }
 
 
-void FStrataTree::UpdateSingleOperatorCoverageTransmittance(int OpIndex)
+void FSubstrateTree::UpdateSingleOperatorCoverageTransmittance(int OpIndex)
 {
-#if STRATA_INLINE_SHADING
+#if SUBSTRATE_INLINE_SHADING
 
 #define Op this.Operators[OpIndex]
 #define OpA this.Operators[this.Operators[OpIndex].LeftIndex]
@@ -168,17 +168,17 @@ void FStrataTree::UpdateSingleOperatorCoverageTransmittance(int OpIndex)
 	switch (Op.Type)
 	{
 
-	case STRATA_OPERATOR_WEIGHT:
+	case SUBSTRATE_OPERATOR_WEIGHT:
 	{
 		const float Weight = saturate(Op.Weight);
 		Op.Coverage				= Weight * OpA.Coverage;
 		Op.ThroughputAlongV		= OpA.ThroughputAlongV;
 		Op.TransmittanceAlongN	= OpA.TransmittanceAlongN;
 
-		Op.TopDownRefractionLobeStat = StrataWeightLobe(OpA.TopDownRefractionLobeStat, Weight);
+		Op.TopDownRefractionLobeStat = SubstrateWeightLobe(OpA.TopDownRefractionLobeStat, Weight);
 		Op.TopDownRefractionWorldNormal = OpA.TopDownRefractionWorldNormal * Weight;
 
-		Op.BottomUpRefractionLobeStat = StrataWeightLobe(OpA.BottomUpRefractionLobeStat, Weight);
+		Op.BottomUpRefractionLobeStat = SubstrateWeightLobe(OpA.BottomUpRefractionLobeStat, Weight);
 
 		// Coverage does not affect rough refraction data
 		Op.OpaqueRoughRefractThicknessCm  = OpA.OpaqueRoughRefractThicknessCm;
@@ -187,9 +187,9 @@ void FStrataTree::UpdateSingleOperatorCoverageTransmittance(int OpIndex)
 		break;
 	}
 
-#if !STRATA_OPTIMIZED_UNLIT
+#if !SUBSTRATE_OPTIMIZED_UNLIT
 
-	case STRATA_OPERATOR_VERTICAL:
+	case SUBSTRATE_OPERATOR_VERTICAL:
 	{
 		const float3 TopThroughputAlongV	= OpA.ThroughputAlongV;
 		const float3 TopTransmittanceAlongN = OpA.TransmittanceAlongN;
@@ -233,12 +233,12 @@ void FStrataTree::UpdateSingleOperatorCoverageTransmittance(int OpIndex)
 		// Project top lob through bottom layer assuming medium have same IOR.
 		{
 			const float TopDownInterfaceEta = 1.0f;
-			Op.TopDownRefractionLobeStat = StrataGetRefractedLobe(StrataOppositeLobe(OpA.TopDownRefractionLobeStat), 
-				/*InterfaceFDG*/0.0f, StrataLobeVarianceToRoughness(OpB.TopDownRefractionLobeStat.Sigma), TopDownInterfaceEta);
+			Op.TopDownRefractionLobeStat = SubstrateGetRefractedLobe(SubstrateOppositeLobe(OpA.TopDownRefractionLobeStat), 
+				/*InterfaceFDG*/0.0f, SubstrateLobeVarianceToRoughness(OpB.TopDownRefractionLobeStat.Sigma), TopDownInterfaceEta);
 			Op.TopDownRefractionLobeStat.E *= saturate(OpB.ThroughputAlongV + (1.0f - OpB.Coverage)); // Combine with botton layer medium and specular transmittance
 
 			// The ratio of BottomSurfaceOnlyVisibile and visible through top layer (with a scale of 0.5 because at maximum both surfaces will be visible) as a fonction of the total coverage.
-			const float RefractionNormalMix = saturate((Info.SurfaceBottom + 0.5f * Info.TransmittanceTopAndBottom * dot(TopThroughputAlongV, 0.33.xxx)) / max(STRATA_EPSILON, Info.Coverage));
+			const float RefractionNormalMix = saturate((Info.SurfaceBottom + 0.5f * Info.TransmittanceTopAndBottom * dot(TopThroughputAlongV, 0.33.xxx)) / max(SUBSTRATE_EPSILON, Info.Coverage));
 			Op.TopDownRefractionWorldNormal = lerp(OpA.TopDownRefractionWorldNormal, OpB.TopDownRefractionWorldNormal, RefractionNormalMix);
 		}
 
@@ -246,8 +246,8 @@ void FStrataTree::UpdateSingleOperatorCoverageTransmittance(int OpIndex)
 		{
 			const bool bIsTop = Op.LayerDepth == 0;
 			const float BottomUpInterfaceEta = bIsTop ? WATER_IOR / AIR_IOR : 1.0f;
-			Op.BottomUpRefractionLobeStat = StrataGetRefractedLobe(StrataOppositeLobe(OpB.BottomUpRefractionLobeStat), 
-				/*InterfaceFDG*/0.0f, StrataLobeVarianceToRoughness(OpA.BottomUpRefractionLobeStat.Sigma), BottomUpInterfaceEta);
+			Op.BottomUpRefractionLobeStat = SubstrateGetRefractedLobe(SubstrateOppositeLobe(OpB.BottomUpRefractionLobeStat), 
+				/*InterfaceFDG*/0.0f, SubstrateLobeVarianceToRoughness(OpA.BottomUpRefractionLobeStat.Sigma), BottomUpInterfaceEta);
 			Op.BottomUpRefractionLobeStat.E *= saturate(OpA.ThroughputAlongV + (1.0f - OpA.Coverage)); // Combine with top layer medium and specular transmittance
 		}
 
@@ -261,20 +261,20 @@ void FStrataTree::UpdateSingleOperatorCoverageTransmittance(int OpIndex)
 		break;
 	}
 
-	case STRATA_OPERATOR_HORIZONTAL:
+	case SUBSTRATE_OPERATOR_HORIZONTAL:
 	{
 		const float Mix = saturate(Op.Weight);
 		const float AMix = 1.0 - Mix;
 		const float BMix = Mix;
 
 		Op.Coverage = AMix * OpA.Coverage + BMix * OpB.Coverage;
-		Op.ThroughputAlongV    = (AMix * OpA.Coverage * OpA.ThroughputAlongV    + BMix * OpB.Coverage * OpB.ThroughputAlongV)    / max(STRATA_EPSILON, AMix * OpA.Coverage + BMix * OpB.Coverage);
-		Op.TransmittanceAlongN = (AMix * OpA.Coverage * OpA.TransmittanceAlongN + BMix * OpB.Coverage * OpB.TransmittanceAlongN) / max(STRATA_EPSILON, AMix * OpA.Coverage + BMix * OpB.Coverage);
+		Op.ThroughputAlongV    = (AMix * OpA.Coverage * OpA.ThroughputAlongV    + BMix * OpB.Coverage * OpB.ThroughputAlongV)    / max(SUBSTRATE_EPSILON, AMix * OpA.Coverage + BMix * OpB.Coverage);
+		Op.TransmittanceAlongN = (AMix * OpA.Coverage * OpA.TransmittanceAlongN + BMix * OpB.Coverage * OpB.TransmittanceAlongN) / max(SUBSTRATE_EPSILON, AMix * OpA.Coverage + BMix * OpB.Coverage);
 
-		Op.TopDownRefractionLobeStat = StrataHorizontalMixLobes(OpA.TopDownRefractionLobeStat, OpB.TopDownRefractionLobeStat, BMix);
+		Op.TopDownRefractionLobeStat = SubstrateHorizontalMixLobes(OpA.TopDownRefractionLobeStat, OpB.TopDownRefractionLobeStat, BMix);
 		Op.TopDownRefractionWorldNormal = lerp(OpA.TopDownRefractionWorldNormal, OpB.TopDownRefractionWorldNormal, BMix);
 
-		Op.BottomUpRefractionLobeStat = StrataHorizontalMixLobes(OpA.BottomUpRefractionLobeStat, OpB.BottomUpRefractionLobeStat, BMix);
+		Op.BottomUpRefractionLobeStat = SubstrateHorizontalMixLobes(OpA.BottomUpRefractionLobeStat, OpB.BottomUpRefractionLobeStat, BMix);
 
 		// Horizontal mixes both operators thickness
 		Op.OpaqueRoughRefractThicknessCm  = lerp(OpA.OpaqueRoughRefractThicknessCm,  OpB.OpaqueRoughRefractThicknessCm,  BMix);
@@ -283,20 +283,20 @@ void FStrataTree::UpdateSingleOperatorCoverageTransmittance(int OpIndex)
 		break;
 	}
 
-	case STRATA_OPERATOR_ADD:
+	case SUBSTRATE_OPERATOR_ADD:
 	{
 		const float SafeABSDFCoverage = saturate(OpA.Coverage);
 		const float SafeBBSDFCoverage = saturate(OpB.Coverage);
-		const float AMixFactor = SafeABSDFCoverage / max(STRATA_EPSILON, SafeABSDFCoverage + SafeBBSDFCoverage);
+		const float AMixFactor = SafeABSDFCoverage / max(SUBSTRATE_EPSILON, SafeABSDFCoverage + SafeBBSDFCoverage);
 
 		Op.Coverage = saturate(OpA.Coverage + OpB.Coverage);
 		Op.ThroughputAlongV    = lerp(OpB.ThroughputAlongV,    OpA.ThroughputAlongV,    AMixFactor);
 		Op.TransmittanceAlongN = lerp(OpB.TransmittanceAlongN, OpA.TransmittanceAlongN, AMixFactor);
 
-		Op.TopDownRefractionLobeStat = StrataHorizontalMixLobes(OpA.TopDownRefractionLobeStat, OpB.TopDownRefractionLobeStat, 0.5f);
+		Op.TopDownRefractionLobeStat = SubstrateHorizontalMixLobes(OpA.TopDownRefractionLobeStat, OpB.TopDownRefractionLobeStat, 0.5f);
 		Op.TopDownRefractionWorldNormal = lerp(OpA.TopDownRefractionWorldNormal, OpB.TopDownRefractionWorldNormal, 0.5f);
 
-		Op.BottomUpRefractionLobeStat = StrataHorizontalMixLobes(OpA.BottomUpRefractionLobeStat, OpB.BottomUpRefractionLobeStat, 0.5f);
+		Op.BottomUpRefractionLobeStat = SubstrateHorizontalMixLobes(OpA.BottomUpRefractionLobeStat, OpB.BottomUpRefractionLobeStat, 0.5f);
 
 		Op.OpaqueRoughRefractThicknessCm  = lerp(OpA.OpaqueRoughRefractThicknessCm,  OpB.OpaqueRoughRefractThicknessCm,  0.5f);
 		Op.OpaqueRoughRefractCoverage     = lerp(OpA.OpaqueRoughRefractCoverage,     OpB.OpaqueRoughRefractCoverage,     0.5f);
@@ -304,7 +304,7 @@ void FStrataTree::UpdateSingleOperatorCoverageTransmittance(int OpIndex)
 		break;
 	}
 
-#endif // !STRATA_OPTIMIZED_UNLIT
+#endif // !SUBSTRATE_OPTIMIZED_UNLIT
 
 	}
 
@@ -312,7 +312,7 @@ void FStrataTree::UpdateSingleOperatorCoverageTransmittance(int OpIndex)
 #undef OpA
 #undef OpB
 
-#endif // STRATA_INLINE_SHADING
+#endif // SUBSTRATE_INLINE_SHADING
 }
 
 
@@ -321,12 +321,12 @@ void FStrataTree::UpdateSingleOperatorCoverageTransmittance(int OpIndex)
 #define Op this.Operators[OpIndex]
 
 // Post-update visit operators
-void FStrataTree::UpdateAllBSDFWithBottomUpOperatorVisit_Weight(
+void FSubstrateTree::UpdateAllBSDFWithBottomUpOperatorVisit_Weight(
 	int BSDFIndex,
 	int OpIndex,
 	int PreviousIsInputA)
 {
-#if STRATA_INLINE_SHADING
+#if SUBSTRATE_INLINE_SHADING
 
 	const float Weight = saturate(Op.Weight);
 	CurrentBSDF.LuminanceWeightV *= Weight;
@@ -334,15 +334,15 @@ void FStrataTree::UpdateAllBSDFWithBottomUpOperatorVisit_Weight(
 
 	CurrentBSDF.TopLayerDataWeight *= Weight;
 
-#endif // STRATA_INLINE_SHADING
+#endif // SUBSTRATE_INLINE_SHADING
 }
 
-void FStrataTree::UpdateAllBSDFWithBottomUpOperatorVisit_Horizontal(
+void FSubstrateTree::UpdateAllBSDFWithBottomUpOperatorVisit_Horizontal(
 	int BSDFIndex,
 	int OpIndex,
 	int PreviousIsInputA)
 {
-#if STRATA_INLINE_SHADING
+#if SUBSTRATE_INLINE_SHADING
 
 	const float Mix = saturate(Op.Weight);
 	const float AMix = 1.0 - Mix;
@@ -353,15 +353,15 @@ void FStrataTree::UpdateAllBSDFWithBottomUpOperatorVisit_Horizontal(
 
 	CurrentBSDF.TopLayerDataWeight *= Weight;
 
-#endif // STRATA_INLINE_SHADING
+#endif // SUBSTRATE_INLINE_SHADING
 }
 
-void FStrataTree::UpdateAllBSDFWithBottomUpOperatorVisit_Vertical(
+void FSubstrateTree::UpdateAllBSDFWithBottomUpOperatorVisit_Vertical(
 	int BSDFIndex,
 	int OpIndex,
 	int PreviousIsInputA)
 {
-#if STRATA_INLINE_SHADING
+#if SUBSTRATE_INLINE_SHADING
 
 	// PreviousIsInputA > 0 means it is a BSDF affecting the top layer so we do not affect it by anything for this vertical layering.
 	const bool bBSDFComesFromTopLayer = PreviousIsInputA > 0;
@@ -376,7 +376,7 @@ void FStrataTree::UpdateAllBSDFWithBottomUpOperatorVisit_Vertical(
 	const float3 TopTrans = Op.VerticalTop_TransmittanceAlongN;
 	FVerticalLayeringInfo Info = GetVerticalLayeringInfo(Op.VerticalTop_Coverage, CurrentBSDF.CoverageAboveAlongN);
 	// Pre coverage transmittance is the surface transmitance as if coverage=1, so the final combined transmittance is renormalized accordingly.
-	const float3 PreCoverageTransmittance = saturate((Info.TransmittanceOnlyTop * TopTrans + Info.TransmittanceOnlyBottom * BotTrans + Info.TransmittanceTopAndBottom * (TopTrans * BotTrans)) / max(STRATA_EPSILON, Info.Coverage));
+	const float3 PreCoverageTransmittance = saturate((Info.TransmittanceOnlyTop * TopTrans + Info.TransmittanceOnlyBottom * BotTrans + Info.TransmittanceTopAndBottom * (TopTrans * BotTrans)) / max(SUBSTRATE_EPSILON, Info.Coverage));
 	CurrentBSDF.CoverageAboveAlongN		  = bBSDFComesFromTopLayer ? CurrentBSDF.CoverageAboveAlongN		: Info.Coverage;			// Info.Coverage combines the incoming operator Top part coverage and the BSDF current CoverageAboveAlongN
 	CurrentBSDF.TransmittanceAboveAlongN  = bBSDFComesFromTopLayer ? CurrentBSDF.TransmittanceAboveAlongN	: PreCoverageTransmittance;	// PreCoverageTransmittance is the combined trnasmittance for the BSDF TransmittanceAboveAlongN computed so far and the top layer of this new vertical operator.
 
@@ -387,12 +387,12 @@ void FStrataTree::UpdateAllBSDFWithBottomUpOperatorVisit_Vertical(
 	{
 		// We propagate the bottom layer lob up after the top layer top layer simulate the fact that light rays are potentially heavily scattered/refracted by the top layer.
 		// The outcome is that we affect the bottom layer roughness to aggregate that fact.
-		// STRATA_TODO: take into account thickness (far-field for now).
+		// SUBSTRATE_TODO: take into account thickness (far-field for now).
 
 		// Evaluate the reflected lobe, as an approximation we only evaluate along the normal.
 		const float3 DummyWi = float3(0, 0, 1);
 		const float DummyInterfaceDFG = 0.5f;
-		FStrataLobeStatistic ReflectedLobe = StrataGetReflectedLobe(StrataGetDiracLobe(DummyWi), DummyInterfaceDFG, StrataGetBSDFRoughness(CurrentBSDF));
+		FSubstrateLobeStatistic ReflectedLobe = SubstrateGetReflectedLobe(SubstrateGetDiracLobe(DummyWi), DummyInterfaceDFG, SubstrateGetBSDFRoughness(CurrentBSDF));
 
 		// Evaluate the reflected lobe after refraction through the top layer of the vertical operator.
 		// => This tells how light should be integrated when traveling up thorugh that layer.
@@ -401,12 +401,12 @@ void FStrataTree::UpdateAllBSDFWithBottomUpOperatorVisit_Vertical(
 		const float TopLayerSigma = lerp(DiracLobeSigma, Op.VerticalTop_BottomUpRefractionLobeStat.Sigma, Op.VerticalTop_Coverage * dot(Op.VerticalTop_TransmittanceAlongN, (1.0f/3.0f).xxx));
 		const bool bIsTop = Op.LayerDepth == 0;
 		const float BottomUpInterfaceEta = bIsTop ? WATER_IOR / AIR_IOR : 1.0f;
-		FStrataLobeStatistic RefractedLobe = StrataGetRefractedLobe(StrataOppositeLobe(ReflectedLobe), DummyInterfaceDFG, StrataLobeVarianceToRoughness(TopLayerSigma), BottomUpInterfaceEta);
+		FSubstrateLobeStatistic RefractedLobe = SubstrateGetRefractedLobe(SubstrateOppositeLobe(ReflectedLobe), DummyInterfaceDFG, SubstrateLobeVarianceToRoughness(TopLayerSigma), BottomUpInterfaceEta);
 
-		CurrentBSDF.StrataSetBSDFRoughness(StrataLobeVarianceToRoughness(RefractedLobe.Sigma));
+		CurrentBSDF.SubstrateSetBSDFRoughness(SubstrateLobeVarianceToRoughness(RefractedLobe.Sigma));
 	}
 
-#endif // STRATA_INLINE_SHADING
+#endif // SUBSTRATE_INLINE_SHADING
 }
 
 #undef Op

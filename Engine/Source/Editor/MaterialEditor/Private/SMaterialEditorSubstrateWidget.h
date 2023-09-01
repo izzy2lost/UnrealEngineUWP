@@ -16,10 +16,10 @@
 
 class FMaterialEditor;
 
-class SMaterialEditorStrataWidget : public SCompoundWidget
+class SMaterialEditorSubstrateWidget : public SCompoundWidget
 {
 public:
-	SLATE_BEGIN_ARGS(SMaterialEditorStrataWidget)
+	SLATE_BEGIN_ARGS(SMaterialEditorSubstrateWidget)
 	{
 	}
 	SLATE_END_ARGS()
@@ -31,7 +31,7 @@ public:
 	/** Gets the widget contents of the app */
 	virtual TSharedRef<SWidget> GetContent();
 
-	virtual ~SMaterialEditorStrataWidget();
+	virtual ~SMaterialEditorSubstrateWidget();
 
 	/** SWidget interface */
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;

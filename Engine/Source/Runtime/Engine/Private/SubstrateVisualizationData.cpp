@@ -6,16 +6,16 @@
 #include "Misc/ConfigCacheIni.h"
 #include "RenderUtils.h"
 
-#define LOCTEXT_NAMESPACE "FStrataVisualizationData"
+#define LOCTEXT_NAMESPACE "FSubstrateVisualizationData"
 
-static FStrataVisualizationData GStrataVisualizationData;
+static FSubstrateVisualizationData GSubstrateVisualizationData;
 
-static FString ConfigureConsoleCommand(FStrataVisualizationData::TModeMap& ModeMap)
+static FString ConfigureConsoleCommand(FSubstrateVisualizationData::TModeMap& ModeMap)
 {
 	FString AvailableVisualizationModes;
-	for (FStrataVisualizationData::TModeMap::TConstIterator It = ModeMap.CreateConstIterator(); It; ++It)
+	for (FSubstrateVisualizationData::TModeMap::TConstIterator It = ModeMap.CreateConstIterator(); It; ++It)
 	{
-		const FStrataVisualizationData::FModeRecord& Record = It.Value();
+		const FSubstrateVisualizationData::FModeRecord& Record = It.Value();
 		AvailableVisualizationModes += FString(TEXT("\n  Value="));
 		AvailableVisualizationModes += FString::Printf(TEXT("%d: "), uint8(Record.ViewMode));
 		AvailableVisualizationModes += Record.ModeString;
@@ -30,7 +30,7 @@ static FString ConfigureConsoleCommand(FStrataVisualizationData::TModeMap& ModeM
 	Out += AvailableVisualizationModes;
 
 	IConsoleManager::Get().RegisterConsoleVariable(
-		FStrataVisualizationData::GetVisualizeConsoleCommandName(),
+		FSubstrateVisualizationData::GetVisualizeConsoleCommandName(),
 		0,
 		*Out,
 		ECVF_Cheat);
@@ -39,11 +39,11 @@ static FString ConfigureConsoleCommand(FStrataVisualizationData::TModeMap& ModeM
 }
 
 static void AddVisualizationMode(
-	FStrataVisualizationData::TModeMap& ModeMap,
+	FSubstrateVisualizationData::TModeMap& ModeMap,
 	const TCHAR* ModeString,
 	const FText& ModeText,
 	const FText& ModeDesc,
-	const FStrataViewMode ViewMode,
+	const FSubstrateViewMode ViewMode,
 	bool bDefaultComposited,
 	bool bAvailableCommand,
 	const FText& UnavailableReason
@@ -51,7 +51,7 @@ static void AddVisualizationMode(
 {
 	const FName ModeName = FName(ModeString);
 
-	FStrataVisualizationData::FModeRecord& Record = ModeMap.Emplace(ModeName);
+	FSubstrateVisualizationData::FModeRecord& Record = ModeMap.Emplace(ModeName);
 	Record.ModeString			= FString(ModeString);
 	Record.ModeName				= ModeName;
 	Record.ModeText				= ModeText;
@@ -62,9 +62,9 @@ static void AddVisualizationMode(
 	Record.UnavailableReason	= UnavailableReason;
 }
 
-void FStrataVisualizationData::Initialize()
+void FSubstrateVisualizationData::Initialize()
 {
-	if (!bIsInitialized && Strata::IsStrataEnabled())
+	if (!bIsInitialized && Substrate::IsSubstrateEnabled())
 	{
 		TModeMap AllModeMap;
 
@@ -73,7 +73,7 @@ void FStrataVisualizationData::Initialize()
 			TEXT("MaterialProperties"),
 			LOCTEXT("MaterialProperties", "Material Properties"),
 			LOCTEXT("MaterialPropertiesDesc", "Visualizes Substrate material properties under mouse cursor"),
-			FStrataViewMode::MaterialProperties,
+			FSubstrateViewMode::MaterialProperties,
 			true,
 			true,
 			LOCTEXT("None", "None"));
@@ -83,7 +83,7 @@ void FStrataVisualizationData::Initialize()
 			TEXT("MaterialCount"),
 			LOCTEXT("MaterialCount", "Material Count"),
 			LOCTEXT("MaterialCountDesc", "Visualizes Substrate material count per pixel"),
-			FStrataViewMode::MaterialCount,
+			FSubstrateViewMode::MaterialCount,
 			true,
 			true,
 			LOCTEXT("None", "None"));
@@ -93,9 +93,9 @@ void FStrataVisualizationData::Initialize()
 			TEXT("AdvancedMaterialProperties"),
 			LOCTEXT("AdvancedMaterialProperties", "Advanced Material Properties"),
 			LOCTEXT("AdvancedMaterialPropertiesDesc", "Visualizes Substrate advanced material properties"),
-			FStrataViewMode::AdvancedMaterialProperties,
+			FSubstrateViewMode::AdvancedMaterialProperties,
 			true,
-			Strata::IsAdvancedVisualizationEnabled(),
+			Substrate::IsAdvancedVisualizationEnabled(),
 			LOCTEXT("IsSubstrateAdvancedDebugShaderEnabled", "Substrate advanced debugging r.Substrate.Debug.AdvancedVisualizationShaders is disabled"));
 
 		AddVisualizationMode(
@@ -103,7 +103,7 @@ void FStrataVisualizationData::Initialize()
 			TEXT("MaterialClassification"),
 			LOCTEXT("MaterialClassification", "Material Classification"),
 			LOCTEXT("MaterialClassificationDesc", "Visualizes Substrate material classification"),
-			FStrataViewMode::MaterialClassification,
+			FSubstrateViewMode::MaterialClassification,
 			true,
 			true,
 			LOCTEXT("None", "None"));
@@ -113,7 +113,7 @@ void FStrataVisualizationData::Initialize()
 			TEXT("DecalClassification"),
 			LOCTEXT("DecalClassification", "Decal classification"),
 			LOCTEXT("DecalClassificationDesc", "Visualizes Substrate decal classification"),
-			FStrataViewMode::DecalClassification,
+			FSubstrateViewMode::DecalClassification,
 			true,
 			false, // Disable for now, as it is not important, and is mainly used for debugging
 			LOCTEXT("IsSubstrateBufferPassEnabled", "Substrate tiled DBuffer pass (r.Substrate.DBufferPass and r.Substrate.DBufferPass.DedicatedTiles) is disabled"));
@@ -123,9 +123,9 @@ void FStrataVisualizationData::Initialize()
 			TEXT("OpaqueRoughRefractionClassification"),
 			LOCTEXT("OpaqueRoughRefractionClassification", "Opaque Rough Refraction Classification"),
 			LOCTEXT("OpaqueRoughRefractionClassificationDesc", "Visualizes Substrate Opaque Rough Refraction Classification"),
-			FStrataViewMode::RoughRefractionClassification,
+			FSubstrateViewMode::RoughRefractionClassification,
 			true,
-			Strata::IsOpaqueRoughRefractionEnabled(),
+			Substrate::IsOpaqueRoughRefractionEnabled(),
 			LOCTEXT("IsSubstrateRoughRefractionEnabled", "Substrate rough refraction r.Substrate.OpaqueMaterialRoughRefraction is disabled"));
 
 		AddVisualizationMode(
@@ -133,7 +133,7 @@ void FStrataVisualizationData::Initialize()
 			TEXT("SubstrateInfo"),
 			LOCTEXT("SubstrateInfo", "Substrate Info"),
 			LOCTEXT("SubstrateInfoDesc", "Visualizes Substrate info"),
-			FStrataViewMode::StrataInfo,
+			FSubstrateViewMode::SubstrateInfo,
 			true,
 			true,
 			LOCTEXT("None", "None"));
@@ -143,7 +143,7 @@ void FStrataVisualizationData::Initialize()
 			TEXT("MaterialByteCount"),
 			LOCTEXT("MaterialByteCount", "Material Bytes Count"),
 			LOCTEXT("MaterialByteCountDesc", "Visualizes Substrate material footprint per pixel"),
-			FStrataViewMode::MaterialByteCount,
+			FSubstrateViewMode::MaterialByteCount,
 			true,
 			true,
 			LOCTEXT("None", "None"));
@@ -163,7 +163,7 @@ void FStrataVisualizationData::Initialize()
 	bIsInitialized = true;
 }
 
-FText FStrataVisualizationData::GetModeDisplayName(const FName& InModeName) const
+FText FSubstrateVisualizationData::GetModeDisplayName(const FName& InModeName) const
 {
 	if (const FModeRecord* Record = ModeMap.Find(InModeName))
 	{
@@ -175,7 +175,7 @@ FText FStrataVisualizationData::GetModeDisplayName(const FName& InModeName) cons
 	}
 }
 
-FStrataViewMode FStrataVisualizationData::GetViewMode(const FName& InModeName) const
+FSubstrateViewMode FSubstrateVisualizationData::GetViewMode(const FName& InModeName) const
 {
 	if (const FModeRecord* Record = ModeMap.Find(InModeName))
 	{
@@ -183,11 +183,11 @@ FStrataViewMode FStrataVisualizationData::GetViewMode(const FName& InModeName) c
 	}
 	else
 	{
-		return FStrataViewMode::None;
+		return FSubstrateViewMode::None;
 	}
 }
 
-bool FStrataVisualizationData::GetModeDefaultComposited(const FName& InModeName) const
+bool FSubstrateVisualizationData::GetModeDefaultComposited(const FName& InModeName) const
 {
 	if (const FModeRecord* Record = ModeMap.Find(InModeName))
 	{
@@ -199,14 +199,14 @@ bool FStrataVisualizationData::GetModeDefaultComposited(const FName& InModeName)
 	}
 }
 
-FStrataVisualizationData& GetStrataVisualizationData()
+FSubstrateVisualizationData& GetSubstrateVisualizationData()
 {
-	if (!GStrataVisualizationData.IsInitialized())
+	if (!GSubstrateVisualizationData.IsInitialized())
 	{
-		GStrataVisualizationData.Initialize();
+		GSubstrateVisualizationData.Initialize();
 	}
 
-	return GStrataVisualizationData;
+	return GSubstrateVisualizationData;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -761,7 +761,7 @@ void FMaterial::GetShaderMapId(EShaderPlatform Platform, const ITargetPlatform* 
 		OutId.SetShaderDependencies(ShaderTypes, ShaderPipelineTypes, VFTypes, Platform);
 		GetReferencedTexturesHash(Platform, OutId.TextureReferencesHash);
 
-		OutId.StrataCompilationConfig = GetStrataCompilationConfig();
+		OutId.SubstrateCompilationConfig = GetSubstrateCompilationConfig();
 
 #else
 		OutId.QualityLevel = GetQualityLevel();
@@ -881,19 +881,19 @@ bool FMaterial::IsUsingNewHLSLGenerator() const
 	return MaterialInterface ? MaterialInterface->IsUsingNewHLSLGenerator() : false;
 }
 
-const FStrataCompilationConfig& FMaterial::GetStrataCompilationConfig() const
+const FSubstrateCompilationConfig& FMaterial::GetSubstrateCompilationConfig() const
 {
 	const UMaterialInterface* MaterialInterface = GetMaterialInterface();
-	static FStrataCompilationConfig DefaultFStrataCompilationConfig = FStrataCompilationConfig();
-	return MaterialInterface ? MaterialInterface->GetStrataCompilationConfig() : DefaultFStrataCompilationConfig;
+	static FSubstrateCompilationConfig DefaultFSubstrateCompilationConfig = FSubstrateCompilationConfig();
+	return MaterialInterface ? MaterialInterface->GetSubstrateCompilationConfig() : DefaultFSubstrateCompilationConfig;
 }
 
-void FMaterial::SetStrataCompilationConfig(FStrataCompilationConfig& StrataCompilationConfig)
+void FMaterial::SetSubstrateCompilationConfig(FSubstrateCompilationConfig& SubstrateCompilationConfig)
 {
 	UMaterialInterface* MaterialInterface = GetMaterialInterface();
 	if (MaterialInterface)
 	{
-		MaterialInterface->SetStrataCompilationConfig(StrataCompilationConfig);
+		MaterialInterface->SetSubstrateCompilationConfig(SubstrateCompilationConfig);
 	}
 }
 
@@ -1122,48 +1122,48 @@ bool FMaterial::MaterialUsesAnisotropy_RenderThread() const
 	return RenderingThreadShaderMap ? RenderingThreadShaderMap->UsesAnisotropy() : false;
 }
 
-uint8 FMaterial::MaterialGetStrataMaterialType_GameThread() const
+uint8 FMaterial::MaterialGetSubstrateMaterialType_GameThread() const
 {
-	return GameThreadShaderMap ? GameThreadShaderMap->GetStrataMaterialType() : false;
+	return GameThreadShaderMap ? GameThreadShaderMap->GetSubstrateMaterialType() : false;
 }
 
-uint8 FMaterial::MaterialGetStrataMaterialType_RenderThread() const
+uint8 FMaterial::MaterialGetSubstrateMaterialType_RenderThread() const
 {
 	check(IsInParallelRenderingThread());
-	return RenderingThreadShaderMap ? RenderingThreadShaderMap->GetStrataMaterialType() : false;
+	return RenderingThreadShaderMap ? RenderingThreadShaderMap->GetSubstrateMaterialType() : false;
 }
 
-uint8 FMaterial::MaterialGetStrataBSDFCount_GameThread() const
+uint8 FMaterial::MaterialGetSubstrateBSDFCount_GameThread() const
 {
-	return GameThreadShaderMap ? GameThreadShaderMap->GetStrataBSDFCount() : false;
+	return GameThreadShaderMap ? GameThreadShaderMap->GetSubstrateBSDFCount() : false;
 }
 
-uint8 FMaterial::MaterialGetStrataBSDFCount_RenderThread() const
-{
-	check(IsInParallelRenderingThread());
-	return RenderingThreadShaderMap ? RenderingThreadShaderMap->GetStrataBSDFCount() : false;
-}
-
-uint8 FMaterial::MaterialGetStrataUintPerPixel_GameThread() const
-{
-	return GameThreadShaderMap ? GameThreadShaderMap->GetStrataUintPerPixel() : false;
-}
-
-uint8 FMaterial::MaterialGetStrataUintPerPixel_RenderThread() const
+uint8 FMaterial::MaterialGetSubstrateBSDFCount_RenderThread() const
 {
 	check(IsInParallelRenderingThread());
-	return RenderingThreadShaderMap ? RenderingThreadShaderMap->GetStrataUintPerPixel() : false;
+	return RenderingThreadShaderMap ? RenderingThreadShaderMap->GetSubstrateBSDFCount() : false;
 }
 
-bool FMaterial::MaterialGetStrataUsesComplexSpecialRenderPath_GameThread() const
+uint8 FMaterial::MaterialGetSubstrateUintPerPixel_GameThread() const
 {
-	return GameThreadShaderMap ? GameThreadShaderMap->GetStrataUsesComplexSpecialRenderPath() : false;
+	return GameThreadShaderMap ? GameThreadShaderMap->GetSubstrateUintPerPixel() : false;
 }
 
-bool FMaterial::MaterialGetStrataUsesComplexSpecialRenderPath_RenderThread() const
+uint8 FMaterial::MaterialGetSubstrateUintPerPixel_RenderThread() const
 {
 	check(IsInParallelRenderingThread());
-	return RenderingThreadShaderMap ? RenderingThreadShaderMap->GetStrataUsesComplexSpecialRenderPath() : false;
+	return RenderingThreadShaderMap ? RenderingThreadShaderMap->GetSubstrateUintPerPixel() : false;
+}
+
+bool FMaterial::MaterialGetSubstrateUsesComplexSpecialRenderPath_GameThread() const
+{
+	return GameThreadShaderMap ? GameThreadShaderMap->GetSubstrateUsesComplexSpecialRenderPath() : false;
+}
+
+bool FMaterial::MaterialGetSubstrateUsesComplexSpecialRenderPath_RenderThread() const
+{
+	check(IsInParallelRenderingThread());
+	return RenderingThreadShaderMap ? RenderingThreadShaderMap->GetSubstrateUsesComplexSpecialRenderPath() : false;
 }
 
 void FMaterial::SetGameThreadShaderMap(FMaterialShaderMap* InMaterialShaderMap)
@@ -1542,9 +1542,9 @@ void FMaterial::DiscardShaderMap()
 EMaterialDomain FMaterialResource::GetMaterialDomain() const { return Material->MaterialDomain; }
 bool FMaterialResource::IsTangentSpaceNormal() const 
 { 
-	if (IsStrataMaterial())
+	if (IsSubstrateMaterial())
 	{
-		return Material->bTangentSpaceNormal; // We do not need to check MP_Normal with strata as this cannot be specified on the root node anymore.
+		return Material->bTangentSpaceNormal; // We do not need to check MP_Normal with Substrate as this cannot be specified on the root node anymore.
 	}
 	return Material->bTangentSpaceNormal || (!Material->IsPropertyConnected(MP_Normal) && !Material->bUseMaterialAttributes);
 }
@@ -1734,7 +1734,7 @@ bool FMaterialResource::IsTranslucencyAfterMotionBlurEnabled() const
 bool FMaterialResource::IsDualBlendingEnabled(EShaderPlatform Platform) const
 {
 	bool bMaterialRequestsDualSourceBlending = Material->ShadingModel == MSM_ThinTranslucent;
-	if (IsStrataMaterial())
+	if (IsSubstrateMaterial())
 	{
 		bMaterialRequestsDualSourceBlending = GetBlendMode() == EBlendMode::BLEND_TranslucentColoredTransmittance;
 	}
@@ -1981,17 +1981,17 @@ bool FMaterialResource::HasDisplacementConnected() const
 	return Material->HasDisplacementConnected();
 }
 
-bool FMaterialResource::IsStrataMaterial() const
+bool FMaterialResource::IsSubstrateMaterial() const
 {
-	// We no longer support both types of material (Strata and non strata) so no need to check if FrontMaterial is plugged in.
-	// We simply consider all material as Strata when Strata is enabled.
-	return Strata::IsStrataEnabled();
+	// We no longer support both types of material (Substrate and non Substrate) so no need to check if FrontMaterial is plugged in.
+	// We simply consider all material as Substrate when Substrate is enabled.
+	return Substrate::IsSubstrateEnabled();
 }
 
 bool FMaterialResource::HasMaterialPropertyConnected(EMaterialProperty In) const
 {
-	// STRATA_TODO: temporary validation until we have converted all domains
-	const bool bIsStrataSupportedDomain = 
+	// SUBSTRATE_TODO: temporary validation until we have converted all domains
+	const bool bIsSubstrateSupportedDomain = 
 		Material->MaterialDomain == MD_PostProcess || 
 		Material->MaterialDomain == MD_LightFunction ||
 		Material->MaterialDomain == MD_DeferredDecal || 
@@ -1999,15 +1999,15 @@ bool FMaterialResource::HasMaterialPropertyConnected(EMaterialProperty In) const
 		Material->MaterialDomain == MD_Volume ||
 		Material->MaterialDomain == MD_UI;
 
-	if (Strata::IsStrataEnabled() && bIsStrataSupportedDomain)
+	if (Substrate::IsSubstrateEnabled() && bIsSubstrateSupportedDomain)
 	{
 		if (In == MP_AmbientOcclusion)
 		{
 			// AO is specified on the root node so use the regular accessor.
 			return Material->HasAmbientOcclusionConnected();
 		}
-		// Strata material traversal is cached as this is an expensive operation
-		return FStrataMaterialInfo::HasPropertyConnected(Material->GetCachedExpressionData().PropertyConnectedMask, In);
+		// Substrate material traversal is cached as this is an expensive operation
+		return FSubstrateMaterialInfo::HasPropertyConnected(Material->GetCachedExpressionData().PropertyConnectedMask, In);
 	}
 	else
 	{
@@ -2372,7 +2372,7 @@ void FMaterial::SetupMaterialEnvironment(
 		OutEnvironment.CompilerFlags.Add(CFLAG_UsesExternalTexture);
 	}
 
-	if (!Strata::IsStrataEnabled())
+	if (!Substrate::IsSubstrateEnabled())
 	{
 		switch(GetBlendMode())
 		{
@@ -2426,7 +2426,7 @@ void FMaterial::SetupMaterialEnvironment(
 		case BLEND_Opaque:
 		{
 			SET_SHADER_DEFINE(OutEnvironment, MATERIALBLENDING_SOLID, 1);
-			SET_SHADER_DEFINE(OutEnvironment, STRATA_BLENDING_OPAQUE, 1);
+			SET_SHADER_DEFINE(OutEnvironment, SUBSTRATE_BLENDING_OPAQUE, 1);
 			break;
 		}
 		case BLEND_Masked:
@@ -2442,49 +2442,49 @@ void FMaterial::SetupMaterialEnvironment(
 			{
 				SET_SHADER_DEFINE(OutEnvironment, MATERIALBLENDING_SOLID, 1);
 			}
-			SET_SHADER_DEFINE(OutEnvironment, STRATA_BLENDING_MASKED, 1);
+			SET_SHADER_DEFINE(OutEnvironment, SUBSTRATE_BLENDING_MASKED, 1);
 			break;
 		}
 		case BLEND_Additive:
 		{
 			SET_SHADER_DEFINE(OutEnvironment, MATERIALBLENDING_ADDITIVE, 1);
-			SET_SHADER_DEFINE(OutEnvironment, STRATA_BLENDING_TRANSLUCENT_GREYTRANSMITTANCE, 1);
+			SET_SHADER_DEFINE(OutEnvironment, SUBSTRATE_BLENDING_TRANSLUCENT_GREYTRANSMITTANCE, 1);
 			break;
 		}
 		case BLEND_AlphaComposite:
 		{
 			SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(OutEnvironment, MATERIALBLENDING_ALPHACOMPOSITE, true);
 			SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(OutEnvironment, MATERIALBLENDING_TRANSLUCENT, true);
-			SET_SHADER_DEFINE(OutEnvironment, STRATA_BLENDING_TRANSLUCENT_GREYTRANSMITTANCE, 1);
+			SET_SHADER_DEFINE(OutEnvironment, SUBSTRATE_BLENDING_TRANSLUCENT_GREYTRANSMITTANCE, 1);
 			break;
 		}
 		case BLEND_TranslucentGreyTransmittance:
 		{
 			SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(OutEnvironment, MATERIALBLENDING_TRANSLUCENT, true);
-			SET_SHADER_DEFINE(OutEnvironment, STRATA_BLENDING_TRANSLUCENT_GREYTRANSMITTANCE, 1);
+			SET_SHADER_DEFINE(OutEnvironment, SUBSTRATE_BLENDING_TRANSLUCENT_GREYTRANSMITTANCE, 1);
 			break;
 		}
 		case BLEND_TranslucentColoredTransmittance:
 		{
 			SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(OutEnvironment, MATERIALBLENDING_TRANSLUCENT, true);
-			SET_SHADER_DEFINE(OutEnvironment, STRATA_BLENDING_TRANSLUCENT_COLOREDTRANSMITTANCE, 1);
+			SET_SHADER_DEFINE(OutEnvironment, SUBSTRATE_BLENDING_TRANSLUCENT_COLOREDTRANSMITTANCE, 1);
 			break;
 		}
 		case BLEND_ColoredTransmittanceOnly:
 		{
 			SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(OutEnvironment, MATERIALBLENDING_MODULATE, true);
-			SET_SHADER_DEFINE(OutEnvironment, STRATA_BLENDING_COLOREDTRANSMITTANCEONLY, 1);
+			SET_SHADER_DEFINE(OutEnvironment, SUBSTRATE_BLENDING_COLOREDTRANSMITTANCEONLY, 1);
 			break;
 		}
 		case BLEND_AlphaHoldout:
 		{
 			SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(OutEnvironment, MATERIALBLENDING_TRANSLUCENT, true);
 			SET_SHADER_DEFINE(OutEnvironment, MATERIALBLENDING_ALPHAHOLDOUT, 1);
-			SET_SHADER_DEFINE(OutEnvironment, STRATA_BLENDING_ALPHAHOLDOUT, 1);
+			SET_SHADER_DEFINE(OutEnvironment, SUBSTRATE_BLENDING_ALPHAHOLDOUT, 1);
 			break;
 		}
 		default:
-			UE_LOG(LogMaterial, Error, TEXT("%s: Unkown Strata material blend mode could not be converted to Starta. (Asset: %s) Setting to BLEND_Opaque"), *GetFriendlyName(), *GetAssetName());
+			UE_LOG(LogMaterial, Error, TEXT("%s: Unkown Substrate material blend mode could not be converted to Starta. (Asset: %s) Setting to BLEND_Opaque"), *GetFriendlyName(), *GetAssetName());
 			SET_SHADER_DEFINE(OutEnvironment, MATERIALBLENDING_SOLID, 1);
 		}
 	}
@@ -3112,7 +3112,7 @@ bool FMaterial::Translate_Legacy(const FMaterialShaderMapId& ShaderMapId,
 	FMaterialCompilationOutput& OutCompilationOutput,
 	TRefCountPtr<FSharedShaderCompilerEnvironment>& OutMaterialEnvironment)
 {
-	FHLSLMaterialTranslator MaterialTranslator(this, OutCompilationOutput, InStaticParameters, InPlatform, GetQualityLevel(), ShaderMapId.FeatureLevel, InTargetPlatform, &ShaderMapId.StrataCompilationConfig);
+	FHLSLMaterialTranslator MaterialTranslator(this, OutCompilationOutput, InStaticParameters, InPlatform, GetQualityLevel(), ShaderMapId.FeatureLevel, InTargetPlatform, &ShaderMapId.SubstrateCompilationConfig);
 	const bool bSuccess = MaterialTranslator.Translate();
 	if (bSuccess)
 	{
@@ -4458,9 +4458,9 @@ int32 UMaterialInterface::CompileProperty(FMaterialCompiler* Compiler, EMaterial
 		Result = FMaterialAttributeDefinitionMap::CompileDefaultExpression(Compiler, Property);
 	}
 
-	if (Result == INDEX_NONE && Property == MP_FrontMaterial && Strata::IsStrataEnabled())
+	if (Result == INDEX_NONE && Property == MP_FrontMaterial && Substrate::IsSubstrateEnabled())
 	{
-		Result = Compiler->StrataCreateAndRegisterNullMaterial();
+		Result = Compiler->SubstrateCreateAndRegisterNullMaterial();
 	}
 
 	if (Result != INDEX_NONE)
@@ -5167,7 +5167,7 @@ FMaterialShaderParameters::FMaterialShaderParameters(const FMaterial* InMaterial
 	bShouldCastDynamicShadows = InMaterial->ShouldCastDynamicShadows();
 	bWritesEveryPixel = InMaterial->WritesEveryPixel(false);
 	bWritesEveryPixelShadowPass = InMaterial->WritesEveryPixel(true);
-	if (Strata::IsStrataEnabled())
+	if (Substrate::IsSubstrateEnabled())
 	{
 		bHasDiffuseAlbedoConnected  = InMaterial->HasMaterialPropertyConnected(MP_DiffuseColor);
 		bHasF0Connected = InMaterial->HasMaterialPropertyConnected(MP_SpecularColor);

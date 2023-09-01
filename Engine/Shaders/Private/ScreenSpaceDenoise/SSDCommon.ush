@@ -244,7 +244,7 @@ FSSDCompressedSceneInfos SampleCompressedSceneMetadata(
 	float2 BufferUV, uint2 PixelCoord)
 #if CONFIG_METADATA_BUFFER_LAYOUT == METADATA_BUFFER_LAYOUT_DISABLED
 {
-  #if STRATA_ENABLED
+  #if SUBSTRATE_ENABLED
 	float SceneDepth = 0;
 	if (bPrevFrame)
 	{
@@ -255,10 +255,10 @@ FSSDCompressedSceneInfos SampleCompressedSceneMetadata(
 		SceneDepth = ConvertFromDeviceZ(SampleDeviceZFromSceneTextures(BufferUV));
 	}
 
-	// STRATA_TODO: Manage bPrevFrame
-	const FStrataTopLayerData TopLayerData = StrataUnpackTopLayerData((STRATA_TOP_LAYER_TYPE)Strata.TopLayerTexture.Load(uint3(PixelCoord, 0)));
-	return MaterialToCompressedSceneMetadata(SceneDepth, TopLayerData.WorldNormal, TopLayerData.Roughness, IsStrataMaterial(TopLayerData) ? SHADINGMODELID_STRATA : SHADINGMODELID_UNLIT);
-  #else // STRATA_ENABLED
+	// SUBSTRATE_TODO: Manage bPrevFrame
+	const FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData((SUBSTRATE_TOP_LAYER_TYPE)Substrate.TopLayerTexture.Load(uint3(PixelCoord, 0)));
+	return MaterialToCompressedSceneMetadata(SceneDepth, TopLayerData.WorldNormal, TopLayerData.Roughness, IsSubstrateMaterial(TopLayerData) ? SHADINGMODELID_SUBSTRATE : SHADINGMODELID_UNLIT);
+  #else // SUBSTRATE_ENABLED
 	FGBufferData GBufferData;
 	if (bPrevFrame)
 	{
@@ -288,7 +288,7 @@ FSSDCompressedSceneInfos SampleCompressedSceneMetadata(
 		GBufferData = GetGBufferDataFromSceneTextures(BufferUV);	
 	}
 	return MaterialToCompressedSceneMetadata(GBufferData.Depth, GBufferData.WorldNormal, GBufferData.Roughness, GBufferData.ShadingModelID);
-  #endif  // STRATA_ENABLED
+  #endif  // SUBSTRATE_ENABLED
 }
 #elif CONFIG_METADATA_BUFFER_LAYOUT == METADATA_BUFFER_LAYOUT_FED_DEPTH_SHADINGMODEL
 {

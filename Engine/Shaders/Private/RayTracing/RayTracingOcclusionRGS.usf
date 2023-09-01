@@ -3,8 +3,8 @@
 // Bump to force a rebuild of this shader (when changing related C++ code). Generate unique value on merge conflict.
 #pragma message("UESHADERMETADATA_VERSION 42D4CD2F-D217-4305-81AB-F113F7114047")
 
-// Strata use view's resources to read & trace shadow ray
-#define STRATA_MATERIALCONTAINER_IS_VIEWRESOURCE 1
+// Substrate use view's resources to read & trace shadow ray
+#define SUBSTRATE_MATERIALCONTAINER_IS_VIEWRESOURCE 1
 
 #include "../Common.ush"
 #include "../MonteCarlo.ush"
@@ -618,7 +618,7 @@ FOcclusionResult ComputeOcclusion(
 	return Out;
 }
 
-#if !STRATA_ENABLED
+#if !SUBSTRATE_ENABLED
 float DecodeSamplingSSSProfileRadius(FGBufferData GBufferData)
 {
 	uint SubsurfaceProfileInt = ExtractSubsurfaceProfileInt(GBufferData);
@@ -658,23 +658,23 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(Occlusion)
 		FOcclusionShadingParameters ShadingParameters = (FOcclusionShadingParameters)0;
 		FTransmissionProfileParams TransmissionParameters = (FTransmissionProfileParams)0;
 		float SubsurfaceSamplingMeanFreePath = 0;
-		#if STRATA_ENABLED
+		#if SUBSTRATE_ENABLED
 		{
-			FStrataAddressing StrataAddressing = GetStrataPixelDataByteOffset(PixelCoord, uint2(View.BufferSizeAndInvSize.xy), Strata.MaxBytesPerPixel);
-			const FStrataPixelHeader StrataPixelHeader = UnpackStrataHeaderIn(Strata.MaterialTextureArray, StrataAddressing, Strata.TopLayerTexture);
-			const FStrataTopLayerData TopLayerData = StrataUnpackTopLayerData(Strata.TopLayerTexture.Load(uint3(PixelCoord, 0)));
+			FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelCoord, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
+			const FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
+			const FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData(Substrate.TopLayerTexture.Load(uint3(PixelCoord, 0)));
 
-			const FStrataSubsurfaceHeader SSSHeader = StrataLoadSubsurfaceHeader(Strata.MaterialTextureArray, Strata.FirstSliceStoringStrataSSSData, PixelCoord);
+			const FSubstrateSubsurfaceHeader SSSHeader = SubstrateLoadSubsurfaceHeader(Substrate.MaterialTextureArray, Substrate.FirstSliceStoringSubstrateSSSData, PixelCoord);
 			
 			const uint SSSType = SSSHEADER_TYPE(SSSHeader);
-			const bool bHasSSS = StrataPixelHeader.HasSubsurface();
-			const uint BSDFType = StrataPixelHeader.StrataGetBSDFType();
+			const bool bHasSSS = SubstratePixelHeader.HasSubsurface();
+			const uint BSDFType = SubstratePixelHeader.SubstrateGetBSDFType();
 
-			ShadingParameters.bIsValid = StrataPixelHeader.IsStrataMaterial();
-			ShadingParameters.bIsHair = BSDFType == STRATA_BSDF_TYPE_HAIR;
+			ShadingParameters.bIsValid = SubstratePixelHeader.IsSubstrateMaterial();
+			ShadingParameters.bIsHair = BSDFType == SUBSTRATE_BSDF_TYPE_HAIR;
 			ShadingParameters.bIsSubsurface = bHasSSS ? SSSType == SSS_TYPE_WRAP : false;
 			ShadingParameters.bHasSubsurfaceProfile = bHasSSS ? (SSSType == SSS_TYPE_DIFFUSION_PROFILE || SSSType == SSS_TYPE_DIFFUSION) : false;
-			ShadingParameters.bBackfaceCulling = !(BSDFType == STRATA_BSDF_TYPE_EYE || (bHasSSS && SSSType == SSS_TYPE_WRAP)); // isthin?
+			ShadingParameters.bBackfaceCulling = !(BSDFType == SUBSTRATE_BSDF_TYPE_EYE || (bHasSSS && SSSType == SSS_TYPE_WRAP)); // isthin?
 
 			WorldNormal = TopLayerData.WorldNormal;
 
@@ -683,15 +683,15 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(Occlusion)
 			{
 				if (SSSType == SSS_TYPE_DIFFUSION_PROFILE)
 				{
-					TransmissionParameters = GetTransmissionProfileParams(StrataSubSurfaceHeaderGetProfileId(SSSHeader));
+					TransmissionParameters = GetTransmissionProfileParams(SubstrateSubSurfaceHeaderGetProfileId(SSSHeader));
 				}
 				else if (SSSType == SSS_TYPE_DIFFUSION)
 				{
-					FSubsurfaceOpacityMFP SubsurfaceOpacityMFP = StrataGetSubsurfaceOpacityMFP(SSSHeader);
+					FSubsurfaceOpacityMFP SubsurfaceOpacityMFP = SubstrateGetSubsurfaceOpacityMFP(SSSHeader);
 
 					// We know that or SSS_TYPE_DIFFUSION we have access to the mean free path. 
 					const float MFP = SubsurfaceOpacityMFP.Data;
-					const float Extinction = StrataShadowMFPToExtinction(MFP);
+					const float Extinction = SubstrateShadowMFPToExtinction(MFP);
 
 					TransmissionParameters = InitTransmissionProfileParams();
 					TransmissionParameters.ExtinctionScale = Extinction;
@@ -707,7 +707,7 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(Occlusion)
 
 			if (ShadingParameters.bIsSubsurface) // Legacy Subsurface shading model == Substrate Wrap SSS.
 			{
-				FSubsurfaceOpacityMFP SubsurfaceOpacityMFP = StrataGetSubsurfaceOpacityMFP(SSSHeader);
+				FSubsurfaceOpacityMFP SubsurfaceOpacityMFP = SubstrateGetSubsurfaceOpacityMFP(SSSHeader);
 				if (SubsurfaceOpacityMFP.bDataIsOpacity)
 				{
 					TransmissionParameters.ExtinctionScale = SubsurfaceOpacityMFP.Data;

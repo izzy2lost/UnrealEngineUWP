@@ -13,10 +13,10 @@
 #define EYE_ADAPTATION_PREV_FRAME_EXPOSURE 1
 
 // Ensure that SSS albedo comes through in the material
-#define STRATA_SSS_MATERIAL_OVERRIDE 0
+#define SUBSTRATE_SSS_MATERIAL_OVERRIDE 0
 
 // Not using precomputed lighting
-#define MATERIAL_STRATA_OPAQUE_PRECOMPUTED_LIGHTING  0
+#define MATERIAL_SUBSTRATE_OPAQUE_PRECOMPUTED_LIGHTING  0
 
 #include "/Engine/Private/Common.ush"
 #include "/Engine/Private/RayTracing/RayTracingCommon.ush"
@@ -32,11 +32,11 @@
 #include "/Engine/Private/BurleyNormalizedSSSCommon.ush"
 #include "/Engine/Private/PathTracing/Material/PathTracingFresnel.ush"
 
-#if STRATA_ENABLED
-#define STRATA_GPU_LIGHTMASS 1
+#if SUBSTRATE_ENABLED
+#define SUBSTRATE_GPU_LIGHTMASS 1
 #include "/Engine/Private/Substrate/Substrate.ush"
 
-#if MATERIAL_IS_STRATA // STRATA_TODO: Should this header be guarded from inside instead?
+#if MATERIAL_IS_SUBSTRATE // SUBSTRATE_TODO: Should this header be guarded from inside instead?
 #include "/Engine/Private/Substrate/SubstrateExport.ush"
 #endif
 
@@ -93,7 +93,7 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(GPULightmassMaterialCHS,
 		CalcMaterialParametersEx(MaterialParameters, PixelMaterialInputs, SvPosition, ScreenPosition, bIsFrontFace, TranslatedWorldPosition, TranslatedWorldPosition);
 	}
 
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 
 	float  Coverage = 0;
 	float3 TransmittancePreCoverage = 0;
@@ -101,25 +101,25 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(GPULightmassMaterialCHS,
 	float3 WorldNormal = 0;
 	float3 EmissiveLuminance = 0;
 
-#if MATERIAL_IS_STRATA
-	FStrataData StrataData = PixelMaterialInputs.GetFrontStrataData();
-	FStrataPixelHeader StrataPixelHeader = MaterialParameters.GetFrontStrataHeader();
+#if MATERIAL_IS_SUBSTRATE
+	FSubstrateData SubstrateData = PixelMaterialInputs.GetFrontSubstrateData();
+	FSubstratePixelHeader SubstratePixelHeader = MaterialParameters.GetFrontSubstrateHeader();
 
 
-	FStrataIntegrationSettings Settings = InitStrataIntegrationSettings(true /*bForceFullyRough*/, false /*StrataStruct.bRoughDiffuse*/, -1/*StrataStruct.PeelLayersAboveDepth*/, false/*StrataStruct.bRoughnessTracking*/);
+	FSubstrateIntegrationSettings Settings = InitSubstrateIntegrationSettings(true /*bForceFullyRough*/, false /*SubstrateStruct.bRoughDiffuse*/, -1/*SubstrateStruct.PeelLayersAboveDepth*/, false/*SubstrateStruct.bRoughnessTracking*/);
 
 	const float3 SurfaceWorldNormal = GeoNormal;
-	StrataMaterialExportOut(
+	SubstrateMaterialExportOut(
 		Settings,
-		StrataPixelHeader,
-		StrataData,
+		SubstratePixelHeader,
+		SubstrateData,
 		SurfaceWorldNormal,
 		Coverage,
 		TransmittancePreCoverage,
 		BaseColorPostCoverage,
 		WorldNormal,
 		EmissiveLuminance);
-#endif // MATERIAL_IS_STRATA
+#endif // MATERIAL_IS_SUBSTRATE
 
 
 #if MATERIALBLENDING_ANY_TRANSLUCENT
@@ -131,7 +131,7 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(GPULightmassMaterialCHS,
 		PackedPayload.SetRayThroughput(RayThroughput);
 		return;
 	}
-	// STRATA_TODO: Make sure this is correct for all blend modes/glass cases
+	// SUBSTRATE_TODO: Make sure this is correct for all blend modes/glass cases
 	float3 TransparencyColor = saturate((1.0f - Coverage) + Coverage * TransmittancePreCoverage);
 #else
 	float3 TransparencyColor = 0.0;
@@ -141,7 +141,7 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(GPULightmassMaterialCHS,
 
 	Payload.BSDFOpacity = Coverage;
 	Payload.BaseColor = BaseColorPostCoverage;
-	Payload.SubsurfaceColor = 0;							// STRATA_TODO: Figure out how to support old two-sided foliage approximation
+	Payload.SubsurfaceColor = 0;							// SUBSTRATE_TODO: Figure out how to support old two-sided foliage approximation
 	Payload.ShadingModelID = any(BaseColorPostCoverage > 0.0) ? SHADINGMODELID_DEFAULT_LIT : SHADINGMODELID_UNLIT;
 	Payload.TransparencyColor = TransparencyColor;
 
@@ -188,7 +188,7 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(GPULightmassMaterialCHS,
 
 
 
-#else // STRATA_ENABLED
+#else // SUBSTRATE_ENABLED
 
 
 
@@ -397,7 +397,7 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(GPULightmassMaterialCHS,
 
 
 
-#endif // STRATA_ENABLED
+#endif // SUBSTRATE_ENABLED
 
 
 

@@ -404,7 +404,7 @@ half3 GetPlanarReflectionbasedReflectionLighting_Mobile(float3 TranslatedWorldPo
 	return Out;
 }
 
-// Version used for Strata
+// Version used for Substrate
 float3 GetImageBasedReflectionSpecular(
 	  half3 SpecularDirection, 
 	  half Roughness, 

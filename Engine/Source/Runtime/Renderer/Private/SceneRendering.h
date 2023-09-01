@@ -1365,7 +1365,7 @@ public:
 	// Used by mobile renderer to determine whether static meshes will be rendered with CSM shaders or not.
 	FMobileCSMVisibilityInfo MobileCSMVisibilityInfo;
 
-	FStrataViewData StrataViewData;
+	FSubstrateViewData SubstrateViewData;
 
 	uint32 LocalFogVolumeGPUInstanceCount;
 	FRDGBufferSRVRef LocalFogVolumeGPUInstanceDataBufferSRV;

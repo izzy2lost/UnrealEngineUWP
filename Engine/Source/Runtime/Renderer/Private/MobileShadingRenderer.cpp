@@ -882,8 +882,8 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		VirtualTextureFeedbackBegin(GraphBuilder, Views, SceneTexturesConfig.Extent);
 	}
 
-	// Strata initialization is always run even when not enabled.
-	if (Strata::IsStrataEnabled())
+	// Substrate initialization is always run even when not enabled.
+	if (Substrate::IsSubstrateEnabled())
 	{
 		for (FViewInfo& View : Views)
 		{
@@ -892,7 +892,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			FGlintShadingLUTsStateData::Init(GraphBuilder, View);
 		}
 	}
-	Strata::InitialiseStrataFrameSceneData(GraphBuilder, *this);
+	Substrate::InitialiseSubstrateFrameSceneData(GraphBuilder, *this);
 
 	if (bRendererOutputFinalSceneColor)
 	{

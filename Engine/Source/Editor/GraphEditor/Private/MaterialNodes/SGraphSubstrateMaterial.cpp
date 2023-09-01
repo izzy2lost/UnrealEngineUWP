@@ -80,8 +80,8 @@ bool FSubstrateWidget::HasOutputSubstrateType(const UEdGraphPin* InPin)
 }
 
 static const TSharedRef<SWidget> InternalProcessOperator(
-	const FStrataMaterialCompilationOutput& CompilationOutput, 
-	const FStrataOperator& Op, 
+	const FSubstrateMaterialCompilationOutput& CompilationOutput, 
+	const FSubstrateOperator& Op, 
 	ESubstrateWidgetOutputType OutputType,
 	const FGuid& InGuid, 
 	EStyleColor OverrideColor)
@@ -91,10 +91,10 @@ static const TSharedRef<SWidget> InternalProcessOperator(
 	const EStyleColor Color1 = bIsCurrent ? GetSubstrateWidgetColor1() : OverrideColor;
 	switch (Op.OperatorType)
 	{
-		case STRATA_OPERATOR_WEIGHT:
+		case SUBSTRATE_OPERATOR_WEIGHT:
 			return InternalProcessOperator(CompilationOutput, CompilationOutput.Operators[Op.LeftIndex], OutputType, InGuid, OverrideColor);
 			break;
-		case STRATA_OPERATOR_VERTICAL:
+		case SUBSTRATE_OPERATOR_VERTICAL:
 		{
 			auto VerticalOperator = SNew(SVerticalBox)
 				+SVerticalBox::Slot()
@@ -116,7 +116,7 @@ static const TSharedRef<SWidget> InternalProcessOperator(
 			return VerticalOperator->AsShared();
 		}
 		break;
-		case STRATA_OPERATOR_HORIZONTAL:
+		case SUBSTRATE_OPERATOR_HORIZONTAL:
 		{
 			auto HorizontalOperator = SNew(SHorizontalBox)
 				+SHorizontalBox::Slot()
@@ -138,7 +138,7 @@ static const TSharedRef<SWidget> InternalProcessOperator(
 			return HorizontalOperator->AsShared();
 		}
 		break;
-		case STRATA_OPERATOR_ADD:
+		case SUBSTRATE_OPERATOR_ADD:
 		{
 			auto HorizontalOperator = SNew(SHorizontalBox)
 				+SHorizontalBox::Slot()
@@ -160,8 +160,8 @@ static const TSharedRef<SWidget> InternalProcessOperator(
 			return HorizontalOperator->AsShared();
 		}
 		break;
-		case STRATA_OPERATOR_BSDF_LEGACY:	// legacy BSDF should have been converted to BSDF already.
-		case STRATA_OPERATOR_BSDF:
+		case SUBSTRATE_OPERATOR_BSDF_LEGACY:	// legacy BSDF should have been converted to BSDF already.
+		case SUBSTRATE_OPERATOR_BSDF:
 		{
 			FString BSDFDesc = OutputType == ESubstrateWidgetOutputType::Node ? 
 											 FString(TEXT("BSDF")) : 
@@ -207,12 +207,12 @@ static const TSharedRef<SWidget> InternalProcessOperator(
 	return TreeOperatorError->AsShared();
 }
 
-const TSharedRef<SWidget> FSubstrateWidget::ProcessOperator(const FStrataMaterialCompilationOutput& CompilationOutput)
+const TSharedRef<SWidget> FSubstrateWidget::ProcessOperator(const FSubstrateMaterialCompilationOutput& CompilationOutput)
 {
 	return InternalProcessOperator(CompilationOutput, CompilationOutput.Operators[CompilationOutput.RootOperatorIndex], ESubstrateWidgetOutputType::DetailPanel, FGuid(), EStyleColor::MAX);
 }
 
-const TSharedRef<SWidget> FSubstrateWidget::ProcessOperator(const FStrataMaterialCompilationOutput& CompilationOutput, const FGuid& InGuid)
+const TSharedRef<SWidget> FSubstrateWidget::ProcessOperator(const FSubstrateMaterialCompilationOutput& CompilationOutput, const FGuid& InGuid)
 {
 	return InternalProcessOperator(CompilationOutput, CompilationOutput.Operators[CompilationOutput.RootOperatorIndex], ESubstrateWidgetOutputType::Node, InGuid, EStyleColor::MAX);
 }
@@ -224,7 +224,7 @@ void FSubstrateWidget::GetPinColor(TSharedPtr<SGraphPin>& Out, const UMaterialGr
 
 	FLinearColor ColorModifier;
 	bool bHasColorModifier = false;
-	// Strata operator override pin color to ease material topology visualization
+	// Substrate operator override pin color to ease material topology visualization
 	const UEdGraphPin* Pin = Out->SGraphPin::GetPinObj();
 	const FName PinName = Pin->PinName;
 	if (InNode->MaterialExpression->IsA(UMaterialExpressionSubstrateVerticalLayering::StaticClass()))

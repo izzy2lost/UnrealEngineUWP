@@ -2,7 +2,7 @@
 
 #include "../Common.ush"
 #include "../ShaderPrint.ush"
-#include "../StrataTile.ush"
+#include "../SubstrateTile.ush"
 
 #define TILE_CLASSIFICATION_SIMPLE_DIFFUSE 0
 #define TILE_CLASSIFICATION_SUPPORT_IMPORTANCE_SAMPLE_BRDF 1
@@ -15,7 +15,7 @@ uint2 TranslateTileCoordIntoPrimarySpace(uint2 TileNCoord, bool bOverflow, inout
 	TileIndex = 0;
 	if (bOverflow)
 	{
-		const FStrataBSDFTile BSDFNTile = UnpackBSDFTile(Strata.BSDFTileTexture[TileNCoord]);
+		const FSubstrateBSDFTile BSDFNTile = UnpackBSDFTile(Substrate.BSDFTileTexture[TileNCoord]);
 		TileIndex = BSDFNTile.Index;
 		Out = BSDFNTile.TileCoord;
 	}
@@ -66,7 +66,7 @@ void PrintTile(inout FShaderPrintContext Context, uint LinearCoord, uint InMode,
 		{
 			if (bOverflowLinear)
 			{
-				TileCoord.y -= Strata.OverflowTileOffset.y;
+				TileCoord.y -= Substrate.OverflowTileOffset.y;
 			}
 			else
 			{
@@ -116,7 +116,7 @@ void PrintTileStats(inout FShaderPrintContext Context, bool bOverflow)
 [numthreads(1, 1, 1)]
 void ScreenProbeDebugMain(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
-	const bool bOverflowValid = STRATA_ENABLED ? Strata.BSDFTileCountBuffer[0] > 0 : false;
+	const bool bOverflowValid = SUBSTRATE_ENABLED ? Substrate.BSDFTileCountBuffer[0] > 0 : false;
 
 	FShaderPrintContext Context = InitShaderPrintContext(all(DispatchThreadId == 0), uint2(50, 100));
 	if (Context.bIsActive)
@@ -126,8 +126,8 @@ void ScreenProbeDebugMain(uint3 DispatchThreadId : SV_DispatchThreadID)
 
 		const FFontColor PrimaryResColor = GetValidColor(true);
 		const FFontColor OverflowResColor = GetValidColor(bOverflowValid);
-		uint2 TileRes_Primary  = Strata.TileCount;
-		uint2 TileRes_Overflow = Strata.OverflowTileCount;
+		uint2 TileRes_Primary  = Substrate.TileCount;
+		uint2 TileRes_Overflow = Substrate.OverflowTileCount;
 		Print(Context, TEXT("Primary  Tile Res: "), FontSilver); Print(Context, TileRes_Primary.x, PrimaryResColor, 3, 3); Print(Context, TEXT(" x "), PrimaryResColor); Print(Context, TileRes_Primary.y, PrimaryResColor); Newline(Context);
 		Print(Context, TEXT("Overflow Tile Res: "), FontSilver); Print(Context, TileRes_Overflow.x, OverflowResColor, 3, 3); Print(Context, TEXT(" x "), OverflowResColor); Print(Context, TileRes_Overflow.y, OverflowResColor); Newline(Context);
 		Newline(Context);
@@ -151,7 +151,7 @@ void ScreenProbeDebugMain(uint3 DispatchThreadId : SV_DispatchThreadID)
 	PrintTileLegend(Context);
 	Newline(Context);
 	
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 	const bool bPrimaryEnable = AddCheckbox(Context, TEXT("Primary Tiles"), true, FontOrange);
 	Newline(Context);
 	const bool bOverflowEnable = AddCheckbox(Context, TEXT("Overflow Tiles"), true, FontOrange);

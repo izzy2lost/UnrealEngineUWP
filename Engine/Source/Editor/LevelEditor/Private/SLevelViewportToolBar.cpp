@@ -1588,14 +1588,14 @@ void SLevelViewportToolBar::FillViewMenu(UToolMenu* Menu)
 						);
 	}
 
-	if (Strata::IsStrataEnabled())
+	if (Substrate::IsSubstrateEnabled())
 	{
 		FToolMenuSection& Section = Menu->FindOrAddSection("ViewMode");
 		Section.AddSubMenu(
 			"VisualizeSubstrateViewMode",
 			LOCTEXT("VisualizeSubstrateViewModeDisplayName", "Substrate"),
 			LOCTEXT("SubstrateVisualizationMenu_ToolTip", "Select a mode for Substrate visualization"),
-			FNewMenuDelegate::CreateStatic(&FStrataVisualizationMenuCommands::BuildVisualisationSubMenu),
+			FNewMenuDelegate::CreateStatic(&FSubstrateVisualizationMenuCommands::BuildVisualisationSubMenu),
 			FUIAction(
 				FExecuteAction(),
 				FCanExecuteAction(),

@@ -9,8 +9,8 @@
 
 class FMaterialCompiler;
 
-FString GetStrataBSDFName(uint8 BSDFType);
+FString GetSubstrateBSDFName(uint8 BSDFType);
 
-FStrataRegisteredSharedLocalBasis StrataCompilationInfoCreateNullSharedLocalBasis();
-FStrataRegisteredSharedLocalBasis StrataCompilationInfoCreateSharedLocalBasis(FMaterialCompiler* Compiler, int32 NormalCodeChunk, int32 TangentCodeChunk = INDEX_NONE);
+FSubstrateRegisteredSharedLocalBasis SubstrateCompilationInfoCreateNullSharedLocalBasis();
+FSubstrateRegisteredSharedLocalBasis SubstrateCompilationInfoCreateSharedLocalBasis(FMaterialCompiler* Compiler, int32 NormalCodeChunk, int32 TangentCodeChunk = INDEX_NONE);
 

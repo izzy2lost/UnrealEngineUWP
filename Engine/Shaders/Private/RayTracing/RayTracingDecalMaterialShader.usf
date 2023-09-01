@@ -6,7 +6,7 @@
 // This should be good enough for ray tracing and avoids having to bind an extra buffer
 #define EYE_ADAPTATION_PREV_FRAME_EXPOSURE 1
 
-#define STRATA_INLINE_SHADING 1
+#define SUBSTRATE_INLINE_SHADING 1
 
 #include "/Engine/Private/Common.ush"
 #include "/Engine/Private/RayTracing/RayTracingCommon.ush"
@@ -62,32 +62,32 @@ struct FDecalData
 FDecalData GetDecalData(FPixelMaterialInputs PixelMaterialInputs, FMaterialPixelParameters MaterialParameters)
 {
 	FDecalData Result = (FDecalData)0;
-#if STRATA_ENABLED
-	FStrataPixelHeader StrataHeader = MaterialParameters.GetFrontStrataHeader();
+#if SUBSTRATE_ENABLED
+	FSubstratePixelHeader SubstrateHeader = MaterialParameters.GetFrontSubstrateHeader();
 
-	if (StrataHeader.StrataTree.BSDFCount > 0)
+	if (SubstrateHeader.SubstrateTree.BSDFCount > 0)
 	{
 		const float3 V = MaterialParameters.CameraVector;
 
 		// Update tree (coverage/transmittance/luminace weights)
-		const FStrataIntegrationSettings Settings = InitStrataIntegrationSettings(false /*bForceFullyRough*/, false /*bRoughDiffuseEnabled*/, 0, false/*bRoughnessTracking*/);
-		StrataHeader.StrataUpdateTree(V, Settings);
+		const FSubstrateIntegrationSettings Settings = InitSubstrateIntegrationSettings(false /*bForceFullyRough*/, false /*bRoughDiffuseEnabled*/, 0, false/*bRoughnessTracking*/);
+		SubstrateHeader.SubstrateUpdateTree(V, Settings);
 
-		// Since the Convert-To-Decal node forces parameter blending for the entire Strata tree, the BSDF we are interested in will be in 0.
-		FStrataDBuffer DBuffer = StrataHeader.StrataConvertToDBuffer(StrataHeader.StrataTree.BSDFs[0]);
+		// Since the Convert-To-Decal node forces parameter blending for the entire Substrate tree, the BSDF we are interested in will be in 0.
+		FSubstrateDBuffer DBuffer = SubstrateHeader.SubstrateConvertToDBuffer(SubstrateHeader.SubstrateTree.BSDFs[0]);
 		Result.Opacity = DBuffer.Coverage;
 		Result.BaseColor = DBuffer.BaseColor;
 		Result.WorldNormal = DBuffer.WorldNormal;
 		Result.MetallicSpecularRoughness = float3(DBuffer.Metallic, DBuffer.Specular, DBuffer.Roughness);
 		Result.Emissive = DBuffer.Emissive;
 	}
-#else // STRATA_ENABLED
+#else // SUBSTRATE_ENABLED
 	Result.Opacity = GetMaterialOpacity(PixelMaterialInputs);
 	Result.BaseColor = GetMaterialBaseColor(PixelMaterialInputs);
 	Result.WorldNormal = MaterialParameters.WorldNormal;
 	Result.MetallicSpecularRoughness = float3(GetMaterialMetallic(PixelMaterialInputs), GetMaterialSpecular(PixelMaterialInputs), GetMaterialRoughness(PixelMaterialInputs));
 	Result.Emissive = GetMaterialEmissive(PixelMaterialInputs);
-#endif // STRATA_ENABLED
+#endif // SUBSTRATE_ENABLED
 	return Result;
 }
 

@@ -4,19 +4,19 @@
 	ReflectionEnvironmentComputeShaders - functionality to apply local cubemaps.
 =============================================================================*/
   
-#if STRATA_ENABLED
-#define STRATA_INLINE_SHADING 0
-  #if STRATA_TILETYPE == 0
-	#define STRATA_FASTPATH 1
-  #elif STRATA_TILETYPE == 1
-	#define STRATA_SINGLEPATH 1
-  #elif STRATA_TILETYPE == 2
+#if SUBSTRATE_ENABLED
+#define SUBSTRATE_INLINE_SHADING 0
+  #if SUBSTRATE_TILETYPE == 0
+	#define SUBSTRATE_FASTPATH 1
+  #elif SUBSTRATE_TILETYPE == 1
+	#define SUBSTRATE_SINGLEPATH 1
+  #elif SUBSTRATE_TILETYPE == 2
 	// COMPLEX PATH
-  #elif STRATA_TILETYPE == 3
+  #elif SUBSTRATE_TILETYPE == 3
 	// COMPLEX PATH
-	#define STRATA_COMPLEXSPECIALPATH 1
+	#define SUBSTRATE_COMPLEXSPECIALPATH 1
   #else
-	#error Strata tile type non-implemented
+	#error Substrate tile type non-implemented
   #endif
 #endif
 
@@ -269,7 +269,7 @@ float GetCloudVolumetricAOShadow(in float3 TranslatedWorldPosition)
 void ReflectionEnvironmentSkyLighting(
 	in float4 SvPosition : SV_Position,
 	out float4 OutColor : SV_Target0
-#if STRATA_OPAQUE_ROUGH_REFRACTION_ENABLED
+#if SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED
 	, out float3 OutOpaqueRoughRefractionSceneColor : SV_Target1
 	, out float3 OutSubSurfaceSceneColor : SV_Target2
 #endif
@@ -282,17 +282,17 @@ void ReflectionEnvironmentSkyLighting(
 	float2 ScreenPosition = SvPositionToScreenPosition(SvPosition).xy;
 	
 	OutColor = 0.0f;
-#if STRATA_OPAQUE_ROUGH_REFRACTION_ENABLED
+#if SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED
 	OutOpaqueRoughRefractionSceneColor = 0.0f;
 	OutSubSurfaceSceneColor = 0.0f;
 #endif
 
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 
-	FStrataAddressing StrataAddressing = GetStrataPixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Strata.MaxBytesPerPixel);
-	FStrataPixelHeader StrataPixelHeader = UnpackStrataHeaderIn(Strata.MaterialTextureArray, StrataAddressing, Strata.TopLayerTexture);
+	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
+	FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
 	BRANCH
-	if (StrataPixelHeader.BSDFCount > 0) // This test is also enough to exclude sky pixels
+	if (SubstratePixelHeader.BSDFCount > 0) // This test is also enough to exclude sky pixels
 	{
 		float DeviceZ = SampleDeviceZFromSceneTextures(BufferUV);
 		float SceneDepth = ConvertFromDeviceZ(DeviceZ);
@@ -316,11 +316,11 @@ void ReflectionEnvironmentSkyLighting(
 		float3 SSRTopLayerEnvBRDF = 0.0f;
 
 		const float CloudVolumetricAOShadow = GetCloudVolumetricAOShadow(TranslatedWorldPosition);
-		const FStrataIntegrationSettings Settings = InitStrataIntegrationSettings(false /*bForceFullyRough*/, Strata.bRoughDiffuse, Strata.PeelLayersAboveDepth, Strata.bRoughnessTracking);
+		const FSubstrateIntegrationSettings Settings = InitSubstrateIntegrationSettings(false /*bForceFullyRough*/, Substrate.bRoughDiffuse, Substrate.PeelLayersAboveDepth, Substrate.bRoughnessTracking);
 
 		const bool bEnableSpecular = ReflectionStruct.SkyLightParameters.y > 0.0f;
 
-		FStrataDeferredLighting StrataLighting = StrataEnvironmentLighting(
+		FSubstrateDeferredLighting SubstrateLighting = SubstrateEnvironmentLighting(
 			SvPosition,
 			BufferUV,
 			SceneDepth,
@@ -332,9 +332,9 @@ void ReflectionEnvironmentSkyLighting(
 			TopLayerSpecularContributionFactor,
 			bEnableSpecular,
 			Settings,
-			Strata.MaterialTextureArray,
-			StrataAddressing,
-			StrataPixelHeader,
+			Substrate.MaterialTextureArray,
+			SubstrateAddressing,
+			SubstratePixelHeader,
 			CloudVolumetricAOShadow,
 			SSRReductionFactor,
 			SSRTopLayerEnvBRDF);
@@ -343,14 +343,14 @@ void ReflectionEnvironmentSkyLighting(
 		// Alpha is 0 to not affect the subsurface diffuse luma information.
 		const float4 SSRColor = float4(ReflectionInput.rgb * SSRTopLayerEnvBRDF * SSRReductionFactor, 0.0);
 
-		OutColor += StrataLighting.SceneColor + SSRColor;
-#if STRATA_OPAQUE_ROUGH_REFRACTION_ENABLED
-		OutOpaqueRoughRefractionSceneColor += StrataLighting.OpaqueRoughRefractionSceneColor;
-		OutSubSurfaceSceneColor += StrataLighting.SubSurfaceSceneColor;
+		OutColor += SubstrateLighting.SceneColor + SSRColor;
+#if SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED
+		OutOpaqueRoughRefractionSceneColor += SubstrateLighting.OpaqueRoughRefractionSceneColor;
+		OutSubSurfaceSceneColor += SubstrateLighting.SubSurfaceSceneColor;
 #endif
 	}
 
-#else // STRATA_ENABLED
+#else // SUBSTRATE_ENABLED
 
 	// Sample scene textures.
 	FGBufferData GBuffer = GetGBufferDataFromSceneTextures(BufferUV);
@@ -397,6 +397,6 @@ void ReflectionEnvironmentSkyLighting(
 		OutColor.xyz += ReflectionEnvironment(GBuffer, AmbientOcclusion, BufferUV, ScreenPosition, SvPosition, BentNormal, SpecularColor, ShadingModelID);
 	}
 
-#endif // STRATA_ENABLED
+#endif // SUBSTRATE_ENABLED
 }
 

@@ -1156,9 +1156,9 @@ void FRelevancePacket::Finalize()
 	NaniteCustomDepthInstances.AppendTo(WriteView.NaniteCustomDepthInstances);
 	WriteView.bUsesCustomDepth |= bUsesCustomDepth;
 	WriteView.bUsesCustomStencil |= bUsesCustomStencil;
-	WriteView.StrataViewData.MaxBSDFCount = FMath::Max(WriteView.StrataViewData.MaxBSDFCount, 8u - FMath::CountLeadingZeros8(StrataBSDFCountMask));
-	WriteView.StrataViewData.MaxBytesPerPixel = FMath::Max(WriteView.StrataViewData.MaxBytesPerPixel, StrataUintPerPixel * 4u);
-	WriteView.StrataViewData.bUsesComplexSpecialRenderPath |= bUsesComplexSpecialRenderPath;
+	WriteView.SubstrateViewData.MaxBSDFCount = FMath::Max(WriteView.SubstrateViewData.MaxBSDFCount, 8u - FMath::CountLeadingZeros8(SubstrateBSDFCountMask));
+	WriteView.SubstrateViewData.MaxBytesPerPixel = FMath::Max(WriteView.SubstrateViewData.MaxBytesPerPixel, SubstrateUintPerPixel * 4u);
+	WriteView.SubstrateViewData.bUsesComplexSpecialRenderPath |= bUsesComplexSpecialRenderPath;
 	DirtyIndirectLightingCacheBufferPrimitives.AppendTo(WriteView.DirtyIndirectLightingCacheBufferPrimitives);
 
 	WriteView.MeshDecalBatches.Append(MeshDecalBatches);
@@ -1224,9 +1224,9 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 	SCOPE_CYCLE_COUNTER(STAT_ComputeViewRelevance);
 
 	CombinedShadingModelMask = 0;
-	StrataUintPerPixel = 0;
+	SubstrateUintPerPixel = 0;
 	bUsesComplexSpecialRenderPath = false;
-	StrataBSDFCountMask = 0;
+	SubstrateBSDFCountMask = 0;
 	bSceneHasSkyMaterial = 0;
 	bHasSingleLayerWaterMaterial = 0;
 	bUsesSecondStageDepthPass = 0;
@@ -1792,9 +1792,9 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 		}
 
 		CombinedShadingModelMask |= ViewRelevance.ShadingModelMask;
-		StrataUintPerPixel = FMath::Max(StrataUintPerPixel, ViewRelevance.StrataUintPerPixel);
+		SubstrateUintPerPixel = FMath::Max(SubstrateUintPerPixel, ViewRelevance.SubstrateUintPerPixel);
 		bUsesComplexSpecialRenderPath |= ViewRelevance.bUsesComplexSpecialRenderPath;
-		StrataBSDFCountMask |= ViewRelevance.StrataBSDFCountMask;
+		SubstrateBSDFCountMask |= ViewRelevance.SubstrateBSDFCountMask;
 		bUsesLightingChannels |= ViewRelevance.bUsesLightingChannels;
 		bTranslucentSurfaceLighting |= ViewRelevance.bTranslucentSurfaceLighting;
 		bUsesCustomDepth |= (ViewRelevance.CustomDepthStencilUsageMask & 1) > 0;

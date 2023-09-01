@@ -18,8 +18,8 @@
 
 #define LOCTEXT_NAMESPACE "SubstrateVisualizationMenuCommands"
 
-FStrataVisualizationMenuCommands::FStrataVisualizationMenuCommands()
-	: TCommands<FStrataVisualizationMenuCommands>
+FSubstrateVisualizationMenuCommands::FSubstrateVisualizationMenuCommands()
+	: TCommands<FSubstrateVisualizationMenuCommands>
 	(
 		TEXT("SubstrateVisualizationMenu"), // Context name for fast lookup
 		NSLOCTEXT("Contexts", "SubstrateVisualizationMenu", "Substrate"), // Localized context name for displaying
@@ -30,16 +30,16 @@ FStrataVisualizationMenuCommands::FStrataVisualizationMenuCommands()
 {
 }
 
-void FStrataVisualizationMenuCommands::BuildCommandMap()
+void FSubstrateVisualizationMenuCommands::BuildCommandMap()
 {
-	const FStrataVisualizationData& VisualizationData = GetStrataVisualizationData();
-	const FStrataVisualizationData::TModeMap& ModeMap = VisualizationData.GetModeMap();
+	const FSubstrateVisualizationData& VisualizationData = GetSubstrateVisualizationData();
+	const FSubstrateVisualizationData::TModeMap& ModeMap = VisualizationData.GetModeMap();
 
 	CommandMap.Empty();
-	for (FStrataVisualizationData::TModeMap::TConstIterator It = ModeMap.CreateConstIterator(); It; ++It)
+	for (FSubstrateVisualizationData::TModeMap::TConstIterator It = ModeMap.CreateConstIterator(); It; ++It)
 	{
-		const FStrataVisualizationData::FModeRecord& Entry = It.Value();
-		FStrataVisualizationRecord& Record = CommandMap.Add(Entry.ModeName, FStrataVisualizationRecord());
+		const FSubstrateVisualizationData::FModeRecord& Entry = It.Value();
+		FSubstrateVisualizationRecord& Record = CommandMap.Add(Entry.ModeName, FSubstrateVisualizationRecord());
 		Record.Name = Entry.ModeName;
 		Record.Command = FUICommandInfoDecl(
 			this->AsShared(),
@@ -53,41 +53,41 @@ void FStrataVisualizationMenuCommands::BuildCommandMap()
 	}
 }
 
-void FStrataVisualizationMenuCommands::BuildVisualisationSubMenu(FMenuBuilder& Menu)
+void FSubstrateVisualizationMenuCommands::BuildVisualisationSubMenu(FMenuBuilder& Menu)
 {
-	const FStrataVisualizationMenuCommands& Commands = FStrataVisualizationMenuCommands::Get();
+	const FSubstrateVisualizationMenuCommands& Commands = FSubstrateVisualizationMenuCommands::Get();
 	if (Commands.IsPopulated())
 	{
 		// General
 		{
 			Menu.BeginSection("LevelViewportSubstrateVisualizationModeGeneral", LOCTEXT("SubstrateVisualizationGeneral", "Substrate General View Mode"));
-			Commands.AddCommandTypeToMenu(Menu, FStrataViewMode::MaterialProperties);
-			Commands.AddCommandTypeToMenu(Menu, FStrataViewMode::MaterialCount);
-			Commands.AddCommandTypeToMenu(Menu, FStrataViewMode::MaterialByteCount);
-			Commands.AddCommandTypeToMenu(Menu, FStrataViewMode::StrataInfo);
+			Commands.AddCommandTypeToMenu(Menu, FSubstrateViewMode::MaterialProperties);
+			Commands.AddCommandTypeToMenu(Menu, FSubstrateViewMode::MaterialCount);
+			Commands.AddCommandTypeToMenu(Menu, FSubstrateViewMode::MaterialByteCount);
+			Commands.AddCommandTypeToMenu(Menu, FSubstrateViewMode::SubstrateInfo);
 			Menu.EndSection();
 		}
 
 		// Advanced
 		{
 			Menu.BeginSection("LevelViewportSubstrateVisualizationModeAdvanced", LOCTEXT("SubstrateVisualizationAdvanced", "Substrate Advanced View Mode"));
-			Commands.AddCommandTypeToMenu(Menu, FStrataViewMode::AdvancedMaterialProperties);
-			Commands.AddCommandTypeToMenu(Menu, FStrataViewMode::MaterialClassification);
-			Commands.AddCommandTypeToMenu(Menu, FStrataViewMode::RoughRefractionClassification);
-			Commands.AddCommandTypeToMenu(Menu, FStrataViewMode::DecalClassification);
+			Commands.AddCommandTypeToMenu(Menu, FSubstrateViewMode::AdvancedMaterialProperties);
+			Commands.AddCommandTypeToMenu(Menu, FSubstrateViewMode::MaterialClassification);
+			Commands.AddCommandTypeToMenu(Menu, FSubstrateViewMode::RoughRefractionClassification);
+			Commands.AddCommandTypeToMenu(Menu, FSubstrateViewMode::DecalClassification);
 			Menu.EndSection();
 		}
 	}
 }
 
-bool FStrataVisualizationMenuCommands::AddCommandTypeToMenu(FMenuBuilder& Menu, const FStrataViewMode ViewMode) const
+bool FSubstrateVisualizationMenuCommands::AddCommandTypeToMenu(FMenuBuilder& Menu, const FSubstrateViewMode ViewMode) const
 {
 	bool bAddedCommands = false;
 
-	const TStrataVisualizationModeCommandMap& Commands = CommandMap;
+	const TSubstrateVisualizationModeCommandMap& Commands = CommandMap;
 	for (TCommandConstIterator It = CreateCommandConstIterator(); It; ++It)
 	{
-		const FStrataVisualizationRecord& Record = It.Value();
+		const FSubstrateVisualizationRecord& Record = It.Value();
 		if (Record.ViewMode == ViewMode)
 		{
 			Menu.AddMenuEntry(Record.Command, NAME_None, Record.Command->GetLabel());
@@ -98,44 +98,44 @@ bool FStrataVisualizationMenuCommands::AddCommandTypeToMenu(FMenuBuilder& Menu, 
 	return bAddedCommands;
 }
 
-FStrataVisualizationMenuCommands::TCommandConstIterator FStrataVisualizationMenuCommands::CreateCommandConstIterator() const
+FSubstrateVisualizationMenuCommands::TCommandConstIterator FSubstrateVisualizationMenuCommands::CreateCommandConstIterator() const
 {
 	return CommandMap.CreateConstIterator();
 }
 
-void FStrataVisualizationMenuCommands::RegisterCommands()
+void FSubstrateVisualizationMenuCommands::RegisterCommands()
 {
 	BuildCommandMap();
 }
 
-void FStrataVisualizationMenuCommands::BindCommands(FUICommandList& CommandList, const TSharedPtr<FEditorViewportClient>& Client) const
+void FSubstrateVisualizationMenuCommands::BindCommands(FUICommandList& CommandList, const TSharedPtr<FEditorViewportClient>& Client) const
 {
-	// Map Strata visualization mode actions
-	for (FStrataVisualizationMenuCommands::TCommandConstIterator It = FStrataVisualizationMenuCommands::Get().CreateCommandConstIterator(); It; ++It)
+	// Map Substrate visualization mode actions
+	for (FSubstrateVisualizationMenuCommands::TCommandConstIterator It = FSubstrateVisualizationMenuCommands::Get().CreateCommandConstIterator(); It; ++It)
 	{
-		const FStrataVisualizationMenuCommands::FStrataVisualizationRecord& Record = It.Value();
+		const FSubstrateVisualizationMenuCommands::FSubstrateVisualizationRecord& Record = It.Value();
 		CommandList.MapAction(
 			Record.Command,
-			FExecuteAction::CreateStatic(&FStrataVisualizationMenuCommands::ChangeStrataVisualizationMode, Client.ToWeakPtr(), Record.Name),
+			FExecuteAction::CreateStatic(&FSubstrateVisualizationMenuCommands::ChangeSubstrateVisualizationMode, Client.ToWeakPtr(), Record.Name),
 			FCanExecuteAction(),
-			FIsActionChecked::CreateStatic(&FStrataVisualizationMenuCommands::IsStrataVisualizationModeSelected, Client.ToWeakPtr(), Record.Name)
+			FIsActionChecked::CreateStatic(&FSubstrateVisualizationMenuCommands::IsSubstrateVisualizationModeSelected, Client.ToWeakPtr(), Record.Name)
 		);
 	}
 }
 
-void FStrataVisualizationMenuCommands::ChangeStrataVisualizationMode(TWeakPtr<FEditorViewportClient> WeakClient, FName InName)
+void FSubstrateVisualizationMenuCommands::ChangeSubstrateVisualizationMode(TWeakPtr<FEditorViewportClient> WeakClient, FName InName)
 {
 	if (TSharedPtr<FEditorViewportClient> Client = WeakClient.Pin())
 	{
-		Client->ChangeStrataVisualizationMode(InName);
+		Client->ChangeSubstrateVisualizationMode(InName);
 	}
 }
 
-bool FStrataVisualizationMenuCommands::IsStrataVisualizationModeSelected(TWeakPtr<FEditorViewportClient> WeakClient, FName InName)
+bool FSubstrateVisualizationMenuCommands::IsSubstrateVisualizationModeSelected(TWeakPtr<FEditorViewportClient> WeakClient, FName InName)
 {
 	if (TSharedPtr<FEditorViewportClient> Client = WeakClient.Pin())
 	{
-		return Client->IsStrataVisualizationModeSelected(InName);
+		return Client->IsSubstrateVisualizationModeSelected(InName);
 	}
 	
 	return false;

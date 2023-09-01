@@ -227,7 +227,7 @@ UGameViewportClient::UGameViewportClient(const FObjectInitializer& ObjectInitial
 	, CurrentBufferVisualizationMode(NAME_None)
 	, CurrentNaniteVisualizationMode(NAME_None)
 	, CurrentLumenVisualizationMode(NAME_None)
-	, CurrentStrataVisualizationMode(NAME_None)
+	, CurrentSubstrateVisualizationMode(NAME_None)
 	, CurrentGroomVisualizationMode(NAME_None)
 	, CurrentVirtualShadowMapVisualizationMode(NAME_None)
 	, HighResScreenshotDialog(nullptr)
@@ -323,7 +323,7 @@ UGameViewportClient::UGameViewportClient(FVTableHelper& Helper)
 	, CurrentBufferVisualizationMode(NAME_None)
 	, CurrentNaniteVisualizationMode(NAME_None)
 	, CurrentLumenVisualizationMode(NAME_None)
-	, CurrentStrataVisualizationMode(NAME_None)
+	, CurrentSubstrateVisualizationMode(NAME_None)
 	, CurrentGroomVisualizationMode(NAME_None)
 	, CurrentVirtualShadowMapVisualizationMode(NAME_None)
 	, HighResScreenshotDialog(nullptr)
@@ -1595,7 +1595,7 @@ void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
 					View->CurrentBufferVisualizationMode = CurrentBufferVisualizationMode;
 					View->CurrentNaniteVisualizationMode = CurrentNaniteVisualizationMode;
 					View->CurrentLumenVisualizationMode = CurrentLumenVisualizationMode;
-					View->CurrentStrataVisualizationMode = CurrentStrataVisualizationMode;
+					View->CurrentSubstrateVisualizationMode = CurrentSubstrateVisualizationMode;
 					View->CurrentGroomVisualizationMode = CurrentGroomVisualizationMode;
 					View->CurrentVirtualShadowMapVisualizationMode = CurrentVirtualShadowMapVisualizationMode;
 

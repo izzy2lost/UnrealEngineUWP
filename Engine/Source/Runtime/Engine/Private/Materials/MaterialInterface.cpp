@@ -317,19 +317,19 @@ bool UMaterialInterface::IsUsingNewHLSLGenerator() const
 	return BaseMaterial ? BaseMaterial->bEnableNewHLSLGenerator : false;
 }
 
-const FStrataCompilationConfig& UMaterialInterface::GetStrataCompilationConfig() const
+const FSubstrateCompilationConfig& UMaterialInterface::GetSubstrateCompilationConfig() const
 {
 	const UMaterial* BaseMaterial = GetMaterial_Concurrent();
-	static FStrataCompilationConfig DefaultFStrataCompilationConfig = FStrataCompilationConfig();
-	return BaseMaterial ? BaseMaterial->StrataCompilationConfig : DefaultFStrataCompilationConfig;
+	static FSubstrateCompilationConfig DefaultFSubstrateCompilationConfig = FSubstrateCompilationConfig();
+	return BaseMaterial ? BaseMaterial->SubstrateCompilationConfig : DefaultFSubstrateCompilationConfig;
 }
 
-ENGINE_API void UMaterialInterface::SetStrataCompilationConfig(FStrataCompilationConfig& StrataCompilationConfig)
+ENGINE_API void UMaterialInterface::SetSubstrateCompilationConfig(FSubstrateCompilationConfig& SubstrateCompilationConfig)
 {
 	UMaterial* BaseMaterial = GetMaterial();
 	if (BaseMaterial)
 	{
-		BaseMaterial->StrataCompilationConfig = StrataCompilationConfig;
+		BaseMaterial->SubstrateCompilationConfig = SubstrateCompilationConfig;
 	}
 }
 
@@ -492,11 +492,11 @@ FMaterialRelevance UMaterialInterface::GetRelevance_Internal(const UMaterial* Ma
 		// The modulation buffer can also be used for regular modulation shaders after DoF.
 		const bool bMaterialSeparateModulation = MaterialResource->IsDualBlendingEnabled(GShaderPlatformForFeatureLevel[InFeatureLevel]) || IsModulateBlendMode(BlendMode);
 
-		// Encode Strata BSDF into a mask where each bit correspond to a number of BSDF (1-8)
-		const uint8 StrataBSDFCount = FMath::Max(MaterialResource->MaterialGetStrataBSDFCount_GameThread(), uint8(1u));
-		const uint8 StrataBSDFCountMask = 1u << uint8(FMath::Min(StrataBSDFCount - 1, 8));
-		const uint8 StrataUintPerPixel = FMath::Max(MaterialResource->MaterialGetStrataUintPerPixel_GameThread(), uint8(1u));
-		const uint8 bUsesComplexSpecialRenderPath = MaterialResource->MaterialGetStrataUsesComplexSpecialRenderPath_GameThread();
+		// Encode Substrate BSDF into a mask where each bit correspond to a number of BSDF (1-8)
+		const uint8 SubstrateBSDFCount = FMath::Max(MaterialResource->MaterialGetSubstrateBSDFCount_GameThread(), uint8(1u));
+		const uint8 SubstrateBSDFCountMask = 1u << uint8(FMath::Min(SubstrateBSDFCount - 1, 8));
+		const uint8 SubstrateUintPerPixel = FMath::Max(MaterialResource->MaterialGetSubstrateUintPerPixel_GameThread(), uint8(1u));
+		const uint8 bUsesComplexSpecialRenderPath = MaterialResource->MaterialGetSubstrateUsesComplexSpecialRenderPath_GameThread();
 
 		MaterialRelevance.bOpaque = !bIsTranslucent;
 		MaterialRelevance.bMasked = IsMasked();
@@ -522,8 +522,8 @@ FMaterialRelevance UMaterialInterface::GetRelevance_Internal(const UMaterial* Ma
 		MaterialRelevance.bUsesSkyMaterial = Material->bIsSky;
 		MaterialRelevance.bUsesSingleLayerWaterMaterial = bUsesSingleLayerWaterMaterial;
 		MaterialRelevance.bUsesAnisotropy = bUsesAnisotropy;
-		MaterialRelevance.StrataBSDFCountMask = StrataBSDFCountMask;
-		MaterialRelevance.StrataUintPerPixel = StrataUintPerPixel;
+		MaterialRelevance.SubstrateBSDFCountMask = SubstrateBSDFCountMask;
+		MaterialRelevance.SubstrateUintPerPixel = SubstrateUintPerPixel;
 		MaterialRelevance.bUsesComplexSpecialRenderPath = bUsesComplexSpecialRenderPath;
 
 		return MaterialRelevance;
@@ -1421,7 +1421,7 @@ void UMaterialInterface::UpdateMaterialRenderProxy(FMaterialRenderProxy& Proxy)
 		});
 	}
 
-	if (Strata::IsStrataEnabled())
+	if (Substrate::IsSubstrateEnabled())
 	{
 		struct FEntry
 		{

@@ -42,8 +42,8 @@ void OpaqueRoughRefractionPS(
 	// First read unblurred layers at the bottom of the top layer
 	OutColor = SeparatedOpaqueRoughRefractionSceneColor[uint2(PixelPos)];
 
-#if PERMUTATION_ENABLE_BLUR && STRATA_OPAQUE_ROUGH_REFRACTION_ENABLED
-	FStrataOpaqueRoughRefractionData ORRData = StrataUnpackOpaqueRoughRefractionData(Strata.OpaqueRoughRefractionTexture[PixelPos]);
+#if PERMUTATION_ENABLE_BLUR && SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED
+	FSubstrateOpaqueRoughRefractionData ORRData = SubstrateUnpackOpaqueRoughRefractionData(Substrate.OpaqueRoughRefractionTexture[PixelPos]);
 	ORRData.VarianceCm *= BlurScale;
 
 	const float DeviceZ = LookupDeviceZ(UvBuffer);
@@ -94,7 +94,7 @@ void OpaqueRoughRefractionPS(
 			Weight *= bSampleIsWithinViewRect ? 1.0f : 0.0f;
 
 			// Do not accept rough refraction if the sampled material does not do rough refraction. Solved well by depth difference below so disabled.
-			//FStrataOpaqueRoughRefractionData ORRSampleData = StrataUnpackOpaqueRoughRefractionData(Strata.OpaqueRoughRefractionTexture[SamplePixelPos]);
+			//FSubstrateOpaqueRoughRefractionData ORRSampleData = SubstrateUnpackOpaqueRoughRefractionData(Substrate.OpaqueRoughRefractionTexture[SamplePixelPos]);
 			//Weight *= ORRSampleData.OpaqueRoughRefractionEnabled ? 1.0f : 0.0f;
 
 			// Do not accept rough refraction if the depth difference is too high. Solves a lot of problems such as: 
@@ -128,7 +128,7 @@ void OpaqueRoughRefractionPS(
 
 
 
-#ifdef STRATA_RND_SHADERS
+#ifdef SUBSTRATE_RND_SHADERS
 
 //////////////////////////////////////////////////////////////////////////
 // RnD shaders only used when enabled locally
@@ -441,9 +441,9 @@ Texture2D<uint> SampleCountTexture;
 
 StructuredBuffer<FLobeStat> LobStatisticsBuffer;
 
-FStrataLobeStatistic StrataGetRefractedLobe2(FStrataLobeStatistic WiLobe, float3 InterfaceFDG, float InterfaceRoughness, float InterfaceEta12)
+FSubstrateLobeStatistic SubstrateGetRefractedLobe2(FSubstrateLobeStatistic WiLobe, float3 InterfaceFDG, float InterfaceRoughness, float InterfaceEta12)
 {
-	FStrataLobeStatistic WoLobe;
+	FSubstrateLobeStatistic WoLobe;
 
 	WoLobe.E = WiLobe.E * (1.0f - InterfaceFDG);
 
@@ -457,7 +457,7 @@ FStrataLobeStatistic StrataGetRefractedLobe2(FStrataLobeStatistic WiLobe, float3
 	//const float S = 0.5f * (1.0f + InterfaceEta12 * (abs(OmegaIDotN) / abs(OmegaTDotN)));					// equation 10 from paper
 	const float S = 0.5f * abs((OmegaTDotN * InterfaceEta12 - OmegaIDotN) / (OmegaTDotN * InterfaceEta12));	// equation from paper source code
 
-	WoLobe.Sigma = (WiLobe.Sigma / InterfaceEta12) + StrataLobeRoughnessToVariance(InterfaceRoughness * S);
+	WoLobe.Sigma = (WiLobe.Sigma / InterfaceEta12) + SubstrateLobeRoughnessToVariance(InterfaceRoughness * S);
 
 	return WoLobe;
 }
@@ -635,9 +635,9 @@ void VisualizeRoughRefractionPS(
 	// Draw the mean / variance estimated by Belcour.
 	// However, those data cannot be interpreted as-is because they have been linearized for a add operation of variance to lead to a angular distribution of two convolution (w.r.t. 2 roughnesses).
 #if MODE_REFLECTION
-	FStrataLobeStatistic PaperLobe = StrataGetReflectedLobe(StrataGetDiracLobe(UI.V), 1.0, UI.Roughness);
+	FSubstrateLobeStatistic PaperLobe = SubstrateGetReflectedLobe(SubstrateGetDiracLobe(UI.V), 1.0, UI.Roughness);
 #else
-	FStrataLobeStatistic PaperLobe = StrataGetRefractedLobe2(StrataGetDiracLobe(UI.V), 1.0, UI.Roughness, UI.Eta12);
+	FSubstrateLobeStatistic PaperLobe = SubstrateGetRefractedLobe2(SubstrateGetDiracLobe(UI.V), 1.0, UI.Roughness, UI.Eta12);
 #endif
 	DrawCircleXY(Context, float3(SlabCenter.xy + PaperLobe.Mu.xy * VisProjectedRayRadius, SlabBottomZ), PaperLobe.Sigma * VisProjectedRayRadius, float4(1, 0, 1, 1));
 
@@ -664,6 +664,6 @@ void VisualizeRoughRefractionPS(
 
 
 
-#endif // STRATA_RND_SHADERS
+#endif // SUBSTRATE_RND_SHADERS
 
 

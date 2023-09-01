@@ -258,20 +258,20 @@ void GeneratePageFlagsFromPixels(
 #else // PERMUTATION_INPUT_TYPE == INPUT_TYPE_GBUFFER
 	{
 		DeviceZ = LookupDeviceZ(PixelPos);
-	#if STRATA_ENABLED
-		const FStrataTopLayerData TopLayerData = StrataUnpackTopLayerData(Strata.TopLayerTexture.Load(uint3(PixelPos, 0)));
-		FStrataAddressing StrataAddressing = GetStrataPixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Strata.MaxBytesPerPixel);
-		FStrataPixelHeader StrataPixelHeader = UnpackStrataHeaderIn(Strata.MaterialTextureArray, StrataAddressing, Strata.TopLayerTexture);
+	#if SUBSTRATE_ENABLED
+		const FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData(Substrate.TopLayerTexture.Load(uint3(PixelPos, 0)));
+		FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
+		FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
 		WorldNormal = TopLayerData.WorldNormal;
-		bIsValid = StrataPixelHeader.IsStrataMaterial();
-		bBackfaceCull = bBackfaceCull && !StrataPixelHeader.HasSubsurface();
-	#else // !STRATA_ENABLED
+		bIsValid = SubstratePixelHeader.IsSubstrateMaterial();
+		bBackfaceCull = bBackfaceCull && !SubstratePixelHeader.HasSubsurface();
+	#else // !SUBSTRATE_ENABLED
 		FGBufferData GBuffer = GetGBufferDataUint(PixelPos, true);
 		WorldNormal = GBuffer.WorldNormal;
 		// Excluding unlit to avoid including processing sky dome
 		bIsValid = GBuffer.ShadingModelID != SHADINGMODELID_UNLIT;
 		bBackfaceCull = bBackfaceCull && !IsSubsurfaceModel(GBuffer.ShadingModelID);
-	#endif // STRATA_ENABLED
+	#endif // SUBSTRATE_ENABLED
 
 	#if PERMUTATION_WATER_DEPTH
 		// Assume valid if there is no mask

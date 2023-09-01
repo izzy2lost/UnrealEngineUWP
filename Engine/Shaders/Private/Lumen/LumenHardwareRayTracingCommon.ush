@@ -619,33 +619,33 @@ FLumenHitLightingMaterial GetLumenHitLightingMaterial(FPackedMaterialClosestHitP
 	float3 DiffuseAndSubsurfaceColor = 0.0f;
 	float3 SpecularColor = 0.0f;
 
-	#if STRATA_ENABLED
+	#if SUBSTRATE_ENABLED
 	{
 		const float3 V = -Ray.Direction;
 
-		const FStrataIntegrationSettings Settings = InitStrataIntegrationSettings(false /*bForceFullyRough*/, true /*bRoughDiffuseEnabled*/, 0 /*PeelLayersAboveDepth*/, false/*bRoughnessTracking*/);
-		FStrataAddressing StrataAddressing = GetStrataPixelDataByteOffset(0, 0, 0);
-		FStrataPixelHeader StrataPixelHeader = UnpackStrataHeaderIn(PackedPayload.StrataData, StrataAddressing, PackedPayload.StrataData);
+		const FSubstrateIntegrationSettings Settings = InitSubstrateIntegrationSettings(false /*bForceFullyRough*/, true /*bRoughDiffuseEnabled*/, 0 /*PeelLayersAboveDepth*/, false/*bRoughnessTracking*/);
+		FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(0, 0, 0);
+		FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(PackedPayload.SubstrateData, SubstrateAddressing, PackedPayload.SubstrateData);
 
-		Strata_for(uint BSDFIndex = 0, BSDFIndex < StrataPixelHeader.BSDFCount, ++BSDFIndex)
+		Substrate_for(uint BSDFIndex = 0, BSDFIndex < SubstratePixelHeader.BSDFCount, ++BSDFIndex)
 		{
-			FStrataBSDF BSDF = UnpackStrataBSDF(PackedPayload.StrataData, StrataAddressing, StrataPixelHeader);
-			if (StrataIsBSDFVisible(BSDF))
+			FSubstrateBSDF BSDF = UnpackSubstrateBSDF(PackedPayload.SubstrateData, SubstrateAddressing, SubstratePixelHeader);
+			if (SubstrateIsBSDFVisible(BSDF))
 			{
 				// Create the BSDF context
-				FStrataBSDFContext StrataBSDFContext = StrataCreateBSDFContext(StrataPixelHeader, BSDF, StrataAddressing, V);
-				const float3 BSDFThroughput = LuminanceWeight(StrataBSDFContext, BSDF);
+				FSubstrateBSDFContext SubstrateBSDFContext = SubstrateCreateBSDFContext(SubstratePixelHeader, BSDF, SubstrateAddressing, V);
+				const float3 BSDFThroughput = LuminanceWeight(SubstrateBSDFContext, BSDF);
 
 				// Evaluate environment lighting
-				FStrataEnvLightResult StrataEnvLight = StrataEvaluateForEnvLight(StrataBSDFContext, true /*bEnableSpecular*/, Settings);
+				FSubstrateEnvLightResult SubstrateEnvLight = SubstrateEvaluateForEnvLight(SubstrateBSDFContext, true /*bEnableSpecular*/, Settings);
 
-				DiffuseAndSubsurfaceColor += BSDFThroughput * (StrataEnvLight.DiffuseWeight + StrataEnvLight.DiffuseBackFaceWeight);
-				SpecularColor += BSDFThroughput * StrataEnvLight.SpecularWeight;
+				DiffuseAndSubsurfaceColor += BSDFThroughput * (SubstrateEnvLight.DiffuseWeight + SubstrateEnvLight.DiffuseBackFaceWeight);
+				SpecularColor += BSDFThroughput * SubstrateEnvLight.SpecularWeight;
 			}
 		}
 
-		FStrataTopLayerData StrataTopLayerData = StrataUnpackTopLayerData(PackedPayload.StrataData.PackedTopLayerData);
-		LumenMaterial.TopLayerRoughness = StrataTopLayerData.Roughness;
+		FSubstrateTopLayerData SubstrateTopLayerData = SubstrateUnpackTopLayerData(PackedPayload.SubstrateData.PackedTopLayerData);
+		LumenMaterial.TopLayerRoughness = SubstrateTopLayerData.Roughness;
 		LumenMaterial.TopLayerSpecularColor = SpecularColor;
 	}
 	#else
@@ -663,7 +663,7 @@ FLumenHitLightingMaterial GetLumenHitLightingMaterial(FPackedMaterialClosestHitP
 			DiffuseAndSubsurfaceColor += Pow2(PackedPayload.GetCustomData().xyz);
 		}
 	}
-	#endif // STRATA_ENABLED
+	#endif // SUBSTRATE_ENABLED
 
 	LumenMaterial.DiffuseColor = DiffuseAndSubsurfaceColor;
 	EnvBRDFApproxFullyRough(LumenMaterial.ApproxFullyRoughSpecularColor, SpecularColor);
@@ -745,7 +745,7 @@ FRayTracedLightingResult TraceAndCalculateRayTracedLighting(
 			{
 				bool bTreatAsFullyRough = !bUseReflectionCaptures;
 
-				// STRATA_TODO: this path is not supported yet, as PackedPayload does not have space for indirect irradiance
+				// SUBSTRATE_TODO: this path is not supported yet, as PackedPayload does not have space for indirect irradiance
 				Radiance += (bTreatAsFullyRough ? LumenMaterial.ApproxFullyRoughDiffuseColor : LumenMaterial.DiffuseColor) * Payload.GetIndirectIrradiance();
 
 				if (bUseReflectionCaptures)

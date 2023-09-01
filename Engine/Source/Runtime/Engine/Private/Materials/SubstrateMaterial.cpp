@@ -6,26 +6,26 @@
 #include "SubstrateDefinitions.h"
 #include "RenderUtils.h"
 
-FString GetStrataBSDFName(uint8 BSDFType)
+FString GetSubstrateBSDFName(uint8 BSDFType)
 {
 	switch (BSDFType)
 	{
-	case STRATA_BSDF_TYPE_SLAB:
+	case SUBSTRATE_BSDF_TYPE_SLAB:
 		return TEXT("SLAB");
 		break;
-	case STRATA_BSDF_TYPE_VOLUMETRICFOGCLOUD:
+	case SUBSTRATE_BSDF_TYPE_VOLUMETRICFOGCLOUD:
 		return TEXT("VOLUMETRICFOGCLOUD");
 		break;
-	case STRATA_BSDF_TYPE_UNLIT:
+	case SUBSTRATE_BSDF_TYPE_UNLIT:
 		return TEXT("UNLIT");
 		break;
-	case STRATA_BSDF_TYPE_HAIR:
+	case SUBSTRATE_BSDF_TYPE_HAIR:
 		return TEXT("HAIR");
 		break;
-	case STRATA_BSDF_TYPE_EYE:
+	case SUBSTRATE_BSDF_TYPE_EYE:
 		return TEXT("EYE");
 		break;
-	case STRATA_BSDF_TYPE_SINGLELAYERWATER:
+	case SUBSTRATE_BSDF_TYPE_SINGLELAYERWATER:
 		return TEXT("SINGLELAYERWATER");
 		break;
 	}
@@ -33,24 +33,24 @@ FString GetStrataBSDFName(uint8 BSDFType)
 	return "";
 }
 
-FStrataRegisteredSharedLocalBasis StrataCompilationInfoCreateNullSharedLocalBasis()
+FSubstrateRegisteredSharedLocalBasis SubstrateCompilationInfoCreateNullSharedLocalBasis()
 {
-	return FStrataRegisteredSharedLocalBasis();
+	return FSubstrateRegisteredSharedLocalBasis();
 }
 
-FStrataRegisteredSharedLocalBasis StrataCompilationInfoCreateSharedLocalBasis(FMaterialCompiler* Compiler, int32 NormalCodeChunk, int32 TangentCodeChunk)
+FSubstrateRegisteredSharedLocalBasis SubstrateCompilationInfoCreateSharedLocalBasis(FMaterialCompiler* Compiler, int32 NormalCodeChunk, int32 TangentCodeChunk)
 {
 	if (TangentCodeChunk == INDEX_NONE)
 	{
-		return Compiler->StrataCompilationInfoRegisterSharedLocalBasis(NormalCodeChunk);
+		return Compiler->SubstrateCompilationInfoRegisterSharedLocalBasis(NormalCodeChunk);
 	}
-	return Compiler->StrataCompilationInfoRegisterSharedLocalBasis(NormalCodeChunk, TangentCodeChunk);
+	return Compiler->SubstrateCompilationInfoRegisterSharedLocalBasis(NormalCodeChunk, TangentCodeChunk);
 }
 
-inline bool IsStrataEnabled()
+inline bool IsSubstrateEnabled()
 {
-	static bool bStrataEnabled = Strata::IsStrataEnabled();
-	return bStrataEnabled;
+	static bool bSubstrateEnabled = Substrate::IsSubstrateEnabled();
+	return bSubstrateEnabled;
 }
 
 #define IsGenericBlendMode_Conversion0(Name, LegacyCondition) \
@@ -59,8 +59,8 @@ inline bool IsStrataEnabled()
 	bool Is##Name##BlendMode(const UMaterialInterface& In)									{ return Is##Name##BlendMode(In.GetBlendMode()); } \
 	bool Is##Name##BlendMode(const FMaterialShaderParameters& In)							{ return Is##Name##BlendMode(In.BlendMode); }
 
-#define IsGenericBlendMode_Conversion1(Name, LegacyCondition, StrataCondition) \
-	bool Is##Name##BlendMode(EBlendMode BlendMode)											{ return IsStrataEnabled() ? (StrataCondition) : (LegacyCondition); } \
+#define IsGenericBlendMode_Conversion1(Name, LegacyCondition, SubstrateCondition) \
+	bool Is##Name##BlendMode(EBlendMode BlendMode)											{ return IsSubstrateEnabled() ? (SubstrateCondition) : (LegacyCondition); } \
 	bool Is##Name##BlendMode(const FMaterial& In)											{ return Is##Name##BlendMode(In.GetBlendMode()); } \
 	bool Is##Name##BlendMode(const UMaterialInterface& In)									{ return Is##Name##BlendMode(In.GetBlendMode()); } \
 	bool Is##Name##BlendMode(const FMaterialShaderParameters& In)							{ return Is##Name##BlendMode(In.BlendMode); }

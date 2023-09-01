@@ -222,7 +222,7 @@ template<uint32 StencilRef> void SetTranslucentPassDepthStencilState(FMeshPassPr
 
 void SetTranslucentRenderState(FMeshPassProcessorRenderState& DrawRenderState, const FMaterial& Material, const EShaderPlatform Platform, ETranslucencyPass::Type InTranslucencyPassType)
 {
-	if (Material.IsStrataMaterial())
+	if (Material.IsSubstrateMaterial())
 	{
 		if (Material.IsDualBlendingEnabled(Platform))
 		{
@@ -324,7 +324,7 @@ void SetTranslucentRenderState(FMeshPassProcessorRenderState& DrawRenderState, c
 			// Masked materials are rendered together in the base pass, where the blend state is set at a higher level
 			break;
 		case BLEND_Translucent:
-		case BLEND_TranslucentColoredTransmittance:	// When Strata is disabled, this falls back to simple Translucency.
+		case BLEND_TranslucentColoredTransmittance:	// When Substrate is disabled, this falls back to simple Translucency.
 			// Note: alpha channel used by separate translucency, storing how much of the background should be added when doing the final composite
 			// The Alpha channel is also used by non-separate translucency when rendering to scene captures, which store the final opacity
 			DrawRenderState.SetBlendState(TStaticBlendState<CW_RGBA, BO_Add, BF_SourceAlpha, BF_InverseSourceAlpha, BO_Add, BF_Zero, BF_InverseSourceAlpha>::GetRHI());
@@ -428,10 +428,10 @@ void SetDepthStencilStateForBasePass_Internal(FMeshPassProcessorRenderState& InD
 template<bool bDepthTest, ECompareFunction CompareFunction>
 void SetDepthStencilStateForBasePass_Internal(FMeshPassProcessorRenderState& InDrawRenderState, ERHIFeatureLevel::Type FeatureLevel)
 {	
-	const static bool bStrataDufferPassEnabled = Strata::IsStrataEnabled() && Strata::IsDBufferPassEnabled(GShaderPlatformForFeatureLevel[FeatureLevel]);
-	if (bStrataDufferPassEnabled)
+	const static bool bSubstrateDufferPassEnabled = Substrate::IsSubstrateEnabled() && Substrate::IsDBufferPassEnabled(GShaderPlatformForFeatureLevel[FeatureLevel]);
+	if (bSubstrateDufferPassEnabled)
 	{
-		SetDepthStencilStateForBasePass_Internal<bDepthTest, CompareFunction, GET_STENCIL_BIT_MASK(STRATA_RECEIVE_DBUFFER_NORMAL, 1) | GET_STENCIL_BIT_MASK(STRATA_RECEIVE_DBUFFER_DIFFUSE, 1) | GET_STENCIL_BIT_MASK(STRATA_RECEIVE_DBUFFER_ROUGHNESS, 1) | GET_STENCIL_BIT_MASK(DISTANCE_FIELD_REPRESENTATION, 1) | STENCIL_LIGHTING_CHANNELS_MASK(0x7)>(InDrawRenderState);
+		SetDepthStencilStateForBasePass_Internal<bDepthTest, CompareFunction, GET_STENCIL_BIT_MASK(SUBSTRATE_RECEIVE_DBUFFER_NORMAL, 1) | GET_STENCIL_BIT_MASK(SUBSTRATE_RECEIVE_DBUFFER_DIFFUSE, 1) | GET_STENCIL_BIT_MASK(SUBSTRATE_RECEIVE_DBUFFER_ROUGHNESS, 1) | GET_STENCIL_BIT_MASK(DISTANCE_FIELD_REPRESENTATION, 1) | STENCIL_LIGHTING_CHANNELS_MASK(0x7)>(InDrawRenderState);
 	}
 	else
 	{
@@ -771,8 +771,8 @@ TRDGUniformBufferRef<FOpaqueBasePassUniformParameters> CreateOpaqueBasePassUnifo
 	// DBuffer Decals
 	BasePassParameters.DBuffer = GetDBufferParameters(GraphBuilder, DBufferTextures, View.GetShaderPlatform());
 
-	// Strata
-	Strata::BindStrataBasePassUniformParameters(GraphBuilder, View, BasePassParameters.Strata);
+	// Substrate
+	Substrate::BindSubstrateBasePassUniformParameters(GraphBuilder, View, BasePassParameters.Substrate);
 
 	// Misc
 	BasePassParameters.PreIntegratedGFTexture = GSystemTextures.PreintegratedGF->GetRHI();
@@ -903,15 +903,15 @@ void ModifyBasePassCSPSCompilationEnvironment(const FMeshMaterialShaderPermutati
 		OutEnvironment.SetDefine(TEXT("VIRTUAL_SHADOW_MAP"), 1);
 	}
 
-	OutEnvironment.SetDefine(TEXT("STRATA_INLINE_SHADING"), 1);
-	Strata::SetBasePassRenderTargetOutputFormat(Parameters.Platform, Parameters.MaterialParameters, OutEnvironment, GBufferLayout);
+	OutEnvironment.SetDefine(TEXT("SUBSTRATE_INLINE_SHADING"), 1);
+	Substrate::SetBasePassRenderTargetOutputFormat(Parameters.Platform, Parameters.MaterialParameters, OutEnvironment, GBufferLayout);
 
 	const bool bOutputVelocity = (GBufferLayout == GBL_ForceVelocity) ||
 		FVelocityRendering::BasePassCanOutputVelocity(Parameters.Platform);
 	if (bOutputVelocity)
 	{
-		// As defined in BasePassPixelShader.usf. Also account for Strata setting velocity in slot 1 as described in FetchLegacyGBufferInfo.
-		const int32 VelocityIndex = Strata::IsStrataEnabled() ? 1 : (IsForwardShadingEnabled(Parameters.Platform) ? 1 : 4);
+		// As defined in BasePassPixelShader.usf. Also account for Substrate setting velocity in slot 1 as described in FetchLegacyGBufferInfo.
+		const int32 VelocityIndex = Substrate::IsSubstrateEnabled() ? 1 : (IsForwardShadingEnabled(Parameters.Platform) ? 1 : 4);
 		OutEnvironment.SetRenderTargetOutputFormat(VelocityIndex, PF_G16R16);
 	}
 
@@ -1026,7 +1026,7 @@ void FDeferredShadingSceneRenderer::RenderBasePass(
 
 	TStaticArray<FTextureRenderTargetBinding, MaxSimultaneousRenderTargets> BasePassTextures;
 	uint32 BasePassTextureCount = SceneTextures.GetGBufferRenderTargets(BasePassTextures);
-	Strata::AppendStrataMRTs(*this, BasePassTextureCount, BasePassTextures);
+	Substrate::AppendSubstrateMRTs(*this, BasePassTextureCount, BasePassTextures);
 	TArrayView<FTextureRenderTargetBinding> BasePassTexturesView = MakeArrayView(BasePassTextures.GetData(), BasePassTextureCount);
 	FRDGTextureRef BasePassDepthTexture = SceneTextures.Depth.Target;
 	FLinearColor SceneColorClearValue;
@@ -1741,27 +1741,27 @@ bool FBasePassMeshProcessor::Process(
 	
 	if (bEnableReceiveDecalOutput)
 	{
-		static const bool bStrataDufferPassEnabled = Strata::IsStrataEnabled() && Strata::IsDBufferPassEnabled(GShaderPlatformForFeatureLevel[FeatureLevel]);
+		static const bool bSubstrateDufferPassEnabled = Substrate::IsSubstrateEnabled() && Substrate::IsDBufferPassEnabled(GShaderPlatformForFeatureLevel[FeatureLevel]);
 
 		// Set stencil value for this draw call
 		// This is effectively extending the GBuffer using the stencil bits
 		uint8 StencilValue = 0;
-		if (bStrataDufferPassEnabled)
+		if (bSubstrateDufferPassEnabled)
 		{
-			// Set material's decal responsness through stencil bit. This is only used when Strata DBuffer pass is enabled.
-			// This 'stencil marking' allows Strata's DBuffer pass to blend decal appropriately. It is only used for Simple 
+			// Set material's decal responsness through stencil bit. This is only used when Substrate DBuffer pass is enabled.
+			// This 'stencil marking' allows Substrate's DBuffer pass to blend decal appropriately. It is only used for Simple 
 			// and Single materials, as other materials (Complex, ...) get decal applied during the base pass.
-			const uint8 StrataMaterialType	= MaterialResource.MaterialGetStrataMaterialType_RenderThread();
+			const uint8 SubstrateMaterialType	= MaterialResource.MaterialGetSubstrateMaterialType_RenderThread();
 			const uint32 DecalResponse		= MaterialResource.GetMaterialDecalResponse();
-			const bool bSupportDBufferPass	= StrataMaterialType == 0 || StrataMaterialType == 1; // Simple or single
+			const bool bSupportDBufferPass	= SubstrateMaterialType == 0 || SubstrateMaterialType == 1; // Simple or single
 			const bool bRoughnessResponse	= bSupportDBufferPass && (DecalResponse == MDR_ColorNormalRoughness || DecalResponse == MDR_ColorRoughness	|| DecalResponse == MDR_NormalRoughness || DecalResponse == MDR_Roughness);
 			const bool bColorResponse		= bSupportDBufferPass && (DecalResponse == MDR_ColorNormalRoughness || DecalResponse == MDR_ColorNormal		|| DecalResponse == MDR_ColorRoughness	|| DecalResponse == MDR_Color);
 			const bool bNormalResponse		= bSupportDBufferPass && (DecalResponse == MDR_ColorNormalRoughness || DecalResponse == MDR_ColorNormal		|| DecalResponse == MDR_NormalRoughness || DecalResponse == MDR_Normal);
 
 			StencilValue =
-			  GET_STENCIL_BIT_MASK(STRATA_RECEIVE_DBUFFER_NORMAL, bNormalResponse ? 0x1 : 0x0)
-			| GET_STENCIL_BIT_MASK(STRATA_RECEIVE_DBUFFER_DIFFUSE, bColorResponse ? 0x1 : 0x0)
-			| GET_STENCIL_BIT_MASK(STRATA_RECEIVE_DBUFFER_ROUGHNESS, bRoughnessResponse ? 0x1 : 0x0)
+			  GET_STENCIL_BIT_MASK(SUBSTRATE_RECEIVE_DBUFFER_NORMAL, bNormalResponse ? 0x1 : 0x0)
+			| GET_STENCIL_BIT_MASK(SUBSTRATE_RECEIVE_DBUFFER_DIFFUSE, bColorResponse ? 0x1 : 0x0)
+			| GET_STENCIL_BIT_MASK(SUBSTRATE_RECEIVE_DBUFFER_ROUGHNESS, bRoughnessResponse ? 0x1 : 0x0)
 			| GET_STENCIL_BIT_MASK(DISTANCE_FIELD_REPRESENTATION, PrimitiveSceneProxy ? PrimitiveSceneProxy->HasDistanceFieldRepresentation() : 0x00)
 			| STENCIL_LIGHTING_CHANNELS_MASK(PrimitiveSceneProxy ? PrimitiveSceneProxy->GetLightingChannelStencilValue() : 0x00);
 		}

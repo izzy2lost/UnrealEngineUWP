@@ -3356,26 +3356,26 @@ bool UInterchangeGenericMaterialPipeline::HandleSubstrate(const UInterchangeShad
 	using namespace UE::Interchange::Materials;
 	bool bShadingModelHandled = false;
 
-	if(UInterchangeShaderPortsAPI::HasInput(ShaderGraphNode, Substrate::Parameters::FrontMaterial))
+	if(UInterchangeShaderPortsAPI::HasInput(ShaderGraphNode, SubstrateMaterial::Parameters::FrontMaterial))
 	{
 		TTuple<UInterchangeMaterialExpressionFactoryNode*, FString> FrontMaterialFactoryNode =
-			CreateMaterialExpressionForInput(MaterialFactoryNode, ShaderGraphNode, Substrate::Parameters::FrontMaterial.ToString(), MaterialFactoryNode->GetUniqueID());
+			CreateMaterialExpressionForInput(MaterialFactoryNode, ShaderGraphNode, SubstrateMaterial::Parameters::FrontMaterial.ToString(), MaterialFactoryNode->GetUniqueID());
 		ensure(FrontMaterialFactoryNode.Get<0>());
 
 		if(FrontMaterialFactoryNode.Get<0>())
 		{
-			UInterchangeShaderPortsAPI::ConnectOuputToInputByName(MaterialFactoryNode, Substrate::Parameters::FrontMaterial.ToString(), FrontMaterialFactoryNode.Get<0>()->GetUniqueID(), FrontMaterialFactoryNode.Get<1>());
+			UInterchangeShaderPortsAPI::ConnectOuputToInputByName(MaterialFactoryNode, SubstrateMaterial::Parameters::FrontMaterial.ToString(), FrontMaterialFactoryNode.Get<0>()->GetUniqueID(), FrontMaterialFactoryNode.Get<1>());
 		}
 
-		if(UInterchangeShaderPortsAPI::HasInput(ShaderGraphNode, Substrate::Parameters::OpacityMask))
+		if(UInterchangeShaderPortsAPI::HasInput(ShaderGraphNode, SubstrateMaterial::Parameters::OpacityMask))
 		{
 			TTuple<UInterchangeMaterialExpressionFactoryNode*, FString> OpacityMaskFactoryNode =
-				CreateMaterialExpressionForInput(MaterialFactoryNode, ShaderGraphNode, Substrate::Parameters::OpacityMask.ToString(), MaterialFactoryNode->GetUniqueID());
+				CreateMaterialExpressionForInput(MaterialFactoryNode, ShaderGraphNode, SubstrateMaterial::Parameters::OpacityMask.ToString(), MaterialFactoryNode->GetUniqueID());
 			ensure(OpacityMaskFactoryNode.Get<0>());
 
 			if(OpacityMaskFactoryNode.Get<0>())
 			{
-				UInterchangeShaderPortsAPI::ConnectOuputToInputByName(MaterialFactoryNode, Substrate::Parameters::OpacityMask.ToString(), OpacityMaskFactoryNode.Get<0>()->GetUniqueID(), OpacityMaskFactoryNode.Get<1>());
+				UInterchangeShaderPortsAPI::ConnectOuputToInputByName(MaterialFactoryNode, SubstrateMaterial::Parameters::OpacityMask.ToString(), OpacityMaskFactoryNode.Get<0>()->GetUniqueID(), OpacityMaskFactoryNode.Get<1>());
 			}
 		}
 

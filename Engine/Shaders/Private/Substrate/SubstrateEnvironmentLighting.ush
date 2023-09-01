@@ -3,19 +3,19 @@
 #pragma once
 
 // Sanity guard. 
-#ifndef STRATA_ENABLED
-	#define STRATA_ENABLED 1
-	#error STRATA_ENABLED needs to be defined
+#ifndef SUBSTRATE_ENABLED
+	#define SUBSTRATE_ENABLED 1
+	#error SUBSTRATE_ENABLED needs to be defined
 #endif
 
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 
-#define USE_STRATA_ENV_LIGHTING_COMMON 1
+#define USE_SUBSTRATE_ENV_LIGHTING_COMMON 1
 #include "SubstrateLightingCommon.ush"
 
-// Env. lighting evaluation for strata material.
+// Env. lighting evaluation for Substrate material.
 // Unpack BSDF on-the-fly
-FStrataDeferredLighting StrataEnvironmentLighting(
+FSubstrateDeferredLighting SubstrateEnvironmentLighting(
 	float4 SvPosition,
 	float2 BufferUV,
 	float SceneDepth,
@@ -26,15 +26,15 @@ FStrataDeferredLighting StrataEnvironmentLighting(
 	float ScreenAmbientOcclusion,
 	float TopLayerSpecularContributionFactor,
 	bool bEnableSpecular,
-	FStrataIntegrationSettings Settings,
-	FStrataMaterialContainer MaterialBuffer,
-	FStrataAddressing StrataAddressing,
-	FStrataPixelHeader StrataPixelHeader,
+	FSubstrateIntegrationSettings Settings,
+	FSubstrateMaterialContainer MaterialBuffer,
+	FSubstrateAddressing SubstrateAddressing,
+	FSubstratePixelHeader SubstratePixelHeader,
 	float CloudVolumetricAOShadow,
 	inout float SSRReductionFactor,
 	inout float3 SSRTopLayerEnvBRDF)
 {
-	FStrataDeferredLighting StrataLighting = GetInitialisedStrataDeferredLighting();
+	FSubstrateDeferredLighting SubstrateLighting = GetInitialisedSubstrateDeferredLighting();
 
 	SSRReductionFactor = 1.0f;
 
@@ -43,7 +43,7 @@ FStrataDeferredLighting StrataEnvironmentLighting(
 	FUpsampleDFAOOutput UpsampleDFAOOutput = UpsampleDFAO(BufferUV, SceneDepth);
 #endif
 
-	float CombinedScreenAndMaterialAO = StrataGetAO(StrataPixelHeader) * ScreenAmbientOcclusion;
+	float CombinedScreenAndMaterialAO = SubstrateGetAO(SubstratePixelHeader) * ScreenAmbientOcclusion;
 
 	
 #if USE_DEFAULT_ENV_LIGHTING_INPUT && FEATURE_LEVEL >= FEATURE_LEVEL_SM5
@@ -58,30 +58,30 @@ FStrataDeferredLighting StrataEnvironmentLighting(
 	uint NumCulledReflectionCaptures = 0;
 #endif
 
-	Strata_for (uint BSDFIndex = 0, BSDFIndex < StrataPixelHeader.BSDFCount, ++BSDFIndex)
+	Substrate_for (uint BSDFIndex = 0, BSDFIndex < SubstratePixelHeader.BSDFCount, ++BSDFIndex)
 	{
-		FStrataBSDF BSDF = UnpackStrataBSDF(MaterialBuffer, StrataAddressing, StrataPixelHeader);
+		FSubstrateBSDF BSDF = UnpackSubstrateBSDF(MaterialBuffer, SubstrateAddressing, SubstratePixelHeader);
 
 		// Create the BSDF context
-		FStrataBSDFContext StrataBSDFContext = StrataCreateBSDFContext(StrataPixelHeader, BSDF, StrataAddressing, V);
+		FSubstrateBSDFContext SubstrateBSDFContext = SubstrateCreateBSDFContext(SubstratePixelHeader, BSDF, SubstrateAddressing, V);
 
-		const float3 BSDFThroughput = LuminanceWeight(StrataBSDFContext, BSDF); // Use the reflected direction
+		const float3 BSDFThroughput = LuminanceWeight(SubstrateBSDFContext, BSDF); // Use the reflected direction
 
 		// Evaluate environment lighting
-		FStrataEnvLightResult StrataEnvLight = StrataEvaluateForEnvLight(StrataBSDFContext, bEnableSpecular, Settings);
+		FSubstrateEnvLightResult SubstrateEnvLight = SubstrateEvaluateForEnvLight(SubstrateBSDFContext, bEnableSpecular, Settings);
 
-		float3 BentNormal = StrataEnvLight.DiffuseNormal;
+		float3 BentNormal = SubstrateEnvLight.DiffuseNormal;
 	#if APPLY_SKY_SHADOWING
 		// Set DiffuseNormal as the bent normal for all diffuse computations.
-		BentNormal = ApplyDFAO(UpsampleDFAOOutput, StrataEnvLight.DiffuseNormal);
+		BentNormal = ApplyDFAO(UpsampleDFAOOutput, SubstrateEnvLight.DiffuseNormal);
 	#endif
 
 		float3 DiffuseLighting = 0;
 		float3 SpecularLighting = 0;
-		StrataEnvLightingCommon(
-			StrataEnvLight,
-			StrataPixelHeader,
-			StrataBSDFContext,
+		SubstrateEnvLightingCommon(
+			SubstrateEnvLight,
+			SubstratePixelHeader,
+			SubstrateBSDFContext,
 			BSDF,
 			BentNormal,
 			BSDFThroughput,
@@ -100,19 +100,19 @@ FStrataDeferredLighting StrataEnvironmentLighting(
 		if (bIsTopLayer)
 		{
 			// The specular path weight applied on SSR. It must account for throughput even for top surface because it also contains coverage.
-			SSRTopLayerEnvBRDF += BSDFThroughput * StrataEnvLight.SSRSpecularWeight;
+			SSRTopLayerEnvBRDF += BSDFThroughput * SubstrateEnvLight.SSRSpecularWeight;
 		}
 
-		// STRATA_TODO ReflectionEnvironment(...) for static reflection volumes.
+		// SUBSTRATE_TODO ReflectionEnvironment(...) for static reflection volumes.
 
 		FLightAccumulator Out = (FLightAccumulator)0;
-		LightAccumulator_AddSplit(Out, DiffuseLighting, SpecularLighting, DiffuseLighting, View.PreExposure, StrataEnvLight.bSubsurface);
-		AccumulateStrataDeferredLighting(StrataLighting, Out, StrataEnvLight.bSubsurface, BSDF_GETISTOPLAYER(BSDF));
+		LightAccumulator_AddSplit(Out, DiffuseLighting, SpecularLighting, DiffuseLighting, View.PreExposure, SubstrateEnvLight.bSubsurface);
+		AccumulateSubstrateDeferredLighting(SubstrateLighting, Out, SubstrateEnvLight.bSubsurface, BSDF_GETISTOPLAYER(BSDF));
 	}
 
 	SSRReductionFactor = saturate(SSRReductionFactor);
 
-	return StrataLighting;
+	return SubstrateLighting;
 }
 
-#endif // STRATA_ENABLED
+#endif // SUBSTRATE_ENABLED

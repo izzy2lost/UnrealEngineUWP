@@ -1507,7 +1507,7 @@ public:
 		FGlobalShader(Initializer)
 	{
 		HairStrandsParameters.Bind(Initializer.ParameterMap, FHairStrandsViewUniformParameters::FTypeInfo::GetStructMetadata()->GetShaderVariableName());
-		StrataGlobalParameters.Bind(Initializer.ParameterMap, FStrataGlobalUniformParameters::FTypeInfo::GetStructMetadata()->GetShaderVariableName());
+		SubstrateGlobalParameters.Bind(Initializer.ParameterMap, FSubstrateGlobalUniformParameters::FTypeInfo::GetStructMetadata()->GetShaderVariableName());
 		OnePassShadowParameters.Bind(Initializer.ParameterMap);
 		ShadowDepthTextureSampler.Bind(Initializer.ParameterMap,TEXT("ShadowDepthTextureSampler"));
 		LightPosition.Bind(Initializer.ParameterMap,TEXT("LightPositionAndInvRadius"));
@@ -1558,10 +1558,10 @@ public:
 			SetUniformBufferParameter(BatchedParameters, HairStrandsParameters, HairStrandsUniformBuffer);
 		}
 
-		if (StrataGlobalParameters.IsBound())
+		if (SubstrateGlobalParameters.IsBound())
 		{
-			TRDGUniformBufferRef<FStrataGlobalUniformParameters> StrataUniformBuffer = Strata::BindStrataGlobalUniformParameters(View);
-			SetUniformBufferParameter(BatchedParameters, StrataGlobalParameters, StrataUniformBuffer->GetRHIRef());
+			TRDGUniformBufferRef<FSubstrateGlobalUniformParameters> SubstrateUniformBuffer = Substrate::BindSubstrateGlobalUniformParameters(View);
+			SetUniformBufferParameter(BatchedParameters, SubstrateGlobalParameters, SubstrateUniformBuffer->GetRHIRef());
 		}
 
 		FScene* Scene = nullptr;
@@ -1590,7 +1590,7 @@ private:
 	LAYOUT_FIELD(FShaderParameter, PointLightDepthBias);
 	LAYOUT_FIELD(FShaderParameter, PointLightProjParameters);
 	LAYOUT_FIELD(FShaderUniformBufferParameter, HairStrandsParameters);
-	LAYOUT_FIELD(FShaderUniformBufferParameter, StrataGlobalParameters);
+	LAYOUT_FIELD(FShaderUniformBufferParameter, SubstrateGlobalParameters);
 };
 
 // Reversed Z

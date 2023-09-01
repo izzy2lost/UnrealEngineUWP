@@ -14,8 +14,8 @@
 #define EYE_ADAPTATION_PREV_FRAME_EXPOSURE 1
 
 
-#if STRATA_ENABLED
-#define STRATA_INLINE_SHADING 1
+#if SUBSTRATE_ENABLED
+#define SUBSTRATE_INLINE_SHADING 1
 #endif
 
 #include "/Engine/Private/Common.ush"
@@ -35,7 +35,7 @@
 #include "/Engine/Private/LightmapCommon.ush"
 #include "/Engine/Private/Lumen/LumenHardwareRayTracingPayloadCommon.ush"
 
-#define MATERIAL_STRATA_OPAQUE_PRECOMPUTED_LIGHTING 0
+#define MATERIAL_SUBSTRATE_OPAQUE_PRECOMPUTED_LIGHTING 0
 #include "/Engine/Private/Substrate/SubstrateExport.ush"
 
 /** Computes sky diffuse lighting, including precomputed shadowing. */
@@ -227,72 +227,72 @@ void GetMaterialPayload(
 	FVertexFactoryInterpolantsVSToPS Interpolants,
 	bool bIsEnableSkyLightContribution,
 	inout FMaterialClosestHitPayload Payload)
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 {
-  #if MATERIAL_IS_STRATA
+  #if MATERIAL_IS_SUBSTRATE
 	const float Dither = 0.5f;
 	float3 EmissiveLuminance = 0.0f;
 	float TotalCoverage = 1.f;
-	bool bStrataSubsurfaceEnable = false;
+	bool bSubstrateSubsurfaceEnable = false;
 	const float3 WorldBentNormal0 = GetWorldBentNormalZero(MaterialParameters);
 
-	// Initialise a Strata header with normal in registers
-	FStrataData StrataData = PixelMaterialInputs.GetFrontStrataData();
-	FStrataPixelHeader StrataPixelHeader = MaterialParameters.GetFrontStrataHeader();
+	// Initialise a Substrate header with normal in registers
+	FSubstrateData SubstrateData = PixelMaterialInputs.GetFrontSubstrateData();
+	FSubstratePixelHeader SubstratePixelHeader = MaterialParameters.GetFrontSubstrateHeader();
 
-  #if STRATA_OPTIMIZED_UNLIT	
-	// Unlit BSDF goes through the StrataTree to support weighting operations. Technically, layering and mixing could also be supported.
+  #if SUBSTRATE_OPTIMIZED_UNLIT	
+	// Unlit BSDF goes through the SubstrateTree to support weighting operations. Technically, layering and mixing could also be supported.
 	float3	UnlitSurfaceLuminancePostCoverage = 0.0f;
 	float	UnlitSurfaceCoverage = 0.0f;
 	float3	UnlitSurfaceTransmittancePreCoverage = 0.0f;
 	float3	UnlitSurfaceNormal = 0.0f;
-	StrataPixelHeader.StrataUpdateTreeUnlit(
+	SubstratePixelHeader.SubstrateUpdateTreeUnlit(
 		uint2(MaterialParameters.SvPosition.xy),
 		MaterialParameters.CameraVector,
-		StrataData,
+		SubstrateData,
 		UnlitSurfaceLuminancePostCoverage,
 		UnlitSurfaceCoverage,
 		UnlitSurfaceTransmittancePreCoverage,
 		UnlitSurfaceNormal);
 	EmissiveLuminance = UnlitSurfaceLuminancePostCoverage;
-	#if !STRATA_OPAQUE_MATERIAL
+	#if !SUBSTRATE_OPAQUE_MATERIAL
 	TotalCoverage = UnlitSurfaceCoverage;
 	#endif
-  #else // STRATA_OPTIMIZED_UNLIT
-	StrataPixelHeader.IrradianceAO.MaterialAO = GetMaterialAmbientOcclusion(PixelMaterialInputs);
-	StrataPixelHeader.SetCastContactShadow(GetPrimitiveData(MaterialParameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_CAST_CONTACT_SHADOW);
-	StrataPixelHeader.SetDynamicIndirectShadowCasterRepresentation(GetPrimitiveData(MaterialParameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_CAPSULE_REPRESENTATION);
+  #else // SUBSTRATE_OPTIMIZED_UNLIT
+	SubstratePixelHeader.IrradianceAO.MaterialAO = GetMaterialAmbientOcclusion(PixelMaterialInputs);
+	SubstratePixelHeader.SetCastContactShadow(GetPrimitiveData(MaterialParameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_CAST_CONTACT_SHADOW);
+	SubstratePixelHeader.SetDynamicIndirectShadowCasterRepresentation(GetPrimitiveData(MaterialParameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_CAPSULE_REPRESENTATION);
 
-	FStrataSubsurfaceData SSSData = (FStrataSubsurfaceData)0;
-	FStrataTopLayerData TopLayerData = (FStrataTopLayerData)0;
-	FStrataOpaqueRoughRefractionData OpaqueRoughRefractionData = (FStrataOpaqueRoughRefractionData)0;
-	FStrataIntegrationSettings Settings = InitStrataIntegrationSettings();
+	FSubstrateSubsurfaceData SSSData = (FSubstrateSubsurfaceData)0;
+	FSubstrateTopLayerData TopLayerData = (FSubstrateTopLayerData)0;
+	FSubstrateOpaqueRoughRefractionData OpaqueRoughRefractionData = (FSubstrateOpaqueRoughRefractionData)0;
+	FSubstrateIntegrationSettings Settings = InitSubstrateIntegrationSettings();
 
-	// Generate the strata material data to write out
-	FStrataAddressing StrataAddressing = GetStrataPixelDataByteOffset(0,0,0);
+	// Generate the Substrate material data to write out
+	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(0,0,0);
 
 	const float3 CamVector = MaterialParameters.CameraVector;	
-	Payload.StrataData = InitialiseRWStrataMaterialContainer();
-	PackStrataOut(
-		Payload.StrataData,
+	Payload.SubstrateData = InitialiseRWSubstrateMaterialContainer();
+	PackSubstrateOut(
+		Payload.SubstrateData,
 		Dither,
 		Settings,
-		StrataAddressing,
-		StrataPixelHeader, StrataData, 
+		SubstrateAddressing,
+		SubstratePixelHeader, SubstrateData, 
 		CamVector, 
 		WorldBentNormal0,
-		bStrataSubsurfaceEnable, 
+		bSubstrateSubsurfaceEnable, 
 		EmissiveLuminance,
 		SSSData, TopLayerData, OpaqueRoughRefractionData
 	);
 
-	Payload.StrataData.PackedTopLayerData = StrataPackTopLayerData(TopLayerData);
-  #endif // STRATA_OPTIMIZED_UNLIT
+	Payload.SubstrateData.PackedTopLayerData = SubstratePackTopLayerData(TopLayerData);
+  #endif // SUBSTRATE_OPTIMIZED_UNLIT
 
 	Payload.Radiance += EmissiveLuminance;
 	Payload.TranslatedWorldPos = LWCToFloat(LWCAdd(MaterialParameters.AbsoluteWorldPosition, ResolvedView.PreViewTranslation));
 
-	// STRATA_TODO Payload.Ior when available (accounting for REFRACTION_USE_INDEX_OF_REFRACTION and REFRACTION_ROOT_NODE_OVERRIDES_DEFAULT)
+	// SUBSTRATE_TODO Payload.Ior when available (accounting for REFRACTION_USE_INDEX_OF_REFRACTION and REFRACTION_ROOT_NODE_OVERRIDES_DEFAULT)
 
 	// Opacity
 	Payload.Opacity = TotalCoverage;
@@ -303,9 +303,9 @@ void GetMaterialPayload(
 		Payload.Opacity = 0;
 	}
 	#endif // MATERIALBLENDING_MASKED
-  #endif // MATERIAL_IS_STRATA
+  #endif // MATERIAL_IS_SUBSTRATE
 }
-#else // STRATA_ENABLED
+#else // SUBSTRATE_ENABLED
 {
 	// Store the results in local variables and reuse instead of calling the functions multiple times.
 	half3 BaseColor = GetMaterialBaseColor(PixelMaterialInputs);
@@ -465,7 +465,7 @@ void GetMaterialPayload(
 	
 	Payload.IndirectIrradiance += DiffuseIndirectLighting; // Contains both lightmap & skylight
 }
-#endif // STRATA_ENABLED
+#endif // SUBSTRATE_ENABLED
 
 RAY_TRACING_ENTRY_CLOSEST_HIT(MaterialCHS,
 	FPackedMaterialClosestHitPayload, PackedPayload,

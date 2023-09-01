@@ -1007,14 +1007,14 @@ void UMaterialGraphSchema::GetMaterialFunctionActions(FGraphActionMenuBuilder& A
 						LibraryCategoriesText.Add( LOCTEXT("UncategorizedMaterialFunction", "Uncategorized") );
 					}
 
-					// When Strata is disabled, skip all material function related to Strata
-					// STRATA_TODO: remove this when Strata becomes the only shading path
+					// When Substrate is disabled, skip all material function related to Substrate
+					// SUBSTRATE_TODO: remove this when Substrate becomes the only shading path
 					bool bSkipMaterialFunction = false;
 					for (const FText& Category : LibraryCategoriesText)
 					{
 						if (Category.ToString().Contains("Substrate"))
 						{
-							bSkipMaterialFunction = !Strata::IsStrataEnabled();
+							bSkipMaterialFunction = !Substrate::IsSubstrateEnabled();
 							break;
 						}
 					}

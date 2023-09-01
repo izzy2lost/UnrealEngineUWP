@@ -844,8 +844,8 @@ static FPathTracingFogParameters PrepareFogParameters(const FViewInfo& View, con
 
 static uint32 GetPathtracingMaterialPayloadSize()
 {
-	// Strata uses a slightly bigger payload as the basic slab contains more information
-	return Strata::IsStrataEnabled() ? 76u : 64u;
+	// Substrate uses a slightly bigger payload as the basic slab contains more information
+	return Substrate::IsSubstrateEnabled() ? 76u : 64u;
 }
 
 IMPLEMENT_RT_PAYLOAD_TYPE_FUNCTION(ERayTracingPayloadType::PathTracingMaterial, GetPathtracingMaterialPayloadSize);
@@ -857,8 +857,8 @@ class FPathTracingRG : public FGlobalShader
 	SHADER_USE_ROOT_PARAMETER_STRUCT(FPathTracingRG, FGlobalShader)
 
 	class FCompactionType : SHADER_PERMUTATION_INT("PATH_TRACER_USE_COMPACTION", 2);
-	class FStrataComplexSpecialMaterial : SHADER_PERMUTATION_BOOL("PATH_TRACER_USE_STRATA_SPECIAL_COMPLEX_MATERIAL");
-	using FPermutationDomain = TShaderPermutationDomain<FCompactionType, FStrataComplexSpecialMaterial>;
+	class FSubstrateComplexSpecialMaterial : SHADER_PERMUTATION_BOOL("PATH_TRACER_USE_SUBSTRATE_SPECIAL_COMPLEX_MATERIAL");
+	using FPermutationDomain = TShaderPermutationDomain<FCompactionType, FSubstrateComplexSpecialMaterial>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -1280,7 +1280,7 @@ static bool NeedsAnyHitShader(const FMaterial& RESTRICT MaterialResource)
 	return NeedsAnyHitShader(MaterialResource.GetBlendMode() == BLEND_Masked, MaterialResource.IsDitherMasked());
 }
 
-template<bool UseAnyHitShader, bool UseIntersectionShader, bool IsGPULightmass, bool SimplifyStrata>
+template<bool UseAnyHitShader, bool UseIntersectionShader, bool IsGPULightmass, bool SimplifySubstrate>
 class TPathTracingMaterial : public FMeshMaterialShader
 {
 	DECLARE_SHADER_TYPE(TPathTracingMaterial, MeshMaterial);
@@ -1318,9 +1318,9 @@ public:
 			// only need to compile the intersection shader permutation if the VF actually requires it
 			return false;
 		}
-		if (SimplifyStrata && (!Strata::IsStrataEnabled() || CVarPathTracingSubstrateCompileSimplifiedMaterial.GetValueOnAnyThread() == 0))
+		if (SimplifySubstrate && (!Substrate::IsSubstrateEnabled() || CVarPathTracingSubstrateCompileSimplifiedMaterial.GetValueOnAnyThread() == 0))
 		{
-			// don't compile the extra strata permutation if:
+			// don't compile the extra Substrate permutation if:
 			//    Substrate is not enabled on this project
 			// or the user did not request the extra permutations to be compiled (default)
 			return false;
@@ -1343,7 +1343,7 @@ public:
 		OutEnvironment.SetDefine(TEXT("USE_RAYTRACED_TEXTURE_RAYCONE_LOD"), 0);
 		OutEnvironment.SetDefine(TEXT("SCENE_TEXTURES_DISABLED"), 1);
 		OutEnvironment.SetDefine(TEXT("SIMPLIFIED_MATERIAL_SHADER"), IsGPULightmass);
-		OutEnvironment.SetDefine(TEXT("STRATA_USE_FULLYSIMPLIFIED_MATERIAL"), IsGPULightmass || SimplifyStrata);
+		OutEnvironment.SetDefine(TEXT("SUBSTRATE_USE_FULLYSIMPLIFIED_MATERIAL"), IsGPULightmass || SimplifySubstrate);
 		FMeshMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 	}
 
@@ -1494,8 +1494,8 @@ bool FRayTracingMeshProcessor::ProcessPathTracing(
 		{
 			case ERayTracingMeshCommandsMode::PATH_TRACING:
 			{
-				// In order to use Substrate simplified materials, strata has to be enabled, we have to have _compiled_ the extra permutations _and_ the runtime toggle must be true
-				const bool bUseSimplifiedMaterial = Strata::IsStrataEnabled() &&
+				// In order to use Substrate simplified materials, Substrate has to be enabled, we have to have _compiled_ the extra permutations _and_ the runtime toggle must be true
+				const bool bUseSimplifiedMaterial = Substrate::IsSubstrateEnabled() &&
 					CVarPathTracingSubstrateCompileSimplifiedMaterial.GetValueOnRenderThread() != 0 &&
 					CVarPathTracingSubstrateUseSimplifiedMaterial.GetValueOnRenderThread() != 0;
 				if (NeedsAnyHitShader(MaterialResource))
@@ -2153,11 +2153,11 @@ IMPLEMENT_SHADER_TYPE(, FPathTracingCompositorPS, TEXT("/Engine/Private/PathTrac
 static FPathTracingRG::FPermutationDomain GetPathTracingRGPermutation(const FScene& Scene)
 {
 	const int CompactionType = CVarPathTracingCompaction.GetValueOnRenderThread();
-	const bool bHasComplexSpecialRenderPath = Strata::IsStrataEnabled() && Scene.StrataSceneData.bUsesComplexSpecialRenderPath;
+	const bool bHasComplexSpecialRenderPath = Substrate::IsSubstrateEnabled() && Scene.SubstrateSceneData.bUsesComplexSpecialRenderPath;
 
 	FPathTracingRG::FPermutationDomain Out;
 	Out.Set<FPathTracingRG::FCompactionType>(CompactionType);
-	Out.Set<FPathTracingRG::FStrataComplexSpecialMaterial>(bHasComplexSpecialRenderPath);
+	Out.Set<FPathTracingRG::FSubstrateComplexSpecialMaterial>(bHasComplexSpecialRenderPath);
 	return Out;
 }
 
@@ -2296,7 +2296,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	Config.LightShowFlags |= View.Family->EngineShowFlags.ReflectionOverride         ? 1 << 12 : 0;
 	Config.LightShowFlags |= View.Family->EngineShowFlags.SubsurfaceScattering       ? 1 << 13 : 0;
 	// the following affects which material shaders get used and therefore change the image
-	if (Strata::IsStrataEnabled() && CVarPathTracingSubstrateCompileSimplifiedMaterial.GetValueOnRenderThread() != 0)
+	if (Substrate::IsSubstrateEnabled() && CVarPathTracingSubstrateCompileSimplifiedMaterial.GetValueOnRenderThread() != 0)
 	{
 		Config.LightShowFlags |= CVarPathTracingSubstrateUseSimplifiedMaterial.GetValueOnRenderThread() != 0 ? 1 << 14 : 0;
 	}

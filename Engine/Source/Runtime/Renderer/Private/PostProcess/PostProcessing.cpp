@@ -450,7 +450,7 @@ void AddPostProcessingPasses(
 	PassSequence.SetEnabled(EPass::VisualizePostProcessStack, false);
 #endif
 	PassSequence.SetEnabled(EPass::VisualizeLumenScene, LumenVisualizeMode >= 0 && LumenVisualizeMode != VISUALIZE_MODE_OVERVIEW && bPostProcessingEnabled);
-	PassSequence.SetEnabled(EPass::VisualizeSubstrate, Strata::ShouldRenderStrataDebugPasses(View));
+	PassSequence.SetEnabled(EPass::VisualizeSubstrate, Substrate::ShouldRenderSubstrateDebugPasses(View));
 	PassSequence.SetEnabled(EPass::VisualizeLightGrid, ShouldVisualizeLightGrid());
 
 #if WITH_EDITOR
@@ -1330,7 +1330,7 @@ void AddPostProcessingPasses(
 	{
 		FScreenPassRenderTarget OverrideOutput;
 		PassSequence.AcceptOverrideIfLastPass(EPass::VisualizeSubstrate, OverrideOutput);
-		SceneColor = Strata::AddStrataDebugPasses(GraphBuilder, View, SceneColor);
+		SceneColor = Substrate::AddSubstrateDebugPasses(GraphBuilder, View, SceneColor);
 	}
 
 	if (PassSequence.IsEnabled(EPass::VisualizeLightGrid))

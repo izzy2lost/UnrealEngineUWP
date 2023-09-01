@@ -45,7 +45,7 @@ FHairSampleData ExtractSampleData(uint3 PixelCoord)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Gbuffer patching (+ LightChannel mask)
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 #define OUTPUT_FORMAT uint
 #else
 #define OUTPUT_FORMAT float4
@@ -73,7 +73,7 @@ void MainPS(
 	const float DepthBias = 0.001f; 
 	const FHairSampleData SampleData = ExtractSampleData(PixelCoord);
 	SvDepth = SampleData.DeviceZ - DepthBias;
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 	Output0 = 0; // MaterialData
 	Output1 = 0; // TopLayerData
 #else

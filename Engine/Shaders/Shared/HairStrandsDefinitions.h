@@ -7,7 +7,7 @@
 
 #pragma once
 
-// Change this to force recompilation of all strata dependent shaders (use https://www.random.org/cgi-bin/randbyte?nbytes=4&format=h)
+// Change this to force recompilation of all Substrate dependent shaders (use https://www.random.org/cgi-bin/randbyte?nbytes=4&format=h)
 #define HAIRSTRANDS_SHADER_VERSION 0x3ba5af0e
 
 // Curve Attribute index

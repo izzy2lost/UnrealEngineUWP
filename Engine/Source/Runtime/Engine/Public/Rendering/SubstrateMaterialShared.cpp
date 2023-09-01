@@ -3,15 +3,15 @@
 #include "SubstrateMaterialShared.h"
 
 
-IMPLEMENT_TYPE_LAYOUT(FStrataMaterialCompilationOutput);
+IMPLEMENT_TYPE_LAYOUT(FSubstrateMaterialCompilationOutput);
 
-FStrataMaterialCompilationOutput::FStrataMaterialCompilationOutput()
-	: StrataMaterialType(0)
-	, StrataBSDFCount(0)
-	, StrataUintPerPixel(0)
+FSubstrateMaterialCompilationOutput::FSubstrateMaterialCompilationOutput()
+	: SubstrateMaterialType(0)
+	, SubstrateBSDFCount(0)
+	, SubstrateUintPerPixel(0)
 	, bUsesComplexSpecialRenderPath(0)
 #if WITH_EDITOR
-	, StrataMaterialDescription()
+	, SubstrateMaterialDescription()
 	, SharedLocalBasesCount(0)
 	, RequestedBytePixePixel(0)
 	, PlatformBytePixePixel(0)
@@ -22,17 +22,17 @@ FStrataMaterialCompilationOutput::FStrataMaterialCompilationOutput()
 #endif
 {
 #if WITH_EDITOR
-	for (uint32 i = 0; i < STRATA_COMPILATION_OUTPUT_MAX_OPERATOR; ++i)
+	for (uint32 i = 0; i < SUBSTRATE_COMPILATION_OUTPUT_MAX_OPERATOR; ++i)
 	{
-		Operators[i] = FStrataOperator();
+		Operators[i] = FSubstrateOperator();
 	}
 #endif
 }
 
 
-IMPLEMENT_TYPE_LAYOUT(FStrataOperator);
+IMPLEMENT_TYPE_LAYOUT(FSubstrateOperator);
 
-FStrataOperator::FStrataOperator()
+FSubstrateOperator::FSubstrateOperator()
 {
 #if WITH_EDITOR
 	OperatorType = INDEX_NONE;
@@ -45,7 +45,7 @@ FStrataOperator::FStrataOperator()
 
 	BSDFIndex = INDEX_NONE;
 	BSDFType = 0;
-	BSDFRegisteredSharedLocalBasis = FStrataRegisteredSharedLocalBasis();
+	BSDFRegisteredSharedLocalBasis = FSubstrateRegisteredSharedLocalBasis();
 	bBSDFHasSSS = false;
 	bBSDFHasMFPPluggedIn = false;
 	bBSDFHasEdgeColor = false;
@@ -65,7 +65,7 @@ FStrataOperator::FStrataOperator()
 #endif
 }
 
-void FStrataOperator::CombineFlagsForParameterBlending(FStrataOperator& A, FStrataOperator& B)
+void FSubstrateOperator::CombineFlagsForParameterBlending(FSubstrateOperator& A, FSubstrateOperator& B)
 {
 #if WITH_EDITOR
 	bBSDFHasSSS = A.bBSDFHasSSS || B.bBSDFHasSSS;
@@ -79,7 +79,7 @@ void FStrataOperator::CombineFlagsForParameterBlending(FStrataOperator& A, FStra
 #endif
 }
 
-void FStrataOperator::CopyFlagsForParameterBlending(FStrataOperator& A)
+void FSubstrateOperator::CopyFlagsForParameterBlending(FSubstrateOperator& A)
 {
 #if WITH_EDITOR
 	bBSDFHasSSS = A.bBSDFHasSSS;
@@ -93,7 +93,7 @@ void FStrataOperator::CopyFlagsForParameterBlending(FStrataOperator& A)
 #endif
 }
 
-bool FStrataOperator::IsDiscarded() const
+bool FSubstrateOperator::IsDiscarded() const
 {
 #if WITH_EDITOR
 	return bUseParameterBlending && !bRootOfParameterBlendingSubTree;
@@ -103,9 +103,9 @@ bool FStrataOperator::IsDiscarded() const
 }
 
 
-IMPLEMENT_TYPE_LAYOUT(FStrataRegisteredSharedLocalBasis);
+IMPLEMENT_TYPE_LAYOUT(FSubstrateRegisteredSharedLocalBasis);
 
-FStrataRegisteredSharedLocalBasis::FStrataRegisteredSharedLocalBasis()
+FSubstrateRegisteredSharedLocalBasis::FSubstrateRegisteredSharedLocalBasis()
 {
 #if WITH_EDITOR
 	NormalCodeChunk = INDEX_NONE;

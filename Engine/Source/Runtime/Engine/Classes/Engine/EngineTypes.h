@@ -686,7 +686,7 @@ private:
  * Not exposed in UI, only used in code.
  * Those states are deducted from the material graph and map to a specific domain/shading state.
  */
-enum EStrataShadingModel : int
+enum ESubstrateShadingModel : int
 {
 	SSM_Unlit,
 	SSM_DefaultLit,
@@ -708,23 +708,23 @@ enum EStrataShadingModel : int
 	/** Number of unique shading models. */
 	SSM_NUM,
 };
-static_assert(SSM_NUM <= 32, "Do not exceed 32 shading models without expanding FStrataMaterialInfo::ShadingModelField to support more bits!");
+static_assert(SSM_NUM <= 32, "Do not exceed 32 shading models without expanding FSubstrateMaterialInfo::ShadingModelField to support more bits!");
 
 // This used to track cyclic graph which we do not support. We only support acyclic graph and a depth of 128 is already too high for a realistic use case.
-#define STRATA_TREE_MAX_DEPTH 48
+#define SUBSTRATE_TREE_MAX_DEPTH 48
 
 /** Gather information from the Substrate material graph to setup material for runtime. */
-struct FStrataMaterialInfo
+struct FSubstrateMaterialInfo
 {
 public:
-	FStrataMaterialInfo() {}
-	FStrataMaterialInfo(EStrataShadingModel InShadingModel) { AddShadingModel(InShadingModel); }
+	FSubstrateMaterialInfo() {}
+	FSubstrateMaterialInfo(ESubstrateShadingModel InShadingModel) { AddShadingModel(InShadingModel); }
 
 	// Shading model
-	void AddShadingModel(EStrataShadingModel InShadingModel) { check(InShadingModel < SSM_NUM); ShadingModelField |= (uint16)(1 << (uint16)InShadingModel); }
-	void SetSingleShadingModel(EStrataShadingModel InShadingModel) { check(InShadingModel < SSM_NUM); ShadingModelField = (uint16)(1 << (uint16)InShadingModel); }
-	bool HasShadingModel(EStrataShadingModel InShadingModel) const { return (ShadingModelField & (1 << (uint16)InShadingModel)) != 0; }
-	bool HasOnlyShadingModel(EStrataShadingModel InShadingModel) const { return ShadingModelField == (1 << (uint16)InShadingModel); }
+	void AddShadingModel(ESubstrateShadingModel InShadingModel) { check(InShadingModel < SSM_NUM); ShadingModelField |= (uint16)(1 << (uint16)InShadingModel); }
+	void SetSingleShadingModel(ESubstrateShadingModel InShadingModel) { check(InShadingModel < SSM_NUM); ShadingModelField = (uint16)(1 << (uint16)InShadingModel); }
+	bool HasShadingModel(ESubstrateShadingModel InShadingModel) const { return (ShadingModelField & (1 << (uint16)InShadingModel)) != 0; }
+	bool HasOnlyShadingModel(ESubstrateShadingModel InShadingModel) const { return ShadingModelField == (1 << (uint16)InShadingModel); }
 	uint32 GetShadingModelField() const { return ShadingModelField; }
 	int32 CountShadingModels() const { return FMath::CountBits(ShadingModelField); }
 
@@ -749,22 +749,22 @@ public:
 
 	bool IsValid() const { return (ShadingModelField > 0) && (ShadingModelField < (1 << SSM_NUM)); }
 
-	bool operator==(const FStrataMaterialInfo& Other) const { return ShadingModelField == Other.GetShadingModelField(); }
-	bool operator!=(const FStrataMaterialInfo& Other) const { return ShadingModelField != Other.GetShadingModelField(); }
+	bool operator==(const FSubstrateMaterialInfo& Other) const { return ShadingModelField == Other.GetShadingModelField(); }
+	bool operator!=(const FSubstrateMaterialInfo& Other) const { return ShadingModelField != Other.GetShadingModelField(); }
 
 #if WITH_EDITOR
 	// Returns true if everything went fine (not out of Substrate tree stack)
-	bool PushStrataTreeStack()
+	bool PushSubstrateTreeStack()
 	{
-		bOutOfStackDepthWhenParsing = bOutOfStackDepthWhenParsing || (++ParsingStackDepth > STRATA_TREE_MAX_DEPTH);
+		bOutOfStackDepthWhenParsing = bOutOfStackDepthWhenParsing || (++ParsingStackDepth > SUBSTRATE_TREE_MAX_DEPTH);
 		return !bOutOfStackDepthWhenParsing;
 	}
-	void PopStrataTreeStack()
+	void PopSubstrateTreeStack()
 	{
 		ParsingStackDepth--;
 		check(ParsingStackDepth >= 0);
 	}
-	bool GetStrataTreeOutOfStackDepthOccurred() 
+	bool GetSubstrateTreeOutOfStackDepthOccurred() 
 	{
 		return bOutOfStackDepthWhenParsing;
 	}
@@ -791,7 +791,7 @@ private:
 };
 
 template<>
-struct TStructOpsTypeTraits<FStrataMaterialInfo> : public TStructOpsTypeTraitsBase2<FStrataMaterialInfo>
+struct TStructOpsTypeTraits<FSubstrateMaterialInfo> : public TStructOpsTypeTraitsBase2<FSubstrateMaterialInfo>
 {
 	enum
 	{

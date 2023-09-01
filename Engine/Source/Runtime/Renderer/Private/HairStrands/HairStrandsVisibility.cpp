@@ -2526,7 +2526,7 @@ static void AddHairAuxilaryPass(
 	Parameters->HairSampleOffset = HairSampleOffset;
 	Parameters->HairSampleData = GraphBuilder.CreateSRV(HairSampleData);
 
-	const bool bStrataEnabled = Strata::IsStrataEnabled();
+	const bool bSubstrateEnabled = Substrate::IsSubstrateEnabled();
 
 	const bool bDepthTested = PassType != EHairAuxilaryPassType::LightChannelMask;
 	if (bDepthTested)
@@ -4313,10 +4313,10 @@ void RenderHairStrandsVisibilityBuffer(
 
 	FRDGTextureRef SceneMaterial0 = nullptr;
 	FRDGTextureRef SceneMaterial1 = nullptr;
-	if (Strata::IsStrataEnabled())
+	if (Substrate::IsSubstrateEnabled())
 	{
-		SceneMaterial0 = View.StrataViewData.SceneData->MaterialTextureArray;
-		SceneMaterial1 = View.StrataViewData.SceneData->TopLayerTexture;
+		SceneMaterial0 = View.SubstrateViewData.SceneData->MaterialTextureArray;
+		SceneMaterial1 = View.SubstrateViewData.SceneData->TopLayerTexture;
 	}
 	else
 	{

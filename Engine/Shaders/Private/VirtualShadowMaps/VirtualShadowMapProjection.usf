@@ -48,21 +48,21 @@ struct FProjectionShadingInfo
 FProjectionShadingInfo GetProjectionShadingInfo(uint2 PixelPos)
 {
 	FProjectionShadingInfo Out;
-#if STRATA_ENABLED
-	FStrataAddressing StrataAddressing = GetStrataPixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Strata.MaxBytesPerPixel);
-	FStrataPixelHeader StrataPixelHeader = UnpackStrataHeaderIn(Strata.MaterialTextureArray, StrataAddressing, Strata.TopLayerTexture);
-	const FStrataTopLayerData TopLayerData = StrataUnpackTopLayerData(Strata.TopLayerTexture.Load(uint3(PixelPos, 0)));
+#if SUBSTRATE_ENABLED
+	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
+	FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
+	const FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData(Substrate.TopLayerTexture.Load(uint3(PixelPos, 0)));
 
-	const FStrataSubsurfaceHeader SSSHeader = StrataLoadSubsurfaceHeader(Strata.MaterialTextureArray, Strata.FirstSliceStoringStrataSSSData, PixelPos);
-	const bool bIsValid = StrataSubSurfaceHeaderGetIsValid(SSSHeader);
-	const bool bIsProfile = StrataSubSurfaceHeaderGetIsProfile(SSSHeader);
+	const FSubstrateSubsurfaceHeader SSSHeader = SubstrateLoadSubsurfaceHeader(Substrate.MaterialTextureArray, Substrate.FirstSliceStoringSubstrateSSSData, PixelPos);
+	const bool bIsValid = SubstrateSubSurfaceHeaderGetIsValid(SSSHeader);
+	const bool bIsProfile = SubstrateSubSurfaceHeaderGetIsProfile(SSSHeader);
 
 	const uint SSSType = SSSHEADER_TYPE(SSSHeader);
-	const bool bHasSSS = StrataPixelHeader.HasSubsurface();
-	const uint BSDFType = StrataPixelHeader.StrataGetBSDFType();
+	const bool bHasSSS = SubstratePixelHeader.HasSubsurface();
+	const uint BSDFType = SubstratePixelHeader.SubstrateGetBSDFType();
 
-	Out.bIsValid = StrataPixelHeader.IsStrataMaterial();
-	Out.bIsHair = BSDFType == STRATA_BSDF_TYPE_HAIR;
+	Out.bIsValid = SubstratePixelHeader.IsSubstrateMaterial();
+	Out.bIsHair = BSDFType == SUBSTRATE_BSDF_TYPE_HAIR;
 	Out.WorldNormal = TopLayerData.WorldNormal;
 	Out.bIsSubsurface = SSSType != SSS_TYPE_INVALID; // legacy IsSubsurfaceModel is true for subsurface profile, eyes, etc.
 

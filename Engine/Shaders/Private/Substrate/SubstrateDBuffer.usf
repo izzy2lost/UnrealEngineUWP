@@ -4,20 +4,20 @@
 #include "/Engine/Shared/SubstrateDefinitions.h"   
 
 #if PERMUTATION_TILETYPE == 0
-#define STRATA_FASTPATH 1
+#define SUBSTRATE_FASTPATH 1
 #elif PERMUTATION_TILETYPE == 1
-#define STRATA_SINGLEPATH 1
+#define SUBSTRATE_SINGLEPATH 1
 #elif PERMUTATION_TILETYPE == 2
   // COMPLEX PATH
 #else
-#error Strata tile type non-implemented 
+#error Substrate tile type non-implemented 
 #endif
 
 #define OpaqueBasePass
 
-#define STRATA_MATERIALCONTAINER_IS_WRITABLE 1
-#define STRATA_INLINE_SHADING 0
-#define STRATA_SSS_MATERIAL_OVERRIDE 0
+#define SUBSTRATE_MATERIALCONTAINER_IS_WRITABLE 1
+#define SUBSTRATE_INLINE_SHADING 0
+#define SUBSTRATE_SSS_MATERIAL_OVERRIDE 0
 #include "/Engine/Private/Substrate/Substrate.ush"
 #include "SubstrateTile.ush"
 
@@ -34,17 +34,17 @@ SamplerState DBufferATextureSampler;
 SamplerState DBufferBTextureSampler;
 SamplerState DBufferCTextureSampler;
 
-#ifndef STRATA_STENCIL_DBUFFER_MASK
-#error STRATA_STENCIL_DBUFFER_MASK needs to be defined
+#ifndef SUBSTRATE_STENCIL_DBUFFER_MASK
+#error SUBSTRATE_STENCIL_DBUFFER_MASK needs to be defined
 #endif
-#ifndef STENCIL_STRATA_RECEIVE_DBUFFER_NORMAL_BIT_ID
-#error STENCIL_STRATA_RECEIVE_DBUFFER_NORMAL_BIT_ID needs to be defined
+#ifndef STENCIL_SUBSTRATE_RECEIVE_DBUFFER_NORMAL_BIT_ID
+#error STENCIL_SUBSTRATE_RECEIVE_DBUFFER_NORMAL_BIT_ID needs to be defined
 #endif
-#ifndef STENCIL_STRATA_RECEIVE_DBUFFER_DIFFUSE_BIT_ID
-#error STENCIL_STRATA_RECEIVE_DBUFFER_DIFFUSE_BIT_ID needs to be defined
+#ifndef STENCIL_SUBSTRATE_RECEIVE_DBUFFER_DIFFUSE_BIT_ID
+#error STENCIL_SUBSTRATE_RECEIVE_DBUFFER_DIFFUSE_BIT_ID needs to be defined
 #endif
-#ifndef STENCIL_STRATA_RECEIVE_DBUFFER_ROUGHNESS_BIT_ID
-#error STENCIL_STRATA_RECEIVE_DBUFFER_ROUGHNESS_BIT_ID needs to be defined
+#ifndef STENCIL_SUBSTRATE_RECEIVE_DBUFFER_ROUGHNESS_BIT_ID
+#error STENCIL_SUBSTRATE_RECEIVE_DBUFFER_ROUGHNESS_BIT_ID needs to be defined
 #endif
 
 // Sanity check
@@ -75,7 +75,7 @@ SamplerState DBufferCTextureSampler;
 
 int2 ViewResolution;
 uint MaxBytesPerPixel;
-uint FirstSliceStoringStrataSSSData;
+uint FirstSliceStoringSubstrateSSSData;
 RWTexture2D<uint2> TopLayerTexture;
 RWTexture2DArray<uint> MaterialTextureArrayUAV;
 
@@ -85,9 +85,9 @@ Buffer<uint> TileIndirectBuffer;
 
 // TODO
 // * Add support Eye, Hair, Water, ... ?
-// * Refactor encoding to share code between strata export
+// * Refactor encoding to share code between Substrate export
 
-[numthreads(STRATA_TILE_SIZE, STRATA_TILE_SIZE, 1)]
+[numthreads(SUBSTRATE_TILE_SIZE, SUBSTRATE_TILE_SIZE, 1)]
 void MainCS(
 	uint2 DispatchThreadId : SV_DispatchThreadID, 
 	uint LinearIndex : SV_GroupIndex, 
@@ -97,8 +97,8 @@ void MainCS(
 	if (View.GeneralPurposeTweak == 0)
 		return;
 
-	const uint2 TileCoord = StrataUnpackTile(TileListBuffer[TileListBufferOffset + GroupId.x]);
-	const uint2 PixelCoord = TileCoord * STRATA_TILE_SIZE + GroupThreadId;
+	const uint2 TileCoord = SubstrateUnpackTile(TileListBuffer[TileListBufferOffset + GroupId.x]);
+	const uint2 PixelCoord = TileCoord * SUBSTRATE_TILE_SIZE + GroupThreadId;
 	const bool bIsValid = all(PixelCoord < uint2(View.ViewSizeAndInvSize.xy));
 
 	if (!bIsValid)
@@ -110,7 +110,7 @@ void MainCS(
 	const uint ResponseMask = SceneStencilTexture.Load(uint3(PixelCoord, 0)) STENCIL_COMPONENT_SWIZZLE;
 	uint ValidDBufferTargetMask = GetDBufferTargetMask(PixelCoord);
 	BRANCH
-	if (!ValidDBufferTargetMask || (ResponseMask & STRATA_STENCIL_DBUFFER_MASK) == 0)
+	if (!ValidDBufferTargetMask || (ResponseMask & SUBSTRATE_STENCIL_DBUFFER_MASK) == 0)
 	{
 		return;
 	}
@@ -118,13 +118,13 @@ void MainCS(
 	// Load Dbuffer data only attributes for which the material has some 'responseness'
 	ValidDBufferTargetMask = ValidDBufferTargetMask & 
 	(
-		(((ResponseMask >> STENCIL_STRATA_RECEIVE_DBUFFER_DIFFUSE_BIT_ID)   & 0x1) << STRATA_DBUFFER_RESPONSE_BASECOLOR_BIT_OFFSET) |
-		(((ResponseMask >> STENCIL_STRATA_RECEIVE_DBUFFER_NORMAL_BIT_ID)    & 0x1) << STRATA_DBUFFER_RESPONSE_NORMAL_BIT_OFFSET)    |
-		(((ResponseMask >> STENCIL_STRATA_RECEIVE_DBUFFER_ROUGHNESS_BIT_ID) & 0x1) << STRATA_DBUFFER_RESPONSE_ROUGHNESS_BIT_OFFSET)
+		(((ResponseMask >> STENCIL_SUBSTRATE_RECEIVE_DBUFFER_DIFFUSE_BIT_ID)   & 0x1) << SUBSTRATE_DBUFFER_RESPONSE_BASECOLOR_BIT_OFFSET) |
+		(((ResponseMask >> STENCIL_SUBSTRATE_RECEIVE_DBUFFER_NORMAL_BIT_ID)    & 0x1) << SUBSTRATE_DBUFFER_RESPONSE_NORMAL_BIT_OFFSET)    |
+		(((ResponseMask >> STENCIL_SUBSTRATE_RECEIVE_DBUFFER_ROUGHNESS_BIT_ID) & 0x1) << SUBSTRATE_DBUFFER_RESPONSE_ROUGHNESS_BIT_OFFSET)
 	);
 
 	const float2 BufferUV = SvPositionToBufferUV(float4(PixelCoord + 0.5f, 0, 0));
-	const FStrataDBuffer DBufferData = GetDBufferData(BufferUV, ValidDBufferTargetMask);
+	const FSubstrateDBuffer DBufferData = GetDBufferData(BufferUV, ValidDBufferTargetMask);
 
 	// Early out if DBuffer has no coverage
 	BRANCH
@@ -133,28 +133,28 @@ void MainCS(
 		return;
 	}
 
-	FStrataAddressing StrataAddressing = GetStrataPixelDataByteOffset(PixelCoord, uint2(View.BufferSizeAndInvSize.xy), MaxBytesPerPixel);
-	FStrataPixelHeader StrataPixelHeader = UnpackStrataHeaderIn(MaterialTextureArrayUAV, StrataAddressing, TopLayerTexture);
+	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelCoord, uint2(View.BufferSizeAndInvSize.xy), MaxBytesPerPixel);
+	FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(MaterialTextureArrayUAV, SubstrateAddressing, TopLayerTexture);
 
 	BRANCH
-	if (StrataPixelHeader.BSDFCount <= 0)
+	if (SubstratePixelHeader.BSDFCount <= 0)
 	{
 		return;
 	}
 
 	BRANCH
-	if (StrataPixelHeader.IsSimpleMaterial() || StrataPixelHeader.IsSingleMaterial())
+	if (SubstratePixelHeader.IsSimpleMaterial() || SubstratePixelHeader.IsSingleMaterial())
 	{
 		// 1. Load BSDF data
 		const float Dither = InterleavedGradientNoise(PixelCoord + 0.5f, View.StateFrameIndexMod8);
-		FStrataBSDF BSDF = UnpackStrataBSDFIn(MaterialTextureArrayUAV, StrataAddressing, StrataPixelHeader);
+		FSubstrateBSDF BSDF = UnpackSubstrateBSDFIn(MaterialTextureArrayUAV, SubstrateAddressing, SubstratePixelHeader);
 
 		// 2. Load DBuffer data and apply them
 		float3 F0 = 0;
 		float3 DiffuseAlbedo = 0;
 		float Roughness = 0;
 		{
-			Roughness = StrataGetBSDFRoughness(BSDF);
+			Roughness = SubstrateGetBSDFRoughness(BSDF);
 
 			float3 BaseColor = 0;
 			float Metallic = 0;
@@ -170,16 +170,16 @@ void MainCS(
 		}
 
 		// 3. Top layer data
-		FStrataTopLayerData TopLayerData = StrataUnpackTopLayerData(StrataPixelHeader.PackedTopLayerData);
+		FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData(SubstratePixelHeader.PackedTopLayerData);
 		TopLayerData.WorldNormal = TopLayerData.WorldNormal * DBufferData.OneMinusCoverage_WorldNormal + DBufferData.WorldNormal;
 		TopLayerData.Roughness = Roughness;
-		TopLayerTexture[PixelCoord] = StrataPackTopLayerData(TopLayerData);
+		TopLayerTexture[PixelCoord] = SubstratePackTopLayerData(TopLayerData);
 
 		// 4. Rencode data
-		// STRATA_TODO: For now, doing manual reencoding by duplicating logic from Strata export. Need to refactor Strata export to have small reusable packing functions
+		// SUBSTRATE_TODO: For now, doing manual reencoding by duplicating logic from Substrate export. Need to refactor Substrate export to have small reusable packing functions
 		
 		// Roughness / DiffuseColor / F0
-		if (StrataPixelHeader.IsSimpleMaterial())
+		if (SubstratePixelHeader.IsSimpleMaterial())
 		{
 			const uint PackedDiffuse20Bits = PackR7G7B6Gamma2(DiffuseAlbedo, Dither);
 			const uint PackedDiffuse12Bits = PackedDiffuse20Bits & 0xFFF;
@@ -188,13 +188,13 @@ void MainCS(
 			const uint PackedRoughness8bits= PackR8(Roughness);
 
 			// Data0 (Header_State|Header_AO|Roughness|Diffuse8bits)
-			MaterialTextureArrayUAV[uint3(PixelCoord, 0)] = (StrataPixelHeader.SharedLocalBasesTypes_PackedHeader & 0x0000FFFF) | (PackedRoughness8bits << 16) | (PackedDiffuse8Bits << 24);
+			MaterialTextureArrayUAV[uint3(PixelCoord, 0)] = (SubstratePixelHeader.SharedLocalBasesTypes_PackedHeader & 0x0000FFFF) | (PackedRoughness8bits << 16) | (PackedDiffuse8Bits << 24);
 			MaterialTextureArrayUAV[uint3(PixelCoord, 1)] = PackedF020Bits | (PackedDiffuse12Bits << 20);
 		}
-		#if !STRATA_FASTPATH
-		else if (StrataPixelHeader.IsSingleMaterial())
+		#if !SUBSTRATE_FASTPATH
+		else if (SubstratePixelHeader.IsSingleMaterial())
 		{
-			const uint OptimisedLegacyMode = (StrataPixelHeader.SharedLocalBasesTypes_PackedHeader >> (HEADER_SINGLEENCODING_BIT_COUNT)) & HEADER_SINGLE_OPTLEGACYMODE_BIT_MASK;
+			const uint OptimisedLegacyMode = (SubstratePixelHeader.SharedLocalBasesTypes_PackedHeader >> (HEADER_SINGLEENCODING_BIT_COUNT)) & HEADER_SINGLE_OPTLEGACYMODE_BIT_MASK;
 			if (OptimisedLegacyMode == SINGLE_OPTLEGACYMODE_NONE)
 			{
 				MaterialTextureArrayUAV[uint3(PixelCoord, 2)] = (MaterialTextureArrayUAV[uint3(PixelCoord, 2)] & 0xFFFF00FF) | (PackR8(Roughness) << 8);
@@ -244,9 +244,9 @@ void MainCS(
 					// Only write SSS data if needed
 					if (BSDF_GETSSSTYPE(BSDF) == SSS_TYPE_DIFFUSION)
 					{
-						FStrataSubsurfaceExtras SSSDataExtras;
-						StrataSubsurfaceExtrasSetBaseColor(SSSDataExtras, DiffuseAlbedo);
-						StrataStoreSubsurfaceExtras(MaterialTextureArrayUAV, FirstSliceStoringStrataSSSData, PixelCoord, SSSDataExtras.Bytes);
+						FSubstrateSubsurfaceExtras SSSDataExtras;
+						SubstrateSubsurfaceExtrasSetBaseColor(SSSDataExtras, DiffuseAlbedo);
+						SubstrateStoreSubsurfaceExtras(MaterialTextureArrayUAV, FirstSliceStoringSubstrateSSSData, PixelCoord, SSSDataExtras.Bytes);
 					}
 
 					++RWOffset;
@@ -326,13 +326,13 @@ void MainCS(
 				const uint PackedDiffuse20Bits = PackR7G7B6Gamma2(DiffuseAlbedo, Dither);
 				const uint PackedF020Bits = PackR7G7B6Gamma2(F0, Dither);
 
-				FStrataSubsurfaceHeader SSSDataHeader;
-				SSSDataHeader.Bytes = MaterialTextureArrayUAV[uint3(PixelCoord, FirstSliceStoringStrataSSSData + 0)];
+				FSubstrateSubsurfaceHeader SSSDataHeader;
+				SSSDataHeader.Bytes = MaterialTextureArrayUAV[uint3(PixelCoord, FirstSliceStoringSubstrateSSSData + 0)];
 
-				float ProfileScl= StrataSubSurfaceHeaderGetProfileRadiusScale(SSSDataHeader) * DBufferData.OneMinusCoverage_BaseColor;
-				uint  ProfileId = StrataSubSurfaceHeaderGetProfileId(SSSDataHeader);
-				StrataSubSurfaceHeaderSetProfile(SSSDataHeader, ProfileScl, DBufferData.OneMinusCoverage_BaseColor == 0.0f ? 0 : ProfileId);
-				// Note We cannot change the type using StrataSubSurfaceHeaderSetSSSType(SSSDataHeader, SSS_TYPE_INVALID);
+				float ProfileScl= SubstrateSubSurfaceHeaderGetProfileRadiusScale(SSSDataHeader) * DBufferData.OneMinusCoverage_BaseColor;
+				uint  ProfileId = SubstrateSubSurfaceHeaderGetProfileId(SSSDataHeader);
+				SubstrateSubSurfaceHeaderSetProfile(SSSDataHeader, ProfileScl, DBufferData.OneMinusCoverage_BaseColor == 0.0f ? 0 : ProfileId);
+				// Note We cannot change the type using SubstrateSubSurfaceHeaderSetSSSType(SSSDataHeader, SSS_TYPE_INVALID);
 				// Because we are stuck using the SINGLE_OPTLEGACYMODE_SSSPROFILE mode.
 				// So some SSSProfile material with decal will look difference when using deferred DBuffer instead of in shader application.
 
@@ -340,16 +340,16 @@ void MainCS(
 				MaterialTextureArrayUAV[uint3(PixelCoord, 1)] = PackedDiffuse20Bits  | (PackR8(ProfileScl) << 24);
 				MaterialTextureArrayUAV[uint3(PixelCoord, 2)] = (MaterialTextureArrayUAV[uint3(PixelCoord, 2)] & 0xFF000000) | PackedF020Bits;
 				
-				StrataStoreSubsurfaceHeader(MaterialTextureArrayUAV, FirstSliceStoringStrataSSSData, PixelCoord, SSSDataHeader.Bytes);
-				if (StrataSubSurfaceHeaderHasExtras(SSSDataHeader))
+				SubstrateStoreSubsurfaceHeader(MaterialTextureArrayUAV, FirstSliceStoringSubstrateSSSData, PixelCoord, SSSDataHeader.Bytes);
+				if (SubstrateSubSurfaceHeaderHasExtras(SSSDataHeader))
 				{
-					FStrataSubsurfaceExtras SSSDataExtras;
-					StrataSubsurfaceExtrasSetBaseColor(SSSDataExtras, DiffuseAlbedo);
-					StrataStoreSubsurfaceExtras(MaterialTextureArrayUAV, FirstSliceStoringStrataSSSData, PixelCoord, SSSDataExtras.Bytes);
+					FSubstrateSubsurfaceExtras SSSDataExtras;
+					SubstrateSubsurfaceExtrasSetBaseColor(SSSDataExtras, DiffuseAlbedo);
+					SubstrateStoreSubsurfaceExtras(MaterialTextureArrayUAV, FirstSliceStoringSubstrateSSSData, PixelCoord, SSSDataExtras.Bytes);
 				}
 			}
 		}
-		#endif // !STRATA_FASTPATH
+		#endif // !SUBSTRATE_FASTPATH
 	}
 }
 #endif // SHADER_DBUFFER

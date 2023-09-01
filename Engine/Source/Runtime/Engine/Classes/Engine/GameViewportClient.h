@@ -661,8 +661,8 @@ protected:
 	void SetCurrentLumenVisualizationMode(FName NewLumenVisualizationMode) { CurrentLumenVisualizationMode = NewLumenVisualizationMode; }
 	FName GetCurrentLumenVisualizationMode() const { return CurrentLumenVisualizationMode; }
 
-	void SetCurrentStrataVisualizationMode(FName NewStrataVisualizationMode) { CurrentStrataVisualizationMode = NewStrataVisualizationMode; }
-	FName GetCurrentStrataVisualizationMode() const { return CurrentStrataVisualizationMode; }
+	void SetCurrentSubstrateVisualizationMode(FName NewSubstrateVisualizationMode) { CurrentSubstrateVisualizationMode = NewSubstrateVisualizationMode; }
+	FName GetCurrentSubstrateVisualizationMode() const { return CurrentSubstrateVisualizationMode; }
 
 	void SetCurrentGroomVisualizationMode(FName NewGroomVisualizationMode) { CurrentGroomVisualizationMode = NewGroomVisualizationMode; }
 	FName GetCurrentGroomVisualizationMode() const { return CurrentGroomVisualizationMode; }
@@ -992,8 +992,8 @@ private:
 	/** Current Lumen visualization mode for this game viewport */
 	FName CurrentLumenVisualizationMode;
 
-	/** Current Strata visualization mode for this game viewport */
-	FName CurrentStrataVisualizationMode;
+	/** Current Substrate visualization mode for this game viewport */
+	FName CurrentSubstrateVisualizationMode;
 
 	/** Current Groom visualization mode for this game viewport */
 	FName CurrentGroomVisualizationMode;

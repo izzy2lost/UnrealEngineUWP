@@ -351,7 +351,7 @@ void SGraphNodeMaterialBase::CreatePinWidgets()
 			}
 
 			// Override pin color for Substrate node
-			if (Strata::IsStrataEnabled())
+			if (Substrate::IsSubstrateEnabled())
 			{
 				FSubstrateWidget::GetPinColor(NewPin, MaterialNode);
 			}
@@ -483,17 +483,17 @@ void SGraphNodeMaterialBase::CreateBelowPinControls(TSharedPtr<SVerticalBox> Mai
 	}
 
 	// Preview of Substrate nodes topology
-	if (Strata::IsStrataEnabled() && MaterialNode && MaterialNode->MaterialExpression->IsA(UMaterialExpressionSubstrateBSDF::StaticClass()))
+	if (Substrate::IsSubstrateEnabled() && MaterialNode && MaterialNode->MaterialExpression->IsA(UMaterialExpressionSubstrateBSDF::StaticClass()))
 	{
-		if (const UMaterialExpressionSubstrateBSDF* StrataExpression = (const UMaterialExpressionSubstrateBSDF*)MaterialNode->MaterialExpression)
+		if (const UMaterialExpressionSubstrateBSDF* SubstrateExpression = (const UMaterialExpressionSubstrateBSDF*)MaterialNode->MaterialExpression)
 		{		
-			if (UMaterial* MaterialForStats = StrataExpression->Material)
+			if (UMaterial* MaterialForStats = SubstrateExpression->Material)
 			{
 				if (const FMaterialResource* MaterialResource = MaterialForStats->GetMaterialResource(GMaxRHIFeatureLevel))
 				{
 					if (FMaterialShaderMap* ShaderMap = MaterialResource->GetGameThreadShaderMap())
 					{
-						const FStrataMaterialCompilationOutput& CompilationOutput = ShaderMap->GetStrataMaterialCompilationOutput();
+						const FSubstrateMaterialCompilationOutput& CompilationOutput = ShaderMap->GetSubstrateMaterialCompilationOutput();
 						MainBox->AddSlot()
 						.Padding(Settings->GetNonPinNodeBodyPadding())
 						.AutoHeight()
@@ -503,7 +503,7 @@ void SGraphNodeMaterialBase::CreateBelowPinControls(TSharedPtr<SVerticalBox> Mai
 							.VAlign(VAlign_Center)
 							.HAlign(HAlign_Center)
 							[							
-								FSubstrateWidget::ProcessOperator(CompilationOutput, StrataExpression->MaterialExpressionGuid)
+								FSubstrateWidget::ProcessOperator(CompilationOutput, SubstrateExpression->MaterialExpressionGuid)
 							]
 						];
 					}

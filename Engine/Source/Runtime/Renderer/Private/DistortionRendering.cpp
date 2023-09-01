@@ -113,7 +113,7 @@ TRDGUniformBufferRef<FDistortionPassUniformParameters> CreateDistortionPassUnifo
 
 static bool GetUseRoughRefraction()
 {
-	return Strata::IsStrataEnabled() && CVarRefractionBlur.GetValueOnRenderThread() > 0;
+	return Substrate::IsSubstrateEnabled() && CVarRefractionBlur.GetValueOnRenderThread() > 0;
 }
 
 class FDistortionScreenPS : public FGlobalShader
@@ -571,7 +571,7 @@ void FDeferredShadingSceneRenderer::RenderDistortion(
 			}
 
 			// Now render the mip chain
-			// STRATA_TODO we could optimize that pass by doing one pass with a tile of 16x16 writing out the 8x8, 4x4, 2x2 and 1x1 down sampled output
+			// SUBSTRATE_TODO we could optimize that pass by doing one pass with a tile of 16x16 writing out the 8x8, 4x4, 2x2 and 1x1 down sampled output
 
 			{
 				RDG_EVENT_SCOPE(GraphBuilder, "SceneColorMipChain");

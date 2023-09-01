@@ -14,16 +14,16 @@
 #include "Substrate/Substrate.ush"
 #include "LightData.ush"
 
-// This Strata include assumes that if inline shading is required, it needs to 
+// This Substrate include assumes that if inline shading is required, it needs to 
 // be defined prior to DeferredLightingCommong.ush
-// StrataStruct.MaterialTextureArray is only available to translucent materials or global shaders computing contact shadows.
-// It is not defined for opaque materials, only the UAV is available to write the strata buffer.
-#define STRATA_RAYCAST_ENABLED (!MATERIAL_IS_STRATA || STRATA_TRANSLUCENT_ENABLED)
-#if STRATA_RAYCAST_ENABLED
-	#if MATERIAL_IS_STRATA
-		#define StrataRayCast StrataStruct
+// SubstrateStruct.MaterialTextureArray is only available to translucent materials or global shaders computing contact shadows.
+// It is not defined for opaque materials, only the UAV is available to write the Substrate buffer.
+#define SUBSTRATE_RAYCAST_ENABLED (!MATERIAL_IS_SUBSTRATE || SUBSTRATE_TRANSLUCENT_ENABLED)
+#if SUBSTRATE_RAYCAST_ENABLED
+	#if MATERIAL_IS_SUBSTRATE
+		#define SubstrateRayCast SubstrateStruct
 	#else
-		#define StrataRayCast Strata
+		#define SubstrateRayCast Substrate
 	#endif
 #endif
 
@@ -96,12 +96,12 @@ float ShadowRayCast(
 	{
 		// Ignore hits that come from non-shadow-casting pixels
 		float3 SampleUVz = RayStartUVz + RayStepUVz * FirstHitTime;
-	#if STRATA_ENABLED
-		#if STRATA_RAYCAST_ENABLED && STRATA_MATERIALCONTAINER_IS_VIEWRESOURCE
+	#if SUBSTRATE_ENABLED
+		#if SUBSTRATE_RAYCAST_ENABLED && SUBSTRATE_MATERIALCONTAINER_IS_VIEWRESOURCE
 		uint2 PixelPos = View.ViewRectMin.xy + View.ViewSizeAndInvSize.xy * SampleUVz.xy;
-		FStrataAddressing StrataAddressing = GetStrataPixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), StrataRayCast.MaxBytesPerPixel);
-		FStrataPixelHeader StrataPixelHeader = UnpackStrataHeaderIn(StrataRayCast.MaterialTextureArray, StrataAddressing, StrataRayCast.TopLayerTexture);
-		bOutHitCastContactShadow = StrataPixelHeader.DoesCastContactShadow();
+		FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), SubstrateRayCast.MaxBytesPerPixel);
+		FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(SubstrateRayCast.MaterialTextureArray, SubstrateAddressing, SubstrateRayCast.TopLayerTexture);
+		bOutHitCastContactShadow = SubstratePixelHeader.DoesCastContactShadow();
 		#endif
 	#else
 		FGBufferData SampleGBuffer = GetGBufferData( SampleUVz.xy );
@@ -182,7 +182,7 @@ void GetShadowTerms(float SceneDepth, half4 PrecomputedShadowFactors, uint Shadi
 
 #if SUPPORT_CONTACT_SHADOWS
 
-#if STRATA_ENABLED == 0
+#if SUBSTRATE_ENABLED == 0
 	if (LightData.ShadowedBits < 2 && (ShadingModelID == SHADINGMODELID_HAIR))
 	{
 		ContactShadowLength = 0.2 * ContactShadowLengthScreenScale;
@@ -211,7 +211,7 @@ void GetShadowTerms(float SceneDepth, half4 PrecomputedShadowFactors, uint Shadi
 		{
 			float ContactShadowOcclusion = bHitCastContactShadow ? LightData.ContactShadowCastingIntensity : LightData.ContactShadowNonCastingIntensity;
 
-#if STRATA_ENABLED == 0
+#if SUBSTRATE_ENABLED == 0
 			// Exponential attenuation is not applied on hair/eye/SSS-profile here, as the hit distance (shading-point to blocker) is different from the estimated 
 			// thickness (closest-point-from-light to shading-point), and this creates light leaks. Instead we consider first hit as a blocker (old behavior)
 			BRANCH
@@ -258,8 +258,8 @@ float GetLocalLightAttenuation(
 	{
 		LightMask = Square( saturate( 1 - Square( DistanceSqr * Square(LightData.InvRadius) ) ) );
 		// This extra attenuation has been added for supporting existing 'legacy' shading model on mobile. 
-		// This is not needed for Strata which unifies all lighting paths
-		#if SHADING_PATH_MOBILE && !STRATA_ENABLED
+		// This is not needed for Substrate which unifies all lighting paths
+		#if SHADING_PATH_MOBILE && !SUBSTRATE_ENABLED
 		LightMask *= 1.0f / (DistanceSqr + 1.0f);
 		#endif
 	}

@@ -100,7 +100,7 @@ void BuildEnergyTableCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		const float NoL = L.z;
 		const float3 H = normalize(V + L);
 		const float NoH = H.z;
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 		const float DCloth = D_Charlie(Roughness, NoH);
 		const float VCloth = Vis_Ashikhmin(NoV, NoL);
 #else

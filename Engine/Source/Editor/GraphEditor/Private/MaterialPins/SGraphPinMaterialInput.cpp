@@ -15,7 +15,7 @@
 void SGraphPinMaterialInput::Construct(const FArguments& InArgs, UEdGraphPin* InGraphPinObj)
 {
 	bool bUsePinColor = true;
-	if (Strata::IsStrataEnabled())
+	if (Substrate::IsSubstrateEnabled())
 	{
 		if (UMaterialGraphSchema::GetMaterialValueType(InGraphPinObj) == MCT_Strata)
 		{
@@ -33,7 +33,7 @@ FSlateColor SGraphPinMaterialInput::GetPinColor() const
 
 	if (MaterialGraph->IsInputActive(GraphPinObj))
 	{
-		if (Strata::IsStrataEnabled())
+		if (Substrate::IsSubstrateEnabled())
 		{
 			if (UMaterialGraphSchema::GetMaterialValueType(GraphPinObj) == MCT_Strata)
 			{

@@ -321,9 +321,9 @@ float3 ComputeIndirectLighting(
 	in FPackedMaterialClosestHitPayload Payload,
 	in bool bRayTraceSkyLightContribution,
 	in bool bDecoupleSampleGeneration)
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 {
-	// STRATA_TODO
+	// SUBSTRATE_TODO
 	return 0;
 }
 #else
@@ -378,12 +378,12 @@ float3 ComputeIndirectLighting(
 
 bool HasBackfaceDiffuse(FPackedMaterialClosestHitPayload Payload)
 {
-	#if STRATA_ENABLED
+	#if SUBSTRATE_ENABLED
 	{
-		FStrataAddressing StrataAddressing = GetStrataPixelDataByteOffset(0,0,0);
-		FStrataPixelHeader StrataPixelHeader = UnpackStrataHeaderIn(Payload.StrataData, StrataAddressing, Payload.StrataData);
-		const uint BSDFType = StrataPixelHeader.StrataGetBSDFType();
-		return BSDFType == STRATA_BSDF_TYPE_SLAB && StrataPixelHeader.HasSubsurface();
+		FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(0,0,0);
+		FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Payload.SubstrateData, SubstrateAddressing, Payload.SubstrateData);
+		const uint BSDFType = SubstratePixelHeader.SubstrateGetBSDFType();
+		return BSDFType == SUBSTRATE_BSDF_TYPE_SLAB && SubstratePixelHeader.HasSubsurface();
 	}
 	#else
 	{

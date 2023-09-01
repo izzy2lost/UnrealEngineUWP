@@ -962,7 +962,7 @@ class URendererSettings : public UDeveloperSettings
 		ConsoleVariable = "r.Substrate", DisplayName = "Substrate materials (Experimental)",
 		ToolTip = "Enable Substrate materials (Experimental).",
 		ConfigRestartRequired = true))
-		uint32 bEnableStrata : 1;
+		uint32 bEnableSubstrate : 1;
 
 	/**
 	"Enable Substrate opaque material rough refractions effect from top layers over layers below."
@@ -971,7 +971,7 @@ class URendererSettings : public UDeveloperSettings
 		ConsoleVariable = "r.Substrate.OpaqueMaterialRoughRefraction", DisplayName = "Substrate opaque material rough refraction",
 		ToolTip = "Enable Substrate opaque material rough refractions effect from top layers over layers below.",
 		ConfigRestartRequired = true))
-		uint32 StrataOpaqueMaterialRoughRefraction : 1;
+		uint32 SubstrateOpaqueMaterialRoughRefraction : 1;
 
 	/**
 	"Enable advanced Substrate material debug visualization shaders. Base pas shaders can output such advanced data."
@@ -980,7 +980,7 @@ class URendererSettings : public UDeveloperSettings
 		ConsoleVariable = "r.Substrate.Debug.AdvancedVisualizationShaders", DisplayName = "Substrate advanced visualization shaders",
 		ToolTip = "Enable advanced Substrate material debug visualization shaders. Base pass shaders can output such advanced data.",
 		ConfigRestartRequired = true))
-		uint32 StrataDebugAdvancedVisualizationShaders : 1;
+		uint32 SubstrateDebugAdvancedVisualizationShaders : 1;
 
 	/**
 	"Enable rough diffuse material."

@@ -473,10 +473,10 @@ static FScreenPassTexture AddPostProcessingAmbientOcclusion(
 	}
 
 	FScreenPassTexture SetupTexture = CommonParameters.GBufferA;
-	if (Strata::IsStrataEnabled())
+	if (Substrate::IsSubstrateEnabled())
 	{
-		// For Strata, we invalidate the setup texture for the final pass:
-		//	- We do not need GBufferA, the Strata TopLayer texture will fill in for that.
+		// For Substrate, we invalidate the setup texture for the final pass:
+		//	- We do not need GBufferA, the Substrate TopLayer texture will fill in for that.
 		//	- Setting it to nullptr will make the AddAmbientOcclusionPass use a valid viewport from SceneTextures.
 		SetupTexture.Texture = nullptr;
 	}

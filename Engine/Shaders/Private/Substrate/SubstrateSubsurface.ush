@@ -13,7 +13,7 @@ float4 UnpackColorGamma2ToLinearAlphaLinear(uint In);
 // 
 // Stored in first slice as UINT
 // This is hot data that is often accessed by SSS related passes.
-struct FStrataSubsurfaceHeader
+struct FSubstrateSubsurfaceHeader
 {
 	// 2 bits
 	// SSS type:
@@ -44,26 +44,26 @@ struct FStrataSubsurfaceHeader
 #define SSSHEADER_TYPE(Header)	(Header.Bytes & 0x3)
 #define SSSHEADER_TYPE_MASK		(0x00000003)
 
-void StrataSubSurfaceHeaderSetSSSType(inout FStrataSubsurfaceHeader SSSHeader, uint SSSType)
+void SubstrateSubSurfaceHeaderSetSSSType(inout FSubstrateSubsurfaceHeader SSSHeader, uint SSSType)
 {
 	SSSHeader.Bytes &= (~SSSHEADER_TYPE_MASK);
 	SSSHeader.Bytes |= SSSType & SSSHEADER_TYPE_MASK;
 }
 
-void StrataSubSurfaceHeaderSetProfile(inout FStrataSubsurfaceHeader SSSHeader, float RadiusScale, uint ProfileId)
+void SubstrateSubSurfaceHeaderSetProfile(inout FSubstrateSubsurfaceHeader SSSHeader, float RadiusScale, uint ProfileId)
 {
 	SSSHeader.Bytes &= SSSHEADER_TYPE_MASK;
 	SSSHeader.Bytes |= ProfileId << 24;
 	SSSHeader.Bytes |= PackR8(RadiusScale) << 16;
 }
 
-void StrataSubSurfaceHeaderSetNonProfile(inout FStrataSubsurfaceHeader SSSHeader, float3 MeanFreePath)
+void SubstrateSubSurfaceHeaderSetNonProfile(inout FSubstrateSubsurfaceHeader SSSHeader, float3 MeanFreePath)
 {
 	SSSHeader.Bytes &= SSSHEADER_TYPE_MASK;
 	SSSHeader.Bytes |= (Pack10F(MeanFreePath.x) << 22) | (Pack10F(MeanFreePath.y) << 12) | (Pack10F(MeanFreePath.z) << 2);
 }
 
-float StrataSubSurfaceGetWrapOpacityFromAnisotropy(float PhaseAnisotropy)
+float SubstrateSubSurfaceGetWrapOpacityFromAnisotropy(float PhaseAnisotropy)
 {
 	// Reinterpret the phase function anisotropy as 'opacity' value
 	// * Forward/Backward phase function == Thin surface (i.e., opacity => 0)
@@ -72,64 +72,64 @@ float StrataSubSurfaceGetWrapOpacityFromAnisotropy(float PhaseAnisotropy)
 	return Opacity;
 }
 
-void StrataSubSurfaceHeaderSetWrapOpacity(inout FStrataSubsurfaceHeader SSSHeader, float Opacity)
+void SubstrateSubSurfaceHeaderSetWrapOpacity(inout FSubstrateSubsurfaceHeader SSSHeader, float Opacity)
 {
 	SSSHeader.Bytes &= SSSHEADER_TYPE_MASK;
 	SSSHeader.Bytes |= PackR8(Opacity) << 2;
 }
 
-void StrataSubSurfaceHeaderSetWrap(inout FStrataSubsurfaceHeader SSSHeader, float PhaseAnisotropy)
+void SubstrateSubSurfaceHeaderSetWrap(inout FSubstrateSubsurfaceHeader SSSHeader, float PhaseAnisotropy)
 {
-	const float Opacity = StrataSubSurfaceGetWrapOpacityFromAnisotropy(PhaseAnisotropy);
-	StrataSubSurfaceHeaderSetWrapOpacity(SSSHeader, Opacity);
+	const float Opacity = SubstrateSubSurfaceGetWrapOpacityFromAnisotropy(PhaseAnisotropy);
+	SubstrateSubSurfaceHeaderSetWrapOpacity(SSSHeader, Opacity);
 }
 
-bool StrataSubSurfaceHeaderGetIsValid(in FStrataSubsurfaceHeader SSSHeader)
+bool SubstrateSubSurfaceHeaderGetIsValid(in FSubstrateSubsurfaceHeader SSSHeader)
 {
 	return SSSHEADER_TYPE(SSSHeader) != SSS_TYPE_INVALID;
 }
 
-bool StrataSubSurfaceHeaderHasExtras(in FStrataSubsurfaceHeader SSSHeader)
+bool SubstrateSubSurfaceHeaderHasExtras(in FSubstrateSubsurfaceHeader SSSHeader)
 {
 	const uint SSSType = SSSHEADER_TYPE(SSSHeader);
 	return SSSType == SSS_TYPE_DIFFUSION || SSSType == SSS_TYPE_DIFFUSION_PROFILE;
 }
 
-bool StrataSubSurfaceHeaderGetUseDiffusion(in FStrataSubsurfaceHeader SSSHeader)
+bool SubstrateSubSurfaceHeaderGetUseDiffusion(in FSubstrateSubsurfaceHeader SSSHeader)
 {
 	const uint SSSType = SSSHEADER_TYPE(SSSHeader);
 	return SSSType == SSS_TYPE_DIFFUSION || SSSType == SSS_TYPE_DIFFUSION_PROFILE;
 }
 
-bool StrataSubSurfaceHeaderGetIsProfile(in FStrataSubsurfaceHeader SSSHeader)
+bool SubstrateSubSurfaceHeaderGetIsProfile(in FSubstrateSubsurfaceHeader SSSHeader)
 {
 	return SSSHEADER_TYPE(SSSHeader) == SSS_TYPE_DIFFUSION_PROFILE;
 }
 
-bool StrataSubSurfaceHeaderGetIsWrap(in FStrataSubsurfaceHeader SSSHeader)
+bool SubstrateSubSurfaceHeaderGetIsWrap(in FSubstrateSubsurfaceHeader SSSHeader)
 {
 	return SSSHEADER_TYPE(SSSHeader) == SSS_TYPE_WRAP;
 }
 
-uint StrataSubSurfaceHeaderGetSSSType(in FStrataSubsurfaceHeader SSSHeader)
+uint SubstrateSubSurfaceHeaderGetSSSType(in FSubstrateSubsurfaceHeader SSSHeader)
 {
 	return SSSHEADER_TYPE(SSSHeader);
 }
 
-uint StrataSubSurfaceHeaderGetProfileId(in FStrataSubsurfaceHeader SSSHeader)
+uint SubstrateSubSurfaceHeaderGetProfileId(in FSubstrateSubsurfaceHeader SSSHeader)
 {
 	const uint SSSType = SSSHEADER_TYPE(SSSHeader);
 	const uint ProfileId = (SSSType == SSS_TYPE_DIFFUSION_PROFILE) ? ((SSSHeader.Bytes >> 24) & 0xFF) : (SSSType == SSS_TYPE_DIFFUSION ? SSS_PROFILE_ID_PERPIXEL : SSS_PROFILE_ID_INVALID);
 	return ProfileId;
 }
 
-float StrataSubSurfaceHeaderGetProfileRadiusScale(in FStrataSubsurfaceHeader SSSHeader)
+float SubstrateSubSurfaceHeaderGetProfileRadiusScale(in FSubstrateSubsurfaceHeader SSSHeader)
 {
 	const bool bIsValidAndProfile = SSSHEADER_TYPE(SSSHeader) == SSS_TYPE_DIFFUSION_PROFILE;
 	return bIsValidAndProfile ? UnpackR8(SSSHeader.Bytes >> 16) : 1.f;
 }
 
-float3 StrataSubSurfaceHeaderGetMFP(in FStrataSubsurfaceHeader SSSHeader)				// Only when !IsProfile
+float3 SubstrateSubSurfaceHeaderGetMFP(in FSubstrateSubsurfaceHeader SSSHeader)				// Only when !IsProfile
 {
 	return float3(
 		Unpack10F(SSSHeader.Bytes >> 22),
@@ -137,76 +137,76 @@ float3 StrataSubSurfaceHeaderGetMFP(in FStrataSubsurfaceHeader SSSHeader)				// 
 		Unpack10F(SSSHeader.Bytes >> 2));
 }
 
-float StrataSubSurfaceHeaderGetWrapOpacity(in FStrataSubsurfaceHeader SSSHeader)
+float SubstrateSubSurfaceHeaderGetWrapOpacity(in FSubstrateSubsurfaceHeader SSSHeader)
 {
 	return SSSHEADER_TYPE(SSSHeader) == SSS_TYPE_WRAP ? UnpackR8(SSSHeader.Bytes >> 2) : 1.0f;
 }
 
-float StrataSubSurfaceHeaderGetOpacity(in FStrataSubsurfaceHeader SSSHeader)
+float SubstrateSubSurfaceHeaderGetOpacity(in FSubstrateSubsurfaceHeader SSSHeader)
 {
 	const uint SSSType = SSSHEADER_TYPE(SSSHeader);
 
 	// Shadow 'Opacity' is based on legacy shading code
-	// * SSS Wrap              -> StrataSubSurfaceHeaderGetWrapOpacity()
+	// * SSS Wrap              -> SubstrateSubSurfaceHeaderGetWrapOpacity()
 	// * SSS Diffusion         -> 1
-	// * SSS Diffusion Profile -> StrataSubSurfaceHeaderGetProfileRadiusScale()
+	// * SSS Diffusion Profile -> SubstrateSubSurfaceHeaderGetProfileRadiusScale()
 	float Opacity = 1.0f;
-	Opacity = SSSType == SSS_TYPE_DIFFUSION_PROFILE ? StrataSubSurfaceHeaderGetProfileRadiusScale(SSSHeader) : Opacity;
-	Opacity = SSSType == SSS_TYPE_WRAP ? StrataSubSurfaceHeaderGetWrapOpacity(SSSHeader) : Opacity;
+	Opacity = SSSType == SSS_TYPE_DIFFUSION_PROFILE ? SubstrateSubSurfaceHeaderGetProfileRadiusScale(SSSHeader) : Opacity;
+	Opacity = SSSType == SSS_TYPE_WRAP ? SubstrateSubSurfaceHeaderGetWrapOpacity(SSSHeader) : Opacity;
 	return Opacity;
 }
 
 // Stored in second slice as UINT
 // This is cold data, rarely accessed
-struct FStrataSubsurfaceExtras
+struct FSubstrateSubsurfaceExtras
 {
 	//	float3 BaseColor; // alpha unused
 	uint Bytes;
 };
-void StrataSubsurfaceExtrasSetBaseColor(inout FStrataSubsurfaceExtras SSSExtras, float3 BaseColor)
+void SubstrateSubsurfaceExtrasSetBaseColor(inout FSubstrateSubsurfaceExtras SSSExtras, float3 BaseColor)
 {
 	SSSExtras.Bytes = PackColorLinearToGamma2AlphaLinear(float4(BaseColor, 0.0f));
 }
-float3 StrataSubsurfaceExtrasGetBaseColor(in FStrataSubsurfaceExtras SSSExtras)
+float3 SubstrateSubsurfaceExtrasGetBaseColor(in FSubstrateSubsurfaceExtras SSSExtras)
 {
 	return UnpackColorGamma2ToLinearAlphaLinear(SSSExtras.Bytes).rgb;
 }
 
-struct FStrataSubsurfaceData
+struct FSubstrateSubsurfaceData
 {
-	FStrataSubsurfaceHeader Header;
-	FStrataSubsurfaceExtras Extras;
+	FSubstrateSubsurfaceHeader Header;
+	FSubstrateSubsurfaceExtras Extras;
 };
-FStrataSubsurfaceHeader StrataLoadSubsurfaceHeader(Texture2DArray<uint> StrataBuffer, uint FirstSliceStoringStrataSSSData, uint2 PixelPos)
+FSubstrateSubsurfaceHeader SubstrateLoadSubsurfaceHeader(Texture2DArray<uint> SubstrateBuffer, uint FirstSliceStoringSubstrateSSSData, uint2 PixelPos)
 {
-	FStrataSubsurfaceHeader Header;
-	Header.Bytes = StrataBuffer.Load(uint4(PixelPos, FirstSliceStoringStrataSSSData + 0, 0));
+	FSubstrateSubsurfaceHeader Header;
+	Header.Bytes = SubstrateBuffer.Load(uint4(PixelPos, FirstSliceStoringSubstrateSSSData + 0, 0));
 	return Header;
 }
-FStrataSubsurfaceExtras StrataLoadSubsurfaceExtras(Texture2DArray<uint> StrataBuffer, uint FirstSliceStoringStrataSSSData, uint2 PixelPos)
+FSubstrateSubsurfaceExtras SubstrateLoadSubsurfaceExtras(Texture2DArray<uint> SubstrateBuffer, uint FirstSliceStoringSubstrateSSSData, uint2 PixelPos)
 {
-	FStrataSubsurfaceExtras Extras;
-	Extras.Bytes = StrataBuffer.Load(uint4(PixelPos, FirstSliceStoringStrataSSSData + 1, 0));
+	FSubstrateSubsurfaceExtras Extras;
+	Extras.Bytes = SubstrateBuffer.Load(uint4(PixelPos, FirstSliceStoringSubstrateSSSData + 1, 0));
 	return Extras;
 }
-FStrataSubsurfaceData StrataLoadSubsurfaceData(Texture2DArray<uint> StrataBuffer, uint FirstSliceStoringStrataSSSData, uint2 PixelPos)
+FSubstrateSubsurfaceData SubstrateLoadSubsurfaceData(Texture2DArray<uint> SubstrateBuffer, uint FirstSliceStoringSubstrateSSSData, uint2 PixelPos)
 {
-	FStrataSubsurfaceData SSSData;
-	SSSData.Header = StrataLoadSubsurfaceHeader(StrataBuffer, FirstSliceStoringStrataSSSData, PixelPos);
-	SSSData.Extras = StrataLoadSubsurfaceExtras(StrataBuffer, FirstSliceStoringStrataSSSData, PixelPos);
+	FSubstrateSubsurfaceData SSSData;
+	SSSData.Header = SubstrateLoadSubsurfaceHeader(SubstrateBuffer, FirstSliceStoringSubstrateSSSData, PixelPos);
+	SSSData.Extras = SubstrateLoadSubsurfaceExtras(SubstrateBuffer, FirstSliceStoringSubstrateSSSData, PixelPos);
 	return SSSData;
 }
 
-void StrataStoreSubsurfaceHeader(RWTexture2DArray<uint> StrataBuffer, uint FirstSliceStoringStrataSSSData, uint2 PixelPos, uint HeaderBytes)
+void SubstrateStoreSubsurfaceHeader(RWTexture2DArray<uint> SubstrateBuffer, uint FirstSliceStoringSubstrateSSSData, uint2 PixelPos, uint HeaderBytes)
 {
-	StrataBuffer[uint3(PixelPos, FirstSliceStoringStrataSSSData + 0)] = HeaderBytes;
+	SubstrateBuffer[uint3(PixelPos, FirstSliceStoringSubstrateSSSData + 0)] = HeaderBytes;
 }
-void StrataStoreSubsurfaceExtras(RWTexture2DArray<uint> StrataBuffer, uint FirstSliceStoringStrataSSSData, uint2 PixelPos, uint ExtraBytes)
+void SubstrateStoreSubsurfaceExtras(RWTexture2DArray<uint> SubstrateBuffer, uint FirstSliceStoringSubstrateSSSData, uint2 PixelPos, uint ExtraBytes)
 {
-	StrataBuffer[uint3(PixelPos, FirstSliceStoringStrataSSSData + 1)] = ExtraBytes;
+	SubstrateBuffer[uint3(PixelPos, FirstSliceStoringSubstrateSSSData + 1)] = ExtraBytes;
 }
 
-uint StrataSubsurfaceProfileIdTo8bits(float In)
+uint SubstrateSubsurfaceProfileIdTo8bits(float In)
 {
 	// Similar encoding than ExtractSubsurfaceProfileInt. Valid profile ID start at 1.
 	return uint(In * 255.0f + 0.5f);
@@ -234,36 +234,36 @@ FSubsurfaceOpacityMFP GetInitialisedSubsurfaceOpacityMFP()
 	return SubsurfaceOpacityMFP;
 }
 
-float StrataShadowMFPToExtinction(float MFP)
+float SubstrateShadowMFPToExtinction(float MFP)
 {
 	const float Extinction = 1.0f / max(0.00001f, MFP);
 	return Extinction;
 }
 
-float StrataShadowColoredMFPToGreyScaleMFP(float3 MFP)
+float SubstrateShadowColoredMFPToGreyScaleMFP(float3 MFP)
 {
 	return dot(MFP, (1.0f / 3.0f).xxx);
 }
 
-// Legacy conversion function, which translated Strata sub-surface data into 'opacity' for shadow transmission purpose. 
-FSubsurfaceOpacityMFP StrataGetSubsurfaceOpacityMFP(FStrataSubsurfaceHeader SSSHeader)
+// Legacy conversion function, which translated Substrate sub-surface data into 'opacity' for shadow transmission purpose. 
+FSubsurfaceOpacityMFP SubstrateGetSubsurfaceOpacityMFP(FSubstrateSubsurfaceHeader SSSHeader)
 {
 	FSubsurfaceOpacityMFP SubsurfaceOpacityMFP = GetInitialisedSubsurfaceOpacityMFP();
 
-	const uint SSSType = StrataSubSurfaceHeaderGetSSSType(SSSHeader);
+	const uint SSSType = SubstrateSubSurfaceHeaderGetSSSType(SSSHeader);
 
 	if (SSSType == SSS_TYPE_DIFFUSION)
 	{
 		SubsurfaceOpacityMFP.bDataIsOpacity = false;
-		const float3 ColoredMFP = StrataSubSurfaceHeaderGetMFP(SSSHeader);
-		SubsurfaceOpacityMFP.Data = StrataShadowColoredMFPToGreyScaleMFP(ColoredMFP);
+		const float3 ColoredMFP = SubstrateSubSurfaceHeaderGetMFP(SSSHeader);
+		SubsurfaceOpacityMFP.Data = SubstrateShadowColoredMFPToGreyScaleMFP(ColoredMFP);
 		SubsurfaceOpacityMFP.Density = 0.0f;
 	}
 	else if (SSSType == SSS_TYPE_DIFFUSION_PROFILE)
 	{
 		SubsurfaceOpacityMFP.bDataIsOpacity = true;
 
-		const float ProfileRadiusScale = StrataSubSurfaceHeaderGetProfileRadiusScale(SSSHeader);
+		const float ProfileRadiusScale = SubstrateSubSurfaceHeaderGetProfileRadiusScale(SSSHeader);
 		// This clamp aligns with SubsurfaceDensityFromOpacity
 		// Various engine paths treat these subsurface materials differently
 		// even when they have Opacity = 1 in the material shader, so this is
@@ -272,7 +272,7 @@ FSubsurfaceOpacityMFP StrataGetSubsurfaceOpacityMFP(FStrataSubsurfaceHeader SSSH
 		const float Opacity = min(ProfileRadiusScale, 0.99f);
 		SubsurfaceOpacityMFP.Data = Opacity;
 
-		FTransmissionProfileParams TransmissionParams = GetTransmissionProfileParams(StrataSubSurfaceHeaderGetProfileId(SSSHeader));
+		FTransmissionProfileParams TransmissionParams = GetTransmissionProfileParams(SubstrateSubSurfaceHeaderGetProfileId(SSSHeader));
 		SubsurfaceOpacityMFP.Density = SubsurfaceDensityFromOpacity(SubsurfaceOpacityMFP.Data) * TransmissionParams.ExtinctionScale * 3.1f;	// This matches the weird computations done in CalcTransmissionThickness
 	}
 	else if (SSSType == SSS_TYPE_WRAP)
@@ -284,7 +284,7 @@ FSubsurfaceOpacityMFP StrataGetSubsurfaceOpacityMFP(FStrataSubsurfaceHeader SSSH
 		// even when they have Opacity = 1 in the material shader, so this is
 		// important to avoid things like backface transmission being shadowed by
 		// contact shadows and so on.
-		const float Opacity = min(StrataSubSurfaceHeaderGetWrapOpacity(SSSHeader), 0.99f);
+		const float Opacity = min(SubstrateSubSurfaceHeaderGetWrapOpacity(SSSHeader), 0.99f);
 		SubsurfaceOpacityMFP.Data = Opacity;
 		SubsurfaceOpacityMFP.Density = SubsurfaceDensityFromOpacity(SubsurfaceOpacityMFP.Data);
 	}

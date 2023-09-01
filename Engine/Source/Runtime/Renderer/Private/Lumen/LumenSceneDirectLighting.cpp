@@ -646,6 +646,7 @@ class FLumenDirectLightingNonRayTracedShadowsCS : public FGlobalShader
 		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
 		OutEnvironment.SetDefine(TEXT("LIGHT_FUNCTION"), 0);
 		OutEnvironment.SetDefine(TEXT("USE_IES_PROFILE"), 1);
+		OutEnvironment.SetDefine(TEXT("SUBSTRATE_INLINE_SHADING"), 1);
 	}
 };
 
@@ -703,8 +704,8 @@ class FLumenDirectLightingNonRayTracedShadowsWithLightFunctionCS : public FMater
 		FMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
 		OutEnvironment.SetDefine(TEXT("LIGHT_FUNCTION"), 1);
-		OutEnvironment.SetDefine(TEXT("STRATA_INLINE_SHADING"), 1);
 		OutEnvironment.SetDefine(TEXT("USE_IES_PROFILE"), 1);
+		OutEnvironment.SetDefine(TEXT("SUBSTRATE_INLINE_SHADING"), 1);
 	}
 };
 

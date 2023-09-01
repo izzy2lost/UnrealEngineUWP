@@ -2183,7 +2183,7 @@ void UMaterialInstance::UpdateOverridableBaseProperties()
 		}
 	}
 
-	if (Strata::IsStrataEnabled())
+	if (Substrate::IsSubstrateEnabled())
 	{
 		BasePropertyOverrides.BlendMode = ConvertLegacyBlendMode(BasePropertyOverrides.BlendMode, ShadingModels);
 		BlendMode = ConvertLegacyBlendMode(Parent->GetBlendMode(), ShadingModels);
@@ -4042,8 +4042,8 @@ void UMaterialInstance::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 		ValidateStaticPermutationAllowed();
 	}
 
-	// If BLEND_TranslucentColoredTransmittance is selected while Strata is not enabled, force BLEND_Translucent blend mode
-	if (!Strata::IsStrataEnabled())
+	// If BLEND_TranslucentColoredTransmittance is selected while Substrate is not enabled, force BLEND_Translucent blend mode
+	if (!Substrate::IsSubstrateEnabled())
 	{
 		SanitizeBlendMode(BlendMode);
 		SanitizeBlendMode(BasePropertyOverrides.BlendMode);

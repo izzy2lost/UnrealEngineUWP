@@ -3151,8 +3151,8 @@ public:
 	/** The runtime virtual textures in the scene. */
 	TSparseArray<FRuntimeVirtualTextureSceneProxy*> RuntimeVirtualTextures;
 
-	/** Strata data shared between all views. */
-	FStrataSceneData StrataSceneData;
+	/** Substrate data shared between all views. */
+	FSubstrateSceneData SubstrateSceneData;
 
 	/** Mask used to determine whether primitives that draw to a runtime virtual texture should also be drawn in the main pass. */
 	uint8 RuntimeVirtualTexturePrimitiveHideMaskEditor;

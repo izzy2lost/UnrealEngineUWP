@@ -180,9 +180,9 @@ void MaterialExpressionClasses::InitMaterialExpressionClasses()
 								}
 							}
 
-							// Skip adding Strata node to the context menu if Strata is disabled
-							// STRATA_TODO: remove this when Strata becomes the only shading path
-							if ((Class->IsChildOf(UMaterialExpressionSubstrateBSDF::StaticClass()) || Class->IsChildOf(UMaterialExpressionSubstrateUtilityBase::StaticClass())) && !Strata::IsStrataEnabled())
+							// Skip adding Substrate node to the context menu if Substrate is disabled
+							// SUBSTRATE_TODO: remove this when Substrate becomes the only shading path
+							if ((Class->IsChildOf(UMaterialExpressionSubstrateBSDF::StaticClass()) || Class->IsChildOf(UMaterialExpressionSubstrateUtilityBase::StaticClass())) && !Substrate::IsSubstrateEnabled())
 							{
 								continue;
 							}

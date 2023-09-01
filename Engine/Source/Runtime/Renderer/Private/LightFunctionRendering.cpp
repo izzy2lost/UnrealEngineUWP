@@ -97,7 +97,7 @@ public:
 	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("STRATA_INLINE_SHADING"), 1);
+		OutEnvironment.SetDefine(TEXT("SUBSTRATE_INLINE_SHADING"), 1);
 		OutEnvironment.SetDefine(TEXT("HAIR_STRANDS_SUPPORTED"), IsHairStrandsSupported(EHairStrandsShaderType::Strands, Parameters.Platform) ? 1 : 0);
 	}
 

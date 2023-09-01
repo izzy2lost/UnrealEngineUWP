@@ -253,8 +253,8 @@ FGBufferInfo RENDERCORE_API FetchLegacyGBufferInfo(const FGBufferParams& Params)
 	int32 TargetVelocity = -1;
 	int32 TargetSeparatedMainDirLight = -1;
 
-	// Strata outputs material data through UAV. Only SceneColor, PrecalcShadow & Velocity data are still emitted through RenderTargets
-	if (Strata::IsStrataEnabled())
+	// Substrate outputs material data through UAV. Only SceneColor, PrecalcShadow & Velocity data are still emitted through RenderTargets
+	if (Substrate::IsSubstrateEnabled())
 	{
 		TargetGBufferA = -1;
 		TargetGBufferB = -1;

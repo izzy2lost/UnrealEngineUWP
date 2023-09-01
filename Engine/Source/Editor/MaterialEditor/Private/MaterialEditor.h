@@ -46,7 +46,7 @@ struct FGraphAppearanceInfo;
 class UMaterialFunctionInstance;
 class FMaterialCachedHLSLTree;
 struct FMaterialCachedExpressionData;
-class SMaterialEditorStrataWidget;
+class SMaterialEditorSubstrateWidget;
 
 typedef TSet<class UObject*> FGraphPanelSelectionSet;
 
@@ -148,7 +148,7 @@ public:
 		return Expression.Get();
 	}
 
-	// This material interface is solely needed for the translator to be able to parse the graph for the Strata tree.
+	// This material interface is solely needed for the translator to be able to parse the graph for the Substrate tree.
 	virtual UMaterialInterface* GetMaterialInterface() const override;
 
 	virtual void NotifyCompilationFinished() override;
@@ -705,7 +705,7 @@ private:
 	bool IsFeaturePreviewAvailable(ERHIFeatureLevel::Type TestFeatureLevel) const;
 
 	/** Update Substrate topology preview */
-	void UpdateStrataTopologyPreview();
+	void UpdateSubstrateTopologyPreview();
 
 public:
 
@@ -810,17 +810,17 @@ private:
 	/** Will  return the UClass to create from the Pin Type */
 	UClass* GetOnPromoteToParameterClass(const UEdGraphPin* TargetPin) const;
 
-	enum class EStrataNodeForPin : uint8
+	enum class ESubstrateNodeForPin : uint8
 	{
 		Slab,
 		HorizontalMix,
 		VerticalLayer,
 		Weight
 	};
-	/** Will create a Strata node as input to the pin */
-	void OnCreateStrataNodeForPin(const FToolMenuContext& InMenuContext, EStrataNodeForPin NodeForPin) const;
-	/** Used to know if we can create a Strata node as input to the pin */
-	bool OnCanCreateStrataNodeForPin(const FToolMenuContext& InMenuContext, EStrataNodeForPin NodeForPin) const;
+	/** Will create a Substrate node as input to the pin */
+	void OnCreateSubstrateNodeForPin(const FToolMenuContext& InMenuContext, ESubstrateNodeForPin NodeForPin) const;
+	/** Used to know if we can create a Substrate node as input to the pin */
+	bool OnCanCreateSubstrateNodeForPin(const FToolMenuContext& InMenuContext, ESubstrateNodeForPin NodeForPin) const;
 
 	/** Open documentation for the selected node class */
 	void OnGoToDocumentation();
@@ -928,7 +928,7 @@ private:
 	TSharedRef<SDockTab> SpawnTab_ParameterDefaults(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_CustomPrimitiveData(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_LayerProperties(const FSpawnTabArgs& Args);
-	TSharedRef<SDockTab> SpawnTab_Strata(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_Substrate(const FSpawnTabArgs& Args);
 
 	void OnFinishedChangingProperties(const FPropertyChangedEvent& PropertyChangedEvent);
 	void OnFinishedChangingParametersFromOverview(const FPropertyChangedEvent& PropertyChangedEvent);
@@ -955,8 +955,8 @@ private:
 	/** Palette of Material Expressions and functions */
 	TSharedPtr<class SMaterialPalette> Palette;
 
-	/** The strata control tab */
-	TSharedPtr<class SMaterialEditorStrataWidget> StrataWidget;
+	/** The Substrate control tab */
+	TSharedPtr<class SMaterialEditorSubstrateWidget> SubstrateWidget;
 
 	/** Stats log, with the log listing that it reflects */
 	TSharedPtr<class SWidget> Stats;

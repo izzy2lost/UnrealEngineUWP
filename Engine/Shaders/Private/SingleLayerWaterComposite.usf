@@ -62,12 +62,12 @@ SingleLayerWaterCompositeOutput SingleLayerWaterComposite(float2 BufferUV, float
 
 	float4 EffectiveSceneNoWaterMinMaxUV = SceneNoWaterMinMaxUV;
 
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 
 	// Water do nto read the classification data to avoid running it a second time when water is enabled.
-	FStrataAddressing StrataAddressing = GetStrataPixelDataByteOffset(SvPosition.xy, uint2(View.BufferSizeAndInvSize.xy), Strata.MaxBytesPerPixel);
-	FStrataPixelHeader StrataPixelHeader = UnpackStrataHeaderIn(Strata.MaterialTextureArray, StrataAddressing, Strata.TopLayerTexture);
-	if (StrataPixelHeader.BSDFCount > 0 && StrataPixelHeader.IsSingleLayerWater())
+	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(SvPosition.xy, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
+	FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
+	if (SubstratePixelHeader.BSDFCount > 0 && SubstratePixelHeader.IsSingleLayerWater())
 	{
 		float DeviceZ = SampleDeviceZFromSceneTextures(BufferUV);
 		float SceneDepth = ConvertFromDeviceZ(DeviceZ);
@@ -87,8 +87,8 @@ SingleLayerWaterCompositeOutput SingleLayerWaterComposite(float2 BufferUV, float
 		float DeltaDepth = CameraIsUnderWater ? WaterDepth : OpaqueDepth - WaterDepth;	// Inverted depth
 		if (DeltaDepth > 0.0)
 		{
-			const FStrataBSDF SLWaterBSDF = UnpackStrataBSDFIn(Strata.MaterialTextureArray, StrataAddressing, StrataPixelHeader);
-			const float3 WorldNormal = StrataGetBSDFSharedBasis(StrataPixelHeader, SLWaterBSDF, StrataAddressing)[2];
+			const FSubstrateBSDF SLWaterBSDF = UnpackSubstrateBSDFIn(Substrate.MaterialTextureArray, SubstrateAddressing, SubstratePixelHeader);
+			const float3 WorldNormal = SubstrateGetBSDFSharedBasis(SubstratePixelHeader, SLWaterBSDF, SubstrateAddressing)[2];
 			const float3 F0 = ComputeF0(SLW_SPECULAR(SLWaterBSDF), SLW_BASECOLOR(SLWaterBSDF), SLW_METALLIC(SLWaterBSDF));
 			const float Roughness = SLW_ROUGHNESS(SLWaterBSDF);
 			const float SafeRoughness = MakeRoughnessSafe(Roughness);
@@ -148,12 +148,12 @@ SingleLayerWaterCompositeOutput SingleLayerWaterComposite(float2 BufferUV, float
 			float4 SSR = Texture2DSample(ScreenSpaceReflectionsTexture, ScreenSpaceReflectionsSampler, BufferUV);
 			Reflection = SSR.rgb + Reflection * (1 - SSR.a);
 
-			const float3 BSDFCoverage = 1.0f;	// Since the SLW BSDF is always isolated and composited onto the strata material buffer, this is assumed to be 1 here.
+			const float3 BSDFCoverage = 1.0f;	// Since the SLW BSDF is always isolated and composited onto the Substrate material buffer, this is assumed to be 1 here.
 
 			// The specular over the water in completely in the hand of the user. We do not fade out metalness for instance.
 			float3 EnvBrdfValue = BSDFCoverage * EnvBRDF(F0, SafeRoughness, saturate(NoV));
 
-#else // STRATA_ENABLED
+#else // SUBSTRATE_ENABLED
 
 	// Sample scene textures.
 	FGBufferData GBuffer = GetGBufferDataFromSceneTextures(BufferUV);
@@ -233,7 +233,7 @@ SingleLayerWaterCompositeOutput SingleLayerWaterComposite(float2 BufferUV, float
 				SeparatedMainDirLightContribution = SeparatedMainDirLightTexture[PixelPos].rgb;
 			}
 
-#endif // STRATA_ENABLED
+#endif // SUBSTRATE_ENABLED
 
 			Reflection *= EnvBrdfValue;
 
@@ -292,10 +292,10 @@ bool DoesPixelContainWater(uint2 PixelPos)
 	uint Stencil = WaterDepthStencilTexture.Load(uint3(PixelPos, 0)) STENCIL_COMPONENT_SWIZZLE;
 	return (Stencil & 1U) != 0U;
 #else // !USE_WATER_PRE_PASS_STENCIL
-#if STRATA_ENABLED
-	FStrataAddressing StrataAddressing = GetStrataPixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Strata.MaxBytesPerPixel);
-	FStrataPixelHeader StrataPixelHeader = UnpackStrataHeaderIn(Strata.MaterialTextureArray, StrataAddressing, Strata.TopLayerTexture);
-	return (StrataPixelHeader.BSDFCount > 0 && StrataPixelHeader.IsSingleLayerWater());
+#if SUBSTRATE_ENABLED
+	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
+	FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
+	return (SubstratePixelHeader.BSDFCount > 0 && SubstratePixelHeader.IsSingleLayerWater());
 #else
 	float2 BufferUV = (PixelPos + 0.5f) * View.BufferSizeAndInvSize.zw;
 	FGBufferData GBuffer = GetGBufferDataFromSceneTextures(BufferUV);

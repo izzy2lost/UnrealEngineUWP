@@ -11,11 +11,11 @@
 // They are also used to present material information in the editor UI.
 
 
-struct FStrataRegisteredSharedLocalBasis
+struct FSubstrateRegisteredSharedLocalBasis
 {
-	DECLARE_TYPE_LAYOUT(FStrataRegisteredSharedLocalBasis, NonVirtual);
+	DECLARE_TYPE_LAYOUT(FSubstrateRegisteredSharedLocalBasis, NonVirtual);
 public:
-	FStrataRegisteredSharedLocalBasis();
+	FSubstrateRegisteredSharedLocalBasis();
 
 	LAYOUT_FIELD_EDITORONLY(int32, NormalCodeChunk);
 	LAYOUT_FIELD_EDITORONLY(int32, TangentCodeChunk);
@@ -24,11 +24,11 @@ public:
 	LAYOUT_FIELD_EDITORONLY(uint8, GraphSharedLocalBasisIndex);
 };
 
-struct FStrataOperator
+struct FSubstrateOperator
 {
-	DECLARE_TYPE_LAYOUT(FStrataOperator, NonVirtual);
+	DECLARE_TYPE_LAYOUT(FSubstrateOperator, NonVirtual);
 public:
-	FStrataOperator();
+	FSubstrateOperator();
 
 	// !!!!!!!!!!
 	// Not using LAYOUT_BITFIELD_EDITORONLY because it seems to cause issue with bit being shifted around when copy happens.
@@ -47,7 +47,7 @@ public:
 	// Data used for BSDF type nodes only
 	LAYOUT_FIELD_EDITORONLY(int32, BSDFIndex);		// Index in the array of BSDF if a BSDF operator
 	LAYOUT_FIELD_EDITORONLY(int32, BSDFType);
-	LAYOUT_FIELD_EDITORONLY(FStrataRegisteredSharedLocalBasis, BSDFRegisteredSharedLocalBasis);
+	LAYOUT_FIELD_EDITORONLY(FSubstrateRegisteredSharedLocalBasis, BSDFRegisteredSharedLocalBasis);
 	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFHasSSS);
 	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFHasMFPPluggedIn);
 	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFHasEdgeColor);
@@ -65,16 +65,16 @@ public:
 
 	LAYOUT_FIELD_EDITORONLY(uint8, bUseParameterBlending);			// True when part of a sub tree where parameter blending is in use
 	LAYOUT_FIELD_EDITORONLY(uint8, bRootOfParameterBlendingSubTree);// True when the root of a sub tree where parameter blending is in use. Only this node will register a BSDF
-	LAYOUT_FIELD_EDITORONLY(FGuid, MaterialExpressionGuid);			// Material expression Guid for mapping between UMaterialExpression and FStrataOperator
+	LAYOUT_FIELD_EDITORONLY(FGuid, MaterialExpressionGuid);			// Material expression Guid for mapping between UMaterialExpression and FSubstrateOperator
 
-	void CombineFlagsForParameterBlending(FStrataOperator& A, FStrataOperator& B);
+	void CombineFlagsForParameterBlending(FSubstrateOperator& A, FSubstrateOperator& B);
 
-	void CopyFlagsForParameterBlending(FStrataOperator& A);
+	void CopyFlagsForParameterBlending(FSubstrateOperator& A);
 
 	bool IsDiscarded() const;
 };
 
-#define STRATA_COMPILATION_OUTPUT_MAX_OPERATOR 24
+#define SUBSTRATE_COMPILATION_OUTPUT_MAX_OPERATOR 24
 
 
 #define SUBSTRATE_MATERIAL_TYPE_SINGLESLAB			0
@@ -89,25 +89,25 @@ public:
 #define SUBSTRATE_MATERIAL_TYPE_UI					9
 #define SUBSTRATE_MATERIAL_TYPE_DECAL				10
 
-struct FStrataMaterialCompilationOutput
+struct FSubstrateMaterialCompilationOutput
 {
-	DECLARE_TYPE_LAYOUT(FStrataMaterialCompilationOutput, NonVirtual);
+	DECLARE_TYPE_LAYOUT(FSubstrateMaterialCompilationOutput, NonVirtual);
 public:
 
-	FStrataMaterialCompilationOutput();
+	FSubstrateMaterialCompilationOutput();
 
 	////
 	//// The following data is required at runtime
 	////
 
-	/** Strata material type, at compile time (0:simple, 1:single, 2: complex) */
-	LAYOUT_FIELD(uint8, StrataMaterialType);
+	/** Substrate material type, at compile time (0:simple, 1:single, 2: complex) */
+	LAYOUT_FIELD(uint8, SubstrateMaterialType);
 
-	/** Strata BSDF count, at compile time (0-7) */
-	LAYOUT_FIELD(uint8, StrataBSDFCount);
+	/** Substrate BSDF count, at compile time (0-7) */
+	LAYOUT_FIELD(uint8, SubstrateBSDFCount);
 
-	/** Strata uint per pixel, at compile time (0-255) */
-	LAYOUT_FIELD(uint8, StrataUintPerPixel);
+	/** Substrate uint per pixel, at compile time (0-255) */
+	LAYOUT_FIELD(uint8, SubstrateUintPerPixel);
 
 	/** If Glints or SpecularLUT are used, we need to go the special more expenssive render path */
 	LAYOUT_BITFIELD(uint8, bUsesComplexSpecialRenderPath, 1);
@@ -117,10 +117,10 @@ public:
 	////
 
 	// Note we use LAYOUT_FIELD_EDITORONLY for bools because LAYOUT_BITFIELD_EDITORONLY was causing issues when serialising the structure.
-	// STRATA_TODO pack that data.
+	// SUBSTRATE_TODO pack that data.
 
-	/** The Strata verbose description */
-	LAYOUT_FIELD_EDITORONLY(FMemoryImageString, StrataMaterialDescription);
+	/** The Substrate verbose description */
+	LAYOUT_FIELD_EDITORONLY(FMemoryImageString, SubstrateMaterialDescription);
 
 	/** The number of local normal/tangent bases */
 	LAYOUT_FIELD_EDITORONLY(uint8, SharedLocalBasesCount);
@@ -138,6 +138,6 @@ public:
 	LAYOUT_FIELD_EDITORONLY(uint8, bMaterialOutOfBudgetHasBeenSimplified, 1);
 
 	LAYOUT_FIELD_EDITORONLY(uint8, RootOperatorIndex);
-	LAYOUT_ARRAY_EDITORONLY(FStrataOperator, Operators, STRATA_COMPILATION_OUTPUT_MAX_OPERATOR);
+	LAYOUT_ARRAY_EDITORONLY(FSubstrateOperator, Operators, SUBSTRATE_COMPILATION_OUTPUT_MAX_OPERATOR);
 };
 

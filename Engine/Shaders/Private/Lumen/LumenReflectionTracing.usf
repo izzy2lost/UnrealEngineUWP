@@ -69,7 +69,7 @@ void ReflectionTraceScreenTexturesCS(
 
 			float3 TranslatedRayOrigin = TranslatedWorldPosition;
 
-#if !STRATA_ENABLED
+#if !SUBSTRATE_ENABLED
 			// Bias along the normal to avoid self-intersecting camera facing scene depth texels
 			// HZB traversal uses point filtering, so scene depth texels stick out from the plane they are representing
 			{

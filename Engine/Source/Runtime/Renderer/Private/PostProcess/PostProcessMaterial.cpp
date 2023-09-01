@@ -137,7 +137,7 @@ static FRHIBlendState* GetMaterialBlendState(const FMaterial* Material)
 
 	check(Material);
 
-	if (Strata::IsStrataEnabled())
+	if (Substrate::IsSubstrateEnabled())
 	{
 		switch (Material->GetBlendMode())
 		{
@@ -258,9 +258,9 @@ public:
 			OutEnvironment.SetDefine(TEXT("POST_PROCESS_MATERIAL_BEFORE_TONEMAP"), (Parameters.MaterialParameters.BlendableLocation != BL_AfterTonemapping) ? 1 : 0);
 		}
 
-		// PostProcessMaterial can both read & write Strata data
-		OutEnvironment.SetDefine(TEXT("STRATA_INLINE_SHADING"), 1);
-		OutEnvironment.SetDefine(TEXT("STRATA_DEFERRED_SHADING"), 1);
+		// PostProcessMaterial can both read & write Substrate data
+		OutEnvironment.SetDefine(TEXT("SUBSTRATE_INLINE_SHADING"), 1);
+		OutEnvironment.SetDefine(TEXT("SUBSTRATE_DEFERRED_SHADING"), 1);
 	}
 
 	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FViewInfo& View, const FMaterialRenderProxy* Proxy, const FMaterial& Material)
@@ -593,7 +593,7 @@ FScreenPassTexture AddPostProcessMaterialPass(
 		PostProcessMaterialParameters->PathTracingPostProcessInput[InputIndex] = GetScreenPassTextureInput(Input, PointClampSampler);
 	}
 
-	PostProcessMaterialParameters->Strata = Strata::BindStrataGlobalUniformParameters(View);
+	PostProcessMaterialParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 
 	// SceneDepthWithoutWater
 	const bool bHasValidSceneDepthWithoutWater = Inputs.SceneWithoutWaterTextures && Inputs.SceneWithoutWaterTextures->DepthTexture;

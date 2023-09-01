@@ -52,7 +52,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FCommonParameters, )
 
 	// Scene textures and its sampler.
 	SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FStrataGlobalUniformParameters, Strata)
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
 END_SHADER_PARAMETER_STRUCT()
 
 } // HybridIndirectLighting

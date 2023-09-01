@@ -20,7 +20,7 @@ namespace DecalRendering
 	/** Finalize the initialization of FDecalBlendDesc after BlendMode and bWrite flags have all been set. */
 	void FinalizeBlendDesc(EShaderPlatform Platform, FDecalBlendDesc& Desc)
 	{
-		const bool bIsStrataEnabled = Strata::IsStrataEnabled();
+		const bool bIsSubstrateEnabled = Substrate::IsSubstrateEnabled();
 		const bool bIsMobilePlatform = IsMobilePlatform(Platform);
 		const bool bIsMobileDeferredPlatform = bIsMobilePlatform && IsMobileDeferredShadingEnabled(Platform);
 		const bool bIsDBufferPlatform = !bIsMobilePlatform && IsUsingDBuffers(Platform);
@@ -87,13 +87,13 @@ namespace DecalRendering
 	FDecalBlendDesc ComputeDecalBlendDesc(EShaderPlatform Platform, const FMaterial& Material)
 	{
 		FDecalBlendDesc Desc;
-		if (Strata::IsStrataEnabled())
+		if (Substrate::IsSubstrateEnabled())
 		{
-			check(Material.IsStrataMaterial());
+			check(Material.IsSubstrateMaterial());
 
 			const bool bUseDiffuseAlbedoAndF0 =
-				Material.HasMaterialPropertyConnected(EMaterialProperty::MP_DiffuseColor) ||	// This is used for Strata Slab using (DiffuseAlbedo | F0) parameterization
-				Material.HasMaterialPropertyConnected(EMaterialProperty::MP_SpecularColor);	// This is used for Strata Slab using (DiffuseAlbedo | F0) parameterization
+				Material.HasMaterialPropertyConnected(EMaterialProperty::MP_DiffuseColor) ||	// This is used for Substrate Slab using (DiffuseAlbedo | F0) parameterization
+				Material.HasMaterialPropertyConnected(EMaterialProperty::MP_SpecularColor);	// This is used for Substrate Slab using (DiffuseAlbedo | F0) parameterization
 
 			Desc.BlendMode = Material.GetBlendMode();
 			Desc.bWriteBaseColor = Material.HasMaterialPropertyConnected(EMaterialProperty::MP_BaseColor) || bUseDiffuseAlbedoAndF0;
@@ -124,7 +124,7 @@ namespace DecalRendering
 	FDecalBlendDesc ComputeDecalBlendDesc(EShaderPlatform Platform, FMaterialShaderParameters const& MaterialShaderParameters)
 	{
 		FDecalBlendDesc Desc;
-		if (Strata::IsStrataEnabled())
+		if (Substrate::IsSubstrateEnabled())
 		{
 			const bool bUseDiffuseAlbedoAndF0 = 
 				MaterialShaderParameters.bHasDiffuseAlbedoConnected || 
@@ -918,9 +918,9 @@ namespace DecalRendering
 		OutEnvironment.SetDefine(TEXT("DECAL_RENDERTARGETMODE_SCENECOLOR"), (uint32)EDecalRenderTargetMode::SceneColor);
 		OutEnvironment.SetDefine(TEXT("DECAL_RENDERTARGETMODE_AO"), (uint32)EDecalRenderTargetMode::AmbientOcclusion);
 
-		// Decals needs to both read Strata data (deferred path) and write (inline path)
-		OutEnvironment.SetDefine(TEXT("STRATA_INLINE_SHADING"), 1);
-		OutEnvironment.SetDefine(TEXT("STRATA_DEFERRED_SHADING"), 1);
+		// Decals needs to both read Substrate data (deferred path) and write (inline path)
+		OutEnvironment.SetDefine(TEXT("SUBSTRATE_INLINE_SHADING"), 1);
+		OutEnvironment.SetDefine(TEXT("SUBSTRATE_DEFERRED_SHADING"), 1);
 
 		if (IsMobilePlatform(Platform))
 		{

@@ -18,9 +18,9 @@ void GetEyeNormals(
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-struct FStrataLegacyParameters
+struct FSubstrateLegacyParameters
 {
-	FStrataPixelFootprint PixelFootprint;
+	FSubstratePixelFootprint PixelFootprint;
 	bool UseMetalness;
 	float3 DiffuseAlbedo;
 	float3 F0;
@@ -49,11 +49,11 @@ struct FStrataLegacyParameters
 	float Weight;
 };
 
-FStrataLegacyParameters InitStrataLegacyParameters(FStrataPixelFootprint InPixelFootprint, uint InSharedLocalBasisIndex, float InWeight)
+FSubstrateLegacyParameters InitSubstrateLegacyParameters(FSubstratePixelFootprint InPixelFootprint, uint InSharedLocalBasisIndex, float InWeight)
 {
 	const float3 Zeros = float3(0, 0, 0);
 
-	FStrataLegacyParameters Out;
+	FSubstrateLegacyParameters Out;
 
 	Out.UseMetalness = true;
 	Out.DiffuseAlbedo = Zeros;
@@ -76,7 +76,7 @@ FStrataLegacyParameters InitStrataLegacyParameters(FStrataPixelFootprint InPixel
 	Out.SecondRoughnessAsSimpleClearCoat = false;
 	Out.FuzzAmount = 0.f;
 	Out.FuzzColor = Zeros;
-	Out.Thickness = STRATA_LAYER_DEFAULT_THICKNESS_CM;
+	Out.Thickness = SUBSTRATE_LAYER_DEFAULT_THICKNESS_CM;
 	Out.bIsThinSurface = false;
 	Out.SharedLocalBasisIndex = InSharedLocalBasisIndex;
 	Out.Weight = InWeight;
@@ -84,8 +84,8 @@ FStrataLegacyParameters InitStrataLegacyParameters(FStrataPixelFootprint InPixel
 	return Out;
 }
 
-FStrataData CreateLegacySlab(
-	FStrataLegacyParameters In, inout uint SharedLocalBasisTypes)
+FSubstrateData CreateLegacySlab(
+	FSubstrateLegacyParameters In, inout uint SharedLocalBasisTypes)
 {
 	const float3 Zeros = float3(0, 0, 0);
 	const float3 Ones  = float3(1, 1, 1);
@@ -101,7 +101,7 @@ FStrataData CreateLegacySlab(
 	}
 
 	// Fixed layer structure for helping compiler to unroll and optimize shader
-	return GetStrataSlabBSDF(
+	return GetSubstrateSlabBSDF(
 		In.PixelFootprint,
 		DiffuseAlbedo,										// DiffuseAlbedo
 		F0,													// F0
@@ -131,10 +131,10 @@ FStrataData CreateLegacySlab(
 // Convert legacy shading models - Dynamic
 // This function can handle dynamic shading models (i.e., known only at runtime). 
 // For this, the layer topology is 'fixed' and composed of two slabs vertically layered. This is done for 
-// helping the compiler to unroll Strata BSDF traversing and packing. In most cases, the bottom slab is 
+// helping the compiler to unroll Substrate BSDF traversing and packing. In most cases, the bottom slab is 
 // weighted by 0 and it will be removed once the data are written-out/packed.
-FStrataData StrataConvertLegacyMaterialDynamic(
-	FStrataPixelFootprint PixelFootprint,
+FSubstrateData SubstrateConvertLegacyMaterialDynamic(
+	FSubstratePixelFootprint PixelFootprint,
 	float3 BaseColor, float Specular, float Metallic,
 	float Roughness, float Anisotropy,
 	float3 SubSurfaceColor, float SubSurfaceProfileId,
@@ -152,7 +152,7 @@ FStrataData StrataConvertLegacyMaterialDynamic(
 	uint ClearCoatBottomNormal_SharedLocalBasisIndex,
 	inout uint SharedLocalBasisTypes)
 {
-	const float DefaultThickness = STRATA_LAYER_DEFAULT_THICKNESS_CM;
+	const float DefaultThickness = SUBSTRATE_LAYER_DEFAULT_THICKNESS_CM;
 	const float3 Zeros = float3(0, 0, 0);
 	const float3 Ones  = float3(1, 1, 1);
 
@@ -165,7 +165,7 @@ FStrataData StrataConvertLegacyMaterialDynamic(
 		const float3 WaterExtinction = WaterScatteringCoefficients + WaterAbsorptionCoefficients;
 		const float3 WaterAlbedo = WaterScatteringCoefficients / WaterExtinction;
 
-		return GetStrataSingleLayerWaterBSDF(
+		return GetSubstrateSingleLayerWaterBSDF(
 			BaseColor, 				// BaseColor
 			Metallic, 				// Metallic 
 			Specular, 				// Specular
@@ -182,7 +182,7 @@ FStrataData StrataConvertLegacyMaterialDynamic(
 	#if MATERIAL_SHADINGMODEL_HAIR
 	if (ShadingModel == SHADINGMODELID_HAIR)
 	{
-		return GetStrataHairBSDF(
+		return GetSubstrateHairBSDF(
 			BaseColor,	   // BaseColor
 			Metallic,	   // Scatter
 			Specular,	   // Specular
@@ -202,7 +202,7 @@ FStrataData StrataConvertLegacyMaterialDynamic(
 		float3 IrisPlaneNormal = RawNormal;
 		GetEyeNormals(IrisMask, IrisDistance, RawNormal, RawClearCoatNormal, RawCustomTangent, IrisNormal, IrisPlaneNormal);
 
-		return GetStrataEyeBSDF(
+		return GetSubstrateEyeBSDF(
 				BaseColor,	         // DiffuseAlbedo
 				Roughness,	         // Roughness
 				IrisMask,	         // IrisMask
@@ -215,7 +215,7 @@ FStrataData StrataConvertLegacyMaterialDynamic(
 	}
 	#endif // MATERIAL_SHADINGMODEL_EYE
 
-	FStrataLegacyParameters LegacySlab = InitStrataLegacyParameters(PixelFootprint, SharedLocalBasisIndex, 1.0f);
+	FSubstrateLegacyParameters LegacySlab = InitSubstrateLegacyParameters(PixelFootprint, SharedLocalBasisIndex, 1.0f);
 
 	float FinalWeight = 1.0f;
 
@@ -230,7 +230,7 @@ FStrataData StrataConvertLegacyMaterialDynamic(
 		LegacySlab.Emissive = Emissive;
 
 		FinalWeight = 1.0f;
-#if STRATA_TRANSLUCENT_MATERIAL
+#if SUBSTRATE_TRANSLUCENT_MATERIAL
 		FinalWeight = Opacity;
 #endif
 	}
@@ -244,13 +244,13 @@ FStrataData StrataConvertLegacyMaterialDynamic(
 		LegacySlab.Emissive = Emissive;
 
 		FinalWeight = 1.0f;
-#if STRATA_TRANSLUCENT_MATERIAL
+#if SUBSTRATE_TRANSLUCENT_MATERIAL
 		FinalWeight = Opacity;
 #endif
 	}
 	else if (ShadingModel == SHADINGMODELID_SUBSURFACE)
 	{
-		const float ThicknessInCm = STRATA_SIMPLEVOLUME_THICKNESS_CM;
+		const float ThicknessInCm = SUBSTRATE_SIMPLEVOLUME_THICKNESS_CM;
 		const float3 MFPInCm = TransmittanceToMeanFreePath(SubSurfaceColor, ThicknessInCm * CENTIMETER_TO_METER) * METER_TO_CENTIMETER;
 
 		LegacySlab.BaseColor = BaseColor;
@@ -267,8 +267,8 @@ FStrataData StrataConvertLegacyMaterialDynamic(
 
 		FinalWeight = 1.0f;
 
-#if STRATA_TRANSLUCENT_MATERIAL
-		// STRATA_TODO 
+#if SUBSTRATE_TRANSLUCENT_MATERIAL
+		// SUBSTRATE_TODO 
 		// If we try to reduce the diffusion according to transmittance that will increase mfp and make the material disapear (make it optically thin).
 		// Instead for now we use a mfp of 0 and make the material vanish according to opacity.
 		// All this will be fixed when this material will be converted to LUT.
@@ -301,7 +301,7 @@ FStrataData StrataConvertLegacyMaterialDynamic(
 		LegacySlab.Emissive = Emissive;
 
 		FinalWeight = 1.0f;
-#if STRATA_TRANSLUCENT_MATERIAL
+#if SUBSTRATE_TRANSLUCENT_MATERIAL
 		FinalWeight = Opacity;
 #endif
 	}
@@ -319,7 +319,7 @@ FStrataData StrataConvertLegacyMaterialDynamic(
 		LegacySlab.Emissive = Emissive;
 
 		FinalWeight = 1.0f;
-#if STRATA_TRANSLUCENT_MATERIAL
+#if SUBSTRATE_TRANSLUCENT_MATERIAL
 		FinalWeight = Opacity;
 #endif
 	}
@@ -340,14 +340,14 @@ FStrataData StrataConvertLegacyMaterialDynamic(
 		LegacySlab.Weight = 1.f;
 
 		FinalWeight = 1.0f;
-#if STRATA_TRANSLUCENT_MATERIAL
+#if SUBSTRATE_TRANSLUCENT_MATERIAL
 		FinalWeight = Opacity;
 #endif
 	}
 	else if (ShadingModel == SHADINGMODELID_TWOSIDED_FOLIAGE)
 	{
 		// Set a thickness that will enabled the thin lighting model (corresponding to the legacy two-sided lighting model)
-		const float Thickness = STRATA_LAYER_DEFAULT_THICKNESS_CM;
+		const float Thickness = SUBSTRATE_LAYER_DEFAULT_THICKNESS_CM;
 		const float3 MFPInCm = TransmittanceToMeanFreePath(SubSurfaceColor /*TransmittanceColor*/, Thickness * CENTIMETER_TO_METER) * METER_TO_CENTIMETER;
 
 		LegacySlab.BaseColor = BaseColor;
@@ -365,7 +365,7 @@ FStrataData StrataConvertLegacyMaterialDynamic(
 		LegacySlab.bIsThinSurface = true;
 
 		FinalWeight = 1.0f;
-#if STRATA_TRANSLUCENT_MATERIAL
+#if SUBSTRATE_TRANSLUCENT_MATERIAL
 		FinalWeight = Opacity;
 #endif
 	}
@@ -384,7 +384,7 @@ FStrataData StrataConvertLegacyMaterialDynamic(
 		LegacySlab.FuzzColor = SubSurfaceColor;
 
 		FinalWeight = 1.0f;
-#if STRATA_TRANSLUCENT_MATERIAL
+#if SUBSTRATE_TRANSLUCENT_MATERIAL
 		FinalWeight = Opacity;
 #endif
 	}
@@ -434,8 +434,8 @@ FStrataData StrataConvertLegacyMaterialDynamic(
 	}
 
 	// Fixed layer structure for helping compiler to unroll and optimize shader
-	FStrataData Slab = CreateLegacySlab(LegacySlab, SharedLocalBasisTypes);
-#if STRATA_INLINE_SHADING
+	FSubstrateData Slab = CreateLegacySlab(LegacySlab, SharedLocalBasisTypes);
+#if SUBSTRATE_INLINE_SHADING
 	Slab.InlinedBSDF.Coverage = LegacySlab.Weight * FinalWeight;	//////////////////// Remove FinalWeight? Do that in CreateLegacySlab?
 #endif
 
@@ -446,8 +446,8 @@ FStrataData StrataConvertLegacyMaterialDynamic(
 // This function is for static single shading model (i.e., known at shader compilation time). 
 // It reuses the dynamic version for most part, but for special node like Unlit/Hair/Water, 
 // we use the dedicated node
-FStrataData StrataConvertLegacyMaterialStatic(
-	FStrataPixelFootprint PixelFootprint,
+FSubstrateData SubstrateConvertLegacyMaterialStatic(
+	FSubstratePixelFootprint PixelFootprint,
 	float3 BaseColor, float Specular, float Metallic,
 	float Roughness, float Anisotropy,
 	float3 SubSurfaceColor, float SubSurfaceProfileId,
@@ -465,13 +465,13 @@ FStrataData StrataConvertLegacyMaterialStatic(
 	uint ClearCoatBottomNormal_SharedLocalBasisIndex,
 	inout uint SharedLocalBasisTypes)
 {
-	FStrataData Out = GetInitialisedStrataData();
+	FSubstrateData Out = GetInitialisedSubstrateData();
 
-	const float DefaultThickness = STRATA_LAYER_DEFAULT_THICKNESS_CM;
+	const float DefaultThickness = SUBSTRATE_LAYER_DEFAULT_THICKNESS_CM;
 	const float3 Zeros = float3(0, 0, 0);
 	const float3 Ones = float3(1, 1, 1);
 
-#if STRATA_USE_PREMULTALPHA_OVERRIDE
+#if SUBSTRATE_USE_PREMULTALPHA_OVERRIDE
 	// Opacity is applied using the "Opacity Override" pin on the root node when using alpha composite (pre multiplied alpha).
 	// This is needed because some material might have the pin plugged in and the blending mode overriden on the material instance.
 	Opacity = 1.0f;
@@ -482,36 +482,36 @@ FStrataData StrataConvertLegacyMaterialStatic(
 		const float GreyTransmittance = saturate(1.0f - Opacity);
 	#if MATERIALBLENDING_SOLID || MATERIALBLENDING_MASKED
 		// Opaque materials only write emissive.
-		Out = GetStrataUnlitBSDF(Emissive, 0.0f, RawNormal);
+		Out = GetSubstrateUnlitBSDF(Emissive, 0.0f, RawNormal);
 	#elif MATERIALBLENDING_ALPHACOMPOSITE
 		// Uses (Luminance, black transmittance) for premultiplied alpha blending. Opacity is controled using coverage
-		Out = GetStrataUnlitBSDF(Emissive, 0.0f, RawNormal);
-		#if STRATA_INLINE_SHADING
+		Out = GetSubstrateUnlitBSDF(Emissive, 0.0f, RawNormal);
+		#if SUBSTRATE_INLINE_SHADING
 			Out.InlinedBSDF.Coverage = Opacity;
 		#endif
 	#elif MATERIALBLENDING_ALPHAHOLDOUT
 		// The MATERIALBLENDING_ALPHAHOLDOUT case needs to be before the MATERIALBLENDING_TRANSLUCENT case, as alphaholdout material have both cases defined
-		Out = GetStrataUnlitBSDF(0.0f, GreyTransmittance, RawNormal);
+		Out = GetSubstrateUnlitBSDF(0.0f, GreyTransmittance, RawNormal);
 	#elif MATERIALBLENDING_TRANSLUCENT
 		// Uses (Luminance, black transmittance) for translucency blending. Opacity is controled using coverage
-		Out = GetStrataUnlitBSDF(Emissive * Opacity, 0.0f, RawNormal);
-		#if STRATA_INLINE_SHADING
+		Out = GetSubstrateUnlitBSDF(Emissive * Opacity, 0.0f, RawNormal);
+		#if SUBSTRATE_INLINE_SHADING
 			Out.InlinedBSDF.Coverage = Opacity;
 		#endif
 	#elif MATERIALBLENDING_ADDITIVE
 		// Emissive is weighted by opacity in the legacy material.
-		Out = GetStrataUnlitBSDF(Emissive * Opacity, 1.0f, RawNormal);
+		Out = GetSubstrateUnlitBSDF(Emissive * Opacity, 1.0f, RawNormal);
 	#elif MATERIALBLENDING_MODULATE
 		// Setting up emissive as the transmittance color. It is not clamped in case brightening is required.
-		Out = GetStrataUnlitBSDF(0.0f, Emissive, RawNormal);
+		Out = GetSubstrateUnlitBSDF(0.0f, Emissive, RawNormal);
 	#else
 		// Required default for some materials such as Editor UI
-		Out = GetStrataUnlitBSDF(Emissive, 0.0f, RawNormal);
+		Out = GetSubstrateUnlitBSDF(Emissive, 0.0f, RawNormal);
 	#endif
 	}
 	else if (ShadingModel == SHADINGMODELID_HAIR)
 	{
-		Out = GetStrataHairBSDF(
+		Out = GetSubstrateHairBSDF(
 				BaseColor,	   // BaseColor
 				Metallic,	   // Scatter
 				Specular,	   // Specular
@@ -529,7 +529,7 @@ FStrataData StrataConvertLegacyMaterialStatic(
 		float3 IrisPlaneNormal = RawNormal;
 		GetEyeNormals(IrisMask, IrisDistance, RawNormal, RawClearCoatNormal, RawCustomTangent, IrisNormal, IrisPlaneNormal);
 
-		Out = GetStrataEyeBSDF(
+		Out = GetSubstrateEyeBSDF(
 				BaseColor,	         // DiffuseAlbedo
 				Roughness,	         // Roughness
 				IrisMask,	         // IrisMask
@@ -545,7 +545,7 @@ FStrataData StrataConvertLegacyMaterialStatic(
 		const float3 WaterExtinction= WaterScatteringCoefficients + WaterAbsorptionCoefficients;
 		const float3 WaterAlbedo	= WaterScatteringCoefficients / WaterExtinction;
 
-		Out = GetStrataSingleLayerWaterBSDF(
+		Out = GetSubstrateSingleLayerWaterBSDF(
 				BaseColor, 				// BaseColor
 				Metallic, 				// Metallic 
 				Specular, 				// Specular
@@ -560,7 +560,7 @@ FStrataData StrataConvertLegacyMaterialStatic(
 	}
 	else
 	{
-		Out = StrataConvertLegacyMaterialDynamic(
+		Out = SubstrateConvertLegacyMaterialDynamic(
 			PixelFootprint,
 			BaseColor, Specular, Metallic,
 			Roughness, Anisotropy,

@@ -7762,55 +7762,55 @@ void GlobalBeginCompileShader(
 		SET_SHADER_DEFINE(Input.Environment, SUPPORT_VSM_FOWARD_QUALITY, bHighQualityShadow ? 1 : 0);
 	}
 
-	const bool bStrata = Strata::IsStrataEnabled();
+	const bool bSubstrate = Substrate::IsSubstrateEnabled();
 	{
-		SET_SHADER_DEFINE(Input.Environment, STRATA_ENABLED, bStrata ? 1 : 0);
+		SET_SHADER_DEFINE(Input.Environment, SUBSTRATE_ENABLED, bSubstrate ? 1 : 0);
 
-		if (bStrata)
+		if (bSubstrate)
 		{
-			const uint32 StrataShadingQuality = Strata::GetShadingQuality(Target.GetPlatform());
-			SET_SHADER_DEFINE(Input.Environment, STRATA_SHADING_QUALITY, StrataShadingQuality);
+			const uint32 SubstrateShadingQuality = Substrate::GetShadingQuality(Target.GetPlatform());
+			SET_SHADER_DEFINE(Input.Environment, SUBSTRATE_SHADING_QUALITY, SubstrateShadingQuality);
 
-			const bool bLowQuality = StrataShadingQuality > 1;
+			const bool bLowQuality = SubstrateShadingQuality > 1;
 			SET_SHADER_DEFINE(Input.Environment, USE_ACHROMATIC_BXDF_ENERGY, bLowQuality ? 1u : 0u);
 
-			const uint32 StrataSheenQuality = Strata::GetSheenQuality();
-			Input.Environment.SetDefine(TEXT("STRATA_SHEEN_QUALITY"), bLowQuality ? 2 : StrataSheenQuality);
+			const uint32 SubstrateSheenQuality = Substrate::GetSheenQuality();
+			Input.Environment.SetDefine(TEXT("SUBSTRATE_SHEEN_QUALITY"), bLowQuality ? 2 : SubstrateSheenQuality);
 
-			const uint32 StrataNormalQuality = Strata::GetNormalQuality();
-			SET_SHADER_DEFINE(Input.Environment, STRATA_NORMAL_QUALITY, StrataNormalQuality);
+			const uint32 SubstrateNormalQuality = Substrate::GetNormalQuality();
+			SET_SHADER_DEFINE(Input.Environment, SUBSTRATE_NORMAL_QUALITY, SubstrateNormalQuality);
 
-			const uint32 StrataUintPerPixel = Strata::GetBytePerPixel(Target.GetPlatform()) / 4u;
-			SET_SHADER_DEFINE(Input.Environment, STRATA_MATERIAL_NUM_UINTS, StrataUintPerPixel);
+			const uint32 SubstrateUintPerPixel = Substrate::GetBytePerPixel(Target.GetPlatform()) / 4u;
+			SET_SHADER_DEFINE(Input.Environment, SUBSTRATE_MATERIAL_NUM_UINTS, SubstrateUintPerPixel);
 
-			const bool bTileCoord8Bits = Strata::Is8bitTileCoordEnabled();
+			const bool bTileCoord8Bits = Substrate::Is8bitTileCoordEnabled();
 			SET_SHADER_DEFINE(Input.Environment, USE_8BIT_TILE_COORD, bTileCoord8Bits ? 1 : 0);
 
-			const bool bStrataDBufferPass = Strata::IsDBufferPassEnabled(Target.GetPlatform());
-			SET_SHADER_DEFINE(Input.Environment, STRATA_USE_DBUFFER_PASS, bStrataDBufferPass ? 1 : 0);
+			const bool bSubstrateDBufferPass = Substrate::IsDBufferPassEnabled(Target.GetPlatform());
+			SET_SHADER_DEFINE(Input.Environment, SUBSTRATE_USE_DBUFFER_PASS, bSubstrateDBufferPass ? 1 : 0);
 
-			const bool bStrataGlints = Strata::IsGlintEnabled();
-			SET_SHADER_DEFINE(Input.Environment, PLATFORM_ENABLES_STRATA_GLINTS, bStrataGlints ? 1 : 0);
+			const bool bSubstrateGlints = Substrate::IsGlintEnabled();
+			SET_SHADER_DEFINE(Input.Environment, PLATFORM_ENABLES_SUBSTRATE_GLINTS, bSubstrateGlints ? 1 : 0);
 
-			const bool bSpecularProfileEnabled = Strata::IsSpecularProfileEnabled();
-			SET_SHADER_DEFINE(Input.Environment, PLATFORM_ENABLES_STRATA_SPECULAR_PROFILE, bSpecularProfileEnabled ? 1 : 0);
+			const bool bSpecularProfileEnabled = Substrate::IsSpecularProfileEnabled();
+			SET_SHADER_DEFINE(Input.Environment, PLATFORM_ENABLES_SUBSTRATE_SPECULAR_PROFILE, bSpecularProfileEnabled ? 1 : 0);
 		}
 
-		const bool bStrataBackCompatibility = bStrata && Strata::IsBackCompatibilityEnabled();
-		SET_SHADER_DEFINE(Input.Environment, PROJECT_STRATA_BACKCOMPATIBILITY, bStrataBackCompatibility ? 1 : 0);
+		const bool bSubstrateBackCompatibility = bSubstrate && Substrate::IsBackCompatibilityEnabled();
+		SET_SHADER_DEFINE(Input.Environment, PROJECT_SUBSTRATE_BACKCOMPATIBILITY, bSubstrateBackCompatibility ? 1 : 0);
 
-		const bool bStrataOpaqueRoughRefrac = bStrata && Strata::IsOpaqueRoughRefractionEnabled();
-		SET_SHADER_DEFINE(Input.Environment, STRATA_OPAQUE_ROUGH_REFRACTION_ENABLED, bStrataOpaqueRoughRefrac ? 1 : 0);
+		const bool bSubstrateOpaqueRoughRefrac = bSubstrate && Substrate::IsOpaqueRoughRefractionEnabled();
+		SET_SHADER_DEFINE(Input.Environment, SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED, bSubstrateOpaqueRoughRefrac ? 1 : 0);
 
-		const bool bStrataAdvDebug = bStrata && Strata::IsAdvancedVisualizationEnabled();
-		SET_SHADER_DEFINE(Input.Environment, STRATA_ADVANCED_DEBUG_ENABLED, bStrataAdvDebug ? 1 : 0);
+		const bool bSubstrateAdvDebug = bSubstrate && Substrate::IsAdvancedVisualizationEnabled();
+		SET_SHADER_DEFINE(Input.Environment, SUBSTRATE_ADVANCED_DEBUG_ENABLED, bSubstrateAdvDebug ? 1 : 0);
 	}
 
 	{
 		static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Material.RoughDiffuse"));
 		const bool bMaterialRoughDiffuse = CVar && CVar->GetInt() != 0;
-		const bool bStrataRoughDiffuse = Strata::IsRoughDiffuseEnabled() && !Strata::IsBackCompatibilityEnabled();
-		SET_SHADER_DEFINE(Input.Environment, MATERIAL_ROUGHDIFFUSE, (bStrata ? bStrataRoughDiffuse : bMaterialRoughDiffuse) ? 1 : 0);
+		const bool bSubstrateRoughDiffuse = Substrate::IsRoughDiffuseEnabled() && !Substrate::IsBackCompatibilityEnabled();
+		SET_SHADER_DEFINE(Input.Environment, MATERIAL_ROUGHDIFFUSE, (bSubstrate ? bSubstrateRoughDiffuse : bMaterialRoughDiffuse) ? 1 : 0);
 	}
 
 	{

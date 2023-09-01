@@ -399,7 +399,7 @@ FEditorViewportClient::FEditorViewportClient(FEditorModeTools* InModeTools, FPre
 	, CurrentBufferVisualizationMode(NAME_None)
 	, CurrentNaniteVisualizationMode(NAME_None)
 	, CurrentLumenVisualizationMode(NAME_None)
-	, CurrentStrataVisualizationMode(NAME_None)
+	, CurrentSubstrateVisualizationMode(NAME_None)
 	, CurrentGroomVisualizationMode(NAME_None)
 	, CurrentVirtualShadowMapVisualizationMode(NAME_None)
 	, CurrentRayTracingDebugVisualizationMode(NAME_None)
@@ -2700,21 +2700,21 @@ FText FEditorViewportClient::GetCurrentVirtualShadowMapVisualizationModeDisplayN
 	return GetVirtualShadowMapVisualizationData().GetModeDisplayName(CurrentVirtualShadowMapVisualizationMode);
 }
 
-void FEditorViewportClient::ChangeStrataVisualizationMode(FName InName)
+void FEditorViewportClient::ChangeSubstrateVisualizationMode(FName InName)
 {
 	SetViewMode(VMI_VisualizeSubstrate);
-	CurrentStrataVisualizationMode = InName;
+	CurrentSubstrateVisualizationMode = InName;
 }
 
-bool FEditorViewportClient::IsStrataVisualizationModeSelected(FName InName) const
+bool FEditorViewportClient::IsSubstrateVisualizationModeSelected(FName InName) const
 {
-	return IsViewModeEnabled(VMI_VisualizeSubstrate) && CurrentStrataVisualizationMode == InName;
+	return IsViewModeEnabled(VMI_VisualizeSubstrate) && CurrentSubstrateVisualizationMode == InName;
 }
 
-FText FEditorViewportClient::GetCurrentStrataVisualizationModeDisplayName() const
+FText FEditorViewportClient::GetCurrentSubstrateVisualizationModeDisplayName() const
 {
 	checkf(IsViewModeEnabled(VMI_VisualizeSubstrate), TEXT("In order to call GetCurrentSubstrateVisualizationMode(), first you must set ViewMode to VMI_VisualizeSubstrate."));
-	return GetStrataVisualizationData().GetModeDisplayName(CurrentStrataVisualizationMode);
+	return GetSubstrateVisualizationData().GetModeDisplayName(CurrentSubstrateVisualizationMode);
 }
 
 void FEditorViewportClient::ChangeGroomVisualizationMode(FName InName)
@@ -3966,7 +3966,7 @@ void FEditorViewportClient::SetupViewForRendering(FSceneViewFamily& ViewFamily, 
 	View.CurrentBufferVisualizationMode = CurrentBufferVisualizationMode;
 	View.CurrentNaniteVisualizationMode = CurrentNaniteVisualizationMode;
 	View.CurrentLumenVisualizationMode = CurrentLumenVisualizationMode;
-	View.CurrentStrataVisualizationMode = CurrentStrataVisualizationMode;
+	View.CurrentSubstrateVisualizationMode = CurrentSubstrateVisualizationMode;
 	View.CurrentGroomVisualizationMode = CurrentGroomVisualizationMode;
 	View.CurrentVirtualShadowMapVisualizationMode = CurrentVirtualShadowMapVisualizationMode;
 	View.CurrentGPUSkinCacheVisualizationMode = CurrentGPUSkinCacheVisualizationMode;

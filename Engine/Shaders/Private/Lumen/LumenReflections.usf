@@ -95,16 +95,16 @@ void ReflectionTileClassificationMarkCS(
 
 	GroupMemoryBarrierWithGroupSync();
 
-#if STRATA_ENABLED && PERMUTATION_OVERFLOW_TILE
-	const bool bIsValid = IsTileNCoordValid((DispatchThreadId >> STRATA_TILE_SIZE_DIV_AS_SHIFT) + Strata.OverflowTileOffset);
-	const FLumenMaterialCoord Coord = GetLumenMaterialCoord(DispatchThreadId + (Strata.OverflowTileOffset * STRATA_TILE_SIZE), true);
-	const uint2 FlattenTileCoord = Coord.SvPositionFlatten >> STRATA_TILE_SIZE_DIV_AS_SHIFT;
-	const uint2 DownSampleDepthCoord = Coord.SvPositionFlatten; // STRATA_TODO: add support for ReflectionDownsampleFactor
+#if SUBSTRATE_ENABLED && PERMUTATION_OVERFLOW_TILE
+	const bool bIsValid = IsTileNCoordValid((DispatchThreadId >> SUBSTRATE_TILE_SIZE_DIV_AS_SHIFT) + Substrate.OverflowTileOffset);
+	const FLumenMaterialCoord Coord = GetLumenMaterialCoord(DispatchThreadId + (Substrate.OverflowTileOffset * SUBSTRATE_TILE_SIZE), true);
+	const uint2 FlattenTileCoord = Coord.SvPositionFlatten >> SUBSTRATE_TILE_SIZE_DIV_AS_SHIFT;
+	const uint2 DownSampleDepthCoord = Coord.SvPositionFlatten; // SUBSTRATE_TODO: add support for ReflectionDownsampleFactor
 	const bool bIsDownSampleDepthCoordValid = bIsValid;
 #else
 	const bool bIsValid = all(DispatchThreadId < View.ViewRectMinAndSize.zw);
 	const FLumenMaterialCoord Coord = GetLumenMaterialCoord(DispatchThreadId + View.ViewRectMinAndSize.xy, false);
-	const uint2 FlattenTileCoord = GroupId; // LUMEN_TODO: This should be: Coord.SvPositionFlatten >> STRATA_TILE_SIZE_DIV_AS_SHIFT in order to support multi-view in same texture/buffer
+	const uint2 FlattenTileCoord = GroupId; // LUMEN_TODO: This should be: Coord.SvPositionFlatten >> SUBSTRATE_TILE_SIZE_DIV_AS_SHIFT in order to support multi-view in same texture/buffer
 	const uint2 DownSampleDepthCoord = DispatchThreadId.xy / ReflectionDownsampleFactor; // LUMEN_TODO: This should be Coord.SvPositionFlatten / ReflectionDownsampleFactor
 	const bool bIsDownSampleDepthCoordValid = all(DownSampleDepthCoord < ReflectionTracingViewSize);
 #endif
@@ -159,10 +159,10 @@ groupshared uint SharedGlobalTileOffset;
 bool IsTileValid(inout uint2 TileCoordinate)
 {
 	bool bIsValid = all(TileCoordinate < TileViewportDimensions);
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 	if (bOverflow)
 	{
-		TileCoordinate += Strata.OverflowTileOffset;
+		TileCoordinate += Substrate.OverflowTileOffset;
 		bIsValid = IsTileNCoordValid(TileCoordinate);
 	}
 #endif
@@ -173,8 +173,8 @@ FLumenMaterialCoord GetLumenMaterialCoordForReflections(uint2 ScreenCoord, inout
 {
 	uint2 SvPositionForMaterialCoord = ScreenCoord + View.ViewRectMinAndSize.xy;
 	bIsOverflow = false;
-#if STRATA_ENABLED
-	bIsOverflow = all((ScreenCoord >> STRATA_TILE_SIZE_DIV_AS_SHIFT) >= uint2(Strata.OverflowTileOffset));
+#if SUBSTRATE_ENABLED
+	bIsOverflow = all((ScreenCoord >> SUBSTRATE_TILE_SIZE_DIV_AS_SHIFT) >= uint2(Substrate.OverflowTileOffset));
 	if (bIsOverflow)
 	{
 		SvPositionForMaterialCoord = ScreenCoord;
@@ -191,7 +191,7 @@ void ReflectionTileClassificationBuildListsCS(
 	const uint ThreadIndex = GroupThreadId.y * THREADGROUP_SIZE + GroupThreadId.x;
 
 	// When generating downsampled trace tiles we need to downsample ResolveTileUsed to shared memory first
-	// STRATA_TODO: add support for downsample factor with multi-layer
+	// SUBSTRATE_TODO: add support for downsample factor with multi-layer
 #if SUPPORT_DOWNSAMPLE_FACTOR
 	SharedTileUsed[ThreadIndex] = 0;
 
@@ -302,12 +302,12 @@ void ReflectionGenerateRaysCS(
 	uint2 SvPositionForMaterialCoord = min(ReflectionTracingCoord * ReflectionDownsampleFactor + uint2(ScreenJitter + .5f) + View.ViewRectMinAndSize.xy, View.ViewRectMinAndSize.xy + View.ViewRectMinAndSize.zw - 1);
 	bool bIsOverflow = false;
 
-#if STRATA_ENABLED
-	bIsOverflow = all((ReflectionTracingCoord >> STRATA_TILE_SIZE_DIV_AS_SHIFT) >= uint2(Strata.OverflowTileOffset));
+#if SUBSTRATE_ENABLED
+	bIsOverflow = all((ReflectionTracingCoord >> SUBSTRATE_TILE_SIZE_DIV_AS_SHIFT) >= uint2(Substrate.OverflowTileOffset));
 	if (bIsOverflow)
 	{
 		SvPositionForMaterialCoord = ReflectionTracingCoord * ReflectionDownsampleFactor + uint2(ScreenJitter + .5f);
-		bIsValid = IsTileNCoordValid(SvPositionForMaterialCoord >> STRATA_TILE_SIZE_DIV_AS_SHIFT);
+		bIsValid = IsTileNCoordValid(SvPositionForMaterialCoord >> SUBSTRATE_TILE_SIZE_DIV_AS_SHIFT);
 	}
 #endif
 
@@ -330,32 +330,32 @@ void ReflectionGenerateRaysCS(
 			bool bMirrorReflectionDebug = false;
 			float3 V = -CameraVector;
 
-			// Use Strata sampling routine only for opaque surface. 
-			// When FontLayerTranslucency is enable, LumenMaterial is built from custom packed data (i.e., non-Strata)
-		#if STRATA_ENABLED && !FRONT_LAYER_TRANSLUCENCY
+			// Use Substrate sampling routine only for opaque surface. 
+			// When FontLayerTranslucency is enable, LumenMaterial is built from custom packed data (i.e., non-Substrate)
+		#if SUBSTRATE_ENABLED && !FRONT_LAYER_TRANSLUCENCY
 			{
-				FStrataAddressing StrataAddressing = GetStrataPixelDataByteOffset(Coord.SvPosition, uint2(View.BufferSizeAndInvSize.xy), Strata.MaxBytesPerPixel);
-				const FStrataPixelHeader StrataPixelHeader = UnpackStrataHeaderIn(Strata.MaterialTextureArray, StrataAddressing, Strata.TopLayerTexture);
-				const FStrataIntegrationSettings Settings = InitStrataIntegrationSettings(false /*bForceFullyRough*/, Strata.bRoughDiffuse, Strata.PeelLayersAboveDepth, Strata.bRoughnessTracking);
+				FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(Coord.SvPosition, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
+				const FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
+				const FSubstrateIntegrationSettings Settings = InitSubstrateIntegrationSettings(false /*bForceFullyRough*/, Substrate.bRoughDiffuse, Substrate.PeelLayersAboveDepth, Substrate.bRoughnessTracking);
 
 				if (Coord.TileBSDFIndex > 0)
 				{
-					const uint OffsetAddress = UnpackBSDFOffsetAtIndex(Strata.BSDFOffsetTexture[Coord.SvPosition], Coord.TileBSDFIndex, Coord.TileBSDFCount);
-					StrataSeekBSDF(StrataAddressing, OffsetAddress);
+					const uint OffsetAddress = UnpackBSDFOffsetAtIndex(Substrate.BSDFOffsetTexture[Coord.SvPosition], Coord.TileBSDFIndex, Coord.TileBSDFCount);
+					SubstrateSeekBSDF(SubstrateAddressing, OffsetAddress);
 				}
-				FStrataBSDF BSDF = UnpackStrataBSDF(Strata.MaterialTextureArray, StrataAddressing, StrataPixelHeader);
+				FSubstrateBSDF BSDF = UnpackSubstrateBSDF(Substrate.MaterialTextureArray, SubstrateAddressing, SubstratePixelHeader);
 
 				// We set slabs BSDFs as having a single specular lob without haziness.
 				// This is to ensure the pdf is computed from a single lobe in order to be able to compute a matching cone angle.
-				BSDF.StrataSetBSDFRoughness(Material.TopLayerRoughness);
-				if (StrataGetBSDFType(BSDF) == STRATA_BSDF_TYPE_SLAB)
+				BSDF.SubstrateSetBSDFRoughness(Material.TopLayerRoughness);
+				if (SubstrateGetBSDFType(BSDF) == SUBSTRATE_BSDF_TYPE_SLAB)
 				{
 					BSDF_SETHASHAZINESS(BSDF, 0);
 				}
 
-				const FStrataBSDFContext Context = StrataCreateBSDFContext(StrataPixelHeader, BSDF, StrataAddressing, V);
+				const FSubstrateBSDFContext Context = SubstrateCreateBSDFContext(SubstratePixelHeader, BSDF, SubstrateAddressing, V);
 				const float2 E = GenerateRandom(ReflectionTracingCoord);
-				const FBxDFSample Sample = StrataImportanceSampleBSDF(Context, E, SHADING_TERM_SPECULAR, Settings);
+				const FBxDFSample Sample = SubstrateImportanceSampleBSDF(Context, E, SHADING_TERM_SPECULAR, Settings);
 
 				RayDirection = normalize(Sample.L);
 				ConeAngle = 1.0f / max(Sample.PDF, 0.0001f);
@@ -485,7 +485,7 @@ void ReflectionResolveCS(
 		{
 			uint2 ReflectionScreenCoord = ScreenCoord / ReflectionDownsampleFactor;
 			uint2 ReflectionScreenCoord_Flatten = ReflectionScreenCoord;
-		#if STRATA_ENABLED
+		#if SUBSTRATE_ENABLED
 			if (bIsOverflow)
 			{
 				ReflectionScreenCoord = (Coord.SvPosition - View.ViewRectMinAndSize.xy) / ReflectionDownsampleFactor;
@@ -573,18 +573,18 @@ void ReflectionResolveCS(
 					const float2 LocalOffset = (Hammersley16(SampleIndex, NumSpatialReconstructionSamples, RandomSeed) - .5f);
 					const float2 Offset = LocalOffset.x * KernelMajorAxis + LocalOffset.y * KernelMinorAxis;
 
-					// When strata is enabled, neighbor pixels are considered valid if their BSDF count is greater or equal to the current one. 
+					// When Substrate is enabled, neighbor pixels are considered valid if their BSDF count is greater or equal to the current one. 
 					// If it is not valid, then it will fallback onto BSDFIndex=0. Neighboor depth is then used to know if that pixel contains
 					// valid reflection data.
 					int2 NeighborTracingCoord = (int2)(ReflectionScreenCoord + Offset);
 					int2 NeighborTracingCoord_ForDepth = NeighborTracingCoord;
 					int2 NeighborTracingCoord_Flatten = NeighborTracingCoord;
 					bool bIsValidNeighboor = all(and (NeighborTracingCoord >= int2(0, 0), NeighborTracingCoord < (int2)ReflectionTracingViewSize));
-				#if STRATA_ENABLED
+				#if SUBSTRATE_ENABLED
 					if (bIsOverflow)
 					{
-						NeighborTracingCoord_Flatten = GetBSDFPositionFlatten(NeighborTracingCoord, Coord.TileBSDFIndex, Strata.BSDFTileTexture, Strata.OverflowTileCount);
-						bIsValidNeighboor = IsTileNCoordValid(NeighborTracingCoord_Flatten >> STRATA_TILE_SIZE_DIV_AS_SHIFT);
+						NeighborTracingCoord_Flatten = GetBSDFPositionFlatten(NeighborTracingCoord, Coord.TileBSDFIndex, Substrate.BSDFTileTexture, Substrate.OverflowTileCount);
+						bIsValidNeighboor = IsTileNCoordValid(NeighborTracingCoord_Flatten >> SUBSTRATE_TILE_SIZE_DIV_AS_SHIFT);
 						NeighborTracingCoord_ForDepth = NeighborTracingCoord_Flatten;
 					}
 				#endif
@@ -744,13 +744,13 @@ Texture2D VelocityTexture;
 SamplerState VelocityTextureSampler;
 
 float PrevInvPreExposure;
-uint bIsStrataTileHistoryValid;
+uint bIsSubstrateTileHistoryValid;
 
 // Return the 'flatten' SvPosition/ScreenCoord of particular BSDF layer
 uint2 GetNeighborFlattenCoord(uint2 InScreenCoord, uint InBSDFIndex)
 {
-#if STRATA_ENABLED
-	return GetBSDFPositionFlatten(InScreenCoord, InBSDFIndex, Strata.BSDFTileTexture, Strata.OverflowTileCount);
+#if SUBSTRATE_ENABLED
+	return GetBSDFPositionFlatten(InScreenCoord, InBSDFIndex, Substrate.BSDFTileTexture, Substrate.OverflowTileCount);
 #else
 	return InScreenCoord;
 #endif
@@ -760,7 +760,7 @@ uint2 GetNeighborFlattenCoord(uint2 InScreenCoord, uint InBSDFIndex)
 float2 GetPrevUV(const float2 InPrevScreenCoordUV, uint InBSDFIndex)
 {
 	float2 Out = InPrevScreenCoordUV;
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 	if (InBSDFIndex > 0)
 	{
 		const float2 fPrevScreenCoord = InPrevScreenCoordUV * HistoryEffectiveResolution.xy;
@@ -949,7 +949,7 @@ FSpecularIndirectHistory FetchHistory(FBilinear InBilinearPrimary, uint InBSDFIn
 	Out.Weights = GetBilinearCustomWeights(InBilinearPrimary, InWeights);
 	FGatherUV InBilinearExtended = GetGatherUV(InBilinearPrimary, HistoryEffectiveResolution.zw);
 
-#if (STRATA_ENABLED && FRONT_LAYER_TRANSLUCENCY == 0)
+#if (SUBSTRATE_ENABLED && FRONT_LAYER_TRANSLUCENCY == 0)
 	if (bIsOverflow)
 	{
 		InBilinearExtended.UV00 = GetPrevUV(InBilinearExtended.UV00, InBSDFIndex);
@@ -994,7 +994,7 @@ FHistoryCoord GetHistoryCoord(float2 InHistoryScreenPosition, float2 InHistoryUV
 		Out.Primary 			= clamp(Out.Primary, InHistoryUVMin, InHistoryUVMax);
 	}
 	Out.Bilinear		= GetBilinearFilter(Out.Primary, View.BufferSizeAndInvSize.xy);
-	Out.Extended		= (STRATA_ENABLED && FRONT_LAYER_TRANSLUCENCY == 0) ? Out.Primary * View.BufferSizeAndInvSize.xy * HistoryEffectiveResolution.zw : Out.Primary;
+	Out.Extended		= (SUBSTRATE_ENABLED && FRONT_LAYER_TRANSLUCENCY == 0) ? Out.Primary * View.BufferSizeAndInvSize.xy * HistoryEffectiveResolution.zw : Out.Primary;
 	return Out;
 }
 
@@ -1031,8 +1031,8 @@ void ReflectionTemporalReprojectionCS(
 
 	// For depth/num. frame history gather (using GatherRed)
 	const float2 HistoryDepthGatherUV_Primary = (HistoryCoordFromSceneDepth.Bilinear.Origin + 1.0f) * View.BufferSizeAndInvSize.zw;
-	float2 HistoryGatherUV_Extended = (STRATA_ENABLED && FRONT_LAYER_TRANSLUCENCY == 0) ? (HistoryCoordFromSceneDepth.Bilinear.Origin + 1.0f) * HistoryEffectiveResolution.zw : HistoryDepthGatherUV_Primary;
-	#if (STRATA_ENABLED && FRONT_LAYER_TRANSLUCENCY == 0)
+	float2 HistoryGatherUV_Extended = (SUBSTRATE_ENABLED && FRONT_LAYER_TRANSLUCENCY == 0) ? (HistoryCoordFromSceneDepth.Bilinear.Origin + 1.0f) * HistoryEffectiveResolution.zw : HistoryDepthGatherUV_Primary;
+	#if (SUBSTRATE_ENABLED && FRONT_LAYER_TRANSLUCENCY == 0)
 	if (bIsOverflow)
 	{
 		HistoryGatherUV_Extended = GetPrevUV(HistoryGatherUV_Extended, Coord.TileBSDFIndex);
@@ -1130,8 +1130,8 @@ void ReflectionTemporalReprojectionCS(
 	NewNumFramesAccumulated = HistoryCoordFromSceneDepth.bHistoryWasOnscreen ? NewNumFramesAccumulated : 0;
 
 	float Alpha = 1.0f / (1.0f + NewNumFramesAccumulated);
-#if (STRATA_ENABLED && FRONT_LAYER_TRANSLUCENCY == 0)
-	if (bIsStrataTileHistoryValid == 0 && Coord.TileBSDFIndex > 0) { Alpha = 1.0f; }
+#if (SUBSTRATE_ENABLED && FRONT_LAYER_TRANSLUCENCY == 0)
+	if (bIsSubstrateTileHistoryValid == 0 && Coord.TileBSDFIndex > 0) { Alpha = 1.0f; }
 #endif
 	float3 OutReflections = lerp(HistorySpecularIndirect, NewSpecular, Alpha);
 

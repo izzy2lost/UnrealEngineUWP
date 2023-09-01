@@ -65,7 +65,7 @@ struct FMaterialInputInfo
 		}
 		else if( Material->IsUIMaterial() )
 		{
-			if (Strata::IsStrataEnabled())
+			if (Substrate::IsSubstrateEnabled())
 			{
 				if (Property == MP_FrontMaterial || Property == MP_Opacity || Property == MP_OpacityMask || Property == MP_WorldPositionOffset)
 				{

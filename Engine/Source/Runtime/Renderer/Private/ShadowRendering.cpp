@@ -241,7 +241,7 @@ static TAutoConsoleVariable<int32> CVarHairStrandsCullPerObjectShadowCaster(
 
 DEFINE_GPU_STAT(ShadowProjection);
 
-// Use Shadow stencil mask is set to 0x07u instead of 0xFF so that that last bit can be used for strata classification without clearing the stencil bit for pre-shadow/per-object static shadow mask
+// Use Shadow stencil mask is set to 0x07u instead of 0xFF so that that last bit can be used for Substrate classification without clearing the stencil bit for pre-shadow/per-object static shadow mask
 constexpr uint32 ShadowStencilMask = 0x07u;
 
 // 0:off, 1:low, 2:med, 3:high, 4:very high, 5:max
@@ -467,10 +467,10 @@ static void BindShaderShaders(FRHICommandList& RHICmdList, FGraphicsPipelineStat
 
 	PixelShader->SetParameters(BatchedParameters, ViewIndex, View, ShadowInfo);
 
-	if (Strata::IsStrataEnabled())
+	if (Substrate::IsSubstrateEnabled())
 	{
-		TRDGUniformBufferRef<FStrataGlobalUniformParameters> StrataUniformBuffer = Strata::BindStrataGlobalUniformParameters(View);
-		PixelShader->FGlobalShader::template SetParameters<FStrataGlobalUniformParameters>(BatchedParameters, StrataUniformBuffer->GetRHIRef());
+		TRDGUniformBufferRef<FSubstrateGlobalUniformParameters> SubstrateUniformBuffer = Substrate::BindSubstrateGlobalUniformParameters(View);
+		PixelShader->FGlobalShader::template SetParameters<FSubstrateGlobalUniformParameters>(BatchedParameters, SubstrateUniformBuffer->GetRHIRef());
 	}
 
 	if (HairStrandsUniformBuffer)
@@ -1114,7 +1114,7 @@ void FProjectedShadowInfo::SetupProjectionStencilMaskForHair(FRHICommandList& RH
 BEGIN_SHADER_PARAMETER_STRUCT(FShadowProjectionPassParameters, )
 	SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FHairStrandsViewUniformParameters, HairStrands)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FStrataGlobalUniformParameters, Strata)
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
 	SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureShaderParameters, SceneTextures)
 	SHADER_PARAMETER_STRUCT_INCLUDE(FInstanceCullingDrawParams, InstanceCullingDrawParams)
 	RDG_TEXTURE_ACCESS(ShadowTexture0, ERHIAccess::SRVGraphics)
@@ -2043,9 +2043,9 @@ void FSceneRenderer::RenderShadowProjections(
 		CommonPassParameters.SceneTextures = SceneTextures.GetSceneTextureShaderParameters(View.FeatureLevel);
 		CommonPassParameters.HairStrands = HairStrands::BindHairStrandsViewUniformParameters(View);
 
-		if (Strata::IsStrataEnabled())
+		if (Substrate::IsSubstrateEnabled())
 		{
-			CommonPassParameters.Strata = Strata::BindStrataGlobalUniformParameters(View);
+			CommonPassParameters.Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 		}
 		
 		CommonPassParameters.RenderTargets[0] = FRenderTargetBinding(OutputTexture, ERenderTargetLoadAction::ELoad);

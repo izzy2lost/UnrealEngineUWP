@@ -27,7 +27,7 @@ UMaterialXPipelineSettings::UMaterialXPipelineSettings()
 {
 	if(HasAnyFlags(EObjectFlags::RF_ClassDefaultObject))
 	{
-		bIsSubstrateEnabled = GetDefault<URendererSettings>() ? GetDefault<URendererSettings>()->bEnableStrata : false;
+		bIsSubstrateEnabled = GetDefault<URendererSettings>() ? GetDefault<URendererSettings>()->bEnableSubstrate : false;
 #if WITH_EDITOR
 		StandardSurfaceInputs =	{
 			UE::Interchange::Materials::StandardSurface::Parameters::Base,
@@ -83,8 +83,8 @@ UMaterialXPipelineSettings::UMaterialXPipelineSettings()
 				UE::Interchange::Materials::ClearCoat::Parameters::ClearCoatNormal
 			}	:
 			TSet<FName>{
-				UE::Interchange::Materials::StandardSurface::Substrate::Outputs::Opaque,
-				UE::Interchange::Materials::StandardSurface::Substrate::Outputs::Opacity
+				UE::Interchange::Materials::StandardSurface::SubstrateMaterial::Outputs::Opaque,
+				UE::Interchange::Materials::StandardSurface::SubstrateMaterial::Outputs::Opacity
 			}
 		};
 		TransmissionSurfaceInputs = {
@@ -142,14 +142,14 @@ UMaterialXPipelineSettings::UMaterialXPipelineSettings()
 				UE::Interchange::Materials::PBRMR::Parameters::Refraction,
 				UE::Interchange::Materials::ThinTranslucent::Parameters::TransmissionColor
 			}	:
-			TSet<FName>{UE::Interchange::Materials::StandardSurface::Substrate::Outputs::Translucent}
+			TSet<FName>{UE::Interchange::Materials::StandardSurface::SubstrateMaterial::Outputs::Translucent}
 		};
 		SurfaceUnlitInputs = {
 			UE::Interchange::Materials::SurfaceUnlit::Parameters::Emission,
 			UE::Interchange::Materials::SurfaceUnlit::Parameters::EmissionColor,
 			UE::Interchange::Materials::SurfaceUnlit::Parameters::Transmission,
 			UE::Interchange::Materials::SurfaceUnlit::Parameters::TransmissionColor,
-			UE::Interchange::Materials::SurfaceUnlit::Parameters::Opacity
+			UE::Interchange::Materials::SurfaceUnlit::Parameters ::Opacity
 		};
 		SurfaceUnlitOutputs = {
 			UE::Interchange::Materials::Common::Parameters::EmissiveColor,

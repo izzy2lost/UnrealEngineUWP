@@ -1219,10 +1219,10 @@ FNaniteShadingPassParameters CreateNaniteShadingPassParams(
 		const ERDGUnorderedAccessViewFlags OutTargetFlags = GNaniteBarrierTest != 0 ? ERDGUnorderedAccessViewFlags::SkipBarrier : ERDGUnorderedAccessViewFlags::None;
 
 		FRDGTextureUAVRef MaterialTextureArrayUAV = nullptr;
-		if (Strata::IsStrataEnabled() && SceneRenderer.Scene)
+		if (Substrate::IsSubstrateEnabled() && SceneRenderer.Scene)
 		{
-			MaterialTextureArrayUAV = GraphBuilder.CreateUAV(SceneRenderer.Scene->StrataSceneData.MaterialTextureArray, OutTargetFlags);
-			//MaterialTextureArrayUAV = SceneRenderer.Scene->StrataSceneData.MaterialTextureArrayUAVWithoutRTs;
+			MaterialTextureArrayUAV = GraphBuilder.CreateUAV(SceneRenderer.Scene->SubstrateSceneData.MaterialTextureArray, OutTargetFlags);
+			//MaterialTextureArrayUAV = SceneRenderer.Scene->SubstrateSceneData.MaterialTextureArrayUAVWithoutRTs;
 		}
 
 		const bool bMaintainCompression = (GNaniteFastTileClear == 2) && RHISupportsRenderTargetWriteMask(GMaxRHIShaderPlatform);
@@ -1327,11 +1327,11 @@ void DispatchBasePass(
 	uint32 BasePassTextureCount = SceneTextures.GetGBufferRenderTargets(BasePassTextures, GBL_Default);
 
 	// We don't want to have Substrate MRTs appended to the list, except for the top layer data
-	if (Strata::IsStrataEnabled() && SceneRenderer.Scene)
+	if (Substrate::IsSubstrateEnabled() && SceneRenderer.Scene)
 	{
-		// Add another MRT for Strata top layer information. We want to follow the usual clear process which can leverage fast clear.
+		// Add another MRT for Substrate top layer information. We want to follow the usual clear process which can leverage fast clear.
 		{
-			BasePassTextures[BasePassTextureCount] = FTextureRenderTargetBinding(SceneRenderer.Scene->StrataSceneData.TopLayerTexture);
+			BasePassTextures[BasePassTextureCount] = FTextureRenderTargetBinding(SceneRenderer.Scene->SubstrateSceneData.TopLayerTexture);
 			BasePassTextureCount++;
 		};
 	}
@@ -1372,9 +1372,9 @@ void DispatchBasePass(
 	}
 
 	//FRDGTextureUAVRef MaterialTextureArrayUAV = nullptr;
-	//if (Strata::IsStrataEnabled() && SceneRenderer.Scene)
+	//if (Substrate::IsSubstrateEnabled() && SceneRenderer.Scene)
 	//{
-		//MaterialTextureArrayUAV = GraphBuilder.CreateUAV(SceneRenderer.Scene->StrataSceneData.MaterialTextureArray, OutTargetFlags);
+		//MaterialTextureArrayUAV = GraphBuilder.CreateUAV(SceneRenderer.Scene->SubstrateSceneData.MaterialTextureArray, OutTargetFlags);
 	//}
 
 	FShadeBinning Binning = ShadeBinning(GraphBuilder, Scene, View, InViewRect, RasterResults, ClearTargetList);
@@ -1879,7 +1879,7 @@ void DrawBasePass(
 
 			TStaticArray<FTextureRenderTargetBinding, MaxSimultaneousRenderTargets> BasePassTextures;
 			uint32 BasePassTextureCount = SceneTextures.GetGBufferRenderTargets(BasePassTextures, PassGBufferLayouts[PassIndex]);
-			Strata::AppendStrataMRTs(SceneRenderer, BasePassTextureCount, BasePassTextures);
+			Substrate::AppendSubstrateMRTs(SceneRenderer, BasePassTextureCount, BasePassTextures);
 			TArrayView<FTextureRenderTargetBinding> BasePassTexturesView = MakeArrayView(BasePassTextures.GetData(), BasePassTextureCount);
 
 			FNaniteEmitGBufferParameters& PassParams = ParamsAndInfo->Params[PassIndex];

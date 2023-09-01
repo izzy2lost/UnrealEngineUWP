@@ -462,7 +462,7 @@ struct FMaterialParameterMetadata
 };
 
 class FSHA1;
-struct FStrataCompilationConfig
+struct FSubstrateCompilationConfig
 {
 	bool bFullSimplify = false;
 	int16 BytesPerPixelOverride = -1;
@@ -473,12 +473,12 @@ struct FStrataCompilationConfig
 
 	void Serialize(FArchive& Ar);
 
-	friend inline bool operator==(const FStrataCompilationConfig& Lhs, const FStrataCompilationConfig& Rhs)
+	friend inline bool operator==(const FSubstrateCompilationConfig& Lhs, const FSubstrateCompilationConfig& Rhs)
 	{
 		return Lhs.bFullSimplify == Rhs.bFullSimplify && Lhs.BytesPerPixelOverride == Rhs.BytesPerPixelOverride;
 	}
 
-	friend inline bool operator!=(const FStrataCompilationConfig& Lhs, const FStrataCompilationConfig& Rhs)
+	friend inline bool operator!=(const FSubstrateCompilationConfig& Lhs, const FSubstrateCompilationConfig& Rhs)
 	{
 		return !operator==(Lhs, Rhs);
 	}

@@ -47,7 +47,7 @@ static const TCHAR* HLSLTypeString(EMaterialValueType Type)
 	case MCT_UInt2:					return TEXT("uint2");
 	case MCT_UInt3:					return TEXT("uint3");
 	case MCT_UInt4:					return TEXT("uint4");
-	case MCT_Strata:				return TEXT("FStrataData");
+	case MCT_Strata:				return TEXT("FSubstrateData");
 	default:						return TEXT("unknown");
 	};
 }
@@ -145,7 +145,7 @@ static FString GenerateMaterialTemplateHLSL(EShaderPlatform ShaderPlatform,
 		case MCT_UInt2:  HLSLType = TEXT("uint2"); break;
 		case MCT_UInt3:  HLSLType = TEXT("uint3"); break;
 		case MCT_UInt4:  HLSLType = TEXT("uint4"); break;
-		case MCT_Strata: HLSLType = TEXT("FStrataData"); break;
+		case MCT_Strata: HLSLType = TEXT("FSubstrateData"); break;
 		default: break;
 		}
 
@@ -167,7 +167,7 @@ static FString GenerateMaterialTemplateHLSL(EShaderPlatform ShaderPlatform,
 			case MCT_Float3: MaterialAttributesDefault += FString::Printf(TEXT("\tResult.%s = MaterialFloat3(%0.8f,%0.8f,%0.8f);") LINE_TERMINATOR, *PropertyName, DefaultValue.X, DefaultValue.Y, DefaultValue.Z); break;
 			case MCT_Float4: MaterialAttributesDefault += FString::Printf(TEXT("\tResult.%s = MaterialFloat4(%0.8f,%0.8f,%0.8f,%0.8f);") LINE_TERMINATOR, *PropertyName, DefaultValue.X, DefaultValue.Y, DefaultValue.Z, DefaultValue.W); break;
 			case MCT_ShadingModel: MaterialAttributesDefault += FString::Printf(TEXT("\tResult.%s = %d;") LINE_TERMINATOR, *PropertyName, (int32)DefaultShadingModel); break;
-			case MCT_Strata: MaterialAttributesDefault += FString::Printf(TEXT("\tResult.%s = GetInitialisedStrataData();") LINE_TERMINATOR, *PropertyName); break; // TODO
+			case MCT_Strata: MaterialAttributesDefault += FString::Printf(TEXT("\tResult.%s = GetInitialisedSubstrateData();") LINE_TERMINATOR, *PropertyName); break; // TODO
 			default: checkNoEntry(); break;
 			}
 		}
@@ -352,7 +352,7 @@ static FString GenerateMaterialTemplateHLSL(EShaderPlatform ShaderPlatform,
 
 				if (PropertyIndex == MP_FrontMaterial)
 				{
-					EvaluateMaterialAttributesCode += FString::Printf("    PixelMaterialInputs.%s = GetInitialisedStrataData();" LINE_TERMINATOR, *PropertyName);
+					EvaluateMaterialAttributesCode += FString::Printf("    PixelMaterialInputs.%s = GetInitialisedSubstrateData();" LINE_TERMINATOR, *PropertyName);
 				}
 				else if (PropertyIndex == MP_SubsurfaceColor)
 				{
@@ -697,19 +697,19 @@ static void GetMaterialEnvironment(EShaderPlatform InPlatform,
 		}
 	}
 
-	OutEnvironment.SetDefine(TEXT("MATERIAL_IS_STRATA"), false);// bMaterialIsStrata ? TEXT("1") : TEXT("0"));
+	OutEnvironment.SetDefine(TEXT("MATERIAL_IS_SUBSTRATE"), false);// bMaterialIsSubstrate ? TEXT("1") : TEXT("0"));
 
-	// STRATA_TODO do not request DualSourceBlending if gray scale transmittance is selected.
+	// SUBSTRATE_TODO do not request DualSourceBlending if gray scale transmittance is selected.
 	// bMaterialRequestsDualSourceBlending this base on limited set of blend mode: Opaque, Masked, TransmittanceCoverage, TransmittanceColored;
-	//bMaterialRequestsDualSourceBlending |= bMaterialIsStrata;
+	//bMaterialRequestsDualSourceBlending |= bMaterialIsSubstrate;
 
 	// if duals source blending (colored transmittance) is not supported on a platform, it will fall back to standard alpha blending (grey scale transmittance)
 	OutEnvironment.SetDefine(TEXT("DUAL_SOURCE_COLOR_BLENDING_ENABLED"), false);// bMaterialRequestsDualSourceBlending&& Material->IsDualBlendingEnabled(Platform) ? TEXT("1") : TEXT("0"));
 
 	// Translate() is called before getting here so we can create related define
-	/*if (StrataMaterialAnalysis.RequestedBSDFCount > 0)
+	/*if (SubstrateMaterialAnalysis.RequestedBSDFCount > 0)
 	{
-		OutEnvironment.SetDefine(TEXT("STRATA_CLAMPED_LAYER_COUNT"), StrataMaterialAnalysis.ClampedLayerCount);
+		OutEnvironment.SetDefine(TEXT("SUBSTRATE_CLAMPED_LAYER_COUNT"), SubstrateMaterialAnalysis.ClampedLayerCount);
 	}*/
 
 	OutEnvironment.SetDefine(TEXT("TEXTURE_SAMPLE_DEBUG"), false);// IsDebugTextureSampleEnabled() ? TEXT("1") : TEXT("0"));

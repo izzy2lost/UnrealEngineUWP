@@ -26,8 +26,8 @@ float4 HZBUvFactorAndInvFactor;
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void ScreenSpaceShortRangeAOCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 {
-#if STRATA_ENABLED && PERMUTATION_OVERFLOW
-	const FLumenMaterialCoord Coord = GetLumenMaterialCoord(DispatchThreadId + (Strata.OverflowTileOffset * STRATA_TILE_SIZE), true);
+#if SUBSTRATE_ENABLED && PERMUTATION_OVERFLOW
+	const FLumenMaterialCoord Coord = GetLumenMaterialCoord(DispatchThreadId + (Substrate.OverflowTileOffset * SUBSTRATE_TILE_SIZE), true);
 #else
 	const FLumenMaterialCoord Coord = GetLumenMaterialCoord(DispatchThreadId + View.ViewRectMinAndSize.xy, false);
 #endif

@@ -1299,7 +1299,7 @@ public:
 	FName CurrentLumenVisualizationMode;
 
 	/** Current Substrate visualization mode */
-	FName CurrentStrataVisualizationMode;
+	FName CurrentSubstrateVisualizationMode;
 
 	/** Current Groom visualization mode */
 	FName CurrentGroomVisualizationMode;

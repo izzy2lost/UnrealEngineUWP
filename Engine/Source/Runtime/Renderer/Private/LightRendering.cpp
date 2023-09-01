@@ -730,7 +730,7 @@ class FDeferredLightPS : public FGlobalShader
 	class FAtmosphereTransmittance : SHADER_PERMUTATION_BOOL("USE_ATMOSPHERE_TRANSMITTANCE");
 	class FCloudTransmittance 	: SHADER_PERMUTATION_BOOL("USE_CLOUD_TRANSMITTANCE");
 	class FAnistropicMaterials 	: SHADER_PERMUTATION_BOOL("SUPPORTS_ANISOTROPIC_MATERIALS");
-	class FStrataTileType		: SHADER_PERMUTATION_INT("STRATA_TILETYPE", 4);
+	class FSubstrateTileType		: SHADER_PERMUTATION_INT("SUBSTRATE_TILETYPE", 4);
 	class FVirtualShadowMapMask : SHADER_PERMUTATION_BOOL("USE_VIRTUAL_SHADOW_MAP_MASK");
 
 	using FPermutationDomain = TShaderPermutationDomain<
@@ -745,13 +745,13 @@ class FDeferredLightPS : public FGlobalShader
 		FAtmosphereTransmittance,
 		FCloudTransmittance,
 		FAnistropicMaterials,
-		FStrataTileType,
+		FSubstrateTileType,
 		FVirtualShadowMapMask>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneTextureUniformParameters, SceneTextures)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FHairStrandsViewUniformParameters, HairStrands)
-		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FStrataGlobalUniformParameters, Strata)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FVolumetricCloudShadowAOParameters, CloudShadowAO)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLightCloudTransmittanceParameters, CloudShadow)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FForwardLightData, ForwardLightData)
@@ -833,7 +833,7 @@ class FDeferredLightPS : public FGlobalShader
 
 		if (PermutationVector.Get<FDeferredLightPS::FAnistropicMaterials>())
 		{
-			if (Strata::IsStrataEnabled())
+			if (Substrate::IsSubstrateEnabled())
 			{
 				return false;
 			}
@@ -861,7 +861,7 @@ class FDeferredLightPS : public FGlobalShader
 			return false;
 		}
 
-		if (!Strata::IsStrataEnabled() && PermutationVector.Get<FStrataTileType>() != 0)
+		if (!Substrate::IsSubstrateEnabled() && PermutationVector.Get<FSubstrateTileType>() != 0)
 		{
 			return false;
 		}
@@ -1251,11 +1251,11 @@ void FDeferredShadingSceneRenderer::RenderLights(
 	{
 		RDG_EVENT_SCOPE(GraphBuilder, "DirectLighting");
 
-		// STRATA_TODO move right after stencil clear so that it is also common with EnvLight pass
-		if (ViewFamily.EngineShowFlags.DirectLighting && Strata::IsStrataEnabled())
+		// SUBSTRATE_TODO move right after stencil clear so that it is also common with EnvLight pass
+		if (ViewFamily.EngineShowFlags.DirectLighting && Substrate::IsSubstrateEnabled())
 		{
-			// Update the stencil buffer, marking simple/complex strata material only once for all the following passes.
-			Strata::AddStrataStencilPass(GraphBuilder, Views, SceneTextures);
+			// Update the stencil buffer, marking simple/complex Substrate material only once for all the following passes.
+			Substrate::AddSubstrateStencilPass(GraphBuilder, Views, SceneTextures);
 		}
 
 		if (ViewFamily.EngineShowFlags.DirectLighting && GUseTranslucentLightingVolumes && GSupportsVolumeTextureRendering)
@@ -2080,20 +2080,20 @@ static void InternalSetBoundingGeometryRasterizerState(FGraphicsPipelineStateIni
 }
 
 template<ECompareFunction CompareFunction>
-static uint32 InternalSetBoundingGeometryDepthState(FGraphicsPipelineStateInitializer& GraphicsPSOInit, EStrataTileType TileType)
+static uint32 InternalSetBoundingGeometryDepthState(FGraphicsPipelineStateInitializer& GraphicsPSOInit, ESubstrateTileType TileType)
 {
 	// bCameraInsideLightGeometry = true  -> CompareFunction = Always
 	// bCameraInsideLightGeometry = false -> CompareFunction = CF_DepthNearOrEqual
 	uint32 StencilRef = 0u;
-	if (TileType != EStrataTileType::ECount)
+	if (TileType != ESubstrateTileType::ECount)
 	{
-		check(Strata::IsStrataEnabled());
+		check(Substrate::IsSubstrateEnabled());
 		switch (TileType)
 		{
-		case EStrataTileType::ESimple :			StencilRef = Strata::StencilBit_Fast;			GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CompareFunction, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep, Strata::StencilBit_Fast, 0x0>::GetRHI(); break;
-		case EStrataTileType::ESingle :			StencilRef = Strata::StencilBit_Single;			GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CompareFunction, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep, Strata::StencilBit_Single, 0x0>::GetRHI(); break;
-		case EStrataTileType::EComplex:			StencilRef = Strata::StencilBit_Complex;		GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CompareFunction, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep, Strata::StencilBit_Complex, 0x0>::GetRHI(); break;
-		case EStrataTileType::EComplexSpecial:	StencilRef = Strata::StencilBit_ComplexSpecial; GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CompareFunction, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep, Strata::StencilBit_ComplexSpecial, 0x0>::GetRHI(); break;
+		case ESubstrateTileType::ESimple :			StencilRef = Substrate::StencilBit_Fast;			GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CompareFunction, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep, Substrate::StencilBit_Fast, 0x0>::GetRHI(); break;
+		case ESubstrateTileType::ESingle :			StencilRef = Substrate::StencilBit_Single;			GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CompareFunction, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep, Substrate::StencilBit_Single, 0x0>::GetRHI(); break;
+		case ESubstrateTileType::EComplex:			StencilRef = Substrate::StencilBit_Complex;		GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CompareFunction, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep, Substrate::StencilBit_Complex, 0x0>::GetRHI(); break;
+		case ESubstrateTileType::EComplexSpecial:	StencilRef = Substrate::StencilBit_ComplexSpecial; GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CompareFunction, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep, Substrate::StencilBit_ComplexSpecial, 0x0>::GetRHI(); break;
 		default: check(false);
 		}
 	}
@@ -2105,7 +2105,7 @@ static uint32 InternalSetBoundingGeometryDepthState(FGraphicsPipelineStateInitia
 }
 
 /** Sets up rasterizer and depth state for rendering bounding geometry in a deferred pass. */
-static uint32 SetBoundingGeometryRasterizerAndDepthState(FGraphicsPipelineStateInitializer& GraphicsPSOInit, const FViewInfo& View, bool bCameraInsideLightGeometry, EStrataTileType TileType)
+static uint32 SetBoundingGeometryRasterizerAndDepthState(FGraphicsPipelineStateInitializer& GraphicsPSOInit, const FViewInfo& View, bool bCameraInsideLightGeometry, ESubstrateTileType TileType)
 {
 	uint32 StencilRef = 0u;
 	InternalSetBoundingGeometryRasterizerState(GraphicsPSOInit, View, bCameraInsideLightGeometry);
@@ -2196,7 +2196,7 @@ static FDeferredLightPS::FParameters GetDeferredLightPSParameters(
 	Out.SceneTextures = SceneTexturesUniformBuffer;
 	Out.HairStrands = HairStrandsUniformBuffer;
 	Out.ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
-	Out.Strata = Strata::BindStrataGlobalUniformParameters(View);
+	Out.Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 	Out.LightingChannelsTexture = LightingChannelsTexture ? LightingChannelsTexture : WhiteDummy;
 	Out.LightingChannelsSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	Out.CloudShadowAO = GetCloudShadowAOParameters(GraphBuilder, View, CloudInfo);
@@ -2217,10 +2217,10 @@ static FDeferredLightPS::FParameters GetDeferredLightPSParameters(
 	Out.ShadowMaskBits = ShadowMaskBits ? ShadowMaskBits : GSystemTextures.GetZeroUIntDummy(GraphBuilder);
 	// PS - Render Targets
 	Out.RenderTargets[0] = FRenderTargetBinding(SceneColorTexture, ERenderTargetLoadAction::ELoad);
-	if (Strata::IsOpaqueRoughRefractionEnabled())
+	if (Substrate::IsOpaqueRoughRefractionEnabled())
 	{
-		Out.RenderTargets[1] = FRenderTargetBinding(Scene->StrataSceneData.SeparatedOpaqueRoughRefractionSceneColor, ERenderTargetLoadAction::ELoad);
-		Out.RenderTargets[2] = FRenderTargetBinding(Scene->StrataSceneData.SeparatedSubSurfaceSceneColor, ERenderTargetLoadAction::ELoad);
+		Out.RenderTargets[1] = FRenderTargetBinding(Scene->SubstrateSceneData.SeparatedOpaqueRoughRefractionSceneColor, ERenderTargetLoadAction::ELoad);
+		Out.RenderTargets[2] = FRenderTargetBinding(Scene->SubstrateSceneData.SeparatedSubSurfaceSceneColor, ERenderTargetLoadAction::ELoad);
 	}
 	if (SceneDepthTexture)
 	{
@@ -2239,7 +2239,7 @@ static void InternalRenderLight(
 	const FLightSceneInfo* LightSceneInfo,
 	TShaderType& PixelShader,
 	TParametersType* PassParameters,
-	EStrataTileType StrataTileMaterialType,
+	ESubstrateTileType SubstrateTileMaterialType,
 	const TCHAR* ShaderName)
 {
 	const FLightSceneProxy* RESTRICT LightProxy = LightSceneInfo->Proxy;
@@ -2251,19 +2251,19 @@ static void InternalRenderLight(
 		RDG_EVENT_NAME("%s", ShaderName),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[Scene, &View, PixelShader, LightSceneInfo, PassParameters, LightBounds, LightType, StrataTileMaterialType](FRHICommandList& RHICmdList)
+		[Scene, &View, PixelShader, LightSceneInfo, PassParameters, LightBounds, LightType, SubstrateTileMaterialType](FRHICommandList& RHICmdList)
 	{
 
 		const bool bIsRadial = LightType != LightType_Directional;
-		const bool bEnableStrataTiledPass   = StrataTileMaterialType != EStrataTileType::ECount;
-		const bool bEnableStrataStencilTest = StrataTileMaterialType != EStrataTileType::ECount && bIsRadial;
+		const bool bEnableSubstrateTiledPass   = SubstrateTileMaterialType != ESubstrateTileType::ECount;
+		const bool bEnableSubstrateStencilTest = SubstrateTileMaterialType != ESubstrateTileType::ECount && bIsRadial;
 
 		FGraphicsPipelineStateInitializer GraphicsPSOInit;
 		RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
 		// Set the device viewport for the view.
 		RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 
-		if (Strata::IsOpaqueRoughRefractionEnabled())
+		if (Substrate::IsOpaqueRoughRefractionEnabled())
 		{
 			GraphicsPSOInit.BlendState = TStaticBlendState<
 				CW_RGBA, BO_Add, BF_One, BF_One, BO_Add, BF_One, BF_One,
@@ -2282,33 +2282,33 @@ static void InternalRenderLight(
 			PermutationVectorVS.Set<FDeferredLightVS::FRadialLight>(false);
 			TShaderMapRef<FDeferredLightVS> VertexShader(View.ShaderMap, PermutationVectorVS);
 
-			Strata::FStrataTilePassVS::FPermutationDomain VSPermutationVector;
-			VSPermutationVector.Set< Strata::FStrataTilePassVS::FEnableDebug >(false);
-			VSPermutationVector.Set< Strata::FStrataTilePassVS::FEnableTexCoordScreenVector >(true);
-			TShaderMapRef<Strata::FStrataTilePassVS> TileVertexShader(View.ShaderMap, VSPermutationVector);
+			Substrate::FSubstrateTilePassVS::FPermutationDomain VSPermutationVector;
+			VSPermutationVector.Set< Substrate::FSubstrateTilePassVS::FEnableDebug >(false);
+			VSPermutationVector.Set< Substrate::FSubstrateTilePassVS::FEnableTexCoordScreenVector >(true);
+			TShaderMapRef<Substrate::FSubstrateTilePassVS> TileVertexShader(View.ShaderMap, VSPermutationVector);
 
-			Strata::FStrataTilePassVS::FParameters VSParameters;
-			if (Strata::IsStrataEnabled())
+			Substrate::FSubstrateTilePassVS::FParameters VSParameters;
+			if (Substrate::IsSubstrateEnabled())
 			{
-				VSParameters = Strata::SetTileParameters(View, StrataTileMaterialType, GraphicsPSOInit.PrimitiveType);
+				VSParameters = Substrate::SetTileParameters(View, SubstrateTileMaterialType, GraphicsPSOInit.PrimitiveType);
 			}
 
 			// Turn DBT back off
 			GraphicsPSOInit.bDepthBounds = false;
 			GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
 			GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI;
-			GraphicsPSOInit.BoundShaderState.VertexShaderRHI = bEnableStrataTiledPass ? TileVertexShader.GetVertexShader() : VertexShader.GetVertexShader();
+			GraphicsPSOInit.BoundShaderState.VertexShaderRHI = bEnableSubstrateTiledPass ? TileVertexShader.GetVertexShader() : VertexShader.GetVertexShader();
 			GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();		
 			GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
 			SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0x0);
 
 			SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PassParameters->PS);
 
-			if (StrataTileMaterialType != ECount)
+			if (SubstrateTileMaterialType != ECount)
 			{
-				check(Strata::IsStrataEnabled());
+				check(Substrate::IsSubstrateEnabled());
 				SetShaderParameters(RHICmdList, TileVertexShader, TileVertexShader.GetVertexShader(), VSParameters);
-				RHICmdList.DrawPrimitiveIndirect(VSParameters.TileIndirectBuffer->GetIndirectRHICallBuffer(), Strata::TileTypeDrawIndirectArgOffset(StrataTileMaterialType));
+				RHICmdList.DrawPrimitiveIndirect(VSParameters.TileIndirectBuffer->GetIndirectRHICallBuffer(), Substrate::TileTypeDrawIndirectArgOffset(SubstrateTileMaterialType));
 			}
 			else
 			{
@@ -2344,7 +2344,7 @@ static void InternalRenderLight(
 				//@todo - accurate ortho camera / light intersection
 				|| !View.IsPerspectiveProjection();
 
-			const uint32 StencilRef = SetBoundingGeometryRasterizerAndDepthState(GraphicsPSOInit, View, bCameraInsideLightGeometry, StrataTileMaterialType);
+			const uint32 StencilRef = SetBoundingGeometryRasterizerAndDepthState(GraphicsPSOInit, View, bCameraInsideLightGeometry, SubstrateTileMaterialType);
 			GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GetVertexDeclarationFVector4();
 			GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
 			GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
@@ -2391,10 +2391,10 @@ BEGIN_SHADER_PARAMETER_STRUCT(FRenderLightParameters, )
 	// PS/VS parameter structs
 	SHADER_PARAMETER_STRUCT_INCLUDE(FDeferredLightPS::FParameters, PS)
 	SHADER_PARAMETER_STRUCT_INCLUDE(FDeferredLightVS::FParameters, VS)
-	// Strata tiles
-	SHADER_PARAMETER_STRUCT_INCLUDE(FStrataTileParameter, StrataTileSimple)
-	SHADER_PARAMETER_STRUCT_INCLUDE(FStrataTileParameter, StrataTileSingle)
-	SHADER_PARAMETER_STRUCT_INCLUDE(FStrataTileParameter, StrataTileComplex)
+	// Substrate tiles
+	SHADER_PARAMETER_STRUCT_INCLUDE(FSubstrateTileParameter, SubstrateTileSimple)
+	SHADER_PARAMETER_STRUCT_INCLUDE(FSubstrateTileParameter, SubstrateTileSingle)
+	SHADER_PARAMETER_STRUCT_INCLUDE(FSubstrateTileParameter, SubstrateTileComplex)
 END_SHADER_PARAMETER_STRUCT()
 
 /** Shader parameters for Standard Deferred Light pass. */
@@ -2433,7 +2433,7 @@ static void RenderLight(
 	const FSphere LightBounds = LightProxy->GetBoundingSphere();
 	const ELightComponentType LightType = (ELightComponentType)LightProxy->GetLightType();
 	const bool bIsRadial = LightType != LightType_Directional;
-	const bool bSupportAnisotropyPermutation = ShouldRenderAnisotropyPass(View) && !Strata::IsStrataEnabled(); // Strata managed anisotropy differently than legacy path. No need for special permutation.
+	const bool bSupportAnisotropyPermutation = ShouldRenderAnisotropyPass(View) && !Substrate::IsSubstrateEnabled(); // Substrate managed anisotropy differently than legacy path. No need for special permutation.
 	const bool bUseVirtualShadowMapMask = VirtualShadowMapId != INDEX_NONE && ShadowMaskBits;
 	const bool bNeedComplexTransmittanceSupport = View.HairCardsMeshElements.Num() && IsHairStrandsSupported(EHairStrandsShaderType::All, View.GetShaderPlatform());
 
@@ -2466,7 +2466,7 @@ static void RenderLight(
 		FDeferredLightOverlapPS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FDeferredLightOverlapPS::FRadialAttenuation>(bIsRadial);
 		TShaderMapRef<FDeferredLightOverlapPS> PixelShader(View.ShaderMap, PermutationVector);		
-		InternalRenderLight(GraphBuilder, Scene, View, LightSceneInfo, PixelShader, PassParameters, EStrataTileType::ECount, TEXT("Light::StandardDeferred(Overlap)"));
+		InternalRenderLight(GraphBuilder, Scene, View, LightSceneInfo, PixelShader, PassParameters, ESubstrateTileType::ECount, TEXT("Light::StandardDeferred(Overlap)"));
 	}
 	// Lighting shader
 	else
@@ -2483,14 +2483,14 @@ static void RenderLight(
 		{
 			PassParameters->VS = FDeferredLightVS::GetParameters(View, false);
 		}
-		// VS - Strata tile parameters
-		if (Strata::IsStrataEnabled())
+		// VS - Substrate tile parameters
+		if (Substrate::IsSubstrateEnabled())
 		{
 			// Note: we register all tile types here in order to have all resources tracked properly and being able 
 			//       to create a single pass parameters struct instead of created one for each tile types
-			PassParameters->StrataTileSimple = Strata::SetTileParameters(GraphBuilder, View, EStrataTileType::ESingle);
-			PassParameters->StrataTileSingle = Strata::SetTileParameters(GraphBuilder, View, EStrataTileType::ESimple);
-			PassParameters->StrataTileComplex = Strata::SetTileParameters(GraphBuilder, View, EStrataTileType::EComplex);
+			PassParameters->SubstrateTileSimple = Substrate::SetTileParameters(GraphBuilder, View, ESubstrateTileType::ESingle);
+			PassParameters->SubstrateTileSingle = Substrate::SetTileParameters(GraphBuilder, View, ESubstrateTileType::ESimple);
+			PassParameters->SubstrateTileComplex = Substrate::SetTileParameters(GraphBuilder, View, ESubstrateTileType::EComplex);
 		}
 
 		FDeferredLightPS::FPermutationDomain PermutationVector;
@@ -2499,7 +2499,7 @@ static void RenderLight(
 		PermutationVector.Set< FDeferredLightPS::FLightingChannelsDim >(View.bUsesLightingChannels);
 		PermutationVector.Set< FDeferredLightPS::FVisualizeCullingDim >(View.Family->EngineShowFlags.VisualizeLightCulling);
 		PermutationVector.Set< FDeferredLightPS::FVirtualShadowMapMask >(bUseVirtualShadowMapMask);
-		PermutationVector.Set< FDeferredLightPS::FStrataTileType >(0);
+		PermutationVector.Set< FDeferredLightPS::FSubstrateTileType >(0);
 		PermutationVector.Set< FDeferredLightPS::FHairComplexTransmittance >(bNeedComplexTransmittanceSupport);
 		if (bIsRadial)
 		{
@@ -2522,47 +2522,47 @@ static void RenderLight(
 		}
 		PermutationVector = FDeferredLightPS::RemapPermutation(PermutationVector);
 
-		// Strata tile rendering: 
+		// Substrate tile rendering: 
 		// * if the light is directional, then dispatch a set of rect tiles
 		// * if the light is radial/local, then dispatch a light geometry with stencil test. The stencil buffer has been prefilled with the tile result (simple/complex) 
 		//   so that the geometry get correctly stencil culled on complex/simple part of the screen
-		if (Strata::IsStrataEnabled())
+		if (Substrate::IsSubstrateEnabled())
 		{
 			// Complex Special tiles
-			if (Strata::GetStrataUsesComplexSpecialPath(View))
+			if (Substrate::GetSubstrateUsesComplexSpecialPath(View))
 			{
-				const EStrataTileType TileType = EStrataTileType::EComplexSpecial;
-				PermutationVector.Set<FDeferredLightPS::FStrataTileType>(TileType);
+				const ESubstrateTileType TileType = ESubstrateTileType::EComplexSpecial;
+				PermutationVector.Set<FDeferredLightPS::FSubstrateTileType>(TileType);
 				TShaderMapRef< FDeferredLightPS > PixelShader(View.ShaderMap, PermutationVector);
 				InternalRenderLight(GraphBuilder, Scene, View, LightSceneInfo, PixelShader, PassParameters, TileType, TEXT("Light::StandardDeferred(ComplexSpecial)"));
 			}
 			// Complex tiles
 			{
-				const EStrataTileType TileType = EStrataTileType::EComplex;
-				PermutationVector.Set<FDeferredLightPS::FStrataTileType>(TileType);
+				const ESubstrateTileType TileType = ESubstrateTileType::EComplex;
+				PermutationVector.Set<FDeferredLightPS::FSubstrateTileType>(TileType);
 				TShaderMapRef< FDeferredLightPS > PixelShader(View.ShaderMap, PermutationVector);
 				InternalRenderLight(GraphBuilder, Scene, View, LightSceneInfo, PixelShader, PassParameters, TileType, TEXT("Light::StandardDeferred(Complex)"));
 			}
 			// Single tiles
 			{
-				const EStrataTileType TileType = EStrataTileType::ESingle;
-				PermutationVector.Set<FDeferredLightPS::FStrataTileType>(TileType);
+				const ESubstrateTileType TileType = ESubstrateTileType::ESingle;
+				PermutationVector.Set<FDeferredLightPS::FSubstrateTileType>(TileType);
 				TShaderMapRef< FDeferredLightPS > PixelShader(View.ShaderMap, PermutationVector);
 				InternalRenderLight(GraphBuilder, Scene, View, LightSceneInfo, PixelShader, PassParameters, TileType, TEXT("Light::StandardDeferred(Single)"));
 			}
 			// Simple tiles
 			{
-				const EStrataTileType TileType = EStrataTileType::ESimple;
-				PermutationVector.Set<FDeferredLightPS::FStrataTileType>(TileType);
+				const ESubstrateTileType TileType = ESubstrateTileType::ESimple;
+				PermutationVector.Set<FDeferredLightPS::FSubstrateTileType>(TileType);
 				TShaderMapRef< FDeferredLightPS > PixelShader(View.ShaderMap, PermutationVector);
 				InternalRenderLight(GraphBuilder, Scene, View, LightSceneInfo, PixelShader, PassParameters, TileType, TEXT("Light::StandardDeferred(Simple)"));
 			}
 		}
 		else
 		{
-			PermutationVector.Set< FDeferredLightPS::FStrataTileType>(0);
+			PermutationVector.Set< FDeferredLightPS::FSubstrateTileType>(0);
 			TShaderMapRef< FDeferredLightPS > PixelShader(View.ShaderMap, PermutationVector);
-			InternalRenderLight(GraphBuilder, Scene, View, LightSceneInfo, PixelShader, PassParameters, EStrataTileType::ECount, TEXT("Light::StandardDeferred"));
+			InternalRenderLight(GraphBuilder, Scene, View, LightSceneInfo, PixelShader, PassParameters, ESubstrateTileType::ECount, TEXT("Light::StandardDeferred"));
 		}
 	}
 }
@@ -2769,7 +2769,7 @@ static FSimpleLightsStandardDeferredParameters GetRenderLightSimpleParameters(
 	// PS - General parameters
 	Out.PS.SceneTextures = SceneTextures.UniformBuffer;
 	Out.PS.HairStrands = View.HairStrandsViewData.UniformBuffer;
-	Out.PS.Strata = Strata::BindStrataGlobalUniformParameters(View);
+	Out.PS.Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 	Out.PS.LightingChannelsTexture = WhiteDummy;
 	Out.PS.LightingChannelsSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	Out.PS.CloudShadowAO = GetCloudShadowAOParameters(GraphBuilder, View, nullptr);
@@ -2809,7 +2809,7 @@ static void InternalRenderSimpleLightsStandardDeferred(
 	const uint32 NumViews,
 	const FMinimalSceneTextures& SceneTextures,
 	const FSimpleLightArray& SimpleLights,
-	EStrataTileType TileType)
+	ESubstrateTileType TileType)
 {
 	FSimpleLightsStandardDeferredParameters* PassParameters = GraphBuilder.AllocParameters<FSimpleLightsStandardDeferredParameters>();
 	*PassParameters = GetRenderLightSimpleParameters(
@@ -2833,7 +2833,7 @@ static void InternalRenderSimpleLightsStandardDeferred(
 	PermutationVector.Set< FDeferredLightPS::FHairComplexTransmittance>(bNeedComplexTransmittanceSupport);
 	PermutationVector.Set< FDeferredLightPS::FAtmosphereTransmittance >(false);
 	PermutationVector.Set< FDeferredLightPS::FCloudTransmittance >(false);
-	PermutationVector.Set< FDeferredLightPS::FStrataTileType>(TileType != EStrataTileType::ECount ? TileType : 0);
+	PermutationVector.Set< FDeferredLightPS::FSubstrateTileType>(TileType != ESubstrateTileType::ECount ? TileType : 0);
 	TShaderMapRef<FDeferredLightPS> PixelShader(View.ShaderMap, PermutationVector);
 
 	FDeferredLightVS::FPermutationDomain PermutationVectorVS;
@@ -2841,7 +2841,7 @@ static void InternalRenderSimpleLightsStandardDeferred(
 	TShaderMapRef<FDeferredLightVS> VertexShader(View.ShaderMap, PermutationVectorVS);
 
 	GraphBuilder.AddPass(
-		RDG_EVENT_NAME("Light::DeferredSimpleLights(Strata:%s,Tile:%s)", Strata::IsStrataEnabled() ? TEXT("True") : TEXT("False"), Strata::IsStrataEnabled() ? ToString(TileType) : TEXT("None")),
+		RDG_EVENT_NAME("Light::DeferredSimpleLights(Substrate:%s,Tile:%s)", Substrate::IsSubstrateEnabled() ? TEXT("True") : TEXT("False"), Substrate::IsSubstrateEnabled() ? ToString(TileType) : TEXT("None")),
 		PassParameters,
 		ERDGPassFlags::Raster,
 		[&View, &SimpleLights, ViewIndex, NumViews, PassParameters, PixelShader, VertexShader, TileType](FRHICommandList& RHICmdList)
@@ -2908,19 +2908,19 @@ void FDeferredShadingSceneRenderer::RenderSimpleLightsStandardDeferred(
 	{
 		const FViewInfo& View = Views[ViewIndex];
 
-		if (Strata::IsStrataEnabled())
+		if (Substrate::IsSubstrateEnabled())
 		{
-			if (Strata::GetStrataUsesComplexSpecialPath(View))
+			if (Substrate::GetSubstrateUsesComplexSpecialPath(View))
 			{
-				InternalRenderSimpleLightsStandardDeferred(GraphBuilder, Scene, View, ViewIndex, NumViews, SceneTextures, SimpleLights, EStrataTileType::EComplexSpecial);
+				InternalRenderSimpleLightsStandardDeferred(GraphBuilder, Scene, View, ViewIndex, NumViews, SceneTextures, SimpleLights, ESubstrateTileType::EComplexSpecial);
 			}
-			InternalRenderSimpleLightsStandardDeferred(GraphBuilder, Scene, View, ViewIndex, NumViews, SceneTextures, SimpleLights, EStrataTileType::EComplex);
-			InternalRenderSimpleLightsStandardDeferred(GraphBuilder, Scene, View, ViewIndex, NumViews, SceneTextures, SimpleLights, EStrataTileType::ESingle);
-			InternalRenderSimpleLightsStandardDeferred(GraphBuilder, Scene, View, ViewIndex, NumViews, SceneTextures, SimpleLights, EStrataTileType::ESimple);
+			InternalRenderSimpleLightsStandardDeferred(GraphBuilder, Scene, View, ViewIndex, NumViews, SceneTextures, SimpleLights, ESubstrateTileType::EComplex);
+			InternalRenderSimpleLightsStandardDeferred(GraphBuilder, Scene, View, ViewIndex, NumViews, SceneTextures, SimpleLights, ESubstrateTileType::ESingle);
+			InternalRenderSimpleLightsStandardDeferred(GraphBuilder, Scene, View, ViewIndex, NumViews, SceneTextures, SimpleLights, ESubstrateTileType::ESimple);
 		}
 		else
 		{
-			InternalRenderSimpleLightsStandardDeferred(GraphBuilder, Scene, View, ViewIndex, NumViews, SceneTextures, SimpleLights, EStrataTileType::ECount);
+			InternalRenderSimpleLightsStandardDeferred(GraphBuilder, Scene, View, ViewIndex, NumViews, SceneTextures, SimpleLights, ESubstrateTileType::ECount);
 		}
 	}
 }

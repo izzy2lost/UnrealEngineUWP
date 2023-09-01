@@ -663,8 +663,8 @@ void FFastVramConfig::Update()
 	bDirty |= UpdateBufferFlagFromCVar(CVarFastVRam_ForwardLightingCullingResources, ForwardLightingCullingResources);
 	bDirty |= UpdateBufferFlagFromCVar(CVarFastVRam_GlobalDistanceFieldCullGridBuffers, GlobalDistanceFieldCullGridBuffers);
 
-	// When strata is enable, remove Scene color from fast VRAM to leave space for material buffer which has more impact on performance
-	if (Strata::IsStrataEnabled() && !IsForwardShadingEnabled(GMaxRHIShaderPlatform))
+	// When Substrate is enable, remove Scene color from fast VRAM to leave space for material buffer which has more impact on performance
+	if (Substrate::IsSubstrateEnabled() && !IsForwardShadingEnabled(GMaxRHIShaderPlatform))
 	{
 		SceneColor = SceneColor & (~(TexCreate_FastVRAM | TexCreate_FastVRAMPartialAlloc));
 	}
@@ -972,7 +972,7 @@ void FViewInfo::Init()
 	NumVisibleDynamicPrimitives = 0;
 	NumVisibleDynamicEditorPrimitives = 0;
 
-	StrataViewData.Reset();
+	SubstrateViewData.Reset();
 	HairStrandsViewData = FHairStrandsViewData();
 
 	LocalFogVolumeGPUInstanceCount = 0;
@@ -1980,9 +1980,9 @@ void FViewInfo::SetupUniformBufferParameters(
 			ViewState->GlintShadingLUTsData.Dictionary_Alpha,
 			*reinterpret_cast<float*>(&ViewState->GlintShadingLUTsData.Dictionary_N),
 			*reinterpret_cast<float*>(&ViewState->GlintShadingLUTsData.Dictionary_NLevels),
-			Strata::GlintLevelBias());
+			Substrate::GlintLevelBias());
 		ViewUniformShaderParameters.GlintLUTParameters1 = FVector4f(
-			Strata::GlintLevelMin(),
+			Substrate::GlintLevelMin(),
 			0.0f, 0.0f, 0.0f);
 	}
 	ViewUniformShaderParameters.GlintTexture = OrBlack2DArrayIfNull(ViewUniformShaderParameters.GlintTexture);
@@ -2564,17 +2564,17 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 			ShouldRenderLumenReflections(*ViewInfo) || 
 			ShouldRenderVolumetricCloudWithBlueNoise_GameThread(Scene, *ViewInfo) || 
 			UseVirtualShadowMaps(Scene->GetShaderPlatform(), Scene->GetFeatureLevel()) ||
-			Strata::IsGlintEnabled())
+			Substrate::IsGlintEnabled())
 		{
 			GEngine->LoadBlueNoiseTexture();
 		}
 
-		if (Strata::IsGlintEnabled())
+		if (Substrate::IsGlintEnabled())
 		{
 			GEngine->LoadGlintTextures();
 		}
 
-		if (Strata::IsStrataEnabled())
+		if (Substrate::IsSubstrateEnabled())
 		{
 			GEngine->LoadSimpleVolumeTextures();
 		}

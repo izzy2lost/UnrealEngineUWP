@@ -45,22 +45,22 @@
 #define COMPILE_MOMENT1_ACCUMULATOR 1
 #define COMPILE_BOX_KERNEL 1
 
-#if STRATA_ENABLED && (DIM_APPLY_DIFFUSE_INDIRECT == DIM_APPLY_DIFFUSE_INDIRECT_SSGI || DIM_APPLY_DIFFUSE_INDIRECT == DIM_APPLY_DIFFUSE_INDIRECT_SCREEN_PROBE_GATHER)
-  #if STRATA_TILETYPE == 0
-	#define STRATA_FASTPATH 1
-  #elif STRATA_TILETYPE == 1
-	#define STRATA_SINGLEPATH 1
-  #elif STRATA_TILETYPE == 2
+#if SUBSTRATE_ENABLED && (DIM_APPLY_DIFFUSE_INDIRECT == DIM_APPLY_DIFFUSE_INDIRECT_SSGI || DIM_APPLY_DIFFUSE_INDIRECT == DIM_APPLY_DIFFUSE_INDIRECT_SCREEN_PROBE_GATHER)
+  #if SUBSTRATE_TILETYPE == 0
+	#define SUBSTRATE_FASTPATH 1
+  #elif SUBSTRATE_TILETYPE == 1
+	#define SUBSTRATE_SINGLEPATH 1
+  #elif SUBSTRATE_TILETYPE == 2
 	// COMPLEX PATH
-  #elif STRATA_TILETYPE == 3
+  #elif SUBSTRATE_TILETYPE == 3
 	// COMPLEX PATH
-	#define STRATA_COMPLEXSPECIALPATH 1
+	#define SUBSTRATE_COMPLEXSPECIALPATH 1
   #else
-	#error Strata tile type non-implemented
+	#error Substrate tile type non-implemented
   #endif
 #endif
 
-#if STRATA_ENABLED && STRATA_OPAQUE_ROUGH_REFRACTION_ENABLED
+#if SUBSTRATE_ENABLED && SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED
 RWTexture2D<float3> OutOpaqueRoughRefractionSceneColor;
 RWTexture2D<float3> OutSubSurfaceSceneColor;
 #endif
@@ -227,34 +227,34 @@ float GetSSSCheckerboadSpecularScale(uint2 PixelPos, bool bNeedsSeparateLightAcc
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Lumen diffuse evaluation for strata material.
+// Lumen diffuse evaluation for Substrate material.
 
-#if STRATA_ENABLED
-FStrataDeferredLighting StrataIndirectLighting(
+#if SUBSTRATE_ENABLED
+FSubstrateDeferredLighting SubstrateIndirectLighting(
 	uint2 PixelPos,
-	FStrataMaterialContainer MaterialBuffer,
-	inout FStrataAddressing StrataAddressing,
-	FStrataPixelHeader StrataPixelHeader,
+	FSubstrateMaterialContainer MaterialBuffer,
+	inout FSubstrateAddressing SubstrateAddressing,
+	FSubstratePixelHeader SubstratePixelHeader,
 	in float3 V,
 	in float  InAO,
 	in float3 InputDiffuseLighting,
 	in float4 InputSpecularLighting)
 {
-	FStrataDeferredLighting Out = GetInitialisedStrataDeferredLighting();
-	const FStrataIntegrationSettings Settings = InitStrataIntegrationSettings(false /*bForceFullyRough*/, Strata.bRoughDiffuse, Strata.PeelLayersAboveDepth, Strata.bRoughnessTracking);
+	FSubstrateDeferredLighting Out = GetInitialisedSubstrateDeferredLighting();
+	const FSubstrateIntegrationSettings Settings = InitSubstrateIntegrationSettings(false /*bForceFullyRough*/, Substrate.bRoughDiffuse, Substrate.PeelLayersAboveDepth, Substrate.bRoughnessTracking);
 
-	const uint2 Tile0Coord = PixelPos >> STRATA_TILE_SIZE_DIV_AS_SHIFT;
-	const uint2 LocalTileCoord = PixelPos - Tile0Coord * STRATA_TILE_SIZE;
-	const FStrataBSDFTile Tile0 = UnpackBSDFTile(Strata.BSDFTileTexture[Tile0Coord]);
+	const uint2 Tile0Coord = PixelPos >> SUBSTRATE_TILE_SIZE_DIV_AS_SHIFT;
+	const uint2 LocalTileCoord = PixelPos - Tile0Coord * SUBSTRATE_TILE_SIZE;
+	const FSubstrateBSDFTile Tile0 = UnpackBSDFTile(Substrate.BSDFTileTexture[Tile0Coord]);
 
-	Strata_for(uint BSDFIndex = 0, BSDFIndex < StrataPixelHeader.BSDFCount, ++BSDFIndex)
+	Substrate_for(uint BSDFIndex = 0, BSDFIndex < SubstratePixelHeader.BSDFCount, ++BSDFIndex)
 	{
 		// * Lumen integration output indirect lighting per BSDF
 		// * SSGI  integration output a single indirect lighting value for all BSDF
 	#if DIM_APPLY_DIFFUSE_INDIRECT == DIM_APPLY_DIFFUSE_INDIRECT_SCREEN_PROBE_GATHER
 		bool bIsValid = true;
-		const uint2 TileCoord = GetTilePositionFlatten(Tile0, Tile0Coord, BSDFIndex, Strata.OverflowTileCount, bIsValid);
-		const uint2 InCoord   = TileCoord * STRATA_TILE_SIZE + LocalTileCoord;
+		const uint2 TileCoord = GetTilePositionFlatten(Tile0, Tile0Coord, BSDFIndex, Substrate.OverflowTileCount, bIsValid);
+		const uint2 InCoord   = TileCoord * SUBSTRATE_TILE_SIZE + LocalTileCoord;
 
 		const float3 InDiffuseLighting			= DiffuseIndirect_Textures_0.Load(uint3(InCoord, 0)).rgb;
 		const float3 InRoughSpecularLighting	= DiffuseIndirect_Textures_2.Load(uint3(InCoord, 0)).rgb;
@@ -265,58 +265,58 @@ FStrataDeferredLighting StrataIndirectLighting(
 		const float4 InSpecularLighting			= InputSpecularLighting;
 	#endif
 
-		FStrataBSDF BSDF = UnpackStrataBSDF(MaterialBuffer, StrataAddressing, StrataPixelHeader);
+		FSubstrateBSDF BSDF = UnpackSubstrateBSDF(MaterialBuffer, SubstrateAddressing, SubstratePixelHeader);
 		if (bVisualizeDiffuseIndirect)
 		{
-			StrataSetBSDFDiffuseColor(BSDF, float3(0.18f, 0.18f, 0.18f));
+			SubstrateSetBSDFDiffuseColor(BSDF, float3(0.18f, 0.18f, 0.18f));
 		}
 
 		// Create the BSDF context
-		FStrataBSDFContext StrataBSDFContext = StrataCreateBSDFContext(StrataPixelHeader, BSDF, StrataAddressing, V);
-		const float3 BSDFThroughput = LuminanceWeight(StrataBSDFContext, BSDF);
+		FSubstrateBSDFContext SubstrateBSDFContext = SubstrateCreateBSDFContext(SubstratePixelHeader, BSDF, SubstrateAddressing, V);
+		const float3 BSDFThroughput = LuminanceWeight(SubstrateBSDFContext, BSDF);
 
 		// Evaluate environment lighting
-		FStrataEnvLightResult StrataEnvLight = StrataEvaluateForEnvLight(StrataBSDFContext, true /*bEnableSpecular*/, Settings);
+		FSubstrateEnvLightResult SubstrateEnvLight = SubstrateEvaluateForEnvLight(SubstrateBSDFContext, true /*bEnableSpecular*/, Settings);
 		
-		const float3 DiffuseColor = StrataGetBSDFDiffuseColor(BSDF);
-		const float  Roughness = StrataGetBSDFRoughness(BSDF);
-		const bool bHasBackfaceDiffuse = StrataGetBSDFType(BSDF) == STRATA_BSDF_TYPE_SLAB && BSDF.HasBackScattering();
-		const FShadingOcclusion Occlusion = GetShadingOcclusion(PixelPos, V, StrataBSDFContext.N, Roughness, DiffuseColor, InAO);
+		const float3 DiffuseColor = SubstrateGetBSDFDiffuseColor(BSDF);
+		const float  Roughness = SubstrateGetBSDFRoughness(BSDF);
+		const bool bHasBackfaceDiffuse = SubstrateGetBSDFType(BSDF) == SUBSTRATE_BSDF_TYPE_SLAB && BSDF.HasBackScattering();
+		const FShadingOcclusion Occlusion = GetShadingOcclusion(PixelPos, V, SubstrateBSDFContext.N, Roughness, DiffuseColor, InAO);
 
 		const float3 InGlossyLighting = MixSpecularAndRoughReflections(Roughness, bHasBackfaceDiffuse, InSpecularLighting, InRoughSpecularLighting);
 
 
 		FDirectLighting OutBSDF = (FDirectLighting)0;
-		OutBSDF.Diffuse  += BSDFThroughput * InDiffuseLighting * StrataEnvLight.DiffuseWeight * Occlusion.DiffuseOcclusion;
-		OutBSDF.Specular += BSDFThroughput * InGlossyLighting  * StrataEnvLight.SpecularWeight * Occlusion.SpecularOcclusion;
+		OutBSDF.Diffuse  += BSDFThroughput * InDiffuseLighting * SubstrateEnvLight.DiffuseWeight * Occlusion.DiffuseOcclusion;
+		OutBSDF.Specular += BSDFThroughput * InGlossyLighting  * SubstrateEnvLight.SpecularWeight * Occlusion.SpecularOcclusion;
 
 		#if DIM_APPLY_DIFFUSE_INDIRECT == DIM_APPLY_DIFFUSE_INDIRECT_SCREEN_PROBE_GATHER
 		if (bHasBackfaceDiffuse && bLumenSupportBackfaceDiffuse > 0)
 		{
 			const float3 InBackfaceDiffuseLighting = DiffuseIndirect_Textures_1.Load(uint3(InCoord, 0)).rgb;
-			OutBSDF.Diffuse  += BSDFThroughput * InBackfaceDiffuseLighting * StrataEnvLight.DiffuseBackFaceWeight * PI * Occlusion.DiffuseOcclusion; // Multiplied by PI as is StrataEnvLight.DiffuseBackFaceWeight is divided PI
+			OutBSDF.Diffuse  += BSDFThroughput * InBackfaceDiffuseLighting * SubstrateEnvLight.DiffuseBackFaceWeight * PI * Occlusion.DiffuseOcclusion; // Multiplied by PI as is SubstrateEnvLight.DiffuseBackFaceWeight is divided PI
 		}
 		#endif 
 
-		#if STRATA_FASTPATH==0
-		if (any(StrataEnvLight.SpecularHazeWeight > 0.0f))
+		#if SUBSTRATE_FASTPATH==0
+		if (any(SubstrateEnvLight.SpecularHazeWeight > 0.0f))
 		{
-			const float3 InHazeGlossyLighting = MixSpecularAndRoughReflections(StrataEnvLight.SpecularHazeSafeRoughness, bHasBackfaceDiffuse, InSpecularLighting, InRoughSpecularLighting);
-			OutBSDF.Specular += BSDFThroughput * StrataEnvLight.SpecularHazeWeight * InHazeGlossyLighting * Occlusion.SpecularOcclusion;
+			const float3 InHazeGlossyLighting = MixSpecularAndRoughReflections(SubstrateEnvLight.SpecularHazeSafeRoughness, bHasBackfaceDiffuse, InSpecularLighting, InRoughSpecularLighting);
+			OutBSDF.Specular += BSDFThroughput * SubstrateEnvLight.SpecularHazeWeight * InHazeGlossyLighting * Occlusion.SpecularOcclusion;
 		}
 		#endif 
 
 		// SSS Checkerboard
-		OutBSDF.Specular *= GetSSSCheckerboadSpecularScale(PixelPos, StrataEnvLight.bSubsurface);
+		OutBSDF.Specular *= GetSSSCheckerboadSpecularScale(PixelPos, SubstrateEnvLight.bSubsurface);
 
 		FLightAccumulator Accumulator = (FLightAccumulator)0;
-		LightAccumulator_AddSplit(Accumulator, OutBSDF.Diffuse, OutBSDF.Specular, OutBSDF.Diffuse, 1.f /*CommonMultiplier*/, StrataEnvLight.bSubsurface);
-		AccumulateStrataDeferredLighting(Out, Accumulator, StrataEnvLight.bSubsurface, BSDF_GETISTOPLAYER(BSDF));
+		LightAccumulator_AddSplit(Accumulator, OutBSDF.Diffuse, OutBSDF.Specular, OutBSDF.Diffuse, 1.f /*CommonMultiplier*/, SubstrateEnvLight.bSubsurface);
+		AccumulateSubstrateDeferredLighting(Out, Accumulator, SubstrateEnvLight.bSubsurface, BSDF_GETISTOPLAYER(BSDF));
 	}
 
 	return Out;
 }
-#endif // STRATA_ENABLED
+#endif // SUBSTRATE_ENABLED
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -425,7 +425,7 @@ void MainPS(
 				// VGPRs
 				KernelConfig.BufferUV = SceneBufferUV; 
 				{
-					// STRATA_TODO: We use the top layer data, but we should resolve lighting for each BSDFs.
+					// SUBSTRATE_TODO: We use the top layer data, but we should resolve lighting for each BSDFs.
 					KernelConfig.CompressedRefSceneMetadata = MaterialToCompressedSceneMetadata(Material.SceneDepth, Material.WorldNormal, Material.Roughness, Material.ShadingID);
 					KernelConfig.RefBufferUV = SceneBufferUV;
 					KernelConfig.RefSceneMetadataLayout = METADATA_BUFFER_LAYOUT_DISABLED;
@@ -464,31 +464,31 @@ void MainPS(
 			}
 			#endif
 
-			#if STRATA_ENABLED
+			#if SUBSTRATE_ENABLED
 			{
-				FStrataAddressing StrataAddressing = GetStrataPixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Strata.MaxBytesPerPixel);
-				FStrataPixelHeader StrataPixelHeader = UnpackStrataHeaderIn(Strata.MaterialTextureArray, StrataAddressing, Strata.TopLayerTexture);
-				if (StrataPixelHeader.GetMaterialMode() > HEADER_MATERIALMODE_NONE)
+				FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
+				FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
+				if (SubstratePixelHeader.GetMaterialMode() > HEADER_MATERIALMODE_NONE)
 				{
-					const FStrataDeferredLighting IndirectLighting_Strata = StrataIndirectLighting(
+					const FSubstrateDeferredLighting IndirectLighting_Substrate = SubstrateIndirectLighting(
 						PixelPos,
-						Strata.MaterialTextureArray,
-						StrataAddressing,
-						StrataPixelHeader,
+						Substrate.MaterialTextureArray,
+						SubstrateAddressing,
+						SubstratePixelHeader,
 						V,
 						DynamicAmbientOcclusion,
 						DiffuseIndirectLighting,
 						SpecularIndirectLighting);
 
-					OutAddColor = IndirectLighting_Strata.SceneColor;
-				#if STRATA_OPAQUE_ROUGH_REFRACTION_ENABLED
+					OutAddColor = IndirectLighting_Substrate.SceneColor;
+				#if SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED
 					const uint2 OutCoord = PixelPos;
-					OutOpaqueRoughRefractionSceneColor[OutCoord] = IndirectLighting_Strata.OpaqueRoughRefractionSceneColor;
-					OutSubSurfaceSceneColor[OutCoord] = IndirectLighting_Strata.SubSurfaceSceneColor;
+					OutOpaqueRoughRefractionSceneColor[OutCoord] = IndirectLighting_Substrate.OpaqueRoughRefractionSceneColor;
+					OutSubSurfaceSceneColor[OutCoord] = IndirectLighting_Substrate.SubSurfaceSceneColor;
 				#endif
 				}
 			}
-			#else // STRATA_ENABLED
+			#else // SUBSTRATE_ENABLED
 			{
 			FGBufferData GBuffer = Material.GBufferData;
 
@@ -558,11 +558,11 @@ void MainPS(
 				#endif
 			}
 			}
-			#endif // STRATA_ENABLED
+			#endif // SUBSTRATE_ENABLED
 		}
 
 		// Accumulate lighting into the final buffers
-	#if !STRATA_ENABLED
+	#if !SUBSTRATE_ENABLED
 		IndirectLighting.Specular *= GetSSSCheckerboadSpecularScale(PixelPos, Material.bNeedsSeparateLightAccumulation);
 		FLightAccumulator LightAccumulator = (FLightAccumulator)0;
 		LightAccumulator_Add(
@@ -572,7 +572,7 @@ void MainPS(
 			1.0f,
 			Material.bNeedsSeparateLightAccumulation);
 		OutAddColor = LightAccumulator_GetResult(LightAccumulator);
-	#endif // !STRATA_ENABLED
+	#endif // !SUBSTRATE_ENABLED
 
 	}
 	#endif

@@ -194,33 +194,33 @@ FDepthBounds::FDepthBoundsValues FDepthBounds::CalculateNearFarDepthExcludingSky
 	return Values;
 }
 
-IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FStrataPublicGlobalUniformParameters, "StrataPublic");
+IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FSubstratePublicGlobalUniformParameters, "SubstratePublic");
 
-namespace Strata
+namespace Substrate
 {
 	void PreInitViews(FScene& Scene)
 	{
-		FStrataSceneData& StrataScene = Scene.StrataSceneData;
-		StrataScene.StrataPublicGlobalUniformParameters = nullptr;
+		FSubstrateSceneData& SubstrateScene = Scene.SubstrateSceneData;
+		SubstrateScene.SubstratePublicGlobalUniformParameters = nullptr;
 	}
 
 	void PostRender(FScene& Scene)
 	{
-		FStrataSceneData& StrataScene = Scene.StrataSceneData;
-		StrataScene.StrataPublicGlobalUniformParameters = nullptr;
+		FSubstrateSceneData& SubstrateScene = Scene.SubstrateSceneData;
+		SubstrateScene.SubstratePublicGlobalUniformParameters = nullptr;
 	}
 
-	TRDGUniformBufferRef<FStrataPublicGlobalUniformParameters> GetPublicGlobalUniformBuffer(FRDGBuilder& GraphBuilder, FScene& Scene)
+	TRDGUniformBufferRef<FSubstratePublicGlobalUniformParameters> GetPublicGlobalUniformBuffer(FRDGBuilder& GraphBuilder, FScene& Scene)
 	{		
-		if(::Strata::IsStrataEnabled())
+		if(::Substrate::IsSubstrateEnabled())
 		{
-			FStrataSceneData& StrataScene = Scene.StrataSceneData;
+			FSubstrateSceneData& SubstrateScene = Scene.SubstrateSceneData;
 
-			if(StrataScene.StrataPublicGlobalUniformParameters == nullptr)
+			if(SubstrateScene.SubstratePublicGlobalUniformParameters == nullptr)
 			{
 				return CreatePublicGlobalUniformBuffer(GraphBuilder, nullptr);//We are creating a dummy here so pass in null for the scene data.
 			}
-			return StrataScene.StrataPublicGlobalUniformParameters;
+			return SubstrateScene.SubstratePublicGlobalUniformParameters;
 		}
 
 		return nullptr;

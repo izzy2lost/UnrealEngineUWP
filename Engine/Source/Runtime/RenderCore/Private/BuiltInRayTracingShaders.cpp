@@ -11,14 +11,14 @@
 
 uint32 GetRaytracingMaterialPayloadSizeFullySimplified()
 {
-	if (Strata::IsStrataEnabled())
+	if (Substrate::IsSubstrateEnabled())
 	{
-		// All the data from FPackedMaterialClosestHitPayload except FStrataRaytracingPayload (see RayTracingCommon.ush)
+		// All the data from FPackedMaterialClosestHitPayload except FSubstrateRaytracingPayload (see RayTracingCommon.ush)
 		uint32 PayloadSizeBytes = 6 * sizeof(uint32);
 
-		// The remaining data from FStrataRaytracingPayload.
+		// The remaining data from FSubstrateRaytracingPayload.
 		const bool bFullySimplifiedMaterial = true;	// This is needed because ERayTracingPayloadType::RayTracingMaterial will be fully simplified, see FShaderType::ModifyCompilationEnvironment.
-		PayloadSizeBytes += Strata::GetRayTracingMaterialPayloadSizeInBytes(bFullySimplifiedMaterial);
+		PayloadSizeBytes += Substrate::GetRayTracingMaterialPayloadSizeInBytes(bFullySimplifiedMaterial);
 
 		return PayloadSizeBytes;
 	}

@@ -47,11 +47,11 @@
 
 #define LOCTEXT_NAMESPACE "MaterialEditor"
 
-// Update the blend mode names based on what is supported in legacy mode or Strata mode
+// Update the blend mode names based on what is supported in legacy mode or Substrate mode
 UEnum* GetBlendModeEnum()
 {
 	UEnum* BlendModeEnum = StaticEnum<EBlendMode>();
-	if (Strata::IsStrataEnabled())
+	if (Substrate::IsSubstrateEnabled())
 	{
 		// BLEND_Translucent & BLEND_TranslucentGreyTransmittance are mapped onto the same enum index
 		BlendModeEnum->SetMetaData(TEXT("DisplayName"), TEXT("TranslucentGreyTransmittance"), BLEND_Translucent);
@@ -59,7 +59,7 @@ UEnum* GetBlendModeEnum()
 		// BLEND_Modulate & BLEND_ColoredTransmittanceOnly are mapped onto the same enum index
 		BlendModeEnum->SetMetaData(TEXT("DisplayName"), TEXT("ColoredTransmittanceOnly"), BLEND_Modulate);
 
-		// BLEND_TranslucentColoredTransmittance is only supported in Strata mode
+		// BLEND_TranslucentColoredTransmittance is only supported in Substrate mode
 		BlendModeEnum->SetMetaData(TEXT("DisplayName"), TEXT("TranslucentColoredTransmittance"), BLEND_TranslucentColoredTransmittance);
 	}
 	else
@@ -825,7 +825,7 @@ void FMaterialDetailCustomization::CustomizeDetails( IDetailLayoutBuilder& Detai
 				}
 			}
 
-			if (!Strata::IsStrataEnabled())
+			if (!Substrate::IsSubstrateEnabled())
 			{
 				if (PropertyName == GET_MEMBER_NAME_CHECKED(UMaterial, bIsThinSurface))
 				{

@@ -20,13 +20,13 @@
 #include "/Engine/Generated/VertexFactory.ush"
 #include "DistortionCommon.ush"
 
-// STRATA_TODO enable distortion on mobile.
-#if STRATA_ENABLED && (!MATERIAL_IS_STRATA || SHADING_PATH_MOBILE)
-#undef STRATA_ENABLED
-#define STRATA_ENABLED 0
+// SUBSTRATE_TODO enable distortion on mobile.
+#if SUBSTRATE_ENABLED && (!MATERIAL_IS_SUBSTRATE || SHADING_PATH_MOBILE)
+#undef SUBSTRATE_ENABLED
+#define SUBSTRATE_ENABLED 0
 #endif
 
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 #include "Substrate/SubstrateEvaluation.ush"
 #endif
 
@@ -47,7 +47,7 @@ void Main(
 	in float4 SvPosition	: SV_Position
 	OPTIONAL_IsFrontFace,
 	out float4 OutColor		: SV_Target0
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 	,
 	out float2 OutVarianceCoverage : SV_Target1
 	,
@@ -86,25 +86,25 @@ void Main(
 	FMaterialRefractionData RefractionData = GetMaterialRefraction(PixelMaterialInputs);
 
 
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 
-	FStrataData StrataData = PixelMaterialInputs.GetFrontStrataData();
-	FStrataPixelHeader StrataPixelHeader = MaterialParameters.GetFrontStrataHeader();
+	FSubstrateData SubstrateData = PixelMaterialInputs.GetFrontSubstrateData();
+	FSubstratePixelHeader SubstratePixelHeader = MaterialParameters.GetFrontSubstrateHeader();
 
 	// Retrieve rough refraction variance
 	float Sigma = 0.0f;
 	float3 RefractionWorldNormal = MaterialParameters.CameraVector;
 
-#if STRATA_OPTIMIZED_UNLIT
+#if SUBSTRATE_OPTIMIZED_UNLIT
 
-	// Unlit BSDF goes through the StrataTree to support weighting operations. Technically, layering and mixing could also be supported.
+	// Unlit BSDF goes through the SubstrateTree to support weighting operations. Technically, layering and mixing could also be supported.
 	float3	UnlitSurfaceLuminancePostCoverage = 0.0f;
 	float	UnlitSurfaceCoverage = 0.0f;
 	float3	UnlitSurfaceTransmittancePreCoverage = 0.0f;
-	StrataPixelHeader.StrataUpdateTreeUnlit(
+	SubstratePixelHeader.SubstrateUpdateTreeUnlit(
 		uint2(SvPosition.xy),
 		MaterialParameters.CameraVector,
-		StrataData,
+		SubstrateData,
 		UnlitSurfaceLuminancePostCoverage,
 		UnlitSurfaceCoverage,
 		UnlitSurfaceTransmittancePreCoverage,
@@ -125,31 +125,31 @@ void Main(
 
 #else
 
-	if (StrataPixelHeader.StrataTree.BSDFCount > 0)
+	if (SubstratePixelHeader.SubstrateTree.BSDFCount > 0)
 	{
 		const float3 V = MaterialParameters.CameraVector;
 
 		// Update tree (coverage/transmittance/luminace weights)
-		const FStrataIntegrationSettings Settings = InitStrataIntegrationSettings(false /*bForceFullyRough*/, Strata.bRoughDiffuse /*bRoughDiffuseEnabled*/, Strata.PeelLayersAboveDepth, Strata.bRoughnessTracking);
-		StrataPixelHeader.StrataUpdateTree(V, Settings);
+		const FSubstrateIntegrationSettings Settings = InitSubstrateIntegrationSettings(false /*bForceFullyRough*/, Substrate.bRoughDiffuse /*bRoughDiffuseEnabled*/, Substrate.PeelLayersAboveDepth, Substrate.bRoughnessTracking);
+		SubstratePixelHeader.SubstrateUpdateTree(V, Settings);
 
-		RefractionWorldNormal = StrataPixelHeader.StrataTree.Operators[StrataData.OperatorIndex].TopDownRefractionWorldNormal;
+		RefractionWorldNormal = SubstratePixelHeader.SubstrateTree.Operators[SubstrateData.OperatorIndex].TopDownRefractionWorldNormal;
 
-		FStrataLobeStatistic RefractionLobeStat = StrataPixelHeader.StrataTree.Operators[StrataData.OperatorIndex].TopDownRefractionLobeStat;
+		FSubstrateLobeStatistic RefractionLobeStat = SubstratePixelHeader.SubstrateTree.Operators[SubstrateData.OperatorIndex].TopDownRefractionLobeStat;
 
 		Sigma = RefractionLobeStat.Sigma;
 	}
 
 	// We accumulate F0 only from the top layer to evaluate the material F0 used to evaluate distortion
 	float3 TopF0 = 0.0f;
-	STRATA_UNROLL_N(STRATA_CLAMPED_BSDF_COUNT)
-	for (int BSDFIdx = 0; BSDFIdx < StrataPixelHeader.StrataTree.BSDFCount; ++BSDFIdx)
+	SUBSTRATE_UNROLL_N(SUBSTRATE_CLAMPED_BSDF_COUNT)
+	for (int BSDFIdx = 0; BSDFIdx < SubstratePixelHeader.SubstrateTree.BSDFCount; ++BSDFIdx)
 	{
-	#define BSDF StrataPixelHeader.StrataTree.BSDFs[BSDFIdx]
-		const bool bIsVisible = StrataIsBSDFVisible(BSDF);
+	#define BSDF SubstratePixelHeader.SubstrateTree.BSDFs[BSDFIdx]
+		const bool bIsVisible = SubstrateIsBSDFVisible(BSDF);
 		if (bIsVisible)
 		{
-			TopF0 += BSDF.TopLayerDataWeight * StrataGetBSDFSpecularF0(BSDF);
+			TopF0 += BSDF.TopLayerDataWeight * SubstrateGetBSDFSpecularF0(BSDF);
 		}
 	#undef BSDF
 	}
@@ -157,7 +157,7 @@ void Main(
 
 	const float MaterialIOR = DielectricF0RGBToIor(TopF0);
 
-	const FStrataOperator RootOperator	= StrataPixelHeader.StrataTree.Operators[StrataData.OperatorIndex];
+	const FSubstrateOperator RootOperator	= SubstratePixelHeader.SubstrateTree.Operators[SubstrateData.OperatorIndex];
 #if DISTORTION_ACCOUNT_FOR_COVERAGE
 	const float RefractionCoverage		= RootOperator.Coverage;														// Coverage of the material
 #else
@@ -169,7 +169,7 @@ void Main(
 	OutVarianceCoverage = float2(RefractionLobeVariance, RefractionCoverage);
 
 	// Only allow clipping if roughness is close to 0.
-	const bool TryToClip = false;  //OutVarianceCoverage.x < 0.01f; // STRATA_TODO || RefractionCoverage <= 0.0f;	// Have an option to account for coverage or not?, ignored by default
+	const bool TryToClip = false;  //OutVarianceCoverage.x < 0.01f; // SUBSTRATE_TODO || RefractionCoverage <= 0.0f;	// Have an option to account for coverage or not?, ignored by default
 
 #endif
 
@@ -185,7 +185,7 @@ void Main(
 	// Sample depth at distortion offset
 	float2 DistortBufferUV = ScreenUV + BufferUVDistortion;
 
-#else // STRATA_ENABLED
+#else // SUBSTRATE_ENABLED
 
 	float3 BaseColor = GetMaterialBaseColor(PixelMaterialInputs);
 	float  Metallic = GetMaterialMetallic(PixelMaterialInputs);
@@ -203,7 +203,7 @@ void Main(
 	float2 DistortBufferUV = ScreenUV + BufferUVDistortion;
 
 
-#endif // STRATA_ENABLED
+#endif // SUBSTRATE_ENABLED
 
 	float DistortSceneDepth = CalcSceneDepth(DistortBufferUV);
 

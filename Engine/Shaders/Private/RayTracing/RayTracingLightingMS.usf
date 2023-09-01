@@ -10,7 +10,7 @@
 #define PreIntegratedGFSampler		ReflectionStruct.PreIntegratedGFSampler	
 
 // Ensure that SSS material don't override their albedo to compute only the incident irradiance
-#define STRATA_SSS_MATERIAL_OVERRIDE 0
+#define SUBSTRATE_SSS_MATERIAL_OVERRIDE 0
 #define MATERIAL_FULLY_ROUGH 0
 
 #ifndef SUPPORT_LIGHT_FUNCTION
@@ -23,14 +23,14 @@
 //////////////////////////////////////////////////////////////////////////////////////////
 // Include continuous
 
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 #include "../Substrate/Substrate.ush"
 #include "../Substrate/SubstrateEvaluation.ush"
 #endif
 
 #include "RayTracingDeferredShadingCommon.ush"
 #include "RayTracingLightingCommon.ush" 
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 #include "../Substrate/SubstrateDeferredLighting.ush"
 #endif
 
@@ -72,7 +72,7 @@ RAY_TRACING_ENTRY_MISS(RayTracingLightingMS, FPackedMaterialClosestHitPayload, P
 	const uint2 SVPos = uint2(0, 0);
 
 	// LWC_TODO - lighting wants translated world space
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 	float3 L = LightData.Direction;	// Already normalized
 	float3 ToLight = L;
 	
@@ -85,9 +85,9 @@ RAY_TRACING_ENTRY_MISS(RayTracingLightingMS, FPackedMaterialClosestHitPayload, P
 	float3 LightContribution = 0;
 	if (LightMask > 0)
 	{
-		FStrataAddressing StrataAddressing = GetStrataPixelDataByteOffset(0,0,0);
-		FStrataPixelHeader StrataPixelHeader = UnpackStrataHeaderIn(PackedPayload.StrataData, StrataAddressing, PackedPayload.StrataData);
-		FShadowTerms ShadowTerms = { StrataGetAO(StrataPixelHeader), 1.0, 1.0, InitHairTransmittanceData() };
+		FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(0,0,0);
+		FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(PackedPayload.SubstrateData, SubstrateAddressing, PackedPayload.SubstrateData);
+		FShadowTerms ShadowTerms = { SubstrateGetAO(SubstratePixelHeader), 1.0, 1.0, InitHairTransmittanceData() };
 
 		const float FakeSceneDepth = 1.f; // Do not use depth
 		const uint FakeShadingModelID = 0;
@@ -95,17 +95,17 @@ RAY_TRACING_ENTRY_MISS(RayTracingLightingMS, FPackedMaterialClosestHitPayload, P
 		float4 FakePrecomputedShadowFactors = 1.f;
 		GetShadowTerms(FakeSceneDepth, FakePrecomputedShadowFactors, FakeShadingModelID, FakeContactShadowOpacity, LightData, WorldPosition, L, LightAttenuation, Dither, ShadowTerms);
 
-		// RayTracing + Lighting + Strata is too expenssive (as in uses too many registers) to be supported on some platofrms
-		FStrataDeferredLighting Lighting = StrataDeferredLighting(
+		// RayTracing + Lighting + Substrate is too expenssive (as in uses too many registers) to be supported on some platofrms
+		FSubstrateDeferredLighting Lighting = SubstrateDeferredLighting(
 			LightData,
 			V,
 			L,
 			ToLight,
 			LightMask,
 			ShadowTerms,
-			PackedPayload.StrataData,
-			StrataAddressing,
-			StrataPixelHeader);
+			PackedPayload.SubstrateData,
+			SubstrateAddressing,
+			SubstratePixelHeader);
 		LightContribution = Lighting.SceneColor.xyz;
 	}
 #else
@@ -113,7 +113,7 @@ RAY_TRACING_ENTRY_MISS(RayTracingLightingMS, FPackedMaterialClosestHitPayload, P
 	float SurfaceShadow = 1.0f;
 	FGBufferData GBufferData = GetGBufferDataFromPayload(Payload);
 	float3 LightContribution = GetDynamicLighting(WorldPosition, CameraVector, GBufferData, 1.0f, GBufferData.ShadingModelID, LightData, LightAttenuation, Dither, SVPos, SurfaceShadow).xyz;
-#endif // STRATA_ENABLED
+#endif // SUBSTRATE_ENABLED
 
 #if SUPPORT_LIGHT_FUNCTION
 	float3 LightFunctionMult = GetRayTracingLightFunction(WorldPosition);

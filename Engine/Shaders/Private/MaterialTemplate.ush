@@ -117,7 +117,7 @@
 //Materials also have to opt in to these features.
 #define USE_EDITOR_COMPOSITING (USE_EDITOR_SHADERS && EDITOR_PRIMITIVE_MATERIAL)
 
-#define MATERIALBLENDING_ANY_TRANSLUCENT (MATERIALBLENDING_TRANSLUCENT || MATERIALBLENDING_ADDITIVE || MATERIALBLENDING_MODULATE || STRATA_BLENDING_TRANSLUCENT_GREYTRANSMITTANCE || STRATA_BLENDING_TRANSLUCENT_COLOREDTRANSMITTANCE || STRATA_BLENDING_COLOREDTRANSMITTANCEONLY)
+#define MATERIALBLENDING_ANY_TRANSLUCENT (MATERIALBLENDING_TRANSLUCENT || MATERIALBLENDING_ADDITIVE || MATERIALBLENDING_MODULATE || SUBSTRATE_BLENDING_TRANSLUCENT_GREYTRANSMITTANCE || SUBSTRATE_BLENDING_TRANSLUCENT_COLOREDTRANSMITTANCE || SUBSTRATE_BLENDING_COLOREDTRANSMITTANCEONLY)
  
 #define IS_MATERIAL_TRANSLUCENT_AND_LIT  (MATERIALBLENDING_TRANSLUCENT)
 
@@ -143,39 +143,39 @@
 	#define ALLOW_CLIP 1
 #endif
 
-#define TEMPLATE_USES_STRATA				(STRATA_ENABLED && MATERIAL_IS_STRATA)
-#define STRATA_OPAQUE_MATERIAL				(TEMPLATE_USES_STRATA && ((!STRATA_MATERIAL_EXPORT_EXECUTED && MATERIALBLENDING_ANY_TRANSLUCENT<=0) || STRATA_MATERIAL_EXPORT_FROM_OPAQUE))
-#define STRATA_TRANSLUCENT_MATERIAL			(TEMPLATE_USES_STRATA && ((!STRATA_MATERIAL_EXPORT_EXECUTED && MATERIALBLENDING_ANY_TRANSLUCENT>0 ) || STRATA_MATERIAL_EXPORT_FROM_TRANSLUCENT))
-#define STRATA_OPAQUE_DEFERRED				(STRATA_OPAQUE_MATERIAL && !FORWARD_SHADING)
-#define STRATA_TRANSLUCENT_FORWARD			(STRATA_TRANSLUCENT_MATERIAL && !FORWARD_SHADING)
-#define STRATA_FORWARD_SHADING				(FORWARD_SHADING && (STRATA_OPAQUE_MATERIAL || STRATA_TRANSLUCENT_MATERIAL))
-#define STRATA_OUTPUT_ROUGH_REFRACTION		(STRATA_ENABLED && STRATA_OPAQUE_ROUGH_REFRACTION_ENABLED && STRATA_MATERIAL_OUTPUT_OPAQUE_ROUGH_REFRACTIONS)
+#define TEMPLATE_USES_SUBSTRATE					(SUBSTRATE_ENABLED && MATERIAL_IS_SUBSTRATE)
+#define SUBSTRATE_OPAQUE_MATERIAL				(TEMPLATE_USES_SUBSTRATE && ((!SUBSTRATE_MATERIAL_EXPORT_EXECUTED && MATERIALBLENDING_ANY_TRANSLUCENT<=0) || SUBSTRATE_MATERIAL_EXPORT_FROM_OPAQUE))
+#define SUBSTRATE_TRANSLUCENT_MATERIAL			(TEMPLATE_USES_SUBSTRATE && ((!SUBSTRATE_MATERIAL_EXPORT_EXECUTED && MATERIALBLENDING_ANY_TRANSLUCENT>0 ) || SUBSTRATE_MATERIAL_EXPORT_FROM_TRANSLUCENT))
+#define SUBSTRATE_OPAQUE_DEFERRED				(SUBSTRATE_OPAQUE_MATERIAL && !FORWARD_SHADING)
+#define SUBSTRATE_TRANSLUCENT_FORWARD			(SUBSTRATE_TRANSLUCENT_MATERIAL && !FORWARD_SHADING)
+#define SUBSTRATE_FORWARD_SHADING				(FORWARD_SHADING && (SUBSTRATE_OPAQUE_MATERIAL || SUBSTRATE_TRANSLUCENT_MATERIAL))
+#define SUBSTRATE_OUTPUT_ROUGH_REFRACTION		(SUBSTRATE_ENABLED && SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED && SUBSTRATE_MATERIAL_OUTPUT_OPAQUE_ROUGH_REFRACTIONS)
 
 // Premultiplied alpha override is only enabled when alpha composite blending is used and the root node input is fed.
-#define STRATA_USE_PREMULTALPHA_OVERRIDE	(STRATA_ENABLED && MATERIALBLENDING_ALPHACOMPOSITE && STRATA_PREMULTIPLIED_ALPHA_OPACITY_OVERRIDEN)
+#define SUBSTRATE_USE_PREMULTALPHA_OVERRIDE	(SUBSTRATE_ENABLED && MATERIALBLENDING_ALPHACOMPOSITE && SUBSTRATE_PREMULTIPLIED_ALPHA_OPACITY_OVERRIDEN)
 
-#if TEMPLATE_USES_STRATA
-#define STRATA_INLINE_SHADING 1
+#if TEMPLATE_USES_SUBSTRATE
+#define SUBSTRATE_INLINE_SHADING 1
 #endif
 
-#if STRATA_TRANSLUCENT_FORWARD && !STRATA_MATERIAL_EXPORT_FROM_TRANSLUCENT && !defined(STRATA_DEFERRED_SHADING)
+#if SUBSTRATE_TRANSLUCENT_FORWARD && !SUBSTRATE_MATERIAL_EXPORT_FROM_TRANSLUCENT && !defined(SUBSTRATE_DEFERRED_SHADING)
 // This is for translucent surface to be able to fetch opaque material data such as normal, albedo and more from SceneTextures (See SceneTextureLookup).
-#define STRATA_DEFERRED_SHADING 1
+#define SUBSTRATE_DEFERRED_SHADING 1
 #endif
 
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 #include "/Engine/Private/Substrate/Substrate.ush"
 #else
-struct FStrataData
+struct FSubstrateData
 {
 	uint Dummy;
 };
-FStrataData GetInitialisedStrataData() { return (FStrataData)0; }
+FSubstrateData GetInitialisedSubstrateData() { return (FSubstrateData)0; }
 #endif
 
-#if TEMPLATE_USES_STRATA
+#if TEMPLATE_USES_SUBSTRATE
 #include "/Engine/Private/Substrate/SubstrateTree.ush"
-#include "/Engine/Private/Substrate/SubstrateLegacyConversion.ush"	// This can only included here due to interaction between STRATA_MATERIAL_EXPORT_EXECUTED and STRATA_LEGACY_MATERIAL_APPLIES_FINAL_WEIGHT
+#include "/Engine/Private/Substrate/SubstrateLegacyConversion.ush"	// This can only included here due to interaction between SUBSTRATE_MATERIAL_EXPORT_EXECUTED and SUBSTRATE_LEGACY_MATERIAL_APPLIES_FINAL_WEIGHT
 #endif
 
 #include "/Engine/Private/DBufferDecalShared.ush"
@@ -305,16 +305,16 @@ struct FPixelMaterialInputs
 {
 %s
 
-#if TEMPLATE_USES_STRATA
-FStrataData GetFrontStrataData()
+#if TEMPLATE_USES_SUBSTRATE
+FSubstrateData GetFrontSubstrateData()
 {
-#if STRATA_USE_FULLYSIMPLIFIED_MATERIAL == 1
+#if SUBSTRATE_USE_FULLYSIMPLIFIED_MATERIAL == 1
 	return FullySimplifiedFrontMaterial;
 #else
 	return FrontMaterial;
 #endif
 }
-#endif // TEMPLATE_USES_STRATA
+#endif // TEMPLATE_USES_SUBSTRATE
 };
 
 /** 
@@ -504,31 +504,31 @@ struct FMaterialPixelParameters
 	float  CloudEmptySpaceSkippingSphereRadius;
 #endif
 
-#if TEMPLATE_USES_STRATA
+#if TEMPLATE_USES_SUBSTRATE
 	FSharedLocalBases SharedLocalBases;
-	FStrataTree StrataTree;
+	FSubstrateTree SubstrateTree;
 
-#if STRATA_USE_FULLYSIMPLIFIED_MATERIAL == 1
+#if SUBSTRATE_USE_FULLYSIMPLIFIED_MATERIAL == 1
 	FSharedLocalBases SharedLocalBasesFullySimplified;
-	FStrataTree StrataTreeFullySimplified;
+	FSubstrateTree SubstrateTreeFullySimplified;
 #endif
 
-	FStrataPixelFootprint StrataPixelFootprint;
+	FSubstratePixelFootprint SubstratePixelFootprint;
 
-	FStrataPixelHeader GetFrontStrataHeader()
+	FSubstratePixelHeader GetFrontSubstrateHeader()
 	{
-		FStrataPixelHeader StrataPixelHeader = InitialiseStrataPixelHeader();
-#if STRATA_USE_FULLYSIMPLIFIED_MATERIAL == 1
-		StrataPixelHeader.StrataTree = StrataTreeFullySimplified;
-		StrataPixelHeader.BSDFCount = StrataTreeFullySimplified.BSDFCount;
-		StrataPixelHeader.SharedLocalBases = SharedLocalBasesFullySimplified;
+		FSubstratePixelHeader SubstratePixelHeader = InitialiseSubstratePixelHeader();
+#if SUBSTRATE_USE_FULLYSIMPLIFIED_MATERIAL == 1
+		SubstratePixelHeader.SubstrateTree = SubstrateTreeFullySimplified;
+		SubstratePixelHeader.BSDFCount = SubstrateTreeFullySimplified.BSDFCount;
+		SubstratePixelHeader.SharedLocalBases = SharedLocalBasesFullySimplified;
 #else
-		StrataPixelHeader.StrataTree = StrataTree;
-		StrataPixelHeader.BSDFCount = StrataTree.BSDFCount;
-		StrataPixelHeader.SharedLocalBases = SharedLocalBases;
+		SubstratePixelHeader.SubstrateTree = SubstrateTree;
+		SubstratePixelHeader.BSDFCount = SubstrateTree.BSDFCount;
+		SubstratePixelHeader.SharedLocalBases = SharedLocalBases;
 #endif
-		StrataPixelHeader.IrradianceAO = InitIrradianceAndOcclusion();
-		return StrataPixelHeader;
+		SubstratePixelHeader.IrradianceAO = InitIrradianceAndOcclusion();
+		return SubstratePixelHeader;
 	}
 #endif
 
@@ -2536,46 +2536,46 @@ float4 SceneTextureLookup(float2 UV, int SceneTextureIndex, bool bFiltered)
 
 	// 2. Post-process inputs which are dependent on material data
 	//    Note: For PostProcess material we always return the first layer dataCalcSceneCustomStencil
-	#if STRATA_ENABLED
+	#if SUBSTRATE_ENABLED
 	{
-		#ifdef StrataStruct
-			#define StrataSceneTexture StrataStruct
+		#ifdef SubstrateStruct
+			#define SubstrateSceneTexture SubstrateStruct
 		#else
-			#define StrataSceneTexture Strata
+			#define SubstrateSceneTexture Substrate
 		#endif
-		FStrataAddressing StrataAddressing   = GetStrataPixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), StrataSceneTexture.MaxBytesPerPixel);
-		FStrataPixelHeader StrataPixelHeader = UnpackStrataHeaderIn(StrataSceneTexture.MaterialTextureArray, StrataAddressing, StrataSceneTexture.TopLayerTexture);
+		FSubstrateAddressing SubstrateAddressing   = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), SubstrateSceneTexture.MaxBytesPerPixel);
+		FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(SubstrateSceneTexture.MaterialTextureArray, SubstrateAddressing, SubstrateSceneTexture.TopLayerTexture);
 		BRANCH
-		if (StrataPixelHeader.BSDFCount > 0)
+		if (SubstratePixelHeader.BSDFCount > 0)
 		{
-			const FStrataSubsurfaceHeader SSSHeader = StrataLoadSubsurfaceHeader(StrataSceneTexture.MaterialTextureArray, StrataSceneTexture.FirstSliceStoringStrataSSSData, StrataAddressing.PixelCoords);
-			const uint SSSType = StrataSubSurfaceHeaderGetSSSType(SSSHeader);
+			const FSubstrateSubsurfaceHeader SSSHeader = SubstrateLoadSubsurfaceHeader(SubstrateSceneTexture.MaterialTextureArray, SubstrateSceneTexture.FirstSliceStoringSubstrateSSSData, SubstrateAddressing.PixelCoords);
+			const uint SSSType = SubstrateSubSurfaceHeaderGetSSSType(SSSHeader);
 
-			const FStrataBSDF BSDF = UnpackStrataBSDFIn(StrataSceneTexture.MaterialTextureArray, StrataAddressing, StrataPixelHeader);
+			const FSubstrateBSDF BSDF = UnpackSubstrateBSDFIn(SubstrateSceneTexture.MaterialTextureArray, SubstrateAddressing, SubstratePixelHeader);
 			switch (SceneTextureIndex)
 			{
 				// order needs to match to ESceneTextureId
-				case PPI_DiffuseColor:			return float4(StrataGetBSDFDiffuseColor(BSDF), 0);
-				case PPI_SpecularColor:			return float4(StrataGetBSDFSpecularColor(BSDF), 0);
-				case PPI_SubsurfaceColor:		return float4(StrataGetBSDFSubSurfaceColor(BSDF), 0);
-				case PPI_BaseColor:				return float4(StrataGetBSDFBaseColor(BSDF), 0);
-				case PPI_Specular:				return StrataGetBSDFSpecular(BSDF);
-				case PPI_Metallic:				return StrataGetBSDFMetallic(BSDF);
-				case PPI_WorldNormal:			return float4(StrataGetWorldNormal(StrataPixelHeader, BSDF, StrataAddressing), 0);
-				case PPI_Opacity:				return BSDF.HasScatteringData() ? StrataSubSurfaceHeaderGetOpacity(SSSHeader) : 1.f;
-				case PPI_Roughness:				return StrataGetBSDFRoughness(BSDF);
-				case PPI_MaterialAO:			return StrataGetAO(StrataPixelHeader);
-				case PPI_ShadingModelColor:		return float4(GetShadingModelColor(StrataGetLegacyShadingModels(BSDF)), 1);
-				case PPI_ShadingModelID:		return float4(StrataGetLegacyShadingModels(BSDF), 0, 0, 0);
-				case PPI_StoredBaseColor:		return float4(StrataGetBSDFBaseColor(BSDF), 0);
-				case PPI_StoredSpecular:		return float4(StrataGetBSDFSpecular(BSDF).rrr, 0);
-				case PPI_WorldTangent:			return float4(StrataGetWorldTangent(StrataPixelHeader, BSDF, StrataAddressing), 0);
-				case PPI_Anisotropy:			return StrataGetBSDFAnisotropy(BSDF);
+				case PPI_DiffuseColor:			return float4(SubstrateGetBSDFDiffuseColor(BSDF), 0);
+				case PPI_SpecularColor:			return float4(SubstrateGetBSDFSpecularColor(BSDF), 0);
+				case PPI_SubsurfaceColor:		return float4(SubstrateGetBSDFSubSurfaceColor(BSDF), 0);
+				case PPI_BaseColor:				return float4(SubstrateGetBSDFBaseColor(BSDF), 0);
+				case PPI_Specular:				return SubstrateGetBSDFSpecular(BSDF);
+				case PPI_Metallic:				return SubstrateGetBSDFMetallic(BSDF);
+				case PPI_WorldNormal:			return float4(SubstrateGetWorldNormal(SubstratePixelHeader, BSDF, SubstrateAddressing), 0);
+				case PPI_Opacity:				return BSDF.HasScatteringData() ? SubstrateSubSurfaceHeaderGetOpacity(SSSHeader) : 1.f;
+				case PPI_Roughness:				return SubstrateGetBSDFRoughness(BSDF);
+				case PPI_MaterialAO:			return SubstrateGetAO(SubstratePixelHeader);
+				case PPI_ShadingModelColor:		return float4(GetShadingModelColor(SubstrateGetLegacyShadingModels(BSDF)), 1);
+				case PPI_ShadingModelID:		return float4(SubstrateGetLegacyShadingModels(BSDF), 0, 0, 0);
+				case PPI_StoredBaseColor:		return float4(SubstrateGetBSDFBaseColor(BSDF), 0);
+				case PPI_StoredSpecular:		return float4(SubstrateGetBSDFSpecular(BSDF).rrr, 0);
+				case PPI_WorldTangent:			return float4(SubstrateGetWorldTangent(SubstratePixelHeader, BSDF, SubstrateAddressing), 0);
+				case PPI_Anisotropy:			return SubstrateGetBSDFAnisotropy(BSDF);
 			}
 		}
-		#undef StrataSceneTexture
+		#undef SubstrateSceneTexture
 	}
-	#else // STRATA_ENABLED
+	#else // SUBSTRATE_ENABLED
 	{
 		FScreenSpaceData ScreenSpaceData = GetScreenSpaceData(UV, false);
 		switch (SceneTextureIndex)
@@ -2603,7 +2603,7 @@ float4 SceneTextureLookup(float2 UV, int SceneTextureIndex, bool bFiltered)
 			case PPI_Anisotropy:			return ScreenSpaceData.GBuffer.Anisotropy;
 		}
 	}
-	#endif // STRATA_ENABLED
+	#endif // SUBSTRATE_ENABLED
 
 #endif // SCENE_TEXTURES_DISABLED
 
@@ -2641,8 +2641,8 @@ float4 MaterialExpressionDBufferTextureLookup(FMaterialPixelParameters Parameter
 	{
 		uint2 PixelPos = uint2(BufferUV * View.BufferSizeAndInvSize.xy);
 		uint ValidDBufferTargetMask = GetDBufferTargetMask(PixelPos) & (1u << DBufferTextureIndex);
-#if STRATA_ENABLED
-		const FStrataDBuffer DBufferData = GetDBufferData(BufferUV, ValidDBufferTargetMask);
+#if SUBSTRATE_ENABLED
+		const FSubstrateDBuffer DBufferData = GetDBufferData(BufferUV, ValidDBufferTargetMask);
 		switch (DBufferTextureIndex)
 		{
 		// All data (BaseColor, WorldNormal, Roughness) are pre-multiplied by their coverage
@@ -3251,13 +3251,13 @@ void CalcPixelMaterialInputs(in out FMaterialPixelParameters Parameters, in out 
 	// The Normal is a special case as it might have its own expressions and also be used to calculate other inputs, so perform the assignment here
 %s
 
-#if TEMPLATE_USES_STRATA
-	Parameters.StrataPixelFootprint = StrataGetPixelFootprint(Parameters.WorldPosition_CamRelative, GetRoughnessFromNormalCurvature(Parameters));
-	Parameters.SharedLocalBases = StrataInitialiseSharedLocalBases();
-	Parameters.StrataTree = GetInitialisedStrataTree();
-#if STRATA_USE_FULLYSIMPLIFIED_MATERIAL == 1
-	Parameters.SharedLocalBasesFullySimplified = StrataInitialiseSharedLocalBases();
-	Parameters.StrataTreeFullySimplified = GetInitialisedStrataTree();
+#if TEMPLATE_USES_SUBSTRATE
+	Parameters.SubstratePixelFootprint = SubstrateGetPixelFootprint(Parameters.WorldPosition_CamRelative, GetRoughnessFromNormalCurvature(Parameters));
+	Parameters.SharedLocalBases = SubstrateInitialiseSharedLocalBases();
+	Parameters.SubstrateTree = GetInitialisedSubstrateTree();
+#if SUBSTRATE_USE_FULLYSIMPLIFIED_MATERIAL == 1
+	Parameters.SharedLocalBasesFullySimplified = SubstrateInitialiseSharedLocalBases();
+	Parameters.SubstrateTreeFullySimplified = GetInitialisedSubstrateTree();
 #endif
 #endif
 
@@ -3313,13 +3313,13 @@ void CalcPixelMaterialInputsAnalyticDerivatives(in out FMaterialPixelParameters 
 	// The Normal is a special case as it might have its own expressions and also be used to calculate other inputs, so perform the assignment here
 %s
 
-#if TEMPLATE_USES_STRATA
-	Parameters.StrataPixelFootprint = StrataGetPixelFootprint(Parameters.WorldPosition_CamRelative, GetRoughnessFromNormalCurvature(Parameters));
-	Parameters.SharedLocalBases = StrataInitialiseSharedLocalBases();
-	Parameters.StrataTree = GetInitialisedStrataTree();
-#if STRATA_USE_FULLYSIMPLIFIED_MATERIAL == 1
-	Parameters.SharedLocalBasesFullySimplified = StrataInitialiseSharedLocalBases();
-	Parameters.StrataTreeFullySimplified = GetInitialisedStrataTree();
+#if TEMPLATE_USES_SUBSTRATE
+	Parameters.SubstratePixelFootprint = SubstrateGetPixelFootprint(Parameters.WorldPosition_CamRelative, GetRoughnessFromNormalCurvature(Parameters));
+	Parameters.SharedLocalBases = SubstrateInitialiseSharedLocalBases();
+	Parameters.SubstrateTree = GetInitialisedSubstrateTree();
+#if SUBSTRATE_USE_FULLYSIMPLIFIED_MATERIAL == 1
+	Parameters.SharedLocalBasesFullySimplified = SubstrateInitialiseSharedLocalBases();
+	Parameters.SubstrateTreeFullySimplified = GetInitialisedSubstrateTree();
 #endif
 #endif
 
@@ -3486,7 +3486,7 @@ void GetMaterialCoverageAndClipping(FMaterialPixelParameters Parameters, FPixelM
 // Indeed, ThinTranslucent surfaces always have a coverage of 1 and opacity represent the coverage of the opaque lit material sitting on top of the translucent one.
 void GetMaterialClippingVelocity(FMaterialPixelParameters Parameters, FPixelMaterialInputs PixelMaterialInputs, bool bIsThinTranslucent, float MaterialOpacity)
 {
-#if MATERIALBLENDING_TRANSLUCENT || MATERIALBLENDING_ADDITIVE || MATERIALBLENDING_MODULATE || STRATA_TRANSLUCENT_MATERIAL
+#if MATERIALBLENDING_TRANSLUCENT || MATERIALBLENDING_ADDITIVE || MATERIALBLENDING_MODULATE || SUBSTRATE_TRANSLUCENT_MATERIAL
 	ClipLODTransition(Parameters);
 	clip(bIsThinTranslucent ? 1.0f : MaterialOpacity - 1.0 / 255.0 - GetMaterialOpacityMaskClipValue());
 #else

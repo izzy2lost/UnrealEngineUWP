@@ -56,16 +56,16 @@ float3 GetLightFunctionColor(float3 LightVector, float3 TranslatedWorldSpace)
 	FPixelMaterialInputs PixelMaterialInputs;
 	CalcPixelMaterialInputs(MaterialParameters, PixelMaterialInputs);
 
-#if STRATA_ENABLED
+#if SUBSTRATE_ENABLED
 
 	// Light function node forces a single unlit BSDF. We get the raw data from light function node from the raw BSDF on the tree.
-	FStrataPixelHeader StrataPixelHeader = MaterialParameters.GetFrontStrataHeader();
-	FStrataBSDF UnlitBSDF = StrataPixelHeader.StrataTree.BSDFs[0];
-	UnlitBSDF.StrataSanitizeBSDF(); // required wehen not calling StrataUpdateTreeUnlit
+	FSubstratePixelHeader SubstratePixelHeader = MaterialParameters.GetFrontSubstrateHeader();
+	FSubstrateBSDF UnlitBSDF = SubstratePixelHeader.SubstrateTree.BSDFs[0];
+	UnlitBSDF.SubstrateSanitizeBSDF(); // required wehen not calling SubstrateUpdateTreeUnlit
 
-	return StrataGetBSDFEmissive(UnlitBSDF);
+	return SubstrateGetBSDFEmissive(UnlitBSDF);
 
-#else // STRATA_ENABLED
+#else // SUBSTRATE_ENABLED
 
    #if COMPUTESHADER
 	return GetMaterialEmissiveForCS(MaterialParameters);
@@ -73,5 +73,5 @@ float3 GetLightFunctionColor(float3 LightVector, float3 TranslatedWorldSpace)
 	return GetMaterialEmissive(PixelMaterialInputs);
    #endif
 
-#endif // STRATA_ENABLED
+#endif // SUBSTRATE_ENABLED
 }

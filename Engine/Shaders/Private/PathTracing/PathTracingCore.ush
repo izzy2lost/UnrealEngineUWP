@@ -231,7 +231,7 @@ struct FDecalData
 
 	bool ApplyDecal(inout FPathTracingPayload HitPayload)
 	{
-#if PATHTRACING_STRATA_PAYLOAD
+#if PATHTRACING_SUBSTRATE_PAYLOAD
 		float Roughness = HitPayload.RoughnessData.x;
 		float Metallic = F0RGBToMetallic(HitPayload.SpecularColor);
 		float Specular = F0RGBToDielectricSpecular(HitPayload.SpecularColor);
@@ -241,7 +241,7 @@ struct FDecalData
 		float Metallic = HitPayload.Metallic;
 		float Specular = HitPayload.Specular;
 		float Roughness = HitPayload.Roughness;
-#endif // PATHTRACING_STRATA_PAYLOAD
+#endif // PATHTRACING_SUBSTRATE_PAYLOAD
 
 		bool bHasColorResponse = HitPayload.HasDecalResponseColor() && this.BaseColor.a < 1.0;
 		bool bHasNormalResponse = HitPayload.HasDecalResponseNormal() && this.WorldNormal.a < 1.0;
@@ -267,7 +267,7 @@ struct FDecalData
 
 		HitPayload.Radiance += this.Emissive;
 
-#if PATHTRACING_STRATA_PAYLOAD
+#if PATHTRACING_SUBSTRATE_PAYLOAD
 		if (bHasColorResponse || bHasRoughnessResponse)
 		{
 			// the encode-decode is potentially lossy, so only do it if we actually need to
@@ -421,7 +421,7 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 		PackedPayload.SetDBufferA(float4(0, 0, 0, 1));
 		PackedPayload.SetDBufferB(float4(0, 0, 0, 1));
 		PackedPayload.SetDBufferC(float4(0, 0, 0, 1));
-#if PATHTRACING_STRATA_PAYLOAD
+#if PATHTRACING_SUBSTRATE_PAYLOAD
 		PackedPayload.SetStochasticSlabRand(RandomSequence_GenerateSample1D(PathState.RandSequence));
 #endif
 		// Trace the ray
@@ -641,14 +641,14 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 			// if we ran any decal logic, update the payload
 			if (ApproximateCaustics)
 			{
-#if PATHTRACING_STRATA_PAYLOAD
+#if PATHTRACING_SUBSTRATE_PAYLOAD
 				Payload.RoughnessData.x = max(Payload.RoughnessData.x, PathState.PathRoughness);
 #else
 				Payload.Roughness = max(Payload.Roughness, PathState.PathRoughness);
 #endif
 			}
 			HitPayload.WorldNormal = AdjustShadingNormal(HitPayload.WorldNormal, HitPayload.WorldGeoNormal, PathState.Ray.Direction);
-#if !PATHTRACING_STRATA_PAYLOAD
+#if !PATHTRACING_SUBSTRATE_PAYLOAD
 			HitPayload.DiffuseColor = HitPayload.BaseColor - HitPayload.BaseColor * HitPayload.Metallic;
 			HitPayload.SpecularColor = ComputeF0(HitPayload.Specular, HitPayload.BaseColor, HitPayload.Metallic);
 #endif
