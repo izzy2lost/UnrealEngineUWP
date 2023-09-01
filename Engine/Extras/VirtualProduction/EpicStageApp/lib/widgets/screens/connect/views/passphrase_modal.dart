@@ -1,5 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+import 'package:epic_common/localizations.dart';
+import 'package:epic_common/theme.dart';
+import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:logging/logging.dart';
@@ -8,10 +11,6 @@ import 'package:provider/provider.dart';
 import '../../../../models/engine_connection.dart';
 import '../../../../models/engine_passphrase_manager.dart';
 import '../../../../utilities/net_utilities.dart';
-import '../../../../utilities/unreal_colors.dart';
-import '../../../elements/epic_checkbox.dart';
-import '../../../elements/epic_icon_button.dart';
-import '../../../elements/modal.dart';
 import '../mixins/connect_mixin.dart';
 
 final _log = Logger('PassphraseModal');
@@ -113,13 +112,13 @@ class _PassphraseModalDialogState extends State<PassphraseModalDialog> with Conn
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
                           EpicLozengeButton(
-                            label: localizations.menuButtonCancel,
+                            label: EpicCommonLocalizations.of(context)!.menuButtonCancel,
                             width: buttonWidth,
                             color: Colors.transparent,
                             onPressed: _cancel,
                           ),
                           EpicLozengeButton(
-                            label: localizations.menuButtonSubmit,
+                            label: EpicCommonLocalizations.of(context)!.menuButtonSubmit,
                             width: buttonWidth,
                             onPressed: _submit,
                           ),

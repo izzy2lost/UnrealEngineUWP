@@ -4,6 +4,9 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:epic_common/preferences.dart';
+import 'package:epic_common/theme.dart';
+import 'package:epic_common/widgets.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
@@ -23,12 +26,7 @@ import '../../models/unreal_property_manager.dart';
 import '../../models/unreal_types.dart';
 import '../../utilities/constants.dart';
 import '../../utilities/guarded_refresh_state.dart';
-import '../../utilities/transient_preference.dart';
-import '../../utilities/unreal_colors.dart';
-import 'asset_icon.dart';
 import 'dropdown_button.dart';
-import 'dropdown_list_menu.dart';
-import 'epic_icon_button.dart';
 import 'place_actor_menu.dart';
 import 'spinner_overlay.dart';
 import 'transform_gesture_detector.dart';
@@ -976,6 +974,7 @@ class StageMapState extends State<StageMap> with PreviewRenderConsumer, GuardedR
   /// Called when the user performs a long press gesture on the map.
   void _onLongPressStart(LongPressStartDetails details) {
     DropDownListMenu.showAtPosition(
+      context,
       pivotPosition: details.globalPosition,
       builder: (context) => PlaceActorDropDownMenu(
         actorMapPosition: _globalToMapPosition(details.globalPosition),
@@ -1914,13 +1913,13 @@ class _StageMapControlModeToggle extends StatelessWidget {
         preference: stageMapSettings.bIsInTransformMode,
         builder: (_, final bool bIsInTransformMode) => Row(children: [
           _StageMapControlModeToggleButton(
-            iconPath: 'assets/images/icons/world_flat.svg',
+            iconPath: 'packages/epic_common/assets/icons/world_flat.svg',
             tooltipMessage: AppLocalizations.of(context)!.stageMapControlModeMap,
             bIsActive: !bIsInTransformMode,
             onPressed: () => stageMapSettings.bIsInTransformMode.setValue(false),
           ),
           _StageMapControlModeToggleButton(
-            iconPath: 'assets/images/icons/object.svg',
+            iconPath: 'packages/epic_common/assets/icons/object.svg',
             tooltipMessage: AppLocalizations.of(context)!.stageMapControlModeObject,
             bIsActive: bIsInTransformMode,
             onPressed: () => stageMapSettings.bIsInTransformMode.setValue(true),

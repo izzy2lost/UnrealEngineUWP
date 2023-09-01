@@ -1,11 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+import 'package:epic_common/preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:streaming_shared_preferences/streaming_shared_preferences.dart';
-
-import '../../utilities/preferences_bundle.dart';
-import '../../utilities/streaming_preferences_extensions.dart';
 
 /// Compression modes that can be used for WebSocket traffic.
 enum WebSocketCompressionMode {

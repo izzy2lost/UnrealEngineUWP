@@ -2,15 +2,13 @@
 
 import 'dart:io';
 
-import '../../../../../elements/epic_list_view.dart';
+import 'package:epic_common/logging.dart';
+import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../../../utilities/external_notifier.dart';
 import '../../../../../../utilities/guarded_refresh_state.dart';
-import '../../../../../../utilities/logging.dart';
-import '../../../../../elements/asset_icon.dart';
-import '../../../../../elements/epic_icon_button.dart';
 import '../settings_generic.dart';
 
 /// Arguments passed to the route when a [SettingsLogView] is pushed to the navigation stack.
@@ -42,7 +40,7 @@ class _SettingsLogViewState extends State<SettingsLogView> with GuardedRefreshSt
       title: Logging.getNameForLog(arguments.file),
       titleBarTrailing: EpicIconButton(
         key: shareButtonKey,
-        iconPath: 'assets/images/icons/share.svg',
+        iconPath: 'packages/epic_common/assets/icons/share.svg',
         color: Theme.of(context).colorScheme.primary,
         onPressed: () => _shareLog(arguments.file),
       ),
@@ -314,7 +312,9 @@ class _ScrollButtonState extends State<_ScrollButton> {
       duration: Duration(milliseconds: 150),
       child: FloatingActionButton(
         child: AssetIcon(
-          path: widget.bScrollToStart ? 'assets/images/icons/chevron_up.svg' : 'assets/images/icons/chevron_down.svg',
+          path: widget.bScrollToStart
+              ? 'packages/epic_common/assets/icons/chevron_up.svg'
+              : 'packages/epic_common/assets/icons/chevron_down.svg',
           size: 32,
         ),
         onPressed: _onPressed,

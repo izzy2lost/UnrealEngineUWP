@@ -2,14 +2,14 @@
 
 import 'dart:io';
 
+import 'package:epic_common/localizations.dart';
+import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../utilities/constants.dart';
 import '../../../../utilities/net_utilities.dart';
-import '../../../elements/epic_icon_button.dart';
-import '../../../elements/modal.dart';
 
 /// Manual connection form for manually connecting to an instance of UE.
 class ManualConnectForm extends StatefulWidget {
@@ -76,12 +76,12 @@ class _ManualConnectFormState extends State<ManualConnectForm> {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     EpicLozengeButton(
-                      label: AppLocalizations.of(context)!.menuButtonCancel,
+                      label: EpicCommonLocalizations.of(context)!.menuButtonCancel,
                       color: Colors.transparent,
                       onPressed: () => Navigator.of(context).pop(),
                     ),
                     EpicLozengeButton(
-                      label: AppLocalizations.of(context)!.menuButtonOK,
+                      label: EpicCommonLocalizations.of(context)!.menuButtonOK,
                       onPressed: _onConnect,
                     ),
                   ],

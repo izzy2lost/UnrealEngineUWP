@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+import 'package:epic_common/theme.dart';
+import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:logging/logging.dart';
@@ -7,10 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../../../models/engine_connection.dart';
-import '../../../../utilities/constants.dart';
 import '../../../../utilities/net_utilities.dart';
-import '../../../elements/empty_placeholder.dart';
-import '../../../elements/epic_icon_button.dart';
 import '../../../elements/spinner_overlay.dart';
 
 final _log = Logger('WebBrowser');
@@ -18,7 +17,7 @@ final _log = Logger('WebBrowser');
 class WebBrowserTab extends StatefulWidget {
   const WebBrowserTab({Key? key}) : super(key: key);
 
-  static const String iconPath = 'assets/images/icons/web_browser.svg';
+  static const String iconPath = 'packages/epic_common/assets/icons/web_browser.svg';
 
   static String getTitle(BuildContext context) => AppLocalizations.of(context)!.tabTitleWebBrowser;
 
@@ -95,7 +94,7 @@ class _WebBrowserTabState extends State<WebBrowserTab> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _AddressBar(address: _currentUrl),
-          const SizedBox(height: sectionMargin),
+          const SizedBox(height: UnrealTheme.sectionMargin),
           Expanded(
             child: Stack(
               children: [
@@ -126,7 +125,7 @@ class _WebBrowserTabState extends State<WebBrowserTab> {
           message: _errorMessage!,
           button: EpicWideButton(
             text: AppLocalizations.of(context)!.webBrowserReconnectButtonLabel,
-            iconPath: 'assets/images/icons/refresh.svg',
+            iconPath: 'packages/epic_common/assets/icons/refresh.svg',
             onPressed: _attemptToConnect,
           ),
         ),
@@ -134,7 +133,7 @@ class _WebBrowserTabState extends State<WebBrowserTab> {
     }
 
     return Padding(
-      padding: const EdgeInsets.all(cardMargin),
+      padding: const EdgeInsets.all(UnrealTheme.cardMargin),
       child: Card(child: mainContent),
     );
   }
@@ -264,19 +263,19 @@ class _AddressBar extends StatelessWidget {
       height: 44,
       color: Theme.of(context).colorScheme.surfaceTint,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: cardMargin),
+        padding: const EdgeInsets.symmetric(horizontal: UnrealTheme.cardMargin),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Flexible(
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: cardMargin),
+                padding: const EdgeInsets.symmetric(vertical: UnrealTheme.cardMargin),
                 child: Container(
                   constraints: BoxConstraints(minWidth: 300, maxWidth: 500),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.background,
-                    borderRadius: BorderRadius.circular(outerCornerRadius),
+                    borderRadius: BorderRadius.circular(UnrealTheme.outerCornerRadius),
                   ),
                   child: Center(
                     child: Padding(
@@ -310,7 +309,7 @@ class _RefreshWebBrowserButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return EpicIconButton(
-      iconPath: 'assets/images/icons/refresh.svg',
+      iconPath: 'packages/epic_common/assets/icons/refresh.svg',
       tooltipMessage: AppLocalizations.of(context)!.webBrowserRefreshButtonTooltip,
       onPressed: WebBrowserTab.refreshAll,
       buttonSize: const Size(40, 40),

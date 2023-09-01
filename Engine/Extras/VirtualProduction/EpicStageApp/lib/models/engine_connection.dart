@@ -6,6 +6,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:logging/logging.dart';
@@ -17,7 +18,6 @@ import 'package:web_socket_channel/io.dart';
 import './navigator_keys.dart';
 import '../utilities/net_utilities.dart';
 import '../utilities/unreal_utilities.dart';
-import '../widgets/elements/modal.dart';
 import '../widgets/screens/connect/connect.dart';
 import '../widgets/screens/connect/views/passphrase_modal.dart';
 import '../widgets/screens/main/stage_app_main_screen.dart';
@@ -643,7 +643,8 @@ class EngineConnectionManager with WidgetsBindingObserver {
     }
 
     if (!bWasExpected) {
-      InfoModalDialog.showInContext((context) => AppLocalizations.of(context)!.engineConnectionLostMessage);
+      final BuildContext context = rootNavigatorKey.currentContext!;
+      InfoModalDialog.show(context, AppLocalizations.of(context)!.engineConnectionLostMessage);
     }
   }
 

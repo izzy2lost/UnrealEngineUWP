@@ -3,6 +3,9 @@
 import 'dart:async';
 
 import 'package:async/async.dart';
+import 'package:epic_common/preferences.dart';
+import 'package:epic_common/theme.dart';
+import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
@@ -23,19 +26,8 @@ import '../../../../models/unreal_transaction_manager.dart';
 import '../../../../models/unreal_types.dart';
 import '../../../../utilities/constants.dart';
 import '../../../../utilities/guarded_refresh_state.dart';
-import '../../../../utilities/preferences_bundle.dart';
-import '../../../../utilities/transient_preference.dart';
-import '../../../../utilities/unreal_colors.dart';
 import '../../../elements/dropdown_button.dart';
-import '../../../elements/dropdown_list_menu.dart';
-import '../../../elements/empty_placeholder.dart';
-import '../../../elements/epic_icon_button.dart';
-import '../../../elements/layout/card.dart';
-import '../../../elements/list_menu.dart';
-import '../../../elements/modal.dart';
 import '../../../elements/place_actor_menu.dart';
-import '../../../elements/swipe_revealer.dart';
-import '../../../search_bar.dart';
 import '../stage_app_main_screen.dart';
 import 'outliner_filter_menu.dart';
 
@@ -268,7 +260,7 @@ class _OutlinerPanelState extends State<OutlinerPanel> {
                 CardSmallHeader(title: AppLocalizations.of(context)!.outlinerTitle),
 
                 Container(
-                  height: sectionMargin,
+                  height: UnrealTheme.sectionMargin,
                   color: Theme.of(context).colorScheme.surfaceVariant,
                 ),
 
@@ -293,7 +285,7 @@ class _OutlinerPanelState extends State<OutlinerPanel> {
                         preference: selectedActorSettings.bIsInMultiSelectMode,
                         builder: (BuildContext context, bool bIsInMultiSelectMode) {
                           return CardSubHeaderButton(
-                            iconPath: 'assets/images/icons/multi_select.svg',
+                            iconPath: 'packages/epic_common/assets/icons/multi_select.svg',
                             tooltipMessage: AppLocalizations.of(context)!.toggleMultiselectTooltip,
                             bIsToggledOn: bIsInMultiSelectMode,
                             onPressed: () => selectedActorSettings.bIsInMultiSelectMode.setValue(!bIsInMultiSelectMode),
@@ -325,7 +317,7 @@ class _OutlinerPanelState extends State<OutlinerPanel> {
                             buttonBuilder: (context, state) => Material(
                               color: Colors.transparent,
                               child: CardSubHeaderButton(
-                                iconPath: 'assets/images/icons/ellipsis.svg',
+                                iconPath: 'packages/epic_common/assets/icons/ellipsis.svg',
                                 tooltipMessage: AppLocalizations.of(context)!.moreActions,
                                 bIsToggledOn: state != ModalDropdownButtonState.closed,
                                 bIsVisualOnly: selectedActors.isNotEmpty,
@@ -336,7 +328,7 @@ class _OutlinerPanelState extends State<OutlinerPanel> {
                               children: [
                                 if (bCanFocus)
                                   ListMenuSimpleItem(
-                                    iconPath: 'assets/images/icons/focus.svg',
+                                    iconPath: 'packages/epic_common/assets/icons/focus.svg',
                                     title: AppLocalizations.of(context)!.outlinerFocusSelected,
                                     onTap: () {
                                       _focusSelectedActor();
@@ -345,7 +337,7 @@ class _OutlinerPanelState extends State<OutlinerPanel> {
                                     bIsEnabled: bCanFocus,
                                   ),
                                 ListMenuSimpleItem(
-                                  iconPath: 'assets/images/icons/paste.svg',
+                                  iconPath: 'packages/epic_common/assets/icons/paste.svg',
                                   title: AppLocalizations.of(context)!.outlinerDuplicateSelected,
                                   onTap: () {
                                     _duplicateSelectedActors();
@@ -353,7 +345,7 @@ class _OutlinerPanelState extends State<OutlinerPanel> {
                                   },
                                 ),
                                 ListMenuSimpleItem(
-                                  iconPath: 'assets/images/icons/trash.svg',
+                                  iconPath: 'packages/epic_common/assets/icons/trash.svg',
                                   title: AppLocalizations.of(context)!.outlinerDeleteSelected,
                                   onTap: () {
                                     _deleteSelectedActors();
@@ -362,7 +354,7 @@ class _OutlinerPanelState extends State<OutlinerPanel> {
                                 ),
                                 if (bHasSingleTarget)
                                   ListMenuSimpleItem(
-                                    iconPath: 'assets/images/icons/edit.svg',
+                                    iconPath: 'packages/epic_common/assets/icons/edit.svg',
                                     title: AppLocalizations.of(context)!.outlinerRenameSelected,
                                     onTap: () {
                                       Navigator.of(context).pop();
@@ -383,7 +375,7 @@ class _OutlinerPanelState extends State<OutlinerPanel> {
                 Expanded(
                   child: _filteredActors.isNotEmpty
                       ? ListView.builder(
-                          padding: cardListViewPadding,
+                          padding: UnrealTheme.cardListViewPadding,
                           itemCount: _filteredActors.length,
                           itemBuilder: (BuildContext context, int actorIndex) {
                             final UnrealObject actor = _filteredActors[actorIndex];
@@ -402,9 +394,10 @@ class _OutlinerPanelState extends State<OutlinerPanel> {
                           message: AppLocalizations.of(context)!.outlinerEmptyMessage,
                           button: EpicWideButton(
                             text: AppLocalizations.of(context)!.addActorButton,
-                            iconPath: 'assets/images/icons/plus.svg',
+                            iconPath: 'packages/epic_common/assets/icons/plus.svg',
                             iconColor: UnrealColors.highlightGreen,
                             onPressed: () => DropDownListMenu.showAtWidget(
+                              context,
                               widgetKey:
                                   Provider.of<StageAppMainScreenKeys>(context, listen: false).placeActorsButtonKey,
                               builder: (context) => PlaceActorDropDownMenu(
@@ -724,14 +717,14 @@ class _OutlinerPanelActorState extends State<_OutlinerPanelActor> with GuardedRe
           backgroundPadding: const EdgeInsets.only(top: 2),
           onDeleted: () => _deleteActors(context, {widget.actor.path}),
           leftSwipeActionBuilder: (context, onFinished) => CardListTileSwipeAction(
-            iconPath: 'assets/images/icons/trash.svg',
+            iconPath: 'packages/epic_common/assets/icons/trash.svg',
             color: UnrealColors.highlightRed,
             onPressed: () => onFinished(bDeleteItem: true),
           ),
           rightSwipeActionBuilder: (context, onFinished) => CardListTileSwipeAction(
             iconPath: (_actorData?.bIsHiddenInGame == true)
-                ? 'assets/images/icons/hidden_in_game.svg'
-                : 'assets/images/icons/visible_in_game.svg',
+                ? 'packages/epic_common/assets/icons/hidden_in_game.svg'
+                : 'packages/epic_common/assets/icons/visible_in_game.svg',
             color: UnrealColors.gray22,
             onPressed: () {
               if (_actorData != null) {
@@ -818,7 +811,7 @@ class OutlinerToggleButton extends StatelessWidget {
       preference: mainScreenSettings.bIsOutlinerPanelOpen,
       builder: (BuildContext context, bool bIsOutlinerPanelOpen) {
         return EpicIconButton(
-          iconPath: 'assets/images/icons/outliner.svg',
+          iconPath: 'packages/epic_common/assets/icons/outliner.svg',
           tooltipMessage: AppLocalizations.of(context)!.outlinerTitle,
           bIsToggledOn: bIsOutlinerPanelOpen,
           onPressed: bEnabled
@@ -861,7 +854,9 @@ class _LightCardVisibilityToggleState extends State<LightCardVisibilityToggle> w
       preference: selectedActorSettings.selectedActors,
       builder: (BuildContext context, Set<String> selectedActors) {
         return CardSubHeaderButton(
-          iconPath: bIsVisible ? 'assets/images/icons/visible_in_game.svg' : 'assets/images/icons/hidden_in_game.svg',
+          iconPath: bIsVisible
+              ? 'packages/epic_common/assets/icons/visible_in_game.svg'
+              : 'packages/epic_common/assets/icons/hidden_in_game.svg',
           tooltipMessage: AppLocalizations.of(context)!.outlinerToggleVisibility,
           bIsToggledOn: false,
           onPressed: selectedActors.isEmpty ? null : () => _toggleVisibility(),

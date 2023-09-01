@@ -1,11 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+import 'package:epic_common/theme.dart';
+import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../../models/navigator_keys.dart';
-import '../../../../../utilities/unreal_colors.dart';
-import '../../../../elements/asset_icon.dart';
-import '../../../../elements/epic_icon_button.dart';
 import 'settings_dialog.dart';
 
 /// Outer scaffold to use for all settings pages.
@@ -46,11 +45,11 @@ class SettingsPageScaffold extends StatelessWidget {
                 left: 0,
                 child: bCanPop
                     ? EpicIconButton(
-                        iconPath: 'assets/images/icons/chevron_left.svg',
+                        iconPath: 'packages/epic_common/assets/icons/chevron_left.svg',
                         onPressed: () => Navigator.of(context).maybePop(),
                       )
                     : EpicIconButton(
-                        iconPath: 'assets/images/icons/close.svg',
+                        iconPath: 'packages/epic_common/assets/icons/close.svg',
                         onPressed: () => Navigator.of(rootNavigatorKey.currentContext!).maybePop(),
                       ),
               ),
@@ -85,7 +84,7 @@ class SettingsMenuItem extends StatelessWidget {
     required this.title,
     this.iconPath,
     this.onTap,
-    this.trailingIconPath = 'assets/images/icons/chevron_right.svg',
+    this.trailingIconPath = 'packages/epic_common/assets/icons/chevron_right.svg',
     this.trailing,
   }) : super(key: key);
 

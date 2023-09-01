@@ -2,6 +2,8 @@
 
 import 'dart:async';
 
+import 'package:epic_common/localizations.dart';
+import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
@@ -9,11 +11,6 @@ import 'package:provider/provider.dart';
 import '../../models/engine_connection.dart';
 import '../../models/unreal_actor_creator.dart';
 import '../../models/unreal_types.dart';
-import '../search_bar.dart';
-import 'epic_icon_button.dart';
-import 'epic_list_view.dart';
-import 'layout/card.dart';
-import 'list_menu.dart';
 
 /// Drop-down menu shown to select a template to create an actor from.
 class TemplatePickerMenu extends StatefulWidget {
@@ -193,11 +190,11 @@ class _TemplatePickerMenuState extends State<TemplatePickerMenu> {
             minWidth: 270,
             children: [
               CardLargeHeader(
-                iconPath: 'assets/images/icons/viewport.svg',
+                iconPath: 'packages/epic_common/assets/icons/viewport.svg',
                 title: AppLocalizations.of(context)!.placeActorMenuAllTemplates,
                 trailing: EpicIconButton(
-                  iconPath: 'assets/images/icons/close.svg',
-                  tooltipMessage: AppLocalizations.of(context)!.menuButtonCancel,
+                  iconPath: 'packages/epic_common/assets/icons/close.svg',
+                  tooltipMessage: EpicCommonLocalizations.of(context)!.menuButtonCancel,
                   iconSize: 20,
                   onPressed: _closeMenu,
                 ),
@@ -247,7 +244,7 @@ class _TemplateMenuItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListMenuSimpleItem(
       title: templateData.name,
-      iconPath: 'assets/images/icons/template.svg',
+      iconPath: 'packages/epic_common/assets/icons/template.svg',
       onTap: onPressed,
     );
   }

@@ -2,13 +2,13 @@
 
 import 'dart:math' as math;
 
+import 'package:epic_common/preferences.dart';
+import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../../models/settings/floating_map_settings.dart';
-import '../../utilities/preferences_bundle.dart';
-import 'asset_icon.dart';
 import 'lightcard_map.dart';
 
 /// Sides of the screen on which the preview can be docked.
@@ -670,14 +670,16 @@ class _DockTab extends StatelessWidget {
       ),
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         AssetIcon(
-          path: 'assets/images/icons/map.svg',
+          path: 'packages/epic_common/assets/icons/map.svg',
           size: 24,
         ),
         SizedBox(
           height: 6,
         ),
         AssetIcon(
-          path: bIsFacingLeft ? 'assets/images/icons/chevron_left.svg' : 'assets/images/icons/chevron_right.svg',
+          path: bIsFacingLeft
+              ? 'packages/epic_common/assets/icons/chevron_left.svg'
+              : 'packages/epic_common/assets/icons/chevron_right.svg',
           size: 24,
         ),
       ]),

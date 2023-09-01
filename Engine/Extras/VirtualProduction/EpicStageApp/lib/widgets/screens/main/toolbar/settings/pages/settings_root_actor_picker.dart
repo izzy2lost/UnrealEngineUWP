@@ -52,8 +52,9 @@ class _SettingsDialogRootActorPickerState extends State<SettingsDialogRootActorP
             for (final UnrealObject actor in _actorManager.getActorsOfClass(nDisplayRootActorClassName))
               SettingsMenuItem(
                 title: actor.name,
-                iconPath: 'assets/images/icons/ndisplay.svg',
-                trailingIconPath: rootActorPath.data == actor.path ? 'assets/images/icons/check.svg' : null,
+                iconPath: 'packages/epic_common/assets/icons/ndisplay.svg',
+                trailingIconPath:
+                    rootActorPath.data == actor.path ? 'packages/epic_common/assets/icons/check.svg' : null,
                 onTap: () => selectedActorSettings.displayClusterRootPath.setValue(actor.path),
               ),
           ],

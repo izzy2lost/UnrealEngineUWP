@@ -2,12 +2,12 @@
 
 import 'dart:io';
 
-import '../../../../../elements/epic_list_view.dart';
+import 'package:epic_common/logging.dart';
+import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 import '../../../../../../utilities/guarded_refresh_state.dart';
-import '../../../../../../utilities/logging.dart';
 import '../settings_generic.dart';
 import 'settings_log_view.dart';
 
@@ -73,7 +73,7 @@ class _SettingsLogListState extends State<SettingsLogList> with GuardedRefreshSt
 
               return SettingsMenuItem(
                 title: Logging.getNameForLog(file),
-                iconPath: 'assets/images/icons/log.svg',
+                iconPath: 'packages/epic_common/assets/icons/log.svg',
                 onTap: () => Navigator.of(context).pushNamed(
                   SettingsLogView.route,
                   arguments: SettingsLogViewArguments(

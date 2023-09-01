@@ -1,14 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+import 'package:epic_common/localizations.dart';
+import 'package:epic_common/preferences.dart';
+import 'package:epic_common/theme.dart';
+import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 
-import '../../../utilities/preferences_bundle.dart';
-import '../../../utilities/unreal_colors.dart';
-import '../../elements/epic_icon_button.dart';
-import '../../elements/epic_scroll_view.dart';
-import '../../elements/parsed_rich_text.dart';
 import '../connect/connect.dart';
 
 /// Data types for EULA content.
@@ -76,7 +75,7 @@ class _EulaScreenState extends State<EulaScreen> {
           color: UnrealColors.highlightBlue,
           child: Text(
             bHasAcceptedEula
-                ? AppLocalizations.of(context)!.menuButtonOK
+                ? EpicCommonLocalizations.of(context)!.menuButtonOK
                 : AppLocalizations.of(context)!.eulaAcceptButtonLabel,
           ),
           onPressed: () {

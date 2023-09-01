@@ -3,6 +3,9 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:epic_common/preferences.dart';
+import 'package:epic_common/theme.dart';
+import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:logging/logging.dart';
@@ -19,21 +22,11 @@ import '../../../../models/unreal_actor_manager.dart';
 import '../../../../models/unreal_transaction_manager.dart';
 import '../../../../models/unreal_types.dart';
 import '../../../../utilities/constants.dart';
-import '../../../../utilities/preferences_bundle.dart';
-import '../../../../utilities/transient_preference.dart';
-import '../../../../utilities/unreal_colors.dart';
 import '../../../../utilities/unreal_utilities.dart';
 import '../../../elements/delta_slider.dart';
 import '../../../elements/dropdown_text.dart';
-import '../../../elements/empty_placeholder.dart';
-import '../../../elements/epic_list_view.dart';
-import '../../../elements/layout/card.dart';
-import '../../../elements/modal.dart';
 import '../../../elements/reset_mode_button.dart';
-import '../../../elements/selector_bar.dart';
 import '../../../elements/stepper.dart';
-import '../../../elements/swipe_revealer.dart';
-import '../../../elements/tree_view.dart';
 import '../../../elements/unreal_property_builder.dart';
 import '../sidebar/outliner_panel.dart';
 import 'base_color_tab.dart';
@@ -44,7 +37,7 @@ final _log = Logger('ColorGradingTab');
 class ColorGradingTab extends StatefulWidget {
   const ColorGradingTab({Key? key}) : super(key: key);
 
-  static const String iconPath = 'assets/images/icons/color_grading.svg';
+  static const String iconPath = 'packages/epic_common/assets/icons/color_grading.svg';
 
   static String getTitle(BuildContext context) => AppLocalizations.of(context)!.tabTitleColorGrading;
 
@@ -112,7 +105,7 @@ class _ColorGradingTabState extends State<ColorGradingTab> {
             final _ColorGradingTargetListEntryData? targetData = _getTargetEntryDataForProperty(colorGradingTarget);
 
             return Padding(
-              padding: EdgeInsets.all(cardMargin),
+              padding: EdgeInsets.all(UnrealTheme.cardMargin),
               child: Row(children: [
                 // Main controls
                 Expanded(
@@ -144,7 +137,7 @@ class _ColorGradingTabState extends State<ColorGradingTab> {
                     }
 
                     return Row(children: [
-                      SizedBox(width: cardMargin),
+                      SizedBox(width: UnrealTheme.cardMargin),
 
                       // Outliner and target panels
                       SizedBox(
@@ -210,13 +203,13 @@ class _ColorGradingTabState extends State<ColorGradingTab> {
     switch (entryData?.type) {
       case _ColorGradingObjectEntryType.nDisplayConfig:
       case _ColorGradingObjectEntryType.icvfxCamera:
-        return 'assets/images/icons/viewport.svg';
+        return 'packages/epic_common/assets/icons/viewport.svg';
 
       case _ColorGradingObjectEntryType.postProcessVolume:
-        return 'assets/images/icons/post_process_volume.svg';
+        return 'packages/epic_common/assets/icons/post_process_volume.svg';
 
       default:
-        return 'assets/images/icons/color_grading.svg';
+        return 'packages/epic_common/assets/icons/color_grading.svg';
     }
   }
 
@@ -896,18 +889,18 @@ class _ColorGradingTargetPanelState extends State<_ColorGradingTargetPanel> {
                     padding: EdgeInsets.symmetric(horizontal: 4),
                     child: Row(children: [
                       CardSubHeaderButton(
-                        iconPath: 'assets/images/icons/add_circle.svg',
+                        iconPath: 'packages/epic_common/assets/icons/add_circle.svg',
                         tooltipMessage: AppLocalizations.of(context)!.colorGradingOutlinerAddTargetButtonTooltip,
                         onPressed: widget.objectEntry?.targetListProperty != null ? _addTargetToSelectedObject : null,
                       ),
                       CardSubHeaderButton(
-                        iconPath: 'assets/images/icons/edit.svg',
+                        iconPath: 'packages/epic_common/assets/icons/edit.svg',
                         tooltipMessage: AppLocalizations.of(context)!.colorGradingOutlinerRenameTargetButtonTooltip,
                         onPressed: widget.currentTarget?.nameProperty != null ? _renameTarget : null,
                       ),
                       const Spacer(),
                       CardSubHeaderButton(
-                        iconPath: 'assets/images/icons/trash.svg',
+                        iconPath: 'packages/epic_common/assets/icons/trash.svg',
                         tooltipMessage: AppLocalizations.of(context)!.colorGradingOutlinerDeleteTargetButtonTooltip,
                         onPressed: connection.apiVersion?.bCanUseQueryParamsInWebSocketHttpUrl == true &&
                                 widget.currentTarget?.bIsListEntry == true
@@ -1236,10 +1229,10 @@ class _ColorGradingObjectEntry extends StatelessWidget {
   }) : super(key: key);
 
   static const Map<_ColorGradingObjectEntryType, String> _iconsByType = {
-    _ColorGradingObjectEntryType.level: 'assets/images/icons/level.svg',
-    _ColorGradingObjectEntryType.nDisplayConfig: 'assets/images/icons/ndisplay.svg',
-    _ColorGradingObjectEntryType.icvfxCamera: 'assets/images/icons/ndisplay_camera.svg',
-    _ColorGradingObjectEntryType.postProcessVolume: 'assets/images/icons/post_process_volume.svg',
+    _ColorGradingObjectEntryType.level: 'packages/epic_common/assets/icons/level.svg',
+    _ColorGradingObjectEntryType.nDisplayConfig: 'packages/epic_common/assets/icons/ndisplay.svg',
+    _ColorGradingObjectEntryType.icvfxCamera: 'packages/epic_common/assets/icons/ndisplay_camera.svg',
+    _ColorGradingObjectEntryType.postProcessVolume: 'packages/epic_common/assets/icons/post_process_volume.svg',
   };
 
   /// The node in the tree view for this item.
@@ -1329,7 +1322,7 @@ class _ColorGradingTargetListEntry extends StatelessWidget {
       builder: (_, bIsEnabled) => CardListTile(
         bIsSelected: bIsSelected,
         title: data.name,
-        iconPath: 'assets/images/icons/viewport.svg',
+        iconPath: 'packages/epic_common/assets/icons/viewport.svg',
         bDeEmphasize: !bIsEnabled,
         onTap: onTap,
       ),
@@ -1358,8 +1351,8 @@ class _EnablePropertySwipeRevealer extends StatelessWidget {
       builder: (_, final bool? bIsEnabled, modify) => SwipeRevealer(
         rightSwipeActionBuilder: (context, onFinished) => CardListTileSwipeAction(
           iconPath: (bIsEnabled == true)
-              ? 'assets/images/icons/checkbox_opaque_checked.svg'
-              : 'assets/images/icons/checkbox_opaque_unchecked.svg',
+              ? 'packages/epic_common/assets/icons/checkbox_opaque_checked.svg'
+              : 'packages/epic_common/assets/icons/checkbox_opaque_unchecked.svg',
           color: UnrealColors.gray22,
           iconSize: 18,
           onPressed: () {

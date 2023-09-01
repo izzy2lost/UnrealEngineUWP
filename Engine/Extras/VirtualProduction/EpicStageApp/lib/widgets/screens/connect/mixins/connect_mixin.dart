@@ -2,6 +2,9 @@
 
 import 'dart:async';
 
+import 'package:epic_common/localizations.dart';
+import 'package:epic_common/preferences.dart';
+import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
@@ -13,10 +16,6 @@ import '../../../../models/unreal_actor_manager.dart';
 import '../../../../models/unreal_types.dart';
 import '../../../../utilities/constants.dart';
 import '../../../../utilities/net_utilities.dart';
-import '../../../../utilities/preferences_bundle.dart';
-import '../../../elements/asset_icon.dart';
-import '../../../elements/epic_icon_button.dart';
-import '../../../elements/modal.dart';
 import '../../main/stage_app_main_screen.dart';
 import '../views/error_modal.dart';
 import '../views/n_display_selector_dialog.dart';
@@ -130,7 +129,7 @@ mixin ConnectMixin<T extends StatefulWidget> on State<T> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   AssetIcon(
-                    path: 'assets/images/icons/unreal_u_logo.svg',
+                    path: 'packages/epic_common/assets/icons/unreal_u_logo.svg',
                     size: 24,
                   ),
                   SizedBox(width: 16),
@@ -151,7 +150,7 @@ mixin ConnectMixin<T extends StatefulWidget> on State<T> {
               ),
               Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                 EpicLozengeButton(
-                  label: AppLocalizations.of(context)!.menuButtonCancel,
+                  label: EpicCommonLocalizations.of(context)!.menuButtonCancel,
                   color: Theme.of(context).colorScheme.secondary,
                   onPressed: () {
                     Navigator.pop(context, false);

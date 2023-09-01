@@ -3,6 +3,9 @@
 import 'dart:async';
 import 'dart:collection';
 
+import 'package:epic_common/preferences.dart';
+import 'package:epic_common/theme.dart';
+import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
@@ -17,15 +20,10 @@ import '../../../../models/unreal_actor_manager.dart';
 import '../../../../models/unreal_types.dart';
 import '../../../../utilities/constants.dart';
 import '../../../../utilities/guarded_refresh_state.dart';
-import '../../../../utilities/preferences_bundle.dart';
 import '../../../elements/delta_slider.dart';
 import '../../../elements/dropdown_button.dart';
 import '../../../elements/dropdown_text.dart';
-import '../../../elements/empty_placeholder.dart';
-import '../../../elements/epic_icon_button.dart';
-import '../../../elements/layout/card.dart';
 import '../../../elements/reset_mode_button.dart';
-import '../../../elements/selector_bar.dart';
 import '../../../elements/stepper.dart';
 import '../../../elements/unreal_property_builder.dart';
 import '../sidebar/outliner_panel.dart';
@@ -43,7 +41,7 @@ enum _DetailsActorType {
 class DetailsTab extends StatefulWidget {
   const DetailsTab({Key? key}) : super(key: key);
 
-  static const String iconPath = 'assets/images/icons/details.svg';
+  static const String iconPath = 'packages/epic_common/assets/icons/details.svg';
 
   static String getTitle(BuildContext context) => AppLocalizations.of(context)!.tabTitleDetails;
 
@@ -97,7 +95,7 @@ class _DetailsTabState extends State<DetailsTab> with GuardedRefreshState {
     final _DetailsActorType? actorType = _getActorType();
 
     return Padding(
-      padding: EdgeInsets.all(cardMargin),
+      padding: EdgeInsets.all(UnrealTheme.cardMargin),
       child: Row(
         children: [
           Expanded(
@@ -117,7 +115,7 @@ class _DetailsTabState extends State<DetailsTab> with GuardedRefreshState {
               preference: Provider.of<MainScreenSettings>(context, listen: false).bIsOutlinerPanelOpen,
               builder: (context, final bool bIsOutlinerPanelOpen) {
                 return Row(children: [
-                  if (bIsOutlinerPanelOpen) const SizedBox(width: cardMargin),
+                  if (bIsOutlinerPanelOpen) const SizedBox(width: UnrealTheme.cardMargin),
                   if (bIsOutlinerPanelOpen) OutlinerPanel(),
                 ]);
               }),
@@ -159,7 +157,7 @@ class _DetailsTabState extends State<DetailsTab> with GuardedRefreshState {
       return iconPath;
     }
 
-    return 'assets/images/icons/details.svg';
+    return 'packages/epic_common/assets/icons/details.svg';
   }
 
   /// Called when an actor we're editing has an update from the actor manager.
@@ -217,7 +215,7 @@ class _DetailsTabState extends State<DetailsTab> with GuardedRefreshState {
               ? null
               : EpicWideButton(
                   text: AppLocalizations.of(context)!.detailsTabShowOutlinerButtonLabel,
-                  iconPath: 'assets/images/icons/outliner.svg',
+                  iconPath: 'packages/epic_common/assets/icons/outliner.svg',
                   onPressed: () => mainScreenSettings.bIsOutlinerPanelOpen.setValue(true),
                 ),
         ),

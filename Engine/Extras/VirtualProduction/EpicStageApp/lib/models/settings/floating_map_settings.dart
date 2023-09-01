@@ -1,9 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+import 'package:epic_common/preferences.dart';
 import 'package:streaming_shared_preferences/streaming_shared_preferences.dart';
-
-import '../../utilities/preferences_bundle.dart';
-import '../../utilities/streaming_preferences_extensions.dart';
 
 /// Which side of the screen the map preview is on.
 enum PreviewMapSide {

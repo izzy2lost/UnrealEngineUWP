@@ -29,7 +29,7 @@ class SettingsAdvancedView extends StatelessWidget {
               preference: Provider.of<ConnectionSettings>(context).webSocketCompressionMode,
               builder: (context, final WebSocketCompressionMode compressionMode) => SettingsMenuItem(
                 title: AppLocalizations.of(context)!.settingsDialogCompressionLabel,
-                iconPath: 'assets/images/icons/compression.svg',
+                iconPath: 'packages/epic_common/assets/icons/compression.svg',
                 trailing: Text(getNameForWebSocketCompressionMode(context, compressionMode)),
                 onTap: () => Navigator.of(context).pushNamed(SettingsCompressionPicker.route),
               ),

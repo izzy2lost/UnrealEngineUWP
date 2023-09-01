@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../../models/navigator_keys.dart';
-import '../../../../elements/modal.dart';
 import 'pages/settings_advanced_view.dart';
 import 'pages/settings_compression_picker.dart';
 import 'pages/settings_dialog_main.dart';

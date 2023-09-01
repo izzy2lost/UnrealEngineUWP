@@ -36,8 +36,10 @@ class SettingsCompressionPicker extends StatelessWidget {
                       preference: connectionSettings.webSocketCompressionMode,
                       builder: (context, final WebSocketCompressionMode selectedMode) => SettingsMenuItem(
                         title: getNameForWebSocketCompressionMode(context, mode),
-                        iconPath: mode == WebSocketCompressionMode.none ? null : 'assets/images/icons/compression.svg',
-                        trailingIconPath: selectedMode == mode ? 'assets/images/icons/check.svg' : null,
+                        iconPath: mode == WebSocketCompressionMode.none
+                            ? null
+                            : 'packages/epic_common/assets/icons/compression.svg',
+                        trailingIconPath: selectedMode == mode ? 'packages/epic_common/assets/icons/check.svg' : null,
                         onTap: () => connectionSettings.webSocketCompressionMode.setValue(mode),
                       ),
                     ),
