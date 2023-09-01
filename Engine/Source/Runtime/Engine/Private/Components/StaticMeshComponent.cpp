@@ -585,7 +585,8 @@ void UStaticMeshComponent::CheckForErrors()
 		CastShadow && 
 		bCastDynamicShadow && 
 		IsRegistered() && 
-		Bounds.SphereRadius > 2000.0f )
+		Bounds.SphereRadius > 2000.0f &&
+		IsStaticLightingAllowed())
 	{
 		// Large shadow casting objects that create preshadows will cause a massive performance hit, since preshadows are meant for small shadow casters.
 		FMessageLog("MapCheck").PerformanceWarning()
