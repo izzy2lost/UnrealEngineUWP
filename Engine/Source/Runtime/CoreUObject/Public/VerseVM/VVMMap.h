@@ -83,7 +83,6 @@ struct VMap : VHeapValue
 	static VMap& New(FAllocationContext Context, uint32 InitialCapacity = 0)
 	{
 		VMap& NewMap = *new (Context.Allocate(Verse::FHeap::DestructorSpace, sizeof(VMap))) VMap(Context, InitialCapacity);
-		FHeap::ReportAllocatedNativeBytes(NewMap.GetAllocatedSize());
 		return NewMap;
 	}
 
@@ -153,6 +152,7 @@ private:
 		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))
 	{
 		InternalMap.Reserve(InitialCapacity);
+		FHeap::ReportAllocatedNativeBytes(InternalMap.GetAllocatedSize());
 	}
 };
 
