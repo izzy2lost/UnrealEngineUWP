@@ -121,7 +121,7 @@ else
     # Provide user config to specify Python configuration.
     BOOST_USER_CONFIG="$BUILD_SCRIPT_DIRECTORY/user-config.jam"
 
-    MACOS_DEPLOYMENT_TARGET=10.9
+    MACOS_DEPLOYMENT_TARGET=11.0
 
     ARCH_FLAGS="-arch x86_64 -arch arm64"
 
