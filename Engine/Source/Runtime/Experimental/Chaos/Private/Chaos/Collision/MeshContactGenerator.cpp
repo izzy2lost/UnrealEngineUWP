@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc.All Rights Reserved.
 #include "Chaos/Collision/MeshContactGenerator.h"
 #include "Chaos/DebugDrawQueue.h"
-#include "Chaos/Framework/UncheckedArray.h"
 
 namespace Chaos
 {

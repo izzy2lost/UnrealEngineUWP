@@ -6,6 +6,7 @@
 #include "Chaos/Collision/ContactTriangles.h"
 #include "Chaos/CollisionResolutionTypes.h"
 #include "Chaos/Framework/HashMappedArray.h"
+#include "Chaos/Framework/UncheckedArray.h"
 #include "Chaos/Triangle.h"
 
 namespace Chaos::Private
@@ -180,6 +181,17 @@ namespace Chaos::Private
 		// A contact index combined with a flag to indicate if the normal is roughly along the triangle face
 		struct FVertexContactIndex
 		{
+			FVertexContactIndex()
+			{
+			}
+			
+			FVertexContactIndex(const FContactVertexID InID, const int32 InContactIndex, const bool bInIsFaceContact)
+				: ID(InID)
+				, ContactIndex(InContactIndex)
+				, bIsFaceContact(bInIsFaceContact)
+			{
+			}
+
 			FContactVertexID ID;
 			int32 ContactIndex;
 			bool bIsFaceContact;
