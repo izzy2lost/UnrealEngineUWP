@@ -363,6 +363,9 @@ struct FFortniteMainBranchObjectVersion
 		// GrassTypes are now per-component, rather than per-landscape proxy :
 		LandscapeSupportPerComponentGrassTypes,
 
+		// World partition actor data layers activation logic operator support defaults for old maps
+		WorldPartitionDataLayersLogicOperatorAdded,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

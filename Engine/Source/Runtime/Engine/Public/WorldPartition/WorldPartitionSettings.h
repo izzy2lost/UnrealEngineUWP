@@ -2,14 +2,8 @@
 #pragma once
 
 #include "Engine/DeveloperSettings.h"
+#include "WorldPartition/WorldPartition.h"
 #include "WorldPartitionSettings.generated.h"
-
-UENUM()
-enum class EDataLayerLogicOperator : uint8
-{
-	Or,
-	And
-};
 
 UCLASS(config = Engine, defaultconfig, DisplayName = "World Partition")
 class ENGINE_API UWorldPartitionSettings : public UDeveloperSettings
@@ -21,9 +15,10 @@ public:
 
 	static UWorldPartitionSettings* Get() { return CastChecked<UWorldPartitionSettings>(UWorldPartitionSettings::StaticClass()->GetDefaultObject()); }
 
-	EDataLayerLogicOperator GetDefaultDataLayerOperator() const { return DefaultDataLayerOperator; }
+	EWorldPartitionDataLayersLogicOperator GetNewMapsDataLayersLogicOperator() const { return NewMapsDataLayersLogicOperator; }
 
 protected:
+	/** Set the default logical operator for actor data layers activation for new maps */
 	UPROPERTY(EditAnywhere, config, Category = WorldPartition)
-	EDataLayerLogicOperator DefaultDataLayerOperator = EDataLayerLogicOperator::Or;
+	EWorldPartitionDataLayersLogicOperator NewMapsDataLayersLogicOperator = EWorldPartitionDataLayersLogicOperator::Or;
 };

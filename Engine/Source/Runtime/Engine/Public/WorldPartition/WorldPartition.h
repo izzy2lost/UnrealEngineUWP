@@ -79,7 +79,6 @@ enum class EWorldPartitionServerStreamingOutMode : uint8
 UENUM()
 enum class EWorldPartitionDataLayersLogicOperator : uint8
 {
-	ProjectDefault,
 	Or,
 	And
 };
@@ -430,7 +429,7 @@ public:
 
 	ENGINE_API UDataLayerManager* GetDataLayerManager() const;
 
-	ENGINE_API EWorldPartitionDataLayersLogicOperator GetDataLayersLogicOperator() const;
+	inline EWorldPartitionDataLayersLogicOperator GetDataLayersLogicOperator() const { return DataLayersLogicOperator; }
 
 	UE_DEPRECATED(5.3, "UpdateStreamingState is deprecated, use UWorldPartitionSubsystem::UpdateStreamingState instead.")
 	void UpdateStreamingState() {}

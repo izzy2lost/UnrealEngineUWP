@@ -294,7 +294,7 @@ UWorldPartition::UWorldPartition(const FObjectInitializer& ObjectInitializer)
 	bEnableStreaming = true;
 	ServerStreamingMode = EWorldPartitionServerStreamingMode::ProjectDefault;
 	ServerStreamingOutMode = EWorldPartitionServerStreamingOutMode::ProjectDefault;
-	DataLayersLogicOperator = EWorldPartitionDataLayersLogicOperator::ProjectDefault;
+	DataLayersLogicOperator = UWorldPartitionSettings::Get()->GetNewMapsDataLayersLogicOperator();
 	StreamingStateEpoch = 0;
 
 #if WITH_EDITOR
@@ -838,24 +838,6 @@ void UWorldPartition::Uninitialize()
 UDataLayerManager* UWorldPartition::GetDataLayerManager() const
 {
 	return DataLayerManager;
-}
-
-EWorldPartitionDataLayersLogicOperator UWorldPartition::GetDataLayersLogicOperator() const
-{
-	if (DataLayersLogicOperator == EWorldPartitionDataLayersLogicOperator::ProjectDefault)
-	{
-		switch (UWorldPartitionSettings::Get()->GetDefaultDataLayerOperator())
-		{
-		case EDataLayerLogicOperator::Or:
-			return EWorldPartitionDataLayersLogicOperator::Or;
-		case EDataLayerLogicOperator::And:
-			return EWorldPartitionDataLayersLogicOperator::And;
-		default:
-			checkNoEntry();
-		}
-	}
-
-	return DataLayersLogicOperator;
 }
 
 bool UWorldPartition::IsInitialized() const
@@ -1510,14 +1492,22 @@ void UWorldPartition::Serialize(FArchive& Ar)
 		Ar << bIsPIE;
 #endif
 	}
-	else if (Ar.CustomVer(FUE5MainStreamObjectVersion::GUID) >= FUE5MainStreamObjectVersion::WorldPartitionSerializeStreamingPolicyOnCook)
+	else
 	{
-		bool bCooked = Ar.IsCooking();
-		Ar << bCooked;
-
-		if (bCooked)
+		if (Ar.CustomVer(FUE5MainStreamObjectVersion::GUID) >= FUE5MainStreamObjectVersion::WorldPartitionSerializeStreamingPolicyOnCook)
 		{
-			Ar << StreamingPolicy;
+			bool bCooked = Ar.IsCooking();
+			Ar << bCooked;
+
+			if (bCooked)
+			{
+				Ar << StreamingPolicy;
+			}
+		}
+	
+		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::WorldPartitionDataLayersLogicOperatorAdded)
+		{
+			DataLayersLogicOperator = EWorldPartitionDataLayersLogicOperator::Or;
 		}
 	}
 }
