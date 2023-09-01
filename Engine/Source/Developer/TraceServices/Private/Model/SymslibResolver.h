@@ -4,7 +4,7 @@
 #include "HAL/Platform.h"
 
 // We currently only have symslib available on selected platforms.
-#if PLATFORM_WINDOWS || PLATFORM_LINUX
+#if PLATFORM_DESKTOP
 	#define UE_SYMSLIB_AVAILABLE 1
 #else
 	#define UE_SYMSLIB_AVAILABLE 0
