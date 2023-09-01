@@ -1635,7 +1635,6 @@ bool FHLSLMaterialTranslator::Translate()
 				bReduceAfterReturnValue); 
 		}
 
-
 		for (uint32 PropertyId = MP_MAX; PropertyId < CompiledMP_MAX; ++PropertyId)
 		{
 					switch (PropertyId)
@@ -12280,8 +12279,7 @@ bool FHLSLMaterialTranslator::FStrataCompilationContext::StrataGenerateDerivedMa
 #endif // EDITOR_ONLY
 			}
 		}
-	}
-	while (!StrataSimplificationStatus.bMaterialFitsInMemoryBudget);
+	} while (!StrataSimplificationStatus.bMaterialFitsInMemoryBudget);
 
 	return true; // Success
 }
