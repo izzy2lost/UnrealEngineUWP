@@ -1302,8 +1302,8 @@ void FZenCacheStore::Initialize(
 		}
 
 		// Issue a request for stats as it will be fetched asynchronously and issuing now makes them available sooner for future callers.
-		Zen::FZenStats ZenStats;
-		ZenService.GetInstance().GetStats(ZenStats);
+		Zen::FZenCacheStats ZenStats;
+		ZenService.GetInstance().GetCacheStats(ZenStats);
 	}
 
 	GConfig->GetInt(TEXT("Zen"), TEXT("BatchPutMaxBytes"), BatchPutMaxBytes, GEngineIni);

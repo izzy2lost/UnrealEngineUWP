@@ -19,6 +19,7 @@
 #include "SMessageDialog.h"
 #include "StandaloneRenderer.h"
 #include "SZenCacheStatistics.h"
+#include "SZenProjectStatistics.h"
 #include "SZenServiceStatus.h"
 #include "Templates/SharedPointer.h"
 #include "Widgets/Input/SButton.h"
@@ -469,8 +470,25 @@ public:
 					.Padding(0.0f, 10.0f, 0.0f, 0.0f)
 					.VAlign(VAlign_Top)
 					[
-						SNew(SZenCacheStatistics)
-						.ZenServiceInstance(ServiceInstanceManager.ToSharedRef(), &UE::Zen::FServiceInstanceManager::GetZenServiceInstance)
+						SNew(SHorizontalBox)
+
+						+SHorizontalBox::Slot()
+						.AutoWidth()
+						.HAlign(HAlign_Left)
+						.VAlign(VAlign_Top)
+						[
+							SNew(SZenCacheStatistics)
+							.ZenServiceInstance(ServiceInstanceManager.ToSharedRef(), &UE::Zen::FServiceInstanceManager::GetZenServiceInstance)
+						]
+
+						+SHorizontalBox::Slot()
+						.AutoWidth()
+						.HAlign(HAlign_Left)
+						.VAlign(VAlign_Top)
+						[
+							SNew(SZenProjectStatistics)
+							.ZenServiceInstance(ServiceInstanceManager.ToSharedRef(), &UE::Zen::FServiceInstanceManager::GetZenServiceInstance)
+						]
 					]
 				]
 			];

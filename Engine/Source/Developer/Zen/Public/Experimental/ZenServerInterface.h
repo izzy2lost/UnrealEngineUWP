@@ -187,7 +187,8 @@ public:
 
 	UE_API bool TryRecovery();
 
-	UE_API bool GetStats(FZenStats& Stats);
+	UE_API bool GetCacheStats(FZenCacheStats& Stats);
+	UE_API bool GetProjectStats(FZenProjectStats& Stats);
 	UE_API bool GatherAnalytics(TArray<FAnalyticsEventAttribute>& Attributes);
 
 	UE_API bool GetGCStatus(FGCStatus& Status);
@@ -208,10 +209,15 @@ private:
 	mutable TOptional<FGCStatus> LastGCStatus;
 	mutable uint64 LastGCStatusTime = 0;
 
-	mutable TPimplPtr<class FZenHttpRequest> StatsHttpRequest;
-	mutable TFuture<FZenStats> StatsRequest;
-	mutable FZenStats LastStats;
-	mutable uint64 LastStatsTime = 0;
+	mutable TPimplPtr<class FZenHttpRequest> CacheStatsHttpRequest;
+	mutable TFuture<FZenCacheStats> CacheStatsRequest;
+	mutable FZenCacheStats LastCacheStats;
+	mutable uint64 LastCacheStatsTime = 0;
+
+	mutable TPimplPtr<class FZenHttpRequest> ProjectStatsHttpRequest;
+	mutable TFuture<FZenProjectStats> ProjectStatsRequest;
+	mutable FZenProjectStats LastProjectStats;
+	mutable uint64 LastProjectStatsTime = 0;
 
 	FServiceSettings Settings;
 	FString URL;
