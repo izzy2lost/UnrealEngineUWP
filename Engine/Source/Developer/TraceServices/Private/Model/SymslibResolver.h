@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "HAL/Platform.h"
+
 // We currently only have symslib available on selected platforms.
 #if PLATFORM_DESKTOP
 	#define UE_SYMSLIB_AVAILABLE 1
