@@ -252,19 +252,40 @@ namespace EpicGames.Compression
 			{
 				// we manually load the assembly as the file name is not consistent between platforms thus the automatic searching will not work
 				string assemblyFilename;
-				bool is64Bit = Environment.Is64BitProcess;
-
 				if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 				{
-					assemblyFilename = $"oo2core_9_{(is64Bit ? "win64" : "win32")}.dll";
+					switch (RuntimeInformation.ProcessArchitecture)
+					{
+						case Architecture.X86:
+							assemblyFilename = "oo2core_9_win32.dll";
+							break;
+						case Architecture.X64:
+							assemblyFilename = "oo2core_9_win64.dll";
+							break;
+						case Architecture.Arm64:
+							assemblyFilename = "oo2core_9_winuwparm64.dll";
+							break;
+						default:
+							throw new PlatformNotSupportedException($"Oodle support is not currently implemented for {RuntimeInformation.RuntimeIdentifier}");
+					}
 				}
 				else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
 				{
-					assemblyFilename = $"liboo2core{(is64Bit ? "linux64" : "linux")}.so.9";
+					switch (RuntimeInformation.ProcessArchitecture)
+					{
+						case Architecture.X86:
+							assemblyFilename = "liboo2corelinux.so.9";
+							break;
+						case Architecture.X64:
+							assemblyFilename = "liboo2corelinux64.so.9";
+							break;
+						default:
+							throw new PlatformNotSupportedException($"Oodle support is not currently implemented for {RuntimeInformation.RuntimeIdentifier}");
+					}
 				}
 				else
 				{
-					throw new NotImplementedException();
+					throw new PlatformNotSupportedException($"Oodle support is not currently implemented for {RuntimeInformation.RuntimeIdentifier}");
 				}
 				IntPtr handle = NativeLibrary.Load(assemblyFilename, assembly, searchpath);
 				libHandle = handle;
