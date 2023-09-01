@@ -185,6 +185,7 @@ public:
 
 	void CreateCurveModels(TArray<TUniquePtr<FCurveModel>>& OutCurveModels);
 	bool HasCurves() const;
+	TOptional<FString> GetUniquePathName() const;
 
 	void BuildChannelOverrideMenu(FMenuBuilder& MenuBuilder);
 
@@ -238,6 +239,7 @@ public:
 	/*~ ICurveEditorTreeItemExtension */
 	bool HasCurves() const override;
 	void BuildContextMenu(FMenuBuilder& MenuBuilder) override;
+	TOptional<FString> GetUniquePathName() const override;
 
 private:
 

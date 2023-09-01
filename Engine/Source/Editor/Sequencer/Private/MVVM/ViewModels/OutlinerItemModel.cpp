@@ -684,6 +684,15 @@ bool FOutlinerItemModelMixin::HasCurves() const
 	return false;
 }
 
+TOptional<FString> FOutlinerItemModelMixin::GetUniquePathName() const
+{
+	TStringBuilder<256> StringBuilder;
+	IOutlinerExtension::GetPathName(*AsViewModel(), StringBuilder);
+	FString PathName(StringBuilder.ToString());
+	TOptional<FString> FullPathName = PathName;
+	return FullPathName;
+}
+
 TSharedPtr<ICurveEditorTreeItem> FOutlinerItemModelMixin::GetCurveEditorTreeItem() const
 {
 	TSharedRef<FViewModel> ThisShared(const_cast<FViewModel*>(AsViewModel())->AsShared());

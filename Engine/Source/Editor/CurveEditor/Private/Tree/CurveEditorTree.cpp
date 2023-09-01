@@ -557,6 +557,44 @@ void FCurveEditorTree::RemoveFromSelection(TArrayView<const FCurveEditorTreeItem
 	}
 }
 
+ TArray<FCurveEditorTreeItemID> FCurveEditorTree::GetCachedExpandedItems() const
+ {
+	 TArray<FCurveEditorTreeItemID> ExpandedItems;
+	 for (const TPair<FCurveEditorTreeItemID, FCurveEditorTreeItem>& Item : Items)
+	 {
+		 const TOptional<FString> PathName = Item.Value.GetUniquePathName();
+		 if (PathName.IsSet())
+		 {
+			 int32 Hash = GetTypeHash(PathName.GetValue());
+			 if (CachedExpandedItems.Contains(Hash))
+			 {
+				 ExpandedItems.Add(Item.Key);
+			 }
+		 }
+	 }
+	 return ExpandedItems;
+ }
+
+void FCurveEditorTree::SetItemExpansion(FCurveEditorTreeItemID InTreeItemID, bool bInExpansion)
+{
+	if (FCurveEditorTreeItem* TreeItem = FindItem(InTreeItemID))
+	{
+		TOptional<FString> OptString = TreeItem->GetUniquePathName();
+		if (OptString.IsSet())
+		{
+			int32 Hash = GetTypeHash(OptString.GetValue());
+			if (bInExpansion)
+			{
+				CachedExpandedItems.Add(Hash);
+			}
+			else
+			{
+				CachedExpandedItems.Remove(Hash);
+			}
+		}
+	}
+}
+
 const TMap<FCurveEditorTreeItemID, ECurveEditorTreeSelectionState>& FCurveEditorTree::GetSelection() const
 {
 	return Selection;

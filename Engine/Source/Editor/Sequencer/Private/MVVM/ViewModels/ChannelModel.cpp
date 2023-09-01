@@ -459,6 +459,15 @@ void FChannelGroupModel::CreateCurveModels(TArray<TUniquePtr<FCurveModel>>& OutC
 	}
 }
 
+TOptional<FString> FChannelGroupModel::GetUniquePathName() const
+{
+	TStringBuilder<256> StringBuilder;
+	IOutlinerExtension::GetPathName(*this, StringBuilder);
+	FString PathName(StringBuilder.ToString());
+	TOptional<FString> FullPathName = PathName;
+	return FullPathName;
+}
+
 bool FChannelGroupModel::HasCurves() const
 {
 	for (const TSharedRef<IKeyArea>& KeyArea : GetAllKeyAreas())
@@ -859,6 +868,11 @@ FText FChannelGroupOutlinerModel::GetLabelToolTipText() const
 bool FChannelGroupOutlinerModel::HasCurves() const
 {
 	return FChannelGroupModel::HasCurves();
+}
+
+TOptional<FString> FChannelGroupOutlinerModel::GetUniquePathName() const
+{
+	return FChannelGroupModel::GetUniquePathName();
 }
 
 bool FChannelGroupOutlinerModel::CanDelete(FText* OutErrorMessage) const

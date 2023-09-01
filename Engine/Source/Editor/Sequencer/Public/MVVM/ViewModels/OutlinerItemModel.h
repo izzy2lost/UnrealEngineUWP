@@ -54,6 +54,7 @@ public:
 	/*~ ICurveEditorTreeItemExtension */
 	virtual bool HasCurves() const override;
 	virtual TSharedPtr<ICurveEditorTreeItem> GetCurveEditorTreeItem() const override;
+	virtual TOptional<FString> GetUniquePathName() const override;
 
 	/*~ ICurveEditorTreeItem */
 	virtual TSharedPtr<SWidget> GenerateCurveEditorTreeWidget(const FName& InColumnName, TWeakPtr<FCurveEditor> InCurveEditor, FCurveEditorTreeItemID InTreeItemID, const TSharedRef<ITableRow>& InTableRow) override;
