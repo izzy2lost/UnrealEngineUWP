@@ -38,7 +38,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder|Editor", meta = (ExpandEnumAsExecs = "OutResult"))
 	void SetNodeLocation(
 		UPARAM(DisplayName = "Builder") UMetaSoundBuilderBase * InBuilder,
-		UPARAM(DisplayName = "Node") const FMetaSoundNodeHandle& InNode,
+		UPARAM(DisplayName = "Node Handle") const FMetaSoundNodeHandle& InNode,
 		UPARAM(DisplayName = "Location") const FVector2D& InLocation,
 		EMetaSoundBuilderResult& OutResult);
 	

@@ -135,7 +135,7 @@ namespace EngineTestMetaSoundSourcePrivate
 		Test.AddErrorIfFalse(Result == EMetaSoundBuilderResult::Succeeded && FrequencyNodeOutput.IsSet(), TEXT("Failed to create new MetaSound graph input"));
 
 		// Sine Oscillator Node
-		const FMetaSoundNodeHandle OscNode = Builder.AddNodeByClassName({ "UE", "Sine", "Audio" }, 1, Result);
+		const FMetaSoundNodeHandle OscNode = Builder.AddNodeByClassName({ "UE", "Sine", "Audio" }, Result, 1);
 		Test.AddErrorIfFalse(Result == EMetaSoundBuilderResult::Succeeded && OscNode.IsSet(), TEXT("Failed to create new MetaSound node by class name"));
 
 		// Make connections:
@@ -690,7 +690,7 @@ bool FAudioMetasoundSourceBuilderAddRemoveNodes::RunTest(const FString& Paramete
 		TArray<FMetaSoundNodeHandle> GenNodes;
 		for (int32 i = 0; i < 8; ++i)
 		{
-			FMetaSoundNodeHandle OscNode = Builder.AddNodeByClassName({ "UE", OscType, "Audio" }, 1, Result);
+			FMetaSoundNodeHandle OscNode = Builder.AddNodeByClassName({ "UE", OscType, "Audio" }, Result, 1);
 			AddErrorIfFalse(Result == EMetaSoundBuilderResult::Succeeded, "Failed to add osc node to graph");
 
 			if (Result == EMetaSoundBuilderResult::Succeeded)
