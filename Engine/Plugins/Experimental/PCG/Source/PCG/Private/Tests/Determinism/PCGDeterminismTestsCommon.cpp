@@ -1354,7 +1354,7 @@ namespace PCGDeterminismTests
 		{
 			if (DataCanBeShuffled(TaggedData.Data))
 			{
-				UPCGPointData* PointData = CastChecked<UPCGPointData>(TaggedData.Data);
+				UPCGPointData* PointData = const_cast<UPCGPointData*>(CastChecked<UPCGPointData>(TaggedData.Data));
 				ShuffleArray<FPCGPoint>(PointData->GetMutablePoints(), TestData.RandomStream);
 			}
 		}

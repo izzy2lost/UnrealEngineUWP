@@ -521,7 +521,7 @@ bool FPCGSurfaceSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 
 	while (Context->CurrentGeneratingShape < Context->GeneratingShapes.Num())
 	{
-		UPCGPointData* PointData = Cast<UPCGPointData>(Outputs[Context->CurrentGeneratingShape].Data);
+		UPCGPointData* PointData = const_cast<UPCGPointData*>(Cast<UPCGPointData>(Outputs[Context->CurrentGeneratingShape].Data));
 
 		if (PointData)
 		{

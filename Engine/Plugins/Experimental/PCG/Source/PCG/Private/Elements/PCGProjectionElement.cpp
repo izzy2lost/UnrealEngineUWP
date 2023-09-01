@@ -52,7 +52,7 @@ bool FPCGProjectionElement::ExecuteInternal(FPCGContext* Context) const
 	}
 
 	// Ensure we have spatial data to project onto
-	UPCGSpatialData* ProjectionTarget = Cast<UPCGSpatialData>(Targets[0].Data);
+	const UPCGSpatialData* ProjectionTarget = Cast<UPCGSpatialData>(Targets[0].Data);
 	if (!ProjectionTarget)
 	{
 		return true;
@@ -70,7 +70,7 @@ bool FPCGProjectionElement::ExecuteInternal(FPCGContext* Context) const
 
 	for (FPCGTaggedData& Source : Sources)
 	{
-		UPCGSpatialData* ProjectionSource = Cast<UPCGSpatialData>(Source.Data);
+		const UPCGSpatialData* ProjectionSource = Cast<UPCGSpatialData>(Source.Data);
 
 		if (!ProjectionSource)
 		{

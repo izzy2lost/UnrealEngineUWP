@@ -381,11 +381,11 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 				DuplicatedTaggedData.Data = Cast<UPCGData>(StaticDuplicateObject(TaggedData.Data, this));
 
 				UPCGMetadata* DuplicatedMetadata = nullptr;
-				if (UPCGSpatialData* DuplicatedSpatialData = Cast<UPCGSpatialData>(DuplicatedTaggedData.Data))
+				if (const UPCGSpatialData* DuplicatedSpatialData = Cast<UPCGSpatialData>(DuplicatedTaggedData.Data))
 				{
 					DuplicatedMetadata = DuplicatedSpatialData->Metadata;
 				}
-				else if (UPCGParamData* DuplicatedParamData = Cast<UPCGParamData>(DuplicatedTaggedData.Data))
+				else if (const UPCGParamData* DuplicatedParamData = Cast<UPCGParamData>(DuplicatedTaggedData.Data))
 				{
 					DuplicatedMetadata = DuplicatedParamData->Metadata;
 				}
@@ -1855,7 +1855,7 @@ UPCGData* UPCGComponent::CreateActorPCGData(AActor* Actor, const UPCGComponent* 
 	}
 	else if(Collection.TaggedData.Num() == 1)
 	{
-		return Cast<UPCGData>(Collection.TaggedData[0].Data);
+		return const_cast<UPCGData*>(Collection.TaggedData[0].Data.Get());
 	}
 	else
 	{

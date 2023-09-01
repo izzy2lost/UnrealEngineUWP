@@ -436,7 +436,7 @@ TUniquePtr<const IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateConst
 {
 	bool bFromGlobalParamsPin = false;
 	TArray<FPCGTaggedData> InputParamData = InInputData.GetParamsByPin(InParam.Label);
-	UPCGParamData* ParamData = !InputParamData.IsEmpty() ? CastChecked<UPCGParamData>(InputParamData[0].Data) : nullptr;
+	const UPCGParamData* ParamData = !InputParamData.IsEmpty() ? CastChecked<UPCGParamData>(InputParamData[0].Data) : nullptr;
 
 	// If it is empty, try with the Overrides pin (Global Params)
 	if (!ParamData)

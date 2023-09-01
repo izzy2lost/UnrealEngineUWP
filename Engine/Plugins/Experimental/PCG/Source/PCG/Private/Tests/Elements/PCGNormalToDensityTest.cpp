@@ -41,7 +41,7 @@ bool FPCGNormalToDensityTest_Set::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output count", Outputs.Num(), 1);
 
-	UPCGSpatialData* OutputData = Cast<UPCGSpatialData>(Outputs[0].Data);
+	const UPCGSpatialData* OutputData = Cast<UPCGSpatialData>(Outputs[0].Data);
 
 	UTEST_NOT_NULL("Output data", OutputData);
 
@@ -88,7 +88,7 @@ bool FPCGNormalToDensityTest_CustomNormal::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output count", Outputs.Num(), 1);
 
-	UPCGSpatialData* OutputData = Cast<UPCGSpatialData>(Outputs[0].Data);
+	const UPCGSpatialData* OutputData = Cast<UPCGSpatialData>(Outputs[0].Data);
 
 	UTEST_NOT_NULL("Output data", OutputData);
 
@@ -135,7 +135,7 @@ bool FPCGNormalToDensityTest_Strength::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output count", Outputs.Num(), 1);
 
-	UPCGSpatialData* OutputData = Cast<UPCGSpatialData>(Outputs[0].Data);
+	const UPCGSpatialData* OutputData = Cast<UPCGSpatialData>(Outputs[0].Data);
 
 	UTEST_NOT_NULL("Output data", OutputData);
 
@@ -183,7 +183,7 @@ bool FPCGNormalToDensityTest_Minimum::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output count", Outputs.Num(), 1);
 
-	UPCGSpatialData* OutputData = Cast<UPCGSpatialData>(Outputs[0].Data);
+	const UPCGSpatialData* OutputData = Cast<UPCGSpatialData>(Outputs[0].Data);
 
 	UTEST_NOT_NULL("Output data", OutputData);
 
@@ -231,7 +231,7 @@ bool FPCGNormalToDensityTest_Maximum::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output count", Outputs.Num(), 1);
 
-	UPCGSpatialData* OutputData = Cast<UPCGSpatialData>(Outputs[0].Data);
+	const UPCGSpatialData* OutputData = Cast<UPCGSpatialData>(Outputs[0].Data);
 
 	UTEST_NOT_NULL("Output data", OutputData);
 
@@ -280,7 +280,7 @@ bool FPCGNormalToDensityTest_Add::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output count", Outputs.Num(), 1);
 
-	UPCGSpatialData* OutputData = Cast<UPCGSpatialData>(Outputs[0].Data);
+	const UPCGSpatialData* OutputData = Cast<UPCGSpatialData>(Outputs[0].Data);
 
 	UTEST_NOT_NULL("Output data", OutputData);
 
@@ -328,7 +328,7 @@ bool FPCGNormalToDensityTest_Subtract::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output count", Outputs.Num(), 1);
 
-	UPCGSpatialData* OutputData = Cast<UPCGSpatialData>(Outputs[0].Data);
+	const UPCGSpatialData* OutputData = Cast<UPCGSpatialData>(Outputs[0].Data);
 
 	UTEST_NOT_NULL("Output data", OutputData);
 
@@ -376,7 +376,7 @@ bool FPCGNormalToDensityTest_Multiply::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output count", Outputs.Num(), 1);
 
-	UPCGSpatialData* OutputData = Cast<UPCGSpatialData>(Outputs[0].Data);
+	const UPCGSpatialData* OutputData = Cast<UPCGSpatialData>(Outputs[0].Data);
 
 	UTEST_NOT_NULL("Output data", OutputData);
 
@@ -424,7 +424,7 @@ bool FPCGNormalToDensityTest_Divide::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output count", Outputs.Num(), 1);
 
-	UPCGSpatialData* OutputData = Cast<UPCGSpatialData>(Outputs[0].Data);
+	const UPCGSpatialData* OutputData = Cast<UPCGSpatialData>(Outputs[0].Data);
 
 	UTEST_NOT_NULL("Output data", OutputData);
 

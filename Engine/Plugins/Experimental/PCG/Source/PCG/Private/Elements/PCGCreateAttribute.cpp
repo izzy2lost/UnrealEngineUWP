@@ -265,7 +265,7 @@ bool FPCGCreateAttributeElement::ExecuteInternal(FPCGContext* Context) const
 	check(Settings);
 
 	TArray<FPCGTaggedData> SourceParams = Context->InputData.GetInputsByPin(PCGCreateAttributeConstants::AttributesLabel);
-	UPCGParamData* SourceParamData = nullptr;
+	const UPCGParamData* SourceParamData = nullptr;
 	FName SourceParamAttributeName = NAME_None;
 	FName OutputAttributeName = NAME_None;
 

@@ -140,7 +140,7 @@ bool FPCGOuterIntersectionElement::ExecuteInternal(FPCGContext* Context) const
 	// Iterate through primary inputs, and create intersection data from the unioned
 	for (const FPCGTaggedData& Input : Context->InputData.GetInputsByPin(PCGIntersectionConstants::PrimaryLabel))
 	{
-		UPCGSpatialData* PrimarySpatialData = Cast<UPCGSpatialData>(Input.Data);
+		const UPCGSpatialData* PrimarySpatialData = Cast<UPCGSpatialData>(Input.Data);
 
 		// If this data isn't spatial, passthrough to the output
 		if (!PrimarySpatialData)
@@ -149,7 +149,7 @@ bool FPCGOuterIntersectionElement::ExecuteInternal(FPCGContext* Context) const
 			continue;
 		}
 		
-		UPCGSpatialData* IntersectionData = PrimarySpatialData;
+		const UPCGSpatialData* IntersectionData = PrimarySpatialData;
 		for (const UPCGSpatialData* SecondarySourceUnionData : SecondarySourceUnionArray)
 		{
 			UPCGIntersectionData* TempIntersectionData = IntersectionData->IntersectWith(SecondarySourceUnionData);

@@ -218,7 +218,7 @@ bool FPCGVolumeSamplerElement::ExecuteInternal(FPCGContext* Context) const
 	TArray<const UPCGSpatialData*, TInlineAllocator<16>> GeneratingShapes;
 	for (FPCGTaggedData& TaggedData : VolumeInputs)
 	{
-		if (UPCGSpatialData* SpatialData = Cast<UPCGSpatialData>(TaggedData.Data))
+		if (const UPCGSpatialData* SpatialData = Cast<UPCGSpatialData>(TaggedData.Data))
 		{
 			GeneratingShapes.Add(SpatialData);
 			Outputs.Add(TaggedData);

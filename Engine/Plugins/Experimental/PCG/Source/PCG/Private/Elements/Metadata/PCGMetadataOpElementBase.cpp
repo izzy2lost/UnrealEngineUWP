@@ -516,14 +516,14 @@ bool FPCGMetadataElementBase::ExecuteInternal(FPCGContext* Context) const
 				PCGMetadataElementCommon::CopyEntryToValueKeyMap(SourceMetadata[InputPinToForward], SourceAttribute[InputPinToForward], OutputAttribute);
 			}
 
-			OperationData.OutputAccessors[OutputIndex] = PCGAttributeAccessorHelpers::CreateAccessor(Cast<UPCGData>(OutputData.Data), OutputTarget);
+			OperationData.OutputAccessors[OutputIndex] = PCGAttributeAccessorHelpers::CreateAccessor( const_cast<UPCGData*>(OutputData.Data.Get()), OutputTarget);
 		}
 		else
 		{
 			// In case of property or attribute with extra accessor, we need to validate that the property/attribute can accept the output type.
 			// Verify this before duplicating, because an extra allocation is certainly less costly than duplicating the data.
 			// Do it with a const accessor, since OutputData.Data is still pointing on the const input data.
-			TUniquePtr<const IPCGAttributeAccessor> TempConstAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(Cast<const UPCGData>(OutputData.Data), OutputTarget);
+			TUniquePtr<const IPCGAttributeAccessor> TempConstAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(OutputData.Data.Get(), OutputTarget);
 
 			if (TempConstAccessor.IsValid())
 			{
@@ -540,7 +540,7 @@ bool FPCGMetadataElementBase::ExecuteInternal(FPCGContext* Context) const
 				PCGMetadataElementCommon::DuplicateTaggedData(InputTaggedData[InputPinToForward], OutputData, OutMetadata);
 
 				// Re-create the accessor to point to the right data (since we just duplicated the data)
-				OperationData.OutputAccessors[OutputIndex] = PCGAttributeAccessorHelpers::CreateAccessor(Cast<UPCGData>(OutputData.Data), OutputTarget);
+				OperationData.OutputAccessors[OutputIndex] = PCGAttributeAccessorHelpers::CreateAccessor(const_cast<UPCGData*>(OutputData.Data.Get()), OutputTarget);
 			}
 		}
 
@@ -555,7 +555,7 @@ bool FPCGMetadataElementBase::ExecuteInternal(FPCGContext* Context) const
 			return false;
 		}
 
-		OperationData.OutputKeys[OutputIndex] = PCGAttributeAccessorHelpers::CreateKeys(Cast<UPCGData>(OutputData.Data), OutputTarget);
+		OperationData.OutputKeys[OutputIndex] = PCGAttributeAccessorHelpers::CreateKeys(const_cast<UPCGData*>(OutputData.Data.Get()), OutputTarget);
 
 		return OperationData.OutputKeys[OutputIndex].IsValid();
 	};

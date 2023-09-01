@@ -303,10 +303,10 @@ UPCGParamData* FPCGDataCollection::GetParamsWithDeprecation(const UPCGNode* Node
 
 			for (const FPCGTaggedData& TaggedDatum : GetParamsByPin(InputPin->Properties.Label))
 			{
-				if (UPCGParamData* Params = Cast<UPCGParamData>(TaggedDatum.Data))
+				if (const UPCGParamData* Params = Cast<UPCGParamData>(TaggedDatum.Data))
 				{
 					UE_LOG(LogPCG, Warning, TEXT("[%s] Found an Attribute Set data on an input pin that should not accept attributes. Make sure to re-wire it to the Overrides pin if it is used for overrides."), *Node->GetNodeTitle().ToString());
-					return Params;
+					return const_cast<UPCGParamData*>(Params);
 				}
 			}
 		}
@@ -319,9 +319,9 @@ UPCGParamData* FPCGDataCollection::GetParams() const
 {
 	for (const FPCGTaggedData& TaggedDatum : TaggedData)
 	{
-		if (UPCGParamData* Params = Cast<UPCGParamData>(TaggedDatum.Data))
+		if (const UPCGParamData* Params = Cast<UPCGParamData>(TaggedDatum.Data))
 		{
-			return Params; 
+			return const_cast<UPCGParamData*>(Params); 
 		}
 	}
 
@@ -331,7 +331,7 @@ UPCGParamData* FPCGDataCollection::GetParams() const
 UPCGParamData* FPCGDataCollection::GetFirstParamsOnParamsPin() const
 {
 	TArray<FPCGTaggedData> ParamsOnDefaultPin = GetParamsByPin(PCGPinConstants::DefaultParamsLabel);
-	return (ParamsOnDefaultPin.IsEmpty() ? nullptr : Cast<UPCGParamData>(ParamsOnDefaultPin[0].Data));
+	return (ParamsOnDefaultPin.IsEmpty() ? nullptr : const_cast<UPCGParamData*>(Cast<UPCGParamData>(ParamsOnDefaultPin[0].Data)));
 }
 
 void FPCGDataCollection::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) const
@@ -382,7 +382,7 @@ const UPCGSettingsInterface* FPCGDataCollection::GetSettingsInterface(const UPCG
 	else
 	{
 		const FPCGTaggedData* MatchingData = TaggedData.FindByPredicate([InDefaultSettingsInterface](const FPCGTaggedData& Data) {
-			if (UPCGSettingsInterface* DataSettingsInterface = Cast<UPCGSettingsInterface>(Data.Data))
+			if (const UPCGSettingsInterface* DataSettingsInterface = Cast<UPCGSettingsInterface>(Data.Data))
 			{
 				// Compare settings classes
 				return DataSettingsInterface->GetSettings()->GetClass() == InDefaultSettingsInterface->GetSettings()->GetClass() ||
@@ -426,8 +426,7 @@ void FPCGDataCollection::AddToRootSet(FPCGRootSet& RootSet) const
 	{
 		if (Data.Data)
 		{
-			// This is technically a const_cast
-			RootSet.Add(Cast<UObject>(Data.Data));
+			RootSet.Add(const_cast<UPCGData*>(Data.Data.Get()));
 		}
 	}
 }
@@ -438,8 +437,7 @@ void FPCGDataCollection::RemoveFromRootSet(FPCGRootSet& RootSet) const
 	{
 		if (Data.Data)
 		{
-			// This is technically a const_cast
-			RootSet.Remove(Cast<UObject>(Data.Data));
+			RootSet.Remove(const_cast<UPCGData*>(Data.Data.Get()));
 		}
 	}
 }

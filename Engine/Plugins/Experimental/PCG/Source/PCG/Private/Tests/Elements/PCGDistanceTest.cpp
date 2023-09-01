@@ -48,7 +48,7 @@ bool FPCGDistanceTest_PointToPoint::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output count", Outputs.Num(), 1);
 
-	UPCGPointData *OutPointData = Cast<UPCGPointData>(Outputs[0].Data);
+	const UPCGPointData *OutPointData = Cast<UPCGPointData>(Outputs[0].Data);
 
 	UTEST_NOT_NULL("Output point data", OutPointData);
 
@@ -108,7 +108,7 @@ bool FPCGDistanceTest_SetDensity::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output count", Outputs.Num(), 1);
 
-	UPCGPointData *OutPointData = Cast<UPCGPointData>(Outputs[0].Data);
+	const UPCGPointData *OutPointData = Cast<UPCGPointData>(Outputs[0].Data);
 
 	UTEST_NOT_NULL("Output point data", OutPointData);
 
@@ -170,7 +170,7 @@ bool FPCGDistanceTest_PointToSphere::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output count", Outputs.Num(), 1);
 
-	UPCGPointData *OutPointData = Cast<UPCGPointData>(Outputs[0].Data);
+	const UPCGPointData *OutPointData = Cast<UPCGPointData>(Outputs[0].Data);
 
 	UTEST_NOT_NULL("Output point data", OutPointData);
 
@@ -235,7 +235,7 @@ bool FPCGDistanceTest_PointToBox::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output count", Outputs.Num(), 1);
 
-	UPCGPointData *OutPointData = Cast<UPCGPointData>(Outputs[0].Data);
+	const UPCGPointData *OutPointData = Cast<UPCGPointData>(Outputs[0].Data);
 
 	UTEST_NOT_NULL("Output point data", OutPointData);
 

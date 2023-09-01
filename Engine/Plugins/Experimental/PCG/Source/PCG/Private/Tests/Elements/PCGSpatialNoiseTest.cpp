@@ -66,7 +66,7 @@ bool FPCGSpatialNoise_Perlin2D::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output count", Outputs.Num(), 1);
 
-	UPCGPointData* OutputData = Cast<UPCGPointData>(Outputs[0].Data);
+	const UPCGPointData* OutputData = Cast<UPCGPointData>(Outputs[0].Data);
 
 	UTEST_NOT_NULL("Output data", OutputData);
 	UTEST_EQUAL("Output point data count", OutputData->GetPoints().Num(), 100);
@@ -104,7 +104,7 @@ bool FPCGSpatialNoise_Caustic2D::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output count", Outputs.Num(), 1);
 
-	UPCGPointData* OutputData = Cast<UPCGPointData>(Outputs[0].Data);
+	const UPCGPointData* OutputData = Cast<UPCGPointData>(Outputs[0].Data);
 
 	UTEST_NOT_NULL("Output data", OutputData);
 	UTEST_EQUAL("Output point data count", OutputData->GetPoints().Num(), 100);
@@ -143,7 +143,7 @@ bool FPCGSpatialNoise_Voronoi2D::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output count", Outputs.Num(), 1);
 
-	UPCGPointData* OutputData = Cast<UPCGPointData>(Outputs[0].Data);
+	const UPCGPointData* OutputData = Cast<UPCGPointData>(Outputs[0].Data);
 
 	UTEST_NOT_NULL("Output data", OutputData);
 	UTEST_EQUAL("Output point data count", OutputData->GetPoints().Num(), 100);
@@ -185,7 +185,7 @@ bool FPCGSpatialNoise_FractionalBrownian2D::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output count", Outputs.Num(), 1);
 
-	UPCGPointData* OutputData = Cast<UPCGPointData>(Outputs[0].Data);
+	const UPCGPointData* OutputData = Cast<UPCGPointData>(Outputs[0].Data);
 
 	UTEST_NOT_NULL("Output data", OutputData);
 	UTEST_EQUAL("Output point data count", OutputData->GetPoints().Num(), 100);
@@ -223,7 +223,7 @@ bool FPCGSpatialNoise_EdgeMask2D::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output count", Outputs.Num(), 1);
 
-	UPCGPointData* OutputData = Cast<UPCGPointData>(Outputs[0].Data);
+	const UPCGPointData* OutputData = Cast<UPCGPointData>(Outputs[0].Data);
 
 	UTEST_NOT_NULL("Output data", OutputData);
 	UTEST_EQUAL("Output point data count", OutputData->GetPoints().Num(), 100);
@@ -261,7 +261,7 @@ bool FPCGSpatialNoise_TilingPerlin2D::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output count", Outputs.Num(), 1);
 
-	UPCGPointData* OutputData = Cast<UPCGPointData>(Outputs[0].Data);
+	const UPCGPointData* OutputData = Cast<UPCGPointData>(Outputs[0].Data);
 
 	UTEST_NOT_NULL("Output data", OutputData);
 	UTEST_EQUAL("Output point data count", OutputData->GetPoints().Num(), 100);
@@ -300,7 +300,7 @@ bool FPCGSpatialNoise_TilingVoronoi2D::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output count", Outputs.Num(), 1);
 
-	UPCGPointData* OutputData = Cast<UPCGPointData>(Outputs[0].Data);
+	const UPCGPointData* OutputData = Cast<UPCGPointData>(Outputs[0].Data);
 
 	UTEST_NOT_NULL("Output data", OutputData);
 	UTEST_EQUAL("Output point data count", OutputData->GetPoints().Num(), 100);

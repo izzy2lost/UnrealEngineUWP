@@ -48,13 +48,13 @@ namespace
 }
 
 /** Finds the output UPCGPointData and builds a mapping from world-space position to each FPCGPoint */
-void GetOutputDataAndBuildPositionMap(FPCGTestBaseClass* Test, const TArray<FPCGTaggedData>& OutputData, TMap<FVector, FPCGPoint>& OutLocationToPoint, UPCGPointData*& OutPointData)
+void GetOutputDataAndBuildPositionMap(FPCGTestBaseClass* Test, const TArray<FPCGTaggedData>& OutputData, TMap<FVector, FPCGPoint>& OutLocationToPoint, const UPCGPointData*& OutPointData)
 {
 	check(Test);
 
 	if (Test->TestEqual("Valid number of data elements in output", OutputData.Num(), 2))
 	{
-		TObjectPtr<UPCGSettings> OutSettings = Cast<UPCGSettings>(OutputData[0].Data);
+		TObjectPtr<const UPCGSettings> OutSettings = Cast<UPCGSettings>(OutputData[0].Data);
 		Test->TestTrue("Valid output settings", OutSettings != nullptr);
 
 		OutPointData = Cast<UPCGPointData>(OutputData[1].Data);
@@ -145,7 +145,7 @@ void TestMeshSelectorByAttribute(
 	{}
 
 	TMap<FVector, FPCGPoint> LocationToPoint;
-	UPCGPointData* OutPointData = nullptr;
+	const UPCGPointData* OutPointData = nullptr;
 
 	if (bValidateOutput)
 	{
@@ -268,7 +268,7 @@ void TestMeshSelectorWeighted(
 	{}
 
 	TMap<FVector, FPCGPoint> LocationToPoint;
-	UPCGPointData* OutPointData = nullptr;
+	const UPCGPointData* OutPointData = nullptr;
 
 	if (bValidateOutput)
 	{
@@ -356,7 +356,7 @@ void TestMeshSelectorWeightedByCategory(
 	}
 
 	TMap<FVector, FPCGPoint> LocationToPoint;
-	UPCGPointData* OutPointData = nullptr;
+	const UPCGPointData* OutPointData = nullptr;
 
 	if (bValidateOutput)
 	{

@@ -456,7 +456,7 @@ void IPCGElement::CleanupAndValidateOutput(FPCGContext* Context) const
 
 				if (CVarPCGValidatePointMetadata.GetValueOnAnyThread())
 				{
-					if (UPCGPointData* PointData = Cast<UPCGPointData>(TaggedData.Data))
+					if (const UPCGPointData* PointData = Cast<UPCGPointData>(TaggedData.Data))
 					{
 						const TArray<FPCGPoint>& NewPoints = PointData->GetPoints();
 						const int32 MaxMetadataEntry = PointData->Metadata ? PointData->Metadata->GetItemCountForChild() : 0;
