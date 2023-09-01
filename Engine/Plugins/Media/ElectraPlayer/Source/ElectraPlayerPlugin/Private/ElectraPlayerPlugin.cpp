@@ -806,6 +806,8 @@ bool FElectraPlayerPlugin::GetPlayerFeatureFlag(EFeatureFlag flag) const
 			return true;
 		case EFeatureFlag::IsTrackSwitchSeamless:
 			return true;
+		case EFeatureFlag::PlayerSelectsDefaultTracks:
+			return true;
 		default:
 			break;
 	}

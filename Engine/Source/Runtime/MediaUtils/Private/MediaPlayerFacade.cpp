@@ -1937,17 +1937,45 @@ void FMediaPlayerFacade::ResetTracks()
 
 void FMediaPlayerFacade::SelectDefaultTracks()
 {
-	FMediaPlayerTrackOptions TrackOptions;
-	if (ActivePlayerOptions.IsSet())
+	// See if the player has selected appropriate default tracks.
+	TSharedPtr<IMediaPlayer, ESPMode::ThreadSafe> CurrentPlayer(Player);
+	if (CurrentPlayer.IsValid() && CurrentPlayer->GetPlayerFeatureFlag(IMediaPlayer::EFeatureFlag::PlayerSelectsDefaultTracks))
 	{
-		TrackOptions = ActivePlayerOptions.GetValue().Tracks;
+		ResetTracks();
+		// Get what the player has selected as user defaults.
+		// The TrackSelection.PlayerSelection[...] will be updated in UpdateTrackSelectionWithPlayer()
+		// where the existence of sinks is checked for.
+		IMediaTracks& Tracks = CurrentPlayer->GetTracks();
+		for(int32 Idx=0; Idx<(int32)EMediaTrackType::Num; ++Idx)
+		{
+			TrackSelection.UserSelection[Idx] = Tracks.GetSelectedTrack((EMediaTrackType)Idx);
+		}
+		// If overrides are set, use them.
+		if (ActivePlayerOptions.IsSet())
+		{
+			FMediaPlayerTrackOptions TrackOptions;
+			TrackOptions = ActivePlayerOptions.GetValue().Tracks;
+			TrackSelection.UserSelection[(int32)EMediaTrackType::Audio] = TrackOptions.Audio;
+			TrackSelection.UserSelection[(int32)EMediaTrackType::Caption] = TrackOptions.Caption;
+			TrackSelection.UserSelection[(int32)EMediaTrackType::Metadata] = TrackOptions.Metadata;
+			TrackSelection.UserSelection[(int32)EMediaTrackType::Subtitle] = TrackOptions.Subtitle;
+			TrackSelection.UserSelection[(int32)EMediaTrackType::Video] = TrackOptions.Video;
+		}
 	}
+	else
+	{
+		FMediaPlayerTrackOptions TrackOptions;
+		if (ActivePlayerOptions.IsSet())
+		{
+			TrackOptions = ActivePlayerOptions.GetValue().Tracks;
+		}
 
-	TrackSelection.UserSelection[(int32)EMediaTrackType::Audio] = TrackOptions.Audio;
-	TrackSelection.UserSelection[(int32)EMediaTrackType::Caption] = TrackOptions.Caption;
-	TrackSelection.UserSelection[(int32)EMediaTrackType::Metadata] = TrackOptions.Metadata;
-	TrackSelection.UserSelection[(int32)EMediaTrackType::Subtitle] = TrackOptions.Subtitle;
-	TrackSelection.UserSelection[(int32)EMediaTrackType::Video] = TrackOptions.Video;
+		TrackSelection.UserSelection[(int32)EMediaTrackType::Audio] = TrackOptions.Audio;
+		TrackSelection.UserSelection[(int32)EMediaTrackType::Caption] = TrackOptions.Caption;
+		TrackSelection.UserSelection[(int32)EMediaTrackType::Metadata] = TrackOptions.Metadata;
+		TrackSelection.UserSelection[(int32)EMediaTrackType::Subtitle] = TrackOptions.Subtitle;
+		TrackSelection.UserSelection[(int32)EMediaTrackType::Video] = TrackOptions.Video;
+	}
 }
 
 
