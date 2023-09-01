@@ -641,8 +641,7 @@ void FGPUScene::UpdateGPULights(FRDGBuilder& GraphBuilder, FScene& Scene)
 	GraphBuilder.AddSetupTask([this, LightData, &Scene]
 	{
 		SCOPED_NAMED_EVENT(UpdateGPUScene_Lights, FColor::Green);
-		static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-		const bool bAllowStaticLighting = (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnRenderThread() != 0);
+		const bool bAllowStaticLighting = IsStaticLightingAllowed();
 
 		for (int32 Index = 0; Index < Scene.Lights.Num(); ++Index)
 		{

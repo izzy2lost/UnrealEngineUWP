@@ -48,10 +48,8 @@ public:
 
 	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
 	{
-		static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-		bool bAllowStaticLighting = AllowStaticLightingVar->GetValueOnAnyThread() != 0;
 		return  AllowDebugViewmodes(Parameters.Platform) 
-				&& bAllowStaticLighting
+				&& IsStaticLightingAllowed()
 				&& (Parameters.MaterialParameters.bIsSpecialEngineMaterial || Parameters.MaterialParameters.bIsMasked || Parameters.MaterialParameters.bMaterialMayModifyMeshPosition)
 				&& LightMapPolicyType::ShouldCompilePermutation(Parameters)
 				&& IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
@@ -103,10 +101,8 @@ class TLightMapDensityPS : public FMeshMaterialShader, public LightMapPolicyType
 public:
 	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
 	{
-		static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-		bool bAllowStaticLighting = AllowStaticLightingVar->GetValueOnAnyThread() != 0;
 		return	AllowDebugViewmodes(Parameters.Platform) 
-				&& bAllowStaticLighting
+				&& IsStaticLightingAllowed()
 				&& (Parameters.MaterialParameters.bIsSpecialEngineMaterial || Parameters.MaterialParameters.bIsMasked || Parameters.MaterialParameters.bMaterialMayModifyMeshPosition)
 				&& LightMapPolicyType::ShouldCompilePermutation(Parameters)
 				&& IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);

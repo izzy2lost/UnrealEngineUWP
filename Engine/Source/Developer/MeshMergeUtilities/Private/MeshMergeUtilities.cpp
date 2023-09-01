@@ -3639,9 +3639,7 @@ UMaterialInterface* FMeshMergeUtilities::CreateProxyMaterial(const FString &InBa
 
 	UMaterialInstanceConstant* MergedMaterial = FMaterialUtilities::CreateFlattenMaterialInstance(MaterialPackage, InSettings.MaterialSettings, InBaseMaterial, OutMaterial, MaterialPackageName, MaterialAssetName, OutAssetsToSync, InMaterialUpdateContext);
 	// Set material static lighting usage flag if project has static lighting enabled
-	static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-	const bool bAllowStaticLighting = (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnGameThread() != 0);
-	if (bAllowStaticLighting)
+	if (IsStaticLightingAllowed())
 	{
 		MergedMaterial->CheckMaterialUsage(MATUSAGE_StaticLighting);
 	}

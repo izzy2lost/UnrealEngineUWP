@@ -1535,8 +1535,7 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 	}
 
 	{
-		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-		const bool bValue = CVar ? CVar->GetValueOnAnyThread() != 0 : true;
+		const bool bValue = IsStaticLightingAllowed();
 		KeyString += bValue ? TEXT("_SL") : TEXT("_NoSL");
 	}
 

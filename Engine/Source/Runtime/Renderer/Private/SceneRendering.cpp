@@ -464,12 +464,6 @@ FASTVRAM_CVAR(DistanceFieldAOScreenGridResources, 1);
 FASTVRAM_CVAR(ForwardLightingCullingResources, 1);
 FASTVRAM_CVAR(GlobalDistanceFieldCullGridBuffers, 1);
 
-bool IsStaticLightingAllowed()
-{
-	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-	return CVar->GetValueOnRenderThread() != 0;
-}
-
 TSharedPtr<FVirtualShadowMapClipmap> FVisibleLightInfo::FindShadowClipmapForView(const FViewInfo* View) const
 {
 	for (const auto& Clipmap : VirtualShadowMapClipmaps)

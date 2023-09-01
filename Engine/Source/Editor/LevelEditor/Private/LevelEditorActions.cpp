@@ -780,11 +780,8 @@ void FLevelEditorActionCallbacks::BuildLightingOnly_Execute()
 }
 
 bool FLevelEditorActionCallbacks::BuildLighting_CanExecute()
-{
-	static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-	const bool bAllowStaticLighting = (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnGameThread() != 0);
-	
-	return bAllowStaticLighting && CanBuildLighting() && CanBuildReflectionCaptures();
+{	
+	return IsStaticLightingAllowed() && CanBuildLighting() && CanBuildReflectionCaptures();
 }
 
 void FLevelEditorActionCallbacks::BuildReflectionCapturesOnly_Execute()

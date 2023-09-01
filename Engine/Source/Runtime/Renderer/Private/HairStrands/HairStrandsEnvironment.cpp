@@ -308,8 +308,6 @@ class FHairEnvironmentLightingPS : public FGlobalShader
 IMPLEMENT_GLOBAL_SHADER(FHairEnvironmentLightingPS, "/Engine/Private/HairStrands/HairStrandsEnvironmentLighting.usf", "MainPS", SF_Pixel);
 IMPLEMENT_GLOBAL_SHADER(FHairEnvironmentLightingVS, "/Engine/Private/HairStrands/HairStrandsEnvironmentLighting.usf", "MainVS", SF_Vertex);
 
-bool AllowStaticLighting();
-
 static void AddHairStrandsEnvironmentLightingPassPS(
 	FRDGBuilder& GraphBuilder,
 	const FScene* Scene,
@@ -350,7 +348,7 @@ static void AddHairStrandsEnvironmentLightingPassPS(
 	// Only support static lighting with SH integrator at the moment
 	const bool bUseVolumetricLightmap = Scene && Scene->VolumetricLightmapSceneData.HasData();
 	const bool bLumenActive = ShouldRenderLumenDiffuseGI(Scene, View);
-	const bool bHasStaticLighting = AllowStaticLighting() && bUseVolumetricLightmap && !bLumenActive && IntegrationType == EHairLightingIntegrationType::SH;
+	const bool bHasStaticLighting = IsStaticLightingAllowed() && bUseVolumetricLightmap && !bLumenActive && IntegrationType == EHairLightingIntegrationType::SH;
 
 	// Sanity check
 	if (bHasStaticLighting) { check(LightingType != EHairLightingSourceType::Lumen); }

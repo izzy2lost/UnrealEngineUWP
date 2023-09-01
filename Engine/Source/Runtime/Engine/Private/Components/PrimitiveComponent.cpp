@@ -1239,8 +1239,7 @@ bool UPrimitiveComponent::CanEditChange(const FProperty* InProperty) const
 
 		if (PropertyName == GET_MEMBER_NAME_CHECKED(UPrimitiveComponent, LightmapType))
 		{
-			static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-			return AllowStaticLightingVar->GetValueOnAnyThread() != 0;
+			return IsStaticLightingAllowed();
 		}
 
 		if (PropertyName == CastInsetShadowName)

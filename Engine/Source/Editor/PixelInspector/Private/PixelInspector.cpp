@@ -503,12 +503,7 @@ namespace PixelInspector
 		//5: high precision
 		const int32 GBufferFormat = CVarGBufferFormat != nullptr ? CVarGBufferFormat->GetValueOnGameThread() : 1;
 
-		// We need to know the static lighting mode to decode properly the buffers
-		const auto CVarAllowStaticLighting = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-		//0: false
-		//1: true
-		//default: true
-		const bool AllowStaticLighting = CVarAllowStaticLighting != nullptr ? CVarAllowStaticLighting->GetValueOnGameThread() == 1 : true;
+		const bool AllowStaticLighting = IsStaticLightingAllowed();
 		
 		//Try to create the request buffer
 		int32 BufferIndex = CreateRequestBuffer(SceneInterface, GBufferFormat, bInGameViewMode);

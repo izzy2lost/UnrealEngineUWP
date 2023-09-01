@@ -422,8 +422,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_ComputeLightGrid);
 	RDG_EVENT_SCOPE(GraphBuilder, "ComputeLightGrid");
 
-	static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-	const bool bAllowStaticLighting = (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnRenderThread() != 0);
+	const bool bAllowStaticLighting = IsStaticLightingAllowed();
 	const bool bLightGridUses16BitBuffers = LightGridUses16BitBuffers(ShaderPlatform);
 
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);

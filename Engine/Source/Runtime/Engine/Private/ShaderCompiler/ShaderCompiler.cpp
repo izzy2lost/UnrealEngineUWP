@@ -7623,8 +7623,7 @@ void GlobalBeginCompileShader(
 	}
 
 	{
-		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-		SET_SHADER_DEFINE(Input.Environment, ALLOW_STATIC_LIGHTING, CVar ? (CVar->GetValueOnAnyThread() != 0) : 1);
+		SET_SHADER_DEFINE(Input.Environment, ALLOW_STATIC_LIGHTING, IsStaticLightingAllowed() ? 1 : 0);
 	}
 
 	{

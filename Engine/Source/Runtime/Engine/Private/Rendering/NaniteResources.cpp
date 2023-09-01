@@ -922,9 +922,7 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FInstancedSt
 	bHasPerInstanceDynamicData = InProxyDesc.PerInstancePrevTransform.Num() == NumInstances;
 	InstanceDynamicData.SetNumZeroed(bHasPerInstanceDynamicData ? NumRenderInstances : 0);
 
-	static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-	const bool bAllowStaticLighting = (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnAnyThread() != 0);
-	bHasPerInstanceLMSMUVBias = bAllowStaticLighting;
+	bHasPerInstanceLMSMUVBias = IsStaticLightingAllowed();
 	InstanceLightShadowUVBias.SetNumZeroed(bHasPerInstanceLMSMUVBias ? NumRenderInstances : 0);
 
 	InstanceRandomID.SetNumZeroed(bHasPerInstanceRandom ? NumRenderInstances : 0); // Only allocate if material bound which uses this

@@ -5,6 +5,7 @@
 #include "MaterialStats.h"
 #include "LocalVertexFactory.h"
 #include "GPUSkinVertexFactory.h"
+#include "RenderUtils.h"
 #include "MaterialEditorSettings.h"
 #include "RHIShaderFormatDefinitions.inl"
 #include "DataDrivenShaderPlatformInfo.h"
@@ -322,10 +323,7 @@ void FMaterialStatsUtils::GetRepresentativeShaderTypesAndDescriptions(TMap<FName
 			ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
 				.Add(FRepresentativeShaderInfo(ERepresentativeShader::DynamicallyLitObject, TBasePassPSFNoLightMapPolicyName, TEXT("Base pass shader")));
 
-			static auto* CVarAllowStaticLighting = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-			const bool bAllowStaticLighting = CVarAllowStaticLighting->GetValueOnAnyThread() != 0;
-
-			if (bAllowStaticLighting)
+			if (IsStaticLightingAllowed())
 			{
 				if (TargetMaterial->IsUsedWithStaticLighting())
 				{
@@ -402,14 +400,11 @@ void FMaterialStatsUtils::GetRepresentativeShaderTypesAndDescriptions(TMap<FName
 			}
 		}
 		else
-		{
-			static auto* CVarAllowStaticLighting = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-			const bool bAllowStaticLighting = CVarAllowStaticLighting->GetValueOnAnyThread() != 0;
-			
+		{			
 			static auto* CVarMobileSkyLightPermutation = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.SkyLightPermutation"));
 			const bool bOnlySkyPermutation = CVarMobileSkyLightPermutation->GetValueOnAnyThread() == 2;
 						
-			if (bAllowStaticLighting && TargetMaterial->IsUsedWithStaticLighting())
+			if (IsStaticLightingAllowed() && TargetMaterial->IsUsedWithStaticLighting())
 			{
 				static auto* CVarAllowDistanceFieldShadows = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.AllowDistanceFieldShadows"));
 				const bool bAllowDistanceFieldShadows = CVarAllowDistanceFieldShadows->GetValueOnAnyThread() != 0;

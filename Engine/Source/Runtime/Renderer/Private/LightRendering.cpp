@@ -506,8 +506,7 @@ FDeferredLightUniformStruct GetDeferredLightParameters(const FSceneView& View, c
 	
 	int32 ShadowMapChannel = LightSceneInfo.Proxy->GetShadowMapChannel();
 
-	static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-	const bool bAllowStaticLighting = (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnRenderThread() != 0);
+	const bool bAllowStaticLighting = IsStaticLightingAllowed();
 
 	if (!bAllowStaticLighting)
 	{

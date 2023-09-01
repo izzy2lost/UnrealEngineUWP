@@ -1459,8 +1459,7 @@ void FScene::CaptureOrUploadReflectionCapture(UReflectionCaptureComponent* Captu
 
 			if (CaptureComponent->ReflectionSourceType == EReflectionSourceType::CapturedScene)
 			{
-				static const auto* AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-				const bool bAllowStaticLighting = (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnAnyThread() != 0);
+				const bool bAllowStaticLighting = IsStaticLightingAllowed();
 
 				// Reflection Captures are a form of static lighting, so only capture scene elements that are static
 				// However if the project has static lighting disabled, Reflection Captures can still be made to work by capturing Movable lights

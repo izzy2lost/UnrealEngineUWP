@@ -622,10 +622,8 @@ RENDERCORE_API bool MobileUsesExtenedGBuffer(FStaticShaderPlatform ShaderPlatfor
 // Required for shading models with a custom data
 RENDERCORE_API bool MobileUsesGBufferCustomData(FStaticShaderPlatform ShaderPlatform)
 {
-	static const auto CVarAllowStaticLighting = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-	static const bool bAllowStaticLighting = CVarAllowStaticLighting->GetValueOnAnyThread() != 0;
 	// we can pack CustomData into static lighting related space
-	return MobileUsesExtenedGBuffer(ShaderPlatform) || !bAllowStaticLighting;
+	return MobileUsesExtenedGBuffer(ShaderPlatform) || !IsStaticLightingAllowed();
 }
 
 RENDERCORE_API bool MobileBasePassAlwaysUsesCSM(const FStaticShaderPlatform Platform)
@@ -1577,6 +1575,12 @@ bool IsRayTracingEnabled(EShaderPlatform ShaderPlatform)
 ERayTracingMode GetRayTracingMode()
 {
 	return IsRayTracingAllowed() ? GRayTracingMode : ERayTracingMode::Disabled;
+}
+
+bool IsStaticLightingAllowed()
+{
+	static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
+	return (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnAnyThread() != 0);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

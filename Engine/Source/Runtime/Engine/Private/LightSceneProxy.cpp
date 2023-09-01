@@ -82,10 +82,7 @@ FLightSceneProxy::FLightSceneProxy(const ULightComponent* InLightComponent)
 		bStaticShadowing = bStaticLighting;
 	}
 
-	static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-	const bool bAllowStaticLighting = (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnGameThread() != 0);
-
-	if (!bAllowStaticLighting)
+	if (!IsStaticLightingAllowed())
 	{
 		bStaticShadowing = bStaticLighting;
 	}

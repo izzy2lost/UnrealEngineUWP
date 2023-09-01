@@ -920,8 +920,7 @@ void ModifyBasePassCSPSCompilationEnvironment(const FMeshMaterialShaderPermutati
 	{
 		// See FShaderCompileUtilities::FetchGBufferParamsRuntime for the details
 		const bool bHasTangent = false;
-		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-		bool bHasPrecShadowFactor = (CVar ? (CVar->GetValueOnAnyThread() != 0) : 1);
+		bool bHasPrecShadowFactor = IsStaticLightingAllowed();
 
 		uint32 TargetSeparatedMainDirLight = 5;
 		if (bOutputVelocity == false && bHasTangent == false)
@@ -1834,12 +1833,6 @@ void FBasePassMeshProcessor::AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, 
 	}
 }
 
-bool AllowStaticLighting()
-{
-	static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-	return (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnAnyThread() != 0);
-}
-
 bool FBasePassMeshProcessor::ShouldDraw(const FMaterial& Material)
 {
 	// Determine the mesh's material and blend mode.
@@ -1965,7 +1958,7 @@ bool FBasePassMeshProcessor::TryAddMeshBatch(const FMeshBatch& RESTRICT MeshBatc
 	{
 		// Check for a cached light-map.
 		const bool bIsLitMaterial = ShadingModels.IsLit();
-		const bool bAllowStaticLighting = AllowStaticLighting();
+		const bool bAllowStaticLighting = IsStaticLightingAllowed();
 
 		const FLightMapInteraction LightMapInteraction = (bAllowStaticLighting && MeshBatch.LCI && bIsLitMaterial)
 			? MeshBatch.LCI->GetLightMapInteraction(FeatureLevel)
@@ -2081,7 +2074,7 @@ ELightMapPolicyType FBasePassMeshProcessor::GetUniformLightMapPolicyType(ERHIFea
 	const bool bIsTranslucent = IsTranslucentBlendMode(Material);
 	const FMaterialShadingModelField ShadingModels = Material.GetShadingModels();
 	const bool bIsLitMaterial = ShadingModels.IsLit();
-	const bool bAllowStaticLighting = AllowStaticLighting();
+	const bool bAllowStaticLighting = IsStaticLightingAllowed();
 
 	const FLightMapInteraction LightMapInteraction = (bAllowStaticLighting && MeshBatch.LCI && bIsLitMaterial)
 		? MeshBatch.LCI->GetLightMapInteraction(FeatureLevel)
@@ -2192,7 +2185,7 @@ TArray<ELightMapPolicyType, TInlineAllocator<2>> FBasePassMeshProcessor::GetUnif
 
 	const bool bIsTranslucent = IsTranslucentBlendMode(Material);
 	const bool bIsLitMaterial = ShadingModels.IsLit();
-	const bool bAllowStaticLighting = AllowStaticLighting();
+	const bool bAllowStaticLighting = IsStaticLightingAllowed();
 
 	const bool bPlatformAllowsHighQualityLightMaps = AllowHighQualityLightmaps(FeatureLevel);
 	static const auto CVarSupportLowQualityLightmap = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.SupportLowQualityLightmaps"));
@@ -2313,7 +2306,7 @@ void FBasePassMeshProcessor::CollectPSOInitializersForSkyLight(
 
 	if (!bNoLightMapOnlyMode && bIsLitMaterial && bIsTranslucent)
 	{
-		const bool bAllowStaticLighting = AllowStaticLighting();
+		const bool bAllowStaticLighting = IsStaticLightingAllowed();
 
 		// Retrieve those values or have as global precache params (if not known then we have to assume they can be used for now)
 		const bool bAllowIndirectLightingCache = true;// Scene&& Scene->PrecomputedLightVolumes.Num() > 0;

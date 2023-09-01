@@ -190,8 +190,7 @@ void ComputeShadowCullingVolume(bool bReverseCulling, const FVector* CascadeFrus
 
 float ComputeWholeSceneDynamicShadowRadius(EComponentMobility::Type Mobility, float DynamicShadowDistanceMovableLight, float DynamicShadowDistanceStationaryLight)
 {
-	static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-	const bool bAllowStaticLighting = (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnGameThread() != 0);
+	const bool bAllowStaticLighting = IsStaticLightingAllowed();
 
 	if (Mobility == EComponentMobility::Movable || !bAllowStaticLighting)
 	{
@@ -1072,8 +1071,7 @@ bool UDirectionalLightComponent::CanEditChange(const FProperty* InProperty) cons
 {
 	if (InProperty)
 	{
-		static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-		const bool bAllowStaticLighting = (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnGameThread() != 0);
+		const bool bAllowStaticLighting = IsStaticLightingAllowed();
 
 		FString PropertyName = InProperty->GetName();
 

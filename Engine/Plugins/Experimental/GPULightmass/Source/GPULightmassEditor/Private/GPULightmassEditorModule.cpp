@@ -152,12 +152,6 @@ static FText GenerateRayTracingDisabledReasonMessage(ERayTracingDisabledReason R
 	}
 }
 
-static bool IsStaticLightingAllowed()
-{
-	static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-	return (AllowStaticLightingVar && AllowStaticLightingVar->GetValueOnAnyThread() > 0);
-}
-
 static bool IsPathTracingEnabled()
 {
 	static const auto CVarPathTracing = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.PathTracing"));

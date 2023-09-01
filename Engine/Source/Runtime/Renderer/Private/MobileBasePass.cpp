@@ -71,8 +71,7 @@ uint8 GetMobileShadingModelStencilValue(FMaterialShadingModelField ShadingModel)
 
 bool MobileUsesNoLightMapPermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
 {
-	static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-	const bool bAllowStaticLighting = (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnAnyThread() != 0);
+	const bool bAllowStaticLighting = IsStaticLightingAllowed();
 	const bool bIsLitMaterial = Parameters.MaterialParameters.ShadingModels.IsLit();
 	const bool bDeferredShading = IsMobileDeferredShadingEnabled(Parameters.Platform);
 

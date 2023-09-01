@@ -486,8 +486,7 @@ bool FRayTracingMeshProcessor::TryAddMeshBatch(
 
 		// Check for a cached light-map.
 		const bool bIsLitMaterial = Material.GetShadingModels().IsLit();
-		static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-		const bool bAllowStaticLighting = (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnRenderThread() != 0);
+		const bool bAllowStaticLighting = IsStaticLightingAllowed();
 
 		const FLightMapInteraction LightMapInteraction = (bAllowStaticLighting && MeshBatch.LCI && bIsLitMaterial)
 			? MeshBatch.LCI->GetLightMapInteraction(FeatureLevel)

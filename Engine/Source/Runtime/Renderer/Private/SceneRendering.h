@@ -2843,8 +2843,6 @@ enum class EGPUSkinCacheTransition
 	Renderer,
 };
 
-extern bool IsStaticLightingAllowed();
-
 /** Resolves the view rect of scene color or depth using either a custom resolve or hardware resolve. */
 void AddResolveSceneColorPass(FRDGBuilder& GraphBuilder, const FViewInfo& View, FRDGTextureMSAA SceneColor);
 void AddResolveSceneDepthPass(FRDGBuilder& GraphBuilder, const FViewInfo& View, FRDGTextureMSAA SceneDepth);

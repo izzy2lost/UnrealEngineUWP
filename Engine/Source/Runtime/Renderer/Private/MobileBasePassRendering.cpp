@@ -286,9 +286,6 @@ void SetupMobileDirectionalLightUniformParameters(
 	bool bDynamicShadows,
 	FMobileDirectionalLightShaderParameters& Params)
 {
-	static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-	const bool bAllowStaticLighting = (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnRenderThread() != 0);
-
 	ERHIFeatureLevel::Type FeatureLevel = Scene.GetFeatureLevel();
 	FLightSceneInfo* Light = Scene.MobileDirectionalLights[ChannelIdx];
 	if (Light)
@@ -304,7 +301,7 @@ void SetupMobileDirectionalLightUniformParameters(
 		int32 ShadowMapChannel = Light->Proxy->GetShadowMapChannel();
 		int32 DynamicShadowMapChannel = Light->GetDynamicShadowMapChannel();
 
-		if (!bAllowStaticLighting)
+		if (!IsStaticLightingAllowed())
 		{
 			ShadowMapChannel = INDEX_NONE;
 		}

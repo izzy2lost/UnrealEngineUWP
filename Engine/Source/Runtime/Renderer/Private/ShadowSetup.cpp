@@ -5785,8 +5785,7 @@ void FSceneRenderer::CreateDynamicShadows(FDynamicShadowsTaskData& TaskData)
 					{
 						FScopeCycleCounter Context(LightSceneInfo->Proxy->GetStatId());
 
-						static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-						const bool bAllowStaticLighting = (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnRenderThread() != 0);
+						const bool bAllowStaticLighting = IsStaticLightingAllowed();
 						const bool bPointLightShadow = LightSceneInfoCompact.LightType == LightType_Point || LightSceneInfoCompact.LightType == LightType_Rect;
 						const bool bDirectionalLightShadow = LightSceneInfoCompact.LightType == LightType_Directional;
 						const bool bSpotLightShadow = LightSceneInfoCompact.LightType == LightType_Spot;

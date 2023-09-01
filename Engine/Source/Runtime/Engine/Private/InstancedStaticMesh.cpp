@@ -1897,9 +1897,7 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(const FInstancedStaticMeshSceneP
 		bHasPerInstanceDynamicData = InProxyDesc.PerInstancePrevTransform.Num() > 0 && InProxyDesc.PerInstancePrevTransform.Num() == InProxyDesc.GetInstanceCount();
 		InstanceDynamicData.SetNumZeroed(bHasPerInstanceDynamicData ? NumRenderInstances : 0);
 
-		static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-		const bool bAllowStaticLighting = (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnAnyThread() != 0);
-		bHasPerInstanceLMSMUVBias = bAllowStaticLighting;
+		bHasPerInstanceLMSMUVBias = IsStaticLightingAllowed();
 		InstanceLightShadowUVBias.SetNumZeroed(bHasPerInstanceLMSMUVBias ? NumRenderInstances : 0);
 
 		InstanceRandomID.SetNumZeroed(bHasPerInstanceRandom ? NumRenderInstances : 0); // Only allocate if material bound which uses this

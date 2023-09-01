@@ -318,11 +318,7 @@ static FShaderGlobalDefines FetchShaderGlobalDefines(EShaderPlatform TargetPlatf
 
 	bool bIsMobilePlatform = IsMobilePlatform(TargetPlatform);
 
-	{
-		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-		Ret.ALLOW_STATIC_LIGHTING = (CVar ? (CVar->GetValueOnAnyThread() != 0) : 1);
-	}
-
+	Ret.ALLOW_STATIC_LIGHTING = IsStaticLightingAllowed();
 	Ret.GBUFFER_HAS_VELOCITY = (IsUsingBasePassVelocity(TargetPlatform) || GBufferLayout == GBL_ForceVelocity) ? 1 : 0;
 	Ret.GBUFFER_HAS_TANGENT = false;//BasePassCanOutputTangent(TargetPlatform) ? 1 : 0;
 
@@ -2183,11 +2179,7 @@ FGBufferParams FShaderCompileUtilities::FetchGBufferParamsPipeline(EShaderPlatfo
 	Ret.ShaderPlatform = Platform;
 
 #if WITH_EDITOR
-	{
-		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-		Ret.bHasPrecShadowFactor = (CVar ? (CVar->GetValueOnAnyThread() != 0) : 1);
-	}
-
+	Ret.bHasPrecShadowFactor = IsStaticLightingAllowed();
 	Ret.bHasVelocity = (IsUsingBasePassVelocity(Platform) || Layout == GBL_ForceVelocity) ? 1 : 0;
 	Ret.bHasTangent = false;//BasePassCanOutputTangent(TargetPlatform) ? 1 : 0;
 
@@ -2217,8 +2209,7 @@ FGBufferParams FShaderCompileUtilities::FetchGBufferParamsRuntime(EShaderPlatfor
 	FGBufferParams Ret = {};
 	Ret.ShaderPlatform = Platform;
 
-	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-	Ret.bHasPrecShadowFactor = (CVar ? (CVar->GetValueOnAnyThread() != 0) : 1);
+	Ret.bHasPrecShadowFactor = IsStaticLightingAllowed();
 
 	Ret.bHasVelocity = (IsUsingBasePassVelocity(Platform) || Layout == GBL_ForceVelocity) ? 1 : 0;
 	Ret.bHasTangent = false;//BasePassCanOutputTangent(ShaderPlatform) ? 1 : 0;

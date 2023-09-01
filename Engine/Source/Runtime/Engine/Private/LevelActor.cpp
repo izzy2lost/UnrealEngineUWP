@@ -1797,11 +1797,8 @@ AAudioVolume* UWorld::GetAudioSettings( const FVector& ViewLocation, FReverbSett
 void UWorld::SetMapNeedsLightingFullyRebuilt(int32 InNumLightingUnbuiltObjects, int32 InNumUnbuiltReflectionCaptures)
 {
 #if !UE_BUILD_SHIPPING
-	static const TConsoleVariableData<int32>* AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-	const bool bAllowStaticLighting = (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnGameThread() != 0);
-
 	AWorldSettings* WorldSettings = GetWorldSettings();
-	if (bAllowStaticLighting && WorldSettings && !WorldSettings->bForceNoPrecomputedLighting)
+	if (IsStaticLightingAllowed() && WorldSettings && !WorldSettings->bForceNoPrecomputedLighting)
 	{
 		check(IsInGameThread());
 		if ((NumLightingUnbuiltObjects != InNumLightingUnbuiltObjects && (NumLightingUnbuiltObjects == 0 || InNumLightingUnbuiltObjects == 0))

@@ -478,6 +478,9 @@ extern RENDERCORE_API bool IsRayTracingAllowed();
 // This function may only be called at runtime, never during cooking.
 extern RENDERCORE_API ERayTracingMode GetRayTracingMode();
 
+// Returns 'true' when static lighting is enabled for the project
+extern RENDERCORE_API bool IsStaticLightingAllowed();
+
 namespace Strata
 {
 	RENDERCORE_API bool IsStrataEnabled();

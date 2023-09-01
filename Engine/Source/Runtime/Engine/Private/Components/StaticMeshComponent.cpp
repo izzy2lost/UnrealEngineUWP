@@ -2943,11 +2943,8 @@ void UStaticMeshComponent::ApplyComponentInstanceData(FStaticMeshComponentInstan
 		}
 		else
 		{
-			static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-			const bool bAllowStaticLighting = (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnAnyThread() != 0);
-
 			// Only warn if static lighting is enabled in the project
-			if (bAllowStaticLighting)
+			if (IsStaticLightingAllowed())
 			{
 				UE_ASSET_LOG(LogStaticMesh, Warning, this,
 					TEXT("Cached component instance data transform did not match!  Discarding cached lighting data which will cause lighting to be unbuilt.\n%s\nCurrent: %s Cached: %s"),

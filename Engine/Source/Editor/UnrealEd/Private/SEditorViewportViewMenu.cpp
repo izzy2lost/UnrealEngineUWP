@@ -170,7 +170,7 @@ void SEditorViewportViewMenu::FillViewMenu(UToolMenu* Menu) const
 							if (FeatureLevel >= ERHIFeatureLevel::SM5)
 							{
 								Section.AddMenuEntry(BaseViewportCommands.LightComplexityMode, UViewModeUtils::GetViewModeDisplayName(VMI_LightComplexity));
-								if (IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"))->GetValueOnAnyThread() != 0)
+								if (IsStaticLightingAllowed())
 								{
 									Section.AddMenuEntry(BaseViewportCommands.LightmapDensityMode, UViewModeUtils::GetViewModeDisplayName(VMI_LightmapDensity));
 								}
