@@ -23,7 +23,7 @@ struct FPCGProfilingListViewItem
 
 	PCGUtils::FCallTime CallTime;
 
-	bool HasData = false;
+	bool bHasData = false;
 };
 
 typedef TSharedPtr<FPCGProfilingListViewItem> PCGProfilingListViewItemPtr;
