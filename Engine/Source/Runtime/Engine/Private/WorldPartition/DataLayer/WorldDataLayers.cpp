@@ -59,6 +59,9 @@ AWorldDataLayers::AWorldDataLayers(const FObjectInitializer& ObjectInitializer)
 	// Avoid actor from being Destroyed/Recreated when scrubbing a replay
 	// instead AWorldDataLayers::RewindForReplay() gets called to reset this actors state
 	bReplayRewindable = true;
+
+	AllEffectiveActiveDataLayerNamesEpoch = MAX_int32;
+	AllEffectiveLoadedDataLayerNamesEpoch = MAX_int32;
 }
 
 void AWorldDataLayers::GetLifetimeReplicatedProps(TArray< FLifetimeProperty >& OutLifetimeProps) const
@@ -382,15 +385,23 @@ EDataLayerRuntimeState AWorldDataLayers::GetDataLayerEffectiveRuntimeStateByName
 
 const TSet<FName>& AWorldDataLayers::GetEffectiveActiveDataLayerNames() const
 {
-	AllEffectiveActiveDataLayerNames = EffectiveActiveDataLayerNames;
-	AllEffectiveActiveDataLayerNames.Append(LocalEffectiveActiveDataLayerNames);
+	if (AllEffectiveActiveDataLayerNamesEpoch != DataLayersStateEpoch)
+	{
+		AllEffectiveActiveDataLayerNames = EffectiveActiveDataLayerNames;
+		AllEffectiveActiveDataLayerNames.Append(LocalEffectiveActiveDataLayerNames);
+		AllEffectiveActiveDataLayerNamesEpoch = DataLayersStateEpoch;
+	}
 	return AllEffectiveActiveDataLayerNames;
 }
 
 const TSet<FName>& AWorldDataLayers::GetEffectiveLoadedDataLayerNames() const
 {
-	AllEffectiveLoadedDataLayerNames = EffectiveLoadedDataLayerNames;
-	AllEffectiveLoadedDataLayerNames.Append(LocalEffectiveLoadedDataLayerNames);
+	if (AllEffectiveLoadedDataLayerNamesEpoch != DataLayersStateEpoch)
+	{
+		AllEffectiveLoadedDataLayerNames = EffectiveLoadedDataLayerNames;
+		AllEffectiveLoadedDataLayerNames.Append(LocalEffectiveLoadedDataLayerNames);
+		AllEffectiveLoadedDataLayerNamesEpoch = DataLayersStateEpoch;
+	}
 	return AllEffectiveLoadedDataLayerNames;
 }
 

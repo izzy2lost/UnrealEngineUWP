@@ -253,7 +253,9 @@ private:
 	TSet<FName> LocalEffectiveActiveDataLayerNames;
 	TSet<FName> LocalEffectiveLoadedDataLayerNames;
 
+	mutable int32 AllEffectiveActiveDataLayerNamesEpoch;
 	mutable TSet<FName> AllEffectiveActiveDataLayerNames;
+	mutable int32 AllEffectiveLoadedDataLayerNamesEpoch;
 	mutable TSet<FName> AllEffectiveLoadedDataLayerNames;
 
 	static ENGINE_API int32 DataLayersStateEpoch;
