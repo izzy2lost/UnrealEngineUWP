@@ -42,12 +42,20 @@ struct FIasCacheConfig
 		uint32	Seconds = 60;
 	};
 
+	struct FDemand
+	{
+		uint8	Threshold = 30;
+		uint8	Boost = 60;
+		uint8	SuperBoost = 87;
+	};
+
 	const TCHAR*Name = TEXT("ias");
 	uint64		DiskQuota = 512ull << 20;
 	uint32		MemoryQuota = 2 << 20;
 	uint32		JournalQuota = 4 << 20; // description in JournalCache.cpp
 	uint32		JournalFlushInterval = 4;
 	FRate		WriteRate;
+	FDemand		Demand;
 	bool		DropCache = false;
 };
 

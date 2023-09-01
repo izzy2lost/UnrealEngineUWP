@@ -211,6 +211,9 @@ static FIasCacheConfig GetIasCacheConfig(const TCHAR* CommandLine)
 	GetConfigInt(TEXT("MemoryQuota"),			Ret.MemoryQuota);
 	GetConfigInt(TEXT("JournalQuota"),			Ret.JournalQuota);
 	GetConfigInt(TEXT("JournalFlushInterval"),	Ret.JournalFlushInterval);
+	GetConfigInt(TEXT("DemandThreshold"),		Ret.Demand.Threshold);
+	GetConfigInt(TEXT("DemandBoost"),			Ret.Demand.Boost);
+	GetConfigInt(TEXT("DemandSuperBoost"),		Ret.Demand.SuperBoost);
 #undef GetConfigInt
 
 #if !UE_BUILD_SHIPPING
