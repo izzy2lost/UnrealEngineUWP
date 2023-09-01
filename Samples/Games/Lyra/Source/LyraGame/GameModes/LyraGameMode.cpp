@@ -247,7 +247,7 @@ void ALyraGameMode::HostDedicatedServerMatch(ECommonSessionOnlineMode OnlineMode
 	if (ensure(FoundExperience && GameInstance))
 	{
 		// Actually host the game
-		UCommonSession_HostSessionRequest* HostRequest = FoundExperience->CreateHostingRequest();
+		UCommonSession_HostSessionRequest* HostRequest = FoundExperience->CreateHostingRequest(this);
 		if (ensure(HostRequest))
 		{
 			HostRequest->OnlineMode = OnlineMode;
