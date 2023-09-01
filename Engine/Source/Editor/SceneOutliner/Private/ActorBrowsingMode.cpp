@@ -99,6 +99,9 @@ FActorBrowsingMode::FActorBrowsingMode(SSceneOutliner* InSceneOutliner, TWeakObj
 		LocalSettings = *SavedSettings;
 	}
 
+	bHideLevelInstanceHierarchy = LocalSettings.bHideLevelInstanceHierarchy;
+	InSceneOutliner->SetShowTransient(!LocalSettings.bHideTemporaryActors);
+
 	// Get the OutlinerModule to register FilterInfos with the FilterInfoMap
 	FSceneOutlinerFilterInfo ShowOnlySelectedActorsInfo(LOCTEXT("ToggleShowOnlySelected", "Only Selected"), LOCTEXT("ToggleShowOnlySelectedToolTip", "When enabled, only displays actors that are currently selected."), LocalSettings.bShowOnlySelectedActors, FCreateSceneOutlinerFilter::CreateStatic(&FActorBrowsingMode::CreateShowOnlySelectedActorsFilter));
 	ShowOnlySelectedActorsInfo.OnToggle().AddLambda([this](bool bIsActive)
@@ -111,19 +114,7 @@ FActorBrowsingMode::FActorBrowsingMode(SSceneOutliner* InSceneOutliner, TWeakObj
 			}
 		});
 	FilterInfoMap.Add(TEXT("ShowOnlySelectedActors"), ShowOnlySelectedActorsInfo);
-
-	FSceneOutlinerFilterInfo HideTemporaryActorsInfo(LOCTEXT("ToggleHideTemporaryActors", "Hide Temporary Actors"), LOCTEXT("ToggleHideTemporaryActorsToolTip", "When enabled, hides temporary/run-time Actors."), LocalSettings.bHideTemporaryActors, FCreateSceneOutlinerFilter::CreateStatic(&FActorBrowsingMode::CreateHideTemporaryActorsFilter));
-	HideTemporaryActorsInfo.OnToggle().AddLambda([this](bool bIsActive)
-		{
-			FActorBrowsingModeConfig* Settings = GetMutableConfig();
-			if(Settings)
-			{
-				Settings->bHideTemporaryActors = bIsActive;
-				SaveConfig();
-			}
-		});
-	FilterInfoMap.Add(TEXT("HideTemporaryActors"), HideTemporaryActorsInfo);
-
+		
 	FSceneOutlinerFilterInfo OnlyCurrentLevelInfo(LOCTEXT("ToggleShowOnlyCurrentLevel", "Only in Current Level"), LOCTEXT("ToggleShowOnlyCurrentLevelToolTip", "When enabled, only shows Actors that are in the Current Level."), LocalSettings.bShowOnlyActorsInCurrentLevel, FCreateSceneOutlinerFilter::CreateStatic(&FActorBrowsingMode::CreateIsInCurrentLevelFilter));
 	OnlyCurrentLevelInfo.OnToggle().AddLambda([this](bool bIsActive)
 		{
@@ -218,24 +209,6 @@ FActorBrowsingMode::FActorBrowsingMode(SSceneOutliner* InSceneOutliner, TWeakObj
 
 	FilterInfoMap.Add(TEXT("HideComponentsFilter"), HideComponentsInfo);
 
-	bHideLevelInstanceHierarchy = LocalSettings.bHideLevelInstanceHierarchy;
-	FSceneOutlinerFilterInfo HideLevelInstancesInfo(LOCTEXT("ToggleHideLevelInstanceContent", "Hide Level Instance Content"), LOCTEXT("ToggleHideLevelInstancesToolTip", "When enabled, hides all level instance content."), LocalSettings.bHideLevelInstanceHierarchy, FCreateSceneOutlinerFilter::CreateStatic(&FActorBrowsingMode::CreateHideLevelInstancesFilter));
-	HideLevelInstancesInfo.OnToggle().AddLambda([this](bool bIsActive)
-		{
-			FActorBrowsingModeConfig* Settings = GetMutableConfig();
-			if(Settings)
-			{
-				Settings->bHideLevelInstanceHierarchy = bHideLevelInstanceHierarchy = bIsActive;
-				SaveConfig();
-			}
-
-			if (auto ActorHierarchy = StaticCast<FActorHierarchy*>(Hierarchy.Get()))
-			{
-				ActorHierarchy->SetShowingLevelInstances(!bIsActive);
-			}
-		});
-	FilterInfoMap.Add(TEXT("HideLevelInstancesFilter"), HideLevelInstancesInfo);
-
 	bHideUnloadedActors = LocalSettings.bHideUnloadedActors;
 	FSceneOutlinerFilterInfo HideUnloadedActorsInfo(LOCTEXT("ToggleHideUnloadedActors", "Hide Unloaded Actors"), LOCTEXT("ToggleHideUnloadedActorsToolTip", "When enabled, hides all unloaded world partition actors."), LocalSettings.bHideUnloadedActors, FCreateSceneOutlinerFilter::CreateStatic(&FActorBrowsingMode::CreateHideUnloadedActorsFilter));
 	HideUnloadedActorsInfo.OnToggle().AddLambda([this] (bool bIsActive)
@@ -273,7 +246,7 @@ FActorBrowsingMode::FActorBrowsingMode(SSceneOutliner* InSceneOutliner, TWeakObj
 	FilterInfoMap.Add(TEXT("HideEmptyFoldersFilter"), HideEmptyFoldersInfo);
 
 	// Add a filter which sets the interactive mode of LevelInstance items and their children
-	SceneOutliner->AddFilter(MakeShared<FActorFilter>(FActorTreeItem::FFilterPredicate::CreateStatic([](const AActor* Actor) {return true; }), FSceneOutlinerFilter::EDefaultBehaviour::Pass, FActorTreeItem::FFilterPredicate::CreateLambda([this](const AActor* Actor)
+	SceneOutliner->AddInteractiveFilter(MakeShared<FActorFilter>(FActorTreeItem::FFilterPredicate::CreateLambda([this](const AActor* Actor)
 		{
 			if (!bHideLevelInstanceHierarchy)
 			{
@@ -291,7 +264,7 @@ FActorBrowsingMode::FActorBrowsingMode(SSceneOutliner* InSceneOutliner, TWeakObj
 				}
 			}
 			return true;
-		})));
+		}), FSceneOutlinerFilter::EDefaultBehaviour::Pass));
 
 	bAlwaysFrameSelection = LocalSettings.bAlwaysFrameSelection;
 
@@ -434,40 +407,129 @@ void FActorBrowsingMode::OnToggleAlwaysFrameSelection()
 	}
 }
 
-bool FActorBrowsingMode::ShouldAlwaysFrameSelection()
+bool FActorBrowsingMode::ShouldAlwaysFrameSelection() const
 {
 	return bAlwaysFrameSelection;
 }
 
-void FActorBrowsingMode::CreateViewContent(FMenuBuilder& MenuBuilder)
+void FActorBrowsingMode::OnToggleHideTemporaryActors()
 {
-	MenuBuilder.BeginSection("OutlinerSelectionOptions", LOCTEXT("OptionsHeading", "Options"));
-
-	MenuBuilder.AddMenuEntry(
-		LOCTEXT("AlwaysFrameSelectionLabel", "Always Frame Selection"),
-		LOCTEXT("AlwaysFrameSelectionTooltip", "When enabled, selecting an Actor in the Viewport also scrolls to that Actor in the Outliner."),
-		FSlateIcon(),
-		FUIAction(
-			FExecuteAction::CreateRaw(this, &FActorBrowsingMode::OnToggleAlwaysFrameSelection),
-			FCanExecuteAction(),
-			FIsActionChecked::CreateRaw(this, &FActorBrowsingMode::ShouldAlwaysFrameSelection)
-		),
-		NAME_None,
-		EUserInterfaceActionType::ToggleButton
-	);
-
-	MenuBuilder.EndSection();
-
-
-	MenuBuilder.BeginSection("AssetThumbnails", LOCTEXT("ShowWorldHeading", "World"));
+	FActorBrowsingModeConfig* Settings = GetMutableConfig();
+	if (Settings)
 	{
+		Settings->bHideTemporaryActors = !Settings->bHideTemporaryActors;
+		SaveConfig();
+
+		SceneOutliner->SetShowTransient(!Settings->bHideTemporaryActors);
+		
+		SceneOutliner->FullRefresh();
+	}
+}
+
+bool FActorBrowsingMode::ShouldHideTemporaryActors() const
+{
+	const FActorBrowsingModeConfig* Settings = GetConstConfig();
+	if (Settings)
+	{
+		return Settings->bHideTemporaryActors;
+	}
+
+	return false;
+}
+
+void FActorBrowsingMode::OnToggleHideLevelInstanceHierarchy()
+{
+	bHideLevelInstanceHierarchy = !bHideLevelInstanceHierarchy;
+
+	FActorBrowsingModeConfig* Settings = GetMutableConfig();
+	if (Settings)
+	{
+		Settings->bHideLevelInstanceHierarchy = bHideLevelInstanceHierarchy;
+
+		SaveConfig();
+	}
+
+	if (auto ActorHierarchy = StaticCast<FActorHierarchy*>(Hierarchy.Get()))
+	{
+		ActorHierarchy->SetShowingLevelInstances(!bHideLevelInstanceHierarchy);
+	}
+
+	SceneOutliner->FullRefresh();
+}
+
+bool FActorBrowsingMode::ShouldHideLevelInstanceHierarchy() const
+{
+	const FActorBrowsingModeConfig* Settings = GetConstConfig();
+	if (Settings)
+	{
+		return Settings->bHideLevelInstanceHierarchy;
+	}
+
+	return false;
+}
+
+void FActorBrowsingMode::InitializeViewMenuExtender(TSharedPtr<FExtender> Extender)
+{
+	FActorModeInteractive::InitializeViewMenuExtender(Extender);
+	
+	Extender->AddMenuExtension(SceneOutliner::ExtensionHooks::Show, EExtensionHook::First, nullptr, FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
+	{
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("ToggleHideTemporaryActors", "Hide Temporary Actors"),
+			LOCTEXT("ToggleHideTemporaryActorsToolTip", "When enabled, hides temporary/run-time Actors."),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateRaw(this, &FActorBrowsingMode::OnToggleHideTemporaryActors),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateRaw(this, &FActorBrowsingMode::ShouldHideTemporaryActors)
+			),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton
+		);
+
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("ToggleHideLevelInstanceContent", "Hide Level Instance Content"),
+			LOCTEXT("ToggleHideLevelInstancesToolTip", "When enabled, hides all level instance content."),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateRaw(this, &FActorBrowsingMode::OnToggleHideLevelInstanceHierarchy),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateRaw(this, &FActorBrowsingMode::ShouldHideLevelInstanceHierarchy)
+			),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton
+		);
+	}));
+
+	Extender->AddMenuExtension(SceneOutliner::ExtensionHooks::Show, EExtensionHook::After, nullptr, FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
+	{
+		MenuBuilder.BeginSection("OutlinerSelectionOptions", LOCTEXT("OptionsHeading", "Options"));
+
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("AlwaysFrameSelectionLabel", "Always Frame Selection"),
+			LOCTEXT("AlwaysFrameSelectionTooltip", "When enabled, selecting an Actor in the Viewport also scrolls to that Actor in the Outliner."),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateRaw(this, &FActorBrowsingMode::OnToggleAlwaysFrameSelection),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateRaw(this, &FActorBrowsingMode::ShouldAlwaysFrameSelection)
+			),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton
+		);
+
+		MenuBuilder.EndSection();
+
+		MenuBuilder.BeginSection("World", LOCTEXT("ShowWorldHeading", "World"));
+		
 		MenuBuilder.AddSubMenu(
 			LOCTEXT("ChooseWorldSubMenu", "Choose World"),
 			LOCTEXT("ChooseWorldSubMenuToolTip", "Choose the world to display in the outliner."),
 			FNewMenuDelegate::CreateRaw(this, &FActorMode::BuildWorldPickerMenu)
 		);
-	}
-	MenuBuilder.EndSection();
+		
+		MenuBuilder.EndSection();
+	}));
 }
 
 TSharedRef<FSceneOutlinerFilter> FActorBrowsingMode::CreateShowOnlySelectedActorsFilter()
@@ -477,14 +539,6 @@ TSharedRef<FSceneOutlinerFilter> FActorBrowsingMode::CreateShowOnlySelectedActor
 		return InActor && InActor->IsSelected();
 	};
 	return MakeShareable(new FActorFilter(FActorTreeItem::FFilterPredicate::CreateStatic(IsActorSelected), FSceneOutlinerFilter::EDefaultBehaviour::Fail, FActorTreeItem::FFilterPredicate::CreateStatic(IsActorSelected)));
-}
-
-TSharedRef<FSceneOutlinerFilter> FActorBrowsingMode::CreateHideTemporaryActorsFilter()
-{
-	return MakeShareable(new FActorFilter(FActorTreeItem::FFilterPredicate::CreateStatic([](const AActor* InActor)
-		{
-			return ((InActor->GetWorld() && InActor->GetWorld()->WorldType != EWorldType::PIE) || GEditor->ObjectsThatExistInEditorWorld.Get(InActor)) && !InActor->HasAnyFlags(EObjectFlags::RF_Transient);
-		}), FSceneOutlinerFilter::EDefaultBehaviour::Pass));
 }
 
 TSharedRef<FSceneOutlinerFilter> FActorBrowsingMode::CreateIsInCurrentLevelFilter()
@@ -567,26 +621,6 @@ TSharedRef<FSceneOutlinerFilter> FActorBrowsingMode::CreateHideComponentsFilter(
 	return MakeShared<TSceneOutlinerPredicateFilter<FComponentTreeItem>>(TSceneOutlinerPredicateFilter<FComponentTreeItem>(
 		FComponentTreeItem::FFilterPredicate::CreateStatic([](const UActorComponent*) { return false; }),
 		FSceneOutlinerFilter::EDefaultBehaviour::Pass));
-}
-
-TSharedRef<FSceneOutlinerFilter> FActorBrowsingMode::CreateHideLevelInstancesFilter()
-{
-	return MakeShareable(new FActorFilter(FActorTreeItem::FFilterPredicate::CreateStatic([](const AActor* Actor)
-		{
-			// Check if actor belongs to a LevelInstance
-			if (const ULevelInstanceSubsystem* LevelInstanceSubsystem = Actor->GetWorld()->GetSubsystem<ULevelInstanceSubsystem>())
-			{
-				if (const ILevelInstanceInterface* ParentLevelInstance = LevelInstanceSubsystem->GetParentLevelInstance(Actor))
-				{
-					if (!LevelInstanceSubsystem->IsEditingLevelInstance(ParentLevelInstance))
-					{
-						return false;
-					}
-				}
-			}
-			// Or if the actor itself is a LevelInstance editor instance
-			return Cast<ALevelInstanceEditorInstanceActor>(Actor) == nullptr;
-		}), FSceneOutlinerFilter::EDefaultBehaviour::Pass));
 }
 
 TSharedRef<FSceneOutlinerFilter> FActorBrowsingMode::CreateHideUnloadedActorsFilter()

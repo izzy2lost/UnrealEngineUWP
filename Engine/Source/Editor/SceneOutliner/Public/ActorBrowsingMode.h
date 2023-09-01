@@ -16,7 +16,7 @@ public:
 	/* Begin ISceneOutlinerMode Interface */
 	SCENEOUTLINER_API virtual void Rebuild() override;
 	SCENEOUTLINER_API virtual FCreateSceneOutlinerMode CreateFolderPickerMode(const FFolder::FRootObject& InRootObject = FFolder::GetInvalidRootObject()) const override;
-	SCENEOUTLINER_API virtual void CreateViewContent(FMenuBuilder& MenuBuilder) override;
+	SCENEOUTLINER_API virtual void InitializeViewMenuExtender(TSharedPtr<FExtender> Extender) override;
 	SCENEOUTLINER_API virtual TSharedPtr<FDragDropOperation> CreateDragDropOperation(const FPointerEvent& MouseEvent, const TArray<FSceneOutlinerTreeItemPtr>& InTreeItems) const override;
 	SCENEOUTLINER_API virtual bool ParseDragDrop(FSceneOutlinerDragDropPayload& OutPayload, const FDragDropOperation& Operation) const override;
 	SCENEOUTLINER_API virtual FSceneOutlinerDragValidationInfo ValidateDrop(const ISceneOutlinerTreeItem& DropTarget, const FSceneOutlinerDragDropPayload& Payload) const override;
@@ -124,18 +124,22 @@ private:
 
 	/** Filter factories */
 	static TSharedRef<FSceneOutlinerFilter> CreateShowOnlySelectedActorsFilter();
-	static TSharedRef<FSceneOutlinerFilter> CreateHideTemporaryActorsFilter();
 	static TSharedRef<FSceneOutlinerFilter> CreateIsInCurrentLevelFilter();
 	static TSharedRef<FSceneOutlinerFilter> CreateIsInCurrentDataLayersFilter();
 	static TSharedRef<FSceneOutlinerFilter> CreateHideComponentsFilter();
-	static TSharedRef<FSceneOutlinerFilter> CreateHideLevelInstancesFilter();
 	static TSharedRef<FSceneOutlinerFilter> CreateHideUnloadedActorsFilter();
 	static TSharedRef<FSceneOutlinerFilter> CreateHideEmptyFoldersFilter();
 	TSharedRef<FSceneOutlinerFilter> CreateIsInCurrentContentBundleFilter();
 
 	/** Functions to expose selection framing to the UI */
 	void OnToggleAlwaysFrameSelection();
-	bool ShouldAlwaysFrameSelection();
+	bool ShouldAlwaysFrameSelection() const;
+
+	void OnToggleHideTemporaryActors();
+	bool ShouldHideTemporaryActors() const;
+
+	void OnToggleHideLevelInstanceHierarchy();
+	bool ShouldHideLevelInstanceHierarchy() const;
 
 	/**
 	 * Get a mutable version of the ActorBrowser config for setting values.

@@ -37,6 +37,9 @@ public:
 	/** Fill the view button menu with content */
 	virtual void CreateViewContent(FMenuBuilder& MenuBuilder) {}
 
+	/** Allows extending SceneOutliner View Button MenuBuilder (allows using ExtensionHooks which isn't possible with CreateViewContent override) */
+	virtual void InitializeViewMenuExtender(TSharedPtr<FExtender> Extender) { }
+
 	/** Returns a factory to create a Folder Picker mode which matches this mode */
 	virtual FCreateSceneOutlinerMode CreateFolderPickerMode(const FFolder::FRootObject& InRootObject = FFolder::GetInvalidRootObject()) const { return FCreateSceneOutlinerMode(); }
 public:

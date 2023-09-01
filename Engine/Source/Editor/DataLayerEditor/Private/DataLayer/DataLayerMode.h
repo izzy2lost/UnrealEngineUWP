@@ -73,7 +73,7 @@ public:
 
 	virtual void Rebuild() override;
 	virtual TSharedPtr<SWidget> CreateContextMenu() override;
-	virtual void CreateViewContent(FMenuBuilder& MenuBuilder) override;
+	virtual void InitializeViewMenuExtender(TSharedPtr<FExtender> Extender) override;
 	virtual int32 GetTypeSortPriority(const ISceneOutlinerTreeItem& Item) const override;
 	virtual ESelectionMode::Type GetSelectionMode() const override { return ESelectionMode::Multi; }
 	virtual bool SupportsKeyboardFocus() const override { return true; }

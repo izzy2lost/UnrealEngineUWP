@@ -70,7 +70,7 @@ public:
 
 	virtual int32 GetTypeSortPriority(const ISceneOutlinerTreeItem& Item) const override;
 
-	static bool IsActorDisplayable(const SSceneOutliner* SceneOutliner, const AActor* Actor);
+	static bool IsActorDisplayable(const SSceneOutliner* SceneOutliner, const AActor* Actor, bool bShowLevelInstanceContent = false);
 	static bool IsActorLevelDisplayable(ULevel* InLevel);
 
 	virtual FFolder::FRootObject GetRootObject() const override;

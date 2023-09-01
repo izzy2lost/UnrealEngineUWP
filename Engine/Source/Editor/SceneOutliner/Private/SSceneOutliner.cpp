@@ -609,9 +609,11 @@ FSlateColor SSceneOutliner::GetViewButtonForegroundColor() const
 TSharedRef<SWidget> SSceneOutliner::GetViewButtonContent(bool bShowFilters)
 {
 	// Menu should stay open on selection if filters are not being shown
-	FMenuBuilder MenuBuilder(bShowFilters, NULL);
+	TSharedPtr<FExtender> MenuExtender = MakeShared<FExtender>();
+	Mode->InitializeViewMenuExtender(MenuExtender);
+	FMenuBuilder MenuBuilder(bShowFilters, nullptr, MenuExtender);
 
-	MenuBuilder.BeginSection("OutlinerSettings", LOCTEXT("HierarchyHeading", "Hierarchy"));
+	MenuBuilder.BeginSection(SceneOutliner::ExtensionHooks::Hierarchy, LOCTEXT("HierarchyHeading", "Hierarchy"));
 	{
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("ExpandAll", "Expand All"),
@@ -642,7 +644,7 @@ TSharedRef<SWidget> SSceneOutliner::GetViewButtonContent(bool bShowFilters)
 
 	if (bShowFilters)
 	{
-		MenuBuilder.BeginSection("AssetThumbnails", LOCTEXT("ShowHeading", "Show"));
+		MenuBuilder.BeginSection(SceneOutliner::ExtensionHooks::Show, LOCTEXT("ShowHeading", "Show"));
 		{
 			// Add mode filters
 			for (auto& ModeFilterInfo : Mode->GetFilterInfos())

@@ -210,41 +210,29 @@ FDataLayerMode::FDataLayerMode(const FDataLayerModeParams& Params)
 	});
 	FilterInfoMap.Add(TEXT("HideUnloadedActorsFilter"), HideUnloadedActorsInfo);
 
-	SceneOutliner->AddFilter(MakeShared<TSceneOutlinerPredicateFilter<FDataLayerActorTreeItem>>(FDataLayerActorTreeItem::FFilterPredicate::CreateLambda([this](const AActor* Actor, const UDataLayerInstance* DataLayer)
-	{
-		return FActorMode::IsActorDisplayable(SceneOutliner, Actor);
-	}), FSceneOutlinerFilter::EDefaultBehaviour::Pass));
-
-	FSceneOutlinerFilterInfo HideLevelInstancesInfo(LOCTEXT("ToggleHideLevelInstanceContent", "Hide Level Instance Content"), LOCTEXT("ToggleHideLevelInstanceContentToolTip", "When enabled, hides all level instance content."), bHideLevelInstanceContent, FCreateSceneOutlinerFilter::CreateStatic(&FDataLayerMode::CreateHideLevelInstancesFilter));
-	HideLevelInstancesInfo.OnToggle().AddLambda([this](bool bIsActive)
-	{
-		UWorldPartitionEditorPerProjectUserSettings* Settings = GetMutableDefault<UWorldPartitionEditorPerProjectUserSettings>();
-		Settings->bHideLevelInstanceContent = bHideLevelInstanceContent = bIsActive;
-		Settings->PostEditChange();
-
-		if (auto DataLayerHierarchy = StaticCast<FDataLayerHierarchy*>(Hierarchy.Get()))
+		
+	// Add a an actor filter and interactive filter which sets the interactive mode of LevelInstance items and their children
+	SceneOutliner->AddFilter(MakeShared<FDataLayerActorFilter>(
+		FDataLayerActorTreeItem::FFilterPredicate::CreateLambda([this](const AActor* Actor, const UDataLayerInstance* DataLayer) 
 		{
-			DataLayerHierarchy->SetShowLevelInstanceContent(!bIsActive);
-		}
-	});
-	FilterInfoMap.Add(TEXT("HideLevelInstancesFilter"), HideLevelInstancesInfo);
-
-	// Add a filter which sets the interactive mode of LevelInstance items and their children
-	SceneOutliner->AddFilter(MakeShared<FDataLayerActorFilter>(FDataLayerActorTreeItem::FFilterPredicate::CreateStatic([](const AActor* Actor, const UDataLayerInstance* DataLayer) {return true; }), FSceneOutlinerFilter::EDefaultBehaviour::Pass, FDataLayerActorTreeItem::FFilterPredicate::CreateLambda([this](const AActor* Actor, const UDataLayerInstance* DataLayer)
-	{
-		if (!bHideLevelInstanceContent)
+			return FActorMode::IsActorDisplayable(SceneOutliner, Actor, !bHideLevelInstanceContent);
+		}), 
+		FSceneOutlinerFilter::EDefaultBehaviour::Pass, 
+		FDataLayerActorTreeItem::FInteractivePredicate::CreateLambda([this](const AActor* Actor, const UDataLayerInstance* DataLayer)
 		{
-			if (const ULevelInstanceSubsystem* LevelInstanceSubsystem = UWorld::GetSubsystem<ULevelInstanceSubsystem>(RepresentingWorld.Get()))
+			if (!bHideLevelInstanceContent)
 			{
-				const ILevelInstanceInterface* ParentLevelInstance = LevelInstanceSubsystem->GetParentLevelInstance(Actor);
-				if (ParentLevelInstance && !LevelInstanceSubsystem->IsEditingLevelInstance(ParentLevelInstance))
+				if (const ULevelInstanceSubsystem* LevelInstanceSubsystem = UWorld::GetSubsystem<ULevelInstanceSubsystem>(RepresentingWorld.Get()))
 				{
-					return false;
+					const ILevelInstanceInterface* ParentLevelInstance = LevelInstanceSubsystem->GetParentLevelInstance(Actor);
+					if (ParentLevelInstance && !LevelInstanceSubsystem->IsEditingLevelInstance(ParentLevelInstance))
+					{
+						return false;
+					}
 				}
 			}
-		}
-		return true;
-	})));
+			return true;
+		})));
 
 	DataLayerEditorSubsystem = UDataLayerEditorSubsystem::Get();
 	Rebuild();
@@ -275,26 +263,6 @@ TSharedRef<FSceneOutlinerFilter> FDataLayerMode::CreateHideDataLayerActorsFilter
 TSharedRef<FSceneOutlinerFilter> FDataLayerMode::CreateHideUnloadedActorsFilter()
 {
 	return MakeShareable(new FActorDescFilter(FActorDescTreeItem::FFilterPredicate::CreateStatic([](const FWorldPartitionActorDesc* ActorDesc) { return true; }), FSceneOutlinerFilter::EDefaultBehaviour::Pass));
-}
-
-TSharedRef<FSceneOutlinerFilter> FDataLayerMode::CreateHideLevelInstancesFilter()
-{
-	return MakeShareable(new FDataLayerActorFilter(FDataLayerActorTreeItem::FFilterPredicate::CreateStatic([](const AActor* Actor, const UDataLayerInstance* DataLayerInstance)
-	{
-		// Check if actor belongs to a LevelInstance
-		if (const ULevelInstanceSubsystem* LevelInstanceSubsystem = Actor->GetWorld()->GetSubsystem<ULevelInstanceSubsystem>())
-		{
-			if (const ILevelInstanceInterface* ParentLevelInstance = LevelInstanceSubsystem->GetParentLevelInstance(Actor))
-			{
-				if (!LevelInstanceSubsystem->IsEditingLevelInstance(ParentLevelInstance))
-				{
-					return false;
-				}
-			}
-		}
-		// Or if the actor itself is a LevelInstance editor instance
-		return !Actor->IsA<ALevelInstanceEditorInstanceActor>();
-	}), FSceneOutlinerFilter::EDefaultBehaviour::Pass));
 }
 
 int32 FDataLayerMode::GetTypeSortPriority(const ISceneOutlinerTreeItem& Item) const
@@ -1718,14 +1686,42 @@ TSharedPtr<SWidget> FDataLayerMode::CreateContextMenu()
 	return nullptr;
 }
 
-void FDataLayerMode::CreateViewContent(FMenuBuilder& MenuBuilder)
+void FDataLayerMode::InitializeViewMenuExtender(TSharedPtr<FExtender> Extender)
 {
-	MenuBuilder.AddMenuEntry(
-		LOCTEXT("ToggleHighlightSelectedDataLayers", "Highlight Selected"),
-		LOCTEXT("ToggleHighlightSelectedDataLayersToolTip", "When enabled, highlights Data Layers containing actors that are currently selected."),
-		FSlateIcon(),
-		FUIAction(
-			FExecuteAction::CreateLambda([this]()
+	Extender->AddMenuExtension(SceneOutliner::ExtensionHooks::Show, EExtensionHook::First, nullptr, FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
+	{
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("ToggleHideLevelInstanceContent", "Hide Level Instance Content"),
+			LOCTEXT("ToggleHideLevelInstanceContentToolTip", "When enabled, hides all level instance content."),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateLambda([this]()
+			{
+				UWorldPartitionEditorPerProjectUserSettings* Settings = GetMutableDefault<UWorldPartitionEditorPerProjectUserSettings>();
+				bHideLevelInstanceContent = !bHideLevelInstanceContent;
+				Settings->bHideLevelInstanceContent = bHideLevelInstanceContent;
+				Settings->PostEditChange();
+
+				if (auto DataLayerHierarchy = StaticCast<FDataLayerHierarchy*>(Hierarchy.Get()))
+				{
+					DataLayerHierarchy->SetShowLevelInstanceContent(!bHideLevelInstanceContent);
+				}
+
+				SceneOutliner->FullRefresh();
+			}),
+			FCanExecuteAction(),
+			FIsActionChecked::CreateLambda([this]() { return bHideLevelInstanceContent; })),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton
+		);
+	}));
+
+	Extender->AddMenuExtension(SceneOutliner::ExtensionHooks::Show, EExtensionHook::After, nullptr, FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
+	{
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("ToggleHighlightSelectedDataLayers", "Highlight Selected"),
+			LOCTEXT("ToggleHighlightSelectedDataLayersToolTip", "When enabled, highlights Data Layers containing actors that are currently selected."),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateLambda([this]()
 			{
 				UWorldPartitionEditorPerProjectUserSettings* Settings = GetMutableDefault<UWorldPartitionEditorPerProjectUserSettings>();
 				bHighlightSelectedDataLayers = !bHighlightSelectedDataLayers;
@@ -1738,21 +1734,19 @@ void FDataLayerMode::CreateViewContent(FMenuBuilder& MenuBuilder)
 				}
 
 				SceneOutliner->FullRefresh();
-			}), 
+			}),
 			FCanExecuteAction(),
-			FIsActionChecked::CreateLambda([this]() { return bHighlightSelectedDataLayers; })
-		),
-		NAME_None,
-		EUserInterfaceActionType::ToggleButton
-	);
+			FIsActionChecked::CreateLambda([this]() { return bHighlightSelectedDataLayers; })),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton
+		);
 
-	MenuBuilder.BeginSection("AssetThumbnails", LOCTEXT("ShowAdvancedHeading", "Advanced"));
-	MenuBuilder.AddMenuEntry(
-		LOCTEXT("ToggleAllowRuntimeDataLayerEditing", "Allow Runtime Data Layer Editing"), 
-		LOCTEXT("ToggleAllowRuntimeDataLayerEditingToolTip", "When enabled, allows editing of Runtime Data Layers."),
-		FSlateIcon(),
-		FUIAction(
-			FExecuteAction::CreateLambda([this]()
+		MenuBuilder.BeginSection("Advanced", LOCTEXT("ShowAdvancedHeading", "Advanced"));
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("ToggleAllowRuntimeDataLayerEditing", "Allow Runtime Data Layer Editing"),
+			LOCTEXT("ToggleAllowRuntimeDataLayerEditingToolTip", "When enabled, allows editing of Runtime Data Layers."),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateLambda([this]()
 			{
 				if (AWorldDataLayers* WorldDataLayers = RepresentingWorld.IsValid() ? RepresentingWorld->GetWorldDataLayers() : nullptr)
 				{
@@ -1766,44 +1760,43 @@ void FDataLayerMode::CreateViewContent(FMenuBuilder& MenuBuilder)
 			{
 				const AWorldDataLayers* WorldDataLayers = RepresentingWorld.IsValid() ? RepresentingWorld->GetWorldDataLayers() : nullptr;
 				return WorldDataLayers ? WorldDataLayers->GetAllowRuntimeDataLayerEditing() : true;
-			})
-		),
-		NAME_None,
-		EUserInterfaceActionType::ToggleButton
-	);
+			})),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton
+		);
 
-	TArray<UDataLayerInstance*> AllDataLayers;
-	if (const UDataLayerManager* DataLayerManager = UDataLayerManager::GetDataLayerManager(GetOwningWorld()))
-	{
-		DataLayerManager->ForEachDataLayerInstance([&AllDataLayers](UDataLayerInstance* DataLayer)
+		TArray<UDataLayerInstance*> AllDataLayers;
+		if (const UDataLayerManager* DataLayerManager = UDataLayerManager::GetDataLayerManager(GetOwningWorld()))
 		{
-			AllDataLayers.Add(DataLayer);
-			return true;
-		});
-	}
+			DataLayerManager->ForEachDataLayerInstance([&AllDataLayers](UDataLayerInstance* DataLayer)
+			{
+				AllDataLayers.Add(DataLayer);
+				return true;
+			});
+		}
 
-	MenuBuilder.AddMenuEntry(
-		LOCTEXT("ResetDataLayerUserSettings", "Reset User Settings"),
-		LOCTEXT("ResetDataLayerUserSettingsToolTip", "Resets Data Layers User Settings to their initial values."),
-		FSlateIcon(),
-		FUIAction(
-			FExecuteAction::CreateLambda([this]()
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("ResetDataLayerUserSettings", "Reset User Settings"),
+			LOCTEXT("ResetDataLayerUserSettingsToolTip", "Resets Data Layers User Settings to their initial values."),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateLambda([this]()
 			{
 				const FScopedTransaction Transaction(LOCTEXT("ResetDataLayerUserSettings", "Reset User Settings"));
 				DataLayerEditorSubsystem->ResetUserSettings();
-			})
-		)
-	);
+			}))
+		);
 
-	MenuBuilder.EndSection();
+		MenuBuilder.EndSection();
 
-	MenuBuilder.BeginSection("AssetThumbnails", LOCTEXT("ShowWorldHeading", "World"));
-	MenuBuilder.AddSubMenu(
-		LOCTEXT("ChooseWorldSubMenu", "Choose World"),
-		LOCTEXT("ChooseWorldSubMenuToolTip", "Choose the world to display in the outliner."),
-		FNewMenuDelegate::CreateRaw(this, &FDataLayerMode::BuildWorldPickerMenu)
-	);
-	MenuBuilder.EndSection();
+		MenuBuilder.BeginSection("World", LOCTEXT("ShowWorldHeading", "World"));
+
+		MenuBuilder.AddSubMenu(
+			LOCTEXT("ChooseWorldSubMenu", "Choose World"),
+			LOCTEXT("ChooseWorldSubMenuToolTip", "Choose the world to display in the outliner."),
+			FNewMenuDelegate::CreateRaw(this, &FDataLayerMode::BuildWorldPickerMenu)
+		);
+		MenuBuilder.EndSection();
+	}));
 }
 
 void FDataLayerMode::BuildWorldPickerMenu(FMenuBuilder& MenuBuilder)

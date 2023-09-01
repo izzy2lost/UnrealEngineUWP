@@ -331,7 +331,7 @@ void FActorMode::SynchronizeActorSelection()
 
 bool FActorMode::IsActorDisplayable(const AActor* Actor) const
 {
-	return FActorMode::IsActorDisplayable(SceneOutliner, Actor);
+	return FActorMode::IsActorDisplayable(SceneOutliner, Actor, !bHideLevelInstanceHierarchy);
 }
 
 FFolder::FRootObject FActorMode::GetRootObject() const
@@ -348,19 +348,36 @@ FFolder::FRootObject FActorMode::GetPasteTargetRootObject() const
 	return FFolder::GetInvalidRootObject();
 }
 
-bool FActorMode::IsActorDisplayable(const SSceneOutliner* SceneOutliner, const AActor* Actor)
+bool FActorMode::IsActorDisplayable(const SSceneOutliner* SceneOutliner, const AActor* Actor, bool bShowLevelInstanceContent)
 {
-	return Actor &&
-		!SceneOutliner->GetSharedData().bOnlyShowFolders && 									// Don't show actors if we're only showing folders
-		Actor->IsEditable() &&																	// Only show actors that are allowed to be selected and drawn in editor
-		Actor->IsListedInSceneOutliner() &&
-		(((Actor->GetWorld() && Actor->GetWorld()->IsPlayInEditor()) || !Actor->HasAnyFlags(RF_Transient)) ||
-		(SceneOutliner->GetSharedData().bShowTransient && Actor->HasAnyFlags(RF_Transient))) &&	// Don't show transient actors in non-play worlds
-		!Actor->IsTemplate() &&																	// Should never happen, but we never want CDOs displayed
-		!FActorEditorUtils::IsABuilderBrush(Actor) &&											// Don't show the builder brush
-		!Actor->IsA(AWorldSettings::StaticClass()) &&											// Don't show the WorldSettings actor, even though it is technically editable
-		IsValidChecked(Actor) &&																// We don't want to show actors that are about to go away
-		FLevelUtils::IsLevelVisible(Actor->GetLevel());											// Only show Actors whose level is visible
+	bool bIsActorDisplayable =	Actor &&
+								!SceneOutliner->GetSharedData().bOnlyShowFolders &&		// Don't show actors if we're only showing folders
+								Actor->IsEditable() &&									// Only show actors that are allowed to be selected and drawn in editor
+								Actor->IsListedInSceneOutliner();
+	
+	if(bIsActorDisplayable)
+	{
+		if (Actor->HasAnyFlags(RF_Transient))
+		{
+			// Level Instance transient actors are shown based on passed in bShowLevelInstanceContent flag
+			if (Actor->IsInLevelInstance())
+			{
+				bIsActorDisplayable = bShowLevelInstanceContent;
+			}
+			else
+			{
+				// Don't show transient actors in non-play worlds, except if bShowTransient is true
+				bIsActorDisplayable = SceneOutliner->GetSharedData().bShowTransient || (Actor->GetWorld() && Actor->GetWorld()->IsPlayInEditor());
+			}
+		}
+	}
+
+	return	bIsActorDisplayable &&																	// Previous results
+			!Actor->IsTemplate() &&																	// Should never happen, but we never want CDOs displayed
+			!FActorEditorUtils::IsABuilderBrush(Actor) &&											// Don't show the builder brush
+			!Actor->IsA(AWorldSettings::StaticClass()) &&											// Don't show the WorldSettings actor, even though it is technically editable
+			IsValidChecked(Actor) &&																// We don't want to show actors that are about to go away
+			FLevelUtils::IsLevelVisible(Actor->GetLevel());											// Only show Actors whose level is visible
 }
 
 bool FActorMode::CanInteract(const ISceneOutlinerTreeItem& Item) const

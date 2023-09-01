@@ -82,6 +82,12 @@ namespace SceneOutliner
 			Rename = 1 << 2,
 		};
 	}
+
+	namespace ExtensionHooks
+	{
+		static FName Hierarchy(TEXT("Hierarchy"));
+		static FName Show(TEXT("Show"));
+	}
 }
 
 /**
@@ -509,6 +515,9 @@ public:
 
 	/** Get the unique identifier associated with this outliner */
 	FName GetOutlinerIdentifier() const { return OutlinerIdentifier; }
+
+	/** Toggle if SceneOutliner should show Transient objects */
+	void SetShowTransient(bool bInShowTransient) { SharedData.Get()->bShowTransient = bInShowTransient; }
 
 private:
 	/** Methods that implement structural modification logic for the tree */
