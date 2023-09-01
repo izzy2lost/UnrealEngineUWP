@@ -8,6 +8,7 @@
 #include "WorldPartition/DataLayer/ActorDataLayer.h"
 #include "WorldPartition/DataLayer/DataLayerInstance.h"
 #include "WorldPartition/DataLayer/DataLayer.h"
+#include "Net/Core/PushModel/PushModel.h"
 #include "Engine/World.h"
 #include "WorldDataLayers.generated.h"
 
@@ -296,11 +297,14 @@ DataLayerInstanceType* AWorldDataLayers::CreateDataLayer(CreationsArgs... InCrea
 	return NewDataLayer;
 }
 
+//todo_ow: Remove this
 template<class IdentifierType>
 void AWorldDataLayers::OverwriteDataLayerRuntimeStates(const TArray<IdentifierType>* InActiveDataLayers, const TArray<IdentifierType>* InLoadedDataLayers)
 {
 	if (GetLocalRole() == ROLE_Authority)
 	{
+		FlushNetDormancy();
+
 		// This should get called before game starts. It doesn't send out events
 		check(!GetWorld()->bMatchStarted);
 
@@ -317,6 +321,7 @@ void AWorldDataLayers::OverwriteDataLayerRuntimeStates(const TArray<IdentifierTy
 					ActiveDataLayerNames.Add(DataLayerInstance->GetDataLayerFName());
 				}
 			}
+			MARK_PROPERTY_DIRTY_FROM_NAME(AWorldDataLayers, RepActiveDataLayerNames, this);
 			RepActiveDataLayerNames = ActiveDataLayerNames.Array();
 		}
 		
@@ -334,6 +339,7 @@ void AWorldDataLayers::OverwriteDataLayerRuntimeStates(const TArray<IdentifierTy
 					LoadedDataLayerNames.Add(DataLayerInstance->GetDataLayerFName());
 				}
 			}
+			MARK_PROPERTY_DIRTY_FROM_NAME(AWorldDataLayers, RepLoadedDataLayerNames, this);
 			RepLoadedDataLayerNames = LoadedDataLayerNames.Array();
 		}
 
@@ -346,7 +352,9 @@ void AWorldDataLayers::OverwriteDataLayerRuntimeStates(const TArray<IdentifierTy
 			return true;
 		});
 
+		MARK_PROPERTY_DIRTY_FROM_NAME(AWorldDataLayers, RepEffectiveActiveDataLayerNames, this);
 		RepEffectiveActiveDataLayerNames = EffectiveActiveDataLayerNames.Array();
+		MARK_PROPERTY_DIRTY_FROM_NAME(AWorldDataLayers, RepEffectiveLoadedDataLayerNames, this);
 		RepEffectiveLoadedDataLayerNames = EffectiveLoadedDataLayerNames.Array();
 	}
 }
