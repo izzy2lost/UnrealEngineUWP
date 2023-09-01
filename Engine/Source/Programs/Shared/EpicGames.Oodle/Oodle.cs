@@ -269,15 +269,32 @@ namespace EpicGames.Compression
 							throw new PlatformNotSupportedException($"Oodle support is not currently implemented for {RuntimeInformation.RuntimeIdentifier}");
 					}
 				}
+				else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+				{
+					switch (RuntimeInformation.ProcessArchitecture)
+					{
+						case Architecture.X64:
+							assemblyFilename = "liboo2coremac64.2.9.10.dylib";
+							break;
+						case Architecture.Arm64:
+							assemblyFilename = "liboo2coremac64.2.9.10.dylib";
+							break;
+						default:
+							throw new PlatformNotSupportedException($"Oodle support is not currently implemented for {RuntimeInformation.RuntimeIdentifier}");
+					}
+				}
 				else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
 				{
 					switch (RuntimeInformation.ProcessArchitecture)
 					{
-						case Architecture.X86:
-							assemblyFilename = "liboo2corelinux.so.9";
-							break;
 						case Architecture.X64:
 							assemblyFilename = "liboo2corelinux64.so.9";
+							break;
+						case Architecture.Arm:
+							assemblyFilename = "liboo2corelinuxarm32.so.9";
+							break;
+						case Architecture.Arm64:
+							assemblyFilename = "liboo2corelinuxarm64.so.9";
 							break;
 						default:
 							throw new PlatformNotSupportedException($"Oodle support is not currently implemented for {RuntimeInformation.RuntimeIdentifier}");
