@@ -4,7 +4,6 @@
 #include "CoreMinimal.h"
 #include "Containers/SparseArray.h"
 #include "Containers/ArrayView.h"
-#include "Containers/BinaryHeap.h"
 #include "Containers/Array.h"
 #include "Tasks/Task.h"
 
@@ -97,16 +96,10 @@ public:
 		return RendererSetupTask;
 	}
 
-	bool IsUsingNewDistantInvalidationLogic() const { return bShouldUseNewDistantInvalidationLogic; }
 private:
 	UE::Tasks::FTask RendererSetupTask;
 
 	FVirtualShadowMapProjectionShaderData GetLocalLightProjectionShaderData(float ResolutionLODBiasLocal, const FProjectedShadowInfo* ProjectedShadowInfo, int32 MapIndex) const;
-
-	/**
-	 * Select the budgeted set of distant lights to update this frame.
-	 */
-	void UpdateDistantLightPriorityRender();
 
 	struct FLocalLightShadowFrameSetup
 	{
@@ -126,9 +119,6 @@ private:
 	};
 	TArray<FDirectionalLightShadowFrameSetup, SceneRenderingAllocator> DirectionalLights;
 
-	// Priority queue of distant lights to update.
-	FBinaryHeap<int32, uint32> DistantLightUpdateQueue;
-
 	// One pass projection stuff. Set up in RenderVitualShadowMapProjectionMaskBits
 	bool bShouldUseVirtualShadowMapOnePassProjection = false;
 
@@ -141,6 +131,4 @@ private:
 	FNaniteVisibilityQuery* NaniteVisibilityQuery = nullptr;
 	Nanite::FPackedViewArray* VirtualShadowMapViews = nullptr;
 	FSceneInstanceCullingQuery *SceneInstanceCullingQuery = nullptr;
-
-	bool bShouldUseNewDistantInvalidationLogic = true;
 };

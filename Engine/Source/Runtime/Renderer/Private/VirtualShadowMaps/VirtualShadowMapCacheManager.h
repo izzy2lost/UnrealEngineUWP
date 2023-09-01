@@ -188,9 +188,24 @@ struct FPhysicalPageMetaData
 	FUintPoint PageAddress;
 };
 
+struct FVirtualShadowMapCacheKey
+{
+	uint32 ViewUniqueID;
+	uint32 LightSceneId;
+
+	inline bool operator==(const FVirtualShadowMapCacheKey& Other) const { return ViewUniqueID == Other.ViewUniqueID && Other.LightSceneId == LightSceneId; }
+};
+
+inline uint32 GetTypeHash(FVirtualShadowMapCacheKey Key)
+{
+	return GetTypeHash(Key.LightSceneId) ^ GetTypeHash(Key.ViewUniqueID);
+}
+
 class FVirtualShadowMapArrayCacheManager
 {
 public:
+	using FEntryMap = TMap< FVirtualShadowMapCacheKey, TSharedPtr<FVirtualShadowMapPerLightCacheEntry> >;
+
 	FVirtualShadowMapArrayCacheManager(FScene *InScene);
 	~FVirtualShadowMapArrayCacheManager();
 
@@ -235,11 +250,6 @@ public:
 	 * Finds an existing cache entry and moves to the active set or creates a fresh one.
 	 */
 	TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FindCreateLightCacheEntry(int32 LightSceneId, uint32 ViewUniqueID, uint32 NumShadowMaps);
-
-	/**
-	 * Finds an existing cache entry, returns null if none exists.
-	 */
-	TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FindLightCacheEntry(int32 LightSceneId, uint32 ViewUniqueID);
 
 	bool IsCacheEnabled();
 	bool IsCacheDataAvailable();
@@ -328,6 +338,16 @@ public:
 
 	float GetGlobalResolutionLodBias() const { return GlobalResolutionLodBias; }
 
+	inline FEntryMap::TIterator CreateEntryIterator()
+	{
+		return CacheEntries.CreateIterator();
+	}
+
+	inline FEntryMap::TConstIterator CreateConstEntryIterator() const
+	{
+		return CacheEntries.CreateConstIterator();
+	}
+
 private:
 	// Invalidate the cache for all shadows, causing any pages to be rerendered
 	void Invalidate(FRDGBuilder& GraphBuilder);
@@ -366,7 +386,7 @@ private:
 	uint32 MaxPhysicalPages = 0;
 
 	// Index the Cache entries by the light ID
-	TMap< uint64, TSharedPtr<FVirtualShadowMapPerLightCacheEntry> > CacheEntries;
+	FEntryMap CacheEntries;
 
 	// Tracks primitives (by persistent primitive index) that have been removed recently
 	// This allows us to ignore feedback from previous frames in the case of persistent primitive indices being

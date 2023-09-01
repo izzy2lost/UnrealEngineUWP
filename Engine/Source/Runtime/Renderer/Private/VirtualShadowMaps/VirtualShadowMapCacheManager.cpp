@@ -811,7 +811,7 @@ bool FVirtualShadowMapArrayCacheManager::IsHZBDataAvailable()
 TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FVirtualShadowMapArrayCacheManager::FindCreateLightCacheEntry(
 	int32 LightSceneId, uint32 ViewUniqueID, uint32 NumShadowMaps)
 {
-	const uint64 CacheKey = (uint64(ViewUniqueID) << 32U) | uint64(LightSceneId);
+	const FVirtualShadowMapCacheKey CacheKey = { ViewUniqueID, LightSceneId };
 
 	TSharedPtr<FVirtualShadowMapPerLightCacheEntry> *LightEntryKey = CacheEntries.Find(CacheKey);
 
@@ -843,17 +843,6 @@ TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FVirtualShadowMapArrayCacheManag
 	return LightEntry;
 }
 
-TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FVirtualShadowMapArrayCacheManager::FindLightCacheEntry(int32 LightSceneId, uint32 ViewUniqueID)
-{
-	const uint64 CacheKey = (uint64(ViewUniqueID) << 32U) | uint64(LightSceneId);
-
-	if (TSharedPtr<FVirtualShadowMapPerLightCacheEntry> *Entry = CacheEntries.Find(CacheKey))
-	{
-		return *Entry;
-	}
-	return TSharedPtr<FVirtualShadowMapPerLightCacheEntry>();
-}
-
 void FVirtualShadowMapPerLightCacheEntry::OnPrimitiveRendered(const FPrimitiveSceneInfo* PrimitiveSceneInfo)
 {
 	// Mark as (potentially present in a cached page somehwere, so we'd need to invalidate if it is removed/moved)
@@ -878,10 +867,9 @@ void FVirtualShadowMapArrayCacheManager::UpdateUnreferencedCacheEntries(
 {
 	const uint32 SceneFrameNumber = Scene->GetFrameNumberRenderThread();
 
-	TArray<uint64, SceneRenderingAllocator> EntriesToRemove;
-	for (auto& LightEntry : CacheEntries)
+	for (FEntryMap::TIterator It = CacheEntries.CreateIterator(); It; ++It)
 	{
-		TSharedPtr<FVirtualShadowMapPerLightCacheEntry> CacheEntry = LightEntry.Value;
+		TSharedPtr<FVirtualShadowMapPerLightCacheEntry> CacheEntry = (*It).Value;
 		// For this test we care if it is active *this render*, not just this scene frame number (which can include multiple renders)
 		if (CacheEntry->bReferencedThisRender)
 		{
@@ -908,16 +896,8 @@ void FVirtualShadowMapArrayCacheManager::UpdateUnreferencedCacheEntries(
 		}
 		else
 		{
-			// Enqueue for remove
-			EntriesToRemove.Add(LightEntry.Key);
-			//UE_LOG(LogRenderer, Display, TEXT("Removed VSM light cache entry (%d, Age %d)"), LightEntry.Key, Age);
+			It.RemoveCurrent();
 		}
-	}
-
-	for (uint64 Entry : EntriesToRemove)
-	{
-		int32 NumRemoved = CacheEntries.Remove(Entry);
-		check(NumRemoved > 0);
 	}
 }
 
@@ -1223,7 +1203,8 @@ void FVirtualShadowMapArrayCacheManager::OnSceneChange()
 
 void FVirtualShadowMapArrayCacheManager::OnLightRemoved(int32 LightId)
 {
-	CacheEntries.Remove(LightId);
+	const FVirtualShadowMapCacheKey CacheKey = { /* TODO: this is broken for directional lights! ViewUniqueID */0, LightId };
+	CacheEntries.Remove(CacheKey);
 }
 
 /**

@@ -2061,9 +2061,10 @@ public:
 	/** True if precomputed visibility was used when rendering the scene. */
 	bool bUsedPrecomputedVisibility;
 
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	/** Lights added if wholescenepointlight shadow would have been rendered (ignoring r.SupportPointLightWholeSceneShadows). Used for warning about unsupported features. */
 	TArray<FString, SceneRenderingAllocator> UsedWholeScenePointLightNames;
-
+#endif
 	/** Feature level being rendered */
 	ERHIFeatureLevel::Type FeatureLevel;
 	EShaderPlatform ShaderPlatform;

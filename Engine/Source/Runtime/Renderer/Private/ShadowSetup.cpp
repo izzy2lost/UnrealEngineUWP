@@ -4087,7 +4087,7 @@ void FSceneRenderer::CreateWholeSceneProjectedShadow(
 					bool bContainsNaniteSubjects = false;
 
 					// Skip mesh setup if it won't be rendered anyway
-					if (!ShadowSceneRenderer->IsUsingNewDistantInvalidationLogic() || ProjectedShadowInfo->bShouldRenderVSM)
+					if (ProjectedShadowInfo->bShouldRenderVSM)
 					{
 						// Skip convex hull tests for VSM since this causes artifacts due to caching (potentially check if caching is enabled but may lead to race condition).
 						// The interaction setup has already tested the light bounds (by calling FLightSceneProxy::AffectsBounds)
@@ -5828,11 +5828,13 @@ void FSceneRenderer::CreateDynamicShadows(FDynamicShadowsTaskData& TaskData)
 							// Stationary point light and spot light shadow are unsupported on mobile
 							&& (!bMobile || bDirectionalLightShadow);
 
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 						const bool bPointLightWholeSceneShadow = (bShouldCreateShadowForMovableLight || bShouldCreateShadowForOverflowStaticShadowing || bShouldCreateShadowToPreviewStaticLight) && bPointLightShadow;
 						if (bPointLightWholeSceneShadow)
 						{
 							UsedWholeScenePointLightNames.Add(LightSceneInfoCompact.LightSceneInfo->Proxy->GetOwnerNameOrLabel());
 						}
+#endif
 
 						if (bCreateShadowForMovableLight || bCreateShadowToPreviewStaticLight || bCreateShadowForOverflowStaticShadowing)
 						{
