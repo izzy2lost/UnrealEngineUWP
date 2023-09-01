@@ -198,26 +198,14 @@ namespace EpicGames.Horde.Compute
 				}
 			}
 
-			using (SharedMemoryBuffer ipcBuffer = SharedMemoryBuffer.CreateNew(null, 1, 64 * 1024))
+			await using (WorkerComputeSocketBridge server = await WorkerComputeSocketBridge.CreateAsync(socket, _logger))
 			{
-				newEnvVars[WorkerComputeSocket.IpcEnvVar] = ipcBuffer.Name;
+				newEnvVars[WorkerComputeSocket.IpcEnvVar] = server.BufferName;
 
-				using ComputeBufferReader ipcBufferReader = ipcBuffer.CreateReader();
-				await using (BackgroundTask backgroundTask = BackgroundTask.StartNew(ctx => ProcessIpcMessagesAsync(socket, ipcBufferReader, new[] { cancellationToken, ctx }, _logger)))
-				{
-					_logger.LogInformation("Launching {Executable} {Arguments}", CommandLineArguments.Quote(executable), CommandLineArguments.Join(arguments));
-					try
-					{
-						await ExecuteProcessInternalAsync(channel, executable, arguments, workingDir, newEnvVars, flags, cancellationToken);
-					}
-					finally
-					{
-						ipcBufferReader.Detach();
-					}
-					_logger.LogInformation("Finished executing process");
-				}
+				_logger.LogInformation("Launching {Executable} {Arguments}", CommandLineArguments.Quote(executable), CommandLineArguments.Join(arguments));
 
-				_logger.LogInformation("Ipc message loop is complete");
+				await ExecuteProcessInternalAsync(channel, executable, arguments, workingDir, newEnvVars, flags, cancellationToken);
+				_logger.LogInformation("Finished executing process");
 			}
 
 			_logger.LogInformation("Child process has shut down");
