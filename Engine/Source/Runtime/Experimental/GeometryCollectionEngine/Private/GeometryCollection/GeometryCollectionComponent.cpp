@@ -1427,6 +1427,10 @@ void UGeometryCollectionComponent::GetResourceSizeEx(FResourceSizeEx& Cumulative
 	CumulativeResourceSize.AddDedicatedSystemMemoryBytes(SizeBytes);
 }
 
+bool UGeometryCollectionComponent::IsNavigationRelevant() const
+{
+	return bIsCurrentlyNavigationRelevant && Super::IsNavigationRelevant();
+}
 
 #if WITH_EDITOR
 FDelegateHandle UGeometryCollectionComponent::RegisterOnGeometryCollectionPropertyChanged(const FOnGeometryCollectionPropertyChanged& Delegate)

@@ -482,9 +482,12 @@ public:
 	GEOMETRYCOLLECTIONENGINE_API FDelegateHandle RegisterOnGeometryCollectionPropertyChanged(const FOnGeometryCollectionPropertyChanged& Delegate);
 	GEOMETRYCOLLECTIONENGINE_API void UnregisterOnGeometryCollectionPropertyChanged(FDelegateHandle Handle);
 #endif
-	//~ Begin UActorComponent Interface. 
+	//~ End UActorComponent Interface. 
 
-
+	//~ Begin INavRelevantInterface Interface
+	GEOMETRYCOLLECTIONENGINE_API virtual bool IsNavigationRelevant() const override;
+	//~ End INavRelevantInterface Interface
+	
 	//~ Begin USceneComponent Interface.
 	GEOMETRYCOLLECTIONENGINE_API virtual FBoxSphereBounds CalcBounds(const FTransform& LocalToWorld) const override;
 	virtual FBoxSphereBounds CalcLocalBounds() const { return LocalBounds; }
@@ -498,7 +501,7 @@ public:
 	GEOMETRYCOLLECTIONENGINE_API virtual void AsyncPhysicsTickComponent(float DeltaTime, float SimTime) override;
 
 	GEOMETRYCOLLECTIONENGINE_API virtual void OnHiddenInGameChanged() override;
-	//~ Begin USceneComponent Interface.
+	//~ End USceneComponent Interface.
 
 
 	//~ Begin UPrimitiveComponent Interface.
@@ -1176,6 +1179,9 @@ public:
 	/** If true, this component will save linear and angular velocities on its DynamicCollection. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "ChaosPhysics|General")
 	bool bStoreVelocities;
+
+	UPROPERTY(Transient)
+	bool bIsCurrentlyNavigationRelevant = true;
 
 protected:
 	/** Display Bone Colors instead of assigned materials */
