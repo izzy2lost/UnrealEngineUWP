@@ -4,6 +4,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -92,6 +93,7 @@ namespace Horde.Agent.Leases.Handlers
 			}
 
 			logger.LogInformation("Starting compute task (lease {LeaseId}). Waiting for connection with nonce {Nonce}...", leaseId, StringUtils.FormatHexString(computeTask.Nonce.Span));
+			ClearTerminationSignalFile();
 
 			TcpClient? tcpClient = null;
 			try
@@ -125,6 +127,7 @@ namespace Horde.Agent.Leases.Handlers
 
 								Dictionary<string, string?> newEnvVars = new Dictionary<string, string?>();
 								newEnvVars["UE_HORDE_SHARED_DIR"] = sharedDir.FullName;
+								newEnvVars["UE_HORDE_TERMINATION_SIGNAL_FILE"] = _settings.GetTerminationSignalFile().FullName;
 
 								AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, _storageCache, newEnvVars, false, _settings.WineExecutablePath, logger);
 								await worker.RunAsync(socket, cts.Token);
@@ -152,6 +155,21 @@ namespace Horde.Agent.Leases.Handlers
 			finally
 			{
 				tcpClient?.Dispose();
+			}
+		}
+
+		private void ClearTerminationSignalFile()
+		{
+			string path = _settings.GetTerminationSignalFile().FullName;
+			try
+			{
+				File.Delete(path);
+			}
+			catch (Exception e)
+			{
+				// If this file is not removed and lingers on from previous executions,
+				// new compute tasks may pick it up and erroneously decide to terminate.
+				_logger.LogError(e, "Unable to delete termination signal file {Path}", path);
 			}
 		}
 

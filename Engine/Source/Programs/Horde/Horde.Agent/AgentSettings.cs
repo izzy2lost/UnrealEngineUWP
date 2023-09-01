@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.IO;
 using System.Linq;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
@@ -334,6 +335,15 @@ namespace Horde.Agent
 				processesToTerminate[processToTerminate.Name] = condition;
 			}
 			return processesToTerminate;
+		}
+
+		/// <summary>
+		/// Path to file used for signaling impending termination and shutdown of the agent
+		/// </summary>
+		/// <returns>Path to file which may or may not exist</returns>
+		public FileReference GetTerminationSignalFile()
+		{
+			return new FileReference(Path.Combine(WorkingDir ?? Path.GetTempPath(), ".horde-termination-signal"));
 		}
 
 		internal string GetAgentName()

@@ -1,11 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
+using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
 using Horde.Agent.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using Moq.Protected;
@@ -75,13 +79,29 @@ public sealed class AwsInstanceLifecycleServiceTests : System.IDisposable
 	private readonly HttpClient _httpClient;
 	private readonly FakeAwsImds _fakeImds = new ();
 	private readonly AwsInstanceLifecycleService _service;
+	private readonly FileReference _terminationSignalFile;
+	private TimeSpan? _terminationTtl;
 	private Ec2InstanceState? _terminationState;
 	private bool? _terminationIsSpot;
 	
 	public AwsInstanceLifecycleServiceTests()
 	{
+		DirectoryInfo tempDir = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "horde-agent-test-" + Path.GetRandomFileName()));
+		AgentSettings settings = new () { WorkingDir = tempDir.FullName };
+		_terminationSignalFile = settings.GetTerminationSignalFile();
+
 		_httpClient = _fakeImds.GetHttpClient();
-		_service = new AwsInstanceLifecycleService(_httpClient, null!, _loggerFactory.CreateLogger<AwsInstanceLifecycleService>());
+		_service = new AwsInstanceLifecycleService(_httpClient, new OptionsWrapper<AgentSettings>(settings), _loggerFactory.CreateLogger<AwsInstanceLifecycleService>());
+		_service._timeToLiveAsg = TimeSpan.FromMilliseconds(10);
+		_service._timeToLiveSpot = TimeSpan.FromMilliseconds(20);
+		_service._terminationBufferTime = TimeSpan.FromMilliseconds(2);
+
+		AwsInstanceLifecycleService.TerminationWarningDelegate origWarningCallback = _service._terminationWarningCallback;
+		_service._terminationWarningCallback = (state, isSpot, timeToLive, ct) =>
+		{
+			_terminationTtl = timeToLive;
+			return origWarningCallback(state, isSpot, timeToLive, ct);
+		};
 		_service._terminationCallback = (state, isSpot, _) =>
 		{
 			_terminationState = state;
@@ -97,6 +117,7 @@ public sealed class AwsInstanceLifecycleServiceTests : System.IDisposable
 		await _service.MonitorInstanceLifecycleAsync(CancellationToken.None);
 		Assert.AreEqual(Ec2InstanceState.TerminatingAsg, _terminationState);
 		Assert.IsFalse(_terminationIsSpot);
+		Assert.AreEqual(8, _terminationTtl!.Value.TotalMilliseconds); // 10 ms for ASG, minus 2 ms for termination buffer
 	}
 	
 	[TestMethod]
@@ -107,6 +128,20 @@ public sealed class AwsInstanceLifecycleServiceTests : System.IDisposable
 		await _service.MonitorInstanceLifecycleAsync(CancellationToken.None);
 		Assert.AreEqual(Ec2InstanceState.TerminatingSpot, _terminationState);
 		Assert.IsTrue(_terminationIsSpot);
+		Assert.AreEqual(18, _terminationTtl!.Value.TotalMilliseconds); // 20 ms for spot, minus 2 ms for termination buffer
+	}
+	
+	[TestMethod]
+	public async Task Terminate_Spot_WritesSignalFile()
+	{
+		_fakeImds.SpotInstanceAction = FakeAwsImds.SpotInstanceData;
+		_fakeImds.InstanceLifeCycle = FakeAwsImds.Spot;
+		Assert.IsFalse(File.Exists(_terminationSignalFile.FullName));
+		
+		await _service.MonitorInstanceLifecycleAsync(CancellationToken.None);
+
+		string data = await File.ReadAllTextAsync(_terminationSignalFile.FullName);
+		Assert.AreEqual("v1\t18", data); // 20 ms for spot, minus 2 ms for termination buffer
 	}
 	
 	public void Dispose()
