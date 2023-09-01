@@ -60,16 +60,7 @@ namespace UE::MLDeformer
 
 		// Create a new model if none was selected yet.
 		UMLDeformerModel* DeformerModel = DeformerAsset->GetModel();
-		if (DeformerModel == nullptr)
-		{
-			if (ModelRegistry.GetNumRegisteredModels() > 0)
-			{
-				const int32 HighestPriorityIndex = ModelRegistry.GetHighestPriorityModelIndex();
-				OnModelChanged(HighestPriorityIndex, true);
-				DeformerModel = DeformerAsset->GetModel();
-			}
-		}
-		else
+		if (DeformerModel)
 		{
 			DeformerModel->Init(DeformerAsset);
 			FMLDeformerEditorModel* EditorModel = ModelRegistry.CreateEditorModel(DeformerModel);
