@@ -2134,6 +2134,14 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		}
 	}
 
+	{
+		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("r.ShaderCompiler.PreprocessedJobCache"));
+		if (CVar && CVar->GetValueOnAnyThread())
+		{
+			KeyString += TEXT("_PJC");
+		}
+	}
+
 	if (RHISupportsShaderRootConstants(Platform))
 	{
 		KeyString += TEXT("_SHRC");
