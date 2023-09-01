@@ -217,7 +217,18 @@ void FBezierChannelCurveModel<ChannelType, ChannelValue, KeyType>::GetKeyAttribu
 
 				Attributes.SetInterpMode(KeyValue.InterpMode);
 
-				if (KeyValue.InterpMode != RCIM_Constant && KeyValue.InterpMode != RCIM_Linear)
+				// If the previous key is cubic, show the arrive tangent handle even if this key is constant
+				const int32 PreviousKeyIndex = KeyIndex - 1;
+				const bool bGetArriveTangent = Values.IsValidIndex(PreviousKeyIndex) && Values[PreviousKeyIndex].InterpMode == RCIM_Cubic;
+				if (bGetArriveTangent)
+				{
+					if (KeyIndex != 0)
+					{
+						Attributes.SetArriveTangent(KeyValue.Tangent.ArriveTangent / TimeInterval);
+					}
+				}
+
+				if ((KeyValue.InterpMode != RCIM_Constant && KeyValue.InterpMode != RCIM_Linear))
 				{
 					Attributes.SetTangentMode(KeyValue.TangentMode);
 					if (KeyIndex != 0)

@@ -385,6 +385,17 @@ void FRichCurveEditorModel::GetKeyAttributes(TArrayView<const FKeyHandle> InKeys
 
 					Attributes.SetInterpMode(ThisKey.InterpMode);
 
+					// If the previous key is cubic, show the arrive tangent handle even if this key is constant
+					FKeyHandle PreviousKeyHandle = RichCurve.GetPreviousKey(InKeys[Index]);
+					const bool bGetArriveTangent = RichCurve.IsKeyHandleValid(PreviousKeyHandle) && RichCurve.GetKeyRef(PreviousKeyHandle).InterpMode == RCIM_Cubic;
+					if (bGetArriveTangent)
+					{
+						if (&ThisKey != FirstKey)
+						{
+							Attributes.SetArriveTangent(ThisKey.ArriveTangent);
+						}
+					}
+
 					if (ThisKey.InterpMode != RCIM_Constant && ThisKey.InterpMode != RCIM_Linear)
 					{
 						Attributes.SetTangentMode(ThisKey.TangentMode);
