@@ -3366,11 +3366,6 @@ void FShaderCompileJob::OnComplete()
 	}
 }
 
-void FShaderCompileJob::AppendDebugName(FStringBuilderBase& OutName) const
-{
-	OutName << (Input.DumpDebugInfoPath.IsEmpty() ? Input.DebugGroupName : Input.DumpDebugInfoPath);
-}
-
 void FShaderCompileJob::SerializeWorkerOutput(FArchive& Ar)
 {
 	// Only serialize the modified source/entry point if either:
@@ -3511,14 +3506,5 @@ void FShaderPipelineCompileJob::OnComplete()
 	for (int32 Index = 0, Num = StageJobs.Num(); Index < Num; ++Index)
 	{
 		StageJobs[Index]->OnComplete();
-	}
-}
-
-void FShaderPipelineCompileJob::AppendDebugName(FStringBuilderBase& OutName) const
-{
-	for (int32 Index = 0, Num = StageJobs.Num(); Index < Num; ++Index)
-	{
-		StageJobs[Index]->AppendDebugName(OutName);
-		OutName << TEXT("\n");
 	}
 }
