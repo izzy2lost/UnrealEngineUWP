@@ -13,7 +13,7 @@
 
 namespace UE::Learning
 {
-	struct FNeuralNetwork;
+	struct INeuralNetwork;
 	struct FNeuralNetworkPolicyFunction;
 }
 
@@ -154,7 +154,7 @@ public:
 	ULearningAgentsNeuralNetwork* GetNetworkAsset();
 
 	/** Get a reference to this policy's neural network. */
-	UE::Learning::FNeuralNetwork& GetPolicyNetwork();
+	UE::Learning::INeuralNetwork& GetPolicyNetwork();
 
 	/** Get a reference to this policy's policy function object. */
 	UE::Learning::FNeuralNetworkPolicyFunction& GetPolicyObject();

@@ -150,76 +150,58 @@ export void LearningLayerMatMulPlusBias(
 	const uniform float Weights[],
 	const uniform float Biases[],
 	const uniform int BatchNum,
+	const uniform int BufferSize,
 	const uniform int RowNum,
 	const uniform int ColNum)
 {
 	foreach (BatchIdx = 0 ... BatchNum, ColIdx = 0 ... ColNum)
 	{
-		Output[BatchIdx * ColNum + ColIdx] = Biases[ColIdx];
+		Output[BatchIdx * BufferSize + ColIdx] = Biases[ColIdx];
 	}
 	
 	for (uniform int BatchIdx = 0; BatchIdx < BatchNum; BatchIdx++)
 	{
 		for (uniform int RowIdx = 0; RowIdx < RowNum; RowIdx++)
 		{
-			uniform const float Value = Input[BatchIdx * RowNum + RowIdx];
+			uniform const float Value = Input[BatchIdx * BufferSize + RowIdx];
 
 			if (Value != 0.0)
 			{
 				foreach(ColIdx = 0 ... ColNum)
 				{
-					Output[BatchIdx * ColNum + ColIdx] += Value * Weights[RowIdx * ColNum + ColIdx];
+					Output[BatchIdx * BufferSize + ColIdx] += Value * Weights[RowIdx * ColNum + ColIdx];
 				}
 			}
 		}
 	}
 }
 
-export void LearningLayerMatMulVecPlusBias(
-	uniform float Output[],
-	const uniform float Input[],
-	const uniform float Weights[],
-	const uniform float Biases[],
-	const uniform int RowNum,
+export void LearningLayerReLU(
+	uniform float InputOutput[],
+	const uniform int BatchNum,
+	const uniform int BufferSize,
 	const uniform int ColNum)
 {
-	foreach(ColIdx = 0 ... ColNum)
+	foreach(BatchIdx = 0 ... BatchNum, ColIdx = 0 ... ColNum)
 	{
-		Output[ColIdx] = Biases[ColIdx];
-	}
-
-	for (uniform int RowIdx = 0; RowIdx < RowNum; RowIdx++)
-	{
-		uniform const float Value = Input[RowIdx];
-
-		if (Value != 0.0)
-		{
-			foreach(ColIdx = 0 ... ColNum)
-			{
-				Output[ColIdx] += Value * Weights[RowIdx * ColNum + ColIdx];
-			}
-		}
+		InputOutput[BatchIdx * BufferSize + ColIdx] = max(InputOutput[BatchIdx * BufferSize + ColIdx], 0.0f);
 	}
 }
 
-
-export void LearningLayerReLU(
-	uniform float InputOutput[],
-	const uniform int Num)
+inline float LearningELU(const float X)
 {
-	foreach(Idx = 0 ... Num)
-	{
-		InputOutput[Idx] = max(InputOutput[Idx], 0.0f);
-	}
+	return X > 0.0f ? X : exp(X) - 1.0f;
 }
 
 export void LearningLayerELU(
 	uniform float InputOutput[],
-	const uniform int Num)
+	const uniform int BatchNum,
+	const uniform int BufferSize,
+	const uniform int ColNum)
 {
-	foreach (Idx = 0 ... Num)
+	foreach (BatchIdx = 0 ... BatchNum, ColIdx = 0 ... ColNum)
 	{
-		InputOutput[Idx] = InputOutput[Idx] > 0.0f ? InputOutput[Idx] : LearningInvExpApprox(-InputOutput[Idx]) - 1.0f;
+		InputOutput[BatchIdx * BufferSize + ColIdx] = LearningELU(InputOutput[BatchIdx * BufferSize + ColIdx]);
 	}
 }
 
@@ -231,11 +213,13 @@ inline float LearningTanH(const float X, const float Min=-10.0f, const float Max
 
 export void LearningLayerTanH(
 	uniform float InputOutput[],
-	const uniform int Num)
+	const uniform int BatchNum,
+	const uniform int BufferSize,
+	const uniform int ColNum)
 {
-	foreach(Idx = 0 ... Num)
+	foreach(BatchIdx = 0 ... BatchNum, ColIdx = 0 ... ColNum)
 	{
-		InputOutput[Idx] = LearningTanH(InputOutput[Idx]);
+		InputOutput[BatchIdx * BufferSize + ColIdx] = LearningTanH(InputOutput[BatchIdx * BufferSize + ColIdx]);
 	}
 }
 
@@ -248,20 +232,19 @@ export void LearningLayerActionNoise(
 	uniform float Output[],
 	uniform float OutputMean[],
 	uniform float OutputStd[],
-	const uniform float Input[],
+	const uniform float OutputNetwork[],
 	const uniform uint32 Seed[],
 	const uniform float ActionNoiseScale[],
 	const uniform int BatchNum,
-	const uniform int InputNum,
 	const uniform int OutputNum,
 	const uniform float LogActionNoiseMin,
 	const uniform float LogActionNoiseMax)
 {
 	foreach (BatchIdx = 0 ... BatchNum, OutputIdx = 0 ... OutputNum)
 	{
-		OutputMean[BatchIdx * OutputNum + OutputIdx] = Input[BatchIdx * InputNum + OutputIdx];
+		OutputMean[BatchIdx * OutputNum + OutputIdx] = OutputNetwork[BatchIdx * 2 * OutputNum + OutputIdx];
 		OutputStd[BatchIdx * OutputNum + OutputIdx] = ActionNoiseScale[BatchIdx] *
-			exp(LearningSigmoid(Input[BatchIdx * InputNum + OutputNum + OutputIdx]) * (LogActionNoiseMax - LogActionNoiseMin) + LogActionNoiseMin);
+			exp(LearningSigmoid(OutputNetwork[BatchIdx * 2 * OutputNum + OutputNum + OutputIdx]) * (LogActionNoiseMax - LogActionNoiseMin) + LogActionNoiseMin);
 
 		Output[BatchIdx * OutputNum + OutputIdx] = LearningRandomGaussian(
 			Seed[BatchIdx] ^ 0xab744615 ^ LearningRandomInt(OutputIdx ^ 0xf8a88a27),
@@ -274,7 +257,7 @@ export void LearningLayerActionNoiseSingleBatch(
 	uniform float Output[],
 	uniform float OutputMean[],
 	uniform float OutputStd[],
-	const uniform float Input[],
+	const uniform float OutputNetwork[],
 	const uniform uint32 Seed,
 	const uniform float ActionNoiseScale,
 	const uniform int OutputNum,
@@ -283,9 +266,9 @@ export void LearningLayerActionNoiseSingleBatch(
 {
 	foreach(OutputIdx = 0 ... OutputNum)
 	{
-		OutputMean[OutputIdx] = Input[OutputIdx];
+		OutputMean[OutputIdx] = OutputNetwork[OutputIdx];
 		OutputStd[OutputIdx] = ActionNoiseScale *
-			exp(LearningSigmoid(Input[OutputNum + OutputIdx]) * (LogActionNoiseMax - LogActionNoiseMin) + LogActionNoiseMin);
+			exp(LearningSigmoid(OutputNetwork[OutputNum + OutputIdx]) * (LogActionNoiseMax - LogActionNoiseMin) + LogActionNoiseMin);
 
 		Output[OutputIdx] = LearningRandomGaussian(
 			Seed ^ 0xab744615 ^ LearningRandomInt(OutputIdx ^ 0xf8a88a27),

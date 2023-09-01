@@ -343,14 +343,14 @@ public:
 	 * Initializes this object and runs the setup functions for rewards and completions.
 	 * @param InInteractor The agent interactor we are training with.
 	 * @param InPolicy The policy to be trained.
-	 * @param InCritic Optional - only needs to be provided if we want the critic to be accessible at runtime.
+	 * @param InCritic The critic to be trained.
 	 * @param TrainerSettings The trainer settings to use.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
 	void SetupTrainer(
 		ULearningAgentsInteractor* InInteractor,
 		ULearningAgentsPolicy* InPolicy,
-		ULearningAgentsCritic* InCritic = nullptr,
+		ULearningAgentsCritic* InCritic,
 		const FLearningAgentsTrainerSettings& TrainerSettings = FLearningAgentsTrainerSettings());
 
 public: 
@@ -431,10 +431,10 @@ public:
 
 	/**
 	 * Begins the training process with the provided settings.
+	 * 
 	 * @param TrainerTrainingSettings The settings for this training run.
 	 * @param TrainerGameSettings The settings that will affect the game's simulation.
 	 * @param TrainerPathSettings The path settings used by the trainer.
-	 * @param CriticSettings The settings for the critic (if we are using one).
 	 * @param bReinitializePolicyNetwork If true, reinitialize the policy. Set this to false if your policy is pre-trained, e.g. with imitation learning.
 	 * @param bReinitializeCriticNetwork If true, reinitialize the critic. Set this to false if your critic is pre-trained.
 	 * @param bResetAgentsOnBegin If true, reset all agents at the beginning of training.
@@ -444,7 +444,6 @@ public:
 		const FLearningAgentsTrainerTrainingSettings& TrainerTrainingSettings = FLearningAgentsTrainerTrainingSettings(),
 		const FLearningAgentsTrainerGameSettings& TrainerGameSettings = FLearningAgentsTrainerGameSettings(),
 		const FLearningAgentsTrainerPathSettings& TrainerPathSettings = FLearningAgentsTrainerPathSettings(),
-		const FLearningAgentsCriticSettings& CriticSettings = FLearningAgentsCriticSettings(),
 		const bool bReinitializePolicyNetwork = true,
 		const bool bReinitializeCriticNetwork = true,
 		const bool bResetAgentsOnBegin = true);
@@ -482,10 +481,10 @@ public:
 	 * Convenience function that runs a basic training loop. If training has not been started, it will start it, and 
 	 * then call RunInference. On each following call to this function, it will call EvaluateRewards, 
 	 * EvaluateCompletions, and ProcessExperience, followed by RunInference.
+	 * 
 	 * @param TrainerTrainingSettings The settings for this training run.
 	 * @param TrainerGameSettings The settings that will affect the game's simulation.
 	 * @param TrainerPathSettings The path settings used by the trainer.
-	 * @param CriticSettings The settings for the critic (if we are using one).
 	 * @param bReinitializePolicyNetwork If true, reinitialize the policy. Set this to false if your policy is pre-trained, e.g. with imitation learning.
 	 * @param bReinitializeCriticNetwork If true, reinitialize the critic. Set this to false if your critic is pre-trained.
 	 * @param bResetAgentsOnBegin If true, reset all agents at the beginning of training.
@@ -495,7 +494,6 @@ public:
 		const FLearningAgentsTrainerTrainingSettings& TrainerTrainingSettings = FLearningAgentsTrainerTrainingSettings(),
 		const FLearningAgentsTrainerGameSettings& TrainerGameSettings = FLearningAgentsTrainerGameSettings(),
 		const FLearningAgentsTrainerPathSettings& TrainerPathSettings = FLearningAgentsTrainerPathSettings(),
-		const FLearningAgentsCriticSettings& CriticSettings = FLearningAgentsCriticSettings(),
 		const bool bReinitializePolicyNetwork = true,
 		const bool bReinitializeCriticNetwork = true,
 		const bool bResetAgentsOnBegin = true);

@@ -13,7 +13,7 @@
 
 namespace UE::Learning
 {
-	struct FNeuralNetwork;
+	struct INeuralNetwork;
 	struct FNeuralNetworkCriticFunction;
 }
 
@@ -144,7 +144,7 @@ public:
 	ULearningAgentsNeuralNetwork* GetNetworkAsset();
 
 	/** Get a reference to this critic's neural network. */
-	UE::Learning::FNeuralNetwork& GetCriticNetwork();
+	UE::Learning::INeuralNetwork& GetCriticNetwork();
 	
 	/** Get a reference to this critic's critic function object. */
 	UE::Learning::FNeuralNetworkCriticFunction& GetCriticObject();

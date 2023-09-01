@@ -88,7 +88,7 @@ namespace UE::Learning::SocketTraining
 
 	ETrainerResponse RecvPolicy(
 		FSocket& Socket,
-		FNeuralNetwork& OutNetwork,
+		INeuralNetwork& OutNetwork,
 		TLearningArrayView<1, uint8> OutNetworkBuffer,
 		const float Timeout,
 		FRWLock* NetworkLock,
@@ -116,18 +116,24 @@ namespace UE::Learning::SocketTraining
 		Response = RecvWithTimeout(Socket, OutNetworkBuffer.GetData(), OutNetworkBuffer.Num(), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 
+		bool bSuccess = false;
 		{
 			FScopeNullableWriteLock ScopeLock(NetworkLock);
 			int32 Offset = 0;
-			OutNetwork.DeserializeFromBytes(Offset, OutNetworkBuffer);
+			bSuccess = OutNetwork.DeserializeFromBytes(Offset, OutNetworkBuffer);
+
+			if (!bSuccess)
+			{
+				UE_LOG(LogLearning, Error, TEXT("Error receiving Policy network. Format invalid."));
+			}
 		}
 
-		return ETrainerResponse::Success;
+		return bSuccess ? ETrainerResponse::Success : ETrainerResponse::Unexpected;
 	}
 
 	ETrainerResponse RecvCritic(
 		FSocket& Socket,
-		FNeuralNetwork& OutNetwork,
+		INeuralNetwork& OutNetwork,
 		TLearningArrayView<1, uint8> OutNetworkBuffer,
 		const float Timeout,
 		FRWLock* NetworkLock,
@@ -150,13 +156,19 @@ namespace UE::Learning::SocketTraining
 		Response = RecvWithTimeout(Socket, OutNetworkBuffer.GetData(), OutNetworkBuffer.Num(), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 
+		bool bSuccess = false;
 		{
 			FScopeNullableWriteLock ScopeLock(NetworkLock);
 			int32 Offset = 0;
-			OutNetwork.DeserializeFromBytes(Offset, OutNetworkBuffer);
+			bSuccess = OutNetwork.DeserializeFromBytes(Offset, OutNetworkBuffer);
+
+			if (!bSuccess)
+			{
+				UE_LOG(LogLearning, Error, TEXT("Error receiving Critic network. Format invalid."));
+			}
 		}
 
-		return ETrainerResponse::Success;
+		return bSuccess ? ETrainerResponse::Success : ETrainerResponse::Unexpected;
 	}
 
 	ETrainerResponse SendWithTimeout(FSocket& Socket, const uint8* Bytes, const int32 ByteNum, const float Timeout)
@@ -222,7 +234,7 @@ namespace UE::Learning::SocketTraining
 	ETrainerResponse SendPolicy(
 		FSocket& Socket,
 		TLearningArrayView<1, uint8> NetworkBuffer,
-		const FNeuralNetwork& Network,
+		const INeuralNetwork& Network,
 		const float Timeout,
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
@@ -251,7 +263,7 @@ namespace UE::Learning::SocketTraining
 	ETrainerResponse SendCritic(
 		FSocket& Socket,
 		TLearningArrayView<1, uint8> NetworkBuffer,
-		const FNeuralNetwork& Network,
+		const INeuralNetwork& Network,
 		const float Timeout,
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)

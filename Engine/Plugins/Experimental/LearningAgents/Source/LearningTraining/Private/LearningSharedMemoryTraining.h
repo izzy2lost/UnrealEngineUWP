@@ -7,7 +7,7 @@
 namespace UE::Learning
 {
 	enum class ECompletionMode : uint8;
-	struct FNeuralNetwork;
+	struct INeuralNetwork;
 	struct FReplayBuffer;
 
 	namespace SharedMemoryTraining
@@ -16,7 +16,7 @@ namespace UE::Learning
 
 		LEARNINGTRAINING_API ETrainerResponse RecvPolicy(
 			TLearningArrayView<1, volatile int32> Controls,
-			FNeuralNetwork& OutNetwork,
+			INeuralNetwork& OutNetwork,
 			const TLearningArrayView<1, const uint8> Policy,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
@@ -24,7 +24,7 @@ namespace UE::Learning
 
 		LEARNINGTRAINING_API ETrainerResponse RecvCritic(
 			TLearningArrayView<1, volatile int32> Controls,
-			FNeuralNetwork& OutNetwork,
+			INeuralNetwork& OutNetwork,
 			const TLearningArrayView<1, const uint8> Critic,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
@@ -38,7 +38,7 @@ namespace UE::Learning
 		LEARNINGTRAINING_API ETrainerResponse SendPolicy(
 			TLearningArrayView<1, volatile int32> Controls,
 			TLearningArrayView<1, uint8> Policy,
-			const FNeuralNetwork& Network,
+			const INeuralNetwork& Network,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings);
@@ -46,7 +46,7 @@ namespace UE::Learning
 		LEARNINGTRAINING_API ETrainerResponse SendCritic(
 			TLearningArrayView<1, volatile int32> Controls,
 			TLearningArrayView<1, uint8> Critic,
-			const FNeuralNetwork& Network,
+			const INeuralNetwork& Network,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings);

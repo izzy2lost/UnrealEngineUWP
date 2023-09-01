@@ -42,7 +42,7 @@ namespace UE::Learning::SharedMemoryTraining
 
 	ETrainerResponse RecvPolicy(
 		TLearningArrayView<1, volatile int32> Controls,
-		FNeuralNetwork& OutNetwork,
+		INeuralNetwork& OutNetwork,
 		const TLearningArrayView<1, const uint8> Policy,
 		const float Timeout,
 		FRWLock* NetworkLock,
@@ -77,21 +77,27 @@ namespace UE::Learning::SharedMemoryTraining
 		}
 
 		// Read the policy
+		bool bSuccess = false;
 		{
 			FScopeNullableWriteLock ScopeLock(NetworkLock);
 			int32 Offset = 0;
-			OutNetwork.DeserializeFromBytes(Offset, Policy);
+			bSuccess = OutNetwork.DeserializeFromBytes(Offset, Policy);
+
+			if (!bSuccess)
+			{
+				UE_LOG(LogLearning, Error, TEXT("Error receiving Policy network. Format invalid."));
+			}
 		}
 
 		// Confirm we have read the policy
 		Controls[(uint8)EControls::PolicySignal] = false;
 
-		return ETrainerResponse::Success;
+		return bSuccess ? ETrainerResponse::Success : ETrainerResponse::Unexpected;
 	}
 
 	ETrainerResponse RecvCritic(
 		TLearningArrayView<1, volatile int32> Controls,
-		FNeuralNetwork& OutNetwork,
+		INeuralNetwork& OutNetwork,
 		const TLearningArrayView<1, const uint8> Critic,
 		const float Timeout,
 		FRWLock* NetworkLock,
@@ -118,22 +124,28 @@ namespace UE::Learning::SharedMemoryTraining
 		}
 
 		// Read the critic
+		bool bSuccess = false;
 		{
 			FScopeNullableWriteLock ScopeLock(NetworkLock);
 			int32 Offset = 0;
-			OutNetwork.DeserializeFromBytes(Offset, Critic);
+			bSuccess = OutNetwork.DeserializeFromBytes(Offset, Critic);
+
+			if (!bSuccess)
+			{
+				UE_LOG(LogLearning, Error, TEXT("Error receiving Critic network. Format invalid."));
+			}
 		}
 
 		// Confirm we have read the critic
 		Controls[(uint8)EControls::CriticSignal] = false;
 
-		return ETrainerResponse::Success;
+		return bSuccess ? ETrainerResponse::Success : ETrainerResponse::Unexpected;
 	}
 
 	ETrainerResponse SendPolicy(
 		TLearningArrayView<1, volatile int32> Controls,
 		TLearningArrayView<1, uint8> Policy,
-		const FNeuralNetwork& Network,
+		const INeuralNetwork& Network,
 		const float Timeout,
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
@@ -174,7 +186,7 @@ namespace UE::Learning::SharedMemoryTraining
 	ETrainerResponse SendCritic(
 		TLearningArrayView<1, volatile int32> Controls,
 		TLearningArrayView<1, uint8> Critic,
-		const FNeuralNetwork& Network,
+		const INeuralNetwork& Network,
 		const float Timeout,
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)

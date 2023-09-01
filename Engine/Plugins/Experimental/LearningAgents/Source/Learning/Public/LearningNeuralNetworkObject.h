@@ -4,13 +4,12 @@
 
 #include "LearningArrayMap.h"
 #include "LearningFunctionObject.h"
+#include "LearningNeuralNetwork.h" // Included for FNeuralNetworkInferenceSettings
 
 #include "Templates/SharedPointer.h"
 
 namespace UE::Learning
 {
-	struct FNeuralNetwork;
-
 	/**
 	* Settings object for a neural network based policy
 	*/
@@ -24,12 +23,6 @@ namespace UE::Learning
 
 		// Overall scale of the action noise
 		float ActionNoiseScale = 1.0f;
-
-		// If to allow for multi-threaded evaluation
-		bool bParallelEvaluation = true;
-
-		// Minimum batch size to use for multi-threaded evaluation
-		uint16 MinParallelBatchSize = 16;
 	};
 
 	/**
@@ -42,35 +35,29 @@ namespace UE::Learning
 			const FName& InIdentifier,
 			const TSharedRef<FArrayMap>& InInstanceData,
 			const int32 InMaxInstanceNum,
-			const TSharedRef<FNeuralNetwork>& InNeuralNetwork,
+			const TSharedPtr<INeuralNetwork>& InNeuralNetwork,
 			const uint32 InSeed,
+			const FNeuralNetworkInferenceSettings& InInferenceSettings = FNeuralNetworkInferenceSettings(),
 			const FNeuralNetworkPolicyFunctionSettings& InSettings = FNeuralNetworkPolicyFunctionSettings());
 
 		virtual void Evaluate(const FIndexSet Instances) override final;
 
-		TSharedRef<FNeuralNetwork> NeuralNetwork;
-		FNeuralNetworkPolicyFunctionSettings Settings;
+		/** Sets the NeuralNetwork and re-creates the NeuralNetworkInference object */
+		void UpdateNeuralNetwork(const TSharedPtr<INeuralNetwork>& NewNeuralNetwork);
 
-		TArray<TLearningArray<2, float, TInlineAllocator<128>>, TInlineAllocator<16>> Activations;
+		uint32 MaxInstanceNum = 0;
+		TSharedPtr<INeuralNetwork> NeuralNetwork;
+		TSharedPtr<INeuralNetworkInference> NeuralNetworkInference;
+		FNeuralNetworkInferenceSettings InferenceSettings;
+		FNeuralNetworkPolicyFunctionSettings Settings;
 
 		TArrayMapHandle<1, uint32> SeedHandle;
 		TArrayMapHandle<2, float> InputHandle;
 		TArrayMapHandle<2, float> OutputHandle;
+		TArrayMapHandle<2, float> OutputNetworkHandle;
 		TArrayMapHandle<2, float> OutputMeanHandle;
 		TArrayMapHandle<2, float> OutputStdHandle;
 		TArrayMapHandle<1, float> ActionNoiseScaleHandle;
-	};
-
-	/**
-	* Settings object for a neural network based critic
-	*/
-	struct LEARNING_API FNeuralNetworkCriticFunctionSettings
-	{
-		// If to allow for multi-threaded evaluation
-		bool bParallelEvaluation = true;
-
-		// Minimum batch size to use for multi-threaded evaluation
-		uint16 MinParallelBatchSize = 16;
 	};
 
 	/**
@@ -83,15 +70,18 @@ namespace UE::Learning
 			const FName& InIdentifier,
 			const TSharedRef<FArrayMap>& InInstanceData,
 			const int32 InMaxInstanceNum,
-			const TSharedRef<FNeuralNetwork>& InNeuralNetwork,
-			const FNeuralNetworkCriticFunctionSettings& InSettings = FNeuralNetworkCriticFunctionSettings());
+			const TSharedPtr<INeuralNetwork>& InNeuralNetwork,
+			const FNeuralNetworkInferenceSettings& InInferenceSettings = FNeuralNetworkInferenceSettings());
 
 		virtual void Evaluate(const FIndexSet Instances) override final;
 
-		TSharedRef<FNeuralNetwork> NeuralNetwork;
-		FNeuralNetworkCriticFunctionSettings Settings;
+		/** Sets the NeuralNetwork and re-creates the NeuralNetworkInference object */
+		void UpdateNeuralNetwork(const TSharedPtr<INeuralNetwork>& NewNeuralNetwork);
 
-		TArray<TLearningArray<2, float, TInlineAllocator<128>>, TInlineAllocator<16>> Activations;
+		uint32 MaxInstanceNum = 0;
+		TSharedPtr<INeuralNetwork> NeuralNetwork;
+		TSharedPtr<INeuralNetworkInference> NeuralNetworkInference;
+		FNeuralNetworkInferenceSettings InferenceSettings;
 
 		TArrayMapHandle<2, float> InputHandle;
 		TArrayMapHandle<1, float> OutputHandle;

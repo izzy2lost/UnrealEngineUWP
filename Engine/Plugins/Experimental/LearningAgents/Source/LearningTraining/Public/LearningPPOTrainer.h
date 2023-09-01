@@ -6,7 +6,6 @@
 #include "LearningLog.h"
 #include "LearningTrainer.h"
 #include "LearningSharedMemory.h"
-#include "LearningNeuralNetwork.h" // Included for EActivationFunction::ELU
 
 #include "Commandlets/Commandlet.h"
 #include "Templates/SharedPointer.h"
@@ -29,6 +28,7 @@ class LEARNINGTRAINING_API ULearningSocketPPOTrainerServerCommandlet : public UC
 
 namespace UE::Learning
 {
+	struct INeuralNetwork;
 	struct FReplayBuffer;
 	struct FResetInstanceBuffer;
 	struct FEpisodeBuffer;
@@ -46,24 +46,6 @@ namespace UE::Learning
 
 		/** Maximum action noise used by the policy */
 		float PolicyActionNoiseMax = 0.25f;
-
-		/** Total layers for policy network including input, hidden, and output layers */
-		int32 PolicyLayerNum = 3;
-
-		/** Number of neurons in each hidden layer of the policy network */
-		int32 PolicyHiddenLayerSize = 128;
-
-		/** Activation function to use on hidden layers of the policy network */
-		EActivationFunction PolicyActivationFunction = EActivationFunction::ELU;
-
-		/** Total layers for critic network including input, hidden, and output layers */
-		int32 CriticLayerNum = 4;
-
-		/** Number of neurons in each hidden layer of the critic network */
-		int32 CriticHiddenLayerSize = 256;
-
-		/** Activation function to use on hidden layers of the critic network */
-		EActivationFunction CriticActivationFunction = EActivationFunction::ELU;
 	};
 
 	/**
@@ -171,10 +153,6 @@ namespace UE::Learning
 		// the start of training. Use this if you want to start from a network which has already been trained 
 		// such as via Imitation Training.
 		UseInitialCriticNetwork = 1 << 1,
-
-		// If the critic network should be synchronized between the training process 
-		// and experience gathering process during training
-		SynchronizeCriticNetwork = 1 << 2,
 	};
 	ENUM_CLASS_FLAGS(EPPOTrainerFlags)
 
@@ -208,7 +186,7 @@ namespace UE::Learning
 		* @returns				Trainer response
 		*/
 		virtual ETrainerResponse RecvPolicy(
-			FNeuralNetwork& OutNetwork,
+			INeuralNetwork& OutNetwork,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) = 0;
@@ -223,7 +201,7 @@ namespace UE::Learning
 		* @returns				Trainer response
 		*/
 		virtual ETrainerResponse RecvCritic(
-			FNeuralNetwork& OutNetwork,
+			INeuralNetwork& OutNetwork,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) = 0;
@@ -243,7 +221,7 @@ namespace UE::Learning
 		* @returns				Trainer response
 		*/
 		virtual ETrainerResponse SendPolicy(
-			const FNeuralNetwork& Network,
+			const INeuralNetwork& Network,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) = 0;
@@ -258,7 +236,7 @@ namespace UE::Learning
 		* @returns				Trainer response
 		*/
 		virtual ETrainerResponse SendCritic(
-			const FNeuralNetwork& Network,
+			const INeuralNetwork& Network,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) = 0;
@@ -294,6 +272,8 @@ namespace UE::Learning
 		* @param PythonContentPath			Path to the Python Content folder provided by the Learning plugin
 		* @param IntermediatePath			Path to the intermediate folder to write temporary files, logs, and snapshots to
 		* @param ReplayBuffer				Replay buffer used to collect experience
+		* @param PolicyNetwork				Policy Network to use
+		* @param CriticNetwork				Critic Network to use
 		* @param TrainingSettings			Trainer Training settings
 		* @param NetworkSettings			Trainer Network settings
 		* @param TrainerFlags				Flags for the trainer
@@ -328,6 +308,8 @@ namespace UE::Learning
 			const FString& PythonContentPath,
 			const FString& IntermediatePath,
 			const FReplayBuffer& ReplayBuffer,
+			const INeuralNetwork& PolicyNetwork,
+			const INeuralNetwork& CriticNetwork,
 			const FPPOTrainerTrainingSettings& TrainingSettings = FPPOTrainerTrainingSettings(),
 			const FPPOTrainerNetworkSettings& NetworkSettings = FPPOTrainerNetworkSettings(),
 			const EPPOTrainerFlags TrainerFlags = EPPOTrainerFlags::None,
@@ -343,13 +325,13 @@ namespace UE::Learning
 		virtual ETrainerResponse Wait(const float Timeout = Trainer::DefaultTimeout) override final;
 
 		virtual ETrainerResponse RecvPolicy(
-			FNeuralNetwork& OutNetwork,
+			INeuralNetwork& OutNetwork,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) override final;
 
 		virtual ETrainerResponse RecvCritic(
-			FNeuralNetwork& OutNetwork,
+			INeuralNetwork& OutNetwork,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) override final;
@@ -357,13 +339,13 @@ namespace UE::Learning
 		virtual ETrainerResponse SendStop(const float Timeout = Trainer::DefaultTimeout) override final;
 
 		virtual ETrainerResponse SendPolicy(
-			const FNeuralNetwork& Network,
+			const INeuralNetwork& Network,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) override final;
 
 		virtual ETrainerResponse SendCritic(
-			const FNeuralNetwork& Network,
+			const INeuralNetwork& Network,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) override final;
@@ -479,6 +461,8 @@ namespace UE::Learning
 		* @param OutResponse				Response to the initial connection
 		* @param TaskName					Name of the training task - used to help identify the logs, snapshots, and other files generated by training
 		* @param ReplayBuffer				Replay buffer used to collect experience
+		* @param PolicyNetwork				Policy Network to use
+		* @param CriticNetwork				Critic Network to use
 		* @param IpAddress					Server Ip address
 		* @param Port						Server Port
 		* @param Timeout					Timeout to wait in seconds for connection and initial data transfer
@@ -490,6 +474,8 @@ namespace UE::Learning
 			ETrainerResponse& OutResponse,
 			const FString& TaskName,
 			const FReplayBuffer& ReplayBuffer,
+			const INeuralNetwork& PolicyNetwork,
+			const INeuralNetwork& CriticNetwork,
 			const TCHAR* IpAddress = Trainer::DefaultIp,
 			const uint32 Port = Trainer::DefaultPort,
 			const float Timeout = Trainer::DefaultTimeout,
@@ -504,13 +490,13 @@ namespace UE::Learning
 		virtual ETrainerResponse Wait(const float Timeout = Trainer::DefaultTimeout) override final;
 
 		virtual ETrainerResponse RecvPolicy(
-			FNeuralNetwork& OutNetwork,
+			INeuralNetwork& OutNetwork,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) override final;
 
 		virtual ETrainerResponse RecvCritic(
-			FNeuralNetwork& OutNetwork,
+			INeuralNetwork& OutNetwork,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) override final;
@@ -518,13 +504,13 @@ namespace UE::Learning
 		virtual ETrainerResponse SendStop(const float Timeout = Trainer::DefaultTimeout) override final;
 
 		virtual ETrainerResponse SendPolicy(
-			const FNeuralNetwork& Network,
+			const INeuralNetwork& Network,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) override final;
 
 		virtual ETrainerResponse SendCritic(
-			const FNeuralNetwork& Network,
+			const INeuralNetwork& Network,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) override final;
@@ -580,8 +566,8 @@ namespace UE::Learning
 			FReplayBuffer& ReplayBuffer,
 			FEpisodeBuffer& EpisodeBuffer,
 			FResetInstanceBuffer& ResetBuffer,
-			FNeuralNetwork& PolicyNetwork,
-			FNeuralNetwork* CriticNetwork,
+			INeuralNetwork& PolicyNetwork,
+			INeuralNetwork& CriticNetwork,
 			TLearningArrayView<2, float> ObservationVectorBuffer,
 			TLearningArrayView<2, float> ActionVectorBuffer,
 			TLearningArrayView<1, float> RewardBuffer,

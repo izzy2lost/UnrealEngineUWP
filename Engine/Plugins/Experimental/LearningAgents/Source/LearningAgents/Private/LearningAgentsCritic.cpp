@@ -5,6 +5,7 @@
 #include "LearningAgentsManager.h"
 #include "LearningAgentsInteractor.h"
 #include "LearningAgentsHelpers.h"
+#include "LearningAgentsNeuralNetworkData.h"
 #include "LearningFeatureObject.h"
 #include "LearningNeuralNetwork.h"
 #include "LearningNeuralNetworkObject.h"
@@ -54,20 +55,13 @@ void ULearningAgentsCritic::SetupCritic(
 	{
 		// Use Existing Neural Network Asset
 
-		if (NeuralNetworkAsset->NeuralNetwork)
+		if (NeuralNetworkAsset->NeuralNetworkData)
 		{
-			if (NeuralNetworkAsset->NeuralNetwork->GetInputNum() != Interactor->GetObservationFeature().DimNum() ||
-				NeuralNetworkAsset->NeuralNetwork->GetOutputNum() != 2 * Interactor->GetActionFeature().DimNum())
+			if (NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetInputNum() != Interactor->GetObservationFeature().DimNum() ||
+				NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetOutputNum() != 2 * Interactor->GetActionFeature().DimNum())
 			{
 				UE_LOG(LogLearning, Error, TEXT("%s: Neural Network Asset provided during Setup is incorrect size: Inputs and outputs don't match."), *GetName());
 				return;
-			}
-
-			if (NeuralNetworkAsset->NeuralNetwork->GetHiddenNum() != CriticSettings.HiddenLayerSize ||
-				NeuralNetworkAsset->NeuralNetwork->GetLayerNum() != CriticSettings.LayerNum ||
-				NeuralNetworkAsset->NeuralNetwork->ActivationFunction != UE::Learning::Agents::GetActivationFunction(CriticSettings.ActivationFunction))
-			{
-				UE_LOG(LogLearning, Warning, TEXT("%s: Neural Network Asset settings don't match those given by CriticSettings"), *GetName());
 			}
 
 			Network = NeuralNetworkAsset;
@@ -75,13 +69,13 @@ void ULearningAgentsCritic::SetupCritic(
 		else
 		{
 			Network = NeuralNetworkAsset;
-			Network->NeuralNetwork = MakeShared<UE::Learning::FNeuralNetwork>();
-			Network->NeuralNetwork->Resize(
+			Network->NeuralNetworkData = NewObject<ULearningAgentsDefaultNeuralNetworkData>(Network);
+			Network->NeuralNetworkData->CreateMLP(
 				Interactor->GetObservationFeature().DimNum(),
 				1,
 				CriticSettings.HiddenLayerSize,
-				CriticSettings.LayerNum);
-			Network->NeuralNetwork->ActivationFunction = UE::Learning::Agents::GetActivationFunction(CriticSettings.ActivationFunction);
+				CriticSettings.LayerNum,
+				CriticSettings.ActivationFunction);
 		}
 	}
 	else
@@ -91,13 +85,13 @@ void ULearningAgentsCritic::SetupCritic(
 		const FName UniqueName = MakeUniqueObjectName(this, ULearningAgentsNeuralNetwork::StaticClass(), TEXT("CriticNetwork"), EUniqueObjectNameOptions::GloballyUnique);
 
 		Network = NewObject<ULearningAgentsNeuralNetwork>(this, UniqueName);
-		Network->NeuralNetwork = MakeShared<UE::Learning::FNeuralNetwork>();
-		Network->NeuralNetwork->Resize(
+		Network->NeuralNetworkData = NewObject<ULearningAgentsDefaultNeuralNetworkData>(Network);
+		Network->NeuralNetworkData->CreateMLP(
 			Interactor->GetObservationFeature().DimNum(),
 			1,
 			CriticSettings.HiddenLayerSize,
-			CriticSettings.LayerNum);
-		Network->NeuralNetwork->ActivationFunction = UE::Learning::Agents::GetActivationFunction(CriticSettings.ActivationFunction);
+			CriticSettings.LayerNum,
+			CriticSettings.ActivationFunction);
 	}
 
 	// Create Critic Object
@@ -105,7 +99,7 @@ void ULearningAgentsCritic::SetupCritic(
 		TEXT("CriticObject"),
 		Manager->GetInstanceData().ToSharedRef(),
 		Manager->GetMaxAgentNum(),
-		Network->NeuralNetwork.ToSharedRef());
+		Network->NeuralNetworkData->GetNetworkInterface());
 
 	Manager->GetInstanceData()->Link(Interactor->GetObservationFeature().FeatureHandle, CriticObject->InputHandle);
 
@@ -167,9 +161,9 @@ ULearningAgentsNeuralNetwork* ULearningAgentsCritic::GetNetworkAsset()
 	return Network;
 }
 
-UE::Learning::FNeuralNetwork& ULearningAgentsCritic::GetCriticNetwork()
+UE::Learning::INeuralNetwork& ULearningAgentsCritic::GetCriticNetwork()
 {
-	return *Network->NeuralNetwork;
+	return *Network->NeuralNetworkData->GetNetworkInterface();
 }
 
 UE::Learning::FNeuralNetworkCriticFunction& ULearningAgentsCritic::GetCriticObject()
@@ -207,7 +201,7 @@ void ULearningAgentsCritic::UseCriticFromAsset(ULearningAgentsNeuralNetwork* Neu
 		return;
 	}
 
-	if (!NeuralNetworkAsset || !NeuralNetworkAsset->NeuralNetwork)
+	if (!NeuralNetworkAsset || !NeuralNetworkAsset->NeuralNetworkData)
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Asset is invalid."), *GetName());
 		return;
@@ -219,17 +213,15 @@ void ULearningAgentsCritic::UseCriticFromAsset(ULearningAgentsNeuralNetwork* Neu
 		return;
 	}
 
-	if (NeuralNetworkAsset->NeuralNetwork->GetInputNum() != Network->NeuralNetwork->GetInputNum() ||
-		NeuralNetworkAsset->NeuralNetwork->GetOutputNum() != Network->NeuralNetwork->GetOutputNum() ||
-		NeuralNetworkAsset->NeuralNetwork->GetLayerNum() != Network->NeuralNetwork->GetLayerNum() ||
-		NeuralNetworkAsset->NeuralNetwork->ActivationFunction != Network->NeuralNetwork->ActivationFunction)
+	if (NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetInputNum() != Network->NeuralNetworkData->GetNetworkInterface()->GetInputNum() ||
+		NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetOutputNum() != Network->NeuralNetworkData->GetNetworkInterface()->GetOutputNum())
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Failed to use asset as network settings don't match."), *GetName());
 		return;
 	}
 
 	Network = NeuralNetworkAsset;
-	CriticObject->NeuralNetwork = Network->NeuralNetwork.ToSharedRef();
+	CriticObject->UpdateNeuralNetwork(Network->NeuralNetworkData->GetNetworkInterface());
 }
 
 void ULearningAgentsCritic::LoadCriticFromAsset(ULearningAgentsNeuralNetwork* NeuralNetworkAsset)

@@ -2,18 +2,18 @@
 
 #include "LearningAgentsImitationTrainer.h"
 
-#include "GenericPlatform/GenericPlatformMisc.h"
-#include "HAL/FileManager.h"
 #include "LearningAgentsInteractor.h"
 #include "LearningArrayMap.h"
 #include "LearningExperience.h"
 #include "LearningFeatureObject.h"
 #include "LearningLog.h"
-#include "LearningNeuralNetwork.h"
 #include "LearningImitationTrainer.h"
 #include "LearningAgentsRecording.h"
 #include "LearningAgentsPolicy.h"
 #include "LearningNeuralNetworkObject.h"
+
+#include "GenericPlatform/GenericPlatformMisc.h"
+#include "HAL/FileManager.h"
 #include "Misc/Paths.h"
 
 ULearningAgentsImitationTrainer::ULearningAgentsImitationTrainer() : Super(FObjectInitializer::Get()) {}
@@ -179,28 +179,36 @@ void ULearningAgentsImitationTrainer::BeginTraining(
 		RecordedObservations.Num<0>(),
 		RecordedObservations.Num<1>(),
 		RecordedActions.Num<1>(),
+		Policy->GetPolicyNetwork(),
 		ImitationTrainingSettings);
 
 	UE_LOG(LogLearning, Display, TEXT("%s: Sending / Receiving initial policy..."), *GetName());
 
 	UE::Learning::ETrainerResponse Response = UE::Learning::ETrainerResponse::Success;
 
-	if (bReinitializePolicyNetwork)
-	{
-		Response = ImitationTrainer->RecvPolicy(Policy->GetPolicyNetwork(), TrainerTimeout);
-		Policy->GetNetworkAsset()->ForceMarkDirty();
-	}
-	else
-	{
-		Response = ImitationTrainer->SendPolicy(Policy->GetPolicyNetwork(), TrainerTimeout);
-	}
+	Response = ImitationTrainer->SendPolicy(Policy->GetPolicyNetwork(), TrainerTimeout);
 
 	if (Response != UE::Learning::ETrainerResponse::Success)
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Error sending or receiving policy from trainer: %s. Check log for errors."), *GetName(), UE::Learning::Trainer::GetResponseString(Response));
-		bHasTrainingFailed = true;
+		UE_LOG(LogLearning, Error, TEXT("%s: Error sending policy to trainer: %s. Check log for errors."), *GetName(), UE::Learning::Trainer::GetResponseString(Response));
 		ImitationTrainer->Terminate();
+		bHasTrainingFailed = true;
 		return;
+	}
+
+	if (!bReinitializePolicyNetwork)
+	{
+		Response = ImitationTrainer->RecvPolicy(Policy->GetPolicyNetwork(), TrainerTimeout);
+
+		if (Response != UE::Learning::ETrainerResponse::Success)
+		{
+			UE_LOG(LogLearning, Error, TEXT("%s: Error receiving policy from trainer: %s. Check log for errors."), *GetName(), UE::Learning::Trainer::GetResponseString(Response));
+			bHasTrainingFailed = true;
+			ImitationTrainer->Terminate();
+			return;
+		}
+
+		Policy->GetNetworkAsset()->ForceMarkDirty();
 	}
 
 	UE_LOG(LogLearning, Display, TEXT("%s: Sending Experience..."), *GetName());

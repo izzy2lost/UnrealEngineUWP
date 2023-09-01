@@ -4,6 +4,7 @@
 
 #include "LearningAgentsManager.h"
 #include "LearningAgentsInteractor.h"
+#include "LearningAgentsNeuralNetworkData.h"
 #include "LearningFeatureObject.h"
 #include "LearningNeuralNetwork.h"
 #include "LearningNeuralNetworkObject.h"
@@ -55,20 +56,13 @@ void ULearningAgentsPolicy::SetupPolicy(
 	{
 		// Use Existing Neural Network Asset
 
-		if (NeuralNetworkAsset->NeuralNetwork)
+		if (NeuralNetworkAsset->NeuralNetworkData)
 		{
-			if (NeuralNetworkAsset->NeuralNetwork->GetInputNum() != Interactor->GetObservationFeature().DimNum() ||
-				NeuralNetworkAsset->NeuralNetwork->GetOutputNum() != 2 * Interactor->GetActionFeature().DimNum())
+			if (NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetInputNum() != Interactor->GetObservationFeature().DimNum() ||
+				NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetOutputNum() != 2 * Interactor->GetActionFeature().DimNum())
 			{
 				UE_LOG(LogLearning, Error, TEXT("%s: Neural Network Asset provided during Setup is incorrect size: Inputs and outputs don't match what is required."), *GetName());
 				return;
-			}
-
-			if (NeuralNetworkAsset->NeuralNetwork->GetHiddenNum() != PolicySettings.HiddenLayerSize ||
-				NeuralNetworkAsset->NeuralNetwork->GetLayerNum() != PolicySettings.LayerNum ||
-				NeuralNetworkAsset->NeuralNetwork->ActivationFunction != UE::Learning::Agents::GetActivationFunction(PolicySettings.ActivationFunction))
-			{
-				UE_LOG(LogLearning, Warning, TEXT("%s: Neural Network Asset settings don't match those given by PolicySettings"), *GetName());
 			}
 
 			Network = NeuralNetworkAsset;
@@ -76,13 +70,13 @@ void ULearningAgentsPolicy::SetupPolicy(
 		else
 		{
 			Network = NeuralNetworkAsset;
-			Network->NeuralNetwork = MakeShared<UE::Learning::FNeuralNetwork>();
-			Network->NeuralNetwork->Resize(
+			Network->NeuralNetworkData = NewObject<ULearningAgentsDefaultNeuralNetworkData>(Network);
+			Network->NeuralNetworkData->CreateMLP(
 				Interactor->GetObservationFeature().DimNum(),
 				2 * Interactor->GetActionFeature().DimNum(),
 				PolicySettings.HiddenLayerSize,
-				PolicySettings.LayerNum);
-			Network->NeuralNetwork->ActivationFunction = UE::Learning::Agents::GetActivationFunction(PolicySettings.ActivationFunction);
+				PolicySettings.LayerNum,
+				PolicySettings.ActivationFunction);
 		}
 	}
 	else
@@ -92,13 +86,13 @@ void ULearningAgentsPolicy::SetupPolicy(
 		const FName UniqueName = MakeUniqueObjectName(this, ULearningAgentsNeuralNetwork::StaticClass(), TEXT("PolicyNetwork"), EUniqueObjectNameOptions::GloballyUnique);
 
 		Network = NewObject<ULearningAgentsNeuralNetwork>(this, UniqueName);
-		Network->NeuralNetwork = MakeShared<UE::Learning::FNeuralNetwork>();
-		Network->NeuralNetwork->Resize(
+		Network->NeuralNetworkData = NewObject<ULearningAgentsDefaultNeuralNetworkData>(Network);
+		Network->NeuralNetworkData->CreateMLP(
 			Interactor->GetObservationFeature().DimNum(),
 			2 * Interactor->GetActionFeature().DimNum(),
 			PolicySettings.HiddenLayerSize,
-			PolicySettings.LayerNum);
-		Network->NeuralNetwork->ActivationFunction = UE::Learning::Agents::GetActivationFunction(PolicySettings.ActivationFunction);
+			PolicySettings.LayerNum,
+			PolicySettings.ActivationFunction);
 	}
 
 	// Create Policy Object
@@ -111,8 +105,9 @@ void ULearningAgentsPolicy::SetupPolicy(
 		TEXT("PolicyObject"),
 		Manager->GetInstanceData().ToSharedRef(),
 		Manager->GetMaxAgentNum(),
-		Network->NeuralNetwork.ToSharedRef(),
+		Network->NeuralNetworkData->GetNetworkInterface(),
 		PolicySettings.ActionNoiseSeed,
+		UE::Learning::FNeuralNetworkInferenceSettings(),
 		PolicyFunctionSettings);
 
 	Manager->GetInstanceData()->Link(Interactor->GetObservationFeature().FeatureHandle, PolicyObject->InputHandle);
@@ -128,9 +123,9 @@ ULearningAgentsNeuralNetwork* ULearningAgentsPolicy::GetNetworkAsset()
 	return Network;
 }
 
-UE::Learning::FNeuralNetwork& ULearningAgentsPolicy::GetPolicyNetwork()
+UE::Learning::INeuralNetwork& ULearningAgentsPolicy::GetPolicyNetwork()
 {
-	return *Network->NeuralNetwork;
+	return *Network->NeuralNetworkData->GetNetworkInterface();
 }
 
 UE::Learning::FNeuralNetworkPolicyFunction& ULearningAgentsPolicy::GetPolicyObject()
@@ -168,7 +163,7 @@ void ULearningAgentsPolicy::UsePolicyFromAsset(ULearningAgentsNeuralNetwork* Neu
 		return;
 	}
 
-	if (!NeuralNetworkAsset || !NeuralNetworkAsset->NeuralNetwork)
+	if (!NeuralNetworkAsset || !NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface())
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Asset is invalid."), *GetName());
 		return;
@@ -180,17 +175,15 @@ void ULearningAgentsPolicy::UsePolicyFromAsset(ULearningAgentsNeuralNetwork* Neu
 		return;
 	}
 
-	if (NeuralNetworkAsset->NeuralNetwork->GetInputNum() != Network->NeuralNetwork->GetInputNum() ||
-		NeuralNetworkAsset->NeuralNetwork->GetOutputNum() != Network->NeuralNetwork->GetOutputNum() ||
-		NeuralNetworkAsset->NeuralNetwork->GetLayerNum() != Network->NeuralNetwork->GetLayerNum() ||
-		NeuralNetworkAsset->NeuralNetwork->ActivationFunction != Network->NeuralNetwork->ActivationFunction)
+	if (NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetInputNum() != Network->NeuralNetworkData->GetNetworkInterface()->GetInputNum() ||
+		NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetOutputNum() != Network->NeuralNetworkData->GetNetworkInterface()->GetOutputNum())
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Failed to use asset as network settings don't match."), *GetName());
 		return;
 	}
 
 	Network = NeuralNetworkAsset;
-	PolicyObject->NeuralNetwork = Network->NeuralNetwork.ToSharedRef();
+	PolicyObject->UpdateNeuralNetwork(Network->NeuralNetworkData->GetNetworkInterface());
 }
 
 void ULearningAgentsPolicy::LoadPolicyFromAsset(ULearningAgentsNeuralNetwork* NeuralNetworkAsset)

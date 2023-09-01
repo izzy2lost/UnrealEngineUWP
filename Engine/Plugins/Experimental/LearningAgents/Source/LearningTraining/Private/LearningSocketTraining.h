@@ -8,7 +8,7 @@ class FSocket;
 
 namespace UE::Learning
 {
-	struct FNeuralNetwork;
+	struct INeuralNetwork;
 	struct FReplayBuffer;
 
 	namespace SocketTraining
@@ -25,7 +25,7 @@ namespace UE::Learning
 
 		LEARNINGTRAINING_API ETrainerResponse RecvPolicy(
 			FSocket& Socket,
-			FNeuralNetwork& OutNetwork,
+			INeuralNetwork& OutNetwork,
 			TLearningArrayView<1, uint8> OutNetworkBuffer,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
@@ -33,7 +33,7 @@ namespace UE::Learning
 
 		LEARNINGTRAINING_API ETrainerResponse RecvCritic(
 			FSocket& Socket,
-			FNeuralNetwork& OutNetwork,
+			INeuralNetwork& OutNetwork,
 			TLearningArrayView<1, uint8> OutNetworkBuffer,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
@@ -59,7 +59,7 @@ namespace UE::Learning
 		LEARNINGTRAINING_API ETrainerResponse SendPolicy(
 			FSocket& Socket,
 			TLearningArrayView<1, uint8> NetworkBuffer,
-			const FNeuralNetwork& Network,
+			const INeuralNetwork& Network,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings);
@@ -67,7 +67,7 @@ namespace UE::Learning
 		LEARNINGTRAINING_API ETrainerResponse SendCritic(
 			FSocket& Socket,
 			TLearningArrayView<1, uint8> NetworkBuffer,
-			const FNeuralNetwork& Network,
+			const INeuralNetwork& Network,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings);

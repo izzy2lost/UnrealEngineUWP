@@ -6,12 +6,6 @@
 
 #include "LearningAgentsNeuralNetwork.generated.h"
 
-namespace UE::Learning
-{
-	struct FNeuralNetwork;
-	enum class EActivationFunction : uint8;
-}
-
 /** Activation functions for neural networks. */
 UENUM(BlueprintType, Category = "LearningAgents")
 enum class ELearningAgentsActivationFunction : uint8
@@ -26,14 +20,7 @@ enum class ELearningAgentsActivationFunction : uint8
 	TanH	UMETA(DisplayName = "TanH"),
 };
 
-namespace UE::Learning::Agents
-{
-	/** Get the learning agents activation function from the UE::Learning activation function. */
-	LEARNINGAGENTS_API ELearningAgentsActivationFunction GetLearningAgentsActivationFunction(const EActivationFunction ActivationFunction);
-
-	/** Get the UE::Learning activation function from the learning agents activation function. */
-	LEARNINGAGENTS_API EActivationFunction GetActivationFunction(const ELearningAgentsActivationFunction ActivationFunction);
-}
+class ULearningAgentsNeuralNetworkData;
 
 /** A neural network data asset. */
 UCLASS(BlueprintType)
@@ -46,9 +33,6 @@ public:
 	ULearningAgentsNeuralNetwork();
 	ULearningAgentsNeuralNetwork(FVTableHelper& Helper);
 	virtual ~ULearningAgentsNeuralNetwork();
-
-	/** Serialize this neural network to/from the given archive. */
-	virtual void Serialize(FArchive& Ar) override;
 
 	/**
 	 * Resets this network asset to be empty.
@@ -91,6 +75,7 @@ public:
 
 public:
 
-	/** Pointer to the internal Neural Network Data */
-	TSharedPtr<UE::Learning::FNeuralNetwork> NeuralNetwork;
+	/** The internal Neural Network Data */
+	UPROPERTY();
+	TObjectPtr<ULearningAgentsNeuralNetworkData> NeuralNetworkData;
 };

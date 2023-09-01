@@ -15,7 +15,6 @@
 #include "LearningExperience.h"
 #include "LearningFeatureObject.h"
 #include "LearningLog.h"
-#include "LearningNeuralNetwork.h"
 #include "LearningNeuralNetworkObject.h"
 #include "LearningPPOTrainer.h"
 #include "LearningRewardObject.h"
@@ -144,14 +143,19 @@ void ULearningAgentsTrainer::SetupTrainer(
 		return;
 	}
 
+	if (!InCritic)
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: InCritic is nullptr."), *GetName());
+		return;
+	}
+
 	if (!InPolicy->IsSetup())
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: %s's Setup must be run before it can be used."), *GetName(), *InPolicy->GetName());
 		return;
 	}
 
-	// The critic is optional unlike the other components
-	if (InCritic && !InCritic->IsSetup())
+	if (!InCritic->IsSetup())
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: %s's Setup must be run before it can be used."), *GetName(), *InCritic->GetName());
 		return;
@@ -368,7 +372,6 @@ void ULearningAgentsTrainer::BeginTraining(
 	const FLearningAgentsTrainerTrainingSettings& TrainerTrainingSettings,
 	const FLearningAgentsTrainerGameSettings& TrainerGameSettings,
 	const FLearningAgentsTrainerPathSettings& TrainerPathSettings,
-	const FLearningAgentsCriticSettings& CriticSettings,
 	const bool bReinitializePolicyNetwork,
 	const bool bReinitializeCriticNetwork,
 	const bool bResetAgentsOnBegin)
@@ -490,37 +493,8 @@ void ULearningAgentsTrainer::BeginTraining(
 	UE::Learning::FPPOTrainerNetworkSettings PPONetworkSettings;
 	PPONetworkSettings.PolicyActionNoiseMin = Policy->GetPolicyObject().Settings.ActionNoiseMin;
 	PPONetworkSettings.PolicyActionNoiseMax = Policy->GetPolicyObject().Settings.ActionNoiseMax;
-	PPONetworkSettings.PolicyActivationFunction = Policy->GetPolicyNetwork().ActivationFunction;
-	PPONetworkSettings.PolicyHiddenLayerSize = Policy->GetPolicyNetwork().GetHiddenNum();
-	PPONetworkSettings.PolicyLayerNum = Policy->GetPolicyNetwork().GetLayerNum();
 
-	if (Critic)
-	{
-		if (CriticSettings.HiddenLayerSize != Critic->GetCriticNetwork().GetHiddenNum() ||
-			CriticSettings.LayerNum != Critic->GetCriticNetwork().GetLayerNum() ||
-			UE::Learning::Agents::GetActivationFunction(CriticSettings.ActivationFunction) != Critic->GetCriticNetwork().ActivationFunction)
-		{
-			UE_LOG(LogLearning, Warning, TEXT("%s: BeginTraining got different Critic Network Settings to those provided to SetupCritic."), *GetName());
-		}
-
-		PPONetworkSettings.CriticHiddenLayerSize = Critic->GetCriticNetwork().GetHiddenNum();
-		PPONetworkSettings.CriticLayerNum = Critic->GetCriticNetwork().GetLayerNum();
-		PPONetworkSettings.CriticActivationFunction = Critic->GetCriticNetwork().ActivationFunction;
-	}
-	else
-	{
-		PPONetworkSettings.CriticHiddenLayerSize = CriticSettings.HiddenLayerSize;
-		PPONetworkSettings.CriticLayerNum = CriticSettings.LayerNum;
-		PPONetworkSettings.CriticActivationFunction = UE::Learning::Agents::GetActivationFunction(CriticSettings.ActivationFunction);
-	}
-
-	// We assume that if the critic has been setup on the agent interactor, then
-	// the user wants the critic network to be synced during training.
-	UE::Learning::EPPOTrainerFlags TrainerFlags = 
-		Critic ?
-		UE::Learning::EPPOTrainerFlags::SynchronizeCriticNetwork :
-		UE::Learning::EPPOTrainerFlags::None;
-
+	UE::Learning::EPPOTrainerFlags TrainerFlags = UE::Learning::EPPOTrainerFlags::None;
 	if (!bReinitializePolicyNetwork) { TrainerFlags |= UE::Learning::EPPOTrainerFlags::UseInitialPolicyNetwork; }
 	if (!bReinitializeCriticNetwork && Critic) { TrainerFlags |= UE::Learning::EPPOTrainerFlags::UseInitialCriticNetwork; }
 
@@ -532,6 +506,8 @@ void ULearningAgentsTrainer::BeginTraining(
 		PythonContentPath,
 		IntermediatePath,
 		*ReplayBuffer,
+		Policy->GetPolicyNetwork(),
+		Critic->GetCriticNetwork(),
 		PPOTrainingSettings,
 		PPONetworkSettings,
 		TrainerFlags);
@@ -540,47 +516,54 @@ void ULearningAgentsTrainer::BeginTraining(
 
 	UE::Learning::ETrainerResponse Response = UE::Learning::ETrainerResponse::Success;
 
-	if ((bool)(TrainerFlags & UE::Learning::EPPOTrainerFlags::UseInitialPolicyNetwork))
-	{
-		Response = Trainer->SendPolicy(Policy->GetPolicyNetwork(), TrainerTimeout);
-	}
-	else
-	{
-		Response = Trainer->RecvPolicy(Policy->GetPolicyNetwork(), TrainerTimeout);
-		Policy->GetNetworkAsset()->ForceMarkDirty();
-	}
+	Response = Trainer->SendPolicy(Policy->GetPolicyNetwork(), TrainerTimeout);
 
 	if (Response != UE::Learning::ETrainerResponse::Success)
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Error sending or receiving policy from trainer: %s. Check log for errors."), *GetName(), UE::Learning::Trainer::GetResponseString(Response));
+		UE_LOG(LogLearning, Error, TEXT("%s: Error sending policy to trainer: %s. Check log for errors."), *GetName(), UE::Learning::Trainer::GetResponseString(Response));
 		bHasTrainingFailed = true;
 		Trainer->Terminate();
 		return;
 	}
 
-	if (Critic)
+	Response = Trainer->SendCritic(Critic->GetCriticNetwork(), TrainerTimeout);
+
+	if (Response != UE::Learning::ETrainerResponse::Success)
 	{
-		if ((bool)(TrainerFlags & UE::Learning::EPPOTrainerFlags::UseInitialCriticNetwork))
-		{
-			Response = Trainer->SendCritic(Critic->GetCriticNetwork(), TrainerTimeout);
-		}
-		else if ((bool)(TrainerFlags & UE::Learning::EPPOTrainerFlags::SynchronizeCriticNetwork))
-		{
-			Response = Trainer->RecvCritic(Critic->GetCriticNetwork(), TrainerTimeout);
-			Critic->GetNetworkAsset()->ForceMarkDirty();
-		}
-		else
-		{
-			Response = UE::Learning::ETrainerResponse::Success;
-		}
+		UE_LOG(LogLearning, Error, TEXT("%s: Error sending critic to trainer: %s. Check log for errors."), *GetName(), UE::Learning::Trainer::GetResponseString(Response));
+		bHasTrainingFailed = true;
+		Trainer->Terminate();
+		return;
+	}
+
+	if (!(bool)(TrainerFlags & UE::Learning::EPPOTrainerFlags::UseInitialPolicyNetwork))
+	{
+		Response = Trainer->RecvPolicy(Policy->GetPolicyNetwork(), TrainerTimeout);
 
 		if (Response != UE::Learning::ETrainerResponse::Success)
 		{
-			UE_LOG(LogLearning, Error, TEXT("%s: Error sending or receiving critic from trainer: %s. Check log for errors."), *GetName(), UE::Learning::Trainer::GetResponseString(Response));
+			UE_LOG(LogLearning, Error, TEXT("%s: Error receiving policy from trainer: %s. Check log for errors."), *GetName(), UE::Learning::Trainer::GetResponseString(Response));
 			bHasTrainingFailed = true;
 			Trainer->Terminate();
 			return;
 		}
+
+		Policy->GetNetworkAsset()->ForceMarkDirty();
+	}
+
+	if (!(bool)(TrainerFlags & UE::Learning::EPPOTrainerFlags::UseInitialCriticNetwork))
+	{
+		Response = Trainer->RecvCritic(Critic->GetCriticNetwork(), TrainerTimeout);
+
+		if (Response != UE::Learning::ETrainerResponse::Success)
+		{
+			UE_LOG(LogLearning, Error, TEXT("%s: Error receiving critic from trainer: %s. Check log for errors."), *GetName(), UE::Learning::Trainer::GetResponseString(Response));
+			bHasTrainingFailed = true;
+			Trainer->Terminate();
+			return;
+		}
+
+		Critic->GetNetworkAsset()->ForceMarkDirty();
 	}
 
 	// Reset Agents, Replay Buffer
@@ -940,7 +923,6 @@ void ULearningAgentsTrainer::ProcessExperience()
 			if (Response != UE::Learning::ETrainerResponse::Success)
 			{
 				UE_LOG(LogLearning, Error, TEXT("%s: Error waiting to push experience to trainer. Check log for errors."), *GetName());
-				bHasTrainingFailed = true;
 				EndTraining();
 				return;
 			}
@@ -966,18 +948,15 @@ void ULearningAgentsTrainer::ProcessExperience()
 			}
 
 			// Get Updated Critic
-			if (Critic)
-			{
-				Response = Trainer->RecvCritic(Critic->GetCriticNetwork(), TrainerTimeout);
-				Critic->GetNetworkAsset()->ForceMarkDirty();
+			Response = Trainer->RecvCritic(Critic->GetCriticNetwork(), TrainerTimeout);
+			Critic->GetNetworkAsset()->ForceMarkDirty();
 
-				if (Response != UE::Learning::ETrainerResponse::Success)
-				{
-					UE_LOG(LogLearning, Error, TEXT("%s: Error waiting for critic from trainer. Check log for errors."), *GetName());
-					bHasTrainingFailed = true;
-					EndTraining();
-					return;
-				}
+			if (Response != UE::Learning::ETrainerResponse::Success)
+			{
+				UE_LOG(LogLearning, Error, TEXT("%s: Error waiting for critic from trainer. Check log for errors."), *GetName());
+				bHasTrainingFailed = true;
+				EndTraining();
+				return;
 			}
 
 			// Mark all agents for reset since we have a new policy
@@ -992,7 +971,6 @@ void ULearningAgentsTrainer::RunTraining(
 	const FLearningAgentsTrainerTrainingSettings& TrainerTrainingSettings,
 	const FLearningAgentsTrainerGameSettings& TrainerGameSettings,
 	const FLearningAgentsTrainerPathSettings& TrainerPathSettings,
-	const FLearningAgentsCriticSettings& CriticSettings,
 	const bool bReinitializePolicyNetwork,
 	const bool bReinitializeCriticNetwork,
 	const bool bResetAgentsOnBegin)
@@ -1016,7 +994,6 @@ void ULearningAgentsTrainer::RunTraining(
 			TrainerTrainingSettings,
 			TrainerGameSettings, 
 			TrainerPathSettings, 
-			CriticSettings, 
 			bReinitializePolicyNetwork, 
 			bReinitializeCriticNetwork,
 			bResetAgentsOnBegin);

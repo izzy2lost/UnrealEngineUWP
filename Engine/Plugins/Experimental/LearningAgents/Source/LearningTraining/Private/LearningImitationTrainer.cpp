@@ -117,6 +117,7 @@ namespace UE::Learning
 		const int32 MaxSampleNum,
 		const int32 ObservationDimNum,
 		const int32 ActionDimNum,
+		const INeuralNetwork& PolicyNetwork,
 		const FImitationTrainerTrainingSettings& TrainingSettings,
 		const FImitationTrainerNetworkSettings& NetworkSettings,
 		const EImitationTrainerFlags TrainerFlags,
@@ -127,15 +128,9 @@ namespace UE::Learning
 		UE_LEARNING_CHECK(FPaths::DirectoryExists(PythonContentPath));
 		UE_LEARNING_CHECK(FPaths::DirectoryExists(SitePackagesPath));
 
-		const int32 TotalPolicyByteNum = FNeuralNetwork::GetSerializationByteNum(
-			ObservationDimNum,
-			2 * ActionDimNum,
-			NetworkSettings.PolicyHiddenLayerSize,
-			NetworkSettings.PolicyLayerNum);
-
 		// Allocate Shared Memory
 
-		Policy = SharedMemory::Allocate<1, uint8>({ TotalPolicyByteNum });
+		Policy = SharedMemory::Allocate<1, uint8>({ PolicyNetwork.GetSerializationByteNum() });
 		Controls = SharedMemory::Allocate<1, volatile int32>({ SharedMemoryTraining::GetControlNum() });
 		Observations = SharedMemory::Allocate<2, float>({ MaxSampleNum, ObservationDimNum });
 		Actions = SharedMemory::Allocate<2, float>({ MaxSampleNum, ActionDimNum });
@@ -163,6 +158,8 @@ namespace UE::Learning
 		ConfigObject->SetStringField(TEXT("SitePackagesPath"), *FileManager.ConvertToAbsolutePathForExternalAppForRead(*SitePackagesPath));
 		ConfigObject->SetStringField(TEXT("IntermediatePath"), *FileManager.ConvertToAbsolutePathForExternalAppForRead(*IntermediatePath));
 
+		ConfigObject->SetStringField(TEXT("PolicyNetworkClass"), PolicyNetwork.GetPythonClassName());
+
 		ConfigObject->SetStringField(TEXT("PolicyGuid"), *Policy.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 		ConfigObject->SetStringField(TEXT("ControlsGuid"), *Controls.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 		ConfigObject->SetStringField(TEXT("ObservationsGuid"), *Observations.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
@@ -172,10 +169,7 @@ namespace UE::Learning
 		ConfigObject->SetNumberField(TEXT("ActionVectorDimensionNum"), ActionDimNum);
 		ConfigObject->SetNumberField(TEXT("MaxSampleNum"), MaxSampleNum);
 
-		ConfigObject->SetNumberField(TEXT("PolicyNetworkByteNum"), TotalPolicyByteNum);
-		ConfigObject->SetNumberField(TEXT("PolicyHiddenUnitNum"), NetworkSettings.PolicyHiddenLayerSize);
-		ConfigObject->SetNumberField(TEXT("PolicyLayerNum"), NetworkSettings.PolicyLayerNum);
-		ConfigObject->SetStringField(TEXT("PolicyActivationFunction"), GetActivationFunctionString(NetworkSettings.PolicyActivationFunction));
+		ConfigObject->SetNumberField(TEXT("PolicyNetworkByteNum"), PolicyNetwork.GetSerializationByteNum());
 		ConfigObject->SetNumberField(TEXT("PolicyActionNoiseMin"), NetworkSettings.PolicyActionNoiseMin);
 		ConfigObject->SetNumberField(TEXT("PolicyActionNoiseMax"), NetworkSettings.PolicyActionNoiseMax);
 
@@ -236,7 +230,7 @@ namespace UE::Learning
 	}
 
 	ETrainerResponse FSharedMemoryImitationTrainer::RecvPolicy(
-		FNeuralNetwork& OutNetwork,
+		INeuralNetwork& OutNetwork,
 		const float Timeout,
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
@@ -251,7 +245,7 @@ namespace UE::Learning
 	}
 
 	ETrainerResponse FSharedMemoryImitationTrainer::SendPolicy(
-		const FNeuralNetwork& Network,
+		const INeuralNetwork& Network,
 		const float Timeout,
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
@@ -458,6 +452,7 @@ namespace UE::Learning
 		const int32 MaxSampleNum,
 		const int32 ObservationDimNum,
 		const int32 ActionDimNum,
+		const INeuralNetwork& PolicyNetwork,
 		const TCHAR* IpAddress,
 		const uint32 Port,
 		const float Timeout,
@@ -465,12 +460,6 @@ namespace UE::Learning
 		const FImitationTrainerNetworkSettings& NetworkSettings,
 		const EImitationTrainerFlags TrainerFlags)
 	{
-		const int32 TotalPolicyByteNum = FNeuralNetwork::GetSerializationByteNum(
-			ObservationDimNum,
-			2 * ActionDimNum,
-			NetworkSettings.PolicyHiddenLayerSize,
-			NetworkSettings.PolicyLayerNum);
-
 		// Write Config
 
 		const FString TimeStamp = FDateTime::Now().ToFormattedString(TEXT("%Y-%m-%d_%H-%M-%S"));
@@ -483,14 +472,13 @@ namespace UE::Learning
 		ConfigObject->SetStringField(TEXT("TrainerType"), TrainerType);
 		ConfigObject->SetStringField(TEXT("TimeStamp"), *TimeStamp);
 
+		ConfigObject->SetStringField(TEXT("PolicyNetworkClass"), PolicyNetwork.GetPythonClassName());
+
 		ConfigObject->SetNumberField(TEXT("ObservationVectorDimensionNum"), ObservationDimNum);
 		ConfigObject->SetNumberField(TEXT("ActionVectorDimensionNum"), ActionDimNum);
 		ConfigObject->SetNumberField(TEXT("MaxSampleNum"), MaxSampleNum);
 
-		ConfigObject->SetNumberField(TEXT("PolicyNetworkByteNum"), TotalPolicyByteNum);
-		ConfigObject->SetNumberField(TEXT("PolicyHiddenUnitNum"), NetworkSettings.PolicyHiddenLayerSize);
-		ConfigObject->SetNumberField(TEXT("PolicyLayerNum"), NetworkSettings.PolicyLayerNum);
-		ConfigObject->SetStringField(TEXT("PolicyActivationFunction"), GetActivationFunctionString(NetworkSettings.PolicyActivationFunction));
+		ConfigObject->SetNumberField(TEXT("PolicyNetworkByteNum"), PolicyNetwork.GetSerializationByteNum());
 		ConfigObject->SetNumberField(TEXT("PolicyActionNoiseMin"), NetworkSettings.PolicyActionNoiseMin);
 		ConfigObject->SetNumberField(TEXT("PolicyActionNoiseMax"), NetworkSettings.PolicyActionNoiseMax);
 
@@ -511,7 +499,7 @@ namespace UE::Learning
 
 		// Allocate buffer to receive network data in
 
-		NetworkBuffer.SetNumUninitialized({ TotalPolicyByteNum });
+		NetworkBuffer.SetNumUninitialized({ PolicyNetwork.GetSerializationByteNum() });
 
 		// Create Socket
 
@@ -580,7 +568,7 @@ namespace UE::Learning
 	}
 
 	ETrainerResponse FSocketImitationTrainer::RecvPolicy(
-		FNeuralNetwork& OutNetwork,
+		INeuralNetwork& OutNetwork,
 		const float Timeout,
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
@@ -589,7 +577,7 @@ namespace UE::Learning
 	}
 
 	ETrainerResponse FSocketImitationTrainer::SendPolicy(
-		const FNeuralNetwork& Network,
+		const INeuralNetwork& Network,
 		const float Timeout,
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
@@ -610,7 +598,7 @@ namespace UE::Learning
 	{
 		ETrainerResponse Train(
 			IImitationTrainer& Trainer,
-			FNeuralNetwork& Network,
+			INeuralNetwork& Network,
 			const TLearningArrayView<2, const float> ObservationVectors,
 			const TLearningArrayView<2, const float> ActionVectors,
 			const EImitationTrainerFlags TrainerFlags, 
@@ -621,29 +609,27 @@ namespace UE::Learning
 		{
 			ETrainerResponse Response = ETrainerResponse::Success;
 
-			if ((bool)(TrainerFlags & EImitationTrainerFlags::UseInitialPolicyNetwork))
-			{
-				// Send initial Policy
+			// Send initial Policy
 
+			if (LogSettings != ELogSetting::Silent)
+			{
+				UE_LOG(LogLearning, Display, TEXT("Sending initial Policy..."));
+			}
+
+			Response = Trainer.SendPolicy(Network, 20.0f, NetworkLock);
+
+			if (Response != ETrainerResponse::Success)
+			{
 				if (LogSettings != ELogSetting::Silent)
 				{
-					UE_LOG(LogLearning, Display, TEXT("Sending initial Policy..."));
+					UE_LOG(LogLearning, Error, TEXT("Error sending initial policy from trainer: %s. Check log for errors."), Trainer::GetResponseString(Response));
 				}
 
-				Response = Trainer.SendPolicy(Network, 20.0f, NetworkLock);
-
-				if (Response != ETrainerResponse::Success)
-				{
-					if (LogSettings != ELogSetting::Silent)
-					{
-						UE_LOG(LogLearning, Error, TEXT("Error sending initial policy from trainer: %s. Check log for errors."), Trainer::GetResponseString(Response));
-					}
-
-					Trainer.Terminate();
-					return Response;
-				}
+				Trainer.Terminate();
+				return Response;
 			}
-			else
+
+			if (!(bool)(TrainerFlags & EImitationTrainerFlags::UseInitialPolicyNetwork))
 			{
 				// Receive initial Policy
 
