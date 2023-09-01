@@ -295,6 +295,11 @@ private:
 	UPROPERTY(Transient)
 	uint8 bIsInEditingLevelInstance:1;
 
+	UPROPERTY(Transient)
+	uint8 bIsInLevelInstance:1;
+
+	friend struct FSetActorIsInLevelInstance;
+
 public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = LevelInstance, meta = (Tooltip = "If checked, this Actor will only get loaded in a main world (persistent level), it will not be loaded through Level Instances."))
 	uint8 bIsMainWorldOnly : 1;
@@ -325,6 +330,12 @@ public:
 	virtual bool IsInEditingLevelInstance() const
 	{
 		return bIsInEditingLevelInstance;
+	}
+
+	/** If true, the actor belongs to a level instance. */
+	virtual bool IsInLevelInstance() const
+	{
+		return bIsInEditingLevelInstance || bIsInLevelInstance;
 	}
 #endif
 
@@ -4403,7 +4414,6 @@ private:
 	friend class UWorldPartitionConvertCommandlet;
 };
 
-#if WITH_EDITOR
 struct FSetActorReplicates
 {
 private:
@@ -4418,7 +4428,6 @@ private:
 	}
 	friend class FWorldPartitionLevelHelper;
 };
-#endif
 
 struct FSetActorInstanceGuid
 {
@@ -4466,6 +4475,17 @@ private:
 	friend class UDataLayerInstanceWithAsset;
 	friend class UDataLayerInstancePrivate;
 	friend class ULevelInstanceSubsystem;
+};
+
+struct FSetActorIsInLevelInstance
+{
+private:
+	FSetActorIsInLevelInstance(AActor* InActor)
+	{
+		InActor->bIsInLevelInstance = true;
+	}
+
+	friend class ULevelStreamingLevelInstance;
 };
 #endif
 

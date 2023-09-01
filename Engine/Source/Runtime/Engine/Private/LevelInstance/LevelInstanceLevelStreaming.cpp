@@ -198,6 +198,8 @@ void ULevelStreamingLevelInstance::PrepareLevelInstanceLoadedActor(AActor& InAct
 			InActor.AttachToActor(LevelInstanceEditorInstanceActor.Get(), FAttachmentTransformRules::KeepWorldTransform);
 		}
 	}
+
+	FSetActorIsInLevelInstance SetIsInLevelInstance(&InActor);
 }
 
 void ULevelStreamingLevelInstance::OnLoadedActorRemovedFromLevel(AActor& InActor)

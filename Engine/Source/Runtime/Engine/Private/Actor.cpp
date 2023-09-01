@@ -211,6 +211,7 @@ void AActor::InitializeDefaults()
 
 #if WITH_EDITORONLY_DATA
 	bIsInEditingLevelInstance = false;
+	bIsInLevelInstance = false;
 	PivotOffset = FVector::ZeroVector;
 #endif
 	SpawnCollisionHandlingMethod = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
