@@ -16,7 +16,7 @@ class SSearchBox;
 
 DECLARE_DELEGATE(FOnSearchBoxShown)
 
-class SSearchToggleButton : public SCompoundWidget
+class TOOLWIDGETS_API SSearchToggleButton : public SCompoundWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SSearchToggleButton)
