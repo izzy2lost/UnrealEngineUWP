@@ -163,7 +163,7 @@ bool UWorldPartitionBlueprintLibrary::GetIntersectingActorDescs(const UActorDesc
 
 	for (FActorDescList::TConstIterator<> ActorDescIt(InContainer); ActorDescIt; ++ActorDescIt)
 	{
-		if (ActorDescIt->GetEditorBounds().Intersect(InBox))
+		if (ActorDescIt->GetEditorBounds().TransformBy(InTransform).Intersect(InBox))
 		{
 			bResult &= HandleIntersectingActorDesc(*ActorDescIt, InBox, InTransform, OutActorDescs);
 		}
