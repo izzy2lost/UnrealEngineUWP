@@ -377,9 +377,6 @@ public:
 	bool Dirty;
 	bool NoSave;
 	bool bHasPlatformName = false;
-	// by default, we allow saving - this is going to be applied to config files that are not loaded from disk
-	// (when loading, this will get set to false, and then the ini sections will be checked)
-	bool bCanSaveAllSections = true;
 
 	/** The name of this config file */	
 	FName Name;

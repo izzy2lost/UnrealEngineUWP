@@ -19,8 +19,6 @@ namespace
 	FString LegacyIniVersionString = TEXT("IniVersion");
 	FString LegacyEngineString = TEXT("Engine.Engine");
 	FString CurrentIniVersionString = TEXT("CurrentIniVersion");
-	const TCHAR* SectionsToSaveString = TEXT("SectionsToSave");
-	const TCHAR* SaveAllSectionsKey = TEXT("bCanSaveAllSections");
 }
 
 
@@ -392,12 +390,6 @@ bool FConfigContext::PerformLoad()
 				ConfigFile->Write(DestIniFilename);
 			}
 		}
-
-		// chcek if the config file wants to save all sections
-		bool bLocalSaveAllSections;
-		ConfigFile->bCanSaveAllSections = ConfigFile->GetBool(SectionsToSaveString, SaveAllSectionsKey, bLocalSaveAllSections) && bLocalSaveAllSections;
-		// we can always save all sections of a User config file
-		ConfigFile->bCanSaveAllSections = ConfigFile->bCanSaveAllSections || BaseIniName.Contains(TEXT("User"));
 	}
 
 	// GenerateDestIniFile returns true if nothing is loaded, so check if we actually loaded something

@@ -32,8 +32,7 @@
 
 namespace
 {
-	const FString CurrentIniVersionStr = TEXT("CurrentIniVersion");
-	const FString SectionsToSaveStr = TEXT("SectionsToSave");
+	FString CurrentIniVersionStr = TEXT("CurrentIniVersion");
 
 	TMap<FString, FString> SectionRemap;
 	TMap<FString, TMap<FString, FString>> KeyRemap;
@@ -1492,13 +1491,6 @@ bool FConfigFile::WriteInternal(const FString& Filename, bool bDoRemoteWrite, TM
 		FRemoteConfig::Get()->Write(*Filename, Text);
 	}
 
-	// don't write out non-default configs that are only whitespace
-	if (!bIsADefaultIniWrite && Text.TrimStart().Len() == 0)
-	{
-		IFileManager::Get().Delete(*Filename);
-		return true;
-	}
-	
 	bool bResult = SaveConfigFileWrapper(*Filename, Text);
 
 	// File is still dirty if it didn't save.
@@ -1534,26 +1526,11 @@ void FConfigFile::WriteToStringInternal(FString& InOutText, bool bIsADefaultIniW
 	TSet<FName> PropertiesAddedLookup;
 	PropertiesAddedLookup.Reserve(HighestPropertiesInSection);
 	int32 EstimatedFinalTextSize = 0;
-	
-	// no need to look up the section if it's a default ini, or if we are always saving all sections
-	FConfigSection* SectionsToSaveSection = (bIsADefaultIniWrite || bCanSaveAllSections) ? nullptr : Find(SectionsToSaveStr);
-	TArray<FString> SectionsToSave;
-	if (SectionsToSaveSection != nullptr)
-	{
-		SectionsToSaveSection->MultiFind("Section", SectionsToSave);
-	}
-	
+
 	for( TIterator SectionIterator(*this); SectionIterator; ++SectionIterator )
 	{
 		const FString& SectionName = SectionIterator.Key();
 		const FConfigSection& Section = SectionIterator.Value();
-		
-		// null Sections array means to save everything, otherwise check if we can save this section
-		bool bCanSaveThisSection = SectionsToSaveSection == nullptr || SectionsToSave.Contains(SectionName);
-		if (!bCanSaveThisSection)
-		{
-			continue;
-		}
 
 		// If we have a config file to check against, have a look.
 		FConfigSection* SourceConfigSection = nullptr;
@@ -1702,6 +1679,12 @@ void FConfigFile::WriteToStringInternal(FString& InOutText, bool bIsADefaultIniW
 		{
 			AddSectionToText(SectionName);
 		}
+	}
+
+	// Ensure We have at least something to write
+	if (InOutText.Len() == 0)
+	{
+		InOutText.Append(LINE_TERMINATOR);
 	}
 }
 
