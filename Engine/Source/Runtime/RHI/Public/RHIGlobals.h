@@ -603,6 +603,9 @@ struct FRHIGlobals
 	
 	/** True if the RHI has initialized a device with the debug layer enabled. */
 	bool IsDebugLayerEnabled = false;
+
+	/** True if the RHI needs shader unbinds (SetShaderUnbinds). RHIs that don't need them can avoid creating extra commands. */
+	bool NeedsShaderUnbinds = false;
 };
 
 extern RHI_API FRHIGlobals GRHIGlobals;

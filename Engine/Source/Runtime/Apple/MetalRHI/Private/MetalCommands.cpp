@@ -390,16 +390,6 @@ void FMetalRHICommandContext::RHISetShaderParameters(FRHIComputeShader* Shader, 
 	);
 }
 
-void FMetalRHICommandContext::RHISetShaderUnbinds(FRHIComputeShader* Shader, TConstArrayView<FRHIShaderParameterUnbind> InUnbinds)
-{
-	UE::RHICore::RHISetShaderUnbindsShared(*this, Shader, InUnbinds);
-}
-
-void FMetalRHICommandContext::RHISetShaderUnbinds(FRHIGraphicsShader* Shader, TConstArrayView<FRHIShaderParameterUnbind> InUnbinds)
-{
-	UE::RHICore::RHISetShaderUnbindsShared(*this, Shader, InUnbinds);
-}
-
 void FMetalRHICommandContext::RHISetStencilRef(uint32 StencilRef)
 {
 	Context->GetCurrentState().SetStencilRef(StencilRef);

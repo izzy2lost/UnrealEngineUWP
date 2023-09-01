@@ -255,6 +255,8 @@ FD3D12DynamicRHI::FD3D12DynamicRHI(const TArray<TSharedPtr<FD3D12Adapter>>& Chos
 	GRHISupportsFrameCyclesBubblesRemoval = true;
 	GRHISupportsGPUTimestampBubblesRemoval = true;
 	GRHISupportsRHIOnTaskThread = true;
+
+	GRHIGlobals.NeedsShaderUnbinds = true;
 }
 
 void FD3D12DynamicRHI::PostInit()

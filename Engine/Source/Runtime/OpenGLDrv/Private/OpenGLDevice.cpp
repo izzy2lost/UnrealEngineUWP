@@ -1252,6 +1252,8 @@ static void InitRHICapabilitiesForGL()
 	}
 	
 	GRHISupportsPipelineFileCache = !GRHISupportsPSOPrecaching || CVarEnablePSOFileCacheWhenPrecachingActive.GetValueOnAnyThread();
+
+	GRHIGlobals.NeedsShaderUnbinds = true;
 }
 
 FDynamicRHI* FOpenGLDynamicRHIModule::CreateRHI(ERHIFeatureLevel::Type InRequestedFeatureLevel)

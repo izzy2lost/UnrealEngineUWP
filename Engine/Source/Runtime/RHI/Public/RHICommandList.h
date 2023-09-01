@@ -1006,6 +1006,12 @@ public:
 		return ScratchShaderUnbinds;
 	}
 
+	// Returns true if the RHI needs unbind commands
+	bool NeedsShaderUnbinds() const
+	{
+		return GRHIGlobals.NeedsShaderUnbinds;
+	}
+
 protected:
 	FMemStackBase& GetAllocator() { return MemManager; }
 
@@ -2599,15 +2605,18 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	FORCEINLINE_DEBUGGABLE void SetShaderUnbinds(FRHIComputeShader* InShader, TConstArrayView<FRHIShaderParameterUnbind> InUnbinds)
 	{
-		ValidateBoundShader(InShader);
-
-		if (Bypass())
+		if (NeedsShaderUnbinds())
 		{
-			GetComputeContext().RHISetShaderUnbinds(InShader, InUnbinds);
-			return;
-		}
+			ValidateBoundShader(InShader);
 
-		ALLOC_COMMAND(FRHICommandSetShaderUnbinds<FRHIComputeShader>)(InShader, AllocArray(InUnbinds));
+			if (Bypass())
+			{
+				GetComputeContext().RHISetShaderUnbinds(InShader, InUnbinds);
+				return;
+			}
+
+			ALLOC_COMMAND(FRHICommandSetShaderUnbinds<FRHIComputeShader>)(InShader, AllocArray(InUnbinds));
+		}
 	}
 
 	FORCEINLINE_DEBUGGABLE void SetBatchedShaderUnbinds(FRHIComputeShader* InShader, FRHIBatchedShaderUnbinds& InBatchedUnbinds)
@@ -3335,15 +3344,18 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	FORCEINLINE_DEBUGGABLE void SetShaderUnbinds(FRHIGraphicsShader* InShader, TConstArrayView<FRHIShaderParameterUnbind> InUnbinds)
 	{
-		ValidateBoundShader(InShader);
-
-		if (Bypass())
+		if (NeedsShaderUnbinds())
 		{
-			GetContext().RHISetShaderUnbinds(InShader, InUnbinds);
-			return;
-		}
+			ValidateBoundShader(InShader);
 
-		ALLOC_COMMAND(FRHICommandSetShaderUnbinds<FRHIGraphicsShader>)(InShader, AllocArray(InUnbinds));
+			if (Bypass())
+			{
+				GetContext().RHISetShaderUnbinds(InShader, InUnbinds);
+				return;
+			}
+
+			ALLOC_COMMAND(FRHICommandSetShaderUnbinds<FRHIGraphicsShader>)(InShader, AllocArray(InUnbinds));
+		}
 	}
 
 	using FRHIComputeCommandList::SetBatchedShaderUnbinds;

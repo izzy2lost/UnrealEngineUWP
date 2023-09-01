@@ -74,12 +74,15 @@ void FRayTracingValidateGeometryBuildParamsCS::Dispatch(FRHICommandList& RHICmdL
 		RHICmdList.DispatchComputeShader(NumGroupsX, 1, 1);
 	}
 
-	FRHIBatchedShaderUnbinds& BatchedUnbinds = RHICmdList.GetScratchShaderUnbinds();
+	if (RHICmdList.NeedsShaderUnbinds())
+	{
+		FRHIBatchedShaderUnbinds& BatchedUnbinds = RHICmdList.GetScratchShaderUnbinds();
 
-	UnsetSRVParameter(BatchedUnbinds, ComputeShader->VertexBufferParam);
-	UnsetSRVParameter(BatchedUnbinds, ComputeShader->IndexBufferParam);
+		UnsetSRVParameter(BatchedUnbinds, ComputeShader->VertexBufferParam);
+		UnsetSRVParameter(BatchedUnbinds, ComputeShader->IndexBufferParam);
 
-	RHICmdList.SetBatchedShaderUnbinds(ShaderRHI, BatchedUnbinds);
+		RHICmdList.SetBatchedShaderUnbinds(ShaderRHI, BatchedUnbinds);
+	}
 
 	RHICmdList.PopEvent();
 }
