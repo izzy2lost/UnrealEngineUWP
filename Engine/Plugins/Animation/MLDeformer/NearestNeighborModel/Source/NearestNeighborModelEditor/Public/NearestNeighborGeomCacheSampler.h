@@ -4,6 +4,7 @@
 
 #include "MLDeformerGeomCacheSampler.h"
 
+class UAnimSequence;
 class UNearestNeighborTrainingModel;
 namespace UE::NearestNeighborModel
 {
@@ -13,6 +14,7 @@ namespace UE::NearestNeighborModel
 		: public UE::MLDeformer::FMLDeformerGeomCacheSampler
 	{
 	public:
+		virtual ~FNearestNeighborGeomCacheSampler();
 		// FMLDeformerGeomCacheSampler overrides
 		virtual void Sample(int32 InAnimFrameIndex) override;
 		// ~END FMLDeformerGeomCacheSampler overrides
@@ -24,11 +26,16 @@ namespace UE::NearestNeighborModel
 		virtual void SampleDualQuaternionDeltas(int32 InAnimFrameIndex);
 		virtual bool SampleKMeansAnim(const int32 SkeletonId);
 		virtual bool SampleKMeansFrame(const int32 Frame);
+		int32 GetAnimNumFrames() const;
+		bool SetAnimToSample(UAnimSequence& InAnimToSample);
+		bool SampleAnim(int32 Frame);
 		uint8 GenerateMeshMappings();
 		uint8 CheckMeshMappingsEmpty() const;
 		TArray<uint32> GetMeshIndexBuffer() const;
 		FVector3f CalcDualQuaternionDelta(int32 VertexIndex, const FVector3f& WorldDelta, const FSkeletalMeshLODRenderData& SkelMeshLODData, const FSkinWeightVertexBuffer& SkinWeightBuffer) const;
 
 		int32 KMeansAnimId;
+
+		TObjectPtr<UAnimSequence> AnimToSample;
 	};
 }
