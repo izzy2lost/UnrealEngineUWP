@@ -1502,12 +1502,13 @@ bool UWorldPartitionRuntimeSpatialHash::IsValidGrid(FName GridName) const
 
 #endif //WITH_EDITOR
 
+static const FString GOverrideLoadingRangeCommandName(TEXT("wp.Runtime.OverrideRuntimeSpatialHashLoadingRange"));
 FAutoConsoleCommand UWorldPartitionRuntimeSpatialHash::OverrideLoadingRangeCommand(
-	TEXT("wp.Runtime.OverrideRuntimeSpatialHashLoadingRange"),
+	*GOverrideLoadingRangeCommandName,
 	TEXT("Sets runtime loading range. Args -grid=[index] -range=[override_loading_range]"),
-	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& InArgs)
 	{
-		FString ArgString = FString::Join(Args, TEXT(" "));
+		FString ArgString = FString::Join(InArgs, TEXT(" "));
 		int32 GridIndex = 0;
 		float OverrideLoadingRange = -1.f;
 		FParse::Value(*ArgString, TEXT("grid="), GridIndex);
@@ -1518,6 +1519,7 @@ FAutoConsoleCommand UWorldPartitionRuntimeSpatialHash::OverrideLoadingRangeComma
 			UWorld* World = Context.World();
 			if (World && World->IsGameWorld())
 			{
+				FWorldPartitionHelpers::ServerExecConsoleCommand(World, GOverrideLoadingRangeCommandName, InArgs);
 				if (UWorldPartitionSubsystem* WorldPartitionSubsystem = World->GetSubsystem<UWorldPartitionSubsystem>())
 				{
 					WorldPartitionSubsystem->ForEachWorldPartition([GridIndex, OverrideLoadingRange](UWorldPartition* WorldPartition)

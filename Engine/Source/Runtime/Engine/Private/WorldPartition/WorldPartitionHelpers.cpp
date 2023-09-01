@@ -6,6 +6,8 @@
 #include "WorldPartition/WorldPartitionLog.h"
 #include "WorldPartition/WorldPartitionEditorHash.h"
 #include "WorldPartition/WorldPartitionRuntimeCell.h"
+#include "GameFramework/PlayerController.h"
+#include "Engine/Engine.h"
 #include "Algo/AnyOf.h"
 
 #include "Commandlets/Commandlet.h"
@@ -43,6 +45,24 @@ namespace FWorldPartitionHelpersPrivate
 
 		return nullptr;
 	}
+}
+
+void FWorldPartitionHelpers::ServerExecConsoleCommand(UWorld* InWorld, const FString& InConsoleCommandName, const TArray<FString>& InArgs)
+{
+#if !UE_BUILD_SHIPPING && !WITH_EDITOR
+	if (InWorld && InWorld->IsGameWorld() && InWorld->IsNetMode(NM_Client))
+	{
+		if (APlayerController* PC = GEngine->GetFirstLocalPlayerController(InWorld))
+		{
+			TArray<FString> CmdList;
+			CmdList.Add(InConsoleCommandName);
+			CmdList.Append(InArgs);
+			FString Cmd = FString::Join(CmdList, TEXT(" "));
+			// Use ServerExecRPC instead of ServerExec to avoid any truncation
+			PC->ServerExecRPC(Cmd);
+		}
+	}
+#endif
 }
 
 #if WITH_EDITOR

@@ -69,6 +69,9 @@ public:
 		return FWorldPartitionHelpersPrivate::GetWorldPartition(InObject);
 	}
 
+	/** Sends an RPC console command to the server (non shipping builds only). */
+	static ENGINE_API void ServerExecConsoleCommand(UWorld* InWorld, const FString& InConsoleCommandName, const TArray<FString>& InArgs);
+
 #if WITH_EDITOR
 private:
 	static ENGINE_API bool IsActorDescClassCompatibleWith(const FWorldPartitionActorDesc* ActorDesc, const UClass* Class);

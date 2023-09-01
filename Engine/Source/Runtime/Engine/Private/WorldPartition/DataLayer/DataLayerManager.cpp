@@ -62,8 +62,9 @@ FAutoConsoleCommandWithOutputDevice UDataLayerManager::DumpDataLayersCommand(
 	})
 );
 
+static const FString GToggleDataLayerActivationCommandName(TEXT("wp.Runtime.ToggleDataLayerActivation"));
 FAutoConsoleCommand UDataLayerManager::ToggleDataLayerActivation(
-	TEXT("wp.Runtime.ToggleDataLayerActivation"),
+	*GToggleDataLayerActivationCommandName,
 	TEXT("Toggles DataLayers active state. Args [DataLayerNames]"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& InArgs)
 	{
@@ -72,6 +73,7 @@ FAutoConsoleCommand UDataLayerManager::ToggleDataLayerActivation(
 			UWorld* World = Context.World();
 			if (World && World->IsGameWorld())
 			{
+				FWorldPartitionHelpers::ServerExecConsoleCommand(World, GToggleDataLayerActivationCommandName, InArgs);
 				if (UWorldPartitionSubsystem* WorldPartitionSubsystem = World->GetSubsystem<UWorldPartitionSubsystem>())
 				{
 					WorldPartitionSubsystem->ForEachWorldPartition([&InArgs](UWorldPartition* WorldPartition)
@@ -92,24 +94,25 @@ FAutoConsoleCommand UDataLayerManager::ToggleDataLayerActivation(
 	})
 );
 
+static const FString GSetDataLayerRuntimeStateCommandCommandName(TEXT("wp.Runtime.SetDataLayerRuntimeState"));
 FAutoConsoleCommand UDataLayerManager::SetDataLayerRuntimeStateCommand(
-	TEXT("wp.Runtime.SetDataLayerRuntimeState"),
+	*GSetDataLayerRuntimeStateCommandCommandName,
 	TEXT("Sets Runtime DataLayers state. Args [State = Unloaded, Loaded, Activated] [DataLayerNames]"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& InArgs)
 	{
 		if (InArgs.Num() < 2)
 		{
-			UE_LOG(LogWorldPartition, Warning, TEXT("wp.Runtime.SetDataLayerRuntimeState : Requires at least 2 arguments. First argument should be the target state and the next ones should be the list of DataLayers."));
+			UE_LOG(LogWorldPartition, Warning, TEXT("%s : Requires at least 2 arguments. First argument should be the target state and the next ones should be the list of DataLayers."), *GSetDataLayerRuntimeStateCommandCommandName);
 			return;
 		}
 
-		TArray<FString> Args = InArgs;
+		TArray<FString> Args(InArgs);
 		FString StatetStr;
 		Args.HeapPop(StatetStr);
 		EDataLayerRuntimeState State;
 		if (!GetDataLayerRuntimeStateFromName(StatetStr, State))
 		{
-			UE_LOG(LogWorldPartition, Warning, TEXT("wp.Runtime.SetDataLayerRuntimeState : Invalid first argument, expected one of these values : Unloaded, Loaded, Activated."));
+			UE_LOG(LogWorldPartition, Warning, TEXT("%s : Invalid first argument, expected one of these values : Unloaded, Loaded, Activated."), *GSetDataLayerRuntimeStateCommandCommandName);
 			return;
 		}
 
@@ -118,6 +121,8 @@ FAutoConsoleCommand UDataLayerManager::SetDataLayerRuntimeStateCommand(
 			UWorld* World = Context.World();
 			if (World && World->IsGameWorld())
 			{
+				FWorldPartitionHelpers::ServerExecConsoleCommand(World, GSetDataLayerRuntimeStateCommandCommandName, InArgs);
+
 				if (UWorldPartitionSubsystem* WorldPartitionSubsystem = World->GetSubsystem<UWorldPartitionSubsystem>())
 				{
 					WorldPartitionSubsystem->ForEachWorldPartition([&Args, State](UWorldPartition* WorldPartition)
