@@ -1,16 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NearestNeighborTrainingModel.h"
-#include "NearestNeighborGeomCacheSampler.h"
 #include "NearestNeighborModel.h"
 #include "NearestNeighborModelInstance.h"
 #include "NearestNeighborEditorModel.h"
+#include "NearestNeighborGeomCacheSampler.h"
 #include "Animation/AnimSequence.h"
 
 #define LOCTEXT_NAMESPACE "NearestNeighborTrainingModel"
 using namespace UE::NearestNeighborModel;
-
-UNearestNeighborTrainingModel::~UNearestNeighborTrainingModel() = default;
 
 void UNearestNeighborTrainingModel::Init(UE::MLDeformer::FMLDeformerEditorModel* InEditorModel)
 {
@@ -46,59 +44,36 @@ int32 UNearestNeighborTrainingModel::GetPartNumNeighbors(const int32 PartId) con
 	return FMath::Min(NearestNeighborModel->GetNumNeighborsFromAnimSequence(PartId), NearestNeighborModel->GetNumNeighborsFromGeometryCache(PartId));
 }
 
-bool UNearestNeighborTrainingModel::SetAnimToSample(UAnimSequence* AnimToSample)
-{
-	if (!NearestNeighborModel || !AnimToSample)
-	{
-		return false;
-	}
-	if (!AnimSampler.Get())
-	{
-		SetNewAnimSampler();
-		check(AnimSampler.Get());
-	}
-	static_cast<FNearestNeighborGeomCacheSampler*>(AnimSampler.Get())->SetAnimToSample(*AnimToSample);
-	return true;
-}
-
-
-bool UNearestNeighborTrainingModel::SampleAnim(int32 Frame)
-{
-	if (!AnimSampler.Get())
-	{
-		return false;
-	}
-	if (!static_cast<FNearestNeighborGeomCacheSampler*>(AnimSampler.Get())->SampleAnim(Frame))
-	{
-		return false;
-	}
-	SampleBoneRotations = AnimSampler->GetBoneRotations();
-	return true;
-}
-
-int32 UNearestNeighborTrainingModel::GetAnimNumFrames() const
-{
-	if (!AnimSampler.Get())
-	{
-		return 0;
-	}
-	return static_cast<FNearestNeighborGeomCacheSampler*>(AnimSampler.Get())->GetAnimNumFrames();
-}
-
 bool UNearestNeighborTrainingModel::SampleKmeansAnim(const int32 SkeletonId)
 {
-	if (!AnimSampler.Get())
+	FMLDeformerSampler* BaseSampler = EditorModel->GetNumTrainingInputAnims() > 0 ? EditorModel->GetSamplerForTrainingAnim(0) : nullptr;
+	FNearestNeighborGeomCacheSampler* Sampler = static_cast<FNearestNeighborGeomCacheSampler*>(BaseSampler);
+	if (Sampler == nullptr)
 	{
-		SetNewAnimSampler();
-		check(AnimSampler.Get());
+		return false;
 	}
-	return static_cast<FNearestNeighborGeomCacheSampler*>(AnimSampler.Get())->SampleKMeansAnim(SkeletonId);
+
+	return Sampler->SampleKMeansAnim(SkeletonId);
 }
 
 bool UNearestNeighborTrainingModel::SampleKmeansFrame(const int32 Frame)
 {
-	return SampleAnim(Frame);
+	FMLDeformerSampler* BaseSampler = EditorModel->GetNumTrainingInputAnims() > 0 ? EditorModel->GetSamplerForTrainingAnim(0) : nullptr;
+	FNearestNeighborGeomCacheSampler* Sampler = static_cast<FNearestNeighborGeomCacheSampler*>(BaseSampler);
+	if (Sampler == nullptr)
+	{
+		return false;
+	}
+
+	const bool bSampleExist = Sampler->SampleKMeansFrame(Frame);
+	if (bSampleExist)
+	{
+		SampleBoneRotations = Sampler->GetBoneRotations();
+		return true;	
+	}
+	return false;
 }
+
 
 int32 UNearestNeighborTrainingModel::GetKmeansNumAnims() const
 {
@@ -165,27 +140,6 @@ UNearestNeighborModelInstance* UNearestNeighborTrainingModel::CreateModelInstanc
 void UNearestNeighborTrainingModel::DestroyModelInstance(UNearestNeighborModelInstance* ModelInstance)
 {
 	ModelInstance->ConditionalBeginDestroy();
-}
-
-void UNearestNeighborTrainingModel::SetNewAnimSampler()
-{
-	AnimSampler = MakeUnique<FNearestNeighborGeomCacheSampler>();
-	AnimSampler->Init(EditorModel, 0);
-}
-
-const UAnimSequence* UNearestNeighborTrainingModel::GetTestAnim() const
-{
-	if (!EditorModel)
-	{
-		return nullptr;
-	}
-	const FNearestNeighborEditorModel* NNEditorModel = static_cast<FNearestNeighborEditorModel*>(EditorModel);
-	const UNearestNeighborModelVizSettings* Viz = NNEditorModel->GetNearestNeighborModelVizSettings();
-	if (!Viz)
-	{
-		return nullptr;
-	}
-	return Viz->GetTestAnimSequence();
 }
 
 

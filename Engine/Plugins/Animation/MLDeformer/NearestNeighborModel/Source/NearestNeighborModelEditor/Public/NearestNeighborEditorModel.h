@@ -23,7 +23,6 @@ namespace UE::NearestNeighborModel
 	class FNearestNeighborEditorModelActor;
 	class FNearestNeighborModelDetails;
 	class FNearestNeighborModelSampler;
-	class FNearestNeighborModelVizSettingsDetails;
 
 	class NEARESTNEIGHBORMODELEDITOR_API FNearestNeighborEditorModel
 		: public UE::MLDeformer::FMLDeformerMorphModelEditorModel
@@ -58,7 +57,6 @@ namespace UE::NearestNeighborModel
 		friend class FNearestNeighborModelSampler;
 		friend class FNearestNeighborModelDetails;
 		friend class ::UNearestNeighborTrainingModel;
-		friend class FNearestNeighborModelVizSettingsDetails;
 
 	private:
 		// Some helpers that cast to this model's variants of some classes.
@@ -108,8 +106,6 @@ namespace UE::NearestNeighborModel
 			TrainingModel->Init(EditorModel);
 			return TrainingModel;
 		}
-
-		void GetNeighborStats();
 
 		// Actors showing the nearest neighbors of the current frame
 		TArray<FNearestNeighborEditorModelActor*> NearestNeighborActors;

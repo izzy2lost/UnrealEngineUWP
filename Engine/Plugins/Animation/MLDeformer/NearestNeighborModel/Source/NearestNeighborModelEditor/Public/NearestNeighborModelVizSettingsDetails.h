@@ -7,8 +7,6 @@
 
 namespace UE::NearestNeighborModel
 {
-	class FNearestNeighborEditorModel;
-
 	class NEARESTNEIGHBORMODELEDITOR_API FNearestNeighborModelVizSettingsDetails
 		: public UE::MLDeformer::FMLDeformerMorphModelVizSettingsDetails
 	{
@@ -20,6 +18,5 @@ namespace UE::NearestNeighborModel
 		}
 		
 		virtual void AddAdditionalSettings() override;
-		FNearestNeighborEditorModel* GetCastEditorModel();
 	};
 }	// namespace UE::NearestNeighborModel
