@@ -20,7 +20,7 @@ namespace Horde.Agent.Utility
 	/// <summary>
 	/// Stores information about a managed Perforce workspace
 	/// </summary>
-	class WorkspaceInfo
+	public class WorkspaceInfo
 	{
 		/// <summary>
 		/// The perforce connection

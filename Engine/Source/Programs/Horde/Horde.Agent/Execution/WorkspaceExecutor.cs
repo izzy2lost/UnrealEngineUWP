@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using Horde.Agent.Utility;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
@@ -102,7 +103,7 @@ namespace Horde.Agent.Execution
 			// Loop back to JobExecutor's SetupAsync again, but with workspace and shared storage dir set
 			WorkspaceMaterializerSettings settings = await _workspace.GetSettingsAsync(cancellationToken);
 			DirectoryReference workspaceDir = settings.DirectoryPath;
-			return await SetupAsync(step, workspaceDir, _sharedStorageDir, settings.IsPerforceWorkspace, logger, cancellationToken);
+			return await SetupAsync(step, workspaceDir, _sharedStorageDir, settings.IsPerforceWorkspace, GetLogger(settings, logger), cancellationToken);
 		}
 
 		/// <inheritdoc/>
@@ -111,7 +112,7 @@ namespace Horde.Agent.Execution
 			// Loop back to JobExecutor's ExecuteAsync again, but with workspace and shared storage dir set
 			WorkspaceMaterializerSettings settings = await _workspace.GetSettingsAsync(cancellationToken);
 			DirectoryReference workspaceDir = settings.DirectoryPath;
-			return await ExecuteAsync(step, workspaceDir, _sharedStorageDir, settings.IsPerforceWorkspace, logger, cancellationToken);
+			return await ExecuteAsync(step, workspaceDir, _sharedStorageDir, settings.IsPerforceWorkspace, GetLogger(settings, logger), cancellationToken);
 		}
 
 		/// <inheritdoc/>
@@ -127,6 +128,25 @@ namespace Horde.Agent.Execution
 			}
 			
 			await _workspace.FinalizeAsync(cancellationToken);
+		}
+
+		private ILogger GetLogger(WorkspaceMaterializerSettings settings, ILogger logger)
+		{
+			if (settings.IsPerforceWorkspace)
+			{
+				// Try resolve a PerforceLogger using assumptions about the materializer.
+				// This is to remain compatible with PerforceExecutor.
+				// These Perforce-specific references should ideally not exist in WorkspaceExecutor.
+				WorkspaceInfo? workspaceInfo = (_workspace as ManagedWorkspaceMaterializer)?.GetWorkspaceInfo();
+				WorkspaceInfo? autoSdkWorkspaceInfo = (_autoSdkWorkspace as ManagedWorkspaceMaterializer)?.GetWorkspaceInfo();
+				
+				if (workspaceInfo != null)
+				{
+					return PerforceExecutor.CreatePerforceLogger(logger, _batch.Change, workspaceInfo, autoSdkWorkspaceInfo);
+				}
+			}
+
+			return logger;
 		}
 	}
 

@@ -211,27 +211,27 @@ namespace Horde.Agent.Execution
 			}
 		}
 
-		PerforceLogger CreatePerforceLogger(ILogger logger)
+		public static PerforceLogger CreatePerforceLogger(ILogger logger, int changeNum, WorkspaceInfo workspace, WorkspaceInfo? autoSdkWorkspace)
 		{
 			PerforceLogger perforceLogger = new PerforceLogger(logger);
-			perforceLogger.AddClientView(_workspace.WorkspaceDir, _workspace.StreamView, _batch.Change);
-			if (_autoSdkWorkspace != null)
+			perforceLogger.AddClientView(workspace.WorkspaceDir, workspace.StreamView, changeNum);
+			if (autoSdkWorkspace != null)
 			{
-				perforceLogger.AddClientView(_autoSdkWorkspace.WorkspaceDir, _autoSdkWorkspace.StreamView, _batch.Change);
+				perforceLogger.AddClientView(autoSdkWorkspace.WorkspaceDir, autoSdkWorkspace.StreamView, changeNum);
 			}
 			return perforceLogger;
 		}
 
 		protected override async Task<bool> SetupAsync(BeginStepResponse step, ILogger logger, CancellationToken cancellationToken)
 		{
-			PerforceLogger perforceLogger = CreatePerforceLogger(logger);
+			PerforceLogger perforceLogger = CreatePerforceLogger(logger, _batch.Change, _workspace, _autoSdkWorkspace);
 			bool useP4 = WorkspaceInfo.ShouldUseHaveTable(_workspaceInfo.Method);
 			return await SetupAsync(step, _workspace.WorkspaceDir, _sharedStorageDir, useP4, perforceLogger, cancellationToken);
 		}
 
 		protected override async Task<bool> ExecuteAsync(BeginStepResponse step, ILogger logger, CancellationToken cancellationToken)
 		{
-			PerforceLogger perforceLogger = CreatePerforceLogger(logger);
+			PerforceLogger perforceLogger = CreatePerforceLogger(logger, _batch.Change, _workspace, _autoSdkWorkspace);
 			bool useP4 = WorkspaceInfo.ShouldUseHaveTable(_workspaceInfo.Method);
 			return await ExecuteAsync(step, _workspace.WorkspaceDir, _sharedStorageDir, useP4, perforceLogger, cancellationToken);
 		}

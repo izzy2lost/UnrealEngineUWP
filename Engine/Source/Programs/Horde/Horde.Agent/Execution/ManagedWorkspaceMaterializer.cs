@@ -122,6 +122,16 @@ public class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 
 		await _workspace.SyncAsync(changeNum, preflightChangeNum, cacheFile, cancellationToken);
 	}
+	
+	/// <summary>
+	/// Get info for Perforce workspace
+	/// </summary>
+	/// <returns>Workspace info</returns>
+	public WorkspaceInfo? GetWorkspaceInfo()
+	{
+		return _workspace;
+	}
+	
 
 	private IScope CreateTraceSpan(string operationName)
 	{
