@@ -1285,10 +1285,10 @@ void ScreenProbeIntegrateCS(
 
 				DiffuseLighting = DiffuseLighting * PI / ((float)NumPixelSamples * AO);
 
-				#if GBUFFER_HAS_DIFFUSE_SAMPLE_OCCLUSION && !STRATA_ENABLED // STRATA_TODO: Need to extract an average base color value?
+				#if GBUFFER_HAS_DIFFUSE_SAMPLE_OCCLUSION
 				if (ApplyMaterialAO > 0)
 				{
-					DiffuseLighting *= AOMultiBounce(min(Material.GBufferData.BaseColor, MaxAOMultibounceAlbedo), Material.MaterialAO) * (Material.MaterialAO > 0.0 ? rcp(Material.MaterialAO) : 0.0);
+					DiffuseLighting *= AOMultiBounce(min(Material.DiffuseAlbedo, MaxAOMultibounceAlbedo), Material.MaterialAO) * (Material.MaterialAO > 0.0 ? rcp(Material.MaterialAO) : 0.0);
 				}
 				#endif
 			}
@@ -1378,10 +1378,10 @@ void ScreenProbeIntegrateCS(
 
 			bool bLightingIsValid = dot(StochasticScreenProbeSample.Weights, 1) > 1.0f - Epsilon;
 
-			#if !GBUFFER_HAS_DIFFUSE_SAMPLE_OCCLUSION && !STRATA_ENABLED // STRATA_TODO: Need to extract an average base color value?
+			#if !GBUFFER_HAS_DIFFUSE_SAMPLE_OCCLUSION
 			if (ApplyMaterialAO > 0)
 			{
-				DiffuseLighting *= AOMultiBounce(min(Material.GBufferData.BaseColor, MaxAOMultibounceAlbedo), Material.MaterialAO);
+				DiffuseLighting *= AOMultiBounce(min(Material.DiffuseAlbedo, MaxAOMultibounceAlbedo), Material.MaterialAO);
 			}
 			#endif
 

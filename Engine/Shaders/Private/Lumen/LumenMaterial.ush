@@ -187,6 +187,7 @@ struct FLumenMaterialData
 {
 	float SceneDepth;
 
+	float3 DiffuseAlbedo;
 	float3 WorldNormal;
 	float  Roughness;
 	float  TopLayerRoughness;
@@ -269,6 +270,7 @@ FLumenMaterialData InternalReadMaterialData_Strata(uint2 InPixelPos)
 		FStrataBSDFContext Context	= StrataCreateBSDFContext(StrataPixelHeader, BSDF, StrataAddressing, NullV);
 		Out.TangentBasis			= Context.TangentBasis;
 		Out.Anisotropy				= StrataGetBSDFAnisotropy(BSDF);
+		Out.DiffuseAlbedo 			= StrataGetBSDFDiffuseColor(BSDF);
 	}
 #endif // STRATA_MATERIALCONTAINER_IS_VIEWRESOURCE
 #endif // STRATA_ENABLED
@@ -301,6 +303,7 @@ FLumenMaterialData InternalReadMaterialData_Strata(uint2 InCoord, uint InBSDFInd
 
 			const uint BSDFType = StrataGetBSDFType(BSDF);
 
+			Out.DiffuseAlbedo 					= StrataGetBSDFDiffuseColor(BSDF);
 			Out.SceneDepth						= ConvertFromDeviceZ(SceneTexturesStruct.SceneDepthTexture.Load(int3(InCoord, 0)).r);
 			Out.TangentBasis					= StrataGetBSDFSharedBasis(StrataPixelHeader, BSDF, StrataAddressing);
 			Out.WorldNormal						= Out.TangentBasis[2];
@@ -374,6 +377,7 @@ FLumenMaterialData InternalReadMaterialData_GBuffer(const FGBufferData GBufferDa
 #if !STRATA_ENABLED && !FRONT_LAYER_TRANSLUCENCY
 	Out.SceneDepth = GBufferData.Depth;
 	Out.WorldNormal = GBufferData.WorldNormal;
+	Out.DiffuseAlbedo = GBufferData.BaseColor;
 	Out.Roughness = GBufferData.Roughness;
 	Out.Anisotropy = GBufferData.Anisotropy;
 	Out.TopLayerRoughness = GetClearCoatRoughness(GBufferData);
