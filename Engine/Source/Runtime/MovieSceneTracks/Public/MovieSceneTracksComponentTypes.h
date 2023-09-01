@@ -16,6 +16,7 @@
 #include "Styling/SlateColor.h"
 #include "ConstraintChannel.h"
 #include "MaterialTypes.h"
+#include "Sections/MovieSceneCameraShakeSection.h"
 #include "Tracks/MovieSceneMaterialTrack.h"
 #include "MovieSceneTracksComponentTypes.generated.h"
 
@@ -102,6 +103,60 @@ struct FMovieSceneAudioComponentData
 
 	UPROPERTY()
 	TObjectPtr<UMovieSceneAudioSection> Section = nullptr;
+};
+
+UENUM()
+enum EMovieSceneCameraShakeStatus : uint8
+{
+	NotStarted,
+	Started,
+	BlendingOut,
+	Finished
+};
+
+/** Component data for camera shakes */
+USTRUCT()
+struct FMovieSceneCameraShakeComponentData
+{
+	GENERATED_BODY()
+
+	/** The shake data from the section that created this component */
+	UPROPERTY()
+	FMovieSceneCameraShakeSectionData SectionData;
+
+	/** The range of the section that created this component */
+	UPROPERTY()
+	FFrameNumber SectionStartTime;
+
+	UPROPERTY()
+	FFrameNumber SectionEndTime;
+
+	// ~~ Internal data for the camera shake systems ~~
+
+	// Shake instance created by the shake evaluation system.
+	UPROPERTY()
+	TObjectPtr<UCameraShakeBase> ShakeInstance;
+	
+	// Status for the shake.
+	UPROPERTY()
+	TEnumAsByte<EMovieSceneCameraShakeStatus> Status = EMovieSceneCameraShakeStatus::NotStarted;
+
+	// Duration of the shake.
+	UPROPERTY()
+	FFrameTime Duration;
+
+	// Time for blending out the shake.
+	UPROPERTY()
+	FFrameTime BlendOutTime;
+
+	FMovieSceneCameraShakeComponentData()
+	{}
+	FMovieSceneCameraShakeComponentData(const FMovieSceneCameraShakeSectionData& InSectionData, TRange<FFrameNumber> InSectionRange)
+		: SectionData(InSectionData)
+	{
+		SectionStartTime = InSectionRange.HasLowerBound() ? InSectionRange.GetLowerBoundValue() : 0;
+		SectionEndTime = InSectionRange.HasUpperBound() ? InSectionRange.GetUpperBoundValue() : FFrameNumber(TNumericLimits<int32>::Max());
+	}
 };
 
 /**
@@ -580,6 +635,8 @@ struct FMovieSceneTracksComponentTypes
 	TComponentTypeID<FMovieSceneAudioComponentData> Audio;
 	TComponentTypeID<FMovieSceneAudioInputData> AudioInputs;
 	TComponentTypeID<FName> AudioTriggerName;
+
+	TComponentTypeID<FMovieSceneCameraShakeComponentData> CameraShake;
 
 	struct
 	{
