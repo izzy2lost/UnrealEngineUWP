@@ -99,6 +99,7 @@ class BUOYANCY_API UBuoyancySubsystem : public UTickableWorldSubsystem
 		, BuoyancySettings(FBuoyancySettings())
 		, SplineData(nullptr)
 		, SimCallback(nullptr)
+		, NetMode(ENetMode::NM_MAX)
 	{ }
 
 public:
@@ -130,6 +131,12 @@ private:
 	void CreateSimCallback();
 	void DestroySimCallback();
 
+	// Get netmode from world and send it to PT
+	void UpdateNetMode();
+
+	// Get the waterbodymanager pointer from the water subsystem
+	void UpdateWaterBodyManager();
+
 	// Update PT spline data structs for each waterbody in the map
 	void UpdateSplineData();
 
@@ -153,6 +160,8 @@ private:
 	FBuoyancyWaterSplineDataManager* SplineData;
 
 	class FBuoyancySubsystemSimCallback* SimCallback;
+
+	ENetMode NetMode;
 };
 
 
@@ -190,13 +199,16 @@ struct FBuoyancySubsystemSimCallbackInput : public Chaos::FSimCallbackInput
 {
 	// If this ptr is set, then we have a new spline data manager...
 	// That should only probably happen one time
-	TOptional<FBuoyancyWaterSplineDataManager*> SplineData = nullptr;
+	TOptional<FBuoyancyWaterSplineDataManager*> SplineData;
 
 	// Here we use a unique ptr so that it is possible to provide an async
 	// input _without_ buoyancy settings (which may be eventually desirable
 	// when we eventually are passing lists of water bodies or water wave
 	// data).
 	mutable TUniquePtr<FBuoyancySettings> BuoyancySettings;
+
+	// Set when net mode changes - should be one time on initialization.
+	TOptional<ENetMode> NetMode;
 
 	void Reset();
 };
@@ -266,4 +278,8 @@ private:
 	// memory hot - the array is reset, repopulated and traversed, every frame,
 	// so we want to minimize allocations.
 	TSparseArray<TBitArray<>> SubmergedShapes;
+
+	// Used to track the net mode of the world that owns the phys scene that this
+	// sim tick is taking place in.
+	ENetMode NetMode = ENetMode::NM_MAX;
 };

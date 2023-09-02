@@ -107,6 +107,9 @@ void UBuoyancySubsystem::PostInitialize()
 	// Apply initial runtime settings
 	ApplyRuntimeSettings(GetDefault<UBuoyancyRuntimeSettings>(), EPropertyChangeType::ValueSet);
 
+	// Set initial net mode based on current world state
+	UpdateNetMode();
+
 	// Setup callback for when waterbodies are added/removed
 	if (FWaterBodyManager* WaterBodyManager = UWaterSubsystem::GetWaterBodyManager(GetWorld()))
 	{
@@ -193,6 +196,24 @@ void UBuoyancySubsystem::Tick(float DeltaTime)
 	if (BuoyancySettings.SurfaceTouchCallbackFlags != 0)
 	{
 		ProcessSurfaceTouchCallbacks();
+	}
+}
+
+void UBuoyancySubsystem::UpdateNetMode()
+{
+	// Get the netmode from the world. If it's different
+	// than the one we previously stored, send it to PT
+	const ENetMode PrevNetMode = NetMode;
+	NetMode = GetWorld()->GetNetMode();
+	if (NetMode != PrevNetMode)
+	{
+		if (SimCallback)
+		{
+			if (FBuoyancySubsystemSimCallbackInput* AsyncInput = SimCallback->GetProducerInputData_External())
+			{
+				AsyncInput->NetMode = NetMode;
+			}
+		}
 	}
 }
 
@@ -375,6 +396,7 @@ void FBuoyancySubsystemSimCallbackInput::Reset()
 {
 	SplineData.Reset();
 	BuoyancySettings.Reset();
+	NetMode.Reset();
 }
 
 void FBuoyancySubsystemSimCallbackOutput::Reset()
@@ -389,6 +411,11 @@ void FBuoyancySubsystemSimCallback::OnPreSimulate_Internal()
 	// If we were sent new buoyancy settings or data, update our local sim copy
 	if (const FBuoyancySubsystemSimCallbackInput* Input = GetConsumerInput_Internal())
 	{
+		if (Input->NetMode.IsSet())
+		{
+			NetMode = *Input->NetMode;
+		}
+
 		if (Input->SplineData.IsSet())
 		{
 			SplineData = *Input->SplineData;
@@ -410,6 +437,12 @@ void FBuoyancySubsystemSimCallback::OnPreSimulate_Internal()
 void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidPhaseModifierAccessor& MidPhaseAccessor)
 {
 	SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_OnMidPhaseModification)
+
+	// Don't do any processing until we know what machine we're on
+	if (NetMode == ENetMode::NM_MAX)
+	{
+		return;
+	}
 
 	// If we don't have a spline data manager, early out
 	if (SplineData == nullptr)
