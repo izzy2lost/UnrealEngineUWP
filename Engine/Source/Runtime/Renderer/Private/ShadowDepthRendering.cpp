@@ -1374,6 +1374,11 @@ static void RenderShadowDepthAtlasNanite(
 	{
 		FProjectedShadowInfo* ProjectedShadowInfo = ShadowMapAtlas.Shadows[ShadowIndex];
 
+		if (!ProjectedShadowInfo->bNaniteGeometry)
+		{
+			continue;
+		}
+
 		if (ProjectedShadowInfo->CacheMode == SDCM_StaticPrimitivesOnly)
 		{
 			StaticShadowsToEmit.Add(ProjectedShadowInfo);
