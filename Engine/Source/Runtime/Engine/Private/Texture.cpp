@@ -526,8 +526,16 @@ void UTexture::ValidateSettingsAfterImportOrEdit(bool * pRequiresNotifyMaterials
 	{
 		if ( MipGenSettings == TMGS_LeaveExistingMips && PowerOfTwoMode != ETexturePowerOfTwoSetting::None )
 		{
-			// power of 2 pads not allowed with LeaveExistingMips
-			UE_LOG(LogTexture, Display, TEXT("Power of 2 padding cannot be used with LeaveExistingMips, disabled. (%s)"), *GetName());
+			// power of 2 padding or stretching is not allowed with LeaveExistingMips
+			UE_LOG(LogTexture, Display, TEXT("Power of 2 padding or stretching cannot be used with LeaveExistingMips, disabled. (%s)"), *GetName());
+
+			PowerOfTwoMode = ETexturePowerOfTwoSetting::None;
+		}
+
+		if ((PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToPowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo) && !this->IsA<UTexture2D>())
+		{
+			// currently power of 2 stretching is only supported for 2D textures, but can be implemented for other types of textures in the future
+			UE_LOG(LogTexture, Display, TEXT("Currently power of two stretching is only supported for Texture2D, forcing PowerOfTwoMode to None. (%s)"), *GetName());
 
 			PowerOfTwoMode = ETexturePowerOfTwoSetting::None;
 		}
@@ -3326,12 +3334,13 @@ void UTexture::GetBuiltTextureSize( const ITargetPlatform* TargetPlatform , int3
 	SizeX = SourceSize.X;
 	SizeY = SourceSize.Y;
 
-	if (PowerOfTwoMode == ETexturePowerOfTwoSetting::PadToPowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::PadToSquarePowerOfTwo)
+	if (PowerOfTwoMode == ETexturePowerOfTwoSetting::PadToPowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::PadToSquarePowerOfTwo ||
+		PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToPowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo)
 	{
 		SizeX = FMath::RoundUpToPowerOfTwo(SizeX);
 		SizeY = FMath::RoundUpToPowerOfTwo(SizeY);
 
-		if (PowerOfTwoMode == ETexturePowerOfTwoSetting::PadToSquarePowerOfTwo)
+		if (PowerOfTwoMode == ETexturePowerOfTwoSetting::PadToSquarePowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo)
 		{
 			SizeX = SizeY = FMath::Max(SizeX, SizeY);
 		}

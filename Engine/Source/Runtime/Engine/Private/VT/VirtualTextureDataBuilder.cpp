@@ -261,10 +261,12 @@ bool FVirtualTextureBuilderDerivedInfo::InitializeFromBuildSettings(const FTextu
 	case ETexturePowerOfTwoSetting::None:
 		break;
 	case ETexturePowerOfTwoSetting::PadToPowerOfTwo:
+	case ETexturePowerOfTwoSetting::StretchToPowerOfTwo:
 		BlockSizeX = FMath::RoundUpToPowerOfTwo(BlockSizeX);
 		BlockSizeY = FMath::RoundUpToPowerOfTwo(BlockSizeY);
 		break;
 	case ETexturePowerOfTwoSetting::PadToSquarePowerOfTwo:
+	case ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo:
 		BlockSizeX = FMath::RoundUpToPowerOfTwo(BlockSizeX);
 		BlockSizeY = FMath::RoundUpToPowerOfTwo(BlockSizeY);
 		BlockSizeX = FMath::Max(BlockSizeX, BlockSizeY);

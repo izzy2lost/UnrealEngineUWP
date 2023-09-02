@@ -3427,12 +3427,14 @@ static bool GetPowerOfTwoTargetTextureSize(int32 InMip0SizeX, int32 InMip0SizeY,
 	// None should not get here
 
 	case ETexturePowerOfTwoSetting::PadToPowerOfTwo:
+	case ETexturePowerOfTwoSetting::StretchToPowerOfTwo:
 		TargetTextureSizeX = PowerOfTwoTextureSizeX;
 		TargetTextureSizeY = PowerOfTwoTextureSizeY;
 		TargetTextureSizeZ = PowerOfTwoTextureSizeZ;
 		break;
 
 	case ETexturePowerOfTwoSetting::PadToSquarePowerOfTwo:
+	case ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo:
 		TargetTextureSizeX = TargetTextureSizeY = TargetTextureSizeZ =
 			FMath::Max3<int32>(PowerOfTwoTextureSizeX, PowerOfTwoTextureSizeY, PowerOfTwoTextureSizeZ);
 		break;
@@ -3874,15 +3876,23 @@ private:
 
 			if (bPadOrStretchTexture)
 			{
+				bool bStretchTexture = PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToPowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo;
 				if (BuildSettings.MipGenSettings == TMGS_LeaveExistingMips)
 				{
-					// pad+leave existing is broken
-					UE_LOG(LogTextureCompressor, Error,	TEXT("Texture padded to pow2 + LeaveExistingMips forbidden"));
+					// pad/stretch+leave existing is broken
+					UE_LOG(LogTextureCompressor, Error,	TEXT("Texture padding or stretching to power of two is not allowed when leaving existing mips."));
 					return false;
 				}
 				if ( bLongLatCubemap )
 				{
-					UE_LOG(LogTextureCompressor, Warning, TEXT("PadPow2 + LongLat cubemap doesn't work, continuing.."));
+					if (bStretchTexture)
+					{
+						UE_LOG(LogTextureCompressor, Warning, TEXT("In order to improve the quality of the generated texture, stretching LongLat cubemaps should be avoided."));
+					}
+					else
+					{
+						UE_LOG(LogTextureCompressor, Warning, TEXT("Padding of a LongLat cubemap may result in incorrect mapping of the texture pixels to the cubemap faces and should be avoided."));
+					}
 				}
 
 				// Want to stretch or pad the texture
@@ -3898,44 +3908,57 @@ private:
 				// space for one source mip and one destination mip
 				const FImage& SourceImage = bSuitableFormat ? FirstSourceMipImage : Temp;
 				FImage& TargetImage = PaddedSourceMips.Emplace_GetRef(TargetTextureSizeX, TargetTextureSizeY, BuildSettings.bVolume ? TargetTextureSizeZ : SourceImage.NumSlices, SourceImage.Format);
-				FLinearColor FillColor = BuildSettings.PaddingColor;
 
-				FLinearColor* TargetPtr = (FLinearColor*)TargetImage.RawData.GetData();
-				FLinearColor* SourcePtr = (FLinearColor*)SourceImage.RawData.GetData();
-				check(SourceImage.GetBytesPerPixel() == sizeof(FLinearColor));
-				check(TargetImage.GetBytesPerPixel() == sizeof(FLinearColor));
-
-				for (int32 SliceIndex = 0; SliceIndex < SourceImage.NumSlices; ++SliceIndex)
+				if (bStretchTexture)
 				{
-					for (int32 Y = 0; Y < TargetTextureSizeY; ++Y)
+					if (TargetImage.NumSlices != 1)
 					{
-						int32 XStart = 0;
-						if (Y < SourceImage.SizeY)
-						{
-							XStart = SourceImage.SizeX;
-							FMemory::Memcpy(TargetPtr, SourcePtr, SourceImage.SizeX * sizeof(FLinearColor));
-							SourcePtr += SourceImage.SizeX;
-							TargetPtr += SourceImage.SizeX;
-						}
+						// FImageCore::ResizeTo currently only supports resizing textures with 1 slice
+						UE_LOG(LogTextureCompressor, Error, TEXT("Texture stretching is currently only supported on Texture2D."));
+						return false;
+					}
+					SourceImage.ResizeTo(TargetImage, TargetTextureSizeX, TargetTextureSizeY, SourceImage.Format, SourceImage.GetGammaSpace());
+				}
+				else
+				{
+					FLinearColor FillColor = BuildSettings.PaddingColor;
 
-						for (int32 XPad = XStart; XPad < TargetImage.SizeX; ++XPad)
+					FLinearColor* TargetPtr = (FLinearColor*)TargetImage.RawData.GetData();
+					FLinearColor* SourcePtr = (FLinearColor*)SourceImage.RawData.GetData();
+					check(SourceImage.GetBytesPerPixel() == sizeof(FLinearColor));
+					check(TargetImage.GetBytesPerPixel() == sizeof(FLinearColor));
+
+					for (int32 SliceIndex = 0; SliceIndex < SourceImage.NumSlices; ++SliceIndex)
+					{
+						for (int32 Y = 0; Y < TargetTextureSizeY; ++Y)
 						{
-							*TargetPtr++ = FillColor;
+							int32 XStart = 0;
+							if (Y < SourceImage.SizeY)
+							{
+								XStart = SourceImage.SizeX;
+								FMemory::Memcpy(TargetPtr, SourcePtr, SourceImage.SizeX * sizeof(FLinearColor));
+								SourcePtr += SourceImage.SizeX;
+								TargetPtr += SourceImage.SizeX;
+							}
+
+							for (int32 XPad = XStart; XPad < TargetImage.SizeX; ++XPad)
+							{
+								*TargetPtr++ = FillColor;
+							}
+						}
+					}
+					// Pad new slices for volume texture
+					for (int32 SliceIndex = SourceImage.NumSlices; SliceIndex < TargetImage.NumSlices; ++SliceIndex)
+					{
+						for (int32 Y = 0; Y < TargetImage.SizeY; ++Y)
+						{
+							for (int32 X = 0; X< TargetImage.SizeX; ++X)
+							{
+								*TargetPtr++ = FillColor;
+							}
 						}
 					}
 				}
-				// Pad new slices for volume texture
-				for (int32 SliceIndex = SourceImage.NumSlices; SliceIndex < TargetImage.NumSlices; ++SliceIndex)
-				{
-					for (int32 Y = 0; Y < TargetImage.SizeY; ++Y)
-					{
-						for (int32 X = 0; X< TargetImage.SizeX; ++X)
-						{
-							*TargetPtr++ = FillColor;
-						}
-					}
-				}
-				
 				// change pSourceMips to point at the one padded image we made
 				pSourceMips = &PaddedSourceMips;
 			}
