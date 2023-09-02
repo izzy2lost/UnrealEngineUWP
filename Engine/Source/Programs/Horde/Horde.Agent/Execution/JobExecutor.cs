@@ -771,7 +771,7 @@ namespace Horde.Agent.Execution
 					RefName refName = TempStorage.GetRefNameForNode(_storagePrefix, SetupStepName);
 
 					DirectoryNode node = await storage.ReadRefAsync<DirectoryNode>(refName, cancellationToken: cancellationToken);
-					DirectoryNode? buildGraphDir = await node.FindDirectoryAsync(BuildGraphTempStorageDir, cancellationToken);
+					DirectoryNode? buildGraphDir = await node.TryOpenDirectoryAsync(BuildGraphTempStorageDir, cancellationToken);
 					if (buildGraphDir != null)
 					{
 						await buildGraphDir.CopyToDirectoryAsync(new DirectoryInfo(workspaceDir.FullName), logger, cancellationToken);

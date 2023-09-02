@@ -133,7 +133,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Creates a stream that returns the contents of this file
 		/// </summary>
 		/// <returns>The content stream</returns>
-		public Stream AsStream() => new FileEntryContentStream(this);
+		public Stream OpenAsStream() => new FileEntryContentStream(this);
 
 		/// <summary>
 		/// Copies the contents of this node and its children to the given output stream

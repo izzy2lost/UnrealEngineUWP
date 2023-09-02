@@ -227,12 +227,12 @@ namespace EpicGames.Horde.Tests
 
 			Assert.AreEqual(0, newRoot.Files.Count);
 			Assert.AreEqual(1, newRoot.Directories.Count);
-			DirectoryNode? outputNode = await newRoot.FindDirectoryAsync("hello", CancellationToken.None);
+			DirectoryNode? outputNode = await newRoot.TryOpenDirectoryAsync("hello", CancellationToken.None);
 			Assert.IsNotNull(outputNode);
 
 			Assert.AreEqual(0, outputNode!.Files.Count);
 			Assert.AreEqual(1, outputNode!.Directories.Count);
-			DirectoryNode? outputNode2 = await outputNode.FindDirectoryAsync("world", CancellationToken.None);
+			DirectoryNode? outputNode2 = await outputNode.TryOpenDirectoryAsync("world", CancellationToken.None);
 			Assert.IsNotNull(outputNode2);
 
 			Assert.AreEqual(0, outputNode2!.Files.Count);
@@ -295,16 +295,16 @@ namespace EpicGames.Horde.Tests
 			{
 				DirectoryNode root = await _storage.ReadRefAsync<DirectoryNode>(refName);
 
-				DirectoryNode? newNode1 = await root.FindDirectoryAsync("node1", CancellationToken.None);
+				DirectoryNode? newNode1 = await root.TryOpenDirectoryAsync("node1", CancellationToken.None);
 				Assert.IsNotNull(newNode1);
 
-				DirectoryNode? newNode2 = await newNode1!.FindDirectoryAsync("node2", CancellationToken.None);
+				DirectoryNode? newNode2 = await newNode1!.TryOpenDirectoryAsync("node2", CancellationToken.None);
 				Assert.IsNotNull(newNode2);
 
-				DirectoryNode? newNode3 = await newNode2!.FindDirectoryAsync("node3", CancellationToken.None);
+				DirectoryNode? newNode3 = await newNode2!.TryOpenDirectoryAsync("node3", CancellationToken.None);
 				Assert.IsNotNull(newNode3);
 
-				DirectoryNode? newNode4 = await newNode3!.FindDirectoryAsync("node4", CancellationToken.None);
+				DirectoryNode? newNode4 = await newNode3!.TryOpenDirectoryAsync("node4", CancellationToken.None);
 				Assert.IsNotNull(newNode4);
 			}
 		}

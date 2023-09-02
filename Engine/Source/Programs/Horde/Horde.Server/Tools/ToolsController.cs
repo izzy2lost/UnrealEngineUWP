@@ -522,7 +522,7 @@ namespace Horde.Server.Tools
 					contentType = "application/octet-stream";
 				}
 
-				return new FileStreamResult(entry.AsStream(), contentType) { FileDownloadName = entry.Name.ToString() };
+				return new FileStreamResult(entry.OpenAsStream(), contentType) { FileDownloadName = entry.Name.ToString() };
 			}
 
 			Stream stream = node.AsZipStream();

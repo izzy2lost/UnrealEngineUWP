@@ -253,7 +253,7 @@ namespace Horde.Server.Artifacts
 				contentType = "application/octet-stream";
 			}
 
-			Stream stream = fileEntry.AsStream();
+			Stream stream = fileEntry.OpenAsStream();
 			if (inline)
 			{
 				return new InlineFileStreamResult(stream, contentType, Path.GetFileName(path));
