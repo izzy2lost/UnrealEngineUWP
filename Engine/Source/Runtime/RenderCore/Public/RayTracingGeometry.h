@@ -134,7 +134,6 @@ public:
 	RENDERCORE_API virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
 	RENDERCORE_API virtual void ReleaseRHI() override;
 
-	RENDERCORE_API virtual void InitResource(FRHICommandListBase& RHICmdList) override;
 	RENDERCORE_API virtual void ReleaseResource() override;
 protected:
 	RENDERCORE_API void RemoveBuildRequest();

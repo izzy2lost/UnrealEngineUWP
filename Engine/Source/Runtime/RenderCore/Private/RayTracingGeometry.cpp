@@ -254,17 +254,8 @@ void FRayTracingGeometry::RemoveBuildRequest()
 	}
 }
 
-void FRayTracingGeometry::InitResource(FRHICommandListBase& RHICmdList)
-{
-	checkf(IsRayTracingAllowed(), TEXT("FRayTracingGeometry should only be initialized when Ray Tracing is allowed"));
-
-	FRenderResource::InitResource(RHICmdList);
-}
-
 void FRayTracingGeometry::ReleaseResource()
 {
-	checkf(IsRayTracingAllowed(), TEXT("FRayTracingGeometry should only be initialized when Ray Tracing is allowed"));
-
 	// Release any resource references held by the initializer.
 	// This includes index and vertex buffers used for building the BLAS.
 	Initializer = FRayTracingGeometryInitializer{};
