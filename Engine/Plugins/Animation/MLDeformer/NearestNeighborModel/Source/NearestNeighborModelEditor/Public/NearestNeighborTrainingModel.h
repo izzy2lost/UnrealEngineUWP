@@ -6,18 +6,11 @@
 #include "MLDeformerGeomCacheTrainingModel.h"
 #include "NearestNeighborTrainingModel.generated.h"
 
-
-namespace UE::MLDeformer
-{
-	class FMLDeformerGeomCacheSampler;
-};
-
 namespace UE::NearestNeighborModel
 {
 	class FNearestNeighborEditorModel;
-};
+}
 
-class UAnimSequence;
 class UNearestNeighborModel;
 class UNearestNeighborModelInstance;
 
@@ -28,7 +21,6 @@ class NEARESTNEIGHBORMODELEDITOR_API UNearestNeighborTrainingModel
 	GENERATED_BODY()
 
 public:
-	virtual ~UNearestNeighborTrainingModel();
 	virtual void Init(UE::MLDeformer::FMLDeformerEditorModel* InEditorModel) override;
 
 	/** Main training function, with implementation in python. */
@@ -43,9 +35,6 @@ protected:
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Python")
 	int32 KmeansClusterPoses(const int32 PartId) const;
-
-	UFUNCTION(BlueprintImplementableEvent, Category = "Python")
-	bool GetNeighborStats(int32 PartId);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Data")
 	TArray<float> PartSampleDeltas;
@@ -67,15 +56,6 @@ private:
 
 	UFUNCTION(BlueprintPure, Category = "Python")
 	int32 GetPartNumNeighbors(const int32 PartId) const;
-
-	UFUNCTION(BlueprintCallable, Category = "Python")
-	bool SetAnimToSample(UAnimSequence* AnimToSample);
-
-	UFUNCTION(BlueprintCallable, Category = "Python")
-	bool SampleAnim(int32 Frame);
-
-	UFUNCTION(BlueprintPure, Category = "Python")
-	int32 GetAnimNumFrames() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Python")
 	bool SampleKmeansAnim(const int32 SkeletonId);
@@ -104,12 +84,5 @@ private:
 	UFUNCTION(BlueprintCallable, Category = "Python")
 	void DestroyModelInstance(UNearestNeighborModelInstance* ModelInstance);
 
-	UFUNCTION(BlueprintCallable, Category = "Python")
-	const UAnimSequence* GetTestAnim() const;
-
-	void SetNewAnimSampler();
-
 	UNearestNeighborModel* NearestNeighborModel = nullptr;
-
-	TUniquePtr<UE::MLDeformer::FMLDeformerGeomCacheSampler> AnimSampler;
 };

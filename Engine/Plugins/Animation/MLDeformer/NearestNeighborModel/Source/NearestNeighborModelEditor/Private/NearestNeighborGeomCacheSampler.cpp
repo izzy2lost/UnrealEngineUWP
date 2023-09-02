@@ -18,8 +18,6 @@
 using namespace UE::MLDeformer;
 namespace UE::NearestNeighborModel
 {
-	FNearestNeighborGeomCacheSampler::~FNearestNeighborGeomCacheSampler() = default;
-	
 	void FNearestNeighborGeomCacheSampler::Sample(int32 InAnimFrameIndex)
 	{
 		UNearestNeighborModel* NearestNeighborModel = static_cast<UNearestNeighborModel*>(Model);
@@ -212,17 +210,19 @@ namespace UE::NearestNeighborModel
 		}
 	}
 
-	bool FNearestNeighborGeomCacheSampler::SetAnimToSample(UAnimSequence& InAnimToSample)
+	bool FNearestNeighborGeomCacheSampler::SampleKMeansAnim(const int32 AnimId)
 	{
-		if (SkeletalMeshComponent)
+		UNearestNeighborModel* NearestNeighborModel = static_cast<UNearestNeighborModel*>(Model);
+		if (NearestNeighborModel && AnimId < NearestNeighborModel->SourceAnims.Num() && SkeletalMeshComponent)
 		{
+			const TObjectPtr<UAnimSequence> AnimSequence = NearestNeighborModel->SourceAnims[AnimId];
 			SkeletalMeshComponent->SetAnimationMode(EAnimationMode::AnimationSingleNode);
-			SkeletalMeshComponent->SetAnimation(&InAnimToSample);
+			SkeletalMeshComponent->SetAnimation(AnimSequence);
 			SkeletalMeshComponent->SetPosition(0.0f);
 			SkeletalMeshComponent->SetPlayRate(1.0f);
 			SkeletalMeshComponent->Play(false);
 			SkeletalMeshComponent->RefreshBoneTransforms();
-			AnimToSample = &InAnimToSample;
+			KMeansAnimId = AnimId;
 			return true;
 		}
 		else
@@ -231,61 +231,51 @@ namespace UE::NearestNeighborModel
 		}
 	}
 
-	int32 FNearestNeighborGeomCacheSampler::GetAnimNumFrames() const
-	{
-		if (AnimToSample)
-		{
-			return AnimToSample->GetDataModel()->GetNumberOfKeys();
-		}
-		else
-		{
-			return 0;
-		}
-	}
-
-	bool FNearestNeighborGeomCacheSampler::SampleAnim(int32 Frame)
-	{
-		if (!SkeletalMeshComponent || !AnimToSample)
-		{
-			return false;
-		}
-
-		const int32 NumKeys = AnimToSample->GetDataModel()->GetNumberOfKeys();
-		if (Frame < 0 || Frame >= NumKeys)
-		{
-			UE_LOG(LogNearestNeighborModel, Warning, TEXT("AnimSequence only has %d keys, but being sampled with key %d"), NumKeys, Frame);
-			return false;
-		}
-
-		AnimFrameIndex = Frame;
-		SampleTime = GetTimeAtFrame(Frame);
-		
-		UpdateSkeletalMeshComponent();
-		UpdateBoneRotations();
-		UpdateCurveValues();
-		return true;
-	}
-
-	bool FNearestNeighborGeomCacheSampler::SampleKMeansAnim(const int32 AnimId)
-	{
-		UNearestNeighborModel* NearestNeighborModel = static_cast<UNearestNeighborModel*>(Model);
-		if (NearestNeighborModel && AnimId < NearestNeighborModel->SourceAnims.Num() && SkeletalMeshComponent)
-		{
-			if (const TObjectPtr<UAnimSequence> AnimSequence = NearestNeighborModel->SourceAnims[AnimId])
-			{
-				if (SetAnimToSample(*AnimSequence))
-				{
-					KMeansAnimId = AnimId;
-					return true;
-				}
-			}
-		}
-		return false;
-	}
+	
 
 	bool FNearestNeighborGeomCacheSampler::SampleKMeansFrame(const int32 Frame)
 	{
-		return SampleAnim(Frame);
+		const USkeletalMesh* SkeletalMesh = SkeletalMeshComponent->GetSkeletalMeshAsset();
+		if (SkeletalMeshComponent && SkeletalMesh)
+		{
+			UNearestNeighborModel* NearestNeighborModel = static_cast<UNearestNeighborModel*>(Model);
+			const UAnimSequence* AnimSequence = NearestNeighborModel->SourceAnims[KMeansAnimId];
+			if (NearestNeighborModel->GetSkeletalMesh() == nullptr)
+			{
+				UE_LOG(LogNearestNeighborModel, Error, TEXT("SkeletalMesh is nullptr. Unable to sample KMeans frame."));
+				return false;
+			}
+
+			if (AnimSequence)
+			{
+				if (Frame < AnimSequence->GetDataModel()->GetNumberOfKeys())
+				{
+					AnimFrameIndex = Frame;
+					SampleTime = GetTimeAtFrame(Frame);
+
+					UpdateSkeletalMeshComponent();
+					UpdateBoneRotations();
+					UpdateCurveValues();
+					return true;
+				}
+				else
+				{
+					UE_LOG(LogNearestNeighborModel, Error, TEXT("AnimSequence only has %d keys, but being sampled with key %d"), AnimSequence->GetDataModel()->GetNumberOfKeys(), Frame);
+					return false;
+				}
+			}
+			else
+			{
+				UE_LOG(LogNearestNeighborModel, Error, TEXT("AnimSequence %d is nullptr. Unable to sample KMeans frame."), KMeansAnimId);
+				return false;
+			}
+
+		}
+		else
+		{
+			UE_LOG(LogNearestNeighborModel, Error, TEXT("KMeans: SkeletalMesh does not exist"));
+		}
+		return false;
 	}
 
 	TArray<uint32> FNearestNeighborGeomCacheSampler::GetMeshIndexBuffer() const
