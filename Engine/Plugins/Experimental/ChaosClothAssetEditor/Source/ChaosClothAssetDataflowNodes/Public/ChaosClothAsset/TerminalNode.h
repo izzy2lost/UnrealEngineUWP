@@ -54,7 +54,12 @@ private:
 	//~ End FDataflowNode interface
 
 	TArray<const FManagedArrayCollection*> GetCollectionLods() const;
+	TArray<TSharedRef<FManagedArrayCollection>> GetCleanedCollectionLodValues(Dataflow::FContext& Context) const;
 
 	UPROPERTY()
 	mutable TArray<FChaosClothAssetLodTransitionDataCache> LODTransitionDataCache;
+
+	// This is for runtime only--used to determine if only properties need to be updated.
+	mutable bool bClothCollectionChecksumValid = false;
+	mutable uint32 ClothColllectionChecksum = 0;
 };

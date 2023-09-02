@@ -35,6 +35,15 @@ namespace UE::Chaos::ClothAsset
 		/** Return whether the facade is defined on the collection. */
 		bool IsValid() const;
 
+		/**
+		 * Return whether the facade has a non-empty sim and render mesh data.
+		 */
+		bool HasValidData() const;
+
+		uint32 CalculateTypeHash(bool bIncludeWeightMaps, uint32 PreviousHash = 0) const;
+
+		uint32 CalculateWeightMapTypeHash(uint32 PreviousHash = 0) const;
+
 		//~ LOD (single per collection) Group
 		/** Return the physics asset path names used for this collection. */
 		const FString& GetPhysicsAssetPathName() const;

@@ -11,6 +11,7 @@
 #include "Chaos/ParticleHandle.h"
 #include "Chaos/BVHParticles.h"
 #include "Math/Vector.h"
+#include "Templates/TypeHash.h"
 
 struct FManagedArrayCollection;
 DEFINE_LOG_CATEGORY_STATIC(UManagedArrayLogging, NoLogging, All);
@@ -580,6 +581,14 @@ public:
 		}
 	}
 
+	/**
+	* This hash is using HashCombineFast and should not be serialized!
+	*/
+	FORCEINLINE uint32 GetTypeHash() const
+	{
+		return GetArrayHash(Array.GetData(), Array.Num());
+	}
+
 	typedef typename TArray<InElementType>::RangedForIteratorType		RangedForIteratorType;
 	typedef typename TArray<InElementType>::RangedForConstIteratorType	RangedForConstIteratorType;
 
@@ -638,6 +647,12 @@ private:
 	TArray<InElementType> Array;
 
 };
+
+template<class T>
+inline uint32 GetTypeHash(const TManagedArrayBase<T>& ManagedArray)
+{
+	return ManagedArray.GetTypeHash();
+}
 
 template <typename T>
 void InitHelper(TArray<T>& Array, const TManagedArrayBase<T>& NewTypedArray, int32 Size)

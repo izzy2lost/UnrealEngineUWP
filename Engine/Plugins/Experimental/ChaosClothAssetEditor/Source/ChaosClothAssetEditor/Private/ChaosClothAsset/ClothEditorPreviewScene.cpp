@@ -319,7 +319,16 @@ void FChaosClothPreviewScene::SetClothAsset(UChaosClothAsset* Asset)
 	check(SceneActor);
 	check(ClothComponent);
 
-	ClothComponent->SetClothAsset(Asset);
+	if (ClothComponent->GetClothAsset() == Asset)
+	{
+		// Update the config properties on the component from the asset.
+		ClothComponent->UpdateConfigProperties();
+	}
+	else
+	{
+		ClothComponent->SetClothAsset(Asset);
+	}
+
 	UpdateClothComponentAttachment();
 
 	// Wait for asset to load and update the component bounds

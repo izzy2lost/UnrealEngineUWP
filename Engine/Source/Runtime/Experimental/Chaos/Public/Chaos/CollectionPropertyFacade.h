@@ -345,6 +345,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		CHAOS_API void ClearDirtyFlags();
 
+		CHAOS_API void UpdateProperties(const TSharedPtr<const FManagedArrayCollection>& InManagedArrayCollection);
+
 	protected:
 		// No init constructor for FCollectionPropertyMutableFacade
 		CHAOS_API FCollectionPropertyFacade(const TSharedPtr<FManagedArrayCollection>& InManagedArrayCollection, ENoInit);
@@ -374,6 +376,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		inline void SetValue(int32 KeyIndex, const TArrayView<T>& ValueArray, const T& Value);
 
 		CHAOS_API void EnableFlags(int32 KeyIndex, ECollectionPropertyFlags Flags, bool bEnable);
+
 	};
 
 	enum class ECollectionPropertyUpdateFlags : uint8

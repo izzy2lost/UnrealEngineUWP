@@ -97,6 +97,27 @@ void UChaosClothComponent::ResetConfigProperties()
 	}
 }
 
+#if WITH_EDITOR
+void UChaosClothComponent::UpdateConfigProperties()
+{
+	if (IsRegistered())
+	{
+		if (GetClothAsset())
+		{
+			const TArray<TSharedRef<FManagedArrayCollection>>& ClothCollections = GetClothAsset()->GetClothCollections();
+			if (ClothCollections.Num() == PropertyCollections.Num())
+			{
+				check(CollectionPropertyFacades.Num() == ClothCollections.Num());
+				for (int32 LodIndex = 0; LodIndex < ClothCollections.Num(); ++LodIndex)
+				{
+					CollectionPropertyFacades[LodIndex]->UpdateProperties(ClothCollections[LodIndex].ToSharedPtr());
+				}
+			}
+		}
+	}
+}
+#endif
+
 void UChaosClothComponent::RecreateClothSimulationProxy()
 {
 	if (IsRegistered())

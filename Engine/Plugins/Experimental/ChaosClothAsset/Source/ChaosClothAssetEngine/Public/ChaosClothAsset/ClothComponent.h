@@ -102,6 +102,11 @@ public:
 
 	const UE::Chaos::ClothAsset::FClothSimulationProxy* GetClothSimulationProxy() const { return ClothSimulationProxy.Get(); }
 
+#if WITH_EDITOR
+	/** Update config properties from the asset. Will only update existing values.*/
+	void UpdateConfigProperties();
+#endif
+
 protected:
 	//~ Begin UObject Interface
 	virtual void PostLoad() override;

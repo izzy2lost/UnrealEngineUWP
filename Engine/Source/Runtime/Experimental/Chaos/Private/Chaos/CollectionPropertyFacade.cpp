@@ -146,6 +146,32 @@ namespace Chaos::Softs
 		}
 	}
 
+	void FCollectionPropertyFacade::UpdateProperties(const TSharedPtr<const FManagedArrayCollection>& InManagedArrayCollection)
+	{
+		FCollectionPropertyConstFacade InPropertyFacade(InManagedArrayCollection);
+		if (InPropertyFacade.IsValid())
+		{
+			const int32 NumInKeys = InPropertyFacade.Num();
+			for (int32 InKeyIndex = 0; InKeyIndex < NumInKeys; ++InKeyIndex)
+			{
+				const FString& PropertyName = InPropertyFacade.GetKey(InKeyIndex);
+				const int32 PropertyIndex = GetKeyIndex(PropertyName);
+				if (PropertyIndex == INDEX_NONE)
+				{
+					continue;
+				}
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				// TODO: GetFlags needs to return an ECollectionPropertyFlags, not an uint8, but the uint8 getter needs to be deprecated first
+				SetFlags(PropertyIndex, (ECollectionPropertyFlags)InPropertyFacade.GetFlags(InKeyIndex));
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				// Setting as FVector3f since that is the underlying type
+				SetLowValue(PropertyIndex, InPropertyFacade.GetLowValue<FVector3f>(InKeyIndex));
+				SetHighValue(PropertyIndex, InPropertyFacade.GetHighValue<FVector3f>(InKeyIndex));
+				SetStringValue(PropertyIndex, InPropertyFacade.GetStringValue(InKeyIndex));
+			}
+		}
+	}
+
 	FCollectionPropertyMutableFacade::FCollectionPropertyMutableFacade(const TSharedPtr<FManagedArrayCollection>& InManagedArrayCollection)
 		: FCollectionPropertyFacade(InManagedArrayCollection, NoInit)
 	{
@@ -256,6 +282,10 @@ namespace Chaos::Softs
 		{
 			// Nothing to do
 			return;
+		}
+		if (UpdateFlags == ECollectionPropertyUpdateFlags::UpdateExistingProperties)
+		{
+			return UpdateProperties(InManagedArrayCollection);
 		}
 
 		const bool bAppendNewProperties = (UpdateFlags & ECollectionPropertyUpdateFlags::AppendNewProperties) != ECollectionPropertyUpdateFlags::None;

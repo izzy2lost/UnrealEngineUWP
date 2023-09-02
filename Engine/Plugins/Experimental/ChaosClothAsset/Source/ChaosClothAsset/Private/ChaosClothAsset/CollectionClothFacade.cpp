@@ -23,6 +23,98 @@ namespace UE::Chaos::ClothAsset
 		return ClothCollection->IsValid() && ClothCollection->GetNumElements(FClothCollection::LodsGroup) == 1;
 	}
 
+	bool FCollectionClothConstFacade::HasValidData() const
+	{
+		return IsValid() &&
+			GetNumSimPatterns() &&
+			GetNumRenderPatterns() &&
+			GetNumSimVertices2D() &&
+			GetNumSimVertices3D() &&
+			GetNumSimFaces() &&
+			GetNumRenderVertices() &&
+			GetNumRenderFaces();
+	}
+
+	uint32 FCollectionClothConstFacade::CalculateTypeHash(bool bIncludeWeightMaps, uint32 PreviousHash) const
+	{
+		check(IsValid());
+		uint32 ResultHash = PreviousHash;
+
+		//~ LOD (single per collection) Group
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(GetSkeletalMeshPathName()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(GetSkeletalMeshPathName()));
+
+		//~ Seam Stitches Group
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetSeamStitchStart()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetSeamStitchEnd()));
+
+		//~ Seam Stitches Group
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetSeamStitch2DEndIndices()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetSeamStitch3DIndex()));
+
+		//~ Sim Patterns Group
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetSimVertices2DStart()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetSimVertices2DEnd()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetSimFacesStart()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetSimFacesEnd()));
+
+		//~ Render Patterns Group
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetRenderVerticesStart()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetRenderVerticesEnd()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetRenderFacesStart()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetRenderFacesEnd()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetRenderMaterialPathName()));
+
+		//~ Sim Faces Group
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetSimIndices2D()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetSimIndices3D()));
+
+		//~ Sim Vertices 2D Group
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetSimPosition2D()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetSimVertex3DLookup()));
+		
+		//~ Sim Vertices 3D Group
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetSimPosition3D()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetSimNormal()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetSimBoneIndices()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetSimBoneWeights()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetTetherKinematicIndex()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetTetherReferenceLength()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetSimVertex2DLookup()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetSeamStitchLookup()));
+
+		//~ Render Faces Group
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetRenderIndices()));
+
+		//~ Render Vertices Group
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetRenderPosition()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetRenderNormal()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetRenderTangentU()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetRenderTangentV()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetRenderUVs()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetRenderColor()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetRenderBoneIndices()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetRenderBoneWeights()));
+
+		if (bIncludeWeightMaps)
+		{
+			ResultHash = CalculateWeightMapTypeHash(ResultHash);
+		}
+		return ResultHash;
+	}
+
+	uint32 FCollectionClothConstFacade::CalculateWeightMapTypeHash(uint32 PreviousHash) const
+	{
+		uint32 ResultHash = PreviousHash;
+		const TArray<FName> WeightMapNames = GetWeightMapNames();
+		for (const FName& WeightMapName : WeightMapNames)
+		{
+			ResultHash = HashCombineFast(ResultHash, GetTypeHash(WeightMapName));
+			ResultHash = HashCombineFast(ResultHash, GetTypeHash(ClothCollection->GetUserDefinedAttribute<float>(WeightMapName, FClothCollection::SimVertices3DGroup)));
+		}
+		return ResultHash;
+	}
+
 	const FString& FCollectionClothConstFacade::GetPhysicsAssetPathName() const
 	{
 		static const FString EmptyString;

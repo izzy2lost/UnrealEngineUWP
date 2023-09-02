@@ -17,6 +17,49 @@
 
 #define LOCTEXT_NAMESPACE "ChaosClothAssetTerminalNode"
 
+namespace UE::Chaos::ClothAsset::Private
+{
+	uint32 CalculateClothChecksum(const TArray<TSharedRef<FManagedArrayCollection>>& InClothCollections)
+	{
+		uint32 Checksum = 0;
+		for (const TSharedRef<FManagedArrayCollection>& ClothCollection : InClothCollections)
+		{
+			constexpr bool bIncludeWeightMapsFalse = false;
+			FCollectionClothConstFacade Cloth(ClothCollection);
+			if (Cloth.HasValidData())
+			{
+				Checksum = Cloth.CalculateTypeHash(bIncludeWeightMapsFalse, Checksum);
+			}
+		}
+		return Checksum;
+	}
+
+	bool PropertyKeysMatch(const TArray<TSharedRef<FManagedArrayCollection>>& Collections0, const TArray<TSharedRef<FManagedArrayCollection>>& Collections1)
+	{
+		if (Collections0.Num() != Collections1.Num())
+		{
+			return false;
+		}
+		for (int32 LODIndex = 0; LODIndex < Collections0.Num(); ++LODIndex)
+		{
+			::Chaos::Softs::FCollectionPropertyConstFacade Property0(Collections0[LODIndex].ToSharedPtr());
+			::Chaos::Softs::FCollectionPropertyConstFacade Property1(Collections1[LODIndex].ToSharedPtr());
+			if (Property0.Num() != Property1.Num())
+			{
+				return false;
+			}
+			for (int32 PropertyIndex = 0; PropertyIndex < Property0.Num(); ++PropertyIndex)
+			{
+				if (Property0.GetKey(PropertyIndex) != Property1.GetKey(PropertyIndex))
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+}
+
 FChaosClothAssetTerminalNode::FChaosClothAssetTerminalNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowTerminalNode(InParam, InGuid)
 {
@@ -28,11 +71,30 @@ void FChaosClothAssetTerminalNode::SetAssetValue(TObjectPtr<UObject> Asset, Data
 	if (UChaosClothAsset* ClothAsset = Cast<UChaosClothAsset>(Asset.Get()))
 	{
 		using namespace UE::Chaos::ClothAsset;
-		const TArray<const FManagedArrayCollection*> CollectionLods = GetCollectionLods();
+
+		TArray<TSharedRef<FManagedArrayCollection>> InClothCollections = GetCleanedCollectionLodValues(Context);
+		TArray<TSharedRef<FManagedArrayCollection>>& ClothCollections = ClothAsset->GetClothCollections();
+
+		const uint32 PreviousChecksum = ClothColllectionChecksum;
+		const bool bPreviousChecksumsValid = bClothCollectionChecksumValid;
+		ClothColllectionChecksum = Private::CalculateClothChecksum(InClothCollections);
+		bClothCollectionChecksumValid = InClothCollections.Num() > 0;
+
+		if (bPreviousChecksumsValid && PreviousChecksum == ClothColllectionChecksum && Private::PropertyKeysMatch(InClothCollections, ClothCollections))
+		{
+			// Cloth and property keys match. Just update property values.
+			check(InClothCollections.Num() == ClothCollections.Num());
+			check(ClothCollections.Num() > 0);
+			for (int32 LODIndex = 0; LODIndex < InClothCollections.Num(); ++LODIndex)
+			{
+				Chaos::Softs::FCollectionPropertyFacade Properties(ClothCollections[LODIndex]);
+				Properties.UpdateProperties(InClothCollections[LODIndex].ToSharedPtr());
+			}
+			return;
+		}
 
 		// Reset the asset's collection
-		TArray<TSharedRef<FManagedArrayCollection>>& ClothCollections = ClothAsset->GetClothCollections();
-		ClothCollections.Reset(CollectionLods.Num());
+		ClothCollections.Reset(InClothCollections.Num());
 
 		// Reset the asset's material list
 		ClothAsset->GetMaterials().Reset();
@@ -40,90 +102,49 @@ void FChaosClothAssetTerminalNode::SetAssetValue(TObjectPtr<UObject> Asset, Data
 		// Iterate through the LODs
 		FString PhysicsAssetPathName;
 
-		int32 LastValidLodIndex = INDEX_NONE;
-		for (int32 LodIndex = 0; LodIndex < CollectionLods.Num(); ++LodIndex)
+		for (int32 LodIndex = 0; LodIndex < InClothCollections.Num(); ++LodIndex)
 		{
 			// New LOD
 			TSharedRef<FManagedArrayCollection>& ClothCollection = ClothCollections.Emplace_GetRef(MakeShared<FManagedArrayCollection>());
 			UE::Chaos::ClothAsset::FCollectionClothFacade ClothFacade(ClothCollection);
 			ClothFacade.DefineSchema();
 
-			// Retrieve input LOD
-			const FManagedArrayCollection& InCollectionLod = GetValue<FManagedArrayCollection>(Context, CollectionLods[LodIndex]);
-			const TSharedRef<const FManagedArrayCollection> InClothCollection = MakeShared<const FManagedArrayCollection>(InCollectionLod);
+			const FCollectionClothConstFacade InClothFacade(InClothCollections[LodIndex]);
+			check(InClothFacade.HasValidData());
 
-			const FCollectionClothConstFacade InClothFacade(InClothCollection);
-				// Check LOD validity
-			if (InClothFacade.GetNumSimPatterns() &&
-				InClothFacade.GetNumRenderPatterns() &&
-				InClothFacade.GetNumSimVertices2D() &&
-				InClothFacade.GetNumSimVertices3D() &&
-				InClothFacade.GetNumSimFaces() &&
-				InClothFacade.GetNumRenderVertices() &&
-				InClothFacade.GetNumRenderFaces())
+			// Copy input LOD to current output LOD
+			ClothFacade.Initialize(InClothFacade);
+
+			// Add this LOD's materials to the asset
+			const int32 NumLodMaterials = ClothFacade.GetNumRenderPatterns();
+
+			TArray<FSkeletalMaterial>& Materials = ClothAsset->GetMaterials();
+			Materials.Reserve(Materials.Num() + NumLodMaterials);
+
+			const TConstArrayView<FString> LodRenderMaterialPathName = ClothFacade.GetRenderMaterialPathName();
+			for (int32 LodMaterialIndex = 0; LodMaterialIndex < NumLodMaterials; ++LodMaterialIndex)
 			{
-				LastValidLodIndex = LodIndex;
+				const FString& RenderMaterialPathName = LodRenderMaterialPathName[LodMaterialIndex];
 
-				// Copy input LOD to current output LOD
-				ClothFacade.Initialize(InClothFacade);
-				FClothGeometryTools::CleanupAndCompactMesh(ClothCollection);
-
-				// Add this LOD's materials to the asset
-				const int32 NumLodMaterials = ClothFacade.GetNumRenderPatterns();
-
-				TArray<FSkeletalMaterial>& Materials = ClothAsset->GetMaterials();
-				Materials.Reserve(Materials.Num() + NumLodMaterials);
-
-				const TConstArrayView<FString> LodRenderMaterialPathName = ClothFacade.GetRenderMaterialPathName();
-				for (int32 LodMaterialIndex = 0; LodMaterialIndex < NumLodMaterials; ++LodMaterialIndex)
+				if (UMaterialInterface* const Material = LoadObject<UMaterialInterface>(ClothAsset, *RenderMaterialPathName, nullptr, LOAD_None, nullptr))
 				{
-					const FString& RenderMaterialPathName = LodRenderMaterialPathName[LodMaterialIndex];
-
-					if (UMaterialInterface* const Material = LoadObject<UMaterialInterface>(ClothAsset, *RenderMaterialPathName, nullptr, LOAD_None, nullptr))
-					{
-						Materials.Emplace(Material, true, false, Material->GetFName());
-					}
-					else
-					{
-						Materials.Emplace();
-					}
-				}
-
-				// Set properties
-				constexpr bool bUpdateExistingProperties = false;
-				Chaos::Softs::FCollectionPropertyMutableFacade(ClothCollection).Append(InClothCollection.ToSharedPtr(), bUpdateExistingProperties);
-
-				// Set physics asset only with LOD 0 at the moment
-				if (LodIndex == 0)
-				{
-					using namespace ::Chaos::Softs;
-					PhysicsAssetPathName = InClothFacade.GetPhysicsAssetPathName();
-				}
-			}
-			if (LodIndex != LastValidLodIndex)
-			{
-				if (LastValidLodIndex >= 0)
-				{
-					ClothFacade.Initialize(FCollectionClothConstFacade(ClothCollections[LastValidLodIndex]));
-
-					FClothDataflowTools::LogAndToastWarning(*this,
-						LOCTEXT("InvalidInputLodNHeadline", "Invalid input LOD."),
-						FText::Format(
-							LOCTEXT("InvalidInputLodNDetails",
-								"Invalid or empty input LOD for LOD {0}.\n"
-								"Using the previous valid LOD {1} instead."),
-							LodIndex,
-							LastValidLodIndex));
+					Materials.Emplace(Material, true, false, Material->GetFName());
 				}
 				else
 				{
-					FClothDataflowTools::LogAndToastWarning(*this,
-						LOCTEXT("InvalidInputLod0Headline", "Invalid input LOD 0."),
-						LOCTEXT("InvalidInputLod0Details",
-							"Invalid or empty input LOD for LOD 0.\n"
-							"LOD 0 cannot be empty in order to construct a valid Cloth Asset."));
-					break; // Empty cloth asset
+					Materials.Emplace();
 				}
+			}
+
+			// Set properties
+			constexpr bool bUpdateExistingProperties = false;
+			Chaos::Softs::FCollectionPropertyMutableFacade(ClothCollection).Append(InClothCollections[LodIndex].ToSharedPtr(), bUpdateExistingProperties);
+
+			// Set physics asset only with LOD 0 at the moment
+			if (LodIndex == 0)
+			{
+				using namespace ::Chaos::Softs;
+				PhysicsAssetPathName = InClothFacade.GetPhysicsAssetPathName();
 			}
 		}
 
@@ -255,6 +276,54 @@ TArray<const FManagedArrayCollection*> FChaosClothAssetTerminalNode::GetCollecti
 		}
 	}
 	return CollectionLods;
+}
+
+TArray<TSharedRef<FManagedArrayCollection>> FChaosClothAssetTerminalNode::GetCleanedCollectionLodValues(Dataflow::FContext& Context) const
+{
+	using namespace UE::Chaos::ClothAsset;
+
+	const TArray<const FManagedArrayCollection*> CollectionLods = GetCollectionLods();
+	TArray<TSharedRef<FManagedArrayCollection>> CollectionLodValues;
+	CollectionLodValues.Reserve(CollectionLods.Num());
+
+	int32 LastValidLodIndex = INDEX_NONE;	
+	for (int32 LodIndex = 0; LodIndex < CollectionLods.Num(); ++LodIndex)
+	{
+		TSharedRef<FManagedArrayCollection>& CollectionLodValue = CollectionLodValues.Emplace_GetRef(MakeShared<FManagedArrayCollection>(GetValue<FManagedArrayCollection>(Context, CollectionLods[LodIndex])));
+
+		FCollectionClothFacade ClothFacade(CollectionLodValue);
+		if (ClothFacade.HasValidData())
+		{
+			FClothGeometryTools::CleanupAndCompactMesh(CollectionLodValue);
+			LastValidLodIndex = LodIndex;
+		}
+		else
+		{
+			if (LastValidLodIndex >= 0)
+			{
+				ClothFacade.DefineSchema();
+				ClothFacade.Initialize(FCollectionClothConstFacade(CollectionLodValues[LastValidLodIndex]));
+				FClothDataflowTools::LogAndToastWarning(*this,
+					LOCTEXT("InvalidInputLodNHeadline", "Invalid input LOD."),
+					FText::Format(
+						LOCTEXT("InvalidInputLodNDetails",
+							"Invalid or empty input LOD for LOD {0}.\n"
+							"Using the previous valid LOD {1} instead."),
+						LodIndex,
+						LastValidLodIndex));
+			}
+			else
+			{
+				FClothDataflowTools::LogAndToastWarning(*this,
+					LOCTEXT("InvalidInputLod0Headline", "Invalid input LOD 0."),
+					LOCTEXT("InvalidInputLod0Details",
+						"Invalid or empty input LOD for LOD 0.\n"
+						"LOD 0 cannot be empty in order to construct a valid Cloth Asset."));
+				break;
+			}
+		}
+	}
+	return CollectionLodValues;
 }
 
 void FChaosClothAssetTerminalNode::Serialize(FArchive& Ar)
