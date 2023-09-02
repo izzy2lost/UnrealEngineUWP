@@ -480,14 +480,10 @@ public:
 	class FAllowWPODisableDim : SHADER_PERMUTATION_BOOL("ALLOW_WPO_DISABLE");
 	class FOcclusionCullInstancesDim : SHADER_PERMUTATION_BOOL("OCCLUSION_CULL_INSTANCES");
 	class FStereoModeDim : SHADER_PERMUTATION_BOOL("STEREO_CULLING_MODE");
-	// This permutation should be used for all debug output etc that adds overhead not wanted in production. 
-	// Individual debug features should be controlled by dynamic switches rather than adding more permutations.
-	// TODO: maybe disable permutation in shipping builds?
-	class FDebugModeDim : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
 	class FBatchedDim : SHADER_PERMUTATION_BOOL("ENABLE_BATCH_MODE");
 	class FInstanceCompactionDim : SHADER_PERMUTATION_BOOL("ENABLE_INSTANCE_COMPACTION");
 
-	using FPermutationDomain = TShaderPermutationDomain<FSingleInstanceModeDim, FCullInstancesDim, FAllowWPODisableDim, FOcclusionCullInstancesDim, FStereoModeDim, FDebugModeDim, FBatchedDim, FInstanceCompactionDim>;
+	using FPermutationDomain = TShaderPermutationDomain<FSingleInstanceModeDim, FCullInstancesDim, FAllowWPODisableDim, FOcclusionCullInstancesDim, FStereoModeDim, FBatchedDim, FInstanceCompactionDim>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -585,7 +581,6 @@ public:
 		SHADER_PARAMETER(uint32, NumViewIds)
 		SHADER_PARAMETER(uint32, NumCullingViews)
 		SHADER_PARAMETER(uint32, CurrentBatchProcessingMode)
-		SHADER_PARAMETER(int32, bDrawOnlyVSMInvalidatingGeometry)
 
 		SHADER_PARAMETER(int32, DynamicInstanceIdOffset)
 		SHADER_PARAMETER(int32, DynamicInstanceIdMax)
@@ -780,9 +775,6 @@ void FInstanceCullingContext::BuildRenderingCommandsInternal(
 
 	FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(ShaderPlatform);
 
-	// Add any other conditions that needs debug code running here.
-	const bool bUseDebugMode = EnumHasAnyFlags(Flags, EInstanceCullingFlags::DrawOnlyVSMInvalidatingGeometry);
-
 	FRDGBufferRef ViewIdsBuffer = CreateStructuredBuffer(GraphBuilder, TEXT("InstanceCulling.ViewIds"), ViewIds);
 
 	const uint32 InstanceIdBufferSize = GetInstanceIdBufferSize(ShaderPlatform, GetInstanceIdNumElements());
@@ -845,7 +837,6 @@ void FInstanceCullingContext::BuildRenderingCommandsInternal(
 		PassParametersTmp.NumCullingViews = InstanceCullingManager->CullingIntermediate.NumViews;
 	}
 	PassParametersTmp.NumViewIds = ViewIds.Num();
-	PassParametersTmp.bDrawOnlyVSMInvalidatingGeometry = EnumHasAnyFlags(Flags, EInstanceCullingFlags::DrawOnlyVSMInvalidatingGeometry);
 	// only one of these will be used in the shader
 	PassParametersTmp.InstanceIdsBufferOut = InstanceIdsBufferUAV;
 	PassParametersTmp.InstanceIdsBufferOutMobile = InstanceIdsBufferUAV;
@@ -894,7 +885,6 @@ void FInstanceCullingContext::BuildRenderingCommandsInternal(
 			PermutationVector.Set<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FAllowWPODisableDim>(bAllowWPODisable);
 			PermutationVector.Set<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FOcclusionCullInstancesDim>(bOcclusionCullInstances);
 			PermutationVector.Set<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FStereoModeDim>(InstanceCullingMode == EInstanceCullingMode::Stereo);
-			PermutationVector.Set<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FDebugModeDim>(bUseDebugMode);
 			PermutationVector.Set<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FBatchedDim>(false);
 			PermutationVector.Set<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FInstanceCompactionDim>(bOrderPreservationEnabled);
 

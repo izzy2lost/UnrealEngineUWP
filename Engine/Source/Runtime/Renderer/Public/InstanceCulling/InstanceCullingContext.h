@@ -49,9 +49,8 @@ enum class EInstanceCullingMode
 
 enum class EInstanceCullingFlags : uint8
 {
-	None 							= 0,			
-	DrawOnlyVSMInvalidatingGeometry	= 1 << 0,
-	NoInstanceOrderPreservation		= 1 << 1,
+	None 							= 0,
+	NoInstanceOrderPreservation		= 1 << 0,
 };
 ENUM_CLASS_FLAGS(EInstanceCullingFlags)
 

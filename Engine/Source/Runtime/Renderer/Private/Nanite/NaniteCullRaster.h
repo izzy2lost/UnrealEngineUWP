@@ -134,7 +134,6 @@ struct FConfiguration
 	uint32 bSupportsMultiplePasses : 1;
 	uint32 bForceHWRaster : 1;
 	uint32 bPrimaryContext : 1;
-	uint32 bDrawOnlyVSMInvalidatingGeometry : 1;
 	uint32 bDrawOnlyRootGeometry : 1;
 	uint32 bIsSceneCapture : 1;
 	uint32 bIsReflectionCapture : 1;

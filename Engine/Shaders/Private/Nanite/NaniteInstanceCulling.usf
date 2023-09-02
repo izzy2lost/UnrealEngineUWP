@@ -396,13 +396,6 @@ void InstanceCull(
 			bool bEnableWPO = Cull.Distance( PrimitiveData );
 
 			const bool bHasMoved = GetGPUSceneFrameNumber() == InstanceData.LastUpdateSceneFrameNumber || bEnableWPO;
-#if DEBUG_FLAGS
-			BRANCH
-			if ((DebugFlags & NANITE_DEBUG_FLAG_DRAW_ONLY_VSM_INVALIDATING) != 0U && !bHasMoved)
-			{
-				return;
-			}
-#endif
 
 			Cull.GlobalClipPlane();
 

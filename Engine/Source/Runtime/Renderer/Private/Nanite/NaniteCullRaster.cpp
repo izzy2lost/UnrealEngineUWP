@@ -2254,10 +2254,6 @@ FRenderer::FRenderer(
 			DebugFlags |= NANITE_DEBUG_FLAG_WRITE_STATS;
 		}
 
-		if (Configuration.bDrawOnlyVSMInvalidatingGeometry && Configuration.bPrimaryContext)
-		{
-			DebugFlags |= NANITE_DEBUG_FLAG_DRAW_ONLY_VSM_INVALIDATING;
-		}
 		if (Configuration.bDrawOnlyRootGeometry)
 		{
 			DebugFlags |= NANITE_DEBUG_FLAG_DRAW_ONLY_ROOT_DATA;
@@ -4809,7 +4805,6 @@ void FConfiguration::SetViewFlags(const FViewInfo& View)
 	bIsReflectionCapture				= View.bIsReflectionCapture;
 	bGameShowFlag						= !!View.Family->EngineShowFlags.Game;
 	bEditorShowFlag						= !!View.Family->EngineShowFlags.Editor;
-	bDrawOnlyVSMInvalidatingGeometry	= !!View.Family->EngineShowFlags.DrawOnlyVSMInvalidatingGeo;
 	bDrawOnlyRootGeometry				= !View.Family->EngineShowFlags.NaniteStreamingGeometry;
 }
 

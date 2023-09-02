@@ -4031,10 +4031,6 @@ void FSceneRenderer::SetupMeshPass(FViewInfo& View, FExclusiveDepthStencil::Type
 			}
 			
 			EInstanceCullingFlags CullingFlags = EInstanceCullingFlags::None;
-			if (ViewFamily.EngineShowFlags.DrawOnlyVSMInvalidatingGeo != 0)
-			{
-				EnumAddFlags(CullingFlags, EInstanceCullingFlags::DrawOnlyVSMInvalidatingGeometry);
-			}
 
 			FName PassName(GetMeshPassName(PassType));
 			Pass.DispatchPassSetup(

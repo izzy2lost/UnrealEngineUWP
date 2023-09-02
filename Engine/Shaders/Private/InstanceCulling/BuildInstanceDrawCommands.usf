@@ -61,12 +61,6 @@ uint DynamicInstanceIdMax;
 uint NumCullingViews;
 uint CurrentBatchProcessingMode;
 
-
-#if DEBUG_MODE
-int bDrawOnlyVSMInvalidatingGeometry;
-#endif // DEBUG_MODE
-
-
 RWStructuredBuffer<uint> InstanceIdsBufferOut;
 RWStructuredBuffer<float4> InstanceIdsBufferOutMobile;
 RWBuffer<uint> DrawIndirectArgsBufferOut;
@@ -113,21 +107,6 @@ void WriteInstanceForCompaction(uint Offset, bool bVisible, uint InstanceId, FIn
 	uint PackedId = bVisible ? PackInstanceCullingOutput(InstanceId, ViewIdIndex, CullingFlags) : 0xFFFFFFFFU;
 	checkStructuredBufferAccessSlow(CompactInstanceIdsBufferOut, Offset);
 	CompactInstanceIdsBufferOut[Offset] = PackedId;	
-}
-
-bool ShouldRenderInstance(FPrimitiveSceneData PrimitiveData, FInstanceSceneData InstanceData, FDrawCommandDesc Desc)
-{
-#if DEBUG_MODE
-	BRANCH
-		if (bDrawOnlyVSMInvalidatingGeometry != 0)
-		{
-			const bool bHasMoved = GetGPUSceneFrameNumber() == InstanceData.LastUpdateSceneFrameNumber || Desc.bMaterialUsesWorldPositionOffset;
-			const bool bCastShadow = (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_CAST_SHADOWS) != 0u;
-
-			return bHasMoved && bCastShadow;
-		}
-#endif // DEBUG_MODE
-	return true;
 }
 
 bool IsInstanceVisible(FPrimitiveSceneData PrimitiveData, FInstanceSceneData InstanceData, uint InstanceId, uint ViewIdIndex, FDrawCommandDesc DrawCommandDesc, inout uint CullingFlags)
@@ -308,11 +287,6 @@ void InstanceCullBuildInstanceIdBufferCS(uint3 GroupId : SV_GroupID, int GroupTh
 
 	const FInstanceSceneData InstanceData = GetInstanceSceneData(InstanceId, InstanceSceneDataSOAStride);
 	const FPrimitiveSceneData PrimitiveData = GetPrimitiveData(InstanceData.PrimitiveId);
-
-	if (!ShouldRenderInstance(PrimitiveData, InstanceData, DrawCommandDesc))
-	{
-		return;
-	}
 
 	uint NumVisibleInstances = 0;
 #if STEREO_CULLING_MODE

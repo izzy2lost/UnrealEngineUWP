@@ -483,7 +483,6 @@ private:
 		SetVisualizeInstanceOcclusionQueries(false);
 		SetVisualizeVolumetricCloudConservativeDensity(false);
 		SetVisualizeVolumetricCloudEmptySpaceSkipping(false);
-		SetDrawOnlyVSMInvalidatingGeo(false);
 		SetDebugDrawDistantVirtualSMLights(false);
 
 		SetLumenScreenTraces(true);
