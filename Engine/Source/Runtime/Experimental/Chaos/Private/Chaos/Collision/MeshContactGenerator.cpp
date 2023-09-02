@@ -27,7 +27,11 @@ namespace Chaos::Private
 		Contacts.Reset(InMaxContacts);
 		ContactDatas.Reset(InMaxContacts);
 
-		EdgeTriangleIndicesMap.Reset(InMaxTriangles);
+		// If all edges were shared between 2 triangles we have NumEdges = (3 * NumTriangles) / 2
+		// but not all are shared so lets go with NumEdges = (2 * NumTriangles)
+		EdgeTriangleIndicesMap.Reset(InMaxTriangles * 2);
+
+		// Worst case - assume all contacts are vertex contacts
 		VertexContactIndicesMap.Reset(InMaxContacts);
 	}
 
@@ -52,16 +56,16 @@ namespace Chaos::Private
 			int32 LocalVertexID0, LocalVertexID1;
 			GetTriangleEdgeVerticesAtPosition(
 				ContactPoint.ShapeContactPoints[1],
-				Triangle.Triangle.GetVertex(0), Triangle.Triangle.GetVertex(1), Triangle.Triangle.GetVertex(2),
+				Triangle.GetVertex(0), Triangle.GetVertex(1), Triangle.GetVertex(2),
 				LocalVertexID0, LocalVertexID1,
 				BarycentricTolerance);
 
-			const int32 VertexID0 = (LocalVertexID0 != INDEX_NONE) ? Triangle.VertexIndices[LocalVertexID0] : INDEX_NONE;
-			const int32 VertexID1 = (LocalVertexID1 != INDEX_NONE) ? Triangle.VertexIndices[LocalVertexID1] : INDEX_NONE;
+			const int32 VertexID0 = (LocalVertexID0 != INDEX_NONE) ? Triangle.GetVertexIndex(LocalVertexID0) : INDEX_NONE;
+			const int32 VertexID1 = (LocalVertexID1 != INDEX_NONE) ? Triangle.GetVertexIndex(LocalVertexID1) : INDEX_NONE;
 
 			const int32 NewContactIndex = Contacts.Num();
 
-			const FRealSingle ContactNormalDotTriangleNormal = FRealSingle(FVec3::DotProduct(ContactPoint.ShapeContactNormal, Triangle.Normal));
+			const FRealSingle ContactNormalDotTriangleNormal = FRealSingle(FVec3::DotProduct(ContactPoint.ShapeContactNormal, Triangle.GetNormal()));
 
 			const FReal FaceNormalThreshold = FReal(0.998);	// 3deg
 			const bool bIsFaceContact = (ContactNormalDotTriangleNormal > FaceNormalThreshold);
@@ -72,12 +76,12 @@ namespace Chaos::Private
 				// Edge collisions - if it's a face normal, tell each triangle using the edge it has a face contact
 				if (bIsFaceContact)
 				{
-					Triangles[LocalTriangleIndex].NumFaceEdgeCollisions += 1;
+					Triangles[LocalTriangleIndex].AddFaceEdgeCollision();
 
 					const int32 OtherLocalTriangleIndex = GetOtherTriangleIndexForEdge(LocalTriangleIndex, FContactEdgeID(VertexID0, VertexID1));
 					if (OtherLocalTriangleIndex != INDEX_NONE)
 					{
-						Triangles[OtherLocalTriangleIndex].NumFaceEdgeCollisions += 1;
+						Triangles[OtherLocalTriangleIndex].AddFaceEdgeCollision();
 					}
 				}
 			}
@@ -172,6 +176,7 @@ namespace Chaos::Private
 
 		const int32 LocalTriangleIndex = ContactPointData.GetTriangleIndex();
 		const FTriangleExt& Triangle = Triangles[LocalTriangleIndex];
+		const FVec3& TriangleNormal = Triangle.GetNormal();
 
 		// If we have an edge or vertex contact, make sure that the normal is in a valiid range, based
 		// on the triangles that share that edge or vertex.
@@ -182,24 +187,25 @@ namespace Chaos::Private
 			if (OtherLocalTriangleIndex != INDEX_NONE)
 			{
 				const FTriangleExt& OtherTriangle = Triangles[OtherLocalTriangleIndex];
+				const FVec3& OtherTriangleNormal = OtherTriangle.GetNormal();
 
 				const FReal ContactDotNormal = ContactPointData.GetContactNormalDotTriangleNormal();
-				const FReal MinContactDotNormal = FRealSingle(FVec3::DotProduct(OtherTriangle.Normal, Triangle.Normal));
+				const FReal MinContactDotNormal = FRealSingle(FVec3::DotProduct(OtherTriangleNormal, TriangleNormal));
 				if (ContactDotNormal < MinContactDotNormal)
 				{
 					// We are outside the valid normal range for this edge
 					// Convert the edge collision to a face collision on one of the faces, selected to get the smallest depth
 					FVec3 CorrectedContactNormal;
 					int32 CorrectedTriangleIndex;
-					const FReal OtherContactDotNormal = FVec3::DotProduct(ContactPoint.ShapeContactNormal, OtherTriangle.Normal);
+					const FReal OtherContactDotNormal = FVec3::DotProduct(ContactPoint.ShapeContactNormal, OtherTriangleNormal);
 					if (ContactDotNormal >= OtherContactDotNormal)
 					{
-						CorrectedContactNormal = (ContactDotNormal > -SMALL_NUMBER) ? Triangle.Normal : -Triangle.Normal;
+						CorrectedContactNormal = (ContactDotNormal > -SMALL_NUMBER) ? TriangleNormal : -TriangleNormal;
 						CorrectedTriangleIndex = LocalTriangleIndex;
 					}
 					else
 					{
-						CorrectedContactNormal = (OtherContactDotNormal > -SMALL_NUMBER) ? OtherTriangle.Normal : -OtherTriangle.Normal;
+						CorrectedContactNormal = (OtherContactDotNormal > -SMALL_NUMBER) ? OtherTriangleNormal : -OtherTriangleNormal;
 						CorrectedTriangleIndex = OtherLocalTriangleIndex;
 					}
 
@@ -228,16 +234,17 @@ namespace Chaos::Private
 						// It does if the contact normal dotted with the edge plane normal is negative for both edge planes on the triangle that use the vertex.
 						const FVec3 EdgeDelta0 = VertexB - VertexA;
 						const FVec3 EdgeDelta1 = VertexC - VertexA;
-						const FReal EdgeSign0 = FVec3::DotProduct(FVec3::CrossProduct(ContactPoint.ShapeContactNormal, VertexB - VertexA), OtherTriangle.Normal);
-						const FReal EdgeSign1 = FVec3::DotProduct(FVec3::CrossProduct(ContactPoint.ShapeContactNormal, VertexC - VertexA), OtherTriangle.Normal);
+						const FVec3& OtherTriangleNormal = OtherTriangle.GetNormal();
+						const FReal EdgeSign0 = FVec3::DotProduct(FVec3::CrossProduct(ContactPoint.ShapeContactNormal, VertexB - VertexA), OtherTriangleNormal);
+						const FReal EdgeSign1 = FVec3::DotProduct(FVec3::CrossProduct(ContactPoint.ShapeContactNormal, VertexC - VertexA), OtherTriangleNormal);
 						if (FMath::Sign(EdgeSign0) == FMath::Sign(EdgeSign1))
 						{
-							const FVec3 Centroid = OtherTriangle.Triangle.GetCentroid();
+							const FVec3 Centroid = OtherTriangle.GetCentroid();
 							const FReal NormalDotCentroid = FVec3::DotProduct(ContactPoint.ShapeContactNormal, Centroid - ContactPoint.ShapeContactPoints[1]);
 							if (NormalDotCentroid > 0)
 							{
-								const FReal OtherContactDotNormal = FVec3::DotProduct(ContactPoint.ShapeContactNormal, OtherTriangle.Normal);
-								const FVec3 CorrectedContactNormal = OtherTriangle.Normal; //(OtherContactDotNormal > -SMALL_NUMBER) ? OtherTriangle.Normal : -OtherTriangle.Normal;
+								const FReal OtherContactDotNormal = FVec3::DotProduct(ContactPoint.ShapeContactNormal, OtherTriangleNormal);
+								const FVec3 CorrectedContactNormal = OtherTriangleNormal;
 
 								ContactPoint.ShapeContactNormal = CorrectedContactNormal;
 								ContactPoint.ShapeContactPoints[0] = ContactPoint.ShapeContactPoints[1] + ContactPoint.Phi * CorrectedContactNormal;
@@ -334,7 +341,7 @@ namespace Chaos::Private
 			for (int32 TriangleIndex = 0; TriangleIndex < Triangles.Num(); ++TriangleIndex)
 			{
 				const FTriangleExt& Triangle = Triangles[TriangleIndex];
-				if (Triangle.VisitIndex == INDEX_NONE)
+				if (Triangle.GetVisitIndex() == INDEX_NONE)
 				{
 					DebugDrawTriangle(ConvexTransform, Triangle, IgnoredColor);
 				}
@@ -342,7 +349,7 @@ namespace Chaos::Private
 			for (int32 TriangleIndex = 0; TriangleIndex < Triangles.Num(); ++TriangleIndex)
 			{
 				const FTriangleExt& Triangle = Triangles[TriangleIndex];
-				if (Triangle.VisitIndex != INDEX_NONE)
+				if (Triangle.GetVisitIndex() != INDEX_NONE)
 				{
 					DebugDrawTriangle(ConvexTransform, Triangle, VisitedColor);
 				}
@@ -358,9 +365,9 @@ namespace Chaos::Private
 		const FReal LineScale = 1;
 		const int8 DrawPriority = 10;
 
-		const FVec3 V0 = ConvexTransform.TransformPosition(Triangle.Triangle.GetVertex(0));
-		const FVec3 V1 = ConvexTransform.TransformPosition(Triangle.Triangle.GetVertex(1));
-		const FVec3 V2 = ConvexTransform.TransformPosition(Triangle.Triangle.GetVertex(2));
+		const FVec3 V0 = ConvexTransform.TransformPosition(Triangle.GetVertex(0));
+		const FVec3 V1 = ConvexTransform.TransformPosition(Triangle.GetVertex(1));
+		const FVec3 V2 = ConvexTransform.TransformPosition(Triangle.GetVertex(2));
 
 		FDebugDrawQueue::GetInstance().DrawDebugLine(V0, V1, Color, false, FRealSingle(Duration), DrawPriority, FRealSingle(LineScale));
 		FDebugDrawQueue::GetInstance().DrawDebugLine(V1, V2, Color, false, FRealSingle(Duration), DrawPriority, FRealSingle(LineScale));

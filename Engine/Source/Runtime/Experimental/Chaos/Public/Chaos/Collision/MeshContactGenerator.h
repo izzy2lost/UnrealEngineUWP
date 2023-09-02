@@ -48,9 +48,9 @@ namespace Chaos::Private
 			for (int32 LocalTriangleIndex = 0; LocalTriangleIndex < GetNumTriangles(); ++LocalTriangleIndex)
 			{
 				const FTriangleExt& Triangle = Triangles[LocalTriangleIndex];
-				AddTriangleEdge(LocalTriangleIndex, Triangle.VertexIndices[0], Triangle.VertexIndices[1]);
-				AddTriangleEdge(LocalTriangleIndex, Triangle.VertexIndices[1], Triangle.VertexIndices[2]);
-				AddTriangleEdge(LocalTriangleIndex, Triangle.VertexIndices[2], Triangle.VertexIndices[0]);
+				AddTriangleEdge(LocalTriangleIndex, Triangle.GetVertexIndex(0), Triangle.GetVertexIndex(1));
+				AddTriangleEdge(LocalTriangleIndex, Triangle.GetVertexIndex(1), Triangle.GetVertexIndex(2));
+				AddTriangleEdge(LocalTriangleIndex, Triangle.GetVertexIndex(2), Triangle.GetVertexIndex(0));
 			}
 		}
 
@@ -69,7 +69,7 @@ namespace Chaos::Private
 				if (GetNumTriangleFaceCollisions(LocalTriangleIndex) == 0)
 				{
 					TriangleContactPoints.Reset();
-					TriangleContactGenerator(Triangles[LocalTriangleIndex].Triangle, TriangleContactPoints);
+					TriangleContactGenerator(Triangles[LocalTriangleIndex].GetTriangle(), TriangleContactPoints);
 
 					AddTriangleContacts(TriangleContactPoints, LocalTriangleIndex);
 
@@ -84,7 +84,7 @@ namespace Chaos::Private
 				if (!IsTriangleVisited(LocalTriangleIndex) && (GetNumTriangleFaceCollisions(LocalTriangleIndex) < 3))
 				{
 					TriangleContactPoints.Reset();
-					TriangleContactGenerator(Triangles[LocalTriangleIndex].Triangle, TriangleContactPoints);
+					TriangleContactGenerator(Triangles[LocalTriangleIndex].GetTriangle(), TriangleContactPoints);
 
 					AddTriangleContacts(TriangleContactPoints, LocalTriangleIndex);
 
@@ -107,10 +107,12 @@ namespace Chaos::Private
 		// A triangle plus some extended data and state
 		class FTriangleExt
 		{
+			static constexpr FReal InvalidNormalMarker = std::numeric_limits<FReal>::max();
+
 		public:
 			FTriangleExt(const FTriangle& InTriangle, const int32 InTriangleIndex, const int32 InVertexIndex0, const int32 InVertexIndex1, const int32 InVertexIndex2)
 				: Triangle(InTriangle)
-				, Normal(InTriangle.GetNormal())
+				, Normal(InvalidNormalMarker)
 				, TriangleIndex(InTriangleIndex)
 				, VertexIndices{ InVertexIndex0, InVertexIndex1, InVertexIndex2 }
 				, NumFaceEdgeCollisions(0)
@@ -169,8 +171,73 @@ namespace Chaos::Private
 				return false;
 			}
 
+			const FTriangle& GetTriangle() const
+			{
+				return Triangle;
+			}
+
+			const FVec3& GetVertex(const int32 LocalVertexIndex) const
+			{
+				return Triangle.GetVertex(LocalVertexIndex);
+			}
+
+			int32 GetTriangleIndex() const
+			{
+				return TriangleIndex;
+			}
+
+			int32 GetVertexIndex(const int32 LocalIndex) const
+			{
+				return VertexIndices[LocalIndex];
+			}
+
+			const FVec3& GetNormal() const
+			{
+				if (Normal.X == InvalidNormalMarker)
+				{
+					Normal = Triangle.GetNormal();
+				}
+				return Normal;
+			}
+
+			FVec3 GetCentroid() const
+			{
+				return Triangle.GetCentroid();
+			}
+
+			void SetVisitIndex(const int8 InVisitIndex)
+			{
+				VisitIndex = InVisitIndex;
+			}
+
+			int8 GetVisitIndex() const
+			{
+				return VisitIndex;
+			}
+
+			void SetEnabled(const bool bInEnabled)
+			{
+				bEnabled = bInEnabled;
+			}
+
+			bool GetIsEnabled() const
+			{
+				return bEnabled;
+			}
+
+			void AddFaceEdgeCollision()
+			{
+				++NumFaceEdgeCollisions;
+			}
+
+			int32 GetNumFaceEdgeCollisions() const
+			{
+				return NumFaceEdgeCollisions;
+			}
+
+		private:
 			FTriangle Triangle;
-			FVec3 Normal;
+			mutable FVec3 Normal;
 			int32 TriangleIndex;
 			int32 VertexIndices[3];
 			int8 NumFaceEdgeCollisions;
@@ -247,10 +314,10 @@ namespace Chaos::Private
 
 		int32 GetNumTriangleFaceCollisions(const int32 LocalTriangleIndex) const
 		{
-			const int32 MeshVertexIndex0 = Triangles[LocalTriangleIndex].VertexIndices[0];
-			const int32 MeshVertexIndex1 = Triangles[LocalTriangleIndex].VertexIndices[1];
-			const int32 MeshVertexIndex2 = Triangles[LocalTriangleIndex].VertexIndices[2];
-			int32 NumCollisions = Triangles[LocalTriangleIndex].NumFaceEdgeCollisions;
+			const int32 MeshVertexIndex0 = Triangles[LocalTriangleIndex].GetVertexIndex(0);
+			const int32 MeshVertexIndex1 = Triangles[LocalTriangleIndex].GetVertexIndex(1);
+			const int32 MeshVertexIndex2 = Triangles[LocalTriangleIndex].GetVertexIndex(2);
+			int32 NumCollisions = Triangles[LocalTriangleIndex].GetNumFaceEdgeCollisions();
 			NumCollisions += HasFaceVertexCollision(MeshVertexIndex0) ? 1 : 0;
 			NumCollisions += HasFaceVertexCollision(MeshVertexIndex1) ? 1 : 0;
 			NumCollisions += HasFaceVertexCollision(MeshVertexIndex2) ? 1 : 0;
@@ -259,12 +326,12 @@ namespace Chaos::Private
 
 		bool IsTriangleVisited(const int32 LocalTriangleIndex) const
 		{
-			return Triangles[LocalTriangleIndex].VisitIndex != INDEX_NONE;
+			return Triangles[LocalTriangleIndex].GetVisitIndex() != INDEX_NONE;
 		}
 
 		void SetTriangleVisited(const int32 LocalTriangleIndex, const int8 VisitIndex)
 		{
-			Triangles[LocalTriangleIndex].VisitIndex = VisitIndex;
+			Triangles[LocalTriangleIndex].SetVisitIndex(VisitIndex);
 		}
 
 		int32 GetNumTriangles() const
