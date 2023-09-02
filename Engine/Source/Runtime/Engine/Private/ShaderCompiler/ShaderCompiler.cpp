@@ -1614,7 +1614,7 @@ void FShaderJobCache::SubmitJob(FShaderCommonCompileJob* Job)
 		const FShaderCommonCompileJob::FInputHash& InputHash = Job->GetInputHash();
 		const bool bCheckDDC = !(Job->bIsDefaultMaterial || Job->bIsGlobalShader);
 		JobLock.WriteLock();
-		Job->JobCacheRef = FindOrAdd(InputHash, bCheckDDC, ExistingOutput);
+		Job->JobCacheRef = FindOrAdd(InputHash, Job->Priority bCheckDDC, Job->RequestOwner, ExistingOutput);
 		bJobCacheLocked = true;
 	}
 
@@ -1642,9 +1642,6 @@ void FShaderJobCache::SubmitJob(FShaderCommonCompileJob* Job)
 			check(Job->JobIndex != INDEX_NONE);
 		}
 
->>>> ORIGINAL //Fortnite/Dev-Rendering-Shaderwork/Engine/Source/Runtime/Engine/Private/ShaderCompiler/ShaderCompiler.cpp#52
-		LinkJobWithPriority(*Job);
-==== THEIRS //Fortnite/Dev-Rendering-Shaderwork/Engine/Source/Runtime/Engine/Private/ShaderCompiler/ShaderCompiler.cpp#53
 		// If an async DDC request is in flight, that will add the job to the pending queue for processing when the request completes,
 		// if the request didn't find a result.  Otherwise we add it to the pending queue immediately.
 		if (Job->RequestOwner.IsValid() == false)
@@ -1654,10 +1651,7 @@ void FShaderJobCache::SubmitJob(FShaderCommonCompileJob* Job)
 
 			LinkJobWithPriority(*Job);
 		}
-==== YOURS //Marc.Audy_Fortnite/Engine/Source/Runtime/Engine/Private/ShaderCompiler/ShaderCompiler.cpp
-		LinkJobWithPriority(*Job);
 	}
-<<<<
 
 	if (bJobCacheLocked)
 	{
