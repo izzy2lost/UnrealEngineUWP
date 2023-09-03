@@ -427,7 +427,7 @@ void FPCGGraphExecutor::Execute()
 	// Process any newly scheduled graphs to execute
 	ScheduleLock.Lock();
 
-	for(int32 ScheduledTaskIndex = ScheduledTasks.Num() - 1; ScheduledTaskIndex >= 0; --ScheduledTaskIndex)
+	for (int32 ScheduledTaskIndex = ScheduledTasks.Num() - 1; ScheduledTaskIndex >= 0; --ScheduledTaskIndex)
 	{
 		FPCGGraphScheduleTask& ScheduledTask = ScheduledTasks[ScheduledTaskIndex];
 
@@ -498,7 +498,7 @@ void FPCGGraphExecutor::Execute()
 	UpdateGenerationNotification();
 #endif
 
-	while(ReadyTasks.Num() > 0 || ActiveTasks.Num() > 0 || (!bHasAlreadyCheckedSleepingTasks && SleepingTasks.Num() > 0))
+	while (ReadyTasks.Num() > 0 || ActiveTasks.Num() > 0 || (!bHasAlreadyCheckedSleepingTasks && SleepingTasks.Num() > 0))
 	{
 		// If we only have sleeping tasks, we will go through this loop only once. If all tasks are still sleeping after one iteration,
 		// we will wake them up only at next tick. It will avoid spinning for our whole frametime budget.
@@ -518,7 +518,7 @@ void FPCGGraphExecutor::Execute()
 			return ((!bAllowMultiDispatch && bHasDispatchedTasks) || (!bMainThreadAvailable && NumAvailableThreads == 0));
 		};
 
-		if(!CannotDispatchMoreTasks())
+		if (!CannotDispatchMoreTasks())
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphExecutor::Execute::PrepareTasks);
 			// Sort tasks by priority (highest priority should be at the end)
@@ -571,7 +571,7 @@ void FPCGGraphExecutor::Execute()
 				}
 			}
 
-			for(int32 ReadyTaskIndex = ReadyTasks.Num() - 1; ReadyTaskIndex >= 0; --ReadyTaskIndex)
+			for (int32 ReadyTaskIndex = ReadyTasks.Num() - 1; ReadyTaskIndex >= 0; --ReadyTaskIndex)
 			{
 				if (CannotDispatchMoreTasks())
 				{
@@ -732,13 +732,13 @@ void FPCGGraphExecutor::Execute()
 
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphExecutor::Execute::StartFutures);
-			for(int32 ExecutionIndex = 1; ExecutionIndex < ActiveTasks.Num(); ++ExecutionIndex)
+			for (int32 ExecutionIndex = 1; ExecutionIndex < ActiveTasks.Num(); ++ExecutionIndex)
 			{
 				FPCGGraphActiveTask& ActiveTask = ActiveTasks[ExecutionIndex];
 				check(!ActiveTask.Context->bIsPaused);
 
 	#if WITH_EDITOR
-				if(!ActiveTask.bIsBypassed)
+				if (!ActiveTask.bIsBypassed)
 	#endif
 				{
 					check(!ActiveTask.Element->CanExecuteOnlyOnMainThread(ActiveTask.Context.Get()));
@@ -851,7 +851,7 @@ void FPCGGraphExecutor::Execute()
 				TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphExecutor::Execute::ExecuteTasks::WaitForFutures);
 
 				// Then wait after all futures - start from the back so we can more easily manage the ActiveTasks array
-				for(int32 ExecutionIndex = ActiveTasks.Num() - 1; ExecutionIndex > 0; --ExecutionIndex)
+				for (int32 ExecutionIndex = ActiveTasks.Num() - 1; ExecutionIndex > 0; --ExecutionIndex)
 				{
 					bool bTaskDone = false;
 					// Wait on the future if any
@@ -877,7 +877,7 @@ void FPCGGraphExecutor::Execute()
 			{
 				PostTaskExecute(0);
 			}
-			else if(!ActiveTasks.IsEmpty())
+			else if (!ActiveTasks.IsEmpty())
 			{
 				// Task isn't done, make sure we don't garbage collected the precreated data
 				ActiveTasks[0].Context->OutputData.AddToRootSet(DataRootSet);
