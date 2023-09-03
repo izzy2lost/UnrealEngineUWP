@@ -56,13 +56,6 @@ struct FPCGGraphTask
 	FPCGTaskId CompiledTaskId = InvalidPCGTaskId; // the task id as it exists when compiled
 	FPCGTaskId ParentId = InvalidPCGTaskId; // represents the parent sub object graph task, if we were called from one
 
-	// Required purely to cache across multiple frames and allow different grids to be scheduled simultaneously. Set up
-	// at schedule-time, used during execution.
-	EPCGHiGenGrid GenerationGrid = EPCGHiGenGrid::Uninitialized;
-	
-	// The generation level for this node within the graph.
-	EPCGHiGenGrid GraphGenerationGrid = EPCGHiGenGrid::Uninitialized;
-
 	int32 StackIndex = INDEX_NONE;
 	TSharedPtr<const FPCGStackContext> StackContext;
 };
@@ -272,6 +265,7 @@ namespace PCGGraphExecutor
 {
 	/** Compares InFromGrid and InToGrid and performs data storage/retrieval as necessary to marshal data across execution grids. */
 	bool ExecuteGridLinkage(
+		EPCGHiGenGrid InGenerationGrid,
 		EPCGHiGenGrid InFromGrid,
 		EPCGHiGenGrid InToGrid,
 		const FString& InResourceKey,

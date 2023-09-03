@@ -21,9 +21,6 @@ public:
 
 	static void OffsetNodeIds(TArray<FPCGGraphTask>& Tasks, FPCGTaskId Offset, FPCGTaskId ParentId);
 
-	/** Propagates grid sizes through a graph's compiled tasks. */
-	void ResolveGridSizes(TArray<FPCGGraphTask>& InOutCompiledTasks, const FPCGStackContext& InStackContext, EPCGHiGenGrid GenerationDefaultGrid) const;
-
 #if WITH_EDITOR
 	void NotifyGraphChanged(UPCGGraph* InGraph);
 #endif
@@ -35,8 +32,31 @@ private:
 	TArray<FPCGGraphTask> CompileGraph(UPCGGraph* InGraph, FPCGTaskId& NextId, FPCGStackContext& InOutStackContext);
 	void CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGridSize);
 
-	/** Returns the grid for InCompiledTaskId. */
-	EPCGHiGenGrid CalculateGridRecursive(FPCGTaskId InTaskId, EPCGHiGenGrid GenerationDefaultGrid, const FPCGStackContext& InStackContext, TArray<FPCGGraphTask>& InOutCompiledTasks) const;
+	/** Propagates grid sizes through a graph's compiled tasks. */
+	static void ResolveGridSizes(
+		EPCGHiGenGrid GenerationGrid,
+		const TArray<FPCGGraphTask>& CompiledTasks,
+		const FPCGStackContext& StackContext,
+		EPCGHiGenGrid GenerationDefaultGrid,
+		TArray<EPCGHiGenGrid>& InOutTaskGenerationGrid);
+
+	/** Returns the execution grid for the given task. */
+	static EPCGHiGenGrid CalculateGridRecursive(
+		FPCGTaskId InTaskId,
+		EPCGHiGenGrid GenerationDefaultGrid,
+		const FPCGStackContext& InStackContext,
+		const TArray<FPCGGraphTask>& InCompiledTasks,
+		TArray<EPCGHiGenGrid>& InOutTaskGenerationGrid);
+
+	/** Create linkage tasks for edges that cross from large grid to small grid tasks. */
+	static void CreateGridLinkages(
+		EPCGHiGenGrid InGenerationGrid,
+		TArray<EPCGHiGenGrid>& TaskGenerationGrid,
+		TArray<FPCGGraphTask>& InOutCompiledTasks,
+		const FPCGStackContext& InStackContext);
+
+	/** Culls tasks based on a given lambda. Never culls the first (input) task in the array. */
+	static void CullTasks(TArray<FPCGGraphTask>& InOutCompiledTasks, TFunctionRef<bool(const FPCGGraphTask&)> CullTask);
 
 	mutable FRWLock GraphToTaskMapLock;
 	TMap<UPCGGraph*, TArray<FPCGGraphTask>> GraphToTaskMap;

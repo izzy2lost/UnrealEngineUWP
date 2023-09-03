@@ -121,7 +121,6 @@ bool FPCGIndirectionElement::PrepareDataInternal(FPCGContext* InContext) const
 		Context->InnerContext->TaskId = Context->TaskId;
 		Context->InnerContext->CompiledTaskId = Context->CompiledTaskId;
 		Context->InnerContext->DependenciesCrc = Context->DependenciesCrc;
-		Context->InnerContext->GenerationGrid = Context->GenerationGrid;
 
 		Context->InnerContext->AsyncState = Context->AsyncState;
 	}

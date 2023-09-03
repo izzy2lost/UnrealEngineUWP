@@ -306,29 +306,53 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::GetPrecompiledTasks(UPCGGraph* InGraph,
 	return ExistingTasks ? *ExistingTasks : TArray<FPCGGraphTask>();
 }
 
-void FPCGGraphCompiler::ResolveGridSizes(TArray<FPCGGraphTask>& InOutCompiledTasks, const FPCGStackContext& InStackContext, EPCGHiGenGrid GenerationDefaultGrid) const
+void FPCGGraphCompiler::ResolveGridSizes(
+	EPCGHiGenGrid GenerationGrid,
+	const TArray<FPCGGraphTask>& CompiledTasks,
+	const FPCGStackContext& StackContext,
+	EPCGHiGenGrid GenerationDefaultGrid,
+	TArray<EPCGHiGenGrid>& InOutTaskGenerationGrid)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphCompiler::ResolveGridSizes);
+
+	if (CompiledTasks.IsEmpty())
+	{
+		return;
+	}
+	check(!InOutTaskGenerationGrid.IsEmpty());
+
+	// Special case - input node must always be present. Execute it on the current grid.
+	InOutTaskGenerationGrid[0] = GenerationGrid;
+
+	// Calculate execution grid values for subsequent tasks.
+	for (int32 i = 1; i < CompiledTasks.Num(); ++i)
+	{
+		CalculateGridRecursive(CompiledTasks[i].NodeId, GenerationDefaultGrid, StackContext, CompiledTasks, InOutTaskGenerationGrid);
+	}
+}
+
+void FPCGGraphCompiler::CreateGridLinkages(
+	EPCGHiGenGrid InGenerationGrid,
+	TArray<EPCGHiGenGrid>& InOutTaskGenerationGrid,
+	TArray<FPCGGraphTask>& InOutCompiledTasks,
+	const FPCGStackContext& InStackContext)
+{
+	// Now add link tasks - if a Grid256 task depends on data from a Grid512 task, inject a link
+	// task that looks up the Grid512 component, schedules its execution if it does not have data, and
+	// then uses its output data.
+	// 
 	// The stack is used to form the ResourceKey - a string that provides a path to the data from top graph down to specific pin.
 	// This will be used by link tasks as store/retrieve keys to marshal data for edges that cross grid size boundaries.
 	const FPCGStack* CurrentStack = InStackContext.GetStack(InStackContext.GetCurrentStackIndex());
-	if (InOutCompiledTasks.Num() == 0 || !ensure(CurrentStack))
+	if (InOutCompiledTasks.IsEmpty() || !ensure(CurrentStack))
 	{
 		return;
 	}
 
-	// Calculate execution grid values for each task.
-	for (FPCGGraphTask& Task : InOutCompiledTasks)
-	{
-		CalculateGridRecursive(Task.NodeId, GenerationDefaultGrid, InStackContext, InOutCompiledTasks);
-	}
-
-	// Now add link tasks - if a Grid256 task depends on data from a Grid512 task, inject a link
-	// task that looks up the Grid512 component, schedules its execution if it does not have data, and
-	// then uses its output data.
 	const int32 NumCompiledTasksBefore = InOutCompiledTasks.Num();
 	for (FPCGTaskId TaskId = 0; TaskId < NumCompiledTasksBefore; ++TaskId)
 	{
-		const EPCGHiGenGrid GraphGenerationGrid = InOutCompiledTasks[TaskId].GraphGenerationGrid;
+		const EPCGHiGenGrid GraphGenerationGrid = InOutTaskGenerationGrid[TaskId];
 		for (FPCGGraphTaskInput& TaskInput : InOutCompiledTasks[TaskId].Inputs)
 		{
 			if (!TaskInput.InPin)
@@ -337,7 +361,7 @@ void FPCGGraphCompiler::ResolveGridSizes(TArray<FPCGGraphTask>& InOutCompiledTas
 				continue;
 			}
 
-			const EPCGHiGenGrid InputGraphGenerationGrid = InOutCompiledTasks[TaskInput.TaskId].GraphGenerationGrid;
+			const EPCGHiGenGrid InputGraphGenerationGrid = InOutTaskGenerationGrid[TaskInput.TaskId];
 			// Register linkage task if grid sizes don't match - either way! This allows us to generate an execution-time error if going from
 			// small grid to large grid.
 			if (InputGraphGenerationGrid != EPCGHiGenGrid::Uninitialized && InputGraphGenerationGrid > GraphGenerationGrid)
@@ -356,14 +380,21 @@ void FPCGGraphCompiler::ResolveGridSizes(TArray<FPCGGraphTask>& InOutCompiledTas
 
 				LinkTask.Inputs.Emplace(TaskInput.TaskId, TaskInput.InPin, nullptr, /*bConsumeInputData=*/true);
 
-				const EPCGHiGenGrid FromGrid = InOutCompiledTasks[TaskInput.TaskId].GraphGenerationGrid;
-				const EPCGHiGenGrid ToGrid = InOutCompiledTasks[TaskId].GraphGenerationGrid;
+				const EPCGHiGenGrid FromGrid = InOutTaskGenerationGrid[TaskInput.TaskId];
+				const EPCGHiGenGrid ToGrid = InOutTaskGenerationGrid[TaskId];
 
 				// This lambda runs at execution time and attempts to retrieve the data from a larger grid. Capture by value is intentional.
 				auto GridLinkageOperation = [FromGrid, ToGrid, ResourceKey, OutputPinLabel = TaskInput.InPin->Properties.Label,
-					DownstreamNode = InOutCompiledTasks[TaskId].Node](FPCGContext* InContext)
+					DownstreamNode = InOutCompiledTasks[TaskId].Node, InGenerationGrid](FPCGContext* InContext)
 				{
-					return PCGGraphExecutor::ExecuteGridLinkage(FromGrid, ToGrid, ResourceKey, OutputPinLabel, DownstreamNode, static_cast<FPCGGridLinkageContext*>(InContext));
+					return PCGGraphExecutor::ExecuteGridLinkage(
+						InGenerationGrid,
+						FromGrid,
+						ToGrid,
+						ResourceKey,
+						OutputPinLabel,
+						DownstreamNode,
+						static_cast<FPCGGridLinkageContext*>(InContext));
 				};
 				FPCGGenericElement::FContextAllocator ContextAllocator = [](const FPCGDataCollection&, TWeakObjectPtr<UPCGComponent>, const UPCGNode*)
 				{
@@ -375,7 +406,7 @@ void FPCGGraphCompiler::ResolveGridSizes(TArray<FPCGGraphTask>& InOutCompiledTas
 				TaskInput.TaskId = LinkTask.NodeId;
 
 				// The link needs to execute at both FROM grid size (store) and TO grid size (retrieve).
-				LinkTask.GraphGenerationGrid = FromGrid | ToGrid;
+				InOutTaskGenerationGrid.Add(FromGrid | ToGrid);
 			}
 		}
 	}
@@ -385,17 +416,18 @@ EPCGHiGenGrid FPCGGraphCompiler::CalculateGridRecursive(
 	FPCGTaskId InTaskId,
 	EPCGHiGenGrid GenerationDefaultGrid,
 	const FPCGStackContext& InStackContext,
-	TArray<FPCGGraphTask>& InOutCompiledTasks) const
+	const TArray<FPCGGraphTask>& InCompiledTasks,
+	TArray<EPCGHiGenGrid>& InOutTaskGenerationGrid)
 {
-	if (InOutCompiledTasks[InTaskId].GraphGenerationGrid != EPCGHiGenGrid::Uninitialized)
+	if (InOutTaskGenerationGrid[InTaskId] != EPCGHiGenGrid::Uninitialized)
 	{
-		return InOutCompiledTasks[InTaskId].GraphGenerationGrid;
+		return InOutTaskGenerationGrid[InTaskId];
 	}
 
 	// Default for outside any grid size range.
 	EPCGHiGenGrid Grid = GenerationDefaultGrid;
 
-	const UPCGNode* Node = InOutCompiledTasks[InTaskId].Node;
+	const UPCGNode* Node = InCompiledTasks[InTaskId].Node;
 	const UPCGSettings* Settings = Node ? Node->GetSettings() : nullptr;
 	const UPCGHiGenGridSizeSettings* Gate = Cast<UPCGHiGenGridSizeSettings>(Settings);
 	if (Gate && Gate->bEnabled)
@@ -405,9 +437,9 @@ EPCGHiGenGrid FPCGGraphCompiler::CalculateGridRecursive(
 	else
 	{
 		// Grid of this task is minimum of all input grids. We can link in data from a larger grid, but not from a finer grid (this goes against hierarchy).
-		for (FPCGGraphTaskInput InputTask : InOutCompiledTasks[InTaskId].Inputs)
+		for (FPCGGraphTaskInput InputTask : InCompiledTasks[InTaskId].Inputs)
 		{
-			const EPCGHiGenGrid InputGrid = CalculateGridRecursive(InputTask.TaskId, GenerationDefaultGrid, InStackContext, InOutCompiledTasks);
+			const EPCGHiGenGrid InputGrid = CalculateGridRecursive(InputTask.TaskId, GenerationDefaultGrid, InStackContext, InCompiledTasks, InOutTaskGenerationGrid);
 			if (PCGHiGenGrid::IsValidGrid(InputGrid))
 			{
 				Grid = FMath::Min(InputGrid, Grid);
@@ -415,9 +447,69 @@ EPCGHiGenGrid FPCGGraphCompiler::CalculateGridRecursive(
 		}
 	}
 
-	InOutCompiledTasks[InTaskId].GraphGenerationGrid = Grid;
+	InOutTaskGenerationGrid[InTaskId] = Grid;
 
 	return Grid;
+}
+
+void FPCGGraphCompiler::CullTasks(TArray<FPCGGraphTask>& InOutCompiledTasks, TFunctionRef<bool(const FPCGGraphTask&)> CullTask)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphCompiler::CullTasks);
+
+	// Check that we have more than just the input task to work with.
+	if (InOutCompiledTasks.Num() < 2)
+	{
+		return;
+	}
+
+	TArray<int32> TaskRemapping;
+	TaskRemapping.SetNumUninitialized(InOutCompiledTasks.Num());
+
+	// Never cull first (Input) task.
+	int32 WriteIndex = 1;
+	int32 ReadIndex = 1;
+	TaskRemapping[0] = 0;
+
+	while (ReadIndex < InOutCompiledTasks.Num())
+	{
+		if (!CullTask(InOutCompiledTasks[ReadIndex]))
+		{
+			if (WriteIndex != ReadIndex)
+			{
+				InOutCompiledTasks[WriteIndex] = MoveTemp(InOutCompiledTasks[ReadIndex]);
+				InOutCompiledTasks[WriteIndex].NodeId = WriteIndex;
+			}
+
+			TaskRemapping[ReadIndex] = WriteIndex;
+			++WriteIndex;
+		}
+		else
+		{
+			// Flag as culled.
+			TaskRemapping[ReadIndex] = INDEX_NONE;
+		}
+
+		++ReadIndex;
+	}
+
+	InOutCompiledTasks.SetNum(WriteIndex);
+
+	for (FPCGGraphTask& Task : InOutCompiledTasks)
+	{
+		for (int32 InputIndex = Task.Inputs.Num() - 1; InputIndex >= 0; --InputIndex)
+		{
+			const int32 InputTaskId = Task.Inputs[InputIndex].TaskId;
+			const int32 Remap = TaskRemapping[InputTaskId];
+			if (Remap != INDEX_NONE)
+			{
+				Task.Inputs[InputIndex].TaskId = Remap;
+			}
+			else
+			{
+				Task.Inputs.RemoveAt(InputIndex);
+			}
+		}
+	}
 }
 
 TArray<FPCGGraphTask> FPCGGraphCompiler::GetCompiledTasks(UPCGGraph* InGraph, uint32 GenerationGridSize, FPCGStackContext& OutStackContext, bool bIsTopGraph)
@@ -500,20 +592,26 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 		return;
 	}
 
-	if (GenerationGridSize != PCGHiGenGrid::UninitializedGridSize())
+	// For hierarchical generation resolve the execution grid for each task and cull any tasks that won't execute.
+	if (InGraph->IsHierarchicalGenerationEnabled() && GenerationGridSize != PCGHiGenGrid::UninitializedGridSize())
 	{
-		if (InGraph->IsHierarchicalGenerationEnabled())
-		{
-			const EPCGHiGenGrid DefaultGrid = PCGHiGenGrid::GridSizeToGrid(InGraph->GetDefaultGridSize());
-			ResolveGridSizes(CompiledTasks, StackContext, DefaultGrid);
-		}
-
 		const EPCGHiGenGrid GenerationGrid = PCGHiGenGrid::GridSizeToGrid(GenerationGridSize);
-		for (FPCGGraphTask& Task : CompiledTasks)
+		const EPCGHiGenGrid DefaultGrid = PCGHiGenGrid::GridSizeToGrid(InGraph->GetDefaultGridSize());
+
+		// Propagate grid size nodes through the graph to determine which grid size each task should execute on.
+		TArray<EPCGHiGenGrid> TaskGenerationGrid;
+		TaskGenerationGrid.SetNumZeroed(CompiledTasks.Num());
+		ResolveGridSizes(GenerationGrid, CompiledTasks, StackContext, DefaultGrid, TaskGenerationGrid);
+
+		// Create linkage tasks for edges that cross from large grid to small grid tasks.
+		CreateGridLinkages(GenerationGrid, TaskGenerationGrid, CompiledTasks, StackContext);
+
+		// Cull any task that should not execute on the current grid.
+		CullTasks(CompiledTasks, [GenerationGrid, &TaskGenerationGrid](const FPCGGraphTask& InTask)
 		{
-			// Make a copy of this because many things can be scheduled over many frames
-			Task.GenerationGrid = GenerationGrid;
-		}
+			const EPCGHiGenGrid TaskGrid = TaskGenerationGrid[InTask.NodeId];
+			return TaskGrid != EPCGHiGenGrid::Uninitialized && !(TaskGrid & GenerationGrid);
+		});
 	}
 
 	const int TaskNum = CompiledTasks.Num();

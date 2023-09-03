@@ -27,7 +27,7 @@ namespace PCGGraphExecutionLogging
 #endif
 	}
 
-	void LogGridLinkageTaskExecuteStore(const FPCGContext* InContext, int32 InFromGridSize, int32 InToGridSize, const FString& InResourcePath)
+	void LogGridLinkageTaskExecuteStore(const FPCGContext* InContext, EPCGHiGenGrid InGenerationGrid, int32 InFromGridSize, int32 InToGridSize, const FString& InResourcePath)
 	{
 #if WITH_EDITOR
 		if (!LogEnabled())
@@ -37,11 +37,11 @@ namespace PCGGraphExecutionLogging
 		check(InContext);
 
 		const FString OwnerName = InContext->SourceComponent.Get() ? (InContext->SourceComponent->GetOwner() ? InContext->SourceComponent->GetOwner()->GetActorLabel() : FString()) : FString();
-		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] STORE. GenerationGridSize=%d, FromGridSize=%d, ToGridSize=%d, Path=%s"), *OwnerName, PCGHiGenGrid::GridToGridSize(InContext->GenerationGrid), InFromGridSize, InToGridSize, *InResourcePath);
+		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] STORE. GenerationGridSize=%d, FromGridSize=%d, ToGridSize=%d, Path=%s"), *OwnerName, PCGHiGenGrid::GridToGridSize(InGenerationGrid), InFromGridSize, InToGridSize, *InResourcePath);
 #endif
 	}
 
-	void LogGridLinkageTaskExecuteRetrieve(const FPCGContext* InContext, int32 InFromGridSize, int32 InToGridSize, const FString& InResourcePath)
+	void LogGridLinkageTaskExecuteRetrieve(const FPCGContext* InContext, EPCGHiGenGrid InGenerationGrid, int32 InFromGridSize, int32 InToGridSize, const FString& InResourcePath)
 	{
 #if WITH_EDITOR
 		if (!LogEnabled())
@@ -51,7 +51,7 @@ namespace PCGGraphExecutionLogging
 		check(InContext);
 
 		const FString OwnerName = InContext->SourceComponent.Get() ? (InContext->SourceComponent->GetOwner() ? InContext->SourceComponent->GetOwner()->GetActorLabel() : FString()) : FString();
-		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE. GenerationGridSize=%d, FromGridSize=%d, ToGridSize=%d, Path=%s"), *OwnerName, PCGHiGenGrid::GridToGridSize(InContext->GenerationGrid), InFromGridSize, InToGridSize, *InResourcePath);
+		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE. GenerationGridSize=%d, FromGridSize=%d, ToGridSize=%d, Path=%s"), *OwnerName, PCGHiGenGrid::GridToGridSize(InGenerationGrid), InFromGridSize, InToGridSize, *InResourcePath);
 #endif
 	}
 
