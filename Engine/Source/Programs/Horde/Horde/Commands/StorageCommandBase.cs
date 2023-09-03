@@ -68,15 +68,7 @@ namespace Horde.Commands
 			}
 
 			server = new Uri(server, Path);
-			return new HttpStorageClient(() => CreateDefaultHttpClient(server, token), () => new HttpClient(), StorageCache, logger);
-		}
-
-		static HttpClient CreateDefaultHttpClient(Uri server, string token)
-		{
-			HttpClient client = new HttpClient();
-			client.BaseAddress = server;
-			client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-			return client;
+			return new HttpStorageClient(server, token, StorageCache, logger);
 		}
 	}
 }

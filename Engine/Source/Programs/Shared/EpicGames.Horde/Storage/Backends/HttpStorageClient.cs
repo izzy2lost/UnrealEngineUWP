@@ -15,6 +15,10 @@ using EpicGames.Core;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using EpicGames.Horde.Storage.Bundles;
+using Microsoft.Extensions.Http;
+using Polly.Extensions.Http;
+using Polly;
+using Polly.Retry;
 
 namespace EpicGames.Horde.Storage.Backends
 {
@@ -59,6 +63,16 @@ namespace EpicGames.Horde.Storage.Backends
 		readonly ILogger _logger;
 		bool _supportsUploadRedirects = true;
 
+		static readonly HttpMessageHandler s_defaultHttpMessageHandler = CreateDefaultHttpMessageHandler();
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public HttpStorageClient(Uri baseAddress, string? bearerToken, StorageCache cache, ILogger logger)
+			: this(() => CreateAuthenticatedClient(null, baseAddress, bearerToken), () => CreateClient(null), cache, logger)
+		{
+		}
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -78,18 +92,35 @@ namespace EpicGames.Horde.Storage.Backends
 		{
 		}
 
+		static HttpMessageHandler CreateDefaultHttpMessageHandler()
+		{
+			AsyncRetryPolicy<HttpResponseMessage> retryPolicy = HttpPolicyExtensions
+				.HandleTransientHttpError()
+				.WaitAndRetryAsync(new[] { TimeSpan.FromSeconds(2.0), TimeSpan.FromSeconds(5.0), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30) });
+
+			SocketsHttpHandler socketsHandler = new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(15) };
+			return new PolicyHttpMessageHandler(retryPolicy) { InnerHandler = socketsHandler };
+		}
+
 		/// <summary>
 		/// Helper method to create an HTTP client from the given factory
 		/// </summary>
-		static HttpClient CreateClient(IHttpClientFactory httpClientFactory)
+		static HttpClient CreateClient(IHttpClientFactory? httpClientFactory)
 		{
-			return httpClientFactory.CreateClient(HttpClientName);
+			if (httpClientFactory == null)
+			{
+				return new HttpClient(s_defaultHttpMessageHandler, disposeHandler: false);
+			}
+			else
+			{
+				return httpClientFactory.CreateClient(HttpClientName);
+			}
 		}
 
 		/// <summary>
 		/// Helper method to add the base address and auth header to an HTTP client
 		/// </summary>
-		static HttpClient CreateAuthenticatedClient(IHttpClientFactory httpClientFactory, Uri baseAddress, string? bearerToken)
+		static HttpClient CreateAuthenticatedClient(IHttpClientFactory? httpClientFactory, Uri baseAddress, string? bearerToken)
 		{
 			HttpClient httpClient = CreateClient(httpClientFactory);
 			httpClient.BaseAddress = baseAddress;
