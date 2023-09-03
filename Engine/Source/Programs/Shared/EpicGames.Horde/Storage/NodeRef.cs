@@ -208,6 +208,23 @@ namespace EpicGames.Horde.Storage
 		/// <param name="refName">Name of the ref to write</param>
 		/// <param name="cacheTime"></param>
 		/// <param name="cancellationToken"></param>
+		public static async ValueTask<NodeRef<TNode>> ReadRefTargetAsync<TNode>(this IStorageClient storageClient, RefName refName, DateTime cacheTime = default, CancellationToken cancellationToken = default) where TNode : Node
+		{
+			NodeRef<TNode>? result = await TryReadRefTargetAsync<TNode>(storageClient, refName, cacheTime, cancellationToken);
+			if (result == null)
+			{
+				throw new RefNameNotFoundException(refName);
+			}
+			return result;
+		}
+
+		/// <summary>
+		/// Reads and deserializes a node for the given ref
+		/// </summary>
+		/// <param name="storageClient"></param>
+		/// <param name="refName">Name of the ref to write</param>
+		/// <param name="cacheTime"></param>
+		/// <param name="cancellationToken"></param>
 		public static async ValueTask<NodeRef<TNode>?> TryReadRefTargetAsync<TNode>(this IStorageClient storageClient, RefName refName, DateTime cacheTime = default, CancellationToken cancellationToken = default) where TNode : Node
 		{
 			BlobHandle? handle = await storageClient.TryReadRefTargetAsync(refName, cacheTime, cancellationToken);

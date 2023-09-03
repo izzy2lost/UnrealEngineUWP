@@ -4,7 +4,10 @@ using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace EpicGames.Core
 {
@@ -420,6 +423,18 @@ namespace EpicGames.Core
 			{
 				Span<byte> output = span.Slice(chunk.RunningIndex);
 				chunk.WrittenSpan.CopyTo(output);
+			}
+		}
+
+		/// <summary>
+		/// Copies the data to a stream
+		/// </summary>
+		/// <param name="stream">Stream to write to</param>
+		public async Task CopyToAsync(Stream stream, CancellationToken cancellationToken = default)
+		{
+			foreach (Chunk chunk in _chunks)
+			{
+				await stream.WriteAsync(chunk.WrittenMemory, cancellationToken);
 			}
 		}
 
