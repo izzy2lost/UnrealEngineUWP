@@ -39,20 +39,10 @@ struct FAnimNode_ControlRigInputPose : public FAnimNode_Base
 	/** Called by linked instance nodes to dynamically unlink this to an outer graph */
 	void Unlink();
 
-	/** Returns true if the rig is additive */
-	bool IsAdditive() const;
-
-	/** Sets the input pose to be treated as additive */
-	void SetIsAdditive(bool bInAdditive)
-	{
-		bIsAdditive = bInAdditive;
-	}
-
 private:
 	/** The proxy to use when getting inputs, set when dynamically linked */
 	FAnimInstanceProxy* InputProxy;
 	UAnimInstance*		InputAnimInstance;
-	mutable TOptional<bool>	 bIsAdditive;
 };
 
 /** Proxy override for this UAnimInstance-derived class */

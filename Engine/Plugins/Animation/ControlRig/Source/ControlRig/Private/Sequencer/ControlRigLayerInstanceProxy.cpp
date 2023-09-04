@@ -4,7 +4,6 @@
 #include "AnimNode_ControlRig_ExternalSource.h"
 #include "Sequencer/ControlRigLayerInstance.h"
 #include "AnimSequencerInstance.h"
-#include "ControlRig.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigLayerInstanceProxy)
 
@@ -161,8 +160,6 @@ void FControlRigLayerInstanceProxy::AddControlRigTrack(int32 ControlRigID, UCont
 		}
 	}
 
-	InputPose.SetIsAdditive(InControlRig->IsAdditive());
-	
 	Node->SetControlRig(InControlRig);
 	Node->OnInitializeAnimInstance(this, CastChecked<UAnimInstance>(GetAnimInstanceObject()));
 	//mz removed this due to crash since Skeleton is not set up on a previous linked node 
@@ -351,8 +348,6 @@ void FAnimNode_ControlRigInputPose::CacheBones_AnyThread(const FAnimationCacheBo
 			FControlRigLayerInstanceProxy::CacheBonesCustomProxy(InputProxy);
 		}
 	}
-
-	bIsAdditive.Reset();
 }
 
 void FAnimNode_ControlRigInputPose::Update_AnyThread(const FAnimationUpdateContext& Context)
@@ -360,27 +355,17 @@ void FAnimNode_ControlRigInputPose::Update_AnyThread(const FAnimationUpdateConte
 	if (InputProxy)
 	{
 		FAnimationUpdateContext InputContext = Context.WithOtherProxy(InputProxy);
-		if(IsAdditive())
+		if (FAnimNode_Base* InputNode = InputPose.GetLinkNode())
 		{
-			if (FAnimNode_Base* InputNode = InputPose.GetLinkNode())
-			{
-				InputProxy->UpdateAnimation_WithRoot(InputContext, InputNode, TEXT("AnimGraph"));
-			}
-			else
-			{
-				InputProxy->UpdateAnimationNode(InputContext);
-			}
+			InputProxy->UpdateAnimation_WithRoot(InputContext, InputNode, TEXT("AnimGraph"));
+		}
+		else if(InputProxy->HasRootNode())
+		{
+			InputProxy->UpdateAnimationNode(InputContext);
 		}
 		else
 		{
-			if (InputPose.GetLinkNode())
-			{
-				InputPose.Update(InputContext);
-			}
-			else
-			{
-				FControlRigLayerInstanceProxy::UpdateCustomProxy(InputProxy, InputContext);
-			}
+			FControlRigLayerInstanceProxy::UpdateCustomProxy(InputProxy, InputContext);
 		}
 	}
 }
@@ -392,36 +377,25 @@ void FAnimNode_ControlRigInputPose::Evaluate_AnyThread(FPoseContext& Output)
 		FBoneContainer& RequiredBones = InputProxy->GetRequiredBones();
 		if (RequiredBones.IsValid())
 		{
-			Output.Pose.SetBoneContainer(&RequiredBones);
-			FPoseContext InputContext(InputProxy, Output.ExpectsAdditivePose());
+			FPoseContext InnerOutput(InputProxy, Output.ExpectsAdditivePose());
 			
 			// if no linked node, just use Evaluate of proxy
-			if(IsAdditive())
+			if (FAnimNode_Base* InputNode = InputPose.GetLinkNode())
 			{
-				if (FAnimNode_Base* InputNode = InputPose.GetLinkNode())
-				{
-					InputProxy->EvaluateAnimation_WithRoot(InputContext, InputNode);
-				}
-				else
-				{
-					InputProxy->EvaluateAnimationNode(InputContext);
-				}
+				InputProxy->EvaluateAnimation_WithRoot(InnerOutput, InputNode);
+			}
+			else if(InputProxy->HasRootNode())
+			{
+				InputProxy->EvaluateAnimationNode(InnerOutput);
 			}
 			else
 			{
-				if (InputPose.GetLinkNode())
-				{
-					InputPose.Evaluate(InputContext);
-				}
-				else
-				{
-					FControlRigLayerInstanceProxy::EvaluateCustomProxy(InputProxy, InputContext);
-				}			
+				FControlRigLayerInstanceProxy::EvaluateCustomProxy(InputProxy, InnerOutput);
 			}
 
-			Output.Pose.MoveBonesFrom(InputContext.Pose);
-			Output.Curve.MoveFrom(InputContext.Curve);
-			Output.CustomAttributes.MoveFrom(InputContext.CustomAttributes);
+			Output.Pose.MoveBonesFrom(InnerOutput.Pose);
+			Output.Curve.MoveFrom(InnerOutput.Curve);
+			Output.CustomAttributes.MoveFrom(InnerOutput.CustomAttributes);
 			return;
 		}
 	}
@@ -467,16 +441,6 @@ void FAnimNode_ControlRigInputPose::Unlink()
 	InputProxy = nullptr;
 	InputAnimInstance = nullptr;
 	InputPose.SetLinkNode(nullptr);
-	bIsAdditive.Reset();
-}
-
-bool FAnimNode_ControlRigInputPose::IsAdditive() const
-{
-	if(!bIsAdditive.IsSet())
-	{
-		return false;
-	}
-	return bIsAdditive.GetValue();
 }
 
 
