@@ -1326,7 +1326,6 @@ private:
 	uint8	DemandThreshold = 30;
 	uint8	DemandBoost = 60;
 	uint8	DemandSuperBoost = 87;
-	uint8	VerySuperBoost = 0;
 	EState	State = EState::Waiting;
 };
 
@@ -1370,7 +1369,7 @@ uint32 FGovernor::BeginInternal(uint32 Demand, int64 Cycles)
 {
 	int64 Interval = FlushInterval;
 	Interval >>= int32(Demand >= DemandBoost);
-	Interval >>= int32(Demand >= DemandSuperBoost) << VerySuperBoost;
+	Interval >>= int32(Demand >= DemandSuperBoost);
 	Interval <<= int32(Demand <= DemandThreshold);
 
 	int64 Delta = Cycles - PrevCycles;

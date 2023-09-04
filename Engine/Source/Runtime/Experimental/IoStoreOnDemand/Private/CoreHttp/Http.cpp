@@ -1598,6 +1598,13 @@ static int32 DoSocks4(FActivity* Activity)
 ////////////////////////////////////////////////////////////////////////////////
 static int32 DoSocks5(FActivity* Activity)
 {
+#ifdef _MSC_VER
+	// MSVC's static analysis doesn't see that 'Result' from recv() is checked
+	// to be the exact size of the destination buffer.
+#pragma warning(push)
+#pragma warning(disable : 6385)
+#endif
+
 	SocketType Socket = Activity->Socket;
 	int32 Result;
 
@@ -1658,6 +1665,10 @@ static int32 DoSocks5(FActivity* Activity)
 	}
 
 	return 0;
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1702,6 +1713,10 @@ static int32 DoSend(FActivity* Activity)
 		SendSize = 2;
 		break;
 		}
+
+	default:
+		check(false);
+		return -1;
 	}
 
 	SendData += Remaining;
