@@ -279,7 +279,7 @@ void FSkeletalMeshObjectGPUSkin::InitResources(USkinnedMeshComponent* InMeshComp
 	}
 
 #if RHI_RAYTRACING
-	if (bSupportRayTracing)
+	if (IsRayTracingAllowed() && bSupportRayTracing)
 	{
 		BeginInitResource(&RayTracingGeometry, &UE::RenderCommandPipe::SkeletalMesh);
 	}
