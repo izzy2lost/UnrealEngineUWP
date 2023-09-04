@@ -36,7 +36,9 @@ private:
 	void HandlePreviewWidgetChanged();
 	void HandleSelectedObjectChanged();
 	void HandleSourceSelectionChanged(TSharedPtr<Private::SPreviewSourceEntry> Entry, ESelectInfo::Type SelectionType) const;
-	//void HandleViewChanged(const FDebugging::FView&, const FDebugging::FViewSourceValueArgs&);
+#if UE_WITH_MVVM_DEBUGGING
+	void HandleViewChanged(const FDebugging::FView&, const FDebugging::FViewSourceValueArgs&);
+#endif
 	TSharedRef<ITableRow> GenerateWidget(TSharedPtr<Private::SPreviewSourceEntry> Entry, const TSharedRef<STableViewBase>& OwnerTable) const;
 
 	TWeakObjectPtr<UMVVMView> WeakView;
