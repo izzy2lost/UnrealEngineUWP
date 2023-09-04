@@ -28,11 +28,11 @@ struct FProgram;
 		ASTChild ScaleY;
 		ASTChild Rotation;
 
-		uint16 SizeX;
-		uint16 SizeY;
+		uint16 SizeX = 0;
+		uint16 SizeY = 0;
 
-		uint16 SourceSizeX;
-		uint16 SourceSizeY;
+		uint16 SourceSizeX = 0;
+		uint16 SourceSizeY = 0;
 
 		EAddressMode AddressMode = EAddressMode::Wrap;
 		bool bKeepAspectRatio = false;

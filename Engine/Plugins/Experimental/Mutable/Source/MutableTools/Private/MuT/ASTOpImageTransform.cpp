@@ -202,11 +202,7 @@ namespace mu
 	{
 		if (Base)
 		{
-			if (SizeX == 0 && SizeY == 0)
-			{
-				return Base->GetImageSizeExpression();
-			}
-			else
+			if (!(SizeX == 0 && SizeY == 0))
 			{
 				Ptr<ImageSizeExpression> SizeExpr = new ImageSizeExpression;
 				SizeExpr->type = ImageSizeExpression::ISET_CONSTANT;
@@ -214,6 +210,10 @@ namespace mu
 				SizeExpr->size[1] = SizeY;
 
 				return SizeExpr;
+			}
+			else
+			{
+				return Base->GetImageSizeExpression();
 			}
 		}
 
