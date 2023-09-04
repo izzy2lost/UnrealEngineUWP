@@ -649,10 +649,6 @@ UCableComponent::UCableComponent( const FObjectInitializer& ObjectInitializer )
 	CableGravityScale = 1.f;
 
 	SetCollisionProfileName(UCollisionProfile::PhysicsActor_ProfileName);
-
-#if WITH_EDITOR
-	bWantsOnUpdateTransform = true;
-#endif
 }
 
 FPrimitiveSceneProxy* UCableComponent::CreateSceneProxy()
@@ -668,19 +664,29 @@ int32 UCableComponent::GetNumMaterials() const
 void UCableComponent::OnRegister()
 {
 	Super::OnRegister();
-	
-	InitParticles();
-}
 
-#if WITH_EDITOR
-void UCableComponent::OnUpdateTransform(EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport)
-{
-	Super::OnUpdateTransform(UpdateTransformFlags, Teleport);
+	const int32 NumParticles = NumSegments+1;
 
-	InitParticles();
-	UpdateBounds();
+	Particles.Reset();
+	Particles.AddUninitialized(NumParticles);
+
+	FVector CableStart, CableEnd;
+	GetEndPositions(CableStart, CableEnd);
+
+	const FVector Delta = CableEnd - CableStart;
+
+	for(int32 ParticleIdx=0; ParticleIdx<NumParticles; ParticleIdx++)
+	{
+		FCableParticle& Particle = Particles[ParticleIdx];
+
+		const float Alpha = (float)ParticleIdx/(float)NumSegments;
+		const FVector InitialPosition = CableStart + (Alpha * Delta);
+
+		Particle.Position = InitialPosition;
+		Particle.OldPosition = InitialPosition;
+		Particle.bFree = true; // default to free, will be fixed if desired in TickComponent
+	}
 }
-#endif
 
 void UCableComponent::VerletIntegrate(float InSubstepTime, const FVector& Gravity)
 {
@@ -734,31 +740,6 @@ static FORCEINLINE void SolveDistanceConstraint(FCableParticle& ParticleA, FCabl
 	else if(ParticleB.bFree)
 	{
 		ParticleB.Position -= VectorCorrection;
-	}
-}
-
-void UCableComponent::InitParticles()
-{
-	const int32 NumParticles = NumSegments+1;
-
-	Particles.Reset();
-	Particles.AddUninitialized(NumParticles);
-
-	FVector CableStart, CableEnd;
-	GetEndPositions(CableStart, CableEnd);
-
-	const FVector Delta = CableEnd - CableStart;
-
-	for(int32 ParticleIdx=0; ParticleIdx<NumParticles; ParticleIdx++)
-	{
-		FCableParticle& Particle = Particles[ParticleIdx];
-
-		const float Alpha = (float)ParticleIdx/(float)NumSegments;
-		const FVector InitialPosition = CableStart + (Alpha * Delta);
-
-		Particle.Position = InitialPosition;
-		Particle.OldPosition = InitialPosition;
-		Particle.bFree = true; // default to free, will be fixed if desired in TickComponent
 	}
 }
 
