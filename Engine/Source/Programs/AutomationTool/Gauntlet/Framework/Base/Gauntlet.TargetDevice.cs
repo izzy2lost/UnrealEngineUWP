@@ -89,6 +89,8 @@ namespace Gauntlet
 
 		IAppInstance Run(IAppInstall App);
 
+		bool CheckRequiredSettings(List<string> RequiredSettingsList) { return true; }
+			
 		string GetPackagedExecutableLocation() { return null; }
 
 		/// <summary>
