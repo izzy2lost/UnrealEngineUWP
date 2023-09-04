@@ -139,6 +139,7 @@ private:
 				NumAddedTotal = 0;
 				bIsFirstInSequence = true;
 				bReadPastLastPTS = false;
+				bTaggedLastSample = false;
 				bGotAllSamples = false;
 				bReachedEndOfKnownDuration = false;
 
@@ -154,10 +155,12 @@ private:
 			{
 				FTimeValue PTS;
 				FAccessUnit* AU = nullptr;
-				FSample(FAccessUnit* InAU) : PTS(InAU->PTS), AU(InAU) { InAU->AddRef(); }
+				uint32 SequentialIndex = 0;
+				FSample(FAccessUnit* InAU, uint32 InSequentialIndex) : PTS(InAU->PTS), AU(InAU), SequentialIndex(InSequentialIndex) { InAU->AddRef(); }
 				FSample(const FSample& rhs)
 				{
 					PTS = rhs.PTS;
+					SequentialIndex = rhs.SequentialIndex;
 					if ((AU = rhs.AU) != nullptr)
 					{
 						AU->AddRef();
@@ -178,10 +181,10 @@ private:
 			{
 				if (InAU)
 				{
-					AccessUnitFIFO.Emplace(FActiveTrackData::FSample(InAU));
+					AccessUnitFIFO.Emplace(FActiveTrackData::FSample(InAU, NumAddedTotal));
 					if (bNeedToRecalculateDurations)
 					{
-						SortedAccessUnitFIFO.Emplace(FActiveTrackData::FSample(InAU));
+						SortedAccessUnitFIFO.Emplace(FActiveTrackData::FSample(InAU, NumAddedTotal));
 						SortedAccessUnitFIFO.Sort([](const FActiveTrackData::FSample& a, const FActiveTrackData::FSample& b){return a.PTS < b.PTS;});
 					}
 					// If a valid non-zero duration exists on the AU we take it as the average duration.
@@ -220,6 +223,7 @@ private:
 			int32 Bitrate = 0;
 			bool bIsFirstInSequence = true;
 			bool bReadPastLastPTS = false;
+			bool bTaggedLastSample = false;
 			bool bGotAllSamples = false;
 			bool bNeedToRecalculateDurations = false;
 			bool bReachedEndOfKnownDuration = false;

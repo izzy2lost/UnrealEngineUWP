@@ -607,16 +607,16 @@ namespace Electra
 		}
 		else
 		{
-			// Initial request. The play period is the same for all streams at this point.
+			// Initial request.
 			ESegmentAction ActionV = ESegmentAction::FetchNext;
 			ESegmentAction ActionA = ESegmentAction::FetchNext;
 			if (StreamInformationVideo.Num())
 			{
-				ActionV = SelectSuitableStreamByType(OutDelay, CurrentSegment, CurrentPlayPeriod, EStreamType::Video);
+				ActionV = SelectSuitableStreamByType(OutDelay, CurrentSegment, CurrentPlayPeriodVideo, EStreamType::Video);
 			}
 			if (StreamInformationAudio.Num())
 			{
-				ActionA = SelectSuitableStreamByType(OutDelay, CurrentSegment, CurrentPlayPeriod, EStreamType::Audio);
+				ActionA = SelectSuitableStreamByType(OutDelay, CurrentSegment, CurrentPlayPeriodAudio, EStreamType::Audio);
 			}
 			if (ActionV == IAdaptiveStreamSelector::ESegmentAction::Fail || ActionA == IAdaptiveStreamSelector::ESegmentAction::Fail)
 			{
