@@ -75,6 +75,15 @@ UMaterialStatsOptions::UMaterialStatsOptions(const FObjectInitializer& ObjectIni
 		bPlatformUsed[CurrentlyUsedSP] = 1;
 	}
 
+	// enable a mobile platform by default so we can check if shaders are compiling for mobile
+#if PLATFORM_WINDOWS
+	bPlatformUsed[SP_PCD3D_ES3_1] = 1;
+#elif PLATFORM_MAC
+	bPlatformUsed[SP_METAL] = 1;
+#elif PLATFORM_LINUX
+	bPlatformUsed[SP_VULKAN_PCES3_1] = 1;
+#endif
+
 	bMaterialQualityUsed[EMaterialQualityLevel::High] = 1;
 }
 
