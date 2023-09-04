@@ -1164,6 +1164,11 @@ const FUniqueNetIdEOSPtr FUserManagerEOS::GetLocalUniqueNetIdEOS(int32 LocalUser
 		return LocalUsers[LocalUserNum].UniqueNetId;
 	}
 
+	if (IsRunningDedicatedServer())
+	{
+		return FUniqueNetIdEOS::EmptyId();
+	}
+
 	return nullptr;
 }
 

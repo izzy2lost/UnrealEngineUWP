@@ -428,7 +428,10 @@ UCommonSession_HostSessionRequest* UCommonSessionSubsystem::CreateOnlineHostSess
 
 	UCommonSession_HostSessionRequest* NewRequest = NewObject<UCommonSession_HostSessionRequest>(this);
 	NewRequest->OnlineMode = ECommonSessionOnlineMode::Online;
-	NewRequest->bUseLobbies = true;
+
+	bool bUseSessions = false;
+	GConfig->GetBool(TEXT("CommonSessionSubsystem"), TEXT("bUseSessions"), bUseSessions, GEngineIni);
+	NewRequest->bUseLobbies = !bUseSessions;
 
 	return NewRequest;
 }
@@ -439,7 +442,10 @@ UCommonSession_SearchSessionRequest* UCommonSessionSubsystem::CreateOnlineSearch
 
 	UCommonSession_SearchSessionRequest* NewRequest = NewObject<UCommonSession_SearchSessionRequest>(this);
 	NewRequest->OnlineMode = ECommonSessionOnlineMode::Online;
-	NewRequest->bUseLobbies = true;
+
+	bool bUseSessions = false;
+	GConfig->GetBool(TEXT("CommonSessionSubsystem"), TEXT("bUseSessions"), bUseSessions, GEngineIni);
+	NewRequest->bUseLobbies = !bUseSessions;
 
 	return NewRequest;
 }
@@ -521,7 +527,7 @@ void UCommonSessionSubsystem::CreateOnlineSessionInternalOSSv1(ULocalPlayer* Loc
 	}
 	else if (bIsDedicatedServer)
 	{
-		UserId = OnlineSub->GetIdentityInterface()->GetUniquePlayerId(0);
+		UserId = OnlineSub->GetIdentityInterface()->GetUniquePlayerId(DEDICATED_SERVER_USER_INDEX);
 	}
 
 	//@TODO: You can get here on some platforms while trying to do a LAN session, does that require a valid user id?
@@ -830,6 +836,13 @@ void UCommonSessionSubsystem::QuickPlaySession(APlayerController* JoiningOrHosti
 
 	UCommonSession_SearchSessionRequest* QuickPlayRequest = CreateOnlineSearchSessionRequest();
 	QuickPlayRequest->OnSearchFinished.AddUObject(this, &UCommonSessionSubsystem::HandleQuickPlaySearchFinished, JoiningOrHostingPlayerPtr, HostRequestPtr);
+
+	bool bUseSessions = false;
+	if (GConfig->GetBool(TEXT("CommonSessionSubsystem"), TEXT("bUseSessions"), bUseSessions, GEngineIni))
+	{
+		HostRequestPtr->bUseLobbies = !bUseSessions;
+		QuickPlayRequest->bUseLobbies = !bUseSessions;
+	}
 
 	FindSessionsInternal(JoiningOrHostingPlayer, CreateQuickPlaySearchSettings(HostRequest, QuickPlayRequest));
 }

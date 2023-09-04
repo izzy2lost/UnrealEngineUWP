@@ -272,7 +272,7 @@ void ALyraGameMode::OnUserInitializedForDedicatedServer(const UCommonUserInfo* U
 		UCommonUserSubsystem* UserSubsystem = GameInstance->GetSubsystem<UCommonUserSubsystem>();
 		UserSubsystem->OnUserInitializeComplete.RemoveDynamic(this, &ALyraGameMode::OnUserInitializedForDedicatedServer);
 
-		if (bSuccess)
+		if (IsRunningDedicatedServer() || bSuccess)
 		{
 			// Online login worked, start a full online game
 			UE_LOG(LogLyraExperience, Log, TEXT("Dedicated server online login succeeded, starting online server"));

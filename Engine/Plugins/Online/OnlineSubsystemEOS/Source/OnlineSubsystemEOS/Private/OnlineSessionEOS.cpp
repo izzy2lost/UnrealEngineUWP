@@ -1498,13 +1498,28 @@ uint32 FOnlineSessionEOS::CreateEOSSession(int32 HostingPlayerNum, FNamedOnlineS
 	Session->bHosting = true;
 
 	FString HostAddr;
-	// If we are not a dedicated server and are using p2p sockets, then we need to add a custom URL for connecting
+	// If we are using local IPs in a dedicated server, or if we are using p2p sockets, then we need to add a custom URL for connecting
 	if (!IsRunningDedicatedServer() && bIsUsingP2PSockets)
 	{
 		// Because some platforms remap ports, we will use the ID of the name of the net driver to be our port instead
 		FName NetDriverName = GetDefault<UNetDriverEOS>()->NetDriverName;
 		FInternetAddrEOS TempAddr(LexToString(Options.LocalUserId), NetDriverName.ToString(), GetTypeHash(NetDriverName.ToString()));
 		HostAddr = TempAddr.ToString(true);
+	}
+	else
+	{
+		bool bUseLocalIPs = false;
+		GConfig->GetBool(TEXT("OnlineSubsystemEOS"), TEXT("bUseLocalIPs"), bUseLocalIPs, GEngineIni);
+		if (bUseLocalIPs)
+		{
+			bool bCanBindAll;
+			HostAddr = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->GetLocalHostAddr(*GLog, bCanBindAll)->ToString(false);
+		}
+	}
+
+	if (!HostAddr.IsEmpty())
+	{
+		// Setting the EOS Host Address
 		char HostAddrAnsi[EOS_OSS_STRING_BUFFER_LENGTH];
 		FCStringAnsi::Strncpy(HostAddrAnsi, TCHAR_TO_UTF8(*HostAddr), EOS_OSS_STRING_BUFFER_LENGTH);
 
@@ -1514,13 +1529,18 @@ uint32 FOnlineSessionEOS::CreateEOSSession(int32 HostingPlayerNum, FNamedOnlineS
 		// Expect URLs to look like "EOS:PUID:SocketName:Channel" and channel can be optional
 		HostOptions.HostAddress = HostAddrAnsi;
 		EOS_EResult HostResult = EOS_SessionModification_SetHostAddress(SessionModHandle, &HostOptions);
-		UE_LOG_ONLINE_SESSION(Log, TEXT("EOS_SessionModification_SetHostAddress(%s) returned (%s)"), *HostAddr, ANSI_TO_TCHAR(EOS_EResult_ToString(HostResult)));
+		UE_LOG_ONLINE_SESSION(Verbose, TEXT("[FOnlineSessionEOS::CreateEOSSession] EOS_SessionModification_SetHostAddress(%s) returned (%s)"), *HostAddr, ANSI_TO_TCHAR(EOS_EResult_ToString(HostResult)));
 	}
 	else
 	{
-		// This is basically ignored
+		// We'll set HostAddr locally, but it'll be ignored on the EOS API side
 		HostAddr = TEXT("127.0.0.1");
+
+		UE_LOG_ONLINE_SESSION(Verbose, TEXT("[FOnlineSessionEOS::CreateEOSSession] The server's public IP Address will be set as the Session's HostAddress."));
 	}
+
+	UE_LOG_ONLINE_SESSION(Verbose, TEXT("[FOnlineSessionEOS::CreateEOSSession] The HostAddress used for this session will be %s"), *HostAddr);
+
 	Session->SessionInfo = MakeShareable(new FOnlineSessionInfoEOS(HostAddr, FUniqueNetIdEOSSession::Create(FString()), nullptr));
 
 	FName SessionName = Session->SessionName;
