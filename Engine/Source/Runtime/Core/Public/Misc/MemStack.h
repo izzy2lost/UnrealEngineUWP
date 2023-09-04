@@ -122,8 +122,8 @@ public:
 		check(!bShouldEnforceAllocMarks || NumMarks > 0);
 
 		// Try to get memory from the current chunk.
-		SIZE_T Result = (SIZE_T)(Align( Top, Alignment ));
-		uint8* NewTop = (uint8*)(Result + AllocSize);
+		uint8* Result = Align( Top, Alignment );
+		uint8* NewTop = Result + AllocSize;
 
 		// Make sure we didn't overflow.
 		if ( NewTop <= End )
@@ -134,11 +134,11 @@ public:
 		{
 			// We'd pass the end of the current chunk, so allocate a new one.
 			AllocateNewChunk( AllocSize + Alignment );
-			Result = (SIZE_T)(Align( Top, Alignment ));
-			NewTop = (uint8*)(Result + AllocSize);
+			Result = Align( Top, Alignment );
+			NewTop = Result + AllocSize;
 			Top = NewTop;
 		}
-		return (uint8*)(Result);
+		return Result;
 	}
 
 	/** return true if this stack is empty. */

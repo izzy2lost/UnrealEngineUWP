@@ -129,14 +129,14 @@ public:
 		// We expect the Name to be the only part of the key to vary in 99.995% of keys.  If this changes, we could make
 		// the hash take into account more fields than just Name, at some cost in perf generating the hash.  It's important
 		// to mix the key bits, because GetTypeHash(FScriptName) just returns an index, which is not good for a hash table.
-		uint32 Key = GetTypeHash(Info.Name);
+		int32 Key = GetTypeHash(Info.Name);
 		Key += ~(Key << 15);
 		Key ^= (Key >> 10);
 		Key += (Key << 3);
 		Key ^= (Key >> 6);
 		Key += ~(Key << 11);
 		Key ^= (Key >> 16);
-		return Key;
+		return (uint32)Key;
 	}
 
 	// Add an item from the Array to the hash table.  Hash table must already be allocated.
