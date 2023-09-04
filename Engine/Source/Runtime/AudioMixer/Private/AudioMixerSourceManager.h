@@ -142,6 +142,7 @@ namespace Audio
 		float SourceBusDuration = 0.0f;
 		uint32 SourceEffectChainId = INDEX_NONE;
 		TArray<FSourceEffectChainEntry> SourceEffectChain;
+		int32 SourceEffectChainMaxSupportedChannels = 0;
 		FMixerSourceVoice* SourceVoice = nullptr;
 		int32 NumInputChannels = 0;
 		int32 NumInputFrames = 0;

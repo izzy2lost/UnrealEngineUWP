@@ -1009,8 +1009,8 @@ namespace Audio
 			SourceInfo.bEnableBaseSubmix = InitParams.bEnableBaseSubmix;
 			SourceInfo.bEnableSubmixSends = InitParams.bEnableSubmixSends;
 
-			// Copy the source effect chain if the channel count is 1 or 2
-			if (InitParams.NumInputChannels <= 2)
+			// Copy the source effect chain if the channel count is less than or equal to the number of channels supported by the effect chain
+			if (InitParams.NumInputChannels <= InitParams.SourceEffectChainMaxSupportedChannels)
 			{
 				// If we're told to care about effect chain tails, then we're not allowed
 				// to stop playing until the effect chain tails are finished

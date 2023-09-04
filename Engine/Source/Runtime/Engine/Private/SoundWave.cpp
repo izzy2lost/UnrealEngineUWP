@@ -3132,9 +3132,21 @@ void USoundWave::Parse(FAudioDevice* AudioDevice, const UPTRINT NodeWaveInstance
 	WaveInstance->ListenerToSoundDistanceForPanning = ParseParams.ListenerToSoundDistanceForPanning;
 	WaveInstance->AbsoluteAzimuth = ParseParams.AbsoluteAzimuth;
 
-	if (NumChannels <= 2)
+	if (ParseParams.SourceEffectChain)
 	{
-		WaveInstance->SourceEffectChain = ParseParams.SourceEffectChain;
+		// Only copy the source effect chain pointer if it supports the channel count
+		if (ParseParams.SourceEffectChain->SupportsChannelCount(NumChannels))
+		{
+			WaveInstance->SourceEffectChain = ParseParams.SourceEffectChain;
+		}
+		else
+		{
+			WaveInstance->SourceEffectChain = nullptr;
+			UE_LOG(LogAudio, Verbose, TEXT("Sound %s from Audio Component %s has a source effect chain but an incompatible channel count %d, so will not be instantiated"), 
+				ActiveSound.GetSound() ? *ActiveSound.GetSound()->GetFName().ToString() : TEXT("None"),
+				*ActiveSound.GetAudioComponentName(),
+				NumChannels);
+		}
 	}
 
 	bool bAlwaysPlay = false;

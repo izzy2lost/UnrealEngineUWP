@@ -647,7 +647,15 @@ namespace Audio
 			// Source manager needs to know if this is a vorbis source for rebuilding speaker maps
 			InitParams.bIsVorbis = bIsVorbis;
 
-			if (InitParams.NumInputChannels <= 2)
+			// Support stereo by default
+			// Check the min number of channels the source effect chain supports
+			// We don't want to instantiate the effect chain if it has an effect that doesn't support its channel count
+			// E.g. we shouldn't instantiate a chain on a quad source if there is an effect that only supports stereo
+			InitParams.SourceEffectChainMaxSupportedChannels = WaveInstance->SourceEffectChain ? 
+				WaveInstance->SourceEffectChain->GetSupportedChannelCount() :
+				USoundEffectSourcePreset::DefaultSupportedChannels;
+
+			if (InitParams.NumInputChannels <= InitParams.SourceEffectChainMaxSupportedChannels)
 			{
 				if (WaveInstance->SourceEffectChain)
 				{
