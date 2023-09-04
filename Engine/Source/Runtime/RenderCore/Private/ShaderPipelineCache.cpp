@@ -1773,6 +1773,7 @@ bool FShaderPipelineCache::IsTickable() const
 
 void FShaderPipelineCache::Tick(float DeltaTime)
 {
+	LLM_SCOPE(ELLMTag::Shaders);
 	FScopeLock Lock(&Mutex);
 
 	FShaderPipelineCacheTask* CurrentCacheTask = CurrentPrecompilingPSOFCKey.IsEmpty() ? nullptr : ShaderCacheTasks.Find(CurrentPrecompilingPSOFCKey)->Get();

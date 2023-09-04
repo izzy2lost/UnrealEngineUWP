@@ -189,6 +189,8 @@ void FUObjectArray::DisableDisregardForGC()
 
 void FUObjectArray::AllocateUObjectIndex(UObjectBase* Object, EInternalObjectFlags InitialFlags, int32 AlreadyAllocatedIndex, int32 SerialNumber)
 {
+	LLM_SCOPE(ELLMTag::UObject);
+
 	int32 Index = INDEX_NONE;
 	check(Object->InternalIndex == INDEX_NONE);
 
@@ -287,6 +289,8 @@ void FUObjectArray::RemoveObjectFromDeleteListeners(UObjectBase* Object)
  */
 void FUObjectArray::FreeUObjectIndex(UObjectBase* Object)
 {
+	LLM_SCOPE(ELLMTag::UObject);
+
 	// This should only be happening on the game thread (GC runs only on game thread when it's freeing objects)
 	check(IsInGameThread() || IsInGarbageCollectorThread());
 

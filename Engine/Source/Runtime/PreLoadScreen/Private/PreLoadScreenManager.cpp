@@ -353,6 +353,7 @@ void FPreLoadScreenManager::HandleCustomSplashScreenPlay()
 
 void FPreLoadScreenManager::StaticRenderTick_RenderThread()
 {
+	LLM_SCOPE(ELLMTag::RenderingThreadMemory);
 	check(IsInRenderingThread());
 
 	FScopeLock Lock(&AcquireCriticalSection);
