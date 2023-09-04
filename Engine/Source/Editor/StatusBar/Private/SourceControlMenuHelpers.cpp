@@ -182,7 +182,14 @@ void FSourceControlCommands::RevertAllModifiedFiles_Clicked()
 	FText Title = LOCTEXT("RevertAllModifiedFiles_Title", "Revert all local changes");
 	if (FMessageDialog::Open(EAppMsgType::YesNo, EAppReturnType::No, Message, Title) == EAppReturnType::Yes)
 	{
-		FSourceControlMenuHelpers::SaveUnsavedFiles();
+		const bool bPromptUserToSave = false;
+		const bool bSaveMapPackages = true;
+		const bool bSaveContentPackages = true;
+		const bool bFastSave = false;
+		const bool bNotifyNoPackagesSaved = false;
+		const bool bCanBeDeclined = false;
+		FEditorFileUtils::SaveDirtyPackages(bPromptUserToSave, bSaveMapPackages, bSaveContentPackages, bFastSave, bNotifyNoPackagesSaved, bCanBeDeclined);
+
 		FBookmarkScoped BookmarkScoped;
 		FSourceControlWindows::RevertAllChangesAndReloadWorld();
 	}
@@ -447,29 +454,6 @@ int FSourceControlMenuHelpers::GetNumLocalChanges()
 	return 0;
 }
 
-void FSourceControlMenuHelpers::SaveUnsavedFiles()
-{
-	// Get a list of all the unsaved packages
-	TArray<FString> UnsavedFileNames = FUnsavedAssetsTrackerModule::Get().GetUnsavedAssets();
-	if (UnsavedFileNames.Num() > 0)
-	{
-		TArray<UPackage*> UnsavedPackages;
-		UnsavedPackages.Reserve(UnsavedFileNames.Num());
-
-		for (FString& FileName : UnsavedFileNames)
-		{
-			FString PackageName = UPackageTools::FilenameToPackageName(FileName);
-			UPackage* Package = FindPackage(nullptr, *PackageName);
-			if (Package != nullptr)
-			{
-				UnsavedPackages.Add(Package);
-			}
-		}
-
-		UEditorLoadingAndSavingUtils::SavePackages(UnsavedPackages, /*bOnlyDirty=*/true);
-	}
-}
-
 bool FSourceControlMenuHelpers::CanSourceControlCheckIn()
 {
 	return (GetNumLocalChanges() > 0);
@@ -528,19 +512,7 @@ FReply FSourceControlMenuHelpers::OnSourceControlCheckInChangesClicked()
 {
 	if (CanSourceControlCheckIn())
 	{
-		bool bSyncNeeded = FSourceControlWindows::CanSyncLatest();
-		bool bSyncSuccess = true;
-		if (bSyncNeeded)
-		{
-			FBookmarkScoped BookmarkScoped;
-			bSyncSuccess = FSourceControlWindows::SyncLatest();
-		}
-
-		if (bSyncSuccess)
-		{
-			FSourceControlMenuHelpers::SaveUnsavedFiles();
-			FSourceControlWindows::ChoosePackagesToCheckIn();
-		}
+		FSourceControlWindows::ChoosePackagesToCheckIn();
 	}
 
 	return FReply::Handled();

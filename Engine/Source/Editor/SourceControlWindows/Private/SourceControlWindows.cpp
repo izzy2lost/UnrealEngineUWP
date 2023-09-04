@@ -14,7 +14,7 @@
 #include "Misc/MessageDialog.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "SourceControlSettings.h"
-
+#include "Bookmarks/BookmarkScoped.h"
 
 #if SOURCE_CONTROL_WITH_SLATE
 
@@ -28,6 +28,34 @@ FCheckinResultInfo::FCheckinResultInfo()
 	: Result(ECommandResult::Failed)
 	, bAutoCheckedOut(false)
 {
+}
+
+
+//---------------------------------------------------------------------------------------
+// Helper function(s)
+
+static bool SaveDirtyPackages(bool bUseDialog)
+{
+	const bool bPromptUserToSave = bUseDialog;
+	const bool bSaveMapPackages = true;
+	const bool bSaveContentPackages = true;
+	const bool bFastSave = false;
+	const bool bNotifyNoPackagesSaved = false;
+	const bool bCanBeDeclined = true; // If the user clicks "don't save" this will continue and lose their changes
+
+	bool bSaved = FEditorFileUtils::SaveDirtyPackages(bPromptUserToSave, bSaveMapPackages, bSaveContentPackages, bFastSave, bNotifyNoPackagesSaved, bCanBeDeclined);
+
+	// bSaved can be true if the user selects to not save an asset by unchecking it and clicking "save"
+	if (bSaved)
+	{
+		TArray<UPackage*> DirtyPackages;
+		FEditorFileUtils::GetDirtyWorldPackages(DirtyPackages);
+		FEditorFileUtils::GetDirtyContentPackages(DirtyPackages);
+
+		bSaved = DirtyPackages.Num() == 0;
+	}
+
+	return bSaved;
 }
 
 
@@ -60,6 +88,29 @@ bool FSourceControlWindows::ChoosePackagesToCheckIn(const FSourceControlWindowsO
 		OnCompleteDelegate.ExecuteIfBound(ResultInfo);
 
 		return false;
+	}
+
+	if (ISourceControlModule::Get().GetProvider().UsesSnapshots())
+	{
+		bool bSyncNeeded = FSourceControlWindows::CanSyncLatest();
+		if (bSyncNeeded)
+		{
+			FBookmarkScoped BookmarkScoped; // Preserve viewport camera orientation.
+
+			if (!FSourceControlWindows::SyncLatest())
+			{
+				FCheckinResultInfo ResultInfo;
+				ResultInfo.Description = LOCTEXT("SourceControlSyncFailed", "Revision control failed to sync to the latest revision.");
+				OnCompleteDelegate.ExecuteIfBound(ResultInfo);
+
+				return false;
+			}
+		}
+		else
+		{
+			// SyncLatest saves packages so do that explicitly if sync is not needed.
+			SaveDirtyPackages(/*bUseDialog=*/false);
+		}
 	}
 
 	// Start selection process...
@@ -129,31 +180,12 @@ bool FSourceControlWindows::CanChoosePackagesToCheckIn()
 
 bool FSourceControlWindows::ShouldChoosePackagesToCheckBeVisible()
 {
-	return GetDefault<USourceControlSettings>()->bEnableSubmitContentMenuAction && !ISourceControlModule::Get().GetProvider().UsesSnapshots();
+	return GetDefault<USourceControlSettings>()->bEnableSubmitContentMenuAction;
 }
 
-
-static bool SaveDirtyPackages()
+bool FSourceControlWindows::SyncLatest()
 {
-	const bool bPromptUserToSave = true;
-	const bool bSaveMapPackages = true;
-	const bool bSaveContentPackages = true;
-	const bool bFastSave = false;
-	const bool bNotifyNoPackagesSaved = false;
-	const bool bCanBeDeclined = true; // If the user clicks "don't save" this will continue and lose their changes
-
-	bool bHadPackagesToSave = false;
-	bool bSaved = FEditorFileUtils::SaveDirtyPackages(bPromptUserToSave, bSaveMapPackages, bSaveContentPackages, bFastSave, bNotifyNoPackagesSaved, bCanBeDeclined, &bHadPackagesToSave);
-
-	// bSaved can be true if the user selects to not save an asset by unchecking it and clicking "save"
-	if (bSaved)
-	{
-		TArray<UPackage*> DirtyPackages;
-		FEditorFileUtils::GetDirtyWorldPackages(DirtyPackages);
-		FEditorFileUtils::GetDirtyContentPackages(DirtyPackages);
-
-		bSaved = DirtyPackages.Num() == 0;
-	}
+	bool bSaved = SaveDirtyPackages(/*bUseDialog=*/true);
 
 	// if not properly saved, ask for confirmation from the user before continuing.
 	if (!bSaved)
@@ -165,13 +197,6 @@ static bool SaveDirtyPackages()
 
 		bSaved = (DialogResult == EAppReturnType::Yes);
 	}
-	
-	return bSaved;
-}
-
-bool FSourceControlWindows::SyncLatest()
-{
-	bool bSaved = SaveDirtyPackages();
 
 	// if properly saved or confirmation given, find all packages and use source control to update them.
 	if (bSaved)
