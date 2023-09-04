@@ -10,7 +10,6 @@
 #include "DynamicMesh/DynamicMesh3.h"
 #include "PropertySets/PolygroupLayersProperties.h"
 #include "Polygroups/PolygroupSet.h"
-#include "Selection/ToolSelectionUtil.h"
 #include "Selections/GeometrySelection.h"
 #include "EditNormalsTool.generated.h"
 
@@ -178,7 +177,7 @@ protected:
 	void UpdateActiveGroupLayer();
 
 	//
-	// Selection
+	// Selection. Only used when the tool is run with one target
 	//
 
 	UPROPERTY()
@@ -194,6 +193,11 @@ protected:
 	// If the user starts the tool with an edge selection we convert it to a vertex selection with triangle topology
 	// and store it here, we do this since we expect users to want vertex and edge selections to behave similarly.
 	UE::Geometry::FGeometrySelection TriangleVertexGeometrySelection;
+
+	// These are indices into the tool target mesh.
+	// If both are non-empty we edit the corresponding elements in the overlay, otherwise operate on the whole overlay
+	TSet<int> EditTriangles;
+	TSet<int> EditVertices;
 
 	// Cache the input polygroup set which was used to start the tool. We do this because users can change the
 	// polygroup referenced by the operator while using the tool.
