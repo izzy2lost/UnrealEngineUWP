@@ -42,6 +42,22 @@ VValue VMap::Find(const VValue Key)
 	return VValue();
 }
 
+VValue VMap::GetKey(const int32 Index)
+{
+	// Only works as long as nothing is removed from map
+	FSetElementId Id = FSetElementId::FromInteger(Index);
+	TWriteBarrier<VValue>& Result = InternalMap.Get(Id).Get<0>();
+	return Result.Follow();
+}
+
+VValue VMap::GetValue(const int32 Index)
+{
+	// Only works as long as nothing is removed from map
+	FSetElementId Id = FSetElementId::FromInteger(Index);
+	TWriteBarrier<VValue>& Result = InternalMap.Get(Id).Get<1>();
+	return Result.Follow();
+}
+
 void VMap::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
 {
 	VMap* This = static_cast<VMap*>(ThisCell);

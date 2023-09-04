@@ -103,6 +103,11 @@ struct VMap : VHeapValue
 
 	VValue Find(const VValue Key);
 
+	// GetKey/GetValue doesn't verify that Index is within limits and
+	// only works as long as nothing is removed from the map.
+	VValue GetKey(const int32 Index);
+	VValue GetValue(const int32 Index);
+
 	void Add(FAllocationContext Context, const VValue Key, const VValue Value)
 	{
 		TWriteBarrier<VValue> NewKey(Context, Key);

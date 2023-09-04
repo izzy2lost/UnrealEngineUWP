@@ -944,6 +944,44 @@ class FInterpreter
 	}
 
 	template <typename OpType>
+	FOpResult MapKeyImpl(OpType& Op)
+	{
+		VValue Map = GetOperand(Op.Map);
+		VValue Index = GetOperand(Op.Index);
+		REQUIRE_CONCRETE(Map);
+		REQUIRE_CONCRETE(Index);
+
+		if (Map.IsCellOfType<VMap>() && Index.IsInt())
+		{
+			DEF(Op.Dest, Map.StaticCast<VMap>().GetKey(Index.AsInt32()));
+		}
+		else
+		{
+			V_DIE("Unimplemented type passed to VM `MapKey` operation!");
+		}
+		return {FOpResult::Normal};
+	}
+
+	template <typename OpType>
+	FOpResult MapValueImpl(OpType& Op)
+	{
+		VValue Map = GetOperand(Op.Map);
+		VValue Index = GetOperand(Op.Index);
+		REQUIRE_CONCRETE(Map);
+		REQUIRE_CONCRETE(Index);
+
+		if (Map.IsCellOfType<VMap>() && Index.IsInt())
+		{
+			DEF(Op.Dest, Map.StaticCast<VMap>().GetValue(Index.AsInt32()));
+		}
+		else
+		{
+			V_DIE("Unimplemented type passed to VM `MapValue` operation!");
+		}
+		return {FOpResult::Normal};
+	}
+
+	template <typename OpType>
 	FOpResult LengthImpl(OpType& Op)
 	{
 		const VValue Container = GetOperand(Op.Container);
@@ -1107,6 +1145,24 @@ class FInterpreter
 			NewArray.AddValue(Context, VarArgValue);
 		}
 		DEF(Op.Dest, NewArray);
+
+		return {FOpResult::Normal};
+	}
+
+	template <typename OpType>
+	FOpResult ArrayAddImpl(OpType& Op)
+	{
+		const VValue Container = GetOperand(Op.Container);
+		const VValue ValueToAdd = GetOperand(Op.ValueToAdd);
+		REQUIRE_CONCRETE(Container);
+		if (VArray* Array = Container.DynamicCast<VArray>())
+		{
+			Array->AddValue(Context, ValueToAdd);
+		}
+		else
+		{
+			V_DIE("Unimplemented type passed to VM `ArrayAdd` operation!");
+		}
 
 		return {FOpResult::Normal};
 	}
@@ -1443,7 +1499,10 @@ class FInterpreter
 				OP_IMPL(Length)
 				OP_IMPL(NewArrayWithCapacity)
 				OP_IMPL_NO_SUSPENDS(NewArray)
+				OP_IMPL_THREAD_EFFECTS(ArrayAdd)
 				OP_IMPL(NewMap)
+				OP_IMPL(MapKey)
+				OP_IMPL(MapValue)
 
 				BEGIN_OP_CASE(Err)
 				{

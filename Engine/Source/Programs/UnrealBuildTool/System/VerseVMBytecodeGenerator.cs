@@ -691,6 +691,11 @@ namespace UnrealBuildTool
 				.Arg("Dest", Role.UnifyDef)
 				.Arg("Values", Role.Use, Arity.Variadic);
 
+			Inst("ArrayAdd")
+				.Arg("Container", Role.Use)
+				.Arg("ValueToAdd", Role.Use)
+				.Suspends();
+
 			Inst("NewOption")
 				.Arg("Dest", Role.UnifyDef)
 				.Arg("Value", Role.Use)
@@ -700,6 +705,18 @@ namespace UnrealBuildTool
 				.Arg("Dest", Role.UnifyDef)
 				.Arg("Keys", Role.Use, Arity.Variadic)
 				.Arg("Values", Role.Use, Arity.Variadic)
+				.Suspends();
+
+			Inst("MapKey")
+				.Arg("Dest", Role.UnifyDef)
+				.Arg("Map", Role.Use)
+				.Arg("Index", Role.Use)
+				.Suspends();
+
+			Inst("MapValue")
+				.Arg("Dest", Role.UnifyDef)
+				.Arg("Map", Role.Use)
+				.Arg("Index", Role.Use)
 				.Suspends();
 
 			string[] ComparisonOps =
