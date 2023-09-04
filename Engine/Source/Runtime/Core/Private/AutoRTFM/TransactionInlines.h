@@ -5,18 +5,34 @@
 #include "Context.h"
 #include "Transaction.h"
 
+#include "HAL/Platform.h"
+
+#if PLATFORM_HAS_ASAN_INCLUDE && USING_ADDRESS_SANITISER
+#include <sanitizer/asan_interface.h>
+#endif
+
 namespace AutoRTFM
 {
 
-UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWriteMaxPageSized(void* LogicalAddress, size_t Size)
+AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWriteMaxPageSized(void* LogicalAddress, size_t Size)
 {
+#if PLATFORM_HAS_ASAN_INCLUDE && USING_ADDRESS_SANITISER
+    // TODO(SOL-5123): Can we detect shadow memory locations at compile-time instead?
+	const char* const Location = __asan_locate_address(LogicalAddress, nullptr, 0, nullptr, nullptr);
+
+    if (strstr(Location, "shadow"))
+	{
+		return;
+	}
+#endif
+
     void* CopyAddress = WriteLogBumpAllocator.Allocate(Size);
     memcpy(CopyAddress, LogicalAddress, Size);
 
     WriteLog.Push(FWriteLogEntry(LogicalAddress, Size, CopyAddress));
 }
 
-UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(void* LogicalAddress, size_t Size)
+AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(void* LogicalAddress, size_t Size)
 {
     // If we are recording a stack address that is relative to our current
     // transactions stack location, we do not need to record the data in the
@@ -66,7 +82,7 @@ UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(void* LogicalAddress, siz
     RecordWriteMaxPageSized(Address + I, Size - I);
 }
 
-template<unsigned SIZE> UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(void* LogicalAddress)
+template<unsigned SIZE> AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(void* LogicalAddress)
 {
     static_assert(SIZE <= FWriteLogBumpAllocator::MaxSize);
 
@@ -130,12 +146,20 @@ UE_AUTORTFM_FORCEINLINE void FTransaction::DidFree(void* LogicalAddress)
 
 UE_AUTORTFM_FORCEINLINE void FTransaction::DeferUntilCommit(TFunction<void()>&& Callback)
 {
-    CommitTasks.Add(MoveTemp(Callback));
+	// We explicitly must copy the function here because the original was allocated
+	// within a transactional context, and thus the memory is allocating under
+	// transactionalized conditions. By copying, we create an open copy of the callback.
+	TFunction<void()> Copy(Callback);
+    CommitTasks.Add(MoveTemp(Copy));
 }
 
 UE_AUTORTFM_FORCEINLINE void FTransaction::DeferUntilAbort(TFunction<void()>&& Callback)
 {
-    AbortTasks.Add(MoveTemp(Callback));
+	// We explicitly must copy the function here because the original was allocated
+	// within a transactional context, and thus the memory is allocating under
+	// transactionalized conditions. By copying, we create an open copy of the callback.
+	TFunction<void()> Copy(Callback);
+    AbortTasks.Add(MoveTemp(Copy));
 }
 
 UE_AUTORTFM_FORCEINLINE void FTransaction::CollectStats() const

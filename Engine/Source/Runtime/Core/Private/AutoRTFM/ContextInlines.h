@@ -19,12 +19,12 @@ UE_AUTORTFM_FORCEINLINE void FContext::CheckOpenRecordWrite(void* LogicalAddress
     ASSERT(CurrentTransaction->IsScopedTransaction() || !IsInnerTransactionStack(LogicalAddress));
 }
 
-UE_AUTORTFM_FORCEINLINE void FContext::RecordWrite(void* LogicalAddress, size_t Size)
+AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FContext::RecordWrite(void* LogicalAddress, size_t Size)
 {
     CurrentTransaction->RecordWrite(LogicalAddress, Size);
 }
 
-template<unsigned SIZE> UE_AUTORTFM_FORCEINLINE void FContext::RecordWrite(void* LogicalAddress)
+template<unsigned SIZE> AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FContext::RecordWrite(void* LogicalAddress)
 {
     CurrentTransaction->RecordWrite<SIZE>(LogicalAddress);
 }

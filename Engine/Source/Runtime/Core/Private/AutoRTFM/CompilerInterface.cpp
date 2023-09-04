@@ -28,7 +28,7 @@ void CheckAlignment(FContext* Context, void* Ptr, size_t AlignmentMask)
     }
 }
 
-extern "C" void autortfm_record_write(void* Ptr, size_t Size)
+extern "C" AUTORTFM_NO_ASAN void autortfm_record_write(void* Ptr, size_t Size)
 {
 	// check for writes to null here so we end up crashing in the user
 	// code rather than in the autortfm runtime.
@@ -41,7 +41,7 @@ extern "C" void autortfm_record_write(void* Ptr, size_t Size)
 	Context->RecordWrite(Ptr, Size);
 }
 
-extern "C" void autortfm_record_write_8(void* Ptr)
+extern "C" AUTORTFM_NO_ASAN void autortfm_record_write_8(void* Ptr)
 {
 	// check for writes to null here so we end up crashing in the user
 	// code rather than in the autortfm runtime.
