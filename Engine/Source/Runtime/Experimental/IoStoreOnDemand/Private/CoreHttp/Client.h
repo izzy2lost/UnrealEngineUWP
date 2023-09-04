@@ -71,6 +71,7 @@ public:
 							~FConnectionPool();
 							FConnectionPool(FConnectionPool&& Rhs)	{ *this = MoveTemp(Rhs); }
 	FConnectionPool&		operator = (FConnectionPool&& Rhs)		{ Swap(Ptr, Rhs.Ptr); return *this; }
+	bool					Resolve();
 
 private:
 	friend					class FEventLoop;

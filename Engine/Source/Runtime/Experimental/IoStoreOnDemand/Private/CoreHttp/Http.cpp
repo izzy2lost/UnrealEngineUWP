@@ -818,6 +818,12 @@ FConnectionPool::~FConnectionPool()
 	}
 }
 
+////////////////////////////////////////////////////////////////////////////////
+bool FConnectionPool::Resolve()
+{
+	return (Ptr->ResolveHostName() > 0);
+}
+
 
 
 // {{{1 activity ...............................................................
