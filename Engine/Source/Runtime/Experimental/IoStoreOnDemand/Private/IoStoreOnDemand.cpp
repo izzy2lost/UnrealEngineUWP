@@ -210,7 +210,6 @@ static FIasCacheConfig GetIasCacheConfig(const TCHAR* CommandLine)
 	GetConfigInt(TEXT("DiskQuota"),				Ret.DiskQuota);
 	GetConfigInt(TEXT("MemoryQuota"),			Ret.MemoryQuota);
 	GetConfigInt(TEXT("JournalQuota"),			Ret.JournalQuota);
-	GetConfigInt(TEXT("JournalFlushInterval"),	Ret.JournalFlushInterval);
 	GetConfigInt(TEXT("DemandThreshold"),		Ret.Demand.Threshold);
 	GetConfigInt(TEXT("DemandBoost"),			Ret.Demand.Boost);
 	GetConfigInt(TEXT("DemandSuperBoost"),		Ret.Demand.SuperBoost);
