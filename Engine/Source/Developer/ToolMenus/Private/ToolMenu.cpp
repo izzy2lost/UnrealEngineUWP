@@ -58,7 +58,18 @@ FReply UToolMenu::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyE
 	return FReply::Unhandled();
 }
 
+const ISlateStyle* UToolMenu::GetStyleSet() const
+{
+	return StyleSet;
+}
 
+void UToolMenu::SetStyleSet(const ISlateStyle* InStyleSet)
+{
+	if (InStyleSet && InStyleSet != StyleSet)
+	{
+		StyleSet = InStyleSet;
+	}
+}
 
 void UToolMenu::InitGeneratedCopy(const UToolMenu* Source, const FName InMenuName, const FToolMenuContext* InContext)
 {

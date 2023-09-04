@@ -93,6 +93,9 @@ public:
 
 	FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent);
 
+	const ISlateStyle* GetStyleSet() const;
+	void SetStyleSet(const ISlateStyle* InStyleSet);
+
 	friend class UToolMenus;
 
 private:
