@@ -934,6 +934,12 @@ namespace UE::NearestNeighborModel
 		}
 		return ModelInstance;
 	}
+
+	void FNearestNeighborEditorModel::GetNeighborStats()
+	{
+		UNearestNeighborTrainingModel *TrainingModel = InitTrainingModel<UNearestNeighborTrainingModel>(this);
+		TrainingModel->GetNeighborStats(0);
+	}
 }	// namespace UE::NearestNeighborModel
 
 #undef LOCTEXT_NAMESPACE
