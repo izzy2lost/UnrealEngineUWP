@@ -8,6 +8,7 @@
 #include "Engine/LocalPlayer.h"
 #include "GameFramework/PlayerController.h"
 #include "Interfaces/OnlineSessionDelegates.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Online/OnlineSessionNames.h"
 #include "OnlineSessionSettings.h"
 
