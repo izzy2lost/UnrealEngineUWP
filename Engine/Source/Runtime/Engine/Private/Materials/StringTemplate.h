@@ -70,6 +70,12 @@ public:
 	const FString& GetTemplateString() const { return TemplateString; }
 
 	/**
+	 * Returns the number of named parameters in this template string, useful to reserve
+	 * enough capacity in your parameters map.
+	 */
+	int32 GetNumNamedParameters() const { return NumNamedParameters; }
+
+	/**
 	 * Returns the array of named parameters contained in this template.
 	 */
 	void GetParameters(TArray<FStringView>& OutParams) const;
@@ -119,6 +125,11 @@ public:
 	 * space in the resolved string.
 	 */
 	FStringTemplateResolver(const FStringTemplate& Template, uint32 ResolvedStringSizeHint = 0);
+
+	/**
+	 * Returns the template this resolver is using.
+	 */
+	const FStringTemplate& GetTemplate() const { return Template; }
 
 	/**
 	 * Sets the map of named parameters.
