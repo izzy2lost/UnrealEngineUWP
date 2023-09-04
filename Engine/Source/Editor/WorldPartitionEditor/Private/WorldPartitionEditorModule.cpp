@@ -862,7 +862,9 @@ void FWorldPartitionEditorModule::FCleanupExternalObjectsEmptyFoldersWorker::DoW
 
 			for (auto& [Folder, NumFiles] : FoldersFilesMap)
 			{
-				if (!NumFiles)
+				if (!NumFiles &&  // Not yet deleted, and now empty
+					Folder != RootPath // Do not delete the RootPath, we should keep it and it would break the assertion that parent is in FolderFilesMap
+					)
 				{
 					if (IFileManager::Get().DeleteDirectory(*Folder, true))
 					{
