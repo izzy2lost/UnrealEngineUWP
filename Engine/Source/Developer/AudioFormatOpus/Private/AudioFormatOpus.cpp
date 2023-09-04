@@ -551,7 +551,7 @@ public:
 	 */
 	int32 AddDataChunk(TArray<TArray<uint8>>& OutBuffers, const uint8* ChunkData, int32 ChunkSize) const
 	{
-		TArray<uint8>& NewBuffer = *new (OutBuffers) TArray<uint8>;
+		TArray<uint8>& NewBuffer = OutBuffers.AddDefaulted_GetRef();
 		NewBuffer.Empty(ChunkSize);
 		NewBuffer.AddUninitialized(ChunkSize);
 		FMemory::Memcpy(NewBuffer.GetData(), ChunkData, ChunkSize);

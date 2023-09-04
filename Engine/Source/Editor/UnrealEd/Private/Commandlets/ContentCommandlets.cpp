@@ -2970,7 +2970,7 @@ int32 UWrangleContentCommandlet::Main( const FString& Params )
 				if (PackageObjs == NULL)
 				{
 					UE_LOG(LogContentCommandlet, Warning, TEXT("No objects in %s were referenced..."), *PackagePath.GetDebugName());
-					new(UnnecessaryPublicObjects) FUnreferencedObject(PackageName,
+					UnnecessaryPublicObjects.Emplace(PackageName,
 						TEXT("ENTIRE PACKAGE"), IPackageResourceManager::Get().FileSize(PackagePath));
 
 					// all objects in this package are unnecessary
@@ -3017,7 +3017,7 @@ int32 UWrangleContentCommandlet::Main( const FString& Params )
 					if ((Export.ObjectFlags & RF_Public) != 0 && !bAreAllObjectsUnnecessary)
 					{
 						// if so, then add it to list of unused pcreateexportublic items
-						new(UnnecessaryPublicObjects) FUnreferencedObject(PackageName, ExportName, Export.SerialSize);
+						UnnecessaryPublicObjects.Emplace(PackageName, ExportName, Export.SerialSize);
 					}
 
 					// look for existing entry
