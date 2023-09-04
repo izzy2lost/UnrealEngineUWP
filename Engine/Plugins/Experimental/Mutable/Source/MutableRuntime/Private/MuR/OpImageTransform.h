@@ -13,11 +13,8 @@
 namespace mu
 {
 	void ImageTransform(
-			Image* pDestImage, const Image* pImage, 
-			FVector2f Offset, FVector2f Scale, float RotationRad, 
-			float MipFactor,
-			EAddressMode AddressMode, 
-			bool bUseVectorImplCvar)
+			Image* pDestImage, const Image* pImage,
+			FTransform2f Transform, float MipFactor, EAddressMode AddressMode, bool bUseVectorImplCvar)
     {
 		MUTABLE_CPUPROFILER_SCOPE(ImageTransform);
 
@@ -25,14 +22,6 @@ namespace mu
 		{
 			return;
 		}
-
-		Scale.X = FMath::IsNearlyZero(Scale.X, UE_KINDA_SMALL_NUMBER) ? UE_KINDA_SMALL_NUMBER : Scale.X;
-		Scale.Y = FMath::IsNearlyZero(Scale.Y, UE_KINDA_SMALL_NUMBER) ? UE_KINDA_SMALL_NUMBER : Scale.Y;
-
-		const FTransform2f Transform = FTransform2f(FVector2f(-0.5f)).
-				Concatenate(FTransform2f(FScale2f(Scale))).
-				Concatenate(FTransform2f(FQuat2f(RotationRad))).
-				Concatenate(FTransform2f(Offset + FVector2f(0.5f)));
 
 		const FIntVector2 SrcSize  = FIntVector2(pImage->GetSizeX(), pImage->GetSizeY());
 		const FIntVector2 DestSize = FIntVector2(pDestImage->GetSizeX(), pDestImage->GetSizeY());
@@ -57,15 +46,15 @@ namespace mu
 							FMath::CeilToInt (NormalizedCropRect.Max.Y * (float)DestSize.Y)));
 
 			return FIntRect(
-				FMath::Max(CropRect.Min.X, 0), FMath::Max(CropRect.Min.Y, 0),
-				FMath::Min(CropRect.Max.X, DestSize.X), FMath::Min(CropRect.Max.Y, DestSize.Y));
+				FMath::Clamp(CropRect.Min.X, 0, DestSize.X), FMath::Clamp(CropRect.Min.Y, 0, DestSize.Y),
+				FMath::Clamp(CropRect.Max.X, 0, DestSize.X), FMath::Clamp(CropRect.Max.Y, 0, DestSize.Y));
 		});
 
 		if (AddressMode == EAddressMode::ClampToBlack)
 		{
 			pDestImage->m_flags |= Image::IF_HAS_RELEVANCY_MAP;
 			pDestImage->RelevancyMinY = DestCropRect.Min.Y;
-			pDestImage->RelevancyMaxY = DestCropRect.Max.Y - 1;
+			pDestImage->RelevancyMaxY = FMath::Max(DestCropRect.Max.Y - 1, DestCropRect.Min.Y);
 		}
 
 		uint8* DestData       = pDestImage->GetData();

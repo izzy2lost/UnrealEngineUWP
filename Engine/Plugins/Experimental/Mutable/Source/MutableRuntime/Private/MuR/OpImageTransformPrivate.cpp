@@ -28,12 +28,9 @@ namespace mu
 			alignas(8) uint16 Data[NumChannels];
 		};
 
-
-		const FVector2f BaseSizeF = FVector2f(Src0Size.X, Src1Size.Y);
 		const FVector2f DestSizeF = FVector2f(DestSize.X, DestSize.Y);
 
 		const FVector2f DestNormFactor = FVector2f(1.0f) / DestSizeF;
-		const FVector2f BaseNormFactor = FVector2f(1.0f) / BaseSizeF;
 
 		check(DestCropRect.Min.X >= 0 && DestCropRect.Max.X <= DestSize.X);
 		check(DestCropRect.Min.Y >= 0 && DestCropRect.Max.Y <= DestSize.Y);
@@ -66,17 +63,18 @@ namespace mu
 					{
 						if ((DestUv.X < 0.0f) | (DestUv.X > 1.0f) | (DestUv.Y < 0.0f) | (DestUv.Y > 1.0f))
 						{
-							if constexpr (NumChannels == 4)
-							{
-								*reinterpret_cast<uint32*>(&DestData[(Y * DestSize.X + X) * NumChannels]) = 0;
-							}
-							else
-							{
-								for (uint32 Channel = 0; Channel < NumChannels; ++Channel)
-								{
-									DestData[(Y * DestSize.X + X) * NumChannels + Channel] = 0;
-								}
-							}
+							// Black texture init is mandatory for ClampToBlack Address mode, no need to set black again. 
+							//if constexpr (NumChannels == 4)
+							//{
+							//	FMemory::Memzero(&DestData[(Y * DestSize.X + X) * NumChannels], 4);
+							//}
+							//else
+							//{
+							//	for (uint32 Channel = 0; Channel < NumChannels; ++Channel)
+							//	{
+							//		DestData[(Y * DestSize.X + X) * NumChannels + Channel] = 0;
+							//	}
+							//}
 							continue;
 						}
 					}
@@ -144,7 +142,8 @@ namespace mu
 						FPixelData Result;
 						if constexpr (NumChannels == 4)
 						{
-							const uint32 PackedData = *reinterpret_cast<const uint32*>(Ptr);
+							uint32 PackedData;
+							FMemory::Memcpy(&PackedData, Ptr, sizeof(uint32));
 
 							Result.Data[0] = static_cast<uint16>((PackedData >> (8 * 0)) & 0xFF);
 							Result.Data[1] = static_cast<uint16>((PackedData >> (8 * 1)) & 0xFF);
@@ -228,6 +227,11 @@ namespace mu
 		float MipFactor,
 		const FTransform2f& Transform)
     {
+		if (DestCropRect.Area() == 0)
+		{
+			return;
+		}
+
 		const FVector2f DestSizeF = FVector2f(DestSize.X, DestSize.Y);
 		const FVector2f DestNormFactor = FVector2f(1.0f) / DestSizeF;
 
@@ -268,17 +272,18 @@ namespace mu
 					{
 						if ((DestUv.X < 0.0f) | (DestUv.X > 1.0f) | (DestUv.Y < 0.0f) | (DestUv.Y > 1.0f))
 						{
-							if constexpr (NumChannels == 4)
-							{
-								*reinterpret_cast<uint32*>(&DestData[(Y * DestSize.X + X) * NumChannels]) = 0;
-							}
-							else
-							{
-								for (uint32 Channel = 0; Channel < NumChannels; ++Channel)
-								{
-									DestData[(Y * DestSize.X + X) * NumChannels + Channel] = 0;
-								}
-							}
+							// Black texture init is mandatory for ClampToBlack Address mode, no need to set black again. 
+							//if constexpr (NumChannels == 4)
+							//{
+							//	FMemory::Memzero(&DestData[(Y * DestSize.X + X) * NumChannels], 4);
+							//}
+							//else
+							//{
+							//	for (uint32 Channel = 0; Channel < NumChannels; ++Channel)
+							//	{
+							//		DestData[(Y * DestSize.X + X) * NumChannels + Channel] = 0;
+							//	}
+							//}
 
 							continue;
 						}
@@ -321,7 +326,9 @@ namespace mu
 					{
 						if constexpr (NumChannels == 4)
 						{
-							const uint32 PackedData = *reinterpret_cast<const uint32*>(DataPtr);
+							uint32 PackedData;
+							FMemory::Memcpy(&PackedData, DataPtr, sizeof(uint32));
+
 							return VectorIntToFloat(MakeVectorRegisterInt(
 										(PackedData >> (8 * 0)) & 0xFF, 
 										(PackedData >> (8 * 1)) & 0xFF,

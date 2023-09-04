@@ -4628,7 +4628,7 @@ namespace mu
 			{
             	MUTABLE_CPUPROFILER_SCOPE(IM_TRANSFORM_1)
 
-                FVector2f Scale = FVector2f(
+				FVector2f Scale = FVector2f(
                         Args.ScaleX ? LoadScalar(FCacheAddress(Args.ScaleX, item)) : 1.0f,
                         Args.ScaleY ? LoadScalar(FCacheAddress(Args.ScaleY, item)) : 1.0f);
 	
@@ -4648,23 +4648,25 @@ namespace mu
 						--MipsToDrop;
 					}
 
-					return Size;
+					return FUint16Vector2(FMath::Max(Size.X, uint16(1)), FMath::Max(Size.Y, uint16(1)));
 				});
 
-				const FVector2f DestSize = FVector2f(DestSizeI.X, DestSizeI.Y);
-				const FVector2f SourceSize = FVector2f(Args.SourceSizeX, Args.SourceSizeY);
-	
+				const FVector2f DestSize   = FVector2f(DestSizeI.X, DestSizeI.Y);
+				const FVector2f SourceSize = FVector2f(FMath::Max(Args.SourceSizeX, uint16(1)), FMath::Max(Args.SourceSizeY, uint16(1)));
+
+				FVector2f AspectCorrectionScale = FVector2f(1.0f, 1.0f);
 				if (Args.bKeepAspectRatio)
 				{
-					const float DestAspectOverSrcAspect = (DestSize.X * SourceSize.Y) / (DestSize.Y * SourceSize.X); 
+					const float DestAspectOverSrcAspect = (DestSize.X * SourceSize.Y) / (DestSize.Y * SourceSize.X);
 
-					Scale *= DestAspectOverSrcAspect > 1.0f 
-							? FVector2f(1.0f/DestAspectOverSrcAspect, 1.0f) 
-							: FVector2f(1.0f, DestAspectOverSrcAspect); 
+					AspectCorrectionScale = DestAspectOverSrcAspect > 1.0f 
+										  ? FVector2f(1.0f/DestAspectOverSrcAspect, 1.0f) 
+										  : FVector2f(1.0f, DestAspectOverSrcAspect); 
 				}
 			
 				const FTransform2f Transform = FTransform2f(FVector2f(-0.5f))
 					.Concatenate(FTransform2f(FScale2f(Scale)))
+					.Concatenate(FTransform2f(FScale2f(AspectCorrectionScale)))
 					.Concatenate(FTransform2f(FVector2f(0.5f)));
 
 				FBox2f NormalizedCropRect(ForceInit);
@@ -4682,8 +4684,8 @@ namespace mu
 				FScheduledOpData HeapData;
 				HeapData.ImageTransform.SizeX = DestSizeI.X;
 				HeapData.ImageTransform.SizeY = DestSizeI.Y;
-				FPlatformMath::StoreHalf(&HeapData.ImageTransform.ScaleXEncodedHalf, Scale.X),
-				FPlatformMath::StoreHalf(&HeapData.ImageTransform.ScaleYEncodedHalf, Scale.Y),
+				FPlatformMath::StoreHalf(&HeapData.ImageTransform.ScaleXEncodedHalf, Scale.X);
+				FPlatformMath::StoreHalf(&HeapData.ImageTransform.ScaleYEncodedHalf, Scale.Y);
 				HeapData.ImageTransform.MipValue = BestMip + GlobalImageTransformLodBias;
 
 				const int32 HeapDataAddress = m_heapData.Add(HeapData);
@@ -4714,12 +4716,25 @@ namespace mu
                         Args.OffsetX ? LoadScalar(FCacheAddress(Args.OffsetX, item)) : 0.0f,
                         Args.OffsetY ? LoadScalar(FCacheAddress(Args.OffsetY, item)) : 0.0f);
 
-                const FVector2f Scale = FVector2f(
+                FVector2f Scale = FVector2f(
 						FPlatformMath::LoadHalf(&HeapData.ImageTransform.ScaleXEncodedHalf),
 						FPlatformMath::LoadHalf(&HeapData.ImageTransform.ScaleYEncodedHalf));
 
-				// Map Range 0-1 to a full rotation
-                const float Rotation = LoadScalar(FCacheAddress(Args.Rotation, item)) * UE_TWO_PI;
+				FVector2f AspectCorrectionScale = FVector2f(1.0f, 1.0f);
+				if (Args.bKeepAspectRatio)
+				{
+					const FVector2f DestSize   = FVector2f(HeapData.ImageTransform.SizeX, HeapData.ImageTransform.SizeY);
+					const FVector2f SourceSize = FVector2f(FMath::Max(Args.SourceSizeX, uint16(1)), FMath::Max(Args.SourceSizeY, uint16(1)));
+					
+					const float DestAspectOverSrcAspect = (DestSize.X * SourceSize.Y) / (DestSize.Y * SourceSize.X);
+					
+					AspectCorrectionScale = DestAspectOverSrcAspect > 1.0f 
+										  ? FVector2f(1.0f/DestAspectOverSrcAspect, 1.0f) 
+										  : FVector2f(1.0f, DestAspectOverSrcAspect); 
+				}
+
+				// Map Range [0..1] to a full rotation
+                const float RotationRad = LoadScalar(FCacheAddress(Args.Rotation, item)) * UE_TWO_PI;
 	
 				EImageFormat SourceFormat = Source->GetFormat();
 				EImageFormat Format = GetUncompressedFormat(SourceFormat);
@@ -4751,12 +4766,34 @@ namespace mu
 					Source = NewImage;
 				}
 
+				Scale.X = FMath::IsNearlyZero(Scale.X, UE_KINDA_SMALL_NUMBER) ? UE_KINDA_SMALL_NUMBER : Scale.X;
+				Scale.Y = FMath::IsNearlyZero(Scale.Y, UE_KINDA_SMALL_NUMBER) ? UE_KINDA_SMALL_NUMBER : Scale.Y;
+
+				AspectCorrectionScale.X = FMath::IsNearlyZero(AspectCorrectionScale.X, UE_KINDA_SMALL_NUMBER) 
+									    ? UE_KINDA_SMALL_NUMBER 
+										: AspectCorrectionScale.X;
+
+				AspectCorrectionScale.Y = FMath::IsNearlyZero(AspectCorrectionScale.Y, UE_KINDA_SMALL_NUMBER) 
+										? UE_KINDA_SMALL_NUMBER 
+										: AspectCorrectionScale.Y;
+
+				const FTransform2f Transform = FTransform2f(FVector2f(-0.5f))
+						.Concatenate(FTransform2f(FScale2f(Scale)))
+						.Concatenate(FTransform2f(FQuat2f(RotationRad)))
+						.Concatenate(FTransform2f(FScale2f(AspectCorrectionScale)))
+						.Concatenate(FTransform2f(Offset + FVector2f(0.5f)));
+
 				const EAddressMode AddressMode = static_cast<EAddressMode>(Args.AddressMode);
+
+				const EInitializationType InitType = AddressMode == EAddressMode::ClampToBlack 
+											       ? EInitializationType::Black
+											       : EInitializationType::NotInitialized;
+
 				Ptr<Image> Result = CreateImage(
-						HeapData.ImageTransform.SizeX, HeapData.ImageTransform.SizeY, 1, Format, EInitializationType::Black);
+						HeapData.ImageTransform.SizeX, HeapData.ImageTransform.SizeY, 1, Format, InitType);
 
 				const float MipFactor = FMath::Frac(FMath::Max(0.0f, HeapData.ImageTransform.MipValue));
-				ImageTransform(Result.get(), Source.get(), Offset, Scale, Rotation, MipFactor, AddressMode, bUseImageTransformVectorImpl);
+				ImageTransform(Result.get(), Source.get(), Transform, MipFactor, AddressMode, bUseImageTransformVectorImpl);
 
 				Release(Source);
 				StoreImage(item, Result);
