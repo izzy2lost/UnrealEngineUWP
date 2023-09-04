@@ -2267,9 +2267,23 @@ namespace AutomationScripts
 
 			bool bChunkedBuild = SC.PlatformUsesChunkManifests && DoesChunkPakManifestExist(Params, SC);
 
+			// pull a list of sections that are not rules that will be skipped over
+			List<string> SectionsWithoutRulesList;
+			HashSet<string> SectionsWithoutRules = new();
+			if (PakRulesConfig.GetArray("SectionsWithoutRules", "Section", out SectionsWithoutRulesList))
+			{
+				SectionsWithoutRules = SectionsWithoutRulesList.ToHashSet();
+			}
+
 			List<PakFileRules> RulesList = new List<PakFileRules>();
 			foreach (string SectionName in PakRulesConfig.SectionNames)
 			{
+				// skip any sections marked to not be Rules, above
+				if (SectionsWithoutRules.Contains(SectionName))
+				{
+					continue;
+				}
+
 				//LogInformation("Building PakFileRules for Section {0}", SectionName);
 
 				bool bOnlyChunkedBuilds = false;
