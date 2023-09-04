@@ -445,7 +445,7 @@ namespace Chaos
 	private:
 		TArray<TVec3<LargeIdxType>> LargeIdxBuffer;
 		TArray<TVec3<SmallIdxType>> SmallIdxBuffer;
-		bool bRequiresLargeIndices;
+		bool bRequiresLargeIndices = false;
 	};
 
 	FORCEINLINE_DEBUGGABLE FArchive& operator<<(FArchive& Ar, FTrimeshIndexBuffer& Buffer)

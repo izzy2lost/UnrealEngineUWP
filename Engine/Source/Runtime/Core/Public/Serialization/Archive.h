@@ -749,6 +749,10 @@ public:
 			EndFastPathLoadBuffer = nullptr;
 			OriginalFastPathLoadBuffer = nullptr;
 		}
+		FORCEINLINE bool IsValid() const
+		{
+			return ((StartFastPathLoadBuffer != nullptr) && (EndFastPathLoadBuffer != nullptr) && (OriginalFastPathLoadBuffer != nullptr));
+		}
 	};
 #if DEVIRTUALIZE_FLinkerLoad_Serialize
 	//@todoio FArchive is really a horrible class and the way it is proxied by FLinkerLoad is double terrible. It makes the fast path really hacky and slower than it would need to be.
@@ -1431,7 +1435,8 @@ public:
 		// Serialize bool as if it were UBOOL (legacy, 32 bit int).
 #if DEVIRTUALIZE_FLinkerLoad_Serialize
 		const uint8 * RESTRICT Src = Ar.ActiveFPLB->StartFastPathLoadBuffer;
-		if (Src + sizeof(uint32) <= Ar.ActiveFPLB->EndFastPathLoadBuffer)
+		const bool bValidFPLBAccess = Ar.ActiveFPLB->IsValid() && ((Src + sizeof(uint32)) <= Ar.ActiveFPLB->EndFastPathLoadBuffer);
+		if (bValidFPLBAccess)
 		{
 			D = !!FPlatformMemory::ReadUnaligned<uint32>(Src);
 			Ar.ActiveFPLB->StartFastPathLoadBuffer += 4;
@@ -1970,6 +1975,11 @@ public:
 	template<SIZE_T Size>
 	FORCEINLINE bool FastPathLoad(void* InDest)
 	{
+		if (!ActiveFPLB->IsValid())
+		{
+			return false;
+		}
+
 		const uint8* RESTRICT Src = ActiveFPLB->StartFastPathLoadBuffer;
 		if (Src + Size <= ActiveFPLB->EndFastPathLoadBuffer)
 		{
