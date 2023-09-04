@@ -186,7 +186,7 @@ void ADebugCameraHUD::PostRender()
 				if ( bFoundMaterial == false )
 				{
 					yl += Y;
-					Canvas->DrawText(RenderFont, "Material: NULL", X + Y, yl, 1.f, 1.f, FontRenderInfo );
+					Canvas->DrawText(RenderFont, TEXT("Material: NULL"), X + Y, yl, 1.f, 1.f, FontRenderInfo );
 				}
 
 				if (!DCC->bIsOrbitingSelectedActor)
