@@ -1106,18 +1106,18 @@ int64 FResponse::GetContentLength() const
 ////////////////////////////////////////////////////////////////////////////////
 EMimeType FResponse::GetContentType() const
 {
-    FAnsiStringView Value;
-    GetContentType(Value);
+	FAnsiStringView Value;
+	GetContentType(Value);
 
-    if (Value == "text/html")                   return EMimeType::Text;
-    if (Value == "application/octet-stream")    return EMimeType::Binary;
-    if (Value == "application/json")            return EMimeType::Json;
-    if (Value == "application/xml")             return EMimeType::Xml;
+	if (Value == "text/html")					return EMimeType::Text;
+	if (Value == "application/octet-stream")	return EMimeType::Binary;
+	if (Value == "application/json")			return EMimeType::Json;
+	if (Value == "application/xml")				return EMimeType::Xml;
 	/* UE_CUSTOM_MIME_TYPES
-    if (Value == "application/x-ue-cb")         return EMimeType::CbObject;
-    if (Value == "application/x-ue-pkg")        return EMimeType::CbPackage;
-    if (Value == "application/x-ue-comp")       return EMimeType::CompressedBuffer;
-    */
+	if (Value == "application/x-ue-cb")			return EMimeType::CbObject;
+	if (Value == "application/x-ue-pkg")		return EMimeType::CbPackage;
+	if (Value == "application/x-ue-comp")		return EMimeType::CompressedBuffer;
+	*/
 
 	return EMimeType::Unknown;
 }
@@ -1125,7 +1125,7 @@ EMimeType FResponse::GetContentType() const
 ////////////////////////////////////////////////////////////////////////////////
 void FResponse::GetContentType(FAnsiStringView& Out) const
 {
-    Out = GetHeader("Accept");
+	Out = GetHeader("Accept");
 
 	int32 SemiColon;
 	if (Out.FindChar(';', SemiColon))
@@ -2257,7 +2257,7 @@ FTicket FEventLoop::FImpl::Send(FActivity* Activity)
 		Pending.Add(Activity);
 	}
 
-    return Slot;
+	return Slot;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2283,10 +2283,10 @@ uint32 FEventLoop::FImpl::Tick(uint32 PollTimeoutMs)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(IasHttp::Tick);
 
-    // Collect activity changes
+	// Collect activity changes
 	uint64 FreeSlotsLoad = FreeSlots.load(std::memory_order_relaxed);
-    if (FreeSlots != PrevFreeSlots)
-    {
+	if (FreeSlots != PrevFreeSlots)
+	{
 		TArray<FActivity*> NewActive;
 		{
 			FScopeLock _(&Lock);
@@ -2298,8 +2298,8 @@ uint32 FEventLoop::FImpl::Tick(uint32 PollTimeoutMs)
 			Active.Add(Activity);
 		}
 
-        PrevFreeSlots = FreeSlotsLoad;
-    }
+		PrevFreeSlots = FreeSlotsLoad;
+	}
 
 	uint32 BusyCount = Active.Num();
 
@@ -2839,7 +2839,7 @@ IOSTOREONDEMAND_API void IasHttpTest(const ANSICHAR* TestHost="localhost")
 		check(Content[Index].Hash == ReceivedHash);
 		Content[Index].Hash = 0;
 
- 		return nullptr;
+		return nullptr;
 	};
 
 	auto NullSink = [] (const FTicketStatus&) {};
