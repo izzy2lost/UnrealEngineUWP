@@ -62,6 +62,11 @@ void UMassStationaryISMSwitcherProcessor::ProcessContext(FMassExecutionContext& 
 			continue;
 		}
 
+		if (!ensureMsgf(Representation.StaticMeshDescIndex != INDEX_NONE && ISMInfosView.IsValidIndex(Representation.StaticMeshDescIndex)
+						, TEXT("Invalid index %d for ISMInfosView"), Representation.StaticMeshDescIndex))
+		{
+			continue;
+		}
 		FMassInstancedStaticMeshInfo& ISMInfo = ISMInfosView[Representation.StaticMeshDescIndex];
 
 		if (Representation.PrevRepresentation == EMassRepresentationType::StaticMeshInstance

@@ -618,6 +618,11 @@ struct FMassInstancedStaticMeshInfoArrayViewAccessDetector
 		return InstancedStaticMeshInfos[Index];
 	}
 
+	bool IsValidIndex(const int32 Index) const
+	{
+		return InstancedStaticMeshInfos.IsValidIndex(Index);
+	}
+
 private:
 	TArrayView<FMassInstancedStaticMeshInfo> InstancedStaticMeshInfos;
 	const FRWRecursiveAccessDetector* AccessDetector;
