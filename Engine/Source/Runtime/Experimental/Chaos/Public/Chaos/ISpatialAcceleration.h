@@ -5,6 +5,7 @@
 #include "GeometryParticlesfwd.h"
 #include "ChaosCheck.h"
 #include "ChaosDebugDrawDeclares.h"
+#include "Containers/HashTable.h"
 
 namespace Chaos
 {
