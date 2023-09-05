@@ -22,6 +22,7 @@ class ADEPRECATED_SmartObjectCollection;
 class UNavigationQueryFilter;
 class ANavigationData;
 struct FSmartObjectValidationContext;
+struct FTargetingRequestHandle;
 
 #if WITH_EDITOR
 /** Called when an event related to the main collection occured. */
@@ -519,6 +520,18 @@ public:
 	 * @return True if at least one candidate was found.
 	 */
 	bool FindSmartObjectsInList(const FSmartObjectRequestFilter& Filter, const TConstArrayView<AActor*> ActorList, TArray<FSmartObjectRequestResult>& OutResults, const FConstStructView UserData) const;
+
+	/**
+	 * Search the results of the given targeting request handle for smart objects that match the request criteria
+	 *
+	 * @param Filter Parameters defining the search area and criteria
+	 * @param TargetingHandle The targeting handle of the request that will have its resulted searched for smart objects
+	 * @param OutResults List of smart object slot candidates found in range
+	 * @param UserData Additional data that could be provided to bind values in the conditions evaluation context
+	 *
+	 * @return True if at least one candidate was found.
+	 */
+	bool FindSmartObjectsInTargetingRequest(const FSmartObjectRequestFilter& Filter, const FTargetingRequestHandle TargetingHandle, TArray<FSmartObjectRequestResult>& OutResults, const FConstStructView UserData) const;
 	
 	/**
 	 * Spatial lookup for first slot in range respecting request criteria and selection conditions.

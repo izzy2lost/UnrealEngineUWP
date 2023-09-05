@@ -11,6 +11,7 @@ struct FGameplayTagContainer;
 class UBlackboardComponent;
 class AAIController;
 class UBTNode;
+struct FTargetingRequestHandle;
 
 UCLASS(meta = (ScriptName = "SmartObjectLibrary"))
 class SMARTOBJECTSMODULE_API USmartObjectBlueprintFunctionLibrary : public UBlueprintFunctionLibrary
@@ -164,6 +165,20 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintPure = False, Category = "SmartObject", Meta = (ReturnDisplayName = "bSuccess"))
 	static bool FindSmartObjectsInActor(const FSmartObjectRequestFilter& Filter, AActor* SearchActor, TArray<FSmartObjectRequestResult>& OutResults, const AActor* UserActor = nullptr);
+
+	/**
+	 * Search the results of the given targeting handle request for smart objects that match the request criteria
+	 *
+	 * @param WorldContextObject Object used to fetch the SmartObjectSubsystem of its associated world.
+	 * @param Filter Parameters defining the search area and criteria
+	 * @param TargetingHandle The targeting handle of the request that will have its results searched for smart objects
+	 * @param OutResults List of smart object slot candidates found in range
+	 * @param UserActor Used to create additional data that could be provided to bind values in the conditions evaluation context
+	 *
+	 * @return True if at least one candidate was found.
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure = False, Category = "SmartObject", Meta = (WorldContext="WorldContextObject", ReturnDisplayName = "bSuccess"))
+	static bool FindSmartObjectsInTargetingRequest(UObject* WorldContextObject, const FSmartObjectRequestFilter& Filter, const FTargetingRequestHandle TargetingHandle, TArray<FSmartObjectRequestResult>& OutResults, const AActor* UserActor = nullptr);
 	
 	/**
 	 * Search list of specific actors (often from a physics query) for slot candidates respecting request criteria and selection conditions.

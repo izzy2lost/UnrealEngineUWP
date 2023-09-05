@@ -15,6 +15,7 @@
 #include "Annotations/SmartObjectSlotEntranceAnnotation.h"
 #include "Annotations/SmartObjectAnnotation_SlotUserCollision.h"
 #include "Misc/EnumerateRange.h"
+#include "Types/TargetingSystemTypes.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SmartObjectSubsystem)
 
@@ -2246,6 +2247,47 @@ bool USmartObjectSubsystem::FindSmartObjectsInList(const FSmartObjectRequestFilt
 	return (OutResults.Num() > 0);
 }
 
+bool USmartObjectSubsystem::FindSmartObjectsInTargetingRequest(const FSmartObjectRequestFilter& Filter, const FTargetingRequestHandle TargetingHandle, TArray<FSmartObjectRequestResult>& OutResults, const FConstStructView UserData) const
+{
+	if (FTargetingDefaultResultsSet* Results = FTargetingDefaultResultsSet::Find(TargetingHandle))
+	{
+		for (const FTargetingDefaultResultData& Data : Results->TargetResults)
+		{
+			AActor* ResultActor = Data.HitResult.GetActor();
+			if (!ResultActor)
+			{
+				continue;
+			}
+			
+			const USmartObjectComponent* FoundComponent = ResultActor->GetComponentByClass<USmartObjectComponent>();
+			if (!FoundComponent)
+			{
+				continue;
+			}
+
+			const FSmartObjectHandle SmartObjectHandle = FoundComponent->GetRegisteredHandle();
+			const FSmartObjectRuntime* SmartObjectRuntime = SmartObjectHandle.IsValid() ? RuntimeSmartObjects.Find(SmartObjectHandle) : nullptr;
+			if (!SmartObjectRuntime)
+			{
+				continue;
+			}
+
+			// We found a valid smart object runtime, populate our results with it's slots
+			TArray<FSmartObjectSlotHandle> SlotHandles;
+			FindSlots(SmartObjectHandle, *SmartObjectRuntime, Filter, SlotHandles, UserData);
+			OutResults.Reserve(OutResults.Num() + SlotHandles.Num());	
+		
+			for (FSmartObjectSlotHandle SlotHandle : SlotHandles)
+			{
+				OutResults.Emplace(SmartObjectHandle, SlotHandle);
+			}
+		}
+	}
+
+	// Successful if we found some smart objects
+	return (OutResults.Num() > 0);
+}
+
 void USmartObjectSubsystem::RegisterCollectionInstances()
 {
 	for (TActorIterator<ASmartObjectPersistentCollection> It(GetWorld()); It; ++It)
@@ -2259,6 +2301,8 @@ void USmartObjectSubsystem::RegisterCollectionInstances()
 		}
 	}
 }
+
+
 
 ESmartObjectCollectionRegistrationResult USmartObjectSubsystem::RegisterCollection(ASmartObjectPersistentCollection& InCollection)
 {

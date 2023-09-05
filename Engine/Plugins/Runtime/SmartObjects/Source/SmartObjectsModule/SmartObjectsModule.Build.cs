@@ -23,7 +23,8 @@ namespace UnrealBuildTool.Rules
 				"RHI",
 				"StructUtils",
 				"WorldConditions",
-				"NavigationSystem"
+				"NavigationSystem",
+				"TargetingSystem"
 			}
 			);
 

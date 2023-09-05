@@ -7,6 +7,7 @@
 #include "SmartObjectComponent.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "BehaviorTree/BTFunctionLibrary.h"
+#include "Types/TargetingSystemTypes.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SmartObjectBlueprintFunctionLibrary)
 
@@ -163,6 +164,16 @@ bool USmartObjectBlueprintFunctionLibrary::FindSmartObjectsInActor(const FSmartO
     	{
     		return Subsystem->FindSmartObjectsInList(Filter, { SearchActor }, OutResults, FConstStructView::Make(FSmartObjectActorUserData(UserActor)));	
     	}
+	}
+	return false;
+}
+
+bool USmartObjectBlueprintFunctionLibrary::FindSmartObjectsInTargetingRequest(UObject* WorldContextObject, const FSmartObjectRequestFilter& Filter, const FTargetingRequestHandle TargetingHandle, TArray<FSmartObjectRequestResult>& OutResults, const AActor* UserActor /*= nullptr*/)
+{
+	const UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+	if (const USmartObjectSubsystem* Subsystem = USmartObjectSubsystem::GetCurrent(World))
+	{
+		return Subsystem->FindSmartObjectsInTargetingRequest(Filter, TargetingHandle, OutResults, FConstStructView::Make(FSmartObjectActorUserData(UserActor)));
 	}
 	return false;
 }

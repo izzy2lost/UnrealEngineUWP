@@ -39,6 +39,10 @@
 			"Enabled": true
 		},
 		{
+			"Name": "TargetingSystem",
+			"Enabled": true
+		},
+		{
 			"Name": "StructUtils",
 			"Enabled": true
 		},
