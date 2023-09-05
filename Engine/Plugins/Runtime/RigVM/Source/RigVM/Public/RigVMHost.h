@@ -9,6 +9,7 @@
 #include "RigVMCore/RigVMGraphFunctionHost.h"
 #include "Engine/AssetUserData.h"
 #include "Interfaces/Interface_AssetUserData.h"
+#include "SceneManagement.h"
 #include "RigVMHost.generated.h"
 
 // set this to something larger than 0 to profile N runs
@@ -249,6 +250,8 @@ public:
 
 	const FRigVMDrawContainer& GetDrawContainer() const { return DrawContainer; };
 	FRigVMDrawContainer& GetDrawContainer() { return DrawContainer; };
+
+	void DrawIntoPDI(FPrimitiveDrawInterface* PDI, const FTransform& InTransform);
 
 	virtual USceneComponent* GetOwningSceneComponent(); 
 

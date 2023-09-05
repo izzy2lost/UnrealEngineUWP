@@ -898,56 +898,8 @@ void FControlRigEditMode::Render(const FSceneView* View, FViewport* Viewport, FP
 						}
 					}
 				}
-				for (const FRigVMDrawInstruction& Instruction : ControlRig->DrawInterface)
-				{
-					if (!Instruction.IsValid())
-					{
-						continue;
-					}
 
-					FTransform InstructionTransform = Instruction.Transform * ComponentTransform;
-					switch (Instruction.PrimitiveType)
-					{
-					case ERigVMDrawSettings::Points:
-					{
-						for (const FVector& Point : Instruction.Positions)
-						{
-							PDI->DrawPoint(InstructionTransform.TransformPosition(Point), Instruction.Color, Instruction.Thickness, SDPG_Foreground);
-						}
-						break;
-					}
-					case ERigVMDrawSettings::Lines:
-					{
-						const TArray<FVector>& Points = Instruction.Positions;
-						PDI->AddReserveLines(SDPG_Foreground, Points.Num() / 2, false, Instruction.Thickness > SMALL_NUMBER);
-						for (int32 PointIndex = 0; PointIndex < Points.Num() - 1; PointIndex += 2)
-						{
-							PDI->DrawLine(InstructionTransform.TransformPosition(Points[PointIndex]), InstructionTransform.TransformPosition(Points[PointIndex + 1]), Instruction.Color, SDPG_Foreground, Instruction.Thickness);
-						}
-						break;
-					}
-					case ERigVMDrawSettings::LineStrip:
-					{
-						const TArray<FVector>& Points = Instruction.Positions;
-						PDI->AddReserveLines(SDPG_Foreground, Points.Num() - 1, false, Instruction.Thickness > SMALL_NUMBER);
-						for (int32 PointIndex = 0; PointIndex < Points.Num() - 1; PointIndex++)
-						{
-							PDI->DrawLine(InstructionTransform.TransformPosition(Points[PointIndex]), InstructionTransform.TransformPosition(Points[PointIndex + 1]), Instruction.Color, SDPG_Foreground, Instruction.Thickness);
-						}
-						break;
-					}
-
-					case ERigVMDrawSettings::DynamicMesh:
-					{
-						FDynamicMeshBuilder MeshBuilder(PDI->View->GetFeatureLevel());
-						MeshBuilder.AddVertices(Instruction.MeshVerts);
-						MeshBuilder.AddTriangles(Instruction.MeshIndices);
-						MeshBuilder.Draw(PDI, InstructionTransform.ToMatrixWithScale(), Instruction.MaterialRenderProxy, SDPG_World/*SDPG_Foreground*/);
-						break;
-					}
-
-					}
-				}
+				ControlRig->DrawIntoPDI(PDI, ComponentTransform);
 			}
 		}
 	}

@@ -9,6 +9,7 @@
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "UObject/UObjectIterator.h"
 #include "UObject/ObjectSaveContext.h"
+#include "SceneView.h"
 
 #if WITH_EDITOR
 #include "Kismet2/BlueprintEditorUtils.h"
@@ -821,6 +822,62 @@ const URigVMMemoryStorage* URigVMHost::GetMemoryByType(ERigVMMemoryType InMemory
 {
 	check(VM);
 	return VM->GetMemoryByType(ExtendedExecuteContext, InMemoryType);
+}
+
+void URigVMHost::DrawIntoPDI(FPrimitiveDrawInterface* PDI, const FTransform& InTransform)
+{
+	for (const FRigVMDrawInstruction& Instruction : DrawInterface)
+	{
+		if (!Instruction.IsValid())
+		{
+			continue;
+		}
+
+		FTransform InstructionTransform = Instruction.Transform * InTransform;
+		switch (Instruction.PrimitiveType)
+		{
+			case ERigVMDrawSettings::Points:
+			{
+				for (const FVector& Point : Instruction.Positions)
+				{
+					PDI->DrawPoint(InstructionTransform.TransformPosition(Point), Instruction.Color, Instruction.Thickness, SDPG_Foreground);
+				}
+				break;
+			}
+			case ERigVMDrawSettings::Lines:
+			{
+				const TArray<FVector>& Points = Instruction.Positions;
+				PDI->AddReserveLines(SDPG_Foreground, Points.Num() / 2, false, Instruction.Thickness > SMALL_NUMBER);
+				for (int32 PointIndex = 0; PointIndex < Points.Num() - 1; PointIndex += 2)
+				{
+					PDI->DrawLine(InstructionTransform.TransformPosition(Points[PointIndex]), InstructionTransform.TransformPosition(Points[PointIndex + 1]), Instruction.Color, SDPG_Foreground, Instruction.Thickness);
+				}
+				break;
+			}
+			case ERigVMDrawSettings::LineStrip:
+			{
+				const TArray<FVector>& Points = Instruction.Positions;
+				PDI->AddReserveLines(SDPG_Foreground, Points.Num() - 1, false, Instruction.Thickness > SMALL_NUMBER);
+				for (int32 PointIndex = 0; PointIndex < Points.Num() - 1; PointIndex++)
+				{
+					PDI->DrawLine(InstructionTransform.TransformPosition(Points[PointIndex]), InstructionTransform.TransformPosition(Points[PointIndex + 1]), Instruction.Color, SDPG_Foreground, Instruction.Thickness);
+				}
+				break;
+			}
+			case ERigVMDrawSettings::DynamicMesh:
+			{
+				FDynamicMeshBuilder MeshBuilder(PDI->View->GetFeatureLevel());
+				MeshBuilder.AddVertices(Instruction.MeshVerts);
+				MeshBuilder.AddTriangles(Instruction.MeshIndices);
+				MeshBuilder.Draw(PDI, InstructionTransform.ToMatrixWithScale(), Instruction.MaterialRenderProxy, SDPG_World/*SDPG_Foreground*/);
+				break;
+			}
+			default:
+			{
+				break;
+			}
+		}
+	}
 }
 
 USceneComponent* URigVMHost::GetOwningSceneComponent()
