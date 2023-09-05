@@ -78,6 +78,11 @@ public:
 
 	TSharedPtr< FUICommandInfo > FovZoomIn;
 	TSharedPtr< FUICommandInfo > FovZoomOut;
+
+	TSharedPtr< FUICommandInfo > RotateUp;
+	TSharedPtr< FUICommandInfo > RotateDown;
+	TSharedPtr< FUICommandInfo > RotateLeft;
+	TSharedPtr< FUICommandInfo > RotateRight;
 };
 
 // FPrioritizedInputChord
