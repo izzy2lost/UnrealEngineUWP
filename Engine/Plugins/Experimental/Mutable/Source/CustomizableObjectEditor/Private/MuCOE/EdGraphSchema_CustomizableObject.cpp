@@ -766,7 +766,7 @@ void UEdGraphSchema_CustomizableObject::GetContextMenuActionsReconstructAllChild
 				return;
 			}
 
-			UCustomizableObjectNode* Node = Cast<UCustomizableObjectNode>(Context->Node);
+			UCustomizableObjectNode* Node = const_cast<UCustomizableObjectNode*>(Cast<UCustomizableObjectNode>(Context->Node));
 			if (!Node)
 			{
 				return;
@@ -858,7 +858,7 @@ void UEdGraphSchema_CustomizableObject::GetContextMenuActions(UToolMenu* Menu, U
 	}
 	else // On Pin right click
 	{
-		UCustomizableObjectNodeTable* TableNode = Cast<UCustomizableObjectNodeTable>(Context->Node);
+		const UCustomizableObjectNodeTable* TableNode = Cast<UCustomizableObjectNodeTable>(Context->Node);
 		UEdGraphPin* TexturePin = (UEdGraphPin*)Context->Pin;
 
 		if (TableNode && TexturePin && !TableNode->IsImageArrayPin(TexturePin) && !TexturePin->LinkedTo.Num() && (TexturePin->PinType.PinCategory == PC_Image || TexturePin->PinType.PinCategory == PC_PassThroughImage))
@@ -875,7 +875,7 @@ void UEdGraphSchema_CustomizableObject::GetContextMenuActions(UToolMenu* Menu, U
 			Section.AddMenuEntry
 			(
 				"ChangeTexturePinMode", ActionText, ToolTipText, FSlateIcon(),
-				FUIAction(FExecuteAction::CreateLambda([TableNode, TexturePin]()
+				FUIAction(FExecuteAction::CreateLambda([TableNode = const_cast<UCustomizableObjectNodeTable*>(TableNode), TexturePin]()
 					{
 						TableNode->ChangeImagePinMode(TexturePin);
 					}))
@@ -889,7 +889,7 @@ void UEdGraphSchema_CustomizableObject::GetContextMenuActions(UToolMenu* Menu, U
 					LOCTEXT("SetTexturePinModeDefault_Label","Set pin as default."),
 					LOCTEXT("SetTexturePinModeDefault_Tooltip","Set the selected texture pin to use the default node mode."),
 					FSlateIcon(),
-					FUIAction(FExecuteAction::CreateLambda([TableNode, TexturePin]()
+					FUIAction(FExecuteAction::CreateLambda([TableNode = const_cast<UCustomizableObjectNodeTable*>(TableNode), TexturePin]()
 						{
 							TableNode->ChangeImagePinMode(TexturePin, true);
 						}))

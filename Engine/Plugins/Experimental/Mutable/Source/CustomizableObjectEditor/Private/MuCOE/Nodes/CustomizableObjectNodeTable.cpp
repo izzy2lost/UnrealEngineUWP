@@ -1150,7 +1150,7 @@ UCustomizableObjectNodeTableRemapPins* UCustomizableObjectNodeTable::CreateRemap
 }
 
 
-bool UCustomizableObjectNodeTable::IsImagePinDefault(UEdGraphPin* Pin)
+bool UCustomizableObjectNodeTable::IsImagePinDefault(const UEdGraphPin* Pin) const
 {
 	if (UCustomizableObjectNodeTableImagePinData* PinData = Cast<UCustomizableObjectNodeTableImagePinData>(GetPinData(*(Pin))))
 	{
@@ -1161,7 +1161,7 @@ bool UCustomizableObjectNodeTable::IsImagePinDefault(UEdGraphPin* Pin)
 }
 
 
-bool UCustomizableObjectNodeTable::IsImageArrayPin(UEdGraphPin* Pin)
+bool UCustomizableObjectNodeTable::IsImageArrayPin(const UEdGraphPin* Pin) const
 {
 	if (UCustomizableObjectNodeTableImagePinData* PinData = Cast<UCustomizableObjectNodeTableImagePinData>(GetPinData(*(Pin))))
 	{
@@ -1174,9 +1174,9 @@ bool UCustomizableObjectNodeTable::IsImageArrayPin(UEdGraphPin* Pin)
 
 ETableTextureType UCustomizableObjectNodeTable::GetColumnImageMode(const FString& ColumnName) const
 {
-	for (UEdGraphPin* Pin : Pins)
+	for (const UEdGraphPin* Pin : Pins)
 	{
-		if (UCustomizableObjectNodeTableImagePinData* PinData = Cast<UCustomizableObjectNodeTableImagePinData>(GetPinData(*(Pin))))
+		if (const UCustomizableObjectNodeTableImagePinData* PinData = Cast<UCustomizableObjectNodeTableImagePinData>(GetPinData(*(Pin))))
 		{
 			if (PinData->ColumnName == ColumnName)
 			{

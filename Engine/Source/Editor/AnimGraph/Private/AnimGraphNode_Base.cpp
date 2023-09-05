@@ -1023,7 +1023,7 @@ void UAnimGraphNode_Base::AutowireNewNode(UEdGraphPin* FromPin)
 
 TSharedRef<SWidget> UAnimGraphNode_Base::MakePropertyBindingWidget(const FAnimPropertyBindingWidgetArgs& InArgs)
 {
-	UAnimGraphNode_Base* FirstAnimGraphNode = InArgs.Nodes[0];
+	const UAnimGraphNode_Base* FirstAnimGraphNode = InArgs.Nodes[0];
 	UClass* BindingClass = FirstAnimGraphNode->Binding ? FirstAnimGraphNode->Binding->GetClass() : nullptr;
 	UAnimGraphNodeBinding* BindingCDO = BindingClass ? CastChecked<UAnimGraphNodeBinding>(BindingClass->GetDefaultObject()) : nullptr;
 

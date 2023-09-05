@@ -747,8 +747,8 @@ void FNiagaraDataInterfaceNodeActionProvider_DataChannelWrite::GetNodeContextMen
 
 	FToolMenuSection& Section = Menu->AddSection("DataChannelWrite", InitForDataChannelHeaderText);
 
-	UNiagaraNodeFunctionCall* FuncNode = CastChecked<UNiagaraNodeFunctionCall>(Context->Node);
-	TWeakObjectPtr<UNiagaraNodeFunctionCall> WeakNode = FuncNode;
+	const UNiagaraNodeFunctionCall* FuncNode = CastChecked<UNiagaraNodeFunctionCall>(Context->Node);
+	TWeakObjectPtr<const UNiagaraNodeFunctionCall> WeakNode = FuncNode;
 
 	auto CreateNodeContextMenu = [WeakNode](UToolMenu* InNewToolMenu)
 	{
@@ -762,7 +762,7 @@ void FNiagaraDataInterfaceNodeActionProvider_DataChannelWrite::GetNodeContextMen
 				auto CreateDataChannelActionEntry = [WeakChannel, WeakNode]()
 				{
 					UNiagaraDataChannel* Channel = WeakChannel.Get();
-					UNiagaraNodeFunctionCall* Node = WeakNode.Get();
+					UNiagaraNodeFunctionCall* Node = const_cast<UNiagaraNodeFunctionCall*>(WeakNode.Get());
 					if(Channel && Node)
 					{
 						Node->RemoveAllDynamicPins();
@@ -806,8 +806,8 @@ void FNiagaraDataInterfaceNodeActionProvider_DataChannelRead::GetNodeContextMenu
 		return;
 	}
 	
-	UNiagaraNodeFunctionCall* FuncNode = CastChecked<UNiagaraNodeFunctionCall>(Context->Node);
-	TWeakObjectPtr<UNiagaraNodeFunctionCall> WeakNode = FuncNode;
+	const UNiagaraNodeFunctionCall* FuncNode = CastChecked<UNiagaraNodeFunctionCall>(Context->Node);
+	TWeakObjectPtr<const UNiagaraNodeFunctionCall> WeakNode = FuncNode;
 
 	// as the lambda gives us the tool menu, it's important to use that instead of the menu we are being passed in from the function
 	auto CreateNodeContextMenu = [WeakNode](UToolMenu* InToolMenu)
@@ -909,8 +909,8 @@ void FNiagaraDataInterfaceNodeActionProvider_DataChannelRead::AddDataChannelInit
 		return;
 	}
 	
-	UNiagaraNodeFunctionCall* FuncNode = CastChecked<UNiagaraNodeFunctionCall>(Context->Node);
-	TWeakObjectPtr<UNiagaraNodeFunctionCall> WeakNode = FuncNode;
+	const UNiagaraNodeFunctionCall* FuncNode = CastChecked<UNiagaraNodeFunctionCall>(Context->Node);
+	TWeakObjectPtr<const UNiagaraNodeFunctionCall> WeakNode = FuncNode;
 
 	FToolMenuSection& MenuSection = ToolMenu->AddSection("DataChannelRead", NiagaraActionsLocal::InitForDataChannelHeaderText);
 	auto InitForDataChannelSection = [&MenuSection, WeakNode](UNiagaraDataChannel* DataChannel)
@@ -921,7 +921,7 @@ void FNiagaraDataInterfaceNodeActionProvider_DataChannelRead::AddDataChannelInit
 			auto CreateDataChannelActionEntry = [WeakChannel, WeakNode]()
 			{
 				UNiagaraDataChannel* Channel = WeakChannel.Get();
-				UNiagaraNodeFunctionCall* Node = WeakNode.Get();
+				UNiagaraNodeFunctionCall* Node = const_cast<UNiagaraNodeFunctionCall*>(WeakNode.Get());
 
 				if (Channel && Node)
 				{

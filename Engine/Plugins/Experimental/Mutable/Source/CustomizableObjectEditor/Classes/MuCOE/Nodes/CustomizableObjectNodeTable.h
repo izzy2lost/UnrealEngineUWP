@@ -303,10 +303,10 @@ public:
 	void ChangeImagePinMode(UEdGraphPin* Pin, bool bSetDefault = false);
 
 	// Returns true if the pin is in the default mode (same as node)
-	bool IsImagePinDefault(UEdGraphPin* Pin);
+	bool IsImagePinDefault(const UEdGraphPin* Pin) const;
 
 	// Returns true if the pin is a texture array pin
-	bool IsImageArrayPin(UEdGraphPin* Pin);
+	bool IsImageArrayPin(const UEdGraphPin* Pin) const;
 
 	// Returns the image mode of the column
 	ETableTextureType GetColumnImageMode(const FString& ColumnName) const;

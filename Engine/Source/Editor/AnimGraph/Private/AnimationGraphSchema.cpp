@@ -813,7 +813,7 @@ void UAnimationGraphSchema::GetContextMenuActions(UToolMenu* Menu, UGraphNodeCon
 {
 	Super::GetContextMenuActions(Menu, Context);
 	
-	if (UAnimGraphNode_Base* AnimGraphNode = Cast<UAnimGraphNode_Base>(Context->Node))
+	if (const UAnimGraphNode_Base* AnimGraphNode = Cast<UAnimGraphNode_Base>(Context->Node))
 	{
 		{
 			// Node contextual actions
@@ -827,7 +827,7 @@ void UAnimationGraphSchema::GetContextMenuActions(UToolMenu* Menu, UGraphNodeCon
 
 		if(Context->Pin && !IsPosePin(Context->Pin->PinType))
 		{
-			TSharedPtr<SWidget> BindingWidget = MakeBindingWidgetForPin({ AnimGraphNode }, Context->Pin->GetFName(), false, true);
+			TSharedPtr<SWidget> BindingWidget = MakeBindingWidgetForPin({ const_cast<UAnimGraphNode_Base*>(AnimGraphNode) }, Context->Pin->GetFName(), false, true);
 			if(BindingWidget.IsValid())
 			{
 				FToolMenuSection& Section = Menu->AddSection("EdGraphSchemaPinActions");
