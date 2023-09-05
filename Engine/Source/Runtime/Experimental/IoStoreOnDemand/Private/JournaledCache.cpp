@@ -8,6 +8,7 @@
 #include "Containers/Array.h"
 #include "Containers/Map.h"
 #include "Containers/UnrealString.h"
+#include "HAL/FileManager.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "HAL/PlatformFile.h"
 #include "HAL/PlatformProcess.h"
@@ -484,16 +485,6 @@ void FDiskJournal::OpenJrnFile()
 	IPlatformFile& Ipf = IPlatformFile::GetPlatformPhysical();
 
 	IFileHandle* Handle = Ipf.OpenWrite(*JrnPath, true, true);
-	if (Handle == nullptr)
-	{	
-		// If the open failed it could be because we still need to create the directory
-		TStringBuilder<64> JrnDir = WriteToString<64>(FPathViews::GetPath(JrnPath));
-		if (Ipf.CreateDirectory(*JrnDir))
-		{
-			Handle = Ipf.OpenWrite(*JrnPath, true, true);
-		}
-	}
-
 	UE_CLOG(Handle == nullptr, LogIas, Error, TEXT("Failed to open '%s' for FDiskJournal"), *JrnPath);
 	JrnHandle.Reset(Handle);
 }
@@ -1448,7 +1439,7 @@ public:
 	using GetRetType = UE::Tasks::TTask<TIoStatusOr<FIoBuffer>>;
 
 								FJournaledCache() = default;
-	bool						Initialize(const FIasCacheConfig& Config);
+	bool						Initialize(const TCHAR* RootDir, const FIasCacheConfig& Config);
 	virtual bool				ContainsChunk(const FIoHash& Key) const override;
 	virtual GetRetType			Get(const FIoHash& Key, const FIoReadOptions& Options, const FIoCancellationToken* CancellationToken) override;
 	virtual FIoStatus			Put(const FIoHash& Key, FIoBuffer& Data) override;
@@ -1472,24 +1463,34 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-bool FJournaledCache::Initialize(const FIasCacheConfig& Config)
+bool FJournaledCache::Initialize(const TCHAR* RootDir, const FIasCacheConfig& Config)
 {
+	// Filesystem setup
+	FStringView Name = Config.Name;
+	check(Name.Len() > 0 && !Name.EndsWith('/') && !Name.EndsWith('\\'));
+
 	TStringBuilder<256> CachePath;
-	CachePath << FPaths::ProjectPersistentDownloadDir();
-	if (CachePath.LastChar() != TEXT('/'))
+	CachePath << RootDir;
+	FPathViews::Append(CachePath, "ias");
+	FPathViews::Append(CachePath, FPathViews::GetPath(Name));
+
+	if (IFileManager& Ifm = IFileManager::Get(); !Ifm.MakeDirectory(CachePath.ToString(), true))
 	{
-		CachePath.AppendChar(TEXT('/'));
+		UE_LOG(LogIas, Error, TEXT("JournaledCache: Unable to create directory '%s'"), CachePath.ToString());
+		return false;
 	}
-	CachePath << TEXT("ias/");
-	CachePath << Config.Name;
+
+	FPathViews::Append(CachePath, FPathViews::GetBaseFilename(Name));
 	CachePath << TEXT(".cache.0");
 
+	// Inner cache
 	FCacheInner::FConfig EventualConfig;
 	static_cast<FIasCacheConfig&>(EventualConfig) = Config;
 	EventualConfig.Path = CachePath;
 	Cache = MakeUnique<FCacheInner>(MoveTemp(EventualConfig));
 	Cache->Load();
 
+	// Thread setup
 	const FIasCacheConfig::FRate& WriteRate = Config.WriteRate;
 	const FIasCacheConfig::FDemand& Demand = Config.Demand;
 	Governor.Set(WriteRate.Allowance, WriteRate.Ops, WriteRate.Seconds);
@@ -1633,12 +1634,12 @@ uint64 FJournaledCache::ReduceKey(const FIoHash& Key)
 
 
 ////////////////////////////////////////////////////////////////////////////////
-TUniquePtr<IIasCache> MakeIasCache(const FIasCacheConfig& Config)
+TUniquePtr<IIasCache> MakeIasCache(const TCHAR* RootPath, const FIasCacheConfig& Config)
 {
 	LLM_SCOPE_BYTAG(Ias);
 
 	FJournaledCache* Cache = new FJournaledCache();
-	if (Cache->Initialize(Config))
+	if (Cache->Initialize(RootPath, Config))
 	{
 		return TUniquePtr<IIasCache>(Cache);
 	}

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CancellationToken.h"
+#include "Containers/StringView.h"
 #include "IO/IoStatus.h"
 #include "Memory/MemoryFwd.h"
 #include "Tasks/Task.h"
@@ -49,7 +50,7 @@ struct FIasCacheConfig
 		uint8	SuperBoost = 87;
 	};
 
-	const TCHAR*Name = TEXT("ias");
+	FStringView Name = TEXT("ias");
 	uint64		DiskQuota = 512ull << 20;
 	uint32		MemoryQuota = 2 << 20;
 	uint32		JournalQuota = 4 << 20; // description in JournalCache.cpp
@@ -58,6 +59,6 @@ struct FIasCacheConfig
 	bool		DropCache = false;
 };
 
-TUniquePtr<IIasCache> MakeIasCache(const FIasCacheConfig& Config);
+TUniquePtr<IIasCache> MakeIasCache(const TCHAR* RootDir, const FIasCacheConfig& Config);
 
 } // namespace UE::IO::IAS

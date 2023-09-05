@@ -1570,7 +1570,8 @@ void FIoStoreOnDemandModule::StartupModule()
 	TSharedPtr<IIasCache> Cache;
 	if (FIasCacheConfig Config = GetIasCacheConfig(CommandLine); Config.DiskQuota > 0)
 	{
-		Cache = MakeShareable(MakeIasCache(Config).Release());
+		FString CacheDir = FPaths::ProjectPersistentDownloadDir();
+		Cache = MakeShareable(MakeIasCache(*CacheDir, Config).Release());
 	}
 	else
 	{
