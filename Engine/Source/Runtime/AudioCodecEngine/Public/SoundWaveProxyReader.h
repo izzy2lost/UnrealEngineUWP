@@ -3,6 +3,7 @@
 #pragma once
 
 #include "DSP/BufferVectorOperations.h"
+#include "AudioDecompress.h"
 #include "HAL/Platform.h"
 #include "IAudioCodec.h"
 #include "Templates/SharedPointer.h"
@@ -10,99 +11,6 @@
 
 // Forward declare
 class FSoundWaveProxy;
-
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-
-namespace SoundWaveProxyReaderPrivate
-{
-	/** FDecoderOutput maintains a circular buffer of audio which is produced
-	 * from the decoder.
-	 */
-	class UE_DEPRECATED(5.3, "Please use IAudioFormat/IStreamedCompressedInfo instead") FDecoderOutput : public Audio::IDecoderOutput
-	{
-		static constexpr uint32 MinNumFramesPerDecode = 1;
-		static constexpr uint32 DefaultNumChannels = 1;
-		static constexpr uint32 MinNumChannels = 1;
-
-	public:
-		using FPushedAudioDetails = Audio::IDecoderOutput::FPushedAudioDetails;
-
-		/** Construct a FDecoderOutput
-		 *
-		 * @param InNumFramesPerDecode - Maximum number of frames pushed when
-		 *                               audio is decoded. The buffer will be
-		 *                               able to hold twice the number of frames.
-		 */
-		FDecoderOutput(uint32 InNumFramesPerDecode);
-
-		/** Set the number of channels in the audio being decoded. */
-		void SetNumChannels(uint32 InNumChannels);
-
-		/** Returns the number of samples in the buffer. */
-		FORCEINLINE int32 Num() const
-		{
-			return Buffer.Num();
-		}
-
-		/** Removes all samples from the buffer. */
-		void Reset();
-
-		/** Returns requirements used by the audio codec system. */
-		AUDIOCODECENGINE_API virtual Audio::IDecoderOutput::FRequirements GetRequirements(const Audio::FDecodedFormatInfo & InFormat) const override;
-
-		/** Adds samples to the buffer.
-		 *
-		 * This is called by the Decoder and should not be called otherwise.
-		 */
-		AUDIOCODECENGINE_API virtual int32 PushAudio(const Audio::IDecoderOutput::FPushedAudioDetails & InDetails, TArrayView<const int16> In16BitInterleave) override;
-
-		/** Adds samples to the buffer.
-		 *
-		 * This is called by the Decoder and should not be called otherwise.
-		 */
-		AUDIOCODECENGINE_API virtual int32 PushAudio(const FPushedAudioDetails & InDetails, TArrayView<const float> InFloat32Interleave) override;
-
-		/** This should not be called. It removes 16 bit PCM samples from the buffer
-		 * which is an unsupported operation of this class.
-		 */
-		AUDIOCODECENGINE_API virtual int32 PopAudio(TArrayView<int16> InExternalInt16Buffer, FPushedAudioDetails & OutDetails) override;
-
-		/** Copy samples to OutBuffer and remove them from this objects internal
-		 * buffer.
-		 *
-		 *
-		 * @param OutBuffer - A destination array to copy samples to.
-		 * @param OutDetails - Unused.
-		 *
-		 * @return The actual number of samples copied.
-		 */
-		AUDIOCODECENGINE_API virtual int32 PopAudio(TArrayView<float> OutBuffer, FPushedAudioDetails & OutDetails) override;
-
-		/** Remove samples from the internal buffer.
-		 *
-		 * @param InNumSamples - The desired number of samples to remove.
-		 *
-		 * @return The actual number of samples removed.
-		 */
-		FORCEINLINE int32 PopAudio(int32 InNumSamples)
-		{
-			return Buffer.Pop(InNumSamples);
-		}
-
-	private:
-
-		// Initialize buffer size.
-		void Init();
-		int32 PushAudioInternal(const FPushedAudioDetails & InDetails, TArrayView<const float> InBuffer);
-		int32 PushAudioInternal(const FPushedAudioDetails & InDetails, TArrayView<const int16> InBuffer);
-
-		uint32 NumFramesPerDecode = MinNumFramesPerDecode;
-		uint32 NumChannels = DefaultNumChannels;
-		Audio::TCircularAudioBuffer<float> Buffer;
-		Audio::FAlignedFloatBuffer SampleConversionBuffer;
-	};
-}
 
 /** FSoundWaveProxyReader reads a FWaveProxy and outputs 32 bit interleaved audio.
 *
@@ -114,7 +22,6 @@ class FSoundWaveProxyReader
 
 public:
 	using FSoundWaveProxyRef = TSharedRef<FSoundWaveProxy, ESPMode::ThreadSafe>;
-	using EDecodeResult = Audio::IDecoder::EDecodeResult;
 
 	/** Minimum number of frames to decode per a call to the decoder.  */
 	static constexpr uint32 DefaultMinDecodeSizeInFrames = 128;
@@ -224,16 +131,25 @@ public:
 	 *
 	 * @param InSeconds - The location to seek the playhead
 	 *
-	 * @return true on success, false on failuer.
+	 * @return true on success, false on failure.
 	 */
 	AUDIOCODECENGINE_API bool SeekToTime(float InSeconds);
 
-	/** Copies audio into OutBuffer. It returns the number of samples copied.
+	/** Pops audio from reader and copies audio into OutBuffer. It returns the number of samples copied.
 	 * Samples not written to will be set to zero.
 	 */
 	AUDIOCODECENGINE_API int32 PopAudio(Audio::FAlignedFloatBuffer& OutBuffer);
 
 private:
+
+	enum EDecodeResult
+	{
+		Fail,					// Decoder failed somehow.
+		MoreDataRemaining,		// Data has produced and there's more remaining
+		Finished				// The decoder has reached the end of the wave data
+	};
+
+	EDecodeResult Decode();
 
 	int32 PopAudioFromDecoderOutput(TArrayView<float> OutBufferView);
 	bool InitializeDecoder(float InStartTimeInSeconds);
@@ -243,9 +159,6 @@ private:
 	void UpdateLoopBoundaries();
 
 	FSoundWaveProxyRef WaveProxy;
-	TUniquePtr<Audio::IDecoderInput> DecoderInput;
-	TUniquePtr<Audio::IDecoder> Decoder;
-	SoundWaveProxyReaderPrivate::FDecoderOutput DecoderOutput;
 
 	FSettings Settings;
 
@@ -262,6 +175,17 @@ private:
 
 	bool bIsDecoderValid = false;
 	bool bFallbackSeekMethodWarningLogged = false;
-};
 
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+private:
+	mutable TUniquePtr<class ICompressedAudioInfo> CompressedAudioInfo;
+	Audio::TCircularAudioBuffer<float> DecoderOutput;
+
+	TArray<int16> ResidualBuffer;
+	Audio::FAlignedFloatBuffer SampleConversionBuffer;
+
+	static constexpr uint32 MinNumFramesPerDecode = 1;
+
+	bool bIsFirstDecode = true;
+	bool bPreviousIsStreaming = true;
+	uint32 NumFramesPerDecode = MinNumFramesPerDecode;
+};
