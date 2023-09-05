@@ -322,25 +322,32 @@ public:
 		return Cooker.SandboxFile->GetSandboxDirectory();
 	}
 
-	const ITargetPlatform* AddPlatform(const FName& PlatformName)
+	virtual const ITargetPlatform* AddPlatform(FName PlatformName, bool& bOutAlreadyInitialized) override
 	{
 		UE::Cook::FPlatformManager::FReadScopeLock PlatformScopeLock(Cooker.PlatformManager->ReadLockPlatforms());
 		const ITargetPlatform* TargetPlatform = AddPlatformInternal(PlatformName);
 		if (!TargetPlatform)
 		{
 			UE_LOG(LogCook, Warning, TEXT("Trying to add invalid platform '%s' on the fly"), *PlatformName.ToString());
+			bOutAlreadyInitialized = false;
 			return nullptr;
 		}
 
+		bOutAlreadyInitialized = Cooker.PlatformManager->HasSessionPlatform(TargetPlatform);
 		Cooker.PlatformManager->AddRefCookOnTheFlyPlatform(PlatformName, Cooker);
 
 		return TargetPlatform;
 	}
 
-	virtual void RemovePlatform(const FName& PlatformName) override
+	virtual void RemovePlatform(FName PlatformName) override
 	{
 		UE::Cook::FPlatformManager::FReadScopeLock PlatformScopeLock(Cooker.PlatformManager->ReadLockPlatforms());
 		Cooker.PlatformManager->ReleaseCookOnTheFlyPlatform(PlatformName);
+	}
+
+	virtual bool IsSchedulerThread() const override
+	{
+		return IsInGameThread();
 	}
 
 	virtual void GetUnsolicitedFiles(const FName& PlatformName, const FString& Filename, const bool bIsCookable, TArray<FString>& OutUnsolicitedFiles) override
@@ -620,7 +627,8 @@ bool UCookOnTheFlyServer::StartCookOnTheFly(FCookOnTheFlyStartupOptions InCookOn
 		{
 			if (Connection.GetTargetPlatform())
 			{
-				CookOnTheFlyServerInterface->AddPlatform(Connection.GetPlatformName());
+				bool bAlreadyInitialized = false;
+				CookOnTheFlyServerInterface->AddPlatform(Connection.GetPlatformName(), bAlreadyInitialized);
 			}
 		});
 
@@ -761,6 +769,12 @@ void UCookOnTheFlyServer::StartCookOnTheFlySessionFromGameThread(ITargetPlatform
 	// AddCookOnTheFlyPlatformFromGameThread can be called on cooker startup which occurs in UUnrealEdEngine::Init
 	// before all plugins are loaded.
 	BlockOnAssetRegistry();
+
+	if (CookOnTheFlyRequestManager)
+	{
+		FName PlatformName(*TargetPlatform->PlatformName());
+		CookOnTheFlyRequestManager->OnSessionStarted(PlatformName, bFirstCookInThisProcess);
+	}
 }
 
 void UCookOnTheFlyServer::OnTargetPlatformsInvalidated()
