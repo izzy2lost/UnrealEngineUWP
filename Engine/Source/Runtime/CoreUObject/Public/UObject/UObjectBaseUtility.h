@@ -522,10 +522,6 @@ public:
 	*/
 	COREUOBJECT_API void AddToCluster(UObjectBaseUtility* ClusterRootOrObjectFromCluster, bool bAddAsMutableObject = false);
 
-protected:
-	/** Helper function to create a cluster from UObject */
-	static COREUOBJECT_API void CreateClusterFromObject(UObjectBaseUtility* ClusterRootObject, UObjectBaseUtility* ReferencingObject);
-
 public:
 	/**
 	 * Walks up the chain of packages until it reaches the top level, which it ignores.
