@@ -42,7 +42,7 @@ private:
 
 namespace Metasound::Frontend
 {
-	class METASOUNDFRONTEND_API IMetaSoundDocumentBuilderRegistry
+	class METASOUNDFRONTEND_API IDocumentBuilderRegistry
 	{
 	public:
 		// Returns delegates used to mutate any internal builder cached state or notify listeners of external system that
@@ -51,9 +51,12 @@ namespace Metasound::Frontend
 		// mutate all documents using MetasoundDocumentBuilders).
 		virtual const FDocumentModifyDelegates* FindModifyDelegates(const FMetasoundFrontendClassName& InClassName) const = 0;
 
-		static IMetaSoundDocumentBuilderRegistry& GetChecked();
+		static IDocumentBuilderRegistry& GetChecked();
 
 	protected:
-		static void Set(TUniqueFunction<IMetaSoundDocumentBuilderRegistry&()>&& InGetInstance);
+		static void Set(TUniqueFunction<IDocumentBuilderRegistry&()>&& InGetInstance);
 	};
+
+	// Deprecated: use shorter name
+	using IMetaSoundDocumentBuilderRegistry = IDocumentBuilderRegistry;
 } // namespace Metasound::Frontend

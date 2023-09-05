@@ -7,10 +7,10 @@ namespace Metasound::Frontend
 {
 	namespace DocumentBuilderRegistryPrivate
 	{
-		TUniqueFunction<IMetaSoundDocumentBuilderRegistry&()> GetInstance;
+		TUniqueFunction<IDocumentBuilderRegistry&()> GetInstance;
 	} // namespace DocumentBuilderRegistryPrivate
 
-	IMetaSoundDocumentBuilderRegistry& IMetaSoundDocumentBuilderRegistry::GetChecked()
+	IDocumentBuilderRegistry& IDocumentBuilderRegistry::GetChecked()
 	{
 		using namespace DocumentBuilderRegistryPrivate;
 
@@ -18,7 +18,7 @@ namespace Metasound::Frontend
 		return GetInstance();
 	}
 
-	void IMetaSoundDocumentBuilderRegistry::Set(TUniqueFunction<IMetaSoundDocumentBuilderRegistry&()>&& InGetInstance)
+	void IDocumentBuilderRegistry::Set(TUniqueFunction<IDocumentBuilderRegistry&()>&& InGetInstance)
 	{
 		using namespace DocumentBuilderRegistryPrivate;
 

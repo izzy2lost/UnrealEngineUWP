@@ -13,15 +13,9 @@ namespace Metasound
 {
 	namespace Frontend
 	{
-		bool FDocumentTemplatePreprocessTransform::Transform(FDocumentHandle InDocument) const
-		{
-			unimplemented();
-			return false;
-		}
-
 		bool FDocumentTemplatePreprocessTransform::Transform(FMetasoundFrontendDocument& InOutDoc) const
 		{
-			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::AssetBase::Preprocessor);
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
 			bool bModified = false;
 
@@ -56,7 +50,7 @@ namespace Metasound
 					continue;
 				}
 
-				TUniquePtr<INodeTransform> NodeTransform = Params.Template->GenerateNodeTransform(InOutDoc);
+				TUniquePtr<INodeTransform> NodeTransform = Params.Template->GenerateNodeTransform();
 				check(NodeTransform.IsValid());
 
 				TSet<const FMetasoundFrontendNode*> NodesToRemove;
@@ -127,6 +121,8 @@ namespace Metasound
 					return TemplateKeys.Contains(NodeRegistryKey::CreateKey(Class.Metadata));
 				}, bAllowShrinking);
 			}
+
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 			return bModified;
 		}

@@ -13,6 +13,7 @@
 #include "MetasoundAssetManager.h"
 #include "MetasoundAudioFormats.h"
 #include "MetasoundBuilderSubsystem.h"
+#include "MetasoundDocumentInterface.h"
 #include "MetasoundDynamicOperatorTransactor.h"
 #include "MetasoundEngineAsset.h"
 #include "MetasoundEngineEnvironment.h"
@@ -57,10 +58,9 @@ namespace Metasound
 #if !WITH_EDITOR 
 			if (Frontend::MetaSoundEnableCookDeterministicIDGeneration != 0)
 			{
-				// When without editor, don't AutoUpdate or PreprocessDocument at runtime. This should happen at cook or asset save.
-				// When with editor, those are needed because sounds are not necessarily saved before previewing
+				// When without editor, don't AutoUpdate or ResolveDocument at runtime. This only happens at cook or save.
+				// When with editor, those are needed because sounds are not necessarily saved before previewing.
 				RegOptions.bAutoUpdate = false;
-				RegOptions.bPreprocessDocument = false;
 			}
 #endif // !WITH_EDITOR
 			if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
@@ -1108,5 +1108,4 @@ TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> UMetaSoundSource
 {
 	return DynamicTransactor;
 }
-
 #undef LOCTEXT_NAMESPACE // MetaSound

@@ -92,30 +92,20 @@ class METASOUNDFRONTEND_API UMetaSoundBuilderDocument : public UObject, public I
 	GENERATED_BODY()
 
 public:
+	// Create and return a valid builder document with the provided class
+	static UMetaSoundBuilderDocument& Create(const UClass& InBuilderClass);
+
+	// Create and return a valid builder document which copies the provided interface's document & class
+	static UMetaSoundBuilderDocument& Create(const IMetaSoundDocumentInterface& InDocToCopy);
+
 	// Returns the document
-	virtual const FMetasoundFrontendDocument& GetDocument() const override
-	{
-		return Document;
-	}
+	virtual const FMetasoundFrontendDocument& GetDocument() const override;
 
 	// Base MetaSoundClass that document is published to.
-	virtual const UClass& GetBaseMetaSoundUClass() const final override
-	{
-		checkf(MetaSoundUClass, TEXT("BaseMetaSoundUClass must be set upon creation of UMetaSoundBuilderDocument instance"));
-		return *MetaSoundUClass;
-	}
+	virtual const UClass& GetBaseMetaSoundUClass() const final override;
 
 private:
-	// Sets the base MetaSound UClass (to be called immediately following UObject construction)
-	void SetBaseMetaSoundUClass(const UClass& InMetaSoundClass)
-	{
-		MetaSoundUClass = &InMetaSoundClass;
-	}
-
-	virtual FMetasoundFrontendDocument& GetDocument() override
-	{
-		return Document;
-	}
+	virtual FMetasoundFrontendDocument& GetDocument() override;
 
 	UPROPERTY(Transient)
 	FMetasoundFrontendDocument Document;
@@ -123,8 +113,7 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<const UClass> MetaSoundUClass = nullptr;
 
-	friend struct FMetaSoundFrontendDocumentBuilder;
-	friend class UMetaSoundBuilderBase;
+	friend class FMetasoundAssetBase;
 };
 
 // Builder used to support dynamically generating MetaSound documents at runtime. Builder contains caches that speed up
@@ -172,6 +161,7 @@ public:
 
 	const FMetasoundFrontendClass* FindDependency(const FGuid& InClassID) const;
 	const FMetasoundFrontendClass* FindDependency(const FMetasoundFrontendClassMetadata& InMetadata) const;
+	TArray<const FMetasoundFrontendEdge*> FindEdges(const FGuid& InNodeID, const FGuid& InVertexID) const;
 
 	bool FindInterfaceInputNodes(FName InterfaceName, TArray<const FMetasoundFrontendNode*>& OutInputs) const;
 	bool FindInterfaceOutputNodes(FName InterfaceName, TArray<const FMetasoundFrontendNode*>& OutOutputs) const;
@@ -252,6 +242,10 @@ public:
 	bool SwapGraphInput(const FMetasoundFrontendClassVertex& InExistingInputVertex, const FMetasoundFrontendClassVertex& NewInputVertex);
 	bool SwapGraphOutput(const FMetasoundFrontendClassVertex& InExistingOutputVertex, const FMetasoundFrontendClassVertex& NewOutputVertex);
 	bool UpdateDependencyClassNames(const TMap<FMetasoundFrontendClassName, FMetasoundFrontendClassName>& OldToNewReferencedClassNames);
+
+	// Transforms template nodes within the given builder's document, which can include swapping associated edges and/or
+	// replacing nodes with other, registry-defined concrete node class instances. Returns true if any template nodes were processed.
+	bool TransformTemplateNodes();
 
 private:
 	using FFinalizeNodeFunctionRef = TFunctionRef<void(FMetasoundFrontendNode&, const Metasound::Frontend::FNodeRegistryKey&)>;

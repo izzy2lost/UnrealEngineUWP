@@ -29,6 +29,7 @@ class UMetaSoundSource;
 
 struct FMetasoundFrontendClassName;
 struct FMetasoundFrontendVersion;
+class FMetasoundAssetBase;
 
 enum class EMetaSoundOutputAudioFormat : uint8;
 
@@ -303,7 +304,7 @@ public:
 	// Returns if a given node output is connected.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder")
 	UPARAM(DisplayName = "Connected") bool NodeOutputIsConnected(const FMetaSoundBuilderNodeOutputHandle& OutputHandle) const;
-		
+
 	// Returns whether this is a preset.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder")
 	bool IsPreset() const;
@@ -454,9 +455,8 @@ protected:
 		return *MetaSound;
 	}
 
-	// Constructs a transient UMetaSoundBuilderDocument to be acted upon by this builder instance.
+	UE_DEPRECATED(5.4, "Use UMetaSoundBuilderDocument::Create instead")
 	UMetaSoundBuilderDocument* CreateTransientDocumentObject() const;
-
 
 	UPROPERTY()
 	FMetaSoundFrontendDocumentBuilder Builder;
@@ -535,7 +535,7 @@ private:
 
 /** The subsystem in charge of tracking MetaSound builders */
 UCLASS()
-class METASOUNDENGINE_API UMetaSoundBuilderSubsystem : public UEngineSubsystem, public Metasound::Frontend::IMetaSoundDocumentBuilderRegistry
+class METASOUNDENGINE_API UMetaSoundBuilderSubsystem : public UEngineSubsystem, public Metasound::Frontend::IDocumentBuilderRegistry
 {
 	GENERATED_BODY()
 
@@ -576,7 +576,7 @@ public:
 		EMetaSoundBuilderResult& OutResult,
 		EMetaSoundOutputAudioFormat OutputFormat = EMetaSoundOutputAudioFormat::Mono,
 		bool bIsOneShot = true);
-	
+
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder",  meta = (ExpandEnumAsExecs = "OutResult"))
 	UPARAM(DisplayName = "Patch Preset Builder") UMetaSoundPatchBuilder* CreatePatchPresetBuilder(FName BuilderName, const TScriptInterface<IMetaSoundDocumentInterface>& ReferencedPatchClass, EMetaSoundBuilderResult& OutResult);
 

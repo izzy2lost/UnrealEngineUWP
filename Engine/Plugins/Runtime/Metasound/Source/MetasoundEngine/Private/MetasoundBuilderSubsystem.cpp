@@ -14,6 +14,7 @@
 #include "MetasoundDynamicOperatorTransactor.h"
 #include "MetasoundFrontendDataTypeRegistry.h"
 #include "MetasoundFrontendDocument.h"
+#include "MetasoundFrontendDocumentIdGenerator.h"
 #include "MetasoundFrontendRegistries.h"
 #include "MetasoundFrontendSearchEngine.h"
 #include "MetasoundFrontendTransform.h"
@@ -86,11 +87,14 @@ FMetaSoundBuilderNodeOutputHandle UMetaSoundBuilderBase::AddGraphInputNode(FName
 		}
 		else
 		{
+			FDocumentIDGenerator& IDGenerator = FDocumentIDGenerator::Get();
+			const FMetasoundFrontendDocument& Doc = GetConstBuilder().GetDocument();
+
 			FMetasoundFrontendClassInput Description;
 			Description.Name = Name;
 			Description.TypeName = DataType;
-			Description.NodeID = FGuid::NewGuid();
-			Description.VertexID = FGuid::NewGuid();
+			Description.NodeID = IDGenerator.CreateNodeID(Doc);
+			Description.VertexID = IDGenerator.CreateVertexID(Doc);
 			Description.DefaultLiteral = static_cast<FMetasoundFrontendLiteral>(DefaultValue);
 			Description.AccessType = bIsConstructorInput ? EMetasoundFrontendVertexAccessType::Value : EMetasoundFrontendVertexAccessType::Reference;
 			Node = Builder.AddGraphInput(Description);
@@ -129,11 +133,14 @@ FMetaSoundBuilderNodeInputHandle UMetaSoundBuilderBase::AddGraphOutputNode(FName
 		}
 		else
 		{
+			FDocumentIDGenerator& IDGenerator = FDocumentIDGenerator::Get();
+			const FMetasoundFrontendDocument& Doc = GetConstBuilder().GetDocument();
+
 			FMetasoundFrontendClassOutput Description;
 			Description.Name = Name;
 			Description.TypeName = DataType;
-			Description.NodeID = FGuid::NewGuid();
-			Description.VertexID = FGuid::NewGuid();
+			Description.NodeID = IDGenerator.CreateNodeID(Doc);
+			Description.VertexID = IDGenerator.CreateVertexID(Doc);
 			Description.AccessType = bIsConstructorOutput ? EMetasoundFrontendVertexAccessType::Value : EMetasoundFrontendVertexAccessType::Reference;
 			Node = Builder.AddGraphOutput(Description);
 		}
@@ -638,21 +645,7 @@ FMetaSoundNodeHandle UMetaSoundBuilderBase::FindGraphOutputNode(FName OutputName
 
 UMetaSoundBuilderDocument* UMetaSoundBuilderBase::CreateTransientDocumentObject() const
 {
-	UMetaSoundBuilderDocument* DocObject = NewObject<UMetaSoundBuilderDocument>();
-	DocObject->SetBaseMetaSoundUClass(GetBuilderUClass());
-	return DocObject;
-}
-
-void UMetaSoundBuilderBase::InitFrontendBuilder()
-{
-	UMetaSoundBuilderDocument* DocObject = CreateTransientDocumentObject();
-	Builder = FMetaSoundFrontendDocumentBuilder(DocObject);
-	Builder.InitDocument();
-}
-
-void UMetaSoundBuilderBase::InitNodeLocations()
-{
-	Builder.InitNodeLocations();
+	return &UMetaSoundBuilderDocument::Create(GetBuilderUClass());
 }
 
 UObject* UMetaSoundBuilderBase::GetReferencedPresetAsset() const
@@ -682,6 +675,18 @@ UObject* UMetaSoundBuilderBase::GetReferencedPresetAsset() const
 	}
 
 	return nullptr;
+}
+
+void UMetaSoundBuilderBase::InitFrontendBuilder()
+{
+	UMetaSoundBuilderDocument& DocObject = UMetaSoundBuilderDocument::Create(GetBuilderUClass());
+	Builder = FMetaSoundFrontendDocumentBuilder(&DocObject);
+	Builder.InitDocument();
+}
+
+void UMetaSoundBuilderBase::InitNodeLocations()
+{
+	Builder.InitNodeLocations();
 }
 
 bool UMetaSoundBuilderBase::InterfaceIsDeclared(FName InterfaceName) const
@@ -1020,8 +1025,8 @@ void UMetaSoundSourceBuilder::InitFrontendBuilder()
 	TSharedRef<FDocumentModifyDelegates> DocumentDelegates = MakeShared<FDocumentModifyDelegates>();
 	InitDelegates(*DocumentDelegates);
 
-	UMetaSoundBuilderDocument* DocObject = CreateTransientDocumentObject();
-	Builder = FMetaSoundFrontendDocumentBuilder(DocObject, DocumentDelegates);
+	UMetaSoundBuilderDocument& DocObject = UMetaSoundBuilderDocument::Create(GetBuilderUClass());
+	Builder = FMetaSoundFrontendDocumentBuilder(&DocObject, DocumentDelegates);
 	Builder.InitDocument();
 }
 
@@ -1704,12 +1709,12 @@ void UMetaSoundBuilderSubsystem::Initialize(FSubsystemCollectionBase& Collection
 {
 	using namespace Metasound::Frontend;
 
-	IMetaSoundDocumentBuilderRegistry::Set([]() -> IMetaSoundDocumentBuilderRegistry&
+	IDocumentBuilderRegistry::Set([]() -> IDocumentBuilderRegistry&
 	{
 		check(GEngine);
 		UMetaSoundBuilderSubsystem* BuilderSubsystem = GEngine->GetEngineSubsystem<UMetaSoundBuilderSubsystem>();
 		check(BuilderSubsystem);
-		return static_cast<IMetaSoundDocumentBuilderRegistry&>(*BuilderSubsystem);
+		return static_cast<IDocumentBuilderRegistry&>(*BuilderSubsystem);
 	});
 }
 

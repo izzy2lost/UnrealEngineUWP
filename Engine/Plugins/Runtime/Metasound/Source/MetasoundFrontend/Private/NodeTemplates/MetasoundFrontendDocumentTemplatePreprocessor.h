@@ -9,14 +9,10 @@ namespace Metasound
 {
 	namespace Frontend
 	{
-		// Preprocesses all template node classes and respective node instances within
-		// a given document and removes template classes from document dependencies list.
 		class FDocumentTemplatePreprocessTransform : public IDocumentTransform
 		{
 		public:
-			UE_DEPRECATED(5.1, "Transforms acting on handles/controllers are deprecated.")
-			virtual bool Transform(FDocumentHandle InDocument) const override;
-
+			UE_DEPRECATED(5.4, "TemplatePreprocessTransform is now FMetasoundFrontendDocumentBuilder::TransformTemplateNodes")
 			virtual bool Transform(FMetasoundFrontendDocument& InOutDocument) const override;
 		};
 

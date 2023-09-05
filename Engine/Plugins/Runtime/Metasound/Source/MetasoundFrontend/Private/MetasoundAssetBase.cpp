@@ -16,6 +16,7 @@
 #include "IStructSerializerBackend.h"
 #include "Logging/LogMacros.h"
 #include "MetasoundAssetManager.h"
+#include "MetasoundDocumentInterface.h"
 #include "MetasoundFrontendController.h"
 #include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendDocumentBuilder.h"
@@ -232,25 +233,36 @@ void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSo
 	CacheRegistryMetadata();
 #endif // WITH_EDITOR
 
-	FString AssetName;
-	const UObject* OwningAsset = GetOwningAsset();
-	if (ensure(OwningAsset))
-	{
-		AssetName = OwningAsset->GetName();
-	}
-	
+	TScriptInterface<IMetaSoundDocumentInterface> DocInterface = GetOwningAsset();
+	check(DocInterface.GetObject());
 	TSharedPtr<FMetasoundFrontendDocument> DocumentToRegister;
-	if (InRegistrationOptions.bPreprocessDocument)
+	const IMetaSoundDocumentInterface& Interface = *DocInterface.GetInterface();
+
+	auto CreateTransformedDocumentToRegister = [&Interface]()
 	{
-		DocumentToRegister = PreprocessDocument();
+		// Node template transform is performed on copy of local document to avoid overwriting editable data
+		UMetaSoundBuilderDocument& DocObject = UMetaSoundBuilderDocument::Create(Interface);
+		FMetaSoundFrontendDocumentBuilder DocBuilder(&DocObject);
+		DocBuilder.TransformTemplateNodes();
+		return MakeShared<FMetasoundFrontendDocument>(MoveTemp(DocObject.GetDocument()));
+	};
+
+#if WITH_EDITOR
+	DocumentToRegister = CreateTransformedDocumentToRegister();
+#else // !WITH_EDITOR
+	if (Frontend::MetaSoundEnableCookDeterministicIDGeneration != 0)
+	{
+		DocumentToRegister = MakeShared<FMetasoundFrontendDocument>(Interface.GetDocument());
 	}
 	else
 	{
-		DocumentToRegister = MakeShared<FMetasoundFrontendDocument>(GetDocumentChecked());
+		DocumentToRegister = CreateTransformedDocumentToRegister();
 	}
+#endif // !WITH_EDITOR
 
 	CacheRuntimeData(*DocumentToRegister);
 	FNodeClassInfo AssetClassInfo = GetAssetClassInfo();
+	const FString AssetName = DocInterface.GetObject()->GetName();
 	TUniquePtr<INodeRegistryEntry> RegistryEntry = MakeUnique<AssetBasePrivate::FNodeRegistryEntry>(AssetName, DocumentToRegister, AssetClassInfo.AssetPath);
 
 	UnregisterGraphWithFrontend();
@@ -264,30 +276,25 @@ void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSo
 	}
 	else
 	{
-		FString ClassName;
-		if (OwningAsset)
-		{
-			if (UClass* Class = OwningAsset->GetClass())
-			{
-				ClassName = Class->GetName();
-			}
-		}
+		UClass* Class = DocInterface.GetObject()->GetClass();
+		check(Class);
+		const FString ClassName = Class->GetName();
 		UE_LOG(LogMetaSound, Error, TEXT("Registration failed for MetaSound node class '%s' of UObject class '%s'"), *AssetName, *ClassName);
 	}
 }
 
-void FMetasoundAssetBase::CookGraph()
+void FMetasoundAssetBase::CookMetaSound()
 {
 	using namespace Metasound;
 	using namespace Metasound::Frontend;
 
-	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::CookGraph);
+	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::CookMetaSound);
 	if (IsRegistered())
 	{
 		return;
 	}
 
-	RegisterAssetDependenciesForCook();
+	CookReferencedMetaSounds();
 	IMetaSoundAssetManager::GetChecked().AddOrUpdateAsset(*GetOwningAsset());
 
 	// Auto update must be done after all referenced asset classes are registered
@@ -305,20 +312,20 @@ void FMetasoundAssetBase::CookGraph()
 	CacheRegistryMetadata();
 #endif // WITH_EDITOR
 
-	FString AssetName;
-	const UObject* OwningAsset = GetOwningAsset();
-	if (ensure(OwningAsset))
-	{
-		AssetName = OwningAsset->GetName();
-	}
-	
-	TSharedPtr<FMetasoundFrontendDocument> DocumentToRegister = PreprocessDocument();
-	TSharedPtr<FMetasoundFrontendDocument> PreprocessedDocumentCopy = MakeShared<FMetasoundFrontendDocument>(*DocumentToRegister);
-	// Replace document with preprocessed document
-	SetDocument(*PreprocessedDocumentCopy, /*bMarkDirty=*/false);
+	TScriptInterface<IMetaSoundDocumentInterface> DocInterface = GetOwningAsset();
+	check(DocInterface.GetObject());
+	TSharedPtr<FMetasoundFrontendDocument> DocumentToRegister;
+	const IMetaSoundDocumentInterface& Interface = *DocInterface.GetInterface();
+
+	// Performs document transforms on local copy, which reduces document footprint & renders resolve unnecessary at runtime upon registration
+	FMetaSoundFrontendDocumentBuilder DocBuilder(DocInterface);
+	DocBuilder.TransformTemplateNodes();
+	const FMetaSoundFrontendDocumentBuilder& ConstBuilder = DocBuilder;
+	TSharedRef<FMetasoundFrontendDocument> ResolvedDocument = MakeShared<FMetasoundFrontendDocument>(ConstBuilder.GetDocument());
 
 	FNodeClassInfo AssetClassInfo = GetAssetClassInfo();
-	TUniquePtr<INodeRegistryEntry> RegistryEntry = MakeUnique<AssetBasePrivate::FNodeRegistryEntry>(AssetName, DocumentToRegister, AssetClassInfo.AssetPath);
+	const FString AssetName = DocInterface.GetObject()->GetName();
+	TUniquePtr<INodeRegistryEntry> RegistryEntry = MakeUnique<AssetBasePrivate::FNodeRegistryEntry>(AssetName, ResolvedDocument, AssetClassInfo.AssetPath);
 
 	UnregisterGraphWithFrontend();
 	RegistryKey = FMetasoundFrontendRegistryContainer::Get()->RegisterNode(MoveTemp(RegistryEntry));
@@ -331,15 +338,10 @@ void FMetasoundAssetBase::CookGraph()
 	}
 	else
 	{
-		FString ClassName;
-		if (OwningAsset)
-		{
-			if (UClass* Class = OwningAsset->GetClass())
-			{
-				ClassName = Class->GetName();
-			}
-		}
-		UE_LOG(LogMetaSound, Error, TEXT("While cooking graph, registration failed for MetaSound node class '%s' of UObject class '%s'"), *AssetName, *ClassName);
+		const UClass* Class = DocInterface.GetObject()->GetClass();
+		check(Class);
+		const FString ClassName = Class->GetName();
+		UE_LOG(LogMetaSound, Error, TEXT("Registration failed during cook for MetaSound node class '%s' of UObject class '%s'"), *AssetName, *ClassName);
 	}
 }
 
@@ -920,7 +922,7 @@ void FMetasoundAssetBase::RegisterAssetDependencies(const Metasound::Frontend::F
 	}
 }
 
-void FMetasoundAssetBase::RegisterAssetDependenciesForCook()
+void FMetasoundAssetBase::CookReferencedMetaSounds()
 {
 	using namespace Metasound::Frontend;
 
@@ -932,7 +934,7 @@ void FMetasoundAssetBase::RegisterAssetDependenciesForCook()
 		{
 			// TODO: Check for infinite recursion and error if so
 			AssetManager.AddOrUpdateAsset(*(Reference->GetOwningAsset()));
-			Reference->CookGraph();
+			Reference->CookMetaSound();
 		}
 	}
 }
@@ -974,12 +976,7 @@ void FMetasoundAssetBase::UpdateAssetRegistry()
 
 TSharedPtr<FMetasoundFrontendDocument> FMetasoundAssetBase::PreprocessDocument()
 {
-	using namespace Metasound::Frontend;
-
-	TSharedPtr<FMetasoundFrontendDocument> PreprocessedDocument = MakeShared<FMetasoundFrontendDocument>(GetDocumentChecked());
-	FDocumentTemplatePreprocessTransform TemplatePreprocessor;
-	TemplatePreprocessor.Transform(*PreprocessedDocument);
-	return PreprocessedDocument;
+	return nullptr;
 }
 
 const FMetasoundAssetBase::FRuntimeData& FMetasoundAssetBase::CacheRuntimeData(const FMetasoundFrontendDocument& InPreprocessedDoc)

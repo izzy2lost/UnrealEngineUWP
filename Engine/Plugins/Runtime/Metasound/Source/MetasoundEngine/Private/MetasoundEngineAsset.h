@@ -107,7 +107,7 @@ namespace Metasound
 						{
 							constexpr bool bIsDeterministic = true;
 							FDocumentIDGenerator::FScopeDeterminism DeterminismScope = FDocumentIDGenerator::FScopeDeterminism(bIsDeterministic);
-							InMetaSound.CookGraph();
+							InMetaSound.CookMetaSound();
 						}
 					}
 				}

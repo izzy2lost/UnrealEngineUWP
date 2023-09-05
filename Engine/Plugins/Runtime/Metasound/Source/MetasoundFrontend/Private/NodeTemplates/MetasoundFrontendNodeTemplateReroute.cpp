@@ -4,204 +4,197 @@
 
 #include "Algo/AnyOf.h"
 #include "MetasoundFrontendDataTypeRegistry.h"
+#include "MetasoundFrontendDocumentBuilder.h"
 #include "MetasoundFrontendRegistries.h"
 #include "NodeTemplates/MetasoundFrontendDocumentTemplatePreprocessor.h"
 
 
-namespace Metasound
+namespace Metasound::Frontend
 {
-	namespace Frontend
+	namespace ReroutePrivate
 	{
-		namespace ReroutePrivate
+		class FRerouteNodeTemplatePreprocessTransform : public INodeTransform
 		{
-			class FRerouteNodeTemplatePreprocessTransform : public FNodeTemplatePreprocessTransformBase
-			{
-			public:
-				FRerouteNodeTemplatePreprocessTransform(FMetasoundFrontendDocument& InDocument)
-					: FNodeTemplatePreprocessTransformBase(InDocument)
-				{
-					TArray<FMetasoundFrontendEdge>& Edges = Graph.Edges;
-					for (int32 i = 0; i < Edges.Num(); ++i)
-					{
-						FMetasoundFrontendEdge& Edge = Edges[i];
-						InputEdgeMap.Add(Edge.GetToVertexHandle(), &Edge);
-						OutputEdgeMap.FindOrAdd(Edge.GetFromVertexHandle()).Add(&Edge);
-					}
-				}
+		public:
+			FRerouteNodeTemplatePreprocessTransform() = default;
+			virtual ~FRerouteNodeTemplatePreprocessTransform() = default;
 
-				virtual ~FRerouteNodeTemplatePreprocessTransform() = default;
+			virtual bool Transform(const FMetasoundFrontendNode& InNode, FMetaSoundFrontendDocumentBuilder& OutBuilder) const override;
+		};
 
-				virtual bool Transform(FMetasoundFrontendNode& InOutNode) const override;
-
-			private:
-				mutable TMap<FMetasoundFrontendVertexHandle, FMetasoundFrontendEdge*> InputEdgeMap;
-				mutable TMap<FMetasoundFrontendVertexHandle, TArray<FMetasoundFrontendEdge*>> OutputEdgeMap;
-			};
-
-			bool FRerouteNodeTemplatePreprocessTransform::Transform(FMetasoundFrontendNode& InOutNode) const
-			{
-				using namespace ReroutePrivate;
-				
-				// Find the input and output edges for this node
-				const FMetasoundFrontendEdge* InputEdge = nullptr;
-				{
-					if (!ensure(InOutNode.Interface.Inputs.Num() == 1))
-					{
-						return false;
-					}
-
-					const FMetasoundFrontendVertex& InputVertex = InOutNode.Interface.Inputs.Last();
-					FMetasoundFrontendVertexHandle InputNodeVertexHandle { InOutNode.GetID(), InputVertex.VertexID };
-					InputEdge = InputEdgeMap.FindRef(InputNodeVertexHandle);
-
-					// This can happen if the reroute node isn't provided an input, so its perfectly
-					// acceptable to just ignore this node as it ultimately provides no sourced input.
-					if (!InputEdge)
-					{
-						return false;
-					}
-				}
-
-				TArray<FMetasoundFrontendEdge*>* OutputEdges = nullptr;
-				const FMetasoundFrontendVertex& OutputVertex = InOutNode.Interface.Outputs.Last();
-				const FMetasoundFrontendVertexHandle OutputVertexHandle { InOutNode.GetID(), OutputVertex.VertexID };
-				{
-					if (!ensure(InOutNode.Interface.Outputs.Num() == 1))
-					{
-						return false;
-					}
-
-					OutputEdges = OutputEdgeMap.Find(OutputVertexHandle);
-
-					// This can happen if the reroute node isn't provided any outputs to connect to, so its
-					// perfectly acceptable to just ignore this node as it ultimately provides no sourced input.
-					if (!OutputEdges)
-					{
-						return false;
-					}
-				}
-
-				// Update the output edges with the input edge 
-				FMetasoundFrontendVertexHandle NewOutputEdgeNodeVertexHandle { InputEdge->FromNodeID, InputEdge->FromVertexID };
-
-				for (FMetasoundFrontendEdge* OutputEdge : *OutputEdges)
-				{
-					OutputEdge->FromNodeID = NewOutputEdgeNodeVertexHandle.NodeID;
-					OutputEdge->FromVertexID = NewOutputEdgeNodeVertexHandle.VertexID;
-				}
-
-				OutputEdgeMap.FindOrAdd(NewOutputEdgeNodeVertexHandle).Append(*OutputEdges);
-				OutputEdgeMap.Remove(OutputVertexHandle);
-
-				return true;
-			}
-		}
-
-		const FMetasoundFrontendClassName FRerouteNodeTemplate::ClassName { "UE", "Reroute", "" };
-
-		const FMetasoundFrontendVersion FRerouteNodeTemplate::Version { ClassName.GetFullName(), { 1, 0 } };
-
-		TUniquePtr<INodeTransform> FRerouteNodeTemplate::GenerateNodeTransform(FMetasoundFrontendDocument& InPreprocessedDocument) const
+		bool FRerouteNodeTemplatePreprocessTransform::Transform(const FMetasoundFrontendNode& InNode, FMetaSoundFrontendDocumentBuilder& OutBuilder) const
 		{
 			using namespace ReroutePrivate;
-			return TUniquePtr<INodeTransform>(new FRerouteNodeTemplatePreprocessTransform(InPreprocessedDocument));
-		}
-
-		const FMetasoundFrontendClass& FRerouteNodeTemplate::GetFrontendClass() const
-		{
-			auto CreateFrontendClass = []()
+				
+			// Find the input and output edges for this node
+			const FMetasoundFrontendEdge* InputEdge = nullptr;
 			{
-				FMetasoundFrontendClass Class;
-				Class.Metadata.SetClassName(ClassName);
+				if (!ensure(InNode.Interface.Inputs.Num() == 1))
+				{
+					return false;
+				}
 
-#if WITH_EDITOR
-				Class.Metadata.SetSerializeText(false);
-				Class.Metadata.SetAuthor(Metasound::PluginAuthor);
-				Class.Metadata.SetDescription(Metasound::PluginNodeMissingPrompt);
+				const FMetasoundFrontendVertex& InputVertex = InNode.Interface.Inputs.Last();
+				FMetasoundFrontendVertexHandle InputNodeVertexHandle { InNode.GetID(), InputVertex.VertexID };
+				TArray<const FMetasoundFrontendEdge*> InputEdges = OutBuilder.FindEdges(InNode.GetID(), InputVertex.VertexID);
 
-				FMetasoundFrontendClassStyleDisplay& StyleDisplay = Class.Style.Display;
-				StyleDisplay.ImageName = "MetasoundEditor.Graph.Node.Class.Reroute";
-				StyleDisplay.bShowInputNames = false;
-				StyleDisplay.bShowOutputNames = false;
-				StyleDisplay.bShowLiterals = false;
-				StyleDisplay.bShowName = false;
-#endif // WITH_EDITOR
-
-				Class.Metadata.SetType(EMetasoundFrontendClassType::Template);
-				Class.Metadata.SetVersion(Version.Number);
-
-
-				return Class;
-			};
-
-			static const FMetasoundFrontendClass FrontendClass = CreateFrontendClass();
-			return FrontendClass;
-		}
-
-		FMetasoundFrontendNodeInterface FRerouteNodeTemplate::CreateNodeInterfaceFromDataType(FName InDataType)
-		{
-			auto CreateNewVertex = [&] { return FMetasoundFrontendVertex { "Value", InDataType, FGuid::NewGuid() }; };
-
-			FMetasoundFrontendNodeInterface NewInterface;
-			NewInterface.Inputs.Add(CreateNewVertex());
-			NewInterface.Outputs.Add(CreateNewVertex());
-
-			return NewInterface;
-		}
-
-		const FNodeRegistryKey& FRerouteNodeTemplate::GetRegistryKey()
-		{
-			static const FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(
-				EMetasoundFrontendClassType::Template,
-				ClassName.ToString(), 
-				Version.Number.Major, 
-				Version.Number.Minor);
-
-			return RegistryKey;
-		}
-
-		const FMetasoundFrontendVersion& FRerouteNodeTemplate::GetVersion() const
-		{
-			return Version;
-		}
-
-#if WITH_EDITOR
-		bool FRerouteNodeTemplate::HasRequiredConnections(FConstNodeHandle InNodeHandle) const
-		{
-			TArray<FConstOutputHandle> Outputs = InNodeHandle->GetConstOutputs();
-			TArray<FConstInputHandle> Inputs = InNodeHandle->GetConstInputs();
-
-			const bool bConnectedToNonRerouteOutputs = Algo::AnyOf(Outputs, [](const FConstOutputHandle& OutputHandle) { return Frontend::FindReroutedOutput(OutputHandle)->IsValid(); });
-			const bool bConnectedToNonRerouteInputs = Algo::AnyOf(Inputs, [](const FConstInputHandle& InputHandle)
-			{
-				TArray<FConstInputHandle> Inputs;
-				Frontend::FindReroutedInputs(InputHandle, Inputs);
-				return !Inputs.IsEmpty();
-			});
-
-			return bConnectedToNonRerouteOutputs || bConnectedToNonRerouteOutputs == bConnectedToNonRerouteInputs;
-		}
-#endif // WITH_EDITOR
-
-		bool FRerouteNodeTemplate::IsValidNodeInterface(const FMetasoundFrontendNodeInterface& InNodeInterface) const
-		{
-			if (InNodeInterface.Inputs.Num() != 1)
-			{
-				return false;
+				// This can happen if the reroute node isn't provided an input, so its perfectly
+				// acceptable to just ignore this node as it ultimately provides no sourced input.
+				if (InputEdges.IsEmpty())
+				{
+					return false;
+				}
+				InputEdge = InputEdges.Last();
 			}
+
+			TArray<const FMetasoundFrontendEdge*> OutputEdges;
+			const FMetasoundFrontendVertex& OutputVertex = InNode.Interface.Outputs.Last();
+			const FMetasoundFrontendVertexHandle OutputVertexHandle { InNode.GetID(), OutputVertex.VertexID };
+			{
+				if (!ensure(InNode.Interface.Outputs.Num() == 1))
+				{
+					return false;
+				}
+
+				OutputEdges = OutBuilder.FindEdges(InNode.GetID(), OutputVertex.VertexID);
+
+				// This can happen if the reroute node isn't provided any outputs to connect to, so its
+				// perfectly acceptable to just ignore this node as it ultimately provides no sourced input.
+				if (OutputEdges.IsEmpty())
+				{
+					return false;
+				}
+			}
+
+			// Update the output edges with the input edge 
+			FMetasoundFrontendVertexHandle NewOutputEdgeNodeVertexHandle { InputEdge->FromNodeID, InputEdge->FromVertexID };
+
+			for (const FMetasoundFrontendEdge* OutputEdge : OutputEdges)
+			{
+				check(OutputEdge);
+
+				// Must copied before removal as pointer will become invalid
+				FMetasoundFrontendEdge Edge = *OutputEdge;
+				OutBuilder.RemoveEdge(Edge);
+
+				Edge.FromNodeID = InputEdge->FromNodeID;
+				Edge.FromVertexID = InputEdge->FromVertexID;
+				OutBuilder.AddEdge(MoveTemp(Edge));
+			}
+
+			return true;
+		}
+	}
+
+	const FMetasoundFrontendClassName FRerouteNodeTemplate::ClassName { "UE", "Reroute", "" };
+
+	const FMetasoundFrontendVersion FRerouteNodeTemplate::Version { ClassName.GetFullName(), { 1, 0 } };
+
+	TUniquePtr<INodeTransform> FRerouteNodeTemplate::GenerateNodeTransform(FMetasoundFrontendDocument& InPreprocessedDocument) const
+	{
+		return GenerateNodeTransform();
+	}
+
+	TUniquePtr<INodeTransform> FRerouteNodeTemplate::GenerateNodeTransform() const
+	{
+		using namespace ReroutePrivate;
+		return TUniquePtr<INodeTransform>(new FRerouteNodeTemplatePreprocessTransform());
+	}
+
+	const FMetasoundFrontendClass& FRerouteNodeTemplate::GetFrontendClass() const
+	{
+		auto CreateFrontendClass = []()
+		{
+			FMetasoundFrontendClass Class;
+			Class.Metadata.SetClassName(ClassName);
+
+#if WITH_EDITOR
+			Class.Metadata.SetSerializeText(false);
+			Class.Metadata.SetAuthor(Metasound::PluginAuthor);
+			Class.Metadata.SetDescription(Metasound::PluginNodeMissingPrompt);
+
+			FMetasoundFrontendClassStyleDisplay& StyleDisplay = Class.Style.Display;
+			StyleDisplay.ImageName = "MetasoundEditor.Graph.Node.Class.Reroute";
+			StyleDisplay.bShowInputNames = false;
+			StyleDisplay.bShowOutputNames = false;
+			StyleDisplay.bShowLiterals = false;
+			StyleDisplay.bShowName = false;
+#endif // WITH_EDITOR
+
+			Class.Metadata.SetType(EMetasoundFrontendClassType::Template);
+			Class.Metadata.SetVersion(Version.Number);
+
+
+			return Class;
+		};
+
+		static const FMetasoundFrontendClass FrontendClass = CreateFrontendClass();
+		return FrontendClass;
+	}
+
+	FMetasoundFrontendNodeInterface FRerouteNodeTemplate::CreateNodeInterfaceFromDataType(FName InDataType)
+	{
+		auto CreateNewVertex = [&] { return FMetasoundFrontendVertex { "Value", InDataType, FGuid::NewGuid() }; };
+
+		FMetasoundFrontendNodeInterface NewInterface;
+		NewInterface.Inputs.Add(CreateNewVertex());
+		NewInterface.Outputs.Add(CreateNewVertex());
+
+		return NewInterface;
+	}
+
+	const FNodeRegistryKey& FRerouteNodeTemplate::GetRegistryKey()
+	{
+		static const FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(
+			EMetasoundFrontendClassType::Template,
+			ClassName.ToString(), 
+			Version.Number.Major, 
+			Version.Number.Minor);
+
+		return RegistryKey;
+	}
+
+	const FMetasoundFrontendVersion& FRerouteNodeTemplate::GetVersion() const
+	{
+		return Version;
+	}
+
+#if WITH_EDITOR
+	bool FRerouteNodeTemplate::HasRequiredConnections(FConstNodeHandle InNodeHandle) const
+	{
+		TArray<FConstOutputHandle> Outputs = InNodeHandle->GetConstOutputs();
+		TArray<FConstInputHandle> Inputs = InNodeHandle->GetConstInputs();
+
+		const bool bConnectedToNonRerouteOutputs = Algo::AnyOf(Outputs, [](const FConstOutputHandle& OutputHandle) { return Frontend::FindReroutedOutput(OutputHandle)->IsValid(); });
+		const bool bConnectedToNonRerouteInputs = Algo::AnyOf(Inputs, [](const FConstInputHandle& InputHandle)
+		{
+			TArray<FConstInputHandle> Inputs;
+			Frontend::FindReroutedInputs(InputHandle, Inputs);
+			return !Inputs.IsEmpty();
+		});
+
+		return bConnectedToNonRerouteOutputs || bConnectedToNonRerouteOutputs == bConnectedToNonRerouteInputs;
+	}
+#endif // WITH_EDITOR
+
+	bool FRerouteNodeTemplate::IsValidNodeInterface(const FMetasoundFrontendNodeInterface& InNodeInterface) const
+	{
+		if (InNodeInterface.Inputs.Num() != 1)
+		{
+			return false;
+		}
 			
-			if (InNodeInterface.Outputs.Num() != 1)
-			{
-				return false;
-			}
-
-			const FName DataType = InNodeInterface.Inputs.Last().TypeName;
-			if (DataType != InNodeInterface.Outputs.Last().TypeName)
-			{
-				return false;
-			}
-
-			return IDataTypeRegistry::Get().IsRegistered(DataType);
+		if (InNodeInterface.Outputs.Num() != 1)
+		{
+			return false;
 		}
-	} // namespace Frontend
-} // namespace Metasound
+
+		const FName DataType = InNodeInterface.Inputs.Last().TypeName;
+		if (DataType != InNodeInterface.Outputs.Last().TypeName)
+		{
+			return false;
+		}
+
+		return IDataTypeRegistry::Get().IsRegistered(DataType);
+	}
+} // namespace Metasound::Frontend

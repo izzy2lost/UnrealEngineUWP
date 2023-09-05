@@ -24,8 +24,11 @@ namespace Metasound
 		public:
 			virtual ~INodeTemplate() = default;
 
-			// Generates node transform that can cache document state for use when individually preprocessing nodes.
-			virtual TUniquePtr<INodeTransform> GenerateNodeTransform(FMetasoundFrontendDocument& InDocument) const = 0;
+			UE_DEPRECATED(5.4, "Use version that does not provide a preprocessed document")
+			virtual TUniquePtr<INodeTransform> GenerateNodeTransform(FMetasoundFrontendDocument& InDocument) const { return nullptr; }
+
+			// Generates node transform that is used to preprocess nodes.
+			virtual TUniquePtr<INodeTransform> GenerateNodeTransform() const { return nullptr; }
 
 			// Returns the class definition for the given node class template.
 			virtual const FMetasoundFrontendClass& GetFrontendClass() const = 0;

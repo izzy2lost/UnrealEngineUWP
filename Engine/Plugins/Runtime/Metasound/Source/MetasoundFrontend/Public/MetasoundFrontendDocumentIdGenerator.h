@@ -43,7 +43,7 @@ namespace Metasound
 		 * }
 		 *
 		 */
-		class FDocumentIDGenerator
+		class METASOUNDFRONTEND_API FDocumentIDGenerator
 		{
 		public:
 			class METASOUNDFRONTEND_API FScopeDeterminism final

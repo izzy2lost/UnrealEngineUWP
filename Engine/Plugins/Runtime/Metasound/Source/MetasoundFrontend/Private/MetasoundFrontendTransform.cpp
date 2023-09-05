@@ -43,6 +43,16 @@ namespace Metasound
 			return Transform(FDocumentController::CreateDocumentHandle(DocAccessPtr));
 		}
 
+		bool INodeTransform::Transform(const FMetasoundFrontendNode& InNode, FMetaSoundFrontendDocumentBuilder& OutBuilder) const
+		{
+			return false;
+		}
+
+		bool INodeTransform::Transform(FMetasoundFrontendNode& InOutNode) const
+		{
+			return false;
+		}
+
 		FModifyRootGraphInterfaces::FModifyRootGraphInterfaces(const TArray<FMetasoundFrontendInterface>& InInterfacesToRemove, const TArray<FMetasoundFrontendInterface>& InInterfacesToAdd)
 			: InterfacesToRemove(InInterfacesToRemove)
 			, InterfacesToAdd(InInterfacesToAdd)

@@ -7,6 +7,7 @@
 #include "MetasoundFrontendDocumentBuilder.h"
 #include "MetasoundFrontendRegistries.h"
 #include "MetasoundTrace.h"
+#include "NodeTemplates/MetasoundFrontendNodeTemplateReroute.h"
 
 
 namespace Metasound::Frontend
@@ -456,6 +457,195 @@ namespace Metasound::Frontend
 		return nullptr;
 	}
 
+	TArray<const FMetasoundFrontendVertex*> FDocumentGraphNodeCache::FindReroutedInputVertices(const FGuid& InNodeID, const FGuid& InVertexID, TArray<const FMetasoundFrontendNode*>* ConnectedNodes, bool* bOutIsRerouted) const
+	{
+		TArray<const FMetasoundFrontendVertex*> Vertices;
+
+		if (const FMetasoundFrontendNode* Node = FindNode(InNodeID))
+		{
+			const FMetasoundFrontendClass* Class = Parent->FindDependency(Node->ClassID);
+			check(Class);
+			if (Class->Metadata.GetClassName() == FRerouteNodeTemplate::ClassName)
+			{
+				if (bOutIsRerouted)
+				{
+					*bOutIsRerouted = true;
+				}
+
+				const IDocumentGraphEdgeCache& EdgeCache = Parent->GetEdgeCache();
+				const FMetasoundFrontendVertex& RerouteOutput = Node->Interface.Outputs.Last();
+				TArrayView<const int32> EdgeIndices = EdgeCache.FindEdgeIndicesFromNodeOutput(InNodeID, RerouteOutput.VertexID);
+				const FMetasoundFrontendDocument& Doc = Parent->GetDocument();
+				for (int32 Index : EdgeIndices)
+				{
+					const FMetasoundFrontendEdge& EdgeConnectedToOutput = Doc.RootGraph.Graph.Edges[Index];
+					TArray<const FMetasoundFrontendVertex*> ReroutedVertices;
+					if (ConnectedNodes)
+					{
+						TArray<const FMetasoundFrontendNode*> ReroutedConnectedNodes;
+						ReroutedVertices = FindReroutedInputVertices(EdgeConnectedToOutput.ToNodeID, EdgeConnectedToOutput.ToVertexID, &ReroutedConnectedNodes, bOutIsRerouted);
+						ConnectedNodes->Append(ReroutedConnectedNodes);
+					}
+					else
+					{
+						ReroutedVertices = FindReroutedInputVertices(EdgeConnectedToOutput.ToNodeID, EdgeConnectedToOutput.ToVertexID, nullptr, bOutIsRerouted);
+					}
+					Vertices.Append(MoveTemp(ReroutedVertices));
+				}
+			}
+			else
+			{
+				auto VertexMatchesPredicate = [&InVertexID](const FMetasoundFrontendVertex& Vertex)
+				{
+					return Vertex.VertexID == InVertexID;
+				};
+				const FMetasoundFrontendVertex* InputVertex = Node->Interface.Inputs.FindByPredicate(VertexMatchesPredicate);
+				check(InputVertex);
+				Vertices.Add(InputVertex);
+				if (ConnectedNodes)
+				{
+					ConnectedNodes->Add(Node);
+				}
+			}
+		}
+
+		return Vertices;
+	}
+
+	TArray<const FMetasoundFrontendVertex*> FDocumentGraphNodeCache::FindReroutedInputVertices(const FGuid& InNodeID, FName InVertexName, TArray<const FMetasoundFrontendNode*>* ConnectedNodes, bool* bOutIsRerouted) const
+	{
+		TArray<const FMetasoundFrontendVertex*> Vertices;
+
+		if (const FMetasoundFrontendNode* Node = FindNode(InNodeID))
+		{
+			const FMetasoundFrontendClass* Class = Parent->FindDependency(Node->ClassID);
+			check(Class);
+			if (Class->Metadata.GetClassName() == FRerouteNodeTemplate::ClassName)
+			{
+				if (bOutIsRerouted)
+				{
+					*bOutIsRerouted = true;
+				}
+
+				const IDocumentGraphEdgeCache& EdgeCache = Parent->GetEdgeCache();
+				const FMetasoundFrontendVertex& RerouteOutput = Node->Interface.Outputs.Last();
+				TArrayView<const int32> EdgeIndices = EdgeCache.FindEdgeIndicesFromNodeOutput(InNodeID, RerouteOutput.VertexID);
+				const FMetasoundFrontendDocument& Doc = Parent->GetDocument();
+				for (int32 Index : EdgeIndices)
+				{
+					const FMetasoundFrontendEdge& EdgeConnectedToOutput = Doc.RootGraph.Graph.Edges[Index];
+
+					TArray<const FMetasoundFrontendVertex*> ReroutedVertices;
+					if (ConnectedNodes)
+					{
+						TArray<const FMetasoundFrontendNode*> ReroutedConnectedNodes;
+						ReroutedVertices = FindReroutedInputVertices(EdgeConnectedToOutput.ToNodeID, EdgeConnectedToOutput.ToVertexID, &ReroutedConnectedNodes, bOutIsRerouted);
+						ConnectedNodes->Append(MoveTemp(ReroutedConnectedNodes));
+					}
+					else
+					{
+						ReroutedVertices = FindReroutedInputVertices(EdgeConnectedToOutput.ToNodeID, EdgeConnectedToOutput.ToVertexID, nullptr, bOutIsRerouted);
+					}
+					Vertices.Append(MoveTemp(ReroutedVertices));
+				}
+			}
+			else
+			{
+				auto VertexMatchesPredicate = [&InVertexName](const FMetasoundFrontendVertex& Vertex)
+				{
+					return Vertex.Name == InVertexName;
+				};
+				const FMetasoundFrontendVertex* InputVertex = Node->Interface.Inputs.FindByPredicate(VertexMatchesPredicate);
+				check(InputVertex);
+				Vertices.Add(InputVertex);
+				if (ConnectedNodes)
+				{
+					ConnectedNodes->Add(Node);
+				}
+			}
+		}
+
+		return Vertices;
+	}
+
+	const FMetasoundFrontendVertex* FDocumentGraphNodeCache::FindReroutedOutputVertex(const FGuid& InNodeID, const FGuid& InVertexID, const FMetasoundFrontendNode** ConnectedNode, bool* bOutIsRerouted) const
+	{
+		if (const FMetasoundFrontendNode* Node = FindNode(InNodeID))
+		{
+			const FMetasoundFrontendClass* Class = Parent->FindDependency(Node->ClassID);
+			check(Class);
+			if (Class->Metadata.GetClassName() == FRerouteNodeTemplate::ClassName)
+			{
+				if (bOutIsRerouted)
+				{
+					*bOutIsRerouted = true;
+				}
+
+				const IDocumentGraphEdgeCache& EdgeCache = Parent->GetEdgeCache();
+				const FMetasoundFrontendVertex& RerouteInput = Node->Interface.Inputs.Last();
+				const FMetasoundFrontendDocument& Doc = Parent->GetDocument();
+				if (const int32* ConnectedEdgeIndex = EdgeCache.FindEdgeIndexToNodeInput(InNodeID, RerouteInput.VertexID))
+				{
+					const FMetasoundFrontendEdge& EdgeConnectedToInput = Doc.RootGraph.Graph.Edges[*ConnectedEdgeIndex];
+					return FindReroutedOutputVertex(EdgeConnectedToInput.FromNodeID, EdgeConnectedToInput.FromVertexID, ConnectedNode, bOutIsRerouted);
+				}
+
+				return nullptr;
+			}
+
+			if (ConnectedNode)
+			{
+				*ConnectedNode = Node;
+			}
+			auto VertexMatchesPredicate = [&InVertexID](const FMetasoundFrontendVertex& Vertex)
+			{
+				return Vertex.VertexID == InVertexID;
+			};
+			return Node->Interface.Outputs.FindByPredicate(VertexMatchesPredicate);
+		}
+
+		return nullptr;
+	}
+
+	const FMetasoundFrontendVertex* FDocumentGraphNodeCache::FindReroutedOutputVertex(const FGuid& InNodeID, FName InVertexName, const FMetasoundFrontendNode** ConnectedNode,  bool* bOutIsRerouted) const
+	{
+		if (const FMetasoundFrontendNode* Node = FindNode(InNodeID))
+		{
+			const FMetasoundFrontendClass* Class = Parent->FindDependency(Node->ClassID);
+			check(Class);
+			if (Class->Metadata.GetClassName() == FRerouteNodeTemplate::ClassName)
+			{
+				if (bOutIsRerouted)
+				{
+					*bOutIsRerouted = true;
+				}
+
+				const IDocumentGraphEdgeCache& EdgeCache = Parent->GetEdgeCache();
+				const FMetasoundFrontendVertex& RerouteInput = Node->Interface.Inputs.Last();
+				const FMetasoundFrontendDocument& Doc = Parent->GetDocument();
+				if (const int32* ConnectedEdgeIndex = EdgeCache.FindEdgeIndexToNodeInput(InNodeID, RerouteInput.VertexID))
+				{
+					const FMetasoundFrontendEdge& EdgeConnectedToInput = Doc.RootGraph.Graph.Edges[*ConnectedEdgeIndex];
+					return FindReroutedOutputVertex(EdgeConnectedToInput.FromNodeID, EdgeConnectedToInput.FromVertexID, ConnectedNode, bOutIsRerouted);
+				}
+
+				return nullptr;
+			}
+
+			auto VertexMatchesPredicate = [&InVertexName](const FMetasoundFrontendVertex& Vertex)
+			{
+				return Vertex.Name == InVertexName;
+			};
+			if (ConnectedNode)
+			{
+				*ConnectedNode = Node;
+			}
+			return Node->Interface.Outputs.FindByPredicate(VertexMatchesPredicate);
+		}
+
+		return nullptr;
+	}
+
 	void FDocumentGraphNodeCache::OnNodeAdded(int32 InNewIndex)
 	{
 		const FMetasoundFrontendDocument& Document = Parent->GetDocument();
@@ -542,9 +732,14 @@ namespace Metasound::Frontend
 		return InputToEdgeIndex.Find({ InNodeID, InVertexID });
 	}
 
-	const TArray<int32>* FDocumentGraphEdgeCache::FindEdgeIndicesFromNodeOutput(const FGuid& InNodeID, const FGuid& InVertexID) const
+	const TArrayView<const int32> FDocumentGraphEdgeCache::FindEdgeIndicesFromNodeOutput(const FGuid& InNodeID, const FGuid& InVertexID) const
 	{
-		return OutputToEdgeIndices.Find({ InNodeID, InVertexID });
+		if (const TArray<int32>* Array = OutputToEdgeIndices.Find({ InNodeID, InVertexID }))
+		{
+			return TArrayView<const int32>(*Array);
+		}
+
+		return { };
 	}
 
 	bool FDocumentGraphEdgeCache::IsNodeInputConnected(const FGuid& InNodeID, const FGuid& InVertexID) const

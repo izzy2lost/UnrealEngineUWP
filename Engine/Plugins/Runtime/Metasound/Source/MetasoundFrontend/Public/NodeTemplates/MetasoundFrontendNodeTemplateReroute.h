@@ -25,7 +25,10 @@ namespace Metasound
 
 			virtual ~FRerouteNodeTemplate() = default;
 
+			UE_DEPRECATED(5.4, "Use version that does not require mutating a provided PreprocessedDocument")
 			virtual TUniquePtr<INodeTransform> GenerateNodeTransform(FMetasoundFrontendDocument& InPreprocessedDocument) const override;
+
+			virtual TUniquePtr<INodeTransform> GenerateNodeTransform() const override;
 			virtual const FMetasoundFrontendClass& GetFrontendClass() const override;
 			virtual const FMetasoundFrontendVersion& GetVersion() const override;
 			virtual bool IsValidNodeInterface(const FMetasoundFrontendNodeInterface& InNodeInterface) const override;

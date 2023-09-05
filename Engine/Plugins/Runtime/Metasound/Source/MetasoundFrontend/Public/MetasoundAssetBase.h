@@ -15,8 +15,11 @@
 #include "UObject/SoftObjectPath.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
+
 // Forward Declarations
 class UEdGraph;
+struct FMetaSoundFrontendDocumentBuilder;
+
 
 namespace Metasound
 {
@@ -75,8 +78,8 @@ public:
 	// Unregisters the root graph of the given asset with the MetaSound Frontend.
 	void UnregisterGraphWithFrontend();
 
-	// Prepares graph for cook, including autoupdating and preprocessing graph and registering node, similar to RegisterGraphWithFrontend. 
-	void CookGraph();
+	// Cooks this MetaSound and recursively checks and cooks referenced MetaSounds if necessary. Cook includes autoupdating and resolving the document, which is then registered with the MetaSound Frontend.
+	void CookMetaSound();
 
 	// Sets/overwrites the root class metadata
 	UE_DEPRECATED(5.3, "Directly setting graph class Metadata is no longer be supported. Use the FMetaSoundFrontendDocumentBuilder to modify class data.")
@@ -223,9 +226,14 @@ protected:
 
 
 	bool AutoUpdate(bool bInLogWarningsOnDroppedConnection);
-	void RegisterAssetDependencies(const Metasound::Frontend::FMetaSoundAssetRegistrationOptions& InRegistrationOptions);
-	void RegisterAssetDependenciesForCook();
+	void CookReferencedMetaSounds();
+
+	// Ensures all referenced graph classes are registered (or re-registers depending on options).
+	void RegisterAssetDependencies(const Metasound::Frontend::FMetaSoundAssetRegistrationOptions & InRegistrationOptions);
+
+	UE_DEPRECATED(5.4, "Template node transformation moved to private implementation. A MetaSound asset will likely never have the function Process(...). Without a Process function, you cannot have preprocessing.")
 	TSharedPtr<FMetasoundFrontendDocument> PreprocessDocument();
+
 private:
 #if WITH_EDITORONLY_DATA
 	void UpdateAssetRegistry();
