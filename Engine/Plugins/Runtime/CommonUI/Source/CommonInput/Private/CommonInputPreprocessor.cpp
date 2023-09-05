@@ -119,7 +119,7 @@ bool FCommonInputPreprocessor::HandleMouseButtonDoubleClickEvent(FSlateApplicati
 
 void FCommonInputPreprocessor::SetInputTypeFilter(ECommonInputType InputType, FName InReason, bool InFilter)
 {
-	TMap<FName, bool> Reasons = FilterInputTypeWithReasons[(uint8)InputType];
+	TMap<FName, bool>& Reasons = FilterInputTypeWithReasons[(uint8)InputType];
 	Reasons.Add(InReason, InFilter);
 
 	bool ComputedFilter = false;
