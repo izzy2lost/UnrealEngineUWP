@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreTypes.h"
 #include "Async/Async.h"
 #include "Async/Future.h"
 #include "Containers/Array.h"
@@ -10,6 +9,7 @@
 #include "Containers/Queue.h"
 #include "Containers/Set.h"
 #include "Containers/UnrealString.h"
+#include "CoreTypes.h"
 #include "Delegates/Delegate.h"
 #include "Delegates/DelegateBase.h"
 #include "Delegates/DelegateInstancesImpl.h"
@@ -24,7 +24,6 @@
 #include "HAL/ThreadSafeBool.h"
 #include "Internationalization/Regex.h"
 #include "Logging/LogVerbosity.h"
-#include "Math/Color.h"
 #include "Math/Color.h"
 #include "Math/MathFwd.h"
 #include "Math/Rotator.h"
@@ -1894,27 +1893,28 @@ public:
 	}
 
 	/**
-	 * Logs an error if the given shared pointer is valid.
+	 * Logs an error if the given object tests true when calling its IsValid member.
 	 *
 	 * @param Description - Description text for the test.
-	 * @param SharedPointer - The shared pointer to test.
+	 * @param Value - The value to test.
 	 *
 	 * @see TestValid
 	 */
 	template<typename ValueType>
-	FORCEINLINE bool TestInvalid(const TCHAR* Description, const TSharedPtr<ValueType>& SharedPointer)
+	FORCEINLINE bool TestInvalid(const TCHAR* Description, const ValueType& Value)
 	{
-		if (SharedPointer.IsValid())
+		if (Value.IsValid())
 		{
-			AddError(FString::Printf(TEXT("%s: The shared pointer is valid."), Description));
+			AddError(FString::Printf(TEXT("%s: The value is valid (.IsValid() returned true)."), Description));
 			return false;
 		}
 		return true;
 	}
 
-	template<typename ValueType> bool TestInvalid(const FString& Description, const TSharedPtr<ValueType>& SharedPointer)
+	template<typename ValueType>
+	bool TestInvalid(const FString& Description, const ValueType& Value)
 	{
-		return TestInvalid(*Description, SharedPointer);
+		return TestInvalid(*Description, Value);
 	}
 
 	/**
@@ -2050,27 +2050,28 @@ public:
 	#define TestTrueExpr(Expression) TestTrue(TEXT(#Expression), Expression)
 
 	/**
-	 * Logs an error if the given shared pointer is not valid.
+	 * Logs an error if the given object returns false when calling its IsValid member.
 	 *
 	 * @param Description - Description text for the test.
-	 * @param SharedPointer - The shared pointer to test.
+	 * @param Value - The value to test.
 	 *
 	 * @see TestInvalid
 	 */
 	template<typename ValueType>
-	FORCEINLINE bool TestValid(const TCHAR* Description, const TSharedPtr<ValueType>& SharedPointer)
+	FORCEINLINE bool TestValid(const TCHAR* Description, const ValueType& Value)
 	{
-		if (!SharedPointer.IsValid())
+		if (!Value.IsValid())
 		{
-			AddError(FString::Printf(TEXT("%s: The shared pointer is not valid."), Description));
+			AddError(FString::Printf(TEXT("%s: The value is not valid (.IsValid() returned false)."), Description));
 			return false;
 		}
 		return true;
 	}
 
-	template<typename ValueType> bool TestValid(const FString& Description, const TSharedPtr<ValueType>& SharedPointer)
+	template<typename ValueType>
+	bool TestValid(const FString& Description, const ValueType& Value)
 	{
-		return TestValid(*Description, SharedPointer);
+		return TestValid(*Description, Value);
 	}
 
 protected:
@@ -3905,26 +3906,26 @@ public: \
 		return false;\
 	}
 
-#define UTEST_VALID(What, SharedPointer)\
-	if (!TestValid(What, SharedPointer))\
+#define UTEST_VALID(What, Value)\
+	if (!TestValid(What, Value))\
 	{\
 		return false;\
 	}
 
-#define UTEST_VALID_EXPR(SharedPointer)\
-	if (!TestValid(TEXT(#SharedPointer), SharedPointer))\
+#define UTEST_VALID_EXPR(Value)\
+	if (!TestValid(TEXT(#Value), Value))\
 	{\
 		return false;\
 	}
 
-#define UTEST_INVALID(What, SharedPointer)\
-	if (!TestInvalid(What, SharedPointer))\
+#define UTEST_INVALID(What, Value)\
+	if (!TestInvalid(What, Value))\
 	{\
 		return false;\
 	}
 
-#define UTEST_INVALID_EXPR(SharedPointer)\
-	if (!TestInvalid(TEXT(#SharedPointer), SharedPointer))\
+#define UTEST_INVALID_EXPR(Value)\
+	if (!TestInvalid(TEXT(#Value), Value))\
 	{\
 		return false;\
 	}

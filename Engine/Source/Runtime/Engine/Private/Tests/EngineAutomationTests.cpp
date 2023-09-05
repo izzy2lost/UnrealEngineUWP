@@ -897,14 +897,31 @@ bool FAutomationTrueFalseEXPR::RunTest(const FString& Parameters)
 IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationValidInvalidEXPR, FAutomationUTestMacrosExpr, "TestFramework.Validation.UTestValidInvalid", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationValidInvalidEXPR::RunTest(const FString& Parameters)
 {
-	struct HandleResumeContext
+	struct FHasIsValid
 	{
-		const char* PackageIdentifier = nullptr;
+		explicit FHasIsValid(bool bInIsValid)
+			: bIsValid(bInIsValid)
+		{  }
+		
+		bool IsValid() const { return bIsValid; }
+
+	private:
+		bool bIsValid;
 	};
-	TSharedPtr<HandleResumeContext, ESPMode::ThreadSafe> Context = MakeShared<HandleResumeContext, ESPMode::ThreadSafe>();
-	TSharedPtr< UObject > Entry = nullptr;
-	UTEST_VALID_EXPR(Context);
-	UTEST_INVALID_EXPR(Entry);
+	
+	//** TEST **//
+	TSharedPtr<FVector> ValidSharedPtr = MakeShared<FVector>();
+	TSharedPtr<UObject> InvalidSharedPtr = nullptr;
+
+	FHasIsValid ValidObject(true);
+	FHasIsValid InvalidObject(false);
+
+	//** VERIFY **//
+	UTEST_VALID_EXPR(ValidSharedPtr);
+	UTEST_INVALID_EXPR(InvalidSharedPtr);
+
+	UTEST_VALID_EXPR(ValidObject);
+	UTEST_INVALID_EXPR(InvalidObject);
 
 	return true;
 }
