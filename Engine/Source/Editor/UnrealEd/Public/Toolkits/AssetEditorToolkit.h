@@ -7,6 +7,7 @@
 #include "UObject/GCObject.h"
 #include "Framework/Docking/TabManager.h"
 #include "Toolkits/IToolkit.h"
+#include "AssetDefinition.h"
 
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxExtender.h"
@@ -114,9 +115,10 @@ public:
 	 * @param	ObjectToEdit			The object to edit
 	 * @param	bInIsToolbarFocusable	Whether the buttons on the default toolbar can receive keyboard focus
 	 * @param	bUseSmallToolbarIcons	Whether the buttons on the default toolbar use the small icons
+	 * @param	InOpenMethod			Override whether the Asset Editor is being opened in read only or edit mode (otherwise automatically set by the asset editor subsytem for any asset editors opened through it)
 	 */
-	UNREALED_API void InitAssetEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, const FName AppIdentifier, const TSharedRef<FTabManager::FLayout>& StandaloneDefaultLayout, const bool bCreateDefaultStandaloneMenu, const bool bCreateDefaultToolbar, const TArray<UObject*>& ObjectsToEdit, const bool bInIsToolbarFocusable = false, const bool bInUseSmallToolbarIcons = false);
-	UNREALED_API void InitAssetEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, const FName AppIdentifier, const TSharedRef<FTabManager::FLayout>& StandaloneDefaultLayout, const bool bCreateDefaultStandaloneMenu, const bool bCreateDefaultToolbar, UObject* ObjectToEdit, const bool bInIsToolbarFocusable = false, const bool bInUseSmallToolbarIcons = false);
+	UNREALED_API void InitAssetEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, const FName AppIdentifier, const TSharedRef<FTabManager::FLayout>& StandaloneDefaultLayout, const bool bCreateDefaultStandaloneMenu, const bool bCreateDefaultToolbar, const TArray<UObject*>& ObjectsToEdit, const bool bInIsToolbarFocusable = false, const bool bInUseSmallToolbarIcons = false, const TOptional<EAssetOpenMethod>& InOpenMethod = TOptional<EAssetOpenMethod>());
+	UNREALED_API void InitAssetEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, const FName AppIdentifier, const TSharedRef<FTabManager::FLayout>& StandaloneDefaultLayout, const bool bCreateDefaultStandaloneMenu, const bool bCreateDefaultToolbar, UObject* ObjectToEdit, const bool bInIsToolbarFocusable = false, const bool bInUseSmallToolbarIcons = false, const TOptional<EAssetOpenMethod>& InOpenMethod = TOptional<EAssetOpenMethod>());
 
 	FAssetEditorToolkit(const FAssetEditorToolkit&) = delete;
 	FAssetEditorToolkit& operator=(const FAssetEditorToolkit&) = delete;
@@ -149,6 +151,7 @@ public:
 	UNREALED_API virtual TSharedPtr<FTabManager> GetAssociatedTabManager() override;
 	UNREALED_API virtual double GetLastActivationTime() override;
 	UNREALED_API virtual void RemoveEditingAsset(UObject* Asset) override;
+	UNREALED_API virtual EAssetOpenMethod GetOpenMethod() const override { return OpenMethod; }
 
 	/**
 	 * Fills in the supplied menu with commands for working with this asset file
@@ -305,6 +308,9 @@ protected:
 	/** Generate the toolbar for common asset actions like Save*/
 	UNREALED_API UToolMenu* GenerateCommonActionsToolbar(FToolMenuContext& MenuContext);
 
+	/** Generate the toolbar for read only mode specific content */
+	UToolMenu* GenerateReadOnlyToolbar(FToolMenuContext& MenuContext);
+
 	/** Get the collection of edited objects that can be saved. */
 	UNREALED_API virtual void GetSaveableObjects(TArray<UObject*>& OutObjects) const;
 
@@ -317,11 +323,17 @@ protected:
 	/** Called to test if "Save" should be enabled for this asset */
 	virtual bool CanSaveAsset() const { return true; }
 
+	/** Internal function to check if the asset can be saved that calls CanSaveAsset */
+	bool CanSaveAsset_Internal() const;
+
 	/** Called when "Save" is clicked for this asset */
 	UNREALED_API virtual void SaveAsset_Execute();
 
 	/** Called to test if "Save As" should be enabled for this asset */
 	virtual bool CanSaveAssetAs() const { return true; }
+
+	/** Internal function to check if the asset can be saved that calls CanSaveAssetAs */
+	bool CanSaveAssetAs_Internal() const;
 
 	/** Called when "Save As" is clicked for this asset */
 	UNREALED_API virtual void SaveAssetAs_Execute();
@@ -349,8 +361,10 @@ protected:
 
 	/** Called to check to see if there's an asset capable of being reimported */
 	UNREALED_API virtual bool CanReimport() const;
+	/** Internal function to check if the asset can be reimported that calls CanReimport*/
+	bool CanReimport_Internal() const;
 	UNREALED_API virtual bool CanReimport(UObject* EditingObject) const;
-
+	
 	/** Called when "Reimport" is clicked for this asset */
 	UNREALED_API virtual void Reimport_Execute();
 	UNREALED_API virtual void Reimport_Execute(UObject* EditingObject);
@@ -475,4 +489,7 @@ private:
 
 	/** Whether the buttons on the default toolbar use small icons */
 	bool bIsToolbarUsingSmallIcons;
+
+	/** Whether the asset editor was opened in edit mode or read only mode */
+	EAssetOpenMethod OpenMethod;
 };

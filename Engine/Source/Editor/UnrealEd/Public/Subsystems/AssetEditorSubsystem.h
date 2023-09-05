@@ -11,6 +11,8 @@
 #include "Misc/NamePermissionList.h"
 #include "AssetTypeActivationOpenedMethod.h"
 #include "MRUFavoritesList.h"
+#include "AssetDefinition.h"
+
 #include "AssetEditorSubsystem.generated.h"
 
 class UAssetEditor;
@@ -77,6 +79,7 @@ public:
 	virtual TSharedPtr<class FTabManager> GetAssociatedTabManager() = 0;
 	virtual double GetLastActivationTime() = 0;
 	virtual void RemoveEditingAsset(UObject* Asset) = 0;
+	virtual EAssetOpenMethod GetOpenMethod() const { return EAssetOpenMethod::Edit; }
 };
 
 struct FRegisteredModeInfo
@@ -131,6 +134,9 @@ public:
 	UNREALED_API void OpenEditorsForAssets(const TArray<FString>& AssetsToOpen, const EAssetTypeActivationOpenedMethod OpenedMethod = EAssetTypeActivationOpenedMethod::Edit);
 	UNREALED_API void OpenEditorsForAssets(const TArray<FName>& AssetsToOpen, const EAssetTypeActivationOpenedMethod OpenedMethod = EAssetTypeActivationOpenedMethod::Edit);
 	UNREALED_API void OpenEditorsForAssets(const TArray<FSoftObjectPath>& AssetsToOpen);
+
+	/** Check whether the given asset can be opened in the given open method */
+	UNREALED_API bool CanOpenEditorForAsset(UObject* Asset, const EAssetTypeActivationOpenedMethod OpenedMethod, FText* OutErrorMsg); 
 
 	/** Returns the primary editor if one is already open for the specified asset.
 	 * If there is one open and bFocusIfOpen is true, that editor will be brought to the foreground and focused if possible.
@@ -311,6 +317,20 @@ public:
 
 	UNREALED_API void SetRecentAssetsFilter(const FMainMRUFavoritesList::FDoesMRUFavoritesItemPassFilter& InFilter);
 
+	/** These functions are used by the Asset Editor Toolkit to query the method in which the given assets are being opened
+	 *  These are only valid when the asset is in the process of being opened, i.e while we are in OpenEditorForAsset.
+	 *  After which, you should query the asset editor itself to get the open method
+	 */
+	TOptional<EAssetOpenMethod> GetAssetBeingOpenedMethod(TObjectPtr<UObject> Asset);
+	TOptional<EAssetOpenMethod> GetAssetsBeingOpenedMethod(TArray<TObjectPtr<UObject>> Assets);
+
+	/* Functionality to add a filter that is run to check if an asset is allowed to be opened in read only mode
+	 * (If the asset type supports it)
+	 */
+	DECLARE_DELEGATE_RetVal_OneParam(bool, FReadOnlyAssetFilter, const FString&);
+	UNREALED_API void AddReadOnlyAssetFilter(const FName& Owner, const FReadOnlyAssetFilter& ReadOnlyAssetFilter);
+	UNREALED_API void RemoveReadOnlyAssetFilter(const FName& Owner);
+
 private:
 
 	/** Handles a package being reloaded */
@@ -331,6 +351,8 @@ private:
 
 	UNREALED_API bool ShouldShowRecentAsset(const FString& AssetName, int32 RecentAssetIndex,  const FName& InAssetEditorName) const;
 	UNREALED_API bool ShouldShowRecentAssetsMenu(const FName& InAssetEditorName) const;
+
+	UNREALED_API UObject* FindOrLoadAssetForOpening(const FSoftObjectPath& AssetPath);
 
 private:
 
@@ -463,4 +485,12 @@ private:
 
 	/** The max number of recent assets to show in the menu */
 	int32 MaxRecentAssetsToShowInMenu = 20;
+
+	/** The method any assets being opened are requested to open in, only valid during the open process (OpenEditorForAsset)
+	 *  Since there is no way to generically get this information to FAssetEditorToolkit::InitAssetEditor
+	 */
+	TMap<FString, EAssetOpenMethod> AssetOpenMethodCache;
+
+	/** External filters that are run to check if an asset is openable in read only mode */
+	TMap<FName, FReadOnlyAssetFilter> ReadOnlyAssetFilters;
 };

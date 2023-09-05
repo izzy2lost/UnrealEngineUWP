@@ -448,6 +448,11 @@ bool FContentBrowserItem::CanPreview(FText* OutErrorMsg) const
 	return FContentBrowserItemHelper::CallDataSourceImpl<UContentBrowserDataSource>(*this, UE_PROJECTION_MEMBER(UContentBrowserDataSource, CanPreviewItem), OutErrorMsg);
 }
 
+bool FContentBrowserItem::CanView(FText* OutErrorMsg) const
+{
+	return FContentBrowserItemHelper::CallDataSourceImpl<UContentBrowserDataSource>(*this, UE_PROJECTION_MEMBER(UContentBrowserDataSource, CanViewItem), OutErrorMsg);
+}
+
 bool FContentBrowserItem::Preview() const
 {
 	return FContentBrowserItemHelper::CallDataSourceImpl<UContentBrowserDataSource>(*this, UE_PROJECTION_MEMBER(UContentBrowserDataSource, PreviewItem));

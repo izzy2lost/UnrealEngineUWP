@@ -851,6 +851,20 @@ void FTabManager::SetMainTab(const TSharedRef<const SDockTab>& InTab)
 	
 }
 
+void FTabManager::SetReadOnly(bool bInReadOnly)
+{
+	if(bReadOnly != bInReadOnly)
+	{
+		bReadOnly = bInReadOnly;
+		OnReadOnlyModeChanged.Broadcast(bReadOnly);
+	}
+}
+
+bool FTabManager::IsReadOnly()
+{
+	return bReadOnly;
+}
+
 bool FTabManager::IsTabCloseable(const TSharedRef<const SDockTab>& InTab) const
 {
 	return MainNonCloseableTabID != InTab->GetLayoutIdentifier();
@@ -1172,7 +1186,8 @@ void FTabManager::PopulateTabSpawnerMenu_Helper( FMenuBuilder& PopulateMe, FPopu
 
 void FTabManager::MakeSpawnerMenuEntry( FMenuBuilder &PopulateMe, const TSharedPtr<FTabSpawnerEntry> &InSpawnerNode ) 
 {
-	if (InSpawnerNode->MenuType.Get() != ETabSpawnerMenuType::Hidden )
+	// We don't want to add a menu entry for this tab if it is hidden, or if we are in read only mode and it is asking to be hidden
+	if (InSpawnerNode->MenuType.Get() != ETabSpawnerMenuType::Hidden && !(bReadOnly && InSpawnerNode->ReadOnlyBehavior == ETabReadOnlyBehavior::Hidden) )
 	{
 		PopulateMe.AddMenuEntry(
 			InSpawnerNode->GetDisplayName().IsEmpty() ? FText::FromName(InSpawnerNode->TabType ) : InSpawnerNode->GetDisplayName(),
@@ -1940,7 +1955,31 @@ bool FTabManager::IsValidTabForSpawning( const FTab& SomeTab ) const
 
 bool FTabManager::IsAllowedTab(const FTabId& TabId) const
 {
-	return IsAllowedTabType(TabId.TabType);
+	bool bAllowed = true;
+
+	// If we are in read-only mode, make sure this tab doesn't want to be hidden
+	if(bReadOnly)
+	{
+		TOptional<ETabReadOnlyBehavior> TabReadOnlyBehavior = GetTabReadOnlyBehavior(TabId);
+
+		if(TabReadOnlyBehavior.IsSet())
+		{
+			bAllowed &= (TabReadOnlyBehavior.GetValue() != ETabReadOnlyBehavior::Hidden);
+		}
+	}
+	
+	bAllowed &= IsAllowedTabType(TabId.TabType);
+	
+	return bAllowed;
+}
+
+TOptional<ETabReadOnlyBehavior> FTabManager::GetTabReadOnlyBehavior(const FTabId& TabId) const
+{
+	if (const TSharedPtr<const FTabSpawnerEntry> Spawner = FindTabSpawnerFor(TabId.TabType))
+	{
+		return Spawner->ReadOnlyBehavior;
+	}
+	return TOptional<ETabReadOnlyBehavior>();
 }
 
 bool FTabManager::IsAllowedTabType(const FName TabType) const

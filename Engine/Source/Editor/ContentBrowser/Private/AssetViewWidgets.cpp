@@ -774,6 +774,7 @@ TSharedRef<SWidget> SAssetViewItem::CreateToolTipWidget() const
 			const FText ClassText = FText::Format(LOCTEXT("ClassName", "({0})"), GetAssetClassText());
 
 			FText PublicStateText;
+			const FSlateBrush* PublicStateIcon = nullptr;
 			FName PublicStateTextBorder = "ContentBrowser.TileViewTooltip.PillBorder";
 
 			// Create a box to hold every line of info in the body of the tooltip
@@ -828,7 +829,17 @@ TSharedRef<SWidget> SAssetViewItem::CreateToolTipWidget() const
 
 			if (!AssetItem->GetItem().CanEdit())
 			{
-				PublicStateText = LOCTEXT("ReadOnlyAssetState", "Read Only");
+				if(AssetItem->GetItem().CanView())
+				{
+					PublicStateText = LOCTEXT("ReadOnlyAssetState", "View / Read Only");
+					PublicStateIcon = FAppStyle::GetBrush("AssetEditor.ReadOnlyOpenable");
+
+				}
+				else
+				{
+					PublicStateText = LOCTEXT("ReadOnlyAssetState", "Read Only");
+					PublicStateIcon = FAppStyle::GetBrush("Icons.Lock");
+				}
 			}
 
 			if(!AssetItem->GetItem().IsSupported())
@@ -908,17 +919,38 @@ TSharedRef<SWidget> SAssetViewItem::CreateToolTipWidget() const
 							[
 								SNew(SBorder)
 								.BorderImage(FAppStyle::GetBrush(PublicStateTextBorder))
-								.Padding(FMargin(12.0f, 2.0f, 12.0f, 2.0f))
 								.Visibility(bIsPublicAssetUIEnabled && !PublicStateText.IsEmpty() ? EVisibility::Visible : EVisibility::Hidden)
+								.Padding(FMargin(12.0f, 2.0f, 12.0f, 2.0f))
 								[
-									SNew(STextBlock)
-									.Text(PublicStateText)
-									.HighlightText(HighlightText)
+									SNew(SHorizontalBox)
+									+SHorizontalBox::Slot()
+									.AutoWidth()
+									.HAlign(HAlign_Left)
+									.VAlign(VAlign_Center)
+									.Padding(0.0f)
+									[
+										SNew(SBox)
+										.Visibility(PublicStateIcon ? EVisibility::Visible : EVisibility::Collapsed)
+										.HeightOverride(16.0f)
+										.WidthOverride(16.0f)
+										[
+											SNew(SImage)
+											.Image(PublicStateIcon)
+										]
+											
+									]
+									+SHorizontalBox::Slot()
+									.HAlign(HAlign_Left)
+									.VAlign(VAlign_Center)
+									.Padding(4.0f, 0.0f, 0.0f, 0.0f)
+									[
+										SNew(STextBlock)
+										.Text(PublicStateText)
+										.HighlightText(HighlightText)
+									]
 								]
-								
 							]
 						]
-
 						+ SVerticalBox::Slot()
 						.AutoHeight()
 						[

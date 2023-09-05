@@ -204,6 +204,9 @@ protected:
 	/** Overridden from SDockingNode */
 	SLATE_API virtual void SetParentNode( TSharedRef<class SDockingSplitter> InParent ) override;
 
+	/** @return false if the content is disabled (non-interactable) */
+	bool IsContentEnabled() const;
+
 private:
 	
 	/** Data that persists across sessions and when the widget associated with this node is removed. */	

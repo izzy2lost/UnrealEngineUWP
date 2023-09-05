@@ -35,6 +35,7 @@
 #include "Presentation/PropertyEditor/PropertyEditor.h"
 #include "AssetThumbnail.h"
 #include "DetailWidgetRow.h"
+#include "Subsystems/AssetEditorSubsystem.h"
 
 #define LOCTEXT_NAMESPACE "PropertyEditor"
 
@@ -1121,7 +1122,20 @@ void SPropertyEditorAsset::OnOpenAssetEditor()
 			}
 		}
 
-		GEditor->EditObject( ObjectToEdit );
+		UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+
+		if(AssetEditorSubsystem)
+		{
+			FText ErrorMsg;
+			if(AssetEditorSubsystem->CanOpenEditorForAsset(ObjectToEdit, EAssetTypeActivationOpenedMethod::Edit, &ErrorMsg))
+			{
+				AssetEditorSubsystem->OpenEditorForAsset(ObjectToEdit); // Default opens in Edit Mode
+			}
+			else if(AssetEditorSubsystem->CanOpenEditorForAsset(ObjectToEdit, EAssetTypeActivationOpenedMethod::View, &ErrorMsg))
+			{
+				AssetEditorSubsystem->OpenEditorForAsset(ObjectToEdit, EToolkitMode::Standalone /* default */, TSharedPtr<IToolkitHost>() /* default */, true /* default */, EAssetTypeActivationOpenedMethod::View);
+			}
+		}
 	}
 }
 

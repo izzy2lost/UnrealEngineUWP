@@ -174,12 +174,14 @@ void FTextureEditorToolkit::RegisterTabSpawners( const TSharedRef<class FTabMana
 	InTabManager->RegisterTabSpawner(ViewportTabId, FOnSpawnTab::CreateSP(this, &FTextureEditorToolkit::HandleTabSpawnerSpawnViewport))
 		.SetDisplayName(LOCTEXT("ViewportTab", "Viewport"))
 		.SetGroup(WorkspaceMenuCategoryRef)
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Viewports"));
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Viewports"))
+		.SetReadOnlyBehavior(ETabReadOnlyBehavior::Custom);
 
 	InTabManager->RegisterTabSpawner(PropertiesTabId, FOnSpawnTab::CreateSP(this, &FTextureEditorToolkit::HandleTabSpawnerSpawnProperties))
 		.SetDisplayName(LOCTEXT("PropertiesTab", "Details") )
 		.SetGroup(WorkspaceMenuCategoryRef)
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"))
+		.SetReadOnlyBehavior(ETabReadOnlyBehavior::Custom);
 
 	InTabManager->RegisterTabSpawner(OodleTabId, FOnSpawnTab::CreateSP(this, &FTextureEditorToolkit::HandleTabSpawnerSpawnOodle))
 		.SetDisplayName(LOCTEXT("OodleTab", "Oodle"))
@@ -316,6 +318,11 @@ void FTextureEditorToolkit::InitTextureEditor( const EToolkitMode::Type Mode, co
 	ITextureEditorModule* TextureEditorModule = &FModuleManager::LoadModuleChecked<ITextureEditorModule>("TextureEditor");
 	AddMenuExtender(TextureEditorModule->GetMenuExtensibilityManager()->GetAllExtenders(GetToolkitCommands(), GetEditingObjects()));
 
+	TexturePropertiesWidget->SetIsPropertyEditingEnabledDelegate(FIsPropertyEditingEnabled::CreateLambda([this]
+	{
+		return GetOpenMethod() == EAssetOpenMethod::Edit;
+	}));
+	
 	ExtendToolBar();
 
 	RegenerateMenusAndToolbars();
@@ -1828,8 +1835,12 @@ void FTextureEditorToolkit::ExtendToolBar()
 
 	AddToolbarExtender(ToolbarExtender);
 
-	ITextureEditorModule* TextureEditorModule = &FModuleManager::LoadModuleChecked<ITextureEditorModule>("TextureEditor");
-	AddToolbarExtender(TextureEditorModule->GetToolBarExtensibilityManager()->GetAllExtenders(GetToolkitCommands(), GetEditingObjects()));
+	// Extensions are currently disabled in read-only mode, if they are desired to be added in the future we should move this code to the individual extensions
+	if(GetOpenMethod() == EAssetOpenMethod::Edit)
+	{
+		ITextureEditorModule* TextureEditorModule = &FModuleManager::LoadModuleChecked<ITextureEditorModule>("TextureEditor");
+		AddToolbarExtender(TextureEditorModule->GetToolBarExtensibilityManager()->GetAllExtenders(GetToolkitCommands(), GetEditingObjects()));
+	}
 }
 
 void FTextureEditorToolkit::FillToolbar(FToolBarBuilder& ToolbarBuilder)
@@ -1847,12 +1858,17 @@ void FTextureEditorToolkit::FillToolbar(FToolBarBuilder& ToolbarBuilder)
 	UCurveLinearColorAtlas* Atlas = Cast<UCurveLinearColorAtlas>(GetTexture());
 	if (!Atlas)
 	{
-		ToolbarBuilder.BeginSection("TextureMisc");
+		// These actions don't make sense in read-only mode
+		if(GetOpenMethod() == EAssetOpenMethod::Edit)
 		{
-			ToolbarBuilder.AddToolBarButton(FTextureEditorCommands::Get().CompressNow);
-			ToolbarBuilder.AddToolBarButton(FTextureEditorCommands::Get().Reimport);
+			ToolbarBuilder.BeginSection("TextureMisc");
+			{
+				ToolbarBuilder.AddToolBarButton(FTextureEditorCommands::Get().CompressNow);
+				ToolbarBuilder.AddToolBarButton(FTextureEditorCommands::Get().Reimport);
+			}
+			ToolbarBuilder.EndSection();
 		}
-		ToolbarBuilder.EndSection();
+		
 
 		ToolbarBuilder.BeginSection("Channels");
 		{

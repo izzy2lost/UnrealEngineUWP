@@ -179,6 +179,7 @@ void SDockingTabStack::Construct( const FArguments& InArgs, const TSharedRef<FTa
 				.BorderImage(this, &SDockingTabStack::GetContentAreaBrush)
 				.Padding(this, &SDockingTabStack::GetContentPadding)
 				.Clipping(EWidgetClipping::ClipToBounds)
+				.IsEnabled(this, &SDockingTabStack::IsContentEnabled)
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("EmptyTabMessage", "Empty Tab!"))
@@ -920,6 +921,25 @@ void SDockingTabStack::SetParentNode( TSharedRef<class SDockingSplitter> InParen
 	const TSharedPtr<SDockingArea>& DockArea = GetDockArea();
 
 	TitleBarSlot->AttachWidget(TitleBarContent.ToSharedRef());
+}
+
+bool SDockingTabStack::IsContentEnabled() const
+{
+	TSharedRef<FTabManager> TabManager = GetDockArea()->GetTabManager();
+
+	if(!TabManager->IsReadOnly())
+	{
+		return true;
+	}
+
+	// If we are in read only mode, and the foreground tab desires custom behavior (i.e not hidden or disabled) it is enabled
+	// and the tab owner is responsible for handling the content in read only mode
+	if(TSharedPtr<SDockTab> ForegroundTab = TabWell->GetForegroundTab())
+	{
+		return TabManager->GetTabReadOnlyBehavior(ForegroundTab->GetLayoutIdentifier()) == ETabReadOnlyBehavior::Custom;
+	}
+
+	return true;
 }
 
 

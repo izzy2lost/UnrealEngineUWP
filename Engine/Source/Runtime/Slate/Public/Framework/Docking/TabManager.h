@@ -202,6 +202,16 @@ namespace ETabSpawnerMenuType
 	};
 }
 
+/** An enum to describe how TabSpawnerEntries behave when the tab manager is in read only mode */
+enum class ETabReadOnlyBehavior : int32
+{
+	Disabled, // Default behavior - This tab will show up in read only modes but the contents will be disabled
+	Hidden,   // This tab will not show up in read only modes
+	Custom    // This tab will show up in read only modes and the tab owner will decide how it behaves (FTabManager::OnReadOnlyStateChanged to keep track of read only state)
+};
+
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnReadOnlyModeChanged, bool /*bReadOnly*/);
+
 struct FTabSpawnerEntry : public FWorkspaceItem
 {
 	FTabSpawnerEntry(const FName& InTabType, const FOnSpawnTab& InSpawnTabMethod, const FCanSpawnTab& InCanSpawnTab)
@@ -214,9 +224,17 @@ struct FTabSpawnerEntry : public FWorkspaceItem
 		, bAutoGenerateMenuEntry(true)
 		, bCanSidebarTab(true)
 		, SpawnedTabPtr()
+		, ReadOnlyBehavior(ETabReadOnlyBehavior::Disabled)
+	
 	{
 	}
 
+	FTabSpawnerEntry& SetReadOnlyBehavior( const ETabReadOnlyBehavior& InReadOnlyBehavior)
+	{
+		ReadOnlyBehavior = InReadOnlyBehavior;
+		return *this;
+	}
+	
 	FTabSpawnerEntry& SetIcon( const FSlateIcon& InIcon)
 	{
 		Icon = InIcon;
@@ -311,6 +329,9 @@ private:
 	bool bCanSidebarTab;
 
 	TWeakPtr<SDockTab> SpawnedTabPtr;
+
+	/** How this tab behaves when the tab manager is in a read only mode */
+	ETabReadOnlyBehavior ReadOnlyBehavior;
 
 	FORCENOINLINE bool IsSoleTabInstanceSpawned() const
 	{
@@ -945,9 +966,15 @@ class FTabManager : public TSharedFromThis<FTabManager>
 		 */
 		SLATE_API void SetMainTab(const TSharedRef<const SDockTab>& InTab);
 
-		/** Provide a tab that will be the main tab and cannot be closed. */
 		SLATE_API void SetMainTab(const FTabId& InMainTabID);
+
+		/** Is this Tab Manager in Read Only mode i.e all interactions with panels are disabled */
+		SLATE_API bool IsReadOnly();
+
+		SLATE_API void SetReadOnly(bool bInReadOnly);
 	
+		SLATE_API FOnReadOnlyModeChanged& GetOnReadOnlyModeChangedDelegate() { return OnReadOnlyModeChanged; }
+
 		/* Prevent or allow all tabs to be drag */
 		void SetCanDoDragOperation(bool CanDoDragOperation) { bCanDoDragOperation = CanDoDragOperation; }
 		
@@ -959,6 +986,9 @@ class FTabManager : public TSharedFromThis<FTabManager>
 
 		/** @return true if a tab is ever allowed in a sidebar */
 		SLATE_API bool IsTabAllowedInSidebar(const FTabId TabId) const;
+
+		/** @return how the given tab wants to behave in read only mode */
+		TOptional<ETabReadOnlyBehavior> GetTabReadOnlyBehavior(const FTabId& TabId) const;
 
 		/**
 		 * Temporarily moves all open tabs in this tab manager to a sidebar or restores them from a temporary state
@@ -1189,6 +1219,12 @@ class FTabManager : public TSharedFromThis<FTabManager>
 
 		/** Tabs which have been temporarily put in the a sidebar */
 		TArray<TWeakPtr<SDockTab>> TemporarilySidebaredTabs;
+
+		/** Whether this tab manager is in a read only mode (all tabs content disabled by default - overridable per tab) */
+		bool bReadOnly = false;
+
+		/** Delegate that broadcasts when the tab manager enters/leaves read only mode */
+		FOnReadOnlyModeChanged OnReadOnlyModeChanged;
 };
 
 

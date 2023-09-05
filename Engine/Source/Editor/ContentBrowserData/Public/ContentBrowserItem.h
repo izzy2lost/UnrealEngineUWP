@@ -261,6 +261,15 @@ public:
 	bool CanPreview(FText* OutErrorMsg = nullptr) const;
 
 	/**
+	 * Query whether the given item is can be viewed (a read-only asset editor), optionally providing error information if it cannot.
+	 *
+	 * @param OutErrorMessage Optional error message to fill on failure.
+	 *
+	 * @return True if the item can be viewed in a read-only editor, false otherwise.
+	 */
+	bool CanView(FText* OutErrorMsg = nullptr) const;
+
+	/**
 	 * Attempt to preview this item.
 	 * @return True if the item was previewed, false otherwise.
 	 */

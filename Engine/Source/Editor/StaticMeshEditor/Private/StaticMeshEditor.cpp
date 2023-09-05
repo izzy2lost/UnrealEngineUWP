@@ -176,32 +176,38 @@ void FStaticMeshEditor::RegisterTabSpawners(const TSharedRef<class FTabManager>&
 	InTabManager->RegisterTabSpawner( ViewportTabId, FOnSpawnTab::CreateSP(this, &FStaticMeshEditor::SpawnTab_Viewport) )
 		.SetDisplayName( LOCTEXT("ViewportTab", "Viewport") )
 		.SetGroup(WorkspaceMenuCategoryRef)
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Viewports"));
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Viewports"))
+		.SetReadOnlyBehavior(ETabReadOnlyBehavior::Custom);
 
 	InTabManager->RegisterTabSpawner( PropertiesTabId, FOnSpawnTab::CreateSP(this, &FStaticMeshEditor::SpawnTab_Properties) )
 		.SetDisplayName( LOCTEXT("PropertiesTab", "Details") )
 		.SetGroup(WorkspaceMenuCategoryRef)
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"))
+		.SetReadOnlyBehavior(ETabReadOnlyBehavior::Custom);
 
 	InTabManager->RegisterTabSpawner( SocketManagerTabId, FOnSpawnTab::CreateSP(this, &FStaticMeshEditor::SpawnTab_SocketManager) )
 		.SetDisplayName( LOCTEXT("SocketManagerTab", "Socket Manager") )
 		.SetGroup(WorkspaceMenuCategoryRef)
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "StaticMeshEditor.Tabs.SocketManager"));
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "StaticMeshEditor.Tabs.SocketManager"))
+		.SetReadOnlyBehavior(ETabReadOnlyBehavior::Custom);
 
 	InTabManager->RegisterTabSpawner( CollisionTabId, FOnSpawnTab::CreateSP(this, &FStaticMeshEditor::SpawnTab_Collision) )
 		.SetDisplayName( LOCTEXT("CollisionTab", "Convex Decomposition") )
 		.SetGroup(WorkspaceMenuCategoryRef)
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "StaticMeshEditor.Tabs.ConvexDecomposition"));
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "StaticMeshEditor.Tabs.ConvexDecomposition"))
+		.SetReadOnlyBehavior(ETabReadOnlyBehavior::Hidden);
 
 	InTabManager->RegisterTabSpawner( PreviewSceneSettingsTabId, FOnSpawnTab::CreateSP(this, &FStaticMeshEditor::SpawnTab_PreviewSceneSettings) )
 		.SetDisplayName( LOCTEXT("PreviewSceneTab", "Preview Scene Settings") )
 		.SetGroup(WorkspaceMenuCategoryRef)
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"))
+		.SetReadOnlyBehavior(ETabReadOnlyBehavior::Custom);
 
 	FTabSpawnerEntry& MenuEntry = InTabManager->RegisterTabSpawner( SecondaryToolbarTabId, FOnSpawnTab::CreateSP(this, &FStaticMeshEditor::SpawnTab_SecondaryToolbar) )
 		.SetDisplayName( LOCTEXT("ToolbarTab", "Secondary Toolbar") )
 		.SetGroup(WorkspaceMenuCategoryRef)
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Toolbar.Icon"));
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Toolbar.Icon"))
+		.SetReadOnlyBehavior(ETabReadOnlyBehavior::Hidden);
 
 	// Hide the menu item by default. It will be enabled only if the secondary toolbar is populated with extensions
 	SecondaryToolbarEntry = &MenuEntry;
@@ -359,6 +365,10 @@ void FStaticMeshEditor::InitStaticMeshEditor( const EToolkitMode::Type Mode, con
 	const bool bCreateDefaultToolbar = true;
 	FAssetEditorToolkit::InitAssetEditor( Mode, InitToolkitHost, StaticMeshEditorAppIdentifier, StandaloneDefaultLayout, bCreateDefaultToolbar, bCreateDefaultStandaloneMenu, ObjectToEdit );
 
+	StaticMeshDetailsView->SetIsPropertyEditingEnabledDelegate(FIsPropertyEditingEnabled::CreateLambda([this]
+	{
+		return GetOpenMethod() == EAssetOpenMethod::Edit;
+	}));
 	
 	TSharedPtr<class IToolkitHost> PinnedToolkitHost = ToolkitHost.Pin();
 	check(PinnedToolkitHost.IsValid());
@@ -493,12 +503,29 @@ void FStaticMeshEditor::ExtendMenu()
 
 		{
 			UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("AssetEditor.StaticMeshEditor.MainMenu");
+
 			FToolMenuSection& Section = Menu->FindOrAddSection(NAME_None);
-			FToolMenuEntry& Entry = Section.AddSubMenu("Collision",
-				LOCTEXT("StaticMeshEditorCollisionMenu", "Collision"),
-				LOCTEXT("StaticMeshEditorCollisionMenu_ToolTip", "Opens a menu with commands for editing this mesh's collision"),
-				FNewToolMenuChoice());
-			Entry.InsertPosition = FToolMenuInsert("Asset", EToolMenuInsertType::After);
+
+			Section.AddDynamicEntry("CollisionDynamic", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
+			{
+				if (TSharedPtr<FStaticMeshEditor> StaticMeshEditor = StaticMeshEditor::GetStaticMeshEditorFromMenuContext(InSection))
+				{
+					// These entries modify the mesh, so we don't want them in read only mode
+					if(StaticMeshEditor->GetOpenMethod() != EAssetOpenMethod::Edit)
+					{
+						return;
+					}
+					
+					FToolMenuEntry& Entry = InSection.AddSubMenu("Collision",
+						LOCTEXT("StaticMeshEditorCollisionMenu", "Collision"),
+						LOCTEXT("StaticMeshEditorCollisionMenu_ToolTip", "Opens a menu with commands for editing this mesh's collision"),
+						FNewToolMenuChoice());
+						
+					Entry.InsertPosition = FToolMenuInsert("Asset", EToolMenuInsertType::After);
+				}
+			}));
+			
+			
 		}
 	}
 
@@ -865,45 +892,74 @@ void FStaticMeshEditor::ExtendToolBar()
 	{
 		UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("AssetEditor.StaticMeshEditor.ToolBar");
 
-		auto ConstructReimportContextMenu = [](UToolMenu* InMenu)
-		{
-			FToolMenuSection& Section = InMenu->AddSection("Reimport");
-			Section.AddMenuEntry(FStaticMeshEditorCommands::Get().ReimportMesh);
-			Section.AddMenuEntry(FStaticMeshEditorCommands::Get().ReimportAllMesh);
-		};
-
 		{
 			FToolMenuSection& Section = Menu->AddSection("Mesh");
 			Section.InsertPosition = FToolMenuInsert("Asset", EToolMenuInsertType::After);
 
-			FToolMenuEntry& ReimportMeshEntry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FStaticMeshEditorCommands::Get().ReimportMesh));
-			ReimportMeshEntry.StyleNameOverride = "CalloutToolbar";
-			
-			FToolMenuEntry& ReimportContextMenuEntry = Section.AddEntry(FToolMenuEntry::InitComboButton(
-				"ReimportContextMenu",
-				FUIAction(),
-				FNewToolMenuDelegate::CreateLambda(ConstructReimportContextMenu),
-				TAttribute<FText>(),
-				TAttribute<FText>(),
-				TAttribute<FSlateIcon>(),
-				true
-			));
-			ReimportContextMenuEntry.StyleNameOverride = "CalloutToolbar";
+			Section.AddDynamicEntry("MeshDynamic", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
+			{
+				if (TSharedPtr<FStaticMeshEditor> StaticMeshEditor = StaticMeshEditor::GetStaticMeshEditorFromMenuContext(InSection))
+				{
+					// These entries modify the mesh, so we don't want them in read only mode
+					if(StaticMeshEditor->GetOpenMethod() != EAssetOpenMethod::Edit)
+					{
+						return;
+					}
+					
+					auto ConstructReimportContextMenu = [](UToolMenu* InMenu)
+					{
+						FToolMenuSection& Section = InMenu->AddSection("Reimport");
+						Section.AddMenuEntry(FStaticMeshEditorCommands::Get().ReimportMesh);
+						Section.AddMenuEntry(FStaticMeshEditorCommands::Get().ReimportAllMesh);
+					};
+					
+					FToolMenuEntry& ReimportMeshEntry = InSection.AddEntry(FToolMenuEntry::InitToolBarButton(FStaticMeshEditorCommands::Get().ReimportMesh));
+					ReimportMeshEntry.StyleNameOverride = "CalloutToolbar";
+								
+					FToolMenuEntry& ReimportContextMenuEntry = InSection.AddEntry(FToolMenuEntry::InitComboButton(
+						"ReimportContextMenu",
+						FUIAction(),
+						FNewToolMenuDelegate::CreateLambda(ConstructReimportContextMenu),
+						TAttribute<FText>(),
+						TAttribute<FText>(),
+						TAttribute<FSlateIcon>(),
+						true
+					));
+					ReimportContextMenuEntry.StyleNameOverride = "CalloutToolbar";
+
+				}
+			}));
+
 		}
 
 		{
 			FToolMenuSection& Section = Menu->AddSection("Command");
 			Section.InsertPosition = FToolMenuInsert("Asset", EToolMenuInsertType::After);
 
-			FToolMenuEntry& CollisionEntry = Section.AddEntry(FToolMenuEntry::InitComboButton(
-				"Collision",
-				FUIAction(),
-				FNewToolMenuChoice(), // let registered menu be looked up by name "AssetEditor.StaticMeshEditor.ToolBar.Collision"
-				LOCTEXT("Collision_Label", "Collision"),
-				LOCTEXT("Collision_Tooltip", "Collision drawing options"),
-				FSlateIcon(FAppStyle::GetAppStyleSetName(), "StaticMeshEditor.SetShowCollision")
-			));
-			CollisionEntry.StyleNameOverride = "CalloutToolbar";
+			Section.AddDynamicEntry("MeshDynamic", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
+			{
+				if (TSharedPtr<FStaticMeshEditor> StaticMeshEditor = StaticMeshEditor::GetStaticMeshEditorFromMenuContext(InSection))
+				{
+					// These entries modify the mesh, so we don't want them in read only mode
+					if(StaticMeshEditor->GetOpenMethod() != EAssetOpenMethod::Edit)
+					{
+						return;
+					}
+					
+					FToolMenuEntry& CollisionEntry = InSection.AddEntry(FToolMenuEntry::InitComboButton(
+					"Collision",
+					FUIAction(),
+					FNewToolMenuChoice(), // let registered menu be looked up by name "AssetEditor.StaticMeshEditor.ToolBar.Collision"
+					LOCTEXT("Collision_Label", "Collision"),
+					LOCTEXT("Collision_Tooltip", "Collision drawing options"),
+					FSlateIcon(FAppStyle::GetAppStyleSetName(), "StaticMeshEditor.SetShowCollision")
+					));
+					
+					CollisionEntry.StyleNameOverride = "CalloutToolbar";
+				}
+			}));
+
+			
 
 			Section.AddDynamicEntry("UVToolbarDynamic", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
 			{
@@ -923,21 +979,24 @@ void FStaticMeshEditor::ExtendToolBar()
 		}
 	}
 
-	{
-	IStaticMeshEditorModule* StaticMeshEditorModule = &FModuleManager::LoadModuleChecked<IStaticMeshEditorModule>("StaticMeshEditor");
 
-	TArray<IStaticMeshEditorModule::FStaticMeshEditorToolbarExtender> ToolbarExtenderDelegates = StaticMeshEditorModule->GetAllStaticMeshEditorToolbarExtenders();
-	for (auto& ToolbarExtenderDelegate : ToolbarExtenderDelegates)
+	// Extensions are currently disabled in read-only mode, if they are desired to be added in the future we should move this code to the individual extensions
+	if(GetOpenMethod() == EAssetOpenMethod::Edit)
 	{
-		if (ToolbarExtenderDelegate.IsBound())
+		IStaticMeshEditorModule* StaticMeshEditorModule = &FModuleManager::LoadModuleChecked<IStaticMeshEditorModule>("StaticMeshEditor");
+
+		TArray<IStaticMeshEditorModule::FStaticMeshEditorToolbarExtender> ToolbarExtenderDelegates = StaticMeshEditorModule->GetAllStaticMeshEditorToolbarExtenders();
+		for (auto& ToolbarExtenderDelegate : ToolbarExtenderDelegates)
 		{
-			AddToolbarExtender(ToolbarExtenderDelegate.Execute(GetToolkitCommands(), SharedThis(this)));
+			if (ToolbarExtenderDelegate.IsBound())
+			{
+				AddToolbarExtender(ToolbarExtenderDelegate.Execute(GetToolkitCommands(), SharedThis(this)));
+			}
 		}
-	}
 
-	EditorToolbarExtender = StaticMeshEditorModule->GetToolBarExtensibilityManager()->GetAllExtenders(GetToolkitCommands(), GetEditingObjects());
-	AddToolbarExtender(EditorToolbarExtender);
-	AddSecondaryToolbarExtender(StaticMeshEditorModule->GetSecondaryToolBarExtensibilityManager()->GetAllExtenders(GetToolkitCommands(), GetEditingObjects()));
+		EditorToolbarExtender = StaticMeshEditorModule->GetToolBarExtensibilityManager()->GetAllExtenders(GetToolkitCommands(), GetEditingObjects());
+		AddToolbarExtender(EditorToolbarExtender);
+		AddSecondaryToolbarExtender(StaticMeshEditorModule->GetSecondaryToolBarExtensibilityManager()->GetAllExtenders(GetToolkitCommands(), GetEditingObjects()));
 	}
 
 }
@@ -1607,21 +1666,27 @@ void FStaticMeshEditor::GenerateUVChannelComboList(UToolMenu* InMenu)
 		}
 	}
 
-	// Add UV editing functions
-	{
-		FToolMenuSection& Section = InMenu->AddSection("UVActionOptions");
 
-		FUIAction MenuAction;
-		MenuAction.ExecuteAction.BindSP(this, &FStaticMeshEditor::RemoveCurrentUVChannel);
-		MenuAction.CanExecuteAction.BindSP(this, &FStaticMeshEditor::CanRemoveUVChannel);
-		Section.AddMenuEntry(
-			"Remove_UVChannel",
-			LOCTEXT("Remove_UVChannel", "Remove Selected"),
-			LOCTEXT("Remove_UVChannel_ToolTip", "Remove currently selected UV channel from the static mesh"),
-			FSlateIcon(),
-			MenuAction,
-			EUserInterfaceActionType::Button
-		);
+	if (TSharedPtr<FStaticMeshEditor> StaticMeshEditor = StaticMeshEditor::GetStaticMeshEditorFromMenuContext(InMenu))
+	{
+		// These actions modify the mesh, so we don't want them in read only mode
+		if(StaticMeshEditor->GetOpenMethod() == EAssetOpenMethod::Edit)
+		{
+			FToolMenuSection& Section = InMenu->AddSection("UVActionOptions");
+
+			FUIAction MenuAction;
+			MenuAction.ExecuteAction.BindSP(this, &FStaticMeshEditor::RemoveCurrentUVChannel);
+			MenuAction.CanExecuteAction.BindSP(this, &FStaticMeshEditor::CanRemoveUVChannel);
+			Section.AddMenuEntry(
+				"Remove_UVChannel",
+				LOCTEXT("Remove_UVChannel", "Remove Selected"),
+				LOCTEXT("Remove_UVChannel_ToolTip", "Remove currently selected UV channel from the static mesh"),
+				FSlateIcon(),
+				MenuAction,
+				EUserInterfaceActionType::Button
+			);
+		}
+		
 	}
 }
 
@@ -2454,7 +2519,8 @@ void FStaticMeshEditor::OnConvexDecomposition()
 bool FStaticMeshEditor::OnRequestClose(EAssetEditorCloseReason InCloseReason)
 {
 	bool bAllowClose = true;
-	if (InCloseReason != EAssetEditorCloseReason::AssetForceDeleted && StaticMeshDetails.IsValid() && StaticMeshDetails.Pin()->IsApplyNeeded())
+	// If we are in read only mode, don't show the save prompt
+	if (GetOpenMethod() != EAssetOpenMethod::View && InCloseReason != EAssetEditorCloseReason::AssetForceDeleted && StaticMeshDetails.IsValid() && StaticMeshDetails.Pin()->IsApplyNeeded())
 	{
 		// find out the user wants to do with this dirty material
 		EAppReturnType::Type YesNoCancelReply = FMessageDialog::Open(

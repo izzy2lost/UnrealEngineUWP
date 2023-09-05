@@ -31,6 +31,11 @@ EAssetCommandResult UAssetDefinition_Texture::OpenAssets(const FAssetOpenArgs& O
 	return EAssetCommandResult::Handled;
 }
 
+FAssetOpenSupport UAssetDefinition_Texture::GetAssetOpenSupport(const FAssetOpenSupportArgs& OpenSupportArgs) const
+{
+	return FAssetOpenSupport(OpenSupportArgs.OpenMethod,OpenSupportArgs.OpenMethod == EAssetOpenMethod::Edit || OpenSupportArgs.OpenMethod == EAssetOpenMethod::View); 
+}
+
 // Menu Extensions
 //--------------------------------------------------------------------
 

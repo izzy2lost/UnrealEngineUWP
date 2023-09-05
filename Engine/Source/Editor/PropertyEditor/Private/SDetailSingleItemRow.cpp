@@ -740,7 +740,8 @@ FReply SDetailSingleItemRow::OnMouseButtonUp(const FGeometry& MyGeometry, const 
 			PulseAnimation.Play(SharedThis(this));
 			bIsHandled = true;
 		}
-		else if (PasteAction.CanExecute() && MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+		// Paste is disabled if property editing is disabled
+		else if (PasteAction.CanExecute() && MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && OwnerTreeNode.Pin()->GetDetailsView()->IsPropertyEditingEnabled())
 		{
 			PasteAction.Execute();
 			PulseAnimation.Play(SharedThis(this));
@@ -1045,7 +1046,12 @@ bool SDetailSingleItemRow::OnContextMenuOpening(FMenuBuilder& MenuBuilder)
 		PasteContentParams.InputBindingOverride = FInputChord(EModifierKey::Shift, EKeys::LeftMouseButton).GetInputText(bLongDisplayName);
 		PasteContentParams.IconOverride = FSlateIcon(FCoreStyle::Get().GetStyleSetName(), "GenericCommands.Paste");
 		PasteContentParams.DirectActions = PasteAction;
-		MenuBuilder.AddMenuEntry(PasteContentParams);
+
+		// Paste is disabled if property editing is disabled
+		if(OwnerTreeNode.Pin()->GetDetailsView()->IsPropertyEditingEnabled())
+		{
+			MenuBuilder.AddMenuEntry(PasteContentParams);
+		}
 	}
 
 	MenuBuilder.AddMenuEntry(
