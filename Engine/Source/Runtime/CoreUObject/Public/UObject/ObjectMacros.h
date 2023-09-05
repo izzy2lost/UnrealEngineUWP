@@ -1460,7 +1460,8 @@ namespace UM
 		/// [PropertyMetadata] Causes FString and FName properties to have a limited set of options generated dynamically, e.g. meta=(GetOptions="FuncName"). Supports external static function references via "Module.Class.Function" syntax.
 		///
 		/// UFUNCTION()
-		/// TArray<FString> FuncName() const; // Always return string array even if FName property.
+		/// static TArray<FName> FuncName() const; // If the field wants an FName value
+		/// static TArray<FString> FuncName() const; // If the field wants an FString value
 		GetOptions,
 
 		/// [PropertyMetadata] The property can be exposed as a data pin, but is hidden by default.

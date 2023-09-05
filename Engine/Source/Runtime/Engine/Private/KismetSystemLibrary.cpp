@@ -2221,6 +2221,25 @@ bool UKismetSystemLibrary::CapsuleTraceMultiByProfile(const UObject* WorldContex
 	return bHit;
 }
 
+#if WITH_EDITOR
+TArray<FName> UKismetSystemLibrary::GetCollisionProfileNames()
+{
+	TArray<TSharedPtr<FName>> SharedNames;
+	UCollisionProfile::GetProfileNames(SharedNames);
+
+	TArray<FName> Names;
+	Names.Reserve(SharedNames.Num());
+	for (const TSharedPtr<FName>& SharedName : SharedNames)
+	{
+		if (const FName* Name = SharedName.Get())
+		{
+			Names.Add(*Name);
+		}
+	}
+
+	return Names;
+}
+#endif
 
 /** Draw a debug line */
 void UKismetSystemLibrary::DrawDebugLine(const UObject* WorldContextObject, FVector const LineStart, FVector const LineEnd, FLinearColor Color, float LifeTime, float Thickness)

@@ -13,6 +13,7 @@
 #include "Editor/UnrealEdEngine.h"
 #include "UnrealEdGlobals.h"
 #include "PropertyEditorHelpers.h"
+#include "PropertyEditorUtils.h"
 #include "StructurePropertyNode.h"
 #include "ScopedTransaction.h"
 #include "Kismet2/KismetEditorUtilities.h"
@@ -3146,64 +3147,7 @@ bool FPropertyHandleBase::GeneratePossibleValues(TArray< TSharedPtr<FString> >& 
 			TArray<UObject*> OutObjects;
 			GetOuterObjects(OutObjects);
 
-			// Check for external function references
-			if (GetOptionsFunctionName.Contains(TEXT(".")))
-			{
-				OutObjects.Empty();
-				UFunction* GetOptionsFunction = FindObject<UFunction>(nullptr, *GetOptionsFunctionName, true);
-
-				if (ensureMsgf(GetOptionsFunction && GetOptionsFunction->HasAnyFunctionFlags(EFunctionFlags::FUNC_Static), TEXT("Invalid GetOptions: %s"), *GetOptionsFunctionName))
-				{
-					UObject* GetOptionsCDO = GetOptionsFunction->GetOuterUClass()->GetDefaultObject();
-					GetOptionsFunction->GetName(GetOptionsFunctionName);
-					OutObjects.Add(GetOptionsCDO);
-				}
-			}
-
-			if (OutObjects.Num() > 0)
-			{
-				TArray<FString> OptionIntersection;
-				TSet<FString> OptionIntersectionSet;
-
-				for (UObject* Target : OutObjects)
-				{
-					TArray<FString> StringOptions;
-					{
-						FEditorScriptExecutionGuard ScriptExecutionGuard;
-
-						FCachedPropertyPath Path(GetOptionsFunctionName);
-						if (!PropertyPathHelpers::GetPropertyValue(Target, Path, StringOptions))
-						{
-							TArray<FName> NameOptions;
-							if (PropertyPathHelpers::GetPropertyValue(Target, Path, NameOptions))
-							{
-								Algo::Transform(NameOptions, StringOptions, [](const FName& InName) { return InName.ToString(); });
-							}
-						}
-					}
-
-					// If this is the first time there won't be any options.
-					if (OptionIntersection.Num() == 0)
-					{
-						OptionIntersection = StringOptions;
-						OptionIntersectionSet = TSet<FString>(StringOptions);
-					}
-					else
-					{
-						TSet<FString> StringOptionsSet(StringOptions);
-						OptionIntersectionSet = StringOptionsSet.Intersect(OptionIntersectionSet);
-						OptionIntersection.RemoveAll([&OptionIntersectionSet](const FString& Option){ return !OptionIntersectionSet.Contains(Option); });
-					}
-
-					// If we're out of possible intersected options, we can stop.
-					if (OptionIntersection.Num() == 0)
-					{
-						break;
-					}
-				}
-
-				Algo::Transform(OptionIntersection, OutOptionStrings, [](const FString& InString) { return MakeShared<FString>(InString); });
-			}
+			PropertyEditorUtils::GetPropertyOptions(OutObjects, GetOptionsFunctionName, OutOptionStrings);
 		}
 	}
 	else if( Property->IsA(FClassProperty::StaticClass()) || Property->IsA(FSoftClassProperty::StaticClass()) )		
