@@ -155,9 +155,16 @@ static bool TryParseConfigFileFromPlatformPackage(FOnDemandEndpoint& OutEndpoint
 {
 	const FString ConfigFileName = TEXT("IoStoreOnDemand.ini");
 	const FString ConfigPath = FPaths::Combine(TEXT("Cloud"), ConfigFileName);
-	const FString ConfigContent = FPlatformMisc::LoadTextFileFromPlatformPackage(ConfigPath);
-
-	return TryParseConfigContent(ConfigContent, ConfigFileName, OutEndpoint);
+	
+	if (FPlatformMisc::FileExistsInPlatformPackage(ConfigPath))
+	{
+		const FString ConfigContent = FPlatformMisc::LoadTextFileFromPlatformPackage(ConfigPath);
+		return TryParseConfigContent(ConfigContent, ConfigFileName, OutEndpoint);
+	}
+	else
+	{
+		return false;
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
