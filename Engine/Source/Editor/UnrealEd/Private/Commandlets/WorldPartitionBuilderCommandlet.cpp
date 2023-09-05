@@ -173,7 +173,7 @@ TArray<FString> UWorldPartitionBuilderCommandlet::GatherMapsFromCollection(const
 		}
 		else
 		{
-			UE_LOG(LogWorldPartitionBuilderCommandlet, Warning, TEXT("%s was not found"), *PackageName);
+			UE_LOG(LogWorldPartitionBuilderCommandlet, Log, TEXT("%s was not found"), *PackageName);
 		}
 	}
 
