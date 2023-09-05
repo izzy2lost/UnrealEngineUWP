@@ -64,6 +64,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | SkeletalMesh")
 	bool SetCustomImportMorphTarget(const bool& AttributeValue);
 
+	/** Query weather the skeletal mesh factory should import the vertex attributes. Return false if the attribute was not set.*/
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | SkeletalMesh")
+	bool GetCustomImportVertexAttributes(bool& AttributeValue) const;
+
+	/** Set weather the skeletal mesh factory should import the vertex attributes. Return false if the attribute cannot be set.*/
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | SkeletalMesh")
+	bool SetCustomImportVertexAttributes(const bool& AttributeValue);
+
 	/** Query weather the skeletal mesh factory should create a physics asset. Return false if the attribute was not set.*/
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | SkeletalMesh")
 	bool GetCustomCreatePhysicsAsset(bool& AttributeValue) const;
@@ -157,6 +165,7 @@ private:
 
 	const UE::Interchange::FAttributeKey ClassNameAttributeKey = UE::Interchange::FBaseNodeStaticData::ClassTypeAttributeKey();
 	const UE::Interchange::FAttributeKey Macro_CustomImportMorphTargetKey = UE::Interchange::FAttributeKey(TEXT("ImportMorphTarget"));
+	const UE::Interchange::FAttributeKey Macro_CustomImportVertexAttributesKey = UE::Interchange::FAttributeKey(TEXT("ImportVertexAttributes"));
 	const UE::Interchange::FAttributeKey Macro_CustomSkeletonSoftObjectPathKey = UE::Interchange::FAttributeKey(TEXT("SkeletonSoftObjectPath"));
 	const UE::Interchange::FAttributeKey Macro_CustomCreatePhysicsAssetKey = UE::Interchange::FAttributeKey(TEXT("CreatePhysicsAsset"));
 	const UE::Interchange::FAttributeKey Macro_CustomPhysicAssetSoftObjectPathKey = UE::Interchange::FAttributeKey(TEXT("PhysicAssetSoftObjectPath"));

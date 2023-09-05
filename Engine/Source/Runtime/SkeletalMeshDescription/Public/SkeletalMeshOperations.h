@@ -28,6 +28,7 @@ public:
 
 		int32 SourceVertexIDOffset;
 		TArray<FBoneIndexType> SourceRemapBoneIndex;
+		bool bAppendVertexAttributes = false;
 	};
 	
 	static SKELETALMESHDESCRIPTION_API void AppendSkinWeight(const FMeshDescription& SourceMesh, FMeshDescription& TargetMesh, FSkeletalMeshAppendSettings& AppendSettings);

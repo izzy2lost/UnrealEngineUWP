@@ -437,6 +437,9 @@ namespace UE
 				TMap<FString, TOptional<UE::Interchange::FMeshPayloadData>> MorphTargetMeshDescriptionsPerMorphTargetName;
 				int32 MorphTargetCount = 0;
 
+				bool bImportVertexAttributes = false;
+				SkeletalMeshFactoryNode->GetCustomImportVertexAttributes(bImportVertexAttributes);
+
 				for (const FMeshNodeContext& MeshNodeContext : MeshReferences)
 				{
 					//Add the payload entry key, the payload data will be fill later in bulk by the translator
@@ -459,6 +462,7 @@ namespace UE
 					const int32 VertexOffset = LodMeshDescription.Vertices().Num();
 
 					FSkeletalMeshOperations::FSkeletalMeshAppendSettings SkeletalMeshAppendSettings;
+					SkeletalMeshAppendSettings.bAppendVertexAttributes = bImportVertexAttributes;
 					SkeletalMeshAppendSettings.SourceVertexIDOffset = VertexOffset;
 					{
 						TRACE_CPUPROFILER_EVENT_SCOPE("RetrieveAllSkeletalMeshPayloadsAndFillImportData::CompactPayload")

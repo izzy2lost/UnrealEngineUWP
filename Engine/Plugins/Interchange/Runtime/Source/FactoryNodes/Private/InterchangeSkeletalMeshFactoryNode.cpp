@@ -91,6 +91,16 @@ bool UInterchangeSkeletalMeshFactoryNode::SetCustomImportMorphTarget(const bool&
 	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(ImportMorphTarget, bool)
 }
 
+bool UInterchangeSkeletalMeshFactoryNode::GetCustomImportVertexAttributes(bool& AttributeValue) const
+{
+	IMPLEMENT_NODE_ATTRIBUTE_GETTER(ImportVertexAttributes, bool)
+}
+
+bool UInterchangeSkeletalMeshFactoryNode::SetCustomImportVertexAttributes(const bool& AttributeValue)
+{
+	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(ImportVertexAttributes, bool)
+}
+
 bool UInterchangeSkeletalMeshFactoryNode::GetCustomCreatePhysicsAsset(bool& AttributeValue) const
 {
 	IMPLEMENT_NODE_ATTRIBUTE_GETTER(CreatePhysicsAsset, bool)
