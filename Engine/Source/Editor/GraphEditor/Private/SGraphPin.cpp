@@ -737,11 +737,11 @@ void SGraphPin::OnDragEnter( const FGeometry& MyGeometry, const FDragDropEvent& 
 				// Inform the Drag and Drop operation that we are hovering over this pin.
 				TSharedPtr<FGraphEditorDragDropAction> DragConnectionOp = StaticCastSharedPtr<FGraphEditorDragDropAction>(Operation);
 				DragConnectionOp->SetHoveredPin(GraphPinObj);
+
+				// Pins treat being dragged over the same as being hovered outside of drag and drop if they know how to respond to the drag action.
+				SBorder::OnMouseEnter(MyGeometry, DragDropEvent);
 			}
 		}	
-
-		// Pins treat being dragged over the same as being hovered outside of drag and drop if they know how to respond to the drag action.
-		SBorder::OnMouseEnter( MyGeometry, DragDropEvent );
 	}
 }
 
