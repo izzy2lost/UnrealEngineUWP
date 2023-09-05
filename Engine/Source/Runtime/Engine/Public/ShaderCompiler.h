@@ -1152,7 +1152,9 @@ extern ENGINE_API const FString& GetGlobalShaderMapDDCKey();
 extern ENGINE_API const FString& GetMaterialShaderMapDDCKey();
 
 extern ENGINE_API bool ShouldDumpShaderDDCKeys();
+UE_DEPRECATED(5.4, "DumpShaderDDCKeyToFile now takes DebugGroupName as parameter (these files now go into the ShaderDebugInfo folder alongside other debug artifacts).")
 extern ENGINE_API void DumpShaderDDCKeyToFile(const EShaderPlatform InPlatform, bool bWithEditor, const FString& FileName, const FString& DDCKey);
+extern ENGINE_API void DumpShaderDDCKeyToFile(const EShaderPlatform InPlatform, bool bWithEditor, const TCHAR* DebugGroupName, const FString& DDCKey);
 
 /**
 * Handles serializing in MeshMaterialMaps or GlobalShaderMap from a CookOnTheFly command and applying them to the in-memory shadermaps.

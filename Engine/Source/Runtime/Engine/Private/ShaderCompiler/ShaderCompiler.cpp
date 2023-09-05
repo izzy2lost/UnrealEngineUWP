@@ -1175,6 +1175,7 @@ bool ShouldDumpShaderDDCKeys()
 
 void DumpShaderDDCKeyToFile(const EShaderPlatform InPlatform, bool bWithEditor, const FString& FileName, const FString& DDCKey)
 {
+	// deprecated version
 	const FString SubDirectory = bWithEditor ? TEXT("Editor") : TEXT("Game");
 	const FString TempPath = FPaths::ProjectSavedDir() / TEXT("ShaderDDCKeys") / SubDirectory / LexToString(InPlatform);
 	IFileManager::Get().MakeDirectory(*TempPath, true);
@@ -1184,6 +1185,18 @@ void DumpShaderDDCKeyToFile(const EShaderPlatform InPlatform, bool bWithEditor, 
 	TUniquePtr<FArchive> DumpAr(IFileManager::Get().CreateFileWriter(*TempFile));
 	// serializing the string via << produces a non-textual file because it saves string's length, too
 	DumpAr->Serialize(const_cast<TCHAR*>(*DDCKey), DDCKey.Len() * sizeof(TCHAR));
+}
+
+void DumpShaderDDCKeyToFile(const EShaderPlatform InPlatform, bool bEditorOnly, const TCHAR* DebugGroupName, const FString& DDCKey)
+{
+	const FString FileName = FString::Printf(TEXT("DDCKey-%s.txt"), bEditorOnly ? TEXT("Editor") : TEXT("Game"));
+
+	const FString TempPath = GShaderCompilingManager->GetAbsoluteShaderDebugInfoDirectory() / FGenericDataDrivenShaderPlatformInfo::GetName(InPlatform).ToString() / DebugGroupName;
+	IFileManager::Get().MakeDirectory(*TempPath, true);
+
+	const FString TempFile = TempPath / FileName;
+
+	FFileHelper::SaveStringToFile(DDCKey, *TempFile);
 }
 
 namespace ShaderCompiler
@@ -9342,10 +9355,17 @@ void CompileGlobalShaderMap(EShaderPlatform Platform, const ITargetPlatform* Tar
 
 					if (UNLIKELY(ShouldDumpShaderDDCKeys()))
 					{
-						const FString ShaderName = ShaderFilenameDependencies.Key.Replace(TEXT("/"), TEXT(".")).Replace(TEXT(".usf"), TEXT(""));
-						const FString FileName = FString::Printf(TEXT("GlobalShaderMap%s.txt"), *ShaderName);
 						const FString DataKey = GetGlobalShaderMapKeyString(ShaderMapId, Platform, ShaderFilenameDependencies.Value);
-						DumpShaderDDCKeyToFile(Platform, ShaderMapId.WithEditorOnly(), FileName, DataKey);
+						// For global shaders, we dump the key multiple times (once for each shader type) so they will live on disk alongside
+						// other shader debug artifacts.
+						for (const FShaderTypeDependency& ShaderTypeDependency : ShaderFilenameDependencies.Value)
+						{
+							const FShaderType* ShaderType = FindShaderTypeByName(ShaderTypeDependency.ShaderTypeName);
+							TStringBuilder<128> GroupNameBuilder;
+							GroupNameBuilder << TEXT("Global");
+							FPathViews::Append(GroupNameBuilder, ShaderType->GetName());
+							DumpShaderDDCKeyToFile(Platform, ShaderMapId.WithEditorOnly(), GroupNameBuilder.ToString(), DataKey);
+						}
 					}
 				}
 
