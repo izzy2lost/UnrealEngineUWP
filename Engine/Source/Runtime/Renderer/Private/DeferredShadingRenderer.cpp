@@ -3329,6 +3329,14 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		RenderPrepassAndVelocity(PassInfo.Views, DummyNaniteBasePassVisibility, NaniteRasterResults, PrimaryNaniteViews);
 
 		CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, nullptr, ViewFamily, PassInfo.Views);
+
+#if WITH_MGPU
+		const FRenderTarget* RenderTarget = PassInfo.Views.Num() > 0 ? PassInfo.Views[0].SceneCaptureRenderTarget : nullptr;
+		if (RenderTarget)
+		{
+			DoCrossGPUTransfers(GraphBuilder, RenderTarget->GetRenderTargetTexture(GraphBuilder), PassInfo.Views, false, FRHIGPUMask::All());
+		}
+#endif
 	}
 
 	TArray<Nanite::FRasterResults, TInlineAllocator<2>> NaniteRasterResults;
@@ -4497,7 +4505,10 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	}
 
 #if WITH_MGPU
-	DoCrossGPUTransfers(GraphBuilder, ViewFamilyTexture);
+	if (ViewFamily.bMultiGPUForkAndJoin)
+	{
+		DoCrossGPUTransfers(GraphBuilder, ViewFamilyTexture, Views, CrossGPUTransferFencesDefer.Num() > 0, RenderTargetGPUMask);
+	}
 #endif
 
 	{
