@@ -17,5 +17,10 @@ public:
 	FOLIAGE_API void AcceptPrebuiltTree(TArray<FInstancedStaticMeshInstanceData>& InInstanceData, TArray<FClusterNode>& InClusterTree, int32 InOcclusionLayerNumNodes, int32 InNumBuiltRenderInstances);
 
 	FOLIAGE_API bool SupportsWorldPositionOffsetVelocity() const override;
+
+	inline bool RequiresInstanceDataForTree() const
+	{
+		return ShouldCreateNaniteProxy();
+	}
 };
 
