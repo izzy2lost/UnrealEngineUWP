@@ -61,6 +61,7 @@ protected:
 	/** Callbacks used to add and apply default animation modifier classes */
 	void OnAssetPostImport(UFactory* ImportFactory, UObject* ImportedObject);
 	void OnAssetPostReimport(UObject* ReimportedObject);
+	void OnInMemoryAssetCreated(UObject* Object);
 	
 	TSharedPtr<FAssetTypeActions_AnimationModifier> AssetAction;
 	FDelegateHandle DelegateHandle;

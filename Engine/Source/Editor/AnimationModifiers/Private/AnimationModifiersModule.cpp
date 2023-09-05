@@ -42,6 +42,7 @@
 #include "ContentBrowserMenuContexts.h"
 #include "ToolMenuDelegates.h"
 #include "ToolMenus.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 
 class UFactory;
 
@@ -72,6 +73,9 @@ void FAnimationModifiersModule::StartupModule()
 			GEditor->GetEditorSubsystem<UImportSubsystem>()->OnAssetPostImport.AddRaw(this, &FAnimationModifiersModule::OnAssetPostImport);
 			GEditor->GetEditorSubsystem<UImportSubsystem>()->OnAssetReimport.AddRaw(this, &FAnimationModifiersModule::OnAssetPostReimport);
 			RegisterMenus();
+
+			const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+			AssetRegistryModule.Get().OnInMemoryAssetCreated().AddRaw(this, &FAnimationModifiersModule::OnInMemoryAssetCreated);
 		}
 	});
 
@@ -110,6 +114,12 @@ void FAnimationModifiersModule::ShutdownModule()
 		AssetTools.UnregisterAssetTypeActions(AssetAction.ToSharedRef());
 	}
 
+	if (FModuleManager::Get().IsModuleLoaded(TEXT("AssetRegistry")))
+	{
+		FAssetRegistryModule& AssetRegistryModule = FModuleManager::GetModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+		AssetRegistryModule.Get().OnInMemoryAssetCreated().RemoveAll(this);
+	}
+	
 	RegisteredApplicationModes.Empty();
 
 	if (GEditor)
@@ -274,6 +284,14 @@ void FAnimationModifiersModule::OnAssetPostReimport(UObject* ReimportedObject)
 		{			
 			ApplyAnimationModifiers({AnimationSequence});
 		}
+	}
+}
+
+void FAnimationModifiersModule::OnInMemoryAssetCreated(UObject* Object)
+{
+	if (Object->GetClass() == UAnimSequence::StaticClass())
+	{
+		FAnimationModifierHelpers::RetrieveOrCreateModifierUserData(Cast<UAnimSequence>(Object));
 	}
 }
 

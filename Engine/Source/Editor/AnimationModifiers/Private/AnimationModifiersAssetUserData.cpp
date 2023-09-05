@@ -10,6 +10,14 @@
 #include "UObject/ObjectPtr.h"
 #include "Animation/AnimSequence.h"
 
+UAnimationModifiersAssetUserData::UAnimationModifiersAssetUserData(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
+{
+	if (!HasAnyFlags(RF_ClassDefaultObject) && !HasAnyFlags(RF_Transactional))
+	{
+		SetFlags(RF_Transactional);
+	}
+}
+
 void UAnimationModifiersAssetUserData::AddAnimationModifier(UAnimationModifier* Instance)
 {
 	AnimationModifierInstances.Add(Instance);
@@ -99,6 +107,10 @@ void UAnimationModifiersAssetUserData::Serialize(FArchive& Ar)
 void UAnimationModifiersAssetUserData::PostLoad()
 {
 	Super::PostLoad();
+	if (!HasAnyFlags(RF_ClassDefaultObject) && !HasAnyFlags(RF_Transactional))
+	{		
+		SetFlags(RF_Transactional);
+	}
 	RemoveInvalidModifiers();
 }
 
