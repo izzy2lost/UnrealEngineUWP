@@ -36,6 +36,7 @@
 
 #if !UE_BUILD_SHIPPING
 #include "DrawDebugHelpers.h"
+#include "UObject/UObjectIterator.h"
 
 TAutoConsoleVariable<int32> CVar_ChaosDrawHierarchyEnable(TEXT("P.Chaos.DrawHierarchy.Enable"), 0, TEXT("Enable / disable drawing of the physics hierarchy"));
 TAutoConsoleVariable<int32> CVar_ChaosDrawHierarchyCells(TEXT("P.Chaos.DrawHierarchy.Cells"), 0, TEXT("Enable / disable drawing of the physics hierarchy cells"));
