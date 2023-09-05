@@ -34,38 +34,28 @@ namespace RigVMTypeUtils
 	TRigVMTypeIndex TypeIndex::WildCardArray = INDEX_NONE;	
 }
 
-UObject* RigVMTypeUtils::UserDefinedTypeFromCPPType(FString& InOutCPPType, const FRigVMTypeResolvalInfo* InResolvalInfo)
+UObject* RigVMTypeUtils::UserDefinedTypeFromCPPType(FString& InOutCPPType, const FRigVMUserDefinedTypeResolver* InTypeResolver)
 {
 	const FString OriginalTypeName = InOutCPPType;
 	UObject* CPPTypeObject = nullptr;
 	InOutCPPType.Reset();
 
 	// try to resolve the type name using a path name potentially
-	if(InOutCPPType.IsEmpty() && InResolvalInfo != nullptr)
+	if(InOutCPPType.IsEmpty() && InTypeResolver != nullptr && InTypeResolver->IsValid())
 	{
-		if(!InResolvalInfo->CPPTypeToObjectPath.IsEmpty())
+		FString TypeNameToLookUp = OriginalTypeName;
+		while(IsArrayType(TypeNameToLookUp))
 		{
-			FString TypeNameToLookUp = OriginalTypeName;
-			while(IsArrayType(TypeNameToLookUp))
-			{
-				TypeNameToLookUp = BaseTypeFromArrayType(TypeNameToLookUp);
-			}
+			TypeNameToLookUp = BaseTypeFromArrayType(TypeNameToLookUp);
+		}
 
-			// this map contains a map of user defined struct keys based on its guid to their path,
-			// for example FUserDefinedStruct_23E408214EE9E6DA5BFADDA0F9F4F577 -> /Game/Animation/MyUserDefinedStruct.MyUserDefinedStruct
-			if(const FSoftObjectPath* ResolveObjectPath = InResolvalInfo->CPPTypeToObjectPath.Find(TypeNameToLookUp))
-			{
-				CPPTypeObject = ResolveObjectPath->ResolveObject();
-				if(CPPTypeObject == nullptr)
-				{
-					CPPTypeObject = ResolveObjectPath->TryLoad();
-				}
-				if(CPPTypeObject)
-				{
-					InOutCPPType = PostProcessCPPType(OriginalTypeName, CPPTypeObject);
-					return CPPTypeObject;
-				}
-			}
+		// Ask the resolver to the name of the user-defined struct/enum to an object.
+		// For example FUserDefinedStruct_23E408214EE9E6DA5BFADDA0F9F4F577 -> /Game/Animation/MyUserDefinedStruct.MyUserDefinedStruct
+		CPPTypeObject = InTypeResolver->GetTypeObjectByName(TypeNameToLookUp); 
+		if(CPPTypeObject)
+		{
+			InOutCPPType = PostProcessCPPType(OriginalTypeName, CPPTypeObject);
+			return CPPTypeObject;
 		}
 	}
 

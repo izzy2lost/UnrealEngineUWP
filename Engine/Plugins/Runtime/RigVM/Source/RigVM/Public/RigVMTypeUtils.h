@@ -12,9 +12,36 @@
 #include "UObject/Package.h"
 #include "UObject/SoftObjectPath.h"
 
-struct RIGVM_API FRigVMTypeResolvalInfo
+
+
+struct RIGVM_API FRigVMUserDefinedTypeResolver
 {
-	TMap<FString, FSoftObjectPath> CPPTypeToObjectPath;
+	FRigVMUserDefinedTypeResolver() = default;
+	explicit FRigVMUserDefinedTypeResolver(const TFunction<UObject*(const FString&)>& InResolver) : Resolver(InResolver) {}
+	explicit FRigVMUserDefinedTypeResolver(TMap<FString, FSoftObjectPath>&& InObjectMap) : ObjectMap(InObjectMap) {} 
+	
+	UObject* GetTypeObjectByName(const FString& InTypeName) const
+	{
+		if (Resolver)
+		{
+			return Resolver(InTypeName);
+		}
+		
+		if (const FSoftObjectPath *ObjectPath = ObjectMap.Find(InTypeName))
+		{
+			return ObjectPath->TryLoad();
+		}
+		return nullptr;
+	}
+
+	bool IsValid() const
+	{
+		return Resolver || !ObjectMap.IsEmpty();
+	}
+	
+private:
+	TFunction<UObject*(const FString&)> Resolver;
+	TMap<FString, FSoftObjectPath> ObjectMap;
 };
 
 namespace RigVMTypeUtils
@@ -310,10 +337,10 @@ namespace RigVMTypeUtils
 	}
 
 	// Finds the CPPTypeObject from a CPP type of a potentially missing / unloaded user defined struct or enum
-	RIGVM_API UObject* UserDefinedTypeFromCPPType(FString& InOutCPPType, const FRigVMTypeResolvalInfo* InResolvalInfo = nullptr);
+	RIGVM_API UObject* UserDefinedTypeFromCPPType(FString& InOutCPPType, const FRigVMUserDefinedTypeResolver* InTypeResolver = nullptr);
 
 	// Finds the CPPTypeObject from the CPPType. If not found, tries to use redirectors and modifies the InOutCPPType.
-	static UObject* ObjectFromCPPType(FString& InOutCPPType, bool bUseRedirector = true, const FRigVMTypeResolvalInfo* InResolvalInfo = nullptr)
+	static UObject* ObjectFromCPPType(FString& InOutCPPType, bool bUseRedirector = true, const FRigVMUserDefinedTypeResolver* InTypeResolver = nullptr)
 	{
 		if (!RequiresCPPTypeObject(InOutCPPType))
 		{
@@ -350,7 +377,7 @@ namespace RigVMTypeUtils
 		if(CPPTypeObject == nullptr)
 		{
 			CPPType = BaseCPPType;
-			CPPTypeObject = UserDefinedTypeFromCPPType(CPPType, InResolvalInfo);
+			CPPTypeObject = UserDefinedTypeFromCPPType(CPPType, InTypeResolver);
 		}
 
 		if(CPPTypeObject == nullptr)
@@ -364,7 +391,7 @@ namespace RigVMTypeUtils
 		return CPPTypeObject;
 	}
 
-	static FString PostProcessCPPType(const FString& InCPPType, UObject* InCPPTypeObject = nullptr, const FRigVMTypeResolvalInfo* InResolvalInfo = nullptr)
+	static FString PostProcessCPPType(const FString& InCPPType, UObject* InCPPTypeObject = nullptr, const FRigVMUserDefinedTypeResolver* InResolvalInfo = nullptr)
 	{
 		FString CPPType = InCPPType;
 		if (InCPPTypeObject)

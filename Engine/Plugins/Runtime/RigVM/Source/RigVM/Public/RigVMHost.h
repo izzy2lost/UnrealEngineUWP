@@ -281,8 +281,7 @@ public:
 		return ExtendedExecuteContext;
 	};
 
-	const TMap<FString, FSoftObjectPath>& GetUserDefinedStructGuidToPathName() const { return UserDefinedStructGuidToPathName; }
-	const TMap<FString, FSoftObjectPath>& GetUserDefinedEnumToPathName() const { return  UserDefinedEnumToPathName; }
+	UObject* ResolveUserDefinedTypeById(const FString& InTypeName) const;
 
 protected:
 
@@ -317,6 +316,9 @@ protected:
 	TMap<FString, FSoftObjectPath> UserDefinedEnumToPathName;
 
 private:
+	UPROPERTY(transient)
+	TSet<TObjectPtr<UObject>> UserDefinedTypesInUse;
+	
 	UPROPERTY()
 	FRigVMExtendedExecuteContext ExtendedExecuteContext;
 
@@ -364,7 +366,8 @@ public:
 	/** Broadcasts a notification whenever the RigVMHost's memory is initialized. */
 	FRigVMExecutedEvent InitializedEvent;
 
-	/** Broadcasts a notification whenever the RigVMHost is executed / updated. */
+	/** Broadcasts a not
+	 * ification whenever the RigVMHost is executed / updated. */
 	FRigVMExecutedEvent ExecutedEvent;
 
 protected: 

@@ -1001,6 +1001,30 @@ const FString URigVMHost::GetDebugExecutionString()
 #endif
 #endif
 
+
+UObject* URigVMHost::ResolveUserDefinedTypeById(const FString& InTypeName) const
+{
+	const FSoftObjectPath* ResultPathPtr = UserDefinedStructGuidToPathName.Find(InTypeName);
+	if (ResultPathPtr == nullptr)
+	{
+		ResultPathPtr = UserDefinedEnumToPathName.Find(InTypeName);
+	}
+
+	if (ResultPathPtr == nullptr)
+	{
+		return nullptr;
+	}
+
+	if (UObject* TypeObject = ResultPathPtr->TryLoad())
+	{
+		// Ensure we have a hold on this type so it doesn't get nixed on the next GC.
+		const_cast<URigVMHost*>(this)->UserDefinedTypesInUse.Add(TypeObject);
+		return TypeObject;
+	}
+
+	return nullptr;
+}
+
 void URigVMHost::PostInitInstance(URigVMHost* InCDO)
 {
 	const EObjectFlags SubObjectFlags =
@@ -1082,6 +1106,7 @@ void URigVMHost::GenerateUserDefinedDependenciesData(FRigVMExtendedExecuteContex
 		const TArray<const UObject*> UserDefinedDependencies = GetUserDefinedDependencies({ GetLiteralMemory(), GetWorkMemory() });
 		UserDefinedStructGuidToPathName.Reset();
 		UserDefinedEnumToPathName.Reset();
+		UserDefinedTypesInUse.Reset();
 
 		for (const UObject* UserDefinedDependency : UserDefinedDependencies)
 		{

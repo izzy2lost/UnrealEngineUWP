@@ -30,7 +30,7 @@ class FProperty;
 struct FRigVMDispatchFactory;
 struct FRigVMTemplate;
 struct FRigVMDispatchContext;
-struct FRigVMTypeResolvalInfo;
+struct FRigVMUserDefinedTypeResolver;
 
 typedef TMap<FName, TRigVMTypeIndex> FRigVMTemplateTypeMap;
 
@@ -374,7 +374,7 @@ public:
 	static TArray<UStruct*> GetSuperStructs(UStruct* InStruct, bool bIncludeLeaf = true);
 
 	// converts the types provided by a string (like "A:float,B:int32") into a type map
-	FTypeMap GetArgumentTypesFromString(const FString& InTypeString, const FRigVMTypeResolvalInfo* InResolvalInfo = nullptr) const;
+	FTypeMap GetArgumentTypesFromString(const FString& InTypeString, const FRigVMUserDefinedTypeResolver* InTypeResolver = nullptr) const;
 
 	// converts the types provided to a string (like "A:float,B:int32")
 	static FString GetStringFromArgumentTypes(const FTypeMap& InTypes); 

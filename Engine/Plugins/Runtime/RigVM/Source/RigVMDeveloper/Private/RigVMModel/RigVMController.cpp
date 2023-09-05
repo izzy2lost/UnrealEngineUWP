@@ -17911,14 +17911,17 @@ bool URigVMController::EnsurePinValidity(URigVMPin* InPin, bool bRecursive)
 		// without testing for redirector
 		if(InPin->GetCPPTypeObject() == nullptr)
 		{
-			FRigVMTypeResolvalInfo ResolveInfo;
+			FRigVMUserDefinedTypeResolver TypeResolver;
 			if(const IRigVMClientHost* ClientHost = InPin->GetImplementingOuter<IRigVMClientHost>())
 			{
-				ResolveInfo.CPPTypeToObjectPath = ClientHost->GetUserDefinedStructGuidToObjectPath();
+				TypeResolver = FRigVMUserDefinedTypeResolver([ClientHost](const FString& InTypeName) -> UObject*
+				{
+					return ClientHost->ResolveUserDefinedTypeById(InTypeName);
+				});
 			}
 			
 			FString CPPType = InPin->GetCPPType();
-			InPin->CPPTypeObject = RigVMTypeUtils::ObjectFromCPPType(CPPType, true, &ResolveInfo);
+			InPin->CPPTypeObject = RigVMTypeUtils::ObjectFromCPPType(CPPType, true, &TypeResolver);
 			if(CPPType.IsEmpty())
 			{
 				return false;

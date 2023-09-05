@@ -651,6 +651,24 @@ void URigVMBlueprint::HandleConfigureRigVMController(const FRigVMClient* InClien
 #endif
 }
 
+UObject* URigVMBlueprint::ResolveUserDefinedTypeById(const FString& InTypeName) const
+{
+	const FSoftObjectPath* ResultPathPtr = UserDefinedStructGuidToPathName.Find(InTypeName);
+	if (ResultPathPtr == nullptr)
+	{
+		return nullptr;
+	}
+
+	if (UObject* TypeObject = ResultPathPtr->TryLoad())
+	{
+		// Ensure we have a hold on this type so it doesn't get nixed on the next GC.
+		const_cast<URigVMBlueprint*>(this)->UserDefinedTypesInUse.Add(TypeObject);
+		return TypeObject;
+	}
+
+	return nullptr;
+}
+
 bool URigVMBlueprint::TryImportGraphFromText(const FString& InClipboardText, UEdGraph** OutGraphPtr)
 {
 	if (OutGraphPtr)
@@ -821,6 +839,7 @@ void URigVMBlueprint::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	// to aid the controller when recovering from user defined struct name changes or
 	// guid changes.
 	UserDefinedStructGuidToPathName.Reset();
+	UserDefinedTypesInUse.Reset();
 	TArray<URigVMGraph*> AllModels = GetAllModels();
 	for(const URigVMGraph* Graph : AllModels)
 	{

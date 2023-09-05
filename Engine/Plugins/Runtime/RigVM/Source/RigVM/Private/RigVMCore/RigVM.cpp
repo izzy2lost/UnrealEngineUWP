@@ -906,18 +906,20 @@ bool URigVM::ResolveFunctionsIfRequired()
 		GetFactories().Reset();
 		GetFactories().SetNumZeroed(GetFunctionNames().Num());
 
-		FRigVMTypeResolvalInfo ResolvalInfo;
+		FRigVMUserDefinedTypeResolver TypeResolver;
 		if (const URigVMHost* HostCDO = GetHostCDO())
 		{
-			ResolvalInfo.CPPTypeToObjectPath = HostCDO->GetUserDefinedStructGuidToPathName();
-			ResolvalInfo.CPPTypeToObjectPath.Append(HostCDO->GetUserDefinedEnumToPathName());
+			TypeResolver = FRigVMUserDefinedTypeResolver([HostCDO](const FString& InTypeName) -> UObject*
+			{
+				return HostCDO->ResolveUserDefinedTypeById(InTypeName);
+			});
 		}
 
 		TArray<FName>& FunctionNames = GetFunctionNames();
 		for (int32 FunctionIndex = 0; FunctionIndex < FunctionNames.Num(); FunctionIndex++)
 		{
 			const FString FunctionNameString = FunctionNames[FunctionIndex].ToString();
-			if(const FRigVMFunction* Function = FRigVMRegistry::Get().FindFunction(*FunctionNameString, ResolvalInfo))
+			if(const FRigVMFunction* Function = FRigVMRegistry::Get().FindFunction(*FunctionNameString, TypeResolver))
 			{
 				GetFunctions()[FunctionIndex] = Function;
 				GetFactories()[FunctionIndex] = Function->Factory;
