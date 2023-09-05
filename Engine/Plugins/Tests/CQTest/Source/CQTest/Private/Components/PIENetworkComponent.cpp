@@ -12,6 +12,7 @@
 #include "Engine/NetConnection.h"
 #include "Engine/NetDriver.h"
 #include "GameFramework/GameMode.h"
+#include "Modules/ModuleManager.h"
 
 #include "GameMapsSettings.h"
 
