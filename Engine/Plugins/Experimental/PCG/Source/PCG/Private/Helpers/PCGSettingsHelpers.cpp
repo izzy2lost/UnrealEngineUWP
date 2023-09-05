@@ -246,8 +246,8 @@ namespace PCGSettingsHelpers
 		NewParamsPin->Node = InOutNode;
 		NewParamsPin->Properties.AllowedTypes = EPCGDataType::Param;
 		NewParamsPin->Properties.Label = PCGPinConstants::DefaultParamsLabel;
-		NewParamsPin->Properties.bAllowMultipleConnections = true;
 		NewParamsPin->Properties.bAllowMultipleData = true;
+		NewParamsPin->Properties.SetAllowMultipleConnections(true);
 		InputPins.Add(NewParamsPin);
 
 		// Make list of param pins that In pin is currently connected to.

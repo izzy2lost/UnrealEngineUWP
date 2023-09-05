@@ -133,7 +133,7 @@ const FPinConnectionResponse UPCGEditorGraphSchema::CanCreateConnection(const UE
 		return FPinConnectionResponse(CONNECT_RESPONSE_MAKE_WITH_CONVERSION_NODE, LOCTEXT("ConnectionUsingMakeConcrete", "Make data concrete"));
 	}
 
-	if (!InputPin->AllowMultipleConnections() && InputPin->EdgeCount() > 0)
+	if (!InputPin->AllowsMultipleConnections() && InputPin->EdgeCount() > 0)
 	{
 		return FPinConnectionResponse((A->Direction == EGPD_Output) ? CONNECT_RESPONSE_BREAK_OTHERS_B : CONNECT_RESPONSE_BREAK_OTHERS_A, LOCTEXT("ConnectionBreakExisting", "Break existing connection?"));
 	}

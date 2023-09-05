@@ -33,11 +33,26 @@ namespace PCGPin
 }
 
 FPCGPinProperties::FPCGPinProperties(const FName& InLabel, EPCGDataType InAllowedTypes, bool bInAllowMultipleConnections, bool bInAllowMultipleData, const FText& InTooltip)
-	: Label(InLabel), AllowedTypes(InAllowedTypes), bAllowMultipleData(bInAllowMultipleData), bAllowMultipleConnections(bInAllowMultipleConnections)
+	: Label(InLabel), AllowedTypes(InAllowedTypes), bAllowMultipleData(bInAllowMultipleData)
 #if WITH_EDITORONLY_DATA
 	, Tooltip(InTooltip)
 #endif
-{}
+{
+	SetAllowMultipleConnections(bInAllowMultipleConnections);
+}
+
+void FPCGPinProperties::SetAllowMultipleConnections(bool bInAllowMultipleConnectons)
+{
+	if (bInAllowMultipleConnectons)
+	{
+		bAllowMultipleConnections = true;
+		bAllowMultipleData = true;
+	}
+	else
+	{
+		bAllowMultipleConnections = false;
+	}
+}
 
 bool FPCGPinProperties::operator==(const FPCGPinProperties& Other) const
 {
@@ -199,7 +214,7 @@ bool UPCGPin::BreakAllIncompatibleEdges(TSet<UPCGNode*>* InTouchedNodes/*= nullp
 		UPCGEdge* Edge = Edges[EdgeIndex];
 		UPCGPin* OtherPin = Edge->GetOtherPin(this);
 
-		bool bRemoveEdge = !IsCompatible(OtherPin) || (!AllowMultipleConnections() && bHasAValidEdge);
+		bool bRemoveEdge = !IsCompatible(OtherPin) || (!AllowsMultipleConnections() && bHasAValidEdge);
 
 		if (bRemoveEdge)
 		{
@@ -314,20 +329,20 @@ bool UPCGPin::IsCompatible(const UPCGPin* OtherPin) const
 	return !!(UpstreamTypes & DownstreamTypes);
 }
 
-bool UPCGPin::AllowMultipleConnections() const
+bool UPCGPin::AllowsMultipleConnections() const
 {
 	// Always allow multiple connection on output pin
-	return IsOutputPin() || Properties.bAllowMultipleConnections;
+	return IsOutputPin() || Properties.AllowsMultipleConnections();
 }
 
-bool UPCGPin::AllowMultipleData() const
+bool UPCGPin::AllowsMultipleData() const
 {
 	return Properties.bAllowMultipleData;
 }
 
 bool UPCGPin::CanConnect(const UPCGPin* OtherPin) const
 {
-	return OtherPin && (Edges.IsEmpty() || AllowMultipleConnections());
+	return OtherPin && (Edges.IsEmpty() || AllowsMultipleConnections());
 }
 
 EPCGTypeConversion UPCGPin::GetRequiredTypeConversion(const UPCGPin* InOtherPin) const

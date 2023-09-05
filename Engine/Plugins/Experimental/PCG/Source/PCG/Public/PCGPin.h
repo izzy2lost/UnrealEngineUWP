@@ -30,9 +30,6 @@ struct PCG_API FPCGPinProperties
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	bool bAllowMultipleData = true;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bAllowMultipleData"))
-	bool bAllowMultipleConnections = true;
-
 	/* Advanced pin will be hidden by default in the UI and will be shown only if the user extend the node (in the UI) to see advanced pins. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	bool bAdvancedPin = false;
@@ -41,6 +38,16 @@ struct PCG_API FPCGPinProperties
 	UPROPERTY(EditAnywhere, Category = Settings)
 	FText Tooltip;
 #endif
+
+	// Multiple connections are only possible if we support multi data.
+	bool AllowsMultipleConnections() const { return bAllowMultipleData && bAllowMultipleConnections; }
+
+	// Allowing multiple connections will automatically enable multi data.
+	void SetAllowMultipleConnections(bool bInAllowMultipleConnectons);
+
+private:
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (AllowPrivateAccess = "true", EditCondition = "bAllowMultipleData", DisplayAfter = "bAllowMultipleData"))
+	bool bAllowMultipleConnections = true;
 };
 
 UENUM()
@@ -84,7 +91,7 @@ public:
 		}
 
 		bAllowMultipleData = PinProperty.bAllowMultipleData;
-		bAllowMultipleConnections = PinProperty.bAllowMultipleConnections;
+		bAllowMultipleConnections = PinProperty.AllowsMultipleConnections();
 		bAdvancedPin = PinProperty.bAdvancedPin;
 	}
 
@@ -146,8 +153,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = Settings)
 	void SetTooltip(const FText& InTooltip);
 
-	bool AllowMultipleConnections() const;
-	bool AllowMultipleData() const;
+	bool AllowsMultipleConnections() const;
+	bool AllowsMultipleData() const;
 	bool IsCompatible(const UPCGPin* OtherPin) const;
 	bool CanConnect(const UPCGPin* OtherPin) const;
 

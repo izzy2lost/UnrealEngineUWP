@@ -42,7 +42,7 @@ TArray<FPCGPinProperties> UPCGRerouteSettings::InputPinProperties() const
 {
 	FPCGPinProperties PinProperties;
 	PinProperties.Label = PCGPinConstants::DefaultInputLabel;
-	PinProperties.bAllowMultipleConnections = false;
+	PinProperties.SetAllowMultipleConnections(false);
 	PinProperties.AllowedTypes = EPCGDataType::Any;
 
 	return { PinProperties };

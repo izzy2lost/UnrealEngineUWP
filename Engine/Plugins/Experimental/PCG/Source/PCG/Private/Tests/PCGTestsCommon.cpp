@@ -214,7 +214,7 @@ namespace PCGTestsCommon
 			SingleTaggedData.Data = TypeToData.Value();
 			SingleTaggedData.Pin = PinProperties.Label;
 
-			if (!PinProperties.bAllowMultipleConnections)
+			if (!PinProperties.AllowsMultipleConnections())
 			{
 				continue;
 			}

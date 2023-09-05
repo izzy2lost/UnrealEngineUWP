@@ -466,7 +466,7 @@ void SPCGEditorGraphNode::AddPin(const TSharedRef<SGraphPin>& PinToAdd)
 		if(UPCGPin* Pin = (bIsInPin ? PCGNode->GetInputPin(PinName) : PCGNode->GetOutputPin(PinName)))
 		{
 			const bool bIsMultiData = Pin->Properties.bAllowMultipleData;
-			const bool bIsMultiConnections = Pin->AllowMultipleConnections();
+			const bool bIsMultiConnections = Pin->AllowsMultipleConnections();
 
 			// Check for special types
 			if (Pin->GetCurrentTypes() == EPCGDataType::Param)

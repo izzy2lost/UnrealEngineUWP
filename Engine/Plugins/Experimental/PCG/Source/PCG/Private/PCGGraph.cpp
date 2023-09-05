@@ -541,7 +541,7 @@ bool UPCGGraph::AddLabeledEdge(UPCGNode* From, const FName& FromPinLabel, UPCGNo
 	bool bToPinBrokeOtherEdges = false;
 	
 	// Add an edge to a pin that doesn't allow multiple connections requires to do some cleanup
-	if (!ToPin->AllowMultipleConnections())
+	if (!ToPin->AllowsMultipleConnections())
 	{
 		bToPinBrokeOtherEdges = ToPin->BreakAllIncompatibleEdges(&TouchedNodes);
 	}

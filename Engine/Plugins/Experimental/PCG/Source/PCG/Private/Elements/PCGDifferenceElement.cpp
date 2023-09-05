@@ -31,7 +31,7 @@ void UPCGDifferenceSettings::ApplyStructuralDeprecation(UPCGNode* InOutNode)
 
 		// Check if single connection AND single data, to avoid adding a union if not necessary
 		const int32 SourceEdgeCount = SourcePin->EdgeCount();
-		if (SourceEdgeCount > 1 || (SourceEdgeCount == 1 && !SourcePin->Edges.IsEmpty() && SourcePin->Edges[0]->InputPin->AllowMultipleData()))
+		if (SourceEdgeCount > 1 || (SourceEdgeCount == 1 && !SourcePin->Edges.IsEmpty() && SourcePin->Edges[0]->InputPin->AllowsMultipleData()))
 		{
 			// To match previous default behavior, we'll add a union node preceding the source inputs
 			UPCGGraph* PCGGraph = InOutNode->GetGraph();
