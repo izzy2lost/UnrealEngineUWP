@@ -83,25 +83,25 @@ namespace Metasound
 		
 	}
 
-	void ProfilingOperator::StaticReset(IOperator* InOperator, const IOperator::FResetParams& InParams)
+	void FProfilingOperator::StaticReset(IOperator* InOperator, const IOperator::FResetParams& InParams)
 	{
-		ProfilingOperator* DerivedOperator = static_cast<ProfilingOperator*>(InOperator);
+		FProfilingOperator* DerivedOperator = static_cast<FProfilingOperator*>(InOperator);
 		check(nullptr != DerivedOperator && DerivedOperator->ResetFunction);
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*DerivedOperator->InsightsResetEventName);
 		DerivedOperator->ResetFunction(DerivedOperator->Operator.Get(), InParams);
 	}
 
-	void ProfilingOperator::StaticExecute(IOperator* InOperator)
+	void FProfilingOperator::StaticExecute(IOperator* InOperator)
 	{
-		ProfilingOperator* DerivedOperator = static_cast<ProfilingOperator*>(InOperator);
+		FProfilingOperator* DerivedOperator = static_cast<FProfilingOperator*>(InOperator);
 		check(nullptr != DerivedOperator && DerivedOperator->ExecuteFunction);
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*DerivedOperator->InsightsExecuteEventName);
 		DerivedOperator->ExecuteFunction(DerivedOperator->Operator.Get());
 	}
 
-	void ProfilingOperator::StaticPostExecute(IOperator* InOperator)
+	void FProfilingOperator::StaticPostExecute(IOperator* InOperator)
 	{
-		ProfilingOperator* DerivedOperator = static_cast<ProfilingOperator*>(InOperator);
+		FProfilingOperator* DerivedOperator = static_cast<FProfilingOperator*>(InOperator);
 		check(nullptr != DerivedOperator && DerivedOperator->PostExecuteFunction);
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*DerivedOperator->InsightsPostExecuteEventName);
 		DerivedOperator->PostExecuteFunction(DerivedOperator->Operator.Get());

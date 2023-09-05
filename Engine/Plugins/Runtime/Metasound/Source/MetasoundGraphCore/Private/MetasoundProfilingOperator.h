@@ -16,23 +16,28 @@ namespace Metasound
 	}
 
 	// This is a wrapper around any IOperator that causes its functions to be timed for Insights
-	class ProfilingOperator : public IOperator
+	class FProfilingOperator : public IOperator
 	{
 	public:
-		ProfilingOperator(TUniquePtr<IOperator>&& WrappedOperator, const FNodeClassMetadata& NodeMetadata)
+		FProfilingOperator(TUniquePtr<IOperator>&& WrappedOperator, const INode* Node)
 			: Operator(MoveTemp(WrappedOperator))
 			, ResetFunction(Operator->GetResetFunction())
 			, ExecuteFunction(Operator->GetExecuteFunction())
 			, PostExecuteFunction(Operator->GetPostExecuteFunction())
 		{
 			check(Operator);
+			const FNodeClassMetadata& NodeMetadata = Node->GetMetadata();
 			FString BaseEventName = NodeMetadata.ClassName.GetName().ToString();
+			if (NodeMetadata.ClassName.GetName().IsNone())
+			{
+				BaseEventName = Node->GetInstanceName().ToString();
+			}
 			InsightsResetEventName = FString::Printf(TEXT("%s_RESET"), *BaseEventName);
 			InsightsExecuteEventName = FString::Printf(TEXT("%s_EXECUTE"), *BaseEventName);
 			InsightsPostExecuteEventName = FString::Printf(TEXT("%s_POSTEXECUTE"), *BaseEventName);
 		}
 
-		virtual ~ProfilingOperator() = default;
+		virtual ~FProfilingOperator() = default;
 
 		virtual void BindInputs(FInputVertexInterfaceData& InVertexData) override
 		{

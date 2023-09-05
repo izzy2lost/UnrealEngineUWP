@@ -739,7 +739,7 @@ namespace Metasound
 
 	TUniquePtr<FFrontendGraph> FFrontendGraphBuilder::CreateGraph(FBuildContext& InContext, const FMetasoundFrontendGraphClass& InGraphClass, const TSet<FName>& InTransmittableInputNames)
 	{
-		const FString GraphName = InGraphClass.Metadata.GetClassName().GetFullName().ToString();
+		const FString GraphName = InContext.DebugAssetName;
 
 		FBuildGraphContext BuildGraphContext
 		{

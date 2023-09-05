@@ -460,7 +460,7 @@ namespace Metasound
 				FOperatorFactorySharedRef Factory = Node->GetDefaultOperatorFactory();
 				if (ProfileOperators && Profiling::OperatorShouldBeProfiled(Node->GetMetadata()))
 				{
-					OperatorInfo.Operator = MakeUnique<ProfilingOperator>(Factory->CreateOperator(CreateParams, InOutContext.Results), Node->GetMetadata());
+					OperatorInfo.Operator = MakeUnique<FProfilingOperator>(Factory->CreateOperator(CreateParams, InOutContext.Results), Node);
 				}
 				else
 				{
