@@ -19,9 +19,10 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeGenericMeshPipeline)
 
 void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset)
-
 {
 	Super::AdjustSettingsForContext(ImportType, ReimportAsset);
+
+#if WITH_EDITOR
 
 	check(CommonSkeletalMeshesAndAnimationsProperties.IsValid());
 	if (ImportType == EInterchangePipelineContext::None)
@@ -101,7 +102,21 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(EInterchangePipel
 			HidePropertiesOfCategory(OuterMostPipeline, this, HideCategoryName, bDoTransientSubPipeline);
 		}
 	}
+#endif //WITH_EDITOR
 }
+
+#if WITH_EDITOR
+
+bool UInterchangeGenericMeshPipeline::IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericMeshPipeline, SkeletalMeshImportContentType))
+	{
+		return true;
+	}
+	return Super::IsPropertyChangeNeedRefresh(PropertyChangedEvent);
+}
+
+#endif //WITH_EDITOR
 
 void UInterchangeGenericMeshPipeline::PreDialogCleanup(const FName PipelineStackName)
 {
@@ -109,6 +124,7 @@ void UInterchangeGenericMeshPipeline::PreDialogCleanup(const FName PipelineStack
 }
 
 #if WITH_EDITOR
+
 bool UInterchangeGenericMeshPipeline::GetPropertyPossibleValues(const FName PropertyPath, TArray<FString>& PossibleValues)
 {
 	FString PropertyPathString = PropertyPath.ToString();
@@ -130,7 +146,23 @@ bool UInterchangeGenericMeshPipeline::GetPropertyPossibleValues(const FName Prop
 	//If we did not find any property call the super implementation
 	return Super::GetPropertyPossibleValues(PropertyPath, PossibleValues);
 }
+
 #endif
+
+UInterchangePipelineMeshesUtilities* UInterchangeGenericMeshPipeline::CreateMeshPipelineUtilities(UInterchangeBaseNodeContainer* InBaseNodeContainer, const UInterchangeGenericMeshPipeline* Pipeline)
+{
+	UInterchangePipelineMeshesUtilities* CreatedPipelineMeshesUtilities = UInterchangePipelineMeshesUtilities::CreateInterchangePipelineMeshesUtilities(InBaseNodeContainer);
+
+	//Set the context option to use when querying the pipeline mesh utilities
+	FInterchangePipelineMeshesUtilitiesContext DataContext;
+	DataContext.bConvertStaticMeshToSkeletalMesh = (Pipeline->CommonMeshesProperties->ForceAllMeshAsType == EInterchangeForceMeshType::IFMT_SkeletalMesh);
+	DataContext.bConvertSkeletalMeshToStaticMesh = (Pipeline->CommonMeshesProperties->ForceAllMeshAsType == EInterchangeForceMeshType::IFMT_StaticMesh);
+	DataContext.bConvertStaticsWithMorphTargetsToSkeletals = Pipeline->CommonSkeletalMeshesAndAnimationsProperties->bConvertStaticsWithMorphTargetsToSkeletals;
+	DataContext.bImportMeshesInBoneHierarchy = Pipeline->CommonSkeletalMeshesAndAnimationsProperties->bImportMeshesInBoneHierarchy;
+	DataContext.bQueryGeometryOnlyIfNoInstance = Pipeline->CommonMeshesProperties->bBakeMeshes;
+	CreatedPipelineMeshesUtilities->SetContext(DataContext);
+	return CreatedPipelineMeshesUtilities;
+}
 
 void UInterchangeGenericMeshPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas)
 {
@@ -146,16 +178,7 @@ void UInterchangeGenericMeshPipeline::ExecutePipeline(UInterchangeBaseNodeContai
 	{
 		SourceDatas.Add(SourceData);
 	}
-	PipelineMeshesUtilities = UInterchangePipelineMeshesUtilities::CreateInterchangePipelineMeshesUtilities(BaseNodeContainer);
-
-	//Set the context option to use when querying the pipeline mesh utilities
-	FInterchangePipelineMeshesUtilitiesContext DataContext;
-	DataContext.bConvertStaticMeshToSkeletalMesh = (CommonMeshesProperties->ForceAllMeshAsType == EInterchangeForceMeshType::IFMT_SkeletalMesh);
-	DataContext.bConvertSkeletalMeshToStaticMesh = (CommonMeshesProperties->ForceAllMeshAsType == EInterchangeForceMeshType::IFMT_StaticMesh);
-	DataContext.bConvertStaticsWithMorphTargetsToSkeletals = CommonSkeletalMeshesAndAnimationsProperties->bConvertStaticsWithMorphTargetsToSkeletals;
-	DataContext.bImportMeshesInBoneHierarchy = CommonSkeletalMeshesAndAnimationsProperties->bImportMeshesInBoneHierarchy;
-	DataContext.bQueryGeometryOnlyIfNoInstance = CommonMeshesProperties->bBakeMeshes;
-	PipelineMeshesUtilities->SetContext(DataContext);
+	PipelineMeshesUtilities = CreateMeshPipelineUtilities(BaseNodeContainer, this);
 
 	//Create skeletalmesh factory nodes
 	ExecutePreImportPipelineSkeletalMesh();

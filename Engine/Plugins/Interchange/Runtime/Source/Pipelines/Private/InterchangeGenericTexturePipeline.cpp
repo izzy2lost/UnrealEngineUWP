@@ -113,7 +113,7 @@ namespace UE::Interchange::Private
 void UInterchangeGenericTexturePipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset)
 {
 	Super::AdjustSettingsForContext(ImportType, ReimportAsset);
-
+#if WITH_EDITOR
 	TArray<FString> HideCategories;
 	bool bIsObjectATexture = !ReimportAsset ? false : ReimportAsset.IsA(UTexture::StaticClass());
 	if( (!bIsObjectATexture && ImportType == EInterchangePipelineContext::AssetReimport)
@@ -132,7 +132,30 @@ void UInterchangeGenericTexturePipeline::AdjustSettingsForContext(EInterchangePi
 			HidePropertiesOfCategory(OuterMostPipeline, this, HideCategoryName);
 		}
 	}
+#endif //WITH_EDITOR
 }
+
+#if WITH_EDITOR
+
+void UInterchangeGenericTexturePipeline::FilterPropertiesFromTranslatedData(UInterchangeBaseNodeContainer* InBaseNodeContainer)
+{
+	Super::FilterPropertiesFromTranslatedData(InBaseNodeContainer);
+
+	//Filter all material pipeline properties if there is no translated material.
+	TArray<FString> TmpTextureNodes;
+	InBaseNodeContainer->GetNodes(UInterchangeTextureNode::StaticClass(), TmpTextureNodes);
+	if (TmpTextureNodes.Num() == 0)
+	{
+		bImportTextures = false;
+		//Filter out all Textures properties
+		if (UInterchangePipelineBase* OuterMostPipeline = GetMostPipelineOuter())
+		{
+			HidePropertiesOfCategory(OuterMostPipeline, this, TEXT("Textures"));
+		}
+	}
+}
+
+#endif //WITH_EDITOR
 
 void UInterchangeGenericTexturePipeline::ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas)
 {

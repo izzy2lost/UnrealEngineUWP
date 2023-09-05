@@ -25,6 +25,7 @@ void UInterchangeGenericAnimationPipeline::AdjustSettingsForContext(EInterchange
 {
 	Super::AdjustSettingsForContext(ImportType, ReimportAsset);
 
+#if WITH_EDITOR
 	check(CommonSkeletalMeshesAndAnimationsProperties.IsValid());
 	
 	bSceneImport = ImportType == EInterchangePipelineContext::SceneImport
@@ -61,6 +62,7 @@ void UInterchangeGenericAnimationPipeline::AdjustSettingsForContext(EInterchange
 			HidePropertiesOfCategory(OuterMostPipeline, this, HideCategoryName);
 		}
 	}
+#endif //WITH_EDITOR
 }
 
 void UInterchangeGenericAnimationPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas)

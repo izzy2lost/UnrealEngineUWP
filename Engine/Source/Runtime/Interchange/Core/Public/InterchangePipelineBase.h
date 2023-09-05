@@ -108,19 +108,6 @@ class UInterchangePipelineBase : public UObject
 
 public:
 
-	UE_DEPRECATED(5.2, "This function is replace by ScriptedExecutePipeline.")
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interchange | Pipeline")
-	INTERCHANGECORE_API void ScriptedExecutePreImportPipeline(UInterchangeBaseNodeContainer* BaseNodeContainer, const TArray<UInterchangeSourceData*>& SourceDatas);
-
-	UE_DEPRECATED(5.2, "This internal public function is deprecated and not replace by any.")
-	void ScriptedExecutePreImportPipeline_Implementation(UInterchangeBaseNodeContainer* BaseNodeContainer, const TArray<UInterchangeSourceData*>& SourceDatas)
-	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		//By default we call the virtual import pipeline execution
-		ExecutePreImportPipeline(BaseNodeContainer, SourceDatas);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
 	/**
 	 * ScriptedExecutePipeline, is call after the translation and before we parse the graph to call the factory.
 	 * This is where factory node should be created by the pipeline.
@@ -176,17 +163,21 @@ public:
 		ExecuteExportPipeline(BaseNodeContainer);
 	}
 
-	/**
-	 * Non virtual helper to allow blueprint to implement event base function let the interchange know if it can run asynchronously.
-	 * the Interchange manager is calling this function not the virtual one that is call by the default implementation.
-	 */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interchange | Pipeline")
-	INTERCHANGECORE_API bool ScriptedCanExecuteOnAnyThread(EInterchangePipelineTask PipelineTask);
-
-	/** The default implementation (call if the blueprint do not have any implementation) will call the virtual CanExecuteAsync */
-	bool ScriptedCanExecuteOnAnyThread_Implementation(EInterchangePipelineTask PipelineTask)
+	UE_DEPRECATED(5.4, "This function will be remove, call CanExecuteOnAnyThread function")
+	INTERCHANGECORE_API bool ScriptedCanExecuteOnAnyThread(EInterchangePipelineTask PipelineTask)
 	{
 		return CanExecuteOnAnyThread(PipelineTask);
+	}
+
+	/**
+	 * This function tell the interchange manager if we can execute this pipeline in async mode. If it return false, the ScriptedExecuteImportPipeline
+	 * will be call on the main thread (GameThread), if true it will be run in a background thread and possibly in parallel. If there is multiple
+	 * import process in same time.
+	 *
+	 */
+	INTERCHANGECORE_API virtual bool CanExecuteOnAnyThread(EInterchangePipelineTask PipelineTask)
+	{
+		return true;
 	}
 
 	/**
@@ -219,6 +210,20 @@ public:
 	INTERCHANGECORE_API void SaveSettings(const FName PipelineStackName);
 
 	/**
+	 * This function is call before we show the pipeline dialog. Pipeline that override it can change the existing settings according to the re-import type.
+	 * The function is also call when we import or re-import custom LOD and alternate skinning.
+	 *
+	 * @Note - The function will set the context of the pipeline
+	 * @Param ReimportType - Tell pipeline what re-import type the user want to achieve.
+	 * @Param ReimportAsset - This is an optional parameter which is set when re-importing an asset.
+	 */
+	INTERCHANGECORE_API virtual void AdjustSettingsForContext(EInterchangePipelineContext ReimportType, TObjectPtr<UObject> ReimportAsset);
+	INTERCHANGECORE_API virtual void AdjustSettingsFromCache();
+
+	/** Transfer the source pipeline adjust settings to this pipeline. */
+	INTERCHANGECORE_API void TransferAdjustSettings(UInterchangePipelineBase* SourcePipeline);
+
+	/**
 	 * This function is called before showing the import dialog it is not called doing a re-import.
 	 */
 	virtual void PreDialogCleanup(const FName PipelineStackName) {}
@@ -232,19 +237,25 @@ public:
 		return true;
 	}
 
+#if WITH_EDITOR
 	/**
-	 * This function is call when before we show the pipeline dialog. Pipeline that override it can change the existing settings according to the re-import type.
-	 * The function is also call when we import or re-import custom LOD and alternate skinning.
-	 * 
-	 * @Note - The function will set the context of the pipeline
-	 * @Param ReimportType - Tell pipeline what re-import type the user want to achieve.
-	 * @Param ReimportAsset - This is an optional parameter which is set when re-importing an asset.
+	 * Filter the pipeline properties from the translated data. This function is call by the import dialog after having duplicate and load the settings of the pipeline.
+	 * If some specific options change, the UI must refresh the filter, see function IsPropertyChangeNeedRefresh.
 	 */
-	INTERCHANGECORE_API virtual void AdjustSettingsForContext(EInterchangePipelineContext ReimportType, TObjectPtr<UObject> ReimportAsset);
-	INTERCHANGECORE_API virtual void AdjustSettingsFromCache();
+	INTERCHANGECORE_API virtual void FilterPropertiesFromTranslatedData(UInterchangeBaseNodeContainer* InBaseNodeContainer)
+	{
+		//The base class function do not have anything to filter
+	}
 
-	/** Transfer the source pipeline adjust settings to this pipeline. */
-	INTERCHANGECORE_API void TransferAdjustSettings(UInterchangePipelineBase* SourcePipeline);
+	/**
+	 * The import dialog will call this function when the user change a specific property, return true if the pipeline UI should be refresh.
+	 * A refresh will call the function FilterPropertiesFromTranslatedData.
+	 */
+	INTERCHANGECORE_API virtual bool IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent)
+	{
+		return false;
+	}
+#endif //WITH_EDITOR
 
 	/**
 	 * This function is used to add the given message object directly into the results for this operation.
@@ -380,17 +391,6 @@ protected:
 	{
 	}
 
-	/**
-	 * This function tell the interchange manager if we can execute this pipeline in async mode. If it return false, the ScriptedExecuteImportPipeline
-	 * will be call on the main thread (GameThread), if true it will be run in a background thread and possibly in parallel. If there is multiple
-	 * import process in same time.
-	 *
-	 */
-	virtual bool CanExecuteOnAnyThread(EInterchangePipelineTask PipelineTask)
-	{
-		return true;
-	}
-
 	virtual void SetReimportSourceIndex(UClass* ReimportObjectClass, const int32 SourceFileIndex)
 	{
 	}
@@ -406,9 +406,12 @@ protected:
 
 	INTERCHANGECORE_API UInterchangePipelineBase* GetMostPipelineOuter() const;
 
+#if WITH_EDITOR
 	static INTERCHANGECORE_API void InternalToggleVisibilityPropertiesOfMetaDataValue(UInterchangePipelineBase* OuterMostPipeline, UInterchangePipelineBase* Pipeline, bool bDoTransientSubPipeline, const FString& MetaDataKey, const FString& MetaDataValue, const bool bVisibilityState);
 	static INTERCHANGECORE_API void HidePropertiesOfCategory(UInterchangePipelineBase* OuterMostPipeline, UInterchangePipelineBase* Pipeline, const FString& HideCategoryName, bool bDoTransientSubPipeline = false);
 	static INTERCHANGECORE_API void HidePropertiesOfSubCategory(UInterchangePipelineBase* OuterMostPipeline, UInterchangePipelineBase* Pipeline, const FString& HideSubCategoryName, bool bDoTransientSubPipeline = false);
+	static INTERCHANGECORE_API void HideProperty(UInterchangePipelineBase* OuterMostPipeline, UInterchangePipelineBase* Pipeline, const FName& HidePropertyName);
+#endif //WITH_EDITOR
 	
 	/**
 	 * If true, the property editor for this pipeline instance will allow properties states edition.

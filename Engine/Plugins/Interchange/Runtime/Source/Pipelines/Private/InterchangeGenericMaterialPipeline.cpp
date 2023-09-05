@@ -487,7 +487,7 @@ void UInterchangeGenericMaterialPipeline::AdjustSettingsForContext(EInterchangeP
 	{
 		TexturePipeline->AdjustSettingsForContext(ImportType, ReimportAsset);
 	}
-
+#if WITH_EDITOR
 	TArray<FString> HideCategories;
 	bool bIsObjectAMaterial = !ReimportAsset ? false : ReimportAsset->IsA(UMaterialInterface::StaticClass());
 	if ((!bIsObjectAMaterial && ImportType == EInterchangePipelineContext::AssetReimport)
@@ -507,7 +507,7 @@ void UInterchangeGenericMaterialPipeline::AdjustSettingsForContext(EInterchangeP
 			HidePropertiesOfCategory(OuterMostPipeline, this, HideCategoryName);
 		}
 	}
-
+#endif //WITH_EDITOR
 	using namespace UE::Interchange;
 
 	if (!InterchangeGenericMaterialPipeline::Private::AreRequiredPackagesLoaded())
@@ -515,6 +515,49 @@ void UInterchangeGenericMaterialPipeline::AdjustSettingsForContext(EInterchangeP
 		UE_LOG(LogInterchangePipeline, Warning, TEXT("UInterchangeGenericMaterialPipeline: Some required packages are missing. Material import might be wrong"));
 	}
 }
+#if WITH_EDITOR
+
+void UInterchangeGenericMaterialPipeline::FilterPropertiesFromTranslatedData(UInterchangeBaseNodeContainer* InBaseNodeContainer)
+{
+	Super::FilterPropertiesFromTranslatedData(InBaseNodeContainer);
+
+	//Filter all material pipeline properties if there is no translated material.
+	TArray<FString> TmpMaterialNodes;
+	InBaseNodeContainer->GetNodes(UInterchangeShaderGraphNode::StaticClass(), TmpMaterialNodes);
+	uint32 MaterialCount = TmpMaterialNodes.Num();
+	InBaseNodeContainer->GetNodes(UInterchangeMaterialInstanceNode::StaticClass(), TmpMaterialNodes);
+	MaterialCount += TmpMaterialNodes.Num();
+	if(MaterialCount == 0)
+	{
+		bImportMaterials = false;
+		TArray<FString> HideCategories;
+		//Filter out all material properties
+		HideCategories.Add(TEXT("Materials"));
+		if (UInterchangePipelineBase* OuterMostPipeline = GetMostPipelineOuter())
+		{
+			for (const FString& HideCategoryName : HideCategories)
+			{
+				HidePropertiesOfCategory(OuterMostPipeline, this, HideCategoryName);
+			}
+		}
+	}
+
+	if(TexturePipeline)
+	{
+		TexturePipeline->FilterPropertiesFromTranslatedData(InBaseNodeContainer);
+	}
+}
+
+bool UInterchangeGenericMaterialPipeline::IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (TexturePipeline && TexturePipeline->IsPropertyChangeNeedRefresh(PropertyChangedEvent))
+	{
+		return true;
+	}
+	return Super::IsPropertyChangeNeedRefresh(PropertyChangedEvent);
+}
+
+#endif //WITH_EDITOR
 
 void UInterchangeGenericMaterialPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas)
 {

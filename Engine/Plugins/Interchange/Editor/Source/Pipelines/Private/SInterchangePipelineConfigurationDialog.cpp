@@ -8,6 +8,7 @@
 #include "Framework/Views/TableViewMetadata.h"
 #include "IDetailsView.h"
 #include "IDocumentation.h"
+#include "Nodes/InterchangeBaseNodeContainer.h"
 #include "InterchangeManager.h"
 #include "InterchangePipelineConfigurationBase.h"
 #include "InterchangeProjectSettings.h"
@@ -172,7 +173,10 @@ TSharedRef<SBox> SInterchangePipelineConfigurationDialog::SpawnPipelineConfigura
 						GeneratedPipeline->LoadSettings(Stack.StackName);
 						GeneratedPipeline->PreDialogCleanup(Stack.StackName);
 					}
-
+					if (bFilterOptions && BaseNodeContainer.IsValid())
+					{
+						GeneratedPipeline->FilterPropertiesFromTranslatedData(BaseNodeContainer.Get());
+					}
 					PipelineListViewItems.Add(MakeShareable(new FInterchangePipelineItemType{ GetPipelineDisplayName(DefaultPipeline), GeneratedPipeline}));
 				}
 			}
@@ -285,6 +289,15 @@ TSharedRef<SBox> SInterchangePipelineConfigurationDialog::SpawnPipelineConfigura
 		{
 			return IsPropertyVisible(PropertyAndParent);
 		});
+	PipelineConfigurationDetailsView->OnFinishedChangingProperties().AddLambda([this](const FPropertyChangedEvent& PropertyChangedEvent)
+	{
+		if (CurrentSelectedPipeline && CurrentSelectedPipeline->IsPropertyChangeNeedRefresh(PropertyChangedEvent))
+		{
+			//Refresh the pipeline
+			constexpr bool bStackSelectionChange = false;
+			RefreshStack(bStackSelectionChange);
+		}
+	});
 	return PipelineConfigurationPanelBox;
 }
 
@@ -298,6 +311,7 @@ void SInterchangePipelineConfigurationDialog::Construct(const FArguments& InArgs
 	bReimport = InArgs._bReimport;
 	PipelineStacks = InArgs._PipelineStacks;
 	OutPipelines = InArgs._OutPipelines;
+	BaseNodeContainer = InArgs._BaseNodeContainer;
 
 	check(OutPipelines);
 
@@ -305,6 +319,15 @@ void SInterchangePipelineConfigurationDialog::Construct(const FArguments& InArgs
 	if (TSharedPtr<SWindow> OwnerWindowPinned = OwnerWindow.Pin())
 	{
 		OwnerWindowPinned->GetOnWindowClosedEvent().AddRaw(this, &SInterchangePipelineConfigurationDialog::OnWindowClosed);
+	}
+
+	if (bReimport)
+	{
+		bFilterOptions = false;
+	}
+	else if(GConfig->DoesSectionExist(TEXT("InterchangeImportDialogOptions"), GEditorPerProjectIni))
+	{
+		GConfig->GetBool(TEXT("InterchangeImportDialogOptions"), TEXT("FilterOptions"), bFilterOptions, GEditorPerProjectIni);
 	}
 
 	this->ChildSlot
@@ -331,6 +354,34 @@ void SInterchangePipelineConfigurationDialog::Construct(const FArguments& InArgs
 				.AutoWidth()
 				.HAlign(HAlign_Right)
 				.Padding(10.0f, 2.0f, 0.0f, 2.0f)
+				[
+					SNew(SHorizontalBox)
+					.ToolTipText(LOCTEXT("SInterchangePipelineConfigurationDialog_FilterPipelineOptions_tooltip", "Filter the pipeline options using the source content data."))
+					.Visibility_Lambda([this]()
+						{
+							return bReimport ? EVisibility::Collapsed : EVisibility::All;
+						})
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.HAlign(HAlign_Right)
+					.VAlign(VAlign_Center)
+					.Padding(4.f, 0.f)
+					[
+						SNew(STextBlock)
+						.Text(LOCTEXT("SInterchangePipelineConfigurationDialog_FilterPipelineOptions", "Filter Options"))
+					]
+					+ SHorizontalBox::Slot()
+					.Padding(4.f, 0.f)
+					[
+						SNew(SCheckBox)
+						.IsChecked(this, &SInterchangePipelineConfigurationDialog::IsFilteringOptions)
+						.OnCheckStateChanged(this, &SInterchangePipelineConfigurationDialog::OnFilterOptionsChanged)
+					]
+				]
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				.HAlign(HAlign_Right)
+				.Padding(2.0f, 2.0f, 0.0f, 2.0f)
 				[
 					SNew(SButton)
 					.HAlign(HAlign_Center)
@@ -508,6 +559,10 @@ FReply SInterchangePipelineConfigurationDialog::OnResetToDefault()
 								if (UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstanceInSourceAssetPackage(DefaultPipeline))
 								{
 									GeneratedPipeline->TransferAdjustSettings(DefaultPipeline);
+									if(bFilterOptions && BaseNodeContainer.IsValid())
+									{
+										GeneratedPipeline->FilterPropertiesFromTranslatedData(BaseNodeContainer.Get());
+									}
 									//Switch the pipeline the element point on
 									PipelineListViewItems[PipelineIndex]->Pipeline = GeneratedPipeline;
 									PipelineConfigurationDetailsView->SetObject(GeneratedPipeline, true);
@@ -625,25 +680,8 @@ FReply SInterchangePipelineConfigurationDialog::OnKeyDown(const FGeometry& MyGeo
 	return FReply::Unhandled();
 }
 
-void SInterchangePipelineConfigurationDialog::OnStackSelectionChanged(TSharedPtr<FString> String, ESelectInfo::Type)
+void SInterchangePipelineConfigurationDialog::RefreshStack(bool bStackSelectionChange)
 {
-	if (!String.IsValid())
-	{
-		return;
-	}
-
-	FName NewStackName = FName(*String.Get());
-	if (!UE::Private::ContainStack(PipelineStacks, NewStackName))
-	{
-		return;
-	}
-
-	//Nothing change the selection is the same
-	if (CurrentStackName == NewStackName)
-	{
-		return;
-	}
-
 	//Save current stack settings, we want the same settings when we will go back to the same stack
 	//When doing a reimport we do not want to save the setting because the context have special default
 	//value for some options like: (Import Materials, Import Textures...).
@@ -653,9 +691,21 @@ void SInterchangePipelineConfigurationDialog::OnStackSelectionChanged(TSharedPtr
 		SaveAllPipelineSettings();
 	}
 
-	//Use the stack select by interchange manager
-	CurrentStackName = NewStackName;
-	
+	int32 CurrentPipelineIndex = 0;
+	if (!bStackSelectionChange)
+	{
+		//store the selected pipeline
+		for (int32 PipelineIndex = 0; PipelineIndex < PipelineListViewItems.Num(); ++PipelineIndex)
+		{
+			const TSharedPtr<FInterchangePipelineItemType> PipelineItem = PipelineListViewItems[PipelineIndex];
+			if (PipelineItem->Pipeline == CurrentSelectedPipeline)
+			{
+				CurrentPipelineIndex = PipelineIndex;
+				break;
+			}
+		}
+	}
+
 	//Rebuild the Pipeline list item
 	PipelineListViewItems.Reset();
 
@@ -678,7 +728,11 @@ void SInterchangePipelineConfigurationDialog::OnStackSelectionChanged(TSharedPtr
 					GeneratedPipeline->LoadSettings(Stack.StackName);
 					GeneratedPipeline->PreDialogCleanup(Stack.StackName);
 				}
-				PipelineListViewItems.Add(MakeShareable(new FInterchangePipelineItemType{ GetPipelineDisplayName(DefaultPipeline), GeneratedPipeline}));
+				if (bFilterOptions && BaseNodeContainer.IsValid())
+				{
+					GeneratedPipeline->FilterPropertiesFromTranslatedData(BaseNodeContainer.Get());
+				}
+				PipelineListViewItems.Add(MakeShareable(new FInterchangePipelineItemType{ GetPipelineDisplayName(DefaultPipeline), GeneratedPipeline }));
 			}
 		}
 	}
@@ -686,9 +740,36 @@ void SInterchangePipelineConfigurationDialog::OnStackSelectionChanged(TSharedPtr
 	//Select the first pipeline
 	if (PipelineListViewItems.Num() > 0)
 	{
-		PipelinesListView->SetSelection(PipelineListViewItems[0], ESelectInfo::Direct);
+		CurrentPipelineIndex = PipelineListViewItems.IsValidIndex(CurrentPipelineIndex) ? CurrentPipelineIndex : 0;
+		PipelinesListView->SetSelection(PipelineListViewItems[CurrentPipelineIndex], ESelectInfo::Direct);
 	}
 	PipelinesListView->RequestListRefresh();
+}
+
+void SInterchangePipelineConfigurationDialog::OnStackSelectionChanged(TSharedPtr<FString> String, ESelectInfo::Type)
+{
+	if (!String.IsValid())
+	{
+		return;
+	}
+
+	FName NewStackName = FName(*String.Get());
+	if (!UE::Private::ContainStack(PipelineStacks, NewStackName))
+	{
+		return;
+	}
+
+	//Nothing change the selection is the same
+	if (CurrentStackName == NewStackName)
+	{
+		return;
+	}
+
+	//Use the stack select by interchange manager
+	CurrentStackName = NewStackName;
+
+	constexpr bool bStackSelectionChange = true;
+	RefreshStack(bStackSelectionChange);
 }
 
 TSharedRef<ITableRow> SInterchangePipelineConfigurationDialog::MakePipelineListRowWidget(
@@ -706,6 +787,7 @@ void SInterchangePipelineConfigurationDialog::OnPipelineSelectionChanged(TShared
 	{
 		CurrentSelectedPipeline = InItem->Pipeline;
 	}
+	
 	PipelineConfigurationDetailsView->SetObject(CurrentSelectedPipeline.Get());
 	
 	if (CurrentSelectedPipeline)
@@ -714,6 +796,22 @@ void SInterchangePipelineConfigurationDialog::OnPipelineSelectionChanged(TShared
 		FString KeyName = CurrentStackName.ToString() + TEXT("_LastSelectedPipeline");
 		GConfig->SetString(TEXT("InterchangeSelectPipeline"), *KeyName, *CurrentPipelineName, GEditorPerProjectIni);
 	}
+}
+
+void SInterchangePipelineConfigurationDialog::OnFilterOptionsChanged(ECheckBoxState CheckState)
+{
+	bool bNewCheckValue = CheckState == ECheckBoxState::Checked ? true : false;
+	if (bNewCheckValue == bFilterOptions)
+	{
+		//Check state did not change
+		return;
+	}
+	bFilterOptions = bNewCheckValue;
+	//Refresh the pipeline
+	constexpr bool bStackSelectionChange = false;
+	RefreshStack(bStackSelectionChange);
+
+	GConfig->SetBool(TEXT("InterchangeImportDialogOptions"), TEXT("FilterOptions"), bFilterOptions, GEditorPerProjectIni);
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -311,9 +311,10 @@ UInterchangePipelineBase* UInterchangePipelineBase::GetMostPipelineOuter() const
 	return Top;
 }
 
+#if WITH_EDITOR
+
 void UInterchangePipelineBase::InternalToggleVisibilityPropertiesOfMetaDataValue(UInterchangePipelineBase* OuterMostPipeline, UInterchangePipelineBase* Pipeline, bool bDoTransientSubPipeline, const FString& MetaDataKey, const FString& MetaDataValue, const bool VisibilityState)
 {
-#if WITH_EDITOR
 	UClass* PipelineClass = Pipeline->GetClass();
 	for (FProperty* Property = PipelineClass->PropertyLink; Property; Property = Property->PropertyLinkNext)
 	{
@@ -339,10 +340,10 @@ void UInterchangePipelineBase::InternalToggleVisibilityPropertiesOfMetaDataValue
 			if (CategoryName.Equals(MetaDataValue))
 			{
 				OuterMostPipeline->FindOrAddPropertyStates(PropertyPath).ReimportStates.bVisible = VisibilityState;
+				OuterMostPipeline->FindOrAddPropertyStates(PropertyPath).ImportStates.bVisible = VisibilityState;
 			}
 		}
 	}
-#endif
 }
 
 void UInterchangePipelineBase::HidePropertiesOfCategory(UInterchangePipelineBase* OuterMostPipeline, UInterchangePipelineBase* Pipeline, const FString& HideCategoryName, bool bDoTransientSubPipeline /*= false*/)
@@ -356,6 +357,32 @@ void UInterchangePipelineBase::HidePropertiesOfSubCategory(UInterchangePipelineB
 	constexpr bool bVisibilityState = false;
 	InternalToggleVisibilityPropertiesOfMetaDataValue(OuterMostPipeline, Pipeline, bDoTransientSubPipeline, TEXT("SubCategory"), HideSubCategoryName, bVisibilityState);
 }
+
+void UInterchangePipelineBase::HideProperty(UInterchangePipelineBase* OuterMostPipeline, UInterchangePipelineBase* Pipeline, const FName& HidePropertyName)
+{
+	constexpr bool bVisibilityState = false;
+	UClass* PipelineClass = Pipeline->GetClass();
+	for (FProperty* Property = PipelineClass->PropertyLink; Property; Property = Property->PropertyLinkNext)
+	{
+		FObjectProperty* SubObject = CastField<FObjectProperty>(Property);
+		//Do not save a transient property
+		if (SubObject || Property->HasAnyPropertyFlags(CPF_Transient))
+		{
+			continue;
+		}
+
+		const FName PropertyName = Property->GetFName();
+		const FName PropertyPath = FName(Property->GetPathName());
+		if (HidePropertyName != PropertyName)
+		{
+			continue;
+		}
+		OuterMostPipeline->FindOrAddPropertyStates(PropertyPath).ImportStates.bVisible = bVisibilityState;
+		OuterMostPipeline->FindOrAddPropertyStates(PropertyPath).ReimportStates.bVisible = bVisibilityState;
+	}
+}
+
+#endif //WITH_EDITOR
 
 struct FWeakObjectPtrData
 {

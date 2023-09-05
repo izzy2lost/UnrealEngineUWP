@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Nodes/InterchangeBaseNodeContainer.h"
 #include "InterchangePipelineBase.h"
 #include "InterchangePipelineConfigurationBase.h"
 #include "Styling/SlateBrush.h"
@@ -57,6 +58,7 @@ public:
 		SLATE_ARGUMENT(bool, bReimport)
 		SLATE_ARGUMENT(TArray<FInterchangeStackInfo>, PipelineStacks)
 		SLATE_ARGUMENT(TArray<UInterchangePipelineBase*>*, OutPipelines)
+		SLATE_ARGUMENT(TWeakObjectPtr<UInterchangeBaseNodeContainer>, BaseNodeContainer)
 	SLATE_END_ARGS()
 
 public:
@@ -104,12 +106,14 @@ private:
 private:
 	TWeakPtr< SWindow > OwnerWindow;
 	TWeakObjectPtr<UInterchangeSourceData> SourceData;
+	TWeakObjectPtr<UInterchangeBaseNodeContainer> BaseNodeContainer;
 	TArray<FInterchangeStackInfo> PipelineStacks;
 	TArray<UInterchangePipelineBase*>* OutPipelines;
 
 	// The available stacks
 	TArray<TSharedPtr<FString>> AvailableStacks;
 	void OnStackSelectionChanged(TSharedPtr<FString> String, ESelectInfo::Type);
+	void RefreshStack(bool bStackSelectionChange);
 
 	//////////////////////////////////////////////////////////////////////////
 	// the pipelines list view
@@ -125,6 +129,13 @@ private:
 	//
 	//////////////////////////////////////////////////////////////////////////
 
+	ECheckBoxState IsFilteringOptions() const
+	{
+		return bFilterOptions ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+	}
+
+	void OnFilterOptionsChanged(ECheckBoxState CheckState);
+
 	TSharedPtr<IDetailsView> PipelineConfigurationDetailsView;
 	TSharedPtr<SCheckBox> UseSameSettingsForAllCheckBox;
 
@@ -132,6 +143,8 @@ private:
 	bool bReimport = false;
 	bool bCanceled = false;
 	bool bImportAll = false;
+
+	bool bFilterOptions = false;
 
 	FName CurrentStackName = NAME_None;
 	TObjectPtr<UInterchangePipelineBase> CurrentSelectedPipeline = nullptr;

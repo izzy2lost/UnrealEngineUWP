@@ -39,7 +39,7 @@ namespace UE
 					return ENamedThreads::GameThread;
 				}
 
-				return PipelineBase.Get()->ScriptedCanExecuteOnAnyThread(EInterchangePipelineTask::PostTranslator) ? ENamedThreads::AnyBackgroundThreadNormalTask : ENamedThreads::GameThread;
+				return PipelineBase.Get()->CanExecuteOnAnyThread(EInterchangePipelineTask::PostTranslator) ? ENamedThreads::AnyBackgroundThreadNormalTask : ENamedThreads::GameThread;
 			}
 
 			static ESubsequentsMode::Type GetSubsequentsMode()
@@ -90,7 +90,7 @@ namespace UE
 				}
 
 				//Ask the pipeline implementation
-				if (AsyncHelper->Pipelines[PipelineIndex]->ScriptedCanExecuteOnAnyThread(EInterchangePipelineTask::PostImport))
+				if (AsyncHelper->Pipelines[PipelineIndex]->CanExecuteOnAnyThread(EInterchangePipelineTask::PostImport))
 				{
 					return ENamedThreads::AnyBackgroundThreadNormalTask;
 				}

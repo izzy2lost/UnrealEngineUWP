@@ -104,6 +104,20 @@ public:
 	/** If true, degenerate triangles will be removed. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common Meshes", meta = (SubCategory = "Build"))
 	bool bRemoveDegenerates = false;
+#if WITH_EDITOR
+	virtual bool IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) override
+	{
+		if (PropertyChangedEvent.Property->GetName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonMeshesProperties, ForceAllMeshAsType))
+		{
+			return true;
+		}
+		if (PropertyChangedEvent.Property->GetName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonMeshesProperties, bBakeMeshes))
+		{
+			return true;
+		}
+		return Super::IsPropertyChangeNeedRefresh(PropertyChangedEvent);
+	}
+#endif //WITH_EDITOR
 };
 
 UCLASS(BlueprintType, hidedropdown, Experimental)
@@ -130,7 +144,20 @@ public:
 	/** Allow to convert static mesh using morph target to skeletal mesh" */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes")
 	bool bConvertStaticsWithMorphTargetsToSkeletals = false;
-
+#if WITH_EDITOR
+	virtual bool IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) override
+	{
+		if (PropertyChangedEvent.Property->GetName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonSkeletalMeshesAndAnimationsProperties, bConvertStaticsWithMorphTargetsToSkeletals))
+		{
+			return true;
+		}
+		else if (PropertyChangedEvent.Property->GetName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonSkeletalMeshesAndAnimationsProperties, bImportMeshesInBoneHierarchy))
+		{
+			return true;
+		}
+		return Super::IsPropertyChangeNeedRefresh(PropertyChangedEvent);
+	}
+#endif //WITH_EDITOR
 	virtual bool IsSettingsAreValid(TOptional<FText>& OutInvalidReason) const override
 	{
 		if (bImportOnlyAnimations && !Skeleton.IsValid())

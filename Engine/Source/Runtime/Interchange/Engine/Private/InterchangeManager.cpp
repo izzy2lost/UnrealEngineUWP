@@ -1228,14 +1228,16 @@ void UInterchangeManager::StartQueuedTasks(bool bCancelAllTasks /*= false*/)
 
 			//Create/Start import tasks
 			FGraphEventArray PipelinePrerequistes;
-			check(QueuedTaskData.AsyncHelper->Translators.Num() == QueuedTaskData.AsyncHelper->SourceDatas.Num());
-			for (int32 SourceDataIndex = 0; SourceDataIndex < QueuedTaskData.AsyncHelper->SourceDatas.Num(); ++SourceDataIndex)
+			if(QueuedTaskData.AsyncHelper->TranslatorTasks.Num() == 0)
 			{
-				//Log the source we begin importing
-				UE_LOG(LogInterchangeEngine, Display, TEXT("Interchange start importing source [%s]"), *QueuedTaskData.AsyncHelper->SourceDatas[SourceDataIndex]->ToDisplayString());
-
-				int32 TranslatorTaskIndex = QueuedTaskData.AsyncHelper->TranslatorTasks.Add(TGraphTask<UE::Interchange::FTaskTranslator>::CreateTask().ConstructAndDispatchWhenReady(SourceDataIndex, WeakAsyncHelper));
-				PipelinePrerequistes.Add(QueuedTaskData.AsyncHelper->TranslatorTasks[TranslatorTaskIndex]);
+				check(QueuedTaskData.AsyncHelper->Translators.Num() == QueuedTaskData.AsyncHelper->SourceDatas.Num());
+				for (int32 SourceDataIndex = 0; SourceDataIndex < QueuedTaskData.AsyncHelper->SourceDatas.Num(); ++SourceDataIndex)
+				{
+					//Log the source we begin importing
+					UE_LOG(LogInterchangeEngine, Display, TEXT("Interchange start importing source [%s]"), *QueuedTaskData.AsyncHelper->SourceDatas[SourceDataIndex]->ToDisplayString());
+					int32 TranslatorTaskIndex = QueuedTaskData.AsyncHelper->TranslatorTasks.Add(TGraphTask<UE::Interchange::FTaskTranslator>::CreateTask().ConstructAndDispatchWhenReady(SourceDataIndex, WeakAsyncHelper));
+					PipelinePrerequistes.Add(QueuedTaskData.AsyncHelper->TranslatorTasks[TranslatorTaskIndex]);
+				}
 			}
 
 			FGraphEventArray GraphParsingPrerequistes;
@@ -1425,7 +1427,7 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 	UInterchangeSourceData* DuplicateSourceData = Cast<UInterchangeSourceData>(StaticDuplicateObject(SourceData, GetTransientPackage()));
 	//Array of source data to build one graph per source
 	AsyncHelper->SourceDatas.Add(DuplicateSourceData);
-
+	constexpr int32 SourceIndex = 0;
 	//Get all the translators for the source datas
 	for (int32 SourceDataIndex = 0; SourceDataIndex < AsyncHelper->SourceDatas.Num(); ++SourceDataIndex)
 	{
@@ -1497,6 +1499,24 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 		const bool bShowPipelineStacksConfigurationDialog = false;
 #endif
 
+		auto TranslateSourceFile = [&AsyncHelper]()
+		{
+			FScopedSlowTask Progress(2.f, NSLOCTEXT("InterchangeManager", "TranslatingSourceFile...", "Translating source file..."));
+			Progress.MakeDialog();
+			Progress.EnterProgressFrame(1.f);
+			//Translate the source
+			FGraphEventArray PipelinePrerequistes;
+			check(AsyncHelper->Translators.Num() == AsyncHelper->SourceDatas.Num());
+			for (int32 SourceDataIndex = 0; SourceDataIndex < AsyncHelper->SourceDatas.Num(); ++SourceDataIndex)
+			{
+				//Log the source we begin importing
+				UE_LOG(LogInterchangeEngine, Display, TEXT("Interchange start importing source [%s]"), *AsyncHelper->SourceDatas[SourceDataIndex]->ToDisplayString());
+				int32 TranslatorTaskIndex = AsyncHelper->TranslatorTasks.Add(TGraphTask<UE::Interchange::FTaskTranslator>::CreateTask(nullptr, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(SourceDataIndex, AsyncHelper));
+				AsyncHelper->TranslatorTasks[TranslatorTaskIndex]->Wait();
+			}
+			Progress.EnterProgressFrame(1.f);
+		};
+
 		if (FEngineAnalytics::IsAvailable())
 		{
 			Attribs.Add(FAnalyticsEventAttribute(TEXT("ShowImportDialog"), bShowPipelineStacksConfigurationDialog));
@@ -1544,7 +1564,6 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 
 		{
 			UE::Interchange::FScopedTranslator ScopedTranslator(SourceData);
-			const UInterchangeTranslatorBase* Translator = ScopedTranslator.GetTranslator();
 
 			for (const TPair<FName, FInterchangePipelineStack>& PipelineStackInfo : DefaultPipelineStacks)
 			{
@@ -1559,7 +1578,7 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 				for (const FInterchangeTranslatorPipelines& TranslatorPipelines : PipelineStack.PerTranslatorPipelines)
 				{
 					const UClass* TranslatorClass = TranslatorPipelines.Translator.LoadSynchronous();
-					if (Translator->IsA(TranslatorClass))
+					if (ScopedTranslator.GetTranslator()->IsA(TranslatorClass))
 					{
 						Pipelines = &TranslatorPipelines.Pipelines;
 						break;
@@ -1587,8 +1606,10 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 		{
 			if (RegisteredPipelineConfiguration && bShowPipelineStacksConfigurationDialog && !bIsUnattended)
 			{
+				TranslateSourceFile();
+				UInterchangeBaseNodeContainer* BaseNodeContainer = AsyncHelper->BaseNodeContainers[SourceIndex].Get();
 				//Show the dialog, a plugin should have registered this dialog. We use a plugin to be able to use editor code when doing UI
-				EInterchangePipelineConfigurationDialogResult DialogResult = RegisteredPipelineConfiguration->ScriptedShowReimportPipelineConfigurationDialog(PipelineStacks, OutPipelines, DuplicateSourceData);
+				EInterchangePipelineConfigurationDialogResult DialogResult = RegisteredPipelineConfiguration->ScriptedShowReimportPipelineConfigurationDialog(PipelineStacks, OutPipelines, DuplicateSourceData, BaseNodeContainer);
 				if (DialogResult == EInterchangePipelineConfigurationDialogResult::Cancel)
 				{
 					bImportCanceled = true;
@@ -1614,10 +1635,12 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 		{
 			if (RegisteredPipelineConfiguration && bShowPipelineStacksConfigurationDialog)
 			{
+				TranslateSourceFile();
+				UInterchangeBaseNodeContainer* BaseNodeContainer = AsyncHelper->BaseNodeContainers[SourceIndex].Get();
 				//Show the dialog, a plugin should have register this dialog. We use a plugin to be able to use editor code when doing UI
 				EInterchangePipelineConfigurationDialogResult DialogResult = bImportScene
-					? RegisteredPipelineConfiguration->ScriptedShowScenePipelineConfigurationDialog(PipelineStacks, OutPipelines, DuplicateSourceData)
-					: RegisteredPipelineConfiguration->ScriptedShowPipelineConfigurationDialog(PipelineStacks, OutPipelines, DuplicateSourceData);
+					? RegisteredPipelineConfiguration->ScriptedShowScenePipelineConfigurationDialog(PipelineStacks, OutPipelines, DuplicateSourceData, BaseNodeContainer)
+					: RegisteredPipelineConfiguration->ScriptedShowPipelineConfigurationDialog(PipelineStacks, OutPipelines, DuplicateSourceData, BaseNodeContainer);
 
 				if (DialogResult == EInterchangePipelineConfigurationDialogResult::Cancel)
 				{

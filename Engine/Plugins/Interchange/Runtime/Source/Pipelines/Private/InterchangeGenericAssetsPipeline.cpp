@@ -4,6 +4,7 @@
 
 #include "Animation/Skeleton.h"
 #include "CoreMinimal.h"
+#include "InterchangeAnimationTrackSetNode.h"
 #include "InterchangeAnimSequenceFactoryNode.h"
 #include "InterchangeCommonPipelineDataFactoryNode.h"
 #include "InterchangeGenericAnimationPipeline.h"
@@ -120,6 +121,190 @@ void UInterchangeGenericAssetsPipeline::AdjustSettingsForContext(EInterchangePip
 }
 
 #if WITH_EDITOR
+
+void UInterchangeGenericAssetsPipeline::FilterPropertiesFromTranslatedData(UInterchangeBaseNodeContainer* InBaseNodeContainer)
+{
+	Super::FilterPropertiesFromTranslatedData(InBaseNodeContainer);
+
+	if (MaterialPipeline)
+	{
+		MaterialPipeline->FilterPropertiesFromTranslatedData(InBaseNodeContainer);
+	}
+
+	if (CommonMeshesProperties && CommonSkeletalMeshesAndAnimationsProperties && MeshPipeline && AnimationPipeline)
+	{
+		CommonMeshesProperties->FilterPropertiesFromTranslatedData(InBaseNodeContainer);
+		CommonSkeletalMeshesAndAnimationsProperties->FilterPropertiesFromTranslatedData(InBaseNodeContainer);
+		MeshPipeline->FilterPropertiesFromTranslatedData(InBaseNodeContainer);
+		AnimationPipeline->FilterPropertiesFromTranslatedData(InBaseNodeContainer);
+
+		UInterchangePipelineMeshesUtilities* PipelineMeshesUtilities = UInterchangeGenericMeshPipeline::CreateMeshPipelineUtilities(InBaseNodeContainer, MeshPipeline);
+
+		TArray<FString> SkeletalMeshes;
+		PipelineMeshesUtilities->GetAllSkinnedMeshInstance(SkeletalMeshes);
+		if(SkeletalMeshes.Num() == 0)
+		{
+			PipelineMeshesUtilities->GetAllSkinnedMeshGeometry(SkeletalMeshes);
+		}
+		TArray<FString> StaticMeshes;
+		PipelineMeshesUtilities->GetAllStaticMeshInstance(StaticMeshes);
+		if(StaticMeshes.Num() == 0)
+		{
+			PipelineMeshesUtilities->GetAllStaticMeshGeometry(StaticMeshes);
+		}
+
+		int32 RawStaticMesh = 0;
+		int32 RawSkeletalMesh = 0;
+		int32 RawMorphTargetShape = 0;
+		InBaseNodeContainer->IterateNodesOfType<UInterchangeMeshNode>([&RawStaticMesh, &RawSkeletalMesh, &RawMorphTargetShape](const FString& NodeUid, UInterchangeMeshNode* MeshNode)
+			{
+				if (MeshNode->IsMorphTarget())
+				{
+					RawMorphTargetShape++;
+				}
+				else
+				{
+					MeshNode->IsSkinnedMesh() ? RawSkeletalMesh++ : RawStaticMesh++;
+				}
+			});
+
+		int32 RawAnimationNode = 0;
+		InBaseNodeContainer->IterateNodesOfType<UInterchangeAnimationTrackBaseNode>([&RawAnimationNode](const FString& NodeUid, UInterchangeAnimationTrackBaseNode* AnimationNode)
+			{
+				RawAnimationNode++;
+			});
+		InBaseNodeContainer->IterateNodesOfType<UInterchangeAnimationTrackSetNode>([&RawAnimationNode](const FString& NodeUid, UInterchangeAnimationTrackSetNode* AnimationNode)
+			{
+				RawAnimationNode++;
+			});
+
+		UInterchangePipelineBase* OuterMostPipeline = GetMostPipelineOuter();
+		auto HideFullCategory = [this, &OuterMostPipeline](const FString& Category, UInterchangePipelineBase* Pipeline)
+		{
+			TArray<FString> HideCategories;
+			//Filter out all Textures properties
+			HideCategories.Add(Category);
+			if (OuterMostPipeline)
+			{
+				for (const FString& HideCategoryName : HideCategories)
+				{
+					HidePropertiesOfCategory(OuterMostPipeline, Pipeline, HideCategoryName);
+				}
+			}
+		};
+
+		auto LocalHideProperty = [this, &OuterMostPipeline](UInterchangePipelineBase* Pipeline, FName PropertyName)
+		{
+			if (OuterMostPipeline)
+			{
+				HideProperty(OuterMostPipeline, Pipeline, PropertyName);
+			}
+		};
+
+		//Found which categories to hide
+		bool bHideStaticMeshes = false;
+		bool bHideSkeletalMeshes = false;
+		bool bHideCommonMeshes = false;
+		bool bHideCommonSkeletalMeshesAndAnimations = false;
+		bool bHideCommonSkeletalMeshesAndAnimations_StaticMesh = false;
+		bool bHideAnimations = false;
+
+		if (RawStaticMesh == 0 || RawMorphTargetShape == 0)
+		{
+			bHideCommonSkeletalMeshesAndAnimations_StaticMesh = true;
+		}
+
+		if (SkeletalMeshes.Num() == 0 && StaticMeshes.Num() == 0)
+		{
+			bHideStaticMeshes = true;
+			bHideSkeletalMeshes = true;
+			bHideCommonMeshes = true;
+		}
+		else if (StaticMeshes.Num() > 0 && SkeletalMeshes.Num() == 0)
+		{
+			bHideSkeletalMeshes = true;
+			bHideCommonSkeletalMeshesAndAnimations = true;
+			bHideAnimations = true;
+		}
+		else if (SkeletalMeshes.Num() > 0 && StaticMeshes.Num() == 0)
+		{
+			bHideStaticMeshes = true;
+		}
+		else
+		{
+			constexpr bool bFilterCodeLogicError = false;
+			ensure(bFilterCodeLogicError);
+		}
+
+		if (SkeletalMeshes.Num() > 0)
+		{
+			if (MeshPipeline->SkeletalMeshImportContentType == EInterchangeSkeletalMeshContentType::SkinningWeights)
+			{
+				LocalHideProperty(CommonMeshesProperties, GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonMeshesProperties, VertexOverrideColor));
+				LocalHideProperty(CommonMeshesProperties, GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonMeshesProperties, VertexColorImportOption));
+				LocalHideProperty(MeshPipeline, GET_MEMBER_NAME_CHECKED(UInterchangeGenericMeshPipeline, bImportMorphTargets));
+				LocalHideProperty(MeshPipeline, GET_MEMBER_NAME_CHECKED(UInterchangeGenericMeshPipeline, ThresholdPosition));
+				LocalHideProperty(MeshPipeline, GET_MEMBER_NAME_CHECKED(UInterchangeGenericMeshPipeline, ThresholdTangentNormal));
+				LocalHideProperty(MeshPipeline, GET_MEMBER_NAME_CHECKED(UInterchangeGenericMeshPipeline, ThresholdUV));
+				LocalHideProperty(MeshPipeline, GET_MEMBER_NAME_CHECKED(UInterchangeGenericMeshPipeline, MorphThresholdPosition));
+			}
+			else if (MeshPipeline->SkeletalMeshImportContentType == EInterchangeSkeletalMeshContentType::Geometry)
+			{
+				LocalHideProperty(MeshPipeline, GET_MEMBER_NAME_CHECKED(UInterchangeGenericMeshPipeline, bUpdateSkeletonReferencePose));
+			}
+		}
+
+		if (RawAnimationNode == 0)
+		{
+			bHideAnimations = true;
+		}
+
+		if (bHideAnimations && bHideSkeletalMeshes)
+		{
+			bHideCommonSkeletalMeshesAndAnimations = true;
+		}
+
+		//Hide the categories
+		if (bHideStaticMeshes)
+		{
+			HideFullCategory(TEXT("Static Meshes"), MeshPipeline);
+		}
+		if (bHideSkeletalMeshes)
+		{
+			HideFullCategory(TEXT("Skeletal Meshes"), MeshPipeline);
+		}
+		if(bHideCommonMeshes)
+		{
+			HideFullCategory(TEXT("Common Meshes"), CommonMeshesProperties);
+		}
+		if (bHideCommonSkeletalMeshesAndAnimations)
+		{
+			HideFullCategory(TEXT("Common Skeletal Meshes and Animations"), CommonSkeletalMeshesAndAnimationsProperties);
+		}
+		if (bHideCommonSkeletalMeshesAndAnimations_StaticMesh)
+		{
+			HideFullCategory(TEXT("Static Meshes"), CommonSkeletalMeshesAndAnimationsProperties);
+		}
+		if (bHideAnimations)
+		{
+			HideFullCategory(TEXT("Animations"), AnimationPipeline);
+		}
+	}
+}
+
+bool UInterchangeGenericAssetsPipeline::IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if ((CommonMeshesProperties && CommonMeshesProperties->IsPropertyChangeNeedRefresh(PropertyChangedEvent))
+		|| (CommonSkeletalMeshesAndAnimationsProperties && CommonSkeletalMeshesAndAnimationsProperties->IsPropertyChangeNeedRefresh(PropertyChangedEvent))
+		|| (MeshPipeline && MeshPipeline->IsPropertyChangeNeedRefresh(PropertyChangedEvent))
+		|| (MaterialPipeline && MaterialPipeline->IsPropertyChangeNeedRefresh(PropertyChangedEvent))
+		|| (AnimationPipeline && AnimationPipeline->IsPropertyChangeNeedRefresh(PropertyChangedEvent)))
+	{
+		return true;
+	}
+	return Super::IsPropertyChangeNeedRefresh(PropertyChangedEvent);
+}
+
 bool UInterchangeGenericAssetsPipeline::GetPropertyPossibleValues(const FName PropertyPath, TArray<FString>& PossibleValues)
 {
 	const FString PropertyPathString = PropertyPath.ToString();
@@ -150,7 +335,8 @@ bool UInterchangeGenericAssetsPipeline::GetPropertyPossibleValues(const FName Pr
 	//If we did not find any property call the super implementation
 	return Super::GetPropertyPossibleValues(PropertyPath, PossibleValues);
 }
-#endif
+
+#endif //WITH_EDITOR
 
 void UInterchangeGenericAssetsPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas)
 {
