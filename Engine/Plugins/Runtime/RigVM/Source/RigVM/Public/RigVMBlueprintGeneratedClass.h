@@ -21,7 +21,8 @@ public:
 	virtual void PostInitInstance(UObject* InObj, FObjectInstancingGraph* InstanceGraph) override;
 
 	// UObject interface
-	void Serialize(FArchive& Ar);
+	virtual void Serialize(FArchive& Ar) override;
+	virtual void PostLoad() override;
 
 	// IRigVMGraphFunctionHost interface
 	virtual const FRigVMGraphFunctionStore* GetRigVMGraphFunctionStore() const override { return &GraphFunctionStore; }

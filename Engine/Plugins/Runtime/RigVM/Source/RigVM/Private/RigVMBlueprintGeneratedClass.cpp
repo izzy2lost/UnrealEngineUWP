@@ -93,3 +93,9 @@ void URigVMBlueprintGeneratedClass::Serialize(FArchive& Ar)
 	Ar << GraphFunctionStore;
 }
 
+void URigVMBlueprintGeneratedClass::PostLoad()
+{
+	Super::PostLoad();
+
+	GraphFunctionStore.PostLoad();
+}
