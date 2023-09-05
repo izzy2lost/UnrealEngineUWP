@@ -25,6 +25,231 @@
 
 namespace UE::Interchange::Private {
 
+	//Import vertex Attribute from other vertex color layer
+	void GetVertexAttributeFromMeshVertexColor(FMeshDescription& MeshDescription, FbxMesh* Mesh)
+	{
+		//
+		// Get the vertex attribute layers from all layers, even the first layer which may be used as a vertex color layer.
+		// Currently we're only interested in alpha-only layers, since those are the only layer types the engine
+		// currently exposes for vertex attributes. Internally we can store 1-4 components, but there's no tooling for that
+		// 2-4 channels as of yet.
+		//
+		struct FNamedVertexAttribute
+		{
+			FNamedVertexAttribute(FString&& InAttributeName, TArray<float>&& InAttributeValues, const int32 InComponentCount)
+				: AttributeName(InAttributeName)
+				, AttributeValues(InAttributeValues)
+				, ComponentCount(InComponentCount)
+			{}
+
+			FString AttributeName;
+			TArray<float> AttributeValues;
+			int32 ComponentCount;
+		};
+		int32 ControlPointsCount = Mesh->GetControlPointsCount();
+		int32 TriangleCount = Mesh->GetPolygonCount();
+		int32 MeshLayerCount = Mesh->GetLayerCount();
+		TArray<FNamedVertexAttribute> NamedVertexAttributes;
+
+		for (int32 LayerIndex = 0; LayerIndex < MeshLayerCount; LayerIndex++)
+		{
+			FbxLayerElementVertexColor* LayerElementVertexAttribute = Mesh->GetLayer(LayerIndex)->GetVertexColors();
+			if (!LayerElementVertexAttribute)
+			{
+				continue;
+			}
+
+			// Check if this is an alpha-only attribute, by ensuring the RGB values are all zero, otherwise skip.
+			bool bIsValidAttribute = true;
+			const FbxLayerElementArrayTemplate<FbxColor>& AttributeValues = LayerElementVertexAttribute->GetDirectArray();
+			for (int32 Index = 0; Index < AttributeValues.GetCount(); Index++)
+			{
+				// We do an exact comparison, since that's how empty channels would be represented in the FBX file.
+				const FbxColor& Value = AttributeValues.GetAt(Index);
+				if (Value.mRed != 0.0 || Value.mGreen != 0.0 || Value.mBlue != 0.0)
+				{
+					bIsValidAttribute = false;
+					break;
+				}
+			}
+
+			// We can only do attributes that are mapped per-vertex.
+			if (!bIsValidAttribute)
+			{
+				continue;
+			}
+
+			const int32 AttributeComponentCount = 1;	// Number of component values per vertex. See comment above. 
+			TArray<float> AttributeComponentValues;
+
+			switch (LayerElementVertexAttribute->GetMappingMode())
+			{
+			case FbxLayerElement::eByControlPoint:
+			{
+				AttributeComponentValues.AddZeroed(ControlPointsCount);
+
+				if (LayerElementVertexAttribute->GetReferenceMode() == FbxLayerElement::eDirect)
+				{
+					for (int32 Index = 0; Index < AttributeValues.GetCount(); Index++)
+					{
+						AttributeComponentValues[Index] = AttributeValues.GetAt(Index).mAlpha;
+					}
+				}
+				else // LayerElementVertexAttribute->GetReferenceMode() == FbxLayerElement::eIndexToDirect
+				{
+					const FbxLayerElementArrayTemplate<int>& IndexArray = LayerElementVertexAttribute->GetIndexArray();
+					for (int32 Index = 0; Index < IndexArray.GetCount(); Index++)
+					{
+						AttributeComponentValues[Index] = AttributeValues.GetAt(IndexArray[Index]).mAlpha;
+					}
+				}
+			}
+			break;
+			case FbxLayerElement::eByPolygonVertex:
+			{
+				// Vertex attributes are stored per-vertex, not per-vertex instance. To work around this we average
+				// together values that share a vertex.
+				TArray<int32> SharedVertexCount;
+				SharedVertexCount.AddZeroed(ControlPointsCount);
+				AttributeComponentValues.AddZeroed(ControlPointsCount);
+
+				const FbxLayerElementArrayTemplate<int>* IndexArray = nullptr;
+				if (LayerElementVertexAttribute->GetReferenceMode() == FbxLayerElement::eIndexToDirect)
+				{
+					IndexArray = &LayerElementVertexAttribute->GetIndexArray();
+				}
+
+				const int* PolygonControlPointIndexes = Mesh->GetPolygonVertices();
+
+				for (int32 TriangleIndex = 0; TriangleIndex < TriangleCount; TriangleIndex++)
+				{
+					for (int32 InnerIndex = 0; InnerIndex < 3; InnerIndex++)
+					{
+						const int32 PolygonVertexIndex = TriangleIndex * 3 + InnerIndex;;
+						const int32 PointIndex = PolygonControlPointIndexes[PolygonVertexIndex];
+
+						AttributeComponentValues[PointIndex] +=
+							AttributeValues.GetAt(IndexArray ? IndexArray->GetAt(PolygonVertexIndex) : PolygonVertexIndex).mAlpha;
+						SharedVertexCount[PointIndex]++;
+					}
+				}
+
+				for (int32 PointIndex = 0; PointIndex < ControlPointsCount; PointIndex++)
+				{
+					if (SharedVertexCount[PointIndex] > 1)
+					{
+						AttributeComponentValues[PointIndex] /= static_cast<float>(SharedVertexCount[PointIndex]);
+					}
+				}
+			}
+			break;
+			default:
+				break;
+			}
+
+			if (!AttributeComponentValues.IsEmpty())
+			{
+				FString AttributeName(UTF8_TO_TCHAR(LayerElementVertexAttribute->GetName()));
+				NamedVertexAttributes.Emplace(MoveTemp(AttributeName), MoveTemp(AttributeComponentValues), AttributeComponentCount);
+			}
+		}
+		if(NamedVertexAttributes.Num() > 0)
+		{
+			FSkeletalMeshAttributes MeshAttributes(MeshDescription);
+			MeshAttributes.Register();
+			TVertexAttributesRef<FVector3f> VertexPositions = MeshAttributes.GetVertexPositions();
+
+			TMap<FString, FName> ValidAttributes;
+			for (int32 AttributeIndex = 0; AttributeIndex < NamedVertexAttributes.Num(); AttributeIndex++)
+			{
+				const FNamedVertexAttribute& NamedVertexAttribute = NamedVertexAttributes[AttributeIndex];
+				const FString& VertexAttributeName = NamedVertexAttribute.AttributeName;
+				if (!ensure(NamedVertexAttribute.AttributeValues.Num() == (VertexPositions.GetNumElements() * NamedVertexAttribute.ComponentCount)))
+				{
+					continue;
+				}
+
+				EMeshAttributeFlags DefaultAttributeFlags = EMeshAttributeFlags::Mergeable | EMeshAttributeFlags::Lerpable;
+
+				FName RegisteredName(VertexAttributeName);
+
+				// Ignore attributes with reserved names. This should have been handled at import time or when the attribute
+				// was created/renamed.
+				if (!ensure(!FSkeletalMeshAttributes::IsReservedAttributeName(RegisteredName)))
+				{
+					continue;
+				}
+
+				switch (NamedVertexAttribute.ComponentCount)
+				{
+				case 1:
+					MeshDescription.VertexAttributes().RegisterAttribute<float>(RegisteredName, 1, 0.0f, DefaultAttributeFlags);
+					break;
+				case 2:
+					MeshDescription.VertexAttributes().RegisterAttribute<FVector2f>(RegisteredName, 1, FVector2f::Zero(), DefaultAttributeFlags);
+					break;
+				case 3:
+					MeshDescription.VertexAttributes().RegisterAttribute<FVector3f>(RegisteredName, 1, FVector3f::Zero(), DefaultAttributeFlags);
+					break;
+				case 4:
+					MeshDescription.VertexAttributes().RegisterAttribute<FVector4f>(RegisteredName, 1, FVector4f::Zero(), DefaultAttributeFlags);
+					break;
+				default:
+					continue;
+				}
+
+				ValidAttributes.Add(VertexAttributeName, RegisteredName);
+
+				switch (NamedVertexAttribute.ComponentCount)
+				{
+				case 1:
+				{
+					TVertexAttributesRef<float> AttributeRef = MeshDescription.VertexAttributes().GetAttributesRef<float>(RegisteredName);
+					for (int32 Index = 0; Index < NamedVertexAttribute.AttributeValues.Num(); Index++)
+					{
+						AttributeRef.Set(FVertexID(Index), NamedVertexAttribute.AttributeValues[Index]);
+					}
+					break;
+				}
+				case 2:
+				{
+					TVertexAttributesRef<FVector2f> AttributeRef = MeshDescription.VertexAttributes().GetAttributesRef<FVector2f>(RegisteredName);
+					for (int32 Index = 0; Index < NamedVertexAttribute.AttributeValues.Num(); Index += 2)
+					{
+						AttributeRef.Set(FVertexID(Index / 2),
+							FVector2f(NamedVertexAttribute.AttributeValues[Index], NamedVertexAttribute.AttributeValues[Index + 1]));
+					}
+					break;
+				}
+				case 3:
+				{
+					TVertexAttributesRef<FVector3f> AttributeRef = MeshDescription.VertexAttributes().GetAttributesRef<FVector3f>(RegisteredName);
+					for (int32 Index = 0; Index < NamedVertexAttribute.AttributeValues.Num(); Index += 3)
+					{
+						AttributeRef.Set(FVertexID(Index / 3),
+							FVector3f(NamedVertexAttribute.AttributeValues[Index], NamedVertexAttribute.AttributeValues[Index + 1], NamedVertexAttribute.AttributeValues[Index + 2]));
+					}
+					break;
+				}
+				case 4:
+				{
+					TVertexAttributesRef<FVector4f> AttributeRef = MeshDescription.VertexAttributes().GetAttributesRef<FVector4f>(RegisteredName);
+					for (int32 Index = 0; Index < NamedVertexAttribute.AttributeValues.Num(); Index += 4)
+					{
+						AttributeRef.Set(FVertexID(Index / 4),
+							FVector4f(
+								NamedVertexAttribute.AttributeValues[Index], NamedVertexAttribute.AttributeValues[Index + 1],
+								NamedVertexAttribute.AttributeValues[Index + 2], NamedVertexAttribute.AttributeValues[Index + 3]));
+					}
+					break;
+				}
+				default:
+					checkNoEntry();
+				}
+			}
+		}
+	}
+
 // Wraps some common code useful for multiple fbx import code path
 struct FFBXUVs
 {
@@ -1058,6 +1283,9 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 		{
 			FSkeletalMeshAttributes SkeletalMeshAttributes(*MeshDescription);
 			SkeletalMeshAttributes.Register(true);
+
+			//Import vertex Attribute from all mesh layer vertex color
+			GetVertexAttributeFromMeshVertexColor(*MeshDescription, Mesh);
 
 			using namespace UE::AnimationCore;
 			TMap<FVertexID, TArray<FBoneWeight>> RawBoneWeights;
