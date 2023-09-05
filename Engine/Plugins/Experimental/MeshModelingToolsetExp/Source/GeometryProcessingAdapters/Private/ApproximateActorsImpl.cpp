@@ -969,7 +969,10 @@ IGeometryProcessing_ApproximateActors::FOptions FApproximateActorsImpl::Construc
 
 	// Nanite settings
 	Options.bGenerateNaniteEnabledMesh = UseSettings.bGenerateNaniteEnabledMesh;
-	Options.NaniteProxyTrianglePercent = UseSettings.NaniteProxyTrianglePercent;
+	Options.NaniteFallbackTarget = UseSettings.NaniteFallbackTarget == ::ENaniteFallbackTarget::Auto ? IGeometryProcessing_ApproximateActors::ENaniteFallbackTarget::Auto :
+								  (UseSettings.NaniteFallbackTarget == ::ENaniteFallbackTarget::PercentTriangles ? IGeometryProcessing_ApproximateActors::ENaniteFallbackTarget::PercentTriangles : IGeometryProcessing_ApproximateActors::ENaniteFallbackTarget::RelativeError);
+	Options.NaniteFallbackPercentTriangles = UseSettings.NaniteFallbackPercentTriangles;
+	Options.NaniteFallbackRelativeError = UseSettings.NaniteFallbackRelativeError;
 
 	// Distance field
 	Options.bAllowDistanceField = UseSettings.bAllowDistanceField;
@@ -1294,7 +1297,10 @@ UStaticMesh* FApproximateActorsImpl::EmitGeneratedMeshAsset(
 
 	MeshAssetOptions.bGenerateNaniteEnabledMesh = Options.bGenerateNaniteEnabledMesh;
 	MeshAssetOptions.NaniteSettings.bEnabled = Options.bGenerateNaniteEnabledMesh;
-	MeshAssetOptions.NaniteSettings.FallbackPercentTriangles = Options.NaniteProxyTrianglePercent / 100.0;	// NaniteSettings wants value in range 0-1
+	MeshAssetOptions.NaniteSettings.FallbackTarget = Options.NaniteFallbackTarget == IGeometryProcessing_ApproximateActors::ENaniteFallbackTarget::Auto ? ::ENaniteFallbackTarget::Auto : 
+													 (Options.NaniteFallbackTarget == IGeometryProcessing_ApproximateActors::ENaniteFallbackTarget::PercentTriangles ? ::ENaniteFallbackTarget::PercentTriangles : ::ENaniteFallbackTarget::RelativeError);
+	MeshAssetOptions.NaniteSettings.FallbackPercentTriangles = Options.NaniteFallbackPercentTriangles;
+	MeshAssetOptions.NaniteSettings.FallbackRelativeError = Options.NaniteFallbackRelativeError;
 
 	MeshAssetOptions.bSupportRayTracing = Options.bSupportRayTracing;
 	MeshAssetOptions.bAllowDistanceField = Options.bAllowDistanceField;

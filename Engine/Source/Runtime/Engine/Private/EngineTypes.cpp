@@ -79,6 +79,19 @@ void FMeshMergingSettings::PostSerialize(const FArchive& Ar)
 		}
 	}
 }
+
+void FMeshApproximationSettings::PostSerialize(const FArchive& Ar)
+{
+	if (Ar.IsLoading())
+	{
+		FMeshApproximationSettings DefaultObject;
+		if (NaniteProxyTrianglePercent_DEPRECATED != DefaultObject.NaniteProxyTrianglePercent_DEPRECATED)
+		{
+			NaniteFallbackTarget = ENaniteFallbackTarget::PercentTriangles;
+			NaniteFallbackPercentTriangles = NaniteProxyTrianglePercent_DEPRECATED / 100.0f;
+		}
+	}
+}
 #endif
 
 UEngineBaseTypes::UEngineBaseTypes(const FObjectInitializer& ObjectInitializer)

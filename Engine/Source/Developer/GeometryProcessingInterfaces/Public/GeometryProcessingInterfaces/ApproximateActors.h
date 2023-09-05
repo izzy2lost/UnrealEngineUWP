@@ -6,6 +6,7 @@
 #include "Features/IModularFeature.h"
 
 class AActor;
+class UActorComponent;
 class UStaticMesh;
 class UMaterial;
 class UMaterialInterface;
@@ -89,6 +90,13 @@ public:
 	{
 		TextureSize = 0,
 		TexelDensity = 1
+	};
+
+	enum class ENaniteFallbackTarget : uint8
+	{
+		Auto,
+		PercentTriangles,
+		RelativeError
 	};
 
 
@@ -208,8 +216,14 @@ public:
 		// Whether to generate a nanite-enabled mesh
 		bool bGenerateNaniteEnabledMesh = false;
 
-		// Percentage of triangles to retain for the nanite coarse mesh
-		float NaniteProxyTrianglePercent = 100;
+		/** Which heuristic to use when generating the fallback mesh. */
+		ENaniteFallbackTarget NaniteFallbackTarget = ENaniteFallbackTarget::Auto;
+	
+		/** Percentage of triangles to keep from source mesh for fallback. 1.0 = no reduction, 0.0 = no triangles. */
+		float NaniteFallbackPercentTriangles = 1.0f;
+
+		/** Reduce until at least this amount of error is reached relative to size of the mesh */
+		float NaniteFallbackRelativeError = 1.0f;
 
 		// Whether ray tracing will be supported on this mesh. Disable this to save memory if the generated mesh will only be rendered in the distance
 		bool bSupportRayTracing = true;
