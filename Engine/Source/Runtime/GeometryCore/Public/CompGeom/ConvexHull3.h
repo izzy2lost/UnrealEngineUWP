@@ -68,6 +68,15 @@ public:
 	/// If zero, no points will be skipped.
 	RealType DegenerateEdgeTolerance = (RealType)0;
 
+	/// If positive, hulls generated will only have at most this many points.
+	int32 MaxHullVertices = -1;
+
+	/// If positive, skip adding points that are closer than this threshold to the in-progress hull.
+	RealType SkipAtHullDistanceAbsolute = -TMathUtil<RealType>::MaxReal;
+	/// If positive, skip adding points that are closer than this threshold to the in-progress hull -- expressed as a fraction of the overall hull extent.
+	/// Note if both the Absolute and Fraction MinPlaneDistance thresholds are set, they will both apply (i.e., the larger of the two will be used)
+	RealType SkipAtHullDistanceAsFraction = -TMathUtil<RealType>::MaxReal;
+
 	/**
 	 * Generate convex hull as long as input is not degenerate
 	 * If input is degenerate, this will return false, and caller can call GetDimension()
@@ -75,10 +84,14 @@ public:
 	 *
 	 * @param NumPoints Number of points to consider
 	 * @param GetPointFunc Function providing array-style access into points
-	 * @param Filter Optional filter to include only a subset of the points in the output hull
+	 * @param FilterFunc Optional filter to include only a subset of the points in the output hull
 	 * @return true if hull was generated, false if points span < 2 dimensions
 	 */
-	GEOMETRYCORE_API bool Solve(int32 NumPoints, TFunctionRef<TVector<RealType>(int32)> GetPointFunc, TFunctionRef<bool(int32)> FilterFunc = [](int32 Idx) {return true;});
+	GEOMETRYCORE_API bool Solve(int32 NumPoints, TFunctionRef<TVector<RealType>(int32)> GetPointFunc, TFunctionRef<bool(int32)> FilterFunc);
+	GEOMETRYCORE_API bool Solve(int32 NumPoints, TFunctionRef<TVector<RealType>(int32)> GetPointFunc)
+	{
+		return Solve(NumPoints, GetPointFunc, [](int32 Idx) {return true;});
+	}
 
 	/**
 	 * Generate convex hull as long as input is not degenerate
