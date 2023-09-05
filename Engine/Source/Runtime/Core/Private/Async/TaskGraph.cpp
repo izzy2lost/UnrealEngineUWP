@@ -2319,7 +2319,7 @@ private:
 
 		check(GConfig);
 		
-		bool bEnableReserveWorkers = true; // by default
+		bool bEnableReserveWorkers = false; // by default
 		GConfig->GetBool(TEXT("TaskGraph"), TEXT("EnableReserveWorkers"), bEnableReserveWorkers, GEngineIni);
 
 		if (bEnableReserveWorkers)
