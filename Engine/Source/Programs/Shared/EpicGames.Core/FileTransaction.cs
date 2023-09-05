@@ -43,7 +43,7 @@ namespace EpicGames.Core
 
 			try
 			{
-				return FileReference.Open(file, FileMode.Open);
+				return FileReference.Open(file, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
 			}
 			catch (FileNotFoundException)
 			{
