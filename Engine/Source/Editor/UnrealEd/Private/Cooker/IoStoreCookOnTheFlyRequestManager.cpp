@@ -138,6 +138,7 @@ private:
 		EPackageStoreEntryStatus RequestCook(UE::Cook::ICookOnTheFlyServer& InCookOnTheFlyServer, const FPackageId& PackageId, FPackageStoreEntryResource& OutEntry)
 		{
 			FPackage& Package = GetPackage(PackageId);
+			FName PackageName = PackageRegistry.Get(PackageId);
 			if (Package.Status == EPackageStatus::Cooked)
 			{
 				UE_LOG(LogCookOnTheFly, Verbose, TEXT("0x%llX was already cooked"), PackageId.ValueForDebugging());
@@ -146,7 +147,7 @@ private:
 			}
 			else if (Package.Status == EPackageStatus::Failed)
 			{
-				UE_LOG(LogCookOnTheFly, Verbose, TEXT("0x%llX was already failed"), PackageId.ValueForDebugging());
+				UE_LOG(LogCookOnTheFly, Warning, TEXT("Failed to cook package 0x%llX '%s'"), PackageId.ValueForDebugging(), *PackageName.ToString());
 				return EPackageStoreEntryStatus::Missing;
 			}
 			else if (Package.Status == EPackageStatus::Cooking)
@@ -154,7 +155,6 @@ private:
 				UE_LOG(LogCookOnTheFly, Verbose, TEXT("0x%llX was already cooking"), PackageId.ValueForDebugging());
 				return EPackageStoreEntryStatus::Pending;
 			}
-			FName PackageName = PackageRegistry.Get(PackageId);
 			if (PackageName.IsNone())
 			{
 				UE_LOG(LogCookOnTheFly, Warning, TEXT("Received cook request for unknown package 0x%llX"), PackageId.ValueForDebugging());
@@ -200,12 +200,12 @@ private:
 			}
 		}
 
-		void MarkAsFailed(FPackageId PackageId, UE::ZenCookOnTheFly::Messaging::FCompletedPackages& OutCompletedPackages)
+		void MarkAsFailed(FPackageId PackageId, FName PackageName, UE::ZenCookOnTheFly::Messaging::FCompletedPackages& OutCompletedPackages)
 		{
-			UE_LOG(LogCookOnTheFly, Warning, TEXT("0x%llX failed"), PackageId.ValueForDebugging());
+			// Unsolicited packages that fail to save because they contain editoronly data will be passed into this function
+			// Mark them as failed, but do not report them to the client and do not give a warning unless the client requests them.
 			FPackage& Package = GetPackage(PackageId);
 			Package.Status = EPackageStatus::Failed;
-			OutCompletedPackages.FailedPackages.Add(PackageId);
 			if (PackageCookedEvent)
 			{
 				PackageCookedEvent->Trigger();
@@ -692,7 +692,7 @@ private:
 			}
 			else
 			{
-				Context.MarkAsFailed(FPackageId::FromName(EventArgs.PackageName), NewCompletedPackages);
+				Context.MarkAsFailed(FPackageId::FromName(EventArgs.PackageName), EventArgs.PackageName, NewCompletedPackages);
 			}
 		}
 		BroadcastCompletedPackages(EventArgs.PlatformName, MoveTemp(NewCompletedPackages));

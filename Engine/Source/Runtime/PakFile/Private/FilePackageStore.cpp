@@ -49,7 +49,8 @@ void FFilePackageStoreBackend::EndRead()
 	EntriesLock.ReadUnlock();
 }
 
-EPackageStoreEntryStatus FFilePackageStoreBackend::GetPackageStoreEntry(FPackageId PackageId, FPackageStoreEntry& OutPackageStoreEntry)
+EPackageStoreEntryStatus FFilePackageStoreBackend::GetPackageStoreEntry(FPackageId PackageId, FName PackageName,
+	FPackageStoreEntry& OutPackageStoreEntry)
 {
 	const FFilePackageStoreEntry* FindEntry = StoreEntriesMap.FindRef(PackageId);
 	if (FindEntry)

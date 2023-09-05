@@ -26,7 +26,8 @@ public:
 
 	virtual void BeginRead() override;
 	virtual void EndRead() override;
-	virtual EPackageStoreEntryStatus GetPackageStoreEntry(FPackageId PackageId, FPackageStoreEntry& OutPackageStoreEntry) override;
+	virtual EPackageStoreEntryStatus GetPackageStoreEntry(FPackageId PackageId, FName PackageName,
+		FPackageStoreEntry& OutPackageStoreEntry) override;
 	virtual bool GetPackageRedirectInfo(FPackageId PackageId, FName& OutSourcePackageName, FPackageId& OutRedirectedToPackageId) override;
 
 	void Mount(const FIoContainerHeader* ContainerHeader, uint32 Order);

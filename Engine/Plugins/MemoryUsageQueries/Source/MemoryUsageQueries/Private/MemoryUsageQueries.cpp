@@ -1449,7 +1449,8 @@ class FPackageDependenciesLazyDatabase final
 			}
 
 			FPackageStoreEntry PackageEntry;
-			const EPackageStoreEntryStatus Status = FPackageStore::Get().GetPackageStoreEntry(PackageId, PackageEntry);
+			const EPackageStoreEntryStatus Status = FPackageStore::Get().GetPackageStoreEntry(PackageId, NAME_None,
+				PackageEntry);
 			if (Status == EPackageStoreEntryStatus::Ok)
 			{
 				// add package dependencies
