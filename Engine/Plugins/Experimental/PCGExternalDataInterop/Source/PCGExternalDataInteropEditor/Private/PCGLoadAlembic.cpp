@@ -35,7 +35,7 @@ void UPCGLoadAlembicFunctionLibrary::LoadAlembicFileToPCG(const FPCGLoadAlembicB
 		{
 			if (TaggedData.Data)
 			{
-				Cast<UObject>(TaggedData.Data)->Rename(nullptr, TargetOuter, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors);
+				(const_cast<UPCGData*>(TaggedData.Data.Get()))->Rename(nullptr, TargetOuter, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors);
 			}
 		}
 	}
