@@ -175,36 +175,26 @@ namespace GeometryCollectionAlgo
 		return false;
 	}
 
-	bool HasCycleRec(TManagedArray<int32>& Parents, int32 Node, TArray<bool> Visited)
-	{
-		ensure(0 <= Node && Node < Visited.Num());
-
-		if (Visited[Node])
-			return true;
-		Visited[Node] = true;
-
-		if (Parents[Node] != FGeometryCollection::Invalid)
-		{
-			return HasCycleRec(Parents, Parents[Node], Visited);
-		}
-		return false;
-	}
 	bool HasCycle(TManagedArray<int32>& Parents, int32 Node)
 	{
-		TArray<bool> Visited;
-		Visited.Init(false, Parents.Num());
-		return HasCycleRec(Parents, Node, Visited);
+		const int32 NumParents = Parents.Num();
+		int32 WalkNode = Node;
+		for (int32 Iters = 0; WalkNode != FGeometryCollection::Invalid && Iters < NumParents; ++Iters)
+		{
+			WalkNode = Parents[WalkNode];
+		}
+		return WalkNode != FGeometryCollection::Invalid;
 	}
 	bool HasCycle(TManagedArray<int32>& Parents, const TArray<int32>& SelectedBones)
 	{
-		bool result = false;
-		TArray<bool> Visited;
-		Visited.Init(false, Parents.Num());
-		for (int32 Index = 0; Index < SelectedBones.Num(); Index++)
+		for (int32 Bone : SelectedBones)
 		{
-			result |= HasCycleRec(Parents, SelectedBones[Index], Visited);
+			if (HasCycle(Parents, Bone))
+			{
+				return true;
+			}
 		}
-		return result;
+		return false;
 	}
 
 	void ParentTransform(FTransformCollection* GeometryCollection, const int32 TransformIndex, const int32 ChildIndex)
