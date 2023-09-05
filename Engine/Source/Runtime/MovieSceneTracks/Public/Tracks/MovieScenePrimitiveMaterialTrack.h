@@ -35,8 +35,10 @@ public:
 	virtual bool SupportsType(TSubclassOf<UMovieSceneSection> SectionClass) const override;
 
 #if WITH_EDITOR
-	virtual FText GetDisplayNameToolTipText() const override { return TooltipText; }
-	void SetDisplayNameTooltipText(FText InTooltipText) { TooltipText = InTooltipText; }
+	virtual FText GetDisplayNameToolTipText(const FMovieSceneLabelParams& LabelParams) const override;
+
+	// We override label color if material binding is broken/partially broken.
+	virtual FSlateColor GetLabelColor(const FMovieSceneLabelParams& LabelParams) const override;
 #endif
 
 protected:
@@ -46,9 +48,6 @@ protected:
 private:
 	UPROPERTY()
 	int32 MaterialIndex_DEPRECATED;
-		
-	UPROPERTY()
-	FText TooltipText;
 
 #endif
 

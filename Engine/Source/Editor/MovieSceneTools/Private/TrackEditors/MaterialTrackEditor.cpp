@@ -287,6 +287,131 @@ TSharedRef<ISequencerTrackEditor> FComponentMaterialTrackEditor::CreateTrackEdit
 }
 
 
+void FComponentMaterialTrackEditor::BuildTrackContextMenu(FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track)
+{
+	if (UMovieSceneComponentMaterialTrack* MaterialTrack = Cast<UMovieSceneComponentMaterialTrack>(Track))
+	{
+		FGuid ObjectBinding = MaterialTrack->FindObjectBindingGuid();
+		UObject* BoundObject = GetSequencer()->FindSpawnedObjectOrTemplate(ObjectBinding);
+		const FComponentMaterialInfo& MaterialInfo = MaterialTrack->GetMaterialInfo();
+		if (MaterialInfo.MaterialType == EComponentMaterialType::Empty || MaterialInfo.MaterialType == EComponentMaterialType::IndexedMaterial)
+		{
+			if (UPrimitiveComponent* Component = Cast<UPrimitiveComponent>(BoundObject))
+			{
+				int32 FoundMaterialIndex = INDEX_NONE;
+				FName FoundSlotName;
+				UMaterialInterface* Material = nullptr;
+				FText AutoRebindTooltip;
+				bool bNeedsRebindFix = false;
+
+				if (!MaterialInfo.MaterialSlotName.IsNone())
+				{
+					Material = Component->GetMaterialByName(MaterialInfo.MaterialSlotName);
+					if (Material)
+					{
+						FoundSlotName = MaterialInfo.MaterialSlotName;
+					}
+					FoundMaterialIndex = Component->GetMaterialIndex(MaterialInfo.MaterialSlotName);
+					if (FoundMaterialIndex != INDEX_NONE && FoundMaterialIndex != MaterialInfo.MaterialSlotIndex)
+					{
+						bNeedsRebindFix = true;
+						// Found material by slot name, but the indices don't match what is cached. Auto-rebind would change index to the one in the found slot name.
+						AutoRebindTooltip = FText::Format(LOCTEXT("AutoRebindToNewSlotIndex", "Rebind track to index {0}, keeping same slot {1}"), FText::AsNumber(FoundMaterialIndex), FText::FromName(MaterialInfo.MaterialSlotName));
+					}
+				}
+				if (!Material)
+				{
+					bNeedsRebindFix = true;
+					// Couldn't find binding by slot name or one wasn't specified, try by index
+					Material = Component->GetMaterial(MaterialInfo.MaterialSlotIndex);
+					if (Material)
+					{
+						// Found material by index, but not by slot name. Auto-rebind would change slot name to the current one
+						FoundMaterialIndex = MaterialInfo.MaterialSlotIndex;
+						TArray<FName> SlotNames = Component->GetMaterialSlotNames();
+						check(SlotNames.IsValidIndex(MaterialInfo.MaterialSlotIndex));
+						FoundSlotName = SlotNames[MaterialInfo.MaterialSlotIndex];
+						AutoRebindTooltip = FText::Format(LOCTEXT("AutoRebindToNewSlotName", "Rebind track to slot {0}, keeping same index {1}"), FText::FromName(FoundSlotName), FText::AsNumber(MaterialInfo.MaterialSlotIndex));
+					}
+					// If we didn't find a material, we don't create a tooltip, because we won't be able to 'auto' rebind, just manually bind.
+				}
+
+				// If we didn't find a material, a slot name wasn't specified or wasn't found, or an index was mismatched, allow the user to rebind
+				if (bNeedsRebindFix)
+				{
+					MenuBuilder.BeginSection("Fix Material Binding", LOCTEXT("FixMaterialBindingSectionName", "Fix Material Binding"));
+
+					// If we set this tooltip, then we are able to auto-rebind
+					if (!AutoRebindTooltip.IsEmpty())
+					{
+						MenuBuilder.AddMenuEntry(
+							LOCTEXT("AutoFixMaterialBinding", "Auto-Fix Material Binding"),
+							AutoRebindTooltip,
+							FSlateIcon(),
+							FUIAction(
+								FExecuteAction::CreateLambda([MaterialTrack, FoundMaterialIndex, FoundSlotName]() 
+									{ 
+										FScopedTransaction Transaction(LOCTEXT("FixupMaterialBinding", "Fixup material binding"));
+										MaterialTrack->Modify();
+										MaterialTrack->SetMaterialInfo(FComponentMaterialInfo{ FoundSlotName, FoundMaterialIndex, EComponentMaterialType::IndexedMaterial });
+										MaterialTrack->SetDisplayName(FText::Format(LOCTEXT("SlotMaterialTrackName", "Material Slot: {0}"), FText::FromName(FoundSlotName)));
+									})));
+					}
+
+					MenuBuilder.AddSubMenu(
+						LOCTEXT("RebindMaterial", "Re-Bind Material Track..."),
+						LOCTEXT("RebindMaterialTooltip", "Re-Bind this material track to a different material slot"),
+						FNewMenuDelegate::CreateSP(this, &FComponentMaterialTrackEditor::FillRebindMaterialTrackMenu, MaterialTrack, Component, ObjectBinding)
+					);
+
+					MenuBuilder.EndSection();
+					MenuBuilder.AddMenuSeparator();
+				}
+			}
+		}
+	}
+}
+
+void FComponentMaterialTrackEditor::FillRebindMaterialTrackMenu(FMenuBuilder& MenuBuilder, UMovieSceneComponentMaterialTrack* MaterialTrack, UPrimitiveComponent* PrimitiveComponent, FGuid ObjectBinding)
+{
+	auto GetMaterialInfoForTrack = [](UMovieSceneTrack* InTrack)
+	{
+		UMovieSceneComponentMaterialTrack* MaterialTrack = Cast<UMovieSceneComponentMaterialTrack>(InTrack);
+		return MaterialTrack ? MaterialTrack->GetMaterialInfo() : FComponentMaterialInfo();
+	};
+	int32 NumMaterials = PrimitiveComponent->GetNumMaterials();
+	TArray<FName> MaterialSlotNames = PrimitiveComponent->GetMaterialSlotNames();
+	const UMovieScene* MovieScene = GetFocusedMovieScene();
+	const FMovieSceneBinding* Binding = Algo::FindBy(MovieScene->GetBindings(), ObjectBinding, &FMovieSceneBinding::GetObjectGuid);
+	if (Binding && NumMaterials > 0)
+	{
+		MenuBuilder.BeginSection("RebindMaterialSlots", LOCTEXT("RebindMaterialSlots", "Material Slots"));
+		{
+			for (int32 MaterialIndex = 0; MaterialIndex < NumMaterials; MaterialIndex++)
+			{
+				FName MaterialSlotName = MaterialSlotNames.IsValidIndex(MaterialIndex) ? MaterialSlotNames[MaterialIndex] : FName();
+				FComponentMaterialInfo MaterialInfo{ MaterialSlotName, MaterialIndex, EComponentMaterialType::IndexedMaterial };
+				const bool bAlreadyExists = Algo::FindBy(Binding->GetTracks(), MaterialInfo, GetMaterialInfoForTrack) != nullptr;
+				if (bAlreadyExists)
+				{
+					continue;
+				}
+				FUIAction RebindToMaterialAction(FExecuteAction::CreateLambda([MaterialTrack, MaterialInfo]() 
+					{
+						FScopedTransaction Transaction(LOCTEXT("FixupMaterialBinding", "Fixup material binding"));
+						MaterialTrack->Modify();
+						MaterialTrack->SetMaterialInfo(MaterialInfo); 
+						MaterialTrack->SetDisplayName(FText::Format(LOCTEXT("SlotMaterialTrackName", "Material Slot: {0}"), FText::FromName(MaterialInfo.MaterialSlotName)));
+					}));
+				FText RebindToMaterialLabel = FText::Format(LOCTEXT("RebindToMaterialSlot", "Slot: {0}, Index: {1}"), FText::FromName(MaterialSlotName), FText::AsNumber(MaterialIndex));
+				FText RebindToMaterialToolTip = FText::Format(LOCTEXT("RebindToMaterialSlotToolTip", "Rebind this track to material slot {0}, index {1}"), FText::FromName(MaterialSlotName), FText::AsNumber(MaterialIndex));
+				MenuBuilder.AddMenuEntry(RebindToMaterialLabel, RebindToMaterialToolTip, FSlateIcon(), RebindToMaterialAction);
+			}
+		}
+		MenuBuilder.EndSection();
+	}
+}
+
 bool FComponentMaterialTrackEditor::SupportsType( TSubclassOf<UMovieSceneTrack> Type ) const
 {
 	return Type == UMovieSceneComponentMaterialTrack::StaticClass();
@@ -509,7 +634,6 @@ void FComponentMaterialTrackEditor::HandleAddComponentMaterialActionExecute(USce
 			// Construct display name from MaterialInfo
 			UMaterialInterface* MaterialInterface = GetMaterialInterfaceForTrack(ObjectHandle, MaterialTrack);
 			FText TrackDisplayName;
-			FText TrackTooltipText;
 			switch (MaterialInfo.MaterialType)
 			{
 			case EComponentMaterialType::Empty:
@@ -517,16 +641,12 @@ void FComponentMaterialTrackEditor::HandleAddComponentMaterialActionExecute(USce
 			case EComponentMaterialType::IndexedMaterial:
 				TrackDisplayName = !MaterialInfo.MaterialSlotName.IsNone() ? FText::Format(LOCTEXT("SlotMaterialTrackName", "Material Slot: {0}"), FText::FromName(MaterialInfo.MaterialSlotName))
 					: FText::Format(LOCTEXT("IndexedMaterialTrackName", "Material Element {0}"), FText::AsNumber(MaterialInfo.MaterialSlotIndex));
-				TrackTooltipText = !MaterialInfo.MaterialSlotName.IsNone() ? FText::Format(LOCTEXT("SlotMaterialTrackTooltip", "Material parameter track for slot {0} at index {1}, asset {2}"), FText::FromName(MaterialInfo.MaterialSlotName), FText::AsNumber(MaterialInfo.MaterialSlotIndex), MaterialInterface ? FText::FromString(MaterialInterface->GetName()) : FText())
-					: FText::Format(LOCTEXT("IndexedMaterialTrackTooltip", "Material parameter track for element at index {0}, asset {1}"), FText::AsNumber(MaterialInfo.MaterialSlotIndex), MaterialInterface ? FText::FromString(MaterialInterface->GetName()) : FText());
 				break;
 			case EComponentMaterialType::OverlayMaterial:
 				TrackDisplayName = FText::Format(LOCTEXT("OverlayMaterialTrackName", "Overlay Material {0}"), MaterialInterface ? FText::FromString(MaterialInterface->GetName()) : FText());
-				TrackTooltipText = FText::Format(LOCTEXT("OverlayMaterialTrackTooltip", "Material parameter track for overlay material {0}"), MaterialInterface ? FText::FromString(MaterialInterface->GetName()) : FText());
 				break;
 			case EComponentMaterialType::DecalMaterial:
 				TrackDisplayName = FText::Format(LOCTEXT("DecalMaterialTrackName", "Decal Material {0}"), MaterialInterface ? FText::FromString(MaterialInterface->GetName()) : FText());
-				TrackTooltipText = FText::Format(LOCTEXT("DecalMaterialTrackTooltip", "Material parameter track for decal material {0}"), MaterialInterface ? FText::FromString(MaterialInterface->GetName()) : FText());
 				break;
 			default:
 				break;
@@ -536,16 +656,10 @@ void FComponentMaterialTrackEditor::HandleAddComponentMaterialActionExecute(USce
 			{
 				MaterialTrack->SetDisplayName(TrackDisplayName);
 			}
-			if (!TrackTooltipText.IsEmpty())
-			{
-				MaterialTrack->SetDisplayNameTooltipText(TrackTooltipText);
-			}
 		}
 	}
 
 	SequencerPtr->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
 }
-
-
 
 #undef LOCTEXT_NAMESPACE

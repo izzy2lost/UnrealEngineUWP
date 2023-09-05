@@ -8,6 +8,9 @@
 #include "MovieSceneNameableTrack.h"
 #include "EntitySystem/IMovieSceneEntityProvider.h"
 #include "MaterialTypes.h"
+#if WITH_EDITOR
+#include "Styling/SlateColor.h"
+#endif
 #include "MovieSceneMaterialTrack.generated.h"
 
 UENUM()
@@ -228,8 +231,10 @@ public:
 	}
 
 #if WITH_EDITOR
-	virtual FText GetDisplayNameToolTipText() const override { return TooltipText; }
-	void SetDisplayNameTooltipText(FText InTooltipText) { TooltipText = InTooltipText; }
+	virtual FText GetDisplayNameToolTipText(const FMovieSceneLabelParams& LabelParams) const override;
+
+	// We override label color if material binding is broken/partially broken.
+	virtual FSlateColor GetLabelColor(const FMovieSceneLabelParams& LabelParams) const override;
 #endif
 
 
@@ -242,9 +247,6 @@ private:
 	/** The index of this material this track is animating. Has been deprecated in favor of MaterialInfo*/
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use MaterialInfo instead."))
 	int32 MaterialIndex_DEPRECATED;
-
-	UPROPERTY()
-	FText TooltipText;
 
 #endif
 private:

@@ -195,37 +195,15 @@ FSlateColor FTrackRowModel::GetLabelColor() const
 	{
 		return FSlateColor::UseForeground();
 	}
-
-	// Display track node is red if the property track is not bound to valid property
-	if (UMovieScenePropertyTrack* PropertyTrack = Cast<UMovieScenePropertyTrack>(Track))
+	FMovieSceneLabelParams LabelParams;
+	LabelParams.bIsDimmed = IsDimmed();
+	LabelParams.Player = Sequencer.Get();
+	LabelParams.SequenceID = SequenceModel->GetSequenceID();
+	if (TViewModelPtr<FObjectBindingModel> ObjectBindingModel = FindAncestorOfType<FObjectBindingModel>())
 	{
-		const bool bIsDimmed = IsDimmed();
-
-		// 3D transform tracks don't map to property bindings as below
-		if (Track->IsA<UMovieScene3DTransformTrack>() || Track->IsA<UMovieScenePrimitiveMaterialTrack>())
-		{
-			return bIsDimmed ? FSlateColor::UseSubduedForeground() : FSlateColor::UseForeground();
-		}
-
-		if (TSharedPtr<IObjectBindingExtension> ParentBinding = FindAncestorOfType<IObjectBindingExtension>())
-		{
-			for (TWeakObjectPtr<> WeakObject : Sequencer->FindBoundObjects(ParentBinding->GetObjectGuid(), Sequencer->GetFocusedTemplateID()))
-			{
-				if (UObject* Object = WeakObject.Get())
-				{
-					FTrackInstancePropertyBindings PropertyBinding(PropertyTrack->GetPropertyName(), PropertyTrack->GetPropertyPath().ToString());
-					if (PropertyBinding.GetProperty(*Object))
-					{
-						return bIsDimmed ? FSlateColor::UseSubduedForeground() : FSlateColor::UseForeground();
-					}
-				}
-			}
-
-			return bIsDimmed ? FSlateColor(FLinearColor::Red.Desaturate(0.6f)) : FLinearColor::Red;
-		}
+		LabelParams.BindingID = ObjectBindingModel->GetObjectGuid();
 	}
-
-	return FOutlinerItemModel::GetLabelColor();
+	return Track->GetLabelColor(LabelParams);
 }
 
 TSharedRef<SWidget> FTrackRowModel::CreateOutlinerView(const FCreateOutlinerViewParams& InParams)

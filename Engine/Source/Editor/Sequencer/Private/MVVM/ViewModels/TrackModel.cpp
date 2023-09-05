@@ -530,40 +530,25 @@ FSlateColor FTrackModel::GetLabelColor() const
 		return FSlateColor::UseForeground();
 	}
 
-	// Display track node is red if the property track is not bound to valid property
-	if (UMovieScenePropertyTrack* PropertyTrack = Cast<UMovieScenePropertyTrack>(Track))
+	FMovieSceneLabelParams LabelParams;
+	LabelParams.bIsDimmed = IsDimmed();
+	if (TViewModelPtr<FSequenceModel> SequenceModel = FindAncestorOfType<FSequenceModel>())
 	{
-		const bool bIsDimmed = IsDimmed();
-
-		// 3D transform tracks don't map to property bindings as below
-		if (Track->IsA<UMovieScene3DTransformTrack>() || Track->IsA<UMovieScenePrimitiveMaterialTrack>())
+		if (TSharedPtr<FSequencerEditorViewModel> SequencerModel = SequenceModel->GetEditor())
 		{
-			return FOutlinerItemModel::GetLabelColor();
-		}
-
-		// If there is no object binding extension, don't tint it
-		TSharedPtr<IObjectBindingExtension> ParentBinding = FindAncestorOfType<IObjectBindingExtension>();
-		if (!ParentBinding)
-		{
-			return FOutlinerItemModel::GetLabelColor();
-		}
-
-		// Return a normal colour if we have at least one bound object for which the property binding resolves
-		// correctly. Otherwise, return a red colour indicating a binding issue.
-		TArray<UObject*> BoundObjects;
-		FindBoundObjects(BoundObjects);
-		for (UObject* BoundObject : BoundObjects)
-		{
-			FTrackInstancePropertyBindings PropertyBinding(PropertyTrack->GetPropertyName(), PropertyTrack->GetPropertyPath().ToString());
-			if (PropertyBinding.GetProperty(*BoundObject))
+			LabelParams.SequenceID = SequenceModel->GetSequenceID();
+			LabelParams.Player = SequencerModel->GetSequencer().Get();
+			if (LabelParams.Player)
 			{
-				return bIsDimmed ? FSlateColor::UseSubduedForeground() : FSlateColor::UseForeground();
+				if (TViewModelPtr<FObjectBindingModel> ObjectBindingModel = FindAncestorOfType<FObjectBindingModel>())
+				{
+					LabelParams.BindingID = ObjectBindingModel->GetObjectGuid();
+				}
 			}
 		}
-		return bIsDimmed ? FSlateColor(FLinearColor::Red.Desaturate(0.6f)) : FLinearColor::Red;
 	}
 
-	return FOutlinerItemModel::GetLabelColor();
+	return Track->GetLabelColor(LabelParams);
 }
 
 FText FTrackModel::GetLabelToolTipText() const
@@ -574,33 +559,25 @@ FText FTrackModel::GetLabelToolTipText() const
 		return FText();
 	}
 
-	if (UMovieScenePropertyTrack* PropertyTrack = Cast<UMovieScenePropertyTrack>(Track))
+	FMovieSceneLabelParams LabelParams;
+	LabelParams.bIsDimmed = IsDimmed();
+	if (TViewModelPtr<FSequenceModel> SequenceModel = FindAncestorOfType<FSequenceModel>())
 	{
-		TArray<UObject*> BoundObjects;
-		FindBoundObjects(BoundObjects);
-		for (UObject* BoundObject : BoundObjects)
+		if (TSharedPtr<FSequencerEditorViewModel> SequencerModel = SequenceModel->GetEditor())
 		{
-			FTrackInstancePropertyBindings PropertyBinding(PropertyTrack->GetPropertyName(), PropertyTrack->GetPropertyPath().ToString());
-			if (FProperty* BoundProperty = PropertyBinding.GetProperty(*BoundObject))
+			LabelParams.SequenceID = SequenceModel->GetSequenceID();
+			LabelParams.Player = SequencerModel->GetSequencer().Get();
+			if (LabelParams.Player)
 			{
-				FString PropertyName = BoundProperty->GetMetaData(TEXT("DisplayName"));
-				if (PropertyName.IsEmpty())
+				if (TViewModelPtr<FObjectBindingModel> ObjectBindingModel = FindAncestorOfType<FObjectBindingModel>())
 				{
-					PropertyName = BoundProperty->GetName();
+					LabelParams.BindingID = ObjectBindingModel->GetObjectGuid();
 				}
-
-				FString CategoryName = BoundProperty->GetMetaData(TEXT("Category")).Replace(TEXT("|"), TEXT(" \u00BB "));
-				if (!CategoryName.IsEmpty())
-				{
-					CategoryName.Append(TEXT(" \u00BB "));
-				}
-
-				return FText::FromString(FString::Printf(TEXT("%s%s\n(Path: %s)"), *CategoryName, *PropertyName, *PropertyBinding.GetPropertyPath()));
+				return Track->GetDisplayNameToolTipText(LabelParams);
 			}
 		}
 	}
-	
-	return Track->GetDisplayNameToolTipText();
+	return FText();
 }
 
 TSharedRef<SWidget> FTrackModel::CreateOutlinerView(const FCreateOutlinerViewParams& InParams)

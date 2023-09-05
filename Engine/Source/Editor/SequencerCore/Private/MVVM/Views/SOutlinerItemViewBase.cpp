@@ -252,7 +252,8 @@ FText SOutlinerItemViewBase::GetLabel() const
 
 FSlateColor SOutlinerItemViewBase::GetLabelColor() const
 {
-	return IsDimmed() ? FSlateColor::UseSubduedForeground() : FSlateColor::UseForeground();
+	TViewModelPtr<IOutlinerExtension> Outliner = WeakOutlinerExtension.Pin();
+	return Outliner ? Outliner->GetLabelColor() : (IsDimmed() ? FSlateColor::UseSubduedForeground() : FSlateColor::UseForeground());
 }
 
 FSlateFontInfo SOutlinerItemViewBase::GetLabelFont() const
