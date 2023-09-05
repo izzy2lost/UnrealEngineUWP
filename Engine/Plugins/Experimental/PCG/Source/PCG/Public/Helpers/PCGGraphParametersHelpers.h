@@ -6,10 +6,10 @@
 
 #include "PCGGraphParametersHelpers.generated.h"
 
-class UPCGGraphInstance;
+class UPCGGraphInterface;
 
 /**
-* Helpers to dynamically set parameters on graph instances.
+* Blueprint Library to get or set graph parameters on graphs and graph instances
 */
 UCLASS()
 class PCG_API UPCGGraphParametersHelpers : public UBlueprintFunctionLibrary
@@ -18,94 +18,121 @@ class PCG_API UPCGGraphParametersHelpers : public UBlueprintFunctionLibrary
 
 public:
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static bool IsOverridden(UPCGGraphInstance* GraphInstance, const FName Name);
+	static bool IsOverridden(const UPCGGraphInterface* GraphInterface, const FName Name);
 
 	////////////
 	// Getters
 	////////////
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static float GetFloatParameter(UPCGGraphInstance* GraphInstance, const FName Name);
+	static float GetFloatParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static double GetDoubleParameter(UPCGGraphInstance* GraphInstance, const FName Name);
+	static double GetDoubleParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static bool GetBoolParameter(UPCGGraphInstance* GraphInstance, const FName Name);
+	static bool GetBoolParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static uint8 GetByteParameter(UPCGGraphInstance* GraphInstance, const FName Name);
+	static uint8 GetByteParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static int32 GetInt32Parameter(UPCGGraphInstance* GraphInstance, const FName Name);
+	static int32 GetInt32Parameter(const UPCGGraphInterface* GraphInterface, const FName Name);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static int64 GetInt64Parameter(UPCGGraphInstance* GraphInstance, const FName Name);
+	static int64 GetInt64Parameter(const UPCGGraphInterface* GraphInterface, const FName Name);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static FName GetNameParameter(UPCGGraphInstance* GraphInstance, const FName Name);
+	static FName GetNameParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static FString GetStringParameter(UPCGGraphInstance* GraphInstance, const FName Name);
+	static FString GetStringParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static TSoftObjectPtr<UObject> GetSoftObjectParameter(UPCGGraphInstance* GraphInstance, const FName Name);
+	static uint8 GetEnumParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static TSoftClassPtr<UObject> GetSoftClassParameter(UPCGGraphInstance* GraphInstance, const FName Name);
+	static TSoftObjectPtr<UObject> GetSoftObjectParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static FVector GetVectorParameter(UPCGGraphInstance* GraphInstance, const FName Name);
+	static TSoftClassPtr<UObject> GetSoftClassParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static FRotator GetRotatorParameter(UPCGGraphInstance* GraphInstance, const FName Name);
+	static FSoftObjectPath GetSoftObjectPathParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static FTransform GetTransformParameter(UPCGGraphInstance* GraphInstance, const FName Name);
+	static FVector GetVectorParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
+
+	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
+	static FRotator GetRotatorParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
+
+	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
+	static FTransform GetTransformParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
+
+	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
+	static FVector4 GetVector4Parameter(const UPCGGraphInterface* GraphInterface, const FName Name);
+
+	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
+	static FVector2D GetVector2DParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
+
+	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
+	static FQuat GetQuaternionParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
 
 	////////////
 	// Setters
 	////////////
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static void SetFloatParameter(UPCGGraphInstance* GraphInstance, const FName Name, const float Value);
+	static void SetFloatParameter(UPCGGraphInterface* GraphInterface, const FName Name, const float Value);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static void SetDoubleParameter(UPCGGraphInstance* GraphInstance, const FName Name, const double Value);
+	static void SetDoubleParameter(UPCGGraphInterface* GraphInterface, const FName Name, const double Value);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static void SetBoolParameter(UPCGGraphInstance* GraphInstance, const FName Name, const bool bValue);
+	static void SetBoolParameter(UPCGGraphInterface* GraphInterface, const FName Name, const bool bValue);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static void SetByteParameter(UPCGGraphInstance* GraphInstance, const FName Name, const uint8 Value);
+	static void SetByteParameter(UPCGGraphInterface* GraphInterface, const FName Name, const uint8 Value);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static void SetInt32Parameter(UPCGGraphInstance* GraphInstance, const FName Name, const int32 Value);
+	static void SetInt32Parameter(UPCGGraphInterface* GraphInterface, const FName Name, const int32 Value);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static void SetInt64Parameter(UPCGGraphInstance* GraphInstance, const FName Name, const int64 Value);
+	static void SetInt64Parameter(UPCGGraphInterface* GraphInterface, const FName Name, const int64 Value);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static void SetNameParameter(UPCGGraphInstance* GraphInstance, const FName Name, const FName Value);
+	static void SetNameParameter(UPCGGraphInterface* GraphInterface, const FName Name, const FName Value);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static void SetStringParameter(UPCGGraphInstance* GraphInstance, const FName Name, const FString& Value);
+	static void SetStringParameter(UPCGGraphInterface* GraphInterface, const FName Name, const FString Value);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static void SetEnumParameter(UPCGGraphInstance* GraphInstance, const FName Name, const UEnum* Enum, const uint8 Value);
+	static void SetEnumParameter(UPCGGraphInterface* GraphInterface, const FName Name, const uint8 Value, const UEnum* Enum = nullptr);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static void SetSoftObjectParameter(UPCGGraphInstance* GraphInstance, const FName Name, UPARAM(ref) const TSoftObjectPtr<UObject>& Value);
+	static void SetSoftObjectPathParameter(UPCGGraphInterface* GraphInterface, const FName Name, UPARAM(ref) const FSoftObjectPath& Value);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static void SetSoftClassParameter(UPCGGraphInstance* GraphInstance, const FName Name, UPARAM(ref) const TSoftClassPtr<UObject>& Value);
+	static void SetSoftObjectParameter(UPCGGraphInterface* GraphInterface, const FName Name, UPARAM(ref) const TSoftObjectPtr<UObject>& Value);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static void SetVectorParameter(UPCGGraphInstance* GraphInstance, const FName Name, UPARAM(ref) const FVector& Value);
+	static void SetSoftClassParameter(UPCGGraphInterface* GraphInterface, const FName Name, UPARAM(ref) const TSoftClassPtr<UObject>& Value);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static void SetRotatorParameter(UPCGGraphInstance* GraphInstance, const FName Name, UPARAM(ref) const FRotator& Value);
+	static void SetVectorParameter(UPCGGraphInterface* GraphInterface, const FName Name, UPARAM(ref) const FVector& Value);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static void SetTransformParameter(UPCGGraphInstance* GraphInstance, const FName Name, UPARAM(ref) const FTransform& Value);
+	static void SetRotatorParameter(UPCGGraphInterface* GraphInterface, const FName Name, UPARAM(ref) const FRotator& Value);
+
+	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
+	static void SetTransformParameter(UPCGGraphInterface* GraphInterface, const FName Name, UPARAM(ref) const FTransform& Value);
+
+	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
+	static void SetVector4Parameter(UPCGGraphInterface* GraphInterface, const FName Name, UPARAM(ref) const FVector4& Value);
+
+	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
+	static void SetVector2DParameter(UPCGGraphInterface* GraphInterface, const FName Name, UPARAM(ref) const FVector2D& Value);
+
+	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
+	static void SetQuaternionParameter(UPCGGraphInterface* GraphInterface, const FName Name, UPARAM(ref) const FQuat& Value);
 };

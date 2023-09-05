@@ -97,6 +97,19 @@ namespace PCGGraphUtils
 * UPCGGraphInterface
 ****************************/
 
+EPropertyBagResult UPCGGraphInterface::SetGraphParameter(const FName PropertyName, const uint64 Value, const UEnum* Enum)
+{
+	FInstancedPropertyBag* UserParameters = GetMutableUserParametersStruct();
+	check(UserParameters);
+
+	const EPropertyBagResult Result = FPCGGraphParameterExtension::SetGraphParameter(*UserParameters, PropertyName, Value, Enum);
+	if (Result == EPropertyBagResult::Success)
+	{
+		OnGraphParametersChanged(EPCGGraphParameterEvent::ValueModifiedLocally, PropertyName);
+	}
+	return Result;
+}
+
 bool UPCGGraphInterface::IsInstance() const
 {
 	return this != GetGraph();
@@ -1029,6 +1042,37 @@ void UPCGGraph::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEve
 	NumberOfUserParametersPreEdit = 0;
 }
 
+bool UPCGGraph::UserParametersCanRemoveProperty(FGuid InPropertyID, FName InPropertyName)
+{
+	// Check if the property has some getters in the graph
+	for (const UPCGNode* Node : Nodes)
+	{
+		if (!Node)
+		{
+			continue;
+		}
+
+		if (const UPCGUserParameterGetSettings* Settings = Cast<UPCGUserParameterGetSettings>(Node->GetSettings()))
+		{
+			if (Settings->PropertyGuid == InPropertyID)
+			{
+				// We found a getter. Ask the user if he is OK with that
+				FText RemoveCheckMessage = FText::Format(LOCTEXT("UserParametersRemoveCheck", "Property {0} is in use in the graph. Are you sure you want to remove it?"), FText::FromName(InPropertyName));
+				FSuppressableWarningDialog::FSetupInfo Info(RemoveCheckMessage, LOCTEXT("UserParametersRemoveCheck_Message", "Remove property"), "UserParametersRemove");
+				Info.ConfirmText = FCoreTexts::Get().Yes;
+				Info.CancelText = FCoreTexts::Get().No;
+				FSuppressableWarningDialog AddLevelWarning(Info);
+				if (AddLevelWarning.ShowModal() == FSuppressableWarningDialog::Cancel)
+				{
+					return false;
+				}
+			}
+		}
+	}
+
+	return true;
+}
+
 void UPCGGraph::OnGraphParametersChanged(EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName)
 {
 	bool bWasModified = false;
@@ -1122,39 +1166,12 @@ bool UPCGGraph::UserParametersIsPinTypeAccepted(FEdGraphPinType InPinType, bool 
 		return true;
 	}
 }
-
-bool UPCGGraph::UserParametersCanRemoveProperty(FGuid InPropertyID, FName InPropertyName)
-{
-	// Check if the property has some getters in the graph
-	for (const UPCGNode* Node : Nodes)
-	{
-		if (!Node)
-		{
-			continue;
-		}
-
-		if (const UPCGUserParameterGetSettings* Settings = Cast<UPCGUserParameterGetSettings>(Node->GetSettings()))
-		{
-			if (Settings->PropertyGuid == InPropertyID)
-			{
-				// We found a getter. Ask the user if he is OK with that
-				FText RemoveCheckMessage = FText::Format(LOCTEXT("UserParametersRemoveCheck", "Property {0} is in use in the graph. Are you sure you want to remove it?"), FText::FromName(InPropertyName));
-				FSuppressableWarningDialog::FSetupInfo Info(RemoveCheckMessage, LOCTEXT("UserParametersRemoveCheck_Message", "Remove property"), "UserParametersRemove");
-				Info.ConfirmText = FCoreTexts::Get().Yes;
-				Info.CancelText = FCoreTexts::Get().No;
-				FSuppressableWarningDialog AddLevelWarning(Info);
-				if (AddLevelWarning.ShowModal() == FSuppressableWarningDialog::Cancel)
-				{
-					return false;
-				}
-			}
-		}
-	}
-
-	return true;
-}
-
 #endif // WITH_EDITOR
+
+FInstancedPropertyBag* UPCGGraph::GetMutableUserParametersStruct()
+{
+	return &UserParameters;
+}
 
 uint32 UPCGGraph::GetNodeGenerationGridSize(const UPCGNode* InNode, uint32 InDefaultGridSize) const
 {
@@ -1231,9 +1248,7 @@ void UPCGGraph::AddUserParameters(const TArray<FPropertyBagPropertyDesc>& InDesc
 		}
 	}
 
-#if WITH_EDITOR
 	OnGraphParametersChanged(EPCGGraphParameterEvent::MultiplePropertiesAdded, NAME_None);
-#endif // WITH_EDITOR
 }
 
 /****************************
@@ -1451,6 +1466,7 @@ void UPCGGraphInstance::NotifyGraphParametersChanged(EPCGGraphParameterEvent InC
 	// Also propagates the changes
 	OnGraphChanged(Graph, EPCGChangeType::Settings);
 }
+#endif // WITH_EDITOR
 
 void UPCGGraphInstance::OnGraphParametersChanged(UPCGGraphInterface* InGraph, EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName)
 {
@@ -1467,9 +1483,20 @@ void UPCGGraphInstance::OnGraphParametersChanged(UPCGGraphInterface* InGraph, EP
 	}
 
 	RefreshParameters(ChangeType, InChangedPropertyName);
+#if WITH_EDITOR
 	NotifyGraphParametersChanged(ChangeType, InChangedPropertyName);
-}
 #endif // WITH_EDITOR
+}
+
+void UPCGGraphInstance::OnGraphParametersChanged(EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName)
+{
+	OnGraphParametersChanged(this, InChangeType, InChangedPropertyName);
+}
+
+FInstancedPropertyBag* UPCGGraphInstance::GetMutableUserParametersStruct()
+{
+	return &ParametersOverrides.Parameters;
+}
 
 void UPCGGraphInstance::RefreshParameters(EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName)
 {
@@ -1554,6 +1581,11 @@ void UPCGGraphInstance::ResetPropertyToDefault(const FProperty* InProperty)
 bool UPCGGraphInstance::IsPropertyOverriddenAndNotDefault(const FProperty* InProperty) const
 {
 	return Graph ? ParametersOverrides.IsPropertyOverriddenAndNotDefault(InProperty, Graph->GetUserParametersStruct()) : false;
+}
+
+bool UPCGGraphInstance::IsGraphParameterOverridden(const FName PropertyName) const
+{
+	return (ParametersOverrides.Parameters.FindPropertyDescByName(PropertyName) != nullptr); 
 }
 
 bool FPCGOverrideInstancedPropertyBag::RefreshParameters(const FInstancedPropertyBag* ParentUserParameters, EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName)

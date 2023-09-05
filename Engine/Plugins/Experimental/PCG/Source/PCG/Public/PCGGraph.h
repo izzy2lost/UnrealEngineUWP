@@ -6,12 +6,14 @@
 #include "PCGNode.h"
 #include "PCGSettings.h"
 #include "Graph/PCGStackContext.h"
+#include "Helpers/PCGGraphParameterExtension.h"
 
 #include "PropertyBag.h"
 #include "UObject/ObjectPtr.h"
 
 #include "PCGGraph.generated.h"
 
+class UPCGGraphInterface;
 #if WITH_EDITOR
 struct FEdGraphPinType;
 #endif // WITH_EDITOR
@@ -111,6 +113,54 @@ public:
 	FOnPCGGraphParametersChanged OnGraphParametersChangedDelegate;
 	FOnPCGGraphDynamicallyExecuted OnGraphDynamicallyExecutedDelegate;
 #endif // WITH_EDITOR
+
+	template <typename T>
+	TValueOrError<T, EPropertyBagResult> GetGraphParameter(const FName PropertyName) const
+	{
+		const FInstancedPropertyBag* UserParameters = GetUserParametersStruct();
+		check(UserParameters);
+
+		if constexpr (std::is_enum_v<T> && StaticEnum<T>())
+		{
+			return FPCGGraphParameterExtension::GetGraphParameter<T>(*UserParameters, PropertyName, StaticEnum<T>());
+		}
+		else
+		{
+			return FPCGGraphParameterExtension::GetGraphParameter<T>(*UserParameters, PropertyName);
+		}
+	}
+
+	virtual bool IsGraphParameterOverridden(const FName PropertyName) const PURE_VIRTUAL(UPCGGraphInterface::IsGraphParameterOverridden, return false;)
+
+	template <typename T>
+	EPropertyBagResult SetGraphParameter(const FName PropertyName, const T& Value)
+	{
+		FInstancedPropertyBag* UserParameters = GetMutableUserParametersStruct();
+		check(UserParameters);
+
+		EPropertyBagResult Result;
+		if constexpr (std::is_enum_v<T> && StaticEnum<T>())
+		{
+			Result = FPCGGraphParameterExtension::SetGraphParameter(*UserParameters, PropertyName, Value, StaticEnum<T>());
+		}
+		else
+		{
+			Result = FPCGGraphParameterExtension::SetGraphParameter<T>(*UserParameters, PropertyName, Value);
+		}
+
+		if (Result == EPropertyBagResult::Success)
+		{
+			OnGraphParametersChanged(EPCGGraphParameterEvent::ValueModifiedLocally, PropertyName);
+		}
+
+		return Result;
+	}
+
+	EPropertyBagResult SetGraphParameter(const FName PropertyName, const uint64 Value, const UEnum* Enum);
+
+protected:
+	virtual void OnGraphParametersChanged(EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName) PURE_VIRTUAL(UPCGGraphInterface::OnGraphParametersChanged, )
+	virtual FInstancedPropertyBag* GetMutableUserParametersStruct() PURE_VIRTUAL(UPCGGraphInterface::GetMutableUserParametersStruct, return nullptr;)
 };
 
 UCLASS(BlueprintType, ClassGroup = (Procedural), hidecategories=(Object))
@@ -295,6 +345,8 @@ protected:
 	bool UserParametersCanRemoveProperty(FGuid InPropertyID, FName InPropertyName);
 #endif // WITH_EDITOR
 
+	virtual FInstancedPropertyBag* GetMutableUserParametersStruct() override;
+
 	UPROPERTY(EditAnywhere, Category = Settings)
 	bool bUseHierarchicalGeneration = false;
 
@@ -323,12 +375,13 @@ public:
 	void AddUserParameters(const TArray<FPropertyBagPropertyDesc>& InDescs, const UPCGGraph* InOptionalOriginalGraph = nullptr);
 
 #if WITH_EDITOR
+protected:
+	virtual void OnGraphParametersChanged(EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName) override;
 private:
 	void NotifyGraphChanged(EPCGChangeType ChangeType);
 	void OnNodeChanged(UPCGNode* InNode, EPCGChangeType ChangeType);
 
 	void NotifyGraphParametersChanged(EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName);
-	void OnGraphParametersChanged(EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName);
 
 	int32 GraphChangeNotificationsDisableCounter = 0;
 	bool bDelayedChangeNotification = false;
@@ -373,9 +426,11 @@ protected:
 	void OnGraphChanged(UPCGGraphInterface* InGraph, EPCGChangeType ChangeType);
 	void OnGraphGridSizesChanged(UPCGGraphInterface* InGraph);
 	void NotifyGraphParametersChanged(EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName);
-	void OnGraphParametersChanged(UPCGGraphInterface* InGraph, EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName);
 #endif
+	void OnGraphParametersChanged(UPCGGraphInterface* InGraph, EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName);
+	virtual void OnGraphParametersChanged(EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName) override;
 	void RefreshParameters(EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName = NAME_None);
+	virtual FInstancedPropertyBag* GetMutableUserParametersStruct() override;
 
 public:
 	static TObjectPtr<UPCGGraphInterface> CreateInstance(UObject* InOwner, UPCGGraphInterface* InGraph);
@@ -394,6 +449,7 @@ public:
 	FPCGOverrideInstancedPropertyBag ParametersOverrides;
 
 	virtual const FInstancedPropertyBag* GetUserParametersStruct() const override { return &ParametersOverrides.Parameters; }
+	virtual bool IsGraphParameterOverridden(const FName PropertyName) const override;
 
 private:
 #if WITH_EDITORONLY_DATA
