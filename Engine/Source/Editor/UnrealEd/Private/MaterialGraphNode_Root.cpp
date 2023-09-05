@@ -91,7 +91,7 @@ uint32 UMaterialGraphNode_Root::GetPinMaterialType(const UEdGraphPin* Pin) const
 	}
 	else if (Property == MP_FrontMaterial)
 	{
-		MaterialType = MCT_Strata;
+		MaterialType = MCT_Substrate;
 	}
 	else
 	{

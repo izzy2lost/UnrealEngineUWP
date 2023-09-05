@@ -4762,7 +4762,7 @@ UClass* FMaterialEditor::GetOnPromoteToParameterClass(const UEdGraphPin* TargetP
 					case MCT_VolumeTexture: 
 					case MCT_Texture: return UMaterialExpressionTextureObjectParameter::StaticClass();
 
-					case MCT_Strata: return nullptr;
+					case MCT_Substrate: return nullptr;
 				}
 
 				break;

@@ -122,7 +122,7 @@ void FMaterialGraphSchemaAction_NewNode::SetFunctionInputType(UMaterialExpressio
 	case MCT_MaterialAttributes:
 		FunctionInput->InputType = FunctionInput_MaterialAttributes;
 		break;
-	case MCT_Strata:
+	case MCT_Substrate:
 		FunctionInput->InputType = FunctionInput_Substrate;
 		break;
 	default:

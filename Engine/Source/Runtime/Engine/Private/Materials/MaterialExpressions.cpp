@@ -444,7 +444,7 @@ void GetMaterialValueTypeDescriptions(const uint32 MaterialValueType, TArray<FTe
 		OutDescriptions.Add(LOCTEXT("MaterialAttributes", "Material Attributes"));
 	if (MaterialValueType & MCT_ShadingModel)
 		OutDescriptions.Add(LOCTEXT("ShadingModel", "Shading Model"));
-	if (MaterialValueType & MCT_Strata)
+	if (MaterialValueType & MCT_Substrate)
 		OutDescriptions.Add(LOCTEXT("Substrate", "Substrate Material"));
 	if (MaterialValueType & MCT_Unknown)
 		OutDescriptions.Add(LOCTEXT("Unknown", "Unknown"));
@@ -1846,14 +1846,14 @@ uint32 UMaterialExpression::GetOutputType(int32 OutputIndex)
 {
 	// different outputs should be defined by sub classed expressions 
 
-	// Material attributes need to be tested first to work when plugged in main root node (to not return MCT_Strata when Substrate mateiral is fed)
+	// Material attributes need to be tested first to work when plugged in main root node (to not return MCT_Substrate when Substrate mateiral is fed)
 	if (IsResultMaterialAttributes(OutputIndex))
 	{
 		return MCT_MaterialAttributes;
 	}
 	else if (IsResultSubstrateMaterial(OutputIndex))
 	{
-		return MCT_Strata;
+		return MCT_Substrate;
 	}
 	else
 	{
@@ -7111,7 +7111,7 @@ uint32 UMaterialExpressionGetMaterialAttributes::GetOutputType(int32 OutputIndex
 		{
 			OutputType = PinType;
 		}
-		else if (PinType == MCT_Strata)
+		else if (PinType == MCT_Substrate)
 		{
 			OutputType = PinType;
 		}
@@ -7410,9 +7410,9 @@ uint32 UMaterialExpressionSetMaterialAttributes::GetInputType(int32 InputIndex)
 		{
 			InputType = MCT_ShadingModel;
 		}
-		else if (InputType == MCT_Strata)
+		else if (InputType == MCT_Substrate)
 		{
-			InputType = MCT_Strata;
+			InputType = MCT_Substrate;
 		}
 		else
 		{
@@ -17136,7 +17136,7 @@ int32 UMaterialExpressionFunctionInput::Compile(class FMaterialCompiler* Compile
 		MCT_MaterialAttributes,
 		MCT_TextureExternal,
 		MCT_Bool,
-		MCT_Strata
+		MCT_Substrate
 	};
 	check(InputType < FunctionInput_MAX);
 
@@ -17350,7 +17350,7 @@ uint32 UMaterialExpressionFunctionInput::GetInputType(int32 InputIndex)
 	case FunctionInput_MaterialAttributes:
 		return MCT_MaterialAttributes;
 	case FunctionInput_Substrate:
-		return MCT_Strata;
+		return MCT_Substrate;
 	default:
 		return MCT_Unknown;
 	}
@@ -17460,7 +17460,7 @@ void UMaterialExpressionFunctionOutput::GetExpressionToolTip(TArray<FString>& Ou
 uint32 UMaterialExpressionFunctionOutput::GetInputType(int32 InputIndex)
 {
 	// Acceptable types for material function outputs
-	return MCT_Float | MCT_MaterialAttributes | MCT_Strata;
+	return MCT_Float | MCT_MaterialAttributes | MCT_Substrate;
 }
 
 int32 UMaterialExpressionFunctionOutput::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
@@ -23360,7 +23360,7 @@ void UMaterialExpressionSubstrateShadingModels::GetCaption(TArray<FString>& OutC
 
 uint32 UMaterialExpressionSubstrateShadingModels::GetOutputType(int32 OutputIndex)
 {
-	return MCT_Strata;
+	return MCT_Substrate;
 }
 
 uint32 UMaterialExpressionSubstrateShadingModels::GetInputType(int32 InputIndex)
@@ -23836,7 +23836,7 @@ void UMaterialExpressionSubstrateSlabBSDF::GetExpressionToolTip(TArray<FString>&
 
 uint32 UMaterialExpressionSubstrateSlabBSDF::GetOutputType(int32 OutputIndex)
 {
-	return MCT_Strata;
+	return MCT_Substrate;
 }
 
 uint32 UMaterialExpressionSubstrateSlabBSDF::GetInputType(int32 InputIndex)
@@ -24190,7 +24190,7 @@ void UMaterialExpressionSubstrateSimpleClearCoatBSDF::GetCaption(TArray<FString>
 
 uint32 UMaterialExpressionSubstrateSimpleClearCoatBSDF::GetOutputType(int32 OutputIndex)
 {
-	return MCT_Strata;
+	return MCT_Substrate;
 }
 
 uint32 UMaterialExpressionSubstrateSimpleClearCoatBSDF::GetInputType(int32 InputIndex)
@@ -24332,7 +24332,7 @@ void UMaterialExpressionSubstrateVolumetricFogCloudBSDF::GetCaption(TArray<FStri
 
 uint32 UMaterialExpressionSubstrateVolumetricFogCloudBSDF::GetOutputType(int32 OutputIndex)
 {
-	return MCT_Strata;
+	return MCT_Substrate;
 }
 
 uint32 UMaterialExpressionSubstrateVolumetricFogCloudBSDF::GetInputType(int32 InputIndex)
@@ -24411,7 +24411,7 @@ void UMaterialExpressionSubstrateLightFunction::GetCaption(TArray<FString>& OutC
 
 uint32 UMaterialExpressionSubstrateLightFunction::GetOutputType(int32 OutputIndex)
 {
-	return MCT_Strata;
+	return MCT_Substrate;
 }
 
 uint32 UMaterialExpressionSubstrateLightFunction::GetInputType(int32 InputIndex)
@@ -24484,7 +24484,7 @@ void UMaterialExpressionSubstratePostProcess::GetCaption(TArray<FString>& OutCap
 
 uint32 UMaterialExpressionSubstratePostProcess::GetOutputType(int32 OutputIndex)
 {
-	return MCT_Strata;
+	return MCT_Substrate;
 }
 
 uint32 UMaterialExpressionSubstratePostProcess::GetInputType(int32 InputIndex)
@@ -24560,7 +24560,7 @@ void UMaterialExpressionSubstrateUI::GetCaption(TArray<FString>& OutCaptions) co
 
 uint32 UMaterialExpressionSubstrateUI::GetOutputType(int32 OutputIndex)
 {
-	return MCT_Strata;
+	return MCT_Substrate;
 }
 
 uint32 UMaterialExpressionSubstrateUI::GetInputType(int32 InputIndex)
@@ -24656,7 +24656,7 @@ void UMaterialExpressionSubstrateConvertToDecal::GetCaption(TArray<FString>& Out
 
 uint32 UMaterialExpressionSubstrateConvertToDecal::GetOutputType(int32 OutputIndex)
 {
-	return MCT_Strata;
+	return MCT_Substrate;
 }
 
 uint32 UMaterialExpressionSubstrateConvertToDecal::GetInputType(int32 InputIndex)
@@ -24664,7 +24664,7 @@ uint32 UMaterialExpressionSubstrateConvertToDecal::GetInputType(int32 InputIndex
 	switch (InputIndex)
 	{
 	case 0:
-		return MCT_Strata;
+		return MCT_Substrate;
 		break;
 	case 1:
 		return MCT_Float1;
@@ -24757,7 +24757,7 @@ void UMaterialExpressionSubstrateUnlitBSDF::GetCaption(TArray<FString>& OutCapti
 
 uint32 UMaterialExpressionSubstrateUnlitBSDF::GetOutputType(int32 OutputIndex)
 {
-	return MCT_Strata;
+	return MCT_Substrate;
 }
 
 uint32 UMaterialExpressionSubstrateUnlitBSDF::GetInputType(int32 InputIndex)
@@ -24855,7 +24855,7 @@ void UMaterialExpressionSubstrateHairBSDF::GetCaption(TArray<FString>& OutCaptio
 
 uint32 UMaterialExpressionSubstrateHairBSDF::GetOutputType(int32 OutputIndex)
 {
-	return MCT_Strata;
+	return MCT_Substrate;
 }
 
 uint32 UMaterialExpressionSubstrateHairBSDF::GetInputType(int32 InputIndex)
@@ -24976,7 +24976,7 @@ void UMaterialExpressionSubstrateEyeBSDF::GetCaption(TArray<FString>& OutCaption
 
 uint32 UMaterialExpressionSubstrateEyeBSDF::GetOutputType(int32 OutputIndex)
 {
-	return MCT_Strata;
+	return MCT_Substrate;
 }
 
 uint32 UMaterialExpressionSubstrateEyeBSDF::GetInputType(int32 InputIndex)
@@ -25087,7 +25087,7 @@ void UMaterialExpressionSubstrateSingleLayerWaterBSDF::GetCaption(TArray<FString
 
 uint32 UMaterialExpressionSubstrateSingleLayerWaterBSDF::GetOutputType(int32 OutputIndex)
 {
-	return MCT_Strata;
+	return MCT_Substrate;
 }
 
 uint32 UMaterialExpressionSubstrateSingleLayerWaterBSDF::GetInputType(int32 InputIndex)
@@ -25271,12 +25271,12 @@ void UMaterialExpressionSubstrateHorizontalMixing::GetCaption(TArray<FString>& O
 
 uint32 UMaterialExpressionSubstrateHorizontalMixing::GetOutputType(int32 OutputIndex)
 {
-	return MCT_Strata;
+	return MCT_Substrate;
 }
 
 uint32 UMaterialExpressionSubstrateHorizontalMixing::GetInputType(int32 InputIndex)
 {
-	return InputIndex == 2 ? MCT_Float1 : MCT_Strata;
+	return InputIndex == 2 ? MCT_Float1 : MCT_Substrate;
 }
 
 bool UMaterialExpressionSubstrateHorizontalMixing::IsResultSubstrateMaterial(int32 OutputIndex)
@@ -25465,7 +25465,7 @@ FName UMaterialExpressionSubstrateVerticalLayering::GetInputName(int32 InputInde
 
 uint32 UMaterialExpressionSubstrateVerticalLayering::GetOutputType(int32 OutputIndex)
 {
-	return MCT_Strata;
+	return MCT_Substrate;
 }
 
 uint32 UMaterialExpressionSubstrateVerticalLayering::GetInputType(int32 InputIndex)
@@ -25474,7 +25474,7 @@ uint32 UMaterialExpressionSubstrateVerticalLayering::GetInputType(int32 InputInd
 	{
 		return MCT_Float;
 	}
-	return MCT_Strata;
+	return MCT_Substrate;
 }
 
 bool UMaterialExpressionSubstrateVerticalLayering::IsResultSubstrateMaterial(int32 OutputIndex)
@@ -25646,12 +25646,12 @@ void UMaterialExpressionSubstrateAdd::GetCaption(TArray<FString>& OutCaptions) c
 
 uint32 UMaterialExpressionSubstrateAdd::GetOutputType(int32 OutputIndex)
 {
-	return MCT_Strata;
+	return MCT_Substrate;
 }
 
 uint32 UMaterialExpressionSubstrateAdd::GetInputType(int32 InputIndex)
 {
-	return MCT_Strata;
+	return MCT_Substrate;
 }
 
 bool UMaterialExpressionSubstrateAdd::IsResultSubstrateMaterial(int32 OutputIndex)
@@ -25784,14 +25784,14 @@ void UMaterialExpressionSubstrateWeight::GetCaption(TArray<FString>& OutCaptions
 
 uint32 UMaterialExpressionSubstrateWeight::GetOutputType(int32 OutputIndex)
 {
-	return MCT_Strata;
+	return MCT_Substrate;
 }
 
 uint32 UMaterialExpressionSubstrateWeight::GetInputType(int32 InputIndex)
 {
 	if (InputIndex == 0)
 	{
-		return MCT_Strata;
+		return MCT_Substrate;
 	}
 	return MCT_Float1;
 }

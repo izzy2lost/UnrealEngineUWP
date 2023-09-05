@@ -240,7 +240,7 @@ void FMaterialEditorHelpers::CollapseToFunction(FMaterialEditor& MaterialEditor)
 				case MCT_MaterialAttributes: PinFunctionType = FunctionInput_MaterialAttributes; break;
 				case MCT_TextureExternal:    PinFunctionType = FunctionInput_TextureExternal;    break;
 				case MCT_Bool:				 PinFunctionType = FunctionInput_Bool;				 break;
-				case MCT_Strata:			 PinFunctionType = FunctionInput_Substrate;			 break;
+				case MCT_Substrate:			 PinFunctionType = FunctionInput_Substrate;			 break;
 				default:
 					// Will happen pretty often with MCT_Float, as the types are rarely fully resolved
 					// (eg Add nodes can take float1/2/3/4)

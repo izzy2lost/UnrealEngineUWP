@@ -47,7 +47,7 @@ static const TCHAR* HLSLTypeString(EMaterialValueType Type)
 	case MCT_UInt2:					return TEXT("uint2");
 	case MCT_UInt3:					return TEXT("uint3");
 	case MCT_UInt4:					return TEXT("uint4");
-	case MCT_Strata:				return TEXT("FSubstrateData");
+	case MCT_Substrate:				return TEXT("FSubstrateData");
 	default:						return TEXT("unknown");
 	};
 }
@@ -145,7 +145,7 @@ static FString GenerateMaterialTemplateHLSL(EShaderPlatform ShaderPlatform,
 		case MCT_UInt2:  HLSLType = TEXT("uint2"); break;
 		case MCT_UInt3:  HLSLType = TEXT("uint3"); break;
 		case MCT_UInt4:  HLSLType = TEXT("uint4"); break;
-		case MCT_Strata: HLSLType = TEXT("FSubstrateData"); break;
+		case MCT_Substrate: HLSLType = TEXT("FSubstrateData"); break;
 		default: break;
 		}
 
@@ -167,7 +167,7 @@ static FString GenerateMaterialTemplateHLSL(EShaderPlatform ShaderPlatform,
 			case MCT_Float3: MaterialAttributesDefault += FString::Printf(TEXT("\tResult.%s = MaterialFloat3(%0.8f,%0.8f,%0.8f);") LINE_TERMINATOR, *PropertyName, DefaultValue.X, DefaultValue.Y, DefaultValue.Z); break;
 			case MCT_Float4: MaterialAttributesDefault += FString::Printf(TEXT("\tResult.%s = MaterialFloat4(%0.8f,%0.8f,%0.8f,%0.8f);") LINE_TERMINATOR, *PropertyName, DefaultValue.X, DefaultValue.Y, DefaultValue.Z, DefaultValue.W); break;
 			case MCT_ShadingModel: MaterialAttributesDefault += FString::Printf(TEXT("\tResult.%s = %d;") LINE_TERMINATOR, *PropertyName, (int32)DefaultShadingModel); break;
-			case MCT_Strata: MaterialAttributesDefault += FString::Printf(TEXT("\tResult.%s = GetInitialisedSubstrateData();") LINE_TERMINATOR, *PropertyName); break; // TODO
+			case MCT_Substrate: MaterialAttributesDefault += FString::Printf(TEXT("\tResult.%s = GetInitialisedSubstrateData();") LINE_TERMINATOR, *PropertyName); break; // TODO
 			default: checkNoEntry(); break;
 			}
 		}

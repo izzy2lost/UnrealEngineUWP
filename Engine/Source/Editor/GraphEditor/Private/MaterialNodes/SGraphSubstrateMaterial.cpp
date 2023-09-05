@@ -54,7 +54,7 @@ bool FSubstrateWidget::HasInputSubstrateType(const UEdGraphPin* InPin)
 			{
 				switch (PinNode->MaterialExpression->GetInputType(Index))
 				{
-					case MCT_Strata:
+					case MCT_Substrate:
 						return true;
 				}
 				break;
@@ -71,7 +71,7 @@ bool FSubstrateWidget::HasOutputSubstrateType(const UEdGraphPin* InPin)
 	if (UMaterialGraphNode* PinNode = Cast<UMaterialGraphNode>(InPin->GetOwningNode()))
 	{
 		const TArray<FExpressionOutput>& ExpressionOutputs = PinNode->MaterialExpression->GetOutputs();
-		if (InPin->SourceIndex < ExpressionOutputs.Num() && PinNode->MaterialExpression->GetOutputType(InPin->SourceIndex) == MCT_Strata)
+		if (InPin->SourceIndex < ExpressionOutputs.Num() && PinNode->MaterialExpression->GetOutputType(InPin->SourceIndex) == MCT_Substrate)
 		{
 			return true;
 		}
@@ -272,7 +272,7 @@ void FSubstrateWidget::GetPinColor(TSharedPtr<SGraphPin>& Out, const UMaterialGr
 		bHasColorModifier = true;
 		ColorModifier = FSubstrateWidget::GetConnectionColor();
 	}
-	else if (Pin && UMaterialGraphSchema::GetMaterialValueType(Pin) == MCT_Strata)
+	else if (Pin && UMaterialGraphSchema::GetMaterialValueType(Pin) == MCT_Substrate)
 	{
 		if (!Out->IsConnected())
 		{
