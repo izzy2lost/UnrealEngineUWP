@@ -205,12 +205,12 @@ float4 SubstrateReadPrecomputedShadowFactors(FSubstratePixelHeader SubstratePixe
 
 // Affect the light color by any other shadow/transmittance before the lighting is evaluated
 // in order to get a correct alpha channel containing important information for SSS.
-void UpdateLightDataColor(inout FDeferredLightData LightData, FInputParams InputParams, FDerivedParams DerivedParams)
+void UpdateLightDataColor(inout float3 LightDataColor, FInputParams InputParams, FDerivedParams DerivedParams)
 {
 	const float Attenuation = ComputeLightProfileMultiplier(DerivedParams.TranslatedWorldPosition, GetDeferredLightTranslatedWorldPosition(), -DeferredLightUniforms.Direction, DeferredLightUniforms.Tangent, DeferredLightUniforms.IESAtlasIndex);
 	const float3 AttenuationRGB = Attenuation * GetAtmosphereAndCloudAttenuation(GetStableTranslatedLargeWorldPosition(InputParams.PixelPos, LookupDeviceZ(InputParams.ScreenUV)), InputParams.ScreenUV);
 
-	LightData.Color *= AttenuationRGB;
+	LightDataColor *= AttenuationRGB;
 }
 
 #if USE_HAIR_LIGHTING == 0
@@ -266,7 +266,7 @@ void DeferredLightPixelMain(
 		const FDerivedParams DerivedParams = GetDerivedParams(InputParams, SceneDepth);
 
 		FDeferredLightData LightData = InitDeferredLightFromUniforms(CURRENT_LIGHT_TYPE);
-		UpdateLightDataColor(LightData, InputParams, DerivedParams);
+		UpdateLightDataColor(LightData.Color, InputParams, DerivedParams);
 
 		float3 V =-DerivedParams.CameraVector;
 		float3 L = LightData.Direction;	// Already normalized
@@ -322,7 +322,7 @@ void DeferredLightPixelMain(
 		const FDerivedParams DerivedParams = GetDerivedParams(InputParams, SceneDepth);
 
 		FDeferredLightData LightData = InitDeferredLightFromUniforms(CURRENT_LIGHT_TYPE);
-		UpdateLightDataColor(LightData, InputParams, DerivedParams);
+		UpdateLightDataColor(LightData.Color, InputParams, DerivedParams);
 
 	 #if USE_HAIR_COMPLEX_TRANSMITTANCE
 		if (ScreenSpaceData.GBuffer.ShadingModelID == SHADINGMODELID_HAIR && ShouldUseHairComplexTransmittance(ScreenSpaceData.GBuffer))

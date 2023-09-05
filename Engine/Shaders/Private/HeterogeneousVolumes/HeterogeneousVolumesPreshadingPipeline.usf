@@ -622,8 +622,7 @@ void RenderSingleScatteringWithPreshadingCS(
 
 	// Output..
 	float3 Opacity = bApplyEmissionAndTransmittance ? 1.0 - Transmittance : 0.0;
-	RWLightingTexture[PixelCoord].rgb += Radiance * View.PreExposure;
-	RWLightingTexture[PixelCoord].a = Luminance(Opacity);
+	RWLightingTexture[PixelCoord] = float4(RWLightingTexture[PixelCoord].rgb + (Radiance * View.PreExposure), Luminance(Opacity));
 
 #if DIM_DEBUG
 	//if (!all(DispatchThreadId))

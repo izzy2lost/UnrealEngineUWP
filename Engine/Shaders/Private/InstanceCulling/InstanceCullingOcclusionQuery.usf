@@ -320,6 +320,7 @@ void DebugMainPS(
 		break;
 	default:
 		OutColor = (float4)0;
+		break;
 	}
 }
 

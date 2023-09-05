@@ -431,7 +431,11 @@ groupshared uint Bins[NUM_BINS];
 groupshared uint WaveSums[NUM_WAVE_SUMS];
 #define Offsets Bins // No need for a separate array of offsets as prefix sum is computed in-place
 #else // DIM_WAVE_OPS
+#if NUM_BINS > 0
 groupshared uint Offsets[NUM_BINS];
+#else
+groupshared uint Offsets[1];
+#endif
 #endif // DIM_WAVE_OPS
 
 #define ELEMENTS_PER_THREAD 16

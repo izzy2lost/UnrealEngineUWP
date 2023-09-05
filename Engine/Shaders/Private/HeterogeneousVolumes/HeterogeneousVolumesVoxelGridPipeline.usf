@@ -281,7 +281,7 @@ void AllocateBottomLevelGrid(
 		}
 
 		// Write the voxel contents
-		FTopLevelGridData TopLevelGridData;
+		FTopLevelGridData TopLevelGridData = (FTopLevelGridData)0;
 		{
 			SetBottomLevelIndex(TopLevelGridData, IndirectionGridIndex);
 			SetBottomLevelVoxelResolution(TopLevelGridData, IndirectionGridResolution);
