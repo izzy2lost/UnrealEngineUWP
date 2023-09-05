@@ -4961,7 +4961,9 @@ TArray<UStaticMeshComponent*> UGeometryCollectionComponent::CreateProxyComponent
 			{
 				UStaticMeshComponent* NewComponent = NewObject<UStaticMeshComponent>(GetOwner());
 				NewComponent->SetStaticMesh(Mesh);
-				NewComponent->SetComponentToWorld(GetComponentToWorld());
+				NewComponent->SetRelativeTransform(GetComponentTransform());
+				NewComponent->RegisterComponent();
+
 				Components.Add(NewComponent);
 			}
 		}
