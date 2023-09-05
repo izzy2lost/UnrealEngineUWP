@@ -130,7 +130,7 @@ public:
 		}
 	}
 
-	virtual bool IsGraphParameterOverridden(const FName PropertyName) const PURE_VIRTUAL(UPCGGraphInterface::IsGraphParameterOverridden, return false;)
+	virtual bool IsGraphParameterOverridden(const FName PropertyName) const { return false; }
 
 	template <typename T>
 	EPropertyBagResult SetGraphParameter(const FName PropertyName, const T& Value)
