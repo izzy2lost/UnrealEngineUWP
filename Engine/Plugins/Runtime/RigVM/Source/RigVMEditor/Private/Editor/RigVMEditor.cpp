@@ -1039,6 +1039,7 @@ void FRigVMEditor::Compile()
 		{
 			TGuardValue<bool> GuardCompileReEntry(bIsCompilingThroughUI, true);
 			FBlueprintEditor::Compile();
+			RigVMBlueprint->InitializeArchetypeInstances();
 			UpdateRigVMHost();
 		}
 

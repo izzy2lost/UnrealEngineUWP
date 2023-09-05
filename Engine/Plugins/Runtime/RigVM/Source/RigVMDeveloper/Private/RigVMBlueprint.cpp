@@ -1213,22 +1213,7 @@ void URigVMBlueprint::RecompileVM()
 			return;
 		}
 
-		TArray<UObject*> ArchetypeInstances;
-		CDO->GetArchetypeInstances(ArchetypeInstances);
-		for (UObject* Instance : ArchetypeInstances)
-		{
-			if (URigVMHost* InstanceHost = Cast<URigVMHost>(Instance))
-			{
-				// No objects should be created during load, so PostInitInstanceIfRequired, which creates a new VM and
-				// DynamicHierarchy, should not be called during load
-				if (!InstanceHost->HasAllFlags(RF_NeedPostLoad))
-				{
-					InstanceHost->PostInitInstanceIfRequired();
-				}
-				InstanceHost->InstantiateVMFromCDO();
-				InstanceHost->CopyExternalVariableDefaultValuesFromCDO();
-			}
-		}
+		InitializeArchetypeInstances();
 
 		bVMRecompilationRequired = false;
 		VMCompiledEvent.Broadcast(this, CDO->GetVM(), CDO->GetExtendedExecuteContext());
@@ -3631,6 +3616,36 @@ void URigVMBlueprint::PropagateRuntimeSettingsFromBPToInstances()
 			if(URigVMEdGraphNode* RigNode = Cast<URigVMEdGraphNode>(Node))
 			{
 				RigNode->ReconstructNode_Internal(true);
+			}
+		}
+	}
+}
+
+void URigVMBlueprint::InitializeArchetypeInstances()
+{
+	URigVMBlueprintGeneratedClass* RigClass = GetRigVMBlueprintGeneratedClass();
+	if(RigClass == nullptr)
+	{
+		return;
+	}
+
+	URigVMHost* CDO = Cast<URigVMHost>(RigClass->GetDefaultObject(true /* create if needed */));
+	if (CDO && CDO->VM != nullptr)
+	{
+		TArray<UObject*> ArchetypeInstances;
+		CDO->GetArchetypeInstances(ArchetypeInstances);
+		for (UObject* Instance : ArchetypeInstances)
+		{
+			if (URigVMHost* InstanceHost = Cast<URigVMHost>(Instance))
+			{
+				// No objects should be created during load, so PostInitInstanceIfRequired, which creates a new VM and
+				// DynamicHierarchy, should not be called during load
+				if (!InstanceHost->HasAllFlags(RF_NeedPostLoad))
+				{
+					InstanceHost->PostInitInstanceIfRequired();
+				}
+				InstanceHost->InstantiateVMFromCDO();
+				InstanceHost->CopyExternalVariableDefaultValuesFromCDO();
 			}
 		}
 	}

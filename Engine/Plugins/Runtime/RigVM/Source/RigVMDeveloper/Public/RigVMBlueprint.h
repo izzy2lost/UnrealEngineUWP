@@ -588,6 +588,7 @@ protected:
 
 public:
 	void PropagateRuntimeSettingsFromBPToInstances();
+	void InitializeArchetypeInstances();
 
 private:
 
