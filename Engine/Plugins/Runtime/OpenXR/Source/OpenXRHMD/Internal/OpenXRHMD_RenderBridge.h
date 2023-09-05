@@ -56,6 +56,8 @@ public:
 
 	virtual void SetSkipRate(uint32 SkipRate) {}
 
+	virtual void HMDOnFinishRendering_RHIThread();
+
 protected:
 	XrInstance Instance;
 	FOpenXRHMD* OpenXRHMD;

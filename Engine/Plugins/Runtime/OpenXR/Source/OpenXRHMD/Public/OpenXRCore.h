@@ -293,3 +293,42 @@ FORCEINLINE void FilterActionName(const char* InActionName, char* OutActionName)
 	}
 	OutActionName[i] = '\0';
 }
+
+namespace OpenXR
+{
+	template<typename T>
+	T* FindChainedStructByType(void* Head, XrStructureType XRType)
+	{
+		XrBaseOutStructure* Ptr = (XrBaseOutStructure*)Head;
+		while (Ptr)
+		{
+			if (Ptr->type == XRType)
+			{
+				return (T*)Ptr;
+			}
+			else
+			{
+				Ptr = (XrBaseOutStructure*)Ptr->next;
+			}
+		}
+		return nullptr;
+	}
+
+	template<typename T>
+	const T* FindChainedStructByType(const void* Head, XrStructureType XRType)
+	{
+		const XrBaseInStructure* Ptr = (XrBaseInStructure*)Head;
+		while (Ptr)
+		{
+			if (Ptr->type == XRType)
+			{
+				return (const T*)Ptr;
+			}
+			else
+			{
+				Ptr = (XrBaseInStructure*)Ptr->next;
+			}
+		}
+		return nullptr;
+	}
+}

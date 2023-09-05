@@ -11,13 +11,21 @@ bool FOpenXRRenderBridge::Present(int32& InOutSyncInterval)
 
 	if (OpenXRHMD)
 	{
-		OpenXRHMD->OnFinishRendering_RHIThread();
+		HMDOnFinishRendering_RHIThread();
 		bNeedsNativePresent = !OpenXRHMD->IsStandaloneStereoOnlyDevice();
 	}
 
 	InOutSyncInterval = 0; // VSync off
 
 	return bNeedsNativePresent;
+}
+
+void FOpenXRRenderBridge::HMDOnFinishRendering_RHIThread()
+{
+	if (OpenXRHMD)
+	{
+		OpenXRHMD->OnFinishRendering_RHIThread();
+	}
 }
 
 #ifdef XR_USE_GRAPHICS_API_D3D11
