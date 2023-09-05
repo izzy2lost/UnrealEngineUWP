@@ -108,6 +108,23 @@ void AGeneratedDynamicMeshActor::PostEditUndo()
 	}
 }
 
+void AGeneratedDynamicMeshActor::PostEditUndo(TSharedPtr<ITransactionObjectAnnotation> TransactionAnnotation)
+{
+	Super::PostEditUndo(TransactionAnnotation);
+
+	// There is no direct signal that an Actor is being created or destroyed due to undo/redo.
+	// Currently (5.1) the checks below will tell us if the undo/redo has destroyed the
+	// Actor, and we assume otherwise it was created
+
+	if (IsActorBeingDestroyed() || !IsValid(this))	// equivalent to AActor::IsPendingKillPending()
+	{
+		UnregisterWithGenerationManager();
+	}
+	else
+	{
+		RegisterWithGenerationManager();
+	}
+}
 #endif
 
 

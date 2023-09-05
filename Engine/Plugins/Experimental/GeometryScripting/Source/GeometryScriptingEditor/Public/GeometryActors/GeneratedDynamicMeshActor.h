@@ -95,6 +95,7 @@ public:
 
 #if WITH_EDITOR
 	virtual void PostEditUndo() override;
+	virtual void PostEditUndo(TSharedPtr<ITransactionObjectAnnotation> TransactionAnnotation) override;
 #endif
 
 
