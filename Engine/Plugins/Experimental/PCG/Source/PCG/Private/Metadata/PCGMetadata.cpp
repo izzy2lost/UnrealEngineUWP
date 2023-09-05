@@ -30,7 +30,7 @@ void UPCGMetadata::Serialize(FArchive& InArchive)
 			InArchive << AttributeTypeId;
 
 			FPCGMetadataAttributeBase* SerializedAttribute = PCGMetadataAttribute::AllocateEmptyAttributeFromType(static_cast<int16>(AttributeTypeId));
-			if (SerializedAttribute)
+			if (ensure(SerializedAttribute))
 			{
 				SerializedAttribute->Name = AttributeName;
 				SerializedAttribute->Serialize(this, InArchive);

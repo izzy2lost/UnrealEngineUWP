@@ -50,12 +50,19 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bMatchAttributes", PCG_Overridable))
 	bool bKeepUnmatched = true;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	bool bUseInputWeightAttribute = false;
+
+	/** Input weight from the points, assumed to be in the [0, 1] range */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bUseInputWeightAttribute"))
+	FPCGAttributePropertyInputSelector InputWeightAttribute;
+
 	/** Controls whether we will consider the weights, as determined by the Weight Attribute values on the attribute set */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (InlineEditConditionToggle, PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (DisplayName = "Use Match Weight", InlineEditConditionToggle, PCG_Overridable))
 	bool bUseWeightAttribute = false;
 
 	/** Attribute to weight more or less some entries from the attribute set */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bUseWeightAttribute", PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (DisplayName="Match Weight Attribute", EditCondition = "bUseWeightAttribute", PCG_Overridable))
 	FName WeightAttribute = NAME_None;
 };
 
