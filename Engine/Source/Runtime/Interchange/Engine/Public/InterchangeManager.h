@@ -694,8 +694,8 @@ private:
 	FThreadSafeBool bIsActive = false;
 
 	//If the user wants to use the same import pipeline stack for all the queue task
-	//This boolean is reset to false when the ImportTasks array is empty.
-	bool bImportAllWithDefault = false;
+	//This map is reset when the ImportTasks array is empty.
+	TMap<UClass*, TArray<UInterchangePipelineBase*>> ImportAllWithSamePipelines;
 
 	//Indicates that the import process was canceled by the user.
 	//This boolean is reset to false when the ImportTasks array is empty.
