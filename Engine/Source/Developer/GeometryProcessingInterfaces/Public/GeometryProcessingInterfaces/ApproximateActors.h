@@ -99,6 +99,15 @@ public:
 		RelativeError
 	};
 
+	/**
+	 * Input to approximate, as actors and/or components
+	 */
+	struct FInput
+	{
+		TArray<AActor*>				Actors;
+		TArray<UActorComponent*>	Components;
+	};
+
 
 	/**
 	 * Input options to Actor Approximation process
@@ -289,9 +298,9 @@ public:
 	}
 
 	/**
-	 * Top-level driver function that clients call to generate the approximation for a set of input Actors.
+	 * Top-level driver function that clients call to generate the approximation for a set of input Actors or Components.
 	 */
-	virtual void ApproximateActors(const TArray<AActor*>& Actors, const FOptions& Options, FResults& ResultsOut) 
+	virtual void ApproximateActors(const FInput& Input, const FOptions& Options, FResults& ResultsOut) 
 	{
 		check(false);		// not implemented in base class
 	}

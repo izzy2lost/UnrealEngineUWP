@@ -75,7 +75,7 @@ struct FGeneratedResultTextures
 
 
 static TUniquePtr<FSceneCapturePhotoSet> CapturePhotoSet(
-	const TArray<AActor*>& Actors,
+	const IGeometryProcessing_ApproximateActors::FInput& Input,
 	const IGeometryProcessing_ApproximateActors::FOptions& Options
 )
 {
@@ -111,13 +111,14 @@ static TUniquePtr<FSceneCapturePhotoSet> CapturePhotoSet(
 		SceneCapture->SetCaptureTypeEnabled(ERenderCaptureType::Specular, bSpecular);
 	}
 
-	UWorld* World = Actors.IsEmpty() ? nullptr : Actors[0]->GetWorld();
+	UWorld* World = Input.Actors.IsEmpty() ? (Input.Components.IsEmpty() ? nullptr : Input.Components[0]->GetWorld()) : Input.Actors[0]->GetWorld();
 
-	SceneCapture->SetCaptureSceneActors(World, Actors);
+	SceneCapture->SetCaptureSceneActorsAndComponents(World, Input.Actors, Input.Components);
 
 	const TArray<FSpatialPhotoParams> SpatialParams = ComputeStandardExteriorSpatialPhotoParameters(
 		World,
-		Actors,
+		Input.Actors,
+		Input.Components,
 		CaptureDimensions,
 		FieldOfView,
 		NearPlaneDist,
@@ -992,19 +993,19 @@ IGeometryProcessing_ApproximateActors::FOptions FApproximateActorsImpl::Construc
 }
 
 
-void FApproximateActorsImpl::ApproximateActors(const TArray<AActor*>& Actors, const FOptions& Options, FResults& ResultsOut)
+void FApproximateActorsImpl::ApproximateActors(const FInput& Input, const FOptions& Options, FResults& ResultsOut)
 {
 	int32 ActorClusters = 1;
 	FScopedSlowTask Progress(1.f, LOCTEXT("ApproximatingActors", "Generating Actor Approximation..."));
 	Progress.MakeDialog(true);
 	Progress.EnterProgressFrame(1.f);
-	GenerateApproximationForActorSet(Actors, Options, ResultsOut);
+	GenerateApproximationForActorSet(Input, Options, ResultsOut);
 }
 
 
 
 
-void FApproximateActorsImpl::GenerateApproximationForActorSet(const TArray<AActor*>& Actors, const FOptions& Options, FResults& ResultsOut)
+void FApproximateActorsImpl::GenerateApproximationForActorSet(const FInput& Input, const FOptions& Options, FResults& ResultsOut)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ApproximateActorsImpl_Generate);
 
@@ -1047,7 +1048,9 @@ void FApproximateActorsImpl::GenerateApproximationForActorSet(const TArray<AActo
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(ApproximateActorsImpl_Generate_BuildScene);
 		TRACE_BOOKMARK(TEXT("ApproximateActors-Adding Actors"));
-		Scene->AddActors(Actors);
+		Scene->AddActors(Input.Actors);
+		TRACE_BOOKMARK(TEXT("ApproximateActors-Adding Components"));
+		Scene->AddComponents(Input.Components);
 		TRACE_BOOKMARK(TEXT("ApproximateActors-Building Scene"));
 		Scene->Build(SceneBuildOptions);
 	}
@@ -1121,7 +1124,7 @@ void FApproximateActorsImpl::GenerateApproximationForActorSet(const TArray<AActo
 		WaitForMeshAvailable();
 		if (ResultsOut.ResultCode == EResultCode::Success)
 		{
-			EmitGeneratedMeshAsset(Actors, Options, ResultsOut, &FinalMesh, nullptr, WriteDebugMesh);
+			EmitGeneratedMeshAsset(Options, ResultsOut, &FinalMesh, nullptr, WriteDebugMesh);
 		}
 		return;
 	}
@@ -1142,7 +1145,7 @@ void FApproximateActorsImpl::GenerateApproximationForActorSet(const TArray<AActo
 	Progress.EnterProgressFrame(1.f, LOCTEXT("CapturingScene", "Capturing Scene..."));
 	TRACE_BOOKMARK(TEXT("ApproximateActors-Capture Photos"));
 
-	TUniquePtr<FSceneCapturePhotoSet> SceneCapture = CapturePhotoSet(Actors, Options);
+	TUniquePtr<FSceneCapturePhotoSet> SceneCapture = CapturePhotoSet(Input, Options);
 
 	// if parallel capture was allowed, need to force the mesh compute to finish now to be able to proceed
 	if (Options.bMaximizeBakeParallelism == true)
@@ -1274,13 +1277,12 @@ void FApproximateActorsImpl::GenerateApproximationForActorSet(const TArray<AActo
 	// (does this do that? Let calling code do it?)
 	NewMaterial->PostEditChange();
 
-	EmitGeneratedMeshAsset(Actors, Options, ResultsOut, &FinalMesh, NewMaterial, WriteDebugMesh);
+	EmitGeneratedMeshAsset(Options, ResultsOut, &FinalMesh, NewMaterial, WriteDebugMesh);
 	ResultsOut.ResultCode = EResultCode::Success;
 }
 
 
 UStaticMesh* FApproximateActorsImpl::EmitGeneratedMeshAsset(
-	const TArray<AActor*>& Actors, 
 	const FOptions& Options, 
 	FResults& ResultsOut,
 	FDynamicMesh3* FinalMesh,

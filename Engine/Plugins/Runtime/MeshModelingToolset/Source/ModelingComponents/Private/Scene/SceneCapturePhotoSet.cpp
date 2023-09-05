@@ -26,7 +26,17 @@ FSceneCapturePhotoSet::FSceneCapturePhotoSet()
 
 void FSceneCapturePhotoSet::SetCaptureSceneActors(UWorld* World, const TArray<AActor*>& Actors)
 {
-	if (this->TargetWorld != World || this->VisibleActors != Actors)
+	SetCaptureSceneActorsAndComponents(World, Actors, {});
+}
+
+void FSceneCapturePhotoSet::SetCaptureSceneComponents(UWorld* World, const TArray<UActorComponent*>& Components)
+{
+	SetCaptureSceneActorsAndComponents(World, {}, Components);
+}
+
+void FSceneCapturePhotoSet::SetCaptureSceneActorsAndComponents(UWorld* World, const TArray<AActor*>& Actors, const TArray<UActorComponent*>& Components)
+{
+	if (this->TargetWorld != World || this->VisibleActors != Actors || this->VisibleComponents != Components)
 	{
 		ForEachCaptureType([this](ERenderCaptureType CaptureType)
 		{
@@ -44,11 +54,7 @@ void FSceneCapturePhotoSet::SetCaptureSceneActors(UWorld* World, const TArray<AA
 	}
 	this->TargetWorld = World;
 	this->VisibleActors = Actors;
-}
-
-TArray<AActor*> FSceneCapturePhotoSet::GetCaptureSceneActors()
-{
-	return VisibleActors;
+	this->VisibleComponents = Components;
 }
 
 UWorld* FSceneCapturePhotoSet::GetCaptureTargetWorld()
@@ -182,7 +188,7 @@ void FSceneCapturePhotoSet::Compute()
 
 	FWorldRenderCapture RenderCapture;
 	RenderCapture.SetWorld(TargetWorld);
-	RenderCapture.SetVisibleActors(VisibleActors);
+	RenderCapture.SetVisibleActorsAndComponents(VisibleActors, VisibleComponents);
 	if (bWriteDebugImages)
 	{
 		RenderCapture.SetEnableWriteDebugImage(true, 0, DebugImagesFolderName);
@@ -363,7 +369,7 @@ void FSceneCapturePhotoSet::AddExteriorCaptures(
 
 	FWorldRenderCapture RenderCapture;
 	RenderCapture.SetWorld(TargetWorld);
-	RenderCapture.SetVisibleActors(VisibleActors);
+	RenderCapture.SetVisibleActorsAndComponents(VisibleActors, VisibleComponents);
 	RenderCapture.SetDimensions(PhotoDimensions);
 	if (bWriteDebugImages)
 	{
@@ -869,6 +875,7 @@ void FSceneCapturePhotoSet::EmptyPhotoSet(ERenderCaptureType CaptureType)
 TArray<FSpatialPhotoParams> UE::Geometry::ComputeStandardExteriorSpatialPhotoParameters(
 	UWorld* World,
 	const TArray<AActor*>& Actors,
+	const TArray<UActorComponent*>& Components,
 	FImageDimensions PhotoDimensions,
 	double HorizontalFOVDegrees,
 	double NearPlaneDist,
@@ -878,7 +885,7 @@ TArray<FSpatialPhotoParams> UE::Geometry::ComputeStandardExteriorSpatialPhotoPar
 	bool bUpperEdges,
 	bool bSideEdges)
 {
-	if (!World || Actors.IsEmpty())
+	if (!World || (Actors.IsEmpty() && Components.IsEmpty()))
 	{
 		return {};
 	}
@@ -928,7 +935,7 @@ TArray<FSpatialPhotoParams> UE::Geometry::ComputeStandardExteriorSpatialPhotoPar
 	FSphere RenderSphere;
 	{
 		FWorldRenderCapture RenderCapture;
-		RenderCapture.SetVisibleActors(Actors);
+		RenderCapture.SetVisibleActorsAndComponents(Actors, Components);
 		RenderSphere = RenderCapture.ComputeContainingRenderSphere(HorizontalFOVDegrees);
 	}
 

@@ -199,6 +199,7 @@ struct FRenderCaptureCoordinateConverter2D
 /**
  * FWorldRenderCapture captures a rendering of a set of Actors in a World from a
  * specific viewpoint. Various types of rendering are supported, as defined by ERenderCaptureType.
+ * Currently rendering an entire World, ie without an explicit list of Actors or Components, is not supported.
  */
 class MODELINGCOMPONENTS_API FWorldRenderCapture
 {
@@ -214,9 +215,18 @@ public:
 
 	/** 
 	 *  Set the set of Actors in the target World that should be included in the Rendering.
-	 *  Currently rendering an entire World, ie without an explicit list of Actors, is not supported.
 	 */
 	void SetVisibleActors(const TArray<AActor*>& Actors);
+
+	/**
+	 *  Set the set of Components in the target World that should be included in the Rendering.
+	 */
+	void SetVisibleComponents(const TArray<UActorComponent*>& Components);
+
+	/**
+	 *  Set the set of Actors and Components in the target World that should be included in the Rendering.
+	 */
+	void SetVisibleActorsAndComponents(const TArray<AActor*>& VisibleActors, const TArray<UActorComponent*>& VisibleComponents);
 
 	/** Get bounding-box of the Visible actors */
 	FBoxSphereBounds GetVisibleActorBounds() const { return VisibleBounds; }
@@ -264,7 +274,6 @@ public:
 protected:
 	UWorld* World = nullptr;
 
-	TArray<AActor*> CaptureActors;
 	TSet<FPrimitiveComponentId> VisiblePrimitives;
 	FBoxSphereBounds VisibleBounds;
 

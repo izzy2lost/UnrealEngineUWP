@@ -253,6 +253,7 @@ void UE::Geometry::ConfigureSceneCapture(
 	const TArray<FSpatialPhotoParams> SpatialParams = ComputeStandardExteriorSpatialPhotoParameters(
 		World,
 		Actors,
+		TArray<UActorComponent*>(),
 		FImageDimensions(Options.RenderCaptureImageSize, Options.RenderCaptureImageSize),
 		Options.FieldOfViewDegrees,
 		Options.NearPlaneDist,

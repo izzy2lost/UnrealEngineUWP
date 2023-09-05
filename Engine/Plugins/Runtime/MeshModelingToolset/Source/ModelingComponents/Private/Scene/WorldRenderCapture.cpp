@@ -204,49 +204,64 @@ void FWorldRenderCapture::SetWorld(UWorld* WorldIn)
 	this->World = WorldIn;
 }
 
-
 void FWorldRenderCapture::SetVisibleActors(const TArray<AActor*>& Actors)
 {
-	CaptureActors = Actors;
+	SetVisibleActorsAndComponents(Actors, {});
+}
 
+void FWorldRenderCapture::SetVisibleComponents(const TArray<UActorComponent*>& Components)
+{
+	SetVisibleActorsAndComponents({}, Components);
+}
+
+void FWorldRenderCapture::SetVisibleActorsAndComponents(const TArray<AActor*>& Actors, const TArray<UActorComponent*>& Components)
+{
 	VisiblePrimitives.Reset();
 
 	FBoxSphereBounds::Builder BoundsBuilder;
 
 	// Find all components that need to be included in rendering.
 	// This also descends into any ChildActorComponents
-	// TODO Consider using Actor->GetActorBounds() or ForEachComponent here
-	TArray<UActorComponent*> ComponentQueue;
-	for (AActor* Actor : Actors)
+		
+	auto AddComponent = [&](UActorComponent* Component)
 	{
-		ComponentQueue.Reset();
-		for (UActorComponent* Component : Actor->GetComponents())
+		auto AddComponentImpl = [&](UActorComponent* Component, auto& AddComponentRef) -> void
 		{
-			ComponentQueue.Add(Component);
-		}
-		while (ComponentQueue.Num() > 0)
-		{
-			UActorComponent* Component = ComponentQueue.Pop(false);
-			if (Cast<UPrimitiveComponent>(Component) != nullptr)
-			{
-				UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Component);
+			if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Component))
+			{				
 				VisiblePrimitives.Add(PrimitiveComponent->GetPrimitiveSceneId());
 
 				// Append bounds of visible components only
 				BoundsBuilder += PrimitiveComponent->Bounds;
 			}
-			else if (Cast<UChildActorComponent>(Component) != nullptr)
+			else if (UChildActorComponent* ChildActorComponent = Cast<UChildActorComponent>(Component))
 			{
-				AActor* ChildActor = Cast<UChildActorComponent>(Component)->GetChildActor();
-				if (ChildActor != nullptr)
+				if (AActor* ChildActor = ChildActorComponent->GetChildActor())
 				{
 					for (UActorComponent* SubComponent : ChildActor->GetComponents())
 					{
-						ComponentQueue.Add(SubComponent);
+						AddComponentRef(SubComponent, AddComponentRef);
 					}
 				}
-			}
+			}			
+		};
+
+		AddComponentImpl(Component, AddComponentImpl);
+	};
+
+	// Add actors
+	for (AActor* Actor : Actors)
+	{
+		for (UActorComponent* Component : Actor->GetComponents())
+		{
+			AddComponent(Component);
 		}
+	}
+
+	// Add components
+	for (UActorComponent* Component : Components)
+	{
+		AddComponent(Component);
 	}
 
 	VisibleBounds = BoundsBuilder;

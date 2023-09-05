@@ -582,11 +582,11 @@ FHLODBuildResults GenerateHLODMesh_Approximate(const FHLODBuildParams& InBuildPa
 	Options.BasePackagePath = PackagePath / NewAssetNamePrefix + AssetName;
 
 	// run actor approximation computation
-	TSet<AActor*> Actors;
-	Algo::Transform(InBuildParams.Components, Actors, [](UPrimitiveComponent* PrimitiveComponent) { return PrimitiveComponent->GetOwner(); });
+	IGeometryProcessing_ApproximateActors::FInput Input;
+	Algo::Transform(InBuildParams.Components, Input.Components, [](UPrimitiveComponent* PrimitiveComponent) { return PrimitiveComponent; });
 
 	IGeometryProcessing_ApproximateActors::FResults Results;
-	ApproxActorsAPI->ApproximateActors(Actors.Array(), Options, Results);
+	ApproxActorsAPI->ApproximateActors(Input, Options, Results);
 
 	auto RenameNewAsset = [&PackagePath, &NewAssetNamePrefix, &InBuildParams](UObject* NewAsset)
 	{

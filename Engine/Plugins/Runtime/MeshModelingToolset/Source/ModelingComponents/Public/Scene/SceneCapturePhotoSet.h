@@ -8,6 +8,7 @@
 
 class UWorld;
 class AActor;
+class UActorComponent;
 struct FScopedSlowTask;
 
 namespace UE
@@ -48,11 +49,13 @@ public:
 	FSceneCapturePhotoSet();
 
 	/**
-	 * Set the target World and set of Actors
+	 * Set the target World and set of Actors/Components
 	 * If World != this->World or Actors != this->Actors all existing photo sets are cleared
 	 */
 	void SetCaptureSceneActors(UWorld* World, const TArray<AActor*>& Actors);
-	TArray<AActor*> GetCaptureSceneActors();
+	void SetCaptureSceneComponents(UWorld* World, const TArray<UActorComponent*>& Components);
+	void SetCaptureSceneActorsAndComponents(UWorld* World, const TArray<AActor*>& Actors, const TArray<UActorComponent*>& Components);
+
 	UWorld* GetCaptureTargetWorld();
 
 	/**
@@ -248,6 +251,7 @@ public:
 protected:
 	UWorld* TargetWorld = nullptr;
 	TArray<AActor*> VisibleActors;
+	TArray<UActorComponent*> VisibleComponents;
 
 	bool bEnforceVisibilityViaUnregister = false;
 
@@ -364,6 +368,7 @@ MODELINGCOMPONENTS_API
 TArray<FSpatialPhotoParams> ComputeStandardExteriorSpatialPhotoParameters(
 	UWorld* World,
 	const TArray<AActor*>& Actors,
+	const TArray<UActorComponent*>& Components,
 	FImageDimensions PhotoDimensions,
 	double HorizontalFOVDegrees,
 	double NearPlaneDist,
