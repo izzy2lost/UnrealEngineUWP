@@ -240,6 +240,8 @@ public:
 	bool								bRunningAsync = false;
 	FGraphEventArray					BeforeInstancesTickGraphEvents;
 	FGraphEventArray*					CompletionEvents = nullptr;
+
+	FNiagaraSystemTickBatch				TickBatch;
 };
 
 /** Simulation performing all system and emitter scripts for a instances of a UNiagaraSystem in a world. */
@@ -416,9 +418,6 @@ protected:
 	void InitParameterDataSetBindings(FNiagaraSystemInstance* SystemInst);
 
 	TOptional<float> MaxDeltaTime;
-
-	/** Current tick batch we're filling ready for processing, potentially in an async task. */
-	FNiagaraSystemTickBatch TickBatch;
 
 	/** Event to track the system simulation async tick is complete. */
 	FGraphEventRef ConcurrentTickGraphEvent;

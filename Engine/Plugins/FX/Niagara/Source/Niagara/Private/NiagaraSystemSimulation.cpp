@@ -976,8 +976,8 @@ void FNiagaraSystemSimulation::SetInstanceState(FNiagaraSystemInstance* Instance
 
 void FNiagaraSystemSimulation::AddSystemToTickBatch(FNiagaraSystemInstance* Instance, FNiagaraSystemSimulationTickContext& Context)
 {
-	TickBatch.Add(Instance);
-	if (TickBatch.Num() == GNiagaraSystemSimulationTickBatchSize)
+	Context.TickBatch.Add(Instance);
+	if (Context.TickBatch.Num() == GNiagaraSystemSimulationTickBatchSize)
 	{
 		FlushTickBatch(Context);
 	}
@@ -985,46 +985,44 @@ void FNiagaraSystemSimulation::AddSystemToTickBatch(FNiagaraSystemInstance* Inst
 
 void FNiagaraSystemSimulation::FlushTickBatch(FNiagaraSystemSimulationTickContext& Context)
 {
-	if (TickBatch.Num() > 0)
+	if (Context.TickBatch.Num() == 0)
 	{
-		// If we are running async create tasks to execute
-		if ( Context.IsRunningAsync() )
-		{
-			// Queue instance concurrent task and track information in the instance
-			FGraphEventRef InstanceAsyncGraphEvent = TGraphTask<FNiagaraSystemInstanceTickConcurrentTask>::CreateTask(&Context.BeforeInstancesTickGraphEvents).ConstructAndDispatchWhenReady(this, TickBatch, Context.World);
-
-			for (FNiagaraSystemInstance* Inst : TickBatch)
-			{
-				Inst->ConcurrentTickBatchGraphEvent = InstanceAsyncGraphEvent;
-			}
-
-			// Ensure ConcurrentTickBatchGraphEvent is visible before we clear ConcurrentTickGraphEvent
-			FPlatformMisc::MemoryBarrier();
-
-			for (FNiagaraSystemInstance* Inst : TickBatch)
-			{
-				Inst->ConcurrentTickGraphEvent = nullptr;
-			}
-
-			// Queue finalize task which will run after the instances are complete, track with our all completion event
-			FGraphEventArray FinalizePrereqArray;
-			FinalizePrereqArray.Add(InstanceAsyncGraphEvent);
-			FGraphEventRef FinalizeTask = TGraphTask<FNiagaraSystemInstanceFinalizeTask>::CreateTask(&FinalizePrereqArray).ConstructAndDispatchWhenReady(this, TickBatch);
-
-			check(Context.CompletionEvents != nullptr);
-			Context.CompletionEvents->Add(FinalizeTask);
-		}
-		// Execute immediately
-		else
-		{
-			for (FNiagaraSystemInstance* Inst : TickBatch)
-			{
-				Inst->Tick_Concurrent();
-			}
-		}
-
-		TickBatch.Reset();
+		return;
 	}
+
+	// If we are running async create tasks to execute
+	if ( Context.IsRunningAsync() )
+	{
+		// Queue instance concurrent task and track information in the instance
+		FGraphEventRef InstanceAsyncGraphEvent = TGraphTask<FNiagaraSystemInstanceTickConcurrentTask>::CreateTask(&Context.BeforeInstancesTickGraphEvents).ConstructAndDispatchWhenReady(this, Context.TickBatch, Context.World);
+
+		for (FNiagaraSystemInstance* Inst : Context.TickBatch)
+		{
+			Inst->ConcurrentTickBatchGraphEvent = InstanceAsyncGraphEvent;
+		}
+
+		// Ensure ConcurrentTickBatchGraphEvent is visible before we clear ConcurrentTickGraphEvent
+		FPlatformMisc::MemoryBarrier();
+
+		// Queue finalize task which will run after the instances are complete, track with our all completion event
+		FGraphEventArray FinalizePrereqArray;
+		FinalizePrereqArray.Add(Context.TickBatch[0]->ConcurrentTickGraphEvent);
+		FinalizePrereqArray.Add(InstanceAsyncGraphEvent);
+		FGraphEventRef FinalizeTask = TGraphTask<FNiagaraSystemInstanceFinalizeTask>::CreateTask(&FinalizePrereqArray).ConstructAndDispatchWhenReady(this, Context.TickBatch);
+
+		check(Context.CompletionEvents != nullptr);
+		Context.CompletionEvents->Add(FinalizeTask);
+	}
+	// Execute immediately
+	else
+	{
+		for (FNiagaraSystemInstance* Inst : Context.TickBatch)
+		{
+			Inst->Tick_Concurrent();
+		}
+	}
+
+	Context.TickBatch.Reset();
 }
 
 /** First phase of system sim tick. Must run on GameThread. */
