@@ -358,6 +358,9 @@ public:
 	/** Called to complete a drag and drop onto this drop. */
 	FReply OnAcceptDrop( const FDragDropEvent& DragDropEvent, EItemDropZone ItemDropZone, TWeakViewModelPtr<IOutlinerExtension> InDataModel);
 
+protected:
+	FVector2D ComputeDesiredSize(float LayoutScaleMultiplier) const override;
+
 private:
 
 	/**

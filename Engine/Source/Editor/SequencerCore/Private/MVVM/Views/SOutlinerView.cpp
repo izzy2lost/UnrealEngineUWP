@@ -213,6 +213,17 @@ FReply SOutlinerViewRow::OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItem
 	return FReply::Unhandled();
 }
 
+FVector2D SOutlinerViewRow::ComputeDesiredSize(float LayoutScaleMultiplier) const
+{
+	FVector2D ReturnDesiredSize = SBorder::ComputeDesiredSize(LayoutScaleMultiplier);
+	if (TrackLane && TrackLane->GetOutlinerItem())
+	{
+		// Ensure our height properly matches the height of the outliner item.
+		ReturnDesiredSize.Y = TrackLane->GetOutlinerItem()->GetOutlinerSizing().GetTotalHeight();
+	}
+	return ReturnDesiredSize;
+}
+
 TViewModelPtr<IOutlinerExtension> SOutlinerViewRow::GetDataModel() const
 {
 	return WeakModel.Pin();
