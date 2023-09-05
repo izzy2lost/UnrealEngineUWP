@@ -279,7 +279,7 @@ namespace LowLevelTests
 						else
 						{
 							LowLevelTestResult = TestResult.Failed;
-							ExitReason = "Tests failed";
+							ExitReason = "Tests failed according to console report";
 						}
 					}
 					else if (ReportType == "xml")
@@ -293,7 +293,7 @@ namespace LowLevelTests
 						else
 						{
 							LowLevelTestResult = TestResult.Failed;
-							ExitReason = "Tests failed";
+							ExitReason = "Tests failed according to xml report";
 						}
 					}
 				}
