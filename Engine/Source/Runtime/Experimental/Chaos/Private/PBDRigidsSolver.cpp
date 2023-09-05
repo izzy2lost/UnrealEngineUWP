@@ -1804,6 +1804,11 @@ namespace Chaos
 			const int32 ResimStep = MRewindCallback->TriggerRewindIfNeeded_Internal(LastStep);
 			const int32 NumResimSteps = LastStep - ResimStep + 1;
 
+			if (ResimStep < 0)
+			{
+				return;
+			}
+
 			const bool bEnableNetworkPredictionDebug = IsNetworkPhysicsPredictionEnabled() && CanDebugNetworkPhysicsPrediction();
 			
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
@@ -1825,13 +1830,17 @@ namespace Chaos
 				}
 			}
 #endif
-			
-			if(ResimStep >= 0 && (ResimStep < LastStep) && NumResimSteps <= MarshallingManager.GetNumHistory_Internal())
+
+			if ((ResimStep < LastStep) && NumResimSteps <= MarshallingManager.GetNumHistory_Internal())
 			{
 				FResimDebugInfo DebugInfo;
 				QUICK_SCOPE_CYCLE_COUNTER(ChaosRewindAndResim);
 				if(MRewindData->RewindToFrame(ResimStep))
 				{
+#if DEBUG_REWIND_DATA
+					UE_LOG(LogTemp, Warning, TEXT("COMMON | PT | ConditionalApplyRewind_Internal | PERFORMING RESIMULATION | Resim From Frame = %d | Num Steps = %d | To Current Frame: %d"), ResimStep, NumResimSteps, CurrentFrame);
+#endif
+
 					GetEvolution()->SetResim(true);
 					CurrentFrame = ResimStep;
 					
@@ -1899,7 +1908,19 @@ namespace Chaos
 					ResimTimer.Stop();
 					MRewindCallback->SetResimDebugInfo_Internal(DebugInfo);
 				}
+#if DEBUG_REWIND_DATA
+				else
+				{
+					UE_LOG(LogTemp, Log, TEXT("COMMON | PT | ConditionalApplyRewind_Internal | Resimulation failed, FRewindData::RewindToFrame returned false | Current Frame = %d | Num Steps = %d | Resim Frame = %d | Last Frame = %d | Rewind History Size = %d"), CurrentFrame, NumResimSteps, ResimStep, LastStep, MarshallingManager.GetNumHistory_Internal());
+				}
+#endif
 			}
+#if DEBUG_REWIND_DATA
+			else
+			{
+				UE_LOG(LogTemp, Log, TEXT("COMMON | PT | ConditionalApplyRewind_Internal | Resimulation failed, invalid rewind frame data | Current Frame = %d | Num Steps = %d | Resim Frame = %d | Last Frame = %d | Rewind History Size = %d"), CurrentFrame, NumResimSteps, ResimStep, LastStep, MarshallingManager.GetNumHistory_Internal());
+			}
+#endif
 		}
 	}
 

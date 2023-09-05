@@ -171,17 +171,13 @@ int32 FNetworkPhysicsCallback::TriggerRewindIfNeeded_Internal(int32 LatestStepCo
 		ResimFrame = (ResimFrame == INDEX_NONE) ? CallbackFrame : FMath::Min(CallbackFrame, ResimFrame);
 	}
 
-#if DEBUG_NETWORK_PHYSICS
-	UE_LOG(LogTemp, Log, TEXT("COMMON | PT | TriggerRewindIfNeeded_Internal | Callbacks Frame = %d"), ResimFrame);
-#endif
-
 	if (RewindData)
 	{
 		if (NetMode == NM_Client)
 		{
 			const int32 ReplicationFrame = RewindData->GetResimFrame();
 
-#if DEBUG_NETWORK_PHYSICS
+#if DEBUG_NETWORK_PHYSICS || DEBUG_REWIND_DATA
 			UE_LOG(LogTemp, Log, TEXT("CLIENT | PT | TriggerRewindIfNeeded_Internal | Replication Frame = %d"), ReplicationFrame);
 #endif
 			ResimFrame = (ResimFrame == INDEX_NONE) ? ReplicationFrame : (ReplicationFrame == INDEX_NONE) ? ResimFrame : FMath::Min(ReplicationFrame, ResimFrame);
@@ -191,7 +187,7 @@ int32 FNetworkPhysicsCallback::TriggerRewindIfNeeded_Internal(int32 LatestStepCo
 		if (ResimFrame != INDEX_NONE)
 		{
 			const int32 ValidFrame = RewindData->FindValidResimFrame(ResimFrame);
-#if DEBUG_NETWORK_PHYSICS
+#if DEBUG_NETWORK_PHYSICS || DEBUG_REWIND_DATA
 			UE_LOG(LogTemp, Log, TEXT("CLIENT | PT | TriggerRewindIfNeeded_Internal | Resim Frame = %d | Valid Frame = %d"), ResimFrame, ValidFrame);
 #endif
 			ResimFrame = ValidFrame;
@@ -576,14 +572,14 @@ void UNetworkPhysicsComponent::CorrectServerToLocalOffset(const int32 LocalToSer
 		int32 ServerToLocalOffset = LocalToServerOffset;
 		for (int32 FrameIndex = 0; FrameIndex < LocalFrames.Num(); ++FrameIndex)
 		{
-#if DEBUG_NETWORK_PHYSICS
+#if DEBUG_NETWORK_PHYSICS || DEBUG_REWIND_DATA
 			UE_LOG(LogTemp, Log, TEXT("CLIENT | GT | CorrectServerToLocalOffset | Server frame = %d | Client Frame = %d"), ServerFrames[FrameIndex], InputFrames[FrameIndex]);
 #endif
 			ServerToLocalOffset = FMath::Min(ServerToLocalOffset, ServerFrames[FrameIndex] - InputFrames[FrameIndex]);
 		}
 
 		GetPlayerController()->SetServerToLocalAsyncPhysicsTickOffset(ServerToLocalOffset);
-#if DEBUG_NETWORK_PHYSICS
+#if DEBUG_NETWORK_PHYSICS || DEBUG_REWIND_DATA
 		UE_LOG(LogTemp, Log, TEXT("CLIENT | GT | CorrectServerToLocalOffset | Server to local offset = %d | Local to server offset = %d"), ServerToLocalOffset, LocalToServerOffset);
 #endif
 	}

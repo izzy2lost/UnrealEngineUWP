@@ -265,12 +265,18 @@ bool FRewindData::RewindToFrame(int32 Frame)
 	const int32 EarliestFrame = GetEarliestFrame_Internal();
 	if (Frame < EarliestFrame)
 	{
+#if DEBUG_REWIND_DATA
+		UE_LOG(LogTemp, Log, TEXT("COMMON | PT | RewindToFrame | Failed due to rewind frame earlier than available history | Rewind Frame: %d | Earliest Frame: %d"), Frame, EarliestFrame);
+#endif
 		return false;
 	}
 
 	//If we need to save and we are right on the edge of the buffer, we can't go back to earliest frame
 	if(Frame == EarliestFrame && bNeedsSave && FramesSaved == Managers.Capacity())
 	{
+#if DEBUG_REWIND_DATA
+		UE_LOG(LogTemp, Log, TEXT("COMMON | PT | RewindToFrame | Failed due to rewinding to last available frame and bNeedsSave is set to true"));
+#endif
 		return false;
 	}
 
@@ -504,9 +510,9 @@ FAutoConsoleVariableRef CVarSkipDesyncTest(TEXT("p.SkipDesyncTest"), SkipDesyncT
 
 void FRewindData::AdvanceFrameImp(IResimCacheBase* ResimCache)
 {
-	FramesSaved = FMath::Min(FramesSaved+1,static_cast<int32>(Managers.Capacity()-1));
+	FramesSaved = FMath::Min(FramesSaved + 1, static_cast<int32>(Managers.Capacity()));
 
-	const int32 EarliestFrame = CurFrame - 1 - FramesSaved;
+	const int32 EarliestFrame = CurFrame - FramesSaved;
 	const FFrameAndPhase FrameAndPhase{ CurFrame, FFrameAndPhase::PostCallbacks };
 
 	auto AdvanceHelper = [this, EarliestFrame, FrameAndPhase](auto& DirtyObjects, const auto& DesyncFunc, const auto& AdvanceDirtyFunc)
@@ -832,37 +838,65 @@ void FRewindData::ExtendHistoryWithFrame(const int32 Frame)
 	FramesSaved = FMath::Max(CurFrame - Frame+1, FramesSaved);
 }
 
+CHAOS_API bool ResimFrameValidationLeniency = true;
+FAutoConsoleVariableRef CVarResimFrameValidationLeniency(TEXT("p.ResimFrameValidationLeniency"), ResimFrameValidationLeniency, TEXT("Lenient resim frame validation finds a frame to resim from where the particle that is triggering the resim has a valid target. Setting this to false will require all replicated particles to have a valid target and both valid component input and state history."));
+CHAOS_API bool ResimIncompleteHistory = true;
+FAutoConsoleVariableRef CVarResimIncompleteHistory(TEXT("p.ResimIncompleteHistory"), ResimIncompleteHistory, TEXT("If a valid resim frame can't be found, use the requested resim frame and perform a resimulation with incomplete data."));
+
 int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 {
 	int32 ValidFrame = INDEX_NONE;
-	if (RequestedFrame > BlockResimFrame)
+
+	if (RequestedFrame <= BlockResimFrame)
 	{
-		EnsureIsInPhysicsThreadContext();
+#if DEBUG_REWIND_DATA
+		UE_LOG(LogTemp, Log, TEXT("COMMON | PT | FindValidResimFrame | Resim is blocked | BlockResimFrame: %d | RequestedFrame: %d"), BlockResimFrame, RequestedFrame);
+#endif
 
-		// First frame of the history datas
-		const int32 EarliestFrame = FMath::Max(GetEarliestFrame_Internal(), BlockResimFrame);
+		return ValidFrame;
+	}
 
-		for (ValidFrame = RequestedFrame; ValidFrame >= EarliestFrame; --ValidFrame)
+	EnsureIsInPhysicsThreadContext();
+
+	// First frame of the history datas
+	const int32 EarliestFrame = FMath::Max(GetEarliestFrame_Internal(), BlockResimFrame + 1);
+	bool bHasTargetHistory = false;
+
+	for (ValidFrame = RequestedFrame; ValidFrame > EarliestFrame; ValidFrame--)
+	{
+		bHasTargetHistory = true;
+		for (FDirtyParticleInfo& DirtyParticleInfo : DirtyParticles)
 		{
-			bool bHasTargetHistory = true;
-			for (FDirtyParticleInfo& DirtyParticleInfo : DirtyParticles)
-			{
-				FGeometryParticleStateBase& History = DirtyParticleInfo.GetHistory();
-				const bool bResimAsFollower = DirtyParticleInfo.bResimAsFollower;
+			FGeometryParticleStateBase& History = DirtyParticleInfo.GetHistory();
+			FGeometryParticleHandle* Handle = DirtyParticleInfo.GetObjectPtr();
+			const bool bResimAsFollower = DirtyParticleInfo.bResimAsFollower;
 
-				const FFrameAndPhase FrameAndPhase{ ValidFrame, FFrameAndPhase::PostPushData };
-				if (const FParticleDynamicMisc* DynamicMisc = History.DynamicsMisc.Read(FrameAndPhase, PropertiesPool))
+			// If the particle is not marked for resimulation, don't bother checking for valid target states.
+			if (ResimFrameValidationLeniency && Solver->GetEvolution()->GetIslandManager().GetParticleResimFrame(Handle) == INDEX_NONE)
+			{
+				continue;
+			}
+
+#if DEBUG_REWIND_DATA
+			UE_LOG(LogTemp, Log, TEXT("COMMON | PT | FindValidResimFrame | Processing resim particle | History Frame: %d | Total Particle Count: %d"), ValidFrame, DirtyParticles.Num());
+#endif
+
+			const FFrameAndPhase FrameAndPhase{ ValidFrame, FFrameAndPhase::PostPushData };
+			if (const FParticleDynamicMisc* DynamicMisc = History.DynamicsMisc.Read(FrameAndPhase, PropertiesPool))
+			{
+				if (!DynamicMisc->Disabled() && (DynamicMisc->ObjectState() == EObjectStateType::Dynamic) && !History.TargetPositions.IsEmpty() && !History.TargetVelocities.IsEmpty() && !History.TargetStates.IsEmpty())
 				{
-					if (!DynamicMisc->Disabled() && (DynamicMisc->ObjectState() == EObjectStateType::Dynamic) && !History.TargetPositions.IsEmpty() && !History.TargetVelocities.IsEmpty() && !History.TargetStates.IsEmpty())
+					if (bResimAsFollower || History.TargetPositions.IsClean(FrameAndPhase) || History.TargetVelocities.IsClean(FrameAndPhase) || History.TargetStates.IsClean(FrameAndPhase))
 					{
-						if (bResimAsFollower || History.TargetPositions.IsClean(FrameAndPhase) || History.TargetVelocities.IsClean(FrameAndPhase) || History.TargetStates.IsClean(FrameAndPhase))
-						{
-							bHasTargetHistory = false;
-							break;
-						}
+						bHasTargetHistory = false;
+						break;
 					}
 				}
 			}
+		}
+
+		if (!ResimFrameValidationLeniency)
+		{
 			if (bHasTargetHistory)
 			{
 				for (auto& InputsHistory : InputsHistories)
@@ -885,13 +919,23 @@ int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 					}
 				}
 			}
+		}
 
-			if (bHasTargetHistory)
-			{
-				break;
-			}
+		if (bHasTargetHistory)
+		{
+			break;
 		}
 	}
+	
+	if (!bHasTargetHistory)
+	{
+		ValidFrame = ResimIncompleteHistory ? RequestedFrame : INDEX_NONE;
+
+#if DEBUG_REWIND_DATA
+		UE_LOG(LogTemp, Warning, TEXT("COMMON | PT | FindValidResimFrame | No valid resim frame found | RequestedFrame: %d | ValidFrame: %d | EarliestFrame: %d | HasTargetHistory: %d | EarliestHistoryFrame: %d | CurrentFrame: %d | FramesSaved: %d, ResimFrameValidationLeniency:%d"), RequestedFrame, ValidFrame, EarliestFrame, bHasTargetHistory, GetEarliestFrame_Internal(), CurrentFrame(), FramesSaved, ResimFrameValidationLeniency);
+#endif
+	}
+
 	return ValidFrame;
 }
 

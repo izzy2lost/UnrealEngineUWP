@@ -13,6 +13,10 @@
 #define VALIDATE_REWIND_DATA 0
 #endif
 
+#ifndef DEBUG_REWIND_DATA
+#define DEBUG_REWIND_DATA 0
+#endif
+
 #ifndef DEBUG_NETWORK_PHYSICS
 #define DEBUG_NETWORK_PHYSICS 0
 #endif
