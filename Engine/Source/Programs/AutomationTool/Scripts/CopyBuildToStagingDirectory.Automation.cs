@@ -4151,7 +4151,6 @@ namespace AutomationScripts
 							if (string.IsNullOrEmpty(Rule.EncryptionKeyGuid))
 							{
 								bIsEncryptionKeyValid = false;
-								Logger.LogWarning("No encryption key specified for content-on-demand PAK rule '{Arg0}'", Rule.Name);
 							}
 							else
 							{
