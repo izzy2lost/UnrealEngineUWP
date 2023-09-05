@@ -158,7 +158,7 @@ namespace Horde
 				throw new Exception("Unable to log in to server.");
 			}
 
-			return new HordeHttpClient(server, token);
+			return new HordeHttpClient(server, token, logger);
 		}
 	}
 }
