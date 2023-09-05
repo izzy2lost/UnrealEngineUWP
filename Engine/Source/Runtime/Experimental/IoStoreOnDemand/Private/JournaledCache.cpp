@@ -1245,6 +1245,7 @@ bool FCache::Put(uint64 Key, FIoBuffer& Data)
 ////////////////////////////////////////////////////////////////////////////////
 uint32 FCache::Flush()
 {
+	FWriteAccess _(Lock);
 	return DiskCache.Flush();
 }
 
