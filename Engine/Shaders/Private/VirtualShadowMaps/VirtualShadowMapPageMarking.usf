@@ -34,6 +34,7 @@ float PageDilationBorderSizeLocal;
 uint InputType;
 uint bCullBackfacingPixels;
 uint NumDirectionalLightSmInds;
+uint MipModeLocal;
 
 int GetBiasedClipmapLevel(FVirtualShadowMapProjectionShaderData BaseProjectionData, FLWCVector3 WorldPosition)
 {
@@ -53,7 +54,20 @@ uint GetMipLevelLocal(int VirtualShadowMapId, float3 TranslatedWorldPosition, fl
 
 	float MipLevelFloat = log2(Footprint) + ProjectionData.ResolutionLodBias + VirtualShadowMap.GlobalResolutionLodBias;
 	uint MipLevel = uint(max(floor(MipLevelFloat), 0.0f));
-	return min(MipLevel, (VSM_MAX_MIP_LEVELS - 1U));
+	MipLevel = min(MipLevel, (VSM_MAX_MIP_LEVELS - 1U));
+
+	if (MipModeLocal == 1)
+	{
+		// Even mips
+		MipLevel &= ~(1U);
+	}
+	else if (MipModeLocal == 2)
+	{
+		// Odd mips
+		MipLevel |= 1U;
+	}
+
+	return MipLevel;
 }
 
 void MarkPageAddress(uint PageOffset, uint Flags)
