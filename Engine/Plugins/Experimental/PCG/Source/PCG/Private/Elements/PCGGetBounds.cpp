@@ -50,7 +50,7 @@ bool FPCGGetBoundsElement::ExecuteInternal(FPCGContext* Context) const
 
 	for (const FPCGTaggedData& Input : Inputs)
 	{
-		UPCGSpatialData* InputSpatialData = Cast<UPCGSpatialData>(Input.Data);
+		const UPCGSpatialData* InputSpatialData = Cast<UPCGSpatialData>(Input.Data);
 		if (!InputSpatialData)
 		{
 			continue;
