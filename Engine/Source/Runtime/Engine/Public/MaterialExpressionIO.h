@@ -243,7 +243,7 @@ struct TStructOpsTypeTraits<FShadingModelMaterialInput>
 	};
 };
 
-struct FStrataMaterialInput : FMaterialInput<uint32> // Still giving it a default type
+struct FSubstrateMaterialInput : FMaterialInput<uint32> // Still giving it a default type
 {
 #if WITH_EDITOR
 	ENGINE_API int32 CompileWithDefault(class FMaterialCompiler* Compiler, EMaterialProperty Property);
@@ -253,8 +253,8 @@ struct FStrataMaterialInput : FMaterialInput<uint32> // Still giving it a defaul
 };
 
 template<>
-struct TStructOpsTypeTraits<FStrataMaterialInput>
-	: public TStructOpsTypeTraitsBase2<FStrataMaterialInput>
+struct TStructOpsTypeTraits<FSubstrateMaterialInput>
+	: public TStructOpsTypeTraitsBase2<FSubstrateMaterialInput>
 {
 	enum
 	{

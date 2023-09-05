@@ -234,7 +234,7 @@ struct FShadingModelMaterialInput : public FMaterialInput
 
 #if !CPP      //noexport struct
 USTRUCT(noexport)
-struct FStrataMaterialInput : public FMaterialInput
+struct FSubstrateMaterialInput : public FMaterialInput
 {
 	// No support for constant
 };
@@ -395,7 +395,7 @@ public:
 	FScalarMaterialInput SurfaceThickness;
 
 	UPROPERTY()
-	FStrataMaterialInput FrontMaterial;
+	FSubstrateMaterialInput FrontMaterial;
 
 	UPROPERTY()
 	FMaterialExpressionCollection ExpressionCollection;
@@ -1988,7 +1988,7 @@ private:
 	FShadingModelMaterialInput ShadingModelFromMaterialExpression_DEPRECATED;
 
 	UPROPERTY()
-	FStrataMaterialInput FrontMaterial_DEPRECATED;
+	FSubstrateMaterialInput FrontMaterial_DEPRECATED;
 #endif // WITH_EDITORONLY_DATA
 };
 

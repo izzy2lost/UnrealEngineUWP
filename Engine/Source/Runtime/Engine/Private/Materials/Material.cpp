@@ -5785,7 +5785,7 @@ static void SetMaterialInputDescription(FMaterialAttributesInput& Input, bool bH
 	OutDescription.bHidden = bHidden;
 }
 
-static void SetMaterialInputDescription(FStrataMaterialInput& Input, bool bHidden, FMaterialInputDescription& OutDescription)
+static void SetMaterialInputDescription(FSubstrateMaterialInput& Input, bool bHidden, FMaterialInputDescription& OutDescription)
 {
 	OutDescription.Type = UE::Shader::EValueType::Void;
 	OutDescription.Input = &Input;

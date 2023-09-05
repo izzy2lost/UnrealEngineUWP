@@ -578,7 +578,7 @@ bool FShadingModelMaterialInput::Serialize(FArchive& Ar)
 	return SerializeMaterialInput<uint32>(Ar, *this);
 }
 
-bool FStrataMaterialInput::Serialize(FArchive& Ar)
+bool FSubstrateMaterialInput::Serialize(FArchive& Ar)
 {
 	return SerializeMaterialInput<uint32>(Ar, *this);
 }
@@ -650,7 +650,7 @@ int32 FShadingModelMaterialInput::CompileWithDefault(class FMaterialCompiler* Co
 	return Compiler->ForceCast(FMaterialAttributeDefinitionMap::CompileDefaultExpression(Compiler, Property), MCT_ShadingModel, MFCF_ExactMatch);
 }
 
-int32 FStrataMaterialInput::CompileWithDefault(class FMaterialCompiler* Compiler, EMaterialProperty Property)
+int32 FSubstrateMaterialInput::CompileWithDefault(class FMaterialCompiler* Compiler, EMaterialProperty Property)
 {
 	if (Expression)
 	{
