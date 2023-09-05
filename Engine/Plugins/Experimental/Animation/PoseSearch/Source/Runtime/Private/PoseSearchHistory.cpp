@@ -68,12 +68,8 @@ FORCEINLINE auto LowerBound(IteratorType First, IteratorType Last, const ValueTy
 // FPoseHistoryEntry
 void FPoseHistoryEntry::Update(float InTime, FCSPose<FCompactPose>& ComponentSpacePose, const FTransform& ComponentTransform, const FBoneToTransformMap& BoneToTransformMap)
 {
-	// @todo: optimize this math by initializing FCSPose<FCompactPose> root to identity
-	const FTransform ComponentToRootTransform = ComponentSpacePose.GetComponentSpaceTransform(FCompactPoseBoneIndex(RootBoneIndexType));
-	const FTransform ComponentToRootTransformInv = ComponentToRootTransform.Inverse();
-
 	Time = InTime;
-	RootTransform = ComponentToRootTransform * ComponentTransform;
+	RootTransform = ComponentTransform;
 
 	const FBoneContainer& BoneContainer = ComponentSpacePose.GetPose().GetBoneContainer();
 	const USkeleton* SkeletonAsset = BoneContainer.GetSkeletonAsset();
@@ -89,8 +85,7 @@ void FPoseHistoryEntry::Update(float InTime, FCSPose<FCompactPose>& ComponentSpa
 		for (FSkeletonPoseBoneIndex SkeletonBoneIdx(0); SkeletonBoneIdx != NumSkeletonBones; ++SkeletonBoneIdx)
 		{
 			const FCompactPoseBoneIndex CompactBoneIdx = BoneContainer.GetCompactPoseIndexFromSkeletonPoseIndex(SkeletonBoneIdx);
-			ComponentSpaceTransforms[SkeletonBoneIdx.GetInt()] = 
-				(CompactBoneIdx.IsValid() ? ComponentSpacePose.GetComponentSpaceTransform(CompactBoneIdx) : RefBonePose[SkeletonBoneIdx.GetInt()]) * ComponentToRootTransformInv;
+			ComponentSpaceTransforms[SkeletonBoneIdx.GetInt()] = (CompactBoneIdx.IsValid() ? ComponentSpacePose.GetComponentSpaceTransform(CompactBoneIdx) : RefBonePose[SkeletonBoneIdx.GetInt()]);
 		}
 	}
 	else
@@ -100,8 +95,7 @@ void FPoseHistoryEntry::Update(float InTime, FCSPose<FCompactPose>& ComponentSpa
 		{
 			const FSkeletonPoseBoneIndex SkeletonBoneIdx(BoneToTransformPair.Key);
 			const FCompactPoseBoneIndex CompactBoneIdx = BoneContainer.GetCompactPoseIndexFromSkeletonPoseIndex(SkeletonBoneIdx);
-			ComponentSpaceTransforms[BoneToTransformPair.Value] = 
-				(CompactBoneIdx.IsValid() ? ComponentSpacePose.GetComponentSpaceTransform(CompactBoneIdx) : RefBonePose[SkeletonBoneIdx.GetInt()]) * ComponentToRootTransformInv;
+			ComponentSpaceTransforms[BoneToTransformPair.Value] = (CompactBoneIdx.IsValid() ? ComponentSpacePose.GetComponentSpaceTransform(CompactBoneIdx) : RefBonePose[SkeletonBoneIdx.GetInt()]);
 		}
 	}
 }
@@ -114,21 +108,31 @@ void FPoseHistory::Init(int32 InNumPoses, float InTimeHorizon, const TArray<FBon
 	TimeHorizon = InTimeHorizon;
 
 	BoneToTransformMap.Reset();
-	for (int32 i = 0; i < RequiredBones.Num(); ++i)
+	if (!RequiredBones.IsEmpty())
 	{
-		BoneToTransformMap.Add(RequiredBones[i]) = i;
+		// making sure we always collect the root bone transform (by construction BoneToTransformMap[0] = 0)
+		BoneToTransformMap.Add(RootBoneIndexType) = BoneToTransformMap.Num();
+
+		for (int32 i = 0; i < RequiredBones.Num(); ++i)
+		{
+			// adding only unique RequiredBones to avoid oversizing Entries::ComponentSpaceTransforms
+			if (!BoneToTransformMap.Find(RequiredBones[i]))
+			{
+				BoneToTransformMap.Add(RequiredBones[i]) = BoneToTransformMap.Num();
+			}
+		}
 	}
 
 	Entries.Reset();
 	Entries.Reserve(InNumPoses);
 }
 
-FBoneIndexType FPoseHistory::GetRemappedBoneIndexType(FBoneIndexType BoneIndexType, const USkeleton* BoneIndexSkeleton) const
+FBoneIndexType FPoseHistory::GetRemappedBoneIndexType(FBoneIndexType BoneIndexType, const USkeleton* BoneIndexSkeleton, const USkeleton* LastUpdateSkeleton)
 {
 	// remapping BoneIndexType in case the skeleton used to store history (LastUpdateSkeleton) is different from BoneIndexSkeleton
 	if (LastUpdateSkeleton != nullptr && LastUpdateSkeleton != BoneIndexSkeleton)
 	{
-		const FSkeletonRemapping& SkeletonRemapping = UE::Anim::FSkeletonRemappingRegistry::Get().GetRemapping(BoneIndexSkeleton, LastUpdateSkeleton.Get());
+		const FSkeletonRemapping& SkeletonRemapping = UE::Anim::FSkeletonRemappingRegistry::Get().GetRemapping(BoneIndexSkeleton, LastUpdateSkeleton);
 		if (SkeletonRemapping.IsValid())
 		{
 			BoneIndexType = SkeletonRemapping.GetTargetSkeletonBoneIndex(BoneIndexType);
@@ -138,93 +142,108 @@ FBoneIndexType FPoseHistory::GetRemappedBoneIndexType(FBoneIndexType BoneIndexTy
 	return BoneIndexType;
 }
 
-bool FPoseHistory::GetComponentSpaceTransformAtTime(float Time, FBoneIndexType BoneIndexType, const USkeleton* BoneIndexSkeleton, FTransform& OutBoneTransform, bool bExtrapolate) const
+FComponentSpaceTransformIndex FPoseHistory::GetRemappedComponentSpaceTransformIndex(const USkeleton* BoneIndexSkeleton, const USkeleton* LastUpdateSkeleton, const FBoneToTransformMap& BoneToTransformMap, FBoneIndexType BoneIndexType, bool& bSuccess)
 {
-	BoneIndexType = GetRemappedBoneIndexType(BoneIndexType, BoneIndexSkeleton);
-
-	FComponentSpaceTransformIndex TransformIndex = FComponentSpaceTransformIndex(BoneIndexType);
-	if (!BoneToTransformMap.IsEmpty())
+	FComponentSpaceTransformIndex BoneTransformIndex = FComponentSpaceTransformIndex(BoneIndexType);
+	if (BoneIndexType < WorldSpaceIndexType)
 	{
-		if (const FComponentSpaceTransformIndex* FoundTransformIndex = BoneToTransformMap.Find(BoneIndexType))
-		{
-			TransformIndex = *FoundTransformIndex;
-		}
-		else
-		{
-			GetRootTransformAtTime(Time, OutBoneTransform, bExtrapolate);
-			return false;
-		}
-	}
+		BoneIndexType = GetRemappedBoneIndexType(BoneIndexType, BoneIndexSkeleton, LastUpdateSkeleton);
 
-	const int32 Num = Entries.Num();
-	if (Num > 1)
-	{
-		const float SecondsAgo = -Time;
-		const int32 LowerBoundIdx = LowerBound(Entries.begin(), Entries.end(), SecondsAgo, [](const FPoseHistoryEntry& Entry, float Value) { return Value < Entry.Time; });
-		const int32 NextIdx = FMath::Clamp(LowerBoundIdx, 1, Num - 1);
-		const int32 PrevIdx = NextIdx - 1;
-
-		const FPoseHistoryEntry& PrevEntry = Entries[PrevIdx];
-		const FPoseHistoryEntry& NextEntry = Entries[NextIdx];
-
-		const float Denominator = NextEntry.Time - PrevEntry.Time;
-		if (!FMath::IsNearlyZero(Denominator))
+		if (!BoneToTransformMap.IsEmpty())
 		{
-			const float Numerator = SecondsAgo - PrevEntry.Time;
-			const float LerpValue = bExtrapolate ? Numerator / Denominator : FMath::Clamp(Numerator / Denominator, 0.f, 1.f);
-			OutBoneTransform.Blend(PrevEntry.ComponentSpaceTransforms[TransformIndex], NextEntry.ComponentSpaceTransforms[TransformIndex], LerpValue);
-		}
-		else
-		{
-			OutBoneTransform = PrevEntry.ComponentSpaceTransforms[TransformIndex];
+			if (const FComponentSpaceTransformIndex* FoundBoneTransformIndex = BoneToTransformMap.Find(BoneTransformIndex))
+			{
+				BoneTransformIndex = *FoundBoneTransformIndex;
+			}
+			else
+			{
+				BoneTransformIndex = RootBoneIndexType;
+				bSuccess = false;
+			}
 		}
 	}
-	else if (Num > 0)
-	{
-		OutBoneTransform = Entries[0].ComponentSpaceTransforms[TransformIndex];
-	}
-	else
-	{
-		GetRootTransformAtTime(Time, OutBoneTransform, bExtrapolate);
-		return false;
-	}
-
-	return true;
+	return BoneTransformIndex;
 }
 
-void FPoseHistory::GetRootTransformAtTime(float Time, FTransform& OutRootTransform, bool bExtrapolate) const
+bool FPoseHistory::LerpEntries(const FPoseHistoryEntry& PrevEntry, const FPoseHistoryEntry& NextEntry, float LerpValue, const USkeleton* BoneIndexSkeleton, const USkeleton* LastUpdateSkeleton, const FBoneToTransformMap& BoneToTransformMap, FBoneIndexType BoneIndexType, FBoneIndexType ReferenceBoneIndexType, FTransform& OutBoneTransform)
 {
+	bool bSuccess = true;
+
+	const FComponentSpaceTransformIndex BoneTransformIndex = GetRemappedComponentSpaceTransformIndex(BoneIndexSkeleton, LastUpdateSkeleton, BoneToTransformMap, BoneIndexType, bSuccess);
+	const FComponentSpaceTransformIndex ReferenceBoneTransformIndex = GetRemappedComponentSpaceTransformIndex(BoneIndexSkeleton, LastUpdateSkeleton, BoneToTransformMap, ReferenceBoneIndexType, bSuccess);
+
+	if (BoneTransformIndex < WorldSpaceIndexType)
+	{
+		switch (ReferenceBoneTransformIndex)
+		{
+		case ComponentSpaceIndexType:
+			OutBoneTransform.Blend(
+				PrevEntry.ComponentSpaceTransforms[BoneTransformIndex],
+				NextEntry.ComponentSpaceTransforms[BoneTransformIndex],
+				LerpValue);
+			break;
+		case WorldSpaceIndexType:
+			OutBoneTransform.Blend(
+				PrevEntry.ComponentSpaceTransforms[BoneTransformIndex] * PrevEntry.RootTransform,
+				NextEntry.ComponentSpaceTransforms[BoneTransformIndex] * NextEntry.RootTransform,
+				LerpValue);
+			break;
+		default:
+			OutBoneTransform.Blend(
+				PrevEntry.ComponentSpaceTransforms[BoneTransformIndex] * PrevEntry.ComponentSpaceTransforms[ReferenceBoneTransformIndex].Inverse(),
+				NextEntry.ComponentSpaceTransforms[BoneTransformIndex] * NextEntry.ComponentSpaceTransforms[ReferenceBoneTransformIndex].Inverse(),
+				LerpValue);
+			break;
+		}
+	}
+	else
+	{
+		// @todo: implement if required
+		OutBoneTransform = FTransform::Identity;
+		bSuccess = false;
+		unimplemented();
+	}
+
+	return bSuccess;
+}
+
+bool FPoseHistory::GetTransformAtTime(float Time, FTransform& OutBoneTransform, const USkeleton* BoneIndexSkeleton, FBoneIndexType BoneIndexType, FBoneIndexType ReferenceBoneIndexType, bool bExtrapolate) const
+{
+	static_assert(RootBoneIndexType == 0 && WorldSpaceIndexType < ComponentSpaceIndexType); // some assumptions
+	check(BoneIndexType < WorldSpaceIndexType);
+	
 	const int32 Num = Entries.Num();
-	if (Num > 1)
+	
+	if (Num > 0)
 	{
 		const float SecondsAgo = -Time;
-		const int32 LowerBoundIdx = LowerBound(Entries.begin(), Entries.end(), SecondsAgo, [](const FPoseHistoryEntry& Entry, float Value) { return Value < Entry.Time; });
-		const int32 NextIdx = FMath::Clamp(LowerBoundIdx, 1, Num - 1);
-		const int32 PrevIdx = NextIdx - 1;
 
+		int32 NextIdx = 0;
+		int32 PrevIdx = 0;
+
+		if (Num > 1)
+		{
+			const int32 LowerBoundIdx = LowerBound(Entries.begin(), Entries.end(), SecondsAgo, [](const FPoseHistoryEntry& Entry, float Value) { return Value < Entry.Time; });
+			NextIdx = FMath::Clamp(LowerBoundIdx, 1, Num - 1);
+			PrevIdx = NextIdx - 1;
+		}
+	
 		const FPoseHistoryEntry& PrevEntry = Entries[PrevIdx];
 		const FPoseHistoryEntry& NextEntry = Entries[NextIdx];
 
 		const float Denominator = NextEntry.Time - PrevEntry.Time;
+		float LerpValue = 0.f;
 		if (!FMath::IsNearlyZero(Denominator))
 		{
 			const float Numerator = SecondsAgo - PrevEntry.Time;
-			const float LerpValue = bExtrapolate ? Numerator / Denominator : FMath::Clamp(Numerator / Denominator, 0.f, 1.f);
-			OutRootTransform.Blend(PrevEntry.RootTransform, NextEntry.RootTransform, LerpValue);
+			LerpValue = bExtrapolate ? Numerator / Denominator : FMath::Clamp(Numerator / Denominator, 0.f, 1.f);
 		}
-		else
-		{
-			OutRootTransform = PrevEntry.RootTransform;
-		}
+
+		return LerpEntries(PrevEntry, NextEntry, LerpValue, BoneIndexSkeleton, GetLastUpdateSkeleton(), BoneToTransformMap, BoneIndexType, ReferenceBoneIndexType, OutBoneTransform);
 	}
-	else if (Num > 0)
-	{
-		OutRootTransform = Entries[0].RootTransform;
-	}
-	else
-	{
-		OutRootTransform = FTransform::Identity;
-	}
+	
+	OutBoneTransform = FTransform::Identity;
+	return false;
 }
 
 bool FPoseHistory::IsEmpty() const
@@ -351,66 +370,9 @@ float FExtendedPoseHistory::GetSampleTimeInterval() const
 	return PoseHistory->GetSampleTimeInterval();
 }
 
-bool FExtendedPoseHistory::GetComponentSpaceTransformAtTime(float Time, FBoneIndexType BoneIndexType, const USkeleton* BoneIndexSkeleton, FTransform& OutBoneTransform, bool bExtrapolate) const
+bool FExtendedPoseHistory::GetTransformAtTime(float Time, FTransform& OutBoneTransform, const USkeleton* BoneIndexSkeleton, FBoneIndexType BoneIndexType, FBoneIndexType ReferenceBoneIndexType, bool bExtrapolate) const
 {
 	check(PoseHistory);
-
-	const FBoneIndexType OriginalBoneIndex = BoneIndexType;
-
-	BoneIndexType = PoseHistory->GetRemappedBoneIndexType(BoneIndexType, BoneIndexSkeleton);
-
-	if (Time > 0.f)
-	{
- 		FComponentSpaceTransformIndex TransformIndex = FComponentSpaceTransformIndex(BoneIndexType);
-		const FBoneToTransformMap& BoneToTransformMap = PoseHistory->GetBoneToTransformMap();
-		if (!BoneToTransformMap.IsEmpty())
-		{
-			if (const FComponentSpaceTransformIndex* FoundTransformIndex = BoneToTransformMap.Find(BoneIndexType))
-			{
-				TransformIndex = *FoundTransformIndex;
-			}
-			else
-			{
-				GetRootTransformAtTime(Time, OutBoneTransform, bExtrapolate);
-				return false;
-			}
-		}
-
-		const int32 Num = FutureEntries.Num();
-		if (Num > 0)
-		{
-			const float SecondsAgo = -Time;
-			const int32 LowerBoundIdx = Algo::LowerBound(FutureEntries, SecondsAgo, [](const FPoseHistoryEntry& Entry, float Value) { return Value < Entry.Time; });
-			const int32 NextIdx = FMath::Min(LowerBoundIdx, Num - 1);
-			const FPoseHistoryEntries& PastEntries = PoseHistory->GetEntries();
-			const FPoseHistoryEntry& NextEntry = FutureEntries[NextIdx];
-			const FPoseHistoryEntry& PrevEntry = NextIdx > 0 ? FutureEntries[NextIdx - 1] : !PastEntries.IsEmpty() ? PastEntries.First() : NextEntry;
-
-			const float Denominator = NextEntry.Time - PrevEntry.Time;
-			if (!FMath::IsNearlyZero(Denominator))
-			{
-				const float Numerator = SecondsAgo - PrevEntry.Time;
-				const float LerpValue = bExtrapolate ? Numerator / Denominator : FMath::Clamp(Numerator / Denominator, 0.f, 1.f);
-				OutBoneTransform.Blend(PrevEntry.ComponentSpaceTransforms[TransformIndex], NextEntry.ComponentSpaceTransforms[TransformIndex], LerpValue);
-			}
-			else
-			{
-				OutBoneTransform = NextEntry.ComponentSpaceTransforms[TransformIndex];
-			}
-			return true;
-		}
-
-		// we've no FutureEntries, so let's clamp the time to zero and query PoseHistory
-		Time = 0.f;
-	}
-
-	return PoseHistory->GetComponentSpaceTransformAtTime(Time, OriginalBoneIndex, BoneIndexSkeleton, OutBoneTransform, bExtrapolate);
-}
-
-void FExtendedPoseHistory::GetRootTransformAtTime(float Time, FTransform& OutRootTransform, bool bExtrapolate) const
-{
-	check(PoseHistory);
-
 	if (Time > 0.f)
 	{
 		const int32 Num = FutureEntries.Num();
@@ -424,25 +386,17 @@ void FExtendedPoseHistory::GetRootTransformAtTime(float Time, FTransform& OutRoo
 			const FPoseHistoryEntry& PrevEntry = NextIdx > 0 ? FutureEntries[NextIdx - 1] : !PastEntries.IsEmpty() ? PastEntries.First() : NextEntry;
 
 			const float Denominator = NextEntry.Time - PrevEntry.Time;
+			float LerpValue = 0.f;
 			if (!FMath::IsNearlyZero(Denominator))
 			{
 				const float Numerator = SecondsAgo - PrevEntry.Time;
-				const float LerpValue = bExtrapolate ? Numerator / Denominator : FMath::Clamp(Numerator / Denominator, 0.f, 1.f);
-				OutRootTransform.Blend(PrevEntry.RootTransform, NextEntry.RootTransform, LerpValue);
+				LerpValue = bExtrapolate ? Numerator / Denominator : FMath::Clamp(Numerator / Denominator, 0.f, 1.f);
 			}
-			else
-			{
-				OutRootTransform = NextEntry.RootTransform;
-			}
-
-			return;
+			return FPoseHistory::LerpEntries(PrevEntry, NextEntry, LerpValue, BoneIndexSkeleton, PoseHistory->GetLastUpdateSkeleton(), PoseHistory->GetBoneToTransformMap(), BoneIndexType, ReferenceBoneIndexType, OutBoneTransform);
 		}
-
-		// we've no FutureEntries, so let's clamp the time to zero and query PoseHistory
-		Time = 0.f;
 	}
-
-	PoseHistory->GetRootTransformAtTime(Time, OutRootTransform, bExtrapolate);
+	
+	return PoseHistory->GetTransformAtTime(Time, OutBoneTransform, BoneIndexSkeleton, BoneIndexType, ReferenceBoneIndexType, bExtrapolate);
 }
 
 bool FExtendedPoseHistory::IsEmpty() const

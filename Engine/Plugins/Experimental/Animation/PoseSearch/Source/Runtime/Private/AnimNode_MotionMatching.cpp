@@ -64,9 +64,14 @@ void FAnimNode_MotionMatching::Evaluate_AnyThread(FPoseContext& Output)
 	{
 		const FQuat RootBoneDelta(FRotator(0.f, MotionMatchingState.ComponentDeltaYaw, 0.f));
 		FCompactPoseBoneIndex RootBoneIndex(RootBoneIndexType);
-		Output.Pose[RootBoneIndex].SetRotation(Output.Pose[RootBoneIndex].GetRotation() * RootBoneDelta);
-		Output.Pose[RootBoneIndex].NormalizeRotation();
 
+		// @todo: this code assumes the root bone from animation is always identity. Implement if not the case as
+		//		Output.Pose[RootBoneIndex].SetRotation(Output.Pose[RootBoneIndex].GetRotation() * RootBoneDelta);
+		//		Output.Pose[RootBoneIndex].NormalizeRotation();
+		// 		etc etc
+		check(Output.Pose[RootBoneIndex].GetRotation().IsIdentity());
+
+		Output.Pose[RootBoneIndex].SetRotation(RootBoneDelta);
 		RootMotionTransformDelta.SetTranslation(RootBoneDelta.RotateVector(RootMotionTransformDelta.GetTranslation()));
 
 		if (RootMotionProvider)

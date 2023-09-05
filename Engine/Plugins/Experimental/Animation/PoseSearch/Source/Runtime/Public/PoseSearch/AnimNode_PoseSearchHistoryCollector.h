@@ -24,6 +24,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = Settings)
 	TArray<FBoneReference> CollectedBones;
 
+	// if true, the pose history will be initialized with a ref pose at the location and orientation of the AnimInstance.
+	UPROPERTY(EditAnywhere, Category = Settings)
+	bool bInitializeWithRefPose = false;
+
 	// FAnimNode_Base interface
 	virtual void CacheBones_AnyThread(const FAnimationCacheBonesContext& Context) override;
 	// End of FAnimNode_Base interface

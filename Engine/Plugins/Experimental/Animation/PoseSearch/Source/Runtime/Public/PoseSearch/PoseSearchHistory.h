@@ -6,6 +6,7 @@
 #include "BonePose.h"
 #include "Containers/RingBuffer.h"
 #include "DrawDebugHelpers.h"
+#include "PoseSearch/PoseSearchDefines.h"
 #include "UObject/ObjectKey.h"
 
 struct FAnimInstanceProxy;
@@ -24,14 +25,22 @@ struct POSESEARCH_API IPoseHistory
 {
 	virtual ~IPoseHistory() {}
 	virtual float GetSampleTimeInterval() const = 0;
-	virtual bool GetComponentSpaceTransformAtTime(float Time, FBoneIndexType BoneIndexType, const USkeleton* BoneIndexSkeleton, FTransform& OutBoneTransform, bool bExtrapolate = true) const = 0;
-	virtual void GetRootTransformAtTime(float Time, FTransform& OutRootTransform, bool bExtrapolate = true) const = 0;
+	
+	// returns the BoneIndexType transform relative to ReferenceBoneIndexType: 
+	// if ReferenceBoneIndexType is 0 (RootBoneIndexType), OutBoneTransform is in root bone space
+	// if ReferenceBoneIndexType is FBoneIndexType(-1) (ComponentSpaceIndexType), OutBoneTransform is in component space
+	// if ReferenceBoneIndexType is FBoneIndexType(-2) (WorldSpaceIndexType), OutBoneTransform is in world space
+	virtual bool GetTransformAtTime(float Time, FTransform& OutBoneTransform, const USkeleton* BoneIndexSkeleton = nullptr, FBoneIndexType BoneIndexType = RootBoneIndexType, FBoneIndexType ReferenceBoneIndexType = ComponentSpaceIndexType, bool bExtrapolate = true) const = 0;
+
 	virtual bool IsEmpty() const = 0;
 };
 
 struct FPoseHistoryEntry
 {
+	// collected root component transform in world space (not the root bone transform)
 	FTransform RootTransform;
+
+	// collected bones transforms in component space
 	TArray<FTransform> ComponentSpaceTransforms;
 	float Time = 0.f;
 
@@ -49,23 +58,30 @@ struct FPoseHistory : public IPoseHistory
 
 	const FBoneToTransformMap& GetBoneToTransformMap() const { return BoneToTransformMap; }
 	const FPoseHistoryEntries& GetEntries() const { return Entries; }
+	const USkeleton* GetLastUpdateSkeleton() const { return LastUpdateSkeleton.Get(); }
 
 	// IPoseHistory interface
 	virtual float GetSampleTimeInterval() const override;
-	virtual bool GetComponentSpaceTransformAtTime(float Time, FBoneIndexType BoneIndexType, const USkeleton* BoneIndexSkeleton, FTransform& OutBoneTransform, bool bExtrapolate = true) const override;
-	virtual void GetRootTransformAtTime(float Time, FTransform& OutRootTransform, bool bExtrapolate = true) const override;
+	virtual bool GetTransformAtTime(float Time, FTransform& OutBoneTransform, const USkeleton* BoneIndexSkeleton = nullptr, FBoneIndexType BoneIndexType = RootBoneIndexType, FBoneIndexType ReferenceBoneIndexType = ComponentSpaceIndexType, bool bExtrapolate = true) const;
 	virtual bool IsEmpty() const override;
 	// End of IPoseHistory interface
 
-	FBoneIndexType GetRemappedBoneIndexType(FBoneIndexType BoneIndexType, const USkeleton* BoneIndexSkeleton) const;
+	static FBoneIndexType GetRemappedBoneIndexType(FBoneIndexType BoneIndexType, const USkeleton* BoneIndexSkeleton, const USkeleton* LastUpdateSkeleton);
+	static FComponentSpaceTransformIndex GetRemappedComponentSpaceTransformIndex(const USkeleton* BoneIndexSkeleton, const USkeleton* LastUpdateSkeleton, const FBoneToTransformMap& BoneToTransformMap, FBoneIndexType BoneIndexType, bool& bSuccess);
+	static bool LerpEntries(const FPoseHistoryEntry& PrevEntry, const FPoseHistoryEntry& NextEntry, float LerpValue, const USkeleton* BoneIndexSkeleton, const USkeleton* LastUpdateSkeleton, const FBoneToTransformMap& BoneToTransformMap, FBoneIndexType BoneIndexType, FBoneIndexType ReferenceBoneIndexType, FTransform& OutBoneTransform);
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 	void DebugDraw(FAnimInstanceProxy& AnimInstanceProxy) const;
 #endif
 
 private:
+	// skeleton from the last Update, to keep tracking skeleton changes, and support compatible skeletons
 	TWeakObjectPtr<const USkeleton> LastUpdateSkeleton;
+
+	// map of FBoneIndexType(s) to collect. If Empty all the bones get collected
 	FBoneToTransformMap BoneToTransformMap;
+
+	// ring buffer of collected bones
 	FPoseHistoryEntries Entries;
 	float TimeHorizon = 0.f;
 };
@@ -78,8 +94,7 @@ struct FExtendedPoseHistory : public IPoseHistory
 
 	// IPoseHistory interface
 	virtual float GetSampleTimeInterval() const override;
-	virtual bool GetComponentSpaceTransformAtTime(float Time, FBoneIndexType BoneIndexType, const USkeleton* BoneIndexSkeleton, FTransform& OutBoneTransform, bool bExtrapolate = true) const override;
-	virtual void GetRootTransformAtTime(float Time, FTransform& OutRootTransform, bool bExtrapolate = true) const override;
+	virtual bool GetTransformAtTime(float Time, FTransform& OutBoneTransform, const USkeleton* BoneIndexSkeleton = nullptr, FBoneIndexType BoneIndexType = RootBoneIndexType, FBoneIndexType ReferenceBoneIndexType = ComponentSpaceIndexType, bool bExtrapolate = true) const;
 	virtual bool IsEmpty() const override;
 	// End of IPoseHistory interface
 

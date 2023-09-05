@@ -48,7 +48,7 @@ private:
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinShownByDefault))
 	TObjectPtr<const UPoseSearchDatabase> Database = nullptr;
 
-	// Motion Trajectory samples for pose search queries in Motion Matching.These are expected to be in the space of the SkeletalMeshComponent.This is provided with the CharacterMovementTrajectory Component output.
+	// Motion Trajectory samples for pose search queries in Motion Matching. These are expected to be in the world space of the SkeletalMeshComponent. This is provided with the CharacterMovementTrajectory Component output.
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinShownByDefault))
 	FPoseSearchQueryTrajectory Trajectory;
 

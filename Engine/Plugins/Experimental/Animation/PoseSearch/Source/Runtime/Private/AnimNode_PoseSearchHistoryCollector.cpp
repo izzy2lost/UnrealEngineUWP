@@ -71,6 +71,17 @@ void FAnimNode_PoseSearchHistoryCollector_Base::CacheBones_AnyThread(const FAnim
 	}
 
 	PoseHistory.Init(PoseCount, PoseDuration, RequiredBones);
+
+	if (bInitializeWithRefPose)
+	{
+		// initializing PoseHistory with a ref pose at FAnimInstanceProxy location/facing
+		FMemMark Mark(FMemStack::Get());
+		FCompactPose Pose;
+		Pose.SetBoneContainer(&Context.AnimInstanceProxy->GetRequiredBones());
+		FCSPose<FCompactPose> ComponentSpacePose;
+		ComponentSpacePose.InitPose(Pose);
+		PoseHistory.Update(0.f, ComponentSpacePose, Context.AnimInstanceProxy->GetComponentTransform());
+	}
 }
 
 /////////////////////////////////////////////////////

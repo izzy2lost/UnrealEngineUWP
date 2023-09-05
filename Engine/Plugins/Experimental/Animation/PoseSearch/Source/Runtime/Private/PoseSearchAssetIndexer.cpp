@@ -397,6 +397,8 @@ FTransform FAssetIndexer::GetComponentSpaceTransform(float SampleTime, bool& bCl
 		return CalculateComponentSpaceTransform(Entry, SchemaBoneIdx);
 	}
 
+	// making sure the root bone transform is identity
+	check(CalculateComponentSpaceTransform(Entry, SchemaBoneIdx).Equals(FTransform::Identity));
 	return FTransform::Identity;
 }
 

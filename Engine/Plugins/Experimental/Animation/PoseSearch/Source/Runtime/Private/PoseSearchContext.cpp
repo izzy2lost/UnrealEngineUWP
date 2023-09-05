@@ -415,11 +415,11 @@ FVector FSearchContext::GetSampleVelocity(float SampleTimeOffset, float OriginTi
 
 	if (SampleBoneVelocityWorldOverride)
 	{
-		const FTransform RootBoneTransform = GetTransform(OriginTime, Schema, RootSchemaBoneIdx, bUseHistoryRoot);
+		const FTransform RootBoneTransform = GetWorldBoneTransformAtTime(OriginTime, Schema, RootSchemaBoneIdx, bUseHistoryRoot);
 		return RootBoneTransform.InverseTransformVector(*SampleBoneVelocityWorldOverride);
 	}
 
-	// calculating the Position in component space for the bone indexed by SchemaSampleBoneIdx
+	// calculating the local Position for the bone indexed by SchemaSampleBoneIdx
 	const FVector PreviousTranslation = GetSamplePositionInternal(SampleTime - FiniteDelta, bUseCharacterSpaceVelocities ? OriginTime - FiniteDelta : OriginTime, Schema, SchemaSampleBoneIdx, SchemaOriginBoneIdx, bUseHistoryRoot);
 	const FVector CurrentTranslation = GetSamplePositionInternal(SampleTime, OriginTime, Schema, SchemaSampleBoneIdx, SchemaOriginBoneIdx, bUseHistoryRoot);
 
@@ -427,39 +427,40 @@ FVector FSearchContext::GetSampleVelocity(float SampleTimeOffset, float OriginTi
 	return LinearVelocity;
 }
 
-FTransform FSearchContext::GetRootAtTime(float Time, bool bUseHistoryRoot, bool bExtrapolate) const
+FTransform FSearchContext::GetWorldRootBoneTransformAtTime(float SampleTime, bool bUseHistoryRoot, bool bExtrapolate) const
 {
-	FTransform RootTransform = FTransform::Identity;
+	FTransform WorldRootBoneTransform = FTransform::Identity;
 	if (bUseHistoryRoot)
 	{
 		check(History);
-		History->GetRootTransformAtTime(Time, RootTransform, bExtrapolate);
+		// asking for root bone (RootBoneIndexType) in world space (WorldSpaceIndexType)
+		History->GetTransformAtTime(SampleTime, WorldRootBoneTransform, AnimInstance->CurrentSkeleton, RootBoneIndexType, WorldSpaceIndexType, bExtrapolate);
 	}
 	else
 	{
 		check(Trajectory);
-		RootTransform = Trajectory->GetSampleAtTime(Time, bExtrapolate).GetTransform();
+		// Trajectory is already in root bone world space (transformed in UPoseSearchLibrary::ProcessTrajectory), so we just ask for a sample at the proper SampleTime 
+		WorldRootBoneTransform = Trajectory->GetSampleAtTime(SampleTime, bExtrapolate).GetTransform();
 	}
 
-	return RootTransform;
+	return WorldRootBoneTransform;
 }
 
-FTransform FSearchContext::GetTransform(float SampleTime, const UPoseSearchSchema* Schema, int8 SchemaBoneIdx, bool bUseHistoryRoot)
+FTransform FSearchContext::GetWorldBoneTransformAtTime(float SampleTime, const UPoseSearchSchema* Schema, int8 SchemaBoneIdx, bool bUseHistoryRoot)
 {
-	const FTransform RootTransform = GetRootAtTime(SampleTime, bUseHistoryRoot);
+	const FTransform WorldRootBoneTransform = GetWorldRootBoneTransformAtTime(SampleTime, bUseHistoryRoot);
 
 	const FBoneIndexType BoneIndexType = Schema->GetBoneIndexType(SchemaBoneIdx);
 	if (BoneIndexType != RootBoneIndexType)
 	{
-		const FTransform BoneTransform = GetComponentSpaceTransform(SampleTime, Schema, SchemaBoneIdx);
-		return BoneTransform * RootTransform;
+		const FTransform BoneTransform = GetLocalBoneTransformAtTime(SampleTime, Schema, SchemaBoneIdx);
+		return BoneTransform * WorldRootBoneTransform;
 	}
 
-	return RootTransform;
+	return WorldRootBoneTransform;
 }
 
-// returns the component space transform of the bone SchemaBoneIdx at time SampleTime
-FTransform FSearchContext::GetComponentSpaceTransform(float SampleTime, const UPoseSearchSchema* Schema, int8 SchemaBoneIdx)
+FTransform FSearchContext::GetLocalBoneTransformAtTime(float SampleTime, const UPoseSearchSchema* Schema, int8 SchemaBoneIdx)
 {
 	check(Schema);
 
@@ -473,24 +474,24 @@ FTransform FSearchContext::GetComponentSpaceTransform(float SampleTime, const UP
 	
 		// collecting the local bone transforms from the IPoseHistory
 		check(History);
-		FTransform BoneComponentSpaceTransform;
-		if (!History->GetComponentSpaceTransformAtTime(SampleTime, BoneIndexType, Schema->Skeleton, BoneComponentSpaceTransform))
+		FTransform LocalBoneTransform;
+		if (!History->GetTransformAtTime(SampleTime, LocalBoneTransform, Schema->Skeleton, BoneIndexType, RootBoneIndexType))
 		{
 			if (const USkeleton* Skeleton = Schema->Skeleton)
 			{
 				if (!History->IsEmpty())
 				{
-					UE_LOG(LogPoseSearch, Warning, TEXT("FSearchContext::GetComponentSpaceTransform - Couldn't find BoneIndexType %d (%s) requested by %s"), BoneIndexType, *Skeleton->GetReferenceSkeleton().GetBoneName(BoneIndexType).ToString(), *Schema->GetName());
+					UE_LOG(LogPoseSearch, Warning, TEXT("FSearchContext::GetLocalBoneTransformAtTime - Couldn't find BoneIndexType %d (%s) requested by %s"), BoneIndexType, *Skeleton->GetReferenceSkeleton().GetBoneName(BoneIndexType).ToString(), *Schema->GetName());
 				}
 			}
 			else
 			{
-				UE_LOG(LogPoseSearch, Warning, TEXT("FSearchContext::GetComponentSpaceTransform - Schema '%s' Skeleton is not properly set"), *Schema->GetName());
+				UE_LOG(LogPoseSearch, Warning, TEXT("FSearchContext::GetLocalBoneTransformAtTime - Schema '%s' Skeleton is not properly set"), *Schema->GetName());
 			}
 		}
 
-		CachedTransforms.Add(SampleTime, BoneIndexType, BoneComponentSpaceTransform);
-		return BoneComponentSpaceTransform;
+		CachedTransforms.Add(SampleTime, BoneIndexType, LocalBoneTransform);
+		return LocalBoneTransform;
 	}
 
 	return FTransform::Identity;
@@ -500,13 +501,13 @@ FVector FSearchContext::GetSamplePositionInternal(float SampleTime, float Origin
 {
 	if (SampleBonePositionWorldOverride)
 	{
-		const FTransform RootBoneTransform = GetTransform(OriginTime, Schema, RootSchemaBoneIdx, bUseHistoryRoot);
+		const FTransform RootBoneTransform = GetWorldBoneTransformAtTime(OriginTime, Schema, RootSchemaBoneIdx, bUseHistoryRoot);
 		if (SchemaOriginBoneIdx == RootSchemaBoneIdx)
 		{
 			return RootBoneTransform.InverseTransformPosition(*SampleBonePositionWorldOverride);
 		}
 
-		const FTransform OriginBoneTransform = GetTransform(OriginTime, Schema, SchemaOriginBoneIdx, bUseHistoryRoot);
+		const FTransform OriginBoneTransform = GetWorldBoneTransformAtTime(OriginTime, Schema, SchemaOriginBoneIdx, bUseHistoryRoot);
 		const FVector DeltaBoneTranslation = *SampleBonePositionWorldOverride - OriginBoneTransform.GetTranslation();
 		return RootBoneTransform.InverseTransformVector(DeltaBoneTranslation);
 	}
@@ -515,22 +516,22 @@ FVector FSearchContext::GetSamplePositionInternal(float SampleTime, float Origin
 	{
 		if (SchemaOriginBoneIdx == RootSchemaBoneIdx)
 		{
-			return GetComponentSpaceTransform(SampleTime, Schema, SchemaSampleBoneIdx).GetTranslation();
+			return GetLocalBoneTransformAtTime(SampleTime, Schema, SchemaSampleBoneIdx).GetTranslation();
 		}
 
-		const FVector SampleBonePosition = GetComponentSpaceTransform(SampleTime, Schema, SchemaSampleBoneIdx).GetTranslation();
-		const FVector OriginBonePosition = GetComponentSpaceTransform(OriginTime, Schema, SchemaOriginBoneIdx).GetTranslation();
+		const FVector SampleBonePosition = GetLocalBoneTransformAtTime(SampleTime, Schema, SchemaSampleBoneIdx).GetTranslation();
+		const FVector OriginBonePosition = GetLocalBoneTransformAtTime(OriginTime, Schema, SchemaOriginBoneIdx).GetTranslation();
 		return SampleBonePosition - OriginBonePosition;
 	}
 
-	const FTransform RootBoneTransform = GetTransform(OriginTime, Schema, RootSchemaBoneIdx, bUseHistoryRoot);
-	const FTransform SampleBoneTransform = GetTransform(SampleTime, Schema, SchemaSampleBoneIdx, bUseHistoryRoot);
+	const FTransform RootBoneTransform = GetWorldBoneTransformAtTime(OriginTime, Schema, RootSchemaBoneIdx, bUseHistoryRoot);
+	const FTransform SampleBoneTransform = GetWorldBoneTransformAtTime(SampleTime, Schema, SchemaSampleBoneIdx, bUseHistoryRoot);
 	if (SchemaOriginBoneIdx == RootSchemaBoneIdx)
 	{
 		return RootBoneTransform.InverseTransformPosition(SampleBoneTransform.GetTranslation());
 	}
 
-	const FTransform OriginBoneTransform = GetTransform(OriginTime, Schema, SchemaOriginBoneIdx, bUseHistoryRoot);
+	const FTransform OriginBoneTransform = GetWorldBoneTransformAtTime(OriginTime, Schema, SchemaOriginBoneIdx, bUseHistoryRoot);
 	const FVector DeltaBoneTranslation = SampleBoneTransform.GetTranslation() - OriginBoneTransform.GetTranslation();
 	return RootBoneTransform.InverseTransformVector(DeltaBoneTranslation);
 }
@@ -539,13 +540,13 @@ FQuat FSearchContext::GetSampleRotationInternal(float SampleTime, float OriginTi
 {
 	if (SampleBoneRotationWorldOverride)
 	{
-		const FTransform RootBoneTransform = GetTransform(OriginTime, Schema, RootSchemaBoneIdx, bUseHistoryRoot);
+		const FTransform RootBoneTransform = GetWorldBoneTransformAtTime(OriginTime, Schema, RootSchemaBoneIdx, bUseHistoryRoot);
 		if (SchemaOriginBoneIdx == RootSchemaBoneIdx)
 		{
 			return RootBoneTransform.InverseTransformRotation(*SampleBoneRotationWorldOverride);
 		}
 
-		const FTransform OriginBoneTransform = GetTransform(OriginTime, Schema, SchemaOriginBoneIdx, bUseHistoryRoot);
+		const FTransform OriginBoneTransform = GetWorldBoneTransformAtTime(OriginTime, Schema, SchemaOriginBoneIdx, bUseHistoryRoot);
 		const FQuat DeltaBoneRotation = OriginBoneTransform.InverseTransformRotation(*SampleBoneRotationWorldOverride);
 		return RootBoneTransform.InverseTransformRotation(DeltaBoneRotation);
 	}
@@ -554,22 +555,22 @@ FQuat FSearchContext::GetSampleRotationInternal(float SampleTime, float OriginTi
 	{
 		if (SchemaOriginBoneIdx == RootSchemaBoneIdx)
 		{
-			return GetComponentSpaceTransform(SampleTime, Schema, SchemaSampleBoneIdx).GetRotation();
+			return GetLocalBoneTransformAtTime(SampleTime, Schema, SchemaSampleBoneIdx).GetRotation();
 		}
 
-		const FTransform SampleBoneTransform = GetComponentSpaceTransform(SampleTime, Schema, SchemaSampleBoneIdx);
-		const FTransform OriginBoneTransform = GetComponentSpaceTransform(OriginTime, Schema, SchemaOriginBoneIdx);
+		const FTransform SampleBoneTransform = GetLocalBoneTransformAtTime(SampleTime, Schema, SchemaSampleBoneIdx);
+		const FTransform OriginBoneTransform = GetLocalBoneTransformAtTime(OriginTime, Schema, SchemaOriginBoneIdx);
 		return OriginBoneTransform.InverseTransformRotation(SampleBoneTransform.GetRotation());
 	}
 
-	const FTransform RootBoneTransform = GetTransform(OriginTime, Schema, RootSchemaBoneIdx, bUseHistoryRoot);
-	const FTransform SampleBoneTransform = GetTransform(SampleTime, Schema, SchemaSampleBoneIdx, bUseHistoryRoot);
+	const FTransform RootBoneTransform = GetWorldBoneTransformAtTime(OriginTime, Schema, RootSchemaBoneIdx, bUseHistoryRoot);
+	const FTransform SampleBoneTransform = GetWorldBoneTransformAtTime(SampleTime, Schema, SchemaSampleBoneIdx, bUseHistoryRoot);
 	if (SchemaOriginBoneIdx == RootSchemaBoneIdx)
 	{
 		return RootBoneTransform.InverseTransformRotation(SampleBoneTransform.GetRotation());
 	}
 
-	const FTransform OriginBoneTransform = GetTransform(OriginTime, Schema, SchemaOriginBoneIdx, bUseHistoryRoot);
+	const FTransform OriginBoneTransform = GetWorldBoneTransformAtTime(OriginTime, Schema, SchemaOriginBoneIdx, bUseHistoryRoot);
 	const FQuat DeltaBoneRotation = OriginBoneTransform.InverseTransformRotation(SampleBoneTransform.GetRotation());
 	return RootBoneTransform.InverseTransformRotation(DeltaBoneRotation);
 }

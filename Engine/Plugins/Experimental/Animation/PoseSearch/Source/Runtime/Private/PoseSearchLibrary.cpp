@@ -207,11 +207,11 @@ void UPoseSearchLibrary::TraceMotionMatchingState(
 		}
 	}
 
-	if (DeltaTime > SMALL_NUMBER && SearchContext.IsTrajectoryValid())
+	if (DeltaTime > SMALL_NUMBER)
 	{
 		// simulation
-		const FTransform PrevRoot = SearchContext.GetRootAtTime(-DeltaTime);
-		const FTransform CurrRoot = SearchContext.GetRootAtTime(0.f);
+		const FTransform PrevRoot = SearchContext.GetWorldRootBoneTransformAtTime(-DeltaTime);
+		const FTransform CurrRoot = SearchContext.GetWorldRootBoneTransformAtTime(0.f);
 		const FTransform SimDelta = CurrRoot.GetRelativeTransform(PrevRoot);
 
 		TraceState.SimLinearVelocity = SimDelta.GetTranslation().Size() / DeltaTime;
@@ -280,8 +280,8 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 		History = &PoseHistoryProvider->GetPoseHistory();
 	}
 	
-	const FPoseSearchQueryTrajectory TrajectoryRootSpace = ProcessTrajectory(Trajectory, Context.AnimInstanceProxy->GetComponentTransform(), InOutMotionMatchingState.ComponentDeltaYaw, YawFromAnimationTrajectoryBlendTime, TrajectorySpeedMultiplier);
-	
+	const FPoseSearchQueryTrajectory TrajectoryRootSpace = ProcessTrajectory(Trajectory, InOutMotionMatchingState.ComponentDeltaYaw, YawFromAnimationTrajectoryBlendTime, TrajectorySpeedMultiplier);
+
 	FMemMark Mark(FMemStack::Get());
 	const UAnimInstance* AnimInstance = Cast<const UAnimInstance>(Context.AnimInstanceProxy->GetAnimInstanceObject());
 	check(AnimInstance);
@@ -393,25 +393,24 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 #endif
 }
 
-// transforms Trajectory from world space to root bone space, and scale it by TrajectorySpeedMultiplier
-FPoseSearchQueryTrajectory UPoseSearchLibrary::ProcessTrajectory(const FPoseSearchQueryTrajectory& Trajectory, const FTransform& ComponentWorldTransform, float RootBoneDeltaYaw, float YawFromAnimationTrajectoryBlendTime, float TrajectorySpeedMultiplier)
+// transforms Trajectory from SkeletalMeshComponent world space to root bone world space, and scale it by TrajectorySpeedMultiplier
+FPoseSearchQueryTrajectory UPoseSearchLibrary::ProcessTrajectory(const FPoseSearchQueryTrajectory& Trajectory, float RootBoneDeltaYaw, float YawFromAnimationTrajectoryBlendTime, float TrajectorySpeedMultiplier)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_PoseSearch_ProcessTrajectory);
 
 	const float TrajectorySpeedMultiplierInv = FMath::IsNearlyZero(TrajectorySpeedMultiplier) ? 1.f : 1.f / TrajectorySpeedMultiplier;
 
 	FPoseSearchQueryTrajectory TrajectoryRootSpace = Trajectory;
-	const FTransform ToRootSpace = ComponentWorldTransform.Inverse();
 	for (FPoseSearchQueryTrajectorySample& Sample : TrajectoryRootSpace.Samples)
 	{
 		Sample.AccumulatedSeconds *= TrajectorySpeedMultiplierInv;
 
-		Sample.Position = ToRootSpace.TransformPosition(Sample.Position);
-
-		const float BlendParam = YawFromAnimationTrajectoryBlendTime < UE_KINDA_SMALL_NUMBER ? 1 : FMath::Clamp(1.f - (Sample.AccumulatedSeconds - YawFromAnimationTrajectoryBlendTime) / YawFromAnimationTrajectoryBlendTime, 0.f, 1.f);
-		const FQuat RootBoneDelta(FRotator(0.f, RootBoneDeltaYaw * BlendParam, 0.f));
-		const FQuat ToRootSpaceRotation = ToRootSpace.GetRotation() * RootBoneDelta;
-		Sample.Facing = ToRootSpaceRotation * Sample.Facing;
+		if (!FMath::IsNearlyZero(RootBoneDeltaYaw))
+		{
+			const float BlendParam = YawFromAnimationTrajectoryBlendTime < UE_KINDA_SMALL_NUMBER ? 1 : FMath::Clamp(1.f - (Sample.AccumulatedSeconds - YawFromAnimationTrajectoryBlendTime) / YawFromAnimationTrajectoryBlendTime, 0.f, 1.f);
+			const FQuat RootBoneDelta(FRotator(0.f, RootBoneDeltaYaw * BlendParam, 0.f));
+			Sample.Facing = RootBoneDelta * Sample.Facing;
+		}
 	}
 
 	return TrajectoryRootSpace;
@@ -460,7 +459,7 @@ void UPoseSearchLibrary::MotionMatch(
 	FMemMark Mark(FMemStack::Get());
 	if (Database && AnimInstance)
 	{
-		const FPoseSearchQueryTrajectory TrajectoryRootSpace = ProcessTrajectory(Trajectory, AnimInstance->GetOwningComponent()->GetComponentTransform(), 0.f, 0.f, TrajectorySpeedMultiplier);
+		const FPoseSearchQueryTrajectory TrajectoryRootSpace = ProcessTrajectory(Trajectory, 0.f, 0.f, TrajectorySpeedMultiplier);
 
 		// ExtendedPoseHistory will hold future poses to match AssetSamplerBase (at FutureAnimationStartTime) TimeToFutureAnimationStart seconds in the future
 		FExtendedPoseHistory ExtendedPoseHistory;
