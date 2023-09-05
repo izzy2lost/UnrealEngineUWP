@@ -1645,24 +1645,14 @@ void FControlRigParameterTrackEditor::BuildObjectBindingTrackMenu(FMenuBuilder& 
 
 		if (Skeleton)
 		{
-			//if there are any other absolute control rigs we don't allow it for now..
+			//if there are any other control rigs we don't allow it for now..
 			//mz todo will allow later
 			UMovieScene* MovieScene = GetSequencer()->GetFocusedMovieSceneSequence()->GetMovieScene();
-			TArray<UMovieSceneTrack*> ExistingTracks = MovieScene->FindTracks(UMovieSceneControlRigParameterTrack::StaticClass(), ObjectBindings[0], NAME_None);
-			ExistingTracks = ExistingTracks.FilterByPredicate([](UMovieSceneTrack* Track)
-			{
-				if (UMovieSceneControlRigParameterTrack* CRTrack = Cast<UMovieSceneControlRigParameterTrack>(Track))
-				{
-					if (UControlRig* ControlRig = CRTrack->GetControlRig())
-					{
-						return !ControlRig->IsAdditive();
-					}
-				}
-				return false;
-			});
-			if (ExistingTracks.IsEmpty())
+			UMovieSceneControlRigParameterTrack* ExistingTrack = Cast<UMovieSceneControlRigParameterTrack>(MovieScene->FindTrack(UMovieSceneControlRigParameterTrack::StaticClass(), ObjectBindings[0], NAME_None));
+			if (!ExistingTrack)
 			{
 				UMovieSceneTrack* Track = nullptr;
+
 				MenuBuilder.AddSubMenu(LOCTEXT("ControlRigText", "Control Rig"), FText(), FNewMenuDelegate::CreateSP(this, &FControlRigParameterTrackEditor::HandleAddTrackSubMenu, ObjectBindings, Track));
 			}
 		}
