@@ -633,6 +633,8 @@ FDiskCache::FDiskCache(FString&& Path, uint64 InMaxDataSize, uint32 InJournalSiz
 
 	Reset();
 	OpenDataFile();
+	
+	FOnDemandIoBackendStats::Get()->OnCacheSetMaxBytes(MaxDataSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
