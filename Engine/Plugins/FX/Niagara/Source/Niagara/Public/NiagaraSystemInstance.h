@@ -477,6 +477,7 @@ private:
 	TWeakObjectPtr<USceneComponent> AttachComponent;
 
 	FTransform WorldTransform;
+	TOptional<FVector> PreviousLocation;
 
 	ENiagaraTickBehavior TickBehavior;
 
@@ -638,6 +639,7 @@ public:
 	struct FInstanceParameters
 	{
 		FTransform ComponentTrans = FTransform::Identity;
+		FVector Velocity = FVector::ZeroVector;
 
 		float DeltaSeconds = 0.0f;
 		float TimeSeconds = 0.0f;
@@ -648,13 +650,13 @@ public:
 
 		int32 EmitterCount = 0;
 		int32 NumAlive = 0;
-		int32 TransformMatchCount = 0;
 
 		ENiagaraExecutionState RequestedExecutionState = ENiagaraExecutionState::Active;
 
 		void Init(int32 NumEmitters)
 		{
 			ComponentTrans = FTransform::Identity;
+			Velocity = FVector::ZeroVector;
 			DeltaSeconds = 0.0f;
 			TimeSeconds = 0.0f;
 			RealTimeSeconds = 0.0f;
@@ -663,7 +665,6 @@ public:
 
 			EmitterCount = 0;
 			NumAlive = 0;
-			TransformMatchCount = 0;
 
 			RequestedExecutionState = ENiagaraExecutionState::Active;
 		}

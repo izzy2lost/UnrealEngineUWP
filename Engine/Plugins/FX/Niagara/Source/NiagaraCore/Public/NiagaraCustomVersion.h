@@ -193,6 +193,8 @@ struct FNiagaraCustomVersion
 
 		RibbonPlaneUseGeometryNormals,	// Ribbon renderer will use geometry normals by default rather than screen / facing aligned normals
 
+		InitialOwnerVelocityFromActor, // Actors velocity is used for the initial velocity before the component has any tracking, old assets use the old zero velocity
+
 		// DO NOT ADD A NEW VERSION UNLESS YOU HAVE TALKED TO THE NIAGARA LEAD. Mismanagement of these versions can lead to data loss if it is adjusted in multiple streams simultaneously.
 		// -----<new versions can be added above this line>  -------------------------------------------------
 		VersionPlusOne,

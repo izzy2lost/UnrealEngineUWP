@@ -491,6 +491,8 @@ public:
 	bool SupportsLargeWorldCoordinates() const { return bSupportLargeWorldCoordinates && bLwcEnabledSettingCached; }
 	FORCEINLINE bool ShouldDisableExperimentalVM() const { return bDisableExperimentalVM; }
 
+	FORCEINLINE bool IsInitialOwnerVelocityFromActor() const { return bInitialOwnerVelocityFromActor; }
+
 #if WITH_EDITORONLY_DATA
 	NIAGARA_API bool UsesEmitter(UNiagaraEmitter* Emitter) const;
 	NIAGARA_API bool UsesEmitter(const FVersionedNiagaraEmitter& VersionedEmitter) const;
@@ -607,6 +609,15 @@ public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Performance", meta = (DisplayName = "Disable Experimental VM"))
 	uint8 bDisableExperimentalVM : 1;
 
+private:
+	/*
+	When enabled we use the owner actor's velocity for the first frame.
+	If we do not have an owner actor, or this is disable then the first frame's velocity will be zero.
+	*/
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "System")
+	uint8 bInitialOwnerVelocityFromActor : 1 = true;
+
+public:
 	/**
 	When enabled this is the default value set on the component.
 	Mask used for stencil buffer writes.

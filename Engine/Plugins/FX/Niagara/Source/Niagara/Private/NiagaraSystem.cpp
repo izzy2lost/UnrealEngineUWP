@@ -983,6 +983,11 @@ void UNiagaraSystem::PostLoad()
 	}
 #endif
 
+	if (NiagaraVer < FNiagaraCustomVersion::InitialOwnerVelocityFromActor)
+	{
+		bInitialOwnerVelocityFromActor = false;
+	}
+
 	for (FNiagaraSystemScalabilityOverride& Override : SystemScalabilityOverrides.Overrides)
 	{
 		Override.PostLoad(NiagaraVer);

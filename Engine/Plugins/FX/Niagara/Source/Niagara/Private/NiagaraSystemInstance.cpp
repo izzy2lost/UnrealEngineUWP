@@ -739,6 +739,7 @@ void FNiagaraSystemInstance::OnPooledReuse(UWorld& NewWorld)
 
 	FixedBounds_GT.Init();
 	FixedBounds_CNC.Init();
+	PreviousLocation.Reset();
 
 	for (auto&& Emitter : Emitters)
 	{
@@ -1904,19 +1905,30 @@ void FNiagaraSystemInstance::TickInstanceParameters_GameThread(float DeltaSecond
 	{
 		WorldTransform = AttachComponent->GetComponentToWorld();
 		WorldTransform.AddToTranslation(FVector(LWCTile) * -FLargeWorldRenderScalar::GetTileSize());
-	}
-	const bool TransformMatches = GatheredInstanceParameters.ComponentTrans.Equals(WorldTransform);
-	if (TransformMatches)
-	{
-		// we want to update the transforms one more time than the buffer count because even if the transform buffers didn't change,
-		// their derivatives (like velocity) also need to be updated correctly which happens a frame later.
-		GatheredInstanceParameters.TransformMatchCount = FMath::Min(ParameterBufferCount + 1, GatheredInstanceParameters.TransformMatchCount + 1);
+
+		const FVector CurrentLocation = WorldTransform.GetLocation();
+		if (DeltaSeconds > 0.0f)
+		{
+			if (FMath::IsNearlyZero(Age) && !System->IsInitialOwnerVelocityFromActor())
+			{
+				GatheredInstanceParameters.Velocity = FVector::ZeroVector;
+			}
+			else if (PreviousLocation.IsSet())
+			{
+				GatheredInstanceParameters.Velocity = (CurrentLocation - PreviousLocation.GetValue()) / DeltaSeconds;
+			}
+			else if (AActor* OwnerActor = AttachComponent->GetOwner())
+			{
+				GatheredInstanceParameters.Velocity = OwnerActor->GetVelocity();
+			}
+		}
+		PreviousLocation = CurrentLocation;
 	}
 	else
 	{
-		GatheredInstanceParameters.ComponentTrans = WorldTransform;
-		GatheredInstanceParameters.TransformMatchCount = 0;
+		GatheredInstanceParameters.Velocity = FVector::ZeroVector;
 	}
+	GatheredInstanceParameters.ComponentTrans = WorldTransform;
 
 	GatheredInstanceParameters.EmitterCount = Emitters.Num();
 	GatheredInstanceParameters.DeltaSeconds = DeltaSeconds;
@@ -1987,31 +1999,27 @@ void FNiagaraSystemInstance::TickInstanceParameters_Concurrent()
 	FNiagaraSystemParameters& CurrentSystemParameters = SystemParameters[ParameterIndex];
 	FNiagaraOwnerParameters& CurrentOwnerParameters = OwnerParameters[ParameterIndex];
 
-	if (GatheredInstanceParameters.TransformMatchCount <= ParameterBufferCount)
-	{
-		const FMatrix LocalToWorld = GatheredInstanceParameters.ComponentTrans.ToMatrixWithScale();
-		const FMatrix LocalToWorldNoScale = GatheredInstanceParameters.ComponentTrans.ToMatrixNoScale();
+	const FMatrix LocalToWorld = GatheredInstanceParameters.ComponentTrans.ToMatrixWithScale();
+	const FMatrix LocalToWorldNoScale = GatheredInstanceParameters.ComponentTrans.ToMatrixNoScale();
 
-		const FVector Location = GatheredInstanceParameters.ComponentTrans.GetLocation();
-		const FVector LastLocation = FMath::IsNearlyZero(CurrentSystemParameters.EngineSystemAge) ? Location : FVector(FVector4(OwnerParameters[GetParameterIndex(true)].EnginePosition));
-		const FQuat LastRotation = GatheredInstanceParameters.ComponentTrans.GetRotation();
+	const FVector Location = GatheredInstanceParameters.ComponentTrans.GetLocation();
+	const FQuat Rotation = GatheredInstanceParameters.ComponentTrans.GetRotation();
 
-		CurrentOwnerParameters.EngineLocalToWorld = FMatrix44f(LocalToWorld);						// LWC_TODO: Precision loss
-		CurrentOwnerParameters.EngineWorldToLocal = FMatrix44f(LocalToWorld.Inverse());
-		CurrentOwnerParameters.EngineLocalToWorldTransposed = FMatrix44f(LocalToWorld.GetTransposed());
-		CurrentOwnerParameters.EngineWorldToLocalTransposed = CurrentOwnerParameters.EngineWorldToLocal.GetTransposed();
-		CurrentOwnerParameters.EngineLocalToWorldNoScale = FMatrix44f(LocalToWorldNoScale);
-		CurrentOwnerParameters.EngineWorldToLocalNoScale = FMatrix44f(LocalToWorldNoScale.Inverse());
-		CurrentOwnerParameters.EngineRotation = FQuat4f((float)LastRotation.X, (float)LastRotation.Y, (float)LastRotation.Z, (float)LastRotation.W);
-		CurrentOwnerParameters.EnginePosition = (FVector3f)Location; // LWC_TODO: precision loss
-		CurrentOwnerParameters.EngineVelocity = GatheredInstanceParameters.DeltaSeconds > 0.0f ? (FVector3f)((Location - LastLocation) / GatheredInstanceParameters.DeltaSeconds) : FVector3f::ZeroVector;
-		CurrentOwnerParameters.EngineXAxis = CurrentOwnerParameters.EngineRotation.GetAxisX();
-		CurrentOwnerParameters.EngineYAxis = CurrentOwnerParameters.EngineRotation.GetAxisY();
-		CurrentOwnerParameters.EngineZAxis = CurrentOwnerParameters.EngineRotation.GetAxisZ();
-		CurrentOwnerParameters.EngineScale = (FVector3f)GatheredInstanceParameters.ComponentTrans.GetScale3D();
-		CurrentOwnerParameters.EngineLWCTile = LWCTile;
-		CurrentOwnerParameters.EngineLWCTile.W = float(FLargeWorldRenderScalar::GetTileSize());
-	}
+	CurrentOwnerParameters.EngineLocalToWorld = FMatrix44f(LocalToWorld);						// LWC_TODO: Precision loss
+	CurrentOwnerParameters.EngineWorldToLocal = FMatrix44f(LocalToWorld.Inverse());
+	CurrentOwnerParameters.EngineLocalToWorldTransposed = FMatrix44f(LocalToWorld.GetTransposed());
+	CurrentOwnerParameters.EngineWorldToLocalTransposed = CurrentOwnerParameters.EngineWorldToLocal.GetTransposed();
+	CurrentOwnerParameters.EngineLocalToWorldNoScale = FMatrix44f(LocalToWorldNoScale);
+	CurrentOwnerParameters.EngineWorldToLocalNoScale = FMatrix44f(LocalToWorldNoScale.Inverse());
+	CurrentOwnerParameters.EngineRotation = FQuat4f(Rotation);									// LWC_TODO: precision loss
+	CurrentOwnerParameters.EnginePosition = FVector3f(Location);								// LWC_TODO: precision loss
+	CurrentOwnerParameters.EngineVelocity = FVector3f(GatheredInstanceParameters.Velocity);		// LWC_TODO: precision loss
+	CurrentOwnerParameters.EngineXAxis = CurrentOwnerParameters.EngineRotation.GetAxisX();
+	CurrentOwnerParameters.EngineYAxis = CurrentOwnerParameters.EngineRotation.GetAxisY();
+	CurrentOwnerParameters.EngineZAxis = CurrentOwnerParameters.EngineRotation.GetAxisZ();
+	CurrentOwnerParameters.EngineScale = (FVector3f)GatheredInstanceParameters.ComponentTrans.GetScale3D();
+	CurrentOwnerParameters.EngineLWCTile = LWCTile;
+	CurrentOwnerParameters.EngineLWCTile.W = float(FLargeWorldRenderScalar::GetTileSize());
 
 	CurrentSystemParameters.EngineEmitterCount = GatheredInstanceParameters.EmitterCount;
 	CurrentSystemParameters.EngineAliveEmitterCount = GatheredInstanceParameters.NumAlive;
