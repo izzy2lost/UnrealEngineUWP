@@ -85,17 +85,26 @@ namespace Audio
 		uint32 BuffSizeInFrames = Reqs.NumSampleFramesWanted;
 		uint8* Buff = (uint8*)ResidualBuffer.GetData();
 
-		int32 NumBytesStreamed = BuffSizeInBytes;
+		int32 NumBytesStreamed = 0;
 		while (!bFinished && NumFramesRemaining > 0)
 		{
 			if (BackCompatSrc.Wave->IsStreaming())
 			{
+				NumBytesStreamed = 0;
 				bFinished = Info->StreamCompressedData(Buff, bLoop, BuffSizeInBytes, NumBytesStreamed);
 			}
 			else
 			{
+				NumBytesStreamed = BuffSizeInBytes;
 				bFinished = Info->ReadCompressedData(Buff, bLoop, BuffSizeInBytes);
 			}
+
+			if (NumBytesStreamed == 0)
+			{
+				// early out so we don't hold up down stream rendering
+				break;
+			}
+
 			int32 NumSamplesStreamed = NumBytesStreamed / sizeof(int16);
 			int32 NumFramesStreamed = NumSamplesStreamed / Desc.NumChannels;
 			PushedDetails.SampleFramesStartOffset = FrameOffset;
@@ -108,6 +117,7 @@ namespace Audio
 
 			FrameOffset += NumFramesStreamed;
 			NumFramesRemaining -= FMath::Min(NumFramesStreamed, NumFramesRemaining);
+			BuffSizeInBytes -= NumBytesStreamed;
 		}
 
 		if (!bFinished)

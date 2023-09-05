@@ -146,6 +146,7 @@ public:
 		bool bIsLooping = false;
 		float LoopStartTimeInSeconds = 0.f;
 		float LoopDurationInSeconds = 0.f;
+		bool bMaintainAudioSync = false;
 	};
 
 private:
@@ -168,7 +169,7 @@ public:
 	AUDIOCODECENGINE_API void SetIsLooping(bool bInIsLooping);
 
 	/** Returns true if the audio will be looped, false otherwise. */
-	AUDIOCODECENGINE_API FORCEINLINE bool IsLooping() const
+	FORCEINLINE bool IsLooping() const
 	{
 		return Settings.bIsLooping;
 	}
@@ -183,38 +184,38 @@ public:
 	 */
 	AUDIOCODECENGINE_API void SetLoopDuration(float InLoopDurationInSeconds);
 
-	AUDIOCODECENGINE_API FORCEINLINE float GetSampleRate() const
+	FORCEINLINE float GetSampleRate() const
 	{
 		return SampleRate;
 	}
 
-	AUDIOCODECENGINE_API FORCEINLINE int32 GetNumChannels() const
+	FORCEINLINE int32 GetNumChannels() const
 	{
 		return NumChannels;
 	}
 
 	/** Returns the index of the playhead within the complete wave. */
-	AUDIOCODECENGINE_API FORCEINLINE int32 GetFrameIndex() const
+	FORCEINLINE int32 GetFrameIndex() const
 	{
 		return CurrentFrameIndex;
 	}
 
-	AUDIOCODECENGINE_API FORCEINLINE int32 GetNumFramesInWave() const
+	FORCEINLINE int32 GetNumFramesInWave() const
 	{
 		return NumFramesInWave;
 	}
 
-	AUDIOCODECENGINE_API FORCEINLINE int32 GetNumFramesInLoop() const
+	FORCEINLINE int32 GetNumFramesInLoop() const
 	{
 		return LoopEndFrameIndex - LoopStartFrameIndex;
 	}
 
-	AUDIOCODECENGINE_API FORCEINLINE int32 GetLoopStartFrameIndex() const
+	FORCEINLINE int32 GetLoopStartFrameIndex() const
 	{
 		return LoopStartFrameIndex;
 	}
 
-	AUDIOCODECENGINE_API FORCEINLINE int32 GetLoopEndFrameIndex() const
+	FORCEINLINE int32 GetLoopEndFrameIndex() const
 	{
 		return LoopEndFrameIndex;
 	}
@@ -236,7 +237,7 @@ private:
 
 	int32 PopAudioFromDecoderOutput(TArrayView<float> OutBufferView);
 	bool InitializeDecoder(float InStartTimeInSeconds);
-	void DiscardSamples(int32 InNumSamplesToDiscard);
+	int32 DiscardSamples(int32 InNumSamplesToDiscard);
 	float ClampLoopStartTime(float InStartTimeInSeconds);
 	float ClampLoopDuration(float InDurationInSeconds);
 	void UpdateLoopBoundaries();
@@ -252,6 +253,7 @@ private:
 	int32 NumChannels = 0;
 	EDecodeResult DecodeResult = EDecodeResult::MoreDataRemaining;
 	int32 NumFramesInWave = 0;
+	int32 NumDecodeSamplesToDiscard = 0;
 	int32 CurrentFrameIndex = 0;
 	int32 LoopStartFrameIndex = 0;
 	int32 LoopEndFrameIndex = -1;

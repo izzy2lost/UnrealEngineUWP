@@ -339,16 +339,31 @@ int32 FSoundWaveProxyReader::PopAudio(Audio::FAlignedFloatBuffer& OutBuffer)
 
 		bDecoderOutputHasMoreData = DecoderOutput.Num() > 0;
 		bCanProduceMoreAudio = bDecoderOutputHasMoreData || bDecoderCanDecodeMoreData;
+
+		if (bCanProduceMoreAudio && DecoderOutput.Num() == 0)
+		{
+			// we can produce more audio, but we were unable to
+			// this is likely due to the streaming data not being available yet
+			// let's early out to avoid a hitch and hope that it's ready on the next read
+			UE_LOG(LogAudio, Verbose, TEXT("FSoundWaveProxyReader experienced an underrun while decoding samples: %s"), *WaveProxy->GetPackageName().ToString());
+			break;
+		}
 	}
 
 	// Zero pad any unset samples. 
 	if (OutBufferView.Num() > 0)
 	{
-		check(!bCanProduceMoreAudio);
-
 		// Zero out audio that was not set.
+		// advance the current frame index
 		FMemory::Memset(OutBufferView.GetData(), 0, sizeof(float) * OutBufferView.Num());
 		CurrentFrameIndex += OutBufferView.Num() / NumChannels;
+
+		if (Settings.bMaintainAudioSync)
+		{
+			// if we were asked to maintain audio sync, then do some extra book keeping
+			// keep track of the number of samples we'll need to discard the next time we try to read from the decoder
+			NumDecodeSamplesToDiscard += OutBufferView.Num();
+		}
 	}
 
 	return NumSamplesCopied;
@@ -359,6 +374,10 @@ int32 FSoundWaveProxyReader::PopAudioFromDecoderOutput(TArrayView<float> OutBuff
 	using namespace SoundWaveProxyReaderPrivate;
 
 	check(NumChannels > 0);
+
+	int32 NumDiscarded = DecoderOutput.PopAudio(NumDecodeSamplesToDiscard);
+	NumDecodeSamplesToDiscard = NumDecodeSamplesToDiscard - NumDiscarded;
+	check(NumDecodeSamplesToDiscard >= 0);
 
 	int32 NumSamplesCopied = 0;
 	if (DecoderOutput.Num() > 0)
@@ -456,6 +475,7 @@ bool FSoundWaveProxyReader::InitializeDecoder(float InStartTimeInSeconds)
 	// end hack
 
 	CurrentFrameIndex = FMath::Clamp(static_cast<int32>(InStartTimeInSeconds * GetSampleRate()), 0, GetNumFramesInWave());
+	NumDecodeSamplesToDiscard = 0;
 
 	// Create the decoder
 	Decoder = Codec->CreateDecoder(DecoderInput.Get(), &DecoderOutput);
@@ -491,8 +511,9 @@ bool FSoundWaveProxyReader::InitializeDecoder(float InStartTimeInSeconds)
 	return true;
 }
 
-void FSoundWaveProxyReader::DiscardSamples(int32 InNumSamplesToDiscard)
+int32 FSoundWaveProxyReader::DiscardSamples(int32 InNumSamplesToDiscard)
 {
+	int32 NumSamplesDiscarded = 0;
 	while (InNumSamplesToDiscard > 0)
 	{
 		DecodeResult = Decoder->Decode(false /* bIsLooping */);
@@ -507,6 +528,7 @@ void FSoundWaveProxyReader::DiscardSamples(int32 InNumSamplesToDiscard)
 
 		int32 ActualNumSamplesDiscarded = DecoderOutput.PopAudio(NumSamplesToDiscardThisLoop);
 		InNumSamplesToDiscard -= ActualNumSamplesDiscarded;
+		NumSamplesDiscarded = ActualNumSamplesDiscarded;
 
 		if ((InNumSamplesToDiscard > 0) && (DecodeResult != EDecodeResult::MoreDataRemaining))
 		{
@@ -514,6 +536,8 @@ void FSoundWaveProxyReader::DiscardSamples(int32 InNumSamplesToDiscard)
 			break;
 		}
 	}
+
+	return NumSamplesDiscarded;
 }
 
 float FSoundWaveProxyReader::ClampLoopStartTime(float InStartTimeInSeconds)

@@ -658,6 +658,7 @@ const uint8* FVorbisAudioInfo::GetLoadedChunk(FSoundWaveProxyPtr InSoundWave, ui
 bool FVorbisAudioInfo::StreamCompressedData(uint8* InDestination, bool bLooping, uint32 BufferSize, int32& OutNumBytesStreamed)
 {
 	const uint32 DestinationSize = BufferSize;
+	OutNumBytesStreamed = 0;
 
 	if (!bDllLoaded)
 	{
@@ -698,7 +699,6 @@ bool FVorbisAudioInfo::StreamCompressedData(uint8* InDestination, bool bLooping,
 			{
 				// zero out the rest of the buffer
 				FMemory::Memzero(InDestination, BufferSize);
-				OutNumBytesStreamed = DestinationSize;
 				return false;
 			}
 
@@ -725,7 +725,6 @@ bool FVorbisAudioInfo::StreamCompressedData(uint8* InDestination, bool bLooping,
 			{
 				// Here we clear out the remainder of the buffer and bail.
 				FMemory::Memzero(InDestination, BufferSize);
-				BytesActuallyRead = BufferSize;
 				break;
 			}
 

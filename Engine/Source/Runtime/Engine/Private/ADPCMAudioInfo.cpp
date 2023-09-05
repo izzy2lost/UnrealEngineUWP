@@ -771,7 +771,6 @@ bool FADPCMAudioInfo::StreamCompressedData(uint8* Destination, bool bLooping, ui
 
 						// zero out remaining data and bail
 						FMemory::Memset(OutData, 0, BufferSize);
-						OutNumBytesStreamed = OriginalBufferSize;
 						return false;
 					}
 
@@ -896,7 +895,6 @@ bool FADPCMAudioInfo::StreamCompressedData(uint8* Destination, bool bLooping, ui
 					NumConsecutiveReadFailiures++;
 					const bool bReadAttemptTimedOut = NumConsecutiveReadFailiures > ADPCMReadFailiureTimeoutCVar;
 					UE_CLOG(bReadAttemptTimedOut, LogAudio, Warning, TEXT("ADPCM Audio Decode timed out."), bReadAttemptTimedOut);
-					OutNumBytesStreamed = OriginalBufferSize;
 					return NumConsecutiveReadFailiures > ADPCMReadFailiureTimeoutCVar;
 				}
 

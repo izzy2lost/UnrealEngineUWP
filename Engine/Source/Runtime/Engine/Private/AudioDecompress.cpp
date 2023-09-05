@@ -244,6 +244,8 @@ bool IStreamedCompressedInfo::StreamCompressedData(uint8* Destination, bool bLoo
 
 	// Write out any PCM data that was decoded during the last request
 	uint32 RawPCMOffset = WriteFromDecodedPCM(Destination, BufferSize);
+	// immediately update the OutNumBytesStreamed to reflect what we just wrote
+	OutNumBytesStreamed = RawPCMOffset;
 
 	// If we have a pending next chunk from seeking, move to it now.
 	if (StreamSeekBlockIndex != INDEX_NONE)
@@ -378,7 +380,6 @@ bool IStreamedCompressedInfo::StreamCompressedData(uint8* Destination, bool bLoo
 			}
 			
 			ZeroBuffer(Destination + RawPCMOffset, BufferSize - RawPCMOffset);
-			OutNumBytesStreamed = BufferSize - RawPCMOffset;
 			return false;
 		}
 	}
@@ -404,14 +405,15 @@ bool IStreamedCompressedInfo::StreamCompressedData(uint8* Destination, bool bLoo
 
 			LastPCMByteSize = 0;
 			ZeroBuffer(Destination + RawPCMOffset, BufferSize - RawPCMOffset);
-			OutNumBytesStreamed = BufferSize - RawPCMOffset;
 			return false;
 		}
 		else
 		{
 			LastPCMByteSize = IncrementCurrentSampleCount(DecodedSamples) * SampleStride;
 
+			// update OutNumBytesStreamed as we write out data
 			RawPCMOffset += WriteFromDecodedPCM(Destination + RawPCMOffset, BufferSize - RawPCMOffset);
+			OutNumBytesStreamed = RawPCMOffset;
 
 			const int32 PreviousChunkIndex = CurrentChunkIndex;
 
@@ -442,8 +444,9 @@ bool IStreamedCompressedInfo::StreamCompressedData(uint8* Destination, bool bLoo
 					}
 					else
 					{
-						RawPCMOffset += ZeroBuffer(Destination + RawPCMOffset, BufferSize - RawPCMOffset);
-						OutNumBytesStreamed = BufferSize - RawPCMOffset;
+						// this is zero padding, so don't include it in the OutNumBytesStreamed count
+						ZeroBuffer(Destination + RawPCMOffset, BufferSize - RawPCMOffset);
+						break;
 					}
 				}
 				else
@@ -470,13 +473,14 @@ bool IStreamedCompressedInfo::StreamCompressedData(uint8* Destination, bool bLoo
 						CurrentChunkIndex, *StreamingSoundWave->GetFName().ToString());
 
 					SrcBufferDataSize = 0;
-					RawPCMOffset += ZeroBuffer(Destination + RawPCMOffset, BufferSize - RawPCMOffset);
+					// this is zero padding, so don't include it in the OutNumBytesStreamed count
+					ZeroBuffer(Destination + RawPCMOffset, BufferSize - RawPCMOffset);
+					break;
 				}
 			}
 		}
 	}
 
-	OutNumBytesStreamed = BufferSize;
 	return bLooped;
 }
 
