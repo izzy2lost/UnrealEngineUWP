@@ -803,7 +803,7 @@ namespace VulkanRHI
 			return VK_IMAGE_LAYOUT_UNDEFINED;
 		}
 
-		if (DepthLayout == VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL)
+		if (DepthLayout == VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL || DepthLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
 		{
 			// :todo-jn:  barrier downgrades from sync2 to sync1 happen before the tracking is updated sometimes, which causes the StencilLayout to contain an older sync1 value. 
 			// temporarily accept those values until we fix it at the source.
@@ -818,9 +818,9 @@ namespace VulkanRHI
 				return VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL;
 			}
 		}
-		else if (DepthLayout == VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL)
+		else if (DepthLayout == VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL || DepthLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL)
 		{
-			if ((StencilLayout == VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL) || (StencilLayout == VK_IMAGE_LAYOUT_UNDEFINED))
+			if ((StencilLayout == VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL) || (StencilLayout == VK_IMAGE_LAYOUT_UNDEFINED) || (StencilLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL))
 			{
 				return VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 			}
