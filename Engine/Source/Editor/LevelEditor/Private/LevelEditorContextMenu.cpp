@@ -388,12 +388,18 @@ void FLevelEditorContextMenu::RegisterActorContextMenu()
 		}
 
 
-		if (LevelEditorContext->ContextType == ELevelEditorMenuContext::Viewport || LevelEditorContext->ContextType == ELevelEditorMenuContext::SceneOutliner)
 		{
-			// Options that only appear in the viewport context menu or scene outliner (will affect the current viewport)
+			// Options that affect the current viewport.
 			// In most cases, you DO NOT want to extend this section; look at ActorUETools or ActorTypeTools below
 			FToolMenuSection& Section = InMenu->AddSection("ActorViewOptions", LOCTEXT("ViewOptionsHeading", "View Options"));
 			const FVector* ClickLocation = &GEditor->ClickLocation;
+
+			Section.AddMenuEntry(
+				FEditorViewportCommands::Get().FocusViewportToSelection,
+				TAttribute<FText>(),
+				TAttribute<FText>(),
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.FrameActor")
+			);
 
 			// This keys off the mouse position so can only appear in the viewport
 			if (LevelEditorContext->ContextType == ELevelEditorMenuContext::Viewport)
