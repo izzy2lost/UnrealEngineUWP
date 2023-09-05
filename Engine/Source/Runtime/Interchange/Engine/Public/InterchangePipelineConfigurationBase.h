@@ -6,6 +6,7 @@
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
 #include "InterchangeSourceData.h"
+#include "Nodes/InterchangeBaseNodeContainer.h"
 
 #include "InterchangePipelineConfigurationBase.generated.h"
 
