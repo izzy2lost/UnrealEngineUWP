@@ -21,6 +21,7 @@
 #include "Modules/ModuleManager.h"
 
 DEFINE_LOG_CATEGORY(LogLatentCommands)
+DEFINE_LOG_CATEGORY_STATIC(LogAutomationTestStateTrace, Log, All);
 DEFINE_LOG_CATEGORY_STATIC(LogAutomationTest, Warning, All);
 
 namespace AutomationTest
@@ -42,6 +43,12 @@ namespace AutomationTest
 		TEXT("Automation.LogBPTestMetadata"),
 		bLogBPTestMetadata,
 		TEXT("Whether to output blueprint functional test metadata to the log when test is running"));
+
+	static bool bLogTestStateTrace = false;
+	static FAutoConsoleVariableRef CVarAutomationLogTestStateTrace(
+		TEXT("Automation.LogTestStateTrace"),
+		bLogTestStateTrace,
+		TEXT("Whether to enable or disable logging of test state trace"));
 
 	// The method prepares the filename and LineNumber to be placed in the form that could be extracted by SAutomationWindow widget if it is additionally eclosed into []
 	// The result format is filename(line)
@@ -876,6 +883,10 @@ void FAutomationTestFramework::InternalStartTest( const FString& InTestToRun )
 		uint32 NonSmokeTestFlags = (EAutomationTestFlags::FilterMask & (~EAutomationTestFlags::SmokeFilter));
 		if (RequestedTestFilter & NonSmokeTestFlags)
 		{
+			if (AutomationTest::bLogTestStateTrace)
+			{
+				UE_LOG(LogAutomationTestStateTrace, Log, TEXT("Test is about to start. Name={%s}"), *CurrentTest->GetTestFullName());
+			}
 			UE_LOG(LogAutomationTest, Log, TEXT("%s %s is starting at %f"), *CurrentTest->GetBeautifiedTestName(), *Parameters, StartTime);
 		}
 
@@ -918,6 +929,10 @@ bool FAutomationTestFramework::InternalStopTest(FAutomationTestExecutionInfo& Ou
 	if (RequestedTestFilter & NonSmokeTestFlags)
 	{
 		UE_LOG(LogAutomationTest, Log, TEXT("%s %s ran in %f"), *CurrentTest->GetBeautifiedTestName(), *Parameters, TimeForTest);
+		if (AutomationTest::bLogTestStateTrace)
+		{
+			UE_LOG(LogAutomationTestStateTrace, Log, TEXT("Test has stopped execution. Name={%s}"), *CurrentTest->GetTestFullName());
+		}
 	}
 
 	// Fill out the provided execution info with the info from the test
