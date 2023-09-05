@@ -492,7 +492,7 @@ struct FShaderParameterReader
 
 #if DO_CHECK
 
-void ValidateShaderParameters(const TShaderRef<FShader>& Shader, const FShaderParametersMetadata* ParametersMetadata, const void* ParametersData, bool bValidateRHI)
+void ValidateShaderParameters(const TShaderRef<FShader>& Shader, const FShaderParametersMetadata* ParametersMetadata, const void* ParametersData)
 {
 	const FShaderParameterBindings& Bindings = Shader->Bindings;
 
@@ -525,7 +525,7 @@ void ValidateShaderParameters(const TShaderRef<FShader>& Shader, const FShaderPa
 				}
 
 #if ENABLE_RHI_VALIDATION
-				if (GRHIValidationEnabled && bValidateRHI)
+				if (GRHIValidationEnabled && GRDGAllowRHIAccess)
 				{
 					if (BaseType == UBMT_SRV)
 					{
@@ -568,9 +568,8 @@ void ValidateShaderParameters(const TShaderRef<FShader>& Shader, const FShaderPa
 				}
 
 #if ENABLE_RHI_VALIDATION
-				if (GRHIValidationEnabled && bValidateRHI)
+				if (GRHIValidationEnabled && GRDGAllowRHIAccess)
 				{
-					RDG_ALLOW_RHI_ACCESS_SCOPE();
 					if (BaseType == UBMT_RDG_TEXTURE_SRV || BaseType == UBMT_RDG_BUFFER_SRV)
 					{
 						const FRHIShaderResourceView* SRV = static_cast<const FRHIShaderResourceView*>(GraphResource->GetRHI());
