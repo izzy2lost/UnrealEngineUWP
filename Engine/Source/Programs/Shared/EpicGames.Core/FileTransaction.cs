@@ -78,7 +78,7 @@ namespace EpicGames.Core
 		public static FileTransactionStream OpenWrite(FileReference file)
 		{
 			FileReference incomingFile = GetIncomingFile(file);
-			Stream stream = FileReference.Open(incomingFile, FileMode.CreateNew);
+			Stream stream = FileReference.Open(incomingFile, FileMode.Create, FileAccess.ReadWrite, FileShare.Read);
 			return new FileTransactionStream(stream, incomingFile, file);
 		}
 
@@ -145,10 +145,11 @@ namespace EpicGames.Core
 				throw new InvalidOperationException("Stream cannot be written to");
 			}
 
+			FileReference finalFile = _finalFile;
 			Close();
 
-			FileReference.Delete(_finalFile);
-			FileReference.Move(_file, _finalFile);
+			FileReference.Delete(finalFile);
+			FileReference.Move(_file, finalFile);
 
 			_finalFile = null;
 		}
