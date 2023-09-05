@@ -18,6 +18,14 @@
 
 #define LOCTEXT_NAMESPACE "WorldPartition"
 
+#if DO_CHECK
+void URuntimeHashExternalStreamingObjectBase::BeginDestroy()
+{
+	checkf(!TargetInjectedWorldPartition.Get(), TEXT("Destroying external streaming object that is still injected."));
+	Super::BeginDestroy();
+}
+#endif
+
 void URuntimeHashExternalStreamingObjectBase::ForEachStreamingCells(TFunctionRef<void(UWorldPartitionRuntimeCell&)> Func)
 {
 	TArray<UObject*> Objects;

@@ -1703,6 +1703,11 @@ bool UWorldPartition::InjectExternalStreamingObject(URuntimeHashExternalStreamin
 		}
 		GetWorld()->GetSubsystem<UHLODSubsystem>()->OnExternalStreamingObjectInjected(InExternalStreamingObject);
 		++StreamingStateEpoch;
+
+#if DO_CHECK
+		check(InExternalStreamingObject->TargetInjectedWorldPartition.IsExplicitlyNull());
+		InExternalStreamingObject->TargetInjectedWorldPartition = this;
+#endif
 	}
 
 	return bInjected;
@@ -1713,6 +1718,11 @@ bool UWorldPartition::RemoveExternalStreamingObject(URuntimeHashExternalStreamin
 	bool bRemoved = RuntimeHash->RemoveExternalStreamingObject(InExternalStreamingObject);
 	if (bRemoved)
 	{
+#if DO_CHECK
+		check(InExternalStreamingObject->TargetInjectedWorldPartition.IsValid());
+		InExternalStreamingObject->TargetInjectedWorldPartition = nullptr;
+#endif
+
 		if (StreamingPolicy)
 		{
 			StreamingPolicy->RemoveExternalStreamingObject(InExternalStreamingObject);

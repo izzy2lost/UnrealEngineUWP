@@ -39,6 +39,9 @@ class URuntimeHashExternalStreamingObjectBase : public UObject
 public:
 	//~ Begin UObject Interface
 	virtual class UWorld* GetWorld() const override final { return GetOwningWorld(); }
+#if DO_CHECK
+	virtual void BeginDestroy() override;
+#endif
 	//~ End UObject Interface
 
 	UWorld* GetOwningWorld() const { return OwningWorld.Get(); }
@@ -64,6 +67,12 @@ protected:
 
 	UPROPERTY();
 	TMap<FName, FName> CellToLevelStreamingPackage;
+
+#if DO_CHECK
+	TWeakObjectPtr<UWorldPartition> TargetInjectedWorldPartition;
+#endif
+
+	friend class UWorldPartition;
 };
 
 struct FWorldPartitionQueryCache

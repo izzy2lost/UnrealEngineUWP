@@ -170,6 +170,7 @@ private:
 	mutable FSquare2DGridHelper* GridHelper;
 
 	// Contains cells injected at runtime from content bundles
+	UPROPERTY(Transient)
 	mutable TArray<FSpatialHashStreamingGridLevel> InjectedGridLevels;
 };
 
