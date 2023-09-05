@@ -408,6 +408,7 @@ public:
 	 * @param Handle Handle to the smart object.
 	 * @return True when associated smart object is found and set to be enabled. False otherwise.
 	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category="SmartObject")
 	bool IsEnabled(const FSmartObjectHandle Handle) const;
 
 	/**
@@ -507,6 +508,17 @@ public:
 	 * @return True if at least one candidate was found.
 	 */
 	bool FindSmartObjects(const FSmartObjectRequest& Request, TArray<FSmartObjectRequestResult>& OutResults, const FConstStructView UserData) const;
+
+	/**
+	 * Search list of specific actors (often from a physics query) for slot candidates respecting request criteria and selection conditions.
+	 * 
+	 * @param Filter Parameters defining the search area and criteria
+	 * @param ActorList Ordered list of actors to search
+	 * @param OutResults List of smart object slot candidates found in range
+	 * @param UserData Additional data that could be provided to bind values in the conditions evaluation context
+	 * @return True if at least one candidate was found.
+	 */
+	bool FindSmartObjectsInList(const FSmartObjectRequestFilter& Filter, const TConstArrayView<AActor*> ActorList, TArray<FSmartObjectRequestResult>& OutResults, const FConstStructView UserData) const;
 	
 	/**
 	 * Spatial lookup for first slot in range respecting request criteria and selection conditions.
@@ -561,6 +573,7 @@ public:
 	 * @param Handle Handle to the smart object.
 	 * @param OutSlots All slots of the smart object
 	 */
+	UFUNCTION(BlueprintCallable, Category = "SmartObject")
 	void GetAllSlots(const FSmartObjectHandle Handle, TArray<FSmartObjectSlotHandle>& OutSlots) const;
 
 	/**
@@ -843,7 +856,11 @@ public:
 		static_assert(TIsDerivedFrom<DefinitionType, USmartObjectBehaviorDefinition>::IsDerived, "DefinitionType must derive from USmartObjectBehaviorDefinition");
 		return Cast<const DefinitionType>(GetBehaviorDefinitionByRequestResult(RequestResult, DefinitionType::StaticClass()));
 	}
-	
+
+	/**
+	* Returns the state of the given Smart Object Slot handle.
+	*/
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category="SmartObject")
 	ESmartObjectSlotState GetSlotState(const FSmartObjectSlotHandle SlotHandle) const;
 
 	UE_DEPRECATED(5.3, "Data is now added synchronously, use AddSlotData instead.")
@@ -1421,6 +1438,12 @@ protected:
 
 	TArray<TWeakObjectPtr<ASmartObjectPersistentCollection>> RegisteredCollections;
 
+	/**
+	 * A map of registered smart object handles to their associated runtime data.
+	 * Client side Smart Object Subsystem's will only have runtime data
+	 * for Smart Object Components who enable replication, but server subsystems will have all smart object
+	 * data.
+	 */
 	UPROPERTY(Transient)
 	TMap<FSmartObjectHandle, FSmartObjectRuntime> RuntimeSmartObjects;
 	
@@ -1435,6 +1458,9 @@ protected:
 	uint32 NextFreeUserID = 1;
 
 	bool bRuntimeInitialized = false;
+	
+	/** Returns true if this subsystem is running on the server. */
+	bool IsRunningOnServer() const;
 
 #if WITH_EDITOR
 	bool bAutoInitializeEditorInstances = true;

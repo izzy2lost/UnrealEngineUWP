@@ -4,6 +4,7 @@
 #include "Engine/Engine.h"
 #include "SmartObjectSubsystem.h"
 #include "BlackboardKeyType_SOClaimHandle.h"
+#include "SmartObjectComponent.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "BehaviorTree/BTFunctionLibrary.h"
 
@@ -138,6 +139,41 @@ bool USmartObjectBlueprintFunctionLibrary::MarkSmartObjectSlotAsFree(
 		return Subsystem->MarkSlotAsFree(ClaimHandle);	
 	}
 
+	return false;
+}
+
+bool USmartObjectBlueprintFunctionLibrary::FindSmartObjectsInComponent(const FSmartObjectRequestFilter& Filter, USmartObjectComponent* SmartObjectComponent, TArray<FSmartObjectRequestResult>& OutResults, const AActor* UserActor)
+{
+	if (SmartObjectComponent)
+	{
+		if (const USmartObjectSubsystem* Subsystem = USmartObjectSubsystem::GetCurrent(SmartObjectComponent->GetWorld()))
+		{
+			return Subsystem->FindSmartObjectsInList(Filter, { SmartObjectComponent->GetOwner() }, OutResults, FConstStructView::Make(FSmartObjectActorUserData(UserActor)));	
+		}
+	}
+
+	return false;
+}
+
+bool USmartObjectBlueprintFunctionLibrary::FindSmartObjectsInActor(const FSmartObjectRequestFilter& Filter, AActor* SearchActor, TArray<FSmartObjectRequestResult>& OutResults, const AActor* UserActor)
+{
+	if (SearchActor)
+	{
+		if (const USmartObjectSubsystem* Subsystem = USmartObjectSubsystem::GetCurrent(SearchActor->GetWorld()))
+    	{
+    		return Subsystem->FindSmartObjectsInList(Filter, { SearchActor }, OutResults, FConstStructView::Make(FSmartObjectActorUserData(UserActor)));	
+    	}
+	}
+	return false;
+}
+
+bool USmartObjectBlueprintFunctionLibrary::FindSmartObjectsInList(UObject* WorldContextObject, const FSmartObjectRequestFilter& Filter, const TArray<AActor*>& ActorList, TArray<FSmartObjectRequestResult>& OutResults, const AActor* UserActor /*= nullptr*/)
+{
+	const UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+	if (const USmartObjectSubsystem* Subsystem = USmartObjectSubsystem::GetCurrent(World))
+	{
+		return Subsystem->FindSmartObjectsInList(Filter, ActorList, OutResults, FConstStructView::Make(FSmartObjectActorUserData(UserActor)));
+	}
 	return false;
 }
 

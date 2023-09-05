@@ -925,11 +925,21 @@ void USmartObjectSubsystem::BindPropertiesFromStruct(FWorldConditionContextData&
 bool USmartObjectSubsystem::EvaluateObjectConditions(const FWorldConditionContextData& ConditionContextData, const FSmartObjectRuntime& SmartObjectRuntime) const
 {
 	// Evaluate object conditions. Note that unsuccessfully initialized conditions is supported (i.e. error during activation)
-	const FWorldConditionContext Context(SmartObjectRuntime.PreconditionState, ConditionContextData);
-	if (!Context.IsTrue())
+	
+	// We only want to evaluate the world condition on the server because, even if a client evaluates a false positive world condition,
+	// the server will reconcile that failure when the replication data gets updated anyway. At the moment it isn't worth the cost
+	// of replicating the world condition across clients to make it work.
+	// The world condition context's FWorldConditionQueryState will never be initialized on the client (bIsInitialized) will always be false
+	// because FWorldConditionQueryState::InitializeInternal is always going to be called with a null InSharedDefinition param.
+
+	if (IsRunningOnServer())
 	{
-		UE_VLOG_UELOG(this, LogSmartObject, Verbose, TEXT("Preconditions for owning smart object %s failed."), *LexToString(SmartObjectRuntime.GetRegisteredHandle()));
-		return false;
+		const FWorldConditionContext Context(SmartObjectRuntime.PreconditionState, ConditionContextData);
+		if (!Context.IsTrue())
+		{
+			UE_VLOG_UELOG(this, LogSmartObject, Verbose, TEXT("Preconditions for owning smart object %s failed."), *LexToString(SmartObjectRuntime.GetRegisteredHandle()));
+			return false;
+		}	
 	}
 
 	return true;
@@ -2197,6 +2207,45 @@ bool USmartObjectSubsystem::FindSmartObjects(const FSmartObjectRequest& Request,
 	return (OutResults.Num() > 0);
 }
 
+bool USmartObjectSubsystem::FindSmartObjectsInList(const FSmartObjectRequestFilter& Filter, TConstArrayView<AActor*> ActorList, TArray<FSmartObjectRequestResult>& OutResults, const FConstStructView UserData) const
+{
+	// Iterate the actor list, if it has a Smart Object Component in it, then find all the slots and populate our results
+	// We don't want to use a Query Box here because that could include smart objects from outside of this ActorList.
+	for (const AActor* SearchActor : ActorList)
+	{
+		if (!SearchActor)
+		{
+			continue;
+		}
+
+		const USmartObjectComponent* FoundComponent = SearchActor->GetComponentByClass<USmartObjectComponent>();
+		if (!FoundComponent)
+		{
+			continue;
+		}
+
+		const FSmartObjectHandle SmartObjectHandle = FoundComponent->GetRegisteredHandle();
+		const FSmartObjectRuntime* SmartObjectRuntime = SmartObjectHandle.IsValid() ? RuntimeSmartObjects.Find(SmartObjectHandle) : nullptr;
+		if (!SmartObjectRuntime)
+		{
+			continue;
+		}
+
+		// We found a valid smart object runtime, populate our results with it's slots
+		TArray<FSmartObjectSlotHandle> SlotHandles;
+		FindSlots(SmartObjectHandle, *SmartObjectRuntime, Filter, SlotHandles, UserData);
+		OutResults.Reserve(OutResults.Num() + SlotHandles.Num());	
+		
+		for (FSmartObjectSlotHandle SlotHandle : SlotHandles)
+		{
+			OutResults.Emplace(SmartObjectHandle, SlotHandle);
+		}
+	}
+
+	// Successful if we found some smart objects
+	return (OutResults.Num() > 0);
+}
+
 void USmartObjectSubsystem::RegisterCollectionInstances()
 {
 	for (TActorIterator<ASmartObjectPersistentCollection> It(GetWorld()); It; ++It)
@@ -2425,6 +2474,16 @@ bool USmartObjectSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 		}
 	}
 
+	return false;
+}
+
+bool USmartObjectSubsystem::IsRunningOnServer() const
+{
+	if (const UWorld* World = GetWorld())
+	{
+		return World->GetNetMode() < NM_Client;
+	}
+	
 	return false;
 }
 

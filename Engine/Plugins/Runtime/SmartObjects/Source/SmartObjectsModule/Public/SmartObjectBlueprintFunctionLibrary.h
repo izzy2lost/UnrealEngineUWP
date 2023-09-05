@@ -138,7 +138,47 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "SmartObject", meta = (WorldContext = "WorldContextObject", ReturnDisplayName="bSuccess"))
 	static bool MarkSmartObjectSlotAsFree(UObject* WorldContextObject, const FSmartObjectClaimHandle ClaimHandle);
+	
+	/**
+	 * Search a given Smart Object Component for slot candidates respecting the request criteria and selection conditions.
+	 * 
+	 * @param Filter Parameters defining the search area and criteria
+	 * @param SmartObjectComponent The component to search
+	 * @param OutResults List of smart object slot candidates found in range
+	 * @param UserActor  Used to create additional data that could be provided to bind values in the conditions evaluation context
+	 * 
+	 * @return True if at least one candidate was found.
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure = False, Category = "SmartObject", Meta = (ReturnDisplayName = "bSuccess"))
+	static bool FindSmartObjectsInComponent(const FSmartObjectRequestFilter& Filter, USmartObjectComponent* SmartObjectComponent, TArray<FSmartObjectRequestResult>& OutResults, const AActor* UserActor = nullptr);
 
+	/**
+	 * Search a given Actor for slot candidates respecting the request criteria and selection conditions.
+	 * 
+	 * @param Filter Parameters defining the search area and criteria
+	 * @param SearchActor The actor to search
+	 * @param OutResults List of smart object slot candidates found in range
+	 * @param UserActor  Used to create additional data that could be provided to bind values in the conditions evaluation context
+	 * 
+	 * @return True if at least one candidate was found.
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure = False, Category = "SmartObject", Meta = (ReturnDisplayName = "bSuccess"))
+	static bool FindSmartObjectsInActor(const FSmartObjectRequestFilter& Filter, AActor* SearchActor, TArray<FSmartObjectRequestResult>& OutResults, const AActor* UserActor = nullptr);
+	
+	/**
+	 * Search list of specific actors (often from a physics query) for slot candidates respecting request criteria and selection conditions.
+	 *
+	 * @param WorldContextObject Object used to fetch the SmartObjectSubsystem of its associated world.
+	 * @param Filter Parameters defining the search area and criteria
+	 * @param ActorList Ordered list of actors to search
+	 * @param OutResults List of smart object slot candidates found in range
+	 * @param UserData Additional data that could be provided to bind values in the conditions evaluation context
+	 *
+	 * @return True if at least one candidate was found.
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure = False, Category = "SmartObject", Meta = (WorldContext="WorldContextObject", ReturnDisplayName = "bSuccess"))
+	static bool FindSmartObjectsInList(UObject* WorldContextObject, const FSmartObjectRequestFilter& Filter, const TArray<AActor*>& ActorList, TArray<FSmartObjectRequestResult>& OutResults, const AActor* UserActor = nullptr);
+	
 	/** Converts a SmartObjectClaimHandle value to a string */
 	UFUNCTION(BlueprintPure, Category = "Utilities|String", meta = (DisplayName = "To String (SmartObjectClaimHandle)", CompactNodeTitle = "->", BlueprintAutocast))
 	static FString Conv_SmartObjectClaimHandleToString(const FSmartObjectClaimHandle& Result);
