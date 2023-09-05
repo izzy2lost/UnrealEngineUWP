@@ -372,6 +372,12 @@ bool FConfigContext::PerformLoad()
 		ConfigFile->PlatformName = Platform;
 		ConfigFile->bHasPlatformName = true;
 
+		// chcek if the config file wants to save all sections
+		bool bLocalSaveAllSections;
+		ConfigFile->bCanSaveAllSections = ConfigFile->GetBool(SectionsToSaveString, SaveAllSectionsKey, bLocalSaveAllSections) && bLocalSaveAllSections;
+		// we can always save all sections of a User config file
+		ConfigFile->bCanSaveAllSections = ConfigFile->bCanSaveAllSections || BaseIniName.Contains(TEXT("User"));
+
 		// don't write anything to disk in cooked builds - we will always use re-generated INI files anyway.
 		// Note: Unfortunately bAllowGeneratedIniWhenCooked is often true even in shipping builds with cooked data
 		// due to default parameters. We don't dare change this now.
@@ -392,12 +398,6 @@ bool FConfigContext::PerformLoad()
 				ConfigFile->Write(DestIniFilename);
 			}
 		}
-
-		// chcek if the config file wants to save all sections
-		bool bLocalSaveAllSections;
-		ConfigFile->bCanSaveAllSections = ConfigFile->GetBool(SectionsToSaveString, SaveAllSectionsKey, bLocalSaveAllSections) && bLocalSaveAllSections;
-		// we can always save all sections of a User config file
-		ConfigFile->bCanSaveAllSections = ConfigFile->bCanSaveAllSections || BaseIniName.Contains(TEXT("User"));
 	}
 
 	// GenerateDestIniFile returns true if nothing is loaded, so check if we actually loaded something
