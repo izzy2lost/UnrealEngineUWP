@@ -300,7 +300,12 @@ bool IStreamedCompressedInfo::StreamCompressedData(uint8* Destination, bool bLoo
 
 							// Set our offset from the table.
 							SrcBufferOffset = Offset + TableOffset;
-							SrcBufferOffset += CurrentChunkIndex == 0 ? AudioDataOffset : 0;							
+							SrcBufferOffset += CurrentChunkIndex == 0 ? AudioDataOffset : 0;
+
+							// Convert frames to samples and update "current sample count"
+							CurrentSampleCount = StreamSeekToAudioFrames * NumChannels;
+							LastPCMByteSize = 0;
+							LastPCMOffset = 0;
 						}
 						else // Seek failed (off the end of the chunk).
 						{
