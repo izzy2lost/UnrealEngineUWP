@@ -28,20 +28,39 @@ namespace
 	bool bIncrementalUnionBuild = false;
 	FAutoConsoleVariableRef CVarIncrementalUnionBuild(TEXT("ClusterUnion.IncrementalUnionBuild"), bIncrementalUnionBuild , TEXT("Cvar to incrementally build the union."));
 	
+	template<typename PayloadType>
+	struct TClusterUnionAABBTreeStorageTraits
+	{
+		constexpr static uint32 HashTableBucketsSize = 256;
+
+		using PayloadToInfoType = Chaos::TSQMap<PayloadType, Chaos::FAABBTreePayloadInfo>;
+
+		static void InitPayloadToInfo(PayloadToInfoType& PayloadToInfo)
+		{
+			ensureMsgf(PayloadToInfo.Num() == 0, TEXT("Expected an empty map in InitPayloadToInfo, this will incur a rehash of %d elems"), PayloadToInfo.Num());
+			PayloadToInfo.ResizeHashBuckets(HashTableBucketsSize);
+		}
+	};
+
 	// TODO: Should this be exposed in Chaos instead?
-	using FAccelerationStructure = Chaos::TAABBTree<FExternalSpatialAccelerationPayload, Chaos::TAABBTreeLeafArray<FExternalSpatialAccelerationPayload>>;
+	using FAccelerationStructure = Chaos::TAABBTree<
+		FExternalSpatialAccelerationPayload, 
+		Chaos::TAABBTreeLeafArray<FExternalSpatialAccelerationPayload>,
+		true,
+		Chaos::FReal,
+		TClusterUnionAABBTreeStorageTraits<FExternalSpatialAccelerationPayload>>;
 
 	TUniquePtr<Chaos::ISpatialAcceleration<FExternalSpatialAccelerationPayload, Chaos::FReal, 3>> CreateEmptyAccelerationStructure()
 	{
-		FAccelerationStructure* Structure = new FAccelerationStructure(
-			nullptr,
+		FAccelerationStructure* Structure = new FAccelerationStructure{
+			FAccelerationStructure::EmptyInit{},
 			FAccelerationStructure::DefaultMaxChildrenInLeaf,
 			FAccelerationStructure::DefaultMaxTreeDepth,
 			FAccelerationStructure::DefaultMaxPayloadBounds,
 			FAccelerationStructure::DefaultMaxNumToProcess,
 			true,
 			false
-		);
+		};
 
 		check(Structure != nullptr);
 		return TUniquePtr<Chaos::ISpatialAcceleration<FExternalSpatialAccelerationPayload, Chaos::FReal, 3>>(Structure);
@@ -507,6 +526,11 @@ void UClusterUnionComponent::ForceRebuildGTParticleGeometry()
 	NewGeometry->SetAllowBVH(true);
 
 	PhysicsProxy->SetGeometry_External(Chaos::FImplicitObjectPtr(NewGeometry), Particles); 
+}
+
+const UClusterUnionComponent::FSpatialAcceleration* UClusterUnionComponent::GetSpatialAcceleration() const
+{
+	return AccelerationStructure.Get();
 }
 
 TArray<UPrimitiveComponent*> UClusterUnionComponent::GetPrimitiveComponents()

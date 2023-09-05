@@ -423,7 +423,7 @@ public:
 
 	}
 
-	void GatherElements(TArray<TPayloadBoundsElement<TPayloadType, T>>& OutElements)
+	void GatherElements(TArray<TPayloadBoundsElement<TPayloadType, T>>& OutElements) const
 	{
 		OutElements.Reserve(GetReserveCount());
 		OutElements.Append(MGlobalPayloads);

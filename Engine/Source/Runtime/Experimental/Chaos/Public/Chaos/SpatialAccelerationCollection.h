@@ -6,6 +6,7 @@
 #include "Chaos/Collision/StatsData.h"
 #include "ChaosStats.h"
 #include "GeometryParticlesfwd.h"
+#include "Misc/OutputDevice.h"
 
 #include <tuple>
 
@@ -684,6 +685,32 @@ public:
 			}
 		}
 	}
+
+#if !UE_BUILD_SHIPPING
+	void DumpStats() const override
+	{
+		if(GLog)
+		{
+			DumpStatsTo(*GLog);
+		}
+	}
+
+	void DumpStatsTo(FOutputDevice& Ar) const override
+	{
+		for(int BucketIdx = 0; BucketIdx < MaxBuckets; ++BucketIdx)
+		{
+			const BucketType& Bucket = Buckets[BucketIdx];
+			Ar.Logf(TEXT("Bucket %d (%d entries):"), BucketIdx, Bucket.Objects.Num());
+
+			for(int EntryIdx = 0; EntryIdx < Bucket.Objects.Num(); ++EntryIdx)
+			{
+				Ar.Logf(TEXT("\tEntry %d"), EntryIdx);
+				Bucket.Objects[EntryIdx].Acceleration->DumpStatsTo(Ar);
+				Ar.Logf(TEXT(""));
+			}
+		}
+	}
+#endif
 
 private:
 

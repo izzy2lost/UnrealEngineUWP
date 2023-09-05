@@ -124,6 +124,9 @@ class UClusterUnionComponent : public UPrimitiveComponent
 {
 	GENERATED_BODY()
 public:
+
+	using FSpatialAcceleration = Chaos::ISpatialAcceleration<FExternalSpatialAccelerationPayload, Chaos::FReal, 3>;
+
 	ENGINE_API UClusterUnionComponent(const FObjectInitializer& ObjectInitializer);
 
 	UFUNCTION(BlueprintCallable, Category="Cluster Union")
@@ -172,6 +175,8 @@ public:
 	// Force a rebuild of the GT geometry. This needs to happen immediately when we add/remove on the GT so that the SQ is up to date
 	// and doesn't need to wait for the next OnSyncBodies.
 	ENGINE_API void ForceRebuildGTParticleGeometry();
+
+	ENGINE_API const FSpatialAcceleration* GetSpatialAcceleration() const;
 
 	friend class UClusterUnionReplicatedProxyComponent;
 	friend class UModularVehicleBaseComponent;
@@ -234,7 +239,7 @@ private:
 	FChaosUserData PhysicsUserData;
 
 	// An acceleration structure of all children components managed by the cluster union itself.
-	TUniquePtr<Chaos::ISpatialAcceleration<FExternalSpatialAccelerationPayload, Chaos::FReal, 3>> AccelerationStructure;
+	TUniquePtr<FSpatialAcceleration> AccelerationStructure;
 
 	// Need to handle the fact that this component may or may not be initialized prior to the components referenced in
 	// ClusteredComponentsReferences. This function lets us listen to OnComponentPhysicsStateChanged on the incoming

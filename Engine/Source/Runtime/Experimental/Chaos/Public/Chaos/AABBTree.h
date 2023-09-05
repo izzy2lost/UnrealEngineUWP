@@ -241,7 +241,7 @@ struct TAABBTreeLeafArray : public TBoundsWrapperHelper<TPayloadType, T, bComput
 		this->ComputeBounds(Elems);
 	}
 
-	void GatherElements(TArray<TPayloadBoundsElement<TPayloadType, T>>& OutElements)
+	void GatherElements(TArray<TPayloadBoundsElement<TPayloadType, T>>& OutElements) const
 	{
 		OutElements.Append(Elems);
 	}
@@ -731,9 +731,21 @@ struct DirtyGridHashEntry
 	int32 Count;  // Number of valid entries from Index in FlattenedCellArrayOfDirtyIndices
 };
 
-template <typename TPayloadType, typename TLeafType, bool bMutable = true, typename T = FReal>
+template<typename PayloadType>
+struct TDefaultAABBTreeStorageTraits
+{
+	using PayloadToInfoType = TArrayAsMap<PayloadType, FAABBTreePayloadInfo>;
+
+	static void InitPayloadToInfo(PayloadToInfoType& PayloadToInfo)
+	{}
+};
+
+template <typename TPayloadType, typename TLeafType, bool bMutable = true, typename T = FReal, typename StorageTraits = TDefaultAABBTreeStorageTraits<TPayloadType>>
 class TAABBTree final : public ISpatialAcceleration<TPayloadType, T, 3> 
 {
+private:
+	using FElement = TPayloadBoundsElement<TPayloadType, T>;
+	using FNode = TAABBTreeNode<T>;
 public:
 	using PayloadType = TPayloadType;
 	static constexpr int D = 3;
@@ -759,6 +771,8 @@ public:
 		, bBuildOverlapCache(true)		
 	{
 		GetCVars();
+
+		StorageTraits::InitPayloadToInfo(PayloadToInfo);
 	}
 
 	virtual void Reset() override
@@ -837,10 +851,36 @@ public:
 	{
 		if (bInUseDirtyTree)
 		{
-			DirtyElementTree = TUniquePtr<TAABBTree<TPayloadType, TLeafType, bMutable, T>>(new TAABBTree<TPayloadType, TLeafType, bMutable, T>());
+			DirtyElementTree = TUniquePtr<TAABBTree>(new TAABBTree());
 			DirtyElementTree->SetTreeToDynamic();
-		}		
+		}
+
+		StorageTraits::InitPayloadToInfo(PayloadToInfo);
+
 		GenerateTree(Particles);
+	}
+
+	// Tag dispatch enable for the below constructor to allow setting up the defaults without an initial set of particles
+	struct EmptyInit {};
+
+	TAABBTree(EmptyInit, int32 InMaxChildrenInLeaf = DefaultMaxChildrenInLeaf, int32 InMaxTreeDepth = DefaultMaxTreeDepth, T InMaxPayloadBounds = DefaultMaxPayloadBounds, int32 InMaxNumToProcess = DefaultMaxNumToProcess, bool bInDynamicTree = false, bool bInUseDirtyTree = false, bool bInBuildOverlapCache = true)
+		: ISpatialAcceleration<TPayloadType, T, 3>(StaticType)
+		, bDynamicTree(bInDynamicTree)
+		, MaxChildrenInLeaf(InMaxChildrenInLeaf)
+		, MaxTreeDepth(InMaxTreeDepth)
+		, MaxPayloadBounds(InMaxPayloadBounds)
+		, MaxNumToProcess(InMaxNumToProcess)
+		, bModifyingTreeMultiThreadingFastCheck(false)
+		, bShouldRebuild(true)
+		, bBuildOverlapCache(bInBuildOverlapCache)
+	{
+		if(bInUseDirtyTree)
+		{
+			DirtyElementTree = TUniquePtr<TAABBTree>(new TAABBTree());
+			DirtyElementTree->SetTreeToDynamic();
+		}
+
+		StorageTraits::InitPayloadToInfo(PayloadToInfo);
 	}
 
 	template <typename ParticleView>
@@ -876,14 +916,14 @@ public:
 
 	virtual ~TAABBTree() {}
 
-	void CopyFrom(const TAABBTree<TPayloadType, TLeafType, bMutable, T>& Other)
+	void CopyFrom(const TAABBTree& Other)
 	{
 		(*this) = Other;
 	}
 
 	virtual TUniquePtr<ISpatialAcceleration<TPayloadType, T, 3>> Copy() const override
 	{
-		return TUniquePtr<ISpatialAcceleration<TPayloadType, T, 3>>(new TAABBTree<TPayloadType, TLeafType, bMutable, T>(*this));
+		return TUniquePtr<ISpatialAcceleration<TPayloadType, T, 3>>(new TAABBTree(*this));
 	}
 
 	virtual void Raycast(const FVec3& Start, const FVec3& Dir, const FReal Length, ISpatialVisitor<TPayloadType, FReal>& Visitor) const override
@@ -1147,11 +1187,18 @@ public:
 		return DirtyGridOverflowIdx;
 	}
 
-	// Expensive function: Don't call unless debugging
-	void DynamicTreeDebugStats()
+	struct FElementsCollection
 	{
 		TArray<FElement> AllElements;
-		for (int LeafIndex = 0; LeafIndex < Leaves.Num(); LeafIndex++)
+		int32 DepthTotal;
+		int32 MaxDepth;
+		int32 DirtyElementCount;
+	};
+
+	FElementsCollection DebugGetElementsCollection() const 
+	{
+		TArray<FElement> AllElements;
+		for(int LeafIndex = 0; LeafIndex < Leaves.Num(); LeafIndex++)
 		{
 			const TLeafType& Leaf = Leaves[LeafIndex];
 			Leaf.GatherElements(AllElements);
@@ -1159,33 +1206,84 @@ public:
 
 		int32 MaxDepth = 0;
 		int32 DepthTotal = 0;
-		for (const FElement& Element : AllElements)
+		for(const FElement& Element : AllElements)
 		{
-			FAABBTreePayloadInfo* PayloadInfo = PayloadToInfo.Find(Element.Payload);
+			const FAABBTreePayloadInfo* PayloadInfo = PayloadToInfo.Find(Element.Payload);
+
+			if(!PayloadInfo)
+			{
+				continue;
+			}
+
 			int32 Depth = 0;
 			int32 Node = PayloadInfo->NodeIdx;
-			check(Node != INDEX_NONE);
-			while (Node != INDEX_NONE)
+
+			while(Node != INDEX_NONE)
 			{
 				Node = Nodes[Node].ParentNode;
-				if (Node != INDEX_NONE)
+				if(Node != INDEX_NONE)
 				{
 					Depth++;
 				}
 			}
-			if (Depth > MaxDepth)
+			if(Depth > MaxDepth)
 			{
 				MaxDepth = Depth;
 			}
 			DepthTotal += Depth;
 		}
+
+		return { AllElements, DepthTotal, MaxDepth, DirtyElements.Num() };
+	}
+
+	// Expensive function: Don't call unless debugging
+	void DynamicTreeDebugStats() const
+	{
+		const FElementsCollection ElemData = DebugGetElementsCollection();
+
 #if !WITH_EDITOR
-		CSV_CUSTOM_STAT(ChaosPhysicsTimers, MaximumTreeDepth, MaxDepth, ECsvCustomStatOp::Max);
-		CSV_CUSTOM_STAT(ChaosPhysicsTimers, AvgTreeDepth, DepthTotal / AllElements.Num(), ECsvCustomStatOp::Max);
-		CSV_CUSTOM_STAT(ChaosPhysicsTimers, Dirty,DirtyElements.Num(), ECsvCustomStatOp::Max);
+		CSV_CUSTOM_STAT(ChaosPhysicsTimers, MaximumTreeDepth, ElemData.MaxDepth, ECsvCustomStatOp::Max);
+		CSV_CUSTOM_STAT(ChaosPhysicsTimers, AvgTreeDepth, ElemData.DepthTotal / ElemData.AllElements.Num(), ECsvCustomStatOp::Max);
+		CSV_CUSTOM_STAT(ChaosPhysicsTimers, Dirty, ElemData.DirtyElementCount, ECsvCustomStatOp::Max);
 #endif
 
 	}
+
+#if !UE_BUILD_SHIPPING
+	void DumpStats() const override
+	{
+		if(GLog)
+		{
+			DumpStatsTo(*GLog);
+		}
+	}
+
+	void DumpStatsTo(FOutputDevice& Ar) const override
+	{
+		const FElementsCollection ElemData = DebugGetElementsCollection();
+
+		const int32 ElementsNum = ElemData.AllElements.Num();
+		const int32 PayloadMapNum = PayloadToInfo.Num();
+		const int32 PayloadMapCapacity = PayloadToInfo.Capacity();
+		const uint64 PayloadAllocsize = (uint64)PayloadToInfo.GetAllocatedSize();
+		const float AvgDepth = ElementsNum > 0 ? (float)ElemData.DepthTotal / (float)ElementsNum : 0.0f;
+
+		Ar.Logf(ELogVerbosity::Log, TEXT("\t\tContains %d elements"), ElementsNum);
+		Ar.Logf(ELogVerbosity::Log, TEXT("\t\tMax depth is %d"), ElemData.MaxDepth);
+		Ar.Logf(ELogVerbosity::Log, TEXT("\t\tAvg depth is %.3f"), AvgDepth);
+		Ar.Logf(ELogVerbosity::Log, TEXT("\t\tDirty element count is %d"), ElemData.DirtyElementCount);
+		Ar.Logf(ELogVerbosity::Log, TEXT("\t\tPayload container size is %d elements"), PayloadMapNum);
+		Ar.Logf(ELogVerbosity::Log, TEXT("\t\tPayload container capacity is %d elements"), PayloadMapCapacity);
+		Ar.Logf(ELogVerbosity::Log, TEXT("\t\tAllocated size of payload container is %u bytes (%u per tree element)"), PayloadAllocsize, ElementsNum > 0 ? PayloadAllocsize / (uint32)ElementsNum : 0);
+		
+		if(DirtyElementTree)
+		{
+			Ar.Logf(ELogVerbosity::Log, TEXT(""));
+			Ar.Logf(ELogVerbosity::Log, TEXT("\t\tDirty Tree:"));
+			DirtyElementTree->DumpStatsTo(Ar);
+		}
+	}
+#endif
 
 	int32 AllocateInternalNode()
 	{
@@ -1303,10 +1401,6 @@ public:
 	{
 		return(WhichChildAmI(NodeIdx) ^ 1);
 	}
-
-private:
-	using FElement = TPayloadBoundsElement<TPayloadType, T>;
-	using FNode = TAABBTreeNode<T>;
 
 public:
 	int32 FindBestSibling(const TAABB<T, 3>& InNewBounds, bool& bOutAddToLeaf)
@@ -2012,7 +2106,7 @@ public:
 	{
 		check(this != &InFrom);
 		check(InFrom.GetType() == ESpatialAcceleration::AABBTree);
-		const TAABBTree<TPayloadType, TLeafType, bMutable, T>& From = static_cast<const TAABBTree<TPayloadType, TLeafType, bMutable, T>&>(InFrom);
+		const TAABBTree& From = static_cast<const TAABBTree&>(InFrom);
 
 		Reset();
 
@@ -2058,7 +2152,7 @@ public:
 		{
 			if (!DirtyElementTree)
 			{
-				DirtyElementTree = TUniquePtr<TAABBTree<TPayloadType, TLeafType, bMutable, T>>(new TAABBTree<TPayloadType, TLeafType, bMutable, T>());
+				DirtyElementTree = TUniquePtr<TAABBTree>(new TAABBTree());
 			}
 			DirtyElementTree->PrepareCopyTimeSliced(*(From.DirtyElementTree));
 		}
@@ -2072,7 +2166,7 @@ public:
 	{
 		check(this != &InFrom);
 		check(InFrom.GetType() == ESpatialAcceleration::AABBTree);
-		const TAABBTree<TPayloadType, TLeafType, bMutable, T>& From = static_cast<const TAABBTree<TPayloadType, TLeafType, bMutable, T>&>(InFrom);
+		const TAABBTree& From = static_cast<const TAABBTree&>(InFrom);
 
 		int32 SizeToCopyLeft = MaximumBytesToCopy;
 		check(From.CellHashToFlatArray.Num() == 0); // Partial Copy of TMAPs not implemented, and this should be empty for our current use cases
@@ -2520,7 +2614,7 @@ private:
 			Leaf.GatherElements(AllElements);
 		}
 
-		TAABBTree<TPayloadType,TLeafType,bMutable, T> NewTree(AllElements);
+		TAABBTree NewTree(AllElements);
 		*this = NewTree;
 		bShouldRebuild = true; // No changes since last time tree was built
 	}
@@ -3464,6 +3558,10 @@ private:
 		{
 			ContainerTo.AddFrom(ContainerFrom, Index);
 		}
+		else if constexpr(std::is_same_v<ContainerType, TSQMap<TPayloadType, FAABBTreePayloadInfo>>)
+		{
+			ContainerTo.AddFrom(ContainerFrom, Index);
+		}
 		else
 		{
 			ContainerTo.Add(ContainerFrom[Index]);
@@ -3535,7 +3633,7 @@ private:
 #endif
 
 
-	TAABBTree(const TAABBTree<TPayloadType, TLeafType, bMutable, T>& Other)
+	TAABBTree(const TAABBTree& Other)
 		: ISpatialAcceleration<TPayloadType, T, 3>(StaticType)
 		, Nodes(Other.Nodes)
 		, Leaves(Other.Leaves)
@@ -3574,17 +3672,17 @@ private:
 		PriorityQ.Reserve(32);
 		if (Other.DirtyElementTree)
 		{
-			DirtyElementTree = TUniquePtr<TAABBTree<TPayloadType, TLeafType, bMutable, T>>(new TAABBTree<TPayloadType, TLeafType, bMutable, T>(*(Other.DirtyElementTree)));
+			DirtyElementTree = TUniquePtr<TAABBTree>(new TAABBTree(*(Other.DirtyElementTree)));
 		}
 	}
 
 	virtual void DeepAssign(const ISpatialAcceleration<TPayloadType, T, 3>& Other) override
 	{
 		check(Other.GetType() == ESpatialAcceleration::AABBTree);
-		*this = static_cast<const TAABBTree<TPayloadType, TLeafType, bMutable, T>&>(Other);
+		*this = static_cast<const TAABBTree&>(Other);
 	}
 
-	TAABBTree<TPayloadType,TLeafType, bMutable, T>& operator=(const TAABBTree<TPayloadType,TLeafType,bMutable, T>& Rhs)
+	TAABBTree& operator=(const TAABBTree& Rhs)
 	{
 		ISpatialAcceleration<TPayloadType, T, 3>::DeepAssign(Rhs);
 		ensure(Rhs.WorkStack.Num() == 0);
@@ -3629,7 +3727,7 @@ private:
 			{
 				if (!DirtyElementTree)
 				{
-					DirtyElementTree = TUniquePtr<TAABBTree<TPayloadType, TLeafType, bMutable, T>>(new TAABBTree<TPayloadType, TLeafType, bMutable, T>());
+					DirtyElementTree = TUniquePtr<TAABBTree>(new TAABBTree());
 				}				
 				*DirtyElementTree = *Rhs.DirtyElementTree;
 			}
@@ -3659,8 +3757,7 @@ private:
 	TArray<int32> DirtyElementsGridOverflow; // Array of indices of DirtyElements that is not in the grid for some reason
 
 	// Members for using a dynamic tree as a dirty element acceleration structure
-	TUniquePtr<TAABBTree<TPayloadType, TLeafType, bMutable, T>> DirtyElementTree;
-
+	TUniquePtr<TAABBTree> DirtyElementTree;
 
 	// Copy of CVARS
 	T DirtyElementGridCellSize;
@@ -3673,7 +3770,7 @@ private:
 	AABBTreeExpensiveStatistics TreeExpensiveStats;
 
 	TArray<FElement> GlobalPayloads;
-	TArrayAsMap<TPayloadType, FAABBTreePayloadInfo> PayloadToInfo;
+	typename StorageTraits::PayloadToInfoType PayloadToInfo;
 
 	int32 MaxChildrenInLeaf;
 	int32 MaxTreeDepth;
@@ -3711,8 +3808,8 @@ private:
 
 };
 
-template<typename TPayloadType, typename TLeafType, bool bMutable, typename T>
-FArchive& operator<<(FChaosArchive& Ar, TAABBTree<TPayloadType, TLeafType, bMutable, T>& AABBTree)
+template<typename TPayloadType, typename TLeafType, bool bMutable, typename T, typename StorageTraits>
+FArchive& operator<<(FChaosArchive& Ar, TAABBTree<TPayloadType, TLeafType, bMutable, T, StorageTraits>& AABBTree)
 {
 	AABBTree.Serialize(Ar);
 	return Ar;

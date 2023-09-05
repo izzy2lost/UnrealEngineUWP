@@ -26,6 +26,7 @@
 #include "PhysicsProxy/StaticMeshPhysicsProxy.h"
 #include "Chaos/PendingSpatialData.h"
 #include "Chaos/PhysicsSolverBaseImpl.h"
+#include "Misc/CoreMisc.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -70,6 +71,53 @@ struct FPendingAsyncPhysicsCommand
 	bool bEnableResim = true;
 };
 
+class FPhysSceneExecHandler : public FSelfRegisteringExec
+{
+	bool Exec_Runtime(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar) override
+	{
+#if !UE_BUILD_SHIPPING
+		if(FParse::Command(&Cmd, TEXT("LIST SQ")) && InWorld)
+		{
+			FPhysScene_Chaos* Scene = InWorld->GetPhysicsScene();
+
+			if(!Scene)
+			{
+				return false;
+			}
+
+			Ar.Logf(TEXT("----- Begin SQ Listing ----------------------------------------"));
+			Ar.Logf(TEXT("----- World SQ         ----------------------------------------"));
+			Ar.Logf(TEXT("SQ Data for world %s"), *InWorld->GetName());
+			Scene->GetSpacialAcceleration()->DumpStatsTo(Ar);
+
+			Ar.Logf(TEXT("----- Cluster Union SQ ----------------------------------------"));
+
+			for(TObjectIterator<UClusterUnionComponent> Iter; Iter; ++Iter)
+			{
+				UClusterUnionComponent* Union = *Iter;
+				if(Union->GetWorld() != InWorld)
+				{
+					continue;
+				}
+
+				Ar.Logf(TEXT("Inner Acceleration data for Cluster Union Component %s"), *Union->GetName());
+				if(Union->GetSpatialAcceleration())
+				{
+					Union->GetSpatialAcceleration()->DumpStatsTo(Ar);
+				}
+				Ar.Logf(TEXT(""));
+			}
+
+			Ar.Logf(TEXT("----- End SQ Listing   ----------------------------------------"));
+
+			return true;
+		}
+#endif
+
+		return false;
+	}
+};
+static FPhysSceneExecHandler GPhysSceneExecHandler;
 
 class FAsyncPhysicsTickCallback : public Chaos::TSimCallbackObject<
 	Chaos::FSimCallbackNoInput,
