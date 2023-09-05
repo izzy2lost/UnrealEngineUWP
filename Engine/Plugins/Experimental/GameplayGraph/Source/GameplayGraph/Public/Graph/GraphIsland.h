@@ -47,6 +47,15 @@ public:
 	int32 Num() const { return Vertices.Num(); }
 	FSerializedIslandData GetSerializedData() const;
 
+	template<typename TLambda>
+	void ForEachVertex(TLambda&& Lambda)
+	{
+		for (const FGraphVertexHandle& Vh : Vertices)
+		{
+			Lambda(Vh);
+		}
+	}
+
 	FOnGraphIslandVertexAdded OnVertexAdded;
 	FOnGraphIslandVertexRemoved OnVertexRemoved;
 	FOnGraphIslandDestroyed OnDestroyed;
