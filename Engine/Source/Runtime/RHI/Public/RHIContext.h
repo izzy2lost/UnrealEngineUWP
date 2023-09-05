@@ -303,38 +303,6 @@ public:
 	virtual void RHIBeginUAVOverlap(TConstArrayView<FRHIUnorderedAccessView*> UAVs) {}
 	virtual void RHIEndUAVOverlap(TConstArrayView<FRHIUnorderedAccessView*> UAVs) {}
 
-	/** Set the shader resource view of a surface.  This is used for binding TextureMS parameter types that need a multi sampled view. */
-	virtual void RHISetShaderTexture(FRHIComputeShader* ComputeShader, uint32 TextureIndex, FRHITexture* NewTexture) = 0;
-
-	/**
-	* Sets sampler state.
-	* @param ComputeShader		The compute shader to set the sampler for.
-	* @param SamplerIndex		The index of the sampler.
-	* @param NewState			The new sampler state.
-	*/
-	virtual void RHISetShaderSampler(FRHIComputeShader* ComputeShader, uint32 SamplerIndex, FRHISamplerState* NewState) = 0;
-
-	/**
-	* Sets a compute shader UAV parameter.
-	* @param ComputeShader	The compute shader to set the UAV for.
-	* @param UAVIndex		The index of the UAVIndex.
-	* @param UAV			The new UAV.
-	*/
-	virtual void RHISetUAVParameter(FRHIComputeShader* ComputeShader, uint32 UAVIndex, FRHIUnorderedAccessView* UAV) = 0;
-
-	/**
-	* Sets a compute shader counted UAV parameter and initial count
-	* @param ComputeShader	The compute shader to set the UAV for.
-	* @param UAVIndex		The index of the UAVIndex.
-	* @param UAV			The new UAV.
-	* @param InitialCount	The initial number of items in the UAV.
-	*/
-	virtual void RHISetUAVParameter(FRHIComputeShader* ComputeShader, uint32 UAVIndex, FRHIUnorderedAccessView* UAV, uint32 InitialCount) = 0;
-
-	virtual void RHISetShaderResourceViewParameter(FRHIComputeShader* ComputeShader, uint32 SamplerIndex, FRHIShaderResourceView* SRV) = 0;
-
-	virtual void RHISetShaderUniformBuffer(FRHIComputeShader* ComputeShader, uint32 BufferIndex, FRHIUniformBuffer* Buffer) = 0;
-
 	virtual void RHISetShaderParameters(FRHIComputeShader* ComputeShader, TConstArrayView<uint8> InParametersData, TConstArrayView<FRHIShaderParameter> InParameters, TConstArrayView<FRHIShaderParameterResource> InResourceParameters, TConstArrayView<FRHIShaderParameterResource> InBindlessParameters) = 0;
 
 	void RHISetBatchedShaderParameters(FRHIComputeShader* InShader, FRHIBatchedShaderParameters& InBatchedParameters)
@@ -353,8 +321,6 @@ public:
 	{
 		checkf(false, TEXT("RHISetShaderUnbinds called when the active RHI hasn't overridden it and GRHIGlobals.NeedsShaderUnbinds is set."));
 	}
-
-	virtual void RHISetShaderParameter(FRHIComputeShader* ComputeShader, uint32 BufferIndex, uint32 BaseIndex, uint32 NumBytes, const void* NewValue) = 0;
 
 	virtual void RHISetStaticUniformBuffers(const FUniformBufferStaticBindings& InUniformBuffers)
 	{
@@ -710,39 +676,9 @@ public:
 
 	// Inherit the parent context's RHISet functions that take FRHIComputeShader arguments
 	// Required to avoid warning C4263 : 'function' : member function does not override any base class virtual member function
-	using IRHIComputeContext::RHISetShaderTexture;
-	using IRHIComputeContext::RHISetShaderSampler;
-	using IRHIComputeContext::RHISetUAVParameter;
-	using IRHIComputeContext::RHISetShaderResourceViewParameter;
-	using IRHIComputeContext::RHISetShaderUniformBuffer;
 	using IRHIComputeContext::RHISetShaderParameters;
 	using IRHIComputeContext::RHISetBatchedShaderParameters;
 	using IRHIComputeContext::RHISetShaderUnbinds;
-	using IRHIComputeContext::RHISetShaderParameter;
-
-	/** Set the shader resource view of a surface. */
-	virtual void RHISetShaderTexture(FRHIGraphicsShader* Shader, uint32 TextureIndex, FRHITexture* NewTexture) = 0;
-
-	/**
-	* Sets sampler state.
-	* @param Shader				The shader to set the sampler for.
-	* @param SamplerIndex		The index of the sampler.
-	* @param NewState			The new sampler state.
-	*/
-	virtual void RHISetShaderSampler(FRHIGraphicsShader* Shader, uint32 SamplerIndex, FRHISamplerState* NewState) = 0;
-
-	/**
-	* Sets a pixel shader UAV parameter.
-	* @param PixelShader		The pixel shader to set the UAV for.
-	* @param UAVIndex		The index of the UAVIndex.
-	* @param UAV			The new UAV.
-	*/
-	virtual void RHISetUAVParameter(FRHIPixelShader* PixelShader, uint32 UAVIndex, FRHIUnorderedAccessView* UAV) = 0;
-
-
-	virtual void RHISetShaderResourceViewParameter(FRHIGraphicsShader* Shader, uint32 SamplerIndex, FRHIShaderResourceView* SRV) = 0;
-
-	virtual void RHISetShaderUniformBuffer(FRHIGraphicsShader* Shader, uint32 BufferIndex, FRHIUniformBuffer* Buffer) = 0;
 
 	virtual void RHISetShaderParameters(FRHIGraphicsShader* Shader, TConstArrayView<uint8> InParametersData, TConstArrayView<FRHIShaderParameter> InParameters, TConstArrayView<FRHIShaderParameterResource> InResourceParameters, TConstArrayView<FRHIShaderParameterResource> InBindlessParameters) = 0;
 
@@ -762,8 +698,6 @@ public:
 	{
 		checkf(false, TEXT("RHISetShaderUnbinds called when the active RHI hasn't overridden it and GRHIGlobals.NeedsShaderUnbinds is set."));
 	}
-
-	virtual void RHISetShaderParameter(FRHIGraphicsShader* Shader, uint32 BufferIndex, uint32 BaseIndex, uint32 NumBytes, const void* NewValue) = 0;
 
 	virtual void RHISetStencilRef(uint32 StencilRef) {}
 
