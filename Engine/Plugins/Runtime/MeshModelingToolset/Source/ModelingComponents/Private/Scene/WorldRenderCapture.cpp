@@ -21,6 +21,7 @@
 
 #include "SceneViewExtension.h"
 #include "RenderCaptureInterface.h" // For debugging with RenderCaptureInterface::FScopedCapture
+#include "AssetCompilingManager.h"
 
 using namespace UE::Geometry;
 
@@ -375,12 +376,26 @@ namespace Internal
  */
 static void PerformSceneRender(FCanvas* Canvas, FSceneViewFamily* ViewFamily)
 {
-	for (int32 i = 0; i < CVarModelingWorldRenderCaptureVTWarmupFrames.GetValueOnGameThread(); i++)
-	{
-		GetRendererModule().BeginRenderingViewFamily(Canvas, ViewFamily);
-	}
+	bool bCompiledAssets = false;
 
-	GetRendererModule().BeginRenderingViewFamily(Canvas, ViewFamily);
+	do
+	{
+		int32 NumRender = 1 + CVarModelingWorldRenderCaptureVTWarmupFrames.GetValueOnGameThread();
+		for (int32 i = 0; i < NumRender; i++)
+		{
+			GetRendererModule().BeginRenderingViewFamily(Canvas, ViewFamily);
+		}
+
+		// Flush rendering commands, may queue assets compilation (shaders)
+		FlushRenderingCommands();
+
+		// If there are assets to be compiled, we need to wait for compilation to finish and start render over
+		bCompiledAssets = FAssetCompilingManager::Get().GetNumRemainingAssets() > 0;
+		if (bCompiledAssets)
+		{
+			FAssetCompilingManager::Get().FinishAllCompilation();
+		}
+	} while (bCompiledAssets);
 }
 
 
@@ -634,9 +649,6 @@ bool FWorldRenderCapture::CaptureMRSFromPosition(
 
 	// Cache the view/projection matricies we used to render the scene
 	LastCaptureViewMatrices = NewView->ViewMatrices;
-
-	// wait for render
-	FlushRenderingCommands();
 
 	// read back image
 	if (PostProcessPassPixelData.IsValid())
