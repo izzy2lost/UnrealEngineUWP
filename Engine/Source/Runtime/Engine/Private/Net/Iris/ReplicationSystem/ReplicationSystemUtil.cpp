@@ -105,6 +105,12 @@ FNetHandle FReplicationSystemUtil::GetNetHandle(const UActorComponent* SubObject
 	return NetHandle;
 }
 
+FNetHandle FReplicationSystemUtil::GetNetHandle(const UObject* Object)
+{
+	FNetHandle NetHandle = FNetHandleManager::GetNetHandle(Object);
+	return NetHandle;
+}
+
 void FReplicationSystemUtil::BeginReplication(AActor* Actor, const FActorBeginReplicationParams& Params)
 {
 	if (const UWorld* World = Actor->GetWorld())
@@ -629,6 +635,30 @@ void FReplicationSystemUtil::ClearCullDistanceSqrOverride(const AActor* Actor)
 				if (RefHandle.IsValid())
 				{
 					ReplicationSystem->ClearCullDistanceSqrOverride(RefHandle);
+				}
+			}
+		}
+	});
+}
+
+void FReplicationSystemUtil::SetPollFrequency(const UObject* Object, float PollFrequency)
+{
+	FNetHandle NetHandle = GetNetHandle(Object);
+	if (!NetHandle.IsValid())
+	{
+		return;
+	}
+	
+	ReplicationSystemUtil::ForEachReplicationSystem([NetHandle, PollFrequency](UReplicationSystem* ReplicationSystem)
+	{
+		if (ReplicationSystem->IsServer())
+		{
+			if (UObjectReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UObjectReplicationBridge>())
+			{
+				FNetRefHandle RefHandle = Bridge->GetReplicatedRefHandle(NetHandle);
+				if (RefHandle.IsValid())
+				{
+					Bridge->SetPollFrequency(RefHandle, PollFrequency);
 				}
 			}
 		}

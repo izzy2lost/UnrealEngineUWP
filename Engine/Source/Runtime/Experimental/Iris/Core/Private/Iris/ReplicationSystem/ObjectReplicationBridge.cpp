@@ -1473,10 +1473,10 @@ void UObjectReplicationBridge::ReinitPollFrequency()
 
 			PollFrequencyLimiter->SetPollFramePeriod(RootObjectIndex, PollFramePeriod);
 
-			// Set the subobjects of the object
+			// Make sure the subobjects are polled the same frame as the root object.
 			for (const FInternalNetRefIndex SubObjectIndex : LocalNetRefHandleManager.GetSubObjects(RootObjectIndex))
 			{
-				PollFrequencyLimiter->SetPollFramePeriod(SubObjectIndex, PollFramePeriod);
+				PollFrequencyLimiter->SetPollWithObject(RootObjectIndex, SubObjectIndex);
 			}
 		}
 	};
@@ -1485,4 +1485,28 @@ void UObjectReplicationBridge::ReinitPollFrequency()
 	const FNetBitArrayView SubObjects = MakeNetBitArrayView(LocalNetRefHandleManager.GetSubObjectInternalIndices());
 
 	FNetBitArrayView::ForAllSetBits(RootObjects, SubObjects, FNetBitArrayView::AndNotOp, UpdatePollFrequency);
+}
+
+void UObjectReplicationBridge::SetPollFrequency(FNetRefHandle RefHandle, float PollFrequency)
+{
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
+
+	FReplicationSystemInternal* ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
+	const FNetRefHandleManager& LocalNetRefHandleManager = ReplicationSystemInternal->GetNetRefHandleManager();
+
+	FInternalNetRefIndex RootObjectIndex = LocalNetRefHandleManager.GetInternalIndex(RefHandle);
+	if (RootObjectIndex == FNetRefHandleManager::InvalidInternalIndex)
+	{
+		return;
+	}
+
+	const uint8 PollFramePeriod = ConvertPollFrequencyIntoFrames(PollFrequency);
+	PollFrequencyLimiter->SetPollFramePeriod(RootObjectIndex, PollFramePeriod);
+
+	// Make sure the subobjects are polled the same frame as the root object.
+	for (const FInternalNetRefIndex SubObjectIndex : LocalNetRefHandleManager.GetSubObjects(RootObjectIndex))
+	{
+		PollFrequencyLimiter->SetPollWithObject(RootObjectIndex, SubObjectIndex);
+	}
 }

@@ -148,6 +148,9 @@ public:
 	/** Trigger replication of dirty state for object wanting to be dormant. */
 	IRISCORE_API void ForceUpdateWantsToBeDormantObject(FNetRefHandle Handle);	
 
+	/** Set poll frequency on root object and its subobjects. They will be polled on the same frame. */
+	IRISCORE_API void SetPollFrequency(FNetRefHandle RootHandle, float PollFrequency);
+
 protected:
 	IRISCORE_API virtual ~UObjectReplicationBridge();
 
