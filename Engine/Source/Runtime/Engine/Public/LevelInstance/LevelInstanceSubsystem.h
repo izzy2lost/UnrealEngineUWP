@@ -136,6 +136,7 @@ public:
 #endif
 
 private:
+	ENGINE_API void UpdateStreamingStateInternal();
 	ENGINE_API void BlockOnLoading();
 	ENGINE_API void LoadLevelInstance(ILevelInstanceInterface* LevelInstance);
 	ENGINE_API void UnloadLevelInstance(const FLevelInstanceID& LevelInstanceID);

@@ -230,6 +230,22 @@ bool ULevelInstanceSubsystem::IsLoading(const ILevelInstanceInterface* LevelInst
 
 void ULevelInstanceSubsystem::UpdateStreamingState()
 {
+	UpdateStreamingStateInternal();
+
+#if WITH_EDITOR
+	if (!GetWorld()->IsGameWorld())
+	{
+		// For Editor Worlds make sure UpdateStreamingState completes all recursive loading/unloading
+		while (LevelInstancesToLoadOrUpdate.Num() || LevelInstancesToUnload.Num())
+		{
+			UpdateStreamingStateInternal();
+		}
+	}
+#endif
+}
+
+void ULevelInstanceSubsystem::UpdateStreamingStateInternal()
+{
 	if (!LevelInstancesToUnload.Num() && !LevelInstancesToLoadOrUpdate.Num())
 	{
 		return;
@@ -242,7 +258,7 @@ void ULevelInstanceSubsystem::UpdateStreamingState()
 		return;
 	}
 
-	FScopedSlowTask SlowTask(LevelInstancesToUnload.Num() + LevelInstancesToLoadOrUpdate.Num() * 2, LOCTEXT("UpdatingLevelInstances", "Updating Level Instances..."), !GetWorld()->IsGameWorld());
+	FScopedSlowTask SlowTask(LevelInstancesToUnload.Num() + LevelInstancesToLoadOrUpdate.Num() * 2, LOCTEXT("UpdatingLevelInstances", "Updating Level Instances..."), !GetWorld()->IsGameWorld() && !GetWorld()->GetIsInBlockTillLevelStreamingCompleted());
 	SlowTask.MakeDialogDelayed(1.0f);
 
 	check(!LevelsToRemoveScope);
