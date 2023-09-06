@@ -208,7 +208,6 @@ void SDMXPixelMappingDesignerView::Construct(const FArguments& InArgs, const TSh
 							[
 								SNew(SButton)
 								.ButtonColorAndOpacity(FLinearColor::Transparent)
-								.ButtonStyle(FAppStyle::Get(), "ViewportMenu.Button")
 								.ToolTipText(LOCTEXT("ZoomToFit_ToolTip", "Zoom To Fit"))
 								.OnClicked(this, &SDMXPixelMappingDesignerView::OnZoomToFitClicked)
 								.ContentPadding(FAppStyle::Get().GetMargin("ViewportMenu.SToolBarButtonBlock.Button.Padding"))

@@ -35,7 +35,7 @@ void FDMXPixelMappingToolbar::BuildToolbarCallback(FToolBarBuilder& ToolbarBuild
 			NAME_None, 
 			TAttribute<FText>(), 
 			TAttribute<FText>(),
-			FSlateIcon(FDMXPixelMappingEditorStyle::GetStyleSetName(), "DMXPixelMappingEditor.AddMapping"),
+			FSlateIcon(FDMXPixelMappingEditorStyle::Get().GetStyleSetName(), "Icons.AddMapping"),
 			FName(TEXT("Add Source")));
 	}
 	ToolbarBuilder.EndSection();
@@ -46,14 +46,14 @@ void FDMXPixelMappingToolbar::BuildToolbarCallback(FToolBarBuilder& ToolbarBuild
 			NAME_None, 
 			TAttribute<FText>(), 
 			TAttribute<FText>(),
-			FSlateIcon(FDMXPixelMappingEditorStyle::GetStyleSetName(), "DMXPixelMappingEditor.PlayDMX"),
+			FSlateIcon(FDMXPixelMappingEditorStyle::Get().GetStyleSetName(), "Icons.PlayDMX"),
 			FName(TEXT("Play DMX")));
 
 		ToolbarBuilder.AddToolBarButton(FDMXPixelMappingEditorCommands::Get().StopPlayingDMX,
 			NAME_None, 
 			TAttribute<FText>(), 
 			TAttribute<FText>(),
-			FSlateIcon(FDMXPixelMappingEditorStyle::GetStyleSetName(), "DMXPixelMappingEditor.StopPlayingDMX"),
+			FSlateIcon(FDMXPixelMappingEditorStyle::Get().GetStyleSetName(), "Icons.StopPlayingDMX"),
 			FName(TEXT("Stop Playing DMX")));
 	}
 	ToolbarBuilder.EndSection();
