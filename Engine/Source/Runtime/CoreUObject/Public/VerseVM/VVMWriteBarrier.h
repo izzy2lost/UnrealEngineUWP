@@ -42,6 +42,7 @@ struct TWriteBarrier
 	{
 		RunBarrier(FAccessContextPromise(), Other.Value);
 		Value = Other.Value;
+		return *this;
 	}
 
 	/// Making use of this constructor is potentially expensive because it could involve a TLS lookup.
@@ -55,6 +56,7 @@ struct TWriteBarrier
 	{
 		RunBarrier(FAccessContextPromise(), Other.Value);
 		Move(Value, Other.Value);
+		return *this;
 	}
 
 	bool Equals(const TWriteBarrier& Other) const
