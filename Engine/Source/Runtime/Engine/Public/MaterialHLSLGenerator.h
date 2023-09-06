@@ -75,7 +75,7 @@ public:
 	const FMaterialLayersFunctions* GetLayerOverrides() const { return LayerOverrides; }
 
 	const UMaterial* GetTargetMaterial() const;
-	UE::HLSLTree::FTree& GetTree() const;
+	ENGINE_API UE::HLSLTree::FTree& GetTree() const;
 	UE::Shader::FStructTypeRegistry& GetTypeRegistry() const;
 	const UE::Shader::FStructType* GetMaterialAttributesType() const;
 	const UE::Shader::FValue& GetMaterialAttributesDefaultValue() const;
@@ -240,7 +240,7 @@ private:
 	bool InternalGenerate();
 
 	const UE::HLSLTree::FExpression* InternalNewErrorExpression(FStringView Error);
-	bool InternalError(FStringView ErrorMessage);
+	ENGINE_API bool InternalError(FStringView ErrorMessage);
 
 	void InternalRegisterExpressionData(const FName& Type, const UMaterialExpression* MaterialExpression, void* Data);
 	void* InternalFindExpressionData(const FName& Type, const UMaterialExpression* MaterialExpression);

@@ -8,6 +8,8 @@
 #include "Materials/MaterialLayersFunctions.h"
 #include "RHIDefinitions.h"
 #include "Engine/Texture.h" // enum TextureAddress for VTStackEntry
+#include "VT/RuntimeVirtualTextureEnum.h"
+#include "MaterialCompiler.h"
 
 class UTexture;
 enum class EMaterialParameterType : uint8;
@@ -180,6 +182,11 @@ enum class EExternalInput : uint8
 	ParticleColor,
 	ParticleTranslatedWorldPosition,
 	ParticleRadius,
+	ParticleDirection,
+	ParticleSpeed,
+	ParticleRelativeTime,
+	ParticleRandom,
+	ParticleSize,
 
 	IsOrthographic,
 
@@ -327,7 +334,11 @@ public:
 		const FExpression* InAutomaticMipBiasExpression,
 		const FExpressionDerivatives& InTexCoordDerivatives,
 		ESamplerSourceMode InSamplerSource,
-		ETextureMipValueMode InMipValueMode)
+		ETextureMipValueMode InMipValueMode,
+		int16 InTextureLayerIndex = INDEX_NONE,
+		int16 InPageTableLayerIndex = INDEX_NONE,
+		bool bInAdaptive = false,
+		bool bInEnableFeedback = true)
 		: TextureExpression(InTextureExpression)
 		, TexCoordExpression(InTexCoordExpression)
 		, MipValueExpression(InMipValueExpression)
@@ -335,6 +346,10 @@ public:
 		, TexCoordDerivatives(InTexCoordDerivatives)
 		, SamplerSource(InSamplerSource)
 		, MipValueMode(InMipValueMode)
+		, TextureLayerIndex(InTextureLayerIndex)
+		, PageTableLayerIndex(InPageTableLayerIndex)
+		, bAdaptive(bInAdaptive)
+		, bEnableFeedback(bInEnableFeedback)
 	{}
 
 	const FExpression* TextureExpression;
@@ -344,6 +359,12 @@ public:
 	FExpressionDerivatives TexCoordDerivatives;
 	ESamplerSourceMode SamplerSource;
 	ETextureMipValueMode MipValueMode;
+	
+	// Only used for virtual textures
+	int16 TextureLayerIndex;
+	int16 PageTableLayerIndex;
+	bool bAdaptive;
+	bool bEnableFeedback;
 
 	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
@@ -360,6 +381,49 @@ public:
 
 	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
 	virtual void EmitValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValuePreshaderResult& OutResult) const override;
+};
+
+class FExpressionRuntimeVirtualTextureUniform : public FExpression
+{
+public:
+	FExpressionRuntimeVirtualTextureUniform(const FMaterialParameterInfo& InParameterInfo, const FExpression* InTextureExpression, ERuntimeVirtualTextureShaderUniform InUniformType)
+		: ParameterInfo(InParameterInfo)
+		, TextureExpression(InTextureExpression)
+		, UniformType(InUniformType)
+	{}
+
+	FHashedMaterialParameterInfo ParameterInfo;
+	const FExpression* TextureExpression;
+	ERuntimeVirtualTextureShaderUniform UniformType;
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValuePreshaderResult& OutResult) const override;
+};
+
+class FExpressionVirtualTextureUnpack : public FExpression
+{
+public:
+	FExpressionVirtualTextureUnpack(
+		const FExpression* InSampleLayer0Expression,
+		const FExpression* InSampleLayer1Expression,
+		const FExpression* InSampleLayer2Expression,
+		const FExpression* InWorldHeightUnpackUniformExpression,
+		EVirtualTextureUnpackType InUnpackType)
+		: SampleLayer0Expression(InSampleLayer0Expression)
+		, SampleLayer1Expression(InSampleLayer1Expression)
+		, SampleLayer2Expression(InSampleLayer2Expression)
+		, WorldHeightUnpackUniformExpression(InWorldHeightUnpackUniformExpression)
+		, UnpackType(InUnpackType)
+	{}
+
+	const FExpression* SampleLayer0Expression;
+	const FExpression* SampleLayer1Expression;
+	const FExpression* SampleLayer2Expression;
+	const FExpression* WorldHeightUnpackUniformExpression;
+	EVirtualTextureUnpackType UnpackType;
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
 };
 
 class FExpressionFunctionCall : public FExpressionForward
@@ -405,6 +469,47 @@ public:
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
 };
 
+class FExpressionScreenAlignedUV : public FExpression
+{
+public:
+	 FExpressionScreenAlignedUV(const FExpression* InOffsetExpression, const FExpression* InViewportUVExpression)
+		: OffsetExpression(InOffsetExpression)
+		, ViewportUVExpression(InViewportUVExpression)
+	{}
+
+	 const FExpression* OffsetExpression;
+	 const FExpression* ViewportUVExpression;
+
+	 virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	 virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+class FExpressionSceneDepth : public FExpression
+{
+public:
+	FExpressionSceneDepth(const FExpression* InScreenUVExpression)
+		: ScreenUVExpression(InScreenUVExpression)
+	{}
+
+	const FExpression* ScreenUVExpression;
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+class FExpressionSceneColor : public FExpression
+{
+public:
+	FExpressionSceneColor(const FExpression* InScreenUVExpression)
+		: ScreenUVExpression(InScreenUVExpression)
+	{}
+
+	const FExpression* ScreenUVExpression;
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
 struct FNoiseParameters
 {
 	FNoiseParameters() { FMemory::Memzero(*this); }
@@ -433,6 +538,34 @@ public:
 	const FExpression* PositionExpression;
 	const FExpression* FilterWidthExpression;
 	FNoiseParameters Parameters;
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+struct FVectorNoiseParameters
+{
+	FVectorNoiseParameters()
+	{
+		FMemory::Memzero(*this);
+	}
+
+	int32 Quality;
+	uint32 TileSize;
+	uint8 Function;
+	bool bTiling;
+};
+
+class FExpressionVectorNoise : public FExpression
+{
+public:
+	FExpressionVectorNoise(const FVectorNoiseParameters& InParams, const FExpression* InPositionExpression)
+		: PositionExpression(InPositionExpression)
+		, Parameters(InParams)
+	{}
+
+	const FExpression* PositionExpression;
+	FVectorNoiseParameters Parameters;
 
 	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;

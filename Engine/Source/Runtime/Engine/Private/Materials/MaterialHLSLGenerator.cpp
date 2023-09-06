@@ -234,6 +234,11 @@ bool FMaterialHLSLGenerator::GenerateResult(UE::HLSLTree::FScope& Scope)
 				{
 					const EMaterialProperty Property = (EMaterialProperty)PropertyIndex;
 
+					if (Property == MP_CustomOutput)
+					{
+						continue;
+					}
+
 					// We're only interesting in attributes that map to valid fields
 					const UE::Shader::FStructField* AttributeField = CachedTree.GetMaterialAttributesType()->FindFieldByName(*FMaterialAttributeDefinitionMap::GetAttributeName(Property));
 					if (AttributeField)

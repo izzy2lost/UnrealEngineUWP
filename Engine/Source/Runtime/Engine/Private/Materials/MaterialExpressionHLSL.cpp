@@ -53,26 +53,42 @@
 #include "Materials/MaterialExpressionParticleColor.h"
 #include "Materials/MaterialExpressionParticlePositionWS.h"
 #include "Materials/MaterialExpressionParticleRadius.h"
+#include "Materials/MaterialExpressionParticleDirection.h"
+#include "Materials/MaterialExpressionParticleSpeed.h"
+#include "Materials/MaterialExpressionParticleRelativeTime.h"
+#include "Materials/MaterialExpressionParticleRandom.h"
+#include "Materials/MaterialExpressionParticleSize.h"
 #include "Materials/MaterialExpressionSkyLightEnvMapSample.h"
 #include "Materials/MaterialExpressionTextureSample.h"
 #include "Materials/MaterialExpressionTextureSampleParameter.h"
+#include "Materials/MaterialExpressionRuntimeVirtualTextureSample.h"
+#include "Materials/MaterialExpressionRuntimeVirtualTextureSampleParameter.h"
 #include "Materials/MaterialExpressionFontSample.h"
 #include "Materials/MaterialExpressionTextureObject.h"
 #include "Materials/MaterialExpressionTextureObjectParameter.h"
 #include "Materials/MaterialExpressionSceneTexture.h"
+#include "Materials/MaterialExpressionSceneColor.h"
 #include "Materials/MaterialExpressionSceneDepth.h"
+#include "Materials/MaterialExpressionDepthFade.h"
 #include "Materials/MaterialExpressionNoise.h"
+#include "Materials/MaterialExpressionVectorNoise.h"
 #include "Materials/MaterialExpressionVertexInterpolator.h"
 #include "Materials/MaterialExpressionFunctionInput.h"
 #include "Materials/MaterialExpressionFunctionOutput.h"
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Materials/MaterialExpressionMaterialAttributeLayers.h"
 #include "Materials/MaterialExpressionBlendMaterialAttributes.h"
+#include "Materials/MaterialExpressionPreviousFrameSwitch.h"
 #include "Materials/MaterialExpressionStaticSwitch.h"
 #include "Materials/MaterialExpressionFeatureLevelSwitch.h"
 #include "Materials/MaterialExpressionShadingPathSwitch.h"
 #include "Materials/MaterialExpressionQualitySwitch.h"
 #include "Materials/MaterialExpressionShaderStageSwitch.h"
+#include "Materials/MaterialExpressionRayTracingQualitySwitch.h"
+#include "Materials/MaterialExpressionVirtualTextureFeatureSwitch.h"
+#include "Materials/MaterialExpressionDistanceFieldsRenderingSwitch.h"
+#include "Materials/MaterialExpressionShadowReplace.h"
+#include "Materials/MaterialExpressionMaterialProxyReplace.h"
 #include "Materials/MaterialExpressionGetLocal.h"
 #include "Materials/MaterialExpressionOneMinus.h"
 #include "Materials/MaterialExpressionAbs.h"
@@ -138,6 +154,7 @@
 #include "Materials/MaterialExpressionBumpOffset.h"
 #include "Materials/MaterialExpressionPanner.h"
 #include "Materials/MaterialExpressionRotator.h"
+#include "Materials/MaterialExpressionAtmosphericLightVector.h"
 #include "Materials/MaterialExpressionSkyAtmosphereLightDirection.h"
 #include "Materials/MaterialExpressionVolumetricAdvancedMaterialInput.h"
 #include "Materials/MaterialExpressionVolumetricAdvancedMaterialOutput.h"
@@ -154,6 +171,7 @@
 #include "Materials/MaterialExpressionIfThenElse.h"
 #include "Materials/MaterialExpressionForLoop.h"
 #include "Materials/MaterialExpressionWhileLoop.h"
+#include "Materials/MaterialExpressionDeriveNormalZ.h"
 #include "Materials/MaterialFunctionInterface.h"
 #include "Materials/Material.h"
 #include "MaterialHLSLTree.h"
@@ -245,6 +263,16 @@ bool UMaterialExpressionShadingModel::GenerateHLSLExpression(FMaterialHLSLGenera
 {
 	using namespace UE::HLSLTree::Material;
 	OutExpression = Generator.GetTree().NewExpression<FExpressionShadingModel>(ShadingModel);
+	return true;
+}
+
+bool UMaterialExpressionPreviousFrameSwitch::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	const FExpression* CurrentFrameExpression = CurrentFrame.AcquireHLSLExpression(Generator, Scope);
+	const FExpression* PreviousFrameExpression = PreviousFrame.AcquireHLSLExpression(Generator, Scope);
+	OutExpression = Generator.GetTree().NewExpression<FExpressionPreviousFrameSwitch>(CurrentFrameExpression, PreviousFrameExpression);
 	return true;
 }
 
@@ -390,6 +418,115 @@ bool UMaterialExpressionShaderStageSwitch::GenerateHLSLExpression(FMaterialHLSLG
 		ExpressionInputs[1] = VertexShader.AcquireHLSLExpression(Generator, Scope);
 
 		OutExpression = Generator.GetTree().NewExpression<FExpressionShaderStageSwitch>(ExpressionInputs);
+		return true;
+	}
+}
+
+bool UMaterialExpressionRayTracingQualitySwitch::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	if (!Normal.GetTracedInput().Expression)
+	{
+		return Generator.Error(TEXT("Missing RayTracingQualitySwitch input 'Normal'"));
+	}
+	else if (!RayTraced.GetTracedInput().Expression)
+	{
+		return Generator.Error(TEXT("Missing RayTracingQualitySwitch input 'RayTraced'"));
+	}
+	else
+	{
+		using namespace UE::HLSLTree;
+		const FExpression* NormalExpression = Normal.AcquireHLSLExpression(Generator, Scope);
+		const FExpression* RayTracedExpression = RayTraced.AcquireHLSLExpression(Generator, Scope);
+		const FExpression* ConditionExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Bool1, TEXT("GetRayTracingQualitySwitch()"));
+		
+		OutExpression = Generator.GetTree().NewExpression<FExpressionSelect>(ConditionExpression, RayTracedExpression, NormalExpression);
+		return true;
+	}
+}
+
+bool UMaterialExpressionVirtualTextureFeatureSwitch::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	if (!Yes.GetTracedInput().Expression)
+	{
+		return Generator.Error(TEXT("Missing VirtualTextureFeatureSwitch input 'Yes'"));
+	}
+	else if (!No.GetTracedInput().Expression)
+	{
+		return Generator.Error(TEXT("Missing VirtualTextureFeatureSwitch input 'No'"));
+	}
+	else
+	{
+		using namespace UE::HLSLTree;
+		const FExpression* ExpressionInputs[2];
+		ExpressionInputs[0] = Yes.AcquireHLSLExpression(Generator, Scope);
+		ExpressionInputs[1] = No.AcquireHLSLExpression(Generator, Scope);
+
+		OutExpression = Generator.GetTree().NewExpression<FExpressionVirtualTextureFeatureSwitch>(ExpressionInputs);
+		return true;
+	}
+}
+
+bool UMaterialExpressionDistanceFieldsRenderingSwitch::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	if (!Yes.GetTracedInput().Expression)
+	{
+		return Generator.Error(TEXT("Missing DistanceFieldsRenderingSwitch input 'Yes'"));
+	}
+	else if (!No.GetTracedInput().Expression)
+	{
+		return Generator.Error(TEXT("Missing DistanceFieldsRenderingSwitch input 'No'"));
+	}
+	else
+	{
+		using namespace UE::HLSLTree;
+		const FExpression* ExpressionInputs[2];
+		ExpressionInputs[0] = Yes.AcquireHLSLExpression(Generator, Scope);
+		ExpressionInputs[1] = No.AcquireHLSLExpression(Generator, Scope);
+
+		OutExpression = Generator.GetTree().NewExpression<FExpressionDistanceFieldsRenderingSwitch>(ExpressionInputs);
+		return true;
+	}
+}
+
+bool UMaterialExpressionShadowReplace::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	if (!Default.GetTracedInput().Expression)
+	{
+		return Generator.Error(TEXT("Missing input Default"));
+	}
+	else if (!Shadow.GetTracedInput().Expression)
+	{
+		return Generator.Error(TEXT("Missing input Shadow"));
+	}
+	else
+	{
+		using namespace UE::HLSLTree;
+		const FExpression* ConditionExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Bool1, TEXT("GetShadowReplaceState()"));
+		const FExpression* TrueExpression = Shadow.AcquireHLSLExpression(Generator, Scope);
+		const FExpression* FalseExpression = Default.AcquireHLSLExpression(Generator, Scope);
+		OutExpression = Generator.GetTree().NewExpression<FExpressionSelect>(ConditionExpression, TrueExpression, FalseExpression);
+		return true;
+	}
+}
+
+bool UMaterialExpressionMaterialProxyReplace::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	if (!Realtime.GetTracedInput().Expression)
+	{
+		return Generator.Error(TEXT("Missing MaterialProxyReplace input Realtime"));
+	}
+	else if (!MaterialProxy.GetTracedInput().Expression)
+	{
+		return Generator.Error(TEXT("Missing MaterialProxyReplace input MaterialProxy"));
+	}
+	else
+	{
+		// FMaterialHLSLGenerator replaces FHLSLMaterialTranslator which is EMaterialCompilerType::Standard (i.e. not a proxy compiler)
+		OutExpression = Realtime.AcquireHLSLExpression(Generator, Scope);
+		if (!OutExpression)
+		{
+			return Generator.Error(TEXT("Input Realtime failed to generate HLSL expression"));
+		}
 		return true;
 	}
 }
@@ -891,6 +1028,42 @@ bool UMaterialExpressionParticleRadius::GenerateHLSLExpression(FMaterialHLSLGene
 	return true;
 }
 
+bool UMaterialExpressionParticleDirection::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree::Material;
+	OutExpression = Generator.NewExternalInput(EExternalInput::ParticleDirection);
+	return true;
+}
+
+bool UMaterialExpressionParticleSpeed::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree::Material;
+	OutExpression = Generator.NewExternalInput(EExternalInput::ParticleSpeed);
+	OutExpression = Generator.GetTree().NewMax(OutExpression, Generator.NewConstant(0.001f));
+	return true;
+}
+
+bool UMaterialExpressionParticleRelativeTime::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree::Material;
+	OutExpression = Generator.NewExternalInput(EExternalInput::ParticleRelativeTime);
+	return true;
+}
+
+bool UMaterialExpressionParticleRandom::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree::Material;
+	OutExpression = Generator.NewExternalInput(EExternalInput::ParticleRandom);
+	return true;
+}
+
+bool UMaterialExpressionParticleSize::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree::Material;
+	OutExpression = Generator.NewExternalInput(EExternalInput::ParticleSize);
+	return true;
+}
+
 bool UMaterialExpressionTextureObject::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
 	using namespace UE::HLSLTree;
@@ -1022,6 +1195,317 @@ bool UMaterialExpressionTextureSampleParameter::GenerateHLSLExpression(FMaterial
 	return GenerateHLSLExpressionBase(Generator, Scope, TextureExpression, OutExpression);
 }
 
+bool UMaterialExpressionRuntimeVirtualTextureSample::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	// Is this a valid UMaterialExpressionRuntimeVirtualTextureSampleParameter?
+	const bool bIsParameter = HasAParameterName() && GetParameterName().IsValid() && !GetParameterName().IsNone();
+
+	// Check validity of current virtual texture
+	bool bIsVirtualTextureValid = VirtualTexture != nullptr;
+	if (!bIsVirtualTextureValid)
+	{
+		if (bIsParameter)
+		{
+			return Generator.Error(TEXT("Missing input Virtual Texture"));
+		}
+	}
+	else if (VirtualTexture->GetMaterialType() != MaterialType)
+	{
+		UEnum const* Enum = StaticEnum<ERuntimeVirtualTextureMaterialType>();
+		const FString MaterialTypeDisplayName = Enum->GetDisplayNameTextByValue((int64)MaterialType).ToString();
+		const FString TextureTypeDisplayName = Enum->GetDisplayNameTextByValue((int64)VirtualTexture->GetMaterialType()).ToString();
+
+		Generator.Errorf(TEXT("%Material type is '%s', should be '%s' to match %s"),
+			*MaterialTypeDisplayName,
+			*TextureTypeDisplayName,
+			*VirtualTexture->GetName());
+
+		bIsVirtualTextureValid = false;
+	}
+	else if (VirtualTexture->GetSinglePhysicalSpace() != bSinglePhysicalSpace)
+	{
+		Generator.Errorf(TEXT("%Page table packing is '%d', should be '%d' to match %s"),
+			bSinglePhysicalSpace ? 1 : 0,
+			VirtualTexture->GetSinglePhysicalSpace() ? 1 : 0,
+			*VirtualTexture->GetName());
+
+		bIsVirtualTextureValid = false;
+	}
+	else if ((VirtualTexture->GetAdaptivePageTable()) != bAdaptive)
+	{
+		Generator.Errorf(TEXT("Adaptive page table is '%d', should be '%d' to match %s"),
+			bAdaptive ? 1 : 0,
+			VirtualTexture->GetAdaptivePageTable() ? 1 : 0,
+			*VirtualTexture->GetName());
+
+		bIsVirtualTextureValid = false;
+	}
+
+	// Calculate the virtual texture layer and sampling/unpacking functions for this output
+	// Fallback to a sensible default value if the output isn't valid for the bound virtual texture
+	uint32 UnpackTarget = 0;
+	uint32 UnpackMask = 0;
+	EVirtualTextureUnpackType UnpackType = EVirtualTextureUnpackType::None;
+
+	bool bIsBaseColorValid = false;
+	bool bIsSpecularValid = false;
+	bool bIsRoughnessValid = false;
+	bool bIsNormalValid = false;
+	bool bIsWorldHeightValid = false;
+	bool bIsMaskValid = false;
+
+	switch (MaterialType)
+	{
+	case ERuntimeVirtualTextureMaterialType::BaseColor: bIsBaseColorValid = true; break;
+	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Roughness: bIsBaseColorValid = bIsNormalValid = bIsRoughnessValid = true; break;
+	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular: bIsRoughnessValid = bIsBaseColorValid = bIsNormalValid = bIsSpecularValid = true; break;
+	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_YCoCg: bIsRoughnessValid = bIsBaseColorValid = bIsNormalValid = bIsSpecularValid = true; break;
+	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_Mask_YCoCg: bIsRoughnessValid = bIsBaseColorValid = bIsNormalValid = bIsSpecularValid = bIsMaskValid = true; break;
+	case ERuntimeVirtualTextureMaterialType::WorldHeight: bIsWorldHeightValid = true; break;
+	}
+
+	switch (OutputIndex)
+	{
+	case 0:
+		if (bIsVirtualTextureValid && bIsBaseColorValid)
+		{
+			switch (MaterialType)
+			{
+			case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_YCoCg:
+			case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_Mask_YCoCg: UnpackType = EVirtualTextureUnpackType::BaseColorYCoCg; break;
+			case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Roughness: UnpackType = EVirtualTextureUnpackType::BaseColorSRGB; break;
+			default: UnpackTarget = 0; UnpackMask = 0x7; break;
+			}
+		}
+		else
+		{
+			OutExpression = Generator.GetTree().NewConstant(FVector3f::ZeroVector);
+			return true;
+		}
+		break;
+	case 1:
+		if (bIsVirtualTextureValid && bIsSpecularValid)
+		{
+			switch (MaterialType)
+			{
+			case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular:  UnpackTarget = 1; UnpackMask = 0x1; break;
+			case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_YCoCg:
+			case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_Mask_YCoCg: UnpackTarget = 2; UnpackMask = 0x1; break;
+			}
+		}
+		else
+		{
+			OutExpression = Generator.GetTree().NewConstant(0.5f);
+			return true;
+		}
+		break;
+	case 2:
+		if (bIsVirtualTextureValid && bIsRoughnessValid)
+		{
+			switch (MaterialType)
+			{
+			case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Roughness: UnpackTarget = 1; UnpackMask = 0x2; break;
+			case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular: UnpackTarget = 1; UnpackMask = 0x2; break;
+			case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_YCoCg:
+			case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_Mask_YCoCg: UnpackTarget = 2; UnpackMask = 0x2; break;
+			}
+		}
+		else
+		{
+			OutExpression = Generator.GetTree().NewConstant(0.5f);
+			return true;
+		}
+		break;
+	case 3:
+		if (bIsVirtualTextureValid && bIsNormalValid)
+		{
+			switch (MaterialType)
+			{
+			case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Roughness: UnpackType = EVirtualTextureUnpackType::NormalBGR565; break;
+			case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular: UnpackType = EVirtualTextureUnpackType::NormalBC3BC3; break;
+			case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_YCoCg:
+			case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_Mask_YCoCg: UnpackType = EVirtualTextureUnpackType::NormalBC5BC1; break;
+			}
+		}
+		else
+		{
+			OutExpression = Generator.GetTree().NewConstant(FVector3f(0.f, 0.f, 1.f));
+			return true;
+		}
+		break;
+	case 4:
+		if (bIsVirtualTextureValid && bIsWorldHeightValid)
+		{
+			UnpackType = EVirtualTextureUnpackType::HeightR16;
+		}
+		else
+		{
+			OutExpression = Generator.GetTree().NewConstant(0.f);
+			return true;
+		}
+		break;
+	case 5:
+		if (bIsVirtualTextureValid && bIsMaskValid)
+		{
+			UnpackTarget = 2; UnpackMask = 0x8; break;
+		}
+		else
+		{
+			OutExpression = Generator.GetTree().NewConstant(1.f);
+			return true;
+		}
+		break;
+	default:
+		return false;
+	}
+
+	// We don't know what the texture reference index is until the HLSL tree is prepared
+	const FExpression* TextureExpression;
+	if (bIsParameter)
+	{
+		FMaterialParameterMetadata ParameterMeta;
+		if (!GetParameterValue(ParameterMeta))
+		{
+			return Generator.Error(TEXT("Failed to get parameter value"));
+		}
+		TextureExpression = Generator.GenerateMaterialParameter(GetParameterName(), ParameterMeta, SAMPLERTYPE_VirtualMasks);
+	}
+	else
+	{
+		const FMaterialParameterMetadata ParameterMeta(VirtualTexture);
+		TextureExpression = Generator.GenerateMaterialParameter(FName(), ParameterMeta, SAMPLERTYPE_VirtualMasks);
+	}
+
+	// Compile the runtime virtual texture uniforms
+	const FExpression* UniformExpressions[ERuntimeVirtualTextureShaderUniform_Count];
+	for (int32 UniformIndex = 0; UniformIndex < ERuntimeVirtualTextureShaderUniform_Count; ++UniformIndex)
+	{
+		UniformExpressions[UniformIndex] = Generator.GetTree().NewExpression<Material::FExpressionRuntimeVirtualTextureUniform>(
+			Generator.GetParameterInfo(bIsParameter ? GetParameterName() : FName()),
+			TextureExpression,
+			(ERuntimeVirtualTextureShaderUniform)UniformIndex);
+	}
+
+	// Compile the coordinates
+	// We use the virtual texture world space transform by default
+	const FExpression* CoordinateExpression = nullptr;
+
+	if (Coordinates.GetTracedInput().Expression != nullptr && WorldPosition.GetTracedInput().Expression != nullptr)
+	{
+		return Generator.Error(TEXT("Only one of 'Coordinates' and 'WorldPosition' can be used"));
+	}
+
+	if (Coordinates.GetTracedInput().Expression != nullptr)
+	{
+		CoordinateExpression = Coordinates.AcquireHLSLExpression(Generator, Scope);
+	}
+	else
+	{
+		const FExpression* WorldPositionExpression = WorldPosition.AcquireHLSLExpressionOrExternalInput(Generator, Scope, Material::EExternalInput::WorldPosition);
+
+		check(WorldPositionExpression);
+		// Same as VirtualTextureWorldToUV
+		const FExpression* TempExpression = Generator.GetTree().NewSub(WorldPositionExpression, UniformExpressions[ERuntimeVirtualTextureShaderUniform_WorldToUVTransform0]);
+		const FExpression* UExpression = Generator.GetTree().NewDot(TempExpression, UniformExpressions[ERuntimeVirtualTextureShaderUniform_WorldToUVTransform1]);
+		const FExpression* VExpression = Generator.GetTree().NewDot(TempExpression, UniformExpressions[ERuntimeVirtualTextureShaderUniform_WorldToUVTransform2]);
+		CoordinateExpression = Generator.GetTree().NewExpression<FExpressionAppend>(UExpression, VExpression);
+	}
+
+	// Compile the mip level for the current mip value mode
+	ETextureMipValueMode TextureMipLevelMode = TMVM_None;
+	const FExpression* MipValueExpression = nullptr;
+	FExpressionDerivatives CoordinateExpressionDerivatives;
+	const bool bMipValueExpressionValid = MipValue.GetTracedInput().Expression != nullptr;
+	if (MipValueMode == RVTMVM_MipLevel)
+	{
+		TextureMipLevelMode = TMVM_MipLevel;
+		MipValueExpression = bMipValueExpressionValid ? MipValue.AcquireHLSLExpression(Generator, Scope) : Generator.GetTree().NewConstant(0);
+	}
+	else if (MipValueMode == RVTMVM_MipBias)
+	{
+		TextureMipLevelMode = TMVM_MipBias;
+		MipValueExpression = bMipValueExpressionValid ? MipValue.AcquireHLSLExpression(Generator, Scope) : Generator.GetTree().NewConstant(0);
+	}
+	else if (MipValueMode == RVTMVM_RecalculateDerivatives)
+	{
+		// Calculate derivatives from world position.
+		TextureMipLevelMode = TMVM_Derivative;
+		const FExpression* WorldPos = Generator.NewExternalInput(Material::EExternalInput::TranslatedWorldPosition);
+		const FExpression* WorldPositionDdx = Generator.GetTree().NewExpression<FExpressionDerivative>(EDerivativeCoordinate::Ddx, WorldPos);
+		const FExpression* UDdx = Generator.GetTree().NewDot(WorldPositionDdx, UniformExpressions[ERuntimeVirtualTextureShaderUniform_WorldToUVTransform1]);
+		const FExpression* VDdx = Generator.GetTree().NewDot(WorldPositionDdx, UniformExpressions[ERuntimeVirtualTextureShaderUniform_WorldToUVTransform2]);
+		CoordinateExpressionDerivatives.ExpressionDdx = Generator.GetTree().NewExpression<FExpressionAppend>(UDdx, VDdx);
+		const FExpression* WorldPositionDdy = Generator.GetTree().NewExpression<FExpressionDerivative>(EDerivativeCoordinate::Ddy, WorldPos);
+		const FExpression* UDdy = Generator.GetTree().NewDot(WorldPositionDdy, UniformExpressions[ERuntimeVirtualTextureShaderUniform_WorldToUVTransform1]);
+		const FExpression* VDdy = Generator.GetTree().NewDot(WorldPositionDdy, UniformExpressions[ERuntimeVirtualTextureShaderUniform_WorldToUVTransform2]);
+		CoordinateExpressionDerivatives.ExpressionDdy = Generator.GetTree().NewExpression<FExpressionAppend>(UDdy, VDdy);
+	}
+
+	// Convert texture address mode to matching sampler source mode.
+	// Would be better if ESamplerSourceMode had a Mirror enum that we could also use...
+	ESamplerSourceMode SamplerSourceMode = SSM_Clamp_WorldGroupSettings;
+	switch (TextureAddressMode)
+	{
+	case RVTTA_Clamp:
+		SamplerSourceMode = SSM_Clamp_WorldGroupSettings;
+		break;
+	case RVTTA_Wrap:
+		SamplerSourceMode = SSM_Wrap_WorldGroupSettings;
+		break;
+	}
+
+	// We can support disabling feedback for MipLevel mode.
+	const bool bForceEnableFeedback = TextureMipLevelMode != TMVM_MipLevel;
+
+	// Compile the texture sample code
+	const FExpression* AutomaticMipViewBiasExpression = Generator.GetTree().NewConstant(true);
+	const FExpression* SampleLayerExpressions[RuntimeVirtualTexture::MaxTextureLayers] = {};
+	const int32 TextureLayerCount = URuntimeVirtualTexture::GetLayerCount(MaterialType);
+	check(TextureLayerCount <= RuntimeVirtualTexture::MaxTextureLayers);
+	for (int32 TextureLayerIndex = 0; TextureLayerIndex < TextureLayerCount; ++TextureLayerIndex)
+	{
+		const int32 PageTableLayerIndex = bSinglePhysicalSpace ? 0 : TextureLayerIndex;
+		SampleLayerExpressions[TextureLayerIndex] = Generator.GetTree().NewExpression<Material::FExpressionTextureSample>(
+			TextureExpression,
+			CoordinateExpression,
+			MipValueExpression,
+			AutomaticMipViewBiasExpression,
+			CoordinateExpressionDerivatives,
+			SamplerSourceMode,
+			TextureMipLevelMode,
+			TextureLayerIndex,
+			PageTableLayerIndex,
+			bAdaptive,
+			bEnableFeedback || bForceEnableFeedback);
+	}
+
+	// Compile any unpacking code
+	const FExpression* UnpackExpression = nullptr;
+	if (UnpackType != EVirtualTextureUnpackType::None)
+	{
+		UnpackExpression = Generator.GetTree().NewExpression<Material::FExpressionVirtualTextureUnpack>(
+			SampleLayerExpressions[0],
+			SampleLayerExpressions[1],
+			SampleLayerExpressions[2],
+			UniformExpressions[ERuntimeVirtualTextureShaderUniform_WorldHeightUnpack],
+			UnpackType);
+	}
+	else
+	{
+		if (!SampleLayerExpressions[UnpackTarget])
+		{
+			return Generator.Errorf(TEXT("Virtual texture layer %d required but missing."), UnpackTarget);
+		}
+
+		UnpackExpression = Generator.GetTree().NewSwizzle(MakeSwizzleMask(UnpackMask & 0x1, UnpackMask & 0x2, UnpackMask & 0x4, UnpackMask & 0x8), SampleLayerExpressions[UnpackTarget]);
+	}
+
+	OutExpression = UnpackExpression;
+	return true;
+}
+
 bool UMaterialExpressionFontSample::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
 	using namespace UE::HLSLTree;
@@ -1129,9 +1613,101 @@ bool UMaterialExpressionNoise::GenerateHLSLExpression(FMaterialHLSLGenerator& Ge
 	return true;
 }
 
+bool UMaterialExpressionVectorNoise::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	const FExpression* PositionExpression = Position.AcquireHLSLExpressionOrExternalInput(Generator, Scope, Material::EExternalInput::WorldPosition);
+
+	Material::FVectorNoiseParameters VectorNoiseParameters;
+	VectorNoiseParameters.Quality = Quality;
+	VectorNoiseParameters.TileSize = TileSize;
+	VectorNoiseParameters.Function = NoiseFunction;
+	VectorNoiseParameters.bTiling = bTiling;
+
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionVectorNoise>(VectorNoiseParameters, PositionExpression);
+	return true;
+}
+
+bool UMaterialExpressionSceneColor::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	const FExpression* OffsetExpression = nullptr;
+	const FExpression* CoordinateExpression = nullptr;
+
+	if (InputMode == EMaterialSceneAttributeInputMode::OffsetFraction)
+	{
+		OffsetExpression = Input.AcquireHLSLExpressionOrConstant(Generator, Scope, FVector2f(ConstInput.X, ConstInput.Y));
+	}
+	else if (InputMode == EMaterialSceneAttributeInputMode::Coordinates)
+	{
+		CoordinateExpression = Input.TryAcquireHLSLExpression(Generator, Scope);
+	}
+
+	const FExpression* ScreenUVExpression = Generator.GetTree().NewExpression<Material::FExpressionScreenAlignedUV>(OffsetExpression, CoordinateExpression);
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionSceneColor>(ScreenUVExpression);
+	return true;
+}
+
 bool UMaterialExpressionSceneDepth::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
-	OutExpression = Generator.NewConstant(0.0f); // TODO
+	using namespace UE::HLSLTree;
+
+	const FExpression* OffsetExpression = nullptr;
+	const FExpression* CoordinateExpression = nullptr;
+
+	if (InputMode == EMaterialSceneAttributeInputMode::OffsetFraction)
+	{
+		OffsetExpression = Input.AcquireHLSLExpressionOrConstant(Generator, Scope, FVector2f(ConstInput.X, ConstInput.Y));
+	}
+	else if (InputMode == EMaterialSceneAttributeInputMode::Coordinates)
+	{
+		CoordinateExpression = Input.TryAcquireHLSLExpression(Generator, Scope);
+	}
+
+	const FExpression* ScreenUVExpression = Generator.GetTree().NewExpression<Material::FExpressionScreenAlignedUV>(OffsetExpression, CoordinateExpression);
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionSceneDepth>(ScreenUVExpression);
+	return true;
+}
+
+bool UMaterialExpressionDepthFade::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	FTree& Tree = Generator.GetTree();
+
+	// Scales Opacity by a Linear fade based on SceneDepth, from 0 at PixelDepth to 1 at FadeDistance
+	// Result = Opacity * saturate((SceneDepth - PixelDepth) / max(FadeDistance, DELTA))
+	const FExpression* OpacityExpression = InOpacity.AcquireHLSLExpressionOrConstant(Generator, Scope, OpacityDefault);
+	const FExpression* FadeDistanceExpression = FadeDistance.AcquireHLSLExpressionOrConstant(Generator, Scope, FadeDistanceDefault);
+	FadeDistanceExpression = Tree.NewMax(FadeDistanceExpression, Tree.NewConstant(UE_DELTA));
+
+	
+	// On mobile scene depth is limited to 65500 
+	// to avoid false fading on objects that are close or exceed this limit we clamp pixel depth to (65500 - FadeDistance)
+	const FExpression* PixelDepthExpression = Generator.NewExternalInput(Material::EExternalInput::PixelDepth);
+	const FExpression* MobilePixelDepthExpression = Tree.NewMin(PixelDepthExpression, Tree.NewSub(Tree.NewConstant(65500.f), FadeDistanceExpression));
+	
+	const FExpression* FeatureLevelPixelDepthExpressions[ERHIFeatureLevel::Num];
+	for (int32 FeatureLevelIndex = 0; FeatureLevelIndex < ERHIFeatureLevel::Num; ++FeatureLevelIndex)
+	{
+		if (FeatureLevelIndex <= ERHIFeatureLevel::ES3_1)
+		{
+			FeatureLevelPixelDepthExpressions[FeatureLevelIndex] = MobilePixelDepthExpression;
+		}
+		else
+		{
+			FeatureLevelPixelDepthExpressions[FeatureLevelIndex] = PixelDepthExpression;
+		}
+	}
+	PixelDepthExpression = Tree.NewExpression<FExpressionFeatureLevelSwitch>(FeatureLevelPixelDepthExpressions);
+
+	const FExpression* ScreenUVExpression = Tree.NewExpression<Material::FExpressionScreenAlignedUV>(nullptr, nullptr);
+	const FExpression* SceneDepthExpression = Tree.NewExpression<Material::FExpressionSceneDepth>(ScreenUVExpression);
+	const FExpression* FadeExpression = Tree.NewSaturate(Tree.NewDiv(Tree.NewSub(SceneDepthExpression, PixelDepthExpression), FadeDistanceExpression));
+
+	OutExpression = Tree.NewMul(OpacityExpression, FadeExpression);
 	return true;
 }
 
@@ -2518,6 +3094,12 @@ bool UMaterialExpressionSkyAtmosphereLightDirection::GenerateHLSLExpression(FMat
 	return true;
 }
 
+bool UMaterialExpressionAtmosphericLightVector::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	OutExpression = Generator.GetTree().NewExpression<UE::HLSLTree::FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Float3, TEXT("MaterialExpressionAtmosphericLightVector(Parameters)"));
+	return true;
+}
+
 static UE::Shader::FType GetCustomOutputType(const FMaterialHLSLGenerator& Generator, ECustomMaterialOutputType Type)
 {
 	using namespace UE::Shader;
@@ -2536,8 +3118,8 @@ bool UMaterialExpressionVolumetricAdvancedMaterialInput::GenerateHLSLExpression(
 {
 	switch (OutputIndex)
 	{
-	case 0: OutExpression = Generator.GetTree().NewExpression<UE::HLSLTree::FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Float3, TEXT("MaterialExpressionVolumeSampleConservativeDensity(Parameters).rgb"));
-	case 1: OutExpression = Generator.GetTree().NewExpression<UE::HLSLTree::FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Float4, TEXT("MaterialExpressionVolumeSampleConservativeDensity(Parameters)"));
+	case 0: OutExpression = Generator.GetTree().NewExpression<UE::HLSLTree::FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Float3, TEXT("MaterialExpressionVolumeSampleConservativeDensity(Parameters).rgb")); break;
+	case 1: OutExpression = Generator.GetTree().NewExpression<UE::HLSLTree::FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Float4, TEXT("MaterialExpressionVolumeSampleConservativeDensity(Parameters)")); break;
 	default: return Generator.Error(TEXT("Invlid output"));
 	}
 	return OutExpression != nullptr;
@@ -2925,6 +3507,27 @@ bool UMaterialExpressionForLoop::GenerateHLSLStatements(FMaterialHLSLGenerator& 
 	Generator.GetTree().AssignLocal(*IfStatement->ThenScope, ExpressionData->LocalName, NewLocalExpression);
 
 	Completed.GenerateHLSLStatements(Generator, *LoopStatement->NextScope);
+
+	return true;
+}
+
+bool UMaterialExpressionDeriveNormalZ::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	if (!InXY.GetTracedInput().Expression)
+	{
+		return Generator.Error(TEXT("Missing input normal xy vector whose z should be derived."));
+	}
+
+	// z = sqrt(saturate(1 - ( x * x + y * y)));
+	FTree& Tree = Generator.GetTree();
+	const FExpression* InputVector = InXY.AcquireHLSLExpression(Generator, Scope);
+	const FExpression* DotResult = Tree.NewDot(InputVector, InputVector);
+	const FExpression* InnerResult = Tree.NewSub(Tree.NewConstant(1.f), DotResult);
+	const FExpression* SaturatedInnerResult = Tree.NewSaturate(InnerResult);
+	const FExpression* DerivedZ = Tree.NewSqrt(SaturatedInnerResult);
+	OutExpression = Tree.NewExpression<FExpressionAppend>(InputVector, DerivedZ);
 
 	return true;
 }

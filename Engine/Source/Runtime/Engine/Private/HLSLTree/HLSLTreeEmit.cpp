@@ -208,6 +208,15 @@ FEmitContext::~FEmitContext()
 	{
 		delete It.Value;
 	}
+	for (TMap<const FExpression*, FPrepareValueResult*>::TIterator It(PrepareValueMap); It; ++It)
+	{
+		FPrepareValueResult* Value = It.Value();
+		if (Value)
+		{
+			Value->~FPrepareValueResult();
+		}
+	}
+	ResetPastRequestedTypes();
 }
 
 bool FEmitContext::InternalError(FStringView ErrorMessage)
@@ -381,6 +390,30 @@ EExpressionEvaluation FEmitContext::GetEvaluation(const FExpression* Expression,
 	return GetPreparedType(Expression).GetEvaluation(Scope, RequestedType);
 }
 
+bool AllComponentsRequestedInPast(const FRequestedType& RequestedType, const FRequestedType& PastRequestedType)
+{
+	bool bResult = true;
+	TBitArray<>::FConstWordIterator ItA(RequestedType.RequestedComponents);
+	TBitArray<>::FConstWordIterator ItB(PastRequestedType.RequestedComponents);
+	for (; ItA && ItB; ++ItA, ++ItB)
+	{
+		if ((ItA.GetWord() & ItB.GetWord()) != ItA.GetWord())
+		{
+			bResult = false;
+			break;
+		}
+	}
+	for (; ItA; ++ItA)
+	{
+		if (ItA.GetWord() != 0u)
+		{
+			bResult = false;
+			break;
+		}
+	}
+	return bResult;
+}
+
 FPreparedType FEmitContext::PrepareExpression(const FExpression* InExpression, FEmitScope& Scope, const FRequestedType& RequestedType)
 {
 	if (!InExpression || RequestedType.IsVoid())
@@ -417,6 +450,52 @@ FPreparedType FEmitContext::PrepareExpression(const FExpression* InExpression, F
 		return Result->PreparedType;
 	}
 
+	FXxHash64Builder Hasher;
+	Hasher.Update(&InExpression, sizeof(InExpression));
+	Hasher.Update(&bMarkLiveValues, sizeof(bMarkLiveValues));
+	const FXxHash64 Hash = Hasher.Finalize();
+
+	FRequestedType** PastRequestedTypePtr = RequestedTypeTracker.Find(Hash);
+	if (PastRequestedTypePtr)
+	{
+		FRequestedType& PastRequestedType = **PastRequestedTypePtr;
+		if (RequestedType.Type.IsAny() || PastRequestedType.Type.IsAny())
+		{
+			if (PastRequestedType.Type.IsAny())
+			{
+				return Result->PreparedType;
+			}
+			else
+			{
+				PastRequestedType = FRequestedType(Shader::EValueType::Any, false);
+			}
+		}
+		else
+		{
+			const Shader::FType CombinedType = Shader::CombineTypes(RequestedType.Type, PastRequestedType.Type);
+			check(!CombinedType.IsVoid());
+
+			if (CombinedType == PastRequestedType.Type && AllComponentsRequestedInPast(RequestedType, PastRequestedType))
+			{
+				return Result->PreparedType;
+			}
+			else
+			{
+				PastRequestedType.Type = CombinedType;
+				PastRequestedType.RequestedComponents.CombineWithBitwiseOR(RequestedType.RequestedComponents, EBitwiseOperatorFlags::MaxSize);
+			}
+		}
+	}
+	else
+	{
+		check(Result->PreparedType.IsVoid() || bMarkLiveValues);
+		FRequestedType* StackRequestedType = new (*Allocator) FRequestedType(RequestedType);
+		// Turn Bool into Int
+		StackRequestedType->Type = Shader::CombineTypes(StackRequestedType->Type, StackRequestedType->Type);
+		check(!StackRequestedType->Type.IsVoid());
+		RequestedTypeTracker.Add(Hash, StackRequestedType);
+	}
+
 	bool bResult = false;
 	{
 		FEmitOwnerScope OwnerScope(*this, InExpression);
@@ -433,10 +512,7 @@ FPreparedType FEmitContext::PrepareExpression(const FExpression* InExpression, F
 		check(!ResultType.IsVoid());
 		MarkInputType(InExpression, RequestedType.Type.GetConcreteType());
 	}
-	else
-	{
-		int a = 0;
-	}
+	
 	return ResultType;
 }
 
@@ -1369,12 +1445,34 @@ void FEmitContext::Finalize()
 	
 	// Don't reset Expression/Preshader maps, allow future passes to share matching preshaders/expressions
 
+	for (TMap<const FExpression*, FPrepareValueResult*>::TIterator It(PrepareValueMap); It; ++It)
+	{
+		FPrepareValueResult* Value = It.Value();
+		if (Value)
+		{
+			Value->~FPrepareValueResult();
+		}
+	}
 	PrepareValueMap.Reset();
+	ResetPastRequestedTypes();
 	EmitScopeMap.Reset();
 	EmitFunctionMap.Reset();
 	EmitLocalPHIMap.Reset();
 
 	MaterialCompilationOutput->UniformExpressionSet.UniformPreshaderBufferSize = (UniformPreshaderOffset + 3u) / 4u;
+}
+
+void FEmitContext::ResetPastRequestedTypes()
+{
+	for (TMap<FXxHash64, FRequestedType*>::TIterator It(RequestedTypeTracker); It; ++It)
+	{
+		FRequestedType* Value = It.Value();
+		if (Value)
+		{
+			Value->~FRequestedType();
+		}
+	}
+	RequestedTypeTracker.Reset();
 }
 
 } // namespace UE::HLSLTree

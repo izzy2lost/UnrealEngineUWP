@@ -1443,13 +1443,28 @@ bool FTree::Finalize()
 				{
 					const FExpressionDerivatives Derivatives = GetAnalyticDerivatives(LocalValue);
 					LocalValue = (ChainType == ELocalPHIChainType::Ddx) ? Derivatives.ExpressionDdx : Derivatives.ExpressionDdy;
+					
+					// TODO: Revisit. Can we fallback to hardware derivatives? Handle fallback in FExpression::ComputeAnalyticDerivatives better?
+					if (!LocalValue)
+					{
+						LocalValue = NewConstant(0.f);
+					}
 				}
 				else
 				{
-					check(ChainType == ELocalPHIChainType::PreviousFrame);
+					check(ChainType == ELocalPHIChainType::PreviousFrame && LocalValue);
+
+					const FExpression* PrevLocalValue = LocalValue;
 					LocalValue = GetPreviousFrame(LocalValue, Entry.RequestedType);
+
+					// TODO: Revisit. Is this correct? The intention is falling back to current frame if previous frame value is invalid
+					if (!LocalValue)
+					{
+						LocalValue = PrevLocalValue;
+					}
 				}
 			}
+
 			// May be nullptr if derivatives are not valid
 			Expression->Values[i] = LocalValue;
 		}

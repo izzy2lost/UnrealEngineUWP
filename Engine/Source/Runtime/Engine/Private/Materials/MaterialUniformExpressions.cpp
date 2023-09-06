@@ -676,6 +676,11 @@ int32 FUniformExpressionSet::AddVTLayer(int32 StackIndex, int32 TextureIndex)
 	return VTLayerIndex;
 }
 
+void FUniformExpressionSet::SetVTLayer(int32 StackIndex, int32 VTLayerIndex, int32 TextureIndex)
+{
+	VTStacks[StackIndex].SetLayer(VTLayerIndex, TextureIndex);
+}
+
 void FUniformExpressionSet::GetGameThreadTextureValue(EMaterialTextureParameterType Type, int32 Index, const UMaterialInterface* MaterialInterface, const FMaterial& Material, UTexture*& OutValue, bool bAllowOverride) const
 {
 	check(IsInGameThread());

@@ -635,6 +635,7 @@ public:
 	const FMaterialVirtualTextureStack& GetVTStack(int32 Index) const { return VTStacks[Index]; }
 	int32 AddVTStack(int32 InPreallocatedStackTextureIndex);
 	int32 AddVTLayer(int32 StackIndex, int32 TextureIndex);
+	void SetVTLayer(int32 StackIndex, int32 VTLayerIndex, int32 TextureIndex);
 
 protected:
 	union FVTPackedStackAndLayerIndex

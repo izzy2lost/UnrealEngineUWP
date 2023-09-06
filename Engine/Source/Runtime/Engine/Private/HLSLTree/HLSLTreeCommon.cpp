@@ -9,6 +9,7 @@
 #include "MaterialShared.h"
 #include "MaterialHLSLTree.h"
 #include "MaterialCachedData.h"
+#include "DataDrivenShaderPlatformInfo.h"
 
 namespace UE::HLSLTree
 {
@@ -105,6 +106,11 @@ void FExpressionForward::EmitValueShader(FEmitContext& Context, FEmitScope& Scop
 void FExpressionForward::EmitValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValuePreshaderResult& OutResult) const
 {
 	return Expression->EmitValuePreshader(Context, Scope, RequestedType, OutResult);
+}
+
+const FExpression* FExpressionPreviousFrameSwitch::ComputePreviousFrame(FTree& Tree, const FRequestedType& RequestedType) const
+{
+	return PreviousFrameExpression->ComputePreviousFrame(Tree, RequestedType);
 }
 
 const FExpression* FTree::NewConstant(const Shader::FValue& Value)
@@ -300,7 +306,7 @@ bool FExpressionSetStructField::PrepareValue(FEmitContext& Context, FEmitScope& 
 	}
 	
 	const FRequestedType RequestedFieldType = RequestedType.GetField(Field);
-	if (!RequestedType.IsEmpty())
+	if (!RequestedFieldType.IsEmpty())
 	{
 		const FPreparedType FieldPreparedType = Context.PrepareExpression(FieldExpression, Scope, RequestedFieldType);
 		ResultType.SetField(Field, FieldPreparedType);
@@ -487,7 +493,8 @@ void FExpressionSelect::EmitValuePreshader(FEmitContext& Context, FEmitScope& Sc
 		ConditionExpression->GetValuePreshader(Context, Scope, Shader::EValueType::Bool1, OutResult.Preshader);
 
 		check(Context.PreshaderStackPosition > 0);
-		Context.PreshaderStackPosition--;
+		// -1 due to JumpIfFalse consuming condition value. Another -1 due to only one branch is evaluated
+		Context.PreshaderStackPosition -= 2;
 		const Shader::FPreshaderLabel Label0 = OutResult.Preshader.WriteJump(Shader::EPreshaderOpcode::JumpIfFalse);
 
 		const Shader::FType TrueType = TrueExpression->GetValuePreshader(Context, Scope, RequestedType, OutResult.Preshader);
@@ -1108,6 +1115,63 @@ bool FExpressionShaderStageSwitch::IsInputActive(const FEmitContext& Context, in
 {
 	check(Context.ShaderFrequency == SF_Pixel || Context.ShaderFrequency == SF_Vertex);
 	return (Context.ShaderFrequency == SF_Pixel && Index == 0) || (Context.ShaderFrequency == SF_Vertex && Index == 1);
+}
+
+FExpressionVirtualTextureFeatureSwitch::FExpressionVirtualTextureFeatureSwitch(TConstArrayView<const FExpression*> InInputs)
+	: FExpressionSwitchBase(InInputs)
+{
+	static_assert(MaxInputs >= 2, "FExpressionSwitchBase is too small for FExpressionVirtualTextureFeatureSwitch");
+	check(InInputs.Num() == 2);
+}
+
+bool FExpressionVirtualTextureFeatureSwitch::IsInputActive(const FEmitContext& Context, int32 Index) const
+{
+	if (UseVirtualTexturing(Context.TargetParameters.FeatureLevel, Context.TargetParameters.TargetPlatform))
+	{
+		return Index == 0;
+	}
+	else
+	{
+		return Index == 1;
+	}
+}
+
+FExpressionDistanceFieldsRenderingSwitch::FExpressionDistanceFieldsRenderingSwitch(TConstArrayView<const FExpression*> InInputs)
+	: FExpressionSwitchBase(InInputs)
+{
+	static_assert(MaxInputs >= 2, "FExpressionSwitchBase is too small for FExpressionDistanceFieldsRenderingSwitch");
+	check(InInputs.Num() == 2);
+}
+
+bool FExpressionDistanceFieldsRenderingSwitch::IsInputActive(const FEmitContext& Context, int32 Index) const
+{
+	if (Context.TargetParameters.IsGenericTarget())
+	{
+		return true;
+	}
+
+	if (IsMobilePlatform(Context.TargetParameters.ShaderPlatform))
+	{
+		if (IsMobileDistanceFieldEnabled(Context.TargetParameters.ShaderPlatform))
+		{
+			return Index == 0;
+		}
+		else
+		{
+			return Index == 1;
+		}
+	}
+	else
+	{
+		if (IsUsingDistanceFields(Context.TargetParameters.ShaderPlatform))
+		{
+			return Index == 0;
+		}
+		else
+		{
+			return Index == 1;
+		}
+	}
 }
 
 bool FExpressionInlineCustomHLSL::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const

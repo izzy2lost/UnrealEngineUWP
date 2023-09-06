@@ -41,6 +41,22 @@ public:
 	virtual void EmitValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValuePreshaderResult& OutResult) const override;
 };
 
+/**
+ * Similar to FExpressionForward but switch to a different expression when computing previous frame
+ */
+class FExpressionPreviousFrameSwitch : public FExpressionForward
+{
+public:
+	explicit FExpressionPreviousFrameSwitch(const FExpression* InCurrentFrameExpression, const FExpression* InPreviousFrameExpression)
+		: FExpressionForward(InCurrentFrameExpression)
+		, PreviousFrameExpression(InPreviousFrameExpression)
+	{}
+
+	const FExpression* PreviousFrameExpression;
+
+	virtual const FExpression* ComputePreviousFrame(FTree& Tree, const FRequestedType& RequestedType) const override;
+};
+
 class FExpressionConstant : public FExpression
 {
 public:
@@ -278,6 +294,24 @@ public:
 	FExpressionShaderStageSwitch(TConstArrayView<const FExpression*> InInputs);
 
 	virtual const FExpression* NewSwitch(FTree& Tree, TConstArrayView<const FExpression*> InInputs) const override { return Tree.NewExpression<FExpressionShaderStageSwitch>(InInputs); }
+	virtual bool IsInputActive(const FEmitContext& Context, int32 Index) const override;
+};
+
+class FExpressionVirtualTextureFeatureSwitch : public FExpressionSwitchBase
+{
+public:
+	FExpressionVirtualTextureFeatureSwitch(TConstArrayView<const FExpression*> InInputs);
+
+	virtual const FExpression* NewSwitch(FTree& Tree, TConstArrayView<const FExpression*> InInputs) const override { return Tree.NewExpression<FExpressionVirtualTextureFeatureSwitch>(InInputs); }
+	virtual bool IsInputActive(const FEmitContext& Context, int32 Index) const override;
+};
+
+class FExpressionDistanceFieldsRenderingSwitch : public FExpressionSwitchBase
+{
+public:
+	FExpressionDistanceFieldsRenderingSwitch(TConstArrayView<const FExpression*> InInputs);
+
+	virtual const FExpression* NewSwitch(FTree& Tree, TConstArrayView<const FExpression*> InInputs) const override { return Tree.NewExpression<FExpressionDistanceFieldsRenderingSwitch>(InInputs); }
 	virtual bool IsInputActive(const FEmitContext& Context, int32 Index) const override;
 };
 

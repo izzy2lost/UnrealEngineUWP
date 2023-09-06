@@ -8,8 +8,10 @@
 #include "MaterialShared.h"
 #include "MaterialCachedData.h"
 #include "Materials/MaterialFunctionInterface.h"
+#include "Materials/MaterialExpressionVectorNoise.h"
 #include "Engine/BlendableInterface.h" // BL_AfterTonemapping
 #include "VT/VirtualTextureScalability.h"
+#include "VT/RuntimeVirtualTexture.h"
 
 namespace UE::HLSLTree::Material
 {
@@ -142,6 +144,11 @@ FExternalInputDescription GetExternalInputDescription(EExternalInput Input)
 	case EExternalInput::ParticleColor: return FExternalInputDescription(TEXT("ParticleColor"), Shader::EValueType::Float4);
 	case EExternalInput::ParticleTranslatedWorldPosition: return FExternalInputDescription(TEXT("ParticleTranslatedWorldPosition"), Shader::EValueType::Float3);
 	case EExternalInput::ParticleRadius: return FExternalInputDescription(TEXT("ParticleRadius"), Shader::EValueType::Float1);
+	case EExternalInput::ParticleDirection: return FExternalInputDescription(TEXT("ParticleDirection"), Shader::EValueType::Float3);
+	case EExternalInput::ParticleSpeed: return FExternalInputDescription(TEXT("ParticleSpeed"), Shader::EValueType::Float1);
+	case EExternalInput::ParticleRelativeTime: return FExternalInputDescription(TEXT("ParticleRelativeTime"), Shader::EValueType::Float1);
+	case EExternalInput::ParticleRandom: return FExternalInputDescription(TEXT("ParticleRandom"), Shader::EValueType::Float1);
+	case EExternalInput::ParticleSize: return FExternalInputDescription(TEXT("ParticleSize"), Shader::EValueType::Float2);
 
 	case EExternalInput::IsOrthographic: return FExternalInputDescription(TEXT("IsOrthographic"), Shader::EValueType::Float1);
 
@@ -332,6 +339,11 @@ void FExpressionExternalInput::EmitValueShader(FEmitContext& Context, FEmitScope
 		case EExternalInput::ParticleColor: Code = TEXT("Parameters.Particle.Color"); break;
 		case EExternalInput::ParticleTranslatedWorldPosition: Code = TEXT("Parameters.Particle.TranslatedWorldPositionAndSize.xyz"); break;
 		case EExternalInput::ParticleRadius: Code = TEXT("Parameters.Particle.TranslatedWorldPositionAndSize.w"); break;
+		case EExternalInput::ParticleDirection: Code = TEXT("Parameters.Particle.Velocity.xyz"); break;
+		case EExternalInput::ParticleSpeed: Code = TEXT("Parameters.Particle.Velocity.w"); break;
+		case EExternalInput::ParticleRelativeTime: Code = TEXT("Parameters.Particle.RelativeTime"); break;
+		case EExternalInput::ParticleRandom: Code = TEXT("Parameters.Particle.Random"); break;
+		case EExternalInput::ParticleSize: Code = TEXT("Parameters.Particle.Size"); break;
 
 		case EExternalInput::IsOrthographic: Code = TEXT("((View.ViewToClip[3][3] < 1.0f) ? 0.0f : 1.0f)"); break;
 
@@ -976,29 +988,56 @@ void FExpressionTextureSample::EmitValueShader(FEmitContext& Context, FEmitScope
 		check(TextureParameterInfo.TextureIndex != INDEX_NONE);
 		const int32 TextureParameterIndex = Context.MaterialCompilationOutput->UniformExpressionSet.FindOrAddTextureParameter(EMaterialTextureParameterType::Virtual, TextureParameterInfo);
 
-		// Using Source size because we care about the aspect ratio of each block (each block of multi-block texture must have same aspect ratio)
-		// We can still combine multi-block textures of different block aspect ratios, as long as each block has the same ratio
-		// This is because we only need to overlay VT pages from within a given block
-		const float TextureAspectRatio = (float)Texture->Source.GetSizeX() / (float)Texture->Source.GetSizeY();
+		const bool AdaptiveVirtualTexture = bAdaptive;
+		const bool bGenerateFeedback = bEnableFeedback && Context.ShaderFrequency == SF_Pixel;
+		int32 VTLayerIndex = TextureLayerIndex;
+		int32 VTPageTableIndex = PageTableLayerIndex;
+		int32 VTStackIndex;
 
-		const bool AdaptiveVirtualTexture = false;
-		const bool bGenerateFeedback = (Context.ShaderFrequency == SF_Pixel);
-		int32 VTStackIndex = Private::AcquireVTStackIndex(Context, Scope, EmitMaterialData,
-			LocalMipValueMode,
-			StaticAddressX,
-			StaticAddressY,
-			TextureAspectRatio,
-			EmitTexCoordValue,
-			EmitTexCoordValueDdx,
-			EmitTexCoordValueDdy,
-			EmitMipValue,
-			INDEX_NONE,
-			AdaptiveVirtualTexture,
-			bGenerateFeedback);
+		if (VTLayerIndex != INDEX_NONE)
+		{
+			// The layer index in the virtual texture stack is already known
+			// Create a page table sample for each new combination of virtual texture and sample parameters
+			VTStackIndex = Private::AcquireVTStackIndex(Context, Scope, EmitMaterialData,
+				LocalMipValueMode,
+				StaticAddressX,
+				StaticAddressY,
+				1.0f,
+				EmitTexCoordValue,
+				EmitTexCoordValueDdx,
+				EmitTexCoordValueDdy,
+				EmitMipValue,
+				TextureParameterInfo.TextureIndex,
+				AdaptiveVirtualTexture,
+				bGenerateFeedback);
 
-		// Allocate a layer in the virtual texture stack for this physical sample
-		int32 VTLayerIndex = Context.MaterialCompilationOutput->UniformExpressionSet.AddVTLayer(VTStackIndex, TextureParameterIndex);
-		int32 VTPageTableIndex = VTLayerIndex;
+			Context.MaterialCompilationOutput->UniformExpressionSet.SetVTLayer(VTStackIndex, VTLayerIndex, TextureParameterIndex);
+		}
+		else
+		{
+			// Using Source size because we care about the aspect ratio of each block (each block of multi-block texture must have same aspect ratio)
+			// We can still combine multi-block textures of different block aspect ratios, as long as each block has the same ratio
+			// This is because we only need to overlay VT pages from within a given block
+			const float TextureAspectRatio = (float)Texture->Source.GetSizeX() / (float)Texture->Source.GetSizeY();
+
+			// Create a page table sample for each new set of sample parameters
+			VTStackIndex = Private::AcquireVTStackIndex(Context, Scope, EmitMaterialData,
+				LocalMipValueMode,
+				StaticAddressX,
+				StaticAddressY,
+				TextureAspectRatio,
+				EmitTexCoordValue,
+				EmitTexCoordValueDdx,
+				EmitTexCoordValueDdy,
+				EmitMipValue,
+				INDEX_NONE,
+				AdaptiveVirtualTexture,
+				bGenerateFeedback);
+
+			// Allocate a layer in the virtual texture stack for this physical sample
+			VTLayerIndex = Context.MaterialCompilationOutput->UniformExpressionSet.AddVTLayer(VTStackIndex, TextureParameterIndex);
+			VTPageTableIndex = VTLayerIndex;
+		}
 
 		TStringBuilder<64> FormattedTexture;
 		FormattedTexture.Appendf(TEXT("Material.VirtualTexturePhysical_%d"), TextureParameterIndex);
@@ -1153,6 +1192,159 @@ void FExpressionTextureSize::EmitValuePreshader(FEmitContext& Context, FEmitScop
 	OutResult.Preshader.WriteOpcode(Shader::EPreshaderOpcode::TextureSize).Write<FMemoryImageMaterialParameterInfo>(TextureValue.ParameterInfo).Write(TextureIndex);
 }
 
+bool FExpressionRuntimeVirtualTextureUniform::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	const FPreparedType& TextureType = Context.PrepareExpression(TextureExpression, Scope, FMaterialTextureValue::GetTypeName());
+	if (TextureType.Type.ObjectType != FMaterialTextureValue::GetTypeName())
+	{
+		return Context.Error(TEXT("Expected texture"));
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Preshader, URuntimeVirtualTexture::GetUniformParameterType((int32)UniformType));
+}
+
+void FExpressionRuntimeVirtualTextureUniform::EmitValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValuePreshaderResult& OutResult) const
+{
+	FMaterialTextureValue TextureValue;
+	TextureExpression->GetValueObject(Context, Scope, TextureValue);
+
+	const int32 TextureIndex = Context.Material->GetReferencedTextures().Find(TextureValue.Texture);
+	check(TextureIndex != INDEX_NONE);
+	const int32 VectorIndex = (int32)UniformType;
+
+	++Context.PreshaderStackPosition;
+	OutResult.Type = URuntimeVirtualTexture::GetUniformParameterType(VectorIndex);
+	OutResult.Preshader.WriteOpcode(Shader::EPreshaderOpcode::RuntimeVirtualTextureUniform).Write(ParameterInfo).Write(TextureIndex).Write(VectorIndex);
+}
+
+bool FExpressionVirtualTextureUnpack::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (UnpackType == EVirtualTextureUnpackType::BaseColorYCoCg)
+	{
+		const FPreparedType& SampleType = Context.PrepareExpression(SampleLayer0Expression, Scope, Shader::EValueType::Float4);
+		if (SampleType.IsVoid())
+		{
+			return false;
+		}
+		return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float3);
+	}
+	else if (UnpackType == EVirtualTextureUnpackType::NormalBC3)
+	{
+		const FPreparedType& SampleType = Context.PrepareExpression(SampleLayer1Expression, Scope, Shader::EValueType::Float4);
+		if (SampleType.IsVoid())
+		{
+			return false;
+		}
+		return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float3);
+	}
+	else if (UnpackType == EVirtualTextureUnpackType::NormalBC5)
+	{
+		const FPreparedType& SampleType = Context.PrepareExpression(SampleLayer1Expression, Scope, Shader::EValueType::Float4);
+		if (SampleType.IsVoid())
+		{
+			return false;
+		}
+		return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float3);
+	}
+	else if (UnpackType == EVirtualTextureUnpackType::NormalBC3BC3)
+	{
+		const FPreparedType& Sample0Type = Context.PrepareExpression(SampleLayer0Expression, Scope, Shader::EValueType::Float4);
+		const FPreparedType& Sample1Type = Context.PrepareExpression(SampleLayer1Expression, Scope, Shader::EValueType::Float4);
+		if (Sample0Type.IsVoid() || Sample1Type.IsVoid())
+		{
+			return false;
+		}
+		return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float3);
+	}
+	else if (UnpackType == EVirtualTextureUnpackType::NormalBC5BC1)
+	{
+		const FPreparedType& Sample1Type = Context.PrepareExpression(SampleLayer1Expression, Scope, Shader::EValueType::Float4);
+		const FPreparedType& Sample2Type = Context.PrepareExpression(SampleLayer2Expression, Scope, Shader::EValueType::Float4);
+		if (Sample1Type.IsVoid() || Sample2Type.IsVoid())
+		{
+			return false;
+		}
+		return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float3);
+	}
+	else if (UnpackType == EVirtualTextureUnpackType::HeightR16)
+	{
+		const FPreparedType& Sample0Type = Context.PrepareExpression(SampleLayer0Expression, Scope, Shader::EValueType::Float4);
+		const FPreparedType& HeightScaleBiasType = Context.PrepareExpression(WorldHeightUnpackUniformExpression, Scope, Shader::EValueType::Float2);
+		if (Sample0Type.IsVoid() || HeightScaleBiasType.IsVoid())
+		{
+			return false;
+		}
+		return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float1);
+	}
+	else if (UnpackType == EVirtualTextureUnpackType::NormalBGR565)
+	{
+		const FPreparedType& SampleType = Context.PrepareExpression(SampleLayer1Expression, Scope, Shader::EValueType::Float4);
+		if (SampleType.IsVoid())
+		{
+			return false;
+		}
+		return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float3);
+	}
+	else if (UnpackType == EVirtualTextureUnpackType::BaseColorSRGB)
+	{
+		const FPreparedType& SampleType = Context.PrepareExpression(SampleLayer0Expression, Scope, Shader::EValueType::Float4);
+		if (SampleType.IsVoid())
+		{
+			return false;
+		}
+		return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float3);
+	}
+	
+	return Context.Error(TEXT("Unexpected virtual texture unpack type."));
+}
+
+void FExpressionVirtualTextureUnpack::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	if (UnpackType == EVirtualTextureUnpackType::BaseColorYCoCg)
+	{
+		FEmitShaderExpression* EmitSampleLayer0 = SampleLayer0Expression->GetValueShader(Context, Scope, Shader::EValueType::Float4);
+		OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float3, TEXT("VirtualTextureUnpackBaseColorYCoCg(%)"), EmitSampleLayer0);
+	}
+	else if (UnpackType == EVirtualTextureUnpackType::NormalBC3)
+	{
+		FEmitShaderExpression* EmitSampleLayer1 = SampleLayer1Expression->GetValueShader(Context, Scope, Shader::EValueType::Float4);
+		OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float3, TEXT("VirtualTextureUnpackNormalBC3(%)"), EmitSampleLayer1);
+	}
+	else if (UnpackType == EVirtualTextureUnpackType::NormalBC5)
+	{
+		FEmitShaderExpression* EmitSampleLayer1 = SampleLayer1Expression->GetValueShader(Context, Scope, Shader::EValueType::Float4);
+		OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float3, TEXT("VirtualTextureUnpackNormalBC5(%)"), EmitSampleLayer1);
+	}
+	else if (UnpackType == EVirtualTextureUnpackType::NormalBC3BC3)
+	{
+		FEmitShaderExpression* EmitSampleLayer0 = SampleLayer0Expression->GetValueShader(Context, Scope, Shader::EValueType::Float4);
+		FEmitShaderExpression* EmitSampleLayer1 = SampleLayer1Expression->GetValueShader(Context, Scope, Shader::EValueType::Float4);
+		OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float3, TEXT("VirtualTextureUnpackNormalBC3BC3(%, %)"), EmitSampleLayer0, EmitSampleLayer1);
+	}
+	else if (UnpackType == EVirtualTextureUnpackType::NormalBC5BC1)
+	{
+		FEmitShaderExpression* EmitSampleLayer1 = SampleLayer1Expression->GetValueShader(Context, Scope, Shader::EValueType::Float4);
+		FEmitShaderExpression* EmitSampleLayer2 = SampleLayer2Expression->GetValueShader(Context, Scope, Shader::EValueType::Float4);
+		OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float3, TEXT("VirtualTextureUnpackNormalBC5BC1(%, %)"), EmitSampleLayer1, EmitSampleLayer2);
+	}
+	else if (UnpackType == EVirtualTextureUnpackType::HeightR16)
+	{
+		FEmitShaderExpression* EmitSampleLayer0 = SampleLayer0Expression->GetValueShader(Context, Scope, Shader::EValueType::Float4);
+		FEmitShaderExpression* EmitHeightScaleBias = WorldHeightUnpackUniformExpression->GetValueShader(Context, Scope, Shader::EValueType::Float2);
+		OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float1, TEXT("VirtualTextureUnpackHeight(%, %)"), EmitSampleLayer0, EmitHeightScaleBias);
+	}
+	else if (UnpackType == EVirtualTextureUnpackType::NormalBGR565)
+	{
+		FEmitShaderExpression* EmitSampleLayer1 = SampleLayer1Expression->GetValueShader(Context, Scope, Shader::EValueType::Float4);
+		OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float3, TEXT("VirtualTextureUnpackNormalBGR565(%)"), EmitSampleLayer1);
+	}
+	else if (UnpackType == EVirtualTextureUnpackType::BaseColorSRGB)
+	{
+		FEmitShaderExpression* EmitSampleLayer0 = SampleLayer0Expression->GetValueShader(Context, Scope, Shader::EValueType::Float4);
+		OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float3, TEXT("VirtualTextureUnpackBaseColorSRGB(%)"), EmitSampleLayer0);
+	}
+}
+
 bool FExpressionFunctionCall::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
 {
 	if (Context.bMarkLiveValues)
@@ -1244,6 +1436,125 @@ void FExpressionSceneTexture::EmitValueShader(FEmitContext& Context, FEmitScope&
 	OutResult.Code = EmitLookup;
 }
 
+bool FExpressionScreenAlignedUV::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (OffsetExpression)
+	{
+		const FPreparedType& OffsetType = Context.PrepareExpression(OffsetExpression, Scope, Shader::EValueType::Float2);
+		if (OffsetType.IsVoid())
+		{
+			return false;
+		}
+	}
+	else if (ViewportUVExpression)
+	{
+		const FPreparedType& ViewportUVType = Context.PrepareExpression(ViewportUVExpression, Scope, Shader::EValueType::Float2);
+		if (ViewportUVType.IsVoid())
+		{
+			return false;
+		}
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float2);
+}
+
+void FExpressionScreenAlignedUV::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	if (OffsetExpression)
+	{
+		FEmitShaderExpression* EmitOffset = OffsetExpression->GetValueShader(Context, Scope, Shader::EValueType::Float2);
+		OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float2, TEXT("CalcScreenUVFromOffsetFraction(GetScreenPosition(Parameters), %)"), EmitOffset);
+	}
+	else if (ViewportUVExpression)
+	{
+		FEmitShaderExpression* EmitViewportUV = ViewportUVExpression->GetValueShader(Context, Scope, Shader::EValueType::Float2);
+
+		check(Context.Material);
+		const EMaterialDomain MaterialDomain = Context.Material->GetMaterialDomain();
+		OutResult.Code = Context.EmitExpression(
+			Scope,
+			Shader::EValueType::Float2,
+			TEXT("clamp(ViewportUVToBufferUV(%),%,%)"),
+			EmitViewportUV,
+			MaterialDomain == MD_Surface ? TEXT("ResolvedView.BufferBilinearUVMinMax.xy") : TEXT("View.BufferBilinearUVMinMax.xy"),
+			MaterialDomain == MD_Surface ? TEXT("ResolvedView.BufferBilinearUVMinMax.zw") : TEXT("View.BufferBilinearUVMinMax.zw"));
+	}
+	else
+	{
+		OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float2, TEXT("ScreenAlignedPosition(GetScreenPosition(Parameters))"));
+	}
+}
+
+bool FExpressionSceneDepth::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (Context.ShaderFrequency == SF_Vertex && Context.TargetParameters.FeatureLevel <= ERHIFeatureLevel::ES3_1)
+	{
+		// mobile currently does not support this, we need to read a separate copy of the depth, we must disable framebuffer fetch and force scene texture reads.
+		return Context.Error(TEXT("Cannot read scene depth from the vertex shader with the Mobile feature level"));
+	}
+
+	if (Context.Material && Context.Material->IsTranslucencyWritingVelocity())
+	{
+		return Context.Error(TEXT("Translucenct material with 'Output Velocity' enabled will write to depth buffer, therefore cannot read from depth buffer at the same time."));
+	}
+
+	const FPreparedType& ScreenUVType = Context.PrepareExpression(ScreenUVExpression, Scope, Shader::EValueType::Float2);
+	if (ScreenUVType.IsVoid())
+	{
+		return false;
+	}
+
+	if (Context.bMarkLiveValues && Context.MaterialCompilationOutput)
+	{
+		Context.MaterialCompilationOutput->SetIsSceneTextureUsed(PPI_SceneDepth);
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float1);
+}
+
+void FExpressionSceneDepth::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitScreenUV = ScreenUVExpression->GetValueShader(Context, Scope, Shader::EValueType::Float2);
+	OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float1, TEXT("CalcSceneDepth(%)"), EmitScreenUV);
+}
+
+bool FExpressionSceneColor::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (Context.ShaderFrequency != SF_Pixel)
+	{
+		return Context.Error(TEXT("Invalid node used in vertex/hull/domain shader input!"));
+	}
+
+	if (Context.Material && Context.Material->GetMaterialDomain() != MD_Surface)
+	{
+		return Context.Error(TEXT("SceneColor lookups are only available when MaterialDomain = Surface."));
+	}
+
+	if (Context.TargetParameters.FeatureLevel < ERHIFeatureLevel::SM5)
+	{
+		return Context.Errorf(TEXT("Node not supported in feature level %d. %d required."), Context.TargetParameters.FeatureLevel, ERHIFeatureLevel::SM5);
+	}
+
+	const FPreparedType& ScreenUVType = Context.PrepareExpression(ScreenUVExpression, Scope, Shader::EValueType::Float2);
+	if (ScreenUVType.IsVoid())
+	{
+		return false;
+	}
+
+	if (Context.bMarkLiveValues && Context.MaterialCompilationOutput)
+	{
+		Context.MaterialCompilationOutput->SetIsSceneTextureUsed(PPI_SceneColor);
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float3);
+}
+
+void FExpressionSceneColor::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitScreenUV = ScreenUVExpression->GetValueShader(Context, Scope, Shader::EValueType::Float2);
+	OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float3, TEXT("DecodeSceneColorForMaterialNode(%)"), EmitScreenUV);
+}
+
 bool FExpressionNoise::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
 {
 	// TODO - we support Float3 or Double3 position input
@@ -1284,6 +1595,61 @@ void FExpressionNoise::EmitValueShader(FEmitContext& Context, FEmitScope& Scope,
 		EmitFilterWidth,
 		Parameters.bTiling,
 		Parameters.RepeatSize);
+}
+
+bool FExpressionVectorNoise::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	// TODO - we support Float3 or Double3 position input
+	const FPreparedType& PositionType = Context.PrepareExpression(PositionExpression, Scope, Shader::EValueType::Float3);
+	if (PositionType.IsVoid())
+	{
+		return false;
+	}
+
+	const EVectorNoiseFunction NoiseFunction = (EVectorNoiseFunction)Parameters.Function;
+	Shader::EValueType ResultType;
+	if (NoiseFunction == VNF_GradientALU || NoiseFunction == VNF_VoronoiALU)
+	{
+		ResultType = Shader::EValueType::Float4;
+	}
+	else
+	{
+		ResultType = Shader::EValueType::Float3;
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, ResultType);
+}
+
+void FExpressionVectorNoise::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitPosition = PositionExpression->GetValueShader(Context, Scope, Shader::EValueType::Float3);
+
+	// LWC_TODO - maybe possible/useful to add LWC-aware noise functions
+	const EVectorNoiseFunction NoiseFunction = (EVectorNoiseFunction)Parameters.Function;
+	if (NoiseFunction == VNF_GradientALU || NoiseFunction == VNF_VoronoiALU)
+	{
+		OutResult.Code = Context.EmitExpression(
+			Scope,
+			Shader::EValueType::Float4,
+			TEXT("MaterialExpressionVectorNoise(%,%,%,%,%)"),
+			EmitPosition,
+			Parameters.Quality,
+			Parameters.Function,
+			Parameters.bTiling,
+			Parameters.TileSize);
+	}
+	else
+	{
+		OutResult.Code = Context.EmitExpression(
+			Scope,
+			Shader::EValueType::Float3,
+			TEXT("MaterialExpressionVectorNoise(%,%,%,%,%).xyz"),
+			EmitPosition,
+			Parameters.Quality,
+			Parameters.Function,
+			Parameters.bTiling,
+			Parameters.TileSize);
+	}
 }
 
 void FExpressionVertexInterpolator::ComputeAnalyticDerivatives(FTree& Tree, FExpressionDerivatives& OutResult) const

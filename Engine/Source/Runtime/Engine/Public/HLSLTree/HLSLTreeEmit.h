@@ -400,6 +400,8 @@ public:
 
 	ENGINE_API void Finalize();
 
+	void ResetPastRequestedTypes();
+
 	ENGINE_API FEmitShaderExpression* InternalEmitExpression(FEmitScope& Scope, TArrayView<FEmitShaderNode*> Dependencies, bool bInline, const Shader::FType& Type, FStringView Code);
 
 	/**
@@ -585,6 +587,7 @@ public:
 	TArray<FEmitShaderNode*> EmitNodes;
 	TMap<const FScope*, FEmitScope*> EmitScopeMap;
 	TMap<const FExpression*, FPrepareValueResult*> PrepareValueMap;
+	TMap<FXxHash64, FRequestedType*> RequestedTypeTracker;
 	TMap<const FExpression*, FEmitScope*> PrepareLocalPHIMap;
 	TMap<const FExpression*, FEmitShaderExpression*> EmitLocalPHIMap;
 	TMap<FXxHash64, FEmitShaderExpression*> EmitExpressionMap;
