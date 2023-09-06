@@ -209,10 +209,14 @@ namespace Metasound
 				DataType = OutputHandle->GetDataType();
 			}
 
+			const UMetasoundEditorSettings* MetaSoundSettings = GetDefault<UMetasoundEditorSettings>();
+			const bool bIsDataTypeFAudioBufferSupported = DataType == GetMetasoundDataTypeName<FAudioBuffer>() && MetaSoundSettings && MetaSoundSettings->bShowOscilloscopeOnAudioPinMouseOver;
+
 			const bool bIsSupportedType = DataType == GetMetasoundDataTypeName<float>()
 				|| DataType == GetMetasoundDataTypeName<int32>()
 				|| DataType == GetMetasoundDataTypeName<FString>()
-				|| DataType == GetMetasoundDataTypeName<bool>();
+				|| DataType == GetMetasoundDataTypeName<bool>()
+				|| bIsDataTypeFAudioBufferSupported;
 
 			if (!bIsSupportedType)
 			{

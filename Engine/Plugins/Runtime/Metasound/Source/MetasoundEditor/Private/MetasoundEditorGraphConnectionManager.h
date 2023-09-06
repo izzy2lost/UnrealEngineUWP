@@ -6,6 +6,7 @@
 #include "Analysis/MetasoundFrontendVertexAnalyzerForwardValue.h"
 #include "Components/AudioComponent.h"
 #include "DSP/Dsp.h"
+#include "DSP/MultithreadedPatching.h"
 #include "DSP/VolumeFader.h"
 #include "HAL/Platform.h"
 #include "MetasoundAssetBase.h"
@@ -98,6 +99,9 @@ namespace Metasound
 			// Marks to track (if not yet tracked) & sets the window size of cached values.
 			// Retains existing values provided from update up to given size.
 			void TrackValue(const FGuid& InNodeID, FVertexName InOutputName, FName InAnalyzerName, int32 InWindowSize);
+
+			void TrackAudioPin(const FGuid& InNodeID, FVertexName InOutputName, FName InAnalyzerName, Audio::FPatchInput& InPatchInput);
+			void UntrackAudioPin(const FGuid& InNodeID, FVertexName InOutputName, FName InAnalyzerName);
 
 			void Update(float InDeltaTime);
 
@@ -212,7 +216,10 @@ namespace Metasound
 				}
 			};
 
+			struct FAudioBufferKey : FWindowValueKey{};
+
 			TMap<FWindowValueKey, FFloatMovingWindow> WindowedValues;
+			TMap<FAudioBufferKey, TSharedRef<Audio::FPatchInput>> TrackedAudioPins;
 
 			TWeakObjectPtr<const UAudioComponent> AudioComponent;
 			TMap<FString, Audio::FVolumeFader> ConnectionFaders;
