@@ -232,7 +232,7 @@ namespace Horde.Server.Tests.Fleet
 
 			FleetService service = new(
 				AgentCollection, GraphCollection, JobCollection, LeaseCollection, PoolCollection, new DowntimeServiceStub(isDowntimeActive), StreamCollection, Meter,
-				new StubFleetManagerFactory(fleetManager), Clock, Cache, serverSettingsOpt, GlobalConfig, Tracer, loggerFactory.CreateLogger<FleetService>());
+				new StubFleetManagerFactory(fleetManager), Clock, Cache, serverSettingsOpt, GlobalConfig, ServiceProvider, Tracer, loggerFactory.CreateLogger<FleetService>());
 				
 			return service;
 		}
@@ -281,6 +281,16 @@ namespace Horde.Server.Tests.Fleet
 			Assert.AreEqual(10, ((LeaseUtilizationStrategy)s).Settings.SampleTimeSec);
 			Assert.AreEqual(20, ((LeaseUtilizationStrategy)s).Settings.NumSamples);
 			Assert.AreEqual(30, ((LeaseUtilizationStrategy)s).Settings.NumSamplesForResult);
+		}
+		
+		[TestMethod]
+		public async Task CreateLeaseUtilizationAwsMetricStrategy()
+		{
+			string config = "{\"SamplePeriodSec\": 123, \"CloudWatchNamespace\": \"myNs\"}";
+			IPoolSizeStrategy s = await CreateStrategy(new PoolSizeStrategyInfo(PoolSizeStrategy.LeaseUtilizationAwsMetric, null, config));
+			Assert.AreEqual(typeof(LeaseUtilizationAwsMetricStrategy), s.GetType());
+			Assert.AreEqual(123, ((LeaseUtilizationAwsMetricStrategy)s).Settings.SamplePeriodSec);
+			Assert.AreEqual("myNs", ((LeaseUtilizationAwsMetricStrategy)s).Settings.CloudWatchNamespace);
 		}
 		
 		[TestMethod]

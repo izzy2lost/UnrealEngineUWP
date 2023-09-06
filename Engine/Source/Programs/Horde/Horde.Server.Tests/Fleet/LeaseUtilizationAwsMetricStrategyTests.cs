@@ -1,0 +1,186 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Amazon.CloudWatch.Model;
+using Google.Protobuf;
+using Google.Protobuf.WellKnownTypes;
+using Horde.Server.Agents;
+using Horde.Server.Agents.Fleet;
+using Horde.Server.Agents.Leases;
+using Horde.Server.Streams;
+using Horde.Server.Agents.Pools;
+using Horde.Server.Utilities;
+using HordeCommon;
+using HordeCommon.Rpc.Tasks;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using EpicGames.Horde.Api;
+using Microsoft.Extensions.Logging.Abstractions;
+
+namespace Horde.Server.Tests.Fleet
+{
+	[TestClass]
+	public class LeaseUtilizationAwsMetricStrategyTest : TestSetup
+	{
+		private readonly IPool _pool;
+		private readonly LeaseUtilizationAwsMetricSettings _settings = new (60, "myNamespace");
+		private readonly FakeAmazonCloudWatch _cloudWatch = new();
+		private readonly LeaseUtilizationAwsMetricStrategy _strategy;
+		private readonly NullLogger<LeaseUtilizationAwsMetricStrategy> _logger = NullLogger<LeaseUtilizationAwsMetricStrategy>.Instance;
+
+		public LeaseUtilizationAwsMetricStrategyTest()
+		{
+			_pool = PoolService.CreatePoolAsync("my-pool", new() { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0 }).Result;
+			_strategy = new (LeaseCollection, _cloudWatch.Get(), _settings, Clock, _logger);
+		}
+
+		private async Task<List<IAgent>> CreateAgentsAsync(IPool pool, int numAgents)
+		{
+			List<IAgent> agents = new (numAgents);
+			for (int i = 0; i < numAgents; i++)
+			{
+				agents.Add(await CreateAgentAsync(pool));
+			}
+
+			return agents;
+		}
+		
+		[TestMethod]
+		public async Task Metadata()
+		{
+			// Arrange
+			List<IAgent> agents = await CreateAgentsAsync(_pool, 4);
+
+			// Act
+			await _strategy.CalculatePoolSizeAsync(_pool, agents);
+
+			// Assert
+			List<MetricDatum> datums = _cloudWatch.GetMetricData("myNamespace");
+			Assert.AreEqual(1, datums.Count);
+			Assert.AreEqual("LeaseUtilizationPercentage", datums[0].MetricName);
+			Assert.AreEqual(1, datums[0].Dimensions.Count);
+			Assert.AreEqual("Pool", datums[0].Dimensions[0].Name);
+			Assert.AreEqual("my-pool", datums[0].Dimensions[0].Value);
+		}
+		
+		[TestMethod]
+		public async Task UtilizationZero()
+		{
+			// Arrange
+			List<IAgent> agents = await CreateAgentsAsync(_pool, 4);
+
+			// Act
+			await _strategy.CalculatePoolSizeAsync(_pool, agents);
+
+			// Assert
+			Assert.AreEqual(0.0, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
+		}
+		
+		[TestMethod]
+		public async Task UtilizationHalf()
+		{
+			// Arrange
+			List<IAgent> agents = await CreateAgentsAsync(_pool, 4);
+			await AddPlaceholderLease(agents[0], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
+			await AddPlaceholderLease(agents[1], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
+
+			// Act
+			await _strategy.CalculatePoolSizeAsync(_pool, agents);
+
+			// Assert
+			Assert.AreEqual(0.5, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
+		}
+		
+		[TestMethod]
+		public async Task UtilizationFull()
+		{
+			// Arrange
+			List<IAgent> agents = await CreateAgentsAsync(_pool, 4);
+			await AddPlaceholderLease(agents[0], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
+			await AddPlaceholderLease(agents[1], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
+			await AddPlaceholderLease(agents[2], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
+			await AddPlaceholderLease(agents[3], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
+
+			// Act
+			await _strategy.CalculatePoolSizeAsync(_pool, agents);
+
+			// Assert
+			Assert.AreEqual(1.0, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
+		}
+		
+		[TestMethod]
+		public async Task MoreLeasesThanAgents()
+		{
+			// Arrange
+			List<IAgent> agents = await CreateAgentsAsync(_pool, 4);
+			await AddPlaceholderLease(agents[0], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(5));
+			await AddPlaceholderLease(agents[0], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(10));
+			await AddPlaceholderLease(agents[0], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(15));
+			await AddPlaceholderLease(agents[1], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(5));
+			await AddPlaceholderLease(agents[1], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(15));
+			await AddPlaceholderLease(agents[2], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(15));
+			await AddPlaceholderLease(agents[3], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(15));
+
+			// Act
+			await _strategy.CalculatePoolSizeAsync(_pool, agents);
+
+			// Assert
+			Assert.AreEqual(1.0, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
+		}
+		
+		[TestMethod]
+		public async Task LeasesInProgress()
+		{
+			// Arrange
+			List<IAgent> agents = await CreateAgentsAsync(_pool, 4);
+			await AddPlaceholderLease(agents[0], _pool, OneMinuteAgo(), null);
+			await AddPlaceholderLease(agents[1], _pool, OneMinuteAgo(), null);
+			await AddPlaceholderLease(agents[2], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(15));
+
+			// Act
+			await _strategy.CalculatePoolSizeAsync(_pool, agents);
+
+			// Assert
+			Assert.AreEqual(0.75, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
+		}
+
+		private DateTime OneMinuteAgo()
+		{
+			return Clock.UtcNow - TimeSpan.FromSeconds(60);
+		}
+
+		enum LeaseType
+		{
+			ExecuteJob,
+			Compute
+		}
+		
+		private async Task<ILease> AddPlaceholderLease(IAgent agent, IPool pool, DateTime startTime, TimeSpan? duration, LeaseType leaseType = LeaseType.ExecuteJob)
+		{
+			Assert.IsNotNull(agent.SessionId);
+
+			byte[] payload;
+			ExecuteJobTask executeJobTask = new();
+			executeJobTask.JobName = "placeholderJobName";
+			payload = Any.Pack(executeJobTask).ToByteArray();
+			
+			if (leaseType == LeaseType.Compute)
+			{
+				ComputeTask computeTask = new();
+				computeTask.Nonce = ByteString.CopyFromUtf8("test-nonce");
+				computeTask.Key = ByteString.CopyFromUtf8("test-key");
+				payload = Any.Pack(computeTask).ToByteArray();
+			}
+
+			ILease lease = await LeaseCollection.AddAsync(new LeaseId(BinaryIdUtils.CreateNew()), null, "placeholderLease", agent.Id, agent.SessionId!.Value, new StreamId("placeholderStream"), pool.Id, null, startTime, payload);
+			if (duration != null)
+			{
+				bool wasModified = await LeaseCollection.TrySetOutcomeAsync(lease.Id, startTime + duration.Value, LeaseOutcome.Success, null);
+				Assert.IsTrue(wasModified);	
+			}
+			
+			return lease;
+		}
+	}
+}

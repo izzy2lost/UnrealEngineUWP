@@ -33,7 +33,13 @@ namespace Horde.Server.Agents.Fleet
 		/// A no-op strategy that reports metrics to let an external AWS auto-scaling policy scale the fleet
 		/// <see cref="ComputeQueueAwsMetric"/> 
 		/// </summary>
-		ComputeQueueAwsMetric
+		ComputeQueueAwsMetric,
+		
+		/// <summary>
+		/// A no-op strategy that reports metrics to let an external AWS auto-scaling policy scale the fleet
+		/// <see cref="LeaseUtilizationAwsMetric"/> 
+		/// </summary>
+		LeaseUtilizationAwsMetric
 	}
 	
 	/// <summary>

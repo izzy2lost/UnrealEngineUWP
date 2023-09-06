@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Amazon.CloudWatch;
 using Amazon.CloudWatch.Model;
@@ -24,19 +25,27 @@ namespace Horde.Server.Agents.Fleet
 		/// <summary>
 		/// Compute cluster ID to observe
 		/// </summary>
-		public string ComputeClusterId { get; set; }
-		
+		public string ComputeClusterId { get; set; } = "default";
+
 		/// <summary>
 		/// AWS CloudWatch namespace to write metrics in
 		/// </summary>
-		public string Namespace { get; set; }
+		public string Namespace { get; set; } = "Horde";
+		
+		/// <summary>
+		/// Constructor used for JSON serialization
+		/// </summary>
+		[JsonConstructor]
+		public ComputeQueueAwsMetricSettings()
+		{
+		}
 		
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="computeClusterId"></param>
 		/// <param name="cloudWatchNamespace"></param>
-		public ComputeQueueAwsMetricSettings(string computeClusterId, string cloudWatchNamespace = "HordeBuild")
+		public ComputeQueueAwsMetricSettings(string computeClusterId, string cloudWatchNamespace = "Horde")
 		{
 			ComputeClusterId = computeClusterId;
 			Namespace = cloudWatchNamespace;
