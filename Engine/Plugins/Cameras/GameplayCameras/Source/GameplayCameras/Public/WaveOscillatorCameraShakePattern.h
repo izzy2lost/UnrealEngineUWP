@@ -5,11 +5,6 @@
 #include "SimpleCameraShakePattern.h"
 #include "WaveOscillatorCameraShakePattern.generated.h"
 
-struct FCameraShakeScrubParams;
-struct FCameraShakeStartParams;
-struct FCameraShakeUpdateParams;
-struct FCameraShakeUpdateResult;
-
 /** Shake start offset parameter. */
 UENUM()
 enum class EInitialWaveOscillatorOffsetType : uint8
@@ -113,11 +108,11 @@ public:
 private:
 
 	// UCameraShakePattern interface
-	virtual void StartShakePatternImpl(const FCameraShakeStartParams& Params) override;
-	virtual void UpdateShakePatternImpl(const FCameraShakeUpdateParams& Params, FCameraShakeUpdateResult& OutResult) override;
-	virtual void ScrubShakePatternImpl(const FCameraShakeScrubParams& Params, FCameraShakeUpdateResult& OutResult) override;
+	virtual void StartShakePatternImpl(const FCameraShakePatternStartParams& Params) override;
+	virtual void UpdateShakePatternImpl(const FCameraShakePatternUpdateParams& Params, FCameraShakePatternUpdateResult& OutResult) override;
+	virtual void ScrubShakePatternImpl(const FCameraShakePatternScrubParams& Params, FCameraShakePatternUpdateResult& OutResult) override;
 
-	void UpdateOscillators(float DeltaTime, FCameraShakeUpdateResult& OutResult);
+	void UpdateOscillators(float DeltaTime, FCameraShakePatternUpdateResult& OutResult);
 
 private:
 

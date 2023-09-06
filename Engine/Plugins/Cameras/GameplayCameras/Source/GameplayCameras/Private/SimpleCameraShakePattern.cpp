@@ -19,7 +19,7 @@ void USimpleCameraShakePattern::GetShakePatternInfoImpl(FCameraShakeInfo& OutInf
 	OutInfo.BlendOut = BlendOutTime;
 }
 
-void USimpleCameraShakePattern::StartShakePatternImpl(const FCameraShakeStartParams& Params)
+void USimpleCameraShakePattern::StartShakePatternImpl(const FCameraShakePatternStartParams& Params)
 {
 	State.Start(this);
 }
@@ -29,7 +29,7 @@ bool USimpleCameraShakePattern::IsFinishedImpl() const
 	return !State.IsPlaying();
 }
 
-void USimpleCameraShakePattern::StopShakePatternImpl(const FCameraShakeStopParams& Params)
+void USimpleCameraShakePattern::StopShakePatternImpl(const FCameraShakePatternStopParams& Params)
 {
 	State.Stop(Params.bImmediately);
 }

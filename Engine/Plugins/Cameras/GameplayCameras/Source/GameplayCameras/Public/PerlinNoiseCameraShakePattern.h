@@ -5,11 +5,6 @@
 #include "SimpleCameraShakePattern.h"
 #include "PerlinNoiseCameraShakePattern.generated.h"
 
-struct FCameraShakeScrubParams;
-struct FCameraShakeStartParams;
-struct FCameraShakeUpdateParams;
-struct FCameraShakeUpdateResult;
-
 /** A perlin noise shaker for a single number. */
 USTRUCT(BlueprintType)
 struct GAMEPLAYCAMERAS_API FPerlinNoiseShaker
@@ -95,11 +90,11 @@ public:
 private:
 
 	// UCameraShakePattern interface
-	virtual void StartShakePatternImpl(const FCameraShakeStartParams& Params) override;
-	virtual void UpdateShakePatternImpl(const FCameraShakeUpdateParams& Params, FCameraShakeUpdateResult& OutResult) override;
-	virtual void ScrubShakePatternImpl(const FCameraShakeScrubParams& Params, FCameraShakeUpdateResult& OutResult) override;
+	virtual void StartShakePatternImpl(const FCameraShakePatternStartParams& Params) override;
+	virtual void UpdateShakePatternImpl(const FCameraShakePatternUpdateParams& Params, FCameraShakePatternUpdateResult& OutResult) override;
+	virtual void ScrubShakePatternImpl(const FCameraShakePatternScrubParams& Params, FCameraShakePatternUpdateResult& OutResult) override;
 
-	void UpdatePerlinNoise(float DeltaTime, FCameraShakeUpdateResult& OutResult);
+	void UpdatePerlinNoise(float DeltaTime, FCameraShakePatternUpdateResult& OutResult);
 
 private:
 

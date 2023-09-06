@@ -31,7 +31,7 @@ UWaveOscillatorCameraShakePattern::UWaveOscillatorCameraShakePattern(const FObje
 	FOV.Amplitude = 0.f;
 }
 
-void UWaveOscillatorCameraShakePattern::StartShakePatternImpl(const FCameraShakeStartParams& Params)
+void UWaveOscillatorCameraShakePattern::StartShakePatternImpl(const FCameraShakePatternStartParams& Params)
 {
 	Super::StartShakePatternImpl(Params);
 
@@ -55,7 +55,7 @@ void UWaveOscillatorCameraShakePattern::StartShakePatternImpl(const FCameraShake
 	}
 }
 
-void UWaveOscillatorCameraShakePattern::UpdateShakePatternImpl(const FCameraShakeUpdateParams& Params, FCameraShakeUpdateResult& OutResult)
+void UWaveOscillatorCameraShakePattern::UpdateShakePatternImpl(const FCameraShakePatternUpdateParams& Params, FCameraShakePatternUpdateResult& OutResult)
 {
 	UpdateOscillators(Params.DeltaTime, OutResult);
 
@@ -63,7 +63,7 @@ void UWaveOscillatorCameraShakePattern::UpdateShakePatternImpl(const FCameraShak
 	OutResult.ApplyScale(BlendWeight);
 }
 
-void UWaveOscillatorCameraShakePattern::ScrubShakePatternImpl(const FCameraShakeScrubParams& Params, FCameraShakeUpdateResult& OutResult)
+void UWaveOscillatorCameraShakePattern::ScrubShakePatternImpl(const FCameraShakePatternScrubParams& Params, FCameraShakePatternUpdateResult& OutResult)
 {
 	// Scrubbing is like going back to our initial state and updating directly to the scrub time.
 	CurrentLocationOffset = InitialLocationOffset;
@@ -76,7 +76,7 @@ void UWaveOscillatorCameraShakePattern::ScrubShakePatternImpl(const FCameraShake
 	OutResult.ApplyScale(BlendWeight);
 }
 
-void UWaveOscillatorCameraShakePattern::UpdateOscillators(float DeltaTime, FCameraShakeUpdateResult& OutResult)
+void UWaveOscillatorCameraShakePattern::UpdateOscillators(float DeltaTime, FCameraShakePatternUpdateResult& OutResult)
 {
 	OutResult.Location.X = X.Update(DeltaTime, LocationAmplitudeMultiplier, LocationFrequencyMultiplier, CurrentLocationOffset.X);
 	OutResult.Location.Y = Y.Update(DeltaTime, LocationAmplitudeMultiplier, LocationFrequencyMultiplier, CurrentLocationOffset.Y);

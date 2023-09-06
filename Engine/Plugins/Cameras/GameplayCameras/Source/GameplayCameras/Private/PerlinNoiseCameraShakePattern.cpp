@@ -23,7 +23,7 @@ UPerlinNoiseCameraShakePattern::UPerlinNoiseCameraShakePattern(const FObjectInit
 	FOV.Amplitude = 0.f;
 }
 
-void UPerlinNoiseCameraShakePattern::StartShakePatternImpl(const FCameraShakeStartParams& Params)
+void UPerlinNoiseCameraShakePattern::StartShakePatternImpl(const FCameraShakePatternStartParams& Params)
 {
 	Super::StartShakePatternImpl(Params);
 
@@ -42,7 +42,7 @@ void UPerlinNoiseCameraShakePattern::StartShakePatternImpl(const FCameraShakeSta
 	}
 }
 
-void UPerlinNoiseCameraShakePattern::UpdateShakePatternImpl(const FCameraShakeUpdateParams& Params, FCameraShakeUpdateResult& OutResult)
+void UPerlinNoiseCameraShakePattern::UpdateShakePatternImpl(const FCameraShakePatternUpdateParams& Params, FCameraShakePatternUpdateResult& OutResult)
 {
 	UpdatePerlinNoise(Params.DeltaTime, OutResult);
 
@@ -50,7 +50,7 @@ void UPerlinNoiseCameraShakePattern::UpdateShakePatternImpl(const FCameraShakeUp
 	OutResult.ApplyScale(BlendWeight);
 }
 
-void UPerlinNoiseCameraShakePattern::ScrubShakePatternImpl(const FCameraShakeScrubParams& Params, FCameraShakeUpdateResult& OutResult)
+void UPerlinNoiseCameraShakePattern::ScrubShakePatternImpl(const FCameraShakePatternScrubParams& Params, FCameraShakePatternUpdateResult& OutResult)
 {
 	// Scrubbing is like going back to our initial state and updating directly to the scrub time.
 	CurrentLocationOffset = InitialLocationOffset;
@@ -63,7 +63,7 @@ void UPerlinNoiseCameraShakePattern::ScrubShakePatternImpl(const FCameraShakeScr
 	OutResult.ApplyScale(BlendWeight);
 }
 
-void UPerlinNoiseCameraShakePattern::UpdatePerlinNoise(float DeltaTime, FCameraShakeUpdateResult& OutResult)
+void UPerlinNoiseCameraShakePattern::UpdatePerlinNoise(float DeltaTime, FCameraShakePatternUpdateResult& OutResult)
 {
 	OutResult.Location.X = X.Update(DeltaTime, LocationAmplitudeMultiplier, LocationFrequencyMultiplier, CurrentLocationOffset.X);
 	OutResult.Location.Y = Y.Update(DeltaTime, LocationAmplitudeMultiplier, LocationFrequencyMultiplier, CurrentLocationOffset.Y);

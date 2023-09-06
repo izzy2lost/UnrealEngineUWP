@@ -16,29 +16,30 @@ class APlayerCameraManager;
 class UCameraShakePattern;
 
 /**
- * Parameters for starting a camera shake.
+ * Parameters for starting a camera shake pattern.
  */
 USTRUCT(BlueprintType)
-struct FCameraShakeStartParams
+struct FCameraShakePatternStartParams
 {
 	GENERATED_BODY()
 	
+	/** Whether the camera shake is restarting while playing */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=CameraShake)
 	bool bIsRestarting = false;
 };
 
 /**
- * Parameters for updating a camera shake.
+ * Parameters for updating a camera shake pattern.
  */
 USTRUCT(BlueprintType)
-struct FCameraShakeUpdateParams
+struct FCameraShakePatternUpdateParams
 {
 	GENERATED_BODY()
 
-	FCameraShakeUpdateParams()
+	FCameraShakePatternUpdateParams()
 	{}
 
-	FCameraShakeUpdateParams(const FMinimalViewInfo& InPOV)
+	FCameraShakePatternUpdateParams(const FMinimalViewInfo& InPOV)
 		: POV(InPOV)
 	{}
 
@@ -68,19 +69,19 @@ struct FCameraShakeUpdateParams
  * Parameters for scrubbing a camera shake.
  */
 USTRUCT(BlueprintType)
-struct FCameraShakeScrubParams
+struct FCameraShakePatternScrubParams
 {
 	GENERATED_BODY()
 
-	FCameraShakeScrubParams()
+	FCameraShakePatternScrubParams()
 	{}
 
-	FCameraShakeScrubParams(const FMinimalViewInfo& InPOV)
+	FCameraShakePatternScrubParams(const FMinimalViewInfo& InPOV)
 		: POV(InPOV)
 	{}
 
 	/** Convert this to an update parameter struct where the delta time is from 0 to the AbsoluteTime. */
-	ENGINE_API FCameraShakeUpdateParams ToUpdateParams() const;
+	ENGINE_API FCameraShakePatternUpdateParams ToUpdateParams() const;
 
 	/** The time to scrub to */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=CameraShake)
@@ -105,10 +106,10 @@ struct FCameraShakeScrubParams
 };
 
 /**
- * Flags that camera shakes can return to change base-class behaviour.
+ * Flags that camera shake patterns can return to change base-class behaviour.
  */
 UENUM()
-enum class ECameraShakeUpdateResultFlags : uint8
+enum class ECameraShakePatternUpdateResultFlags : uint8
 {
 	/** Apply the result location, rotation, and field of view as absolute values, instead of additive values. */
 	ApplyAsAbsolute = 1 << 0,
@@ -120,22 +121,22 @@ enum class ECameraShakeUpdateResultFlags : uint8
 	/** Default flags: the sub-class is returning local, additive offsets, and lets the base class take care of the rest. */
 	Default = 0
 };
-ENUM_CLASS_FLAGS(ECameraShakeUpdateResultFlags);
+ENUM_CLASS_FLAGS(ECameraShakePatternUpdateResultFlags);
 
 /**
- * The result of a camera shake update.
+ * The result of a camera shake pattern update.
  */
 USTRUCT(BlueprintType)
-struct FCameraShakeUpdateResult
+struct FCameraShakePatternUpdateResult
 {
 	GENERATED_BODY()
 
-	FCameraShakeUpdateResult()
+	FCameraShakePatternUpdateResult()
 		: Location(FVector::ZeroVector)
 		, Rotation(FRotator::ZeroRotator)
 		, FOV(0.f)
 		, PostProcessBlendWeight(0.f)
-		, Flags(ECameraShakeUpdateResultFlags::Default)
+		, Flags(ECameraShakePatternUpdateResultFlags::Default)
 	{}
 
 	/** Location offset for the view, or new absolute location if ApplyAsAbsolute flag is set */
@@ -151,7 +152,7 @@ struct FCameraShakeUpdateResult
 	float PostProcessBlendWeight;
 
 	/** Flags for how the base class should handle the result */
-	ECameraShakeUpdateResultFlags Flags;
+	ECameraShakePatternUpdateResultFlags Flags;
 
 	/** Apply the given scale to the result (only if it is "relative") */
 	ENGINE_API void ApplyScale(float InScale);
@@ -161,13 +162,27 @@ struct FCameraShakeUpdateResult
  * Parameters for stopping a camera shake.
  */
 USTRUCT(BlueprintType)
-struct FCameraShakeStopParams
+struct FCameraShakePatternStopParams
 {
 	GENERATED_BODY()
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=CameraShake)
 	bool bImmediately = false;
 };
+
+// Redirections from old names.
+#if !defined(UE_LEGACY_CAMERA_SHAKE_PATTERN_TYPES)
+#define UE_LEGACY_CAMERA_SHAKE_PATTERN_TYPES 0
+#endif
+
+#if UE_LEGACY_CAMERA_SHAKE_PATTERN_TYPES
+using ECameraShakeUpdateResultFlags = ECameraShakePatternUpdateResultFlags;
+using FCameraShakeStartParams = FCameraShakePatternStartParams;
+using FCameraShakeUpdateParams = FCameraShakePatternUpdateParams;
+using FCameraShakeScrubParams = FCameraShakePatternScrubParams;
+using FCameraShakeStopParams = FCameraShakePatternStopParams;
+using FCameraShakeUpdateResult = FCameraShakePatternUpdateResult;
+#endif // UE_LEGACY_CAMERA_SHAKE_PATTERN_TYPES
 
 /**
  * Camera shake duration type.
@@ -458,23 +473,23 @@ public:
 	}
 
 	/** Uses the given result parameters to apply the given result to the given input view info */
-	static ENGINE_API void ApplyResult(const FCameraShakeApplyResultParams& ApplyParams, const FCameraShakeUpdateResult& InResult, FMinimalViewInfo& InOutPOV);
+	static ENGINE_API void ApplyResult(const FCameraShakeApplyResultParams& ApplyParams, const FCameraShakePatternUpdateResult& InResult, FMinimalViewInfo& InOutPOV);
 
 	/** Applies all the appropriate auto-scaling to the current shake offset (only if the result is "relative") */
-	static ENGINE_API void ApplyScale(const FCameraShakeUpdateParams& Params, FCameraShakeUpdateResult& InOutResult);
+	static ENGINE_API void ApplyScale(const FCameraShakePatternUpdateParams& Params, FCameraShakePatternUpdateResult& InOutResult);
 
 	/** Applies the given scale to the current shake offset (only if the result is "relative") */
-	static ENGINE_API void ApplyScale(float Scale, FCameraShakeUpdateResult& InOutResult);
+	static ENGINE_API void ApplyScale(float Scale, FCameraShakePatternUpdateResult& InOutResult);
 
 	/** Applies any appropriate system-wide limits */
-	static ENGINE_API void ApplyLimits(const FMinimalViewInfo& InPOV, FCameraShakeUpdateResult& InOutResult);
+	static ENGINE_API void ApplyLimits(const FMinimalViewInfo& InPOV, FCameraShakePatternUpdateResult& InOutResult);
 
 	/**
 	 * Modifies the current shake offset to be oriented in the current shake's play space (only if the result is "relative")
 	 *
 	 * Note that this modifies the result and makes it "absolute".
 	 */
-	static ENGINE_API void ApplyPlaySpace(ECameraShakePlaySpace PlaySpace, FMatrix UserPlaySpaceMatrix, const FMinimalViewInfo& InPOV, FCameraShakeUpdateResult& InOutResult);
+	static ENGINE_API void ApplyPlaySpace(ECameraShakePlaySpace PlaySpace, FMatrix UserPlaySpaceMatrix, const FMinimalViewInfo& InPOV, FCameraShakePatternUpdateResult& InOutResult);
 
 public:
 
@@ -558,7 +573,7 @@ protected:
 	 *
 	 * Note that this modifies the result and makes it "absolute".
 	 */
-	ENGINE_API void ApplyPlaySpace(const FCameraShakeUpdateParams& Params, FCameraShakeUpdateResult& InOutResult) const;
+	ENGINE_API void ApplyPlaySpace(const FCameraShakePatternUpdateParams& Params, FCameraShakePatternUpdateResult& InOutResult) const;
 
 private:
 
@@ -598,15 +613,15 @@ public:
 	/** Gets information about this shake pattern */
 	ENGINE_API void GetShakePatternInfo(FCameraShakeInfo& OutInfo) const;
 	/** Called when the shake pattern starts */
-	ENGINE_API void StartShakePattern(const FCameraShakeStartParams& Params);
+	ENGINE_API void StartShakePattern(const FCameraShakePatternStartParams& Params);
 	/** Updates the shake pattern, which should add its generated offset to the given result */
-	ENGINE_API void UpdateShakePattern(const FCameraShakeUpdateParams& Params, FCameraShakeUpdateResult& OutResult);
+	ENGINE_API void UpdateShakePattern(const FCameraShakePatternUpdateParams& Params, FCameraShakePatternUpdateResult& OutResult);
 	/** Scrubs the shake pattern to the given time, and apply the generated offset to the given result */
-	ENGINE_API void ScrubShakePattern(const FCameraShakeScrubParams& Params, FCameraShakeUpdateResult& OutResult);
+	ENGINE_API void ScrubShakePattern(const FCameraShakePatternScrubParams& Params, FCameraShakePatternUpdateResult& OutResult);
 	/** Returns whether this shake pattern is finished */
 	ENGINE_API bool IsFinished() const;
 	/** Called when the shake pattern is manually stopped */
-	ENGINE_API void StopShakePattern(const FCameraShakeStopParams& Params);
+	ENGINE_API void StopShakePattern(const FCameraShakePatternStopParams& Params);
 	/** Call when the shake pattern is discard, either after naturally finishing or being stopped manually */
 	ENGINE_API void TeardownShakePattern();
 
@@ -623,11 +638,11 @@ private:
 
 	// UCameraShakePattern interface
 	virtual void GetShakePatternInfoImpl(FCameraShakeInfo& OutInfo) const {}
-	virtual void StartShakePatternImpl(const FCameraShakeStartParams& Params) {}
-	virtual void UpdateShakePatternImpl(const FCameraShakeUpdateParams& Params, FCameraShakeUpdateResult& OutResult) {}
-	virtual void ScrubShakePatternImpl(const FCameraShakeScrubParams& Params, FCameraShakeUpdateResult& OutResult) {}
+	virtual void StartShakePatternImpl(const FCameraShakePatternStartParams& Params) {}
+	virtual void UpdateShakePatternImpl(const FCameraShakePatternUpdateParams& Params, FCameraShakePatternUpdateResult& OutResult) {}
+	virtual void ScrubShakePatternImpl(const FCameraShakePatternScrubParams& Params, FCameraShakePatternUpdateResult& OutResult) {}
 	virtual bool IsFinishedImpl() const { return true; }
-	virtual void StopShakePatternImpl(const FCameraShakeStopParams& Params) {}
+	virtual void StopShakePatternImpl(const FCameraShakePatternStopParams& Params) {}
 	virtual void TeardownShakePatternImpl()  {}
 };
 

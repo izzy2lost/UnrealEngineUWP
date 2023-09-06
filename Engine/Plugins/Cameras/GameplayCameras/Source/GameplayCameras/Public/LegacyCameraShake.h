@@ -242,9 +242,9 @@ public:
 
 private:
 
-	void DoStartShake(const FCameraShakeStartParams& Params);
-	void DoUpdateShake(const FCameraShakeUpdateParams& Params, FCameraShakeUpdateResult& OutResult);
-	void DoScrubShake(const FCameraShakeScrubParams& Params, FCameraShakeUpdateResult& OutResult);
+	void DoStartShake(const FCameraShakePatternStartParams& Params);
+	void DoUpdateShake(const FCameraShakePatternUpdateParams& Params, FCameraShakePatternUpdateResult& OutResult);
+	void DoScrubShake(const FCameraShakePatternScrubParams& Params, FCameraShakePatternUpdateResult& OutResult);
 	void DoStopShake(bool bImmediately);
 	bool DoGetIsFinished() const;
 	void DoTeardownShake();
@@ -299,11 +299,11 @@ private:
 
 	// UCameraShakePattern interface
 	virtual void GetShakePatternInfoImpl(FCameraShakeInfo& OutInfo) const override;
-	virtual void StartShakePatternImpl(const FCameraShakeStartParams& Params) override;
-	virtual void UpdateShakePatternImpl(const FCameraShakeUpdateParams& Params, FCameraShakeUpdateResult& OutResult) override;
-	virtual void ScrubShakePatternImpl(const FCameraShakeScrubParams& Params, FCameraShakeUpdateResult& OutResult) override;
+	virtual void StartShakePatternImpl(const FCameraShakePatternStartParams& Params) override;
+	virtual void UpdateShakePatternImpl(const FCameraShakePatternUpdateParams& Params, FCameraShakePatternUpdateResult& OutResult) override;
+	virtual void ScrubShakePatternImpl(const FCameraShakePatternScrubParams& Params, FCameraShakePatternUpdateResult& OutResult) override;
 	virtual bool IsFinishedImpl() const override;
-	virtual void StopShakePatternImpl(const FCameraShakeStopParams& Params) override;
+	virtual void StopShakePatternImpl(const FCameraShakePatternStopParams& Params) override;
 	virtual void TeardownShakePatternImpl() override;
 };
 

@@ -36,7 +36,7 @@ void UCompositeCameraShakePattern::GetShakePatternInfoImpl(FCameraShakeInfo& Out
 	}
 }
 
-void UCompositeCameraShakePattern::StartShakePatternImpl(const FCameraShakeStartParams& Params)
+void UCompositeCameraShakePattern::StartShakePatternImpl(const FCameraShakePatternStartParams& Params)
 {
 	for (UCameraShakePattern* Pattern : ChildPatterns)
 	{
@@ -48,19 +48,19 @@ void UCompositeCameraShakePattern::StartShakePatternImpl(const FCameraShakeStart
 	}
 }
 
-void UCompositeCameraShakePattern::UpdateShakePatternImpl(const FCameraShakeUpdateParams& Params, FCameraShakeUpdateResult& OutResult)
+void UCompositeCameraShakePattern::UpdateShakePatternImpl(const FCameraShakePatternUpdateParams& Params, FCameraShakePatternUpdateResult& OutResult)
 {
 	UCameraShakeBase* ShakeInstance = GetShakeInstance();
 	checkf(ShakeInstance, TEXT("Running a shake pattern without an outer shake instance"));
 
-	FCameraShakeUpdateParams ChildParams(Params);
+	FCameraShakePatternUpdateParams ChildParams(Params);
 
 	for (UCameraShakePattern* Pattern : ChildPatterns)
 	{
 		if (Pattern != nullptr && !Pattern->IsFinished())
 		{
 			// Let the child pattern run on the current result, with its own blending weight.
-			FCameraShakeUpdateResult ChildResult;
+			FCameraShakePatternUpdateResult ChildResult;
 			Pattern->UpdateShakePattern(ChildParams, ChildResult);
 
 			if (!Pattern->IsFinished())
@@ -83,10 +83,10 @@ void UCompositeCameraShakePattern::UpdateShakePatternImpl(const FCameraShakeUpda
 	OutResult.Location = ChildParams.POV.Location;
 	OutResult.Rotation = ChildParams.POV.Rotation;
 	OutResult.FOV = ChildParams.POV.FOV;
-	OutResult.Flags = ECameraShakeUpdateResultFlags::ApplyAsAbsolute;
+	OutResult.Flags = ECameraShakePatternUpdateResultFlags::ApplyAsAbsolute;
 }
 
-void UCompositeCameraShakePattern::ScrubShakePatternImpl(const FCameraShakeScrubParams& Params, FCameraShakeUpdateResult& OutResult)
+void UCompositeCameraShakePattern::ScrubShakePatternImpl(const FCameraShakePatternScrubParams& Params, FCameraShakePatternUpdateResult& OutResult)
 {
 	// This method is similar to the UpdateShakePatternImpl method above, but calls the scrub methods
 	// instead of the update methods.
@@ -94,14 +94,14 @@ void UCompositeCameraShakePattern::ScrubShakePatternImpl(const FCameraShakeScrub
 	UCameraShakeBase* ShakeInstance = GetShakeInstance();
 	checkf(ShakeInstance, TEXT("Running a shake pattern without an outer shake instance"));
 
-	FCameraShakeScrubParams ChildParams(Params);
+	FCameraShakePatternScrubParams ChildParams(Params);
 
 	for (UCameraShakePattern* Pattern : ChildPatterns)
 	{
 		if (Pattern != nullptr) // Don't check for IsFinished here, we might scrub anywhere.
 		{
 			// Let the child pattern run on the current result, with its own blending weight.
-			FCameraShakeUpdateResult ChildResult;
+			FCameraShakePatternUpdateResult ChildResult;
 			Pattern->ScrubShakePattern(Params, ChildResult);
 
 			if (!Pattern->IsFinished())
@@ -123,7 +123,7 @@ void UCompositeCameraShakePattern::ScrubShakePatternImpl(const FCameraShakeScrub
 	OutResult.Location = ChildParams.POV.Location;
 	OutResult.Rotation = ChildParams.POV.Rotation;
 	OutResult.FOV = ChildParams.POV.FOV;
-	OutResult.Flags = ECameraShakeUpdateResultFlags::ApplyAsAbsolute;
+	OutResult.Flags = ECameraShakePatternUpdateResultFlags::ApplyAsAbsolute;
 }
 
 bool UCompositeCameraShakePattern::IsFinishedImpl() const
@@ -139,7 +139,7 @@ bool UCompositeCameraShakePattern::IsFinishedImpl() const
 	return true;
 }
 
-void UCompositeCameraShakePattern::StopShakePatternImpl(const FCameraShakeStopParams& Params)
+void UCompositeCameraShakePattern::StopShakePatternImpl(const FCameraShakePatternStopParams& Params)
 {
 	// Stop all our children.
 	for (UCameraShakePattern* Pattern : ChildPatterns)

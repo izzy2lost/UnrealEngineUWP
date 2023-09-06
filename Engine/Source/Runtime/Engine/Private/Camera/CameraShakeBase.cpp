@@ -201,18 +201,18 @@ void FCameraShakeState::Stop(bool bImmediately)
 	}
 }
 
-FCameraShakeUpdateParams FCameraShakeScrubParams::ToUpdateParams() const
+FCameraShakePatternUpdateParams FCameraShakePatternScrubParams::ToUpdateParams() const
 {
-	FCameraShakeUpdateParams UpdateParams(POV);
+	FCameraShakePatternUpdateParams UpdateParams(POV);
 	UpdateParams.DeltaTime = AbsoluteTime;
 	UpdateParams.ShakeScale = ShakeScale;
 	UpdateParams.DynamicScale = DynamicScale;
 	return UpdateParams;
 }
 
-void FCameraShakeUpdateResult::ApplyScale(float InScale)
+void FCameraShakePatternUpdateResult::ApplyScale(float InScale)
 {
-	if (ensureMsgf(!EnumHasAnyFlags(Flags, ECameraShakeUpdateResultFlags::ApplyAsAbsolute),
+	if (ensureMsgf(!EnumHasAnyFlags(Flags, ECameraShakePatternUpdateResultFlags::ApplyAsAbsolute),
 			TEXT("Can't scale absolute shake result")))
 	{
 		Location *= InScale;
@@ -268,7 +268,7 @@ void UCameraShakeBase::StartShake(APlayerCameraManager* Camera, float Scale, ECa
 	// Let the root pattern initialize itself.
 	if (RootShakePattern)
 	{
-		FCameraShakeStartParams StartParams;
+		FCameraShakePatternStartParams StartParams;
 		StartParams.bIsRestarting = bIsRestarting;
 		RootShakePattern->StartShakePattern(StartParams);
 	}
@@ -284,14 +284,14 @@ void UCameraShakeBase::UpdateAndApplyCameraShake(float DeltaTime, float Alpha, F
 	if (RootShakePattern)
 	{
 		// Make the sub-class do the actual work.
-		FCameraShakeUpdateParams Params(InOutPOV);
+		FCameraShakePatternUpdateParams Params(InOutPOV);
 		Params.DeltaTime = DeltaTime;
 		Params.ShakeScale = ShakeScale;
 		Params.DynamicScale = Alpha;
 
 		// Result object is initialized with zero values since the default flags make us handle it
 		// as an additive offset.
-		FCameraShakeUpdateResult Result;
+		FCameraShakePatternUpdateResult Result;
 
 		RootShakePattern->UpdateShakePattern(Params, Result);
 
@@ -321,14 +321,14 @@ void UCameraShakeBase::ScrubAndApplyCameraShake(float AbsoluteTime, float Alpha,
 	if (RootShakePattern)
 	{
 		// Make the sub-class do the actual work.
-		FCameraShakeScrubParams Params(InOutPOV);
+		FCameraShakePatternScrubParams Params(InOutPOV);
 		Params.AbsoluteTime = AbsoluteTime;
 		Params.ShakeScale = ShakeScale;
 		Params.DynamicScale = Alpha;
 
 		// Result object is initialized with zero values since the default flags make us handle it
 		// as an additive offset.
-		FCameraShakeUpdateResult Result;
+		FCameraShakePatternUpdateResult Result;
 
 		RootShakePattern->ScrubShakePattern(Params, Result);
 
@@ -369,7 +369,7 @@ void UCameraShakeBase::StopShake(bool bImmediately)
 	// Let the root pattern do any custom logic.
 	if (RootShakePattern)
 	{
-		FCameraShakeStopParams StopParams;
+		FCameraShakePatternStopParams StopParams;
 		StopParams.bImmediately = bImmediately;
 		RootShakePattern->StopShakePattern(StopParams);
 	}
@@ -385,29 +385,29 @@ void UCameraShakeBase::TeardownShake()
 	bIsActive = false;
 }
 
-void UCameraShakeBase::ApplyResult(const FCameraShakeApplyResultParams& ApplyParams, const FCameraShakeUpdateResult& InResult, FMinimalViewInfo& InOutPOV)
+void UCameraShakeBase::ApplyResult(const FCameraShakeApplyResultParams& ApplyParams, const FCameraShakePatternUpdateResult& InResult, FMinimalViewInfo& InOutPOV)
 {
-	FCameraShakeUpdateResult TempResult(InResult);
+	FCameraShakePatternUpdateResult TempResult(InResult);
 
 	// If the sub-class gave us a delta-transform, we can help with some of the basic functionality
 	// of a camera shake... namely: apply shake scaling, system limits, and play space transformation.
-	if (!EnumHasAnyFlags(TempResult.Flags, ECameraShakeUpdateResultFlags::ApplyAsAbsolute))
+	if (!EnumHasAnyFlags(TempResult.Flags, ECameraShakePatternUpdateResultFlags::ApplyAsAbsolute))
 	{
-		if (!EnumHasAnyFlags(TempResult.Flags, ECameraShakeUpdateResultFlags::SkipAutoScale))
+		if (!EnumHasAnyFlags(TempResult.Flags, ECameraShakePatternUpdateResultFlags::SkipAutoScale))
 		{
 			ApplyScale(ApplyParams.Scale, TempResult);
 		}
 
 		ApplyLimits(InOutPOV, TempResult);
 
-		if (!EnumHasAnyFlags(TempResult.Flags, ECameraShakeUpdateResultFlags::SkipAutoPlaySpace))
+		if (!EnumHasAnyFlags(TempResult.Flags, ECameraShakePatternUpdateResultFlags::SkipAutoPlaySpace))
 		{
 			ApplyPlaySpace(ApplyParams.PlaySpace, ApplyParams.UserPlaySpaceMatrix, InOutPOV, TempResult);
 		}
 	}
 
 	// Now we can apply the shake to the camera matrix.
-	if (EnumHasAnyFlags(TempResult.Flags, ECameraShakeUpdateResultFlags::ApplyAsAbsolute))
+	if (EnumHasAnyFlags(TempResult.Flags, ECameraShakePatternUpdateResultFlags::ApplyAsAbsolute))
 	{
 		InOutPOV.Location = TempResult.Location;
 		InOutPOV.Rotation = TempResult.Rotation;
@@ -428,17 +428,17 @@ void UCameraShakeBase::ApplyResult(const FCameraShakeApplyResultParams& ApplyPar
 	}
 }
 
-void UCameraShakeBase::ApplyScale(const FCameraShakeUpdateParams& Params, FCameraShakeUpdateResult& InOutResult)
+void UCameraShakeBase::ApplyScale(const FCameraShakePatternUpdateParams& Params, FCameraShakePatternUpdateResult& InOutResult)
 {
 	InOutResult.ApplyScale(Params.GetTotalScale());
 }
 
-void UCameraShakeBase::ApplyScale(float Scale, FCameraShakeUpdateResult& InOutResult)
+void UCameraShakeBase::ApplyScale(float Scale, FCameraShakePatternUpdateResult& InOutResult)
 {
 	InOutResult.ApplyScale(Scale);
 }
 
-void UCameraShakeBase::ApplyLimits(const FMinimalViewInfo& InPOV, FCameraShakeUpdateResult& InOutResult)
+void UCameraShakeBase::ApplyLimits(const FMinimalViewInfo& InPOV, FCameraShakePatternUpdateResult& InOutResult)
 {
 	// Don't allow shake to flip pitch past vertical, if not using a headset.
 	// If using a headset, we can't limit the camera locked to your head.
@@ -451,12 +451,12 @@ void UCameraShakeBase::ApplyLimits(const FMinimalViewInfo& InPOV, FCameraShakeUp
 	}
 }
 
-void UCameraShakeBase::ApplyPlaySpace(const FCameraShakeUpdateParams& Params, FCameraShakeUpdateResult& InOutResult) const
+void UCameraShakeBase::ApplyPlaySpace(const FCameraShakePatternUpdateParams& Params, FCameraShakePatternUpdateResult& InOutResult) const
 {
 	ApplyPlaySpace(PlaySpace, UserPlaySpaceMatrix, Params.POV, InOutResult);
 }
 
-void UCameraShakeBase::ApplyPlaySpace(ECameraShakePlaySpace PlaySpace, FMatrix UserPlaySpaceMatrix, const FMinimalViewInfo& InPOV, FCameraShakeUpdateResult& InOutResult)
+void UCameraShakeBase::ApplyPlaySpace(ECameraShakePlaySpace PlaySpace, FMatrix UserPlaySpaceMatrix, const FMinimalViewInfo& InPOV, FCameraShakePatternUpdateResult& InOutResult)
 {
 	// Orient the shake according to the play space.
 	const bool bIsCameraLocal = (PlaySpace == ECameraShakePlaySpace::CameraLocal);
@@ -471,7 +471,7 @@ void UCameraShakeBase::ApplyPlaySpace(ECameraShakePlaySpace PlaySpace, FMatrix U
 	}
 
 	// We have a final location/rotation for the camera, so it should be applied verbatim.
-	InOutResult.Flags = (InOutResult.Flags | ECameraShakeUpdateResultFlags::ApplyAsAbsolute);
+	InOutResult.Flags = (InOutResult.Flags | ECameraShakePatternUpdateResultFlags::ApplyAsAbsolute);
 
 	// And since we set that flag, we need to make the FOV absolute too.
 	InOutResult.FOV = InPOV.FOV + InOutResult.FOV;
@@ -492,17 +492,17 @@ void UCameraShakePattern::GetShakePatternInfo(FCameraShakeInfo& OutInfo) const
 	GetShakePatternInfoImpl(OutInfo);
 }
 
-void UCameraShakePattern::StartShakePattern(const FCameraShakeStartParams& Params)
+void UCameraShakePattern::StartShakePattern(const FCameraShakePatternStartParams& Params)
 {
 	StartShakePatternImpl(Params);
 }
 
-void UCameraShakePattern::UpdateShakePattern(const FCameraShakeUpdateParams& Params, FCameraShakeUpdateResult& OutResult)
+void UCameraShakePattern::UpdateShakePattern(const FCameraShakePatternUpdateParams& Params, FCameraShakePatternUpdateResult& OutResult)
 {
 	UpdateShakePatternImpl(Params, OutResult);
 }
 
-void UCameraShakePattern::ScrubShakePattern(const FCameraShakeScrubParams& Params, FCameraShakeUpdateResult& OutResult)
+void UCameraShakePattern::ScrubShakePattern(const FCameraShakePatternScrubParams& Params, FCameraShakePatternUpdateResult& OutResult)
 {
 	ScrubShakePatternImpl(Params, OutResult);
 }
@@ -512,7 +512,7 @@ bool UCameraShakePattern::IsFinished() const
 	return IsFinishedImpl();
 }
 
-void UCameraShakePattern::StopShakePattern(const FCameraShakeStopParams& Params)
+void UCameraShakePattern::StopShakePattern(const FCameraShakePatternStopParams& Params)
 {
 	StopShakePatternImpl(Params);
 }

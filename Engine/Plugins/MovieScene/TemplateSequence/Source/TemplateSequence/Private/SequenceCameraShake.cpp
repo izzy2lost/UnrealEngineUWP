@@ -52,7 +52,7 @@ void USequenceCameraShakePattern::GetShakePatternInfoImpl(FCameraShakeInfo& OutI
 	}
 }
 
-void USequenceCameraShakePattern::StartShakePatternImpl(const FCameraShakeStartParams& Params)
+void USequenceCameraShakePattern::StartShakePatternImpl(const FCameraShakePatternStartParams& Params)
 {
 	using namespace UE::MovieScene;
 
@@ -75,7 +75,7 @@ void USequenceCameraShakePattern::StartShakePatternImpl(const FCameraShakeStartP
 	State.Start(this);
 }
 
-void USequenceCameraShakePattern::UpdateShakePatternImpl(const FCameraShakeUpdateParams& Params, FCameraShakeUpdateResult& OutResult)
+void USequenceCameraShakePattern::UpdateShakePatternImpl(const FCameraShakePatternUpdateParams& Params, FCameraShakePatternUpdateResult& OutResult)
 {
 	const float BlendWeight = State.Update(Params.DeltaTime);
 	if (State.IsPlaying())
@@ -98,7 +98,7 @@ void USequenceCameraShakePattern::UpdateShakePatternImpl(const FCameraShakeUpdat
 	}
 }
 
-void USequenceCameraShakePattern::ScrubShakePatternImpl(const FCameraShakeScrubParams& Params, FCameraShakeUpdateResult& OutResult)
+void USequenceCameraShakePattern::ScrubShakePatternImpl(const FCameraShakePatternScrubParams& Params, FCameraShakePatternUpdateResult& OutResult)
 {
 	const float BlendWeight = State.Scrub(Params.AbsoluteTime);
 	if (State.IsPlaying())
@@ -122,7 +122,7 @@ bool USequenceCameraShakePattern::IsFinishedImpl() const
 	return (Player == nullptr || Player->GetPlaybackStatus() == EMovieScenePlayerStatus::Stopped);
 }
 
-void USequenceCameraShakePattern::StopShakePatternImpl(const FCameraShakeStopParams& Params)
+void USequenceCameraShakePattern::StopShakePatternImpl(const FCameraShakePatternStopParams& Params)
 {
 	using namespace UE::MovieScene;
 
@@ -152,7 +152,7 @@ void USequenceCameraShakePattern::TeardownShakePatternImpl()
 	State = FCameraShakeState();
 }
 
-void USequenceCameraShakePattern::UpdateCamera(FFrameTime NewPosition, const FMinimalViewInfo& InPOV, FCameraShakeUpdateResult& OutResult)
+void USequenceCameraShakePattern::UpdateCamera(FFrameTime NewPosition, const FMinimalViewInfo& InPOV, FCameraShakePatternUpdateResult& OutResult)
 {
 	if (!ensure(Sequence))
 	{

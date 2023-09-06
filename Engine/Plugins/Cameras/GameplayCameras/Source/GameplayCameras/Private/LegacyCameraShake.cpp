@@ -99,7 +99,7 @@ void ULegacyCameraShake::DoStopShake(bool bImmediately)
 	
 	if (SequenceShakePattern)
 	{
-		FCameraShakeStopParams StopParams;
+		FCameraShakePatternStopParams StopParams;
 		StopParams.bImmediately = bImmediately;
 		SequenceShakePattern->StopShakePattern(StopParams);
 	}
@@ -109,7 +109,7 @@ void ULegacyCameraShake::DoStopShake(bool bImmediately)
 	ReceiveStopShake(bImmediately);
 }
 
-void ULegacyCameraShake::DoStartShake(const FCameraShakeStartParams& Params)
+void ULegacyCameraShake::DoStartShake(const FCameraShakePatternStartParams& Params)
 {
 	const float EffectiveOscillationDuration = (OscillationDuration > 0.f) ? OscillationDuration : TNumericLimits<float>::Max();
 
@@ -191,7 +191,7 @@ void ULegacyCameraShake::DoStartShake(const FCameraShakeStartParams& Params)
 	ReceivePlayShake(ShakeScale);
 }
 
-void ULegacyCameraShake::DoUpdateShake(const FCameraShakeUpdateParams& Params, FCameraShakeUpdateResult& OutResult)
+void ULegacyCameraShake::DoUpdateShake(const FCameraShakePatternUpdateParams& Params, FCameraShakePatternUpdateResult& OutResult)
 {
 	const float DeltaTime = Params.DeltaTime;
 
@@ -299,7 +299,7 @@ void ULegacyCameraShake::DoUpdateShake(const FCameraShakeUpdateParams& Params, F
 	// Update the sequence animation if there's one.
 	if (SequenceShakePattern != nullptr && !SequenceShakePattern->IsFinished())
 	{
-		FCameraShakeUpdateResult ChildResult;
+		FCameraShakePatternUpdateResult ChildResult;
 		SequenceShakePattern->UpdateShakePattern(Params, ChildResult);
 
 		// The sequence shake pattern returns a local, additive result. So we should be able to
@@ -313,11 +313,11 @@ void ULegacyCameraShake::DoUpdateShake(const FCameraShakeUpdateParams& Params, F
 	}
 
 	// Apply the scaling, limits, and playspace so we have an absolute result we can pass to the legacy blueprint API.
-	check(OutResult.Flags == ECameraShakeUpdateResultFlags::Default);
+	check(OutResult.Flags == ECameraShakePatternUpdateResultFlags::Default);
 	ApplyScale(Params.GetTotalScale(), OutResult);
 	ApplyLimits(Params.POV, OutResult);
 	ApplyPlaySpace(Params, OutResult);
-	check(EnumHasAnyFlags(OutResult.Flags, ECameraShakeUpdateResultFlags::ApplyAsAbsolute));
+	check(EnumHasAnyFlags(OutResult.Flags, ECameraShakePatternUpdateResultFlags::ApplyAsAbsolute));
 
 	// Call the legacy blueprint API. We need to convert back and forth.
 	{
@@ -336,7 +336,7 @@ void ULegacyCameraShake::DoUpdateShake(const FCameraShakeUpdateParams& Params, F
 	UE_LOG(LogLegacyCameraShake, Verbose, TEXT("ULegacyCameraShake::DoUpdateShake %s Finished: %i Duration: %f Remaining: %f"), *GetNameSafe(this), bOscillationFinished, OscillationDuration, OscillatorTimeRemaining);
 }
 
-void ULegacyCameraShake::DoScrubShake(const FCameraShakeScrubParams& Params, FCameraShakeUpdateResult& OutResult)
+void ULegacyCameraShake::DoScrubShake(const FCameraShakePatternScrubParams& Params, FCameraShakePatternUpdateResult& OutResult)
 {
 	const float NewTime = Params.AbsoluteTime;
 
@@ -370,11 +370,11 @@ void ULegacyCameraShake::DoScrubShake(const FCameraShakeScrubParams& Params, FCa
 		}
 	}
 
-	FCameraShakeUpdateParams UpdateParams = Params.ToUpdateParams();
+	FCameraShakePatternUpdateParams UpdateParams = Params.ToUpdateParams();
 
 	DoUpdateShake(UpdateParams, OutResult);
 
-	check(EnumHasAnyFlags(OutResult.Flags, ECameraShakeUpdateResultFlags::ApplyAsAbsolute));
+	check(EnumHasAnyFlags(OutResult.Flags, ECameraShakePatternUpdateResultFlags::ApplyAsAbsolute));
 }
 
 bool ULegacyCameraShake::DoGetIsFinished() const
@@ -454,25 +454,25 @@ void ULegacyCameraShakePattern::GetShakePatternInfoImpl(FCameraShakeInfo& OutInf
 	}
 }
 
-void ULegacyCameraShakePattern::StopShakePatternImpl(const FCameraShakeStopParams& Params)
+void ULegacyCameraShakePattern::StopShakePatternImpl(const FCameraShakePatternStopParams& Params)
 {
 	ULegacyCameraShake* Shake = GetShakeInstance<ULegacyCameraShake>();
 	Shake->DoStopShake(Params.bImmediately);
 }
 
-void ULegacyCameraShakePattern::StartShakePatternImpl(const FCameraShakeStartParams& Params)
+void ULegacyCameraShakePattern::StartShakePatternImpl(const FCameraShakePatternStartParams& Params)
 {
 	ULegacyCameraShake* Shake = GetShakeInstance<ULegacyCameraShake>();
 	Shake->DoStartShake(Params);
 }
 
-void ULegacyCameraShakePattern::UpdateShakePatternImpl(const FCameraShakeUpdateParams& Params, FCameraShakeUpdateResult& OutResult)
+void ULegacyCameraShakePattern::UpdateShakePatternImpl(const FCameraShakePatternUpdateParams& Params, FCameraShakePatternUpdateResult& OutResult)
 {
 	ULegacyCameraShake* Shake = GetShakeInstance<ULegacyCameraShake>();
 	Shake->DoUpdateShake(Params, OutResult);
 }
 
-void ULegacyCameraShakePattern::ScrubShakePatternImpl(const FCameraShakeScrubParams& Params, FCameraShakeUpdateResult& OutResult)
+void ULegacyCameraShakePattern::ScrubShakePatternImpl(const FCameraShakePatternScrubParams& Params, FCameraShakePatternUpdateResult& OutResult)
 {
 	ULegacyCameraShake* Shake = GetShakeInstance<ULegacyCameraShake>();
 	Shake->DoScrubShake(Params, OutResult);
