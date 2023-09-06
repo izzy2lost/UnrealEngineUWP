@@ -71,7 +71,7 @@ static FAutoConsoleVariableRef CVarBlockPackagesWithMarkOfTheWeb(
 	bBlockPackagesWithMarkOfTheWeb,
 	TEXT("Whether package files with mark of the web are blocked from the asset registry"));
 
-bool bIgnoreEmptyDirectories = true;
+bool bIgnoreEmptyDirectories = false;
 static FAutoConsoleVariableRef CVarIgnoreEmptyDirectories(
 	TEXT("AssetRegistry.IgnoreEmptyDirectories"),
 	bIgnoreEmptyDirectories,
