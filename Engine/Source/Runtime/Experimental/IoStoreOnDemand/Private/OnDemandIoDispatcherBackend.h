@@ -39,13 +39,7 @@ public:
 	virtual void Mount(const FOnDemandEndpoint& Endpoint) = 0;
 	virtual void SetBulkOptionalEnabled(bool bInEnabled) = 0;
 	virtual void SetEnabled(bool bInEnabled) = 0;
-
 	virtual void ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const = 0;
-
-#if IS_PROGRAM || WITH_EDITOR
-	virtual bool FlushDeferedEndPoints(double TimeOut) = 0;
-	virtual TArray<FIoChunkId> GetAllChunkIds() = 0;
-#endif // IS_PROGRAM || WITH_EDITOR
 };
 
 TSharedPtr<IOnDemandIoDispatcherBackend> MakeOnDemandIoDispatcherBackend(TSharedPtr<IIasCache> Cache);

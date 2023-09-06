@@ -9,8 +9,6 @@
 #include "Misc/StringBuilder.h"
 #include "Templates/Function.h"
 
-#if !UE_BUILD_SHIPPING
-
 namespace UE::IO::IAS::HTTP
 {
 
@@ -24,7 +22,10 @@ void LatencyTest(FStringView InUrl, FStringView InPath, TArrayView<int32> OutRes
 	FConnectionPool Pool(PoolParams);
 
 	TAnsiStringBuilder<256> AnsiPath;
-	AnsiPath << "/";
+	if (!InPath.StartsWith(TEXT('/')))
+	{
+		AnsiPath << '/';
+	}
 	AnsiPath << InPath;
 
 	FEventLoop Loop;
@@ -61,5 +62,3 @@ void LatencyTest(FStringView InUrl, FStringView InPath, TArrayView<int32> OutRes
 }
 
 } // namespace UE::IO::IAS::HTTP
-
-#endif // !UE_BUILD_SHIPPING

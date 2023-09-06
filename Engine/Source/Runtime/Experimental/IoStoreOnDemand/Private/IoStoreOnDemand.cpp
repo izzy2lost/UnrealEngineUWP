@@ -584,7 +584,8 @@ TIoStatusOr<FOnDemandToc> LoadTocFromUrl(const FString& ServiceURL, const FStrin
 				}
 			});
 
-		while (HttpClient->Tick());
+		const bool bBlock = true;
+		while (HttpClient->Tick(bBlock));
 
 		if (Toc.IsOk())
 		{
