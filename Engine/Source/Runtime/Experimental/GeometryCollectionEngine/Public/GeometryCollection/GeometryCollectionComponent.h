@@ -1347,6 +1347,10 @@ protected:
 private:
 	GEOMETRYCOLLECTIONENGINE_API void ProcessRepDataOnPT();
 
+	// return the most actual transforms
+	// this can be the rest collection ones, the overriden RestTransforms or the dynamic collection ones
+	const TArray<FTransform>& GetCurrentTransforms() const;
+
 	bool bRenderStateDirty;
 	bool bEnableBoneSelection;
 	int ViewLevel;

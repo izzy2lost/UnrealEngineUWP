@@ -812,6 +812,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataflow", DisplayName = "DataFlow Overrides")
 	TMap<FString, FString> Overrides;
 
+	GEOMETRYCOLLECTIONENGINE_API const TArray<int32>& GetBreadthFirstTransformIndices() const { return BreadthFirstTransformIndices; }
+
 private:
 #if WITH_EDITOR
 	GEOMETRYCOLLECTIONENGINE_API void CreateSimulationDataImp(bool bCopyFromDDC);
@@ -829,6 +831,8 @@ private:
 
 	// fill instanced mesh instance count from geometry collection data if not done yet 
 	GEOMETRYCOLLECTIONENGINE_API void FillAutoInstanceMeshesInstancesIfNeeded();
+
+	void CacheBreadthFirstTransformIndices();
 
 private:
 	/** Guid created on construction of this collection. It should be used to uniquely identify this collection */
@@ -858,6 +862,10 @@ private:
 	// cached root index for faster queries
 	UPROPERTY(VisibleAnywhere, Category = "Clustering")
 	int32 RootIndex = INDEX_NONE;
+
+	// cache transform indices in breadth-first order
+	UPROPERTY(VisibleAnywhere, Transient, Category = "Clustering")
+	TArray<int32> BreadthFirstTransformIndices;
 
 	// #todo(dmp): rename to be consistent BoneSelectedMaterialID?
 	// Legacy index of the bone selected material in the object's Materials array, or INDEX_NONE if it is not stored there.

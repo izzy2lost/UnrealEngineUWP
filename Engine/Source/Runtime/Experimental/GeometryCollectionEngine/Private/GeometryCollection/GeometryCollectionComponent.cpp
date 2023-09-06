@@ -4658,24 +4658,55 @@ static void CheckForNaNs(const TArray<FTransform>& Transforms)
 }
 #endif
 
+const TArray<FTransform>& UGeometryCollectionComponent::GetCurrentTransforms() const
+{
+	const bool bRestTransformsOverriden = (RestTransforms.Num() > 0);
+	if (!DynamicCollection && bRestTransformsOverriden)
+	{
+		return RestTransforms;
+	}
+	return GetTransformArray().GetConstArray();
+}
+
 void UGeometryCollectionComponent::CalculateGlobalMatrices()
 {
 	SCOPE_CYCLE_COUNTER(STAT_GCCUGlobalMatrices);
 
 	// If hierarchy topology has changed, the RestTransforms is invalidated.
+	// todo(chaos) should should be able to remove this : this should be normally be properly handled by the SetRestCollection function now
 	if (RestTransforms.Num() != GetTransformArray().Num())
 	{
 		RestTransforms.Empty();
 	}
 
-	const bool bRestTransformsOverriden = (RestTransforms.Num() > 0);
-	if (!DynamicCollection && bRestTransformsOverriden)
+	const TArray<FTransform>& CurrentTransforms = GetCurrentTransforms();
+
+	bool bFastPath = false;
+	if (RestCollection)
 	{
-		GeometryCollectionAlgo::GlobalMatrices(RestTransforms, GetParentArray(), ComponentSpaceTransforms);
+		const TArray<int32>& BreadthFirstTransformIndices = RestCollection->GetBreadthFirstTransformIndices();
+		bFastPath = (BreadthFirstTransformIndices.Num() == CurrentTransforms.Num());
+	}
+
+	if (bFastPath)
+	{
+		ComponentSpaceTransforms.SetNumUninitialized(CurrentTransforms.Num(), false);
+
+		const TArray<int32>& BreadthFirstTransformIndices = RestCollection->GetBreadthFirstTransformIndices();
+		const TArray<int32>& ParentArray = GetParentArray().GetConstArray();
+
+		for (int32 Index = 0; Index < BreadthFirstTransformIndices.Num(); Index++)
+		{
+			const int32 TransformIndex = BreadthFirstTransformIndices[Index];
+			const int32 ParentTransformIndex = ParentArray[TransformIndex];
+
+			const FTransform& ParentTransform = (ParentTransformIndex != INDEX_NONE) ? CurrentTransforms[ParentTransformIndex] : FTransform::Identity;
+			ComponentSpaceTransforms[TransformIndex] = CurrentTransforms[TransformIndex] * ParentTransform;
+		}
 	}
 	else
 	{
-		GeometryCollectionAlgo::GlobalMatrices(GetTransformArray(), GetParentArray(), ComponentSpaceTransforms);
+		GeometryCollectionAlgo::GlobalMatrices(GetCurrentTransforms(), GetParentArray(), ComponentSpaceTransforms);
 	}
 
 #if WITH_EDITOR

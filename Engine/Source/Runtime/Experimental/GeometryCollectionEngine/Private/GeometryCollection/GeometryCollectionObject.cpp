@@ -319,6 +319,16 @@ void UGeometryCollection::UpdateRootIndex()
 	}
 }
 
+void UGeometryCollection::CacheBreadthFirstTransformIndices()
+{
+	BreadthFirstTransformIndices.Reset();
+	if (GeometryCollection)
+	{
+		Chaos::Facades::FCollectionHierarchyFacade HierarchyFacade(*GeometryCollection);
+		BreadthFirstTransformIndices = HierarchyFacade.ComputeTransformIndicesInBreadthFirstOrder();
+	}
+}
+
 void UGeometryCollection::UpdateGeometryDependentProperties()
 {
 #if WITH_EDITOR
@@ -1141,6 +1151,9 @@ void UGeometryCollection::Serialize(FArchive& Ar)
 		UpdateRootIndex();
 	}
 
+	// Generate root to leave order lookup
+	CacheBreadthFirstTransformIndices();
+
 	if (Ar.IsLoading())
 	{
 		FillAutoInstanceMeshesInstancesIfNeeded();
@@ -1507,6 +1520,7 @@ void UGeometryCollection::InvalidateCollection()
 {
 	StateGuid = FGuid::NewGuid();
 	UpdateRootIndex();
+	CacheBreadthFirstTransformIndices();
 }
 
 #if WITH_EDITOR
