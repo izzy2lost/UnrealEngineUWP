@@ -37,6 +37,8 @@
 #include "Collision.h"
 #include "CollisionDebugDrawingPublic.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "Chaos/PhysicsObjectInterface.h"
+#include "PhysicsProxy/SingleParticlePhysicsProxy.h"
 
 #include "Elements/Framework/EngineElementsLibrary.h"
 #include "Elements/Interfaces/TypedElementWorldInterface.h"
@@ -3116,6 +3118,26 @@ void UInstancedStaticMeshComponent::OnDestroyPhysicsState()
 	// Navigation relevancy needs to be handled here
 	bNavigationRelevant = IsNavigationRelevant();
 	FNavigationSystem::UpdateComponentData(*this);
+}
+
+Chaos::FPhysicsObject* UInstancedStaticMeshComponent::GetPhysicsObjectById(Chaos::FPhysicsObjectId Id) const
+{
+	if (!InstanceBodies.IsValidIndex(Id) || !InstanceBodies[Id] || !InstanceBodies[Id]->ActorHandle)
+	{
+		return nullptr;
+	}
+	return InstanceBodies[Id]->ActorHandle->GetPhysicsObject();
+}
+
+TArray<Chaos::FPhysicsObject*> UInstancedStaticMeshComponent::GetAllPhysicsObjects() const
+{
+	TArray<Chaos::FPhysicsObject*> Objects;
+	Objects.Reserve(InstanceBodies.Num());
+	for (int32 Index = 0; Index < InstanceBodies.Num(); ++Index)
+	{
+		Objects.Add(GetPhysicsObjectById(Index));
+	}
+	return Objects;
 }
 
 bool UInstancedStaticMeshComponent::CanEditSimulatePhysics()
