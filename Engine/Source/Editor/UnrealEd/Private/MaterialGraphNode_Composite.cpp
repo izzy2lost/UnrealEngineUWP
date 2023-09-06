@@ -139,6 +139,11 @@ void UMaterialGraphNode_Composite::OnRenameNode(const FString& NewName)
 	MaterialDirtyDelegate.ExecuteIfBound();
 }
 
+void UMaterialGraphNode_Composite::ReconstructNode()
+{
+	FixupInputAndOutputPinBases();
+}
+
 TSharedPtr<SGraphNode> UMaterialGraphNode_Composite::CreateVisualWidget()
 {
 	return SNew(SGraphNodeMaterialComposite, this);
@@ -167,7 +172,7 @@ void UMaterialGraphNode_Composite::FixupInputAndOutputPinBases()
 			}
 		}
 
-		ReconstructNode();
+		UMaterialGraphNode_Base::ReconstructNode();
 	}
 }
 

@@ -33,7 +33,8 @@ class UMaterialGraphNode_Composite : public UMaterialGraphNode
 	virtual void DestroyNode() override; 
 	virtual void PrepareForCopying() override;
 	virtual void PostPasteNode() override; 
-	virtual void OnRenameNode(const FString& NewName) override; 
+	virtual void OnRenameNode(const FString& NewName) override;
+	virtual void ReconstructNode() override;
 	virtual TArray<UEdGraph*> GetSubGraphs() const override { return TArray<UEdGraph*>( { BoundGraph } ); }
 	virtual TSharedPtr<SGraphNode> CreateVisualWidget() override;
 	//~ End UEdGraphNode Interface.
