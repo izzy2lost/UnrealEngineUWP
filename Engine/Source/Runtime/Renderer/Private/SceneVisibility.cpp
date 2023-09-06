@@ -1251,7 +1251,7 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 #if WITH_EDITOR
 		if (GIsEditor)
 		{
-			++NumVisibleDynamicPrimitives;
+			++NumVisibleDynamicEditorPrimitives;
 
 			if (DynamicPrimitiveViewMasks)
 			{
