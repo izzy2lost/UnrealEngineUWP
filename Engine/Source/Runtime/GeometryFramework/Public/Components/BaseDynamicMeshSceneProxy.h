@@ -956,6 +956,16 @@ public:
 		uint32 VisibilityMap, 
 		FMeshElementCollector& Collector) const override;
 
+protected:
+	/**
+	 * Helper called by GetDynamicMeshElements to process collision debug drawing
+	 */
+	GEOMETRYFRAMEWORK_API virtual void GetCollisionDynamicMeshElements(TArray<FMeshRenderBufferSet*>& Buffers,
+		const FEngineShowFlags& EngineShowFlags, bool bDrawCollisionView, bool bDrawSimpleCollision, bool bDrawComplexCollision,
+		bool bProxyIsSelected,
+		const TArray<const FSceneView*>& Views, uint32 VisibilityMap,
+		FMeshElementCollector& Collector) const;
+public:
 
 	/**
 	 * Draw a single-frame FMeshBatch for a FMeshRenderBufferSet
@@ -992,5 +1002,24 @@ public:
 
 
 #endif // RHI_RAYTRACING
+
+public:
+	// Set the collision data to use for debug drawing, or do nothing if debug drawing is not enabled
+	GEOMETRYFRAMEWORK_API void SetCollisionData();
+
+#if UE_ENABLE_DEBUG_DRAWING
+private:
+	// If debug drawing is enabled, we store collision data here so that collision shapes can be rendered when requested by showflags
+
+	bool bOwnerIsNull = true;
+	/** Whether the collision data has been set up for rendering */
+	bool bHasCollisionData = false;
+	/** Collision trace flags */
+	ECollisionTraceFlag		CollisionTraceFlag;
+	/** Collision Response of this component */
+	FCollisionResponseContainer CollisionResponse;
+#endif
+
+	GEOMETRYFRAMEWORK_API bool IsCollisionView(const FEngineShowFlags& EngineShowFlags, bool& bDrawSimpleCollision, bool& bDrawComplexCollision) const;
 
 };
