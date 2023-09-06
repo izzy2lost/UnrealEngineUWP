@@ -106,7 +106,7 @@ FSpatialHashStreamingGrid::FSpatialHashStreamingGrid()
 	, WorldBounds(ForceInitToZero)
 	, bClientOnlyVisible(false)
 	, HLODLayer(nullptr)
-	, OverrideLoadingRange(-1.f)
+	, GridIndex(INDEX_NONE)
 	, GridHelper(nullptr)
 {
 }
@@ -132,6 +132,65 @@ const FSquare2DGridHelper& FSpatialHashStreamingGrid::GetGridHelper() const
 	check(GridHelper->WorldBounds == WorldBounds);
 
 	return *GridHelper;
+}
+
+static const FString GOverrideLoadingRangeCommandName(TEXT("wp.Runtime.OverrideRuntimeSpatialHashLoadingRange"));
+bool FSpatialHashStreamingGrid::bAddedWorldPartitionSubsystemDeinitializedCallback = false;
+TMap<int32, float> FSpatialHashStreamingGrid::OverriddenLoadingRanges;
+FAutoConsoleCommand FSpatialHashStreamingGrid::OverrideLoadingRangeCommand(
+	*GOverrideLoadingRangeCommandName,
+	TEXT("Sets runtime loading range. Args -grid=[index] -range=[override_loading_range]"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& InArgs)
+	{
+		FString ArgString = FString::Join(InArgs, TEXT(" "));
+		int32 OverrideGridIndex = 0;
+		float OverrideLoadingRange = -1.f;
+		FParse::Value(*ArgString, TEXT("grid="), OverrideGridIndex);
+		FParse::Value(*ArgString, TEXT("range="), OverrideLoadingRange);
+
+		if (!bAddedWorldPartitionSubsystemDeinitializedCallback)
+		{
+			bAddedWorldPartitionSubsystemDeinitializedCallback = true;
+			UWorldPartitionSubsystem::OnWorldPartitionSubsystemDeinitialized.AddLambda([](UWorldPartitionSubsystem* InWorldPartitionSubsystem, UWorld* InWorld)
+			{
+				if (InWorld && InWorld->IsGameWorld())
+				{
+					FSpatialHashStreamingGrid::OverriddenLoadingRanges.Reset();
+				}
+			});
+		}
+
+		for (const FWorldContext& Context : GEngine->GetWorldContexts())
+		{
+			UWorld* World = Context.World();
+			if (World && World->IsGameWorld())
+			{
+				FWorldPartitionHelpers::ServerExecConsoleCommand(World, GOverrideLoadingRangeCommandName, InArgs);
+				if (UWorld::HasSubsystem<UWorldPartitionSubsystem>(World))
+				{
+					if (OverrideLoadingRange >= 0.f)
+					{
+						FSpatialHashStreamingGrid::OverriddenLoadingRanges.Add(OverrideGridIndex, OverrideLoadingRange);
+					}
+					else
+					{
+						FSpatialHashStreamingGrid::OverriddenLoadingRanges.Remove(OverrideGridIndex);
+					}
+					break;
+				}
+			}
+		}
+	})
+);
+
+float FSpatialHashStreamingGrid::GetLoadingRange() const
+{
+	if (float* OverrideLoadingRange = FSpatialHashStreamingGrid::OverriddenLoadingRanges.Find(GridIndex))
+	{
+		check(*OverrideLoadingRange >= 0.f);
+		return *OverrideLoadingRange;
+	}
+	return LoadingRange;
 }
 
 int64 FSpatialHashStreamingGrid::GetCellSize(int32 Level) const
@@ -1425,6 +1484,7 @@ bool UWorldPartitionRuntimeSpatialHash::CreateStreamingGrid(const FSpatialHashRu
 	CurrentStreamingGrid.DebugColor = RuntimeGrid.DebugColor;
 	CurrentStreamingGrid.bClientOnlyVisible = RuntimeGrid.bClientOnlyVisible;
 	CurrentStreamingGrid.HLODLayer = RuntimeGrid.HLODLayer;
+	CurrentStreamingGrid.GridIndex = (StreamingGrids.Num() - 1);
 
 	// Move actors into the final streaming grids
 	CurrentStreamingGrid.GridLevels.Reserve(PartionedActors.Levels.Num());
@@ -1530,43 +1590,6 @@ bool UWorldPartitionRuntimeSpatialHash::IsValidGrid(FName GridName) const
 }
 
 #endif //WITH_EDITOR
-
-static const FString GOverrideLoadingRangeCommandName(TEXT("wp.Runtime.OverrideRuntimeSpatialHashLoadingRange"));
-FAutoConsoleCommand UWorldPartitionRuntimeSpatialHash::OverrideLoadingRangeCommand(
-	*GOverrideLoadingRangeCommandName,
-	TEXT("Sets runtime loading range. Args -grid=[index] -range=[override_loading_range]"),
-	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& InArgs)
-	{
-		FString ArgString = FString::Join(InArgs, TEXT(" "));
-		int32 GridIndex = 0;
-		float OverrideLoadingRange = -1.f;
-		FParse::Value(*ArgString, TEXT("grid="), GridIndex);
-		FParse::Value(*ArgString, TEXT("range="), OverrideLoadingRange);
-
-		for (const FWorldContext& Context : GEngine->GetWorldContexts())
-		{
-			UWorld* World = Context.World();
-			if (World && World->IsGameWorld())
-			{
-				FWorldPartitionHelpers::ServerExecConsoleCommand(World, GOverrideLoadingRangeCommandName, InArgs);
-				if (UWorldPartitionSubsystem* WorldPartitionSubsystem = World->GetSubsystem<UWorldPartitionSubsystem>())
-				{
-					WorldPartitionSubsystem->ForEachWorldPartition([GridIndex, OverrideLoadingRange](UWorldPartition* WorldPartition)
-					{
-						if (UWorldPartitionRuntimeSpatialHash* RuntimeSpatialHash = Cast<UWorldPartitionRuntimeSpatialHash>(WorldPartition->RuntimeHash))
-						{
-							if (RuntimeSpatialHash->StreamingGrids.IsValidIndex(GridIndex))
-							{
-								RuntimeSpatialHash->StreamingGrids[GridIndex].OverrideLoadingRange = OverrideLoadingRange;
-							}
-						}
-						return true;
-					});
-				}
-			}
-		}
-	})
-);
 
 // Streaming interface
 void UWorldPartitionRuntimeSpatialHash::ForEachStreamingCells(TFunctionRef<bool(const UWorldPartitionRuntimeCell*)> Func) const

@@ -162,6 +162,9 @@ static FAutoConsoleVariableRef CVarUdateStreamingStateTimeLimit(
 	ECVF_Default
 );
 
+TMulticastDelegate<void(UWorldPartitionSubsystem*, UWorld*)> UWorldPartitionSubsystem::OnWorldPartitionSubsystemInitialized;
+TMulticastDelegate<void(UWorldPartitionSubsystem*, UWorld*)> UWorldPartitionSubsystem::OnWorldPartitionSubsystemDeinitialized;
+
 UWorldPartitionSubsystem::UWorldPartitionSubsystem()
 : StreamingSourcesHash(0)
 , NumWorldPartitionServerStreamingEnabled(0)
@@ -468,6 +471,8 @@ void UWorldPartitionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		FLevelStreamingDelegates::OnLevelStreamingTargetStateChanged.AddUObject(this, &UWorldPartitionSubsystem::OnLevelStreamingTargetStateChanged);
 		FLevelStreamingDelegates::OnLevelStreamingStateChanged.AddUObject(this, &UWorldPartitionSubsystem::OnLevelStreamingStateChanged);
 	}
+
+	OnWorldPartitionSubsystemInitialized.Broadcast(this, GetWorld());
 }
 
 void UWorldPartitionSubsystem::Deinitialize()
@@ -478,7 +483,9 @@ void UWorldPartitionSubsystem::Deinitialize()
 		Super::Deinitialize();
 		return;
 	}
-#endif 
+#endif
+
+	OnWorldPartitionSubsystemDeinitialized.Broadcast(this, GetWorld());
 
 	GetWorld()->OnWorldPartitionInitialized().RemoveAll(this);
 	GetWorld()->OnWorldPartitionUninitialized().RemoveAll(this);
