@@ -649,7 +649,7 @@ namespace Horde.Server.Notifications.Sinks
 					eventStrings.Add(warningSummary);
 					foreach (ILogEventData warning in warnings.Take(MaxJobStepEvents))
 					{
-						if (!String.IsNullOrWhiteSpace(error.Message))
+						if (!String.IsNullOrWhiteSpace(warning.Message))
 						{
 							attachment.AddSection(QuoteText(warning.Message));
 						}
