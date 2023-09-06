@@ -6,24 +6,25 @@
 #include "VCamComponent.h"
 #include "UI/VCamWidget.h"
 #include "Util/LevelViewportUtils.h"
+#include "Util/ObjectMessageAggregation.h"
+#include "Util/WidgetSnapshotUtils.h"
+#include "Util/WidgetTreeUtils.h"
+#include "ViewTargetPolicy/FocusFirstPlayerViewTargetPolicy.h"
 #include "VCamCoreCustomVersion.h"
+#include "ViewTargetPolicy/GameplayViewTargetPolicy.h"
 
 #include "Algo/RemoveIf.h"
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetTree.h"
 #include "CoreGlobals.h"
 #include "Engine/Engine.h"
+#include "Engine/GameEngine.h"
 #include "Framework/Application/SlateApplication.h"
 #include "GameFramework/PlayerController.h"
 #include "Misc/ScopeExit.h"
 #include "SceneViewExtensionContext.h"
 #include "Slate/SceneViewport.h"
 #include "UObject/UObjectBaseUtility.h"
-#include "Util/ObjectMessageAggregation.h"
-#include "Util/WidgetSnapshotUtils.h"
-#include "Util/WidgetTreeUtils.h"
-#include "ViewTargetPolicy/FocusFirstPlayerViewTargetPolicy.h"
-#include "ViewTargetPolicy/GameplayViewTargetPolicy.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -34,7 +35,6 @@
 #include "SEditorViewport.h"
 #include "UnrealClient.h"
 #else
-#include "Engine/GameEngine.h"
 #endif
 
 DEFINE_LOG_CATEGORY(LogVCamOutputProvider);
@@ -493,7 +493,7 @@ void UVCamOutputProviderBase::PostLoad()
 TSharedPtr<FSceneViewport> UVCamOutputProviderBase::GetSceneViewport(EVCamTargetViewportID InTargetViewport) const
 {
 	TSharedPtr<FSceneViewport> SceneViewport;
-
+	
 #if WITH_EDITOR
 	if (GIsEditor)
 	{
@@ -507,15 +507,12 @@ TSharedPtr<FSceneViewport> UVCamOutputProviderBase::GetSceneViewport(EVCamTarget
 					if (SlatePlayInEditorSession->DestinationSlateViewport.IsValid())
 					{
 						TSharedPtr<IAssetViewport> DestinationLevelViewport = SlatePlayInEditorSession->DestinationSlateViewport.Pin();
-						SceneViewport = DestinationLevelViewport->GetSharedActiveViewport();
+						return DestinationLevelViewport->GetSharedActiveViewport();
 					}
-					else if (SlatePlayInEditorSession->SlatePlayInEditorWindowViewport.IsValid())
+					if (SlatePlayInEditorSession->SlatePlayInEditorWindowViewport.IsValid())
 					{
-						SceneViewport = SlatePlayInEditorSession->SlatePlayInEditorWindowViewport;
+						return SlatePlayInEditorSession->SlatePlayInEditorWindowViewport;
 					}
-
-					// If PIE is active always choose it
-					break;
 				}
 			}
 			else if (Context.WorldType == EWorldType::Editor)
@@ -535,14 +532,11 @@ TSharedPtr<FSceneViewport> UVCamOutputProviderBase::GetSceneViewport(EVCamTarget
 			}
 		}
 	}
-#else
-	if (UGameEngine* GameEngine = Cast<UGameEngine>(GEngine))
-	{
-		SceneViewport = GameEngine->SceneViewport;
-	}
 #endif
-
-	return SceneViewport;
+	
+	// Prefer returning the game viewport whenever it is available, such as when we launch in Standalone mode.
+	UGameEngine* GameEngine = Cast<UGameEngine>(GEngine);
+	return GameEngine ? GameEngine->SceneViewport : SceneViewport;
 }
 
 TWeakPtr<SWindow> UVCamOutputProviderBase::GetTargetInputWindow() const
@@ -557,20 +551,15 @@ TWeakPtr<SWindow> UVCamOutputProviderBase::GetTargetInputWindow() const
 			if (Context.WorldType == EWorldType::PIE)
 			{
 				FSlatePlayInEditorInfo* SlatePlayInEditorSession = GEditor->SlatePlayInEditorMap.Find(Context.ContextHandle);
-				if (SlatePlayInEditorSession)
+				
+				if (SlatePlayInEditorSession && SlatePlayInEditorSession->DestinationSlateViewport.IsValid())
 				{
-					if (SlatePlayInEditorSession->DestinationSlateViewport.IsValid())
-					{
-						TSharedPtr<IAssetViewport> DestinationLevelViewport = SlatePlayInEditorSession->DestinationSlateViewport.Pin();
-						InputWindow = FSlateApplication::Get().FindWidgetWindow(DestinationLevelViewport->AsWidget());
-					}
-					else if (SlatePlayInEditorSession->SlatePlayInEditorWindowViewport.IsValid())
-					{
-						InputWindow = SlatePlayInEditorSession->SlatePlayInEditorWindow;
-					}
-
-					// If PIE is active always choose it
-					break;
+					TSharedPtr<IAssetViewport> DestinationLevelViewport = SlatePlayInEditorSession->DestinationSlateViewport.Pin();
+					return FSlateApplication::Get().FindWidgetWindow(DestinationLevelViewport->AsWidget());
+				}
+				if (SlatePlayInEditorSession && SlatePlayInEditorSession->SlatePlayInEditorWindowViewport.IsValid())
+				{
+					return SlatePlayInEditorSession->SlatePlayInEditorWindow;
 				}
 			}
 			else if (Context.WorldType == EWorldType::Editor)
@@ -586,14 +575,11 @@ TWeakPtr<SWindow> UVCamOutputProviderBase::GetTargetInputWindow() const
 			}
 		}
 	}
-#else
-	if (UGameEngine* GameEngine = Cast<UGameEngine>(GEngine))
-	{
-		InputWindow = GameEngine->GameViewportWindow;
-	}
 #endif
-
-	return InputWindow;
+	
+	// Prefer returning the game viewport whenever it is available, such as when we launch in Standalone mode.
+	UGameEngine* GameEngine = Cast<UGameEngine>(GEngine);
+	return GameEngine ? GameEngine->GameViewportWindow : InputWindow;
 }
 
 #if WITH_EDITOR
