@@ -61,6 +61,8 @@ private:
 	
 	void SetDebugObjectFromSelection_OnClicked();
 	bool IsSetDebugObjectFromSelectionButtonEnabled() const;
+
+	bool ForEachStackInSelection(const TFunctionRef<bool(const FPCGStack&, UPCGComponent*)>& InOperation) const;
 	
 	/** Pointer back to the PCG editor that owns us */
 	TWeakPtr<FPCGEditor> PCGEditorPtr;
