@@ -15,6 +15,124 @@
 
 namespace mu
 {
+
+namespace Private
+{
+
+    template<class T>
+    class TIndirectObject
+    {
+        TUniquePtr<T> StoragePtr;
+
+    public:
+        template<typename... TArgs>
+        TIndirectObject(TArgs&&... Args) : StoragePtr(MakeUnique<T>(Forward<TArgs>(Args)...)) 
+        {
+        }
+        
+        TIndirectObject(const TIndirectObject<T>& Other) : StoragePtr(MakeUnique<T>()) 
+        { 
+            Get() = Other; 
+        }
+
+		TIndirectObject(TIndirectObject<T>&& Other) : StoragePtr(MoveTemp(Other.StoragePtr)) 
+        {
+        }
+
+        TIndirectObject(const T& Object) : StoragePtr(MakeUnique<T>()) 
+        { 
+            Get() = Object; 
+        }
+        
+        TIndirectObject(T&& Object) : StoragePtr(MakeUnique<T>()) 
+        { 
+            Get() = MoveTemp(Object); 
+        }
+
+        TIndirectObject& operator=(TIndirectObject<T>&&) = default;
+
+        TIndirectObject& operator=(const TIndirectObject<T>& Other) 
+        { 
+            Get() = Other; 
+        }
+
+        TIndirectObject& operator=(const T& Object) 
+        { 
+            Get() = Object; 
+        }
+
+        TIndirectObject& operator=(const T&& Object) 
+        { 
+            Get() = MoveTemp(Object); 
+        }
+
+        const T& Get() const 
+        { 
+            check(StoragePtr); 
+            return *StoragePtr; 
+        }
+
+        T& Get() 
+        { 
+            check(StoragePtr); 
+            return *StoragePtr; 
+        }
+
+        operator T&() 
+        { 
+            return Get(); 
+        }
+
+        operator const T&() const 
+        { 
+            return Get(); 
+        }
+
+        T* operator &() 
+        { 
+            return StoragePtr.Get(); 
+        }
+
+        const T* operator &() const 
+        { 
+            return StoragePtr.Get(); 
+        }
+
+        T& operator *() 
+        { 
+            return Get(); 
+        }
+
+        const T& operator *() const 
+        { 
+            return Get(); 
+        }
+
+        bool operator==(const TIndirectObject<T>& Other) const 
+        { 
+            return *StoragePtr == Other; 
+        }
+
+        bool operator==(const T& Object) const 
+        { 
+            return *StoragePtr == Object; 
+        }
+
+		//!
+		void Serialise(OutputArchive& Arch) const
+		{
+			Arch << Get();
+		}
+
+		//!
+		void Unserialise(InputArchive& Arch)
+		{
+			Arch >> Get();
+		} 
+    };
+
+}
+
     MUTABLE_DEFINE_ENUM_SERIALISABLE(PARAMETER_TYPE)
     MUTABLE_DEFINE_ENUM_SERIALISABLE(PARAMETER_DETAILED_TYPE)
     MUTABLE_DEFINE_ENUM_SERIALISABLE(PROJECTOR_TYPE)
@@ -248,19 +366,20 @@ namespace mu
             arch >> defaultValue;
         }
 	};
-	
 
 	using ParamBoolType = bool;
 	using ParamIntType = int32;
 	using ParamFloatType = float;
 	using ParamColorType = FVector3f;
-	using ParamProjectorType = FProjector;
+	using ParamProjectorType = Private::TIndirectObject<FProjector>;
 	using ParamImageType = FName;
-	using ParamStringType = string;
-
+	using ParamStringType = Private::TIndirectObject<string>;
 	
-	using PARAMETER_VALUE = TVariant<ParamBoolType, ParamIntType, ParamFloatType, ParamColorType, ParamProjectorType, ParamImageType, ParamStringType>;
+	using PARAMETER_VALUE = TVariant<
+            ParamBoolType, ParamIntType, ParamFloatType, ParamColorType, ParamProjectorType, ParamImageType, ParamStringType>;
 
+    // static_assert to track PARAMETER_VALUE size changes. It is ok to change if needed.
+    static_assert(sizeof(PARAMETER_VALUE) == 8*3, "PARAMETER_VALUE size has changed.");
 
 	// TVariant currently does not support this operator. Once supported remove it.
 	inline bool operator==(const PARAMETER_VALUE& ValueA, const PARAMETER_VALUE& ValueB)
@@ -446,9 +565,10 @@ namespace mu
 
         //! Run-time data
         TSharedPtr<const Model> m_pModel;
-
+ 
         //! Values for the parameters if they are not multidimensional.
 		TArray<PARAMETER_VALUE> m_values;
+
 
         //! If the parameter is multidemensional, the values are stored here.
         //! The key of the map is the vector of values stored in a RangeIndex
@@ -458,7 +578,7 @@ namespace mu
         //!
         void Serialise( OutputArchive& arch ) const
         {
-            const uint32 ver = 2;
+            const uint32 ver = 3;
             arch << ver;
 
             arch << m_values;
@@ -470,9 +590,9 @@ namespace mu
         {
             uint32 ver;
             arch >> ver;
-			check(ver == 2);
-        	
-			arch >> m_values;
+			check(ver <= 3);
+       
+		    arch >> m_values;
 			arch >> m_multiValues;
         }
 
@@ -494,7 +614,6 @@ namespace mu
 
 			return m_multiValues[ParamIndex].Num()>0;
 		}
-
     };
 
 }

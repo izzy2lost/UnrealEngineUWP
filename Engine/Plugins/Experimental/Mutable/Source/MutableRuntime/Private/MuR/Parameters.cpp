@@ -844,7 +844,8 @@ namespace mu
         if ( !pos )
         {
             // Return the single value
-            return m_pD->m_values[index].Get<ParamStringType>().c_str();
+            const string& String = m_pD->m_values[index].Get<ParamStringType>();
+            return String.c_str();
         }
 
         // Multivalue case
@@ -856,12 +857,14 @@ namespace mu
 			const PARAMETER_VALUE* it = m.Find( pos->m_pD->m_values );
             if ( it )
             {
-                return it->Get<ParamStringType>().c_str();
+                const string& String = it->Get<ParamStringType>();
+                return String.c_str();
             }
         }
 
         // Multivalue parameter, but no multivalue set. Return single value.
-        return m_pD->m_values[index].Get<ParamStringType>().c_str();
+        const string& String = m_pD->m_values[index].Get<ParamStringType>();
+        return String.c_str();
     }
 
 
@@ -1023,12 +1026,13 @@ namespace mu
         }
 
 	    // Parameters cannot change the projector type anymore
-		ParamProjectorType Value;
+		FProjector Value;
         Value.type = PROJECTOR_TYPE::COUNT;
         if (m_pD->m_pModel)
         {
             const FProgram& program = m_pD->m_pModel->GetPrivate()->m_program;
-            Value.type = program.m_parameters[ParameterIndex].m_defaultValue.Get<ParamProjectorType>().type;
+            const FProjector& Projector = program.m_parameters[ParameterIndex].m_defaultValue.Get<ParamProjectorType>();
+            Value.type = Projector.type;
         }
 
         Value.position = pos;

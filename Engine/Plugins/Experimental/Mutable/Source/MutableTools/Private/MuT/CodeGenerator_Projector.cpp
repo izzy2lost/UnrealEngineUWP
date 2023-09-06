@@ -140,7 +140,8 @@ namespace mu
 			op = it->second;
 		}
 
-		result.type = op->parameter.m_defaultValue.Get<ParamProjectorType>().type;
+		const FProjector& Projector = op->parameter.m_defaultValue.Get<ParamProjectorType>();
+		result.type = Projector.type;
 		result.op = op;
 	}
 

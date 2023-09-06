@@ -382,30 +382,29 @@ namespace mu
 
 	//---------------------------------------------------------------------------------------------
 	template<typename T, typename Alloc> 
-	void operator<<(OutputArchive& arch, const TArray<T, Alloc>& v)
+	void operator<<(OutputArchive& Arch, const TArray<T, Alloc>& V)
 	{
-		const uint32 Num = (uint32)v.Num();
-		arch << Num;
+		const uint32 Num = (uint32)V.Num();
+		Arch << Num;
 		
-		for (SIZE_T i = 0; i < Num; ++i)
+		for (SIZE_T Index = 0; Index < Num; ++Index)
 		{
-			arch << v[i];
+			Arch << V[Index];
 		}
 	}
 
 	template<typename T, typename Alloc> 
-	void operator>>(InputArchive& arch, TArray<T, Alloc>& v)
+	void operator>>(InputArchive& Arch, TArray<T, Alloc>& V)
 	{
 		uint32 Num;
-		arch >> Num;
-		v.SetNum(Num);
+		Arch >> Num;
+		V.SetNum(Num);
 
-		for (SIZE_T i = 0; i < Num; ++i)
+		for (SIZE_T Index = 0; Index < Num; ++Index)
 		{
-			arch >> v[i];
+			Arch >> V[Index];
 		}
 	}
-
 
 	//---------------------------------------------------------------------------------------------
 	template<> 

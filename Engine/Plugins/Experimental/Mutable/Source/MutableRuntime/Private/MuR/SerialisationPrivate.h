@@ -309,29 +309,30 @@ namespace mu
 
 	//---------------------------------------------------------------------------------------------
 	template< typename K, typename T >
-	inline void operator<< (OutputArchive& arch, const TMap<K, T>& v)
+	inline void operator<< (OutputArchive& Arch, const TMap<K, T>& V)
 	{
-		arch << (uint32)v.Num();
-		for (const auto& p : v)
+		Arch << (uint32)V.Num();
+		for (const TPair<K, T>& Element : V)
 		{
-			arch << p.Key;
-			arch << p.Value;
+			Arch << Element.Key;
+			Arch << Element.Value;
 		}
 	}
 
 	template< typename K, typename T >
-	inline void operator>> (InputArchive& arch, TMap<K, T>& v)
+	inline void operator>> (InputArchive& Arch, TMap<K, T>& V)
 	{
-		uint32 size;
-		arch >> size;
+		uint32 Num;
+		Arch >> Num;
 
-		for (uint32 i = 0; i < size; ++i)
+		for (uint32 Index = 0; Index < Num; ++Index)
 		{
-			K k;
-			T t;
-			arch >> k;
-			arch >> t;
-			v.Add(k, t);
+			K Key;
+			T Element;
+			Arch >> Key;
+			Arch >> Element;
+
+			V.Emplace(MoveTemp(Key), MoveTemp(Element));
 		}
 	}
 
