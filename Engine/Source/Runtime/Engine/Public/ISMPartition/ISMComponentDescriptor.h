@@ -108,6 +108,9 @@ public:
 	uint8 bCastShadowAsTwoSided : 1;
 
 	UPROPERTY(EditAnywhere, Category = "Component Settings")
+	uint8 bCastHiddenShadow : 1;
+
+	UPROPERTY(EditAnywhere, Category = "Component Settings")
 	uint8 bAffectDynamicIndirectLighting : 1;
 
 	UPROPERTY(EditAnywhere, Category = "Component Settings")

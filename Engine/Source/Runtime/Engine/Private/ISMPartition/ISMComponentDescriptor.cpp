@@ -94,6 +94,7 @@ void FISMComponentDescriptorBase::InitFrom(const UStaticMeshComponent* Template,
 	bCastDynamicShadow = Template->bCastDynamicShadow;
 	bCastContactShadow = Template->bCastContactShadow;
 	bCastShadowAsTwoSided = Template->bCastShadowAsTwoSided;
+	bCastHiddenShadow = Template->bCastHiddenShadow;
 	bAffectDynamicIndirectLighting = Template->bAffectDynamicIndirectLighting;
 	bAffectDynamicIndirectLightingWhileHidden = Template->bAffectIndirectLightingWhileHidden;
 	bAffectDistanceFieldLighting = Template->bAffectDistanceFieldLighting;
@@ -199,6 +200,7 @@ bool FISMComponentDescriptorBase::operator==(const FISMComponentDescriptorBase& 
 	bCastDynamicShadow == Other.bCastDynamicShadow &&
 	bCastContactShadow == Other.bCastContactShadow &&
 	bCastShadowAsTwoSided == Other.bCastShadowAsTwoSided &&
+	bCastHiddenShadow == Other.bCastHiddenShadow &&
 	bAffectDynamicIndirectLighting == Other.bAffectDynamicIndirectLighting &&
 	bAffectDynamicIndirectLightingWhileHidden == Other.bAffectDynamicIndirectLightingWhileHidden &&
 	bAffectDistanceFieldLighting == Other.bAffectDistanceFieldLighting &&
@@ -313,6 +315,7 @@ void FISMComponentDescriptorBase::InitComponent(UInstancedStaticMeshComponent* I
 	ISMComponent->bCastDynamicShadow = bCastDynamicShadow;
 	ISMComponent->bCastContactShadow = bCastContactShadow;
 	ISMComponent->bCastShadowAsTwoSided = bCastShadowAsTwoSided;
+	ISMComponent->bCastHiddenShadow = bCastHiddenShadow;
 	ISMComponent->bAffectDynamicIndirectLighting = bAffectDynamicIndirectLighting;
 	ISMComponent->bAffectIndirectLightingWhileHidden = bAffectDynamicIndirectLightingWhileHidden;
 	ISMComponent->bAffectDistanceFieldLighting = bAffectDistanceFieldLighting;
