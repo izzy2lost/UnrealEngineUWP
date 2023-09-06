@@ -63,7 +63,9 @@ namespace UnrealBuildTool.Matchers
 		static readonly Regex s_clangNotePattern = new Regex($"^\\s*{FilePattern}\\s*{ClangLocationPattern}:\\s*note:");
 		static readonly Regex s_clangMarkerPattern = new Regex(@"^(\s*)[\^~][\s\^~]*$");
 		static readonly Regex s_xcodeIDEWatchExtensionPattern = new Regex(@"xcodebuild.*Requested but did not find extension point with identifier.*for extension.*\.watchOS of plug-in com\.apple\.dt\.IDEWatchSupportCore");
-
+		static readonly Regex s_scriptCompilePattern = new Regex(@"^\s*[A-Za-z0-9_\.]+ ERROR:.* [A-Za-z_]+ failed to compile\.");
+		static readonly Regex s_cscSummaryPattern = new Regex(@"^\s+\d+ (?:Warning|Error)\(s\)");
+	
 		static readonly string[] s_invalidExtensions =
 		{
 			".obj",
@@ -179,6 +181,11 @@ namespace UnrealBuildTool.Matchers
 				LogEventBuilder builder = new LogEventBuilder(input);
 				return builder.ToMatch(LogEventPriority.Normal, LogLevel.Information, KnownLogEvents.Systemic_XCode);
 			}
+			else if (input.TryMatch(s_scriptCompilePattern, out match))
+			{
+				LogEventBuilder builder = new LogEventBuilder(input);
+				return builder.ToMatch(LogEventPriority.High, LogLevel.Error, KnownLogEvents.Compiler_Summary);
+			}
 			return null;
 		}
 
@@ -260,7 +267,7 @@ namespace UnrealBuildTool.Matchers
 
 			for (; ; )
 			{
-				while (builder.Current.StartsWith(1, nextIndent))
+				while (builder.Current.StartsWith(1, nextIndent) && !builder.Current.IsMatch(1, s_cscSummaryPattern))
 				{
 					builder.MoveNext();
 				}

@@ -303,6 +303,41 @@ namespace Horde.Agent.Tests
 		}
 
 		[TestMethod]
+		public void CsCompileEventMatcher4()
+		{
+			// C# compile error from UBT startup
+			{
+				string[] lines =
+				{
+					@"Building AutomationTool...",
+					@"Microsoft (R) Build Engine version 17.2.0+41abc5629 for .NET",
+					@"Copyright (C) Microsoft Corporation. All rights reserved.",
+					@"Engine/Source/Programs/Shared/EpicGames.Horde/Storage/Workspace.cs(405,11): error CS1501: No overload for method 'ReadList' takes 2 arguments [Engine/Source/Programs/Shared/EpicGames.Horde/EpicGames.Horde.csproj]",
+					@"Engine/Source/Programs/Shared/EpicGames.Horde/Storage/Workspace.cs(423,12): error CS1501: No overload for method 'ReadList' takes 2 arguments [Engine/Source/Programs/Shared/EpicGames.Horde/EpicGames.Horde.csproj]",
+					@"Build FAILED.",
+					@"Engine/Source/Programs/Shared/EpicGames.Horde/Storage/Workspace.cs(405,11): error CS1501: No overload for method 'ReadList' takes 2 arguments [Engine/Source/Programs/Shared/EpicGames.Horde/EpicGames.Horde.csproj]",
+					@"Engine/Source/Programs/Shared/EpicGames.Horde/Storage/Workspace.cs(423,12): error CS1501: No overload for method 'ReadList' takes 2 arguments [Engine/Source/Programs/Shared/EpicGames.Horde/EpicGames.Horde.csproj]",
+					@"    0 Warning(s)",
+					@"    2 Error(s)",
+					@"Time Elapsed 00:00:06.84",
+					@"RunUBT ERROR: UnrealBuildTool failed to compile.",
+					@"RunUAT.bat ERROR: AutomationTool failed to compile.",
+					@"BUILD FAILED",
+				};
+
+				List<LogEvent> logEvents = Parse(String.Join("\n", lines));
+				Assert.AreEqual(6, logEvents.Count);
+
+				CheckEventGroup(logEvents.Slice(0, 1), 3, 1, LogLevel.Error, KnownLogEvents.Compiler);
+				CheckEventGroup(logEvents.Slice(1, 1), 4, 1, LogLevel.Error, KnownLogEvents.Compiler);
+				CheckEventGroup(logEvents.Slice(2, 1), 6, 1, LogLevel.Error, KnownLogEvents.Compiler);
+				CheckEventGroup(logEvents.Slice(3, 1), 7, 1, LogLevel.Error, KnownLogEvents.Compiler);
+				CheckEventGroup(logEvents.Slice(4, 1), 11, 1, LogLevel.Error, KnownLogEvents.Compiler_Summary);
+				CheckEventGroup(logEvents.Slice(5, 1), 12, 1, LogLevel.Error, KnownLogEvents.Compiler_Summary);
+			}
+		}
+
+		[TestMethod]
 		public void HttpEventMatcher()
 		{
 			string[] lines =

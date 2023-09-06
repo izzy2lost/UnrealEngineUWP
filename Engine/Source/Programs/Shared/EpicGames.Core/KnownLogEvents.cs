@@ -36,6 +36,11 @@ namespace EpicGames.Core
 		public static EventId Compiler { get; } = new EventId(100);
 
 		/// <summary>
+		/// Compiler summary line (eg. 'XYZ failed to compile')
+		/// </summary>
+		public static EventId Compiler_Summary { get; } = new EventId(101);
+
+		/// <summary>
 		/// UHT compiler message
 		/// </summary>
 		public static EventId UHT { get; } = new EventId(110);
