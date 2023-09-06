@@ -12,6 +12,11 @@
 
 #define LOCTEXT_NAMESPACE "AssetActionUtility"
 
+bool UAssetActionUtility::IsActionForBlueprints_Implementation() const
+{
+	return bIsActionForBlueprints;
+}
+
 void UAssetActionUtility::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
 	Super::GetAssetRegistryTags(OutTags);

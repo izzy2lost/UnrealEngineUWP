@@ -70,9 +70,10 @@ public:
 
 	/**
 	 * Returns whether or not this action is designed to work specifically on Blueprints (true) or on all assets (false).
-	 * If true, GetSupportedClass() is treated as a filter against the Parent Class of selected Blueprint assets
+	 * If true, GetSupportedClass() is treated as a filter against the Parent Class of selected Blueprint assets.
+	 * @note Returns the value of bIsActionForBlueprints by default.
 	 */
-	UFUNCTION(BlueprintPure, BlueprintImplementableEvent, Category="Assets")
+	UFUNCTION(BlueprintPure, BlueprintNativeEvent, Category="Assets")
 	bool IsActionForBlueprints() const;
 
 	/**
@@ -89,8 +90,16 @@ public:
 
 protected:
 	/**
+	 * Is this action designed to work specifically on Blueprints (true) or on all assets (false).
+	 * If true, SupportedClasses is treated as a filter against the Parent Class of selected Blueprint assets.
+	 */
+	UPROPERTY(EditDefaultsOnly, Category="Asset Support")
+	bool bIsActionForBlueprints = false;
+
+	/**
 	 * The supported classes controls the list of classes that may be operated on by all of the asset functions in this
 	 * utility class.
+	 * @note When bIsActionForBlueprints is true, this will compare against the generated class of any Blueprint assets.
 	 */
 	UPROPERTY(EditDefaultsOnly, Category="Asset Support", meta=(AllowAbstract))
 	TArray<TSoftClassPtr<UObject>> SupportedClasses;
