@@ -1505,7 +1505,7 @@ void FScene::BackgroundTick()
 	
 	if (GPULightmass->LightBuildNotification.IsValid())
 	{
-		bool bIsViewportNonRealtime = GCurrentLevelEditingViewportClient && !GCurrentLevelEditingViewportClient->IsRealtime();
+		const bool bIsViewportNonRealtime = !FGPULightmassModule::IsRealtimeOn();
 		if (bIsViewportNonRealtime)
 		{
 			if (GPULightmass->Settings->Mode == EGPULightmassMode::FullBake)
@@ -1667,7 +1667,7 @@ void FSceneRenderState::BackgroundTick()
 	LightmapRenderer->BackgroundTick();
 
 	// If we're in background baking mode, schedule VLM work to be after surface lightmaps
-	bool bIsViewportNonRealtime = GCurrentLevelEditingViewportClient && !GCurrentLevelEditingViewportClient->IsRealtime();
+	const bool bIsViewportNonRealtime = !FGPULightmassModule::IsRealtimeOn();
 	if (!bIsViewportNonRealtime || (bIsViewportNonRealtime && bHaveFinishedSurfaceLightmaps))
 	{
 		VolumetricLightmapRenderer->BackgroundTick();

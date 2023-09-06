@@ -2018,7 +2018,7 @@ void FLightmapRenderer::Finalize(FRDGBuilder& GraphBuilder)
 		return;
 	}
 
-	bool bIsViewportNonRealtime = GCurrentLevelEditingViewportClient && !GCurrentLevelEditingViewportClient->IsRealtime();
+	const bool bIsViewportNonRealtime = !FGPULightmassModule::IsRealtimeOn();
 
 	int32 MostCommonLODIndex = 0;
 
@@ -3599,7 +3599,7 @@ void FLightmapRenderer::BackgroundTick()
 		}
 	}
 
-	bool bIsViewportNonRealtime = GCurrentLevelEditingViewportClient && !GCurrentLevelEditingViewportClient->IsRealtime();
+	const bool bIsViewportNonRealtime = !FGPULightmassModule::IsRealtimeOn();
 
 	if (bIsViewportNonRealtime && !bWasRunningAtFullSpeed)
 	{

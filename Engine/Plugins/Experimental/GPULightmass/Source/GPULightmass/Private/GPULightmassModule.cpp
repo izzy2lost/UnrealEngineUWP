@@ -7,6 +7,7 @@
 #include "Interfaces/IPluginManager.h"
 #include "ShaderCore.h"
 #include "GPULightmass.h"
+#include "UnrealEdGlobals.h"
 
 #define LOCTEXT_NAMESPACE "StaticLightingSystem"
 
@@ -103,6 +104,11 @@ void FGPULightmassModule::EditorTick()
 bool FGPULightmassModule::IsStaticLightingSystemRunning()
 {
 	return StaticLightingSystems.Num() > 0;
+}
+
+bool FGPULightmassModule::IsRealtimeOn()
+{
+	return GCurrentLevelEditingViewportClient && GCurrentLevelEditingViewportClient->IsRealtime();
 }
 
 #undef LOCTEXT_NAMESPACE

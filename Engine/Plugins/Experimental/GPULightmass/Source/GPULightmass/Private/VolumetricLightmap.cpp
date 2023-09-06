@@ -752,7 +752,7 @@ void FVolumetricLightmapRenderer::BackgroundTick()
 
 	FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(Scene->FeatureLevel);
 
-	const bool bIsViewportNonRealtime = GCurrentLevelEditingViewportClient && !GCurrentLevelEditingViewportClient->IsRealtime();
+	const bool bIsViewportNonRealtime = !FGPULightmassModule::IsRealtimeOn();
 	const int32 NumSamplesPerFrame = bIsViewportNonRealtime ? Scene->Settings->TilePassesInFullSpeedMode : Scene->Settings->TilePassesInSlowMode;
 
 	FVolumetricLightmapPathTracingRGS::FParameters* PreviousPassParameters = nullptr;

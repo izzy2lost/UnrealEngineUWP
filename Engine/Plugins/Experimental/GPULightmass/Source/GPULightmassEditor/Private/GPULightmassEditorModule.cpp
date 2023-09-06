@@ -437,9 +437,9 @@ bool FGPULightmassEditorModule::IsBakeWhatYouSeeMode()
 	return false;
 }
 
-bool FGPULightmassEditorModule::IsRealtimeOn() 
+bool FGPULightmassEditorModule::IsRealtimeOn()
 {
-	return GCurrentLevelEditingViewportClient && GCurrentLevelEditingViewportClient->IsRealtime();
+	return FGPULightmassModule::IsRealtimeOn();
 }
 
 bool FGPULightmassEditorModule::IsRunning() 
