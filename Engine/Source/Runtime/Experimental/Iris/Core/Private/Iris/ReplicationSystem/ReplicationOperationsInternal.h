@@ -61,9 +61,6 @@ struct FReplicationStateOperationsInternal
 
 	/** Collect references from a state based on the provided changemask information */
 	static IRISCORE_API void CollectReferencesWithMask(FNetSerializationContext& Context, FNetReferenceCollector& Collector, const uint32 ChangeMaskOffset, const uint8* RESTRICT SrcInternalBuffer,  const FReplicationStateDescriptor* Descriptor);
-
-	/** Try to resolve the references in the state described by the descriptor, returns true if all references can be resolved */
-	static IRISCORE_API ENetObjectReferenceResolveResult TryToResolveObjectReferences(FNetSerializationContext& Context, uint8* RESTRICT InternalBuffer, const FReplicationStateDescriptor* Descriptor);
 };
 
 struct FReplicationProtocolOperationsInternal

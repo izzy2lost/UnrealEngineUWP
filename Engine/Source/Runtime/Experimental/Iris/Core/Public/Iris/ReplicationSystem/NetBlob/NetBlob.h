@@ -14,6 +14,7 @@ namespace UE::Net
 	class FNetBlob;
 	class FNetSerializationContext;
 	struct FReplicationStateDescriptor;
+	class FNetReferenceCollector;
 	namespace Private
 	{
 		class FNetBlobManager;
@@ -87,11 +88,8 @@ public:
 	/** Deserialize a blob that was serialized with Serialize. */
 	IRISCORE_API virtual void Deserialize(FNetSerializationContext& Context);
 
-	/**
-	 * Returns the status of the object reference resolving.
-	 * @see ENetObjectReferenceResolveResult
-	 */
-	IRISCORE_API ENetObjectReferenceResolveResult ResolveObjectReferences(FNetSerializationContext& Context) const;
+	/** Collect object references from quantized data */
+	IRISCORE_API void CollectObjectReferences(FNetSerializationContext& Context, FNetReferenceCollector& Collector) const;
 
 	/** Adds a reference. A blob is created with reference count zero. */
 	void AddRef() const { ++RefCount; }

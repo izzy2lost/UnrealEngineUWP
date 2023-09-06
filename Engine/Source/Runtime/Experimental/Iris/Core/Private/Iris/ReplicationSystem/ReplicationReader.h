@@ -8,6 +8,7 @@
 #include "Iris/ReplicationSystem/NetRefHandleManager.h"
 #include "Iris/ReplicationSystem/ObjectReferenceCache.h"
 #include "Iris/ReplicationSystem/ReplicationTypes.h"
+#include "Iris/ReplicationSystem/PendingBatchData.h"
 #include "Containers/Map.h"
 #include "Misc/MemStack.h"
 
@@ -116,39 +117,6 @@ private:
 		uint32 bDeferredEndReplication : 1;
 	};
 
-	// Queued data chunk
-	struct FQueuedDataChunk
-	{
-		FQueuedDataChunk()
-		: StorageOffset(0U)
-		, NumBits(0U)
-		, bHasBatchOwnerData(0U)
-		, bIsEndReplicationChunk(0U)
-		{
-		}
-
-		uint32 StorageOffset;
-		uint32 NumBits : 30;
-		uint32 bHasBatchOwnerData : 1;
-		uint32 bIsEndReplicationChunk : 1;
-	};
-
-	// Struct to contain storage and required data for queued batches pending must be mapped references
-	struct FPendingBatchData
-	{
-		// We use a single array to store the actual data, it will grow if required.
-		TArray<uint32, TInlineAllocator<32>> DataChunkStorage;		
-		TArray<FQueuedDataChunk, TInlineAllocator<4>> QueuedDataChunks;
-
-		// Must be mapped references pending resolve
-		TArray<FNetRefHandle, TInlineAllocator<4>> PendingMustBeMappedReferences;
-
-		// Resolved references for which we have are holding on to references to avoid GC
-		TArray<FNetRefHandle, TInlineAllocator<4>> ResolvedReferences;
-
-		// Batch owner with queued data chunks
-		FNetRefHandle Handle;
-	};
 
 	enum : uint32
 	{
@@ -228,7 +196,7 @@ private:
 	void DeserializeObjectStateDelta(FNetSerializationContext& Context, uint32 InternalIndex, FDispatchObjectInfo& Info, FReplicatedObjectInfo& ObjectInfo, const FNetRefHandleManager::FReplicatedObjectData& ObjectData, uint32& OutNewBaselineIndex);
 
 	// If async loading is enabled this function will verify if we can resolve all PendingMustBeMappedReferences
-	FReplicationReader::FPendingBatchData* UpdateUnresolvedMustBeMappedReferences(FNetRefHandle Handle, TArray<FNetRefHandle>& MustBeMappedReferences);
+	FPendingBatchData* UpdateUnresolvedMustBeMappedReferences(FNetRefHandle Handle, TArray<FNetRefHandle>& MustBeMappedReferences);
 
 	// If we are queuing data for a batch we must also defer calls to EndReplication
 	// This method writes this method in the form of a QueuedChunk
@@ -268,7 +236,7 @@ private:
 	TMultiMap<FNetRefHandle, uint32> ResolvedDynamicHandleToDependents;
 
 	// We do not expect to have many objects in this state
-	TArray<FPendingBatchData> PendingBatches;
+	FPendingBatches PendingBatches;
 
 	// We do not expect many objects to be broken
 	TArray<FNetRefHandle> BrokenObjects;

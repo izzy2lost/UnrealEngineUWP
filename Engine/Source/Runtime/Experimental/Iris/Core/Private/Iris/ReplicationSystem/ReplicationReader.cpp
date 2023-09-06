@@ -221,7 +221,7 @@ void FReplicationReader::Init(const FReplicationParameters& InParameters)
 
 void FReplicationReader::Deinit()
 {
-	for (FPendingBatchData& PendingBatchData : PendingBatches)
+	for (FPendingBatchData& PendingBatchData : PendingBatches.PendingBatches)
 	{
 		UE_LOG_REPLICATIONREADER_WARNING(TEXT("FReplicationReader::Deinit NetHandle %s has %d unprocessed data batches"), *PendingBatchData.Handle.ToString(), PendingBatchData.QueuedDataChunks.Num());
 
@@ -273,7 +273,7 @@ uint32 FReplicationReader::ReadObjectsPendingDestroy(FNetSerializationContext& C
 	
 	if (!Context.HasErrorOrOverflow())
 	{
-		const bool bHasPendingBatches = !PendingBatches.IsEmpty();
+		const bool bHasPendingBatches = PendingBatches.GetHasPendingBatches();
 	
 		for (uint32 It = 0; It < ObjectsToRead; ++It)
 		{
@@ -291,7 +291,7 @@ uint32 FReplicationReader::ReadObjectsPendingDestroy(FNetSerializationContext& C
 				break;
 			}
 
-			if (FPendingBatchData* PendingBatchData = bHasPendingBatches ? PendingBatches.FindByPredicate([&SubObjectRootOrHandle](const FPendingBatchData& Entry) { return Entry.Handle == SubObjectRootOrHandle; }) : nullptr)
+			if (FPendingBatchData* PendingBatchData = bHasPendingBatches ? PendingBatches.Find(SubObjectRootOrHandle) : nullptr)
 			{
 				EnqueueEndReplication(PendingBatchData, bShouldDestroyInstance, IncompleteHandle);
 				continue;
@@ -457,9 +457,9 @@ void FReplicationReader::DeserializeObjectStateDelta(FNetSerializationContext& C
 	}
 }
 
-FReplicationReader::FPendingBatchData* FReplicationReader::UpdateUnresolvedMustBeMappedReferences(FNetRefHandle InHandle, TArray<FNetRefHandle>& MustBeMappedReferences)
+FPendingBatchData* FReplicationReader::UpdateUnresolvedMustBeMappedReferences(FNetRefHandle InHandle, TArray<FNetRefHandle>& MustBeMappedReferences)
 {
-	FPendingBatchData* PendingBatch = PendingBatches.FindByPredicate([&InHandle](const FPendingBatchData& Entry) { return Entry.Handle == InHandle; });
+	FPendingBatchData* PendingBatch = PendingBatches.Find(InHandle);
 	// If we already have a pending batch we append any new must be mapped references to it.
 	if (PendingBatch)
 	{
@@ -497,7 +497,7 @@ FReplicationReader::FPendingBatchData* FReplicationReader::UpdateUnresolvedMustB
 		// We must create a new batch
 		if (!Batch)
 		{
-			Batch = &PendingBatches.AddDefaulted_GetRef();
+			Batch = &PendingBatches.PendingBatches.AddDefaulted_GetRef();
 			Batch->Handle = InHandle;
 		}
 
@@ -662,7 +662,7 @@ uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
 		return 0U;
 	}
 
-	FPendingBatchData* PendingBatch = PendingBatches.FindByPredicate([&IncompleteHandle](const FPendingBatchData& Entry) { return Entry.Handle == IncompleteHandle; });
+	FPendingBatchData* PendingBatch = PendingBatches.Find(IncompleteHandle);
 
 	// This object has pending must be mapped references that must be resolved before we can process the data.
 	FPendingBatchData* PendingBatchData = ObjectReferenceCache->ShouldAsyncLoad() ? UpdateUnresolvedMustBeMappedReferences(IncompleteHandle, TempMustBeMappedReferences) : nullptr;
@@ -1750,9 +1750,9 @@ bool FReplicationReader::EnqueueEndReplication(FPendingBatchData* PendingBatchDa
 
 void FReplicationReader::ProcessQueuedBatches()
 {
-	UE_NET_TRACE_FRAME_STATSCOUNTER(Parameters.ReplicationSystem->GetId(), ReplicationReader.PendingQueuedBatches, PendingBatches.Num(), ENetTraceVerbosity::Trace);
+	UE_NET_TRACE_FRAME_STATSCOUNTER(Parameters.ReplicationSystem->GetId(), ReplicationReader.PendingQueuedBatches, PendingBatches.PendingBatches.Num(), ENetTraceVerbosity::Trace);
 
-	if (PendingBatches.IsEmpty())
+	if (!PendingBatches.GetHasPendingBatches())
 	{
 		//Nothing to do.
 		return;
@@ -1772,9 +1772,9 @@ void FReplicationReader::ProcessQueuedBatches()
 	Context.SetInternalContext(&InternalContext);
 	Context.SetNetBlobReceiver(&ReplicationSystemInternal->GetNetBlobHandlerManager());
 
-	for (int BatchIt = 0; BatchIt < PendingBatches.Num(); )
+	for (int BatchIt = 0; BatchIt < PendingBatches.PendingBatches.Num(); )
 	{
-		FPendingBatchData& PendingBatchData = PendingBatches[BatchIt];
+		FPendingBatchData& PendingBatchData = PendingBatches.PendingBatches[BatchIt];
 
 		// Try to resolve remaining must be mapped references
 		TempMustBeMappedReferences.Reset();
@@ -1871,7 +1871,7 @@ void FReplicationReader::ProcessQueuedBatches()
 			}
 
 			// Not optimal, but we want to preserve the order if we can as there might be batches waiting for the same reference
-			PendingBatches.RemoveAt(BatchIt);
+			PendingBatches.PendingBatches.RemoveAt(BatchIt);
 		}
 		else
 		{
@@ -2027,16 +2027,32 @@ void FReplicationReader::ResolveAndDispatchAttachments(FNetSerializationContext&
 		{
 			while (const TRefCountPtr<FNetBlob>* Attachment = AttachmentQueue->PeekReliable())
 			{
-				// Delay attachments with unresolved references
+				// Delay attachments with unresolved pending references
 				if (bCanDelayAttachments)
 				{
-					// Only block reliable stream if we have unresolved references that must be mapped
-					const ENetObjectReferenceResolveResult ResolveResult = Attachment->GetReference()->ResolveObjectReferences(Context);
-					if (EnumHasAnyFlags(ResolveResult, ENetObjectReferenceResolveResult::HasUnresolvedMustBeMappedReferences))
+					bool bDelayRpc = false;
+
+					FNetReferenceCollector Collector;
+					Attachment->GetReference()->CollectObjectReferences(Context, Collector);
+
+					// Check status of references, as we already should have queued up any unmapped references at the batch level, it should be enough to only check if we have any unresolved references pending async load.
+					// NOTE: Behavior is slightly different between Iris and old replication system due to the fact that Iris processes incoming packet data prior to dispatching received stats and RPC:s, that means that 
+					// we expect to be able to resolve all dynamic references contained in the same data packet and does not delay the RPC until the next tick to solve that as the old system does. 
+					// The difference is that the old system might be able to resolve incoming dynamic references from later packets processed for the same tick, but as this is far from guaranteed we currently do not try to mimic this.
+					for (const FNetReferenceCollector::FReferenceInfo& Info : MakeArrayView(Collector.GetCollectedReferences()))
+					{
+						if (ObjectReferenceCache->IsNetRefHandlePending(Info.Reference.GetRefHandle(), PendingBatches))
+						{
+							bDelayRpc = true;
+							break;
+						}
+					}
+
+					if (bDelayRpc)
 					{
 						const FReplicationStateDescriptor* Descriptor = Attachment->GetReference()->GetReplicationStateDescriptor();
 
-						UE_LOG(LogIris, Warning, TEXT("Unable to resolve references in %s for InternalIndex %u"), (Descriptor != nullptr ? ToCStr(Descriptor->DebugName) : TEXT("N/A")), InternalIndex);
+						UE_LOG(LogIris, Verbose, TEXT("Delaying Attachment - %s for InternalIndex %u." ), (Descriptor != nullptr ? ToCStr(Descriptor->DebugName) : TEXT("N/A")), InternalIndex);
 						break;
 					}
 				}

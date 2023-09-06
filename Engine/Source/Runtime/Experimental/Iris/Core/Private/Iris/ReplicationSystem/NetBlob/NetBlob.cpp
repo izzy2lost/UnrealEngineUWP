@@ -88,14 +88,10 @@ void FNetBlob::Deserialize(FNetSerializationContext& Context)
 	DeserializeBlob(Context);
 }
 
-ENetObjectReferenceResolveResult FNetBlob::ResolveObjectReferences(FNetSerializationContext& Context) const
+void FNetBlob::CollectObjectReferences(FNetSerializationContext& Context, FNetReferenceCollector& Collector) const
 {
-	if (BlobDescriptor.IsValid() && QuantizedBlobState.IsValid())
-	{
-		return Private::FReplicationStateOperationsInternal::TryToResolveObjectReferences(Context, QuantizedBlobState.Get(), BlobDescriptor);
-	}
-	
-	return ENetObjectReferenceResolveResult::None;
+	const FNetSerializerChangeMaskParam InitStateChangeMaskInfo = { 0 };
+	Private::FReplicationStateOperationsInternal::CollectReferences(Context, Collector, InitStateChangeMaskInfo, QuantizedBlobState.Get(), BlobDescriptor);
 }
 
 void FNetBlob::SerializeBlob(FNetSerializationContext& Context) const

@@ -365,36 +365,6 @@ void FReplicationStateOperationsInternal::CollectReferencesWithMask(FNetSerializ
 	}
 }
 
-ENetObjectReferenceResolveResult FReplicationStateOperationsInternal::TryToResolveObjectReferences(FNetSerializationContext& Context, uint8* RESTRICT InternalBuffer, const FReplicationStateDescriptor* Descriptor)
-{
-	FNetSerializationContext LocalContext;
-	FNetReferenceCollector Collector;
-
-	if (Descriptor->IsInitState() || Descriptor->MemberChangeMaskDescriptors == nullptr)
-	{
-		const FNetSerializerChangeMaskParam InitStateChangeMaskInfo = { 0 };
-		FReplicationStateOperationsInternal::CollectReferences(LocalContext, Collector, InitStateChangeMaskInfo, InternalBuffer, Descriptor);
-	}
-	else
-	{
-		FReplicationStateOperationsInternal::CollectReferencesWithMask(LocalContext, Collector, 0, InternalBuffer, Descriptor);
-	}
-
-	// Process references
-	const FInternalNetSerializationContext* InternalContext = Context.GetInternalContext();
-	const FNetObjectResolveContext& ResolveContext = InternalContext->ResolveContext;
-	FObjectReferenceCache& ObjectReferenceCache = *InternalContext->ObjectReferenceCache;
-
-	ENetObjectReferenceResolveResult Result = ENetObjectReferenceResolveResult::None;
-	for (const FNetReferenceCollector::FReferenceInfo& Info : MakeArrayView(Collector.GetCollectedReferences()))
-	{
-		UObject* ResolvedObject;
-		Result |= ObjectReferenceCache.ResolveObjectReference(Info.Reference, ResolveContext, ResolvedObject);
-	}
-
-	return Result;
-};
-
 void FReplicationProtocolOperationsInternal::CloneDynamicState(FNetSerializationContext& Context, uint8* RESTRICT DstObjectStateBuffer, const uint8* RESTRICT SrcObjectStateBuffer, const FReplicationProtocol* Protocol)
 {
 	const FReplicationStateDescriptor** ReplicationStateDescriptors = Protocol->ReplicationStateDescriptors;

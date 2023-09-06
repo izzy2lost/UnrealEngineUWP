@@ -8,6 +8,7 @@
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
 #include "Iris/ReplicationSystem/StringTokenStore.h"
+#include "Iris/ReplicationSystem/PendingBatchData.h"
 #include "Iris/Serialization/InternalNetSerializationContext.h"
 #include "Iris/Serialization/NetBitStreamReader.h"
 #include "Iris/Serialization/NetBitStreamUtil.h"
@@ -631,6 +632,35 @@ bool FObjectReferenceCache::IsNetRefHandleBroken(FNetRefHandle RefHandle, bool b
 {
 	const FCachedNetObjectReference* CacheObjectPtr = ReferenceHandleToCachedReference.Find(RefHandle);	
 	return CacheObjectPtr ? CacheObjectPtr->bIsBroken : bMustBeRegistered;
+}
+
+bool FObjectReferenceCache::IsNetRefHandlePending(FNetRefHandle NetRefHandle, const FPendingBatches& PendingBatches) const
+{
+	// Check Outer chain
+	while (NetRefHandle.IsValid())
+	{
+		// Need lambda to figure this one out
+		if (PendingBatches.Find(NetRefHandle))
+		{
+			return true;
+		}
+
+		const FCachedNetObjectReference* CacheObjectPtr = ReferenceHandleToCachedReference.Find(NetRefHandle);
+
+		if (!CacheObjectPtr)
+		{
+			return false;
+		}
+
+		if (CacheObjectPtr->bIsPending)
+		{
+			return true;
+		}
+
+		NetRefHandle = CacheObjectPtr->OuterNetRefHandle;
+	}
+
+	return false;
 }
 
 // $IRIS: $TODO: Most of the logic comes from GUIDCache::GetObjectFromNetGUID so we want to keep this in sync

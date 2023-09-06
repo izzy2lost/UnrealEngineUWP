@@ -19,6 +19,7 @@ namespace UE::Net
 	{
 		class FNetRefHandleManager;
 		class FNetExportContext;
+		struct FPendingBatches;
 	}
 }
 
@@ -59,6 +60,9 @@ public:
 
 	// Returns true of this NetRefHandle is marked as broken
 	bool IsNetRefHandleBroken(FNetRefHandle Handle, bool bMustBeRegistered) const;
+
+	// Returns true of the provided NetRefHandle or one of its outers is pending async loading.
+	bool IsNetRefHandlePending(FNetRefHandle NetRefHandle, const FPendingBatches& PendingBatches) const;
 
 	// Find replicated outer
 	FNetObjectReference GetReplicatedOuter(const FNetObjectReference& Reference) const;
