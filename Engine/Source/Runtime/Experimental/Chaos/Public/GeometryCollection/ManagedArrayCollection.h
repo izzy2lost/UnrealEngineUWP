@@ -18,7 +18,7 @@ namespace Chaos
 	class FChaosArchive;
 }
 
-CHAOS_API struct FAttributeAndGroupId
+struct FAttributeAndGroupId
 {
 	FName AttributeName;
 	FName GroupName;
