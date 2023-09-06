@@ -4,6 +4,7 @@
 #include "AnimNode_ControlRig_ExternalSource.h"
 #include "Sequencer/ControlRigLayerInstance.h"
 #include "AnimSequencerInstance.h"
+#include "ControlRig.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigLayerInstanceProxy)
 
@@ -143,21 +144,36 @@ void FControlRigLayerInstanceProxy::AddControlRigTrack(int32 ControlRigID, UCont
 
 	if(!Node)
 	{
-		FAnimNode_ControlRig_ExternalSource* Parent = (ControlRigNodes.Num() > 0)? ControlRigNodes.Last().Get() : nullptr;
-		Node = ControlRigNodes.Add_GetRef(MakeShared<FAnimNode_ControlRig_ExternalSource>()).Get();
-		SequencerToControlRigNodeMap.FindOrAdd(ControlRigID) = Node;
-		if (Parent)
+		FAnimNode_ControlRig_ExternalSource* PreviousNode = nullptr;
+		FAnimNode_ControlRig_ExternalSource* NextNode = nullptr;
+		if (InControlRig->IsAdditive())
 		{
-			FAnimNode_Base* LinkedNode = Parent->Source.GetLinkNode();
-			Parent->Source.SetLinkNode(Node);
-			Node->Source.SetLinkNode(LinkedNode);
+			PreviousNode = (ControlRigNodes.Num() > 0)? ControlRigNodes.Last().Get() : nullptr;
+			Node = ControlRigNodes.Add_GetRef(MakeShared<FAnimNode_ControlRig_ExternalSource>()).Get();
+		}
+		else
+		{
+			NextNode = (ControlRigNodes.Num() > 0)? ControlRigNodes[0].Get() : nullptr;
+			Node = ControlRigNodes.Insert_GetRef(MakeShared<FAnimNode_ControlRig_ExternalSource>(), 0).Get();
+		}
+
+		if (PreviousNode)
+		{
+			Node->Source.SetLinkNode(PreviousNode);
 		}
 		else
 		{
 			// first node
-			CurrentRoot = Node;
 			Node->Source.SetLinkNode(&InputPose);
 		}
+		
+		if (NextNode)
+		{
+			NextNode->Source.SetLinkNode(Node);
+		}
+
+		CurrentRoot = ControlRigNodes.Last().Get();
+		SequencerToControlRigNodeMap.FindOrAdd(ControlRigID) = Node;
 	}
 
 	Node->SetControlRig(InControlRig);
@@ -213,22 +229,14 @@ void FControlRigLayerInstanceProxy::RemoveControlRigTrack(int32 ControlRigID)
 					// first one to delete
 					if (Child)
 					{
-						CurrentRoot = Child;
-					}
-					else
-					{
-						CurrentRoot = &InputPose;
+						Child->Source.SetLinkNode(&InputPose);
 					}
 				}
 				else
 				{
 					if (Child)
 					{
-						Parent->Source.SetLinkNode(Child);
-					}
-					else
-					{
-						Parent->Source.SetLinkNode(&InputPose);
+						Child->Source.SetLinkNode(Parent);
 					}
 				}
 
@@ -239,6 +247,7 @@ void FControlRigLayerInstanceProxy::RemoveControlRigTrack(int32 ControlRigID)
 			Parent = Current;
 		}
 
+		CurrentRoot = (ControlRigNodes.IsEmpty()) ? InputPose : ControlRigNodes.Last().Get();
 		SequencerToControlRigNodeMap.Remove(ControlRigID);
 	}
 }
