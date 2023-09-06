@@ -1651,6 +1651,7 @@ TUniquePtr<IIasCache> MakeIasCache(const TCHAR* RootPath, const FIasCacheConfig&
 		return TUniquePtr<IIasCache>(Cache);
 	}
 
+	delete Cache;
 	return nullptr;
 }
 
