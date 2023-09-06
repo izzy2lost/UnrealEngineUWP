@@ -1789,7 +1789,7 @@ void FGeneratorPackage::PreGarbageCollect(FCookGenerationInfo& Info, TArray<TObj
 			bOutShouldDemote = true;
 		}
 	}
-	if (Info.GetSaveState() > FCookGenerationInfo::ESaveState::CallObjectsToMove)
+	if (Info.HasTakenOverCachedCookedPlatformData())
 	{
 		if (GetCookPackageSplitterInstance()->UseInternalReferenceToAvoidGarbageCollect())
 		{
