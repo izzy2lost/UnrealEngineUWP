@@ -256,10 +256,25 @@ FString UKismetSystemLibrary::GetPlatformUserDir()
 
 bool UKismetSystemLibrary::DoesImplementInterface(const UObject* TestObject, TSubclassOf<UInterface> Interface)
 {
-	if (Interface != NULL && TestObject != NULL)
+	if (TestObject)
 	{
-		checkf(Interface->IsChildOf(UInterface::StaticClass()), TEXT("Interface parameter %s is not actually an interface."), *Interface->GetName());
-		return TestObject->GetClass()->ImplementsInterface(Interface);
+		return UKismetSystemLibrary::DoesClassImplementInterface(TestObject->GetClass(), Interface);
+	}
+
+	return false;
+}
+
+bool UKismetSystemLibrary::DoesClassImplementInterface(const UClass* TestClass, TSubclassOf<UInterface> Interface)
+{
+	if (TestClass && Interface)
+	{
+		if (!Interface->IsChildOf(UInterface::StaticClass()))
+		{
+			LogRuntimeError(FText::Format(LOCTEXT("DoesClassImplementInterface.InvalidInterface", "Interface parameter {0} is not actually an interface."), FText::AsCultureInvariant(Interface->GetName())));
+			return false;
+		}
+
+		return TestClass->ImplementsInterface(Interface);
 	}
 
 	return false;

@@ -202,9 +202,13 @@ class UKismetSystemLibrary : public UBlueprintFunctionLibrary
 	UFUNCTION(BlueprintPure, Category = "Utilities|Platform")
 	static ENGINE_API FString GetPlatformUserDir();
 
-	/** Checks if this object implements a specific interface, works for both native and blueprint interfacse */
-	UFUNCTION(BlueprintPure, Category="Utilities")
+	/** Checks if the given object implements a specific interface, works for both native and blueprint interfacse */
+	UFUNCTION(BlueprintPure, Category="Utilities", meta=(DisplayName = "Does Object Implement Interface"))
 	static ENGINE_API bool DoesImplementInterface(const UObject* TestObject, TSubclassOf<UInterface> Interface);
+
+	/** Checks if the given class implements a specific interface, works for both native and blueprint interfacse */
+	UFUNCTION(BlueprintPure, Category="Utilities")
+	static ENGINE_API bool DoesClassImplementInterface(const UClass* TestClass, TSubclassOf<UInterface> Interface);
 
 	/** 
 	 * Get the current game time, in seconds. This stops when the game is paused and is affected by slomo. 
