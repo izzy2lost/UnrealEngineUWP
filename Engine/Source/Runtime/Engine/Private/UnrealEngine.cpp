@@ -7418,24 +7418,11 @@ bool UEngine::HandleMemReportDeferredCommand( const TCHAR* Cmd, FOutputDevice& A
 
 	FSlowHeartBeatScope HeartBeatSuspend;
 
+	const bool bPerformSlowCommands = FParse::Param( Cmd, TEXT("FULL") );
 	const bool bLogOutputToFile = !FParse::Param( Cmd, TEXT("LOG") );
 	const bool bCSV = FParse::Param(Cmd, TEXT("CSV"));
-	FString InTypeName;
-	FParse::Value( Cmd, TEXT("TYPE="), InTypeName);
 	FString InFileName;
 	FParse::Value(Cmd, TEXT("NAME="), InFileName);
-
-	if (FParse::Param(Cmd, TEXT("FULL")))
-	{
-		InTypeName = TEXT("FULL");
-	}
-	if (InTypeName.Equals(TEXT("DEFAULT"), ESearchCase::IgnoreCase))
-	{
-		InTypeName.Empty();
-	}
-	const FString SectionToRead = FString::Format(TEXT("MemReport{0}Commands"), { InTypeName });
-
-	UE_LOG(LogEngine, Log, TEXT("MemReportDeferred: Executing \"%s\" profile."), *InTypeName);
 
 	// Turn off as it makes diffing hard
 	TGuardValue<ELogTimes::Type> DisableLogTimes(GPrintLogTimes, ELogTimes::None);
@@ -7462,7 +7449,7 @@ bool UEngine::HandleMemReportDeferredCommand( const TCHAR* Cmd, FOutputDevice& A
 		FileArWrapper.Emplace(FileAr.Get());
 		ReportAr = FileArWrapper.GetPtrOrNull();
 
-		UE_LOG(LogEngine, Log, TEXT("MemReportDeferred: saving to %s"), *FilenameFull);
+		UE_LOG(LogEngine, Log, TEXT("MemReportDeferred: saving to %s"), *FilenameFull);		
 	}
 
 
@@ -7512,7 +7499,8 @@ bool UEngine::HandleMemReportDeferredCommand( const TCHAR* Cmd, FOutputDevice& A
 
 	// Run commands from the ini
 	TArray<FString> CommandsToRun;
-	if (GConfig->GetArray(*SectionToRead, TEXT("Cmd"), CommandsToRun, GEngineIni))
+
+	if (GConfig->GetArray(TEXT("MemReportCommands"), TEXT("Cmd"), CommandsToRun, GEngineIni))
 	{
 		for (FString& Command : CommandsToRun)
 		{
@@ -7527,25 +7515,42 @@ bool UEngine::HandleMemReportDeferredCommand( const TCHAR* Cmd, FOutputDevice& A
 		}
 	}
 
-	if (bLogOutputToFile)
+	if (bPerformSlowCommands)
 	{
 		CommandsToRun.Reset();
-		if (GConfig->GetArray(*SectionToRead, TEXT("File"), CommandsToRun, GEngineIni))
+
+		if (GConfig->GetArray(TEXT("MemReportFullCommands"), TEXT("Cmd"), CommandsToRun, GEngineIni))
+		{
+			for (FString& Command : CommandsToRun)
+			{
+				if (bCSV)
+				{
+					Command += " -csv";
+				}
+
+				ReportAr->Logf(TEXT("MemReport: Begin command \"%s\""), *Command);
+				Exec(InWorld, *Command, *ReportAr);
+				ReportAr->Logf(TEXT("MemReport: End command \"%s\"") LINE_TERMINATOR, *Command);
+			}
+		}
+	}
+
+	if (bLogOutputToFile && bCSV)
+	{
+		CommandsToRun.Reset();
+
+		if (GConfig->GetArray(TEXT("MemReportCsvCommands"), TEXT("Cmd"), CommandsToRun, GEngineIni))
 		{
 			const FString DirectoryName = FPaths::GetBaseFilename(FilenameFull, false) + TEXT("/");
 			IFileManager::Get().MakeDirectory( *DirectoryName );
 
 			for (FString& Command : CommandsToRun)
 			{
-				const FString ValidFilePath = DirectoryName + FPaths::MakeValidFileName(Command) + bCSV ? TEXT(".csv") : TEXT(".txt");
+				const FString ValidFilePath = DirectoryName + FPaths::MakeValidFileName(Command) + TEXT(".csv");
 
 				TUniquePtr<FArchive> CommandFile(IFileManager::Get().CreateDebugFileWriter(*ValidFilePath));
 				FOutputDeviceArchiveWrapper CommandFileAr(CommandFile.Get());
-				if (bCSV)
-				{
-					Command += " -csv";
-				}
-
+				Command += TEXT(" -csv");
 				Exec(InWorld, *Command, CommandFileAr);
 				UE_LOG(LogEngine, Log, TEXT("MemReportDeferred: Written \"%s\" output to \"%s\""), *Command, *ValidFilePath);
 			}
