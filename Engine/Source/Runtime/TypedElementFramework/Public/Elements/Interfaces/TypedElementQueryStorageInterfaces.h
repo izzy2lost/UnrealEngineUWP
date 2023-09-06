@@ -110,18 +110,24 @@ namespace TypedElementDataStorage
 		 */
 		virtual void RemoveRows(TConstArrayView<RowHandle> Rows) = 0;
 		/**
-		 * Add a new unitialized column of the provided object type. The addition will not be immediately done but delayed until the
-		 * end of the tick group. The returned address is to a temporary object that's held until the column has been setup. This can be
-		 * used to set data while in the query callback but shouldn't be used outside the callback as the object will be removed.
+		 * Add a new column of the provided type if one does not exist.
+		 * Returns a staged column which is used to copy into the database at a later time via the UStructScript Copy operator
+		 * It is the caller's responsibility to ensure the staged column's constructor is called.  The caller
+		 * may modify other properties of the column.
+		 *
+		 * Note: The addition and modification of the column will not be done immediately done. Instead it will be deferred until the end of the tick group.
 		 */
-		virtual void* AddColumnUnitialized(RowHandle Row, const UScriptStruct* ObjectType) = 0;
+		virtual void* AddColumnUninitialized(RowHandle Row, const UScriptStruct* ColumnType) = 0;
+		
 		/**
-		 * Add a new unitialized column of the provided object type. The addition will not be immediately done but delayed until the
-		 * end of the tick group. The returned address is to a temporary object that's held until the column has been setup. This can be
-		 * used to set data while in the query callback but shouldn't be used outside the callback as the object will be removed. The
-		 * temporary object will be moved to it's final location using the provided move operator callback instead of being copied.
+		 * Add a new column of the provided type if one does not exist.
+		 * Returns a staged column which is used to copy into the database at a later time via the provided Move operator
+		 * It is the caller's responsibility to ensure the staged column's constructor is called.  The caller
+		 * may modify other properties of the column.
+		 *
+		 * Note: The addition and modification of the column will not be done immediately done. Instead it will be deferred until the end of the tick group.
 		 */
-		virtual void* AddColumnUnitialized(RowHandle Row, const UScriptStruct* ObjectType, ObjectMoveOperator Mover) = 0;
+		virtual void* AddColumnUninitialized(RowHandle Row, const UScriptStruct* ObjectType, ObjectMoveOperator Mover) = 0;
 		/**
 		 * Adds new empty columns to a row of the provided type. The addition will not be immediately done but delayed until the end of the
 		 * tick group.
@@ -213,7 +219,7 @@ namespace TypedElementDataStorage
 
 		if constexpr (std::is_move_constructible_v<ColumnType>)
 		{
-			void* Address = AddColumnUnitialized(Row, TypeInfo,
+			void* Address = AddColumnUninitialized(Row, TypeInfo,
 				[](void* Destination, void* Source)
 				{
 					new(Destination) ColumnType(MoveTemp(*reinterpret_cast<ColumnType*>(Source)));
@@ -222,7 +228,7 @@ namespace TypedElementDataStorage
 		}
 		else
 		{
-			void* Address = AddColumnUnitialized(Row, TypeInfo);
+			void* Address = AddColumnUninitialized(Row, TypeInfo);
 			TypeInfo->CopyScriptStruct(Address, &Column);
 			return *reinterpret_cast<ColumnType*>(Address);
 		}

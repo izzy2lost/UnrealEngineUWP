@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "TypedElementMementoSystem.h"
 
@@ -66,18 +66,19 @@ void UTypedElementMementoSystem::RegisterQueries(UTypedElementDatabase& DataStor
 		const UScriptStruct* MementoizedColumn = MementoTranslator->GetColumnType();
 		const UScriptStruct* Memento = MementoTranslator->GetMementoType();
 		
-		const FName TranslationProcessorName = FName(FString::Printf(TEXT("MementoTranslator: %s -> %s"), *MementoizedColumn->GetName(), *Memento->GetName()));
+		const FName TranslationProcessorName = FName(FString::Printf(TEXT("MementoTranslator (Column->Memento) %s -> %s"), *MementoizedColumn->GetName(), *Memento->GetName()));
 		const TypedElementQueryHandle QueryHandle = DataStorage.RegisterQuery(
 			Select(
 				TranslationProcessorName,
 				FObserver::OnRemove<FTypedElementMementoOnDelete>(),
-				[MementoTranslator, Memento, MementoizedColumn](TypedElementDataStorage::IQueryContext& Context, TypedElementRowHandle row, const FTypedElementMementoOnDelete& MementoRow)
+				[MementoTranslator, Memento, MementoizedColumn](TypedElementDataStorage::IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementMementoOnDelete& MementoRow)
 				{
-					void* MementoObject = Context.AddColumnUnitialized(MementoRow.Memento, Memento);
-					Memento->InitializeStruct(MementoObject);
+					void* StagedMementoColumn = Context.AddColumnUninitialized(MementoRow.Memento, Memento);
+					// StagedMementoColumn will be uninitialized memory, ensure constructor called
+					Memento->InitializeStruct(StagedMementoColumn);
 		
 					const void* SourceColumn = Context.GetColumn(MementoizedColumn);
-					MementoTranslator->TranslateColumnToMemento(SourceColumn, MementoObject);
+					MementoTranslator->TranslateColumnToMemento(SourceColumn, StagedMementoColumn);
 				})
 				.ReadOnly(MementoizedColumn)
 				.Compile());
@@ -107,36 +108,29 @@ void UTypedElementMementoSystem::RegisterQueries(UTypedElementDatabase& DataStor
 		const UScriptStruct* MementoizedColumnType = MementoTranslator->GetColumnType();
 		const UScriptStruct* MementoType = MementoTranslator->GetMementoType();
 
-		TypedElementQueryHandle Subquery = DataStorage.RegisterQuery(
-			Select()
-				.ReadWrite(MementoizedColumnType)
-			.Compile());
+		namespace TEDS = TypedElementDataStorage;
 
-		const FName TranslationProcessorName = FName(FString::Printf(TEXT("MementoTranslator: %s -> %s"), *MementoType->GetName(), *MementoizedColumnType->GetName()));
-		const TypedElementQueryHandle QueryHandle = DataStorage.RegisterQuery(
+		const FName TranslationProcessorName = FName(FString::Printf(TEXT("MementoTranslator (Memento->Column) %s -> %s"), *MementoType->GetName(), *MementoizedColumnType->GetName()));
+		const TypedElementQueryHandle QueryHandleForExistence = DataStorage.RegisterQuery(
 			Select(
 				TranslationProcessorName,
 				FProcessor(DSI::EQueryTickPhase::PostPhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::Default)),
-				[MementoTranslator](TypedElementDataStorage::IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementMementoReinstanceTarget& ReinstanceTarget)
+				[MementoTranslator](TEDS::IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementMementoReinstanceTarget& ReinstanceTarget)
 				{
-					const UScriptStruct* MementoType = MementoTranslator->GetMementoType();
-					
-					const void* Memento = Context.GetColumn(MementoType);
-					Context.RunSubquery(0, ReinstanceTarget.Target, 
-						[MementoTranslator, Memento](const DSI::FQueryDescription&, DSI::ISubqueryContext& SubQueryContext)
-						{
-							const UScriptStruct* MementoizedColumnType = MementoTranslator->GetColumnType();
-							void* MementoizedColumn = SubQueryContext.GetMutableColumn(MementoizedColumnType);
+					// Add the column, note the column may already exist.
+					void* StagedColumn = Context.AddColumnUninitialized(ReinstanceTarget.Target, MementoTranslator->GetColumnType());
 
-							MementoTranslator->TranslateMementoToColumn(Memento, MementoizedColumn);
-						});
+					// StagedColumn will be uninitialized memory, ensure constructor called
+					MementoTranslator->GetColumnType()->InitializeStruct(StagedColumn);
+
+					const void* Memento = Context.GetColumn(MementoTranslator->GetMementoType());
+					MementoTranslator->TranslateMementoToColumn(Memento, StagedColumn);
 				})
 				.ReadOnly(MementoType)
 				.Where()
 					.All<FTypedElementMementoTag>()
-				.DependsOn().SubQuery(Subquery)
 				.Compile());
-		check(QueryHandle != TypedElementInvalidQueryHandle);
+		check(QueryHandleForExistence != TypedElementInvalidQueryHandle);
 	}
 
 	/**

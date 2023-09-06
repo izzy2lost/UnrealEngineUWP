@@ -233,7 +233,7 @@ public:
 			TConstArrayView<FMassEntityHandle>(reinterpret_cast<const FMassEntityHandle*>(Rows.begin()), Rows.Num()));
 	}
 
-	void* AddColumnUnitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType) override
+	void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType) override
 	{
 		checkf(ObjectType->IsChildOf(FMassTag::StaticStruct()) || ObjectType->IsChildOf(FMassFragment::StaticStruct()), TEXT("Column [%s] must be a Mass Fragment or Tag"), *ObjectType->GetName());
 		
@@ -279,7 +279,13 @@ public:
 			Context.Defer().PushCommand<FMassDeferredAddCommand>(
 				[AddedColumn](FMassEntityManager& System)
 				{
-					System.AddFragmentToEntity(AddedColumn->Entity, AddedColumn->FragmentType);
+					// Check before adding.  Mass's AddFragmentToEntity is not idempotent and will assert if adding
+					// column to a row that already has one
+					FStructView Fragment = System.GetFragmentDataStruct(AddedColumn->Entity, AddedColumn->FragmentType);
+					if (!Fragment.IsValid())
+					{
+						System.AddFragmentToEntity(AddedColumn->Entity, AddedColumn->FragmentType);
+					}
 				});
 			
 			Context.Defer().PushCommand<FMassDeferredSetCommand>(
@@ -301,7 +307,7 @@ public:
 		return ObjectCopy;
 	}
 
-	void* AddColumnUnitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType, ObjectMoveOperator Mover) override
+	void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType, ObjectMoveOperator Mover) override
 	{
 		checkf(ObjectType->IsChildOf(FMassTag::StaticStruct()) || ObjectType->IsChildOf(FMassFragment::StaticStruct()), TEXT("Column [%s] must be a Mass Fragment or Tag"), *ObjectType->GetName());
 		
@@ -350,7 +356,13 @@ public:
 			Context.Defer().PushCommand<FMassDeferredAddCommand>(
 				[AddedColumn](FMassEntityManager& System)
 				{
-					System.AddFragmentToEntity(AddedColumn->Entity, AddedColumn->FragmentType);
+					// Check before adding.  Mass's AddFragmentToEntity is not idempotent and will assert if adding
+					// column to a row that already has one
+					FStructView Fragment = System.GetFragmentDataStruct(AddedColumn->Entity, AddedColumn->FragmentType);
+					if (!Fragment.IsValid())
+					{
+						System.AddFragmentToEntity(AddedColumn->Entity, AddedColumn->FragmentType);
+					}
 				});
 
 			Context.Defer().PushCommand<FMassDeferredSetCommand>(
