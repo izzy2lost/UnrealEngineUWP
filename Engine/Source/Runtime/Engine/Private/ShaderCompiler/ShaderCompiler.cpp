@@ -6725,6 +6725,7 @@ bool FShaderCompilingManager::HandlePotentialRetryOnError(TMap<int32, FShaderMap
 							SingleJob->Input.DumpDebugInfoPath = GShaderCompilingManager->CreateShaderDebugInfoPath(SingleJob->Input);
 						}
 						SingleJob->Output = FShaderCompilerOutput();
+						SingleJob->PreprocessOutput = FShaderPreprocessOutput();
 					}
 					else
 					{
@@ -6732,6 +6733,7 @@ bool FShaderCompilingManager::HandlePotentialRetryOnError(TMap<int32, FShaderMap
 						for (auto CommonJob : PipelineJob->StageJobs)
 						{
 							CommonJob->Output = FShaderCompilerOutput();
+							CommonJob->PreprocessOutput = FShaderPreprocessOutput();
 							CommonJob->bFinalized = false;
 						}
 					}
