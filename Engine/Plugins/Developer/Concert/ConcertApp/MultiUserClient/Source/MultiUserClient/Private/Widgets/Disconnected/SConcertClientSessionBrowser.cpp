@@ -116,7 +116,8 @@ void SConcertClientSessionBrowser::Construct(const FArguments& InArgs, IConcertC
 	// Create a timer to periodically poll the server for sessions and session clients at a lower frequency than the normal tick.
 	RegisterActiveTimer(1.0f, FWidgetActiveTimerDelegate::CreateSP(this, &SConcertClientSessionBrowser::TickDiscovery));
 
-	bLocalServerRunning = IMultiUserClientModule::Get().IsConcertServerRunning();
+	const bool bForceTaskStart = true;
+	ScheduleDiscoveryTaskIfPossible(bForceTaskStart);
 }
 
 TSharedRef<SWidget> SConcertClientSessionBrowser::MakeBrowserContent(TSharedPtr<FText> InSearchText)
@@ -344,11 +345,21 @@ TSharedRef<SWidget> SConcertClientSessionBrowser::MakeOverlayedTableView(const T
 		];
 }
 
+void SConcertClientSessionBrowser::ScheduleDiscoveryTaskIfPossible(bool bForceTaskStart)
+{
+	if (bForceTaskStart || DiscoveryTask.IsCompleted())
+	{
+		bLocalServerRunning = bForceTaskStart ? false : DiscoveryTask.GetResult();
+		DiscoveryTask = UE::Tasks::Launch( UE_SOURCE_LOCATION, []
+		{
+			return IMultiUserClientModule::Get().IsConcertServerRunning();
+		});
+	}
+}
+
 EActiveTimerReturnType SConcertClientSessionBrowser::TickDiscovery(double InCurrentTime, float InDeltaTime)
 {
-	// Cache the result of this function because it is very expensive. It kills the framerate if polled every frame.
-	bLocalServerRunning = IMultiUserClientModule::Get().IsConcertServerRunning();
-
+	ScheduleDiscoveryTaskIfPossible(false);
 	UpdateDiscovery();
 	return EActiveTimerReturnType::Continue;
 }
@@ -724,7 +735,7 @@ FReply SConcertClientSessionBrowser::OnNewButtonClicked()
 FReply SConcertClientSessionBrowser::OnLaunchServerButtonClicked()
 {
 	IMultiUserClientModule::Get().LaunchConcertServer();
-	bLocalServerRunning = IMultiUserClientModule::Get().IsConcertServerRunning(); // Immediately update the cache state to avoid showing buttons enabled for a split second.
+	ScheduleDiscoveryTaskIfPossible(false);
 	return FReply::Handled();
 }
 

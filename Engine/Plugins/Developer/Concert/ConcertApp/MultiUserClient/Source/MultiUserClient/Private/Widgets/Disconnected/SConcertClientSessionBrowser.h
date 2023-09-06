@@ -3,6 +3,7 @@
 #pragma once
 
 #include "IConcertClientModule.h"
+#include "Tasks/Task.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
@@ -104,7 +105,9 @@ private:
 	bool ConfirmDeleteSessionWithDialog(const TArray<TSharedPtr<FConcertSessionTreeItem>>& SessionItems) const;
 
 	// Update server/session/clients lists.
+	void ScheduleDiscoveryTaskIfPossible(bool bForceTaskStart);
 	EActiveTimerReturnType TickDiscovery(double InCurrentTime, float InDeltaTime);
 	void UpdateDiscovery();
 	void RefreshClientList(const TArray<FConcertSessionClientInfo>& LastestClientList);
+	UE::Tasks::TTask<bool> DiscoveryTask;
 };
