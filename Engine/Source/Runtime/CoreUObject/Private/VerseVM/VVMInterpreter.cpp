@@ -1077,48 +1077,65 @@ class FInterpreter
 		// are handled differently for lenient and non-lenient calls.
 		check(!Callee.IsPlaceholder());
 
-		V_DIE_UNLESS(Op.Arguments.Num() == 1);
-
-		VValue Argument = GetOperand(Op.Arguments[0]);
-		// Special cases for known container types.
-		if (VTuple* Tuple = Callee.DynamicCast<VTuple>())
-		{
-			REQUIRE_CONCRETE(Argument);
-			// Bounds check since this index access in Verse is failable.
-			if (Argument.IsInt() && Tuple->IsInBounds(Argument.AsInt()))
-			{
-				DEF(Op.Dest, Tuple->GetValue(Argument.AsInt32()));
-			}
-			else
-			{
-				FAIL();
-			}
-		}
-		else if (VArray* Array = Callee.DynamicCast<VArray>())
-		{
-			REQUIRE_CONCRETE(Argument);
-			// Bounds check since this index access in Verse is failable.
-			if (Argument.IsInt() && Array->IsInBounds(Argument.AsInt()))
-			{
-				DEF(Op.Dest, Array->GetValue(Argument.AsInt32()));
-			}
-			else
-			{
-				FAIL();
-			}
-		}
-		else if (VNativeFunction* NativeFunction = Callee.DynamicCast<VNativeFunction>())
+		if (VNativeFunction* NativeFunction = Callee.DynamicCast<VNativeFunction>())
 		{
 			// TODO SOL-5113: We can't have VNI calls with multiple args to box their parameters
 			// in a tuple. Since we emit just one Call opcode for all calls, this needs
 			// to follow the same calling convention we have for invoking VFunction.
+			VValue Argument;
+			if (Op.Arguments.Num() == 1)
+			{
+				Argument = GetOperand(Op.Arguments[0]);
+			}
+			else
+			{
+				VTuple& ArgTuple = VTuple::New(Context, Op.Arguments.Num());
+				for (int32 Arg = 0; Arg < Op.Arguments.Num(); ++Arg)
+				{
+					ArgTuple.SetValue(Context, Arg, GetOperand(Op.Arguments[Arg]));
+				}
+				Argument = ArgTuple;
+			}
 			FNativeCallResult Result = (*NativeFunction->Thunk)(Context, Argument);
 			OP_RESULT_HELPER(Result);
 			DEF(Op.Dest, Result.Value);
 		}
 		else
 		{
-			V_DIE("Unknown callee");
+			V_DIE_UNLESS(Op.Arguments.Num() == 1);
+
+			VValue Argument = GetOperand(Op.Arguments[0]);
+			// Special cases for known container types.
+			if (VTuple* Tuple = Callee.DynamicCast<VTuple>())
+			{
+				REQUIRE_CONCRETE(Argument);
+				// Bounds check since this index access in Verse is failable.
+				if (Argument.IsInt() && Tuple->IsInBounds(Argument.AsInt()))
+				{
+					DEF(Op.Dest, Tuple->GetValue(Argument.AsInt32()));
+				}
+				else
+				{
+					FAIL();
+				}
+			}
+			else if (VArray* Array = Callee.DynamicCast<VArray>())
+			{
+				REQUIRE_CONCRETE(Argument);
+				// Bounds check since this index access in Verse is failable.
+				if (Argument.IsInt() && Array->IsInBounds(Argument.AsInt()))
+				{
+					DEF(Op.Dest, Array->GetValue(Argument.AsInt32()));
+				}
+				else
+				{
+					FAIL();
+				}
+			}
+			else
+			{
+				V_DIE("Unknown callee");
+			}
 		}
 
 		return {FOpResult::Normal};
@@ -1843,6 +1860,7 @@ public:
 		Interpreter.Execute();
 	}
 
+	// Upon failure, returns an uninitialized VValue
 	static VValue InvokeInTransaction(FRunningContext Context, VFunction::Args&& IncomingArguments, VFunction& Function)
 	{
 		VRestValue ReturnSlot(0);
@@ -1877,8 +1895,7 @@ public:
 			UE_LOG(LogVerseVM, Display, TEXT("\n"));
 		}
 
-		VValue Result = ReturnSlot.Get(Context);
-		check(!Result.IsPlaceholder());
+		VValue Result = FailureContext.bFailed ? VValue() : ReturnSlot.Get(Context);
 		return Result;
 	}
 };

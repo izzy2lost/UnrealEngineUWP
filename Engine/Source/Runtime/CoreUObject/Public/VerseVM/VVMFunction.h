@@ -24,6 +24,7 @@ struct VFunction : VCell
 	const uint32 NumCaptures;
 	TWriteBarrier<VValue> Captures[];
 
+	// Upon failure, returns an uninitialized VValue
 	COREUOBJECT_API VValue InvokeInTransaction(FRunningContext Context, VValue Argument);
 	COREUOBJECT_API VValue InvokeInTransaction(FRunningContext Context, Args&& Args);
 
