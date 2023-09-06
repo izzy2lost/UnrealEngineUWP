@@ -13,7 +13,7 @@
 
 // Controls whether r.Shaders.RemoveDeadCode should be honored
 #ifndef UE_METAL_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
-#define UE_METAL_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL 0 // Disabled initially, requires testing
+#define UE_METAL_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL 1
 #endif // UE_METAL_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
 
 // IOS and TVOS use the mobile toolchain.
@@ -23,9 +23,6 @@ enum EAppleSDKType
 	AppleSDKMobile,
 	AppleSDKCount,
 };
-
-extern void CompileShader_Metal(const struct FShaderCompilerInput& Input, struct FShaderCompilerOutput& Output, const class FString& WorkingDirectory);
-extern uint32 GetMetalFormatVersion(FName Format);
 
 static FName NAME_SF_METAL(TEXT("SF_METAL"));
 static FName NAME_SF_METAL_MRT(TEXT("SF_METAL_MRT"));

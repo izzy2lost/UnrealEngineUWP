@@ -90,10 +90,9 @@ struct FMetalShaderPreprocessed
 	}
 };
 
-bool DoCompileMetalShader(
+void DoCompileMetalShader(
 	const FShaderCompilerInput& Input,
 	FShaderCompilerOutput& Output,
-	const FString& WorkingDirectory,
 	const FString& PreprocessedShader,
 	FSHAHash GUIDHash,
 	uint32 VersionEnum,

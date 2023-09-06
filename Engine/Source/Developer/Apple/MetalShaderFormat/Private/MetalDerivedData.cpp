@@ -191,10 +191,9 @@ static void Patch16bitInHlslSource(const FShaderCompilerInput& Input, std::strin
     }
 }
 
-bool DoCompileMetalShader(
+void DoCompileMetalShader(
 	const FShaderCompilerInput& Input,
 	FShaderCompilerOutput& Output,
-	const FString& WorkingDirectory,
 	const FString& InPreprocessedShader,
 	FSHAHash GUIDHash,
 	uint32 VersionEnum,
@@ -1411,7 +1410,6 @@ bool DoCompileMetalShader(
 	{
 		Output.Target = Input.Target;
 		BuildMetalShaderOutput(Output, Input, GUIDHash, MetalSource.c_str(), MetalSource.length(), CRCLen, CRC, VersionEnum, *Standard, *MinOSVersion, Output.Errors, OutputData.TypedBuffers, OutputData.InvariantBuffers, OutputData.TypedUAVs, OutputData.ConstantBuffers, bAllowFastIntrinsics);
-		return Output.bSucceeded;
 	}
 	else
 	{
@@ -1425,6 +1423,5 @@ bool DoCompileMetalShader(
 			}
 			GLog->Flush();
 		}
-		return false;
 	}
 }
