@@ -1531,7 +1531,7 @@ bool UAssetEditorSubsystem::CanOpenEditorForAsset(UObject* Asset, const EAssetTy
 		{
 			if(OutErrorMsg)
 			{
-				*OutErrorMsg = LOCTEXT("AssetTypeDoesntSupportOpenMethod", "UClasses cannot be opened in Asset Editors!");
+				*OutErrorMsg = LOCTEXT("UClassesCantBeOpened", "UClasses cannot be opened in Asset Editors!");
 			}
 			return false;
 		}
@@ -1544,7 +1544,7 @@ bool UAssetEditorSubsystem::CanOpenEditorForAsset(UObject* Asset, const EAssetTy
 		{
 			if(OutErrorMsg)
 			{
-				*OutErrorMsg = LOCTEXT("AssetTypeDoesntSupportOpenMethod", "Unable to Edit Cooked asset");
+				*OutErrorMsg = LOCTEXT("AssetCantBeEdited", "Unable to Edit Cooked asset");
 			}
 			return false;
 		}
@@ -1560,7 +1560,7 @@ bool UAssetEditorSubsystem::CanOpenEditorForAsset(UObject* Asset, const EAssetTy
 				{
 					if(OutErrorMsg)
 					{
-						*OutErrorMsg = LOCTEXT("AssetTypeDoesntSupportOpenMethod", "This asset does not support being opened in read only mode.");
+						*OutErrorMsg = LOCTEXT("AssetDoesntSupportOpenMethod", "This asset does not support being opened in read only mode.");
 					}
 					return false;
 				}

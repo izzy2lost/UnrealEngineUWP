@@ -831,7 +831,7 @@ TSharedRef<SWidget> SAssetViewItem::CreateToolTipWidget() const
 			{
 				if(AssetItem->GetItem().CanView())
 				{
-					PublicStateText = LOCTEXT("ReadOnlyAssetState", "View / Read Only");
+					PublicStateText = LOCTEXT("ViewReadOnlyAssetState", "View / Read Only");
 					PublicStateIcon = FAppStyle::GetBrush("AssetEditor.ReadOnlyOpenable");
 
 				}
