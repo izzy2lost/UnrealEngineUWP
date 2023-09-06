@@ -129,6 +129,11 @@ namespace Chaos
 		virtual void FlipBufferIfRequired() = 0;
 
 		/**
+		 * Reset the consumer buffer, can be used just before flipping buffers to start with a clean buffer
+		 */
+		virtual void ResetConsumerBuffer() = 0;
+
+		/**
 		 * Dispatch events to the registered handlers
 		 */
 		virtual void DispatchConsumerData() = 0;
@@ -262,6 +267,14 @@ namespace Chaos
 		virtual void FlipBufferIfRequired()
 		{
 			EventBuffer->FlipProducer();
+		}
+
+		/**
+		 * Reset the consumer buffer, can be used just before flipping buffers to start with a clean buffer
+		 */
+		virtual void ResetConsumerBuffer()
+		{
+			EventBuffer->GetConsumerBufferMutable()->Reset();
 		}
 
 		/**

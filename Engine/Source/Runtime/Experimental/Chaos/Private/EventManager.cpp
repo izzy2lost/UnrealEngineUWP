@@ -62,6 +62,7 @@ namespace Chaos
 		{
 			if (EventContainer)
 			{
+				EventContainer->ResetConsumerBuffer();
 				EventContainer->FlipBufferIfRequired();
 			}
 		}

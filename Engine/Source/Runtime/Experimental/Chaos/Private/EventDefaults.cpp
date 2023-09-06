@@ -83,13 +83,9 @@ namespace Chaos
 			//if (!Solver->GetEventFilters()->IsCollisionEventEnabled())
 			//	return;
 
-			FCollisionDataArray& AllCollisionsDataArray = CollisionEventData.CollisionData.AllCollisionsArray;
-			TMap<IPhysicsProxyBase*, TArray<int32>>& AllCollisionsIndicesByPhysicsProxy = CollisionEventData.PhysicsProxyToCollisionIndices.PhysicsProxyToIndicesMap;
-
 			if (bResetData)
 			{
-				AllCollisionsDataArray.Reset();
-				AllCollisionsIndicesByPhysicsProxy.Reset();
+				CollisionEventData.Reset();
 			}
 			CollisionEventData.CollisionData.TimeCreated = Solver->MTime;
 			CollisionEventData.PhysicsProxyToCollisionIndices.TimeCreated = Solver->MTime;
@@ -286,6 +282,9 @@ namespace Chaos
 								}
 							}
 						}, Chaos::SmallBatchSize);
+
+						FCollisionDataArray& AllCollisionsDataArray = CollisionEventData.CollisionData.AllCollisionsArray;
+						TMap<IPhysicsProxyBase*, TArray<int32>>& AllCollisionsIndicesByPhysicsProxy = CollisionEventData.PhysicsProxyToCollisionIndices.PhysicsProxyToIndicesMap;
 						for (int32 IdxCollision = 0; IdxCollision < NumValidCollisions; ++IdxCollision)
 						{
 							if (DupAllCollisionsDataArray[IdxCollision].Proxy1 != nullptr)
@@ -318,22 +317,21 @@ namespace Chaos
 
 			// #todo: This isn't working - SolverActor parameters are set on a solver but it is currently a different solver that is simulating!!
 			if (!Solver->GetEventFilters()->IsBreakingEventEnabled())
+			{
 				return;
-
-			FBreakingDataArray& FilteredBreakingDataArray = BreakingEventData.BreakingData.AllBreakingsArray;
-			TMap<IPhysicsProxyBase*, TArray<int32>>& FilteredBreakingIndicesByPhysicsProxy = BreakingEventData.PhysicsProxyToBreakingIndices.PhysicsProxyToIndicesMap;
+			}
 
 			if (bResetData)
 			{
-				FilteredBreakingDataArray.Reset();
-				FilteredBreakingIndicesByPhysicsProxy.Reset();
-				BreakingEventData.BreakingData.bHasGlobalEvent = false;
+				BreakingEventData.Reset();
 			}
 			BreakingEventData.BreakingData.TimeCreated = Solver->MTime;
 
 			const auto* Evolution = Solver->GetEvolution();
 			const FPBDRigidParticles& Particles = Evolution->GetParticles().GetDynamicParticles();
 			const TArray<FBreakingData>& AllClusterBreakings = Evolution->GetRigidClustering().GetAllClusterBreakings();
+			FBreakingDataArray& FilteredBreakingDataArray = BreakingEventData.BreakingData.AllBreakingsArray;
+			TMap<IPhysicsProxyBase*, TArray<int32>>& FilteredBreakingIndicesByPhysicsProxy = BreakingEventData.PhysicsProxyToBreakingIndices.PhysicsProxyToIndicesMap;
 	
 			if (AllClusterBreakings.Num() > 0)
 			{
@@ -371,18 +369,18 @@ namespace Chaos
 #if TODO_REIMPLEMENT_RIGID_CLUSTERING
 			const TMap<uint32, TUniquePtr<TArray<uint32>>>& ParentToChildrenMap = Evolution->GetRigidClustering().GetChildrenMap();
 #endif
-			FTrailingDataArray& AllTrailingsDataArray = TrailingEventData.TrailingData.AllTrailingsArray;
-			TMap<IPhysicsProxyBase*, TArray<int32>>& AllTrailingIndicesByPhysicsProxy = TrailingEventData.PhysicsProxyToTrailingIndices.PhysicsProxyToIndicesMap;
+
 
 			if (bResetData)
 			{
-				AllTrailingsDataArray.Reset();
-				AllTrailingIndicesByPhysicsProxy.Reset();
+				TrailingEventData.Reset();
 			}
 			TrailingEventData.TrailingData.TimeCreated = Solver->MTime;
 			TrailingEventData.PhysicsProxyToTrailingIndices.TimeCreated = Solver->MTime;
 
 			const TArray<TPBDRigidParticleHandle<Chaos::FReal, 3>*>& ActiveParticlesArray = Evolution->GetParticles().GetActiveParticlesArray();
+			FTrailingDataArray& AllTrailingsDataArray = TrailingEventData.TrailingData.AllTrailingsArray;
+			TMap<IPhysicsProxyBase*, TArray<int32>>& AllTrailingIndicesByPhysicsProxy = TrailingEventData.PhysicsProxyToTrailingIndices.PhysicsProxyToIndicesMap;
 
 			for (TPBDRigidParticleHandle<Chaos::FReal, 3>* ActiveParticle : ActiveParticlesArray)
 			{
@@ -460,8 +458,7 @@ namespace Chaos
 
 			const auto* Evolution = Solver->GetEvolution();
 
-			FSleepingDataArray& EventSleepDataArray = SleepingEventData.SleepingData;
-			EventSleepDataArray.Reset();
+			SleepingEventData.Reset();
 
 			Chaos::FPBDRigidsSolver* NonConstSolver = const_cast<Chaos::FPBDRigidsSolver*>(Solver);
 
@@ -471,6 +468,7 @@ namespace Chaos
 				&NonConstSolver->Particles.GetGeometryCollectionParticles()
 			};
 
+			FSleepingDataArray& EventSleepDataArray = SleepingEventData.SleepingData;
 			for (FPBDRigidParticles* ParticleArray : RelevantParticleArrays)
 			{
 				check(ParticleArray != nullptr);
@@ -507,18 +505,16 @@ namespace Chaos
 			{
 				check(Solver);
 				EnsureIsInPhysicsThreadContext();
-				
-				FRemovalDataArray& AllRemovalDataArray = RemovalEventData.RemovalData.AllRemovalArray;
-				TMap<IPhysicsProxyBase*, TArray<int32>>& AllRemovalIndicesByPhysicsProxy = RemovalEventData.PhysicsProxyToRemovalIndices.PhysicsProxyToIndicesMap;
 
 				if (bResetData)
 				{
-					AllRemovalDataArray.Reset();
-					AllRemovalIndicesByPhysicsProxy.Reset();
+					RemovalEventData.Reset();
 				}
 				RemovalEventData.RemovalData.TimeCreated = Solver->MTime;
 
 				const TArray<FRemovalData>& AllRemovalsArray = Solver->GetEvolution()->GetAllRemovals();
+				FRemovalDataArray& AllRemovalDataArray = RemovalEventData.RemovalData.AllRemovalArray;
+				TMap<IPhysicsProxyBase*, TArray<int32>>& AllRemovalIndicesByPhysicsProxy = RemovalEventData.PhysicsProxyToRemovalIndices.PhysicsProxyToIndicesMap;
 				
 				for (int32 Idx = 0; Idx < AllRemovalsArray.Num(); ++Idx)
 				{
@@ -552,7 +548,6 @@ namespace Chaos
 			if (bResetData)
 			{
 				CrumblingEventData.Reset();
-				CrumblingEventData.CrumblingData.bHasGlobalEvent = false;
 			}
 			CrumblingEventData.SetTimeCreated(Solver->MTime);
 

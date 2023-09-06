@@ -516,8 +516,9 @@ namespace Chaos
 				SCOPE_CYCLE_COUNTER(STAT_EventDataGathering);
 				{
 					SCOPE_CYCLE_COUNTER(STAT_FillProducerData);
-					bool ResetData = (MSubStepInfo.Step == 0);
-					MSolver->GetEventManager()->FillProducerData(MSolver, ResetData);
+					// The Game Thread is now in charge to reset the producer buffer
+					constexpr bool bResetProducerData = false;
+					MSolver->GetEventManager()->FillProducerData(MSolver, bResetProducerData);
 					MSolver->GetEvolution()->ResetAllRemovals();
 				}
 			}
