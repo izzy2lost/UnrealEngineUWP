@@ -121,11 +121,11 @@ namespace Horde.Agent.Utility
 		/// </summary>
 		/// <param name="workspace">The workspace definition</param>
 		/// <param name="rootDir">Root directory for storing the workspace</param>
-		/// <param name="useHaveTable">Use the client's have table when syncing</param>
+		/// <param name="options">Extra options for ManagedWorkspace</param>
 		/// <param name="logger">Logger output</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns>New workspace info</returns>
-		public static async Task<WorkspaceInfo> SetupWorkspaceAsync(AgentWorkspace workspace, DirectoryReference rootDir, bool useHaveTable, ILogger logger, CancellationToken cancellationToken)
+		public static async Task<WorkspaceInfo> SetupWorkspaceAsync(AgentWorkspace workspace, DirectoryReference rootDir, ManagedWorkspaceOptions options, ILogger logger, CancellationToken cancellationToken)
 		{
 			// Fill in the default credentials iff they are not set
 			string? serverAndPort = String.IsNullOrEmpty(workspace.ServerAndPort)? null : workspace.ServerAndPort;
@@ -157,7 +157,7 @@ namespace Horde.Agent.Utility
 					logger.LogInformation("Using locally logged in session for {UserName}", userName);
 				}
 			}
-			return await SetupWorkspaceAsync(perforce, workspace.Stream, workspace.Identifier, workspace.View, !workspace.Incremental, rootDir, useHaveTable, logger, cancellationToken);
+			return await SetupWorkspaceAsync(perforce, workspace.Stream, workspace.Identifier, workspace.View, !workspace.Incremental, rootDir, options, logger, cancellationToken);
 		}
 
 		/// <summary>
@@ -169,11 +169,11 @@ namespace Horde.Agent.Utility
 		/// <param name="view">View for this workspace</param>
 		/// <param name="removeUntrackedFiles">Whether untracked files should be removed when cleaning this workspace</param>
 		/// <param name="rootDir">Root directory for storing the workspace</param>
-		/// <param name="useHaveTable">Use the client's have table when syncing</param>
+		/// <param name="options">Extra options for ManagedWorkspace</param>
 		/// <param name="logger">Logger output</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns>New workspace info</returns>
-		public static async Task<WorkspaceInfo> SetupWorkspaceAsync(IPerforceConnection perforce, string streamName, string identifier, IList<string> view, bool removeUntrackedFiles, DirectoryReference rootDir, bool useHaveTable, ILogger logger, CancellationToken cancellationToken)
+		public static async Task<WorkspaceInfo> SetupWorkspaceAsync(IPerforceConnection perforce, string streamName, string identifier, IList<string> view, bool removeUntrackedFiles, DirectoryReference rootDir, ManagedWorkspaceOptions options, ILogger logger, CancellationToken cancellationToken)
 		{
 			// Get the host name, and fill in any missing metadata about the connection
 			InfoRecord info = await perforce.GetInfoAsync(InfoOptions.ShortOutput, cancellationToken);
@@ -184,7 +184,7 @@ namespace Horde.Agent.Utility
 				throw new Exception("Unable to determine Perforce host name");
 			}
 			
-			if (!useHaveTable)
+			if (!options.UseHaveTable)
 			{
 				logger.LogInformation("Skipping use of have table");
 			}
@@ -221,7 +221,7 @@ namespace Horde.Agent.Utility
 			DirectoryReference workspaceDir = DirectoryReference.Combine(metadataDir, "Sync");
 
 			// Create the repository
-			ManagedWorkspace newRepository = await ManagedWorkspace.LoadOrCreateAsync(hostName, metadataDir, true, useHaveTable, logger, cancellationToken);
+			ManagedWorkspace newRepository = await ManagedWorkspace.LoadOrCreateAsync(hostName, metadataDir, true, options, logger, cancellationToken);
 			if (removeUntrackedFiles)
 			{
 				await newRepository.DeleteClientAsync(perforceClient, cancellationToken);
@@ -265,6 +265,56 @@ namespace Horde.Agent.Utility
 			}
 
 			return true;
+		}
+
+		/// <summary>
+		/// Create ManagedWorkspace options from a URL-encoded query string.
+		/// </summary>
+		/// <param name="method">URL-encoded query string</param>
+		/// <returns></returns>
+		public static ManagedWorkspaceOptions GetMwOptions(string? method)
+		{
+			const string NameKey = "name";
+			const string ManagedWorkspaceValue = "managedWorkspace";
+			const string NumParallelSyncThreadsKey = "numParallelSyncThreads";
+			const string MaxFileConcurrencyKey = "maxFileConcurrency";
+			const string MinScratchSpaceKey = "minScratchSpace";
+			const string UseHaveTableKey = "useHaveTable";
+
+			ManagedWorkspaceOptions defaultOptions = new ();
+
+			int numParallelSyncThreads = defaultOptions.NumParallelSyncThreads;
+			int maxFileConcurrency = defaultOptions.MaxFileConcurrency;
+			long minScratchSpace = defaultOptions.MinScratchSpace;
+			bool useHaveTable = defaultOptions.UseHaveTable;
+			
+			if (String.IsNullOrEmpty(method))
+			{
+				return defaultOptions;
+			}
+			
+			NameValueCollection nameValues = HttpUtility.ParseQueryString(method);
+			if (!String.Equals(nameValues[NameKey], ManagedWorkspaceValue, StringComparison.OrdinalIgnoreCase))
+			{
+				return defaultOptions;
+			}
+
+			if (Int32.TryParse(nameValues[NumParallelSyncThreadsKey], out int v)) { numParallelSyncThreads = v; }
+			if (Int32.TryParse(nameValues[MaxFileConcurrencyKey], out v)) { maxFileConcurrency = v; }
+			if (Int32.TryParse(nameValues[MinScratchSpaceKey], out v)) { minScratchSpace = v; }
+			
+			if (String.Equals(nameValues[UseHaveTableKey], "false", StringComparison.OrdinalIgnoreCase))
+			{
+				useHaveTable = false;
+			}
+
+			return new ManagedWorkspaceOptions
+			{
+				NumParallelSyncThreads = numParallelSyncThreads,
+				MaxFileConcurrency = maxFileConcurrency,
+				MinScratchSpace = minScratchSpace,
+				UseHaveTable = useHaveTable
+			};
 		}
 		
 		/// <summary>

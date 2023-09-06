@@ -34,7 +34,7 @@ public class ManagedWorkspaceTest : BasePerforceFixtureTest
 	[DataRow(false, DisplayName = "Without have-table")]
 	public async Task SyncSingleChangelist(bool useHaveTable)
 	{
-		ManagedWorkspace ws = await GetManagedWorkspace(useHaveTable);
+		ManagedWorkspace ws = await CreateManagedWorkspace(useHaveTable);
 		await AssertHaveTableFileCount(0);
 
 		await SyncAsync(ws, 6);
@@ -45,7 +45,7 @@ public class ManagedWorkspaceTest : BasePerforceFixtureTest
 	[TestMethod]
 	public async Task SyncBackwardsToOlderChangelistRemoveUntracked()
 	{
-		ManagedWorkspace ws = await GetManagedWorkspace(true);
+		ManagedWorkspace ws = await CreateManagedWorkspace(true);
 
 		await SyncAsync(ws, 6, removeUntracked: false);
 		Stream.GetChangelist(6).AssertDepotFiles(SyncDir);
@@ -65,7 +65,7 @@ public class ManagedWorkspaceTest : BasePerforceFixtureTest
 	[DataRow(false, DisplayName = "Without have-table")]
 	public async Task SyncBackwardsToOlderChangelist(bool useHaveTable)
 	{
-		ManagedWorkspace ws = await GetManagedWorkspace(useHaveTable);
+		ManagedWorkspace ws = await CreateManagedWorkspace(useHaveTable);
 
 		await SyncAsync(ws, 6);
 		Stream.GetChangelist(6).AssertDepotFiles(SyncDir);
@@ -86,7 +86,7 @@ public class ManagedWorkspaceTest : BasePerforceFixtureTest
 	[DataRow(false, DisplayName = "Without have-table")]
 	public async Task SyncUsingCacheFiles(bool useHaveTable)
 	{
-		ManagedWorkspace ws = await GetManagedWorkspace(useHaveTable);
+		ManagedWorkspace ws = await CreateManagedWorkspace(useHaveTable);
 
 		FileReference GetCacheFilePath(int changeNumber)
 		{
@@ -115,7 +115,7 @@ public class ManagedWorkspaceTest : BasePerforceFixtureTest
 	[DataRow(false, DisplayName = "Without have-table")]
 	public async Task SyncWithViewExclusivePathFirst(bool useHaveTable)
 	{
-		ManagedWorkspace ws = await GetManagedWorkspace(useHaveTable);
+		ManagedWorkspace ws = await CreateManagedWorkspace(useHaveTable);
 		ChangelistFixture cl = Stream.GetChangelist(6);
 
 		List<string> view = new() { "-/Data/...", "-/shared.h", };
@@ -135,7 +135,7 @@ public class ManagedWorkspaceTest : BasePerforceFixtureTest
 	[DataRow(false, DisplayName = "Without have-table")]
 	public async Task SyncWithViewInclusivePathFirst(bool useHaveTable)
 	{
-		ManagedWorkspace ws = await GetManagedWorkspace(useHaveTable);
+		ManagedWorkspace ws = await CreateManagedWorkspace(useHaveTable);
 		ChangelistFixture cl = Stream.GetChangelist(6);
 
 		List<string> view = new() { "/...", "-/Data/..." };
@@ -154,7 +154,7 @@ public class ManagedWorkspaceTest : BasePerforceFixtureTest
 	[DataRow(false, DisplayName = "Without have-table")]
 	public async Task Populate(bool useHaveTable)
 	{
-		ManagedWorkspace ws = await GetManagedWorkspace(useHaveTable);
+		ManagedWorkspace ws = await CreateManagedWorkspace(useHaveTable);
 		List<PopulateRequest> populateRequests = new () { new PopulateRequest(PerforceConnection, StreamName, new List<string>()) };
 		await ws.PopulateAsync(populateRequests, false, CancellationToken.None);
 		Stream.LatestChangelist.AssertDepotFiles(SyncDir);
@@ -166,7 +166,7 @@ public class ManagedWorkspaceTest : BasePerforceFixtureTest
 	[DataRow(false, DisplayName = "Without have-table")]
 	public async Task PopulateWithView(bool useHaveTable)
 	{
-		ManagedWorkspace ws = await GetManagedWorkspace(useHaveTable);
+		ManagedWorkspace ws = await CreateManagedWorkspace(useHaveTable);
 		List<string> view = new () { "-/Data/...", "-/shared.h" };
 		ChangelistFixture cl = Stream.LatestChangelist;
 		List<DepotFileFixture> filtered = cl.StreamFiles
@@ -186,7 +186,7 @@ public class ManagedWorkspaceTest : BasePerforceFixtureTest
 	[DataRow(false, DisplayName = "Without have-table")]
 	public async Task Unshelve(bool useHaveTable)
 	{
-		ManagedWorkspace ws = await GetManagedWorkspace(useHaveTable);
+		ManagedWorkspace ws = await CreateManagedWorkspace(useHaveTable);
 		await SyncAsync(ws, 7);
 		await ws.UnshelveAsync(PerforceConnection, 8, CancellationToken.None);
 		Stream.GetChangelist(8).AssertDepotFiles(SyncDir);
@@ -201,7 +201,7 @@ public class ManagedWorkspaceTest : BasePerforceFixtureTest
 	public async Task Caching_SyncingNewChangelist_UnusedFilesMovedToCache(bool useHaveTable)
 	{
 		// Arrange
-		ManagedWorkspace ws = await GetManagedWorkspace(useHaveTable);
+		ManagedWorkspace ws = await CreateManagedWorkspace(useHaveTable);
 		await SyncAsync(ws, 7);
 		
 		// Act
@@ -217,7 +217,7 @@ public class ManagedWorkspaceTest : BasePerforceFixtureTest
 	public async Task Caching_SyncingWithCachedData_FilesPopulatedFromCache(bool useHaveTable)
 	{
 		// Arrange
-		ManagedWorkspace ws = await GetManagedWorkspace(useHaveTable);
+		ManagedWorkspace ws = await CreateManagedWorkspace(useHaveTable);
 		await SyncAsync(ws, 7);
 		await SyncAsync(ws, 1);
 		
@@ -275,7 +275,7 @@ public class ManagedWorkspaceTest : BasePerforceFixtureTest
 	public async Task ReusePerforceClientWithoutHaveTable()
 	{
 		// Sync with have-table as normal
-		ManagedWorkspace wsWithHave = await GetManagedWorkspace(true);
+		ManagedWorkspace wsWithHave = await CreateManagedWorkspace(true);
 		await wsWithHave.SetupAsync(PerforceConnection, StreamName, CancellationToken.None);
 		ChangelistFixture cl = Stream.GetChangelist(6);
 		await SyncAsync(wsWithHave, cl.Number);
@@ -284,7 +284,7 @@ public class ManagedWorkspaceTest : BasePerforceFixtureTest
 
 		// Create a new ManagedWorkspace without have-table but re-use same Perforce connection
 		// The have-table remnants from above should not interfere with this workspace
-		ManagedWorkspace wsWithoutHave = await GetManagedWorkspace(false);
+		ManagedWorkspace wsWithoutHave = await CreateManagedWorkspace(false);
 		await wsWithoutHave.SetupAsync(PerforceConnection, StreamName, CancellationToken.None);
 		await SyncAsync(wsWithoutHave, cl.Number);
 		await AssertHaveTableFileCount(0);
@@ -292,9 +292,18 @@ public class ManagedWorkspaceTest : BasePerforceFixtureTest
 		cl.AssertDepotFiles(SyncDir);
 	}
 
-	private async Task<ManagedWorkspace> GetManagedWorkspace(bool useHaveTable)
+	private async Task<ManagedWorkspace> CreateManagedWorkspace(bool useHaveTable)
 	{
-		ManagedWorkspace ws = await ManagedWorkspace.CreateAsync(Environment.MachineName, TempDir, useHaveTable, _mwLogger, CancellationToken.None);
+		ManagedWorkspaceOptions options = new() { UseHaveTable = useHaveTable };
+		ManagedWorkspace ws = await ManagedWorkspace.CreateAsync(Environment.MachineName, TempDir, options, _mwLogger, CancellationToken.None);
+		await ws.SetupAsync(PerforceConnection, StreamName, CancellationToken.None);
+		return ws;
+	}
+	
+	private async Task<ManagedWorkspace> LoadManagedWorkspace(bool useHaveTable)
+	{
+		ManagedWorkspaceOptions options = new() { UseHaveTable = useHaveTable };
+		ManagedWorkspace ws = await ManagedWorkspace.LoadAsync(Environment.MachineName, TempDir, options, _mwLogger, CancellationToken.None);
 		await ws.SetupAsync(PerforceConnection, StreamName, CancellationToken.None);
 		return ws;
 	}
