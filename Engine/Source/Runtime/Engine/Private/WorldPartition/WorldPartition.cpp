@@ -295,7 +295,7 @@ UWorldPartition::UWorldPartition(const FObjectInitializer& ObjectInitializer)
 	bEnableStreaming = true;
 	ServerStreamingMode = EWorldPartitionServerStreamingMode::ProjectDefault;
 	ServerStreamingOutMode = EWorldPartitionServerStreamingOutMode::ProjectDefault;
-	DataLayersLogicOperator = UWorldPartitionSettings::Get()->GetNewMapsDataLayersLogicOperator();
+	DataLayersLogicOperator = EWorldPartitionDataLayersLogicOperator::Or;
 	StreamingStateEpoch = 0;
 
 #if WITH_EDITOR
@@ -1064,6 +1064,8 @@ UWorldPartition* UWorldPartition::CreateOrRepairWorldPartition(AWorldSettings* W
 		}
 
 		FWorldPartitionMiniMapHelper::GetWorldPartitionMiniMap(OuterWorld, true);
+
+		WorldPartition->DataLayersLogicOperator = UWorldPartitionSettings::Get()->GetNewMapsDataLayersLogicOperator();
 	}
 
 	if (!WorldPartition->EditorHash)
