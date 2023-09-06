@@ -51,6 +51,7 @@ public:
 	/**
 	 * Set the target World and set of Actors/Components
 	 * If World != this->World or Actors != this->Actors all existing photo sets are cleared
+	 * Note: The caller must ensure Actors does not contain nullptr
 	 */
 	void SetCaptureSceneActors(UWorld* World, const TArray<AActor*>& Actors);
 	void SetCaptureSceneComponents(UWorld* World, const TArray<UActorComponent*>& Components);
@@ -211,6 +212,36 @@ public:
 		const int& PhotoIndex,
 		const FVector2d& PhotoCoords,
 		const FSceneSample& DefaultSample) const;
+
+	/**
+	 * FSceneSamples stores samples corresponding to pixels in the DeviceDepth photoset where the values are strictly
+	 * within the viewing frustum, which corresponds to a camera ray intersecting an actor in VisibleActors. All non-null
+	 * containers with Computed capture status will be filled by GetSceneSamples() and will have the same .Num() counts
+	 */
+	struct FSceneSamples
+	{
+		// These are world-space point, normal or oriented point samples
+		// The points are computed from the DeviceDepth channel and normals from the WorldNormal channel
+		// Coordinate frames are located at the world points with Z axis aligned with world normals and arbitrary X/Y axes
+		TArray<FVector3f>* WorldPoint = nullptr;
+		TArray<FVector3f>* WorldNormal = nullptr;
+		TArray<FFrame3f>*  WorldOrientedPoints = nullptr;
+
+		// These are samples of the corresponding capture channels
+		TArray<float>* Metallic = nullptr;
+		TArray<float>* Roughness = nullptr;
+		TArray<float>* Specular = nullptr;
+		TArray<FVector3f>* PackedMRS = nullptr;
+		TArray<FVector3f>* Emissive = nullptr;
+		TArray<FVector3f>* BaseColor = nullptr;
+		TArray<FVector3f>* SubsurfaceColor = nullptr;
+		TArray<float>* Opacity = nullptr;
+	};
+
+	/**
+	 * Fills in the non-null arrays in OutSamples if the status of the needed captures is Computed
+	 */
+	void GetSceneSamples(FSceneSamples& OutSamples);
 
 	const FSpatialPhotoSet3f& GetBaseColorPhotoSet() { return BaseColorPhotoSet; }
 	const FSpatialPhotoSet1f& GetRoughnessPhotoSet() { return RoughnessPhotoSet; }

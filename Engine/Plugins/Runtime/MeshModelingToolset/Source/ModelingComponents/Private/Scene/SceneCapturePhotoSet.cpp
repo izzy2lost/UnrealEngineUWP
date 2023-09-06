@@ -155,7 +155,7 @@ void FSceneCapturePhotoSet::Compute()
 		return;
 	}
 
-	TRACE_CPUPROFILER_EVENT_SCOPE(CapturePhotoSet);
+	TRACE_CPUPROFILER_EVENT_SCOPE(SceneCapturePhotoSet::Compute);
 	FScopedSlowTask Progress(static_cast<float>(NumPending), LOCTEXT("CapturingScene", "Capturing Scene..."));
 	Progress.MakeDialog(bAllowCancel);
 
@@ -524,7 +524,7 @@ FSceneCapturePhotoSet::FSceneSample::FSceneSample()
 	Opacity = 0.0f;
 	SubsurfaceColor = FVector3f(0, 0, 0);
 	WorldNormal = FVector3f(0, 0, 1);
-	DeviceDepth = 0.0f;
+	DeviceDepth = 0.0f; // Since we use reverse z perspective projection the far plane corresponds to DeviceDepth == 0
 }
 
 FVector3f FSceneCapturePhotoSet::FSceneSample::GetValue3f(ERenderCaptureType CaptureType) const
@@ -764,6 +764,126 @@ bool FSceneCapturePhotoSet::ComputeSample(
 	}
 
 	return true;
+}
+
+void FSceneCapturePhotoSet::GetSceneSamples(FSceneSamples& OutSamples)
+{
+	if (!ensure(PhotoSetStatus.DeviceDepth == ECaptureTypeStatus::Computed))
+	{
+		return;
+	}
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(SceneCapturePhotoSet::GetSceneSamples);
+
+	for (int32 PhotoIndex = 0; PhotoIndex < GetSpatialPhotoParams().Num(); ++PhotoIndex)
+	{
+		const FSpatialPhotoParams& Params = GetSpatialPhotoParams()[PhotoIndex];
+
+		for (int64 PixelLinearIndex = 0; PixelLinearIndex < Params.Dimensions.Num(); ++PixelLinearIndex)
+		{
+			const FSpatialPhoto1f& DeviceDepthPhoto = GetDeviceDepthPhotoSet().Get(PhotoIndex);
+
+			const float DeviceZ = DeviceDepthPhoto.Image.GetPixel(PixelLinearIndex);
+			const bool bValidDeviceZ = (DeviceZ > 0) && (DeviceZ < 1);
+			if (bValidDeviceZ) // Skip samples on the near/far plane
+			{
+				bool bComputePointWorld  = OutSamples.WorldPoint != nullptr;
+				bool bComputeNormalWorld = false;
+				if (PhotoSetStatus.WorldNormal == ECaptureTypeStatus::Computed)
+				{
+					bComputePointWorld  =  bComputePointWorld || (OutSamples.WorldOrientedPoints != nullptr);
+					bComputeNormalWorld = (OutSamples.WorldNormal != nullptr) || (OutSamples.WorldOrientedPoints != nullptr);
+				}
+
+				FVector3f PointWorld;
+				if (bComputePointWorld)
+				{
+					// Map from pixel space to normalized device coordinates
+					FVector2d DeviceXY = FRenderCaptureCoordinateConverter2D::PixelToDevice(
+						Params.Dimensions.GetCoords(PixelLinearIndex),
+						Params.Dimensions.GetWidth(),
+						Params.Dimensions.GetHeight());
+
+					// Map from normalized device coordinates to world coordinates
+					FVector3d PointDevice(DeviceXY, DeviceZ);
+					const FMatrix& InvViewProjectionMatrix = PhotoViewMatricies[PhotoIndex].GetInvViewProjectionMatrix();
+					const FVector4d PointWorld4 = InvViewProjectionMatrix.TransformPosition(PointDevice);
+
+					// Convert from Homogenous to Cartesian coordinates
+					PointWorld.X = static_cast<float>(PointWorld4.X / PointWorld4.W);
+					PointWorld.Y = static_cast<float>(PointWorld4.Y / PointWorld4.W);
+					PointWorld.Z = static_cast<float>(PointWorld4.Z / PointWorld4.W);
+				}
+
+				FVector3f NormalWorld;
+				if (bComputeNormalWorld)
+				{
+					// Map normal from color components [0,1] to world components [-1,1]
+					const FSpatialPhoto3f& NormalPhoto = GetWorldNormalPhotoSet().Get(PhotoIndex);
+					const FVector4f NormalColor = NormalPhoto.Image.GetPixel(PixelLinearIndex);
+					NormalWorld = 2.f * (FVector3f(NormalColor) - FVector3f(.5f));
+				}
+
+				if (OutSamples.WorldPoint)
+				{
+					OutSamples.WorldPoint->Add(PointWorld);
+				}
+
+				if (PhotoSetStatus.WorldNormal == ECaptureTypeStatus::Computed)
+				{
+					if (OutSamples.WorldNormal)
+					{
+						OutSamples.WorldNormal->Add(NormalWorld);
+					}
+
+					if (OutSamples.WorldOrientedPoints)
+					{
+						OutSamples.WorldOrientedPoints->Add(FFrame3f(PointWorld, NormalWorld));
+					}
+				}
+
+				if (PhotoSetStatus.Metallic == ECaptureTypeStatus::Computed && OutSamples.Metallic)
+				{
+					OutSamples.Metallic->Add(GetMetallicPhotoSet().Get(PhotoIndex).Image.GetPixel(PixelLinearIndex));
+				}
+
+				if (PhotoSetStatus.Roughness == ECaptureTypeStatus::Computed && OutSamples.Roughness)
+				{
+					OutSamples.Roughness->Add(GetRoughnessPhotoSet().Get(PhotoIndex).Image.GetPixel(PixelLinearIndex));
+				}
+
+				if (PhotoSetStatus.Specular == ECaptureTypeStatus::Computed && OutSamples.Specular)
+				{
+					OutSamples.Specular->Add(GetSpecularPhotoSet().Get(PhotoIndex).Image.GetPixel(PixelLinearIndex));
+				}
+
+				if (PhotoSetStatus.CombinedMRS == ECaptureTypeStatus::Computed && OutSamples.PackedMRS)
+				{
+					OutSamples.PackedMRS->Add(GetPackedMRSPhotoSet().Get(PhotoIndex).Image.GetPixel(PixelLinearIndex));
+				}
+
+				if (PhotoSetStatus.Emissive == ECaptureTypeStatus::Computed && OutSamples.Emissive)
+				{
+					OutSamples.Emissive->Add(GetEmissivePhotoSet().Get(PhotoIndex).Image.GetPixel(PixelLinearIndex));
+				}
+
+				if (PhotoSetStatus.BaseColor == ECaptureTypeStatus::Computed && OutSamples.BaseColor)
+				{
+					OutSamples.BaseColor->Add(GetBaseColorPhotoSet().Get(PhotoIndex).Image.GetPixel(PixelLinearIndex));
+				}
+
+				if (PhotoSetStatus.SubsurfaceColor == ECaptureTypeStatus::Computed && OutSamples.SubsurfaceColor)
+				{
+					OutSamples.SubsurfaceColor->Add(GetSubsurfaceColorPhotoSet().Get(PhotoIndex).Image.GetPixel(PixelLinearIndex));
+				}
+
+				if (PhotoSetStatus.Opacity == ECaptureTypeStatus::Computed && OutSamples.Opacity)
+				{
+					OutSamples.Opacity->Add(GetOpacityPhotoSet().Get(PhotoIndex).Image.GetPixel(PixelLinearIndex));
+				}
+			} // bValidDeviceZ
+		} // PixelLinearIndex
+	} // PhotoIndex
 }
 
 

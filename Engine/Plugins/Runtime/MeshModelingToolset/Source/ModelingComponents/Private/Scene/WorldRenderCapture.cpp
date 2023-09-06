@@ -833,7 +833,6 @@ bool FWorldRenderCapture::CaptureDeviceDepthFromPosition(
 	ShowFlags.SetMotionBlur(false);
 	ShowFlags.SetBloom(false);
 	ShowFlags.SetSceneColorFringe(false);
-	ShowFlags.SetNaniteMeshes(false);
 	ShowFlags.SetAtmosphere(false);
 	ShowFlags.SetLighting(false);
 	ShowFlags.SetScreenPercentage(false);
@@ -1057,6 +1056,8 @@ bool FWorldRenderCapture::CaptureFromPosition(
 	FImageAdapter& ResultImageOut,
 	const FRenderCaptureConfig& Config)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(WorldRenderCapture::CaptureFromPosition);
+
 	RenderCaptureInterface::FScopedCapture RenderCapture(RenderCaptureDraws > 0, TEXT("RenderCaptureFromPosition"));
 	RenderCaptureDraws--;
 

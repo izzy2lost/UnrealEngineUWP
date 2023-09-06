@@ -93,6 +93,72 @@ public:
 };
 
 
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptRenderCaptureCamera
+{
+	GENERATED_BODY()
+
+	/** The pixel resolution of render capture photo set, this value is used for width and height */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	int Resolution = 256;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	double FieldOfViewDegrees = 45.0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	FVector ViewPosition;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	FVector ViewDirection;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	double NearPlaneDist = 1.0;
+};
+
+
+
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptRenderCaptureCamerasForBoxOptions
+{
+	GENERATED_BODY()
+
+	/** The pixel resolution of render capture photos, this value is used for width and height */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	int Resolution = 256;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	double FieldOfViewDegrees = 45.;
+
+	/** Enable 6 directions corresponding to views from box face centers to the box center */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bViewFromBoxFaces = true;
+
+	/** Enable 4 directions corresponding to views from box upper corners to the box center */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bViewFromUpperCorners = false;
+
+	/** Enable 4 directions corresponding to views from box lower corners to the box center */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bViewFromLowerCorners = false;
+
+	/** Enable 4 directions corresponding to views from box upper edges centers to the box center */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bViewFromUpperEdges = false;
+
+	/** Enable 4 directions corresponding to views from box lower edges centers to the box center */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bViewFromLowerEdges = false;
+
+	/** Enable 4 directions corresponding to views from box side edges centers to the box center */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bViewFromSideEdges = false;
+
+	/** Extra positions from which to deduce view directions on the box center (located at (0,0,0)) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	TArray<FVector> ExtraViewFromPositions;
+};
+
+
 UCLASS(meta = (ScriptName = "GeometryScript_MeshSampling"))
 class GEOMETRYSCRIPTINGCORE_API UGeometryScriptLibrary_MeshSamplingFunctions : public UBlueprintFunctionLibrary
 {
@@ -147,6 +213,32 @@ public:
 		TArray<FTransform>& Samples,
 		TArray<double>& SampleRadii,
 		FGeometryScriptIndexList& TriangleIDs,
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
+	 * Compute a set of Render Capture Cameras to capture a scene within the given Box
+	 * @param Cameras Output Cameras with view frustums that contain the Box while maintaining the desired FOV
+	 * @param Box     Bounding Box containing the scene to be captured
+	 * @param Options Defines the Camera viewing directions into the box and other Camera parameters
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSampling")
+	static void
+	ComputeRenderCaptureCamerasForBox(
+		TArray<FGeometryScriptRenderCaptureCamera>& Cameras,
+		FBox Box,
+		const FGeometryScriptRenderCaptureCamerasForBoxOptions& Options,
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
+	 * Compute oriented sample points on the visible surfaces of the given Actors
+	 * The Samples are computed using Render Capture from the given virtual Cameras
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSampling")
+	static void
+	ComputeRenderCapturePointSampling(
+		TArray<FTransform>& Samples,
+		const TArray<AActor*>& Actors,
+		const TArray<FGeometryScriptRenderCaptureCamera>& Cameras,
 		UGeometryScriptDebug* Debug = nullptr);
 
 };
