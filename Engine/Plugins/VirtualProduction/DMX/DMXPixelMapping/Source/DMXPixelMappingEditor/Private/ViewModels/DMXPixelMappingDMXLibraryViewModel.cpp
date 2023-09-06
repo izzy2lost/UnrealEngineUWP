@@ -135,9 +135,9 @@ void UDMXPixelMappingDMXLibraryViewModel::AddFixturePatchesEnsured(const TArray<
 	// Ensure all patches are of same library
 	const UDMXEntityFixturePatch* const * FixturePatchOfDifferentLibraryPtr = Algo::FindByPredicate(FixturePatches, [CommonDMXLibrary](const UDMXEntityFixturePatch* FixturePatch)
 		{
-			return FixturePatch && FixturePatch->GetParentLibrary() == CommonDMXLibrary;
+			return FixturePatch && FixturePatch->GetParentLibrary() != CommonDMXLibrary;
 		});
-	if (!ensureMsgf(FixturePatchOfDifferentLibraryPtr, TEXT("Cannot add Fixture Patches to Pixel Mapping. Patches don't share a common library")))
+	if (!ensureMsgf(!FixturePatchOfDifferentLibraryPtr, TEXT("Cannot add Fixture Patches to Pixel Mapping. Patches don't share a common library")))
 	{
 		const FString PreviousDMXLibraryName = CommonDMXLibrary->GetName();
 		const FString FixturePatchOfOtherLibraryName = (*FixturePatchOfDifferentLibraryPtr) ? (*FixturePatchOfDifferentLibraryPtr)->GetName() : TEXT("Invalid Fixture Patch");
