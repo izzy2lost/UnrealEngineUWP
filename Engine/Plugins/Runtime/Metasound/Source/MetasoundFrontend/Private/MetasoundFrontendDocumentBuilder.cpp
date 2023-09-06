@@ -1941,59 +1941,23 @@ bool FMetaSoundFrontendDocumentBuilder::TransformTemplateNodes()
 		check(NodeTransform.IsValid());
 
 		TSet<const FMetasoundFrontendNode*> NodesToRemove;
-		TSet<TPair<FGuid, FGuid>> VerticesRemoved;
 
-		// 1a. Preprocess template nodes
-		for (const FMetasoundFrontendNode& Node : Graph.Nodes)
+		// 2. Execute generated template node transform on copy of node array,
+		// which allows for addition/removal of nodes to/from original array container
+		// without template transform having to worry about mutation while iterating
+		TArray<FGuid> TemplateNodeIDs;
+		Algo::TransformIf(Graph.Nodes, TemplateNodeIDs,
+			[ClassID = Params.ClassID](const FMetasoundFrontendNode& Node) { return ClassID == Node.ClassID; },
+			[](const FMetasoundFrontendNode& Node) { return Node.GetID(); });
+
+		for (const FGuid& NodeID : TemplateNodeIDs)
 		{
-			if (Params.ClassID == Node.ClassID)
-			{
-				NodeTransform->Transform(Node, *this);
-				NodesToRemove.Add(&Node);
-
-				auto GetNodeVertexGuidPair = [NodeID = Node.GetID()](const FMetasoundFrontendVertex& Vertex) { return TPair<FGuid, FGuid> { NodeID, Vertex.VertexID }; };
-				Algo::Transform(Node.Interface.Inputs, VerticesRemoved, GetNodeVertexGuidPair);
-				Algo::Transform(Node.Interface.Outputs, VerticesRemoved, GetNodeVertexGuidPair);
-
-				bModified = true;
-			}
+			bModified = true;
+			NodeTransform->Transform(NodeID, *this);
 		}
-
-		// 1b. Remove template node from graph
-		constexpr bool bAllowShrinking = false;
-		for (int32 i = Graph.Nodes.Num() - 1; i >= 0; --i)
-		{
-			if (NodesToRemove.Contains(&Graph.Nodes[i]))
-			{
-				DocumentDelegates->NodeDelegates.OnRemoveSwappingNode.Broadcast(i, Graph.Nodes.Num() - 1);
-				Graph.Nodes.RemoveAtSwap(i, 1, bAllowShrinking);
-			}
-		}
-		Graph.Nodes.Shrink();
-
-		// 1c. Remove edges connecting template node from graph
-		for (int32 i = Graph.Edges.Num() - 1; i >= 0; --i)
-		{
-			const TPair<FGuid, FGuid> FromNodeVertexPair { Graph.Edges[i].FromNodeID, Graph.Edges[i].FromVertexID };
-			if (VerticesRemoved.Contains(FromNodeVertexPair))
-			{
-				DocumentDelegates->EdgeDelegates.OnRemoveSwappingEdge.Broadcast(i, GraphEdges.Num() - 1);
-				Graph.Edges.RemoveAtSwap(i, 1, bAllowShrinking);
-			}
-			else
-			{
-				const TPair<FGuid, FGuid> ToNodeVertexPair { Graph.Edges[i].ToNodeID, Graph.Edges[i].ToVertexID };
-				if (VerticesRemoved.Contains(ToNodeVertexPair))
-				{
-					DocumentDelegates->EdgeDelegates.OnRemoveSwappingEdge.Broadcast(i, GraphEdges.Num() - 1);
-					Graph.Edges.RemoveAtSwap(i, 1, bAllowShrinking);
-				}
-			}
-		}
-		Graph.Edges.Shrink();
 	}
 
-	// 2. Finally, Remove template classes from dependency list
+	// 4. Remove template classes from dependency list
 	{
 		TSet<FString> TemplateKeys;
 		Algo::Transform(TemplateParams, TemplateKeys, [](const FTemplateParams& Params)
@@ -2015,6 +1979,7 @@ bool FMetaSoundFrontendDocumentBuilder::TransformTemplateNodes()
 				Dependencies.RemoveAtSwap(i, 1, bAllowShrinking);
 			}
 		}
+		Dependencies.Shrink();
 	}
 
 	return bModified;

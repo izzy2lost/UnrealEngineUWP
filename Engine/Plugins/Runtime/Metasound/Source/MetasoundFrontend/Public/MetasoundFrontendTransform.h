@@ -71,7 +71,7 @@ namespace Metasound::Frontend
 		virtual FMetasoundFrontendGraph& GetOwningGraph() const { static FMetasoundFrontendGraph BaseGraph; return BaseGraph; }
 
 		/** Return true if the node was modified, false otherwise. */
-		virtual bool Transform(const FMetasoundFrontendNode& InNode, FMetaSoundFrontendDocumentBuilder& OutBuilder) const;
+		virtual bool Transform(const FGuid& InNodeID, FMetaSoundFrontendDocumentBuilder& OutBuilder) const;
 
 		UE_DEPRECATED(5.4, "Use transform which provides builder and const node representation to apply node transform to mutate underlying builder document")
 		virtual bool Transform(FMetasoundFrontendNode& InOutNode) const;

@@ -43,7 +43,7 @@ namespace Metasound
 #if WITH_EDITOR
 			// Returns whether or not the given node template has the necessary
 			// required connections to be preprocessed (editor only).
-			virtual bool HasRequiredConnections(FConstNodeHandle InNodeHandle) const = 0;
+			virtual bool HasRequiredConnections(FConstNodeHandle InNodeHandle, FString* OutMessage = nullptr) const = 0;
 #endif // WITH_EDITOR
 		};
 

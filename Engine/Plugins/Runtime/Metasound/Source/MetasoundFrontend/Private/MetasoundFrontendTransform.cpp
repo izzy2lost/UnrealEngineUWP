@@ -43,7 +43,7 @@ namespace Metasound
 			return Transform(FDocumentController::CreateDocumentHandle(DocAccessPtr));
 		}
 
-		bool INodeTransform::Transform(const FMetasoundFrontendNode& InNode, FMetaSoundFrontendDocumentBuilder& OutBuilder) const
+		bool INodeTransform::Transform(const FGuid& InNodeID, FMetaSoundFrontendDocumentBuilder& OutBuilder) const
 		{
 			return false;
 		}

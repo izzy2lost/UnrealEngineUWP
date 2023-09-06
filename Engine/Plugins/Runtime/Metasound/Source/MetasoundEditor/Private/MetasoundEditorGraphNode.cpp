@@ -863,9 +863,10 @@ void UMetasoundEditorGraphExternalNode::Validate(Metasound::Editor::FGraphNodeVa
 			else
 			{
 #if WITH_EDITOR
-				if (!Template->HasRequiredConnections(NodeHandle))
+				FString Message;
+				if (!Template->HasRequiredConnections(NodeHandle, &Message))
 				{
-					OutResult.SetMessage(EMessageSeverity::Warning, TEXT("Reroute node(s) missing non-reroute input connection(s)."));
+					OutResult.SetMessage(EMessageSeverity::Warning, Message);
 				}
 #endif // WITH_EDITOR
 			}

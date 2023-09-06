@@ -34,7 +34,7 @@ namespace Metasound
 			virtual bool IsValidNodeInterface(const FMetasoundFrontendNodeInterface& InNodeInterface) const override;
 
 #if WITH_EDITOR
-			virtual bool HasRequiredConnections(FConstNodeHandle InNodeHandle) const override;
+			virtual bool HasRequiredConnections(FConstNodeHandle InNodeHandle, FString* OutMessage = nullptr) const override;
 #endif // WITH_EDITOR
 		};
 	} // namespace Frontend
