@@ -6735,6 +6735,9 @@ bool FShaderCompilingManager::HandlePotentialRetryOnError(TMap<int32, FShaderMap
 							CommonJob->bFinalized = false;
 						}
 					}
+					
+					// Reset DDC query request owner
+					CurrentJob.RequestOwner.Reset();
 					CurrentJob.bFinalized = false;
 				}
 
