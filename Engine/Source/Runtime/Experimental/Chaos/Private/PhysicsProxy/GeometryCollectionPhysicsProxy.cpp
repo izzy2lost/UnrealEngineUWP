@@ -717,11 +717,13 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 	}
 
 	// Skip simplicials, as they're owned by unique pointers.
-	TMap<FName, TSet<FName>> SkipList;
-	TSet<FName>& TransformGroupSkipList = SkipList.Emplace(FTransformCollection::TransformGroup);
-	TransformGroupSkipList.Add(DynamicCollection.SimplicialsAttribute);
+	static const FAttributeAndGroupId SkipList[] =
+	{
+		{ FGeometryDynamicCollection::SimplicialsAttribute, FTransformCollection::TransformGroup },
+	};
+	static constexpr int32 SkipListSize = sizeof(SkipList) / sizeof(FAttributeAndGroupId);
 
-	PhysicsThreadCollection.CopyMatchingAttributesFrom(DynamicCollection, &SkipList);
+	PhysicsThreadCollection.CopyMatchingAttributesFrom(DynamicCollection, MakeArrayView(SkipList, SkipListSize));
 	PhysicsThreadCollection.CopyInitialVelocityAttributesFrom(DynamicCollection);
 
 	// Copy simplicials.
@@ -781,16 +783,18 @@ void FGeometryCollectionPhysicsProxy::InitializeDynamicCollection(FGeometryDynam
 	// This function will use the rest collection to populate the dynamic collection. 
 	//
 
-	TMap<FName, TSet<FName>> SkipList;
-	TSet<FName>& KeepFromDynamicCollection = SkipList.Emplace(FTransformCollection::TransformGroup);
-	KeepFromDynamicCollection.Add(FTransformCollection::TransformAttribute);
-	KeepFromDynamicCollection.Add(FTransformCollection::ParentAttribute);
-	KeepFromDynamicCollection.Add(FTransformCollection::ChildrenAttribute);
-	KeepFromDynamicCollection.Add(FGeometryCollection::SimulationTypeAttribute);
-	KeepFromDynamicCollection.Add(DynamicCollection.SimplicialsAttribute);
-	KeepFromDynamicCollection.Add(DynamicCollection.ActiveAttribute);
-	DynamicCollection.CopyMatchingAttributesFrom(RestCollection, &SkipList);
+	static const FAttributeAndGroupId SkipList[] =
+	{
+		{ FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup },
+		{ FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup },
+		{ FTransformCollection::ChildrenAttribute, FTransformCollection::TransformGroup },
+		{ FGeometryCollection::SimulationTypeAttribute, FTransformCollection::TransformGroup },
+		{ FGeometryDynamicCollection::SimplicialsAttribute, FTransformCollection::TransformGroup },
+		{ FGeometryDynamicCollection::ActiveAttribute, FTransformCollection::TransformGroup },
+	};
+	static const int32 SkipListSize = sizeof(SkipList) / sizeof(FAttributeAndGroupId);
 
+	DynamicCollection.CopyMatchingAttributesFrom(RestCollection, MakeArrayView(SkipList, SkipListSize));
 
 	// User defined initial velocities need to be populated. 
 	if (Params.InitialVelocityType == EInitialVelocityTypeEnum::Chaos_Initial_Velocity_User_Defined)

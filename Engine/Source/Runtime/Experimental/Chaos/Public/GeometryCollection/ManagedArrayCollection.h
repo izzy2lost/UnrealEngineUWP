@@ -18,6 +18,17 @@ namespace Chaos
 	class FChaosArchive;
 }
 
+CHAOS_API struct FAttributeAndGroupId
+{
+	FName AttributeName;
+	FName GroupName;
+
+	bool operator==(const FAttributeAndGroupId& Other) const
+	{
+		return ((AttributeName == Other.AttributeName) && (GroupName == Other.GroupName));
+	}
+};
+
 /**
 * ManagedArrayCollection
 *
@@ -483,6 +494,17 @@ public:
 	* @param SkipList - Group/Attrs to skip. Keys are group names, values are attributes in those groups.
 	*/
 	CHAOS_API void CopyMatchingAttributesFrom(const FManagedArrayCollection& InCollection, const TMap<FName, TSet<FName>>* SkipList=nullptr);
+
+	/**
+	* Copy attributes that match the input collection. This is a utility to easily sync collections
+	* This version is recommend to be used as it is more performant overall
+	*	- it only resize the necessary groups
+	*	- it takes a array view for the skip list
+	*	- it has a more contained logic that reduces the number of lookups for attributes in the maps
+	* @param InCollection - All groups from this collection found in the input will be sized accordingly
+	* @param SkipList - Group/Attrs to skip. Keys are group names, values are attributes in those groups.
+	*/
+	CHAOS_API void CopyMatchingAttributesFrom(const FManagedArrayCollection& FromCollection, const TArrayView<const FAttributeAndGroupId> SkipList);
 
 	/**
 	* Number of elements in a group
