@@ -258,6 +258,23 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 					AddTagToMutableMeshUnique(*MutableMesh, GenerateGameplayTag(Tag.ToString()));
 				}
 
+				if (GenerationContext.Object->bEnableAssetUserDataMerge)
+				{
+					const TArray<UAssetUserData*>* AssetUserDataArray = SkeletalMesh->GetAssetUserDataArray();
+
+					if (AssetUserDataArray && !AssetUserDataArray->IsEmpty())
+					{
+						for (const UAssetUserData* AssetUserData : *AssetUserDataArray)
+						{
+							FString AuxString = AssetUserData->GetPathName();
+							GenerationContext.AssetUserDataAssetsMap.Add(AuxString, TSoftObjectPtr<UAssetUserData>(AssetUserData));
+
+							FString AssetUserDataTag = GenerateAssetUserDataTag(AuxString);
+							AddTagToMutableMeshUnique(*MutableMesh, AssetUserDataTag);
+						}
+					}
+				}
+
 				AddSocketTagsToMesh(SkeletalMesh, MutableMesh, GenerationContext);
 
 				if (UCustomizableObjectSystem::GetInstance()->IsMutableAnimInfoDebuggingEnabled())

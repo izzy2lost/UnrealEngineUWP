@@ -126,6 +126,13 @@ struct FCustomizableInstanceComponentData
 	UPROPERTY(Transient, Category = CustomizableObjectInstance, editfixedsize, VisibleAnywhere)
 	TMap<FName, TSoftClassPtr<UAnimInstance>> AnimSlotToBP;
 
+	// AssetUserData gathered for a component from its constituent meshes
+	UPROPERTY(Transient, Category = CustomizableObjectInstance, editfixedsize, VisibleAnywhere)
+	TSet<TObjectPtr<UAssetUserData>> AssetUserDataArray;
+
+	// Temp structure to store the AssetUserData that will be async loaded during an update
+	TSet<TSoftObjectPtr<UAssetUserData>> AssetUserDataToStream;
+
 #if WITH_EDITORONLY_DATA
 	// Just used for mutable.EnableMutableAnimInfoDebugging command
 	TArray<FString> MeshPartPaths;

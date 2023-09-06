@@ -2869,6 +2869,26 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 				MeshUniqueTags += AnimBPTag;
 			}
 
+			TArray<FString> AssetUserDataTags;
+
+			if (GenerationContext.Object->bEnableAssetUserDataMerge)
+			{
+				const TArray<UAssetUserData*>* AssetUserDataArray = TypedNodeSkel->SkeletalMesh->GetAssetUserDataArray();
+
+				if (AssetUserDataArray && !AssetUserDataArray->IsEmpty())
+				{
+					for (const UAssetUserData* AssetUserData : *AssetUserDataArray)
+					{
+						FString AuxString = AssetUserData->GetPathName();
+						GenerationContext.AssetUserDataAssetsMap.Add(AuxString, TSoftObjectPtr<UAssetUserData>(AssetUserData));
+
+						FString AssetUserDataTag = GenerateAssetUserDataTag(AuxString);
+						AssetUserDataTags.Add(AssetUserDataTag);
+						MeshUniqueTags += AssetUserDataTag;
+					}
+				}
+			}
+
 			FSkeletalMeshModel* ImportedModel = TypedNodeSkel->SkeletalMesh->GetImportedModel();
 			
 			mu::MeshPtr MutableMesh = GenerateMutableMesh(TypedNodeSkel->SkeletalMesh, TypedNodeSkel->AnimInstance, LODIndexConnected, SectionIndexConnected, LODIndex, SectionIndex, MeshUniqueTags, GenerationContext, TypedNodeSkel);
@@ -2935,6 +2955,11 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 				for (const FString& GamePlayTag : ArrayAnimBPTags)
 				{
 					AddTagToMutableMeshUnique(*MutableMesh, GamePlayTag);
+				}
+
+				for (const FString& AssetUserDataTag : AssetUserDataTags)
+				{
+					AddTagToMutableMeshUnique(*MutableMesh, AssetUserDataTag);
 				}
 
 				AddSocketTagsToMesh(TypedNodeSkel->SkeletalMesh, MutableMesh, GenerationContext);

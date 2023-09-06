@@ -691,6 +691,9 @@ struct FMutableGraphGenerationContext
 	/** Stores the anim BP assets gathered from the SkeletalMesh nodes during compilation, to be used in mesh generation in-game */
 	TMap<FString, TSoftClassPtr<UAnimInstance>> AnimBPAssetsMap;
 
+	/** Stores the AssetUserData assets gathered from the SkeletalMesh nodes during compilation, to be used in mesh generation in-game */
+	TMap<FString, TSoftObjectPtr<UAssetUserData>> AssetUserDataAssetsMap;
+
 	/** Stores the sockets provided by the part skeletal meshes, to be merged in the generated meshes */
 	TArray<FMutableRefSocket> SocketArray;
 
@@ -795,6 +798,8 @@ FString GenerateAnimationInstanceTag(const FString& AnimInstance, const FName& S
 
 
 FString GenerateGameplayTag(const FString& GameplayTag);
+
+FString GenerateAssetUserDataTag(const FString& AssetUserData);
 
 // Computes the LOD bias for a texture given the current mesh LOD and automatic LOD settings, the reference texture settings
 // and whether it's being built for a server or not

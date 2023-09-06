@@ -1302,6 +1302,12 @@ FString GenerateGameplayTag(const FString& GameplayTag)
 }
 
 
+FString GenerateAssetUserDataTag(const FString& AssetUserData)
+{
+	return FString("__AssetUserData:") + AssetUserData;
+}
+
+
 void PopulateReferenceSkeletalMeshesData(FMutableGraphGenerationContext& GenerationContext)
 {
 	const FString PlatformName = GenerationContext.Options.TargetPlatform->IniPlatformName();

@@ -1215,6 +1215,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = CompileOptions)
 	bool bEnableAnimBpPhysicsAssetsManipualtion = false;
 
+	// When this is enabled generated meshes will merge the AssetUserData from all of its constituent mesh parts
+	UPROPERTY(EditAnywhere, Category = CompileOptions)
+	bool bEnableAssetUserDataMerge = false;
+
 	// Options when compiling this customizable object (see EMutableCompileMeshType declaration for info)
 	UPROPERTY(EditAnywhere, Category = CompileOptions)
 	EMutableCompileMeshType MeshCompileType = EMutableCompileMeshType::LocalAndChildren;
@@ -1586,6 +1590,10 @@ public:
 
 	UPROPERTY()
 	TArray<FAnimBpOverridePhysicsAssetsInfo> AnimBpOverridePhysiscAssetsInfo;
+
+	/** Stores the UAssetUserData assets gathered from the SkeletalMesh nodes during compilation, to be used in mesh generation in-game */
+	UPROPERTY()
+	TMap<FString, TSoftObjectPtr<UAssetUserData>> AssetUserDataAssetsMap;
 
 	UPROPERTY()
 	/** Stores the sockets provided by the part skeletal meshes, to be merged in the generated meshes */

@@ -200,6 +200,8 @@ void UCustomizableInstancePrivateData::PrepareForUpdate(const TSharedPtr<FMutabl
 				}
 
 				ComponentData->AnimSlotToBP.Empty();
+				ComponentData->AssetUserDataArray.Empty();
+				ComponentData->AssetUserDataToStream.Empty();
 
 #if WITH_EDITORONLY_DATA
 				ComponentData->MeshPartPaths.Empty();
@@ -5041,6 +5043,7 @@ FAutoConsoleVariableRef CVarMutableHighPriorityLoading(
 	bEnableHighPriorityLoading,
 	TEXT("If enabled, the request to load additional assets will have high priority."));
 
+
 FGraphEventRef UCustomizableInstancePrivateData::LoadAdditionalAssetsAsync(const TSharedPtr<FMutableOperationData>& OperationData, UCustomizableObjectInstance* Public, FStreamableManager& StreamableManager)
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivateData::LoadAdditionalAssetsAsync);
@@ -5264,6 +5267,25 @@ FGraphEventRef UCustomizableInstancePrivateData::LoadAdditionalAssetsAsync(const
 				{
 					AnimBPGameplayTags.AddTag(FGameplayTag::RequestGameplayTag(*Tag));
 				}
+				else if (Tag.RemoveFromStart("__AssetUserData:"))
+				{
+					const FString& AssetPath = Tag;
+
+					TSoftObjectPtr<UAssetUserData>* AssetUserData = CustomizableObject->AssetUserDataAssetsMap.Find(AssetPath);
+
+					if (AssetUserData && !AssetUserData->IsNull())
+					{
+						if (AssetUserData->Get())
+						{
+							ComponentData->AssetUserDataArray.Add(AssetUserData->Get());
+						}
+						else
+						{
+							ComponentData->AssetUserDataToStream.Add(*AssetUserData);
+							AssetsToStream.Add(AssetUserData->ToSoftObjectPath());
+						}
+					}
+				}
 #if WITH_EDITORONLY_DATA
 				else if (Tag.RemoveFromStart("__MeshPath:"))
 				{
@@ -5294,6 +5316,7 @@ FGraphEventRef UCustomizableInstancePrivateData::LoadAdditionalAssetsAsync(const
 
 	return Result;
 }
+
 
 void UCustomizableObjectInstance::AdditionalAssetsAsyncLoaded( FGraphEventRef CompletionEvent )
 {
@@ -5422,6 +5445,28 @@ void UCustomizableInstancePrivateData::AdditionalAssetsAsyncLoaded(UCustomizable
 			}
 #endif
 		}
+
+		for (TSoftObjectPtr<UAssetUserData> LoadedAssetUserData : ComponentData.AssetUserDataToStream)
+		{
+			if (LoadedAssetUserData.IsValid())
+			{
+				ComponentData.AssetUserDataArray.Add(LoadedAssetUserData.Get());
+			}
+#if WITH_EDITOR
+			else
+			{
+				FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
+				MessageLogModule.RegisterLogListing(FName("Mutable"), FText::FromString(FString("Mutable")));
+				FMessageLog MessageLog("Mutable");
+
+				FString ErrorMsg = FString::Printf(TEXT("Mutable couldn't load the AssetUserData [%s]. If it has been deleted or renamed, please recompile all the mutable objects that use it."), *LoadedAssetUserData.GetAssetName());
+				UE_LOG(LogMutable, Error, TEXT("%s"), *ErrorMsg);
+				MessageLog.Notify(FText::FromString(ErrorMsg), EMessageSeverity::Error, true);
+			}
+#endif
+		}
+
+		ComponentData.AssetUserDataToStream.Empty();
 
 		const int32 AdditionalPhysicsNum = ComponentData.PhysicsAssets.AdditionalPhysicsAssetsToLoad.Num();
 		ComponentData.PhysicsAssets.AdditionalPhysicsAssets.Reserve(AdditionalPhysicsNum);
@@ -6761,5 +6806,30 @@ void UCustomizableObjectInstance::ForEachAnimInstance(int32 ComponentIndex, FEac
 				Delegate.Execute(Index, LiveAnimBP);
 			}
 		}
+	}
+}
+
+
+TSet<UAssetUserData*> UCustomizableObjectInstance::GetMergedAssetUserData(int32 ComponentIndex) const
+{
+	UCustomizableInstancePrivateData* PrivateInstanceData = GetPrivate();
+
+	if (PrivateInstanceData)
+	{
+		check(PrivateInstanceData->ComponentsData.IsValidIndex(ComponentIndex));
+
+		TSet<UAssetUserData*> Set;
+		
+		// Have to convert to UAssetUserData* because BP functions don't support TObjectPtr
+		for (const TObjectPtr<UAssetUserData>& Elem : PrivateInstanceData->ComponentsData[ComponentIndex].AssetUserDataArray)
+		{
+			Set.Add(Elem);
+		}
+
+		return Set;
+	}
+	else
+	{
+		return TSet<UAssetUserData*>();
 	}
 }

@@ -267,6 +267,12 @@ public:
 	/**  Set random values to the parameters using a seed. Useful for testing only. */
 	void SetRandomValues(const int32 InRandomizationSeed);
 
+	/** Returns the AssetUserData that was gathered from all the constituent mesh parts during the last update. 
+	 *  It requires that the CustomizableObject had the bEnableAssetUserDataMerge set to true during compilation. 
+	*/
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
+	TSet<UAssetUserData*> GetMergedAssetUserData(int32 ComponentIndex) const;
+
 	// Utilities to manage saving and loading parameters from profiles.
 	bool LoadParametersFromProfile(int32 ProfileIndex);
 	bool SaveParametersToProfile(int32 ProfileIndex);

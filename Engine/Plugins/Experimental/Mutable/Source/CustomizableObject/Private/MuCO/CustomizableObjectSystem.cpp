@@ -1989,6 +1989,18 @@ namespace impl
 		FCustomizableObjectSystemPrivate* CustomizableObjectSystemPrivateData = System->GetPrivate();
 		check(CustomizableObjectSystemPrivateData != nullptr);
 
+		for (int32 ComponentIndex = 0; ComponentIndex < CustomizableObjectInstance->GetPrivate()->ComponentsData.Num(); ++ComponentIndex)
+		{
+			ensure(CustomizableObjectInstance->SkeletalMeshes.IsValidIndex(ComponentIndex));
+
+			FCustomizableInstanceComponentData& ComponentData = CustomizableObjectInstance->GetPrivate()->ComponentsData[ComponentIndex];
+			
+			for (TObjectPtr<UAssetUserData> AssetUserData : ComponentData.AssetUserDataArray)
+			{
+				CustomizableObjectInstance->SkeletalMeshes[ComponentIndex]->AddAssetUserData(AssetUserData);
+			}
+		}
+
 		// Next Task: Release Mutable. We need this regardless if we cancel or not
 		//-------------------------------------------------------------		
 		{
