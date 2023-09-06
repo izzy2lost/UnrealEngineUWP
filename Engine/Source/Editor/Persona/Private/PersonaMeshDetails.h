@@ -191,6 +191,9 @@ private:
 	ECheckBoxState GetLockColorBounaries() const;
 	void SetLockColorBounaries(ECheckBoxState NewState);
 
+	ECheckBoxState GetImproveTrianglesForCloth() const;
+	void SetImproveTrianglesForCloth(ECheckBoxState NewState);
+
 	ECheckBoxState GetEnforceBoneBoundaries() const;
 	void SetEnforceBoneBoundaries(ECheckBoxState NewState);
 

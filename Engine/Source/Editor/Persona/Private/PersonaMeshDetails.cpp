@@ -792,6 +792,14 @@ void FSkeletalMeshReductionSettingsLayout::GenerateChildContent(IDetailChildrenB
 			TEXT("LockColorBoundaries"),
 			FGetCheckBoxStateDelegate::CreateRaw(this, &FSkeletalMeshReductionSettingsLayout::GetLockColorBounaries),
 			FSetCheckBoxStateDelegate::CreateRaw(this, &FSkeletalMeshReductionSettingsLayout::SetLockColorBounaries));
+
+		AddBoolRow(ChildrenBuilder,
+			LOCTEXT("ImproveTrianglesForCloth_Row", "ImproveTrianglesForCloth"),
+			LOCTEXT("ImproveTrianglesForCloth_RowNameContent", "Improve Triangles For Cloth"),
+			LOCTEXT("ImproveTrianglesForCloth_RowNameContentTooltip", "Better distribution of triangles on 2d meshes, such as flat cloth, but at the cost of potentially worse UVs in those areas.  This generally has little or no effect for mesh regions that aren't laid out on a plane intersecting the origin such as the xy-plane. When this is disabled, the planar regions may simplify to fewer large triangles."),
+			TEXT("ImproveTrianglesForCloth"),
+			FGetCheckBoxStateDelegate::CreateRaw(this, &FSkeletalMeshReductionSettingsLayout::GetImproveTrianglesForCloth),
+			FSetCheckBoxStateDelegate::CreateRaw(this, &FSkeletalMeshReductionSettingsLayout::SetImproveTrianglesForCloth));
 	}
 
 	AddBaseLODRow(ChildrenBuilder);
@@ -1400,6 +1408,20 @@ void FSkeletalMeshReductionSettingsLayout::SetLockColorBounaries(ECheckBoxState 
 	ModifyMeshLODSettingsDelegate.ExecuteIfBound(LODIndex);
 
 	ReductionSettings.bLockColorBounaries = (NewState == ECheckBoxState::Checked) ? true : false;
+}
+
+ECheckBoxState FSkeletalMeshReductionSettingsLayout::GetImproveTrianglesForCloth() const
+{
+	return ReductionSettings.bImproveTrianglesForCloth ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+void FSkeletalMeshReductionSettingsLayout::SetImproveTrianglesForCloth(ECheckBoxState NewState)
+{
+	FText TransactionText = FText::Format(LOCTEXT("PersonaReductionChangedSetUseLegacyVersionLOD", "LOD{0} reduction settings: improve triangles for cloth changed"), LODIndex);
+	FScopedTransaction Transaction(TransactionText);
+	ModifyMeshLODSettingsDelegate.ExecuteIfBound(LODIndex);
+
+	ReductionSettings.bImproveTrianglesForCloth = (NewState == ECheckBoxState::Checked) ? true : false;
 }
 
 ECheckBoxState FSkeletalMeshReductionSettingsLayout::GetEnforceBoneBoundaries() const

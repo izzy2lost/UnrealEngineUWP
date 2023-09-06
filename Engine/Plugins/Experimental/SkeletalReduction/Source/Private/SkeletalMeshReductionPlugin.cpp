@@ -1044,6 +1044,7 @@ float FQuadricSkeletalMeshReduction::SimplifyMesh( const FSkeletalMeshOptimizati
                                                   ) const
 {
 
+	const bool bUseLegacyAttrGrad = Settings.bImproveTrianglesForCloth;
 	// Convert settings to weights and a termination criteria
 
 	// Determine the stop criteria used
@@ -1192,7 +1193,8 @@ float FQuadricSkeletalMeshReduction::SimplifyMesh( const FSkeletalMeshOptimizati
 	SkeletalSimplifier::FMeshSimplifier  Simplifier(Mesh.VertexBuffer, (uint32)Mesh.NumVertices(),
 		                                            Mesh.IndexBuffer, (uint32)Mesh.NumIndices(), 
 		                                            CoAlignmentLimit, VolumeImportance, bPreserveVolume,  
-													bEnforceBoneBoundaries, bMergeCoincidentVertBones);
+													bEnforceBoneBoundaries, bMergeCoincidentVertBones,
+													bUseLegacyAttrGrad);
 
 	// The simplifier made a deep copy of the mesh.  
 

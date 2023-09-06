@@ -200,7 +200,8 @@ void FSkeletalMeshReductionSettingsDetails::CustomizeChildren(TSharedRef<IProper
 			GET_MEMBER_NAME_CHECKED(FSkeletalMeshOptimizationSettings, bEnforceBoneBoundaries),
 			GET_MEMBER_NAME_CHECKED(FSkeletalMeshOptimizationSettings, bMergeCoincidentVertBones),
 			GET_MEMBER_NAME_CHECKED(FSkeletalMeshOptimizationSettings, VolumeImportance),
-			GET_MEMBER_NAME_CHECKED(FSkeletalMeshOptimizationSettings, bLockColorBounaries)
+			GET_MEMBER_NAME_CHECKED(FSkeletalMeshOptimizationSettings, bLockColorBounaries),
+			GET_MEMBER_NAME_CHECKED(FSkeletalMeshOptimizationSettings, bImproveTrianglesForCloth)
 		};
 
 		uint32 NumChildren = 0;
