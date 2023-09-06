@@ -8,6 +8,7 @@
 #include "ShaderCore.h"
 #include "GPULightmass.h"
 #include "UnrealEdGlobals.h"
+#include "LevelEditorViewport.h"
 
 #define LOCTEXT_NAMESPACE "StaticLightingSystem"
 
