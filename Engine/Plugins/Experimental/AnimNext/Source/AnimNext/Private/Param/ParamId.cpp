@@ -19,14 +19,13 @@ static FParamIdGlobalData GParamIdGlobalData;
 
 #if WITH_DEV_AUTOMATION_TESTS
 static FParamIdGlobalData GSandboxedParamIdGlobalData;
-static uint32 GParamIdSandboxedThreadId = MAX_uint32;
-static bool bGParamIdSandboxed = false;
+static std::atomic<bool> bGParamIdSandboxed = false;
 #endif
 
 static FParamIdGlobalData& GetParamIdData()
 {
 #if WITH_DEV_AUTOMATION_TESTS		
-	if (bGParamIdSandboxed && GParamIdSandboxedThreadId == FPlatformTLS::GetCurrentThreadId())
+	if (bGParamIdSandboxed.load() == true)
 	{
 		return GSandboxedParamIdGlobalData;
 	}
@@ -68,9 +67,8 @@ FParamId FParamId::GetMaxParamId()
 void FParamId::BeginTestSandbox()
 {
 	FRWScopeLock Lock(GParamIdLock, SLT_Write);
-	check(bGParamIdSandboxed == false);
-	bGParamIdSandboxed = true;
-	GParamIdSandboxedThreadId = FPlatformTLS::GetCurrentThreadId();
+	check(bGParamIdSandboxed.load() == false);
+	bGParamIdSandboxed.exchange(true);
 	GSandboxedParamIdGlobalData.NameToParamId.Empty();
 	GSandboxedParamIdGlobalData.ParamIdToName.Empty();
 }
@@ -78,8 +76,8 @@ void FParamId::BeginTestSandbox()
 void FParamId::EndTestSandbox()
 {
 	FRWScopeLock Lock(GParamIdLock, SLT_Write);
-	check(bGParamIdSandboxed == true);
-	bGParamIdSandboxed = false;
+	check(bGParamIdSandboxed.load() == true);
+	bGParamIdSandboxed.exchange(false);
 	GSandboxedParamIdGlobalData.NameToParamId.Empty();
 	GSandboxedParamIdGlobalData.ParamIdToName.Empty();
 }

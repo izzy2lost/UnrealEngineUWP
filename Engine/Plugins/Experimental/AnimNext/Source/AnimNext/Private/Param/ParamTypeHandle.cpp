@@ -25,14 +25,13 @@ static FTypeHandleGlobalData GTypeHandleGlobalData;
 
 #if WITH_DEV_AUTOMATION_TESTS	
 static FTypeHandleGlobalData GSandboxedTypeHandleGlobalData;
-static uint32 GTypeHandleSandboxedThreadId = MAX_uint32;
-static bool bGTypeHandleSandboxed = false;
+static std::atomic<bool> bGTypeHandleSandboxed = false;
 #endif
 
 static FTypeHandleGlobalData& GetTypeHandleData()
 {
 #if WITH_DEV_AUTOMATION_TESTS		
-	if(bGTypeHandleSandboxed && GTypeHandleSandboxedThreadId == FPlatformTLS::GetCurrentThreadId())
+	if (bGTypeHandleSandboxed.load() == true)
 	{
 		return GSandboxedTypeHandleGlobalData;
 	}
@@ -47,9 +46,8 @@ static FTypeHandleGlobalData& GetTypeHandleData()
 void FParamTypeHandle::BeginTestSandbox()
 {
 	FRWScopeLock Lock(GParamTypeHandleLock, SLT_Write);
-	check(bGTypeHandleSandboxed == false);
-	bGTypeHandleSandboxed = true;
-	GTypeHandleSandboxedThreadId = FPlatformTLS::GetCurrentThreadId();
+	check(bGTypeHandleSandboxed.load() == false);
+	bGTypeHandleSandboxed.exchange(true);
 	GSandboxedTypeHandleGlobalData.CustomTypes.Empty();
 	GSandboxedTypeHandleGlobalData.TypeToIndexMap.Empty();
 }
@@ -57,9 +55,8 @@ void FParamTypeHandle::BeginTestSandbox()
 void FParamTypeHandle::EndTestSandbox()
 {
 	FRWScopeLock Lock(GParamTypeHandleLock, SLT_Write);
-	check(bGTypeHandleSandboxed == true);
-	bGTypeHandleSandboxed = false;
-	GTypeHandleSandboxedThreadId = MAX_uint32;
+	check(bGTypeHandleSandboxed.load() == true);
+	bGTypeHandleSandboxed.exchange(false);
 	GSandboxedTypeHandleGlobalData.CustomTypes.Empty();
 	GSandboxedTypeHandleGlobalData.TypeToIndexMap.Empty();
 }
