@@ -131,6 +131,7 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 		}
 		else
 		{
+			// Other state types do not have parameters, so reset them.
 			Parameters.Reset();
 		}
 	}
@@ -320,6 +321,11 @@ void UStateTreeState::UpdateParametersFromLinkedSubtree()
 		if (const UStateTreeState* LinkTargetState = TreeData->GetStateByID(LinkedSubtree.ID))
 		{
 			Parameters.Parameters.MigrateToNewBagInstance(LinkTargetState->Parameters.Parameters);
+		}
+		else
+		{
+			// No state selected, reset. 
+			Parameters.Parameters.Reset();
 		}
 	}
 }
