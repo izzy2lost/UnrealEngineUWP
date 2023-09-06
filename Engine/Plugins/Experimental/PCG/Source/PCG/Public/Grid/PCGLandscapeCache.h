@@ -14,6 +14,14 @@ class UPCGPointData;
 class UPCGMetadata;
 struct FPCGPoint;
 
+UENUM()
+enum class EPCGLandscapeCacheSerializationMode : uint8
+{
+	SerializeOnlyAtCook,
+	NeverSerialize,
+	AlwaysSerialize
+};
+
 USTRUCT(BlueprintType)
 struct FPCGLandscapeLayerWeight
 {
@@ -77,7 +85,6 @@ private:
 	void SerializeFromBulkData() const;
 
 	// Serialized data
-	TWeakObjectPtr<const ULandscapeComponent> Component = nullptr;
 	TArray<FName> LayerDataNames;
 	FVector PointHalfSize = FVector::One();
 	int32 Stride = 0;
@@ -108,8 +115,12 @@ public:
 	/** Initialize cache. Can be safely called multiple times. */
 	void Initialize();
 
+	UFUNCTION(CallInEditor, Category = "Cache")
 	void PrimeCache();
+
+	UFUNCTION(CallInEditor, Category = "Cache")
 	void ClearCache();
+
 	void Tick(float DeltaSeconds);
 
 #if WITH_EDITOR
@@ -125,6 +136,14 @@ public:
 	/** Convenience method to get metadata from the landscape for a given pair of landscape and position */
 	void SampleMetadataOnPoint(ALandscapeProxy* Landscape, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata);
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Cache")
+	EPCGLandscapeCacheSerializationMode SerializationMode = EPCGLandscapeCacheSerializationMode::SerializeOnlyAtCook;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(Transient, BlueprintReadOnly, VisibleAnywhere, Category = "Cache")
+	int32 CacheEntryCount = 0;
+#endif
+
 private:
 #if WITH_EDITOR
 	void SetupLandscapeCallbacks();
@@ -138,6 +157,7 @@ private:
 	void RemoveComponentFromCache(const ALandscapeProxy* LandscapeProxy);
 #endif
 
+	// Mapping of landscape guid + coordinates to entries. This is manually serialized as needed (depends on the serialize options).
 	TMap<TPair<FGuid, FIntPoint>, FPCGLandscapeCacheEntry*> CachedData;
 
 	//TODO: separate by landscape

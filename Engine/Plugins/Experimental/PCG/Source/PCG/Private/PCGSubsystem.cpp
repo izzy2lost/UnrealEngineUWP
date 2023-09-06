@@ -1291,7 +1291,6 @@ void UPCGSubsystem::BuildLandscapeCache(bool bQuiet)
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGSubsystem::BuildLandscapeCache);
 	if (UPCGLandscapeCache* LandscapeCache = GetLandscapeCache())
 	{
-		PCGWorldActor->Modify();
 		LandscapeCache->PrimeCache();
 	}
 	else if(!bQuiet)
