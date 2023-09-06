@@ -62,7 +62,7 @@ namespace Chaos
 		{
 			if (EventContainer)
 			{
-				if (BufferMode == EMultiBufferMode::Double)
+				if (BufferMode != EMultiBufferMode::Single)
 				{
 					EventContainer->ResetConsumerBuffer();
 				}
