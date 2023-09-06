@@ -816,9 +816,9 @@ void FPhysInterface_Chaos::SetMaterials(const FPhysicsShapeHandle& InShape, cons
 			}
 		}
 
-		InShape.Shape->SetMaterialMasks(NewMaterialMaskHandles);
-		InShape.Shape->SetMaterialMaskMaps(NewMaterialMaskMaps);
-		InShape.Shape->SetMaterialMaskMapMaterials(NewMaterialMaskMaterialHandles);
+		InShape.Shape->SetMaterialMasks(MoveTemp(NewMaterialMaskHandles));
+		InShape.Shape->SetMaterialMaskMaps(MoveTemp(NewMaterialMaskMaps));
+		InShape.Shape->SetMaterialMaskMapMaterials(MoveTemp(NewMaterialMaskMaterialHandles));
 	}
 }
 

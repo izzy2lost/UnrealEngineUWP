@@ -120,12 +120,15 @@ namespace Chaos
 
 		CHAOS_API const TArray<FMaterialMaskHandle>& GetMaterialMasks() const;
 		CHAOS_API void SetMaterialMasks(const TArray<FMaterialMaskHandle>& InMaterialMasks);
+		CHAOS_API void SetMaterialMasks(TArray<FMaterialMaskHandle>&& InMaterialMasks);
 
 		CHAOS_API const TArray<uint32>& GetMaterialMaskMaps() const;
 		CHAOS_API void SetMaterialMaskMaps(const TArray<uint32>& InMaterialMaskMaps);
+		CHAOS_API void SetMaterialMaskMaps(TArray<uint32>&& InMaterialMaskMaps);
 
 		CHAOS_API const TArray<FMaterialHandle>& GetMaterialMaskMapMaterials() const;
 		CHAOS_API void SetMaterialMaskMapMaterials(const TArray<FMaterialHandle>& InMaterialMaskMapMaterials);
+		CHAOS_API void SetMaterialMaskMapMaterials(TArray<FMaterialHandle>&& InMaterialMaskMapMaterials);
 
 		CHAOS_API const FShapeDirtyFlags GetDirtyFlags() const;
 
@@ -1061,14 +1064,29 @@ namespace Chaos
 		DownCast([&InMaterialMasks](auto& ShapeInstance) { ShapeInstance.SetMaterialMasks(InMaterialMasks); });
 	}
 
+	inline void FPerShapeData::SetMaterialMasks(TArray<FMaterialMaskHandle>&& InMaterialMasks)
+	{
+		DownCast([&InMaterialMasks](auto& ShapeInstance) { ShapeInstance.SetMaterialMasks(MoveTemp(InMaterialMasks)); });
+	}
+
 	inline void FPerShapeData::SetMaterialMaskMaps(const TArray<uint32>& InMaterialMaskMaps)
 	{
 		DownCast([&InMaterialMaskMaps](auto& ShapeInstance) { ShapeInstance.SetMaterialMaskMaps(InMaterialMaskMaps); });
 	}
 
+	inline void FPerShapeData::SetMaterialMaskMaps(TArray<uint32>&& InMaterialMaskMaps)
+	{
+		DownCast([&InMaterialMaskMaps](auto& ShapeInstance) { ShapeInstance.SetMaterialMaskMaps(MoveTemp(InMaterialMaskMaps)); });
+	}
+
 	inline void FPerShapeData::SetMaterialMaskMapMaterials(const TArray<FMaterialHandle>& InMaterialMaskMapMaterials)
 	{
 		DownCast([&InMaterialMaskMapMaterials](auto& ShapeInstance) { ShapeInstance.SetMaterialMaskMapMaterials(InMaterialMaskMapMaterials); });
+	}
+
+	inline void FPerShapeData::SetMaterialMaskMapMaterials(TArray<FMaterialHandle>&& InMaterialMaskMapMaterials)
+	{
+		DownCast([&InMaterialMaskMapMaterials](auto& ShapeInstance) { ShapeInstance.SetMaterialMaskMapMaterials(MoveTemp(InMaterialMaskMapMaterials)); });
 	}
 
 	inline bool FPerShapeData::GetQueryEnabled() const
