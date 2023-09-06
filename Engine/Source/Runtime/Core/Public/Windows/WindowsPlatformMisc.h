@@ -161,6 +161,13 @@ struct FWindowsPlatformMisc
 	 */
 	static CORE_API bool VerifyWindowsVersion(uint32 MajorVersion, uint32 MinorVersion, uint32 BuildNumber = 0);
 
+	/** 
+	 * Determines if we are running under Wine rather than a real version of Windows
+	 *
+	 * @return	Returns true if the current runtime environment is Wine
+	 */
+	static bool IsWine();
+
 #if !UE_BUILD_SHIPPING
 	static CORE_API void PromptForRemoteDebugging(bool bIsEnsure);
 #endif	//#if !UE_BUILD_SHIPPING

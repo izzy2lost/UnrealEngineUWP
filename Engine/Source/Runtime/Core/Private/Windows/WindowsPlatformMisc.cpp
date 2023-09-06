@@ -770,7 +770,15 @@ int32 FWindowsPlatformMisc::GetMaxPathLength()
 			{
 				typedef BOOLEAN(NTAPI *RtlAreLongPathsEnabledFunc)();
 				RtlAreLongPathsEnabledFunc RtlAreLongPathsEnabled = (RtlAreLongPathsEnabledFunc)(void*)GetProcAddress(Handle, "RtlAreLongPathsEnabled");
-				bValue = (RtlAreLongPathsEnabled != NULL && RtlAreLongPathsEnabled());
+				if (RtlAreLongPathsEnabled != NULL)
+				{
+					bValue = RtlAreLongPathsEnabled();
+				}
+				else
+				{
+					// Long paths are always supported under Wine
+					bValue = FWindowsPlatformMisc::IsWine();
+				}
 			}
 		}
 	};
@@ -1990,6 +1998,31 @@ bool FWindowsPlatformMisc::VerifyWindowsVersion(uint32 MajorVersion, uint32 Mino
 	ConditionMask = VerSetConditionMask(ConditionMask, VER_BUILDNUMBER,  VER_GREATER_EQUAL);
 
 	return !!VerifyVersionInfo(&Version, VER_MAJORVERSION | VER_MINORVERSION | VER_BUILDNUMBER, ConditionMask);
+}
+
+bool FWindowsPlatformMisc::IsWine()
+{
+	struct FWineDetected
+	{
+		bool bValue;
+
+		FWineDetected()
+		{
+			HMODULE Handle = GetModuleHandle(TEXT("ntdll.dll"));
+			if (Handle == NULL)
+			{
+				bValue = false;
+			}
+			else
+			{
+				void* WineGetVersion = (void*)GetProcAddress(Handle, "wine_get_version");
+				bValue = (WineGetVersion != NULL);
+			}
+		}
+	};
+
+	static FWineDetected WineDetected;
+	return WineDetected.bValue;
 }
 
 bool FWindowsPlatformMisc::IsValidAbsolutePathFormat(const FString& Path)
