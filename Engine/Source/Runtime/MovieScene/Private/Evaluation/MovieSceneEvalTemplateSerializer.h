@@ -52,7 +52,7 @@ bool SerializeInlineValue(TInlineValue<T, N>& Impl, FArchive& Ar, bool bWarnOnEr
 
 		return true;
 	}
-	else if (Ar.IsSaving() || Ar.IsObjectReferenceCollector())
+	else if (Ar.IsSaving())
 	{
 		if (Impl.IsValid())
 		{
