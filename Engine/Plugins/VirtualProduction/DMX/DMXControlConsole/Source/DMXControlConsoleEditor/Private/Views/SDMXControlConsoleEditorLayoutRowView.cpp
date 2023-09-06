@@ -117,15 +117,30 @@ void SDMXControlConsoleEditorLayoutRowView::AddFaderGroup(UDMXControlConsoleFade
 		SNew(SDMXControlConsoleEditorFaderGroupView, FaderGroup)
 		.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorLayoutRowView::GetFaderGroupViewVisibility, FaderGroup));
 
-	FaderGroupViews.Insert(FaderGroupWidget, Index);
+	if (FaderGroupViews.IsValidIndex(Index))
+	{
+		FaderGroupViews.Insert(FaderGroupWidget, Index);
 
-	FaderGroupsHorizontalBox->InsertSlot(Index)
-		.AutoWidth()
-		.HAlign(HAlign_Left)
-		.Padding(8.f, 0.f)
-		[
-			FaderGroupWidget
-		];
+		FaderGroupsHorizontalBox->InsertSlot(Index)
+			.AutoWidth()
+			.HAlign(HAlign_Left)
+			.Padding(8.f, 0.f)
+			[
+				FaderGroupWidget
+			];
+	}
+	else
+	{
+		FaderGroupViews.Add(FaderGroupWidget);
+
+		FaderGroupsHorizontalBox->AddSlot()
+			.AutoWidth()
+			.HAlign(HAlign_Left)
+			.Padding(8.f, 0.f)
+			[
+				FaderGroupWidget
+			];
+	}
 }
 
 void SDMXControlConsoleEditorLayoutRowView::OnFaderGroupRemoved()

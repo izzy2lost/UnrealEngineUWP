@@ -47,6 +47,7 @@ public class DMXEditor : ModuleRules
 				"TakesCore",
 				"TakeRecorder",
 				"TakeTrackRecorders",
+				"ToolMenus",
 				"ToolWidgets",
 				"UnrealEd",
 				"XmlParser",

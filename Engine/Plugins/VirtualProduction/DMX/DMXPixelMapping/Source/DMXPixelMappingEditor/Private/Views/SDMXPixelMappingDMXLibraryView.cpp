@@ -2,6 +2,7 @@
 
 #include "Views/SDMXPixelMappingDMXLibraryView.h"
 
+#include "Algo/Copy.h"
 #include "Components/DMXPixelMappingFixtureGroupComponent.h"
 #include "Components/DMXPixelMappingFixtureGroupItemComponent.h"
 #include "Components/DMXPixelMappingMatrixComponent.h"
@@ -281,15 +282,11 @@ void SDMXPixelMappingDMXLibraryView::ForceRefresh()
 		const TArray<UDMXEntityFixturePatch*> FixturePatchesInDMXLibrary = GetFixturePatchesInDMXLibrary();
 		const TArray<UDMXEntityFixturePatch*> FixturePatchesInPixelMapping = GetFixturePatchesInPixelMapping();
 
-		TArray<FDMXEntityFixturePatchRef> HiddenFixturePatches;
-		Algo::TransformIf(FixturePatchesInDMXLibrary, HiddenFixturePatches,
+		TArray<UDMXEntityFixturePatch*> HiddenFixturePatches;
+		Algo::CopyIf(FixturePatchesInDMXLibrary, HiddenFixturePatches,
 			[&FixturePatchesInPixelMapping](const UDMXEntityFixturePatch* FixturePatchInDMXLibrary)
 			{
 				return FixturePatchesInPixelMapping.Contains(FixturePatchInDMXLibrary);
-			},
-			[&FixturePatchesInPixelMapping](UDMXEntityFixturePatch* FixturePatchInDMXLibrary)
-			{
-				return FDMXEntityFixturePatchRef(FixturePatchInDMXLibrary);
 			});
 		FixturePatchList->SetExcludedFixturePatches(HiddenFixturePatches);
 
@@ -305,6 +302,8 @@ void SDMXPixelMappingDMXLibraryView::ForceRefresh()
 		{
 			ListOrAllPatchesAddedSwitcher->SetActiveWidget(AllPatchesAddedTextBlock.ToSharedRef());
 		}
+
+		FixturePatchList->RequestRefresh();
 	}
 }
 
@@ -353,6 +352,7 @@ FReply SDMXPixelMappingDMXLibraryView::OnAddFixtureGroupButtonClicked()
 
 		RequestRefresh();
 	}
+
 	return FReply::Handled();
 }
 
@@ -363,7 +363,7 @@ FReply SDMXPixelMappingDMXLibraryView::OnAddSelectedPatchesClicked()
 	{
 		const FScopedTransaction AddSelectedFixturePatchesTransaction(LOCTEXT("AddSelectedFixturePatchesTransaction", "Add Fixture Patches to Pixel Mapping"));
 
-		const TArray<TSharedPtr<FDMXEntityFixturePatchRef>> SelectedFixturePatches = FixturePatchList->GetSelectedFixturePatchRefs();
+		const TArray<UDMXEntityFixturePatch*> SelectedFixturePatches = FixturePatchList->GetSelectedFixturePatches();
 		ViewModel->AddFixturePatchesEnsured(SelectedFixturePatches);
 
 		// Select the next fixture patches in the list
@@ -371,6 +371,7 @@ FReply SDMXPixelMappingDMXLibraryView::OnAddSelectedPatchesClicked()
 
 		RequestRefresh();
 	}
+
 	return FReply::Handled();
 }
 
@@ -380,11 +381,12 @@ FReply SDMXPixelMappingDMXLibraryView::OnAddAllPatchesClicked()
 	{
 		const FScopedTransaction AddAllFixturePatchesTransaction(LOCTEXT("AddAllFixturePatchesTransaction", "Add Fixture Patches to Pixel Mapping"));
 
-		const TArray<TSharedPtr<FDMXEntityFixturePatchRef>> AllVisibleFixturePatches = FixturePatchList->GetVisibleFixturePatchRefs();
-		ViewModel->AddFixturePatchesEnsured(AllVisibleFixturePatches);
+		const TArray<UDMXEntityFixturePatch*> FixturePatchesInList = FixturePatchList->GetFixturePatchesInList();
+		ViewModel->AddFixturePatchesEnsured(FixturePatchesInList);
 
 		RequestRefresh();
 	}
+
 	return FReply::Handled();
 }
 

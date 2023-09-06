@@ -18,6 +18,8 @@ class UDMXControlConsoleEditorGlobalLayoutRow
 {
 	GENERATED_BODY()
 
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnGlobalLayoutRowChangedDelegate, UDMXControlConsoleEditorGlobalLayoutRow* /** ChangedRow */)
+	
 public:
 	/** Adds the given Fader Group to the Layout Row */
 	void AddToLayoutRow(UDMXControlConsoleFaderGroup* FaderGroup);
@@ -49,9 +51,15 @@ public:
 	/** Gets index of the given Fader Group, if valid */
 	int32 GetIndex(const UDMXControlConsoleFaderGroup* FaderGroup) const;
 
+	/** Returns a delegate broadcast if a layout row changed */
+	static FOnGlobalLayoutRowChangedDelegate& GetOnGlobalLayoutRowChanged() { return OnGlobalLayoutRowChanged; };
+
 private:
 	/** Reference to Fader Groups array */
 	UPROPERTY()
 	TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> FaderGroups;
+
+	/** Delegate raised when */
+	static FOnGlobalLayoutRowChangedDelegate OnGlobalLayoutRowChanged;
 };
 

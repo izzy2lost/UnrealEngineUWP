@@ -1,0 +1,59 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Widgets/Input/SButton.h"
+#include "Widgets/SCompoundWidget.h"
+
+class FUICommandList;
+class UDMXEntityFixturePatch;
+
+
+/** 
+ * A menu to add fixture patches to the control console.
+ * Construct or use SetFixturePatches to specify the patches to add.
+ */
+class SDMXControlConsoleAddFixturePatchMenu
+	: public SCompoundWidget
+{
+public:
+	SLATE_BEGIN_ARGS(SDMXControlConsoleAddFixturePatchMenu)
+	{}
+
+	SLATE_END_ARGS()
+
+	/** Constructs the widget */
+	void Construct(const FArguments& InArgs, TArray<TWeakObjectPtr<UDMXEntityFixturePatch>> InFixturePatches);
+
+	/** Sets the fixture patches which can be added from this widget */
+	void SetFixturePatches(TArray<TWeakObjectPtr<UDMXEntityFixturePatch>> FixturePatches);
+
+private:
+	/** Registers commands for the menu */
+	void RegisterCommands();
+
+	/** Returns true if the 'add patches to right' option is avialable */
+	bool CanAddPatchesToTheRight() const;
+
+	/** Adds patches as fixture groups to the right */
+	void AddPatchesToTheRight();
+
+	/** Returns true if the 'add patches on a new row' option is avialable */
+	bool CanAddPatchesOnNewRow() const;
+
+	/** Adds patches as fixture groups on a new row */
+	void AddPatchesOnNewRow();
+
+	/** Returns true if the 'set patch on fader group' option is avialable */
+	bool CanSetPatchOnFaderGroup() const;
+
+	/** Sets the fixture patch on the selected fader group */
+	void SetPatchOnFaderGroup();
+
+	/** Fixture patches available when adding from this menu */
+	TArray<TWeakObjectPtr<UDMXEntityFixturePatch>> FixturePatches;
+
+	/** Command list for this widget */
+	TSharedPtr<FUICommandList> CommandList;
+};

@@ -13,6 +13,7 @@
 #include "Editor.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXLibrary.h"
+#include "DMXPixelMappingEditorLog.h"
 #include "Templates/DMXPixelMappingComponentTemplate.h"
 #include "Toolkits/DMXPixelMappingToolkit.h"
 
@@ -115,7 +116,7 @@ void UDMXPixelMappingDMXLibraryViewModel::UpdateFixtureGroupFromSelection(TWeakP
 	}
 }
 
-void UDMXPixelMappingDMXLibraryViewModel::AddFixturePatchesEnsured(const TArray<TSharedPtr<FDMXEntityFixturePatchRef>>& FixturePatches)
+void UDMXPixelMappingDMXLibraryViewModel::AddFixturePatchesEnsured(const TArray<UDMXEntityFixturePatch*>& FixturePatches)
 {
 	const TSharedPtr<FDMXPixelMappingToolkit> Toolkit = WeakToolkit.Pin();
 	if (FixturePatches.IsEmpty() || !Toolkit.IsValid())
@@ -124,7 +125,7 @@ void UDMXPixelMappingDMXLibraryViewModel::AddFixturePatchesEnsured(const TArray<
 	}
 
 	// Ensure first patch is of the same library as the fixture group usees
-	UDMXLibrary* CommonDMXLibrary = FixturePatches[0]->DMXLibrary;
+	UDMXLibrary* CommonDMXLibrary = FixturePatches[0] ? FixturePatches[0]->GetParentLibrary() : nullptr;
 	if (!ensureMsgf(WeakFixtureGroupComponent.IsValid() && CommonDMXLibrary && CommonDMXLibrary == WeakFixtureGroupComponent->DMXLibrary, TEXT("Cannot add Fixture Patches to a Fixture Group that doesn't use the Library of the patches")))
 	{
 		return;
@@ -132,12 +133,17 @@ void UDMXPixelMappingDMXLibraryViewModel::AddFixturePatchesEnsured(const TArray<
 	UDMXPixelMappingFixtureGroupComponent* FixtureGroupComponent = WeakFixtureGroupComponent.Get();
 
 	// Ensure all patches are of same library
-	bool bAllPatchesAreOfSameLibrary = Algo::FindByPredicate(FixturePatches, [CommonDMXLibrary](const TSharedPtr<FDMXEntityFixturePatchRef>& FixturePatchRef)
+	const UDMXEntityFixturePatch* const * FixturePatchOfDifferentLibraryPtr = Algo::FindByPredicate(FixturePatches, [CommonDMXLibrary](const UDMXEntityFixturePatch* FixturePatch)
 		{
-			return !FixturePatchRef.IsValid() && FixturePatchRef->DMXLibrary == CommonDMXLibrary;
-		}) == nullptr;
-	if (!ensureMsgf(bAllPatchesAreOfSameLibrary, TEXT("Cannot add Fixture Patches to Pixel Mapping. Patches don't share a common library")))
+			return FixturePatch && FixturePatch->GetParentLibrary() == CommonDMXLibrary;
+		});
+	if (!ensureMsgf(FixturePatchOfDifferentLibraryPtr, TEXT("Cannot add Fixture Patches to Pixel Mapping. Patches don't share a common library")))
 	{
+		const FString PreviousDMXLibraryName = CommonDMXLibrary->GetName();
+		const FString FixturePatchOfOtherLibraryName = (*FixturePatchOfDifferentLibraryPtr) ? (*FixturePatchOfDifferentLibraryPtr)->GetName() : TEXT("Invalid Fixture Patch");
+		const FString OtherLibraryName = (*FixturePatchOfDifferentLibraryPtr) && (*FixturePatchOfDifferentLibraryPtr)->GetParentLibrary() ? (*FixturePatchOfDifferentLibraryPtr)->GetParentLibrary()->GetName() : TEXT("Invalid DMX Library");
+
+		UE_LOG(LogDMXPixelMappingEditor, Warning, TEXT("Expected DMX Library '%s', but Fixture Patch '%s' uses DMX Library '%s'"), *PreviousDMXLibraryName, *FixturePatchOfOtherLibraryName, *OtherLibraryName);
 		return;
 	}
 
@@ -148,26 +154,26 @@ void UDMXPixelMappingDMXLibraryViewModel::AddFixturePatchesEnsured(const TArray<
 	}
 
 	TArray<TSharedPtr<FDMXPixelMappingComponentTemplate>> Templates;
-	for (const TSharedPtr<FDMXEntityFixturePatchRef>& FixturePatchRef : FixturePatches)
+	for (UDMXEntityFixturePatch* FixturePatch : FixturePatches)
 	{
-		if (!FixturePatchRef.IsValid())
+		if (!FixturePatch)
 		{
 			continue;
 		}
 
-		UDMXEntityFixturePatch* FixturePatch = FixturePatchRef->GetFixturePatch();
-		UDMXEntityFixtureType* FixtureType = FixturePatch ? FixturePatch->GetFixtureType() : nullptr;
-		const FDMXFixtureMode* ActiveModePtr = FixturePatch ? FixturePatch->GetActiveMode() : nullptr;
-		if (FixturePatch && FixtureType && ActiveModePtr)
+		UDMXEntityFixtureType* FixtureType = FixturePatch->GetFixtureType();
+		const FDMXFixtureMode* ActiveModePtr = FixturePatch->GetActiveMode();
+		if (FixtureType && ActiveModePtr)
 		{
+			const FDMXEntityFixturePatchRef FixturePatchRef(FixturePatch);
 			if (ActiveModePtr->bFixtureMatrixEnabled)
 			{
-				const TSharedRef<FDMXPixelMappingComponentTemplate> FixturePatchMatrixTemplate = MakeShared<FDMXPixelMappingComponentTemplate>(UDMXPixelMappingMatrixComponent::StaticClass(), *FixturePatchRef);
+				const TSharedRef<FDMXPixelMappingComponentTemplate> FixturePatchMatrixTemplate = MakeShared<FDMXPixelMappingComponentTemplate>(UDMXPixelMappingMatrixComponent::StaticClass(), FixturePatchRef);
 				Templates.Add(FixturePatchMatrixTemplate);
 			}
 			else
 			{
-				const TSharedRef<FDMXPixelMappingComponentTemplate> FixturePatchItemTemplate = MakeShared<FDMXPixelMappingComponentTemplate>(UDMXPixelMappingFixtureGroupItemComponent::StaticClass(), *FixturePatchRef);
+				const TSharedRef<FDMXPixelMappingComponentTemplate> FixturePatchItemTemplate = MakeShared<FDMXPixelMappingComponentTemplate>(UDMXPixelMappingFixtureGroupItemComponent::StaticClass(), FixturePatchRef);
 				Templates.Add(FixturePatchItemTemplate);
 			}
 		}

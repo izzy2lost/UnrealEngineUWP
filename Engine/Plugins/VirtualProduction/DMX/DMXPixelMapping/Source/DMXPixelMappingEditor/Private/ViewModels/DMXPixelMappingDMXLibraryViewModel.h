@@ -36,7 +36,7 @@ public:
 	void UpdateFixtureGroupFromSelection(TWeakPtr<FDMXPixelMappingToolkit> InWeakToolkit);
 
 	/** Adds specified fixture patches to the pixel mapping. Ensures all patches are of the same library as the one of the current group. */
-	void AddFixturePatchesEnsured(const TArray<TSharedPtr<FDMXEntityFixturePatchRef>>& FixturePatches);
+	void AddFixturePatchesEnsured(const TArray<UDMXEntityFixturePatch*>& FixturePatches);
 
 	/** Returns the DMX Library, or nullptr if none or many are selected */
 	UDMXLibrary* GetDMXLibrary() const { return DMXLibrary;  }
