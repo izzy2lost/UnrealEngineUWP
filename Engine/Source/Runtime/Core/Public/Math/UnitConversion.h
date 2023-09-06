@@ -234,6 +234,9 @@ private:
 	}
 };
 
+template <typename CharType, typename T>
+TStringBuilderBase<CharType>& operator<<(TStringBuilderBase<CharType>& Builder, const FNumericUnit<T>& NumericUnit);
+
 template<typename T>
 FString LexToString(const FNumericUnit<T>& NumericUnit);
 
@@ -245,7 +248,6 @@ void LexFromString(FNumericUnit<T>& OutValue, const TCHAR* String);
 	
 template<typename T>
 bool LexTryParseString(FNumericUnit<T>& OutValue, const TCHAR* String);
-
 
 // Include template definitions
 #include "Math/UnitConversion.inl" // IWYU pragma: export

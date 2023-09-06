@@ -396,14 +396,21 @@ template <typename NumericType>
 struct TNumericLimits<FNumericUnit<NumericType>> : public TNumericLimits<NumericType>
 { };
 
+template <typename CharType, typename T>
+TStringBuilderBase<CharType>& operator<<(TStringBuilderBase<CharType>& Builder, const FNumericUnit<T>& NumericUnit)
+{
+	Builder << NumericUnit.Value;
+	Builder << ANSITEXTVIEW(" ");
+	Builder << FUnitConversion::GetUnitDisplayString(NumericUnit.Units);
+	return Builder;
+}
+
 template<typename T>
 FString LexToString(const FNumericUnit<T>& NumericUnit)
 {
-	FString String = LexToString(NumericUnit.Value);
-	String += TEXT(" ");
-	String += FUnitConversion::GetUnitDisplayString(NumericUnit.Units);
-
-	return String;
+	TStringBuilder<128> Builder;
+	Builder << NumericUnit;
+	return FString(Builder);
 }
 
 template<typename T>
