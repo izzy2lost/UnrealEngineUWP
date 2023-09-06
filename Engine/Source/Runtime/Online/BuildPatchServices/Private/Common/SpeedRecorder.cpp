@@ -108,7 +108,7 @@ namespace BuildPatchServices
 	private:
 		const uint64 CyclesConfidenceFactor;
 		const uint64 SizeConfidenceFactor;
-		TQueue<ISpeedRecorder::FRecord> RecordsQueue;
+		TQueue<ISpeedRecorder::FRecord, EQueueMode::Mpsc> RecordsQueue;
 		TArray<ISpeedRecorder::FRecord> Records;
 		mutable TArray<ISpeedRecorder::FRecord> Temp;
 

@@ -182,9 +182,6 @@ namespace BuildPatchServices
 		// The message pump controller.
 		TUniquePtr<IMessagePump> MessagePump;
 
-		// Holds the optimised delta interfaces created during Initialize.
-		TArray<TUniquePtr<IOptimisedDelta>> OptimisedDeltas;
-
 		// The interface for manifest data aggregation.
 		TUniquePtr<IBuildManifestSet> ManifestSet;
 
@@ -193,9 +190,6 @@ namespace BuildPatchServices
 
 		// List of controllable classes that have been constructed.
 		TArray<IControllable*> Controllables;
-
-		// List of message handlers that have been registered.
-		TArray<FMessageHandler*> MessageHandlers;
 
 		// Stage timers for build stats.
 		FProcessTimer InitializeTimer;

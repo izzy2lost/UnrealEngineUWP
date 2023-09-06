@@ -443,10 +443,8 @@ namespace BuildPatchServices
 
 		// Chunk Uri Processing
 		typedef TTuple<FGuid, FChunkUriResponse> FGuidUriResponse;
-		typedef TQueue<FGuidUriResponse> FGuidUriResponseQueue;
-		TSharedRef<FGuidUriResponseQueue, ESPMode::ThreadSafe> ChunkUriResponsesRef = MakeShareable(new FGuidUriResponseQueue());
-		TWeakPtr<FGuidUriResponseQueue, ESPMode::ThreadSafe> WeakChunkUriResponses = ChunkUriResponsesRef;
-		FGuidUriResponseQueue& ChunkUriResponses = ChunkUriResponsesRef.Get();
+		typedef TQueue<FGuidUriResponse, EQueueMode::Mpsc> FGuidUriResponseQueue; // use Mpsc, message pump callback may be on this thread or message pump thread
+		TSharedRef<FGuidUriResponseQueue> ChunkUriResponsesRef = MakeShared<FGuidUriResponseQueue>();
 		TSet<FGuid> RequestedChunkUris;
 		TMap<FGuid, FChunkUriResponse> ChunkUris;
 
@@ -484,7 +482,10 @@ namespace BuildPatchServices
 				}
 			}
 			// Select the next X chunks that are for downloading, so we can request URIs.
-			TFunction<bool(const FGuid&)> SelectPredicate = [&TotalRequiredChunks, &RequestedChunkUris](const FGuid& ChunkId) { return TotalRequiredChunks.Contains(ChunkId) && !RequestedChunkUris.Contains(ChunkId); };
+			TFunction<bool(const FGuid&)> SelectPredicate = [&TotalRequiredChunks, &RequestedChunkUris](const FGuid& ChunkId) 
+			{ 
+				return TotalRequiredChunks.Contains(ChunkId) && !RequestedChunkUris.Contains(ChunkId); 
+			};
 			TArray<FGuid> ChunkUrisToRequest = ChunkReferenceTracker->SelectFromNextReferences(Configuration.PreFetchMaximum, SelectPredicate);
 			for (const FGuid& ChunkUriToRequest : ChunkUrisToRequest)
 			{
@@ -496,18 +497,14 @@ namespace BuildPatchServices
 				ChunkUriRequest.RelativePath = ManifestSet->GetDataFilename(ChunkUriToRequest);
 				ChunkUriRequest.RelativePath.RemoveFromStart(TEXT("/"));
 
-				MessagePump->SendRequest(ChunkUriRequest, [WeakChunkUriResponses, ChunkUriToRequest](FChunkUriResponse Response)
+				MessagePump->SendRequest(ChunkUriRequest, [ChunkUriResponsesRef, ChunkUriToRequest](FChunkUriResponse Response)
 				{
-					TSharedPtr<FGuidUriResponseQueue, ESPMode::ThreadSafe> ChunkUriResponsesPtr = WeakChunkUriResponses.Pin();
-					if (ChunkUriResponsesPtr.IsValid())
-					{
-						ChunkUriResponsesPtr->Enqueue(FGuidUriResponse(ChunkUriToRequest, MoveTemp(Response)));
-					}
+					ChunkUriResponsesRef->Enqueue(FGuidUriResponse(ChunkUriToRequest, MoveTemp(Response)));
 				});
 			}
 			// Process new chunk uri responses.
 			FGuidUriResponse ChunkUriResponse;
-			while (ChunkUriResponses.Dequeue(ChunkUriResponse))
+			for (FGuidUriResponseQueue& ChunkUriResponses = ChunkUriResponsesRef.Get(); ChunkUriResponses.Dequeue(ChunkUriResponse);)
 			{
 				ChunkUris.Add(MoveTemp(ChunkUriResponse.Get<0>()), MoveTemp(ChunkUriResponse.Get<1>()));
 			}

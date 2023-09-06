@@ -288,6 +288,8 @@ namespace BuildPatchServices
 		bool bRunRequiredPrereqs;
 		// Whether to allow this installation to run concurrently with any existing installations.
 		bool bAllowConcurrentExecution;
+		// Whether to gather individual file operation statistics during install
+		bool bTrackFileOperations;
 	};
 
 	/**

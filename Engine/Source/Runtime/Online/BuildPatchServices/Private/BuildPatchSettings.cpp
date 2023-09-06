@@ -151,6 +151,7 @@ namespace BuildPatchServices
 		, DeltaPolicy(EDeltaPolicy::Skip)
 		, bRunRequiredPrereqs(true)
 		, bAllowConcurrentExecution(false)
+		, bTrackFileOperations(true)
 	{
 	}
 
@@ -166,6 +167,7 @@ namespace BuildPatchServices
 		, DeltaPolicy(MoveFrom.DeltaPolicy)
 		, bRunRequiredPrereqs(MoveFrom.bRunRequiredPrereqs)
 		, bAllowConcurrentExecution(MoveFrom.bAllowConcurrentExecution)
+		, bTrackFileOperations(MoveFrom.bTrackFileOperations)
 	{
 	}
 
@@ -181,6 +183,7 @@ namespace BuildPatchServices
 		, DeltaPolicy(CopyFrom.DeltaPolicy)
 		, bRunRequiredPrereqs(CopyFrom.bRunRequiredPrereqs)
 		, bAllowConcurrentExecution(CopyFrom.bAllowConcurrentExecution)
+		, bTrackFileOperations(CopyFrom.bTrackFileOperations)
 	{
 	}
 

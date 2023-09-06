@@ -332,7 +332,7 @@ namespace BuildPatchServices
 		, DownloadSpeedRecorder(FSpeedRecorderFactory::Create())
 		, InstallerAnalytics(FInstallerAnalyticsFactory::Create(nullptr))
 		, DownloadServiceStatistics(FDownloadServiceStatisticsFactory::Create(DownloadSpeedRecorder.Get(), ChunkDataSizeProvider.Get(), InstallerAnalytics.Get()))
-		, DownloadService(FDownloadServiceFactory::Create(CoreTicker, HttpManager.Get(), FileSystem.Get(), DownloadServiceStatistics.Get(), InstallerAnalytics.Get()))
+		, DownloadService(FDownloadServiceFactory::Create(HttpManager.Get(), FileSystem.Get(), DownloadServiceStatistics.Get(), InstallerAnalytics.Get()))
 		, StatsCollector(FStatsCollectorFactory::Create())
 		, bShouldRun(true)
 		, RequestIdManifestA(INDEX_NONE)
@@ -417,7 +417,7 @@ namespace BuildPatchServices
 			OptimisedDeltaConfiguration.CloudDirectories = { FPaths::GetPath(Configuration.ManifestBUri) };
 			FOptimisedDeltaDependencies OptimisedDeltaDependencies;
 			OptimisedDeltaDependencies.DownloadService = DownloadService.Get();
-			TUniquePtr<IOptimisedDelta> OptimisedDelta(FOptimisedDeltaFactory::Create(OptimisedDeltaConfiguration, OptimisedDeltaDependencies));
+			TUniquePtr<IOptimisedDelta> OptimisedDelta(FOptimisedDeltaFactory::Create(OptimisedDeltaConfiguration, MoveTemp(OptimisedDeltaDependencies)));
 			ManifestB = OptimisedDelta->GetResult().GetValue();
 			const int32 MetaDownloadBytes = OptimisedDelta->GetMetaDownloadSize();
 

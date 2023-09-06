@@ -98,14 +98,13 @@ namespace BuildPatchServices
 	public:
 		/**
 		 * Instantiates an instance of an IDownloadService, using the HTTP module, and platform file API.
-		 * @param Ticker                The ticker which can be used to register a Tick function on.
 		 * @param HttpManager           The HTTP manager interface for making HTTP(s) requests.
 		 * @param FileSystem            The file system interface for network and disk file loading.
 		 * @param DownloadServiceStat   The class to receive statistics and event information.
 		 * @param InstallerAnalytics    The analytics implementation for tracking HTTP requests.
 		 * @return the new IDownloadService instance created.
 		 */
-		static IDownloadService* Create(FTSTicker& Ticker, IHttpManager* HttpManager, IFileSystem* FileSystem, IDownloadServiceStat* DownloadServiceStat, IInstallerAnalytics* InstallerAnalytics);
+		static IDownloadService* Create(IHttpManager* HttpManager, IFileSystem* FileSystem, IDownloadServiceStat* DownloadServiceStat, IInstallerAnalytics* InstallerAnalytics);
 	};
 
 	/**

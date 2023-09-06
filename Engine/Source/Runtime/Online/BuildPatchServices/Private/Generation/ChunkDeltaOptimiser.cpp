@@ -586,7 +586,6 @@ namespace BuildPatchServices
 		TUniquePtr<IDownloadService> DownloadService;
 		TUniquePtr<IMessagePump> MessagePump;
 		TUniquePtr<FStatsCollector> StatsCollector;
-		TArray<FMessageHandler*> MessageHandlers;
 		FThreadSafeBool bShouldRun;
 		FThreadSafeBool bSuccess;
 
@@ -610,7 +609,7 @@ namespace BuildPatchServices
 		, DownloadSpeedRecorder(FSpeedRecorderFactory::Create())
 		, InstallerAnalytics(FInstallerAnalyticsFactory::Create(nullptr))
 		, DownloadServiceStatistics(FDownloadServiceStatisticsFactory::Create(DownloadSpeedRecorder.Get(), ChunkDataSizeProvider.Get(), InstallerAnalytics.Get()))
-		, DownloadService(FDownloadServiceFactory::Create(CoreTicker, HttpManager.Get(), FileSystem.Get(), DownloadServiceStatistics.Get(), InstallerAnalytics.Get()))
+		, DownloadService(FDownloadServiceFactory::Create(HttpManager.Get(), FileSystem.Get(), DownloadServiceStatistics.Get(), InstallerAnalytics.Get()))
 		, MessagePump(FMessagePumpFactory::Create())
 		, StatsCollector(FStatsCollectorFactory::Create())
 		, bShouldRun(true)
@@ -669,7 +668,7 @@ namespace BuildPatchServices
 			FTSTicker::GetCoreTicker().Tick(DeltaTime);
 
 			// Message pump.
-			MessagePump->PumpMessages(MessageHandlers);
+			MessagePump->PumpMessages();
 
 			// Log collected stats.
 			GLog->FlushThreadedLogs();
