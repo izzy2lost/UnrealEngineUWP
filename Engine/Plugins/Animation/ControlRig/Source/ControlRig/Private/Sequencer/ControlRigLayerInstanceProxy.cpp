@@ -247,7 +247,14 @@ void FControlRigLayerInstanceProxy::RemoveControlRigTrack(int32 ControlRigID)
 			Parent = Current;
 		}
 
-		CurrentRoot = (ControlRigNodes.IsEmpty()) ? &InputPose : ControlRigNodes.Last().Get();
+		if (ControlRigNodes.IsEmpty())
+		{
+			CurrentRoot = &InputPose;
+		}
+		else
+		{
+			CurrentRoot = ControlRigNodes.Last().Get();
+		}
 		SequencerToControlRigNodeMap.Remove(ControlRigID);
 	}
 }
