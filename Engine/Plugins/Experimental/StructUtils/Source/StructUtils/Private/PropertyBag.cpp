@@ -1825,6 +1825,11 @@ TValueOrError<const FPropertyBagArrayRef, EPropertyBagResult> FInstancedProperty
 	return MakeValue(FPropertyBagArrayRef(*Desc, Address));
 }
 
+bool FInstancedPropertyBag::Identical(const FInstancedPropertyBag* Other, const uint32 PortFlags) const
+{
+	return Other && Value.Identical(&Other->Value, PortFlags);
+}
+
 bool FInstancedPropertyBag::Serialize(FArchive& Ar)
 {
 	// Obsolete, use custom version instead.
@@ -1921,6 +1926,14 @@ bool FInstancedPropertyBag::Serialize(FArchive& Ar)
 			SerialSize = (int32)(FinalOffset - InitialOffset);
 			Ar << SerialSize;
 			Ar.Seek(FinalOffset);	// Reset archive to its position
+		}
+	}
+	else
+	{
+		if (Ar.IsLoading())
+		{
+			// If loading and there was no data saved in the archive, make sure the value is empty.
+			Reset();
 		}
 	}
 	

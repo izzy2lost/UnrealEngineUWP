@@ -589,6 +589,7 @@ struct STRUCTUTILS_API FInstancedPropertyBag
 	*/
 	TValueOrError<const FPropertyBagArrayRef, EPropertyBagResult> GetArrayRef(const FName Name) const;
 
+	bool Identical(const FInstancedPropertyBag* Other, uint32 PortFlags) const;
 	bool Serialize(FArchive& Ar);
 	void AddStructReferencedObjects(FReferenceCollector& Collector);
 
@@ -604,6 +605,7 @@ template<> struct TStructOpsTypeTraits<FInstancedPropertyBag> : public TStructOp
 {
 	enum
 	{
+		WithIdentical = true,
 		WithSerializer = true,
 		WithAddStructReferencedObjects = true,
 	};
