@@ -7,8 +7,10 @@
 #include "Filters/SCurveEditorFilterPanel.h"
 #include "Framework/Docking/TabManager.h"
 #include "IPropertyRowGenerator.h"
+#include "IStructureDetailsView.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "SCurveEditorPanel.h"
+#include "SCurveEditorToolProperties.h"
 #include "SCurveKeyDetailPanel.h"
 #include "SSequencerTreeFilterStatusBar.h"
 #include "Sequencer.h"
@@ -246,6 +248,9 @@ void FCurveEditorExtension::CreateCurveEditor(const FTimeSliderArgs& TimeSliderA
 	CurveEditorPanel->GetKeyDetailsView()->GetPropertyRowGenerator()->RegisterInstancedCustomPropertyTypeLayout(
 			"FrameNumber", 
 			FOnGetPropertyTypeCustomizationInstance::CreateStatic(CreateFrameNumberCustomization, WeakSequencer));
+	CurveEditorPanel->GetToolPropertiesPanel()->GetStructureDetailsView()->GetDetailsView()->RegisterInstancedCustomPropertyTypeLayout(
+		"FrameNumber",
+		FOnGetPropertyTypeCustomizationInstance::CreateStatic(CreateFrameNumberCustomization, WeakSequencer));
 
 	// And jump to the Curve Editor tree search if you have the Curve Editor focused
 	CurveEditorModel->GetCommands()->MapAction(

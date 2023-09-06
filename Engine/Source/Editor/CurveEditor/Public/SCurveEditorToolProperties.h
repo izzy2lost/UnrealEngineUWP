@@ -32,6 +32,9 @@ public:
 	 */
 	void OnToolChanged(FCurveEditorToolID NewToolId);
 
+	/** The details view for tool properties */
+	TSharedPtr<class IStructureDetailsView> GetStructureDetailsView() const { return DetailsView; }
+
 private:
 
 	/**
