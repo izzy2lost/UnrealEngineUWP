@@ -1606,14 +1606,11 @@ bool FPCGOverrideInstancedPropertyBag::RefreshParameters(const FInstancedPropert
 	{
 	case EPCGGraphParameterEvent::GraphChanged:
 	{
-		// If the parameters property bags match, nothing to do.
-		if (ParentUserParameters->GetPropertyBagStruct() != Parameters.GetPropertyBagStruct())
-		{
-			bWasModified = true;
-			// Copy the parent parameters and reset overriddes
-			Parameters = *ParentUserParameters;
-			PropertiesIDsOverridden.Reset();
-		}
+		// We should always copy the parents parameters and reset overrides when the graph changes. Even if it is the same struct, values might be different.
+		bWasModified = true;
+		// Copy the parent parameters and reset overriddes
+		Parameters = *ParentUserParameters;
+		PropertiesIDsOverridden.Reset();
 		break;
 	}
 	case EPCGGraphParameterEvent::Added:
