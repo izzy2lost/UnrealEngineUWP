@@ -48,8 +48,11 @@ namespace UE::IO::IAS::JournaledCache
 
 // {{{1 misc ...................................................................
 
+////////////////////////////////////////////////////////////////////////////////
 static bool LoadCache(class FDiskCache&);
+using		EntryHandle = UPTRINT;
 
+////////////////////////////////////////////////////////////////////////////////
 #if !defined(IAS_HAS_WRITE_COMMIT_THRESHOLD)
 #	define IAS_HAS_WRITE_COMMIT_THRESHOLD 0
 #endif
@@ -106,9 +109,6 @@ private:
 };
 using FReadAccess	= FAccessScope<false>;
 using FWriteAccess	= FAccessScope<true>;
-
-////////////////////////////////////////////////////////////////////////////////
-using EntryHandle = UPTRINT;
 
 
 
