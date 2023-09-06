@@ -295,6 +295,7 @@ void UTestReplicatedIrisLifetimeConditionalsPropertyState::GetLifetimeReplicated
 {
 	DOREPLIFETIME_CONDITION(ThisClass, ToOwnerA, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(ThisClass, ToOwnerB, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(ThisClass, ReplayOrOwner, COND_ReplayOrOwner);
 
 	DOREPLIFETIME_CONDITION(ThisClass, SkipOwnerA, COND_SkipOwner);
 	DOREPLIFETIME_CONDITION(ThisClass, SkipOwnerB, COND_SkipOwner);
@@ -304,6 +305,10 @@ void UTestReplicatedIrisLifetimeConditionalsPropertyState::GetLifetimeReplicated
 	DOREPLIFETIME_CONDITION(ThisClass, SimulatedOrPhysicsInt, COND_SimulatedOrPhysics);
 	DOREPLIFETIME_CONDITION(ThisClass, SimulatedOnlyNoReplayInt, COND_SimulatedOnlyNoReplay);
 	DOREPLIFETIME_CONDITION(ThisClass, SimulatedOrPhysicsNoReplayInt, COND_SimulatedOrPhysicsNoReplay);
+	DOREPLIFETIME_CONDITION(ThisClass, NoneInt, COND_None);
+	DOREPLIFETIME_CONDITION(ThisClass, NeverInt, COND_Never);
+	DOREPLIFETIME_CONDITION(ThisClass, SkipReplayInt, COND_SkipReplay);
+	DOREPLIFETIME_CONDITION(ThisClass, ReplayOnlyInt, COND_ReplayOnly);
 }
 
 //////////////////////////////////////////////////////////////////////////

@@ -226,6 +226,8 @@ public:
 	int32 ToOwnerA = 0;
 	UPROPERTY(Replicated, Transient)
 	int32 ToOwnerB = 0;
+	UPROPERTY(Replicated, Transient)
+	int32 ReplayOrOwner = 0;
 
 	UPROPERTY(Replicated, Transient)
 	int32 SkipOwnerA = 0;
@@ -242,6 +244,14 @@ public:
 	int32 SimulatedOnlyNoReplayInt = 0;
 	UPROPERTY(Replicated, Transient)
 	int32 SimulatedOrPhysicsNoReplayInt = 0;
+	UPROPERTY(Replicated, Transient)
+	int32 NoneInt = 0;
+	UPROPERTY(Replicated, Transient)
+	int32 NeverInt = 0;
+	UPROPERTY(Replicated, Transient)
+	int32 SkipReplayInt = 0;
+	UPROPERTY(Replicated, Transient)
+	int32 ReplayOnlyInt = 0;
 
 	// Network data only for test
 	TArray<UE::Net::FReplicationFragment*> ReplicationFragments;
