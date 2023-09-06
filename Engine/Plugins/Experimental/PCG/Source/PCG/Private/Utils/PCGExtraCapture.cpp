@@ -4,6 +4,7 @@
 
 #include "PCGComponent.h"
 #include "PCGContext.h"
+#include "PCGGraph.h"
 #include "Graph/PCGGraphCompiler.h"
 #include "Graph/PCGGraphExecutor.h"
 
@@ -157,8 +158,8 @@ namespace PCGUtils
 PCGUtils::FCallTreeInfo PCGUtils::FExtraCapture::CalculateCallTreeInfo(const UPCGComponent* Component) const
 {
 	UPCGSubsystem* PCGSubsystem = Component ? Component->GetSubsystem() : nullptr;
-
-	if (!PCGSubsystem)
+	const UPCGGraph* PCGGraph = Component ? Component->GetGraph() : nullptr;
+	if (!PCGSubsystem || !PCGGraph)
 	{
 		return {};
 	}
@@ -169,9 +170,10 @@ PCGUtils::FCallTreeInfo PCGUtils::FExtraCapture::CalculateCallTreeInfo(const UPC
 		return {};
 	}
 
+	const uint32 GridSize = PCGGraph->IsHierarchicalGenerationEnabled() ? Component->GetGenerationGridSize() : PCGHiGenGrid::UninitializedGridSize();
+
 	FPCGStackContext DummyStackContext;
-	// Passed uninitialized grid size to get all tasks
-	TArray<FPCGGraphTask> CompiledTasks = Compiler->GetPrecompiledTasks(Component->GetGraph(), PCGHiGenGrid::UninitializedGridSize(), DummyStackContext);
+	TArray<FPCGGraphTask> CompiledTasks = Compiler->GetPrecompiledTasks(PCGGraph, GridSize, DummyStackContext);
 	if (CompiledTasks.IsEmpty())
 	{
 		return {};
