@@ -52,6 +52,14 @@ bool FGeometryCollectionMeshGroup::BatchUpdateInstancesTransforms(FGeometryColle
 	return false;
 }
 
+void FGeometryCollectionMeshGroup::BatchUpdateInstanceCustomData(FGeometryCollectionISMPool& ISMPool, int32 CustomFloatIndex, float CustomFloatValue)
+{
+	for (const FGeometryCollectionMeshInfo& MeshInfo : MeshInfos)
+	{
+		ISMPool.BatchUpdateInstanceCustomData(MeshInfo, CustomFloatIndex, CustomFloatValue);
+	}
+}
+
 void FGeometryCollectionMeshGroup::RemoveAllMeshes(FGeometryCollectionISMPool& ISMPool)
 {
 	for (const FGeometryCollectionMeshInfo& MeshInfo: MeshInfos)
@@ -261,6 +269,28 @@ bool FGeometryCollectionISMPool::BatchUpdateInstancesTransforms(FGeometryCollect
 	return false;
 }
 
+void FGeometryCollectionISMPool::BatchUpdateInstanceCustomData(FGeometryCollectionMeshInfo const& MeshInfo, int32 CustomFloatIndex, float CustomFloatValue)
+{
+	if (!ISMs.IsValidIndex(MeshInfo.ISMIndex))
+	{
+		return;
+	}
+	
+	FGeometryCollectionISM& ISM = ISMs[MeshInfo.ISMIndex];
+	if (!ensure(CustomFloatValue < ISM.MeshInstance.Desc.NumCustomDataFloats))
+	{
+		return;
+	}
+		
+	const FInstanceGroups::FInstanceGroupRange& InstanceGroup = ISM.InstanceGroups.GroupRanges[MeshInfo.InstanceGroupIndex];
+	for (int32 InstanceIndex = 0; InstanceIndex < InstanceGroup.Count; ++InstanceIndex)
+	{
+		const int32 RenderIndex = ISM.InstanceIndexToRenderIndex[InstanceGroup.Start + InstanceIndex];
+		const bool bLastUpdate = InstanceIndex == InstanceGroup.Count - 1;
+		ISM.ISMComponent->SetCustomDataValue(RenderIndex, CustomFloatIndex, CustomFloatValue, bLastUpdate);
+	}
+}
+
 void FGeometryCollectionISMPool::RemoveISM(const FGeometryCollectionMeshInfo& MeshInfo)
 {
 	if (ISMs.IsValidIndex(MeshInfo.ISMIndex))
@@ -430,6 +460,17 @@ bool UGeometryCollectionISMPoolComponent::BatchUpdateInstancesTransforms(FMeshGr
 	if (FGeometryCollectionMeshGroup* MeshGroup = MeshGroups.Find(MeshGroupId))
 	{
 		return MeshGroup->BatchUpdateInstancesTransforms(Pool, MeshId, StartInstanceIndex, NewInstancesTransforms, bWorldSpace, bMarkRenderStateDirty, bTeleport);
+	}
+	UE_LOG(LogChaos, Warning, TEXT("UGeometryCollectionISMPoolComponent : Trying to update instance with mesh group (%d) that not exists"), MeshGroupId);
+	return false;
+}
+
+bool UGeometryCollectionISMPoolComponent::BatchUpdateInstanceCustomData(FMeshGroupId MeshGroupId, int32 CustomFloatIndex, float CustomFloatValue)
+{
+	if (FGeometryCollectionMeshGroup* MeshGroup = MeshGroups.Find(MeshGroupId))
+	{
+		MeshGroup->BatchUpdateInstanceCustomData(Pool, CustomFloatIndex, CustomFloatValue);
+		return true;
 	}
 	UE_LOG(LogChaos, Warning, TEXT("UGeometryCollectionISMPoolComponent : Trying to update instance with mesh group (%d) that not exists"), MeshGroupId);
 	return false;
