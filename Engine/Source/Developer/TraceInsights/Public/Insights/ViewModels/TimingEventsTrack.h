@@ -93,6 +93,9 @@ protected:
 
 	virtual bool HasCustomFilter() const { return false; }
 
+	/* Can be overriden to force a max depth for the track. */
+	virtual int32 GetMaxDepth() const { return -1; }
+
 private:
 	int32 NumLanes; // number of lanes (sub-tracks)
 	TSharedRef<struct FTimingEventsTrackDrawState> DrawState;

@@ -81,10 +81,8 @@ void FTimingEventsTrack::PreUpdate(const ITimingTrackUpdateContext& Context)
 
 			Builder.Flush();
 
-			if (Builder.GetMaxDepth() > MaxDepth)
-			{
-				MaxDepth = Builder.GetMaxDepth();
-			}
+			MaxDepth = FMath::Max(MaxDepth, Builder.GetMaxDepth());
+			MaxDepth = FMath::Max(MaxDepth, GetMaxDepth());
 		}
 
 		const TSharedPtr<ITimingEventFilter> EventFilter = Context.GetEventFilter();

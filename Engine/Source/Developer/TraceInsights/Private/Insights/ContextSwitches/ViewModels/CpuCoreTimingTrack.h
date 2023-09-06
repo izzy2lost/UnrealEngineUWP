@@ -28,16 +28,13 @@ class FCpuCoreTimingTrack : public FTimingEventsTrack
 	INSIGHTS_DECLARE_RTTI(FCpuCoreTimingTrack, FTimingEventsTrack)
 
 public:
-	explicit FCpuCoreTimingTrack(FContextSwitchesSharedState& InSharedState, const FString& InName, uint32 InCoreNumber)
-		: FTimingEventsTrack(InName)
-		, SharedState(InSharedState)
-		, CoreNumber(InCoreNumber)
-	{
-	}
+	explicit FCpuCoreTimingTrack(FContextSwitchesSharedState& InSharedState, const FString& InName, uint32 InCoreNumber);
 
 	virtual ~FCpuCoreTimingTrack() {}
 
 	uint32 GetCoreNumber() const { return CoreNumber; }
+
+	virtual void Reset() override;
 
 	virtual void BuildDrawState(ITimingEventsTrackDrawStateBuilder& Builder, const ITimingTrackUpdateContext& Context) override;
 	virtual void BuildFilteredDrawState(ITimingEventsTrackDrawStateBuilder& Builder, const ITimingTrackUpdateContext& Context) override;
@@ -61,10 +58,16 @@ protected:
 
 	FString GetThreadName(uint32 InSystemThreadId) const;
 
+	virtual int32 GetMaxDepth() const override { return NonTargetProcessEventsMaxDepth; }
+
 private:
 	FContextSwitchesSharedState& SharedState;
 
 	uint32 CoreNumber;
+
+	TSharedRef<struct FTimingEventsTrackDrawState> NonTargetProcessEventsDrawState;
+
+	int32 NonTargetProcessEventsMaxDepth = -1;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
