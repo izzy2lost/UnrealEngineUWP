@@ -54,7 +54,7 @@ public:
 	TObjectPtr<UGLTFPipelineSettings> GLTFPipelineSettings;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "glTF", meta = (DisplayName = "Use glTF Material Instance Library"))
-	bool bUseGLTFMaterialInstanceLibrary = false;
+	bool bUseGLTFMaterialInstanceLibrary = true;
 
 protected:
 	virtual void AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset) override;

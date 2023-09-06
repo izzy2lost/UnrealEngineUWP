@@ -2924,7 +2924,7 @@ UInterchangeMaterialInstanceFactoryNode* UInterchangeGenericMaterialPipeline::Cr
 			ParentRootName = TEXT("PBRSurfaceMaterial_");
 		}
 
-		const FString ParentAssetPath = TEXT("Material'/Interchange/Materials/") + ParentRootName + Model + TEXT(".") + ParentRootName + Model + TEXT("'");
+		const FString ParentAssetPath = TEXT("/Interchange/Materials/") + ParentRootName + Model + TEXT(".") + ParentRootName + Model;
 		MaterialInstanceFactoryNode->SetCustomParent(ParentAssetPath);
 	};
 
@@ -2942,20 +2942,20 @@ UInterchangeMaterialInstanceFactoryNode* UInterchangeGenericMaterialPipeline::Cr
 	}
 	else if (IsPhongModel(ShaderGraphNode))
 	{
-		MaterialInstanceFactoryNode->SetCustomParent(TEXT("Material'/Interchange/Materials/PhongSurfaceMaterial.PhongSurfaceMaterial'"));
+		MaterialInstanceFactoryNode->SetCustomParent(TEXT("/Interchange/Materials/PhongSurfaceMaterial.PhongSurfaceMaterial"));
 	}
 	else if (IsLambertModel(ShaderGraphNode))
 	{
-		MaterialInstanceFactoryNode->SetCustomParent(TEXT("Material'/Interchange/Materials/LambertSurfaceMaterial.LambertSurfaceMaterial'"));
+		MaterialInstanceFactoryNode->SetCustomParent(TEXT("/Interchange/Materials/LambertSurfaceMaterial.LambertSurfaceMaterial"));
 	}
 	else if (IsUnlitModel(ShaderGraphNode))
 	{
-		MaterialInstanceFactoryNode->SetCustomParent(TEXT("Material'/Interchange/Materials/UnlitMaterial.UnlitMaterial'"));
+		MaterialInstanceFactoryNode->SetCustomParent(TEXT("/Interchange/Materials/UnlitMaterial.UnlitMaterial"));
 	}
 	else
 	{
 		// Default to PBR
-		MaterialInstanceFactoryNode->SetCustomParent(TEXT("Material'/Interchange/Materials/PBRSurfaceMaterial.PBRSurfaceMaterial'"));
+		MaterialInstanceFactoryNode->SetCustomParent(TEXT("/Interchange/Materials/PBRSurfaceMaterial.PBRSurfaceMaterial"));
 	}
 
 #if WITH_EDITOR
