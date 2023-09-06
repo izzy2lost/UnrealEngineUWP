@@ -457,6 +457,11 @@ namespace BuildPatchServices
 		 * Builds the cloud source configuration struct.
 		 */
 		FDownloadConnectionCountConfig BuildConnectionCountConfig();
+
+		/**
+		 * Destroys the internal worker thread
+		 */
+		void CleanupThread();
 	};
 }
 

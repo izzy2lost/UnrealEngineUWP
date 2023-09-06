@@ -504,12 +504,9 @@ namespace BuildPatchServices
 		{
 			InstallerError->SetError(EBuildPatchInstallError::ApplicationClosing, ApplicationClosedErrorCodes::ApplicationClosed);
 		}
-		if (Thread != nullptr)
-		{
-			Thread->WaitForCompletion();
-			delete Thread;
-			Thread = nullptr;
-		}
+
+		CleanupThread();
+
 		if (InstallerAnalytics.IsValid())
 		{
 			InstallerAnalytics->Flush();
@@ -523,6 +520,7 @@ namespace BuildPatchServices
 		if (IsComplete())
 		{
 			ExecuteCompleteDelegate();
+			CleanupThread();
 			bStillTicking = false;
 		}
 		return bStillTicking;
@@ -1833,6 +1831,16 @@ namespace BuildPatchServices
 			bBackupSuccess = IFileManager::Get().Move(*BackupFilename, *InstalledFilename, true, true, true);
 		}
 		return bBackupSuccess;
+	}
+
+	void FBuildPatchInstaller::CleanupThread()
+	{
+		if (Thread != nullptr)
+		{
+			Thread->WaitForCompletion();
+			delete Thread;
+			Thread = nullptr;
+		}
 	}
 
 	double FBuildPatchInstaller::GetDownloadSpeed() const
