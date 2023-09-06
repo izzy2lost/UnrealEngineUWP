@@ -1028,7 +1028,7 @@ FTransformData F3DTransformTrackEditor::RecomposeTransform(const FTransformData&
 	}
 
 	// Account for the transform origin only if this is not parented because the transform origin is already being applied to the parent.
-	if (!SceneComponent->GetAttachParent())
+	if (!SceneComponent->GetAttachParent() && Section->GetBlendType() == EMovieSceneBlendType::Absolute)
 	{
 		CurrentTransform *= GetTransformOrigin().Inverse();
 	}
