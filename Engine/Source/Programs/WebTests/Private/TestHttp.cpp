@@ -821,6 +821,8 @@ TEST_CASE_METHOD(FWaitThreadedHttpFixture, "Threaded http request pre check will
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Cancel http request connect before timeout", HTTP_TAG)
 {
+	DisableWarningsInThisTest();
+
 	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest = HttpModule->CreateRequest();
 	HttpRequest->SetURL(UrlWithInvalidPortToTestConnectTimeout());
 	HttpRequest->SetVerb(TEXT("GET"));
@@ -835,7 +837,6 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Cancel http request connect bef
 	});
 	HttpRequest->ProcessRequest();
 	FPlatformProcess::Sleep(0.5);
-	DisableWarningsInThisTest();
 	HttpRequest->CancelRequest();
 }
 

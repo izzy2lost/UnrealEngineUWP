@@ -4,6 +4,7 @@
 #include "HAL/PlatformProcess.h"
 #include "Http.h"
 #include "Misc/CommandLine.h"
+#include "WebSocketsLog.h"
 #include "WebSocketsModule.h"
 #include "IWebSocket.h"
 #include "TestHarness.h"
@@ -28,6 +29,7 @@ public:
 	FWebSocketsModuleTestFixture()
 		: WebServerIp(TEXT("127.0.0.1"))
 		, WebServerWebSocketsPort(8000)
+		, OldVerbosity(LogWebSockets.GetVerbosity())
 	{
 		ParseSettingsFromCommandLine();
 
@@ -50,11 +52,22 @@ public:
 		IModuleInterface* HttpModuleInterface = HttpModule;
 		HttpModuleInterface->ShutdownModule();
 		delete HttpModuleInterface;
+
+		if (OldVerbosity != LogWebSockets.GetVerbosity())
+		{
+			LogWebSockets.SetVerbosity(OldVerbosity);
+		}
 	}
 
 	void ParseSettingsFromCommandLine()
 	{
 		FParse::Value(FCommandLine::Get(), TEXT("web_server_ip"), WebServerIp);
+		FParse::Value(FCommandLine::Get(), TEXT("web_server_websockets_port"), WebServerWebSocketsPort);
+	}
+
+	void DisableWarningsInThisTest()
+	{
+		LogWebSockets.SetVerbosity(ELogVerbosity::Error);
 	}
 
 	const FString UrlWithInvalidPortToTestConnectTimeout() const { return FString::Format(TEXT("ws://{0}:{1}"), { *WebServerIp, 8765 }); }
@@ -65,6 +78,7 @@ public:
 	uint32 WebServerWebSocketsPort;
 	FWebSocketsModule* WebSocketsModule;
 	FHttpModule* HttpModule;
+	ELogVerbosity::Type OldVerbosity;
 };
 
 class FRunUntilQuitRequestedFixture : public FWebSocketsModuleTestFixture
@@ -121,3 +135,20 @@ TEST_CASE_METHOD(FRunUntilQuitRequestedFixture, "WebSockets can connect then sen
 	WebSocket->Connect();
 }
 
+TEST_CASE_METHOD(FRunUntilQuitRequestedFixture, "WebSockets module can shut down when there are still websockets connections", WEBSOCKETS_TAG)
+{
+	DisableWarningsInThisTest();
+
+	TSharedPtr<IWebSocket> WebSocket = WebSocketsModule->CreateWebSocket(FString::Format(TEXT("{0}/echo/"), { *UrlWebSocketsTests() }));
+
+	WebSocket->OnConnected().AddLambda([this, WebSocket](){
+		bQuitRequested = true;
+	});
+
+	WebSocket->OnConnectionError().AddLambda([this, WebSocket](const FString& /* Error */){
+		CHECK(false);
+		bQuitRequested = true;
+	});
+
+	WebSocket->Connect();
+}
