@@ -777,6 +777,18 @@ void UGameFeaturesSubsystem::OnGameFeatureLoading(const UGameFeatureData* GameFe
 		}
 	}
 }
+void UGameFeaturesSubsystem::OnGameFeatureUnloading(const UGameFeatureData* GameFeatureData, const FGameFeaturePluginIdentifier& PluginIdentifier)
+{
+	CallbackObservers(EObserverCallback::Unloading, PluginIdentifier, nullptr, GameFeatureData);
+
+	for (UGameFeatureAction* Action : GameFeatureData->GetActions())
+	{
+		if (Action != nullptr)
+		{
+			Action->OnGameFeatureUnloading();
+		}
+	}
+}
 
 void UGameFeaturesSubsystem::OnGameFeatureActivating(const UGameFeatureData* GameFeatureData, const FString& PluginName, FGameFeatureActivatingContext& Context, const FGameFeaturePluginIdentifier& PluginIdentifier)
 {
@@ -2203,7 +2215,7 @@ void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, c
 	const UGameFeatureData* GameFeatureData /*= nullptr*/, 
 	FGameFeatureStateChangeContext* StateChangeContext /*= nullptr*/)
 {
-	static_assert(std::underlying_type<EObserverCallback>::type(EObserverCallback::Count) == 10, "Update UGameFeaturesSubsystem::CallbackObservers to handle added EObserverCallback");
+	static_assert(std::underlying_type<EObserverCallback>::type(EObserverCallback::Count) == 11, "Update UGameFeaturesSubsystem::CallbackObservers to handle added EObserverCallback");
 
 	// Protect against modifying the observer list during iteration
 	TArray<UObject*> LocalObservers(Observers);
@@ -2272,6 +2284,15 @@ void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, c
 		for (UObject* Observer : LocalObservers)
 		{
 			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureLoading(GameFeatureData, PluginIdentifier.GetFullPluginURL());
+		}
+		break;
+	}
+	case EObserverCallback::Unloading:
+	{
+		check(GameFeatureData);
+		for (UObject* Observer : LocalObservers)
+		{
+			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureUnloading(GameFeatureData, PluginIdentifier.GetFullPluginURL());
 		}
 		break;
 	}

@@ -2312,6 +2312,7 @@ struct FGameFeaturePluginState_Unloading : public FGameFeaturePluginState
 		}
 
 		UnloadGameFeatureBundles(StateProperties.GameFeatureData);
+		UGameFeaturesSubsystem::Get().OnGameFeatureUnloading(StateProperties.GameFeatureData, StateProperties.PluginIdentifier);
 
 		if (StateProperties.Destination.MaxState == EGameFeaturePluginState::Registered)
 		{

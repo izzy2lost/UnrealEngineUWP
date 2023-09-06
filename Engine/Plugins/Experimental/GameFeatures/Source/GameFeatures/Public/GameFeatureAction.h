@@ -27,6 +27,9 @@ public:
 	/** Called to indicate that a feature is being loaded for activation in the near future */
 	virtual void OnGameFeatureLoading() {}
 
+	/** Called to indicate that a feature is being unloaded */
+	virtual void OnGameFeatureUnloading() {}
+
 	/** Called when the feature is actually applied */
 	virtual void OnGameFeatureActivating(FGameFeatureActivatingContext& Context);
 

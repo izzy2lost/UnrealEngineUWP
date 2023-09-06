@@ -369,6 +369,9 @@ protected:
 	/** Allow the application to override the dedicated server filename prefix. */
 	virtual FString GetDedicatedServerPrefix() const;
 
+	/** Allow child classes to determine if specific assets should be hotfixed or not */
+	virtual bool ShouldHotfixAsset(const FString& AssetPath) const;
+
 public:
 	UOnlineHotfixManager();
 	UOnlineHotfixManager(FVTableHelper& Helper);

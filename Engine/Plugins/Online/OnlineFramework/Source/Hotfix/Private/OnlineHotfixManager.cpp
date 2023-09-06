@@ -1461,6 +1461,13 @@ void UOnlineHotfixManager::PatchAssetsFromIniFiles()
 						const FString& AssetPath(Tokens[0]);
 						const FString& HotfixType(Tokens[1]);
 
+						if (!ShouldHotfixAsset(AssetPath))
+						{
+							//Child class says not to hotfix this asset so it shouldn't be included in the total
+							--TotalPatchableAssets;
+							continue;
+						}
+
 						bool bAddAssetToHotfixedList = false;
 
 						// Find or load the asset
@@ -1893,6 +1900,11 @@ bool UOnlineHotfixManager::ShouldPerformHotfix()
 FString UOnlineHotfixManager::GetDedicatedServerPrefix() const
 {
 	return TEXT("DedicatedServer");
+}
+
+bool UOnlineHotfixManager::ShouldHotfixAsset(const FString& AssetPath) const
+{
+	return true;
 }
 
 UWorld* UOnlineHotfixManager::GetWorld() const

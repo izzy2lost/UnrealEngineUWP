@@ -55,6 +55,9 @@ public:
 	// Invoked in the early stages of the game feature plugin loading phase
 	virtual void OnGameFeatureLoading(const UGameFeatureData* GameFeatureData, const FString& PluginURL) {}
 
+	// Invoked after a game feature plugin is unloaded
+	virtual void OnGameFeatureUnloading(const UGameFeatureData* GameFeatureData, const FString& PluginURL) {}
+
 	// Invoked prior to activating a game feature plugin
 	virtual void OnGameFeatureActivating(const UGameFeatureData* GameFeatureData, const FString& PluginURL) {}
 
