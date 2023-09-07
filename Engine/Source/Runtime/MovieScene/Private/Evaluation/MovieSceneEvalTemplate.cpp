@@ -3,9 +3,6 @@
 #include "Evaluation/MovieSceneEvalTemplate.h"
 #include "Evaluation/MovieSceneEvalTemplateSerializer.h"
 
-#include "UObject/Class.h"
-
-
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneEvalTemplate)
 
 float FMovieSceneEvalTemplate::EvaluateEasing(FFrameTime CurrentTime) const
@@ -19,15 +16,3 @@ bool FMovieSceneEvalTemplatePtr::Serialize(FArchive& Ar)
 	return SerializeInlineValue(*this, Ar, bShouldWarn);
 }
 
-
-void FMovieSceneEvalTemplatePtr::AddStructReferencedObjects(FReferenceCollector& Collector)
-{
-	if (IsValid())
-	{
-		FMovieSceneEvalTemplate* Template = &GetValue();
-		TObjectPtr<UScriptStruct> Struct(&Template->GetScriptStruct());
-
-		Collector.AddReferencedObject(Struct);
-		Collector.AddPropertyReferencesWithStructARO(Struct, Template);
-	}
-}

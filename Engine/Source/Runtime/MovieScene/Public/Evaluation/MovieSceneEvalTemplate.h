@@ -261,11 +261,9 @@ struct FMovieSceneEvalTemplatePtr
 
 	/** Serialize the template */
 	MOVIESCENE_API bool Serialize(FArchive& Ar);
-
-	MOVIESCENE_API void AddStructReferencedObjects(class FReferenceCollector& InCollector);
 };
 
 template<> struct TStructOpsTypeTraits<FMovieSceneEvalTemplatePtr> : public TStructOpsTypeTraitsBase2<FMovieSceneEvalTemplatePtr>
 {
-	enum { WithSerializer = true, WithCopy = true, WithAddStructReferencedObjects = true };
+	enum { WithSerializer = true, WithCopy = true };
 };
