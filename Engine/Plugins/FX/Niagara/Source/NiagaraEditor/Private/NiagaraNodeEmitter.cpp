@@ -159,6 +159,24 @@ void UNiagaraNodeEmitter::NodeConnectionListChanged()
 	//GetGraph()->NotifyGraphChanged();
 }
 
+FNiagaraEmitterID UNiagaraNodeEmitter::GetEmitterID()const
+{
+	if (OwnerSystem != nullptr && EmitterHandleId.IsValid())
+	{
+		const auto& Emitters = OwnerSystem->GetEmitterHandles();
+		for (int32 i = 0; i < Emitters.Num(); ++i)
+		{
+			const FNiagaraEmitterHandle& EmitterHandle = Emitters[i];
+			if (EmitterHandle.GetId() == EmitterHandleId)
+			{
+				return FNiagaraEmitterID(i);
+			}
+		}
+	}
+
+	return CachedEmitterID;
+}
+
 FString UNiagaraNodeEmitter::GetEmitterUniqueName() const
 {
 	if (OwnerSystem != nullptr && EmitterHandleId.IsValid())
@@ -267,9 +285,10 @@ void UNiagaraNodeEmitter::SyncEnabledState()
 	}
 }
 
-void UNiagaraNodeEmitter::SetCachedVariablesForCompilation(const FName& InUniqueName, UNiagaraGraph* InGraph, UNiagaraScriptSourceBase* InSource)
+void UNiagaraNodeEmitter::SetCachedVariablesForCompilation(const FName& InUniqueName, FNiagaraEmitterID InEmitterID, UNiagaraGraph* InGraph, UNiagaraScriptSourceBase* InSource)
 {
 	CachedUniqueName = InUniqueName;
+	CachedEmitterID = InEmitterID;
 	CachedGraphWeakPtr = InGraph;
 	CachedScriptSourceWeakPtr = InSource;
 }

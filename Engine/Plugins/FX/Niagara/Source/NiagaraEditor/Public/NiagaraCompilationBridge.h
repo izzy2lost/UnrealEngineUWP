@@ -161,6 +161,7 @@ struct FNiagaraCompilationGraphBridge
 	static void BuildTraversal(const FGraph* Graph, const FNode* OutputNode, TArray<const FNode*>& TraversedNodes);
 	static const FGraph* GetEmitterGraph(const FEmitterNode* EmitterNode);
 	static FString GetEmitterUniqueName(const FEmitterNode* EmitterNode);
+	static FNiagaraEmitterID GetEmitterID(const FEmitterNode* EmitterNode);
 	static ENiagaraScriptUsage GetEmitterUsage(const FEmitterNode* EmitterNode);
 	static FString GetEmitterName(const FEmitterNode* EmitterNode);
 	static FString GetEmitterPathName(const FEmitterNode* EmitterNode);
@@ -286,6 +287,7 @@ struct FNiagaraCompilationDigestBridge
 	static void FindOutputNodes(const FGraph* Graph, TArray<const FOutputNode*>& OutputNodes);
 	static void BuildTraversal(const FGraph* Graph, const FNode* OutputNode, TArray<const FNode*>& TraversedNodes);
 	static const FGraph* GetEmitterGraph(const FEmitterNode* EmitterNode);
+	static FNiagaraEmitterID GetEmitterID(const FEmitterNode* EmitterNode);
 	static FString GetEmitterUniqueName(const FEmitterNode* EmitterNode);
 	static ENiagaraScriptUsage GetEmitterUsage(const FEmitterNode* EmitterNode);
 	static FString GetEmitterName(const FEmitterNode* EmitterNode);

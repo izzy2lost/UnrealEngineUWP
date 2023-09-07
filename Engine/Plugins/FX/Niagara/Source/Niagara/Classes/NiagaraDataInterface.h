@@ -1343,6 +1343,21 @@ struct FNDIInputParam<FNiagaraSpawnInfo>
 	FORCEINLINE void Reset() { Count.Reset(); InterpStartDt.Reset();  IntervalDt.Reset(); SpawnGroup.Reset();}
 };
 
+template<>
+struct FNDIInputParam<FNiagaraEmitterID>
+{
+	VectorVM::FExternalFuncInputHandler<int32> Index;
+	FORCEINLINE FNDIInputParam(FVectorVMExternalFunctionContext& Context) : Index(Context) {}
+	FORCEINLINE FNDIInputParam() { }
+	FORCEINLINE void Init(FVectorVMExternalFunctionContext& Context) { new(this)FNDIInputParam<FNiagaraEmitterID>(Context); }
+	FORCEINLINE FNiagaraEmitterID GetAndAdvance() { return FNiagaraEmitterID(Index.GetAndAdvance()); }
+	FORCEINLINE FNiagaraEmitterID Get() { return FNiagaraEmitterID(Index.Get()); }
+	FORCEINLINE void Advance(int32 Count = 1) { return Index.Advance(Count); }
+	FORCEINLINE bool IsConstant() const { return Index.IsConstant(); }
+	FORCEINLINE void Reset() { Index.Reset(); }
+};
+
+
 //Helper to deal with types with potentially several output registers.
 template<typename T>
 struct FNDIOutputParam

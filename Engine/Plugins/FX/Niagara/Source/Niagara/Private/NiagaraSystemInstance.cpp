@@ -2824,6 +2824,13 @@ FBox FNiagaraSystemInstance::GetEmitterFixedBounds(FName EmitterName) const
 	return FBox(ForceInit);
 }
 
+FNiagaraEmitterInstance* FNiagaraSystemInstance::GetEmitterByID(FNiagaraEmitterID InID)const
+{
+	//Currently the emitter ID is the direct index of the emitter in the Emitters array, though this may not always be the case.
+	int32 EmitterIndex = InID.ID;
+	return Emitters.IsValidIndex(EmitterIndex) ? &Emitters[EmitterIndex].Get() : nullptr;
+}
+
 void FNiagaraSystemInstance::SetForceSolo(bool bInForceSolo)
 {
 	// We may be forced into solo mode so if we match nothing to do here

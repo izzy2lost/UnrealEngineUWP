@@ -218,6 +218,11 @@ const UNiagaraGraph* FNiagaraCompilationGraphBridge::GetEmitterGraph(const FEmit
 	return EmitterNode->GetCalledGraph();
 }
 
+FNiagaraEmitterID FNiagaraCompilationGraphBridge::GetEmitterID(const FEmitterNode* EmitterNode)
+{
+	return EmitterNode->GetEmitterID();
+}
+
 FString FNiagaraCompilationGraphBridge::GetEmitterUniqueName(const FEmitterNode* EmitterNode)
 {
 	return EmitterNode->GetEmitterUniqueName();

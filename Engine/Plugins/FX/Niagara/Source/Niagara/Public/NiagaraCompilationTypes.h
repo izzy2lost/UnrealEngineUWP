@@ -40,6 +40,7 @@ struct FNiagaraScriptAsyncCompileData
 	FNiagaraVMExecutableDataId CompileId;
 	TSharedPtr<struct FNiagaraVMExecutableData> ExeData;
 	FString UniqueEmitterName;
+	FNiagaraEmitterID EmitterID = INDEX_NONE;
 	FNiagaraScriptCompileMetrics CompileMetrics;
 
 	bool bFromDerivedDataCache = false;

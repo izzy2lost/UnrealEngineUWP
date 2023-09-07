@@ -72,10 +72,6 @@ public:
 	UPROPERTY(EditAnywhere, Category="Data Channel")
 	TObjectPtr<UNiagaraDataChannelAsset> Channel;
 	
-	/** A bounds emitter instance when using functions like Spawn. Defaults to Self. */
-	UPROPERTY(EditAnywhere, Category = "Spawning", AdvancedDisplay)
-	FNiagaraDataInterfaceEmitterBinding EmitterBinding;
-
 	/** True if this reader will read the current frame's data. If false, we read the previous frame.
 	* Reading the current frame introduces a tick order dependency but allows for zero latency reads. Any data channel elements that are generated after this reader is used are missed.
 	* Reading the previous frame's data introduces a frame of latency but ensures we never miss any data as we have access to the whole frame.
@@ -97,10 +93,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Spawning", AdvancedDisplay)
 	bool bOverrideSpawnGroupToDataChannelIndex = true;
 
-	/** The spawn info variable we'll read from the data channel to control spawning using the SpawnFromSpawnInfo DI function.*/
-	UPROPERTY(EditAnywhere, Category = "Spawning", AdvancedDisplay)
-	FName SpawnInfoName;
-	
 	//UObject Interface
 	NIAGARA_API virtual void PostInitProperties() override;
 	NIAGARA_API virtual void BeginDestroy() override;
@@ -115,6 +107,8 @@ public:
 	NIAGARA_API virtual void GetCommonHLSL(FString& OutHLSL)override;
 	NIAGARA_API virtual bool GetFunctionHLSL(FNiagaraDataInterfaceHlslGenerationContext& HlslGenContext, FString& OutHLSL) override;
 	NIAGARA_API virtual void GetParameterDefinitionHLSL(FNiagaraDataInterfaceHlslGenerationContext& HlslGenContext, FString& OutHLSL) override;
+
+	virtual bool UpgradeFunctionCall(FNiagaraFunctionSignature& FunctionSignature)override;
 
 	NIAGARA_API virtual void PostCompile()override;
 #endif	
@@ -154,7 +148,6 @@ public:
 	NIAGARA_API void Consume(FVectorVMExternalFunctionContext& Context, int32 FuncIdx);
 
 	//Emitter only functions.
-	NIAGARA_API void SpawnFromSpawnInfo(FVectorVMExternalFunctionContext& Context);
 	NIAGARA_API void SpawnConditional(FVectorVMExternalFunctionContext& Context, int32 FuncIndex);
 
 	FNDIDataChannelCompiledData& GetCompiledData() { return CompiledData; }
@@ -207,15 +200,10 @@ struct FNDIDataChannelReadInstanceData
 	Conditional spawns to inject into the bound emitter based on our DI function calls.
 	Each data channel element we read in a particular execution will have an entry in this array and can spawn(or not) independently.
 	*/
-	TArray<FNiagaraSpawnInfo> ConditionalSpawns;
+	TMap<FNiagaraEmitterInstance*,TArray<FNiagaraSpawnInfo>> PerEmitterConditionalSpawns;
 
-	/*
-	We read a spawn info for future proofing here but currently we only use the spawn count.
-	NOTE: This is 100% dependent on SpawnInfo class not changing. If it does we'll need to update this.
-	*/
-	FNiagaraDataSetAccessor<FNiagaraSpawnInfo> SpawnInfoAccessor;
 	uint32 CachedLayoutHash = INDEX_NONE;
-	FNiagaraEmitterInstance* EmitterInstance = nullptr;
+	FNiagaraSystemInstance* Owner = nullptr;
 
 	virtual ~FNDIDataChannelReadInstanceData();
 	FNiagaraDataBuffer* GetReadBufferCPU(bool bPrevFrame);

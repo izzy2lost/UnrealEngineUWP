@@ -393,6 +393,7 @@ public:
 	virtual void BuildParameterMapHistory(FParameterMapHistoryBuilder& Builder, bool bRecursive, bool bFilterForCompilation) const override;
 	virtual void Compile(FTranslator* Translator, TArray<int32>& Outputs) const;
 
+	FNiagaraEmitterID EmitterID;
 	FString EmitterUniqueName;
 	FString EmitterName;
 	FString EmitterPathName;

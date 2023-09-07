@@ -52,8 +52,6 @@ static FAutoConsoleVariableRef CVarNDCReadForcePrevFrame(
 	ECVF_Default
 );
 
-
-
 namespace NDIDataChannelReadLocal
 {
 	static const TCHAR* CommonShaderFile = TEXT("/Plugin/FX/Niagara/Private/DataChannel/NiagaraDataInterfaceDataChannelCommon.ush");
@@ -61,18 +59,111 @@ namespace NDIDataChannelReadLocal
 	static const TCHAR* TemplateShaderFile_Read = TEXT("/Plugin/FX/Niagara/Private/DataChannel/NiagaraDataInterfaceDataChannelTemplate_Read.ush");
 	static const TCHAR* TemplateShaderFile_Consume = TEXT("/Plugin/FX/Niagara/Private/DataChannel/NiagaraDataInterfaceDataChannelTemplate_Consume.ush");
 
-	static const FName NumName(TEXT("Num"));
-	static const FName ReadName(TEXT("Read"));
-	static const FName ConsumeName(TEXT("Consume"));
-	static const FName SpawnFromSpawnInfoName(TEXT("SpawnFromSpawnInfo"));
-	static const FName SpawnConditionalName(TEXT("SpawnConditional"));
+	//////////////////////////////////////////////////////////////////////////
+	//Function definitions
+	const FNiagaraFunctionSignature& GetFunctionSig_Num()
+	{
+		static FNiagaraFunctionSignature Sig;
+		if(!Sig.IsValid())
+		{
+			Sig.Name = TEXT("Num");
+#if WITH_EDITORONLY_DATA
+			Sig.Description = LOCTEXT("NumFunctionDescription", "Returns the current number of DataChannel accessible by this interface.");
+#endif
+			Sig.bMemberFunction = true;
+			Sig.bExperimental = true;
+			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelRead::StaticClass()), TEXT("DataChannel interface")));
+			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Num")));
+		}		
+		return Sig;
+	}
 
-	static const FName SpawnInfoName(TEXT("SpawnInfo"));
+	const FNiagaraFunctionSignature& GetFunctionSig_Read()
+	{
+		static FNiagaraFunctionSignature Sig;
+		if(!Sig.IsValid())
+		{
+			Sig.Name = TEXT("Read");
+#if WITH_EDITORONLY_DATA
+			Sig.Description = LOCTEXT("ReadFunctionDescription", "Reads DataChannel data at a specific index. Any values we read that are not in the DataChannel data are set to their default values. Returns success if there was a valid DataChannel to read from.");
+#endif
+			Sig.bMemberFunction = true;
+			Sig.bExperimental = true;
+			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelRead::StaticClass()), TEXT("DataChannel interface")));
+			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index")), LOCTEXT("ConsumeIndexInputDesc", "The index to read."));
+			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Success")), LOCTEXT("ConsumeSuccessOutputDesc", "True if all reads succeeded."));
+			Sig.RequiredOutputs = Sig.Outputs.Num();//The user defines what we read in the graph.			
+		}
+		return Sig;
+	}
+
+	const FNiagaraFunctionSignature& GetFunctionSig_Consume()
+	{
+		static FNiagaraFunctionSignature Sig;
+		if(!Sig.IsValid())
+		{
+			Sig.Name = TEXT("Consume");
+#if WITH_EDITORONLY_DATA
+			Sig.Description = LOCTEXT("ConsumeFunctionDescription", "Consumes an DataChannel from the end of the DataChannel array and reads the specified values. Any values we read that are not in the DataChannel data are set to their default values. Returns success if an DataChannel was available to pop.");
+#endif
+			Sig.bMemberFunction = true;
+			Sig.bExperimental = true;
+			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelRead::StaticClass()), TEXT("DataChannel interface")));
+			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Consume")), LOCTEXT("ConsumeInputDesc", "True if this instance (particle/emitter etc) should consume data from the data channel in this call."));
+			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Success")), LOCTEXT("ConsumeSuccessOutputDesc", "True if all reads succeeded."));
+			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index")), LOCTEXT("ConsumeIndexOutputDesc", "The index we actually read from. If reading failed this can be -1. This allows subsequent reads of the data channel at this index."));
+			Sig.RequiredOutputs = Sig.Outputs.Num();//The user defines what we read in the graph.			
+		}
+		return Sig;
+	}
+
+	enum class FunctionVersion_SpawnConditional : uint32
+	{
+		Initial = 0,
+		EmitterIDParameter = 1,
+	};
+
+	const FNiagaraFunctionSignature& GetFunctionSig_SpawnConditional()
+	{
+		static FNiagaraFunctionSignature Sig;
+		if(!Sig.IsValid())
+		{
+			FNiagaraVariable EnabledVar(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Enable"));
+			EnabledVar.SetValue(FNiagaraBool(true));
+
+			Sig.Name = TEXT("SpawnConditional");
+#if WITH_EDITORONLY_DATA
+			Sig.Description = LOCTEXT("SpawnCustomFunctionDescription", "Will Spawn particles into the bound Emitter between Min and Max counts for every element in the bound Data Channel.\n\
+		Can take optional additional parameters as conditions on spawning that will be compared against the contents of each data channel element.\n\
+		For example you could spawn only for a particular value of an enum.\n\
+		For compound data types that contain multiple component floats or ints, comparissons are done on a per component basis.\n\
+		For example if you add a Vector condition parameter it will be compared against each component of the corresponding Vector in the Data Channel.\n\
+		Result = (Param.X == ChannelValue.X) && (Param.Y == ChannelValue.Y) && (Param.Z == ChannelValue.Z)");
+#endif
+			Sig.bMemberFunction = true;
+			Sig.bExperimental = true;
+			Sig.bRequiresExecPin = true;
+			Sig.ModuleUsageBitmask = ENiagaraScriptUsageMask::Emitter | ENiagaraScriptUsageMask::System;
+			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelRead::StaticClass()), TEXT("DataChannel interface")));
+			Sig.AddInput(EnabledVar, LOCTEXT("SpawnEnableInputDesc", "Enable or disable this function call. If false, this call with have no effetcs."));
+			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(FNiagaraEmitterID::StaticStruct()), TEXT("Emitter ID")), LOCTEXT("EmitterIDDesc", "ID of the emitter we'd like to spawn into. This can be obtained from Engine.Emitter.Index."));
+			Sig.AddInput(FNiagaraVariable(StaticEnum<ENDIDataChannelSpawnMode>(), TEXT("Mode")), LOCTEXT("SpawnCondModeInputDesc", "A mode switch that controls how this funciton will behave."));
+			Sig.AddInput(FNiagaraVariable(StaticEnum<ENiagaraConditionalOperator>(), TEXT("Operator")), LOCTEXT("SpawnCondOpInputDesc", "The comparison operator to use when comparing values in the data channel to conditional parameters."));
+			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Min Spawn Count")), LOCTEXT("MinSpawnCountInputDesc", "Minimum number of particles to spawn for each element in the data channel."));
+			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Max Spawn Count")), LOCTEXT("MaxSpawnCountInputDesc", "Maximum number of particles to spawn for each element in the data channel."));
+			Sig.RequiredInputs = Sig.Inputs.Num();
+
+			Sig.FunctionVersion = (uint32)FunctionVersion_SpawnConditional::EmitterIDParameter;
+		}
+		return Sig;
+	}
+	// Function definitions END
+	//////////////////////////////////////////////////////////////////////////
 
 	const TCHAR* GetFunctionTemplate(FName FunctionName)
 	{
-		if (FunctionName == ReadName) return TemplateShaderFile_Read;
-		if (FunctionName == ConsumeName) return TemplateShaderFile_Consume;
+		if (FunctionName == GetFunctionSig_Read().Name) return TemplateShaderFile_Read;
+		if (FunctionName == GetFunctionSig_Consume().Name) return TemplateShaderFile_Consume;
 
 		return nullptr;
 	}
@@ -145,8 +236,6 @@ FNiagaraDataBuffer* FNDIDataChannelReadInstanceData::GetReadBufferCPU(bool bPrev
 
 bool FNDIDataChannelReadInstanceData::Init(UNiagaraDataInterfaceDataChannelRead* Interface, FNiagaraSystemInstance* Instance)
 {
-	EmitterInstance = Interface->EmitterBinding.Resolve(Instance, Interface);
-
 	bool bSuccess = Tick(Interface, Instance, true);
 	bSuccess &= PostTick(Interface, Instance);
 	return bSuccess;
@@ -155,7 +244,10 @@ bool FNDIDataChannelReadInstanceData::Init(UNiagaraDataInterfaceDataChannelRead*
 bool FNDIDataChannelReadInstanceData::Tick(UNiagaraDataInterfaceDataChannelRead* Interface, FNiagaraSystemInstance* Instance, bool bIsInit)
 {
 	ConsumeIndex = 0;
-	ConditionalSpawns.Reset();
+	for(auto& ConditionalSpawnPair : PerEmitterConditionalSpawns)
+	{
+		ConditionalSpawnPair.Value.Reset();
+	}
 
 	const FNDIDataChannelCompiledData& CompiledData = Interface->GetCompiledData();
 
@@ -166,6 +258,8 @@ bool FNDIDataChannelReadInstanceData::Tick(UNiagaraDataInterfaceDataChannelRead*
 		return true;
 	}
 	
+	Owner = Instance;
+
 	//In non test/shipping builds we gather and log and missing parameters that cause us to fail to find correct bindings.
 	TArray<FNiagaraVariableBase> MissingParams;
 
@@ -287,8 +381,6 @@ bool FNDIDataChannelReadInstanceData::Tick(UNiagaraDataInterfaceDataChannelRead*
 			{
 				ChachedDataSetLayoutHash = SourceDataLayoutHash;
 
-				SpawnInfoAccessor = FNiagaraDataSetAccessor<FNiagaraSpawnInfo>(CPUSourceDataCompiledData, Interface->SpawnInfoName);
-
 				//We can likely be more targeted here.
 				//Could probably only update the RT when the GPU data changes and only update the bindings if the function hashes change etc.
 				bUpdateRTData = CompiledData.UsedByGPU();
@@ -360,8 +452,6 @@ UNiagaraDataInterfaceDataChannelRead::UNiagaraDataInterfaceDataChannelRead(FObje
 	: Super(ObjectInitializer)
 {
 	Proxy.Reset(new FNiagaraDataInterfaceProxy_DataChannelRead());
-	EmitterBinding.BindingMode = ENiagaraDataInterfaceEmitterBindingMode::Self;
-	SpawnInfoName = NDIDataChannelReadLocal::SpawnInfoName;
 }
 
 void UNiagaraDataInterfaceDataChannelRead::PostInitProperties()
@@ -470,18 +560,25 @@ void UNiagaraDataInterfaceDataChannelRead::PostStageTick(FNDICpuPostStageContext
 	FNDIDataChannelReadInstanceData* InstanceData = Context.GetPerInstanceData<FNDIDataChannelReadInstanceData>();
 
 	check(InstanceData);
-	for(int32 i=0; i<InstanceData->ConditionalSpawns.Num(); ++i)
+	for (auto& ConditionalSpawnPair : InstanceData->PerEmitterConditionalSpawns)
 	{
-		if(InstanceData->ConditionalSpawns[i].Count > 0)
+		if(FNiagaraEmitterInstance* TargetEmitter = ConditionalSpawnPair.Key)
 		{
-			if(bOverrideSpawnGroupToDataChannelIndex)
+			for (int32 i = 0; i < ConditionalSpawnPair.Value.Num(); ++i)
 			{
-				InstanceData->ConditionalSpawns[i].SpawnGroup = i;
+				FNiagaraSpawnInfo& SpawnInfo = ConditionalSpawnPair.Value[i];
+				if (SpawnInfo.Count > 0)
+				{
+					if (bOverrideSpawnGroupToDataChannelIndex)
+					{
+						SpawnInfo.SpawnGroup = i;
+					}
+					TargetEmitter->GetSpawnInfo().Emplace(SpawnInfo);
+				}
 			}
-			InstanceData->EmitterInstance->GetSpawnInfo().Emplace(InstanceData->ConditionalSpawns[i]);
 		}
+		ConditionalSpawnPair.Value.Reset();
 	}
-	InstanceData->ConditionalSpawns.Reset();
 }
 
 void UNiagaraDataInterfaceDataChannelRead::ProvidePerInstanceDataForRenderThread(void* DataForRenderThread, void* PerInstanceData, const FNiagaraSystemInstanceID& SystemInstance)
@@ -767,9 +864,7 @@ bool UNiagaraDataInterfaceDataChannelRead::Equals(const UNiagaraDataInterface* O
 			Channel == OtherTyped->Channel &&
 			bReadCurrentFrame == OtherTyped->bReadCurrentFrame &&
 			bUpdateSourceDataEveryTick == OtherTyped->bUpdateSourceDataEveryTick &&
-			EmitterBinding == OtherTyped->EmitterBinding &&
-			bOverrideSpawnGroupToDataChannelIndex == OtherTyped->bOverrideSpawnGroupToDataChannelIndex &&
-			SpawnInfoName == OtherTyped->SpawnInfoName)
+			bOverrideSpawnGroupToDataChannelIndex == OtherTyped->bOverrideSpawnGroupToDataChannelIndex)
 		{
 			return true;
 		}
@@ -794,9 +889,7 @@ bool UNiagaraDataInterfaceDataChannelRead::CopyToInternal(UNiagaraDataInterface*
 		DestTyped->CompiledData = CompiledData;
 		DestTyped->bReadCurrentFrame = bReadCurrentFrame;
 		DestTyped->bUpdateSourceDataEveryTick = bUpdateSourceDataEveryTick;
-		DestTyped->EmitterBinding = EmitterBinding;
-		DestTyped->bOverrideSpawnGroupToDataChannelIndex = bOverrideSpawnGroupToDataChannelIndex;
-		DestTyped->SpawnInfoName = SpawnInfoName;
+		DestTyped->bOverrideSpawnGroupToDataChannelIndex = bOverrideSpawnGroupToDataChannelIndex;		
 		return true;
 	}
 
@@ -805,114 +898,30 @@ bool UNiagaraDataInterfaceDataChannelRead::CopyToInternal(UNiagaraDataInterface*
 
 void UNiagaraDataInterfaceDataChannelRead::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
 {
-	{
-		FNiagaraFunctionSignature Sig;
-		Sig.Name = NDIDataChannelReadLocal::NumName;
-#if WITH_EDITORONLY_DATA
-		Sig.Description = LOCTEXT("NumFunctionDescription", "Returns the current number of DataChannel accessible by this interface.");
-#endif
-		Sig.bMemberFunction = true;
-		Sig.bExperimental = true;
-		Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("DataChannel interface")));
-		Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Num")));
-		OutFunctions.Add(Sig);
-	}
-	{
-		FNiagaraFunctionSignature Sig;
-		Sig.Name = NDIDataChannelReadLocal::ReadName;
-#if WITH_EDITORONLY_DATA
-		Sig.Description = LOCTEXT("ReadFunctionDescription", "Reads DataChannel data at a specific index. Any values we read that are not in the DataChannel data are set to their default values. Returns success if there was a valid DataChannel to read from.");
-#endif
-		Sig.bMemberFunction = true;
-		Sig.bExperimental = true;
-		Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("DataChannel interface")));
-		Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index")), LOCTEXT("ConsumeIndexInputDesc", "The index to read."));
-		Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Success")), LOCTEXT("ConsumeSuccessOutputDesc", "True if all reads succeeded."));
-		Sig.RequiredOutputs = Sig.Outputs.Num();//The user defines what we read in the graph.
-		OutFunctions.Add(Sig);
-	}
-	{
-		FNiagaraFunctionSignature Sig;
-		Sig.Name = NDIDataChannelReadLocal::ConsumeName;
-#if WITH_EDITORONLY_DATA
-		Sig.Description = LOCTEXT("ConsumeFunctionDescription", "Consumes an DataChannel from the end of the DataChannel array and reads the specified values. Any values we read that are not in the DataChannel data are set to their default values. Returns success if an DataChannel was available to pop.");
-#endif
-		Sig.bMemberFunction = true;
-		Sig.bExperimental = true;
-		Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("DataChannel interface")));
-		Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Consume")), LOCTEXT("ConsumeInputDesc", "True if this instance (particle/emitter etc) should consume data from the data channel in this call."));
-		Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Success")), LOCTEXT("ConsumeSuccessOutputDesc", "True if all reads succeeded."));
-		Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index")), LOCTEXT("ConsumeIndexOutputDesc", "The index we actually read from. If reading failed this can be -1. This allows subsequent reads of the data channel at this index."));
-		Sig.RequiredOutputs = Sig.Outputs.Num();//The user defines what we read in the graph.
-		OutFunctions.Add(Sig);
-	}
-
-	FNiagaraVariable EnabledVar(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Enable"));
-	EnabledVar.SetValue(FNiagaraBool(true));
-
-	{
-		FNiagaraFunctionSignature Sig;
-		Sig.Name = NDIDataChannelReadLocal::SpawnFromSpawnInfoName;
-#if WITH_EDITORONLY_DATA
-		Sig.Description = LOCTEXT("SpawnFromSpawnInfolFunctionDescription", "Will Spawn particles into the bound Emitter based on a spawn info variable read from each Data Channel element. ");
-#endif
-		Sig.bMemberFunction = true;
-		Sig.bExperimental = true;
-		Sig.bRequiresExecPin = true;
-		Sig.ModuleUsageBitmask = ENiagaraScriptUsageMask::Emitter | ENiagaraScriptUsageMask::System;
-		Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("DataChannel interface")));
-		Sig.AddInput(EnabledVar, LOCTEXT("SpawnEnableInputDesc", "Enable or disable this function call. If false, this call with have no effetcs."));
-		OutFunctions.Add(Sig);
-	}
-
-	{
-		FNiagaraFunctionSignature Sig;
-		Sig.Name = NDIDataChannelReadLocal::SpawnConditionalName;
-#if WITH_EDITORONLY_DATA
-		Sig.Description = LOCTEXT("SpawnCustomFunctionDescription", "Will Spawn particles into the bound Emitter between Min and Max counts for every element in the bound Data Channel.\n\
-		Can take optional additional parameters as conditions on spawning that will be compared against the contents of each data channel element.\n\
-		For example you could spawn only for a particular value of an enum.\n\
-		For compound data types that contain multiple component floats or ints, comparissons are done on a per component basis.\n\
-		For example if you add a Vector condition parameter it will be compared against each component of the corresponding Vector in the Data Channel.\n\
-		Result = (Param.X == ChannelValue.X) && (Param.Y == ChannelValue.Y) && (Param.Z == ChannelValue.Z)");
-#endif
-		Sig.bMemberFunction = true;
-		Sig.bExperimental = true;
-		Sig.bRequiresExecPin = true;
-		Sig.ModuleUsageBitmask = ENiagaraScriptUsageMask::Emitter | ENiagaraScriptUsageMask::System;
-		Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("DataChannel interface")));
-		Sig.AddInput(EnabledVar, LOCTEXT("SpawnEnableInputDesc", "Enable or disable this function call. If false, this call with have no effetcs."));
-		Sig.AddInput(FNiagaraVariable(StaticEnum<ENDIDataChannelSpawnMode>(), TEXT("Mode")), LOCTEXT("SpawnCondModeInputDesc", "A mode switch that controls how this funciton will behave."));
-		Sig.AddInput(FNiagaraVariable(StaticEnum<ENiagaraConditionalOperator>(), TEXT("Operator")), LOCTEXT("SpawnCondOpInputDesc", "The comparison operator to use when comparing values in the data channel to conditional parameters."));
-		Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Min Spawn Count")), LOCTEXT("MinSpawnCountInputDesc", "Minimum number of particles to spawn for each element in the data channel."));
-		Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Max Spawn Count")), LOCTEXT("MaxSpawnCountInputDesc", "Maximum number of particles to spawn for each element in the data channel."));
-		Sig.RequiredInputs = Sig.Inputs.Num();
-		OutFunctions.Add(Sig);
-	}
+	OutFunctions.Add(NDIDataChannelReadLocal::GetFunctionSig_Num());
+	OutFunctions.Add(NDIDataChannelReadLocal::GetFunctionSig_Read());
+	OutFunctions.Add(NDIDataChannelReadLocal::GetFunctionSig_Consume());
+	OutFunctions.Add(NDIDataChannelReadLocal::GetFunctionSig_SpawnConditional());
 }
 
 void UNiagaraDataInterfaceDataChannelRead::GetVMExternalFunction(const FVMExternalFunctionBindingInfo& BindingInfo, void* InstanceData, FVMExternalFunction& OutFunc)
 {
-	if (BindingInfo.Name == NDIDataChannelReadLocal::NumName)
+	if (BindingInfo.Name == NDIDataChannelReadLocal::GetFunctionSig_Num().Name)
 	{
 		OutFunc = FVMExternalFunction::CreateLambda([this](FVectorVMExternalFunctionContext& Context) { this->Num(Context); });
 	}
 	else
 	{
 		int32 FuncIndex = CompiledData.FindFunctionInfoIndex(BindingInfo.Name, BindingInfo.VariadicInputs, BindingInfo.VariadicOutputs);
-		if (BindingInfo.Name == NDIDataChannelReadLocal::SpawnFromSpawnInfoName)
-		{
-			OutFunc = FVMExternalFunction::CreateLambda([this](FVectorVMExternalFunctionContext& Context) { this->SpawnFromSpawnInfo(Context); });
-		}
-		else if (BindingInfo.Name == NDIDataChannelReadLocal::ReadName)
+		if (BindingInfo.Name == NDIDataChannelReadLocal::GetFunctionSig_Read().Name)
 		{
 			OutFunc = FVMExternalFunction::CreateLambda([this, FuncIndex](FVectorVMExternalFunctionContext& Context) { this->Read(Context, FuncIndex); });
 		}
-		else if (BindingInfo.Name == NDIDataChannelReadLocal::ConsumeName)
+		else if (BindingInfo.Name == NDIDataChannelReadLocal::GetFunctionSig_Consume().Name)
 		{
 			OutFunc = FVMExternalFunction::CreateLambda([this, FuncIndex](FVectorVMExternalFunctionContext& Context) { this->Consume(Context, FuncIndex); });
 		}
-		else if (BindingInfo.Name == NDIDataChannelReadLocal::SpawnConditionalName)
+		else if (BindingInfo.Name == NDIDataChannelReadLocal::GetFunctionSig_SpawnConditional().Name)
 		{
 			OutFunc = FVMExternalFunction::CreateLambda([this, FuncIndex](FVectorVMExternalFunctionContext& Context) { this->SpawnConditional(Context, FuncIndex); });
 		}
@@ -1090,54 +1099,6 @@ void UNiagaraDataInterfaceDataChannelRead::Consume(FVectorVMExternalFunctionCont
 	}
 }
 
-void UNiagaraDataInterfaceDataChannelRead::SpawnFromSpawnInfo(FVectorVMExternalFunctionContext& Context)
-{
-	SCOPE_CYCLE_COUNTER(STAT_NDIDataChannelRead_Spawn);
-
-	//This should only be called from emitter scripts and since it has per instance data then we process them individually.
-	check(Context.GetNumInstances() == 1);
-
-	FNDIRandomHelperFromStream RandHelper(Context);
-
-	VectorVM::FUserPtrHandler<FNDIDataChannelReadInstanceData> InstData(Context);
-		
-	FNDIInputParam<FNiagaraBool> InEnabled(Context);
-
-	FNiagaraEmitterInstance* EmittterInst = InstData->EmitterInstance;
-	FNiagaraDataChannelData* DataChannelData = InstData->DataChannelData.Get();
-
-	bool bReadPrevFrame = bReadCurrentFrame == false || GNDCReadForcePrevFrame;
-	FNiagaraDataBuffer* Data = DataChannelData ? DataChannelData->GetCPUData(bReadPrevFrame) : nullptr;
-
-	if ( INiagaraModule::DataChannelsEnabled() && Data && EmittterInst )
-	{
-		TArray<FNiagaraSpawnInfo>& EmitterSpawnInfos = EmittterInst->GetSpawnInfo();
-
-		const bool bSpawn = InEnabled.GetAndAdvance() && InstData->SpawnInfoAccessor.IsValid();
-		if (bSpawn)
-		{
-			FNiagaraDataSetReaderStruct<FNiagaraSpawnInfo> Reader = InstData->SpawnInfoAccessor.GetReader(Data);
-
-			int32 NumDataChannelInstances = Data->GetNumInstances();
-
-			for (int32 DataChannelIdx = 0; DataChannelIdx < NumDataChannelInstances; ++DataChannelIdx)
-			{
-				FNiagaraSpawnInfo SpawnInfo(0, 0.0f, 0.0f, 0);
-				SpawnInfo = Reader.Get(DataChannelIdx);
-
-				if (SpawnInfo.Count > 0)
-				{
-					if (bOverrideSpawnGroupToDataChannelIndex)
-					{
-						SpawnInfo.SpawnGroup = DataChannelIdx;
-					}
-					EmitterSpawnInfos.Emplace(SpawnInfo);
-				}
-			}
-		}
-	}
-}
-
 void UNiagaraDataInterfaceDataChannelRead::SpawnConditional(FVectorVMExternalFunctionContext& Context, int32 FuncIdx)
 {
 	SCOPE_CYCLE_COUNTER(STAT_NDIDataChannelRead_Spawn);
@@ -1149,10 +1110,15 @@ void UNiagaraDataInterfaceDataChannelRead::SpawnConditional(FVectorVMExternalFun
 
 	VectorVM::FUserPtrHandler<FNDIDataChannelReadInstanceData> InstData(Context);
 
+	FNiagaraSystemInstance* SystemInstance = InstData->Owner;
+	check(SystemInstance);
+
 	//Binding info can be null here as we can be spawning without any conditions, i.e. no variadic parameters to the function.
 	const FNDIDataChannel_FunctionToDataSetBinding* BindingInfo = InstData->FuncToDataSetBindingInfo.IsValidIndex(FuncIdx) ? InstData->FuncToDataSetBindingInfo[FuncIdx].Get() : nullptr;
 
 	FNDIInputParam<FNiagaraBool> InEnabled(Context);
+	FNDIInputParam<FNiagaraEmitterID> InEmitterID(Context);	
+
 	FNDIInputParam<int32> InMode(Context);
 	FNDIInputParam<int32> InOp(Context);
 	FNDIInputParam<int32> InSpawnMin(Context);
@@ -1160,23 +1126,26 @@ void UNiagaraDataInterfaceDataChannelRead::SpawnConditional(FVectorVMExternalFun
 
 	FNDIVariadicInputHandler<16> VariadicInputs(Context, BindingInfo);//TODO: Make static / avoid allocation
 
-	FNiagaraEmitterInstance* EmittterInst = InstData->EmitterInstance;
+	const FNiagaraEmitterID EmitterID = InEmitterID.GetAndAdvance();
+	const int32 NumEmitters = SystemInstance->GetEmitters().Num();
+	FNiagaraEmitterInstance* EmitterInst = SystemInstance->GetEmitterByID(EmitterID);
+
 	FNiagaraDataChannelData* DataChannelData = InstData->DataChannelData.Get();
 
-	bool bReadPrevFrame = bReadCurrentFrame == false || GNDCReadForcePrevFrame;
+	const bool bReadPrevFrame = bReadCurrentFrame == false || GNDCReadForcePrevFrame;
 	FNiagaraDataBuffer* Data = DataChannelData ? DataChannelData->GetCPUData(bReadPrevFrame) : nullptr;
 
-	bool bSpawn = INiagaraModule::DataChannelsEnabled() && Data && Data->GetNumInstances() > 0 && EmittterInst && EmittterInst->IsActive() && InEnabled.GetAndAdvance();
+	const bool bSpawn = INiagaraModule::DataChannelsEnabled() && Data && Data->GetNumInstances() > 0 && EmitterInst && EmitterInst->IsActive() && InEnabled.GetAndAdvance();
 	if(bSpawn)
 	{
 		FNDIRandomHelperFromStream RandHelper(Context);
 
-		TArray<FNiagaraSpawnInfo>& EmitterSpawnInfos = EmittterInst->GetSpawnInfo();
 		ENDIDataChannelSpawnMode Mode = (ENDIDataChannelSpawnMode)InMode.GetAndAdvance();
 		ENiagaraConditionalOperator Op = (ENiagaraConditionalOperator)InOp.GetAndAdvance();
+		int32 NumDataChannelInstances = Data->GetNumInstances();
 
 		//Is mode none or invalid?
-		if ((int32)Mode == (int32)ENDIDataChannelSpawnMode::None || (int32)Mode < 0 || (int32)Mode >= (int32)ENDIDataChannelSpawnMode::Max)
+		if (NumDataChannelInstances == 0 || (int32)Mode == (int32)ENDIDataChannelSpawnMode::None || (int32)Mode < 0 || (int32)Mode >= (int32)ENDIDataChannelSpawnMode::Max)
 		{
 			return;
 		}
@@ -1184,10 +1153,9 @@ void UNiagaraDataInterfaceDataChannelRead::SpawnConditional(FVectorVMExternalFun
 		int32 SpawnMin = InSpawnMin.GetAndAdvance();
 		int32 SpawnMax = InSpawnMax.GetAndAdvance();
 
-		int32 NumDataChannelInstances = Data->GetNumInstances();
-
 		//Each data channel element has an additional spawn entry which accumulates across all spawning calls and can be nulled independently by a suppression call.
-		InstData->ConditionalSpawns.SetNumZeroed(NumDataChannelInstances);
+		TArray<FNiagaraSpawnInfo>& EmitterConditionalSpawns = InstData->PerEmitterConditionalSpawns.FindOrAdd(EmitterInst);
+		EmitterConditionalSpawns.SetNumZeroed(NumDataChannelInstances);
 
 		for (int32 DataChannelIdx = 0; DataChannelIdx < NumDataChannelInstances; ++DataChannelIdx)
 		{
@@ -1215,11 +1183,11 @@ void UNiagaraDataInterfaceDataChannelRead::SpawnConditional(FVectorVMExternalFun
 				int32 Count = RandHelper.RandRange(DataChannelIdx, SpawnMin, SpawnMax);
 				if (Mode == ENDIDataChannelSpawnMode::Accumulate)
 				{
-					InstData->ConditionalSpawns[DataChannelIdx].Count += Count;
+					EmitterConditionalSpawns[DataChannelIdx].Count += Count;
 				}
 				else if (Mode == ENDIDataChannelSpawnMode::Override)
 				{
-					InstData->ConditionalSpawns[DataChannelIdx].Count = Count;
+					EmitterConditionalSpawns[DataChannelIdx].Count = Count;
 				}
 			}
 		}
@@ -1527,6 +1495,37 @@ void UNiagaraDataInterfaceDataChannelRead::GetParameterDefinitionHLSL(FNiagaraDa
 	}
 }
 #endif
+
+bool UNiagaraDataInterfaceDataChannelRead::UpgradeFunctionCall(FNiagaraFunctionSignature& FunctionSignature)
+{
+	TArray<FNiagaraFunctionSignature> Funcs;
+	GetFunctions(Funcs);
+
+	for(const FNiagaraFunctionSignature& Func : Funcs)
+	{
+		if (Func.Name == FunctionSignature.Name && Func.FunctionVersion > FunctionSignature.FunctionVersion)
+		{
+			//We need to add back any variadic params from the source signature.
+			TArray<FNiagaraVariableBase> VariadicInputs;
+			FunctionSignature.GetVariadicInputs(VariadicInputs);
+			TArray<FNiagaraVariableBase> VariadicOutputs;
+			FunctionSignature.GetVariadicOutputs(VariadicOutputs);
+
+			FunctionSignature = Func;
+			for(FNiagaraVariableBase& Param : VariadicInputs)
+			{
+				FunctionSignature.AddInput(Param);
+			}
+			for (FNiagaraVariableBase& Param : VariadicOutputs)
+			{
+				FunctionSignature.AddOutput(Param);
+			}
+			return true;
+		}
+	}
+
+	return false;
+}
 
 void UNiagaraDataInterfaceDataChannelRead::BuildShaderParameters(FNiagaraShaderParametersBuilder& ShaderParametersBuilder) const
 {

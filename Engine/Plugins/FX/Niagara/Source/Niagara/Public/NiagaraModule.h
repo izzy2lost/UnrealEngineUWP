@@ -163,6 +163,7 @@ public:
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Engine_Owner_Scale() { return Engine_Owner_Scale; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Engine_Owner_Rotation() { return Engine_Owner_Rotation; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Engine_Owner_LWC_Tile() { return Engine_Owner_LWC_Tile; }
+	FORCEINLINE static const FNiagaraVariable&  GetVar_Engine_ExecIndex() { return Engine_ExecIndex; }
 
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Engine_Owner_SystemLocalToWorld() { return Engine_Owner_SystemLocalToWorld; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Engine_Owner_SystemWorldToLocal() { return Engine_Owner_SystemWorldToLocal; }
@@ -183,6 +184,7 @@ public:
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Engine_Emitter_TotalSpawnedParticles() { return Engine_Emitter_TotalSpawnedParticles; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Engine_Emitter_SpawnCountScale() { return Engine_Emitter_SpawnCountScale; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Engine_Emitter_InstanceSeed() { return Engine_Emitter_InstanceSeed; }
+	FORCEINLINE static const FNiagaraVariable&  GetVar_Engine_Emitter_ID() { return Engine_Emitter_ID; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Engine_System_TickCount() { return Engine_System_TickCount; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Engine_System_NumEmittersAlive() { return Engine_System_NumEmittersAlive; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Engine_System_SignificanceIndex() { return Engine_System_SignificanceIndex; }
@@ -296,6 +298,7 @@ private:
 	static NIAGARA_API FNiagaraVariable Engine_Owner_Scale;
 	static NIAGARA_API FNiagaraVariable Engine_Owner_Rotation;
 	static NIAGARA_API FNiagaraVariable Engine_Owner_LWC_Tile;
+	static NIAGARA_API FNiagaraVariable Engine_ExecIndex;
 
 	static NIAGARA_API FNiagaraVariable Engine_Owner_SystemLocalToWorld;
 	static NIAGARA_API FNiagaraVariable Engine_Owner_SystemWorldToLocal;
@@ -340,6 +343,7 @@ private:
 	static NIAGARA_API FNiagaraVariable Emitter_SimulationTarget;
 	static NIAGARA_API FNiagaraVariable Emitter_RandomSeed;
 	static NIAGARA_API FNiagaraVariable Engine_Emitter_InstanceSeed;
+	static NIAGARA_API FNiagaraVariable Engine_Emitter_ID;
 	static NIAGARA_API FNiagaraVariable Emitter_SpawnRate;
 	static NIAGARA_API FNiagaraVariable Emitter_SpawnInterval;
 	static NIAGARA_API FNiagaraVariable Emitter_InterpSpawnStartDt;

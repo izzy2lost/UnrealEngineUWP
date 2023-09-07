@@ -2007,6 +2007,7 @@ FNiagaraCompilationNodeAssignment::FNiagaraCompilationNodeAssignment(const FNiag
 FNiagaraCompilationNodeEmitter::FNiagaraCompilationNodeEmitter(const UNiagaraNodeEmitter* InNode, FNiagaraCompilationGraphCreateContext& Context)
 : FNiagaraCompilationNode(ENodeType::Emitter, InNode, Context)
 {
+	EmitterID = InNode->GetEmitterID();
 	EmitterUniqueName = InNode->GetEmitterUniqueName();
 
 	if (const UNiagaraGraph* DependentGraph = InNode->GetCalledGraph())

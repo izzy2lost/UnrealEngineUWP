@@ -93,6 +93,8 @@ public:
 	FName ResolveEmitterAlias(FName VariableName) const;
 
 	const FString& GetUniqueEmitterName() const { return EmitterUniqueName; }
+	FNiagaraEmitterID GetEmitterID()const { return EmitterID; }
+
 	void FinishPrecompile(
 		const FNiagaraSystemCompilationTask& CompilationTask,
 		TConstArrayView<FNiagaraVariable> EncounterableVariables,
@@ -138,6 +140,7 @@ public:
 
 	TArray<FNiagaraVariable> EncounteredVariables;
 	FString EmitterUniqueName;
+	FNiagaraEmitterID EmitterID;
 	TArray<FSharedPrecompileData> EmitterData;
 	FNiagaraDigestedGraphPtr DigestedSourceGraph;
 	FString SourceName;
@@ -244,6 +247,7 @@ public:
 
 	TArray<FNiagaraVariable> EncounteredVariables;
 	FString EmitterUniqueName;
+	FNiagaraEmitterID EmitterID;
 	TArray<TSharedPtr<FNiagaraCompileRequestData, ESPMode::ThreadSafe>> EmitterData;
 	TWeakObjectPtr<UNiagaraScriptSource> Source;
 	FString SourceName;
@@ -311,6 +315,7 @@ public:
 
 	TArray<FNiagaraVariable> ChangedFromNumericVars;
 	FString EmitterUniqueName;
+	FNiagaraEmitterID EmitterID;
 	TArray<TSharedPtr<FNiagaraCompileRequestDuplicateData, ESPMode::ThreadSafe>> EmitterData;
 
 	struct FDuplicatedGraphData

@@ -191,6 +191,18 @@ struct FNiagaraMatrix
 	FVector4f Row3 = FVector4f(ForceInitToZero);
 };
 
+USTRUCT(meta = (DisplayName = "EmitterID"))
+struct FNiagaraEmitterID
+{
+	GENERATED_BODY()
+	
+	FNiagaraEmitterID() = default;
+	FNiagaraEmitterID(int32 InID):ID(InID) {}
+
+	UPROPERTY(EditAnywhere, Category = Emitter)
+	int32 ID = INDEX_NONE;
+};
+
 USTRUCT()
 struct FNiagaraAssetVersion
 {

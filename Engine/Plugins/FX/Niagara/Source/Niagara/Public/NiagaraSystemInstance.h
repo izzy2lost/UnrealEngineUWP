@@ -249,6 +249,8 @@ public:
 	NIAGARA_API void SetEmitterFixedBounds(FName EmitterName, const FBox& InLocalBounds);
 	NIAGARA_API FBox GetEmitterFixedBounds(FName EmitterName) const;
 
+	NIAGARA_API FNiagaraEmitterInstance* GetEmitterByID(FNiagaraEmitterID ID)const;
+
 	NIAGARA_API void SetForceSolo(bool bForceSolo);
 	FORCEINLINE bool IsSolo() const { return bSolo; }
 

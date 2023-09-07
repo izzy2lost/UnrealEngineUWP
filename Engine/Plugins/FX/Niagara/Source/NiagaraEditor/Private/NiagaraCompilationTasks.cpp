@@ -1237,6 +1237,7 @@ void FNiagaraSystemCompilationTask::Precompile()
 	{
 		TSharedPtr<FNiagaraPrecompileData, ESPMode::ThreadSafe> EmitterPtr = MakeShared<FNiagaraPrecompileData, ESPMode::ThreadSafe>();
 		EmitterPtr->EmitterUniqueName = EmitterInfo.UniqueEmitterName;
+		EmitterPtr->EmitterID = FNiagaraEmitterID(EmitterInfo.SourceEmitterIndex);
 		EmitterPtr->SourceName = SystemPrecompileData->SourceName;
 		EmitterPtr->DigestedSourceGraph = EmitterInfo.SourceGraph;
 		EmitterPtr->bUseRapidIterationParams = SystemPrecompileData->bUseRapidIterationParams;

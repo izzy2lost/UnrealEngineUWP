@@ -470,6 +470,7 @@ protected:
 	template<typename T>
 	void BuildConstantBuffer(ENiagaraCodeChunkMode ChunkMode);
 
+	virtual FNiagaraEmitterID GetEmitterID() const = 0;
 	virtual const FString& GetEmitterUniqueName() const = 0;
 	virtual TConstArrayView<FNiagaraVariable> GetStaticVariables() const = 0;
 	virtual UNiagaraDataInterface* GetDataInterfaceCDO(UClass* DIClass) const = 0;
@@ -505,6 +506,8 @@ protected:
 		FNiagaraVariable Variable;
 		bool bDefaultExplicit = false; //Whether or not the default value of the variable is explicit, e.g. there is an explicit value on a pin, explicit binding, or explicit custom initialization.
 	};
+
+	TArray<FNiagaraVariable> ParamMapDefinedEngineVars; // Engine provided values that we want to be accessible via the parameter map but not to add as uniforms etc.
 
 	TMap<FName, UniformVariableInfo> ParamMapDefinedSystemVars; // Map from the defined constants to the uniform chunk expressing them (i.e. have we encountered before in this graph?)
 
@@ -726,6 +729,7 @@ protected:
 	void UpdateStaticSwitchConstants(const FPin* Pin);
 
 	virtual const FString& GetEmitterUniqueName() const override;
+	virtual FNiagaraEmitterID GetEmitterID() const override;
 	virtual TConstArrayView<FNiagaraVariable> GetStaticVariables() const override;
 	virtual UNiagaraDataInterface* GetDataInterfaceCDO(UClass* DIClass) const override;
 
