@@ -95,6 +95,14 @@ NNEUTILS_API bool CreateONNXModelForOperator(bool UseVariadicShapeForModel, cons
 	const UE::NNE::FAttributeMap& Attributes, FNNEModelRaw& ModelData);
 
 /**
+ * Utility functions to create single layer NN for operator testing with optional attributes
+ */
+NNEUTILS_API bool CreateONNXModelForOperator(bool UseVariadicShapeForModel, const FString& OperatorName, 
+	TConstArrayView<FTensor> InInputTensors, TConstArrayView<FTensor> InOutputTensors,
+	TConstArrayView<FTensor> InWeightTensors, TConstArrayView<TConstArrayView<uint8>> InWeightTensorsData,
+	const UE::NNE::FAttributeMap& Attributes, FNNEModelRaw& ModelData);
+
+/**
  * Create an instance of NNE model builder that creates NNE model/format in memory
  */
 NNEUTILS_API IModelBuilder* CreateNNEModelBuilder();
