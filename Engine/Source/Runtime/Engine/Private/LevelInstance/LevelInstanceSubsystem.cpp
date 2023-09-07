@@ -559,6 +559,19 @@ void ULevelInstanceSubsystem::ForEachLevelInstanceAncestorsAndSelf(AActor* Actor
 	ForEachLevelInstanceAncestors(Actor, Operation);
 }
 
+void ULevelInstanceSubsystem::ForEachLevelInstanceAncestorsAndSelf(const AActor* Actor, TFunctionRef<bool(const ILevelInstanceInterface*)> Operation) const
+{
+	if (const ILevelInstanceInterface* LevelInstance = Cast<ILevelInstanceInterface>(Actor))
+	{
+		if (!Operation(LevelInstance))
+		{
+			return;
+		}
+	}
+
+	ForEachLevelInstanceAncestors(Actor, Operation);
+}
+
 ULevelStreamingLevelInstance* ULevelInstanceSubsystem::GetLevelInstanceLevelStreaming(const ILevelInstanceInterface* LevelInstance) const
 {
 	if (LevelInstance->HasValidLevelInstanceID())
@@ -581,6 +594,19 @@ void ULevelInstanceSubsystem::ForEachLevelInstanceAncestors(AActor* Actor, TFunc
 		Actor = Cast<AActor>(ParentLevelInstance);
 
 	} while (ParentLevelInstance != nullptr && Operation(ParentLevelInstance));
+}
+
+void ULevelInstanceSubsystem::ForEachLevelInstanceAncestors(const AActor* Actor, TFunctionRef<bool(const ILevelInstanceInterface*)> Operation) const
+{
+	const ILevelInstanceInterface* ParentLevelInstance = nullptr;
+	if(Actor)
+	{ 
+		do
+		{
+			ParentLevelInstance = GetOwningLevelInstance(Actor->GetLevel());
+			Actor = Cast<AActor>(ParentLevelInstance);
+		} while (Actor != nullptr && Operation(ParentLevelInstance));
+	}
 }
 
 ILevelInstanceInterface* ULevelInstanceSubsystem::GetOwningLevelInstance(const ULevel* Level) const
@@ -617,6 +643,112 @@ void ULevelInstanceSubsystem::ForEachActorInLevelInstance(const ILevelInstanceIn
 	{
 		ForEachActorInLevel(LevelInstanceLevel, Operation);
 	}
+}
+
+bool ULevelInstanceSubsystem::CanUseWorldAsset(const ILevelInstanceInterface* LevelInstance, TSoftObjectPtr<UWorld> WorldAsset, FString* OutReason)
+{
+	if (OutReason)
+	{
+		*OutReason = FString(TEXT(""));
+	}
+
+	#if WITH_EDITOR
+	// Do not validate when running convert commandlet as package might not exist yet.
+	if (UWorldPartitionSubsystem::IsRunningConvertWorldPartitionCommandlet())
+	{
+		return true;
+	}
+	#endif
+
+	if (WorldAsset.IsNull())
+	{
+		return true;
+	}
+
+	FString PackageName;
+	if (!FPackageName::DoesPackageExist(WorldAsset.GetLongPackageName()))
+	{
+		if (OutReason)
+		{
+			*OutReason = FString::Format(TEXT("Attempting to set Level Instance to package {0} which does not exist. Ensure the level was saved before attepting to set the level instance world asset."), { WorldAsset.GetLongPackageName() });
+		}
+		return false;
+	}
+
+	TArray<TPair<FText, TSoftObjectPtr<UWorld>>> LoopInfo;
+	const ILevelInstanceInterface* LoopStart = nullptr;
+
+	// Check if the current LevelInstance is being set to a WorldAsset that loads the current LevelInstance or any ancestor that owns the current level's package.
+	if (!CheckForLoop(LevelInstance, WorldAsset, OutReason ? &LoopInfo : nullptr, OutReason ? &LoopStart : nullptr))
+	{
+		if (OutReason)
+		{
+			if (ensure(LoopStart))
+			{
+				const AActor* LoopStartActor = CastChecked<AActor>(LoopStart);
+				TSoftObjectPtr<UWorld> LoopStartAsset(LoopStartActor->GetLevel()->GetTypedOuter<UWorld>());
+				*OutReason = FString::Format(TEXT("Setting LevelInstance to {0} would cause loop {1}:{2}\n"), { WorldAsset.GetLongPackageName(), LoopStartActor->GetName(), LoopStartAsset.GetLongPackageName() });
+				for (int32 i = LoopInfo.Num() - 1; i >= 0; --i)
+				{
+					OutReason->Append(FString::Format(TEXT("{0} {1}\n"), 
+						{ *LoopInfo[i].Key.ToString(), 
+						*LoopInfo[i].Value.GetLongPackageName() }));
+				}
+			}
+		}
+
+		return false;
+	}
+
+	return true;
+}
+
+bool ULevelInstanceSubsystem::CheckForLoop(const ILevelInstanceInterface* LevelInstance, TSoftObjectPtr<UWorld> WorldAsset, TArray<TPair<FText, TSoftObjectPtr<UWorld>>>* LoopInfo, const ILevelInstanceInterface** OutLoopStart)
+{
+	bool bValid = true;
+
+	if (LevelInstance)
+	{
+		if(ULevelInstanceSubsystem* LevelInstanceSubsystem = LevelInstance->GetLevelInstanceSubsystem())
+		{
+			LevelInstanceSubsystem->ForEachLevelInstanceAncestorsAndSelf(CastChecked<AActor>(LevelInstance), [&bValid, &WorldAsset, LevelInstance, LoopInfo, OutLoopStart](const ILevelInstanceInterface* CurrentLevelInstance)
+			{
+				FName PackageToTest(*WorldAsset.GetLongPackageName());
+				// Check to exclude NAME_None since Preview Levels are in the transient package
+				// Check the level we are spawned in to detect the loop (this will handle loops caused by LevelInstances and by regular level streaming)
+				const AActor* CurrentActor = CastChecked<AActor>(CurrentLevelInstance);
+				if (PackageToTest != NAME_None)
+				{
+					if (ULevel* LevelTheActorBelongsTo = CurrentActor->GetLevel())
+					{
+						if (UPackage* PackageTheLevelBelongsTo = LevelTheActorBelongsTo->GetPackage())
+						{
+							if (PackageTheLevelBelongsTo->GetLoadedPath() == FPackagePath::FromPackageNameChecked(PackageToTest))
+							{
+								bValid = false;
+								if (OutLoopStart)
+								{
+									*OutLoopStart = CurrentLevelInstance;
+								}
+							}
+						}
+					}
+				}
+	
+				if (LoopInfo)
+				{
+					TSoftObjectPtr<UWorld> CurrentAsset = (CurrentLevelInstance == LevelInstance)? WorldAsset : (CurrentLevelInstance)? CurrentLevelInstance->GetWorldAsset() : nullptr;
+					FText LevelInstanceName = (CurrentActor)? FText::FromString(CurrentActor->GetPathName()) : FText::FromString("Invalid Actor cannot retrieve LevelInstance name.");
+					FText Description = FText::Format(LOCTEXT("LevelInstanceLoopLink", "-> Actor: {0} loads"), LevelInstanceName);
+					LoopInfo->Emplace(Description, CurrentAsset);
+				}
+	
+				return bValid;
+			});
+		}
+	}
+
+	return bValid;
 }
 
 #if WITH_EDITOR
@@ -733,30 +865,6 @@ bool ULevelInstanceSubsystem::GetLevelInstanceBoundsFromPackage(const FTransform
 	}
 
 	return false;
-}
-
-void ULevelInstanceSubsystem::ForEachLevelInstanceAncestorsAndSelf(const AActor* Actor, TFunctionRef<bool(const ILevelInstanceInterface*)> Operation) const
-{
-	if (const ILevelInstanceInterface* LevelInstance = Cast<ILevelInstanceInterface>(Actor))
-	{
-		if (!Operation(LevelInstance))
-		{
-			return;
-		}
-	}
-
-	ForEachLevelInstanceAncestors(Actor, Operation);
-}
-
-void ULevelInstanceSubsystem::ForEachLevelInstanceAncestors(const AActor* Actor, TFunctionRef<bool(const ILevelInstanceInterface*)> Operation) const
-{
-	const ILevelInstanceInterface* ParentLevelInstance = nullptr;
-	do 
-	{
-		ParentLevelInstance = GetOwningLevelInstance(Actor->GetLevel());
-		Actor = Cast<AActor>(ParentLevelInstance);
-	} 
-	while (ParentLevelInstance != nullptr && Operation(ParentLevelInstance));
 }
 
 void ULevelInstanceSubsystem::ForEachLevelInstanceChild(const ILevelInstanceInterface* LevelInstance, bool bRecursive, TFunctionRef<bool(const ILevelInstanceInterface*)> Operation) const
@@ -2308,90 +2416,6 @@ FString ULevelInstanceSubsystem::PrefixWithParentLevelInstanceActorLabels(const 
 bool ULevelInstanceSubsystem::CheckForLoop(const ILevelInstanceInterface* LevelInstance, TArray<TPair<FText, TSoftObjectPtr<UWorld>>>* LoopInfo, const ILevelInstanceInterface** LoopStart)
 {
 	return CheckForLoop(LevelInstance, LevelInstance->GetWorldAsset(), LoopInfo, LoopStart);
-}
-
-bool ULevelInstanceSubsystem::CheckForLoop(const ILevelInstanceInterface* LevelInstance, TSoftObjectPtr<UWorld> WorldAsset, TArray<TPair<FText, TSoftObjectPtr<UWorld>>>* LoopInfo, const ILevelInstanceInterface** LoopStart)
-{
-	bool bValid = true;
-		
-	if (ULevelInstanceSubsystem* LevelInstanceSubsystem = LevelInstance->GetLevelInstanceSubsystem())
-	{
-		LevelInstanceSubsystem->ForEachLevelInstanceAncestorsAndSelf(CastChecked<AActor>(LevelInstance), [&bValid, &WorldAsset, LevelInstance, LoopInfo, LoopStart](const ILevelInstanceInterface* CurrentLevelInstance)
-		{
-			FName PackageToTest(*WorldAsset.GetLongPackageName());
-			// Check to exclude NAME_None since Preview Levels are in the transient package
-			// Check the level we are spawned in to detect the loop (this will handle loops caused by LevelInstances and by regular level streaming)
-			const AActor* CurrentActor = CastChecked<AActor>(CurrentLevelInstance);
-			if (PackageToTest != NAME_None && CurrentActor->GetLevel()->GetPackage()->GetLoadedPath() == FPackagePath::FromPackageNameChecked(PackageToTest))
-			{
-				bValid = false;
-				if (LoopStart)
-				{
-					*LoopStart = CurrentLevelInstance;
-				}
-			}
-
-			if (LoopInfo)
-			{
-				TSoftObjectPtr<UWorld> CurrentAsset = CurrentLevelInstance == LevelInstance ? WorldAsset : CurrentLevelInstance->GetWorldAsset();
-				FText LevelInstanceName = FText::FromString(CurrentActor->GetPathName());
-				FText Description = FText::Format(LOCTEXT("LevelInstanceLoopLink", "-> Actor: {0} loads"), LevelInstanceName);
-				LoopInfo->Emplace(Description, CurrentAsset);
-			}
-			
-			return bValid;
-		});
-	}
-	
-	return bValid;
-}
-
-bool ULevelInstanceSubsystem::CanUseWorldAsset(const ILevelInstanceInterface* LevelInstance, TSoftObjectPtr<UWorld> WorldAsset, FString* OutReason)
-{
-	// Do not validate when running convert commandlet as package might not exist yet.
-	if (UWorldPartitionSubsystem::IsRunningConvertWorldPartitionCommandlet())
-	{
-		return true;
-	}
-
-	if (WorldAsset.IsNull())
-	{
-		return true;
-	}
-
-	FString PackageName;
-	if (!FPackageName::DoesPackageExist(WorldAsset.GetLongPackageName()))
-	{
-		if (OutReason)
-		{
-			*OutReason = FString::Format(TEXT("Attempting to set Level Instance to package {0} which does not exist. Ensure the level was saved before attepting to set the level instance world asset."), { WorldAsset.GetLongPackageName() });
-		}
-		return false;
-	}
-
-	TArray<TPair<FText, TSoftObjectPtr<UWorld>>> LoopInfo;
-	const ILevelInstanceInterface* LoopStart = nullptr;
-
-	if (!CheckForLoop(LevelInstance, WorldAsset, OutReason ? &LoopInfo : nullptr, OutReason ? &LoopStart : nullptr))
-	{
-		if (OutReason)
-		{
-			if (ensure(LoopStart))
-			{
-				const AActor* LoopStartActor = CastChecked<AActor>(LoopStart);
-				TSoftObjectPtr<UWorld> LoopStartAsset(LoopStartActor->GetLevel()->GetTypedOuter<UWorld>());
-				*OutReason = FString::Format(TEXT("Setting LevelInstance to {0} would cause loop {1}:{2}\n"), { WorldAsset.GetLongPackageName(), LoopStartActor->GetName(), LoopStartAsset.GetLongPackageName() });
-				for (int32 i = LoopInfo.Num() - 1; i >= 0; --i)
-				{
-					OutReason->Append(FString::Format(TEXT("{0} {1}\n"), { *LoopInfo[i].Key.ToString(), *LoopInfo[i].Value.GetLongPackageName() }));
-				}
-			}
-		}
-
-		return false;
-	}
-
-	return true;
 }
 
 bool ULevelInstanceSubsystem::PassLevelInstanceFilter(UWorld* World, const FWorldPartitionHandle& Actor) const

@@ -121,17 +121,6 @@ TSubclassOf<ULevelStreamingLevelInstance> ILevelInstanceInterface::GetLevelStrea
 	return ULevelStreamingLevelInstance::StaticClass();
 }
 
-#if WITH_EDITOR
-ULevel* ILevelInstanceInterface::GetLoadedLevel() const
-{
-	if (ULevelInstanceSubsystem* LevelInstanceSubsystem = GetLevelInstanceSubsystem())
-	{
-		return LevelInstanceSubsystem->GetLevelInstanceLevel(this);
-	}
-
-	return nullptr;
-}
-
 void ILevelInstanceInterface::UpdateLevelInstanceFromWorldAsset()
 {
 	if (HasValidLevelInstanceID())
@@ -149,6 +138,17 @@ void ILevelInstanceInterface::UpdateLevelInstanceFromWorldAsset()
 			}
 		}
 	}
+}
+
+#if WITH_EDITOR
+ULevel* ILevelInstanceInterface::GetLoadedLevel() const
+{
+	if (ULevelInstanceSubsystem* LevelInstanceSubsystem = GetLevelInstanceSubsystem())
+	{
+		return LevelInstanceSubsystem->GetLevelInstanceLevel(this);
+	}
+
+	return nullptr;
 }
 
 bool ILevelInstanceInterface::IsEditing() const

@@ -47,8 +47,6 @@ class ILevelInstanceInterface
 
 #if WITH_EDITOR
 
-	UFUNCTION(BlueprintCallable, Category = Default)
-	virtual bool SetWorldAsset(TSoftObjectPtr<UWorld> WorldAsset) = 0;
 
 	virtual ULevelInstanceComponent* GetLevelInstanceComponent() const = 0;
 
@@ -89,7 +87,6 @@ class ILevelInstanceInterface
 	UFUNCTION(BlueprintCallable, Category = Default)
 	ENGINE_API virtual ULevel* GetLoadedLevel() const;
 
-	ENGINE_API virtual void UpdateLevelInstanceFromWorldAsset();
 
 	ENGINE_API virtual void OnEdit();
 
@@ -135,4 +132,14 @@ class ILevelInstanceInterface
 	// Return supported filter types when setting filter through details panel
 	ENGINE_API virtual EWorldPartitionActorFilterType GetDetailsFilterTypes() const;
 #endif
+
+	/** Sets the UWorld asset reference when loading a LevelInstance */
+	UFUNCTION(BlueprintCallable, Category = Default)
+	virtual bool SetWorldAsset(TSoftObjectPtr<UWorld> WorldAsset)
+	{
+		return false;
+	}
+
+	ENGINE_API virtual void UpdateLevelInstanceFromWorldAsset();
+
 };
