@@ -6,6 +6,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "Horde.h"
+
 // Defines for the current platform
 #ifdef _MSC_VER
 	#define UE_COMPUTE_PLATFORM_WINDOWS 1
@@ -39,19 +41,19 @@ public:
 	~FComputeEvent();
 
 	// Creates a new event with the given name
-	bool Create(const char* Name);
+	HORDE_API bool Create(const char* Name);
 
 	// Opens an existing event created elsewhere
-	bool OpenExisting(const char* Name);
+	HORDE_API bool OpenExisting(const char* Name);
 
 	// Close the event and release its resources
-	void Close();
+	HORDE_API void Close();
 
 	// Signal the event, releasing any waiters
-	void Signal();
+	HORDE_API void Signal();
 
 	// Wait for the event to be signalled or timeout. Pass -1 for timeoutMs to wait infinitely.
-	bool Wait(int timeoutMs);
+	HORDE_API bool Wait(int timeoutMs);
 
 private:
 	void* Handle;
@@ -63,20 +65,20 @@ private:
 class FComputeMemoryMappedFile
 {
 public:
-	FComputeMemoryMappedFile();
-	~FComputeMemoryMappedFile();
+	HORDE_API FComputeMemoryMappedFile();
+	HORDE_API ~FComputeMemoryMappedFile();
 
 	// Creates a new memory mapped file with the given capacity
-	bool Create(const char* Name, long long Capacity);
+	HORDE_API bool Create(const char* Name, long long Capacity);
 
 	// Opens an existing memory mapped file
-	bool OpenExisting(const char* Name);
+	HORDE_API bool OpenExisting(const char* Name);
 
 	// Close the memory mapped file handle
-	void Close();
+	HORDE_API void Close();
 
 	// Gets a pointer to the mapped memory
-	void* GetPointer() const;
+	HORDE_API void* GetPointer() const;
 
 private:
 	void* Handle;
@@ -95,71 +97,71 @@ struct FComputePlatform
 	//
 
 	// Signal that an assertion has failed
-	static void AssertFailed(const char* Expr, const char* File, int Line);
+	HORDE_API static void AssertFailed(const char* Expr, const char* File, int Line);
 	
 	// Reads an environment variable
-	static bool GetEnvironmentVariable(const char* Name, char* Buffer, size_t BufferLen);
+	HORDE_API static bool GetEnvironmentVariable(const char* Name, char* Buffer, size_t BufferLen);
 
 	// Creates a unique object name
-	static void CreateUniqueName(char* NameBuffer, size_t NameBufferLen);
+	HORDE_API static void CreateUniqueName(char* NameBuffer, size_t NameBufferLen);
 
 	//
 	// Math
 	//
 
 	// Find the log2 of the given value, returning 0 if the value is zero.
-	static unsigned int FloorLog2(unsigned int Value);
+	HORDE_API static unsigned int FloorLog2(unsigned int Value);
 
 	// Count the number of leading zeros in the given value.
-	static unsigned int CountLeadingZeros(unsigned int Value);
+	HORDE_API static unsigned int CountLeadingZeros(unsigned int Value);
 
 	//
 	// Strings
 	//
 
 	// Copy a string from one buffer to another, not exceeding the destination buffer size
-	static void Strcpy(char* Dest, size_t DestLen, const char* Source);
+	HORDE_API static void Strcpy(char* Dest, size_t DestLen, const char* Source);
 
 	// Perform a case-insensitive comparison of two strings
-	static int Stricmp(const char* A, const char* B);
+	HORDE_API static int Stricmp(const char* A, const char* B);
 
 	//
 	// Atomics
 	//
 
 	// Reads a 64-bit value from the given memory location 
-	static long long AtomicRead64(const volatile long long* Ptr);
+	HORDE_API static long long AtomicRead64(const volatile long long* Ptr);
 
 	// Writes a 64-bit value to the given memory location
-	static void AtomicWrite64(volatile long long* Ptr, long long Value);
+	HORDE_API static void AtomicWrite64(volatile long long* Ptr, long long Value);
 
 	// Increments an integer at the given memory location and returns the incremented value.
-	static long AtomicIncrement(volatile long* Ptr);
+	HORDE_API static long AtomicIncrement(volatile long* Ptr);
 
 	// Increments an integer at the given memory location and returns the incremented value.
-	static long long AtomicIncrement64(volatile long long* Ptr);
+	HORDE_API static long long AtomicIncrement64(volatile long long* Ptr);
 
 	// Decrements an integer at the given memory location and returns the decremented value.
-	static long AtomicDecrement(volatile long* Ptr);
+	HORDE_API static long AtomicDecrement(volatile long* Ptr);
 
 	// Adds a value to the given memory location, and returns the resulting value.
-	static long long AtomicAdd64(volatile long long* Ptr, long long Value);
+	HORDE_API static long long AtomicAdd64(volatile long long* Ptr, long long Value);
 
 	// ANDs a value with a given memory location, and returns the contents of the memory location BEFORE the operation.
-	static long AtomicAnd(volatile long* Ptr, long Value);
+	HORDE_API static long AtomicAnd(volatile long* Ptr, long Value);
 
 	// ANDs a value with a given memory location, and returns the contents of the memory location BEFORE the operation.
-	static long long AtomicAnd64(volatile long long* Ptr, long long Value);
+	HORDE_API static long long AtomicAnd64(volatile long long* Ptr, long long Value);
 
 	// ORs a value with a given memory location, and returns the contents of the memory location BEFORE the operation.
-	static long long AtomicOr64(volatile long long* Ptr, long long Value);
+	HORDE_API static long long AtomicOr64(volatile long long* Ptr, long long Value);
 
 	// Sets the contents of a pointer to the given value, and returns the original value in that memory location.
-	static long long AtomicExchange64(volatile long long* Ptr, long long Exchange);
+	HORDE_API static long long AtomicExchange64(volatile long long* Ptr, long long Exchange);
 
 	// Compares the contents of a memory location to a value, and exchanges it for another value if they are equal. Returns true if the operation succeeded.
-	static bool AtomicCompareExchange(volatile long* Ptr, long Exchange, long Comperand);
+	HORDE_API static bool AtomicCompareExchange(volatile long* Ptr, long Exchange, long Comperand);
 
 	// Compares the contents of a memory location to a value, and exchanges it for another value if they are equal. Returns true if the operation succeeded.
-	static bool AtomicCompareExchange64(volatile long long* Ptr, long long Exchange, long long Comperand);
+	HORDE_API static bool AtomicCompareExchange64(volatile long long* Ptr, long long Exchange, long long Comperand);
 };

@@ -14,23 +14,26 @@
 class FComputeSocket
 {
 public:
-	FComputeSocket();
-	virtual ~FComputeSocket();
+	HORDE_API FComputeSocket();
+	HORDE_API virtual ~FComputeSocket();
 
-	FComputeSocket(const FComputeSocket&) = delete;
-	FComputeSocket& operator=(const FComputeSocket&) = delete;
+	HORDE_API FComputeSocket(const FComputeSocket&) = delete;
+	HORDE_API FComputeSocket& operator=(const FComputeSocket&) = delete;
+
+	// Begins communication with the agent
+	HORDE_API virtual void StartCommunication() = 0;
 
 	// Attaches a new buffer for receiving data
-	virtual void AttachRecvBuffer(int ChannelId, FComputeBuffer RecvBuffer) = 0;
+	HORDE_API virtual void AttachRecvBuffer(int ChannelId, FComputeBuffer RecvBuffer) = 0;
 
 	// Attaches a new buffer for sending data */
-	virtual void AttachSendBuffer(int ChannelId, FComputeBuffer SendBuffer) = 0;
+	HORDE_API virtual void AttachSendBuffer(int ChannelId, FComputeBuffer SendBuffer) = 0;
 
 	// Attaches a channel to this socket
-	FComputeChannel CreateChannel(int ChannelId);
+	HORDE_API std::shared_ptr<FComputeChannel> CreateChannel(int ChannelId);
 
 	// Attaches a channel to this socket
-	FComputeChannel CreateChannel(int ChannelId, FComputeBuffer RecvBuffer, FComputeBuffer SendBuffer);
+	HORDE_API std::shared_ptr<FComputeChannel> CreateChannel(int ChannelId, FComputeBuffer RecvBuffer, FComputeBuffer SendBuffer);
 };
 
 //
@@ -42,26 +45,29 @@ class FWorkerComputeSocket final : public FComputeSocket
 public:
 	static const char* const IpcEnvVar;
 
-	FWorkerComputeSocket();
-	~FWorkerComputeSocket();
+	HORDE_API FWorkerComputeSocket();
+	HORDE_API ~FWorkerComputeSocket();
 
 	// Opens a connection to the agent process using a command buffer read from an environment variable (EnvVarName)
-	bool Open();
+	HORDE_API bool Open();
 
 	// Opens a connection to the agent process using a specific command buffer name
-	bool Open(const char* CommandBufferName);
+	HORDE_API bool Open(const char* CommandBufferName);
 
 	// Close the current connection
-	void Close();
+	HORDE_API void Close();
+
+	// Begin communication with agent.
+	HORDE_API virtual void StartCommunication() override;
 
 	// Attaches a new buffer for receiving data
-	virtual void AttachRecvBuffer(int ChannelId, FComputeBuffer RecvBuffer) override;
+	HORDE_API virtual void AttachRecvBuffer(int ChannelId, FComputeBuffer RecvBuffer) override;
 
 	// Attaches a new buffer for sending data
-	virtual void AttachSendBuffer(int ChannelId, FComputeBuffer SendBuffer) override;
+	HORDE_API virtual void AttachSendBuffer(int ChannelId, FComputeBuffer SendBuffer) override;
 
 	// Reads and handles a command from the command buffer
-	static void RunServer(FComputeBufferReader& CommandBufferReader, FComputeSocket& Socket);
+	HORDE_API static void RunServer(FComputeBufferReader& CommandBufferReader, FComputeSocket& Socket);
 
 private:
 	enum class EMessageType;
@@ -90,5 +96,5 @@ enum class EComputeSocketEndpoint
 	Remote
 };
 
-// Creates a socket using a custom transport
-std::unique_ptr<FComputeSocket> CreateComputeSocket(std::unique_ptr<FComputeTransport> Transport, EComputeSocketEndpoint Endpoint);
+// Creates a socket using a custom transport. Also returns the default channel (channel 0)
+HORDE_API std::unique_ptr<FComputeSocket> CreateComputeSocket(std::unique_ptr<FComputeTransport> Transport, EComputeSocketEndpoint Endpoint);

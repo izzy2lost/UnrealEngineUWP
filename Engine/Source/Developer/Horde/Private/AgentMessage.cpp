@@ -5,9 +5,8 @@
 
 //// FAgentMessageChannel ////
 
-FAgentMessageChannel::FAgentMessageChannel(std::shared_ptr<FComputeBufferReader> InRecvBufferReader, std::shared_ptr<FComputeBufferWriter> InSendBufferWriter)
-	: RecvBufferReader(std::move(InRecvBufferReader))
-	, SendBufferWriter(std::move(InSendBufferWriter))
+FAgentMessageChannel::FAgentMessageChannel(std::shared_ptr<FComputeChannel> InChannel)
+	: ChannelBuffers(InChannel)
 	, RequestData(0)
 	, RequestSize(0)
 	, MaxRequestSize(0)
@@ -130,7 +129,7 @@ void FAgentMessageChannel::Execute(const char* Exe, const char** Args, size_t Nu
 
 void FAgentMessageChannel::Blob(const unsigned char* Data, size_t Length)
 {
-	const size_t MaxChunkSize = 512 * 1024;
+	const size_t MaxChunkSize = ChannelBuffers->Writer.GetChunkMaxLength() - 128 - MessageHeaderLength;
 	for (size_t ChunkOffset = 0; ChunkOffset < Length;)
 	{
 		size_t ChunkLength = std::min(Length - ChunkOffset, MaxChunkSize);
@@ -155,17 +154,17 @@ void FAgentMessageChannel::Xor(const unsigned char* Data, size_t Length, unsigne
 
 EAgentMessageType FAgentMessageChannel::ReadResponse()
 {
-	if (ResponseLength > 0)
+	if (ResponseData)
 	{
-		RecvBufferReader->AdvanceReadPosition(ResponseLength);
+		ChannelBuffers->Reader.AdvanceReadPosition(ResponseLength + MessageHeaderLength);
 		ResponseData = nullptr;
 		ResponseLength = 0;
 	}
 
-	const unsigned char* Header = RecvBufferReader->WaitToRead(MessageHeaderLength);
+	const unsigned char* Header = ChannelBuffers->Reader.WaitToRead(MessageHeaderLength);
 	unsigned int Length = *((unsigned int*)(Header + 1));
 
-	Header = RecvBufferReader->WaitToRead(MessageHeaderLength + Length);
+	Header = ChannelBuffers->Reader.WaitToRead(MessageHeaderLength + Length);
 
 	ResponseType = (EAgentMessageType)Header[0];
 	ResponseData = Header + MessageHeaderLength;
@@ -208,14 +207,14 @@ void FAgentMessageChannel::ReadBlobRequest(AgentMessage::FBlobRequest& Ex)
 
 void FAgentMessageChannel::CreateMessage(EAgentMessageType Type, size_t MaxLength)
 {
-	RequestData = SendBufferWriter->WaitToWrite(MessageHeaderLength + MaxLength);
+	RequestData = ChannelBuffers->Writer.WaitToWrite(MessageHeaderLength + MaxLength);
 	RequestData[0] = (unsigned char)Type;
 }
 
 void FAgentMessageChannel::FlushMessage()
 {
 	memcpy(&RequestData[1], &RequestSize, sizeof(int));
-	SendBufferWriter->AdvanceWritePosition(MessageHeaderLength + RequestSize);
+	ChannelBuffers->Writer.AdvanceWritePosition(MessageHeaderLength + RequestSize);
 	RequestSize = 0;
 	MaxRequestSize = 0;
 	RequestData = nullptr;
@@ -251,7 +250,15 @@ const unsigned char* FAgentMessageChannel::ReadFixedLengthBytes(const unsigned c
 size_t FAgentMessageChannel::MeasureUnsignedVarInt(size_t Value)
 {
 	UE_COMPUTE_ASSERT(Value == (unsigned int)Value);
-	return (FComputePlatform::FloorLog2((unsigned int)Value) / 7) + 1;
+
+	if (Value == 0)
+	{
+		return 1;
+	}
+	else
+	{
+		return (FComputePlatform::FloorLog2((unsigned int)Value) / 7) + 1;
+	}
 }
 
 void FAgentMessageChannel::WriteUnsignedVarInt(size_t Value)
@@ -275,7 +282,7 @@ size_t FAgentMessageChannel::ReadUnsignedVarInt(const unsigned char** Pos)
 	const unsigned char* Data = *Pos;
 
 	unsigned char FirstByte = Data[0];
-	size_t NumBytes = FComputePlatform::CountLeadingZeros(~(unsigned int)FirstByte) + 1 - 24; // Note byte -> int conversion here, hence ignoring subtracting 24 bits
+	size_t NumBytes = FComputePlatform::CountLeadingZeros(0xFF & (~(unsigned int)FirstByte)) + 1 - 24; // Note byte -> int conversion here, hence ignoring subtracting 24 bits
 
 	size_t value = (size_t)(FirstByte & (0xff >> NumBytes));
 	for (size_t Idx = 1; Idx < NumBytes; Idx++)

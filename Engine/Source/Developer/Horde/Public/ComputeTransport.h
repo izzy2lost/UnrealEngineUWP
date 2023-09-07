@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Horde.h"
 #include "ComputeBuffer.h"
 
 //
@@ -10,7 +11,7 @@
 class FComputeTransport
 {
 public:
-	virtual ~FComputeTransport();
+	HORDE_API virtual ~FComputeTransport();
 	
 	// Sends data to the remote
 	virtual size_t Send(const void* Data, size_t Size) = 0;
@@ -25,10 +26,10 @@ public:
 	virtual void Close() = 0;
 
 	// Sends data to the remote, blocking until the entire message has been sent.
-	bool SendMessage(const void* Data, size_t Size);
+	HORDE_API bool SendMessage(const void* Data, size_t Size);
 
 	// Receives a fixed length block of data from the remote, blocking until the entire length has been received.
-	bool RecvMessage(void* Data, size_t Size);
+	HORDE_API bool RecvMessage(void* Data, size_t Size);
 };
 
 //
@@ -37,7 +38,7 @@ public:
 class FBufferTransport final : public FComputeTransport
 {
 public:
-	FBufferTransport(FComputeBufferWriter InSendBufferWriter, FComputeBufferReader InRecvBufferReader);
+	HORDE_API FBufferTransport(FComputeBufferWriter InSendBufferWriter, FComputeBufferReader InRecvBufferReader);
 
 protected:
 	virtual size_t Send(const void* Data, size_t Size) override final;

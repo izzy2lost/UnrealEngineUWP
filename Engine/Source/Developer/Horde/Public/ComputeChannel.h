@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Horde.h"
 #include "ComputeBuffer.h"
 
 class FComputeSocket;
@@ -18,19 +19,19 @@ public:
 	// Writer for the channel
 	FComputeBufferWriter Writer;
 
-	FComputeChannel();
-	FComputeChannel(FComputeBufferReader InReader, FComputeBufferWriter InWriter);
-	~FComputeChannel();
+	HORDE_API FComputeChannel();
+	HORDE_API FComputeChannel(FComputeBufferReader InReader, FComputeBufferWriter InWriter);
+	HORDE_API ~FComputeChannel();
 
 	// Tests whether the channel is valid
-	bool IsValid() const;
+	HORDE_API bool IsValid() const;
 
 	// Sends bytes to the remote. 
-	size_t Send(const void* Data, size_t Size, int TimeoutMs = -1);
+	HORDE_API size_t Send(const void* Data, size_t Size, int TimeoutMs = -1);
 
 	// Reads as many bytes as are available from the socket.
-	size_t Recv(void* Data, size_t Size, int TimeoutMs = -1);
+	HORDE_API size_t Recv(void* Data, size_t Size, int TimeoutMs = -1);
 
 	// Indicate to the remote that no more data will be sent.
-	void MarkComplete();
+	HORDE_API void MarkComplete();
 };

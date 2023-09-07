@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Horde.h"
 #include <memory>
 
 struct FHeader;
@@ -37,35 +38,35 @@ public:
 	{
 		const char* Name = nullptr; // When creating a buffer, we should not normally set the name. We can only *OPEN* buffers with a name. Usually we create buffers and attach them to channels.
 		int NumChunks = 2;
-		int ChunkLength = 64 * 1024;
+		int ChunkLength = 512 * 1024;
 		int NumReaders = 1;
 	};
 
-	FComputeBuffer();
-	FComputeBuffer(const FComputeBuffer& Other);
-	FComputeBuffer(FComputeBuffer&& Other) noexcept;
-	~FComputeBuffer();
+	HORDE_API FComputeBuffer();
+	HORDE_API FComputeBuffer(const FComputeBuffer& Other);
+	HORDE_API FComputeBuffer(FComputeBuffer&& Other) noexcept;
+	HORDE_API ~FComputeBuffer();
 
-	FComputeBuffer& operator=(const FComputeBuffer& Other);
-	FComputeBuffer& operator=(FComputeBuffer&& Other) noexcept;
+	HORDE_API FComputeBuffer& operator=(const FComputeBuffer& Other);
+	HORDE_API FComputeBuffer& operator=(FComputeBuffer&& Other) noexcept;
 
 	// Creates a new buffer
-	bool CreateNew(const FParams& Params);
+	HORDE_API bool CreateNew(const FParams& Params);
 
 	// Opens an existing shared memory buffer (typically from handles created in another process)
-	bool OpenExisting(const char* Name);
+	HORDE_API bool OpenExisting(const char* Name);
 
 	// Close the current buffer and release all allocated resources
-	void Close();
+	HORDE_API void Close();
 
 	// Test if the buffer is currently open
-	bool IsValid() const { return Detail != nullptr; }
+	HORDE_API bool IsValid() const { return Detail != nullptr; }
 
 	// Creates a new reader for this buffer
-	FComputeBufferReader CreateReader();
+	HORDE_API FComputeBufferReader CreateReader();
 
 	// Creates a new writer for this buffer
-	FComputeBufferWriter CreateWriter();
+	HORDE_API FComputeBufferWriter CreateWriter();
 
 private:
 	friend class FWorkerComputeSocket;
@@ -81,38 +82,38 @@ private:
 class FComputeBufferReader
 {
 public:
-	FComputeBufferReader();
-	FComputeBufferReader(const FComputeBufferReader& Other);
-	FComputeBufferReader(FComputeBufferReader&& Other) noexcept;
-	~FComputeBufferReader();
+	HORDE_API FComputeBufferReader();
+	HORDE_API FComputeBufferReader(const FComputeBufferReader& Other);
+	HORDE_API FComputeBufferReader(FComputeBufferReader&& Other) noexcept;
+	HORDE_API ~FComputeBufferReader();
 
-	FComputeBufferReader& operator=(const FComputeBufferReader& Other);
-	FComputeBufferReader& operator=(FComputeBufferReader&& Other) noexcept;
+	HORDE_API FComputeBufferReader& operator=(const FComputeBufferReader& Other);
+	HORDE_API FComputeBufferReader& operator=(FComputeBufferReader&& Other) noexcept;
 
 	// Closes the handle to the underlying reader instance, resetting this instance back to empty
-	void Close();
+	HORDE_API void Close();
 
 	// Detaches this reader from the buffer, causing all pending and subsequent reads to return immediately.
-	void Detach();
+	HORDE_API void Detach();
 
 	// Test if the reader is valid
 	bool IsValid() const { return Detail != nullptr; }
 
 	// Test whether the buffer has finished being written to (ie. MarkComplete() has been called by the writer) and all data has been read from it.
-	bool IsComplete() const;
+	HORDE_API bool IsComplete() const;
 
 	// Move the read cursor forwards by the given number of bytes
-	void AdvanceReadPosition(size_t Size);
+	HORDE_API void AdvanceReadPosition(size_t Size);
 
 	// Gets the amount of data that is ready to be read from a contiguous block of memory.
-	size_t GetMaxReadSize() const;
+	HORDE_API size_t GetMaxReadSize() const;
 
 	// Reads data into the given buffer
-	size_t Read(void* Buffer, size_t MaxSize, int TimeoutMs = -1);
+	HORDE_API size_t Read(void* Buffer, size_t MaxSize, int TimeoutMs = -1);
 
 	// Waits until the given amount of data has been read, and returns a pointer to it. Returns nullptr if the timeout expires, or
 	// if the requested amount of data is not in a contiguous block of memory.
-	const unsigned char* WaitToRead(size_t MinSize, int TimeoutMs = -1);
+	HORDE_API const unsigned char* WaitToRead(size_t MinSize, int TimeoutMs = -1);
 
 private:
 	struct FReaderRef;
@@ -133,35 +134,38 @@ private:
 class FComputeBufferWriter
 {
 public:
-	FComputeBufferWriter();
-	FComputeBufferWriter(const FComputeBufferWriter& Other);
-	FComputeBufferWriter(FComputeBufferWriter&& Other) noexcept;
-	~FComputeBufferWriter();
+	HORDE_API FComputeBufferWriter();
+	HORDE_API FComputeBufferWriter(const FComputeBufferWriter& Other);
+	HORDE_API FComputeBufferWriter(FComputeBufferWriter&& Other) noexcept;
+	HORDE_API ~FComputeBufferWriter();
 
-	FComputeBufferWriter& operator=(const FComputeBufferWriter& Other);
-	FComputeBufferWriter& operator=(FComputeBufferWriter&& Other) noexcept;
+	HORDE_API FComputeBufferWriter& operator=(const FComputeBufferWriter& Other);
+	HORDE_API FComputeBufferWriter& operator=(FComputeBufferWriter&& Other) noexcept;
 
 	// Closes the handle to the underlying writer instance, resetting this instance back to empty
-	void Close();
+	HORDE_API void Close();
 
 	// Test if the writer is valid
 	bool IsValid() const { return Detail != nullptr; }
 
 	// Signal that we've finished writing to this buffer
-	void MarkComplete();
+	HORDE_API void MarkComplete();
 
 	// Move the write cursor forward by the given number of bytes
-	void AdvanceWritePosition(size_t Size);
+	HORDE_API void AdvanceWritePosition(size_t Size);
 
 	// Gets the length of the current write buffer.
-	size_t GetMaxWriteSize() const;
+	HORDE_API size_t GetMaxWriteSize() const;
+
+	// Get the max length of a chunk.
+	HORDE_API size_t GetChunkMaxLength() const;
 
 	// Writes data into the compute buffer
-	size_t Write(const void* Buffer, size_t MaxSize, int TimeoutMs = -1);
+	HORDE_API size_t Write(const void* Buffer, size_t MaxSize, int TimeoutMs = -1);
 
 	// Waits until a write buffer of the requested size is available, and returns a pointer to it. Returns nullptr if the 
 	// timeout expires before enough data has been flushed to return a buffer of the given length.
-	unsigned char* WaitToWrite(size_t MinSize, int TimeoutMs = -1);
+	HORDE_API unsigned char* WaitToWrite(size_t MinSize, int TimeoutMs = -1);
 
 private:
 	friend class FComputeBuffer;

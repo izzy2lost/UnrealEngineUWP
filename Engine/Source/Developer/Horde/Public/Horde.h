@@ -2,10 +2,13 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Containers/UnrealString.h"
+#if !defined(HORDE_API)
+#define HORDE_API
+#endif
 
 #if WITH_EDITOR
+
+#include "Containers/UnrealString.h"
 
 struct FHorde
 {

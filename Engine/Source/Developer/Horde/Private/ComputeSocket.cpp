@@ -9,6 +9,7 @@
 #include <vector>
 #include <thread>
 #include <mutex>
+#include <chrono>
 
 FComputeSocket::FComputeSocket()
 {
@@ -18,26 +19,26 @@ FComputeSocket::~FComputeSocket()
 {
 }
 
-FComputeChannel FComputeSocket::CreateChannel(int ChannelId)
+std::shared_ptr<FComputeChannel> FComputeSocket::CreateChannel(int ChannelId)
 {
 	FComputeBuffer RecvBuffer;
 	if (!RecvBuffer.CreateNew(FComputeBuffer::FParams()))
 	{
-		return FComputeChannel();
+		return std::make_shared<FComputeChannel>(FComputeChannel());
 	}
 
 	FComputeBuffer SendBuffer;
 	if (!SendBuffer.CreateNew(FComputeBuffer::FParams()))
 	{
-		return FComputeChannel();
+		return std::make_shared<FComputeChannel>(FComputeChannel());
 	}
 
 	return CreateChannel(ChannelId, std::move(RecvBuffer), std::move(SendBuffer));
 }
 
-FComputeChannel FComputeSocket::CreateChannel(int ChannelId, FComputeBuffer RecvBuffer, FComputeBuffer SendBuffer)
+std::shared_ptr<FComputeChannel> FComputeSocket::CreateChannel(int ChannelId, FComputeBuffer RecvBuffer, FComputeBuffer SendBuffer)
 {
-	FComputeChannel Channel(RecvBuffer.CreateReader(), SendBuffer.CreateWriter());
+	std::shared_ptr<FComputeChannel> Channel = std::make_shared<FComputeChannel>(RecvBuffer.CreateReader(), SendBuffer.CreateWriter());
 
 	AttachRecvBuffer(ChannelId, std::move(RecvBuffer));
 	AttachSendBuffer(ChannelId, std::move(SendBuffer));
@@ -62,6 +63,10 @@ FWorkerComputeSocket::FWorkerComputeSocket()
 FWorkerComputeSocket::~FWorkerComputeSocket()
 {
 	Close();
+}
+
+void FWorkerComputeSocket::StartCommunication()
+{
 }
 
 bool FWorkerComputeSocket::Open()
@@ -259,6 +264,11 @@ public:
 	const EComputeSocketEndpoint Endpoint;
 	std::mutex CriticalSection;
 
+	bool bPingThreadFinish;
+	std::mutex PingThreadFinishMutex;
+	std::condition_variable PingThreadFinishCV;
+	std::thread PingThread;
+
 	std::thread RecvThread;
 
 	std::unordered_map<int, FComputeBufferWriter> Writers;
@@ -269,12 +279,19 @@ public:
 		: Transport(std::move(InTransport))
 		, Endpoint(InEndpoint)
 		, CriticalSection()
-		, RecvThread(&FRemoteComputeSocket::RecvThreadProc, this)
+		, bPingThreadFinish(0)
 	{
 	}
 
-	~FRemoteComputeSocket()
+	~FRemoteComputeSocket() override
 	{
+		{
+			std::lock_guard<std::mutex>	Lock(PingThreadFinishMutex);
+			bPingThreadFinish = 1;
+		}
+
+		PingThreadFinishCV.notify_all();
+
 		for (FComputeBufferReader& Reader : Readers)
 		{
 			Reader.Detach();
@@ -287,6 +304,38 @@ public:
 
 		Transport->Close();
 		RecvThread.join();
+		PingThread.join();
+	}
+
+	virtual void StartCommunication()
+	{
+		bPingThreadFinish = 0;
+
+		// Initialize the receiver thread after having attached channel 0
+		RecvThread = std::thread(&FRemoteComputeSocket::RecvThreadProc, this);
+		PingThread = std::thread(&FRemoteComputeSocket::PingThreadProc, this);
+	}
+
+	void PingThreadProc()
+	{
+		for (;;)
+		{
+			{ // Send the ping message
+				std::lock_guard<std::mutex> Lock(CriticalSection);
+
+				FFrameHeader Header;
+				Header.Channel = 0;
+				Header.Size = -3; // Ping control message.
+
+				Transport->SendMessage(&Header, sizeof(Header));
+			}
+
+			std::unique_lock<std::mutex> Lock(PingThreadFinishMutex);
+			if (PingThreadFinishCV.wait_for(Lock, std::chrono::seconds(2), [this]() { return bPingThreadFinish; }))
+			{
+				break;
+			}
+		}
 	}
 
 	void RecvThreadProc()

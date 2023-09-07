@@ -41,12 +41,12 @@ void ComputeBufferTest()
 	UE_COMPUTE_ASSERT(Reader.IsComplete());
 }
 
-template<size_t TestDataSize> void CheckChannelSendRecv(FComputeChannel& SendChannel, FComputeChannel& RecvChannel, const char(&TestData)[TestDataSize])
+template<size_t TestDataSize> void CheckChannelSendRecv(std::shared_ptr<FComputeChannel>& SendChannel, std::shared_ptr<FComputeChannel>& RecvChannel, const char(&TestData)[TestDataSize])
 {
-	SendChannel.Send(TestData, TestDataSize);
+	SendChannel->Send(TestData, TestDataSize);
 
 	char RecvTestData[TestDataSize];
-	UE_COMPUTE_VERIFY(RecvChannel.Recv(RecvTestData, TestDataSize) == TestDataSize);
+	UE_COMPUTE_VERIFY(RecvChannel->Recv(RecvTestData, TestDataSize) == TestDataSize);
 
 	UE_COMPUTE_VERIFY(memcmp(TestData, RecvTestData, TestDataSize) == 0);
 }
@@ -62,13 +62,13 @@ void ComputeSocketTest()
 
 	// Client transport
 	std::unique_ptr<FComputeSocket> ClientSocket = CreateComputeSocket(std::make_unique<FBufferTransport>(ClientToServerBuffer.CreateWriter(), ServerToClientBuffer.CreateReader()), EComputeSocketEndpoint::Local);
-	FComputeChannel ClientChannel1 = ClientSocket->CreateChannel(1);
-	FComputeChannel ClientChannel2 = ClientSocket->CreateChannel(2);
+	std::shared_ptr<FComputeChannel> ClientChannel1 = ClientSocket->CreateChannel(1);
+	std::shared_ptr<FComputeChannel> ClientChannel2 = ClientSocket->CreateChannel(2);
 
 	// Server socket
 	std::unique_ptr<FComputeSocket> ServerSocket = CreateComputeSocket(std::make_unique<FBufferTransport>(ServerToClientBuffer.CreateWriter(), ClientToServerBuffer.CreateReader()), EComputeSocketEndpoint::Remote);
-	FComputeChannel ServerChannel1 = ServerSocket->CreateChannel(1);
-	FComputeChannel ServerChannel2 = ServerSocket->CreateChannel(2);
+	std::shared_ptr<FComputeChannel> ServerChannel1 = ServerSocket->CreateChannel(1);
+	std::shared_ptr<FComputeChannel> ServerChannel2 = ServerSocket->CreateChannel(2);
 
 	// Close the original buffers now that the sockets are set up
 	ClientToServerBuffer.Close();

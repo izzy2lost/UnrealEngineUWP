@@ -26,8 +26,8 @@ int main(int argc, const char* argv[])
 		return 1;
 	}
 
-	FComputeChannel Channel = Socket.CreateChannel(ChannelId);
-	if(!Channel.IsValid())
+	std::shared_ptr<FComputeChannel> Channel = Socket.CreateChannel(ChannelId);
+	if(!Channel->IsValid())
 	{
 		std::cout << "Unable to create channel to initiator" << std::endl;
 		return 1;
@@ -39,11 +39,11 @@ int main(int argc, const char* argv[])
 	char Buffer[4];
 
 	Buffer[0] = 0;
-	Channel.Send(Buffer, 1); // Send a dummy one-byte message to let the remote know we're listening
+	Channel->Send(Buffer, 1); // Send a dummy one-byte message to let the remote know we're listening
 
 	for (;;)
 	{
-		size_t RecvLength = Channel.Recv(Buffer + Length, sizeof(Buffer) - Length);
+		size_t RecvLength = Channel->Recv(Buffer + Length, sizeof(Buffer) - Length);
 		if (RecvLength == 0)
 		{
 			return 0;

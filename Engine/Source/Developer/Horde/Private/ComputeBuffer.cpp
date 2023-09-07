@@ -1153,6 +1153,11 @@ size_t FComputeBufferWriter::GetMaxWriteSize() const
 	return Detail->GetMaxWriteSize();
 }
 
+size_t FComputeBufferWriter::GetChunkMaxLength() const
+{
+	return Detail->Header->ChunkLength;
+}
+
 size_t FComputeBufferWriter::Write(const void* Buffer, size_t MaxSize, int TimeoutMs)
 {
 	unsigned char* SendData = WaitToWrite(1, TimeoutMs);

@@ -6,7 +6,9 @@
 #include <vector>
 #include <map>
 #include <string_view>
+#include "Horde.h"
 #include "ComputeBuffer.h"
+#include "ComputeChannel.h"
 
 // Type of a compute message
 enum class EAgentMessageType : unsigned char
@@ -91,66 +93,65 @@ namespace AgentMessage
 class FAgentMessageChannel
 {
 public:
-	FAgentMessageChannel(std::shared_ptr<FComputeBufferReader> InRecvBufferReader, std::shared_ptr<FComputeBufferWriter> InSendBufferWriter);
-	~FAgentMessageChannel();
+	HORDE_API FAgentMessageChannel(std::shared_ptr<FComputeChannel> InChannel);
+	HORDE_API ~FAgentMessageChannel();
 
 	//// Requests ////
 
 	// Closes the remote message loop
-	void Close();
+	HORDE_API void Close();
 
 	// Sends a ping message to the remote
-	void Ping();
+	HORDE_API void Ping();
 
 	// Sends an exception response to the remote
-	void Exception(const char* Description, const char* Trace);
+	HORDE_API void Exception(const char* Description, const char* Trace);
 
 	// Requests that the remote message loop be forked
-	void Fork(int ChannelId, int BufferSize);
+	HORDE_API void Fork(int ChannelId, int BufferSize);
 
 	// Notifies the remote that a buffer has been attached
-	void Attach();
+	HORDE_API void Attach();
 
 	// Extracts a bundle containing files to a particular path
-	void UploadFiles(const char* Path, const char* Locator);
+	HORDE_API void UploadFiles(const char* Path, const char* Locator);
 
 	// Deletes files matching a set of wildcards
-	void DeleteFiles(const char** Paths, size_t Count);
+	HORDE_API void DeleteFiles(const char** Paths, size_t Count);
 
 	// Executes a process on the remote machine
-	void Execute(const char* Exe, const char** Args, size_t NumArgs, const char* WorkingDir, const char** EnvVars, size_t NumEnvVars, EExecuteProcessFlags Flags);
+	HORDE_API void Execute(const char* Exe, const char** Args, size_t NumArgs, const char* WorkingDir, const char** EnvVars, size_t NumEnvVars, EExecuteProcessFlags Flags);
 
 	// Writes a blob requested by the remote
-	void Blob(const unsigned char* Data, size_t Length);
+	HORDE_API void Blob(const unsigned char* Data, size_t Length);
 
 	// Send a message to request that a byte string be xor'ed with a particular value
-	void Xor(const unsigned char* Data, size_t Length, unsigned char Value);
+	HORDE_API void Xor(const unsigned char* Data, size_t Length, unsigned char Value);
 
 	//// Responses ////
 
 	// Reads a response from the remote. Other Read methods can be used to access response data.
-	EAgentMessageType ReadResponse();
+	HORDE_API EAgentMessageType ReadResponse();
 
 	// Gets the raw data from a response
-	const void* GetResponseData() const { return ResponseData + MessageHeaderLength; }
+	HORDE_API const void* GetResponseData() const { return ResponseData + MessageHeaderLength; }
 
 	// Gets the size of the response
-	size_t GetResponseSize() const { return ResponseLength - MessageHeaderLength; }
+	HORDE_API size_t GetResponseSize() const { return ResponseLength - MessageHeaderLength; }
 
 	// Reads an exception response
-	void ReadException(AgentMessage::FException& Ex);
+	HORDE_API void ReadException(AgentMessage::FException& Ex);
 
 	// Reads the result from executing a process
-	int ReadExecuteResult();
+	HORDE_API int ReadExecuteResult();
 
 	// Reads a blob request message
-	void ReadBlobRequest(AgentMessage::FBlobRequest& Ex);
+	HORDE_API void ReadBlobRequest(AgentMessage::FBlobRequest& Ex);
 
 private:
 	const size_t MessageHeaderLength = 5;
 
-	std::shared_ptr<FComputeBufferReader> RecvBufferReader;
-	std::shared_ptr<FComputeBufferWriter> SendBufferWriter;
+	std::shared_ptr<FComputeChannel> ChannelBuffers;
 
 	unsigned char* RequestData;
 	size_t RequestSize;
