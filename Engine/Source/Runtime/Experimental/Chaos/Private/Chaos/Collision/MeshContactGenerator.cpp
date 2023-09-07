@@ -119,7 +119,7 @@ namespace Chaos::Private
 
 			// Store the contact, set the face index
 			Contacts.Add(ContactPoint);
-			Contacts[NewContactIndex].FaceIndex = Triangle.TriangleIndex;
+			Contacts[NewContactIndex].FaceIndex = Triangle.GetTriangleIndex();
 
 			// Set the contact metadata and enable it
 			ContactDatas.AddDefaulted();
