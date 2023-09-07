@@ -245,6 +245,7 @@ bool FIoChunkEncoding::Decode(const FIoChunkDecodingParams& Params, FMemoryView 
 	}
 
 	const TConstArrayView<uint32>& EncodedBlockSize = Params.EncodedBlockSize;
+	const TConstArrayView<uint32>& BlockHash = Params.BlockHash;
 	const uint32 BlockSize = Params.BlockSize;
 	const uint64 RawOffset = Params.RawOffset;
 	const uint32 BlockCount = EncodedBlockSize.Num();
@@ -262,6 +263,7 @@ bool FIoChunkEncoding::Decode(const FIoChunkDecodingParams& Params, FMemoryView 
 	// Subtract the encoded offset if the encoded blocks is a partial range of all encoded block(s)
 	EncodedBlocks += (EncodedOffset - Params.EncodedOffset);
 
+	const bool bVerifyBlocks = BlockHash.IsEmpty() == false;
 	for (uint32 BlockIndex = FirstBlockIndex; BlockIndex <= LastBlockIndex; BlockIndex++)
 	{
 		const uint64 RawBlockSize = BlockIndex == BlockCount - 1 ? LastRawBlockSize : BlockSize;
@@ -271,6 +273,17 @@ bool FIoChunkEncoding::Decode(const FIoChunkDecodingParams& Params, FMemoryView 
 
 		FIoBuffer Tmp(AlignedBlockSize);
 		Tmp.GetMutableView().CopyFrom(EncodedBlocks.Left(AlignedBlockSize));
+
+		if (bVerifyBlocks)
+		{
+			check(BlockHash.IsEmpty() == false);
+			FIoBlockHash Hash = HashBlock(Tmp.GetView());
+			if (Hash != BlockHash[BlockIndex])
+			{
+				return false;
+			}
+		}
+
 		if (AESKey.IsValid())
 		{
 			FAES::DecryptData(Tmp.GetData(), uint32(Tmp.GetSize()), AESKey);
@@ -362,24 +375,10 @@ uint64 FIoChunkEncoding::GetTotalEncodedSize(TConstArrayView<uint32> EncodedBloc
 	return TotalEncodedSize;
 }
 
-FIoStatus FIoChunkEncoding::HashBlocks(const FIoChunkEncoding::FHeader& Header, FMemoryView EncodedData, TArray<FIoHash>& OutHashes)
+FIoBlockHash FIoChunkEncoding::HashBlock(FMemoryView Block)
 {
-	TConstArrayView<uint32> Blocks = Header.GetBlocks();
-	if (Blocks.IsEmpty())
-	{
-		return FIoStatus(EIoErrorCode::InvalidParameter);
-	}
-
-	OutHashes.Reserve(Blocks.Num());
-
-	for (uint32 BlockSize : Blocks)
-	{
-		check(!EncodedData.IsEmpty());
-		OutHashes.Add(FIoHash::HashBuffer(EncodedData.Left(BlockSize)));
-		EncodedData += BlockSize;
-	}
-
-	check(EncodedData.IsEmpty());
-	
-	return FIoStatus::Ok;
+	const FIoHash Hash = FIoHash::HashBuffer(Block);
+	FIoBlockHash BlockHash;
+	FMemory::Memcpy(&BlockHash, &Hash, sizeof(FIoBlockHash));
+	return BlockHash;
 }

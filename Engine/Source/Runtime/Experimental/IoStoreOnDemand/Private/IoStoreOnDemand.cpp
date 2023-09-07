@@ -7,6 +7,7 @@
 #include "HAL/LowLevelMemTracker.h"
 #include "HAL/PlatformMisc.h"
 #include "HAL/PlatformTime.h"
+#include "IO/IoChunkEncoding.h"
 #include "IasCache.h"
 #include "LatencyInjector.h"
 #include "Misc/Base64.h"
@@ -973,8 +974,7 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 
 				FMemoryView EncodedBlock = EncodedBlocks.Left(EncodedBlockSize);
 				EncodedBlocks += EncodedBlock.GetSize();
-				const FIoHash BlockHash = FIoHash::HashBuffer(EncodedBlock);
-				ContainerEntry.BlockHashes.Add(*reinterpret_cast<const uint32*>(&BlockHash));
+				ContainerEntry.BlockHashes.Add(FIoChunkEncoding::HashBlock(EncodedBlock));
 
 				EncodedChunkSize += EncodedBlockSize;
 				RawChunkSize += BlockInfo.UncompressedSize;

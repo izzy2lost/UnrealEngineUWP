@@ -193,6 +193,7 @@ public:
 
 		TMap<FIoChunkId, FTocEntry> TocEntries;
 		TArray<uint32> BlockSizes;
+		TArray<FIoBlockHash> BlockHashes;
 	};
 
 	struct FToc
@@ -215,6 +216,14 @@ public:
 		{
 			check(Container != nullptr && Entry != nullptr);
 			return TConstArrayView<uint32>(Container->BlockSizes.GetData() + Entry->BlockOffset, Entry->BlockCount);
+		}
+		
+		TConstArrayView<FIoBlockHash> GetBlockHashes() const
+		{
+			check(Container != nullptr && Entry != nullptr);
+			return Container->BlockHashes.IsEmpty()
+				? TConstArrayView<FIoBlockHash>()
+				: TConstArrayView<FIoBlockHash>(Container->BlockHashes.GetData() + Entry->BlockOffset, Entry->BlockCount);
 		}
 	};
 
@@ -299,6 +308,7 @@ void FOnDemandIoStore::AddToc(const FString& TocPath, FOnDemandToc&& Toc)
 			}
 
 			NewContainer->BlockSizes = MoveTemp(Container.BlockSizes);
+			NewContainer->BlockHashes = MoveTemp(Container.BlockHashes);
 
 			DeferredContainers.Add(NewContainer);
 		}
@@ -583,6 +593,7 @@ struct FChunkRequestParams
 		Params.BlockSize = ChunkInfo.Container->BlockSize;
 		Params.TotalRawSize = ChunkInfo.Entry->RawSize;
 		Params.EncodedBlockSize = ChunkInfo.GetBlocks(); 
+		Params.BlockHash = ChunkInfo.GetBlockHashes(); 
 		Params.EncodedOffset = ChunkRange.GetOffset();
 
 		return Params;

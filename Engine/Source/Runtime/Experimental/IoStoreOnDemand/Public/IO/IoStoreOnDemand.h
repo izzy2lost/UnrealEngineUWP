@@ -26,6 +26,7 @@ struct FAnalyticsEventAttribute;
 struct FIoContainerSettings;
 struct FIoStoreWriterSettings;
 namespace UE::IO::IAS { struct FOnDemandEndpoint; }
+using FIoBlockHash = uint32;
 
 UE_API DECLARE_LOG_CATEGORY_EXTERN(LogIas, VeryVerbose, All);
 
@@ -109,7 +110,7 @@ struct FOnDemandTocContainerEntry
 	FString EncryptionKeyGuid;
 	TArray<FOnDemandTocEntry> Entries;
 	TArray<uint32> BlockSizes;
-	TArray<uint32> BlockHashes;
+	TArray<FIoBlockHash> BlockHashes;
 	FIoHash UTocHash;
 
 	UE_API friend FArchive& operator<<(FArchive& Ar, FOnDemandTocContainerEntry& ContainerEntry);
