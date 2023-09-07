@@ -165,7 +165,7 @@ public:
 	 *	Cooked HeightField data. Serialized only with cooked content 
 	 *	Stored as array instead of BulkData to take advantage of precaching during async loading
 	 */
-	bool CookedCollisionDataWasDeleted = false;
+	bool bCookedCollisionDataWasDeleted = false;
 	TArray<uint8>								CookedCollisionData;
 	
 	/** This is a list of physical materials that is actually used by a cooked HeightField */
@@ -175,6 +175,11 @@ public:
 	/** Physics engine version of heightfield data. */
 	TRefCountPtr<FHeightfieldGeometryRef>	HeightfieldRef;
 	
+	// local non-serialized ref counted pointers to keep the chaos heightfields alive between Unregister() and actual destruction of the component.
+	// this allows us to re-use them if the component gets a call to Register() again
+	Chaos::FHeightFieldPtr LocalHeightfieldGeometryRef;
+	Chaos::FHeightFieldPtr LocalHeightfieldSimpleGeometryRef;
+
 	/** Cached PxHeightFieldSamples values for navmesh generation. Note that it's being used only if navigation octree is set up for lazy geometry exporting */
 	int32 HeightfieldRowsCount;
 	int32 HeightfieldColumnsCount;
