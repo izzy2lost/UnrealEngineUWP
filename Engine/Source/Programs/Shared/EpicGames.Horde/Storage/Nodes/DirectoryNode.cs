@@ -757,6 +757,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		public async Task CopyToDirectoryAsync(DirectoryInfo directoryInfo, ILogger logger, CancellationToken cancellationToken)
 		{
 			int NumThreads = Math.Min(1 + (int)(Length / (10 * 1024 * 1024)), 4);
+			logger.LogInformation("Splitting read into {NumThreads} threads", NumThreads);
 
 			List<Task> tasks = new List<Task>();
 			try

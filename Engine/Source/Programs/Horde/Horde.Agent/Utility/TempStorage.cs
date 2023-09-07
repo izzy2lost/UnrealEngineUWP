@@ -736,8 +736,7 @@ namespace Horde.Storage.Utility
 				await rootDirNode.CopyToDirectoryAsync(rootDir.ToDirectoryInfo(), logger, cancellationToken);
 
 				timer.Stop();
-				logger.LogInformation("Header cache: {Size}, Packet cache {Size}", bundleStorageClient.BundleReader.Cache.HeaderCacheSize, bundleStorageClient.BundleReader.Cache.PacketCacheSize);
-				logger.LogInformation("Elapsed: {Elapsed}s, Num bytes: {NumBytes}, Num headers: {NumHeaders}, Num packets: {NumPackets}", (int)timer.Elapsed.TotalSeconds, bundleStorageClient.BundleReader.NumBytesRead - initialNumBytesRead, bundleStorageClient.BundleReader.NumHeaderReads - initialNumHeaderReads, bundleStorageClient.BundleReader.NumPacketReads - initialNumPacketReads);
+				logger.LogInformation("Elapsed: {Elapsed}s, Num bytes: {NumBytes:n0}, Num headers: {NumHeaders:n0}, Num packets: {NumPackets:n0}, Header cache: {Size:n0}mb, Packet cache {Size:n0}mb", (int)timer.Elapsed.TotalSeconds, bundleStorageClient.BundleReader.NumBytesRead - initialNumBytesRead, bundleStorageClient.BundleReader.NumHeaderReads - initialNumHeaderReads, bundleStorageClient.BundleReader.NumPacketReads - initialNumPacketReads, bundleStorageClient.BundleReader.Cache.HeaderCacheSize / (1024.0 * 1024.0), bundleStorageClient.BundleReader.Cache.PacketCacheSize / (1024.0 * 1024.0));
 
 				// Read the manifest in
 				manifest = TempStorageBlockManifest.Load(localManifestFile);
