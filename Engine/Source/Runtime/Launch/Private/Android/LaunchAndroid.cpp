@@ -265,6 +265,8 @@ void InitHMDs()
 
 	AndroidThunkCpp_InitHMDs();
 
+	GHMDsInitialized = GHMDImplementations.IsEmpty();
+
 	while (!GHMDsInitialized)
 	{
 		FPlatformProcess::Sleep(0.01f);
