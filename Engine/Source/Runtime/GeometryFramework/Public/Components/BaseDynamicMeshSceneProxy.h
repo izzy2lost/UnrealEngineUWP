@@ -342,16 +342,15 @@ protected:
 			Initializer.bFastBuild = true;
 			Initializer.bAllowUpdate = false;
 
-			RayTracingGeometry.SetInitializer(Initializer);
-			RayTracingGeometry.InitResource(RHICmdList);
-
 			FRayTracingGeometrySegment Segment;
 			Segment.VertexBuffer = PositionVertexBuffer.VertexBufferRHI;
-			Segment.NumPrimitives = RayTracingGeometry.Initializer.TotalPrimitiveCount;
+			Segment.NumPrimitives = Initializer.TotalPrimitiveCount;
 			Segment.MaxVertices = PositionVertexBuffer.GetNumVertices();
-			RayTracingGeometry.Initializer.Segments.Add(Segment);
 
-			RayTracingGeometry.UpdateRHI(RHICmdList);
+			Initializer.Segments.Add(Segment);
+
+			RayTracingGeometry.SetInitializer(MoveTemp(Initializer));
+			RayTracingGeometry.InitResource(RHICmdList);
 		}
 #endif
 	}

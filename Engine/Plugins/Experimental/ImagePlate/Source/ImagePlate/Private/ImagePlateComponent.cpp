@@ -115,25 +115,21 @@ namespace
 			{
 				FRayTracingGeometryInitializer Initializer;
 				Initializer.DebugName = GetOwnerName();
-				Initializer.IndexBuffer = nullptr;
-				Initializer.TotalPrimitiveCount = 0;
+				Initializer.IndexBuffer = IndexBuffer.IndexBufferRHI;
+				Initializer.TotalPrimitiveCount = IndexBuffer.Indices.Num() / 3;
 				Initializer.GeometryType = RTGT_Triangles;
 				Initializer.bFastBuild = true;
 				Initializer.bAllowUpdate = false;
 
-				RayTracingGeometry.SetInitializer(Initializer);
-				RayTracingGeometry.InitResource(RHICmdList);
-
-				RayTracingGeometry.Initializer.IndexBuffer = IndexBuffer.IndexBufferRHI;
-				RayTracingGeometry.Initializer.TotalPrimitiveCount = IndexBuffer.Indices.Num() / 3;
-
 				FRayTracingGeometrySegment Segment;
 				Segment.VertexBuffer = VertexBuffers.PositionVertexBuffer.VertexBufferRHI;
-				Segment.NumPrimitives = RayTracingGeometry.Initializer.TotalPrimitiveCount;
 				Segment.MaxVertices = VertexBuffers.PositionVertexBuffer.GetNumVertices();
-				RayTracingGeometry.Initializer.Segments.Add(Segment);
+				Segment.NumPrimitives = Initializer.TotalPrimitiveCount;
 
-				RayTracingGeometry.UpdateRHI(RHICmdList);
+				Initializer.Segments.Add(Segment);
+
+				RayTracingGeometry.SetInitializer(Initializer);
+				RayTracingGeometry.InitResource(RHICmdList);
 			}
 #endif
 		}

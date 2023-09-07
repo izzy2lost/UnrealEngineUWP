@@ -583,8 +583,7 @@ private:
 #if RHI_RAYTRACING
 	void CreateDynamicRayTracingGeometries(FRHICommandListBase& RHICmdList)
 	{
-		FRayTracingGeometryInitializer& Initializer = DynamicRayTracingGeometry.Initializer;
-		Initializer = StaticRayTracingGeometry.Initializer;
+		FRayTracingGeometryInitializer Initializer = StaticRayTracingGeometry.Initializer;
 		for (FRayTracingGeometrySegment& Segment : Initializer.Segments)
 		{
 			Segment.VertexBuffer = nullptr;
@@ -593,6 +592,7 @@ private:
 		Initializer.bFastBuild = true;
 		Initializer.Type = ERayTracingGeometryInitializerType::Rendering;
 
+		DynamicRayTracingGeometry.SetInitializer(MoveTemp(Initializer));
 		DynamicRayTracingGeometry.InitResource(RHICmdList);
 	}
 

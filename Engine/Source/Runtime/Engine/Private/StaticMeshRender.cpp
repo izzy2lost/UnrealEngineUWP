@@ -745,14 +745,14 @@ bool FStaticMeshSceneProxy::GetMeshElement(
 #if RHI_RAYTRACING
 void FStaticMeshSceneProxy::CreateDynamicRayTracingGeometries(FRHICommandListBase& RHICmdList)
 {
+	check(bDynamicRayTracingGeometry && bNeedsDynamicRayTracingGeometries);
 	check(DynamicRayTracingGeometries.IsEmpty());
 
 	DynamicRayTracingGeometries.AddDefaulted(RenderData->LODResources.Num());
 
 	for (int32 LODIndex = 0; LODIndex < RenderData->LODResources.Num(); LODIndex++)
 	{
-		auto& Initializer = DynamicRayTracingGeometries[LODIndex].Initializer;
-		Initializer = RenderData->LODResources[LODIndex].RayTracingGeometry.Initializer;
+		FRayTracingGeometryInitializer Initializer = RenderData->LODResources[LODIndex].RayTracingGeometry.Initializer;
 		for (FRayTracingGeometrySegment& Segment : Initializer.Segments)
 		{
 			Segment.VertexBuffer = nullptr;
@@ -760,12 +760,9 @@ void FStaticMeshSceneProxy::CreateDynamicRayTracingGeometries(FRHICommandListBas
 		Initializer.bAllowUpdate = true;
 		Initializer.bFastBuild = true;
 		Initializer.Type = ERayTracingGeometryInitializerType::Rendering;
-	}
 
-	for (int32 i = 0; i < DynamicRayTracingGeometries.Num(); i++)
-	{
-		auto& Geometry = DynamicRayTracingGeometries[i];
-		Geometry.InitResource(RHICmdList);
+		DynamicRayTracingGeometries[LODIndex].SetInitializer(MoveTemp(Initializer));
+		DynamicRayTracingGeometries[LODIndex].InitResource(RHICmdList);
 	}
 }
 
@@ -785,7 +782,6 @@ void FStaticMeshSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHI
 #if RHI_RAYTRACING
 	if(IsRayTracingAllowed() && bNeedsDynamicRayTracingGeometries)
 	{
-		check(bDynamicRayTracingGeometry);
 		CreateDynamicRayTracingGeometries(RHICmdList);
 	}
 	else

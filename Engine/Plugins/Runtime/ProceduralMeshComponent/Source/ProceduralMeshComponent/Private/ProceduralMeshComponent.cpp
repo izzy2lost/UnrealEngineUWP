@@ -181,27 +181,21 @@ public:
 					{
 						FRayTracingGeometryInitializer Initializer;
 						Initializer.DebugName = DebugName;
-						Initializer.IndexBuffer = nullptr;
-						Initializer.TotalPrimitiveCount = 0;
+						Initializer.IndexBuffer = NewSection->IndexBuffer.IndexBufferRHI;
+						Initializer.TotalPrimitiveCount = NewSection->IndexBuffer.Indices.Num() / 3;
 						Initializer.GeometryType = RTGT_Triangles;
 						Initializer.bFastBuild = true;
 						Initializer.bAllowUpdate = false;
 
-						NewSection->RayTracingGeometry.SetInitializer(Initializer);
-						NewSection->RayTracingGeometry.InitResource(RHICmdList);
-
-						NewSection->RayTracingGeometry.Initializer.IndexBuffer = NewSection->IndexBuffer.IndexBufferRHI;
-						NewSection->RayTracingGeometry.Initializer.TotalPrimitiveCount = NewSection->IndexBuffer.Indices.Num() / 3;
-
 						FRayTracingGeometrySegment Segment;
 						Segment.VertexBuffer = NewSection->VertexBuffers.PositionVertexBuffer.VertexBufferRHI;
-						Segment.NumPrimitives = NewSection->RayTracingGeometry.Initializer.TotalPrimitiveCount;
 						Segment.MaxVertices = NewSection->VertexBuffers.PositionVertexBuffer.GetNumVertices();
-						NewSection->RayTracingGeometry.Initializer.Segments.Add(Segment);
-
-						//#dxr_todo: add support for segments?
+						Segment.NumPrimitives = Initializer.TotalPrimitiveCount;
 						
-						NewSection->RayTracingGeometry.UpdateRHI(RHICmdList);
+						Initializer.Segments.Add(Segment);
+
+						NewSection->RayTracingGeometry.SetInitializer(Initializer);
+						NewSection->RayTracingGeometry.InitResource(RHICmdList);
 					});
 				}
 #endif
@@ -306,16 +300,15 @@ public:
 					Initializer.bFastBuild = true;
 					Initializer.bAllowUpdate = false;
 
-					Section->RayTracingGeometry.SetInitializer(Initializer);
-					Section->RayTracingGeometry.InitResource(RHICmdList);
-
 					FRayTracingGeometrySegment Segment;
 					Segment.VertexBuffer = Section->VertexBuffers.PositionVertexBuffer.VertexBufferRHI;
-					Segment.NumPrimitives = Section->RayTracingGeometry.Initializer.TotalPrimitiveCount;
 					Segment.MaxVertices = Section->VertexBuffers.PositionVertexBuffer.GetNumVertices();
-					Section->RayTracingGeometry.Initializer.Segments.Add(Segment);
+					Segment.NumPrimitives = Initializer.TotalPrimitiveCount;
 
-					Section->RayTracingGeometry.UpdateRHI(RHICmdList);
+					Initializer.Segments.Add(Segment);
+
+					Section->RayTracingGeometry.SetInitializer(Initializer);
+					Section->RayTracingGeometry.InitResource(RHICmdList);
 				}
 #endif
 			}

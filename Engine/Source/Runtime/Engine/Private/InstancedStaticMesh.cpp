@@ -2597,8 +2597,7 @@ void FInstancedStaticMeshSceneProxy::SetupRayTracingDynamicInstances(int32 NumDy
 		{
 			FRayTracingDynamicData &DynamicData = RayTracingDynamicData.AddDefaulted_GetRef();
 
-			auto& Initializer = DynamicData.DynamicGeometry.Initializer;
-			Initializer = LODModel.RayTracingGeometry.Initializer;
+			FRayTracingGeometryInitializer Initializer = LODModel.RayTracingGeometry.Initializer;
 			for (FRayTracingGeometrySegment& Segment : Initializer.Segments)
 			{
 				Segment.VertexBuffer = nullptr; 
@@ -2606,6 +2605,7 @@ void FInstancedStaticMeshSceneProxy::SetupRayTracingDynamicInstances(int32 NumDy
 			Initializer.bAllowUpdate = true;
 			Initializer.bFastBuild = true;
 
+			DynamicData.DynamicGeometry.SetInitializer(MoveTemp(Initializer));
 			DynamicData.DynamicGeometry.InitResource(FRHICommandListImmediate::Get());
 		}
 	}
