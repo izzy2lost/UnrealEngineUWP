@@ -68,11 +68,8 @@ private:
 	TSharedRef<SWidget> GenerateCompileOptionsMenuContent();
 	TSharedPtr<STextComboBox> CompileOptimizationCombo;
 	TArray< TSharedPtr<FString> > CompileOptimizationStrings;
-	TSharedPtr<STextComboBox> CompileTextureCompressionCombo;
-	TArray< TSharedPtr<FString> > CompileTextureCompressionStrings;
 	TSharedPtr<SNumericDropDown<float>> CompileTilingCombo;
 	void OnChangeCompileOptimizationLevel(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
-	void OnChangeCompileTextureCompressionType(TSharedPtr<FString> NewSelection, ESelectInfo::Type);
 	void OnChangeDebugPlatform(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
 
 	/** Tree callbacks. */

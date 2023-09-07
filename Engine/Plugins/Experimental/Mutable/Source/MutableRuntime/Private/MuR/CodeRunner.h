@@ -759,9 +759,7 @@ namespace  mu
 				Ptr<Image> New = Runner->CreateImage(i->GetSizeX(), i->GetSizeY(), i->GetLODCount(), i->GetFormat(), EInitializationType::NotInitialized);
 				New->Copy(i);
 				return New;
-			},
-
-			Runner->m_pSystem->ImagePixelFormatOverride
+			}
 		);
 	}
 

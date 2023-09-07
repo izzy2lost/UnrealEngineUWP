@@ -441,7 +441,7 @@ void FCustomizableObjectEditor::CreatePreviewInstance()
 			}
 			else
 			{
-				FNotificationInfo Info(LOCTEXT("CustomizableObjectCompileTryLater", "Please wait until asset registry loads all assets"));
+				FNotificationInfo Info(NSLOCTEXT("CustomizableObject", "CustomizableObjectCompileTryLater", "Please wait until asset registry loads all assets"));
 				Info.bFireAndForget = true;
 				Info.bUseThrobber = true;
 				Info.FadeOutDuration = 1.0f;
@@ -809,6 +809,12 @@ void FCustomizableObjectEditor::BindCommands()
 		FIsActionChecked());
 
 	ToolkitCommands->MapAction(
+		Commands.CompileOptions_EnableTextureCompression,
+		FExecuteAction::CreateSP(this, &FCustomizableObjectEditor::CompileOptions_TextureCompression_Toggled),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &FCustomizableObjectEditor::CompileOptions_TextureCompression_IsChecked));
+
+	ToolkitCommands->MapAction(
 		Commands.CompileOptions_UseDiskCompilation,
 		FExecuteAction::CreateSP(this, &FCustomizableObjectEditor::CompileOptions_UseDiskCompilation_Toggled),
 		FCanExecuteAction(),
@@ -1014,10 +1020,10 @@ TSharedRef<SWidget> FCustomizableObjectEditor::GenerateCompileOptionsMenuContent
 	{
 		// Level
 		CompileOptimizationStrings.Empty();
-		CompileOptimizationStrings.Add(MakeShareable(new FString(LOCTEXT("OptimizationNone", "None").ToString())));
-		CompileOptimizationStrings.Add(MakeShareable(new FString(LOCTEXT("OptimizationMin", "Minimal").ToString())));
-		CompileOptimizationStrings.Add(MakeShareable(new FString(LOCTEXT("OptimizationMed", "Medium").ToString())));
-		CompileOptimizationStrings.Add(MakeShareable(new FString(LOCTEXT("OptimizationMax", "Maximum").ToString())));
+		CompileOptimizationStrings.Add(MakeShareable(new FString(NSLOCTEXT("UnrealEd", "OptimizationNone", "None").ToString())));
+		CompileOptimizationStrings.Add(MakeShareable(new FString(NSLOCTEXT("UnrealEd", "OptimizationMin", "Minimal").ToString())));
+		CompileOptimizationStrings.Add(MakeShareable(new FString(NSLOCTEXT("UnrealEd", "OptimizationMed", "Medium").ToString())));
+		CompileOptimizationStrings.Add(MakeShareable(new FString(NSLOCTEXT("UnrealEd", "OptimizationMax", "Maximum").ToString())));
 
 		if (CustomizableObject)
 		{
@@ -1030,23 +1036,6 @@ TSharedRef<SWidget> FCustomizableObjectEditor::GenerateCompileOptionsMenuContent
 				;
 
 			MenuBuilder.AddWidget(CompileOptimizationCombo.ToSharedRef(), LOCTEXT("MutableCompileOptimizationLevel", "Optimization Level"));
-		}
-
-		{
-			CompileTextureCompressionStrings.Empty();
-			CompileTextureCompressionStrings.Add(MakeShareable(new FString(LOCTEXT("MutableTextureCompressionNone", "None").ToString())));
-			CompileTextureCompressionStrings.Add(MakeShareable(new FString(LOCTEXT("MutableTextureCompressionFast", "Fast").ToString())));
-			CompileTextureCompressionStrings.Add(MakeShareable(new FString(LOCTEXT("MutableTextureCompressionHighQuality", "High Quality").ToString())));
-
-			int32 SelectedCompression = FMath::Clamp(int32(CustomizableObject->CompileOptions.TextureCompression), 0, CompileTextureCompressionStrings.Num() - 1);
-			CompileTextureCompressionCombo =
-				SNew(STextComboBox)
-				.OptionsSource(&CompileTextureCompressionStrings)
-				.InitiallySelectedItem(CompileTextureCompressionStrings[SelectedCompression])
-				.OnSelectionChanged(this, &FCustomizableObjectEditor::OnChangeCompileTextureCompressionType)
-				;
-
-			MenuBuilder.AddWidget(CompileTextureCompressionCombo.ToSharedRef(), LOCTEXT("MutableCompileTextureCompressionType", "Texture Compression"));
 		}
 
 		// Image tiling
@@ -1302,7 +1291,7 @@ void FCustomizableObjectEditor::CompileObject()
 
 	if (!AssetRegistryLoaded)
 	{
-		FNotificationInfo Info(LOCTEXT("CustomizableObjectCompileTryLater", "Please wait until asset registry loads all assets"));
+		FNotificationInfo Info(NSLOCTEXT("CustomizableObject", "CustomizableObjectCompileTryLater", "Please wait until asset registry loads all assets"));
 		Info.bFireAndForget = true;
 		Info.bUseThrobber = true;
 		Info.FadeOutDuration = 1.0f;
@@ -1368,11 +1357,16 @@ bool FCustomizableObjectEditor::CompileOptions_UseDiskCompilation_IsChecked()
 }
 
 
-void FCustomizableObjectEditor::OnChangeCompileTextureCompressionType(TSharedPtr<FString> NewSelection, ESelectInfo::Type)
+void FCustomizableObjectEditor::CompileOptions_TextureCompression_Toggled()
 {
-	const FScopedTransaction Transaction(LOCTEXT("ChangedTextureCompressionTransaction", "Changed Texture Compression Type"));
+	CustomizableObject->CompileOptions.bTextureCompression = !CustomizableObject->CompileOptions.bTextureCompression;
 	CustomizableObject->Modify();
-	CustomizableObject->CompileOptions.TextureCompression = ECustomizableObjectTextureCompression(CompileTextureCompressionStrings.Find(NewSelection));
+}
+
+
+bool FCustomizableObjectEditor::CompileOptions_TextureCompression_IsChecked()
+{
+	return CustomizableObject->CompileOptions.bTextureCompression;
 }
 
 
@@ -1405,7 +1399,7 @@ void FCustomizableObjectEditor::DeleteSelectedNodes()
 		return;
 	}
 
-	const FScopedTransaction Transaction(LOCTEXT("UEdGraphSchema_CustomizableObject", "Delete Nodes"));
+	const FScopedTransaction Transaction(NSLOCTEXT("UnrealEd", "UEdGraphSchema_CustomizableObject", "Delete Nodes"));
 
 	const FGraphPanelSelectionSet SelectedNodes = GraphEditor->GetSelectedNodes();
 	GraphEditor->ClearSelectionSet();
@@ -1770,7 +1764,7 @@ void FCustomizableObjectEditor::PasteNodes()
 void FCustomizableObjectEditor::PasteNodesHere(const FVector2D& Location)
 {
 	// Undo/Redo support
-	const FScopedTransaction Transaction( LOCTEXT("CustomizableObjectEditorPaste", "Customizable Object Editor Editor: Paste") );
+	const FScopedTransaction Transaction( NSLOCTEXT("UnrealEd", "CustomizableObjectEditorPaste", "Customizable Object Editor Editor: Paste") );
 	CustomizableObject->Source->Modify();
 	CustomizableObject->Modify();
 
@@ -1907,7 +1901,7 @@ void FCustomizableObjectEditor::CreateCommentBoxFromKey()
 
 UEdGraphNode* FCustomizableObjectEditor::CreateCommentBox(const FVector2D& InTargetPosition)
 {
-	//const FScopedTransaction Transaction(LOCTEXT("UEdGraphSchema_CustomizableObject", "Add Comment Box"));
+	//const FScopedTransaction Transaction(NSLOCTEXT("UnrealEd", "UEdGraphSchema_CustomizableObject", "Add Comment Box"));
 
 	UEdGraphNode_Comment* CommentTemplate = NewObject<UEdGraphNode_Comment>();
 

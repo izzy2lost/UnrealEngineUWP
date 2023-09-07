@@ -904,7 +904,7 @@ FImageDesc ASTOp::GetImageDesc( bool, FGetImageDescContext* ) const
 
 bool ASTOp::IsImagePlainConstant(FVector4f&) const
 {
-	// Some image operations don't have this implemented and hit here.
+	// Some image operations don't have this implmented and hit here.
 	// \TODO: Optimize for those cases.
     //check(false);
     return false;

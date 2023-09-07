@@ -97,8 +97,6 @@ namespace mu
 		int32 ImageTiling=0 ;
 
         bool bLog = false;
-
-		FImageOperator::FImagePixelFormatFunc ImageFormatFunc;
     };
 
 
@@ -165,10 +163,10 @@ namespace mu
             m_pErrorLog = new ErrorLog();
         }
 
-        Ptr<ErrorLog> m_pErrorLog;
+        ErrorLogPtr m_pErrorLog;
 
         //! Detailed options
-        Ptr<CompilerOptions> m_options;
+        CompilerOptionsPtr m_options;
 
 
 		//!

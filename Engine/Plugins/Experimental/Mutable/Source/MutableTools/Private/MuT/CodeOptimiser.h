@@ -20,14 +20,14 @@ namespace mu
     class CodeOptimiser : public Base
     {
     public:
-        CodeOptimiser( Ptr<CompilerOptions> options, vector<STATE_COMPILATION_DATA>& states );
+        CodeOptimiser( CompilerOptionsPtr options, vector<STATE_COMPILATION_DATA>& states );
 
         //! Optimise the virtual machine code, using several transforms.
         void OptimiseAST();
 
     private:
 
-		Ptr<CompilerOptions> m_options;
+        CompilerOptionsPtr m_options;
 
         //!
         vector<STATE_COMPILATION_DATA>& m_states;

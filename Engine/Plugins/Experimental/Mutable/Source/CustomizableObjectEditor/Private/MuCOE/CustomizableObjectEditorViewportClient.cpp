@@ -26,7 +26,7 @@
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuCO/CustomizableObjectMipDataProvider.h"
-#include "MuCOE/UnrealBakeHelpers.h"
+#include "MuCO/UnrealBakeHelpers.h"
 #include "MuCOE/CustomizableObjectPreviewScene.h"
 #include "MuCOE/CustomizableObjectWidget.h"
 #include "MuCOE/ICustomizableObjectInstanceEditor.h"
@@ -35,7 +35,6 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeProjectorConstant.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeProjectorParameter.h"
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
-#include "MuT/UnrealPixelFormatOverride.h"
 #include "ObjectTools.h"
 #include "Preferences/PersonaOptions.h"
 #include "ScopedTransaction.h"
@@ -2268,16 +2267,13 @@ void FCustomizableObjectEditorViewportClient::BakeInstance(UCustomizableObjectIn
 	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
 	check(System);
 
-	if (!InInstance)
+	if (System->IsProgressiveMipStreamingEnabled())
 	{
 		// The instance in the editor viewport does not have high quality mips in the platform data because streaming is enabled.
 		// Disable streaming and retry with a newly generated temp instance.
 		System->SetProgressiveMipStreamingEnabled(false);
 		// Disable requested LOD generation as it will prevent the new instance from having all the LODs
 		System->SetOnlyGenerateRequestedLODsEnabled(false);
-		// Force high quality texture compression for this instance
-		PrepareUnrealCompression();
-		System->SetImagePixelFormatOverride(UnrealPixelFormatFunc);
 
 		BakeTempInstance = Instance->Clone();
 		BakeTempInstance->SkeletalMeshes.Empty();
@@ -2287,26 +2283,7 @@ void FCustomizableObjectEditorViewportClient::BakeInstance(UCustomizableObjectIn
 		return;
 	}
 
-	// Warn if the CO looks like it wasn't compiled with high-quality texture compression.
-	// \TODO: This is a weak test, we should store the setting with the compiled data and check that instead.
-	UCustomizableObject* CO = Instance->GetCustomizableObject();
-	if (!CO)
-	{
-		// Something is very wrong
-		return;
-	}
-
-	if (CO->CompileOptions.TextureCompression!=ECustomizableObjectTextureCompression::HighQuality)
-	{
-		FNotificationInfo Info(NSLOCTEXT("CustomizableObjectEditor", "CustomizableObjectBakeLowQuality", "The Customizable Object wasn't compiled with high quality textures. For the best baking results, change the Texture Compression setting and recompile it."));
-		Info.bFireAndForget = true;
-		Info.bUseThrobber = true;
-		Info.FadeOutDuration = 1.0f;
-		Info.ExpireDuration = 6.0f;
-		FSlateNotificationManager::Get().AddNotification(Info);
-	}
-
-	FString ObjectName = CO->GetName();
+	FString ObjectName = Instance->GetCustomizableObject()->GetName();
 	FText DefaultFileName = FText::Format(LOCTEXT("DefaultFileNameForBakeInstance", "{0}"), FText::AsCultureInvariant(ObjectName));
 	bool bExportAllResources = false;
 
@@ -2344,7 +2321,7 @@ void FCustomizableObjectEditorViewportClient::BakeInstance(UCustomizableObjectIn
 		bExportAllResources = FolderDlg->GetExportAllResources();
 
 		BakingOverwritePermission = false;
-		FString CustomObjectPath = CO->GetPathName();
+		FString CustomObjectPath = Instance->GetCustomizableObject()->GetPathName();
 		FString AssetPath = FolderDlg->GetAssetPath();
 		FString FullAssetPath = AssetPath + FString("/") + ObjectName + FString(".") + ObjectName;
 
@@ -2707,6 +2684,9 @@ void FCustomizableObjectEditorViewportClient::BakeInstance(UCustomizableObjectIn
 					}
 				}
 
+				// Make sure source data is present in the mesh before we duplicate:
+				FUnrealBakeHelpers::BakeHelper_RegenerateImportedModel(Mesh);
+
 				// Skeletal Mesh
 				if (!ManageBakingAction(AssetPath, ObjectName))
 				{
@@ -2764,7 +2744,6 @@ void FCustomizableObjectEditorViewportClient::BakeInstance(UCustomizableObjectIn
 		// Reenable Mutable texture streaming and requested LOD generation as they had been disabled to bake the textures
 		System->SetProgressiveMipStreamingEnabled(true);
 		System->SetOnlyGenerateRequestedLODsEnabled(true);
-		System->SetImagePixelFormatOverride(nullptr);
 		BakeTempInstance = nullptr;
 	}
 }

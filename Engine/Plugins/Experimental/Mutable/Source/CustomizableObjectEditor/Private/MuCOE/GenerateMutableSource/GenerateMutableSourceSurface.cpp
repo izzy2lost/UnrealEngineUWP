@@ -6,11 +6,6 @@
 #include "Engine/StaticMesh.h"
 #include "GPUSkinPublicDefs.h"
 #include "Interfaces/ITargetPlatform.h"
-#include "Interfaces/ITextureFormat.h"
-#include "Interfaces/ITextureFormatModule.h"
-#include "Interfaces/ITextureFormatManagerModule.h"
-#include "Modules/ModuleManager.h"
-#include "TextureCompressorModule.h"
 #include "Materials/MaterialInstance.h"
 #include "GPUSkinVertexFactory.h"
 
@@ -49,9 +44,9 @@
 #include "MuT/NodeScalarConstant.h"
 #include "MuT/NodeSurfaceEdit.h"
 #include "MuT/NodeSurfaceVariation.h"
-#include "MuT/UnrealPixelFormatOverride.h"
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
+
 
 /**
  * Show a compilation warning when any of the meshes behind the pin InMeshPin has a UV that is not normalized.
@@ -637,6 +632,11 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 						{
 							int LayerIndex = 0;
 
+							TArray< TArray<FName> > PlatformFormats;
+							GenerationContext.Options.TargetPlatform->GetTextureFormats(ReferenceTexture, PlatformFormats);
+
+							bool bHaveFormatPlatformFormats = PlatformFormats.Num() > 0;
+
 							mu::NodeImagePtr LastImage = ImageNode;
 
 							// To apply LOD bias						
@@ -697,59 +697,103 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 								LastImage = CompositedImage;
 							}
 
-							mu::NodeImageFormatPtr FormatImage = new mu::NodeImageFormat();
-							FormatImage->SetSource(LastImage.get());
-							FormatImage->SetFormat(mu::EImageFormat::IF_RGBA_UBYTE);
-							FormatImage->SetMessageContext(Node);
-							LastImage = FormatImage;
-
-							TArray<FTextureBuildSettings> BuildSettingsPerLayer;
-							ReferenceTexture->GetTargetPlatformBuildSettings(GenerationContext.Options.TargetPlatform, BuildSettingsPerLayer);
-							if (!BuildSettingsPerLayer.IsEmpty())
+							if (bHaveFormatPlatformFormats)
 							{
-								if (GenerationContext.Options.TextureCompression!=ECustomizableObjectTextureCompression::None)
+								mu::NodeImageFormatPtr FormatImage = new mu::NodeImageFormat();
+								FormatImage->SetSource(LastImage.get());
+								FormatImage->SetFormat(mu::EImageFormat::IF_RGBA_UBYTE);
+								FormatImage->SetMessageContext(Node);
+								LastImage = FormatImage;
+
+								if (GenerationContext.Options.bTextureCompression)
 								{
-									static ITextureFormatManagerModule* TextureFormatManager = nullptr;
-									if (!TextureFormatManager)
-									{
-										TextureFormatManager = &FModuleManager::LoadModuleChecked<ITextureFormatManagerModule>("TextureFormat");
-										check(TextureFormatManager);
-									}
-									const ITextureFormat* TextureFormat = TextureFormatManager->FindTextureFormat(BuildSettingsPerLayer[0].TextureFormatName);
-									check(TextureFormat);
-									EPixelFormat UnrealTargetPlatformFormat = TextureFormat->GetEncodedPixelFormat(BuildSettingsPerLayer[0], false);
-									EPixelFormat UnrealTargetPlatformFormatAlpha = TextureFormat->GetEncodedPixelFormat(BuildSettingsPerLayer[0], true);
+									check(PlatformFormats[0].Num() > LayerIndex);
 
-									// \TODO: The QualityFix filter is used while the internal mutable runtime compression doesn't provide enough quality for some large block formats.
-									mu::EImageFormat MutableFormat = QualityFix(UnrealToMutablePixelFormat(UnrealTargetPlatformFormat,false));
-									mu::EImageFormat MutableFormatIfAlpha = QualityFix(UnrealToMutablePixelFormat(UnrealTargetPlatformFormatAlpha,true));
+									const FString PlatformFormat = PlatformFormats[0][LayerIndex].ToString();
 
-									// Unsupported format: look for something generic
-									if (MutableFormat == mu::EImageFormat::IF_NONE)
+									// Remove platform prefix
+									FString FormatWithoutPrefix = PlatformFormat;
+									PlatformFormat.Split(TEXT("_"), nullptr, &FormatWithoutPrefix, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+
+									mu::EImageFormat mutableFormat = mu::EImageFormat::IF_NONE;
+									mu::EImageFormat mutableFormatIfAlpha = mu::EImageFormat::IF_NONE;
+
+									if (FormatWithoutPrefix == TEXT("AutoDXT"))
 									{
-										const FString ReplacedImageFormatMsg = FString::Printf(TEXT("In object [%s] the unsupported image format %d is used, IF_RGBA_UBYTE will be used instead."), *GenerationContext.Object->GetName(), UnrealTargetPlatformFormat );
-										const FText ReplacedImageFormatText = FText::FromString(ReplacedImageFormatMsg);
-										GenerationContext.Compiler->CompilerLog(ReplacedImageFormatText, Node, EMessageSeverity::Info);
-										UE_LOG(LogMutable, Log, TEXT("%s"), *ReplacedImageFormatMsg);
-										MutableFormat = mu::EImageFormat::IF_RGBA_UBYTE;
+										mutableFormat = mu::EImageFormat::IF_BC1;
+										mutableFormatIfAlpha = mu::EImageFormat::IF_BC3;
 									}
-									if (MutableFormatIfAlpha == mu::EImageFormat::IF_NONE)
+									else if (FormatWithoutPrefix == TEXT("DXT1")) mutableFormat = mu::EImageFormat::IF_BC1;
+									else if (FormatWithoutPrefix == TEXT("DXT3")) mutableFormat = mu::EImageFormat::IF_BC2;
+									else if (FormatWithoutPrefix == TEXT("DXT5")) mutableFormat = mu::EImageFormat::IF_BC3;
+									else if (FormatWithoutPrefix == TEXT("BC1")) mutableFormat = mu::EImageFormat::IF_BC1;
+									else if (FormatWithoutPrefix == TEXT("BC2")) mutableFormat = mu::EImageFormat::IF_BC2;
+									else if (FormatWithoutPrefix == TEXT("BC3")) mutableFormat = mu::EImageFormat::IF_BC3;
+									else if (FormatWithoutPrefix == TEXT("BC4")) mutableFormat = mu::EImageFormat::IF_BC4;
+									else if (FormatWithoutPrefix == TEXT("BC5")) mutableFormat = mu::EImageFormat::IF_BC5;
+									else if (FormatWithoutPrefix == TEXT("G8")) mutableFormat = mu::EImageFormat::IF_L_UBYTE;
+									else if (FormatWithoutPrefix == TEXT("BGRA8")) mutableFormat = mu::EImageFormat::IF_RGBA_UBYTE;
+									else if (PlatformFormat.Contains(TEXT("ASTC")))
 									{
-										const FString ReplacedImageFormatMsg = FString::Printf(TEXT("In object [%s] the unsupported image format %d is used, IF_RGBA_UBYTE will be used instead."), *GenerationContext.Object->GetName(), UnrealTargetPlatformFormatAlpha);
-										const FText ReplacedImageFormatText = FText::FromString(ReplacedImageFormatMsg);
-										GenerationContext.Compiler->CompilerLog(ReplacedImageFormatText, Node, EMessageSeverity::Info);
-										UE_LOG(LogMutable, Log, TEXT("%s"), *ReplacedImageFormatMsg);
-										MutableFormatIfAlpha = mu::EImageFormat::IF_RGBA_UBYTE;
+										// \TODO: ASTC block size to use depends on several project and platform settings. Try to get it.
+										
+										// This is based on GetQualityFormat in TextureFormatASTC.cpp but it would be much better to find
+										// an way of doing it without dependant code.
+										if ((FormatWithoutPrefix == TEXT("AutoASTC")) || (FormatWithoutPrefix == TEXT("RGBAuto")))
+										{
+											mutableFormat = mu::EImageFormat::IF_ASTC_4x4_RGB_LDR;
+											mutableFormatIfAlpha = mu::EImageFormat::IF_ASTC_4x4_RGBA_LDR;
+										}
+										else if (FormatWithoutPrefix == TEXT("RGB")) mutableFormat = mu::EImageFormat::IF_ASTC_4x4_RGB_LDR;
+										else if (FormatWithoutPrefix == TEXT("RGBA")) mutableFormat = mu::EImageFormat::IF_ASTC_4x4_RGBA_LDR;
+										else if (FormatWithoutPrefix == TEXT("RGBA_HQ")) mutableFormat = mu::EImageFormat::IF_ASTC_4x4_RGBA_LDR;
+										else if (FormatWithoutPrefix == TEXT("NormalRG")) mutableFormat = mu::EImageFormat::IF_ASTC_4x4_RG_LDR;
+										else if (PlatformFormat.Contains(TEXT("ASTC_NormalRG_Precise")))
+										{
+											// TODO: This is just a workaround to prevent the "Unexpected image format" warning below. ASTC_NormalRG_Precise is
+											// not supported yet by Mutable so it forces IF_ASTC_4x4_RG_LDR as a replacement. It should be changed with a more
+											// appropriate format or directly implement it
+											mutableFormat = mu::EImageFormat::IF_ASTC_4x4_RG_LDR;
+
+											const FString ReplacedImageFormatMsg = FString::Printf(TEXT("In object [%s] the unsupported ASTC_NormalRG_Precise image format is used, ASTC_4x4_RG_LDR will be used instead."), *GenerationContext.Object->GetName());
+											const FText ReplacedImageFormatText = FText::FromString(ReplacedImageFormatMsg);
+											GenerationContext.Compiler->CompilerLog(ReplacedImageFormatText, Node, EMessageSeverity::Info);
+											UE_LOG(LogMutable, Log, TEXT("%s"), *ReplacedImageFormatMsg);
+										}
+										else if (PlatformFormat.Contains(TEXT("ASTC_NormalLA")))
+										{
+											// TODO: This is just a workaround to prevent the "Unexpected image format" warning below. ASTC_NormalLA is
+											// not supported yet by Mutable so it forces IF_ASTC_4x4_RG_LDR as a replacement. It should be changed with a more
+											// appropriate format or directly implement it
+											mutableFormat = mu::EImageFormat::IF_ASTC_4x4_RG_LDR;
+
+											const FString ReplacedImageFormatMsg2 = FString::Printf(TEXT("In object [%s] the unsupported ASTC_NormalLA image format is used, ASTC_4x4_RG_LDR will be used instead."), *GenerationContext.Object->GetName());
+											const FText ReplacedImageFormatText2 = FText::FromString(ReplacedImageFormatMsg2);
+											GenerationContext.Compiler->CompilerLog(ReplacedImageFormatText2, Node, EMessageSeverity::Info);
+											UE_LOG(LogMutable, Log, TEXT("%s"), *ReplacedImageFormatMsg2);
+										}
 									}
 
-									FormatImage->SetFormat(MutableFormat, MutableFormatIfAlpha);
+									if (mutableFormat == mu::EImageFormat::IF_NONE)
+									{
+										// Format not supported by Mutable, use RBGA_UBYTE as default.
+										mutableFormat = mu::EImageFormat::IF_RGBA_UBYTE;
+
+										const FString UnexpectedImageFormatMsg = FString::Printf(TEXT("In object [%s] Unexpected image format [%s], RGBA_UBYTE will be used instead."), *GenerationContext.Object->GetName(), *PlatformFormat);
+										const FText UnexpectedImageFormatText = FText::FromString(UnexpectedImageFormatMsg);
+										GenerationContext.Compiler->CompilerLog(UnexpectedImageFormatText, Node);
+										UE_LOG(LogMutable, Warning, TEXT("%s"), *UnexpectedImageFormatMsg);
+									}
+
+									FormatImage->SetFormat(mutableFormat, mutableFormatIfAlpha);
 								}
 							}
 
 							ImageNode = LastImage;
 						}
 
-						SurfNode->SetImage(ImageIndex, ImageNode);
+						mu::NodeImagePtr ImageNodePtr = ImageNode;
+						SurfNode->SetImage(ImageIndex, ImageNodePtr);
 
 						FString SurfNodeImageName = FString::Printf(TEXT("%d"), GenerationContext.ImageProperties.Num() - 1);
 
@@ -771,7 +815,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 							ensure(LOD == GenerationContext.FirstLODAvailable);
 							float* AlternateProjectionResFactor = TextureNameToProjectionResFactor.Find(ImageName);
 							GenerationContext.GroupProjectorLODCache.Add(MaterialImageId,
-								FGroupProjectorImageInfo(ImageNode, ImageName, ImageName, TypedNodeMat,
+								FGroupProjectorImageInfo(ImageNodePtr, ImageName, ImageName, TypedNodeMat,
 									AlternateProjectionResFactor ? *AlternateProjectionResFactor : 0.f, AlternateResStateName, SurfNode, UVLayout));
 						}
 					}
@@ -1561,4 +1605,6 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 	return Result;
 }
 
+
 #undef LOCTEXT_NAMESPACE
+

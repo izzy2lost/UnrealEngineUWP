@@ -199,15 +199,6 @@ namespace mu
     }
 
 
-	//---------------------------------------------------------------------------------------------
-	void System::SetImagePixelConversionOverride(const FImageOperator::FImagePixelFormatFunc& FormatFunc)
-	{
-		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
-
-		m_pD->ImagePixelFormatOverride = FormatFunc;
-	}
-
-
     //---------------------------------------------------------------------------------------------
     Instance::ID System::NewInstance( const TSharedPtr<const Model>& InModel )
     {
