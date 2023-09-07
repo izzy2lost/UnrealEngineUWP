@@ -106,10 +106,10 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptRenderCaptureCamera
 	double FieldOfViewDegrees = 45.0;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
-	FVector ViewPosition;
+	FVector ViewPosition = FVector::Zero();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
-	FVector ViewDirection;
+	FVector ViewDirection = FVector::UnitX();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	double NearPlaneDist = 1.0;
