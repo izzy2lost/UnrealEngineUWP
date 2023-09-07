@@ -44,7 +44,7 @@ struct FSCCStatusColumn final : public FTypedElementDataStorageColumn
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
+	UPROPERTY(meta = (IgnoreForMemberInitializationTest))
 	ESCCModification Modification;
 };
 
@@ -53,7 +53,7 @@ struct FSCCRevisionId
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
+	UPROPERTY(meta = (IgnoreForMemberInitializationTest))
 	uint32 Id[5];
 };
 
