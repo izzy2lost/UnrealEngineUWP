@@ -28,7 +28,11 @@ class FOutBunch;
 class UNetConnection;
 struct FObjectKey;
 
-namespace UE::Net { struct FSubObjectRegistry;  }
+namespace UE::Net
+{
+	struct FSubObjectRegistry;
+	class FNetConditionGroupManager;
+}
 
 enum class ESetChannelActorFlags : uint32
 {
@@ -367,6 +371,13 @@ public:
 
 	ENGINE_API virtual void AddedToChannelPool() override;
 
+	static ENGINE_API bool CanSubObjectReplicateToClient(
+		APlayerController* PlayerController,
+		ELifetimeCondition NetCondition,
+		FObjectKey SubObjectKey,
+		const TStaticBitArray<COND_Max>& ConditionMap,
+		const UE::Net::FNetConditionGroupManager& ConditionGroupManager);
+
 protected:
 
 	/** Attempts to find a valid, non-dormant replicator for the given object. */
@@ -454,8 +465,6 @@ private:
 
 	/** Replicate a list of subobjects */
 	ENGINE_API bool WriteSubObjects(UObject* SubObjectOwner, const UE::Net::FSubObjectRegistry& SubObjectList, FOutBunch& Bunch, FReplicationFlags RepFlags, const TStaticBitArray<COND_Max>& ConditionMap);
-
-	ENGINE_API bool CanSubObjectReplicateToClient(ELifetimeCondition NetCondition, FObjectKey SubObjectKey, const TStaticBitArray<COND_Max>& ConditionMap) const;
 
 	ENGINE_API bool ValidateReplicatedSubObjects();
 

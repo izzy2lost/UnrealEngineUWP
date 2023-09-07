@@ -41,6 +41,9 @@
 #include "LevelUtils.h"
 #include "Net/RPCDoSDetection.h"
 #include "Net/NetConnectionFaultRecovery.h"
+#include "Net/NetSubObjectRegistryGetter.h"
+#include "Net/RepLayout.h"
+#include "Net/Subsystems/NetworkSubsystem.h"
 #if UE_WITH_IRIS
 #include "Iris/IrisConfig.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
@@ -203,6 +206,48 @@ namespace UE::Net::Connection::Private
 
 	int32 bTrackFlushedDormantObjects = true;
 	FAutoConsoleVariableRef CVarNetTrackFlushedDormantObjects(TEXT("net.TrackFlushedDormantObjects"), bTrackFlushedDormantObjects, TEXT("If enabled, track dormant subobjects when dormancy is flushed, so they can be properly deleted if destroyed prior to the next ReplicateActor."));
+
+	int32 bEnableFlushDormantSubObjects = true;
+	FAutoConsoleVariableRef CVarNetFlushDormantSubObjects(TEXT("net.EnableFlushDormantSubObjects"), bEnableFlushDormantSubObjects, TEXT("If enabled, FlushNetDormancy will flush replicated subobjects in addition to replicated components. Only applies to objects using the replicated subobject list."));
+
+	int32 bEnableFlushDormantSubObjectsCheckConditions = true;
+	FAutoConsoleVariableRef CVarNetFlushDormantSubObjectsCheckConditions(TEXT("net.EnableFlushDormantSubObjectsCheckConditions"), bEnableFlushDormantSubObjectsCheckConditions, TEXT("If enabled, when net.EnableFlushDormantSubObjects is also true a dormancy flush will also check replicated subobject conditions"));
+
+	// Tracking for dormancy-flushed subobjects for correct deletion, see UE-77163
+	void TrackFlushedSubObject(FDormantObjectMap& InOutFlushedGuids, UObject* FlushedObject, const TSharedPtr<FNetGUIDCache>& GuidCache)
+	{
+		if (Connection::Private::bTrackFlushedDormantObjects)
+		{
+			// Searching for the guid because the value on the replicator built in FlushDormancyForObject can be invalid until the next replication
+			// We can then safely ignore any object that still has no guid, since it won't have ever been replicated
+			FNetworkGUID ObjectNetGUID = GuidCache->GetNetGUID(FlushedObject);
+			if (ObjectNetGUID.IsValid())
+			{
+				InOutFlushedGuids.Add(ObjectNetGUID, FlushedObject);
+			}
+		}
+	}
+
+	// Flushes dormancy for registered subobjects of either an actor or component
+	void FlushDormancyForSubObjects(UNetConnection* Connection, AActor* Actor, const UE::Net::FSubObjectRegistry& SubObjects, FDormantObjectMap& InOutFlushedGuids, const TStaticBitArray<COND_Max>& ConditionMap, const FNetConditionGroupManager* NetConditionGroupManager)
+	{
+		QUICK_SCOPE_CYCLE_COUNTER(STAT_NetConnection_FlushDormancyForSubObjects);
+
+		for (const FSubObjectRegistry::FEntry& SubObjectInfo : SubObjects.GetRegistryList())
+		{
+			UObject* SubObject = SubObjectInfo.GetSubObject();
+			if (ensureMsgf(IsValid(SubObject), TEXT("Found invalid subobject (%s) registered in %s"), *GetNameSafe(SubObject), *Actor->GetName()))
+			{
+				if (!bEnableFlushDormantSubObjectsCheckConditions ||
+					!NetConditionGroupManager ||
+					UActorChannel::CanSubObjectReplicateToClient(Connection->PlayerController, SubObjectInfo.NetCondition, SubObjectInfo.Key, ConditionMap, *NetConditionGroupManager))
+				{
+					Connection->FlushDormancyForObject(Actor, SubObject);
+					TrackFlushedSubObject(InOutFlushedGuids, SubObject, Connection->Driver->GuidCache);
+				}
+			}
+		}
+	}
 }
 
 // ChannelRecord Implementation
@@ -4896,43 +4941,86 @@ void UNetConnection::ClearDormantReplicatorsReference()
 
 void UNetConnection::FlushDormancy(AActor* Actor)
 {
-	UE_LOG( LogNetDormancy, Verbose, TEXT( "FlushDormancy: %s. Connection: %s" ), *Actor->GetName(), *GetName() );
+	using namespace UE::Net;
+	using namespace Connection::Private;
+
+	UE_LOG(LogNetDormancy, Verbose, TEXT( "FlushDormancy: %s. Connection: %s" ), *Actor->GetName(), *GetName());
 	
-	if ( Driver->GetNetworkObjectList().MarkActive( Actor, this, Driver ) )
+	if (Driver->GetNetworkObjectList().MarkActive(Actor, this, Driver))
 	{
-		FlushDormancyForObject( Actor, Actor );
+		FlushDormancyForObject(Actor, Actor);
 
-		const TArray<UActorComponent*>& ReplicatedComponents = Actor->GetReplicatedComponents();
+		const FSubObjectRegistry& ActorSubObjects = FSubObjectRegistryGetter::GetSubObjects(Actor);
+		const TArray<FReplicatedComponentInfo>& ReplicatedComponents = FSubObjectRegistryGetter::GetReplicatedComponents(Actor);
 
-		UE::Net::FDormantObjectMap FlushedGuids;
-		if (UE::Net::Connection::Private::bTrackFlushedDormantObjects)
+		FDormantObjectMap FlushedGuids;
+		if (Connection::Private::bTrackFlushedDormantObjects)
 		{
-			FlushedGuids.Reserve(ReplicatedComponents.Num());
+			// This doesn't reserve space for subobjects of components, but avoids iterating the component list twice.
+			FlushedGuids.Reserve(ReplicatedComponents.Num() + ActorSubObjects.GetRegistryList().Num());
 		}
 
-		// TODO: Is this set of objects sufficient? Should we query the dormancy map from the connection instead?
-		for (UActorComponent* ActorComp : ReplicatedComponents)
-		{
-			if (ActorComp && ActorComp->GetIsReplicated())
-			{
-				FlushDormancyForObject(Actor, ActorComp);
+		TStaticBitArray<COND_Max> ConditionMap;
+		const FNetConditionGroupManager* NetConditionGroupManager = nullptr;
 
-				if (UE::Net::Connection::Private::bTrackFlushedDormantObjects)
+		if (bEnableFlushDormantSubObjectsCheckConditions)
+		{
+			// Fill in the flags used by conditional subobjects
+			FReplicationFlags RepFlags;
+		
+			// Since a dormant object won't necessarily have an FObjectReplicator or channel, we can't check for
+			// initial replication in the normal way. So always flush for NetInitial to be safe, it may create
+			// an extra replicator but the condition will be checked again before the object is actually replicated.
+			RepFlags.bNetInitial = true;
+
+			UNetConnection* OwningConnection = Actor->GetNetConnection();
+			RepFlags.bNetOwner = (OwningConnection == this || (OwningConnection != nullptr && OwningConnection->IsA(UChildConnection::StaticClass()) && ((UChildConnection*)OwningConnection)->Parent == this));
+		
+			RepFlags.bNetSimulated = (Actor->GetRemoteRole() == ROLE_SimulatedProxy);
+			RepFlags.bRepPhysics = Actor->GetReplicatedMovement().bRepPhysics;
+			RepFlags.bReplay = bReplay;
+
+			ConditionMap = FSendingRepState::BuildConditionMapFromRepFlags(RepFlags);
+			
+			const UWorld* const World = Actor->GetWorld();
+			const UNetworkSubsystem* const NetworkSubsystem = World ? World->GetSubsystem<UNetworkSubsystem>() : nullptr;
+			NetConditionGroupManager = NetworkSubsystem ? &NetworkSubsystem->GetNetConditionGroupManager() : nullptr;
+			ensureMsgf(NetConditionGroupManager, TEXT("UNetConnection::FlushDormancy: couldn't find a NetConditionGroupManager for %s."), *Actor->GetName());
+		}
+
+		if (bEnableFlushDormantSubObjects)
+		{
+			FlushDormancyForSubObjects(this, Actor, ActorSubObjects, FlushedGuids, ConditionMap, NetConditionGroupManager);
+		}
+
+		for (const FReplicatedComponentInfo& RepComponentInfo : ReplicatedComponents)
+		{
+			UActorComponent* ActorComp = RepComponentInfo.Component;
+
+			if (ensureMsgf(IsValid(ActorComp), TEXT("Found invalid replicated component (%s) registered in %s"), *GetNameSafe(ActorComp), *Actor->GetName()))
+			{
+				if (!bEnableFlushDormantSubObjectsCheckConditions ||
+					!NetConditionGroupManager ||
+					UActorChannel::CanSubObjectReplicateToClient(PlayerController, RepComponentInfo.NetCondition, RepComponentInfo.Key, ConditionMap, *NetConditionGroupManager))
 				{
-					// Searching for the guid because the value on the replicator built in FlushDormancyForObject can be invalid until the next replication
-					// We can then safely ignore any object that still has no guid, since it won't have ever been replicated
-					FNetworkGUID ObjectNetGUID = Driver->GuidCache->GetNetGUID(ActorComp);
-					if (ObjectNetGUID.IsValid())
+					FlushDormancyForObject(Actor, ActorComp);
+					TrackFlushedSubObject(FlushedGuids, ActorComp, Driver->GuidCache);
+
+					if (bEnableFlushDormantSubObjects)
 					{
-						FlushedGuids.Add(ObjectNetGUID, ActorComp);
+						const FSubObjectRegistry* const ComponentSubObjects = FSubObjectRegistryGetter::GetSubObjectsOfActorComponent(Actor, ActorComp);
+						if (ComponentSubObjects)
+						{
+							FlushDormancyForSubObjects(this, Actor, *ComponentSubObjects, FlushedGuids, ConditionMap, NetConditionGroupManager);
+						}
 					}
 				}
 			}
 		}
 
-		if (UE::Net::Connection::Private::bTrackFlushedDormantObjects && !FlushedGuids.IsEmpty())
+		if (bTrackFlushedDormantObjects && !FlushedGuids.IsEmpty())
 		{
-			UE::Net::FDormantObjectMap& DormantObjects = DormantReplicatorSet.FindOrAddFlushedObjectsForActor(Actor);
+			FDormantObjectMap& DormantObjects = DormantReplicatorSet.FindOrAddFlushedObjectsForActor(Actor);
 			DormantObjects.Append(FlushedGuids);
 		}
 	}

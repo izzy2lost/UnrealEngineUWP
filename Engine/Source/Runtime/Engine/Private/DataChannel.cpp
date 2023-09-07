@@ -3810,13 +3810,18 @@ bool UActorChannel::UpdateDeletedSubObjects(FOutBunch& Bunch)
 	return bWroteSomethingImportant;
 }
 
-bool UActorChannel::CanSubObjectReplicateToClient(ELifetimeCondition NetCondition, FObjectKey SubObjectKey, const TStaticBitArray<COND_Max>& ConditionMap) const
+bool UActorChannel::CanSubObjectReplicateToClient(
+	APlayerController* PlayerController,
+	ELifetimeCondition NetCondition,
+	FObjectKey SubObjectKey,
+	const TStaticBitArray<COND_Max>& ConditionMap,
+	const UE::Net::FNetConditionGroupManager& ConditionGroupManager)
 {
 	bool bCanReplicateToClient = ConditionMap[NetCondition];
 
 	if (NetCondition == COND_NetGroup)
 	{
-		TArrayView<const FName> NetGroups = DataChannelInternal::CachedNetworkSubsystem->GetNetConditionGroupManager().GetSubObjectNetConditionGroups(SubObjectKey);
+		TArrayView<const FName> NetGroups = ConditionGroupManager.GetSubObjectNetConditionGroups(SubObjectKey);
 
 		for (int i=0; i < NetGroups.Num() && !bCanReplicateToClient; ++i)
 		{
@@ -3832,7 +3837,7 @@ bool UActorChannel::CanSubObjectReplicateToClient(ELifetimeCondition NetConditio
 			}
 			else
 			{
-				bCanReplicateToClient = Connection->PlayerController->IsMemberOfNetConditionGroup(NetGroup);
+				bCanReplicateToClient = PlayerController->IsMemberOfNetConditionGroup(NetGroup);
 			}
 		}
 	}
@@ -3871,7 +3876,7 @@ bool UActorChannel::ReplicateRegisteredSubObjects(FOutBunch& Bunch, FReplication
 	// Now the replicated actor components
 	for( const FReplicatedComponentInfo& RepComponentInfo : FSubObjectRegistryGetter::GetReplicatedComponents(Actor) )
 	{
-		if (CanSubObjectReplicateToClient(RepComponentInfo.NetCondition, RepComponentInfo.Key, ConditionMap))
+		if (CanSubObjectReplicateToClient(Connection->PlayerController, RepComponentInfo.NetCondition, RepComponentInfo.Key, ConditionMap, DataChannelInternal::CachedNetworkSubsystem->GetNetConditionGroupManager()))
 		{
 			UActorComponent* ReplicatedComponent = RepComponentInfo.Component;
 
@@ -4055,7 +4060,7 @@ bool UActorChannel::ReplicateSubobject(UActorComponent* ReplicatedComponent, FOu
 bool UActorChannel::WriteComponentSubObjects(UActorComponent* ReplicatedComponent, FOutBunch& Bunch, FReplicationFlags RepFlags, const TStaticBitArray<COND_Max>& ConditionMap)
 {
 	using namespace UE::Net;
-	if (const FSubObjectRegistry* SubObjectList = FSubObjectRegistryGetter::GetSubObjectsOfActorCompoment(Actor, ReplicatedComponent))
+	if (const FSubObjectRegistry* SubObjectList = FSubObjectRegistryGetter::GetSubObjectsOfActorComponent(Actor, ReplicatedComponent))
 	{
 		return WriteSubObjects(ReplicatedComponent, *SubObjectList, Bunch, RepFlags, ConditionMap);
 	}
@@ -4095,7 +4100,7 @@ bool UActorChannel::WriteSubObjects(UObject* SubObjectOwner, const UE::Net::FSub
 		{
 			checkf(IsValid(SubObjectToReplicate), TEXT("Found invalid subobject (%s) registered in %s::%s"), *GetNameSafe(SubObjectToReplicate), *Actor->GetName(), *GetNameSafe(SubObjectOwner));
 
-			if (CanSubObjectReplicateToClient(SubObjectInfo.NetCondition, SubObjectInfo.Key, ConditionMap))
+			if (CanSubObjectReplicateToClient(Connection->PlayerController, SubObjectInfo.NetCondition, SubObjectInfo.Key, ConditionMap, DataChannelInternal::CachedNetworkSubsystem->GetNetConditionGroupManager()))
 			{
 #if UE_NET_REPACTOR_NAME_DEBUG
 				if (bSubObjectNameDebug)

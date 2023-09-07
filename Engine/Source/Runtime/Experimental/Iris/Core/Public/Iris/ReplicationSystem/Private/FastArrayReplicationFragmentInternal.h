@@ -197,12 +197,6 @@ void FFastArrayReplicationFragmentHelper::ApplyReplicatedState(FastArrayType* Ds
 		}
 	}
 	
-	const int32 PreRemoveSize = DstWrappedArray->Num();
-	const int32 FinalSize = PreRemoveSize - RemovedIndices.Num();
-
-	// Remove callback to FastArraySerializer
-	DstArraySerializer->PreReplicatedRemove(MakeArrayView(RemovedIndices), FinalSize);
-
 	// Find new and modified elements in received data, That is elements that do not exist in old map
 	TArray<int32> AddedIndices;
 	TArray<int32> ModifiedIndices;
@@ -223,9 +217,6 @@ void FFastArrayReplicationFragmentHelper::ApplyReplicatedState(FastArrayType* Ds
 
 					// We use per element copy since we do not want to overwrite data that is not replicated
 					InternalCopyArrayElement(ArrayElementDescriptor, &(*DstWrappedArray)[*ExistingIndex], &SrcItems[It]);
-
-					// Change callback
-					(*DstWrappedArray)[*ExistingIndex].PostReplicatedChange(*DstArraySerializer);
 				}
 			}
 			else
@@ -237,18 +228,32 @@ void FFastArrayReplicationFragmentHelper::ApplyReplicatedState(FastArrayType* Ds
 				// We need to propagate the ReplicationID in order to find our object
 				(*DstWrappedArray)[AddedIndex].ReplicationID = SrcItems[It].ReplicationID;
 
-				// Add callback
-				(*DstWrappedArray)[AddedIndex].PostReplicatedAdd(*DstArraySerializer);
-
 				// should we store ids or indices?
 				AddedIndices.Add(AddedIndex);
 			}
-		}	
-
-		// Added and changed callbacks to FastArraySerializer
-		DstArraySerializer->PostReplicatedAdd(MakeArrayView(AddedIndices), FinalSize);
-		DstArraySerializer->PostReplicatedChange(MakeArrayView(ModifiedIndices), FinalSize);
+		}
 	}
+
+	// Added and changed callbacks to FastArraySerializer
+	const int32 PreRemoveSize = DstWrappedArray->Num();
+	const int32 FinalSize = PreRemoveSize - RemovedIndices.Num();
+
+	// Remove callback to FastArraySerializer - done after adding new elements
+	DstArraySerializer->PreReplicatedRemove(MakeArrayView(RemovedIndices), FinalSize);
+
+	// Add callbacks
+	for (int32 AddedIndex : AddedIndices)
+	{
+		(*DstWrappedArray)[AddedIndex].PostReplicatedAdd(*DstArraySerializer);
+	}
+	DstArraySerializer->PostReplicatedAdd(MakeArrayView(AddedIndices), FinalSize);
+
+	// Change callbacks
+	for (int32 ExistingIndex : ModifiedIndices)
+	{
+		(*DstWrappedArray)[ExistingIndex].PostReplicatedChange(*DstArraySerializer);
+	}
+	DstArraySerializer->PostReplicatedChange(MakeArrayView(ModifiedIndices), FinalSize);
 
 	// Remove indices
 	if (RemovedIndices.Num() > 0)
