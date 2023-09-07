@@ -16,4 +16,5 @@ public:
 	static const FName SolversTrack;
 	static const FName CVDEditorSettings;
 	static const FName StatusBar;
+	static const FName CollisionDataDetails;
 };

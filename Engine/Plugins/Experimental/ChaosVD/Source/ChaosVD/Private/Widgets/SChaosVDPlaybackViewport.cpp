@@ -23,11 +23,11 @@ SChaosVDPlaybackViewport::~SChaosVDPlaybackViewport()
 	PlaybackViewportClient.Reset();
 }
 
-void SChaosVDPlaybackViewport::Construct(const FArguments& InArgs, TWeakPtr<FChaosVDScene> InScene, TWeakPtr<FChaosVDPlaybackController> InPlaybackController)
+void SChaosVDPlaybackViewport::Construct(const FArguments& InArgs, TWeakPtr<FChaosVDScene> InScene, TWeakPtr<FChaosVDPlaybackController> InPlaybackController, TSharedPtr<FEditorModeTools> InEditorModeTools)
 {
 	Extender = MakeShared<FExtender>();
 
-	EditorModeTools = MakeShared<FChaosVDEditorModeTools>(InScene);
+	EditorModeTools = InEditorModeTools;
 	EditorModeTools->SetWidgetMode(UE::Widget::WM_Translate);
 	EditorModeTools->SetDefaultMode(UChaosVDEditorMode::EM_ChaosVisualDebugger);
 	EditorModeTools->ActivateDefaultMode();

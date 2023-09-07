@@ -19,6 +19,7 @@ void SChaosVDDetailsView::Construct(const FArguments& InArgs)
 	DetailsViewArgs.bCustomNameAreaLocation = true;
 	DetailsViewArgs.bCustomFilterAreaLocation = false;
 	DetailsViewArgs.bShowSectionSelector = false;
+	DetailsViewArgs.bShowScrollBar = false;
 
 	DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
 
@@ -41,14 +42,15 @@ void SChaosVDDetailsView::Construct(const FArguments& InArgs)
 		+SVerticalBox::Slot()
 		[
 			SNew(SSplitter)
-			.MinimumSlotHeight(80.0f)
+			.MinimumSlotHeight(40.0f)
 			.Orientation(Orient_Vertical)
 			.Style(FAppStyle::Get(), "SplitterDark")
 			.PhysicalSplitterHandleSize(2.0f)
 			+SSplitter::Slot()
 			.Value(0.2f)
 			[
-				SNew(SBox)
+				SNew(SVerticalBox)
+				+SVerticalBox::Slot()
 				.Padding(FMargin(2.0f, 0.0f, 2.0f, 0.0f))
 				[
 					SubobjectEditor.ToSharedRef()
@@ -56,7 +58,7 @@ void SChaosVDDetailsView::Construct(const FArguments& InArgs)
 			]
 			+SSplitter::Slot()
 			[
-				SNew( SVerticalBox )
+				SNew(SVerticalBox)
 				+ SVerticalBox::Slot()
 				[
 					DetailsView.ToSharedRef()

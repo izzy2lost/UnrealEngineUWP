@@ -19,7 +19,7 @@ class IChaosVDVisualizerContainerInterface
 {
 	GENERATED_BODY()
 public:
-	virtual void DrawVisualization(const FSceneView* View, FPrimitiveDrawInterface* PDI){};
+	virtual void DrawVisualization(const FSceneView* View, FPrimitiveDrawInterface* PDI){}
 };
 
 /**

@@ -27,6 +27,8 @@ TSharedRef<SDockTab> FChaosVDOutputLogTab::HandleTabSpawned(const FSpawnTabArgs&
 		FOutputLogModule::Get().MakeOutputLogWidget(Params)
 	);
 
+	OnTabSpawned().Broadcast(OutputLogTab);
+
 	return OutputLogTab;
 }
 

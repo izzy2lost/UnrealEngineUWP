@@ -32,7 +32,7 @@ public:
 
 	virtual ~SChaosVDPlaybackViewport() override;
 
-	void Construct(const FArguments& InArgs, TWeakPtr<FChaosVDScene> InScene, TWeakPtr<FChaosVDPlaybackController> InPlaybackController);
+	void Construct(const FArguments& InArgs, TWeakPtr<FChaosVDScene> InScene, TWeakPtr<FChaosVDPlaybackController> InPlaybackController, TSharedPtr<FEditorModeTools> InEditorModeTools);
 
 	// BEING ICommonEditorViewportToolbarInfoProvider interface
 	virtual TSharedRef<SEditorViewport> GetViewportWidget() override;
@@ -65,5 +65,5 @@ protected:
 
 	TSharedPtr<FExtender> Extender;
 
-	TSharedPtr<FChaosVDEditorModeTools> EditorModeTools;
+	TSharedPtr<FEditorModeTools> EditorModeTools;
 };

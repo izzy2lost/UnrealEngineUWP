@@ -14,7 +14,7 @@ class FChaosVDOutputLogTab : public FChaosVDTabSpawnerBase, public TSharedFromTh
 {
 public:
 
-	FChaosVDOutputLogTab(const FName& InTabID, TSharedPtr<FTabManager> InTabManager, SChaosVDMainTab* InOwningTabWidget) : FChaosVDTabSpawnerBase(InTabID, InTabManager, InOwningTabWidget)
+	FChaosVDOutputLogTab(const FName& InTabID, TSharedPtr<FTabManager> InTabManager, TWeakPtr<SChaosVDMainTab> InOwningTabWidget) : FChaosVDTabSpawnerBase(InTabID, InTabManager, InOwningTabWidget)
 	{
 	}
 

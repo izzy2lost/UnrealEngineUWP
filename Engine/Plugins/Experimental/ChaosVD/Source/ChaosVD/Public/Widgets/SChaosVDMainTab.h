@@ -4,8 +4,11 @@
 
 #include "Framework/Docking/TabManager.h"
 #include "Templates/SharedPointer.h"
+#include "Toolkits/IToolkitHost.h"
 #include "Widgets/SCompoundWidget.h"
 
+class FComponentVisualizer;
+class FChaosVDEditorModeTools;
 class FChaosVDTabSpawnerBase;
 class FChaosVDEditorVisualizationSettingsTab;
 class FChaosVDSolversTracksTab;
@@ -17,22 +20,47 @@ class FChaosVDWorldOutlinerTab;
 class SDockTab;
 
 /** The main widget containing the Chaos Visual Debugger interface */
-class SChaosVDMainTab : public SCompoundWidget
+class SChaosVDMainTab : public SCompoundWidget, public IToolkitHost
 {
 public:
-
+	
 	SLATE_BEGIN_ARGS(SChaosVDMainTab) {}
 		SLATE_ARGUMENT(TSharedPtr<SDockTab>, OwnerTab)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEngine> InChaosVDEngine);
 
-	TSharedRef<FChaosVDEngine> GetChaosVDEngineInstance() const { return ChaosVDEngine.ToSharedRef(); };
-	const FName& GetStatusBarID() const { return StatusBarID; };
+	TSharedRef<FChaosVDEngine> GetChaosVDEngineInstance() const { return ChaosVDEngine.ToSharedRef(); }
 
-	TWeakPtr<FChaosVDPlaybackViewportTab> GetPlaybackViewportTab() { return PlaybackViewportTab;}
+	template<typename TabType>
+	TWeakPtr<TabType> GetTabSpawnerInstance(FName TabID);
+
+	// BEGIN ITOOLKITHOST Interface
+	virtual TSharedRef<SWidget> GetParentWidget() override { return AsShared(); }
+	virtual void BringToFront() override;
+	virtual TSharedPtr<FTabManager> GetTabManager() const override { return TabManager; };
+	virtual void OnToolkitHostingStarted(const TSharedRef<IToolkit>& Toolkit) override;
+	virtual void OnToolkitHostingFinished(const TSharedRef<IToolkit>& Toolkit) override;
+	virtual UWorld* GetWorld() const override;
+	virtual FEditorModeTools& GetEditorModeManager() const override;
+
+	virtual UTypedElementCommonActions* GetCommonActions() const override { return nullptr; }
+	virtual FName GetStatusBarName() const override { return StatusBarID; };
+	virtual FOnActiveViewportChanged& OnActiveViewportChanged() override { return ViewportChangedDelegate;};
+	// END ITOOLKITHOST Interface
+
+	TSharedPtr<FComponentVisualizer> FindComponentVisualizer(UClass* ClassPtr);
+	TSharedPtr<FComponentVisualizer> FindComponentVisualizer(FName ClassName);
 
 private:
+
+	template<typename TabType>
+	void RegisterTabSpawner(FName TabID);
+
+	void RegisterComponentVisualizer(FName ClassName, const TSharedPtr<FComponentVisualizer>& Visualizer);
+
+	void HandleTabSpawned(TSharedRef<SDockTab> Tab, FName TabID);
+	void HandleTabDestroyed(TSharedRef<SDockTab> Tab, FName TabID);
 
 	TSharedRef<FTabManager::FLayout> GenerateMainLayout();
 
@@ -46,18 +74,46 @@ private:
 
 	TSharedPtr<FChaosVDEngine> ChaosVDEngine;
 
-	// TODO Convert this to a map ID-> Tab
-	TSharedPtr<FChaosVDWorldOutlinerTab> WorldOutlinerTab;
-	TSharedPtr<FChaosVDObjectDetailsTab> ObjectDetailsTab;
-	TSharedPtr<FChaosVDPlaybackViewportTab> PlaybackViewportTab;
-	TSharedPtr<FChaosVDSolversTracksTab> SolversTracksTab;
-	TSharedPtr<FChaosVDOutputLogTab> OutputLogTab;
-	TSharedPtr<FChaosVDEditorVisualizationSettingsTab> EditorSettingsTab;
-
 	FName StatusBarID;
 
 	TSharedPtr<FTabManager> TabManager;
+	TWeakPtr<SDockTab> OwnerTab;
+	TSharedPtr<FChaosVDEditorModeTools> EditorModeTools;
+	
+	TMap<FName, TSharedPtr<FChaosVDTabSpawnerBase>> TabSpawnersByIDMap;
+
+	TMap<FName, TSharedPtr<FComponentVisualizer>> ComponentVisualizersMap;
+
+	TMap<FName, TWeakPtr<SDockTab>> ActiveTabsByID;
+
+	FOnActiveViewportChanged ViewportChangedDelegate;
 
 	FReply HandleSessionConnectionClicked();
 	FText GetConnectButtonText() const;
 };
+
+
+template <typename TabType>
+TWeakPtr<TabType> SChaosVDMainTab::GetTabSpawnerInstance(FName TabID)
+{
+	if (TSharedPtr<FChaosVDTabSpawnerBase>* TabSpawnerPtrPtr = TabSpawnersByIDMap.Find(TabID))
+	{
+		return StaticCastSharedPtr<TabType>(*TabSpawnerPtrPtr);
+	}
+
+	return nullptr;
+}
+
+template <typename TabType>
+void SChaosVDMainTab::RegisterTabSpawner(FName TabID)
+{
+	static_assert(std::is_base_of_v<FChaosVDTabSpawnerBase, TabType> , "SChaosVDMainTab::RegisterTabSpawner Only supports FChaosVDTabSpawnerBase based spawners");
+
+	if (!TabSpawnersByIDMap.Contains(TabID))
+	{
+		TSharedPtr<TabType> TabSpawner = MakeShared<TabType>(TabID, TabManager, StaticCastWeakPtr<SChaosVDMainTab>(AsWeak()));
+		TabSpawner->OnTabSpawned().AddRaw(this, &SChaosVDMainTab::HandleTabSpawned, TabID);
+		TabSpawner->OnTabDestroyed().AddRaw(this, &SChaosVDMainTab::HandleTabDestroyed, TabID);
+		TabSpawnersByIDMap.Add(TabID, TabSpawner);
+	}
+}

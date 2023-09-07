@@ -23,6 +23,8 @@
 #include "Selection.h"
 #include "UObject/Package.h"
 #include "WorldPersistentFolders.h"
+#include "Actors/ChaosVDSolverInfoActor.h"
+#include "Components/ChaosVDSolverCollisionDataComponent.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
@@ -84,6 +86,8 @@ void FChaosVDScene::DeInitialize()
 
 	if (PhysicsVDWorld)
 	{
+		PhysicsVDWorld->RemoveOnActorDestroyededHandler(ActorDestroyedHandle);
+
 		PhysicsVDWorld->DestroyWorld(true);
 		GEngine->DestroyWorldContext(PhysicsVDWorld);
 
@@ -107,7 +111,12 @@ void FChaosVDScene::AddReferencedObjects(FReferenceCollector& Collector)
 
 void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FString& SolverName, const FChaosVDStepData& InRecordedStepData, const FChaosVDSolverFrameData& InFrameData)
 {
-	FChaosVDParticlesByIDMap& SolverParticlesByID = ParticlesBySolverID.FindChecked(SolverID);
+	AChaosVDSolverInfoActor* SolverSceneData = SolverDataContainerBySolverID.FindChecked(SolverID);
+
+	if (!SolverSceneData)
+	{
+		return;
+	}
 	
 	TSet<int32> ParticlesIDsInRecordedStepData;
 	ParticlesIDsInRecordedStepData.Reserve(InRecordedStepData.RecordedParticlesData.Num());
@@ -130,23 +139,15 @@ void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FStri
 				continue;
 			}
 
-			if (AChaosVDParticleActor** ExistingParticleVDInstancePtrPtr = SolverParticlesByID.Find(ParticleVDInstanceID))
+			if (AChaosVDParticleActor* ExistingParticleVDInstancePtr = SolverSceneData->GetParticleActor(ParticleVDInstanceID))
 			{
-				if (AChaosVDParticleActor* ExistingParticleVDInstancePtr = *ExistingParticleVDInstancePtrPtr)
+				// We have new data for this particle, so re-activate the existing actor
+				if (!ExistingParticleVDInstancePtr->IsActive())
 				{
-					// We have new data for this particle, so re-activate the existing actor
-					if (!ExistingParticleVDInstancePtr->IsActive())
-					{
-						ExistingParticleVDInstancePtr->SetIsActive(true);
-					}
+					ExistingParticleVDInstancePtr->SetIsActive(true);
+				}
 
-					ExistingParticleVDInstancePtr->UpdateFromRecordedParticleData(Particle, InFrameData.SimulationTransform);
-				}
-				else
-				{
-					//TODO: Handle this error
-					ensure(false);
-				}
+				ExistingParticleVDInstancePtr->UpdateFromRecordedParticleData(Particle, InFrameData.SimulationTransform);
 			}
 			else
 			{
@@ -158,7 +159,7 @@ void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FStri
 					NewParticleVDInstance->SetFolderPath(FolderPath);
 
 					// TODO: Precalculate the max num of entries we would see in the loaded file, and use that number to pre-allocate this map
-					SolverParticlesByID.Add(ParticleVDInstanceID, NewParticleVDInstance);
+					SolverSceneData->RegisterParticleActor(ParticleVDInstanceID, NewParticleVDInstance);
 				}
 				else
 				{
@@ -172,8 +173,10 @@ void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FStri
 	}
 
 	UpdateParticlesCollisionData(InRecordedStepData, SolverID);
+	
+	const TMap<int32, AChaosVDParticleActor*>& AllSolverParticlesByID = SolverSceneData->GetAllParticleActorsByIDMap();
 
-	for (const TPair<int32, AChaosVDParticleActor*>& ParticleActorWithID : SolverParticlesByID)
+	for (const TPair<int32, AChaosVDParticleActor*>& ParticleActorWithID : AllSolverParticlesByID)
 	{
 		// If we are playing back a keyframe, the scene should only contain what it is in the recorded data
 		const bool bShouldDestroyParticleAnyway = InFrameData.bIsKeyFrame && !ParticlesIDsInRecordedStepData.Contains(ParticleActorWithID.Key);
@@ -203,46 +206,11 @@ void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FStri
 
 void FChaosVDScene::UpdateParticlesCollisionData(const FChaosVDStepData& InRecordedStepData, int32 SolverID)
 {
-	constexpr float AmountOfWork = 1.0f;
-	
-	FChaosVDParticlesByIDMap& SolverParticlesByID = ParticlesBySolverID.FindChecked(SolverID);
+	if (AChaosVDSolverInfoActor* SolverDataInfoContainer = SolverDataContainerBySolverID.FindChecked(SolverID))
 	{
-		FScopedSlowTask UpdatingSceneSlowTask(AmountOfWork, LOCTEXT("ProcessingMidphaseData", "Processing MidPhase Data..."));
-		UpdatingSceneSlowTask.MakeDialogDelayed(ChaosVDSceneUIOptions::DelayToShowProgressDialogThreshold,ChaosVDSceneUIOptions::bShowCancelButton, ChaosVDSceneUIOptions::bAllowInPIE);
-		
-		const float PercentagePerElement = 1.0f / InRecordedStepData.RecordedMidPhasesByParticleID.Num();
-		
-		for (const TPair<int32, TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>>& ParticleIDMidPhasePair : InRecordedStepData.RecordedMidPhasesByParticleID)
+		if (UChaosVDSolverCollisionDataComponent* CollisionDataContainer = SolverDataInfoContainer->GetCollisionDataComponent())
 		{
-			if (AChaosVDParticleActor** ExistingParticleVDInstancePtrPtr = SolverParticlesByID.Find(ParticleIDMidPhasePair.Key))
-			{
-				if (AChaosVDParticleActor* ExistingParticleVDInstancePtr = *ExistingParticleVDInstancePtrPtr)
-				{
-					ExistingParticleVDInstancePtr->UpdateCollisionData(ParticleIDMidPhasePair.Value);
-				}
-			}
-
-			UpdatingSceneSlowTask.EnterProgressFrame(PercentagePerElement);
-		}
-	}
-
-	{
-		FScopedSlowTask UpdatingSceneSlowTask(AmountOfWork, LOCTEXT("ProcessingConstraingtData", "Processing Constraint Data..."));
-		UpdatingSceneSlowTask.MakeDialogDelayed(ChaosVDSceneUIOptions::DelayToShowProgressDialogThreshold, ChaosVDSceneUIOptions::bShowCancelButton, ChaosVDSceneUIOptions::bAllowInPIE);
-		
-		const float PercentagePerElement = 1.0f / InRecordedStepData.RecordedMidPhasesByParticleID.Num();
-		
-		for (const TPair<int32, TArray<FChaosVDConstraint>>& ParticleIDMidPhasePair : InRecordedStepData.RecordedConstraintsByParticleID)
-		{
-			if (AChaosVDParticleActor** ExistingParticleVDInstancePtrPtr = SolverParticlesByID.Find(ParticleIDMidPhasePair.Key))
-			{
-				if (AChaosVDParticleActor* ExistingParticleVDInstancePtr = *ExistingParticleVDInstancePtrPtr)
-				{
-					ExistingParticleVDInstancePtr->UpdateCollisionData(ParticleIDMidPhasePair.Value);
-				}
-			}
-
-			UpdatingSceneSlowTask.EnterProgressFrame(PercentagePerElement);
+			CollisionDataContainer->UpdateCollisionData(InRecordedStepData.RecordedMidPhases);
 		}
 	}
 }
@@ -266,31 +234,31 @@ void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int3
 	for (int32 SolverID : AvailableSolversIds)
 	{
 		AvailableSolversSet.Add(SolverID);
-		if (!ParticlesBySolverID.Contains(SolverID))
+
+		if (!SolverDataContainerBySolverID.Contains(SolverID))
 		{
-			ParticlesBySolverID.Add(SolverID);
+			AChaosVDSolverInfoActor* CollisionDataContainer = PhysicsVDWorld->SpawnActor<AChaosVDSolverInfoActor>();
+			check(CollisionDataContainer);
+			CollisionDataContainer->SetSolverID(SolverID);
+			CollisionDataContainer->SetScene(AsWeak());
+			SolverDataContainerBySolverID.Add(SolverID, CollisionDataContainer);
 		}
 	}
 
 	int32 AmountRemoved = 0;
-	for (TMap<int32, FChaosVDParticlesByIDMap>::TIterator RemoveIterator = ParticlesBySolverID.CreateIterator(); RemoveIterator; ++RemoveIterator)
+
+	for (TMap<int32, AChaosVDSolverInfoActor*>::TIterator RemoveIterator = SolverDataContainerBySolverID.CreateIterator(); RemoveIterator; ++RemoveIterator)
 	{
 		if (!AvailableSolversSet.Contains(RemoveIterator.Key()))
 		{
 			UE_LOG(LogChaosVDEditor, Log, TEXT("[%s] Removing Solver [%d] as it is no longer present in the recording"), ANSI_TO_TCHAR(__FUNCTION__), RemoveIterator.Key());
-	
-			for (const TPair<int32, AChaosVDParticleActor*>& ParticleVDInstanceWithID : RemoveIterator.Value())
-			{
-				if (IsObjectSelected(ParticleVDInstanceWithID.Value))
-				{
-					ClearSelectionAndNotify();
-				}
 
-				PhysicsVDWorld->DestroyActor(ParticleVDInstanceWithID.Value);
+			if (AChaosVDSolverInfoActor* SolverInfoActor = RemoveIterator.Value())
+			{
+				PhysicsVDWorld->DestroyActor(SolverInfoActor);
 			}
 
 			RemoveIterator.RemoveCurrent();
-
 			AmountRemoved++;
 		}
 	}
@@ -307,16 +275,13 @@ void FChaosVDScene::CleanUpScene()
 
 	if (PhysicsVDWorld)
 	{
-		for (const TPair<int32, FChaosVDParticlesByIDMap>& SolverParticleVDInstanceWithID : ParticlesBySolverID)
+		for (const TPair<int32, AChaosVDSolverInfoActor*>& SolverDataInfoWithID : SolverDataContainerBySolverID)
 		{
-			for (const TPair<int32, AChaosVDParticleActor*>& ParticleVDInstanceWithID : SolverParticleVDInstanceWithID.Value)
-			{
-				PhysicsVDWorld->DestroyActor(ParticleVDInstanceWithID.Value);
-			}
+			PhysicsVDWorld->DestroyActor(SolverDataInfoWithID.Value);
 		}
 	}
 
-	ParticlesBySolverID.Reset();
+	SolverDataContainerBySolverID.Reset();
 }
 
 Chaos::FConstImplicitObjectPtr FChaosVDScene::GetUpdatedGeometry(int32 GeometryID) const
@@ -334,8 +299,22 @@ Chaos::FConstImplicitObjectPtr FChaosVDScene::GetUpdatedGeometry(int32 GeometryI
 
 AChaosVDParticleActor* FChaosVDScene::GetParticleActor(int32 SolverID, int32 ParticleID)
 {
-	AChaosVDParticleActor** ParticleActorPtrPtr = ParticlesBySolverID[SolverID].Find(ParticleID);
-	return ParticleActorPtrPtr ? *ParticleActorPtrPtr : nullptr;
+	if (AChaosVDSolverInfoActor** SolverDataInfo = SolverDataContainerBySolverID.Find(SolverID))
+	{
+		return (*SolverDataInfo)->GetParticleActor(ParticleID);
+	}
+
+	return nullptr;
+}
+
+AChaosVDSolverInfoActor* FChaosVDScene::GetSolverInfoActor(int32 SolverID)
+{
+	if (AChaosVDSolverInfoActor** SolverDataInfo = SolverDataContainerBySolverID.Find(SolverID))
+	{
+		return *SolverDataInfo;
+	}
+
+	return nullptr;
 }
 
 AChaosVDParticleActor* FChaosVDScene::SpawnParticleFromRecordedData(const FChaosVDParticleDataWrapper& InParticleData, const FChaosVDSolverFrameData& InFrameData)
@@ -413,7 +392,7 @@ void FChaosVDScene::CreateBaseLights(UWorld* TargetWorld) const
 	}
 }
 
-UWorld* FChaosVDScene::CreatePhysicsVDWorld() const
+UWorld* FChaosVDScene::CreatePhysicsVDWorld()
 {
 	const FName UniqueWorldName = FName(FGuid::NewGuid().ToString());
 	UWorld* NewWorld = NewWorld = NewObject<UWorld>( GetTransientPackage(), UniqueWorldName );
@@ -434,6 +413,9 @@ UWorld* FChaosVDScene::CreatePhysicsVDWorld() const
 	);
 
 	CreateBaseLights(NewWorld);
+
+	ActorDestroyedHandle = NewWorld->AddOnActorDestroyedHandler(FOnActorDestroyed::FDelegate::CreateRaw(this, &FChaosVDScene::HandleActorDestroyed));
+	
 	return NewWorld;
 }
 
@@ -495,11 +477,11 @@ void FChaosVDScene::ClearSelectionAndNotify()
 
 void FChaosVDScene::HandleVisibilitySettingsChanged(UChaosVDEditorSettings* SettingsObject)
 {
-	for (const TPair<int32, FChaosVDParticlesByIDMap>& ParticlesBySolver : ParticlesBySolverID)
+	for (const TPair<int32, AChaosVDSolverInfoActor*>& SolverDataInfoWithID : SolverDataContainerBySolverID)
 	{
-		for (const TPair<int32, AChaosVDParticleActor*>& ParticleWithIDPair : ParticlesBySolver.Value)
+		if (AChaosVDSolverInfoActor* SolverDataInfo = SolverDataInfoWithID.Value)
 		{
-			ParticleWithIDPair.Value->UpdateGeometryComponentsVisibility();
+			SolverDataInfo->HandleVisibilitySettingsUpdated();
 		}
 	}
 }
@@ -530,6 +512,14 @@ void FChaosVDScene::DeInitializeSelectionSets()
 
 	SelectionSet->OnPreChange().RemoveAll(this);
 	SelectionSet->OnChanged().RemoveAll(this);
+}
+
+void FChaosVDScene::HandleActorDestroyed(AActor* ActorDestroyed)
+{
+	if (IsObjectSelected(ActorDestroyed))
+	{
+		ClearSelectionAndNotify();
+	}
 }
 
 void FChaosVDScene::SetSelectedObject(UObject* SelectedObject)

@@ -28,7 +28,11 @@ public:
 	 */
 	void UpdateNameList(TArray<TSharedPtr<FName>>&& NewNameList);
 	
+	void SelectName(const TSharedPtr<FName>& NameToSelect, ESelectInfo::Type SelectionInfo = ESelectInfo::Direct);
+	
 protected:
+
+	bool HasElements() const;
 
 	FText GetCurrentDropDownButtonLabel() const;
 	

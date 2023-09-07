@@ -18,13 +18,21 @@ TSharedRef<SDockTab> FChaosVDSolversTracksTab::HandleTabSpawned(const FSpawnTabA
 	.Label(LOCTEXT("SolverTracksTabLabel", "Available Solvers"))
 	.ToolTipText(LOCTEXT("SolverTracksTabToolTip", "Playback controls for the available solvers on the current Frame"));
 
-	ViewportTab->SetContent
-	(
-		// TODO: Handle Null cases to not crash the Editor
-		SAssignNew(SolverTracksWidget, SChaosVDSolverTracks, OwningTabWidget->GetChaosVDEngineInstance()->GetPlaybackController())
-	);
+	if (const TSharedPtr<SChaosVDMainTab> MainTabPtr = OwningTabWidget.Pin())
+	{
+		ViewportTab->SetContent
+		(
+			SAssignNew(SolverTracksWidget, SChaosVDSolverTracks, MainTabPtr->GetChaosVDEngineInstance()->GetPlaybackController())
+		);
+	}
+	else
+	{
+		ViewportTab->SetContent(GenerateErrorWidget());
+	}
 
 	ViewportTab->SetTabIcon(FChaosVDStyle::Get().GetBrush("TabIconPlaybackViewport"));
+
+	OnTabSpawned().Broadcast(ViewportTab);
 
 	return ViewportTab;
 }

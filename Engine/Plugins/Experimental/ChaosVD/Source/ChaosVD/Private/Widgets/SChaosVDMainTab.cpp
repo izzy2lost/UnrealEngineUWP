@@ -2,6 +2,7 @@
 
 #include "Widgets/SChaosVDMainTab.h"
 
+#include "ChaosVDEditorModeTools.h"
 #include "ChaosVDEditorVisualizationSettingsTab.h"
 #include "ChaosVDEngine.h"
 #include "ChaosVDModule.h"
@@ -9,7 +10,9 @@
 #include "ChaosVDOutputLogTab.h"
 #include "ChaosVDPlaybackController.h"
 #include "ChaosVDPlaybackViewportTab.h"
+#include "ChaosVDScene.h"
 #include "ChaosVDSolversTracksTab.h"
+#include "ChaosVDCollisionDataDetailsTab.h"
 #include "ChaosVDStyle.h"
 #include "ChaosVDTabsIDs.h"
 #include "ChaosVDWorldOutlinerTab.h"
@@ -22,9 +25,11 @@
 #include "IDesktopPlatform.h"
 #include "Misc/MessageDialog.h"
 #include "StatusBarSubsystem.h"
+#include "Components/ChaosVDSolverCollisionDataComponent.h"
 #include "Styling/StyleColors.h"
 #include "Styling/ToolBarStyle.h"
 #include "Trace/ChaosVDTraceManager.h"
+#include "Visualizers/ChaosVDSolverCollisionDataComponentVisualizer.h"
 #include "Widgets/SChaosBrowseTraceFileSourceModal.h"
 #include "Widgets/SChaosVDBrowseSessionsModal.h"
 #include "Widgets/SChaosVDRecordingControls.h"
@@ -35,21 +40,25 @@
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
-
 void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEngine> InChaosVDEngine)
 {
+	EditorModeTools = MakeShared<FChaosVDEditorModeTools>(InChaosVDEngine->GetCurrentScene());
+
+	EditorModeTools->SetToolkitHost(StaticCastSharedRef<SChaosVDMainTab>(AsShared()));
 	ChaosVDEngine = InChaosVDEngine;
+	OwnerTab = InArgs._OwnerTab;
+
+	RegisterComponentVisualizer(UChaosVDSolverCollisionDataComponent::StaticClass()->GetFName(), MakeShared<FChaosVDSolverCollisionDataComponentVisualizer>());
 
 	TabManager = FGlobalTabmanager::Get()->NewTabManager(InArgs._OwnerTab.ToSharedRef()).ToSharedPtr();
 
-	// Create the UI Tabs Handlers
-	//TODO: Pass self as a weakPtr
-	WorldOutlinerTab = MakeShared<FChaosVDWorldOutlinerTab>(FChaosVDTabID::WorldOutliner, TabManager, this);
-	ObjectDetailsTab = MakeShared<FChaosVDObjectDetailsTab>(FChaosVDTabID::DetailsPanel, TabManager, this);
-	OutputLogTab = MakeShared<FChaosVDOutputLogTab>(FChaosVDTabID::OutputLog, TabManager, this);
-	PlaybackViewportTab = MakeShared<FChaosVDPlaybackViewportTab>(FChaosVDTabID::PlaybackViewport, TabManager, this);
-	SolversTracksTab = MakeShared<FChaosVDSolversTracksTab>(FChaosVDTabID::SolversTrack, TabManager, this);
-	EditorSettingsTab = MakeShared<FChaosVDEditorVisualizationSettingsTab>(FChaosVDTabID::CVDEditorSettings, TabManager, this);
+	RegisterTabSpawner<FChaosVDWorldOutlinerTab>(FChaosVDTabID::WorldOutliner);
+	RegisterTabSpawner<FChaosVDObjectDetailsTab>(FChaosVDTabID::DetailsPanel);
+	RegisterTabSpawner<FChaosVDOutputLogTab>(FChaosVDTabID::OutputLog);
+	RegisterTabSpawner<FChaosVDPlaybackViewportTab>(FChaosVDTabID::PlaybackViewport);
+	RegisterTabSpawner<FChaosVDSolversTracksTab>(FChaosVDTabID::SolversTrack);
+	RegisterTabSpawner<FChaosVDEditorVisualizationSettingsTab>(FChaosVDTabID::CVDEditorSettings);
+	RegisterTabSpawner<FChaosVDCollisionDataDetailsTab>(FChaosVDTabID::CollisionDataDetails);
 
 	StatusBarID = FName(FChaosVDTabID::StatusBar.ToString() + InChaosVDEngine->GetInstanceGuid().ToString());
 	
@@ -234,7 +243,79 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 		]
 	];
 
+	// Make sure these tabs are always focused at the start
 	TabManager->TryInvokeTab(FChaosVDTabID::SolversTrack);
+	TabManager->TryInvokeTab(FChaosVDTabID::DetailsPanel);
+}
+
+void SChaosVDMainTab::BringToFront()
+{
+	if (TabManager.IsValid())
+	{
+		if (const TSharedPtr<SDockTab> TabPtr = OwnerTab.Pin())
+		{
+			TabManager->DrawAttention(TabPtr.ToSharedRef());
+		}
+	}
+}
+
+void SChaosVDMainTab::OnToolkitHostingStarted(const TSharedRef<IToolkit>& Toolkit)
+{
+}
+
+void SChaosVDMainTab::OnToolkitHostingFinished(const TSharedRef<IToolkit>& Toolkit)
+{
+}
+
+UWorld* SChaosVDMainTab::GetWorld() const
+{
+	return GetChaosVDEngineInstance()->GetCurrentScene()->GetUnderlyingWorld();
+}
+
+FEditorModeTools& SChaosVDMainTab::GetEditorModeManager() const
+{
+	check(EditorModeTools.IsValid())
+	return *EditorModeTools;
+}
+
+TSharedPtr<FComponentVisualizer> SChaosVDMainTab::FindComponentVisualizer(UClass* ClassPtr)
+{
+	TSharedPtr<FComponentVisualizer> Visualizer;
+	while (!Visualizer.IsValid() && (ClassPtr != nullptr) && (ClassPtr != UActorComponent::StaticClass()))
+	{
+		Visualizer = FindComponentVisualizer(ClassPtr->GetFName());
+		ClassPtr = ClassPtr->GetSuperClass();
+	}
+
+	return Visualizer;
+}
+
+TSharedPtr<FComponentVisualizer> SChaosVDMainTab::FindComponentVisualizer(FName ClassName)
+{
+	TSharedPtr<FComponentVisualizer>* FoundVisualizer = ComponentVisualizersMap.Find(ClassName);
+
+	return FoundVisualizer ? *FoundVisualizer : nullptr;
+}
+
+void SChaosVDMainTab::RegisterComponentVisualizer(FName ClassName, const TSharedPtr<FComponentVisualizer>& Visualizer)
+{
+	if (!ComponentVisualizersMap.Contains(ClassName))
+	{
+		ComponentVisualizersMap.Add(ClassName, Visualizer);
+	}
+}
+
+void SChaosVDMainTab::HandleTabSpawned(TSharedRef<SDockTab> Tab, FName TabID)
+{
+	if (!ActiveTabsByID.Contains(TabID))
+	{
+		ActiveTabsByID.Add(TabID, Tab);
+	}
+}
+
+void SChaosVDMainTab::HandleTabDestroyed(TSharedRef<SDockTab> Tab, FName TabID)
+{
+	ActiveTabsByID.Remove(TabID);
 }
 
 TSharedRef<FTabManager::FLayout> SChaosVDMainTab::GenerateMainLayout()
@@ -281,6 +362,7 @@ TSharedRef<FTabManager::FLayout> SChaosVDMainTab::GenerateMainLayout()
 					FTabManager::NewStack()
 					->SetSizeCoefficient(0.3f)
 					->AddTab(FChaosVDTabID::DetailsPanel, ETabState::OpenedTab)
+					->AddTab(FChaosVDTabID::CollisionDataDetails, ETabState::OpenedTab)
 					->AddTab(FChaosVDTabID::CVDEditorSettings, ETabState::ClosedTab)
 				)
 			)

@@ -7,6 +7,7 @@
 #include "ChaosVDPlaybackController.h"
 #include "ChaosVDPlaybackViewportTab.h"
 #include "ChaosVDStyle.h"
+#include "ChaosVDTabsIDs.h"
 #include "DetailsViewArgs.h"
 #include "Framework/Docking/TabManager.h"
 #include "IDetailsView.h"
@@ -22,8 +23,20 @@
 TSharedRef<SDockTab> FChaosVDEditorVisualizationSettingsTab::HandleTabSpawned(const FSpawnTabArgs& Args)
 {
 
+	TSharedRef<SDockTab> DetailsPanelTab = SNew(SDockTab)
+											.TabRole(ETabRole::MajorTab)
+											.Label(LOCTEXT("ChaosVDEditorSettings", "Chaos VD Settings"))
+											.ToolTipText(LOCTEXT("ChaosVDEditorSettingsTip", "See the available settings for the editor"));
+	
+	TSharedPtr<SChaosVDMainTab> CVDMainTabPtr = OwningTabWidget.Pin();
+	if (!CVDMainTabPtr.IsValid())
+	{
+		DetailsPanelTab->SetContent(GenerateErrorWidget());
+		return DetailsPanelTab;
+	}
+	
 	TSharedPtr<SChaosVDPlaybackViewport> ViewportWidget;
-	if (TSharedPtr<FChaosVDPlaybackViewportTab> ViewportTabSharedPtr = OwningTabWidget->GetPlaybackViewportTab().Pin())
+	if (TSharedPtr<FChaosVDPlaybackViewportTab> ViewportTabSharedPtr = CVDMainTabPtr->GetTabSpawnerInstance<FChaosVDPlaybackViewportTab>(FChaosVDTabID::PlaybackViewport).Pin())
 	{
 		ViewportWidget = ViewportTabSharedPtr->GetPlaybackViewportWidget().Pin();
 	}
@@ -34,14 +47,7 @@ TSharedRef<SDockTab> FChaosVDEditorVisualizationSettingsTab::HandleTabSpawned(co
 	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
 
 	TSharedRef<IDetailsView> DetailsPanel = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
-
 	DetailsPanel->SetObject(GetMutableDefault<UChaosVDEditorSettings>());
-
-	TSharedRef<SDockTab> DetailsPanelTab =
-		SNew(SDockTab)
-		.TabRole(ETabRole::MajorTab)
-		.Label(LOCTEXT("ChaosVDEditorSettings", "Chaos VD Settings"))
-		.ToolTipText(LOCTEXT("ChaosVDEditorSettingsTip", "See the available settings for the editor"));
 
 	if (ensure(ViewportWidget.IsValid()))
 	{
@@ -50,24 +56,18 @@ TSharedRef<SDockTab> FChaosVDEditorVisualizationSettingsTab::HandleTabSpawned(co
 			SNew(SVerticalBox)
 			+SVerticalBox::Slot()
 			[
-				SNew(SChaosVDVisualizationControls, OwningTabWidget->GetChaosVDEngineInstance()->GetPlaybackController(), ViewportWidget)
+				SNew(SChaosVDVisualizationControls,CVDMainTabPtr->GetChaosVDEngineInstance()->GetPlaybackController(), ViewportWidget)
 			]	
 		);
 	}
 	else
 	{
-		DetailsPanelTab->SetContent
-		(
-			SNew(SVerticalBox)
-			+SVerticalBox::Slot()
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("ChaosVDEditorSettingsLoadError", "Failed to load Visualization Controls"))
-			]	
-		);
+		DetailsPanelTab->SetContent(GenerateErrorWidget());
 	}
 
 	DetailsPanelTab->SetTabIcon(FChaosVDStyle::Get().GetBrush("TabIconDetailsPanel"));
+
+	OnTabSpawned().Broadcast(DetailsPanelTab);
 
 	return DetailsPanelTab;
 }

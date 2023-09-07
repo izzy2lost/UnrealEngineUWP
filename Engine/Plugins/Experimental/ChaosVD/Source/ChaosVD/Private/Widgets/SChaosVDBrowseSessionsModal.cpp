@@ -107,6 +107,7 @@ void SChaosVDBrowseSessionsModal::Construct(const FArguments& InArgs)
 			[
 				SNew(SVerticalBox)
 				+SVerticalBox::Slot()
+				.Padding(0.0f, 0.0f, 0.0f, 5.0f)
 				.AutoHeight()
 				[
 					SNew(SHorizontalBox)

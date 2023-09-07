@@ -6,6 +6,7 @@
 #include "ChaosVDStyle.h"
 #include "Widgets/SChaosVDPlaybackViewport.h"
 #include "ChaosVDTabsIDs.h"
+#include "EditorModeManager.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/SChaosVDMainTab.h"
 
@@ -19,12 +20,18 @@ TSharedRef<SDockTab> FChaosVDPlaybackViewportTab::HandleTabSpawned(const FSpawnT
 		.Label(LOCTEXT("ViewportTabLabel", "Playback Viewport"))
 		.ToolTipText(LOCTEXT("ViewportTabToolTip", "The Chaos Visual debugger Viewport is under development"));
 	
-	ViewportTab->SetContent
-	(
-		//TODO: Handle Null cases to not crash the Editor
-		SAssignNew(PlaybackViewportWidget, SChaosVDPlaybackViewport, GetChaosVDScene(), OwningTabWidget->GetChaosVDEngineInstance()->GetPlaybackController())
-	);
-
+	if (TSharedPtr<SChaosVDMainTab> MainTabPtr = OwningTabWidget.Pin())
+	{
+		ViewportTab->SetContent
+		(
+			SAssignNew(PlaybackViewportWidget, SChaosVDPlaybackViewport, GetChaosVDScene(), MainTabPtr->GetChaosVDEngineInstance()->GetPlaybackController(), MainTabPtr->GetEditorModeManager().AsShared())
+		);
+	}
+	else
+	{
+		ViewportTab->SetContent(GenerateErrorWidget());
+	}
+	
 	ViewportTab->SetTabIcon(FChaosVDStyle::Get().GetBrush("TabIconPlaybackViewport"));
 
 	return ViewportTab;

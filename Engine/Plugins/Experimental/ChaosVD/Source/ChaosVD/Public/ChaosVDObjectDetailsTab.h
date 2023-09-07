@@ -21,7 +21,7 @@ class FChaosVDObjectDetailsTab : public FChaosVDTabSpawnerBase, public FChaosVDS
 {
 public:
 
-	FChaosVDObjectDetailsTab(const FName& InTabID, TSharedPtr<FTabManager> InTabManager, SChaosVDMainTab* InOwningTabWidget) : FChaosVDTabSpawnerBase(InTabID, InTabManager, InOwningTabWidget)
+	FChaosVDObjectDetailsTab(const FName& InTabID, TSharedPtr<FTabManager> InTabManager, TWeakPtr<SChaosVDMainTab> InOwningTabWidget) : FChaosVDTabSpawnerBase(InTabID, InTabManager, InOwningTabWidget)
 	{
 	}
 
@@ -31,6 +31,14 @@ protected:
 
 	virtual void HandlePostSelectionChange(const UTypedElementSelectionSet* ChangedSelectionSet) override;
 
+	EVisibility GetCollisionDataButtonVisibility() const;
+	bool GetCollisionDataButtonEnabled() const;
+
+	TSharedPtr<SWidget> GenerateShowCollisionDataButton();
+
+	FReply ShowCollisionDataForSelectedObject();
+
 	FDelegateHandle SelectionDelegateHandle;
 	TSharedPtr<SChaosVDDetailsView> DetailsPanelView;
+	TWeakObjectPtr<UObject> CurrentSelectedObject = nullptr;
 };

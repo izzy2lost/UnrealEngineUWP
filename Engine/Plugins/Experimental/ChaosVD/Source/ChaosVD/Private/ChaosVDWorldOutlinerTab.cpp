@@ -58,6 +58,8 @@ TSharedRef<SDockTab> FChaosVDWorldOutlinerTab::HandleTabSpawned(const FSpawnTabA
 
 	OutlinerTab->SetTabIcon(FChaosVDStyle::Get().GetBrush("TabIconWorldOutliner"));
 
+	OnTabSpawned().Broadcast(OutlinerTab);
+
 	return OutlinerTab;
 }
 

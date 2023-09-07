@@ -5,11 +5,29 @@
 #include "ChaosVDEngine.h"
 #include "ChaosVDScene.h"
 #include "Widgets/SChaosVDMainTab.h"
+#include "Widgets/Text/STextBlock.h"
 
-FChaosVDTabSpawnerBase::FChaosVDTabSpawnerBase(const FName& InTabID, TSharedPtr<FTabManager> InTabManager, SChaosVDMainTab* InOwningTabWidget)
+#define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
+
+FChaosVDTabSpawnerBase::FChaosVDTabSpawnerBase(const FName& InTabID, TSharedPtr<FTabManager> InTabManager, TWeakPtr<SChaosVDMainTab> InOwningTabWidget)
 {
 	OwningTabWidget = InOwningTabWidget;
 	InTabManager->RegisterTabSpawner(InTabID, FOnSpawnTab::CreateRaw(this, &FChaosVDTabSpawnerBase::HandleTabSpawned));
+}
+
+void FChaosVDTabSpawnerBase::HandleTabClosed(const TSharedRef<SDockTab>& InTabClosed)
+{
+	OnTabDestroyed().Broadcast(InTabClosed);
+}
+
+TSharedRef<SWidget> FChaosVDTabSpawnerBase::GenerateErrorWidget()
+{
+	return SNew(SVerticalBox)
+		+SVerticalBox::Slot()
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("ChaosVDEditorTabSpawner", "Failed to generate Tab content"))
+		];
 }
 
 UWorld* FChaosVDTabSpawnerBase::GetChaosVDWorld() const
@@ -24,9 +42,10 @@ UWorld* FChaosVDTabSpawnerBase::GetChaosVDWorld() const
 
 TWeakPtr<FChaosVDScene> FChaosVDTabSpawnerBase::GetChaosVDScene() const
 {
-	if (ensure(OwningTabWidget))
+	const TSharedPtr<SChaosVDMainTab> MainTabPtr = OwningTabWidget.Pin();
+	if (ensure(MainTabPtr))
 	{
-		const TSharedRef<FChaosVDEngine> ChaosVDEngine = OwningTabWidget->GetChaosVDEngineInstance();
+		const TSharedRef<FChaosVDEngine> ChaosVDEngine = MainTabPtr->GetChaosVDEngineInstance();
 		if (TSharedPtr<FChaosVDScene> ScenePtr = ChaosVDEngine->GetCurrentScene())
 		{
 			return ScenePtr;
@@ -34,3 +53,5 @@ TWeakPtr<FChaosVDScene> FChaosVDTabSpawnerBase::GetChaosVDScene() const
 	}
 	return nullptr;
 }
+
+#undef LOCTEXT_NAMESPACE

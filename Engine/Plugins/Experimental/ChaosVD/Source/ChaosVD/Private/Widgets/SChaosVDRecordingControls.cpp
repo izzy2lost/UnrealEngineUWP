@@ -23,7 +23,7 @@ void SChaosVDRecordingControls::Construct(const FArguments& InArgs, const TWeakP
 	if (TSharedPtr<SChaosVDMainTab> MainTabSharedPtr = InMainTabWeakPtr.Pin())
 	{
 		MainTabWeakPtr = MainTabSharedPtr;
-		StatusBarID = MainTabSharedPtr->GetStatusBarID();
+		StatusBarID = MainTabSharedPtr->GetStatusBarName();
 	}
 	else
 	{

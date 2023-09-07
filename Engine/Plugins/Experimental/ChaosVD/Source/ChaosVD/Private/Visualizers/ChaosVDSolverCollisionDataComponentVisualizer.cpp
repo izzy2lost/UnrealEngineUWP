@@ -1,58 +1,116 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Visualizers/ChaosVDCollisionDataVisualizer.h"
+#include "ChaosVDSolverCollisionDataComponentVisualizer.h"
 
 #include "ChaosVDEditorSettings.h"
-#include "ChaosVDModule.h"
 #include "ChaosVDParticleActor.h"
 #include "ChaosVDScene.h"
-#include "DataWrappers/ChaosVDCollisionDataWrappers.h"
+#include "Actors/ChaosVDSolverInfoActor.h"
+#include "Components/ChaosVDSolverCollisionDataComponent.h"
 #include "Visualizers/ChaosVDDebugDrawUtils.h"
 
-void FChaosVDCollisionDataVisualizer::DrawVisualization(const FSceneView* View, FPrimitiveDrawInterface* PDI)
+IMPLEMENT_HIT_PROXY(HChaosVDContactPointProxy, HHitProxy)
+
+FChaosVDSolverCollisionDataComponentVisualizer::FChaosVDSolverCollisionDataComponentVisualizer()
 {
-	uint32 VisualizationFlagsToUse = 0;
-	if (static_cast<EChaosVDCollisionVisualizationFlags>(LocalVisualizationFlags) == EChaosVDCollisionVisualizationFlags::None)
-	{
-		if (const UChaosVDEditorSettings* EditorSettings = GetDefault<UChaosVDEditorSettings>())
-		{
-			VisualizationFlagsToUse = EditorSettings->GlobalCollisionDataVisualizationFlags;
-		}
-		else
-		{
-			UE_LOG(LogChaosVDEditor, Warning, TEXT("[%s] Failed to retrive global visualization setting. Falling back to local settings"), ANSI_TO_TCHAR(__FUNCTION__));
+}
 
-			VisualizationFlagsToUse = LocalVisualizationFlags;
-		}	
-	}
-	else
-	{
-		VisualizationFlagsToUse = LocalVisualizationFlags;
-	}
+FChaosVDSolverCollisionDataComponentVisualizer::~FChaosVDSolverCollisionDataComponentVisualizer()
+{
+}
 
-	FChaosVDVisualizationContext VisualizationContext;
-	DataProvider.GetVisualizationContext(VisualizationContext);
+bool FChaosVDSolverCollisionDataComponentVisualizer::ShowWhenSelected()
+{
+	return false;
+}
 
-	const FChaosVDParticleDataWrapper* ParticleDataViewer = DataProvider.GetParticleData();
-	if (!ensure(ParticleDataViewer))
+void FChaosVDSolverCollisionDataComponentVisualizer::DrawVisualization(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI)
+{
+	const UChaosVDSolverCollisionDataComponent* CollisionDataComponent = Cast<UChaosVDSolverCollisionDataComponent>(Component);
+	if (!CollisionDataComponent)
 	{
 		return;
 	}
 
+	const AChaosVDSolverInfoActor* SolverInfoContainer = Cast<AChaosVDSolverInfoActor>(CollisionDataComponent->GetOwner());
+	if (!SolverInfoContainer)
+	{
+		return;
+	}
+
+	FChaosVDVisualizationContext VisualizationContext;
+	VisualizationContext.SolverID = SolverInfoContainer->GetSolverID();
+	VisualizationContext.CVDScene = SolverInfoContainer->GetScene();
+	VisualizationContext.SpaceTransform = SolverInfoContainer->GetSimulationTransform();
+
+	if (const UChaosVDEditorSettings* EditorSettings = GetDefault<UChaosVDEditorSettings>())
+	{
+		VisualizationContext.VisualizationFlags = EditorSettings->GlobalCollisionDataVisualizationFlags;
+	}
+
+	if (EnumHasAnyFlags(EChaosVDCollisionVisualizationFlags::EnableDrawForAllParticles, static_cast<EChaosVDCollisionVisualizationFlags>(VisualizationContext.VisualizationFlags)))
+	{
+		for (const TSharedPtr<FChaosVDParticlePairMidPhase>& MidPhase : CollisionDataComponent->GetMidPhases())
+		{
+			DrawnMidPhaseData(MidPhase, VisualizationContext, View, PDI);
+		}
+	}
+	else
+	{
+		const TArray<int32>& SelectedParticlesIDs = SolverInfoContainer->GetSelectedParticlesIDs();
+
+		for (const int32 SelectedParticleID : SelectedParticlesIDs)
+		{
+			if (const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* ParticleMidPhases = CollisionDataComponent->GetMidPhasesForParticle(SelectedParticleID, EChaosVDGetCollisionDataOptions::Owner))
+			{
+				for (const TSharedPtr<FChaosVDParticlePairMidPhase>& MidPhase : *ParticleMidPhases)
+				{
+					DrawnMidPhaseData(MidPhase, VisualizationContext, View, PDI);
+				}
+			}
+		}		
+	}
+}
+
+void FChaosVDSolverCollisionDataComponentVisualizer::DrawnMidPhaseData(const TSharedPtr<FChaosVDParticlePairMidPhase>& MidPhase, const FChaosVDVisualizationContext& VisualizationContext, const FSceneView* View, FPrimitiveDrawInterface* PDI)
+{
 	TSharedPtr<FChaosVDScene> ScenePtr = VisualizationContext.CVDScene.Pin();
 	if (!ScenePtr.IsValid())
 	{
 		return;
 	}
- 
-	const FVector& OwnerActorLocation = ParticleDataViewer->ParticlePositionRotation.MX;
-
-	for (const FChaosVDParticlePairMidPhase& MidPhase : ParticleDataViewer->ParticleMidPhases)
+	
+	if (MidPhase.IsValid())
 	{
-		for (const FChaosVDConstraint& Constraint : MidPhase.Constraints)
+
+		AChaosVDParticleActor* ParticleActor = ScenePtr->GetParticleActor(VisualizationContext.SolverID, MidPhase->Particle0Idx);
+		if (!ParticleActor)
 		{
+			return;
+		}
+		
+		const FChaosVDParticleDataWrapper* ParticleDataViewer = ParticleActor->GetParticleData();
+		if (!ensure(ParticleDataViewer))
+		{
+			return;
+		}
+
+		EChaosVDCollisionVisualizationFlags VisualizationFlags = static_cast<EChaosVDCollisionVisualizationFlags>(VisualizationContext.VisualizationFlags);
+		 
+		const FVector& OwnerActorLocation = ParticleDataViewer->ParticlePositionRotation.MX;
+
+		for (const FChaosVDConstraint& Constraint : MidPhase->Constraints)
+		{
+			int32 ContactIndex = INDEX_NONE;
 			for (const FChaosVDManifoldPoint& ManifoldPoint : Constraint.ManifoldPoints)
 			{
+				ContactIndex++;
+
+				FChaosVDCollisionDataFinder HitPRoxyDataFinder;
+				HitPRoxyDataFinder.OwningMidPhase = MidPhase;
+				HitPRoxyDataFinder.OwningConstraint = &Constraint;
+				HitPRoxyDataFinder.ContactIndex = ContactIndex;
+
 				constexpr int32 MinShapeContactAmount = 2;
 				if (Constraint.ShapeWorldTransforms.Num() < MinShapeContactAmount || ManifoldPoint.ContactPoint.ShapeContactPoints.Num() < MinShapeContactAmount)
 				{
@@ -61,7 +119,7 @@ void FChaosVDCollisionDataVisualizer::DrawVisualization(const FSceneView* View, 
 
 				const bool bIsProbe = Constraint.bIsProbe;
 				const bool bIsActive = ManifoldPoint.bIsValid && (!ManifoldPoint.NetPushOut.IsNearlyZero() || !ManifoldPoint.NetImpulse.IsNearlyZero() || (!Constraint.bUseManifold && !Constraint.AccumulatedImpulse.IsNearlyZero()));
-				if (!bIsActive && EnumHasAnyFlags(static_cast<EChaosVDCollisionVisualizationFlags>(LocalVisualizationFlags), EChaosVDCollisionVisualizationFlags::DrawOnlyActiveContacts))
+				if (!bIsActive && EnumHasAnyFlags(VisualizationFlags, EChaosVDCollisionVisualizationFlags::DrawOnlyActiveContacts))
 				{
 					continue;
 				}
@@ -74,6 +132,8 @@ void FChaosVDCollisionDataVisualizer::DrawVisualization(const FSceneView* View, 
 				{
 					continue;
 				}
+
+				PDI->SetHitProxy(new HChaosVDContactPointProxy(HitPRoxyDataFinder));
 
 				const FTransform& WorldActorTransform1 = CVDParticleActor1->GetTransform();
 				const FTransform& WorldActorTransform0 = CVDParticleActor0->GetTransform();
@@ -127,7 +187,7 @@ void FChaosVDCollisionDataVisualizer::DrawVisualization(const FSceneView* View, 
 				const FVector WorldPointPlaneLocation = VisualizationContext.SpaceTransform.TransformPosition(PointPlaneLocation);
 				const FVector WorldPlaneNormal = VisualizationContext.SpaceTransform.TransformVectorNoScale(PlaneNormal);
 
-				if (EnumHasAnyFlags(static_cast<EChaosVDCollisionVisualizationFlags>(VisualizationFlagsToUse), EChaosVDCollisionVisualizationFlags::NetPushOut))
+				if (EnumHasAnyFlags(VisualizationFlags, EChaosVDCollisionVisualizationFlags::NetPushOut))
 				{
 					if (ManifoldPoint.bIsValid && !ManifoldPoint.NetPushOut.IsNearlyZero())
 					{
@@ -135,7 +195,7 @@ void FChaosVDCollisionDataVisualizer::DrawVisualization(const FSceneView* View, 
 					}
 				}
 
-				if (EnumHasAnyFlags(static_cast<EChaosVDCollisionVisualizationFlags>(VisualizationFlagsToUse), EChaosVDCollisionVisualizationFlags::NetImpulse))
+				if (EnumHasAnyFlags(static_cast<EChaosVDCollisionVisualizationFlags>(VisualizationContext.VisualizationFlags), EChaosVDCollisionVisualizationFlags::NetImpulse))
 				{
 					if (ManifoldPoint.bIsValid && !ManifoldPoint.NetImpulse.IsNearlyZero())
 					{
@@ -143,23 +203,25 @@ void FChaosVDCollisionDataVisualizer::DrawVisualization(const FSceneView* View, 
 					}
 				}
 
-				if (EnumHasAnyFlags(static_cast<EChaosVDCollisionVisualizationFlags>(VisualizationFlagsToUse), EChaosVDCollisionVisualizationFlags::ContactPoints))
+				if (EnumHasAnyFlags(VisualizationFlags, EChaosVDCollisionVisualizationFlags::ContactPoints))
 				{
 					FChaosVDDebugDrawUtils::DrawPoint(PDI, WorldPlaneLocation, TEXT("Contact : WorldPlaneLocation"), DiscColor);
 				}
 
-				if (EnumHasAnyFlags(static_cast<EChaosVDCollisionVisualizationFlags>(VisualizationFlagsToUse), EChaosVDCollisionVisualizationFlags::ContactNormal))
+				if (EnumHasAnyFlags(VisualizationFlags, EChaosVDCollisionVisualizationFlags::ContactNormal))
 				{
 					FColor NormalColor = ((ManifoldPoint.ContactPoint.ContactType != EChaosVDContactPointType::EdgeEdge) ? PlaneNormalColor : EdgeNormalColor);
 					constexpr int32 Scale = 10.0f;
 					FChaosVDDebugDrawUtils::DrawArrowVector(PDI, WorldPlaneLocation, WorldPlaneLocation + WorldPlaneNormal * Scale, TEXT("Contact Normal"), NormalColor, 2.0f);
 				}
 
-				if (EnumHasAnyFlags(static_cast<EChaosVDCollisionVisualizationFlags>(VisualizationFlagsToUse), EChaosVDCollisionVisualizationFlags::ContactPoints))
+				if (EnumHasAnyFlags(VisualizationFlags, EChaosVDCollisionVisualizationFlags::ContactPoints))
 				{
 					if (ManifoldPoint.ContactPoint.Phi < FLT_MAX)
 					{
 						FColor Color = FColor(128, 128, 0);
+						FChaosVDDebugDrawUtils::DrawPoint(PDI, WorldPlaneLocation - ManifoldPoint.ContactPoint.Phi * WorldPlaneNormal, TEXT("Contact : WorldPlaneLocation - Phi"), Color);
+
 						FChaosVDDebugDrawUtils::DrawPoint(PDI, WorldPlaneLocation - ManifoldPoint.ContactPoint.Phi * WorldPlaneNormal, TEXT("Contact : WorldPlaneLocation - Phi"), Color);
 					}
 					
@@ -167,13 +229,15 @@ void FChaosVDCollisionDataVisualizer::DrawVisualization(const FSceneView* View, 
 					FChaosVDDebugDrawUtils::DrawPoint(PDI, WorldPointLocation , TEXT("Contact : Manifold Point"), DiscColor);
 				}
 
-				if (EnumHasAnyFlags(static_cast<EChaosVDCollisionVisualizationFlags>(VisualizationFlagsToUse), EChaosVDCollisionVisualizationFlags::AccumulatedImpulse))
+				if (EnumHasAnyFlags(VisualizationFlags, EChaosVDCollisionVisualizationFlags::AccumulatedImpulse))
 				{
 					if (!Constraint.AccumulatedImpulse.IsNearlyZero())
 					{
 						FChaosVDDebugDrawUtils::DrawArrowVector(PDI, WorldActorTransform0.GetLocation(), WorldActorTransform0.GetLocation() + Constraint.AccumulatedImpulse, TEXT("AccumulatedImpulse"), FColor::White, 5.0f);
 					}
 				}
+
+				PDI->SetHitProxy(nullptr);
 			}
 		}
 	}

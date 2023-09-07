@@ -9,7 +9,7 @@ class SChaosVDNameListPicker;
 class FChaosVDEditorVisualizationSettingsTab : public FChaosVDTabSpawnerBase
 {
 public:
-	FChaosVDEditorVisualizationSettingsTab(const FName& InTabID, const TSharedPtr<FTabManager>& InTabManager, SChaosVDMainTab* InOwningTabWidget)
+	FChaosVDEditorVisualizationSettingsTab(const FName& InTabID, const TSharedPtr<FTabManager>& InTabManager, TWeakPtr<SChaosVDMainTab> InOwningTabWidget)
 		: FChaosVDTabSpawnerBase(InTabID, InTabManager, InOwningTabWidget)
 	{
 	}

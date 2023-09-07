@@ -15,6 +15,8 @@ class UChaosVDInstancedStaticMeshComponent : public UInstancedStaticMeshComponen
 	UChaosVDInstancedStaticMeshComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	{
+		SetCanEverAffectNavigation(false);
+		bNavigationRelevant = false;
 	}
 	
 	// BEGIN IChaosVDGeometryDataComponent Interface

@@ -5,7 +5,9 @@
 #include "ChaosVDGeometryBuilder.h"
 #include "ChaosVDModule.h"
 #include "ChaosVDScene.h"
+#include "Actors/ChaosVDSolverInfoActor.h"
 #include "Components/ChaosVDInstancedStaticMeshComponent.h"
+#include "Components/ChaosVDSolverCollisionDataComponent.h"
 #include "Components/ChaosVDStaticMeshComponent.h"
 #include "Components/MeshComponent.h"
 #include "Components/SceneComponent.h"
@@ -14,10 +16,15 @@
 #include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
 #include "Visualizers/ChaosVDParticleDataVisualizer.h"
+#include "Visualizers/ChaosVDSolverCollisionDataComponentVisualizer.h"
+
 
 AChaosVDParticleActor::AChaosVDParticleActor(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("SceneComponent0"));
+	RootComponent->SetCanEverAffectNavigation(false);
+	RootComponent->bNavigationRelevant = false;
+
 	CreateVisualizers();
 }
 
@@ -62,30 +69,6 @@ void AChaosVDParticleActor::UpdateFromRecordedParticleData(const FChaosVDParticl
 	}
 }
 
-void AChaosVDParticleActor::UpdateCollisionData(const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>& InRecordedMidPhases)
-{
-	// TODO: We should store a ptr to the data and in our custom details panel draw it
-	ParticleDataViewer.ParticleMidPhases.Reserve(InRecordedMidPhases.Num());
-	ParticleDataViewer.ParticleMidPhases.Reset(InRecordedMidPhases.Num());
-
-	for (const TSharedPtr<FChaosVDParticlePairMidPhase>& MidPhase : InRecordedMidPhases)
-	{
-		ParticleDataViewer.ParticleMidPhases.Emplace(*MidPhase.Get());
-	}
-}
-
-void AChaosVDParticleActor::UpdateCollisionData(const TArray<FChaosVDConstraint>& InRecordedConstraints)
-{
-	// TODO: We should store a ptr to the data and in our custom details panel draw it
-	ParticleDataViewer.ParticleConstraints.Reserve(InRecordedConstraints.Num());
-	ParticleDataViewer.ParticleConstraints.Reset(InRecordedConstraints.Num());
-
-	for (const FChaosVDConstraint& Constraint : InRecordedConstraints)
-	{
-		ParticleDataViewer.ParticleConstraints.Emplace(Constraint);
-	}
-}
-
 void AChaosVDParticleActor::UpdateGeometry(const Chaos::FConstImplicitObjectPtr& InImplicitObject, EChaosVDActorGeometryUpdateFlags OptionsFlags)
 {
 	if (!InImplicitObject.IsValid())
@@ -113,7 +96,7 @@ void AChaosVDParticleActor::UpdateGeometry(const Chaos::FConstImplicitObjectPtr&
 		return;
 	}
 
-	if (const TSharedPtr<FChaosVDScene>& ScenePtr = OwningScene.Pin())
+	if (const TSharedPtr<FChaosVDScene>& ScenePtr = SceneWeakPtr.Pin())
 	{
 		if (const TSharedPtr<FChaosVDGeometryBuilder>& GeometryGenerator = ScenePtr->GetGeometryGenerator())
 		{
@@ -155,7 +138,7 @@ void AChaosVDParticleActor::UpdateGeometry(const Chaos::FConstImplicitObjectPtr&
 
 void AChaosVDParticleActor::UpdateGeometry(uint32 NewGeometryHash, EChaosVDActorGeometryUpdateFlags OptionsFlags)
 {
-	if (const TSharedPtr<FChaosVDScene>& ScenePtr = OwningScene.Pin())
+	if (const TSharedPtr<FChaosVDScene>& ScenePtr = SceneWeakPtr.Pin())
 	{
 		if (const Chaos::FConstImplicitObjectPtr& Geometry = ScenePtr->GetUpdatedGeometry(NewGeometryHash))
 		{
@@ -164,11 +147,11 @@ void AChaosVDParticleActor::UpdateGeometry(uint32 NewGeometryHash, EChaosVDActor
 	}
 }
 
-void AChaosVDParticleActor::SetScene(const TSharedPtr<FChaosVDScene>& InScene)
+void AChaosVDParticleActor::SetScene(TWeakPtr<FChaosVDScene> InScene)
 {
-	OwningScene = InScene;
+	FChaosVDSceneObjectBase::SetScene(InScene);
 
-	if (const TSharedPtr<FChaosVDScene>& ScenePtr = OwningScene.Pin())
+	if (const TSharedPtr<FChaosVDScene>& ScenePtr = SceneWeakPtr.Pin())
 	{
 		GeometryUpdatedDelegate = ScenePtr->OnNewGeometryAvailable().AddWeakLambda(this, [this](const Chaos::FConstImplicitObjectPtr& ImplicitObject, const uint32 ID)
 		{
@@ -182,7 +165,7 @@ void AChaosVDParticleActor::SetScene(const TSharedPtr<FChaosVDScene>& InScene)
 
 void AChaosVDParticleActor::BeginDestroy()
 {
-	if (const TSharedPtr<FChaosVDScene>& ScenePtr = OwningScene.Pin())
+	if (const TSharedPtr<FChaosVDScene>& ScenePtr = SceneWeakPtr.Pin())
 	{
 		ScenePtr->OnNewGeometryAvailable().Remove(GeometryUpdatedDelegate);
 	}
@@ -193,14 +176,13 @@ void AChaosVDParticleActor::BeginDestroy()
 void AChaosVDParticleActor::GetVisualizationContext(FChaosVDVisualizationContext& OutVisualizationContext)
 {
 	OutVisualizationContext.SpaceTransform = CachedSimulationTransform;
-	OutVisualizationContext.CVDScene = OwningScene;
+	OutVisualizationContext.CVDScene = SceneWeakPtr;
 	OutVisualizationContext.SolverID = ParticleDataViewer.SolverID;
 }
 
 void AChaosVDParticleActor::CreateVisualizers()
 {
 	CVDVisualizers.Add(FChaosVDParticleDataVisualizer::VisualizerID,MakeUnique<FChaosVDParticleDataVisualizer>(*this));
-	CVDVisualizers.Add(FChaosVDCollisionDataVisualizer::VisualizerID, MakeUnique<FChaosVDCollisionDataVisualizer>(*this));
 }
 
 #if WITH_EDITOR
@@ -209,7 +191,7 @@ bool AChaosVDParticleActor::IsSelectedInEditor() const
 {
 	// The implementation of this method in UObject, used a global edit callback,
 	// but as we don't use the global editor selection system, we need to re-route it.
-	if (TSharedPtr<FChaosVDScene> ScenePtr = OwningScene.Pin())
+	if (TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin())
 	{
 		return ScenePtr->IsObjectSelected(this);
 	}
@@ -231,14 +213,6 @@ void AChaosVDParticleActor::PostEditChangeProperty(FPropertyChangedEvent& Proper
 		}
 	}
 
-	if (PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_STRING_CHECKED(AChaosVDParticleActor, LocalCollisionDataVisualizationFlags))
-	{
-		if (TUniquePtr<FChaosVDDataVisualizerBase>* CollisionVisualizer = CVDVisualizers.Find(FChaosVDCollisionDataVisualizer::VisualizerID))
-		{
-			CollisionVisualizer->Get()->UpdateVisualizationFlags(LocalCollisionDataVisualizationFlags);
-		}
-	}
-
 	if (PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_STRING_CHECKED(AChaosVDParticleActor, LocalParticleDataVisualizationFlags))
 	{
 		if (TUniquePtr<FChaosVDDataVisualizerBase>* ParticleDataVisualizer = CVDVisualizers.Find(FChaosVDParticleDataVisualizer::VisualizerID))
@@ -246,6 +220,58 @@ void AChaosVDParticleActor::PostEditChangeProperty(FPropertyChangedEvent& Proper
 			ParticleDataVisualizer->Get()->UpdateVisualizationFlags(LocalParticleDataVisualizationFlags);
 		}
 	}
+}
+
+void AChaosVDParticleActor::GetCollisionData(TArray<TSharedPtr<FChaosVDCollisionDataFinder>>& OutCollisionDataFound)
+{
+	if (const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* MidPhases = GetCollisionMidPhasesArray())
+	{
+		OutCollisionDataFound.Reserve(MidPhases->Num());
+
+		for (const TSharedPtr<FChaosVDParticlePairMidPhase>& MidPhasePtr : *MidPhases)
+		{
+			TSharedPtr<FChaosVDCollisionDataFinder> FinderData = MakeShared<FChaosVDCollisionDataFinder>();
+			FinderData->OwningMidPhase = MidPhasePtr;
+			FinderData->OwningConstraint = MidPhasePtr->Constraints.Num() > 0 ? &MidPhasePtr->Constraints[0] : nullptr;
+			FinderData->ContactIndex = INDEX_NONE;
+
+			OutCollisionDataFound.Add(FinderData);
+		}
+	}
+}
+
+bool AChaosVDParticleActor::HasCollisionData()
+{
+	if (const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* MidPhases = GetCollisionMidPhasesArray())
+	{
+		return MidPhases->Num() > 0;
+	}
+
+	return false;
+}
+
+FName AChaosVDParticleActor::GetName()
+{
+	return GetFName();
+}
+
+const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* AChaosVDParticleActor::GetCollisionMidPhasesArray() const
+{
+	const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin();
+	if (!ScenePtr.IsValid())
+	{
+		return nullptr;
+	}
+
+	if (AChaosVDSolverInfoActor* SolverInfoActor = ScenePtr->GetSolverInfoActor(ParticleDataViewer.SolverID))
+	{
+		if (const UChaosVDSolverCollisionDataComponent* CollisionDataComponent = SolverInfoActor->GetCollisionDataComponent())
+		{
+			return CollisionDataComponent->GetMidPhasesForParticle(ParticleDataViewer.ParticleIndex, EChaosVDGetCollisionDataOptions::Any);
+		}
+	}
+
+	return nullptr;
 }
 
 void AChaosVDParticleActor::UpdateShapeDataComponents()
@@ -295,7 +321,7 @@ void AChaosVDParticleActor::SetIsActive(bool bNewActive)
 #endif
 		bIsActive = bNewActive;
 
-		if (const TSharedPtr<FChaosVDScene> ScenePtr = OwningScene.Pin())
+		if (const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin())
 		{
 			ScenePtr->OnActorActiveStateChanged().Broadcast(this);
 		}

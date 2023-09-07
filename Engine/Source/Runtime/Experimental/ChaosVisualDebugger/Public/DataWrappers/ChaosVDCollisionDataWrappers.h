@@ -57,23 +57,23 @@ struct CHAOSVDRUNTIME_API FChaosVDContactPoint
 	GENERATED_BODY()
 
 	// Shape-space contact points on the two bodies
-	UPROPERTY(EditAnywhere, Category=Contact)
+	UPROPERTY(VisibleAnywhere, Category=Contact)
 	TArray<FVector> ShapeContactPoints;
 
 	// Shape-space contact normal on the second shape with direction that points away from shape 1
-	UPROPERTY(EditAnywhere, Category=Contact)
+	UPROPERTY(VisibleAnywhere, Category=Contact)
 	FVector  ShapeContactNormal = FVector(ForceInit);
 
 	// Contact separation (negative for overlap)
-	UPROPERTY(EditAnywhere, Category=Contact)
+	UPROPERTY(VisibleAnywhere, Category=Contact)
 	float Phi = 0.f;
 
 	// Face index of the shape we hit. Only valid for Heightfield and Trimesh contact points, otherwise INDEX_NONE
-	UPROPERTY(EditAnywhere, Category=Contact)
+	UPROPERTY(VisibleAnywhere, Category=Contact)
 	int32 FaceIndex = 0;
 
 	// Whether this is a vertex-plane contact, edge-edge contact etc.
-	UPROPERTY(EditAnywhere, Category=Contact)
+	UPROPERTY(VisibleAnywhere, Category=Contact)
 	EChaosVDContactPointType ContactType = EChaosVDContactPointType::Unknown;
 
 	bool Serialize(FArchive& Ar);
@@ -99,35 +99,35 @@ struct CHAOSVDRUNTIME_API FChaosVDManifoldPoint
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, Category=ManifoldPointFalgs)
+	UPROPERTY(VisibleAnywhere, Category=ContactData)
 	uint8 bDisabled:1 = false;
-	UPROPERTY(EditAnywhere, Category=ManifoldPointFalgs)
+	UPROPERTY()
 	uint8 bWasRestored:1 = false;
-	UPROPERTY(EditAnywhere, Category=ManifoldPointFalgs)
+	UPROPERTY()
 	uint8 bWasReplaced:1 = false;
-	UPROPERTY(EditAnywhere, Category=ManifoldPointFalgs)
+	UPROPERTY(VisibleAnywhere, Category=ContactData)
 	uint8 bHasStaticFrictionAnchor:1 = false;
 
-	UPROPERTY(EditAnywhere, Category=ManifoldPointResult)
+	UPROPERTY()
 	uint8 bIsValid:1 = false;
-	UPROPERTY(EditAnywhere, Category=ManifoldPointResult)
+	UPROPERTY(VisibleAnywhere, Category=ContactData)
 	uint8 bInsideStaticFrictionCone:1 = false;
 
-	UPROPERTY(EditAnywhere, Category=ManifoldPointResult)
+	UPROPERTY(VisibleAnywhere, Category=ContactData)
 	FVector NetPushOut = FVector(ForceInit);
-	UPROPERTY(EditAnywhere, Category=ManifoldPointResult)
+	UPROPERTY(VisibleAnywhere, Category=ContactData)
 	FVector NetImpulse = FVector(ForceInit);
 
-	UPROPERTY(EditAnywhere, Category=ManifoldPoint)
+	UPROPERTY(VisibleAnywhere, Category=ContactData)
 	float TargetPhi = 0.f;
-	UPROPERTY(EditAnywhere, Category=ManifoldPoint)
+	UPROPERTY()
 	TArray<FVector> ShapeAnchorPoints;
-	UPROPERTY(EditAnywhere, Category=ManifoldPoint)
+	UPROPERTY()
 	TArray<FVector> InitialShapeContactPoints;
-	UPROPERTY(EditAnywhere, Category=ManifoldPoint)
+	UPROPERTY(VisibleAnywhere, Category=ContactData)
 	FChaosVDContactPoint ContactPoint;
 
-	UPROPERTY(EditAnywhere, Category=SavedManifoldPoint)
+	UPROPERTY()
 	TArray<FVector> ShapeContactPoints;
 
 	bool Serialize(FArchive& Ar);
@@ -155,86 +155,87 @@ struct CHAOSVDRUNTIME_API FChaosVDConstraint
 
 	inline static FStringView WrapperTypeName = TEXT("FChaosVDConstraint");
 
-	UPROPERTY(EditAnywhere, Category=Falgs)
+	UPROPERTY()
 	uint8 bIsCurrent:1 = false;
-	UPROPERTY(EditAnywhere, Category=Falgs)
+	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	uint8 bDisabled:1 = false;
-	UPROPERTY(EditAnywhere, Category=Falgs)
+	UPROPERTY()
 	uint8 bUseManifold:1 = false;
-	UPROPERTY(EditAnywhere, Category=Falgs)
+	UPROPERTY()
 	uint8 bUseIncrementalManifold:1 = false;
-	UPROPERTY(EditAnywhere, Category=Falgs)
+	UPROPERTY()
 	uint8 bCanRestoreManifold:1 = false;
-	UPROPERTY(EditAnywhere, Category=Falgs)
+	UPROPERTY()
 	uint8 bWasManifoldRestored:1 = false;
-	UPROPERTY(EditAnywhere, Category=Falgs)
+	UPROPERTY()
 	uint8 bIsQuadratic0:1 = false;
-	UPROPERTY(EditAnywhere, Category=Falgs)
+	UPROPERTY()
 	uint8 bIsQuadratic1:1 = false;
-	UPROPERTY(EditAnywhere, Category=Falgs)
+	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	uint8 bIsProbe:1 = false;
-	UPROPERTY(EditAnywhere, Category=Falgs)
+	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	uint8 bCCDEnabled:1 = false;
-	UPROPERTY(EditAnywhere, Category=Falgs)
+	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	uint8 bCCDSweepEnabled:1 = false;
-	UPROPERTY(EditAnywhere, Category=Falgs)
+	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	uint8 bModifierApplied:1 = false;
-	UPROPERTY(EditAnywhere, Category=Falgs)
+	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	uint8 bMaterialSet:1 = false;
 	
-	UPROPERTY(EditAnywhere, Category=Collision)
+	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	FVector AccumulatedImpulse = FVector(ForceInit);
 	
-	UPROPERTY(EditAnywhere, Category=Collision)
+	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	EChaosVDContactShapesType ShapesType = EChaosVDContactShapesType::Unknown;
 	
-	UPROPERTY(EditAnywhere, Category=Collision)
+	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	TArray<FTransform> ShapeWorldTransforms;
 
-	UPROPERTY(EditAnywhere, Category=Collision)
+	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	TArray<FTransform> ImplicitTransforms;
 	
-	UPROPERTY(EditAnywhere, Category=Collision)
+	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	float CullDistance = 0.f;
 	
-	UPROPERTY(EditAnywhere, Category=Collision)
+	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	TArray<float> CollisionMargins;
 	
-	UPROPERTY(EditAnywhere, Category=Collision)
+	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	float CollisionTolerance = 0.f;
 	
-	UPROPERTY(EditAnywhere, Category=Collision)
+	UPROPERTY()
 	int32 ClosestManifoldPointIndex = 0;
 	
-	UPROPERTY(EditAnywhere, Category=Collision)
+	UPROPERTY()
 	int32 ExpectedNumManifoldPoints = 0;
 	
-	UPROPERTY(EditAnywhere, Category=Collision)
+	UPROPERTY()
 	FVector LastShapeWorldPositionDelta = FVector(ForceInit);
 	
-	UPROPERTY(EditAnywhere, Category=Collision)
+	UPROPERTY()
 	FQuat LastShapeWorldRotationDelta = FQuat(ForceInit);
 	
-	UPROPERTY(EditAnywhere, Category=Collision)
+	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	float Stiffness = 0.f;
 	
-	UPROPERTY(EditAnywhere, Category=Collision)
+	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	float CCDTimeOfImpact = 0.f;
 	
-	UPROPERTY(EditAnywhere, Category=Collision)
+	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	float CCDEnablePenetration = 0.f;
 	
-	UPROPERTY(EditAnywhere, Category=Collision)
+	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	float CCDTargetPenetration = 0.f;
 
-	UPROPERTY(EditAnywhere, Category=Collision)
+	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	TArray<FChaosVDManifoldPoint> ManifoldPoints;
 
-	UPROPERTY(VisibleAnywhere, Category=Collision)
+	UPROPERTY()
 	int32 Particle0Index = INDEX_NONE;
-	UPROPERTY(VisibleAnywhere, Category=Collision)
+	UPROPERTY()
 	int32 Particle1Index = INDEX_NONE;
 
+	UPROPERTY()
 	int32 SolverID = INDEX_NONE;
 
 	bool Serialize(FArchive& Ar);
@@ -262,29 +263,29 @@ struct CHAOSVDRUNTIME_API FChaosVDParticlePairMidPhase
 
 	inline static FStringView WrapperTypeName = TEXT("FChaosVDParticlePairMidPhase");
 
-	UPROPERTY(VisibleAnywhere, Category=Solver)
+	UPROPERTY()
 	int32 SolverID = INDEX_NONE;
 
-	UPROPERTY(EditAnywhere, Category=Falgs)
+	UPROPERTY(VisibleAnywhere, Category=Flags)
 	uint8 bIsActive:1 = false;
-	UPROPERTY(EditAnywhere, Category=Falgs)
+	UPROPERTY(VisibleAnywhere, Category=Flags)
 	uint8 bIsCCD:1 = false;
-	UPROPERTY(EditAnywhere, Category=Falgs)
+	UPROPERTY(VisibleAnywhere, Category=Flags)
 	uint8 bIsCCDActive:1 = false;
-	UPROPERTY(EditAnywhere, Category=Falgs)
+	UPROPERTY(VisibleAnywhere, Category=Flags)
 	uint8 bIsSleeping:1 = false;
-	UPROPERTY(EditAnywhere, Category=Falgs)
+	UPROPERTY(VisibleAnywhere, Category=Flags)
 	uint8 bIsModified:1 = false;
 
-	UPROPERTY(EditAnywhere, Category=Misc)
+	UPROPERTY(VisibleAnywhere, Category=Misc)
 	int32 LastUsedEpoch = 0;
 
-	UPROPERTY(EditAnywhere, Category=Particle)
+	UPROPERTY(VisibleAnywhere, Category=Particle)
 	int32 Particle0Idx = 0;
-	UPROPERTY(EditAnywhere, Category=Particle)
+	UPROPERTY(VisibleAnywhere, Category=Particle)
 	int32 Particle1Idx = 0;
 
-	UPROPERTY(EditAnywhere, Category=Particle)
+	UPROPERTY()
 	TArray<FChaosVDConstraint> Constraints;
 
 	bool Serialize(FArchive& Ar);

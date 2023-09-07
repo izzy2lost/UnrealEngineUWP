@@ -9,6 +9,8 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SBoxPanel.h"
 
+#define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
+
 void SChaosVDNameListPicker::Construct(const FArguments& InArgs)
 {
 	NameSelectedDelegate = InArgs._OnNameSleceted;
@@ -34,7 +36,6 @@ void SChaosVDNameListPicker::Construct(const FArguments& InArgs)
 		.Padding(2)
 		[
 			SNew(SBox)
-			.WidthOverride(250)
 			[				
 				SNew(SVerticalBox)
 				+SVerticalBox::Slot()
@@ -50,6 +51,7 @@ void SChaosVDNameListPicker::Construct(const FArguments& InArgs)
 	[
 		// Combo button that summons the dropdown menu
 		SAssignNew(PickerComboButton, SComboButton)
+			.IsEnabled_Raw(this, &SChaosVDNameListPicker::HasElements)
 			.ButtonContent()
 			[
 				DropDownButtonLabelTextBox.ToSharedRef()
@@ -62,14 +64,31 @@ void SChaosVDNameListPicker::Construct(const FArguments& InArgs)
 			.ContentPadding(2.0f)
 			.OnComboBoxOpened(this, &SChaosVDNameListPicker::OnListOpened)
 	];
-	
 }
 
 void SChaosVDNameListPicker::UpdateNameList(TArray<TSharedPtr<FName>>&& NewNameList)
 {
 	// TODO: It might be worth to check is the array is different before doing this, but it might be more expensive
 	CachedNameList = MoveTemp(NewNameList);
+
+	if(!HasElements())
+	{
+		CurrentSelectedName = nullptr;
+	}
+
 	NameListWidget->RebuildList();
+}
+
+void SChaosVDNameListPicker::SelectName(const TSharedPtr<FName>& NameToSelect, ESelectInfo::Type SelectionInfo)
+{
+	NameListWidget->SetSelection(NameToSelect, ESelectInfo::OnMouseClick);
+	NameListWidget->RequestListRefresh();
+	OnClickItem(NameToSelect);
+}
+
+bool SChaosVDNameListPicker::HasElements() const
+{
+	return CachedNameList.Num() > 0;
 }
 
 FText SChaosVDNameListPicker::GetCurrentDropDownButtonLabel() const
@@ -80,7 +99,7 @@ FText SChaosVDNameListPicker::GetCurrentDropDownButtonLabel() const
 	}
 	else
 	{
-		return NSLOCTEXT("ChaosVisualDebugger", "NameList", "Pick an element...");
+		return HasElements() ? LOCTEXT("NameList", "Pick an element...") : LOCTEXT("EmptyList", "Empty...");
 	}
 }
 
@@ -123,3 +142,5 @@ TSharedRef<ITableRow> SChaosVDNameListPicker::MakeNameItemForList(TSharedPtr<FNa
 
 	return ListTableRow.ToSharedRef();
 }
+
+#undef LOCTEXT_NAMESPACE

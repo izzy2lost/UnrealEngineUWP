@@ -14,6 +14,7 @@ struct FChaosVDVisualizationContext
 	FTransform SpaceTransform;
 	TWeakPtr<FChaosVDScene> CVDScene;
 	int32 SolverID = INDEX_NONE;
+	uint32 VisualizationFlags = 0;
 };
 
 /** Interface to be used by any object that contains Particle Data that needs to be visualized.

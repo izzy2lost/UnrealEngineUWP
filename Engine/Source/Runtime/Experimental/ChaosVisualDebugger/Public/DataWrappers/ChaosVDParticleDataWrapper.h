@@ -409,7 +409,7 @@ struct FChaosVDParticleDataWrapper : public FChaosVDParticleDataBase
 	{
 	}
 
-	UPROPERTY(EditAnywhere, Category= "Particle Non Frequent Data")
+	UPROPERTY(VisibleAnywhere, Category= "Particle Non Frequent Data")
 	uint32 GeometryHash = 0;
 
 	UPROPERTY(VisibleAnywhere, Category= "Particle Non Frequent Data")
@@ -439,13 +439,7 @@ struct FChaosVDParticleDataWrapper : public FChaosVDParticleDataBase
 	UPROPERTY(EditAnywhere, Category= "Particle Particle Mass Props")
 	FChaosVDParticleMassProps ParticleMassProps;
 
-	UPROPERTY(EditAnywhere, Category= "Particle Collision")
-	TArray<FChaosVDParticlePairMidPhase> ParticleMidPhases;
-
-	UPROPERTY(EditAnywhere, Category= "Particle Collision")
-	TArray<FChaosVDConstraint> ParticleConstraints;
-
-	UPROPERTY(EditAnywhere, Category= "Particle Collision")
+	UPROPERTY()
 	TArray<FChaosVDShapeCollisionData> CollisionDataPerShape;
 	
 	/** Only used during recording */

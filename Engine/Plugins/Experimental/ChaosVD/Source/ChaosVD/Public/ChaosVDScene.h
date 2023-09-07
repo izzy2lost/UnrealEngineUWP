@@ -9,6 +9,8 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/ObjectPtr.h"
 
+class AChaosVDSolverInfoActor;
+class AChaosVDSceneCollisionContainer;
 class UChaosVDEditorSettings;
 class FChaosVDGeometryBuilder;
 class AChaosVDParticleActor;
@@ -21,7 +23,7 @@ class UWorld;
 
 struct FTypedElementHandle;
 
-typedef TMap<int32, AChaosVDParticleActor*> FChaosVDParticlesByIDMap;
+typedef TMap<int32, AChaosVDSolverInfoActor*> FChaosVDSolverInfoByIDMap;
 
 DECLARE_MULTICAST_DELEGATE(FChaosVDSceneUpdatedDelegate)
 DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDActorActiveStateUpdateDelegate, AChaosVDParticleActor*)
@@ -93,6 +95,9 @@ public:
 	 */
 	AChaosVDParticleActor* GetParticleActor(int32 SolverID, int32 ParticleID);
 
+	const FChaosVDSolverInfoByIDMap& GetSolverInfoActorsMap() { return SolverDataContainerBySolverID; }
+	AChaosVDSolverInfoActor* GetSolverInfoActor(int32 SolverID);
+
 	AActor* GetSkySphereActor() const { return SkySphere; }
 
 	FChaosVDActorActiveStateUpdateDelegate& OnActorActiveStateChanged() { return ParticleActorUpdateDelegate; }
@@ -109,10 +114,10 @@ private:
 	void CreateBaseLights(UWorld* TargetWorld) const;
 
 	/** Creates the instance of the World which will be used the recorded data*/
-	UWorld* CreatePhysicsVDWorld() const;
+	UWorld* CreatePhysicsVDWorld();
 
-	/** Map of ID-ChaosVDParticle Actor. Used to keep track of actor instances and be able to modify them as needed*/
-	TMap<int32, FChaosVDParticlesByIDMap> ParticlesBySolverID;
+	/** Map of SolverID-ChaosVDSolverInfo Actor. Used to keep track of active solvers representations and be able to modify them as needed*/
+	FChaosVDSolverInfoByIDMap SolverDataContainerBySolverID;
 
 	/** Returns the correct TypedElementHandle based on an object type so it can be used with the selection set object */
 	FTypedElementHandle GetSelectionHandleForObject(const UObject* Object) const;
@@ -129,6 +134,8 @@ private:
 
 	void InitializeSelectionSets();
 	void DeInitializeSelectionSets();
+
+	void HandleActorDestroyed(AActor* ActorDestroyed);
 
 	/** UWorld instance used to represent the recorded debug data */
 	TObjectPtr<UWorld> PhysicsVDWorld = nullptr;
@@ -159,4 +166,6 @@ private:
 	bool bIsInitialized = false;
 
 	FChaosVDActorActiveStateUpdateDelegate ParticleActorUpdateDelegate;
+
+	FDelegateHandle ActorDestroyedHandle;
 };

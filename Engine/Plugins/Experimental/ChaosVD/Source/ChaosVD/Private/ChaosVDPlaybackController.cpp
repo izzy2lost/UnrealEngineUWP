@@ -103,8 +103,11 @@ void FChaosVDPlaybackController::UnloadCurrentRecording(EChaosVDUnloadRecordingF
 void FChaosVDPlaybackController::PlayFromClosestKeyFrame_AssumesLocked(const int32 InTrackID, const int32 FrameNumber, FChaosVDScene& InSceneToControl) const
 {
 	const int32 KeyFrameNumber = LoadedRecording->FindFirstSolverKeyFrameNumberFromFrame_AssumesLocked(InTrackID, FrameNumber);
-	if (!ensure(KeyFrameNumber >= 0))
+	if (KeyFrameNumber < 0)
 	{
+		// This can happen during live debugging as we miss some of the events at the beginning.
+		// Loading a trace file that was recorded as part of a live session, will have the same issue.
+		UE_LOG(LogChaosVDEditor, Warning, TEXT("[%s] Failed to find a keyframe close to frame [%d] of track [%d]"), ANSI_TO_TCHAR(__FUNCTION__), FrameNumber, InTrackID);
 		return;
 	}
 

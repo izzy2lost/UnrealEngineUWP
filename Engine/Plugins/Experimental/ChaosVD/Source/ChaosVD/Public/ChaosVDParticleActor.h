@@ -1,17 +1,19 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+#include "ChaosVDCollisionDataProviderInterface.h"
 #include "ChaosVDGeometryDataComponent.h"
+#include "ChaosVDSceneObjectBase.h"
 #include "Chaos/Core.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 #include "GameFramework/Actor.h"
-#include "Visualizers/ChaosVDCollisionDataVisualizer.h"
-#include "Visualizers/ChaosVDParticleDataVisualizer.h"
 #include "Visualizers/ChaosVDDataVisualizerBase.h"
+#include "Visualizers/IChaosVDParticleVisualizationDataProvider.h"
 
 #include "ChaosVDParticleActor.generated.h"
 
+enum class EChaosVDParticleDataVisualizationFlags : uint32;
 class FChaosVDScene;
 struct FChaosVDParticleDebugData;
 class UMeshComponent;
@@ -33,22 +35,23 @@ enum class EChaosVDActorGeometryUpdateFlags : int32
 ENUM_CLASS_FLAGS(EChaosVDActorGeometryUpdateFlags)
 
 /** Actor used to represent a Chaos Particle in the Visual Debugger's world */
-UCLASS()
-class AChaosVDParticleActor : public AActor, public IChaosVDParticleVisualizationDataProvider, public IChaosVDVisualizerContainerInterface
+UCLASS(HideCategories=(Transform))
+class AChaosVDParticleActor : public AActor, public IChaosVDParticleVisualizationDataProvider, public IChaosVDVisualizerContainerInterface,
+								public FChaosVDSceneObjectBase, public IChaosVDCollisionDataProviderInterface
 {
+
 	GENERATED_BODY()
+
 public:
 	AChaosVDParticleActor(const FObjectInitializer& ObjectInitializer);
 
 	void UpdateFromRecordedParticleData(const FChaosVDParticleDataWrapper& InRecordedData, const Chaos::FRigidTransform3& SimulationTransform);
 
-	void UpdateCollisionData(const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>& InRecordedMidPhases);
-	void UpdateCollisionData(const TArray<FChaosVDConstraint>& InRecordedConstraints);
 	void UpdateGeometry(const Chaos::FConstImplicitObjectPtr& InImplicitObject, EChaosVDActorGeometryUpdateFlags OptionsFlags = EChaosVDActorGeometryUpdateFlags::None);
 
 	void UpdateGeometry(uint32 NewGeometryHash, EChaosVDActorGeometryUpdateFlags OptionsFlags = EChaosVDActorGeometryUpdateFlags::None);
 
-	void SetScene(const TSharedPtr<FChaosVDScene>& InScene);
+	virtual void SetScene(TWeakPtr<FChaosVDScene> InScene) override;
 
 	virtual void BeginDestroy() override;
 
@@ -74,15 +77,20 @@ public:
 	 */
 	bool IsActive() const { return bIsActive; }
 
+	//BEGIN IChaosVDCollisionDataProvider Interface
+	virtual void GetCollisionData(TArray<TSharedPtr<FChaosVDCollisionDataFinder>>& OutCollisionDataFound) override;
+	virtual bool HasCollisionData() override;
+	virtual FName GetName() override;
+	//END IChaosVDCollisionDataProvider Interface
+
 protected:
+
+	const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* GetCollisionMidPhasesArray() const;
 
 	void UpdateShapeDataComponents();
 	
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDParticleDataVisualizationFlags"))
 	uint8 LocalParticleDataVisualizationFlags;
-	
-	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDCollisionVisualizationFlags"))
-	uint8 LocalCollisionDataVisualizationFlags;
 
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags")
 	bool bShowDebugText = false;
@@ -93,8 +101,6 @@ protected:
 	FTransform CachedSimulationTransform;
 
 	bool bIsGeometryDataGenerationStarted = false;
-
-	TWeakPtr<FChaosVDScene> OwningScene;
 
 	TArray<TWeakObjectPtr<UMeshComponent>> MeshComponents;
 

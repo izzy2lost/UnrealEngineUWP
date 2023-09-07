@@ -7,6 +7,8 @@
 #include "Engine/StaticMesh.h"
 #include "UObject/Object.h"
 #include "UObject/SoftObjectPtr.h"
+#include "Visualizers/ChaosVDParticleDataVisualizer.h"
+#include "Visualizers/ChaosVDSolverCollisionDataComponentVisualizer.h"
 
 #include "ChaosVDEditorSettings.generated.h"
 
@@ -49,10 +51,10 @@ class UChaosVDEditorSettings : public UObject
 public:
 
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDParticleDataVisualizationFlags"))
-	uint8 GlobalParticleDataVisualizationFlags = 0;
+	uint32 GlobalParticleDataVisualizationFlags = 0;
 	
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDCollisionVisualizationFlags"))
-	uint8 GlobalCollisionDataVisualizationFlags = 0;
+	uint32 GlobalCollisionDataVisualizationFlags = 0;
 
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDCollisionVisualizationFlags"))
 	bool bShowDebugText = false;

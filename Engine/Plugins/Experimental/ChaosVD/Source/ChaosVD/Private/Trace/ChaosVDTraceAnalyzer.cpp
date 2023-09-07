@@ -177,9 +177,11 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 		{
 			const int32 DataID = EventData.GetValue<int32>("DataID");
 
-			if (!ensure(ChaosVDTraceProvider->ProcessBinaryData(DataID)))
+			if (!ChaosVDTraceProvider->ProcessBinaryData(DataID))
 			{
-				UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] FailedToProcess Binary Data with ID [%d]"), ANSI_TO_TCHAR(__FUNCTION__), DataID);
+				// This can happen during live debugging as we miss some of the events at the beginning.
+				// Loading a trace file that was recorded as part of a live session, will have the same issue.
+				UE_LOG(LogChaosVDEditor, Warning, TEXT("[%s] FailedToProcess Binary Data with ID [%d]"), ANSI_TO_TCHAR(__FUNCTION__), DataID);
 			}
 
 			break;
