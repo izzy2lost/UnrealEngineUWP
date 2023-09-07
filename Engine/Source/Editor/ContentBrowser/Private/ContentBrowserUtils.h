@@ -38,8 +38,17 @@ namespace ContentBrowserUtils
 	/** Displays a modeless message asking yes or no type question */
 	void DisplayConfirmationPopup(const FText& Message, const FText& YesString, const FText& NoString, const TSharedRef<SWidget>& ParentContent, const FOnClicked& OnYesClicked, const FOnClicked& OnNoClicked = FOnClicked());
 
+	/** Returns references to the specified items */
+	FString GetItemReferencesText(const TArray<FContentBrowserItem>& Items);
+
+	/** Returns references to the specified folders */
+	FString GetFolderReferencesText(const TArray<FContentBrowserItem>& Folders);
+
 	/** Copies references to the specified items to the clipboard */
 	void CopyItemReferencesToClipboard(const TArray<FContentBrowserItem>& ItemsToCopy);
+
+	/** Copies references to the specified folders to the clipboard */
+	void CopyFolderReferencesToClipboard(const TArray<FContentBrowserItem>& FoldersToCopy);
 
 	/** Copies file paths on disk to the specified items to the clipboard */
 	void CopyFilePathsToClipboard(const TArray<FContentBrowserItem>& ItemsToCopy);

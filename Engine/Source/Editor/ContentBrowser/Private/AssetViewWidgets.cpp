@@ -27,6 +27,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Text/TextLayout.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/PlatformApplicationMisc.h"
 #include "ICollectionManager.h"
 #include "ISourceControlModule.h"
 #include "ISourceControlProvider.h"
@@ -96,17 +97,39 @@ FReply FAssetViewModeUtils::OnViewModeKeyDown( const TSet< TSharedPtr<FAssetView
 		)
 	{
 		TArray<FContentBrowserItem> SelectedFiles;
+		TArray<FContentBrowserItem> SelectedFolders;
 		for (const TSharedPtr<FAssetViewItem>& SelectedItem : SelectedItems)
 		{
 			if (SelectedItem->GetItem().IsFile())
 			{
 				SelectedFiles.Add(SelectedItem->GetItem());
 			}
+			else if (SelectedItem->GetItem().IsFolder())
+			{
+				SelectedFolders.Add(SelectedItem->GetItem());
+			}
 		}
+
+		FString ClipboardText;
 
 		if (SelectedFiles.Num() > 0)
 		{
-			ContentBrowserUtils::CopyItemReferencesToClipboard(SelectedFiles);
+			ClipboardText += ContentBrowserUtils::GetItemReferencesText(SelectedFiles);
+		}
+
+		if (SelectedFolders.Num() > 0)
+		{
+			if (!ClipboardText.IsEmpty())
+			{
+				ClipboardText += LINE_TERMINATOR;
+			}
+
+			ClipboardText += ContentBrowserUtils::GetFolderReferencesText(SelectedFolders);
+		}
+
+		if (!ClipboardText.IsEmpty())
+		{
+			FPlatformApplicationMisc::ClipboardCopy(*ClipboardText);
 		}
 
 		return FReply::Handled();

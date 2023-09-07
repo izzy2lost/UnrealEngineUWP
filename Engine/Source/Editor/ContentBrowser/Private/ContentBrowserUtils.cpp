@@ -312,21 +312,55 @@ void ContentBrowserUtils::DisplayConfirmationPopup(const FText& Message, const F
 	Popup->OpenPopup(ParentContent);
 }
 
-void ContentBrowserUtils::CopyItemReferencesToClipboard(const TArray<FContentBrowserItem>& ItemsToCopy)
+FString ContentBrowserUtils::GetItemReferencesText(const TArray<FContentBrowserItem>& Items)
 {
-	TArray<FContentBrowserItem> SortedItems = ItemsToCopy;
+	TArray<FContentBrowserItem> SortedItems = Items;
 	SortedItems.Sort([](const FContentBrowserItem& One, const FContentBrowserItem& Two)
 	{
 		return One.GetVirtualPath().Compare(Two.GetVirtualPath()) < 0;
 	});
 
-	FString ClipboardText;
+	FString Result;
 	for (const FContentBrowserItem& Item : SortedItems)
 	{
-		Item.AppendItemReference(ClipboardText);
+		if (ensure(!Item.IsFolder()))
+		{
+			Item.AppendItemReference(Result);
+		}
 	}
 
-	FPlatformApplicationMisc::ClipboardCopy(*ClipboardText);
+	return Result;
+}
+
+FString ContentBrowserUtils::GetFolderReferencesText(const TArray<FContentBrowserItem>& Folders)
+{
+	TArray<FContentBrowserItem> SortedItems = Folders;
+	SortedItems.Sort([](const FContentBrowserItem& One, const FContentBrowserItem& Two)
+	{
+		return One.GetVirtualPath().Compare(Two.GetVirtualPath()) < 0;
+	});
+
+	FString Result;
+	for (const FContentBrowserItem& Item : SortedItems)
+	{
+		if (ensure(Item.IsFolder()))
+		{
+			Result += Item.GetVirtualPath().ToString();
+			Result += LINE_TERMINATOR;
+		}
+	}
+
+	return Result;
+}
+
+void ContentBrowserUtils::CopyItemReferencesToClipboard(const TArray<FContentBrowserItem>& ItemsToCopy)
+{
+	FPlatformApplicationMisc::ClipboardCopy(*GetItemReferencesText(ItemsToCopy));
+}
+
+void ContentBrowserUtils::CopyFolderReferencesToClipboard(const TArray<FContentBrowserItem>& FoldersToCopy)
+{
+	FPlatformApplicationMisc::ClipboardCopy(*GetFolderReferencesText(FoldersToCopy));
 }
 
 void ContentBrowserUtils::CopyFilePathsToClipboard(const TArray<FContentBrowserItem>& ItemsToCopy)

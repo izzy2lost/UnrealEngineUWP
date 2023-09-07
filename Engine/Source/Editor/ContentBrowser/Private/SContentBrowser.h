@@ -430,6 +430,9 @@ private:
 	/** Handler for Resave on a folder */
 	void HandleResaveAllCurrentFolderCommand() const;
 
+	/** Handler for Copy path on an asset*/
+	void CopySelectedAssetPathCommand() const;
+
 	/** Handler to check to see if a delete command is allowed */
 	bool HandleDeleteCommandCanExecute() const;
 

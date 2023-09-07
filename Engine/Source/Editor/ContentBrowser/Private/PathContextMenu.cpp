@@ -24,6 +24,7 @@
 #include "Framework/MultiBox/MultiBoxExtender.h"
 #include "Framework/SlateDelegates.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/PlatformApplicationMisc.h"
 #include "HAL/PlatformCrt.h"
 #include "IContentBrowserDataModule.h"
 #include "Math/Vector2D.h"
@@ -461,6 +462,11 @@ void FPathContextMenu::ExecuteResaveFolder()
 	SaveFilesWithinSelectedFolders(EContentBrowserItemSaveFlags::None);
 }
 
+void FPathContextMenu::CopySelectedFolder()
+{
+	CopySelectedFoldersToClipoard();
+}
+
 void FPathContextMenu::SaveFilesWithinSelectedFolders(EContentBrowserItemSaveFlags InSaveFlags)
 {
 	UContentBrowserDataSubsystem* ContentBrowserData = IContentBrowserDataModule::Get().GetSubsystem();
@@ -494,6 +500,19 @@ void FPathContextMenu::SaveFilesWithinSelectedFolders(EContentBrowserItemSaveFla
 	{
 		SourceAndItemsPair.Key->BulkSaveItems(SourceAndItemsPair.Value, InSaveFlags);
 	}
+}
+
+void FPathContextMenu::CopySelectedFoldersToClipoard()
+{
+	TStringBuilder<1024> StringBuilder;
+
+	for (const FContentBrowserItem& SelectedItem : SelectedFolders)
+	{
+		StringBuilder.Append(SelectedItem.GetVirtualPath().ToString());
+		StringBuilder.Append(LINE_TERMINATOR);
+	}
+
+	FPlatformApplicationMisc::ClipboardCopy(StringBuilder.ToString());
 }
 
 bool FPathContextMenu::CanExecuteDelete() const

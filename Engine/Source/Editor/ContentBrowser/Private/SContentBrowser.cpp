@@ -663,6 +663,10 @@ void SContentBrowser::BindCommands()
 		FExecuteAction::CreateSP(this, &SContentBrowser::HandleResaveAllCurrentFolderCommand)
 	));
 
+	Commands->MapAction(FContentBrowserCommands::Get().CopySelectedAssetPath, FUIAction(
+		FExecuteAction::CreateSP(this, &SContentBrowser::CopySelectedAssetPathCommand)
+	));
+
 	// Allow extenders to add commands
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::GetModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
 	TArray<FContentBrowserCommandExtender> CommmandExtenderDelegates = ContentBrowserModule.GetAllContentBrowserCommandExtenders();
@@ -3373,6 +3377,11 @@ void SContentBrowser::HandleSaveAllCurrentFolderCommand() const
 void SContentBrowser::HandleResaveAllCurrentFolderCommand() const
 {
 	PathContextMenu->ExecuteResaveFolder();
+}
+
+void SContentBrowser::CopySelectedAssetPathCommand() const
+{
+	PathContextMenu->CopySelectedFolder();
 }
 
 bool SContentBrowser::HandleDeleteCommandCanExecute() const
