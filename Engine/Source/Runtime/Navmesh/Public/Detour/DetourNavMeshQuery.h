@@ -778,6 +778,9 @@ private:
 	NAVMESH_API dtStatus projectedPointOnPolyInTile(const dtMeshTile* tile, const dtPoly* poly, const dtReal* pos, dtReal* projected) const;
 	
 	//@UE BEGIN
+	/// Handle 0 extents by having the vector components set to a minimum value.
+	static void dtApplyEpsilon(dtReal* extents);
+	
 	// exposing function to be able to generate navigation corridors as sequence of point pairs
 public:
 	/// Returns portal points between two polygons.
