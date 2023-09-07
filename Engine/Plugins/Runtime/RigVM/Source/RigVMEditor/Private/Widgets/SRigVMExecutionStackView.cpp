@@ -1020,6 +1020,10 @@ void SRigVMExecutionStackView::HandleHostInitializedEvent(URigVMHost* InHost, co
 
 void SRigVMExecutionStackView::HandlePreviewHostUpdated(FRigVMEditor* InEditor)
 {
+	if(URigVMHost* RigVMHost = InEditor->GetRigVMHost())
+	{
+		RefreshTreeView(RigVMHost->GetVM(), &RigVMHost->GetExtendedExecuteContext());
+	}
 }
 
 void SRigVMExecutionStackView::HandleItemMouseDoubleClick(TSharedPtr<FRigStackEntry> InItem)
