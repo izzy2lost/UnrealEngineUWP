@@ -1209,6 +1209,17 @@ FString UCookOnTheFlyServer::GetBaseDirectoryForDLC() const
 	return FPaths::ProjectPluginsDir() / CookByTheBookOptions->DlcName;
 }
 
+FString UCookOnTheFlyServer::GetMountedAssetPathForDLC() const
+{
+	TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(CookByTheBookOptions->DlcName);
+	if (Plugin.IsValid())
+	{
+		return Plugin->GetMountedAssetPath();
+	}
+
+	return FString::Printf(TEXT("/%s/"), *CookByTheBookOptions->DlcName);
+}
+
 FString UCookOnTheFlyServer::GetContentDirectoryForDLC() const
 {
 	return GetBaseDirectoryForDLC() / TEXT("Content");
@@ -11500,9 +11511,14 @@ void UCookOnTheFlyServer::RecordDLCPackagesFromBaseGame(FBeginCookContext& Begin
 
 		TArray<FName>& PlatformBasedPackages = CookByTheBookOptions->BasedOnReleaseCookedPackages.FindOrAdd(PlatformName);
 		PlatformBasedPackages.Reset(ActivePackageList.Num());
+		FString PluginPathToSkip(!!(CookOptions & ECookByTheBookOptions::DlcRecook) ? GetMountedAssetPathForDLC() : "");
 		for (UE::Cook::FConstructPackageData& PackageData : ActivePackageList)
 		{
-			PlatformBasedPackages.Add(PackageData.NormalizedFileName);
+			// If we are recooking a DLC, skip adding its assets to 'BasedOnReleaseCookedPackages' so that they don't get ignored in the final stages of the cook.
+			if ((PluginPathToSkip.Len() == 0) || !PackageData.PackageName.ToString().StartsWith(PluginPathToSkip))
+			{
+				PlatformBasedPackages.Add(PackageData.NormalizedFileName);
+			}
 		}
 		bFirstAddExistingPackageDatas = false;
 	}

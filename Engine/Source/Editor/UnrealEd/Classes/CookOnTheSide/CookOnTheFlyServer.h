@@ -1256,6 +1256,8 @@ private:
 
 	UNREALED_API FString GetContentDirectoryForDLC() const;
 
+	UNREALED_API FString GetMountedAssetPathForDLC() const;
+
 	FString GetMetadataDirectory() const;
 
 	/**
