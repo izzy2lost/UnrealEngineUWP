@@ -149,5 +149,3 @@ TSharedRef<SWidget> SDMXReadOnlyFixturePatchListRow::GeneratePatchRow()
 			.ColorAndOpacity(FLinearColor::White)
 		];
 }
-
-#undef LOCTEXT_NAMESPACE
