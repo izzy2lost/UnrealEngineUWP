@@ -170,6 +170,8 @@ void UpdateAllPrimitiveSceneInfosForSingleComponentInterface (IPrimitiveComponen
 	{
 		if (InScenesToUpdateAllPrimitiveSceneInfosForBatching == nullptr)
 		{
+			UE::RenderCommandPipe::FSyncScope SyncScope;
+
 			// If no batching is available (this ComponentReregisterContext is not created by a FGlobalComponentReregisterContext), issue one update per component
 			ENQUEUE_RENDER_COMMAND(UpdateAllPrimitiveSceneInfosCmd)([Scene](FRHICommandListImmediate& RHICmdList) {
 				Scene->UpdateAllPrimitiveSceneInfos(RHICmdList);

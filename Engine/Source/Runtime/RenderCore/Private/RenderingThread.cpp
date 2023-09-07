@@ -1899,7 +1899,9 @@ FRenderCommandPipe::FRenderCommandPipe(const TCHAR* InName, ERenderCommandPipeFl
 		SetEnabled(Variable->GetBool());
 	}))
 {
+#if !UE_SERVER
 	GlobalListLink.LinkHead(GRenderCommandPipeRegistry.GetGlobalList());
+#endif
 }
 
 FRenderCommandPipe::~FRenderCommandPipe()
