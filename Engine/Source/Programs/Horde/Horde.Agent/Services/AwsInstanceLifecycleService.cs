@@ -100,7 +100,7 @@ class AwsInstanceLifecycleService : BackgroundService
 	public AwsInstanceLifecycleService(HttpClient httpClient, IOptions<AgentSettings> settings, ILogger<AwsInstanceLifecycleService> logger)
 	{
 		_httpClient = httpClient;
-		_httpClient.Timeout = TimeSpan.FromSeconds(2);
+		_httpClient.Timeout = TimeSpan.FromSeconds(10);
 		_terminationWarningCallback = OnTerminationWarningAsync;
 		_terminationCallback = OnTerminationAsync;
 		_logger = logger;
