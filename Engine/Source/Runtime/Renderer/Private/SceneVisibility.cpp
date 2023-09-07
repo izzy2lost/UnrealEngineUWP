@@ -4790,7 +4790,7 @@ void FSceneRenderer::GatherReflectionCaptureLightMeshElements()
 
 void FSceneRenderer::PostVisibilityFrameSetup(FILCUpdatePrimTaskData*& OutILCTaskData)
 {
-	if (GetRendererOutput() == ERendererOutput::FinalSceneColor)
+	if (GetRendererOutput() != ERendererOutput::FinalSceneColor)
 	{
 		return;
 	}
