@@ -400,7 +400,7 @@ bool FOpenCVHelper::IdentifyArucoMarkers(TArray<FColor>& Image, FIntPoint ImageS
 	for (int32 MarkerIndex = 0; MarkerIndex < NumMarkers; ++MarkerIndex)
 	{
 		FArucoMarker NewMarker;
-		NewMarker.MarkedId = MarkerIds[MarkerIndex];
+		NewMarker.MarkerID = MarkerIds[MarkerIndex];
 
 		const std::vector<cv::Point2f>& MarkerCorners = Corners[MarkerIndex];
 
@@ -439,7 +439,7 @@ bool FOpenCVHelper::DrawArucoMarkers(const TArray<FArucoMarker>& Markers, UTextu
 	{
 		const FArucoMarker& Marker = Markers[MarkerIndex];
 
-		MarkerIds.push_back(Marker.MarkedId);
+		MarkerIds.push_back(Marker.MarkerID);
 
 		std::vector<cv::Point2f> MarkerCorners;
 		MarkerCorners.reserve(4);
@@ -610,6 +610,54 @@ bool FOpenCVHelper::SolvePnP(const TArray<FVector>& ObjectPoints, const TArray<F
 
 	// Convert the OpenCV rotation and translation vectors into an FTransform in UE's coordinate system
 	MakeCameraPoseFromObjectVectors(Rotation, Translation, OutCameraPose);
+
+	return true;
+#else
+	return false;
+#endif // WITH_OPENCV
+}
+
+bool FOpenCVHelper::ProjectPoints(const TArray<FVector>& ObjectPoints, const FVector2D& FocalLength, const FVector2D& ImageCenter, const TArray<float>& DistortionParameters, const FTransform& CameraPose, TArray<FVector2f>& OutImagePoints)
+{
+#if WITH_OPENCV
+	const int32 NumPoints = ObjectPoints.Num();
+
+	// Convert from UE coordinates to OpenCV coordinates
+	TArray<FVector> CvObjectPoints;
+	CvObjectPoints.Reserve(NumPoints);
+
+	for (const FVector& ObjectPoint : ObjectPoints)
+	{
+		CvObjectPoints.Add(FOpenCVHelper::ConvertUnrealToOpenCV(ObjectPoint));
+	}
+
+	cv::Mat ObjectPointsMat = cv::Mat(NumPoints, 1, CV_64FC3, (void*)CvObjectPoints.GetData());
+
+	cv::Mat Rotation;
+	cv::Mat Translation;
+	FOpenCVHelper::MakeObjectVectorsFromCameraPose(CameraPose, Rotation, Translation);
+
+	// Initialize the camera matrix that will be used in each call to projectPoints()
+	cv::Mat CameraMatrix = cv::Mat::eye(3, 3, CV_64F);
+
+	CameraMatrix.at<double>(0, 0) = FocalLength.X;
+	CameraMatrix.at<double>(1, 1) = FocalLength.Y;
+	CameraMatrix.at<double>(0, 2) = ImageCenter.X;
+	CameraMatrix.at<double>(1, 2) = ImageCenter.Y;
+
+	cv::Mat DistortionParametersMat = cv::Mat(DistortionParameters.Num(), 1, CV_32FC1, (void*)DistortionParameters.GetData());
+
+	// cv::projectPoints requires that the 3D points and 2D points have the same bit depth, so we compute projected points with double precision, and then convert them back to floats before outputting
+	TArray<FVector2D> ImagePointsDoublePrecision;
+	ImagePointsDoublePrecision.Init(FVector2D(0.0, 0.0), NumPoints);
+	cv::Mat ImagePointsMat = cv::Mat(NumPoints, 1, CV_64FC2, (void*)ImagePointsDoublePrecision.GetData());
+
+	cv::projectPoints(ObjectPointsMat, Rotation, Translation, CameraMatrix, DistortionParametersMat, ImagePointsMat);
+
+	for (const FVector2D& Point : ImagePointsDoublePrecision)
+	{
+		OutImagePoints.Add(FVector2f(Point.X, Point.Y));
+	}
 
 	return true;
 #else

@@ -69,7 +69,7 @@ enum class EArucoDictionary : uint8
 
 struct OPENCVHELPER_API FArucoMarker
 {
-	int32 MarkedId;
+	int32 MarkerID = 0;
 	FVector2f Corners[4];
 };
 
@@ -157,6 +157,9 @@ public:
 
 	/** Compute the camera pose that minimizes the reprojection error of the input object points and image points */
 	static bool SolvePnP(const TArray<FVector>& ObjectPoints, const TArray<FVector2f>& ImagePoints, const FVector2D& FocalLength, const FVector2D& ImageCenter, const TArray<float>& DistortionParameters, FTransform& OutCameraPose);
+
+	/** Project the input object points to the 2D image plane defined by the input camera intrinsics and camera pose */
+	static bool ProjectPoints(const TArray<FVector>& ObjectPoints, const FVector2D& FocalLength, const FVector2D& ImageCenter, const TArray<float>& DistortionParameters, const FTransform& CameraPose, TArray<FVector2f>& OutImagePoints);
 
 	/** Find a 3D fit line that passes through the input points, as well as a point on that line */
 	static bool FitLine3D(const TArray<FVector>& InPoints, FVector& OutLine, FVector& OutPointOnLine);

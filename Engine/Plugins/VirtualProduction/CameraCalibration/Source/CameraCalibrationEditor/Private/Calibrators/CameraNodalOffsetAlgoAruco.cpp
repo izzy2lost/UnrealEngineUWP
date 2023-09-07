@@ -176,7 +176,7 @@ bool UCameraNodalOffsetAlgoAruco::PopulatePoints(FText& OutErrorMessage)
 		{
 			// Build calibrator point name based on the detected marker
 			const FString DictionaryName = UE::CameraCalibration::Private::GetArucoDictionaryName(Dictionary);
-			const FString MarkerName = FString::Printf(TEXT("%s-%d-%s"), *DictionaryName, Marker.MarkedId, *CornerNames[CornerIdx]); //-V557
+			const FString MarkerName = FString::Printf(TEXT("%s-%d-%s"), *DictionaryName, Marker.MarkerID, *CornerNames[CornerIdx]); //-V557
 
 			FNodalOffsetPointsCalibratorPointData PointCache;
 

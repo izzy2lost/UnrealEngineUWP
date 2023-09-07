@@ -22,6 +22,7 @@ namespace UnrealBuildTool.Rules
 					"CoreUObject",
 	                "CurveEditor",
 					"DesktopPlatform",
+					"DeveloperSettings",
 					"EditorStyle",
 					"EditorWidgets",
 					"Engine",
