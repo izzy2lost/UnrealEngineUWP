@@ -93,7 +93,11 @@ public class LeaseUtilizationAwsMetricStrategy : IPoolSizeStrategy
 		span.SetAttribute(OpenTelemetryTracers.DatadogResourceAttribute, pool.Id.ToString());
 
 		List<ILease> leases = await _leaseCollection.FindLeasesAsync(minTime: _clock.UtcNow - TimeSpan.FromSeconds(Settings.SamplePeriodSec));
-		leases = leases.Where(x => x.PoolId == pool.Id).ToList();
+		leases = leases.Where(lease =>
+		{
+			IAgent? agent = agents.Find(a => a.Id == lease.AgentId);
+			return agent != null && agent.IsInPool(pool.Id);
+		}).ToList();
 
 		DateTime now = _clock.UtcNow;
 		double leaseUtilization = leases.Count / (double)agents.Count;
