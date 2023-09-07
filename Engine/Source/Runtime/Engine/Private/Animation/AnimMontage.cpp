@@ -2848,6 +2848,7 @@ UAnimMontage* FAnimMontageInstance::SetSequencerMontagePosition(FName SlotName, 
 
 		if (MontageInstanceToUpdate)
 		{
+			PlayingMontage = MontageInstanceToUpdate->Montage;
 			InOutInstanceId = MontageInstanceToUpdate->GetInstanceID();
 
 			// ensure full weighting to this instance
