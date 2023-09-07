@@ -214,25 +214,29 @@ void UFootstepAnimEventsModifier::GatherNotifyTracksInfo(const UAnimSequence* In
 {
 	for (const FFootDefinition& FootDef : FootDefinitions)
 	{
-		// Determine tracks that will be generated
+		// Determine tracks that will be generated and/or processed
+		const bool bDoesRequestedSyncTrackAlreadyExist = UAnimationBlueprintLibrary::IsValidAnimNotifyTrackName(InAnimation, FootDef.SyncMarkerTrackName);
+		const bool bDoesRequestedNotifyTrackAlreadyExist = UAnimationBlueprintLibrary::IsValidAnimNotifyTrackName(InAnimation, FootDef.FootstepNotifyTrackName);
+
+		if (FootDef.bShouldGenerateSyncMarkers)
 		{
-			const bool bDoesRequestedSyncTrackAlreadyExist = FootDef.bShouldGenerateSyncMarkers && UAnimationBlueprintLibrary::IsValidAnimNotifyTrackName(InAnimation, FootDef.SyncMarkerTrackName);
-			const bool bDoesRequestedNotifyTrackAlreadyExist = FootDef.bShouldGenerateNotifies && UAnimationBlueprintLibrary::IsValidAnimNotifyTrackName(InAnimation, FootDef.FootstepNotifyTrackName);
-	
 			if (!bDoesRequestedSyncTrackAlreadyExist)
 			{
 				GeneratedNotifyTracks.Add(FootDef.SyncMarkerTrackName);
 			}
 
+			ProcessedNotifyTracks.Add(FootDef.SyncMarkerTrackName);
+		}
+
+		if (FootDef.bShouldGenerateNotifies)
+		{
 			if (!bDoesRequestedNotifyTrackAlreadyExist)
 			{
 				GeneratedNotifyTracks.Add(FootDef.FootstepNotifyTrackName);
 			}
-		}
 
-		// Determine tracks that will be modified
-		ProcessedNotifyTracks.Add(FootDef.SyncMarkerTrackName);
-		ProcessedNotifyTracks.Add(FootDef.FootstepNotifyTrackName);
+			ProcessedNotifyTracks.Add(FootDef.FootstepNotifyTrackName);
+		}
 	}
 }
 

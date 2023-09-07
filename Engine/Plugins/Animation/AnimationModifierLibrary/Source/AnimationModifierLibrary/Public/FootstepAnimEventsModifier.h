@@ -42,7 +42,7 @@ struct FFootDefinition
 	bool bShouldGenerateSyncMarkers = false; 
 	
 	UPROPERTY(EditAnywhere, Category = "Sync Markers", meta=(EditCondition="bShouldGenerateSyncMarkers"))
-	FName SyncMarkerTrackName = TEXT("FootSyncMakers");
+	FName SyncMarkerTrackName = TEXT("FootSyncMarkers");
 
 	UPROPERTY(EditAnywhere, Category = "Sync Markers", meta=(EditCondition="bShouldGenerateSyncMarkers"))
 	FName SyncMarkerName = NAME_None;
@@ -72,24 +72,25 @@ class UFootstepAnimEventsModifier : public UAnimationModifier
 public:
 
 	/** Delta of each sampling step */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Default")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
 	float SampleStep;
 
 	/** Threshold for determining if a foot bone position can be considered to be on the ground level */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Default")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
 	float GroundThreshold;
+
+	/** Foot bone(s) to be processed */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings", meta = (TitleProperty = "FootBoneName"))
+	TArray<FFootDefinition> FootDefinitions;
 	
 	/**
 	 * If true, applying the anim modifier becomes a destructive action, meaning that any existing matched tracks will have their data overwritten by the modifier.
 	 * Otherwise, no previous notifies or sync markers will removed when applying the anim modifier.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Default")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings", DisplayName="Remove Pre Existing Notifies or Sync Markers")
 	bool bShouldRemovePreExistingNotifiesOrSyncMarkers;
 
-	/** Foot bone(s) to be processed */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Default")
-	TArray<FFootDefinition> FootDefinitions;
-	
+
 	UFootstepAnimEventsModifier();
 
 	virtual void OnApply_Implementation(UAnimSequence* InAnimation) override;
@@ -108,7 +109,11 @@ private:
 	};
 	
 	/** Keep track of to be generated tracks during modifier application */
+	UPROPERTY(VisibleAnywhere, AdvancedDisplay, meta = (Category = "Settings"))
 	TSet<FName> GeneratedNotifyTracks;
+
+	/** Keep track of tracks modified during modifier application */
+	UPROPERTY(VisibleAnywhere, AdvancedDisplay, meta = (Category = "Settings"))
 	TSet<FName> ProcessedNotifyTracks;
 	
 	/** Prepare all requested notify tracks before starting to generate notifies or sync markers */
