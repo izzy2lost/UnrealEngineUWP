@@ -1,6 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
-
-#pragma once
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Helpers/PCGGraphParameterExtension.h"
 
