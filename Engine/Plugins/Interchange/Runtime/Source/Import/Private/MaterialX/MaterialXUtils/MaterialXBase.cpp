@@ -10,6 +10,7 @@ namespace mx = MaterialX;
 
 FMaterialXBase::FMaterialXBase(UInterchangeBaseNodeContainer& BaseNodeContainer)
 	: NodeContainer(BaseNodeContainer)
+	, bIsSubstrateEnabled(FMaterialXManager::GetInstance().IsSubstrateEnabled())
 {}
 
 void FMaterialXBase::UpdateDocumentRecursively(MaterialX::GraphElementPtr Graph)

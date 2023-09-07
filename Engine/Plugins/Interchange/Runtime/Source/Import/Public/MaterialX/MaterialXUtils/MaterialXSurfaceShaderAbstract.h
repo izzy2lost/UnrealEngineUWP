@@ -173,7 +173,7 @@ protected:
 	 *
 	 * @return true if a shader node has been successfully created and is connected to the given input
 	 */
-	void ConnectNodeCategoryOutputToInput(const MaterialX::Edge& Edge, UInterchangeShaderNode* ParentShaderNode, const FString& InputChannelName);
+	void ConnectNodeCategoryOutputToInput(const MaterialX::Edge& Edge, UInterchangeShaderNode* ParentShaderNode, const FString& InputChannelName, const FString& OutputName = TEXT("out"));
 
 	/**
 	 * Create and Connect a node name directly connected from an input to a shader node
@@ -285,6 +285,17 @@ protected:
 	 * @return The shader node that was created
 	 */
 	UInterchangeShaderNode* CreateShaderNode(const FString& NodeName, const FString& ShaderType, const FString& OutputName = TEXT("out"));
+
+	/**
+	 * Helper function to create an InterchangeFunctionCallShaderNode
+	 *
+	 * @param NodeName - The name of the shader node
+	 * @param FunctionPath - The path to the Material Function we want to create
+	 * @param OutputName - The output name of the MaterialX node, default name is 'out' as stated by the standard library
+	 *
+	 * @return The shader node that was created
+	 */
+	UInterchangeFunctionCallShaderNode* CreateFunctionCallShaderNode(const FString& NodeName, const FString& FunctionPath, const FString& OutputName = TEXT("out"));
 
 	/**
 	 * Helper function to create an InterchangeTextureNode

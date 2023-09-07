@@ -143,7 +143,9 @@ bool FMaterialXSurfaceShaderAbstract::ConnectNodeGraphOutputToInput(MaterialX::I
 
 		for(mx::Edge Edge : Output->traverseGraph())
 		{
-			ConnectNodeCategoryOutputToInput(Edge, ShaderNode, ParentInputName);
+			Output->hasOutputString() ?
+				ConnectNodeCategoryOutputToInput(Edge, ShaderNode, ParentInputName, Output->getOutputString().c_str()) :
+				ConnectNodeCategoryOutputToInput(Edge, ShaderNode, ParentInputName);
 		}
 	}
 
@@ -154,34 +156,64 @@ bool FMaterialXSurfaceShaderAbstract::ConnectMatchingNodeOutputToInput(const FCo
 {
 	FMaterialXManager& Manager = FMaterialXManager::GetInstance();
 
+	auto GetIndexOutput = [&Connect]()
+	{
+		mx::NodeDefPtr NodeDef = Connect.UpstreamNode->getNodeDef(mx::EMPTY_STRING, true);
+		int Index = NodeDef->getChildIndex(TCHAR_TO_UTF8(*Connect.OutputName));
+		return Index < 0 ? Index : Index % NodeDef->getInputCount();
+	};
+
 	bool bIsConnected = false;
 
-	// First search a matching Material Expression
-	if(const FString* ShaderType = Manager.FindMatchingMaterialExpression(Connect.UpstreamNode->getCategory().c_str()))
+	auto ConnectOutputToInput = [&](const FString* ShaderType, auto* (FMaterialXSurfaceShaderAbstract::* CreateFunctionCallOrShaderNode)(const FString&, const FString&, const FString&), bool bFindMatchingInput = true)
 	{
 		UInterchangeShaderNode* OperatorNode = nullptr;
-		
-		OperatorNode = CreateShaderNode(Connect.UpstreamNode->getName().c_str(), *ShaderType);
+
+		//We don't take the node output here because it would cause the creation of a new node (output is meaningful with ComponentMaskNode/separate where we have to create a new expression
+		OperatorNode = (this->*CreateFunctionCallOrShaderNode)(Connect.UpstreamNode->getName().c_str(), *ShaderType, DefaultOutput);
 
 		for(mx::InputPtr Input : Connect.UpstreamNode->getInputs())
 		{
-			if(const FString* InputNameFound = Manager.FindMaterialExpressionInput(GetInputName(Input)))
+			if(!bFindMatchingInput)
+			{
+				AddAttributeFromValueOrInterface(Input, Input->getName().c_str(), OperatorNode);
+			}
+			else if(const FString* InputNameFound = Manager.FindMaterialExpressionInput(GetInputName(Input)))
 			{
 				AddAttributeFromValueOrInterface(Input, *InputNameFound, OperatorNode);
 			}
 		}
 
-		bIsConnected = UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(Connect.ParentShaderNode, Connect.InputChannelName, OperatorNode->GetUniqueID());
+		int IndexOutput = GetIndexOutput();
+
+		bIsConnected = IndexOutput < 0 ?
+			UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(Connect.ParentShaderNode, Connect.InputChannelName, OperatorNode->GetUniqueID()) :
+			UInterchangeShaderPortsAPI::ConnectOuputToInputByIndex(Connect.ParentShaderNode, Connect.InputChannelName, OperatorNode->GetUniqueID(), IndexOutput);
+	};
+
+	// First search a matching Material Expression
+	// search for a Material Expression based on the node group (essentially used for Substrate Mix)
+	if(const FString* ShaderType = Manager.FindMatchingMaterialExpression(Connect.UpstreamNode->getCategory().c_str(), Connect.UpstreamNode->getNodeDef(mx::EMPTY_STRING, true)->getNodeGroup().c_str()))
+	{
+		ConnectOutputToInput(ShaderType, &FMaterialXSurfaceShaderAbstract::CreateShaderNode);
+	}
+	else if((ShaderType = Manager.FindMatchingMaterialExpression(Connect.UpstreamNode->getCategory().c_str())))
+	{
+		ConnectOutputToInput(ShaderType, &FMaterialXSurfaceShaderAbstract::CreateShaderNode);
 	}
 	else if(FOnConnectNodeOutputToInput* Delegate = MatchingConnectNodeDelegates.Find(Connect.UpstreamNode->getCategory().c_str()))
 	{
 		bIsConnected = Delegate->ExecuteIfBound(Connect);
 	}
+	else if(const FString* FunctionPath = Manager.FindMatchingMaterialFunction(Connect.UpstreamNode->getCategory().c_str()))
+	{
+		ConnectOutputToInput(FunctionPath, &FMaterialXSurfaceShaderAbstract::CreateFunctionCallShaderNode, false);
+	}
 
 	return bIsConnected;
 }
 
-void FMaterialXSurfaceShaderAbstract::ConnectNodeCategoryOutputToInput(const MaterialX::Edge& Edge, UInterchangeShaderNode* ShaderNode, const FString& ParentInputName)
+void FMaterialXSurfaceShaderAbstract::ConnectNodeCategoryOutputToInput(const MaterialX::Edge& Edge, UInterchangeShaderNode* ShaderNode, const FString& ParentInputName, const FString& OutputName)
 {
 	if(mx::NodePtr UpstreamNode = Edge.getUpstreamElement()->asA<mx::Node>())
 	{
@@ -193,7 +225,7 @@ void FMaterialXSurfaceShaderAbstract::ConnectNodeCategoryOutputToInput(const Mat
 		//Replace the input's name by the one used in UE
 		SetMatchingInputsNames(UpstreamNode);
 
-		FString OutputChannelName = DefaultOutput;
+		FString OutputChannelName = OutputName;
 
 		if(mx::ElementPtr DownstreamElement = Edge.getDownstreamElement())
 		{
@@ -1141,6 +1173,25 @@ UInterchangeShaderNode* FMaterialXSurfaceShaderAbstract::CreateShaderNode(const 
 	return Node;
 }
 
+UInterchangeFunctionCallShaderNode* FMaterialXSurfaceShaderAbstract::CreateFunctionCallShaderNode(const FString& NodeName, const FString& FunctionPath, const FString& OutputName)
+{
+	UInterchangeFunctionCallShaderNode* Node;
+
+	const FString NodeUID = UInterchangeShaderNode::MakeNodeUid(NodeName  + TEXT('_') + OutputName, FStringView{});
+
+	if(Node = const_cast<UInterchangeFunctionCallShaderNode*>(Cast<UInterchangeFunctionCallShaderNode>(NodeContainer.GetNode(NodeUID))); !Node)
+	{
+		Node = NewObject<UInterchangeFunctionCallShaderNode>(&NodeContainer);
+		Node->InitializeNode(NodeUID, NodeName, EInterchangeNodeContainerType::TranslatedAsset);
+		Node->SetCustomMaterialFunction(FunctionPath);
+		NodeContainer.AddNode(Node);
+
+		ShaderNodes.Add({ NodeName, OutputName}, Node);
+	}
+
+	return Node;
+}
+
 const FString& FMaterialXSurfaceShaderAbstract::GetMatchedInputName(MaterialX::NodePtr Node, MaterialX::InputPtr Input) const
 {
 	FMaterialXManager& Manager = FMaterialXManager::GetInstance();
@@ -1148,13 +1199,17 @@ const FString& FMaterialXSurfaceShaderAbstract::GetMatchedInputName(MaterialX::N
 	if(Input)
 	{
 		const FString NodeCategory{ Node->getCategory().c_str() };
-		const FString InputName{ GetInputName(Input) };
-		
-		if(const FString* Result = Manager.FindMatchingInput({ NodeCategory, InputName }))
+		const FString InputName{ GetInputName(Input) };	
+
+		if(const FString* Result = Manager.FindMatchingInput(NodeCategory, InputName, Node->getNodeDef(mx::EMPTY_STRING, true)->getNodeGroup().c_str()))
 		{
 			return *Result;
 		}
-		else if((Result = Manager.FindMatchingInput({ EmptyString, InputName })))
+		else if((Result = Manager.FindMatchingInput(NodeCategory, InputName)))
+		{
+			return *Result;
+		}
+		else if((Result = Manager.FindMatchingInput(EmptyString, InputName)))
 		{
 			return *Result;
 		}

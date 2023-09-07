@@ -6,6 +6,7 @@
 #include "Animation/InterchangeAnimationTrackSetFactory.h"
 #include "CoreMinimal.h"
 #include "Engine/Engine.h"
+#include "Engine/RendererSettings.h"
 #include "Fbx/InterchangeFbxTranslator.h"
 #include "Gltf/InterchangeGltfTranslator.h"
 #include "InterchangeImportLog.h"
@@ -37,11 +38,26 @@
 
 DEFINE_LOG_CATEGORY(LogInterchangeImport);
 
+static bool GInterchangeEnableSubstrate = true;
+static FAutoConsoleVariableRef CCvarInterchangeEnableSubstrateSupport(
+	TEXT("Interchange.FeatureFlags.Import.Substrate"),
+	GInterchangeEnableSubstrate,
+	TEXT("Enable or disable support of Substrate with Interchange (only works if Substrate is enabled in the Project Settings). Enabled by default."),
+	ECVF_Default);
+
 class FInterchangeImportModule : public IInterchangeImportModule
 {
 	/** IModuleInterface implementation */
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
+	virtual bool IsSubstrateEnabled() const override
+	{
+		return bIsSubstrateEnabled && GInterchangeEnableSubstrate;
+	}
+
+private:
+
+	bool bIsSubstrateEnabled = false;
 };
 
 IMPLEMENT_MODULE(FInterchangeImportModule, InterchangeImport)
@@ -50,6 +66,8 @@ IMPLEMENT_MODULE(FInterchangeImportModule, InterchangeImport)
 
 void FInterchangeImportModule::StartupModule()
 {
+	bIsSubstrateEnabled = GetDefault<URendererSettings>() ? GetDefault<URendererSettings>()->bEnableSubstrate : false;
+
 	FInterchangeImportMaterialAsyncHelper& InterchangeMaterialAsyncHelper = FInterchangeImportMaterialAsyncHelper::GetInstance();
 
 	auto RegisterItems = []()

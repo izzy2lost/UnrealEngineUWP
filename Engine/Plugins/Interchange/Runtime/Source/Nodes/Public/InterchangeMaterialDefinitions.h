@@ -472,6 +472,32 @@ namespace Interchange
 			}
 		}
 
+		namespace Surface
+		{
+			const FName Name = TEXT("surface");
+
+			namespace Parameters
+			{
+				const FName BSDF = TEXT("bsdf");
+				const FName EDF = TEXT("edf");
+				const FName Opacity = TEXT("opacity");
+			}
+
+			namespace Outputs
+			{
+				const FName Surface = TEXT("Surface");
+			}
+
+			namespace Substrate
+			{
+				namespace Outputs
+				{
+					using namespace Surface::Outputs;
+					const FName Opacity = TEXT("Opacity");
+				}
+			}
+		}
+
 		namespace SurfaceUnlit
 		{
 			const FName Name = TEXT("surface_unlit");
@@ -483,6 +509,20 @@ namespace Interchange
 				const FName Transmission = TEXT("transmission");
 				const FName TransmissionColor = TEXT("transmission_color");
 				const FName Opacity = TEXT("opacity");
+			}
+
+			namespace Outputs
+			{
+				const FName OpacityMask = TEXT("OpacityMask");
+			}
+
+			namespace Substrate
+			{
+				namespace Outputs
+				{
+					using namespace SurfaceUnlit::Outputs;
+					const FName SurfaceUnlit = TEXT("Surface Unlit");
+				}
 			}
 		}
 

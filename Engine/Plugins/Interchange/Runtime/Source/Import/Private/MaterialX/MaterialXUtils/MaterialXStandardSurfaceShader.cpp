@@ -2,7 +2,8 @@
 
 #if WITH_EDITOR
 #include "MaterialXStandardSurfaceShader.h"
-#include "Engine/RendererSettings.h"
+
+#include "Engine/EngineTypes.h"
 
 namespace mx = MaterialX;
 
@@ -25,8 +26,6 @@ void FMaterialXStandardSurfaceShader::Translate(mx::NodePtr StandardSurfaceNode)
 	
 	using namespace UE::Interchange::Materials;
 
-	bool bIsSubstrateEnabled = GetDefault<URendererSettings>()->bEnableSubstrate;
-
 	if(bIsSubstrateEnabled)
 	{
 		ConnectToSubstrateStandardSurface();
@@ -42,19 +41,7 @@ void FMaterialXStandardSurfaceShader::ConnectToStandardSurface()
 	using namespace UE::Interchange::Materials;
 	using namespace mx::StandardSurface;
 
-	UInterchangeFunctionCallShaderNode* StandardSurfaceShaderNode;
-	const FString NodeUID = UInterchangeShaderNode::MakeNodeUid(ANSI_TO_TCHAR(SurfaceShaderNode->getName().c_str()), FStringView{});
-	if(StandardSurfaceShaderNode = const_cast<UInterchangeFunctionCallShaderNode*>(Cast<UInterchangeFunctionCallShaderNode>(NodeContainer.GetNode(NodeUID))); !StandardSurfaceShaderNode)
-	{
-		const FString NodeName = SurfaceShaderNode->getName().c_str();
-		StandardSurfaceShaderNode = NewObject<UInterchangeFunctionCallShaderNode>(&NodeContainer);
-		StandardSurfaceShaderNode->InitializeNode(NodeUID, NodeName, EInterchangeNodeContainerType::TranslatedAsset);
-
-		StandardSurfaceShaderNode->SetCustomMaterialFunction(TEXT("/Interchange/Functions/MX_StandardSurface.MX_StandardSurface"));
-		NodeContainer.AddNode(StandardSurfaceShaderNode);
-
-		ShaderNodes.Add({ NodeName, SurfaceShaderNode->getNodeDef(mx::EMPTY_STRING, true)->getActiveOutputs()[0]->getName().c_str() }, StandardSurfaceShaderNode);
-	}
+	UInterchangeFunctionCallShaderNode* StandardSurfaceShaderNode = CreateFunctionCallShaderNode(SurfaceShaderNode->getName().c_str(), TEXT("/Interchange/Functions/MX_StandardSurface.MX_StandardSurface"));
 
 	// Inputs
 	//Base
@@ -194,19 +181,7 @@ void FMaterialXStandardSurfaceShader::ConnectToSubstrateStandardSurface()
 	using namespace UE::Interchange::Materials;
 	using namespace mx::StandardSurface;
 
-	UInterchangeFunctionCallShaderNode* StandardSurfaceShaderNode;
-	const FString NodeUID = UInterchangeShaderNode::MakeNodeUid(ANSI_TO_TCHAR(SurfaceShaderNode->getName().c_str()), FStringView{});
-	if(StandardSurfaceShaderNode = const_cast<UInterchangeFunctionCallShaderNode*>(Cast<UInterchangeFunctionCallShaderNode>(NodeContainer.GetNode(NodeUID))); !StandardSurfaceShaderNode)
-	{
-		const FString NodeName = SurfaceShaderNode->getName().c_str();
-		StandardSurfaceShaderNode = NewObject<UInterchangeFunctionCallShaderNode>(&NodeContainer);
-		StandardSurfaceShaderNode->InitializeNode(NodeUID, NodeName, EInterchangeNodeContainerType::TranslatedAsset);
-
-		StandardSurfaceShaderNode->SetCustomMaterialFunction(TEXT("/Interchange/Substrate/MX_StandardSurface.MX_StandardSurface"));
-		NodeContainer.AddNode(StandardSurfaceShaderNode);
-
-		ShaderNodes.Add({ NodeName, SurfaceShaderNode->getNodeDef(mx::EMPTY_STRING, true)->getActiveOutputs()[0]->getName().c_str() }, StandardSurfaceShaderNode);
-	}
+	UInterchangeFunctionCallShaderNode* StandardSurfaceShaderNode = CreateFunctionCallShaderNode(SurfaceShaderNode->getName().c_str(), TEXT("/Interchange/Substrate/MX_StandardSurface.MX_StandardSurface"));
 
 	// Inputs
 	//Base
@@ -334,6 +309,7 @@ void FMaterialXStandardSurfaceShader::ConnectToSubstrateStandardSurface()
 		if(UInterchangeShaderPortsAPI::HasInput(StandardSurfaceShaderNode, StandardSurface::Parameters::Opacity))
 		{
 			UInterchangeShaderPortsAPI::ConnectOuputToInputByName(ShaderGraphNode, SubstrateMaterial::Parameters::OpacityMask.ToString(), StandardSurfaceShaderNode->GetUniqueID(), StandardSurface::SubstrateMaterial::Outputs::Opacity.ToString());
+			ShaderGraphNode->SetCustomBlendMode(EBlendMode::BLEND_Masked);
 		}
 	}
 }
