@@ -42,6 +42,22 @@ public:
 	int32 MaxIterations = 500;
 };
 
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptPointPriorityOptions
+{
+	GENERATED_BODY()
+public:
+
+	/** If not empty, will be used to order the points so that higher-priority points are kept. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	TArray<float> OptionalPriorityWeights;
+
+	/** Whether to ensure the kept points are approximately uniformly spaced */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bUniformSpacing = true;
+
+};
+
 
 USTRUCT(BlueprintType)
 struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptPointFlatteningOptions
@@ -87,12 +103,40 @@ public:
 		TArray<FGeometryScriptIndexList>& ClusterIDToLists);
 
 	/**
+	 * Find a subset of the given Points of a specified size.
+	 * Can optionally specify a priorty weighting and/or request uniform spacing for the downsampled points.
+	 * Note: Ordering of the result will balance:
+	 * (1) if weights are provided, higher weight points come earlier and
+	 * (2) if uniform spacing is requested, points will be ordered to have an octree-style coverage --
+	 *     so the first 8 points will cover the 8 octants (where samples are available) and the subsequent points will progressively fill in the space
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|PointSet")
+	static void DownsamplePoints(
+		const TArray<FVector>& Points,
+		const FGeometryScriptPointPriorityOptions& Options,
+		FGeometryScriptIndexList& DownsampledIndices,
+		int32 KeepNumPoints = 100,
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
 	 * Create an array of the positions of the input Transforms
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|PointSet")
 	static void TransformsToPoints(
 		const TArray<FTransform>& Transforms,
 		TArray<FVector>& Points
+	);
+
+	/**
+	 * Offset the location of all Transforms by Offset in the given Direction, either locally in the space of the transform or in world space.
+	 * For example, this can offset mesh surface samples along the surface normal direction.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|PointSet")
+	static void OffsetTransforms(
+		UPARAM(ref) TArray<FTransform>& Transforms,
+		double Offset,
+		FVector Direction = FVector::UpVector,
+		EGeometryScriptCoordinateSpace Space = EGeometryScriptCoordinateSpace::Local
 	);
 
 	/**

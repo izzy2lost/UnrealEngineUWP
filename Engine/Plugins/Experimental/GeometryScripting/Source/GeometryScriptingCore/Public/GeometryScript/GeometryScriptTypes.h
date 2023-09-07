@@ -55,6 +55,14 @@ enum class EGeometryScriptAxis : uint8
 };
 
 
+UENUM(BlueprintType)
+enum class EGeometryScriptCoordinateSpace : uint8
+{
+	Local = 0,
+	World = 1
+};
+
+
 USTRUCT(BlueprintType)
 struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptMeshReadLOD
 {

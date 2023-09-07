@@ -3,6 +3,7 @@
 #include "GeometryScript/PointSetFunctions.h"
 
 #include "Clustering/KMeans.h"
+#include "Spatial/PriorityOrderPoints.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PointSetFunctions)
 
@@ -84,6 +85,47 @@ void UGeometryScriptLibrary_PointSetSamplingFunctions::TransformsToPoints(
 	}
 }
 
+void UGeometryScriptLibrary_PointSetSamplingFunctions::DownsamplePoints(
+	const TArray<FVector>& Points,
+	const FGeometryScriptPointPriorityOptions& Options,
+	FGeometryScriptIndexList& DownsampledIndices,
+	int32 KeepNumPoints,
+	UGeometryScriptDebug* Debug)
+{
+	DownsampledIndices.Reset(EGeometryScriptIndexType::Any);
+	int32 NumWeights = Options.OptionalPriorityWeights.Num();
+	bool bHasImportanceWeights = NumWeights >= Points.Num();
+	if (NumWeights > 0 && NumWeights < Points.Num())
+	{
+		UE::Geometry::AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, 
+			FText::Format(LOCTEXT("DownsamplePointsMissingWeights", "DownsamplePoints: Found {0} points but only {1} PriorityWeights"), Points.Num(), NumWeights));
+	}
+	KeepNumPoints = FMath::Min(Points.Num(), KeepNumPoints);
+	if (Options.bUniformSpacing || bHasImportanceWeights)
+	{
+		FPriorityOrderPoints Order;
+		if (Options.bUniformSpacing)
+		{
+			Order.ComputeUniformSpaced(Points, bHasImportanceWeights ? Options.OptionalPriorityWeights : TArrayView<const float>(), KeepNumPoints);
+		}
+		else // bHasImportanceWeights
+		{
+			Order.ComputeDescendingImportance(Options.OptionalPriorityWeights);
+		}
+		Order.Order.SetNum(KeepNumPoints);
+		(*DownsampledIndices.List) = MoveTemp(Order.Order);
+		
+	}
+	else // no criteria to prioritize points; just take the first indices
+	{
+		DownsampledIndices.List->SetNumUninitialized(KeepNumPoints);
+		for (int32 Idx = 0; Idx < KeepNumPoints; ++Idx)
+		{
+			(*DownsampledIndices.List)[Idx] = Idx;
+		}
+	}
+}
+
 void UGeometryScriptLibrary_PointSetSamplingFunctions::GetPointsFromIndexList(
 	const TArray<FVector>& AllPoints,
 	const FGeometryScriptIndexList& Indices,
@@ -99,6 +141,25 @@ void UGeometryScriptLibrary_PointSetSamplingFunctions::GetPointsFromIndexList(
 	for (int32 Idx : *Indices.List)
 	{
 		SelectedPoints.Add(AllPoints[Idx]);
+	}
+}
+
+void UGeometryScriptLibrary_PointSetSamplingFunctions::OffsetTransforms(
+	TArray<FTransform>& Transforms,
+	double Offset,
+	FVector Direction,
+	EGeometryScriptCoordinateSpace Space
+)
+{
+	Direction.Normalize();
+	for (FTransform& Transform : Transforms)
+	{
+		FVector OffsetVec = Direction * Offset;
+		if (Space == EGeometryScriptCoordinateSpace::Local)
+		{
+			OffsetVec = Transform.TransformVector(OffsetVec);
+		}
+		Transform.SetLocation(OffsetVec + Transform.GetLocation());
 	}
 }
 
