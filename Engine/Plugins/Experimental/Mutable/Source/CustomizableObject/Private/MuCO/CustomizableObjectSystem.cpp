@@ -2331,7 +2331,7 @@ namespace impl
 
 
 	/** "Start Update" */
-	void Task_Game_StartUpdate(const TSharedPtr<FMutableOperation>& Operation)
+	void Task_Game_StartUpdate(TSharedPtr<FMutableOperation> Operation)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(Task_Game_StartUpdate)
 
