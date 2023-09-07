@@ -307,11 +307,23 @@ FRigVMPropertyDescription::FRigVMPropertyDescription(const FName& InName, const 
 FName FRigVMPropertyDescription::SanitizeName(const FName& InName)
 {
 	FString NameString = InName.ToString();
+	SanitizeName(NameString);
 
-	// Sanitize the name
-	for (int32 i = 0; i < NameString.Len(); ++i)
+	if (NameString != InName.ToString())
 	{
-		TCHAR& C = NameString[i];
+		return *NameString;
+	}
+
+	return InName;
+
+}
+
+void FRigVMPropertyDescription::SanitizeName(FString& InString)
+{
+	// Sanitize the name
+	for (int32 i = 0; i < InString.Len(); ++i)
+	{
+		TCHAR& C = InString[i];
 
 		const bool bGoodChar = FChar::IsAlpha(C) ||							// Any letter
 			(C == '_') || 													// _ anytime
@@ -322,13 +334,6 @@ FName FRigVMPropertyDescription::SanitizeName(const FName& InName)
 			C = '_';
 		}
 	}
-
-	if(NameString != InName.ToString())
-	{
-		return *NameString;
-	}
-
-	return InName;
 }
 
 void FRigVMPropertyDescription::SanitizeName()

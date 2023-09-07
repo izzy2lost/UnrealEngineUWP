@@ -1019,6 +1019,9 @@ public:
 	// Returns a sanitized, valid name to use for a new property 
 	static FName SanitizeName(const FName& InName);
 
+	// Sanitizes a name using a string ref, creating a valid name to use for a new property 
+	static void SanitizeName(FString& InString);
+
 	// Sanitize the name of this description in line
 	void SanitizeName();
 
