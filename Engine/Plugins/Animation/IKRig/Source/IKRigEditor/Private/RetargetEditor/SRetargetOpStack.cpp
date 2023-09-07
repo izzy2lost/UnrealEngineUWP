@@ -4,6 +4,7 @@
 
 #include "RetargetEditor/SRetargetOpStack.h"
 
+#include "UObject/UObjectIterator.h"
 #include "SPositiveActionButton.h"
 #include "RetargetEditor/IKRetargetEditorController.h"
 #include "Retargeter/IKRetargetOps.h"
