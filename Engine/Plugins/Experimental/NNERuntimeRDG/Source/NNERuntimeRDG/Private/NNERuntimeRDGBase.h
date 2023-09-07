@@ -207,7 +207,8 @@ public:
 		}
 
 		FMemoryReader Reader(InputModel.Data);
-		FNNERuntimeFormat::StaticStruct()->SerializeBin(Reader, &Format);
+
+		Format.Serialize(Reader);
 
 		TOperatorRegistryRDG<TOperatorType>* Registry = TOperatorRegistryRDG<TOperatorType>::Get();
 		check(Registry != nullptr);

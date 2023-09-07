@@ -19,7 +19,7 @@ bool FModelInstanceRDG::LoadModel(TConstArrayView<uint8> ModelData, FNNERuntimeF
 
 	FMemoryReaderView Reader(ModelBuffer);
 
-	FNNERuntimeFormat::StaticStruct()->SerializeBin(Reader, &Format);
+	Format.Serialize(Reader);
 
 	// Data for base class
 	InputSymbolicTensors.Empty();

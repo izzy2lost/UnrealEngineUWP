@@ -33,7 +33,7 @@ namespace UE::NNE::ModelData
 	const FGuid GUID(0x9513202e, 0xeba1b279, 0xf17fe5ba, 0xab90c3f2);
 	FCustomVersionRegistration NNEModelDataVersion(GUID, Version::Latest, TEXT("NNEModelDataVersion"));// Always save with the latest version
 
-	const uint32 DDCAssetVersion = 0; // Increase this value to force rebuilding cache entries
+	const uint32 DDCAssetVersion = 1; // Increase this value to force rebuilding cache entries
 
 	FString GetRuntimesAsString(TArrayView<const FString> Runtimes)
 	{

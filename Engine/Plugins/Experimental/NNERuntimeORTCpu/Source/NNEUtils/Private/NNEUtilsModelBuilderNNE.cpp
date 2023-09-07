@@ -103,7 +103,7 @@ public:
 
 		FMemoryWriter Writer(Data);
 
-		FNNERuntimeFormat::StaticStruct()->SerializeBin(Writer, &Format);
+		Format.Serialize(Writer);
 
 		return !Data.IsEmpty();
 	}

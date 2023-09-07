@@ -29,15 +29,10 @@ enum class ENNEInferenceFormat : uint8
 	NNERT				//!< NNE Runtime format
 };
 
-USTRUCT()
 struct FNNEModelRaw
 {
-	GENERATED_USTRUCT_BODY()
+	TArray<uint8> Data;
 	
-	UPROPERTY(VisibleAnywhere, Category = "Neural Network Inference")
-	TArray<uint8>		Data;
-	
-	UPROPERTY(VisibleAnywhere, Category = "Neural Network Inference")
 	ENNEInferenceFormat	Format { ENNEInferenceFormat::Invalid };
 };
 
@@ -108,6 +103,38 @@ struct FNNERuntimeFormat
 	UPROPERTY(VisibleAnywhere, Category = "Neural Network Inference")
 	TArray<FNNEFormatOperatorDesc> Operators;
 
-	UPROPERTY(VisibleAnywhere, Category = "Neural Network Inference")
+	uint64 DataSize;
 	TArray<uint8> TensorData;
+	
+	bool Serialize(FArchive& Ar)
+	{
+		// Serialize normal UPROPERTY tagged data
+		UScriptStruct* Struct = FNNERuntimeFormat::StaticStruct();
+		Struct->SerializeTaggedProperties(Ar, reinterpret_cast<uint8*>(this), Struct, nullptr);
+
+		if (Ar.IsLoading())
+		{
+			Ar << DataSize;
+			TensorData.SetNumUninitialized(DataSize);
+			Ar.Serialize((void*)TensorData.GetData(), DataSize);
+		}
+		else
+		{
+			DataSize = TensorData.Num();
+			Ar << DataSize;
+			Ar.Serialize((void*)TensorData.GetData(), DataSize);
+		}
+
+		return true;
+	}
+
+};
+
+template<>
+struct TStructOpsTypeTraits<FNNERuntimeFormat> : public TStructOpsTypeTraitsBase2<FNNERuntimeFormat>
+{
+	enum
+	{
+		WithSerializer = true
+	};
 };
