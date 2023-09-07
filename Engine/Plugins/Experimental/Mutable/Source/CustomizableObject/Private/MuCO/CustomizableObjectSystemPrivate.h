@@ -76,7 +76,7 @@ public:
 	double StartUpdateTime = 0.0;
 
 	/** Instance optimization state. */
-	int32 State;
+	int32 State = -1;
 
 	/** Only used in the IDRelease operation type */
 	mu::Instance::ID IDToRelease;
@@ -559,6 +559,8 @@ struct FPendingTextureCoverageQuery
 /** Runtime data used during a mutable instance update */
 struct FMutableOperationData
 {
+	TWeakObjectPtr<UCustomizableObjectInstance> Instance;
+	
 	bool bCanReuseGeneratedData = false;
 	FInstanceGeneratedData LastUpdateData;
 
@@ -590,9 +592,11 @@ struct FMutableOperationData
 	/** This list of queries is generated in the update mutable task, and consumed later in the game thread. */
 	TArray<FPendingTextureCoverageQuery> PendingTextureCoverageQueries;
 
-	/** */
 	mu::Ptr<const mu::Parameters> MutableParameters;
+
 	int32 State = 0;
+
+	bool bBuildParameterRelevancy = false;
 
 	EUpdateResult UpdateResult;
 	FInstanceUpdateDelegate UpdateCallback;
@@ -639,14 +643,13 @@ struct FMutableStats
 	uint32 CountAllocatedSkeletalMesh = 0;
 
 	// \TODO: Remove this array if we are not gathering stats!
-	TArray<TWeakObjectPtr<class UTexture2D>> TextureTrackerArray;
+	TArray<TWeakObjectPtr<UTexture2D>> TextureTrackerArray;
 };
 
 
 class FCustomizableObjectSystemPrivate : public FGCObject
 {
 public:
-
 	// Singleton for the unreal mutable system.
 	static UCustomizableObjectSystem* SSystem;
 
@@ -660,7 +663,6 @@ public:
 	// This object is responsible for streaming data to the MutableSystem.
 	TSharedPtr<class FUnrealMutableModelBulkReader> Streamer;
 
-	// 
 	TSharedPtr<class FUnrealExtensionDataStreamer> ExtensionDataStreamer;
 
 	// This object is responsible for providing custom images to mutable models (for image parameters)
@@ -696,97 +698,26 @@ public:
 	mu::FImageOperator::FImagePixelFormatFunc ImageFormatOverrideFunc;
 #endif
 
-	/** */
-	inline void AddGameThreadTask(const FMutableTask& Task)
-	{
-		check(IsInGameThread())
-		PendingTasks.Enqueue(Task);
-	}
-
+	void AddGameThreadTask(const FMutableTask& Task);
 
 	/** FSerializableObject interface */
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-	virtual FString GetReferencerName() const override
-	{
-		return TEXT("FCustomizableObjectSystemPrivate");
-	}
-
+	virtual FString GetReferencerName() const override;
 
 	// Remove references to cached objects that have been deleted in the unreal
 	// side, and cannot be cached anyway.
 	// This should only happen in the game thread
 	void CleanupCache();
 
-
 	// This should only happen in the game thread
-	FMutableResourceCache& GetObjectCache(const UCustomizableObject* Object)
-	{
-		check(IsInGameThread());
+	FMutableResourceCache& GetObjectCache(const UCustomizableObject* Object);
 
-		// Not mandatory, but a good place for a cleanup
-		CleanupCache();
+	void AddTextureReference(const FMutableImageCacheKey& TextureId);
 
-		for (int ModelIndex = 0; ModelIndex < ModelResourcesCache.Num(); ++ModelIndex)
-		{
-			if (ModelResourcesCache[ModelIndex].Object==Object)
-			{
-				return ModelResourcesCache[ModelIndex];
-			}
-		}
-		
-		// Not found, create and add it.
-		ModelResourcesCache.Push(FMutableResourceCache());
-		ModelResourcesCache.Last().Object = Object;
-		return ModelResourcesCache.Last();
-	}
-
-
-	void AddTextureReference(const FMutableImageCacheKey& TextureId)
-	{
-		uint32& CountRef = TextureReferenceCount.FindOrAdd(TextureId);
-
-		CountRef++;
-	}
-
-	
 	// Returns true if the texture's references become zero
-	bool RemoveTextureReference(const FMutableImageCacheKey& TextureId)
-	{
-		uint32* CountPtr = TextureReferenceCount.Find(TextureId);
+	bool RemoveTextureReference(const FMutableImageCacheKey& TextureId);
 
-		if (CountPtr && *CountPtr > 0)
-		{
-			(*CountPtr)--;
-
-			if (*CountPtr == 0)
-			{
-				TextureReferenceCount.Remove(TextureId);
-
-				return true;
-			}
-		}
-		else
-		{
-			ensure(false); // Mutable texture reference count is incorrect
-			TextureReferenceCount.Remove(TextureId);
-		}
-
-		return false;
-	}
-
-
-	bool TextureHasReferences(const FMutableImageCacheKey& TextureId) const
-	{
-		const uint32* CountPtr = TextureReferenceCount.Find(TextureId);
-
-		if (CountPtr && *CountPtr > 0)
-		{
-			return true;
-		}
-
-		return false;
-	}
-
+	bool TextureHasReferences(const FMutableImageCacheKey& TextureId) const;
 
 	// Init the async Skeletal Mesh creation/update
 	void InitUpdateSkeletalMesh(UCustomizableObjectInstance& Public, EQueuePriorityType Priority, bool bIsCloseDistTick, FInstanceUpdateDelegate* UpdateCallback = nullptr);
@@ -799,10 +730,10 @@ public:
 
 	void GetMipStreamingConfig(const UCustomizableObjectInstance& Instance, bool& bOutNeverStream, int32& OutMipsToSkip) const;
 	
-	bool IsReplaceDiscardedWithReferenceMeshEnabled() const { return bReplaceDiscardedWithReferenceMesh; }
-	void SetReplaceDiscardedWithReferenceMeshEnabled(bool bIsEnabled) { bReplaceDiscardedWithReferenceMesh = bIsEnabled; }
+	bool IsReplaceDiscardedWithReferenceMeshEnabled() const;
+	void SetReplaceDiscardedWithReferenceMeshEnabled(bool bIsEnabled);
 
-	int32 GetCountAllocatedSkeletalMesh() { return MutableStats.CountAllocatedSkeletalMesh; }
+	int32 GetCountAllocatedSkeletalMesh() const;
 
 	mutable FMutableStats MutableStats;
 
@@ -813,7 +744,7 @@ public:
 
 	static FCustomizableObjectCompilerBase* (*NewCompilerFunc)();
 
-	void CreatedTexture(UTexture2D* Texture);
+	void CreatedTexture(UTexture2D* Texture) const;
 
 	TMap<FMutableImageCacheKey, uint32> TextureReferenceCount; // Keeps a count of texture usage to decide if they have to be blocked from GC during an update
 

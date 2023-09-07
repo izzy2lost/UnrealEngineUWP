@@ -27,6 +27,7 @@ class UDefaultImageProvider;
 class USkeletalMesh;
 class UMaterialInterface;
 class UTexture2D;
+class FCustomizableObjectSystemPrivate; // This is used to hide Mutable SDK members in the public headers.
 struct FFrame;
 struct FGuid;
 
@@ -36,9 +37,6 @@ struct FGuid;
 
 // In case of async file operations, what priority to use
 #define MUTABLE_SYSTEM_ASYNC_STREAMING_PRIORITY			EAsyncIOPriorityAndFlags::AIOP_Normal
-
-// This is used to hide Mutable SDK members in the public headers.
-class FCustomizableObjectSystemPrivate;
 
 extern TAutoConsoleVariable<bool> CVarClearWorkingMemoryOnUpdateEnd;
 
@@ -61,24 +59,21 @@ struct FEditorCompileSettings
 
 #endif
 
-//
 namespace EMutableProfileMetric
 {
 	typedef uint8 Type;
 
-	const Type BuiltInstances = 1;
-	const Type UpdateOperations = 2;
-	const Type Count = 4;
+	constexpr Type BuiltInstances = 1;
+	constexpr Type UpdateOperations = 2;
+	constexpr Type Count = 4;
 
 };
 
 USTRUCT()
 struct FPendingReleaseSkeletalMeshInfo
 {
-public:
 	GENERATED_USTRUCT_BODY()
 
-public:
 	UPROPERTY()
 	TObjectPtr<USkeletalMesh> SkeletalMesh = nullptr;
 
@@ -90,10 +85,8 @@ public:
 USTRUCT()
 struct FPendingReleaseMaterialsInfo
 {
-public:
 	GENERATED_USTRUCT_BODY()
 
-public:
 	UPROPERTY()
 	TArray<TObjectPtr<UMaterialInterface>> Materials;
 
@@ -108,19 +101,15 @@ struct FMutableImageReference
 {
 	/** Original image ID. Once generated it will be unique. However, future updates of the image may return a different ID for the
 	* same image, if many other resources have been built in the middle. For this reason the rest of the data in the struct is what
-	* must be used to request the additional mips.
-	*/
+	* must be used to request the additional mips.	*/
 	uint32 ImageID = 0;
 
-	/** */
 	uint32 SurfaceId = 0;
 
-	/** */
 	uint8 LOD = 0;
 	uint8 Component = 0;
 	uint8 Image = 0;
 
-	/** */
 	uint8 BaseMip = 0;
 };
 
@@ -177,13 +166,13 @@ public:
 
 	// Used in the editor to show the list of available options.
 	// Only necessary if the images are required in editor previews.
-	virtual void GetTextureParameterValues(TArray<FCustomizableObjectExternalTexture>& OutValues) {};
+	virtual void GetTextureParameterValues(TArray<FCustomizableObjectExternalTexture>& OutValues) {}
 };
 
 
 // Before the Mutable Queue rework this made sense, but this is no longer the case. Remove this when doing MTBL-1409.
 /** End a Customizable Object Instance Update. All code paths of an update have to end here. */
-void FinishUpdateGlobal(UCustomizableObjectInstance* Instance, EUpdateResult UpdateResult, FInstanceUpdateDelegate* UpdateCallback, const FDescriptorRuntimeHash InUpdatedHash = FDescriptorRuntimeHash());
+void FinishUpdateGlobal(UCustomizableObjectInstance* Instance, EUpdateResult UpdateResult, const FInstanceUpdateDelegate* UpdateCallback, const FDescriptorRuntimeHash InUpdatedHash = FDescriptorRuntimeHash());
 
 
 UCLASS(Blueprintable, BlueprintType)
@@ -195,10 +184,12 @@ public:
 	UCustomizableObjectSystem() = default;
 	void InitSystem();
 
-	/** Get the singleton object. It will be created if it doesn't exist yet.
-	 * @param bCreate Create a system if it does not has been created yet. */
+	/** Get the singleton object. It will be created if it doesn't exist yet. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = Status)
 	static UCustomizableObjectSystem* GetInstance();
+	
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = Status)
+	static UCustomizableObjectSystem* GetInstanceChecked();
 	
 	// Return true if the singleton has been created. It is different than GetInstance in that GetInstance will create it if it doesn't exist.
 	static bool IsCreated();
@@ -209,7 +200,7 @@ public:
 	// End UObject interface.
 
 	// Creates a new Customizable Object Compiler (Only does real work in editor builds). The caller is responsible for freeing the new compiler
-	class FCustomizableObjectCompilerBase* GetNewCompiler();
+	FCustomizableObjectCompilerBase* GetNewCompiler();
 	void SetNewCompilerFunc(FCustomizableObjectCompilerBase* (*NewCompilerFunc)());
 
 	bool IsReplaceDiscardedWithReferenceMeshEnabled() const;
@@ -223,10 +214,10 @@ public:
 	// Lock a CustomizableObjects, preventing the generation or update of any of its instances
 	// Will return true if successful, false if it fails to lock because an update is already underway
 	// This is usually only used in the editor
-	bool LockObject(const class UCustomizableObject*);
-	void UnlockObject(const class UCustomizableObject*);
+	bool LockObject(const UCustomizableObject*);
+	void UnlockObject(const UCustomizableObject*);
 
-	/** Checks if there are any outstading disk or mip update operations in flight for the parameter Customizable Object that may
+	/** Checks if there are any outstanding disk or mip update operations in flight for the parameter Customizable Object that may
 	* make it unsafe to compile at the moment.
 	* @return true if there are operations in flight and it's not safe to compile */
 	bool CheckIfDiskOrMipUpdateOperationsPending(const UCustomizableObject& Object) const;
@@ -245,7 +236,6 @@ public:
 
 	// Copy of the Mutable Editor Settings tied to CO compilation. They are updated whenever changed
 	FEditorCompileSettings EditorSettings;
-
 #endif
 	
 	// Return the current MinLodQualityLevel for skeletal meshes.
@@ -271,7 +261,6 @@ public:
 	void TickPendingReleaseMaterials();
 
 private:
-
 	UPROPERTY()
 	TArray<FPendingReleaseSkeletalMeshInfo> PendingReleaseSkeletalMesh;
 
@@ -279,7 +268,6 @@ private:
 	TArray<FPendingReleaseMaterialsInfo> PendingReleaseMaterials;
 
 public:
-
 	/** [Texture Parameters] Get a list of all the possible values for external texture parameters according to the various providers registered with RegisterImageProvider. */
 	TArray<FCustomizableObjectExternalTexture> GetTextureParameterValues();
 
@@ -311,7 +299,6 @@ private:
 	TObjectPtr<UDefaultImageProvider> DefaultImageProvider = nullptr;
 
 public:
-    
 	// Show a warning on-screen and via a notification (if in Editor) and log an error when a CustomizableObject is
 	// being used and it's not compiled.  Callers can add additional information to the error log.
 	void AddUncompiledCOWarning(const UCustomizableObject& InObject, FString const* OptionalLogInfo = nullptr);
@@ -324,7 +311,6 @@ public:
 	// Show data about all UCustomizableObjectInstance existing elements
 	void LogShowData(bool bFullInfo, bool ShowMaterialInfo) const;
 
-
 	// Give access to the internal object data.
 	FCustomizableObjectSystemPrivate* GetPrivate();
 	const FCustomizableObjectSystemPrivate* GetPrivate() const;
@@ -332,13 +318,12 @@ public:
 	FCustomizableObjectSystemPrivate* GetPrivateChecked();
 	const FCustomizableObjectSystemPrivate* GetPrivateChecked() const;
 	
-	FStreamableManager& GetStreamableManager() { return StreamableManager; }
+	FStreamableManager& GetStreamableManager();
 
-	UCustomizableInstanceLODManagementBase* GetInstanceLODManagement() { return CurrentInstanceLODManagement.Get(); }
+	UCustomizableInstanceLODManagementBase* GetInstanceLODManagement() const;
 
 	// Pass a null ptr to reset to the default InstanceLODManagement
-	void SetInstanceLODManagement(UCustomizableInstanceLODManagementBase* NewInstanceLODManagement) 
-		{ CurrentInstanceLODManagement = NewInstanceLODManagement ? NewInstanceLODManagement : ToRawPtr(DefaultInstanceLODManagement); }
+	void SetInstanceLODManagement(UCustomizableInstanceLODManagementBase* NewInstanceLODManagement);
 
 	// Find out the version of the plugin
 	UFUNCTION(BlueprintCallable, Category = Status)
@@ -352,7 +337,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = Status)
 	int32 GetNumPendingInstances() const;
 
-	// Get the total number of instances includingbuilt and not built.
+	// Get the total number of instances including built and not built.
 	UFUNCTION(BlueprintCallable, Category = Status)
 	int32 GetTotalInstances() const;
 
@@ -392,10 +377,9 @@ public:
 	// Array where textures are added temporarily while the mutable thread may want to
 	// reused them for some instance under construction.
 	UPROPERTY(Transient)
-	TArray< TObjectPtr<UTexture2D> > ProtectedCachedTextures;
+	TArray<TObjectPtr<UTexture2D>> ProtectedCachedTextures;
 
 private:
-
 	TSharedPtr<FCustomizableObjectSystemPrivate> Private = nullptr;
 
 	// For async material loading
@@ -436,7 +420,6 @@ private:
 
 	/** Map used to cache per platform MaxChunkSize. If MaxChunkSize > 0, streamed data will be split in multiple files */
 	TMap<FString, int64> PlatformMaxChunkSize;
-	
 #endif
 	
 	// Friends
