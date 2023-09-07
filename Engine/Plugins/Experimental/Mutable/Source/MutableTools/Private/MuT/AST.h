@@ -211,6 +211,11 @@ namespace mu
 
 	struct FLinkerOptions
 	{
+		FLinkerOptions(FImageOperator& InImOp)
+			: ImageOperator(InImOp)
+		{
+		}
+
 		int32 MinTextureResidentMipCount = 0;
 
 		/** */
@@ -232,6 +237,9 @@ namespace mu
 		};
 
 		TMap<mu::Ptr<const mu::Mesh>, int32, FDefaultSetAllocator, FDeduplicationMeshFuncs> MeshConstantMap;
+
+		/** Image operation functions, so that they can be overriden. */
+		FImageOperator& ImageOperator;
 	};
 
 

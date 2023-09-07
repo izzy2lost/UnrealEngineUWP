@@ -778,7 +778,7 @@ namespace mu
 		if (!Mask 
 			&& 
 			// Flags have to match exactly for this optimize case. Other flags are not supported.
-			Args.flags== OP::ImageLayerArgs::F_USE_MASK_FROM_BLENDED
+			Args.flags == OP::ImageLayerArgs::F_USE_MASK_FROM_BLENDED
 			&&
 			Args.blendType == uint8(EBlendType::BT_BLEND)
 			&&
@@ -1094,7 +1094,7 @@ namespace mu
 					case EBlendType::BT_BLEND: 
 					{
 						// In this case we know it is already an uncompressed image, and we won't need additional allocations;
-						FImageOperator ImOp = FImageOperator::GetDefault();
+						FImageOperator ImOp = FImageOperator::GetDefault(FImageOperator::FImagePixelFormatFunc());
 						ImOp.FillColor( Result.get(), Color); 
 						break;
 					}
@@ -1184,6 +1184,7 @@ namespace mu
 		EImageFormat TargetFormat = EImageFormat::IF_NONE;
 		Ptr<const Image> Base;
 		Ptr<Image> Result;
+		FImageOperator::FImagePixelFormatFunc ImagePixelFormatFunc;
 	};
 
 
@@ -1226,6 +1227,8 @@ namespace mu
 			return false;
 		}
 
+		ImagePixelFormatFunc = Runner->m_pSystem->ImagePixelFormatOverride;
+
 		// Create destination data
 		Result = Runner->CreateImage(Base->GetSizeX(), Base->GetSizeY(), Base->GetLODCount(), TargetFormat, EInitializationType::NotInitialized);
 		return true;
@@ -1238,7 +1241,7 @@ namespace mu
 		MUTABLE_CPUPROFILER_SCOPE(FImagePixelFormatTask);
 		
 		bool bSuccess = false;
-		FImageOperator ImOp = FImageOperator::GetDefault();
+		FImageOperator ImOp = FImageOperator::GetDefault(ImagePixelFormatFunc);
 		ImOp.ImagePixelFormat(bSuccess, ImageCompressionQuality, Result.get(), Base.get(), -1);
 
 		int32 OriginalDataSize = FMath::Max(Result->m_data.Num(), Base->m_data.Num());
@@ -1292,6 +1295,7 @@ namespace mu
 		Ptr<const Image> Base;
 		Ptr<Image> Result;
 		FImageOperator::FScratchImageMipmap Scratch;
+		FImageOperator::FImagePixelFormatFunc ImagePixelFormatFunc;
 	};
 
 
@@ -1350,6 +1354,8 @@ namespace mu
 		FImageOperator ImOp = MakeImageOperator(Runner);
 		ImOp.ImageMipmap_PrepareScratch( Result.get(), Base.get(), LevelCount, Scratch);
 
+		ImagePixelFormatFunc = Runner->m_pSystem->ImagePixelFormatOverride;
+
 		return true;
 	}
 
@@ -1360,8 +1366,8 @@ namespace mu
 		// This runs in a worker thread
 		MUTABLE_CPUPROFILER_SCOPE(FImageMipmapTask);
 
-		FImageOperator ImOp = FImageOperator::GetDefault();
 		FMipmapGenerationSettings settings{};
+		FImageOperator ImOp = FImageOperator::GetDefault(ImagePixelFormatFunc);
 		ImOp.ImageMipmap(Scratch, ImageCompressionQuality, Result.get(), Base.get(), Result->GetLODCount(), settings);
 	}
 
@@ -1580,6 +1586,7 @@ namespace mu
 		OP::ImageResizeArgs Args;
 		Ptr<const Image> Base;
 		Ptr<Image> Result;
+		FImageOperator::FImagePixelFormatFunc ImagePixelFormatFunc;
 	};
 
 
@@ -1622,6 +1629,8 @@ namespace mu
 
 		Result = Runner->CreateImage( destSize[0], destSize[1], Lods, Base->GetFormat(), EInitializationType::NotInitialized );
 
+		ImagePixelFormatFunc = Runner->m_pSystem->ImagePixelFormatOverride;
+
 		return true;
 	}
 
@@ -1641,7 +1650,7 @@ namespace mu
 
 		// Warning: This will actually allocate temp memory that may exceed the budget.
 		// \TODO: Fix it.
-		FImageOperator ImOp = FImageOperator::GetDefault();
+		FImageOperator ImOp = FImageOperator::GetDefault(ImagePixelFormatFunc);
 		ImOp.ImageResizeLinear( Result.get(), ImageCompressionQuality, Base.get());
 
 		int32 LodCount = Result->GetLODCount();
@@ -1688,6 +1697,7 @@ namespace mu
 		Ptr<const Image> Base;
 		Ptr<Image> Result;
 		FImageSize DestSize;
+		FImageOperator::FImagePixelFormatFunc ImagePixelFormatFunc;
 	};
 
 
@@ -1730,6 +1740,8 @@ namespace mu
 
 		Result = Runner->CreateImage(DestSize[0], DestSize[1], Lods, Base->GetFormat(), EInitializationType::NotInitialized);
 
+		ImagePixelFormatFunc = Runner->m_pSystem->ImagePixelFormatOverride;
+
 		return true;
 	}
 
@@ -1740,7 +1752,7 @@ namespace mu
 		MUTABLE_CPUPROFILER_SCOPE(FImageResizeRelTask);
 
 		// \TODO: Track allocs
-		FImageOperator ImOp = FImageOperator::GetDefault();
+		FImageOperator ImOp = FImageOperator::GetDefault(ImagePixelFormatFunc);
 		ImOp.ImageResizeLinear(Result.get(), ImageCompressionQuality, Base.get());
 
 		int32 LodCount = Result->GetLODCount();
@@ -1842,6 +1854,7 @@ namespace mu
 		Ptr<const Image> Mask;
 		Ptr<Image> Result;
 		box< UE::Math::TIntVector2<uint16> > Rect;
+		FImageOperator::FImagePixelFormatFunc ImagePixelFormatFunc;
 	};
 
 
@@ -1950,6 +1963,8 @@ namespace mu
 			}
 		}
 
+		ImagePixelFormatFunc = Runner->m_pSystem->ImagePixelFormatOverride;
+
 		return true;
 	}
 
@@ -1966,7 +1981,7 @@ namespace mu
 
 			// Compose without a mask
 			// \TODO: track allocs
-			FImageOperator ImOp = FImageOperator::GetDefault();
+			FImageOperator ImOp = FImageOperator::GetDefault(ImagePixelFormatFunc);
 			ImOp.ImageCompose(Result.get(), Block.get(), Rect);
 		}
 		else

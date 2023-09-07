@@ -597,6 +597,8 @@ struct FMutableOperationData
 	EUpdateResult UpdateResult;
 	FInstanceUpdateDelegate UpdateCallback;
 
+	mu::FImageOperator::FImagePixelFormatFunc PixelFormatOverride;
+
 #if WITH_EDITOR
 	/** Used for profiling in the editor. */
 	uint32 MutableRuntimeCycles = 0;
@@ -689,6 +691,10 @@ public:
 	static int32 MaxTextureSizeToGenerate;
 	static int32 SkeletalMeshMinLodQualityLevel;
 	static bool bEnableMutableReusePreviousUpdateData;
+
+#if WITH_EDITOR
+	mu::FImageOperator::FImagePixelFormatFunc ImageFormatOverrideFunc;
+#endif
 
 	/** */
 	inline void AddGameThreadTask(const FMutableTask& Task)

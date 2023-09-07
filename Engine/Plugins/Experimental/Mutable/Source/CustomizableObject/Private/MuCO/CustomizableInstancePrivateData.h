@@ -4,6 +4,8 @@
 
 
 #include "Materials/MaterialInterface.h"
+#include "Rendering/SkeletalMeshLODModel.h"
+#include "Rendering/SkeletalMeshModel.h"
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectSystemPrivate.h"
 
@@ -270,6 +272,11 @@ public:
 
 	/** Set OnlyLOD to -1 to generate all mips */
 	CUSTOMIZABLEOBJECT_API static FTexturePlatformData* MutableCreateImagePlatformData(mu::Ptr<const mu::Image> MutableImage, int32 OnlyLOD, uint16 FullSizeX, uint16 FullSizeY);
+
+	/** */
+#if WITH_EDITORONLY_DATA
+	static void RegenerateImportedModel(USkeletalMesh* SkeletalMesh);
+#endif
 
 private:
 

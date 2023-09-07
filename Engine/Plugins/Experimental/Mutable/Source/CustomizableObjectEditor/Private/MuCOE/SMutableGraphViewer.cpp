@@ -17,6 +17,7 @@
 #include "Widgets/Input/STextComboBox.h"
 #include "Widgets/Input/SNumericDropDown.h"
 #include "Widgets/Views/STreeView.h"
+#include "ScopedTransaction.h"
 
 class FExtender;
 class FReferenceCollector;
@@ -302,6 +303,23 @@ TSharedRef<SWidget> SMutableGraphViewer::GenerateCompileOptionsMenuContent()
 			;
 		MenuBuilder.AddWidget(CompileOptimizationCombo.ToSharedRef(), LOCTEXT("MutableCompileOptimizationLevel", "Optimization Level"));
 
+		{
+			CompileTextureCompressionStrings.Empty();
+			CompileTextureCompressionStrings.Add(MakeShareable(new FString(LOCTEXT("MutableTextureCompressionNone", "None").ToString())));
+			CompileTextureCompressionStrings.Add(MakeShareable(new FString(LOCTEXT("MutableTextureCompressionFast", "Fast").ToString())));
+			CompileTextureCompressionStrings.Add(MakeShareable(new FString(LOCTEXT("MutableTextureCompressionHighQuality", "High Quality").ToString())));
+
+			int32 SelectedCompression = FMath::Clamp(int32(CompileOptions.TextureCompression), 0, CompileTextureCompressionStrings.Num() - 1);
+			CompileTextureCompressionCombo =
+				SNew(STextComboBox)
+				.OptionsSource(&CompileTextureCompressionStrings)
+				.InitiallySelectedItem(CompileTextureCompressionStrings[SelectedCompression])
+				.OnSelectionChanged(this, &SMutableGraphViewer::OnChangeCompileTextureCompressionType)
+				;
+
+			MenuBuilder.AddWidget(CompileTextureCompressionCombo.ToSharedRef(), LOCTEXT("MutableCompileTextureCompressionType", "Texture Compression"));
+		}
+
 		// Image tiling
 		// Unfortunately SNumericDropDown doesn't work with integers at the time of writing.
 		TArray<SNumericDropDown<float>::FNamedValue> TilingOptions;
@@ -337,9 +355,16 @@ TSharedRef<SWidget> SMutableGraphViewer::GenerateCompileOptionsMenuContent()
 }
 
 
-void SMutableGraphViewer::OnChangeCompileOptimizationLevel(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo)
+void SMutableGraphViewer::OnChangeCompileOptimizationLevel(TSharedPtr<FString> NewSelection, ESelectInfo::Type)
 {
 	CompileOptions.OptimizationLevel = CompileOptimizationStrings.Find(NewSelection);
+}
+
+
+void SMutableGraphViewer::OnChangeCompileTextureCompressionType(TSharedPtr<FString> NewSelection, ESelectInfo::Type)
+{
+	const FScopedTransaction Transaction(LOCTEXT("ChangedOptimizationLevelTransaction", "Changed Optimization Level"));
+	CompileOptions.TextureCompression = ECustomizableObjectTextureCompression(CompileTextureCompressionStrings.Find(NewSelection));
 }
 
 

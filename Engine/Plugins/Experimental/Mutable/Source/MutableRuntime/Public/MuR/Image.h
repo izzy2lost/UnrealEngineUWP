@@ -537,15 +537,22 @@ namespace mu
 		FImageReleaseFunc ReleaseImage;
 		FImageCloneFunc CloneImage;
 
-		FImageOperator(FImageCreateFunc Create, FImageReleaseFunc Release, FImageCloneFunc Clone) : CreateImage(Create), ReleaseImage(Release), CloneImage(Clone) {};
+		/** Interface to override the internal mutable image pixel format conversion functions.
+		* Arguments match the FImageOperator::ImagePixelFormat function.
+		*/
+		typedef TFunction<void(bool&, int32, Image*, const Image*, int32)> FImagePixelFormatFunc;
+		FImagePixelFormatFunc FormatImageOverride;
+
+		FImageOperator(FImageCreateFunc Create, FImageReleaseFunc Release, FImageCloneFunc Clone, FImagePixelFormatFunc FormatOverride) : CreateImage(Create), ReleaseImage(Release), CloneImage(Clone), FormatImageOverride(FormatOverride) {};
 
 		/** Create an default version for untracked resources. */
-		static inline FImageOperator GetDefault()
+		static FImageOperator GetDefault( const FImagePixelFormatFunc& InFormatOverride )
 		{
 			return FImageOperator(
-				[](int32 x, int32 y, int32 m, EImageFormat f, EInitializationType i) { return new Image(x, y, m, f, EInitializationType::NotInitialized); },
+				[](int32 x, int32 y, int32 m, EImageFormat f, EInitializationType i) { return new Image(x, y, m, f, i); },
 				[](Ptr<Image>& i) {i = nullptr; },
-				[](const Image* i) { return i->Clone(); }
+				[](const Image* i) { return i->Clone(); },
+				InFormatOverride
 			);
 		}
 

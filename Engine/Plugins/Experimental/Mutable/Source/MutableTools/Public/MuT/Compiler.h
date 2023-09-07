@@ -5,6 +5,7 @@
 #include "HAL/PlatformMath.h"
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
+#include "MuR/Image.h"
 #include "Templates/SharedPointer.h"
 
 namespace mu
@@ -13,10 +14,6 @@ namespace mu
     class Compiler;
     typedef Ptr<Compiler> CompilerPtr;
     typedef Ptr<const Compiler> CompilerPtrConst;
-
-    class CompilerOptions;
-    using CompilerOptionsPtr=Ptr<CompilerOptions>;
-    using CompilerOptionsPtrConst=Ptr<const CompilerOptions>;
 
     class Model;
     using ModelPtr=Ptr<Model>;
@@ -75,6 +72,9 @@ namespace mu
 		/** If enabled it will make sure that the object is compile to generate smaller mips of the images. */
 		void SetEnableProgressiveImages(bool bEnabled);
 
+		/** Set an optional pixel conversion function that will be called before any pixel format conversion. */
+		void SetImagePixelFormatOverride(const FImageOperator::FImagePixelFormatFunc&);
+
         //! Different data packing strategies
         enum class TextureLayoutStrategy : uint8
         {
@@ -88,7 +88,7 @@ namespace mu
             Count
         };
 
-        //! Return a readable string for a GPU.
+        //! 
         static const char* GetTextureLayoutStrategyName( TextureLayoutStrategy s );
 
         //-----------------------------------------------------------------------------------------
@@ -122,7 +122,7 @@ namespace mu
     {
     public:
 
-        Compiler( CompilerOptionsPtr options=nullptr );
+        Compiler( Ptr<CompilerOptions> Options=nullptr );
 
         //! Compile the expression into a run-time model.
 		TSharedPtr<Model> Compile( const Ptr<Node>& pNode );

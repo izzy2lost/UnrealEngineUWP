@@ -8,6 +8,7 @@
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectInstanceDescriptor.h"
 #include "MuR/Parameters.h"
+#include "MuR/Image.h"
 #include "MuR/Types.h"
 
 #if WITH_EDITOR
@@ -257,6 +258,10 @@ public:
 
 	bool IsOnlyGenerateRequestedLODsEnabled() const;
 	void SetOnlyGenerateRequestedLODsEnabled(bool bIsEnabled);
+
+#if WITH_EDITOR
+	void SetImagePixelFormatOverride(const mu::FImageOperator::FImagePixelFormatFunc&);
+#endif
 
 	void AddPendingReleaseSkeletalMesh( USkeletalMesh* SkeletalMesh );
 

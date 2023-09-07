@@ -429,21 +429,19 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	class ConstantTask 
 	{
-	public:
-		// input
-		mu::Ptr<ASTOp> m_source;
-		bool bUseDiskCache = false;
-		int ImageCompressionQuality = 0;
-
 	private:
 
 		//
 		mu::Ptr<ASTOp> m_result;
 
 	public:
+		// input
+		mu::Ptr<ASTOp> m_source;
+		bool bUseDiskCache = false;
+		int ImageCompressionQuality = 0;
 
-		// mu::Task interface
-		void Run()
+
+		void Run(FImageOperator ImOp)
 		{
 			MUTABLE_CPUPROFILER_SCOPE(ConstantTask_Run);
 
@@ -458,8 +456,10 @@ namespace mu
 			pSettings->SetImageCompressionQuality( ImageCompressionQuality );
 			SystemPtr pSystem = new System( pSettings );
 
+			pSystem->GetPrivate()->ImagePixelFormatOverride = ImOp.FormatImageOverride;
+
 			// Don't generate mips suring linking here.
-			FLinkerOptions LinkerOptions;
+			FLinkerOptions LinkerOptions(ImOp);
 			LinkerOptions.MinTextureResidentMipCount = 255;
 
 			TSharedPtr<const Model> model = MakeShared<Model>();
@@ -751,7 +751,8 @@ namespace mu
 					constantTask->m_source = n;
 					constantTask->ImageCompressionQuality = options->ImageCompressionQuality;
 
-					constantTask->Run();
+					FImageOperator ImOp = FImageOperator::GetDefault(options->ImageFormatFunc);
+					constantTask->Run(ImOp);
 					constantTask->Complete();
 					delete constantTask;
 
@@ -785,7 +786,7 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	//-------------------------------------------------------------------------------------------------
 	//-------------------------------------------------------------------------------------------------
-	CodeOptimiser::CodeOptimiser( CompilerOptionsPtr options, vector<STATE_COMPILATION_DATA>& states )
+	CodeOptimiser::CodeOptimiser(Ptr<CompilerOptions> options, vector<STATE_COMPILATION_DATA>& states )
 		: m_states( states )
 	{
 		m_options = options;
