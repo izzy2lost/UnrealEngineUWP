@@ -239,8 +239,6 @@ bool URuntimeVirtualTextureComponent::IsStreamingTextureInvalid(EShadingPath Sha
 
 bool URuntimeVirtualTextureComponent::IsStreamingTextureInvalid() const
 {
-	checkf(IsActiveInWorld(), TEXT("This function should never be called for a world where we're inactive"));
-
 	return 
 		VirtualTexture != nullptr && 
 		StreamingTexture != nullptr && 
